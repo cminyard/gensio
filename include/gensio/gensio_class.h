@@ -95,6 +95,12 @@ struct gensio_func_open_channel_data {
 };
 #define GENSIO_FUNC_OPEN_CHANNEL	11
 
+/*
+ * option => buflen
+ * auxdata => auxdata
+ */
+#define GENSIO_FUNC_CONTROL		12
+
 typedef int (*gensio_func)(struct gensio *io, int func, unsigned int *count,
 			   const void *buf, unsigned int buflen,
 			   void *auxdata);

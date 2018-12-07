@@ -459,6 +459,13 @@ int gensio_open_channel_s(struct gensio *io, const char *args,
 			  struct gensio **new_io);
 
 /*
+ * Perform a gensio-specific operation on the gensio (if depth is 0) or
+ * one of its children (depth > 0).
+ */
+int gensio_control(struct gensio *io, unsigned int depth,
+		   unsigned int option, void *auxdata);
+
+/*
  * Return the type string for the gensio (if depth is 0) or one of its
  * children (depth > 0).  Return NULL if the depth is greater than the
  * number of children.

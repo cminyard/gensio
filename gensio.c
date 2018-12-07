@@ -707,6 +707,22 @@ gensio_open_channel_s(struct gensio *io, const char *args,
     return err;
 }
 
+int
+gensio_control(struct gensio *io, unsigned int depth,
+	       unsigned int option, void *auxdata)
+{
+    struct gensio *c = io;
+
+    while (depth > 0) {
+	if (!c->child)
+	    return ENOENT;
+	depth--;
+	c = c->child;
+    }
+
+    return c->func(c, GENSIO_FUNC_CONTROL, NULL, NULL, option, auxdata);
+}
+
 const char *
 gensio_get_type(struct gensio *io, unsigned int depth)
 {
