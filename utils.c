@@ -1,5 +1,5 @@
 /*
- *  ser2net - A program for allowing telnet connection to serial ports
+ *  gensio - A library for abstracting stream I/O
  *  Copyright (C) 2001  Corey Minyard <minyard@acm.org>
  *
  *  This program is free software; you can redistribute it and/or modify
@@ -16,8 +16,6 @@
  *  along with this program; if not, write to the Free Software
  *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
-
-/* This file holds basic utilities used by the ser2net program. */
 
 #include <stdlib.h>
 #include <stdbool.h>

@@ -463,65 +463,6 @@ def io_close(io, timeout = 1000):
                         ("io_close", io.handler.name))
     return
 
-def setup_2_ser2net(o, config, io1str, io2str, do_io1_open = True,
-                    extra_args = ""):
-    """Setup a ser2net daemon and two gensio connections
-
-    Create a ser2net daemon instance with the given config and two
-    gensio connections with the given strings.
-
-    If io1str is None, use the stdio of the ser2net connection as
-    io1 (generally for testing stdio to ser2net).
-
-    A "closeme" boolean attribute is added to io1 telling if They
-    should be closed upon completion of the test, this is set to false
-    for ser2net stdio.
-    """
-    io1 = None
-    io2 = None
-    ser2net = Ser2netDaemon(o, config, extra_args = extra_args)
-    try:
-        if (io1str):
-            io1 = alloc_io(o, io1str, do_io1_open)
-            io1.closeme = True
-        else:
-            io1 = ser2net.io
-            io1.handler.ignore_input = False
-            io1.closeme = False
-        io2 = alloc_io(o, io2str)
-        io2.closeme = True
-    except:
-        if io1:
-            if io1.closeme:
-                io_close(io1)
-        if io2:
-            io_close(io2)
-        ser2net.terminate()
-        raise
-    return (ser2net, io1, io2)
-
-def finish_2_ser2net(ser2net, io1, io2, handle_except = True):
-    if io1.closeme:
-        try:
-            io_close(io1)
-        except:
-            pass
-    else:
-        io1.handler.ignore_input = True
-    if io2.closeme:
-        try:
-            io_close(io2)
-        except:
-            pass
-    else:
-        io2.handler.ignore_input = True
-    if handle_except and sys.exc_info()[0]:
-        g = gensio.waiter(ser2net.o)
-        print("Exception occurred, waiting a bit for things to clear.")
-        g.wait_timeout(1, 2000)
-    ser2net.terminate()
-    return
-
 srcdir = os.getenv("srcdir")
 if not srcdir:
     srcdir = os.path.dirname(sys.argv[0])

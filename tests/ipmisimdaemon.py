@@ -21,7 +21,7 @@ mc_enable 0x20\n
 """
 
 default_ipmisim_config = """
-name "ser2net_sim"\n
+name "gensio_sim"\n
 \n
 set_working_mc 0x20\n
 \n

@@ -1,6 +1,8 @@
 
 AM_CFLAGS = -I$(top_srcdir)/include -I$(top_srcdir) $(OPENSSL_INCLUDES)
 
+ACLOCAL_AMFLAGS = -I m4
+
 lib_LTLIBRARIES = libgensio.la
 
 noinst_HEADERS = telnet.h heap.h utils.h uucplock.h buffer.h \
@@ -16,6 +18,6 @@ libgensio_la_SOURCES = \
 	gensio_ll_ipmisol.c sergensio_ipmisol.c \
 	utils.c selector.c
 
-SUBDIRS = . include $(SWIG_DIR)
+SUBDIRS = . include $(SWIG_DIR) tests
 
 DIST_SUBDIRS = swig
