@@ -18,6 +18,8 @@ libgensio_la_SOURCES = \
 	gensio_ll_ipmisol.c sergensio_ipmisol.c \
 	utils.c selector.c
 
+libgensio_la_LDFLAGS = $(OPENSSL_LIBS)
+
 SUBDIRS = . include $(SWIG_DIR) tests
 
 DIST_SUBDIRS = swig
