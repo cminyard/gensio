@@ -1,0 +1,21 @@
+
+AM_CFLAGS = -I$(top_srcdir)/include
+
+noinst_PROGRAMS = sertest
+
+sertest_SOURCES = sertest.c
+
+sertest_LDADD = $(top_builddir)/libgensio.la -lreadline $(OPENSSL_LIBS)
+
+utst_builddir = $(shell readlink -f $(top_builddir))
+utst_srcdir = $(shell readlink -f $(top_srcdir))
+
+AM_TESTS_ENVIRONMENT = PYTHONPATH=$(utst_builddir)/swig/python:$(utst_builddir)/swig/python/.libs TESTPATH=$(utst_srcdir)/tests
+
+test_setup:
+	echo $(AM_TESTS_ENVIRONMENT) python $(utst_srcdir)/tests/
+
+TESTS = test_gensio.py
+
+EXTRA_DIST = $(TESTS) utils.py dataxfer.py ipmisimdaemon.py termioschk.py \
+	CA.pem cert.pem key.pem
