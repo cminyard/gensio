@@ -50,11 +50,12 @@ child_set_callbacks(struct gensio_ll *ll, gensio_ll_cb cb, void *cb_data)
 
 static int
 child_write(struct gensio_ll *ll, unsigned int *rcount,
-	    const unsigned char *buf, unsigned int buflen)
+	    const unsigned char *buf, unsigned int buflen,
+	    void *auxdata)
 {
     struct gensio_ll_child *cdata = ll_to_child(ll);
 
-    return gensio_write(cdata->ll.child, rcount, buf, buflen);
+    return gensio_write(cdata->ll.child, rcount, buf, buflen, auxdata);
 }
 
 static int
@@ -161,7 +162,7 @@ gensio_ll_child_func(struct gensio_ll *ll, int op, int val,
 	return 0;
 
     case GENSIO_LL_FUNC_WRITE:
-	return child_write(ll, count, cbuf, buflen);
+	return child_write(ll, count, cbuf, buflen, data);
 
     case GENSIO_LL_FUNC_RADDR_TO_STR:
 	return child_raddr_to_str(ll, count, buf, buflen);

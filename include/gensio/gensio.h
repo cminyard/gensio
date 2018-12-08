@@ -387,9 +387,12 @@ void gensio_set_user_data(struct gensio *io, void *user_data);
  * it is less than buflen, then not all the data was written.
  * Note that count may be set to zero.  This can happen on an
  * EAGAIN type situation.  count may be NULL if you don't care.
+ * auxdata contains additional information about the write,
+ * and depends on the particular gensio type.
  */
 int gensio_write(struct gensio *io, unsigned int *count,
-		 const void *buf, unsigned int buflen);
+		 const void *buf, unsigned int buflen,
+		 void *auxdata);
 
 /*
  * Convert the remote address for this network connection to a

@@ -591,9 +591,10 @@ gensio_set_user_data(struct gensio *io, void *user_data)
 
 int
 gensio_write(struct gensio *io, unsigned int *count,
-	     const void *buf, unsigned int buflen)
+	     const void *buf, unsigned int buflen,
+	     void *auxdata)
 {
-    return io->func(io, GENSIO_FUNC_WRITE, count, buf, buflen, NULL);
+    return io->func(io, GENSIO_FUNC_WRITE, count, buf, buflen, auxdata);
 }
 
 int

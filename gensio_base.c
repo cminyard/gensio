@@ -271,7 +271,7 @@ ll_write(struct basen_data *ndata, unsigned int *rcount,
     printf("LL write:");
     prbuf(buf, buflen);
 #endif
-    return gensio_ll_write(ndata->ll, rcount, buf, buflen);
+    return gensio_ll_write(ndata->ll, rcount, buf, buflen, NULL);
 }
 
 static int
@@ -1228,9 +1228,10 @@ gensio_ll_set_callback(struct gensio_ll *ll,
 
 int
 gensio_ll_write(struct gensio_ll *ll, unsigned int *rcount,
-		const unsigned char *buf, unsigned int buflen)
+		const unsigned char *buf, unsigned int buflen,
+		void *auxdata)
 {
-    return ll->func(ll, GENSIO_LL_FUNC_WRITE, 0, NULL, NULL,
+    return ll->func(ll, GENSIO_LL_FUNC_WRITE, 0, NULL, auxdata,
 		    rcount, NULL, buf, buflen);
 }
 

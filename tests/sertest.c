@@ -218,7 +218,7 @@ child_event(struct gensio *net, int event, int readerr,
 	}
 
 	le->write_err = gensio_write(le->io, &written, le->to_write,
-				     le->to_write_len);
+				     le->to_write_len, NULL);
 	if (le->write_err || written >= le->to_write_len) {
 	    dbgout(c, 2, "Write finished, err=%d, count=%d\n",
 		   le->write_err, written);

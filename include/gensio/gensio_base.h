@@ -221,7 +221,8 @@ void gensio_ll_set_callback(struct gensio_ll *ll,
  */
 #define GENSIO_LL_FUNC_WRITE			2
 int gensio_ll_write(struct gensio_ll *ll, unsigned int *rcount,
-		    const unsigned char *buf, unsigned int buflen);
+		    const unsigned char *buf, unsigned int buflen,
+		    void *auxdata);
 
 /*
  * pos => count
