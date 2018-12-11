@@ -274,12 +274,12 @@ str_to_tcp_gensio(const char *str, char *args[],
     struct addrinfo *ai;
     int err;
 
-    err = gensio_scan_netaddr(str, false, &ai);
+    err = gensio_scan_netaddr(o, str, false, &ai);
     if (err)
 	return err;
 
     err = tcp_gensio_alloc(ai, args, o, cb, user_data, new_gensio);
-    freeaddrinfo(ai);
+    gensio_free_addrinfo(o, ai);
 
     return err;
 }
@@ -675,12 +675,12 @@ str_to_tcp_gensio_accepter(const char *str, char *args[],
     int err;
     struct addrinfo *ai;
 
-    err = gensio_scan_netaddr(str, false, &ai);
+    err = gensio_scan_netaddr(o, str, false, &ai);
     if (err)
 	return err;
 
     err = tcp_gensio_accepter_alloc(ai, args, o, cb, user_data, acc);
-    freeaddrinfo(ai);
+    gensio_free_addrinfo(o, ai);
 
     return err;
 }

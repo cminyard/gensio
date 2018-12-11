@@ -239,15 +239,8 @@ const char *gensio_check_tcpd_ok(int new_fd);
  * must free rai with freeaddrinfo().  If is_dgram is true, allocate
  * a datagram socket, otherwise a stream socket.
  */
-int gensio_scan_netaddr(const char *str, bool is_dgram, struct addrinfo **rai);
-
-/*
- * There are no provided routines to duplicate addrinfo structures,
- * so we really need to do it ourselves.
- */
-struct addrinfo *gensio_dup_addrinfo(struct gensio_os_funcs *o,
-				     struct addrinfo *ai);
-void gensio_free_addrinfo(struct gensio_os_funcs *o, struct addrinfo *ai);
+int gensio_scan_netaddr(struct gensio_os_funcs *o,
+			const char *str, bool is_dgram, struct addrinfo **rai);
 
 char *gensio_strdup(struct gensio_os_funcs *o, const char *str);
 

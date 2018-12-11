@@ -389,18 +389,19 @@ strisallzero(const char *str)
  * absence of a hostname specification, a wildcard address is used.
  * The mandatory second part is the port number or a service name.
  *
- * If the port is all zero, then is_port_set is set to true, false
+ * If the port is all zero, then is_port_set is set to false, true
  * otherwise.  If the address is UDP, is_dgram is set to true, false
  * otherwise.
  */
 static int
-scan_network_port_args(const char *str, struct addrinfo **rai, bool *is_dgram,
+scan_network_port_args(struct gensio_os_funcs *o,
+		       const char *str, struct addrinfo **rai, bool *is_dgram,
 		       bool *is_port_set, int *argc, char ***args)
 {
     char *strtok_data, *strtok_buffer;
     char *ip;
     char *port;
-    struct addrinfo hints, *ai;
+    struct addrinfo hints, *ai, *ai2;
     int family = AF_UNSPEC;
     int socktype = SOCK_STREAM;
     int err = 0;
@@ -443,7 +444,7 @@ scan_network_port_args(const char *str, struct addrinfo **rai, bool *is_dgram,
 	    return err;
     }
 
-    strtok_buffer = strdup(str);
+    strtok_buffer = gensio_strdup(o, str);
     if (!strtok_buffer)
 	return ENOMEM;
 
@@ -459,9 +460,10 @@ scan_network_port_args(const char *str, struct addrinfo **rai, bool *is_dgram,
     hints.ai_family = family;
     hints.ai_socktype = socktype;
     if (getaddrinfo(ip, port, &hints, &ai)) {
-	free(strtok_buffer);
+	o->free(o, strtok_buffer);
 	return EINVAL;
     }
+    o->free(o, strtok_buffer);
 
     if (is_dgram)
 	*is_dgram = socktype == SOCK_DGRAM;
@@ -469,27 +471,33 @@ scan_network_port_args(const char *str, struct addrinfo **rai, bool *is_dgram,
     if (is_port_set)
 	*is_port_set = !strisallzero(port);
 
-    free(strtok_buffer);
+    ai2 = gensio_dup_addrinfo(o, ai);
+    freeaddrinfo(ai);
+    if (!ai2)
+	return ENOMEM;
     if (*rai)
-	freeaddrinfo(*rai);
-    *rai = ai;
+	gensio_free_addrinfo(o, *rai);
+    *rai = ai2;
     return 0;
 }
 
 int
-scan_network_port(const char *str, struct addrinfo **ai, bool *is_dgram,
+gensio_scan_network_port(struct gensio_os_funcs *o,
+		  const char *str, struct addrinfo **ai, bool *is_dgram,
 		  bool *is_port_set)
 {
-    return scan_network_port_args(str, ai, is_dgram, is_port_set, NULL, NULL);
+    return scan_network_port_args(o, str, ai, is_dgram, is_port_set,
+				  NULL, NULL);
 }
 
 int
-gensio_scan_netaddr(const char *str, bool is_dgram, struct addrinfo **rai)
+gensio_scan_netaddr(struct gensio_os_funcs *o,
+		    const char *str, bool is_dgram, struct addrinfo **rai)
 {
     char *strtok_data, *strtok_buffer;
     char *ip;
     char *port;
-    struct addrinfo hints, *ai;
+    struct addrinfo hints, *ai, *ai2;
     int family = AF_UNSPEC;
     int socktype = SOCK_STREAM;
 
@@ -504,7 +512,7 @@ gensio_scan_netaddr(const char *str, bool is_dgram, struct addrinfo **rai)
 	str += 5;
     }
 
-    strtok_buffer = strdup(str);
+    strtok_buffer = gensio_strdup(o, str);
     if (!strtok_buffer)
 	return ENOMEM;
 
@@ -520,12 +528,17 @@ gensio_scan_netaddr(const char *str, bool is_dgram, struct addrinfo **rai)
     hints.ai_family = family;
     hints.ai_socktype = socktype;
     if (getaddrinfo(ip, port, &hints, &ai)) {
-	free(strtok_buffer);
+	o->free(o, strtok_buffer);
 	return EINVAL;
     }
+    o->free(o, strtok_buffer);
 
-    free(strtok_buffer);
-    *rai = ai;
+    ai2 = gensio_dup_addrinfo(o, ai);
+    freeaddrinfo(ai);
+    if (!ai2)
+	return ENOMEM;
+
+    *rai = ai2;
     return 0;
 }
 
@@ -1011,7 +1024,7 @@ int str_to_gensio_accepter(const char *str,
 	err = stdio_gensio_accepter_alloc(dummy_args, o, cb, user_data,
 					  accepter);
     } else {
-	err = scan_network_port_args(str, &ai, &is_dgram, &is_port_set,
+	err = scan_network_port_args(o, str, &ai, &is_dgram, &is_port_set,
 				     &argc, &args);
 	if (!err) {
 	    if (!is_port_set) {
@@ -1024,7 +1037,7 @@ int str_to_gensio_accepter(const char *str,
 						user_data, accepter);
 	    }
 
-	    freeaddrinfo(ai);
+	    gensio_free_addrinfo(o, ai);
 	}
     }
 
@@ -1126,7 +1139,7 @@ str_to_gensio(const char *str,
 	goto out;
     }
 
-    err = scan_network_port_args(str, &ai, &is_dgram, &is_port_set,
+    err = scan_network_port_args(o, str, &ai, &is_dgram, &is_port_set,
 				 &argc, &args);
     if (!err) {
 	if (!is_port_set) {
@@ -1137,7 +1150,7 @@ str_to_gensio(const char *str,
 	    err = tcp_gensio_alloc(ai, args, o, cb, user_data, gensio);
 	}
 
-	freeaddrinfo(ai);
+	gensio_free_addrinfo(o, ai);
     }
 
  out:

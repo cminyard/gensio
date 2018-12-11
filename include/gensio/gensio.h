@@ -850,8 +850,11 @@ bool sockaddr_equal(const struct sockaddr *a1, socklen_t l1,
  * If the port is all zero, then is_port_set is set to true, false
  * otherwise.  If the address is UDP, is_dgram is set to true, false
  * otherwise.
+ *
+ * ai should be freed with gensio_free_addrinfo().
  */
-int scan_network_port(const char *str, struct addrinfo **ai, bool *is_dgram,
+int gensio_scan_network_port(struct gensio_os_funcs *o,
+		      const char *str, struct addrinfo **ai, bool *is_dgram,
 		      bool *is_port_set);
 
 /*
@@ -926,6 +929,14 @@ int gensio_get_default(struct gensio_os_funcs *o,
 		       const char *class, const char *name, bool classonly,
 		       enum gensio_default_type type,
 		       const char **strval, int *intval);
+
+/*
+ * There are no provided routines to duplicate addrinfo structures,
+ * so we really need to do it ourselves.
+ */
+struct addrinfo *gensio_dup_addrinfo(struct gensio_os_funcs *o,
+				     struct addrinfo *ai);
+void gensio_free_addrinfo(struct gensio_os_funcs *o, struct addrinfo *ai);
 
 /*
  * This allows a global to disable uucp locking for everything.
