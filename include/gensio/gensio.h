@@ -847,15 +847,19 @@ bool sockaddr_equal(const struct sockaddr *a1, socklen_t l1,
  * absence of a hostname specification, a wildcard address is used.
  * The mandatory second part is the port number or a service name.
  *
- * If the port is all zero, then is_port_set is set to true, false
- * otherwise.  If the address is UDP, is_dgram is set to true, false
- * otherwise.
+ * If the port is all zero or not present, then is_port_set is set to
+ * true, false otherwise.
+ *
+ * The socktype and protocol values are returned for the socket()
+ * call.  For UDP, it's SOCK_DGRAM and IPPROTO_UDP and for TCP
+ * it's SOCK_SCTREAM and IPPROTO_TCP.
  *
  * ai should be freed with gensio_free_addrinfo().
  */
 int gensio_scan_network_port(struct gensio_os_funcs *o,
-		      const char *str, struct addrinfo **ai, bool *is_dgram,
-		      bool *is_port_set);
+			     const char *str, struct addrinfo **ai,
+			     int *socktype, int *protocol,
+			     bool *is_port_set);
 
 /*
  * This allows a global to disable uucp locking for everything.

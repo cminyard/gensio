@@ -395,7 +395,8 @@ strisallzero(const char *str)
  */
 static int
 scan_network_port_args(struct gensio_os_funcs *o,
-		       const char *str, struct addrinfo **rai, bool *is_dgram,
+		       const char *str, struct addrinfo **rai,
+		       int *socktype, int *protocol,
 		       bool *is_port_set, int *argc, char ***args)
 {
     char *strtok_data, *strtok_buffer;
@@ -403,7 +404,6 @@ scan_network_port_args(struct gensio_os_funcs *o,
     char *port;
     struct addrinfo hints, *ai, *ai2;
     int family = AF_UNSPEC;
-    int socktype = SOCK_STREAM;
     int err = 0;
 
     if (strncmp(str, "ipv4,", 5) == 0) {
@@ -424,11 +424,10 @@ scan_network_port_args(struct gensio_os_funcs *o,
 	}
 	if (err)
 	    return err;
+	*socktype = SOCK_STREAM;
+	*protocol = IPPROTO_TCP;
     } else if (strncmp(str, "udp,", 4) == 0 ||
 	       (args && strncmp(str, "udp(", 4) == 0)) {
-	/* Only allow UDP if asked for. */
-	if (!is_dgram)
-	    return EINVAL;
 	if (args) {
 	    str += 3;
 	    err = gensio_scan_args(&str, argc, args);
@@ -437,7 +436,8 @@ scan_network_port_args(struct gensio_os_funcs *o,
 	}
 	if (err)
 	    return err;
-	socktype = SOCK_DGRAM;
+	*socktype = SOCK_DGRAM;
+	*protocol = IPPROTO_UDP;
     } else if (args) {
 	err = str_to_argv_lengths("", argc, args, NULL, ")");
 	if (err)
@@ -458,15 +458,13 @@ scan_network_port_args(struct gensio_os_funcs *o,
     memset(&hints, 0, sizeof(hints));
     hints.ai_flags = AI_PASSIVE;
     hints.ai_family = family;
-    hints.ai_socktype = socktype;
+    hints.ai_socktype = *socktype;
+    hints.ai_protocol = *protocol;
     if (getaddrinfo(ip, port, &hints, &ai)) {
 	o->free(o, strtok_buffer);
 	return EINVAL;
     }
     o->free(o, strtok_buffer);
-
-    if (is_dgram)
-	*is_dgram = socktype == SOCK_DGRAM;
 
     if (is_port_set)
 	*is_port_set = !strisallzero(port);
@@ -483,10 +481,11 @@ scan_network_port_args(struct gensio_os_funcs *o,
 
 int
 gensio_scan_network_port(struct gensio_os_funcs *o,
-		  const char *str, struct addrinfo **ai, bool *is_dgram,
-		  bool *is_port_set)
+			 const char *str, struct addrinfo **ai,
+			 int *socktype, int *protocol,
+			 bool *is_port_set)
 {
-    return scan_network_port_args(o, str, ai, is_dgram, is_port_set,
+    return scan_network_port_args(o, str, ai, socktype, protocol, is_port_set,
 				  NULL, NULL);
 }
 
@@ -993,7 +992,8 @@ int str_to_gensio_accepter(const char *str,
 {
     int err;
     struct addrinfo *ai = NULL;
-    bool is_dgram, is_port_set;
+    bool is_port_set;
+    int socktype, protocol;
     char *dummy_args[1] = { NULL };
     int argc;
     char **args = NULL;
@@ -1024,17 +1024,19 @@ int str_to_gensio_accepter(const char *str,
 	err = stdio_gensio_accepter_alloc(dummy_args, o, cb, user_data,
 					  accepter);
     } else {
-	err = scan_network_port_args(o, str, &ai, &is_dgram, &is_port_set,
-				     &argc, &args);
+	err = scan_network_port_args(o, str, &ai, &socktype, &protocol,
+				     &is_port_set, &argc, &args);
 	if (!err) {
 	    if (!is_port_set) {
 		err = EINVAL;
-	    } else if (is_dgram) {
+	    } else if (protocol == IPPROTO_UDP) {
 		err = udp_gensio_accepter_alloc(ai, args, o, cb,
 						user_data, accepter);
-	    } else {
+	    } else if (protocol == IPPROTO_TCP) {
 		err = tcp_gensio_accepter_alloc(ai, args, o, cb,
 						user_data, accepter);
+	    } else {
+		err = EINVAL;
 	    }
 
 	    gensio_free_addrinfo(o, ai);
@@ -1107,7 +1109,8 @@ str_to_gensio(const char *str,
 {
     int err = 0;
     struct addrinfo *ai = NULL;
-    bool is_dgram, is_port_set;
+    bool is_port_set;
+    int socktype, protocol;
     int argc;
     char **args = NULL;
     struct registered_gensio *r;
@@ -1139,15 +1142,17 @@ str_to_gensio(const char *str,
 	goto out;
     }
 
-    err = scan_network_port_args(o, str, &ai, &is_dgram, &is_port_set,
-				 &argc, &args);
+    err = scan_network_port_args(o, str, &ai, &socktype, &protocol,
+				 &is_port_set, &argc, &args);
     if (!err) {
 	if (!is_port_set) {
 	    err = EINVAL;
-	} else if (is_dgram) {
+	} else if (protocol == IPPROTO_UDP) {
 	    err = udp_gensio_alloc(ai, args, o, cb, user_data, gensio);
-	} else {
+	} else if (protocol == IPPROTO_TCP) {
 	    err = tcp_gensio_alloc(ai, args, o, cb, user_data, gensio);
+	} else {
+	    err = EINVAL;
 	}
 
 	gensio_free_addrinfo(o, ai);
