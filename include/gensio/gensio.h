@@ -940,6 +940,13 @@ int gensio_get_default(struct gensio_os_funcs *o,
  */
 struct addrinfo *gensio_dup_addrinfo(struct gensio_os_funcs *o,
 				     struct addrinfo *ai);
+/*
+ * Concatenate to addrinfo functions.  If successful (non-NULL return),
+ * ai1 and ai2 are not usable any more.
+ */
+struct addrinfo *gensio_cat_addrinfo(struct gensio_os_funcs *o,
+				     struct addrinfo *ai1,
+				     struct addrinfo *ai2);
 void gensio_free_addrinfo(struct gensio_os_funcs *o, struct addrinfo *ai);
 
 /*

@@ -382,42 +382,79 @@ scan_ips(struct gensio_os_funcs *o, const char *str, int family,
 	 int socktype, int protocol, bool *is_port_set, struct addrinfo **rai)
 {
     char *strtok_data, *strtok_buffer;
-    struct addrinfo hints, *ai, *ai2;
+    struct addrinfo hints, *ai, *ai2 = NULL, *ai3;
     char *ip;
     char *port;
+    bool first = true, portset = false;
+    int rv = 0;
 
     strtok_buffer = gensio_strdup(o, str);
     if (!strtok_buffer)
 	return ENOMEM;
 
     ip = strtok_r(strtok_buffer, ",", &strtok_data);
-    port = strtok_r(NULL, "", &strtok_data);
-    if (port == NULL) {
-	port = ip;
-	ip = NULL;
+    while (ip) {
+	port = strtok_r(NULL, ",", &strtok_data);
+	if (port == NULL) {
+	    port = ip;
+	    ip = NULL;
+	}
+
+	memset(&hints, 0, sizeof(hints));
+	hints.ai_flags = AI_PASSIVE;
+	hints.ai_family = family;
+	hints.ai_socktype = socktype;
+	hints.ai_protocol = protocol;
+	if (getaddrinfo(ip, port, &hints, &ai)) {
+	    rv = EINVAL;
+	    goto out_err;
+	}
+
+	/*
+	 * If a port was/was not set, this must be consistent for all
+	 * addresses.
+	 */
+	if (first) {
+	    portset = !strisallzero(port);
+	} else {
+	    bool nportset = !strisallzero(port);
+
+	    if (nportset != portset) {
+		rv = ENXIO;
+		goto out_err;
+	    }
+	}
+
+	ai3 = gensio_dup_addrinfo(o, ai);
+	freeaddrinfo(ai);
+	if (!ai3) {
+	    rv = ENOMEM;
+	    goto out_err;
+	}
+
+	if (ai2)
+	    ai2 = gensio_cat_addrinfo(o, ai2, ai3);
+	else
+	    ai2 = ai3;
+	ip = strtok_r(NULL, ",", &strtok_data);
     }
 
-    memset(&hints, 0, sizeof(hints));
-    hints.ai_flags = AI_PASSIVE;
-    hints.ai_family = family;
-    hints.ai_socktype = socktype;
-    hints.ai_protocol = protocol;
-    if (getaddrinfo(ip, port, &hints, &ai)) {
-	o->free(o, strtok_buffer);
-	return EINVAL;
+    if (!ai2) {
+	rv = ENOENT;
+	goto out_err;
     }
-    o->free(o, strtok_buffer);
 
     if (is_port_set)
-	*is_port_set = !strisallzero(port);
-
-    ai2 = gensio_dup_addrinfo(o, ai);
-    freeaddrinfo(ai);
-    if (!ai2)
-	return ENOMEM;
+	*is_port_set = portset;
 
     *rai = ai2;
-    return 0;
+
+ out_err:
+    o->free(o, strtok_buffer);
+    if (rv && ai2)
+	gensio_free_addrinfo(o, ai2);
+
+    return rv;
 }
 
 /*
@@ -1195,6 +1232,19 @@ gensio_dup_addrinfo(struct gensio_os_funcs *o, struct addrinfo *iai)
  out_nomem:
     gensio_free_addrinfo(o, ai);
     return NULL;
+}
+
+struct addrinfo *gensio_cat_addrinfo(struct gensio_os_funcs *o,
+				     struct addrinfo *ai1,
+				     struct addrinfo *ai2)
+{
+    struct addrinfo *rai = ai1;
+
+    while (ai1->ai_next)
+	ai1 = ai1->ai_next;
+    ai1->ai_next = ai2;
+
+    return rai;
 }
 
 void
