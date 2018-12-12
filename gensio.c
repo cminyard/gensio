@@ -377,6 +377,46 @@ strisallzero(const char *str)
     return *str == '\0';
 }
 
+static int
+scan_ips(struct gensio_os_funcs *o, const char *str, int family,
+	 int socktype, int protocol, struct addrinfo **rai)
+{
+    char *strtok_data, *strtok_buffer;
+    struct addrinfo hints, *ai, *ai2;
+    char *ip;
+    char *port;
+
+    strtok_buffer = gensio_strdup(o, str);
+    if (!strtok_buffer)
+	return ENOMEM;
+
+    ip = strtok_r(strtok_buffer, ",", &strtok_data);
+    port = strtok_r(NULL, "", &strtok_data);
+    if (port == NULL) {
+	port = ip;
+	ip = NULL;
+    }
+
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_flags = AI_PASSIVE;
+    hints.ai_family = family;
+    hints.ai_socktype = socktype;
+    hints.ai_protocol = protocol;
+    if (getaddrinfo(ip, port, &hints, &ai)) {
+	o->free(o, strtok_buffer);
+	return EINVAL;
+    }
+    o->free(o, strtok_buffer);
+
+    ai2 = gensio_dup_addrinfo(o, ai);
+    freeaddrinfo(ai);
+    if (!ai2)
+	return ENOMEM;
+
+    *rai = ai2;
+    return 0;
+}
+
 /*
  * Scan for a network port in the form:
  *
@@ -399,10 +439,6 @@ scan_network_port_args(struct gensio_os_funcs *o,
 		       int *socktype, int *protocol,
 		       bool *is_port_set, int *argc, char ***args)
 {
-    char *strtok_data, *strtok_buffer;
-    char *ip;
-    char *port;
-    struct addrinfo hints, *ai, *ai2;
     int family = AF_UNSPEC;
     int err = 0;
 
@@ -444,39 +480,7 @@ scan_network_port_args(struct gensio_os_funcs *o,
 	    return err;
     }
 
-    strtok_buffer = gensio_strdup(o, str);
-    if (!strtok_buffer)
-	return ENOMEM;
-
-    ip = strtok_r(strtok_buffer, ",", &strtok_data);
-    port = strtok_r(NULL, "", &strtok_data);
-    if (port == NULL) {
-	port = ip;
-	ip = NULL;
-    }
-
-    memset(&hints, 0, sizeof(hints));
-    hints.ai_flags = AI_PASSIVE;
-    hints.ai_family = family;
-    hints.ai_socktype = *socktype;
-    hints.ai_protocol = *protocol;
-    if (getaddrinfo(ip, port, &hints, &ai)) {
-	o->free(o, strtok_buffer);
-	return EINVAL;
-    }
-    o->free(o, strtok_buffer);
-
-    if (is_port_set)
-	*is_port_set = !strisallzero(port);
-
-    ai2 = gensio_dup_addrinfo(o, ai);
-    freeaddrinfo(ai);
-    if (!ai2)
-	return ENOMEM;
-    if (*rai)
-	gensio_free_addrinfo(o, *rai);
-    *rai = ai2;
-    return 0;
+    return scan_ips(o, str, family, *socktype, *protocol, rai);
 }
 
 int
@@ -493,10 +497,6 @@ int
 gensio_scan_netaddr(struct gensio_os_funcs *o, const char *str,
 		    int socktype, int protocol, struct addrinfo **rai)
 {
-    char *strtok_data, *strtok_buffer;
-    char *ip;
-    char *port;
-    struct addrinfo hints, *ai, *ai2;
     int family = AF_UNSPEC;
 
     if (strncmp(str, "ipv4,", 5) == 0) {
@@ -507,35 +507,7 @@ gensio_scan_netaddr(struct gensio_os_funcs *o, const char *str,
 	str += 5;
     }
 
-    strtok_buffer = gensio_strdup(o, str);
-    if (!strtok_buffer)
-	return ENOMEM;
-
-    ip = strtok_r(strtok_buffer, ",", &strtok_data);
-    port = strtok_r(NULL, "", &strtok_data);
-    if (port == NULL) {
-	port = ip;
-	ip = NULL;
-    }
-
-    memset(&hints, 0, sizeof(hints));
-    hints.ai_flags = AI_PASSIVE;
-    hints.ai_family = family;
-    hints.ai_socktype = socktype;
-    hints.ai_protocol = protocol;
-    if (getaddrinfo(ip, port, &hints, &ai)) {
-	o->free(o, strtok_buffer);
-	return EINVAL;
-    }
-    o->free(o, strtok_buffer);
-
-    ai2 = gensio_dup_addrinfo(o, ai);
-    freeaddrinfo(ai);
-    if (!ai2)
-	return ENOMEM;
-
-    *rai = ai2;
-    return 0;
+    return scan_ips(o, str, family, socktype, protocol, rai);
 }
 
 bool
