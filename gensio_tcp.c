@@ -274,7 +274,7 @@ str_to_tcp_gensio(const char *str, char *args[],
     struct addrinfo *ai;
     int err;
 
-    err = gensio_scan_netaddr(o, str, false, &ai);
+    err = gensio_scan_netaddr(o, str, SOCK_STREAM, IPPROTO_TCP, &ai);
     if (err)
 	return err;
 
@@ -675,7 +675,7 @@ str_to_tcp_gensio_accepter(const char *str, char *args[],
     int err;
     struct addrinfo *ai;
 
-    err = gensio_scan_netaddr(o, str, false, &ai);
+    err = gensio_scan_netaddr(o, str, SOCK_STREAM, IPPROTO_TCP, &ai);
     if (err)
 	return err;
 

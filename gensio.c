@@ -342,7 +342,7 @@ gensio_open_socket(struct gensio_os_funcs *o,
     return fds;
 }
 
-int
+static int
 gensio_scan_args(const char **rstr, int *argc, char ***args)
 {
     const char *str = *rstr;
@@ -380,7 +380,7 @@ strisallzero(const char *str)
 /*
  * Scan for a network port in the form:
  *
- *   [ipv4|ipv6,][tcp|udp,][<hostname>,]<port>
+ *   [ipv4|ipv6,][tcp|udp[(<args>)],][<hostname>,]<port>
  *
  * If neither ipv4 nor ipv6 is specified, addresses for both are
  * returned.  If neither tcp nor udp is specified, tcp is assumed.
@@ -490,18 +490,14 @@ gensio_scan_network_port(struct gensio_os_funcs *o,
 }
 
 int
-gensio_scan_netaddr(struct gensio_os_funcs *o,
-		    const char *str, bool is_dgram, struct addrinfo **rai)
+gensio_scan_netaddr(struct gensio_os_funcs *o, const char *str,
+		    int socktype, int protocol, struct addrinfo **rai)
 {
     char *strtok_data, *strtok_buffer;
     char *ip;
     char *port;
     struct addrinfo hints, *ai, *ai2;
     int family = AF_UNSPEC;
-    int socktype = SOCK_STREAM;
-
-    if (is_dgram)
-	socktype = SOCK_DGRAM;
 
     if (strncmp(str, "ipv4,", 5) == 0) {
 	family = AF_INET;
@@ -526,6 +522,7 @@ gensio_scan_netaddr(struct gensio_os_funcs *o,
     hints.ai_flags = AI_PASSIVE;
     hints.ai_family = family;
     hints.ai_socktype = socktype;
+    hints.ai_protocol = protocol;
     if (getaddrinfo(ip, port, &hints, &ai)) {
 	o->free(o, strtok_buffer);
 	return EINVAL;

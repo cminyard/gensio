@@ -236,17 +236,15 @@ const char *gensio_check_tcpd_ok(int new_fd);
 /*
  * Take a string in the form [ipv4|ipv6,][hostname,]port and convert
  * it to an addrinfo structure.  If this returns success, the user
- * must free rai with freeaddrinfo().  If is_dgram is true, allocate
- * a datagram socket, otherwise a stream socket.
+ * must free rai with gensio_free_addrinfo().  If socktype or protocol
+ * are non-zero, allocate for the given socktype and protocol.
  */
-int gensio_scan_netaddr(struct gensio_os_funcs *o,
-			const char *str, bool is_dgram, struct addrinfo **rai);
+int gensio_scan_netaddr(struct gensio_os_funcs *o, const char *str,
+			int socktype, int protocol, struct addrinfo **rai);
 
 char *gensio_strdup(struct gensio_os_funcs *o, const char *str);
 
 int gensio_check_keyvalue(const char *str, const char *key, const char **value);
 int gensio_check_keyuint(const char *str, const char *key, unsigned int *value);
-
-int gensio_scan_args(const char **rstr, int *argc, char ***args);
 
 #endif /* GENSIO_CLASS_H */
