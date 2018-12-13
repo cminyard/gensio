@@ -293,7 +293,7 @@ gensio_setup_listen_socket(struct gensio_os_funcs *o, bool do_listen,
     if (bind(fd, addr, addrlen) != 0)
 	goto out_err;
 
-    if (do_listen && listen(fd, 1) != 0)
+    if (do_listen && listen(fd, 5) != 0)
 	goto out_err;
 
     rv = o->set_fd_handlers(o, fd, data,
