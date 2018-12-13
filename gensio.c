@@ -251,7 +251,7 @@ gensio_acc_get_type(struct gensio_accepter *acc, unsigned int depth)
     return c->typename;
 }
 
-void
+static void
 check_ipv6_only(int family, struct sockaddr *addr, int fd)
 {
     int null = 0;
