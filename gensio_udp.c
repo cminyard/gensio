@@ -169,8 +169,8 @@ udpn_find(struct udpn_data **list,
     struct udpn_data *ndata = *list, *prev = NULL;
 
     while (ndata) {
-	if (sockaddr_equal(ndata->raddr, ndata->raddrlen,
-			   (struct sockaddr *) addr, addrlen, true)) {
+	if (gensio_sockaddr_equal(ndata->raddr, ndata->raddrlen,
+				  (struct sockaddr *) addr, addrlen, true)) {
 	    if (remove) {
 		if (!prev)
 		    *list = ndata->next;

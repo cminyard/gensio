@@ -385,6 +385,7 @@ scan_ips(struct gensio_os_funcs *o, const char *str, int family,
     struct addrinfo hints, *ai, *ai2 = NULL, *ai3;
     char *ip;
     char *port;
+    int portnum;
     bool first = true, portset = false;
     int rv = 0;
 
@@ -414,12 +415,17 @@ scan_ips(struct gensio_os_funcs *o, const char *str, int family,
 	 * If a port was/was not set, this must be consistent for all
 	 * addresses.
 	 */
+	portnum = gensio_sockaddr_get_port(ai->ai_addr);
+	if (portnum == -1) {
+	    /* Not AF_INET or AF_INET6. */
+	    rv = EINVAL;
+	    goto out_err;
+	}
 	if (first) {
-	    portset = !strisallzero(port);
+	    portset = portnum != 0;
 	} else {
-	    bool nportset = !strisallzero(port);
-
-	    if (nportset != portset) {
+	    if ((portnum != 0) != portset) {
+		/* One port was set and the other wasn't. */
 		rv = ENXIO;
 		goto out_err;
 	    }
@@ -553,9 +559,9 @@ gensio_scan_netaddr(struct gensio_os_funcs *o, const char *str,
 }
 
 bool
-sockaddr_equal(const struct sockaddr *a1, socklen_t l1,
-	       const struct sockaddr *a2, socklen_t l2,
-	       bool compare_ports)
+gensio_sockaddr_equal(const struct sockaddr *a1, socklen_t l1,
+		      const struct sockaddr *a2, socklen_t l2,
+		      bool compare_ports)
 {
     if (l1 != l2)
 	return false;
@@ -591,6 +597,19 @@ sockaddr_equal(const struct sockaddr *a1, socklen_t l1,
     }
 
     return true;
+}
+
+int
+gensio_sockaddr_get_port(const struct sockaddr *s)
+{
+    switch (s->sa_family) {
+    case AF_INET:
+	return ((struct sockaddr_in *) s)->sin_port;
+
+    case AF_INET6:
+	return ((struct sockaddr_in6 *) s)->sin6_port;
+    }
+    return -1;
 }
 
 void

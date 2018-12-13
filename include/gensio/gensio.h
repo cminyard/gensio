@@ -828,12 +828,18 @@ int ipmisol_gensio_alloc(const char *devname, char *args[],
 
 /*
  * Compare two sockaddr structure and return TRUE if they are equal
- * and FALSE if not.  Only works for AF_INET4 and AF_INET6.
+ * and FALSE if not.  Only works for AF_INET and AF_INET6.
  * If compare_ports is false, then the port comparison is ignored.
  */
-bool sockaddr_equal(const struct sockaddr *a1, socklen_t l1,
-		    const struct sockaddr *a2, socklen_t l2,
-		    bool compare_ports);
+bool gensio_sockaddr_equal(const struct sockaddr *a1, socklen_t l1,
+			   const struct sockaddr *a2, socklen_t l2,
+			   bool compare_ports);
+
+/*
+ * Extract the port from a sockaddr.  If the sockaddr is not AF_INET
+ * or AF_INET6, return -1.
+ */
+int gensio_sockaddr_get_port(const struct sockaddr *s);
 
 /*
  * Scan for a network port in the form:
