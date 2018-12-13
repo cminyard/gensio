@@ -230,6 +230,19 @@ struct opensocks *gensio_open_socket(struct gensio_os_funcs *o,
 				     unsigned int *nr_fds,
 				     void (*fd_handler_cleared)(int, void *));
 
+/*
+ * Setup a receiving socket given the socket() parameters.  If do_listen
+ * is true, call listen on the socket.  This sets nonblocking, reuse,
+ * does a bind, etc.
+ */
+int gensio_setup_listen_socket(struct gensio_os_funcs *o, bool do_listen,
+			       int family, int socktype, int protocol,
+			       struct sockaddr *addr, socklen_t addrlen,
+			       void (*readhndlr)(int, void *),
+			       void (*writehndlr)(int, void *), void *data,
+			       void (*fd_handler_cleared)(int, void *),
+			       int *rfd);
+
 /* Returns a NULL if the fd is ok, a non-NULL error string if not */
 const char *gensio_check_tcpd_ok(int new_fd);
 

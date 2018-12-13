@@ -265,6 +265,52 @@ check_ipv6_only(int family, struct sockaddr *addr, int fd)
     setsockopt(fd, IPPROTO_IPV6, IPV6_V6ONLY, &null, sizeof(null));
 }
 
+int
+gensio_setup_listen_socket(struct gensio_os_funcs *o, bool do_listen,
+			   int family, int socktype, int protocol,
+			   struct sockaddr *addr, socklen_t addrlen,
+			   void (*readhndlr)(int, void *),
+			   void (*writehndlr)(int, void *), void *data,
+			   void (*fd_handler_cleared)(int, void *),
+			   int *rfd)
+{
+    int optval = 1;
+    int fd, rv = 0;
+
+    fd = socket(family, socktype, protocol);
+    if (fd == -1)
+	return errno;
+
+    if (fcntl(fd, F_SETFL, O_NONBLOCK) == -1)
+	goto out_err;
+
+    if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR,
+		   (void *)&optval, sizeof(optval)) == -1)
+	goto out_err;
+
+    check_ipv6_only(family, addr, fd);
+
+    if (bind(fd, addr, addrlen) != 0)
+	goto out_err;
+
+    if (do_listen && listen(fd, 1) != 0)
+	goto out_err;
+
+    rv = o->set_fd_handlers(o, fd, data,
+			    readhndlr, writehndlr, NULL,
+			    fd_handler_cleared);
+ out:
+    if (rv)
+	close(fd);
+    else
+	*rfd = fd;
+    return rv;
+
+ out_err:
+    rv = errno;
+    goto out;
+}
+
 /* FIXME - The error handling in this function isn't good, fix it. */
 struct opensocks *
 gensio_open_socket(struct gensio_os_funcs *o,
@@ -274,7 +320,6 @@ gensio_open_socket(struct gensio_os_funcs *o,
 		   void (*fd_handler_cleared)(int, void *))
 {
     struct addrinfo *rp;
-    int optval = 1;
     int family = AF_INET6; /* Try IPV6 first, then IPV4. */
     struct opensocks *fds;
     unsigned int curr_fd = 0;
@@ -296,38 +341,17 @@ gensio_open_socket(struct gensio_os_funcs *o,
 	if (family != rp->ai_family)
 	    continue;
 
-	fds[curr_fd].fd = socket(rp->ai_family, rp->ai_socktype,
-				 rp->ai_protocol);
-	if (fds[curr_fd].fd == -1)
-	    continue;
-
-	fds[curr_fd].family = rp->ai_family;
-
-	if (fcntl(fds[curr_fd].fd, F_SETFL, O_NONBLOCK) == -1)
-	    goto next;
-
-	if (setsockopt(fds[curr_fd].fd, SOL_SOCKET, SO_REUSEADDR,
-		       (void *)&optval, sizeof(optval)) == -1)
-	    goto next;
-
-	check_ipv6_only(rp->ai_family, rp->ai_addr, fds[curr_fd].fd);
-
-	if (bind(fds[curr_fd].fd, rp->ai_addr, rp->ai_addrlen) != 0)
-	    goto next;
-
-	if (rp->ai_socktype == SOCK_STREAM && listen(fds[curr_fd].fd, 1) != 0)
-	    goto next;
-
-	rv = o->set_fd_handlers(o, fds[curr_fd].fd, data,
-				readhndlr, writehndlr, NULL,
-				fd_handler_cleared);
-	if (rv)
-	    goto next;
-	curr_fd++;
-	continue;
-
-      next:
-	close(fds[curr_fd].fd);
+	rv = gensio_setup_listen_socket(o, rp->ai_socktype == SOCK_STREAM,
+					rp->ai_family, rp->ai_socktype,
+					rp->ai_protocol,
+					rp->ai_addr, rp->ai_addrlen,
+					readhndlr, writehndlr, data,
+					fd_handler_cleared,
+					&fds[curr_fd].fd);
+	if (!rv) {
+	    fds[curr_fd].family = rp->ai_family;
+	    curr_fd++;
+	}
     }
     if (family == AF_INET6) {
 	family = AF_INET;
