@@ -47,13 +47,13 @@ struct tcp_data {
 
 static int tcp_check_open(void *handler_data, int fd)
 {
-    int optval, err;
+    int optval = 0, err;
     socklen_t len = sizeof(optval);
 
     err = getsockopt(fd, SOL_SOCKET, SO_ERROR, &optval, &len);
     if (err)
 	return errno;
-    return 0;
+    return optval;
 }
 
 static int
