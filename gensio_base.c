@@ -611,7 +611,7 @@ basen_open(struct gensio *io, gensio_done_err open_done, void *open_data)
 
 	ndata->open_done = open_done;
 	ndata->open_data = open_data;
-	err = ll_open(ndata, basen_ll_open_done, NULL);
+	err = ll_open(ndata, basen_ll_open_done, ndata);
 	if (err == 0) {
 	    ndata->state = BASEN_IN_FILTER_OPEN;
 	    ndata->deferred_open = true;
