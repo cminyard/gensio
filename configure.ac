@@ -226,6 +226,8 @@ AC_SUBST(PYTHON_INSTALL_LIB_DIR)
 AC_SUBST(PYTHON_HAS_POSIX_THREADS)
 AC_SUBST(PYTHON_SWIG_FLAGS)
 
+AC_CHECK_LIB(sctp, sctp_bindx)
+
 AC_OUTPUT([Makefile
 	include/Makefile
 	include/gensio/Makefile

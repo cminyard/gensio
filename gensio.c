@@ -548,6 +548,18 @@ scan_network_port_args(struct gensio_os_funcs *o,
 	    return err;
 	*socktype = SOCK_DGRAM;
 	*protocol = IPPROTO_UDP;
+    } else if (strncmp(str, "sctp,", 5) == 0 ||
+	       (args && strncmp(str, "sctp(", 5) == 0)) {
+	if (args) {
+	    str += 4;
+	    err = gensio_scan_args(&str, argc, args);
+	} else {
+	    str += 5;
+	}
+	if (err)
+	    return err;
+	*socktype = SOCK_SEQPACKET;
+	*protocol = IPPROTO_SCTP;
     } else if (args) {
 	err = str_to_argv_lengths("", argc, args, NULL, ")");
 	if (err)
@@ -632,10 +644,10 @@ gensio_sockaddr_get_port(const struct sockaddr *s)
 {
     switch (s->sa_family) {
     case AF_INET:
-	return ((struct sockaddr_in *) s)->sin_port;
+	return ntohs(((struct sockaddr_in *) s)->sin_port);
 
     case AF_INET6:
-	return ((struct sockaddr_in6 *) s)->sin6_port;
+	return ntohs(((struct sockaddr_in6 *) s)->sin6_port);
     }
     return -1;
 }
@@ -1016,6 +1028,7 @@ add_default_gensio_accepters(void *cb_data)
     reg_gensio_acc_lock = o->alloc_lock(o);
     register_gensio_accepter(o, "tcp", str_to_tcp_gensio_accepter);
     register_gensio_accepter(o, "udp", str_to_udp_gensio_accepter);
+    register_gensio_accepter(o, "sctp", str_to_sctp_gensio_accepter);
     register_gensio_accepter(o, "stdio", str_to_stdio_gensio_accepter);
     register_gensio_accepter(o, "ssl", str_to_ssl_gensio_accepter);
     register_gensio_accepter(o, "telnet", str_to_telnet_gensio_accepter);
@@ -1093,6 +1106,9 @@ int str_to_gensio_accepter(const char *str,
 	    } else if (protocol == IPPROTO_TCP) {
 		err = tcp_gensio_accepter_alloc(ai, args, o, cb,
 						user_data, accepter);
+	    } else if (protocol == IPPROTO_SCTP) {
+		err = sctp_gensio_accepter_alloc(ai, args, o, cb,
+						 user_data, accepter);
 	    } else {
 		err = EINVAL;
 	    }
@@ -1127,6 +1143,7 @@ add_default_gensios(void *cb_data)
     reg_gensio_lock = o->alloc_lock(o);
     register_gensio(o, "tcp", str_to_tcp_gensio);
     register_gensio(o, "udp", str_to_udp_gensio);
+    register_gensio(o, "sctp", str_to_sctp_gensio);
     register_gensio(o, "stdio", str_to_stdio_gensio);
 #ifdef HAVE_OPENSSL
     register_gensio(o, "ssl", str_to_ssl_gensio);
@@ -1209,6 +1226,8 @@ str_to_gensio(const char *str,
 	    err = udp_gensio_alloc(ai, args, o, cb, user_data, gensio);
 	} else if (protocol == IPPROTO_TCP) {
 	    err = tcp_gensio_alloc(ai, args, o, cb, user_data, gensio);
+	} else if (protocol == IPPROTO_SCTP) {
+	    err = sctp_gensio_alloc(ai, args, o, cb, user_data, gensio);
 	} else {
 	    err = EINVAL;
 	}

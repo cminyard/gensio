@@ -705,6 +705,11 @@ int str_to_udp_gensio_accepter(const char *str, char *args[],
 			       gensio_accepter_event cb,
 			       void *user_data,
 			       struct gensio_accepter **new_acc);
+int str_to_sctp_gensio_accepter(const char *str, char *args[],
+				struct gensio_os_funcs *o,
+				gensio_accepter_event cb,
+				void *user_data,
+				struct gensio_accepter **new_acc);
 int str_to_stdio_gensio_accepter(const char *str, char *args[],
 				 struct gensio_os_funcs *o,
 				 gensio_accepter_event cb,
@@ -742,6 +747,10 @@ int str_to_udp_gensio(const char *str, char *args[],
 		      struct gensio_os_funcs *o,
 		      gensio_event cb, void *user_data,
 		      struct gensio **new_gensio);
+int str_to_sctp_gensio(const char *str, char *args[],
+		       struct gensio_os_funcs *o,
+		       gensio_event cb, void *user_data,
+		       struct gensio **new_gensio);
 int str_to_stdio_gensio(const char *str, char *args[],
 			struct gensio_os_funcs *o,
 			gensio_event cb, void *user_data,
@@ -779,6 +788,12 @@ int udp_gensio_accepter_alloc(struct addrinfo *ai, char *args[],
 			      void *user_data,
 			      struct gensio_accepter **accepter);
 
+int sctp_gensio_accepter_alloc(struct addrinfo *ai, char *args[],
+			       struct gensio_os_funcs *o,
+			       gensio_accepter_event cb,
+			       void *user_data,
+			       struct gensio_accepter **accepter);
+
 int stdio_gensio_accepter_alloc(char *args[],
 				struct gensio_os_funcs *o,
 				gensio_accepter_event cb,
@@ -815,6 +830,14 @@ int udp_gensio_alloc(struct addrinfo *ai, char *args[],
 		     struct gensio_os_funcs *o,
 		     gensio_event cb, void *user_data,
 		     struct gensio **new_gensio);
+
+/*
+ * Create a SCTP gensio for the given ai.
+ */
+int sctp_gensio_alloc(struct addrinfo *ai, char *args[],
+		      struct gensio_os_funcs *o,
+		      gensio_event cb, void *user_data,
+		      struct gensio **new_gensio);
 
 /* Run a program (in argv[0]) and attach to it's stdio. */
 int stdio_gensio_alloc(char *const argv[], char *args[],

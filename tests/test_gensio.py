@@ -71,6 +71,13 @@ def ta_udp():
     io1 = utils.alloc_io(o, "udp,localhost,3023", do_open = False)
     TestAccept(o, io1, "udp,3023", do_test, io1_dummy_write = "A")
 
+def ta_sctp():
+    print("Test accept sctp")
+    io1 = utils.alloc_io(o, "sctp,localhost,3023", do_open = False)
+    TestAccept(o, io1, "sctp,3023", do_test)
+
+ta_sctp()
+
 def ta_ssl_tcp():
     print("Test accept ssl-tcp")
     io1 = utils.alloc_io(o, "ssl(CA=%s/CA.pem),tcp,localhost,3024" % utils.srcdir, do_open = False)
