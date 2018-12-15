@@ -344,6 +344,7 @@ struct sctpna_acceptfds {
     int fd;
     int port;
     int family;
+    int flags;
 };
 
 struct sctpna_data {
@@ -551,6 +552,7 @@ sctpna_startup(struct gensio_accepter *accepter)
     struct gensio_os_funcs *o = nadata->o;
     struct addrinfo *ai;
     unsigned int i;
+    int family = AF_INET6;
     int rv = 0;
 
     sctpna_lock(nadata);
@@ -559,6 +561,7 @@ sctpna_startup(struct gensio_accepter *accepter)
 	goto out_unlock;
     }
 
+ retry:
     for (ai = nadata->ai; ai; ai = ai->ai_next) {
 	struct sctpna_acceptfds *fds = nadata->fds;
 	int port = gensio_sockaddr_get_port(ai->ai_addr);
@@ -567,8 +570,12 @@ sctpna_startup(struct gensio_accepter *accepter)
 	    rv = EINVAL;
 	    goto out_err;
 	}
+	if (family != ai->ai_family)
+	    continue;
+
 	for (i = 0; i < nadata->nfds; i++) {
-	    if (port == fds[i].port) {
+	    if (port == fds[i].port &&
+		((fds[i].flags & AI_V4MAPPED) || fds[i].family == family)) {
 		rv = sctp_bindx(fds[i].fd, ai->ai_addr, 1, SCTP_BINDX_ADD_ADDR);
 		if (rv) {
 		    rv = errno;
@@ -598,9 +605,14 @@ sctpna_startup(struct gensio_accepter *accepter)
 	    goto out_err;
 	fds[i].port = port;
 	fds[i].family = ai->ai_family;
+	fds[i].flags = ai->ai_flags;
 	o->free(o, nadata->fds);
 	nadata->fds = fds;
 	nadata->nfds++;
+    }
+    if (family == AF_INET6) {
+	family = AF_INET;
+	goto retry;
     }
 
     if (nadata->nfds == 0) {
