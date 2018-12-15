@@ -238,18 +238,23 @@ static void
 fd_finish_open(struct fd_ll *fdll, int err)
 {
     if (err) {
+	if (fdll->fd == -1) {
+	    fdll->state = FD_CLOSED;
+	    goto call_done;
+	}
 	fdll->open_err = err;
 	fd_start_close(fdll);
 	return;
     }
 
     fdll->state = FD_OPEN;
+ call_done:
     if (fdll->open_done) {
 	gensio_ll_open_done open_done = fdll->open_done;
 
 	fdll->open_done = NULL;
 	fd_unlock(fdll);
-	open_done(fdll->cb_data, 0, fdll->open_data);
+	open_done(fdll->cb_data, err, fdll->open_data);
 	fd_lock(fdll);
     }
 
@@ -395,42 +400,37 @@ static void
 fd_write_ready(int fd, void *cbdata)
 {
     struct fd_ll *fdll = cbdata;
+
     fd_lock(fdll);
     fdll->o->set_write_handler(fdll->o, fdll->fd, false);
     if (fdll->state == FD_IN_OPEN) {
 	int err;
 
 	err = fdll->check_open(fdll->handler_data, fdll->fd);
-	if (err) {
+	if (err && fdll->retry_open) {
 	    fdll->o->clear_fd_handlers_norpt(fdll->o, fdll->fd);
 	    close(fdll->fd);
 	    fdll->fd = -1;
-	}
-	if (err && fdll->retry_open) {
 	    err = fdll->retry_open(fdll->handler_data, &fdll->fd);
 	    if (err != EINPROGRESS)
 		goto opened;
 	    else {
 		err = fd_setup_handlers(fdll);
-		if (err) {
-		    close(fdll->fd);
-		    fdll->fd = -1;
-		    fd_finish_open(fdll, err);
-		} else {
+		if (err)
+		    goto opened;
+		else
 		    fdll->o->set_write_handler(fdll->o, fdll->fd, true);
-		}
 	    }
 	} else {
 	opened:
 	    fd_finish_open(fdll, err);
 	}
-	fd_unlock(fdll);
     } else {
 	fd_unlock(fdll);
 	fdll->cb(fdll->cb_data, GENSIO_LL_CB_WRITE_READY, 0, NULL, 0, NULL);
+	fd_lock(fdll);
 	if (fdll->state == FD_OPEN && fdll->write_enabled)
 	    fdll->o->set_write_handler(fdll->o, fdll->fd, true);
-	fd_lock(fdll);
     }
     fd_unlock(fdll);
 }
