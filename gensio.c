@@ -29,6 +29,9 @@
 #include <stdio.h>
 
 #include <arpa/inet.h>
+#ifdef HAVE_LIBSCTP
+#include <netinet/sctp.h>
+#endif
 
 #include <gensio/gensio.h>
 #include <gensio/gensio_class.h>
@@ -256,17 +259,26 @@ gensio_acc_get_type(struct gensio_accepter *acc, unsigned int depth)
 }
 
 static void
-check_ipv6_only(int family, struct sockaddr *addr, int flags, int fd)
+check_ipv6_only(int family, int protocol, int flags, int fd)
 {
-    int null = 0;
+    int val;
 
     if (family != AF_INET6)
 	return;
 
     if (flags & AI_V4MAPPED)
-	return;
+	val = 0;
+    else
+	val = 1;
 
-    setsockopt(fd, IPPROTO_IPV6, IPV6_V6ONLY, &null, sizeof(null));
+    setsockopt(fd, IPPROTO_IPV6, IPV6_V6ONLY, &val, sizeof(val));
+
+#ifdef HAVE_LIBSCTP
+    if (protocol == IPPROTO_SCTP) {
+	val = !val;
+	setsockopt(fd, SOL_SCTP, SCTP_I_WANT_MAPPED_V4_ADDR, &val, sizeof(val));
+    }
+#endif
 }
 
 int
@@ -292,7 +304,7 @@ gensio_setup_listen_socket(struct gensio_os_funcs *o, bool do_listen,
 		   (void *)&optval, sizeof(optval)) == -1)
 	goto out_err;
 
-    check_ipv6_only(family, addr, flags, fd);
+    check_ipv6_only(family, protocol, flags, fd);
 
     if (bind(fd, addr, addrlen) != 0)
 	goto out_err;
