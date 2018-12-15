@@ -256,14 +256,14 @@ gensio_acc_get_type(struct gensio_accepter *acc, unsigned int depth)
 }
 
 static void
-check_ipv6_only(int family, struct sockaddr *addr, int fd)
+check_ipv6_only(int family, struct sockaddr *addr, int flags, int fd)
 {
     int null = 0;
 
     if (family != AF_INET6)
 	return;
 
-    if (!IN6_IS_ADDR_UNSPECIFIED(&(((struct sockaddr_in6 *) addr)->sin6_addr)))
+    if (flags & AI_V4MAPPED)
 	return;
 
     setsockopt(fd, IPPROTO_IPV6, IPV6_V6ONLY, &null, sizeof(null));
@@ -271,7 +271,7 @@ check_ipv6_only(int family, struct sockaddr *addr, int fd)
 
 int
 gensio_setup_listen_socket(struct gensio_os_funcs *o, bool do_listen,
-			   int family, int socktype, int protocol,
+			   int family, int socktype, int protocol, int flags,
 			   struct sockaddr *addr, socklen_t addrlen,
 			   void (*readhndlr)(int, void *),
 			   void (*writehndlr)(int, void *), void *data,
@@ -292,7 +292,7 @@ gensio_setup_listen_socket(struct gensio_os_funcs *o, bool do_listen,
 		   (void *)&optval, sizeof(optval)) == -1)
 	goto out_err;
 
-    check_ipv6_only(family, addr, fd);
+    check_ipv6_only(family, addr, flags, fd);
 
     if (bind(fd, addr, addrlen) != 0)
 	goto out_err;
@@ -347,7 +347,7 @@ gensio_open_socket(struct gensio_os_funcs *o,
 
 	rv = gensio_setup_listen_socket(o, rp->ai_socktype == SOCK_STREAM,
 					rp->ai_family, rp->ai_socktype,
-					rp->ai_protocol,
+					rp->ai_protocol, rp->ai_flags,
 					rp->ai_addr, rp->ai_addrlen,
 					readhndlr, writehndlr, data,
 					fd_handler_cleared,
@@ -406,7 +406,7 @@ strisallzero(const char *str)
 }
 
 static int
-scan_ips(struct gensio_os_funcs *o, const char *str, int family,
+scan_ips(struct gensio_os_funcs *o, const char *str, int ifamily,
 	 int socktype, int protocol, bool *is_port_set, struct addrinfo **rai)
 {
     char *strtok_data, *strtok_buffer;
@@ -423,6 +423,20 @@ scan_ips(struct gensio_os_funcs *o, const char *str, int family,
 
     ip = strtok_r(strtok_buffer, ",", &strtok_data);
     while (ip) {
+	int family = ifamily, rflags = 0;
+
+	if (strcmp(ip, "ipv4") == 0) {
+	    family = AF_INET;
+	    ip = strtok_r(NULL, ",", &strtok_data);
+	} else if (strcmp(ip, "ipv6") == 0) {
+	    family = AF_INET6;
+	    ip = strtok_r(NULL, ",", &strtok_data);
+	} else if (strcmp(ip, "ipv6n4") == 0) {
+	    family = AF_INET6;
+	    rflags |= AI_V4MAPPED;
+	    ip = strtok_r(NULL, ",", &strtok_data);
+	}
+
 	port = strtok_r(NULL, ",", &strtok_data);
 	if (port == NULL) {
 	    port = ip;
@@ -430,7 +444,7 @@ scan_ips(struct gensio_os_funcs *o, const char *str, int family,
 	}
 
 	memset(&hints, 0, sizeof(hints));
-	hints.ai_flags = AI_PASSIVE;
+	hints.ai_flags = AI_PASSIVE | rflags;
 	hints.ai_family = family;
 	hints.ai_socktype = socktype;
 	hints.ai_protocol = protocol;
@@ -466,6 +480,9 @@ scan_ips(struct gensio_os_funcs *o, const char *str, int family,
 	    goto out_err;
 	}
 
+	for (ai = ai3; ai; ai = ai->ai_next)
+	    ai->ai_flags = rflags;
+
 	if (ai2)
 	    ai2 = gensio_cat_addrinfo(o, ai2, ai3);
 	else
@@ -494,7 +511,7 @@ scan_ips(struct gensio_os_funcs *o, const char *str, int family,
 /*
  * Scan for a network port in the form:
  *
- *   [ipv4|ipv6,][tcp|udp[(<args>)],][<hostname>,]<port>
+ *   [tcp|udp[(<args>)],][ipv4|ipv6|ipv6n4,][<hostname>,]<port>
  *
  * If neither ipv4 nor ipv6 is specified, addresses for both are
  * returned.  If neither tcp nor udp is specified, tcp is assumed.
@@ -513,8 +530,7 @@ scan_network_port_args(struct gensio_os_funcs *o,
 		       int *socktype, int *protocol,
 		       bool *is_port_set, int *argc, char ***args)
 {
-    int family = AF_UNSPEC;
-    int err = 0;
+    int err = 0, family = AF_UNSPEC;
 
     if (strncmp(str, "ipv4,", 5) == 0) {
 	family = AF_INET;

@@ -589,7 +589,7 @@ sctpna_startup(struct gensio_accepter *accepter)
 	memcpy(fds, nadata->fds, sizeof(*fds) * i);
 
 	rv = gensio_setup_listen_socket(o, true, ai->ai_family,
-					SOCK_STREAM, IPPROTO_SCTP,
+					SOCK_STREAM, IPPROTO_SCTP, ai->ai_flags,
 					ai->ai_addr, ai->ai_addrlen,
 					sctpna_readhandler, NULL, nadata,
 					sctpna_fd_cleared,

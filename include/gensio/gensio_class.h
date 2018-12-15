@@ -237,6 +237,7 @@ struct opensocks *gensio_open_socket(struct gensio_os_funcs *o,
  */
 int gensio_setup_listen_socket(struct gensio_os_funcs *o, bool do_listen,
 			       int family, int socktype, int protocol,
+			       int flags,
 			       struct sockaddr *addr, socklen_t addrlen,
 			       void (*readhndlr)(int, void *),
 			       void (*writehndlr)(int, void *), void *data,
