@@ -237,6 +237,7 @@ fd_start_close(struct fd_ll *fdll)
 static void
 fd_finish_open(struct fd_ll *fdll, int err)
 {
+    fdll->o->set_except_handler(fdll->o, fdll->fd, false);
     if (err) {
 	if (fdll->fd == -1) {
 	    fdll->state = FD_CLOSED;
@@ -333,11 +334,10 @@ fd_handle_incoming(int fd, void *cbdata, bool urgent)
     int c;
     int rv, err = 0;
 
-    fd_lock(fdll);
     fdll->o->set_read_handler(fdll->o, fdll->fd, false);
     fdll->o->set_except_handler(fdll->o, fdll->fd, false);
     if (fdll->in_read)
-	goto out_unlock;
+	goto out;
 
     fdll->in_read = true;
     if (urgent) {
@@ -374,34 +374,28 @@ fd_handle_incoming(int fd, void *cbdata, bool urgent)
     fd_deliver_read_data(fdll, err);
 
     fdll->in_read = false;
- out_unlock:
+ out:
     if (fdll->state == FD_OPEN && fdll->read_enabled) {
 	fdll->o->set_read_handler(fdll->o, fdll->fd, true);
 	fdll->o->set_except_handler(fdll->o, fdll->fd, true);
     }
-    fd_unlock(fdll);
 }
 
 static void
 fd_read_ready(int fd, void *cbdata)
 {
-    fd_handle_incoming(fd, cbdata, false);
-}
+    struct fd_ll *fdll = cbdata;
 
-static void
-fd_except_ready(int fd, void *cbdata)
-{
-    fd_handle_incoming(fd, cbdata, true);
+    fd_lock(fdll);
+    fd_handle_incoming(fd, cbdata, false);
+    fd_unlock(fdll);
 }
 
 static int fd_setup_handlers(struct fd_ll *fdll);
 
 static void
-fd_write_ready(int fd, void *cbdata)
+fd_handle_write_ready(struct fd_ll *fdll)
 {
-    struct fd_ll *fdll = cbdata;
-
-    fd_lock(fdll);
     fdll->o->set_write_handler(fdll->o, fdll->fd, false);
     if (fdll->state == FD_IN_OPEN) {
 	int err;
@@ -416,10 +410,12 @@ fd_write_ready(int fd, void *cbdata)
 		goto opened;
 	    else {
 		err = fd_setup_handlers(fdll);
-		if (err)
+		if (err) {
 		    goto opened;
-		else
+		} else {
 		    fdll->o->set_write_handler(fdll->o, fdll->fd, true);
+		    fdll->o->set_except_handler(fdll->o, fdll->fd, true);
+		}
 	    }
 	} else {
 	opened:
@@ -432,6 +428,32 @@ fd_write_ready(int fd, void *cbdata)
 	if (fdll->state == FD_OPEN && fdll->write_enabled)
 	    fdll->o->set_write_handler(fdll->o, fdll->fd, true);
     }
+}
+
+static void
+fd_write_ready(int fd, void *cbdata)
+{
+    struct fd_ll *fdll = cbdata;
+
+    fd_lock(fdll);
+    fd_handle_write_ready(fdll);
+    fd_unlock(fdll);
+}
+
+static void
+fd_except_ready(int fd, void *cbdata)
+{
+    struct fd_ll *fdll = cbdata;
+
+    fd_lock(fdll);
+    /*
+     * In some cases, if a connect() call fails, we get an exception,
+     * not a write ready.  So in the open case, call write ready.
+     */
+    if (fdll->state == FD_IN_OPEN)
+	fd_handle_write_ready(fdll);
+    else
+	fd_handle_incoming(fd, cbdata, true);
     fd_unlock(fdll);
 }
 
@@ -516,6 +538,7 @@ fd_open(struct gensio_ll *ll, gensio_ll_open_done done, void *open_data)
 	    fdll->open_done = done;
 	    fdll->open_data = open_data;
 	    fdll->o->set_write_handler(fdll->o, fdll->fd, true);
+	    fdll->o->set_except_handler(fdll->o, fdll->fd, true);
 	} else {
 	    fdll->state = FD_OPEN;
 	}
