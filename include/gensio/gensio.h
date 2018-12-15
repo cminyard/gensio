@@ -403,9 +403,17 @@ int gensio_write(struct gensio *io, unsigned int *count,
  * Returns an errno on an error, and a string error will be put
  * into the buffer.
  *
- * In all cases, if pos is non-NULL it will be updated to be the
- * NIL char after the last byte of the string, where you would
- * want to put any new data into the string.
+ * In all cases, if pos is non-NULL and the output string fits into
+ * the buffer, it will be updated to be the NIL char after the last
+ * byte of the string, where you would want to put any new data into
+ * the string.
+ *
+ * If the output string does not fit, pos is updated to where it would
+ * have been if it had enough bytes (one less than the total number of
+ * bytes required), but the output in buf is truncated.  This can be
+ * used to probe to see how long a buffer is required by passing in a
+ * zero buflen and *pos, and then allocating *pos + 1 and calling the
+ * function again with that data.
  */
 int gensio_raddr_to_str(struct gensio *io, unsigned int *pos,
 			char *buf, unsigned int buflen);
@@ -413,6 +421,17 @@ int gensio_raddr_to_str(struct gensio *io, unsigned int *pos,
 /*
  * Return the remote address for the connection.  addrlen must be
  * set to the size of addr and will be updated to the actual size.
+ * If addrlen is not large enough to hold the data, the updated
+ * addrlen will be set to the number of bytes required to hold the
+ * address, though the data in the address will be truncated.
+ *
+ * The value returned here is connection dependent, and for filter
+ * layers it will pass the call down to the lowest layer to get
+ * the addresses.
+ *
+ * For TCP and UDP connections, this is sockaddr type.  For SCTP,
+ * this is a packed sockaddr buffer per SCTP semantics.  For serial
+ * ports, this return an error.
  */
 int gensio_get_raddr(struct gensio *io, void *addr, unsigned int *addrlen);
 
@@ -954,6 +973,25 @@ struct addrinfo *gensio_cat_addrinfo(struct gensio_os_funcs *o,
 				     struct addrinfo *ai1,
 				     struct addrinfo *ai2);
 void gensio_free_addrinfo(struct gensio_os_funcs *o, struct addrinfo *ai);
+
+/*
+ * A routine for converting a sockaddr to a numeric IP address.
+ *
+ * If addrlen is non-NULL and is non-zero, it is compared against what
+ * the actual address length should have been and EINVAL is returned
+ * if it doesn't match.  If addrlen is non-NULL and is zero, it will
+ * be updated to the address length.
+ *
+ * The output is put into buf starting at *epos (or zero if epos is NULL)
+ * and will fill in buf up to buf + buflen.  If the buffer is not large
+ * enough, it is truncated, but if epos is not NULL, it will be set to the
+ * byte position where the ending NIL character would have been, one less
+ * than the buflen that would have been required to hold the entire buffer.
+ *
+ * If addr is not AF_INET or AF_INET6, return EINVAL.
+ */
+int gensio_sockaddr_to_str(const struct sockaddr *addr, socklen_t *addrlen,
+			   char *buf, unsigned int *epos, unsigned int buflen);
 
 /*
  * This allows a global to disable uucp locking for everything.

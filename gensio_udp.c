@@ -365,34 +365,9 @@ udpn_raddr_to_str(struct gensio *io, unsigned int *epos,
 		  char *buf, unsigned int buflen)
 {
     struct udpn_data *ndata = gensio_get_gensio_data(io);
-    char portstr[NI_MAXSERV];
-    int err;
-    unsigned int pos = 0;
+    socklen_t addrlen = ndata->raddrlen;
 
-    if (epos)
-	pos = *epos;
-
-    err = getnameinfo(ndata->raddr, ndata->raddrlen,
-		      buf + pos, buflen - pos,
-		      portstr, sizeof(portstr), NI_NUMERICHOST);
-    if (err) {
-	snprintf(buf + pos, buflen - pos,
-		 "unknown:%s\n", gai_strerror(err));
-	return EINVAL;
-    }
-
-    pos += strlen(buf + pos);
-    if (buflen - pos > 2) {
-	buf[pos] = ':';
-	pos++;
-    }
-    strncpy(buf + pos, portstr, buflen - pos);
-    pos += strlen(buf + pos);
-
-    if (epos)
-	*epos = pos;
-
-    return 0;
+    return gensio_sockaddr_to_str(ndata->raddr, &addrlen, buf, epos, buflen);
 }
 
 static int

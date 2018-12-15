@@ -405,6 +405,8 @@ fd_write_ready(int fd, void *cbdata)
 	    fdll->o->clear_fd_handlers_norpt(fdll->o, fdll->fd);
 	    close(fdll->fd);
 	    fdll->fd = -1;
+	}
+	if (err && fdll->retry_open) {
 	    err = fdll->retry_open(fdll->handler_data, &fdll->fd);
 	    if (err != EINPROGRESS)
 		goto opened;

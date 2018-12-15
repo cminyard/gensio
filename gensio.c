@@ -25,6 +25,10 @@
 #include <fcntl.h>
 #include <ctype.h>
 #include <limits.h>
+#include <limits.h>
+#include <stdio.h>
+
+#include <arpa/inet.h>
 
 #include <gensio/gensio.h>
 #include <gensio/gensio_class.h>
@@ -1317,6 +1321,53 @@ gensio_strdup(struct gensio_os_funcs *o, const char *str)
 	return NULL;
     strcpy(s, str);
     return s;
+}
+
+int
+gensio_sockaddr_to_str(const struct sockaddr *addr, socklen_t *addrlen,
+		       char *buf, unsigned int *epos, unsigned int buflen)
+{
+    unsigned int pos = 0;
+    unsigned int left;
+
+    if (epos)
+	pos = *epos;
+
+    if (pos >= buflen)
+	left = 0;
+    else
+	left = buflen - pos;
+
+    if (addr->sa_family == AF_INET) {
+	struct sockaddr_in *a4 = (struct sockaddr_in *) addr;
+	char ibuf[INET_ADDRSTRLEN];
+
+	if (addrlen && *addrlen && *addrlen != sizeof(struct sockaddr_in))
+	    goto out_err;
+	pos += snprintf(buf + pos, left, "%s,%d",
+			inet_ntop(AF_INET, &a4->sin_addr, ibuf, sizeof(ibuf)),
+			a4->sin_port);
+	if (addrlen)
+	    *addrlen = sizeof(struct sockaddr_in);
+    } else if (addr->sa_family == AF_INET6) {
+	struct sockaddr_in6 *a6 = (struct sockaddr_in6 *) addr;
+	char ibuf[INET6_ADDRSTRLEN];
+
+	if (addrlen && *addrlen && *addrlen != sizeof(struct sockaddr_in6))
+	    goto out_err;
+	pos += snprintf(buf + pos, left, "%s,%d",
+			inet_ntop(AF_INET6, &a6->sin6_addr, ibuf, sizeof(ibuf)),
+			a6->sin6_port);
+	if (addrlen)
+	    *addrlen = sizeof(struct sockaddr_in6);
+    } else {
+    out_err:
+	if (left)
+	    buf[pos] = '\0';
+	return EINVAL;
+    }
+
+    return 0;
 }
 
 int

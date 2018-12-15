@@ -148,34 +148,9 @@ tcp_raddr_to_str(void *handler_data, unsigned int *epos,
 		 char *buf, unsigned int buflen)
 {
     struct tcp_data *tdata = handler_data;
-    char portstr[NI_MAXSERV];
-    int err;
-    int pos = 0;
+    socklen_t addrlen = tdata->raddrlen;
 
-    if (epos)
-	pos = *epos;
-
-    err = getnameinfo(tdata->raddr, tdata->raddrlen,
-		      buf + pos, buflen - pos,
-		      portstr, sizeof(portstr), NI_NUMERICHOST);
-    if (err) {
-	snprintf(buf + pos, buflen - pos,
-		 "unknown:%s\n", gai_strerror(err));
-	return EINVAL;
-    }
-
-    pos += strlen(buf + pos);
-    if (buflen - pos > 2) {
-	buf[pos] = ':';
-	pos++;
-    }
-    strncpy(buf + pos, portstr, buflen - pos);
-    pos += strlen(buf + pos);
-
-    if (epos)
-	*epos = pos;
-
-    return 0;
+    return gensio_sockaddr_to_str(tdata->raddr, &addrlen, buf, epos, buflen);
 }
 
 static int
