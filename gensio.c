@@ -406,7 +406,7 @@ strisallzero(const char *str)
 }
 
 static int
-scan_ips(struct gensio_os_funcs *o, const char *str, int ifamily,
+scan_ips(struct gensio_os_funcs *o, const char *str, bool listen, int ifamily,
 	 int socktype, int protocol, bool *is_port_set, struct addrinfo **rai)
 {
     char *strtok_data, *strtok_buffer;
@@ -416,6 +416,10 @@ scan_ips(struct gensio_os_funcs *o, const char *str, int ifamily,
     int portnum;
     bool first = true, portset = false;
     int rv = 0;
+    int bflags = AI_ADDRCONFIG;
+
+    if (listen)
+	bflags |= AI_PASSIVE;
 
     strtok_buffer = gensio_strdup(o, str);
     if (!strtok_buffer)
@@ -444,7 +448,7 @@ scan_ips(struct gensio_os_funcs *o, const char *str, int ifamily,
 	}
 
 	memset(&hints, 0, sizeof(hints));
-	hints.ai_flags = AI_PASSIVE | rflags;
+	hints.ai_flags = bflags | rflags;
 	hints.ai_family = family;
 	hints.ai_socktype = socktype;
 	hints.ai_protocol = protocol;
@@ -525,8 +529,8 @@ scan_ips(struct gensio_os_funcs *o, const char *str, int ifamily,
  * otherwise.
  */
 static int
-scan_network_port_args(struct gensio_os_funcs *o,
-		       const char *str, struct addrinfo **rai,
+scan_network_port_args(struct gensio_os_funcs *o, const char *str,
+		       bool listen, struct addrinfo **rai,
 		       int *socktype, int *protocol,
 		       bool *is_port_set, int *argc, char ***args)
 {
@@ -584,21 +588,23 @@ scan_network_port_args(struct gensio_os_funcs *o,
 	*protocol = IPPROTO_TCP;
     }
 
-    return scan_ips(o, str, family, *socktype, *protocol, is_port_set, rai);
+    return scan_ips(o, str, listen, family, *socktype, *protocol,
+		    is_port_set, rai);
 }
 
 int
-gensio_scan_network_port(struct gensio_os_funcs *o,
-			 const char *str, struct addrinfo **ai,
+gensio_scan_network_port(struct gensio_os_funcs *o, const char *str,
+			 bool listen, struct addrinfo **ai,
 			 int *socktype, int *protocol,
 			 bool *is_port_set)
 {
-    return scan_network_port_args(o, str, ai, socktype, protocol, is_port_set,
+    return scan_network_port_args(o, str, listen,
+				  ai, socktype, protocol, is_port_set,
 				  NULL, NULL);
 }
 
 int
-gensio_scan_netaddr(struct gensio_os_funcs *o, const char *str,
+gensio_scan_netaddr(struct gensio_os_funcs *o, const char *str, bool listen,
 		    int socktype, int protocol, struct addrinfo **rai)
 {
     int family = AF_UNSPEC;
@@ -611,7 +617,7 @@ gensio_scan_netaddr(struct gensio_os_funcs *o, const char *str,
 	str += 5;
     }
 
-    return scan_ips(o, str, family, socktype, protocol, NULL, rai);
+    return scan_ips(o, str, listen, family, socktype, protocol, NULL, rai);
 }
 
 bool
@@ -1111,7 +1117,7 @@ int str_to_gensio_accepter(const char *str,
 	err = stdio_gensio_accepter_alloc(dummy_args, o, cb, user_data,
 					  accepter);
     } else {
-	err = scan_network_port_args(o, str, &ai, &socktype, &protocol,
+	err = scan_network_port_args(o, str, true, &ai, &socktype, &protocol,
 				     &is_port_set, &argc, &args);
 	if (!err) {
 	    if (!is_port_set) {
@@ -1233,7 +1239,7 @@ str_to_gensio(const char *str,
 	goto out;
     }
 
-    err = scan_network_port_args(o, str, &ai, &socktype, &protocol,
+    err = scan_network_port_args(o, str, false, &ai, &socktype, &protocol,
 				 &is_port_set, &argc, &args);
     if (!err) {
 	if (!is_port_set) {

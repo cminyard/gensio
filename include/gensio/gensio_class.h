@@ -253,7 +253,7 @@ const char *gensio_check_tcpd_ok(int new_fd);
  * must free rai with gensio_free_addrinfo().  If socktype or protocol
  * are non-zero, allocate for the given socktype and protocol.
  */
-int gensio_scan_netaddr(struct gensio_os_funcs *o, const char *str,
+int gensio_scan_netaddr(struct gensio_os_funcs *o, const char *str, bool listen,
 			int socktype, int protocol, struct addrinfo **rai);
 
 char *gensio_strdup(struct gensio_os_funcs *o, const char *str);

@@ -904,8 +904,8 @@ int gensio_sockaddr_get_port(const struct sockaddr *s);
  *
  * ai should be freed with gensio_free_addrinfo().
  */
-int gensio_scan_network_port(struct gensio_os_funcs *o,
-			     const char *str, struct addrinfo **ai,
+int gensio_scan_network_port(struct gensio_os_funcs *o, const char *str,
+			     bool listen, struct addrinfo **ai,
 			     int *socktype, int *protocol,
 			     bool *is_port_set);
 
