@@ -302,6 +302,14 @@ def test_tcp_small():
                          chunksize = 64)
     ta = TestAccept(o, io1, "tcp,3025", do_small_test)
 
+def test_sctp_small():
+    print("Test sctp small")
+    io1 = utils.alloc_io(o, "sctp,localhost,3025", do_open = False,
+                         chunksize = 64)
+    ta = TestAccept(o, io1, "sctp,3025", do_small_test)
+
+test_sctp_small()
+
 def test_telnet_small():
     print("Test telnet small")
     io1 = utils.alloc_io(o, "telnet,tcp,localhost,3026", do_open = False,
