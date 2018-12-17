@@ -491,6 +491,12 @@ int gensio_control(struct gensio *io, int depth,
 #define GENSIO_CONTROL_DEPTH_ALL	-1
 
 /*
+ * Set the enable/disable for any NAGLE type algorithms.
+ * auxdata points to an integer with a boolean value.
+ */
+#define GENSIO_CONTROL_NODELAY	1
+
+/*
  * Return the type string for the gensio (if depth is 0) or one of its
  * children (depth > 0).  Return NULL if the depth is greater than the
  * number of children.

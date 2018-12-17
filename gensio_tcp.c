@@ -175,11 +175,29 @@ tcp_free(void *handler_data)
     tdata->o->free(tdata->o, tdata);
 }
 
+static int
+tcp_control(void *handler_data, int fd, unsigned int option, void *auxdata)
+{
+    int rv;
+
+    switch (option) {
+    case GENSIO_CONTROL_NODELAY:
+	rv = setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, auxdata, sizeof(int));
+	if (rv == -1)
+	    return errno;
+	return 0;
+
+    default:
+	return ENOTSUP;
+    }
+}
+
 static const struct gensio_fd_ll_ops tcp_fd_ll_ops = {
     .sub_open = tcp_sub_open,
     .raddr_to_str = tcp_raddr_to_str,
     .get_raddr = tcp_get_raddr,
-    .free = tcp_free
+    .free = tcp_free,
+    .control = tcp_control
 };
 
 int
@@ -343,7 +361,8 @@ tcpna_deref_and_unlock(struct tcpna_data *nadata)
 static const struct gensio_fd_ll_ops tcp_server_fd_ll_ops = {
     .raddr_to_str = tcp_raddr_to_str,
     .get_raddr = tcp_get_raddr,
-    .free = tcp_free
+    .free = tcp_free,
+    .control = tcp_control
 };
 
 static void
