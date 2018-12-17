@@ -253,11 +253,29 @@ sctp_free(void *handler_data)
     tdata->o->free(tdata->o, tdata);
 }
 
+static int
+sctp_control(void *handler_data, int fd, unsigned int option, void *auxdata)
+{
+    int rv;
+
+    switch (option) {
+    case GENSIO_CONTROL_NODELAY:
+	rv = setsockopt(fd, SOL_SCTP, SCTP_NODELAY, auxdata, sizeof(int));
+	if (rv == -1)
+	    return errno;
+	return 0;
+
+    default:
+	return ENOTSUP;
+    }
+}
+
 static const struct gensio_fd_ll_ops sctp_fd_ll_ops = {
     .sub_open = sctp_sub_open,
     .raddr_to_str = sctp_raddr_to_str,
     .get_raddr = sctp_get_raddr,
-    .free = sctp_free
+    .free = sctp_free,
+    .control = sctp_control
 };
 
 int
@@ -430,7 +448,8 @@ sctpna_deref_and_unlock(struct sctpna_data *nadata)
 static const struct gensio_fd_ll_ops sctp_server_fd_ll_ops = {
     .raddr_to_str = sctp_raddr_to_str,
     .get_raddr = sctp_get_raddr,
-    .free = sctp_free
+    .free = sctp_free,
+    .control = sctp_control
 };
 
 static void
