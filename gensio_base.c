@@ -274,25 +274,6 @@ ll_write(struct basen_data *ndata, unsigned int *rcount,
     return gensio_ll_write(ndata->ll, rcount, buf, buflen, NULL);
 }
 
-static int
-ll_raddr_to_str(struct basen_data *ndata, unsigned int *pos,
-		char *buf, unsigned int buflen)
-{
-    return gensio_ll_raddr_to_str(ndata->ll, pos, buf, buflen);
-}
-
-static int
-ll_get_raddr(struct basen_data *ndata, void *addr, unsigned int *addrlen)
-{
-    return gensio_ll_get_raddr(ndata->ll, addr, addrlen);
-}
-
-static int
-ll_remote_id(struct basen_data *ndata, int *id)
-{
-    return gensio_ll_remote_id(ndata->ll, id);
-}
-
 /*
  * Returns 0 if the open was immediate, EINPROGRESS if it was deferred,
  * and an errno otherwise.
@@ -357,10 +338,9 @@ basen_write_data_handler(void *cb_data,
 }
 
 static int
-basen_write(struct gensio *io, unsigned int *rcount,
+basen_write(struct basen_data *ndata, unsigned int *rcount,
 	    const void *buf, unsigned int buflen)
 {
-    struct basen_data *ndata = gensio_get_gensio_data(io);
     int err = 0;
 
     basen_lock(ndata);
@@ -381,39 +361,6 @@ basen_write(struct gensio *io, unsigned int *rcount,
     basen_unlock(ndata);
 
     return err;
-}
-
-static int
-basen_raddr_to_str(struct gensio *io, unsigned int *pos,
-		  char *buf, unsigned int buflen)
-{
-    struct basen_data *ndata = gensio_get_gensio_data(io);
-
-    return ll_raddr_to_str(ndata, pos, buf, buflen);
-}
-
-static int
-basen_get_raddr(struct gensio *io, void *addr, unsigned int *addrlen)
-{
-    struct basen_data *ndata = gensio_get_gensio_data(io);
-
-    return ll_get_raddr(ndata, addr, addrlen);
-}
-
-static int
-basen_remote_id(struct gensio *io, int *id)
-{
-    struct basen_data *ndata = gensio_get_gensio_data(io);
-
-    return ll_remote_id(ndata, id);
-}
-
-static int
-basen_control(struct gensio *io, unsigned int option, void *auxdata)
-{
-    struct basen_data *ndata = gensio_get_gensio_data(io);
-
-    return gensio_ll_control(ndata->ll, option, auxdata);
 }
 
 static int
@@ -598,9 +545,8 @@ basen_ll_open_done(void *cb_data, int err, void *open_data)
 }
 
 static int
-basen_open(struct gensio *io, gensio_done_err open_done, void *open_data)
+basen_open(struct basen_data *ndata, gensio_done_err open_done, void *open_data)
 {
-    struct basen_data *ndata = gensio_get_gensio_data(io);
     int err = EBUSY;
 
     basen_lock(ndata);
@@ -680,9 +626,8 @@ basen_i_close(struct basen_data *ndata,
 }
 
 static int
-basen_close(struct gensio *io, gensio_done close_done, void *close_data)
+basen_close(struct basen_data *ndata, gensio_done close_done, void *close_data)
 {
-    struct basen_data *ndata = gensio_get_gensio_data(io);
     int err = 0;
 
     basen_lock(ndata);
@@ -703,10 +648,8 @@ basen_close(struct gensio *io, gensio_done close_done, void *close_data)
 }
 
 static void
-basen_free(struct gensio *io)
+basen_free(struct basen_data *ndata)
 {
-    struct basen_data *ndata = gensio_get_gensio_data(io);
-
     basen_lock(ndata);
     assert(ndata->freeref > 0);
     if (--ndata->freeref > 0) {
@@ -729,10 +672,8 @@ basen_free(struct gensio *io)
 }
 
 static void
-basen_do_ref(struct gensio *io)
+basen_do_ref(struct basen_data *ndata)
 {
-    struct basen_data *ndata = gensio_get_gensio_data(io);
-
     basen_lock(ndata);
     ndata->freeref++;
     basen_unlock(ndata);
@@ -767,9 +708,8 @@ basen_timeout(struct gensio_timer *timer, void *cb_data)
 }
 
 static void
-basen_set_read_callback_enable(struct gensio *io, bool enabled)
+basen_set_read_callback_enable(struct basen_data *ndata, bool enabled)
 {
-    struct basen_data *ndata = gensio_get_gensio_data(io);
     bool read_pending;
 
     basen_lock(ndata);
@@ -800,10 +740,8 @@ basen_set_read_callback_enable(struct gensio *io, bool enabled)
 }
 
 static void
-basen_set_write_callback_enable(struct gensio *io, bool enabled)
+basen_set_write_callback_enable(struct basen_data *ndata, bool enabled)
 {
-    struct basen_data *ndata = gensio_get_gensio_data(io);
-
     basen_lock(ndata);
     if (ndata->state == BASEN_CLOSED || ndata->state == BASEN_IN_FILTER_CLOSE ||
 			ndata->state == BASEN_IN_LL_CLOSE)
@@ -821,43 +759,45 @@ gensio_base_func(struct gensio *io, int func, unsigned int *count,
 		const void *buf, unsigned int buflen,
 		void *auxdata)
 {
+    struct basen_data *ndata = gensio_get_gensio_data(io);
+
     switch (func) {
     case GENSIO_FUNC_WRITE:
-	return basen_write(io, count, buf, buflen);
+	return basen_write(ndata, count, buf, buflen);
 
     case GENSIO_FUNC_RADDR_TO_STR:
-	return basen_raddr_to_str(io, count, auxdata, buflen);
+	return gensio_ll_raddr_to_str(ndata->ll, count, auxdata, buflen);
 
     case GENSIO_FUNC_GET_RADDR:
-	return basen_get_raddr(io, auxdata, count);
+	return gensio_ll_get_raddr(ndata->ll, auxdata, count);
 
     case GENSIO_FUNC_OPEN:
-	return basen_open(io, buf, auxdata);
+	return basen_open(ndata, buf, auxdata);
 
     case GENSIO_FUNC_CLOSE:
-	return basen_close(io, buf, auxdata);
+	return basen_close(ndata, buf, auxdata);
 
     case GENSIO_FUNC_FREE:
-	basen_free(io);
+	basen_free(ndata);
 	return 0;
 
     case GENSIO_FUNC_REF:
-	basen_do_ref(io);
+	basen_do_ref(ndata);
 	return 0;
 
     case GENSIO_FUNC_SET_READ_CALLBACK:
-	basen_set_read_callback_enable(io, buflen);
+	basen_set_read_callback_enable(ndata, buflen);
 	return 0;
 
     case GENSIO_FUNC_SET_WRITE_CALLBACK:
-	basen_set_write_callback_enable(io, buflen);
+	basen_set_write_callback_enable(ndata, buflen);
 	return 0;
 
     case GENSIO_FUNC_REMOTE_ID:
-	return basen_remote_id(io, auxdata);
+	return gensio_ll_remote_id(ndata->ll, auxdata);
 
     case GENSIO_FUNC_CONTROL:
-	return basen_control(io, buflen, auxdata);
+	return gensio_ll_control(ndata->ll, buflen, auxdata);
 
     default:
 	return ENOTSUP;
