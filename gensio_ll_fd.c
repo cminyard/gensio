@@ -630,15 +630,12 @@ static int fd_control(struct gensio_ll *ll, unsigned int option, void *auxdata)
 }
 
 static int
-gensio_ll_fd_func(struct gensio_ll *ll, int op, int val,
-		  const void *func, void *data,
-		  unsigned int *count,
-		  void *buf, const void *cbuf,
-		  unsigned int buflen)
+gensio_ll_fd_func(struct gensio_ll *ll, int op, unsigned int *count,
+		  void *buf, const void *cbuf, unsigned int buflen)
 {
     switch (op) {
     case GENSIO_LL_FUNC_SET_CALLBACK:
-	fd_set_callbacks(ll, func, data);
+	fd_set_callbacks(ll, cbuf, buf);
 	return 0;
 
     case GENSIO_LL_FUNC_WRITE:
@@ -651,20 +648,20 @@ gensio_ll_fd_func(struct gensio_ll *ll, int op, int val,
 	return fd_get_raddr(ll, buf, count);
 
     case GENSIO_LL_FUNC_REMOTE_ID:
-	return fd_remote_id(ll, data);
+	return fd_remote_id(ll, buf);
 
     case GENSIO_LL_FUNC_OPEN:
-	return fd_open(ll, func, data);
+	return fd_open(ll, cbuf, buf);
 
     case GENSIO_LL_FUNC_CLOSE:
-	return fd_close(ll, func, data);
+	return fd_close(ll, cbuf, buf);
 
     case GENSIO_LL_FUNC_SET_READ_CALLBACK:
-	fd_set_read_callback_enable(ll, val);
+	fd_set_read_callback_enable(ll, buflen);
 	return 0;
 
     case GENSIO_LL_FUNC_SET_WRITE_CALLBACK:
-	fd_set_write_callback_enable(ll, val);
+	fd_set_write_callback_enable(ll, buflen);
 	return 0;
 
     case GENSIO_LL_FUNC_FREE:
@@ -672,7 +669,7 @@ gensio_ll_fd_func(struct gensio_ll *ll, int op, int val,
 	return 0;
 
     case GENSIO_LL_FUNC_CONTROL:
-	return fd_control(ll, val, buf);
+	return fd_control(ll, buflen, buf);
 
     default:
 	return ENOTSUP;

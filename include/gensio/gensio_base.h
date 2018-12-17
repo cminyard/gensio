@@ -201,12 +201,11 @@ typedef unsigned int (*gensio_ll_cb)(void *cb_data, int op, int val,
 				     void *buf, unsigned int buflen,
 				     void *data);
 
-
 /*
  * Set the callbacks for the ll.
  *
- * cbs => func
- * cb_data => data
+ * cbs => cbuf
+ * cb_data => buf
  */
 #define GENSIO_LL_FUNC_SET_CALLBACK		1
 void gensio_ll_set_callback(struct gensio_ll *ll,
@@ -218,6 +217,7 @@ void gensio_ll_set_callback(struct gensio_ll *ll,
  * rcount => count
  * buf => cbuf
  * buflen => buflen
+ * auxdata => buf
  */
 #define GENSIO_LL_FUNC_WRITE			2
 int gensio_ll_write(struct gensio_ll *ll, unsigned int *rcount,
@@ -242,7 +242,7 @@ int gensio_ll_get_raddr(struct gensio_ll *ll,
 			void *addr, unsigned int *addrlen);
 
 /*
- * id => data
+ * id => buf
  */
 #define GENSIO_LL_FUNC_REMOTE_ID		5
 int gensio_ll_remote_id(struct gensio_ll *ll, int *id);
@@ -251,8 +251,8 @@ int gensio_ll_remote_id(struct gensio_ll *ll, int *id);
  * Returns 0 if the open was immediate, EINPROGRESS if it was deferred,
  * and an errno otherwise.
  *
- * done => func
- * open_data => data
+ * done => cbuf
+ * open_data => buf
  */
 #define GENSIO_LL_FUNC_OPEN			6
 int gensio_ll_open(struct gensio_ll *ll,
@@ -262,21 +262,21 @@ int gensio_ll_open(struct gensio_ll *ll,
  * Returns 0 if the open was immediate, EINPROGRESS if it was deferred.
  * No other returns are allowed.
  *
- * done => func
- * close_data => data
+ * done => cbuf
+ * close_data => buf
  */
 #define GENSIO_LL_FUNC_CLOSE			7
 int gensio_ll_close(struct gensio_ll *ll,
 		    gensio_ll_close_done done, void *close_data);
 
 /*
- * enabled => val
+ * enabled => buflen
  */
 #define GENSIO_LL_FUNC_SET_READ_CALLBACK	8
 void gensio_ll_set_read_callback(struct gensio_ll *ll, bool enabled);
 
 /*
- * enabled => val
+ * enabled => buflen
  */
 #define GENSIO_LL_FUNC_SET_WRITE_CALLBACK	9
 void gensio_ll_set_write_callback(struct gensio_ll *ll, bool enabled);
@@ -285,14 +285,13 @@ void gensio_ll_set_write_callback(struct gensio_ll *ll, bool enabled);
 void gensio_ll_free(struct gensio_ll *ll);
 
 /*
- * option => val
+ * option => buflen
  * auxdata => buf
  */
 #define GENSIO_LL_FUNC_CONTROL			11
 int gensio_ll_control(struct gensio_ll *ll, int option, void *auxdata);
 
-typedef int (*gensio_ll_func)(struct gensio_ll *ll, int op, int val,
-			      const void *func, void *data,
+typedef int (*gensio_ll_func)(struct gensio_ll *ll, int op,
 			      unsigned int *count,
 			      void *buf, const void *cbuf,
 			      unsigned int buflen);

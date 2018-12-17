@@ -1173,8 +1173,7 @@ void
 gensio_ll_set_callback(struct gensio_ll *ll,
 		       gensio_ll_cb cb, void *cb_data)
 {
-    ll->func(ll, GENSIO_LL_FUNC_SET_CALLBACK, 0, cb, cb_data,
-	     NULL, NULL, NULL, 0);
+    ll->func(ll, GENSIO_LL_FUNC_SET_CALLBACK, NULL, cb_data, cb, 0);
 }
 
 int
@@ -1182,73 +1181,63 @@ gensio_ll_write(struct gensio_ll *ll, unsigned int *rcount,
 		const unsigned char *buf, unsigned int buflen,
 		void *auxdata)
 {
-    return ll->func(ll, GENSIO_LL_FUNC_WRITE, 0, NULL, auxdata,
-		    rcount, NULL, buf, buflen);
+    return ll->func(ll, GENSIO_LL_FUNC_WRITE, rcount, auxdata, buf, buflen);
 }
 
 int
 gensio_ll_raddr_to_str(struct gensio_ll *ll, unsigned int *pos,
 		       char *buf, unsigned int buflen)
 {
-    return ll->func(ll, GENSIO_LL_FUNC_RADDR_TO_STR, 0, NULL, NULL,
-		    pos, buf, NULL, buflen);
+    return ll->func(ll, GENSIO_LL_FUNC_RADDR_TO_STR, pos, buf, NULL, buflen);
 }
 
 int
 gensio_ll_get_raddr(struct gensio_ll *ll,
 		    void *addr, unsigned int *addrlen)
 {
-    return ll->func(ll, GENSIO_LL_FUNC_GET_RADDR, 0, NULL, NULL,
-		    addrlen, addr, NULL, 0);
+    return ll->func(ll, GENSIO_LL_FUNC_GET_RADDR, addrlen, addr, NULL, 0);
 }
 
 int
 gensio_ll_remote_id(struct gensio_ll *ll, int *id)
 {
-    return ll->func(ll, GENSIO_LL_FUNC_REMOTE_ID, 0, NULL, id,
-		    NULL, NULL, NULL, 0);
+    return ll->func(ll, GENSIO_LL_FUNC_REMOTE_ID, NULL, id, NULL, 0);
 }
 
 int
 gensio_ll_open(struct gensio_ll *ll,
 	       gensio_ll_open_done done, void *open_data)
 {
-    return ll->func(ll, GENSIO_LL_FUNC_OPEN, 0, done, open_data,
-		    NULL, NULL, NULL, 0);
+    return ll->func(ll, GENSIO_LL_FUNC_OPEN, NULL, open_data, done, 0);
 }
 
 int
 gensio_ll_close(struct gensio_ll *ll,
 		gensio_ll_close_done done, void *close_data)
 {
-    return ll->func(ll, GENSIO_LL_FUNC_CLOSE, 0, done, close_data,
-		    NULL, NULL, NULL, 0);
+    return ll->func(ll, GENSIO_LL_FUNC_CLOSE, NULL, close_data, done, 0);
 }
 
 void
 gensio_ll_set_read_callback(struct gensio_ll *ll, bool enabled)
 {
-    ll->func(ll, GENSIO_LL_FUNC_SET_READ_CALLBACK, enabled, NULL, NULL,
-	     NULL, NULL, NULL, 0);
+    ll->func(ll, GENSIO_LL_FUNC_SET_READ_CALLBACK, NULL, NULL, NULL, enabled);
 }
 
 void
 gensio_ll_set_write_callback(struct gensio_ll *ll, bool enabled)
 {
-    ll->func(ll, GENSIO_LL_FUNC_SET_WRITE_CALLBACK, enabled, NULL, NULL,
-	     NULL, NULL, NULL, 0);
+    ll->func(ll, GENSIO_LL_FUNC_SET_WRITE_CALLBACK, NULL, NULL, NULL, enabled);
 }
 
 void
 gensio_ll_free(struct gensio_ll *ll)
 {
-    ll->func(ll, GENSIO_LL_FUNC_FREE, 0, NULL, NULL,
-	     NULL, NULL, NULL, 0);
+    ll->func(ll, GENSIO_LL_FUNC_FREE, NULL, NULL, NULL, 0);
 }
 
 int
 gensio_ll_control(struct gensio_ll *ll, int option, void *auxdata)
 {
-    return ll->func(ll, GENSIO_LL_FUNC_CONTROL, option, NULL, NULL,
-		    NULL, auxdata, NULL, 0);
+    return ll->func(ll, GENSIO_LL_FUNC_CONTROL, NULL, auxdata, NULL, option);
 }

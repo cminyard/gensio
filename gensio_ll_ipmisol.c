@@ -1236,15 +1236,12 @@ static void sol_free(struct gensio_ll *ll)
 }
 
 static int
-gensio_ll_sol_func(struct gensio_ll *ll, int op, int val,
-		  const void *func, void *data,
-		  unsigned int *count,
-		  void *buf, const void *cbuf,
-		  unsigned int buflen)
+gensio_ll_sol_func(struct gensio_ll *ll, int op, unsigned int *count,
+		  void *buf, const void *cbuf, unsigned int buflen)
 {
     switch (op) {
     case GENSIO_LL_FUNC_SET_CALLBACK:
-	sol_set_callbacks(ll, func, data);
+	sol_set_callbacks(ll, cbuf, buf);
 	return 0;
 
     case GENSIO_LL_FUNC_WRITE:
@@ -1257,20 +1254,20 @@ gensio_ll_sol_func(struct gensio_ll *ll, int op, int val,
 	return sol_get_raddr(ll, buf, count);
 
     case GENSIO_LL_FUNC_REMOTE_ID:
-	return sol_remote_id(ll, data);
+	return sol_remote_id(ll, buf);
 
     case GENSIO_LL_FUNC_OPEN:
-	return sol_open(ll, func, data);
+	return sol_open(ll, cbuf, buf);
 
     case GENSIO_LL_FUNC_CLOSE:
-	return sol_close(ll, func, data);
+	return sol_close(ll, cbuf, buf);
 
     case GENSIO_LL_FUNC_SET_READ_CALLBACK:
-	sol_set_read_callback_enable(ll, val);
+	sol_set_read_callback_enable(ll, buflen);
 	return 0;
 
     case GENSIO_LL_FUNC_SET_WRITE_CALLBACK:
-	sol_set_write_callback_enable(ll, val);
+	sol_set_write_callback_enable(ll, buflen);
 	return 0;
 
     case GENSIO_LL_FUNC_FREE:

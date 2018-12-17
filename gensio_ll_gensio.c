@@ -150,19 +150,16 @@ static void child_free(struct gensio_ll *ll)
 }
 
 static int
-gensio_ll_child_func(struct gensio_ll *ll, int op, int val,
-		  const void *func, void *data,
-		  unsigned int *count,
-		  void *buf, const void *cbuf,
-		  unsigned int buflen)
+gensio_ll_child_func(struct gensio_ll *ll, int op, unsigned int *count,
+		  void *buf, const void *cbuf, unsigned int buflen)
 {
     switch (op) {
     case GENSIO_LL_FUNC_SET_CALLBACK:
-	child_set_callbacks(ll, func, data);
+	child_set_callbacks(ll, cbuf, buf);
 	return 0;
 
     case GENSIO_LL_FUNC_WRITE:
-	return child_write(ll, count, cbuf, buflen, data);
+	return child_write(ll, count, cbuf, buflen, buf);
 
     case GENSIO_LL_FUNC_RADDR_TO_STR:
 	return child_raddr_to_str(ll, count, buf, buflen);
@@ -171,20 +168,20 @@ gensio_ll_child_func(struct gensio_ll *ll, int op, int val,
 	return child_get_raddr(ll, buf, count);
 
     case GENSIO_LL_FUNC_REMOTE_ID:
-	return child_remote_id(ll, data);
+	return child_remote_id(ll, buf);
 
     case GENSIO_LL_FUNC_OPEN:
-	return child_open(ll, func, data);
+	return child_open(ll, cbuf, buf);
 
     case GENSIO_LL_FUNC_CLOSE:
-	return child_close(ll, func, data);
+	return child_close(ll, cbuf, buf);
 
     case GENSIO_LL_FUNC_SET_READ_CALLBACK:
-	child_set_read_callback_enable(ll, val);
+	child_set_read_callback_enable(ll, buflen);
 	return 0;
 
     case GENSIO_LL_FUNC_SET_WRITE_CALLBACK:
-	child_set_write_callback_enable(ll, val);
+	child_set_write_callback_enable(ll, buflen);
 	return 0;
 
     case GENSIO_LL_FUNC_FREE:
