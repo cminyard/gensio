@@ -284,6 +284,13 @@ void gensio_ll_set_write_callback(struct gensio_ll *ll, bool enabled);
 #define GENSIO_LL_FUNC_FREE			10
 void gensio_ll_free(struct gensio_ll *ll);
 
+/*
+ * option => val
+ * auxdata => buf
+ */
+#define GENSIO_LL_FUNC_CONTROL			11
+int gensio_ll_control(struct gensio_ll *ll, int option, void *auxdata);
+
 typedef int (*gensio_ll_func)(struct gensio_ll *ll, int op, int val,
 			      const void *func, void *data,
 			      unsigned int *count,

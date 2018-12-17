@@ -409,6 +409,14 @@ basen_remote_id(struct gensio *io, int *id)
 }
 
 static int
+basen_control(struct gensio *io, unsigned int option, void *auxdata)
+{
+    struct basen_data *ndata = gensio_get_gensio_data(io);
+
+    return gensio_ll_control(ndata->ll, option, auxdata);
+}
+
+static int
 basen_read_data_handler(void *cb_data,
 			unsigned int *rcount,
 			unsigned char *buf,
@@ -847,6 +855,9 @@ gensio_base_func(struct gensio *io, int func, unsigned int *count,
 
     case GENSIO_FUNC_REMOTE_ID:
 	return basen_remote_id(io, auxdata);
+
+    case GENSIO_FUNC_CONTROL:
+	return basen_control(io, buflen, auxdata);
 
     default:
 	return ENOTSUP;
@@ -1293,4 +1304,11 @@ gensio_ll_free(struct gensio_ll *ll)
 {
     ll->func(ll, GENSIO_LL_FUNC_FREE, 0, NULL, NULL,
 	     NULL, NULL, NULL, 0);
+}
+
+int
+gensio_ll_control(struct gensio_ll *ll, int option, void *auxdata)
+{
+    return ll->func(ll, GENSIO_LL_FUNC_CONTROL, option, NULL, NULL,
+		    NULL, auxdata, NULL, 0);
 }
