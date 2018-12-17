@@ -50,6 +50,9 @@ struct gensio_fd_ll_ops {
 		       struct timeval *next_timeout);
 
     void (*free)(void *handler_data);
+
+    int (*control)(void *handler_data, int fd, unsigned int option,
+		   void *auxdata);
 };
 
 struct gensio_ll *fd_gensio_ll_alloc(struct gensio_os_funcs *o,
