@@ -482,10 +482,13 @@ int gensio_open_channel_s(struct gensio *io, const char *args,
 
 /*
  * Perform a gensio-specific operation on the gensio (if depth is 0) or
- * one of its children (depth > 0).
+ * one of its children (depth > 0).  If depth is GENSIO_CONTROL_DEPTH_ALL,
+ * then call all the children with the data.  ENOTSUP is ignored in
+ * that case, but it will stop at the first error.
  */
-int gensio_control(struct gensio *io, unsigned int depth,
+int gensio_control(struct gensio *io, int depth,
 		   unsigned int option, void *auxdata);
+#define GENSIO_CONTROL_DEPTH_ALL	-1
 
 /*
  * Return the type string for the gensio (if depth is 0) or one of its

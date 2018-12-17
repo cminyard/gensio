@@ -825,10 +825,25 @@ gensio_open_channel_s(struct gensio *io, const char *args,
 }
 
 int
-gensio_control(struct gensio *io, unsigned int depth,
+gensio_control(struct gensio *io, int depth,
 	       unsigned int option, void *auxdata)
 {
     struct gensio *c = io;
+
+    if (depth == GENSIO_CONTROL_DEPTH_ALL) {
+	while (c) {
+	    int rv = c->func(c, GENSIO_FUNC_CONTROL, NULL, NULL, option,
+			     auxdata);
+
+	    if (rv && rv != ENOTSUP)
+		return rv;
+	    c = c->child;
+	}
+	return 0;
+    }
+
+    if (depth < 0)
+	return EINVAL;
 
     while (depth > 0) {
 	if (!c->child)
