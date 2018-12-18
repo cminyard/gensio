@@ -205,11 +205,9 @@ fd_deliver_read_data(struct fd_ll *fdll, int err)
 	unsigned int count;
 
     retry:
-	fd_unlock(fdll);
 	count = fdll->cb(fdll->cb_data, GENSIO_LL_CB_READ, err,
 			 fdll->read_data + fdll->read_data_pos,
 			 fdll->read_data_len, NULL);
-	fd_lock(fdll);
 	if (err || count >= fdll->read_data_len) {
 	    fdll->read_data_pos = 0;
 	    fdll->read_data_len = 0;
@@ -295,7 +293,9 @@ fd_deferred_op(struct gensio_runner *runner, void *cbdata)
     if (fdll->deferred_read) {
 	fdll->deferred_read = false;
 
+	fd_unlock(fdll);
 	fd_deliver_read_data(fdll, 0);
+	fd_lock(fdll);
 
 	fdll->in_read = false;
 
@@ -336,8 +336,9 @@ fd_handle_incoming(int fd, void *cbdata, bool urgent)
     fdll->o->set_except_handler(fdll->o, fdll->fd, false);
     if (fdll->in_read)
 	goto out;
-
     fdll->in_read = true;
+    fd_unlock(fdll);
+
     if (urgent) {
 	/* We should have urgent data, a DATA MARK in the stream.  Read
 	   the urgent data (whose contents are irrelevant) then inform
@@ -347,9 +348,7 @@ fd_handle_incoming(int fd, void *cbdata, bool urgent)
 	    if (rv == 0 || (rv < 0 && errno != EINTR))
 		break;
 	}
-	fd_unlock(fdll);
 	fdll->cb(fdll->cb_data, GENSIO_LL_CB_URGENT, 0, NULL, 0, NULL);
-	fd_lock(fdll);
     }
 
     if (!fdll->read_data_len) {
@@ -371,6 +370,7 @@ fd_handle_incoming(int fd, void *cbdata, bool urgent)
 
     fd_deliver_read_data(fdll, err);
 
+    fd_lock(fdll);
     fdll->in_read = false;
  out:
     if (fdll->state == FD_OPEN && fdll->read_enabled) {
