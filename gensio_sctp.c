@@ -145,14 +145,10 @@ sctp_try_open(struct sctp_data *tdata, int *fd)
 }
 
 static int
-sctp_sub_open(void *handler_data,
-	      int (**check_open)(void *handler_data, int fd),
-	      int (**retry_open)(void *handler_data, int *fd),
-	      int *fd)
+sctp_sub_open(void *handler_data, int *fd)
 {
     struct sctp_data *tdata = handler_data;
 
-    *check_open = sctp_check_open;
     return sctp_try_open(tdata, fd);
 }
 
@@ -272,6 +268,7 @@ sctp_control(void *handler_data, int fd, unsigned int option, void *auxdata)
 
 static const struct gensio_fd_ll_ops sctp_fd_ll_ops = {
     .sub_open = sctp_sub_open,
+    .check_open = sctp_check_open,
     .raddr_to_str = sctp_raddr_to_str,
     .get_raddr = sctp_get_raddr,
     .free = sctp_free,

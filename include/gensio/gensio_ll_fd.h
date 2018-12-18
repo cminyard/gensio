@@ -28,10 +28,11 @@ enum gensio_ll_close_state {
 };
 
 struct gensio_fd_ll_ops {
-    int (*sub_open)(void *handler_data,
-		    int (**check_open)(void *handler_data, int fd),
-		    int (**retry_open)(void *handler_data, int *fd),
-		    int *fd);
+    int (*sub_open)(void *handler_data, int *fd);
+
+    int (*check_open)(void *handler_data, int fd);
+
+    int (*retry_open)(void *handler_data, int *fd);
 
     int (*raddr_to_str)(void *handler_data, unsigned int *pos,
 			char *buf, unsigned int buflen);

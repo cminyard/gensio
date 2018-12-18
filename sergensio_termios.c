@@ -1092,10 +1092,7 @@ static void cfmakeraw(struct termios *termios_p) {
 #endif
 
 static int
-sterm_sub_open(void *handler_data,
-	       int (**check_open)(void *handler_data, int fd),
-	       int (**retry_open)(void *handler_data, int *fd),
-	       int *fd)
+sterm_sub_open(void *handler_data, int *fd)
 {
     struct sterm_data *sdata = handler_data;
     int err;

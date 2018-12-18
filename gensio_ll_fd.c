@@ -52,8 +52,6 @@ struct fd_ll {
 
     const struct gensio_fd_ll_ops *ops;
     void *handler_data;
-    int (*check_open)(void *handler_data, int fd);
-    int (*retry_open)(void *handler_data, int *fd);
 
     gensio_ll_open_done open_done;
     void *open_data;
@@ -400,12 +398,12 @@ fd_handle_write_ready(struct fd_ll *fdll)
     if (fdll->state == FD_IN_OPEN) {
 	int err;
 
-	err = fdll->check_open(fdll->handler_data, fdll->fd);
-	if (err && fdll->retry_open) {
+	err = fdll->ops->check_open(fdll->handler_data, fdll->fd);
+	if (err && fdll->ops->retry_open) {
 	    fdll->o->clear_fd_handlers_norpt(fdll->o, fdll->fd);
 	    close(fdll->fd);
 	    fdll->fd = -1;
-	    err = fdll->retry_open(fdll->handler_data, &fdll->fd);
+	    err = fdll->ops->retry_open(fdll->handler_data, &fdll->fd);
 	    if (err != EINPROGRESS)
 		goto opened;
 	    else {
@@ -522,8 +520,7 @@ fd_open(struct gensio_ll *ll, gensio_ll_open_done done, void *open_data)
 	return ENOTSUP;
 
     fd_lock(fdll);
-    err = fdll->ops->sub_open(fdll->handler_data, &fdll->check_open,
-			      &fdll->retry_open, &fdll->fd);
+    err = fdll->ops->sub_open(fdll->handler_data, &fdll->fd);
     if (err == EINPROGRESS || err == 0) {
 	int err2 = fd_setup_handlers(fdll);
 	if (err2) {

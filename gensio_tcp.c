@@ -130,15 +130,10 @@ tcp_retry_open(void *handler_data, int *fd)
 }
 
 static int
-tcp_sub_open(void *handler_data,
-	     int (**check_open)(void *handler_data, int fd),
-	     int (**retry_open)(void *handler_data, int *fd),
-	     int *fd)
+tcp_sub_open(void *handler_data, int *fd)
 {
     struct tcp_data *tdata = handler_data;
 
-    *check_open = tcp_check_open;
-    *retry_open = tcp_retry_open;
     tdata->curr_ai = tdata->ai;
     return tcp_try_open(tdata, fd);
 }
@@ -194,6 +189,8 @@ tcp_control(void *handler_data, int fd, unsigned int option, void *auxdata)
 
 static const struct gensio_fd_ll_ops tcp_fd_ll_ops = {
     .sub_open = tcp_sub_open,
+    .check_open = tcp_check_open,
+    .retry_open = tcp_retry_open,
     .raddr_to_str = tcp_raddr_to_str,
     .get_raddr = tcp_get_raddr,
     .free = tcp_free,
