@@ -36,6 +36,8 @@
 struct tcp_data {
     struct gensio_os_funcs *o;
 
+    struct gensio_ll *ll;
+
     struct sockaddr_storage remote;	/* The socket address of who
 					   is connected to this port. */
     struct sockaddr *raddr;		/* Points to remote, for convenience. */
@@ -187,6 +189,23 @@ tcp_control(void *handler_data, int fd, unsigned int option, void *auxdata)
     }
 }
 
+static void
+tcp_except_ready(void *handler_data, int fd)
+{
+    struct tcp_data *tdata = handler_data;
+    int c, rv;
+
+    /* We should have urgent data, a DATA MARK in the stream.  Read
+       the urgent data (whose contents are irrelevant) then inform
+       the user. */
+    for (;;) {
+	rv = recv(fd, &c, 1, MSG_OOB);
+	if (rv == 0 || (rv < 0 && errno != EINTR))
+	    break;
+    }
+    gensio_fd_ll_callback(tdata->ll, GENSIO_LL_CB_URGENT, 0, NULL, 0, NULL);
+}
+
 static const struct gensio_fd_ll_ops tcp_fd_ll_ops = {
     .sub_open = tcp_sub_open,
     .check_open = tcp_check_open,
@@ -194,7 +213,8 @@ static const struct gensio_fd_ll_ops tcp_fd_ll_ops = {
     .raddr_to_str = tcp_raddr_to_str,
     .get_raddr = tcp_get_raddr,
     .free = tcp_free,
-    .control = tcp_control
+    .control = tcp_control,
+    .except_ready = tcp_except_ready
 };
 
 int
@@ -205,7 +225,6 @@ tcp_gensio_alloc(struct addrinfo *iai, char *args[],
 {
     struct tcp_data *tdata = NULL;
     struct addrinfo *ai;
-    struct gensio_ll *ll;
     struct gensio *io;
     unsigned int max_read_size = GENSIO_DEFAULT_BUF_SIZE;
     int i;
@@ -235,16 +254,16 @@ tcp_gensio_alloc(struct addrinfo *iai, char *args[],
     tdata->ai = ai;
     tdata->raddr = (struct sockaddr *) &tdata->remote;
 
-    ll = fd_gensio_ll_alloc(o, -1, &tcp_fd_ll_ops, tdata, max_read_size);
-    if (!ll) {
+    tdata->ll = fd_gensio_ll_alloc(o, -1, &tcp_fd_ll_ops, tdata, max_read_size);
+    if (!tdata->ll) {
 	gensio_free_addrinfo(o, ai);
 	o->free(o, tdata);
 	return ENOMEM;
     }
 
-    io = base_gensio_alloc(o, ll, NULL, "tcp", cb, user_data);
+    io = base_gensio_alloc(o, tdata->ll, NULL, "tcp", cb, user_data);
     if (!io) {
-	gensio_ll_free(ll);
+	gensio_ll_free(tdata->ll);
 	gensio_free_addrinfo(o, ai);
 	o->free(o, tdata);
 	return ENOMEM;

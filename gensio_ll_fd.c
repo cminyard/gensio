@@ -150,6 +150,10 @@ fd_write(struct gensio_ll *ll, unsigned int *rcount,
 
     int rv, err = 0;
 
+    if (fdll->ops->write)
+	return fdll->ops->write(fdll->handler_data, fdll->fd,
+				rcount, buf, buflen);
+
  retry:
     rv = write(fdll->fd, buf, buflen);
     if (rv < 0) {
@@ -326,10 +330,9 @@ fd_sched_deferred_op(struct fd_ll *fdll)
 }
 
 static void
-fd_handle_incoming(int fd, void *cbdata, bool urgent)
+fd_handle_incoming(int fd, void *cbdata)
 {
     struct fd_ll *fdll = cbdata;
-    int c;
     int rv, err = 0;
 
     fdll->o->set_read_handler(fdll->o, fdll->fd, false);
@@ -338,18 +341,6 @@ fd_handle_incoming(int fd, void *cbdata, bool urgent)
 	goto out;
     fdll->in_read = true;
     fd_unlock(fdll);
-
-    if (urgent) {
-	/* We should have urgent data, a DATA MARK in the stream.  Read
-	   the urgent data (whose contents are irrelevant) then inform
-	   the user. */
-	for (;;) {
-	    rv = recv(fd, &c, 1, MSG_OOB);
-	    if (rv == 0 || (rv < 0 && errno != EINTR))
-		break;
-	}
-	fdll->cb(fdll->cb_data, GENSIO_LL_CB_URGENT, 0, NULL, 0, NULL);
-    }
 
     if (!fdll->read_data_len) {
     retry:
@@ -384,8 +375,13 @@ fd_read_ready(int fd, void *cbdata)
 {
     struct fd_ll *fdll = cbdata;
 
+    if (fdll->ops->read_ready) {
+	fdll->ops->read_ready(fdll->handler_data, fdll->fd);
+	return;
+    }
+
     fd_lock(fdll);
-    fd_handle_incoming(fd, cbdata, false);
+    fd_handle_incoming(fd, cbdata);
     fd_unlock(fdll);
 }
 
@@ -421,10 +417,16 @@ fd_handle_write_ready(struct fd_ll *fdll)
 	}
     } else {
 	fd_unlock(fdll);
-	fdll->cb(fdll->cb_data, GENSIO_LL_CB_WRITE_READY, 0, NULL, 0, NULL);
-	fd_lock(fdll);
-	if (fdll->state == FD_OPEN && fdll->write_enabled)
-	    fdll->o->set_write_handler(fdll->o, fdll->fd, true);
+
+	if (fdll->ops->write_ready) {
+	    fdll->ops->write_ready(fdll->handler_data, fdll->fd);
+	    fd_lock(fdll);
+	} else {
+	    fdll->cb(fdll->cb_data, GENSIO_LL_CB_WRITE_READY, 0, NULL, 0, NULL);
+	    fd_lock(fdll);
+	    if (fdll->state == FD_OPEN && fdll->write_enabled)
+		fdll->o->set_write_handler(fdll->o, fdll->fd, true);
+	}
     }
 }
 
@@ -450,9 +452,12 @@ fd_except_ready(int fd, void *cbdata)
      */
     if (fdll->state == FD_IN_OPEN)
 	fd_handle_write_ready(fdll);
-    else
-	fd_handle_incoming(fd, cbdata, true);
-    fd_unlock(fdll);
+    else if (fdll->ops->except_ready) {
+	fd_unlock(fdll);
+	fdll->ops->except_ready(fdll->handler_data, fdll->fd);
+    } else {
+	fd_unlock(fdll);
+    }
 }
 
 static void
@@ -673,6 +678,15 @@ gensio_ll_fd_func(struct gensio_ll *ll, int op, unsigned int *count,
     }
 }
 
+unsigned int
+gensio_fd_ll_callback(struct gensio_ll *ll, int op, int val, void *buf,
+		      unsigned int buflen, void *data)
+{
+    struct fd_ll *fdll = ll_to_fd(ll);
+
+    return fdll->cb(fdll->cb_data, op, val, buf, buflen, data);
+}
+
 struct gensio_ll *
 fd_gensio_ll_alloc(struct gensio_os_funcs *o,
 		   int fd,
@@ -709,9 +723,11 @@ fd_gensio_ll_alloc(struct gensio_os_funcs *o,
 	goto out_nomem;
 
     fdll->read_data_size = max_read_size;
-    fdll->read_data = o->zalloc(o, max_read_size);
-    if (!fdll->read_data)
-	goto out_nomem;
+    if (max_read_size > 0) {
+	fdll->read_data = o->zalloc(o, max_read_size);
+	if (!fdll->read_data)
+	    goto out_nomem;
+    }
 
     fdll->ll.func = gensio_ll_fd_func;
 
