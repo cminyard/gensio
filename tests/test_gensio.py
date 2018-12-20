@@ -76,8 +76,6 @@ def ta_sctp():
     io1 = utils.alloc_io(o, "sctp,localhost,3023", do_open = False)
     TestAccept(o, io1, "sctp,3023", do_test)
 
-ta_sctp()
-
 def ta_ssl_tcp():
     print("Test accept ssl-tcp")
     io1 = utils.alloc_io(o, "ssl(CA=%s/CA.pem),tcp,localhost,3024" % utils.srcdir, do_open = False)
@@ -308,8 +306,6 @@ def test_sctp_small():
                          chunksize = 64)
     ta = TestAccept(o, io1, "sctp,3025", do_small_test)
 
-test_sctp_small()
-
 def test_telnet_small():
     print("Test telnet small")
     io1 = utils.alloc_io(o, "telnet,tcp,localhost,3026", do_open = False,
@@ -369,9 +365,11 @@ test_stdio_small()
 ta_tcp()
 ta_udp()
 ta_ssl_tcp()
+ta_sctp()
 test_modemstate()
 test_tcp_small()
 test_telnet_small()
+test_sctp_small()
 ta_ssl_telnet()
 test_ipmisol_large()
 test_rs485()
