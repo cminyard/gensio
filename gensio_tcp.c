@@ -199,6 +199,31 @@ tcp_except_ready(void *handler_data, int fd)
     gensio_fd_ll_callback(tdata->ll, GENSIO_LL_CB_URGENT, 0, NULL, 0, NULL);
 }
 
+static int
+tcp_write(void *handler_data, int fd, unsigned int *rcount,
+	  const unsigned char *buf, unsigned int buflen, void *auxdata)
+{
+    int rv, err = 0;
+
+ retry:
+    rv = write(fd, buf, buflen);
+    if (rv < 0) {
+	if (errno == EINTR)
+	    goto retry;
+	if (errno == EWOULDBLOCK || errno == EAGAIN)
+	    rv = 0; /* Handle like a zero-byte write. */
+	else
+	    err = errno;
+    } else if (rv == 0) {
+	err = EPIPE;
+    }
+
+    if (!err && rcount)
+	*rcount = rv;
+
+    return err;
+}
+
 static const struct gensio_fd_ll_ops tcp_fd_ll_ops = {
     .sub_open = tcp_sub_open,
     .check_open = tcp_check_open,
@@ -207,7 +232,8 @@ static const struct gensio_fd_ll_ops tcp_fd_ll_ops = {
     .get_raddr = tcp_get_raddr,
     .free = tcp_free,
     .control = tcp_control,
-    .except_ready = tcp_except_ready
+    .except_ready = tcp_except_ready,
+    .write = tcp_write
 };
 
 int
@@ -371,7 +397,9 @@ static const struct gensio_fd_ll_ops tcp_server_fd_ll_ops = {
     .raddr_to_str = tcp_raddr_to_str,
     .get_raddr = tcp_get_raddr,
     .free = tcp_free,
-    .control = tcp_control
+    .control = tcp_control,
+    .except_ready = tcp_except_ready,
+    .write = tcp_write
 };
 
 static void
@@ -382,7 +410,6 @@ tcpna_readhandler(int fd, void *cbdata)
     struct sockaddr_storage addr;
     socklen_t addrlen = sizeof(addr);
     struct tcp_data *tdata = NULL;
-    struct gensio_ll *ll;
     struct gensio *io;
     const char *errstr;
     int err;
@@ -424,9 +451,9 @@ tcpna_readhandler(int fd, void *cbdata)
 	return;
     }
 
-    ll = fd_gensio_ll_alloc(nadata->o, new_fd, &tcp_server_fd_ll_ops, tdata,
-			    nadata->max_read_size);
-    if (!ll) {
+    tdata->ll = fd_gensio_ll_alloc(nadata->o, new_fd, &tcp_server_fd_ll_ops,
+				   tdata, nadata->max_read_size);
+    if (!tdata->ll) {
 	gensio_acc_log(nadata->acc, GENSIO_LOG_ERR,
 		       "Out of memory allocating tcp ll");
 	close(new_fd);
@@ -434,11 +461,12 @@ tcpna_readhandler(int fd, void *cbdata)
 	return;
     }
 
-    io = base_gensio_server_alloc(nadata->o, ll, NULL, "tcp", NULL, NULL);
+    io = base_gensio_server_alloc(nadata->o, tdata->ll, NULL, "tcp", NULL,
+				  NULL);
     if (!io) {
 	gensio_acc_log(nadata->acc, GENSIO_LOG_ERR,
 		       "Out of memory allocating tcp base");
-	gensio_ll_free(ll);
+	gensio_ll_free(tdata->ll);
 	close(new_fd);
 	tcp_free(tdata);
 	return;
