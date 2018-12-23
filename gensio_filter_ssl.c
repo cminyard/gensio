@@ -212,7 +212,7 @@ static int
 ssl_ul_write(struct gensio_filter *filter,
 	     gensio_ul_filter_data_handler handler, void *cb_data,
 	     unsigned int *rcount,
-	     const unsigned char *buf, unsigned int buflen)
+	     const unsigned char *buf, unsigned int buflen, void *auxdata)
 {
     struct ssl_filter *sfilter = filter_to_ssl(filter);
     int err = 0;
@@ -236,7 +236,7 @@ ssl_ul_write(struct gensio_filter *filter,
 
 	err = handler(cb_data, &written,
 		      sfilter->xmit_buf + sfilter->xmit_buf_pos,
-		      sfilter->xmit_buf_len - sfilter->xmit_buf_pos);
+		      sfilter->xmit_buf_len - sfilter->xmit_buf_pos, NULL);
 	if (err) {
 	    sfilter->xmit_buf_len = 0;
 	} else {
@@ -441,7 +441,7 @@ static int gensio_ssl_filter_func(struct gensio_filter *filter, int op,
 	return ssl_try_disconnect(filter, data);
 
     case GENSIO_FILTER_FUNC_UL_WRITE:
-	return ssl_ul_write(filter, func, data, count, cbuf, buflen);
+	return ssl_ul_write(filter, func, data, count, cbuf, buflen, buf);
 
     case GENSIO_FILTER_FUNC_LL_WRITE:
 	return ssl_ll_write(filter, func, data, count, buf, buflen);

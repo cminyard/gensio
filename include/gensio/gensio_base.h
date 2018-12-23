@@ -23,7 +23,8 @@ struct gensio_filter;
 typedef int (*gensio_ul_filter_data_handler)(void *cb_data,
 					     unsigned int *rcount,
 					     const unsigned char *buf,
-					     unsigned int buflen);
+					     unsigned int buflen,
+					     void *auxdata);
 
 typedef int (*gensio_ll_filter_data_handler)(void *cb_data,
 					     unsigned int *rcount,
@@ -112,17 +113,19 @@ int gensio_filter_try_disconnect(struct gensio_filter *filter,
  * (buf is NULL) then this will just attempt to write any pending
  * data out of the bottom of the filter into the handler.
  *
- * gensio_ul_filter_data_handler handler => func
- * void *cb_data => data
- * unsigned int *rcount => count
- * const unsigned char *buf => cbuf
- * unsigned int buflen => buflen
+ * handler => func
+ * cb_data => data
+ * rcount => count
+ * buf => cbuf
+ * buflen => buflen
+ * auxdata => buf
  */
 #define GENSIO_FILTER_FUNC_UL_WRITE		8
 int gensio_filter_ul_write(struct gensio_filter *filter,
 			   gensio_ul_filter_data_handler handler, void *cb_data,
 			   unsigned int *rcount,
-			   const unsigned char *buf, unsigned int buflen);
+			   const unsigned char *buf, unsigned int buflen,
+			   void *auxdata);
 
 /*
  * Write data into the bottom of the filter.  If no data is

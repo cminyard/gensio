@@ -213,12 +213,12 @@ filter_try_disconnect(struct basen_data *ndata, struct timeval *timeout)
 static int
 filter_ul_write(struct basen_data *ndata, gensio_ul_filter_data_handler handler,
 		unsigned int *rcount,
-		const unsigned char *buf, unsigned int buflen)
+		const unsigned char *buf, unsigned int buflen, void *auxdata)
 {
     if (ndata->filter)
 	return gensio_filter_ul_write(ndata->filter, handler,
-				      ndata, rcount, buf, buflen);
-    return handler(ndata, rcount, buf, buflen);
+				      ndata, rcount, buf, buflen, auxdata);
+    return handler(ndata, rcount, buf, buflen, auxdata);
 }	     
 
 static int
@@ -258,13 +258,13 @@ filter_cleanup(struct basen_data *ndata)
 
 static int
 ll_write(struct basen_data *ndata, unsigned int *rcount,
-	 const unsigned char *buf, unsigned int buflen)
+	 const unsigned char *buf, unsigned int buflen, void *auxdata)
 {
 #ifdef DEBUG_ON
     printf("LL write:");
     prbuf(buf, buflen);
 #endif
-    return gensio_ll_write(ndata->ll, rcount, buf, buflen, NULL);
+    return gensio_ll_write(ndata->ll, rcount, buf, buflen, auxdata);
 }
 
 /*
@@ -320,19 +320,18 @@ basen_set_ll_enables(struct basen_data *ndata)
 }
 
 static int
-basen_write_data_handler(void *cb_data,
-			 unsigned int *rcount,
-			 const unsigned char *buf,
-			 unsigned int buflen)
+basen_write_data_handler(void *cb_data, unsigned int *rcount,
+			 const unsigned char *buf, unsigned int buflen,
+			 void *auxdata)
 {
     struct basen_data *ndata = cb_data;
 
-    return ll_write(ndata, rcount, buf, buflen);
+    return ll_write(ndata, rcount, buf, buflen, auxdata);
 }
 
 static int
 basen_write(struct basen_data *ndata, unsigned int *rcount,
-	    const void *buf, unsigned int buflen)
+	    const void *buf, unsigned int buflen, void *auxdata)
 {
     int err = 0;
 
@@ -347,7 +346,8 @@ basen_write(struct basen_data *ndata, unsigned int *rcount,
 	goto out_unlock;
     }
 
-    err = filter_ul_write(ndata, basen_write_data_handler, rcount, buf, buflen);
+    err = filter_ul_write(ndata, basen_write_data_handler, rcount, buf, buflen,
+			  auxdata);
 
  out_unlock:
     basen_set_ll_enables(ndata);
@@ -756,7 +756,7 @@ gensio_base_func(struct gensio *io, int func, unsigned int *count,
 
     switch (func) {
     case GENSIO_FUNC_WRITE:
-	return basen_write(ndata, count, buf, buflen);
+	return basen_write(ndata, count, buf, buflen, auxdata);
 
     case GENSIO_FUNC_RADDR_TO_STR:
 	return gensio_ll_raddr_to_str(ndata->ll, count, auxdata, buflen);
@@ -876,7 +876,8 @@ basen_ll_write_ready(void *cb_data)
     basen_lock(ndata);
     ll_set_write_callback_enable(ndata, false);
     if (filter_ll_write_pending(ndata)) {
-	err = filter_ul_write(ndata, basen_write_data_handler, NULL, NULL, 0);
+	err = filter_ul_write(ndata, basen_write_data_handler, NULL, NULL, 0,
+			      NULL);
 	if (err)
 	    ndata->saved_xmit_err = err;
     }
@@ -1111,10 +1112,11 @@ int
 gensio_filter_ul_write(struct gensio_filter *filter,
 		       gensio_ul_filter_data_handler handler, void *cb_data,
 		       unsigned int *rcount,
-		       const unsigned char *buf, unsigned int buflen)
+		       const unsigned char *buf, unsigned int buflen,
+		       void *auxdata)
 {
     return filter->func(filter, GENSIO_FILTER_FUNC_UL_WRITE,
-			handler, cb_data, rcount, NULL, buf, buflen);
+			handler, cb_data, rcount, auxdata, buf, buflen);
 }
 
 int

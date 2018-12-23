@@ -137,7 +137,7 @@ fd_set_callbacks(struct gensio_ll *ll, gensio_ll_cb cb, void *cb_data)
 
 static int
 fd_write(struct gensio_ll *ll, unsigned int *rcount,
-	 const unsigned char *buf, unsigned int buflen)
+	 const unsigned char *buf, unsigned int buflen, void *auxdata)
 {
     struct fd_ll *fdll = ll_to_fd(ll);
 
@@ -145,7 +145,7 @@ fd_write(struct gensio_ll *ll, unsigned int *rcount,
 
     if (fdll->ops->write)
 	return fdll->ops->write(fdll->handler_data, fdll->fd,
-				rcount, buf, buflen);
+				rcount, buf, buflen, auxdata);
 
  retry:
     rv = write(fdll->fd, buf, buflen);
@@ -634,7 +634,7 @@ gensio_ll_fd_func(struct gensio_ll *ll, int op, unsigned int *count,
 	return 0;
 
     case GENSIO_LL_FUNC_WRITE:
-	return fd_write(ll, count, cbuf, buflen);
+	return fd_write(ll, count, cbuf, buflen, buf);
 
     case GENSIO_LL_FUNC_RADDR_TO_STR:
 	return fd_raddr_to_str(ll, count, buf, buflen);

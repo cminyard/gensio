@@ -163,6 +163,7 @@ telnet_try_disconnect(struct gensio_filter *filter, struct timeval *timeout)
 struct telnet_buffer_data {
     gensio_ul_filter_data_handler handler;
     void *cb_data;
+    void *auxdata;
 };
 
 static int
@@ -173,7 +174,7 @@ telnet_buffer_do_write(void *cb_data, void *buf, unsigned int buflen,
     unsigned int count;
     int err;
 
-    err = data->handler(data->cb_data, &count, buf, buflen);
+    err = data->handler(data->cb_data, &count, buf, buflen, data->auxdata);
     if (!err)
 	*written = count;
     return err;
@@ -183,7 +184,8 @@ static int
 telnet_ul_write(struct gensio_filter *filter,
 		gensio_ul_filter_data_handler handler, void *cb_data,
 		unsigned int *rcount,
-		const unsigned char *buf, unsigned int buflen)
+		const unsigned char *buf, unsigned int buflen,
+		void *auxdata)
 {
     struct telnet_filter *tfilter = filter_to_telnet(filter);
     int err = 0;
@@ -203,7 +205,7 @@ telnet_ul_write(struct gensio_filter *filter,
 
     if (tfilter->write_state != TELNET_IN_USER_WRITE &&
 		buffer_cursize(&tfilter->tn_data.out_telnet_cmd)) {
-	struct telnet_buffer_data data = { handler, cb_data };
+	struct telnet_buffer_data data = { handler, cb_data, auxdata };
 
 	err = buffer_write(telnet_buffer_do_write, &data,
 			   &tfilter->tn_data.out_telnet_cmd);
@@ -221,7 +223,7 @@ telnet_ul_write(struct gensio_filter *filter,
 
 	err = handler(cb_data, &count,
 		      tfilter->write_data + tfilter->write_data_pos,
-		      tfilter->write_data_len);
+		      tfilter->write_data_len, auxdata);
 	if (!err) {
 	    if (count >= tfilter->write_data_len) {
 		tfilter->write_state = TELNET_NOT_WRITING;
@@ -462,7 +464,7 @@ static int gensio_telnet_filter_func(struct gensio_filter *filter, int op,
 	return telnet_try_disconnect(filter, data);
 
     case GENSIO_FILTER_FUNC_UL_WRITE:
-	return telnet_ul_write(filter, func, data, count, cbuf, buflen);
+	return telnet_ul_write(filter, func, data, count, cbuf, buflen, buf);
 
     case GENSIO_FILTER_FUNC_LL_WRITE:
 	return telnet_ll_write(filter, func, data, count, buf, buflen);
