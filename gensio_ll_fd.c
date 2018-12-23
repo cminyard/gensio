@@ -58,6 +58,7 @@ struct fd_ll {
     unsigned int read_data_size;
     unsigned int read_data_len;
     unsigned int read_data_pos;
+    void *auxdata;
 
     bool in_read;
 
@@ -204,10 +205,11 @@ fd_deliver_read_data(struct fd_ll *fdll, int err)
     retry:
 	count = fdll->cb(fdll->cb_data, GENSIO_LL_CB_READ, err,
 			 fdll->read_data + fdll->read_data_pos,
-			 fdll->read_data_len, NULL);
+			 fdll->read_data_len, fdll->auxdata);
 	if (err || count >= fdll->read_data_len) {
 	    fdll->read_data_pos = 0;
 	    fdll->read_data_len = 0;
+	    fdll->auxdata = NULL;
 	} else {
 	    fdll->read_data_pos += count;
 	    fdll->read_data_len -= count;
@@ -323,11 +325,13 @@ fd_sched_deferred_op(struct fd_ll *fdll)
 }
 
 static void
-fd_handle_incoming(int fd, void *cbdata)
+fd_handle_incoming(struct fd_ll *fdll,
+		   ssize_t (*doread)(int fd, void *buf, size_t count),
+		   void *auxdata)
 {
-    struct fd_ll *fdll = cbdata;
     int rv, err = 0;
 
+    fd_lock(fdll);
     fdll->o->set_read_handler(fdll->o, fdll->fd, false);
     fdll->o->set_except_handler(fdll->o, fdll->fd, false);
     if (fdll->in_read)
@@ -337,7 +341,7 @@ fd_handle_incoming(int fd, void *cbdata)
 
     if (!fdll->read_data_len) {
     retry:
-	rv = read(fd, fdll->read_data, fdll->read_data_size);
+	rv = doread(fdll->fd, fdll->read_data, fdll->read_data_size);
 	if (rv < 0) {
 	    if (errno == EINTR)
 		goto retry;
@@ -349,6 +353,7 @@ fd_handle_incoming(int fd, void *cbdata)
 	    err = EPIPE;
 	} else {
 	    fdll->read_data_len = rv;
+	    fdll->auxdata = auxdata;
 	}
     }
 
@@ -361,6 +366,17 @@ fd_handle_incoming(int fd, void *cbdata)
 	fdll->o->set_read_handler(fdll->o, fdll->fd, true);
 	fdll->o->set_except_handler(fdll->o, fdll->fd, true);
     }
+    fd_unlock(fdll);
+}
+
+void gensio_fd_ll_handle_incoming(struct gensio_ll *ll,
+				  ssize_t (*doread)(int fd, void *buf,
+						    size_t count),
+				  void *auxdata)
+{
+    struct fd_ll *fdll = ll_to_fd(ll);
+
+    fd_handle_incoming(fdll, doread, auxdata);
 }
 
 static void
@@ -373,9 +389,7 @@ fd_read_ready(int fd, void *cbdata)
 	return;
     }
 
-    fd_lock(fdll);
-    fd_handle_incoming(fd, cbdata);
-    fd_unlock(fdll);
+    fd_handle_incoming(fdll, read, NULL);
 }
 
 static int fd_setup_handlers(struct fd_ll *fdll);

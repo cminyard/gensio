@@ -191,7 +191,6 @@ typedef void (*gensio_ll_close_done)(void *cb_data, void *close_data);
 
 #define GENSIO_LL_CB_READ		1
 #define GENSIO_LL_CB_WRITE_READY	2
-#define GENSIO_LL_CB_URGENT		3
 
 typedef unsigned int (*gensio_ll_cb)(void *cb_data, int op, int val,
 				     void *buf, unsigned int buflen,

@@ -20,6 +20,7 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <string.h>
+#include <strings.h>
 #include <assert.h>
 
 #include <gensio/gensio.h>
@@ -182,21 +183,19 @@ tcp_control(void *handler_data, int fd, unsigned int option, void *auxdata)
     }
 }
 
+static ssize_t
+tcp_oob_read(int fd, void *data, size_t count)
+{
+    return recv(fd, data, count, MSG_OOB);
+}
+
 static void
 tcp_except_ready(void *handler_data, int fd)
 {
     struct tcp_data *tdata = handler_data;
-    int c, rv;
+    static const char *argv[2] = { "oob", NULL };
 
-    /* We should have urgent data, a DATA MARK in the stream.  Read
-       the urgent data (whose contents are irrelevant) then inform
-       the user. */
-    for (;;) {
-	rv = recv(fd, &c, 1, MSG_OOB);
-	if (rv == 0 || (rv < 0 && errno != EINTR))
-	    break;
-    }
-    gensio_fd_ll_callback(tdata->ll, GENSIO_LL_CB_URGENT, 0, NULL, 0, NULL);
+    gensio_fd_ll_handle_incoming(tdata->ll, tcp_oob_read, argv);
 }
 
 static int
@@ -204,9 +203,26 @@ tcp_write(void *handler_data, int fd, unsigned int *rcount,
 	  const unsigned char *buf, unsigned int buflen, void *auxdata)
 {
     int rv, err = 0;
+    int flags = 0;
+
+    if (auxdata) {
+	char **argv = auxdata;
+	unsigned int i;
+
+	for (i = 0; !err && argv[i]; i++) {
+	    if (strcasecmp(argv[i], "oob") == 0) {
+		flags |= MSG_OOB;
+	    } else {
+		err = EINVAL;
+	    }
+	}
+
+	if (err)
+	    return err;
+    }
 
  retry:
-    rv = write(fd, buf, buflen);
+    rv = send(fd, buf, buflen, flags);
     if (rv < 0) {
 	if (errno == EINTR)
 	    goto retry;

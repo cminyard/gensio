@@ -451,16 +451,6 @@ gensio_child_event(struct gensio *io, int event, int readerr,
 	swig_finish_call(data->handler_val, "write_callback", args);
 	break;
 
-    case GENSIO_EVENT_URGENT:
-	io_ref = swig_make_ref(io, gensio);
-	args = PyTuple_New(1);
-	Py_INCREF(io_ref.val);
-	PyTuple_SET_ITEM(args, 0, io_ref.val);
-
-	swig_finish_call(data->handler_val, "urgent_callback", args);
-	rv = 0;
-	break;
-
     case GENSIO_EVENT_SER_MODEMSTATE:
 	sgensio_modemstate(gensio_to_sergensio(io), *((unsigned int *) buf));
 	break;

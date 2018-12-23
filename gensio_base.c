@@ -232,14 +232,6 @@ filter_ll_write(struct basen_data *ndata, gensio_ll_filter_data_handler handler,
     return handler(ndata, rcount, buf, buflen);
 }	     
 
-static void
-filter_ll_urgent(struct basen_data *ndata)
-{
-    if (ndata->filter)
-	gensio_filter_ll_urgent(ndata->filter);
-    gensio_cb(ndata->io, GENSIO_EVENT_URGENT, 0, NULL, NULL, NULL);
-}
-
 static int
 filter_setup(struct basen_data *ndata)
 {
@@ -902,14 +894,6 @@ basen_ll_write_ready(void *cb_data)
     basen_unlock(ndata);
 }
 
-static void
-basen_ll_urgent(void *cb_data)
-{
-    struct basen_data *ndata = cb_data;
-
-    filter_ll_urgent(ndata);
-}
-
 static unsigned int
 gensio_ll_base_cb(void *cb_data, int op, int val,
 		  void *buf, unsigned int buflen,
@@ -921,10 +905,6 @@ gensio_ll_base_cb(void *cb_data, int op, int val,
 
     case GENSIO_LL_CB_WRITE_READY:
 	basen_ll_write_ready(cb_data);
-	return 0;
-
-    case GENSIO_LL_CB_URGENT:
-	basen_ll_urgent(cb_data);
 	return 0;
 
     default:

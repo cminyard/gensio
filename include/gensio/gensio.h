@@ -287,19 +287,12 @@ struct gensio;
 #define GENSIO_EVENT_WRITE_READY	2
 
 /*
- * Called when an urgent signal is received from the I/O device.  Only
- * io is set, all other parameters are unused and the return value is
- * ignored.
- */
-#define GENSIO_EVENT_URGENT		3
-
-/*
  * A new channel has been created by the remote end of the connection.
  * The new channel gensio is in auxdata.  buf may contain a string
  * with information about the new channel.  If this returns an error,
  * the channel creation is refused and the channel is closed.
  */
-#define GENSIO_EVENT_NEW_CHANNEL	4
+#define GENSIO_EVENT_NEW_CHANNEL	3
 
 /*
  * Serial callbacks start here and run to 2000.

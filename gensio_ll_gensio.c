@@ -202,10 +202,6 @@ child_event(struct gensio *io, int event, int err,
 	cdata->cb(cdata->cb_data, GENSIO_LL_CB_WRITE_READY, 0, NULL, 0, NULL);
 	return 0;
 
-    case GENSIO_EVENT_URGENT:
-	cdata->cb(cdata->cb_data, GENSIO_LL_CB_URGENT, 0, NULL, 0, NULL);
-	return 0;
-
     default:
 	return ENOTSUP;
     }
