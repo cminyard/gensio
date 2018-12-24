@@ -213,7 +213,8 @@ filter_try_disconnect(struct basen_data *ndata, struct timeval *timeout)
 static int
 filter_ul_write(struct basen_data *ndata, gensio_ul_filter_data_handler handler,
 		unsigned int *rcount,
-		const unsigned char *buf, unsigned int buflen, void *auxdata)
+		const unsigned char *buf, unsigned int buflen,
+		const char *const *auxdata)
 {
     if (ndata->filter)
 	return gensio_filter_ul_write(ndata->filter, handler,
@@ -224,12 +225,13 @@ filter_ul_write(struct basen_data *ndata, gensio_ul_filter_data_handler handler,
 static int
 filter_ll_write(struct basen_data *ndata, gensio_ll_filter_data_handler handler,
 		unsigned int *rcount,
-		unsigned char *buf, unsigned int buflen)
+		unsigned char *buf, unsigned int buflen,
+		const char *const *auxdata)
 {
     if (ndata->filter)
 	return gensio_filter_ll_write(ndata->filter, handler,
-				      ndata, rcount, buf, buflen);
-    return handler(ndata, rcount, buf, buflen);
+				      ndata, rcount, buf, buflen, auxdata);
+    return handler(ndata, rcount, buf, buflen, auxdata);
 }	     
 
 static int
@@ -250,7 +252,7 @@ filter_cleanup(struct basen_data *ndata)
 
 static int
 ll_write(struct basen_data *ndata, unsigned int *rcount,
-	 const unsigned char *buf, unsigned int buflen, void *auxdata)
+	 const unsigned char *buf, unsigned int buflen, const char *const *auxdata)
 {
 #ifdef DEBUG_ON
     printf("LL write:");
@@ -314,7 +316,7 @@ basen_set_ll_enables(struct basen_data *ndata)
 static int
 basen_write_data_handler(void *cb_data, unsigned int *rcount,
 			 const unsigned char *buf, unsigned int buflen,
-			 void *auxdata)
+			 const char *const *auxdata)
 {
     struct basen_data *ndata = cb_data;
 
@@ -323,7 +325,7 @@ basen_write_data_handler(void *cb_data, unsigned int *rcount,
 
 static int
 basen_write(struct basen_data *ndata, unsigned int *rcount,
-	    const void *buf, unsigned int buflen, void *auxdata)
+	    const void *buf, unsigned int buflen, const char *const *auxdata)
 {
     int err = 0;
 
@@ -352,7 +354,8 @@ static int
 basen_read_data_handler(void *cb_data,
 			unsigned int *rcount,
 			unsigned char *buf,
-			unsigned int buflen)
+			unsigned int buflen,
+			const char *const *auxdata)
 {
     struct basen_data *ndata = cb_data;
     unsigned int count = 0, rval;
@@ -360,7 +363,7 @@ basen_read_data_handler(void *cb_data,
  retry:
     if (ndata->state == BASEN_OPEN && ndata->read_enabled) {
 	rval = buflen - count;
-	gensio_cb(ndata->io, GENSIO_EVENT_READ, 0, buf + count, &rval, NULL);
+	gensio_cb(ndata->io, GENSIO_EVENT_READ, 0, buf + count, &rval, auxdata);
 	count += rval;
 	if (count < buflen)
 	    goto retry;
@@ -398,8 +401,7 @@ basen_deferred_op(struct gensio_runner *runner, void *cbdata)
 	ndata->deferred_read = false;
 
 	basen_unlock(ndata);
-	filter_ll_write(ndata, basen_read_data_handler,
-			NULL, NULL, 0);
+	filter_ll_write(ndata, basen_read_data_handler, NULL, NULL, 0, NULL);
 	basen_lock(ndata);
 
 	ndata->in_read = false;
@@ -741,26 +743,26 @@ basen_set_write_callback_enable(struct basen_data *ndata, bool enabled)
 
 static int
 gensio_base_func(struct gensio *io, int func, unsigned int *count,
-		const void *buf, unsigned int buflen,
-		void *auxdata)
+		 const void *cbuf, unsigned int buflen, void *buf,
+		 const char *const *auxdata)
 {
     struct basen_data *ndata = gensio_get_gensio_data(io);
 
     switch (func) {
     case GENSIO_FUNC_WRITE:
-	return basen_write(ndata, count, buf, buflen, auxdata);
+	return basen_write(ndata, count, cbuf, buflen, auxdata);
 
     case GENSIO_FUNC_RADDR_TO_STR:
-	return gensio_ll_raddr_to_str(ndata->ll, count, auxdata, buflen);
+	return gensio_ll_raddr_to_str(ndata->ll, count, buf, buflen);
 
     case GENSIO_FUNC_GET_RADDR:
-	return gensio_ll_get_raddr(ndata->ll, auxdata, count);
+	return gensio_ll_get_raddr(ndata->ll, buf, count);
 
     case GENSIO_FUNC_OPEN:
-	return basen_open(ndata, buf, auxdata);
+	return basen_open(ndata, cbuf, buf);
 
     case GENSIO_FUNC_CLOSE:
-	return basen_close(ndata, buf, auxdata);
+	return basen_close(ndata, cbuf, buf);
 
     case GENSIO_FUNC_FREE:
 	basen_free(ndata);
@@ -779,10 +781,10 @@ gensio_base_func(struct gensio *io, int func, unsigned int *count,
 	return 0;
 
     case GENSIO_FUNC_REMOTE_ID:
-	return gensio_ll_remote_id(ndata->ll, auxdata);
+	return gensio_ll_remote_id(ndata->ll, buf);
 
     case GENSIO_FUNC_CONTROL:
-	return gensio_ll_control(ndata->ll, buflen, auxdata);
+	return gensio_ll_control(ndata->ll, buflen, buf);
 
     default:
 	return ENOTSUP;
@@ -791,7 +793,8 @@ gensio_base_func(struct gensio *io, int func, unsigned int *count,
 
 static unsigned int
 basen_ll_read(void *cb_data, int readerr,
-	      unsigned char *ibuf, unsigned int buflen)
+	      unsigned char *ibuf, unsigned int buflen,
+	      const char *const *auxdata)
 {
     struct basen_data *ndata = cb_data;
     struct gensio *io = ndata->io;
@@ -819,7 +822,7 @@ basen_ll_read(void *cb_data, int readerr,
 	    unsigned int len = 0;
 
 	    basen_unlock(ndata);
-	    gensio_cb(io, GENSIO_EVENT_READ, readerr, NULL, &len, NULL);
+	    gensio_cb(io, GENSIO_EVENT_READ, readerr, NULL, &len, auxdata);
 	    basen_lock(ndata);
 	} else {
 	    basen_i_close(ndata, NULL, NULL);
@@ -837,7 +840,7 @@ basen_ll_read(void *cb_data, int readerr,
 	ndata->in_read = true;
 	basen_unlock(ndata);
 	filter_ll_write(ndata, basen_read_data_handler, &wrlen,
-			buf, buflen);
+			buf, buflen, auxdata);
 	basen_lock(ndata);
 	ndata->in_read = false;
 	/* FIXME - error handling? */
@@ -897,11 +900,11 @@ basen_ll_write_ready(void *cb_data)
 static unsigned int
 gensio_ll_base_cb(void *cb_data, int op, int val,
 		  void *buf, unsigned int buflen,
-		  void *data)
+		  const char *const *auxdata)
 {
     switch (op) {
     case GENSIO_LL_CB_READ:
-	return basen_ll_read(cb_data, val, buf, buflen);
+	return basen_ll_read(cb_data, val, buf, buflen, auxdata);
 
     case GENSIO_LL_CB_WRITE_READY:
 	basen_ll_write_ready(cb_data);
@@ -1041,35 +1044,35 @@ gensio_filter_set_callback(struct gensio_filter *filter,
 {
     filter->func(filter, GENSIO_FILTER_FUNC_SET_CALLBACK,
 		 cb, cb_data,
-		 NULL, NULL, NULL, 0);
+		 NULL, NULL, NULL, 0, NULL);
 }
 
 bool
 gensio_filter_ul_read_pending(struct gensio_filter *filter)
 {
     return filter->func(filter, GENSIO_FILTER_FUNC_UL_READ_PENDING,
-			NULL, NULL, NULL, NULL, NULL, 0);
+			NULL, NULL, NULL, NULL, NULL, 0, NULL);
 }
 
 bool
 gensio_filter_ll_write_pending(struct gensio_filter *filter)
 {
     return filter->func(filter, GENSIO_FILTER_FUNC_UL_WRITE_PENDING,
-			NULL, NULL, NULL, NULL, NULL, 0);
+			NULL, NULL, NULL, NULL, NULL, 0, NULL);
 }
 
 bool
 gensio_filter_ll_read_needed(struct gensio_filter *filter)
 {
     return filter->func(filter, GENSIO_FILTER_FUNC_LL_READ_NEEDED,
-			NULL, NULL, NULL, NULL, NULL, 0);
+			NULL, NULL, NULL, NULL, NULL, 0, NULL);
 }
 
 int
 gensio_filter_check_open_done(struct gensio_filter *filter)
 {
     return filter->func(filter, GENSIO_FILTER_FUNC_CHECK_OPEN_DONE,
-			NULL, NULL, NULL, NULL, NULL, 0);
+			NULL, NULL, NULL, NULL, NULL, 0, NULL);
 }
 
 int
@@ -1077,7 +1080,7 @@ gensio_filter_try_connect(struct gensio_filter *filter,
 			  struct timeval *timeout)
 {
     return filter->func(filter, GENSIO_FILTER_FUNC_TRY_CONNECT,
-			NULL, timeout, NULL, NULL, NULL, 0);
+			NULL, timeout, NULL, NULL, NULL, 0, NULL);
 }
 
 int
@@ -1085,7 +1088,7 @@ gensio_filter_try_disconnect(struct gensio_filter *filter,
 			     struct timeval *timeout)
 {
     return filter->func(filter, GENSIO_FILTER_FUNC_TRY_DISCONNECT,
-			NULL, timeout, NULL, NULL, NULL, 0);
+			NULL, timeout, NULL, NULL, NULL, 0, NULL);
 }
 
 int
@@ -1093,126 +1096,129 @@ gensio_filter_ul_write(struct gensio_filter *filter,
 		       gensio_ul_filter_data_handler handler, void *cb_data,
 		       unsigned int *rcount,
 		       const unsigned char *buf, unsigned int buflen,
-		       void *auxdata)
+		       const char *const *auxdata)
 {
     return filter->func(filter, GENSIO_FILTER_FUNC_UL_WRITE,
-			handler, cb_data, rcount, auxdata, buf, buflen);
+			handler, cb_data, rcount, NULL, buf, buflen, auxdata);
 }
 
 int
 gensio_filter_ll_write(struct gensio_filter *filter,
 		       gensio_ll_filter_data_handler handler, void *cb_data,
 		       unsigned int *rcount,
-		       unsigned char *buf, unsigned int buflen)
+		       unsigned char *buf, unsigned int buflen,
+		       const char *const *auxdata)
 {
     return filter->func(filter, GENSIO_FILTER_FUNC_LL_WRITE,
-			handler, cb_data, rcount, buf, NULL, buflen);
-}
-
-void
-gensio_filter_ll_urgent(struct gensio_filter *filter)
-{
-    filter->func(filter, GENSIO_FILTER_FUNC_LL_URGENT,
-		 NULL, NULL, NULL, NULL, NULL, 0);
+			handler, cb_data, rcount, buf, NULL, buflen, auxdata);
 }
 
 void
 gensio_filter_timeout(struct gensio_filter *filter)
 {
     filter->func(filter, GENSIO_FILTER_FUNC_TIMEOUT,
-		 NULL, NULL, NULL, NULL, NULL, 0);
+		 NULL, NULL, NULL, NULL, NULL, 0, NULL);
 }
 
 int
 gensio_filter_setup(struct gensio_filter *filter)
 {
     return filter->func(filter, GENSIO_FILTER_FUNC_SETUP,
-			NULL, NULL, NULL, NULL, NULL, 0);
+			NULL, NULL, NULL, NULL, NULL, 0, NULL);
 }
 
 void
 gensio_filter_cleanup(struct gensio_filter *filter)
 {
     filter->func(filter, GENSIO_FILTER_FUNC_CLEANUP,
-		 NULL, NULL, NULL, NULL, NULL, 0);
+		 NULL, NULL, NULL, NULL, NULL, 0, NULL);
 }
 
 void
 gensio_filter_free(struct gensio_filter *filter)
 {
     filter->func(filter, GENSIO_FILTER_FUNC_FREE,
-		 NULL, NULL, NULL, NULL, NULL, 0);
+		 NULL, NULL, NULL, NULL, NULL, 0, NULL);
 }
 
 void
 gensio_ll_set_callback(struct gensio_ll *ll,
 		       gensio_ll_cb cb, void *cb_data)
 {
-    ll->func(ll, GENSIO_LL_FUNC_SET_CALLBACK, NULL, cb_data, cb, 0);
+    ll->func(ll, GENSIO_LL_FUNC_SET_CALLBACK, NULL, cb_data, cb, 0, NULL);
 }
 
 int
 gensio_ll_write(struct gensio_ll *ll, unsigned int *rcount,
 		const unsigned char *buf, unsigned int buflen,
-		void *auxdata)
+		const char *const *auxdata)
 {
-    return ll->func(ll, GENSIO_LL_FUNC_WRITE, rcount, auxdata, buf, buflen);
+    return ll->func(ll, GENSIO_LL_FUNC_WRITE, rcount, NULL, buf, buflen,
+		    auxdata);
 }
 
 int
 gensio_ll_raddr_to_str(struct gensio_ll *ll, unsigned int *pos,
 		       char *buf, unsigned int buflen)
 {
-    return ll->func(ll, GENSIO_LL_FUNC_RADDR_TO_STR, pos, buf, NULL, buflen);
+    return ll->func(ll, GENSIO_LL_FUNC_RADDR_TO_STR, pos, buf, NULL, buflen,
+		    NULL);
 }
 
 int
 gensio_ll_get_raddr(struct gensio_ll *ll,
 		    void *addr, unsigned int *addrlen)
 {
-    return ll->func(ll, GENSIO_LL_FUNC_GET_RADDR, addrlen, addr, NULL, 0);
+    return ll->func(ll, GENSIO_LL_FUNC_GET_RADDR, addrlen, addr, NULL, 0,
+		    NULL);
 }
 
 int
 gensio_ll_remote_id(struct gensio_ll *ll, int *id)
 {
-    return ll->func(ll, GENSIO_LL_FUNC_REMOTE_ID, NULL, id, NULL, 0);
+    return ll->func(ll, GENSIO_LL_FUNC_REMOTE_ID, NULL, id, NULL, 0,
+		    NULL);
 }
 
 int
 gensio_ll_open(struct gensio_ll *ll,
 	       gensio_ll_open_done done, void *open_data)
 {
-    return ll->func(ll, GENSIO_LL_FUNC_OPEN, NULL, open_data, done, 0);
+    return ll->func(ll, GENSIO_LL_FUNC_OPEN, NULL, open_data, done, 0,
+		    NULL);
 }
 
 int
 gensio_ll_close(struct gensio_ll *ll,
 		gensio_ll_close_done done, void *close_data)
 {
-    return ll->func(ll, GENSIO_LL_FUNC_CLOSE, NULL, close_data, done, 0);
+    return ll->func(ll, GENSIO_LL_FUNC_CLOSE, NULL, close_data, done, 0,
+		    NULL);
 }
 
 void
 gensio_ll_set_read_callback(struct gensio_ll *ll, bool enabled)
 {
-    ll->func(ll, GENSIO_LL_FUNC_SET_READ_CALLBACK, NULL, NULL, NULL, enabled);
+    ll->func(ll, GENSIO_LL_FUNC_SET_READ_CALLBACK, NULL, NULL, NULL, enabled,
+	     NULL);
 }
 
 void
 gensio_ll_set_write_callback(struct gensio_ll *ll, bool enabled)
 {
-    ll->func(ll, GENSIO_LL_FUNC_SET_WRITE_CALLBACK, NULL, NULL, NULL, enabled);
+    ll->func(ll, GENSIO_LL_FUNC_SET_WRITE_CALLBACK, NULL, NULL, NULL, enabled,
+	     NULL);
 }
 
 void
 gensio_ll_free(struct gensio_ll *ll)
 {
-    ll->func(ll, GENSIO_LL_FUNC_FREE, NULL, NULL, NULL, 0);
+    ll->func(ll, GENSIO_LL_FUNC_FREE, NULL, NULL, NULL, 0, NULL);
 }
 
 int
-gensio_ll_control(struct gensio_ll *ll, int option, void *auxdata)
+gensio_ll_control(struct gensio_ll *ll, int option, void *data)
 {
-    return ll->func(ll, GENSIO_LL_FUNC_CONTROL, NULL, auxdata, NULL, option);
+    return ll->func(ll, GENSIO_LL_FUNC_CONTROL, NULL, data, NULL, option,
+		    NULL);
 }

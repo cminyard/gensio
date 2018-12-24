@@ -1230,7 +1230,8 @@ static void sol_free(struct gensio_ll *ll)
 
 static int
 gensio_ll_sol_func(struct gensio_ll *ll, int op, unsigned int *count,
-		  void *buf, const void *cbuf, unsigned int buflen)
+		   void *buf, const void *cbuf, unsigned int buflen,
+		   const char *const *auxdata)
 {
     switch (op) {
     case GENSIO_LL_FUNC_SET_CALLBACK:

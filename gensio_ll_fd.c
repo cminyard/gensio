@@ -58,7 +58,7 @@ struct fd_ll {
     unsigned int read_data_size;
     unsigned int read_data_len;
     unsigned int read_data_pos;
-    void *auxdata;
+    const char *const *auxdata;
 
     bool in_read;
 
@@ -138,7 +138,8 @@ fd_set_callbacks(struct gensio_ll *ll, gensio_ll_cb cb, void *cb_data)
 
 static int
 fd_write(struct gensio_ll *ll, unsigned int *rcount,
-	 const unsigned char *buf, unsigned int buflen, void *auxdata)
+	 const unsigned char *buf, unsigned int buflen,
+	 const char *const *auxdata)
 {
     struct fd_ll *fdll = ll_to_fd(ll);
 
@@ -327,7 +328,7 @@ fd_sched_deferred_op(struct fd_ll *fdll)
 static void
 fd_handle_incoming(struct fd_ll *fdll,
 		   ssize_t (*doread)(int fd, void *buf, size_t count),
-		   void *auxdata)
+		   const char *const *auxdata)
 {
     int rv, err = 0;
 
@@ -372,7 +373,7 @@ fd_handle_incoming(struct fd_ll *fdll,
 void gensio_fd_ll_handle_incoming(struct gensio_ll *ll,
 				  ssize_t (*doread)(int fd, void *buf,
 						    size_t count),
-				  void *auxdata)
+				  const char *const *auxdata)
 {
     struct fd_ll *fdll = ll_to_fd(ll);
 
@@ -457,9 +458,9 @@ fd_except_ready(int fd, void *cbdata)
      * In some cases, if a connect() call fails, we get an exception,
      * not a write ready.  So in the open case, call write ready.
      */
-    if (fdll->state == FD_IN_OPEN)
+    if (fdll->state == FD_IN_OPEN) {
 	fd_handle_write_ready(fdll);
-    else if (fdll->ops->except_ready) {
+    } else if (fdll->ops->except_ready) {
 	fd_unlock(fdll);
 	fdll->ops->except_ready(fdll->handler_data, fdll->fd);
     } else {
@@ -604,6 +605,7 @@ fd_set_read_callback_enable(struct gensio_ll *ll, bool enabled)
 	fd_sched_deferred_op(fdll);
     } else {
 	fdll->o->set_read_handler(fdll->o, fdll->fd, enabled);
+	fdll->o->set_except_handler(fdll->o, fdll->fd, enabled);
     }
     fd_unlock(fdll);
 }
@@ -628,7 +630,8 @@ static void fd_free(struct gensio_ll *ll)
     fd_deref_and_unlock(fdll);
 }
 
-static int fd_control(struct gensio_ll *ll, unsigned int option, void *auxdata)
+static int fd_control(struct gensio_ll *ll, unsigned int option,
+		      const char *const *auxdata)
 {
     struct fd_ll *fdll = ll_to_fd(ll);
 
@@ -640,7 +643,8 @@ static int fd_control(struct gensio_ll *ll, unsigned int option, void *auxdata)
 
 static int
 gensio_ll_fd_func(struct gensio_ll *ll, int op, unsigned int *count,
-		  void *buf, const void *cbuf, unsigned int buflen)
+		  void *buf, const void *cbuf, unsigned int buflen,
+		  const char *const *auxdata)
 {
     switch (op) {
     case GENSIO_LL_FUNC_SET_CALLBACK:
@@ -648,7 +652,7 @@ gensio_ll_fd_func(struct gensio_ll *ll, int op, unsigned int *count,
 	return 0;
 
     case GENSIO_LL_FUNC_WRITE:
-	return fd_write(ll, count, cbuf, buflen, buf);
+	return fd_write(ll, count, cbuf, buflen, auxdata);
 
     case GENSIO_LL_FUNC_RADDR_TO_STR:
 	return fd_raddr_to_str(ll, count, buf, buflen);

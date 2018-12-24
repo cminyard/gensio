@@ -24,12 +24,13 @@ typedef int (*gensio_ul_filter_data_handler)(void *cb_data,
 					     unsigned int *rcount,
 					     const unsigned char *buf,
 					     unsigned int buflen,
-					     void *auxdata);
+					     const char *const *auxdata);
 
 typedef int (*gensio_ll_filter_data_handler)(void *cb_data,
 					     unsigned int *rcount,
 					     unsigned char *buf,
-					     unsigned int buflen);
+					     unsigned int buflen,
+					     const char *const *auxdata);
 
 /*
  * The filter has some asynchronously generated data that it needs
@@ -125,7 +126,7 @@ int gensio_filter_ul_write(struct gensio_filter *filter,
 			   gensio_ul_filter_data_handler handler, void *cb_data,
 			   unsigned int *rcount,
 			   const unsigned char *buf, unsigned int buflen,
-			   void *auxdata);
+			   const char *const *auxdata);
 
 /*
  * Write data into the bottom of the filter.  If no data is
@@ -142,13 +143,8 @@ int gensio_filter_ul_write(struct gensio_filter *filter,
 int gensio_filter_ll_write(struct gensio_filter *filter,
 			   gensio_ll_filter_data_handler handler, void *cb_data,
 			   unsigned int *rcount,
-			   unsigned char *buf, unsigned int buflen);
-
-/*
- * Report urgent data indication came in.
- */
-#define GENSIO_FILTER_FUNC_LL_URGENT		10
-void gensio_filter_ll_urgent(struct gensio_filter *filter);
+			   unsigned char *buf, unsigned int buflen,
+			   const char *const *auxdata);
 
 /*
  * Report a timeout for a timer the base started.
@@ -176,9 +172,9 @@ void gensio_filter_free(struct gensio_filter *filter);
 
 typedef int (*gensio_filter_func)(struct gensio_filter *filter, int op,
 				  const void *func, void *data,
-				  unsigned int *count,
-				  void *buf, const void *cbuf,
-				  unsigned int buflen);
+				  unsigned int *count, void *buf,
+				  const void *cbuf, unsigned int buflen,
+				  const char *const *auxdata);
 
 struct gensio_filter {
     gensio_filter_func func;
@@ -194,7 +190,7 @@ typedef void (*gensio_ll_close_done)(void *cb_data, void *close_data);
 
 typedef unsigned int (*gensio_ll_cb)(void *cb_data, int op, int val,
 				     void *buf, unsigned int buflen,
-				     void *data);
+				     const char *const *auxdata);
 
 /*
  * Set the callbacks for the ll.
@@ -217,7 +213,7 @@ void gensio_ll_set_callback(struct gensio_ll *ll,
 #define GENSIO_LL_FUNC_WRITE			2
 int gensio_ll_write(struct gensio_ll *ll, unsigned int *rcount,
 		    const unsigned char *buf, unsigned int buflen,
-		    void *auxdata);
+		    const char *const *auxdata);
 
 /*
  * pos => count
@@ -284,12 +280,13 @@ void gensio_ll_free(struct gensio_ll *ll);
  * auxdata => buf
  */
 #define GENSIO_LL_FUNC_CONTROL			11
-int gensio_ll_control(struct gensio_ll *ll, int option, void *auxdata);
+int gensio_ll_control(struct gensio_ll *ll, int option, void *data);
 
 typedef int (*gensio_ll_func)(struct gensio_ll *ll, int op,
 			      unsigned int *count,
 			      void *buf, const void *cbuf,
-			      unsigned int buflen);
+			      unsigned int buflen,
+			      const char *const *auxdata);
 
 struct gensio_ll {
     gensio_ll_func func;

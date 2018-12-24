@@ -44,7 +44,7 @@ child_set_callbacks(struct gensio_ll *ll, gensio_ll_cb cb, void *cb_data)
 static int
 child_write(struct gensio_ll *ll, unsigned int *rcount,
 	    const unsigned char *buf, unsigned int buflen,
-	    void *auxdata)
+	    const char *const *auxdata)
 {
     struct gensio_ll_child *cdata = ll_to_child(ll);
 
@@ -144,7 +144,8 @@ static void child_free(struct gensio_ll *ll)
 
 static int
 gensio_ll_child_func(struct gensio_ll *ll, int op, unsigned int *count,
-		  void *buf, const void *cbuf, unsigned int buflen)
+		     void *buf, const void *cbuf, unsigned int buflen,
+		     const char *const *auxdata)
 {
     switch (op) {
     case GENSIO_LL_FUNC_SET_CALLBACK:
@@ -188,7 +189,7 @@ gensio_ll_child_func(struct gensio_ll *ll, int op, unsigned int *count,
 
 static int
 child_event(struct gensio *io, int event, int err,
-	    unsigned char *buf, unsigned int *buflen, void *auxdata)
+	    unsigned char *buf, unsigned int *buflen, const char *const *auxdata)
 {
     struct gensio_ll_child *cdata = gensio_get_user_data(io);
 

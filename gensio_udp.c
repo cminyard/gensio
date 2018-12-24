@@ -734,24 +734,24 @@ udpna_writehandler(int fd, void *cbdata)
 
 static int
 gensio_udp_func(struct gensio *io, int func, unsigned int *count,
-		const void *buf, unsigned int buflen,
-		void *auxdata)
+		const void *cbuf, unsigned int buflen, void *buf,
+		const char *const *auxdata)
 {
     switch (func) {
     case GENSIO_FUNC_WRITE:
-	return udpn_write(io, count, buf, buflen);
+	return udpn_write(io, count, cbuf, buflen);
 
     case GENSIO_FUNC_RADDR_TO_STR:
-	return udpn_raddr_to_str(io, count, auxdata, buflen);
+	return udpn_raddr_to_str(io, count, buf, buflen);
 
     case GENSIO_FUNC_GET_RADDR:
-	return udpn_get_raddr(io, auxdata, count);
+	return udpn_get_raddr(io, buf, count);
 
     case GENSIO_FUNC_OPEN:
-	return udpn_open(io, buf, auxdata);
+	return udpn_open(io, cbuf, buf);
 
     case GENSIO_FUNC_CLOSE:
-	return udpn_close(io, buf, auxdata);
+	return udpn_close(io, cbuf, buf);
 
     case GENSIO_FUNC_FREE:
 	udpn_free(io);

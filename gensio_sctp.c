@@ -243,7 +243,7 @@ sctp_free(void *handler_data)
 }
 
 static int
-sctp_control(void *handler_data, int fd, unsigned int option, void *auxdata)
+sctp_control(void *handler_data, int fd, unsigned int option, const char *const *auxdata)
 {
     int rv;
 

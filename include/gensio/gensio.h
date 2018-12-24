@@ -329,7 +329,7 @@ struct gensio;
  */
 typedef int (*gensio_event)(struct gensio *io, int event, int err,
 			    unsigned char *buf, unsigned int *buflen,
-			    void *auxdata);
+			    const char *const *auxdata);
 
 /*
  * Callbacks for functions that don't give an error (close);
@@ -378,7 +378,7 @@ void gensio_set_user_data(struct gensio *io, void *user_data);
  */
 int gensio_write(struct gensio *io, unsigned int *count,
 		 const void *buf, unsigned int buflen,
-		 void *auxdata);
+		 const char *const *auxdata);
 
 /*
  * Convert the remote address for this network connection to a
@@ -473,7 +473,7 @@ int gensio_open_channel_s(struct gensio *io, const char *args,
  * that case, but it will stop at the first error.
  */
 int gensio_control(struct gensio *io, int depth,
-		   unsigned int option, void *auxdata);
+		   unsigned int option, void *data);
 #define GENSIO_CONTROL_DEPTH_ALL	-1
 
 /*

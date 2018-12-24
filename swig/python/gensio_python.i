@@ -71,3 +71,49 @@
     PyTuple_SET_ITEM(seq, 6, seq2);
     $result = add_python_result($result, seq);
 }
+
+%typemap(in) const char *const *auxdata {
+    unsigned int i;
+    unsigned int len;
+    char **temp = NULL;
+
+    if ($input == Py_None)
+	goto null_auxdata;
+    if (!PySequence_Check($input)) {
+	PyErr_SetString(PyExc_TypeError, "Expecting a sequence");
+	SWIG_fail;
+    }
+    len = PyObject_Length($input);
+    if (len == 0)
+	goto null_auxdata;
+
+    temp = malloc(sizeof(char *) * (len + 1));
+    if (!temp) {
+	PyErr_SetString(PyExc_ValueError, "Out of memory");
+	SWIG_fail;
+    }
+    memset(temp, 0, sizeof(char *) * (len + 1));
+    for (i = 0; i < len; i++) {
+	PyObject *o = PySequence_GetItem($input, i);
+
+	if (!PyString_Check(o)) {
+	    Py_XDECREF(o);
+	    PyErr_SetString(PyExc_ValueError,
+			    "Expecting a sequence of strings");
+	    SWIG_fail;
+	}
+	temp[i] = PyString_AsString(o);
+	Py_DECREF(o);
+    }
+ null_auxdata:
+    $1 = temp;
+}
+
+%typemap(freearg) auxdata {
+    unsigned int i;
+
+    for (i = 0; $1->val[i]; i++) {
+	free($1->val[i]);
+    }
+    free($1->val);
+};

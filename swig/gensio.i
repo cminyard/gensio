@@ -482,7 +482,7 @@ struct waiter { };
 
     %rename(write) writet;
     %apply (char *STRING, size_t LENGTH) { (char *str, size_t len) };
-    unsigned int writet(char *str, size_t len, char *auxdata) {
+    unsigned int writet(char *str, size_t len, const char *const *auxdata) {
 	unsigned int wr = 0;
 	int rv;
 

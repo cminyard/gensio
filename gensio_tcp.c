@@ -167,7 +167,7 @@ tcp_free(void *handler_data)
 }
 
 static int
-tcp_control(void *handler_data, int fd, unsigned int option, void *auxdata)
+tcp_control(void *handler_data, int fd, unsigned int option, const char *const *auxdata)
 {
     int rv;
 
@@ -200,17 +200,17 @@ tcp_except_ready(void *handler_data, int fd)
 
 static int
 tcp_write(void *handler_data, int fd, unsigned int *rcount,
-	  const unsigned char *buf, unsigned int buflen, void *auxdata)
+	  const unsigned char *buf, unsigned int buflen,
+	  const char *const *auxdata)
 {
     int rv, err = 0;
     int flags = 0;
 
     if (auxdata) {
-	char **argv = auxdata;
-	unsigned int i;
+	int i;
 
-	for (i = 0; !err && argv[i]; i++) {
-	    if (strcasecmp(argv[i], "oob") == 0) {
+	for (i = 0; !err && auxdata[i]; i++) {
+	    if (strcasecmp(auxdata[i], "oob") == 0) {
 		flags |= MSG_OOB;
 	    } else {
 		err = EINVAL;

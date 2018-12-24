@@ -26,8 +26,8 @@
 #include "utils.h"
 
 static int gensio_stdio_func(struct gensio *io, int func, unsigned int *count,
-			     const void *buf, unsigned int buflen,
-			     void *auxdata);
+			     const void *cbuf, unsigned int buflen, void *buf,
+			     const char *const *auxdata);
 
 struct stdiona_data;
 
@@ -721,21 +721,21 @@ stdion_ref(struct gensio *io)
 
 static int
 gensio_stdio_func(struct gensio *io, int func, unsigned int *count,
-		  const void *buf, unsigned int buflen,
-		  void *auxdata)
+		  const void *cbuf, unsigned int buflen, void *buf,
+		  const char *const *auxdata)
 {
     switch (func) {
     case GENSIO_FUNC_WRITE:
-	return stdion_write(io, count, buf, buflen);
+	return stdion_write(io, count, cbuf, buflen);
 
     case GENSIO_FUNC_RADDR_TO_STR:
-	return stdion_raddr_to_str(io, count, auxdata, buflen);
+	return stdion_raddr_to_str(io, count, buf, buflen);
 
     case GENSIO_FUNC_OPEN:
-	return stdion_open(io, buf, auxdata);
+	return stdion_open(io, cbuf, buf);
 
     case GENSIO_FUNC_CLOSE:
-	return stdion_close(io, buf, auxdata);
+	return stdion_close(io, cbuf, buf);
 
     case GENSIO_FUNC_FREE:
 	stdion_free(io);
@@ -754,11 +754,11 @@ gensio_stdio_func(struct gensio *io, int func, unsigned int *count,
 	return 0;
 
     case GENSIO_FUNC_REMOTE_ID:
-	return stdion_remote_id(io, auxdata);
+	return stdion_remote_id(io, buf);
 
     case GENSIO_FUNC_OPEN_CHANNEL:
     {
-	struct gensio_func_open_channel_data *d = auxdata;
+	struct gensio_func_open_channel_data *d = buf;
 	return stdion_open_channel(io, d->args, d->cb, d->user_data,
 				   d->open_done, d->open_data, &d->new_io);
     }

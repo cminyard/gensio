@@ -46,7 +46,7 @@ struct gensio_fd_ll_ops {
     void (*free)(void *handler_data);
 
     int (*control)(void *handler_data, int fd, unsigned int option,
-		   void *auxdata);
+		   const char *const *auxdata);
 
     void (*read_ready)(void *handler_data, int fd);
 
@@ -56,7 +56,7 @@ struct gensio_fd_ll_ops {
 
     int (*write)(void *handler_data, int fd, unsigned int *count,
 		 const unsigned char *buf, unsigned int buflen,
-		 void *auxdata);
+		 const char *const *auxdata);
 };
 
 unsigned gensio_fd_ll_callback(struct gensio_ll *ll, int op, int val,
@@ -65,7 +65,7 @@ unsigned gensio_fd_ll_callback(struct gensio_ll *ll, int op, int val,
 void gensio_fd_ll_handle_incoming(struct gensio_ll *ll,
 				  ssize_t (*doread)(int fd, void *buf,
 						    size_t count),
-				  void *auxdata);
+				  const char *const *auxdata);
 
 struct gensio_ll *fd_gensio_ll_alloc(struct gensio_os_funcs *o,
 				     int fd,

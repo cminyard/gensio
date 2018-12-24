@@ -163,7 +163,7 @@ telnet_try_disconnect(struct gensio_filter *filter, struct timeval *timeout)
 struct telnet_buffer_data {
     gensio_ul_filter_data_handler handler;
     void *cb_data;
-    void *auxdata;
+    const char *const *auxdata;
 };
 
 static int
@@ -185,7 +185,7 @@ telnet_ul_write(struct gensio_filter *filter,
 		gensio_ul_filter_data_handler handler, void *cb_data,
 		unsigned int *rcount,
 		const unsigned char *buf, unsigned int buflen,
-		void *auxdata)
+		const char *const *auxdata)
 {
     struct telnet_filter *tfilter = filter_to_telnet(filter);
     int err = 0;
@@ -245,15 +245,31 @@ static int
 telnet_ll_write(struct gensio_filter *filter,
 		gensio_ll_filter_data_handler handler, void *cb_data,
 		unsigned int *rcount,
-		unsigned char *buf, unsigned int buflen)
+		unsigned char *buf, unsigned int buflen,
+		const char *const *auxdata)
 {
     struct telnet_filter *tfilter = filter_to_telnet(filter);
     int err = 0;
 
     telnet_lock(tfilter);
+    if (auxdata) {
+	unsigned int i;
+
+	for (i = 0; auxdata[i]; i++) {
+	    if (strcasecmp(auxdata[i], "oob") == 0) {
+		/*
+		 * Just ignore OOB data, but set that we are looking for a
+		 * telnet mark.
+		 */
+		tfilter->in_urgent = true;
+		*rcount = buflen;
+		goto out_unlock;
+	    }
+	}
+    }
+
     if (tfilter->read_data_pos || buflen == 0) {
-	if (rcount)
-	    *rcount = 0;
+	*rcount = 0;
     } else {
 	unsigned int inlen = buflen;
 
@@ -300,7 +316,7 @@ telnet_ll_write(struct gensio_filter *filter,
 	telnet_unlock(tfilter);
 	err = handler(cb_data, &count,
 		      tfilter->read_data + tfilter->read_data_pos,
-		      tfilter->read_data_len);
+		      tfilter->read_data_len, NULL);
 	telnet_lock(tfilter);
 	if (!err) {
 	    if (count >= tfilter->read_data_len) {
@@ -312,17 +328,10 @@ telnet_ll_write(struct gensio_filter *filter,
 	    }
 	}
     }
+ out_unlock:
     telnet_unlock(tfilter);
 
     return err;
-}
-
-static void
-telnet_ll_urgent(struct gensio_filter *filter)
-{
-    struct telnet_filter *tfilter = filter_to_telnet(filter);
-
-    tfilter->in_urgent = 1;
 }
 
 static int
@@ -435,10 +444,11 @@ telnet_free(struct gensio_filter *filter)
 }
 
 static int gensio_telnet_filter_func(struct gensio_filter *filter, int op,
-				  const void *func, void *data,
-				  unsigned int *count,
-				  void *buf, const void *cbuf,
-				  unsigned int buflen)
+				     const void *func, void *data,
+				     unsigned int *count,
+				     void *buf, const void *cbuf,
+				     unsigned int buflen,
+				     const char *const *auxdata)
 {
     switch (op) {
     case GENSIO_FILTER_FUNC_SET_CALLBACK:
@@ -467,11 +477,7 @@ static int gensio_telnet_filter_func(struct gensio_filter *filter, int op,
 	return telnet_ul_write(filter, func, data, count, cbuf, buflen, buf);
 
     case GENSIO_FILTER_FUNC_LL_WRITE:
-	return telnet_ll_write(filter, func, data, count, buf, buflen);
-
-    case GENSIO_FILTER_FUNC_LL_URGENT:
-	telnet_ll_urgent(filter);
-	return 0;
+	return telnet_ll_write(filter, func, data, count, buf, buflen, auxdata);
 
     case GENSIO_FILTER_FUNC_SETUP:
 	return telnet_setup(filter);

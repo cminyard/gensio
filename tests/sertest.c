@@ -143,7 +143,8 @@ start_exit(struct sertest_context *c,
 
 static int
 child_event(struct gensio *net, int event, int readerr,
-	    unsigned char *buf, unsigned int *buflen, void *auxdata)
+	    unsigned char *buf, unsigned int *buflen,
+	    const char *const *auxdata)
 {
     struct gensio_list *le = gensio_get_user_data(net);
     struct sertest_context *c = le->c;

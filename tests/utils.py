@@ -115,7 +115,7 @@ class HandleData:
 
     # Everything below here is internal handling functions.
 
-    def read_callback(self, io, err, buf):
+    def read_callback(self, io, err, buf, auxdata):
         if self.to_compare:
             iolen = len(self.to_compare)
         elif self.to_waitfor:

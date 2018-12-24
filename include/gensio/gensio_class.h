@@ -95,8 +95,8 @@ struct gensio_func_open_channel_data {
 #define GENSIO_FUNC_CONTROL		12
 
 typedef int (*gensio_func)(struct gensio *io, int func, unsigned int *count,
-			   const void *buf, unsigned int buflen,
-			   void *auxdata);
+			   const void *cbuf, unsigned int buflen, void *buf,
+			   const char *const *auxdata);
 
 /*
  * Increment the gensio's refcount.  There are situations where one
@@ -120,7 +120,7 @@ void gensio_set_is_reliable(struct gensio *io, bool is_reliable);
 gensio_event gensio_get_cb(struct gensio *io);
 void gensio_set_cb(struct gensio *io, gensio_event cb, void *user_data);
 int gensio_cb(struct gensio *io, int event, int err,
-	      unsigned char *buf, unsigned int *buflen, void *auxdata);
+	      unsigned char *buf, unsigned int *buflen, const char *const *auxdata);
 
 /*
  * Add and get the classdata for a gensio.

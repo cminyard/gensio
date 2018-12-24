@@ -141,7 +141,7 @@ void gensio_set_cb(struct gensio *io, gensio_event cb, void *user_data)
 
 int
 gensio_cb(struct gensio *io, int event, int err,
-	  unsigned char *buf, unsigned int *buflen, void *auxdata)
+	  unsigned char *buf, unsigned int *buflen, const char *const *auxdata)
 {
     return io->cb(io, event, err, buf, buflen, auxdata);
 }
@@ -701,34 +701,34 @@ gensio_set_user_data(struct gensio *io, void *user_data)
 int
 gensio_write(struct gensio *io, unsigned int *count,
 	     const void *buf, unsigned int buflen,
-	     void *auxdata)
+	     const char *const *auxdata)
 {
-    return io->func(io, GENSIO_FUNC_WRITE, count, buf, buflen, auxdata);
+    return io->func(io, GENSIO_FUNC_WRITE, count, buf, buflen, NULL, auxdata);
 }
 
 int
 gensio_raddr_to_str(struct gensio *io, unsigned int *pos,
 		    char *buf, unsigned int buflen)
 {
-    return io->func(io, GENSIO_FUNC_RADDR_TO_STR, pos, NULL, buflen, buf);
+    return io->func(io, GENSIO_FUNC_RADDR_TO_STR, pos, NULL, buflen, buf, NULL);
 }
 
 int
 gensio_get_raddr(struct gensio *io, void *addr, unsigned int *addrlen)
 {
-    return io->func(io, GENSIO_FUNC_GET_RADDR, addrlen, NULL, 0, addr);
+    return io->func(io, GENSIO_FUNC_GET_RADDR, addrlen, NULL, 0, addr, NULL);
 }
 
 int
 gensio_remote_id(struct gensio *io, int *id)
 {
-    return io->func(io, GENSIO_FUNC_REMOTE_ID, NULL, NULL, 0, id);
+    return io->func(io, GENSIO_FUNC_REMOTE_ID, NULL, NULL, 0, id, NULL);
 }
 
 int
 gensio_open(struct gensio *io, gensio_done_err open_done, void *open_data)
 {
-    return io->func(io, GENSIO_FUNC_OPEN, NULL, open_done, 0, open_data);
+    return io->func(io, GENSIO_FUNC_OPEN, NULL, open_done, 0, open_data, NULL);
 }
 
 struct gensio_open_s_data {
@@ -785,7 +785,7 @@ gensio_open_channel(struct gensio *io, const char *args,
     d.user_data = user_data;
     d.open_done = open_done;
     d.open_data = open_data;
-    rv = io->func(io, GENSIO_FUNC_OPEN_CHANNEL, NULL, NULL, 0, &d);
+    rv = io->func(io, GENSIO_FUNC_OPEN_CHANNEL, NULL, NULL, 0, &d, NULL);
     if (!rv)
 	*new_io = d.new_io;
     str_to_argv_free(argc, d.args);
@@ -819,14 +819,14 @@ gensio_open_channel_s(struct gensio *io, const char *args,
 
 int
 gensio_control(struct gensio *io, int depth,
-	       unsigned int option, void *auxdata)
+	       unsigned int option, void *data)
 {
     struct gensio *c = io;
 
     if (depth == GENSIO_CONTROL_DEPTH_ALL) {
 	while (c) {
-	    int rv = c->func(c, GENSIO_FUNC_CONTROL, NULL, NULL, option,
-			     auxdata);
+	    int rv = c->func(c, GENSIO_FUNC_CONTROL, NULL, NULL, option, data,
+			     NULL);
 
 	    if (rv && rv != ENOTSUP)
 		return rv;
@@ -845,7 +845,7 @@ gensio_control(struct gensio *io, int depth,
 	c = c->child;
     }
 
-    return c->func(c, GENSIO_FUNC_CONTROL, NULL, NULL, option, auxdata);
+    return c->func(c, GENSIO_FUNC_CONTROL, NULL, NULL, option, data, NULL);
 }
 
 const char *
@@ -865,7 +865,8 @@ gensio_get_type(struct gensio *io, unsigned int depth)
 int
 gensio_close(struct gensio *io, gensio_done close_done, void *close_data)
 {
-    return io->func(io, GENSIO_FUNC_CLOSE, NULL, close_done, 0, close_data);
+    return io->func(io, GENSIO_FUNC_CLOSE, NULL, close_done, 0, close_data,
+		    NULL);
 }
 
 struct gensio_close_s_data {
@@ -902,25 +903,27 @@ gensio_close_s(struct gensio *io)
 void
 gensio_free(struct gensio *io)
 {
-    io->func(io, GENSIO_FUNC_FREE, NULL, NULL, 0, NULL);
+    io->func(io, GENSIO_FUNC_FREE, NULL, NULL, 0, NULL, NULL);
 }
 
 void
 gensio_set_read_callback_enable(struct gensio *io, bool enabled)
 {
-    io->func(io, GENSIO_FUNC_SET_READ_CALLBACK, NULL, NULL, enabled, NULL);
+    io->func(io, GENSIO_FUNC_SET_READ_CALLBACK, NULL, NULL, enabled, NULL,
+	     NULL);
 }
 
 void
 gensio_set_write_callback_enable(struct gensio *io, bool enabled)
 {
-    io->func(io, GENSIO_FUNC_SET_WRITE_CALLBACK, NULL, NULL, enabled, NULL);
+    io->func(io, GENSIO_FUNC_SET_WRITE_CALLBACK, NULL, NULL, enabled, NULL,
+	     NULL);
 }
 
 void
 gensio_ref(struct gensio *io)
 {
-    io->func(io, GENSIO_FUNC_REF, NULL, NULL, 0, NULL);
+    io->func(io, GENSIO_FUNC_REF, NULL, NULL, 0, NULL, NULL);
 }
 
 bool

@@ -212,7 +212,7 @@ static int
 ssl_ul_write(struct gensio_filter *filter,
 	     gensio_ul_filter_data_handler handler, void *cb_data,
 	     unsigned int *rcount,
-	     const unsigned char *buf, unsigned int buflen, void *auxdata)
+	     const unsigned char *buf, unsigned int buflen, const char *const *auxdata)
 {
     struct ssl_filter *sfilter = filter_to_ssl(filter);
     int err = 0;
@@ -287,7 +287,8 @@ static int
 ssl_ll_write(struct gensio_filter *filter,
 	     gensio_ll_filter_data_handler handler, void *cb_data,
 	     unsigned int *rcount,
-	     unsigned char *buf, unsigned int buflen)
+	     unsigned char *buf, unsigned int buflen,
+	     const char *const *auxdata)
 {
     struct ssl_filter *sfilter = filter_to_ssl(filter);
     int err = 0;
@@ -319,7 +320,7 @@ ssl_ll_write(struct gensio_filter *filter,
 	ssl_unlock(sfilter);
 	err = handler(cb_data, &count,
 		      sfilter->read_data + sfilter->read_data_pos,
-		      sfilter->read_data_len);
+		      sfilter->read_data_len, NULL);
 	ssl_lock(sfilter);
 	if (!err) {
 	    if (count >= sfilter->read_data_len) {
@@ -335,11 +336,6 @@ ssl_ll_write(struct gensio_filter *filter,
     ssl_unlock(sfilter);
 
     return err;
-}
-
-static void
-ssl_ll_urgent(struct gensio_filter *filter)
-{
 }
 
 static int
@@ -415,7 +411,8 @@ static int gensio_ssl_filter_func(struct gensio_filter *filter, int op,
 				  const void *func, void *data,
 				  unsigned int *count,
 				  void *buf, const void *cbuf,
-				  unsigned int buflen)
+				  unsigned int buflen,
+				  const char *const *auxdata)
 {
     switch (op) {
     case GENSIO_FILTER_FUNC_SET_CALLBACK:
@@ -444,11 +441,7 @@ static int gensio_ssl_filter_func(struct gensio_filter *filter, int op,
 	return ssl_ul_write(filter, func, data, count, cbuf, buflen, buf);
 
     case GENSIO_FILTER_FUNC_LL_WRITE:
-	return ssl_ll_write(filter, func, data, count, buf, buflen);
-
-    case GENSIO_FILTER_FUNC_LL_URGENT:
-	ssl_ll_urgent(filter);
-	return 0;
+	return ssl_ll_write(filter, func, data, count, buf, buflen, NULL);
 
     case GENSIO_FILTER_FUNC_SETUP:
 	return ssl_setup(filter);
