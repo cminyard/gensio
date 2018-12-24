@@ -576,6 +576,16 @@ static int serialsim_startup(struct uart_port *port)
 {
 	struct serialsim_intf *intf = serialsim_port_to_intf(port);
 	int rv = 0;
+	struct circ_buf *cbuf = &port->state->xmit;
+	unsigned long flags;
+
+	/*
+	 * This is technically wrong, but otherwise tests using it
+	 * can get stale data.
+	 */
+	spin_lock_irqsave(&port->lock, flags);
+	cbuf->head = cbuf->tail = 0;
+	spin_unlock_irqrestore(&port->lock, flags);
 
 	intf->buf.head = intf->buf.tail = 0;
 	intf->thread = kthread_run(serialsim_thread, intf,
@@ -585,10 +595,8 @@ static int serialsim_startup(struct uart_port *port)
 		intf->thread = NULL;
 		pr_err("serialsim: Could not start thread: %d", rv);
 	} else {
-		unsigned long flags;
-
 		spin_lock_irqsave(&port->lock, flags);
-		intf->tx_enabled = false;
+		intf->tx_enabled = true;
 		intf->rx_enabled = true;
 
 		serialsim_set_baud_rate(intf, 9600, CS8);
@@ -604,7 +612,6 @@ static void serialsim_shutdown(struct uart_port *port)
 	unsigned long flags;
 
 	spin_lock_irqsave(&port->lock, flags);
-	intf->tx_enabled = false;
 	spin_unlock_irqrestore(&port->lock, flags);
 	kthread_stop(intf->thread);
 }
