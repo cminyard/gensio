@@ -200,7 +200,8 @@ telnet_ul_write(struct gensio_filter *filter,
 	tfilter->write_data_len =
 	    process_telnet_xmit(tfilter->write_data, tfilter->max_write_size,
 				&buf, &inlen);
-	*rcount = buflen - inlen;
+	if (rcount)
+	    *rcount = buflen - inlen;
     }
 
     if (tfilter->write_state != TELNET_IN_USER_WRITE &&
@@ -262,14 +263,16 @@ telnet_ll_write(struct gensio_filter *filter,
 		 * telnet mark.
 		 */
 		tfilter->in_urgent = true;
-		*rcount = buflen;
+		if (rcount)
+		    *rcount = buflen;
 		goto out_unlock;
 	    }
 	}
     }
 
     if (tfilter->read_data_pos || buflen == 0) {
-	*rcount = 0;
+	if (rcount)
+	    *rcount = 0;
     } else {
 	unsigned int inlen = buflen;
 
@@ -307,7 +310,8 @@ telnet_ll_write(struct gensio_filter *filter,
 				tfilter->max_read_size - tfilter->read_data_len,
 				&buf, &inlen, &tfilter->tn_data);
 	telnet_lock(tfilter);
-	*rcount = buflen - inlen;
+	if (rcount)
+	    *rcount = buflen - inlen;
     }
 
     if (tfilter->read_data_len) {
