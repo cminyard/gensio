@@ -292,6 +292,8 @@ def do_small_test(io1, io2):
     utils.test_dataxfer(io1, io2, rb)
     print("  testing io2 to io1")
     utils.test_dataxfer(io2, io1, rb)
+    utils.io_close(io1)
+    utils.io_close(io2)
     print("  Success!")
 
 def test_tcp_small():
@@ -299,6 +301,22 @@ def test_tcp_small():
     io1 = utils.alloc_io(o, "tcp,localhost,3025", do_open = False,
                          chunksize = 64)
     ta = TestAccept(o, io1, "tcp,3025", do_small_test)
+
+def do_urgent_test(io1, io2):
+    rb = "A" # We only get one byte of urgent data.
+    print("  testing io1 to io2")
+    utils.test_dataxfer_oob(io1, io2, rb)
+    print("  testing io2 to io1")
+    utils.test_dataxfer_oob(io2, io1, rb)
+    utils.io_close(io1)
+    utils.io_close(io2)
+    print("  Success!")
+
+def test_tcp_urgent():
+    print("Test tcp urgent")
+    io1 = utils.alloc_io(o, "tcp,localhost,3028", do_open = False,
+                         chunksize = 64)
+    ta = TestAccept(o, io1, "tcp,3028", do_urgent_test)
 
 def test_sctp_small():
     print("Test sctp small")
@@ -322,8 +340,6 @@ def test_ipmisol_small():
     utils.io_close(io1)
     utils.io_close(io2)
     print("  Success!")
-
-test_ipmisol_small()
 
 def test_ipmisol_large():
     print("Test ipmisol large")
@@ -368,8 +384,10 @@ ta_ssl_tcp()
 ta_sctp()
 test_modemstate()
 test_tcp_small()
+test_tcp_urgent()
 test_telnet_small()
 test_sctp_small()
+test_ipmisol_small()
 ta_ssl_telnet()
 test_ipmisol_large()
 test_rs485()

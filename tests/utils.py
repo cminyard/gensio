@@ -49,7 +49,10 @@ class HandleData:
             self.name = iostr
         self.waiter = gensio.waiter(o)
         self.to_write = None
+        self.compared = 0
         self.to_compare = None
+        self.compared_oob = 0
+        self.to_compare_oob = None
         self.to_waitfor = None
         self.expecting_modemstate = False
         self.expecting_linestate = False
@@ -79,6 +82,18 @@ class HandleData:
             self.io.read_cb_enable(True)
         return
 
+    def set_compare_oob(self, to_compare, start_reader = True):
+        """Set some oob data to compare
+
+        If start_reader is true (default), it enable the read callback.
+        If the data does not compare, an exception is raised.
+        """
+        self.compared_oob = 0
+        self.to_compare_oob = to_compare
+        if (start_reader):
+            self.io.read_cb_enable(True)
+        return
+
     def set_waitfor(self, waitfor, start_reader = True):
         """Wait for the given string to come in
 
@@ -92,11 +107,12 @@ class HandleData:
         return
 
     def set_write_data(self, to_write, start_writer = True,
-                       close_on_done = False):
+                       close_on_done = False, auxdata = None):
         self.close_on_done = close_on_done
         self.wrpos = 0
         self.wrlen = len(to_write)
         self.to_write = to_write
+        self.write_auxdata = auxdata
         if (start_writer):
             self.io.write_cb_enable(True)
         return
@@ -139,6 +155,7 @@ class HandleData:
             raise HandlerException(self.name + ": read: " + err)
         if (self.ignore_input):
             return len(buf)
+
         if (self.to_waitfor):
             for i in range(0, len(buf)):
                 if buf[i] == self.to_waitfor[self.compared]:
@@ -151,14 +168,28 @@ class HandleData:
                     self.compared = 0
             return len(buf)
 
-        if (not self.to_compare):
-            if (debug):
-                print(self.name + ": Got data, but nothing to compare")
-            io.read_cb_enable(False)
-            return len(buf)
+        if auxdata and auxdata[0] == "oob":
+            if not self.to_compare_oob:
+                if (debug):
+                    print(self.name +
+                          ": Got oob data, but nothing to compare")
+                io.read_cb_enable(False)
+                return len(buf)
+            compared = self.compared_oob
+            compare_with = self.to_compare_oob
+            oob = "oob "
+        else:
+            if not self.to_compare:
+                if (debug):
+                    print(self.name + ": Got data, but nothing to compare")
+                io.read_cb_enable(False)
+                return len(buf)
+            compared = self.compared
+            compare_with = self.to_compare
+            oob = ""
 
-        if (len(buf) > len(self.to_compare)):
-            count = len(self.to_compare)
+        if (len(buf) > len(compare_with)):
+            count = len(compare_with)
         else:
             count = len(buf)
 
@@ -166,18 +197,26 @@ class HandleData:
             count = self.chunksize
 
         for i in range(0, count):
-            if (buf[i] != self.to_compare[self.compared]):
-                raise HandlerException("%s: compare failure on byte %d, "
+            if (buf[i] != compare_with[compared]):
+                raise HandlerException("%s: %scompare failure on byte %d, "
                                        "expected %x, got %x" %
-                                       (self.name, self.compared,
-                                        ord(self.to_compare[self.compared]),
+                                       (self.name, oob, compared,
+                                        ord(compare_with[compared]),
                                         ord(buf[i])))
-            self.compared += 1
+            compared += 1
 
-        if (self.compared >= len(self.to_compare)):
-            self.to_compare = None
-            io.read_cb_enable(False)
-            self.waiter.wake()
+        if oob == "oob ":
+            self.compared_oob = compared
+            if (self.compared_oob >= len(self.to_compare_oob)):
+                self.to_compare_oob = None
+                io.read_cb_enable(False)
+                self.waiter.wake()
+        else:
+            self.compared = compared
+            if (self.compared >= len(self.to_compare)):
+                self.to_compare = None
+                io.read_cb_enable(False)
+                self.waiter.wake()
 
         return count
 
@@ -192,7 +231,7 @@ class HandleData:
             wrdata = self.to_write[self.wrpos:]
         else:
             wrdata = self.to_write[self.wrpos:self.wrpos + self.chunksize]
-        count = io.write(wrdata, None)
+        count = io.write(wrdata, self.write_auxdata)
         if (debug or self.debug):
             print(self.name + ": wrote %d bytes" % count)
 
@@ -207,8 +246,8 @@ class HandleData:
             self.wrpos += count
         return
 
-    def urgent_callback(self, io):
-        print(self.name + ": Urgent data")
+    def set_expecting_oob(self, data):
+        self.to_compare_oob = data
         return
 
     def modemstate(self, io, modemstate):
@@ -398,6 +437,26 @@ def test_dataxfer(io1, io2, data, timeout = 1000):
     """
     io1.handler.set_write_data(data)
     io2.handler.set_compare(data)
+    if (io1.handler.wait_timeout(timeout)):
+        raise Exception(("%s: %s: " % ("test_dataxfer", io1.handler.name)) +
+
+                        ("Timed out waiting for write completion at byte %d" %
+                         io1.handler.wrpos))
+    if (io2.handler.wait_timeout(timeout)):
+        raise Exception(("%s: %s: " % ("test_dataxfer", io2.handler.name)) +
+
+                        ("Timed out waiting for read completion at byte %d" %
+                         io2.handler.compared))
+    return
+
+def test_dataxfer_oob(io1, io2, data, timeout = 1000):
+    """Test a transfer of data from io1 to io2
+
+    If the transfer does not complete by "timeout" milliseconds, raise
+    an exception.
+    """
+    io1.handler.set_write_data(data, auxdata = ["oob"])
+    io2.handler.set_compare_oob(data)
     if (io1.handler.wait_timeout(timeout)):
         raise Exception(("%s: %s: " % ("test_dataxfer", io1.handler.name)) +
 
