@@ -30,36 +30,37 @@
  * count => count
  * buf => buf
  * buflen => buflen
+ * auxdata => auxdata
  */
 #define GENSIO_FUNC_WRITE		1
 
 /*
  * pos => count
- * buf => auxdata
+ * buf => buf
  * buflen => buflen
  */
 #define GENSIO_FUNC_RADDR_TO_STR	2
 
 /*
- * addr => auxdata
+ * addr => buf
  * addrlen => count
  */
 #define GENSIO_FUNC_GET_RADDR		3
 
 /*
- * id => auxdata
+ * id => buf
  */
 #define GENSIO_FUNC_REMOTE_ID		4
 
 /*
- * open_done => buf
- * open_data => auxdata
+ * open_done => cbuf
+ * open_data => buf
  */
 #define GENSIO_FUNC_OPEN		5
 
 /*
- * close_done => buf
- * close_data => auxdata
+ * close_done => cbuf
+ * close_data => buf
  */
 #define GENSIO_FUNC_CLOSE		6
 
@@ -76,7 +77,7 @@
 #define GENSIO_FUNC_SET_WRITE_CALLBACK	10
 
 /*
- * Following struct in auxdata
+ * Following struct in buf
  */
 struct gensio_func_open_channel_data {
     char **args;
@@ -120,7 +121,8 @@ void gensio_set_is_reliable(struct gensio *io, bool is_reliable);
 gensio_event gensio_get_cb(struct gensio *io);
 void gensio_set_cb(struct gensio *io, gensio_event cb, void *user_data);
 int gensio_cb(struct gensio *io, int event, int err,
-	      unsigned char *buf, unsigned int *buflen, const char *const *auxdata);
+	      unsigned char *buf, unsigned int *buflen,
+	      const char *const *auxdata);
 
 /*
  * Add and get the classdata for a gensio.
