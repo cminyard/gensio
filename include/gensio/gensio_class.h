@@ -91,7 +91,7 @@ struct gensio_func_open_channel_data {
 
 /*
  * option => buflen
- * auxdata => auxdata
+ * auxdata => buf
  */
 #define GENSIO_FUNC_CONTROL		12
 

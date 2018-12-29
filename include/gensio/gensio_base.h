@@ -277,10 +277,11 @@ void gensio_ll_free(struct gensio_ll *ll);
 
 /*
  * option => buflen
+ * get => cbuf
  * auxdata => buf
  */
 #define GENSIO_LL_FUNC_CONTROL			11
-int gensio_ll_control(struct gensio_ll *ll, int option, void *data);
+int gensio_ll_control(struct gensio_ll *ll, bool get, int option, char *data);
 
 typedef int (*gensio_ll_func)(struct gensio_ll *ll, int op,
 			      unsigned int *count,

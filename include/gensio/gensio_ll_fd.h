@@ -45,8 +45,8 @@ struct gensio_fd_ll_ops {
 
     void (*free)(void *handler_data);
 
-    int (*control)(void *handler_data, int fd, unsigned int option,
-		   const char *const *auxdata);
+    int (*control)(void *handler_data, int fd, bool get, unsigned int option,
+		   char *data);
 
     void (*read_ready)(void *handler_data, int fd);
 

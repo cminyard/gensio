@@ -308,19 +308,27 @@ sctp_free(void *handler_data)
 }
 
 static int
-sctp_control(void *handler_data, int fd, unsigned int option,
-	     const char *const *auxdata)
+sctp_control(void *handler_data, int fd, bool get, unsigned int option,
+	     char *data)
 {
     int rv, val;
 
     switch (option) {
     case GENSIO_CONTROL_NODELAY:
-	if (!auxdata[0])
-	    return EINVAL;
-	val = strtoul(auxdata[0], NULL, 0);
-	rv = setsockopt(fd, IPPROTO_SCTP, SCTP_NODELAY, &val, sizeof(val));
-	if (rv == -1)
-	    return errno;
+	if (get) {
+	    unsigned int len = strlen(data) + 1;
+	    socklen_t vallen = sizeof(val);
+
+	    rv = getsockopt(fd, IPPROTO_SCTP, SCTP_NODELAY, &val, &vallen);
+	    if (rv == -1)
+		return errno;
+	    snprintf(data, len, "%d", val);
+	} else {
+	    val = strtoul(data, NULL, 0);
+	    rv = setsockopt(fd, IPPROTO_SCTP, SCTP_NODELAY, &val, sizeof(val));
+	    if (rv == -1)
+		return errno;
+	}
 	return 0;
 
     default:

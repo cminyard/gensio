@@ -784,7 +784,7 @@ gensio_base_func(struct gensio *io, int func, unsigned int *count,
 	return gensio_ll_remote_id(ndata->ll, buf);
 
     case GENSIO_FUNC_CONTROL:
-	return gensio_ll_control(ndata->ll, buflen, buf);
+	return gensio_ll_control(ndata->ll, *((bool *) cbuf), buflen, buf);
 
     default:
 	return ENOTSUP;
@@ -1217,8 +1217,8 @@ gensio_ll_free(struct gensio_ll *ll)
 }
 
 int
-gensio_ll_control(struct gensio_ll *ll, int option, void *data)
+gensio_ll_control(struct gensio_ll *ll, bool get, int option, char *data)
 {
-    return ll->func(ll, GENSIO_LL_FUNC_CONTROL, NULL, data, NULL, option,
+    return ll->func(ll, GENSIO_LL_FUNC_CONTROL, NULL, data, &get, option,
 		    NULL);
 }

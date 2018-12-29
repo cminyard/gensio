@@ -471,9 +471,14 @@ int gensio_open_channel_s(struct gensio *io, const char *args,
  * one of its children (depth > 0).  If depth is GENSIO_CONTROL_DEPTH_ALL,
  * then call all the children with the data.  ENOTSUP is ignored in
  * that case, but it will stop at the first error.
+ *
+ * If get is true, attempt to fetch the option.  You cannot use
+ * GENSIO_CONTORL_DEPTH_ALL with get==true.  To fetch an option,
+ * you must set the data to a writable string filled with non-nil
+ * characters to the available length.
  */
-int gensio_control(struct gensio *io, int depth,
-		   unsigned int option, void *data);
+int gensio_control(struct gensio *io, int depth, bool get,
+		   unsigned int option, char *data);
 #define GENSIO_CONTROL_DEPTH_ALL	-1
 
 /*
