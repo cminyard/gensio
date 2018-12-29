@@ -327,8 +327,9 @@ fd_sched_deferred_op(struct fd_ll *fdll)
 
 static void
 fd_handle_incoming(struct fd_ll *fdll,
-		   ssize_t (*doread)(int fd, void *buf, size_t count),
-		   const char *const *auxdata)
+		   ssize_t (*doread)(int fd, void *buf, size_t count,
+				     const char **auxdata, void *cb_data),
+		   const char **auxdata, void *cb_data)
 {
     int rv, err = 0;
 
@@ -342,7 +343,8 @@ fd_handle_incoming(struct fd_ll *fdll,
 
     if (!fdll->read_data_len) {
     retry:
-	rv = doread(fdll->fd, fdll->read_data, fdll->read_data_size);
+	rv = doread(fdll->fd, fdll->read_data, fdll->read_data_size, auxdata,
+		    cb_data);
 	if (rv < 0) {
 	    if (errno == EINTR)
 		goto retry;
@@ -372,12 +374,22 @@ fd_handle_incoming(struct fd_ll *fdll,
 
 void gensio_fd_ll_handle_incoming(struct gensio_ll *ll,
 				  ssize_t (*doread)(int fd, void *buf,
-						    size_t count),
-				  const char *const *auxdata)
+						    size_t count,
+						    const char **auxdata,
+						    void *cb_data),
+				  const char **auxdata,
+				  void *cb_data)
 {
     struct fd_ll *fdll = ll_to_fd(ll);
 
-    fd_handle_incoming(fdll, doread, auxdata);
+    fd_handle_incoming(fdll, doread, auxdata, cb_data);
+}
+
+static ssize_t
+gensio_ll_fd_read(int fd, void *buf, size_t count, const char **auxdata,
+		  void *cb_data)
+{
+    return read(fd, buf, count);
 }
 
 static void
@@ -390,7 +402,7 @@ fd_read_ready(int fd, void *cbdata)
 	return;
     }
 
-    fd_handle_incoming(fdll, read, NULL);
+    fd_handle_incoming(fdll, gensio_ll_fd_read, NULL, NULL);
 }
 
 static int fd_setup_handlers(struct fd_ll *fdll);

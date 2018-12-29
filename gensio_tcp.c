@@ -167,13 +167,17 @@ tcp_free(void *handler_data)
 }
 
 static int
-tcp_control(void *handler_data, int fd, unsigned int option, const char *const *auxdata)
+tcp_control(void *handler_data, int fd, unsigned int option,
+	    const char *const *auxdata)
 {
-    int rv;
+    int rv, val;
 
     switch (option) {
     case GENSIO_CONTROL_NODELAY:
-	rv = setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, auxdata, sizeof(int));
+	if (!auxdata[0])
+	    return EINVAL;
+	val = strtoul(auxdata[0], NULL, 0);
+	rv = setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &val, sizeof(val));
 	if (rv == -1)
 	    return errno;
 	return 0;
@@ -184,7 +188,8 @@ tcp_control(void *handler_data, int fd, unsigned int option, const char *const *
 }
 
 static ssize_t
-tcp_oob_read(int fd, void *data, size_t count)
+tcp_oob_read(int fd, void *data, size_t count, const char **auxdata,
+	     void *cb_data)
 {
     return recv(fd, data, count, MSG_OOB);
 }
@@ -195,7 +200,7 @@ tcp_except_ready(void *handler_data, int fd)
     struct tcp_data *tdata = handler_data;
     static const char *argv[2] = { "oob", NULL };
 
-    gensio_fd_ll_handle_incoming(tdata->ll, tcp_oob_read, argv);
+    gensio_fd_ll_handle_incoming(tdata->ll, tcp_oob_read, argv, NULL);
 }
 
 static int

@@ -64,8 +64,11 @@ unsigned gensio_fd_ll_callback(struct gensio_ll *ll, int op, int val,
 
 void gensio_fd_ll_handle_incoming(struct gensio_ll *ll,
 				  ssize_t (*doread)(int fd, void *buf,
-						    size_t count),
-				  const char *const *auxdata);
+						    size_t count,
+						    const char **auxdata,
+						    void *cb_data),
+				  const char **auxdata,
+				  void *cb_data);
 
 struct gensio_ll *fd_gensio_ll_alloc(struct gensio_os_funcs *o,
 				     int fd,
