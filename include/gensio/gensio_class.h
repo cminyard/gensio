@@ -235,6 +235,7 @@ int gensio_setup_listen_socket(struct gensio_os_funcs *o, bool do_listen,
 			       void (*readhndlr)(int, void *),
 			       void (*writehndlr)(int, void *), void *data,
 			       void (*fd_handler_cleared)(int, void *),
+			       int (*call_b4_listen)(int, void *),
 			       int *rfd);
 
 /* Returns a NULL if the fd is ok, a non-NULL error string if not */

@@ -281,6 +281,7 @@ gensio_setup_listen_socket(struct gensio_os_funcs *o, bool do_listen,
 			   void (*readhndlr)(int, void *),
 			   void (*writehndlr)(int, void *), void *data,
 			   void (*fd_handler_cleared)(int, void *),
+			   int (*call_b4_listen)(int, void *),
 			   int *rfd)
 {
     int optval = 1;
@@ -301,6 +302,12 @@ gensio_setup_listen_socket(struct gensio_os_funcs *o, bool do_listen,
 
     if (bind(fd, addr, addrlen) != 0)
 	goto out_err;
+
+    if (call_b4_listen) {
+	rv = call_b4_listen(fd, data);
+	if (rv)
+	    goto out;
+    }
 
     if (do_listen && listen(fd, 5) != 0)
 	goto out_err;
@@ -355,7 +362,7 @@ gensio_open_socket(struct gensio_os_funcs *o,
 					rp->ai_protocol, rp->ai_flags,
 					rp->ai_addr, rp->ai_addrlen,
 					readhndlr, writehndlr, data,
-					fd_handler_cleared,
+					fd_handler_cleared, NULL,
 					&fds[curr_fd].fd);
 	if (!rv) {
 	    fds[curr_fd].family = rp->ai_family;
