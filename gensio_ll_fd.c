@@ -460,6 +460,7 @@ fd_except_ready(int fd, void *cbdata)
      */
     if (fdll->state == FD_IN_OPEN) {
 	fd_handle_write_ready(fdll);
+	fd_unlock(fdll);
     } else if (fdll->ops->except_ready) {
 	fd_unlock(fdll);
 	fdll->ops->except_ready(fdll->handler_data, fdll->fd);
