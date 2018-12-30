@@ -72,6 +72,27 @@
     $result = add_python_result($result, seq);
 }
 
+%typemap(argout) char *controldata {
+    PyObject *o, *o2, *o3;
+
+    o = PyString_FromString($1);
+    if ((!$result) || ($result == Py_None)) {
+	$result = o;
+    } else {
+	if (!PyTuple_Check($result)) {
+	    PyObject *o2 = $result;
+	    $result = PyTuple_New(1);
+	    PyTuple_SetItem($result, 0, o2);
+	}
+	o3 = PyTuple_New(1);
+	PyTuple_SetItem(o3, 0, o);
+	o2 = $result;
+	$result = PySequence_Concat(o2, o3);
+	Py_DECREF(o2);
+	Py_DECREF(o3);
+    }
+}
+
 %typemap(in) const char *const *auxdata {
     unsigned int i;
     unsigned int len;

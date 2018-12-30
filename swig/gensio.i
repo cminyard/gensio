@@ -322,6 +322,10 @@ struct waiter { };
     }
 }
 
+%constant int GENSIO_CONTROL_DEPTH_ALL = GENSIO_CONTROL_DEPTH_ALL;
+%constant int GENSIO_CONTROL_NODELAY = GENSIO_CONTROL_NODELAY;
+%constant int GENSIO_CONTROL_STREAMS = GENSIO_CONTROL_STREAMS;
+
 %extend gensio {
     gensio(struct gensio_os_funcs *o, char *str, swig_cb *handler) {
 	struct os_funcs_data *odata = o->other_data;
@@ -497,6 +501,12 @@ struct waiter { };
 
     void write_cb_enable(bool enable) {
 	gensio_set_write_callback_enable(self, enable);
+    }
+
+    %rename(control) controlt;
+    void controlt(int depth, bool get, int option, char *controldata) {
+	int rv = gensio_control(self, depth, get, option, controldata);
+	err_handle("control", rv);
     }
 
     %rename(is_client) is_clientt;
