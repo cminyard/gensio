@@ -259,6 +259,13 @@ int gensio_control(struct gensio *io, int depth, bool get,
 #define GENSIO_CONTROL_NODELAY	1
 
 /*
+ * Return information about incoming and outgoing streams for
+ * the gensio.  This is read(get)-only and returns the value in
+ * the data in the form "instream=<n>,ostream=<n>".
+ */
+#define GENSIO_CONTROL_STREAMS	2
+
+/*
  * Return the type string for the gensio (if depth is 0) or one of its
  * children (depth > 0).  Return NULL if the depth is greater than the
  * number of children.

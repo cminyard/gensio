@@ -311,14 +311,16 @@ static int
 sctp_control(void *handler_data, int fd, bool get, unsigned int option,
 	     char *data)
 {
+    struct sctp_data *tdata = handler_data;
     int rv, val;
+    unsigned int len;
 
     switch (option) {
     case GENSIO_CONTROL_NODELAY:
 	if (get) {
-	    unsigned int len = strlen(data) + 1;
 	    socklen_t vallen = sizeof(val);
 
+	    len = strlen(data) + 1;
 	    rv = getsockopt(fd, IPPROTO_SCTP, SCTP_NODELAY, &val, &vallen);
 	    if (rv == -1)
 		return errno;
@@ -329,6 +331,14 @@ sctp_control(void *handler_data, int fd, bool get, unsigned int option,
 	    if (rv == -1)
 		return errno;
 	}
+	return 0;
+
+    case GENSIO_CONTROL_STREAMS:
+	if (!get)
+	    return EINVAL;
+	len = strlen(data) + 1;
+	snprintf(data, len, "instreams=%u,ostreams=%u", tdata->instreams,
+		 tdata->ostreams);
 	return 0;
 
     default:
@@ -612,7 +622,9 @@ static const struct gensio_fd_ll_ops sctp_server_fd_ll_ops = {
     .raddr_to_str = sctp_raddr_to_str,
     .get_raddr = sctp_get_raddr,
     .free = sctp_free,
-    .control = sctp_control
+    .control = sctp_control,
+    .write = sctp_write,
+    .read_ready = sctp_read_ready
 };
 
 static void
@@ -647,6 +659,8 @@ sctpna_readhandler(int fd, void *cbdata)
     tdata->fd = new_fd;
 
     err = sctp_socket_setup(tdata, new_fd);
+    if (!err)
+	err = sctp_setup(tdata);
     if (err) {
 	gensio_acc_log(nadata->acc, GENSIO_LOG_ERR,
 		       "Error setting up sctp port: %s", strerror(err));
