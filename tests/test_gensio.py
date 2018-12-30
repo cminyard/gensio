@@ -75,6 +75,10 @@ def ta_sctp():
     print("Test accept sctp")
     io1 = utils.alloc_io(o, "sctp,localhost,3023", do_open = False)
     TestAccept(o, io1, "sctp,3023", do_test)
+    c = io1.control(0, True, gensio.GENSIO_CONTROL_STREAMS,
+                    "                             ")
+    if c != "instreams=1,ostreams=1":
+        raise Exception("Invalid stream settings: %s" % c)
 
 def ta_ssl_tcp():
     print("Test accept ssl-tcp")
@@ -324,6 +328,22 @@ def test_sctp_small():
                          chunksize = 64)
     ta = TestAccept(o, io1, "sctp,3025", do_small_test)
 
+def do_stream_test(io1, io2):
+    rb = gensio.get_random_bytes(10)
+    print("  testing io1 to io2")
+    utils.test_dataxfer_stream(io1, io2, rb, 2)
+    print("  testing io2 to io1")
+    utils.test_dataxfer_stream(io2, io1, rb, 1)
+    utils.io_close(io1)
+    utils.io_close(io2)
+    print("  Success!")
+
+def test_sctp_streams():
+    print("Test sctp streams")
+    io1 = utils.alloc_io(o, "sctp(instreams=2,ostreams=3),localhost,3030",
+                         do_open = False, chunksize = 64)
+    ta = TestAccept(o, io1, "sctp(instreams=3,ostreams=2),3030", do_stream_test)
+
 def test_telnet_small():
     print("Test telnet small")
     io1 = utils.alloc_io(o, "telnet,tcp,localhost,3026", do_open = False,
@@ -387,6 +407,7 @@ test_tcp_small()
 test_tcp_urgent()
 test_telnet_small()
 test_sctp_small()
+test_sctp_streams()
 test_ipmisol_small()
 ta_ssl_telnet()
 test_ipmisol_large()

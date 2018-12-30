@@ -60,6 +60,7 @@ class HandleData:
         self.expected_server_value = 0
         self.expected_server_return = 0
         self.ignore_input = False
+        self.stream = None
         if (io):
             self.io = io
             io.set_cbs(self)
@@ -70,25 +71,27 @@ class HandleData:
         self.debug = 0
         return
 
-    def set_compare(self, to_compare, start_reader = True):
+    def set_compare(self, to_compare, start_reader = True, stream = None):
         """Set some data to compare
 
         If start_reader is true (default), it enable the read callback.
         If the data does not compare, an exception is raised.
         """
         self.compared = 0
+        self.stream = stream
         self.to_compare = to_compare
         if (start_reader):
             self.io.read_cb_enable(True)
         return
 
-    def set_compare_oob(self, to_compare, start_reader = True):
+    def set_compare_oob(self, to_compare, start_reader = True, stream = None):
         """Set some oob data to compare
 
         If start_reader is true (default), it enable the read callback.
         If the data does not compare, an exception is raised.
         """
         self.compared_oob = 0
+        self.stream = stream
         self.to_compare_oob = to_compare
         if (start_reader):
             self.io.read_cb_enable(True)
@@ -168,7 +171,24 @@ class HandleData:
                     self.compared = 0
             return len(buf)
 
-        if auxdata and auxdata[0] == "oob":
+        oob = False;
+        stream = 0
+
+        if auxdata:
+            for i in auxdata:
+                if i == "oob":
+                    oob = True
+                elif i[0:7] == "stream=":
+                    stream = int(i[7:])
+
+        if self.stream and stream != self.stream:
+            raise HandlerException("%s: stream mismatch, expected %d, got %d " %
+                                       (self.name, self.stream, stream))
+        if not self.stream and stream != 0:
+            raise HandlerException("%s: not expecting stream, got %d " %
+                                       (self.name, stream))
+
+        if oob:
             if not self.to_compare_oob:
                 if (debug):
                     print(self.name +
@@ -464,6 +484,26 @@ def test_dataxfer_oob(io1, io2, data, timeout = 1000):
                          io1.handler.wrpos))
     if (io2.handler.wait_timeout(timeout)):
         raise Exception(("%s: %s: " % ("test_dataxfer", io2.handler.name)) +
+
+                        ("Timed out waiting for read completion at byte %d" %
+                         io2.handler.compared))
+    return
+
+def test_dataxfer_stream(io1, io2, data, stream, timeout = 1000):
+    """Test a transfer of data from io1 to io2
+
+    If the transfer does not complete by "timeout" milliseconds, raise
+    an exception.
+    """
+    io1.handler.set_write_data(data, auxdata = ["stream=%d" % stream])
+    io2.handler.set_compare(data, stream = stream)
+    if (io1.handler.wait_timeout(timeout)):
+        raise Exception(("%s: %s: " % ("test_dataxfer_s", io1.handler.name)) +
+
+                        ("Timed out waiting for write completion at byte %d" %
+                         io1.handler.wrpos))
+    if (io2.handler.wait_timeout(timeout)):
+        raise Exception(("%s: %s: " % ("test_dataxfer_s", io2.handler.name)) +
 
                         ("Timed out waiting for read completion at byte %d" %
                          io2.handler.compared))
