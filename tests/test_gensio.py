@@ -344,6 +344,22 @@ def test_sctp_streams():
                          do_open = False, chunksize = 64)
     ta = TestAccept(o, io1, "sctp(instreams=3,ostreams=2),3030", do_stream_test)
 
+def do_oob_test(io1, io2):
+    rb = gensio.get_random_bytes(512)
+    print("  testing io1 to io2")
+    utils.test_dataxfer_oob(io1, io2, rb)
+    print("  testing io2 to io1")
+    utils.test_dataxfer_oob(io2, io1, rb)
+    utils.io_close(io1)
+    utils.io_close(io2)
+    print("  Success!")
+
+def test_sctp_oob():
+    print("Test sctp oob")
+    io1 = utils.alloc_io(o, "sctp,localhost,3031",
+                         do_open = False, chunksize = 64)
+    ta = TestAccept(o, io1, "sctp,3031", do_oob_test)
+
 def test_telnet_small():
     print("Test telnet small")
     io1 = utils.alloc_io(o, "telnet,tcp,localhost,3026", do_open = False,
@@ -408,6 +424,7 @@ test_tcp_urgent()
 test_telnet_small()
 test_sctp_small()
 test_sctp_streams()
+test_sctp_oob()
 test_ipmisol_small()
 ta_ssl_telnet()
 test_ipmisol_large()
