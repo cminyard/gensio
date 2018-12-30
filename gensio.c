@@ -854,7 +854,7 @@ gensio_control(struct gensio *io, int depth, bool get,
 	c = c->child;
     }
 
-    return c->func(c, GENSIO_FUNC_CONTROL, NULL, NULL, option, data, NULL);
+    return c->func(c, GENSIO_FUNC_CONTROL, NULL, &get, option, data, NULL);
 }
 
 const char *
