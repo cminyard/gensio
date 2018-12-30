@@ -8,7 +8,8 @@ a gensio object (or a gensio), and you can use that gensio without
 having to know too much about what is going on underneath.  You can
 stack gensio on top of another one to add protocol funcionality.  For
 instance, you can create a TCP gensio, stack SSL on top of that, and
-stack Telnet on top of that.
+stack Telnet on top of that.  It supports a number of network I/O and
+serial ports.
 
 You can do the same thing with receiving ports.  You can set up a
 gensio accepter (accepter) to accept connections in a stack.  So in
@@ -69,6 +70,58 @@ Channels, on the other hand, are separate flows of data over the same
 connection.  Channels are represented as separate gensios, and they
 can be individually flow controlled.
 
+Include Files
+=============
+
+There are a few include files you might need to deal with when using
+gensios:
+
+gensio.h
+    The main include files for gensios and gensio accepters.
+
+sergensio.h
+    Serial port handling gensios and gensio accepters.
+
+gensio_os_funcs.h
+    The definition for an OS handler.
+
+waiter.h
+    Functions for waiting for operations to happen.
+
+argvutils.h
+    Many gensio functions take an argv array, this is utilities for
+    dealing with argvs.
+
+gensio_selector.h
+    A definition for a default OS handler.
+
+
+For creating your own gensios, the following include files are
+available for you:
+
+gensio_class.h
+    The main include file for creating your own gensio.
+
+sergensio_class.h
+    The main include file for creating your own serial port gensio.
+
+gensio_base.h
+    This handles a lot of the boiler plate for a gensio.  Most of the
+    standard gensios use this.  It splits the gensio function into
+    an optional filter, and a lower layer interface called an ll.
+
+gensio_ll_fd.h
+    An ll that provides most of the boilerplate for dealing with a
+    file descriptor.
+
+gensio_ll_gensio.h
+    An ll that provides all that is necessary for stacking a gensio
+    on top of another gensio.  The filter gensios (telnet, ssl, etc.)
+    use this as the ll.
+
+Each include file has lots of documentation about the individual calls
+and handlers.
+
 OS Handler
 ==========
 
@@ -88,6 +141,181 @@ There is also a waiter interface that provides a convenient way to
 wait for things to occur.  Waiting is generally not required, but it
 can be useful in some cases.
 
+Documentation for this is in::
+
+  include/gensio/gensio_os_funcs.h
+
 Creating a gensio
 =================
 
+Connecting gensios
+------------------
+
+To create a gensio, the general way to do this is to call
+``str_to_gensio()`` with a properly formatted string.  The string is
+formatted like so::
+
+  <type>[([<option>[,<option[...]]])][,<type>...][,<end option>[,<end option]]
+
+The ``end option`` is for terminal gensios, or ones that are at the
+bottom of the stack.  For instance, ``tcp,localhost,3001`` will create
+a gensio that connects to port 3001 on localhost.  For a serial port,
+an example is ``termios,/dev/ttyS0,9600N81`` will create a connection
+to the serial port /dev/ttyS0.
+
+This lets you stack gensio layers on top of gensio layers.  For
+instance, to layer telnet on top of a TCP connection::
+
+  telnet,tcp,localhost,3001
+
+Say you want to enable RFC2217 on your telnet connection.  You can add
+an option to do that::
+
+  telnet(rfc2217=true),tcp,localhost,3001
+
+See `Telnet`_ for details on that.
+
+When you create a gensio, you supply a callback with user data.  When
+events happen on a gensio, the callback will be called so the user
+could handle it.
+
+gensio acceptors
+----------------
+
+A gensio accepter is similar to a connecting gensio, but with
+``str_to_gensio_accepter()`` instead.  The format is the same.  For
+instance::
+
+  telnet(rfc2217=true),tcp,3001
+
+will create a TCP accepter with telnet on top.  For accepters, you
+generally do not need to specify the hostname if you want to bind to
+all interfaces on the local machine.
+
+Using a gensio
+==============
+
+Once you have created a gensio, it's not yet open or operational.  To
+use it, you have to open it.  To open it, do::
+
+  struct gensio *io;
+  int rv;
+
+  rv = str_to_gensio("tcp,localhost,3001", oshnd,
+                     tcpcb, mydata, &io);
+  if (rv) { handle error }
+  rv = gensio_open(io, tcp_open_done, mydata);
+  if (rv) { handle error }
+
+Note that when ``gensio_open()`` returns, the gensio is not open.  You
+must wait until ``tcp_open_done()`` is called.  After that, you can
+use it.
+
+Once the gensio is open, you won't immediately get any data on it
+because receive is turned off.  You must call
+``gensio_set_read_callback_enable()`` to turn on and off whether the
+callback (``tcpcb`` in this case) will be called when data is received.
+
+When the read handler is called, the buffer and length is passed in.
+You do not have to handle all the data if you cannot.  You *must*
+update the buflen with the number of bytes you actually handled.  If
+you don't handle data, the data not handled will be buffered in the
+gensio for later.  Not that if you don't handle all the data, you
+should turn off the read enable or the event will immediately called
+again.
+
+If something goes wrong on a connection, the read handler is called
+with an error set.  ``buf`` and ``buflen`` will be NULL in this case.
+
+For writing, you can call ``gensio_write()`` to write data.  In
+general, you shouldn't arbitrarily call ``gensio_write()``.  You
+should call ``gensio_set_write_callback_enable()`` and the gensio will
+call the write ready callback and you should write from the callback.
+
+``gensio_write()`` may not take all the data you write to it.  The
+``count`` parameter passes back the number of bytes actually taken in
+the write call.
+
+In the callbacks, you can get the user data you passed in to the
+create call with ``gensio_get_user_data()``.
+
+Note that if you open then immediately close a gensio, this is fine,
+even if the open callback hasn't been called.  The open callback may
+or may not be called in that case.
+
+Using a gensio accepter
+=======================
+
+Like a gensio, a gensio accepter is not operational when you create
+it.  You must call ``gensio_acc_startup()`` to enable it::
+
+  struct gensio_accepter *acc;
+  int rv;
+
+  rv = str_to_gensio_accepter("tcp,3001", oshnd,
+                              tcpacccb, mydata, &acc);
+  if (rv) { handle error }
+  rv = gensio_startup(acc);
+  if (rv) { handle error }
+
+Note that there is no callback to the startup call to know when it's
+enabled, because there's no real need to know because you cannot write
+to it, it only does callbacks.
+
+Even after you start up the accepter, it still won't do anything until
+you call ``gensio_acc_set_accept_callback_enable()`` to enable that
+callback.
+
+When the callback is called, it gives you a gensio that is already
+open with read disabled.
+
+Error Handling
+==============
+
+As a general principle, almost all gensio calls return an errno on an
+error and zero on success.
+
+Logging
+=======
+
+Serial I/O
+==========
+
+Streams
+=======
+
+Channels
+========
+
+Controls
+========
+
+Types of gensios
+================
+
+TCP
+---
+
+UDP
+---
+
+Termios (serial)
+----------------
+
+SCTP
+----
+
+Telnet
+------
+
+SSL
+---
+
+stdio
+-----
+
+IPMI Serial over LAN
+--------------------
+
+Python Interface
+================
