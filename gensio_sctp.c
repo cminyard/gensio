@@ -397,7 +397,7 @@ sctp_do_read(int fd, void *data, size_t count, const char **auxdata,
     struct sctp_data *tdata = cb_data;
     ssize_t rv;
     struct sctp_sndrcvinfo sinfo;
-    int flags;
+    int flags = 0;
     unsigned int stream;
     unsigned int i = 0;
 
