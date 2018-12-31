@@ -249,4 +249,10 @@ void gensio_vlog(struct gensio_os_funcs *o, enum gensio_log_levels level,
 void gensio_log(struct gensio_os_funcs *o, enum gensio_log_levels level,
 		const char *str, ...);
 
+/*
+ * Allocate the OS handler for the platform.  This will return the
+ * same OS handler each time.
+ */
+int gensio_default_os_hnd(int wake_sig, struct gensio_os_funcs **o);
+
 #endif /* GENSIO_OS_FUNCS */

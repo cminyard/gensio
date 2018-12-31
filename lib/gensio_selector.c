@@ -521,3 +521,84 @@ gensio_selector_alloc(struct selector_s *sel, int wake_sig)
 
     return o;
 }
+
+static struct gensio_os_funcs *defoshnd;
+static int defoshnd_wake_sig = -1;
+
+#ifdef USE_PTHREADS
+struct sel_lock_s
+{
+    pthread_mutex_t lock;
+};
+
+sel_lock_t *defsel_lock_alloc(void *cb_data)
+{
+    sel_lock_t *l;
+
+    l = malloc(sizeof(*l));
+    if (!l)
+	return NULL;
+    pthread_mutex_init(&l->lock, NULL);
+    return l;
+}
+
+void defsel_lock_free(sel_lock_t *l)
+{
+    pthread_mutex_destroy(&l->lock);
+    free(l);
+}
+
+void defsel_lock(sel_lock_t *l)
+{
+    pthread_mutex_lock(&l->lock);
+}
+
+void defsel_unlock(sel_lock_t *l)
+{
+    pthread_mutex_unlock(&l->lock);
+}
+
+static pthread_once_t defos_once = PTHREAD_ONCE_INIT;
+#endif
+
+void defoshnd_init(void)
+{
+    struct selector_s *sel;
+    int rv;
+
+#ifdef USE_PTHREADS
+    rv = sel_alloc_selector_thread(&sel, defoshnd_wake_sig, defsel_lock_alloc,
+				   defsel_lock_free, defsel_lock,
+				   defsel_unlock, NULL);
+#else
+    rv = sel_alloc_selector_nothread(&sel);
+#endif
+    if (rv)
+	return;
+
+    defoshnd = gensio_selector_alloc(sel, defoshnd_wake_sig);
+    if (!defoshnd)
+	sel_free_selector(sel);
+}
+
+int
+gensio_default_os_hnd(int wake_sig, struct gensio_os_funcs **o)
+{
+    if (defoshnd_wake_sig != -1 && wake_sig != defoshnd_wake_sig)
+	return EINVAL;
+
+    if (!defoshnd) {
+	defoshnd_wake_sig = wake_sig;
+#ifdef USE_PTHREADS
+	pthread_once(&defos_once, defoshnd_init);
+#else
+	defoshnd_init();
+#endif
+
+	if (!defoshnd)
+	    return ENOMEM;
+    }
+
+    *o = defoshnd;
+    return 0;
+}
