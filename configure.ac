@@ -233,5 +233,6 @@ AC_OUTPUT([Makefile
 	include/Makefile
 	include/gensio/Makefile
 	tests/Makefile
+	tools/Makefile
 	swig/Makefile
 	swig/python/Makefile])
