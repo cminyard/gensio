@@ -42,11 +42,13 @@ struct gensio;
  * If err is set, buf and buflen are undefined.  readerr is a standard
  * *nix errno.
  *
- * You must return the number of bytes consumed.  Note that you must
+ * You must set the number of bytes consumed in buflen.  Note that you must
  * disable read if you don't consume all the bytes or in other
  * situations where you don't want the read handler called.  auxdata,
  * if not NULL, may contain information about the message, like if it
  * is out of band (oob) data.
+ *
+ * Return value is ignored.
  */
 #define GENSIO_EVENT_READ		1
 
