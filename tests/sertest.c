@@ -33,7 +33,7 @@
 #include <gensio/sergensio.h>
 #include <gensio/argvutils.h>
 
-#include "../utils.h"
+#include "../lib/utils.h"
 
 struct absout {
     int (*out)(struct absout *e, const char *str, ...);

@@ -229,6 +229,7 @@ AC_SUBST(PYTHON_SWIG_FLAGS)
 AC_CHECK_LIB(sctp, sctp_bindx)
 
 AC_OUTPUT([Makefile
+	lib/Makefile
 	include/Makefile
 	include/gensio/Makefile
 	tests/Makefile
