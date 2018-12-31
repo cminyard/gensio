@@ -160,7 +160,7 @@ formatted like so::
 The ``end option`` is for terminal gensios, or ones that are at the
 bottom of the stack.  For instance, ``tcp,localhost,3001`` will create
 a gensio that connects to port 3001 on localhost.  For a serial port,
-an example is ``termios,/dev/ttyS0,9600N81`` will create a connection
+an example is ``serialdev,/dev/ttyS0,9600N81`` will create a connection
 to the serial port /dev/ttyS0.
 
 This lets you stack gensio layers on top of gensio layers.  For
@@ -179,7 +179,7 @@ When you create a gensio, you supply a callback with user data.  When
 events happen on a gensio, the callback will be called so the user
 could handle it.
 
-gensio acceptors
+gensio accepters
 ----------------
 
 A gensio accepter is similar to a connecting gensio, but with
@@ -208,8 +208,8 @@ use it, you have to open it.  To open it, do::
   if (rv) { handle error }
 
 Note that when ``gensio_open()`` returns, the gensio is not open.  You
-must wait until ``tcp_open_done()`` is called.  After that, you can
-use it.
+must wait until the callback (``tcp_open_done()`` in this case) is
+called.  After that, you can use it.
 
 Once the gensio is open, you won't immediately get any data on it
 because receive is turned off.  You must call
@@ -266,8 +266,10 @@ Even after you start up the accepter, it still won't do anything until
 you call ``gensio_acc_set_accept_callback_enable()`` to enable that
 callback.
 
-When the callback is called, it gives you a gensio that is already
-open with read disabled.
+When the callback is called, it gives you a gensio in the ``data``
+parameter that is already open with read disabled.  A gensio received
+from a gensio acceptor may have some limitations.  For instance, you
+may not be able to close and then reopen it.
 
 Error Handling
 ==============
@@ -278,8 +280,30 @@ error and zero on success.
 Logging
 =======
 
+``struct gensio_os_funcs`` has a vlog callback for handling internal
+gensio logs.  These are called when something of significance happens
+but gensio has no way to report an error.  It also may be called to
+make it easier to diagnose an issue when something goes wrong.
+
 Serial I/O
 ==========
+
+The gensio and gensio accepter classes each have subclasses for
+handling serial I/O and setting all the parameters associated with a
+serial port.
+
+You can discover if a gensio is a serial port by calling
+``gensio_to_sergensio()``.  If that returns NULL, it is not a
+sergensio.  If it returns non-NULL, it returns the sergensio object
+for you to use.
+
+A sergensio may be a client, meaning that it can set serial settings,
+or it may be a server, meaning that it will receive serial settings
+from the other end of the connection.
+
+Most sergensios are client only: serialdev (normal serial port),
+ipmisol, and stdio accepter.  Currently only telnet has both client
+and server capabilities.
 
 Streams
 =======
@@ -299,8 +323,8 @@ TCP
 UDP
 ---
 
-Termios (serial)
-----------------
+serialdev
+---------
 
 SCTP
 ----
@@ -314,8 +338,8 @@ SSL
 stdio
 -----
 
-IPMI Serial over LAN
---------------------
+ipmisol (IPMI Serial over LAN)
+------------------------------
 
 Python Interface
 ================

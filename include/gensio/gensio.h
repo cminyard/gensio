@@ -194,7 +194,7 @@ int gensio_get_raddr(struct gensio *io, void *addr, unsigned int *addrlen);
 
 /*
  * Returns an id for the remote end.  For stdio clients this is the
- * pid.  For termios this is the fd.  It returns an error
+ * pid.  For serialdev this is the fd.  It returns an error
  * for all others.
  */
 int gensio_remote_id(struct gensio *io, int *id);
@@ -541,10 +541,10 @@ int str_to_telnet_gensio(const char *str, char *args[],
 			 struct gensio_os_funcs *o,
 			 gensio_event cb, void *user_data,
 			 struct gensio **new_gensio);
-int str_to_termios_gensio(const char *str, char *args[],
-			  struct gensio_os_funcs *o,
-			  gensio_event cb, void *user_data,
-			  struct gensio **new_gensio);
+int str_to_serialdev_gensio(const char *str, char *args[],
+			    struct gensio_os_funcs *o,
+			    gensio_event cb, void *user_data,
+			    struct gensio **new_gensio);
 int str_to_ipmisol_gensio(const char *str, char *args[],
 			  struct gensio_os_funcs *o,
 			  gensio_event cb, void *user_data,
@@ -631,10 +631,10 @@ int ssl_gensio_alloc(struct gensio *child, char *args[],
 		     gensio_event cb, void *user_data,
 		     struct gensio **io);
 
-int termios_gensio_alloc(const char *devname, char *args[],
-			 struct gensio_os_funcs *o,
-			 gensio_event cb, void *user_data,
-			 struct gensio **io);
+int serialdev_gensio_alloc(const char *devname, char *args[],
+			   struct gensio_os_funcs *o,
+			   gensio_event cb, void *user_data,
+			   struct gensio **io);
 
 int telnet_gensio_alloc(struct gensio *child, char *args[],
 			struct gensio_os_funcs *o,
@@ -697,7 +697,7 @@ extern bool gensio_uucp_locking_enabled;
  * gensio values (or you can use it yourself to create your own defaults).
  *
  * For default values, each class will use gensio_get_default with
- * their class (termios, telnet, ssl, etc.).  If a value has been set
+ * their class (serialdev, telnet, ssl, etc.).  If a value has been set
  * for its class, it will use that value.  If a value has been set with
  * class set to NULL (the "global" defaults") then the value will be
  * used from there.  Otherwise the code will use it's own internal value.

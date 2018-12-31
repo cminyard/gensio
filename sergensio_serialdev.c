@@ -838,7 +838,7 @@ sterm_rts(struct sergensio *sio, int rts,
 }
 
 static void
-termios_timeout(struct gensio_timer *t, void *cb_data)
+serialdev_timeout(struct gensio_timer *t, void *cb_data)
 {
     struct sterm_data *sdata = cb_data;
     int val;
@@ -1439,7 +1439,7 @@ sergensio_setup_defaults(struct gensio_os_funcs *o, struct sterm_data *sdata)
     cfmakeraw(termctl);
 
     val = 9600;
-    gensio_get_default(o, "termios", "speed", false,
+    gensio_get_default(o, "serialdev", "speed", false,
 		       GENSIO_DEFAULT_INT, NULL, &val);
     if (!get_baud_rate(val, &val))
 	val = B9600;
@@ -1447,17 +1447,17 @@ sergensio_setup_defaults(struct gensio_os_funcs *o, struct sterm_data *sdata)
     cfsetispeed(termctl, val);
 
     val = 'N';
-    gensio_get_default(o, "termios", "parity", false,
+    gensio_get_default(o, "serialdev", "parity", false,
 		       GENSIO_DEFAULT_INT, NULL, &val);
     set_termios_parity(termctl, val);
 
     val = 8;
-    gensio_get_default(o, "termios", "databits", false,
+    gensio_get_default(o, "serialdev", "databits", false,
 		       GENSIO_DEFAULT_INT, NULL, &val);
     set_termios_datasize(termctl, val);
 
     val = 1;
-    gensio_get_default(o, "termios", "stopbits", false,
+    gensio_get_default(o, "serialdev", "stopbits", false,
 		       GENSIO_DEFAULT_INT, NULL, &val);
     if (val == 2)
 	termctl->c_cflag |= CSTOPB;
@@ -1470,30 +1470,30 @@ sergensio_setup_defaults(struct gensio_os_funcs *o, struct sterm_data *sdata)
     sdata->default_termios.c_iflag |= IGNBRK;
 
     val = 0;
-    gensio_get_default(o, "termios", "xonxoff", false,
+    gensio_get_default(o, "serialdev", "xonxoff", false,
 		       GENSIO_DEFAULT_BOOL, NULL, &val);
     set_termios_xonxoff(termctl, val);
 
     val = 0;
-    gensio_get_default(o, "termios", "rtscts", false,
+    gensio_get_default(o, "serialdev", "rtscts", false,
 		       GENSIO_DEFAULT_BOOL, NULL, &val);
     set_termios_rtscts(termctl, val);
 
     val = 0;
-    gensio_get_default(o, "termios", "local", false,
+    gensio_get_default(o, "serialdev", "local", false,
 		       GENSIO_DEFAULT_BOOL, NULL, &val);
     if (val)
 	termctl->c_cflag |= CLOCAL;
 
     val = 0;
-    gensio_get_default(o, "termios", "hangup_when_done", false,
+    gensio_get_default(o, "serialdev", "hangup_when_done", false,
 		       GENSIO_DEFAULT_BOOL, NULL, &val);
     if (val)
 	termctl->c_cflag |= HUPCL;
 }
 
 int
-termios_gensio_alloc(const char *devname, char *args[],
+serialdev_gensio_alloc(const char *devname, char *args[],
 		     struct gensio_os_funcs *o,
 		     gensio_event cb, void *user_data,
 		     struct gensio **rio)
@@ -1517,7 +1517,7 @@ termios_gensio_alloc(const char *devname, char *args[],
 
     sdata->o = o;
 
-    sdata->timer = o->alloc_timer(o, termios_timeout, sdata);
+    sdata->timer = o->alloc_timer(o, serialdev_timeout, sdata);
     if (!sdata->timer)
 	goto out_nomem;
 
@@ -1555,7 +1555,7 @@ termios_gensio_alloc(const char *devname, char *args[],
      * the free callbacks.
      */
 
-    io = base_gensio_alloc(o, ll, NULL, "termios", cb, user_data);
+    io = base_gensio_alloc(o, ll, NULL, "serialdev", cb, user_data);
     if (!io) {
 	gensio_ll_free(ll);
 	return ENOMEM;
@@ -1584,10 +1584,10 @@ termios_gensio_alloc(const char *devname, char *args[],
 }
 
 int
-str_to_termios_gensio(const char *str, char *args[],
+str_to_serialdev_gensio(const char *str, char *args[],
 		      struct gensio_os_funcs *o,
 		      gensio_event cb, void *user_data,
 		      struct gensio **new_gensio)
 {
-    return termios_gensio_alloc(str, args, o, cb, user_data, new_gensio);
+    return serialdev_gensio_alloc(str, args, o, cb, user_data, new_gensio);
 }

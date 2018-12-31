@@ -1203,7 +1203,7 @@ add_default_gensios(void *cb_data)
     register_gensio(o, "ssl", str_to_ssl_gensio);
 #endif
     register_gensio(o, "telnet", str_to_telnet_gensio);
-    register_gensio(o, "termios", str_to_termios_gensio);
+    register_gensio(o, "serialdev", str_to_serialdev_gensio);
 #ifdef HAVE_OPENIPMI
     register_gensio(o, "ipmisol", str_to_ipmisol_gensio);
 #endif
@@ -1267,7 +1267,8 @@ str_to_gensio(const char *str,
     if (*str == '/') {
 	char *dummy_args[1] = { NULL };
 
-	err = str_to_termios_gensio(str, dummy_args, o, cb, user_data, gensio);
+	err = str_to_serialdev_gensio(str, dummy_args, o, cb, user_data,
+				      gensio);
 	goto out;
     }
 
@@ -1579,7 +1580,7 @@ struct gensio_enum_val shared_serial_alert_enums[] = {
 #endif
 
 struct gensio_def_entry builtin_defaults[] = {
-    /* termios */
+    /* serialdev */
     { "stopbits",	GENSIO_DEFAULT_INT,	.min = 1, .max = 2,
 						.def.intval = 1},
     { "databits",	GENSIO_DEFAULT_INT,	.min = 5, .max = 8,
@@ -1590,7 +1591,7 @@ struct gensio_def_entry builtin_defaults[] = {
     { "rtscts",		GENSIO_DEFAULT_BOOL,	.def.intval = 0 },
     { "local",		GENSIO_DEFAULT_BOOL,	.def.intval = 0 },
     { "hangup_when_done", GENSIO_DEFAULT_BOOL,	.def.intval = 0 },
-    /* termios and SOL */
+    /* serialdev and SOL */
     { "speed",		GENSIO_DEFAULT_INT,	.min = 1, .max = INT_MAX,
 						.def.intval = 9600 },
     { "nobreak",	GENSIO_DEFAULT_BOOL,	.def.intval = 0 },
