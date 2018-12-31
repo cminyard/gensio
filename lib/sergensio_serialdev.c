@@ -343,6 +343,7 @@ struct sterm_data {
     bool write_only;		/* No termios, no read. */
 
     struct termios default_termios;
+    struct termios orig_termios;
 
     bool deferred_op_pending;
     struct gensio_runner *deferred_op_runner;
@@ -1067,8 +1068,10 @@ sterm_check_close_drain(void *handler_data, enum gensio_ll_close_state state,
     next_timeout->tv_sec = 0;
     next_timeout->tv_usec = 10000;
  out_rm_uucp:
-    if (!err)
+    if (!err) {
+	tcsetattr(sdata->fd, TCSANOW, &sdata->orig_termios);
 	uucp_rm_lock(sdata->devname);
+    }
  out_unlock:
     sterm_unlock(sdata);
     return err;
@@ -1114,10 +1117,12 @@ sterm_sub_open(void *handler_data, int *fd)
 	goto out_uucp;
     }
 
+    tcgetattr(sdata->fd, &sdata->orig_termios);
+
     if (!sdata->write_only &&
 		tcsetattr(sdata->fd, TCSANOW, &sdata->default_termios) == -1) {
 	err = errno;
-	goto out_uucp;
+	goto out_restore;
     }
 
     if (!sdata->write_only && !sdata->disablebreak)
@@ -1127,7 +1132,7 @@ sterm_sub_open(void *handler_data, int *fd)
     if (sdata->rs485.flags & SER_RS485_ENABLED) {
 	if (ioctl(sdata->fd, TIOCSRS485, &sdata->rs485) < 0) {
 	    err = errno;
-	    goto out_uucp;
+	    goto out_restore;
 	}
     }
 #endif
@@ -1144,6 +1149,8 @@ sterm_sub_open(void *handler_data, int *fd)
 
     return 0;
 
+ out_restore:
+    tcsetattr(sdata->fd, TCSANOW, &sdata->orig_termios);
  out_uucp:
     uucp_rm_lock(sdata->devname);
  out:
