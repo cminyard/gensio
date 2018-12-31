@@ -85,9 +85,6 @@ sergensio.h
 gensio_os_funcs.h
     The definition for an OS handler.
 
-waiter.h
-    Functions for waiting for operations to happen.
-
 argvutils.h
     Many gensio functions take an argv array, this is utilities for
     dealing with argvs.
