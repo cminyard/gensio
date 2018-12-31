@@ -1,8 +1,8 @@
 
 AM_CFLAGS = -I$(top_srcdir)/include
 
-bin_PROGRAMS = gensiot
+bin_PROGRAMS = gensiotool
 
-gensiot_SOURCES = gensiot.c
+gensiotool_SOURCES = gensiotool.c
 
-gensiot_LDADD = $(top_builddir)/lib/libgensio.la $(OPENSSL_LIBS)
+gensiotool_LDADD = $(top_builddir)/lib/libgensio.la $(OPENSSL_LIBS)

@@ -18,13 +18,16 @@
  */
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 #include <errno.h>
 #include <gensio/gensio.h>
-#include <gensio/waiter.h>
+#include <gensio/sergensio.h>
 
-static int cmparg(int argc, char *argv[], int *arg, char *sarg, char *larg,
-		  const char **opt)
+static int
+cmparg(int argc, char *argv[], int *arg, char *sarg, char *larg,
+       const char **opt)
 {
     char *a = argv[*arg];
 
@@ -37,6 +40,7 @@ static int cmparg(int argc, char *argv[], int *arg, char *sarg, char *larg,
 	    return -1;
 	}
 	*opt = argv[*arg];
+	return 1;
     } else {
 	unsigned int len = strlen(larg);
 
@@ -49,10 +53,52 @@ static int cmparg(int argc, char *argv[], int *arg, char *sarg, char *larg,
     return 0;
 }
 
+static int
+strtocc(const char *str, char *rc)
+{
+    int c;
+
+    if (!*str || str[1] != '\0') {
+	fprintf(stderr, "Empty string for ^x\n");
+	return -1;
+    }
+    c = toupper(str[0]);
+    if (c < 'A' || c > '_') {
+	fprintf(stderr, "Invalid character for ^x\n");
+	return -1;
+    }
+    *rc = c - '@';
+    return 0;
+}
+
+static int
+cmparg_char(int argc, char *argv[], int *arg, char *sarg, char *larg, char *rc)
+{
+    const char *str;
+    char *end;
+    int rv = cmparg(argc, argv, arg, sarg, larg, &str);
+    long v;
+
+    if (rv <= 0)
+	return rv;
+    if (!str[0]) {
+	fprintf(stderr, "No string given for character\n");
+	return -1;
+    }
+    if (str[0] == '^')
+	return strtocc(str + 1, rc);
+    v = strtol(str, &end, 0);
+    if (*end != '\0') {
+	fprintf(stderr, "Invalid string given for character\n");
+	return -1;
+    }
+    *rc = v;
+    return 1;
+}
+
 struct ginfo {
     struct gensio_os_funcs *o;
     struct gensio_waiter *waiter;
-    char escape_char;
 };
 
 struct ioinfo {
@@ -60,9 +106,175 @@ struct ioinfo {
     struct gensio *io;
     struct ioinfo *otherio;
     struct ginfo *g;
-    bool primary;
+    char escape_char;
     bool in_escape;
+    char escape_data[11];
+    unsigned int escape_pos;
 };
+
+struct ser_dump_data
+{
+    int speed;
+    char parity;
+    int datasize;
+    int stopbits;
+    unsigned int refcount;
+    struct ioinfo *ioinfo;
+};
+
+static void
+deref(struct ser_dump_data *ddata)
+{
+    ddata->refcount--;
+    if (ddata->refcount == 0) {
+	char buf[100];
+
+	snprintf(buf, sizeof(buf), "\r\nSpeed: %d%c%d%d\r\n", ddata->speed,
+		 ddata->parity, ddata->datasize, ddata->stopbits);
+	gensio_write(ddata->ioinfo->io, NULL, buf, strlen(buf), NULL);
+	free(ddata);
+    }
+}
+
+static void
+speed_done(struct sergensio *sio, int err, unsigned int val, void *cb_data)
+{
+    struct ser_dump_data *ddata = cb_data;
+
+    ddata->speed = val;
+    deref(ddata);
+}
+
+static void
+parity_done(struct sergensio *sio, int err, unsigned int val, void *cb_data)
+{
+    struct ser_dump_data *ddata = cb_data;
+
+    switch (val) {
+    case SERGENSIO_PARITY_NONE: ddata->parity = 'N'; break;
+    case SERGENSIO_PARITY_ODD: ddata->parity = 'O'; break;
+    case SERGENSIO_PARITY_EVEN: ddata->parity = 'E'; break;
+    case SERGENSIO_PARITY_MARK: ddata->parity = 'M'; break;
+    case SERGENSIO_PARITY_SPACE: ddata->parity = 'S'; break;
+    default: ddata->parity = '?'; break;
+    }
+    deref(ddata);
+}
+
+static void
+datasize_done(struct sergensio *sio, int err, unsigned int val, void *cb_data)
+{
+    struct ser_dump_data *ddata = cb_data;
+
+    ddata->datasize = val;
+    deref(ddata);
+}
+
+static void
+stopbits_done(struct sergensio *sio, int err, unsigned int val, void *cb_data)
+{
+    struct ser_dump_data *ddata = cb_data;
+
+    ddata->stopbits = val;
+    deref(ddata);
+}
+
+static bool
+handle_escapechar(struct ioinfo *ioinfo, char c)
+{
+    struct sergensio *sio;
+    struct ser_dump_data *ddata;
+    int rv;
+
+    if (ioinfo->escape_pos > 0) {
+	/* We are getting a speed from the input. */
+	if (c == '\r' || c == '\n') {
+	    int speed;
+	    char *end;
+
+	    ioinfo->escape_data[ioinfo->escape_pos++] = '\0';
+	    speed = strtol(ioinfo->escape_data + 1, &end, 0);
+	    if (ioinfo->escape_pos > 1 && *end == '\0') {
+		sio = gensio_to_sergensio(ioinfo->otherio->io);
+		sergensio_baud(sio, speed, NULL, NULL);
+	    }
+	    ioinfo->escape_pos = 0;
+	    return false;
+	}
+
+	if (ioinfo->escape_pos < sizeof(ioinfo->escape_data) - 1)
+	    ioinfo->escape_data[ioinfo->escape_pos++] = c;
+	return true;
+    }
+
+    c = tolower(c);
+
+    switch (c) {
+    case 'q':
+	ioinfo->g->o->wake(ioinfo->g->waiter);
+	break;
+    }
+
+    sio = gensio_to_sergensio(ioinfo->otherio->io);
+    if (!sio)
+	return false;
+
+    switch (c) {
+    case 'd': /* Dump serial data. */
+	ddata = malloc(sizeof(*ddata));
+	if (!ddata)
+	    return false;
+	memset(ddata, 0, sizeof(*ddata));
+	ddata->ioinfo = ioinfo;
+	rv = sergensio_baud(sio, 0, speed_done, ddata);
+	if (!rv)
+	    ddata->refcount++;
+	rv = sergensio_parity(sio, 0, parity_done, ddata);
+	if (!rv)
+	    ddata->refcount++;
+	rv = sergensio_datasize(sio, 0, datasize_done, ddata);
+	if (!rv)
+	    ddata->refcount++;
+	rv = sergensio_stopbits(sio, 0, stopbits_done, ddata);
+	if (!rv)
+	    ddata->refcount++;
+	if (ddata->refcount == 0) {
+	    free(ddata);
+	    return false;
+	}
+	break;
+    case 'b': /* Send a break */
+	sergensio_send_break(sio);
+	break;
+    case 's': /* Set baud rate */
+	ioinfo->escape_data[0] = c;
+	ioinfo->escape_pos = 1;
+	return true; /* Remain in escape mode. */
+    case 'n': /* No parity */
+	sergensio_parity(sio, SERGENSIO_PARITY_NONE, NULL, NULL);
+	break;
+    case 'o': /* Odd parity */
+	sergensio_parity(sio, SERGENSIO_PARITY_ODD, NULL, NULL);
+	break;
+    case 'e': /* Even parity */
+	sergensio_parity(sio, SERGENSIO_PARITY_EVEN, NULL, NULL);
+	break;
+    case '7': /* 7 bit data */
+	sergensio_datasize(sio, 7, NULL, NULL);
+	break;
+    case '8': /* 8 bit data */
+	sergensio_datasize(sio, 8, NULL, NULL);
+	break;
+    case '1': /* 1 stop bit */
+	sergensio_stopbits(sio, 1, NULL, NULL);
+	break;
+    case '2': /* 2 stop bits */
+	sergensio_stopbits(sio, 2, NULL, NULL);
+	break;
+    }
+
+    return false;
+}
 
 static int
 io_event(struct gensio *io, int event, int err,
@@ -84,21 +296,23 @@ io_event(struct gensio *io, int event, int err,
 	if (*buflen == 0)
 	    return 0;
 
-	if (ioinfo->primary) {
+	if (ioinfo->escape_char) {
 	    unsigned int i;
 
 	    if (ioinfo->in_escape) {
-		if (buf[0] == 'q') {
-		    ioinfo->g->o->wake(ioinfo->g->waiter);
+		if (buf[0] != ioinfo->escape_char || ioinfo->escape_pos > 0) {
+		    ioinfo->in_escape = handle_escapechar(ioinfo, buf[0]);
+		    *buflen = 1;
 		    return 0;
 		}
 		ioinfo->in_escape = false;
-	    }
-	    for (i = 0; i < *buflen; i++) {
-		if (buf[i] == ioinfo->g->escape_char) {
-		    escapepos = i;
-		    *buflen = i;
-		    break;
+	    } else {
+		for (i = 0; i < *buflen; i++) {
+		    if (buf[i] == ioinfo->escape_char) {
+			escapepos = i;
+			*buflen = i;
+			break;
+		    }
 		}
 	    }
 	}
@@ -114,8 +328,13 @@ io_event(struct gensio *io, int event, int err,
 	    gensio_set_read_callback_enable(ioinfo->io, false);
 	    gensio_set_write_callback_enable(ioinfo->otherio->io, true);
 	} else if (escapepos >= 0) {
+	    /*
+	     * Don't do this if we didn't handle all the characters, get
+	     * it the next time characters are handled.
+	     */
 	    (*buflen)++;
 	    ioinfo->in_escape = true;
+	    ioinfo->escape_pos = 0;
 	}
 	return 0;
 
@@ -164,8 +383,7 @@ main(int argc, char *argv[])
     memset(&ioinfo1, 0, sizeof(ioinfo1));
     memset(&ioinfo2, 0, sizeof(ioinfo2));
 
-    g.escape_char = 0x1c; /* ^\ */
-    ioinfo1.primary = true;
+    ioinfo1.escape_char = 0x1c; /* ^\ */
     ioinfo1.ios = "serialdev,/dev/tty";
     ioinfo1.g = &g;
     ioinfo2.g = &g;
@@ -175,15 +393,16 @@ main(int argc, char *argv[])
     for (arg = 1; arg < argc; arg++) {
 	if (argv[arg][0] != '-')
 	    break;
-	if ((rv = cmparg(argc, argv, &arg, "-i", "-input", &ioinfo1.ios)))
+	if ((rv = cmparg(argc, argv, &arg, "-i", "--input", &ioinfo1.ios)))
 	    ;
-	else if ((rv = cmparg(argc, argv, &arg, "-e", "-noesc", NULL)))
-	    ioinfo1.primary = false;
+	else if ((rv = cmparg_char(argc, argv, &arg, "-e", "--escchar",
+				   &ioinfo1.escape_char)))
+	    ;
 	else {
 	    fprintf(stderr, "Unknown argument: %s\n", argv[arg]);
 	    return 1;
 	}
-	if (rv == -1)
+	if (rv < 0)
 	    return 1;
     }
 
