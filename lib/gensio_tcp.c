@@ -46,16 +46,22 @@ struct tcp_data {
 
     struct addrinfo *ai;
     struct addrinfo *curr_ai;
+
+    int last_err;
 };
 
 static int tcp_check_open(void *handler_data, int fd)
 {
+    struct tcp_data *tdata = handler_data;
     int optval = 0, err;
     socklen_t len = sizeof(optval);
 
     err = getsockopt(fd, SOL_SOCKET, SO_ERROR, &optval, &len);
-    if (err)
+    if (err) {
+	tdata->last_err = errno;
 	return errno;
+    }
+    tdata->last_err = optval;
     return optval;
 }
 
@@ -128,7 +134,10 @@ tcp_retry_open(void *handler_data, int *fd)
 {
     struct tcp_data *tdata = handler_data;
 
-    tdata->curr_ai = tdata->curr_ai->ai_next;
+    if (tdata->curr_ai)
+	tdata->curr_ai = tdata->curr_ai->ai_next;
+    if (!tdata->curr_ai)
+	return tdata->last_err;
     return tcp_try_open(tdata, fd);
 }
 
