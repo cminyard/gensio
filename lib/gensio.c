@@ -717,6 +717,10 @@ gensio_write(struct gensio *io, unsigned int *count,
 	     const void *buf, unsigned int buflen,
 	     const char *const *auxdata)
 {
+    if (buflen == 0) {
+	*count = 0;
+	return 0;
+    }
     return io->func(io, GENSIO_FUNC_WRITE, count, buf, buflen, NULL, auxdata);
 }
 
