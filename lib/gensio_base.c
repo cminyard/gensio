@@ -531,6 +531,11 @@ basen_ll_open_done(void *cb_data, int err, void *open_data)
     if (err) {
 	basen_finish_open(ndata, err);
     } else {
+	/*
+	 * We will lose the reference for the LL below, add one for the
+	 * filter open.
+	 */
+	basen_ref(ndata);
 	ndata->state = BASEN_IN_FILTER_OPEN;
 	basen_try_connect(ndata);
 	basen_set_ll_enables(ndata);
