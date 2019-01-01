@@ -68,7 +68,7 @@ strtocc(const char *str, char *rc)
 	return -1;
     }
     *rc = c - '@';
-    return 0;
+    return 1;
 }
 
 static int
@@ -106,6 +106,7 @@ struct ioinfo {
     struct gensio *io;
     struct ioinfo *otherio;
     struct ginfo *g;
+    bool can_close;
     char escape_char;
     bool in_escape;
     char escape_data[11];
@@ -319,7 +320,7 @@ io_event(struct gensio *io, int event, int err,
 	rv = gensio_write(ioinfo->otherio->io, &count, buf, *buflen, NULL);
 	if (rv) {
 	    fprintf(stderr, "Error writing to %s: %s\n",
-		    ioinfo->otherio->ios, strerror(err));
+		    ioinfo->otherio->ios, strerror(rv));
 	    ioinfo->g->o->wake(ioinfo->g->waiter);
 	    return 0;
 	}
@@ -353,6 +354,7 @@ io_open(struct gensio *io, int err, void *open_data)
     struct ioinfo *ioinfo = gensio_get_user_data(io);
 
     if (err) {
+	ioinfo->can_close = false;
 	fprintf(stderr, "Unable to open %s: %s\n", ioinfo->ios, strerror(err));
 	ioinfo->g->o->wake(ioinfo->g->waiter);
     } else {
@@ -448,27 +450,33 @@ main(int argc, char *argv[])
 	fprintf(stderr, "Could not open %s: %s\n", ioinfo1.ios, strerror(rv));
 	return 1;
     }
+    ioinfo1.can_close = true;
 
     rv = gensio_open(ioinfo2.io, io_open, NULL);
     if (rv) {
 	fprintf(stderr, "Could not open %s: %s\n", ioinfo2.ios, strerror(rv));
 	goto close1;
     }
+    ioinfo2.can_close = true;
 
     g.o->wait(g.waiter, 1, NULL);
 
-    rv = gensio_close(ioinfo2.io, io_close, closewaiter);
-    if (rv)
-	printf("Unable to close %s: %s\n", ioinfo2.ios, strerror(rv));
-    else
-	closecount++;
+    if (ioinfo2.can_close) {
+	rv = gensio_close(ioinfo2.io, io_close, closewaiter);
+	if (rv)
+	    printf("Unable to close %s: %s\n", ioinfo2.ios, strerror(rv));
+	else
+	    closecount++;
+    }
 
  close1:
-    rv = gensio_close(ioinfo1.io, io_close, closewaiter);
-    if (rv)
-	printf("Unable to close %s: %s\n", ioinfo1.ios, strerror(rv));
-    else
-	closecount++;
+    if (ioinfo1.can_close) {
+	rv = gensio_close(ioinfo1.io, io_close, closewaiter);
+	if (rv)
+	    printf("Unable to close %s: %s\n", ioinfo1.ios, strerror(rv));
+	else
+	    closecount++;
+    }
 
     if (closecount > 0) {
 	g.o->wait(closewaiter, closecount, NULL);
