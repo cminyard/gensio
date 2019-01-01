@@ -321,6 +321,7 @@ io_event(struct gensio *io, int event, int err,
 	if (rv) {
 	    fprintf(stderr, "Error writing to %s: %s\n",
 		    ioinfo->otherio->ios, strerror(rv));
+	    gensio_set_read_callback_enable(ioinfo->io, false);
 	    ioinfo->g->o->wake(ioinfo->g->waiter);
 	    return 0;
 	}
