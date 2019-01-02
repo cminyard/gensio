@@ -692,6 +692,7 @@ static const unsigned char telnet_client_init_seq[] = {
 
 int
 gensio_telnet_filter_alloc(struct gensio_os_funcs *o, char *args[],
+			   bool default_is_client,
 			   const struct gensio_telnet_filter_callbacks *cbs,
 			   void *handler_data,
 			   const struct gensio_telnet_filter_rops **rops,
@@ -702,6 +703,9 @@ gensio_telnet_filter_alloc(struct gensio_os_funcs *o, char *args[],
     unsigned int max_read_size = 4096; /* FIXME - magic number. */
     unsigned int max_write_size = 4096; /* FIXME - magic number. */
     bool allow_2217 = true;
+    bool is_client = default_is_client;
+    const struct telnet_cmd *telnet_cmds;
+    const unsigned char *init_seq;
     unsigned int init_seq_len;
 
     for (i = 0; args[i]; i++) {
@@ -720,18 +724,37 @@ gensio_telnet_filter_alloc(struct gensio_os_funcs *o, char *args[],
 	    continue;
 	if (gensio_check_keyuint(args[i], "readbuf", &max_read_size) > 0)
 	    continue;
+	if (cmpstrval(args[i], "mode=", &val)) {
+	    if (strcmp(val, "client") == 0)
+		is_client = true;
+	    else if (strcmp(val, "server") == 0)
+		is_client = false;
+	    else
+		return EINVAL;
+	    continue;
+	}
 	return EINVAL;
     }
 
-    init_seq_len = (allow_2217 ? sizeof(telnet_client_init_seq) : 0);
+    if (is_client) {
+	telnet_cmds = telnet_client_cmds;
+	init_seq = telnet_client_init_seq;
+	init_seq_len = (allow_2217 ? sizeof(telnet_client_init_seq) : 0);
+    } else if (allow_2217) {
+	telnet_cmds = telnet_server_cmds_2217;
+	init_seq_len = sizeof(telnet_server_init_seq_2217);
+	init_seq = telnet_server_init_seq_2217;
+    } else {
+	telnet_cmds = telnet_server_cmds;
+	init_seq_len = sizeof(telnet_server_init_seq);
+	init_seq = telnet_server_init_seq;
+    }
 
     filter = gensio_telnet_filter_raw_alloc(o, true, allow_2217,
 					    max_read_size, max_write_size,
 					    cbs, handler_data,
-					    telnet_client_cmds,
-					    telnet_client_init_seq,
-					    init_seq_len,
-					    rops);
+					    telnet_cmds,
+					    init_seq, init_seq_len, rops);
 
     if (!filter)
 	return ENOMEM;

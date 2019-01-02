@@ -41,6 +41,7 @@ struct gensio_telnet_filter_rops {
 };
 
 int gensio_telnet_filter_alloc(struct gensio_os_funcs *o, char *args[],
+			       bool default_is_client,
 			       const struct gensio_telnet_filter_callbacks *cbs,
 			       void *handler_data,
 			       const struct gensio_telnet_filter_rops **rops,

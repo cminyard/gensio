@@ -58,6 +58,7 @@ struct stel_data {
     bool do_2217;
     bool cisco_baud;
     bool reported_modemstate;
+    bool is_client;
 
     struct stel_req *reqs;
 };
@@ -171,7 +172,6 @@ stel_queue(struct stel_data *sdata, int option,
     timeout.tv_sec = 1;
     timeout.tv_usec = 0;
     sdata->rops->start_timer(sdata->filter, &timeout);
-
     return 0;
 }
 
@@ -481,7 +481,7 @@ sergensio_stel_func(struct sergensio *sio, int op, int val, char *buf,
 }
 
 static int
-stel_com_port_will_do(void *handler_data, unsigned char cmd)
+stelc_com_port_will_do(void *handler_data, unsigned char cmd)
 {
     struct stel_data *sdata = handler_data;
 
@@ -499,7 +499,7 @@ stel_com_port_will_do(void *handler_data, unsigned char cmd)
 }
 
 static void
-stel_com_port_cmd(void *handler_data, const unsigned char *option,
+stelc_com_port_cmd(void *handler_data, const unsigned char *option,
 		  unsigned int len)
 {
     struct stel_data *sdata = handler_data;
@@ -607,7 +607,7 @@ stel_com_port_cmd(void *handler_data, const unsigned char *option,
 }
 
 static void
-stel_timeout(void *handler_data)
+stelc_timeout(void *handler_data)
 {
     struct stel_data *sdata = handler_data;
     struct timeval timeout;
@@ -653,7 +653,7 @@ stel_timeout(void *handler_data)
 }
 
 static void
-stel_got_sync(void *handler_data)
+stelc_got_sync(void *handler_data)
 {
     /* Nothing to do, break handling is only on the server side. */
 }
@@ -677,150 +677,15 @@ stel_free(void *handler_data)
 }
 
 struct gensio_telnet_filter_callbacks sergensio_telnet_filter_cbs = {
-    .got_sync = stel_got_sync,
-    .com_port_will_do = stel_com_port_will_do,
-    .com_port_cmd = stel_com_port_cmd,
-    .timeout = stel_timeout,
+    .got_sync = stelc_got_sync,
+    .com_port_will_do = stelc_com_port_will_do,
+    .com_port_cmd = stelc_com_port_cmd,
+    .timeout = stelc_timeout,
     .free = stel_free
 };
 
-int
-telnet_gensio_alloc(struct gensio *child, char *args[],
-		    struct gensio_os_funcs *o,
-		    gensio_event cb, void *user_data,
-		    struct gensio **rio)
-{
-    struct stel_data *sdata;
-    struct gensio_ll *ll;
-    struct gensio_filter *filter;
-    struct gensio *io;
-    unsigned int i;
-    bool allow_2217 = true;
-    int err;
-
-    for (i = 0; args[i]; i++) {
-	const char *val;
-
-	if (cmpstrval(args[i], "rfc2217=", &val)) {
-	    if ((strcmp(val, "true") == 0) || (strcmp(val, "1") == 0))
-		allow_2217 = true;
-	    else if ((strcmp(val, "false") == 0) || (strcmp(val, "0") == 0))
-		allow_2217 = false;
-	    else
-		return EINVAL;
-	}
-	/* Ignore everything else, the filter will handle it. */
-    }
-
-    sdata = o->zalloc(o, sizeof(*sdata));
-    if (!sdata)
-	return ENOMEM;
-
-    sdata->o = o;
-    sdata->allow_2217 = allow_2217;
-
-    sdata->lock = o->alloc_lock(o);
-    if (!sdata->lock)
-	goto out_nomem;
-
-    ll = gensio_gensio_ll_alloc(o, child);
-    if (!ll)
-	goto out_nomem;
-    gensio_ref(child);
-
-    err = gensio_telnet_filter_alloc(o, args, &sergensio_telnet_filter_cbs,
-				     sdata, &sdata->rops, &filter);
-    if (err) {
-	gensio_ll_free(ll);
-	goto out_err;
-    }
-
-    io = base_gensio_alloc(o, ll, filter, "telnet", cb, user_data);
-    if (!io) {
-	gensio_filter_free(filter);
-	gensio_ll_free(ll);
-	goto out_nomem;
-    }
-    gensio_set_is_reliable(io, gensio_is_reliable(child));
-    gensio_free(child); /* Lose the ref we acquired. */
-
-    sdata->sio = sergensio_data_alloc(o, io, sergensio_stel_func, sdata);
-    if (!sdata->sio) {
-	gensio_free(io);
-	goto out_nomem;
-    }
-
-    sdata->filter = filter;
-    if (allow_2217) {
-	err = gensio_addclass(io, "sergensio", sdata->sio);
-	if (err) {
-	    gensio_free(io);
-	    goto out_err;
-	}
-    }
-    sdata->reported_modemstate = true;
-
-    *rio = io;
-
-    return 0;
-
- out_nomem:
-    err = ENOMEM;
- out_err:
-    stel_free(sdata);
-    return err;
-}
-
-int
-str_to_telnet_gensio(const char *str, char *args[],
-		     struct gensio_os_funcs *o,
-		     gensio_event cb, void *user_data,
-		     struct gensio **new_gensio)
-{
-    int err;
-    struct gensio *io2;
-
-    err = str_to_gensio(str, o, NULL, NULL, &io2);
-    if (err)
-	return err;
-
-    err = telnet_gensio_alloc(io2, args, o, cb, user_data, new_gensio);
-    if (err)
-	gensio_free(io2);
-
-    return err;
-}
-
-struct stela_data {
-    unsigned int max_read_size;
-    unsigned int max_write_size;
-
-    struct gensio_os_funcs *o;
-
-    bool allow_2217;
-    bool is_reliable;
-};
-
-static void
-stela_free(void *acc_data)
-{
-    struct stela_data *stela = acc_data;
-
-    stela->o->free(stela->o, stela);
-}
-
-int
-stela_connect_start(void *acc_data, struct gensio *child, struct gensio **rio)
-{
-    struct stela_data *stela = acc_data;
-    struct gensio_os_funcs *o = stela->o;
-    char *args[2] = {NULL, NULL};
-
-    return telnet_gensio_alloc(child, args, o, NULL, NULL, rio);
-}
-
 static int
-stela_cb_com_port_will_do(void *handler_data, unsigned char cmd)
+stels_cb_com_port_will_do(void *handler_data, unsigned char cmd)
 {
     struct stel_data *sdata = handler_data;
 
@@ -859,7 +724,7 @@ stela_cb_com_port_will_do(void *handler_data, unsigned char cmd)
 }
 
 static void
-stela_cb_com_port_cmd(void *handler_data, const unsigned char *option,
+stels_cb_com_port_cmd(void *handler_data, const unsigned char *option,
 		      unsigned int len)
 {
     struct stel_data *sdata = handler_data;
@@ -986,7 +851,7 @@ stela_cb_com_port_cmd(void *handler_data, const unsigned char *option,
 }
 
 static void
-stela_got_cmd(void *handler_data, unsigned char cmd)
+stels_got_cmd(void *handler_data, unsigned char cmd)
 {
     struct stel_data *sdata = handler_data;
     struct gensio *io = sergensio_to_gensio(sdata->sio);
@@ -996,7 +861,7 @@ stela_got_cmd(void *handler_data, unsigned char cmd)
 }
 
 static void
-stela_cb_got_sync(void *handler_data)
+stels_cb_got_sync(void *handler_data)
 {
     struct stel_data *sdata = handler_data;
     struct gensio *io = sergensio_to_gensio(sdata->sio);
@@ -1005,15 +870,7 @@ stela_cb_got_sync(void *handler_data)
 }
 
 static void
-stela_cb_free(void *handler_data)
-{
-    struct stel_data *sdata = handler_data;
-
-    sdata->o->free(sdata->o, sdata);
-}
-
-static void
-stela_timeout(void *handler_data)
+stels_timeout(void *handler_data)
 {
     struct stel_data *sdata = handler_data;
 
@@ -1039,90 +896,253 @@ stela_timeout(void *handler_data)
 }
 
 struct gensio_telnet_filter_callbacks sergensio_telnet_server_filter_cbs = {
-    .got_sync = stela_cb_got_sync,
-    .got_cmd = stela_got_cmd,
-    .com_port_will_do = stela_cb_com_port_will_do,
-    .com_port_cmd = stela_cb_com_port_cmd,
-    .timeout = stela_timeout,
-    .free = stela_cb_free
+    .got_sync = stels_cb_got_sync,
+    .got_cmd = stels_got_cmd,
+    .com_port_will_do = stels_cb_com_port_will_do,
+    .com_port_cmd = stels_cb_com_port_cmd,
+    .timeout = stels_timeout,
+    .free = stel_free
 };
 
 static int
-stela_new_child(void *acc_data, void **finish_data,
-		struct gensio_filter **filter)
+stel_setup(char *args[], bool default_is_client,
+	   struct gensio_os_funcs *o, struct stel_data **rsdata)
 {
-    struct stela_data *stela = acc_data;
-    struct gensio_os_funcs *o = stela->o;
     struct stel_data *sdata;
+    unsigned int i;
+    bool allow_2217 = true;
+    bool is_client = default_is_client;
     int err;
+
+    for (i = 0; args[i]; i++) {
+	const char *val;
+
+	if (cmpstrval(args[i], "rfc2217=", &val)) {
+	    if ((strcmp(val, "true") == 0) || (strcmp(val, "1") == 0))
+		allow_2217 = true;
+	    else if ((strcmp(val, "false") == 0) || (strcmp(val, "0") == 0))
+		allow_2217 = false;
+	    else
+		return EINVAL;
+	}
+	if (cmpstrval(args[i], "mode=", &val)) {
+	    if (strcmp(val, "client") == 0)
+		is_client = true;
+	    else if (strcmp(val, "server") == 0)
+		is_client = false;
+	    else
+		return EINVAL;
+	    continue;
+	}
+	/* Ignore everything else, the filter will handle it. */
+    }
 
     sdata = o->zalloc(o, sizeof(*sdata));
     if (!sdata)
 	return ENOMEM;
 
     sdata->o = o;
-    sdata->allow_2217 = stela->allow_2217;
+    sdata->allow_2217 = allow_2217;
+    sdata->is_client = is_client;
 
     sdata->lock = o->alloc_lock(o);
-    if (!sdata->lock) {
-	o->free(o, sdata);
-	return ENOMEM;
+    if (!sdata->lock)
+	goto out_nomem;
+
+    err = gensio_telnet_filter_alloc(o, args, true,
+				     (is_client ?
+				      &sergensio_telnet_filter_cbs :
+				      &sergensio_telnet_server_filter_cbs),
+				     sdata, &sdata->rops, &sdata->filter);
+    if (err)
+	goto out_err;
+
+    if (is_client) {
+	sdata->reported_modemstate = true;
     }
 
-    err = gensio_telnet_server_filter_alloc(o,
-					    stela->allow_2217,
-					    stela->max_read_size,
-					    stela->max_write_size,
-					    &sergensio_telnet_server_filter_cbs,
-					    sdata,
-					    &sdata->rops,
-					    filter);
-    if (err) {
-	o->free_lock(sdata->lock);
-	o->free(o, sdata);
-    } else {
-	sdata->filter = *filter;
-	*finish_data = sdata;
+    *rsdata = sdata;
+    return 0;
+
+ out_nomem:
+    err = ENOMEM;
+ out_err:
+    if (sdata->filter)
+	gensio_filter_free(sdata->filter);
+    sdata->filter = NULL;
+    stel_free(sdata);
+    return err;
+}
+
+int
+telnet_gensio_alloc(struct gensio *child, char *args[],
+		    struct gensio_os_funcs *o,
+		    gensio_event cb, void *user_data,
+		    struct gensio **rio)
+{
+    struct stel_data *sdata;
+    struct gensio_ll *ll = NULL;
+    struct gensio *io;
+    int err;
+
+    err = stel_setup(args, true, o, &sdata);
+    if (err)
+	return err;
+
+    ll = gensio_gensio_ll_alloc(o, child);
+    if (!ll)
+	goto out_nomem;
+
+    gensio_ref(child);
+    io = base_gensio_alloc(o, ll, sdata->filter, "telnet", cb, user_data);
+    if (!io)
+	goto out_nomem;
+
+    gensio_set_is_reliable(io, gensio_is_reliable(child));
+    gensio_free(child); /* Lose the ref we acquired. */
+
+    sdata->sio = sergensio_data_alloc(o, io, sergensio_stel_func, sdata);
+    if (!sdata->sio)
+	goto out_nomem;
+
+    if (sdata->allow_2217) {
+	err = gensio_addclass(io, "sergensio", sdata->sio);
+	if (err)
+	    goto out_err;
     }
+
+    gensio_set_is_client(io, sdata->is_client);
+    *rio = io;
+    return 0;
+
+ out_nomem:
+    err = ENOMEM;
+ out_err:
+    if (sdata->filter)
+	gensio_filter_free(sdata->filter);
+    if (ll)
+	gensio_ll_free(ll);
+    stel_free(sdata);
+    return err;
+}
+
+int
+str_to_telnet_gensio(const char *str, char *args[],
+		     struct gensio_os_funcs *o,
+		     gensio_event cb, void *user_data,
+		     struct gensio **new_gensio)
+{
+    int err;
+    struct gensio *io2;
+
+    err = str_to_gensio(str, o, NULL, NULL, &io2);
+    if (err)
+	return err;
+
+    err = telnet_gensio_alloc(io2, args, o, cb, user_data, new_gensio);
+    if (err)
+	gensio_free(io2);
 
     return err;
 }
 
-static int
-stela_finish_parent(void *acc_data, void *finish_data, struct gensio *io)
+struct stela_data {
+    unsigned int max_read_size;
+    unsigned int max_write_size;
+
+    struct gensio_os_funcs *o;
+
+    bool allow_2217;
+    bool is_client;
+};
+
+static void
+stela_free(void *acc_data)
 {
     struct stela_data *stela = acc_data;
+
+    stela->o->free(stela->o, stela);
+}
+
+int
+stela_connect_start(void *acc_data, struct gensio *child, struct gensio **rio)
+{
+    struct stela_data *stela = acc_data;
+    struct gensio_os_funcs *o = stela->o;
+    char *args[2] = {NULL, NULL};
+
+    return telnet_gensio_alloc(child, args, o, NULL, NULL, rio);
+}
+
+static int
+stela_new_child(void *acc_data, void **finish_data,
+		struct gensio_filter **filter, struct gensio *child)
+{
+    struct stela_data *stela = acc_data;
+    struct gensio_os_funcs *o = stela->o;
+    struct stel_data *sdata;
+    int err;
+    char arg1[25], arg2[25], arg3[25], arg4[25];
+    char *args[5] = { arg1, arg2, arg3, arg4, NULL };
+
+    snprintf(arg1, sizeof(arg1), "rfc2217=%d", stela->allow_2217);
+    snprintf(arg2, sizeof(arg2), "writebuf=%d", stela->max_write_size);
+    snprintf(arg3, sizeof(arg3), "readbuf=%d", stela->max_read_size);
+    snprintf(arg4, sizeof(arg4), "mode=%s",
+	     stela->is_client ? "client" : "server");
+
+    err = stel_setup(args, false, o, &sdata);
+    if (err)
+	return err;
+
+    *filter = sdata->filter;
+    *finish_data = sdata;
+
+    return 0;
+}
+
+static int
+stela_finish_parent(void *acc_data, void *finish_data, struct gensio *io,
+		    struct gensio *child)
+{
     struct stel_data *sdata = finish_data;
+    int err;
 
     sdata->sio = sergensio_data_alloc(sdata->o, io, sergensio_stel_func, sdata);
     if (!sdata->sio)
 	return ENOMEM;
 
     if (sdata->allow_2217) {
-	int err = gensio_addclass(io, "sergensio", sdata->sio);
-
-	if (err) {
-	    sergensio_data_free(sdata->sio);
-	    sdata->sio = NULL;
+	err = gensio_addclass(io, "sergensio", sdata->sio);
+	if (err)
 	    return err;
-	}
     }
-    gensio_set_is_reliable(io, stela->is_reliable);
+
+    gensio_set_is_reliable(io, gensio_is_reliable(child));
+    if (sdata->allow_2217) {
+	err = gensio_addclass(io, "sergensio", sdata->sio);
+	if (err)
+	    return err;
+    }
+
+    gensio_set_is_client(io, sdata->is_client);
+
     return 0;
 }
 
 static int
-gensio_gensio_acc_telnet_cb(void *acc_data, int op, void *data1, void *data2)
+gensio_gensio_acc_telnet_cb(void *acc_data, int op, void *data1, void *data2,
+			    void *data3)
 {
     switch (op) {
     case GENSIO_GENSIO_ACC_CONNECT_START:
 	return stela_connect_start(acc_data, data1, data2);
 
     case GENSIO_GENSIO_ACC_NEW_CHILD:
-	return stela_new_child(acc_data, data1, data2);
+	return stela_new_child(acc_data, data1, data2, data3);
 
     case GENSIO_GENSIO_ACC_FINISH_PARENT:
-	return stela_finish_parent(acc_data, data1, data2);
+	return stela_finish_parent(acc_data, data1, data2, data3);
 
     case GENSIO_GENSIO_ACC_FREE:
 	stela_free(acc_data);
@@ -1145,6 +1165,7 @@ telnet_gensio_accepter_alloc(struct gensio_accepter *child, char *args[],
     unsigned int max_read_size = GENSIO_DEFAULT_BUF_SIZE;
     unsigned int max_write_size = GENSIO_DEFAULT_BUF_SIZE;
     bool allow_2217 = false;
+    bool is_client = false;
 
     for (i = 0; args[i]; i++) {
 	const char *val;
@@ -1165,6 +1186,15 @@ telnet_gensio_accepter_alloc(struct gensio_accepter *child, char *args[],
 	    continue;
 	if (gensio_check_keyuint(args[i], "readbuf", &max_read_size) > 0)
 	    continue;
+	if (cmpstrval(args[i], "mode=", &val)) {
+	    if (strcmp(val, "client") == 0)
+		is_client = true;
+	    else if (strcmp(val, "server") == 0)
+		is_client = false;
+	    else
+		return EINVAL;
+	    continue;
+	}
 	return EINVAL;
     }
 
@@ -1176,7 +1206,7 @@ telnet_gensio_accepter_alloc(struct gensio_accepter *child, char *args[],
     stela->max_write_size = max_write_size;
     stela->max_read_size = max_read_size;
     stela->allow_2217 = allow_2217;
-    stela->is_reliable = gensio_acc_is_reliable(child);
+    stela->is_client = is_client;
 
     err = gensio_gensio_accepter_alloc(child, o, "telnet",
 				       cb, user_data,
@@ -1184,7 +1214,7 @@ telnet_gensio_accepter_alloc(struct gensio_accepter *child, char *args[],
 				       accepter);
     if (err)
 	goto out_err;
-    gensio_acc_set_is_reliable(*accepter, stela->is_reliable);
+    gensio_acc_set_is_reliable(*accepter, gensio_acc_is_reliable(child));
 
     return 0;
 
