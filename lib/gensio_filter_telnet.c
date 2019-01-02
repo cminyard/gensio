@@ -662,44 +662,6 @@ static unsigned char telnet_server_init_seq[] = {
     TN_IAC, TN_WILL, TN_OPT_BINARY_TRANSMISSION,
 };
 
-int
-gensio_telnet_server_filter_alloc(struct gensio_os_funcs *o,
-		 bool allow_rfc2217,
-		 unsigned int max_read_size,
-		 unsigned int max_write_size,
-		 const struct gensio_telnet_filter_callbacks *cbs,
-		 void *handler_data,
-		 const struct gensio_telnet_filter_rops **rops,
-		 struct gensio_filter **rfilter)
-{
-    struct gensio_filter *filter;
-    const struct telnet_cmd *telnet_cmds;
-    unsigned char *init_seq;
-    unsigned int init_seq_len;
-
-    if (allow_rfc2217) {
-	telnet_cmds = telnet_server_cmds_2217;
-	init_seq_len = sizeof(telnet_server_init_seq_2217);
-	init_seq = telnet_server_init_seq_2217;
-    } else {
-	telnet_cmds = telnet_server_cmds;
-	init_seq_len = sizeof(telnet_server_init_seq);
-	init_seq = telnet_server_init_seq;
-    }
-
-    filter = gensio_telnet_filter_raw_alloc(o, false, allow_rfc2217,
-					    max_read_size, max_write_size,
-					    cbs, handler_data,
-					    telnet_cmds,
-					    init_seq, init_seq_len, rops);
-
-    if (!filter)
-	return ENOMEM;
-
-    *rfilter = filter;
-    return 0;
-}
-
 static const struct telnet_cmd telnet_client_cmds[] = {
     /*                        I will,  I do,  sent will, sent do */
     { TN_OPT_SUPPRESS_GO_AHEAD,	   1,     0,          0,       0, },
@@ -774,7 +736,7 @@ gensio_telnet_filter_alloc(struct gensio_os_funcs *o, char *args[],
 	init_seq = telnet_server_init_seq;
     }
 
-    filter = gensio_telnet_filter_raw_alloc(o, true, allow_2217,
+    filter = gensio_telnet_filter_raw_alloc(o, is_client, allow_2217,
 					    max_read_size, max_write_size,
 					    cbs, handler_data,
 					    telnet_cmds,

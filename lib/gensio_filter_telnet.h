@@ -47,14 +47,4 @@ int gensio_telnet_filter_alloc(struct gensio_os_funcs *o, char *args[],
 			       const struct gensio_telnet_filter_rops **rops,
 			       struct gensio_filter **rfilter);
 
-int gensio_telnet_server_filter_alloc(
-		     struct gensio_os_funcs *o,
-		     bool allow_rfc2217,
-		     unsigned int max_read_size,
-		     unsigned int max_write_size,
-		     const struct gensio_telnet_filter_callbacks *cbs,
-		     void *handler_data,
-		     const struct gensio_telnet_filter_rops **rops,
-		     struct gensio_filter **rfilter);
-
 #endif /* GENSIO_FILTER_TELNET_H */
