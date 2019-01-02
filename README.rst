@@ -17,6 +17,9 @@ our previous example, you can setup TCP to listen on a specific port
 and automatically stack SSL and Telnet on top when the connection
 comes in, and you are not informed until everything is ready.
 
+Note that the gensio(5) man page has more details on individual gensio
+types.
+
 General Concepts
 ================
 
@@ -302,41 +305,6 @@ Most sergensios are client only: serialdev (normal serial port),
 ipmisol, and stdio accepter.  Currently only telnet has both client
 and server capabilities.
 
-Streams
-=======
-
-Channels
-========
-
-Controls
-========
-
-Types of gensios
-================
-
-TCP
----
-
-UDP
----
-
-serialdev
----------
-
-SCTP
-----
-
-Telnet
-------
-
-SSL
----
-
-stdio
------
-
-ipmisol (IPMI Serial over LAN)
-------------------------------
 
 Python Interface
 ================

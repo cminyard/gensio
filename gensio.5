@@ -1,0 +1,355 @@
+.TH gensio 5 01/02/19  "Specifying a gensio"
+
+.SH NAME
+gensio \- How to specify a gensio
+
+.SH SYNOPSIS
+.B <type>[(options)][,gensio|terminaloptions]
+
+.SH DESCRIPTION
+.BR gensio
+stands for GENeral Stream Input Output.  It provides an abstraction
+for all kinds of stream I/O, and even makes some packet I/O look like
+stream I/O (like UDP).
+
+The
+.BR gensio
+library specifies a connection (gensio) using a string format.  This
+consists of a gensio type, optional options in parenthesis.  For a
+terminal gensio (one that is at the bottom of the stack), it may take
+more options separated by a comma.  For filter gensios (ones not on
+the bottom of the stack) another gensio must be specified after the
+comma.  For instance:
+.IP
+serialdev,/dev/ttyS0
+.PP
+specifies a serial port gensio.  Or:
+.IP
+tcp(readbuf=100),localhost,4000
+.PP
+specifies a TCP connection with a 100 byte read buffer, to connect to
+port 4000 on localhost.  Or:
+.IP
+telnet,tcp,localhost,4000
+.PP
+specifies a telnet filter on top of a TCP connection.
+
+When specifying a gensio, you can add quotes (single or double) to
+remove the special meaning for some characters, so you can have commas
+in options and such.  They may also be escaped with a "\\".
+
+Accepter gensios, gensios used for accepting connections, as opposed
+to connecting gensios, are specified in the same way.  Each individual
+type can vary, and some gensios are only connecting gensios.  The
+options can vary from the accepter and connecting gensios of the same
+type.  For instance, an accepting TCP gensio does not have to have a
+hostname, but a connecting one does.
+
+When an accepter gensio receives a connection, it will create an
+accepted gensio.  This works mostly like a connecting gensio, except
+some functions may be limited.  You may not be able to close and then
+open an accepted gensio.
+
+The gensio library has a concept of client and server.  The accepted
+gensios are generally considered servers.  Connecting gensios are
+generally considered clients.  Some gensios may allow this to be
+overridden.
+
+A gensio may be reliable or not.  A reliable gensio will reliably
+deliver all data in sequence, like TCP.  An gensio that is not
+reliable may drop packets or deliver data out of sequence, like UDP.
+This can be queried with
+.I gensio_is_reliable().
+
+A gensio may be packet or not.  A packet gensio will exactly match up
+writes and reads.  So if you write 15 bytes into one side, a 15 byte
+read for that data will appear on the other side.  A gnesio that is
+not packet will not respect write boundaries, that 15 byte write may
+result in multiple reads or it may be combined with another write into
+more than 15 bytes.
+
+The options vary greatly between the different gensios.  Each gensio
+type will be covered in a separate section.  Also note that gensio
+types can be dynamically added by the user, so there may be gensios
+available that are not described here.
+
+Unless othersize noted, every gensio takes a:
+.IP
+readbuf=<n>
+.PP
+option to specify the read buffer size.
+
+.SH "Serial gensios"
+
+Some gensio types support serial port setting options.  Standard
+serial ports, IPMI Serial Over LAN, and telnet with RFC2217 enabled.
+
+A client serial gensio can set and get serial port options using the
+.I sergensio_xxx()
+functions.  Server serial gensios receive requests from the client via
+.I GENSIO_EVENT_SER_xxx
+events in the callback.
+
+.SH "Streams and Channels"
+
+Some gensios support the concept of a stream and/or a channel.
+
+A stream is delivered as part of the normal data stream of a gensio.
+The "default" stream will be treated normally.  All other streams will
+have "stream=<x>" given in the auxdata to specify which stream to
+write on or which stream was read from.  Streams cannot be
+individually flow controlled.
+
+A channel is a flow of data like a stream, but it can be individually
+flow controlled.  It appears as a new gensio in the
+.I GENSIO\_EVENT\_NEW\_CHANNEL
+callback.  You can create a channel with
+.I gensio\_open\_channel().
+Once open, a channel works like a normal gensio.  If you close the
+main channel for a gensio, the other channels will stay open, but the
+resources for the main channel will still be kept around until all
+channels are closed.
+
+See the indvidual gensio description for more information on streams
+and channels.
+
+.SH "TCP"
+
+.B tcp[(<options>)][,<hostname>],<port>[[,<hostname>],<port>[...]]
+
+.B hostname = [ipv4|ipv6|ipv6n4,]<name>
+
+A TCP connecting gensio must have the hostname specified.  Mulitiple
+hostname/port pairs may be specified.  For a connecting TCP gensio,
+each one will be tried in sequence until a connection is established.
+For acceptor gensios, every specified hostname/port pair will be
+listened to.
+
+Note that a single hostname may result in more than one address.  For
+instance, it may have both an IPv4 and IPv6 address.  These are
+treated just like multiple hostnames.  IPv6 is generally tried first
+and it valls back to IPv4 if that fails.  The hostname may be prefixed
+with ipv4 or ipv6, which will force the connections to those
+protocols.  Specifying ipv6n4 will create a socket that is IPv6 but
+will accept IPv4 connections.
+
+TCP support out of band (oob) data, which is data that will be
+delivered out of order as soon as possible.  This comes in a normal
+read, but with "oob" in the auxdata.  You can send oob data by adding
+"oob" to the write auxdata, but oob writes are limited to 1 byte and
+writing any more than this results in undefined behavior.
+
+.SH "UDP"
+
+.B udp[(<options>)][,<hostname>],<port>[[,<hostname>],<port>[...]]
+
+.B hostname = [ipv4|ipv6|ipv6n4,]<name>
+
+A UDP gensio creates a UDP socket, but it makes it look like an
+unrealiable stream of data.  The specification is the same as a TCP
+socket, except that a UDP socket is created, obviously.
+
+The semantics of a UDP socket are a little bit strange.  A connecting
+UDP socket is fairly straightforward, it opens a local socket and
+sends data to the remote socket.
+
+An accepter socket is not so straightforward.  The accepter gensio
+will create a new accepted gensio for any packet it receives from a
+new remote host.  If you disable read on any of the accepted gensio or
+disable accepts on the accepting gensio, it will stop all reads on all
+gensios associated with that accepting gensio.
+
+.SH "SCTP"
+
+.B sctp[(<options>)][,<hostname>],<port>[[,<hostname>],<port>[...]]
+
+.B hostname = [ipv4|ipv6|ipv6n4,]<name>
+
+An SCTP gensio is specified like a UDP or TCP one.  However, the
+semantics are different.  For a connecting gensio, it will attempt to
+create a multi-homed connect with all the specified hostnames and
+ports.  All the ports must be the same.
+
+For an accepter gensio, it will create a single socket with all the
+specified addresses as possible destinations.  Again, all the ports
+must be the same.
+
+In addition to readbuf, the sctp gensio takes the following options:
+.IP
+instreams=<n>
+.PP
+.IP
+outstreams=<n>
+.PP
+These specify the number of incoming and outgoing streams for the
+connection.  The default is one.  The stream is given in the auxdata
+for read and write in the format "stream=<n>".
+
+SCTP support out of band (oob) data, which is data that will be
+delivered out of order as soon as possible.  This comes in a normal
+read, but with "oob" in the auxdata.  You can send oob data by adding
+"oob" to the write auxdata.
+
+See documentation on SCTP for more details.
+
+.SH "serialdev"
+
+.B serialdev[(<options>)],<device>[,<serialoption>[,<serialoption>]]
+
+A serialdev connection is a local serial port.  The device is a
+.B /dev/xxx
+type, and should be real stream device of some type that normal
+termios work on (except for WRONLY).
+
+This is, no surprise, a serial gensio.
+
+There are a plethora of serialoptions:
+
+.TP
+.B <speed><parity><databits><stopbits>
+This is a normal serial port configuration specification, like "9600N81".
+
+.TP
+.B WRONLY
+Set the device to write only.  No termios definition is done on the
+port.  This can be done to talk to a line printer port, for instance.
+
+.TP
+.B NOBREAK, -NOBREAK
+Clear the break line at start (or don't clear it).  Default it to not
+clear it.
+
+.TP
+.B rs485=<delay rts before send>:<delay rts after send>[:<conf>[:<conf>]]
+Set up RS-485 for the serial port.  The first two parameters set the
+RTS delay (in milliseconds) of RTS before and after sending.  The conf
+values can be: "rts_on_send" - RTS set when sending, "rts_after_send" -
+RTS set after sending, "rx_during_tx" - can receive and transmit at
+the same time, and "terminate_bus" - enable bus termination.
+
+.TP
+.B XONXOFF, -XONXOFF
+Enable/disable xon/xoff flow control.  Default is off.
+
+.TP
+.B RTSCTS, -RTSCTS
+Enable/disable rts/cts flow control.  Default is off.
+
+.TP
+.B LOCAL, -LOCAL
+Ignore/don't ignore the modem control lines.  The default it to not
+ignore them.  However, if you don't ignore the modem control lines, it
+can result in long shutdown delays.
+
+.TP
+.B HANGUP_WHEN_DONE, -HANGUP_WHEN_DONE
+Lower/don't lower the modem control lines when the gensio is closed.
+The default is to not lower the modem control lines on close.
+
+.SH "stdio"
+
+accepter = 
+.B stdio[(options)]
+
+connecting = 
+.B stdio[(options)],<program>
+
+The stdio gensio is a fairly strange one, but it's fairly useful.
+
+A connection stdio gensio runs the given program and connects its
+standard input and output to the gensio's main channel.  So it's easy
+to run a program and interact with it.  If you want to get stderr from
+the gensio, open a channel on the main channel gensio.  The new gensio
+you get will be stderr.
+
+An accepting gensio immediately does a connection when started and
+connection stdin and stdout of the running program to the gensio.
+
+.SH "ipmisol"
+
+.B ipmisol[(options)],<openipmi arguments>
+
+An ipmisol gensio creates an IPMI Serial Over LAN connection to an
+IPMI server.  See the OpenIPMI documentation for information on the
+arguments.
+
+This is a serial gensio, but the baud rate settings are fairly limited.
+
+In addition to readbuf, the ipmisol gensio takes the following options:
+.IP
+writebuf=<n>
+.PP
+to set the size of the write buffer.
+
+.SH "telnet"
+
+A telnet gensio is a filter that sits on top of another gensio.  It
+runs the standard telnet protocol andn support RFC2217.
+
+In addition to readbuf, the telnet gensio takes the following options:
+
+.TP
+.B writebuf=<n>
+set the size of the write buffer.
+
+.TP
+.B rfc2217=true|false
+enable or disable RFC2217 mode for this gensio.  If this is enabled
+and the remote end of the connection supports RFC2217 also, the gensio
+will be set up as a serial gensio and you can do normal gensio
+handling on it.
+
+.TP
+.B mode=client|server
+Set the telnet mode to client or server.  This lets you run a telnet
+server on a connecting gensio, or a telnet client on an accepter
+gensio.
+
+.SH "ssl"
+
+An SSL gensio runs the SSL/TLS protocol on top of another gensio.
+That gensio must be reliable.
+
+Use is pretty straightforward.  The hardest part about using the SSL
+gensio is the certificates.  A server SSL gensio must be given a
+certificate and a key.  A client SSL gensio must be given a
+certificate authority.  A client will user the certificate authority
+to verify that the server has the proper certificate and keys.
+
+In addition to readbuf, the SSL gensio takes the following options:
+
+.TP
+.B writebuf=<n>
+set the size of the write buffer.
+
+.TP
+.B CA=<filepath>
+Set a place to look for certificates for authorization.  If this ends
+in a "/", then this is expected to be a directory that contains files
+with certificates.  Otherwise it is a single file that contains one or
+more certificates.  On a server SSL gensio, it will use this when
+doing
+.I gensio_acc_connect()
+in addition to using it for incoming connections.  This is required
+for client and server.
+
+.TP
+.B cert=<filename>
+Specify the file that contains the certificate used for the
+connection.  If this is not specified, the certificate is expected to
+be in the key file.  This is for the server only
+
+.TP
+.B key=<filename>
+Specify the file to get the private key for the server.  This is for the
+server only and is required.
+
+.SH "SEE ALSO"
+gensiotool(1), sctp(7), udp(7), tcp(7)
+
+.SH "KNOWN PROBLEMS"
+None.
+
+.SH AUTHOR
+.PP
+Corey Minyard <minyard@acm.org>
