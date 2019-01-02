@@ -651,6 +651,29 @@ io_acc_event(struct gensio_accepter *accepter, int event, void *data)
     return 0;
 }
 
+static const char *progname;
+static const char *io1_default = "serialdev,/dev/tty";
+
+static void
+help(int err)
+{
+    printf("%s [options] io2\n", progname);
+    printf("\nA program to connect gensios together.  This programs has two\n");
+    printf("gensios, io1 (default is local terminal) and io2 (must be set).\n");
+    printf("\noptions are:\n");
+    printf("  -i, --input <gensio) - Set the io1 device (default is %s)\n",
+	   io1_default);
+    printf("  -d, --debug - Enable debug.  Specify more than once to increase\n"
+	   "    the debug level\n");
+    printf("  -a, --accepter - Accept a connection on io2 instead of"
+	   " initiating a connection\n");
+    printf("  --signature <sig> - Set the RFC2217 server signature to <sig>\n");
+    printf("  -e, --escchar - Set the local terminal escape character.\n"
+	   "    Default is ^\\\n");
+    printf("  -h, --help - This help\n");
+    exit(err);
+}
+
 int
 main(int argc, char *argv[])
 {
@@ -662,14 +685,17 @@ main(int argc, char *argv[])
     unsigned int closecount = 0;
     bool io2_do_acc = false;
     struct gensio_accepter *io2_acc;
+    bool esc_set = false;
+    bool io1_set = false;
 
+    progname = argv[0];
     memset(&g, 0, sizeof(g));
     memset(&ioinfo1, 0, sizeof(ioinfo1));
     memset(&ioinfo2, 0, sizeof(ioinfo2));
 
     g.signature = "gensiotool";
     ioinfo1.escape_char = 0x1c; /* ^\ */
-    ioinfo1.ios = "serialdev,/dev/tty";
+    ioinfo1.ios = io1_default;
     ioinfo1.g = &g;
     ioinfo2.g = &g;
     ioinfo1.otherio = &ioinfo2;
@@ -683,28 +709,33 @@ main(int argc, char *argv[])
 	    break;
 	}
 	if ((rv = cmparg(argc, argv, &arg, "-i", "--input", &ioinfo1.ios)))
-	    ;
-	else if ((rv = cmparg(argc, argv, &arg, "-a", "--acceptor", NULL)))
+	    io1_set = true;
+	else if ((rv = cmparg(argc, argv, &arg, "-a", "--accepter", NULL)))
 	    io2_do_acc = true;
 	else if ((rv = cmparg_char(argc, argv, &arg, "-e", "--escchar",
 				   &ioinfo1.escape_char)))
-	    ;
+	    esc_set = true;
 	else if ((rv = cmparg(argc, argv, &arg, "", "--signature",
 			      &g.signature)))
 	    ;
 	else if ((rv = cmparg(argc, argv, &arg, "-d", "--debug", NULL)))
 	    debug++;
+	else if ((rv = cmparg(argc, argv, &arg, "-h", "--help", NULL)))
+	    help(0);
 	else {
 	    fprintf(stderr, "Unknown argument: %s\n", argv[arg]);
-	    return 1;
+	    help(1);
 	}
 	if (rv < 0)
 	    return 1;
     }
 
+    if (io1_set && !esc_set)
+	ioinfo1.escape_char = 0; /* disable */
+
     if (arg >= argc) {
 	fprintf(stderr, "No gensio string given to connect to\n");
-	return 1;
+	help(1);
     }
     ioinfo2.ios = argv[arg];
 
