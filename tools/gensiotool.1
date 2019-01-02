@@ -1,0 +1,109 @@
+.TH gensiotool 1 01/02/19  "Tool for doing gensio connections"
+
+.SH NAME
+gensio \- Tool for doing gensio connections
+
+.SH SYNOPSIS
+.B ser2net
+[\-i|--input io1] [\-d|\-\-debug] [\-a|\-\-accepter] [\-\-signature <sig>]
+[\-e|--escchar char] [\-h|\-\-help]
+io2
+
+.SH DESCRIPTION
+The
+.BR gensiotool
+program allows connections to be made using gensios  It creates two gensios
+called
+.I io1
+and
+.I io2.
+.I io1
+is by default the local terminal and io2 must be specified.
+.PP
+By default,
+.BR gensiotool
+make two normal gensios and establishes connections to each of them.  Any
+data that comes in on one gensio is transmitted on the other.
+
+For a description of how to specify a gensio, see the gensio documentation.
+
+.SH OPTIONS
+.TP
+.I "\-i|\-\-input io1"
+By default io1 is the local terminal (
+.BR /dev/tty
+).  This lets another gensio be specified as the local terminal.
+.TP
+.I "\-a|\-\-accepter"
+By default io2 make an outgoing connection.  This modifies io2 to
+be a gensio accepter and waits for an incoming connection.  Once
+the connection comes in, the accepter is closed and operations
+proceeds as normal.
+.TP
+.I \-\-signature
+Serial gensio is supported this program.  If an accepter is specified
+(currently only a telnet RFC2217 server) the signature given is used
+instead of "gensiotool".
+.TP
+.I \-d|\-\-debug
+Generate debugging output.  Specifying more than once increases the output.
+.TP
+.I \-e|\-\-escchar char
+Specify a character to use for the escape character.  Setting it to
+zero disables the escape character.  This can either be a decimal or
+hexadeximal number of ^x to set a control character.  By default it is
+^\\ if io1 is the default, or disabled if
+.I \-\-input
+or
+.I \-i
+is specified.  See
+ESCAPES below for more details on the escape character.  Only handled
+on io1.
+.TP
+.I \-h|\-\-help
+Help output
+
+.SH "ESCAPES"
+If the escape character is received on io1, the character is not transferred
+and the program waits for another character.  If the other character is
+also the escape character, a single escape character is sent.  If the
+other character is not recognized as a valid escape, it is ignore and not
+transferred.  Upper and lower case are equivalent.
+
+Escape characters are:
+.TP
+.B q
+Quit the program.
+.TP
+.B b
+Send a break to io2.  Ignored if io2 does not support break.
+.TP
+.B d
+Dump serial data for io2.  Ignored if io2 is not a serial gensio.
+.TP
+.B s
+Set the serial port (baud) rate for io2.  Ignored if io2 is not a
+serial gensio.  After this, the serial port speed must be blind typed,
+terminated by a new line.  Use escchar-d to know if you set it right.
+.TP
+.B n, o, e
+Set the parity on io2 to none, odd, or even.  Ignored if io2 is not a
+serial gensio.
+.TP
+.B 7, 8
+Set the data size on io2 to 7 or 8 bits.  Ignored if io2 is not a
+serial gensio.
+.TP
+.B 1, 2
+Set the number of stop bits to 1 or 2 on io2 bits.  Ignored if io2 is
+not a serial gensio.
+
+.SH "SEE ALSO"
+gensio(5)
+
+.SH "KNOWN PROBLEMS"
+None.
+
+.SH AUTHOR
+.PP
+Corey Minyard <minyard@acm.org>
