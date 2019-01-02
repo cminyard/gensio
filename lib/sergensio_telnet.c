@@ -218,7 +218,7 @@ stel_queue_and_send(struct sergensio *sio, int option, int val,
 {
     struct stel_data *sdata = sergensio_get_gensio_data(sio);
     unsigned char buf[3];
-    bool is_client = gensio_is_client(sergensio_to_gensio(sio));
+    bool is_client = sergensio_is_client(sio);
     int err;
 
     if (val < minval || val > maxval)
@@ -321,7 +321,7 @@ stel_signature(struct sergensio *sio, char *sig, unsigned int sig_len,
 {
     struct stel_data *sdata = sergensio_get_gensio_data(sio);
     unsigned char outopt[MAX_TELNET_CMD_XMIT_BUF];
-    bool is_client = gensio_is_client(sergensio_to_gensio(sio));
+    bool is_client = sergensio_is_client(sio);
 
     if (sig_len > (MAX_TELNET_CMD_XMIT_BUF - 2))
 	sig_len = MAX_TELNET_CMD_XMIT_BUF - 2;
@@ -645,7 +645,10 @@ stelc_timeout(void *handler_data)
 
     req = to_complete;
     while (req) {
-	req->done(sdata->sio, ETIMEDOUT, 0, req->cb_data);
+	if (req->done)
+	    req->done(sdata->sio, ETIMEDOUT, 0, req->cb_data);
+	else if (req->donesig)
+	    req->donesig(sdata->sio, ETIMEDOUT, NULL, 0, req->cb_data);
 	prev = req;
 	req = req->next;
 	sdata->o->free(sdata->o, prev);
@@ -738,6 +741,12 @@ stels_cb_com_port_cmd(void *handler_data, const unsigned char *option,
 	return;
 
     switch (option[1]) {
+    case 0:
+	vlen = len - 2;
+	gensio_cb(io, GENSIO_EVENT_SER_SIGNATURE, 0,
+		  (unsigned char *) (option + 2), &vlen, NULL);
+	break;
+
     case 1:
 	if (len < 3)
 	    return;
