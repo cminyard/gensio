@@ -17,5 +17,5 @@ test_setup:
 
 TESTS = test_gensio.py
 
-EXTRA_DIST = $(TESTS) utils.py dataxfer.py ipmisimdaemon.py termioschk.py \
+EXTRA_DIST = $(TESTS) utils.py ipmisimdaemon.py termioschk.py \
 	CA.pem cert.pem key.pem
