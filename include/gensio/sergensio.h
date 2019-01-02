@@ -234,12 +234,6 @@ int sergensio_rts_b(struct sergensio_b *sbio, int *rts);
 #define GENSIO_EVENT_SER_DTR		(SERGENIO_EVENT_BASE + 14)
 #define GENSIO_EVENT_SER_RTS		(SERGENIO_EVENT_BASE + 15)
 
-/*
- * Got a request from the other end to send a break.  Client or
- * server.
- */
-#define GENSIO_EVENT_SER_SEND_BREAK	(SERGENIO_EVENT_BASE + 16)
-
 bool sergensio_is_client(struct sergensio *sio);
 
 #ifdef __cplusplus

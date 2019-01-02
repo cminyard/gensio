@@ -68,6 +68,12 @@ struct gensio;
 #define GENSIO_EVENT_NEW_CHANNEL	3
 
 /*
+ * Got a request from the other end to send a break.  Client or
+ * server.
+ */
+#define GENSIO_EVENT_SEND_BREAK		4
+
+/*
  * Serial callbacks start here and run to 2000.
  */
 #define SERGENIO_EVENT_BASE	1000
@@ -258,14 +264,19 @@ int gensio_control(struct gensio *io, int depth, bool get,
  * Set the enable/disable for any NAGLE type algorithms.
  * auxdata points to an integer with a boolean value.
  */
-#define GENSIO_CONTROL_NODELAY	1
+#define GENSIO_CONTROL_NODELAY		1
 
 /*
  * Return information about incoming and outgoing streams for
  * the gensio.  This is read(get)-only and returns the value in
  * the data in the form "instream=<n>,ostream=<n>".
  */
-#define GENSIO_CONTROL_STREAMS	2
+#define GENSIO_CONTROL_STREAMS		2
+
+/*
+ * Request that a break be sent over the line (primarily for telnet).
+ */
+#define GENSIO_CONTROL_SEND_BREAK	3
 
 /*
  * Return the type string for the gensio (if depth is 0) or one of its

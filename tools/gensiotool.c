@@ -250,6 +250,12 @@ handle_escapechar(struct ioinfo *ioinfo, char c)
     if (!ioinfo->otherio->can_write)
 	return false;
 
+    if (c == 'b') { /* Send a break */
+	gensio_control(ioinfo->otherio->io, 0, false,
+		       GENSIO_CONTROL_SEND_BREAK, NULL);
+	return false;
+    }
+
     sio = gensio_to_sergensio(ioinfo->otherio->io);
     if (!sio || !sergensio_is_client(sio))
 	return false;
@@ -280,9 +286,6 @@ handle_escapechar(struct ioinfo *ioinfo, char c)
 	    free(ddata);
 	    return false;
 	}
-	break;
-    case 'b': /* Send a break */
-	sergensio_send_break(sio);
 	break;
     case 's': /* Set baud rate */
 	ioinfo->escape_data[0] = c;
@@ -494,11 +497,17 @@ io_event(struct gensio *io, int event, int err,
     if (!rsio)
 	return ENOTSUP;
 
+    /* Telnet breaks work even if you don't have RFC2217 support. */
+    if (event == GENSIO_EVENT_SEND_BREAK) {
+	sergensio_send_break(rsio);
+	return 0;
+    }
+
     if (sergensio_is_client(sio)) {
 	unsigned int state;
 
-	/* Both ends are clients. */
 	if (sergensio_is_client(rsio))
+	    /* Both ends are clients. */
 	    return ENOTSUP;
 
 	switch (event) {
@@ -519,8 +528,8 @@ io_event(struct gensio *io, int event, int err,
 	return ENOTSUP;
     }
 
-    /* Both ends are servers. */
     if (!sergensio_is_client(rsio))
+	/* Both ends are servers. */
 	return ENOTSUP;
 
     switch (event) {

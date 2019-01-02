@@ -105,7 +105,8 @@ deref_swig_cb_val(swig_cb_val *cb)
 	} while(0)
 
 static PyObject *
-swig_finish_call_rv(swig_cb_val *cb, const char *method_name, PyObject *args)
+swig_finish_call_rv(swig_cb_val *cb, const char *method_name, PyObject *args,
+		    bool optional)
 {
     PyObject *p, *o = NULL;
 
@@ -115,7 +116,7 @@ swig_finish_call_rv(swig_cb_val *cb, const char *method_name, PyObject *args)
 	Py_DECREF(p);
 	if (PyErr_Occurred())
 	    wake_curr_waiter();
-    } else {
+    } else if (!optional) {
 	PyObject *t = PyObject_GetAttrString(cb, "__class__");
 	PyObject *c = PyObject_GetAttrString(t, "__name__");
 	char *class = PyString_AsString(c);
@@ -125,17 +126,19 @@ swig_finish_call_rv(swig_cb_val *cb, const char *method_name, PyObject *args)
 		     class, method_name);
 	wake_curr_waiter();
     }
-    Py_DECREF(args);
+    if (args)
+	Py_DECREF(args);
 
     return o;
 }
 
 static void
-swig_finish_call(swig_cb_val *cb, const char *method_name, PyObject *args)
+swig_finish_call(swig_cb_val *cb, const char *method_name, PyObject *args,
+		 bool optional)
 {
     PyObject *o;
 
-    o = swig_finish_call_rv(cb, method_name, args);
+    o = swig_finish_call_rv(cb, method_name, args, optional);
     if (o)
 	Py_DECREF(o);
 }
@@ -170,7 +173,7 @@ gensio_open_done(struct gensio *io, int err, void *cb_data) {
     o = PyInt_FromLong(err);
     PyTuple_SET_ITEM(args, 1, o);
 
-    swig_finish_call(cb, "open_done", args);
+    swig_finish_call(cb, "open_done", args, false);
 
     swig_free_ref_check(io_ref, accepter);
     deref_swig_cb_val(cb);
@@ -191,7 +194,7 @@ gensio_close_done(struct gensio *io, void *cb_data) {
     Py_INCREF(io_ref.val);
     PyTuple_SET_ITEM(args, 0, io_ref.val);
 
-    swig_finish_call(cb, "close_done", args);
+    swig_finish_call(cb, "close_done", args, false);
 
     swig_free_ref_check(io_ref, accepter);
     deref_swig_cb_val(cb);
@@ -222,7 +225,7 @@ sgensio_call(struct sergensio *sio, long val, char *func)
     o = PyInt_FromLong(val);
     PyTuple_SET_ITEM(args, 1, o);
 
-    swig_finish_call(data->handler_val, func, args);
+    swig_finish_call(data->handler_val, func, args, true);
 
     swig_free_ref_check(sio_ref, accepter);
  out_put:
@@ -265,7 +268,7 @@ sgensio_signature(struct sergensio *sio, char *sig, unsigned int len)
     o = OI_PI_FromStringAndSize(sig, len);
     PyTuple_SET_ITEM(args, 1, o);
 
-    swig_finish_call(data->handler_val, "signature", args);
+    swig_finish_call(data->handler_val, "signature", args, true);
 
     swig_free_ref_check(sio_ref, accepter);
  out_put:
@@ -294,7 +297,7 @@ sgensio_sync(struct sergensio *sio)
     Py_INCREF(sio_ref.val);
     PyTuple_SET_ITEM(args, 0, sio_ref.val);
 
-    swig_finish_call(data->handler_val, "sync", args);
+    swig_finish_call(data->handler_val, "sync", args, true);
 
     swig_free_ref_check(sio_ref, accepter);
  out_put:
@@ -325,7 +328,7 @@ sgensio_flowcontrol_state(struct sergensio *sio, bool val)
     o = PyBool_FromLong(val);
     PyTuple_SET_ITEM(args, 1, o);
 
-    swig_finish_call(data->handler_val, "flowcontrol_state", args);
+    swig_finish_call(data->handler_val, "flowcontrol_state", args, true);
 
     swig_free_ref_check(sio_ref, accepter);
  out_put:
@@ -446,7 +449,8 @@ gensio_child_event(struct gensio *io, int event, int readerr,
 	    PyTuple_SET_ITEM(args, 3, o);
 	}
 
-	o = swig_finish_call_rv(data->handler_val, "read_callback", args);
+	o = swig_finish_call_rv(data->handler_val, "read_callback", args,
+				false);
 	if (o) {
 	    *buflen = PyLong_AsUnsignedLong(o);
 	    if (PyErr_Occurred()) {
@@ -470,7 +474,11 @@ gensio_child_event(struct gensio *io, int event, int readerr,
 	Py_INCREF(io_ref.val);
 	PyTuple_SET_ITEM(args, 0, io_ref.val);
 
-	swig_finish_call(data->handler_val, "write_callback", args);
+	swig_finish_call(data->handler_val, "write_callback", args, false);
+	break;
+
+    case GENSIO_EVENT_SEND_BREAK:
+	swig_finish_call(data->handler_val, "send_break", NULL, true);
 	break;
 
     case GENSIO_EVENT_SER_MODEMSTATE:
@@ -566,7 +574,7 @@ gensio_acc_shutdown_done(struct gensio_accepter *accepter, void *cb_data)
     Py_INCREF(acc_ref.val);
     PyTuple_SET_ITEM(args, 0, acc_ref.val);
 
-    swig_finish_call(cb, "shutdown_done", args);
+    swig_finish_call(cb, "shutdown_done", args, false);
 
     swig_free_ref_check(acc_ref, accepter);
     deref_swig_cb_val(cb);
@@ -614,7 +622,7 @@ gensio_acc_child_event(struct gensio_accepter *accepter, int event, void *cdata)
 	o = OI_PI_FromString(buf);
 	PyTuple_SET_ITEM(args, 2, o);
 
-	swig_finish_call(data->handler_val, "accepter_log", args);
+	swig_finish_call(data->handler_val, "accepter_log", args, true);
 
 	swig_free_ref_check(acc_ref, accepter);
 	OI_PY_STATE_PUT(gstate);
@@ -641,7 +649,7 @@ gensio_acc_child_event(struct gensio_accepter *accepter, int event, void *cdata)
 	PyTuple_SET_ITEM(args, 0, acc_ref.val);
 	PyTuple_SET_ITEM(args, 1, io_ref.val);
 
-	swig_finish_call(data->handler_val, "new_connection", args);
+	swig_finish_call(data->handler_val, "new_connection", args, false);
 
 	swig_free_ref_check(acc_ref, accepter);
 	swig_free_ref_check(io_ref, accepter);
@@ -701,7 +709,7 @@ sergensio_cb(struct sergensio *sio, int err, unsigned int val, void *cb_data)
     o = PyInt_FromLong(val);
     PyTuple_SET_ITEM(args, 2, o);
 
-    swig_finish_call(cbd->h_val, cbd->cbname, args);
+    swig_finish_call(cbd->h_val, cbd->cbname, args, true);
 
     cleanup_sergensio_cbdata(cbd);
     OI_PY_STATE_PUT(gstate);

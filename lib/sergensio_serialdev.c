@@ -1303,12 +1303,24 @@ sterm_free(void *handler_data)
     sdata->o->free(sdata->o, sdata);
 }
 
+static int
+sterm_control(void *handler_data, int fd, bool get, unsigned int option,
+	      char *data)
+{
+    if (get || option != GENSIO_CONTROL_SEND_BREAK)
+	return ENOTSUP;
+
+    tcsendbreak(fd, 0);
+    return 0;
+}
+
 static const struct gensio_fd_ll_ops sterm_fd_ll_ops = {
     .sub_open = sterm_sub_open,
     .raddr_to_str = sterm_raddr_to_str,
     .remote_id = sterm_remote_id,
     .check_close = sterm_check_close_drain,
-    .free = sterm_free
+    .free = sterm_free,
+    .control = sterm_control
 };
 
 

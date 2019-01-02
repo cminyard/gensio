@@ -759,6 +759,7 @@ gensio_base_func(struct gensio *io, int func, unsigned int *count,
 		 const char *const *auxdata)
 {
     struct basen_data *ndata = gensio_get_gensio_data(io);
+    int rv;
 
     switch (func) {
     case GENSIO_FUNC_WRITE:
@@ -796,6 +797,12 @@ gensio_base_func(struct gensio *io, int func, unsigned int *count,
 	return gensio_ll_remote_id(ndata->ll, buf);
 
     case GENSIO_FUNC_CONTROL:
+	if (ndata->filter) {
+	    rv = gensio_filter_control(ndata->filter, *((bool *) cbuf), buflen,
+				       buf);
+	    if (rv != ENOTSUP)
+		return rv;
+	}
 	return gensio_ll_control(ndata->ll, *((bool *) cbuf), buflen, buf);
 
     default:
@@ -1151,6 +1158,13 @@ gensio_filter_free(struct gensio_filter *filter)
 {
     filter->func(filter, GENSIO_FILTER_FUNC_FREE,
 		 NULL, NULL, NULL, NULL, NULL, 0, NULL);
+}
+
+int gensio_filter_control(struct gensio_filter *filter, bool get,
+			  unsigned int option, char *data)
+{
+    return filter->func(filter, GENSIO_FILTER_FUNC_CONTROL,
+			NULL, data, &option, NULL, NULL, get, NULL);
 }
 
 void

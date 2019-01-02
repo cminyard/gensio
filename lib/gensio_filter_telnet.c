@@ -82,6 +82,10 @@ struct telnet_filter {
 
 #define filter_to_telnet(v) container_of(v, struct telnet_filter, filter)
 
+static void telnet_filter_send_cmd(struct gensio_filter *filter,
+				   const unsigned char *buf,
+				   unsigned int len);
+
 static void
 telnet_lock(struct telnet_filter *tfilter)
 {
@@ -454,6 +458,23 @@ telnet_free(struct gensio_filter *filter)
     tfilter->o->free(tfilter->o, tfilter);
 }
 
+static int
+telnet_filter_control(struct gensio_filter *filter, bool get, int op,
+		      char *data)
+{
+    unsigned char buf[2];
+
+    if (get)
+	return ENOTSUP;
+    if (op != GENSIO_CONTROL_SEND_BREAK)
+	return ENOTSUP;
+
+    buf[0] = TN_IAC;
+    buf[1] = TN_BREAK;
+    telnet_filter_send_cmd(filter, buf, 2);
+    return 0;
+}
+
 static int gensio_telnet_filter_func(struct gensio_filter *filter, int op,
 				     const void *func, void *data,
 				     unsigned int *count,
@@ -504,6 +525,9 @@ static int gensio_telnet_filter_func(struct gensio_filter *filter, int op,
     case GENSIO_FILTER_FUNC_TIMEOUT:
 	telnet_filter_timeout(filter);
 	return 0;
+
+    case GENSIO_FILTER_FUNC_CONTROL:
+	return telnet_filter_control(filter, buflen, *count, data);
 
     default:
 	return ENOTSUP;

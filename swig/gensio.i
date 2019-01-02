@@ -332,6 +332,7 @@ struct waiter { };
 %constant int GENSIO_CONTROL_DEPTH_ALL = GENSIO_CONTROL_DEPTH_ALL;
 %constant int GENSIO_CONTROL_NODELAY = GENSIO_CONTROL_NODELAY;
 %constant int GENSIO_CONTROL_STREAMS = GENSIO_CONTROL_STREAMS;
+%constant int GENSIO_CONTROL_SEND_BREAK = GENSIO_CONTROL_SEND_BREAK;
 
 %extend gensio {
     gensio(struct gensio_os_funcs *o, char *str, swig_cb *handler) {

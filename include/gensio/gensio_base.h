@@ -170,6 +170,17 @@ void gensio_filter_cleanup(struct gensio_filter *filter);
 #define GENSIO_FILTER_FUNC_FREE			14
 void gensio_filter_free(struct gensio_filter *filter);
 
+/*
+ * Do a control function on the filter.  Return ENOTSUP if not supported.
+ *
+ * get => buflen
+ * option => count
+ * data => data
+ */
+#define GENSIO_FILTER_FUNC_CONTROL		15
+int gensio_filter_control(struct gensio_filter *filter, bool get,
+			  unsigned int option, char *data);
+
 typedef int (*gensio_filter_func)(struct gensio_filter *filter, int op,
 				  const void *func, void *data,
 				  unsigned int *count, void *buf,

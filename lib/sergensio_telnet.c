@@ -866,7 +866,7 @@ stels_got_cmd(void *handler_data, unsigned char cmd)
     struct gensio *io = sergensio_to_gensio(sdata->sio);
 
     if (cmd == TN_BREAK)
-	gensio_cb(io, GENSIO_EVENT_SER_SEND_BREAK, 0, NULL, NULL, NULL);
+	gensio_cb(io, GENSIO_EVENT_SEND_BREAK, 0, NULL, NULL, NULL);
 }
 
 static void
