@@ -107,6 +107,7 @@ struct ioinfo {
     struct ioinfo *otherio;
     struct ginfo *g;
     bool can_close;
+    bool can_write;
     char escape_char;
     bool in_escape;
     char escape_data[11];
@@ -216,8 +217,11 @@ handle_escapechar(struct ioinfo *ioinfo, char c)
 	break;
     }
 
+    if (!ioinfo->otherio->can_write)
+	return false;
+
     sio = gensio_to_sergensio(ioinfo->otherio->io);
-    if (!sio)
+    if (!sio || !sergensio_is_client(sio))
 	return false;
 
     switch (c) {
@@ -287,7 +291,8 @@ io_event(struct gensio *io, int event, int err,
     unsigned int count = 0;
 
     if (err) {
-	fprintf(stderr, "Error from %s: %s\n", ioinfo->ios, strerror(err));
+	if (err != EPIPE) /* EPIPE means the other end closed. */
+	    fprintf(stderr, "Error from %s: %s\n", ioinfo->ios, strerror(err));
 	ioinfo->g->o->wake(ioinfo->g->waiter);
 	return 0;
     }
@@ -317,13 +322,17 @@ io_event(struct gensio *io, int event, int err,
 		}
 	    }
 	}
-	rv = gensio_write(ioinfo->otherio->io, &count, buf, *buflen, NULL);
-	if (rv) {
-	    fprintf(stderr, "Error writing to %s: %s\n",
-		    ioinfo->otherio->ios, strerror(rv));
-	    gensio_set_read_callback_enable(ioinfo->io, false);
-	    ioinfo->g->o->wake(ioinfo->g->waiter);
-	    return 0;
+	if (ioinfo->otherio->can_write) {
+	    rv = gensio_write(ioinfo->otherio->io, &count, buf, *buflen, NULL);
+	    if (rv) {
+		fprintf(stderr, "Error writing to %s: %s\n",
+			ioinfo->otherio->ios, strerror(rv));
+		gensio_set_read_callback_enable(ioinfo->io, false);
+		ioinfo->g->o->wake(ioinfo->g->waiter);
+		return 0;
+	    }
+	} else {
+	    count = *buflen;
 	}
 	if (count < *buflen) {
 	    *buflen = count;
@@ -360,6 +369,7 @@ io_open(struct gensio *io, int err, void *open_data)
 	ioinfo->g->o->wake(ioinfo->g->waiter);
     } else {
 	gensio_set_read_callback_enable(ioinfo->io, true);
+	ioinfo->can_write = true;
     }
 }
 
@@ -372,6 +382,29 @@ io_close(struct gensio *io, void *close_data)
     ioinfo->g->o->wake(closewaiter);
 }
 
+static int
+io_acc_event(struct gensio_accepter *accepter, int event, void *data)
+{
+    struct ioinfo *ioinfo = gensio_acc_get_user_data(accepter);
+
+    if (event != GENSIO_ACC_EVENT_NEW_CONNECTION)
+	return ENOTSUP;
+
+    if (ioinfo->io) {
+	gensio_free(data);
+	return 0;
+    }
+
+    ioinfo->io = data;
+    gensio_set_callback(ioinfo->io, io_event, ioinfo);
+    ioinfo->can_write = true;
+    ioinfo->can_close = true;
+    gensio_set_read_callback_enable(ioinfo->io, true);
+    gensio_acc_free(accepter);
+    printf("Connected\r\n");
+    return 0;
+}
+
 int
 main(int argc, char *argv[])
 {
@@ -381,6 +414,8 @@ main(int argc, char *argv[])
     int arg, rv;
     struct gensio_waiter *closewaiter;
     unsigned int closecount = 0;
+    bool io2_do_acc = false;
+    struct gensio_accepter *io2_acc;
 
     memset(&g, 0, sizeof(g));
     memset(&ioinfo1, 0, sizeof(ioinfo1));
@@ -396,8 +431,14 @@ main(int argc, char *argv[])
     for (arg = 1; arg < argc; arg++) {
 	if (argv[arg][0] != '-')
 	    break;
+	if (strcmp(argv[arg], "--") == 0) {
+	    arg++;
+	    break;
+	}
 	if ((rv = cmparg(argc, argv, &arg, "-i", "--input", &ioinfo1.ios)))
 	    ;
+	else if ((rv = cmparg(argc, argv, &arg, "-a", "--acceptor", NULL)))
+	    io2_do_acc = true;
 	else if ((rv = cmparg_char(argc, argv, &arg, "-e", "--escchar",
 				   &ioinfo1.escape_char)))
 	    ;
@@ -440,7 +481,11 @@ main(int argc, char *argv[])
 	return 1;
     }
 
-    rv = str_to_gensio(ioinfo2.ios, g.o, io_event, &ioinfo2, &ioinfo2.io);
+    if (io2_do_acc)
+	rv = str_to_gensio_accepter(ioinfo2.ios, g.o, io_acc_event,
+				    &ioinfo2, &io2_acc);
+    else
+	rv = str_to_gensio(ioinfo2.ios, g.o, io_event, &ioinfo2, &ioinfo2.io);
     if (rv) {
 	fprintf(stderr, "Could not allocate %s: %s\n", ioinfo2.ios, strerror(rv));
 	return 1;
@@ -453,12 +498,22 @@ main(int argc, char *argv[])
     }
     ioinfo1.can_close = true;
 
-    rv = gensio_open(ioinfo2.io, io_open, NULL);
-    if (rv) {
-	fprintf(stderr, "Could not open %s: %s\n", ioinfo2.ios, strerror(rv));
-	goto close1;
+    if (io2_do_acc) {
+	rv = gensio_acc_startup(io2_acc);
+	if (rv) {
+	    fprintf(stderr, "Could not start %s: %s\n", ioinfo2.ios,
+		    strerror(rv));
+	    goto close1;
+	}
+    } else {
+	rv = gensio_open(ioinfo2.io, io_open, NULL);
+	if (rv) {
+	    fprintf(stderr, "Could not open %s: %s\n", ioinfo2.ios,
+		    strerror(rv));
+	    goto close1;
+	}
+	ioinfo2.can_close = true;
     }
-    ioinfo2.can_close = true;
 
     g.o->wait(g.waiter, 1, NULL);
 
@@ -468,6 +523,8 @@ main(int argc, char *argv[])
 	    printf("Unable to close %s: %s\n", ioinfo2.ios, strerror(rv));
 	else
 	    closecount++;
+    } else if (!ioinfo2.io && io2_do_acc) {
+	gensio_acc_free(io2_acc);
     }
 
  close1:
