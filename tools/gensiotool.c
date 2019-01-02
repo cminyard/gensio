@@ -25,6 +25,8 @@
 #include <gensio/gensio.h>
 #include <gensio/sergensio.h>
 
+unsigned int debug;
+
 static int
 cmparg(int argc, char *argv[], int *arg, char *sarg, char *larg,
        const char **opt)
@@ -99,6 +101,7 @@ cmparg_char(int argc, char *argv[], int *arg, char *sarg, char *larg, char *rc)
 struct ginfo {
     struct gensio_os_funcs *o;
     struct gensio_waiter *waiter;
+    const char *signature;
 };
 
 struct ioinfo {
@@ -112,6 +115,10 @@ struct ioinfo {
     bool in_escape;
     char escape_data[11];
     unsigned int escape_pos;
+    unsigned int modemstate_mask;
+    unsigned int last_modemstate;
+    unsigned int linestate_mask;
+    unsigned int last_linestate;
 };
 
 struct ser_dump_data
@@ -281,12 +288,106 @@ handle_escapechar(struct ioinfo *ioinfo, char c)
     return false;
 }
 
+enum s2n_ser_ops {
+    S2N_BAUD = 0,
+    S2N_DATASIZE,
+    S2N_PARITY,
+    S2N_STOPBITS,
+    S2N_FLOWCONTROL,
+    S2N_IFLOWCONTROL,
+    S2N_BREAK,
+    S2N_DTR,
+    S2N_RTS
+};
+
+static void
+sergensio_val_set(struct sergensio *sio, int err,
+		  unsigned int val, void *cb_data)
+{
+    struct ioinfo *ioinfo = sergensio_get_user_data(sio);
+    enum s2n_ser_ops op = (long) cb_data;
+    struct sergensio *rsio;
+
+    rsio = gensio_to_sergensio(ioinfo->otherio->io);
+    if (!rsio)
+	return;
+
+    switch (op) {
+    case S2N_BAUD:
+	sergensio_baud(rsio, val, NULL, NULL);
+	break;
+
+    case S2N_DATASIZE:
+	sergensio_datasize(rsio, val, NULL, NULL);
+	break;
+
+    case S2N_PARITY:
+	sergensio_parity(rsio, val, NULL, NULL);
+	break;
+
+    case S2N_STOPBITS:
+	sergensio_stopbits(rsio, val, NULL, NULL);
+	break;
+
+    case S2N_FLOWCONTROL:
+	sergensio_flowcontrol(rsio, val, NULL, NULL);
+	break;
+
+    case S2N_IFLOWCONTROL:
+	sergensio_iflowcontrol(rsio, val, NULL, NULL);
+	break;
+
+    case S2N_BREAK:
+	sergensio_sbreak(rsio, val, NULL, NULL);
+	break;
+
+    case S2N_DTR:
+	sergensio_dtr(rsio, val, NULL, NULL);
+	break;
+
+    case S2N_RTS:
+	sergensio_rts(rsio, val, NULL, NULL);
+	break;
+    }
+}
+
+static void
+s2n_modemstate(struct sergensio *sio, unsigned int modemstate)
+{
+    struct ioinfo *ioinfo = sergensio_get_user_data(sio);
+
+    ioinfo->modemstate_mask = modemstate;
+    sergensio_modemstate(sio, (ioinfo->otherio->last_modemstate &
+			       ioinfo->modemstate_mask));
+}
+
+static void
+s2n_linestate(struct sergensio *sio, unsigned int linestate)
+{
+    struct ioinfo *ioinfo = sergensio_get_user_data(sio);
+
+    ioinfo->linestate_mask = linestate;
+    sergensio_linestate(sio, (ioinfo->otherio->last_linestate &
+			      ioinfo->linestate_mask));
+}
+
+static void
+s2n_signature(struct sergensio *sio, char *sig, unsigned int sig_len)
+{
+    struct ioinfo *ioinfo = sergensio_get_user_data(sio);
+
+    sig_len = strlen(ioinfo->g->signature);
+    sergensio_signature(sio, ioinfo->g->signature, sig_len, NULL, NULL);
+}
+
 static int
 io_event(struct gensio *io, int event, int err,
 	 unsigned char *buf, unsigned int *buflen,
 	 const char *const *auxdata)
 {
     struct ioinfo *ioinfo = gensio_get_user_data(io);
+    struct ioinfo *rioinfo = ioinfo->otherio;
+    struct sergensio *sio, *rsio;
     int rv, escapepos = -1;
     unsigned int count = 0;
 
@@ -322,11 +423,11 @@ io_event(struct gensio *io, int event, int err,
 		}
 	    }
 	}
-	if (ioinfo->otherio->can_write) {
-	    rv = gensio_write(ioinfo->otherio->io, &count, buf, *buflen, NULL);
+	if (rioinfo->can_write) {
+	    rv = gensio_write(rioinfo->io, &count, buf, *buflen, NULL);
 	    if (rv) {
 		fprintf(stderr, "Error writing to %s: %s\n",
-			ioinfo->otherio->ios, strerror(rv));
+			rioinfo->ios, strerror(rv));
 		gensio_set_read_callback_enable(ioinfo->io, false);
 		ioinfo->g->o->wake(ioinfo->g->waiter);
 		return 0;
@@ -337,7 +438,7 @@ io_event(struct gensio *io, int event, int err,
 	if (count < *buflen) {
 	    *buflen = count;
 	    gensio_set_read_callback_enable(ioinfo->io, false);
-	    gensio_set_write_callback_enable(ioinfo->otherio->io, true);
+	    gensio_set_write_callback_enable(rioinfo->io, true);
 	} else if (escapepos >= 0) {
 	    /*
 	     * Don't do this if we didn't handle all the characters, get
@@ -350,13 +451,129 @@ io_event(struct gensio *io, int event, int err,
 	return 0;
 
     case GENSIO_EVENT_WRITE_READY:
-	gensio_set_read_callback_enable(ioinfo->otherio->io, true);
+	gensio_set_read_callback_enable(rioinfo->io, true);
 	gensio_set_write_callback_enable(ioinfo->io, false);
 	return 0;
 
     default:
+	break;
+    }
+
+    if (!rioinfo->can_write)
+	return 0;
+
+    sio = gensio_to_sergensio(io);
+    if (!sio)
+	return ENOTSUP;
+
+    if (event == GENSIO_EVENT_SER_SIGNATURE) {
+	s2n_signature(sio, (char *) buf, *buflen);
+	return 0;
+    }
+
+    rsio = gensio_to_sergensio(rioinfo->io);
+    if (!rsio)
+	return ENOTSUP;
+
+    if (sergensio_is_client(sio)) {
+	unsigned int state;
+
+	/* Both ends are clients. */
+	if (sergensio_is_client(rsio))
+	    return ENOTSUP;
+
+	switch (event) {
+	case GENSIO_EVENT_SER_MODEMSTATE:
+	    ioinfo->last_modemstate = *((unsigned int *) buf);
+	    state = ioinfo->last_modemstate & rioinfo->modemstate_mask;
+	    if (state & 4)
+		sergensio_modemstate(rsio, state);
+	    return 0;
+
+	case GENSIO_EVENT_SER_LINESTATE:
+	    ioinfo->last_linestate = *((unsigned int *) buf);
+	    state = ioinfo->last_linestate & rioinfo->linestate_mask;
+	    if (state & 4)
+		sergensio_linestate(rsio, state);
+	    return 0;
+	}
 	return ENOTSUP;
     }
+
+    /* Both ends are servers. */
+    if (!sergensio_is_client(rsio))
+	return ENOTSUP;
+
+    switch (event) {
+    case GENSIO_EVENT_SER_MODEMSTATE:
+	s2n_modemstate(rsio, *((unsigned int *) buf));
+	return 0;
+
+    case GENSIO_EVENT_SER_LINESTATE:
+	s2n_linestate(rsio, *((unsigned int *) buf));
+	return 0;
+
+    case GENSIO_EVENT_SER_FLOW_STATE:
+	sergensio_flowcontrol_state(rsio, *((int *) buf));
+	return 0;
+
+    case GENSIO_EVENT_SER_FLUSH:
+	sergensio_flush(rsio, *((int *) buf));
+	return 0;
+
+    case GENSIO_EVENT_SER_BAUD:
+	sergensio_baud(rsio, *((int *) buf),
+		       sergensio_val_set, (void *) (long) S2N_BAUD);
+	return 0;
+
+    case GENSIO_EVENT_SER_DATASIZE:
+	sergensio_datasize(rsio, *((int *) buf),
+			   sergensio_val_set, (void *) (long) S2N_DATASIZE);
+	return 0;
+
+    case GENSIO_EVENT_SER_PARITY:
+	sergensio_parity(rsio, *((int *) buf),
+			 sergensio_val_set, (void *) (long) S2N_PARITY);
+	return 0;
+
+    case GENSIO_EVENT_SER_STOPBITS:
+	sergensio_stopbits(rsio, *((int *) buf),
+			   sergensio_val_set, (void *) (long) S2N_STOPBITS);
+	return 0;
+
+    case GENSIO_EVENT_SER_FLOWCONTROL:
+	sergensio_flowcontrol(rsio, *((int *) buf),
+			      sergensio_val_set,
+			      (void *) (long) S2N_FLOWCONTROL);
+	return 0;
+
+    case GENSIO_EVENT_SER_IFLOWCONTROL:
+	sergensio_iflowcontrol(rsio, *((int *) buf),
+			       sergensio_val_set,
+			       (void *) (long) S2N_IFLOWCONTROL);
+	return 0;
+
+    case GENSIO_EVENT_SER_SBREAK:
+	sergensio_sbreak(rsio, *((int *) buf),
+			 sergensio_val_set, (void *) (long) S2N_BREAK);
+	return 0;
+
+    case GENSIO_EVENT_SER_DTR:
+	sergensio_dtr(rsio, *((int *) buf),
+		      sergensio_val_set, (void *) (long) S2N_DTR);
+	return 0;
+
+    case GENSIO_EVENT_SER_RTS:
+	sergensio_rts(rsio, *((int *) buf),
+		      sergensio_val_set, (void *) (long) S2N_RTS);
+	return 0;
+
+    case GENSIO_EVENT_SER_SYNC:
+	sergensio_send_break(rsio);
+	return 0;
+    }
+
+    return ENOTSUP;
 }
 static void
 io_open(struct gensio *io, int err, void *open_data)
@@ -401,7 +618,8 @@ io_acc_event(struct gensio_accepter *accepter, int event, void *data)
     ioinfo->can_close = true;
     gensio_set_read_callback_enable(ioinfo->io, true);
     gensio_acc_free(accepter);
-    printf("Connected\r\n");
+    if (debug)
+	printf("Connected\r\n");
     return 0;
 }
 
@@ -421,6 +639,7 @@ main(int argc, char *argv[])
     memset(&ioinfo1, 0, sizeof(ioinfo1));
     memset(&ioinfo2, 0, sizeof(ioinfo2));
 
+    g.signature = "gensiotool";
     ioinfo1.escape_char = 0x1c; /* ^\ */
     ioinfo1.ios = "serialdev,/dev/tty";
     ioinfo1.g = &g;
@@ -442,6 +661,11 @@ main(int argc, char *argv[])
 	else if ((rv = cmparg_char(argc, argv, &arg, "-e", "--escchar",
 				   &ioinfo1.escape_char)))
 	    ;
+	else if ((rv = cmparg(argc, argv, &arg, "", "--signature",
+			      &g.signature)))
+	    ;
+	else if ((rv = cmparg(argc, argv, &arg, "-d", "--debug", NULL)))
+	    debug++;
 	else {
 	    fprintf(stderr, "Unknown argument: %s\n", argv[arg]);
 	    return 1;
