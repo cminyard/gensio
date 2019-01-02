@@ -123,6 +123,7 @@ struct ioinfo {
 
 struct ser_dump_data
 {
+    char *signature;
     int speed;
     char parity;
     int datasize;
@@ -136,11 +137,19 @@ deref(struct ser_dump_data *ddata)
 {
     ddata->refcount--;
     if (ddata->refcount == 0) {
-	char buf[100];
+	char buf[200];
+	unsigned int pos = 0;
 
-	snprintf(buf, sizeof(buf), "\r\nSpeed: %d%c%d%d\r\n", ddata->speed,
+	pos += snprintf(buf + pos, sizeof(buf) - pos, "\r\n");
+	if (ddata->signature)
+	    pos += snprintf(buf + pos, sizeof(buf) - pos, "Signature: %s\r\n",
+			    ddata->signature);
+	snprintf(buf + pos, sizeof(buf) - pos,
+		 "Speed: %d%c%d%d\r\n", ddata->speed,
 		 ddata->parity, ddata->datasize, ddata->stopbits);
 	gensio_write(ddata->ioinfo->io, NULL, buf, strlen(buf), NULL);
+	if (ddata->signature)
+	    free(ddata->signature);
 	free(ddata);
     }
 }
@@ -151,6 +160,21 @@ speed_done(struct sergensio *sio, int err, unsigned int val, void *cb_data)
     struct ser_dump_data *ddata = cb_data;
 
     ddata->speed = val;
+    deref(ddata);
+}
+
+static void
+signature_done(struct sergensio *sio, int err,
+	       const char *sig, unsigned int len,
+	       void *cb_data)
+{
+    struct ser_dump_data *ddata = cb_data;
+
+    if (sig) {
+	if (ddata->signature)
+	    free(ddata->signature);
+	ddata->signature = strndup(sig, len);
+    }
     deref(ddata);
 }
 
@@ -218,10 +242,9 @@ handle_escapechar(struct ioinfo *ioinfo, char c)
 
     c = tolower(c);
 
-    switch (c) {
-    case 'q':
+    if (c == 'q') {
 	ioinfo->g->o->wake(ioinfo->g->waiter);
-	break;
+	return false;
     }
 
     if (!ioinfo->otherio->can_write)
@@ -238,6 +261,9 @@ handle_escapechar(struct ioinfo *ioinfo, char c)
 	    return false;
 	memset(ddata, 0, sizeof(*ddata));
 	ddata->ioinfo = ioinfo;
+	rv = sergensio_signature(sio, NULL, 0, signature_done, ddata);
+	if (!rv)
+	    ddata->refcount++;
 	rv = sergensio_baud(sio, 0, speed_done, ddata);
 	if (!rv)
 	    ddata->refcount++;
@@ -371,15 +397,6 @@ s2n_linestate(struct sergensio *sio, unsigned int linestate)
 			      ioinfo->linestate_mask));
 }
 
-static void
-s2n_signature(struct sergensio *sio, char *sig, unsigned int sig_len)
-{
-    struct ioinfo *ioinfo = sergensio_get_user_data(sio);
-
-    sig_len = strlen(ioinfo->g->signature);
-    sergensio_signature(sio, ioinfo->g->signature, sig_len, NULL, NULL);
-}
-
 static int
 io_event(struct gensio *io, int event, int err,
 	 unsigned char *buf, unsigned int *buflen,
@@ -467,7 +484,9 @@ io_event(struct gensio *io, int event, int err,
 	return ENOTSUP;
 
     if (event == GENSIO_EVENT_SER_SIGNATURE) {
-	s2n_signature(sio, (char *) buf, *buflen);
+	unsigned int sig_len = strlen(ioinfo->g->signature);
+
+	sergensio_signature(sio, ioinfo->g->signature, sig_len, NULL, NULL);
 	return 0;
     }
 
