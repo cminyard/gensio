@@ -144,10 +144,10 @@ sergensio_rts(struct sergensio *sio, unsigned int rts,
 }
 
 int
-sergensio_signature(struct sergensio *sio, char *sig, unsigned int len,
+sergensio_signature(struct sergensio *sio, const char *sig, unsigned int len,
 		    sergensio_done_sig done, void *cb_data)
 {
-    return sio->func(sio, SERGENSIO_FUNC_SIGNATURE, len, sig,
+    return sio->func(sio, SERGENSIO_FUNC_SIGNATURE, len, (char *) sig,
 		     done, cb_data);
 }
 

@@ -40,8 +40,9 @@ struct sergensio *gensio_to_sergensio(struct gensio *io);
 typedef void (*sergensio_done)(struct sergensio *sio, int err,
 			       unsigned int val, void *cb_data);
 
-typedef void (*sergensio_done_sig)(struct sergensio *sio, int err, char *sig,
-				   unsigned int len, void *cb_data);
+typedef void (*sergensio_done_sig)(struct sergensio *sio, int err,
+				   const char *sig, unsigned int len,
+				   void *cb_data);
 
 /*
  * The following functions set various serial parameters.  The done()
@@ -102,7 +103,8 @@ int sergensio_dtr(struct sergensio *sio, unsigned int dtr,
 int sergensio_rts(struct sergensio *sio, unsigned int rts,
 		  sergensio_done done, void *cb_data);
 
-int sergensio_signature(struct sergensio *sio, char *sig, unsigned int len,
+int sergensio_signature(struct sergensio *sio,
+			const char *sig, unsigned int len,
 			sergensio_done_sig done, void *cb_data);
 
 /*
