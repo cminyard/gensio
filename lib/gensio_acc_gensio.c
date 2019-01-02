@@ -70,7 +70,8 @@ basena_finish_free(struct basena_data *nadata)
     if (nadata->lock)
 	nadata->o->free_lock(nadata->lock);
     if (nadata->acc_cb)
-	nadata->acc_cb(nadata->acc_data, GENSIO_GENSIO_ACC_FREE, NULL, NULL);
+	nadata->acc_cb(nadata->acc_data, GENSIO_GENSIO_ACC_FREE, NULL, NULL,
+		       NULL);
     if (nadata->acc)
 	gensio_acc_data_free(nadata->acc);
     nadata->o->free(nadata->o, nadata);
@@ -279,7 +280,7 @@ basena_connect(struct gensio_accepter *accepter, void *addr,
     basena_in_cb(nadata);
 
     err = nadata->acc_cb(nadata->acc_data, GENSIO_GENSIO_ACC_CONNECT_START,
-			 child, &cdata->io);
+			 child, &cdata->io, NULL);
     if (err) {
 	cdata->ignore = true;
 	o->unlock(cdata->lock);
@@ -349,7 +350,7 @@ basena_child_event(struct gensio_accepter *accepter, int event,
     struct gensio_os_funcs *o = nadata->o;
     struct gensio_filter *filter;
     struct gensio_ll *ll;
-    struct gensio *io;
+    struct gensio *io, *child;
     void *finish_data;
     int err;
 
@@ -361,14 +362,14 @@ basena_child_event(struct gensio_accepter *accepter, int event,
     if (event != GENSIO_ACC_EVENT_NEW_CONNECTION)
 	return ENOTSUP;
 
-    io = data;
+    child = data;
 
     err = nadata->acc_cb(nadata->acc_data, GENSIO_GENSIO_ACC_NEW_CHILD,
-			 &finish_data, &filter);
+			 &finish_data, &filter, child);
     if (err)
 	goto out_err;
 
-    ll = gensio_gensio_ll_alloc(o, io);
+    ll = gensio_gensio_ll_alloc(o, child);
     if (!ll) {
 	gensio_filter_free(filter);
 	goto out_nomem;
@@ -381,7 +382,7 @@ basena_child_event(struct gensio_accepter *accepter, int event,
     if (io) {
 	basena_in_cb(nadata);
 	err = nadata->acc_cb(nadata->acc_data, GENSIO_GENSIO_ACC_FINISH_PARENT,
-			     finish_data, io);
+			     finish_data, io, child);
 	if (err && err != ENOTSUP) {
 	    basena_unlock(nadata);
 	    gensio_free(io);

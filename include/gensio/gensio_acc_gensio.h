@@ -31,6 +31,7 @@
  *
  * *finish_data => data1
  * *new_filter => data2
+ * child => data3
  */
 #define GENSIO_GENSIO_ACC_NEW_CHILD		2
 
@@ -39,6 +40,7 @@
  *
  * finish_data => data1
  * new_parent => data2
+ * child => data3
  */
 #define GENSIO_GENSIO_ACC_FINISH_PARENT		3
 
@@ -48,7 +50,7 @@
 #define GENSIO_GENSIO_ACC_FREE			4
 
 typedef int (*gensio_gensio_acc_cb)(void *acc_data, int op,
-				    void *data1, void *data2);
+				    void *data1, void *data2, void *data3);
 
 int gensio_gensio_accepter_alloc(struct gensio_accepter *child,
 				 struct gensio_os_funcs *o,

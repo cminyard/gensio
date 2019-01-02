@@ -182,7 +182,8 @@ sslna_finish_parent(void *acc_data, void *finish_data, struct gensio *io)
 }
 
 static int
-gensio_gensio_acc_ssl_cb(void *acc_data, int op, void *data1, void *data2)
+gensio_gensio_acc_ssl_cb(void *acc_data, int op, void *data1, void *data2,
+			 void *data3)
 {
     switch (op) {
     case GENSIO_GENSIO_ACC_CONNECT_START:
