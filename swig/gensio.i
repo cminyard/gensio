@@ -223,17 +223,53 @@ gensio_thread_sighandler(int sig)
 #endif
 
 struct os_funcs_data {
+#ifdef USE_POSIX_THREADS
+    pthread_mutex_t lock;
+#endif
     unsigned int refcount;
     struct selector_s *sel;
 };
 
-static void check_os_funcs_free(struct gensio_os_funcs *o)
+#ifdef USE_POSIX_THREADS
+void os_funcs_lock(struct os_funcs_data *odata)
+{
+    pthread_mutex_lock(&odata->lock);
+}
+void os_funcs_unlock(struct os_funcs_data *odata)
+{
+    pthread_mutex_unlock(&odata->lock);
+}
+#else
+void os_funcs_lock(struct os_funcs_data *odata)
+{
+}
+void os_funcs_unlock(struct os_funcs_data *odata)
+{
+}
+#endif
+
+static void
+os_funcs_ref(struct gensio_os_funcs *o)
 {
     struct os_funcs_data *odata = o->other_data;
 
+    os_funcs_lock(odata);
+    odata->refcount++;
+    os_funcs_unlock(odata);
+}
+
+static void
+check_os_funcs_free(struct gensio_os_funcs *o)
+{
+    struct os_funcs_data *odata = o->other_data;
+
+    os_funcs_lock(odata);
     if (--odata->refcount == 0) {
+	os_funcs_unlock(odata);
 	free(odata);
 	o->free_funcs(o);
+    } else {
+	os_funcs_unlock(odata);
     }
 }
 
@@ -272,6 +308,9 @@ struct gensio_os_funcs *alloc_gensio_selector(void)
 
     odata = malloc(sizeof(*odata));
     odata->refcount = 1;
+#ifdef USE_POSIX_THREADS
+    pthread_mutex_init(&odata->lock, NULL);
+#endif
 
     o = gensio_selector_alloc(sel, wake_sig);
     if (!o) {
@@ -282,6 +321,60 @@ struct gensio_os_funcs *alloc_gensio_selector(void)
 
     return o;
 }
+
+static struct gensio_data *
+alloc_gensio_data(struct gensio_os_funcs *o, swig_cb *handler)
+{
+    struct gensio_data *data;
+
+    data = malloc(sizeof(*data));
+    if (!data)
+	return NULL;
+    data->refcount = 1;
+    if (nil_swig_cb(handler))
+	data->handler_val = NULL;
+    else
+	data->handler_val = ref_swig_cb(handler, read_callback);
+    os_funcs_ref(o);
+    data->o = o;
+
+    return data;
+}
+
+static void
+free_gensio_data(struct gensio_data *data)
+{
+    deref_swig_cb_val(data->handler_val);
+    check_os_funcs_free(data->o);
+    free(data);
+}
+
+static void
+ref_gensio_data(struct gensio_data *data)
+{
+    struct os_funcs_data *odata = data->o->other_data;
+
+    os_funcs_lock(odata);
+    data->refcount++;
+    os_funcs_unlock(odata);
+}
+
+static void
+deref_gensio_data(struct gensio_data *data, struct gensio *io)
+{
+    struct os_funcs_data *odata = data->o->other_data;
+
+    os_funcs_lock(odata);
+    data->refcount--;
+    if (data->refcount <= 0) {
+	os_funcs_unlock(odata);
+	gensio_free(io);
+	free_gensio_data(data);
+    } else {
+	os_funcs_unlock(odata);
+    }
+}
+
 %}
 
 %init %{
@@ -336,25 +429,18 @@ struct waiter { };
 
 %extend gensio {
     gensio(struct gensio_os_funcs *o, char *str, swig_cb *handler) {
-	struct os_funcs_data *odata = o->other_data;
 	int rv;
 	struct gensio_data *data;
 	struct gensio *io = NULL;
 
-	data = malloc(sizeof(*data));
+	data = alloc_gensio_data(o, handler);
 	if (!data)
 	    return NULL;
-	data->refcount = 1;
-	data->handler_val = ref_swig_cb(handler, read_callback);
-	data->o = o;
 
 	rv = str_to_gensio(str, o, gensio_child_event, data, &io);
 	if (rv) {
-	    deref_swig_cb_val(data->handler_val);
-	    free(data);
+	    free_gensio_data(data);
 	    ser_err_handle("gensio alloc", rv);
-	} else {
-	    odata->refcount++;
 	}
 
 	return io;
@@ -364,13 +450,7 @@ struct waiter { };
     {
 	struct gensio_data *data = gensio_get_user_data(self);
 
-	data->refcount--;
-	if (data->refcount <= 0) {
-	    gensio_free(self);
-	    deref_swig_cb_val(data->handler_val);
-	    check_os_funcs_free(data->o);
-	    free(data);
-	}
+	deref_gensio_data(data, self);
     }
 
     void set_cbs(swig_cb *handler) {
@@ -422,12 +502,11 @@ struct waiter { };
 	struct gensio_data *data;
 	struct gensio *io = NULL;
 
-	data = malloc(sizeof(*data));
-	if (!data)
+	data = alloc_gensio_data(olddata->o, handler);
+	if (!data) {
+	    ser_err_handle("gensio open channel", rv);
 	    return NULL;
-	data->refcount = 1;
-	data->handler_val = ref_swig_cb(handler, read_callback);
-	data->o = olddata->o;
+	}
 
 	if (!nil_swig_cb(done)) {
 	    open_done = gensio_open_done;
@@ -435,10 +514,13 @@ struct waiter { };
 	}
 	rv = gensio_open_channel(self, args, gensio_child_event, data,
 				 open_done, done_val, &io);
-	if (rv && done_val)
-	    deref_swig_cb_val(done_val);
+	if (rv) {
+	    if (done_val)
+		deref_swig_cb_val(done_val);
+	    free_gensio_data(data);
+	    err_handle("open_channel", rv);
+	}
 
-	err_handle("open_channel", rv);
 	return io;
     }
 
@@ -446,23 +528,23 @@ struct waiter { };
     %rename(open_channel_s) open_channel_st;
     struct gensio *open_channel_st(const char * const *args, swig_cb *handler) {
 	struct gensio_data *olddata = gensio_get_user_data(self);
+	struct gensio_os_funcs *o = olddata->o;
 	int rv = 0;
 	struct gensio_data *data;
 	struct gensio *io = NULL;
 
-	data = malloc(sizeof(*data));
-	if (!data)
+	data = alloc_gensio_data(o, handler);
+	if (!data) {
+	    ser_err_handle("gensio alloc", rv);
 	    return NULL;
-	data->refcount = 1;
-	if (nil_swig_cb(handler))
-	    data->handler_val = NULL;
-	else
-	    data->handler_val = ref_swig_cb(handler, read_callback);
-	data->o = olddata->o;
+	}
 
 	rv = gensio_open_channel_s(self, args, gensio_child_event, data, &io);
+	if (rv) {
+	    free_gensio_data(data);
+	    err_handle("open_channel", rv);
+	}
 
-	err_handle("open_channel", rv);
 	return io;
     }
 
@@ -540,7 +622,7 @@ struct waiter { };
 
 	if (!sio)
 	    cast_error("sergensio", "gensio");
-	data->refcount++;
+	ref_gensio_data(data);
 	return sio;
     }
 }
@@ -654,12 +736,7 @@ struct waiter { };
 	struct gensio *io = sergensio_to_gensio(self);
 	struct gensio_data *data = gensio_get_user_data(io);
 
-	data->refcount--;
-	if (data->refcount <= 0) {
-	    gensio_free(io);
-	    deref_swig_cb_val(data->handler_val);
-	    free(data);
-	}
+	deref_gensio_data(data, io);
     }
 
     %newobject cast_to_gensio;
@@ -667,7 +744,7 @@ struct waiter { };
 	struct gensio *io = sergensio_to_gensio(self);
 	struct gensio_data *data = gensio_get_user_data(io);
 
-	data->refcount++;
+	ref_gensio_data(data);
 	return io;
     }
 
@@ -840,25 +917,18 @@ struct waiter { };
 
 %extend gensio_accepter {
     gensio_accepter(struct gensio_os_funcs *o, char *str, swig_cb *handler) {
-	struct os_funcs_data *odata = o->other_data;
-	struct gensio_acc_data *data;
+	struct gensio_data *data;
 	struct gensio_accepter *acc = NULL;
 	int rv;
 
-	data = malloc(sizeof(*data));
+	data = alloc_gensio_data(o, handler);
 	if (!data)
 	    return NULL;
 
-	data->o = o;
-	data->handler_val = ref_swig_cb(handler, new_connection);
-
 	rv = str_to_gensio_accepter(str, o, gensio_acc_child_event, data, &acc);
 	if (rv) {
-	    deref_swig_cb_val(data->handler_val);
-	    free(data);
+	    free_gensio_data(data);
 	    err_handle("gensio_accepter constructor", rv);
-	} else {
-	    odata->refcount++;
 	}
 
 	return acc;
@@ -866,12 +936,31 @@ struct waiter { };
 
     ~gensio_accepter()
     {
-	struct gensio_acc_data *data = gensio_acc_get_user_data(self);
+	struct gensio_data *data = gensio_acc_get_user_data(self);
 
 	gensio_acc_free(self);
-	deref_swig_cb_val(data->handler_val);
-	check_os_funcs_free(data->o);
-	free(data);
+	free_gensio_data(data);
+    }
+
+    %newobject str_to_gensio;
+    struct gensio *str_to_gensio(char *str, swig_cb *handler) {
+	struct gensio_data *olddata = gensio_acc_get_user_data(self);
+	int rv;
+	struct gensio_data *data;
+	struct gensio *io;
+
+	data = alloc_gensio_data(olddata->o, handler);
+	if (!data)
+	    return NULL;
+
+	rv = gensio_acc_str_to_gensio(self, str, gensio_child_event, data,
+				      &io);
+	if (rv) {
+	    free_gensio_data(data);
+	    ser_err_handle("str to gensio", rv);
+	}
+
+	return io;
     }
 
     void startup() {
@@ -905,7 +994,6 @@ struct waiter { };
 
 %extend waiter {
     waiter(struct gensio_os_funcs *o) {
-	struct os_funcs_data *odata = o->other_data;
 	struct waiter *w = malloc(sizeof(*w));
 
 	if (w) {
@@ -916,7 +1004,7 @@ struct waiter { };
 		w = NULL;
 		ser_err_handle("waiter", ENOMEM);
 	    } else {
-		odata->refcount++;
+		os_funcs_ref(o);
 	    }
 	} else {
 	    ser_err_handle("waiter", ENOMEM);

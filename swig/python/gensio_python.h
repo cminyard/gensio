@@ -92,9 +92,11 @@ deref_swig_cb_val(swig_cb_val *cb)
 {
     OI_PY_STATE gstate;
 
-    gstate = OI_PY_STATE_GET();
-    Py_DECREF(cb);
-    OI_PY_STATE_PUT(gstate);
+    if (cb) {
+	gstate = OI_PY_STATE_GET();
+	Py_DECREF(cb);
+	OI_PY_STATE_PUT(gstate);
+    }
     return cb;
 }
 
@@ -554,11 +556,6 @@ gensio_child_event(struct gensio *io, int event, int readerr,
     return rv;
 }
 
-struct gensio_acc_data {
-    swig_cb_val *handler_val;
-    struct gensio_os_funcs *o;
-};
-
 static void
 gensio_acc_shutdown_done(struct gensio_accepter *accepter, void *cb_data)
 {
@@ -599,7 +596,7 @@ const char *gensio_log_level_to_str(int gloglevel)
 static int
 gensio_acc_child_event(struct gensio_accepter *accepter, int event, void *cdata)
 {
-    struct gensio_acc_data *data = gensio_acc_get_user_data(accepter);
+    struct gensio_data *data = gensio_acc_get_user_data(accepter);
     swig_ref acc_ref, io_ref;
     PyObject *args, *o;
     OI_PY_STATE gstate;
