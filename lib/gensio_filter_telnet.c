@@ -80,7 +80,7 @@ struct telnet_filter {
     unsigned int write_data_len;
 };
 
-#define filter_to_telnet(v) container_of(v, struct telnet_filter, filter)
+#define filter_to_telnet(v) gensio_container_of(v, struct telnet_filter, filter)
 
 static void telnet_filter_send_cmd(struct gensio_filter *filter,
 				   const unsigned char *buf,

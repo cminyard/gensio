@@ -262,4 +262,7 @@ int gensio_check_keyboolv(const char *str, const char *key,
 			  const char *trueval, const char *falseval,
 			  bool *rvalue);
 
+#define gensio_container_of(ptr, type, member)			\
+    ((type *)(((char *) ptr) - offsetof(type, member)))
+
 #endif /* GENSIO_CLASS_H */

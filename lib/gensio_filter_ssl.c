@@ -80,7 +80,7 @@ struct ssl_filter {
     unsigned int xmit_buf_len;
 };
 
-#define filter_to_ssl(v) container_of(v, struct ssl_filter, filter)
+#define filter_to_ssl(v) gensio_container_of(v, struct ssl_filter, filter)
 
 static void
 ssl_lock(struct ssl_filter *sfilter)

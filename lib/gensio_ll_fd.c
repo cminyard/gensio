@@ -80,7 +80,7 @@ struct fd_ll {
     bool deferred_close;
 };
 
-#define ll_to_fd(v) container_of(v, struct fd_ll, ll)
+#define ll_to_fd(v) gensio_container_of(v, struct fd_ll, ll)
 
 static void
 fd_lock(struct fd_ll *fdll)

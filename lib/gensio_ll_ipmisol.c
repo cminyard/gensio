@@ -625,7 +625,7 @@ struct sol_ll {
 
 os_handler_t *gensio_os_handler;
 
-#define ll_to_sol(v) container_of(v, struct sol_ll, ll)
+#define ll_to_sol(v) gensio_container_of(v, struct sol_ll, ll)
 
 static void
 sol_lock(struct sol_ll *solll)

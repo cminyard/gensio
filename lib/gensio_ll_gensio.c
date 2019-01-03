@@ -37,7 +37,7 @@ struct gensio_ll_child {
     void *close_data;
 };
 
-#define ll_to_child(v) container_of(v, struct gensio_ll_child, ll)
+#define ll_to_child(v) gensio_container_of(v, struct gensio_ll_child, ll)
 
 static void
 child_set_callbacks(struct gensio_ll *ll, gensio_ll_cb cb, void *cb_data)
