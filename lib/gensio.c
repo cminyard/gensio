@@ -460,11 +460,19 @@ scan_ips(struct gensio_os_funcs *o, const char *str, bool listen, int ifamily,
 	    ip = strtok_r(NULL, ",", &strtok_data);
 	}
 
+	if (ip == NULL) {
+	    rv = EINVAL;
+	    goto out_err;
+	}
+
 	port = strtok_r(NULL, ",", &strtok_data);
 	if (port == NULL) {
 	    port = ip;
 	    ip = NULL;
 	}
+
+	if (ip && *ip == '\0')
+	    ip = NULL;
 
 	memset(&hints, 0, sizeof(hints));
 	hints.ai_flags = bflags | rflags;
@@ -531,29 +539,16 @@ scan_ips(struct gensio_os_funcs *o, const char *str, bool listen, int ifamily,
     return rv;
 }
 
-/*
- * Scan for a network port in the form:
- *
- *   [tcp|udp[(<args>)],][ipv4|ipv6|ipv6n4,][<hostname>,]<port>
- *
- * If neither ipv4 nor ipv6 is specified, addresses for both are
- * returned.  If neither tcp nor udp is specified, tcp is assumed.
- * The hostname can be a resolvable hostname, an IPv4 octet, or an
- * IPv6 address.  If it is not supplied, inaddr_any is used.  In the
- * absence of a hostname specification, a wildcard address is used.
- * The mandatory second part is the port number or a service name.
- *
- * If the port is all zero, then is_port_set is set to false, true
- * otherwise.  If the address is UDP, is_dgram is set to true, false
- * otherwise.
- */
-static int
-scan_network_port_args(struct gensio_os_funcs *o, const char *str,
-		       bool listen, struct addrinfo **rai,
-		       int *socktype, int *protocol,
-		       bool *is_port_set, int *argc, const char ***args)
+int
+gensio_scan_network_port(struct gensio_os_funcs *o, const char *str,
+			 bool listen, struct addrinfo **rai,
+			 int *socktype, int *protocol,
+			 bool *is_port_set,
+			 int *rargc, const char ***rargs)
 {
-    int err = 0, family = AF_UNSPEC;
+    int err = 0, family = AF_UNSPEC, argc = 0;
+    const char **args = NULL;
+    bool doskip = true;
 
     if (strncmp(str, "ipv4,", 5) == 0) {
 	family = AF_INET;
@@ -565,61 +560,49 @@ scan_network_port_args(struct gensio_os_funcs *o, const char *str,
 
     if (strncmp(str, "tcp,", 4) == 0 ||
 		(args && strncmp(str, "tcp(", 4) == 0)) {
-	if (args) {
-	    str += 3;
-	    err = gensio_scan_args(&str, argc, args);
-	} else {
-	    str += 4;
-	}
-	if (err)
-	    return err;
+	str += 3;
 	*socktype = SOCK_STREAM;
 	*protocol = IPPROTO_TCP;
     } else if (strncmp(str, "udp,", 4) == 0 ||
 	       (args && strncmp(str, "udp(", 4) == 0)) {
-	if (args) {
-	    str += 3;
-	    err = gensio_scan_args(&str, argc, args);
-	} else {
-	    str += 4;
-	}
-	if (err)
-	    return err;
+	str += 3;
 	*socktype = SOCK_DGRAM;
 	*protocol = IPPROTO_UDP;
     } else if (strncmp(str, "sctp,", 5) == 0 ||
 	       (args && strncmp(str, "sctp(", 5) == 0)) {
-	if (args) {
-	    str += 4;
-	    err = gensio_scan_args(&str, argc, args);
-	} else {
-	    str += 5;
-	}
-	if (err)
-	    return err;
+	str += 4;
 	*socktype = SOCK_SEQPACKET;
 	*protocol = IPPROTO_SCTP;
-    } else if (args) {
-	err = str_to_argv_lengths("", argc, args, NULL, ")");
-	if (err)
-	    return err;
+    } else {
+	doskip = false;
 	*socktype = SOCK_STREAM;
 	*protocol = IPPROTO_TCP;
     }
 
-    return scan_ips(o, str, listen, family, *socktype, *protocol,
-		    is_port_set, rai);
-}
+    if (doskip) {
+	if (*str == '(') {
+	    if (!args)
+		return EINVAL;
+	    str++;
+	    err = gensio_scan_args(&str, &argc, &args);
+	    if (err)
+		return err;
+	} else {
+	    str++; /* Skip the ',' */
+	}
+    }
 
-int
-gensio_scan_network_port(struct gensio_os_funcs *o, const char *str,
-			 bool listen, struct addrinfo **ai,
-			 int *socktype, int *protocol,
-			 bool *is_port_set)
-{
-    return scan_network_port_args(o, str, listen,
-				  ai, socktype, protocol, is_port_set,
-				  NULL, NULL);
+    err = scan_ips(o, str, listen, family, *socktype, *protocol,
+		   is_port_set, rai);
+    if (err) {
+	if (args)
+	    str_to_argv_free(argc, args);
+	return err;
+    }
+
+    *rargc = argc;
+    *rargs = args;
+    return 0;
 }
 
 int
@@ -1156,8 +1139,8 @@ int str_to_gensio_accepter(const char *str,
 	err = stdio_gensio_accepter_alloc(NULL, o, cb, user_data,
 					  accepter);
     } else {
-	err = scan_network_port_args(o, str, true, &ai, &socktype, &protocol,
-				     &is_port_set, &argc, &args);
+	err = gensio_scan_network_port(o, str, true, &ai, &socktype, &protocol,
+				       &is_port_set, &argc, &args);
 	if (!err) {
 	    if (!is_port_set) {
 		err = EINVAL;
@@ -1277,8 +1260,8 @@ str_to_gensio(const char *str,
 	goto out;
     }
 
-    err = scan_network_port_args(o, str, false, &ai, &socktype, &protocol,
-				 &is_port_set, &argc, &args);
+    err = gensio_scan_network_port(o, str, false, &ai, &socktype, &protocol,
+				   &is_port_set, &argc, &args);
     if (!err) {
 	if (!is_port_set) {
 	    err = EINVAL;

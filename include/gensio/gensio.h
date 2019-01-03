@@ -681,28 +681,47 @@ int gensio_sockaddr_get_port(const struct sockaddr *s);
 /*
  * Scan for a network port in the form:
  *
- *   [ipv4|ipv6,][tcp|udp,][<hostname>,]<port>
+ *   <ipspec><protocol>,<hostnames>
  *
- * If neither ipv4 nor ipv6 is specified, addresses for both are
- * returned.  If neither tcp nor udp is specified, tcp is assumed.
- * The hostname can be a resolvable hostname, an IPv4 octet, or an
- * IPv6 address.  If it is not supplied, inaddr_any is used.  In the
- * absence of a hostname specification, a wildcard address is used.
- * The mandatory second part is the port number or a service name.
+ *   protocol = [tcp|udp|sctp[(<args>)]]
  *
- * If the port is all zero or not present, then is_port_set is set to
- * true, false otherwise.
+ *   hostnames = [[...]<ipspec>[<hostname>,]<port>,]<ipspec>[<hostname>,]<port>
+ *
+ *   ipspec = [ipv4|ipv6|ipv6n4,]
+ *
+ * The initial ipspec sets the default for all the addresses.  If it
+ * is not specified, the default if AF_UNSPEC and everything will
+ * be returned.
+ *
+ * If a protocol is not specified, the TCP is assumed.
+ *
+ * If the args parameter supplied is NULL, then you cannot specify
+ * args in the string, EINVAL will be returned.
+ *
+ * You can specify the IP address type on each hostname/port and it
+ * overrides the default.  The hostname can be a resolvable hostname,
+ * an IPv4 octet, an IPv6 address, or an empty string.  If it is not
+ * supplied, inaddr_any is used.  In the absence of a hostname
+ * specification, a wildcard address is used.  The mandatory second
+ * part is the port number or a service name.
+ *
+ * An all zero port means use any port. If the port is all zero on any
+ * address, then is_port_set is set to false, true otherwise.
  *
  * The socktype and protocol values are returned for the socket()
- * call.  For UDP, it's SOCK_DGRAM and IPPROTO_UDP and for TCP
- * it's SOCK_SCTREAM and IPPROTO_TCP.
+ * call.  For UDP, it's SOCK_DGRAM and IPPROTO_UDP, for TCP it's
+ * SOCK_SCTREAM and IPPROTO_TCP, and for SCTP it's SOCKSETPACKET and
+ * IPPROTO_SCTP.
  *
  * ai should be freed with gensio_free_addrinfo().
+ *
+ * args should be freed with str_to_argv_free().
  */
 int gensio_scan_network_port(struct gensio_os_funcs *o, const char *str,
 			     bool listen, struct addrinfo **ai,
 			     int *socktype, int *protocol,
-			     bool *is_port_set);
+			     bool *is_port_set,
+			     int *argc, const char ***args);
 
 /*
  * This allows a global to disable uucp locking for everything.
