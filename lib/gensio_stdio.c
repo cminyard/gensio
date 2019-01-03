@@ -1105,8 +1105,8 @@ stdiona_free(struct gensio_accepter *accepter)
 
 static int
 gensio_acc_stdio_func(struct gensio_accepter *acc, int func, int val,
-		      void *addr, void *done, void *data,
-		      void *ret)
+		      const char *addr, void *done, void *data,
+		      const void *data2, void *ret)
 {
     switch (func) {
     case GENSIO_ACC_FUNC_STARTUP:

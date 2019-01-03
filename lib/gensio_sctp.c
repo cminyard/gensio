@@ -910,7 +910,8 @@ sctpna_free(struct gensio_accepter *accepter)
 }
 
 int
-sctpna_connect(struct gensio_accepter *accepter, void *addr,
+sctpna_connect(struct gensio_accepter *accepter, const char *addr,
+	       const char * const *iargs,
 	       gensio_done_err connect_done, void *cb_data,
 	       struct gensio **new_net)
 {
@@ -919,17 +920,35 @@ sctpna_connect(struct gensio_accepter *accepter, void *addr,
     int err;
     const char *args[4] = { NULL, NULL, NULL, NULL };
     char buf[100], buf2[100], buf3[100];
+    unsigned int max_read_size = nadata->max_read_size;
+    unsigned int instreams = nadata->initmsg.sinit_max_instreams;
+    unsigned int ostreams = nadata->initmsg.sinit_num_ostreams;
+    unsigned int i;
 
-    if (nadata->max_read_size != GENSIO_DEFAULT_BUF_SIZE) {
-	snprintf(buf, 100, "readbuf=%d", nadata->max_read_size);
-	args[0] = buf;
-	snprintf(buf2, 100, "instreams=%d",
-		 nadata->initmsg.sinit_max_instreams);
-	args[1] = buf2;
-	snprintf(buf3, 100, "ostreams=%d", nadata->initmsg.sinit_num_ostreams);
-	args[2] = buf3;
+    for (i = 0; iargs && iargs[i]; i++) {
+	if (gensio_check_keyuint(iargs[i], "readbuf", &max_read_size) > 0)
+	    continue;
+	if (gensio_check_keyuint(iargs[i], "instreams", &instreams) > 0)
+	    continue;
+	if (gensio_check_keyuint(iargs[i], "ostreams", &ostreams) > 0)
+	    continue;
+	return EINVAL;
     }
-    err = sctp_gensio_alloc(addr, args, nadata->o, NULL, NULL, &net);
+
+    i = 0;
+    if (nadata->max_read_size != GENSIO_DEFAULT_BUF_SIZE) {
+	snprintf(buf, 100, "readbuf=%d", max_read_size);
+	args[i++] = buf;
+    }
+    if (instreams > 1) {
+	snprintf(buf2, 100, "instreams=%d", instreams);
+	args[i++] = buf2;
+    }
+    if (ostreams > 1) {
+	snprintf(buf3, 100, "ostreams=%d", ostreams);
+	args[i++] = buf3;
+    }
+    err = str_to_sctp_gensio(addr, args, nadata->o, NULL, NULL, &net);
     if (err)
 	return err;
     err = gensio_open(net, connect_done, cb_data);
@@ -940,8 +959,8 @@ sctpna_connect(struct gensio_accepter *accepter, void *addr,
 
 static int
 gensio_acc_sctp_func(struct gensio_accepter *acc, int func, int val,
-		     void *addr, void *done, void *data,
-		     void *ret)
+		     const char *addr, void *done, void *data,
+		     const void *data2, void *ret)
 {
     switch (func) {
     case GENSIO_ACC_FUNC_STARTUP:
@@ -959,7 +978,7 @@ gensio_acc_sctp_func(struct gensio_accepter *acc, int func, int val,
 	return 0;
 
     case GENSIO_ACC_FUNC_CONNECT:
-	return sctpna_connect(acc, addr, done, data, ret);
+	return sctpna_connect(acc, addr, data2, done, data, ret);
 
     default:
 	return ENOTSUP;

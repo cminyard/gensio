@@ -437,7 +437,8 @@ void gensio_acc_free(struct gensio_accepter *accepter);
  * with this call, if connect_done is called with an error, the gensio
  * is *not* automatically freed.  You must do that.
  */
-int gensio_acc_connect(struct gensio_accepter *accepter, void *addr,
+int gensio_acc_connect(struct gensio_accepter *accepter, const char *addr,
+		       const char * const *args,
 		       gensio_done_err connect_done, void *cb_data,
 		       struct gensio **new_io);
 /*

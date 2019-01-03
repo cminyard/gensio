@@ -1003,7 +1003,7 @@ int
 gensio_acc_startup(struct gensio_accepter *accepter)
 {
     return accepter->func(accepter, GENSIO_ACC_FUNC_STARTUP, 0,
-			  NULL, NULL, NULL, NULL);
+			  NULL, NULL, NULL, NULL, NULL);
 }
 
 int
@@ -1011,7 +1011,7 @@ gensio_acc_shutdown(struct gensio_accepter *accepter,
 		    gensio_acc_done shutdown_done, void *shutdown_data)
 {
     return accepter->func(accepter, GENSIO_ACC_FUNC_SHUTDOWN, 0,
-			  0, shutdown_done, shutdown_data, NULL);
+			  0, shutdown_done, shutdown_data, NULL, NULL);
 }
 
 void
@@ -1019,22 +1019,24 @@ gensio_acc_set_accept_callback_enable(struct gensio_accepter *accepter,
 				      bool enabled)
 {
     accepter->func(accepter, GENSIO_ACC_FUNC_SET_ACCEPT_CALLBACK, enabled,
-		   NULL, NULL, NULL, NULL);
+		   NULL, NULL, NULL, NULL, NULL);
 }
 
 void
 gensio_acc_free(struct gensio_accepter *accepter)
 {
-    accepter->func(accepter, GENSIO_ACC_FUNC_FREE, 0, NULL, NULL, NULL, NULL);
+    accepter->func(accepter, GENSIO_ACC_FUNC_FREE, 0, NULL, NULL, NULL, NULL,
+		   NULL);
 }
 
 int
-gensio_acc_connect(struct gensio_accepter *accepter, void *addr,
+gensio_acc_connect(struct gensio_accepter *accepter, const char *addr,
+		   const char * const *args,
 		   gensio_done_err connect_done, void *cb_data,
 		   struct gensio **new_io)
 {
     return accepter->func(accepter, GENSIO_ACC_FUNC_FREE, 0,
-			  addr, connect_done, cb_data, new_io);
+			  addr, connect_done, cb_data, args, new_io);
 }
 
 /* FIXME - this is a cheap hack and needs to be fixed. */

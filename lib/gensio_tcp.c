@@ -642,7 +642,8 @@ tcpna_free(struct gensio_accepter *accepter)
 }
 
 int
-tcpna_connect(struct gensio_accepter *accepter, void *addr,
+tcpna_connect(struct gensio_accepter *accepter, const char *addr,
+	      const char * const *iargs,
 	      gensio_done_err connect_done, void *cb_data,
 	      struct gensio **new_net)
 {
@@ -651,12 +652,20 @@ tcpna_connect(struct gensio_accepter *accepter, void *addr,
     int err;
     const char *args[2] = { NULL, NULL };
     char buf[100];
+    unsigned int i;
+    unsigned int max_read_size = nadata->max_read_size;
 
-    if (nadata->max_read_size != GENSIO_DEFAULT_BUF_SIZE) {
+    for (i = 0; iargs && iargs[i]; i++) {
+	if (gensio_check_keyuint(iargs[i], "readbuf", &max_read_size) > 0)
+	    continue;
+	return EINVAL;
+    }
+
+    if (max_read_size != GENSIO_DEFAULT_BUF_SIZE) {
 	snprintf(buf, 100, "readbuf=%d", nadata->max_read_size);
 	args[0] = buf;
     }
-    err = tcp_gensio_alloc(addr, args, nadata->o, NULL, NULL, &net);
+    err = str_to_tcp_gensio(addr, args, nadata->o, NULL, NULL, &net);
     if (err)
 	return err;
     err = gensio_open(net, connect_done, cb_data);
@@ -667,7 +676,7 @@ tcpna_connect(struct gensio_accepter *accepter, void *addr,
 
 static int
 gensio_acc_tcp_func(struct gensio_accepter *acc, int func, int val,
-		    void *addr, void *done, void *data,
+		    const char *addr, void *done, void *data, const void *data2,
 		    void *ret)
 {
     switch (func) {
@@ -686,7 +695,7 @@ gensio_acc_tcp_func(struct gensio_accepter *acc, int func, int val,
 	return 0;
 
     case GENSIO_ACC_FUNC_CONNECT:
-	return tcpna_connect(acc, addr, done, data, ret);
+	return tcpna_connect(acc, addr, data2, done, data, ret);
 
     default:
 	return ENOTSUP;
@@ -702,9 +711,9 @@ tcp_gensio_accepter_alloc(struct addrinfo *iai,
 {
     struct tcpna_data *nadata;
     unsigned int max_read_size = GENSIO_DEFAULT_BUF_SIZE;
-    int i;
+    unsigned int i;
 
-    for (i = 0; args[i]; i++) {
+    for (i = 0; args && args[i]; i++) {
 	if (gensio_check_keyuint(args[i], "readbuf", &max_read_size) > 0)
 	    continue;
 	return EINVAL;

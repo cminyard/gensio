@@ -156,7 +156,8 @@ void *gensio_getclass(struct gensio *io, const char *name);
 #define GENSIO_ACC_FUNC_FREE			4
 
 /*
- * addr => addr
+ * str => addr
+ * args => data2
  * connect_done => done
  * cb_data => data
  * new_io => ret
@@ -164,8 +165,8 @@ void *gensio_getclass(struct gensio *io, const char *name);
 #define GENSIO_ACC_FUNC_CONNECT			5
 
 typedef int (*gensio_acc_func)(struct gensio_accepter *acc, int func, int val,
-			       void *addr, void *done, void *data,
-			       void *ret);
+			       const char *addr, void *done, void *data,
+			       const void *data2, void *ret);
 
 struct gensio_accepter *gensio_acc_data_alloc(struct gensio_os_funcs *o,
 		      gensio_accepter_event cb, void *user_data,

@@ -1018,17 +1018,22 @@ udpna_free(struct gensio_accepter *accepter)
 }
 
 int
-udpna_connect(struct gensio_accepter *accepter, void *addr,
+udpna_connect(struct gensio_accepter *accepter, const char *addr,
+	      const char * const *args,
 	      gensio_done_err connect_done, void *cb_data,
 	      struct gensio **new_net)
 {
     struct udpna_data *nadata = gensio_acc_get_gensio_data(accepter);
     struct udpn_data *ndata;
-    struct addrinfo *ai = gensio_dup_addrinfo(nadata->o, addr);
+    struct addrinfo *ai;
     unsigned int fdi;
+    int err;
 
-    if (!ai)
-	return ENOMEM;
+    err = gensio_scan_netaddr(nadata->o, addr, false, SOCK_DGRAM, IPPROTO_UDP,
+			      &ai);
+
+    if (err)
+	return err;
 
     while (ai) {
 	for (fdi = 0; fdi < nadata->nr_fds; fdi++) {
@@ -1096,8 +1101,8 @@ udpna_connect(struct gensio_accepter *accepter, void *addr,
 
 static int
 gensio_acc_udp_func(struct gensio_accepter *acc, int func, int val,
-		    void *addr, void *done, void *data,
-		    void *ret)
+		    const char *addr, void *done, void *data,
+		    const void *data2, void *ret)
 {
     switch (func) {
     case GENSIO_ACC_FUNC_STARTUP:
@@ -1115,7 +1120,7 @@ gensio_acc_udp_func(struct gensio_accepter *acc, int func, int val,
 	return 0;
 
     case GENSIO_ACC_FUNC_CONNECT:
-	return udpna_connect(acc, addr, done, data, ret);
+	return udpna_connect(acc, addr, data2, done, data, ret);
 
     default:
 	return ENOTSUP;

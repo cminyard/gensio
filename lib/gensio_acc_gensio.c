@@ -245,7 +245,8 @@ basena_child_connect_done(struct gensio *net, int err, void *cb_data)
 }
 
 int
-basena_connect(struct gensio_accepter *accepter, void *addr,
+basena_connect(struct gensio_accepter *accepter, const char *addr,
+	       const char * const *args,
 	       void (*connect_done)(struct gensio *net, int err, void *cb_data),
 	       void *cb_data, struct gensio **new_net)
 {
@@ -270,8 +271,8 @@ basena_connect(struct gensio_accepter *accepter, void *addr,
     cdata->cb_data = cb_data;
 
     o->lock(cdata->lock);
-    err = gensio_acc_connect(nadata->child, addr, basena_child_connect_done,
-			     cdata, &child);
+    err = gensio_acc_connect(nadata->child, addr, args,
+			     basena_child_connect_done, cdata, &child);
     if (err) {
 	o->unlock(cdata->lock);
 	goto out;
@@ -302,8 +303,8 @@ basena_connect(struct gensio_accepter *accepter, void *addr,
 
 static int
 gensio_acc_base_func(struct gensio_accepter *acc, int func, int val,
-		    void *addr, void *done, void *data,
-		    void *ret)
+		     const char *addr, void *done, void *data, const
+		     void *data2, void *ret)
 {
     switch (func) {
     case GENSIO_ACC_FUNC_STARTUP:
@@ -321,7 +322,7 @@ gensio_acc_base_func(struct gensio_accepter *acc, int func, int val,
 	return 0;
 
     case GENSIO_ACC_FUNC_CONNECT:
-	return basena_connect(acc, addr, done, data, ret);
+	return basena_connect(acc, addr, data2, done, data, ret);
 
     default:
 	return ENOTSUP;
