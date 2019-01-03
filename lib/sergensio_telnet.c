@@ -924,25 +924,11 @@ stel_setup(const char * const args[], bool default_is_client,
     int err;
 
     for (i = 0; args && args[i]; i++) {
-	const char *val;
-
-	if (cmpstrval(args[i], "rfc2217=", &val)) {
-	    if ((strcmp(val, "true") == 0) || (strcmp(val, "1") == 0))
-		allow_2217 = true;
-	    else if ((strcmp(val, "false") == 0) || (strcmp(val, "0") == 0))
-		allow_2217 = false;
-	    else
-		return EINVAL;
-	}
-	if (cmpstrval(args[i], "mode=", &val)) {
-	    if (strcmp(val, "client") == 0)
-		is_client = true;
-	    else if (strcmp(val, "server") == 0)
-		is_client = false;
-	    else
-		return EINVAL;
+	if (gensio_check_keybool(args[i], "rfc2217", &allow_2217) > 0)
 	    continue;
-	}
+	if (gensio_check_keyboolv(args[i], "mode", "client", "server",
+				  &is_client) > 0)
+	    continue;
 	/* Ignore everything else, the filter will handle it. */
     }
 
@@ -1178,33 +1164,15 @@ telnet_gensio_accepter_alloc(struct gensio_accepter *child,
     bool is_client = false;
 
     for (i = 0; args && args[i]; i++) {
-	const char *val;
-
-	if (strcmp(args[i], "rfc2217") == 0) {
-	    allow_2217 = true;
+	if (gensio_check_keybool(args[i], "rfc2217", &allow_2217) > 0)
 	    continue;
-	} else if (cmpstrval(args[i], "rfc2217=", &val)) {
-	    if ((strcmp(val, "true") == 0) || (strcmp(val, "1") == 0))
-		allow_2217 = true;
-	    else if ((strcmp(val, "false") == 0) || (strcmp(val, "0") == 0))
-		allow_2217 = false;
-	    else
-		return EINVAL;
-	    continue;
-	}
 	if (gensio_check_keyuint(args[i], "writebuf", &max_write_size) > 0)
 	    continue;
 	if (gensio_check_keyuint(args[i], "readbuf", &max_read_size) > 0)
 	    continue;
-	if (cmpstrval(args[i], "mode=", &val)) {
-	    if (strcmp(val, "client") == 0)
-		is_client = true;
-	    else if (strcmp(val, "server") == 0)
-		is_client = false;
-	    else
-		return EINVAL;
+	if (gensio_check_keyboolv(args[i], "mode", "client", "server",
+				  &is_client) > 0)
 	    continue;
-	}
 	return EINVAL;
     }
 

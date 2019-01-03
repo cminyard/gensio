@@ -258,5 +258,8 @@ char *gensio_strdup(struct gensio_os_funcs *o, const char *str);
 int gensio_check_keyvalue(const char *str, const char *key, const char **value);
 int gensio_check_keyuint(const char *str, const char *key, unsigned int *value);
 int gensio_check_keybool(const char *str, const char *key, bool *rvalue);
+int gensio_check_keyboolv(const char *str, const char *key,
+			  const char *trueval, const char *falseval,
+			  bool *rvalue);
 
 #endif /* GENSIO_CLASS_H */

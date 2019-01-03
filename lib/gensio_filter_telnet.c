@@ -695,30 +695,15 @@ gensio_telnet_filter_alloc(struct gensio_os_funcs *o, const char * const args[],
     unsigned int init_seq_len;
 
     for (i = 0; args && args[i]; i++) {
-	const char *val;
-
-	if (cmpstrval(args[i], "rfc2217=", &val)) {
-	    if ((strcmp(val, "true") == 0) || (strcmp(val, "1") == 0))
-		allow_2217 = true;
-	    else if ((strcmp(val, "false") == 0) || (strcmp(val, "0") == 0))
-		allow_2217 = false;
-	    else
-		return EINVAL;
+	if (gensio_check_keybool(args[i], "rfc2217", &allow_2217) > 0)
 	    continue;
-	}
 	if (gensio_check_keyuint(args[i], "writebuf", &max_write_size) > 0)
 	    continue;
 	if (gensio_check_keyuint(args[i], "readbuf", &max_read_size) > 0)
 	    continue;
-	if (cmpstrval(args[i], "mode=", &val)) {
-	    if (strcmp(val, "client") == 0)
-		is_client = true;
-	    else if (strcmp(val, "server") == 0)
-		is_client = false;
-	    else
-		return EINVAL;
+	if (gensio_check_keyboolv(args[i], "mode", "client", "server",
+				  &is_client) > 0)
 	    continue;
-	}
 	return EINVAL;
     }
 

@@ -1512,6 +1512,30 @@ gensio_check_keybool(const char *str, const char *key, bool *rvalue)
     return 1;
 }
 
+int
+gensio_check_keyboolv(const char *str, const char *key, const char *trueval,
+		      const char *falseval, bool *rvalue)
+{
+    const char *sval;
+    int rv;
+
+    rv = gensio_check_keyvalue(str, key, &sval);
+    if (!rv)
+	return 0;
+
+    if (!*sval)
+	return -1;
+
+    if (strcmp(sval, trueval) == 0)
+	*rvalue = true;
+    else if (strcmp(sval, falseval) == 0)
+	*rvalue = false;
+    else
+	return -1;
+
+    return 1;
+}
+
 void
 gensio_vlog(struct gensio_os_funcs *o, enum gensio_log_levels level,
 	    const char *str, va_list args)
