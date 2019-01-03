@@ -1123,7 +1123,7 @@ gensio_acc_stdio_func(struct gensio_accepter *acc, int func, int val,
 	stdiona_free(acc);
 	return 0;
 
-    case GENSIO_ACC_FUNC_CONNECT:
+    case GENSIO_ACC_FUNC_STR_TO_GENSIO:
     default:
 	return ENOTSUP;
     }

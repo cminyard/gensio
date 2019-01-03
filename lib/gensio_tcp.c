@@ -33,6 +33,7 @@
 #include <gensio/gensio.h>
 #include <gensio/gensio_class.h>
 #include <gensio/gensio_ll_fd.h>
+#include <gensio/argvutils.h>
 
 struct tcp_data {
     struct gensio_os_funcs *o;
@@ -642,35 +643,49 @@ tcpna_free(struct gensio_accepter *accepter)
 }
 
 int
-tcpna_connect(struct gensio_accepter *accepter, const char *addr,
-	      const char * const *iargs,
-	      gensio_done_err connect_done, void *cb_data,
-	      struct gensio **new_net)
+tcpna_str_to_gensio(struct gensio_accepter *accepter, const char *addr,
+		    gensio_event cb, void *user_data,
+		    struct gensio **new_net)
 {
     struct tcpna_data *nadata = gensio_acc_get_gensio_data(accepter);
-    struct gensio *net;
     int err;
     const char *args[2] = { NULL, NULL };
     char buf[100];
     unsigned int i;
     unsigned int max_read_size = nadata->max_read_size;
+    const char **iargs;
+    int iargc;
+    struct addrinfo *ai;
+    bool is_port_set;
+    int socktype, protocol;
+
+    err = gensio_scan_network_port(nadata->o, addr, false, &ai, &socktype,
+				   &protocol, &is_port_set, &iargc, &iargs);
+    if (err)
+	return err;
+
+    err = EINVAL;
+    if (protocol != IPPROTO_TCP || !is_port_set)
+	goto out_err;
 
     for (i = 0; iargs && iargs[i]; i++) {
 	if (gensio_check_keyuint(iargs[i], "readbuf", &max_read_size) > 0)
 	    continue;
-	return EINVAL;
+	goto out_err;
     }
 
     if (max_read_size != GENSIO_DEFAULT_BUF_SIZE) {
 	snprintf(buf, 100, "readbuf=%d", nadata->max_read_size);
 	args[0] = buf;
     }
-    err = str_to_tcp_gensio(addr, args, nadata->o, NULL, NULL, &net);
-    if (err)
-	return err;
-    err = gensio_open(net, connect_done, cb_data);
-    if (!err)
-	*new_net = net;
+
+    err = tcp_gensio_alloc(ai, args, nadata->o, cb, user_data, new_net);
+
+ out_err:
+    if (iargs)
+	str_to_argv_free(iargc, iargs);
+    gensio_free_addrinfo(nadata->o, ai);
+
     return err;
 }
 
@@ -694,8 +709,8 @@ gensio_acc_tcp_func(struct gensio_accepter *acc, int func, int val,
 	tcpna_free(acc);
 	return 0;
 
-    case GENSIO_ACC_FUNC_CONNECT:
-	return tcpna_connect(acc, addr, data2, done, data, ret);
+    case GENSIO_ACC_FUNC_STR_TO_GENSIO:
+	return tcpna_str_to_gensio(acc, addr, done, data, ret);
 
     default:
 	return ENOTSUP;

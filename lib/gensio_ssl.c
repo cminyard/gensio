@@ -123,30 +123,44 @@ sslna_free(void *acc_data)
 }
 
 int
-sslna_connect_start(void *acc_data, struct gensio *child, struct gensio **rio)
+sslna_alloc_gensio(void *acc_data, const char * const *iargs,
+		   struct gensio *child, struct gensio **rio)
 {
     struct sslna_data *nadata = acc_data;
     struct gensio_os_funcs *o = nadata->o;
     int err;
     const char *args[4] = {NULL, NULL, NULL, NULL };
     char buf1[50], buf2[50], *str;
-    int i;
+    unsigned int i;
+    unsigned int max_read_size = nadata->max_read_size;
+    unsigned int max_write_size = nadata->max_write_size;
+    const char *CAfilepath = nadata->CAfilepath;
 
-    str = o->zalloc(o, strlen(nadata->CAfilepath) + 4);
+    for (i = 0; iargs && iargs[i]; i++) {
+	if (gensio_check_keyvalue(args[i], "CA", &CAfilepath))
+	    continue;
+	if (gensio_check_keyuint(args[i], "writebuf", &max_write_size) > 0)
+	    continue;
+	if (gensio_check_keyuint(args[i], "readbuf", &max_read_size) > 0)
+	    continue;
+	return EINVAL;
+    }
+
+    str = o->zalloc(o, strlen(CAfilepath) + 4);
     if (!str)
 	return ENOMEM;
 
     strcpy(str, "CA=");
-    strcat(str, nadata->CAfilepath);
+    strcat(str, CAfilepath);
     args[0] = str;
 
     i = 1;
-    if (nadata->max_read_size != SSL3_RT_MAX_PLAIN_LENGTH) {
-	snprintf(buf1, sizeof(buf1), "readbuf=%d", nadata->max_read_size);
+    if (max_read_size != SSL3_RT_MAX_PLAIN_LENGTH) {
+	snprintf(buf1, sizeof(buf1), "readbuf=%d", max_read_size);
 	args[i++] = buf1;
     }
-    if (nadata->max_write_size != SSL3_RT_MAX_PLAIN_LENGTH) {
-	snprintf(buf2, sizeof(buf2), "writebuf=%d", nadata->max_write_size);
+    if (max_write_size != SSL3_RT_MAX_PLAIN_LENGTH) {
+	snprintf(buf2, sizeof(buf2), "writebuf=%d", max_write_size);
 	args[i++] = buf2;
     }
 
@@ -183,11 +197,11 @@ sslna_finish_parent(void *acc_data, void *finish_data, struct gensio *io)
 
 static int
 gensio_gensio_acc_ssl_cb(void *acc_data, int op, void *data1, void *data2,
-			 void *data3)
+			 void *data3, const void *data4)
 {
     switch (op) {
-    case GENSIO_GENSIO_ACC_CONNECT_START:
-	return sslna_connect_start(acc_data, data1, data2);
+    case GENSIO_GENSIO_ACC_ALLOC_GENSIO:
+	return sslna_alloc_gensio(acc_data, data4, data1, data2);
 
     case GENSIO_GENSIO_ACC_NEW_CHILD:
 	return sslna_new_child(acc_data, data1, data2);

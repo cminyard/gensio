@@ -1060,11 +1060,45 @@ stela_free(void *acc_data)
 }
 
 int
-stela_connect_start(void *acc_data, struct gensio *child, struct gensio **rio)
+stela_alloc_gensio(void *acc_data, const char * const *iargs,
+		   struct gensio *child, struct gensio **rio)
 {
     struct stela_data *stela = acc_data;
     struct gensio_os_funcs *o = stela->o;
-    const char *args[2] = {NULL, NULL};
+    const char *args[5] = {NULL, NULL, NULL, NULL, NULL};
+    char buf1[50], buf2[50];
+    unsigned int i;
+    bool allow_2217 = stela->allow_2217;
+    unsigned int max_write_size = stela->max_write_size;
+    unsigned int max_read_size = stela->max_read_size;
+    bool is_client = stela->is_client;
+
+    for (i = 0; iargs && iargs[i]; i++) {
+	if (gensio_check_keybool(iargs[i], "rfc2217", &allow_2217) > 0)
+	    continue;
+	if (gensio_check_keyuint(iargs[i], "writebuf", &max_write_size) > 0)
+	    continue;
+	if (gensio_check_keyuint(iargs[i], "readbuf", &max_read_size) > 0)
+	    continue;
+	if (gensio_check_keyboolv(iargs[i], "mode", "client", "server",
+				  &is_client) > 0)
+	    continue;
+	return EINVAL;
+    }
+
+    i = 0;
+    if (allow_2217)
+	args[i++] = "rfc2217=true";
+    if (max_read_size != GENSIO_DEFAULT_BUF_SIZE) {
+	snprintf(buf1, sizeof(buf1), "readbuf=%d", max_read_size);
+	args[i++] = buf1;
+    }
+    if (max_write_size != GENSIO_DEFAULT_BUF_SIZE) {
+	snprintf(buf2, sizeof(buf2), "writebuf=%d", max_write_size);
+	args[i++] = buf2;
+    }
+    if (!is_client)
+	args[i++] = "mode=server";
 
     return telnet_gensio_alloc(child, args, o, NULL, NULL, rio);
 }
@@ -1127,11 +1161,11 @@ stela_finish_parent(void *acc_data, void *finish_data, struct gensio *io,
 
 static int
 gensio_gensio_acc_telnet_cb(void *acc_data, int op, void *data1, void *data2,
-			    void *data3)
+			    void *data3, const void *data4)
 {
     switch (op) {
-    case GENSIO_GENSIO_ACC_CONNECT_START:
-	return stela_connect_start(acc_data, data1, data2);
+    case GENSIO_GENSIO_ACC_ALLOC_GENSIO:
+	return stela_alloc_gensio(acc_data, data4, data1, data2);
 
     case GENSIO_GENSIO_ACC_NEW_CHILD:
 	return stela_new_child(acc_data, data1, data2, data3);

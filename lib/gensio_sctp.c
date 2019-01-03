@@ -36,6 +36,7 @@
 
 #include <gensio/gensio_class.h>
 #include <gensio/gensio_ll_fd.h>
+#include <gensio/argvutils.h>
 
 struct sctp_data {
     struct gensio_os_funcs *o;
@@ -910,13 +911,10 @@ sctpna_free(struct gensio_accepter *accepter)
 }
 
 int
-sctpna_connect(struct gensio_accepter *accepter, const char *addr,
-	       const char * const *iargs,
-	       gensio_done_err connect_done, void *cb_data,
-	       struct gensio **new_net)
+sctpna_str_to_gensio(struct gensio_accepter *accepter, const char *addr,
+	       gensio_event cb, void *user_data, struct gensio **new_net)
 {
     struct sctpna_data *nadata = gensio_acc_get_gensio_data(accepter);
-    struct gensio *net;
     int err;
     const char *args[4] = { NULL, NULL, NULL, NULL };
     char buf[100], buf2[100], buf3[100];
@@ -924,6 +922,20 @@ sctpna_connect(struct gensio_accepter *accepter, const char *addr,
     unsigned int instreams = nadata->initmsg.sinit_max_instreams;
     unsigned int ostreams = nadata->initmsg.sinit_num_ostreams;
     unsigned int i;
+    const char **iargs;
+    int iargc;
+    struct addrinfo *ai;
+    bool is_port_set;
+    int socktype, protocol;
+
+    err = gensio_scan_network_port(nadata->o, addr, false, &ai, &socktype,
+				   &protocol, &is_port_set, &iargc, &iargs);
+    if (err)
+	return err;
+
+    err = EINVAL;
+    if (protocol != IPPROTO_SCTP || !is_port_set)
+	goto out_err;
 
     for (i = 0; iargs && iargs[i]; i++) {
 	if (gensio_check_keyuint(iargs[i], "readbuf", &max_read_size) > 0)
@@ -932,7 +944,7 @@ sctpna_connect(struct gensio_accepter *accepter, const char *addr,
 	    continue;
 	if (gensio_check_keyuint(iargs[i], "ostreams", &ostreams) > 0)
 	    continue;
-	return EINVAL;
+	goto out_err;
     }
 
     i = 0;
@@ -948,12 +960,14 @@ sctpna_connect(struct gensio_accepter *accepter, const char *addr,
 	snprintf(buf3, 100, "ostreams=%d", ostreams);
 	args[i++] = buf3;
     }
-    err = str_to_sctp_gensio(addr, args, nadata->o, NULL, NULL, &net);
-    if (err)
-	return err;
-    err = gensio_open(net, connect_done, cb_data);
-    if (!err)
-	*new_net = net;
+
+    err = str_to_sctp_gensio(addr, args, nadata->o, cb, user_data, new_net);
+
+ out_err:
+    if (iargs)
+	str_to_argv_free(iargc, iargs);
+    gensio_free_addrinfo(nadata->o, ai);
+
     return err;
 }
 
@@ -977,8 +991,8 @@ gensio_acc_sctp_func(struct gensio_accepter *acc, int func, int val,
 	sctpna_free(acc);
 	return 0;
 
-    case GENSIO_ACC_FUNC_CONNECT:
-	return sctpna_connect(acc, addr, data2, done, data, ret);
+    case GENSIO_ACC_FUNC_STR_TO_GENSIO:
+	return sctpna_str_to_gensio(acc, addr, done, data, ret);
 
     default:
 	return ENOTSUP;

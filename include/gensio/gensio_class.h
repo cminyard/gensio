@@ -157,12 +157,11 @@ void *gensio_getclass(struct gensio *io, const char *name);
 
 /*
  * str => addr
- * args => data2
- * connect_done => done
- * cb_data => data
+ * cb => done
+ * user_data => data
  * new_io => ret
  */
-#define GENSIO_ACC_FUNC_CONNECT			5
+#define GENSIO_ACC_FUNC_STR_TO_GENSIO		5
 
 typedef int (*gensio_acc_func)(struct gensio_accepter *acc, int func, int val,
 			       const char *addr, void *done, void *data,
@@ -262,7 +261,9 @@ int gensio_check_keyboolv(const char *str, const char *key,
 			  const char *trueval, const char *falseval,
 			  bool *rvalue);
 
-#define gensio_container_of(ptr, type, member)			\
+int gensio_scan_args(const char **rstr, int *argc, const char ***args);
+
+#define gensio_container_of(ptr, type, member)		\
     ((type *)(((char *) ptr) - offsetof(type, member)))
 
 #endif /* GENSIO_CLASS_H */

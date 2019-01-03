@@ -432,15 +432,14 @@ void gensio_acc_set_accept_callback_enable(struct gensio_accepter *accepter,
 void gensio_acc_free(struct gensio_accepter *accepter);
 
 /*
- * Create a new connection from the given gensio accepter.  For TCP and
- * UDP, the addr is an addrinfo returned by getaddrinfo.  Note that
- * with this call, if connect_done is called with an error, the gensio
- * is *not* automatically freed.  You must do that.
+ * Create a new connecting gensio from the given gensio accepter.
+ * This will come from the first address/port that the accepter is on
+ * for TCP and UDP.  It will bind to all the address/ports for SCTP.
  */
-int gensio_acc_connect(struct gensio_accepter *accepter, const char *addr,
-		       const char * const *args,
-		       gensio_done_err connect_done, void *cb_data,
-		       struct gensio **new_io);
+int gensio_acc_str_to_gensio(struct gensio_accepter *accepter,
+			     const char *str,
+			     gensio_event cb, void *user_data,
+			     struct gensio **new_io);
 /*
  * Returns if the accepter requests exit on close.  A hack for stdio.
  */

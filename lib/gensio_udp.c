@@ -31,6 +31,7 @@
 
 #include <gensio/gensio.h>
 #include <gensio/gensio_class.h>
+#include <gensio/argvutils.h>
 
 /*
  * Maximum UDP packet size, this avoids partial packet reads.  Probably
@@ -1061,74 +1062,70 @@ udpna_free(struct gensio_accepter *accepter)
 }
 
 int
-udpna_connect(struct gensio_accepter *accepter, const char *addr,
-	      const char * const *args,
-	      gensio_done_err connect_done, void *cb_data,
-	      struct gensio **new_net)
+udpna_str_to_gensio(struct gensio_accepter *accepter, const char *addr,
+		    gensio_event cb, void *user_data, struct gensio **new_net)
 {
     struct udpna_data *nadata = gensio_acc_get_gensio_data(accepter);
     struct udpn_data *ndata;
-    struct addrinfo *ai;
+    struct addrinfo *ai = NULL, *tai;
     unsigned int fdi;
     int err;
+    const char **iargs;
+    int iargc;
+    bool is_port_set;
+    int socktype, protocol;
 
-    err = gensio_scan_netaddr(nadata->o, addr, false, SOCK_DGRAM, IPPROTO_UDP,
-			      &ai);
-
+    err = gensio_scan_network_port(nadata->o, addr, false, &ai, &socktype,
+				   &protocol, &is_port_set, &iargc, &iargs);
     if (err)
 	return err;
 
-    while (ai) {
+    err = EINVAL;
+    if (protocol != IPPROTO_UDP || !is_port_set)
+	goto out_err;
+
+    /* Don't accept any args, we can't set the readbuf size here. */
+    if (iargs && iargs[0])
+	goto out_err;
+
+    for (tai = ai; tai; tai = tai->ai_next) {
 	for (fdi = 0; fdi < nadata->nr_fds; fdi++) {
-	    if (nadata->fds[fdi].family == ai->ai_addr->sa_family)
-		goto found;
+	    if (nadata->fds[fdi].family == tai->ai_addr->sa_family)
+		break;
 	}
-	ai = ai->ai_next;
     }
-    gensio_free_addrinfo(nadata->o, ai);
-    return EINVAL;
+    if (!tai)
+	goto out_err;
 
- found:
-    if (ai->ai_addrlen > sizeof(struct sockaddr_storage)) {
-	gensio_free_addrinfo(nadata->o, ai);
-	return EINVAL;
-    }
+    if (ai->ai_addrlen > sizeof(struct sockaddr_storage))
+	goto out_err;
 
+    err = ENOMEM;
     ndata = nadata->o->zalloc(nadata->o, sizeof(*ndata));
-    if (!ndata) {
-	gensio_free_addrinfo(nadata->o, ai);
-	return ENOMEM;
-    }
+    if (!ndata)
+	goto out_err;
     ndata->o = nadata->o;
     ndata->refcount = 1;
     ndata->nadata = nadata;
 
     ndata->deferred_op_runner = ndata->o->alloc_runner(ndata->o,
 						       udpn_deferred_op, ndata);
-    if (!ndata->deferred_op_runner) {
-	gensio_free_addrinfo(nadata->o, ai);
-	nadata->o->free(nadata->o, ndata);
-	return ENOMEM;
-    }
+    if (!ndata->deferred_op_runner)
+	goto out_err;
 
     ndata->raddr = (struct sockaddr *) &ndata->remote;
     memcpy(ndata->raddr, ai->ai_addr, ai->ai_addrlen);
     ndata->raddrlen = ai->ai_addrlen;
 
-    ndata->io = gensio_data_alloc(nadata->o, NULL, NULL, gensio_udp_func,
+    ndata->io = gensio_data_alloc(nadata->o, cb, user_data, gensio_udp_func,
 				  NULL, "udp", ndata);
-    if (!ndata->io) {
-	nadata->o->free_runner(ndata->deferred_op_runner);
-	gensio_free_addrinfo(nadata->o, ai);
-	nadata->o->free(nadata->o, ndata);
-	return ENOMEM;
-    }
+    if (!ndata->io)
+	goto out_err;
     ndata->myfd = nadata->fds[fdi].fd;
     gensio_set_is_packet(ndata->io, true);
+    gensio_set_is_client(ndata->io, true);
 
-    ndata->in_open = true;
-    ndata->open_done = connect_done;
-    ndata->open_data = cb_data;
+    ndata->closed = true;
 
     udpna_lock(nadata);
     udpn_add_to_list(&nadata->udpns, ndata);
@@ -1140,6 +1137,19 @@ udpna_connect(struct gensio_accepter *accepter, const char *addr,
     *new_net = ndata->io;
 
     return 0;
+
+ out_err:
+    if (ndata) {
+	if (ndata->deferred_op_runner)
+	    nadata->o->free_runner(ndata->deferred_op_runner);
+	nadata->o->free(nadata->o, ndata);
+    }
+    if (ai)
+	gensio_free_addrinfo(nadata->o, ai);
+    if (iargs)
+	str_to_argv_free(iargc, iargs);
+
+    return err;
 }
 
 static int
@@ -1162,8 +1172,8 @@ gensio_acc_udp_func(struct gensio_accepter *acc, int func, int val,
 	udpna_free(acc);
 	return 0;
 
-    case GENSIO_ACC_FUNC_CONNECT:
-	return udpna_connect(acc, addr, data2, done, data, ret);
+    case GENSIO_ACC_FUNC_STR_TO_GENSIO:
+	return udpna_str_to_gensio(acc, addr, done, data, ret);
 
     default:
 	return ENOTSUP;

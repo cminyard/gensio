@@ -389,7 +389,7 @@ gensio_open_socket(struct gensio_os_funcs *o,
     return fds;
 }
 
-static int
+int
 gensio_scan_args(const char **rstr, int *argc, const char ***args)
 {
     const char *str = *rstr;
@@ -581,9 +581,8 @@ gensio_scan_network_port(struct gensio_os_funcs *o, const char *str,
 
     if (doskip) {
 	if (*str == '(') {
-	    if (!args)
+	    if (!rargs)
 		return EINVAL;
-	    str++;
 	    err = gensio_scan_args(&str, &argc, &args);
 	    if (err)
 		return err;
@@ -600,8 +599,11 @@ gensio_scan_network_port(struct gensio_os_funcs *o, const char *str,
 	return err;
     }
 
-    *rargc = argc;
-    *rargs = args;
+    if (rargc) {
+	*rargc = argc;
+	*rargs = args;
+    }
+
     return 0;
 }
 
@@ -1013,13 +1015,12 @@ gensio_acc_free(struct gensio_accepter *accepter)
 }
 
 int
-gensio_acc_connect(struct gensio_accepter *accepter, const char *addr,
-		   const char * const *args,
-		   gensio_done_err connect_done, void *cb_data,
-		   struct gensio **new_io)
+gensio_acc_str_to_gensio(struct gensio_accepter *accepter, const char *addr,
+			 gensio_event cb, void *user_data,
+			 struct gensio **new_io)
 {
-    return accepter->func(accepter, GENSIO_ACC_FUNC_FREE, 0,
-			  addr, connect_done, cb_data, args, new_io);
+    return accepter->func(accepter, GENSIO_ACC_FUNC_STR_TO_GENSIO, 0,
+			  addr, cb, user_data, NULL, new_io);
 }
 
 /* FIXME - this is a cheap hack and needs to be fixed. */
