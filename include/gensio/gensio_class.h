@@ -266,4 +266,28 @@ int gensio_scan_args(const char **rstr, int *argc, const char ***args);
 #define gensio_container_of(ptr, type, member)		\
     ((type *)(((char *) ptr) - offsetof(type, member)))
 
+/*
+ * Generic doubly-linked list operations.
+ */
+struct gensio_link {
+    struct gensio_link *next;
+    struct gensio_link *prev;
+};
+
+struct gensio_list {
+    struct gensio_link link;
+};
+
+void gensio_list_rm(struct gensio_list *list, struct gensio_link *link);
+void gensio_list_add_tail(struct gensio_list *list, struct gensio_link *link);
+void gensio_list_init(struct gensio_list *list);
+bool gensio_list_empty(struct gensio_list *list);
+
+#define gensio_list_for_each(list, l) \
+    for ((l) = (list)->link.next; (l) != &(list)->link; l = l->next)
+
+#define gensio_list_for_each_safe(list, l, l2) \
+    for ((l) = (list)->link.next, (l2) = (l)->next; \
+	 (l) != &(list)->link; l = l2)
+
 #endif /* GENSIO_CLASS_H */

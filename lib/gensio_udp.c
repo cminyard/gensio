@@ -41,51 +41,6 @@
 
 struct udpna_data;
 
-struct gensio_link {
-    struct gensio_link *next;
-    struct gensio_link *prev;
-};
-
-struct gensio_list {
-    struct gensio_link link;
-};
-
-static void
-gensio_list_rm(struct gensio_list *list, struct gensio_link *link)
-{
-    link->next->prev = link->prev;
-    link->prev->next = link->next;
-}
-
-static void
-gensio_list_add_tail(struct gensio_list *list, struct gensio_link *link)
-{
-    link->prev = list->link.prev;
-    link->next = &list->link;
-    list->link.prev->next = link;
-    list->link.prev = link;
-}
-
-static void
-gensio_list_init(struct gensio_list *list)
-{
-    list->link.next = &list->link;
-    list->link.prev = &list->link;
-}
-
-static bool
-gensio_list_empty(struct gensio_list *list)
-{
-    return list->link.next == &list->link;
-}
-
-#define gensio_list_for_each(list, l) \
-    for ((l) = (list)->link.next; (l) != &(list)->link; l = l->next)
-
-#define gensio_list_for_each_safe(list, l, l2) \
-    for ((l) = (list)->link.next, (l2) = (l)->next; \
-	 (l) != &(list)->link; l = l2)
-
 struct udpn_data {
     struct gensio *io;
     struct udpna_data *nadata;

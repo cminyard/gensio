@@ -1943,3 +1943,32 @@ gensio_get_default(struct gensio_os_funcs *o,
 
     return err;
 }
+
+void
+gensio_list_rm(struct gensio_list *list, struct gensio_link *link)
+{
+    link->next->prev = link->prev;
+    link->prev->next = link->next;
+}
+
+void
+gensio_list_add_tail(struct gensio_list *list, struct gensio_link *link)
+{
+    link->prev = list->link.prev;
+    link->next = &list->link;
+    list->link.prev->next = link;
+    list->link.prev = link;
+}
+
+void
+gensio_list_init(struct gensio_list *list)
+{
+    list->link.next = &list->link;
+    list->link.prev = &list->link;
+}
+
+bool
+gensio_list_empty(struct gensio_list *list)
+{
+    return list->link.next == &list->link;
+}
