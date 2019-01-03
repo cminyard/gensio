@@ -203,6 +203,13 @@ termios work on (except for WRONLY).
 
 This is, no surprise, a serial gensio.
 
+In addition to readbuf, the serialdev gensio takes the following options:
+
+.TP
+.B nouucplock[=true|false]
+disables UUCP locking on the device.  Useful for /dev/tty, which shouldn't
+use locking.
+
 There are a plethora of serialoptions:
 
 .TP

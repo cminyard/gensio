@@ -349,6 +349,8 @@ struct sterm_data {
 
     bool write_only;		/* No termios, no read. */
 
+    bool no_uucp_lock;
+
     struct termios default_termios;
     struct termios orig_termios;
 
@@ -1077,7 +1079,8 @@ sterm_check_close_drain(void *handler_data, enum gensio_ll_close_state state,
  out_rm_uucp:
     if (!err) {
 	tcsetattr(sdata->fd, TCSANOW, &sdata->orig_termios);
-	uucp_rm_lock(sdata->devname);
+	if (!sdata->no_uucp_lock)
+	    uucp_rm_lock(sdata->devname);
     }
  out_unlock:
     sterm_unlock(sdata);
@@ -1101,14 +1104,16 @@ sterm_sub_open(void *handler_data, int *fd)
     int err;
     int options;
 
-    err = uucp_mk_lock(sdata->devname);
-    if (err > 0) {
-	err = EBUSY;
-	goto out;
-    }
-    if (err < 0) {
-	err = errno;
-	goto out;
+    if (!sdata->no_uucp_lock) {
+	err = uucp_mk_lock(sdata->devname);
+	if (err > 0) {
+	    err = EBUSY;
+	    goto out;
+	}
+	if (err < 0) {
+	    err = errno;
+	    goto out;
+	}
     }
 
     sdata->timer_stopped = false;
@@ -1159,7 +1164,8 @@ sterm_sub_open(void *handler_data, int *fd)
  out_restore:
     tcsetattr(sdata->fd, TCSANOW, &sdata->orig_termios);
  out_uucp:
-    uucp_rm_lock(sdata->devname);
+    if (!sdata->no_uucp_lock)
+	uucp_rm_lock(sdata->devname);
  out:
     if (sdata->fd != -1) {
 	close(sdata->fd);
@@ -1538,6 +1544,9 @@ serialdev_gensio_alloc(const char *devname, const char * const args[],
 
     for (i = 0; args && args[i]; i++) {
 	if (gensio_check_keyuint(args[i], "readbuf", &max_read_size) > 0)
+	    continue;
+	if (gensio_check_keybool(args[i], "nouucplock",
+				 &sdata->no_uucp_lock) > 0)
 	    continue;
 	return EINVAL;
     }
