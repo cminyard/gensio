@@ -914,7 +914,7 @@ struct gensio_telnet_filter_callbacks sergensio_telnet_server_filter_cbs = {
 };
 
 static int
-stel_setup(char *args[], bool default_is_client,
+stel_setup(const char * const args[], bool default_is_client,
 	   struct gensio_os_funcs *o, struct stel_data **rsdata)
 {
     struct stel_data *sdata;
@@ -923,7 +923,7 @@ stel_setup(char *args[], bool default_is_client,
     bool is_client = default_is_client;
     int err;
 
-    for (i = 0; args[i]; i++) {
+    for (i = 0; args && args[i]; i++) {
 	const char *val;
 
 	if (cmpstrval(args[i], "rfc2217=", &val)) {
@@ -984,7 +984,7 @@ stel_setup(char *args[], bool default_is_client,
 }
 
 int
-telnet_gensio_alloc(struct gensio *child, char *args[],
+telnet_gensio_alloc(struct gensio *child, const char * const args[],
 		    struct gensio_os_funcs *o,
 		    gensio_event cb, void *user_data,
 		    struct gensio **rio)
@@ -1036,7 +1036,7 @@ telnet_gensio_alloc(struct gensio *child, char *args[],
 }
 
 int
-str_to_telnet_gensio(const char *str, char *args[],
+str_to_telnet_gensio(const char *str, const char * const args[],
 		     struct gensio_os_funcs *o,
 		     gensio_event cb, void *user_data,
 		     struct gensio **new_gensio)
@@ -1078,7 +1078,7 @@ stela_connect_start(void *acc_data, struct gensio *child, struct gensio **rio)
 {
     struct stela_data *stela = acc_data;
     struct gensio_os_funcs *o = stela->o;
-    char *args[2] = {NULL, NULL};
+    const char *args[2] = {NULL, NULL};
 
     return telnet_gensio_alloc(child, args, o, NULL, NULL, rio);
 }
@@ -1092,7 +1092,7 @@ stela_new_child(void *acc_data, void **finish_data,
     struct stel_data *sdata;
     int err;
     char arg1[25], arg2[25], arg3[25], arg4[25];
-    char *args[5] = { arg1, arg2, arg3, arg4, NULL };
+    const char *args[5] = { arg1, arg2, arg3, arg4, NULL };
 
     snprintf(arg1, sizeof(arg1), "rfc2217=%d", stela->allow_2217);
     snprintf(arg2, sizeof(arg2), "writebuf=%d", stela->max_write_size);
@@ -1163,7 +1163,8 @@ gensio_gensio_acc_telnet_cb(void *acc_data, int op, void *data1, void *data2,
 }
 
 int
-telnet_gensio_accepter_alloc(struct gensio_accepter *child, char *args[],
+telnet_gensio_accepter_alloc(struct gensio_accepter *child,
+			     const char * const args[],
 			     struct gensio_os_funcs *o,
 			     gensio_accepter_event cb, void *user_data,
 			     struct gensio_accepter **accepter)
@@ -1176,7 +1177,7 @@ telnet_gensio_accepter_alloc(struct gensio_accepter *child, char *args[],
     bool allow_2217 = false;
     bool is_client = false;
 
-    for (i = 0; args[i]; i++) {
+    for (i = 0; args && args[i]; i++) {
 	const char *val;
 
 	if (strcmp(args[i], "rfc2217") == 0) {
@@ -1233,7 +1234,7 @@ telnet_gensio_accepter_alloc(struct gensio_accepter *child, char *args[],
 }
 
 int
-str_to_telnet_gensio_accepter(const char *str, char *args[],
+str_to_telnet_gensio_accepter(const char *str, const char * const args[],
 			      struct gensio_os_funcs *o,
 			      gensio_accepter_event cb,
 			      void *user_data,

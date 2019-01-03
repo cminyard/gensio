@@ -24,7 +24,7 @@
    separators, parameters will be separated by that vlaue.  If seps is
    NULL it will default to the equivalent of isspace().  The argv
    array must be freed with str_to_argv_free(). */
-int str_to_argv(const char *s, int *argc, char ***argv, char *seps);
+int str_to_argv(const char *s, int *argc, const char ***argv, char *seps);
 
 /*
  * Like above, but give the lengths of each argv entry in the lengths
@@ -32,7 +32,7 @@ int str_to_argv(const char *s, int *argc, char ***argv, char *seps);
  * str_to_argv_free().  Note that the length does not include the
  * ending '\0'.
  */
-int str_to_argv_lengths(const char *s, int *argc, char ***argv,
+int str_to_argv_lengths(const char *s, int *argc, const char ***argv,
 			unsigned int **lengths,
 			char *seps);
 
@@ -44,11 +44,12 @@ int str_to_argv_lengths(const char *s, int *argc, char ***argv,
  * the end character if the end character was encountered, or sets it
  * to NULL if the end character was not encountered.
  */
-int str_to_argv_lengths_endchar(const char *ins, int *r_argc, char ***r_argv,
+int str_to_argv_lengths_endchar(const char *ins,
+				int *r_argc, const char ***r_argv,
 				unsigned int **r_lengths, char *seps,
 				char *endchars, const char **nextptr);
 
 /* Free the return of str_to_argv */
-void str_to_argv_free(int argc, char **argv);
+void str_to_argv_free(int argc, const char **argv);
 
 #endif /* GENSIO_ARGVUTILS_H */

@@ -413,7 +413,8 @@ struct waiter { };
 
     %newobject open_channelt;
     %rename(open_channel) open_channelt;
-    struct gensio *open_channelt(char *args, swig_cb *handler, swig_cb *done) {
+    struct gensio *open_channelt(const char * const *args,
+				 swig_cb *handler, swig_cb *done) {
 	struct gensio_data *olddata = gensio_get_user_data(self);
 	swig_cb_val *done_val = NULL;
 	void (*open_done)(struct gensio *io, int err, void *cb_data) = NULL;
@@ -443,7 +444,7 @@ struct waiter { };
 
     %newobject open_channel_st;
     %rename(open_channel_s) open_channel_st;
-    struct gensio *open_channel_st(char *args, swig_cb *handler) {
+    struct gensio *open_channel_st(const char * const *args, swig_cb *handler) {
 	struct gensio_data *olddata = gensio_get_user_data(self);
 	int rv = 0;
 	struct gensio_data *data;

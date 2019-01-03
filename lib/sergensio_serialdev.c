@@ -1325,7 +1325,7 @@ static const struct gensio_fd_ll_ops sterm_fd_ll_ops = {
 
 
 static int
-process_termios_parm(struct termios *termio, char *parm)
+process_termios_parm(struct termios *termio, const char *parm)
 {
     int rv = 0, val;
     const char *rest = "";
@@ -1371,11 +1371,12 @@ process_termios_parm(struct termios *termio, char *parm)
 }
 
 static int
-process_rs485(struct sterm_data *sdata, char *str)
+process_rs485(struct sterm_data *sdata, const char *str)
 {
 #if HAVE_DECL_TIOCSRS485
     int argc, i;
-    char **argv, *end;
+    const char **argv;
+    char *end;
     int err = str_to_argv(str, &argc, &argv, ":");
 
     if (err)
@@ -1425,7 +1426,7 @@ static int
 sergensio_process_parms(struct sterm_data *sdata)
 {
     int argc, i;
-    char **argv;
+    const char **argv;
     int err = str_to_argv(sdata->parms, &argc, &argv, " \f\t\n\r\v,");
 
     if (err)
@@ -1519,10 +1520,10 @@ sergensio_setup_defaults(struct gensio_os_funcs *o, struct sterm_data *sdata)
 }
 
 int
-serialdev_gensio_alloc(const char *devname, char *args[],
-		     struct gensio_os_funcs *o,
-		     gensio_event cb, void *user_data,
-		     struct gensio **rio)
+serialdev_gensio_alloc(const char *devname, const char * const args[],
+		       struct gensio_os_funcs *o,
+		       gensio_event cb, void *user_data,
+		       struct gensio **rio)
 {
     struct sterm_data *sdata = o->zalloc(o, sizeof(*sdata));
     struct gensio_ll *ll;
@@ -1535,7 +1536,7 @@ serialdev_gensio_alloc(const char *devname, char *args[],
     if (!sdata)
 	return ENOMEM;
 
-    for (i = 0; args[i]; i++) {
+    for (i = 0; args && args[i]; i++) {
 	if (gensio_check_keyuint(args[i], "readbuf", &max_read_size) > 0)
 	    continue;
 	return EINVAL;
@@ -1610,7 +1611,7 @@ serialdev_gensio_alloc(const char *devname, char *args[],
 }
 
 int
-str_to_serialdev_gensio(const char *str, char *args[],
+str_to_serialdev_gensio(const char *str, const char * const args[],
 		      struct gensio_os_funcs *o,
 		      gensio_event cb, void *user_data,
 		      struct gensio **new_gensio)

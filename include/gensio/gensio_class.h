@@ -80,7 +80,7 @@
  * Following struct in buf
  */
 struct gensio_func_open_channel_data {
-    char **args;
+    const char * const *args;
     gensio_event cb;
     void *user_data;
     gensio_done_err open_done;
@@ -190,7 +190,7 @@ void gensio_acc_log(struct gensio_accepter *acc, enum gensio_log_levels level,
  * Handler registered so that str_to_gensio can process a gensio.
  * This is so users can create their own gensio types.
  */
-typedef int (*str_to_gensio_handler)(const char *str, char *args[],
+typedef int (*str_to_gensio_handler)(const char *str, const char * const args[],
 				     struct gensio_os_funcs *o,
 				     gensio_event cb, void *user_data,
 				     struct gensio **new_gensio);

@@ -232,7 +232,7 @@ int gensio_open_s(struct gensio *io);
  * you get stderr output from a stdio channel, and it only works for
  * client-created stdio, not acceptor-created stdio.
  */
-int gensio_open_channel(struct gensio *io, const char *args,
+int gensio_open_channel(struct gensio *io, const char * const args[],
 			gensio_event cb, void *user_data,
 			gensio_done_err open_done, void *open_data,
 			struct gensio **new_io);
@@ -241,7 +241,7 @@ int gensio_open_channel(struct gensio *io, const char *args,
  * Like gensio_open_channel, but waits for the open to complete and
  * returns the gensio for the channel.
  */
-int gensio_open_channel_s(struct gensio *io, const char *args,
+int gensio_open_channel_s(struct gensio *io, const char * const args[],
 			  gensio_event cb, void *user_data,
 			  struct gensio **new_io);
 
@@ -470,7 +470,8 @@ int str_to_gensio_accepter(const char *str, struct gensio_os_funcs *o,
  * accepter.  This is so users can create their own gensio accepter
  * types.
  */
-typedef int (*str_to_gensio_acc_handler)(const char *str, char *args[],
+typedef int (*str_to_gensio_acc_handler)(const char *str,
+					 const char * const args[],
 					 struct gensio_os_funcs *o,
 					 gensio_accepter_event cb,
 					 void *user_data,
@@ -486,32 +487,32 @@ int register_gensio_accepter(struct gensio_os_funcs *o,
  * Allocators for the various gensio accepter types, compatible with
  * register_gensio_accepter().
  */
-int str_to_tcp_gensio_accepter(const char *str, char *args[],
+int str_to_tcp_gensio_accepter(const char *str, const char * const args[],
 			       struct gensio_os_funcs *o,
 			       gensio_accepter_event cb,
 			       void *user_data,
 			       struct gensio_accepter **new_acc);
-int str_to_udp_gensio_accepter(const char *str, char *args[],
+int str_to_udp_gensio_accepter(const char *str, const char * const args[],
 			       struct gensio_os_funcs *o,
 			       gensio_accepter_event cb,
 			       void *user_data,
 			       struct gensio_accepter **new_acc);
-int str_to_sctp_gensio_accepter(const char *str, char *args[],
+int str_to_sctp_gensio_accepter(const char *str, const char * const args[],
 				struct gensio_os_funcs *o,
 				gensio_accepter_event cb,
 				void *user_data,
 				struct gensio_accepter **new_acc);
-int str_to_stdio_gensio_accepter(const char *str, char *args[],
+int str_to_stdio_gensio_accepter(const char *str, const char * const args[],
 				 struct gensio_os_funcs *o,
 				 gensio_accepter_event cb,
 				 void *user_data,
 				 struct gensio_accepter **new_acc);
-int str_to_ssl_gensio_accepter(const char *str, char *args[],
+int str_to_ssl_gensio_accepter(const char *str, const char * const args[],
 			       struct gensio_os_funcs *o,
 			       gensio_accepter_event cb,
 			       void *user_data,
 			       struct gensio_accepter **new_acc);
-int str_to_telnet_gensio_accepter(const char *str, char *args[],
+int str_to_telnet_gensio_accepter(const char *str, const char * const args[],
 				  struct gensio_os_funcs *o,
 				  gensio_accepter_event cb,
 				  void *user_data,
@@ -530,35 +531,35 @@ int str_to_gensio(const char *str,
  * Allocators for the various gensio types, compatible with
  * register_gensio().
  */
-int str_to_tcp_gensio(const char *str, char *args[],
+int str_to_tcp_gensio(const char *str, const char * const args[],
 		      struct gensio_os_funcs *o,
 		      gensio_event cb, void *user_data,
 		      struct gensio **new_gensio);
-int str_to_udp_gensio(const char *str, char *args[],
+int str_to_udp_gensio(const char *str, const char * const args[],
 		      struct gensio_os_funcs *o,
 		      gensio_event cb, void *user_data,
 		      struct gensio **new_gensio);
-int str_to_sctp_gensio(const char *str, char *args[],
+int str_to_sctp_gensio(const char *str, const char * const args[],
 		       struct gensio_os_funcs *o,
 		       gensio_event cb, void *user_data,
 		       struct gensio **new_gensio);
-int str_to_stdio_gensio(const char *str, char *args[],
+int str_to_stdio_gensio(const char *str, const char * const args[],
 			struct gensio_os_funcs *o,
 			gensio_event cb, void *user_data,
 			struct gensio **new_gensio);
-int str_to_ssl_gensio(const char *str, char *args[],
+int str_to_ssl_gensio(const char *str, const char * const args[],
 		      struct gensio_os_funcs *o,
 		      gensio_event cb, void *user_data,
 		      struct gensio **new_gensio);
-int str_to_telnet_gensio(const char *str, char *args[],
+int str_to_telnet_gensio(const char *str, const char * const args[],
 			 struct gensio_os_funcs *o,
 			 gensio_event cb, void *user_data,
 			 struct gensio **new_gensio);
-int str_to_serialdev_gensio(const char *str, char *args[],
+int str_to_serialdev_gensio(const char *str, const char * const args[],
 			    struct gensio_os_funcs *o,
 			    gensio_event cb, void *user_data,
 			    struct gensio **new_gensio);
-int str_to_ipmisol_gensio(const char *str, char *args[],
+int str_to_ipmisol_gensio(const char *str, const char * const args[],
 			  struct gensio_os_funcs *o,
 			  gensio_event cb, void *user_data,
 			  struct gensio **new_gensio);
@@ -567,37 +568,39 @@ int str_to_ipmisol_gensio(const char *str, char *args[],
 /*
  * Allocators for accepters for different I/O types.
  */
-int tcp_gensio_accepter_alloc(struct addrinfo *ai, char *args[],
+int tcp_gensio_accepter_alloc(struct addrinfo *ai, const char * const args[],
 			      struct gensio_os_funcs *o,
 			      gensio_accepter_event cb,
 			      void *user_data,
 			      struct gensio_accepter **accepter);
 
-int udp_gensio_accepter_alloc(struct addrinfo *ai, char *args[],
+int udp_gensio_accepter_alloc(struct addrinfo *ai, const char * const args[],
 			      struct gensio_os_funcs *o,
 			      gensio_accepter_event cb,
 			      void *user_data,
 			      struct gensio_accepter **accepter);
 
-int sctp_gensio_accepter_alloc(struct addrinfo *ai, char *args[],
+int sctp_gensio_accepter_alloc(struct addrinfo *ai, const char * const args[],
 			       struct gensio_os_funcs *o,
 			       gensio_accepter_event cb,
 			       void *user_data,
 			       struct gensio_accepter **accepter);
 
-int stdio_gensio_accepter_alloc(char *args[],
+int stdio_gensio_accepter_alloc(const char * const args[],
 				struct gensio_os_funcs *o,
 				gensio_accepter_event cb,
 				void *user_data,
 				struct gensio_accepter **accepter);
 
-int ssl_gensio_accepter_alloc(struct gensio_accepter *child, char *args[],
+int ssl_gensio_accepter_alloc(struct gensio_accepter *child,
+			      const char * const args[],
 			      struct gensio_os_funcs *o,
 			      gensio_accepter_event cb,
 			      void *user_data,
 			      struct gensio_accepter **accepter);
 
-int telnet_gensio_accepter_alloc(struct gensio_accepter *child, char *args[],
+int telnet_gensio_accepter_alloc(struct gensio_accepter *child,
+				 const char * const args[],
 				 struct gensio_os_funcs *o,
 				 gensio_accepter_event cb,
 				 void *user_data,
@@ -608,7 +611,7 @@ int telnet_gensio_accepter_alloc(struct gensio_accepter *child, char *args[],
 /*
  * Create a TCP gensio for the given ai.
  */
-int tcp_gensio_alloc(struct addrinfo *ai, char *args[],
+int tcp_gensio_alloc(struct addrinfo *ai, const char * const args[],
 		     struct gensio_os_funcs *o,
 		     gensio_event cb, void *user_data,
 		     struct gensio **new_gensio);
@@ -617,7 +620,7 @@ int tcp_gensio_alloc(struct addrinfo *ai, char *args[],
  * Create a UDP gensio for the given ai.  It uses the first entry in
  * ai.
  */
-int udp_gensio_alloc(struct addrinfo *ai, char *args[],
+int udp_gensio_alloc(struct addrinfo *ai, const char * const args[],
 		     struct gensio_os_funcs *o,
 		     gensio_event cb, void *user_data,
 		     struct gensio **new_gensio);
@@ -625,13 +628,13 @@ int udp_gensio_alloc(struct addrinfo *ai, char *args[],
 /*
  * Create a SCTP gensio for the given ai.
  */
-int sctp_gensio_alloc(struct addrinfo *ai, char *args[],
+int sctp_gensio_alloc(struct addrinfo *ai, const char * const args[],
 		      struct gensio_os_funcs *o,
 		      gensio_event cb, void *user_data,
 		      struct gensio **new_gensio);
 
 /* Run a program (in argv[0]) and attach to it's stdio. */
-int stdio_gensio_alloc(char *const argv[], char *args[],
+int stdio_gensio_alloc(const char *const argv[], const char * const args[],
 		       struct gensio_os_funcs *o,
 		       gensio_event cb, void *user_data,
 		       struct gensio **new_gensio);
@@ -639,22 +642,22 @@ int stdio_gensio_alloc(char *const argv[], char *args[],
 /*
  * Make an SSL connection over another gensio.
  */
-int ssl_gensio_alloc(struct gensio *child, char *args[],
+int ssl_gensio_alloc(struct gensio *child, const char * const args[],
 		     struct gensio_os_funcs *o,
 		     gensio_event cb, void *user_data,
 		     struct gensio **io);
 
-int serialdev_gensio_alloc(const char *devname, char *args[],
+int serialdev_gensio_alloc(const char *devname, const char * const args[],
 			   struct gensio_os_funcs *o,
 			   gensio_event cb, void *user_data,
 			   struct gensio **io);
 
-int telnet_gensio_alloc(struct gensio *child, char *args[],
+int telnet_gensio_alloc(struct gensio *child, const char * const args[],
 			struct gensio_os_funcs *o,
 			gensio_event cb, void *user_data,
 			struct gensio **io);
 
-int ipmisol_gensio_alloc(const char *devname, char *args[],
+int ipmisol_gensio_alloc(const char *devname, const char * const args[],
 			 struct gensio_os_funcs *o,
 			 gensio_event cb, void *user_data,
 			 struct gensio **io);

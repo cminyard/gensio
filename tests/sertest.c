@@ -85,7 +85,7 @@ struct gensio_os_funcs *my_o;
 				      ##__VA_ARGS__); } while(0)
 
 static struct gensio_list *
-find_gensio(struct sertest_context *c, char *name)
+find_gensio(struct sertest_context *c, const char *name)
 {
     struct gensio_list *le = c->gensios;
 
@@ -135,7 +135,7 @@ sertest_cleanup(struct sertest_context *c)
 
 static int
 start_exit(struct sertest_context *c,
-	   int argc, char **argv, unsigned int *lengths)
+	   int argc, const char **argv, unsigned int *lengths)
 {
     *(c->done) = true;
     return 0;
@@ -240,7 +240,7 @@ child_event(struct gensio *net, int event, int readerr,
 
 static int
 alloc_gensio(struct sertest_context *c,
-	    int argc, char **argv, unsigned int *lengths)
+	    int argc, const char **argv, unsigned int *lengths)
 {
     struct gensio_list *le;
     int err;
@@ -298,7 +298,8 @@ alloc_gensio(struct sertest_context *c,
 
 static int
 open_gensio(struct sertest_context *c,
-	   int argc, char **argv, unsigned int *lengths, struct gensio_list *le)
+	   int argc, const char **argv, unsigned int *lengths,
+	    struct gensio_list *le)
 {
     int err;
 
@@ -319,7 +320,8 @@ close_gensio_done(struct gensio *net, void *close_data)
 
 static int
 close_gensio(struct sertest_context *c,
-	    int argc, char **argv, unsigned int *lengths, struct gensio_list *le)
+	     int argc, const char **argv, unsigned int *lengths,
+	     struct gensio_list *le)
 {
     int err;
     struct timeval timeout = {2, 0};
@@ -340,7 +342,8 @@ close_gensio(struct sertest_context *c,
 
 static int
 free_gensio(struct sertest_context *c,
-	   int argc, char **argv, unsigned int *lengths, struct gensio_list *le)
+	    int argc, const char **argv, unsigned int *lengths,
+	    struct gensio_list *le)
 {
     struct gensio_list *prev = c->gensios;
 
@@ -360,7 +363,8 @@ free_gensio(struct sertest_context *c,
 
 static int
 write_gensio(struct sertest_context *c,
-	    int argc, char **argv, unsigned int *lengths, struct gensio_list *le)
+	     int argc, const char **argv, unsigned int *lengths,
+	     struct gensio_list *le)
 {
     struct timeval timeout = {5, 0};
     int err;
@@ -383,7 +387,7 @@ write_gensio(struct sertest_context *c,
 
 static int
 read_enable_gensio(struct sertest_context *c,
-		  int argc, char **argv, unsigned int *lengths,
+		  int argc, const char **argv, unsigned int *lengths,
 		  struct gensio_list *le)
 {
     gensio_set_read_callback_enable(le->io, true);
@@ -392,7 +396,7 @@ read_enable_gensio(struct sertest_context *c,
 
 static int
 read_disable_gensio(struct sertest_context *c,
-		   int argc, char **argv, unsigned int *lengths,
+		   int argc, const char **argv, unsigned int *lengths,
 		   struct gensio_list *le)
 {
     gensio_set_read_callback_enable(le->io, false);
@@ -401,7 +405,7 @@ read_disable_gensio(struct sertest_context *c,
 
 static int
 check_read_gensio(struct sertest_context *c,
-		 int argc, char **argv, unsigned int *lengths,
+		 int argc, const char **argv, unsigned int *lengths,
 		 struct gensio_list *le)
 {
     int err;
@@ -429,7 +433,7 @@ check_read_gensio(struct sertest_context *c,
 
 static int
 flush_read_gensio(struct sertest_context *c,
-		 int argc, char **argv, unsigned int *lengths,
+		 int argc, const char **argv, unsigned int *lengths,
 		 struct gensio_list *le)
 {
     struct timeval timeout = { 1, 0 };
@@ -445,7 +449,7 @@ flush_read_gensio(struct sertest_context *c,
 
 static int
 xfer_data_gensio(struct sertest_context *c,
-		int argc, char **argv, unsigned int *lengths,
+		int argc, const char **argv, unsigned int *lengths,
 		struct gensio_list *le)
 {
     int err = 0;
@@ -548,9 +552,9 @@ xfer_data_gensio(struct sertest_context *c,
 struct cmd_list {
     const char *name;
     int (*func)(struct sertest_context *c,
-		int argc, char **argv, unsigned int *lengths);
+		int argc, const char **argv, unsigned int *lengths);
     int (*gfunc)(struct sertest_context *c,
-		 int argc, char **argv, unsigned int *lengths,
+		 int argc, const char **argv, unsigned int *lengths,
 		 struct gensio_list *le);
 };
 
@@ -572,7 +576,7 @@ struct cmd_list cmds[] = {
 int
 sertest_cmd(struct sertest_context *c, char *cmdline)
 {
-    char **argv = NULL;
+    const char **argv = NULL;
     unsigned int *lengths;
     int argc = 0;
     int i, err;

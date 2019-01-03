@@ -39,14 +39,14 @@ cmpstrval(const char *s, const char *prefix, const char **val)
 }
 
 void
-str_to_argv_free(int argc, char **argv)
+str_to_argv_free(int argc, const char **argv)
 {
     if (!argv)
 	return;
     if (argv[argc + 1])
-	free(argv[argc + 1]);
+	free((void *) (argv[argc + 1]));
     if (argv[argc + 2])
-	free(argv[argc + 2]);
+	free((void *) (argv[argc + 2]));
     free(argv);
 }
 
@@ -172,14 +172,14 @@ gettok(char **s, char **tok, char *seps, unsigned int *len, char *endchars)
 }
 
 int
-str_to_argv_lengths_endchar(const char *ins, int *r_argc, char ***r_argv,
+str_to_argv_lengths_endchar(const char *ins, int *r_argc, const char ***r_argv,
 			    unsigned int **r_lengths, char *seps,
 			    char *endchars, const char **nextptr)
 {
     char *orig_s = strdup(ins);
     unsigned int *lengths = NULL;
     char *s = orig_s;
-    char **argv = NULL;
+    const char **argv = NULL;
     char *tok;
     unsigned int argc = 0;
     unsigned int args = 0;
@@ -215,7 +215,7 @@ str_to_argv_lengths_endchar(const char *ins, int *r_argc, char ***r_argv,
 	 * array.
 	 */
 	if (argc >= args - 3) {
-	    char **nargv;
+	    const char **nargv;
 
 	    args += 10;
 	    nargv = realloc(argv, sizeof(*argv) * args);
@@ -269,7 +269,7 @@ str_to_argv_lengths_endchar(const char *ins, int *r_argc, char ***r_argv,
 }
 
 int
-str_to_argv_lengths(const char *ins, int *r_argc, char ***r_argv,
+str_to_argv_lengths(const char *ins, int *r_argc, const char ***r_argv,
 		    unsigned int **r_lengths, char *seps)
 {
     return str_to_argv_lengths_endchar(ins, r_argc, r_argv, r_lengths,
@@ -277,7 +277,7 @@ str_to_argv_lengths(const char *ins, int *r_argc, char ***r_argv,
 }
 
 int
-str_to_argv(const char *ins, int *r_argc, char ***r_argv, char *seps)
+str_to_argv(const char *ins, int *r_argc, const char ***r_argv, char *seps)
 {
     return str_to_argv_lengths(ins, r_argc, r_argv, NULL, seps);
 }

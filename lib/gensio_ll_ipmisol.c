@@ -1454,7 +1454,7 @@ ipmisol_gensio_ll_alloc(struct gensio_os_funcs *o,
 {
     struct sol_ll *solll;
     int err, argc, curr_arg = 0;
-    char **argv;
+    const char **argv;
 
     o->call_once(o, &gensio_ipmi_initialized, gensio_ipmi_init, o);
 
@@ -1484,7 +1484,7 @@ ipmisol_gensio_ll_alloc(struct gensio_os_funcs *o,
 	goto out_err;
     }
 
-    err = ipmi_parse_args2(&curr_arg, argc, argv, &solll->args);
+    err = ipmi_parse_args2(&curr_arg, argc, (char **) argv, &solll->args);
     if (err) {
 	str_to_argv_free(argc, argv);
 	goto out_err;

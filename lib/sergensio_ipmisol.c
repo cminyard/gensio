@@ -74,7 +74,7 @@ sergensio_iterm_func(struct sergensio *sio, int op, int val, char *buf,
 }
 
 int
-ipmisol_gensio_alloc(const char *devname, char *args[],
+ipmisol_gensio_alloc(const char *devname, const char * const args[],
 		     struct gensio_os_funcs *o,
 		     gensio_event cb, void *user_data,
 		     struct gensio **rio)
@@ -85,7 +85,7 @@ ipmisol_gensio_alloc(const char *devname, char *args[],
     unsigned int max_write_size = GENSIO_DEFAULT_BUF_SIZE;
     int i;
 
-    for (i = 0; args[i]; i++) {
+    for (i = 0; args && args[i]; i++) {
 	if (gensio_check_keyuint(args[i], "readbuf", &max_read_size) > 0)
 	    continue;
 	if (gensio_check_keyuint(args[i], "writebuf", &max_write_size) > 0)
@@ -133,7 +133,7 @@ ipmisol_gensio_alloc(const char *devname, char *args[],
 }
 
 int
-str_to_ipmisol_gensio(const char *str, char *args[],
+str_to_ipmisol_gensio(const char *str, const char * const args[],
 		      struct gensio_os_funcs *o,
 		      gensio_event cb, void *user_data,
 		      struct gensio **new_gensio)

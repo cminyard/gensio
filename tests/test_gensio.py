@@ -275,7 +275,7 @@ def test_stdio_basic_stderr():
     io = utils.alloc_io(o, "stdio,sh -c 'cat 1>&2'", chunksize = 64)
     io.handler.ignore_input = True
     io.read_cb_enable(True)
-    err = io.open_channel_s("", None)
+    err = io.open_channel_s(None, None)
     utils.HandleData(o, "stderr", chunksize = 64, io = err)
     utils.test_dataxfer(io, err, "This is a test string!")
     utils.io_close(io)

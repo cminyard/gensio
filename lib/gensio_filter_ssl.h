@@ -22,7 +22,8 @@
 
 #include <gensio/gensio_base.h>
 
-int gensio_ssl_filter_alloc(struct gensio_os_funcs *o, char *args[],
+int gensio_ssl_filter_alloc(struct gensio_os_funcs *o,
+			    const char * const args[],
 			    struct gensio_filter **rfilter);
 
 int gensio_ssl_server_filter_alloc(struct gensio_os_funcs *o,

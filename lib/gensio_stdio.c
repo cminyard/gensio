@@ -581,7 +581,7 @@ stdion_open(struct gensio *io, gensio_done_err open_done, void *open_data)
 }
 
 static int
-stdion_open_channel(struct gensio *io, char *args[],
+stdion_open_channel(struct gensio *io, const char * const args[],
 		    gensio_event cb, void *user_data,
 		    gensio_done_err open_done, void *open_data,
 		    struct gensio **new_io)
@@ -591,7 +591,7 @@ stdion_open_channel(struct gensio *io, char *args[],
     int rv = 0;
     unsigned int i, max_read_size = nadata->io.max_read_size;
 
-    for (i = 0; args[i]; i++) {
+    for (i = 0; args && args[i]; i++) {
 	if (gensio_check_keyuint(args[i], "readbuf", &max_read_size) > 0)
 	    continue;
 	return EINVAL;
@@ -824,7 +824,7 @@ stdio_nadata_setup(struct gensio_os_funcs *o, unsigned int max_read_size,
 }
 
 int
-stdio_gensio_alloc(char *const argv[], char *args[],
+stdio_gensio_alloc(const char * const argv[], const char * const args[],
 		   struct gensio_os_funcs *o,
 		   gensio_event cb, void *user_data,
 		   struct gensio **new_gensio)
@@ -834,7 +834,7 @@ stdio_gensio_alloc(char *const argv[], char *args[],
     int i, argc;
     unsigned int max_read_size = GENSIO_DEFAULT_BUF_SIZE;
 
-    for (i = 0; args[i]; i++) {
+    for (i = 0; args && args[i]; i++) {
 	if (gensio_check_keyuint(args[i], "readbuf", &max_read_size) > 0)
 	    continue;
 	return EINVAL;
@@ -872,13 +872,13 @@ stdio_gensio_alloc(char *const argv[], char *args[],
 }
 
 int
-str_to_stdio_gensio(const char *str, char *args[],
+str_to_stdio_gensio(const char *str, const char * const args[],
 		    struct gensio_os_funcs *o,
 		    gensio_event cb, void *user_data,
 		    struct gensio **new_gensio)
 {
     int err, argc;
-    char **argv;
+    const char **argv;
 
     err = str_to_argv(str, &argc, &argv, NULL);
     if (!err) {
@@ -1130,7 +1130,8 @@ gensio_acc_stdio_func(struct gensio_accepter *acc, int func, int val,
 }
 
 int
-stdio_gensio_accepter_alloc(char *args[], struct gensio_os_funcs *o,
+stdio_gensio_accepter_alloc(const char * const args[],
+			    struct gensio_os_funcs *o,
 			    gensio_accepter_event cb, void *user_data,
 			    struct gensio_accepter **accepter)
 {
@@ -1139,7 +1140,7 @@ stdio_gensio_accepter_alloc(char *args[], struct gensio_os_funcs *o,
     unsigned int max_read_size = GENSIO_DEFAULT_BUF_SIZE;
     int i;
 
-    for (i = 0; args[i]; i++) {
+    for (i = 0; args && args[i]; i++) {
 	if (gensio_check_keyuint(args[i], "readbuf", &max_read_size) > 0)
 	    continue;
 	return EINVAL;
@@ -1173,7 +1174,7 @@ stdio_gensio_accepter_alloc(char *args[], struct gensio_os_funcs *o,
 }
 
 int
-str_to_stdio_gensio_accepter(const char *str, char *args[],
+str_to_stdio_gensio_accepter(const char *str, const char * const args[],
 			     struct gensio_os_funcs *o,
 			     gensio_accepter_event cb,
 			     void *user_data,

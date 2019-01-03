@@ -1123,7 +1123,7 @@ gensio_acc_udp_func(struct gensio_accepter *acc, int func, int val,
 }
 
 int
-udp_gensio_accepter_alloc(struct addrinfo *iai, char *args[],
+udp_gensio_accepter_alloc(struct addrinfo *iai, const char * const args[],
 			  struct gensio_os_funcs *o,
 			  gensio_accepter_event cb, void *user_data,
 			  struct gensio_accepter **accepter)
@@ -1132,7 +1132,7 @@ udp_gensio_accepter_alloc(struct addrinfo *iai, char *args[],
     unsigned int max_read_size = GENSIO_DEFAULT_UDP_BUF_SIZE;
     int i;
 
-    for (i = 0; args[i]; i++) {
+    for (i = 0; args && args[i]; i++) {
 	if (gensio_check_keyuint(args[i], "readbuf", &max_read_size) > 0)
 	    continue;
 	return EINVAL;
@@ -1176,7 +1176,7 @@ udp_gensio_accepter_alloc(struct addrinfo *iai, char *args[],
 }
 
 int
-str_to_udp_gensio_accepter(const char *str, char *args[],
+str_to_udp_gensio_accepter(const char *str, const char * const args[],
 			   struct gensio_os_funcs *o,
 			   gensio_accepter_event cb,
 			   void *user_data,
@@ -1196,7 +1196,7 @@ str_to_udp_gensio_accepter(const char *str, char *args[],
 }
 
 int
-udp_gensio_alloc(struct addrinfo *ai, char *args[],
+udp_gensio_alloc(struct addrinfo *ai, const char * const args[],
 		struct gensio_os_funcs *o,
 		gensio_event cb, void *user_data,
 		struct gensio **new_gensio)
@@ -1209,7 +1209,7 @@ udp_gensio_alloc(struct addrinfo *ai, char *args[],
     unsigned int max_read_size = GENSIO_DEFAULT_UDP_BUF_SIZE;
     int i;
 
-    for (i = 0; args[i]; i++) {
+    for (i = 0; args && args[i]; i++) {
 	if (gensio_check_keyuint(args[i], "readbuf", &max_read_size) > 0)
 	    continue;
 	return EINVAL;
@@ -1302,7 +1302,7 @@ udp_gensio_alloc(struct addrinfo *ai, char *args[],
 }
 
 int
-str_to_udp_gensio(const char *str, char *args[],
+str_to_udp_gensio(const char *str, const char * const args[],
 		  struct gensio_os_funcs *o,
 		  gensio_event cb, void *user_data,
 		  struct gensio **new_gensio)

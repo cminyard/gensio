@@ -559,7 +559,7 @@ gensio_ssl_server_filter_alloc(struct gensio_os_funcs *o,
 }
 
 int
-gensio_ssl_filter_alloc(struct gensio_os_funcs *o, char *args[],
+gensio_ssl_filter_alloc(struct gensio_os_funcs *o, const char * const args[],
 			struct gensio_filter **rfilter)
 {
     struct gensio_filter *filter;
@@ -573,7 +573,7 @@ gensio_ssl_filter_alloc(struct gensio_os_funcs *o, char *args[],
 
     gensio_ssl_initialize(o);
 
-    for (i = 0; args[i]; i++) {
+    for (i = 0; args && args[i]; i++) {
 	if (gensio_check_keyvalue(args[i], "CA", &CAfilepath))
 	    continue;
 	if (gensio_check_keyuint(args[i], "readbuf", &max_read_size) > 0)

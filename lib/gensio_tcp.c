@@ -282,7 +282,7 @@ static const struct gensio_fd_ll_ops tcp_fd_ll_ops = {
 };
 
 int
-tcp_gensio_alloc(struct addrinfo *iai, char *args[],
+tcp_gensio_alloc(struct addrinfo *iai, const char * const args[],
 		 struct gensio_os_funcs *o,
 		 gensio_event cb, void *user_data,
 		 struct gensio **new_gensio)
@@ -293,7 +293,7 @@ tcp_gensio_alloc(struct addrinfo *iai, char *args[],
     unsigned int max_read_size = GENSIO_DEFAULT_BUF_SIZE;
     int i;
 
-    for (i = 0; args[i]; i++) {
+    for (i = 0; args && args[i]; i++) {
 	if (gensio_check_keyuint(args[i], "readbuf", &max_read_size) > 0)
 	    continue;
 	return EINVAL;
@@ -339,7 +339,7 @@ tcp_gensio_alloc(struct addrinfo *iai, char *args[],
 }
 
 int
-str_to_tcp_gensio(const char *str, char *args[],
+str_to_tcp_gensio(const char *str, const char * const args[],
 		  struct gensio_os_funcs *o,
 		  gensio_event cb, void *user_data,
 		  struct gensio **new_gensio)
@@ -649,7 +649,7 @@ tcpna_connect(struct gensio_accepter *accepter, void *addr,
     struct tcpna_data *nadata = gensio_acc_get_gensio_data(accepter);
     struct gensio *net;
     int err;
-    char *args[2] = { NULL, NULL };
+    const char *args[2] = { NULL, NULL };
     char buf[100];
 
     if (nadata->max_read_size != GENSIO_DEFAULT_BUF_SIZE) {
@@ -695,7 +695,7 @@ gensio_acc_tcp_func(struct gensio_accepter *acc, int func, int val,
 
 int
 tcp_gensio_accepter_alloc(struct addrinfo *iai,
-			  char *args[],
+			  const char * const args[],
 			  struct gensio_os_funcs *o,
 			  gensio_accepter_event cb, void *user_data,
 			  struct gensio_accepter **accepter)
@@ -742,7 +742,7 @@ tcp_gensio_accepter_alloc(struct addrinfo *iai,
 }
 
 int
-str_to_tcp_gensio_accepter(const char *str, char *args[],
+str_to_tcp_gensio_accepter(const char *str, const char * const args[],
 			   struct gensio_os_funcs *o,
 			   gensio_accepter_event cb,
 			   void *user_data,

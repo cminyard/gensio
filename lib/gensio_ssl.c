@@ -38,7 +38,7 @@
 #include "gensio_filter_ssl.h"
 
 int
-ssl_gensio_alloc(struct gensio *child, char *args[],
+ssl_gensio_alloc(struct gensio *child, const char *const args[],
 		 struct gensio_os_funcs *o,
 		 gensio_event cb, void *user_data,
 		 struct gensio **net)
@@ -78,7 +78,7 @@ ssl_gensio_alloc(struct gensio *child, char *args[],
 }
 
 int
-str_to_ssl_gensio(const char *str, char *args[],
+str_to_ssl_gensio(const char *str, const char * const args[],
 		  struct gensio_os_funcs *o,
 		  gensio_event cb, void *user_data,
 		  struct gensio **new_gensio)
@@ -128,16 +128,17 @@ sslna_connect_start(void *acc_data, struct gensio *child, struct gensio **rio)
     struct sslna_data *nadata = acc_data;
     struct gensio_os_funcs *o = nadata->o;
     int err;
-    char *args[4] = {NULL, NULL, NULL};
-    char buf1[50], buf2[50];
+    const char *args[4] = {NULL, NULL, NULL, NULL };
+    char buf1[50], buf2[50], *str;
     int i;
 
-    args[0] = o->zalloc(o, strlen(nadata->CAfilepath) + 4);
-    if (!args[0])
+    str = o->zalloc(o, strlen(nadata->CAfilepath) + 4);
+    if (!str)
 	return ENOMEM;
 
-    strcpy(args[0], "CA=");
-    strcat(args[0], nadata->CAfilepath);
+    strcpy(str, "CA=");
+    strcat(str, nadata->CAfilepath);
+    args[0] = str;
 
     i = 1;
     if (nadata->max_read_size != SSL3_RT_MAX_PLAIN_LENGTH) {
@@ -151,8 +152,7 @@ sslna_connect_start(void *acc_data, struct gensio *child, struct gensio **rio)
 
     err = ssl_gensio_alloc(child, args, o, NULL, NULL, rio);
 
-    if (args[0])
-	o->free(o, args[0]);
+    o->free(o, str);
 
     return err;
 }
@@ -206,7 +206,7 @@ gensio_gensio_acc_ssl_cb(void *acc_data, int op, void *data1, void *data2,
 
 int
 ssl_gensio_accepter_alloc(struct gensio_accepter *child,
-			  char *args[],
+			  const char * const args[],
 			  struct gensio_os_funcs *o,
 			  gensio_accepter_event cb, void *user_data,
 			  struct gensio_accepter **accepter)
@@ -224,7 +224,7 @@ ssl_gensio_accepter_alloc(struct gensio_accepter *child,
 	/* Cowardly refusing to run SSL over an unreliable connection. */
 	return EOPNOTSUPP;
 
-    for (i = 0; args[i]; i++) {
+    for (i = 0; args && args[i]; i++) {
 	if (gensio_check_keyvalue(args[i], "CA", &CAfilepath))
 	    continue;
 	if (gensio_check_keyvalue(args[i], "key", &keyfile))
@@ -282,7 +282,7 @@ ssl_gensio_accepter_alloc(struct gensio_accepter *child,
 }
 
 int
-str_to_ssl_gensio_accepter(const char *str, char *args[],
+str_to_ssl_gensio_accepter(const char *str, const char * const args[],
 			   struct gensio_os_funcs *o,
 			   gensio_accepter_event cb,
 			   void *user_data,
@@ -303,7 +303,7 @@ str_to_ssl_gensio_accepter(const char *str, char *args[],
 
 #else /* HAVE_OPENSSL */
 int
-ssl_gensio_alloc(struct gensio *child, char *args[],
+ssl_gensio_alloc(struct gensio *child, const char * const args[],
 		 struct gensio_os_funcs *o,
 		 gensio_event cb, void *user_data,
 		 struct gensio **net)
@@ -312,7 +312,7 @@ ssl_gensio_alloc(struct gensio *child, char *args[],
 }
 
 int
-ssl_gensio_accepter_alloc(char *args[],
+ssl_gensio_accepter_alloc(const char * const args[],
 			  struct gensio_os_funcs *o,
 			  struct gensio_accepter *child,
 			  unsigned int max_read_size,

@@ -449,7 +449,7 @@ static const struct gensio_fd_ll_ops sctp_fd_ll_ops = {
 };
 
 int
-sctp_gensio_alloc(struct addrinfo *iai, char *args[],
+sctp_gensio_alloc(struct addrinfo *iai, const char * const args[],
 		  struct gensio_os_funcs *o,
 		  gensio_event cb, void *user_data,
 		  struct gensio **new_gensio)
@@ -461,7 +461,7 @@ sctp_gensio_alloc(struct addrinfo *iai, char *args[],
     unsigned int instreams = 1, ostreams = 1;
     int i, family = AF_INET;
 
-    for (i = 0; args[i]; i++) {
+    for (i = 0; args && args[i]; i++) {
 	if (gensio_check_keyuint(args[i], "readbuf", &max_read_size) > 0)
 	    continue;
 	if (gensio_check_keyuint(args[i], "instreams", &instreams) > 0)
@@ -518,7 +518,7 @@ sctp_gensio_alloc(struct addrinfo *iai, char *args[],
 }
 
 int
-str_to_sctp_gensio(const char *str, char *args[],
+str_to_sctp_gensio(const char *str, const char * const args[],
 		  struct gensio_os_funcs *o,
 		  gensio_event cb, void *user_data,
 		  struct gensio **new_gensio)
@@ -917,7 +917,7 @@ sctpna_connect(struct gensio_accepter *accepter, void *addr,
     struct sctpna_data *nadata = gensio_acc_get_gensio_data(accepter);
     struct gensio *net;
     int err;
-    char *args[4] = { NULL, NULL, NULL, NULL };
+    const char *args[4] = { NULL, NULL, NULL, NULL };
     char buf[100], buf2[100], buf3[100];
 
     if (nadata->max_read_size != GENSIO_DEFAULT_BUF_SIZE) {
@@ -967,7 +967,7 @@ gensio_acc_sctp_func(struct gensio_accepter *acc, int func, int val,
 }
 
 int
-sctp_gensio_accepter_alloc(struct addrinfo *iai, char *args[],
+sctp_gensio_accepter_alloc(struct addrinfo *iai, const char * const args[],
 			   struct gensio_os_funcs *o,
 			   gensio_accepter_event cb, void *user_data,
 			   struct gensio_accepter **accepter)
@@ -977,7 +977,7 @@ sctp_gensio_accepter_alloc(struct addrinfo *iai, char *args[],
     unsigned int instreams = 1, ostreams = 1;
     int i;
 
-    for (i = 0; args[i]; i++) {
+    for (i = 0; args && args[i]; i++) {
 	if (gensio_check_keyuint(args[i], "readbuf", &max_read_size) > 0)
 	    continue;
 	if (gensio_check_keyuint(args[i], "instreams", &instreams) > 0)
@@ -1021,7 +1021,7 @@ sctp_gensio_accepter_alloc(struct addrinfo *iai, char *args[],
 }
 
 int
-str_to_sctp_gensio_accepter(const char *str, char *args[],
+str_to_sctp_gensio_accepter(const char *str, const char * const args[],
 			    struct gensio_os_funcs *o,
 			    gensio_accepter_event cb,
 			    void *user_data,
@@ -1043,7 +1043,7 @@ str_to_sctp_gensio_accepter(const char *str, char *args[],
 #else
 
 int
-sctp_gensio_alloc(struct addrinfo *iai, char *args[],
+sctp_gensio_alloc(struct addrinfo *iai, const char * const args[],
 		  struct gensio_os_funcs *o,
 		  gensio_event cb, void *user_data,
 		  struct gensio **new_gensio)
@@ -1052,7 +1052,7 @@ sctp_gensio_alloc(struct addrinfo *iai, char *args[],
 }
 
 int
-str_to_sctp_gensio(const char *str, char *args[],
+str_to_sctp_gensio(const char *str, const char * const args[],
 		  struct gensio_os_funcs *o,
 		  gensio_event cb, void *user_data,
 		  struct gensio **new_gensio)
@@ -1061,7 +1061,7 @@ str_to_sctp_gensio(const char *str, char *args[],
 }
 
 int
-sctp_gensio_accepter_alloc(struct addrinfo *iai, char *args[],
+sctp_gensio_accepter_alloc(struct addrinfo *iai, const char * const args[],
 			   struct gensio_os_funcs *o,
 			   gensio_accepter_event cb, void *user_data,
 			   struct gensio_accepter **accepter)
@@ -1070,7 +1070,7 @@ sctp_gensio_accepter_alloc(struct addrinfo *iai, char *args[],
 }
 
 int
-str_to_sctp_gensio_accepter(const char *str, char *args[],
+str_to_sctp_gensio_accepter(const char *str, const char * const args[],
 			    struct gensio_os_funcs *o,
 			    gensio_accepter_event cb,
 			    void *user_data,

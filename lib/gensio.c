@@ -390,7 +390,7 @@ gensio_open_socket(struct gensio_os_funcs *o,
 }
 
 static int
-gensio_scan_args(const char **rstr, int *argc, char ***args)
+gensio_scan_args(const char **rstr, int *argc, const char ***args)
 {
     const char *str = *rstr;
     int err = 0;
@@ -551,7 +551,7 @@ static int
 scan_network_port_args(struct gensio_os_funcs *o, const char *str,
 		       bool listen, struct addrinfo **rai,
 		       int *socktype, int *protocol,
-		       bool *is_port_set, int *argc, char ***args)
+		       bool *is_port_set, int *argc, const char ***args)
 {
     int err = 0, family = AF_UNSPEC;
 
@@ -786,19 +786,15 @@ gensio_open_s(struct gensio *io)
 }
 
 int
-gensio_open_channel(struct gensio *io, const char *args,
+gensio_open_channel(struct gensio *io, const char * const args[],
 		    gensio_event cb, void *user_data,
 		    gensio_done_err open_done, void *open_data,
 		    struct gensio **new_io)
 {
     int rv;
     struct gensio_func_open_channel_data d;
-    int argc;
 
-    rv = str_to_argv_lengths(args, &argc, &d.args, NULL, " \f\n\r\t\v,");
-    if (rv)
-	return rv;
-
+    d.args = args;
     d.cb = cb;
     d.user_data = user_data;
     d.open_done = open_done;
@@ -806,13 +802,12 @@ gensio_open_channel(struct gensio *io, const char *args,
     rv = io->func(io, GENSIO_FUNC_OPEN_CHANNEL, NULL, NULL, 0, &d, NULL);
     if (!rv)
 	*new_io = d.new_io;
-    str_to_argv_free(argc, d.args);
 
     return rv;
 }
 
 int
-gensio_open_channel_s(struct gensio *io, const char *args,
+gensio_open_channel_s(struct gensio *io, const char * const args[],
 		      gensio_event cb, void *user_data,
 		      struct gensio **new_io)
 {
@@ -1130,9 +1125,8 @@ int str_to_gensio_accepter(const char *str,
     struct addrinfo *ai = NULL;
     bool is_port_set;
     int socktype, protocol;
-    char *dummy_args[1] = { NULL };
     int argc;
-    char **args = NULL;
+    const char **args = NULL;
     struct registered_gensio_accepter *r;
     unsigned int len;
 
@@ -1157,7 +1151,7 @@ int str_to_gensio_accepter(const char *str,
     }
 
     if (strisallzero(str)) {
-	err = stdio_gensio_accepter_alloc(dummy_args, o, cb, user_data,
+	err = stdio_gensio_accepter_alloc(NULL, o, cb, user_data,
 					  accepter);
     } else {
 	err = scan_network_port_args(o, str, true, &ai, &socktype, &protocol,
@@ -1182,7 +1176,7 @@ int str_to_gensio_accepter(const char *str,
 	}
     }
 
-    if (args && args != dummy_args)
+    if (args)
 	str_to_argv_free(argc, args);
 
     return err;
@@ -1252,7 +1246,7 @@ str_to_gensio(const char *str,
     bool is_port_set;
     int socktype, protocol;
     int argc;
-    char **args = NULL;
+    const char **args = NULL;
     struct registered_gensio *r;
     unsigned int len;
 
@@ -1276,9 +1270,7 @@ str_to_gensio(const char *str,
     }
 
     if (*str == '/') {
-	char *dummy_args[1] = { NULL };
-
-	err = str_to_serialdev_gensio(str, dummy_args, o, cb, user_data,
+	err = str_to_serialdev_gensio(str, NULL, o, cb, user_data,
 				      gensio);
 	goto out;
     }

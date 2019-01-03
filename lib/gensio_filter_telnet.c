@@ -677,7 +677,7 @@ static const unsigned char telnet_client_init_seq[] = {
 };
 
 int
-gensio_telnet_filter_alloc(struct gensio_os_funcs *o, char *args[],
+gensio_telnet_filter_alloc(struct gensio_os_funcs *o, const char * const args[],
 			   bool default_is_client,
 			   const struct gensio_telnet_filter_callbacks *cbs,
 			   void *handler_data,
@@ -694,7 +694,7 @@ gensio_telnet_filter_alloc(struct gensio_os_funcs *o, char *args[],
     const unsigned char *init_seq;
     unsigned int init_seq_len;
 
-    for (i = 0; args[i]; i++) {
+    for (i = 0; args && args[i]; i++) {
 	const char *val;
 
 	if (cmpstrval(args[i], "rfc2217=", &val)) {
