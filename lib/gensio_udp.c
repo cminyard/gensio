@@ -40,6 +40,51 @@
 
 struct udpna_data;
 
+struct gensio_link {
+    struct gensio_link *next;
+    struct gensio_link *prev;
+};
+
+struct gensio_list {
+    struct gensio_link link;
+};
+
+static void
+gensio_list_rm(struct gensio_list *list, struct gensio_link *link)
+{
+    link->next->prev = link->prev;
+    link->prev->next = link->next;
+}
+
+static void
+gensio_list_add_tail(struct gensio_list *list, struct gensio_link *link)
+{
+    link->prev = list->link.prev;
+    link->next = &list->link;
+    list->link.prev->next = link;
+    list->link.prev = link;
+}
+
+static void
+gensio_list_init(struct gensio_list *list)
+{
+    list->link.next = &list->link;
+    list->link.prev = &list->link;
+}
+
+static bool
+gensio_list_empty(struct gensio_list *list)
+{
+    return list->link.next == &list->link;
+}
+
+#define gensio_list_for_each(list, l) \
+    for ((l) = (list)->link.next; (l) != &(list)->link; l = l->next)
+
+#define gensio_list_for_each_safe(list, l, l2) \
+    for ((l) = (list)->link.next, (l2) = (l)->next; \
+	 (l) != &(list)->link; l = l2)
+
 struct udpn_data {
     struct gensio *io;
     struct udpna_data *nadata;
@@ -73,14 +118,15 @@ struct udpn_data {
     struct sockaddr *raddr;		/* Points to remote, for convenience. */
     socklen_t raddrlen;
 
-    struct udpn_data *next;
+    struct gensio_link link;
 };
 
-#define gensio_to_ndata(net) container_of(net, struct udpn_data, net);
+#define gensio_link_to_ndata(l) \
+    gensio_container_of(l, struct udpn_data, link);
 
 struct udpna_data {
     struct gensio_accepter *acc;
-    struct udpn_data *udpns;
+    struct gensio_list udpns;
     unsigned int udpn_count;
 
     struct gensio_os_funcs *o;
@@ -95,8 +141,8 @@ struct udpna_data {
     unsigned int data_pos;
     struct udpn_data *pending_data_owner;
 
-    struct udpn_data *pending_close_ndata; /* Linked list. */
-    struct udpn_data *closed_udpns;
+    struct gensio_list pending_close_udpns; /* Linked list. */
+    struct gensio_list closed_udpns;
 
     /*
      * Used to run read callbacks from the selector to avoid running
@@ -148,57 +194,30 @@ static void udpna_start_deferred_op(struct udpna_data *nadata)
 }
 
 static void
-udpn_remove_from_list(struct udpn_data **list, struct udpn_data *ndata)
+udpn_remove_from_list(struct gensio_list *list, struct udpn_data *ndata)
 {
-    if (*list == ndata) {
-	*list = ndata->next;
-    } else {
-	struct udpn_data *tndata = *list;
-
-	while (tndata->next != ndata)
-	    tndata = tndata->next;
-	tndata->next = tndata->next->next;
-    }
+    gensio_list_rm(list, &ndata->link);
 }
 
 static struct udpn_data *
-udpn_find(struct udpn_data **list,
-	  struct sockaddr *addr, socklen_t addrlen,
-	  bool remove)
+udpn_find(struct gensio_list *list, struct sockaddr *addr, socklen_t addrlen)
 {
-    struct udpn_data *ndata = *list, *prev = NULL;
+    struct gensio_link *l;
 
-    while (ndata) {
+    gensio_list_for_each(list, l) {
+	struct udpn_data *ndata = gensio_link_to_ndata(l);
+
 	if (gensio_sockaddr_equal(ndata->raddr, ndata->raddrlen,
-				  (struct sockaddr *) addr, addrlen, true)) {
-	    if (remove) {
-		if (!prev)
-		    *list = ndata->next;
-		else
-		    prev->next = ndata->next;
-	    }
-	    break;
-	}
-	prev = ndata;
-	ndata = ndata->next;
+				  (struct sockaddr *) addr, addrlen, true))
+	    return ndata;
     }
 
-    return ndata;
+    return NULL;
 }
 
-static void udpn_add_to_list(struct udpn_data **list, struct udpn_data *ndata)
+static void udpn_add_to_list(struct gensio_list *list, struct udpn_data *ndata)
 {
-    struct udpn_data *tndata;
-
-    ndata->next = NULL;
-    tndata = *list;
-    if (!tndata)
-	*list = ndata;
-    else {
-	while (tndata->next)
-	    tndata = tndata->next;
-	tndata->next = ndata;
-    }
+    gensio_list_add_tail(list, &ndata->link);
 }
 
 static void
@@ -313,7 +332,8 @@ static void udpna_check_finish_free(struct udpna_data *nadata)
     unsigned int i;
 
     if (!nadata->closed || nadata->in_new_connection || nadata->udpn_count ||
-		nadata->pending_close_ndata || nadata->in_shutdown)
+		!gensio_list_empty(&nadata->pending_close_udpns) ||
+		nadata->in_shutdown)
 	return;
 
     for (i = 0; i < nadata->nr_fds; i++)
@@ -421,7 +441,7 @@ udpn_add_to_closed(struct udpna_data *nadata, struct udpn_data *ndata)
     }
 
     udpn_remove_from_list(&nadata->udpns, ndata);
-    udpn_add_to_list(&nadata->pending_close_ndata, ndata);
+    udpn_add_to_list(&nadata->pending_close_udpns, ndata);
 
     udpna_start_deferred_op(nadata);
 }
@@ -460,7 +480,7 @@ static void
 udpna_deferred_op(struct gensio_runner *runner, void *cbdata)
 {
     struct udpna_data *nadata = cbdata;
-    struct udpn_data *ndata = NULL;
+    struct gensio_link *link, *link2;
 
     udpna_lock(nadata);
 
@@ -468,9 +488,9 @@ udpna_deferred_op(struct gensio_runner *runner, void *cbdata)
 			nadata->pending_data_owner->read_enabled)
 	udpn_finish_read(nadata->pending_data_owner);
 
-    while (nadata->pending_close_ndata) {
-	ndata = nadata->pending_close_ndata;
-	nadata->pending_close_ndata = ndata->next;
+    gensio_list_for_each_safe(&nadata->pending_close_udpns, link, link2) {
+	struct udpn_data *ndata = gensio_link_to_ndata(link);
+
 	udpn_finish_close(nadata, ndata);
     }
 
@@ -714,15 +734,16 @@ static void
 udpna_writehandler(int fd, void *cbdata)
 {
     struct udpna_data *nadata = cbdata;
-    struct udpn_data *ndata;
+    struct gensio_link *l;
 
     udpna_lock(nadata);
     if (nadata->in_write)
 	goto out_unlock;
 
     udpna_disable_write(nadata);
-    ndata = nadata->udpns;
-    while (ndata) {
+    gensio_list_for_each(&nadata->udpns, l) {
+	struct udpn_data *ndata = gensio_link_to_ndata(l);
+
 	if (ndata->write_enabled) {
 	    udpn_handle_write_incoming(nadata, ndata);
 	    /*
@@ -731,7 +752,6 @@ udpna_writehandler(int fd, void *cbdata)
 	     */
 	    break;
 	}
-	ndata = ndata->next;
     }
     if (nadata->write_enable_count > 0)
 	udpna_enable_write(nadata);
@@ -782,6 +802,40 @@ gensio_udp_func(struct gensio *io, int func, unsigned int *count,
     }
 }
 
+static struct udpn_data *
+udp_alloc_gensio(struct udpna_data *nadata, int fd, struct sockaddr *addr,
+		 socklen_t addrlen, gensio_event *cb, void *user_data,
+		 struct gensio_list *starting_list)
+{
+    struct udpn_data *ndata = nadata->o->zalloc(nadata->o, sizeof(*ndata));
+
+    if (!ndata)
+	return NULL;
+
+    ndata->o = nadata->o;
+    ndata->refcount = 1;
+    ndata->nadata = nadata;
+    ndata->raddr = (struct sockaddr *) &ndata->remote;
+
+    ndata->io = gensio_data_alloc(nadata->o, NULL, NULL, gensio_udp_func,
+				  NULL, "udp", ndata);
+    if (!ndata->io) {
+	nadata->o->free(nadata->o, ndata);
+	return NULL;
+    }
+    gensio_set_is_packet(ndata->io, true);
+
+    ndata->myfd = fd;
+    ndata->raddrlen = addrlen;
+    memcpy(ndata->raddr, addr, addrlen);
+
+    /* Stick it on the end of the list. */
+    udpn_add_to_list(starting_list, ndata);
+    nadata->udpn_count++;
+
+    return ndata;
+}
+
 static void
 udpna_readhandler(int fd, void *cbdata)
 {
@@ -817,8 +871,7 @@ udpna_readhandler(int fd, void *cbdata)
     nadata->data_pending_len = datalen;
     nadata->data_pos = 0;
 
-    ndata = udpn_find(&nadata->udpns,
-		      (struct sockaddr *) &addr, addrlen, false);
+    ndata = udpn_find(&nadata->udpns, (struct sockaddr *) &addr, addrlen);
     if (ndata) {
 	/*
 	 * Data belongs to an existing connection.
@@ -841,9 +894,11 @@ udpna_readhandler(int fd, void *cbdata)
     }
 
     if (!ndata) {
-	ndata = udpn_find(&nadata->pending_close_ndata,
-			  (struct sockaddr *) &addr, addrlen, true);
+	ndata = udpn_find(&nadata->pending_close_udpns,
+			  (struct sockaddr *) &addr, addrlen);
 	if (ndata) {
+	    udpn_remove_from_list(&nadata->pending_close_udpns, ndata);
+	    udpn_add_to_list(&nadata->closed_udpns, ndata);
 	    if (ndata->close_done) {
 		void (*close_done)(struct gensio *io, void *close_data) =
 		    ndata->close_done;
@@ -856,13 +911,22 @@ udpna_readhandler(int fd, void *cbdata)
 	    }
 	} else {
 	    ndata = udpn_find(&nadata->closed_udpns,
-			      (struct sockaddr *) &addr, addrlen, true);
+			      (struct sockaddr *) &addr, addrlen);
 	}
-	if (ndata)
+	if (ndata) {
+	    if (gensio_is_client(ndata->io))
+		/*
+		 * We do not allow incoming data to restart a connection
+		 * created with gensio_acc_str_to_gensio().
+		 */
+		goto out_unlock_enable;
+	    udpn_remove_from_list(&nadata->closed_udpns, ndata);
 	    udpn_add_to_list(&nadata->udpns, ndata);
+	}
     }
 
-    if (ndata) { /* Reuse an existing connection? */
+    if (ndata) {
+	/* Reuse an existing connection */
 	ndata->in_free = false;
 	ndata->in_close = false;
 	ndata->closed = false;
@@ -870,37 +934,16 @@ udpna_readhandler(int fd, void *cbdata)
 	ndata->in_open = false;
 	ndata->in_write = false;
 	gensio_set_cb(ndata->io, NULL, NULL);
-	goto restart_net;
+    } else {
+	/* New connection. */
+	ndata = udp_alloc_gensio(nadata, fd, (struct sockaddr *) &addr, addrlen,
+				 NULL, NULL, &nadata->udpns);
+	if (!ndata)
+	    goto out_nomem;
     }
 
-    /* New connection. */
-    ndata = nadata->o->zalloc(nadata->o, sizeof(*ndata));
-    if (!ndata)
-	goto out_nomem;
-
-    ndata->o = nadata->o;
-    ndata->refcount = 1;
-    ndata->nadata = nadata;
-    ndata->raddr = (struct sockaddr *) &ndata->remote;
-
-    ndata->io = gensio_data_alloc(nadata->o, NULL, NULL, gensio_udp_func,
-				  NULL, "udp", ndata);
-    if (!ndata->io) {
-	nadata->o->free(nadata->o, ndata);
-	goto out_nomem;
-    }
-    gensio_set_is_packet(ndata->io, true);
-
-    /* Stick it on the end of the list. */
-    udpn_add_to_list(&nadata->udpns, ndata);
-    nadata->udpn_count++;
-
- restart_net:
     ndata->read_enabled = false;
     nadata->read_disable_count++;
-    ndata->myfd = fd;
-    ndata->raddrlen = addrlen;
-    memcpy(ndata->raddr, &addr, addrlen);
 
     nadata->pending_data_owner = ndata;
     nadata->in_new_connection = true;
@@ -1147,6 +1190,9 @@ udp_gensio_accepter_alloc(struct addrinfo *iai, const char * const args[],
     if (!nadata)
 	return ENOMEM;
     nadata->o = o;
+    gensio_list_init(&nadata->udpns);
+    gensio_list_init(&nadata->pending_close_udpns);
+    gensio_list_init(&nadata->closed_udpns);
 
     nadata->ai = gensio_dup_addrinfo(o, iai);
     if (!nadata->ai && iai) /* Allow a null ai if it was passed in. */
@@ -1266,7 +1312,7 @@ udp_gensio_alloc(struct addrinfo *ai, const char * const args[],
 
     ndata->nadata = nadata;
     ndata->closed = true; /* Start closed. */
-    nadata->closed_udpns = ndata;
+    udpn_add_to_list(&nadata->closed_udpns, ndata);
     nadata->udpn_count = 1;
 
     ndata->raddr = (struct sockaddr *) &ndata->remote;
