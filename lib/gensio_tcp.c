@@ -465,6 +465,24 @@ static const struct gensio_fd_ll_ops tcp_server_fd_ll_ops = {
 };
 
 static void
+tcpna_server_open_done(struct gensio *io, int err, void *open_data)
+{
+    struct tcpna_data *nadata = open_data;
+
+    if (err) {
+	gensio_free(io);
+	gensio_acc_log(nadata->acc, GENSIO_LOG_ERR,
+		       "Error setting up TCP server gensio: %s",
+		       strerror(errno));
+    } else {
+	gensio_acc_cb(nadata->acc, GENSIO_ACC_EVENT_NEW_CONNECTION, io);
+    }
+
+    tcpna_lock(nadata);
+    tcpna_deref_and_unlock(nadata);
+}
+
+static void
 tcpna_readhandler(int fd, void *cbdata)
 {
     struct tcpna_data *nadata = cbdata;
@@ -480,7 +498,7 @@ tcpna_readhandler(int fd, void *cbdata)
     if (new_fd == -1) {
 	if (errno != EAGAIN && errno != EWOULDBLOCK)
 	    gensio_acc_log(nadata->acc, GENSIO_LOG_ERR,
-			   "Could not accept: %s", strerror(errno));
+			   "Error accepting TCP gensio: %s", strerror(errno));
 	return;
     }
 
@@ -523,9 +541,13 @@ tcpna_readhandler(int fd, void *cbdata)
 	return;
     }
 
-    io = base_gensio_server_alloc(nadata->o, tdata->ll, NULL, "tcp", NULL,
-				  NULL);
-    if (!io) {
+    tcpna_lock(nadata);
+    io = base_gensio_server_alloc(nadata->o, tdata->ll, NULL, "tcp",
+				  tcpna_server_open_done, nadata);
+    if (io) {
+	tcpna_ref(nadata);
+    } else {
+	tcpna_unlock(nadata);
 	gensio_acc_log(nadata->acc, GENSIO_LOG_ERR,
 		       "Out of memory allocating tcp base");
 	gensio_ll_free(tdata->ll);
@@ -534,8 +556,7 @@ tcpna_readhandler(int fd, void *cbdata)
 	return;
     }
     gensio_set_is_reliable(io, true);
-    
-    gensio_acc_cb(nadata->acc, GENSIO_ACC_EVENT_NEW_CONNECTION, io);
+    tcpna_unlock(nadata);
 }
 
 static void

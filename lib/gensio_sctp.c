@@ -663,6 +663,24 @@ static const struct gensio_fd_ll_ops sctp_server_fd_ll_ops = {
 };
 
 static void
+sctpna_server_open_done(struct gensio *io, int err, void *open_data)
+{
+    struct sctpna_data *nadata = open_data;
+
+    if (err) {
+	gensio_free(io);
+	gensio_acc_log(nadata->acc, GENSIO_LOG_ERR,
+		       "Error setting up TCP server gensio: %s",
+		       strerror(errno));
+    } else {
+	gensio_acc_cb(nadata->acc, GENSIO_ACC_EVENT_NEW_CONNECTION, io);
+    }
+
+    sctpna_lock(nadata);
+    sctpna_deref_and_unlock(nadata);
+}
+
+static void
 sctpna_readhandler(int fd, void *cbdata)
 {
     struct sctpna_data *nadata = cbdata;
@@ -714,9 +732,13 @@ sctpna_readhandler(int fd, void *cbdata)
 	return;
     }
 
-    io = base_gensio_server_alloc(nadata->o, tdata->ll, NULL, "sctp", NULL,
-				  NULL);
-    if (!io) {
+    sctpna_lock(nadata);
+    io = base_gensio_server_alloc(nadata->o, tdata->ll, NULL, "sctp",
+				  sctpna_server_open_done, nadata);
+    if (io) {
+	sctpna_ref(nadata);
+    } else {
+	sctpna_unlock(nadata);
 	gensio_acc_log(nadata->acc, GENSIO_LOG_ERR,
 		       "Out of memory allocating sctp base");
 	gensio_ll_free(tdata->ll);
@@ -725,8 +747,7 @@ sctpna_readhandler(int fd, void *cbdata)
 	return;
     }
     gensio_set_is_reliable(io, true);
-
-    gensio_acc_cb(nadata->acc, GENSIO_ACC_EVENT_NEW_CONNECTION, io);
+    sctpna_unlock(nadata);
 }
 
 static void
