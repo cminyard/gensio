@@ -150,7 +150,7 @@ read, but with "oob" in the auxdata.  You can send oob data by adding
 "oob" to the write auxdata, but oob writes are limited to 1 byte and
 writing any more than this results in undefined behavior.
 
-In addition to readbuf, the sctp gensio takes the following options:
+In addition to readbuf, the tcp gensio takes the following options:
 
 .TP
 .B laddr=<addr>
@@ -176,6 +176,13 @@ will create a new accepted gensio for any packet it receives from a
 new remote host.  If you disable read on any of the accepted gensio or
 disable accepts on the accepting gensio, it will stop all reads on all
 gensios associated with that accepting gensio.
+
+In addition to readbuf, the udp gensio takes the following options:
+
+.TP
+.B laddr=<addr>
+An address specification to bind to on the local socket to set the
+local address.
 
 .SH "SCTP"
 
