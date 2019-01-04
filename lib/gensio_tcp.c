@@ -310,9 +310,8 @@ tcp_gensio_alloc(struct addrinfo *iai, const char * const args[],
 	if (gensio_check_keyuint(args[i], "readbuf", &max_read_size) > 0)
 	    continue;
 	if (gensio_check_keyaddrs(o, args[i], "laddr", IPPROTO_TCP,
-				  true, false, &lai) > 0) {
+				  true, false, &lai) > 0)
 	    continue;
-	}
 	return EINVAL;
     }
 
