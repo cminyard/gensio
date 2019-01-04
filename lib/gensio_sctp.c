@@ -424,7 +424,7 @@ sctp_do_read(int fd, void *data, size_t count, const char **auxdata,
     unsigned int i = 0;
 
     rv = sctp_recvmsg(fd, data, count, NULL, NULL, &sinfo, &flags);
-    if (rv == -1)
+    if (rv <= 0)
 	return rv;
 
     stream = sinfo.sinfo_stream;
