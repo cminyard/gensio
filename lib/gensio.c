@@ -1520,6 +1520,39 @@ gensio_check_keyboolv(const char *str, const char *key, const char *trueval,
     return 1;
 }
 
+int
+gensio_check_keyaddrs(struct gensio_os_funcs *o,
+		      const char *str, const char *key, int iprotocol,
+		      bool listen, bool require_port, struct addrinfo **rai)
+{
+    const char *sval;
+    int rv;
+    struct addrinfo *ai;
+    int socktype, protocol;
+    bool is_port_set;
+
+    rv = gensio_check_keyvalue(str, key, &sval);
+    if (!rv)
+	return 0;
+
+    if (!*sval)
+	return -1;
+
+    rv = gensio_scan_network_port(o, sval, listen, &ai, &socktype,
+				  &protocol, &is_port_set, NULL, NULL);
+    if (rv)
+	return -1;
+
+    if (require_port && !is_port_set)
+	return -1;
+    if (protocol != iprotocol)
+	return -1;
+
+    *rai = ai;
+
+    return 1;
+}
+
 void
 gensio_vlog(struct gensio_os_funcs *o, enum gensio_log_levels level,
 	    const char *str, va_list args)
