@@ -663,8 +663,9 @@ basen_free(struct basen_data *ndata)
 	basen_i_close(ndata, NULL, NULL);
 	/* We have to lose the reference that in_open state is holding. */
 	basen_deref(ndata);
-    } else if (ndata->state != BASEN_CLOSED)
+    } else if (ndata->state != BASEN_CLOSED) {
 	basen_i_close(ndata, NULL, NULL);
+    }
     /* Lose the initial ref so it will be freed when done. */
     basen_deref_and_unlock(ndata);
 }
