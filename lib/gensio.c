@@ -1409,7 +1409,7 @@ gensio_sockaddr_to_str(const struct sockaddr *addr, socklen_t *addrlen,
 	    goto out_err;
 	pos += snprintf(buf + pos, left, "%s,%d",
 			inet_ntop(AF_INET, &a4->sin_addr, ibuf, sizeof(ibuf)),
-			a4->sin_port);
+			ntohs(a4->sin_port));
 	if (addrlen)
 	    *addrlen = sizeof(struct sockaddr_in);
     } else if (addr->sa_family == AF_INET6) {
@@ -1420,7 +1420,7 @@ gensio_sockaddr_to_str(const struct sockaddr *addr, socklen_t *addrlen,
 	    goto out_err;
 	pos += snprintf(buf + pos, left, "%s,%d",
 			inet_ntop(AF_INET6, &a6->sin6_addr, ibuf, sizeof(ibuf)),
-			a6->sin6_port);
+			ntohs(a6->sin6_port));
 	if (addrlen)
 	    *addrlen = sizeof(struct sockaddr_in6);
     } else {
