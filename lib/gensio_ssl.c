@@ -69,6 +69,7 @@ ssl_gensio_alloc(struct gensio *child, const char *const args[],
 	gensio_filter_free(filter);
 	return ENOMEM;
     }
+
     gensio_set_is_packet(io, true);
     gensio_set_is_reliable(io, true);
     gensio_free(child); /* Lose the ref we acquired. */
@@ -137,11 +138,11 @@ sslna_alloc_gensio(void *acc_data, const char * const *iargs,
     const char *CAfilepath = nadata->CAfilepath;
 
     for (i = 0; iargs && iargs[i]; i++) {
-	if (gensio_check_keyvalue(args[i], "CA", &CAfilepath))
+	if (gensio_check_keyvalue(iargs[i], "CA", &CAfilepath))
 	    continue;
-	if (gensio_check_keyuint(args[i], "writebuf", &max_write_size) > 0)
+	if (gensio_check_keyuint(iargs[i], "writebuf", &max_write_size) > 0)
 	    continue;
-	if (gensio_check_keyuint(args[i], "readbuf", &max_read_size) > 0)
+	if (gensio_check_keyuint(iargs[i], "readbuf", &max_read_size) > 0)
 	    continue;
 	return EINVAL;
     }
