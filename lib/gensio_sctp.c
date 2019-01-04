@@ -315,6 +315,8 @@ sctp_free(void *handler_data)
 
     if (tdata->ai)
 	gensio_free_addrinfo(tdata->o, tdata->ai);
+    if (tdata->lai)
+	gensio_free_addrinfo(tdata->o, tdata->ai);
     if (tdata->strind) {
 	unsigned int i;
 
@@ -472,7 +474,7 @@ sctp_gensio_alloc(struct addrinfo *iai, const char * const args[],
     struct gensio *io;
     unsigned int max_read_size = GENSIO_DEFAULT_BUF_SIZE;
     unsigned int instreams = 1, ostreams = 1;
-    int i, family = AF_INET;
+    int i, family = AF_INET, err;
     struct addrinfo *lai = NULL;
 
     for (i = 0; args && args[i]; i++) {
@@ -485,25 +487,28 @@ sctp_gensio_alloc(struct addrinfo *iai, const char * const args[],
 	    continue;
 	if (gensio_check_keyuint(args[i], "ostreams", &ostreams) > 0)
 	    continue;
-	return EINVAL;
+	err = EINVAL;
+	goto out_err;
     }
 
     for (ai = iai; ai; ai = ai->ai_next) {
-	if (ai->ai_addrlen > sizeof(struct sockaddr_storage))
-	    return E2BIG;
+	if (ai->ai_addrlen > sizeof(struct sockaddr_storage)) {
+	    err = E2BIG;
+	    goto out_err;
+	}
 	if (ai->ai_addr->sa_family == AF_INET6)
 	    family = AF_INET6;
     }
 
     tdata = o->zalloc(o, sizeof(*tdata));
-    if (!tdata)
-	return ENOMEM;
+    if (!tdata) {
+	err = ENOMEM;
+	goto out_err;
+    }
 
     ai = gensio_dup_addrinfo(o, iai);
-    if (!ai) {
-	o->free(o, tdata);
-	return ENOMEM;
-    }
+    if (!ai)
+	goto out_nomem;
 
     tdata->o = o;
     tdata->family = family;
@@ -515,24 +520,30 @@ sctp_gensio_alloc(struct addrinfo *iai, const char * const args[],
 
     tdata->ll = fd_gensio_ll_alloc(o, -1, &sctp_fd_ll_ops, tdata,
 				   max_read_size);
-    if (!tdata->ll) {
-	gensio_free_addrinfo(o, ai);
-	o->free(o, tdata);
-	return ENOMEM;
-    }
+    if (!tdata->ll)
+	goto out_nomem;
 
     io = base_gensio_alloc(o, tdata->ll, NULL, "sctp", cb, user_data);
-    if (!io) {
-	gensio_ll_free(tdata->ll);
-	gensio_free_addrinfo(o, ai);
-	o->free(o, tdata);
-	return ENOMEM;
-    }
+    if (!io)
+	goto out_nomem;
+
     gensio_set_is_reliable(io, true);
     gensio_set_is_packet(io, true);
 
     *new_gensio = io;
     return 0;
+
+ out_nomem:
+    if (tdata->ll)
+	gensio_ll_free(tdata->ll);
+    if (tdata->ai)
+	gensio_free_addrinfo(o, tdata->ai);
+    o->free(o, tdata);
+    err = ENOMEM;
+ out_err:
+    if (lai)
+	gensio_free_addrinfo(o, lai);
+    return err;
 }
 
 int
