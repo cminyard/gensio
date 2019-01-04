@@ -36,7 +36,18 @@ specifies a telnet filter on top of a TCP connection.
 
 When specifying a gensio, you can add quotes (single or double) to
 remove the special meaning for some characters, so you can have commas
-in options and such.  They may also be escaped with a "\\".
+in options and such.  They may also be escaped with a "\\".  For instance,
+if you are specifying a laddr in an sctp address, you need to do this.
+The following address:
+.IP
+sctp(laddr=sctp,localhost,4001),localhost,3023
+.PP
+will result in a failure because the option splitting code will split
+at the commas.  Instead, do:
+.IP
+sctp(laddr="sctp,localhost,4001"),localhost,3023
+.PP
+and it will work.
 
 Accepter gensios, gensios used for accepting connections, as opposed
 to connecting gensios, are specified in the same way.  Each individual
@@ -190,6 +201,11 @@ In addition to readbuf, the sctp gensio takes the following options:
 These specify the number of incoming and outgoing streams for the
 connection.  The default is one.  The stream is given in the auxdata
 for read and write in the format "stream=<n>".
+
+.TP
+.B laddr=<addr>
+An address specification to bind to on the local socket to set the
+local address.
 
 SCTP support out of band (oob) data, which is data that will be
 delivered out of order as soon as possible.  This comes in a normal

@@ -47,6 +47,7 @@ struct sctp_data {
 
     int family;
     struct addrinfo *ai;
+    struct addrinfo *lai; /* Local address, NULL if not set. */
 
     struct sctp_initmsg initmsg;
 
@@ -106,11 +107,16 @@ sctp_socket_setup(struct sctp_data *tdata, int fd)
 {
     int optval = 1;
     struct sctp_event_subscribe event_sub;
+    struct addrinfo *ai = tdata->lai;
 
     if (fcntl(fd, F_SETFL, O_NONBLOCK) == -1)
 	return errno;
 
     if (setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE,
+		   (void *)&optval, sizeof(optval)) == -1)
+	return errno;
+
+    if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR,
 		   (void *)&optval, sizeof(optval)) == -1)
 	return errno;
 
@@ -123,6 +129,12 @@ sctp_socket_setup(struct sctp_data *tdata, int fd)
     if (setsockopt(fd, IPPROTO_SCTP, SCTP_EVENTS, &event_sub,
 		   sizeof(event_sub)) == -1)
 	return errno;
+
+    while (ai) {
+	if (sctp_bindx(fd, ai->ai_addr, 1, SCTP_BINDX_ADD_ADDR) == -1)
+	    return errno;
+	ai = ai->ai_next;
+    }
 
     return 0;
 }
@@ -461,9 +473,13 @@ sctp_gensio_alloc(struct addrinfo *iai, const char * const args[],
     unsigned int max_read_size = GENSIO_DEFAULT_BUF_SIZE;
     unsigned int instreams = 1, ostreams = 1;
     int i, family = AF_INET;
+    struct addrinfo *lai = NULL;
 
     for (i = 0; args && args[i]; i++) {
 	if (gensio_check_keyuint(args[i], "readbuf", &max_read_size) > 0)
+	    continue;
+	if (gensio_check_keyaddrs(o, args[i], "laddr", IPPROTO_SCTP,
+				  true, false, &lai) > 0)
 	    continue;
 	if (gensio_check_keyuint(args[i], "instreams", &instreams) > 0)
 	    continue;
@@ -492,6 +508,7 @@ sctp_gensio_alloc(struct addrinfo *iai, const char * const args[],
     tdata->o = o;
     tdata->family = family;
     tdata->ai = ai;
+    tdata->lai = lai;
     tdata->initmsg.sinit_max_instreams = instreams;
     tdata->initmsg.sinit_num_ostreams = ostreams;
     tdata->fd = -1;
@@ -793,8 +810,8 @@ sctpna_startup(struct gensio_accepter *accepter)
 	for (i = 0; i < nadata->nfds; i++) {
 	    if (port == fds[i].port &&
 		((fds[i].flags & AI_V4MAPPED) || fds[i].family == family)) {
-		rv = sctp_bindx(fds[i].fd, ai->ai_addr, 1, SCTP_BINDX_ADD_ADDR);
-		if (rv) {
+		if (sctp_bindx(fds[i].fd, ai->ai_addr, 1,
+			       SCTP_BINDX_ADD_ADDR)) {
 		    rv = errno;
 		    goto out_err;
 		}
@@ -916,7 +933,7 @@ sctpna_str_to_gensio(struct gensio_accepter *accepter, const char *addr,
 {
     struct sctpna_data *nadata = gensio_acc_get_gensio_data(accepter);
     int err;
-    const char *args[4] = { NULL, NULL, NULL, NULL };
+    const char *args[5] = { NULL, NULL, NULL, NULL, NULL };
     char buf[100], buf2[100], buf3[100];
     unsigned int max_read_size = nadata->max_read_size;
     unsigned int instreams = nadata->initmsg.sinit_max_instreams;
@@ -925,6 +942,7 @@ sctpna_str_to_gensio(struct gensio_accepter *accepter, const char *addr,
     const char **iargs;
     int iargc;
     struct addrinfo *ai;
+    const char *laddr = NULL, *dummy;
     bool is_port_set;
     int socktype, protocol;
 
@@ -940,6 +958,10 @@ sctpna_str_to_gensio(struct gensio_accepter *accepter, const char *addr,
     for (i = 0; iargs && iargs[i]; i++) {
 	if (gensio_check_keyuint(iargs[i], "readbuf", &max_read_size) > 0)
 	    continue;
+	if (gensio_check_keyvalue(iargs[i], "laddr", &dummy) > 0) {
+	    laddr = iargs[i];
+	    continue;
+	}
 	if (gensio_check_keyuint(iargs[i], "instreams", &instreams) > 0)
 	    continue;
 	if (gensio_check_keyuint(iargs[i], "ostreams", &ostreams) > 0)
@@ -952,6 +974,8 @@ sctpna_str_to_gensio(struct gensio_accepter *accepter, const char *addr,
 	snprintf(buf, 100, "readbuf=%d", max_read_size);
 	args[i++] = buf;
     }
+    if (laddr)
+	args[i++] = laddr;
     if (instreams > 1) {
 	snprintf(buf2, 100, "instreams=%d", instreams);
 	args[i++] = buf2;
@@ -1008,7 +1032,7 @@ sctp_gensio_accepter_alloc(struct addrinfo *iai, const char * const args[],
     struct sctpna_data *nadata;
     unsigned int max_read_size = GENSIO_DEFAULT_BUF_SIZE;
     unsigned int instreams = 1, ostreams = 1;
-    int i;
+    unsigned int i;
 
     for (i = 0; args && args[i]; i++) {
 	if (gensio_check_keyuint(args[i], "readbuf", &max_read_size) > 0)
