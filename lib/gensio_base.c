@@ -492,7 +492,6 @@ basen_try_connect(struct basen_data *ndata)
     int err;
     struct timeval timeout = {0, 0};
 
-    assert(ndata->state == BASEN_IN_FILTER_OPEN);
     if (ndata->state != BASEN_IN_FILTER_OPEN)
 	/*
 	 * We can race between the timer, input, and output, make sure
