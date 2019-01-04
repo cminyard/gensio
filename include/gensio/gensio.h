@@ -435,6 +435,12 @@ void gensio_acc_free(struct gensio_accepter *accepter);
  * Create a new connecting gensio from the given gensio accepter.
  * This will come from the first address/port that the accepter is on
  * for TCP and UDP.  It will bind to all the address/ports for SCTP.
+ * To use this, you must specify a string that exactly matches the
+ * layers of the accepter.  So, for instance, if the accepter is
+ * "telnet,ssl(CA=x1,key=x2,cert=x3),sctp,3095", then the
+ * string must be in the form "telnet,ssl(CA=x2),sctp,otherserver,3820"
+ * The layers are exactly the same, but you can vary the options to
+ * the layers.
  */
 int gensio_acc_str_to_gensio(struct gensio_accepter *accepter,
 			     const char *str,
