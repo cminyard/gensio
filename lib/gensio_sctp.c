@@ -961,7 +961,7 @@ sctpna_str_to_gensio(struct gensio_accepter *accepter, const char *addr,
 	args[i++] = buf3;
     }
 
-    err = str_to_sctp_gensio(addr, args, nadata->o, cb, user_data, new_net);
+    err = sctp_gensio_alloc(ai, args, nadata->o, cb, user_data, new_net);
 
  out_err:
     if (iargs)
