@@ -74,9 +74,9 @@ types can be dynamically added by the user, so there may be gensios
 available that are not described here.
 
 Unless othersize noted, every gensio takes a:
-.IP
-readbuf=<n>
-.PP
+
+.TP
+.B readbuf=<n>
 option to specify the read buffer size.
 
 .SH "Serial gensios"
@@ -139,6 +139,13 @@ read, but with "oob" in the auxdata.  You can send oob data by adding
 "oob" to the write auxdata, but oob writes are limited to 1 byte and
 writing any more than this results in undefined behavior.
 
+In addition to readbuf, the sctp gensio takes the following options:
+
+.TP
+.B laddr=<addr>
+An address specification to bind to on the local socket to set the
+local address.
+
 .SH "UDP"
 
 .B udp[(<options>)][,<hostname>],<port>[[,<hostname>],<port>[...]]
@@ -175,12 +182,11 @@ specified addresses as possible destinations.  Again, all the ports
 must be the same.
 
 In addition to readbuf, the sctp gensio takes the following options:
-.IP
-instreams=<n>
-.PP
-.IP
-outstreams=<n>
-.PP
+
+.TP
+.B instreams=<n>
+.TP
+.B ostreams=<n>
 These specify the number of incoming and outgoing streams for the
 connection.  The default is one.  The stream is given in the auxdata
 for read and write in the format "stream=<n>".
@@ -283,9 +289,9 @@ arguments.
 This is a serial gensio, but the baud rate settings are fairly limited.
 
 In addition to readbuf, the ipmisol gensio takes the following options:
-.IP
-writebuf=<n>
-.PP
+
+.TP
+.B writebuf=<n>
 to set the size of the write buffer.
 
 .SH "telnet"
