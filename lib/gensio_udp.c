@@ -1021,7 +1021,7 @@ udpna_str_to_gensio(struct gensio_accepter *accepter, const char *addr,
 		    gensio_event cb, void *user_data, struct gensio **new_net)
 {
     struct udpna_data *nadata = gensio_acc_get_gensio_data(accepter);
-    struct udpn_data *ndata;
+    struct udpn_data *ndata = NULL;
     struct addrinfo *ai = NULL, *tai;
     unsigned int fdi;
     int err;
@@ -1046,11 +1046,12 @@ udpna_str_to_gensio(struct gensio_accepter *accepter, const char *addr,
     for (tai = ai; tai; tai = tai->ai_next) {
 	for (fdi = 0; fdi < nadata->nr_fds; fdi++) {
 	    if (nadata->fds[fdi].family == tai->ai_addr->sa_family)
-		break;
+		goto found;
 	}
     }
-    if (!tai)
-	goto out_err;
+    goto out_err;
+
+ found:
 
     if (ai->ai_addrlen > sizeof(struct sockaddr_storage))
 	goto out_err;
