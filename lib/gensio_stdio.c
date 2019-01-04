@@ -32,8 +32,8 @@
 
 #include "utils.h"
 
-static int gensio_stdio_func(struct gensio *io, int func, unsigned int *count,
-			     const void *cbuf, unsigned int buflen, void *buf,
+static int gensio_stdio_func(struct gensio *io, int func, gensiods *count,
+			     const void *cbuf, gensiods buflen, void *buf,
 			     const char *const *auxdata);
 
 struct stdiona_data;
@@ -50,10 +50,10 @@ struct stdion_channel {
 
     struct gensio *io;
 
-    unsigned int max_read_size;
+    gensiods max_read_size;
     unsigned char *read_data;
-    unsigned int data_pending_len;
-    unsigned int data_pos;
+    gensiods data_pending_len;
+    gensiods data_pos;
 
     struct stdiona_data *stdiona;
 
@@ -173,8 +173,8 @@ stdiona_deref(struct stdiona_data *nadata)
 }
 
 static int
-stdion_write(struct gensio *io, unsigned int *count,
-	     const void *buf, unsigned int buflen)
+stdion_write(struct gensio *io, gensiods *count,
+	     const void *buf, gensiods buflen)
 {
     struct stdion_channel *schan = gensio_get_gensio_data(io);
     int rv, err = 0;
@@ -199,12 +199,12 @@ stdion_write(struct gensio *io, unsigned int *count,
 }
 
 static int
-stdion_raddr_to_str(struct gensio *io, unsigned int *epos,
-		    char *buf, unsigned int buflen)
+stdion_raddr_to_str(struct gensio *io, gensiods *epos,
+		    char *buf, gensiods buflen)
 {
     struct stdion_channel *schan = gensio_get_gensio_data(io);
     struct stdiona_data *nadata = schan->nadata;
-    unsigned int pos = 0;
+    gensiods pos = 0;
 
     if (epos)
 	pos = *epos;
@@ -241,7 +241,7 @@ stdion_finish_read(struct stdion_channel *schan, int err)
 {
     struct stdiona_data *nadata = schan->nadata;
     struct gensio *io = schan->io;
-    unsigned int count;
+    gensiods count;
 
     if (err) {
 	/* Do this here so the user can modify it. */
@@ -589,10 +589,11 @@ stdion_open_channel(struct gensio *io, const char * const args[],
     struct stdion_channel *schan = gensio_get_gensio_data(io);
     struct stdiona_data *nadata = schan->nadata;
     int rv = 0;
-    unsigned int i, max_read_size = nadata->io.max_read_size;
+    unsigned int i;
+    gensiods max_read_size = nadata->io.max_read_size;
 
     for (i = 0; args && args[i]; i++) {
-	if (gensio_check_keyuint(args[i], "readbuf", &max_read_size) > 0)
+	if (gensio_check_keyds(args[i], "readbuf", &max_read_size) > 0)
 	    continue;
 	return EINVAL;
     }
@@ -727,8 +728,8 @@ stdion_ref(struct gensio *io)
 }
 
 static int
-gensio_stdio_func(struct gensio *io, int func, unsigned int *count,
-		  const void *cbuf, unsigned int buflen, void *buf,
+gensio_stdio_func(struct gensio *io, int func, gensiods *count,
+		  const void *cbuf, gensiods buflen, void *buf,
 		  const char *const *auxdata)
 {
     switch (func) {
@@ -777,7 +778,7 @@ gensio_stdio_func(struct gensio *io, int func, unsigned int *count,
 }
 
 static int
-stdio_nadata_setup(struct gensio_os_funcs *o, unsigned int max_read_size,
+stdio_nadata_setup(struct gensio_os_funcs *o, gensiods max_read_size,
 		   struct stdiona_data **new_nadata)
 {
     struct stdiona_data *nadata;
@@ -832,10 +833,10 @@ stdio_gensio_alloc(const char * const argv[], const char * const args[],
     int err;
     struct stdiona_data *nadata = NULL;
     int i, argc;
-    unsigned int max_read_size = GENSIO_DEFAULT_BUF_SIZE;
+    gensiods max_read_size = GENSIO_DEFAULT_BUF_SIZE;
 
     for (i = 0; args && args[i]; i++) {
-	if (gensio_check_keyuint(args[i], "readbuf", &max_read_size) > 0)
+	if (gensio_check_keyds(args[i], "readbuf", &max_read_size) > 0)
 	    continue;
 	return EINVAL;
     }
@@ -1137,11 +1138,11 @@ stdio_gensio_accepter_alloc(const char * const args[],
 {
     int err;
     struct stdiona_data *nadata = NULL;
-    unsigned int max_read_size = GENSIO_DEFAULT_BUF_SIZE;
+    gensiods max_read_size = GENSIO_DEFAULT_BUF_SIZE;
     int i;
 
     for (i = 0; args && args[i]; i++) {
-	if (gensio_check_keyuint(args[i], "readbuf", &max_read_size) > 0)
+	if (gensio_check_keyds(args[i], "readbuf", &max_read_size) > 0)
 	    continue;
 	return EINVAL;
     }

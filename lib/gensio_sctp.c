@@ -222,13 +222,14 @@ sctp_sub_open(void *handler_data, int *fd)
 }
 
 static int
-sctp_raddr_to_str(void *handler_data, unsigned int *epos,
-		  char *buf, unsigned int buflen)
+sctp_raddr_to_str(void *handler_data, gensiods *epos,
+		  char *buf, gensiods buflen)
 {
     struct sctp_data *tdata = handler_data;
     struct sockaddr *addrs;
     unsigned char *d;
-    unsigned int i, count, pos = 0;
+    unsigned int i;
+    gensiods count, pos = 0;
     int rv;
 
     rv = sctp_getpaddrs(tdata->fd, 0, &addrs);
@@ -267,12 +268,13 @@ sctp_raddr_to_str(void *handler_data, unsigned int *epos,
 }
 
 static int
-sctp_get_raddr(void *handler_data, void *addr, unsigned int *addrlen)
+sctp_get_raddr(void *handler_data, void *addr, gensiods *addrlen)
 {
     struct sctp_data *tdata = handler_data;
     struct sockaddr *addrs, *a;
     unsigned char *d;
-    unsigned int i, size, count;
+    unsigned int i;
+    gensiods size, count;
     int rv;
 
     rv = sctp_getpaddrs(tdata->fd, 0, &addrs);
@@ -369,8 +371,8 @@ sctp_control(void *handler_data, int fd, bool get, unsigned int option,
 }
 
 static int
-sctp_write(void *handler_data, int fd, unsigned int *rcount,
-	  const unsigned char *buf, unsigned int buflen,
+sctp_write(void *handler_data, int fd, gensiods *rcount,
+	  const unsigned char *buf, gensiods buflen,
 	  const char *const *auxdata)
 {
     struct sctp_data *tdata = handler_data;
@@ -472,13 +474,13 @@ sctp_gensio_alloc(struct addrinfo *iai, const char * const args[],
     struct sctp_data *tdata = NULL;
     struct addrinfo *ai;
     struct gensio *io;
-    unsigned int max_read_size = GENSIO_DEFAULT_BUF_SIZE;
+    gensiods max_read_size = GENSIO_DEFAULT_BUF_SIZE;
     unsigned int instreams = 1, ostreams = 1;
     int i, family = AF_INET, err;
     struct addrinfo *lai = NULL;
 
     for (i = 0; args && args[i]; i++) {
-	if (gensio_check_keyuint(args[i], "readbuf", &max_read_size) > 0)
+	if (gensio_check_keyds(args[i], "readbuf", &max_read_size) > 0)
 	    continue;
 	if (gensio_check_keyaddrs(o, args[i], "laddr", IPPROTO_SCTP,
 				  true, false, &lai) > 0)
@@ -577,7 +579,7 @@ struct sctpna_data {
 
     struct gensio_os_funcs *o;
 
-    unsigned int max_read_size;
+    gensiods max_read_size;
 
     struct gensio_lock *lock;
 
@@ -595,7 +597,7 @@ struct sctpna_data {
 
     struct addrinfo *ai;
 
-    unsigned int   nr_accept_close_waiting;
+    unsigned int nr_accept_close_waiting;
 
     struct sctp_initmsg initmsg;
 };
@@ -966,7 +968,7 @@ sctpna_str_to_gensio(struct gensio_accepter *accepter, const char *addr,
     int err;
     const char *args[5] = { NULL, NULL, NULL, NULL, NULL };
     char buf[100], buf2[100], buf3[100];
-    unsigned int max_read_size = nadata->max_read_size;
+    gensiods max_read_size = nadata->max_read_size;
     unsigned int instreams = nadata->initmsg.sinit_max_instreams;
     unsigned int ostreams = nadata->initmsg.sinit_num_ostreams;
     unsigned int i;
@@ -987,7 +989,7 @@ sctpna_str_to_gensio(struct gensio_accepter *accepter, const char *addr,
 	goto out_err;
 
     for (i = 0; iargs && iargs[i]; i++) {
-	if (gensio_check_keyuint(iargs[i], "readbuf", &max_read_size) > 0)
+	if (gensio_check_keyds(iargs[i], "readbuf", &max_read_size) > 0)
 	    continue;
 	if (gensio_check_keyvalue(iargs[i], "laddr", &dummy) > 0) {
 	    laddr = iargs[i];
@@ -1002,17 +1004,17 @@ sctpna_str_to_gensio(struct gensio_accepter *accepter, const char *addr,
 
     i = 0;
     if (nadata->max_read_size != GENSIO_DEFAULT_BUF_SIZE) {
-	snprintf(buf, 100, "readbuf=%d", max_read_size);
+	snprintf(buf, 100, "readbuf=%lu", max_read_size);
 	args[i++] = buf;
     }
     if (laddr)
 	args[i++] = laddr;
     if (instreams > 1) {
-	snprintf(buf2, 100, "instreams=%d", instreams);
+	snprintf(buf2, 100, "instreams=%u", instreams);
 	args[i++] = buf2;
     }
     if (ostreams > 1) {
-	snprintf(buf3, 100, "ostreams=%d", ostreams);
+	snprintf(buf3, 100, "ostreams=%u", ostreams);
 	args[i++] = buf3;
     }
 
@@ -1061,12 +1063,12 @@ sctp_gensio_accepter_alloc(struct addrinfo *iai, const char * const args[],
 			   struct gensio_accepter **accepter)
 {
     struct sctpna_data *nadata;
-    unsigned int max_read_size = GENSIO_DEFAULT_BUF_SIZE;
+    gensiods max_read_size = GENSIO_DEFAULT_BUF_SIZE;
     unsigned int instreams = 1, ostreams = 1;
     unsigned int i;
 
     for (i = 0; args && args[i]; i++) {
-	if (gensio_check_keyuint(args[i], "readbuf", &max_read_size) > 0)
+	if (gensio_check_keyds(args[i], "readbuf", &max_read_size) > 0)
 	    continue;
 	if (gensio_check_keyuint(args[i], "instreams", &instreams) > 0)
 	    continue;

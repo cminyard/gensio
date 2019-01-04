@@ -61,9 +61,9 @@ struct ssl_filter {
 
     /* This is data from SSL_read() that is waiting to be sent to the user. */
     unsigned char *read_data;
-    unsigned int read_data_pos;
-    unsigned int read_data_len;
-    unsigned int max_read_size;
+    gensiods read_data_pos;
+    gensiods read_data_len;
+    gensiods max_read_size;
 
     /*
      * This is data from the user waiting to be sent to SSL_write().  This
@@ -71,13 +71,13 @@ struct ssl_filter {
      * be called again with exactly the same data.
      */
     unsigned char *write_data;
-    unsigned int max_write_size;
-    unsigned int write_data_len;
+    gensiods max_write_size;
+    gensiods write_data_len;
 
     /* This is data from BIO_read() waiting to be sent to the lower layer. */
     unsigned char xmit_buf[1024];
-    unsigned int xmit_buf_pos;
-    unsigned int xmit_buf_len;
+    gensiods xmit_buf_pos;
+    gensiods xmit_buf_len;
 };
 
 #define filter_to_ssl(v) gensio_container_of(v, struct ssl_filter, filter)
@@ -218,8 +218,8 @@ ssl_try_disconnect(struct gensio_filter *filter, struct timeval *timeout)
 static int
 ssl_ul_write(struct gensio_filter *filter,
 	     gensio_ul_filter_data_handler handler, void *cb_data,
-	     unsigned int *rcount,
-	     const unsigned char *buf, unsigned int buflen, const char *const *auxdata)
+	     gensiods *rcount,
+	     const unsigned char *buf, gensiods buflen, const char *const *auxdata)
 {
     struct ssl_filter *sfilter = filter_to_ssl(filter);
     int err = 0;
@@ -239,7 +239,7 @@ ssl_ul_write(struct gensio_filter *filter,
 
  restart:
     if (sfilter->xmit_buf_len) {
-	unsigned int written;
+	gensiods written;
 
 	err = handler(cb_data, &written,
 		      sfilter->xmit_buf + sfilter->xmit_buf_pos,
@@ -293,8 +293,8 @@ ssl_ul_write(struct gensio_filter *filter,
 static int
 ssl_ll_write(struct gensio_filter *filter,
 	     gensio_ll_filter_data_handler handler, void *cb_data,
-	     unsigned int *rcount,
-	     unsigned char *buf, unsigned int buflen,
+	     gensiods *rcount,
+	     unsigned char *buf, gensiods buflen,
 	     const char *const *auxdata)
 {
     struct ssl_filter *sfilter = filter_to_ssl(filter);
@@ -322,7 +322,7 @@ ssl_ll_write(struct gensio_filter *filter,
     }
 
     if (sfilter->read_data_len) {
-	unsigned int count = 0;
+	gensiods count = 0;
 
 	ssl_unlock(sfilter);
 	err = handler(cb_data, &count,
@@ -350,7 +350,7 @@ ssl_setup(struct gensio_filter *filter)
 {
     struct ssl_filter *sfilter = filter_to_ssl(filter);
     int success;
-    unsigned int bio_size = sfilter->max_read_size * 2;
+    gensiods bio_size = sfilter->max_read_size * 2;
 
     sfilter->ssl = SSL_new(sfilter->ctx);
     if (!sfilter->ssl)
@@ -416,9 +416,9 @@ ssl_free(struct gensio_filter *filter)
 
 static int gensio_ssl_filter_func(struct gensio_filter *filter, int op,
 				  const void *func, void *data,
-				  unsigned int *count,
+				  gensiods *count,
 				  void *buf, const void *cbuf,
-				  unsigned int buflen,
+				  gensiods buflen,
 				  const char *const *auxdata)
 {
     switch (op) {
@@ -471,8 +471,8 @@ struct gensio_filter *
 gensio_ssl_filter_raw_alloc(struct gensio_os_funcs *o,
 			    bool is_client,
 			    SSL_CTX *ctx,
-			    unsigned int max_read_size,
-			    unsigned int max_write_size)
+			    gensiods max_read_size,
+			    gensiods max_write_size)
 {
     struct ssl_filter *sfilter;
 
@@ -511,8 +511,8 @@ gensio_ssl_server_filter_alloc(struct gensio_os_funcs *o,
 			       char *keyfile,
 			       char *certfile,
 			       char *CAfilepath,
-			       unsigned int max_read_size,
-			       unsigned int max_write_size,
+			       gensiods max_read_size,
+			       gensiods max_write_size,
 			       struct gensio_filter **rfilter)
 {
     SSL_CTX *ctx = NULL;
@@ -568,17 +568,17 @@ gensio_ssl_filter_alloc(struct gensio_os_funcs *o, const char * const args[],
     SSL_CTX *ctx;
     int success;
     unsigned int i;
-    unsigned int max_read_size = SSL3_RT_MAX_PLAIN_LENGTH;
-    unsigned int max_write_size = SSL3_RT_MAX_PLAIN_LENGTH;
+    gensiods max_read_size = SSL3_RT_MAX_PLAIN_LENGTH;
+    gensiods max_write_size = SSL3_RT_MAX_PLAIN_LENGTH;
 
     gensio_ssl_initialize(o);
 
     for (i = 0; args && args[i]; i++) {
 	if (gensio_check_keyvalue(args[i], "CA", &CAfilepath))
 	    continue;
-	if (gensio_check_keyuint(args[i], "readbuf", &max_read_size) > 0)
+	if (gensio_check_keyds(args[i], "readbuf", &max_read_size) > 0)
 	    continue;
-	if (gensio_check_keyuint(args[i], "writebuf", &max_write_size) > 0)
+	if (gensio_check_keyds(args[i], "writebuf", &max_write_size) > 0)
 	    continue;
 	return EINVAL;
     }
@@ -617,7 +617,7 @@ gensio_ssl_filter_alloc(struct gensio_os_funcs *o, const char * const args[],
 
 int
 gensio_ssl_filter_alloc(struct gensio_os_funcs *o, char *args[],
-			unsigned int max_read_size,
+			gensiods max_read_size,
 			struct gensio_filter **rfilter)
 {
     return ENOSUP;

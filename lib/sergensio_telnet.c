@@ -506,7 +506,8 @@ stelc_com_port_cmd(void *handler_data, const unsigned char *option,
     int val = 0, cmd;
     struct stel_req *curr, *prev = NULL;
     char *sig = NULL;
-    unsigned int sig_len, vlen = sizeof(int);
+    unsigned int sig_len;
+    gensiods vlen = sizeof(int);
     struct gensio *io = sergensio_to_gensio(sdata->sio);
 
     if (len < 2)
@@ -707,7 +708,7 @@ stels_cb_com_port_will_do(void *handler_data, unsigned char cmd)
 
 	if (gensio_get_cb(io)) {
 	    int val = 255;
-	    unsigned int vlen = sizeof(val);
+	    gensiods vlen = sizeof(val);
 
 	    sdata->reported_modemstate = true;
 	    gensio_cb(io, GENSIO_EVENT_SER_MODEMSTATE, 0,
@@ -732,7 +733,7 @@ stels_cb_com_port_cmd(void *handler_data, const unsigned char *option,
 {
     struct stel_data *sdata = handler_data;
     int val = 0;
-    unsigned int vlen = sizeof(int);
+    gensiods vlen = sizeof(int);
     struct gensio *io = sergensio_to_gensio(sdata->sio);
 
     if (len < 2)
@@ -887,7 +888,7 @@ stels_timeout(void *handler_data)
     if (!sdata->reported_modemstate &&sdata->do_2217) {
 	struct gensio *io = sergensio_to_gensio(sdata->sio);
 	int val = 255;
-	unsigned int vlen = sizeof(val);
+	gensiods vlen = sizeof(val);
 
 	if (gensio_get_cb(io)) {
 	    sdata->reported_modemstate = true;
@@ -1042,8 +1043,8 @@ str_to_telnet_gensio(const char *str, const char * const args[],
 }
 
 struct stela_data {
-    unsigned int max_read_size;
-    unsigned int max_write_size;
+    gensiods max_read_size;
+    gensiods max_write_size;
 
     struct gensio_os_funcs *o;
 
@@ -1069,16 +1070,16 @@ stela_alloc_gensio(void *acc_data, const char * const *iargs,
     char buf1[50], buf2[50];
     unsigned int i;
     bool allow_2217 = stela->allow_2217;
-    unsigned int max_write_size = stela->max_write_size;
-    unsigned int max_read_size = stela->max_read_size;
+    gensiods max_write_size = stela->max_write_size;
+    gensiods max_read_size = stela->max_read_size;
     bool is_client = stela->is_client;
 
     for (i = 0; iargs && iargs[i]; i++) {
 	if (gensio_check_keybool(iargs[i], "rfc2217", &allow_2217) > 0)
 	    continue;
-	if (gensio_check_keyuint(iargs[i], "writebuf", &max_write_size) > 0)
+	if (gensio_check_keyds(iargs[i], "writebuf", &max_write_size) > 0)
 	    continue;
-	if (gensio_check_keyuint(iargs[i], "readbuf", &max_read_size) > 0)
+	if (gensio_check_keyds(iargs[i], "readbuf", &max_read_size) > 0)
 	    continue;
 	if (gensio_check_keyboolv(iargs[i], "mode", "client", "server",
 				  &is_client) > 0)
@@ -1090,11 +1091,11 @@ stela_alloc_gensio(void *acc_data, const char * const *iargs,
     if (allow_2217)
 	args[i++] = "rfc2217=true";
     if (max_read_size != GENSIO_DEFAULT_BUF_SIZE) {
-	snprintf(buf1, sizeof(buf1), "readbuf=%d", max_read_size);
+	snprintf(buf1, sizeof(buf1), "readbuf=%ld", max_read_size);
 	args[i++] = buf1;
     }
     if (max_write_size != GENSIO_DEFAULT_BUF_SIZE) {
-	snprintf(buf2, sizeof(buf2), "writebuf=%d", max_write_size);
+	snprintf(buf2, sizeof(buf2), "writebuf=%ld", max_write_size);
 	args[i++] = buf2;
     }
     if (!is_client)
@@ -1115,8 +1116,8 @@ stela_new_child(void *acc_data, void **finish_data,
     const char *args[5] = { arg1, arg2, arg3, arg4, NULL };
 
     snprintf(arg1, sizeof(arg1), "rfc2217=%d", stela->allow_2217);
-    snprintf(arg2, sizeof(arg2), "writebuf=%d", stela->max_write_size);
-    snprintf(arg3, sizeof(arg3), "readbuf=%d", stela->max_read_size);
+    snprintf(arg2, sizeof(arg2), "writebuf=%ld", stela->max_write_size);
+    snprintf(arg3, sizeof(arg3), "readbuf=%ld", stela->max_read_size);
     snprintf(arg4, sizeof(arg4), "mode=%s",
 	     stela->is_client ? "client" : "server");
 
@@ -1192,17 +1193,17 @@ telnet_gensio_accepter_alloc(struct gensio_accepter *child,
     struct stela_data *stela;
     int err;
     unsigned int i;
-    unsigned int max_read_size = GENSIO_DEFAULT_BUF_SIZE;
-    unsigned int max_write_size = GENSIO_DEFAULT_BUF_SIZE;
+    gensiods max_read_size = GENSIO_DEFAULT_BUF_SIZE;
+    gensiods max_write_size = GENSIO_DEFAULT_BUF_SIZE;
     bool allow_2217 = false;
     bool is_client = false;
 
     for (i = 0; args && args[i]; i++) {
 	if (gensio_check_keybool(args[i], "rfc2217", &allow_2217) > 0)
 	    continue;
-	if (gensio_check_keyuint(args[i], "writebuf", &max_write_size) > 0)
+	if (gensio_check_keyds(args[i], "writebuf", &max_write_size) > 0)
 	    continue;
-	if (gensio_check_keyuint(args[i], "readbuf", &max_read_size) > 0)
+	if (gensio_check_keyds(args[i], "readbuf", &max_read_size) > 0)
 	    continue;
 	if (gensio_check_keyboolv(args[i], "mode", "client", "server",
 				  &is_client) > 0)

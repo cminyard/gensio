@@ -399,7 +399,7 @@ sgensio_rts(struct sergensio *sio, int rts)
 
 static int
 gensio_child_event(struct gensio *io, int event, int readerr,
-		   unsigned char *buf, unsigned int *buflen,
+		   unsigned char *buf, gensiods *buflen,
 		   const char *const *auxdata)
 {
     struct gensio_data *data = gensio_get_user_data(io);

@@ -90,13 +90,14 @@ struct gensio_func_open_channel_data {
 #define GENSIO_FUNC_OPEN_CHANNEL	11
 
 /*
+ * get => cbuf
  * option => buflen
  * auxdata => buf
  */
 #define GENSIO_FUNC_CONTROL		12
 
-typedef int (*gensio_func)(struct gensio *io, int func, unsigned int *count,
-			   const void *cbuf, unsigned int buflen, void *buf,
+typedef int (*gensio_func)(struct gensio *io, int func, gensiods *count,
+			   const void *cbuf, gensiods buflen, void *buf,
 			   const char *const *auxdata);
 
 /*
@@ -121,7 +122,7 @@ void gensio_set_is_reliable(struct gensio *io, bool is_reliable);
 gensio_event gensio_get_cb(struct gensio *io);
 void gensio_set_cb(struct gensio *io, gensio_event cb, void *user_data);
 int gensio_cb(struct gensio *io, int event, int err,
-	      unsigned char *buf, unsigned int *buflen,
+	      unsigned char *buf, gensiods *buflen,
 	      const char *const *auxdata);
 
 /*
@@ -255,6 +256,7 @@ int gensio_scan_netaddr(struct gensio_os_funcs *o, const char *str, bool listen,
 char *gensio_strdup(struct gensio_os_funcs *o, const char *str);
 
 int gensio_check_keyvalue(const char *str, const char *key, const char **value);
+int gensio_check_keyds(const char *str, const char *key, gensiods *value);
 int gensio_check_keyuint(const char *str, const char *key, unsigned int *value);
 int gensio_check_keybool(const char *str, const char *key, bool *rvalue);
 int gensio_check_keyboolv(const char *str, const char *key,

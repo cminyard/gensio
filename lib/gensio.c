@@ -148,7 +148,7 @@ void gensio_set_cb(struct gensio *io, gensio_event cb, void *user_data)
 
 int
 gensio_cb(struct gensio *io, int event, int err,
-	  unsigned char *buf, unsigned int *buflen, const char *const *auxdata)
+	  unsigned char *buf, gensiods *buflen, const char *const *auxdata)
 {
     return io->cb(io, event, err, buf, buflen, auxdata);
 }
@@ -698,8 +698,8 @@ gensio_set_user_data(struct gensio *io, void *user_data)
 }
 
 int
-gensio_write(struct gensio *io, unsigned int *count,
-	     const void *buf, unsigned int buflen,
+gensio_write(struct gensio *io, gensiods *count,
+	     const void *buf, gensiods buflen,
 	     const char *const *auxdata)
 {
     if (buflen == 0) {
@@ -710,14 +710,14 @@ gensio_write(struct gensio *io, unsigned int *count,
 }
 
 int
-gensio_raddr_to_str(struct gensio *io, unsigned int *pos,
-		    char *buf, unsigned int buflen)
+gensio_raddr_to_str(struct gensio *io, gensiods *pos,
+		    char *buf, gensiods buflen)
 {
     return io->func(io, GENSIO_FUNC_RADDR_TO_STR, pos, NULL, buflen, buf, NULL);
 }
 
 int
-gensio_get_raddr(struct gensio *io, void *addr, unsigned int *addrlen)
+gensio_get_raddr(struct gensio *io, void *addr, gensiods *addrlen)
 {
     return io->func(io, GENSIO_FUNC_GET_RADDR, addrlen, NULL, 0, addr, NULL);
 }
@@ -1388,10 +1388,10 @@ gensio_strdup(struct gensio_os_funcs *o, const char *str)
 
 int
 gensio_sockaddr_to_str(const struct sockaddr *addr, socklen_t *addrlen,
-		       char *buf, unsigned int *epos, unsigned int buflen)
+		       char *buf, gensiods *epos, gensiods buflen)
 {
-    unsigned int pos = 0;
-    unsigned int left;
+    gensiods pos = 0;
+    gensiods left;
 
     if (epos)
 	pos = *epos;
@@ -1450,6 +1450,28 @@ gensio_check_keyvalue(const char *str, const char *key, const char **value)
 }
 
 int
+gensio_check_keyds(const char *str, const char *key, gensiods *rvalue)
+{
+    const char *sval;
+    char *end;
+    int rv = gensio_check_keyvalue(str, key, &sval);
+    gensiods value;
+
+    if (!rv)
+	return 0;
+
+    if (!*sval)
+	return -1;
+
+    value = strtoul(sval, &end, 0);
+    if (*end != '\0')
+	return -1;
+
+    *rvalue = value;
+    return 1;
+}
+
+int
 gensio_check_keyuint(const char *str, const char *key, unsigned int *rvalue)
 {
     const char *sval;
@@ -1465,6 +1487,9 @@ gensio_check_keyuint(const char *str, const char *key, unsigned int *rvalue)
 
     value = strtoul(sval, &end, 0);
     if (*end != '\0')
+	return -1;
+
+    if (value > UINT_MAX)
 	return -1;
 
     *rvalue = value;

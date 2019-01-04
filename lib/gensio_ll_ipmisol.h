@@ -38,8 +38,8 @@ int ipmisol_gensio_ll_alloc(struct gensio_os_funcs *o,
 			    const char *devname,
 			    gensio_ll_ipmisol_cb ser_cbs,
 			    void *ser_cbs_data,
-			    unsigned int max_read_size,
-			    unsigned int max_write_size,
+			    gensiods max_read_size,
+			    gensiods max_write_size,
 			    gensio_ll_ipmisol_ops *rops,
 			    struct gensio_ll **rll);
 

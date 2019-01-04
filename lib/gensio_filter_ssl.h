@@ -30,8 +30,8 @@ int gensio_ssl_server_filter_alloc(struct gensio_os_funcs *o,
 				   char *keyfile,
 				   char *certfile,
 				   char *CAfilepath,
-				   unsigned int max_read_size,
-				   unsigned int max_write_size,
+				   gensiods max_read_size,
+				   gensiods max_write_size,
 				   struct gensio_filter **rfilter);
 
 #endif /* GENSIO_FILTER_SSL_H */

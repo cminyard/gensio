@@ -589,7 +589,7 @@ struct sol_ll {
     void *close_data;
 
     struct sbuf read_data;
-    unsigned int max_write_size;
+    gensiods max_write_size;
 
     /*
      * If the connection is closed or goes down from the remote end,
@@ -599,7 +599,7 @@ struct sol_ll {
 
     bool in_read;
     bool in_write;
-    unsigned int write_outstanding;
+    gensiods write_outstanding;
 
     bool deferred_op_pending;
     struct gensio_runner *deferred_op_runner;
@@ -696,7 +696,7 @@ sol_do_read_send(void *cb_data, void *buf, unsigned int buflen,
 		 unsigned int *written)
 {
     struct sol_ll *solll = cb_data;
-    unsigned int count;
+    gensiods count;
 
     solll->in_read = true;
     sol_unlock(solll);
@@ -836,13 +836,13 @@ transmit_complete(ipmi_sol_conn_t *conn,
 }
 
 static int
-sol_write(struct gensio_ll *ll, unsigned int *rcount,
-	  const unsigned char *buf, unsigned int buflen)
+sol_write(struct gensio_ll *ll, gensiods *rcount,
+	  const unsigned char *buf, gensiods buflen)
 {
     struct sol_ll *solll = ll_to_sol(ll);
     int err = 0;
     struct sol_tc *tc;
-    unsigned int left;
+    gensiods left;
 
     sol_lock(solll);
     if (solll->state != SOL_OPEN) {
@@ -884,15 +884,15 @@ sol_write(struct gensio_ll *ll, unsigned int *rcount,
 }
 
 static int
-sol_raddr_to_str(struct gensio_ll *ll, unsigned int *pos,
-		char *buf, unsigned int buflen)
+sol_raddr_to_str(struct gensio_ll *ll, gensiods *pos,
+		char *buf, gensiods buflen)
 {
     /* FIXME - do something here. */
     return ENOTSUP;
 }
 
 static int
-sol_get_raddr(struct gensio_ll *ll, void *addr, unsigned int *addrlen)
+sol_get_raddr(struct gensio_ll *ll, void *addr, gensiods *addrlen)
 {
     return ENOTSUP;
 }
@@ -1236,8 +1236,8 @@ static void sol_free(struct gensio_ll *ll)
 }
 
 static int
-gensio_ll_sol_func(struct gensio_ll *ll, int op, unsigned int *count,
-		   void *buf, const void *cbuf, unsigned int buflen,
+gensio_ll_sol_func(struct gensio_ll *ll, int op, gensiods *count,
+		   void *buf, const void *cbuf, gensiods buflen,
 		   const char *const *auxdata)
 {
     switch (op) {
@@ -1447,8 +1447,8 @@ ipmisol_gensio_ll_alloc(struct gensio_os_funcs *o,
 			const char *devname,
 			gensio_ll_ipmisol_cb ser_cbs,
 			void *ser_cbs_data,
-			unsigned int max_read_size,
-			unsigned int max_write_size,
+			gensiods max_read_size,
+			gensiods max_write_size,
 			gensio_ll_ipmisol_ops *rops,
 			struct gensio_ll **rll)
 {
@@ -1538,8 +1538,8 @@ ipmisol_gensio_ll_alloc(struct gensio_os_funcs *o,
 			const char *devname,
 			gensio_ll_ipmisol_cb ser_cbs,
 			void *ser_cbs_data,
-			unsigned int max_read_size,
-			unsigned int max_write_size,
+			gensiods max_read_size,
+			gensiods max_write_size,
 			gensio_ll_ipmisol_ops *rops,
 			struct gensio_ll **rll)
 {

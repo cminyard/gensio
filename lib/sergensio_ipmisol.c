@@ -81,14 +81,14 @@ ipmisol_gensio_alloc(const char *devname, const char * const args[],
 {
     struct iterm_data *idata = o->zalloc(o, sizeof(*idata));
     int err;
-    unsigned int max_read_size = GENSIO_DEFAULT_BUF_SIZE;
-    unsigned int max_write_size = GENSIO_DEFAULT_BUF_SIZE;
+    gensiods max_read_size = GENSIO_DEFAULT_BUF_SIZE;
+    gensiods max_write_size = GENSIO_DEFAULT_BUF_SIZE;
     int i;
 
     for (i = 0; args && args[i]; i++) {
-	if (gensio_check_keyuint(args[i], "readbuf", &max_read_size) > 0)
+	if (gensio_check_keyds(args[i], "readbuf", &max_read_size) > 0)
 	    continue;
-	if (gensio_check_keyuint(args[i], "writebuf", &max_write_size) > 0)
+	if (gensio_check_keyds(args[i], "writebuf", &max_write_size) > 0)
 	    continue;
 	return EINVAL;
     }

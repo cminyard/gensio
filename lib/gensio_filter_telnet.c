@@ -69,15 +69,15 @@ struct telnet_filter {
 
     /* Data waiting to be delivered to the user. */
     unsigned char *read_data;
-    unsigned int max_read_size;
-    unsigned int read_data_pos;
-    unsigned int read_data_len;
+    gensiods max_read_size;
+    gensiods read_data_pos;
+    gensiods read_data_len;
 
     /* Data waiting to be written. */
     unsigned char *write_data;
-    unsigned int max_write_size;
-    unsigned int write_data_pos;
-    unsigned int write_data_len;
+    gensiods max_write_size;
+    gensiods write_data_pos;
+    gensiods write_data_len;
 };
 
 #define filter_to_telnet(v) gensio_container_of(v, struct telnet_filter, filter)
@@ -182,7 +182,7 @@ telnet_buffer_do_write(void *cb_data, void *buf, unsigned int buflen,
 		       unsigned int *written)
 {
     struct telnet_buffer_data *data = cb_data;
-    unsigned int count;
+    gensiods count;
     int err;
 
     err = data->handler(data->cb_data, &count, buf, buflen, data->auxdata);
@@ -194,8 +194,8 @@ telnet_buffer_do_write(void *cb_data, void *buf, unsigned int buflen,
 static int
 telnet_ul_write(struct gensio_filter *filter,
 		gensio_ul_filter_data_handler handler, void *cb_data,
-		unsigned int *rcount,
-		const unsigned char *buf, unsigned int buflen,
+		gensiods *rcount,
+		const unsigned char *buf, gensiods buflen,
 		const char *const *auxdata)
 {
     struct telnet_filter *tfilter = filter_to_telnet(filter);
@@ -231,7 +231,7 @@ telnet_ul_write(struct gensio_filter *filter,
 
     if (tfilter->write_state != TELNET_IN_TN_WRITE &&
 		tfilter->write_data_len) {
-	unsigned int count = 0;
+	gensiods count = 0;
 
 	err = handler(cb_data, &count,
 		      tfilter->write_data + tfilter->write_data_pos,
@@ -256,8 +256,8 @@ telnet_ul_write(struct gensio_filter *filter,
 static int
 telnet_ll_write(struct gensio_filter *filter,
 		gensio_ll_filter_data_handler handler, void *cb_data,
-		unsigned int *rcount,
-		unsigned char *buf, unsigned int buflen,
+		gensiods *rcount,
+		unsigned char *buf, gensiods buflen,
 		const char *const *auxdata)
 {
     struct telnet_filter *tfilter = filter_to_telnet(filter);
@@ -326,7 +326,7 @@ telnet_ll_write(struct gensio_filter *filter,
     }
 
     if (tfilter->read_data_len) {
-	unsigned int count = 0;
+	gensiods count = 0;
 
 	telnet_unlock(tfilter);
 	err = handler(cb_data, &count,
@@ -477,9 +477,9 @@ telnet_filter_control(struct gensio_filter *filter, bool get, int op,
 
 static int gensio_telnet_filter_func(struct gensio_filter *filter, int op,
 				     const void *func, void *data,
-				     unsigned int *count,
+				     gensiods *count,
 				     void *buf, const void *cbuf,
-				     unsigned int buflen,
+				     gensiods buflen,
 				     const char *const *auxdata)
 {
     switch (op) {
@@ -527,7 +527,7 @@ static int gensio_telnet_filter_func(struct gensio_filter *filter, int op,
 	return 0;
 
     case GENSIO_FILTER_FUNC_CONTROL:
-	return telnet_filter_control(filter, buflen, *count, data);
+	return telnet_filter_control(filter, *((bool *) cbuf), buflen, data);
 
     default:
 	return ENOTSUP;
@@ -575,8 +575,8 @@ static struct gensio_filter *
 gensio_telnet_filter_raw_alloc(struct gensio_os_funcs *o,
 			       bool is_client,
 			       bool allow_2217,
-			       unsigned int max_read_size,
-			       unsigned int max_write_size,
+			       gensiods max_read_size,
+			       gensiods max_write_size,
 			       const struct gensio_telnet_filter_callbacks *cbs,
 			       void *handler_data,
 			       const struct telnet_cmd *telnet_cmds,
@@ -686,8 +686,8 @@ gensio_telnet_filter_alloc(struct gensio_os_funcs *o, const char * const args[],
 {
     struct gensio_filter *filter;
     unsigned int i;
-    unsigned int max_read_size = 4096; /* FIXME - magic number. */
-    unsigned int max_write_size = 4096; /* FIXME - magic number. */
+    gensiods max_read_size = 4096; /* FIXME - magic number. */
+    gensiods max_write_size = 4096; /* FIXME - magic number. */
     bool allow_2217 = true;
     bool is_client = default_is_client;
     const struct telnet_cmd *telnet_cmds;
@@ -697,9 +697,9 @@ gensio_telnet_filter_alloc(struct gensio_os_funcs *o, const char * const args[],
     for (i = 0; args && args[i]; i++) {
 	if (gensio_check_keybool(args[i], "rfc2217", &allow_2217) > 0)
 	    continue;
-	if (gensio_check_keyuint(args[i], "writebuf", &max_write_size) > 0)
+	if (gensio_check_keyds(args[i], "writebuf", &max_write_size) > 0)
 	    continue;
-	if (gensio_check_keyuint(args[i], "readbuf", &max_read_size) > 0)
+	if (gensio_check_keyds(args[i], "readbuf", &max_read_size) > 0)
 	    continue;
 	if (gensio_check_keyboolv(args[i], "mode", "client", "server",
 				  &is_client) > 0)

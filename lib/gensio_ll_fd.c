@@ -62,9 +62,9 @@ struct fd_ll {
     void *close_data;
 
     unsigned char *read_data;
-    unsigned int read_data_size;
-    unsigned int read_data_len;
-    unsigned int read_data_pos;
+    gensiods read_data_size;
+    gensiods read_data_len;
+    gensiods read_data_pos;
     const char *const *auxdata;
 
     bool in_read;
@@ -144,8 +144,8 @@ fd_set_callbacks(struct gensio_ll *ll, gensio_ll_cb cb, void *cb_data)
 }
 
 static int
-fd_write(struct gensio_ll *ll, unsigned int *rcount,
-	 const unsigned char *buf, unsigned int buflen,
+fd_write(struct gensio_ll *ll, gensiods *rcount,
+	 const unsigned char *buf, gensiods buflen,
 	 const char *const *auxdata)
 {
     struct fd_ll *fdll = ll_to_fd(ll);
@@ -176,8 +176,8 @@ fd_write(struct gensio_ll *ll, unsigned int *rcount,
 }
 
 static int
-fd_raddr_to_str(struct gensio_ll *ll, unsigned int *pos,
-		char *buf, unsigned int buflen)
+fd_raddr_to_str(struct gensio_ll *ll, gensiods *pos,
+		char *buf, gensiods buflen)
 {
     struct fd_ll *fdll = ll_to_fd(ll);
 
@@ -185,7 +185,7 @@ fd_raddr_to_str(struct gensio_ll *ll, unsigned int *pos,
 }
 
 static int
-fd_get_raddr(struct gensio_ll *ll, void *addr, unsigned int *addrlen)
+fd_get_raddr(struct gensio_ll *ll, void *addr, gensiods *addrlen)
 {
     struct fd_ll *fdll = ll_to_fd(ll);
 
@@ -208,7 +208,7 @@ static void
 fd_deliver_read_data(struct fd_ll *fdll, int err)
 {
     if (err || fdll->read_data_len) {
-	unsigned int count;
+	gensiods count;
 
     retry:
 	count = fdll->cb(fdll->cb_data, GENSIO_LL_CB_READ, err,
@@ -662,8 +662,8 @@ static int fd_control(struct gensio_ll *ll, bool get, unsigned int option,
 }
 
 static int
-gensio_ll_fd_func(struct gensio_ll *ll, int op, unsigned int *count,
-		  void *buf, const void *cbuf, unsigned int buflen,
+gensio_ll_fd_func(struct gensio_ll *ll, int op, gensiods *count,
+		  void *buf, const void *cbuf, gensiods buflen,
 		  const char *const *auxdata)
 {
     switch (op) {
@@ -709,9 +709,9 @@ gensio_ll_fd_func(struct gensio_ll *ll, int op, unsigned int *count,
     }
 }
 
-unsigned int
+gensiods
 gensio_fd_ll_callback(struct gensio_ll *ll, int op, int val, void *buf,
-		      unsigned int buflen, void *data)
+		      gensiods buflen, void *data)
 {
     struct fd_ll *fdll = ll_to_fd(ll);
 
@@ -723,7 +723,7 @@ fd_gensio_ll_alloc(struct gensio_os_funcs *o,
 		   int fd,
 		   const struct gensio_fd_ll_ops *ops,
 		   void *handler_data,
-		   unsigned int max_read_size)
+		   gensiods max_read_size)
 {
     struct fd_ll *fdll;
 

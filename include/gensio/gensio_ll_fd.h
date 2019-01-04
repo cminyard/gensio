@@ -27,10 +27,10 @@ struct gensio_fd_ll_ops {
 
     int (*retry_open)(void *handler_data, int *fd);
 
-    int (*raddr_to_str)(void *handler_data, unsigned int *pos,
-			char *buf, unsigned int buflen);
+    int (*raddr_to_str)(void *handler_data, gensiods *pos,
+			char *buf, gensiods buflen);
 
-    int (*get_raddr)(void *handler_data, void *addr, unsigned int *addrlen);
+    int (*get_raddr)(void *handler_data, void *addr, gensiods *addrlen);
 
     int (*remote_id)(void *handler_data, int *id);
 
@@ -54,13 +54,13 @@ struct gensio_fd_ll_ops {
 
     void (*except_ready)(void *handler_data, int fd);
 
-    int (*write)(void *handler_data, int fd, unsigned int *count,
-		 const unsigned char *buf, unsigned int buflen,
+    int (*write)(void *handler_data, int fd, gensiods *count,
+		 const unsigned char *buf, gensiods buflen,
 		 const char *const *auxdata);
 };
 
-unsigned gensio_fd_ll_callback(struct gensio_ll *ll, int op, int val,
-			       void *buf, unsigned int buflen, void *data);
+gensiods gensio_fd_ll_callback(struct gensio_ll *ll, int op, int val,
+			       void *buf, gensiods buflen, void *data);
 
 void gensio_fd_ll_handle_incoming(struct gensio_ll *ll,
 				  ssize_t (*doread)(int fd, void *buf,
@@ -74,7 +74,7 @@ struct gensio_ll *fd_gensio_ll_alloc(struct gensio_os_funcs *o,
 				     int fd,
 				     const struct gensio_fd_ll_ops *ops,
 				     void *handler_data,
-				     unsigned int max_read_size);
+				     gensiods max_read_size);
 
 
 #endif /* GENSIO_LL_FD_H */

@@ -96,12 +96,12 @@ struct udpna_data {
 
     struct gensio_lock *lock;
 
-    unsigned int max_read_size;
+    gensiods max_read_size;
 
     unsigned char *read_data;
 
-    unsigned int data_pending_len;
-    unsigned int data_pos;
+    gensiods data_pending_len;
+    gensiods data_pos;
     struct udpn_data *pending_data_owner;
 
     struct gensio_list closed_udpns;
@@ -332,8 +332,8 @@ udpn_finish_free(struct udpn_data *ndata)
 }
 
 static int
-udpn_write(struct gensio *io, unsigned int *count,
-	   const void *buf, unsigned int buflen)
+udpn_write(struct gensio *io, gensiods *count,
+	   const void *buf, gensiods buflen)
 {
     struct udpn_data *ndata = gensio_get_gensio_data(io);
     int rv, err = 0;
@@ -358,8 +358,8 @@ udpn_write(struct gensio *io, unsigned int *count,
 }
 
 static int
-udpn_raddr_to_str(struct gensio *io, unsigned int *epos,
-		  char *buf, unsigned int buflen)
+udpn_raddr_to_str(struct gensio *io, gensiods *epos,
+		  char *buf, gensiods buflen)
 {
     struct udpn_data *ndata = gensio_get_gensio_data(io);
     socklen_t addrlen = ndata->raddrlen;
@@ -368,7 +368,7 @@ udpn_raddr_to_str(struct gensio *io, unsigned int *epos,
 }
 
 static int
-udpn_get_raddr(struct gensio *io, void *addr, unsigned int *addrlen)
+udpn_get_raddr(struct gensio *io, void *addr, gensiods *addrlen)
 {
     struct udpn_data *ndata = gensio_get_gensio_data(io);
 
@@ -412,7 +412,7 @@ udpn_finish_read(struct udpn_data *ndata)
 {
     struct udpna_data *nadata = ndata->nadata;
     struct gensio *io = ndata->io;
-    unsigned int count;
+    gensiods count;
 
  retry:
     udpna_unlock(nadata);
@@ -722,8 +722,8 @@ udpna_writehandler(int fd, void *cbdata)
 }
 
 static int
-gensio_udp_func(struct gensio *io, int func, unsigned int *count,
-		const void *cbuf, unsigned int buflen, void *buf,
+gensio_udp_func(struct gensio *io, int func, gensiods *count,
+		const void *cbuf, gensiods buflen, void *buf,
 		const char *const *auxdata)
 {
     switch (func) {
@@ -1090,7 +1090,7 @@ gensio_acc_udp_func(struct gensio_accepter *acc, int func, int val,
 }
 
 static int
-i_udp_gensio_accepter_alloc(struct addrinfo *iai, unsigned int max_read_size,
+i_udp_gensio_accepter_alloc(struct addrinfo *iai, gensiods max_read_size,
 			    struct gensio_os_funcs *o,
 			    gensio_accepter_event cb, void *user_data,
 			    struct gensio_accepter **accepter)
@@ -1142,11 +1142,11 @@ udp_gensio_accepter_alloc(struct addrinfo *iai, const char * const args[],
 			  gensio_accepter_event cb, void *user_data,
 			  struct gensio_accepter **accepter)
 {
-    unsigned int max_read_size = GENSIO_DEFAULT_UDP_BUF_SIZE;
+    gensiods max_read_size = GENSIO_DEFAULT_UDP_BUF_SIZE;
     unsigned int i;
 
     for (i = 0; args && args[i]; i++) {
-	if (gensio_check_keyuint(args[i], "readbuf", &max_read_size) > 0)
+	if (gensio_check_keyds(args[i], "readbuf", &max_read_size) > 0)
 	    continue;
 	return EINVAL;
     }
@@ -1186,11 +1186,11 @@ udp_gensio_alloc(struct addrinfo *ai, const char * const args[],
     struct udpna_data *nadata = NULL;
     struct addrinfo *lai = NULL;
     int err, new_fd, optval = 1;
-    unsigned int max_read_size = GENSIO_DEFAULT_UDP_BUF_SIZE;
+    gensiods max_read_size = GENSIO_DEFAULT_UDP_BUF_SIZE;
     unsigned int i;
 
     for (i = 0; args && args[i]; i++) {
-	if (gensio_check_keyuint(args[i], "readbuf", &max_read_size) > 0)
+	if (gensio_check_keyds(args[i], "readbuf", &max_read_size) > 0)
 	    continue;
 	if (gensio_check_keyaddrs(o, args[i], "laddr", IPPROTO_UDP,
 				  true, false, &lai) > 0)

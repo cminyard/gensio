@@ -33,6 +33,8 @@ extern "C" {
 
 struct gensio;
 
+typedef size_t gensiods; /* Data size */
+
 /*
  * Called when data is read from the I/O device.
  *
@@ -107,7 +109,7 @@ struct gensio;
  * it didn't.
  */
 typedef int (*gensio_event)(struct gensio *io, int event, int err,
-			    unsigned char *buf, unsigned int *buflen,
+			    unsigned char *buf, gensiods *buflen,
 			    const char *const *auxdata);
 
 /*
@@ -155,8 +157,8 @@ void gensio_set_user_data(struct gensio *io, void *user_data);
  * auxdata contains additional information about the write,
  * and depends on the particular gensio type.
  */
-int gensio_write(struct gensio *io, unsigned int *count,
-		 const void *buf, unsigned int buflen,
+int gensio_write(struct gensio *io, gensiods *count,
+		 const void *buf, gensiods buflen,
 		 const char *const *auxdata);
 
 /*
@@ -180,8 +182,8 @@ int gensio_write(struct gensio *io, unsigned int *count,
  * zero buflen and *pos, and then allocating *pos + 1 and calling the
  * function again with that data.
  */
-int gensio_raddr_to_str(struct gensio *io, unsigned int *pos,
-			char *buf, unsigned int buflen);
+int gensio_raddr_to_str(struct gensio *io, gensiods *pos,
+			char *buf, gensiods buflen);
 
 /*
  * Return the remote address for the connection.  addrlen must be
@@ -198,7 +200,7 @@ int gensio_raddr_to_str(struct gensio *io, unsigned int *pos,
  * this is a packed sockaddr buffer per SCTP semantics.  For serial
  * ports, this return an error.
  */
-int gensio_get_raddr(struct gensio *io, void *addr, unsigned int *addrlen);
+int gensio_get_raddr(struct gensio *io, void *addr, gensiods *addrlen);
 
 /*
  * Returns an id for the remote end.  For stdio clients this is the
@@ -833,7 +835,7 @@ void gensio_free_addrinfo(struct gensio_os_funcs *o, struct addrinfo *ai);
  * If addr is not AF_INET or AF_INET6, return EINVAL.
  */
 int gensio_sockaddr_to_str(const struct sockaddr *addr, socklen_t *addrlen,
-			   char *buf, unsigned int *epos, unsigned int buflen);
+			   char *buf, gensiods *epos, gensiods buflen);
 
 /*
  * This allows a global to disable uucp locking for everything.

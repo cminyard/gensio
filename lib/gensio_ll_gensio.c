@@ -49,8 +49,8 @@ child_set_callbacks(struct gensio_ll *ll, gensio_ll_cb cb, void *cb_data)
 }
 
 static int
-child_write(struct gensio_ll *ll, unsigned int *rcount,
-	    const unsigned char *buf, unsigned int buflen,
+child_write(struct gensio_ll *ll, gensiods *rcount,
+	    const unsigned char *buf, gensiods buflen,
 	    const char *const *auxdata)
 {
     struct gensio_ll_child *cdata = ll_to_child(ll);
@@ -59,8 +59,8 @@ child_write(struct gensio_ll *ll, unsigned int *rcount,
 }
 
 static int
-child_raddr_to_str(struct gensio_ll *ll, unsigned int *pos,
-		   char *buf, unsigned int buflen)
+child_raddr_to_str(struct gensio_ll *ll, gensiods *pos,
+		   char *buf, gensiods buflen)
 {
     struct gensio_ll_child *cdata = ll_to_child(ll);
 
@@ -68,7 +68,7 @@ child_raddr_to_str(struct gensio_ll *ll, unsigned int *pos,
 }
 
 static int
-child_get_raddr(struct gensio_ll *ll, void *addr, unsigned int *addrlen)
+child_get_raddr(struct gensio_ll *ll, void *addr, gensiods *addrlen)
 {
     struct gensio_ll_child *cdata = ll_to_child(ll);
 
@@ -150,8 +150,8 @@ static void child_free(struct gensio_ll *ll)
 }
 
 static int
-gensio_ll_child_func(struct gensio_ll *ll, int op, unsigned int *count,
-		     void *buf, const void *cbuf, unsigned int buflen,
+gensio_ll_child_func(struct gensio_ll *ll, int op, gensiods *count,
+		     void *buf, const void *cbuf, gensiods buflen,
 		     const char *const *auxdata)
 {
     switch (op) {
@@ -196,7 +196,7 @@ gensio_ll_child_func(struct gensio_ll *ll, int op, unsigned int *count,
 
 static int
 child_event(struct gensio *io, int event, int err,
-	    unsigned char *buf, unsigned int *buflen, const char *const *auxdata)
+	    unsigned char *buf, gensiods *buflen, const char *const *auxdata)
 {
     struct gensio_ll_child *cdata = gensio_get_user_data(io);
 

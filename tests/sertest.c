@@ -60,12 +60,12 @@ struct gensio_list {
     int write_err;
 
     unsigned char *to_write;
-    unsigned int to_write_len;
+    gensiods to_write_len;
 
     bool flush_read;
     unsigned char *cmp_read;
-    unsigned int cmp_read_len;
-    unsigned int curr_read_byte;
+    gensiods cmp_read_len;
+    gensiods curr_read_byte;
     unsigned char expected;
     unsigned char got;
 };
@@ -143,14 +143,14 @@ start_exit(struct sertest_context *c,
 
 static int
 child_event(struct gensio *net, int event, int readerr,
-	    unsigned char *buf, unsigned int *buflen,
+	    unsigned char *buf, gensiods *buflen,
 	    const char *const *auxdata)
 {
     struct gensio_list *le = gensio_get_user_data(net);
     struct sertest_context *c = le->c;
-    unsigned int to_cmp;
-    unsigned int i;
-    unsigned int written = 0;
+    gensiods to_cmp;
+    gensiods i;
+    gensiods written = 0;
 
     switch (event) {
     case GENSIO_EVENT_READ:
@@ -453,7 +453,8 @@ xfer_data_gensio(struct sertest_context *c,
 		struct gensio_list *le)
 {
     int err = 0;
-    unsigned int size, i;
+    gensiods size;
+    unsigned int i;
     char *end;
     unsigned char *data;
     struct timeval timeout = { 1, 0 };

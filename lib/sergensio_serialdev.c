@@ -890,7 +890,7 @@ serialdev_timeout(struct gensio_timer *t, void *cb_data)
      */
     if ((force_send || modemstate & 0xf)) {
 	struct gensio *io = sergensio_to_gensio(sdata->sio);
-	unsigned int vlen = sizeof(modemstate);
+	gensiods vlen = sizeof(modemstate);
 
 	gensio_cb(io, GENSIO_EVENT_SER_MODEMSTATE, 0,
 		  (unsigned char *) &modemstate, &vlen, NULL);
@@ -1175,8 +1175,8 @@ sterm_sub_open(void *handler_data, int *fd)
 }
 
 static int
-sterm_raddr_to_str(void *handler_data, unsigned int *epos,
-		   char *buf, unsigned int buflen)
+sterm_raddr_to_str(void *handler_data, gensiods *epos,
+		   char *buf, gensiods buflen)
 {
     struct sterm_data *sdata = handler_data;
     int pos = 0;
@@ -1536,14 +1536,14 @@ serialdev_gensio_alloc(const char *devname, const char * const args[],
     struct gensio *io;
     int err;
     char *comma;
-    unsigned int max_read_size = GENSIO_DEFAULT_BUF_SIZE;
+    gensiods max_read_size = GENSIO_DEFAULT_BUF_SIZE;
     int i;
 
     if (!sdata)
 	return ENOMEM;
 
     for (i = 0; args && args[i]; i++) {
-	if (gensio_check_keyuint(args[i], "readbuf", &max_read_size) > 0)
+	if (gensio_check_keyds(args[i], "readbuf", &max_read_size) > 0)
 	    continue;
 	if (gensio_check_keybool(args[i], "nouucplock",
 				 &sdata->no_uucp_lock) > 0)

@@ -18,15 +18,15 @@
 struct gensio_filter;
 
 typedef int (*gensio_ul_filter_data_handler)(void *cb_data,
-					     unsigned int *rcount,
+					     gensiods *rcount,
 					     const unsigned char *buf,
-					     unsigned int buflen,
+					     gensiods buflen,
 					     const char *const *auxdata);
 
 typedef int (*gensio_ll_filter_data_handler)(void *cb_data,
-					     unsigned int *rcount,
+					     gensiods *rcount,
 					     unsigned char *buf,
-					     unsigned int buflen,
+					     gensiods buflen,
 					     const char *const *auxdata);
 
 /*
@@ -121,8 +121,8 @@ int gensio_filter_try_disconnect(struct gensio_filter *filter,
 #define GENSIO_FILTER_FUNC_UL_WRITE		8
 int gensio_filter_ul_write(struct gensio_filter *filter,
 			   gensio_ul_filter_data_handler handler, void *cb_data,
-			   unsigned int *rcount,
-			   const unsigned char *buf, unsigned int buflen,
+			   gensiods *rcount,
+			   const unsigned char *buf, gensiods buflen,
 			   const char *const *auxdata);
 
 /*
@@ -132,15 +132,15 @@ int gensio_filter_ul_write(struct gensio_filter *filter,
  *
  * gensio_ul_filter_data_handler handler => func
  * void *cb_data => data
- * unsigned int *rcount => count
+ * gensiods *rcount => count
  * unsigned char *buf => buf
- * unsigned int buflen => buflen
+ * gensiods buflen => buflen
  */
 #define GENSIO_FILTER_FUNC_LL_WRITE		9
 int gensio_filter_ll_write(struct gensio_filter *filter,
 			   gensio_ll_filter_data_handler handler, void *cb_data,
-			   unsigned int *rcount,
-			   unsigned char *buf, unsigned int buflen,
+			   gensiods *rcount,
+			   unsigned char *buf, gensiods buflen,
 			   const char *const *auxdata);
 
 /*
@@ -170,8 +170,8 @@ void gensio_filter_free(struct gensio_filter *filter);
 /*
  * Do a control function on the filter.  Return ENOTSUP if not supported.
  *
- * get => buflen
- * option => count
+ * get => cbuf
+ * option => buflen
  * data => data
  */
 #define GENSIO_FILTER_FUNC_CONTROL		15
@@ -180,8 +180,8 @@ int gensio_filter_control(struct gensio_filter *filter, bool get,
 
 typedef int (*gensio_filter_func)(struct gensio_filter *filter, int op,
 				  const void *func, void *data,
-				  unsigned int *count, void *buf,
-				  const void *cbuf, unsigned int buflen,
+				  gensiods *count, void *buf,
+				  const void *cbuf, gensiods buflen,
 				  const char *const *auxdata);
 
 struct gensio_filter {
@@ -196,9 +196,9 @@ typedef void (*gensio_ll_close_done)(void *cb_data, void *close_data);
 #define GENSIO_LL_CB_READ		1
 #define GENSIO_LL_CB_WRITE_READY	2
 
-typedef unsigned int (*gensio_ll_cb)(void *cb_data, int op, int val,
-				     void *buf, unsigned int buflen,
-				     const char *const *auxdata);
+typedef gensiods (*gensio_ll_cb)(void *cb_data, int op, int val,
+				 void *buf, gensiods buflen,
+				 const char *const *auxdata);
 
 /*
  * Set the callbacks for the ll.
@@ -219,8 +219,8 @@ void gensio_ll_set_callback(struct gensio_ll *ll,
  * auxdata => buf
  */
 #define GENSIO_LL_FUNC_WRITE			2
-int gensio_ll_write(struct gensio_ll *ll, unsigned int *rcount,
-		    const unsigned char *buf, unsigned int buflen,
+int gensio_ll_write(struct gensio_ll *ll, gensiods *rcount,
+		    const unsigned char *buf, gensiods buflen,
 		    const char *const *auxdata);
 
 /*
@@ -229,8 +229,8 @@ int gensio_ll_write(struct gensio_ll *ll, unsigned int *rcount,
  * buflen => buflen
  */
 #define GENSIO_LL_FUNC_RADDR_TO_STR		3
-int gensio_ll_raddr_to_str(struct gensio_ll *ll, unsigned int *pos,
-			   char *buf, unsigned int buflen);
+int gensio_ll_raddr_to_str(struct gensio_ll *ll, gensiods *pos,
+			   char *buf, gensiods buflen);
 
 /*
  * addr => buf
@@ -238,7 +238,7 @@ int gensio_ll_raddr_to_str(struct gensio_ll *ll, unsigned int *pos,
  */
 #define GENSIO_LL_FUNC_GET_RADDR		4
 int gensio_ll_get_raddr(struct gensio_ll *ll,
-			void *addr, unsigned int *addrlen);
+			void *addr, gensiods *addrlen);
 
 /*
  * id => buf
@@ -292,9 +292,9 @@ void gensio_ll_free(struct gensio_ll *ll);
 int gensio_ll_control(struct gensio_ll *ll, bool get, int option, char *data);
 
 typedef int (*gensio_ll_func)(struct gensio_ll *ll, int op,
-			      unsigned int *count,
+			      gensiods *count,
 			      void *buf, const void *cbuf,
-			      unsigned int buflen,
+			      gensiods buflen,
 			      const char *const *auxdata);
 
 struct gensio_ll {

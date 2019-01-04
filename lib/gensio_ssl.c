@@ -99,8 +99,8 @@ str_to_ssl_gensio(const char *str, const char * const args[],
 }
 
 struct sslna_data {
-    unsigned int max_read_size;
-    unsigned int max_write_size;
+    gensiods max_read_size;
+    gensiods max_write_size;
 
     struct gensio_os_funcs *o;
 
@@ -133,16 +133,16 @@ sslna_alloc_gensio(void *acc_data, const char * const *iargs,
     const char *args[4] = {NULL, NULL, NULL, NULL };
     char buf1[50], buf2[50], *str;
     unsigned int i;
-    unsigned int max_read_size = nadata->max_read_size;
-    unsigned int max_write_size = nadata->max_write_size;
+    gensiods max_read_size = nadata->max_read_size;
+    gensiods max_write_size = nadata->max_write_size;
     const char *CAfilepath = nadata->CAfilepath;
 
     for (i = 0; iargs && iargs[i]; i++) {
 	if (gensio_check_keyvalue(iargs[i], "CA", &CAfilepath))
 	    continue;
-	if (gensio_check_keyuint(iargs[i], "writebuf", &max_write_size) > 0)
+	if (gensio_check_keyds(iargs[i], "writebuf", &max_write_size) > 0)
 	    continue;
-	if (gensio_check_keyuint(iargs[i], "readbuf", &max_read_size) > 0)
+	if (gensio_check_keyds(iargs[i], "readbuf", &max_read_size) > 0)
 	    continue;
 	return EINVAL;
     }
@@ -157,11 +157,11 @@ sslna_alloc_gensio(void *acc_data, const char * const *iargs,
 
     i = 1;
     if (max_read_size != SSL3_RT_MAX_PLAIN_LENGTH) {
-	snprintf(buf1, sizeof(buf1), "readbuf=%d", max_read_size);
+	snprintf(buf1, sizeof(buf1), "readbuf=%ld", max_read_size);
 	args[i++] = buf1;
     }
     if (max_write_size != SSL3_RT_MAX_PLAIN_LENGTH) {
-	snprintf(buf2, sizeof(buf2), "writebuf=%d", max_write_size);
+	snprintf(buf2, sizeof(buf2), "writebuf=%ld", max_write_size);
 	args[i++] = buf2;
     }
 
@@ -232,8 +232,8 @@ ssl_gensio_accepter_alloc(struct gensio_accepter *child,
     const char *CAfilepath = NULL;
     int err;
     unsigned int i;
-    unsigned int max_write_size = SSL3_RT_MAX_PLAIN_LENGTH;
-    unsigned int max_read_size = SSL3_RT_MAX_PLAIN_LENGTH;
+    gensiods max_write_size = SSL3_RT_MAX_PLAIN_LENGTH;
+    gensiods max_read_size = SSL3_RT_MAX_PLAIN_LENGTH;
 
     if (!gensio_acc_is_reliable(child))
 	/* Cowardly refusing to run SSL over an unreliable connection. */
@@ -246,9 +246,9 @@ ssl_gensio_accepter_alloc(struct gensio_accepter *child,
 	    continue;
 	if (gensio_check_keyvalue(args[i], "cert", &certfile))
 	    continue;
-	if (gensio_check_keyuint(args[i], "writebuf", &max_write_size) > 0)
+	if (gensio_check_keyds(args[i], "writebuf", &max_write_size) > 0)
 	    continue;
-	if (gensio_check_keyuint(args[i], "readbuf", &max_read_size) > 0)
+	if (gensio_check_keyds(args[i], "readbuf", &max_read_size) > 0)
 	    continue;
 	return EINVAL;
     }
@@ -330,7 +330,7 @@ int
 ssl_gensio_accepter_alloc(const char * const args[],
 			  struct gensio_os_funcs *o,
 			  struct gensio_accepter *child,
-			  unsigned int max_read_size,
+			  gensiods max_read_size,
 			  gensio_accepter_event cb, void *user_data,
 			  struct gensio_accepter **accepter)
 {
