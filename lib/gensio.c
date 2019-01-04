@@ -1430,6 +1430,9 @@ gensio_sockaddr_to_str(const struct sockaddr *addr, socklen_t *addrlen,
 	return EINVAL;
     }
 
+    if (epos)
+	*epos = pos;
+
     return 0;
 }
 
