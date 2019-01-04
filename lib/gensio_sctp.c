@@ -595,7 +595,6 @@ struct sctpna_data {
 
     struct addrinfo *ai;
 
-    unsigned int   nr_acceptfds;
     unsigned int   nr_accept_close_waiting;
 
     struct sctp_initmsg initmsg;
@@ -890,7 +889,7 @@ _sctpna_shutdown(struct sctpna_data *nadata,
     nadata->in_shutdown = true;
     nadata->shutdown_done = shutdown_done;
     nadata->shutdown_data = shutdown_data;
-    nadata->nr_accept_close_waiting = nadata->nr_acceptfds;
+    nadata->nr_accept_close_waiting = nadata->nfds;
     for (i = 0; i < nadata->nfds; i++)
 	nadata->o->clear_fd_handlers(nadata->o, nadata->fds[i].fd);
     nadata->setup = false;
