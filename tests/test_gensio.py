@@ -409,6 +409,76 @@ def test_rs485():
     utils.io_close(io2)
     print("  Success!")
 
+class TestAcceptConnect:
+    def __init__(self, o, iostr, io2str, io3str, tester, name = None,
+                 io1_dummy_write = None):
+        self.o = o
+        if (name):
+            self.name = name
+        else:
+            self.name = iostr
+        self.waiter = gensio.waiter(o)
+        self.acc = gensio.gensio_accepter(o, iostr, self);
+        self.acc.startup()
+        self.acc2 = gensio.gensio_accepter(o, io2str, self);
+        self.acc2.startup()
+        self.io1 = self.acc2.str_to_gensio(io3str, None);
+        self.io1.open_s()
+        if (io1_dummy_write):
+            # For UDP, kick start things.
+            self.io1.write(io1_dummy_write, None)
+        self.wait()
+        h = utils.HandleData(o, io3str, io = self.io1)
+        if (io1_dummy_write):
+            self.io2.handler.set_compare(io1_dummy_write)
+            if (self.io2.handler.wait_timeout(1000)):
+                raise Exception(("%s: %s: " % ("test_accept",
+                                               self.io2.handler.name)) +
+                        ("Timed out waiting for dummy read at byte %d" %
+                         self.io2.handler.compared))
+        tester(self.io1, self.io2)
+
+    def new_connection(self, acc, io):
+        utils.HandleData(self.o, None, io = io, name = self.name)
+        self.io2 = io
+        self.waiter.wake()
+
+    def accepter_log(self, acc, level, logstr):
+        print("***%s LOG: %s: %s" % (level, self.name, logstr))
+
+    def wait(self):
+        self.waiter.wait(1)
+
+def test_tcp_acc_connect():
+    print("Test tcp accepter connect")
+    ta = TestAcceptConnect(o, "tcp,3040", "tcp,3041", "tcp,localhost,3040",
+                           do_small_test)
+
+def test_udp_acc_connect():
+    print("Test udp accepter connect")
+    ta = TestAcceptConnect(o, "udp,3040", "udp,3041", "udp,localhost,3040",
+                           do_small_test, io1_dummy_write = "A")
+
+def test_sctp_acc_connect():
+    print("Test sctp accepter connect")
+    ta = TestAcceptConnect(o, "sctp,3040", "sctp,3041", "sctp,localhost,3040",
+                           do_small_test)
+
+def test_telnet_sctp_acc_connect():
+    print("Test telnet over sctp accepter connect")
+    ta = TestAcceptConnect(o, "telnet,sctp,3042", "telnet,sctp,3043",
+                           "telnet,sctp,localhost,3042", do_small_test)
+
+def test_ssl_sctp_acc_connect():
+    print("Test ssl over sctp accepter connect")
+    ta = TestAcceptConnect(o,
+                "ssl(key=%s/key.pem,cert=%s/cert.pem,CA=%s/CA.pem),sctp,3044"
+                           % (utils.srcdir, utils.srcdir, utils.srcdir),
+                "ssl(key=%s/key.pem,cert=%s/cert.pem,CA=%s/CA.pem),sctp,3045"
+                           % (utils.srcdir, utils.srcdir, utils.srcdir),
+                "ssl(CA=%s/CA.pem),sctp,localhost,3044" % utils.srcdir,
+                           do_small_test)
+
 test_echo_device()
 test_serial_pipe_device()
 test_stdio_basic()
@@ -427,5 +497,12 @@ test_sctp_streams()
 test_sctp_oob()
 test_ipmisol_small()
 ta_ssl_telnet()
+
+test_tcp_acc_connect()
+test_udp_acc_connect()
+test_sctp_acc_connect()
+test_telnet_sctp_acc_connect()
+test_ssl_sctp_acc_connect()
+
 test_ipmisol_large()
 test_rs485()
