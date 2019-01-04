@@ -598,7 +598,7 @@ gensio_ssl_filter_alloc(struct gensio_os_funcs *o, const char * const args[],
     success = SSL_CTX_load_verify_locations(ctx, CAfile, CApath);
     if (!success) {
 	SSL_CTX_free(ctx);
-	return ENOMEM;
+	return ENOKEY;
     }
 
     filter = gensio_ssl_filter_raw_alloc(o, true, ctx,
