@@ -104,7 +104,6 @@ struct udpna_data {
     unsigned int data_pos;
     struct udpn_data *pending_data_owner;
 
-    struct gensio_list pending_close_udpns; /* Waiting to do a close callback */
     struct gensio_list closed_udpns;
 
     /*
@@ -386,8 +385,6 @@ udpn_finish_close(struct udpna_data *nadata, struct udpn_data *ndata)
     if (ndata->in_read || ndata->in_write || ndata->in_open_cb)
 	return;
 
-    udpn_remove_from_list(&nadata->pending_close_udpns, ndata);
-    udpn_add_to_list(&nadata->closed_udpns, ndata);
     ndata->state = UDPN_CLOSED;
 
     if (ndata->close_done) {
@@ -560,7 +557,7 @@ udpn_start_close(struct udpn_data *ndata,
     }
 
     udpn_remove_from_list(&nadata->udpns, ndata);
-    udpn_add_to_list(&nadata->pending_close_udpns, ndata);
+    udpn_add_to_list(&nadata->closed_udpns, ndata);
     ndata->state = UDPN_IN_CLOSE;
 
     udpn_start_deferred_op(ndata);
@@ -1028,6 +1025,15 @@ udpna_str_to_gensio(struct gensio_accepter *accepter, const char *addr,
 	goto out_err;
 
     udpna_lock(nadata);
+    ndata = udpn_find(&nadata->udpns, ai->ai_addr, ai->ai_addrlen);
+    if (!ndata)
+	ndata = udpn_find(&nadata->closed_udpns, ai->ai_addr, ai->ai_addrlen);
+    if (ndata) {
+	udpna_unlock(nadata);
+	err = EBUSY;
+	goto out_err;
+    }
+
     ndata = udp_alloc_gensio(nadata, nadata->fds[fdi].fd,
 			     ai->ai_addr, ai->ai_addrlen,
 			     cb, user_data, &nadata->closed_udpns);
@@ -1096,7 +1102,6 @@ i_udp_gensio_accepter_alloc(struct addrinfo *iai, unsigned int max_read_size,
 	return ENOMEM;
     nadata->o = o;
     gensio_list_init(&nadata->udpns);
-    gensio_list_init(&nadata->pending_close_udpns);
     gensio_list_init(&nadata->closed_udpns);
 
     nadata->ai = gensio_dup_addrinfo(o, iai);
