@@ -402,14 +402,14 @@ s2n_linestate(struct sergensio *sio, unsigned int linestate)
 
 static int
 io_event(struct gensio *io, int event, int err,
-	 unsigned char *buf, unsigned int *buflen,
+	 unsigned char *buf, gensiods *buflen,
 	 const char *const *auxdata)
 {
     struct ioinfo *ioinfo = gensio_get_user_data(io);
     struct ioinfo *rioinfo = ioinfo->otherio;
     struct sergensio *sio, *rsio;
     int rv, escapepos = -1;
-    unsigned int count = 0;
+    gensiods count = 0;
 
     if (err) {
 	if (err != EPIPE) /* EPIPE means the other end closed. */
