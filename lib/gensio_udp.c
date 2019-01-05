@@ -63,9 +63,10 @@ struct udpn_data {
     bool in_read;	/* Currently in a read callback. */
     bool in_write;	/* Currently in a write callback. */
     bool in_open_cb;	/* Currently in an open callback. */
+    bool in_close_cb;	/* Currently in a close callback. */
 
     enum udpn_state state;
-    bool in_free;	/* Freed during the close process. */
+    bool freed;		/* Freed during the close process. */
 
     gensio_done_err open_done;
     void *open_data;
@@ -326,6 +327,7 @@ udpn_finish_free(struct udpn_data *ndata)
     struct udpna_data *nadata = ndata->nadata;
 
     udpn_remove_from_list(&nadata->closed_udpns, ndata);
+    assert(nadata->udpn_count > 0);
     nadata->udpn_count--;
     udpn_do_free(ndata);
     udpna_check_finish_free(nadata);
@@ -393,9 +395,11 @@ udpn_finish_close(struct udpna_data *nadata, struct udpn_data *ndata)
 	void *close_data = ndata->close_data;
 
 	ndata->close_done = NULL;
+	ndata->in_close_cb = true;
 	udpna_unlock(nadata);
 	close_done(ndata->io, close_data);
 	udpna_lock(nadata);
+	ndata->in_close_cb = false;
     }
 
     if (nadata->pending_data_owner == ndata) {
@@ -403,7 +407,7 @@ udpn_finish_close(struct udpna_data *nadata, struct udpn_data *ndata)
 	nadata->data_pending_len = 0;
     }
 
-    if (ndata->in_free)
+    if (ndata->freed)
 	udpn_finish_free(ndata);
 }
 
@@ -597,15 +601,13 @@ udpn_free(struct gensio *io)
     if (--ndata->refcount > 0)
 	goto out_unlock;
 
-    if (ndata->state == UDPN_IN_CLOSE) {
-	ndata->in_free = true;
+    ndata->freed = true;
+    if (ndata->state == UDPN_IN_CLOSE)
 	ndata->close_done = NULL;
-    } else if (ndata->state != UDPN_CLOSED) {
-	ndata->in_free = true;
+    else if (ndata->state != UDPN_CLOSED)
 	udpn_start_close(ndata, NULL, NULL);
-    } else {
+    else if (!ndata->in_close_cb)
 	udpn_finish_free(ndata);
-    }
  out_unlock:
     udpna_unlock(nadata);
 }
