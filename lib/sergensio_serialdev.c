@@ -1306,6 +1306,8 @@ sterm_free(void *handler_data)
 	sdata->o->free(sdata->o, sdata->devname);
     if (sdata->deferred_op_runner)
 	sdata->o->free_runner(sdata->deferred_op_runner);
+    if (sdata->sio)
+	sergensio_data_free(sdata->sio);
     sdata->o->free(sdata->o, sdata);
 }
 
