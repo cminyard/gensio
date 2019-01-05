@@ -770,6 +770,9 @@ sctpna_fd_cleared(int fd, void *cbdata)
 	    nadata->shutdown_done(accepter, nadata->shutdown_data);
 	sctpna_lock(nadata);
 	nadata->in_shutdown = false;
+	nadata->nfds = 0;
+	nadata->o->free(nadata->o, nadata->fds);
+	nadata->fds = NULL;
 	sctpna_deref_and_unlock(nadata);
     }
 }
