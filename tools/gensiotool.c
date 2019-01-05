@@ -822,6 +822,14 @@ main(int argc, char *argv[])
     if (closecount > 0) {
 	g.o->wait(closewaiter, closecount, NULL);
     }
-    
+
+    if (ioinfo1.io)
+	gensio_free(ioinfo1.io);
+    if (ioinfo2.io)
+	gensio_free(ioinfo2.io);
+
+    g.o->free_waiter(closewaiter);
+    g.o->free_waiter(g.waiter);
+
     return 0;
 }
