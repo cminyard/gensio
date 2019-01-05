@@ -240,7 +240,8 @@ fd_start_close(struct fd_ll *fdll)
 static void
 fd_finish_open(struct fd_ll *fdll, int err)
 {
-    fdll->o->set_except_handler(fdll->o, fdll->fd, false);
+    if (fdll->fd != -1)
+	fdll->o->set_except_handler(fdll->o, fdll->fd, false);
     if (err) {
 	if (fdll->fd == -1) {
 	    fdll->state = FD_CLOSED;
