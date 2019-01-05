@@ -510,6 +510,8 @@ basen_try_connect(struct basen_data *ndata)
 	return;
     }
 
+    basen_deref(ndata);
+
     if (!err)
 	err = filter_check_open_done(ndata);
 
@@ -565,6 +567,7 @@ basen_open(struct basen_data *ndata, gensio_done_err open_done, void *open_data)
 	ndata->open_data = open_data;
 	err = ll_open(ndata, basen_ll_open_done, ndata);
 	if (err == 0) {
+	    basen_ref(ndata);
 	    ndata->state = BASEN_IN_FILTER_OPEN;
 	    ndata->deferred_open = true;
 	    basen_sched_deferred_op(ndata);
@@ -633,6 +636,7 @@ basen_close(struct basen_data *ndata, gensio_done close_done, void *close_data)
 	if (ndata->state == BASEN_IN_FILTER_OPEN ||
 			ndata->state == BASEN_IN_LL_OPEN) {
 	    basen_i_close(ndata, close_done, close_data);
+	    /* Lose the ref we get for being in filter or ll open state. */
 	    basen_deref(ndata);
 	} else {
 	    err = EBUSY;
@@ -832,6 +836,7 @@ basen_ll_read(void *cb_data, int readerr,
 	if (ndata->state == BASEN_IN_FILTER_OPEN ||
 			ndata->state == BASEN_IN_LL_OPEN) {
 	    ndata->state = BASEN_IN_LL_CLOSE;
+	    basen_deref(ndata);
 	    ll_close(ndata, basen_ll_close_on_err, (void *) (long) ECOMM);
 	} else if (ndata->state == BASEN_CLOSE_WAIT_DRAIN ||
 			ndata->state == BASEN_IN_FILTER_CLOSE) {
@@ -1023,6 +1028,7 @@ gensio_i_alloc(struct gensio_os_funcs *o,
 	ndata->open_done = open_done;
 	ndata->open_data = open_data;
 	ndata->state = BASEN_IN_FILTER_OPEN;
+	basen_ref(ndata);
 	/* Call the first try open from the xmit handler. */
 	ndata->tmp_xmit_enabled = true;
 	basen_set_ll_enables(ndata);
