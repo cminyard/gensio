@@ -49,6 +49,8 @@ struct tcp_data {
     struct addrinfo *lai; /* Local address, NULL if not set. */
     struct addrinfo *curr_ai;
 
+    bool nodelay;
+
     int last_err;
 };
 
@@ -82,6 +84,13 @@ tcp_socket_setup(struct tcp_data *tdata, int fd)
     if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR,
 		   (void *)&optval, sizeof(optval)) == -1)
 	return errno;
+
+    if (tdata->nodelay) {
+	int val = 1;
+
+	if (setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &val, sizeof(val)) == -1)
+	    return errno;
+    }
 
     if (tdata->lai) {
 	if (bind(fd, tdata->lai->ai_addr, tdata->lai->ai_addrlen) == -1)
@@ -304,6 +313,7 @@ tcp_gensio_alloc(struct addrinfo *iai, const char * const args[],
     struct addrinfo *ai, *lai = NULL;
     struct gensio *io;
     gensiods max_read_size = GENSIO_DEFAULT_BUF_SIZE;
+    bool nodelay = false;
     unsigned int i;
 
     for (i = 0; args && args[i]; i++) {
@@ -311,6 +321,8 @@ tcp_gensio_alloc(struct addrinfo *iai, const char * const args[],
 	    continue;
 	if (gensio_check_keyaddrs(o, args[i], "laddr", IPPROTO_TCP,
 				  true, false, &lai) > 0)
+	    continue;
+	if (gensio_check_keybool(args[i], "nodelay", &nodelay) > 0)
 	    continue;
 	return EINVAL;
     }
@@ -334,6 +346,7 @@ tcp_gensio_alloc(struct addrinfo *iai, const char * const args[],
     tdata->ai = ai;
     tdata->lai = lai;
     tdata->raddr = (struct sockaddr *) &tdata->remote;
+    tdata->nodelay = nodelay;
 
     tdata->ll = fd_gensio_ll_alloc(o, -1, &tcp_fd_ll_ops, tdata, max_read_size);
     if (!tdata->ll) {
@@ -380,6 +393,7 @@ struct tcpna_data {
     struct gensio_os_funcs *o;
 
     gensiods max_read_size;
+    bool nodelay;
 
     struct gensio_lock *lock;
 
@@ -686,7 +700,7 @@ tcpna_str_to_gensio(struct gensio_accepter *accepter, const char *addr,
 {
     struct tcpna_data *nadata = gensio_acc_get_gensio_data(accepter);
     int err;
-    const char *args[3] = { NULL, NULL, NULL };
+    const char *args[4] = { NULL, NULL, NULL, NULL };
     char buf[100];
     unsigned int i;
     gensiods max_read_size = nadata->max_read_size;
@@ -696,6 +710,7 @@ tcpna_str_to_gensio(struct gensio_accepter *accepter, const char *addr,
     const char *laddr = NULL, *dummy;
     bool is_port_set;
     int socktype, protocol;
+    bool nodelay = false;
 
     err = gensio_scan_network_port(nadata->o, addr, false, &ai, &socktype,
 				   &protocol, &is_port_set, &iargc, &iargs);
@@ -713,6 +728,8 @@ tcpna_str_to_gensio(struct gensio_accepter *accepter, const char *addr,
 	    laddr = iargs[i];
 	    continue;
 	}
+	if (gensio_check_keybool(args[i], "nodelay", &nodelay) > 0)
+	    continue;
 	goto out_err;
     }
 
@@ -724,6 +741,9 @@ tcpna_str_to_gensio(struct gensio_accepter *accepter, const char *addr,
 
     if (laddr)
 	args[i++] = laddr;
+
+    if (nodelay)
+	args[i++] = "nodelay";
 
     err = tcp_gensio_alloc(ai, args, nadata->o, cb, user_data, new_net);
 
@@ -772,10 +792,13 @@ tcp_gensio_accepter_alloc(struct addrinfo *iai,
 {
     struct tcpna_data *nadata;
     gensiods max_read_size = GENSIO_DEFAULT_BUF_SIZE;
+    bool nodelay = false;
     unsigned int i;
 
     for (i = 0; args && args[i]; i++) {
 	if (gensio_check_keyds(args[i], "readbuf", &max_read_size) > 0)
+	    continue;
+	if (gensio_check_keybool(args[i], "nodelay", &nodelay) > 0)
 	    continue;
 	return EINVAL;
     }
@@ -800,8 +823,8 @@ tcp_gensio_accepter_alloc(struct addrinfo *iai,
 	goto out_nomem;
     gensio_acc_set_is_reliable(nadata->acc, true);
 
-
     nadata->max_read_size = max_read_size;
+    nadata->nodelay = nodelay;
 
     *accepter = nadata->acc;
     return 0;

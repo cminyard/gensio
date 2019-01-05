@@ -51,6 +51,7 @@ struct sctp_data {
 
     struct sctp_initmsg initmsg;
 
+    bool nodelay;
     unsigned int instreams;
     unsigned int ostreams;
 
@@ -123,6 +124,13 @@ sctp_socket_setup(struct sctp_data *tdata, int fd)
     if (setsockopt(fd, IPPROTO_SCTP, SCTP_INITMSG, &tdata->initmsg,
 		   sizeof(tdata->initmsg)) == -1)
 	return errno;
+
+    if (tdata->nodelay) {
+	int val = 1;
+
+	if (setsockopt(fd, IPPROTO_SCTP, SCTP_NODELAY, &val, sizeof(val)) == -1)
+	    return errno;
+    }
 
     memset(&event_sub, 0, sizeof(event_sub));
     event_sub.sctp_data_io_event = 1;
@@ -478,12 +486,15 @@ sctp_gensio_alloc(struct addrinfo *iai, const char * const args[],
     unsigned int instreams = 1, ostreams = 1;
     int i, family = AF_INET, err;
     struct addrinfo *lai = NULL;
+    bool nodelay = false;
 
     for (i = 0; args && args[i]; i++) {
 	if (gensio_check_keyds(args[i], "readbuf", &max_read_size) > 0)
 	    continue;
 	if (gensio_check_keyaddrs(o, args[i], "laddr", IPPROTO_SCTP,
 				  true, false, &lai) > 0)
+	    continue;
+	if (gensio_check_keybool(args[i], "nodelay", &nodelay) > 0)
 	    continue;
 	if (gensio_check_keyuint(args[i], "instreams", &instreams) > 0)
 	    continue;
@@ -519,6 +530,7 @@ sctp_gensio_alloc(struct addrinfo *iai, const char * const args[],
     tdata->initmsg.sinit_max_instreams = instreams;
     tdata->initmsg.sinit_num_ostreams = ostreams;
     tdata->fd = -1;
+    tdata->nodelay = nodelay;
 
     tdata->ll = fd_gensio_ll_alloc(o, -1, &sctp_fd_ll_ops, tdata,
 				   max_read_size);
@@ -580,6 +592,7 @@ struct sctpna_data {
     struct gensio_os_funcs *o;
 
     gensiods max_read_size;
+    bool nodelay;
 
     struct gensio_lock *lock;
 
@@ -712,6 +725,7 @@ sctpna_readhandler(int fd, void *cbdata)
 
     tdata->o = nadata->o;
     tdata->fd = new_fd;
+    tdata->nodelay = nadata->nodelay;
 
     err = sctp_socket_setup(tdata, new_fd);
     if (!err)
@@ -969,7 +983,7 @@ sctpna_str_to_gensio(struct gensio_accepter *accepter, const char *addr,
 {
     struct sctpna_data *nadata = gensio_acc_get_gensio_data(accepter);
     int err;
-    const char *args[5] = { NULL, NULL, NULL, NULL, NULL };
+    const char *args[6] = { NULL, NULL, NULL, NULL, NULL, NULL };
     char buf[100], buf2[100], buf3[100];
     gensiods max_read_size = nadata->max_read_size;
     unsigned int instreams = nadata->initmsg.sinit_max_instreams;
@@ -981,6 +995,7 @@ sctpna_str_to_gensio(struct gensio_accepter *accepter, const char *addr,
     const char *laddr = NULL, *dummy;
     bool is_port_set;
     int socktype, protocol;
+    bool nodelay = false;
 
     err = gensio_scan_network_port(nadata->o, addr, false, &ai, &socktype,
 				   &protocol, &is_port_set, &iargc, &iargs);
@@ -998,6 +1013,8 @@ sctpna_str_to_gensio(struct gensio_accepter *accepter, const char *addr,
 	    laddr = iargs[i];
 	    continue;
 	}
+	if (gensio_check_keybool(args[i], "nodelay", &nodelay) > 0)
+	    continue;
 	if (gensio_check_keyuint(iargs[i], "instreams", &instreams) > 0)
 	    continue;
 	if (gensio_check_keyuint(iargs[i], "ostreams", &ostreams) > 0)
@@ -1020,6 +1037,8 @@ sctpna_str_to_gensio(struct gensio_accepter *accepter, const char *addr,
 	snprintf(buf3, 100, "ostreams=%u", ostreams);
 	args[i++] = buf3;
     }
+    if (nodelay)
+	args[i++] = "nodelay";
 
     err = sctp_gensio_alloc(ai, args, nadata->o, cb, user_data, new_net);
 
@@ -1068,10 +1087,13 @@ sctp_gensio_accepter_alloc(struct addrinfo *iai, const char * const args[],
     struct sctpna_data *nadata;
     gensiods max_read_size = GENSIO_DEFAULT_BUF_SIZE;
     unsigned int instreams = 1, ostreams = 1;
+    bool nodelay = false;
     unsigned int i;
 
     for (i = 0; args && args[i]; i++) {
 	if (gensio_check_keyds(args[i], "readbuf", &max_read_size) > 0)
+	    continue;
+	if (gensio_check_keybool(args[i], "nodelay", &nodelay) > 0)
 	    continue;
 	if (gensio_check_keyuint(args[i], "instreams", &instreams) > 0)
 	    continue;
@@ -1104,6 +1126,7 @@ sctp_gensio_accepter_alloc(struct addrinfo *iai, const char * const args[],
     gensio_acc_set_is_packet(nadata->acc, true);
 
     nadata->max_read_size = max_read_size;
+    nadata->nodelay = nodelay;
 
     *accepter = nadata->acc;
     return 0;
