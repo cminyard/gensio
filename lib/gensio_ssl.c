@@ -253,7 +253,7 @@ ssl_gensio_accepter_alloc(struct gensio_accepter *child,
 	return EINVAL;
     }
 
-    if (!CAfilepath || !keyfile)
+    if (!keyfile)
 	return EINVAL;
 
     nadata = o->zalloc(o, sizeof(*nadata));
@@ -275,9 +275,11 @@ ssl_gensio_accepter_alloc(struct gensio_accepter *child,
     if (!nadata->certfile)
 	goto out_nomem;
 
-    nadata->CAfilepath = gensio_strdup(o, CAfilepath);
-    if (!nadata->CAfilepath)
-	goto out_nomem;
+    if (CAfilepath) {
+	nadata->CAfilepath = gensio_strdup(o, CAfilepath);
+	if (!nadata->CAfilepath)
+	    goto out_nomem;
+    }
 
     err = gensio_gensio_accepter_alloc(child, o, "ssl", cb, user_data,
 				       gensio_gensio_acc_ssl_cb, nadata,
