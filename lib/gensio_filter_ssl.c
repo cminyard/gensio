@@ -32,6 +32,16 @@
 #include <openssl/bio.h>
 #include <openssl/err.h>
 
+struct gensio_ssl_filter_data {
+    struct gensio_os_funcs *o;
+    bool is_client;
+    char *CAfilepath;
+    char *keyfile;
+    char *certfile;
+    gensiods max_read_size;
+    gensiods max_write_size;
+};
+
 static void
 gensio_do_ssl_init(void *cb_data)
 {
@@ -507,44 +517,132 @@ gensio_ssl_filter_raw_alloc(struct gensio_os_funcs *o,
 }
 
 int
-gensio_ssl_server_filter_alloc(struct gensio_os_funcs *o,
-			       char *keyfile,
-			       char *certfile,
-			       char *CAfilepath,
-			       gensiods max_read_size,
-			       gensiods max_write_size,
-			       struct gensio_filter **rfilter)
+gensio_ssl_filter_config(struct gensio_os_funcs *o,
+			 const char * const args[],
+			 bool default_is_client,
+			 struct gensio_ssl_filter_data **rdata)
 {
+    unsigned int i;
+    struct gensio_ssl_filter_data *data = o->zalloc(o, sizeof(*data));
+    const char *CAfilepath = NULL, *keyfile = NULL, *certfile = NULL;
+
+    data->o = o;
+    data->is_client = default_is_client;
+    data->max_write_size = SSL3_RT_MAX_PLAIN_LENGTH;
+    data->max_read_size = SSL3_RT_MAX_PLAIN_LENGTH;
+
+    for (i = 0; args && args[i]; i++) {
+	if (gensio_check_keyvalue(args[i], "CA", &CAfilepath))
+	    continue;
+	if (gensio_check_keyvalue(args[i], "key", &keyfile))
+	    continue;
+	if (gensio_check_keyvalue(args[i], "cert", &certfile))
+	    continue;
+	if (gensio_check_keyds(args[i], "readbuf", &data->max_read_size) > 0)
+	    continue;
+	if (gensio_check_keyds(args[i], "writebuf", &data->max_write_size) > 0)
+	    continue;
+	if (gensio_check_keyboolv(args[i], "mode", "client", "server",
+				  &data->is_client) > 0)
+	return EINVAL;
+    }
+
+    if (data->is_client) {
+	if (!CAfilepath)
+	    return ENOKEY;
+    } else {
+	if (!keyfile)
+	    return ENOKEY;
+    }
+
+    if (keyfile && !certfile)
+	certfile = keyfile;
+
+    if (CAfilepath) {
+	data->CAfilepath = gensio_strdup(o, CAfilepath);
+	if (!data->CAfilepath)
+	    return ENOMEM;
+    }
+
+    if (keyfile) {
+	data->keyfile = gensio_strdup(o, keyfile);
+	if (!data->keyfile) {
+	    o->free(o, data->CAfilepath);
+	    return ENOMEM;
+	}
+    }
+
+    if (certfile) {
+	data->certfile = gensio_strdup(o, certfile);
+	if (!data->certfile) {
+	    o->free(o, data->keyfile);
+	    o->free(o, data->CAfilepath);
+	    return ENOMEM;
+	}
+    }
+
+    *rdata = data;
+
+    return 0;
+}
+
+void
+gensio_ssl_filter_config_free(struct gensio_ssl_filter_data *data)
+{
+    struct gensio_os_funcs *o = data->o;
+
+    if (!data)
+	return;
+
+    if (data->CAfilepath)
+	o->free(o, data->CAfilepath);
+    if (data->keyfile)
+	o->free(o, data->keyfile);
+    if (data->certfile)
+	o->free(o, data->certfile);
+    o->free(o, data);
+}
+
+int
+gensio_ssl_filter_alloc(struct gensio_ssl_filter_data *data,
+			struct gensio_filter **rfilter)
+{
+    struct gensio_os_funcs *o = data->o;
     SSL_CTX *ctx = NULL;
     struct gensio_filter *filter;
 
     gensio_ssl_initialize(o);
 
-    ctx = SSL_CTX_new(SSLv23_server_method());
+    if (data->is_client)
+	ctx = SSL_CTX_new(SSLv23_client_method());
+    else
+	ctx = SSL_CTX_new(SSLv23_server_method());
     if (!ctx)
 	return ENOMEM;
 
-    if (CAfilepath) {
+    if (data->CAfilepath) {
 	char *CAfile = NULL, *CApath = NULL;
 
-	if (CAfilepath[strlen(CAfilepath) - 1] == '/')
-	    CApath = CAfilepath;
+	if (data->CAfilepath[strlen(data->CAfilepath) - 1] == '/')
+	    CApath = data->CAfilepath;
 	else
-	    CAfile = CAfilepath;
+	    CAfile = data->CAfilepath;
 	if (!SSL_CTX_load_verify_locations(ctx, CAfile, CApath))
 	    goto err;
     }
 
-    if (!SSL_CTX_use_certificate_chain_file(ctx, certfile))
-	goto err;
-    if (!SSL_CTX_use_PrivateKey_file(ctx, keyfile, SSL_FILETYPE_PEM))
-        goto err;
-    if (!SSL_CTX_check_private_key(ctx))
-        goto err;
+    if (data->certfile) {
+	if (!SSL_CTX_use_certificate_chain_file(ctx, data->certfile))
+	    goto err;
+	if (!SSL_CTX_use_PrivateKey_file(ctx, data->keyfile, SSL_FILETYPE_PEM))
+	    goto err;
+	if (!SSL_CTX_check_private_key(ctx))
+	    goto err;
+    }
 
-    filter = gensio_ssl_filter_raw_alloc(o, false, ctx,
-					max_read_size, max_write_size);
-
+    filter = gensio_ssl_filter_raw_alloc(o, data->is_client, ctx,
+					 data->max_read_size,
+					 data->max_write_size);
     if (!filter) {
 	SSL_CTX_free(ctx);
 	return ENOMEM;
@@ -557,62 +655,6 @@ gensio_ssl_server_filter_alloc(struct gensio_os_funcs *o,
     SSL_CTX_free(ctx);
     return EINVAL;
 }
-
-int
-gensio_ssl_filter_alloc(struct gensio_os_funcs *o, const char * const args[],
-			struct gensio_filter **rfilter)
-{
-    struct gensio_filter *filter;
-    const char *CAfilepath = NULL;
-    const char *CAfile = NULL, *CApath = NULL;
-    SSL_CTX *ctx;
-    int success;
-    unsigned int i;
-    gensiods max_read_size = SSL3_RT_MAX_PLAIN_LENGTH;
-    gensiods max_write_size = SSL3_RT_MAX_PLAIN_LENGTH;
-
-    gensio_ssl_initialize(o);
-
-    for (i = 0; args && args[i]; i++) {
-	if (gensio_check_keyvalue(args[i], "CA", &CAfilepath))
-	    continue;
-	if (gensio_check_keyds(args[i], "readbuf", &max_read_size) > 0)
-	    continue;
-	if (gensio_check_keyds(args[i], "writebuf", &max_write_size) > 0)
-	    continue;
-	return EINVAL;
-    }
-
-    if (!CAfilepath)
-	return EINVAL;
-
-    if (CAfilepath[strlen(CAfilepath) - 1] == '/')
-	CApath = CAfilepath;
-    else
-	CAfile = CAfilepath;
-
-    ctx = SSL_CTX_new(SSLv23_client_method());
-    if (!ctx)
-	return ENOMEM;
-
-    success = SSL_CTX_load_verify_locations(ctx, CAfile, CApath);
-    if (!success) {
-	SSL_CTX_free(ctx);
-	return ENOKEY;
-    }
-
-    filter = gensio_ssl_filter_raw_alloc(o, true, ctx,
-					 max_read_size, max_write_size);
-
-    if (!filter) {
-	SSL_CTX_free(ctx);
-	return ENOMEM;
-    }
-
-    *rfilter = filter;
-    return 0;
-}
-
 #else /* HAVE_OPENSSL */
 
 int

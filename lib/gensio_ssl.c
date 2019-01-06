@@ -47,12 +47,18 @@ ssl_gensio_alloc(struct gensio *child, const char *const args[],
     struct gensio_filter *filter;
     struct gensio_ll *ll;
     struct gensio *io;
+    struct gensio_ssl_filter_data *data;
 
     if (!gensio_is_reliable(child))
 	/* Cowardly refusing to run SSL over an unreliable connection. */
 	return EOPNOTSUPP;
 
-    err = gensio_ssl_filter_alloc(o, args, &filter);
+    err = gensio_ssl_filter_config(o, args, true, &data);
+    if (err)
+	return err;
+
+    err = gensio_ssl_filter_alloc(data, &filter);
+    gensio_ssl_filter_config_free(data);
     if (err)
 	return err;
 
@@ -99,14 +105,8 @@ str_to_ssl_gensio(const char *str, const char * const args[],
 }
 
 struct sslna_data {
-    gensiods max_read_size;
-    gensiods max_write_size;
-
+    struct gensio_ssl_filter_data *data;
     struct gensio_os_funcs *o;
-
-    char *keyfile;
-    char *certfile;
-    char *CAfilepath;
 };
 
 static void
@@ -114,12 +114,7 @@ sslna_free(void *acc_data)
 {
     struct sslna_data *nadata = acc_data;
 
-    if (nadata->keyfile)
-	nadata->o->free(nadata->o, nadata->keyfile);
-    if (nadata->certfile)
-	nadata->o->free(nadata->o, nadata->certfile);
-    if (nadata->CAfilepath)
-	nadata->o->free(nadata->o, nadata->CAfilepath);
+    gensio_ssl_filter_config_free(nadata->data);
     nadata->o->free(nadata->o, nadata);
 }
 
@@ -128,48 +123,8 @@ sslna_alloc_gensio(void *acc_data, const char * const *iargs,
 		   struct gensio *child, struct gensio **rio)
 {
     struct sslna_data *nadata = acc_data;
-    struct gensio_os_funcs *o = nadata->o;
-    int err;
-    const char *args[4] = {NULL, NULL, NULL, NULL };
-    char buf1[50], buf2[50], *str;
-    unsigned int i;
-    gensiods max_read_size = nadata->max_read_size;
-    gensiods max_write_size = nadata->max_write_size;
-    const char *CAfilepath = nadata->CAfilepath;
 
-    for (i = 0; iargs && iargs[i]; i++) {
-	if (gensio_check_keyvalue(iargs[i], "CA", &CAfilepath))
-	    continue;
-	if (gensio_check_keyds(iargs[i], "writebuf", &max_write_size) > 0)
-	    continue;
-	if (gensio_check_keyds(iargs[i], "readbuf", &max_read_size) > 0)
-	    continue;
-	return EINVAL;
-    }
-
-    str = o->zalloc(o, strlen(CAfilepath) + 4);
-    if (!str)
-	return ENOMEM;
-
-    strcpy(str, "CA=");
-    strcat(str, CAfilepath);
-    args[0] = str;
-
-    i = 1;
-    if (max_read_size != SSL3_RT_MAX_PLAIN_LENGTH) {
-	snprintf(buf1, sizeof(buf1), "readbuf=%ld", max_read_size);
-	args[i++] = buf1;
-    }
-    if (max_write_size != SSL3_RT_MAX_PLAIN_LENGTH) {
-	snprintf(buf2, sizeof(buf2), "writebuf=%ld", max_write_size);
-	args[i++] = buf2;
-    }
-
-    err = ssl_gensio_alloc(child, args, o, NULL, NULL, rio);
-
-    o->free(o, str);
-
-    return err;
+    return ssl_gensio_alloc(child, iargs, nadata->o, NULL, NULL, rio);
 }
 
 static int
@@ -177,15 +132,8 @@ sslna_new_child(void *acc_data, void **finish_data,
 		struct gensio_filter **filter)
 {
     struct sslna_data *nadata = acc_data;
-    int err;
 
-    err = gensio_ssl_server_filter_alloc(nadata->o,
-					 nadata->keyfile, nadata->certfile,
-					 nadata->CAfilepath,
-					 nadata->max_read_size,
-					 nadata->max_write_size,
-					 filter);
-    return err;
+    return gensio_ssl_filter_alloc(nadata->data, filter);
 }
 
 static int
@@ -227,59 +175,23 @@ ssl_gensio_accepter_alloc(struct gensio_accepter *child,
 			  struct gensio_accepter **accepter)
 {
     struct sslna_data *nadata;
-    const char *keyfile = NULL;
-    const char *certfile = NULL;
-    const char *CAfilepath = NULL;
     int err;
-    unsigned int i;
-    gensiods max_write_size = SSL3_RT_MAX_PLAIN_LENGTH;
-    gensiods max_read_size = SSL3_RT_MAX_PLAIN_LENGTH;
 
     if (!gensio_acc_is_reliable(child))
 	/* Cowardly refusing to run SSL over an unreliable connection. */
 	return EOPNOTSUPP;
 
-    for (i = 0; args && args[i]; i++) {
-	if (gensio_check_keyvalue(args[i], "CA", &CAfilepath))
-	    continue;
-	if (gensio_check_keyvalue(args[i], "key", &keyfile))
-	    continue;
-	if (gensio_check_keyvalue(args[i], "cert", &certfile))
-	    continue;
-	if (gensio_check_keyds(args[i], "writebuf", &max_write_size) > 0)
-	    continue;
-	if (gensio_check_keyds(args[i], "readbuf", &max_read_size) > 0)
-	    continue;
-	return EINVAL;
-    }
-
-    if (!keyfile)
-	return EINVAL;
-
     nadata = o->zalloc(o, sizeof(*nadata));
     if (!nadata)
 	return ENOMEM;
 
-    nadata->o = o;
-    nadata->max_write_size = max_write_size;
-    nadata->max_read_size = max_read_size;
-
-    nadata->keyfile = gensio_strdup(o, keyfile);
-    if (!nadata->keyfile)
-	goto out_nomem;
-
-    if (!certfile)
-	certfile = keyfile;
-
-    nadata->certfile = gensio_strdup(o, certfile);
-    if (!nadata->certfile)
-	goto out_nomem;
-
-    if (CAfilepath) {
-	nadata->CAfilepath = gensio_strdup(o, CAfilepath);
-	if (!nadata->CAfilepath)
-	    goto out_nomem;
+    err = gensio_ssl_filter_config(o, args, false, &nadata->data);
+    if (err) {
+	o->free(o, nadata);
+	return err;
     }
+
+    nadata->o = o;
 
     err = gensio_gensio_accepter_alloc(child, o, "ssl", cb, user_data,
 				       gensio_gensio_acc_ssl_cb, nadata,
@@ -291,8 +203,6 @@ ssl_gensio_accepter_alloc(struct gensio_accepter *child,
 
     return 0;
 
- out_nomem:
-    err = ENOMEM;
  out_err:
     sslna_free(nadata);
     return err;
