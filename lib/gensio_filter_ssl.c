@@ -40,6 +40,7 @@ struct gensio_ssl_filter_data {
     char *certfile;
     gensiods max_read_size;
     gensiods max_write_size;
+    bool allow_authfail;
 };
 
 static void
@@ -71,6 +72,7 @@ struct ssl_filter {
     X509 *remcert;
 
     bool expect_peer_cert;
+    bool allow_authfail;
 
     /* This is data from SSL_read() that is waiting to be sent to the user. */
     unsigned char *read_data;
@@ -160,7 +162,7 @@ ssl_verify_cb(int preverify_ok, X509_STORE_CTX *x509_ctx)
 }
 
 static int
-ssl_check_open_done(struct gensio_filter *filter)
+ssl_check_open_done(struct gensio_filter *filter, struct gensio *io)
 {
     struct ssl_filter *sfilter = filter_to_ssl(filter);
     long verify_err;
@@ -179,9 +181,13 @@ ssl_check_open_done(struct gensio_filter *filter)
 	    X509_free(sfilter->remcert);
 	    sfilter->remcert = NULL;
 	    rv = EKEYREJECTED;
+	} else {
+	    gensio_set_is_authenticated(io, true);
 	}
     }
  out_unlock:
+    if (rv && sfilter->allow_authfail)
+	rv = 0;
     ssl_unlock(sfilter);
     return rv;
 }
@@ -536,7 +542,7 @@ static int gensio_ssl_filter_func(struct gensio_filter *filter, int op,
 	return ssl_ll_read_needed(filter);
 
     case GENSIO_FILTER_FUNC_CHECK_OPEN_DONE:
-	return ssl_check_open_done(filter);
+	return ssl_check_open_done(filter, data);
 
     case GENSIO_FILTER_FUNC_TRY_CONNECT:
 	return ssl_try_connect(filter, data);
@@ -575,6 +581,7 @@ gensio_ssl_filter_raw_alloc(struct gensio_os_funcs *o,
 			    bool is_client,
 			    SSL_CTX *ctx,
 			    bool expect_peer_cert,
+			    bool allow_authfail,
 			    gensiods max_read_size,
 			    gensiods max_write_size)
 {
@@ -590,6 +597,7 @@ gensio_ssl_filter_raw_alloc(struct gensio_os_funcs *o,
     sfilter->max_write_size = max_write_size;
     sfilter->max_read_size = max_read_size;
     sfilter->expect_peer_cert = expect_peer_cert;
+    sfilter->allow_authfail = allow_authfail;
 
     sfilter->lock = o->alloc_lock(o);
     if (!sfilter->lock)
@@ -642,6 +650,9 @@ gensio_ssl_filter_config(struct gensio_os_funcs *o,
 				  &data->is_client) > 0)
 	    continue;
 	if (gensio_check_keybool(args[i], "noCA", &noCA) > 0)
+	    continue;
+	if (gensio_check_keybool(args[i], "allow-authfail",
+				 &data->allow_authfail) > 0)
 	    continue;
 	return EINVAL;
     }
@@ -754,6 +765,7 @@ gensio_ssl_filter_alloc(struct gensio_ssl_filter_data *data,
 
     filter = gensio_ssl_filter_raw_alloc(o, data->is_client, ctx,
 					 data->CAfilepath != NULL,
+					 data->allow_authfail,
 					 data->max_read_size,
 					 data->max_write_size);
     if (!filter) {

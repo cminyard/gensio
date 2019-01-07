@@ -140,7 +140,7 @@ telnet_ll_read_needed(struct gensio_filter *filter)
 }
 
 static int
-telnet_check_open_done(struct gensio_filter *filter)
+telnet_check_open_done(struct gensio_filter *filter, struct gensio *io)
 {
     return 0;
 }
@@ -497,7 +497,7 @@ static int gensio_telnet_filter_func(struct gensio_filter *filter, int op,
 	return telnet_ll_read_needed(filter);
 
     case GENSIO_FILTER_FUNC_CHECK_OPEN_DONE:
-	return telnet_check_open_done(filter);
+	return telnet_check_open_done(filter, data);
 
     case GENSIO_FILTER_FUNC_TRY_CONNECT:
 	return telnet_try_connect(filter, data);

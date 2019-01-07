@@ -126,6 +126,8 @@ void *gensio_get_gensio_data(struct gensio *io);
 void gensio_set_is_client(struct gensio *io, bool is_client);
 void gensio_set_is_packet(struct gensio *io, bool is_packet);
 void gensio_set_is_reliable(struct gensio *io, bool is_reliable);
+void gensio_set_is_authenticated(struct gensio *io, bool is_authenticate);
+void gensio_set_is_encrypted(struct gensio *io, bool is_encrypted);
 gensio_event gensio_get_cb(struct gensio *io);
 void gensio_set_cb(struct gensio *io, gensio_event cb, void *user_data);
 int gensio_cb(struct gensio *io, int event, int err,

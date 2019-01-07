@@ -197,7 +197,7 @@ static int
 filter_check_open_done(struct basen_data *ndata)
 {
     if (ndata->filter)
-	return gensio_filter_check_open_done(ndata->filter);
+	return gensio_filter_check_open_done(ndata->filter, ndata->io);
     return 0;
 }
 
@@ -1094,10 +1094,11 @@ gensio_filter_ll_read_needed(struct gensio_filter *filter)
 }
 
 int
-gensio_filter_check_open_done(struct gensio_filter *filter)
+gensio_filter_check_open_done(struct gensio_filter *filter,
+			      struct gensio *io)
 {
     return filter->func(filter, GENSIO_FILTER_FUNC_CHECK_OPEN_DONE,
-			NULL, NULL, NULL, NULL, NULL, 0, NULL);
+			NULL, io, NULL, NULL, NULL, 0, NULL);
 }
 
 int

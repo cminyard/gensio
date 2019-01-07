@@ -92,6 +92,8 @@ struct gensio {
     bool is_client;
     bool is_packet;
     bool is_reliable;
+    bool is_authenticated;
+    bool is_encrypted;
 };
 
 struct gensio *
@@ -951,6 +953,18 @@ gensio_is_packet(struct gensio *io)
     return io->is_packet;
 }
 
+bool
+gensio_is_authenticated(struct gensio *io)
+{
+    return io->is_authenticated;
+}
+
+bool
+gensio_is_encrypted(struct gensio *io)
+{
+    return io->is_encrypted;
+}
+
 void
 gensio_set_is_client(struct gensio *io, bool is_client)
 {
@@ -967,6 +981,18 @@ void
 gensio_set_is_packet(struct gensio *io, bool is_packet)
 {
     io->is_packet = is_packet;
+}
+
+void
+gensio_set_is_authenticated(struct gensio *io, bool is_authenticated)
+{
+    io->is_authenticated = is_authenticated;
+}
+
+void
+gensio_set_is_encrypted(struct gensio *io, bool is_encrypted)
+{
+    io->is_encrypted = is_encrypted;
 }
 
 void *

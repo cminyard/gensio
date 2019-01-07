@@ -367,6 +367,18 @@ bool gensio_is_reliable(struct gensio *io);
  */
 bool gensio_is_packet(struct gensio *io);
 
+/*
+ * Is the remote end authenticated?  In the SSL case, this means that
+ * the remote certificate was received and verified.
+ */
+bool gensio_is_authenticated(struct gensio *io);
+
+/*
+ * Is the connection encrypted?
+ */
+bool gensio_is_encrypted(struct gensio *io);
+
+
 struct gensio_accepter;
 
 /*

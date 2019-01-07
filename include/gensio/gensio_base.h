@@ -84,9 +84,12 @@ bool gensio_filter_ll_read_needed(struct gensio_filter *filter);
  * Provides a way to verify keys and such after the open is complete.
  * Returning an error will abort the connection before the open is
  * returned.
+ *
+ * io => data
  */
 #define GENSIO_FILTER_FUNC_CHECK_OPEN_DONE	5
-int gensio_filter_check_open_done(struct gensio_filter *filter);
+int gensio_filter_check_open_done(struct gensio_filter *filter,
+				  struct gensio *io);
 
 /*
  * Attempt to start a connection on the filter.  Returns 0 on

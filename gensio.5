@@ -394,6 +394,13 @@ verify that the server holds a valid certificate.  This removes that
 requirement.  Note that this is not recommended.  Ignored for server
 mode.
 
+.TP
+.B allow-authfail[=true|false]
+Normally if the remote end certificate is not validated, the SSL
+gensio will close the connection.  This allows the open to progress.
+Note that the user should verify that authentication is set using
+gensio_is_authenticated().
+
 Note that if you specify a CA for a server, it will require that the
 client present a valid certificate for the given CA.
 
