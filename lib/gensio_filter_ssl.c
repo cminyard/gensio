@@ -68,6 +68,9 @@ struct ssl_filter {
     SSL *ssl;
     BIO *ssl_bio;
     BIO *io_bio;
+    X509 *remcert;
+
+    bool expect_peer_cert;
 
     /* This is data from SSL_read() that is waiting to be sent to the user. */
     unsigned char *read_data;
@@ -150,6 +153,13 @@ ssl_ll_read_needed(struct gensio_filter *filter)
 }
 
 static int
+ssl_verify_cb(int preverify_ok, X509_STORE_CTX *x509_ctx)
+{
+    /* Always succeed, check the result in ssl_check_open_done(). */
+    return 1;
+}
+
+static int
 ssl_check_open_done(struct gensio_filter *filter)
 {
     struct ssl_filter *sfilter = filter_to_ssl(filter);
@@ -157,10 +167,21 @@ ssl_check_open_done(struct gensio_filter *filter)
     int rv = 0;
 
     ssl_lock(sfilter);
-    /* FIXME - add a way to ignore certificate errors. */
-    verify_err = SSL_get_verify_result(sfilter->ssl);
-    if (verify_err != X509_V_OK)
-	rv = EKEYREJECTED;
+    if (sfilter->expect_peer_cert) {
+	sfilter->remcert = SSL_get_peer_certificate(sfilter->ssl);
+	if (!sfilter->remcert) {
+	    rv = ENOKEY;
+	    goto out_unlock;
+	}
+
+	verify_err = SSL_get_verify_result(sfilter->ssl);
+	if (verify_err != X509_V_OK) {
+	    X509_free(sfilter->remcert);
+	    sfilter->remcert = NULL;
+	    rv = EKEYREJECTED;
+	}
+    }
+ out_unlock:
     ssl_unlock(sfilter);
     return rv;
 }
@@ -392,6 +413,9 @@ ssl_cleanup(struct gensio_filter *filter)
 {
     struct ssl_filter *sfilter = filter_to_ssl(filter);
 
+    if (sfilter->remcert)
+	X509_free(sfilter->remcert);
+    sfilter->remcert = NULL;
     if (sfilter->ssl)
 	SSL_free(sfilter->ssl);
     sfilter->ssl = NULL;
@@ -409,6 +433,8 @@ ssl_free(struct gensio_filter *filter)
 {
     struct ssl_filter *sfilter = filter_to_ssl(filter);
 
+    if (sfilter->remcert)
+	X509_free(sfilter->remcert);
     if (sfilter->ssl)
 	SSL_free(sfilter->ssl);
     if (sfilter->io_bio)
@@ -422,6 +448,70 @@ ssl_free(struct gensio_filter *filter)
     if (sfilter->write_data)
 	sfilter->o->free(sfilter->o, sfilter->write_data);
     sfilter->o->free(sfilter->o, sfilter);
+}
+
+static int
+ssl_filter_control(struct gensio_filter *filter, bool get, int op, char *data)
+{
+    struct ssl_filter *sfilter = filter_to_ssl(filter);
+    char *s, *n, *end;
+    int index = -1, len, count, nid;
+    X509_NAME *nm;
+    X509_NAME_ENTRY *e;
+    ASN1_STRING *as;
+    unsigned char *obj;
+    int objlen;
+
+    switch (op) {
+    case GENSIO_CONTROL_GET_PEER_CERT_NAME:
+	if (!get)
+	    return ENOTSUP;
+	if (!sfilter->remcert)
+	    return ENXIO;
+	len = strlen(data) + 1;
+	s = strchr(data, ' ');
+	if (s)
+	    *s = '\0';
+	n = data;
+	s = strchr(data, ',');
+	if (s) {
+	    index = strtol(data, &end, 0);
+	    if (*end != ',')
+		return EINVAL;
+	    n = end + 1;
+	}
+	nid = OBJ_sn2nid(n);
+	if (nid == NID_undef) {
+	    nid = OBJ_ln2nid(data);
+	    if (nid == NID_undef)
+		return EINVAL;
+	}
+	nm = X509_get_subject_name(sfilter->remcert);
+	index = X509_NAME_get_index_by_NID(nm, nid, index);
+	if (index < 0)
+	    return ENOENT;
+	count = snprintf(data, len, "%d,", index);
+	if (count < len) {
+	    data += count;
+	    len -= count;
+	} else {
+	    return 0;
+	}
+	e = X509_NAME_get_entry(nm, index);
+	as = X509_NAME_ENTRY_get_data(e);
+	objlen = ASN1_STRING_to_UTF8(&obj, as);
+	if (objlen < 0)
+	    return ENOMEM;
+	if (objlen >= len)
+	    objlen = len - 1;
+	memcpy(data, obj, objlen);
+	data[objlen] = '\0';
+	OPENSSL_free(obj);
+	return 0;
+
+    default:
+	return ENOTSUP;
+    }
 }
 
 static int gensio_ssl_filter_func(struct gensio_filter *filter, int op,
@@ -471,6 +561,9 @@ static int gensio_ssl_filter_func(struct gensio_filter *filter, int op,
 	ssl_free(filter);
 	return 0;
 
+    case GENSIO_FILTER_FUNC_CONTROL:
+	return ssl_filter_control(filter, *((bool *) cbuf), buflen, data);
+
     case GENSIO_FILTER_FUNC_TIMEOUT:
     default:
 	return ENOTSUP;
@@ -481,6 +574,7 @@ struct gensio_filter *
 gensio_ssl_filter_raw_alloc(struct gensio_os_funcs *o,
 			    bool is_client,
 			    SSL_CTX *ctx,
+			    bool expect_peer_cert,
 			    gensiods max_read_size,
 			    gensiods max_write_size)
 {
@@ -495,6 +589,7 @@ gensio_ssl_filter_raw_alloc(struct gensio_os_funcs *o,
     sfilter->ctx = ctx;
     sfilter->max_write_size = max_write_size;
     sfilter->max_read_size = max_read_size;
+    sfilter->expect_peer_cert = expect_peer_cert;
 
     sfilter->lock = o->alloc_lock(o);
     if (!sfilter->lock)
@@ -530,6 +625,7 @@ gensio_ssl_filter_config(struct gensio_os_funcs *o,
     data->is_client = default_is_client;
     data->max_write_size = SSL3_RT_MAX_PLAIN_LENGTH;
     data->max_read_size = SSL3_RT_MAX_PLAIN_LENGTH;
+    bool noCA = false;
 
     for (i = 0; args && args[i]; i++) {
 	if (gensio_check_keyvalue(args[i], "CA", &CAfilepath))
@@ -544,11 +640,14 @@ gensio_ssl_filter_config(struct gensio_os_funcs *o,
 	    continue;
 	if (gensio_check_keyboolv(args[i], "mode", "client", "server",
 				  &data->is_client) > 0)
+	    continue;
+	if (gensio_check_keybool(args[i], "noCA", &noCA) > 0)
+	    continue;
 	return EINVAL;
     }
 
     if (data->is_client) {
-	if (!CAfilepath)
+	if (!CAfilepath && !noCA)
 	    return ENOKEY;
     } else {
 	if (!keyfile)
@@ -620,6 +719,18 @@ gensio_ssl_filter_alloc(struct gensio_ssl_filter_data *data,
     if (!ctx)
 	return ENOMEM;
 
+    if (!data->is_client)
+	/*
+	 * In server mode, the certificate will not be requested unless
+	 * mode is SSL_VERIFY_PEER.  But in that mode, it terminates
+	 * the connection if there is no certificate in the default
+	 * verify callback.  So use the below so that the server mode
+	 * works like client mode, request a certificate, but don't
+	 * terminate the connection automatically if it is not there
+	 * or fails.  We will do that in the check open call.
+	 */
+	SSL_CTX_set_verify(ctx, SSL_VERIFY_PEER, ssl_verify_cb);
+
     if (data->CAfilepath) {
 	char *CAfile = NULL, *CApath = NULL;
 
@@ -641,6 +752,7 @@ gensio_ssl_filter_alloc(struct gensio_ssl_filter_data *data,
     }
 
     filter = gensio_ssl_filter_raw_alloc(o, data->is_client, ctx,
+					 data->CAfilepath != NULL,
 					 data->max_read_size,
 					 data->max_write_size);
     if (!filter) {

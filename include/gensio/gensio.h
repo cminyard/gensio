@@ -288,6 +288,26 @@ int gensio_control(struct gensio *io, int depth, bool get,
 #define GENSIO_CONTROL_SEND_BREAK	3
 
 /*
+ * Return the object from the certificate from the remote end.  This
+ * is primarily for SSL so the application can validate the
+ * certificate's common name, but it can fetch any object from the
+ * certificate.  The object to fetch is pass in to data (along with
+ * all the space padding), the SN or LN descriptor per
+ * /usr/include/openssl/object.h.  Like "CN" or "commonName".
+ *
+ * There may be more than one of an object in a certificate, so this
+ * interface can handle that.  The value returned in data will be
+ * in the form: "<n>,<value>" where <n> is a number.  To fetch the
+ * next value, pass in this number when requesting before the
+ * object type in the form: "<n>,<object type>".
+ *
+ * Returns ENXIO if there is no remote certificate, EINVAL if the
+ * pass in object name is not valid, and ENOENT if the object was
+ * not available in the certificate.
+ */
+#define GENSIO_CONTROL_GET_PEER_CERT_NAME	4
+
+/*
  * Return the type string for the gensio (if depth is 0) or one of its
  * children (depth > 0).  Return NULL if the depth is greater than the
  * number of children.

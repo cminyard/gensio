@@ -84,6 +84,13 @@ def ta_ssl_tcp():
     print("Test accept ssl-tcp")
     io1 = utils.alloc_io(o, "ssl(CA=%s/CA.pem),tcp,localhost,3024" % utils.srcdir, do_open = False)
     ta = TestAccept(o, io1, "ssl(key=%s/key.pem,cert=%s/cert.pem),3024" % (utils.srcdir, utils.srcdir), do_test)
+    cn = io1.control(0, True, gensio.GENSIO_CONTROL_GET_PEER_CERT_NAME,
+                     "-1,CN                                           ");
+    i = cn.index(',')
+    if cn[i+1:] != "ser2net.org":
+        raise Exception(
+            "Invalid common name in certificate, expected %s, got %s" &
+            ("ser2net.org", cn[i+1:]))
 
 def do_telnet_test(io1, io2):
     do_test(io1, io2)
@@ -472,10 +479,10 @@ def test_telnet_sctp_acc_connect():
 def test_ssl_sctp_acc_connect():
     print("Test ssl over sctp accepter connect")
     ta = TestAcceptConnect(o,
-                "ssl(key=%s/key.pem,cert=%s/cert.pem,CA=%s/CA.pem),sctp,3044"
-                           % (utils.srcdir, utils.srcdir, utils.srcdir),
-                "ssl(key=%s/key.pem,cert=%s/cert.pem,CA=%s/CA.pem),sctp,3045"
-                           % (utils.srcdir, utils.srcdir, utils.srcdir),
+                "ssl(key=%s/key.pem,cert=%s/cert.pem),sctp,3044"
+                           % (utils.srcdir, utils.srcdir),
+                "ssl(key=%s/key.pem,cert=%s/cert.pem),sctp,3045"
+                           % (utils.srcdir, utils.srcdir),
                 "ssl(CA=%s/CA.pem),sctp,localhost,3044" % utils.srcdir,
                            do_small_test)
 

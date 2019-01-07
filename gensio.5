@@ -362,23 +362,49 @@ set the size of the write buffer.
 .B CA=<filepath>
 Set a place to look for certificates for authorization.  If this ends
 in a "/", then this is expected to be a directory that contains files
-with certificates.  Otherwise it is a single file that contains one or
-more certificates.  On a server SSL gensio, it will use this when
-doing
-.I gensio_acc_connect()
-in addition to using it for incoming connections.  This is required
-for the client.
+with certificates that must be hashed per OpenSSL (see the "openssl
+rehash" command for details.  Otherwise it is a single file that
+contains one or more certificates.  This is required for clients
+unless the "noCA" option is set.  It may be set for servers, if so
+then connecting clients are required to have a certificate that is in
+the certificate store.
+
+.TP
+.B key=<filename>
+Specify the file to get the private key for the server.  This is
+requred for servers.  It may be specified for clients, and is required
+for the client if the server requires a certificate (it has CA set).
 
 .TP
 .B cert=<filename>
 Specify the file that contains the certificate used for the
 connection.  If this is not specified, the certificate is expected to
-be in the key file.  This is for the server only
+be in the key file.
 
 .TP
-.B key=<filename>
-Specify the file to get the private key for the server.  This is for the
-server only and is required.
+.B mode=client|server
+Normally an accepter gensio is in server mode and a connecting gensio
+is in client mode.  This can be used to switch the roles and run in
+SSL server mode on a connecting gensio, or vice versa.
+
+.TP
+.B noCA[=true|false]
+Normally a client is required to provide a certificate authority to
+verify that the server holds a valid certificate.  This removes that
+requirement.  Note that this is not recommended.  Ignored for server
+mode.
+
+Note that if you specify a CA for a server, it will require that the
+client present a valid certificate for the given CA.
+
+Verification of the common name is
+.B not
+done.  The application should do this, it can fetch the common name
+and other certificate data through a control interface.
+
+You can use self-signed certificates in this interface.  Just be aware
+of the security ramifications.  This gensio is fairly flexible, but
+you must use it carefully to have a secure interface.
 
 .SH "SEE ALSO"
 gensiotool(1), sctp(7), udp(7), tcp(7)
