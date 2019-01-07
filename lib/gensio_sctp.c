@@ -326,7 +326,7 @@ sctp_free(void *handler_data)
     if (tdata->ai)
 	gensio_free_addrinfo(tdata->o, tdata->ai);
     if (tdata->lai)
-	gensio_free_addrinfo(tdata->o, tdata->ai);
+	gensio_free_addrinfo(tdata->o, tdata->lai);
     if (tdata->strind) {
 	unsigned int i;
 

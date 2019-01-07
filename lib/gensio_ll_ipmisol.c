@@ -676,18 +676,25 @@ sol_deref_and_unlock(struct sol_ll *solll)
 
 static int sol_xlat_ipmi_err(int err)
 {
-    if (err == IPMI_SOL_DISCONNECTED)
-	err = ECONNRESET;
-    else if (err == IPMI_SOL_NOT_AVAILABLE)
+    if (IPMI_IS_OS_ERR(err)) {
+	return IPMI_OS_ERR_VAL(err);
+    } else if (IPMI_IS_SOL_ERR(err)) {
+	err = IPMI_GET_SOL_ERR(err);
+	if (err == IPMI_SOL_DISCONNECTED)
+	    err = ECONNRESET;
+	else if (err == IPMI_SOL_NOT_AVAILABLE)
+	    err = ECOMM;
+	else if (err == IPMI_SOL_DEACTIVATED)
+	    err = EHOSTUNREACH;
+    } else if (IPMI_IS_RMCPP_ERR(err)) {
+	err = IPMI_GET_RMCPP_ERR(err);
+	if (err == IPMI_RMCPP_INVALID_PAYLOAD_TYPE)
+	    err = ECONNREFUSED;
+	else
+	    err = ECOMM;
+    } else {
 	err = ECOMM;
-    else if (err == IPMI_RMCPP_INVALID_PAYLOAD_TYPE)
-	err = ECONNREFUSED;
-    else if (err == IPMI_SOL_DEACTIVATED)
-	err = EHOSTUNREACH;
-    else if (IPMI_IS_OS_ERR(err))
-	err = IPMI_GET_OS_ERR(err);
-    else
-	err = ECOMM;
+    }
     return err;
 }
 

@@ -258,27 +258,31 @@ gensio_acc_get_type(struct gensio_accepter *acc, unsigned int depth)
     return c->typename;
 }
 
-static void
+static int
 check_ipv6_only(int family, int protocol, int flags, int fd)
 {
     int val;
 
     if (family != AF_INET6)
-	return;
+	return 0;
 
     if (flags & AI_V4MAPPED)
 	val = 0;
     else
 	val = 1;
 
-    setsockopt(fd, IPPROTO_IPV6, IPV6_V6ONLY, &val, sizeof(val));
+    if (setsockopt(fd, IPPROTO_IPV6, IPV6_V6ONLY, &val, sizeof(val)) == -1)
+	return -1;
 
 #ifdef HAVE_LIBSCTP
     if (protocol == IPPROTO_SCTP) {
 	val = !val;
-	setsockopt(fd, SOL_SCTP, SCTP_I_WANT_MAPPED_V4_ADDR, &val, sizeof(val));
+	if (setsockopt(fd, SOL_SCTP, SCTP_I_WANT_MAPPED_V4_ADDR, &val,
+		       sizeof(val)) == -1)
+	    return -1;
     }
 #endif
+    return 0;
 }
 
 int
@@ -305,7 +309,8 @@ gensio_setup_listen_socket(struct gensio_os_funcs *o, bool do_listen,
 		   (void *)&optval, sizeof(optval)) == -1)
 	goto out_err;
 
-    check_ipv6_only(family, protocol, flags, fd);
+    if (check_ipv6_only(family, protocol, flags, fd) == -1)
+	goto out_err;
 
     if (bind(fd, addr, addrlen) != 0)
 	goto out_err;
@@ -429,7 +434,7 @@ scan_ips(struct gensio_os_funcs *o, const char *str, bool listen, int ifamily,
 	 int socktype, int protocol, bool *is_port_set, struct addrinfo **rai)
 {
     char *strtok_data, *strtok_buffer;
-    struct addrinfo hints, *ai, *ai2 = NULL, *ai3;
+    struct addrinfo hints, *ai = NULL, *ai2 = NULL, *ai3;
     char *ip;
     char *port;
     int portnum;
@@ -505,7 +510,6 @@ scan_ips(struct gensio_os_funcs *o, const char *str, bool listen, int ifamily,
 	}
 
 	ai3 = gensio_dup_addrinfo(o, ai);
-	freeaddrinfo(ai);
 	if (!ai3) {
 	    rv = ENOMEM;
 	    goto out_err;
@@ -519,6 +523,7 @@ scan_ips(struct gensio_os_funcs *o, const char *str, bool listen, int ifamily,
 	else
 	    ai2 = ai3;
 	ip = strtok_r(NULL, ",", &strtok_data);
+	first = false;
     }
 
     if (!ai2) {
@@ -532,6 +537,8 @@ scan_ips(struct gensio_os_funcs *o, const char *str, bool listen, int ifamily,
     *rai = ai2;
 
  out_err:
+    if (ai)
+	freeaddrinfo(ai);
     o->free(o, strtok_buffer);
     if (rv && ai2)
 	gensio_free_addrinfo(o, ai2);
@@ -559,17 +566,17 @@ gensio_scan_network_port(struct gensio_os_funcs *o, const char *str,
     }
 
     if (strncmp(str, "tcp,", 4) == 0 ||
-		(args && strncmp(str, "tcp(", 4) == 0)) {
+		(rargs && strncmp(str, "tcp(", 4) == 0)) {
 	str += 3;
 	*socktype = SOCK_STREAM;
 	*protocol = IPPROTO_TCP;
     } else if (strncmp(str, "udp,", 4) == 0 ||
-	       (args && strncmp(str, "udp(", 4) == 0)) {
+	       (rargs && strncmp(str, "udp(", 4) == 0)) {
 	str += 3;
 	*socktype = SOCK_DGRAM;
 	*protocol = IPPROTO_UDP;
     } else if (strncmp(str, "sctp,", 5) == 0 ||
-	       (args && strncmp(str, "sctp(", 5) == 0)) {
+	       (rargs && strncmp(str, "sctp(", 5) == 0)) {
 	str += 4;
 	*socktype = SOCK_SEQPACKET;
 	*protocol = IPPROTO_SCTP;
@@ -1477,7 +1484,7 @@ gensio_check_keyuint(const char *str, const char *key, unsigned int *rvalue)
     const char *sval;
     char *end;
     int rv = gensio_check_keyvalue(str, key, &sval);
-    unsigned int value;
+    unsigned long value;
 
     if (!rv)
 	return 0;
@@ -1615,6 +1622,7 @@ gensio_acc_vlog(struct gensio_accepter *acc, enum gensio_log_levels level,
     info.str = str;
     va_copy(info.args, args);
     acc->cb(acc, GENSIO_ACC_EVENT_LOG, &info);
+    va_end(info.args);
 }
 
 void
