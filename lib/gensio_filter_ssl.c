@@ -688,11 +688,12 @@ gensio_ssl_filter_config(struct gensio_os_funcs *o,
 void
 gensio_ssl_filter_config_free(struct gensio_ssl_filter_data *data)
 {
-    struct gensio_os_funcs *o = data->o;
+    struct gensio_os_funcs *o;
 
     if (!data)
 	return;
 
+    o = data->o;
     if (data->CAfilepath)
 	o->free(o, data->CAfilepath);
     if (data->keyfile)

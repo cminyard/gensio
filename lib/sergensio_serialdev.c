@@ -1137,8 +1137,12 @@ sterm_sub_open(void *handler_data, int *fd)
 	goto out_restore;
     }
 
-    if (!sdata->write_only && !sdata->disablebreak)
-	ioctl(sdata->fd, TIOCCBRK);
+    if (!sdata->write_only && !sdata->disablebreak) {
+	if (ioctl(sdata->fd, TIOCCBRK) == -1) {
+	    err = errno;
+	    goto out_restore;
+	}
+    }
 
 #if HAVE_DECL_TIOCSRS485
     if (sdata->rs485.flags & SER_RS485_ENABLED) {
@@ -1180,6 +1184,12 @@ sterm_raddr_to_str(void *handler_data, gensiods *epos,
 {
     struct sterm_data *sdata = handler_data;
     int pos = 0;
+    int status = 0;
+
+    if (!sdata->write_only && sdata->fd != -1) {
+	if (ioctl(sdata->fd, TIOCMGET, &status) == -1)
+	    return errno;
+    }
 
     if (epos)
 	pos = *epos;
@@ -1260,10 +1270,6 @@ sterm_raddr_to_str(void *handler_data, gensiods *epos,
 
     }
     if (!sdata->write_only && sdata->fd != -1) {
-	int status = 0;
-
-	ioctl(sdata->fd, TIOCMGET, &status);
-
 	if (status & TIOCM_RTS)
 	    pos += snprintf(buf + pos, buflen - pos, " %s", "RTSHI");
 	else

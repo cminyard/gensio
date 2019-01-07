@@ -811,20 +811,17 @@ main(int argc, char *argv[])
     }
 
  close1:
-    if (ioinfo1.can_close) {
-	rv = gensio_close(ioinfo1.io, io_close, closewaiter);
-	if (rv)
-	    printf("Unable to close %s: %s\n", ioinfo1.ios, strerror(rv));
-	else
-	    closecount++;
-    }
+    rv = gensio_close(ioinfo1.io, io_close, closewaiter);
+    if (rv)
+	printf("Unable to close %s: %s\n", ioinfo1.ios, strerror(rv));
+    else
+	closecount++;
 
     if (closecount > 0) {
 	g.o->wait(closewaiter, closecount, NULL);
     }
 
-    if (ioinfo1.io)
-	gensio_free(ioinfo1.io);
+    gensio_free(ioinfo1.io);
     if (ioinfo2.io)
 	gensio_free(ioinfo2.io);
 

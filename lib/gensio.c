@@ -434,7 +434,7 @@ scan_ips(struct gensio_os_funcs *o, const char *str, bool listen, int ifamily,
 	 int socktype, int protocol, bool *is_port_set, struct addrinfo **rai)
 {
     char *strtok_data, *strtok_buffer;
-    struct addrinfo hints, *ai = NULL, *ai2 = NULL, *ai3;
+    struct addrinfo hints, *ai = NULL, *ai2 = NULL, *ai3, *ai4;
     char *ip;
     char *port;
     int portnum;
@@ -515,8 +515,8 @@ scan_ips(struct gensio_os_funcs *o, const char *str, bool listen, int ifamily,
 	    goto out_err;
 	}
 
-	for (ai = ai3; ai; ai = ai->ai_next)
-	    ai->ai_flags = rflags;
+	for (ai4 = ai3; ai4; ai4 = ai4->ai_next)
+	    ai4->ai_flags = rflags;
 
 	if (ai2)
 	    ai2 = gensio_cat_addrinfo(o, ai2, ai3);
@@ -606,10 +606,10 @@ gensio_scan_network_port(struct gensio_os_funcs *o, const char *str,
 	return err;
     }
 
-    if (rargc) {
+    if (rargc)
 	*rargc = argc;
+    if (rargs)
 	*rargs = args;
-    }
 
     return 0;
 }
