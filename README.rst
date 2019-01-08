@@ -173,8 +173,6 @@ an option to do that::
 
   telnet(rfc2217=true),tcp,localhost,3001
 
-See `Telnet`_ for details on that.
-
 When you create a gensio, you supply a callback with user data.  When
 events happen on a gensio, the callback will be called so the user
 could handle it.

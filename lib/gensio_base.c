@@ -803,11 +803,12 @@ gensio_base_func(struct gensio *io, int func, gensiods *count,
     case GENSIO_FUNC_CONTROL:
 	if (ndata->filter) {
 	    rv = gensio_filter_control(ndata->filter, *((bool *) cbuf), buflen,
-				       buf);
+				       buf, count);
 	    if (rv != ENOTSUP)
 		return rv;
 	}
-	return gensio_ll_control(ndata->ll, *((bool *) cbuf), buflen, buf);
+	return gensio_ll_control(ndata->ll, *((bool *) cbuf), buflen, buf,
+				 count);
 
     default:
 	return ENOTSUP;
@@ -1168,10 +1169,10 @@ gensio_filter_free(struct gensio_filter *filter)
 }
 
 int gensio_filter_control(struct gensio_filter *filter, bool get,
-			  unsigned int option, char *data)
+			  unsigned int option, char *data, gensiods *datalen)
 {
     return filter->func(filter, GENSIO_FILTER_FUNC_CONTROL,
-			NULL, data, NULL, NULL, &get, option, NULL);
+			NULL, data, datalen, NULL, &get, option, NULL);
 }
 
 void
@@ -1249,8 +1250,9 @@ gensio_ll_free(struct gensio_ll *ll)
 }
 
 int
-gensio_ll_control(struct gensio_ll *ll, bool get, int option, char *data)
+gensio_ll_control(struct gensio_ll *ll, bool get, int option, char *data,
+		  gensiods *datalen)
 {
-    return ll->func(ll, GENSIO_LL_FUNC_CONTROL, NULL, data, &get, option,
+    return ll->func(ll, GENSIO_LL_FUNC_CONTROL, datalen, data, &get, option,
 		    NULL);
 }

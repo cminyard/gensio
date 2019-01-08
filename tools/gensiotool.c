@@ -252,7 +252,7 @@ handle_escapechar(struct ioinfo *ioinfo, char c)
 
     if (c == 'b') { /* Send a break */
 	gensio_control(ioinfo->otherio->io, 0, false,
-		       GENSIO_CONTROL_SEND_BREAK, NULL);
+		       GENSIO_CONTROL_SEND_BREAK, NULL, NULL);
 	return false;
     }
 

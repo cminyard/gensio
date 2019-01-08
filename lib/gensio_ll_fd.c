@@ -652,14 +652,15 @@ static void fd_free(struct gensio_ll *ll)
 }
 
 static int fd_control(struct gensio_ll *ll, bool get, unsigned int option,
-		      char *data)
+		      char *data, gensiods *datalen)
 {
     struct fd_ll *fdll = ll_to_fd(ll);
 
     if (!fdll->ops->control)
 	return ENOTSUP;
 
-    return fdll->ops->control(fdll->handler_data, fdll->fd, get, option, data);
+    return fdll->ops->control(fdll->handler_data, fdll->fd, get, option, data,
+			      datalen);
 }
 
 static int
@@ -703,7 +704,7 @@ gensio_ll_fd_func(struct gensio_ll *ll, int op, gensiods *count,
 	return 0;
 
     case GENSIO_LL_FUNC_CONTROL:
-	return fd_control(ll, *((bool *) cbuf), buflen, buf);
+	return fd_control(ll, *((bool *) cbuf), buflen, buf, count);
 
     default:
 	return ENOTSUP;

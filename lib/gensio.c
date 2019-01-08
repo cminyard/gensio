@@ -826,7 +826,7 @@ gensio_open_channel_s(struct gensio *io, const char * const args[],
 
 int
 gensio_control(struct gensio *io, int depth, bool get,
-	       unsigned int option, char *data)
+	       unsigned int option, char *data, gensiods *datalen)
 {
     struct gensio *c = io;
 
@@ -834,8 +834,8 @@ gensio_control(struct gensio *io, int depth, bool get,
 	if (get)
 	    return EINVAL;
 	while (c) {
-	    int rv = c->func(c, GENSIO_FUNC_CONTROL, NULL, &get, option, data,
-			     NULL);
+	    int rv = c->func(c, GENSIO_FUNC_CONTROL, datalen, &get, option,
+			     data, NULL);
 
 	    if (rv && rv != ENOTSUP)
 		return rv;
@@ -854,7 +854,7 @@ gensio_control(struct gensio *io, int depth, bool get,
 	c = c->child;
     }
 
-    return c->func(c, GENSIO_FUNC_CONTROL, NULL, &get, option, data, NULL);
+    return c->func(c, GENSIO_FUNC_CONTROL, datalen, &get, option, data, NULL);
 }
 
 const char *

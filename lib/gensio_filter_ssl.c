@@ -457,11 +457,13 @@ ssl_free(struct gensio_filter *filter)
 }
 
 static int
-ssl_filter_control(struct gensio_filter *filter, bool get, int op, char *data)
+ssl_filter_control(struct gensio_filter *filter, bool get, int op, char *data,
+		   gensiods *datalen)
 {
     struct ssl_filter *sfilter = filter_to_ssl(filter);
-    char *s, *n, *end;
-    int index = -1, len, count, nid;
+    char *s, *nidstr, *end;
+    int index = -1, len, tlen, nid;
+    int datasize;
     X509_NAME *nm;
     X509_NAME_ENTRY *e;
     ASN1_STRING *as;
@@ -474,19 +476,16 @@ ssl_filter_control(struct gensio_filter *filter, bool get, int op, char *data)
 	    return ENOTSUP;
 	if (!sfilter->remcert)
 	    return ENXIO;
-	len = strlen(data) + 1;
-	s = strchr(data, ' ');
-	if (s)
-	    *s = '\0';
-	n = data;
+	datasize = *datalen;
+	nidstr = data;
 	s = strchr(data, ',');
 	if (s) {
 	    index = strtol(data, &end, 0);
 	    if (*end != ',')
 		return EINVAL;
-	    n = end + 1;
+	    nidstr = end + 1;
 	}
-	nid = OBJ_sn2nid(n);
+	nid = OBJ_sn2nid(nidstr);
 	if (nid == NID_undef) {
 	    nid = OBJ_ln2nid(data);
 	    if (nid == NID_undef)
@@ -496,23 +495,22 @@ ssl_filter_control(struct gensio_filter *filter, bool get, int op, char *data)
 	index = X509_NAME_get_index_by_NID(nm, nid, index);
 	if (index < 0)
 	    return ENOENT;
-	count = snprintf(data, len, "%d,", index);
-	if (count < len) {
-	    data += count;
-	    len -= count;
-	} else {
-	    return 0;
-	}
+	len = snprintf(data, datasize, "%d,", index);
 	e = X509_NAME_get_entry(nm, index);
 	as = X509_NAME_ENTRY_get_data(e);
 	objlen = ASN1_STRING_to_UTF8(&obj, as);
 	if (objlen < 0)
 	    return ENOMEM;
-	if (objlen >= len)
-	    objlen = len - 1;
-	memcpy(data, obj, objlen);
-	data[objlen] = '\0';
+	tlen = objlen;
+	if (len + 1 < datasize) {
+	    if (objlen > datasize - len - 1)
+		objlen = datasize - len - 1;
+	    memcpy(data + len, obj, objlen);
+	    data[objlen + len] = '\0';
+	}
+	len += tlen;
 	OPENSSL_free(obj);
+	*datalen = len;
 	return 0;
 
     default:
@@ -568,7 +566,8 @@ static int gensio_ssl_filter_func(struct gensio_filter *filter, int op,
 	return 0;
 
     case GENSIO_FILTER_FUNC_CONTROL:
-	return ssl_filter_control(filter, *((bool *) cbuf), buflen, data);
+	return ssl_filter_control(filter, *((bool *) cbuf), buflen, data,
+				  count);
 
     case GENSIO_FILTER_FUNC_TIMEOUT:
     default:

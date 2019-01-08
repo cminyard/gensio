@@ -341,22 +341,20 @@ sctp_free(void *handler_data)
 
 static int
 sctp_control(void *handler_data, int fd, bool get, unsigned int option,
-	     char *data)
+	     char *data, gensiods *datalen)
 {
     struct sctp_data *tdata = handler_data;
     int rv, val;
-    unsigned int len;
 
     switch (option) {
     case GENSIO_CONTROL_NODELAY:
 	if (get) {
 	    socklen_t vallen = sizeof(val);
 
-	    len = strlen(data) + 1;
 	    rv = getsockopt(fd, IPPROTO_SCTP, SCTP_NODELAY, &val, &vallen);
 	    if (rv == -1)
 		return errno;
-	    snprintf(data, len, "%d", val);
+	    *datalen = snprintf(data, *datalen, "%d", val);
 	} else {
 	    val = strtoul(data, NULL, 0);
 	    rv = setsockopt(fd, IPPROTO_SCTP, SCTP_NODELAY, &val, sizeof(val));
@@ -368,9 +366,9 @@ sctp_control(void *handler_data, int fd, bool get, unsigned int option,
     case GENSIO_CONTROL_STREAMS:
 	if (!get)
 	    return EINVAL;
-	len = strlen(data) + 1;
-	snprintf(data, len, "instreams=%u,ostreams=%u", tdata->instreams,
-		 tdata->ostreams);
+	*datalen = snprintf(data, *datalen,
+			    "instreams=%u,ostreams=%u", tdata->instreams,
+			    tdata->ostreams);
 	return 0;
 
     default:

@@ -261,12 +261,27 @@ int gensio_open_channel_s(struct gensio *io, const char * const args[],
  * that case, but it will stop at the first error.
  *
  * If get is true, attempt to fetch the option.  You cannot use
- * GENSIO_CONTORL_DEPTH_ALL with get==true.  To fetch an option,
- * you must set the data to a writable string filled with non-nil
- * characters to the available length.
+ * GENSIO_CONTORL_DEPTH_ALL with get==true.  To fetch an option, you
+ * must pass in a string long enough to hold the output and set
+ * datalen to the number of bytes available.  It will return the
+ * length of the string (like strlen, not including the terminating
+ * nil) in datalen.
+ *
+ * A get operation is alway indepotent (it won't change anything, so
+ * multiple calls will not have any effect on the state of the system).
+ * A get operation may or may not have data passed in, and returns
+ * information in the pased string.
+ *
+ * If the output string does not fit, data is updated to where it
+ * would have been if it had enough bytes (one less than the total
+ * number of bytes required), but the output in buf is truncated (and
+ * nil terminated if possible).  This can be used to probe to see how
+ * long a buffer is required by passing in a zero *datalen, and then
+ * allocating *datalen + 1 and calling the function again with that
+ * data.
  */
 int gensio_control(struct gensio *io, int depth, bool get,
-		   unsigned int option, char *data);
+		   unsigned int option, char *data, gensiods *datalen);
 #define GENSIO_CONTROL_DEPTH_ALL	-1
 
 /*

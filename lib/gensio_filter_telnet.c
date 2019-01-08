@@ -460,7 +460,7 @@ telnet_free(struct gensio_filter *filter)
 
 static int
 telnet_filter_control(struct gensio_filter *filter, bool get, int op,
-		      char *data)
+		      char *data, gensiods *datalen)
 {
     unsigned char buf[2];
 
@@ -527,7 +527,8 @@ static int gensio_telnet_filter_func(struct gensio_filter *filter, int op,
 	return 0;
 
     case GENSIO_FILTER_FUNC_CONTROL:
-	return telnet_filter_control(filter, *((bool *) cbuf), buflen, data);
+	return telnet_filter_control(filter, *((bool *) cbuf), buflen, data,
+				     count);
 
     default:
 	return ENOTSUP;

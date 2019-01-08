@@ -75,8 +75,7 @@ def ta_sctp():
     print("Test accept sctp")
     io1 = utils.alloc_io(o, "sctp,localhost,3023", do_open = False)
     TestAccept(o, io1, "sctp,3023", do_test)
-    c = io1.control(0, True, gensio.GENSIO_CONTROL_STREAMS,
-                    "                             ")
+    c = io1.control(0, True, gensio.GENSIO_CONTROL_STREAMS, "")
     if c != "instreams=1,ostreams=1":
         raise Exception("Invalid stream settings: %s" % c)
 
@@ -85,11 +84,11 @@ def ta_ssl_tcp():
     io1 = utils.alloc_io(o, "ssl(CA=%s/CA.pem),tcp,localhost,3024" % utils.srcdir, do_open = False)
     ta = TestAccept(o, io1, "ssl(key=%s/key.pem,cert=%s/cert.pem),3024" % (utils.srcdir, utils.srcdir), do_test)
     cn = io1.control(0, True, gensio.GENSIO_CONTROL_GET_PEER_CERT_NAME,
-                     "-1,CN                                           ");
+                     "-1,CN");
     i = cn.index(',')
     if cn[i+1:] != "ser2net.org":
         raise Exception(
-            "Invalid common name in certificate, expected %s, got %s" &
+            "Invalid common name in certificate, expected %s, got %s" %
             ("ser2net.org", cn[i+1:]))
 
 def do_telnet_test(io1, io2):

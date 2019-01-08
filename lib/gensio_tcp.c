@@ -206,20 +206,19 @@ tcp_free(void *handler_data)
 
 static int
 tcp_control(void *handler_data, int fd, bool get, unsigned int option,
-	    char *data)
+	    char *data, gensiods *datalen)
 {
     int rv, val;
 
     switch (option) {
     case GENSIO_CONTROL_NODELAY:
 	if (get) {
-	    gensiods len = strlen(data) + 1;
 	    socklen_t vallen = sizeof(val);
 
 	    rv = getsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &val, &vallen);
 	    if (rv == -1)
 		return errno;
-	    snprintf(data, len, "%d", val);
+	    *datalen = snprintf(data, *datalen, "%d", val);
 	} else {
 	    val = strtoul(data, NULL, 0);
 	    rv = setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &val, sizeof(val));

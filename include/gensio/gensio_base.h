@@ -183,10 +183,11 @@ void gensio_filter_free(struct gensio_filter *filter);
  * get => cbuf
  * option => buflen
  * data => data
+ * datalen => count
  */
 #define GENSIO_FILTER_FUNC_CONTROL		15
 int gensio_filter_control(struct gensio_filter *filter, bool get,
-			  unsigned int option, char *data);
+			  unsigned int option, char *data, gensiods *datalen);
 
 typedef int (*gensio_filter_func)(struct gensio_filter *filter, int op,
 				  const void *func, void *data,
@@ -297,9 +298,11 @@ void gensio_ll_free(struct gensio_ll *ll);
  * option => buflen
  * get => cbuf
  * auxdata => buf
+ * datalen => count
  */
 #define GENSIO_LL_FUNC_CONTROL			11
-int gensio_ll_control(struct gensio_ll *ll, bool get, int option, char *data);
+int gensio_ll_control(struct gensio_ll *ll, bool get, int option, char *data,
+		      gensiods *datalen);
 
 typedef int (*gensio_ll_func)(struct gensio_ll *ll, int op,
 			      gensiods *count,

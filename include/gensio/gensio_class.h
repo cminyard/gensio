@@ -100,6 +100,7 @@ struct gensio_func_open_channel_data {
  * get => cbuf
  * option => buflen
  * auxdata => buf
+ * datalen => count
  */
 #define GENSIO_FUNC_CONTROL		12
 

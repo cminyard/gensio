@@ -597,9 +597,41 @@ struct waiter { };
     }
 
     %rename(control) controlt;
-    void controlt(int depth, bool get, int option, char *controldata) {
-	int rv = gensio_control(self, depth, get, option, controldata);
+    %newobject controlt;
+    char *controlt(int depth, bool get, int option, char *controldata) {
+	int rv;
+	char *data = NULL;
+
+	if (get) {
+	    gensiods len = 0, slen = strlen(controldata) + 1;
+
+	    /* Pass in a zero length to get the actual length. */
+	    rv = gensio_control(self, depth, get, option, controldata, &len);
+	    if (rv)
+		goto out;
+	    len += 1;
+	    /* Allocate the larger of strlen(controldata) and len) */
+	    if (slen > len)
+		data = malloc(slen);
+	    else
+		data = malloc(len);
+	    if (!data) {
+		rv = ENOMEM;
+		goto out;
+	    }
+	    memcpy(data, controldata, slen);
+	    rv = gensio_control(self, depth, get, option, data, &len);
+	    if (rv) {
+		free(data);
+		data = NULL;
+	    }
+	} else {
+	    rv = gensio_control(self, depth, get, option, controldata, NULL);
+	}
+
+    out:
 	err_handle("control", rv);
+	return data;
     }
 
     %rename(is_client) is_clientt;

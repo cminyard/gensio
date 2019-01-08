@@ -1319,7 +1319,7 @@ sterm_free(void *handler_data)
 
 static int
 sterm_control(void *handler_data, int fd, bool get, unsigned int option,
-	      char *data)
+	      char *data, gensiods *datalen)
 {
     if (get || option != GENSIO_CONTROL_SEND_BREAK)
 	return ENOTSUP;
