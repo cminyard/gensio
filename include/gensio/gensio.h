@@ -265,10 +265,13 @@ int gensio_open_channel_s(struct gensio *io, const char * const args[],
  * Perform a gensio-specific operation on the gensio (if depth is 0) or
  * one of its children (depth > 0).  If depth is GENSIO_CONTROL_DEPTH_ALL,
  * then call all the children with the data.  ENOTSUP is ignored in
- * that case, but it will stop at the first error.
+ * that case, but it will stop at the first error besides that.  If
+ * depth is GENSIO_CONTROL_DEPTH_FIRST, it will return on the first
+ * gensio that doesn't return ENOTSUP.  It returns ENOTSUP is nothing
+ * handled it.
  *
  * If get is true, attempt to fetch the option.  You cannot use
- * GENSIO_CONTORL_DEPTH_ALL with get==true.  To fetch an option, you
+ * GENSIO_CONTROL_DEPTH_ALL with get==true.  To fetch an option, you
  * must pass in a string long enough to hold the output and set
  * datalen to the number of bytes available.  It will return the
  * length of the string (like strlen, not including the terminating
@@ -292,6 +295,7 @@ int gensio_open_channel_s(struct gensio *io, const char * const args[],
 int gensio_control(struct gensio *io, int depth, bool get,
 		   unsigned int option, char *data, gensiods *datalen);
 #define GENSIO_CONTROL_DEPTH_ALL	-1
+#define GENSIO_CONTROL_DEPTH_FIRST	-2
 
 /*
  * Set the enable/disable for any NAGLE type algorithms.

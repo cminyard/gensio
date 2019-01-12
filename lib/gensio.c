@@ -844,6 +844,18 @@ gensio_control(struct gensio *io, int depth, bool get,
 	return 0;
     }
 
+    if (depth == GENSIO_CONTROL_DEPTH_FIRST) {
+	while (c) {
+	    int rv = c->func(c, GENSIO_FUNC_CONTROL, datalen, &get, option,
+			     data, NULL);
+
+	    if (rv != ENOTSUP)
+		return rv;
+	    c = c->child;
+	}
+	return 0;
+    }
+
     if (depth < 0)
 	return EINVAL;
 

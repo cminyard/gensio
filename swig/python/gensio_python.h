@@ -134,6 +134,58 @@ swig_finish_call_rv(swig_cb_val *cb, const char *method_name, PyObject *args,
     return o;
 }
 
+static gensiods
+swig_finish_call_rv_gensiods(swig_cb_val *cb, const char *method_name,
+			     PyObject *args, bool optional)
+{
+    PyObject *o;
+    gensiods rv = 0;
+
+    o = swig_finish_call_rv(cb, method_name, args, optional);
+    if (o) {
+	rv = PyLong_AsUnsignedLong(o);
+	if (PyErr_Occurred()) {
+	    PyObject *t = PyObject_GetAttrString(cb, "__class__");
+	    PyObject *c = PyObject_GetAttrString(t, "__name__");
+	    char *class = PyString_AsString(c);
+
+	    PyErr_Format(PyExc_RuntimeError, "gensio callback: "
+			 "Class '%s' method '%s' did not return "
+			 "an integer\n", class, method_name);
+	    wake_curr_waiter();
+	}
+	Py_DECREF(o);
+    }
+
+    return rv;
+}
+
+static int
+swig_finish_call_rv_int(swig_cb_val *cb, const char *method_name,
+			PyObject *args, bool optional)
+{
+    PyObject *o;
+    int rv = 0;
+
+    o = swig_finish_call_rv(cb, method_name, args, optional);
+    if (o) {
+	rv = PyLong_AsUnsignedLong(o);
+	if (PyErr_Occurred()) {
+	    PyObject *t = PyObject_GetAttrString(cb, "__class__");
+	    PyObject *c = PyObject_GetAttrString(t, "__name__");
+	    char *class = PyString_AsString(c);
+
+	    PyErr_Format(PyExc_RuntimeError, "gensio callback: "
+			 "Class '%s' method '%s' did not return "
+			 "an integer\n", class, method_name);
+	    wake_curr_waiter();
+	}
+	Py_DECREF(o);
+    }
+
+    return rv;
+}
+
 static void
 swig_finish_call(swig_cb_val *cb, const char *method_name, PyObject *args,
 		 bool optional)
@@ -406,7 +458,7 @@ gensio_child_event(struct gensio *io, int event, int readerr,
     swig_ref io_ref = { .val = NULL };
     PyObject *args, *o;
     OI_PY_STATE gstate;
-    unsigned int rv = 0;
+    int rv = 0;
 
     gstate = OI_PY_STATE_GET();
 
@@ -451,23 +503,8 @@ gensio_child_event(struct gensio *io, int event, int readerr,
 	    PyTuple_SET_ITEM(args, 3, o);
 	}
 
-	o = swig_finish_call_rv(data->handler_val, "read_callback", args,
-				false);
-	if (o) {
-	    *buflen = PyLong_AsUnsignedLong(o);
-	    if (PyErr_Occurred()) {
-		PyObject *t = PyObject_GetAttrString(data->handler_val,
-						     "__class__");
-		PyObject *c = PyObject_GetAttrString(t, "__name__");
-		char *class = PyString_AsString(c);
-
-		PyErr_Format(PyExc_RuntimeError, "gensio callback: "
-			     "Class '%s' method 'read_callback' did not return "
-			     "an integer\n", class);
-		wake_curr_waiter();
-	    }
-	    Py_DECREF(o);
-	}
+	*buflen = swig_finish_call_rv_gensiods(data->handler_val,
+					       "read_callback", args, false);
 	break;
 
     case GENSIO_EVENT_WRITE_READY:
@@ -496,7 +533,8 @@ gensio_child_event(struct gensio *io, int event, int readerr,
 	Py_INCREF(io_ref.val);
 	PyTuple_SET_ITEM(args, 0, io_ref.val);
 
-	swig_finish_call(data->handler_val, "precert_verify", args, true);
+	rv = swig_finish_call_rv_int(data->handler_val, "precert_verify",
+				     args, true);
 	swig_free_ref_check(io_ref, accepter);
 	break;
 
@@ -621,6 +659,7 @@ gensio_acc_child_event(struct gensio_accepter *accepter, int event, void *cdata)
     struct gensio *io;
     struct gensio_loginfo *i = cdata;
     char buf[256];
+    int rv;
 
     switch (event) {
     case GENSIO_ACC_EVENT_LOG:
@@ -681,12 +720,13 @@ gensio_acc_child_event(struct gensio_accepter *accepter, int event, void *cdata)
 	PyTuple_SET_ITEM(args, 0, acc_ref.val);
 	PyTuple_SET_ITEM(args, 1, io_ref.val);
 
-	swig_finish_call(data->handler_val, "precert_verify", args, true);
+	rv = swig_finish_call_rv_int(data->handler_val, "precert_verify",
+				     args, true);
 
 	swig_free_ref_check(acc_ref, accepter);
 	swig_free_ref_check(io_ref, accepter);
 	OI_PY_STATE_PUT(gstate);
-	return 0;
+	return rv;
     }
 
     return ENOTSUP;

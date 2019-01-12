@@ -453,7 +453,8 @@ class TestAcceptConnect:
     def precert_verify(self, acc, io):
         if self.CA:
             io.control(0, False, gensio.GENSIO_CONTROL_CERT_AUTH, self.CA)
-        pass
+            return 0
+        return gensio.ENOTSUP
 
     def accepter_log(self, acc, level, logstr):
         print("***%s LOG: %s: %s" % (level, self.name, logstr))
