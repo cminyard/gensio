@@ -83,6 +83,13 @@ typedef size_t gensiods; /* Data size */
 #define GENSIO_EVENT_SEND_BREAK		4
 
 /*
+ * The connection has received a certificate but has not verified it
+ * yet.  This lets the user modify the certificate authority based on
+ * certificate information.  Returns ENOTSUP for standard verification.
+ */
+#define GENSIO_EVENT_PRECERT_VERIFY	5
+
+/*
  * Serial callbacks start here and run to 2000.
  */
 #define SERGENIO_EVENT_BASE	1000
@@ -265,12 +272,14 @@ int gensio_open_channel_s(struct gensio *io, const char * const args[],
  * must pass in a string long enough to hold the output and set
  * datalen to the number of bytes available.  It will return the
  * length of the string (like strlen, not including the terminating
- * nil) in datalen.
+ * nil) in datalen.  datalen is not used in a put operation or
+ * for determining the length of the input string, it must be a
+ * nil terminated string.
  *
  * A get operation is alway indepotent (it won't change anything, so
  * multiple calls will not have any effect on the state of the system).
  * A get operation may or may not have data passed in, and returns
- * information in the pased string.
+ * information in the passed string.
  *
  * If the output string does not fit, data is updated to where it
  * would have been if it had enough bytes (one less than the total
@@ -321,6 +330,15 @@ int gensio_control(struct gensio *io, int depth, bool get,
  * not available in the certificate.
  */
 #define GENSIO_CONTROL_GET_PEER_CERT_NAME	4
+
+/*
+ * Set the certificate authority file to the string in "data".  If
+ * it ends in '/', it is assumed to be a directory, otherwise it is
+ * assumed to be a file.  This generally must be done before
+ * authorization is done, generally before open or in the
+ * GENSIO_EVENT_PRECERT_VERIFY event.
+ */
+#define GENSIO_CONTROL_CERT_AUTH		5
 
 /*
  * Return the type string for the gensio (if depth is 0) or one of its
@@ -411,6 +429,14 @@ struct gensio_loginfo {
     char *str;
     va_list args;
 };
+
+/*
+ * Called right before certificate verification on a new incoming
+ * connection.  See GENSIO_EVENT_PRECERT_VERIFY for details.  data
+ * points to the new gensio object.
+ */
+#define GENSIO_ACC_EVENT_PRECERT_VERIFY	3
+
 
 /*
  * Report an event from the accepter to the user.

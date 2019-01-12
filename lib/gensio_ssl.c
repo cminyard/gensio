@@ -106,6 +106,7 @@ str_to_ssl_gensio(const char *str, const char * const args[],
 }
 
 struct sslna_data {
+    struct gensio_accepter *acc;
     struct gensio_ssl_filter_data *data;
     struct gensio_os_funcs *o;
 };
@@ -138,8 +139,23 @@ sslna_new_child(void *acc_data, void **finish_data,
 }
 
 static int
+sslna_gensio_event(struct gensio *io, int event, int err,
+		   unsigned char *buf, gensiods *buflen,
+		   const char *const *auxdata)
+{
+    struct sslna_data *nadata = gensio_get_user_data(io);
+
+    if (event != GENSIO_EVENT_PRECERT_VERIFY)
+	return ENOTSUP;
+
+    return gensio_acc_cb(nadata->acc, GENSIO_ACC_EVENT_PRECERT_VERIFY, io);
+}
+
+static int
 sslna_finish_parent(void *acc_data, void *finish_data, struct gensio *io)
 {
+    gensio_set_callback(io, sslna_gensio_event, acc_data);
+
     gensio_set_is_packet(io, true);
     gensio_set_is_reliable(io, true);
     return 0;
@@ -196,11 +212,12 @@ ssl_gensio_accepter_alloc(struct gensio_accepter *child,
 
     err = gensio_gensio_accepter_alloc(child, o, "ssl", cb, user_data,
 				       gensio_gensio_acc_ssl_cb, nadata,
-				       accepter);
+				       &nadata->acc);
     if (err)
 	goto out_err;
-    gensio_acc_set_is_packet(*accepter, true);
-    gensio_acc_set_is_reliable(*accepter, true);
+    gensio_acc_set_is_packet(nadata->acc, true);
+    gensio_acc_set_is_reliable(nadata->acc, true);
+    *accepter = nadata->acc;
 
     return 0;
 

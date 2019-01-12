@@ -161,9 +161,11 @@ void gensio_filter_timeout(struct gensio_filter *filter);
 
 /*
  * Allocate data and configure the filter.
+ *
+ * io => data
  */
 #define GENSIO_FILTER_FUNC_SETUP		12
-int gensio_filter_setup(struct gensio_filter *filter);
+int gensio_filter_setup(struct gensio_filter *filter, struct gensio *io);
 
 /*
  * Reset all internal data.

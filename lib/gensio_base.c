@@ -245,7 +245,7 @@ static int
 filter_setup(struct basen_data *ndata)
 {
     if (ndata->filter)
-	return gensio_filter_setup(ndata->filter);
+	return gensio_filter_setup(ndata->filter, ndata->io);
     return 0;
 }
 
@@ -1148,10 +1148,10 @@ gensio_filter_timeout(struct gensio_filter *filter)
 }
 
 int
-gensio_filter_setup(struct gensio_filter *filter)
+gensio_filter_setup(struct gensio_filter *filter, struct gensio *io)
 {
     return filter->func(filter, GENSIO_FILTER_FUNC_SETUP,
-			NULL, NULL, NULL, NULL, NULL, 0, NULL);
+			NULL, io, NULL, NULL, NULL, 0, NULL);
 }
 
 void

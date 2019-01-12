@@ -41,6 +41,7 @@ struct gensio_ssl_filter_data {
     gensiods max_read_size;
     gensiods max_write_size;
     bool allow_authfail;
+    bool clientauth;
 };
 
 static void
@@ -60,6 +61,7 @@ gensio_ssl_initialize(struct gensio_os_funcs *o)
 struct ssl_filter {
     struct gensio_filter filter;
     struct gensio_os_funcs *o;
+    struct gensio *io;
     bool is_client;
     bool connected;
     bool finish_close_on_write;
@@ -70,6 +72,7 @@ struct ssl_filter {
     BIO *ssl_bio;
     BIO *io_bio;
     X509 *remcert;
+    X509_STORE *verify_store;
 
     bool expect_peer_cert;
     bool allow_authfail;
@@ -383,11 +386,13 @@ ssl_ll_write(struct gensio_filter *filter,
 }
 
 static int
-ssl_setup(struct gensio_filter *filter)
+ssl_setup(struct gensio_filter *filter, struct gensio *io)
 {
     struct ssl_filter *sfilter = filter_to_ssl(filter);
     int success;
     gensiods bio_size = sfilter->max_read_size * 2;
+
+    sfilter->io = io;
 
     sfilter->ssl = SSL_new(sfilter->ctx);
     if (!sfilter->ssl)
@@ -467,6 +472,8 @@ ssl_filter_control(struct gensio_filter *filter, bool get, int op, char *data,
     X509_NAME *nm;
     X509_NAME_ENTRY *e;
     ASN1_STRING *as;
+    X509_STORE *store;
+    char *CApath = NULL, *CAfile = NULL;
     unsigned char *obj;
     int objlen;
 
@@ -513,6 +520,28 @@ ssl_filter_control(struct gensio_filter *filter, bool get, int op, char *data,
 	*datalen = len;
 	return 0;
 
+    case GENSIO_CONTROL_CERT_AUTH:
+	if (get)
+	    return ENOTSUP;
+	store = X509_STORE_new();
+	if (!store)
+	    return ENOMEM;
+	if (data[strlen(data) - 1] == '/')
+	    CApath = data;
+	else
+	    CAfile = data;
+	if (!X509_STORE_load_locations(store, CAfile, CApath)) {
+	    X509_STORE_free(store);
+	    return ENOENT;
+	}
+	
+	ssl_lock(sfilter);
+	if (sfilter->verify_store)
+	    X509_STORE_free(sfilter->verify_store);
+	sfilter->verify_store = store;
+	ssl_unlock(sfilter);
+	return 0;
+
     default:
 	return ENOTSUP;
     }
@@ -555,7 +584,7 @@ static int gensio_ssl_filter_func(struct gensio_filter *filter, int op,
 	return ssl_ll_write(filter, func, data, count, buf, buflen, NULL);
 
     case GENSIO_FILTER_FUNC_SETUP:
-	return ssl_setup(filter);
+	return ssl_setup(filter, data);
 
     case GENSIO_FILTER_FUNC_CLEANUP:
 	ssl_cleanup(filter);
@@ -575,10 +604,72 @@ static int gensio_ssl_filter_func(struct gensio_filter *filter, int op,
     }
 }
 
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
+#define X509_STORE_CTX_get0_cert(ctx) ((ctx)->cert)
+#endif
+
+static int
+gensio_ssl_cert_verify(X509_STORE_CTX *ctx, void *cb_data)
+{
+    struct ssl_filter *sfilter = cb_data;
+    X509_STORE_CTX *nctx = NULL;
+    X509 *cert = X509_STORE_CTX_get0_cert(ctx);
+    int rv;
+
+    sfilter->remcert = cert;
+
+    /*
+     * This should only occur from the BIO_write() into OpenSSL, so it
+     * should be ok to unlock here.
+     */
+    ssl_unlock(sfilter);
+    rv = gensio_cb(sfilter->io, GENSIO_EVENT_PRECERT_VERIFY, 0,
+		   NULL, NULL, NULL);
+    ssl_lock(sfilter);
+    if (rv && rv != ENOTSUP)
+	return 0;
+
+    if (sfilter->verify_store) {
+	STACK_OF(X509) *cert_chain = X509_STORE_CTX_get0_chain(ctx);
+	int ssl_ex_idx = SSL_get_ex_data_X509_STORE_CTX_idx();
+	SSL *s = X509_STORE_CTX_get_ex_data(ctx, ssl_ex_idx);
+	X509_VERIFY_PARAM *param;
+
+	rv = -1;
+	nctx = X509_STORE_CTX_new();
+	if (!nctx)
+	    goto out_err;
+
+	if (!X509_STORE_CTX_init(nctx, sfilter->verify_store, cert, cert_chain))
+	    goto out_err;
+
+	param = X509_VERIFY_PARAM_new();
+	if (!param)
+	    goto out_err;
+
+	if (!X509_VERIFY_PARAM_set1(param, X509_STORE_CTX_get0_param(ctx))) {
+	    X509_VERIFY_PARAM_free(param);
+	    goto out_err;
+	}
+
+	X509_STORE_CTX_set0_param(nctx, param);
+	X509_STORE_CTX_set_ex_data(nctx, ssl_ex_idx, s);
+	ctx = nctx;
+    }
+
+    rv = X509_verify_cert(ctx);
+
+ out_err:
+    if (nctx)
+	X509_STORE_CTX_free(nctx);
+    return rv;
+}
+
 struct gensio_filter *
 gensio_ssl_filter_raw_alloc(struct gensio_os_funcs *o,
 			    bool is_client,
 			    SSL_CTX *ctx,
+			    X509_STORE *store,
 			    bool expect_peer_cert,
 			    bool allow_authfail,
 			    gensiods max_read_size,
@@ -593,10 +684,13 @@ gensio_ssl_filter_raw_alloc(struct gensio_os_funcs *o,
     sfilter->o = o;
     sfilter->is_client = is_client;
     sfilter->ctx = ctx;
+    sfilter->verify_store = store;
     sfilter->max_write_size = max_write_size;
     sfilter->max_read_size = max_read_size;
     sfilter->expect_peer_cert = expect_peer_cert;
     sfilter->allow_authfail = allow_authfail;
+
+    SSL_CTX_set_cert_verify_callback(ctx, gensio_ssl_cert_verify, sfilter);
 
     sfilter->lock = o->alloc_lock(o);
     if (!sfilter->lock)
@@ -632,7 +726,6 @@ gensio_ssl_filter_config(struct gensio_os_funcs *o,
     data->is_client = default_is_client;
     data->max_write_size = SSL3_RT_MAX_PLAIN_LENGTH;
     data->max_read_size = SSL3_RT_MAX_PLAIN_LENGTH;
-    bool noCA = false;
 
     for (i = 0; args && args[i]; i++) {
 	if (gensio_check_keyvalue(args[i], "CA", &CAfilepath))
@@ -648,18 +741,16 @@ gensio_ssl_filter_config(struct gensio_os_funcs *o,
 	if (gensio_check_keyboolv(args[i], "mode", "client", "server",
 				  &data->is_client) > 0)
 	    continue;
-	if (gensio_check_keybool(args[i], "noCA", &noCA) > 0)
-	    continue;
 	if (gensio_check_keybool(args[i], "allow-authfail",
 				 &data->allow_authfail) > 0)
+	    continue;
+	if (gensio_check_keybool(args[i], "clientauth",
+				 &data->clientauth) > 0)
 	    continue;
 	return EINVAL;
     }
 
-    if (data->is_client) {
-	if (!CAfilepath && !noCA)
-	    return ENOKEY;
-    } else {
+    if (!data->is_client) {
 	if (!keyfile)
 	    return ENOKEY;
     }
@@ -720,17 +811,23 @@ gensio_ssl_filter_alloc(struct gensio_ssl_filter_data *data,
     struct gensio_os_funcs *o = data->o;
     SSL_CTX *ctx = NULL;
     struct gensio_filter *filter;
+    X509_STORE *store = NULL;
+    bool expect_peer_cert;
+    int rv = EINVAL;
 
     gensio_ssl_initialize(o);
 
-    if (data->is_client)
+    if (data->is_client) {
+	expect_peer_cert = true;
 	ctx = SSL_CTX_new(SSLv23_client_method());
-    else
+    } else {
+	expect_peer_cert = data->clientauth;
 	ctx = SSL_CTX_new(SSLv23_server_method());
+    }
     if (!ctx)
 	return ENOMEM;
 
-    if (!data->is_client)
+    if (!data->is_client && expect_peer_cert)
 	/*
 	 * In server mode, the certificate will not be requested unless
 	 * mode is SSL_VERIFY_PEER.  But in that mode, it terminates
@@ -745,12 +842,18 @@ gensio_ssl_filter_alloc(struct gensio_ssl_filter_data *data,
     if (data->CAfilepath) {
 	char *CAfile = NULL, *CApath = NULL;
 
+	store = X509_STORE_new();
+	if (!store)
+	    goto err;
+
 	if (data->CAfilepath[strlen(data->CAfilepath) - 1] == '/')
 	    CApath = data->CAfilepath;
 	else
 	    CAfile = data->CAfilepath;
-	if (!SSL_CTX_load_verify_locations(ctx, CAfile, CApath))
+	if (!X509_STORE_load_locations(store, CAfile, CApath)) {
+	    rv = ENOENT;
 	    goto err;
+	}
     }
 
     if (data->certfile) {
@@ -762,22 +865,25 @@ gensio_ssl_filter_alloc(struct gensio_ssl_filter_data *data,
 	    goto err;
     }
 
-    filter = gensio_ssl_filter_raw_alloc(o, data->is_client, ctx,
-					 data->CAfilepath != NULL,
+    filter = gensio_ssl_filter_raw_alloc(o, data->is_client, ctx, store,
+					 expect_peer_cert,
 					 data->allow_authfail,
 					 data->max_read_size,
 					 data->max_write_size);
     if (!filter) {
-	SSL_CTX_free(ctx);
-	return ENOMEM;
+	rv = ENOMEM;
+	goto err;
     }
+
 
     *rfilter = filter;
     return 0;
 
  err:
+    if (store)
+	X509_STORE_free(store);
     SSL_CTX_free(ctx);
-    return EINVAL;
+    return rv;
 }
 #else /* HAVE_OPENSSL */
 

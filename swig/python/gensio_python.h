@@ -112,8 +112,8 @@ swig_finish_call_rv(swig_cb_val *cb, const char *method_name, PyObject *args,
 {
     PyObject *p, *o = NULL;
 
-    p = PyObject_GetAttrString(cb, method_name);
-    if (p) {
+    if (PyObject_HasAttrString(cb, method_name)) {
+	p = PyObject_GetAttrString(cb, method_name);
 	o = PyObject_CallObject(p, args);
 	Py_DECREF(p);
 	if (PyErr_Occurred())
@@ -477,10 +477,27 @@ gensio_child_event(struct gensio *io, int event, int readerr,
 	PyTuple_SET_ITEM(args, 0, io_ref.val);
 
 	swig_finish_call(data->handler_val, "write_callback", args, false);
+	swig_free_ref_check(io_ref, accepter);
 	break;
 
     case GENSIO_EVENT_SEND_BREAK:
-	swig_finish_call(data->handler_val, "send_break", NULL, true);
+	io_ref = swig_make_ref(io, gensio);
+	args = PyTuple_New(1);
+	Py_INCREF(io_ref.val);
+	PyTuple_SET_ITEM(args, 0, io_ref.val);
+
+	swig_finish_call(data->handler_val, "send_break", args, true);
+	swig_free_ref_check(io_ref, accepter);
+	break;
+
+    case GENSIO_EVENT_PRECERT_VERIFY:
+	io_ref = swig_make_ref(io, gensio);
+	args = PyTuple_New(1);
+	Py_INCREF(io_ref.val);
+	PyTuple_SET_ITEM(args, 0, io_ref.val);
+
+	swig_finish_call(data->handler_val, "precert_verify", args, true);
+	swig_free_ref_check(io_ref, accepter);
 	break;
 
     case GENSIO_EVENT_SER_MODEMSTATE:
@@ -602,11 +619,11 @@ gensio_acc_child_event(struct gensio_accepter *accepter, int event, void *cdata)
     OI_PY_STATE gstate;
     struct gensio_data *iodata;
     struct gensio *io;
+    struct gensio_loginfo *i = cdata;
+    char buf[256];
 
-    if (event == GENSIO_ACC_EVENT_LOG) {
-	struct gensio_loginfo *i = cdata;
-	char buf[256];
-
+    switch (event) {
+    case GENSIO_ACC_EVENT_LOG:
 	gstate = OI_PY_STATE_GET();
 
 	acc_ref = swig_make_ref(accepter, gensio_accepter);
@@ -624,9 +641,8 @@ gensio_acc_child_event(struct gensio_accepter *accepter, int event, void *cdata)
 	swig_free_ref_check(acc_ref, accepter);
 	OI_PY_STATE_PUT(gstate);
 	return 0;
-    }
 
-    if (event == GENSIO_ACC_EVENT_NEW_CONNECTION) {
+    case GENSIO_ACC_EVENT_NEW_CONNECTION:
 	io = cdata;
 	iodata = malloc(sizeof(*data));
 	if (!iodata)
@@ -647,6 +663,25 @@ gensio_acc_child_event(struct gensio_accepter *accepter, int event, void *cdata)
 	PyTuple_SET_ITEM(args, 1, io_ref.val);
 
 	swig_finish_call(data->handler_val, "new_connection", args, false);
+
+	swig_free_ref_check(acc_ref, accepter);
+	swig_free_ref_check(io_ref, accepter);
+	OI_PY_STATE_PUT(gstate);
+	return 0;
+
+    case GENSIO_ACC_EVENT_PRECERT_VERIFY:
+	io = cdata;
+	gstate = OI_PY_STATE_GET();
+
+	acc_ref = swig_make_ref(accepter, gensio_accepter);
+	io_ref = swig_make_ref(io, gensio);
+	args = PyTuple_New(2);
+	Py_INCREF(acc_ref.val);
+	Py_INCREF(io_ref.val);
+	PyTuple_SET_ITEM(args, 0, acc_ref.val);
+	PyTuple_SET_ITEM(args, 1, io_ref.val);
+
+	swig_finish_call(data->handler_val, "precert_verify", args, true);
 
 	swig_free_ref_check(acc_ref, accepter);
 	swig_free_ref_check(io_ref, accepter);

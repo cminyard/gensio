@@ -417,7 +417,7 @@ def test_rs485():
 
 class TestAcceptConnect:
     def __init__(self, o, iostr, io2str, io3str, tester, name = None,
-                 io1_dummy_write = None):
+                 io1_dummy_write = None, CA=None):
         self.o = o
         if (name):
             self.name = name
@@ -429,12 +429,13 @@ class TestAcceptConnect:
         self.acc2 = gensio.gensio_accepter(o, io2str, self);
         self.acc2.startup()
         self.io1 = self.acc2.str_to_gensio(io3str, None);
+        self.CA = CA
+        h = utils.HandleData(o, io3str, io = self.io1)
         self.io1.open_s()
         if (io1_dummy_write):
             # For UDP, kick start things.
             self.io1.write(io1_dummy_write, None)
         self.wait()
-        h = utils.HandleData(o, io3str, io = self.io1)
         if (io1_dummy_write):
             self.io2.handler.set_compare(io1_dummy_write)
             if (self.io2.handler.wait_timeout(1000)):
@@ -448,6 +449,11 @@ class TestAcceptConnect:
         utils.HandleData(self.o, None, io = io, name = self.name)
         self.io2 = io
         self.waiter.wake()
+
+    def precert_verify(self, acc, io):
+        if self.CA:
+            io.control(0, False, gensio.GENSIO_CONTROL_CERT_AUTH, self.CA)
+        pass
 
     def accepter_log(self, acc, level, logstr):
         print("***%s LOG: %s: %s" % (level, self.name, logstr))
@@ -477,13 +483,52 @@ def test_telnet_sctp_acc_connect():
 
 def test_ssl_sctp_acc_connect():
     print("Test ssl over sctp accepter connect")
-    ta = TestAcceptConnect(o,
-                "ssl(key=%s/key.pem,cert=%s/cert.pem),sctp,3044"
-                           % (utils.srcdir, utils.srcdir),
+    goterr = False
+    try:
+        ta = TestAcceptConnect(o,
+                "ssl(key=%s/key.pem,cert=%s/cert.pem,clientauth),sctp,3044"
+                               % (utils.srcdir, utils.srcdir),
                 "ssl(key=%s/key.pem,cert=%s/cert.pem),sctp,3045"
                            % (utils.srcdir, utils.srcdir),
                 "ssl(CA=%s/CA.pem),sctp,localhost,3044" % utils.srcdir,
                            do_small_test)
+    except Exception as E:
+        if str(E) != "gensio:open_s: Communication error on send":
+            raise
+        print "  Success checking no client cert"
+        goterr = True
+    if not goterr:
+        raise Exception("Did not get error on no client certificate.")
+    
+    goterr = False
+    try:
+        ta = TestAcceptConnect(o,
+                "ssl(key=%s/key.pem,cert=%s/cert.pem,clientauth),sctp,3090"
+                               % (utils.srcdir, utils.srcdir),
+                "ssl(key=%s/key.pem,cert=%s/cert.pem),sctp,3091"
+                               % (utils.srcdir, utils.srcdir),
+                "ssl(CA=%s/CA.pem,key=%s/clientkey.pem,cert=%s/clientcert.pem)"
+                ",sctp,localhost,3090"
+                               % (utils.srcdir, utils.srcdir, utils.srcdir),
+                           do_small_test)
+    except Exception as E:
+        if str(E) != "gensio:open_s: Communication error on send":
+            raise
+        print "  Success checking invalid client cert"
+        goterr = True
+    if not goterr:
+        raise Exception("Did not get error on invalid client certificate.")
+    
+    ta = TestAcceptConnect(o,
+                "ssl(key=%s/key.pem,cert=%s/cert.pem,clientauth),sctp,3092"
+                               % (utils.srcdir, utils.srcdir),
+                "ssl(key=%s/key.pem,cert=%s/cert.pem),sctp,3093"
+                               % (utils.srcdir, utils.srcdir),
+                "ssl(CA=%s/CA.pem,key=%s/clientkey.pem,cert=%s/clientcert.pem)"
+                ",sctp,localhost,3092"
+                               % (utils.srcdir, utils.srcdir, utils.srcdir),
+                           do_small_test, CA="%s/clientcert.pem" % utils.srcdir)
+
 
 test_echo_device()
 test_serial_pipe_device()

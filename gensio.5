@@ -364,10 +364,8 @@ Set a place to look for certificates for authorization.  If this ends
 in a "/", then this is expected to be a directory that contains files
 with certificates that must be hashed per OpenSSL (see the "openssl
 rehash" command for details.  Otherwise it is a single file that
-contains one or more certificates.  This is required for clients
-unless the "noCA" option is set.  It may be set for servers, if so
-then connecting clients are required to have a certificate that is in
-the certificate store.
+contains one or more certificates.  The default CA path is used
+if not specified.
 
 .TP
 .B key=<filename>
@@ -388,11 +386,10 @@ is in client mode.  This can be used to switch the roles and run in
 SSL server mode on a connecting gensio, or vice versa.
 
 .TP
-.B noCA[=true|false]
-Normally a client is required to provide a certificate authority to
-verify that the server holds a valid certificate.  This removes that
-requirement.  Note that this is not recommended.  Ignored for server
-mode.
+.B clientauth[=true|false]
+Normally a client is not authorized to the server.  This requires
+that the client provide a certificate and authorizes that certificate.
+Ignored for client mode.
 
 .TP
 .B allow-authfail[=true|false]

@@ -144,8 +144,8 @@ gensio_get_cb(struct gensio *io)
 
 void gensio_set_cb(struct gensio *io, gensio_event cb, void *user_data)
 {
-    io->cb = NULL;
-    io->user_data = NULL;
+    io->cb = cb;
+    io->user_data = user_data;
 }
 
 int
