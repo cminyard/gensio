@@ -920,9 +920,15 @@ stel_setup(const char * const args[], bool default_is_client,
 {
     struct stel_data *sdata;
     unsigned int i;
-    bool allow_2217 = true;
+    bool allow_2217 = false;
     bool is_client = default_is_client;
     int err;
+    int rv, ival;
+
+    rv = gensio_get_default(o, "telnet", "rfc2217", false,
+			    GENSIO_DEFAULT_BOOL, NULL, &ival);
+    if (!rv)
+	allow_2217 = ival;
 
     for (i = 0; args && args[i]; i++) {
 	if (gensio_check_keybool(args[i], "rfc2217", &allow_2217) > 0)
@@ -1198,6 +1204,12 @@ telnet_gensio_accepter_alloc(struct gensio_accepter *child,
     gensiods max_write_size = GENSIO_DEFAULT_BUF_SIZE;
     bool allow_2217 = false;
     bool is_client = false;
+    int rv, ival;
+
+    rv = gensio_get_default(o, "telnet", "rfc2217", false,
+			    GENSIO_DEFAULT_BOOL, NULL, &ival);
+    if (!rv)
+	allow_2217 = ival;
 
     for (i = 0; args && args[i]; i++) {
 	if (gensio_check_keybool(args[i], "rfc2217", &allow_2217) > 0)

@@ -689,11 +689,17 @@ gensio_telnet_filter_alloc(struct gensio_os_funcs *o, const char * const args[],
     unsigned int i;
     gensiods max_read_size = 4096; /* FIXME - magic number. */
     gensiods max_write_size = 4096; /* FIXME - magic number. */
-    bool allow_2217 = true;
+    bool allow_2217 = false;
     bool is_client = default_is_client;
     const struct telnet_cmd *telnet_cmds;
     const unsigned char *init_seq;
     unsigned int init_seq_len;
+    int rv, ival;
+
+    rv = gensio_get_default(o, "telnet", "rfc2217", false,
+			    GENSIO_DEFAULT_BOOL, NULL, &ival);
+    if (!rv)
+	allow_2217 = ival;
 
     for (i = 0; args && args[i]; i++) {
 	if (gensio_check_keybool(args[i], "rfc2217", &allow_2217) > 0)
