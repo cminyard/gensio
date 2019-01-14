@@ -85,7 +85,9 @@ typedef size_t gensiods; /* Data size */
 /*
  * The connection has received a certificate but has not verified it
  * yet.  This lets the user modify the certificate authority based on
- * certificate information.  Returns ENOTSUP for standard verification.
+ * certificate information.  Return ENOTSUP or zero for standard
+ * verification.  If this returns an error besides ENOTSUP, the
+ * verification fails and the connection is terminated.
  */
 #define GENSIO_EVENT_PRECERT_VERIFY	5
 

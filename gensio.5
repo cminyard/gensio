@@ -352,6 +352,9 @@ certificate and a key.  A client SSL gensio must be given a
 certificate authority.  A client will user the certificate authority
 to verify that the server has the proper certificate and keys.
 
+The gensio has options to have the server request the certificate from
+the client and validate it.
+
 In addition to readbuf, the SSL gensio takes the following options:
 
 .TP
@@ -387,19 +390,16 @@ SSL server mode on a connecting gensio, or vice versa.
 
 .TP
 .B clientauth[=true|false]
-Normally a client is not authorized to the server.  This requires
+Normally a client is not authorized by the server.  This requires
 that the client provide a certificate and authorizes that certificate.
 Ignored for client mode.
 
 .TP
 .B allow-authfail[=true|false]
-Normally if the remote end certificate is not validated, the SSL
-gensio will close the connection.  This allows the open to progress.
-Note that the user should verify that authentication is set using
-gensio_is_authenticated().
-
-Note that if you specify a CA for a server, it will require that the
-client present a valid certificate for the given CA.
+Normally if the remote end certificate is not valid, the SSL gensio
+will close the connection.  This open allows the open to succeed with
+an invalid or missing certificate.  Note that the user should verify
+that authentication is set using gensio_is_authenticated().
 
 Verification of the common name is
 .B not
@@ -409,6 +409,14 @@ and other certificate data through a control interface.
 You can use self-signed certificates in this interface.  Just be aware
 of the security ramifications.  This gensio is fairly flexible, but
 you must use it carefully to have a secure interface.
+
+The SSL gensio will call the gensio event callback (client) or the
+gensio acceptor event callback (server) after the certificate is
+received but before it is validated with the
+GENSIO_EVENT_PRECERT_VERIFY or GENSIO_ACC_EVENT_PRECERT_VERIFY events.
+This allows the user to validate data from the certificate (like
+common name) with GENSIO_CONTROL_GET_PEER_CERT_NAME or set a
+certificate authority for the validation with GENSIO_CONTROL_CERT_AUTH.
 
 .SH "SEE ALSO"
 gensiotool(1), sctp(7), udp(7), tcp(7)
