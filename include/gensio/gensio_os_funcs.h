@@ -36,12 +36,6 @@ struct gensio_once {
     bool called;
 };
 
-/*
- * A bitmask of log levels to tell what to log.  Defaults to fatal and err
- * only.
- */
-extern unsigned int gensio_log_mask;
-
 enum gensio_log_levels {
     GENSIO_LOG_FATAL,
     GENSIO_LOG_ERR,
@@ -49,6 +43,15 @@ enum gensio_log_levels {
     GENSIO_LOG_INFO,
     GENSIO_LOG_DEBUG
 };
+
+#define GENSIO_LOG_MASK_ALL (1 << GENSIO_LOG_FATAL | 1 << GENSIO_LOG_ERR | \
+	1 << GENSIO_LOG_WARNING | 1 << GENSIO_LOG_INFO | 1 << GENSIO_LOG_DEBUG)
+/*
+ * A bitmask of log levels to tell what to log.  Defaults to fatal and err
+ * only.
+ */
+void gensio_set_log_mask(unsigned int mask);
+unsigned int gensio_get_log_mask(void);
 
 struct gensio_os_funcs {
     /* For use by the code doing the os function translation. */

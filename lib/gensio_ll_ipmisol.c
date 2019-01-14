@@ -416,7 +416,7 @@ gio_vlog(os_handler_t         *handler,
 	log_handler(handler, format, log_type, ap);
     } else if (info->o->vlog) {
 	gensio_vlog(info->o, level, format, ap);
-    } else if (gensio_log_mask & (1 << level)) {
+    } else if (gensio_get_log_mask() & (1 << level)) {
 	vprintf(format, ap);
 	putc('\n', stdout);
     }

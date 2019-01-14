@@ -38,7 +38,8 @@
 
 #include "utils.h"
 
-unsigned int gensio_log_mask = (1 << GENSIO_LOG_FATAL) | (1 << GENSIO_LOG_ERR);
+static unsigned int gensio_log_mask =
+    (1 << GENSIO_LOG_FATAL) | (1 << GENSIO_LOG_ERR);
 
 struct gensio_classobj {
     const char *name;
@@ -1627,6 +1628,18 @@ gensio_check_keyaddrs(struct gensio_os_funcs *o,
 }
 
 void
+gensio_set_log_mask(unsigned int mask)
+{
+    gensio_log_mask = mask;
+}
+
+unsigned int
+gensio_get_log_mask(void)
+{
+    return gensio_log_mask;
+}
+
+void
 gensio_vlog(struct gensio_os_funcs *o, enum gensio_log_levels level,
 	    const char *str, va_list args)
 {
@@ -1674,7 +1687,7 @@ gensio_acc_log(struct gensio_accepter *acc, enum gensio_log_levels level,
     va_end(args);
 }
 
-struct gensio_once gensio_default_initialized;
+static struct gensio_once gensio_default_initialized;
 
 static struct gensio_lock *deflock;
 

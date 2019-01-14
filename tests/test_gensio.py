@@ -6,6 +6,7 @@ class Logger:
     def gensio_log(self, level, log):
         print("***%s log: %s" % (level, log))
 
+gensio.gensio_set_log_mask(gensio.GENSIO_LOG_MASK_ALL)
 o = gensio.alloc_gensio_selector(Logger());
 
 def test_echo_device():
@@ -403,7 +404,6 @@ def test_rs485():
 
     print("serialdev rs485:\n  io1=%s\n  io2=%s" % (io1str, io2str))
 
-    o = gensio.alloc_gensio_selector()
     io1 = utils.alloc_io(o, io1str)
     io2 = utils.alloc_io(o, io2str)
 

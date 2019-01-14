@@ -283,12 +283,15 @@ static void gensio_do_vlog(struct gensio_os_funcs *o,
     char *buf = NULL;
     unsigned int len;
     PyObject *args, *po;
+    va_list tmpva;
 
-    len = vsnprintf(buf, 0, fmt, fmtargs) + 1;
-    buf = o->zalloc(o, len);
+    va_copy(tmpva, fmtargs);
+    len = vsnprintf(buf, 0, fmt, tmpva);
+    va_end(tmpva);
+    buf = o->zalloc(o, len + 1);
     if (!buf)
 	return;
-    vsnprintf(buf, len, fmt, fmtargs);
+    vsnprintf(buf, len + 1, fmt, fmtargs);
 
     args = PyTuple_New(2);
     po = OI_PI_FromString(gensio_log_level_to_str(level));
@@ -1105,3 +1108,14 @@ void get_random_bytes(char **rbuffer, size_t *rbuffer_len,
 
 %newobject alloc_gensio_selector;
 struct gensio_os_funcs *alloc_gensio_selector(swig_cb *log_handler);
+
+%constant int GENSIO_LOG_FATAL = GENSIO_LOG_FATAL;
+%constant int GENSIO_LOG_ERR = GENSIO_LOG_ERR;
+%constant int GENSIO_LOG_WARNING = GENSIO_LOG_WARNING;
+%constant int GENSIO_LOG_INFO = GENSIO_LOG_INFO;
+%constant int GENSIO_LOG_DEBUG = GENSIO_LOG_DEBUG;
+%constant int GENSIO_LOG_MASK_ALL = GENSIO_LOG_MASK_ALL;
+
+void gensio_set_log_mask(unsigned int mask);
+
+unsigned int gensio_get_log_mask(void);
