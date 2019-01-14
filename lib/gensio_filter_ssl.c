@@ -502,8 +502,12 @@ ssl_cleanup(struct gensio_filter *filter)
     if (sfilter->ssl)
 	SSL_free(sfilter->ssl);
     sfilter->ssl = NULL;
-    sfilter->ssl_bio = NULL;
-    sfilter->io_bio = NULL;
+    if (sfilter->io_bio) {
+	/* Just free one BIO to free both parts of the pair. */
+	BIO_free(sfilter->io_bio);
+	sfilter->ssl_bio = NULL;
+	sfilter->io_bio = NULL;
+    }
     sfilter->read_data_len = 0;
     sfilter->read_data_pos = 0;
     sfilter->xmit_buf_len = 0;
@@ -516,12 +520,15 @@ ssl_free(struct gensio_filter *filter)
 {
     struct ssl_filter *sfilter = filter_to_ssl(filter);
 
+    if (sfilter->verify_store)
+	X509_STORE_free(sfilter->verify_store);
     if (sfilter->remcert)
 	X509_free(sfilter->remcert);
     if (sfilter->ssl)
 	SSL_free(sfilter->ssl);
     if (sfilter->io_bio)
-	BIO_destroy_bio_pair(sfilter->io_bio);
+	/* Just free one BIO to free both parts of the pair. */
+	BIO_free(sfilter->io_bio);
     if (sfilter->ctx)
 	SSL_CTX_free(sfilter->ctx);
     if (sfilter->lock)
