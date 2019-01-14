@@ -2,7 +2,11 @@
 import utils
 import gensio
 
-o = gensio.alloc_gensio_selector();
+class Logger:
+    def gensio_log(self, level, log):
+        print("***%s log: %s" % (level, log))
+
+o = gensio.alloc_gensio_selector(Logger());
 
 def test_echo_device():
     print("Test echo device")
@@ -182,7 +186,6 @@ def test_modemstate():
 
     print("serialdev modemstate:\n  io1=%s\n  io2=%s" % (io1str, io2str))
 
-    o = gensio.alloc_gensio_selector()
     io1 = utils.alloc_io(o, io1str, do_open = False)
     io2 = utils.alloc_io(o, io2str)
     sio1 = io1.cast_to_sergensio()

@@ -101,6 +101,63 @@ struct ssl_filter {
 #define filter_to_ssl(v) gensio_container_of(v, struct ssl_filter, filter)
 
 static void
+gssl_vlog(struct ssl_filter *f, enum gensio_log_levels l,
+	  bool do_ssl_err, char *fmt, va_list ap)
+{
+    if (do_ssl_err) {
+	char buf[256], buf2[200];
+	unsigned long ssl_err = ERR_get_error();
+
+	if (!ssl_err)
+	    goto no_ssl_err;
+
+	ERR_error_string_n(ssl_err, buf2, sizeof(buf2));
+	snprintf(buf, sizeof(buf), "ssl: %s: %s", fmt, buf2);
+	gensio_vlog(f->o, l, buf, ap);
+    } else {
+    no_ssl_err:
+	gensio_vlog(f->o, l, fmt, ap);
+    }
+}
+
+
+static void
+gssl_log_info(struct ssl_filter *f, char *fmt, ...)
+{
+    va_list ap;
+    va_start(ap, fmt);
+    gssl_vlog(f, GENSIO_LOG_INFO, false, fmt, ap);
+    va_end(ap);
+}
+
+static void
+gssl_log_err(struct ssl_filter *f, char *fmt, ...)
+{
+    va_list ap;
+    va_start(ap, fmt);
+    gssl_vlog(f, GENSIO_LOG_ERR, false, fmt, ap);
+    va_end(ap);
+}
+
+static void
+gssl_logs_info(struct ssl_filter *f, char *fmt, ...)
+{
+    va_list ap;
+    va_start(ap, fmt);
+    gssl_vlog(f, GENSIO_LOG_INFO, true, fmt, ap);
+    va_end(ap);
+}
+
+static void
+gssl_logs_err(struct ssl_filter *f, char *fmt, ...)
+{
+    va_list ap;
+    va_start(ap, fmt);
+    gssl_vlog(f, GENSIO_LOG_ERR, true, fmt, ap);
+    va_end(ap);
+}
+
+static void
 ssl_lock(struct ssl_filter *sfilter)
 {
     sfilter->o->lock(sfilter->lock);
@@ -175,12 +232,14 @@ ssl_check_open_done(struct gensio_filter *filter, struct gensio *io)
     if (sfilter->expect_peer_cert) {
 	sfilter->remcert = SSL_get_peer_certificate(sfilter->ssl);
 	if (!sfilter->remcert) {
+	    gssl_log_info(sfilter, "Remote peer offered no certificate");
 	    rv = ENOKEY;
 	    goto out_unlock;
 	}
 
 	verify_err = SSL_get_verify_result(sfilter->ssl);
 	if (verify_err != X509_V_OK) {
+	    gssl_logs_info(sfilter, "Remote peer certificate verify failed");
 	    X509_free(sfilter->remcert);
 	    sfilter->remcert = NULL;
 	    rv = EKEYREJECTED;
@@ -199,7 +258,7 @@ static int
 ssl_try_connect(struct gensio_filter *filter, struct timeval *timeout)
 {
     struct ssl_filter *sfilter = filter_to_ssl(filter);
-    int rv, success;
+    int rv, success, err;
 
     ssl_lock(sfilter);
     if (sfilter->is_client)
@@ -208,20 +267,27 @@ ssl_try_connect(struct gensio_filter *filter, struct timeval *timeout)
 	success = SSL_accept(sfilter->ssl);
 
     if (!success) {
-	rv = ECOMM;
+	err = SSL_get_error(sfilter->ssl, success);
+	goto err_rpt;
     } else if (success == 1) {
 	sfilter->connected = true;
 	rv = 0;
     } else {
-	int err = SSL_get_error(sfilter->ssl, success);
-
+	err = SSL_get_error(sfilter->ssl, success);
 	switch (err) {
 	case SSL_ERROR_WANT_READ:
 	case SSL_ERROR_WANT_WRITE:
 	    rv = EINPROGRESS;
 	    break;
 
+	case SSL_ERROR_SSL:
+	err_rpt:
+	    gssl_logs_err(sfilter, "Failed SSL startup");
+	    rv = EPROTO;
+	    break;
+
 	default:
+	    gssl_log_err(sfilter, "Failed SSL startup");
 	    rv = ECOMM;
 	}
     }
@@ -304,7 +370,13 @@ ssl_ul_write(struct gensio_filter *filter,
 		err = 0;
 		break;
 
+	    case SSL_ERROR_SSL:
+		gssl_logs_err(sfilter, "Failed SSL write");
+		err = EPROTO;
+		break;
+
 	    default:
+		gssl_log_err(sfilter, "Failed SSL write");
 		err = ECOMM;
 	    }
 	} else {
@@ -658,11 +730,18 @@ gensio_ssl_cert_verify(X509_STORE_CTX *ctx, void *cb_data)
     }
 
     rv = X509_verify_cert(ctx);
+    if (rv <= 0)
+	gssl_log_err(sfilter, "Error verifying certificate: %s",
+	     X509_verify_cert_error_string(X509_STORE_CTX_get_error(ctx)));
 
- out_err:
+ out:
     if (nctx)
 	X509_STORE_CTX_free(nctx);
     return rv;
+
+ out_err:
+    gssl_log_err(sfilter, "Error initializing verify store");
+    goto out;
 }
 
 struct gensio_filter *

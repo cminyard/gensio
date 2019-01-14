@@ -228,6 +228,7 @@ struct os_funcs_data {
 #endif
     unsigned int refcount;
     struct selector_s *sel;
+    swig_cb_val *log_handler;
 };
 
 #ifdef USE_POSIX_THREADS
@@ -266,6 +267,7 @@ check_os_funcs_free(struct gensio_os_funcs *o)
     os_funcs_lock(odata);
     if (--odata->refcount == 0) {
 	os_funcs_unlock(odata);
+	deref_swig_cb_val(odata->log_handler);
 	free(odata);
 	o->free_funcs(o);
     } else {
@@ -273,7 +275,31 @@ check_os_funcs_free(struct gensio_os_funcs *o)
     }
 }
 
-struct gensio_os_funcs *alloc_gensio_selector(void)
+static void gensio_do_vlog(struct gensio_os_funcs *o,
+			   enum gensio_log_levels level,
+			   const char *fmt, va_list fmtargs)
+{
+    struct os_funcs_data *odata = o->other_data;
+    char *buf = NULL;
+    unsigned int len;
+    PyObject *args, *po;
+
+    len = vsnprintf(buf, 0, fmt, fmtargs) + 1;
+    buf = o->zalloc(o, len);
+    if (!buf)
+	return;
+    vsnprintf(buf, len, fmt, fmtargs);
+
+    args = PyTuple_New(2);
+    po = OI_PI_FromString(gensio_log_level_to_str(level));
+    PyTuple_SET_ITEM(args, 0, po);
+    po = OI_PI_FromString(buf);
+    PyTuple_SET_ITEM(args, 1, po);
+
+    swig_finish_call(odata->log_handler, "gensio_log", args, false);
+}
+
+struct gensio_os_funcs *alloc_gensio_selector(swig_cb *log_handler)
 {
     struct selector_s *sel;
     struct gensio_os_funcs *o;
@@ -318,6 +344,8 @@ struct gensio_os_funcs *alloc_gensio_selector(void)
 	exit(1);
     }
     o->other_data = odata;
+    odata->log_handler = ref_swig_cb(log_handler, gensio_log);
+    o->vlog = gensio_do_vlog;
 
     return o;
 }
@@ -1076,4 +1104,4 @@ void get_random_bytes(char **rbuffer, size_t *rbuffer_len,
 		      int size_to_allocate);
 
 %newobject alloc_gensio_selector;
-struct gensio_os_funcs *alloc_gensio_selector();
+struct gensio_os_funcs *alloc_gensio_selector(swig_cb *log_handler);
