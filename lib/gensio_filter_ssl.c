@@ -496,18 +496,20 @@ ssl_cleanup(struct gensio_filter *filter)
 {
     struct ssl_filter *sfilter = filter_to_ssl(filter);
 
+    if (sfilter->verify_store)
+	X509_STORE_free(sfilter->verify_store);
+    sfilter->verify_store = NULL;
     if (sfilter->remcert)
 	X509_free(sfilter->remcert);
     sfilter->remcert = NULL;
     if (sfilter->ssl)
 	SSL_free(sfilter->ssl);
     sfilter->ssl = NULL;
-    if (sfilter->io_bio) {
+    if (sfilter->io_bio)
 	/* Just free one BIO to free both parts of the pair. */
 	BIO_free(sfilter->io_bio);
-	sfilter->ssl_bio = NULL;
-	sfilter->io_bio = NULL;
-    }
+    sfilter->ssl_bio = NULL;
+    sfilter->io_bio = NULL;
     sfilter->read_data_len = 0;
     sfilter->read_data_pos = 0;
     sfilter->xmit_buf_len = 0;
@@ -755,7 +757,6 @@ struct gensio_filter *
 gensio_ssl_filter_raw_alloc(struct gensio_os_funcs *o,
 			    bool is_client,
 			    SSL_CTX *ctx,
-			    X509_STORE *store,
 			    bool expect_peer_cert,
 			    bool allow_authfail,
 			    gensiods max_read_size,
@@ -770,7 +771,6 @@ gensio_ssl_filter_raw_alloc(struct gensio_os_funcs *o,
     sfilter->o = o;
     sfilter->is_client = is_client;
     sfilter->ctx = ctx;
-    sfilter->verify_store = store;
     sfilter->max_write_size = max_write_size;
     sfilter->max_read_size = max_read_size;
     sfilter->expect_peer_cert = expect_peer_cert;
@@ -897,7 +897,6 @@ gensio_ssl_filter_alloc(struct gensio_ssl_filter_data *data,
     struct gensio_os_funcs *o = data->o;
     SSL_CTX *ctx = NULL;
     struct gensio_filter *filter;
-    X509_STORE *store = NULL;
     bool expect_peer_cert;
     int rv = EINVAL;
 
@@ -928,15 +927,11 @@ gensio_ssl_filter_alloc(struct gensio_ssl_filter_data *data,
     if (data->CAfilepath) {
 	char *CAfile = NULL, *CApath = NULL;
 
-	store = X509_STORE_new();
-	if (!store)
-	    goto err;
-
 	if (data->CAfilepath[strlen(data->CAfilepath) - 1] == '/')
 	    CApath = data->CAfilepath;
 	else
 	    CAfile = data->CAfilepath;
-	if (!X509_STORE_load_locations(store, CAfile, CApath)) {
+	if (!SSL_CTX_load_verify_locations(ctx, CAfile, CApath)) {
 	    rv = ENOENT;
 	    goto err;
 	}
@@ -951,7 +946,7 @@ gensio_ssl_filter_alloc(struct gensio_ssl_filter_data *data,
 	    goto err;
     }
 
-    filter = gensio_ssl_filter_raw_alloc(o, data->is_client, ctx, store,
+    filter = gensio_ssl_filter_raw_alloc(o, data->is_client, ctx,
 					 expect_peer_cert,
 					 data->allow_authfail,
 					 data->max_read_size,
@@ -966,8 +961,6 @@ gensio_ssl_filter_alloc(struct gensio_ssl_filter_data *data,
     return 0;
 
  err:
-    if (store)
-	X509_STORE_free(store);
     SSL_CTX_free(ctx);
     return rv;
 }
