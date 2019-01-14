@@ -990,7 +990,8 @@ telnet_gensio_alloc(struct gensio *child, const char * const args[],
 	goto out_nomem;
 
     gensio_ref(child);
-    io = base_gensio_alloc(o, ll, sdata->filter, "telnet", cb, user_data);
+    io = base_gensio_alloc(o, ll, sdata->filter, child, "telnet", cb,
+			   user_data);
     if (!io)
 	goto out_nomem;
 

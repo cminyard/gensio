@@ -354,7 +354,7 @@ tcp_gensio_alloc(struct addrinfo *iai, const char * const args[],
 	return ENOMEM;
     }
 
-    io = base_gensio_alloc(o, tdata->ll, NULL, "tcp", cb, user_data);
+    io = base_gensio_alloc(o, tdata->ll, NULL, NULL, "tcp", cb, user_data);
     if (!io) {
 	gensio_ll_free(tdata->ll);
 	gensio_free_addrinfo(o, ai);
@@ -555,7 +555,7 @@ tcpna_readhandler(int fd, void *cbdata)
     }
 
     tcpna_lock(nadata);
-    io = base_gensio_server_alloc(nadata->o, tdata->ll, NULL, "tcp",
+    io = base_gensio_server_alloc(nadata->o, tdata->ll, NULL, NULL, "tcp",
 				  tcpna_server_open_done, nadata);
     if (io) {
 	tcpna_ref(nadata);

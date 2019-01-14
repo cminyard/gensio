@@ -33,7 +33,7 @@ enum fd_state {
 };
 
 struct fd_ll {
-    struct gensio_ll ll;
+    struct gensio_ll *ll;
     struct gensio_os_funcs *o;
 
     struct gensio_lock *lock;
@@ -80,7 +80,7 @@ struct fd_ll {
     bool deferred_close;
 };
 
-#define ll_to_fd(v) gensio_container_of(v, struct fd_ll, ll)
+#define ll_to_fd(v) ((struct fd_ll *) gensio_ll_get_user_data(v))
 
 static void
 fd_lock(struct fd_ll *fdll)
@@ -109,6 +109,8 @@ fd_lock_and_ref(struct fd_ll *fdll)
 
 static void fd_finish_free(struct fd_ll *fdll)
 {
+    if (fdll->ll)
+	gensio_ll_free_data(fdll->ll);
     if (fdll->lock)
 	fdll->o->free_lock(fdll->lock);
     if (fdll->close_timer)
@@ -762,7 +764,9 @@ fd_gensio_ll_alloc(struct gensio_os_funcs *o,
 	    goto out_nomem;
     }
 
-    fdll->ll.func = gensio_ll_fd_func;
+    fdll->ll = gensio_ll_alloc_data(o, gensio_ll_fd_func, fdll);
+    if (!fdll->ll)
+	goto out_nomem;
 
     if (fd != -1) {
 	int err = fd_setup_handlers(fdll);
@@ -770,7 +774,7 @@ fd_gensio_ll_alloc(struct gensio_os_funcs *o,
 	    goto out_nomem;
     }
 
-    return &fdll->ll;
+    return fdll->ll;
 
  out_nomem:
     fd_finish_free(fdll);

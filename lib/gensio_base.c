@@ -92,6 +92,13 @@ struct basen_data {
     struct stel_req *reqs;
 };
 
+struct gensio_ll {
+    struct gensio_os_funcs *o;
+    struct basen_data  *ndata;
+    gensio_ll_func func;
+    void *user_data;
+};
+
 static void
 basen_lock(struct basen_data *ndata)
 {
@@ -984,6 +991,7 @@ static struct gensio *
 gensio_i_alloc(struct gensio_os_funcs *o,
 	       struct gensio_ll *ll,
 	       struct gensio_filter *filter,
+	       struct gensio *child,
 	       const char *typename,
 	       bool is_client,
 	       gensio_done_err open_done, void *open_data,
@@ -1011,11 +1019,12 @@ gensio_i_alloc(struct gensio_os_funcs *o,
 	goto out_nomem;
 
     ndata->ll = ll;
+    ll->ndata = ndata;
     ndata->filter = filter;
     if (filter)
 	gensio_filter_set_callback(filter, gensio_base_filter_cb, ndata);
     ndata->io = gensio_data_alloc(o, cb, user_data, gensio_base_func,
-				  ll->child, typename, ndata);
+				  child, typename, ndata);
     if (!ndata->io)
 	goto out_nomem;
     gensio_set_is_client(ndata->io, is_client);
@@ -1046,10 +1055,11 @@ struct gensio *
 base_gensio_alloc(struct gensio_os_funcs *o,
 		  struct gensio_ll *ll,
 		  struct gensio_filter *filter,
+		  struct gensio *child,
 		  const char *typename,
 		  gensio_event cb, void *user_data)
 {
-    return gensio_i_alloc(o, ll, filter, typename, true,
+    return gensio_i_alloc(o, ll, filter, child, typename, true,
 			  NULL, NULL, cb, user_data);
 }
 
@@ -1057,10 +1067,11 @@ struct gensio *
 base_gensio_server_alloc(struct gensio_os_funcs *o,
 			 struct gensio_ll *ll,
 			 struct gensio_filter *filter,
+			 struct gensio *child,
 			 const char *typename,
 			 gensio_done_err open_done, void *open_data)
 {
-    return gensio_i_alloc(o, ll, filter, typename, false,
+    return gensio_i_alloc(o, ll, filter, child, typename, false,
 			  open_done, open_data, NULL, NULL);
 }
 
@@ -1256,3 +1267,41 @@ gensio_ll_control(struct gensio_ll *ll, bool get, int option, char *data,
     return ll->func(ll, GENSIO_LL_FUNC_CONTROL, datalen, data, &get, option,
 		    NULL);
 }
+
+int
+gensio_ll_do_event(struct gensio_ll *ll, int event, int err,
+		   unsigned char *buf, gensiods *buflen,
+		   const char *const *auxdata)
+{
+    struct basen_data *ndata = ll->ndata;
+
+    return gensio_cb(ndata->io, event, err, buf, buflen, auxdata);
+}
+
+struct gensio_ll *
+gensio_ll_alloc_data(struct gensio_os_funcs *o,
+		     gensio_ll_func func, void *user_data)
+{
+    struct gensio_ll *ll = o->zalloc(o, sizeof(*ll));
+
+    if (!ll)
+	return NULL;
+
+    ll->o = o;
+    ll->func = func;
+    ll->user_data = user_data;
+    return ll;
+}
+
+void
+gensio_ll_free_data(struct gensio_ll *ll)
+{
+    ll->o->free(ll->o, ll);
+}
+
+void *
+gensio_ll_get_user_data(struct gensio_ll *ll)
+{
+    return ll->user_data;
+}
+

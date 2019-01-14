@@ -1599,7 +1599,7 @@ serialdev_gensio_alloc(const char *devname, const char * const args[],
      * the free callbacks.
      */
 
-    io = base_gensio_alloc(o, ll, NULL, "serialdev", cb, user_data);
+    io = base_gensio_alloc(o, ll, NULL, NULL, "serialdev", cb, user_data);
     if (!io) {
 	gensio_ll_free(ll);
 	return ENOMEM;

@@ -105,7 +105,8 @@ ipmisol_gensio_alloc(const char *devname, const char * const args[],
     if (err)
 	goto out_err;
 
-    idata->io = base_gensio_alloc(o, idata->ll, NULL, "ipmisol", cb, user_data);
+    idata->io = base_gensio_alloc(o, idata->ll, NULL, NULL, "ipmisol", cb,
+				  user_data);
     if (!idata->io) {
 	gensio_ll_free(idata->ll);
 	return ENOMEM;

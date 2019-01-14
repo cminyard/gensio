@@ -69,7 +69,7 @@ ssl_gensio_alloc(struct gensio *child, const char *const args[],
     }
     gensio_ref(child);
 
-    io = base_gensio_alloc(o, ll, filter, "ssl", cb, user_data);
+    io = base_gensio_alloc(o, ll, filter, child, "ssl", cb, user_data);
     if (!io) {
 	gensio_ll_free(ll);
 	gensio_filter_free(filter);

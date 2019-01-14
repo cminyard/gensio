@@ -535,7 +535,7 @@ sctp_gensio_alloc(struct addrinfo *iai, const char * const args[],
     if (!tdata->ll)
 	goto out_nomem;
 
-    io = base_gensio_alloc(o, tdata->ll, NULL, "sctp", cb, user_data);
+    io = base_gensio_alloc(o, tdata->ll, NULL, NULL, "sctp", cb, user_data);
     if (!io)
 	goto out_nomem;
 
@@ -747,7 +747,7 @@ sctpna_readhandler(int fd, void *cbdata)
     }
 
     sctpna_lock(nadata);
-    io = base_gensio_server_alloc(nadata->o, tdata->ll, NULL, "sctp",
+    io = base_gensio_server_alloc(nadata->o, tdata->ll, NULL, NULL, "sctp",
 				  sctpna_server_open_done, nadata);
     if (io) {
 	sctpna_ref(nadata);

@@ -329,7 +329,7 @@ basena_child_event(struct gensio_accepter *accepter, int event,
     }
 
     basena_lock(nadata);
-    io = base_gensio_server_alloc(o, ll, filter,
+    io = base_gensio_server_alloc(o, ll, filter, child,
 				  gensio_acc_get_type(nadata->acc, 0),
 				  basena_finish_server_open, nadata);
     if (io) {

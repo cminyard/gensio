@@ -555,7 +555,7 @@ enum sol_state {
 };
 
 struct sol_ll {
-    struct gensio_ll ll;
+    struct gensio_ll *ll;
     struct gensio_os_funcs *o;
 
     struct gensio_lock *lock;
@@ -625,7 +625,7 @@ struct sol_ll {
 
 os_handler_t *gensio_os_handler;
 
-#define ll_to_sol(v) gensio_container_of(v, struct sol_ll, ll)
+#define ll_to_sol(v) ((struct sol_ll *) gensio_ll_get_user_data(v))
 
 static void
 sol_lock(struct sol_ll *solll)
@@ -647,6 +647,8 @@ sol_ref(struct sol_ll *solll)
 
 static void sol_finish_free(struct sol_ll *solll)
 {
+    if (solll->ll)
+	gensio_ll_free_data(solll->ll);
     if (solll->lock)
 	solll->o->free_lock(solll->lock);
     if (solll->read_data.buf)
@@ -1525,10 +1527,12 @@ ipmisol_gensio_ll_alloc(struct gensio_os_funcs *o,
 
     solll->max_write_size = max_write_size;
 
-    solll->ll.func = gensio_ll_sol_func;
+    solll->ll = gensio_ll_alloc_data(o, gensio_ll_sol_func, solll);
+    if (!solll->ll)
+	goto out_nomem;
 
     *rops = ipmisol_ser_ops;
-    *rll = &solll->ll;
+    *rll = solll->ll;
     return 0;
 
  out_nomem:

@@ -312,20 +312,29 @@ typedef int (*gensio_ll_func)(struct gensio_ll *ll, int op,
 			      gensiods buflen,
 			      const char *const *auxdata);
 
-struct gensio_ll {
-    gensio_ll_func func;
-    struct gensio *child;
-};
+/*
+ * Call the event interface of the upper layer.
+ */
+int gensio_ll_do_event(struct gensio_ll *ll, int event, int err,
+		       unsigned char *buf, gensiods *buflen,
+		       const char *const *auxdata);
+
+struct gensio_ll *gensio_ll_alloc_data(struct gensio_os_funcs *o,
+				       gensio_ll_func func, void *user_data);
+void gensio_ll_free_data(struct gensio_ll *ll);
+void *gensio_ll_get_user_data(struct gensio_ll *ll);
 
 struct gensio *base_gensio_alloc(struct gensio_os_funcs *o,
 				 struct gensio_ll *ll,
 				 struct gensio_filter *filter,
+				 struct gensio *child,
 				 const char *typename,
 				 gensio_event cb, void *user_data);
 
 struct gensio *base_gensio_server_alloc(struct gensio_os_funcs *o,
 					struct gensio_ll *ll,
 					struct gensio_filter *filter,
+					struct gensio *child,
 					const char *typename,
 					gensio_done_err open_done,
 					void *open_data);
