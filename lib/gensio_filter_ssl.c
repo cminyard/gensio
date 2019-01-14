@@ -807,11 +807,21 @@ gensio_ssl_filter_config(struct gensio_os_funcs *o,
     unsigned int i;
     struct gensio_ssl_filter_data *data = o->zalloc(o, sizeof(*data));
     const char *CAfilepath = NULL, *keyfile = NULL, *certfile = NULL;
+    int rv, ival;
 
     data->o = o;
     data->is_client = default_is_client;
     data->max_write_size = SSL3_RT_MAX_PLAIN_LENGTH;
     data->max_read_size = SSL3_RT_MAX_PLAIN_LENGTH;
+
+    rv = gensio_get_default(o, "ssl", "allow_authfail", false,
+			    GENSIO_DEFAULT_BOOL, NULL, &ival);
+    if (!rv)
+	data->allow_authfail = ival;
+    rv = gensio_get_default(o, "ssl", "clientauth", false,
+			    GENSIO_DEFAULT_BOOL, NULL, &ival);
+    if (!rv)
+	data->clientauth = ival;
 
     for (i = 0; args && args[i]; i++) {
 	if (gensio_check_keyvalue(args[i], "CA", &CAfilepath))
@@ -834,6 +844,19 @@ gensio_ssl_filter_config(struct gensio_os_funcs *o,
 				 &data->clientauth) > 0)
 	    continue;
 	return EINVAL;
+    }
+
+    if (!keyfile) {
+	gensio_get_default(o, "ssl", "key", false, GENSIO_DEFAULT_STR,
+			   &keyfile, NULL);
+    }
+    if (!certfile) {
+	gensio_get_default(o, "ssl", "cert", false, GENSIO_DEFAULT_STR,
+			   &certfile, NULL);
+    }
+    if (!CAfilepath) {
+	gensio_get_default(o, "ssl", "CA", false, GENSIO_DEFAULT_STR,
+			   &CAfilepath, NULL);
     }
 
     if (!data->is_client) {
