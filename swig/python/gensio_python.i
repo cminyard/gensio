@@ -42,43 +42,6 @@
     free(*$1);
 }
 
-%typemap(in, numinputs=0) void *termios (struct termios temp) {
-    $1 = &temp;
-}
-
-%typemap(argout) (void *termios) {
-    struct termios *t = $1;
-    PyObject *seq, *seq2, *o;
-    int i;
-
-    seq = PyTuple_New(7);
-    o = PyInt_FromLong(t->c_iflag);
-    PyTuple_SET_ITEM(seq, 0, o);
-    o = PyInt_FromLong(t->c_oflag);
-    PyTuple_SET_ITEM(seq, 1, o);
-    o = PyInt_FromLong(t->c_cflag);
-    PyTuple_SET_ITEM(seq, 2, o);
-    o = PyInt_FromLong(t->c_lflag);
-    PyTuple_SET_ITEM(seq, 3, o);
-    o = PyInt_FromLong(cfgetispeed(t));
-    PyTuple_SET_ITEM(seq, 4, o);
-    o = PyInt_FromLong(cfgetospeed(t));
-    PyTuple_SET_ITEM(seq, 5, o);
-
-    seq2 = PyTuple_New(sizeof(t->c_cc));
-    for (i = 0; i < sizeof(t->c_cc); i++) {
-	if (i == VTIME || i == VMIN) {
-	    PyTuple_SET_ITEM(seq2, i, PyInt_FromLong(t->c_cc[i]));
-	} else {
-	    char c[1] = { t->c_cc[i] };
-
-	    PyTuple_SET_ITEM(seq2, i, OI_PI_FromStringAndSize(c, 1));
-	}
-    }
-    PyTuple_SET_ITEM(seq, 6, seq2);
-    $result = add_python_result($result, seq);
-}
-
 %typemap(in) const char *const *auxdata {
     unsigned int i;
     unsigned int len;
