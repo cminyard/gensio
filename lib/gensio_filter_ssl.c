@@ -59,7 +59,7 @@ gensio_ssl_initialize(struct gensio_os_funcs *o)
 }
 
 struct ssl_filter {
-    struct gensio_filter filter;
+    struct gensio_filter *filter;
     struct gensio_os_funcs *o;
     struct gensio *io;
     bool is_client;
@@ -98,7 +98,7 @@ struct ssl_filter {
     gensiods xmit_buf_len;
 };
 
-#define filter_to_ssl(v) gensio_container_of(v, struct ssl_filter, filter)
+#define filter_to_ssl(v) ((struct ssl_filter *) gensio_filter_get_user_data(v))
 
 static void
 gssl_vlog(struct ssl_filter *f, enum gensio_log_levels l,
@@ -539,6 +539,8 @@ ssl_free(struct gensio_filter *filter)
 	sfilter->o->free(sfilter->o, sfilter->read_data);
     if (sfilter->write_data)
 	sfilter->o->free(sfilter->o, sfilter->write_data);
+    if (sfilter->filter)
+	gensio_filter_free_data(sfilter->filter);
     sfilter->o->free(sfilter->o, sfilter);
 }
 
@@ -753,7 +755,7 @@ gensio_ssl_cert_verify(X509_STORE_CTX *ctx, void *cb_data)
     goto out;
 }
 
-struct gensio_filter *
+static struct gensio_filter *
 gensio_ssl_filter_raw_alloc(struct gensio_os_funcs *o,
 			    bool is_client,
 			    SSL_CTX *ctx,
@@ -790,11 +792,15 @@ gensio_ssl_filter_raw_alloc(struct gensio_os_funcs *o,
     if (!sfilter->read_data)
 	goto out_nomem;
 
-    sfilter->filter.func = gensio_ssl_filter_func;
-    return &sfilter->filter;
+    sfilter->filter = gensio_filter_alloc_data(o, gensio_ssl_filter_func,
+					       sfilter);
+    if (!sfilter->filter)
+	goto out_nomem;
+
+    return sfilter->filter;
 
  out_nomem:
-    ssl_free(&sfilter->filter);
+    ssl_free(sfilter->filter);
     return NULL;
 }
 
@@ -807,8 +813,10 @@ gensio_ssl_filter_config(struct gensio_os_funcs *o,
     unsigned int i;
     struct gensio_ssl_filter_data *data = o->zalloc(o, sizeof(*data));
     const char *CAfilepath = NULL, *keyfile = NULL, *certfile = NULL;
-    int rv, ival;
+    int rv = ENOMEM, ival;
 
+    if (!data)
+	return ENOMEM;
     data->o = o;
     data->is_client = default_is_client;
     data->max_write_size = SSL3_RT_MAX_PLAIN_LENGTH;
@@ -843,7 +851,8 @@ gensio_ssl_filter_config(struct gensio_os_funcs *o,
 	if (gensio_check_keybool(args[i], "clientauth",
 				 &data->clientauth) > 0)
 	    continue;
-	return EINVAL;
+	rv = EINVAL;
+	goto out_err;
     }
 
     if (!keyfile) {
@@ -860,8 +869,10 @@ gensio_ssl_filter_config(struct gensio_os_funcs *o,
     }
 
     if (!data->is_client) {
-	if (!keyfile)
-	    return ENOKEY;
+	if (!keyfile) {
+	    rv = ENOKEY;
+	    goto out_err;
+	}
     }
 
     if (keyfile && !certfile)
@@ -870,29 +881,33 @@ gensio_ssl_filter_config(struct gensio_os_funcs *o,
     if (CAfilepath) {
 	data->CAfilepath = gensio_strdup(o, CAfilepath);
 	if (!data->CAfilepath)
-	    return ENOMEM;
+	    goto out_err;
     }
 
     if (keyfile) {
 	data->keyfile = gensio_strdup(o, keyfile);
-	if (!data->keyfile) {
-	    o->free(o, data->CAfilepath);
-	    return ENOMEM;
-	}
+	if (!data->keyfile)
+	    goto out_err;
     }
 
     if (certfile) {
 	data->certfile = gensio_strdup(o, certfile);
-	if (!data->certfile) {
-	    o->free(o, data->keyfile);
-	    o->free(o, data->CAfilepath);
-	    return ENOMEM;
-	}
+	if (!data->certfile)
+	    goto out_err;
     }
 
     *rdata = data;
 
     return 0;
+ out_err:
+    if (data->CAfilepath)
+	o->free(o, data->CAfilepath);
+    if (data->keyfile)
+	o->free(o, data->keyfile);
+    if (data->certfile)
+	o->free(o, data->certfile);
+    o->free(o, data);
+    return rv;
 }
 
 void
@@ -990,8 +1005,21 @@ gensio_ssl_filter_alloc(struct gensio_ssl_filter_data *data,
 #else /* HAVE_OPENSSL */
 
 int
-gensio_ssl_filter_alloc(struct gensio_os_funcs *o, char *args[],
-			gensiods max_read_size,
+gensio_ssl_filter_config(struct gensio_os_funcs *o,
+			 const char * const args[],
+			 bool default_is_client,
+			 struct gensio_ssl_filter_data **rdata)
+{
+    return ENOSUP;
+}
+
+void
+gensio_ssl_filter_config_free(struct gensio_ssl_filter_data *data)
+{
+}
+
+int
+gensio_ssl_filter_alloc(struct gensio_ssl_filter_data *data,
 			struct gensio_filter **rfilter)
 {
     return ENOSUP;

@@ -99,6 +99,13 @@ struct gensio_ll {
     void *user_data;
 };
 
+struct gensio_filter {
+    struct gensio_os_funcs *o;
+    struct basen_data  *ndata;
+    gensio_filter_func func;
+    void *user_data;
+};
+
 static void
 basen_lock(struct basen_data *ndata)
 {
@@ -1021,8 +1028,10 @@ gensio_i_alloc(struct gensio_os_funcs *o,
     ndata->ll = ll;
     ll->ndata = ndata;
     ndata->filter = filter;
-    if (filter)
+    if (filter) {
+	filter->ndata = ndata;
 	gensio_filter_set_callback(filter, gensio_base_filter_cb, ndata);
+    }
     ndata->io = gensio_data_alloc(o, cb, user_data, gensio_base_func,
 				  child, typename, ndata);
     if (!ndata->io)
@@ -1186,6 +1195,43 @@ int gensio_filter_control(struct gensio_filter *filter, bool get,
 			NULL, data, datalen, NULL, &get, option, NULL);
 }
 
+int
+gensio_filter_do_event(struct gensio_filter *filter, int event, int err,
+		       unsigned char *buf, gensiods *buflen,
+		       const char *const *auxdata)
+{
+    struct basen_data *ndata = filter->ndata;
+
+    return gensio_cb(ndata->io, event, err, buf, buflen, auxdata);
+}
+
+struct gensio_filter *
+gensio_filter_alloc_data(struct gensio_os_funcs *o,
+			 gensio_filter_func func, void *user_data)
+{
+    struct gensio_filter *filter = o->zalloc(o, sizeof(*filter));
+
+    if (!filter)
+	return NULL;
+
+    filter->o = o;
+    filter->func = func;
+    filter->user_data = user_data;
+    return filter;
+}
+
+void
+gensio_filter_free_data(struct gensio_filter *filter)
+{
+    filter->o->free(filter->o, filter);
+}
+
+void *
+gensio_filter_get_user_data(struct gensio_filter *filter)
+{
+    return filter->user_data;
+}
+
 void
 gensio_ll_set_callback(struct gensio_ll *ll,
 		       gensio_ll_cb cb, void *cb_data)
@@ -1304,4 +1350,3 @@ gensio_ll_get_user_data(struct gensio_ll *ll)
 {
     return ll->user_data;
 }
-

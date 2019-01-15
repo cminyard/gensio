@@ -197,9 +197,17 @@ typedef int (*gensio_filter_func)(struct gensio_filter *filter, int op,
 				  const void *cbuf, gensiods buflen,
 				  const char *const *auxdata);
 
-struct gensio_filter {
-    gensio_filter_func func;
-};
+int gensio_filter_do_event(struct gensio_filter *filter, int event, int err,
+			   unsigned char *buf, gensiods *buflen,
+			   const char *const *auxdata);
+
+struct gensio_filter *gensio_filter_alloc_data(struct gensio_os_funcs *o,
+					       gensio_filter_func func,
+					       void *user_data);
+
+void gensio_filter_free_data(struct gensio_filter *filter);
+
+void *gensio_filter_get_user_data(struct gensio_filter *filter);
 
 struct gensio_ll;
 

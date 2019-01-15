@@ -34,7 +34,7 @@ enum telnet_write_state {
 };
 
 struct telnet_filter {
-    struct gensio_filter filter;
+    struct gensio_filter *filter;
 
     struct gensio_os_funcs *o;
     bool is_client;
@@ -80,7 +80,8 @@ struct telnet_filter {
     gensiods write_data_len;
 };
 
-#define filter_to_telnet(v) gensio_container_of(v, struct telnet_filter, filter)
+#define filter_to_telnet(v) ((struct telnet_filter *) \
+			     gensio_filter_get_user_data(v))
 
 static void telnet_filter_send_cmd(struct gensio_filter *filter,
 				   const unsigned char *buf,
@@ -454,6 +455,8 @@ telnet_free(struct gensio_filter *filter)
 	tfilter->o->free(tfilter->o, tfilter->write_data);
     if (tfilter->telnet_cbs)
 	tfilter->telnet_cbs->free(tfilter->handler_data);
+    if (tfilter->filter)
+	gensio_filter_free_data(tfilter->filter);
     telnet_cleanup(&tfilter->tn_data);
     tfilter->o->free(tfilter->o, tfilter);
 }
@@ -613,14 +616,17 @@ gensio_telnet_filter_raw_alloc(struct gensio_os_funcs *o,
 	goto out_nomem;
 
     *rops = &telnet_filter_rops;
-    tfilter->filter.func = gensio_telnet_filter_func;
+    tfilter->filter = gensio_filter_alloc_data(o, gensio_telnet_filter_func,
+					       tfilter);
+    if (!tfilter->filter)
+	goto out_nomem;
     tfilter->telnet_cbs = cbs;
     tfilter->handler_data = handler_data;
 
-    return &tfilter->filter;
+    return tfilter->filter;
 
  out_nomem:
-    telnet_free(&tfilter->filter);
+    telnet_free(tfilter->filter);
     return NULL;
 }
 
