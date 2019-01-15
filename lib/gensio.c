@@ -1123,6 +1123,7 @@ add_default_gensio_accepters(void *cb_data)
     register_gensio_accepter(o, "sctp", str_to_sctp_gensio_accepter);
     register_gensio_accepter(o, "stdio", str_to_stdio_gensio_accepter);
     register_gensio_accepter(o, "ssl", str_to_ssl_gensio_accepter);
+    register_gensio_accepter(o, "certauth", str_to_certauth_gensio_accepter);
     register_gensio_accepter(o, "telnet", str_to_telnet_gensio_accepter);
 }
 
@@ -1236,9 +1237,8 @@ add_default_gensios(void *cb_data)
     register_gensio(o, "udp", str_to_udp_gensio);
     register_gensio(o, "sctp", str_to_sctp_gensio);
     register_gensio(o, "stdio", str_to_stdio_gensio);
-#ifdef HAVE_OPENSSL
     register_gensio(o, "ssl", str_to_ssl_gensio);
-#endif
+    register_gensio(o, "certauth", str_to_certauth_gensio);
     register_gensio(o, "telnet", str_to_telnet_gensio);
     register_gensio(o, "serialdev", str_to_serialdev_gensio);
 #ifdef HAVE_OPENIPMI

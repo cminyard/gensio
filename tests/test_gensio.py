@@ -97,6 +97,18 @@ def ta_ssl_tcp():
             "Invalid common name in certificate, expected %s, got %s" %
             ("ser2net.org", cn[i+1:]))
 
+def ta_certauth_tcp():
+    print("Test accept certauth-tcp")
+    io1 = utils.alloc_io(o, "certauth(cert=%s/clientcert.pem,key=%s/clientkey.pem,username=testuser),tcp,localhost,3080" % (utils.srcdir, utils.srcdir), do_open = False)
+    ta = TestAccept(o, io1, "certauth(CA=%s/clientcert.pem),3080" % utils.srcdir, do_test)
+    cn = io1.control(0, True, gensio.GENSIO_CONTROL_GET_PEER_CERT_NAME,
+                     "-1,CN");
+    i = cn.index(',')
+    if cn[i+1:] != "gensio.org":
+        raise Exception(
+            "Invalid common name in certificate, expected %s, got %s" %
+            ("gensio.org", cn[i+1:]))
+
 def do_telnet_test(io1, io2):
     do_test(io1, io2)
     sio1 = io1.cast_to_sergensio()
@@ -532,6 +544,28 @@ def test_ssl_sctp_acc_connect():
                                % (utils.srcdir, utils.srcdir, utils.srcdir),
                            do_small_test, CA="%s/clientcert.pem" % utils.srcdir)
 
+def test_certauth_sctp_acc_connect():
+    print("Test certauth over sctp accepter connect")
+    goterr = False
+    try:
+        ta = TestAcceptConnect(o,
+                "certauth(CA=%s/clientcert.pem),sctp,3081" % utils.srcdir,
+                "certauth(CA=%s/clientcert.pem),sctp,3082" % utils.srcdir,
+                "certauth(cert=%s/cert.pem,key=%s/key.pem,username=test1),sctp,localhost,3081" % (utils.srcdir, utils.srcdir),
+                           do_small_test)
+    except Exception as E:
+        if str(E) != "gensio:open_s: Communication error on send":
+            raise
+        print "  Success checking invalid client cert"
+        goterr = True
+    if not goterr:
+        raise Exception("Did not get error on invalid client certificate.")
+
+    ta = TestAcceptConnect(o,
+                "certauth(),sctp,3083",
+                "certauth(),sctp,3084",
+                "certauth(cert=%s/clientcert.pem,key=%s/clientkey.pem,username=test1),sctp,localhost,3083" % (utils.srcdir, utils.srcdir),
+                           do_small_test, CA="%s/clientcert.pem" % utils.srcdir)
 
 test_echo_device()
 test_serial_pipe_device()
@@ -541,6 +575,7 @@ test_stdio_small()
 ta_tcp()
 ta_udp()
 ta_ssl_tcp()
+ta_certauth_tcp()
 ta_sctp()
 test_modemstate()
 test_tcp_small()
@@ -557,6 +592,7 @@ test_udp_acc_connect()
 test_sctp_acc_connect()
 test_telnet_sctp_acc_connect()
 test_ssl_sctp_acc_connect()
+test_certauth_sctp_acc_connect()
 
 test_ipmisol_large()
 test_rs485()

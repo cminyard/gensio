@@ -14,6 +14,7 @@ libgensio_la_SOURCES = \
 	gensio_filter_telnet.c telnet.c buffer.c \
 	gensio_ll_fd.c gensio_ll_gensio.c gensio_acc_gensio.c \
 	gensio_ll_ipmisol.c sergensio_ipmisol.c \
-	utils.c selector.c gensio_sctp.c
+	utils.c selector.c gensio_sctp.c \
+	gensio_filter_certauth.c gensio_certauth.c
 
 libgensio_la_LDFLAGS = $(OPENSSL_LIBS)
