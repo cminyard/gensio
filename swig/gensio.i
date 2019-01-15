@@ -21,8 +21,6 @@
 
 %{
 #include <string.h>
-#include <termios.h>
-#include <sgtty.h>
 #include <signal.h>
 
 #include <gensio/gensio.h>
@@ -169,16 +167,6 @@ void get_random_bytes(char **rbuffer, size_t *rbuffer_len, int size_to_allocate)
     *rbuffer = buffer;
     *rbuffer_len = size_to_allocate;
 }
-
-/* Defined in another file to avoid string type collisions. */
-extern int remote_termios(struct termios *termios, int fd);
-extern int remote_rs485(int fd, char **rstr);
-extern int set_remote_mctl(unsigned int mctl, int fd);
-extern int set_remote_sererr(unsigned int err, int fd);
-extern int set_remote_null_modem(bool val, int fd);
-extern int get_remote_mctl(unsigned int *mctl, int fd);
-extern int get_remote_sererr(unsigned int *err, int fd);
-extern int get_remote_null_modem(int *val, int fd);
 
 #ifdef USE_POSIX_THREADS
 struct sel_lock_s {
@@ -780,23 +768,6 @@ struct waiter { };
 %constant int SERGIO_FLUSH_RCV_XMIT_BUFFERS = SERGIO_FLUSH_RCV_XMIT_BUFFERS;
 
 
-/*
- * For get/set modem control.  You cannot set DTR or RTS, they are
- * outputs from the other side.
- */
-%constant int SERGENSIO_TIOCM_CAR = TIOCM_CAR;
-%constant int SERGENSIO_TIOCM_CTS = TIOCM_CTS;
-%constant int SERGENSIO_TIOCM_DSR = TIOCM_DSR;
-%constant int SERGENSIO_TIOCM_RNG = TIOCM_RNG;
-%constant int SERGENSIO_TIOCM_DTR = TIOCM_DTR;
-%constant int SERGENSIO_TIOCM_RTS = TIOCM_RTS;
-
-/* For remote errors.  These are the kernel numbers. */
-%constant int SERGENSIO_TTY_BREAK = 1 << 1;
-%constant int SERGENSIO_TTY_FRAME = 1 << 2;
-%constant int SERGENSIO_TTY_PARITY = 1 << 3;
-%constant int SERGENSIO_TTY_OVERRUN = 1 << 4;
-
 %nodefaultctor sergensio;
 %extend sergensio {
     ~sergensio()
@@ -857,129 +828,6 @@ struct waiter { };
 
     int sg_flush(unsigned int val) {
 	return sergensio_flush(self, val);
-    }
-
-    /*
-     * From here down get and set the serialsim driver special commands
-     * for remote termios and modem line handling.  See the driver for
-     * details.
-     */
-
-    /*
-     * Get remote termios.  For Python, this matches what the termios
-     * module does.
-     */
-    void get_remote_termios(void *termios) {
-	struct gensio *io = sergensio_to_gensio(self);
-	int fd, rv;
-
-	rv = gensio_remote_id(io, &fd);
-	if (!rv)
-	    rv = remote_termios(termios, fd);
-
-	if (rv)
-	    err_handle("get_remote_termios", rv);
-    }
-
-    /*
-     * Get remote RS485 config. This is string in the format:
-     *  <delay rts before send> <delay rts after send> [options]
-     * where options is (in the following order):
-     *  enabled, rts_on_send, rts_after_send, rx_during_tx, terminate_bus
-     */
-    char *get_remote_rs485() {
-	struct gensio *io = sergensio_to_gensio(self);
-	int fd, rv;
-	char *str = NULL;
-
-	rv = gensio_remote_id(io, &fd);
-	if (!rv)
-	    rv = remote_rs485(fd, &str);
-
-	if (rv)
-	    err_handle("get_remote_termios", rv);
-	return str;
-    }
-
-    void set_remote_modem_ctl(unsigned int val) {
-	struct gensio *io = sergensio_to_gensio(self);
-	int fd, rv;
-
-	rv = gensio_remote_id(io, &fd);
-	if (!rv)
-	    rv = set_remote_mctl(val, fd);
-
-	if (rv)
-	    err_handle("set_remote_modem_ctl", rv);
-    }
-
-    unsigned int get_remote_modem_ctl() {
-	struct gensio *io = sergensio_to_gensio(self);
-	int fd, rv;
-	unsigned int val;
-
-	rv = gensio_remote_id(io, &fd);
-	if (!rv)
-	    rv = get_remote_mctl(&val, fd);
-
-	if (rv)
-	    err_handle("get_remote_modem_ctl", rv);
-
-	return val;
-    }
-
-    void set_remote_serial_err(unsigned int val) {
-	struct gensio *io = sergensio_to_gensio(self);
-	int fd, rv;
-
-	rv = gensio_remote_id(io, &fd);
-	if (!rv)
-	    rv = set_remote_sererr(val, fd);
-
-	if (rv)
-	    err_handle("set_remote_serial_err", rv);
-    }
-
-
-    unsigned int get_remote_serial_err() {
-	struct gensio *io = sergensio_to_gensio(self);
-	int fd, rv;
-	unsigned int val;
-
-	rv = gensio_remote_id(io, &fd);
-	if (!rv)
-	    rv = get_remote_sererr(&val, fd);
-
-	if (rv)
-	    err_handle("get_remote_serial_err", rv);
-
-	return val;
-    }
-
-    void set_remote_null_modem(bool val) {
-	struct gensio *io = sergensio_to_gensio(self);
-	int fd, rv;
-
-	rv = gensio_remote_id(io, &fd);
-	if (!rv)
-	    rv = set_remote_null_modem(val, fd);
-
-	if (rv)
-	    err_handle("set_remote_null_modem", rv);
-    }
-
-    bool get_remote_null_modem() {
-	struct gensio *io = sergensio_to_gensio(self);
-	int fd, rv, val;
-
-	rv = gensio_remote_id(io, &fd);
-	if (!rv)
-	    rv = get_remote_null_modem(&val, fd);
-
-	if (rv)
-	    err_handle("get_remote_null_modem", rv);
-
-	return val;
     }
 }
 

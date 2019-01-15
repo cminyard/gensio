@@ -1,6 +1,7 @@
 #!/usr/bin/python
 import utils
 import gensio
+from remote_termios import *
 
 class Logger:
     def gensio_log(self, level, log):
@@ -178,7 +179,8 @@ def do_telnet_test(io1, io2):
 
 def ta_ssl_telnet():
     print("Test accept ssl telnet")
-    io1 = utils.alloc_io(o, "telnet,tcp,localhost,3027", do_open = False)
+    io1 = utils.alloc_io(o, "telnet(rfc2217),tcp,localhost,3027",
+                         do_open = False)
     ta = TestAccept(o, io1, "telnet(rfc2217=true),3027", do_telnet_test)
 
 def test_modemstate():
@@ -189,14 +191,12 @@ def test_modemstate():
 
     io1 = utils.alloc_io(o, io1str, do_open = False)
     io2 = utils.alloc_io(o, io2str)
-    sio1 = io1.cast_to_sergensio()
-    sio2 = io2.cast_to_sergensio()
 
-    sio2.set_remote_null_modem(False);
-    sio2.set_remote_modem_ctl((gensio.SERGENSIO_TIOCM_CAR |
-                               gensio.SERGENSIO_TIOCM_CTS |
-                               gensio.SERGENSIO_TIOCM_DSR |
-                               gensio.SERGENSIO_TIOCM_RNG) << 16)
+    set_remote_null_modem(io2, False);
+    set_remote_modem_ctl(io2, (SERGENSIO_TIOCM_CAR |
+                               SERGENSIO_TIOCM_CTS |
+                               SERGENSIO_TIOCM_DSR |
+                               SERGENSIO_TIOCM_RNG) << 16)
 
     io1.handler.set_expected_modemstate(0)
     io1.open_s()
@@ -209,8 +209,8 @@ def test_modemstate():
 
     io1.handler.set_expected_modemstate(gensio.SERGENSIO_MODEMSTATE_CD_CHANGED |
                                         gensio.SERGENSIO_MODEMSTATE_CD)
-    sio2.set_remote_modem_ctl((gensio.SERGENSIO_TIOCM_CAR << 16) |
-                              gensio.SERGENSIO_TIOCM_CAR)
+    set_remote_modem_ctl(io2, ((SERGENSIO_TIOCM_CAR << 16) |
+                               SERGENSIO_TIOCM_CAR))
     if (io1.handler.wait_timeout(2000)):
         raise Exception("%s: %s: Timed out waiting for modemstate 2" %
                         ("test dtr", io1.handler.name))
@@ -218,8 +218,8 @@ def test_modemstate():
     io1.handler.set_expected_modemstate(gensio.SERGENSIO_MODEMSTATE_DSR_CHANGED |
                                         gensio.SERGENSIO_MODEMSTATE_CD |
                                         gensio.SERGENSIO_MODEMSTATE_DSR)
-    sio2.set_remote_modem_ctl((gensio.SERGENSIO_TIOCM_DSR << 16) |
-                              gensio.SERGENSIO_TIOCM_DSR)
+    set_remote_modem_ctl(io2, ((SERGENSIO_TIOCM_DSR << 16) |
+                               SERGENSIO_TIOCM_DSR))
     if (io1.handler.wait_timeout(2000)):
         raise Exception("%s: %s: Timed out waiting for modemstate 3" %
                         ("test dtr", io1.handler.name))
@@ -228,8 +228,8 @@ def test_modemstate():
                                         gensio.SERGENSIO_MODEMSTATE_CD |
                                         gensio.SERGENSIO_MODEMSTATE_DSR |
                                         gensio.SERGENSIO_MODEMSTATE_CTS)
-    sio2.set_remote_modem_ctl((gensio.SERGENSIO_TIOCM_CTS << 16) |
-                              gensio.SERGENSIO_TIOCM_CTS)
+    set_remote_modem_ctl(io2, ((SERGENSIO_TIOCM_CTS << 16) |
+                               SERGENSIO_TIOCM_CTS))
     if (io1.handler.wait_timeout(2000)):
         raise Exception("%s: %s: Timed out waiting for modemstate 4" %
                         ("test dtr", io1.handler.name))
@@ -239,8 +239,8 @@ def test_modemstate():
                                         gensio.SERGENSIO_MODEMSTATE_DSR |
                                         gensio.SERGENSIO_MODEMSTATE_CTS |
                                         gensio.SERGENSIO_MODEMSTATE_RI)
-    sio2.set_remote_modem_ctl((gensio.SERGENSIO_TIOCM_RNG << 16) |
-                              gensio.SERGENSIO_TIOCM_RNG)
+    set_remote_modem_ctl(io2, ((SERGENSIO_TIOCM_RNG << 16) |
+                               SERGENSIO_TIOCM_RNG))
     if (io1.handler.wait_timeout(2000)):
         raise Exception("%s: %s: Timed out waiting for modemstate 5" %
                         ("test dtr", io1.handler.name))
@@ -249,10 +249,10 @@ def test_modemstate():
                                         gensio.SERGENSIO_MODEMSTATE_CD_CHANGED |
                                         gensio.SERGENSIO_MODEMSTATE_DSR_CHANGED |
                                         gensio.SERGENSIO_MODEMSTATE_CTS_CHANGED)
-    sio2.set_remote_modem_ctl((gensio.SERGENSIO_TIOCM_CAR |
-                               gensio.SERGENSIO_TIOCM_CTS |
-                               gensio.SERGENSIO_TIOCM_DSR |
-                               gensio.SERGENSIO_TIOCM_RNG) << 16)
+    set_remote_modem_ctl(io2, (SERGENSIO_TIOCM_CAR |
+                               SERGENSIO_TIOCM_CTS |
+                               SERGENSIO_TIOCM_DSR |
+                               SERGENSIO_TIOCM_RNG) << 16)
     if (io1.handler.wait_timeout(2000)):
         raise Exception("%s: %s: Timed out waiting for modemstate 6" %
                         ("test dtr", io1.handler.name))
@@ -263,7 +263,7 @@ def test_modemstate():
                                         gensio.SERGENSIO_MODEMSTATE_CD |
                                         gensio.SERGENSIO_MODEMSTATE_DSR |
                                         gensio.SERGENSIO_MODEMSTATE_CTS)
-    sio2.set_remote_null_modem(True);
+    set_remote_null_modem(io2, True);
     if (io1.handler.wait_timeout(2000)):
         raise Exception("%s: %s: Timed out waiting for modemstate 7" %
                         ("test dtr", io1.handler.name))
@@ -407,8 +407,7 @@ def test_rs485():
     io1 = utils.alloc_io(o, io1str)
     io2 = utils.alloc_io(o, io2str)
 
-    sio2 = io2.cast_to_sergensio()
-    rs485 = sio2.get_remote_rs485()
+    rs485 = get_remote_rs485(io2)
     check_rs485 = "103 495 enabled"
     if rs485 != check_rs485:
         raise Exception("%s: %s: Modemstate was not '%s', it was '%s'" %

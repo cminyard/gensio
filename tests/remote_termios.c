@@ -27,6 +27,8 @@
 #endif
 #include <errno.h>
 
+#include "remote_termios.h"
+
 /*
  * Stolen from glibc, but we can't directly include it from there
  * because the "termios" struct there conflicts with the one from the
@@ -46,8 +48,9 @@ struct user_termios {
 
 #include <linux-serial-echo/serialsim.h>
 
-int remote_termios(struct user_termios *termios, int fd)
+int remote_termios(struct termios *itermios, int fd)
 {
+    struct user_termios *termios = (struct user_termios *) itermios;
     struct termios2 ktermios;
     int rv = ioctl(fd, TIOCSERGREMTERMIOS, &ktermios);
     int i;
@@ -70,7 +73,7 @@ int remote_termios(struct user_termios *termios, int fd)
 }
 
 int
-set_remote_mctl(unsigned int mctl, int fd)
+sremote_mctl(unsigned int mctl, int fd)
 {
     if (ioctl(fd, TIOCSERSREMMCTRL, mctl))
 	return errno;
@@ -78,7 +81,7 @@ set_remote_mctl(unsigned int mctl, int fd)
 }
 
 int
-set_remote_sererr(unsigned int err, int fd)
+sremote_sererr(unsigned int err, int fd)
 {
     if (ioctl(fd, TIOCSERSREMERR, err))
 	return errno;
@@ -86,7 +89,7 @@ set_remote_sererr(unsigned int err, int fd)
 }
 
 int
-set_remote_null_modem(bool val, int fd)
+sremote_null_modem(bool val, int fd)
 {
     if (ioctl(fd, TIOCSERSREMNULLMODEM, (int) val))
 	return errno;
@@ -94,7 +97,7 @@ set_remote_null_modem(bool val, int fd)
 }
 
 int
-get_remote_mctl(unsigned int *mctl, int fd)
+gremote_mctl(unsigned int *mctl, int fd)
 {
     if (ioctl(fd, TIOCSERGREMMCTRL, mctl))
 	return errno;
@@ -102,7 +105,7 @@ get_remote_mctl(unsigned int *mctl, int fd)
 }
 
 int
-get_remote_sererr(unsigned int *err, int fd)
+gremote_sererr(unsigned int *err, int fd)
 {
     if (ioctl(fd, TIOCSERGREMERR, err))
 	return errno;
@@ -110,7 +113,7 @@ get_remote_sererr(unsigned int *err, int fd)
 }
 
 int
-get_remote_null_modem(int *val, int fd)
+gremote_null_modem(int *val, int fd)
 {
     if (ioctl(fd, TIOCSERGREMNULLMODEM, val))
 	return errno;

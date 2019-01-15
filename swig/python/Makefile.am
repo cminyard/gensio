@@ -18,7 +18,7 @@ gensio_wrap.c gensio.py: $(top_srcdir)/swig/gensio.i \
 EXTRA_DIST = gensio_python.i
 
 nodist__gensio_la_SOURCES = gensio_wrap.c
-_gensio_la_LIBADD = $(top_builddir)/lib/libgensio.la ../termios.lo $(OPENSSL_LIBS)
+_gensio_la_LIBADD = $(top_builddir)/lib/libgensio.la $(OPENSSL_LIBS)
 _gensio_la_LDFLAGS = -module -avoid-version $(OPENSSL_LDFLAGS)
 
 clean-local:
@@ -27,6 +27,7 @@ clean-local:
 install-exec-local: _gensio.la gensio.py
 	$(INSTALL) -d $(DESTDIR)$(PYTHON_INSTALL_DIR)
 	$(INSTALL_DATA) gensio.py "$(DESTDIR)$(PYTHON_INSTALL_DIR)"
+	$(INSTALL_DATA) .libs/_gensio.so "$(DESTDIR)$(PYTHON_INSTALL_DIR)"
 
 uninstall-local:
 	$(LIBTOOL) --mode=uninstall rm -f "$(DESTDIR)$(PYTHON_INSTALL_LIB_DIR)/_gensio.so"

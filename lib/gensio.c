@@ -1775,8 +1775,9 @@ struct gensio_def_entry builtin_defaults[] = {
     { "CA",		GENSIO_DEFAULT_STR,	.def.strval = NULL },
     { "cert",		GENSIO_DEFAULT_STR,	.def.strval = NULL },
     { "key",		GENSIO_DEFAULT_STR,	.def.strval = NULL },
-    { "allow-authfail",	GENSIO_DEFAULT_BOOL,	.def.intval = false },
     { "clientauth",	GENSIO_DEFAULT_BOOL,	.def.intval = false },
+    /* General authentication flags. */
+    { "allow-authfail",	GENSIO_DEFAULT_BOOL,	.def.intval = false },
     {}
 };
 
