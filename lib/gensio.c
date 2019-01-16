@@ -406,12 +406,13 @@ gensio_scan_args(const char **rstr, int *argc, const char ***args)
     if (*str == '(') {
 	err = str_to_argv_lengths_endchar(str + 1, argc, args, NULL,
 					  " \f\n\r\t\v,", ")", &str);
-	if (!err && (!str || *str != ','))
-	    err = EINVAL; /* No terminating ')' or ',' after */
+	if (!err && (!str || (*str != ',' && *str)))
+	    err = EINVAL; /* Not a ',' or end of string after */
 	else
 	    str++;
     } else {
-	str += 1;
+	if (*str)
+	    str += 1; /* skip the comma */
 	err = str_to_argv_lengths("", argc, args, NULL, ")");
     }
 
@@ -1171,7 +1172,7 @@ int str_to_gensio_accepter(const char *str,
     for (r = reg_gensio_accs; r; r = r->next) {
 	len = strlen(r->name);
 	if (strncmp(r->name, str, len) != 0 ||
-			(str[len] != ',' && str[len] != '('))
+			(str[len] != ',' && str[len] != '(' && str[len]))
 	    continue;
 
 	str += len;
@@ -1289,7 +1290,7 @@ str_to_gensio(const char *str,
     for (r = reg_gensios; r; r = r->next) {
 	len = strlen(r->name);
 	if (strncmp(r->name, str, len) != 0 ||
-			(str[len] != ',' && str[len] != '('))
+			(str[len] != ',' && str[len] != '(' && str[len]))
 	    continue;
 
 	str += len;

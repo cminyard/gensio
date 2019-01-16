@@ -219,7 +219,7 @@ basena_str_to_gensio(struct gensio_accepter *accepter, const char *addr,
     const char **args = NULL;
 
     if (strncmp(addr, type, typelen) != 0 ||
-		(addr[typelen] != ',' && addr[typelen] != '('))
+		(addr[typelen] != ',' && addr[typelen] != '(' && addr[typelen]))
 	return EINVAL;
 
     addr += typelen;
@@ -227,7 +227,7 @@ basena_str_to_gensio(struct gensio_accepter *accepter, const char *addr,
 	err = gensio_scan_args(&addr, &argc, &args);
 	if (err)
 	    return err;
-    } else {
+    } else if (*addr) {
 	addr++; /* Skip the ',' */
     }
 
