@@ -633,21 +633,6 @@ gensio_acc_shutdown_done(struct gensio_accepter *accepter, void *cb_data)
     OI_PY_STATE_PUT(gstate);
 }
 
-const char *gensio_log_level_to_str(int gloglevel)
-{
-    switch (gloglevel) {
-    case GENSIO_LOG_FATAL:
-	return "fatal";
-    case GENSIO_LOG_ERR:
-	return "error";
-    case GENSIO_LOG_WARNING:
-	return "warning";
-    case GENSIO_LOG_INFO:
-	return "info";
-    }
-    return "error";
-}
-
 static int
 gensio_acc_child_event(struct gensio_accepter *accepter, int event, void *cdata)
 {

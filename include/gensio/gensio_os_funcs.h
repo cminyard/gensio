@@ -52,6 +52,7 @@ enum gensio_log_levels {
  */
 void gensio_set_log_mask(unsigned int mask);
 unsigned int gensio_get_log_mask(void);
+const char *gensio_log_level_to_str(enum gensio_log_levels level);
 
 struct gensio_os_funcs {
     /* For use by the code doing the os function translation. */

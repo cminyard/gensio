@@ -2105,3 +2105,16 @@ gensio_list_empty(struct gensio_list *list)
 {
     return list->link.next == &list->link;
 }
+
+const char *
+gensio_log_level_to_str(enum gensio_log_levels level)
+{
+    switch (level) {
+    case GENSIO_LOG_FATAL: return "fatal"; break;
+    case GENSIO_LOG_ERR: return "err"; break;
+    case GENSIO_LOG_WARNING: return "warning"; break;
+    case GENSIO_LOG_INFO: return "info"; break;
+    case GENSIO_LOG_DEBUG: return "debug"; break;
+    default: return "invalid";
+    }
+}
