@@ -854,7 +854,7 @@ gensio_control(struct gensio *io, int depth, bool get,
 		return rv;
 	    c = c->child;
 	}
-	return 0;
+	return ENOTSUP;
     }
 
     if (depth < 0)
