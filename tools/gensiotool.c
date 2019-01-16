@@ -783,16 +783,18 @@ main(int argc, char *argv[])
     else
 	rv = str_to_gensio(ioinfo2.ios, g.o, io_event, &ioinfo2, &ioinfo2.io);
     if (rv) {
-	fprintf(stderr, "Could not allocate %s: %s\n", ioinfo2.ios, strerror(rv));
+	fprintf(stderr, "Could not allocate %s: %s\n", ioinfo2.ios,
+		strerror(rv));
 	return 1;
     }
 
+    ioinfo1.can_close = true;
     rv = gensio_open(ioinfo1.io, io_open, NULL);
     if (rv) {
+	ioinfo1.can_close = false;
 	fprintf(stderr, "Could not open %s: %s\n", ioinfo1.ios, strerror(rv));
 	return 1;
     }
-    ioinfo1.can_close = true;
 
     if (io2_do_acc) {
 	rv = gensio_acc_startup(io2_acc);
@@ -802,13 +804,14 @@ main(int argc, char *argv[])
 	    goto close1;
 	}
     } else {
+	ioinfo2.can_close = true;
 	rv = gensio_open(ioinfo2.io, io_open, NULL);
 	if (rv) {
+	    ioinfo2.can_close = false;
 	    fprintf(stderr, "Could not open %s: %s\n", ioinfo2.ios,
 		    strerror(rv));
 	    goto close1;
 	}
-	ioinfo2.can_close = true;
     }
 
     g.o->wait(g.waiter, 1, NULL);
@@ -824,11 +827,13 @@ main(int argc, char *argv[])
     }
 
  close1:
-    rv = gensio_close(ioinfo1.io, io_close, closewaiter);
-    if (rv)
-	printf("Unable to close %s: %s\n", ioinfo1.ios, strerror(rv));
-    else
-	closecount++;
+    if (ioinfo1.can_close) {
+	rv = gensio_close(ioinfo1.io, io_close, closewaiter);
+	if (rv)
+	    printf("Unable to close %s: %s\n", ioinfo1.ios, strerror(rv));
+	else
+	    closecount++;
+    }
 
     if (closecount > 0) {
 	g.o->wait(closewaiter, closecount, NULL);
