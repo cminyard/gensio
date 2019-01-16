@@ -523,12 +523,15 @@ stdion_open(struct gensio *io, gensio_done_err open_done, void *open_data)
 	goto out_err;
     }
     if (nadata->opid == 0) {
-	close(stdinpipe[1]);
-	close(stdoutpipe[0]);
-	close(stderrpipe[0]);
+	unsigned int i, openfiles = sysconf(_SC_OPEN_MAX);
+
 	dup2(stdinpipe[0], 0);
 	dup2(stdoutpipe[1], 1);
 	dup2(stderrpipe[1], 2);
+
+	/* Close everything but stdio. */
+	for (i = 3; i < openfiles; i++)
+	    close(i);
 
 	execvp(nadata->argv[0], nadata->argv);
 	{
