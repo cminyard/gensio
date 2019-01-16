@@ -180,6 +180,63 @@ struct certauth_filter {
 			       gensio_filter_get_user_data(v))
 
 static void
+gca_vlog(struct certauth_filter *f, enum gensio_log_levels l,
+	 bool do_ssl_err, char *fmt, va_list ap)
+{
+    if (do_ssl_err) {
+	char buf[256], buf2[200];
+	unsigned long ssl_err = ERR_get_error();
+
+	if (!ssl_err)
+	    goto no_ssl_err;
+
+	ERR_error_string_n(ssl_err, buf2, sizeof(buf2));
+	snprintf(buf, sizeof(buf), "ssl: %s: %s", fmt, buf2);
+	gensio_vlog(f->o, l, buf, ap);
+    } else {
+    no_ssl_err:
+	gensio_vlog(f->o, l, fmt, ap);
+    }
+}
+
+
+static void
+gca_log_info(struct certauth_filter *f, char *fmt, ...)
+{
+    va_list ap;
+    va_start(ap, fmt);
+    gca_vlog(f, GENSIO_LOG_INFO, false, fmt, ap);
+    va_end(ap);
+}
+
+static void
+gca_log_err(struct certauth_filter *f, char *fmt, ...)
+{
+    va_list ap;
+    va_start(ap, fmt);
+    gca_vlog(f, GENSIO_LOG_ERR, false, fmt, ap);
+    va_end(ap);
+}
+
+static void
+gca_logs_info(struct certauth_filter *f, char *fmt, ...)
+{
+    va_list ap;
+    va_start(ap, fmt);
+    gca_vlog(f, GENSIO_LOG_INFO, true, fmt, ap);
+    va_end(ap);
+}
+
+static void
+gca_logs_err(struct certauth_filter *f, char *fmt, ...)
+{
+    va_list ap;
+    va_start(ap, fmt);
+    gca_vlog(f, GENSIO_LOG_ERR, true, fmt, ap);
+    va_end(ap);
+}
+
+static void
 certauth_lock(struct certauth_filter *sfilter)
 {
     sfilter->o->lock(sfilter->lock);
@@ -242,6 +299,7 @@ static void
 certauth_write(struct certauth_filter *sfilter, void *data, unsigned int len)
 {
     if (len + sfilter->write_buf_len > sfilter->max_write_size) {
+	gca_log_err(sfilter, "Unable to write data to network");
 	sfilter->pending_err = EOVERFLOW;
 	return;
     }
@@ -336,8 +394,10 @@ certauth_add_cert(struct certauth_filter *sfilter)
     sfilter->cert_buf_mem.max = certauth_writeleft(sfilter);
     BIO_set_mem_buf(sfilter->cert_bio, &sfilter->cert_buf_mem, BIO_NOCLOSE);
     BIO_set_flags(sfilter->cert_bio, 0);
-    if (PEM_write_bio_X509(sfilter->cert_bio, sfilter->cert) == 0)
+    if (PEM_write_bio_X509(sfilter->cert_bio, sfilter->cert) == 0) {
+	gca_logs_err(sfilter, "Failure writing cert to network");
 	return EOVERFLOW;
+    }
     sfilter->write_buf_len += sfilter->cert_buf_mem.length;
     certauth_u16_to_buf(sfilter->write_buf + lenpos,
 			sfilter->cert_buf_mem.length);
@@ -355,15 +415,22 @@ certauth_get_cert(struct certauth_filter *sfilter)
 		    BIO_NOCLOSE);
     BIO_set_flags(sfilter->cert_bio, BIO_FLAGS_MEM_RDONLY);
     sfilter->cert = PEM_read_bio_X509(sfilter->cert_bio, NULL, NULL, NULL);
-    if (!sfilter->cert)
+    if (!sfilter->cert) {
+	gca_logs_err(sfilter, "Failure reading cert from network");
 	return ENOKEY;
+    }
     sfilter->write_buf_len += sfilter->cert_buf_mem.length;
 
     sfilter->sk_ca = sk_X509_new_null();
-    if (!sfilter->sk_ca)
+    if (!sfilter->sk_ca) {
+	gca_log_err(sfilter, "Failure allocating CA stack");
 	return ENOMEM;
-    if (!sk_X509_push(sfilter->sk_ca, sfilter->cert))
+    }
+    if (!sk_X509_push(sfilter->sk_ca, sfilter->cert)) {
+	gca_log_err(sfilter, "Failure pushing to CA stack");
 	return ENOMEM;
+    }
+    /* cert is in the stack and held by the user. */
     X509_up_ref(sfilter->cert);
 
     return 0;
@@ -379,20 +446,30 @@ certauth_add_challenge_rsp(struct certauth_filter *sfilter)
     certauth_write_byte(sfilter, CERTAUTH_CHALLENGE_RSP);
     lenpos = sfilter->write_buf_len;
     sfilter->write_buf_len += 2;
-    if (certauth_writeleft(sfilter) < EVP_PKEY_size(sfilter->pkey))
+    if (certauth_writeleft(sfilter) < EVP_PKEY_size(sfilter->pkey)) {
+	gca_log_err(sfilter, "Key too large to fit in the data");
 	return EOVERFLOW;
+    }
 
     sign_ctx = EVP_MD_CTX_new();
-    if (!sign_ctx)
+    if (!sign_ctx) {
+	gca_log_err(sfilter, "Unable to allocate signature context");
 	return ENOMEM;
-    if (!EVP_SignInit(sign_ctx, sfilter->rsa_md5))
+    }
+    if (!EVP_SignInit(sign_ctx, sfilter->rsa_md5)) {
+	gca_logs_err(sfilter, "Signature init failed");
 	goto out_nomem;
+    }
     if (!EVP_SignUpdate(sign_ctx, sfilter->challenge_data,
-			sfilter->challenge_data_size))
+			sfilter->challenge_data_size)) {
+	gca_logs_err(sfilter, "Signature update failed");
 	goto out_nomem;
+    }
     if (!EVP_SignFinal(sign_ctx, certauth_writepos(sfilter), &len,
-		       sfilter->pkey))
+		       sfilter->pkey)) {
+	gca_logs_err(sfilter, "Signature final failed");
 	goto out_nomem;
+    }
     sfilter->write_buf_len += len;
     certauth_u16_to_buf(sfilter->write_buf + lenpos, len);
 
@@ -412,22 +489,32 @@ certauth_check_challenge(struct certauth_filter *sfilter)
     int rv = 0;
 
     sign_ctx = EVP_MD_CTX_new();
-    if (!sign_ctx)
+    if (!sign_ctx) {
+	gca_log_err(sfilter, "Unable to allocate verify context");
 	return ENOMEM;
-    if (!EVP_VerifyInit(sign_ctx, sfilter->rsa_md5))
+    }
+    if (!EVP_VerifyInit(sign_ctx, sfilter->rsa_md5)) {
+	gca_logs_err(sfilter, "Verify init failed");
 	goto out_nomem;
+    }
     if (!EVP_VerifyUpdate(sign_ctx, sfilter->challenge_data,
-			  sfilter->challenge_data_size))
+			  sfilter->challenge_data_size)) {
+	gca_logs_err(sfilter, "Verify update failed");
 	goto out_nomem;
+    }
     rv = EVP_VerifyFinal(sign_ctx, sfilter->read_buf, sfilter->read_buf_len,
 			 X509_get0_pubkey(sfilter->cert));
-    if (rv < 0)
+    if (rv < 0) {
+	gca_logs_err(sfilter, "Verify final failed");
 	goto out_nomem;
+    }
 
-    if (rv)
+    if (rv) {
 	sfilter->result = CERTAUTH_RESULT_SUCCESS;
-    else
+    } else {
+	gca_logs_info(sfilter, "Certificate verify failed");
 	sfilter->result = CERTAUTH_RESULT_ERR;
+    }
     rv = 0;
 
  out:
@@ -443,6 +530,8 @@ static int
 certauth_try_connect(struct gensio_filter *filter, struct timeval *timeout)
 {
     struct certauth_filter *sfilter = filter_to_certauth(filter);
+    struct gensio *io;
+    int err;
 
     certauth_lock(sfilter);
     if (sfilter->pending_err)
@@ -475,23 +564,35 @@ certauth_try_connect(struct gensio_filter *filter, struct timeval *timeout)
     case CERTAUTH_CLIENTHELLO:
 	if (!sfilter->username || !sfilter->version) {
 	    /* Remote end didn't send version or userid. */
+	    gca_log_err(sfilter,
+			   "Remote client didn't send username or version");
 	    sfilter->pending_err = ENOENT;
 	    break;
 	}
+	io = gensio_filter_get_gensio(filter);
 	if (sfilter->use_child_auth) {
-	    struct gensio *io = gensio_filter_get_gensio(filter);
-
 	    if (gensio_is_authenticated(io)) {
 		/*
 		 * A lower layer has already authenticated, just skip this.
 		 */
+		gca_log_info(sfilter, "Using lower layer authentication");
 		sfilter->result = CERTAUTH_RESULT_SUCCESS;
 		goto finish_result;
 	    }
+	} else {
+	    /* Override child setting. */
+	    gensio_set_is_authenticated(io, false);
 	}
+
 	if (sfilter->username_len == 0) {
-	    sfilter->state = CERTAUTH_PASSTHROUGH;
-	    goto out_finish;
+	    if (sfilter->allow_authfail) {
+		gca_log_info(sfilter, "No username given, passing auth");
+		sfilter->state = CERTAUTH_PASSTHROUGH;
+		goto out_finish;
+	    }
+	    gca_log_err(sfilter, "No username given");
+	    sfilter->result = ENOKEY;
+	    break;
 	}
 
 	sfilter->write_buf_len = 0;
@@ -503,6 +604,7 @@ certauth_try_connect(struct gensio_filter *filter, struct timeval *timeout)
 	certauth_write_u16(sfilter, sfilter->challenge_data_size);
 	if (!RAND_bytes(sfilter->challenge_data,
 			sfilter->challenge_data_size)) {
+	    gca_log_err(sfilter, "Unable to get random data");
 	    sfilter->pending_err = ENOTUNIQ;
 	    break;
 	}
@@ -521,6 +623,8 @@ certauth_try_connect(struct gensio_filter *filter, struct timeval *timeout)
 
 	if (!sfilter->challenge_data || !sfilter->version) {
 	    /* Remote end didn't send challenge or userid. */
+	    gca_log_err(sfilter,
+			"Remote server didn't send challenge data or version");
 	    sfilter->pending_err = ENOENT;
 	    break;
 	}
@@ -543,18 +647,22 @@ certauth_try_connect(struct gensio_filter *filter, struct timeval *timeout)
     case CERTAUTH_CHALLENGE_RESPONSE:
 	if (!sfilter->cert || !sfilter->result) {
 	    /* Remote end didn't send certificate or challenge response. */
+	    gca_log_err(sfilter,
+		"Remote client didn't send cert data or challenge response");
 	    sfilter->pending_err = ENOENT;
 	    goto out_err;
 	}
 
 	certauth_unlock(sfilter);
-	sfilter->pending_err =
-	    gensio_filter_do_event(sfilter->filter,
-				   GENSIO_EVENT_PRECERT_VERIFY, 0,
-				   NULL, NULL, NULL);
+	err = gensio_filter_do_event(sfilter->filter,
+				     GENSIO_EVENT_PRECERT_VERIFY, 0,
+				     NULL, NULL, NULL);
 	certauth_lock(sfilter);
-	if (sfilter->pending_err)
+	if (err && err != ENOTSUP) {
+	    sfilter->pending_err = err;
+	    gca_log_err(sfilter, "User refused the connection");
 	    goto out_err;
+	}
 
 	sfilter->pending_err = certauth_verify_cert(sfilter);
 	if (sfilter->pending_err)
@@ -574,6 +682,7 @@ certauth_try_connect(struct gensio_filter *filter, struct timeval *timeout)
     case CERTAUTH_SERVERDONE:
 	if (!sfilter->result) {
 	    /* Remote end didn't send result. */
+	    gca_log_err(sfilter, "Remote server didn't send result");
 	    sfilter->pending_err = ENOENT;
 	    goto out_err;
 	}
@@ -652,29 +761,37 @@ certauth_handle_new_element(struct certauth_filter *sfilter)
     switch (sfilter->curr_elem) {
     case CERTAUTH_VERSION:
 	if (sfilter->version) {
+	    gca_log_err(sfilter, "Version received when already set");
 	    sfilter->pending_err = EPROTO;
 	    break;
 	}
-	if (sfilter->curr_elem_len != 2)
+	if (sfilter->curr_elem_len != 2) {
+	    gca_log_err(sfilter, "Version size not 2");
 	    sfilter->pending_err = EPROTO;
-	else {
+	} else {
 	    sfilter->version = certauth_buf_to_u16(sfilter->read_buf);
-	    if (!sfilter->version)
+	    if (!sfilter->version) {
+		gca_log_err(sfilter, "Version was zero");
 		sfilter->pending_err = EPROTO;
+	    }
 	}
 	break;
 
     case CERTAUTH_USERID:
 	if (sfilter->username) {
+	    gca_log_err(sfilter, "Username received when already set");
 	    sfilter->pending_err = EPROTO;
 	    break;
 	}
 	sfilter->username = o->zalloc(0, sfilter->curr_elem_len + 1);
 	sfilter->username_len = sfilter->curr_elem_len;
-	if (!sfilter->username)
+	if (!sfilter->username) {
+	    gca_log_err(sfilter, "Unable to allocate memory for username");
 	    sfilter->pending_err = ENOMEM;
-	else
-	    memcpy(sfilter->username, sfilter->read_buf, sfilter->curr_elem_len);
+	} else {
+	    memcpy(sfilter->username, sfilter->read_buf,
+		   sfilter->curr_elem_len);
+	}
 	break;
 
     case CERTAUTH_OPTIONS:
@@ -682,20 +799,25 @@ certauth_handle_new_element(struct certauth_filter *sfilter)
 
     case CERTAUTH_CHALLENGE_DATA:
 	if (sfilter->challenge_data) {
+	    gca_log_err(sfilter, "Challenge data received when already set");
 	    sfilter->pending_err = EPROTO;
 	    break;
 	}
 	sfilter->challenge_data = o->zalloc(0, sfilter->curr_elem_len);
 	sfilter->challenge_data_size = sfilter->curr_elem_len;
-	if (!sfilter->challenge_data)
+	if (!sfilter->challenge_data) {
+	    gca_log_err(sfilter, "Unable to allocate memory for challenge");
 	    sfilter->pending_err = ENOMEM;
-	else
+	} else {
 	    memcpy(sfilter->challenge_data, sfilter->read_buf,
 		   sfilter->curr_elem_len);
+	}
 	break;
 
     case CERTAUTH_CHALLENGE_RSP:
 	if (sfilter->result) {
+	    gca_log_err(sfilter,
+			"Challenge response received when already set");
 	    sfilter->pending_err = EPROTO;
 	    break;
 	}
@@ -704,6 +826,7 @@ certauth_handle_new_element(struct certauth_filter *sfilter)
 
     case CERTAUTH_CERTIFICATE:
 	if (sfilter->cert) {
+	    gca_log_err(sfilter, "Certificate received when already set");
 	    sfilter->pending_err = EPROTO;
 	    break;
 	}
@@ -712,15 +835,19 @@ certauth_handle_new_element(struct certauth_filter *sfilter)
 
     case CERTAUTH_RESULT:
 	if (sfilter->result) {
+	    gca_log_err(sfilter, "Result received when already set");
 	    sfilter->pending_err = EPROTO;
 	    break;
 	}
-	if (sfilter->curr_elem_len != 2)
+	if (sfilter->curr_elem_len != 2) {
+	    gca_log_err(sfilter, "Result size not 2");
 	    sfilter->pending_err = EPROTO;
-	else {
+	} else {
 	    sfilter->result = certauth_buf_to_u16(sfilter->read_buf);
-	    if (!sfilter->result)
+	    if (!sfilter->result) {
+		gca_log_err(sfilter, "Result value was zero");
 		sfilter->pending_err = EPROTO;
+	    }
 	}
 	break;
 
@@ -762,6 +889,8 @@ certauth_ll_write(struct gensio_filter *filter,
 	buf++;
 	buflen--;
 	if (sfilter->curr_msg_type > CERTAUTH_STATE_MAX) {
+	    gca_log_err(sfilter, "Invalid message type: %d",
+			sfilter->curr_msg_type);
 	    sfilter->pending_err = EPROTO;
 	    goto out_unlock;
 	}
@@ -771,8 +900,10 @@ certauth_ll_write(struct gensio_filter *filter,
 	sfilter->read_buf_len = 0;
 	/* Note that we allow server done when waiting for a server hello. */
 	if (sfilter->curr_msg_type != sfilter->state &&
-	    !(sfilter->curr_msg_type == CERTAUTH_SERVERDONE &&
-	      sfilter->state == CERTAUTH_SERVERHELLO)) {
+		!(sfilter->curr_msg_type == CERTAUTH_SERVERDONE &&
+		  sfilter->state == CERTAUTH_SERVERHELLO)) {
+	    gca_log_err(sfilter, "Expected message type %d, got %d",
+			sfilter->curr_msg_type, sfilter->state);
 	    sfilter->pending_err = EPROTO;
 	    goto out_unlock;
 	}
@@ -791,6 +922,8 @@ certauth_ll_write(struct gensio_filter *filter,
 	}
 	if (sfilter->curr_elem > CERTAUTH_MAX_ELEMENT ||
 			sfilter->curr_elem < CERTAUTH_MIN_ELEMENT) {
+	    gca_log_err(sfilter, "Invalid message element: %d",
+			sfilter->curr_elem);
 	    sfilter->pending_err = EPROTO;
 	    goto out_unlock;
 	}
@@ -810,6 +943,8 @@ certauth_ll_write(struct gensio_filter *filter,
 	sfilter->curr_elem_len |= *buf;
 	if (!sfilter->curr_elem_len ||
 		sfilter->curr_elem_len > sfilter->max_read_size) {
+	    gca_log_err(sfilter, "Element type %d was too large: %d",
+			sfilter->curr_elem, sfilter->curr_elem_len);
 	    sfilter->pending_err = EPROTO;
 	    goto out_unlock;
 	}
