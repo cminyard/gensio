@@ -42,6 +42,7 @@ enum basen_state { BASEN_CLOSED,
 
 struct basen_data {
     struct gensio *io;
+    struct gensio *child;
 
     struct gensio_os_funcs *o;
     struct gensio_filter *filter;
@@ -547,6 +548,18 @@ basen_ll_open_done(void *cb_data, int err, void *open_data)
 	basen_finish_open(ndata, err);
     } else {
 	/*
+	 * Once the lower layer is open, propagate the traits.
+	 */
+	if (ndata->child) {
+	    if (gensio_is_reliable(ndata->child))
+		gensio_set_is_reliable(ndata->io, true);
+	    if (gensio_is_authenticated(ndata->child))
+		gensio_set_is_authenticated(ndata->io, true);
+	    if (gensio_is_encrypted(ndata->child))
+		gensio_set_is_encrypted(ndata->io, true);
+	}
+
+	/*
 	 * We will lose the reference for the LL below, add one for the
 	 * filter open.
 	 */
@@ -1036,6 +1049,7 @@ gensio_i_alloc(struct gensio_os_funcs *o,
 				  child, typename, ndata);
     if (!ndata->io)
 	goto out_nomem;
+    ndata->child = child;
     gensio_set_is_client(ndata->io, is_client);
     gensio_ll_set_callback(ll, gensio_ll_base_cb, ndata);
     if (is_client)
@@ -1193,6 +1207,12 @@ int gensio_filter_control(struct gensio_filter *filter, bool get,
 {
     return filter->func(filter, GENSIO_FILTER_FUNC_CONTROL,
 			NULL, data, datalen, NULL, &get, option, NULL);
+}
+
+struct gensio *
+gensio_filter_get_gensio(struct gensio_filter *filter)
+{
+    return filter->ndata->io;
 }
 
 int

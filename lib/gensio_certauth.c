@@ -39,9 +39,9 @@
 
 int
 certauth_gensio_alloc(struct gensio *child, const char *const args[],
-		 struct gensio_os_funcs *o,
-		 gensio_event cb, void *user_data,
-		 struct gensio **net)
+		      struct gensio_os_funcs *o,
+		      gensio_event cb, void *user_data,
+		      struct gensio **net)
 {
     int err;
     struct gensio_filter *filter;
@@ -87,9 +87,9 @@ certauth_gensio_alloc(struct gensio *child, const char *const args[],
 
 int
 str_to_certauth_gensio(const char *str, const char * const args[],
-		  struct gensio_os_funcs *o,
-		  gensio_event cb, void *user_data,
-		  struct gensio **new_gensio)
+		       struct gensio_os_funcs *o,
+		       gensio_event cb, void *user_data,
+		       struct gensio **new_gensio)
 {
     int err;
     struct gensio *io2;
@@ -122,7 +122,7 @@ certauthna_free(void *acc_data)
 
 int
 certauthna_alloc_gensio(void *acc_data, const char * const *iargs,
-		   struct gensio *child, struct gensio **rio)
+			struct gensio *child, struct gensio **rio)
 {
     struct certauthna_data *nadata = acc_data;
 
@@ -131,7 +131,7 @@ certauthna_alloc_gensio(void *acc_data, const char * const *iargs,
 
 static int
 certauthna_new_child(void *acc_data, void **finish_data,
-		struct gensio_filter **filter)
+		     struct gensio_filter **filter)
 {
     struct certauthna_data *nadata = acc_data;
 
@@ -140,8 +140,8 @@ certauthna_new_child(void *acc_data, void **finish_data,
 
 static int
 certauthna_gensio_event(struct gensio *io, int event, int err,
-		   unsigned char *buf, gensiods *buflen,
-		   const char *const *auxdata)
+			unsigned char *buf, gensiods *buflen,
+			const char *const *auxdata)
 {
     struct certauthna_data *nadata = gensio_get_user_data(io);
 
@@ -163,7 +163,7 @@ certauthna_finish_parent(void *acc_data, void *finish_data, struct gensio *io)
 
 static int
 gensio_gensio_acc_certauth_cb(void *acc_data, int op, void *data1, void *data2,
-			 void *data3, const void *data4)
+			      void *data3, const void *data4)
 {
     switch (op) {
     case GENSIO_GENSIO_ACC_ALLOC_GENSIO:

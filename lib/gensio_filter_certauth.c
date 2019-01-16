@@ -31,6 +31,7 @@ struct gensio_certauth_filter_data {
     char *certfile;
     char *username;
     bool allow_authfail;
+    bool use_child_auth;
 };
 
 #ifdef HAVE_OPENSSL
@@ -134,6 +135,9 @@ struct certauth_filter {
 
     /* Certificate verification result, server only. */
     bool verified;
+
+    /* Use authenticated from the child gensio to skip this layer. */
+    bool use_child_auth;
 
     char *username;
     unsigned int username_len;
@@ -474,6 +478,17 @@ certauth_try_connect(struct gensio_filter *filter, struct timeval *timeout)
 	    sfilter->pending_err = ENOENT;
 	    break;
 	}
+	if (sfilter->use_child_auth) {
+	    struct gensio *io = gensio_filter_get_gensio(filter);
+
+	    if (gensio_is_authenticated(io)) {
+		/*
+		 * A lower layer has already authenticated, just skip this.
+		 */
+		sfilter->result = CERTAUTH_RESULT_SUCCESS;
+		goto finish_result;
+	    }
+	}
 	if (sfilter->username_len == 0) {
 	    sfilter->state = CERTAUTH_PASSTHROUGH;
 	    goto out_finish;
@@ -500,6 +515,10 @@ certauth_try_connect(struct gensio_filter *filter, struct timeval *timeout)
 	break;
 
     case CERTAUTH_SERVERHELLO:
+	if (sfilter->result)
+	    /* We got a server done with result, just go on. */
+	    goto handle_server_done;
+
 	if (!sfilter->challenge_data || !sfilter->version) {
 	    /* Remote end didn't send challenge or userid. */
 	    sfilter->pending_err = ENOENT;
@@ -541,6 +560,7 @@ certauth_try_connect(struct gensio_filter *filter, struct timeval *timeout)
 	if (sfilter->pending_err)
 	    goto out_err;
 
+    finish_result:
 	sfilter->write_buf_len = 0;
 	certauth_write_byte(sfilter, CERTAUTH_SERVERDONE);
 	certauth_write_byte(sfilter, CERTAUTH_RESULT);
@@ -558,6 +578,7 @@ certauth_try_connect(struct gensio_filter *filter, struct timeval *timeout)
 	    goto out_err;
 	}
 
+    handle_server_done:
 	if (sfilter->result != CERTAUTH_RESULT_SUCCESS) {
 	    sfilter->pending_err = EKEYREJECTED;
 	    goto out_err;
@@ -748,7 +769,10 @@ certauth_ll_write(struct gensio_filter *filter,
 	sfilter->curr_elem_len_b1 = false;
 	sfilter->curr_elem_len_b2 = false;
 	sfilter->read_buf_len = 0;
-	if (sfilter->curr_msg_type != sfilter->state) {
+	/* Note that we allow server done when waiting for a server hello. */
+	if (sfilter->curr_msg_type != sfilter->state &&
+	    !(sfilter->curr_msg_type == CERTAUTH_SERVERDONE &&
+	      sfilter->state == CERTAUTH_SERVERHELLO)) {
 	    sfilter->pending_err = EPROTO;
 	    goto out_unlock;
 	}
@@ -1042,7 +1066,7 @@ gensio_certauth_filter_raw_alloc(struct gensio_os_funcs *o,
 				 X509 *cert, STACK_OF(X509) *sk_ca,
 				 EVP_PKEY *pkey,
 				 const char *username,
-				 bool allow_authfail,
+				 bool allow_authfail, bool use_child_auth,
 				 struct gensio_filter **rfilter)
 {
     struct certauth_filter *sfilter;
@@ -1055,6 +1079,7 @@ gensio_certauth_filter_raw_alloc(struct gensio_os_funcs *o,
     sfilter->o = o;
     sfilter->is_client = is_client;
     sfilter->allow_authfail = allow_authfail;
+    sfilter->use_child_auth = use_child_auth;
     sfilter->rsa_md5 = EVP_get_digestbyname("ssl3-md5");
     if (!sfilter->rsa_md5) {
 	rv = ENXIO;
@@ -1152,6 +1177,9 @@ gensio_certauth_filter_config(struct gensio_os_funcs *o,
 	    continue;
 	if (gensio_check_keybool(args[i], "allow-authfail",
 				 &data->allow_authfail) > 0)
+	    continue;
+	if (gensio_check_keybool(args[i], "use-child-auth",
+				 &data->use_child_auth) > 0)
 	    continue;
 	rv = EINVAL;
 	goto out_err;
@@ -1379,6 +1407,7 @@ gensio_certauth_filter_alloc(struct gensio_certauth_filter_data *data,
 					  cert, sk_ca, pkey,
 					  data->username,
 					  data->allow_authfail,
+					  data->use_child_auth,
 					  &filter);
     if (rv)
 	goto err;

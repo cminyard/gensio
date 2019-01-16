@@ -321,6 +321,11 @@ typedef int (*gensio_ll_func)(struct gensio_ll *ll, int op,
 			      const char *const *auxdata);
 
 /*
+ * Get the gensio associated with the filter.
+ */
+struct gensio *gensio_filter_get_gensio(struct gensio_filter *filter);
+
+/*
  * Call the event interface of the upper layer.
  */
 int gensio_ll_do_event(struct gensio_ll *ll, int event, int err,

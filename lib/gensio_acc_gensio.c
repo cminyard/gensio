@@ -333,6 +333,12 @@ basena_child_event(struct gensio_accepter *accepter, int event,
 				  gensio_acc_get_type(nadata->acc, 0),
 				  basena_finish_server_open, nadata);
     if (io) {
+	if (gensio_is_reliable(child))
+	    gensio_set_is_reliable(io, true);
+	if (gensio_is_authenticated(child))
+	    gensio_set_is_authenticated(io, true);
+	if (gensio_is_encrypted(child))
+	    gensio_set_is_encrypted(io, true);
 	basena_in_cb(nadata);
 	err = nadata->acc_cb(nadata->acc_data, GENSIO_GENSIO_ACC_FINISH_PARENT,
 			     finish_data, io, child, NULL);
