@@ -61,7 +61,6 @@ gensio_ssl_initialize(struct gensio_os_funcs *o)
 struct ssl_filter {
     struct gensio_filter *filter;
     struct gensio_os_funcs *o;
-    struct gensio *io;
     bool is_client;
     bool connected;
     bool finish_close_on_write;
@@ -464,8 +463,6 @@ ssl_setup(struct gensio_filter *filter, struct gensio *io)
     int success;
     gensiods bio_size = sfilter->max_read_size * 2;
 
-    sfilter->io = io;
-
     sfilter->ssl = SSL_new(sfilter->ctx);
     if (!sfilter->ssl)
 	return ENOMEM;
@@ -706,8 +703,8 @@ gensio_ssl_cert_verify(X509_STORE_CTX *ctx, void *cb_data)
      * should be ok to unlock here.
      */
     ssl_unlock(sfilter);
-    rv = gensio_cb(sfilter->io, GENSIO_EVENT_PRECERT_VERIFY, 0,
-		   NULL, NULL, NULL);
+    rv = gensio_filter_do_event(sfilter->filter, GENSIO_EVENT_PRECERT_VERIFY, 0,
+				NULL, NULL, NULL);
     ssl_lock(sfilter);
     if (rv && rv != ENOTSUP)
 	return 0;
