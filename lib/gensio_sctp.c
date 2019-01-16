@@ -19,6 +19,7 @@
 
 /* This code handles SCTP network I/O. */
 
+#include <errno.h>
 #include <gensio/gensio.h>
 
 #ifdef HAVE_LIBSCTP
@@ -30,7 +31,6 @@
 #include <netinet/in.h>
 #include <netinet/sctp.h>
 #include <fcntl.h>
-#include <errno.h>
 #include <string.h>
 #include <assert.h>
 

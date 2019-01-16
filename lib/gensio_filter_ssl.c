@@ -1010,7 +1010,7 @@ gensio_ssl_filter_config(struct gensio_os_funcs *o,
 			 bool default_is_client,
 			 struct gensio_ssl_filter_data **rdata)
 {
-    return ENOSUP;
+    return ENOTSUP;
 }
 
 void
@@ -1022,7 +1022,7 @@ int
 gensio_ssl_filter_alloc(struct gensio_ssl_filter_data *data,
 			struct gensio_filter **rfilter)
 {
-    return ENOSUP;
+    return ENOTSUP;
 }
 
 #endif /* HAVE_OPENSSL */

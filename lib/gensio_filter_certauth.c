@@ -23,6 +23,16 @@
 
 #include "gensio_filter_ssl.h"
 
+struct gensio_certauth_filter_data {
+    struct gensio_os_funcs *o;
+    bool is_client;
+    char *CAfilepath;
+    char *keyfile;
+    char *certfile;
+    char *username;
+    bool allow_authfail;
+};
+
 #ifdef HAVE_OPENSSL
 
 #include <assert.h>
@@ -39,16 +49,6 @@
 #define GENSIO_CERTAUTH_DATA_SIZE	2048
 #define GENSIO_CERTAUTH_CHALLENGE_SIZE	32
 #define GENSIO_CERTAUTH_VERSION		1
-
-struct gensio_certauth_filter_data {
-    struct gensio_os_funcs *o;
-    bool is_client;
-    char *CAfilepath;
-    char *keyfile;
-    char *certfile;
-    char *username;
-    bool allow_authfail;
-};
 
 /*
  * State machines for both the client and the server, also message
@@ -1384,7 +1384,7 @@ gensio_certauth_filter_config(struct gensio_os_funcs *o,
 			      bool default_is_client,
 			      struct gensio_certauth_filter_data **rdata)
 {
-    return ENOSUP;
+    return ENOTSUP;
 }
 
 void
@@ -1396,7 +1396,7 @@ int
 gensio_certauth_filter_alloc(struct gensio_certauth_filter_data *data,
 			     struct gensio_filter **rfilter)
 {
-    return ENOSUP;
+    return ENOTSUP;
 }
 
 #endif /* HAVE_OPENSSL */

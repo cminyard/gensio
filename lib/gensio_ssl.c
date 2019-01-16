@@ -266,9 +266,9 @@ str_to_ssl_gensio(const char *str, const char * const args[],
 }
 
 int
-ssl_gensio_accepter_alloc(const char * const args[],
+ssl_gensio_accepter_alloc(struct gensio_accepter *child,
+			  const char * const args[],
 			  struct gensio_os_funcs *o,
-			  struct gensio_accepter *child,
 			  gensio_accepter_event cb, void *user_data,
 			  struct gensio_accepter **accepter)
 {
