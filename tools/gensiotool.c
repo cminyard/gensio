@@ -674,6 +674,16 @@ help(int err)
     exit(err);
 }
 
+static void
+do_vlog(struct gensio_os_funcs *f, enum gensio_log_levels level,
+	const char *log, va_list args)
+{
+    if (!debug)
+	return;
+    fprintf(stderr, "gensio %s log: ", gensio_log_level_to_str(level));
+    vfprintf(stderr, log, args);
+}
+
 int
 main(int argc, char *argv[])
 {
@@ -718,9 +728,11 @@ main(int argc, char *argv[])
 	else if ((rv = cmparg(argc, argv, &arg, "", "--signature",
 			      &g.signature)))
 	    ;
-	else if ((rv = cmparg(argc, argv, &arg, "-d", "--debug", NULL)))
+	else if ((rv = cmparg(argc, argv, &arg, "-d", "--debug", NULL))) {
 	    debug++;
-	else if ((rv = cmparg(argc, argv, &arg, "-h", "--help", NULL)))
+	    if (debug > 1)
+		gensio_set_log_mask(GENSIO_LOG_MASK_ALL);
+	} else if ((rv = cmparg(argc, argv, &arg, "-h", "--help", NULL)))
 	    help(0);
 	else {
 	    fprintf(stderr, "Unknown argument: %s\n", argv[arg]);
@@ -744,6 +756,7 @@ main(int argc, char *argv[])
 	fprintf(stderr, "Could not allocate OS handler: %s\n", strerror(rv));
 	return 1;
     }
+    g.o->vlog = do_vlog;
 
     g.waiter = g.o->alloc_waiter(g.o);
     if (!g.waiter) {
