@@ -1126,12 +1126,17 @@ gensio_certauth_filter_config(struct gensio_os_funcs *o,
     struct gensio_certauth_filter_data *data = o->zalloc(o, sizeof(*data));
     const char *CAfilepath = NULL, *keyfile = NULL, *certfile = NULL;
     const char *username = NULL;
-    int rv = ENOMEM;
+    int rv = ENOMEM, ival;
 
     if (!data)
 	return ENOMEM;
     data->o = o;
     data->is_client = default_is_client;
+
+    rv = gensio_get_default(o, "certauth", "allow_authfail", false,
+			    GENSIO_DEFAULT_BOOL, NULL, &ival);
+    if (!rv)
+	data->allow_authfail = ival;
 
     for (i = 0; args && args[i]; i++) {
 	if (gensio_check_keyvalue(args[i], "CA", &CAfilepath))
@@ -1150,6 +1155,23 @@ gensio_certauth_filter_config(struct gensio_os_funcs *o,
 	    continue;
 	rv = EINVAL;
 	goto out_err;
+    }
+
+    if (!keyfile) {
+	gensio_get_default(o, "certauth", "key", false, GENSIO_DEFAULT_STR,
+			   &keyfile, NULL);
+    }
+    if (!certfile) {
+	gensio_get_default(o, "certauth", "cert", false, GENSIO_DEFAULT_STR,
+			   &certfile, NULL);
+    }
+    if (!CAfilepath) {
+	gensio_get_default(o, "certauth", "CA", false, GENSIO_DEFAULT_STR,
+			   &CAfilepath, NULL);
+    }
+    if (!username) {
+	gensio_get_default(o, "certauth", "username", false, GENSIO_DEFAULT_STR,
+			   &username, NULL);
     }
 
     if (!keyfile)
