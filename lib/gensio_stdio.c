@@ -1037,6 +1037,7 @@ stdiona_startup(struct gensio_accepter *accepter)
 	nadata->in_connect_runner = true;
 	nadata->o->run(nadata->connect_runner);
     }
+    nadata->refcount++; /* One for the gensio. */
 
  out_unlock:
     stdiona_unlock(nadata);
