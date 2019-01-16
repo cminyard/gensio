@@ -975,6 +975,12 @@ certauth_filter_control(struct gensio_filter *filter, bool get, int op,
 	*datalen = len;
 	return 0;
 
+    case GENSIO_CONTROL_USERNAME:
+	if (!sfilter->username)
+	    return ENOENT;
+	*datalen = snprintf(data, *datalen, "%s", sfilter->username);
+	return 0;
+
     case GENSIO_CONTROL_CERT_AUTH:
 	if (get)
 	    return ENOTSUP;

@@ -347,6 +347,12 @@ int gensio_control(struct gensio *io, int depth, bool get,
 #define GENSIO_CONTROL_CERT_AUTH		5
 
 /*
+ * Get the username for the gensio, generally the username sent from
+ * the remote end in the precert_verify event.
+ */
+#define GENSIO_CONTROL_USERNAME			6
+
+/*
  * Return the type string for the gensio (if depth is 0) or one of its
  * children (depth > 0).  Return NULL if the depth is greater than the
  * number of children.

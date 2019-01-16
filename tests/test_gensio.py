@@ -101,13 +101,17 @@ def ta_certauth_tcp():
     print("Test accept certauth-tcp")
     io1 = utils.alloc_io(o, "certauth(cert=%s/clientcert.pem,key=%s/clientkey.pem,username=testuser),tcp,localhost,3080" % (utils.srcdir, utils.srcdir), do_open = False)
     ta = TestAccept(o, io1, "certauth(CA=%s/clientcert.pem),3080" % utils.srcdir, do_test)
-    cn = io1.control(0, True, gensio.GENSIO_CONTROL_GET_PEER_CERT_NAME,
-                     "-1,CN");
+    cn = ta.io2.control(0, True, gensio.GENSIO_CONTROL_GET_PEER_CERT_NAME,
+                        "-1,CN");
     i = cn.index(',')
     if cn[i+1:] != "gensio.org":
         raise Exception(
             "Invalid common name in certificate, expected %s, got %s" %
             ("gensio.org", cn[i+1:]))
+    username = ta.io2.control(0, True, gensio.GENSIO_CONTROL_USERNAME, "")
+    if username != "testuser":
+        raise Exception(
+            "Invalid username, expected %s, got %s" % ("testuser", username))
 
 def do_telnet_test(io1, io2):
     do_test(io1, io2)

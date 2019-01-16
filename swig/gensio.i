@@ -450,6 +450,7 @@ struct waiter { };
 %constant int GENSIO_CONTROL_GET_PEER_CERT_NAME =
     GENSIO_CONTROL_GET_PEER_CERT_NAME;
 %constant int GENSIO_CONTROL_CERT_AUTH = GENSIO_CONTROL_CERT_AUTH;
+%constant int GENSIO_CONTROL_USERNAME = GENSIO_CONTROL_USERNAME;
 
 %extend gensio {
     gensio(struct gensio_os_funcs *o, char *str, swig_cb *handler) {
