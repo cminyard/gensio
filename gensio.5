@@ -373,7 +373,7 @@ if not specified.
 .TP
 .B key=<filename>
 Specify the file to get the private key for the server.  This is
-requred for servers.  It may be specified for clients, and is required
+required for servers.  It may be specified for clients, and is required
 for the client if the server requires a certificate (it has CA set).
 
 .TP
@@ -417,6 +417,83 @@ GENSIO_EVENT_PRECERT_VERIFY or GENSIO_ACC_EVENT_PRECERT_VERIFY events.
 This allows the user to validate data from the certificate (like
 common name) with GENSIO_CONTROL_GET_PEER_CERT_NAME or set a
 certificate authority for the validation with GENSIO_CONTROL_CERT_AUTH.
+
+.SH "certauth"
+
+An certauth gensio runs an authentication protocol to on top of
+another gensio.  That gensio must be reliable.
+
+This is like the reverse of SSL.  The client has a key and certificate,
+the server has a certificate authority (CA).
+
+Once authentication occurs, this gensio acts as a passthrough.  The
+readbuf option is not available in the gensio.
+
+The certauth gensio takes the following options:
+
+.TP
+.B CA=<filepath>
+Set a place to look for certificates for authorization.  If this ends
+in a "/", then this is expected to be a directory that contains files
+with certificates that must be hashed per OpenSSL (see the "openssl
+rehash" command for details.  Otherwise it is a single file that
+contains one or more certificates.  The default CA path is used
+if not specified.  This is used on the server only, it is ignored
+on clients.
+
+.TP
+.B key=<filename>
+Specify the file to get the private key for the client.  This is
+required for clients.  It is ignored on server.
+
+.TP
+.B cert=<filename>
+Specify the file to get the private key for the client.  This is
+required for clients.  It is ignored on server.  If this is not
+specified, the certificate is expected to be in the key file.
+
+.TP
+.B username=<name>
+Specify a username to authenticate with on the remote end.  This is
+required for the client.  It is ignored on the server.
+
+.TP
+.B mode=client|server
+Normally an accepter gensio is in server mode and a connecting gensio
+is in client mode.  This can be used to switch the roles and run in
+server mode on a connecting gensio, or vice versa.
+
+.TP
+.B allow-authfail[=true|false]
+Normally if the remote end certificate is not valid, the certauth gensio
+will close the connection.  This open allows the open to succeed with
+an invalid or missing certificate.  Note that the user should verify
+that authentication is set using gensio_is_authenticated().
+
+.TP
+.B use-child-auth[=true|false]
+If the child gensio is authenticated, then do not run the protocol, just
+go straight into passthrough mode and don't do any authentication.
+
+Verification of the common name is
+.B not
+done.  The application should do this, it can fetch the common name
+and other certificate data through a control interface.  It may also
+use the username fetched through the control interface.
+
+You can use self-signed certificates in this interface.  Just be aware
+of the security ramifications.  This gensio is fairly flexible, but
+you must use it carefully to have secure authentication.
+
+The certauth gensio will call the gensio event callback (client) or
+the gensio acceptor event callback (server) after the certificate is
+received but before it is validated with the
+GENSIO_EVENT_PRECERT_VERIFY or GENSIO_ACC_EVENT_PRECERT_VERIFY events.
+This allows the user to validate data from the certificate (like
+common name) with GENSIO_CONTROL_GET_PEER_CERT_NAME or set a
+certificate authority for the validation with
+GENSIO_CONTROL_CERT_AUTH.  The user can also get the username from the
+remote end with GENSIO_CONTROL_USERNAME.
 
 .SH "SEE ALSO"
 gensiotool(1), sctp(7), udp(7), tcp(7)
