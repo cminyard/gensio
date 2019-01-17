@@ -134,7 +134,6 @@ stdiona_unlock(struct stdiona_data *nadata)
 static void
 stdiona_finish_free(struct stdiona_data *nadata)
 {
-printf("A\n");
     if (nadata->argv) {
 	int i;
 
