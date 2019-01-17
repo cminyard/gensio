@@ -18,6 +18,7 @@
  */
 
 #include <stdio.h>
+#include <unistd.h>
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
@@ -652,7 +653,8 @@ io_acc_event(struct gensio_accepter *accepter, int event, void *data)
 }
 
 static const char *progname;
-static const char *io1_default = "serialdev(nouucplock),/dev/tty";
+static const char *io1_default_tty = "serialdev(nouucplock),/dev/tty";
+static const char *io1_default_notty = "stdio(self)";
 
 static void
 help(int err)
@@ -661,15 +663,17 @@ help(int err)
     printf("\nA program to connect gensios together.  This programs has two\n");
     printf("gensios, io1 (default is local terminal) and io2 (must be set).\n");
     printf("\noptions are:\n");
-    printf("  -i, --input <gensio) - Set the io1 device (default is %s)\n",
-	   io1_default);
+    printf("  -i, --input <gensio) - Set the io1 device, default is\n"
+	   "    %s for tty or %s for non-tty stdin\n",
+	   io1_default_tty, io1_default_notty);
     printf("  -d, --debug - Enable debug.  Specify more than once to increase\n"
 	   "    the debug level\n");
     printf("  -a, --accepter - Accept a connection on io2 instead of"
 	   " initiating a connection\n");
     printf("  --signature <sig> - Set the RFC2217 server signature to <sig>\n");
     printf("  -e, --escchar - Set the local terminal escape character.\n"
-	   "    Default is ^\\\n");
+	   "    Set to 0 to disable the escape character\n"
+	   "    Default is ^\\ for tty stdin and disabled for non-tty stdin\n");
     printf("  -h, --help - This help\n");
     exit(err);
 }
@@ -704,8 +708,12 @@ main(int argc, char *argv[])
     memset(&ioinfo2, 0, sizeof(ioinfo2));
 
     g.signature = "gensiotool";
-    ioinfo1.escape_char = 0x1c; /* ^\ */
-    ioinfo1.ios = io1_default;
+    if (isatty(0)) {
+	ioinfo1.escape_char = 0x1c; /* ^\ */
+	ioinfo1.ios = io1_default_tty;
+    } else {
+	ioinfo1.ios = io1_default_notty;
+    }
     ioinfo1.g = &g;
     ioinfo2.g = &g;
     ioinfo1.otherio = &ioinfo2;

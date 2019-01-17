@@ -32,7 +32,8 @@ For a description of how to specify a gensio, see the gensio documentation.
 .I "\-i|\-\-input io1"
 By default io1 is the local terminal (
 .BR /dev/tty
-).  This lets another gensio be specified as the local terminal.
+) for a tty stdin, or the program's stdin/stdout for a non-tty stdin.
+This lets another gensio be specified as the device hook to io2.
 .TP
 .I "\-a|\-\-accepter"
 By default io2 make an outgoing connection.  This modifies io2 to
@@ -41,9 +42,9 @@ the connection comes in, the accepter is closed and operations
 proceeds as normal.
 .TP
 .I \-\-signature
-Serial gensio is supported this program.  If an accepter is specified
-(currently only a telnet RFC2217 server) the signature given is used
-instead of "gensiotool".
+Serial server signature reported to the remote end.  If an accepter is
+specified (currently only a telnet RFC2217 server) the signature given
+is used instead of "gensiotool".
 .TP
 .I \-d|\-\-debug
 Generate debugging output.  Specifying more than once increases the output.
@@ -51,13 +52,9 @@ Generate debugging output.  Specifying more than once increases the output.
 .I \-e|\-\-escchar char
 Specify a character to use for the escape character.  Setting it to
 zero disables the escape character.  This can either be a decimal or
-hexadeximal number of ^x to set a control character.  By default it is
-^\\ if io1 is the default, or disabled if
-.I \-\-input
-or
-.I \-i
-is specified.  See
-ESCAPES below for more details on the escape character.  Only handled
+hexadeximal number or ^x to set a control character.  By default it is
+^\\ if io1 is the default and stdin is a tty, or disabled otherwise.
+See ESCAPES below for more details on the escape character.  Only handled
 on io1.
 .TP
 .I \-h|\-\-help
