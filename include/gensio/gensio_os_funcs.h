@@ -23,6 +23,7 @@
 
 #ifndef GENSIO_OS_FUNCS
 #define GENSIO_OS_FUNCS
+#include <sys/time.h> /* For timeval */
 
 /*
  * Function pointers to provide OS functions.

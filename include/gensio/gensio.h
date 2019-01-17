@@ -219,9 +219,9 @@ int gensio_raddr_to_str(struct gensio *io, gensiods *pos,
 int gensio_get_raddr(struct gensio *io, void *addr, gensiods *addrlen);
 
 /*
- * Returns an id for the remote end.  For stdio clients this is the
- * pid.  For serialdev this is the fd.  It returns an error
- * for all others.
+ * Returns an id for the remote end.  For stdio and pty clients this
+ * is the pid.  For serialdev this is the fd.  It returns an error for
+ * all others.
  */
 int gensio_remote_id(struct gensio *io, int *id);
 
@@ -652,6 +652,10 @@ int str_to_stdio_gensio(const char *str, const char * const args[],
 			struct gensio_os_funcs *o,
 			gensio_event cb, void *user_data,
 			struct gensio **new_gensio);
+int str_to_pty_gensio(const char *str, const char * const args[],
+		      struct gensio_os_funcs *o,
+		      gensio_event cb, void *user_data,
+		      struct gensio **new_gensio);
 int str_to_ssl_gensio(const char *str, const char * const args[],
 		      struct gensio_os_funcs *o,
 		      gensio_event cb, void *user_data,
@@ -753,6 +757,12 @@ int stdio_gensio_alloc(const char *const argv[], const char * const args[],
 		       struct gensio_os_funcs *o,
 		       gensio_event cb, void *user_data,
 		       struct gensio **new_gensio);
+
+/* Run a program (in argv[0]) in a pty and attach to the pty master. */
+int pty_gensio_alloc(const char * const argv[], const char * const args[],
+		     struct gensio_os_funcs *o,
+		     gensio_event cb, void *user_data,
+		     struct gensio **new_gensio);
 
 /*
  * Make an SSL connection over another gensio.

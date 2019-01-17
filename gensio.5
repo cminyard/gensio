@@ -503,6 +503,21 @@ certificate authority for the validation with
 GENSIO_CONTROL_CERT_AUTH.  The user can also get the username from the
 remote end with GENSIO_CONTROL_USERNAME.
 
+.SH "pty"
+
+.B pty[(options)],<program>
+
+Create a pty and run a program on the other end of it.  This is sort
+of like stdio, but the program is running on a terminal.  Only
+connection gensios are supported.
+
+In addition to readbuf, a connecting pty takes the following options:
+
+.TP
+.B userid=<name>
+Run the program as the given user name.  Requires proper capabilities
+(generally root).  The default is to run as the calling user.
+
 .SH "SEE ALSO"
 gensiotool(1), sctp(7), udp(7), tcp(7)
 

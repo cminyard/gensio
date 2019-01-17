@@ -1238,6 +1238,7 @@ add_default_gensios(void *cb_data)
     register_gensio(o, "udp", str_to_udp_gensio);
     register_gensio(o, "sctp", str_to_sctp_gensio);
     register_gensio(o, "stdio", str_to_stdio_gensio);
+    register_gensio(o, "pty", str_to_pty_gensio);
     register_gensio(o, "ssl", str_to_ssl_gensio);
     register_gensio(o, "certauth", str_to_certauth_gensio);
     register_gensio(o, "telnet", str_to_telnet_gensio);
