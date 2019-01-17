@@ -292,14 +292,22 @@ connecting =
 
 The stdio gensio is a fairly strange one, but it's fairly useful.
 
-A connection stdio gensio runs the given program and connects its
-standard input and output to the gensio's main channel.  So it's easy
-to run a program and interact with it.  If you want to get stderr from
-the gensio, open a channel on the main channel gensio.  The new gensio
-you get will be stderr.
+A connection stdio gensio runs the given program (unless self is set
+as an option) and connects its standard input and output to the
+gensio's main channel.  So it's easy to run a program and interact
+with it.  If you want to get stderr from the gensio, open a channel on
+the main channel gensio.  The new gensio you get will be stderr.
 
 An accepting gensio immediately does a connection when started and
 connection stdin and stdout of the running program to the gensio.
+
+In addition to readbuf, a connecting stdio takes the following options:
+
+.TP
+.B self[=true|false]
+Instead of starting a program, connect to the running program's stdio.
+This is the same as an accepting stdio gensio, except you don't have
+to go through the accept process.
 
 .SH "ipmisol"
 
