@@ -44,7 +44,7 @@ struct gensio_fd_ll_ops {
     /*
      * When GENSIO_LL_CLOSE_STATE_START, timeout will be NULL and the
      * return value is ignored.  Return 0.  When
-     * GENSIO_LL_CLOSE_STATE_DONE, return EAGAIN to get called again
+     * GENSIO_LL_CLOSE_STATE_DONE, return EINPROGRESS to get called again
      * after next_timeout microseconds, zero to continue the close.
      */
     int (*check_close)(void *handler_data, enum gensio_ll_close_state state,

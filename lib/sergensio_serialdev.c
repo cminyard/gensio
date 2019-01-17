@@ -1059,10 +1059,10 @@ sterm_check_close_drain(void *handler_data, enum gensio_ll_close_state state,
 
     sdata->open = false;
     if (sdata->termio_q)
-	goto out_eagain;
+	goto out_einprogress;
 
     if (!sdata->timer_stopped)
-	goto out_eagain;
+	goto out_einprogress;
 
     rv = ioctl(sdata->fd, TIOCOUTQ, &count);
     if (rv || count == 0)
@@ -1072,8 +1072,8 @@ sterm_check_close_drain(void *handler_data, enum gensio_ll_close_state state,
     if (sdata->close_timeouts_left == 0)
 	goto out_rm_uucp;
 
- out_eagain:
-    err = EAGAIN;
+ out_einprogress:
+    err = EINPROGRESS;
     next_timeout->tv_sec = 0;
     next_timeout->tv_usec = 10000;
  out_rm_uucp:

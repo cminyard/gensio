@@ -30,6 +30,7 @@
 #include <strings.h>
 #include <assert.h>
 #include <pwd.h>
+#include <sys/wait.h>
 
 #include <gensio/gensio.h>
 #include <gensio/gensio_class.h>
@@ -44,7 +45,7 @@ struct pty_data {
     int uid;
     int gid;
 
-    int pid;
+    pid_t pid;
     int ptym;
     char *progargs;
     char **argv;
@@ -59,9 +60,10 @@ static int pty_check_open(void *handler_data, int fd)
 
 static int
 setup_child_on_pty(char *const argv[], int uid, int gid,
-		   int *rptym, int *rpid)
+		   int *rptym, pid_t *rpid)
 {
-    int pid, ptym, err = 0, myuid, mygid;
+    pid_t pid;
+    int ptym, err = 0, myuid, mygid;
     int oldeuid, oldegid;
 
     myuid = getuid();
@@ -226,6 +228,33 @@ pty_remote_id(void *handler_data, int *id)
     return 0;
 }
 
+static int
+pty_check_close(void *handler_data, enum gensio_ll_close_state state,
+		struct timeval *timeout)
+{
+    struct pty_data *tdata = handler_data;
+    int wstatus;
+    pid_t rv;
+
+    if (state != GENSIO_LL_CLOSE_STATE_DONE)
+	return 0;
+
+    if (tdata->ptym != -1) {
+	close(tdata->ptym);
+	tdata->ptym = -1;
+    }
+
+    rv = waitpid(tdata->pid, &wstatus, WNOHANG);
+    if (rv < 0)
+	return errno;
+    if (rv == 0) {
+	timeout->tv_sec = 0;
+	timeout->tv_usec = 10000;
+	return EINPROGRESS;
+    }
+    return 0;
+}
+
 static void
 pty_free(void *handler_data)
 {
@@ -293,6 +322,7 @@ static const struct gensio_fd_ll_ops pty_fd_ll_ops = {
     .read_ready = pty_read_ready,
     .raddr_to_str = pty_raddr_to_str,
     .remote_id = pty_remote_id,
+    .check_close = pty_check_close,
     .free = pty_free,
     .write = pty_write
 };

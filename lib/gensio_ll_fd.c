@@ -527,7 +527,7 @@ fd_close_timeout(struct gensio_timer *t, void *cb_data)
 	err = fdll->ops->check_close(fdll->handler_data,
 				     GENSIO_LL_CLOSE_STATE_DONE, &timeout);
 
-    if (err == EAGAIN) {
+    if (err == EINPROGRESS) {
 	fdll->o->start_timer(fdll->close_timer, &timeout);
 	return;
     }
