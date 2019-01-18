@@ -672,6 +672,16 @@ struct waiter { };
 	return gensio_is_reliable(self);
     }
 
+    %rename(is_authenticated) is_authenticated;
+    bool is_authenticatedt() {
+	return gensio_is_authenticated(self);
+    }
+
+    %rename(is_encrypted) is_encryptedt;
+    bool is_encryptedt() {
+	return gensio_is_encrypted(self);
+    }
+
     %newobject cast_to_sergensio;
     struct sergensio *cast_to_sergensio() {
 	struct gensio_data *data = gensio_get_user_data(self);
@@ -897,6 +907,45 @@ struct waiter { };
 	    deref_swig_cb_val(done_val);
 
 	err_handle("shutdown", rv);
+    }
+
+    %newobject control;
+    char *control(int depth, bool get, int option, char *controldata) {
+	int rv;
+	char *data = NULL;
+
+	if (get) {
+	    gensiods len = 0, slen = strlen(controldata) + 1;
+
+	    /* Pass in a zero length to get the actual length. */
+	    rv = gensio_acc_control(self, depth, get, option, controldata,
+				    &len);
+	    if (rv)
+		goto out;
+	    len += 1;
+	    /* Allocate the larger of strlen(controldata) and len) */
+	    if (slen > len)
+		data = malloc(slen);
+	    else
+		data = malloc(len);
+	    if (!data) {
+		rv = ENOMEM;
+		goto out;
+	    }
+	    memcpy(data, controldata, slen);
+	    rv = gensio_acc_control(self, depth, get, option, data, &len);
+	    if (rv) {
+		free(data);
+		data = NULL;
+	    }
+	} else {
+	    rv = gensio_acc_control(self, depth, get, option, controldata,
+				    NULL);
+	}
+
+    out:
+	err_handle("control", rv);
+	return data;
     }
 
     bool is_packet() {
