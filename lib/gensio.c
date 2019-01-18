@@ -95,6 +95,8 @@ struct gensio {
     bool is_reliable;
     bool is_authenticated;
     bool is_encrypted;
+
+    struct gensio_link pending_link;
 };
 
 struct gensio *
@@ -186,6 +188,8 @@ struct gensio_accepter {
 
     bool is_packet;
     bool is_reliable;
+
+    struct gensio_list pending_ios;
 };
 
 struct gensio_accepter *
@@ -206,6 +210,7 @@ gensio_acc_data_alloc(struct gensio_os_funcs *o,
     acc->typename = typename;
     acc->child = child;
     acc->gensio_acc_data = gensio_acc_data;
+    gensio_list_init(&acc->pending_ios);
 
     return acc;
 }
@@ -259,6 +264,19 @@ gensio_acc_get_type(struct gensio_accepter *acc, unsigned int depth)
 	c = c->child;
     }
     return c->typename;
+}
+
+void
+gensio_acc_add_pending_gensio(struct gensio_accepter *acc,
+			      struct gensio *io)
+{
+    gensio_list_add_tail(&acc->pending_ios, &io->pending_link);
+}
+
+void
+gensio_acc_remove_pending_gensio(struct gensio_accepter *acc,
+				 struct gensio *io)
+{
 }
 
 static int

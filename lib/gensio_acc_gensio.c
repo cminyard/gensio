@@ -299,6 +299,8 @@ basena_finish_server_open(struct gensio *net, int err, void *cb_data)
 {
     struct basena_data *nadata = cb_data;
 
+    gensio_acc_remove_pending_gensio(nadata->acc, net);
+
     if (err)
 	gensio_free(net);
     else
@@ -362,6 +364,7 @@ basena_child_event(struct gensio_accepter *accepter, int event,
 	    gensio_filter_free(filter);
 	    goto out_err;
 	}
+	gensio_acc_add_pending_gensio(nadata->acc, io);
 	basena_unlock(nadata);
     } else {
 	basena_unlock(nadata);

@@ -197,6 +197,15 @@ int gensio_acc_addclass(struct gensio_accepter *acc,
 			const char *name, void *classdata);
 void *gensio_acc_getclass(struct gensio_accepter *acc, const char *name);
 
+/*
+ * Keep track of the gensios pending on an accepter.  Primarily so that
+ * disable can handle them.
+ */
+void gensio_acc_add_pending_gensio(struct gensio_accepter *acc,
+				   struct gensio *io);
+void gensio_acc_remove_pending_gensio(struct gensio_accepter *acc,
+				      struct gensio *io);
+
 void gensio_acc_set_is_packet(struct gensio_accepter *io, bool is_packet);
 void gensio_acc_set_is_reliable(struct gensio_accepter *io, bool is_reliable);
 
