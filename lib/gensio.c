@@ -1046,6 +1046,52 @@ gensio_acc_shutdown(struct gensio_accepter *accepter,
 			  0, shutdown_done, shutdown_data, NULL, NULL);
 }
 
+int
+gensio_acc_control(struct gensio_accepter *acc, int depth, bool get,
+		   unsigned int option, char *data, gensiods *datalen)
+{
+    struct gensio_accepter *c = acc;
+
+    if (depth == GENSIO_CONTROL_DEPTH_ALL) {
+	if (get)
+	    return EINVAL;
+	while (c) {
+	    int rv = c->func(c, GENSIO_ACC_FUNC_CONTROL, get, NULL, NULL,
+			     data, NULL, datalen);
+
+	    if (rv && rv != ENOTSUP)
+		return rv;
+	    c = c->child;
+	}
+	return 0;
+    }
+
+    if (depth == GENSIO_CONTROL_DEPTH_FIRST) {
+	while (c) {
+	    int rv = c->func(c, GENSIO_ACC_FUNC_CONTROL, get, NULL, NULL,
+			     data, NULL, datalen);
+
+	    if (rv != ENOTSUP)
+		return rv;
+	    c = c->child;
+	}
+	return ENOTSUP;
+    }
+
+    if (depth < 0)
+	return EINVAL;
+
+    while (depth > 0) {
+	if (!c->child)
+	    return ENOENT;
+	depth--;
+	c = c->child;
+    }
+
+    return c->func(c, GENSIO_ACC_FUNC_CONTROL, get, NULL, NULL,
+		   data, NULL, datalen);
+}
+
 void
 gensio_acc_set_accept_callback_enable(struct gensio_accepter *accepter,
 				      bool enabled)

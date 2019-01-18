@@ -57,6 +57,16 @@
  */
 #define GENSIO_GENSIO_ACC_FREE			4
 
+/*
+ * Standard control interface is passed through here.
+ *
+ * get => data1
+ * option => data4
+ * data => data2
+ * datalen => data3
+ */
+#define GENSIO_GENSIO_ACC_CONTROL		5
+
 typedef int (*gensio_gensio_acc_cb)(void *acc_data, int op,
 				    void *data1, void *data2, void *data3,
 				    const void *data4);

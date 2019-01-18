@@ -514,6 +514,14 @@ int gensio_acc_shutdown(struct gensio_accepter *accepter,
 			gensio_acc_done shutdown_done, void *shutdown_data);
 
 /*
+ * Equivalent to gensio_control, but for accepters.  There are
+ * currently no controls (int standard gensios) for gensio accepters,
+ * but the interface is here for future use.
+ */
+int gensio_acc_control(struct gensio_accepter *accepter, int depth, bool get,
+		       unsigned int option, char *data, gensiods *datalen);
+
+/*
  * Enable the accept callback when connections come in.
  */
 void gensio_acc_set_accept_callback_enable(struct gensio_accepter *accepter,

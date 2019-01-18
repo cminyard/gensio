@@ -254,6 +254,16 @@ basena_str_to_gensio(struct gensio_accepter *accepter, const char *addr,
 }
 
 static int
+basena_control(struct gensio_accepter *accepter, bool get, unsigned int option,
+	       char *data, gensiods *datalen)
+{
+    struct basena_data *nadata = gensio_acc_get_gensio_data(accepter);
+
+    return nadata->acc_cb(nadata->acc_data, GENSIO_GENSIO_ACC_CONTROL,
+			  &get, data, datalen, &option);
+}
+
+static int
 gensio_acc_base_func(struct gensio_accepter *acc, int func, int val,
 		     const char *addr, void *done, void *data, const
 		     void *data2, void *ret)
@@ -275,6 +285,9 @@ gensio_acc_base_func(struct gensio_accepter *acc, int func, int val,
 
     case GENSIO_ACC_FUNC_STR_TO_GENSIO:
 	return basena_str_to_gensio(acc, addr, done, data, ret);
+
+    case GENSIO_ACC_FUNC_CONTROL:
+	return basena_control(acc, val, *((unsigned int *) addr), data, ret);
 
     default:
 	return ENOTSUP;

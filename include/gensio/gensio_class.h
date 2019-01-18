@@ -174,6 +174,14 @@ void *gensio_getclass(struct gensio *io, const char *name);
  */
 #define GENSIO_ACC_FUNC_STR_TO_GENSIO		5
 
+/*
+ * get => val
+ * option => addr
+ * data => data
+ * datalen => ret
+ */
+#define GENSIO_ACC_FUNC_CONTROL			6
+
 typedef int (*gensio_acc_func)(struct gensio_accepter *acc, int func, int val,
 			       const char *addr, void *done, void *data,
 			       const void *data2, void *ret);
