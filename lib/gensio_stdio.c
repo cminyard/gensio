@@ -167,6 +167,13 @@ stdiona_finish_free(struct stdiona_data *nadata)
 }
 
 static void
+stdiona_ref(struct stdiona_data *nadata)
+{
+    assert(nadata->refcount > 0);
+    nadata->refcount++;
+}
+
+static void
 stdiona_deref_and_unlock(struct stdiona_data *nadata)
 {
     assert(nadata->refcount > 0);
@@ -373,7 +380,7 @@ stdion_start_deferred_op(struct stdion_channel *schan)
 	/* Call the read from the selector to avoid lock nesting issues. */
 	schan->deferred_op_pending = true;
 	schan->nadata->o->run(schan->deferred_op_runner);
-	schan->nadata->refcount++;
+	stdiona_ref(schan->nadata);
     }
 }
 
@@ -607,7 +614,7 @@ stdion_open(struct gensio *io, gensio_done_err open_done, void *open_data)
     if (err)
 	goto out_err;
     nadata->io.out_handler_set = true;
-    nadata->refcount++;
+    stdiona_ref(nadata);
 
     err = nadata->o->set_fd_handlers(nadata->o, nadata->io.infd, &nadata->io,
 				     NULL, stdion_write_ready, NULL,
@@ -615,7 +622,7 @@ stdion_open(struct gensio *io, gensio_done_err open_done, void *open_data)
     if (err)
 	goto out_err;
     nadata->io.in_handler_set = true;
-    nadata->refcount++;
+    stdiona_ref(nadata);
 
     schan->closed = false;
     schan->in_open = true;
@@ -709,6 +716,7 @@ stdion_open_channel(struct gensio *io, const char * const args[],
 				    stdio_client_fd_cleared);
     if (!rv) {
 	nadata->err.out_handler_set = true;
+	stdiona_ref(nadata);
     } else {
 	nadata->o->free(nadata->o, nadata->err.read_data);
 	nadata->err.read_data = NULL;
@@ -719,7 +727,7 @@ stdion_open_channel(struct gensio *io, const char * const args[],
     nadata->err.open_done = open_done;
     nadata->err.open_data = open_data;
     stdion_start_deferred_op(&nadata->err);
-    nadata->refcount++;
+    stdiona_ref(nadata);
     *new_io = nadata->err.io;
 
  out_err:
@@ -794,6 +802,7 @@ stdion_ref(struct gensio *io)
     struct stdiona_data *nadata = schan->nadata;
 
     stdiona_lock(nadata);
+    assert(schan->refcount > 0);
     schan->refcount++;
     stdiona_unlock(nadata);
 }
@@ -1137,7 +1146,7 @@ stdiona_startup(struct gensio_accepter *accepter)
     if (rv)
 	goto out_err;
     nadata->io.in_handler_set = true;
-    nadata->refcount++;
+    stdiona_ref(nadata);
 
     rv = nadata->o->set_fd_handlers(nadata->o, nadata->io.outfd,
 				    &nadata->io, stdion_read_ready, NULL, NULL,
@@ -1145,17 +1154,17 @@ stdiona_startup(struct gensio_accepter *accepter)
     if (rv)
 	goto out_err;
     nadata->io.out_handler_set = true;
-    nadata->refcount++;
+    stdiona_ref(nadata);
 
     nadata->io.closed = false;
     nadata->in_startup = true;
     nadata->enabled = true;
     if (!nadata->in_connect_runner) {
-	nadata->refcount++;
+	stdiona_ref(nadata);
 	nadata->in_connect_runner = true;
 	nadata->o->run(nadata->connect_runner);
     }
-    nadata->refcount++; /* One for the gensio. */
+    stdiona_ref(nadata); /* One for the gensio. */
 
  out_unlock:
     stdiona_unlock(nadata);
@@ -1197,7 +1206,7 @@ stdiona_shutdown(struct gensio_accepter *accepter,
 	nadata->shutdown_done = shutdown_done;
 	nadata->shutdown_data = shutdown_data;
 	if (!nadata->in_connect_runner) {
-	    nadata->refcount++;
+	    stdiona_ref(nadata);
 	    nadata->in_connect_runner = true;
 	    nadata->o->run(nadata->connect_runner);
 	}
