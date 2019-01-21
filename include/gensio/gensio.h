@@ -347,10 +347,11 @@ int gensio_control(struct gensio *io, int depth, bool get,
  * clarity):
  *   strcpy(data, "-1,CN");
  *   gensio_control(io, 0, true, data, &len)
- * Say it return "3,CN,MyName.org"  You would use
+ * Say it returns "3,CN,MyName.org"  You would use
  *   strcpy(data, "3,CN");
  *   gensio_control(io, 0, true, data, &len)
- * to get the next common name.
+ * to get the next common name, which might be "4,CN,MyName2.org".
+ * You get an ENOENT at the end.
  *
  * Returns ENXIO if there is no remote certificate, EINVAL if the
  * pass in object name is not valid, and ENOENT if the object was
