@@ -635,6 +635,24 @@ sel_alloc_timer(struct selector_s     *sel,
     return 0;
 }
 
+static int
+sel_stop_timer_i(struct selector_s *sel, sel_timer_t *timer)
+{
+    if (timer->val.stopped)
+	return ETIMEDOUT;
+
+    if (timer->val.in_heap) {
+	volatile sel_timer_t *old_top = theap_get_top(&sel->timer_heap);
+
+	theap_remove(&sel->timer_heap, timer);
+	timer->val.in_heap = 0;
+	wake_timer_sel_thread(sel, old_top);
+    }
+    timer->val.stopped = 1;
+
+    return 0;
+}
+
 int
 sel_free_timer(sel_timer_t *timer)
 {
@@ -642,9 +660,8 @@ sel_free_timer(sel_timer_t *timer)
     int in_handler;
 
     sel_timer_lock(sel);
-    if (timer->val.in_heap) {
-	sel_stop_timer(timer);
-    }
+    if (timer->val.in_heap)
+	sel_stop_timer_i(sel, timer);
     timer->val.freed = 1;
     in_handler = timer->val.in_handler;
     sel_timer_unlock(sel);
@@ -690,25 +707,13 @@ int
 sel_stop_timer(sel_timer_t *timer)
 {
     struct selector_s *sel = timer->val.sel;
+    int rv;
 
     sel_timer_lock(sel);
-    if (timer->val.stopped) {
-	sel_timer_unlock(sel);
-	return ETIMEDOUT;
-    }
-
-    if (timer->val.in_heap) {
-	volatile sel_timer_t *old_top = theap_get_top(&sel->timer_heap);
-
-	theap_remove(&sel->timer_heap, timer);
-	timer->val.in_heap = 0;
-	wake_timer_sel_thread(sel, old_top);
-    }
-    timer->val.stopped = 1;
-
+    rv = sel_stop_timer_i(sel, timer);
     sel_timer_unlock(sel);
 
-    return 0;
+    return rv;
 }
 
 int
