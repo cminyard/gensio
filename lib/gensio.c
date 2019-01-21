@@ -1076,6 +1076,32 @@ gensio_acc_shutdown(struct gensio_accepter *accepter,
 			  0, shutdown_done, shutdown_data, NULL, NULL);
 }
 
+static void
+gensio_acc_shutdown_s_done(struct gensio_accepter *acc, void *cb_data)
+{
+    struct gensio_close_s_data *data = cb_data;
+
+    data->o->wake(data->waiter);
+}
+
+int
+gensio_acc_shutdown_s(struct gensio_accepter *acc)
+{
+    struct gensio_os_funcs *o = acc->o;
+    struct gensio_close_s_data data;
+    int err;
+
+    data.o = o;
+    data.waiter = o->alloc_waiter(o);
+    if (!data.waiter)
+	return ENOMEM;
+    err = gensio_acc_shutdown(acc, gensio_acc_shutdown_s_done, &data);
+    if (!err)
+	o->wait(data.waiter, 1, NULL);
+    o->free_waiter(data.waiter);
+    return err;
+}
+
 void
 gensio_acc_disable(struct gensio_accepter *acc)
 {

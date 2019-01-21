@@ -557,6 +557,12 @@ int gensio_acc_shutdown(struct gensio_accepter *accepter,
 			gensio_acc_done shutdown_done, void *shutdown_data);
 
 /*
+ * Shut down the gensio and wait for the shutdown to finish.  See the
+ * notes in gensio_close_s() for warning on using this.
+ */
+int gensio_acc_shutdown_s(struct gensio_accepter *accepter);
+
+/*
  * Like gensio_disable, but for accepters.  See gensio_disable for
  * details.
  */
