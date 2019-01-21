@@ -1154,64 +1154,22 @@ certauth_free(struct gensio_filter *filter)
     sfilter->o->free(sfilter->o, sfilter);
 }
 
+/* In gensio_filter_ssl.c, semi-private. */
+int gensio_cert_get_name(X509 *cert, char *data, gensiods *datalen);
+
 static int
 certauth_filter_control(struct gensio_filter *filter, bool get, int op,
 			char *data, gensiods *datalen)
 {
     struct certauth_filter *sfilter = filter_to_certauth(filter);
-    char *s, *nidstr, *end;
-    int index = -1, len, tlen, nid;
-    int datasize;
-    X509_NAME *nm;
-    X509_NAME_ENTRY *e;
-    ASN1_STRING *as;
     X509_STORE *store;
     char *CApath = NULL, *CAfile = NULL;
-    unsigned char *obj;
-    int objlen;
 
     switch (op) {
     case GENSIO_CONTROL_GET_PEER_CERT_NAME:
 	if (!get)
 	    return ENOTSUP;
-	if (!sfilter->cert)
-	    return ENXIO;
-	datasize = *datalen;
-	nidstr = data;
-	s = strchr(data, ',');
-	if (s) {
-	    index = strtol(data, &end, 0);
-	    if (*end != ',')
-		return EINVAL;
-	    nidstr = end + 1;
-	}
-	nid = OBJ_sn2nid(nidstr);
-	if (nid == NID_undef) {
-	    nid = OBJ_ln2nid(data);
-	    if (nid == NID_undef)
-		return EINVAL;
-	}
-	nm = X509_get_subject_name(sfilter->cert);
-	index = X509_NAME_get_index_by_NID(nm, nid, index);
-	if (index < 0)
-	    return ENOENT;
-	len = snprintf(data, datasize, "%d,", index);
-	e = X509_NAME_get_entry(nm, index);
-	as = X509_NAME_ENTRY_get_data(e);
-	objlen = ASN1_STRING_to_UTF8(&obj, as);
-	if (objlen < 0)
-	    return ENOMEM;
-	tlen = objlen;
-	if (len + 1 < datasize) {
-	    if (objlen > datasize - len - 1)
-		objlen = datasize - len - 1;
-	    memcpy(data + len, obj, objlen);
-	    data[objlen + len] = '\0';
-	}
-	len += tlen;
-	OPENSSL_free(obj);
-	*datalen = len;
-	return 0;
+	return gensio_cert_get_name(sfilter->cert, data, datalen);
 
     case GENSIO_CONTROL_USERNAME:
 	if (!sfilter->username)

@@ -92,10 +92,15 @@ def ta_ssl_tcp():
     cn = io1.control(0, True, gensio.GENSIO_CONTROL_GET_PEER_CERT_NAME,
                      "-1,CN");
     i = cn.index(',')
-    if cn[i+1:] != "ser2net.org":
+    cn2 = cn[i+1:]
+    i = cn2.index(',')
+    if cn2[0:i] != "CN":
+        raise Exception(
+            "Invalid object name, expected %s, got %s" % ("CN", cn2[0:i]))
+    if cn2[i+1:] != "ser2net.org":
         raise Exception(
             "Invalid common name in certificate, expected %s, got %s" %
-            ("ser2net.org", cn[i+1:]))
+            ("ser2net.org", cn2[i+1:]))
 
 def ta_certauth_tcp():
     print("Test accept certauth-tcp")
@@ -104,10 +109,15 @@ def ta_certauth_tcp():
     cn = ta.io2.control(0, True, gensio.GENSIO_CONTROL_GET_PEER_CERT_NAME,
                         "-1,CN");
     i = cn.index(',')
-    if cn[i+1:] != "gensio.org":
+    cn2 = cn[i+1:]
+    i = cn2.index(',')
+    if cn2[0:i] != "CN":
+        raise Exception(
+            "Invalid object name, expected %s, got %s" % ("CN", cn2[0:i]))
+    if cn2[i+1:] != "gensio.org":
         raise Exception(
             "Invalid common name in certificate, expected %s, got %s" %
-            ("gensio.org", cn[i+1:]))
+            ("gensio.org", cn2[i+1:]))
     username = ta.io2.control(0, True, gensio.GENSIO_CONTROL_USERNAME, "")
     if username != "testuser":
         raise Exception(

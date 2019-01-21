@@ -321,15 +321,36 @@ int gensio_control(struct gensio *io, int depth, bool get,
  * Return the object from the certificate from the remote end.  This
  * is primarily for SSL so the application can validate the
  * certificate's common name, but it can fetch any object from the
- * certificate.  The object to fetch is pass in to data (along with
- * all the space padding), the SN or LN descriptor per
- * /usr/include/openssl/object.h.  Like "CN" or "commonName".
+ * certificate.
  *
- * There may be more than one of an object in a certificate, so this
- * interface can handle that.  The value returned in data will be
- * in the form: "<n>,<value>" where <n> is a number.  To fetch the
- * next value, pass in this number when requesting before the
- * object type in the form: "<n>,<object type>".
+ * There are two ways to use this interface: fetch by index or fetch
+ * by object type.
+ *
+ * To fetch by index, just pass in a number in the data, like "0"
+ * and it will fetch the value at that index.
+ *
+ * To fetch by object type, pass in a number and the object type
+ * separated by a comma.  The object type to fetch is SN or LN
+ * descriptor per /usr/include/openssl/object.h.  Like "CN" or
+ * "commonName".  The index should be one less than the start
+ * search, you should use -1, for instance to fetch the first
+ * index.
+ *
+ * The data returned is in the form: "<index>,<sn>,<value>".
+ * Where sn is the short name.
+ *
+ * In fetch by object type mode, there may be more than one of an
+ * object in a certificate, so this interface can handle that.
+ * just pass in the index returned by the first into the second
+ * call and it will start after that index.  For instance, to
+ * fetch the first common name, do (with error checking removed for
+ * clarity):
+ *   strcpy(data, "-1,CN");
+ *   gensio_control(io, 0, true, data, &len)
+ * Say it return "3,CN,MyName.org"  You would use
+ *   strcpy(data, "3,CN");
+ *   gensio_control(io, 0, true, data, &len)
+ * to get the next common name.
  *
  * Returns ENXIO if there is no remote certificate, EINVAL if the
  * pass in object name is not valid, and ENOENT if the object was

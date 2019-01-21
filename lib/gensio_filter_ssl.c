@@ -541,64 +541,76 @@ ssl_free(struct gensio_filter *filter)
     sfilter->o->free(sfilter->o, sfilter);
 }
 
-static int
-ssl_filter_control(struct gensio_filter *filter, bool get, int op, char *data,
-		   gensiods *datalen)
+int
+gensio_cert_get_name(X509 *cert, char *data, gensiods *datalen)
 {
-    struct ssl_filter *sfilter = filter_to_ssl(filter);
-    char *s, *nidstr, *end;
+    char *s, *nidstr = NULL, *end;
     int index = -1, len, tlen, nid;
     int datasize;
     X509_NAME *nm;
     X509_NAME_ENTRY *e;
     ASN1_STRING *as;
-    X509_STORE *store;
-    char *CApath = NULL, *CAfile = NULL;
-    unsigned char *obj;
-    int objlen;
+    unsigned char *strobj;
+    int strobjlen;
+    ASN1_OBJECT *obj;
 
-    switch (op) {
-    case GENSIO_CONTROL_GET_PEER_CERT_NAME:
-	if (!get)
-	    return ENOTSUP;
-	if (!sfilter->remcert)
-	    return ENXIO;
-	datasize = *datalen;
-	nidstr = data;
-	s = strchr(data, ',');
-	if (s) {
-	    index = strtol(data, &end, 0);
-	    if (*end != ',')
-		return EINVAL;
-	    nidstr = end + 1;
-	}
+    if (!cert)
+	return ENXIO;
+    datasize = *datalen;
+    nidstr = data;
+    s = strchr(data, ',');
+    if (s) {
+	index = strtol(data, &end, 0);
+	if (*end != ',')
+	    return EINVAL;
+	nidstr = end + 1;
+    }
+    nm = X509_get_subject_name(cert);
+    if (nidstr) {
 	nid = OBJ_sn2nid(nidstr);
 	if (nid == NID_undef) {
 	    nid = OBJ_ln2nid(data);
 	    if (nid == NID_undef)
 		return EINVAL;
 	}
-	nm = X509_get_subject_name(sfilter->remcert);
 	index = X509_NAME_get_index_by_NID(nm, nid, index);
 	if (index < 0)
 	    return ENOENT;
-	len = snprintf(data, datasize, "%d,", index);
-	e = X509_NAME_get_entry(nm, index);
-	as = X509_NAME_ENTRY_get_data(e);
-	objlen = ASN1_STRING_to_UTF8(&obj, as);
-	if (objlen < 0)
-	    return ENOMEM;
-	tlen = objlen;
-	if (len + 1 < datasize) {
-	    if (objlen > datasize - len - 1)
-		objlen = datasize - len - 1;
-	    memcpy(data + len, obj, objlen);
-	    data[objlen + len] = '\0';
-	}
-	len += tlen;
-	OPENSSL_free(obj);
-	*datalen = len;
-	return 0;
+    }
+    e = X509_NAME_get_entry(nm, index);
+    obj = X509_NAME_ENTRY_get_object(e);
+    nid = OBJ_obj2nid(obj);
+    len = snprintf(data, datasize, "%d,%s,", index, OBJ_nid2sn(nid));
+    as = X509_NAME_ENTRY_get_data(e);
+    strobjlen = ASN1_STRING_to_UTF8(&strobj, as);
+    if (strobjlen < 0)
+	return ENOMEM;
+    tlen = strobjlen;
+    if (len + 1 < datasize) {
+	if (strobjlen > datasize - len - 1)
+	    strobjlen = datasize - len - 1;
+	memcpy(data + len, strobj, strobjlen);
+	data[strobjlen + len] = '\0';
+    }
+    len += tlen;
+    OPENSSL_free(strobj);
+    *datalen = len;
+    return 0;
+}
+
+static int
+ssl_filter_control(struct gensio_filter *filter, bool get, int op, char *data,
+		   gensiods *datalen)
+{
+    struct ssl_filter *sfilter = filter_to_ssl(filter);
+    X509_STORE *store;
+    char *CApath = NULL, *CAfile = NULL;
+
+    switch (op) {
+    case GENSIO_CONTROL_GET_PEER_CERT_NAME:
+	if (!get)
+	    return ENOTSUP;
+	return gensio_cert_get_name(sfilter->remcert, data, datalen);
 
     case GENSIO_CONTROL_CERT_AUTH:
 	if (get)
