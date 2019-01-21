@@ -327,12 +327,16 @@ basen_set_ll_enables(struct basen_data *ndata)
     if (filter_ll_write_pending(ndata) || ndata->xmit_enabled ||
 		ndata->tmp_xmit_enabled)
 	ll_set_write_callback_enable(ndata, true);
+    else
+	ll_set_write_callback_enable(ndata, false);
     if (((((ndata->read_enabled && !filter_ul_read_pending(ndata)) ||
 		filter_ll_read_needed(ndata)) && ndata->state == BASEN_OPEN) ||
 	    ndata->state == BASEN_IN_FILTER_OPEN ||
 	    ndata->state == BASEN_IN_FILTER_CLOSE) &&
 	   !ndata->in_read)
 	ll_set_read_callback_enable(ndata, true);
+    else
+	ll_set_read_callback_enable(ndata, false);
 }
 
 static int
