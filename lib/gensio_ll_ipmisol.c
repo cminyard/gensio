@@ -1244,6 +1244,21 @@ static void sol_free(struct gensio_ll *ll)
     sol_deref_and_unlock(solll);
 }
 
+static void sol_disable(struct gensio_ll *ll)
+{
+    struct sol_ll *solll = ll_to_sol(ll);
+
+    solll->read_enabled = false;
+    solll->write_enabled = false;
+    solll->close_done = NULL;
+    solll->state = SOL_CLOSED;
+    if (solll->sol) {
+	ipmi_sol_force_close_wsend(solll->sol, 0);
+	solll->ipmi->disable(solll->ipmi);
+	solll->ipmi->close_connection(solll->ipmi);
+    }
+}
+
 static int
 gensio_ll_sol_func(struct gensio_ll *ll, int op, gensiods *count,
 		   void *buf, const void *cbuf, gensiods buflen,
@@ -1282,6 +1297,10 @@ gensio_ll_sol_func(struct gensio_ll *ll, int op, gensiods *count,
 
     case GENSIO_LL_FUNC_FREE:
 	sol_free(ll);
+	return 0;
+
+    case GENSIO_LL_FUNC_DISABLE:
+	sol_disable(ll);
 	return 0;
 
     default:

@@ -799,6 +799,39 @@ stdion_ref(struct gensio *io)
 }
 
 static int
+stdion_disable(struct gensio *io)
+{
+    struct stdion_channel *schan = gensio_get_gensio_data(io);
+    struct stdiona_data *nadata = schan->nadata;
+
+    if (!nadata->argv)
+	return ENOTSUP;
+
+    stdiona_lock(nadata);
+    schan->closed = true;
+    schan->in_close = false;
+    schan->in_open = false;
+    schan->close_done = NULL;
+    if (nadata->io.out_handler_set) {
+	nadata->o->clear_fd_handlers_norpt(nadata->o, nadata->io.outfd);
+	close(nadata->io.outfd);
+	nadata->io.outfd = -1;
+    }
+    if (nadata->io.in_handler_set) {
+	nadata->o->clear_fd_handlers_norpt(nadata->o, nadata->io.infd);
+	close(nadata->io.infd);
+	nadata->io.infd = -1;
+    }
+    if (nadata->err.out_handler_set) {
+	nadata->o->clear_fd_handlers_norpt(nadata->o, nadata->err.outfd);
+	close(nadata->err.outfd);
+	nadata->err.outfd = -1;
+    }
+    stdiona_deref_and_unlock(nadata); /* unlocks */
+    return 0;
+}
+
+static int
 gensio_stdio_func(struct gensio *io, int func, gensiods *count,
 		  const void *cbuf, gensiods buflen, void *buf,
 		  const char *const *auxdata)
@@ -841,6 +874,9 @@ gensio_stdio_func(struct gensio *io, int func, gensiods *count,
 	return stdion_open_channel(io, d->args, d->cb, d->user_data,
 				   d->open_done, d->open_data, &d->new_io);
     }
+
+    case GENSIO_FUNC_DISABLE:
+	return stdion_disable(io);
 
     case GENSIO_FUNC_GET_RADDR:
     default:

@@ -680,6 +680,10 @@ sctpna_server_open_done(struct gensio *io, int err, void *open_data)
 {
     struct sctpna_data *nadata = open_data;
 
+    sctpna_lock(nadata);
+    gensio_acc_remove_pending_gensio(nadata->acc, io);
+    sctpna_unlock(nadata);
+
     if (err) {
 	gensio_free(io);
 	gensio_acc_log(nadata->acc, GENSIO_LOG_ERR,
@@ -749,9 +753,7 @@ sctpna_readhandler(int fd, void *cbdata)
     sctpna_lock(nadata);
     io = base_gensio_server_alloc(nadata->o, tdata->ll, NULL, NULL, "sctp",
 				  sctpna_server_open_done, nadata);
-    if (io) {
-	sctpna_ref(nadata);
-    } else {
+    if (!io) {
 	sctpna_unlock(nadata);
 	gensio_acc_log(nadata->acc, GENSIO_LOG_ERR,
 		       "Out of memory allocating sctp base");
@@ -760,7 +762,9 @@ sctpna_readhandler(int fd, void *cbdata)
 	sctp_free(tdata);
 	return;
     }
+    sctpna_ref(nadata);
     gensio_set_is_reliable(io, true);
+    gensio_acc_add_pending_gensio(nadata->acc, io);
     sctpna_unlock(nadata);
 }
 
@@ -975,6 +979,22 @@ sctpna_free(struct gensio_accepter *accepter)
     sctpna_deref_and_unlock(nadata);
 }
 
+static void
+sctpna_disable(struct gensio_accepter *accepter)
+{
+    struct sctpna_data *nadata = gensio_acc_get_gensio_data(accepter);
+    unsigned int i;
+
+    nadata->in_shutdown = false;
+    nadata->shutdown_done = NULL;
+    for (i = 0; i < nadata->nfds; i++)
+	nadata->o->clear_fd_handlers(nadata->o, nadata->fds[i].fd);
+    for (i = 0; i < nadata->nfds; i++)
+	close(nadata->fds[i].fd);
+    nadata->setup = false;
+    nadata->enabled = false;
+}
+
 int
 sctpna_str_to_gensio(struct gensio_accepter *accepter, const char *addr,
 	       gensio_event cb, void *user_data, struct gensio **new_net)
@@ -1070,6 +1090,10 @@ gensio_acc_sctp_func(struct gensio_accepter *acc, int func, int val,
 
     case GENSIO_ACC_FUNC_STR_TO_GENSIO:
 	return sctpna_str_to_gensio(acc, addr, done, data, ret);
+
+    case GENSIO_ACC_FUNC_DISABLE:
+	sctpna_disable(acc);
+	return 0;
 
     default:
 	return ENOTSUP;

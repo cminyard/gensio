@@ -446,6 +446,17 @@ termios_process(struct sterm_data *sdata)
     }
 }
 
+static void
+termios_clear_q(struct sterm_data *sdata)
+{
+    while (sdata->termio_q) {
+	struct termio_op_q *qe = sdata->termio_q;
+
+	sdata->termio_q = qe->next;
+	sdata->o->free(sdata->o, qe);
+    }
+}
+
 static int
 termios_set_get(struct sterm_data *sdata, int val, enum termio_op op,
 		int (*getset)(struct termios *termio, int *mctl, int *val),
@@ -1304,6 +1315,7 @@ sterm_free(void *handler_data)
 {
     struct sterm_data *sdata = handler_data;
 
+    termios_clear_q(sdata);
     if (sdata->lock)
 	sdata->o->free_lock(sdata->lock);
     if (sdata->timer)

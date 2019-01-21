@@ -482,6 +482,9 @@ tcpna_server_open_done(struct gensio *io, int err, void *open_data)
 {
     struct tcpna_data *nadata = open_data;
 
+    tcpna_lock(nadata);
+    gensio_acc_remove_pending_gensio(nadata->acc, io);
+    tcpna_unlock(nadata);
     if (err) {
 	gensio_free(io);
 	gensio_acc_log(nadata->acc, GENSIO_LOG_ERR,
@@ -557,9 +560,7 @@ tcpna_readhandler(int fd, void *cbdata)
     tcpna_lock(nadata);
     io = base_gensio_server_alloc(nadata->o, tdata->ll, NULL, NULL, "tcp",
 				  tcpna_server_open_done, nadata);
-    if (io) {
-	tcpna_ref(nadata);
-    } else {
+    if (!io) {
 	tcpna_unlock(nadata);
 	gensio_acc_log(nadata->acc, GENSIO_LOG_ERR,
 		       "Out of memory allocating tcp base");
@@ -568,7 +569,9 @@ tcpna_readhandler(int fd, void *cbdata)
 	tcp_free(tdata);
 	return;
     }
+    tcpna_ref(nadata);
     gensio_set_is_reliable(io, true);
+    gensio_acc_add_pending_gensio(nadata->acc, io);
     tcpna_unlock(nadata);
 }
 
@@ -583,13 +586,18 @@ tcpna_fd_cleared(int fd, void *cbdata)
 
     tcpna_lock(nadata);
     num_left = --nadata->nr_accept_close_waiting;
+    if (num_left == 0) {
+	nadata->in_shutdown = false;
+	if (nadata->acceptfds)
+	    nadata->o->free(nadata->o, nadata->acceptfds);
+	nadata->acceptfds = NULL;
+    }
     tcpna_unlock(nadata);
 
     if (num_left == 0) {
 	if (nadata->shutdown_done)
 	    nadata->shutdown_done(accepter, nadata->shutdown_data);
 	tcpna_lock(nadata);
-	nadata->in_shutdown = false;
 	tcpna_deref_and_unlock(nadata);
     }
 }
@@ -692,6 +700,22 @@ tcpna_free(struct gensio_accepter *accepter)
     tcpna_deref_and_unlock(nadata);
 }
 
+static void
+tcpna_disable(struct gensio_accepter *accepter)
+{
+    struct tcpna_data *nadata = gensio_acc_get_gensio_data(accepter);
+    unsigned int i;
+
+    nadata->in_shutdown = false;
+    nadata->shutdown_done = NULL;
+    for (i = 0; i < nadata->nr_acceptfds; i++)
+	nadata->o->clear_fd_handlers_norpt(nadata->o, nadata->acceptfds[i].fd);
+    for (i = 0; i < nadata->nr_acceptfds; i++)
+	close(nadata->acceptfds[i].fd);
+    nadata->setup = false;
+    nadata->enabled = false;
+}
+
 int
 tcpna_str_to_gensio(struct gensio_accepter *accepter, const char *addr,
 		    gensio_event cb, void *user_data,
@@ -776,6 +800,10 @@ gensio_acc_tcp_func(struct gensio_accepter *acc, int func, int val,
 
     case GENSIO_ACC_FUNC_STR_TO_GENSIO:
 	return tcpna_str_to_gensio(acc, addr, done, data, ret);
+
+    case GENSIO_ACC_FUNC_DISABLE:
+	tcpna_disable(acc);
+	return 0;
 
     default:
 	return ENOTSUP;

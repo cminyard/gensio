@@ -120,6 +120,7 @@ struct udpna_data {
     bool enabled;
     bool closed;
     bool in_shutdown;
+    bool disabled;
     gensio_acc_done shutdown_done;
     void *shutdown_data;
 
@@ -680,6 +681,29 @@ udpn_set_write_callback_enable(struct gensio *io, bool enabled)
 }
 
 static void
+udpn_disable(struct gensio *io)
+{
+    struct udpn_data *ndata = gensio_get_gensio_data(io);
+    struct udpna_data *nadata = ndata->nadata;
+
+    if (ndata->read_enabled) {
+	udpna_fd_read_disable(nadata);
+	ndata->read_enabled = false;
+    }
+
+    if (ndata->write_enabled) {
+	udpna_fd_write_disable(nadata);
+	ndata->write_enabled = false;
+    }
+
+    ndata->close_done = NULL;
+    udpn_remove_from_list(&nadata->udpns, ndata);
+    udpn_add_to_list(&nadata->closed_udpns, ndata);
+    ndata->state = UDPN_CLOSED;
+    nadata->disabled = true;
+}
+
+static void
 udpn_handle_write_incoming(struct udpna_data *nadata, struct udpn_data *ndata)
 {
     struct gensio *io = ndata->io;
@@ -758,6 +782,10 @@ gensio_udp_func(struct gensio *io, int func, gensiods *count,
 
     case GENSIO_FUNC_SET_WRITE_CALLBACK:
 	udpn_set_write_callback_enable(io, buflen);
+	return 0;
+
+    case GENSIO_FUNC_DISABLE:
+	udpn_disable(io);
 	return 0;
 
     case GENSIO_FUNC_REMOTE_ID:
@@ -982,8 +1010,31 @@ udpna_free(struct gensio_accepter *accepter)
     nadata->setup = false;
     nadata->closed = true;
 
-    udpna_check_finish_free(nadata);
-    udpna_unlock(nadata);
+    if (!nadata->disabled) {
+	udpna_check_finish_free(nadata);
+	udpna_unlock(nadata);
+    } else if (nadata->udpn_count == 0) {
+	unsigned int i;
+
+	for (i = 0; i < nadata->nr_fds; i++)
+	    nadata->o->clear_fd_handlers_norpt(nadata->o, nadata->fds[i].fd);
+	for (i = 0; i < nadata->nr_fds; i++)
+	    close(nadata->fds[i].fd);
+	udpna_unlock(nadata);
+	udpna_do_free(nadata);
+    }
+}
+
+static void
+udpna_disable(struct gensio_accepter *accepter)
+{
+    struct udpna_data *nadata = gensio_acc_get_gensio_data(accepter);
+
+    nadata->enabled = false;
+    nadata->setup = false;
+    nadata->in_shutdown = false;
+    nadata->shutdown_done = NULL;
+    nadata->disabled = true;
 }
 
 int
@@ -1085,6 +1136,10 @@ gensio_acc_udp_func(struct gensio_accepter *acc, int func, int val,
 
     case GENSIO_ACC_FUNC_STR_TO_GENSIO:
 	return udpna_str_to_gensio(acc, addr, done, data, ret);
+
+    case GENSIO_ACC_FUNC_DISABLE:
+	udpna_disable(acc);
+	return 0;
 
     default:
 	return ENOTSUP;

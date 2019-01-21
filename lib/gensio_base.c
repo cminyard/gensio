@@ -790,7 +790,7 @@ gensio_base_func(struct gensio *io, int func, gensiods *count,
 		 const char *const *auxdata)
 {
     struct basen_data *ndata = gensio_get_gensio_data(io);
-    int rv;
+    int rv, rv2;
 
     switch (func) {
     case GENSIO_FUNC_WRITE:
@@ -828,14 +828,25 @@ gensio_base_func(struct gensio *io, int func, gensiods *count,
 	return gensio_ll_remote_id(ndata->ll, buf);
 
     case GENSIO_FUNC_CONTROL:
+	rv = ENOTSUP;
 	if (ndata->filter) {
 	    rv = gensio_filter_control(ndata->filter, *((bool *) cbuf), buflen,
 				       buf, count);
-	    if (rv != ENOTSUP)
+	    if (rv && rv != ENOTSUP)
 		return rv;
 	}
-	return gensio_ll_control(ndata->ll, *((bool *) cbuf), buflen, buf,
-				 count);
+	rv2 = gensio_ll_control(ndata->ll, *((bool *) cbuf), buflen, buf,
+				count);
+	if (rv2 == ENOTSUP)
+	    return rv;
+	return rv2;
+
+    case GENSIO_FUNC_DISABLE:
+	ndata->state = BASEN_CLOSED;
+	if (ndata->filter)
+	    gensio_filter_cleanup(ndata->filter);
+	gensio_ll_disable(ndata->ll);
+	return 0;
 
     default:
 	return ENOTSUP;
@@ -1324,6 +1335,12 @@ void
 gensio_ll_free(struct gensio_ll *ll)
 {
     ll->func(ll, GENSIO_LL_FUNC_FREE, NULL, NULL, NULL, 0, NULL);
+}
+
+void
+gensio_ll_disable(struct gensio_ll *ll)
+{
+    ll->func(ll, GENSIO_LL_FUNC_DISABLE, NULL, NULL, NULL, 0, NULL);
 }
 
 int

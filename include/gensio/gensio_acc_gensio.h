@@ -67,6 +67,11 @@
  */
 #define GENSIO_GENSIO_ACC_CONTROL		5
 
+/*
+ * The disable interface.
+ */
+#define GENSIO_GENSIO_ACC_DISABLE		6
+
 typedef int (*gensio_gensio_acc_cb)(void *acc_data, int op,
 				    void *data1, void *data2, void *data3,
 				    const void *data4);

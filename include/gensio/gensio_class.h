@@ -104,6 +104,12 @@ struct gensio_func_open_channel_data {
  */
 #define GENSIO_FUNC_CONTROL		12
 
+/*
+ * Disable the function of the gensio so it can be freed without
+ * generating any I/O.
+ */
+#define GENSIO_FUNC_DISABLE		13
+
 typedef int (*gensio_func)(struct gensio *io, int func, gensiods *count,
 			   const void *cbuf, gensiods buflen, void *buf,
 			   const char *const *auxdata);
@@ -181,6 +187,11 @@ void *gensio_getclass(struct gensio *io, const char *name);
  * datalen => ret
  */
 #define GENSIO_ACC_FUNC_CONTROL			6
+
+/*
+ * Like GENSIO_FUNC_DISABLE, see that for details.
+ */
+#define GENSIO_ACC_FUNC_DISABLE			7
 
 typedef int (*gensio_acc_func)(struct gensio_accepter *acc, int func, int val,
 			       const char *addr, void *done, void *data,

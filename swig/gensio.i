@@ -909,6 +909,10 @@ struct waiter { };
 	err_handle("shutdown", rv);
     }
 
+    void disable() {
+	gensio_acc_disable(self);
+    }
+
     %newobject control;
     char *control(int depth, bool get, int option, char *controldata) {
 	int rv;

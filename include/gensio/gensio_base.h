@@ -314,6 +314,9 @@ void gensio_ll_free(struct gensio_ll *ll);
 int gensio_ll_control(struct gensio_ll *ll, bool get, int option, char *data,
 		      gensiods *datalen);
 
+#define GENSIO_LL_FUNC_DISABLE			12
+void gensio_ll_disable(struct gensio_ll *ll);
+
 typedef int (*gensio_ll_func)(struct gensio_ll *ll, int op,
 			      gensiods *count,
 			      void *buf, const void *cbuf,

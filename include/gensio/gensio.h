@@ -377,6 +377,21 @@ int gensio_close(struct gensio *io, gensio_done close_done, void *close_data);
 int gensio_close_s(struct gensio *io);
 
 /*
+ * Disable operation of the gensio so that closing will not result in
+ * any data being transmitted.  This will not close file descriptors
+ * nor disable I/O, necessarily, but will put the gensio(s) into a
+ * state where freeing them will not result in any transmission of
+ * data to the other end.  This is primarily to allow a close of
+ * something like an SSL connection after a fork.  See gensio.5
+ * for details on forking.
+ *
+ * Note that this can only be safely called if no threads are
+ * processing gensio events.  You may be able to open a connecting
+ * gensio after this is called.
+ */
+void gensio_disable(struct gensio *io);
+
+/*
  * Frees data assoicated with the gensio.  If it is open, the gensio is
  * closed.  Note that you should not call gensio_free() after gensio_close()
  * before the done callback is called.  The results are undefined.
@@ -512,6 +527,12 @@ int gensio_acc_startup(struct gensio_accepter *accepter);
  */
 int gensio_acc_shutdown(struct gensio_accepter *accepter,
 			gensio_acc_done shutdown_done, void *shutdown_data);
+
+/*
+ * Like gensio_disable, but for accepters.  See gensio_disable for
+ * details.
+ */
+void gensio_acc_disable(struct gensio_accepter *accepter);
 
 /*
  * Equivalent to gensio_control, but for accepters.  There are

@@ -264,6 +264,15 @@ basena_control(struct gensio_accepter *accepter, bool get, unsigned int option,
 }
 
 static int
+basena_disable(struct gensio_accepter *accepter)
+{
+    struct basena_data *nadata = gensio_acc_get_gensio_data(accepter);
+
+    return nadata->acc_cb(nadata->acc_data, GENSIO_GENSIO_ACC_DISABLE,
+			  NULL, NULL, NULL, NULL);
+}
+
+static int
 gensio_acc_base_func(struct gensio_accepter *acc, int func, int val,
 		     const char *addr, void *done, void *data, const
 		     void *data2, void *ret)
@@ -289,6 +298,9 @@ gensio_acc_base_func(struct gensio_accepter *acc, int func, int val,
     case GENSIO_ACC_FUNC_CONTROL:
 	return basena_control(acc, val, *((unsigned int *) addr), data, ret);
 
+    case GENSIO_ACC_FUNC_DISABLE:
+	return basena_disable(acc);
+
     default:
 	return ENOTSUP;
     }
@@ -299,7 +311,9 @@ basena_finish_server_open(struct gensio *net, int err, void *cb_data)
 {
     struct basena_data *nadata = cb_data;
 
+    basena_lock(nadata);
     gensio_acc_remove_pending_gensio(nadata->acc, net);
+    basena_unlock(nadata);
 
     if (err)
 	gensio_free(net);

@@ -277,6 +277,7 @@ void
 gensio_acc_remove_pending_gensio(struct gensio_accepter *acc,
 				 struct gensio *io)
 {
+    gensio_list_rm(&acc->pending_ios, &io->pending_link);
 }
 
 static int
@@ -942,6 +943,17 @@ gensio_close_s(struct gensio *io)
 }
 
 void
+gensio_disable(struct gensio *io)
+{
+    struct gensio *c = io;
+
+    while (c) {
+	io->func(c, GENSIO_FUNC_DISABLE, NULL, NULL, 0, NULL, NULL);
+	c = c->child;
+    }
+}
+
+void
 gensio_free(struct gensio *io)
 {
     io->func(io, GENSIO_FUNC_FREE, NULL, NULL, 0, NULL, NULL);
@@ -1062,6 +1074,26 @@ gensio_acc_shutdown(struct gensio_accepter *accepter,
 {
     return accepter->func(accepter, GENSIO_ACC_FUNC_SHUTDOWN, 0,
 			  0, shutdown_done, shutdown_data, NULL, NULL);
+}
+
+void
+gensio_acc_disable(struct gensio_accepter *acc)
+{
+    struct gensio_accepter *c = acc;
+
+    while (c) {
+	struct gensio_link *l, *l2;
+
+	gensio_list_for_each_safe(&acc->pending_ios, l, l2) {
+	    struct gensio *io = gensio_container_of(l, struct gensio,
+						    pending_link);
+	    gensio_acc_remove_pending_gensio(acc, io);
+	    gensio_disable(io);
+	    gensio_free(io);
+	}
+	c->func(c, GENSIO_ACC_FUNC_DISABLE, 0, NULL, NULL, NULL, NULL, NULL);
+	c = c->child;
+    }
 }
 
 int

@@ -518,6 +518,38 @@ In addition to readbuf, a connecting pty takes the following options:
 Run the program as the given user name.  Requires proper capabilities
 (generally root).  The default is to run as the calling user.
 
+.SH "Forking and gensios"
+
+Unlike normal file descriptors, when you fork with a gensio, you now
+have two unassociated copies of the gensios.  So if you do operations
+on one, it might mess up the other.  Even a close might cause issues,
+if you close an SSL connection, it sends data to the other end to
+close the connection, even if the other fork doesn't want that.
+
+To avoid issues with this, you should generally first make sure that
+no thread is in a wait, service call, or any type of thing that would
+examine file descriptors or timers and act on them.  This is
+.B very
+important, and you must do it
+.B before
+you fork.
+
+Then you should call:
+.IP
+gensio_disable(io)
+.PP
+on all the gensios that the fork is not using, then free the gensios.
+Don't use close, use free.
+Then you should call:
+.IP
+gensio_acc_disable(acc)
+.PP
+on every gensio accepter you are not using, then free them.  If a
+connection is in progress and has not been reported to the user, it
+will be disabled then closed.
+
+You cannot share a gensio between two different processes.
+
 .SH "SEE ALSO"
 gensiotool(1), sctp(7), udp(7), tcp(7)
 
