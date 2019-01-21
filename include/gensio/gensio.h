@@ -353,6 +353,12 @@ int gensio_control(struct gensio *io, int depth, bool get,
 #define GENSIO_CONTROL_USERNAME			6
 
 /*
+ * Get the service sent from the gensio client.  Returns ENOENT if a
+ * service was not sent.
+ */
+#define GENSIO_CONTROL_SERVICE			7
+
+/*
  * Return the type string for the gensio (if depth is 0) or one of its
  * children (depth > 0).  Return NULL if the depth is greater than the
  * number of children.

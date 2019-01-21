@@ -30,6 +30,7 @@ struct gensio_certauth_filter_data {
     char *keyfile;
     char *certfile;
     char *username;
+    char *service;
     bool allow_authfail;
     bool use_child_auth;
 };
@@ -52,13 +53,26 @@ struct gensio_certauth_filter_data {
 #define GENSIO_CERTAUTH_VERSION		1
 
 /*
+ * A message consists of the following:
+ *
+ * <message number> [ <element number> <element length> <element data>
+ *	[ <element number> ...] <end element>
+ *
+ * The message number is the same as the states below, it is one byte
+ * long.  Message elements may come in any order.  The element number
+ * is one byte and the element length is a two byte network order
+ * unsigned integer, giving the maximum element data length of 65535
+ * bytes.
+ */
+
+/*
  * State machines for both the client and the server, also message
  * numbers (except for CLIENT_START).
  */
 enum certauth_state {
     /*
      * Client first sends the hello (containing the version, userid,
-     * and optional options) and goes into SERVERHELLO.
+     * and optional service and options) and goes into SERVERHELLO.
      */
     CERTAUTH_CLIENT_START = 0,
 
@@ -96,19 +110,68 @@ enum certauth_state {
 };
 #define CERTAUTH_STATE_MAX CERTAUTH_PASSTHROUGH
 
-/* Various message components */
+/*
+ * Various message components.
+ *
+ * The contents are given for each one.
+ */
 enum certauth_elements {
+    /*
+     *  100 2 <2 byte version number>
+     */
     CERTAUTH_VERSION		= 100,
+
+    /*
+     * 101 <n> <n byte string>
+     */
     CERTAUTH_USERID		= 101,
+
+    /*
+     * Currently not used.
+     */
     CERTAUTH_OPTIONS		= 102,
+
+    /*
+     * 103 32 <32 bytes of random data>
+     */
     CERTAUTH_CHALLENGE_DATA	= 103,
+
+    /*
+     * 104 <n> <signature of random data plus service id signed by the
+     *          client private key>
+     */
     CERTAUTH_CHALLENGE_RSP	= 104,
+
+    /*
+     * 105 <n> <X509 certificate in PEM format>
+     */
     CERTAUTH_CERTIFICATE	= 105,
+
+    /*
+     * 106 2 1|2
+     *
+     * The challenge response is verified, 1 is for success, 2 is for
+     * failure.
+     */
     CERTAUTH_RESULT		= 106,
+
+    /*
+     * 106 <n> <n-byte string with service name>
+     *
+     * The service is used to tell the server what service the client
+     * wishes to run.  It is optional and may be ignored.
+     */
+    CERTAUTH_SERVICE		= 107,
+
+    /*
+     * 200
+     *
+     * This is the last thing in the message.
+     */
     CERTAUTH_END		= 200
 };
 #define CERTAUTH_MIN_ELEMENT CERTAUTH_VERSION
-#define CERTAUTH_MAX_ELEMENT CERTAUTH_RESULT
+#define CERTAUTH_MAX_ELEMENT CERTAUTH_SERVICE
 
 #define CERTAUTH_RESULT_SUCCESS	1
 #define CERTAUTH_RESULT_ERR	2
@@ -141,6 +204,9 @@ struct certauth_filter {
 
     char *username;
     unsigned int username_len;
+
+    char *service;
+    unsigned int service_len;
 
     unsigned char *challenge_data;
     gensiods challenge_data_size;
@@ -465,6 +531,10 @@ certauth_add_challenge_rsp(struct certauth_filter *sfilter)
 	gca_logs_err(sfilter, "Signature update failed");
 	goto out_nomem;
     }
+    if (!EVP_SignUpdate(sign_ctx, sfilter->service, sfilter->service_len)) {
+	gca_logs_err(sfilter, "Signature update (service) failed");
+	goto out_nomem;
+    }
     if (!EVP_SignFinal(sign_ctx, certauth_writepos(sfilter), &len,
 		       sfilter->pkey)) {
 	gca_logs_err(sfilter, "Signature final failed");
@@ -500,6 +570,10 @@ certauth_check_challenge(struct certauth_filter *sfilter)
     if (!EVP_VerifyUpdate(sign_ctx, sfilter->challenge_data,
 			  sfilter->challenge_data_size)) {
 	gca_logs_err(sfilter, "Verify update failed");
+	goto out_nomem;
+    }
+    if (!EVP_VerifyUpdate(sign_ctx, sfilter->service, sfilter->service_len)) {
+	gca_logs_err(sfilter, "Verify update (service) failed");
 	goto out_nomem;
     }
     rv = EVP_VerifyFinal(sign_ctx, sfilter->read_buf, sfilter->read_buf_len,
@@ -550,6 +624,11 @@ certauth_try_connect(struct gensio_filter *filter, struct timeval *timeout)
 	certauth_write_u16(sfilter, sfilter->username_len);
 	if (sfilter->username_len)
 	    certauth_write(sfilter, sfilter->username, sfilter->username_len);
+	if (sfilter->service && sfilter->service_len) {
+	    certauth_write_byte(sfilter, CERTAUTH_SERVICE);
+	    certauth_write_u16(sfilter, sfilter->service_len);
+	    certauth_write(sfilter, sfilter->service, sfilter->service_len);
+	}
 
 	certauth_write_byte(sfilter, CERTAUTH_END);
 
@@ -794,6 +873,23 @@ certauth_handle_new_element(struct certauth_filter *sfilter)
 	}
 	break;
 
+    case CERTAUTH_SERVICE:
+	if (sfilter->service) {
+	    gca_log_err(sfilter, "Service received when already set");
+	    sfilter->pending_err = EPROTO;
+	    break;
+	}
+	sfilter->service = o->zalloc(0, sfilter->curr_elem_len + 1);
+	sfilter->service_len = sfilter->curr_elem_len;
+	if (!sfilter->service) {
+	    gca_log_err(sfilter, "Unable to allocate memory for service");
+	    sfilter->pending_err = ENOMEM;
+	} else {
+	    memcpy(sfilter->service, sfilter->read_buf,
+		   sfilter->curr_elem_len);
+	}
+	break;
+
     case CERTAUTH_OPTIONS:
 	break;
 
@@ -1011,6 +1107,11 @@ certauth_cleanup(struct gensio_filter *filter)
 	if (sfilter->username)
 	    sfilter->o->free(sfilter->o, sfilter->username);
 	sfilter->username = NULL;
+	sfilter->username_len = 0;
+	if (sfilter->service)
+	    sfilter->o->free(sfilter->o, sfilter->service);
+	sfilter->service = NULL;
+	sfilter->service_len = 0;
     }
 
     sfilter->read_buf_len = 0;
@@ -1042,6 +1143,8 @@ certauth_free(struct gensio_filter *filter)
 	EVP_PKEY_free(sfilter->pkey);
     if (sfilter->username)
 	sfilter->o->free(sfilter->o, sfilter->username);
+    if (sfilter->service)
+	sfilter->o->free(sfilter->o, sfilter->service);
     if (sfilter->challenge_data)
 	sfilter->o->free(sfilter->o, sfilter->challenge_data);
     if (sfilter->filter)
@@ -1114,6 +1217,12 @@ certauth_filter_control(struct gensio_filter *filter, bool get, int op,
 	if (!sfilter->username)
 	    return ENOENT;
 	*datalen = snprintf(data, *datalen, "%s", sfilter->username);
+	return 0;
+
+    case GENSIO_CONTROL_SERVICE:
+	if (!sfilter->service)
+	    return ENOENT;
+	*datalen = snprintf(data, *datalen, "%s", sfilter->service);
 	return 0;
 
     case GENSIO_CONTROL_CERT_AUTH:
@@ -1206,7 +1315,7 @@ gensio_certauth_filter_raw_alloc(struct gensio_os_funcs *o,
 				 bool is_client, X509_STORE *store,
 				 X509 *cert, STACK_OF(X509) *sk_ca,
 				 EVP_PKEY *pkey,
-				 const char *username,
+				 const char *username, const char *service,
 				 bool allow_authfail, bool use_child_auth,
 				 struct gensio_filter **rfilter)
 {
@@ -1244,6 +1353,13 @@ gensio_certauth_filter_raw_alloc(struct gensio_os_funcs *o,
 	if (!sfilter->username)
 	    goto out_nomem;
 	sfilter->username_len = strlen(username);
+    }
+
+    if (service) {
+	sfilter->service = gensio_strdup(o, service);
+	if (!sfilter->service)
+	    goto out_nomem;
+	sfilter->service_len = strlen(service);
     }
 
     if (is_client) {
@@ -1291,7 +1407,7 @@ gensio_certauth_filter_config(struct gensio_os_funcs *o,
     unsigned int i;
     struct gensio_certauth_filter_data *data = o->zalloc(o, sizeof(*data));
     const char *CAfilepath = NULL, *keyfile = NULL, *certfile = NULL;
-    const char *username = NULL;
+    const char *username = NULL, *service = NULL;
     int rv = ENOMEM, ival;
 
     if (!data)
@@ -1312,6 +1428,8 @@ gensio_certauth_filter_config(struct gensio_os_funcs *o,
 	if (gensio_check_keyvalue(args[i], "cert", &certfile))
 	    continue;
 	if (gensio_check_keyvalue(args[i], "username", &username))
+	    continue;
+	if (gensio_check_keyvalue(args[i], "service", &service))
 	    continue;
 	if (gensio_check_keyboolv(args[i], "mode", "client", "server",
 				  &data->is_client) > 0)
@@ -1341,6 +1459,11 @@ gensio_certauth_filter_config(struct gensio_os_funcs *o,
     if (!username) {
 	gensio_get_default(o, "certauth", "username", false, GENSIO_DEFAULT_STR,
 			   &username, NULL);
+    }
+
+    if (!service) {
+	gensio_get_default(o, "certauth", "service", false, GENSIO_DEFAULT_STR,
+			   &service, NULL);
     }
 
     if (!keyfile)
@@ -1384,6 +1507,13 @@ gensio_certauth_filter_config(struct gensio_os_funcs *o,
 	if (!data->username)
 	    goto out_err;
     }
+
+    if (service) {
+	data->service = gensio_strdup(o, service);
+	if (!data->service)
+	    goto out_err;
+    }
+
     *rdata = data;
 
     return 0;
@@ -1396,6 +1526,8 @@ gensio_certauth_filter_config(struct gensio_os_funcs *o,
 	o->free(o, data->certfile);
     if (data->username)
 	o->free(o, data->username);
+    if (data->service)
+	o->free(o, data->service);
     o->free(o, data);
     return rv;
 }
@@ -1417,6 +1549,8 @@ gensio_certauth_filter_config_free(struct gensio_certauth_filter_data *data)
 	o->free(o, data->certfile);
     if (data->username)
 	o->free(o, data->username);
+    if (data->service)
+	o->free(o, data->service);
     o->free(o, data);
 }
 
@@ -1546,7 +1680,7 @@ gensio_certauth_filter_alloc(struct gensio_certauth_filter_data *data,
 
     rv = gensio_certauth_filter_raw_alloc(o, data->is_client, store,
 					  cert, sk_ca, pkey,
-					  data->username,
+					  data->username, data->service,
 					  data->allow_authfail,
 					  data->use_child_auth,
 					  &filter);
