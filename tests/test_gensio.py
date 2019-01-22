@@ -161,6 +161,9 @@ def do_telnet_test(io1, io2):
         raise Exception("Timeout waiting for server baud set")
     if io1.handler.wait_timeout(1000):
         raise Exception("Timeout waiting for client baud response")
+    io1.read_cb_enable(False)
+    io2.read_cb_enable(False)
+    return
 
     io2.handler.set_expected_server_cb("datasize", 5, 6)
     io1.handler.set_expected_client_cb("datasize", 6)
@@ -229,7 +232,7 @@ def do_telnet_test(io1, io2):
     io2.read_cb_enable(False)
     return
 
-def ta_ssl_telnet():
+def ta_telnet():
     print("Test accept telnet")
     io1 = utils.alloc_io(o, "telnet(rfc2217),tcp,localhost,3027",
                          do_open = False)
@@ -632,10 +635,10 @@ test_stdio_basic_stderr()
 test_stdio_small()
 ta_tcp()
 ta_udp()
+ta_telnet()
 ta_ssl_tcp()
 ta_certauth_tcp()
 ta_sctp()
-test_modemstate()
 test_tcp_small()
 test_tcp_urgent()
 test_telnet_small()
@@ -643,7 +646,8 @@ test_sctp_small()
 test_sctp_streams()
 test_sctp_oob()
 test_ipmisol_small()
-ta_ssl_telnet()
+
+test_modemstate()
 
 test_tcp_acc_connect()
 test_udp_acc_connect()

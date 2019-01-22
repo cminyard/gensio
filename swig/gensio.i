@@ -233,6 +233,7 @@ static void gensio_do_vlog(struct gensio_os_funcs *o,
     PyTuple_SET_ITEM(args, 0, po);
     po = OI_PI_FromString(buf);
     PyTuple_SET_ITEM(args, 1, po);
+    o->free(o, buf);
 
     swig_finish_call(odata->log_handler, "gensio_log", args, false);
 }
@@ -281,6 +282,7 @@ struct gensio_os_funcs *alloc_gensio_selector(swig_cb *log_handler)
 	fprintf(stderr, "Unable to allocate gensio os funcs, giving up\n");
 	exit(1);
     }
+    odata->sel = sel;
     o->other_data = odata;
     odata->log_handler = ref_swig_cb(log_handler, gensio_log);
     o->vlog = gensio_do_vlog;

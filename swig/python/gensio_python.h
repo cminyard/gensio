@@ -251,6 +251,7 @@ check_os_funcs_free(struct gensio_os_funcs *o)
     if (--odata->refcount == 0) {
 	os_funcs_unlock(odata);
 	deref_swig_cb_val(odata->log_handler);
+	sel_free_selector(odata->sel);
 	free(odata);
 	o->free_funcs(o);
     } else {
@@ -889,7 +890,7 @@ sergensio_cb(struct sergensio *sio, int err, unsigned int val, void *cb_data)
 
     gstate = OI_PY_STATE_GET();
 
-    sio_ref = swig_make_ref(sio, gensio);
+    sio_ref = swig_make_ref(sio, sergensio);
     args = PyTuple_New(3);
     sergensio_ref(sio);
     PyTuple_SET_ITEM(args, 0, sio_ref.val);

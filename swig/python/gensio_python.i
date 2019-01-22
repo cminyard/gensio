@@ -79,11 +79,8 @@
     $1 = temp;
 }
 
-%typemap(freearg) auxdata {
-    unsigned int i;
-
-    for (i = 0; $1->val[i]; i++) {
-	free($1->val[i]);
+%typemap(freearg) const char *const *auxdata {
+    if ($1) {
+	free($1);
     }
-    free($1->val);
 };

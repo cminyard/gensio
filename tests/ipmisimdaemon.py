@@ -116,6 +116,7 @@ class IPMISimDaemon:
     def __del__(self):
         if (self.handler):
             self.terminate()
+        del self.io
         return
 
     def signal(self, sig):
@@ -134,7 +135,7 @@ class IPMISimDaemon:
         if (self.handler.debug or utils.debug):
             print("Terminating")
         if self.io.closeme:
-            self.handler.close()
+            utils.io_close(self.io)
         count = 10
         while (count > 0):
             if (count < 6):

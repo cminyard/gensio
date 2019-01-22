@@ -251,6 +251,7 @@ void get_remote_termios(struct gensio *io, void *termios);
  * where options is (in the following order):
  *  enabled, rts_on_send, rts_after_send, rx_during_tx, terminate_bus
  */
+%newobject get_remote_rs485;
 char *get_remote_rs485(struct gensio *io);
 
 void set_remote_modem_ctl(struct gensio *io, unsigned int val);
