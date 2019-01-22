@@ -36,10 +36,22 @@
 }
 
 %typemap(argout) (char **rbuffer, size_t *rbuffer_len) {
-    PyObject *r = OI_PI_FromStringAndSize(*$1, *$2);
+    PyObject *r = PyBytes_FromStringAndSize(*$1, *$2);
 
     $result = add_python_result($result, r);
     free(*$1);
+}
+
+%typemap(in) (char *bytestr, my_ssize_t len) {
+    if (OI_PI_BytesCheck($input))
+	OI_PI_AsBytesAndSize($input, &$1, &$2);
+    else if (PyByteArray_Check($input)) {
+	$1 = PyByteArray_AsString($input);
+	$2 = PyByteArray_Size($input);
+    } else {
+        PyErr_SetString(PyExc_TypeError, "Must be a byte string or array");
+        SWIG_fail;
+    }
 }
 
 %typemap(in) const char *const *auxdata {
@@ -66,13 +78,13 @@
     for (i = 0; i < len; i++) {
 	PyObject *o = PySequence_GetItem($input, i);
 
-	if (!PyString_Check(o)) {
+	if (!OI_PI_StringCheck(o)) {
 	    Py_XDECREF(o);
 	    PyErr_SetString(PyExc_ValueError,
 			    "Expecting a sequence of strings");
 	    SWIG_fail;
 	}
-	temp[i] = PyString_AsString(o);
+	temp[i] = OI_PI_AsString(o);
 	Py_DECREF(o);
     }
  null_auxdata:

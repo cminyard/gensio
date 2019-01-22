@@ -77,16 +77,6 @@ swig_make_ref_i(void *item, swig_type_info *class)
 #define swig_make_ref(item, name) \
 	swig_make_ref_i(item, SWIGTYPE_p_ ## name)
 
-static void
-swig_free_ref(swig_ref ref)
-{
-    OI_PY_STATE gstate;
-
-    gstate = OI_PY_STATE_GET();
-    Py_DECREF(ref.val);
-    OI_PY_STATE_PUT(gstate);
-}
-
 static swig_cb_val *
 deref_swig_cb_val(swig_cb_val *cb)
 {
@@ -197,12 +187,36 @@ swig_finish_call(swig_cb_val *cb, const char *method_name, PyObject *args,
 	Py_DECREF(o);
 }
 
+#define my_ssize_t Py_ssize_t
 #if PY_VERSION_HEX >= 0x03000000
-#define OI_PI_FromStringAndSize PyUnicode_FromStringAndSize
+static int
+OI_PI_BytesCheck(PyObject *o)
+{
+    if (PyUnicode_Check(o))
+	return 1;
+    if (PyBytes_Check(o))
+	return 1;
+    return 0;
+}
+
+static int
+OI_PI_AsBytesAndSize(PyObject *o, char **buf, my_ssize_t *len)
+{
+    if (PyUnicode_Check(o)) {
+	*buf = PyUnicode_AsUTF8AndSize(o, len);
+	return 0;
+    }
+    return PyBytes_AsStringAndSize(o, buf, len);
+}
+#define OI_PI_StringCheck PyUnicode_Check
 #define OI_PI_FromString PyUnicode_FromString
+#define OI_PI_AsString PyUnicode_AsUTF8
 #else
-#define OI_PI_FromStringAndSize PyString_FromStringAndSize
+#define OI_PI_BytesCheck PyString_Check
+#define OI_PI_AsBytesAndSize PyString_AsStringAndSize
+#define OI_PI_StringCheck PyString_Check
 #define OI_PI_FromString PyString_FromString
+#define OI_PI_AsString PyString_AsString
 #endif
 
 struct os_funcs_data {
@@ -466,7 +480,7 @@ sgensio_signature(struct sergensio *sio, char *sig, unsigned int len)
     args = PyTuple_New(2);
     ref_gensio_data(data);
     PyTuple_SET_ITEM(args, 0, sio_ref.val);
-    o = OI_PI_FromStringAndSize(sig, len);
+    o = PyBytes_FromStringAndSize(sig, len);
     PyTuple_SET_ITEM(args, 1, o);
 
     swig_finish_call(data->handler_val, "signature", args, true);
@@ -603,6 +617,7 @@ gensio_child_event(struct gensio *io, int event, int readerr,
     PyObject *args, *o;
     OI_PY_STATE gstate;
     int rv = 0;
+    gensiods rsize;
 
     gstate = OI_PY_STATE_GET();
 
@@ -630,7 +645,7 @@ gensio_child_event(struct gensio *io, int event, int readerr,
 	}
 	PyTuple_SET_ITEM(args, 1, o);
 
-	o = OI_PI_FromStringAndSize((char *) buf, *buflen);
+	o = PyBytes_FromStringAndSize((char *) buf, *buflen);
 	PyTuple_SET_ITEM(args, 2, o);
 
 	if (!auxdata || !auxdata[0]) {
@@ -647,8 +662,10 @@ gensio_child_event(struct gensio *io, int event, int readerr,
 	    PyTuple_SET_ITEM(args, 3, o);
 	}
 
-	*buflen = swig_finish_call_rv_gensiods(data->handler_val,
-					       "read_callback", args, false);
+	rsize = swig_finish_call_rv_gensiods(data->handler_val,
+					     "read_callback", args, false);
+	if (!PyErr_Occurred())
+	    *buflen = rsize;
 	break;
 
     case GENSIO_EVENT_WRITE_READY:
@@ -744,8 +761,6 @@ gensio_child_event(struct gensio *io, int event, int readerr,
 	break;
     }
 
-    if (io_ref.val)
-	swig_free_ref_check(io_ref, accepter);
  out_put:
     OI_PY_STATE_PUT(gstate);
 

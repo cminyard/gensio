@@ -499,12 +499,12 @@ struct waiter { };
     }
 
     %rename(write) writet;
-    %apply (char *STRING, size_t LENGTH) { (char *str, size_t len) };
-    unsigned int writet(char *str, size_t len, const char *const *auxdata) {
+    unsigned int writet(char *bytestr, my_ssize_t len,
+			const char *const *auxdata) {
 	gensiods wr = 0;
 	int rv;
 
-	rv = gensio_write(self, &wr, str, len, auxdata);
+	rv = gensio_write(self, &wr, bytestr, len, auxdata);
 	err_handle("write", rv);
 	return wr;
     }

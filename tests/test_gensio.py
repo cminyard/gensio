@@ -568,7 +568,7 @@ def test_ssl_sctp_acc_connect():
     except Exception as E:
         if str(E) != "gensio:open_s: Communication error on send":
             raise
-        print "  Success checking no client cert"
+        print("  Success checking no client cert")
         goterr = True
     if not goterr:
         raise Exception("Did not get error on no client certificate.")
@@ -587,7 +587,7 @@ def test_ssl_sctp_acc_connect():
     except Exception as E:
         if str(E) != "gensio:open_s: Communication error on send":
             raise
-        print "  Success checking invalid client cert"
+        print("  Success checking invalid client cert")
         goterr = True
     if not goterr:
         raise Exception("Did not get error on invalid client certificate.")
@@ -614,7 +614,7 @@ def test_certauth_sctp_acc_connect():
     except Exception as E:
         if str(E) != "gensio:open_s: Communication error on send":
             raise
-        print "  Success checking invalid client cert"
+        print("  Success checking invalid client cert")
         goterr = True
     if not goterr:
         raise Exception("Did not get error on invalid client certificate.")

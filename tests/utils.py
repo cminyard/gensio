@@ -12,8 +12,18 @@ import signal
 import time
 import curses.ascii
 import sys
+import sysconfig
 
 debug = 0
+
+def conv_to_bytes(s):
+    if (sysconfig.get_python_version() >= "3.0"):
+        if (isinstance(s, str)):
+            return bytes(s, "utf-8")
+        else:
+            return s
+    else:
+        return s
 
 class HandlerException(Exception):
     """Exception for HandleData errors"""
@@ -79,7 +89,7 @@ class HandleData:
         """
         self.compared = 0
         self.stream = stream
-        self.to_compare = to_compare
+        self.to_compare = conv_to_bytes(to_compare);
         if (start_reader):
             self.io.read_cb_enable(True)
         return
@@ -92,7 +102,7 @@ class HandleData:
         """
         self.compared_oob = 0
         self.stream = stream
-        self.to_compare_oob = to_compare
+        self.to_compare_oob = conv_to_bytes(to_compare)
         if (start_reader):
             self.io.read_cb_enable(True)
         return
@@ -104,7 +114,7 @@ class HandleData:
         If the data does not compare, an exception is raised.
         """
         self.compared = 0
-        self.to_waitfor = waitfor
+        self.to_waitfor = conv_to_bytes(waitfor)
         if (start_reader):
             self.io.read_cb_enable(True)
         return
@@ -114,7 +124,7 @@ class HandleData:
         self.close_on_done = close_on_done
         self.wrpos = 0
         self.wrlen = len(to_write)
-        self.to_write = to_write
+        self.to_write = conv_to_bytes(to_write)
         self.write_auxdata = auxdata
         if (start_writer):
             self.io.write_cb_enable(True)
@@ -147,11 +157,11 @@ class HandleData:
                                                         self.compared, iolen))
         if (debug >= 2 or self.debug >= 2):
             s = ""
-            for i in buf:
-                if curses.ascii.isprint(i):
-                    s = s + i
+            for i in range(0, len(buf)):
+                if curses.ascii.isprint(buf[i]):
+                    s = s + str(buf[i:i+1], "utf-8")
                 else:
-                    s = s + "\\x%2.2x" % ord(i)
+                    s = s + "\\x%2.2x" % i
             print("%s: Got data: (err %s %d bytes) %s" % (self.name, str(err),
                                                           len(buf), s))
         if (err):
@@ -221,8 +231,8 @@ class HandleData:
                 raise HandlerException("%s: %scompare failure on byte %d, "
                                        "expected %x, got %x" %
                                        (self.name, oob, compared,
-                                        ord(compare_with[compared]),
-                                        ord(buf[i])))
+                                        compare_with[compared],
+                                        buf[i]))
             compared += 1
 
         if oob == "oob ":
