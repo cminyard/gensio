@@ -210,59 +210,6 @@ gensio_thread_sighandler(int sig)
 }
 #endif
 
-struct os_funcs_data {
-#ifdef USE_POSIX_THREADS
-    pthread_mutex_t lock;
-#endif
-    unsigned int refcount;
-    struct selector_s *sel;
-    swig_cb_val *log_handler;
-};
-
-#ifdef USE_POSIX_THREADS
-void os_funcs_lock(struct os_funcs_data *odata)
-{
-    pthread_mutex_lock(&odata->lock);
-}
-void os_funcs_unlock(struct os_funcs_data *odata)
-{
-    pthread_mutex_unlock(&odata->lock);
-}
-#else
-void os_funcs_lock(struct os_funcs_data *odata)
-{
-}
-void os_funcs_unlock(struct os_funcs_data *odata)
-{
-}
-#endif
-
-static void
-os_funcs_ref(struct gensio_os_funcs *o)
-{
-    struct os_funcs_data *odata = o->other_data;
-
-    os_funcs_lock(odata);
-    odata->refcount++;
-    os_funcs_unlock(odata);
-}
-
-static void
-check_os_funcs_free(struct gensio_os_funcs *o)
-{
-    struct os_funcs_data *odata = o->other_data;
-
-    os_funcs_lock(odata);
-    if (--odata->refcount == 0) {
-	os_funcs_unlock(odata);
-	deref_swig_cb_val(odata->log_handler);
-	free(odata);
-	o->free_funcs(o);
-    } else {
-	os_funcs_unlock(odata);
-    }
-}
-
 static void gensio_do_vlog(struct gensio_os_funcs *o,
 			   enum gensio_log_levels level,
 			   const char *fmt, va_list fmtargs)
@@ -341,59 +288,6 @@ struct gensio_os_funcs *alloc_gensio_selector(swig_cb *log_handler)
     return o;
 }
 
-static struct gensio_data *
-alloc_gensio_data(struct gensio_os_funcs *o, swig_cb *handler)
-{
-    struct gensio_data *data;
-
-    data = malloc(sizeof(*data));
-    if (!data)
-	return NULL;
-    data->refcount = 1;
-    if (nil_swig_cb(handler))
-	data->handler_val = NULL;
-    else
-	data->handler_val = ref_swig_cb(handler, read_callback);
-    os_funcs_ref(o);
-    data->o = o;
-
-    return data;
-}
-
-static void
-free_gensio_data(struct gensio_data *data)
-{
-    deref_swig_cb_val(data->handler_val);
-    check_os_funcs_free(data->o);
-    free(data);
-}
-
-static void
-ref_gensio_data(struct gensio_data *data)
-{
-    struct os_funcs_data *odata = data->o->other_data;
-
-    os_funcs_lock(odata);
-    data->refcount++;
-    os_funcs_unlock(odata);
-}
-
-static void
-deref_gensio_data(struct gensio_data *data, struct gensio *io)
-{
-    struct os_funcs_data *odata = data->o->other_data;
-
-    os_funcs_lock(odata);
-    data->refcount--;
-    if (data->refcount <= 0) {
-	os_funcs_unlock(odata);
-	gensio_free(io);
-	free_gensio_data(data);
-    } else {
-	os_funcs_unlock(odata);
-    }
-}
-
 %}
 
 %init %{
@@ -468,7 +362,6 @@ struct waiter { };
 	    free_gensio_data(data);
 	    ser_err_handle("gensio alloc", rv);
 	}
-
 	return io;
     }
 
@@ -476,6 +369,8 @@ struct waiter { };
     {
 	struct gensio_data *data = gensio_get_user_data(self);
 
+	if (data->tmpval)
+	    return;
 	deref_gensio_data(data, self);
     }
 
@@ -866,8 +761,7 @@ struct waiter { };
     {
 	struct gensio_data *data = gensio_acc_get_user_data(self);
 
-	gensio_acc_free(self);
-	free_gensio_data(data);
+	deref_gensio_accepter_data(data, self);
     }
 
     %newobject str_to_gensio;
@@ -908,6 +802,12 @@ struct waiter { };
 	    deref_swig_cb_val(done_val);
 
 	err_handle("shutdown", rv);
+    }
+
+    void shutdown_s() {
+	int rv = gensio_acc_shutdown_s(self);
+
+	err_handle("shutdown_s", rv);
     }
 
     void disable() {

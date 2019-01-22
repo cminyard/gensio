@@ -560,6 +560,9 @@ def io_close(io, timeout = 1000):
     if (io.handler.wait_timeout(timeout)):
         raise Exception("%s: %s: Timed out waiting for close" %
                         ("io_close", io.handler.name))
+    # Break all the possible circular references.
+    del io.handler.io
+    del io.handler
     return
 
 srcdir = os.getenv("srcdir")

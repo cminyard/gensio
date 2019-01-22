@@ -1,6 +1,7 @@
 #!/usr/bin/python
 import utils
 import gensio
+import sys
 from remote_termios import *
 
 class Logger:
@@ -28,13 +29,14 @@ def test_serial_pipe_device():
 
 class TestAccept:
     def __init__(self, o, io1, iostr, tester, name = None,
-                 io1_dummy_write = None):
+                 io1_dummy_write = None, do_close = True):
         self.o = o
         if (name):
             self.name = name
         else:
             self.name = iostr
         self.io1 = io1
+        self.io2 = None
         self.waiter = gensio.waiter(o)
         self.acc = gensio.gensio_accepter(o, iostr, self);
         self.acc.startup()
@@ -51,6 +53,22 @@ class TestAccept:
                         ("Timed out waiting for dummy read at byte %d" %
                          self.io2.handler.compared))
         tester(self.io1, self.io2)
+        if do_close:
+            self.close()
+
+    def close(self):
+        self.io1.read_cb_enable(False)
+        if self.io2:
+            self.io2.read_cb_enable(False)
+        utils.io_close(self.io1)
+        if self.io2:
+            utils.io_close(self.io2)
+
+        # Break all the possible circular references.
+        del self.io1
+        del self.io2
+        self.acc.shutdown_s()
+        del self.acc
 
     def new_connection(self, acc, io):
         utils.HandleData(self.o, None, io = io, name = self.name)
@@ -87,8 +105,8 @@ def ta_sctp():
 
 def ta_ssl_tcp():
     print("Test accept ssl-tcp")
-    io1 = utils.alloc_io(o, "ssl(CA=%s/CA.pem),tcp,localhost,3024" % utils.srcdir, do_open = False)
-    ta = TestAccept(o, io1, "ssl(key=%s/key.pem,cert=%s/cert.pem),3024" % (utils.srcdir, utils.srcdir), do_test)
+    io1 = utils.alloc_io(o, "ssl(CA=%s/CA.pem),tcp,localhost,3023" % utils.srcdir, do_open = False)
+    ta = TestAccept(o, io1, "ssl(key=%s/key.pem,cert=%s/cert.pem),3023" % (utils.srcdir, utils.srcdir), do_test, do_close = False)
     cn = io1.control(0, True, gensio.GENSIO_CONTROL_GET_PEER_CERT_NAME,
                      "-1,CN");
     i = cn.index(',')
@@ -101,11 +119,12 @@ def ta_ssl_tcp():
         raise Exception(
             "Invalid common name in certificate, expected %s, got %s" %
             ("ser2net.org", cn2[i+1:]))
+    ta.close()
 
 def ta_certauth_tcp():
     print("Test accept certauth-tcp")
-    io1 = utils.alloc_io(o, "certauth(cert=%s/clientcert.pem,key=%s/clientkey.pem,username=testuser,service=myservice),tcp,localhost,3080" % (utils.srcdir, utils.srcdir), do_open = False)
-    ta = TestAccept(o, io1, "certauth(CA=%s/clientcert.pem),3080" % utils.srcdir, do_test)
+    io1 = utils.alloc_io(o, "certauth(cert=%s/clientcert.pem,key=%s/clientkey.pem,username=testuser,service=myservice),tcp,localhost,3023" % (utils.srcdir, utils.srcdir), do_open = False)
+    ta = TestAccept(o, io1, "certauth(CA=%s/clientcert.pem),3023" % utils.srcdir, do_test, do_close = False)
     cn = ta.io2.control(0, True, gensio.GENSIO_CONTROL_GET_PEER_CERT_NAME,
                         "-1,CN");
     i = cn.index(',')
@@ -126,6 +145,7 @@ def ta_certauth_tcp():
     if service != "myservice":
         raise Exception(
             "Invalid service, expected %s, got %s" % ("myservice", service))
+    ta.close()
 
 def do_telnet_test(io1, io2):
     do_test(io1, io2)
@@ -205,10 +225,12 @@ def do_telnet_test(io1, io2):
         raise Exception("Timeout waiting for server rts set")
     if io1.handler.wait_timeout(1000):
         raise Exception("Timeout waiting for client rts response")
+    io1.read_cb_enable(False)
+    io2.read_cb_enable(False)
     return
 
 def ta_ssl_telnet():
-    print("Test accept ssl telnet")
+    print("Test accept telnet")
     io1 = utils.alloc_io(o, "telnet(rfc2217),tcp,localhost,3027",
                          do_open = False)
     ta = TestAccept(o, io1, "telnet(rfc2217=true),3027", do_telnet_test)
@@ -336,15 +358,13 @@ def do_small_test(io1, io2):
     utils.test_dataxfer(io1, io2, rb)
     print("  testing io2 to io1")
     utils.test_dataxfer(io2, io1, rb)
-    utils.io_close(io1)
-    utils.io_close(io2)
     print("  Success!")
 
 def test_tcp_small():
     print("Test tcp small")
-    io1 = utils.alloc_io(o, "tcp,localhost,3025", do_open = False,
+    io1 = utils.alloc_io(o, "tcp,localhost,3023", do_open = False,
                          chunksize = 64)
-    ta = TestAccept(o, io1, "tcp,3025", do_small_test)
+    ta = TestAccept(o, io1, "tcp,3023", do_small_test)
 
 def do_urgent_test(io1, io2):
     rb = "A" # We only get one byte of urgent data.
@@ -352,21 +372,19 @@ def do_urgent_test(io1, io2):
     utils.test_dataxfer_oob(io1, io2, rb)
     print("  testing io2 to io1")
     utils.test_dataxfer_oob(io2, io1, rb)
-    utils.io_close(io1)
-    utils.io_close(io2)
     print("  Success!")
 
 def test_tcp_urgent():
     print("Test tcp urgent")
-    io1 = utils.alloc_io(o, "tcp,localhost,3028", do_open = False,
+    io1 = utils.alloc_io(o, "tcp,localhost,3023", do_open = False,
                          chunksize = 64)
-    ta = TestAccept(o, io1, "tcp,3028", do_urgent_test)
+    ta = TestAccept(o, io1, "tcp,3023", do_urgent_test)
 
 def test_sctp_small():
     print("Test sctp small")
-    io1 = utils.alloc_io(o, "sctp,localhost,3025", do_open = False,
+    io1 = utils.alloc_io(o, "sctp,localhost,3023", do_open = False,
                          chunksize = 64)
-    ta = TestAccept(o, io1, "sctp,3025", do_small_test)
+    ta = TestAccept(o, io1, "sctp,3023", do_small_test)
 
 def do_stream_test(io1, io2):
     rb = gensio.get_random_bytes(10)
@@ -374,15 +392,13 @@ def do_stream_test(io1, io2):
     utils.test_dataxfer_stream(io1, io2, rb, 2)
     print("  testing io2 to io1")
     utils.test_dataxfer_stream(io2, io1, rb, 1)
-    utils.io_close(io1)
-    utils.io_close(io2)
     print("  Success!")
 
 def test_sctp_streams():
     print("Test sctp streams")
-    io1 = utils.alloc_io(o, "sctp(instreams=2,ostreams=3),localhost,3030",
+    io1 = utils.alloc_io(o, "sctp(instreams=2,ostreams=3),localhost,3023",
                          do_open = False, chunksize = 64)
-    ta = TestAccept(o, io1, "sctp(instreams=3,ostreams=2),3030", do_stream_test)
+    ta = TestAccept(o, io1, "sctp(instreams=3,ostreams=2),3023", do_stream_test)
 
 def do_oob_test(io1, io2):
     rb = gensio.get_random_bytes(512)
@@ -390,21 +406,19 @@ def do_oob_test(io1, io2):
     utils.test_dataxfer_oob(io1, io2, rb)
     print("  testing io2 to io1")
     utils.test_dataxfer_oob(io2, io1, rb)
-    utils.io_close(io1)
-    utils.io_close(io2)
     print("  Success!")
 
 def test_sctp_oob():
     print("Test sctp oob")
-    io1 = utils.alloc_io(o, "sctp,localhost,3031",
+    io1 = utils.alloc_io(o, "sctp,localhost,3023",
                          do_open = False, chunksize = 64)
-    ta = TestAccept(o, io1, "sctp,3031", do_oob_test)
+    ta = TestAccept(o, io1, "sctp,3023", do_oob_test)
 
 def test_telnet_small():
     print("Test telnet small")
-    io1 = utils.alloc_io(o, "telnet,tcp,localhost,3026", do_open = False,
+    io1 = utils.alloc_io(o, "telnet,tcp,localhost,3023", do_open = False,
                          chunksize = 64)
-    ta = TestAccept(o, io1, "telnet(rfc2217=true),3026", do_small_test)
+    ta = TestAccept(o, io1, "telnet(rfc2217=true),3023", do_small_test)
 
 import ipmisimdaemon
 def test_ipmisol_small():
@@ -449,7 +463,7 @@ def test_rs485():
 
 class TestAcceptConnect:
     def __init__(self, o, iostr, io2str, io3str, tester, name = None,
-                 io1_dummy_write = None, CA=None):
+                 io1_dummy_write = None, CA=None, do_close = True):
         self.o = o
         if (name):
             self.name = name
@@ -461,9 +475,15 @@ class TestAcceptConnect:
         self.acc2 = gensio.gensio_accepter(o, io2str, self);
         self.acc2.startup()
         self.io1 = self.acc2.str_to_gensio(io3str, None);
+        self.io2 = None
         self.CA = CA
         h = utils.HandleData(o, io3str, io = self.io1)
-        self.io1.open_s()
+        try:
+            self.io1.open_s()
+        except:
+            self.io1 = None
+            self.close()
+            raise
         if (io1_dummy_write):
             # For UDP, kick start things.
             self.io1.write(io1_dummy_write, None)
@@ -476,6 +496,26 @@ class TestAcceptConnect:
                         ("Timed out waiting for dummy read at byte %d" %
                          self.io2.handler.compared))
         tester(self.io1, self.io2)
+        if do_close:
+            self.close()
+
+    def close(self):
+        if (self.io1):
+            self.io1.read_cb_enable(False)
+        if self.io2:
+            self.io2.read_cb_enable(False)
+        if (self.io1):
+            utils.io_close(self.io1)
+        if self.io2:
+            utils.io_close(self.io2)
+
+        # Break all the possible circular references.
+        del self.io1
+        del self.io2
+        self.acc.shutdown_s()
+        del self.acc
+        self.acc2.shutdown_s()
+        del self.acc2
 
     def new_connection(self, acc, io):
         utils.HandleData(self.o, None, io = io, name = self.name)
@@ -496,34 +536,34 @@ class TestAcceptConnect:
 
 def test_tcp_acc_connect():
     print("Test tcp accepter connect")
-    ta = TestAcceptConnect(o, "tcp,3040", "tcp,3041", "tcp,localhost,3040",
+    ta = TestAcceptConnect(o, "tcp,3023", "tcp,3024", "tcp,localhost,3023",
                            do_small_test)
 
 def test_udp_acc_connect():
     print("Test udp accepter connect")
-    ta = TestAcceptConnect(o, "udp,3040", "udp,3041", "udp,localhost,3040",
+    ta = TestAcceptConnect(o, "udp,3023", "udp,3024", "udp,localhost,3023",
                            do_small_test, io1_dummy_write = "A")
 
 def test_sctp_acc_connect():
     print("Test sctp accepter connect")
-    ta = TestAcceptConnect(o, "sctp,3040", "sctp,3041", "sctp,localhost,3040",
+    ta = TestAcceptConnect(o, "sctp,3023", "sctp,3024", "sctp,localhost,3023",
                            do_small_test)
 
 def test_telnet_sctp_acc_connect():
     print("Test telnet over sctp accepter connect")
-    ta = TestAcceptConnect(o, "telnet,sctp,3042", "telnet,sctp,3043",
-                           "telnet,sctp,localhost,3042", do_small_test)
+    ta = TestAcceptConnect(o, "telnet,sctp,3023", "telnet,sctp,3024",
+                           "telnet,sctp,localhost,3023", do_small_test)
 
 def test_ssl_sctp_acc_connect():
     print("Test ssl over sctp accepter connect")
     goterr = False
     try:
         ta = TestAcceptConnect(o,
-                "ssl(key=%s/key.pem,cert=%s/cert.pem,clientauth),sctp,3044"
+                "ssl(key=%s/key.pem,cert=%s/cert.pem,clientauth),sctp,3023"
                                % (utils.srcdir, utils.srcdir),
-                "ssl(key=%s/key.pem,cert=%s/cert.pem),sctp,3045"
+                "ssl(key=%s/key.pem,cert=%s/cert.pem),sctp,3024"
                            % (utils.srcdir, utils.srcdir),
-                "ssl(CA=%s/CA.pem),sctp,localhost,3044" % utils.srcdir,
+                "ssl(CA=%s/CA.pem),sctp,localhost,3023" % utils.srcdir,
                            do_small_test)
     except Exception as E:
         if str(E) != "gensio:open_s: Communication error on send":
@@ -536,12 +576,12 @@ def test_ssl_sctp_acc_connect():
     goterr = False
     try:
         ta = TestAcceptConnect(o,
-                "ssl(key=%s/key.pem,cert=%s/cert.pem,clientauth),sctp,3090"
+                "ssl(key=%s/key.pem,cert=%s/cert.pem,clientauth),sctp,3023"
                                % (utils.srcdir, utils.srcdir),
-                "ssl(key=%s/key.pem,cert=%s/cert.pem),sctp,3091"
+                "ssl(key=%s/key.pem,cert=%s/cert.pem),sctp,3024"
                                % (utils.srcdir, utils.srcdir),
                 "ssl(CA=%s/CA.pem,key=%s/clientkey.pem,cert=%s/clientcert.pem)"
-                ",sctp,localhost,3090"
+                ",sctp,localhost,3023"
                                % (utils.srcdir, utils.srcdir, utils.srcdir),
                            do_small_test)
     except Exception as E:
@@ -553,12 +593,12 @@ def test_ssl_sctp_acc_connect():
         raise Exception("Did not get error on invalid client certificate.")
     
     ta = TestAcceptConnect(o,
-                "ssl(key=%s/key.pem,cert=%s/cert.pem,clientauth),sctp,3092"
+                "ssl(key=%s/key.pem,cert=%s/cert.pem,clientauth),sctp,3023"
                                % (utils.srcdir, utils.srcdir),
-                "ssl(key=%s/key.pem,cert=%s/cert.pem),sctp,3093"
+                "ssl(key=%s/key.pem,cert=%s/cert.pem),sctp,3024"
                                % (utils.srcdir, utils.srcdir),
                 "ssl(CA=%s/CA.pem,key=%s/clientkey.pem,cert=%s/clientcert.pem)"
-                ",sctp,localhost,3092"
+                ",sctp,localhost,3023"
                                % (utils.srcdir, utils.srcdir, utils.srcdir),
                            do_small_test, CA="%s/clientcert.pem" % utils.srcdir)
 
@@ -567,9 +607,9 @@ def test_certauth_sctp_acc_connect():
     goterr = False
     try:
         ta = TestAcceptConnect(o,
-                "certauth(CA=%s/clientcert.pem),sctp,3081" % utils.srcdir,
-                "certauth(CA=%s/clientcert.pem),sctp,3082" % utils.srcdir,
-                "certauth(cert=%s/cert.pem,key=%s/key.pem,username=test1),sctp,localhost,3081" % (utils.srcdir, utils.srcdir),
+                "certauth(CA=%s/clientcert.pem),sctp,3023" % utils.srcdir,
+                "certauth(CA=%s/clientcert.pem),sctp,3024" % utils.srcdir,
+                "certauth(cert=%s/cert.pem,key=%s/key.pem,username=test1),sctp,localhost,3023" % (utils.srcdir, utils.srcdir),
                            do_small_test)
     except Exception as E:
         if str(E) != "gensio:open_s: Communication error on send":
@@ -580,9 +620,9 @@ def test_certauth_sctp_acc_connect():
         raise Exception("Did not get error on invalid client certificate.")
 
     ta = TestAcceptConnect(o,
-                "certauth(),sctp,3083",
-                "certauth(),sctp,3084",
-                "certauth(cert=%s/clientcert.pem,key=%s/clientkey.pem,username=test1),sctp,localhost,3083" % (utils.srcdir, utils.srcdir),
+                "certauth(),sctp,3023",
+                "certauth(),sctp,3024",
+                "certauth(cert=%s/clientcert.pem,key=%s/clientkey.pem,username=test1),sctp,localhost,3023" % (utils.srcdir, utils.srcdir),
                            do_small_test, CA="%s/clientcert.pem" % utils.srcdir)
 
 test_echo_device()
