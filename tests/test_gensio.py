@@ -487,7 +487,11 @@ class TestAcceptConnect:
         if (io1_dummy_write):
             # For UDP, kick start things.
             self.io1.write(io1_dummy_write, None)
-        self.wait()
+        try:
+            self.wait()
+        except:
+            self.close()
+            raise
         if (io1_dummy_write):
             self.io2.handler.set_compare(io1_dummy_write)
             if (self.io2.handler.wait_timeout(1000)):
@@ -566,7 +570,10 @@ def test_ssl_sctp_acc_connect():
                 "ssl(CA=%s/CA.pem),sctp,localhost,3023" % utils.srcdir,
                            do_small_test)
     except Exception as E:
-        if str(E) != "gensio:open_s: Communication error on send":
+        s = str(E)
+        # We can race and get either one of these
+        if (not (s.endswith("Communication error on send") or
+                 s.endswith("Broken pipe"))):
             raise
         print("  Success checking no client cert")
         goterr = True
@@ -585,7 +592,10 @@ def test_ssl_sctp_acc_connect():
                                % (utils.srcdir, utils.srcdir, utils.srcdir),
                            do_small_test)
     except Exception as E:
-        if str(E) != "gensio:open_s: Communication error on send":
+        s = str(E)
+        # We can race and get either one of these
+        if (not (s.endswith("Communication error on send") or
+                 s.endswith("Broken pipe"))):
             raise
         print("  Success checking invalid client cert")
         goterr = True
