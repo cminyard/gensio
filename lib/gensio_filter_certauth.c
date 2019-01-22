@@ -719,7 +719,7 @@ certauth_try_connect(struct gensio_filter *filter, struct timeval *timeout)
 	    goto out_err;
 
 	certauth_write_byte(sfilter, CERTAUTH_END);
-	
+
 	sfilter->state = CERTAUTH_SERVERDONE;
 	break;
 
@@ -1100,7 +1100,7 @@ certauth_cleanup(struct gensio_filter *filter)
     } else {
 	if (sfilter->cert)
 	    X509_free(sfilter->cert);
-	if (sfilter->sk_ca) 
+	if (sfilter->sk_ca)
 	    sk_X509_pop_free(sfilter->sk_ca, X509_free);
 	sfilter->cert = NULL;
 	sfilter->sk_ca = NULL;
@@ -1283,7 +1283,7 @@ gensio_certauth_filter_raw_alloc(struct gensio_os_funcs *o,
     sfilter = o->zalloc(o, sizeof(*sfilter));
     if (!sfilter)
 	return ENOMEM;
-    
+
     sfilter->o = o;
     sfilter->is_client = is_client;
     sfilter->allow_authfail = allow_authfail;
@@ -1562,7 +1562,7 @@ read_certificate_chain(const char *file, X509 **rcert, STACK_OF(X509) **rca)
     goto out;
 
  out_err:
-    if (sk_ca) 
+    if (sk_ca)
 	sk_X509_pop_free(sk_ca, X509_free);
     if (cert)
 	X509_free(cert);
@@ -1649,7 +1649,7 @@ gensio_certauth_filter_alloc(struct gensio_certauth_filter_data *data,
     return 0;
 
  err:
-    if (sk_ca) 
+    if (sk_ca)
 	sk_X509_pop_free(sk_ca, X509_free);
     if (cert)
 	X509_free(cert);
