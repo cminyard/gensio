@@ -622,7 +622,10 @@ def test_certauth_sctp_acc_connect():
                 "certauth(cert=%s/cert.pem,key=%s/key.pem,username=test1),sctp,localhost,3023" % (utils.srcdir, utils.srcdir),
                            do_small_test)
     except Exception as E:
-        if str(E) != "gensio:open_s: Communication error on send":
+        s = str(E)
+        # We can race and get either one of these
+        if (not (s.endswith("Communication error on send") or
+                 s.endswith("Broken pipe"))):
             raise
         print("  Success checking invalid client cert")
         goterr = True
