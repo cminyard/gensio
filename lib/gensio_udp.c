@@ -957,6 +957,7 @@ udpna_startup(struct gensio_accepter *accepter)
 	    rv = errno;
 	    goto out_unlock;
 	}
+	nadata->nr_accept_close_waiting = nadata->nr_fds;
     }
 
     nadata->setup = true;
@@ -1112,7 +1113,7 @@ udpna_str_to_gensio(struct gensio_accepter *accepter, const char *addr,
 
     *new_net = ndata->io;
 
-    return 0;
+    err = 0;
 
  out_err:
     if (ai)
@@ -1314,6 +1315,7 @@ udp_gensio_alloc(struct addrinfo *ai, const char * const args[],
     /* fd belongs to udpn now, updn_do_free() will close it. */
 
     nadata->closed = true; /* Free nadata when ndata is freed. */
+    nadata->freed = true;
 
     ndata = udp_alloc_gensio(nadata, new_fd, ai->ai_addr, ai->ai_addrlen,
 			     cb, user_data, &nadata->closed_udpns);
