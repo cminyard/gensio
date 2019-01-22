@@ -161,9 +161,6 @@ def do_telnet_test(io1, io2):
         raise Exception("Timeout waiting for server baud set")
     if io1.handler.wait_timeout(1000):
         raise Exception("Timeout waiting for client baud response")
-    io1.read_cb_enable(False)
-    io2.read_cb_enable(False)
-    return
 
     io2.handler.set_expected_server_cb("datasize", 5, 6)
     io1.handler.set_expected_client_cb("datasize", 6)
