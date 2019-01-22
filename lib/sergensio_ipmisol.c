@@ -48,6 +48,8 @@ struct iterm_data {
 static void
 iterm_free(struct iterm_data *idata)
 {
+    if (idata->sio)
+	sergensio_data_free(idata->sio);
     idata->o->free(idata->o, idata);
 }
 
