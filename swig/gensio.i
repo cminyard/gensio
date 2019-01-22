@@ -210,34 +210,6 @@ gensio_thread_sighandler(int sig)
 }
 #endif
 
-static void gensio_do_vlog(struct gensio_os_funcs *o,
-			   enum gensio_log_levels level,
-			   const char *fmt, va_list fmtargs)
-{
-    struct os_funcs_data *odata = o->other_data;
-    char *buf = NULL;
-    unsigned int len;
-    PyObject *args, *po;
-    va_list tmpva;
-
-    va_copy(tmpva, fmtargs);
-    len = vsnprintf(buf, 0, fmt, tmpva);
-    va_end(tmpva);
-    buf = o->zalloc(o, len + 1);
-    if (!buf)
-	return;
-    vsnprintf(buf, len + 1, fmt, fmtargs);
-
-    args = PyTuple_New(2);
-    po = OI_PI_FromString(gensio_log_level_to_str(level));
-    PyTuple_SET_ITEM(args, 0, po);
-    po = OI_PI_FromString(buf);
-    PyTuple_SET_ITEM(args, 1, po);
-    o->free(o, buf);
-
-    swig_finish_call(odata->log_handler, "gensio_log", args, false);
-}
-
 struct gensio_os_funcs *alloc_gensio_selector(swig_cb *log_handler)
 {
     struct selector_s *sel;

@@ -375,6 +375,39 @@ gensio_accepter_ref(struct gensio_accepter *acc)
     ref_gensio_data(data);
 }
 
+static void gensio_do_vlog(struct gensio_os_funcs *o,
+			   enum gensio_log_levels level,
+			   const char *fmt, va_list fmtargs)
+{
+    struct os_funcs_data *odata = o->other_data;
+    char *buf = NULL;
+    unsigned int len;
+    PyObject *args, *po;
+    va_list tmpva;
+    OI_PY_STATE gstate;
+
+    gstate = OI_PY_STATE_GET();
+
+    va_copy(tmpva, fmtargs);
+    len = vsnprintf(buf, 0, fmt, tmpva);
+    va_end(tmpva);
+    buf = o->zalloc(o, len + 1);
+    if (!buf)
+	goto out;
+    vsnprintf(buf, len + 1, fmt, fmtargs);
+
+    args = PyTuple_New(2);
+    po = OI_PI_FromString(gensio_log_level_to_str(level));
+    PyTuple_SET_ITEM(args, 0, po);
+    po = OI_PI_FromString(buf);
+    PyTuple_SET_ITEM(args, 1, po);
+    o->free(o, buf);
+
+    swig_finish_call(odata->log_handler, "gensio_log", args, false);
+ out:
+    OI_PY_STATE_PUT(gstate);
+}
+
 static void
 gensio_open_done(struct gensio *io, int err, void *cb_data) {
     swig_cb_val *cb = cb_data;
