@@ -121,6 +121,7 @@ struct udpna_data {
     bool closed;
     bool in_shutdown;
     bool disabled;
+    bool freed;
     gensio_acc_done shutdown_done;
     void *shutdown_data;
 
@@ -267,8 +268,10 @@ static void udpna_do_free(struct udpna_data *nadata)
 {
     unsigned int i;
 
-    for (i = 0; i < nadata->nr_fds; i++)
-	close(nadata->fds[i].fd);
+    for (i = 0; i < nadata->nr_fds; i++) {
+	if (nadata->fds[i].fd != -1)
+	    close(nadata->fds[i].fd);
+    }
 
     if (nadata->deferred_op_runner)
 	nadata->o->free_runner(nadata->deferred_op_runner);
@@ -305,7 +308,7 @@ static void udpna_check_finish_free(struct udpna_data *nadata)
     unsigned int i;
 
     if (!nadata->closed || nadata->in_new_connection || nadata->udpn_count ||
-		nadata->in_shutdown)
+		nadata->in_shutdown || !nadata->freed)
 	return;
 
     for (i = 0; i < nadata->nr_fds; i++)
@@ -468,7 +471,8 @@ udpna_deferred_op(struct gensio_runner *runner, void *cbdata)
 	udpna_check_finish_free(nadata);
     }
 
-    if (nadata->closed && nadata->nr_accept_close_waiting == 0) {
+    if (nadata->freed && nadata->closed &&
+		nadata->nr_accept_close_waiting == 0) {
 	udpna_unlock(nadata);
 	udpna_do_free(nadata);
     } else {
@@ -953,7 +957,6 @@ udpna_startup(struct gensio_accepter *accepter)
 	    rv = errno;
 	    goto out_unlock;
 	}
-	nadata->nr_accept_close_waiting = nadata->nr_fds;
     }
 
     nadata->setup = true;
@@ -977,6 +980,7 @@ udpna_shutdown(struct gensio_accepter *accepter,
 	nadata->enabled = false;
 	nadata->setup = false;
 	nadata->in_shutdown = true;
+	nadata->closed = true;
 	nadata->shutdown_done = shutdown_done;
 	nadata->shutdown_data = shutdown_data;
 	if (!nadata->in_new_connection)
@@ -1009,6 +1013,7 @@ udpna_free(struct gensio_accepter *accepter)
     nadata->enabled = false;
     nadata->setup = false;
     nadata->closed = true;
+    nadata->freed = true;
 
     if (!nadata->disabled) {
 	udpna_check_finish_free(nadata);
@@ -1018,8 +1023,12 @@ udpna_free(struct gensio_accepter *accepter)
 
 	for (i = 0; i < nadata->nr_fds; i++)
 	    nadata->o->clear_fd_handlers_norpt(nadata->o, nadata->fds[i].fd);
-	for (i = 0; i < nadata->nr_fds; i++)
-	    close(nadata->fds[i].fd);
+	for (i = 0; i < nadata->nr_fds; i++) {
+	    if (nadata->fds[i].fd != -1) {
+		close(nadata->fds[i].fd);
+		nadata->fds[i].fd = -1;
+	    }
+	}
 	udpna_unlock(nadata);
 	udpna_do_free(nadata);
     }
