@@ -653,7 +653,7 @@ io_acc_event(struct gensio_accepter *accepter, int event, void *data)
 }
 
 static const char *progname;
-static const char *io1_default_tty = "serialdev(nouucplock),/dev/tty";
+static const char *io1_default_tty = "serialdev,/dev/tty";
 static const char *io1_default_notty = "stdio(self)";
 
 static void

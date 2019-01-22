@@ -1558,6 +1558,7 @@ serialdev_gensio_alloc(const char *devname, const char * const args[],
     char *comma;
     gensiods max_read_size = GENSIO_DEFAULT_BUF_SIZE;
     int i;
+    bool nouucplock_set = false;
 
     if (!sdata)
 	return ENOMEM;
@@ -1567,8 +1568,24 @@ serialdev_gensio_alloc(const char *devname, const char * const args[],
 	    continue;
 	if (gensio_check_keybool(args[i], "nouucplock",
 				 &sdata->no_uucp_lock) > 0)
-	    continue;
+	    nouucplock_set = true;
 	return EINVAL;
+    }
+
+    if (!nouucplock_set) {
+	const char *slash = strrchr(devname, '/');
+
+	/*
+	 * If the user didn't force it, don't do uucp locking if the
+	 * devname is "tty", as in "/dev/tty".  That does all sorts
+	 * of bad things...
+	 */
+	if (slash)
+	    slash++;
+	else
+	    slash = devname;
+
+	sdata->no_uucp_lock = strcmp(slash, "tty") == 0;
     }
 
     sdata->o = o;
