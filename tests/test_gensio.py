@@ -99,7 +99,7 @@ def ta_sctp():
     print("Test accept sctp")
     io1 = utils.alloc_io(o, "sctp,localhost,3023", do_open = False)
     TestAccept(o, io1, "sctp,3023", do_test)
-    c = io1.control(0, True, gensio.GENSIO_CONTROL_STREAMS, "")
+    c = io1.control(0, True, gensio.GENSIO_CONTROL_STREAMS, None)
     if c != "instreams=1,ostreams=1":
         raise Exception("Invalid stream settings: %s" % c)
 
@@ -119,6 +119,8 @@ def ta_ssl_tcp():
         raise Exception(
             "Invalid common name in certificate, expected %s, got %s" %
             ("ser2net.org", cn2[i+1:]))
+    cert = io1.control(0, True, gensio.GENSIO_CONTROL_CERT, None)
+    print("Cert = \n" + cert)
     ta.close()
 
 def ta_certauth_tcp():
@@ -137,11 +139,11 @@ def ta_certauth_tcp():
         raise Exception(
             "Invalid common name in certificate, expected %s, got %s" %
             ("gensio.org", cn2[i+1:]))
-    username = ta.io2.control(0, True, gensio.GENSIO_CONTROL_USERNAME, "")
+    username = ta.io2.control(0, True, gensio.GENSIO_CONTROL_USERNAME, None)
     if username != "testuser":
         raise Exception(
             "Invalid username, expected %s, got %s" % ("testuser", username))
-    service = ta.io2.control(0, True, gensio.GENSIO_CONTROL_SERVICE, "")
+    service = ta.io2.control(0, True, gensio.GENSIO_CONTROL_SERVICE, None)
     if service != "myservice":
         raise Exception(
             "Invalid service, expected %s, got %s" % ("myservice", service))

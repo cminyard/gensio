@@ -320,6 +320,7 @@ struct waiter { };
 %constant int GENSIO_CONTROL_CERT_AUTH = GENSIO_CONTROL_CERT_AUTH;
 %constant int GENSIO_CONTROL_USERNAME = GENSIO_CONTROL_USERNAME;
 %constant int GENSIO_CONTROL_SERVICE = GENSIO_CONTROL_SERVICE;
+%constant int GENSIO_CONTROL_CERT = GENSIO_CONTROL_CERT;
 
 %extend gensio {
     gensio(struct gensio_os_funcs *o, char *str, swig_cb *handler) {
@@ -496,7 +497,10 @@ struct waiter { };
 	char *data = NULL;
 
 	if (get) {
-	    gensiods len = 0, slen = strlen(controldata) + 1;
+	    gensiods len = 0, slen = 1;
+
+	    if (controldata)
+		slen = strlen(controldata) + 1;
 
 	    /* Pass in a zero length to get the actual length. */
 	    rv = gensio_control(self, depth, get, option, controldata, &len);
@@ -512,7 +516,10 @@ struct waiter { };
 		rv = ENOMEM;
 		goto out;
 	    }
-	    memcpy(data, controldata, slen);
+	    if (controldata)
+		memcpy(data, controldata, slen);
+	    else
+		data[0] = '\0';
 	    rv = gensio_control(self, depth, get, option, data, &len);
 	    if (rv) {
 		free(data);
