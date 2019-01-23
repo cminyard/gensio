@@ -99,10 +99,12 @@ handle_escapechar(struct ioinfo *ioinfo, char c)
 	    if (ioinfo->escape_pos > 1 && ioinfo->sh)
 		ioinfo->sh->handle_multichar_escape(ioinfo,
 						    ioinfo->escape_data);
+	    ioinfo_out(ioinfo, ">", 1);
 	    ioinfo->escape_pos = 0;
 	    return false;
 	}
 
+	ioinfo_out(ioinfo, &c, 1);
 	if (ioinfo->escape_pos < sizeof(ioinfo->escape_data) - 1)
 	    ioinfo->escape_data[ioinfo->escape_pos++] = c;
 	return true;
@@ -127,6 +129,7 @@ handle_escapechar(struct ioinfo *ioinfo, char c)
     if (ioinfo->sh) {
 	rv = ioinfo->sh->handle_escape(ioinfo, c);
 	if (rv) {
+	    ioinfo_out(ioinfo, "<", 1);
 	    ioinfo->escape_data[0] = c;
 	    ioinfo->escape_pos = 1;
 	}
@@ -160,12 +163,14 @@ io_event(struct gensio *io, int event, int err,
 	    unsigned int i;
 
 	    if (ioinfo->in_escape) {
-		if (buf[0] != ioinfo->escape_char || ioinfo->escape_pos > 0) {
+		if (ioinfo->escape_pos == 0 && buf[0] == ioinfo->escape_char) {
+		    /* double escape means send one escape char. */
+		    ioinfo->in_escape = false;
+		} else {
 		    ioinfo->in_escape = handle_escapechar(ioinfo, buf[0]);
 		    *buflen = 1;
 		    return 0;
 		}
-		ioinfo->in_escape = false;
 	    } else {
 		for (i = 0; i < *buflen; i++) {
 		    if (buf[i] == ioinfo->escape_char) {

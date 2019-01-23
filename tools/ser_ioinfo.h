@@ -36,21 +36,22 @@
  *
  * The escape handling is as follows:
  *
- * d - Dump serial data for io2.  Ignored if io2 is not a serial gensio.
+ * d - Dump serial data for the other gensio.  Ignored if the other
+ * gensio is not a serial gensio.
  *
- * s - Set the serial port (baud) rate for io2.  Ignored if io2 is not
- * a serial gensio.  After this, the serial port speed must be blind
- * typed, terminated by a new line.  Use escchar-d to know if you set
- * it right.
+ * s - Set the serial port (baud) rate for the other gensio.  Ignored
+ * if the other gensio is not a serial gensio.  After this, the serial
+ * port speed must be typed, terminated by a new line.  Invalid speeds
+ * are ignored, use escchar-d to know if you set it right.
  *
- * n, o, e - Set the parity on io2 to none, odd, or even.  Ignored if
- * io2 is not a serial gensio.
+ * n, o, e - Set the parity on the other gensio to none, odd, or even.
+ * Ignored if the other gensio is not a serial gensio.
  *
- * 7, 8 - Set the data size on io2 to 7 or 8 bits.  Ignored if io2 is
- * not a serial gensio.
+ * 7, 8 - Set the data size on the other gensio to 7 or 8 bits.
+ * Ignored if the other gensio is not a serial gensio.
  *
- * 1, 2 - Set the number of stop bits to 1 or 2 on io2 bits.  Ignored
- * if io2 is not a serial gensio.
+ * 1, 2 - Set the number of stop bits to 1 or 2 on the other gensio
+ * bits.  Ignored if the other gensio is not a serial gensio.
  */
 void *alloc_ser_ioinfo(struct gensio_os_funcs *o,
 		       const char *signature,

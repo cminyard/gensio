@@ -62,9 +62,7 @@ gout(struct ioinfo *ioinfo, char *fmt, va_list ap)
     struct gdata *ginfo = ioinfo_userdata(ioinfo);
     char str[200];
 
-    str[0] = '\r';
-    str[1] = '\n';
-    vsnprintf(str + 2, sizeof(str) - 2, fmt, ap);
+    vsnprintf(str, sizeof(str), fmt, ap);
     gensio_write(ginfo->user_io, NULL, str, strlen(str), NULL);
 }
 
