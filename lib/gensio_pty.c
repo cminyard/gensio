@@ -31,6 +31,8 @@
 #include <assert.h>
 #include <pwd.h>
 #include <sys/wait.h>
+#include <termios.h>
+#include <sys/ioctl.h>
 
 #include <gensio/gensio.h>
 #include <gensio/gensio_class.h>
@@ -41,9 +43,6 @@ struct pty_data {
     struct gensio_os_funcs *o;
 
     struct gensio_ll *ll;
-
-    int uid;
-    int gid;
 
     pid_t pid;
     int ptym;
@@ -59,51 +58,14 @@ static int pty_check_open(void *handler_data, int fd)
 }
 
 static int
-setup_child_on_pty(char *const argv[], int uid, int gid,
-		   int *rptym, pid_t *rpid)
+setup_child_on_pty(char *const argv[], int *rptym, pid_t *rpid)
 {
     pid_t pid;
-    int ptym, err = 0, myuid, mygid;
-    int oldeuid, oldegid;
-
-    myuid = getuid();
-    mygid = getgid();
-    oldeuid = geteuid();
-    oldegid = getegid();
-
-    /* FIXME - need better capabilities checking than this. */
-    if (myuid != uid && myuid != 0)
-	return EPERM;
-
-    if (mygid != gid && myuid != 0)
-	return EPERM;
-
-    /* Switch the euid and egid to create the pty. */
-    if (gid != mygid) {
-	if (setegid(gid) < 0)
-	    return errno;
-    }
-
-    if (uid != myuid) {
-	if (seteuid(uid) < 0) {
-	    err = errno;
-	    setegid(oldegid);
-	    return err;
-	}
-    }
+    int ptym, err = 0;
 
     ptym = posix_openpt(O_RDWR | O_NOCTTY);
     if (ptym == -1)
-	err = errno;
-
-    /* Switch back now. */
-    setegid(oldegid);
-    seteuid(oldeuid);
-
-    if (err) {
-	close(ptym);
 	return errno;
-    }
 
     if (unlockpt(ptym) < 0) {
 	err = errno;
@@ -124,52 +86,74 @@ setup_child_on_pty(char *const argv[], int uid, int gid,
 	 * thread-safe, but after the fork we are single-threaded.
 	 */
 	char *slave = ptsname(ptym);
-	unsigned int i, openfiles = sysconf(_SC_OPEN_MAX);
-
-	/*
-	 * Set the GID then the UID first, keeping euid, or grantpt
-	 * will fail.
-	 */
-	if (gid != mygid) {
-	    if (setgid(gid) < 0)
-		exit(1);
-	}
-
-	if (uid != myuid) {
-	    if (setuid(uid) < 0)
-		exit(1);
-	}
+	int i, openfiles = sysconf(_SC_OPEN_MAX);
+	int fd;
 
 	/* Set the owner of the slave PT. */
+	/* FIXME - This should not be necessary, can we remove? */
 	if (grantpt(ptym) < 0)
 	    exit(1);
 
-	/* Now we can set euid and egid. */
-	if (gid != mygid) {
-	    if (setegid(gid) < 0)
-		exit(1);
+	fd = open("/dev/tty", O_RDWR);
+	if (fd == -1) {
+	    fprintf(stderr, "pty fork: Unable to open /dev/tty: %s\n",
+		    strerror(errno));
+	    exit(1);
+	}
+	ioctl(fd, TIOCNOTTY, NULL);
+	close(fd);
+
+	fd = open("/dev/tty", O_RDWR);
+	if (fd != -1) {
+	    fprintf(stderr, "pty fork: failed to drop control term: %s\n",
+		    strerror(errno));
+	    exit(1);
 	}
 
-	if (uid != myuid) {
-	    if (seteuid(uid) < 0)
-		exit(1);
+	if (setsid() == -1) {
+	    fprintf(stderr, "pty fork: failed to start new session: %s\n",
+		    strerror(errno));
+	    exit(1);
+	}
+
+#if 0 /* FIXME = do we need this? */
+	if (setpgid(0, 0) == -1) {
+	    exit(1);
+	}
+#endif
+
+	fd = open(slave, O_RDWR);
+	if (fd == -1) {
+	    fprintf(stderr, "pty fork: failed to open slave terminal: %s\n",
+		    strerror(errno));
+	    exit(1);
+	}
+
+	/* fd will be closed by the loop to close everything. */
+	if (open("/dev/tty", O_RDWR) == -1) {
+	    fprintf(stderr, "pty fork: failed to set control term: %s\n",
+		    strerror(errno));
+	    exit(1);
+	}
+
+	if (dup2(fd, 0) == -1) {
+	    fprintf(stderr, "pty fork: stdin open fail\n");
+	    exit(1);
+	}
+
+	if (dup2(fd, 1) == -1) {
+	    fprintf(stderr, "pty fork: stdout open fail\n");
+	    exit(1);
+	}
+
+	if (dup2(fd, 2) == -1) {
+	    fprintf(stderr, "pty fork: stderr open fail\n");
+	    exit(1);
 	}
 
 	/* Close everything. */
-	for (i = 0; i < openfiles; i++)
-	    close(i);
-
-	/* stdin */
-	if (open(slave, O_RDONLY) != 0)
-	    exit(1);
-
-	/* stdout */
-	if (open(slave, O_WRONLY) != 1)
-	    exit(1);
-
-	/* stderr */
-	if (open(slave, O_WRONLY) != 2)
-	    exit(1);
+	for (i = 3; i < openfiles; i++)
+		close(i);
 
 	execvp(argv[0], argv);
 	exit(1); /* Only reached on error. */
@@ -187,8 +171,7 @@ pty_sub_open(void *handler_data, int *fd)
     struct pty_data *tdata = handler_data;
     int err;
 
-    err = setup_child_on_pty(tdata->argv, tdata->uid, tdata->gid,
-			     &tdata->ptym, &tdata->pid);
+    err = setup_child_on_pty(tdata->argv, &tdata->ptym, &tdata->pid);
     if (err)
 	return err;
 
@@ -337,24 +320,10 @@ pty_gensio_alloc(const char * const argv[], const char * const args[],
     struct gensio *io;
     gensiods max_read_size = GENSIO_DEFAULT_BUF_SIZE;
     unsigned int i, argc;
-    int uid = getuid(), gid = getgid();
-    const char *username;
-    int err;
 
     for (i = 0; args && args[i]; i++) {
 	if (gensio_check_keyds(args[i], "readbuf", &max_read_size) > 0)
 	    continue;
-	if (gensio_check_keyvalue(args[i], "userid", &username) > 0) {
-	    struct passwd pwd, *pwdr;
-	    char buf[1024]; /* Should be plenty of space. */
-
-	    err = getpwnam_r(username, &pwd, buf, sizeof(buf), &pwdr);
-	    if (err)
-		return err;
-	    uid = pwd.pw_uid;
-	    gid = pwd.pw_gid;
-	    continue;
-	}
 	return EINVAL;
     }
 
@@ -364,8 +333,6 @@ pty_gensio_alloc(const char * const argv[], const char * const args[],
 
     tdata->o = o;
     tdata->ptym = -1;
-    tdata->uid = uid;
-    tdata->gid = gid;
 
     for (argc = 0; argv[argc]; argc++)
 	;

@@ -511,13 +511,6 @@ Create a pty and run a program on the other end of it.  This is sort
 of like stdio, but the program is running on a terminal.  Only
 connection gensios are supported.
 
-In addition to readbuf, a connecting pty takes the following options:
-
-.TP
-.B userid=<name>
-Run the program as the given user name.  Requires proper capabilities
-(generally root).  The default is to run as the calling user.
-
 .SH "Forking and gensios"
 
 Unlike normal file descriptors, when you fork with a gensio, you now
