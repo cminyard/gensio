@@ -598,6 +598,31 @@ gensio_cert_get_name(X509 *cert, char *data, gensiods *datalen)
     return 0;
 }
 
+int
+gensio_cert_to_buf(X509 *cert, char *buf, gensiods *buflen)
+{
+    BIO *mbio;
+    BUF_MEM *bptr;
+    gensiods len = *buflen;
+
+    mbio = BIO_new(BIO_s_mem());
+    if (!mbio)
+	return ENOMEM;
+
+    if (PEM_write_bio_X509(mbio, cert) == 0) {
+	BIO_free(mbio);
+	return EIO;
+    }
+
+    BIO_get_mem_ptr(mbio, &bptr);
+    *buflen = bptr->length;
+    if (len > bptr->length)
+	len = bptr->length;
+    memcpy(buf, bptr->data, len);
+    BIO_free(mbio);
+    return 0;
+}
+
 static int
 ssl_filter_control(struct gensio_filter *filter, bool get, int op, char *data,
 		   gensiods *datalen)
@@ -633,6 +658,13 @@ ssl_filter_control(struct gensio_filter *filter, bool get, int op, char *data,
 	sfilter->verify_store = store;
 	ssl_unlock(sfilter);
 	return 0;
+
+    case GENSIO_CONTROL_CERT:
+	if (!get)
+	    return ENOTSUP;
+	if (!sfilter->remcert)
+	    return ENOENT;
+	return gensio_cert_to_buf(sfilter->remcert, data, datalen);
 
     default:
 	return ENOTSUP;
