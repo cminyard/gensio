@@ -1,3 +1,22 @@
+/*
+ *  ioinfo - A program for connecting gensios.
+ *  Copyright (C) 2019  Corey Minyard <minyard@acm.org>
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; either version 2 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program; if not, write to the Free Software
+ *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ */
+
 
 #include <stdlib.h>
 #include <ctype.h>
@@ -12,7 +31,7 @@ struct ioinfo {
     struct gensio_os_funcs *o;
     bool ready;
 
-    char escape_char;
+    int escape_char;
     bool in_escape;
     char escape_data[11];
     unsigned int escape_pos;
@@ -77,7 +96,7 @@ handle_escapechar(struct ioinfo *ioinfo, char c)
 	/* We are getting a multichar escape from the input. */
 	if (c == '\r' || c == '\n') {
 	    ioinfo->escape_data[ioinfo->escape_pos++] = '\0';
-	    if (ioinfo->escape_pos > 1 && ioinfo->sh->handle_multichar_escape)
+	    if (ioinfo->escape_pos > 1 && ioinfo->sh)
 		ioinfo->sh->handle_multichar_escape(ioinfo,
 						    ioinfo->escape_data);
 	    ioinfo->escape_pos = 0;
@@ -105,7 +124,7 @@ handle_escapechar(struct ioinfo *ioinfo, char c)
 	return false;
     }
 
-    if (ioinfo->sh->handle_escape) {
+    if (ioinfo->sh) {
 	rv = ioinfo->sh->handle_escape(ioinfo, c);
 	if (rv) {
 	    ioinfo->escape_data[0] = c;
@@ -137,7 +156,7 @@ io_event(struct gensio *io, int event, int err,
 	if (*buflen == 0)
 	    return 0;
 
-	if (ioinfo->escape_char) {
+	if (ioinfo->escape_char >= 0) {
 	    unsigned int i;
 
 	    if (ioinfo->in_escape) {
@@ -195,8 +214,8 @@ io_event(struct gensio *io, int event, int err,
     if (!rioinfo->ready)
 	return 0;
 
-    if (ioinfo->sh->handle_data)
-	return ioinfo->sh->handle_data(io, event, buf, buflen);
+    if (ioinfo->sh)
+	return ioinfo->sh->handle_event(io, event, buf, buflen);
     return 0;
 }
 
@@ -218,7 +237,7 @@ ioinfo_set_otherioinfo(struct ioinfo *ioinfo, struct ioinfo *otherioinfo)
 
 struct ioinfo *
 alloc_ioinfo(struct gensio_os_funcs *o,
-	     char escape_char,
+	     int escape_char,
 	     struct ioinfo_sub_handlers *sh, void *subdata,
 	     struct ioinfo_user_handlers *uh, void *userdata)
 {

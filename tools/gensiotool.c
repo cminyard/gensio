@@ -188,7 +188,7 @@ cmparg(int argc, char *argv[], int *arg, char *sarg, char *larg,
 }
 
 static int
-strtocc(const char *str, char *rc)
+strtocc(const char *str, int *rc)
 {
     int c;
 
@@ -206,7 +206,7 @@ strtocc(const char *str, char *rc)
 }
 
 static int
-cmparg_char(int argc, char *argv[], int *arg, char *sarg, char *larg, char *rc)
+cmparg_int(int argc, char *argv[], int *arg, char *sarg, char *larg, int *rc)
 {
     const char *str;
     char *end;
@@ -240,7 +240,7 @@ main(int argc, char *argv[])
     struct gensio_accepter *io2_acc;
     bool esc_set = false;
     bool io1_set = false;
-    char escape_char = 0;
+    int escape_char = -1;
     const char *signature = "gensiotool";
     const char *deftty = io1_default_notty;
     struct gensio_os_funcs *o;
@@ -267,8 +267,8 @@ main(int argc, char *argv[])
 	    io1_set = true;
 	else if ((rv = cmparg(argc, argv, &arg, "-a", "--accepter", NULL)))
 	    io2_do_acc = true;
-	else if ((rv = cmparg_char(argc, argv, &arg, "-e", "--escchar",
-				   &escape_char)))
+	else if ((rv = cmparg_int(argc, argv, &arg, "-e", "--escchar",
+				  &escape_char)))
 	    esc_set = true;
 	else if ((rv = cmparg(argc, argv, &arg, "", "--signature",
 			      &signature)))

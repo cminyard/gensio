@@ -1,3 +1,21 @@
+/*
+ *  ser_ioinfo - A program for connecting gensios.
+ *  Copyright (C) 2019  Corey Minyard <minyard@acm.org>
+ *
+ *  This program is free software; you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation; either version 2 of the License, or
+ *  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program; if not, write to the Free Software
+ *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+ */
 
 #include <string.h>
 #include <stdlib.h>
@@ -190,8 +208,8 @@ s2n_linestate(struct sergensio *sio, unsigned int linestate)
 }
 
 static int
-handle_sio_data(struct gensio *io, int event,
-		unsigned char *buf, gensiods *buflen)
+handle_sio_event(struct gensio *io, int event,
+		 unsigned char *buf, gensiods *buflen)
 {
     struct ioinfo *ioinfo = gensio_get_user_data(io);
     struct gensio *rio = ioinfo_otherio(ioinfo);
@@ -405,7 +423,7 @@ handle_sio_multichar_escape(struct ioinfo *ioinfo, char *escape_data)
 }
 
 static struct ioinfo_sub_handlers suh = {
-    .handle_data = handle_sio_data,
+    .handle_event = handle_sio_event,
     .handle_escape = handle_sio_escape,
     .handle_multichar_escape = handle_sio_multichar_escape
 };
