@@ -3,7 +3,9 @@ AM_CFLAGS = -I$(top_srcdir)/include
 
 bin_PROGRAMS = gensiotool
 
-gensiotool_SOURCES = gensiotool.c
+gensiotool_SOURCES = gensiotool.c ioinfo.c ser_ioinfo.c
+
+noinst_HEADERS = ioinfo.h ser_ioinfo.h
 
 gensiotool_LDADD = $(top_builddir)/lib/libgensio.la $(OPENSSL_LIBS)
 
