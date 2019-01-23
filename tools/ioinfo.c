@@ -103,6 +103,13 @@ handle_escapechar(struct ioinfo *ioinfo, char c)
 	    ioinfo->escape_pos = 0;
 	    return false;
 	}
+	if (c == '\b' || c == 0x7f) {
+	    if (ioinfo->escape_pos > 1) {
+		ioinfo->escape_pos--;
+		ioinfo_out(ioinfo, "\b \b", 3);
+	    }
+	    return true;
+	}
 
 	ioinfo_out(ioinfo, &c, 1);
 	if (ioinfo->escape_pos < sizeof(ioinfo->escape_data) - 1)
