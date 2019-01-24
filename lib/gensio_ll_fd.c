@@ -18,12 +18,13 @@
  */
 
 #include <errno.h>
-#include <gensio/gensio_class.h>
-#include <gensio/gensio_ll_fd.h>
-
 #include <assert.h>
 #include <unistd.h>
 #include <stdio.h>
+
+#include <gensio/gensio_class.h>
+#include <gensio/gensio_ll_fd.h>
+#include <gensio/gensio_osops.h>
 
 enum fd_state {
     FD_CLOSED,
@@ -152,29 +153,11 @@ fd_write(struct gensio_ll *ll, gensiods *rcount,
 {
     struct fd_ll *fdll = ll_to_fd(ll);
 
-    int rv, err = 0;
-
     if (fdll->ops->write)
 	return fdll->ops->write(fdll->handler_data, fdll->fd,
 				rcount, buf, buflen, auxdata);
 
- retry:
-    rv = write(fdll->fd, buf, buflen);
-    if (rv < 0) {
-	if (errno == EINTR)
-	    goto retry;
-	if (errno == EWOULDBLOCK || errno == EAGAIN)
-	    rv = 0; /* Handle like a zero-byte write. */
-	else
-	    err = errno;
-    } else if (rv == 0) {
-	err = EPIPE;
-    }
-
-    if (!err && rcount)
-	*rcount = rv;
-
-    return err;
+    return gensio_os_write(fdll->fd, buf, buflen, rcount);
 }
 
 static int
@@ -337,11 +320,13 @@ fd_sched_deferred_op(struct fd_ll *fdll)
 
 static void
 fd_handle_incoming(struct fd_ll *fdll,
-		   ssize_t (*doread)(int fd, void *buf, size_t count,
-				     const char **auxdata, void *cb_data),
+		   int (*doread)(int fd, void *buf, gensiods count,
+				 gensiods *rcount, const char **auxdata,
+				 void *cb_data),
 		   const char **auxdata, void *cb_data)
 {
-    int rv, err = 0;
+    int err = 0;
+    gensiods count;
 
     fd_lock(fdll);
     fdll->o->set_read_handler(fdll->o, fdll->fd, false);
@@ -352,20 +337,10 @@ fd_handle_incoming(struct fd_ll *fdll,
     fd_unlock(fdll);
 
     if (!fdll->read_data_len) {
-    retry:
-	rv = doread(fdll->fd, fdll->read_data, fdll->read_data_size, auxdata,
-		    cb_data);
-	if (rv < 0) {
-	    if (errno == EINTR)
-		goto retry;
-	    if (errno == EAGAIN || errno == EWOULDBLOCK)
-		rv = 0; /* Pretend like nothing happened. */
-	    else
-		err = errno;
-	} else if (rv == 0) {
-	    err = EPIPE;
-	} else {
-	    fdll->read_data_len = rv;
+	err = doread(fdll->fd, fdll->read_data, fdll->read_data_size, &count,
+		     auxdata, cb_data);
+	if (!err) {
+	    fdll->read_data_len = count;
 	    fdll->auxdata = auxdata;
 	}
     }
@@ -383,10 +358,11 @@ fd_handle_incoming(struct fd_ll *fdll,
 }
 
 void gensio_fd_ll_handle_incoming(struct gensio_ll *ll,
-				  ssize_t (*doread)(int fd, void *buf,
-						    size_t count,
-						    const char **auxdata,
-						    void *cb_data),
+				  int (*doread)(int fd, void *buf,
+						gensiods count,
+						gensiods *rcount,
+						const char **auxdata,
+						void *cb_data),
 				  const char **auxdata,
 				  void *cb_data)
 {
@@ -395,11 +371,11 @@ void gensio_fd_ll_handle_incoming(struct gensio_ll *ll,
     fd_handle_incoming(fdll, doread, auxdata, cb_data);
 }
 
-static ssize_t
-gensio_ll_fd_read(int fd, void *buf, size_t count, const char **auxdata,
-		  void *cb_data)
+static int
+gensio_ll_fd_read(int fd, void *buf, gensiods count, gensiods *rcount,
+		  const char **auxdata, void *cb_data)
 {
-    return read(fd, buf, count);
+    return gensio_os_read(fd, buf, count, rcount);
 }
 
 static void

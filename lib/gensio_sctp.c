@@ -37,6 +37,7 @@
 #include <gensio/gensio_class.h>
 #include <gensio/gensio_ll_fd.h>
 #include <gensio/argvutils.h>
+#include <gensio/gensio_osops.h>
 
 struct sctp_data {
     struct gensio_os_funcs *o;
@@ -382,14 +383,13 @@ sctp_write(void *handler_data, int fd, gensiods *rcount,
 	  const char *const *auxdata)
 {
     struct sctp_data *tdata = handler_data;
-    int err = 0, rv;
     struct sctp_sndrcvinfo sinfo;
     unsigned int stream = 0, i;
 
     memset(&sinfo, 0, sizeof(sinfo));
 
     if (auxdata) {
-	for (i = 0; !err && auxdata[i]; i++) {
+	for (i = 0; auxdata[i]; i++) {
 	    if (gensio_check_keyuint(auxdata[i], "stream", &stream) > 0)
 		continue;
 	    if (strcasecmp(auxdata[i], "oob") == 0) {
@@ -401,46 +401,28 @@ sctp_write(void *handler_data, int fd, gensiods *rcount,
     }
 
     sinfo.sinfo_stream = stream;
- retry:
-    rv = sctp_send(tdata->fd, buf, buflen, &sinfo, 0);
-    if (rv < 0) {
-	if (errno == EINTR)
-	    goto retry;
-	if (errno == EWOULDBLOCK || errno == EAGAIN)
-	    rv = 0; /* Handle like a zero-byte write. */
-	else
-	    err = errno;
-    } else if (rv == 0) {
-	err = EPIPE;
-    }
-
-    if (!err && rcount)
-	*rcount = rv;
-
-    return err;
+    return gensio_os_sctp_send(tdata->fd, buf, buflen, rcount, &sinfo, 0);
 }
 
-static ssize_t
-sctp_do_read(int fd, void *data, size_t count, const char **auxdata,
-	     void *cb_data)
+static int
+sctp_do_read(int fd, void *data, gensiods count, gensiods *rcount,
+	     const char **auxdata, void *cb_data)
 {
     struct sctp_data *tdata = cb_data;
-    ssize_t rv;
+    int rv;
     struct sctp_sndrcvinfo sinfo;
     int flags = 0;
     unsigned int stream;
     unsigned int i = 0;
 
-    rv = sctp_recvmsg(fd, data, count, NULL, NULL, &sinfo, &flags);
-    if (rv <= 0)
+    rv = gensio_os_sctp_recvmsg(fd, data, count, rcount, &sinfo, &flags);
+    if (rv)
 	return rv;
 
     stream = sinfo.sinfo_stream;
-    if (stream >= tdata->instreams) {
+    if (stream >= tdata->instreams)
 	/* Shouldn't happen, but just in case. */
-	errno = EOVERFLOW;
-	return -1;
-    }
+	return EOVERFLOW;
 
     if (tdata->strind[stream])
 	auxdata[i++] = tdata->strind[stream];

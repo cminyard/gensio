@@ -21,8 +21,6 @@
 
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
-#include <fcntl.h>
 #include <ctype.h>
 #include <limits.h>
 #include <limits.h>
@@ -278,142 +276,6 @@ gensio_acc_remove_pending_gensio(struct gensio_accepter *acc,
 				 struct gensio *io)
 {
     gensio_list_rm(&acc->pending_ios, &io->pending_link);
-}
-
-static int
-check_ipv6_only(int family, int protocol, int flags, int fd)
-{
-    int val;
-
-    if (family != AF_INET6)
-	return 0;
-
-    if (flags & AI_V4MAPPED)
-	val = 0;
-    else
-	val = 1;
-
-    if (setsockopt(fd, IPPROTO_IPV6, IPV6_V6ONLY, &val, sizeof(val)) == -1)
-	return -1;
-
-#ifdef HAVE_LIBSCTP
-    if (protocol == IPPROTO_SCTP) {
-	val = !val;
-	if (setsockopt(fd, SOL_SCTP, SCTP_I_WANT_MAPPED_V4_ADDR, &val,
-		       sizeof(val)) == -1)
-	    return -1;
-    }
-#endif
-    return 0;
-}
-
-int
-gensio_setup_listen_socket(struct gensio_os_funcs *o, bool do_listen,
-			   int family, int socktype, int protocol, int flags,
-			   struct sockaddr *addr, socklen_t addrlen,
-			   void (*readhndlr)(int, void *),
-			   void (*writehndlr)(int, void *), void *data,
-			   void (*fd_handler_cleared)(int, void *),
-			   int (*call_b4_listen)(int, void *),
-			   int *rfd)
-{
-    int optval = 1;
-    int fd, rv = 0;
-
-    fd = socket(family, socktype, protocol);
-    if (fd == -1)
-	return errno;
-
-    if (fcntl(fd, F_SETFL, O_NONBLOCK) == -1)
-	goto out_err;
-
-    if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR,
-		   (void *)&optval, sizeof(optval)) == -1)
-	goto out_err;
-
-    if (check_ipv6_only(family, protocol, flags, fd) == -1)
-	goto out_err;
-
-    if (bind(fd, addr, addrlen) != 0)
-	goto out_err;
-
-    if (call_b4_listen) {
-	rv = call_b4_listen(fd, data);
-	if (rv)
-	    goto out;
-    }
-
-    if (do_listen && listen(fd, 5) != 0)
-	goto out_err;
-
-    rv = o->set_fd_handlers(o, fd, data,
-			    readhndlr, writehndlr, NULL,
-			    fd_handler_cleared);
- out:
-    if (rv)
-	close(fd);
-    else
-	*rfd = fd;
-    return rv;
-
- out_err:
-    rv = errno;
-    goto out;
-}
-
-/* FIXME - The error handling in this function isn't good, fix it. */
-struct opensocks *
-gensio_open_socket(struct gensio_os_funcs *o,
-		   struct addrinfo *ai, void (*readhndlr)(int, void *),
-		   void (*writehndlr)(int, void *), void *data,
-		   unsigned int *nr_fds,
-		   void (*fd_handler_cleared)(int, void *))
-{
-    struct addrinfo *rp;
-    int family = AF_INET6; /* Try IPV6 first, then IPV4. */
-    struct opensocks *fds;
-    unsigned int curr_fd = 0;
-    unsigned int max_fds = 0;
-    int rv;
-
-    for (rp = ai; rp != NULL; rp = rp->ai_next)
-	max_fds++;
-
-    if (max_fds == 0)
-	return NULL;
-
-    fds = o->zalloc(o, sizeof(*fds) * max_fds);
-    if (!fds)
-	return NULL;
-
-  restart:
-    for (rp = ai; rp != NULL; rp = rp->ai_next) {
-	if (family != rp->ai_family)
-	    continue;
-
-	rv = gensio_setup_listen_socket(o, rp->ai_socktype == SOCK_STREAM,
-					rp->ai_family, rp->ai_socktype,
-					rp->ai_protocol, rp->ai_flags,
-					rp->ai_addr, rp->ai_addrlen,
-					readhndlr, writehndlr, data,
-					fd_handler_cleared, NULL,
-					&fds[curr_fd].fd);
-	if (!rv) {
-	    fds[curr_fd].family = rp->ai_family;
-	    curr_fd++;
-	}
-    }
-    if (family == AF_INET6) {
-	family = AF_INET;
-	goto restart;
-    }
-
-    if (curr_fd == 0) {
-	o->free(o, fds);
-	fds = NULL;
-    }
-    *nr_fds = curr_fd;
-    return fds;
 }
 
 int
@@ -1454,22 +1316,6 @@ str_to_gensio(const char *str,
 	str_to_argv_free(argc, args);
 
     return err;
-}
-
-const char *
-gensio_check_tcpd_ok(int new_fd)
-{
-#ifdef HAVE_TCPD_H
-    struct request_info req;
-
-    request_init(&req, RQ_DAEMON, progname, RQ_FILE, new_fd, NULL);
-    fromhost(&req);
-
-    if (!hosts_access(&req))
-	return "Access denied\r\n";
-#endif
-
-    return NULL;
 }
 
 struct addrinfo *

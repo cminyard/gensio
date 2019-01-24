@@ -70,10 +70,11 @@ gensiods gensio_fd_ll_callback(struct gensio_ll *ll, int op, int val,
 			       void *buf, gensiods buflen, void *data);
 
 void gensio_fd_ll_handle_incoming(struct gensio_ll *ll,
-				  ssize_t (*doread)(int fd, void *buf,
-						    size_t count,
-						    const char **auxdata,
-						    void *cb_data),
+				  int (*doread)(int fd, void *buf,
+						gensiods count,
+						gensiods *rcount,
+						const char **auxdata,
+						void *cb_data),
 				  const char **auxdata,
 				  void *cb_data);
 

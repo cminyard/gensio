@@ -112,15 +112,16 @@ i_wait_for_waiter_timeout(waiter_t *waiter, unsigned int count,
 	else
 	    err = sel_select(waiter->sel, wake_thread_send_sig, w.id, &w,
 			     timeout);
-	pthread_mutex_lock(&waiter->lock);
-	if (err < 0) {
+	if (err < 0)
 	    err = errno;
-	    break;
-	} else if (err == 0) {
+	else if (err == 0)
 	    err = ETIMEDOUT;
+	else
+	    err = 0;
+	/* lock may affect errno, delay it until here. */
+	pthread_mutex_lock(&waiter->lock);
+	if (err)
 	    break;
-	}
-	err = 0;
     }
     if (!err)
 	waiter->count -= count;

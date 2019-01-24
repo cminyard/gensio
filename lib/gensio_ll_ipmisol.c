@@ -31,6 +31,7 @@
 
 #include <gensio/gensio_class.h>
 #include <gensio/sergensio_class.h>
+#include <gensio/gensio_osops.h>
 
 #include "gensio_ll_ipmisol.h"
 #include "buffer.h"
@@ -352,27 +353,7 @@ gio_get_random(os_handler_t  *handler,
 	       void          *data,
 	       unsigned int  len)
 {
-    int fd = open("/dev/urandom", O_RDONLY);
-    int rv;
-
-    if (fd == -1)
-	return errno;
-
-    while (len > 0) {
-	rv = read(fd, data, len);
-	if (rv < 0) {
-	    rv = errno;
-	    goto out;
-	}
-	len -= rv;
-	data += rv;
-    }
-
-    rv = 0;
-
- out:
-    close(fd);
-    return rv;
+    return gensio_get_random(data, len);
 }
 
 static void

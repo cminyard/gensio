@@ -19,8 +19,6 @@
 
 /* This code handles running a child process using a pty. */
 
-#define _POSIX_C_SOURCE 200112L /* Get addrinfo and friends. */
-#define _XOPEN_SOURCE 600 /* Get posix_openpt() and friends. */
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -31,13 +29,12 @@
 #include <assert.h>
 #include <pwd.h>
 #include <sys/wait.h>
-#include <termios.h>
-#include <sys/ioctl.h>
 
 #include <gensio/gensio.h>
 #include <gensio/gensio_class.h>
 #include <gensio/gensio_ll_fd.h>
 #include <gensio/argvutils.h>
+#include <gensio/gensio_osops.h>
 
 struct pty_data {
     struct gensio_os_funcs *o;
@@ -58,130 +55,14 @@ static int pty_check_open(void *handler_data, int fd)
 }
 
 static int
-setup_child_on_pty(char *const argv[], int *rptym, pid_t *rpid)
-{
-    pid_t pid;
-    int ptym, err = 0;
-
-    ptym = posix_openpt(O_RDWR | O_NOCTTY);
-    if (ptym == -1)
-	return errno;
-
-    if (unlockpt(ptym) < 0) {
-	err = errno;
-	close(ptym);
-	return err;
-    }
-
-    pid = fork();
-    if (pid < 0) {
-	err = errno;
-	close(ptym);
-	return err;
-    }
-
-    if (pid == 0) {
-	/*
-	 * Delay getting the slave until here becase ptsname is not
-	 * thread-safe, but after the fork we are single-threaded.
-	 */
-	char *slave = ptsname(ptym);
-	int i, openfiles = sysconf(_SC_OPEN_MAX);
-	int fd;
-
-	/* Set the owner of the slave PT. */
-	/* FIXME - This should not be necessary, can we remove? */
-	if (grantpt(ptym) < 0)
-	    exit(1);
-
-	fd = open("/dev/tty", O_RDWR);
-	if (fd == -1) {
-	    fprintf(stderr, "pty fork: Unable to open /dev/tty: %s\n",
-		    strerror(errno));
-	    exit(1);
-	}
-	ioctl(fd, TIOCNOTTY, NULL);
-	close(fd);
-
-	fd = open("/dev/tty", O_RDWR);
-	if (fd != -1) {
-	    fprintf(stderr, "pty fork: failed to drop control term: %s\n",
-		    strerror(errno));
-	    exit(1);
-	}
-
-	if (setsid() == -1) {
-	    fprintf(stderr, "pty fork: failed to start new session: %s\n",
-		    strerror(errno));
-	    exit(1);
-	}
-
-#if 0 /* FIXME = do we need this? */
-	if (setpgid(0, 0) == -1) {
-	    exit(1);
-	}
-#endif
-
-	fd = open(slave, O_RDWR);
-	if (fd == -1) {
-	    fprintf(stderr, "pty fork: failed to open slave terminal: %s\n",
-		    strerror(errno));
-	    exit(1);
-	}
-
-	/* fd will be closed by the loop to close everything. */
-	if (open("/dev/tty", O_RDWR) == -1) {
-	    fprintf(stderr, "pty fork: failed to set control term: %s\n",
-		    strerror(errno));
-	    exit(1);
-	}
-
-	if (dup2(fd, 0) == -1) {
-	    fprintf(stderr, "pty fork: stdin open fail\n");
-	    exit(1);
-	}
-
-	if (dup2(fd, 1) == -1) {
-	    fprintf(stderr, "pty fork: stdout open fail\n");
-	    exit(1);
-	}
-
-	if (dup2(fd, 2) == -1) {
-	    fprintf(stderr, "pty fork: stderr open fail\n");
-	    exit(1);
-	}
-
-	/* Close everything. */
-	for (i = 3; i < openfiles; i++)
-		close(i);
-
-	execvp(argv[0], argv);
-	exit(1); /* Only reached on error. */
-    }
-
-    *rpid = pid;
-    *rptym = ptym;
-    return 0;
-}
-
-
-static int
 pty_sub_open(void *handler_data, int *fd)
 {
     struct pty_data *tdata = handler_data;
     int err;
 
-    err = setup_child_on_pty(tdata->argv, &tdata->ptym, &tdata->pid);
-    if (err)
-	return err;
-
-    if (fcntl(tdata->ptym, F_SETFL, O_NONBLOCK) == -1) {
-	err = errno;
-	close(tdata->ptym);
-	tdata->ptym = -1;
-    } else {
+    err = gensio_setup_child_on_pty(tdata->argv, &tdata->ptym, &tdata->pid);
+    if (!err)
 	*fd = tdata->ptym;
-    }
 
     return err;
 }
@@ -259,36 +140,22 @@ pty_write(void *handler_data, int fd, gensiods *rcount,
 	  const unsigned char *buf, gensiods buflen,
 	  const char *const *auxdata)
 {
-    int rv, err = 0;
+    int rv = gensio_os_write(fd, buf, buflen, rcount);
 
- retry:
-    rv = write(fd, buf, buflen);
-    if (rv < 0) {
-	if (errno == EINTR)
-	    goto retry;
-	if (errno == EWOULDBLOCK || errno == EAGAIN)
-	    rv = 0; /* Handle like a zero-byte write. */
-	else
-	    err = errno;
-    } else if (rv == 0) {
-	err = EPIPE;
-    }
-
-    if (!err && rcount)
-	*rcount = rv;
-
-    return err;
+    if (rv == EIO)
+	rv = EPIPE; /* We don't seem to get EPIPE from ptys */
+    return rv;
 }
 
-static ssize_t
-pty_do_read(int fd, void *data, size_t count, const char **auxdata,
-	    void *cb_data)
+static int
+pty_do_read(int fd, void *data, gensiods count, gensiods *rcount,
+	    const char **auxdata, void *cb_data)
 {
-    int rv = read(fd, data, count);
+    int rv = gensio_os_read(fd, data, count, rcount);
 
-    if (rv >= 0)
-	return rv;
-    return 0; /* Treat any error like it was EPIPE. */
+    if (rv == EIO)
+	rv = EPIPE; /* We don't seem to get EPIPE from ptys */
+    return rv;
 }
 
 static void

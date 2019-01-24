@@ -34,6 +34,7 @@
 #include <gensio/gensio_class.h>
 #include <gensio/gensio_ll_fd.h>
 #include <gensio/argvutils.h>
+#include <gensio/gensio_osops.h>
 
 struct tcp_data {
     struct gensio_os_funcs *o;
@@ -232,11 +233,11 @@ tcp_control(void *handler_data, int fd, bool get, unsigned int option,
     }
 }
 
-static ssize_t
-tcp_oob_read(int fd, void *data, size_t count, const char **auxdata,
-	     void *cb_data)
+static int
+tcp_oob_read(int fd, void *data, gensiods count, gensiods *rcount,
+	     const char **auxdata, void *cb_data)
 {
-    return recv(fd, data, count, MSG_OOB);
+    return gensio_os_recv(fd, data, count, rcount, MSG_OOB);
 }
 
 static void
@@ -253,7 +254,7 @@ tcp_write(void *handler_data, int fd, gensiods *rcount,
 	  const unsigned char *buf, gensiods buflen,
 	  const char *const *auxdata)
 {
-    int rv, err = 0;
+    int err = 0;
     int flags = 0;
 
     if (auxdata) {
@@ -271,23 +272,7 @@ tcp_write(void *handler_data, int fd, gensiods *rcount,
 	    return err;
     }
 
- retry:
-    rv = send(fd, buf, buflen, flags);
-    if (rv < 0) {
-	if (errno == EINTR)
-	    goto retry;
-	if (errno == EWOULDBLOCK || errno == EAGAIN)
-	    rv = 0; /* Handle like a zero-byte write. */
-	else
-	    err = errno;
-    } else if (rv == 0) {
-	err = EPIPE;
-    }
-
-    if (!err && rcount)
-	*rcount = rv;
-
-    return err;
+    return gensio_os_send(fd, buf, buflen, rcount, flags);
 }
 
 static const struct gensio_fd_ll_ops tcp_fd_ll_ops = {
@@ -489,7 +474,7 @@ tcpna_server_open_done(struct gensio *io, int err, void *open_data)
 	gensio_free(io);
 	gensio_acc_log(nadata->acc, GENSIO_LOG_ERR,
 		       "Error setting up TCP server gensio: %s",
-		       strerror(errno));
+		       strerror(err));
     } else {
 	gensio_acc_cb(nadata->acc, GENSIO_ACC_EVENT_NEW_CONNECTION, io);
     }
@@ -510,11 +495,11 @@ tcpna_readhandler(int fd, void *cbdata)
     const char *errstr;
     int err;
 
-    new_fd = accept(fd, (struct sockaddr *) &addr, &addrlen);
-    if (new_fd == -1) {
-	if (errno != EAGAIN && errno != EWOULDBLOCK)
+    err = gensio_os_accept(fd, (struct sockaddr *) &addr, &addrlen, &new_fd);
+    if (err) {
+	if (err != EAGAIN)
 	    gensio_acc_log(nadata->acc, GENSIO_LOG_ERR,
-			   "Error accepting TCP gensio: %s", strerror(errno));
+			   "Error accepting TCP gensio: %s", strerror(err));
 	return;
     }
 
@@ -623,14 +608,10 @@ tcpna_startup(struct gensio_accepter *accepter)
 	goto out_unlock;
     }
 
-    nadata->acceptfds = gensio_open_socket(nadata->o,
-					   nadata->ai,
-					   tcpna_readhandler, NULL, nadata,
-					   &nadata->nr_acceptfds,
-					   tcpna_fd_cleared);
-    if (nadata->acceptfds == NULL) {
-	rv = errno;
-    } else {
+    rv = gensio_open_socket(nadata->o, nadata->ai,
+			    tcpna_readhandler, NULL, tcpna_fd_cleared, nadata,
+			    &nadata->acceptfds, &nadata->nr_acceptfds);
+    if (!rv) {
 	nadata->setup = true;
 	tcpna_set_fd_enables(nadata, true);
 	nadata->enabled = true;

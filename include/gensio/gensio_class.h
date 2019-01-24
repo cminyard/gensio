@@ -240,48 +240,6 @@ typedef int (*str_to_gensio_handler)(const char *str, const char * const args[],
 int register_gensio(struct gensio_os_funcs *o,
 		    const char *name, str_to_gensio_handler handler);
 
-struct opensocks
-{
-    int fd;
-    int family;
-};
-
-/*
- * Open a set of sockets given the addrinfo list, one per address.
- * Return the actual number of sockets opened in nr_fds.  Set the
- * I/O handler to readhndlr, with the given data.
- *
- * Note that if the function is unable to open an address, it just
- * goes on.  It returns NULL if it is unable to open any addresses.
- * Also, open IPV6 addresses first.  This way, addresses in shared
- * namespaces (like IPV4 and IPV6 on INADDR6_ANY) will work properly
- */
-struct opensocks *gensio_open_socket(struct gensio_os_funcs *o,
-				     struct addrinfo *ai,
-				     void (*readhndlr)(int, void *),
-				     void (*writehndlr)(int, void *),
-				     void *data,
-				     unsigned int *nr_fds,
-				     void (*fd_handler_cleared)(int, void *));
-
-/*
- * Setup a receiving socket given the socket() parameters.  If do_listen
- * is true, call listen on the socket.  This sets nonblocking, reuse,
- * does a bind, etc.
- */
-int gensio_setup_listen_socket(struct gensio_os_funcs *o, bool do_listen,
-			       int family, int socktype, int protocol,
-			       int flags,
-			       struct sockaddr *addr, socklen_t addrlen,
-			       void (*readhndlr)(int, void *),
-			       void (*writehndlr)(int, void *), void *data,
-			       void (*fd_handler_cleared)(int, void *),
-			       int (*call_b4_listen)(int, void *),
-			       int *rfd);
-
-/* Returns a NULL if the fd is ok, a non-NULL error string if not */
-const char *gensio_check_tcpd_ok(int new_fd);
-
 /*
  * Take a string in the form [ipv4|ipv6,][hostname,]port and convert
  * it to an addrinfo structure.  If this returns success, the user

@@ -32,6 +32,7 @@
 #include <gensio/gensio.h>
 #include <gensio/gensio_class.h>
 #include <gensio/argvutils.h>
+#include <gensio/gensio_osops.h>
 
 /*
  * Maximum UDP packet size, this avoids partial packet reads.  Probably
@@ -342,25 +343,9 @@ udpn_write(struct gensio *io, gensiods *count,
 	   const void *buf, gensiods buflen)
 {
     struct udpn_data *ndata = gensio_get_gensio_data(io);
-    int rv, err = 0;
 
- retry:
-    rv = sendto(ndata->myfd, buf, buflen, 0, ndata->raddr, ndata->raddrlen);
-    if (rv < 0) {
-	if (errno == EINTR)
-	    goto retry;
-	if (errno == EWOULDBLOCK || errno == EAGAIN)
-	    rv = 0; /* Handle like a zero-byte write. */
-	else
-	    err = errno;
-    } else if (rv == 0) {
-	err = EPIPE;
-    }
-
-    if (!err && count)
-	*count = rv;
-
-    return err;
+    return gensio_os_sendto(ndata->myfd, buf, buflen, count, 0,
+			    ndata->raddr,ndata->raddrlen);
 }
 
 static int
@@ -847,21 +832,23 @@ udpna_readhandler(int fd, void *cbdata)
     struct udpn_data *ndata;
     struct sockaddr_storage addr;
     socklen_t addrlen = sizeof(addr);
-    int datalen;
+    gensiods datalen;
+    int err;
 
     udpna_lock(nadata);
     if (nadata->data_pending_len)
 	goto out_unlock;
 
-    datalen = recvfrom(fd, nadata->read_data, nadata->max_read_size, 0,
-		       (struct sockaddr *) &addr, &addrlen);
-    if (datalen == -1) {
-	/* FIXME - There is no really good way to report this error. */
-	if (errno != EAGAIN && errno != EWOULDBLOCK)
-	    gensio_acc_log(nadata->acc, GENSIO_LOG_ERR,
-			   "Could not accept on UDP: %s", strerror(errno));
+    err = gensio_os_recvfrom(fd, nadata->read_data, nadata->max_read_size,
+			     &datalen, 0,
+			     (struct sockaddr *) &addr, &addrlen);
+    if (err) {
+	gensio_acc_log(nadata->acc, GENSIO_LOG_ERR,
+		       "Could not accept on UDP: %s", strerror(err));
 	goto out_unlock;
     }
+    if (datalen == 0)
+	goto out_unlock;
     if (addrlen > sizeof(struct sockaddr_storage)) {
 	/* Shouldn't happen. */
 	gensio_acc_log(nadata->acc, GENSIO_LOG_ERR,
@@ -948,15 +935,12 @@ udpna_startup(struct gensio_accepter *accepter)
 
     udpna_lock(nadata);
     if (!nadata->fds) {
-	nadata->fds = gensio_open_socket(nadata->o, nadata->ai,
-					 udpna_readhandler,
-					 udpna_writehandler,
-					 nadata, &nadata->nr_fds,
-					 udpna_fd_cleared);
-	if (nadata->fds == NULL) {
-	    rv = errno;
+	rv = gensio_open_socket(nadata->o, nadata->ai,
+				udpna_readhandler, udpna_writehandler,
+				udpna_fd_cleared, nadata,
+				&nadata->fds, &nadata->nr_fds);
+	if (rv)
 	    goto out_unlock;
-	}
 	nadata->nr_accept_close_waiting = nadata->nr_fds;
     }
 
