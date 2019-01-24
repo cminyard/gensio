@@ -544,7 +544,7 @@ ssl_free(struct gensio_filter *filter)
 int
 gensio_cert_get_name(X509 *cert, char *data, gensiods *datalen)
 {
-    char *s, *nidstr = NULL, *end;
+    char *nidstr = NULL, *end;
     int index = -1, len, tlen, nid;
     int datasize;
     X509_NAME *nm;
@@ -557,14 +557,11 @@ gensio_cert_get_name(X509 *cert, char *data, gensiods *datalen)
     if (!cert)
 	return ENXIO;
     datasize = *datalen;
-    nidstr = data;
-    s = strchr(data, ',');
-    if (s) {
-	index = strtol(data, &end, 0);
-	if (*end != ',')
-	    return EINVAL;
+    index = strtol(data, &end, 0);
+    if (*end == ',')
 	nidstr = end + 1;
-    }
+    else if (*end)
+	return EINVAL;
     nm = X509_get_subject_name(cert);
     if (nidstr) {
 	nid = OBJ_sn2nid(nidstr);
@@ -578,6 +575,8 @@ gensio_cert_get_name(X509 *cert, char *data, gensiods *datalen)
 	    return ENOENT;
     }
     e = X509_NAME_get_entry(nm, index);
+    if (!e)
+	return ENOENT;
     obj = X509_NAME_ENTRY_get_object(e);
     nid = OBJ_obj2nid(obj);
     len = snprintf(data, datasize, "%d,%s,", index, OBJ_nid2sn(nid));
