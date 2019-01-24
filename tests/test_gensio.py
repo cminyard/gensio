@@ -121,6 +121,14 @@ def ta_ssl_tcp():
             ("ser2net.org", cn2[i+1:]))
     cert = io1.control(0, True, gensio.GENSIO_CONTROL_CERT, None)
     print("Cert = \n" + cert)
+    i = 0;
+    while True:
+        v = io1.control(0, True, gensio.GENSIO_CONTROL_GET_PEER_CERT_NAME,
+                        str(i))
+        if v is None:
+            break;
+        print(v)
+        i = i + 1
     ta.close()
 
 def ta_certauth_tcp():
