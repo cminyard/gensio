@@ -525,11 +525,13 @@ struct waiter { };
 		free(data);
 		data = NULL;
 	    }
+	out:
+	    if (rv == ENOENT) /* Return None for ENOENT. */
+		return NULL;
 	} else {
 	    rv = gensio_control(self, depth, get, option, controldata, NULL);
 	}
 
-    out:
 	err_handle("control", rv);
 	return data;
     }
