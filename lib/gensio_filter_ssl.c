@@ -622,6 +622,29 @@ gensio_cert_to_buf(X509 *cert, char *buf, gensiods *buflen)
     return 0;
 }
 
+int
+gensio_cert_fingerprint(X509 *cert, char *buf, gensiods *buflen)
+{
+    gensiods len = *buflen, clen;
+    unsigned int i, n, l;
+    unsigned char md[EVP_MAX_MD_SIZE];
+
+    if (X509_digest(cert, EVP_sha1(), md, &n) == 0)
+	return ENOMEM;
+
+    clen = snprintf(buf, len, "%2.2X", md[0]);
+    for (i = 1; i < n; i++) {
+	if (clen >= len)
+	    l = 0;
+	else
+	    l = len - clen;
+
+	clen += snprintf(buf + clen, l, ":%2.2X", md[i]);
+    }
+    *buflen = clen;
+    return 0;
+}
+
 static int
 ssl_filter_control(struct gensio_filter *filter, bool get, int op, char *data,
 		   gensiods *datalen)
@@ -664,6 +687,13 @@ ssl_filter_control(struct gensio_filter *filter, bool get, int op, char *data,
 	if (!sfilter->remcert)
 	    return ENOENT;
 	return gensio_cert_to_buf(sfilter->remcert, data, datalen);
+
+    case GENSIO_CONTROL_CERT_FINGERPRINT:
+	if (!get)
+	    return ENOTSUP;
+	if (!sfilter->remcert)
+	    return ENOENT;
+	return gensio_cert_fingerprint(sfilter->remcert, data, datalen);
 
     default:
 	return ENOTSUP;

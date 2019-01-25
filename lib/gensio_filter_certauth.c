@@ -1157,6 +1157,7 @@ certauth_free(struct gensio_filter *filter)
 /* In gensio_filter_ssl.c, semi-private. */
 int gensio_cert_get_name(X509 *cert, char *data, gensiods *datalen);
 int gensio_cert_to_buf(X509 *cert, char *buf, gensiods *datalen);
+int gensio_cert_fingerprint(X509 *cert, char *buf, gensiods *buflen);
 
 static int
 certauth_filter_control(struct gensio_filter *filter, bool get, int op,
@@ -1212,6 +1213,13 @@ certauth_filter_control(struct gensio_filter *filter, bool get, int op,
 	sfilter->verify_store = store;
 	certauth_unlock(sfilter);
 	return 0;
+
+    case GENSIO_CONTROL_CERT_FINGERPRINT:
+	if (!get)
+	    return ENOTSUP;
+	if (!sfilter->cert)
+	    return ENOENT;
+	return gensio_cert_fingerprint(sfilter->cert, data, datalen);
 
     default:
 	return ENOTSUP;

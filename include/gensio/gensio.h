@@ -386,6 +386,11 @@ int gensio_control(struct gensio *io, int depth, bool get,
 #define GENSIO_CONTROL_CERT			8
 
 /*
+ * Get the fingerprint for the certificate from the other end.
+ */
+#define GENSIO_CONTROL_CERT_FINGERPRINT		0
+
+/*
  * Return the type string for the gensio (if depth is 0) or one of its
  * children (depth > 0).  Return NULL if the depth is greater than the
  * number of children.

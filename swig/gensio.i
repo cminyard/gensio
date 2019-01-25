@@ -321,6 +321,7 @@ struct waiter { };
 %constant int GENSIO_CONTROL_USERNAME = GENSIO_CONTROL_USERNAME;
 %constant int GENSIO_CONTROL_SERVICE = GENSIO_CONTROL_SERVICE;
 %constant int GENSIO_CONTROL_CERT = GENSIO_CONTROL_CERT;
+%constant int GENSIO_CONTROL_CERT_FINGERPRINT = GENSIO_CONTROL_CERT_FINGERPRINT;
 
 %extend gensio {
     gensio(struct gensio_os_funcs *o, char *str, swig_cb *handler) {

@@ -121,6 +121,8 @@ def ta_ssl_tcp():
             ("ser2net.org", cn2[i+1:]))
     cert = io1.control(0, True, gensio.GENSIO_CONTROL_CERT, None)
     print("Cert = \n" + cert)
+    finger = io1.control(0, True, gensio.GENSIO_CONTROL_CERT_FINGERPRINT, None)
+    print("Fingerprint = " + finger)
     i = 0;
     while True:
         v = io1.control(0, True, gensio.GENSIO_CONTROL_GET_PEER_CERT_NAME,
