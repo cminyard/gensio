@@ -429,10 +429,11 @@ certificate authority for the validation with GENSIO_CONTROL_CERT_AUTH.
 .SH "certauth"
 
 An certauth gensio runs an authentication protocol to on top of
-another gensio.  That gensio must be reliable.
+another gensio.  That gensio must be reliable and encrypted.
 
 This is like the reverse of SSL.  The client has a key and certificate,
-the server has a certificate authority (CA).
+the server has a certificate authority (CA).  This also supports password
+authentication.
 
 Once authentication occurs, this gensio acts as a passthrough.  The
 readbuf option is not available in the gensio.
@@ -466,6 +467,11 @@ Specify a username to authenticate with on the remote end.  This is
 required for the client.  It is ignored on the server.
 
 .TP
+.B password=<string>
+Specify the password to use for password authentication.  This is not
+recommended, the callback is more secure to use.
+
+.TP
 .B mode=client|server
 Normally an accepter gensio is in server mode and a connecting gensio
 is in client mode.  This can be used to switch the roles and run in
@@ -493,15 +499,46 @@ You can use self-signed certificates in this interface.  Just be aware
 of the security ramifications.  This gensio is fairly flexible, but
 you must use it carefully to have secure authentication.
 
-The certauth gensio will call the gensio event callback (client) or
-the gensio acceptor event callback (server) after the certificate is
-received but before it is validated with the
-GENSIO_EVENT_PRECERT_VERIFY or GENSIO_ACC_EVENT_PRECERT_VERIFY events.
-This allows the user to validate data from the certificate (like
-common name) with GENSIO_CONTROL_GET_PEER_CERT_NAME or set a
-certificate authority for the validation with
-GENSIO_CONTROL_CERT_AUTH.  The user can also get the username from the
-remote end with GENSIO_CONTROL_USERNAME.
+The certauth gensio has 4 major callbacks dealing with authentication
+of the user.  They may or may not be called depending on the
+circumstances.  The normal events come in if you have allocated a
+gensio and are doing an open.  The _ACC_ events come in if it is
+coming in from an accept and there is no gensio reported yet.  In the
+_ACC_ case, be careful, do not use the given gensio for anything but
+checking certificate and username parameters, and do not save it.
+
+All these calls should return 0 if they want the authentication to
+immediately succeed, EKEYREJECTED if they reject the authentication,
+ENOTSUP if they want certauth to ignore that part of the authentication,
+or any other errno will result in the connetion being shut down.
+
+The callbacks are:
+
+.TP
+.B GENSIO_EVENT_AUTH_BEGIN / GENSIO_ACC_EVENT_AUTH_BEGIN
+On the server side, this is called when to authentication is requested
+buy the client.  The username will be available if the user provided
+it via GENSIO_CONTROL_USERNAME.
+
+.TP
+.B GENSIO_EVENT_PRECERT_VERIFY / GENSIO_ACC_EVENT_PRECERT_VERIFY
+On the server side, thi is called after the certificate has been
+received but before it is verified.  The user can use this to query
+the certificate and update the certificate authority based on username
+or certificate information.
+
+.TP
+.B GENSIO_EVENT_VERIFY_PASSWORD / GENSIO_ACC_EVENT_VERIFY_PASSWORD
+On the server side, this is called if the certificate verification has
+failed and after the password has been requested from the remote end.
+The password is passed in, it is cleared immediately after this call.
+
+.TP
+.B GENSIO_EVENT_REQUEST_PASSWORD / GENSIO_ACC_EVENT_REQUEST_PASSWORD
+On the client side, this is called if the server requests that a
+password be sent and the password is not already set for the gensio.
+The requested password is immediately cleared after being sent to
+the server.
 
 .SH "pty"
 

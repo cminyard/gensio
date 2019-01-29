@@ -83,13 +83,50 @@ typedef size_t gensiods; /* Data size */
 #define GENSIO_EVENT_SEND_BREAK		4
 
 /*
+ * The following events are part of the authorization framework
+ * for ssl and certauth (and possibly others).
+ *
+ * They should return 0 to authorize the connection, EKEYREJECTED to
+ * terminate the connection, or ENOTSUP to continue with the
+ * verification process.
+ */
+
+/*
+ * Authorization has begun, the username is available but nothing
+ * else.
+ *
+ * certauth only
+ */
+#define GENSIO_EVENT_AUTH_BEGIN		5
+
+/*
  * The connection has received a certificate but has not verified it
  * yet.  This lets the user modify the certificate authority based on
  * certificate information.  Return ENOTSUP or zero for standard
  * verification.  If this returns an error besides ENOTSUP, the
  * verification fails and the connection is terminated.
+ *
+ * ssl and certauth
  */
-#define GENSIO_EVENT_PRECERT_VERIFY	5
+#define GENSIO_EVENT_PRECERT_VERIFY	6
+
+/*
+ * A password has been received from the remote end.  The callee should
+ * validate it.  In general, if ENOTSUP is returned here, the validation
+ * will fail, but the connection shutdown will depend on the setting of
+ * allow-authfail.  Password is passed in the buf field.
+ *
+ * certauth only
+ */
+#define GENSIO_EVENT_PASSWORD_VERIFY	7
+
+/*
+ * On the client side of an authorization, the remote end has
+ * requested that a password be sent.  buf points to a buffer of
+ * *buflen bytes to place the password in, the user should put
+ * the password there and update *buflen to the actual length.
+ */
+#define GENSIO_EVENT_REQUEST_PASSWORD	8
 
 /*
  * Serial callbacks start here and run to 2000.
@@ -497,11 +534,20 @@ struct gensio_loginfo {
 
 /*
  * Called right before certificate verification on a new incoming
- * connection.  See GENSIO_EVENT_PRECERT_VERIFY for details.  data
- * points to the new gensio object.
+ * connection.  See GENSIO_EVENT_PRECERT_VERIFY and friends for
+ * details.  data points to the new gensio object.
  */
-#define GENSIO_ACC_EVENT_PRECERT_VERIFY	3
+#define GENSIO_ACC_EVENT_PRECERT_VERIFY		3
+#define GENSIO_ACC_EVENT_AUTH_BEGIN		4
 
+/* cdata is the following structure for PASSWORD_VERIFY and REQUEST_PASSWORD */
+struct gensio_acc_password_verify_data {
+    struct gensio *io;
+    char *password;
+    gensiods password_len;
+};
+#define GENSIO_ACC_EVENT_PASSWORD_VERIFY	5
+#define GENSIO_ACC_EVENT_REQUEST_PASSWORD	6
 
 /*
  * Report an event from the accepter to the user.

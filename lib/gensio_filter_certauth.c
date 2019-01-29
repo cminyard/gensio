@@ -22,6 +22,7 @@
 #include <gensio/gensio_class.h>
 
 #include "gensio_filter_ssl.h"
+#include "gensio_filter_certauth.h"
 
 struct gensio_certauth_filter_data {
     struct gensio_os_funcs *o;
@@ -30,6 +31,7 @@ struct gensio_certauth_filter_data {
     char *keyfile;
     char *certfile;
     char *username;
+    char *password;
     char *service;
     bool allow_authfail;
     bool use_child_auth;
@@ -53,6 +55,12 @@ struct gensio_certauth_filter_data {
 #define GENSIO_CERTAUTH_VERSION		1
 
 /*
+ * Passwords are always sent in this size buffer to keep an attacker
+ * from getting the actual password length.
+ */
+#define GENSIO_CERTAUTH_PASSWORD_LEN	100
+
+/*
  * A message consists of the following:
  *
  * <message number> [ <element number> <element length> <element data>
@@ -71,13 +79,19 @@ struct gensio_certauth_filter_data {
  */
 enum certauth_state {
     /*
-     * Client first sends the hello (containing the version, userid,
+     * Client first sends the hello (containing the version, username,
      * and optional service and options) and goes into SERVERHELLO.
      */
     CERTAUTH_CLIENT_START = 0,
 
     /*
-     * Server waits for CLIENTHELLO and sends the SERVERHELLO
+     * Server waits for CLIENTHELLO.
+     *
+     * The app is called to check the username.  If the app says
+     * verification is done, send a SERVERDONE with error result
+     * from the app.
+     *
+     * If apps says to continue verification, send the SERVERHELLO
      * (containing the version, random challenge, and optional
      * options) and goes into CHALLENGE_RESPONSE.
      */
@@ -86,29 +100,65 @@ enum certauth_state {
     /*
      * Client waits for SERVERHELLO and uses the random challenge to
      * generate a challenge response and sends challenge response
-     * (containing certificate and challenge response).
+     * (containing certificate and challenge response) and goes into
+     * PASSWORD_REQUEST.
+     *
+     * Client may also receive a SERVERDONE in this state if the
+     * authorization is rejected or authorized on username alone.
      */
     CERTAUTH_SERVERHELLO = 2,
 
     /*
      * Server receives the challenge response verifies the reponse and
-     * the certificate against the CA.  It sends a SERVERDONE giving
-     * the result and goes into passthrough mode.
+     * the certificate against the CA.
+     *
+     * The app is called before the verification so it can do things
+     * based on certificate data.  If the app says
+     * verification is done, send a SERVERDONE with error result
+     * from the app.
+     *
+     * Otherwise the certificate is verified and the challenge
+     * response is checked.  If the certificate verifies but the
+     * challenge response fails, fail the connection.  If both pass
+     * verification, send a SERVERDONE giving the result and go into
+     * passthrough mode.  If the certificate does not verify, send
+     * a PASSWORD_REQUEST (no data) and go into PASSWORD mode.
      */
     CERTAUTH_CHALLENGE_RESPONSE = 3,
 
     /*
-     * Client waits for SERVERDONE and goes into passthrough mode,
-     * contains the result.
+     * Client waits for PASSWORD_REQUEST.  When received, send
+     * the password.
+     *
+     * Client may also receive a SERVERDONE in this state if the
+     * authorization is rejected or authorized by the certificate.
      */
-    CERTAUTH_SERVERDONE = 4,
+    CERTAUTH_PASSWORD_REQUEST = 4,
+
+    /*
+     * Server waits for a password.  When received. the application is
+     * notified of the password.  Send a SERVERDONE with error result
+     * from the app.
+     */
+    CERTAUTH_PASSWORD = 5,
+
+    /*
+     * Client waits for SERVERDONE and goes into passthrough mode if
+     * successful, contains the result.
+     */
+    CERTAUTH_SERVERDONE = 6,
 
     /*
      * Just pass all the data through.
      */
-    CERTAUTH_PASSTHROUGH = 5
+    CERTAUTH_PASSTHROUGH = 107,
+
+    /*
+     * Something went wrong, abort.
+     */
+    CERTAUTH_ERR = 108
 };
-#define CERTAUTH_STATE_MAX CERTAUTH_PASSTHROUGH
+#define CERTAUTH_STATE_MAX CERTAUTH_SERVERDONE
 
 /*
  * Various message components.
@@ -124,7 +174,7 @@ enum certauth_elements {
     /*
      * 101 <n> <n byte string>
      */
-    CERTAUTH_USERID		= 101,
+    CERTAUTH_USERNAME		= 101,
 
     /*
      * Currently not used.
@@ -156,12 +206,26 @@ enum certauth_elements {
     CERTAUTH_RESULT		= 106,
 
     /*
-     * 106 <n> <n-byte string with service name>
+     * 107 <n> <n-byte string with service name>
      *
      * The service is used to tell the server what service the client
      * wishes to run.  It is optional and may be ignored.
      */
     CERTAUTH_SERVICE		= 107,
+
+    /*
+     * 108 100 <100-byte string with password>
+     *
+     * The service is used to transfer a password.
+     */
+    CERTAUTH_PASSWORD_DATA	= 108,
+
+    /* 109 n <n zeros>
+     *
+     * Dummy data to mask the fact that we are not sending certs or
+     * passwords.
+     */
+    CERTAUTH_DUMMY_DATA		= 109,
 
     /*
      * 200
@@ -171,7 +235,7 @@ enum certauth_elements {
     CERTAUTH_END		= 200
 };
 #define CERTAUTH_MIN_ELEMENT CERTAUTH_VERSION
-#define CERTAUTH_MAX_ELEMENT CERTAUTH_SERVICE
+#define CERTAUTH_MAX_ELEMENT CERTAUTH_DUMMY_DATA
 
 #define CERTAUTH_RESULT_SUCCESS	1
 #define CERTAUTH_RESULT_ERR	2
@@ -193,8 +257,11 @@ struct certauth_filter {
     /* Version number from the remote end. */
     unsigned int version;
 
-    /* Result from the server or the response check. */
+    /* Result from the server or local verification. */
     unsigned int result;
+
+    /* Result from the response check. */
+    unsigned int response_result;
 
     /* Certificate verification result, server only. */
     bool verified;
@@ -204,6 +271,9 @@ struct certauth_filter {
 
     char *username;
     unsigned int username_len;
+
+    char *password;
+    unsigned int password_len;
 
     char *service;
     unsigned int service_len;
@@ -353,9 +423,10 @@ certauth_check_open_done(struct gensio_filter *filter, struct gensio *io)
     int rv = 0;
 
     certauth_lock(sfilter);
-    if (!sfilter->is_client && !sfilter->verified && !sfilter->allow_authfail)
+    if (!sfilter->is_client && sfilter->result != CERTAUTH_RESULT_SUCCESS
+		&& !sfilter->allow_authfail)
     	rv = EKEYREJECTED;
-    else if (sfilter->verified)
+    else if (sfilter->result == CERTAUTH_RESULT_SUCCESS)
 	gensio_set_is_authenticated(io, true);
     certauth_unlock(sfilter);
     return rv;
@@ -370,6 +441,18 @@ certauth_write(struct certauth_filter *sfilter, void *data, unsigned int len)
 	return;
     }
     memcpy(sfilter->write_buf + sfilter->write_buf_len, data, len);
+    sfilter->write_buf_len += len;
+}
+
+static void
+certauth_write_zeros(struct certauth_filter *sfilter, unsigned int len)
+{
+    if (len + sfilter->write_buf_len > sfilter->max_write_size) {
+	gca_log_err(sfilter, "Unable to write data to network");
+	sfilter->pending_err = EOVERFLOW;
+	return;
+    }
+    memset(sfilter->write_buf + sfilter->write_buf_len, 0, len);
     sfilter->write_buf_len += len;
 }
 
@@ -584,11 +667,12 @@ certauth_check_challenge(struct certauth_filter *sfilter)
     }
 
     if (rv) {
-	sfilter->result = CERTAUTH_RESULT_SUCCESS;
+	sfilter->response_result = CERTAUTH_RESULT_SUCCESS;
     } else {
-	gca_logs_info(sfilter, "Certificate verify failed");
-	sfilter->result = CERTAUTH_RESULT_ERR;
+	sfilter->response_result = CERTAUTH_RESULT_ERR;
+	gca_logs_info(sfilter, "Challenge verify failed");
     }
+
     rv = 0;
 
  out:
@@ -600,18 +684,40 @@ certauth_check_challenge(struct certauth_filter *sfilter)
     goto out;
 }
 
+static void
+certauth_add_dummy(struct certauth_filter *sfilter, unsigned int len)
+{
+    certauth_write_byte(sfilter, CERTAUTH_DUMMY_DATA);
+    certauth_write_u16(sfilter, len);
+    certauth_write_zeros(sfilter, len);
+}
+
+static void
+certauth_send_server_done(struct certauth_filter *sfilter)
+{
+    if (!sfilter->result)
+	sfilter->result = CERTAUTH_RESULT_ERR;
+    sfilter->write_buf_len = 0;
+    certauth_write_byte(sfilter, CERTAUTH_SERVERDONE);
+    certauth_write_byte(sfilter, CERTAUTH_RESULT);
+    certauth_write_u16(sfilter, 2);
+    certauth_write_u16(sfilter, sfilter->result);
+    certauth_write_byte(sfilter, CERTAUTH_END);
+}
+
 static int
 certauth_try_connect(struct gensio_filter *filter, struct timeval *timeout)
 {
     struct certauth_filter *sfilter = filter_to_certauth(filter);
     struct gensio *io;
+    bool password_requested = false;
     int err;
 
     certauth_lock(sfilter);
     if (sfilter->pending_err)
-	goto out_err;
+	goto out_finish;
     if (!sfilter->got_msg)
-	goto out_err;
+	goto out_inprogress;
 
     switch (sfilter->state) {
     case CERTAUTH_CLIENT_START:
@@ -620,10 +726,11 @@ certauth_try_connect(struct gensio_filter *filter, struct timeval *timeout)
 	certauth_write_byte(sfilter, CERTAUTH_VERSION);
 	certauth_write_u16(sfilter, 2);
 	certauth_write_u16(sfilter, GENSIO_CERTAUTH_VERSION);
-	certauth_write_byte(sfilter, CERTAUTH_USERID);
-	certauth_write_u16(sfilter, sfilter->username_len);
-	if (sfilter->username_len)
+	if (sfilter->username && sfilter->username_len) {
+	    certauth_write_byte(sfilter, CERTAUTH_USERNAME);
+	    certauth_write_u16(sfilter, sfilter->username_len);
 	    certauth_write(sfilter, sfilter->username, sfilter->username_len);
+	}
 	if (sfilter->service && sfilter->service_len) {
 	    certauth_write_byte(sfilter, CERTAUTH_SERVICE);
 	    certauth_write_u16(sfilter, sfilter->service_len);
@@ -632,17 +739,12 @@ certauth_try_connect(struct gensio_filter *filter, struct timeval *timeout)
 
 	certauth_write_byte(sfilter, CERTAUTH_END);
 
-	if (sfilter->username_len) {
-	    sfilter->state = CERTAUTH_SERVERHELLO;
-	} else {
-	    sfilter->state = CERTAUTH_PASSTHROUGH;
-	    goto out_finish;
-	}
+	sfilter->state = CERTAUTH_SERVERHELLO;
 	break;
 
     case CERTAUTH_CLIENTHELLO:
-	if (!sfilter->username || !sfilter->version) {
-	    /* Remote end didn't send version or userid. */
+	if (!sfilter->version) {
+	    /* Remote end didn't send version. */
 	    gca_log_err(sfilter,
 			   "Remote client didn't send username or version");
 	    sfilter->pending_err = ENOENT;
@@ -663,15 +765,29 @@ certauth_try_connect(struct gensio_filter *filter, struct timeval *timeout)
 	    gensio_set_is_authenticated(io, false);
 	}
 
-	if (sfilter->username_len == 0) {
-	    if (sfilter->allow_authfail) {
-		gca_log_info(sfilter, "No username given, passing auth");
-		sfilter->state = CERTAUTH_PASSTHROUGH;
-		goto out_finish;
-	    }
-	    gca_log_err(sfilter, "No username given");
-	    sfilter->result = ENOKEY;
-	    break;
+	certauth_unlock(sfilter);
+	err = gensio_filter_do_event(sfilter->filter,
+				     GENSIO_EVENT_AUTH_BEGIN, 0,
+				     NULL, NULL, NULL);
+	certauth_lock(sfilter);
+	if (!err)
+	    /*
+	     * Note that we go ahead and do the rest of the messages
+	     * even though they may fail, because otherwise we are
+	     * broadcasting to the world that we have a login with
+	     * no credentials.
+	     */
+	    sfilter->result = CERTAUTH_RESULT_SUCCESS;
+	if (err == EKEYREJECTED) {
+	    gca_log_err(sfilter, "Application rejected auth begin");
+	    sfilter->pending_err = err;
+	    goto finish_result;
+	}
+	if (err && err != ENOTSUP) {
+	    gca_log_err(sfilter, "Error from application at auth begin: %s",
+			strerror(err));
+	    sfilter->pending_err = err;
+	    goto finish_result;
 	}
 
 	sfilter->write_buf_len = 0;
@@ -701,7 +817,6 @@ certauth_try_connect(struct gensio_filter *filter, struct timeval *timeout)
 	    goto handle_server_done;
 
 	if (!sfilter->challenge_data || !sfilter->version) {
-	    /* Remote end didn't send challenge or userid. */
 	    gca_log_err(sfilter,
 			"Remote server didn't send challenge data or version");
 	    sfilter->pending_err = ENOENT;
@@ -710,26 +825,41 @@ certauth_try_connect(struct gensio_filter *filter, struct timeval *timeout)
 	sfilter->write_buf_len = 0;
 	certauth_write_byte(sfilter, CERTAUTH_CHALLENGE_RESPONSE);
 
-	sfilter->pending_err = certauth_add_cert(sfilter);
-	if (sfilter->pending_err)
-	    goto out_err;
+	if (sfilter->cert) {
+	    sfilter->pending_err = certauth_add_cert(sfilter);
+	    if (sfilter->pending_err)
+		goto finish_result;
+	} else {
+	    /* Mask the fact we are not sending a cert. */
+	    certauth_add_dummy(sfilter, 1265);
+	}
 
-	sfilter->pending_err = certauth_add_challenge_rsp(sfilter);
-	if (sfilter->pending_err)
-	    goto out_err;
+	if (sfilter->pkey) {
+	    sfilter->pending_err = certauth_add_challenge_rsp(sfilter);
+	    if (sfilter->pending_err)
+		goto finish_result;
+	} else {
+	    /* Mask the fact we are not sending a response. */
+	    certauth_add_dummy(sfilter, 256);
+	}
 
 	certauth_write_byte(sfilter, CERTAUTH_END);
 
-	sfilter->state = CERTAUTH_SERVERDONE;
+	sfilter->state = CERTAUTH_PASSWORD_REQUEST;
 	break;
 
     case CERTAUTH_CHALLENGE_RESPONSE:
-	if (!sfilter->cert || !sfilter->result) {
-	    /* Remote end didn't send certificate or challenge response. */
-	    gca_log_err(sfilter,
-		"Remote client didn't send cert data or challenge response");
-	    sfilter->pending_err = ENOENT;
-	    goto out_err;
+	if (!sfilter->cert && !sfilter->response_result) {
+	    /* 
+	     * Remote end didn't send certificate and challenge
+	     * response, try password.
+	     */
+	    goto try_password;
+	}
+	if (!!sfilter->cert != !!sfilter->response_result) {
+	    gca_log_err(sfilter, "Application did not send cert and response");
+	    sfilter->pending_err = EPROTO;
+	    goto finish_result;
 	}
 
 	certauth_unlock(sfilter);
@@ -737,25 +867,128 @@ certauth_try_connect(struct gensio_filter *filter, struct timeval *timeout)
 				     GENSIO_EVENT_PRECERT_VERIFY, 0,
 				     NULL, NULL, NULL);
 	certauth_lock(sfilter);
-	if (err && err != ENOTSUP) {
+	if (!err) {
+	    sfilter->result = CERTAUTH_RESULT_SUCCESS;
+	    goto finish_result;
+	}
+	if (err == EKEYREJECTED) {
+	    gca_log_err(sfilter, "Application rejected precert key");
 	    sfilter->pending_err = err;
-	    gca_log_err(sfilter, "User refused the connection");
-	    goto out_err;
+	    goto finish_result;
+	}
+	if (err != ENOTSUP) {
+	    gca_log_err(sfilter, "Error from application at precert: %s",
+			strerror(err));
+	    sfilter->pending_err = err;
+	    goto finish_result;
 	}
 
 	sfilter->pending_err = certauth_verify_cert(sfilter);
 	if (sfilter->pending_err)
-	    goto out_err;
+	    goto finish_result;
 
-    finish_result:
+	if (sfilter->verified) {
+	    if (sfilter->response_result != CERTAUTH_RESULT_SUCCESS) {
+		/*
+		 * Certificate verification log already sent for result
+		 * If the signature fails, reject the connection.
+		 */
+		sfilter->pending_err = EKEYREJECTED;
+		goto finish_result;
+	    }
+
+	    /*
+	     * We mark it as authenticated, but go through the password
+	     * request so an attacker can't tell how the authentication
+	     * was done.
+	     */
+	    sfilter->result = CERTAUTH_RESULT_SUCCESS;
+	}
+
+    try_password:
 	sfilter->write_buf_len = 0;
-	certauth_write_byte(sfilter, CERTAUTH_SERVERDONE);
-	certauth_write_byte(sfilter, CERTAUTH_RESULT);
-	certauth_write_u16(sfilter, 2);
-	certauth_write_u16(sfilter, sfilter->result);
+	certauth_write_byte(sfilter, CERTAUTH_PASSWORD_REQUEST);
+	certauth_write_byte(sfilter, CERTAUTH_END);
+	sfilter->state = CERTAUTH_PASSWORD;
+	break;
+
+    case CERTAUTH_PASSWORD_REQUEST:
+	if (!*sfilter->password) {
+	    /* Empty password, ask the user. */
+	    gensiods dummy_len = sfilter->password_len;
+
+	    certauth_unlock(sfilter);
+	    err = gensio_filter_do_event(sfilter->filter,
+					 GENSIO_EVENT_REQUEST_PASSWORD, 0,
+					 (unsigned char *) sfilter->password,
+					 &dummy_len, NULL);
+	    certauth_lock(sfilter);
+	    if (!err) {
+		if (err && err != ENOTSUP) {
+		    gca_log_err(sfilter, "Error fetching password: %s",
+				strerror(err));
+		    sfilter->pending_err = err;
+		    goto finish_result;
+		}
+	    }
+	    password_requested = true;
+	}
+	sfilter->write_buf_len = 0;
+	certauth_write_byte(sfilter, CERTAUTH_PASSWORD);
+	certauth_write_byte(sfilter, CERTAUTH_PASSWORD_DATA);
+	certauth_write_u16(sfilter, sfilter->password_len);
+	if (sfilter->password_len)
+	    certauth_write(sfilter, sfilter->password,
+			   sfilter->password_len);
+	if (password_requested)
+	    memset(sfilter->password, 0, sfilter->password_len);
+
 	certauth_write_byte(sfilter, CERTAUTH_END);
 
-	sfilter->state = CERTAUTH_PASSTHROUGH;
+	sfilter->state = CERTAUTH_SERVERDONE;
+	break;
+
+    case CERTAUTH_PASSWORD:
+	if (!sfilter->password) {
+	    /* Remote end didn't send a password. */
+	    gca_log_err(sfilter, "Remote client didn't send password");
+	    sfilter->pending_err = ENOENT;
+	    goto finish_result;
+	}
+
+	if (sfilter->result)
+	    /* Already verified, the rest was for show. */
+	    goto finish_result;
+
+	if (!*sfilter->password)
+	    goto finish_result;
+
+	certauth_unlock(sfilter);
+	err = gensio_filter_do_event(sfilter->filter,
+				     GENSIO_EVENT_PASSWORD_VERIFY, 0,
+				     (unsigned char *) sfilter->password,
+				     NULL, NULL);
+	certauth_lock(sfilter);
+	memset(sfilter->password, 0, sfilter->password_len);
+	if (!err) {
+	    sfilter->result = CERTAUTH_RESULT_SUCCESS;
+	    goto finish_result;
+	}
+	if (err == EKEYREJECTED) {
+	    gca_log_err(sfilter, "Application rejected password");
+	    sfilter->pending_err = err;
+	    goto finish_result;
+	}
+	gca_log_err(sfilter, "Error from application at password: %s",
+		    strerror(err));
+	sfilter->pending_err = err;
+
+    finish_result:
+	certauth_send_server_done(sfilter);
+	if (sfilter->pending_err)
+	    sfilter->state = CERTAUTH_ERR;
+	else
+	    sfilter->state = CERTAUTH_PASSTHROUGH;
 	goto out_finish;
 
     case CERTAUTH_SERVERDONE:
@@ -763,13 +996,13 @@ certauth_try_connect(struct gensio_filter *filter, struct timeval *timeout)
 	    /* Remote end didn't send result. */
 	    gca_log_err(sfilter, "Remote server didn't send result");
 	    sfilter->pending_err = ENOENT;
-	    goto out_err;
+	    goto out_finish;
 	}
 
     handle_server_done:
 	if (sfilter->result != CERTAUTH_RESULT_SUCCESS) {
 	    sfilter->pending_err = EKEYREJECTED;
-	    goto out_err;
+	    goto out_finish;
 	}
 
 	sfilter->state = CERTAUTH_PASSTHROUGH;
@@ -780,14 +1013,12 @@ certauth_try_connect(struct gensio_filter *filter, struct timeval *timeout)
     }
 
     sfilter->got_msg = false;
- out_err:
+ out_inprogress:
     certauth_unlock(sfilter);
-    if (sfilter->pending_err)
-	return sfilter->pending_err;
     return EINPROGRESS;
  out_finish:
     certauth_unlock(sfilter);
-    return 0;
+    return sfilter->pending_err;
 }
 
 static int
@@ -832,6 +1063,18 @@ certauth_ul_write(struct gensio_filter *filter,
     return 0;
 }
 
+static unsigned int
+limited_strlen(const char *str, unsigned int max)
+{
+    unsigned int i;
+
+    for (i = 0; i < max; i++) {
+	if (!*str)
+	    return i;
+    }
+    return i;
+}
+
 static void
 certauth_handle_new_element(struct certauth_filter *sfilter)
 {
@@ -856,7 +1099,7 @@ certauth_handle_new_element(struct certauth_filter *sfilter)
 	}
 	break;
 
-    case CERTAUTH_USERID:
+    case CERTAUTH_USERNAME:
 	if (sfilter->username) {
 	    gca_log_err(sfilter, "Username received when already set");
 	    sfilter->pending_err = EPROTO;
@@ -890,6 +1133,24 @@ certauth_handle_new_element(struct certauth_filter *sfilter)
 	}
 	break;
 
+    case CERTAUTH_PASSWORD_DATA:
+	if (sfilter->password) {
+	    gca_log_err(sfilter, "Password received when already set");
+	    sfilter->pending_err = EPROTO;
+	    break;
+	}
+	sfilter->password_len = limited_strlen((char *) sfilter->read_buf,
+					       sfilter->curr_elem_len);
+	sfilter->password = o->zalloc(0, sfilter->password_len + 1);
+	if (!sfilter->password) {
+	    gca_log_err(sfilter, "Unable to allocate memory for password");
+	    sfilter->pending_err = ENOMEM;
+	} else {
+	    memcpy(sfilter->password, sfilter->read_buf,
+		   sfilter->password_len);
+	}
+	break;
+
     case CERTAUTH_OPTIONS:
 	break;
 
@@ -911,7 +1172,7 @@ certauth_handle_new_element(struct certauth_filter *sfilter)
 	break;
 
     case CERTAUTH_CHALLENGE_RSP:
-	if (sfilter->result) {
+	if (sfilter->response_result) {
 	    gca_log_err(sfilter,
 			"Challenge response received when already set");
 	    sfilter->pending_err = EPROTO;
@@ -945,6 +1206,10 @@ certauth_handle_new_element(struct certauth_filter *sfilter)
 		sfilter->pending_err = EPROTO;
 	    }
 	}
+	break;
+
+    case CERTAUTH_DUMMY_DATA:
+	/* Just ignore it. */
 	break;
 
     default:
@@ -994,10 +1259,11 @@ certauth_ll_write(struct gensio_filter *filter,
 	sfilter->curr_elem_len_b1 = false;
 	sfilter->curr_elem_len_b2 = false;
 	sfilter->read_buf_len = 0;
-	/* Note that we allow server done when waiting for a server hello. */
-	if (sfilter->curr_msg_type != sfilter->state &&
-		!(sfilter->curr_msg_type == CERTAUTH_SERVERDONE &&
-		  sfilter->state == CERTAUTH_SERVERHELLO)) {
+	if (sfilter->is_client &&
+			sfilter->curr_msg_type == CERTAUTH_SERVERDONE) {
+	    /* We allow server done in any state. */
+	    sfilter->state = CERTAUTH_SERVERDONE;
+	} else if (sfilter->curr_msg_type != sfilter->state) {
 	    gca_log_err(sfilter, "Expected message type %d, got %d",
 			sfilter->curr_msg_type, sfilter->state);
 	    sfilter->pending_err = EPROTO;
@@ -1097,6 +1363,7 @@ certauth_cleanup(struct gensio_filter *filter)
 	if (sfilter->challenge_data)
 	    sfilter->o->free(sfilter->o, sfilter->challenge_data);
 	sfilter->challenge_data = NULL;
+	memset(sfilter->password, 0, sfilter->password_len);
     } else {
 	if (sfilter->cert)
 	    X509_free(sfilter->cert);
@@ -1104,6 +1371,13 @@ certauth_cleanup(struct gensio_filter *filter)
 	    sk_X509_pop_free(sfilter->sk_ca, X509_free);
 	sfilter->cert = NULL;
 	sfilter->sk_ca = NULL;
+	if (sfilter->password)
+	    memset(sfilter->password, 0, sfilter->password_len);
+	if (!sfilter->is_client && sfilter->password) {
+	    sfilter->o->free(sfilter->o, sfilter->password);
+	    sfilter->password = NULL;
+	    sfilter->password_len = 0;
+	}
 	if (sfilter->username)
 	    sfilter->o->free(sfilter->o, sfilter->username);
 	sfilter->username = NULL;
@@ -1119,6 +1393,7 @@ certauth_cleanup(struct gensio_filter *filter)
     sfilter->write_buf_pos = 0;
     sfilter->version = 0;
     sfilter->result = 0;
+    sfilter->response_result = 0;
     sfilter->verified = false;
 }
 
@@ -1141,6 +1416,10 @@ certauth_free(struct gensio_filter *filter)
 	sfilter->o->free(sfilter->o, sfilter->write_buf);
     if (sfilter->pkey)
 	EVP_PKEY_free(sfilter->pkey);
+    if (sfilter->password) {
+	memset(sfilter->password, 0, sfilter->password_len);
+	sfilter->o->free(sfilter->o, sfilter->password);
+    }
     if (sfilter->username)
 	sfilter->o->free(sfilter->o, sfilter->username);
     if (sfilter->service)
@@ -1289,7 +1568,8 @@ gensio_certauth_filter_raw_alloc(struct gensio_os_funcs *o,
 				 bool is_client, X509_STORE *store,
 				 X509 *cert, STACK_OF(X509) *sk_ca,
 				 EVP_PKEY *pkey,
-				 const char *username, const char *service,
+				 const char *username, const char *password,
+				 const char *service,
 				 bool allow_authfail, bool use_child_auth,
 				 struct gensio_filter **rfilter)
 {
@@ -1313,6 +1593,27 @@ gensio_certauth_filter_raw_alloc(struct gensio_os_funcs *o,
     sfilter->sk_ca = sk_ca;
     sfilter->pkey = pkey;
     sfilter->verify_store = store;
+
+    if (is_client) {
+	/* Extra byte at the end so it's always nil terminated. */
+	sfilter->password = o->zalloc(o, GENSIO_CERTAUTH_PASSWORD_LEN + 1);
+	if (!sfilter->password) {
+	    rv = ENOMEM;
+	    goto out_err;
+	}
+	sfilter->password_len = GENSIO_CERTAUTH_PASSWORD_LEN;
+
+	if (password) {
+	    unsigned int pwlen = strlen(password);
+
+	    if (pwlen > GENSIO_CERTAUTH_PASSWORD_LEN) {
+		rv = EINVAL;
+		goto out_err;
+	    }
+
+	    strncpy(sfilter->password, password, GENSIO_CERTAUTH_PASSWORD_LEN);
+	}
+    }
 
     sfilter->lock = o->alloc_lock(o);
     if (!sfilter->lock)
@@ -1372,6 +1673,32 @@ gensio_certauth_filter_raw_alloc(struct gensio_os_funcs *o,
     return rv;
 }
 
+void
+gensio_certauth_filter_config_free(struct gensio_certauth_filter_data *data)
+{
+    struct gensio_os_funcs *o;
+
+    if (!data)
+	return;
+
+    o = data->o;
+    if (data->CAfilepath)
+	o->free(o, data->CAfilepath);
+    if (data->keyfile)
+	o->free(o, data->keyfile);
+    if (data->certfile)
+	o->free(o, data->certfile);
+    if (data->password) {
+	memset(data->password, 0, strlen(data->password));
+	o->free(o, data->password);
+    }
+    if (data->username)
+	o->free(o, data->username);
+    if (data->service)
+	o->free(o, data->service);
+    o->free(o, data);
+}
+
 int
 gensio_certauth_filter_config(struct gensio_os_funcs *o,
 			      const char * const args[],
@@ -1381,7 +1708,7 @@ gensio_certauth_filter_config(struct gensio_os_funcs *o,
     unsigned int i;
     struct gensio_certauth_filter_data *data = o->zalloc(o, sizeof(*data));
     const char *CAfilepath = NULL, *keyfile = NULL, *certfile = NULL;
-    const char *username = NULL, *service = NULL;
+    const char *username = NULL, *password = NULL, *service = NULL;
     int rv = ENOMEM, ival;
 
     if (!data)
@@ -1402,6 +1729,8 @@ gensio_certauth_filter_config(struct gensio_os_funcs *o,
 	if (gensio_check_keyvalue(args[i], "cert", &certfile))
 	    continue;
 	if (gensio_check_keyvalue(args[i], "username", &username))
+	    continue;
+	if (gensio_check_keyvalue(args[i], "password", &password))
 	    continue;
 	if (gensio_check_keyvalue(args[i], "service", &service))
 	    continue;
@@ -1434,6 +1763,10 @@ gensio_certauth_filter_config(struct gensio_os_funcs *o,
 	gensio_get_default(o, "certauth", "username", false, GENSIO_DEFAULT_STR,
 			   &username, NULL);
     }
+    if (!password) {
+	gensio_get_default(o, "certauth", "password", false, GENSIO_DEFAULT_STR,
+			   &password, NULL);
+    }
 
     if (!service) {
 	gensio_get_default(o, "certauth", "service", false, GENSIO_DEFAULT_STR,
@@ -1444,15 +1777,12 @@ gensio_certauth_filter_config(struct gensio_os_funcs *o,
 	keyfile = certfile;
 
     if (data->is_client) {
-	if (!keyfile) {
-	    rv = ENOKEY;
-	    goto out_err;
-	}
 	if (CAfilepath) {
 	    rv = EINVAL;
 	    goto out_err;
 	}
-	if (!username) {
+    } else {
+	if (keyfile || username) {
 	    rv = EINVAL;
 	    goto out_err;
 	}
@@ -1482,6 +1812,12 @@ gensio_certauth_filter_config(struct gensio_os_funcs *o,
 	    goto out_err;
     }
 
+    if (password) {
+	data->password = gensio_strdup(o, password);
+	if (!data->password)
+	    goto out_err;
+    }
+
     if (service) {
 	data->service = gensio_strdup(o, service);
 	if (!data->service)
@@ -1492,40 +1828,8 @@ gensio_certauth_filter_config(struct gensio_os_funcs *o,
 
     return 0;
  out_err:
-    if (data->CAfilepath)
-	o->free(o, data->CAfilepath);
-    if (data->keyfile)
-	o->free(o, data->keyfile);
-    if (data->certfile)
-	o->free(o, data->certfile);
-    if (data->username)
-	o->free(o, data->username);
-    if (data->service)
-	o->free(o, data->service);
-    o->free(o, data);
+    gensio_certauth_filter_config_free(data);
     return rv;
-}
-
-void
-gensio_certauth_filter_config_free(struct gensio_certauth_filter_data *data)
-{
-    struct gensio_os_funcs *o;
-
-    if (!data)
-	return;
-
-    o = data->o;
-    if (data->CAfilepath)
-	o->free(o, data->CAfilepath);
-    if (data->keyfile)
-	o->free(o, data->keyfile);
-    if (data->certfile)
-	o->free(o, data->certfile);
-    if (data->username)
-	o->free(o, data->username);
-    if (data->service)
-	o->free(o, data->service);
-    o->free(o, data);
 }
 
 static int
@@ -1654,7 +1958,8 @@ gensio_certauth_filter_alloc(struct gensio_certauth_filter_data *data,
 
     rv = gensio_certauth_filter_raw_alloc(o, data->is_client, store,
 					  cert, sk_ca, pkey,
-					  data->username, data->service,
+					  data->username, data->password,
+					  data->service,
 					  data->allow_authfail,
 					  data->use_child_auth,
 					  &filter);

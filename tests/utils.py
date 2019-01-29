@@ -51,7 +51,7 @@ class HandleData:
     """
 
     def __init__(self, o, iostr, name = None, chunksize=10240,
-                 io = None):
+                 io = None, password = None):
         """Start a gensio object with this handler"""
         if (name):
             self.name = name
@@ -71,6 +71,7 @@ class HandleData:
         self.expected_server_return = 0
         self.ignore_input = False
         self.stream = None
+        self.password = password
         if (io):
             self.io = io
             io.set_cbs(self)
@@ -275,6 +276,11 @@ class HandleData:
         else:
             self.wrpos += count
         return
+
+    def request_password(self, io):
+        if self.password is None:
+            return gensio.ENOTSUP
+        return self.password
 
     def set_expecting_oob(self, data):
         self.to_compare_oob = data

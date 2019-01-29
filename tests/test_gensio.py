@@ -134,9 +134,9 @@ def ta_ssl_tcp():
     ta.close()
 
 def ta_certauth_tcp():
-    print("Test accept certauth-tcp")
-    io1 = utils.alloc_io(o, "certauth(cert=%s/clientcert.pem,key=%s/clientkey.pem,username=testuser,service=myservice),tcp,localhost,3023" % (utils.srcdir, utils.srcdir), do_open = False)
-    ta = TestAccept(o, io1, "certauth(CA=%s/clientcert.pem),3023" % utils.srcdir, do_test, do_close = False)
+    print("Test accept certauth-ssl-tcp")
+    io1 = utils.alloc_io(o, "certauth(cert=%s/clientcert.pem,key=%s/clientkey.pem,username=testuser,service=myservice),ssl(CA=%s/CA.pem),tcp,localhost,3023" % (utils.srcdir, utils.srcdir, utils.srcdir), do_open = False)
+    ta = TestAccept(o, io1, "certauth(CA=%s/clientcert.pem),ssl(key=%s/key.pem,cert=%s/cert.pem),tcp,3023" % (utils.srcdir, utils.srcdir, utils.srcdir), do_test, do_close = False)
     cn = ta.io2.control(0, True, gensio.GENSIO_CONTROL_GET_PEER_CERT_NAME,
                         "-1,CN");
     i = cn.index(',')
@@ -475,7 +475,9 @@ def test_rs485():
 
 class TestAcceptConnect:
     def __init__(self, o, iostr, io2str, io3str, tester, name = None,
-                 io1_dummy_write = None, CA=None, do_close = True):
+                 io1_dummy_write = None, CA=None, do_close = True,
+                 auth_begin_rv = gensio.ENOTSUP, expect_pw = None,
+                 expect_pw_rv = gensio.ENOTSUP, password = None):
         self.o = o
         if (name):
             self.name = name
@@ -489,7 +491,10 @@ class TestAcceptConnect:
         self.io1 = self.acc2.str_to_gensio(io3str, None);
         self.io2 = None
         self.CA = CA
-        h = utils.HandleData(o, io3str, io = self.io1)
+        h = utils.HandleData(o, io3str, io = self.io1, password = password)
+        self.auth_begin_rv = auth_begin_rv
+        self.expect_pw = expect_pw
+        self.expect_pw_rv = expect_pw_rv
         try:
             self.io1.open_s()
         except:
@@ -538,11 +543,22 @@ class TestAcceptConnect:
         self.io2 = io
         self.waiter.wake()
 
+    def auth_begin(self, acc, io):
+        return self.auth_begin_rv;
+
     def precert_verify(self, acc, io):
         if self.CA:
             io.control(0, False, gensio.GENSIO_CONTROL_CERT_AUTH, self.CA)
-            return 0
+            return gensio.ENOTSUP
         return gensio.ENOTSUP
+
+    def password_verify(self, acc, io, password):
+        if self.expect_pw is None:
+            raise Exception("got password verify when none expected")
+        if self.expect_pw != password:
+            raise Exception("Invalid password in verify, expected %s, got %s"
+                            % (self.expect_pw, password))
+        return self.expect_pw_rv
 
     def accepter_log(self, acc, level, logstr):
         print("***%s LOG: %s: %s" % (level, self.name, logstr))
@@ -552,29 +568,29 @@ class TestAcceptConnect:
 
 def test_tcp_acc_connect():
     print("Test tcp accepter connect")
-    ta = TestAcceptConnect(o, "tcp,3023", "tcp,3024", "tcp,localhost,3023",
-                           do_small_test)
+    TestAcceptConnect(o, "tcp,3023", "tcp,3024", "tcp,localhost,3023",
+                      do_small_test)
 
 def test_udp_acc_connect():
     print("Test udp accepter connect")
-    ta = TestAcceptConnect(o, "udp,3023", "udp,3024", "udp,localhost,3023",
-                           do_small_test, io1_dummy_write = "A")
+    TestAcceptConnect(o, "udp,3023", "udp,3024", "udp,localhost,3023",
+                      do_small_test, io1_dummy_write = "A")
 
 def test_sctp_acc_connect():
     print("Test sctp accepter connect")
-    ta = TestAcceptConnect(o, "sctp,3023", "sctp,3024", "sctp,localhost,3023",
-                           do_small_test)
+    TestAcceptConnect(o, "sctp,3023", "sctp,3024", "sctp,localhost,3023",
+                      do_small_test)
 
 def test_telnet_sctp_acc_connect():
     print("Test telnet over sctp accepter connect")
-    ta = TestAcceptConnect(o, "telnet,sctp,3023", "telnet,sctp,3024",
-                           "telnet,sctp,localhost,3023", do_small_test)
+    TestAcceptConnect(o, "telnet,sctp,3023", "telnet,sctp,3024",
+                      "telnet,sctp,localhost,3023", do_small_test)
 
 def test_ssl_sctp_acc_connect():
     print("Test ssl over sctp accepter connect")
     goterr = False
     try:
-        ta = TestAcceptConnect(o,
+        TestAcceptConnect(o,
                 "ssl(key=%s/key.pem,cert=%s/cert.pem,clientauth),sctp,3023"
                                % (utils.srcdir, utils.srcdir),
                 "ssl(key=%s/key.pem,cert=%s/cert.pem),sctp,3024"
@@ -594,7 +610,7 @@ def test_ssl_sctp_acc_connect():
     
     goterr = False
     try:
-        ta = TestAcceptConnect(o,
+        TestAcceptConnect(o,
                 "ssl(key=%s/key.pem,cert=%s/cert.pem,clientauth),sctp,3023"
                                % (utils.srcdir, utils.srcdir),
                 "ssl(key=%s/key.pem,cert=%s/cert.pem),sctp,3024"
@@ -614,7 +630,7 @@ def test_ssl_sctp_acc_connect():
     if not goterr:
         raise Exception("Did not get error on invalid client certificate.")
     
-    ta = TestAcceptConnect(o,
+    TestAcceptConnect(o,
                 "ssl(key=%s/key.pem,cert=%s/cert.pem,clientauth),sctp,3023"
                                % (utils.srcdir, utils.srcdir),
                 "ssl(key=%s/key.pem,cert=%s/cert.pem),sctp,3024"
@@ -625,13 +641,13 @@ def test_ssl_sctp_acc_connect():
                            do_small_test, CA="%s/clientcert.pem" % utils.srcdir)
 
 def test_certauth_sctp_acc_connect():
-    print("Test certauth over sctp accepter connect")
+    print("Test certauth over ssl over sctp accepter connect")
     goterr = False
     try:
-        ta = TestAcceptConnect(o,
-                "certauth(CA=%s/clientcert.pem),sctp,3023" % utils.srcdir,
-                "certauth(CA=%s/clientcert.pem),sctp,3024" % utils.srcdir,
-                "certauth(cert=%s/cert.pem,key=%s/key.pem,username=test1),sctp,localhost,3023" % (utils.srcdir, utils.srcdir),
+        TestAcceptConnect(o,
+                "certauth(CA=%s/clientcert.pem),ssl(key=%s/key.pem,cert=%s/cert.pem),sctp,3023" % (utils.srcdir, utils.srcdir, utils.srcdir),
+                "certauth(CA=%s/clientcert.pem),ssl(key=%s/key.pem,cert=%s/cert.pem),sctp,3024" % (utils.srcdir, utils.srcdir, utils.srcdir),
+                "certauth(cert=%s/cert.pem,key=%s/key.pem,username=test1),ssl(CA=%s/CA.pem),sctp,localhost,3023" % (utils.srcdir, utils.srcdir, utils.srcdir),
                            do_small_test)
     except Exception as E:
         s = str(E)
@@ -644,11 +660,44 @@ def test_certauth_sctp_acc_connect():
     if not goterr:
         raise Exception("Did not get error on invalid client certificate.")
 
-    ta = TestAcceptConnect(o,
-                "certauth(),sctp,3023",
-                "certauth(),sctp,3024",
-                "certauth(cert=%s/clientcert.pem,key=%s/clientkey.pem,username=test1),sctp,localhost,3023" % (utils.srcdir, utils.srcdir),
+    TestAcceptConnect(o,
+                "certauth(),ssl(key=%s/key.pem,cert=%s/cert.pem),sctp,3023" % (utils.srcdir, utils.srcdir),
+                "certauth(),ssl(key=%s/key.pem,cert=%s/cert.pem),sctp,3024" % (utils.srcdir, utils.srcdir),
+                "certauth(cert=%s/clientcert.pem,key=%s/clientkey.pem,username=test1),ssl(CA=%s/CA.pem),sctp,localhost,3023" % (utils.srcdir, utils.srcdir, utils.srcdir),
                            do_small_test, CA="%s/clientcert.pem" % utils.srcdir)
+
+def test_certauth_ssl_tcp_acc_connect():
+    print("Test certauth over ssl over tcp")
+
+    # First test bypassing authentication from the auth_begin callback;
+    TestAcceptConnect(o,
+           ("certauth(),ssl(key=%s/key.pem,cert=%s/cert.pem),tcp,3023" %
+            (utils.srcdir, utils.srcdir)),
+           ("certauth(),ssl(key=%s/key.pem,cert=%s/cert.pem),tcp,3024" %
+            (utils.srcdir, utils.srcdir)),
+           "certauth(),ssl(CA=%s/CA.pem),tcp,localhost,3023" % utils.srcdir,
+                      do_small_test, auth_begin_rv=0)
+
+    # Now try password authentication.
+    TestAcceptConnect(o,
+           ("certauth(),ssl(key=%s/key.pem,cert=%s/cert.pem),tcp,3023" %
+            (utils.srcdir, utils.srcdir)),
+           ("certauth(),ssl(key=%s/key.pem,cert=%s/cert.pem),tcp,3024" %
+            (utils.srcdir, utils.srcdir)),
+           ("certauth(password=asdfasdf),ssl(CA=%s/CA.pem),tcp,localhost,3023" %
+            utils.srcdir),
+                      do_small_test, expect_pw = "asdfasdf", expect_pw_rv = 0)
+
+    # Test the password request
+    TestAcceptConnect(o,
+           ("certauth(),ssl(key=%s/key.pem,cert=%s/cert.pem),tcp,3023" %
+            (utils.srcdir, utils.srcdir)),
+           ("certauth(),ssl(key=%s/key.pem,cert=%s/cert.pem),tcp,3024" %
+            (utils.srcdir, utils.srcdir)),
+           ("certauth(),ssl(CA=%s/CA.pem),tcp,localhost,3023" %
+            utils.srcdir),
+                      do_small_test, expect_pw = "jkl;", expect_pw_rv = 0,
+                      password = "jkl;")
 
 test_echo_device()
 test_serial_pipe_device()
@@ -677,6 +726,7 @@ test_sctp_acc_connect()
 test_telnet_sctp_acc_connect()
 test_ssl_sctp_acc_connect()
 test_certauth_sctp_acc_connect()
+test_certauth_ssl_tcp_acc_connect()
 
 test_ipmisol_large()
 test_rs485()

@@ -49,8 +49,11 @@ certauth_gensio_alloc(struct gensio *child, const char *const args[],
     struct gensio *io;
     struct gensio_certauth_filter_data *data;
 
-    if (!gensio_is_reliable(child))
-	/* Cowardly refusing to run over an unreliable connection. */
+    if (!gensio_is_reliable(child) || !gensio_is_encrypted(child))
+	/*
+	 * Cowardly refusing to run over an unreliable or unencrypted
+	 * connection.
+	 */
 	return EOPNOTSUPP;
 
     err = gensio_certauth_filter_config(o, args, true, &data);
@@ -144,20 +147,42 @@ certauthna_gensio_event(struct gensio *io, int event, int err,
 			const char *const *auxdata)
 {
     struct certauthna_data *nadata = gensio_get_user_data(io);
+    struct gensio_acc_password_verify_data pwvfy;
+    int rv;
 
-    if (event != GENSIO_EVENT_PRECERT_VERIFY)
+    switch (event) {
+    case GENSIO_EVENT_AUTH_BEGIN:
+	return gensio_acc_cb(nadata->acc, GENSIO_ACC_EVENT_AUTH_BEGIN, io);
+
+    case GENSIO_EVENT_PRECERT_VERIFY:
+	return gensio_acc_cb(nadata->acc, GENSIO_ACC_EVENT_PRECERT_VERIFY, io);
+
+    case GENSIO_EVENT_PASSWORD_VERIFY:
+	pwvfy.io = io;
+	pwvfy.password = (char *) buf;
+	pwvfy.password_len = strlen((const char *) buf);
+	return gensio_acc_cb(nadata->acc, GENSIO_ACC_EVENT_PASSWORD_VERIFY,
+			     &pwvfy);
+
+    case GENSIO_EVENT_REQUEST_PASSWORD:
+	pwvfy.io = io;
+	pwvfy.password = (char *) buf;
+	pwvfy.password_len = *buflen;
+	rv = gensio_acc_cb(nadata->acc, GENSIO_ACC_EVENT_REQUEST_PASSWORD,
+			   &pwvfy);
+	if (!rv)
+	    *buflen = pwvfy.password_len;
+	return rv;
+
+    default:
 	return ENOTSUP;
-
-    return gensio_acc_cb(nadata->acc, GENSIO_ACC_EVENT_PRECERT_VERIFY, io);
+    }
 }
 
 static int
 certauthna_finish_parent(void *acc_data, void *finish_data, struct gensio *io)
 {
     gensio_set_callback(io, certauthna_gensio_event, acc_data);
-
-    gensio_set_is_packet(io, true);
-    gensio_set_is_reliable(io, true);
     return 0;
 }
 
@@ -215,8 +240,8 @@ certauth_gensio_accepter_alloc(struct gensio_accepter *child,
 				       &nadata->acc);
     if (err)
 	goto out_err;
-    gensio_acc_set_is_packet(nadata->acc, true);
-    gensio_acc_set_is_reliable(nadata->acc, true);
+    gensio_acc_set_is_packet(nadata->acc, gensio_acc_is_packet(child));
+    gensio_acc_set_is_reliable(nadata->acc, gensio_acc_is_reliable(child));
     *accepter = nadata->acc;
 
     return 0;

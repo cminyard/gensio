@@ -155,7 +155,7 @@ swig_finish_call_rv_int(swig_cb_val *cb, const char *method_name,
 			PyObject *args, bool optional)
 {
     PyObject *o;
-    int rv = 0;
+    int rv = ENOTSUP;
 
     o = swig_finish_call_rv(cb, method_name, args, optional);
     if (o) {
@@ -719,6 +719,16 @@ gensio_child_event(struct gensio *io, int event, int readerr,
 	swig_finish_call(data->handler_val, "send_break", args, true);
 	break;
 
+    case GENSIO_EVENT_AUTH_BEGIN:
+	io_ref = swig_make_ref(io, gensio);
+	args = PyTuple_New(1);
+	ref_gensio_data(data);
+	PyTuple_SET_ITEM(args, 0, io_ref.val);
+
+	rv = swig_finish_call_rv_int(data->handler_val, "auth_begin",
+				     args, true);
+	break;
+
     case GENSIO_EVENT_PRECERT_VERIFY:
 	io_ref = swig_make_ref(io, gensio);
 	args = PyTuple_New(1);
@@ -727,6 +737,46 @@ gensio_child_event(struct gensio *io, int event, int readerr,
 
 	rv = swig_finish_call_rv_int(data->handler_val, "precert_verify",
 				     args, true);
+	break;
+
+    case GENSIO_EVENT_PASSWORD_VERIFY:
+	io_ref = swig_make_ref(io, gensio);
+	args = PyTuple_New(2);
+	ref_gensio_data(data);
+	PyTuple_SET_ITEM(args, 0, io_ref.val);
+	/*
+	 * FIXME - is there a way to make this a secure python string
+	 * that gets wiped on free?
+	 */
+	o = OI_PI_FromString((const char *) buf);
+	PyTuple_SET_ITEM(args, 1, o);
+
+	rv = swig_finish_call_rv_int(data->handler_val, "password_verify",
+				     args, true);
+	break;
+
+    case GENSIO_EVENT_REQUEST_PASSWORD:
+	io_ref = swig_make_ref(io, gensio);
+	args = PyTuple_New(1);
+	ref_gensio_data(data);
+	PyTuple_SET_ITEM(args, 0, io_ref.val);
+	o = swig_finish_call_rv(data->handler_val, "request_password",
+				args, true);
+	rv = ENOTSUP;
+	if (o) {
+	    if (OI_PI_StringCheck(o)) {
+		char *p = OI_PI_AsString(o);
+		unsigned int len = strlen(p);
+
+		if (len < *buflen)
+		    *buflen = len;
+		memcpy(buf, p, *buflen);
+		rv = 0;
+	    } else if (PyInt_Check(o)) {
+		rv = PyInt_AsLong(o);
+	    }
+	    Py_DecRef(o);
+	}
 	break;
 
     case GENSIO_EVENT_SER_MODEMSTATE:
@@ -822,6 +872,50 @@ gensio_acc_shutdown_done(struct gensio_accepter *accepter, void *cb_data)
 }
 
 static int
+gensio_acc_io_call_cb(struct gensio_accepter *accepter, struct gensio *io,
+		      const char *func, const char *optstr, bool optional)
+{
+    struct gensio_data *data = gensio_acc_get_user_data(accepter);
+    swig_ref acc_ref, io_ref;
+    PyObject *args, *o;
+    int rv;
+    OI_PY_STATE gstate;
+    struct gensio_data tmpdata;
+    void *old_user_data = gensio_get_user_data(io);
+
+    gstate = OI_PY_STATE_GET();
+
+
+    /*
+     * This is a situation where the gensio has not been reported
+     * to the upper layer yet and thus there is no user data.
+     * Just create something to say that this isn't valid.
+     */
+    tmpdata.tmpval = true;
+    gensio_set_user_data(io, &tmpdata);
+
+    acc_ref = swig_make_ref(accepter, gensio_accepter);
+    gensio_accepter_ref(accepter);
+    io_ref = swig_make_ref(io, gensio);
+    if (optstr)
+	args = PyTuple_New(3);
+    else
+	args = PyTuple_New(2);
+    PyTuple_SET_ITEM(args, 0, acc_ref.val);
+    PyTuple_SET_ITEM(args, 1, io_ref.val);
+    if (optstr) {
+	o = OI_PI_FromString(optstr);
+	PyTuple_SET_ITEM(args, 2, o);
+    }
+
+    rv = swig_finish_call_rv_int(data->handler_val, func, args, optional);
+    gensio_set_user_data(io, old_user_data);
+
+    OI_PY_STATE_PUT(gstate);
+    return rv;
+}
+
+static int
 gensio_acc_child_event(struct gensio_accepter *accepter, int event, void *cdata)
 {
     struct gensio_data *data = gensio_acc_get_user_data(accepter);
@@ -831,8 +925,10 @@ gensio_acc_child_event(struct gensio_accepter *accepter, int event, void *cdata)
     struct gensio_data *iodata;
     struct gensio *io;
     struct gensio_loginfo *i = cdata;
+    struct gensio_acc_password_verify_data *pwvfy;
     char buf[256];
     struct gensio_data tmpdata;
+    void *old_user_data;
     int rv;
 
     switch (event) {
@@ -857,7 +953,7 @@ gensio_acc_child_event(struct gensio_accepter *accepter, int event, void *cdata)
     case GENSIO_ACC_EVENT_NEW_CONNECTION:
 	io = cdata;
 	iodata = alloc_gensio_data(data->o, NULL);
-	gensio_set_callback(io, gensio_child_event, iodata);
+	gensio_set_callback(cdata /*io*/, gensio_child_event, iodata);
 
 	gstate = OI_PY_STATE_GET();
 
@@ -873,30 +969,53 @@ gensio_acc_child_event(struct gensio_accepter *accepter, int event, void *cdata)
 	OI_PY_STATE_PUT(gstate);
 	return 0;
 
+    case GENSIO_ACC_EVENT_AUTH_BEGIN:
+	return gensio_acc_io_call_cb(accepter, cdata, "auth_begin",
+				     NULL, true);
+
     case GENSIO_ACC_EVENT_PRECERT_VERIFY:
-	io = cdata;
-	gstate = OI_PY_STATE_GET();
+	return gensio_acc_io_call_cb(accepter, cdata, "precert_verify",
+				     NULL, true);
+
+    case GENSIO_ACC_EVENT_PASSWORD_VERIFY:
+	pwvfy = (struct gensio_acc_password_verify_data *) cdata;
+	return gensio_acc_io_call_cb(accepter, pwvfy->io, "password_verify",
+				     pwvfy->password, true);
+
+    case GENSIO_ACC_EVENT_REQUEST_PASSWORD:
+	pwvfy = (struct gensio_acc_password_verify_data *) cdata;
+	io = pwvfy->io;
+	io_ref = swig_make_ref(io, gensio);
+	args = PyTuple_New(1);
+	PyTuple_SET_ITEM(args, 0, io_ref.val);
 
 	/*
 	 * This is a situation where the gensio has not been reported
 	 * to the upper layer yet and thus there is no user data.
 	 * Just create something to say that this isn't valid.
 	 */
+	old_user_data = gensio_get_user_data(io);
 	tmpdata.tmpval = true;
 	gensio_set_user_data(io, &tmpdata);
 
-	acc_ref = swig_make_ref(accepter, gensio_accepter);
-	gensio_accepter_ref(accepter);
-	io_ref = swig_make_ref(io, gensio);
-	args = PyTuple_New(2);
-	PyTuple_SET_ITEM(args, 0, acc_ref.val);
-	PyTuple_SET_ITEM(args, 1, io_ref.val);
+	o = swig_finish_call_rv(data->handler_val, "request_password",
+				args, true);
+	gensio_set_user_data(io, old_user_data);
+	rv = ENOTSUP;
+	if (o) {
+	    if (OI_PI_StringCheck(o)) {
+		char *p = OI_PI_AsString(o);
+		unsigned int len = strlen(p);
 
-	rv = swig_finish_call_rv_int(data->handler_val, "precert_verify",
-				     args, true);
-
-	gensio_set_user_data(io, NULL);
-	OI_PY_STATE_PUT(gstate);
+		if (len < pwvfy->password_len)
+		    pwvfy->password_len = len;
+		memcpy(pwvfy->password, p, pwvfy->password_len);
+		rv = 0;
+	    } else if (PyInt_Check(o)) {
+		rv = PyInt_AsLong(o);
+	    }
+	    Py_DecRef(o);
+	}
 	return rv;
     }
 
