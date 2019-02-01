@@ -21,12 +21,12 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <string.h>
-#include <ctype.h>
 #include <errno.h>
 #include <gensio/gensio.h>
 
 #include "ioinfo.h"
 #include "ser_ioinfo.h"
+#include "utils.h"
 
 unsigned int debug;
 
@@ -155,77 +155,6 @@ do_vlog(struct gensio_os_funcs *f, enum gensio_log_levels level,
 	return;
     fprintf(stderr, "gensio %s log: ", gensio_log_level_to_str(level));
     vfprintf(stderr, log, args);
-}
-
-static int
-cmparg(int argc, char *argv[], int *arg, char *sarg, char *larg,
-       const char **opt)
-{
-    char *a = argv[*arg];
-
-    if (strcmp(a, sarg) == 0 || strcmp(a, larg) == 0) {
-	if (!opt)
-	    return 1;
-	(*arg)++;
-	if (*arg >= argc) {
-	    fprintf(stderr, "No argument given for option %s\n", a);
-	    return -1;
-	}
-	*opt = argv[*arg];
-	return 1;
-    } else {
-	unsigned int len = strlen(larg);
-
-	if (strncmp(a, larg, len) == 0 && a[len] == '=') {
-	    *opt = a + len + 1;
-	    return 1;
-	}
-    }
-
-    return 0;
-}
-
-static int
-strtocc(const char *str, int *rc)
-{
-    int c;
-
-    if (!*str || str[1] != '\0') {
-	fprintf(stderr, "Empty string for ^x\n");
-	return -1;
-    }
-    c = toupper(str[0]);
-    if (c < 'A' || c > '_') {
-	fprintf(stderr, "Invalid character for ^x\n");
-	return -1;
-    }
-    *rc = c - '@';
-    return 1;
-}
-
-static int
-cmparg_int(int argc, char *argv[], int *arg, char *sarg, char *larg, int *rc)
-{
-    const char *str;
-    char *end;
-    int rv = cmparg(argc, argv, arg, sarg, larg, &str);
-    long v;
-
-    if (rv <= 0)
-	return rv;
-    if (!str[0]) {
-	fprintf(stderr, "No string given for character\n");
-	return -1;
-    }
-    if (str[0] == '^')
-	return strtocc(str + 1, rc);
-    v = strtol(str, &end, 0);
-    if (*end != '\0') {
-	fprintf(stderr, "Invalid string given for character\n");
-	return -1;
-    }
-    *rc = v;
-    return 1;
 }
 
 int
