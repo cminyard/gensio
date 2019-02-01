@@ -87,6 +87,12 @@ ioinfo_userdata(struct ioinfo *ioinfo)
     return ioinfo->userdata;
 }
 
+struct ioinfo *
+ioinfo_otherioinfo(struct ioinfo *ioinfo)
+{
+    return ioinfo->otherio;
+}
+
 static bool
 handle_escapechar(struct ioinfo *ioinfo, char c)
 {
@@ -226,9 +232,14 @@ io_event(struct gensio *io, int event, int err,
     if (!rioinfo->ready)
 	return 0;
 
+    rv = ENOTSUP;
     if (ioinfo->sh)
-	return ioinfo->sh->handle_event(io, event, buf, buflen);
-    return 0;
+	rv = ioinfo->sh->handle_event(io, event, buf, buflen);
+
+    if (rv == ENOTSUP && ioinfo->uh->event)
+	rv = ioinfo->uh->event(ioinfo, io, event, err, buf, buflen, auxdata);
+
+    return rv;
 }
 
 void

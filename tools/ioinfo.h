@@ -108,6 +108,14 @@ struct ioinfo_user_handlers {
      * display output to the user.
      */
     void (*out)(struct ioinfo *ioinfo, char *fmt, va_list va);
+
+    /*
+     * Called to handle gensio events the ioinfo doesn't handle.
+     * May be NULL.
+     */
+    int (*event)(struct ioinfo *ioinfo, struct gensio *io, int event,
+		 int err, unsigned char *buf, gensiods *buflen,
+		 const char *const *auxdata);
 };
 
 /* Get the ioinfo for the other side of the connection. */
@@ -121,6 +129,9 @@ void *ioinfo_othersubdata(struct ioinfo *ioinfo);
 
 /* Get the user data supplied when the ioinfo was allocated. */
 void *ioinfo_userdata(struct ioinfo *ioinfo);
+
+/* Get the user data supplied when the ioinfo was allocated. */
+struct ioinfo *ioinfo_otherioinfo(struct ioinfo *ioinfo);
 
 /*
  * Set each other side's ioinfo for a connection.  Both sides are set,
