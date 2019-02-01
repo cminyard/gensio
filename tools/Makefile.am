@@ -1,6 +1,8 @@
 
 AM_CFLAGS = -I$(top_srcdir)/include
 
+AM_CPPFLAGS = -DSYSCONFDIR="${sysconfdir}"
+
 noinst_LIBRARIES = libgensiotool.a
 
 libgensiotool_a_SOURCES = ioinfo.c ser_ioinfo.c utils.c
