@@ -254,6 +254,14 @@ struct gensio_os_funcs {
 
     void (*vlog)(struct gensio_os_funcs *f, enum gensio_log_levels level,
 		 const char *log, va_list args);
+
+    /*
+     * Must be called after a fork() in the child if the gensio will
+     * continue to be used in both the parent and the child.  If you
+     * don't do this you may get undefined results.  If this returns
+     * an error, the child is likely to be unusable.
+     */
+    int (*handle_fork)(struct gensio_os_funcs *f);
 };
 
 void gensio_vlog(struct gensio_os_funcs *o, enum gensio_log_levels level,

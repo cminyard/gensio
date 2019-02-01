@@ -181,6 +181,13 @@ void ipmi_sel_set_read_fds_handler(struct selector_s          *sel,
 				   ipmi_sel_check_timeout_cb  timeout,
 				   void                       *cb_data);
 
+/*
+ * If you fork and expect to use the selector in the forked process,
+ * you *must* call this function in the forked process or you may
+ * get strange results.
+ */
+int sel_setup_forked_process(struct selector_s *sel);
+
 #ifdef __cplusplus
 }
 #endif

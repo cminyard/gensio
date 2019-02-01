@@ -474,6 +474,14 @@ gensio_sel_get_monotonic_time(struct gensio_os_funcs *f, struct timeval *time)
     sel_get_monotonic_time(time);
 }
 
+static int
+gensio_handle_fork(struct gensio_os_funcs *f)
+{
+    struct gensio_data *d = f->user_data;
+
+    return sel_setup_forked_process(d->sel);
+}
+
 struct gensio_os_funcs *
 gensio_selector_alloc(struct selector_s *sel, int wake_sig)
 {
@@ -526,6 +534,7 @@ gensio_selector_alloc(struct selector_s *sel, int wake_sig)
     o->free_funcs = gensio_sel_free_funcs;
     o->call_once = gensio_sel_call_once;
     o->get_monotonic_time = gensio_sel_get_monotonic_time;
+    o->handle_fork = gensio_handle_fork;
 
     return o;
 }

@@ -1031,7 +1031,6 @@ process_fds_epoll(struct selector_s *sel, struct timeval *tvtimeout)
 #endif
     sigdelset(&sigmask, sel->wake_sig);
     rv = epoll_pwait(sel->epollfd, &event, 1, timeout, &sigmask);
-
     if (rv <= 0)
 	return rv;
 
@@ -1065,6 +1064,39 @@ process_fds_epoll(struct selector_s *sel, struct timeval *tvtimeout)
     sel_fd_unlock(sel);
 
     return rv;
+}
+
+int
+sel_setup_forked_process(struct selector_s *sel)
+{
+    unsigned int i;
+
+    /*
+     * More epoll stupidity.  In a forked process we must create a new
+     * epoll because the epoll state is shared between a parent and a
+     * child.  If it worked like it should, each epoll instance would
+     * be independent.  If you don't do this, disabling an fd in the
+     * child disables the parent, too, and vice versa.
+     */
+    close(sel->epollfd);
+    sel->epollfd = epoll_create(32768);
+    if (sel->epollfd == -1) {
+	return errno;
+    }
+
+    for (i = 0; i <= sel->maxfd; i++) {
+	volatile fd_control_t *fdc = &sel->fds[i];
+	if (fdc->state)
+	    sel_update_epoll(sel, i, EPOLL_CTL_ADD, 1);
+    }
+    return 0;
+}
+#else
+int
+sel_setup_forked_process(struct selector_s *sel)
+{
+    /* Nothing to do. */
+    return 0;
 }
 #endif
 
