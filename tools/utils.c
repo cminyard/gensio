@@ -137,7 +137,7 @@ checkout_file(const char *filename, bool expect_dir)
 	return EPERM;
     }
 
-    if (sb.st_mode & 0x077) {
+    if (sb.st_mode & 077) {
 	fprintf(stderr, "%s is accessible by others, giving up\n", filename);
 	return EPERM;
     }
