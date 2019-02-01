@@ -17,17 +17,19 @@
  *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307  USA
  */
 
+#include "config.h"
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
 #include <limits.h>
+#include <stdbool.h>
+#include <errno.h>
 #include <gensio/waiter.h>
 
 #ifdef USE_PTHREADS
 
 #include <pthread.h>
 #include <signal.h>
-#include <errno.h>
 #include <stdbool.h>
 
 struct waiter_timeout {
@@ -147,9 +149,12 @@ wake_waiter(waiter_t *waiter)
     sel_wake_all(waiter->sel);
     pthread_mutex_unlock(&waiter->lock);
 }
-#else
+
+#else /* USE_PTHREADS */
+
 struct waiter_s {
     unsigned int count;
+    struct selector_s *sel;
 };
 
 waiter_t *
@@ -179,11 +184,9 @@ i_wait_for_waiter_timeout(waiter_t *waiter, unsigned int count,
 
     while (waiter->count < count) {
 	if (intr)
-	    err = sel_select_intr(waiter->sel, wake_thread_send_sig,
-				  w.id, &w, timeout);
+	    err = sel_select_intr(waiter->sel, 0, 0, NULL, timeout);
 	else
-	    err = sel_select(waiter->sel, wake_thread_send_sig, w.id, &w,
-			     timeout);
+	    err = sel_select(waiter->sel, 0, 0, NULL, timeout);
 	if (err < 0) {
 	    err = errno;
 	    break;
@@ -195,6 +198,7 @@ i_wait_for_waiter_timeout(waiter_t *waiter, unsigned int count,
     }
     if (!err)
 	waiter->count -= count;
+    return err;
 }
 
 void
@@ -202,7 +206,8 @@ wake_waiter(waiter_t *waiter)
 {
     waiter->count++;
 }
-#endif
+
+#endif /* USE_PTHREADS */
 
 int
 wait_for_waiter_timeout(waiter_t *waiter, unsigned int count,

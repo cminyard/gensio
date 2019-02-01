@@ -19,6 +19,7 @@
 
 /* This code handles SCTP network I/O. */
 
+#include "config.h"
 #include <errno.h>
 #include <gensio/gensio.h>
 

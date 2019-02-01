@@ -1,5 +1,6 @@
 AC_INIT([gensio], [1.0], [minyard@acm.org])
 AM_INIT_AUTOMAKE([-Wall])
+AC_CONFIG_HEADERS([config.h])
 AC_PROG_CC
 AM_PROG_AR
 AM_PROG_LIBTOOL
@@ -8,7 +9,7 @@ AC_ARG_WITH(uucp-locking,
  uucp_locking_flag="$withval",
  uucp_locking_flag=yes)
 if test "$uucp_locking_flag" = yes; then
-  AC_DEFINE(USE_UUCP_LOCKING)
+  AC_DEFINE([USE_UUCP_LOCKING], [], [Enable device locking])
 fi
 AC_ARG_WITH(tcp-wrappers,
  [  --with-tcp-wrappers        Enable tcpwrappers support],
@@ -49,7 +50,7 @@ AC_ARG_WITH(pthreads,
 
 if test "x$use_pthreads" != "xno"; then
    LIBS="$LIBS -lpthread"
-   AC_DEFINE(USE_PTHREADS)
+   AC_DEFINE([USE_PTHREADS], [], [Enable multithreaded support])
 fi
 
 AC_ARG_WITH(openipmiflags,
@@ -78,10 +79,10 @@ if test "x$HAVE_OPENIPMI" != "xno"; then
    else
       LIBS="$LIBS -lOpenIPMI -lOpenIPMIposix -lOpenIPMIutils"
    fi
-   AC_DEFINE(HAVE_OPENIPMI)
+   AC_DEFINE([HAVE_OPENIPMI], [], [Have IPMI support through OpenIPMI])
 fi
 
-AX_CHECK_OPENSSL([AC_DEFINE(HAVE_OPENSSL)])
+AX_CHECK_OPENSSL([AC_DEFINE([HAVE_OPENSSL], [], [Have SSL support through OpenSSL])])
 
 tryswig=yes
 swigprog=

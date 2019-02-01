@@ -24,6 +24,7 @@
    things happen on those file descriptors this code will call
    routines registered with it. */
 
+#include "config.h"
 #include <gensio/selector.h>
 
 #include <sys/time.h>
@@ -443,7 +444,9 @@ i_sel_clear_fd_handler(struct selector_s *sel, int fd, int rpt)
 	fdc->state = NULL;
 
 	sel_update_epoll(sel, fd, EPOLL_CTL_DEL, 0);
+#ifdef HAVE_EPOLL_PWAIT
 	fdc->saved_events = 0;
+#endif
     }
 
     init_fd(fdc);

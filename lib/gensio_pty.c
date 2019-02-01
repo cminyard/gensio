@@ -19,6 +19,7 @@
 
 /* This code handles running a child process using a pty. */
 
+#include "config.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
