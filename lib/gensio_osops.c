@@ -221,20 +221,18 @@ gensio_setup_child_on_pty(char *const argv[], int *rptym, pid_t *rpid)
 	if (grantpt(ptym) < 0)
 	    exit(1);
 
-	fd = open("/dev/tty", O_RDWR);
-	if (fd == -1) {
-	    fprintf(stderr, "pty fork: Unable to open /dev/tty: %s\n",
-		    strerror(errno));
-	    exit(1);
-	}
-	ioctl(fd, TIOCNOTTY, NULL);
-	close(fd);
-
+	/* setsid() does this, but just in case... */
 	fd = open("/dev/tty", O_RDWR);
 	if (fd != -1) {
-	    fprintf(stderr, "pty fork: failed to drop control term: %s\n",
-		    strerror(errno));
-	    exit(1);
+	    ioctl(fd, TIOCNOTTY, NULL);
+	    close(fd);
+
+	    fd = open("/dev/tty", O_RDWR);
+	    if (fd != -1) {
+		fprintf(stderr, "pty fork: failed to drop control term: %s\n",
+			strerror(errno));
+		exit(1);
+	    }
 	}
 
 	if (setsid() == -1) {
