@@ -265,8 +265,9 @@ int gensio_remote_id(struct gensio *io, int *id);
 /*
  * Open the gensio.  gensios recevied from an accepter are open upon
  * receipt, but client gensios are started closed and need to be opened
- * before use.  If no error is returned, the gensio will be open when
- * the open_done callback is called.
+ * before use.  If no error is returned, the open_done callback will
+ * be called, if there is no error in the callback err value the gensio
+ * will be open.  This will open all children, too.
  */
 int gensio_open(struct gensio *io, gensio_done_err open_done, void *open_data);
 
@@ -274,6 +275,21 @@ int gensio_open(struct gensio *io, gensio_done_err open_done, void *open_data);
  * Like gensio_open(), but waits for the open to complete.
  */
 int gensio_open_s(struct gensio *io);
+
+/*
+ * Like gensio_open, but this assumes any child gensios are already
+ * open and just opens this gensio.  This can be useful if you have
+ * a gensio that is already opened and you want to stack another
+ * gensio on top of it, allocate the new gensio and call this to
+ * start it up.  Only filter gensios will support this.
+ */
+int gensio_open_nochild(struct gensio *io, gensio_done_err open_done,
+			void *open_data);
+
+/*
+ * Like gensio_open_nochild(), but waits for the open to complete.
+ */
+int gensio_open_nochild_s(struct gensio *io);
 
 /*
  * Open a channel on the given gensio.  The gensio must one that

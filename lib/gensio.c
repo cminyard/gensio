@@ -627,6 +627,14 @@ gensio_open(struct gensio *io, gensio_done_err open_done, void *open_data)
     return io->func(io, GENSIO_FUNC_OPEN, NULL, open_done, 0, open_data, NULL);
 }
 
+int
+gensio_open_nochild(struct gensio *io, gensio_done_err open_done,
+		    void *open_data)
+{
+    return io->func(io, GENSIO_FUNC_OPEN_NOCHILD, NULL, open_done, 0,
+		    open_data, NULL);
+}
+
 struct gensio_open_s_data {
     struct gensio_os_funcs *o;
     int err;
@@ -642,8 +650,10 @@ gensio_open_s_done(struct gensio *io, int err, void *cb_data)
     data->o->wake(data->waiter);
 }
 
-int
-gensio_open_s(struct gensio *io)
+static int
+i_gensio_open_s(struct gensio *io,
+		int (*func)(struct gensio *io, gensio_done_err open_done,
+			    void *open_data))
 {
     struct gensio_os_funcs *o = io->o;
     struct gensio_open_s_data data;
@@ -654,13 +664,25 @@ gensio_open_s(struct gensio *io)
     data.waiter = o->alloc_waiter(o);
     if (!data.waiter)
 	return ENOMEM;
-    err = gensio_open(io, gensio_open_s_done, &data);
+    err = func(io, gensio_open_s_done, &data);
     if (!err) {
 	o->wait(data.waiter, 1, NULL);
 	err = data.err;
     }
     o->free_waiter(data.waiter);
     return err;
+}
+
+int
+gensio_open_s(struct gensio *io)
+{
+    return i_gensio_open_s(io, gensio_open);
+}
+
+int
+gensio_open_nochild_s(struct gensio *io)
+{
+    return i_gensio_open_s(io, gensio_open_nochild);
 }
 
 int

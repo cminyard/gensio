@@ -618,6 +618,43 @@ basen_open(struct basen_data *ndata, gensio_done_err open_done, void *open_data)
     return err;
 }
 
+static int
+basen_open_nochild(struct basen_data *ndata,
+		   gensio_done_err open_done, void *open_data)
+{
+    int err = EBUSY;
+
+    basen_lock(ndata);
+    if (ndata->state == BASEN_CLOSED) {
+	err = filter_setup(ndata);
+	if (err)
+	    goto out_err;
+
+	ndata->in_read = false;
+	ndata->deferred_read = false;
+	ndata->deferred_open = false;
+	ndata->deferred_close = false;
+	ndata->read_enabled = false;
+	ndata->xmit_enabled = false;
+	ndata->timer_start_pending = false;
+
+	ndata->open_done = open_done;
+	ndata->open_data = open_data;
+
+	basen_ref(ndata);
+	ndata->state = BASEN_IN_FILTER_OPEN;
+	ndata->deferred_open = true;
+	basen_sched_deferred_op(ndata);
+	/* Call the first try open from the xmit handler. */
+	ndata->tmp_xmit_enabled = true;
+	basen_set_ll_enables(ndata);
+    }
+ out_err:
+    basen_unlock(ndata);
+
+    return err;
+}
+
 static void
 basen_try_close(struct basen_data *ndata)
 {
@@ -809,6 +846,9 @@ gensio_base_func(struct gensio *io, int func, gensiods *count,
 
     case GENSIO_FUNC_OPEN:
 	return basen_open(ndata, cbuf, buf);
+
+    case GENSIO_FUNC_OPEN_NOCHILD:
+	return basen_open_nochild(ndata, cbuf, buf);
 
     case GENSIO_FUNC_CLOSE:
 	return basen_close(ndata, cbuf, buf);

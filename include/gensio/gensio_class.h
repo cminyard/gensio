@@ -110,6 +110,11 @@ struct gensio_func_open_channel_data {
  */
 #define GENSIO_FUNC_DISABLE		13
 
+/*
+ * See GENSIO_FUNC_OPEN for details.
+ */
+#define GENSIO_FUNC_OPEN_NOCHILD	14
+
 typedef int (*gensio_func)(struct gensio *io, int func, gensiods *count,
 			   const void *cbuf, gensiods buflen, void *buf,
 			   const char *const *auxdata);
