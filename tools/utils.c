@@ -23,6 +23,9 @@
 #include <malloc.h>
 #include <string.h>
 #include <stdlib.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#include <errno.h>
 
 #include "utils.h"
 
@@ -114,4 +117,42 @@ cmparg_int(int argc, char *argv[], int *arg, char *sarg, char *larg, int *rc)
     }
     *rc = v;
     return 1;
+}
+
+int
+checkout_file(const char *filename, bool expect_dir)
+{
+    struct stat sb;
+    int rv;
+
+    rv = stat(filename, &sb);
+    if (rv == -1) {
+	fprintf(stderr, "Unable to examine %s: %s\n",
+		filename, strerror(errno));
+	return errno;
+    }
+
+    if (sb.st_uid != getuid()) {
+	fprintf(stderr, "You do not own %s, giving up\n", filename);
+	return EPERM;
+    }
+
+    if (sb.st_mode & 0x077) {
+	fprintf(stderr, "%s is accessible by others, giving up\n", filename);
+	return EPERM;
+    }
+
+    if (expect_dir) {
+	if (!S_ISDIR(sb.st_mode)) {
+	    fprintf(stderr, "%s is not a directory\n", filename);
+	    return EINVAL;
+	}
+    } else {
+	if (!S_ISREG(sb.st_mode)) {
+	    fprintf(stderr, "%s is not a regular file\n", filename);
+	    return EINVAL;
+	}
+    }
+
+    return 0;
 }
