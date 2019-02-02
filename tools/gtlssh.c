@@ -232,7 +232,7 @@ lookup_certfiles(const char *tlssh_dir, const char *username,
 	return ENOMEM;
     }
 
-    certfile = alloc_sprintf("%s/default.cert", tlssh_dir);
+    certfile = alloc_sprintf("%s/default.crt", tlssh_dir);
     if (!certfile) {
 	fprintf(stderr, "Error allocating memory for certificate file\n");
 	goto out_err;
@@ -424,9 +424,9 @@ auth_event(struct gensio *io, int event, int ierr,
 
 	if (!ierr) {
 	    /* Found a certificate, make sure it's the right one. */
-	    err = verify_certfile(cert, "%s/%s,%d.pem", CAdir, hostname, port);
+	    err = verify_certfile(cert, "%s/%s,%d.crt", CAdir, hostname, port);
 	    if (!err)
-		err = verify_certfile(cert, "%s/%s.pem", CAdir, raddr);
+		err = verify_certfile(cert, "%s/%s.crt", CAdir, raddr);
 	    return err;
 	}
 
@@ -444,9 +444,9 @@ auth_event(struct gensio *io, int event, int ierr,
 		    hostname, auxdata[0]);
 	    fprintf(stderr,
 		    "Certificate from remote, and possibly in\n"
-		    "  %s/%s,%d.pem\n"
+		    "  %s/%s,%d.crt\n"
 		    "or\n"
-		    "  %s/%s.pem\n"
+		    "  %s/%s.crt\n"
 		    "%s\n",
 		    CAdir, hostname, port, CAdir, raddr, errstr);
 	    return ierr;
@@ -498,9 +498,9 @@ auth_event(struct gensio *io, int event, int ierr,
 	    return ENOMEM;
 	}
 
-	err = add_certfile(cert, "%s/%s,%d.pem", CAdir, hostname, port);
+	err = add_certfile(cert, "%s/%s,%d.crt", CAdir, hostname, port);
 	if (!err)
-	    err = add_certfile(cert, "%s/%s.pem", CAdir, raddr);
+	    err = add_certfile(cert, "%s/%s.crt", CAdir, raddr);
 
 	cmd = alloc_sprintf("openssl rehash %s", CAdir);
 	system(cmd);
