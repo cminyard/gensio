@@ -68,6 +68,12 @@ static int tcp_check_open(void *handler_data, int fd)
 	return errno;
     }
     tdata->last_err = optval;
+    if (!optval) {
+	struct addrinfo *ai = tdata->curr_ai;
+
+	memcpy(tdata->raddr, ai->ai_addr, ai->ai_addrlen);
+	tdata->raddrlen = ai->ai_addrlen;
+    }
     return optval;
 }
 
