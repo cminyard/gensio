@@ -331,7 +331,57 @@ add_certfile(const char *cert, const char *fmt, ...)
 }
 
 static int
-auth_event(struct gensio *io, int event, int err,
+verify_certfile(const char *cert, const char *fmt, ...)
+{
+    int rv;
+    va_list va;
+    char *filename;
+    char cmpcert[16384];
+
+    va_start(va, fmt);
+    filename = alloc_vsprintf(fmt, va);
+    va_end(va);
+    if (!filename) {
+	fprintf(stderr, "Out of memory allocating filename");
+	return ENOMEM;
+    }
+
+    rv = open(filename, O_RDONLY);
+    if (rv == -1) {
+	rv = errno;
+	fprintf(stderr,
+		"Unable to open certificate file at %s: %s\n", filename,
+		strerror(rv));
+    } else {
+	int fd = rv, len = strlen(cert);
+
+	rv = read(fd, cmpcert, sizeof(cmpcert));
+	if (rv == -1) {
+	    rv = errno;
+	    fprintf(stderr, "Error reading '%s', could not verify certificate:"
+		    " %s\n", filename, strerror(rv));
+	    goto out;
+	} else if (rv != len) {
+	    fprintf(stderr, "Certificate at '%s': length mismatch\n", filename);
+	    rv = EINVAL;
+	    goto out;
+	} else if (memcmp(cert, cmpcert, len) != 0) {
+	    fprintf(stderr, "Certificate at '%s': compare failure\n", filename);
+	    rv = EINVAL;
+	    goto out;
+	}
+	rv = 0;
+
+    out:
+	close(fd);
+    }
+
+    free(filename);
+    return rv;
+}
+
+static int
+auth_event(struct gensio *io, int event, int ierr,
 	   unsigned char *ibuf, gensiods *buflen,
 	   const char *const *auxdata)
 {
@@ -342,12 +392,10 @@ auth_event(struct gensio *io, int event, int err,
     char buf[100];
     char *cmd;
     gensiods len;
+    int err;
 
     switch (event) {
     case GENSIO_EVENT_POSTCERT_VERIFY:
-	if (!err)
-	    return err;
-
 	ssl_io = io;
 	while (ssl_io) {
 	    if (strcmp(gensio_get_type(ssl_io, 0), "ssl") == 0)
@@ -358,19 +406,50 @@ auth_event(struct gensio *io, int event, int err,
 	    fprintf(stderr, "SSL was not in the gensio stack?\n");
 	    return EINVAL;
 	}
+
+	len = sizeof(cert);
+	err = gensio_control(ssl_io, 0, true, GENSIO_CONTROL_CERT,
+			     cert, &len);
+	if (err) {
+	    fprintf(stderr, "Error getting certificate: %s\n",
+		    strerror(err));
+	    return ENOMEM;
+	}
+	if (len >= sizeof(cert)) {
+	    fprintf(stderr, "certificate is too large");
+	    return ENOMEM;
+	}
+
 	gensio_raddr_to_str(ssl_io, NULL, raddr, sizeof(raddr));
+
+	if (!ierr) {
+	    /* Found a certificate, make sure it's the right one. */
+	    err = verify_certfile(cert, "%s/%s,%d.pem", CAdir, hostname, port);
+	    if (!err)
+		err = verify_certfile(cert, "%s/%s.pem", CAdir, raddr);
+	    return err;
+	}
 
 	/*
 	 * Called from the SSL layer if the certificate provided by
 	 * the server didn't have a match.
 	 */
-	gensio_raddr_to_str(ssl_io, NULL, raddr, sizeof(raddr));
-	if (err != ENOKEY) {
+	if (ierr != ENOKEY) {
+	    const char *errstr = "probably didn't match host certificate.";
+	    if (err == EKEYREVOKED)
+		errstr = "is revoked";
+	    else if (err == EKEYEXPIRED)
+		errstr = "is expired";
 	    fprintf(stderr, "Certificate for %s failed validation: %s\n",
-		    raddr, auxdata[0]);
+		    hostname, auxdata[0]);
 	    fprintf(stderr,
-		    "Something bad happened, connection terminated.\n");
-	    return err;
+		    "Certificate from remote, and possibly in\n"
+		    "  %s/%s,%d.pem\n"
+		    "or\n"
+		    "  %s/%s.pem\n"
+		    "%s\n",
+		    CAdir, hostname, port, CAdir, raddr, errstr);
+	    return ierr;
 	}
 
 	/* Key was not present, ask the user if that is ok. */
