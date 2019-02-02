@@ -48,22 +48,32 @@ strtocc(const char *str, int *rc)
 }
 
 char *
-alloc_sprintf(char *fmt, ...)
+alloc_vsprintf(const char *fmt, va_list va)
 {
-    va_list va, va2;
+    va_list va2;
     int len;
     char c, *str;
 
-    va_start(va, fmt);
     va_copy(va2, va);
     len = vsnprintf(&c, 0, fmt, va);
-    va_end(va);
     str = malloc(len + 1);
     if (!str)
 	return NULL;
     vsnprintf(str, len + 1, fmt, va2);
     va_end(va2);
     return str;
+}
+
+char *
+alloc_sprintf(const char *fmt, ...)
+{
+    va_list va;
+    char *s;
+
+    va_start(va, fmt);
+    s = alloc_vsprintf(fmt, va);
+    va_end(va);
+    return s;
 }
 
 int

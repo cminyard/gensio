@@ -19,6 +19,7 @@
 
 #ifndef GENSIOTOOL_UTILS_H
 #define GENSIOTOOL_UTILS_H
+#include <stdarg.h>
 #include <stdbool.h>
 
 int strtocc(const char *str, int *rc);
@@ -26,7 +27,8 @@ int cmparg(int argc, char *argv[], int *arg, char *sarg, char *larg,
 		  const char **opt);
 int cmparg_int(int argc, char *argv[], int *arg, char *sarg,
 		      char *larg, int *rc);
-char *alloc_sprintf(char *fmt, ...);
+char *alloc_sprintf(const char *fmt, ...);
+char *alloc_vsprintf(const char *fmt, va_list ap);
 int checkout_file(const char *filename, bool expect_dir);
 
 #endif /* GENSIOTOOL_UTILS_H */
