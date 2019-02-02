@@ -128,8 +128,8 @@ enum certauth_state {
     CERTAUTH_CHALLENGE_RESPONSE = 3,
 
     /*
-     * Client waits for PASSWORD_REQUEST.  When received, send
-     * the password.
+     * Client waits for PASSWORD_REQUEST.  One byte, after the request
+     * tells whether to actually send the password (1) or send a dummy (2).
      *
      * Client may also receive a SERVERDONE in this state if the
      * authorization is rejected or authorized by the certificate.
@@ -229,6 +229,12 @@ enum certauth_elements {
     CERTAUTH_DUMMY_DATA		= 109,
 
     /*
+     * 110 <n>
+     * What password data we are asking for.
+     */
+    CERTAUTH_PASSWORD_TYPE	= 110,
+
+    /*
      * 200
      *
      * This is the last thing in the message.
@@ -236,10 +242,13 @@ enum certauth_elements {
     CERTAUTH_END		= 200
 };
 #define CERTAUTH_MIN_ELEMENT CERTAUTH_VERSION
-#define CERTAUTH_MAX_ELEMENT CERTAUTH_DUMMY_DATA
+#define CERTAUTH_MAX_ELEMENT CERTAUTH_PASSWORD_TYPE
 
 #define CERTAUTH_RESULT_SUCCESS	1
 #define CERTAUTH_RESULT_ERR	2
+
+#define CERTAUTH_PASSWORD_TYPE_REQ	1
+#define CERTAUTH_PASSWORD_TYPE_DUMMY	2
 
 struct certauth_filter {
     struct gensio_filter *filter;
@@ -273,6 +282,7 @@ struct certauth_filter {
     char *username;
     unsigned int username_len;
 
+    unsigned int password_req_val;
     char *password;
     unsigned int password_len;
 
@@ -328,7 +338,7 @@ gca_vlog(struct certauth_filter *f, enum gensio_log_levels l,
 	    goto no_ssl_err;
 
 	ERR_error_string_n(ssl_err, buf2, sizeof(buf2));
-	snprintf(buf, sizeof(buf), "ssl: %s: %s", fmt, buf2);
+	snprintf(buf, sizeof(buf), "certauth: %s: %s", fmt, buf2);
 	gensio_vlog(f->o, l, buf, ap);
     } else {
     no_ssl_err:
@@ -501,7 +511,8 @@ static int
 certauth_verify_cert(struct certauth_filter *sfilter)
 {
     X509_STORE_CTX *cert_store_ctx = NULL;
-    int rv = 0;
+    int rv = 0, verify_err;
+    const char *auxdata[] = { NULL, NULL };
 
     cert_store_ctx = X509_STORE_CTX_new();
     if (!cert_store_ctx) {
@@ -515,12 +526,40 @@ certauth_verify_cert(struct certauth_filter *sfilter)
 	goto out_err;
     }
 
-    rv = X509_verify_cert(cert_store_ctx);
-    if (rv < 0) {
-	rv = ENOMEM;
-	goto out_err;
+    verify_err = X509_verify_cert(cert_store_ctx);
+    if (verify_err <= 0) {
+	verify_err = X509_STORE_CTX_get_error(cert_store_ctx);
+	if (verify_err == X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT_LOCALLY ||
+	    verify_err == X509_V_ERR_DEPTH_ZERO_SELF_SIGNED_CERT)
+	    rv = ENOKEY;
+	else if (verify_err == X509_V_ERR_CERT_REVOKED)
+	    rv = EKEYREVOKED;
+	else if (verify_err == X509_V_ERR_CERT_HAS_EXPIRED ||
+		 verify_err == X509_V_ERR_CRL_HAS_EXPIRED)
+	    rv = EKEYEXPIRED;
+	else
+	    rv = EKEYREJECTED;
+    } else {
+	verify_err = X509_V_OK;
     }
-    if (rv > 0)
+
+    certauth_unlock(sfilter);
+    if (rv)
+	auxdata[0] = X509_verify_cert_error_string(verify_err);
+    rv = gensio_filter_do_event(sfilter->filter, GENSIO_EVENT_POSTCERT_VERIFY,
+				rv, NULL, NULL, auxdata);
+    certauth_lock(sfilter);
+    if (rv == ENOTSUP) {
+	if (verify_err != X509_V_OK) {
+	    gca_logs_info(sfilter,
+			  "Remote peer certificate verify failed: %s",
+			  X509_verify_cert_error_string(verify_err));
+	    rv = EKEYREJECTED;
+	} else {
+	    rv = 0;
+	}
+    }
+    if (rv == 0)
 	sfilter->verified = true;
     rv = 0;
 
@@ -909,11 +948,30 @@ certauth_try_connect(struct gensio_filter *filter, struct timeval *timeout)
     try_password:
 	sfilter->write_buf_len = 0;
 	certauth_write_byte(sfilter, CERTAUTH_PASSWORD_REQUEST);
+	certauth_write_byte(sfilter, CERTAUTH_PASSWORD_TYPE);
+	certauth_write_u16(sfilter, 2);
+	certauth_write_u16(sfilter,
+			   sfilter->result ? CERTAUTH_PASSWORD_TYPE_DUMMY :
+			   CERTAUTH_PASSWORD_TYPE_REQ);
 	certauth_write_byte(sfilter, CERTAUTH_END);
 	sfilter->state = CERTAUTH_PASSWORD;
 	break;
 
     case CERTAUTH_PASSWORD_REQUEST:
+	if (!sfilter->password_req_val) {
+	    gca_log_err(sfilter,
+			   "Remote client didn't send request value");
+	    sfilter->pending_err = ENOENT;
+	    goto finish_result;
+	}
+
+	sfilter->write_buf_len = 0;
+	if (sfilter->password_req_val != CERTAUTH_PASSWORD_TYPE_REQ) {
+	    certauth_write_byte(sfilter, CERTAUTH_PASSWORD);
+	    certauth_add_dummy(sfilter, sfilter->password_len);
+	    goto password_done;
+	}
+
 	if (!*sfilter->password) {
 	    /* Empty password, ask the user. */
 	    gensiods dummy_len = sfilter->password_len;
@@ -934,7 +992,6 @@ certauth_try_connect(struct gensio_filter *filter, struct timeval *timeout)
 	    }
 	    password_requested = true;
 	}
-	sfilter->write_buf_len = 0;
 	certauth_write_byte(sfilter, CERTAUTH_PASSWORD);
 	certauth_write_byte(sfilter, CERTAUTH_PASSWORD_DATA);
 	certauth_write_u16(sfilter, sfilter->password_len);
@@ -944,13 +1001,14 @@ certauth_try_connect(struct gensio_filter *filter, struct timeval *timeout)
 	if (password_requested)
 	    memset(sfilter->password, 0, sfilter->password_len);
 
+    password_done:
 	certauth_write_byte(sfilter, CERTAUTH_END);
 
 	sfilter->state = CERTAUTH_SERVERDONE;
 	break;
 
     case CERTAUTH_PASSWORD:
-	if (!sfilter->password) {
+	if (!sfilter->password && !sfilter->result) {
 	    /* Remote end didn't send a password. */
 	    gca_log_err(sfilter, "Remote client didn't send password");
 	    sfilter->pending_err = ENOENT;
@@ -1131,6 +1189,24 @@ certauth_handle_new_element(struct certauth_filter *sfilter)
 	} else {
 	    memcpy(sfilter->service, sfilter->read_buf,
 		   sfilter->curr_elem_len);
+	}
+	break;
+
+    case CERTAUTH_PASSWORD_TYPE:
+	if (sfilter->password_req_val) {
+	    gca_log_err(sfilter, "password req received when already set");
+	    sfilter->pending_err = EPROTO;
+	    break;
+	}
+	if (sfilter->curr_elem_len != 2) {
+	    gca_log_err(sfilter, "password req size not 2");
+	    sfilter->pending_err = EPROTO;
+	} else {
+	    sfilter->password_req_val = certauth_buf_to_u16(sfilter->read_buf);
+	    if (!sfilter->password_req_val) {
+		gca_log_err(sfilter, "password req was zero");
+		sfilter->pending_err = EPROTO;
+	    }
 	}
 	break;
 
@@ -1389,6 +1465,8 @@ certauth_cleanup(struct gensio_filter *filter)
 	sfilter->service_len = 0;
     }
 
+    sfilter->pending_err = 0;
+    sfilter->password_req_val = 0;
     sfilter->read_buf_len = 0;
     sfilter->write_buf_len = 0;
     sfilter->write_buf_pos = 0;
