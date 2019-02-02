@@ -111,6 +111,18 @@ typedef size_t gensiods; /* Data size */
 #define GENSIO_EVENT_PRECERT_VERIFY	6
 
 /*
+ * The connection has received a certificate and has verified it.
+ * The verification may have failed.  This lets the user handle
+ * their own verification override.  err will be 0 on verification
+ * success, ENOKEY if no key was found, or EKEYREJECTED if the
+ * key was invalid for some reason.  auxdata[0] will be an
+ * error string (or NULL if none available).
+ *
+ * ssl and certauth
+ */
+#define GENSIO_EVENT_POSTCERT_VERIFY	7
+
+/*
  * A password has been received from the remote end.  The callee should
  * validate it.  In general, if ENOTSUP is returned here, the validation
  * will fail, but the connection shutdown will depend on the setting of
@@ -118,7 +130,7 @@ typedef size_t gensiods; /* Data size */
  *
  * certauth only
  */
-#define GENSIO_EVENT_PASSWORD_VERIFY	7
+#define GENSIO_EVENT_PASSWORD_VERIFY	8
 
 /*
  * On the client side of an authorization, the remote end has
@@ -126,7 +138,7 @@ typedef size_t gensiods; /* Data size */
  * *buflen bytes to place the password in, the user should put
  * the password there and update *buflen to the actual length.
  */
-#define GENSIO_EVENT_REQUEST_PASSWORD	8
+#define GENSIO_EVENT_REQUEST_PASSWORD	9
 
 /*
  * Serial callbacks start here and run to 2000.
@@ -449,6 +461,12 @@ int gensio_control(struct gensio *io, int depth, bool get,
  * number of children.
  */
 const char *gensio_get_type(struct gensio *io, unsigned int depth);
+
+/*
+ * Return the given child of the gensio, returns NULL if the depth is
+ * gerater than the number of children.
+ */
+struct gensio *gensio_get_child(struct gensio *io, unsigned int depth);
 
 /*
  * Close the gensio.  Note that the close operation is not complete

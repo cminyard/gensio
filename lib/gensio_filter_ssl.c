@@ -227,6 +227,7 @@ ssl_check_open_done(struct gensio_filter *filter, struct gensio *io)
     struct ssl_filter *sfilter = filter_to_ssl(filter);
     long verify_err;
     int rv = 0;
+    const char *auxdata[] = { NULL, NULL };
 
     ssl_lock(sfilter);
     if (sfilter->expect_peer_cert) {
@@ -238,13 +239,30 @@ ssl_check_open_done(struct gensio_filter *filter, struct gensio *io)
 	}
 
 	verify_err = SSL_get_verify_result(sfilter->ssl);
-	if (verify_err != X509_V_OK) {
-	    gssl_logs_info(sfilter, "Remote peer certificate verify failed");
-	    X509_free(sfilter->remcert);
-	    sfilter->remcert = NULL;
-	    rv = EKEYREJECTED;
-	} else {
+	if (verify_err == X509_V_OK)
 	    gensio_set_is_authenticated(io, true);
+	else if (verify_err == X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT_LOCALLY)
+	    rv = ENOKEY;
+	else
+	    rv = EKEYREJECTED;
+
+	ssl_unlock(sfilter);
+	if (rv)
+	    auxdata[0] = X509_verify_cert_error_string(verify_err);
+	rv = gensio_cb(io, GENSIO_EVENT_POSTCERT_VERIFY, rv,
+		       NULL, NULL, auxdata);
+	ssl_lock(sfilter);
+
+	if (rv == ENOTSUP) {
+	    if (verify_err != X509_V_OK) {
+		gssl_logs_info(sfilter,
+			       "Remote peer certificate verify failed");
+		X509_free(sfilter->remcert);
+		sfilter->remcert = NULL;
+		rv = EKEYREJECTED;
+	    } else {
+		rv = 0;
+	    }
 	}
     }
  out_unlock:
