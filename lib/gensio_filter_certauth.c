@@ -36,6 +36,7 @@ struct gensio_certauth_filter_data {
     char *service;
     bool allow_authfail;
     bool use_child_auth;
+    bool disable_password;
 };
 
 #ifdef HAVE_OPENSSL
@@ -278,6 +279,9 @@ struct certauth_filter {
 
     /* Use authenticated from the child gensio to skip this layer. */
     bool use_child_auth;
+
+    /* Disable password authentication. */
+    bool disable_password;
 
     char *username;
     unsigned int username_len;
@@ -951,7 +955,8 @@ certauth_try_connect(struct gensio_filter *filter, struct timeval *timeout)
 	certauth_write_byte(sfilter, CERTAUTH_PASSWORD_TYPE);
 	certauth_write_u16(sfilter, 2);
 	certauth_write_u16(sfilter,
-			   sfilter->result ? CERTAUTH_PASSWORD_TYPE_DUMMY :
+			   sfilter->result || sfilter->disable_password ?
+			   CERTAUTH_PASSWORD_TYPE_DUMMY :
 			   CERTAUTH_PASSWORD_TYPE_REQ);
 	certauth_write_byte(sfilter, CERTAUTH_END);
 	sfilter->state = CERTAUTH_PASSWORD;
@@ -972,7 +977,7 @@ certauth_try_connect(struct gensio_filter *filter, struct timeval *timeout)
 	    goto password_done;
 	}
 
-	if (!*sfilter->password) {
+	if (!*sfilter->password && !sfilter->disable_password) {
 	    /* Empty password, ask the user. */
 	    gensiods dummy_len = sfilter->password_len;
 
@@ -995,9 +1000,13 @@ certauth_try_connect(struct gensio_filter *filter, struct timeval *timeout)
 	certauth_write_byte(sfilter, CERTAUTH_PASSWORD);
 	certauth_write_byte(sfilter, CERTAUTH_PASSWORD_DATA);
 	certauth_write_u16(sfilter, sfilter->password_len);
-	if (sfilter->password_len)
-	    certauth_write(sfilter, sfilter->password,
-			   sfilter->password_len);
+	if (sfilter->password_len) {
+	    if (sfilter->disable_password)
+		certauth_write_zeros(sfilter, sfilter->password_len);
+	    else
+		certauth_write(sfilter, sfilter->password,
+			       sfilter->password_len);
+	}
 	if (password_requested)
 	    memset(sfilter->password, 0, sfilter->password_len);
 
@@ -1650,6 +1659,7 @@ gensio_certauth_filter_raw_alloc(struct gensio_os_funcs *o,
 				 const char *username, const char *password,
 				 const char *service,
 				 bool allow_authfail, bool use_child_auth,
+				 bool disable_password,
 				 struct gensio_filter **rfilter)
 {
     struct certauth_filter *sfilter;
@@ -1663,6 +1673,7 @@ gensio_certauth_filter_raw_alloc(struct gensio_os_funcs *o,
     sfilter->is_client = is_client;
     sfilter->allow_authfail = allow_authfail;
     sfilter->use_child_auth = use_child_auth;
+    sfilter->disable_password = disable_password,
     sfilter->rsa_md5 = EVP_get_digestbyname("ssl3-md5");
     if (!sfilter->rsa_md5) {
 	rv = ENXIO;
@@ -1821,6 +1832,9 @@ gensio_certauth_filter_config(struct gensio_os_funcs *o,
 	    continue;
 	if (gensio_check_keybool(args[i], "use-child-auth",
 				 &data->use_child_auth) > 0)
+	    continue;
+	if (gensio_check_keybool(args[i], "disable-password",
+				 &data->disable_password) > 0)
 	    continue;
 	rv = EINVAL;
 	goto out_err;
@@ -2041,6 +2055,7 @@ gensio_certauth_filter_alloc(struct gensio_certauth_filter_data *data,
 					  data->service,
 					  data->allow_authfail,
 					  data->use_child_auth,
+					  data->disable_password,
 					  &filter);
     if (rv)
 	goto err;

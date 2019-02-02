@@ -489,6 +489,11 @@ that authentication is set using gensio_is_authenticated().
 If the child gensio is authenticated, then do not run the protocol, just
 go straight into passthrough mode and don't do any authentication.
 
+.TP
+.B disable-password[=true|false]
+On the server, only use key authentication and don't ask for a password.
+On the client, don't send a password if asked for one.
+
 Verification of the common name is
 .B not
 done.  The application should do this, it can fetch the common name
