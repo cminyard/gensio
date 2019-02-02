@@ -124,6 +124,7 @@ getpassword(char *pw, gensiods *len)
 	if (pos < *len)
 	    pw[pos++] = c;
     }
+    printf("\n");
     if (pos < *len)
 	pw[pos++] = '\0';
     *len = pos;
@@ -364,7 +365,7 @@ auth_event(struct gensio *io, int event, int err,
 	 * the server didn't have a match.
 	 */
 	gensio_raddr_to_str(ssl_io, NULL, raddr, sizeof(raddr));
-	if (err == EKEYREJECTED) {
+	if (err != ENOKEY) {
 	    fprintf(stderr, "Certificate for %s failed validation: %s\n",
 		    raddr, auxdata[0]);
 	    fprintf(stderr,

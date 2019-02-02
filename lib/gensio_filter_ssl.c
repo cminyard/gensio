@@ -241,8 +241,14 @@ ssl_check_open_done(struct gensio_filter *filter, struct gensio *io)
 	verify_err = SSL_get_verify_result(sfilter->ssl);
 	if (verify_err == X509_V_OK)
 	    gensio_set_is_authenticated(io, true);
-	else if (verify_err == X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT_LOCALLY)
+	else if (verify_err == X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT_LOCALLY ||
+		 verify_err == X509_V_ERR_DEPTH_ZERO_SELF_SIGNED_CERT)
 	    rv = ENOKEY;
+	else if (verify_err == X509_V_ERR_CERT_REVOKED)
+	    rv = EKEYREVOKED;
+	else if (verify_err == X509_V_ERR_CERT_HAS_EXPIRED ||
+		 verify_err == X509_V_ERR_CRL_HAS_EXPIRED)
+	    rv = EKEYEXPIRED;
 	else
 	    rv = EKEYREJECTED;
 
@@ -692,7 +698,7 @@ ssl_filter_control(struct gensio_filter *filter, bool get, int op, char *data,
 	    X509_STORE_free(store);
 	    return ENOENT;
 	}
-	
+
 	ssl_lock(sfilter);
 	if (sfilter->verify_store)
 	    X509_STORE_free(sfilter->verify_store);
