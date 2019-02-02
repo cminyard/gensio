@@ -199,7 +199,7 @@ struct gensio_os_funcs {
      * Allocate a waiter, returns NULL on error.  A waiter is used to
      * wait for some action to occur.  When the action occurs, that code
      * should call wake to wake the waiter.  Normal operation of the
-     * file descriptors, tiemrs, runners, etc. happens while waiting.
+     * file descriptors, timers, runners, etc. happens while waiting.
      * You should be careful of the context of calling a waiter, like
      * what locks you are holding or what callbacks you are in.
      *
