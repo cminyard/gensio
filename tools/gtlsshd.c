@@ -25,6 +25,7 @@
 #include <syslog.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <pwd.h>
 
 #include <gensio/gensio.h>
 
@@ -45,7 +46,7 @@ struct gdata {
 };
 
 static const char *default_keyfile = SYSCONFDIR "/gtlsshd/gtlsshd.key";
-static const char *default_certfile = SYSCONFDIR "/gtlsshd/gtlsshd.cert";
+static const char *default_certfile = SYSCONFDIR "/gtlsshd/gtlsshd.crt";
 static const char *default_configfile = SYSCONFDIR "/gtlsshd/gtlsshd.conf";
 
 static void
@@ -65,7 +66,7 @@ gerr(struct ioinfo *ioinfo, char *fmt, va_list ap)
 static void
 gout(struct ioinfo *ioinfo, char *fmt, va_list ap)
 {
-    /* We shuldn't get any of these. */
+    /* We shouldn't get any of these. */
 }
 
 static struct ioinfo_user_handlers guh = {
@@ -95,22 +96,53 @@ acc_shutdown(struct gensio_accepter *acc, void *done_data)
 }
 
 static int
-certauth_event(struct gensio *io, int event, int err,
+certauth_event(struct gensio *io, int event, int ierr,
 	       unsigned char *buf, gensiods *buflen,
 	       const char *const *auxdata)
 {
+    char username[100];
+    char authdir[1000];
+    gensiods len;
+    int err;
+    struct passwd *pw;
+
     switch (event) {
     case GENSIO_EVENT_AUTH_BEGIN:
-	return 0;
-	break;
+	len = sizeof(username);
+	err = gensio_control(io, 0, true, GENSIO_CONTROL_USERNAME, username,
+			     &len);
+	if (err) {
+	    syslog(LOG_ERR, "No username provided by remote: %s",
+		   strerror(err));
+	    return EKEYREJECTED;
+	}
+	pw = getpwnam(username);
+	if (!pw) {
+	    syslog(LOG_ERR, "Invalid username provided by remote: %s",
+		   username);
+	    return EKEYREJECTED;
+	}
+	len = snprintf(authdir, sizeof(authdir), "%s/.gtlssh/allowed_certs/",
+		       pw->pw_dir);
+	err = gensio_control(io, 0, false, GENSIO_CONTROL_CERT_AUTH,
+			     authdir, &len);
+	if (err) {
+	    syslog(LOG_ERR, "Could not set authdir %s: %s", authdir,
+		   strerror(err));
+	    return EKEYREJECTED;
+	}
+	return ENOTSUP;
 
     case GENSIO_EVENT_PRECERT_VERIFY:
 	return ENOTSUP;
-	break;
+
+    case GENSIO_EVENT_POSTCERT_VERIFY:
+	if (ierr != ENOKEY)
+	    printf("Certificate failed verify: %s\n", auxdata[0]);
+	return ENOTSUP;
 
     case GENSIO_EVENT_PASSWORD_VERIFY:
 	return ENOTSUP;
-	break;
 
     default:
 	return ENOTSUP;
@@ -158,6 +190,7 @@ tcp_handle_new(struct gensio_runner *r, void *cb_data)
     }
 
     ginfo->can_close = true;
+    ginfo->io = certauth_io;
     ioinfo_set_ready(ioinfo, certauth_io);
 
     pty_ioinfo = ioinfo_otherioinfo(ioinfo);
@@ -176,6 +209,7 @@ tcp_handle_new(struct gensio_runner *r, void *cb_data)
     }
 
     pty_ginfo->can_close = true;
+    pty_ginfo->io = pty_io;
     ioinfo_set_ready(pty_ioinfo, pty_io);
 }
 
@@ -415,7 +449,7 @@ main(int argc, char *argv[])
     if (tcp_acc) {
 	rv = gensio_acc_shutdown(tcp_acc, acc_shutdown, closewaiter);
 	if (rv)
-	    printf("Unable to close accepter: %s\n", strerror(rv));
+	    syslog(LOG_ERR, "Unable to close accepter: %s\n", strerror(rv));
 	else
 	    closecount++;
     }
@@ -423,15 +457,16 @@ main(int argc, char *argv[])
     if (userdata1.can_close) {
 	rv = gensio_close(userdata1.io, io_close, closewaiter);
 	if (rv)
-	    printf("Unable to close net connection: %s\n", strerror(rv));
+	    syslog(LOG_ERR, "Unable to close net connection: %s\n",
+		   strerror(rv));
 	else
 	    closecount++;
     }
 
     if (userdata2.can_close) {
-	rv = gensio_close(userdata1.io, io_close, closewaiter);
+	rv = gensio_close(userdata2.io, io_close, closewaiter);
 	if (rv)
-	    printf("Unable to close pty: %s\n", strerror(rv));
+	    syslog(LOG_ERR, "Unable to close pty: %s\n", strerror(rv));
 	else
 	    closecount++;
     }
