@@ -154,6 +154,8 @@ int
 gensio_cb(struct gensio *io, int event, int err,
 	  unsigned char *buf, gensiods *buflen, const char *const *auxdata)
 {
+    if (!io->cb)
+	return ENOTSUP;
     return io->cb(io, event, err, buf, buflen, auxdata);
 }
 
@@ -787,6 +789,20 @@ gensio_get_type(struct gensio *io, unsigned int depth)
 	c = c->child;
     }
     return c->typename;
+}
+
+struct gensio *
+gensio_get_child(struct gensio *io, unsigned int depth)
+{
+    struct gensio *c = io;
+
+    while (depth > 0) {
+	if (!c->child)
+	    return NULL;
+	depth--;
+	c = c->child;
+    }
+    return c;
 }
 
 int
