@@ -972,12 +972,20 @@ certauth_try_connect(struct gensio_filter *filter, struct timeval *timeout)
 
 	sfilter->write_buf_len = 0;
 	if (sfilter->password_req_val != CERTAUTH_PASSWORD_TYPE_REQ) {
-	    certauth_write_byte(sfilter, CERTAUTH_PASSWORD);
 	    certauth_add_dummy(sfilter, sfilter->password_len);
 	    goto password_done;
 	}
 
-	if (!*sfilter->password && !sfilter->disable_password) {
+	if (sfilter->disable_password) {
+	    certauth_write_byte(sfilter, CERTAUTH_PASSWORD);
+	    certauth_write_byte(sfilter, CERTAUTH_PASSWORD_DATA);
+	    certauth_write_u16(sfilter, sfilter->password_len);
+	    if (sfilter->password_len)
+		certauth_write_zeros(sfilter, sfilter->password_len);
+	    goto password_done;
+	}
+
+	if (!*sfilter->password) {
 	    /* Empty password, ask the user. */
 	    gensiods dummy_len = sfilter->password_len;
 
@@ -997,16 +1005,13 @@ certauth_try_connect(struct gensio_filter *filter, struct timeval *timeout)
 	    }
 	    password_requested = true;
 	}
+
 	certauth_write_byte(sfilter, CERTAUTH_PASSWORD);
 	certauth_write_byte(sfilter, CERTAUTH_PASSWORD_DATA);
 	certauth_write_u16(sfilter, sfilter->password_len);
-	if (sfilter->password_len) {
-	    if (sfilter->disable_password)
-		certauth_write_zeros(sfilter, sfilter->password_len);
-	    else
-		certauth_write(sfilter, sfilter->password,
-			       sfilter->password_len);
-	}
+	if (sfilter->password_len)
+	    certauth_write(sfilter, sfilter->password,
+			   sfilter->password_len);
 	if (password_requested)
 	    memset(sfilter->password, 0, sfilter->password_len);
 
@@ -1028,7 +1033,7 @@ certauth_try_connect(struct gensio_filter *filter, struct timeval *timeout)
 	    /* Already verified, the rest was for show. */
 	    goto finish_result;
 
-	if (!*sfilter->password)
+	if (!sfilter->password || !*sfilter->password)
 	    goto finish_result;
 
 	certauth_unlock(sfilter);
