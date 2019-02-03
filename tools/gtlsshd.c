@@ -27,6 +27,9 @@
 #include <sys/wait.h>
 #include <pwd.h>
 
+#include <security/pam_appl.h>
+#include <security/pam_misc.h>
+
 #include <gensio/gensio.h>
 
 #include "ioinfo.h"
@@ -34,6 +37,7 @@
 #include "utils.h"
 
 unsigned int debug;
+static const char *progname;
 
 struct gdata {
     struct gensio_os_funcs *o;
@@ -95,19 +99,91 @@ acc_shutdown(struct gensio_accepter *acc, void *done_data)
     ginfo->o->wake(closewaiter);
 }
 
+static pam_handle_t *pamh;
+static char *passwd;
+
+/*
+ * Ambiguity in spec: is it an array of pointers or a pointer to an array?
+ * Stolen from openssh.
+ */
+#ifdef PAM_SUN_CODEBASE
+# define PAM_MSG_MEMBER(msg, n, member) ((*(msg))[(n)].member)
+#else
+# define PAM_MSG_MEMBER(msg, n, member) ((msg)[(n)]->member)
+#endif
+
+static int
+pam_cb(int num_msg, const struct pam_message **msg,
+       struct pam_response **resp, void *appdata_ptr)
+{
+    int i, j;
+    struct pam_response *reply = NULL;
+
+    if (num_msg <= 0 || num_msg > PAM_MAX_NUM_MSG)
+	return PAM_CONV_ERR;
+
+    reply = malloc(sizeof(*reply) * num_msg);
+    if (!reply)
+	return PAM_CONV_ERR;
+
+    for (i = 0; i < num_msg; i++) {
+	reply[i].resp = NULL;
+	reply[i].resp_retcode = 0;
+
+	switch (PAM_MSG_MEMBER(msg, i, msg_style)) {
+	case PAM_PROMPT_ECHO_OFF:
+	    if (passwd) {
+		reply[i].resp = strdup(passwd);
+		if (!reply[i].resp)
+		    goto out_err;
+	    }
+	    break;
+
+	case PAM_PROMPT_ECHO_ON:
+	    break;
+
+	case PAM_ERROR_MSG:
+	    syslog(LOG_ERR, "Error from pam: %s\n",
+		   PAM_MSG_MEMBER(msg, i, msg));
+	    break;
+
+	case PAM_TEXT_INFO:
+	    break;
+
+	default:
+	    goto out_err;
+	}
+    }
+    *resp = reply;
+    return PAM_SUCCESS;
+
+ out_err:
+    for (j = 0; j < i; j++) {
+	if (reply[j].resp)
+	    free(reply[j].resp);
+    }
+    free(reply);
+    return PAM_CONV_ERR;
+}
+
+struct pam_conv auth_conv = { pam_cb, NULL };
+static bool pam_cred_set = false;
+static bool pam_session_open = false;
+static char username[100];
+
 static int
 certauth_event(struct gensio *io, int event, int ierr,
 	       unsigned char *buf, gensiods *buflen,
 	       const char *const *auxdata)
 {
-    char username[100];
-    char authdir[1000];
-    gensiods len;
     int err;
-    struct passwd *pw;
 
     switch (event) {
-    case GENSIO_EVENT_AUTH_BEGIN:
+    case GENSIO_EVENT_AUTH_BEGIN: {
+	char authdir[1000];
+	gensiods len;
+	struct passwd *pw;
+
 	len = sizeof(username);
 	err = gensio_control(io, 0, true, GENSIO_CONTROL_USERNAME, username,
 			     &len);
@@ -122,6 +198,14 @@ certauth_event(struct gensio *io, int event, int ierr,
 		   username);
 	    return EKEYREJECTED;
 	}
+
+	err = pam_start(progname, username, &auth_conv, &pamh);
+	if (err != PAM_SUCCESS) {
+	    syslog(LOG_ERR, "pam_start failed for %s: %s\n", username,
+		   pam_strerror(pamh, err));
+	    return EINVAL;
+	}
+
 	len = snprintf(authdir, sizeof(authdir), "%s/.gtlssh/allowed_certs/",
 		       pw->pw_dir);
 	err = gensio_control(io, 0, false, GENSIO_CONTROL_CERT_AUTH,
@@ -132,6 +216,7 @@ certauth_event(struct gensio *io, int event, int ierr,
 	    return EKEYREJECTED;
 	}
 	return ENOTSUP;
+    }
 
     case GENSIO_EVENT_PRECERT_VERIFY:
 	return ENOTSUP;
@@ -142,7 +227,15 @@ certauth_event(struct gensio *io, int event, int ierr,
 	return ENOTSUP;
 
     case GENSIO_EVENT_PASSWORD_VERIFY:
-	return ENOTSUP;
+	passwd = (char *) buf;
+	err = pam_authenticate(pamh, PAM_SILENT);
+	passwd = NULL;
+	if (err != PAM_SUCCESS) {
+	    syslog(LOG_ERR, "pam_authenticate failed for %s: %s\n", username,
+		   pam_strerror(pamh, err));
+	    return EINVAL;
+	}
+	return 0;
 
     default:
 	return ENOTSUP;
@@ -196,21 +289,42 @@ tcp_handle_new(struct gensio_runner *r, void *cb_data)
     pty_ioinfo = ioinfo_otherioinfo(ioinfo);
     pty_ginfo = ioinfo_userdata(pty_ioinfo);
 
+    err = pam_setcred(pamh, PAM_ESTABLISH_CRED | PAM_SILENT);
+    if (err != PAM_SUCCESS) {
+	syslog(LOG_ERR, "pam_setcred establish failed for %s: %s\n", username,
+	       pam_strerror(pamh, err));
+	goto out_err;
+    }
+    pam_cred_set = true;
+
+    err = pam_open_session(pamh, PAM_SILENT);
+    if (err != PAM_SUCCESS) {
+	syslog(LOG_ERR, "pam_open_session failed for %s: %s\n", username,
+	       pam_strerror(pamh, err));
+	goto out_err;
+    }
+    pam_session_open = true;
+
     err = str_to_gensio("pty,/bin/sh", ginfo->o, NULL, NULL, &pty_io);
     if (err) {
 	syslog(LOG_ERR, "pty alloc failed: %s\n", strerror(errno));
-	exit(1);
+	goto out_err;
     }
 
     err = gensio_open_s(pty_io);
     if (err) {
 	syslog(LOG_ERR, "pty open failed: %s\n", strerror(errno));
-	exit(1);
+	goto out_err;
     }
 
     pty_ginfo->can_close = true;
     pty_ginfo->io = pty_io;
     ioinfo_set_ready(pty_ioinfo, pty_io);
+
+    return;
+
+ out_err:
+    gshutdown(ioinfo);
 }
 
 static struct gensio_accepter *tcp_acc;
@@ -287,7 +401,6 @@ tcp_acc_event(struct gensio_accepter *accepter, int event, void *data)
     return 0;
 }
 
-static const char *progname;
 static const char *io1_default_tty = "serialdev,/dev/tty";
 static const char *io1_default_notty = "stdio(self)";
 
@@ -318,8 +431,8 @@ do_vlog(struct gensio_os_funcs *f, enum gensio_log_levels level,
 {
     if (!debug)
 	return;
-    fprintf(stderr, "gensio %s log: ", gensio_log_level_to_str(level));
-    vfprintf(stderr, log, args);
+    syslog(LOG_ERR, "gensio %s log: ", gensio_log_level_to_str(level));
+    vsyslog(LOG_ERR, log, args);
 }
 
 int
@@ -337,9 +450,13 @@ main(int argc, char *argv[])
     int port = 2190;
     char *s;
 
-    progname = argv[0];
+    if ((progname = strrchr(argv[0], '/')) == NULL)
+	progname = argv[0];
+    else
+	progname++;
 
     openlog(progname, 0, LOG_AUTH);
+    syslog(LOG_INFO, "%s start", progname);
 
     for (arg = 1; arg < argc; arg++) {
 	if (argv[arg][0] != '-')
@@ -487,6 +604,20 @@ main(int argc, char *argv[])
 
     free_ioinfo(ioinfo1);
     free_ioinfo(ioinfo2);
+
+    if (pam_session_open) {
+	rv = pam_close_session(pamh, PAM_SILENT);
+	if (rv != PAM_SUCCESS)
+	    syslog(LOG_ERR, "pam_close_session failed for %s: %s\n", username,
+		   pam_strerror(pamh, rv));
+    }
+
+    if (pam_cred_set) {
+	rv = pam_setcred(pamh, PAM_DELETE_CRED | PAM_SILENT);
+	if (rv != PAM_SUCCESS)
+	    syslog(LOG_ERR, "pam_setcred delete failed for %s: %s\n", username,
+		   pam_strerror(pamh, rv));
+    }
 
     return 0;
 }
