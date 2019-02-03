@@ -128,7 +128,7 @@ getpassword(char *pw, gensiods *len)
     if (pos < *len)
 	pw[pos++] = '\0';
     *len = pos;
-    
+
  out:
     tcsetattr(fd, TCSANOW, &old_termios);
  out_close:
@@ -509,7 +509,7 @@ auth_event(struct gensio *io, int event, int ierr,
 	return err;
 
     case GENSIO_EVENT_REQUEST_PASSWORD:
-	return getpassword((char *) buf, buflen);
+	return getpassword((char *) ibuf, buflen);
 
     default:
 	return ENOTSUP;
