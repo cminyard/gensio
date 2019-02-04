@@ -128,9 +128,9 @@ pty_free(void *handler_data)
     struct pty_data *tdata = handler_data;
 
     if (tdata->argv)
-	str_to_argv_free(tdata->argv);
+	gensio_argv_free(tdata->o, tdata->argv);
     if (tdata->env)
-	str_to_argv_free(tdata->env);
+	gensio_argv_free(tdata->o, tdata->env);
     tdata->o->free(tdata->o, tdata);
 }
 
@@ -177,11 +177,11 @@ pty_control(void *handler_data, int fd, bool get, unsigned int option,
     case GENSIO_CONTROL_ENVIRONMENT:
 	if (!get)
 	    return ENOTSUP;
-	err = argv_copy((const char **) data, NULL, &env);
+	err = gensio_argv_copy(tdata->o, (const char **) data, NULL, &env);
 	if (err)
 	    return err;
 	if (tdata->env)
-	    str_to_argv_free(tdata->env);
+	    gensio_argv_free(tdata->o, tdata->env);
 	tdata->env = env;
 	break;
     }
@@ -226,7 +226,7 @@ pty_gensio_alloc(const char * const argv[], const char * const args[],
     tdata->o = o;
     tdata->ptym = -1;
 
-    err = argv_copy(argv, NULL, &tdata->argv);
+    err = gensio_argv_copy(o, argv, NULL, &tdata->argv);
     if (err)
 	goto out_nomem;
 
@@ -258,10 +258,10 @@ str_to_pty_gensio(const char *str, const char * const args[],
     int err, argc;
     const char **argv;
 
-    err = str_to_argv(str, &argc, &argv, NULL);
+    err = gensio_str_to_argv(o, str, &argc, &argv, NULL);
     if (!err) {
 	err = pty_gensio_alloc(argv, args, o, cb, user_data, new_gensio);
-	str_to_argv_free(argv);
+	gensio_argv_free(o, argv);
     }
 
     return err;

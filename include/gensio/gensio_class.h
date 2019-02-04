@@ -267,7 +267,8 @@ int gensio_check_keyaddrs(struct gensio_os_funcs *o,
 			  const char *str, const char *key, int protocol,
 			  bool listen, bool require_port, struct addrinfo **ai);
 
-int gensio_scan_args(const char **rstr, int *argc, const char ***args);
+int gensio_scan_args(struct gensio_os_funcs *o,
+		     const char **rstr, int *argc, const char ***args);
 
 #define gensio_container_of(ptr, type, member)		\
     ((type *)(((char *) ptr) - offsetof(type, member)))

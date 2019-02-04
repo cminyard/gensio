@@ -1486,7 +1486,7 @@ ipmisol_gensio_ll_alloc(struct gensio_os_funcs *o,
     if (err)
 	goto out_err;
 
-    err = str_to_argv(solll->devname, &argc, &argv, NULL);
+    err = gensio_str_to_argv(o, solll->devname, &argc, &argv, NULL);
     if (err)
 	goto out_err;
     if (argc == 0) {
@@ -1496,7 +1496,7 @@ ipmisol_gensio_ll_alloc(struct gensio_os_funcs *o,
 
     err = ipmi_parse_args2(&curr_arg, argc, (char **) argv, &solll->args);
     if (err) {
-	str_to_argv_free(argv);
+	gensio_argv_free(o, argv);
 	goto out_err;
     }
 
@@ -1504,10 +1504,10 @@ ipmisol_gensio_ll_alloc(struct gensio_os_funcs *o,
 	gensio_log(o, GENSIO_LOG_WARNING,
 		   "Extra SOL arguments starting with %s\n", argv[curr_arg]);
 	err = EINVAL;
-	str_to_argv_free(argv);
+	gensio_argv_free(o, argv);
 	goto out_err;
     }
-    str_to_argv_free(argv);
+    gensio_argv_free(o, argv);
 
     solll->deferred_op_runner = o->alloc_runner(o, sol_deferred_op, solll);
     if (!solll->deferred_op_runner)

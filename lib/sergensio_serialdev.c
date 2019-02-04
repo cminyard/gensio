@@ -1404,7 +1404,7 @@ process_rs485(struct sterm_data *sdata, const char *str)
     int argc, i;
     const char **argv;
     char *end;
-    int err = str_to_argv(str, &argc, &argv, ":");
+    int err = gensio_str_to_argv(sdata->o, str, &argc, &argv, ":");
 
     if (err)
 	return err;
@@ -1438,7 +1438,7 @@ process_rs485(struct sterm_data *sdata, const char *str)
     sdata->rs485.flags |= SER_RS485_ENABLED;
 
  out:
-    str_to_argv_free(argv);
+    gensio_argv_free(sdata->o, argv);
     return err;
 
  out_inval:
@@ -1454,7 +1454,8 @@ sergensio_process_parms(struct sterm_data *sdata)
 {
     int argc, i;
     const char **argv;
-    int err = str_to_argv(sdata->parms, &argc, &argv, " \f\t\n\r\v,");
+    int err = gensio_str_to_argv(sdata->o, sdata->parms, &argc, &argv,
+				 " \f\t\n\r\v,");
 
     if (err)
 	return err;
@@ -1480,7 +1481,7 @@ sergensio_process_parms(struct sterm_data *sdata)
 	    break;
     }
 
-    str_to_argv_free(argv);
+    gensio_argv_free(sdata->o, argv);
     return err;
 }
 

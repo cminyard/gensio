@@ -23,6 +23,7 @@
 
 #ifndef GENSIO_OS_FUNCS
 #define GENSIO_OS_FUNCS
+#include <stdarg.h>
 #include <sys/time.h> /* For timeval */
 
 /*

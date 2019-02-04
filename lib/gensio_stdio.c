@@ -141,7 +141,7 @@ static void
 stdiona_finish_free(struct stdiona_data *nadata)
 {
     if (nadata->argv)
-	str_to_argv_free(nadata->argv);
+	gensio_argv_free(nadata->o, nadata->argv);
     if (nadata->io.deferred_op_runner)
 	nadata->o->free_runner(nadata->io.deferred_op_runner);
     if (nadata->err.deferred_op_runner)
@@ -855,11 +855,11 @@ stdion_control(struct gensio *io, bool get, unsigned int option,
     case GENSIO_CONTROL_ENVIRONMENT:
 	if (!get)
 	    return ENOTSUP;
-	err = argv_copy((const char **) data, NULL, &env);
+	err = gensio_argv_copy(nadata->o, (const char **) data, NULL, &env);
 	if (err)
 	    return err;
 	if (nadata->env)
-	    str_to_argv_free(nadata->env);
+	    gensio_argv_free(nadata->o, nadata->env);
 	nadata->env = env;
 	break;
     }
@@ -1007,7 +1007,7 @@ stdio_gensio_alloc(const char * const argv[], const char * const args[],
 	nadata->io.infd = 1;
 	nadata->io.outfd = 0;
     } else {
-	err = argv_copy(argv, NULL, &nadata->argv);
+	err = gensio_argv_copy(o, argv, NULL, &nadata->argv);
 	if (err)
 	    goto out_nomem;
     }
@@ -1038,10 +1038,10 @@ str_to_stdio_gensio(const char *str, const char * const args[],
     int err;
     const char **argv;
 
-    err = str_to_argv(str, NULL, &argv, NULL);
+    err = gensio_str_to_argv(o, str, NULL, &argv, NULL);
     if (!err) {
 	err = stdio_gensio_alloc(argv, args, o, cb, user_data, new_gensio);
-	str_to_argv_free(argv);
+	gensio_argv_free(o, argv);
     }
     return err;
 }

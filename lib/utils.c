@@ -25,7 +25,23 @@
 #include <unistd.h>
 #include <ctype.h>
 
+#include <gensio/gensio_class.h>
 #include "utils.h"
+
+char *
+gensio_strdup(struct gensio_os_funcs *o, const char *str)
+{
+    char *s;
+
+    if (!str)
+	return NULL;
+
+    s = o->zalloc(o, strlen(str) + 1);
+    if (!s)
+	return NULL;
+    strcpy(s, str);
+    return s;
+}
 
 int
 cmpstrval(const char *s, const char *prefix, const char **val)
@@ -40,19 +56,20 @@ cmpstrval(const char *s, const char *prefix, const char **val)
 }
 
 int
-argv_copy(const char * const oargv[],
-	  int *r_argc, const char ***r_argv)
+gensio_argv_copy(struct gensio_os_funcs *o,
+		 const char * const oargv[],
+		 int *r_argc, const char ***r_argv)
 {
     unsigned int len;
     const char **argv;
 
     for (len = 0; oargv[len]; len++)
 	;
-    argv = malloc((len + 1) * sizeof(*argv));
+    argv = o->zalloc(o, (len + 1) * sizeof(*argv));
     if (!argv)
 	return ENOMEM;
     for (len = 0; oargv[len]; len++) {
-	argv[len] = strdup(oargv[len]);
+	argv[len] = gensio_strdup(o, oargv[len]);
 	if (!argv[len])
 	    goto out_nomem;
     }
@@ -65,22 +82,23 @@ argv_copy(const char * const oargv[],
  out_nomem:
     while (len > 0) {
 	len--;
-	free((void *) argv[len]);
+	o->free(o, (void *) argv[len]);
     }
-    free(argv);
+    o->free(o, argv);
     return ENOMEM;
 }
 
 void
-str_to_argv_free(const char **argv)
+gensio_argv_free(struct gensio_os_funcs *o,
+		 const char **argv)
 {
     unsigned int i;
 
     if (!argv)
 	return;
     for (i = 0; argv[i]; i++)
-	free((void *) argv[i]);
-    free(argv);
+	o->free(o, (void *) argv[i]);
+    o->free(o, argv);
 }
 
 static bool
@@ -114,7 +132,8 @@ set_out(char **o, char s, unsigned int *len)
 }
 
 static int
-gettok(const char **s, char **tok, const char *seps, const char *endchars)
+gettok(struct gensio_os_funcs *o,
+       const char **s, char **tok, const char *seps, const char *endchars)
 {
     const char *p = skip_seps(*s, seps);
     const char *t = p;
@@ -209,7 +228,7 @@ gettok(const char **s, char **tok, const char *seps, const char *endchars)
 	return EINVAL;
 
     if (!out) {
-	out = malloc(len + 1);
+	out = o->zalloc(o, len + 1);
 	if (!out)
 	    return ENOMEM;
 	*tok = out;
@@ -225,9 +244,10 @@ gettok(const char **s, char **tok, const char *seps, const char *endchars)
 }
 
 int
-str_to_argv_endchar(const char *ins, int *r_argc, const char ***r_argv,
-		    const char *seps, const char *endchars,
-		    const char **nextptr)
+gensio_str_to_argv_endchar(struct gensio_os_funcs *o,
+			   const char *ins, int *r_argc, const char ***r_argv,
+			   const char *seps, const char *endchars,
+			   const char **nextptr)
 {
     const char **argv = NULL;
     char *tok;
@@ -242,11 +262,11 @@ str_to_argv_endchar(const char *ins, int *r_argc, const char ***r_argv,
 	endchars = "";
 
     args = 10;
-    argv = malloc(sizeof(*argv) * args);
+    argv = o->zalloc(o, sizeof(*argv) * args);
     if (!argv)
 	return ENOMEM;
 
-    err = gettok(&ins, &tok, seps, endchars);
+    err = gettok(o, &ins, &tok, seps, endchars);
     while (tok && !err) {
 	/* - 1 leaves a space for the NULL terminator. */
 	if (argc >= args - 1) {
@@ -262,7 +282,7 @@ str_to_argv_endchar(const char *ins, int *r_argc, const char ***r_argv,
 	}
 	argv[argc++] = tok;
 
-	err = gettok(&ins, &tok, seps, endchars);
+	err = gettok(o, &ins, &tok, seps, endchars);
     }
 
     argv[argc] = NULL; /* NULL terminate the array. */
@@ -271,9 +291,9 @@ str_to_argv_endchar(const char *ins, int *r_argc, const char ***r_argv,
     if (err) {
 	while (argc > 0) {
 	    argc--;
-	    free((void *) argv[argc]);
+	    o->free(o, (void *) argv[argc]);
 	}
-	free(argv);
+	o->free(o, argv);
     } else {
 	if (r_argc)
 	    *r_argc = argc;
@@ -288,10 +308,11 @@ str_to_argv_endchar(const char *ins, int *r_argc, const char ***r_argv,
 }
 
 int
-str_to_argv(const char *ins, int *r_argc, const char ***r_argv,
-	    const char *seps)
+gensio_str_to_argv(struct gensio_os_funcs *o,
+		   const char *ins, int *r_argc, const char ***r_argv,
+		   const char *seps)
 {
-    return str_to_argv_endchar(ins, r_argc, r_argv, seps, NULL, NULL);
+    return gensio_str_to_argv_endchar(o, ins, r_argc, r_argv, seps, NULL, NULL);
 }
 
 int

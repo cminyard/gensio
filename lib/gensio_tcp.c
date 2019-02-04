@@ -759,7 +759,7 @@ tcpna_str_to_gensio(struct gensio_accepter *accepter, const char *addr,
 
  out_err:
     if (iargs)
-	str_to_argv_free(iargs);
+	gensio_argv_free(nadata->o, iargs);
     gensio_free_addrinfo(nadata->o, ai);
 
     return err;

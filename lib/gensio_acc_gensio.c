@@ -225,7 +225,7 @@ basena_str_to_gensio(struct gensio_accepter *accepter, const char *addr,
 
     addr += typelen;
     if (*addr == '(') {
-	err = gensio_scan_args(&addr, &argc, &args);
+	err = gensio_scan_args(nadata->o, &addr, &argc, &args);
 	if (err)
 	    return err;
     } else if (*addr) {
@@ -246,7 +246,7 @@ basena_str_to_gensio(struct gensio_accepter *accepter, const char *addr,
 
  out:
     if (args)
-	str_to_argv_free(args);
+	gensio_argv_free(nadata->o, args);
     if (err) {
 	if (child)
 	    gensio_free(child);

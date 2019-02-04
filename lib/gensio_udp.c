@@ -1103,7 +1103,7 @@ udpna_str_to_gensio(struct gensio_accepter *accepter, const char *addr,
     if (ai)
 	gensio_free_addrinfo(nadata->o, ai);
     if (iargs)
-	str_to_argv_free(iargs);
+	gensio_argv_free(nadata->o, iargs);
 
     return err;
 }

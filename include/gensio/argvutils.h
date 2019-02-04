@@ -25,13 +25,15 @@
 #ifndef GENSIO_ARGVUTILS_H
 #define GENSIO_ARGVUTILS_H
 
+#include <gensio/gensio_os_funcs.h>
+
 /*
  * Separate out a string into an argv array, returning the argc/argv
  * values given.  Returns -ENOMEM when out of memory or -EINVAL if
  * there is something wrong with the string.  seps is a list of
  * separators, parameters will be separated by that vlaue.  If seps is
  * NULL it will default to the equivalent of isspace().  The argv
- * array must be freed with str_to_argv_free().
+ * array must be freed with gensio_argv_free().
  *
  * argc may be NULL if you don't care.
  *
@@ -41,8 +43,9 @@
  * const array or the values in the strings, but the compiler
  * complains if you pass a "char **" into that.
  */
-int str_to_argv(const char *s, int *argc, const char ***argv,
-		const char *seps);
+int gensio_str_to_argv(struct gensio_os_funcs *o,
+		       const char *s, int *argc, const char ***argv,
+		       const char *seps);
 
 /*
  * Like the above, but allows a set of characters to be specified that
@@ -52,19 +55,21 @@ int str_to_argv(const char *s, int *argc, const char ***argv,
  * the end character if the end character was encountered, or sets it
  * to NULL if the end character was not encountered.
  */
-int str_to_argv_endchar(const char *ins,
-			int *r_argc, const char ***r_argv,
-			const char *seps, const char *endchars,
-			const char **nextptr);
+int gensio_str_to_argv_endchar(struct gensio_os_funcs *o,
+			       const char *ins,
+			       int *r_argc, const char ***r_argv,
+			       const char *seps, const char *endchars,
+			       const char **nextptr);
 
 /*
  * Copy an argv array.  The source does not have to be from str_to_argv
  * and must be NULL terminated.
  */
-int argv_copy(const char * const oargv[],
+int gensio_argv_copy(struct gensio_os_funcs *o,
+	      const char * const oargv[],
 	      int *r_argc, const char ***r_argv);
 
 /* Free the return of str_to_argv */
-void str_to_argv_free(const char **argv);
+void gensio_argv_free(struct gensio_os_funcs *o, const char **argv);
 
 #endif /* GENSIO_ARGVUTILS_H */

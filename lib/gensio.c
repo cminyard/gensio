@@ -282,14 +282,15 @@ gensio_acc_remove_pending_gensio(struct gensio_accepter *acc,
 }
 
 int
-gensio_scan_args(const char **rstr, int *argc, const char ***args)
+gensio_scan_args(struct gensio_os_funcs *o,
+		 const char **rstr, int *argc, const char ***args)
 {
     const char *str = *rstr;
     int err = 0;
 
     if (*str == '(') {
-	err = str_to_argv_endchar(str + 1, argc, args,
-				  " \f\n\r\t\v,", ")", &str);
+	err = gensio_str_to_argv_endchar(o, str + 1, argc, args,
+					 " \f\n\r\t\v,", ")", &str);
 	if (!err && (!str || (*str != ',' && *str)))
 	    err = EINVAL; /* Not a ',' or end of string after */
 	else
@@ -297,7 +298,7 @@ gensio_scan_args(const char **rstr, int *argc, const char ***args)
     } else {
 	if (*str)
 	    str += 1; /* skip the comma */
-	err = str_to_argv("", argc, args, ")");
+	err = gensio_str_to_argv(o, "", argc, args, ")");
     }
 
     if (!err)
@@ -478,7 +479,7 @@ gensio_scan_network_port(struct gensio_os_funcs *o, const char *str,
 	if (*str == '(') {
 	    if (!rargs)
 		return EINVAL;
-	    err = gensio_scan_args(&str, &argc, &args);
+	    err = gensio_scan_args(o, &str, &argc, &args);
 	    if (err)
 		return err;
 	} else {
@@ -490,7 +491,7 @@ gensio_scan_network_port(struct gensio_os_funcs *o, const char *str,
 		   is_port_set, rai);
     if (err) {
 	if (args)
-	    str_to_argv_free(args);
+	    gensio_argv_free(o, args);
 	return err;
     }
 
@@ -1198,11 +1199,11 @@ int str_to_gensio_accepter(const char *str,
 	    continue;
 
 	str += len;
-	err = gensio_scan_args(&str, NULL, &args);
+	err = gensio_scan_args(o, &str, NULL, &args);
 	if (!err)
 	    err = r->handler(str, args, o, cb, user_data, accepter);
 	if (args)
-	    str_to_argv_free(args);
+	    gensio_argv_free(o, args);
 	return err;
     }
 
@@ -1233,7 +1234,7 @@ int str_to_gensio_accepter(const char *str,
     }
 
     if (args)
-	str_to_argv_free(args);
+	gensio_argv_free(o, args);
 
     return err;
 }
@@ -1316,11 +1317,11 @@ str_to_gensio(const char *str,
 	    continue;
 
 	str += len;
-	err = gensio_scan_args(&str, NULL, &args);
+	err = gensio_scan_args(o, &str, NULL, &args);
 	if (!err)
 	    err = r->handler(str, args, o, cb, user_data, gensio);
 	if (args)
-	    str_to_argv_free(args);
+	    gensio_argv_free(o, args);
 	return err;
     }
 
@@ -1350,7 +1351,7 @@ str_to_gensio(const char *str,
 
  out:
     if (args)
-	str_to_argv_free(args);
+	gensio_argv_free(o, args);
 
     return err;
 }
@@ -1422,21 +1423,6 @@ gensio_free_addrinfo(struct gensio_os_funcs *o, struct addrinfo *ai)
 	    o->free(o, aic->ai_canonname);
 	o->free(o, aic);
     }
-}
-
-char *
-gensio_strdup(struct gensio_os_funcs *o, const char *str)
-{
-    char *s;
-
-    if (!str)
-	return NULL;
-
-    s = o->zalloc(o, strlen(str) + 1);
-    if (!s)
-	return NULL;
-    strcpy(s, str);
-    return s;
 }
 
 int
