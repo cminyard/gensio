@@ -143,7 +143,7 @@ pam_cb(int num_msg, const struct pam_message **msg,
 	    break;
 
 	case PAM_ERROR_MSG:
-	    syslog(LOG_ERR, "Error from pam: %s\n",
+	    syslog(LOG_ERR, "Error from pam: %s",
 		   PAM_MSG_MEMBER(msg, i, msg));
 	    break;
 
@@ -170,6 +170,7 @@ struct pam_conv auth_conv = { pam_cb, NULL };
 static bool pam_cred_set = false;
 static bool pam_session_open = false;
 static char username[100];
+static char *userpgm;
 
 static int
 certauth_event(struct gensio *io, int event, int ierr,
@@ -201,7 +202,7 @@ certauth_event(struct gensio *io, int event, int ierr,
 
 	err = pam_start(progname, username, &auth_conv, &pamh);
 	if (err != PAM_SUCCESS) {
-	    syslog(LOG_ERR, "pam_start failed for %s: %s\n", username,
+	    syslog(LOG_ERR, "pam_start failed for %s: %s", username,
 		   pam_strerror(pamh, err));
 	    return EINVAL;
 	}
@@ -215,6 +216,7 @@ certauth_event(struct gensio *io, int event, int ierr,
 		   strerror(err));
 	    return EKEYREJECTED;
 	}
+	userpgm = pw->pw_shell;
 	return ENOTSUP;
     }
 
@@ -222,8 +224,6 @@ certauth_event(struct gensio *io, int event, int ierr,
 	return ENOTSUP;
 
     case GENSIO_EVENT_POSTCERT_VERIFY:
-	if (ierr != ENOKEY)
-	    printf("Certificate failed verify: %s\n", auxdata[0]);
 	return ENOTSUP;
 
     case GENSIO_EVENT_PASSWORD_VERIFY:
@@ -231,7 +231,7 @@ certauth_event(struct gensio *io, int event, int ierr,
 	err = pam_authenticate(pamh, PAM_SILENT);
 	passwd = NULL;
 	if (err != PAM_SUCCESS) {
-	    syslog(LOG_ERR, "pam_authenticate failed for %s: %s\n", username,
+	    syslog(LOG_ERR, "pam_authenticate failed for %s: %s", username,
 		   pam_strerror(pamh, err));
 	    return EINVAL;
 	}
@@ -254,31 +254,32 @@ tcp_handle_new(struct gensio_runner *r, void *cb_data)
     struct gensio *ssl_io, *certauth_io, *pty_io;
     struct ioinfo *pty_ioinfo;
     struct gdata *pty_ginfo;
+    char *s;
 
     ginfo->o->free_runner(r);
     err = ssl_gensio_alloc(io, ssl_args, ginfo->o, NULL, NULL, &ssl_io);
     if (err) {
-	syslog(LOG_ERR, "Unable to allocate SSL gensio: %s\n", strerror(errno));
+	syslog(LOG_ERR, "Unable to allocate SSL gensio: %s", strerror(errno));
 	exit(1);
     }
 
     err = gensio_open_nochild_s(ssl_io);
     if (err) {
-	syslog(LOG_ERR, "SSL open failed: %s\n", strerror(errno));
+	syslog(LOG_ERR, "SSL open failed: %s", strerror(errno));
 	exit(1);
     }
 
     err = certauth_gensio_alloc(ssl_io, certauth_args, ginfo->o,
 				certauth_event, ioinfo, &certauth_io);
     if (err) {
-	syslog(LOG_ERR, "Unable to allocate certauth gensio: %s\n",
+	syslog(LOG_ERR, "Unable to allocate certauth gensio: %s",
 	       strerror(errno));
 	exit(1);
     }
 
     err = gensio_open_nochild_s(certauth_io);
     if (err) {
-	syslog(LOG_ERR, "certauth open failed: %s\n", strerror(errno));
+	syslog(LOG_ERR, "certauth open failed: %s", strerror(errno));
 	exit(1);
     }
 
@@ -289,9 +290,17 @@ tcp_handle_new(struct gensio_runner *r, void *cb_data)
     pty_ioinfo = ioinfo_otherioinfo(ioinfo);
     pty_ginfo = ioinfo_userdata(pty_ioinfo);
 
+    err = pam_acct_mgmt(pamh, PAM_SILENT);
+    if (err != PAM_SUCCESS) {
+	/* FIXME - handle PAM_NEW_AUTHTOK_REQD */
+	syslog(LOG_ERR, "pam_acct_mgmt failed for %s: %s", username,
+	       pam_strerror(pamh, err));
+	goto out_err;
+    }
+
     err = pam_setcred(pamh, PAM_ESTABLISH_CRED | PAM_SILENT);
     if (err != PAM_SUCCESS) {
-	syslog(LOG_ERR, "pam_setcred establish failed for %s: %s\n", username,
+	syslog(LOG_ERR, "pam_setcred establish failed for %s: %s", username,
 	       pam_strerror(pamh, err));
 	goto out_err;
     }
@@ -299,21 +308,26 @@ tcp_handle_new(struct gensio_runner *r, void *cb_data)
 
     err = pam_open_session(pamh, PAM_SILENT);
     if (err != PAM_SUCCESS) {
-	syslog(LOG_ERR, "pam_open_session failed for %s: %s\n", username,
+	syslog(LOG_ERR, "pam_open_session failed for %s: %s", username,
 	       pam_strerror(pamh, err));
 	goto out_err;
     }
     pam_session_open = true;
 
-    err = str_to_gensio("pty,/bin/sh", ginfo->o, NULL, NULL, &pty_io);
-    if (err) {
-	syslog(LOG_ERR, "pty alloc failed: %s\n", strerror(errno));
+    s = alloc_sprintf("pty,%s", userpgm);
+    if (!s) {
+	syslog(LOG_ERR, "Out of memory allocating program name");
 	goto out_err;
     }
-
+    err = str_to_gensio(s, ginfo->o, NULL, NULL, &pty_io);
+    free(s);
+    if (err) {
+	syslog(LOG_ERR, "pty alloc failed: %s", strerror(errno));
+	goto out_err;
+    }
     err = gensio_open_s(pty_io);
     if (err) {
-	syslog(LOG_ERR, "pty open failed: %s\n", strerror(errno));
+	syslog(LOG_ERR, "pty open failed: %s", strerror(errno));
 	goto out_err;
     }
 
@@ -345,7 +359,7 @@ tcp_acc_event(struct gensio_accepter *accepter, int event, void *data)
 
     switch ((pid = fork())) {
     case -1:
-	syslog(LOG_ERR, "Could not fork: %s\n", strerror(errno));
+	syslog(LOG_ERR, "Could not fork: %s", strerror(errno));
 	gensio_close(io, NULL, NULL);
 	return 0;
 
@@ -357,7 +371,7 @@ tcp_acc_event(struct gensio_accepter *accepter, int event, void *data)
 	 */
 	err = ginfo->o->handle_fork(ginfo->o);
 	if (err) {
-	    syslog(LOG_ERR, "Could not fork gensio handler: %s\n",
+	    syslog(LOG_ERR, "Could not fork gensio handler: %s",
 		   strerror(err));
 	    exit(1);
 	}
@@ -566,7 +580,7 @@ main(int argc, char *argv[])
     if (tcp_acc) {
 	rv = gensio_acc_shutdown(tcp_acc, acc_shutdown, closewaiter);
 	if (rv)
-	    syslog(LOG_ERR, "Unable to close accepter: %s\n", strerror(rv));
+	    syslog(LOG_ERR, "Unable to close accepter: %s", strerror(rv));
 	else
 	    closecount++;
     }
@@ -574,7 +588,7 @@ main(int argc, char *argv[])
     if (userdata1.can_close) {
 	rv = gensio_close(userdata1.io, io_close, closewaiter);
 	if (rv)
-	    syslog(LOG_ERR, "Unable to close net connection: %s\n",
+	    syslog(LOG_ERR, "Unable to close net connection: %s",
 		   strerror(rv));
 	else
 	    closecount++;
@@ -583,7 +597,7 @@ main(int argc, char *argv[])
     if (userdata2.can_close) {
 	rv = gensio_close(userdata2.io, io_close, closewaiter);
 	if (rv)
-	    syslog(LOG_ERR, "Unable to close pty: %s\n", strerror(rv));
+	    syslog(LOG_ERR, "Unable to close pty: %s", strerror(rv));
 	else
 	    closecount++;
     }
@@ -608,14 +622,14 @@ main(int argc, char *argv[])
     if (pam_session_open) {
 	rv = pam_close_session(pamh, PAM_SILENT);
 	if (rv != PAM_SUCCESS)
-	    syslog(LOG_ERR, "pam_close_session failed for %s: %s\n", username,
+	    syslog(LOG_ERR, "pam_close_session failed for %s: %s", username,
 		   pam_strerror(pamh, rv));
     }
 
     if (pam_cred_set) {
 	rv = pam_setcred(pamh, PAM_DELETE_CRED | PAM_SILENT);
 	if (rv != PAM_SUCCESS)
-	    syslog(LOG_ERR, "pam_setcred delete failed for %s: %s\n", username,
+	    syslog(LOG_ERR, "pam_setcred delete failed for %s: %s", username,
 		   pam_strerror(pamh, rv));
     }
 
