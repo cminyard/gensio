@@ -45,7 +45,8 @@ struct pty_data {
     pid_t pid;
     int ptym;
     char *progargs;
-    char **argv;
+    const char **argv;
+    const char **env;
 
     int last_err;
 };
@@ -61,7 +62,8 @@ pty_sub_open(void *handler_data, int *fd)
     struct pty_data *tdata = handler_data;
     int err;
 
-    err = gensio_setup_child_on_pty(tdata->argv, &tdata->ptym, &tdata->pid);
+    err = gensio_setup_child_on_pty((char * const *) tdata->argv, tdata->env,
+				    &tdata->ptym, &tdata->pid);
     if (!err)
 	*fd = tdata->ptym;
 
@@ -125,14 +127,10 @@ pty_free(void *handler_data)
 {
     struct pty_data *tdata = handler_data;
 
-    if (tdata->argv) {
-	int i;
-
-	for (i = 0; tdata->argv[i]; i++)
-	    tdata->o->free(tdata->o, tdata->argv[i]);
-	tdata->o->free(tdata->o, tdata->argv);
-    }
-
+    if (tdata->argv)
+	str_to_argv_free(tdata->argv);
+    if (tdata->env)
+	str_to_argv_free(tdata->env);
     tdata->o->free(tdata->o, tdata);
 }
 
@@ -167,6 +165,30 @@ pty_read_ready(void *handler_data, int fd)
     gensio_fd_ll_handle_incoming(tdata->ll, pty_do_read, NULL, NULL);
 }
 
+static int
+pty_control(void *handler_data, int fd, bool get, unsigned int option,
+	    char *data, gensiods *datalen)
+{
+    struct pty_data *tdata = handler_data;
+    const char **env;
+    int err;
+
+    switch (option) {
+    case GENSIO_CONTROL_ENVIRONMENT:
+	if (!get)
+	    return ENOTSUP;
+	err = argv_copy((const char **) data, NULL, &env);
+	if (err)
+	    return err;
+	if (tdata->env)
+	    str_to_argv_free(tdata->env);
+	tdata->env = env;
+	break;
+    }
+
+    return ENOTSUP;
+}
+
 static const struct gensio_fd_ll_ops pty_fd_ll_ops = {
     .sub_open = pty_sub_open,
     .check_open = pty_check_open,
@@ -175,7 +197,8 @@ static const struct gensio_fd_ll_ops pty_fd_ll_ops = {
     .remote_id = pty_remote_id,
     .check_close = pty_check_close,
     .free = pty_free,
-    .write = pty_write
+    .write = pty_write,
+    .control = pty_control
 };
 
 int
@@ -187,7 +210,8 @@ pty_gensio_alloc(const char * const argv[], const char * const args[],
     struct pty_data *tdata = NULL;
     struct gensio *io;
     gensiods max_read_size = GENSIO_DEFAULT_BUF_SIZE;
-    unsigned int i, argc;
+    unsigned int i;
+    int err;
 
     for (i = 0; args && args[i]; i++) {
 	if (gensio_check_keyds(args[i], "readbuf", &max_read_size) > 0)
@@ -202,16 +226,9 @@ pty_gensio_alloc(const char * const argv[], const char * const args[],
     tdata->o = o;
     tdata->ptym = -1;
 
-    for (argc = 0; argv[argc]; argc++)
-	;
-    tdata->argv = o->zalloc(o, (argc + 1) * sizeof(*tdata->argv));
-    if (!tdata->argv)
+    err = argv_copy(argv, NULL, &tdata->argv);
+    if (err)
 	goto out_nomem;
-    for (i = 0; i < argc; i++) {
-	tdata->argv[i] = gensio_strdup(o, argv[i]);
-	if (!tdata->argv[i])
-	    goto out_nomem;
-    }
 
     tdata->ll = fd_gensio_ll_alloc(o, -1, &pty_fd_ll_ops, tdata, max_read_size);
     if (!tdata->ll)

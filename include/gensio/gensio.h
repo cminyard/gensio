@@ -453,7 +453,13 @@ int gensio_control(struct gensio *io, int depth, bool get,
 /*
  * Get the fingerprint for the certificate from the other end.
  */
-#define GENSIO_CONTROL_CERT_FINGERPRINT		0
+#define GENSIO_CONTROL_CERT_FINGERPRINT		9
+
+/*
+ * Set the environment pointer for an exec.  For pty and stdio gensios.
+ * The data is a pointer to an argv array (char * const envp[])
+ */
+#define GENSIO_CONTROL_ENVIRONMENT		10
 
 /*
  * Return the type string for the gensio (if depth is 0) or one of its

@@ -178,8 +178,14 @@ gensio_os_sctp_send(int fd, const void *msg, gensiods len, gensiods *rcount,
 }
 #endif
 
+/*
+ * This is ugly, but it's by far the simplest way.
+ */
+extern char **environ;
+
 int
-gensio_setup_child_on_pty(char *const argv[], int *rptym, pid_t *rpid)
+gensio_setup_child_on_pty(char *const argv[], const char **env,
+			  int *rptym, pid_t *rpid)
 {
     pid_t pid;
     int ptym, err = 0;
@@ -280,6 +286,8 @@ gensio_setup_child_on_pty(char *const argv[], int *rptym, pid_t *rpid)
 	for (i = 3; i < openfiles; i++)
 		close(i);
 
+	if (env)
+	    environ = (char **) env;
 	execvp(argv[0], argv);
 	fprintf(stderr, "Unable to exec %s: %s\n", argv[0], strerror(errno));
 	exit(1); /* Only reached on error. */

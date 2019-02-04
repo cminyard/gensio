@@ -53,7 +53,8 @@ int gensio_os_sctp_recvmsg(int fd, void *msg, gensiods len, gensiods *rcount,
 int gensio_os_sctp_send(int fd, const void *msg, gensiods len, gensiods *rcount,
                         const struct sctp_sndrcvinfo *sinfo, uint32_t flags);
 
-int gensio_setup_child_on_pty(char *const argv[], int *rptym, pid_t *rpid);
+int gensio_setup_child_on_pty(char *const argv[], const char **env,
+			      int *rptym, pid_t *rpid);
 
 int gensio_get_random(void *data, unsigned int len);
 

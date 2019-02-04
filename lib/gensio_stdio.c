@@ -94,7 +94,8 @@ struct stdiona_data {
     unsigned int refcount;
 
     int argc;
-    char **argv;
+    const char **argv;
+    const char **env;
 
     struct gensio_runner *connect_runner;
     bool in_connect_runner;
@@ -139,13 +140,8 @@ stdiona_unlock(struct stdiona_data *nadata)
 static void
 stdiona_finish_free(struct stdiona_data *nadata)
 {
-    if (nadata->argv) {
-	int i;
-
-	for (i = 0; nadata->argv[i]; i++)
-	    nadata->o->free(nadata->o, nadata->argv[i]);
-	nadata->o->free(nadata->o, nadata->argv);
-    }
+    if (nadata->argv)
+	str_to_argv_free(nadata->argv);
     if (nadata->io.deferred_op_runner)
 	nadata->o->free_runner(nadata->io.deferred_op_runner);
     if (nadata->err.deferred_op_runner)
@@ -497,6 +493,8 @@ stdion_write_ready(int fd, void *cbdata)
     gensio_cb(schan->io, GENSIO_EVENT_WRITE_READY, 0, NULL, NULL, NULL);
 }
 
+extern char **environ;
+
 static int
 setup_child_proc(struct stdiona_data *nadata)
 {
@@ -557,7 +555,10 @@ setup_child_proc(struct stdiona_data *nadata)
 	for (i = 3; i < openfiles; i++)
 	    close(i);
 
-	execvp(nadata->argv[0], nadata->argv);
+	if (nadata->env)
+	    environ = (char **) nadata->env;
+
+	execvp(nadata->argv[0], (char * const *) nadata->argv);
 	{
 	    char buff[1024];
 
@@ -842,6 +843,31 @@ stdion_disable(struct gensio *io)
 }
 
 static int
+stdion_control(struct gensio *io, bool get, unsigned int option,
+	       char *data, gensiods *datalen)
+{
+    struct stdion_channel *schan = gensio_get_gensio_data(io);
+    struct stdiona_data *nadata = schan->nadata;
+    const char **env;
+    int err;
+
+    switch (option) {
+    case GENSIO_CONTROL_ENVIRONMENT:
+	if (!get)
+	    return ENOTSUP;
+	err = argv_copy((const char **) data, NULL, &env);
+	if (err)
+	    return err;
+	if (nadata->env)
+	    str_to_argv_free(nadata->env);
+	nadata->env = env;
+	break;
+    }
+
+    return ENOTSUP;
+}
+
+static int
 gensio_stdio_func(struct gensio *io, int func, gensiods *count,
 		  const void *cbuf, gensiods buflen, void *buf,
 		  const char *const *auxdata)
@@ -887,6 +913,9 @@ gensio_stdio_func(struct gensio *io, int func, gensiods *count,
 
     case GENSIO_FUNC_DISABLE:
 	return stdion_disable(io);
+
+    case GENSIO_FUNC_CONTROL:
+	return stdion_control(io, *((bool *) cbuf), buflen, buf, count);
 
     case GENSIO_FUNC_GET_RADDR:
     default:
@@ -958,7 +987,7 @@ stdio_gensio_alloc(const char * const argv[], const char * const args[],
 {
     int err;
     struct stdiona_data *nadata = NULL;
-    int i, argc;
+    int i;
     gensiods max_read_size = GENSIO_DEFAULT_BUF_SIZE;
     bool self = false;
 
@@ -978,16 +1007,9 @@ stdio_gensio_alloc(const char * const argv[], const char * const args[],
 	nadata->io.infd = 1;
 	nadata->io.outfd = 0;
     } else {
-	for (argc = 0; argv[argc]; argc++)
-	    ;
-	nadata->argv = o->zalloc(o, (argc + 1) * sizeof(*nadata->argv));
-	if (!nadata->argv)
+	err = argv_copy(argv, NULL, &nadata->argv);
+	if (err)
 	    goto out_nomem;
-	for (i = 0; i < argc; i++) {
-	    nadata->argv[i] = gensio_strdup(o, argv[i]);
-	    if (!nadata->argv[i])
-		goto out_nomem;
-	}
     }
 
     nadata->io.io = gensio_data_alloc(nadata->o, cb, user_data,
