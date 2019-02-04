@@ -972,6 +972,7 @@ certauth_try_connect(struct gensio_filter *filter, struct timeval *timeout)
 
 	sfilter->write_buf_len = 0;
 	if (sfilter->password_req_val != CERTAUTH_PASSWORD_TYPE_REQ) {
+	    certauth_write_byte(sfilter, CERTAUTH_PASSWORD);
 	    certauth_add_dummy(sfilter, sfilter->password_len);
 	    goto password_done;
 	}
