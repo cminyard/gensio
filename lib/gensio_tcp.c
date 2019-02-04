@@ -716,7 +716,6 @@ tcpna_str_to_gensio(struct gensio_accepter *accepter, const char *addr,
     unsigned int i;
     gensiods max_read_size = nadata->max_read_size;
     const char **iargs;
-    int iargc;
     struct addrinfo *ai;
     const char *laddr = NULL, *dummy;
     bool is_port_set;
@@ -724,7 +723,7 @@ tcpna_str_to_gensio(struct gensio_accepter *accepter, const char *addr,
     bool nodelay = false;
 
     err = gensio_scan_network_port(nadata->o, addr, false, &ai, &socktype,
-				   &protocol, &is_port_set, &iargc, &iargs);
+				   &protocol, &is_port_set, NULL, &iargs);
     if (err)
 	return err;
 
@@ -760,7 +759,7 @@ tcpna_str_to_gensio(struct gensio_accepter *accepter, const char *addr,
 
  out_err:
     if (iargs)
-	str_to_argv_free(iargc, iargs);
+	str_to_argv_free(iargs);
     gensio_free_addrinfo(nadata->o, ai);
 
     return err;

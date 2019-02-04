@@ -1013,13 +1013,13 @@ str_to_stdio_gensio(const char *str, const char * const args[],
 		    gensio_event cb, void *user_data,
 		    struct gensio **new_gensio)
 {
-    int err, argc;
+    int err;
     const char **argv;
 
-    err = str_to_argv(str, &argc, &argv, NULL);
+    err = str_to_argv(str, NULL, &argv, NULL);
     if (!err) {
 	err = stdio_gensio_alloc(argv, args, o, cb, user_data, new_gensio);
-	str_to_argv_free(argc, argv);
+	str_to_argv_free(argv);
     }
     return err;
 }

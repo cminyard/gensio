@@ -246,7 +246,7 @@ basena_str_to_gensio(struct gensio_accepter *accepter, const char *addr,
 
  out:
     if (args)
-	str_to_argv_free(argc, args);
+	str_to_argv_free(args);
     if (err) {
 	if (child)
 	    gensio_free(child);

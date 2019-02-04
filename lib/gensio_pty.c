@@ -244,7 +244,7 @@ str_to_pty_gensio(const char *str, const char * const args[],
     err = str_to_argv(str, &argc, &argv, NULL);
     if (!err) {
 	err = pty_gensio_alloc(argv, args, o, cb, user_data, new_gensio);
-	str_to_argv_free(argc, argv);
+	str_to_argv_free(argv);
     }
 
     return err;

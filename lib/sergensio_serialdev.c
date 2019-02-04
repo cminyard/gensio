@@ -1438,7 +1438,7 @@ process_rs485(struct sterm_data *sdata, const char *str)
     sdata->rs485.flags |= SER_RS485_ENABLED;
 
  out:
-    str_to_argv_free(argc, argv);
+    str_to_argv_free(argv);
     return err;
 
  out_inval:
@@ -1480,7 +1480,7 @@ sergensio_process_parms(struct sterm_data *sdata)
 	    break;
     }
 
-    str_to_argv_free(argc, argv);
+    str_to_argv_free(argv);
     return err;
 }
 

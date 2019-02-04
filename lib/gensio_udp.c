@@ -1042,12 +1042,11 @@ udpna_str_to_gensio(struct gensio_accepter *accepter, const char *addr,
     unsigned int fdi;
     int err;
     const char **iargs;
-    int iargc;
     bool is_port_set;
     int socktype, protocol;
 
     err = gensio_scan_network_port(nadata->o, addr, false, &ai, &socktype,
-				   &protocol, &is_port_set, &iargc, &iargs);
+				   &protocol, &is_port_set, NULL, &iargs);
     if (err)
 	return err;
 
@@ -1104,7 +1103,7 @@ udpna_str_to_gensio(struct gensio_accepter *accepter, const char *addr,
     if (ai)
 	gensio_free_addrinfo(nadata->o, ai);
     if (iargs)
-	str_to_argv_free(iargc, iargs);
+	str_to_argv_free(iargs);
 
     return err;
 }

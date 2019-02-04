@@ -288,8 +288,8 @@ gensio_scan_args(const char **rstr, int *argc, const char ***args)
     int err = 0;
 
     if (*str == '(') {
-	err = str_to_argv_lengths_endchar(str + 1, argc, args, NULL,
-					  " \f\n\r\t\v,", ")", &str);
+	err = str_to_argv_endchar(str + 1, argc, args,
+				  " \f\n\r\t\v,", ")", &str);
 	if (!err && (!str || (*str != ',' && *str)))
 	    err = EINVAL; /* Not a ',' or end of string after */
 	else
@@ -297,7 +297,7 @@ gensio_scan_args(const char **rstr, int *argc, const char ***args)
     } else {
 	if (*str)
 	    str += 1; /* skip the comma */
-	err = str_to_argv_lengths("", argc, args, NULL, ")");
+	err = str_to_argv("", argc, args, ")");
     }
 
     if (!err)
@@ -490,7 +490,7 @@ gensio_scan_network_port(struct gensio_os_funcs *o, const char *str,
 		   is_port_set, rai);
     if (err) {
 	if (args)
-	    str_to_argv_free(argc, args);
+	    str_to_argv_free(args);
 	return err;
     }
 
@@ -1182,7 +1182,6 @@ int str_to_gensio_accepter(const char *str,
     struct addrinfo *ai = NULL;
     bool is_port_set;
     int socktype, protocol;
-    int argc;
     const char **args = NULL;
     struct registered_gensio_accepter *r;
     unsigned int len;
@@ -1199,11 +1198,11 @@ int str_to_gensio_accepter(const char *str,
 	    continue;
 
 	str += len;
-	err = gensio_scan_args(&str, &argc, &args);
+	err = gensio_scan_args(&str, NULL, &args);
 	if (!err)
 	    err = r->handler(str, args, o, cb, user_data, accepter);
 	if (args)
-	    str_to_argv_free(argc, args);
+	    str_to_argv_free(args);
 	return err;
     }
 
@@ -1212,7 +1211,7 @@ int str_to_gensio_accepter(const char *str,
 					  accepter);
     } else {
 	err = gensio_scan_network_port(o, str, true, &ai, &socktype, &protocol,
-				       &is_port_set, &argc, &args);
+				       &is_port_set, NULL, &args);
 	if (!err) {
 	    if (!is_port_set) {
 		err = EINVAL;
@@ -1234,7 +1233,7 @@ int str_to_gensio_accepter(const char *str,
     }
 
     if (args)
-	str_to_argv_free(argc, args);
+	str_to_argv_free(args);
 
     return err;
 }
@@ -1302,7 +1301,6 @@ str_to_gensio(const char *str,
     struct addrinfo *ai = NULL;
     bool is_port_set;
     int socktype, protocol;
-    int argc;
     const char **args = NULL;
     struct registered_gensio *r;
     unsigned int len;
@@ -1318,11 +1316,11 @@ str_to_gensio(const char *str,
 	    continue;
 
 	str += len;
-	err = gensio_scan_args(&str, &argc, &args);
+	err = gensio_scan_args(&str, NULL, &args);
 	if (!err)
 	    err = r->handler(str, args, o, cb, user_data, gensio);
 	if (args)
-	    str_to_argv_free(argc, args);
+	    str_to_argv_free(args);
 	return err;
     }
 
@@ -1333,7 +1331,7 @@ str_to_gensio(const char *str,
     }
 
     err = gensio_scan_network_port(o, str, false, &ai, &socktype, &protocol,
-				   &is_port_set, &argc, &args);
+				   &is_port_set, NULL, &args);
     if (!err) {
 	if (!is_port_set) {
 	    err = EINVAL;
@@ -1352,7 +1350,7 @@ str_to_gensio(const char *str,
 
  out:
     if (args)
-	str_to_argv_free(argc, args);
+	str_to_argv_free(args);
 
     return err;
 }

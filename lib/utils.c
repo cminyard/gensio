@@ -39,28 +39,60 @@ cmpstrval(const char *s, const char *prefix, const char **val)
     return 1;
 }
 
-void
-str_to_argv_free(int argc, const char **argv)
+int
+argv_copy(const char * const oargv[],
+	  int *r_argc, const char ***r_argv)
 {
+    unsigned int len;
+    const char **argv;
+
+    for (len = 0; oargv[len]; len++)
+	;
+    argv = malloc((len + 1) * sizeof(*argv));
+    if (!argv)
+	return ENOMEM;
+    for (len = 0; oargv[len]; len++) {
+	argv[len] = strdup(oargv[len]);
+	if (!argv[len])
+	    goto out_nomem;
+    }
+    argv[len] = NULL;
+    if (r_argc)
+	*r_argc = len;
+    *r_argv = argv;
+    return 0;
+
+ out_nomem:
+    while (len > 0) {
+	len--;
+	free((void *) argv[len]);
+    }
+    free(argv);
+    return ENOMEM;
+}
+
+void
+str_to_argv_free(const char **argv)
+{
+    unsigned int i;
+
     if (!argv)
 	return;
-    if (argv[argc + 1])
-	free((void *) (argv[argc + 1]));
-    if (argv[argc + 2])
-	free((void *) (argv[argc + 2]));
+    for (i = 0; argv[i]; i++)
+	free((void *) argv[i]);
     free(argv);
 }
 
 static bool
-is_sep_space(char c, char *seps)
+is_sep(char c, const char *seps)
 {
     return c && strchr(seps, c);
 }
 
-static char *
-skip_spaces(char *s, char *seps)
+static const char *
+skip_seps(const char *s, const char *seps)
 {
-    while (is_sep_space(*s, seps))
+    while (is_sep(*s, seps))
 	s++;
     return s;
 }
@@ -71,23 +103,35 @@ isodigit(char c)
     return isdigit(c) && c != '8' && c != '9';
 }
 
-static int
-gettok(char **s, char **tok, char *seps, unsigned int *len, char *endchars)
+static void
+set_out(char **o, char s, unsigned int *len)
 {
-    char *t = skip_spaces(*s, seps);
-    char *p = t;
-    char *o = t;
+    if (*o) {
+	**o = s;
+	(*o)++;
+    }
+    (*len)++;
+}
+
+static int
+gettok(const char **s, char **tok, const char *seps, const char *endchars)
+{
+    const char *p = skip_seps(*s, seps);
+    const char *t = p;
+    char *out = NULL;
     char inquote = '\0';
     unsigned int escape = 0;
     unsigned int base = 8;
     char cval = 0;
+    unsigned int len = 0;
 
-    if (!*t || strchr(endchars, *t)) {
-	*s = t;
+    if (!*p || strchr(endchars, *p)) {
+	*s = p;
 	*tok = NULL;
 	return 0;
     }
 
+ restart:
     for (; *p; p++) {
 	if (escape) {
 	    if (escape == 1) {
@@ -101,14 +145,14 @@ gettok(char **s, char **tok, char *seps, unsigned int *len, char *endchars)
 		    escape++;
 		} else {
 		    switch (*p) {
-		    case 'a': *o++ = '\a'; break;
-		    case 'b': *o++ = '\b'; break;
-		    case 'f': *o++ = '\f'; break;
-		    case 'n': *o++ = '\n'; break;
-		    case 'r': *o++ = '\r'; break;
-		    case 't': *o++ = '\t'; break;
-		    case 'v': *o++ = '\v'; break;
-		    default:  *o++ = *p;
+		    case 'a': set_out(&out, '\a', &len); break;
+		    case 'b': set_out(&out, '\b', &len); break;
+		    case 'f': set_out(&out, '\f', &len); break;
+		    case 'n': set_out(&out, '\n', &len); break;
+		    case 'r': set_out(&out, '\r', &len); break;
+		    case 't': set_out(&out, '\t', &len); break;
+		    case 'v': set_out(&out, '\v', &len); break;
+		    default:  set_out(&out, *p, &len);
 		    }
 		    escape = 0;
 		}
@@ -121,13 +165,13 @@ gettok(char **s, char **tok, char *seps, unsigned int *len, char *endchars)
 		    else
 			cval = cval * base + *p - 'a';
 		    if (escape >= 3) {
-			*o++ = cval;
+			set_out(&out, cval, &len);
 			escape = 0;
 		    } else {
 			escape++;
 		    }
 		} else {
-		    *o++ = cval;
+		    set_out(&out, cval, &len);
 		    escape = 0;
 		    goto process_char;
 		}
@@ -142,80 +186,70 @@ gettok(char **s, char **tok, char *seps, unsigned int *len, char *endchars)
 	} else if (*p == '\\') {
 	    escape = 1;
 	} else if (!inquote) {
-	    if (is_sep_space(*p, seps)) {
+	    if (is_sep(*p, seps)) {
 		p++;
 		break;
 	    } else if (strchr(endchars, *p)) {
 		/* Don't skip endchars. */
 		break;
 	    } else {
-		*o++ = *p;
+		set_out(&out, *p, &len);
 	    }
 	} else {
-	    *o++ = *p;
+	    set_out(&out, *p, &len);
 	}
     }
 
     if ((base == 8 && escape > 1) || (base == 16 && escape > 2)) {
-	*o++ = cval;
+	set_out(&out, cval, &len);
 	escape = 0;
     }
 
-    *s = p;
     if (inquote || escape)
 	return EINVAL;
 
-    *o = '\0';
-    if (len)
-	*len = o - t;
-    *tok = t;
+    if (!out) {
+	out = malloc(len + 1);
+	if (!out)
+	    return ENOMEM;
+	*tok = out;
+	len = 0;
+	p = t;
+	goto restart;
+    }
+
+    *s = p;
+    *out = '\0';
+
     return 0;
 }
 
 int
-str_to_argv_lengths_endchar(const char *ins, int *r_argc, const char ***r_argv,
-			    unsigned int **r_lengths, char *seps,
-			    char *endchars, const char **nextptr)
+str_to_argv_endchar(const char *ins, int *r_argc, const char ***r_argv,
+		    const char *seps, const char *endchars,
+		    const char **nextptr)
 {
-    char *orig_s = strdup(ins);
-    unsigned int *lengths = NULL;
-    char *s = orig_s;
     const char **argv = NULL;
     char *tok;
     unsigned int argc = 0;
     unsigned int args = 0;
-    unsigned int len;
     int err;
-
-    if (!s)
-	return ENOMEM;
 
     if (!seps)
 	seps = " \f\n\r\t\v";
 
+    if (!endchars)
+	endchars = "";
+
     args = 10;
     argv = malloc(sizeof(*argv) * args);
-    if (!argv) {
-	free(orig_s);
+    if (!argv)
 	return ENOMEM;
-    }
-    if (r_lengths) {
-	lengths = malloc(sizeof(*lengths) * args);
-	if (!lengths) {
-	    free(argv);
-	    free(orig_s);
-	    return ENOMEM;
-	}
-    }
 
-    err = gettok(&s, &tok, seps, &len, endchars);
+    err = gettok(&ins, &tok, seps, endchars);
     while (tok && !err) {
-	/*
-	 * Leave one spot at the end for the NULL and one for the
-	 * pointer to the allocated string and one for the lengths
-	 * array.
-	 */
-	if (argc >= args - 3) {
+	/* - 1 leaves a space for the NULL terminator. */
+	if (argc >= args - 1) {
 	    const char **nargv;
 
 	    args += 10;
@@ -224,63 +258,40 @@ str_to_argv_lengths_endchar(const char *ins, int *r_argc, const char ***r_argv,
 		err = ENOMEM;
 		goto out;
 	    }
-	    if (r_lengths) {
-		unsigned int *nlengths = realloc(lengths,
-						 sizeof(*lengths) * args);
-
-		if (!nlengths) {
-		    err = ENOMEM;
-		    goto out;
-		}
-		lengths = nlengths;
-	    }
 	    argv = nargv;
 	}
-	if (lengths)
-	    lengths[argc] = len;
 	argv[argc++] = tok;
 
-	err = gettok(&s, &tok, seps, &len, endchars);
+	err = gettok(&ins, &tok, seps, endchars);
     }
 
     argv[argc] = NULL; /* NULL terminate the array. */
-    argv[argc + 1] = orig_s; /* Keep this around for freeing. */
-    argv[argc + 2] = (void *) lengths; /* Keep this around for freeing. */
 
  out:
     if (err) {
-	free(orig_s);
+	while (argc > 0) {
+	    argc--;
+	    free((void *) argv[argc]);
+	}
 	free(argv);
-	if (lengths)
-	    free(lengths);
     } else {
 	if (r_argc)
 	    *r_argc = argc;
 	*r_argv = argv;
-	if (r_lengths)
-	    *r_lengths = lengths;
 	if (nextptr) {
-	    if (strchr(endchars, *s))
-		*nextptr = ins + (s - orig_s) + 1;
-	    else
-		*nextptr = NULL;
+	    if (*ins)
+		ins++;
+	    *nextptr = ins;
 	}
     }
     return err;
 }
 
 int
-str_to_argv_lengths(const char *ins, int *r_argc, const char ***r_argv,
-		    unsigned int **r_lengths, char *seps)
+str_to_argv(const char *ins, int *r_argc, const char ***r_argv,
+	    const char *seps)
 {
-    return str_to_argv_lengths_endchar(ins, r_argc, r_argv, r_lengths,
-				       seps, "", NULL);
-}
-
-int
-str_to_argv(const char *ins, int *r_argc, const char ***r_argv, char *seps)
-{
-    return str_to_argv_lengths(ins, r_argc, r_argv, NULL, seps);
+    return str_to_argv_endchar(ins, r_argc, r_argv, seps, NULL, NULL);
 }
 
 int

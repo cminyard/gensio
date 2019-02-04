@@ -25,23 +25,24 @@
 #ifndef GENSIO_ARGVUTILS_H
 #define GENSIO_ARGVUTILS_H
 
-/* Separate out a string into an argv array, returning the argc/argv
-   values given.  Returns -ENOMEM when out of memory or -EINVAL if
-   there is something wrong with the string.  seps is a list of
-   separators, parameters will be separated by that vlaue.  If seps is
-   NULL it will default to the equivalent of isspace().  The argv
-   array must be freed with str_to_argv_free(). */
-int str_to_argv(const char *s, int *argc, const char ***argv, char *seps);
-
 /*
- * Like above, but give the lengths of each argv entry in the lengths
- * array.  The lengths array is automatically freed as part of
- * str_to_argv_free().  Note that the length does not include the
- * ending '\0'.
+ * Separate out a string into an argv array, returning the argc/argv
+ * values given.  Returns -ENOMEM when out of memory or -EINVAL if
+ * there is something wrong with the string.  seps is a list of
+ * separators, parameters will be separated by that vlaue.  If seps is
+ * NULL it will default to the equivalent of isspace().  The argv
+ * array must be freed with str_to_argv_free().
+ *
+ * argc may be NULL if you don't care.
+ *
+ * The "const" in argv is unfortunate, really a weakness in the C
+ * specification.  The functions in gensio that take this are all
+ * "const char * const argv[]", which means that it's not changing the
+ * const array or the values in the strings, but the compiler
+ * complains if you pass a "char **" into that.
  */
-int str_to_argv_lengths(const char *s, int *argc, const char ***argv,
-			unsigned int **lengths,
-			char *seps);
+int str_to_argv(const char *s, int *argc, const char ***argv,
+		const char *seps);
 
 /*
  * Like the above, but allows a set of characters to be specified that
@@ -51,12 +52,19 @@ int str_to_argv_lengths(const char *s, int *argc, const char ***argv,
  * the end character if the end character was encountered, or sets it
  * to NULL if the end character was not encountered.
  */
-int str_to_argv_lengths_endchar(const char *ins,
-				int *r_argc, const char ***r_argv,
-				unsigned int **r_lengths, char *seps,
-				char *endchars, const char **nextptr);
+int str_to_argv_endchar(const char *ins,
+			int *r_argc, const char ***r_argv,
+			const char *seps, const char *endchars,
+			const char **nextptr);
+
+/*
+ * Copy an argv array.  The source does not have to be from str_to_argv
+ * and must be NULL terminated.
+ */
+int argv_copy(const char * const oargv[],
+	      int *r_argc, const char ***r_argv);
 
 /* Free the return of str_to_argv */
-void str_to_argv_free(int argc, const char **argv);
+void str_to_argv_free(const char **argv);
 
 #endif /* GENSIO_ARGVUTILS_H */
