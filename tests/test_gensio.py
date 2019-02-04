@@ -466,7 +466,7 @@ def test_rs485():
     rs485 = get_remote_rs485(io2)
     check_rs485 = "103 495 enabled"
     if rs485 != check_rs485:
-        raise Exception("%s: %s: Modemstate was not '%s', it was '%s'" %
+        raise Exception("%s: %s: RS485 was not '%s', it was '%s'" %
                         ("test rs485", io1.handler.name, check_rs485, rs485))
 
     utils.io_close(io1)
