@@ -191,20 +191,20 @@ certauth_event(struct gensio *io, int event, int ierr,
 	if (err) {
 	    syslog(LOG_ERR, "No username provided by remote: %s",
 		   strerror(err));
-	    return EKEYREJECTED;
+	    return GE_KEYINVALID;
 	}
 	pw = getpwnam(username);
 	if (!pw) {
 	    syslog(LOG_ERR, "Invalid username provided by remote: %s",
 		   username);
-	    return EKEYREJECTED;
+	    return GE_KEYINVALID;
 	}
 
 	err = pam_start(progname, username, &auth_conv, &pamh);
 	if (err != PAM_SUCCESS) {
 	    syslog(LOG_ERR, "pam_start failed for %s: %s", username,
 		   pam_strerror(pamh, err));
-	    return EINVAL;
+	    return GE_INVAL;
 	}
 
 	len = snprintf(authdir, sizeof(authdir), "%s/.gtlssh/allowed_certs/",
@@ -214,17 +214,17 @@ certauth_event(struct gensio *io, int event, int ierr,
 	if (err) {
 	    syslog(LOG_ERR, "Could not set authdir %s: %s", authdir,
 		   strerror(err));
-	    return EKEYREJECTED;
+	    return GE_KEYINVALID;
 	}
 	userpgm = pw->pw_shell;
-	return ENOTSUP;
+	return GE_NOTSUP;
     }
 
     case GENSIO_EVENT_PRECERT_VERIFY:
-	return ENOTSUP;
+	return GE_NOTSUP;
 
     case GENSIO_EVENT_POSTCERT_VERIFY:
-	return ENOTSUP;
+	return GE_NOTSUP;
 
     case GENSIO_EVENT_PASSWORD_VERIFY:
 	passwd = (char *) buf;
@@ -233,12 +233,12 @@ certauth_event(struct gensio *io, int event, int ierr,
 	if (err != PAM_SUCCESS) {
 	    syslog(LOG_ERR, "pam_authenticate failed for %s: %s", username,
 		   pam_strerror(pamh, err));
-	    return EINVAL;
+	    return GE_KEYINVALID;
 	}
 	return 0;
 
     default:
-	return ENOTSUP;
+	return GE_NOTSUP;
     }
 }
 
@@ -259,13 +259,14 @@ tcp_handle_new(struct gensio_runner *r, void *cb_data)
     ginfo->o->free_runner(r);
     err = ssl_gensio_alloc(io, ssl_args, ginfo->o, NULL, NULL, &ssl_io);
     if (err) {
-	syslog(LOG_ERR, "Unable to allocate SSL gensio: %s", strerror(errno));
+	syslog(LOG_ERR, "Unable to allocate SSL gensio: %s",
+	       gensio_err_to_str(errno));
 	exit(1);
     }
 
     err = gensio_open_nochild_s(ssl_io);
     if (err) {
-	syslog(LOG_ERR, "SSL open failed: %s", strerror(errno));
+	syslog(LOG_ERR, "SSL open failed: %s", gensio_err_to_str(errno));
 	exit(1);
     }
 
@@ -273,13 +274,13 @@ tcp_handle_new(struct gensio_runner *r, void *cb_data)
 				certauth_event, ioinfo, &certauth_io);
     if (err) {
 	syslog(LOG_ERR, "Unable to allocate certauth gensio: %s",
-	       strerror(errno));
+	       gensio_err_to_str(errno));
 	exit(1);
     }
 
     err = gensio_open_nochild_s(certauth_io);
     if (err) {
-	syslog(LOG_ERR, "certauth open failed: %s", strerror(errno));
+	syslog(LOG_ERR, "certauth open failed: %s", gensio_err_to_str(errno));
 	exit(1);
     }
 
@@ -322,12 +323,12 @@ tcp_handle_new(struct gensio_runner *r, void *cb_data)
     err = str_to_gensio(s, ginfo->o, NULL, NULL, &pty_io);
     free(s);
     if (err) {
-	syslog(LOG_ERR, "pty alloc failed: %s", strerror(errno));
+	syslog(LOG_ERR, "pty alloc failed: %s", gensio_err_to_str(errno));
 	goto out_err;
     }
     err = gensio_open_s(pty_io);
     if (err) {
-	syslog(LOG_ERR, "pty open failed: %s", strerror(errno));
+	syslog(LOG_ERR, "pty open failed: %s", gensio_err_to_str(errno));
 	goto out_err;
     }
 
@@ -372,7 +373,7 @@ tcp_acc_event(struct gensio_accepter *accepter, int event, void *data)
 	err = ginfo->o->handle_fork(ginfo->o);
 	if (err) {
 	    syslog(LOG_ERR, "Could not fork gensio handler: %s",
-		   strerror(err));
+		   gensio_err_to_str(err));
 	    exit(1);
 	}
 
@@ -399,7 +400,8 @@ tcp_acc_event(struct gensio_accepter *accepter, int event, void *data)
 	}
 	err = ginfo->o->run(r);
 	if (err) {
-	    syslog(LOG_ERR, "Could not run runner: %s", strerror(errno));
+	    syslog(LOG_ERR, "Could not run runner: %s",
+		   gensio_err_to_str(errno));
 	    exit(1);
 	}
 	break;
@@ -515,7 +517,8 @@ main(int argc, char *argv[])
 
     rv = gensio_default_os_hnd(0, &o);
     if (rv) {
-	fprintf(stderr, "Could not allocate OS handler: %s\n", strerror(rv));
+	fprintf(stderr, "Could not allocate OS handler: %s\n",
+		gensio_err_to_str(rv));
 	return 1;
     }
     o->vlog = do_vlog;
@@ -536,14 +539,14 @@ main(int argc, char *argv[])
 
     userdata1.waiter = o->alloc_waiter(o);
     if (!userdata1.waiter) {
-	fprintf(stderr, "Could not allocate OS waiter: %s\n", strerror(rv));
+	fprintf(stderr, "Could not allocate OS waiter\n");
 	return 1;
     }
     userdata2.waiter = userdata1.waiter;
 
     closewaiter = o->alloc_waiter(o);
     if (!closewaiter) {
-	fprintf(stderr, "Could not allocate close waiter: %s\n", strerror(rv));
+	fprintf(stderr, "Could not allocate close waiter\n");
 	return 1;
     }
 
@@ -565,13 +568,15 @@ main(int argc, char *argv[])
 
     rv = str_to_gensio_accepter(s, o, tcp_acc_event, ioinfo1, &tcp_acc);
     if (rv) {
-	fprintf(stderr, "Could not allocate %s: %s\n", s, strerror(rv));
+	fprintf(stderr, "Could not allocate %s: %s\n", s,
+		gensio_err_to_str(rv));
 	return 1;
     }
 
     rv = gensio_acc_startup(tcp_acc);
     if (rv) {
-	fprintf(stderr, "Could not start %s: %s\n", s, strerror(rv));
+	fprintf(stderr, "Could not start %s: %s\n", s,
+		gensio_err_to_str(rv));
 	return 1;
     }
 
@@ -580,7 +585,8 @@ main(int argc, char *argv[])
     if (tcp_acc) {
 	rv = gensio_acc_shutdown(tcp_acc, acc_shutdown, closewaiter);
 	if (rv)
-	    syslog(LOG_ERR, "Unable to close accepter: %s", strerror(rv));
+	    syslog(LOG_ERR, "Unable to close accepter: %s",
+		   gensio_err_to_str(rv));
 	else
 	    closecount++;
     }
@@ -589,7 +595,7 @@ main(int argc, char *argv[])
 	rv = gensio_close(userdata1.io, io_close, closewaiter);
 	if (rv)
 	    syslog(LOG_ERR, "Unable to close net connection: %s",
-		   strerror(rv));
+		   gensio_err_to_str(rv));
 	else
 	    closecount++;
     }
@@ -597,7 +603,7 @@ main(int argc, char *argv[])
     if (userdata2.can_close) {
 	rv = gensio_close(userdata2.io, io_close, closewaiter);
 	if (rv)
-	    syslog(LOG_ERR, "Unable to close pty: %s", strerror(rv));
+	    syslog(LOG_ERR, "Unable to close pty: %s", gensio_err_to_str(rv));
 	else
 	    closecount++;
     }

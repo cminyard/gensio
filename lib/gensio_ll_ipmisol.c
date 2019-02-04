@@ -129,7 +129,7 @@ gio_add_fd_to_wait_for(os_handler_t       *handler,
 
     fd_data = malloc(sizeof(*fd_data));
     if (!fd_data)
-	return ENOMEM;
+	return GE_NOMEM;
 
     fd_data->fd = fd;
     fd_data->cb_data = cb_data;
@@ -200,12 +200,12 @@ gio_alloc_timer(os_handler_t      *handler,
 
     timer = malloc(sizeof(*timer));
     if (!timer)
-	return ENOMEM;
+	return GE_NOMEM;
 
     timer->lock = o->alloc_lock(o);
     if (!timer->lock) {
 	free(timer);
-	return ENOMEM;
+	return GE_NOMEM;
     }
 
     timer->running = false;
@@ -216,7 +216,7 @@ gio_alloc_timer(os_handler_t      *handler,
     if (!timer->timer) {
 	o->free_lock(timer->lock);
 	free(timer);
-	return ENOMEM;
+	return GE_NOMEM;
     }
 
     *rtimer = timer;
@@ -249,7 +249,7 @@ gio_start_timer(os_handler_t      *handler,
 
     o->lock(timer->lock);
     if (timer->running) {
-	rv = EBUSY;
+	rv = GE_NOTREADY;
 	goto out_unlock;
     }
 
@@ -280,7 +280,7 @@ gio_stop_timer(os_handler_t *handler,
 	timer->running = 0;
 	o->stop_timer(timer->timer);
     } else {
-	rv = ETIMEDOUT;
+	rv = GE_TIMEDOUT;
     }
     o->unlock(timer->lock);
 
@@ -302,12 +302,12 @@ gio_create_lock(os_handler_t  *handler,
 
     lock = malloc(sizeof(*lock));
     if (!lock)
-	return ENOMEM;
+	return GE_NOMEM;
 
     lock->lock = o->alloc_lock(o);
     if (!lock->lock) {
 	free(lock);
-	return ENOMEM;
+	return GE_NOMEM;
     }
 
     *rlock = lock;
@@ -354,7 +354,9 @@ gio_get_random(os_handler_t  *handler,
 	       void          *data,
 	       unsigned int  len)
 {
-    return gensio_get_random(data, len);
+    struct igensio_info *info = handler->internal_data;
+
+    return gensio_get_random(info->o, data, len);
 }
 
 static void
@@ -658,26 +660,26 @@ sol_deref_and_unlock(struct sol_ll *solll)
 	sol_finish_free(solll);
 }
 
-static int sol_xlat_ipmi_err(int err)
+static int sol_xlat_ipmi_err(struct gensio_os_funcs *o, int err)
 {
     if (IPMI_IS_OS_ERR(err)) {
-	return IPMI_OS_ERR_VAL(err);
+	return gensio_os_err_to_err(o, IPMI_OS_ERR_VAL(err));
     } else if (IPMI_IS_SOL_ERR(err)) {
 	err = IPMI_GET_SOL_ERR(err);
 	if (err == IPMI_SOL_DISCONNECTED)
-	    err = ECONNRESET;
+	    err = GE_REMCLOSE;
 	else if (err == IPMI_SOL_NOT_AVAILABLE)
-	    err = ECOMM;
+	    err = GE_COMMERR;
 	else if (err == IPMI_SOL_DEACTIVATED)
-	    err = EHOSTUNREACH;
+	    err = GE_HOSTDOWN;
     } else if (IPMI_IS_RMCPP_ERR(err)) {
 	err = IPMI_GET_RMCPP_ERR(err);
 	if (err == IPMI_RMCPP_INVALID_PAYLOAD_TYPE)
-	    err = ECONNREFUSED;
+	    err = GE_CONNREFUSE;
 	else
-	    err = ECOMM;
+	    err = GE_COMMERR;
     } else {
-	err = ECOMM;
+	err = GE_COMMERR;
     }
     return err;
 }
@@ -796,7 +798,7 @@ transmit_complete(ipmi_sol_conn_t *conn,
     struct sol_ll *solll = tc->solll;
 
     if (err)
-	err = sol_xlat_ipmi_err(err);
+	err = sol_xlat_ipmi_err(solll->o, err);
 
     sol_lock(solll);
     if (err && solll->state != SOL_IN_CLOSE) {
@@ -837,7 +839,7 @@ sol_write(struct gensio_ll *ll, gensiods *rcount,
 
     sol_lock(solll);
     if (solll->state != SOL_OPEN) {
-	err = EBADF;
+	err = GE_NOTREADY;
 	goto out_unlock;
     }
 
@@ -850,7 +852,7 @@ sol_write(struct gensio_ll *ll, gensiods *rcount,
 
     tc = solll->o->zalloc(solll->o, sizeof(*tc));
     if (!tc) {
-	err = ENOMEM;
+	err = GE_NOMEM;
 	goto out_unlock;
     }
 
@@ -858,7 +860,7 @@ sol_write(struct gensio_ll *ll, gensiods *rcount,
     tc->solll = solll;
     err = ipmi_sol_write(solll->sol, buf, buflen, transmit_complete, tc);
     if (err) {
-	err = sol_xlat_ipmi_err(err);
+	err = sol_xlat_ipmi_err(solll->o, err);
 	free(tc);
 	goto out_unlock;
     } else {
@@ -879,19 +881,19 @@ sol_raddr_to_str(struct gensio_ll *ll, gensiods *pos,
 		char *buf, gensiods buflen)
 {
     /* FIXME - do something here. */
-    return ENOTSUP;
+    return GE_NOTSUP;
 }
 
 static int
 sol_get_raddr(struct gensio_ll *ll, void *addr, gensiods *addrlen)
 {
-    return ENOTSUP;
+    return GE_NOTSUP;
 }
 
 static int
 sol_remote_id(struct gensio_ll *ll, int *id)
 {
-    return ENOTSUP;
+    return GE_NOTSUP;
 }
 
 static int
@@ -952,13 +954,13 @@ sol_connection_state(ipmi_sol_conn_t *conn, ipmi_sol_state state,
 
     
     if (err)
-	err = sol_xlat_ipmi_err(err);
+	err = sol_xlat_ipmi_err(solll->o, err);
 
     sol_lock(solll);
     switch (state) {
     case ipmi_sol_state_closed:
 	if (solll->state == SOL_IN_SOL_OPEN) {
-	    solll->read_err = ECONNREFUSED;
+	    solll->read_err = GE_CONNREFUSE;
 	    if (solll->sol) {
 		ipmi_sol_free(solll->sol);
 		solll->sol = NULL;
@@ -982,7 +984,7 @@ sol_connection_state(ipmi_sol_conn_t *conn, ipmi_sol_state state,
 	    if (err)
 		solll->read_err = err;
 	    else
-		solll->read_err = EBADF;
+		solll->read_err = GE_NOTREADY;
 	    check_for_read_delivery(solll);
 	}
 	break;
@@ -1018,7 +1020,7 @@ conn_changed(ipmi_con_t   *ipmi,
     struct sol_ll *solll = cb_data;
 
     if (err)
-	err = sol_xlat_ipmi_err(err);
+	err = sol_xlat_ipmi_err(solll->o, err);
 
     sol_lock(solll);
     if (any_port_up == solll->last_any_port_up)
@@ -1050,7 +1052,7 @@ conn_changed(ipmi_con_t   *ipmi,
     } else if (err) {
 	solll->read_err = err;
     } else if (!any_port_up) {
-	solll->read_err = EBADF;
+	solll->read_err = GE_NOTREADY;
     }
 	
  out_unlock:
@@ -1065,7 +1067,7 @@ sol_open(struct gensio_ll *ll, gensio_ll_open_done done, void *open_data)
 
     sol_lock(solll);
     if (solll->state != SOL_CLOSED) {
-	err = EBUSY;
+	err = GE_INUSE;
 	goto out_unlock;
     }
 
@@ -1131,7 +1133,7 @@ sol_open(struct gensio_ll *ll, gensio_ll_open_done done, void *open_data)
     solll->ipmi->start_con(solll->ipmi);
 
     sol_unlock(solll);
-    return EINPROGRESS;
+    return GE_INPROGRESS;
 
  out_err:
     if (solll->sol) {
@@ -1152,7 +1154,7 @@ static int sol_close(struct gensio_ll *ll, gensio_ll_close_done done,
 		    void *close_data)
 {
     struct sol_ll *solll = ll_to_sol(ll);
-    int err = EBUSY;
+    int err = GE_NOTREADY;
 
     sol_lock(solll);
     if (solll->state == SOL_OPEN || solll->state == SOL_IN_OPEN ||
@@ -1174,9 +1176,9 @@ static int sol_close(struct gensio_ll *ll, gensio_ll_close_done done,
 	}
 
 	if (err)
-	    err = sol_xlat_ipmi_err(err);
+	    err = sol_xlat_ipmi_err(solll->o, err);
 	else
-	    err = EINPROGRESS;
+	    err = GE_INPROGRESS;
     }
     sol_unlock(solll);
 
@@ -1286,7 +1288,7 @@ gensio_ll_sol_func(struct gensio_ll *ll, int op, gensiods *count,
 	return 0;
 
     default:
-	return ENOTSUP;
+	return GE_NOTSUP;
     }
 }
 
@@ -1317,7 +1319,7 @@ ipmisol_ser_ops(struct gensio_ll *ll, int op,
     case SERGENSIO_FUNC_FLOWCONTROL_STATE:
     case SERGENSIO_FUNC_SIGNATURE:
     default:
-	return ENOTSUP;
+	return GE_NOTSUP;
     }
 
     return 0;
@@ -1406,13 +1408,13 @@ sol_process_parm(struct sol_ll *solll, char *arg)
     } else if (strncmp(arg, "ack-timeout=", 12) == 0) {
 	solll->ack_timeout = strtoul(arg + 12, &endpos, 10);
 	if (endpos == arg + 12 || *endpos != '\0')
-	    return EINVAL;
+	    return GE_INVAL;
     } else if (strncmp(arg, "ack-retries=", 12) == 0) {
 	solll->ack_retries = strtoul(arg + 12, &endpos, 10);
 	if (endpos == arg + 12 || *endpos != '\0')
-	    return EINVAL;
+	    return GE_INVAL;
     } else {
-	return EINVAL;
+	return GE_INVAL;
     }
 
     return 0;
@@ -1470,7 +1472,7 @@ ipmisol_gensio_ll_alloc(struct gensio_os_funcs *o,
 
     solll = o->zalloc(o, sizeof(*solll));
     if (!solll)
-	return ENOMEM;
+	return GE_NOMEM;
 
     solll->o = o;
     solll->refcount = 1;
@@ -1490,7 +1492,7 @@ ipmisol_gensio_ll_alloc(struct gensio_os_funcs *o,
     if (err)
 	goto out_err;
     if (argc == 0) {
-	err = EINVAL;
+	err = GE_INVAL;
 	goto out_err;
     }
 
@@ -1503,7 +1505,7 @@ ipmisol_gensio_ll_alloc(struct gensio_os_funcs *o,
     if (curr_arg != argc) {
 	gensio_log(o, GENSIO_LOG_WARNING,
 		   "Extra SOL arguments starting with %s\n", argv[curr_arg]);
-	err = EINVAL;
+	err = GE_INVAL;
 	gensio_argv_free(o, argv);
 	goto out_err;
     }
@@ -1537,7 +1539,7 @@ ipmisol_gensio_ll_alloc(struct gensio_os_funcs *o,
     return 0;
 
  out_nomem:
-    err = ENOMEM;
+    err = GE_NOMEM;
  out_err:
     sol_finish_free(solll);
     return err;
@@ -1555,7 +1557,7 @@ ipmisol_gensio_ll_alloc(struct gensio_os_funcs *o,
 			gensio_ll_ipmisol_ops *rops,
 			struct gensio_ll **rll)
 {
-    return ENOTSUP;
+    return GE_NOTSUP;
 }
 
 #endif

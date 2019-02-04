@@ -55,7 +55,7 @@ gen_addclass(struct gensio_os_funcs *o,
 
     c = o->zalloc(o, sizeof(*c));
     if (!c)
-	return ENOMEM;
+	return GE_NOMEM;
     c->name = name;
     c->classdata = classdata;
     c->next = *classes;
@@ -155,7 +155,7 @@ gensio_cb(struct gensio *io, int event, int err,
 	  unsigned char *buf, gensiods *buflen, const char *const *auxdata)
 {
     if (!io->cb)
-	return ENOTSUP;
+	return GE_NOTSUP;
     return io->cb(io, event, err, buf, buflen, auxdata);
 }
 
@@ -292,7 +292,7 @@ gensio_scan_args(struct gensio_os_funcs *o,
 	err = gensio_str_to_argv_endchar(o, str + 1, argc, args,
 					 " \f\n\r\t\v,", ")", &str);
 	if (!err && (!str || (*str != ',' && *str)))
-	    err = EINVAL; /* Not a ',' or end of string after */
+	    err = GE_INVAL; /* Not a ',' or end of string after */
 	else
 	    str++;
     } else {
@@ -336,7 +336,7 @@ scan_ips(struct gensio_os_funcs *o, const char *str, bool listen, int ifamily,
 
     strtok_buffer = gensio_strdup(o, str);
     if (!strtok_buffer)
-	return ENOMEM;
+	return GE_NOMEM;
 
     ip = strtok_r(strtok_buffer, ",", &strtok_data);
     while (ip) {
@@ -355,7 +355,7 @@ scan_ips(struct gensio_os_funcs *o, const char *str, bool listen, int ifamily,
 	}
 
 	if (ip == NULL) {
-	    rv = EINVAL;
+	    rv = GE_INVAL;
 	    goto out_err;
 	}
 
@@ -374,7 +374,7 @@ scan_ips(struct gensio_os_funcs *o, const char *str, bool listen, int ifamily,
 	hints.ai_socktype = socktype;
 	hints.ai_protocol = protocol;
 	if (getaddrinfo(ip, port, &hints, &ai)) {
-	    rv = EINVAL;
+	    rv = GE_INVAL;
 	    goto out_err;
 	}
 
@@ -385,7 +385,7 @@ scan_ips(struct gensio_os_funcs *o, const char *str, bool listen, int ifamily,
 	portnum = gensio_sockaddr_get_port(ai->ai_addr);
 	if (portnum == -1) {
 	    /* Not AF_INET or AF_INET6. */
-	    rv = EINVAL;
+	    rv = GE_INVAL;
 	    goto out_err;
 	}
 	if (first) {
@@ -393,14 +393,14 @@ scan_ips(struct gensio_os_funcs *o, const char *str, bool listen, int ifamily,
 	} else {
 	    if ((portnum != 0) != portset) {
 		/* One port was set and the other wasn't. */
-		rv = ENXIO;
+		rv = GE_INCONSISTENT;
 		goto out_err;
 	    }
 	}
 
 	ai3 = gensio_dup_addrinfo(o, ai);
 	if (!ai3) {
-	    rv = ENOMEM;
+	    rv = GE_NOMEM;
 	    goto out_err;
 	}
 
@@ -416,7 +416,7 @@ scan_ips(struct gensio_os_funcs *o, const char *str, bool listen, int ifamily,
     }
 
     if (!ai2) {
-	rv = ENOENT;
+	rv = GE_NOTFOUND;
 	goto out_err;
     }
 
@@ -478,7 +478,7 @@ gensio_scan_network_port(struct gensio_os_funcs *o, const char *str,
     if (doskip) {
 	if (*str == '(') {
 	    if (!rargs)
-		return EINVAL;
+		return GE_INVAL;
 	    err = gensio_scan_args(o, &str, &argc, &args);
 	    if (err)
 		return err;
@@ -666,7 +666,7 @@ i_gensio_open_s(struct gensio *io,
     data.err = 0;
     data.waiter = o->alloc_waiter(o);
     if (!data.waiter)
-	return ENOMEM;
+	return GE_NOMEM;
     err = func(io, gensio_open_s_done, &data);
     if (!err) {
 	o->wait(data.waiter, 1, NULL);
@@ -722,7 +722,7 @@ gensio_open_channel_s(struct gensio *io, const char * const args[],
     data.err = 0;
     data.waiter = o->alloc_waiter(o);
     if (!data.waiter)
-	return ENOMEM;
+	return GE_NOMEM;
     err = gensio_open_channel(io, args, cb, user_data,
 			      gensio_open_s_done, &data, new_io);
     if (!err) {
@@ -741,12 +741,12 @@ gensio_control(struct gensio *io, int depth, bool get,
 
     if (depth == GENSIO_CONTROL_DEPTH_ALL) {
 	if (get)
-	    return EINVAL;
+	    return GE_INVAL;
 	while (c) {
 	    int rv = c->func(c, GENSIO_FUNC_CONTROL, datalen, &get, option,
 			     data, NULL);
 
-	    if (rv && rv != ENOTSUP)
+	    if (rv && rv != GE_NOTSUP)
 		return rv;
 	    c = c->child;
 	}
@@ -758,19 +758,19 @@ gensio_control(struct gensio *io, int depth, bool get,
 	    int rv = c->func(c, GENSIO_FUNC_CONTROL, datalen, &get, option,
 			     data, NULL);
 
-	    if (rv != ENOTSUP)
+	    if (rv != GE_NOTSUP)
 		return rv;
 	    c = c->child;
 	}
-	return ENOTSUP;
+	return GE_NOTSUP;
     }
 
     if (depth < 0)
-	return EINVAL;
+	return GE_INVAL;
 
     while (depth > 0) {
 	if (!c->child)
-	    return ENOENT;
+	    return GE_NOTFOUND;
 	depth--;
 	c = c->child;
     }
@@ -836,7 +836,7 @@ gensio_close_s(struct gensio *io)
     data.o = o;
     data.waiter = o->alloc_waiter(o);
     if (!data.waiter)
-	return ENOMEM;
+	return GE_NOMEM;
     err = gensio_close(io, gensio_close_s_done, &data);
     if (!err)
 	o->wait(data.waiter, 1, NULL);
@@ -996,7 +996,7 @@ gensio_acc_shutdown_s(struct gensio_accepter *acc)
     data.o = o;
     data.waiter = o->alloc_waiter(o);
     if (!data.waiter)
-	return ENOMEM;
+	return GE_NOMEM;
     err = gensio_acc_shutdown(acc, gensio_acc_shutdown_s_done, &data);
     if (!err)
 	o->wait(data.waiter, 1, NULL);
@@ -1032,12 +1032,12 @@ gensio_acc_control(struct gensio_accepter *acc, int depth, bool get,
 
     if (depth == GENSIO_CONTROL_DEPTH_ALL) {
 	if (get)
-	    return EINVAL;
+	    return GE_INVAL;
 	while (c) {
 	    int rv = c->func(c, GENSIO_ACC_FUNC_CONTROL, get, NULL, NULL,
 			     data, NULL, datalen);
 
-	    if (rv && rv != ENOTSUP)
+	    if (rv && rv != GE_NOTSUP)
 		return rv;
 	    c = c->child;
 	}
@@ -1049,19 +1049,19 @@ gensio_acc_control(struct gensio_accepter *acc, int depth, bool get,
 	    int rv = c->func(c, GENSIO_ACC_FUNC_CONTROL, get, NULL, NULL,
 			     data, NULL, datalen);
 
-	    if (rv != ENOTSUP)
+	    if (rv != GE_NOTSUP)
 		return rv;
 	    c = c->child;
 	}
-	return ENOTSUP;
+	return GE_NOTSUP;
     }
 
     if (depth < 0)
-	return EINVAL;
+	return GE_INVAL;
 
     while (depth > 0) {
 	if (!c->child)
-	    return ENOENT;
+	    return GE_NOTFOUND;
 	depth--;
 	c = c->child;
     }
@@ -1163,7 +1163,7 @@ register_gensio_accepter(struct gensio_os_funcs *o,
 
     n = o->zalloc(o, sizeof(*n));
     if (!n)
-	return ENOMEM;
+	return GE_NOMEM;
 
     n->name = name;
     n->handler = handler;
@@ -1215,7 +1215,7 @@ int str_to_gensio_accepter(const char *str,
 				       &is_port_set, NULL, &args);
 	if (!err) {
 	    if (!is_port_set) {
-		err = EINVAL;
+		err = GE_INVAL;
 	    } else if (protocol == IPPROTO_UDP) {
 		err = udp_gensio_accepter_alloc(ai, args, o, cb,
 						user_data, accepter);
@@ -1226,7 +1226,7 @@ int str_to_gensio_accepter(const char *str,
 		err = sctp_gensio_accepter_alloc(ai, args, o, cb,
 						 user_data, accepter);
 	    } else {
-		err = EINVAL;
+		err = GE_INVAL;
 	    }
 
 	    gensio_free_addrinfo(o, ai);
@@ -1281,7 +1281,7 @@ register_gensio(struct gensio_os_funcs *o,
 
     n = o->zalloc(o, sizeof(*n));
     if (!n)
-	return ENOMEM;
+	return GE_NOMEM;
 
     n->name = name;
     n->handler = handler;
@@ -1335,7 +1335,7 @@ str_to_gensio(const char *str,
 				   &is_port_set, NULL, &args);
     if (!err) {
 	if (!is_port_set) {
-	    err = EINVAL;
+	    err = GE_INVAL;
 	} else if (protocol == IPPROTO_UDP) {
 	    err = udp_gensio_alloc(ai, args, o, cb, user_data, gensio);
 	} else if (protocol == IPPROTO_TCP) {
@@ -1343,7 +1343,7 @@ str_to_gensio(const char *str,
 	} else if (protocol == IPPROTO_SCTP) {
 	    err = sctp_gensio_alloc(ai, args, o, cb, user_data, gensio);
 	} else {
-	    err = EINVAL;
+	    err = GE_INVAL;
 	}
 
 	gensio_free_addrinfo(o, ai);
@@ -1466,7 +1466,7 @@ gensio_sockaddr_to_str(const struct sockaddr *addr, socklen_t *addrlen,
     out_err:
 	if (left)
 	    buf[pos] = '\0';
-	return EINVAL;
+	return GE_INVAL;
     }
 
     if (epos)
@@ -1872,13 +1872,13 @@ gensio_add_default(struct gensio_os_funcs *o,
     o->lock(deflock);
     d = gensio_lookup_default(name);
     if (d) {
-	err = EEXIST;
+	err = GE_EXISTS;
 	goto out_unlock;
     }
 
     d = o->zalloc(o, sizeof(*d));
     if (!d) {
-	err = ENOMEM;
+	err = GE_NOMEM;
 	goto out_unlock;
     }
 
@@ -1892,7 +1892,7 @@ gensio_add_default(struct gensio_os_funcs *o,
 	d->def.strval = strdup(strval);
 	if (!d->def.strval) {
 	    o->free(0, d);
-	    err = ENOMEM;
+	    err = GE_NOMEM;
 	    goto out_unlock;
 	}
     }
@@ -1920,7 +1920,7 @@ gensio_set_default(struct gensio_os_funcs *o,
     o->lock(deflock);
     d = gensio_lookup_default(name);
     if (!d) {
-	err = ENOENT;
+	err = GE_NOTFOUND;
 	goto out_unlock;
     }
 
@@ -1931,7 +1931,7 @@ gensio_set_default(struct gensio_os_funcs *o,
 		break;
 	}
 	if (!d->enums[i].name) {
-	    err = EINVAL;
+	    err = GE_INVAL;
 	    goto out_unlock;
 	}
 	intval = d->enums[i].val;
@@ -1948,7 +1948,7 @@ gensio_set_default(struct gensio_os_funcs *o,
 		 strcmp(strval, "FALSE") == 0)
 	    intval = 0;
 	else {
-	    err = EINVAL;
+	    err = GE_INVAL;
 	    goto out_unlock;
 	}
 	break;
@@ -1957,11 +1957,11 @@ gensio_set_default(struct gensio_os_funcs *o,
 	if (strval) {
 	    intval = strtoul(strval, &end, 10);
 	    if (end == strval || *end) {
-		err = EINVAL;
+		err = GE_INVAL;
 		goto out_unlock;
 	    }
 	    if (intval < d->min || intval > d->max) {
-		err = ERANGE;
+		err = GE_OUTOFRANGE;
 		goto out_unlock;
 	    }
 	}
@@ -1970,13 +1970,13 @@ gensio_set_default(struct gensio_os_funcs *o,
     case GENSIO_DEFAULT_STR:
 	new_strval = gensio_strdup(o, strval);
 	if (!new_strval) {
-	    err = ENOMEM;
+	    err = GE_NOMEM;
 	    goto out_unlock;
 	}
 	break;
 
     default:
-	err = EINVAL;
+	err = GE_INVAL;
 	goto out_unlock;
     }
 
@@ -1986,7 +1986,7 @@ gensio_set_default(struct gensio_os_funcs *o,
 	if (!c) {
 	    c = o->zalloc(o, sizeof(*c));
 	    if (!c) {
-		err = ENOMEM;
+		err = GE_NOMEM;
 		goto out_unlock;
 	    }
 	    c->class = class;
@@ -2030,14 +2030,14 @@ gensio_get_default(struct gensio_os_funcs *o,
     o->lock(deflock);
     d = gensio_lookup_default(name);
     if (!d) {
-	err = ENOENT;
+	err = GE_NOTFOUND;
 	goto out_unlock;
     }
 
     if (d->type != type &&
 	    !(d->type == GENSIO_DEFAULT_ENUM && type == GENSIO_DEFAULT_INT) &&
 	    !(d->type == GENSIO_DEFAULT_BOOL && type == GENSIO_DEFAULT_INT)) {
-	err = EINVAL;
+	err = GE_INVAL;
 	goto out_unlock;
     }
 

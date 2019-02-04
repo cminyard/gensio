@@ -24,6 +24,8 @@
 #include <string.h>
 #include "buffer.h"
 
+#include <gensio/gensio_err.h>
+
 static int
 do_write(buffer_do_write tdo_write, void *cb_data,
 	 void  *buf, unsigned int buflen, unsigned int *written)
@@ -31,17 +33,9 @@ do_write(buffer_do_write tdo_write, void *cb_data,
     int err = 0;
     unsigned int write_count;
 
- retry:
     err = tdo_write(cb_data, buf, buflen, &write_count);
-    if (err == EINTR)
-	goto retry;
-
-    if (err == EAGAIN || err == EWOULDBLOCK) {
-	err = 0;
-	*written = 0;
-    } else if (!err) {
+    if (!err)
 	*written = write_count;
-    }
 
     return err;
 }
@@ -137,7 +131,7 @@ buffer_init(struct sbuf *buf, unsigned char *data, unsigned int datasize)
     } else {
 	buf->buf = malloc(datasize);
 	if (!buf->buf)
-	    return ENOMEM;
+	    return GE_NOMEM;
     }
     buf->maxsize = datasize;
     buf->cursize = 0;

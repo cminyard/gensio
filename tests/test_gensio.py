@@ -476,8 +476,8 @@ def test_rs485():
 class TestAcceptConnect:
     def __init__(self, o, iostr, io2str, io3str, tester, name = None,
                  io1_dummy_write = None, CA=None, do_close = True,
-                 auth_begin_rv = gensio.ENOTSUP, expect_pw = None,
-                 expect_pw_rv = gensio.ENOTSUP, password = None):
+                 auth_begin_rv = gensio.GE_NOTSUP, expect_pw = None,
+                 expect_pw_rv = gensio.GE_NOTSUP, password = None):
         self.o = o
         if (name):
             self.name = name
@@ -549,8 +549,8 @@ class TestAcceptConnect:
     def precert_verify(self, acc, io):
         if self.CA:
             io.control(0, False, gensio.GENSIO_CONTROL_CERT_AUTH, self.CA)
-            return gensio.ENOTSUP
-        return gensio.ENOTSUP
+            return gensio.GE_NOTSUP
+        return gensio.GE_NOTSUP
 
     def password_verify(self, acc, io, password):
         if self.expect_pw is None:
@@ -600,8 +600,8 @@ def test_ssl_sctp_acc_connect():
     except Exception as E:
         s = str(E)
         # We can race and get either one of these
-        if (not (s.endswith("Communication error on send") or
-                 s.endswith("Broken pipe"))):
+        if (not (s.endswith("Communication error") or
+                 s.endswith("Remote end closed connection"))):
             raise
         print("  Success checking no client cert")
         goterr = True
@@ -622,8 +622,8 @@ def test_ssl_sctp_acc_connect():
     except Exception as E:
         s = str(E)
         # We can race and get either one of these
-        if (not (s.endswith("Communication error on send") or
-                 s.endswith("Broken pipe"))):
+        if (not (s.endswith("Communication error") or
+                 s.endswith("Remote end closed connection"))):
             raise
         print("  Success checking invalid client cert")
         goterr = True
@@ -652,8 +652,8 @@ def test_certauth_sctp_acc_connect():
     except Exception as E:
         s = str(E)
         # We can race and get either one of these
-        if (not (s.endswith("Communication error on send") or
-                 s.endswith("Broken pipe"))):
+        if (not (s.endswith("Communication error") or
+                 s.endswith("Remote end closed connection"))):
             raise
         print("  Success checking invalid client cert")
         goterr = True

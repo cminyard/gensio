@@ -27,36 +27,47 @@
 
 #include <gensio/gensio.h>
 
-int gensio_os_write(int fd, const void *buf, gensiods buflen, gensiods *rcount);
+int gensio_os_write(struct gensio_os_funcs *o,
+		    int fd, const void *buf, gensiods buflen, gensiods *rcount);
 
-int gensio_os_read(int fd, void *buf, gensiods buflen, gensiods *rcount);
+int gensio_os_read(struct gensio_os_funcs *o,
+		   int fd, void *buf, gensiods buflen, gensiods *rcount);
 
-int gensio_os_recv(int fd, void *buf, gensiods buflen, gensiods *rcount,
+int gensio_os_recv(struct gensio_os_funcs *o,
+		   int fd, void *buf, gensiods buflen, gensiods *rcount,
 		   int flags);
 
-int gensio_os_send(int fd, const void *buf, gensiods buflen, gensiods *rcount,
+int gensio_os_send(struct gensio_os_funcs *o,
+		   int fd, const void *buf, gensiods buflen, gensiods *rcount,
 		   int flags);
 
-int gensio_os_sendto(int fd, const void *buf, gensiods buflen, gensiods *rcount,
+int gensio_os_sendto(struct gensio_os_funcs *o,
+		     int fd, const void *buf, gensiods buflen, gensiods *rcount,
 		     int flags,
 		     const struct sockaddr *raddr,socklen_t raddrlen);
 
-int gensio_os_recvfrom(int fd, void *buf, gensiods buflen, gensiods *rcount,
+int gensio_os_recvfrom(struct gensio_os_funcs *o,
+		       int fd, void *buf, gensiods buflen, gensiods *rcount,
 		       int flags, struct sockaddr *raddr, socklen_t *raddrlen);
 
-int gensio_os_accept(int fd, struct sockaddr *addr, socklen_t *addrlen,
+int gensio_os_accept(struct gensio_os_funcs *o,
+		     int fd, struct sockaddr *addr, socklen_t *addrlen,
 		     int *newsock);
 
-int gensio_os_sctp_recvmsg(int fd, void *msg, gensiods len, gensiods *rcount,
+int gensio_os_sctp_recvmsg(struct gensio_os_funcs *o,
+			   int fd, void *msg, gensiods len, gensiods *rcount,
 			   struct sctp_sndrcvinfo *sinfo, int *msg_flags);
 
-int gensio_os_sctp_send(int fd, const void *msg, gensiods len, gensiods *rcount,
+int gensio_os_sctp_send(struct gensio_os_funcs *o,
+			int fd, const void *msg, gensiods len, gensiods *rcount,
                         const struct sctp_sndrcvinfo *sinfo, uint32_t flags);
 
-int gensio_setup_child_on_pty(char *const argv[], const char **env,
+int gensio_setup_child_on_pty(struct gensio_os_funcs *o,
+			      char *const argv[], const char **env,
 			      int *rptym, pid_t *rpid);
 
-int gensio_get_random(void *data, unsigned int len);
+int gensio_get_random(struct gensio_os_funcs *o,
+		      void *data, unsigned int len);
 
 struct opensocks
 {

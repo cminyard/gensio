@@ -423,14 +423,14 @@ termios_process(struct sterm_data *sdata)
 	    struct termios termio;
 
 	    if (tcgetattr(sdata->fd, &termio) == -1)
-		err = errno;
+		err = gensio_os_err_to_err(sdata->o, errno);
 	    else
 		err = qe->getset(&termio, NULL, &val);
 	} else if (qe->op == TERMIO_OP_MCTL) {
 	    int mctl = 0;
 
 	    if (ioctl(sdata->fd, TIOCMGET, &mctl) == -1)
-		err = errno;
+		err = gensio_os_err_to_err(sdata->o, errno);
 	    else
 		err = qe->getset(NULL, &mctl, &val);
 	} else if (qe->op == TERMIO_OP_BRK) {
@@ -470,12 +470,12 @@ termios_set_get(struct sterm_data *sdata, int val, enum termio_op op,
     int err = 0;
 
     if (sdata->write_only)
-	return ENOTSUP;
+	return GE_NOTSUP;
 
     if (done) {
 	qe = sdata->o->zalloc(sdata->o, sizeof(*qe));
 	if (!qe)
-	    return ENOMEM;
+	    return GE_NOMEM;
 	qe->getset = getset;
 	qe->done = done;
 	qe->cb_data = cb_data;
@@ -485,7 +485,7 @@ termios_set_get(struct sterm_data *sdata, int val, enum termio_op op,
 
     sterm_lock(sdata);
     if (!sdata->open) {
-	err = EBUSY;
+	err = GE_NOTREADY;
 	goto out_unlock;
     }
 
@@ -525,7 +525,7 @@ termios_set_get(struct sterm_data *sdata, int val, enum termio_op op,
 		iocval = TIOCCBRK;
 		bval = false;
 	    } else {
-		err = EINVAL;
+		err = GE_INVAL;
 		goto out_unlock;
 	    }
 	    if (ioctl(sdata->fd, iocval) == -1) {
@@ -534,7 +534,7 @@ termios_set_get(struct sterm_data *sdata, int val, enum termio_op op,
 	    }
 	    sdata->break_set = bval;
 	} else {
-	    err = EINVAL;
+	    err = GE_INVAL;
 	    goto out_unlock;
 	}
     }
@@ -565,7 +565,7 @@ termios_get_set_baud(struct termios *termio, int *mctl, int *ival)
 
     if (val) {
 	if (!get_baud_rate(val, &val))
-	    return EINVAL;
+	    return GE_INVAL;
 
 	cfsetispeed(termio, val);
 	cfsetospeed(termio, val);
@@ -599,7 +599,7 @@ termios_get_set_datasize(struct termios *termio, int *mctl, int *ival)
 	case 7: val = CS7; break;
 	case 8: val = CS8; break;
 	default:
-	    return EINVAL;
+	    return GE_INVAL;
 	}
 	termio->c_cflag &= ~CSIZE;
 	termio->c_cflag |= val;
@@ -610,7 +610,7 @@ termios_get_set_datasize(struct termios *termio, int *mctl, int *ival)
 	case CS7: *ival = 7; break;
 	case CS8: *ival = 8; break;
 	default:
-	    return EINVAL;
+	    return GE_INVAL;
 	}
     }
     return 0;
@@ -642,7 +642,7 @@ termios_get_set_parity(struct termios *termio, int *mctl, int *ival)
 	case SERGENSIO_PARITY_SPACE: val = PARENB | CMSPAR; break;
 #endif
 	default:
-	    return EINVAL;
+	    return GE_INVAL;
 	}
 	termio->c_cflag &= ~(PARENB | PARODD);
 #ifdef CMSPAR
@@ -692,7 +692,7 @@ termios_get_set_stopbits(struct termios *termio, int *mctl, int *ival)
 	else if (*ival == 2)
 	    termio->c_cflag |= CSTOPB;
 	else
-	    return EINVAL;
+	    return GE_INVAL;
     } else {
 	if (termio->c_cflag & CSTOPB)
 	    *ival = 2;
@@ -725,7 +725,7 @@ termios_get_set_flowcontrol(struct termios *termio, int *mctl, int *ival)
 	case SERGENSIO_FLOWCONTROL_XON_XOFF: val = IXON | IXOFF; break;
 	case SERGENSIO_FLOWCONTROL_RTS_CTS: val = CRTSCTS; break;
 	default:
-	    return EINVAL;
+	    return GE_INVAL;
 	}
 	termio->c_cflag &= ~(IXON | IXOFF | CRTSCTS);
 	termio->c_cflag |= val;
@@ -752,7 +752,7 @@ termios_get_set_iflowcontrol(struct termios *termio, int *mctl, int *ival)
 	case SERGENSIO_FLOWCONTROL_NONE: val = 0; break;
 	case SERGENSIO_FLOWCONTROL_XON_XOFF: val = IXOFF; break;
 	default:
-	    return EINVAL;
+	    return GE_INVAL;
 	}
 	termio->c_cflag &= ~IXOFF;
 	termio->c_cflag |= val;
@@ -808,7 +808,7 @@ termios_get_set_dtr(struct termios *termio, int *mctl, int *ival)
 	else if (*ival == SERGENSIO_DTR_OFF)
 	    *mctl &= ~TIOCM_DTR;
 	else
-	    return EINVAL;
+	    return GE_INVAL;
     } else {
 	if (*mctl & TIOCM_DTR)
 	    *ival = SERGENSIO_DTR_ON;
@@ -838,7 +838,7 @@ termios_get_set_rts(struct termios *termio, int *mctl, int *ival)
 	else if (*ival == SERGENSIO_RTS_OFF)
 	    *mctl &= ~TIOCM_RTS;
 	else
-	    return EINVAL;
+	    return GE_INVAL;
     } else {
 	if (*mctl & TIOCM_RTS)
 	    *ival = SERGENSIO_RTS_ON;
@@ -966,7 +966,7 @@ sterm_flush(struct sergensio *sio, unsigned int val)
     case SERGIO_FLUSH_RCV_BUFFER:	tval = TCIFLUSH; break;
     case SERGIO_FLUSH_XMIT_BUFFER:	tval = TCOFLUSH; break;
     case SERGIO_FLUSH_RCV_XMIT_BUFFERS:	tval = TCIOFLUSH; break;
-    default: return EINVAL;
+    default: return GE_INVAL;
     }
 
     err = tcflush(sdata->fd, tval);
@@ -991,7 +991,7 @@ sergensio_sterm_func(struct sergensio *sio, int op, int val, char *buf,
     struct sterm_data *sdata = sergensio_get_gensio_data(sio);
 
     if (sdata->write_only)
-	return ENOTSUP;
+	return GE_NOTSUP;
 
     switch (op) {
     case SERGENSIO_FUNC_BAUD:
@@ -1036,7 +1036,7 @@ sergensio_sterm_func(struct sergensio *sio, int op, int val, char *buf,
     case SERGENSIO_FUNC_SIGNATURE:
     case SERGENSIO_FUNC_LINESTATE:
     default:
-	return ENOTSUP;
+	return GE_NOTSUP;
     }
 }
 
@@ -1085,7 +1085,7 @@ sterm_check_close_drain(void *handler_data, enum gensio_ll_close_state state,
 	goto out_rm_uucp;
 
  out_einprogress:
-    err = EINPROGRESS;
+    err = GE_INPROGRESS;
     next_timeout->tv_sec = 0;
     next_timeout->tv_usec = 10000;
  out_rm_uucp:
@@ -1119,11 +1119,11 @@ sterm_sub_open(void *handler_data, int *fd)
     if (!sdata->no_uucp_lock) {
 	err = uucp_mk_lock(sdata->devname);
 	if (err > 0) {
-	    err = EBUSY;
+	    err = GE_INUSE;
 	    goto out;
 	}
 	if (err < 0) {
-	    err = errno;
+	    err = gensio_os_err_to_err(sdata->o, errno);
 	    goto out;
 	}
     }
@@ -1182,6 +1182,7 @@ sterm_sub_open(void *handler_data, int *fd)
  out_uucp:
     if (!sdata->no_uucp_lock)
 	uucp_rm_lock(sdata->devname);
+    err = gensio_os_err_to_err(sdata->o, err);
  out:
     if (sdata->fd != -1) {
 	close(sdata->fd);
@@ -1335,7 +1336,7 @@ sterm_control(void *handler_data, int fd, bool get, unsigned int option,
 	      char *data, gensiods *datalen)
 {
     if (get || option != GENSIO_CONTROL_SEND_BREAK)
-	return ENOTSUP;
+	return GE_NOTSUP;
 
     tcsendbreak(fd, 0);
     return 0;
@@ -1359,7 +1360,7 @@ process_termios_parm(struct termios *termio, const char *parm)
 
     if ((val = speedstr_to_speed(parm, &rest)) != -1) {
 	if (set_termios_from_speed(termio, val, rest) == -1)
-	    rv = EINVAL;
+	    rv = GE_INVAL;
     } else if (strcmp(parm, "1STOPBIT") == 0) {
 	termio->c_cflag &= ~(CSTOPB);
     } else if (strcmp(parm, "2STOPBITS") == 0) {
@@ -1391,7 +1392,7 @@ process_termios_parm(struct termios *termio, const char *parm)
     } else if (strcmp(parm, "-HANGUP_WHEN_DONE") == 0) {
 	termio->c_cflag &= ~HUPCL;
     } else {
-	rv = ENOTSUP;
+	rv = GE_NOTSUP;
     }
 
     return rv;
@@ -1409,7 +1410,7 @@ process_rs485(struct sterm_data *sdata, const char *str)
     if (err)
 	return err;
     if (argc < 2)
-	return EINVAL;
+	return GE_INVAL;
 
     sdata->rs485.delay_rts_before_send = strtoul(argv[0], &end, 10);
     if (end == argv[0] || *end != '\0')
@@ -1442,10 +1443,10 @@ process_rs485(struct sterm_data *sdata, const char *str)
     return err;
 
  out_inval:
-    err = EINVAL;
+    err = GE_INVAL;
     goto out;
 #else
-    return ENOTSUP;
+    return GE_NOTSUP;
 #endif
 }
 
@@ -1563,7 +1564,7 @@ serialdev_gensio_alloc(const char *devname, const char * const args[],
     bool nouucplock_set = false;
 
     if (!sdata)
-	return ENOMEM;
+	return GE_NOMEM;
 
     for (i = 0; args && args[i]; i++) {
 	if (gensio_check_keyds(args[i], "readbuf", &max_read_size) > 0)
@@ -1571,7 +1572,7 @@ serialdev_gensio_alloc(const char *devname, const char * const args[],
 	if (gensio_check_keybool(args[i], "nouucplock",
 				 &sdata->no_uucp_lock) > 0)
 	    nouucplock_set = true;
-	return EINVAL;
+	return GE_INVAL;
     }
 
     if (!nouucplock_set) {
@@ -1633,13 +1634,13 @@ serialdev_gensio_alloc(const char *devname, const char * const args[],
     io = base_gensio_alloc(o, ll, NULL, NULL, "serialdev", cb, user_data);
     if (!io) {
 	gensio_ll_free(ll);
-	return ENOMEM;
+	return GE_NOMEM;
     }
 
     sdata->sio = sergensio_data_alloc(o, io, sergensio_sterm_func, sdata);
     if (!sdata->sio) {
 	gensio_free(io);
-	return ENOMEM;
+	return GE_NOMEM;
     }
 
     err = gensio_addclass(io, "sergensio", sdata->sio);
@@ -1652,7 +1653,7 @@ serialdev_gensio_alloc(const char *devname, const char * const args[],
     return 0;
 
  out_nomem:
-    err = ENOMEM;
+    err = GE_NOMEM;
  out_err:
     sterm_free(sdata);
     return err;

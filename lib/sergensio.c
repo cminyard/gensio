@@ -216,7 +216,7 @@ sergensio_b_alloc(struct sergensio *sio, struct gensio_os_funcs *o,
     struct sergensio_b *sbio = malloc(sizeof(*sbio));
 
     if (!sbio)
-	return ENOMEM;
+	return GE_NOMEM;
 
     sbio->sio = sio;
     sbio->o = o;
@@ -248,7 +248,7 @@ sergensio_baud_b(struct sergensio_b *sbio, int *baud)
 
     data.waiter = sbio->o->alloc_waiter(sbio->o);
     if (!data.waiter)
-	return ENOMEM;
+	return GE_NOMEM;
 
     data.err = 0;
     data.o = sbio->o;
@@ -272,7 +272,7 @@ sergensio_datasize_b(struct sergensio_b *sbio, int *datasize)
 
     data.waiter = sbio->o->alloc_waiter(sbio->o);
     if (!data.waiter)
-	return ENOMEM;
+	return GE_NOMEM;
 
     data.err = 0;
     data.o = sbio->o;
@@ -296,7 +296,7 @@ sergensio_parity_b(struct sergensio_b *sbio, int *parity)
 
     data.waiter = sbio->o->alloc_waiter(sbio->o);
     if (!data.waiter)
-	return ENOMEM;
+	return GE_NOMEM;
 
     data.err = 0;
     data.o = sbio->o;
@@ -320,7 +320,7 @@ sergensio_stopbits_b(struct sergensio_b *sbio, int *stopbits)
 
     data.waiter = sbio->o->alloc_waiter(sbio->o);
     if (!data.waiter)
-	return ENOMEM;
+	return GE_NOMEM;
 
     data.err = 0;
     data.o = sbio->o;
@@ -344,7 +344,7 @@ sergensio_flowcontrol_b(struct sergensio_b *sbio, int *flowcontrol)
 
     data.waiter = sbio->o->alloc_waiter(sbio->o);
     if (!data.waiter)
-	return ENOMEM;
+	return GE_NOMEM;
 
     data.err = 0;
     data.o = sbio->o;
@@ -369,7 +369,7 @@ sergensio_iflowcontrol_b(struct sergensio_b *sbio, int *iflowcontrol)
 
     data.waiter = sbio->o->alloc_waiter(sbio->o);
     if (!data.waiter)
-	return ENOMEM;
+	return GE_NOMEM;
 
     data.err = 0;
     data.o = sbio->o;
@@ -394,7 +394,7 @@ sergensio_sbreak_b(struct sergensio_b *sbio, int *breakv)
 
     data.waiter = sbio->o->alloc_waiter(sbio->o);
     if (!data.waiter)
-	return ENOMEM;
+	return GE_NOMEM;
 
     data.err = 0;
     data.o = sbio->o;
@@ -418,7 +418,7 @@ sergensio_dtr_b(struct sergensio_b *sbio, int *dtr)
 
     data.waiter = sbio->o->alloc_waiter(sbio->o);
     if (!data.waiter)
-	return ENOMEM;
+	return GE_NOMEM;
 
     data.err = 0;
     data.o = sbio->o;
@@ -442,7 +442,7 @@ sergensio_rts_b(struct sergensio_b *sbio, int *rts)
 
     data.waiter = sbio->o->alloc_waiter(sbio->o);
     if (!data.waiter)
-	return ENOMEM;
+	return GE_NOMEM;
 
     data.err = 0;
     data.o = sbio->o;

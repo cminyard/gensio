@@ -177,7 +177,7 @@ basen_deref_and_unlock(struct basen_data *ndata)
 						     basen_timer_stopped,
 						     ndata);
 
-	    if (err != ETIMEDOUT)
+	    if (err != GE_TIMEDOUT)
 		return;
 	}
 	basen_finish_free(ndata);
@@ -285,7 +285,7 @@ ll_write(struct basen_data *ndata, gensiods *rcount,
 }
 
 /*
- * Returns 0 if the open was immediate, EINPROGRESS if it was deferred,
+ * Returns 0 if the open was immediate, GE_INPROGRESS if it was deferred,
  * and an errno otherwise.
  */
 static int
@@ -302,7 +302,7 @@ ll_close(struct basen_data *ndata, gensio_ll_close_done done, void *close_data)
     int err;
 
     err = gensio_ll_close(ndata->ll, done, close_data);
-    if (err == EINPROGRESS) {
+    if (err == GE_INPROGRESS) {
 	basen_ref(ndata);
     } else {
 	ndata->deferred_close = true;
@@ -358,7 +358,7 @@ basen_write(struct basen_data *ndata, gensiods *rcount,
 
     basen_lock(ndata);
     if (ndata->state != BASEN_OPEN) {
-	err = EBADF;
+	err = GE_NOTREADY;
 	goto out_unlock;
     }
     if (ndata->saved_xmit_err) {
@@ -523,9 +523,9 @@ basen_try_connect(struct basen_data *ndata)
     ll_set_read_callback_enable(ndata, false);
 
     err = filter_try_connect(ndata, &timeout);
-    if (err == EINPROGRESS)
+    if (err == GE_INPROGRESS)
 	return;
-    if (err == EAGAIN) {
+    if (err == GE_RETRY) {
 	ndata->o->start_timer(ndata->timer, &timeout);
 	return;
     }
@@ -579,7 +579,7 @@ basen_ll_open_done(void *cb_data, int err, void *open_data)
 static int
 basen_open(struct basen_data *ndata, gensio_done_err open_done, void *open_data)
 {
-    int err = EBUSY;
+    int err = GE_INUSE;
 
     basen_lock(ndata);
     if (ndata->state == BASEN_CLOSED) {
@@ -603,7 +603,7 @@ basen_open(struct basen_data *ndata, gensio_done_err open_done, void *open_data)
 	    ndata->state = BASEN_IN_FILTER_OPEN;
 	    ndata->deferred_open = true;
 	    basen_sched_deferred_op(ndata);
-	} else if (err == EINPROGRESS) {
+	} else if (err == GE_INPROGRESS) {
 	    ndata->state = BASEN_IN_LL_OPEN;
 	    basen_ref(ndata);
 	    err = 0;
@@ -622,7 +622,7 @@ static int
 basen_open_nochild(struct basen_data *ndata,
 		   gensio_done_err open_done, void *open_data)
 {
-    int err = EBUSY;
+    int err = GE_INUSE;
 
     basen_lock(ndata);
     if (ndata->state == BASEN_CLOSED) {
@@ -665,9 +665,9 @@ basen_try_close(struct basen_data *ndata)
     ll_set_read_callback_enable(ndata, false);
 
     err = filter_try_disconnect(ndata, &timeout);
-    if (err == EINPROGRESS)
+    if (err == GE_INPROGRESS)
 	return;
-    if (err == EAGAIN) {
+    if (err == GE_RETRY) {
 	ndata->o->start_timer(ndata->timer, &timeout);
 	return;
     }
@@ -708,7 +708,7 @@ basen_close(struct basen_data *ndata, gensio_done close_done, void *close_data)
 	    /* Lose the ref we get for being in filter or ll open state. */
 	    basen_deref(ndata);
 	} else {
-	    err = EBUSY;
+	    err = GE_NOTREADY;
 	}
     } else {
 	basen_i_close(ndata, close_done, close_data);
@@ -873,16 +873,16 @@ gensio_base_func(struct gensio *io, int func, gensiods *count,
 	return gensio_ll_remote_id(ndata->ll, buf);
 
     case GENSIO_FUNC_CONTROL:
-	rv = ENOTSUP;
+	rv = GE_NOTSUP;
 	if (ndata->filter) {
 	    rv = gensio_filter_control(ndata->filter, *((bool *) cbuf), buflen,
 				       buf, count);
-	    if (rv && rv != ENOTSUP)
+	    if (rv && rv != GE_NOTSUP)
 		return rv;
 	}
 	rv2 = gensio_ll_control(ndata->ll, *((bool *) cbuf), buflen, buf,
 				count);
-	if (rv2 == ENOTSUP)
+	if (rv2 == GE_NOTSUP)
 	    return rv;
 	return rv2;
 
@@ -894,7 +894,7 @@ gensio_base_func(struct gensio *io, int func, gensiods *count,
 	return 0;
 
     default:
-	return ENOTSUP;
+	return GE_NOTSUP;
     }
 }
 
@@ -921,7 +921,7 @@ basen_ll_read(void *cb_data, int readerr,
 			ndata->state == BASEN_IN_LL_OPEN) {
 	    ndata->state = BASEN_IN_LL_CLOSE;
 	    basen_deref(ndata);
-	    ll_close(ndata, basen_ll_close_on_err, (void *) (long) ECOMM);
+	    ll_close(ndata, basen_ll_close_on_err, (void *) (long) readerr);
 	} else if (ndata->state == BASEN_CLOSE_WAIT_DRAIN ||
 			ndata->state == BASEN_IN_FILTER_CLOSE) {
 	    ndata->state = BASEN_IN_LL_CLOSE;
@@ -1059,7 +1059,7 @@ gensio_base_filter_cb(void *cb_data, int op, void *data)
 	return 0;
 
     default:
-	return ENOTSUP;
+	return GE_NOTSUP;
     }
 }
 

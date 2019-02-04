@@ -64,8 +64,8 @@ static int tcp_check_open(void *handler_data, int fd)
 
     err = getsockopt(fd, SOL_SOCKET, SO_ERROR, &optval, &len);
     if (err) {
-	tdata->last_err = errno;
-	return errno;
+	tdata->last_err = gensio_os_err_to_err(tdata->o, errno);
+	return tdata->last_err;
     }
     tdata->last_err = optval;
     if (!optval) {
@@ -154,7 +154,7 @@ tcp_try_open(struct tcp_data *tdata, int *fd)
     }
 
  out_return:
-    return err;
+    return gensio_os_err_to_err(tdata->o, err);
 }
 
 static int
@@ -236,7 +236,7 @@ tcp_control(void *handler_data, int fd, bool get, unsigned int option,
 	return 0;
 
     default:
-	return ENOTSUP;
+	return GE_NOTSUP;
     }
 }
 
@@ -244,7 +244,9 @@ static int
 tcp_oob_read(int fd, void *data, gensiods count, gensiods *rcount,
 	     const char **auxdata, void *cb_data)
 {
-    return gensio_os_recv(fd, data, count, rcount, MSG_OOB);
+    struct tcp_data *tdata = cb_data;
+
+    return gensio_os_recv(tdata->o, fd, data, count, rcount, MSG_OOB);
 }
 
 static void
@@ -253,7 +255,7 @@ tcp_except_ready(void *handler_data, int fd)
     struct tcp_data *tdata = handler_data;
     static const char *argv[2] = { "oob", NULL };
 
-    gensio_fd_ll_handle_incoming(tdata->ll, tcp_oob_read, argv, NULL);
+    gensio_fd_ll_handle_incoming(tdata->ll, tcp_oob_read, argv, tdata);
 }
 
 static int
@@ -261,6 +263,7 @@ tcp_write(void *handler_data, int fd, gensiods *rcount,
 	  const unsigned char *buf, gensiods buflen,
 	  const char *const *auxdata)
 {
+    struct tcp_data *tdata = handler_data;
     int err = 0;
     int flags = 0;
 
@@ -279,7 +282,7 @@ tcp_write(void *handler_data, int fd, gensiods *rcount,
 	    return err;
     }
 
-    return gensio_os_send(fd, buf, buflen, rcount, flags);
+    return gensio_os_send(tdata->o, fd, buf, buflen, rcount, flags);
 }
 
 static const struct gensio_fd_ll_ops tcp_fd_ll_ops = {
@@ -481,7 +484,7 @@ tcpna_server_open_done(struct gensio *io, int err, void *open_data)
 	gensio_free(io);
 	gensio_acc_log(nadata->acc, GENSIO_LOG_ERR,
 		       "Error setting up TCP server gensio: %s",
-		       strerror(err));
+		       gensio_err_to_str(err));
     } else {
 	gensio_acc_cb(nadata->acc, GENSIO_ACC_EVENT_NEW_CONNECTION, io);
     }
@@ -502,11 +505,13 @@ tcpna_readhandler(int fd, void *cbdata)
     const char *errstr;
     int err;
 
-    err = gensio_os_accept(fd, (struct sockaddr *) &addr, &addrlen, &new_fd);
+    err = gensio_os_accept(nadata->o,
+			   fd, (struct sockaddr *) &addr, &addrlen, &new_fd);
     if (err) {
 	if (err != EAGAIN)
 	    gensio_acc_log(nadata->acc, GENSIO_LOG_ERR,
-			   "Error accepting TCP gensio: %s", strerror(err));
+			   "Error accepting TCP gensio: %s",
+			   gensio_err_to_str(err));
 	return;
     }
 
@@ -532,8 +537,9 @@ tcpna_readhandler(int fd, void *cbdata)
     
     err = tcp_socket_setup(tdata, new_fd);
     if (err) {
+	err = gensio_os_err_to_err(tdata->o, err);
 	gensio_acc_log(nadata->acc, GENSIO_LOG_ERR,
-		       "Error setting up tcp port: %s", strerror(err));
+		       "Error setting up tcp port: %s", gensio_err_to_str(err));
 	close(new_fd);
 	tcp_free(tdata);
 	return;
@@ -793,7 +799,7 @@ gensio_acc_tcp_func(struct gensio_accepter *acc, int func, int val,
 	return 0;
 
     default:
-	return ENOTSUP;
+	return GE_NOTSUP;
     }
 }
 

@@ -155,7 +155,7 @@ swig_finish_call_rv_int(swig_cb_val *cb, const char *method_name,
 			PyObject *args, bool optional)
 {
     PyObject *o;
-    int rv = ENOTSUP;
+    int rv = GE_NOTSUP;
 
     o = swig_finish_call_rv(cb, method_name, args, optional);
     if (o) {
@@ -658,7 +658,7 @@ gensio_child_event(struct gensio *io, int event, int readerr,
 	PyErr_Format(PyExc_RuntimeError, "gensio callback: "
 		     "gensio handler was not set");
 	wake_curr_waiter();
-	rv = ENOTSUP;
+	rv = GE_NOTSUP;
 	goto out_put;
     }
 
@@ -671,7 +671,7 @@ gensio_child_event(struct gensio *io, int event, int readerr,
 	PyTuple_SET_ITEM(args, 0, io_ref.val);
 
 	if (readerr) {
-	    o = OI_PI_FromString(strerror(readerr));
+	    o = OI_PI_FromString(gensio_err_to_str(readerr));
 	} else {
 	    Py_INCREF(Py_None);
 	    o = Py_None;
@@ -762,7 +762,7 @@ gensio_child_event(struct gensio *io, int event, int readerr,
 	PyTuple_SET_ITEM(args, 0, io_ref.val);
 	o = swig_finish_call_rv(data->handler_val, "request_password",
 				args, true);
-	rv = ENOTSUP;
+	rv = GE_NOTSUP;
 	if (o) {
 	    if (OI_PI_StringCheck(o)) {
 		char *p = OI_PI_AsString(o);
@@ -840,7 +840,7 @@ gensio_child_event(struct gensio *io, int event, int readerr,
 	break;
 
     default:
-	rv = ENOTSUP;
+	rv = GE_NOTSUP;
 	break;
     }
 
@@ -1001,7 +1001,7 @@ gensio_acc_child_event(struct gensio_accepter *accepter, int event, void *cdata)
 	o = swig_finish_call_rv(data->handler_val, "request_password",
 				args, true);
 	gensio_set_user_data(io, old_user_data);
-	rv = ENOTSUP;
+	rv = GE_NOTSUP;
 	if (o) {
 	    if (OI_PI_StringCheck(o)) {
 		char *p = OI_PI_AsString(o);
@@ -1019,7 +1019,7 @@ gensio_acc_child_event(struct gensio_accepter *accepter, int event, void *cdata)
 	return rv;
     }
 
-    return ENOTSUP;
+    return GE_NOTSUP;
 }
 
 struct sergensio_cbdata {
@@ -1062,7 +1062,7 @@ sergensio_cb(struct sergensio *sio, int err, unsigned int val, void *cb_data)
     sergensio_ref(sio);
     PyTuple_SET_ITEM(args, 0, sio_ref.val);
     if (err) {
-	o = OI_PI_FromString(strerror(err));
+	o = OI_PI_FromString(gensio_err_to_str(err));
     } else {
 	Py_INCREF(Py_None);
 	o = Py_None;
@@ -1116,14 +1116,16 @@ static void err_handle(char *name, int rv)
 {
     if (!rv)
 	return;
-    PyErr_Format(PyExc_Exception, "gensio:%s: %s", name, strerror(rv));
+    PyErr_Format(PyExc_Exception, "gensio:%s: %s", name,
+		 gensio_err_to_str(rv));
 }
 
 static void ser_err_handle(char *name, int rv)
 {
     if (!rv)
 	return;
-    PyErr_Format(PyExc_Exception, "sergensio:%s: %s", name, strerror(rv));
+    PyErr_Format(PyExc_Exception, "sergensio:%s: %s", name,
+		 gensio_err_to_str(rv));
 }
 
 static void cast_error(char *to, char *from)

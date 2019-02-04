@@ -20,7 +20,6 @@
 #include "config.h"
 #include <stdlib.h>
 #include <string.h>
-#include <errno.h>
 
 #include "telnet.h"
 
@@ -300,43 +299,28 @@ process_telnet_xmit(unsigned char *outdata, unsigned int outlen,
     return j;
 }
 
-int
+void
 telnet_init(telnet_data_t *td,
 	    void *cb_data,
 	    void (*output_ready)(void *cb_data),
 	    void (*cmd_handler)(void *cb_data, unsigned char cmd),
-	    const struct telnet_cmd *cmds,
+	    struct telnet_cmd *cmds,
 	    const unsigned char *init_seq,
 	    int init_seq_len)
 {
-    unsigned int i;
-
-    if (td->cmds)
-	free(td->cmds);
     memset(td, 0, sizeof(*td));
     buffer_init(&td->out_telnet_cmd, td->out_telnet_cmdbuf,
 		sizeof(td->out_telnet_cmdbuf));
     td->cb_data = cb_data;
     td->output_ready = output_ready;
     td->cmd_handler = cmd_handler;
-
-    for (i = 0; cmds[i].option != TELNET_CMD_END_OPTION; i++)
-	;
-    i++;
-
-    td->cmds = malloc(i * sizeof(*cmds));
-    if (!td->cmds)
-	return ENOMEM;
-    memcpy(td->cmds, cmds, i * sizeof(*cmds));
+    td->cmds = cmds;
 
     telnet_cmd_send(td, init_seq, init_seq_len);
-    return 0;
 }
 
 void
 telnet_cleanup(telnet_data_t *td)
 {
-    if (td->cmds)
-	free(td->cmds);
     td->cmds = NULL;
 }

@@ -142,11 +142,11 @@ stel_queue(struct stel_data *sdata, int option,
     struct timeval timeout;
 
     if (!sdata->do_2217)
-	return ENOTSUP;
+	return GE_NOTSUP;
 
     req = sdata->o->zalloc(sdata->o, sizeof(*req));
     if (!req)
-	return ENOMEM;
+	return GE_NOMEM;
 
     req->option = option;
     req->done = done;
@@ -223,7 +223,7 @@ stel_queue_and_send(struct sergensio *sio, int option, int val,
     int err;
 
     if (val < minval || val > maxval)
-	return EINVAL;
+	return GE_INVAL;
 
     if (is_client) {
 	err = stel_queue(sdata, option, xmitbase, xmitbase + maxval,
@@ -477,7 +477,7 @@ sergensio_stel_func(struct sergensio *sio, int op, int val, char *buf,
 	return stel_send_break(sio);
 
     default:
-	return ENOTSUP;
+	return GE_NOTSUP;
     }
 }
 
@@ -648,9 +648,9 @@ stelc_timeout(void *handler_data)
     req = to_complete;
     while (req) {
 	if (req->done)
-	    req->done(sdata->sio, ETIMEDOUT, 0, req->cb_data);
+	    req->done(sdata->sio, GE_TIMEDOUT, 0, req->cb_data);
 	else if (req->donesig)
-	    req->donesig(sdata->sio, ETIMEDOUT, NULL, 0, req->cb_data);
+	    req->donesig(sdata->sio, GE_TIMEDOUT, NULL, 0, req->cb_data);
 	prev = req;
 	req = req->next;
 	sdata->o->free(sdata->o, prev);
@@ -942,7 +942,7 @@ stel_setup(const char * const args[], bool default_is_client,
 
     sdata = o->zalloc(o, sizeof(*sdata));
     if (!sdata)
-	return ENOMEM;
+	return GE_NOMEM;
 
     sdata->o = o;
     sdata->allow_2217 = allow_2217;
@@ -968,7 +968,7 @@ stel_setup(const char * const args[], bool default_is_client,
     return 0;
 
  out_nomem:
-    err = ENOMEM;
+    err = GE_NOMEM;
  out_err:
     if (sdata->filter)
 	gensio_filter_free(sdata->filter);
@@ -1020,7 +1020,7 @@ telnet_gensio_alloc(struct gensio *child, const char * const args[],
     return 0;
 
  out_nomem:
-    err = ENOMEM;
+    err = GE_NOMEM;
  out_err:
     if (sdata->filter)
 	gensio_filter_free(sdata->filter);
@@ -1092,7 +1092,7 @@ stela_alloc_gensio(void *acc_data, const char * const *iargs,
 	if (gensio_check_keyboolv(iargs[i], "mode", "client", "server",
 				  &is_client) > 0)
 	    continue;
-	return EINVAL;
+	return GE_INVAL;
     }
 
     i = 0;
@@ -1148,7 +1148,7 @@ stela_finish_parent(void *acc_data, void *finish_data, struct gensio *io,
 
     sdata->sio = sergensio_data_alloc(sdata->o, io, sergensio_stel_func, sdata);
     if (!sdata->sio)
-	return ENOMEM;
+	return GE_NOMEM;
 
     if (sdata->allow_2217) {
 	err = gensio_addclass(io, "sergensio", sdata->sio);
@@ -1187,7 +1187,7 @@ gensio_gensio_acc_telnet_cb(void *acc_data, int op, void *data1, void *data2,
 	return 0;
 
     default:
-	return ENOTSUP;
+	return GE_NOTSUP;
     }
 }
 
@@ -1222,12 +1222,12 @@ telnet_gensio_accepter_alloc(struct gensio_accepter *child,
 	if (gensio_check_keyboolv(args[i], "mode", "client", "server",
 				  &is_client) > 0)
 	    continue;
-	return EINVAL;
+	return GE_INVAL;
     }
 
     stela = o->zalloc(o, sizeof(*stela));
     if (!stela)
-	return ENOMEM;
+	return GE_NOMEM;
 
     stela->o = o;
     stela->max_write_size = max_write_size;

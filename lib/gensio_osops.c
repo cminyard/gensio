@@ -58,7 +58,7 @@ check_ipv6_only(int family, int protocol, int flags, int fd)
     return 0;
 }
 
-#define ERRHANDLE() \
+#define ERRHANDLE()			\
 do {								\
     int err = 0;						\
     if (rv < 0) {						\
@@ -73,11 +73,12 @@ do {								\
     }								\
     if (!err && rcount)						\
 	*rcount = rv;						\
-    return err;							\
+    return gensio_os_err_to_err(o, err);			\
 } while(0)
 
 int
-gensio_os_write(int fd, const void *buf, gensiods buflen, gensiods *rcount)
+gensio_os_write(struct gensio_os_funcs *o,
+		int fd, const void *buf, gensiods buflen, gensiods *rcount)
 {
     ssize_t rv;
 
@@ -87,7 +88,8 @@ gensio_os_write(int fd, const void *buf, gensiods buflen, gensiods *rcount)
 }
 
 int
-gensio_os_read(int fd, void *buf, gensiods buflen, gensiods *rcount)
+gensio_os_read(struct gensio_os_funcs *o,
+	       int fd, void *buf, gensiods buflen, gensiods *rcount)
 {
     ssize_t rv;
 
@@ -97,7 +99,8 @@ gensio_os_read(int fd, void *buf, gensiods buflen, gensiods *rcount)
 }
 
 int
-gensio_os_recv(int fd, void *buf, gensiods buflen, gensiods *rcount, int flags)
+gensio_os_recv(struct gensio_os_funcs *o,
+	       int fd, void *buf, gensiods buflen, gensiods *rcount, int flags)
 {
     ssize_t rv;
 
@@ -107,7 +110,8 @@ gensio_os_recv(int fd, void *buf, gensiods buflen, gensiods *rcount, int flags)
 }
 
 int
-gensio_os_send(int fd, const void *buf, gensiods buflen, gensiods *rcount,
+gensio_os_send(struct gensio_os_funcs *o,
+	       int fd, const void *buf, gensiods buflen, gensiods *rcount,
 	       int flags)
 {
     ssize_t rv;
@@ -118,7 +122,8 @@ gensio_os_send(int fd, const void *buf, gensiods buflen, gensiods *rcount,
 }
 
 int
-gensio_os_sendto(int fd, const void *buf, gensiods buflen, gensiods *rcount,
+gensio_os_sendto(struct gensio_os_funcs *o,
+		 int fd, const void *buf, gensiods buflen, gensiods *rcount,
 		 int flags, const struct sockaddr *raddr, socklen_t raddrlen)
 {
     ssize_t rv;
@@ -129,7 +134,8 @@ gensio_os_sendto(int fd, const void *buf, gensiods buflen, gensiods *rcount,
 }
 
 int
-gensio_os_recvfrom(int fd, void *buf, gensiods buflen, gensiods *rcount,
+gensio_os_recvfrom(struct gensio_os_funcs *o,
+		   int fd, void *buf, gensiods buflen, gensiods *rcount,
 		   int flags, struct sockaddr *raddr, socklen_t *raddrlen)
 {
     ssize_t rv;
@@ -140,7 +146,8 @@ gensio_os_recvfrom(int fd, void *buf, gensiods buflen, gensiods *rcount,
 }
 
 int
-gensio_os_accept(int fd, struct sockaddr *addr, socklen_t *addrlen,
+gensio_os_accept(struct gensio_os_funcs *o,
+		 int fd, struct sockaddr *addr, socklen_t *addrlen,
 		 int *newsock)
 {
     int rv = accept(fd, addr, addrlen);
@@ -150,13 +157,14 @@ gensio_os_accept(int fd, struct sockaddr *addr, socklen_t *addrlen,
 	return 0;
     }
     if (errno == EAGAIN && errno == EWOULDBLOCK)
-	return EAGAIN;
-    return errno;
+	return GE_NODATA;
+    return gensio_os_err_to_err(o, errno);
 }
 
 #ifdef HAVE_LIBSCTP
 int
-gensio_os_sctp_recvmsg(int fd, void *msg, gensiods len, gensiods *rcount,
+gensio_os_sctp_recvmsg(struct gensio_os_funcs *o,
+		       int fd, void *msg, gensiods len, gensiods *rcount,
 		       struct sctp_sndrcvinfo *sinfo, int *flags)
 {
     int rv;
@@ -167,7 +175,8 @@ gensio_os_sctp_recvmsg(int fd, void *msg, gensiods len, gensiods *rcount,
 }
 
 int
-gensio_os_sctp_send(int fd, const void *msg, gensiods len, gensiods *rcount,
+gensio_os_sctp_send(struct gensio_os_funcs *o,
+		    int fd, const void *msg, gensiods len, gensiods *rcount,
 		    const struct sctp_sndrcvinfo *sinfo, uint32_t flags)
 {
     int rv;
@@ -184,7 +193,8 @@ gensio_os_sctp_send(int fd, const void *msg, gensiods len, gensiods *rcount,
 extern char **environ;
 
 int
-gensio_setup_child_on_pty(char *const argv[], const char **env,
+gensio_setup_child_on_pty(struct gensio_os_funcs *o,
+			  char *const argv[], const char **env,
 			  int *rptym, pid_t *rpid)
 {
     pid_t pid;
@@ -192,25 +202,25 @@ gensio_setup_child_on_pty(char *const argv[], const char **env,
 
     ptym = posix_openpt(O_RDWR | O_NOCTTY);
     if (ptym == -1)
-	return errno;
+	return gensio_os_err_to_err(o, errno);
 
     if (fcntl(ptym, F_SETFL, O_NONBLOCK) == -1) {
 	err = errno;
 	close(ptym);
-	return err;
+	return gensio_os_err_to_err(o, err);
     }
 
     if (unlockpt(ptym) < 0) {
 	err = errno;
 	close(ptym);
-	return err;
+	return gensio_os_err_to_err(o, err);
     }
 
     pid = fork();
     if (pid < 0) {
 	err = errno;
 	close(ptym);
-	return err;
+	return gensio_os_err_to_err(o, err);
     }
 
     if (pid == 0) {
@@ -299,13 +309,14 @@ gensio_setup_child_on_pty(char *const argv[], const char **env,
 }
 
 int
-gensio_get_random(void *data, unsigned int len)
+gensio_get_random(struct gensio_os_funcs *o,
+		  void *data, unsigned int len)
 {
     int fd = open("/dev/urandom", O_RDONLY);
     int rv;
 
     if (fd == -1)
-	return errno;
+	return gensio_os_err_to_err(o, errno);
 
     while (len > 0) {
 	rv = read(fd, data, len);
@@ -321,7 +332,7 @@ gensio_get_random(void *data, unsigned int len)
 
  out:
     close(fd);
-    return rv;
+    return gensio_os_err_to_err(o, rv);
 }
 
 int
@@ -344,11 +355,11 @@ gensio_open_socket(struct gensio_os_funcs *o,
 	max_fds++;
 
     if (max_fds == 0)
-	return EINVAL;
+	return GE_INVAL;
 
     fds = o->zalloc(o, sizeof(*fds) * max_fds);
     if (!fds)
-	return ENOMEM;
+	return GE_NOMEM;
 
   restart:
     for (rp = ai; rp != NULL; rp = rp->ai_next) {
@@ -374,7 +385,7 @@ gensio_open_socket(struct gensio_os_funcs *o,
 
     if (curr_fd == 0) {
 	o->free(o, fds);
-	return ENOENT;
+	return GE_NOTFOUND;
     }
 
     *nr_fds = curr_fd;
@@ -398,7 +409,7 @@ gensio_setup_listen_socket(struct gensio_os_funcs *o, bool do_listen,
 
     fd = socket(family, socktype, protocol);
     if (fd == -1)
-	return errno;
+	return gensio_os_err_to_err(o, errno);
 
     if (fcntl(fd, F_SETFL, O_NONBLOCK) == -1)
 	goto out_err;
@@ -433,7 +444,7 @@ gensio_setup_listen_socket(struct gensio_os_funcs *o, bool do_listen,
     return rv;
 
  out_err:
-    rv = errno;
+    rv = gensio_os_err_to_err(o, errno);
     goto out;
 }
 
@@ -451,4 +462,82 @@ gensio_check_tcpd_ok(int new_fd)
 #endif
 
     return NULL;
+}
+
+const char *gensio_errs[] = {
+    /*   0 */    "No error",
+    /*   1 */    "Out of memory",
+    /*   2 */    "Operation not supported",
+    /*   3 */    "Invalid data to parameter",
+    /*   4 */    "Value not found",
+    /*   5 */    "Value already exists",
+    /*   6 */    "Value out of range",
+    /*   7 */    "Parameters inconsistent in call",
+    /*   8 */    "No data was available for the function",
+    /*   9 */	 "OS error, see logs",
+    /*  10 */    "Object was already in use",
+    /*  11 */    "Operation is in progress",
+    /*  12 */    "Object was not ready for operation",
+    /*  13 */    "Value was too large for data",
+    /*  14 */    "Operation timed out",
+    /*  15 */    "Retry operation later",
+    /*  16 */    "No key was provided",
+    /*  17 */    "Unable to find the given key",
+    /*  18 */    "Key was revoked",
+    /*  19 */    "Key was expired",
+    /*  20 */    "Key is not valid",
+    /*  21 */    "Certificate not provided",
+    /*  22 */    "Certificate is not valid",
+    /*  23 */    "Protocol error",
+    /*  24 */    "Communication error",
+    /*  25 */    "Internal I/O error",
+    /*  26 */    "Remote end closed connection",
+    /*  27 */    "Host could not be reached",
+    /*  28 */    "Connection refused",
+    /*  29 */    "Data was missing",
+    /*  30 */    "Unable to find given certificate"
+};
+const unsigned int errno_len = sizeof(gensio_errs) / sizeof(char *);
+
+const char *
+gensio_err_to_str(int err)
+{
+    if (err < 0 || err >= errno_len)
+	return "Unknown error";
+    return gensio_errs[err];
+}
+
+#include <assert.h>
+int
+gensio_i_os_err_to_err(struct gensio_os_funcs *o,
+		       int oserr, const char *caller, const char *file,
+		       unsigned int lineno)
+{
+    int err;
+
+    if (oserr == 0)
+	return 0;
+
+    switch(oserr) {
+    case ENOMEM:	err = GE_NOMEM; break;
+    case EINVAL:	err = GE_INVAL; break;
+    case ENOENT:	err = GE_NOTFOUND; break;
+    case EEXIST:	err = GE_EXISTS; break;
+    case EBUSY:		err = GE_INUSE; break;
+    case EINPROGRESS:	err = GE_INPROGRESS; break;
+    case ETIMEDOUT:	err = GE_TIMEDOUT; break;
+    case EPIPE:		err = GE_REMCLOSE; break;
+    case EHOSTUNREACH:	err = GE_HOSTDOWN; break;
+    case ECONNREFUSED:	err = GE_CONNREFUSE; break;
+    case EIO:		err = GE_IOERR; break;
+    default:		err = GE_OSERR;
+    }
+
+    if (err == GE_OSERR) {
+	gensio_log(o, GENSIO_LOG_INFO,
+		   "Unhandled OS error in %s: %s (%d)", caller,
+		   strerror(oserr), oserr);
+    }
+
+    return err;
 }

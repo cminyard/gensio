@@ -134,13 +134,13 @@ void telnet_send_option(telnet_data_t *td, const unsigned char *option,
 			unsigned int len);
 
 /* Initialize the telnet data. */
-int telnet_init(telnet_data_t *td,
-		void *cb_data,
-		void (*output_ready)(void *cb_data),
-		void (*cmd_handler)(void *cb_data, unsigned char cmd),
-		const struct telnet_cmd *cmds,
-		const unsigned char *init_seq,
-		int init_seq_len);
+void telnet_init(telnet_data_t *td,
+		 void *cb_data,
+		 void (*output_ready)(void *cb_data),
+		 void (*cmd_handler)(void *cb_data, unsigned char cmd),
+		 struct telnet_cmd *cmds,
+		 const unsigned char *init_seq,
+		 int init_seq_len);
 
 void telnet_cleanup(telnet_data_t *td);
 

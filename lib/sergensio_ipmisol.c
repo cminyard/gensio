@@ -93,11 +93,11 @@ ipmisol_gensio_alloc(const char *devname, const char * const args[],
 	    continue;
 	if (gensio_check_keyds(args[i], "writebuf", &max_write_size) > 0)
 	    continue;
-	return EINVAL;
+	return GE_INVAL;
     }
 
     if (!idata)
-	return ENOMEM;
+	return GE_NOMEM;
 
     idata->o = o;
     idata->cb = cb;
@@ -112,14 +112,14 @@ ipmisol_gensio_alloc(const char *devname, const char * const args[],
 				  user_data);
     if (!idata->io) {
 	gensio_ll_free(idata->ll);
-	return ENOMEM;
+	return GE_NOMEM;
     }
 
     idata->sio = sergensio_data_alloc(o, idata->io,
 				      sergensio_iterm_func, idata);
     if (!idata->sio) {
 	gensio_free(idata->io);
-	return ENOMEM;
+	return GE_NOMEM;
     }
 
     err = gensio_addclass(idata->io, "sergensio", idata->sio);

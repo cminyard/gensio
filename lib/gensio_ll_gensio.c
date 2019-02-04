@@ -104,7 +104,7 @@ child_open(struct gensio_ll *ll, gensio_ll_open_done done, void *open_data)
     cdata->open_data = open_data;
     rv = gensio_open(cdata->child, child_open_handler, cdata);
     if (rv == 0)
-	rv = EINPROGRESS; /* gensios always call the open handler. */
+	rv = GE_INPROGRESS; /* gensios always call the open handler. */
     return rv;
 }
 
@@ -126,7 +126,7 @@ child_close(struct gensio_ll *ll, gensio_ll_close_done done, void *close_data)
     cdata->close_data = close_data;
     rv = gensio_close(cdata->child, child_close_handler, cdata);
     if (rv == 0)
-	rv = EINPROGRESS; /* Close is always deferred. */
+	rv = GE_INPROGRESS; /* Close is always deferred. */
     return rv;
 }
 
@@ -194,7 +194,7 @@ gensio_ll_child_func(struct gensio_ll *ll, int op, gensiods *count,
 	return 0;
 
     default:
-	return ENOTSUP;
+	return GE_NOTSUP;
     }
 }
 

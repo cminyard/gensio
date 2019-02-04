@@ -158,7 +158,7 @@ fd_write(struct gensio_ll *ll, gensiods *rcount,
 	return fdll->ops->write(fdll->handler_data, fdll->fd,
 				rcount, buf, buflen, auxdata);
 
-    return gensio_os_write(fdll->fd, buf, buflen, rcount);
+    return gensio_os_write(fdll->o, fdll->fd, buf, buflen, rcount);
 }
 
 static int
@@ -177,7 +177,7 @@ fd_get_raddr(struct gensio_ll *ll, void *addr, gensiods *addrlen)
 
     if (fdll->ops->get_raddr)
 	return fdll->ops->get_raddr(fdll->handler_data, addr, addrlen);
-    return ENOTSUP;
+    return GE_NOTSUP;
 }
 
 static int
@@ -187,7 +187,7 @@ fd_remote_id(struct gensio_ll *ll, int *id)
 
     if (fdll->ops->remote_id)
 	return fdll->ops->remote_id(fdll->handler_data, id);
-    return ENOTSUP;
+    return GE_NOTSUP;
 }
 
 static void
@@ -376,7 +376,9 @@ static int
 gensio_ll_fd_read(int fd, void *buf, gensiods count, gensiods *rcount,
 		  const char **auxdata, void *cb_data)
 {
-    return gensio_os_read(fd, buf, count, rcount);
+    struct fd_ll *fdll = cb_data;
+
+    return gensio_os_read(fdll->o, fd, buf, count, rcount);
 }
 
 static void
@@ -389,7 +391,7 @@ fd_read_ready(int fd, void *cbdata)
 	return;
     }
 
-    fd_handle_incoming(fdll, gensio_ll_fd_read, NULL, NULL);
+    fd_handle_incoming(fdll, gensio_ll_fd_read, NULL, fdll);
 }
 
 static int fd_setup_handlers(struct fd_ll *fdll);
@@ -407,7 +409,7 @@ fd_handle_write_ready(struct fd_ll *fdll)
 	    close(fdll->fd);
 	    fdll->fd = -1;
 	    err = fdll->ops->retry_open(fdll->handler_data, &fdll->fd);
-	    if (err != EINPROGRESS)
+	    if (err != GE_INPROGRESS)
 		goto opened;
 	    else {
 		err = fd_setup_handlers(fdll);
@@ -504,7 +506,7 @@ fd_close_timeout(struct gensio_timer *t, void *cb_data)
 	err = fdll->ops->check_close(fdll->handler_data,
 				     GENSIO_LL_CLOSE_STATE_DONE, &timeout);
 
-    if (err == EINPROGRESS) {
+    if (err == GE_INPROGRESS) {
 	fdll->o->start_timer(fdll->close_timer, &timeout);
 	return;
     }
@@ -530,11 +532,11 @@ fd_open(struct gensio_ll *ll, gensio_ll_open_done done, void *open_data)
     int err;
 
     if (!fdll->ops->sub_open)
-	return ENOTSUP;
+	return GE_NOTSUP;
 
     fd_lock(fdll);
     err = fdll->ops->sub_open(fdll->handler_data, &fdll->fd);
-    if (err == EINPROGRESS || err == 0) {
+    if (err == GE_INPROGRESS || err == 0) {
 	int err2 = fd_setup_handlers(fdll);
 	if (err2) {
 	    err = err2;
@@ -543,7 +545,7 @@ fd_open(struct gensio_ll *ll, gensio_ll_open_done done, void *open_data)
 	    goto out;
 	}
 
-	if (err == EINPROGRESS) {
+	if (err == GE_INPROGRESS) {
 	    fdll->state = FD_IN_OPEN;
 	    fdll->open_done = done;
 	    fdll->open_data = open_data;
@@ -565,7 +567,7 @@ fd_setup_handlers(struct fd_ll *fdll)
     if (fdll->o->set_fd_handlers(fdll->o, fdll->fd, fdll, fd_read_ready,
 				 fd_write_ready, fd_except_ready,
 				 fd_cleared))
-	return ENOMEM;
+	return GE_NOMEM;
     return 0;
 }
 
@@ -573,14 +575,14 @@ static int fd_close(struct gensio_ll *ll, gensio_ll_close_done done,
 		    void *close_data)
 {
     struct fd_ll *fdll = ll_to_fd(ll);
-    int err = EBUSY;
+    int err = GE_NOTREADY;
 
     fd_lock(fdll);
     if (fdll->state == FD_OPEN || fdll->state == FD_IN_OPEN) {
 	fdll->close_done = done;
 	fdll->close_data = close_data;
 	fd_start_close(fdll);
-	err = EINPROGRESS;
+	err = GE_INPROGRESS;
     }
     fd_unlock(fdll);
 
@@ -636,7 +638,7 @@ static int fd_control(struct gensio_ll *ll, bool get, unsigned int option,
     struct fd_ll *fdll = ll_to_fd(ll);
 
     if (!fdll->ops->control)
-	return ENOTSUP;
+	return GE_NOTSUP;
 
     return fdll->ops->control(fdll->handler_data, fdll->fd, get, option, data,
 			      datalen);
@@ -700,7 +702,7 @@ gensio_ll_fd_func(struct gensio_ll *ll, int op, gensiods *count,
 	return 0;
 
     default:
-	return ENOTSUP;
+	return GE_NOTSUP;
     }
 }
 

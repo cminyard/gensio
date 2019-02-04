@@ -309,8 +309,9 @@ struct waiter { };
     }
 }
 
-%constant int ENOTSUP = ENOTSUP;
-%constant int EKEYREJECTED = EKEYREJECTED;
+%constant int GE_NOTSUP = GE_NOTSUP;
+%constant int GE_KEYINVALID = GE_KEYINVALID;
+
 %constant int GENSIO_CONTROL_DEPTH_ALL = GENSIO_CONTROL_DEPTH_ALL;
 %constant int GENSIO_CONTROL_DEPTH_FIRST = GENSIO_CONTROL_DEPTH_FIRST;
 %constant int GENSIO_CONTROL_NODELAY = GENSIO_CONTROL_NODELAY;
@@ -337,7 +338,7 @@ struct waiter { };
 	rv = str_to_gensio(str, o, gensio_child_event, data, &io);
 	if (rv) {
 	    free_gensio_data(data);
-	    ser_err_handle("gensio alloc", rv);
+	    err_handle("gensio alloc", rv);
 	}
 	return io;
     }
@@ -402,7 +403,7 @@ struct waiter { };
 
 	data = alloc_gensio_data(olddata->o, handler);
 	if (!data) {
-	    ser_err_handle("gensio open channel", rv);
+	    err_handle("gensio open channel", rv);
 	    return NULL;
 	}
 
@@ -433,7 +434,7 @@ struct waiter { };
 
 	data = alloc_gensio_data(o, handler);
 	if (!data) {
-	    ser_err_handle("gensio alloc", rv);
+	    err_handle("gensio alloc", rv);
 	    return NULL;
 	}
 
@@ -515,7 +516,7 @@ struct waiter { };
 	    else
 		data = malloc(len);
 	    if (!data) {
-		rv = ENOMEM;
+		rv = GE_NOMEM;
 		goto out;
 	    }
 	    if (controldata)
@@ -528,7 +529,7 @@ struct waiter { };
 		data = NULL;
 	    }
 	out:
-	    if (rv == ENOENT) /* Return None for ENOENT. */
+	    if (rv == GE_NOTFOUND) /* Return None for ENOENT. */
 		return NULL;
 	} else {
 	    rv = gensio_control(self, depth, get, option, controldata, NULL);
@@ -764,7 +765,7 @@ struct waiter { };
 				      &io);
 	if (rv) {
 	    free_gensio_data(data);
-	    ser_err_handle("str to gensio", rv);
+	    err_handle("str to gensio", rv);
 	}
 
 	return io;
@@ -819,7 +820,7 @@ struct waiter { };
 	    else
 		data = malloc(len);
 	    if (!data) {
-		rv = ENOMEM;
+		rv = GE_NOMEM;
 		goto out;
 	    }
 	    memcpy(data, controldata, slen);
@@ -858,12 +859,12 @@ struct waiter { };
 	    if (!w->waiter) {
 		free(w);
 		w = NULL;
-		ser_err_handle("waiter", ENOMEM);
+		err_handle("waiter", GE_NOMEM);
 	    } else {
 		os_funcs_ref(o);
 	    }
 	} else {
-	    ser_err_handle("waiter", ENOMEM);
+	    err_handle("waiter", GE_NOMEM);
 	}
 
 	return w;

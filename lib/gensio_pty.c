@@ -62,7 +62,8 @@ pty_sub_open(void *handler_data, int *fd)
     struct pty_data *tdata = handler_data;
     int err;
 
-    err = gensio_setup_child_on_pty((char * const *) tdata->argv, tdata->env,
+    err = gensio_setup_child_on_pty(tdata->o,
+				    (char * const *) tdata->argv, tdata->env,
 				    &tdata->ptym, &tdata->pid);
     if (!err)
 	*fd = tdata->ptym;
@@ -113,11 +114,11 @@ pty_check_close(void *handler_data, enum gensio_ll_close_state state,
 
     rv = waitpid(tdata->pid, &wstatus, WNOHANG);
     if (rv < 0)
-	return errno;
+	return gensio_os_err_to_err(tdata->o, errno);
     if (rv == 0) {
 	timeout->tv_sec = 0;
 	timeout->tv_usec = 10000;
-	return EINPROGRESS;
+	return GE_INPROGRESS;
     }
     return 0;
 }
@@ -139,10 +140,11 @@ pty_write(void *handler_data, int fd, gensiods *rcount,
 	  const unsigned char *buf, gensiods buflen,
 	  const char *const *auxdata)
 {
-    int rv = gensio_os_write(fd, buf, buflen, rcount);
+    struct pty_data *tdata = handler_data;
+    int rv = gensio_os_write(tdata->o, fd, buf, buflen, rcount);
 
-    if (rv == EIO)
-	rv = EPIPE; /* We don't seem to get EPIPE from ptys */
+    if (rv && rv == GE_IOERR)
+	return GE_REMCLOSE; /* We don't seem to get EPIPE from ptys */
     return rv;
 }
 
@@ -150,10 +152,11 @@ static int
 pty_do_read(int fd, void *data, gensiods count, gensiods *rcount,
 	    const char **auxdata, void *cb_data)
 {
-    int rv = gensio_os_read(fd, data, count, rcount);
+    struct pty_data *tdata = cb_data;
+    int rv = gensio_os_read(tdata->o, fd, data, count, rcount);
 
-    if (rv == EIO)
-	rv = EPIPE; /* We don't seem to get EPIPE from ptys */
+    if (rv && rv == GE_IOERR)
+	return GE_REMCLOSE; /* We don't seem to get EPIPE from ptys */
     return rv;
 }
 
@@ -176,7 +179,7 @@ pty_control(void *handler_data, int fd, bool get, unsigned int option,
     switch (option) {
     case GENSIO_CONTROL_ENVIRONMENT:
 	if (!get)
-	    return ENOTSUP;
+	    return GE_NOTSUP;
 	err = gensio_argv_copy(tdata->o, (const char **) data, NULL, &env);
 	if (err)
 	    return err;
@@ -186,7 +189,7 @@ pty_control(void *handler_data, int fd, bool get, unsigned int option,
 	break;
     }
 
-    return ENOTSUP;
+    return GE_NOTSUP;
 }
 
 static const struct gensio_fd_ll_ops pty_fd_ll_ops = {
@@ -216,12 +219,12 @@ pty_gensio_alloc(const char * const argv[], const char * const args[],
     for (i = 0; args && args[i]; i++) {
 	if (gensio_check_keyds(args[i], "readbuf", &max_read_size) > 0)
 	    continue;
-	return EINVAL;
+	return GE_INVAL;
     }
 
     tdata = o->zalloc(o, sizeof(*tdata));
     if (!tdata)
-	return ENOMEM;
+	return GE_NOMEM;
 
     tdata->o = o;
     tdata->ptym = -1;
@@ -246,7 +249,7 @@ pty_gensio_alloc(const char * const argv[], const char * const args[],
 
  out_nomem:
     pty_free(tdata);
-    return ENOMEM;
+    return GE_NOMEM;
 }
 
 int

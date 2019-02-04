@@ -371,7 +371,12 @@ static int
 gensio_sel_wait(struct gensio_waiter *waiter, unsigned int count,
 		struct timeval *timeout)
 {
-    return wait_for_waiter_timeout(waiter->sel_waiter, count, timeout);
+    int err;
+
+    err = wait_for_waiter_timeout(waiter->sel_waiter, count, timeout);
+    if (err)
+	err = gensio_os_err_to_err(waiter->f, err);
+    return err;
 }
 
 
@@ -379,7 +384,12 @@ static int
 gensio_sel_wait_intr(struct gensio_waiter *waiter, unsigned int count,
 		     struct timeval *timeout)
 {
-    return wait_for_waiter_timeout_intr(waiter->sel_waiter, count, timeout);
+    int err;
+
+    err = wait_for_waiter_timeout_intr(waiter->sel_waiter, count, timeout);
+    if (err)
+	err = gensio_os_err_to_err(waiter->f, err);
+    return err;
 }
 
 static void
@@ -416,9 +426,9 @@ gensio_sel_service(struct gensio_os_funcs *f, struct timeval *timeout)
     w.wake_sig = d->wake_sig;
     err = sel_select_intr(d->sel, wake_thread_send_sig, w.id, &w, timeout);
     if (err < 0)
-	err = errno;
+	err = gensio_os_err_to_err(f, errno);
     else if (err == 0)
-	err = ETIMEDOUT;
+	err = GE_TIMEDOUT;
     else
 	err = 0;
 
@@ -433,9 +443,9 @@ gensio_sel_service(struct gensio_os_funcs *f, struct timeval *timeout)
 
     err = sel_select_intr(d->sel, NULL, 0, NULL, timeout);
     if (err < 0)
-	err = errno;
+	err = gensio_os_err_to_err(f, errno);
     else if (err == 0)
-	err = ETIMEDOUT;
+	err = GE_TIMEDOUT;
     else
 	err = 0;
 
@@ -602,7 +612,7 @@ int
 gensio_default_os_hnd(int wake_sig, struct gensio_os_funcs **o)
 {
     if (defoshnd_wake_sig != -1 && wake_sig != defoshnd_wake_sig)
-	return EINVAL;
+	return GE_INVAL;
 
     if (!defoshnd) {
 	defoshnd_wake_sig = wake_sig;
@@ -613,7 +623,7 @@ gensio_default_os_hnd(int wake_sig, struct gensio_os_funcs **o)
 #endif
 
 	if (!defoshnd)
-	    return ENOMEM;
+	    return GE_NOMEM;
     }
 
     *o = defoshnd;

@@ -171,7 +171,7 @@ basena_shutdown(struct gensio_accepter *accepter,
 	       void *shutdown_data)
 {
     struct basena_data *nadata = gensio_acc_get_gensio_data(accepter);
-    int rv = EBUSY;
+    int rv = GE_NOTREADY;
 
     basena_lock(nadata);
     if (nadata->enabled) {
@@ -221,7 +221,7 @@ basena_str_to_gensio(struct gensio_accepter *accepter, const char *addr,
 
     if (strncmp(addr, type, typelen) != 0 ||
 		(addr[typelen] != ',' && addr[typelen] != '(' && addr[typelen]))
-	return EINVAL;
+	return GE_INVAL;
 
     addr += typelen;
     if (*addr == '(') {
@@ -303,7 +303,7 @@ gensio_acc_base_func(struct gensio_accepter *acc, int func, int val,
 	return basena_disable(acc);
 
     default:
-	return ENOTSUP;
+	return GE_NOTSUP;
     }
 }
 
@@ -343,7 +343,7 @@ basena_child_event(struct gensio_accepter *accepter, int event,
     }
 
     if (event != GENSIO_ACC_EVENT_NEW_CONNECTION)
-	return ENOTSUP;
+	return GE_NOTSUP;
 
     child = data;
 
@@ -372,7 +372,7 @@ basena_child_event(struct gensio_accepter *accepter, int event,
 	basena_in_cb(nadata);
 	err = nadata->acc_cb(nadata->acc_data, GENSIO_GENSIO_ACC_FINISH_PARENT,
 			     finish_data, io, child, NULL);
-	if (err && err != ENOTSUP) {
+	if (err && err != GE_NOTSUP) {
 	    basena_unlock(nadata);
 	    gensio_free(io);
 	    gensio_ll_free(ll);
@@ -390,10 +390,11 @@ basena_child_event(struct gensio_accepter *accepter, int event,
     return 0;
 
  out_nomem:
-    err = ENOMEM;
+    err = GE_NOMEM;
  out_err:
     gensio_acc_log(nadata->acc, GENSIO_LOG_ERR,
-		   "Error allocating basena gensio: %s", strerror(err));
+		   "Error allocating basena gensio: %s",
+		   gensio_err_to_str(err));
     return 0;
 }
 
@@ -410,7 +411,7 @@ gensio_gensio_accepter_alloc(struct gensio_accepter *child,
 
     nadata = o->zalloc(o, sizeof(*nadata));
     if (!nadata)
-	return ENOMEM;
+	return GE_NOMEM;
 
     nadata->lock = o->alloc_lock(o);
     if (!nadata->lock)
@@ -435,5 +436,5 @@ gensio_gensio_accepter_alloc(struct gensio_accepter *child,
 
 out_nomem:
     basena_finish_free(nadata);
-    return ENOMEM;
+    return GE_NOMEM;
 }

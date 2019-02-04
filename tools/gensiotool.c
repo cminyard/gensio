@@ -105,7 +105,7 @@ io_acc_event(struct gensio_accepter *accepter, int event, void *data)
     struct gdata *ginfo = ioinfo_userdata(ioinfo);
 
     if (event != GENSIO_ACC_EVENT_NEW_CONNECTION)
-	return ENOTSUP;
+	return GE_NOTSUP;
 
     if (ginfo->io) {
 	gensio_free(data);
@@ -230,7 +230,8 @@ main(int argc, char *argv[])
 
     rv = gensio_default_os_hnd(0, &o);
     if (rv) {
-	fprintf(stderr, "Could not allocate OS handler: %s\n", strerror(rv));
+	fprintf(stderr, "Could not allocate OS handler: %s\n",
+		gensio_err_to_str(rv));
 	return 1;
     }
     o->vlog = do_vlog;
@@ -240,14 +241,16 @@ main(int argc, char *argv[])
 
     userdata1.waiter = o->alloc_waiter(o);
     if (!userdata1.waiter) {
-	fprintf(stderr, "Could not allocate OS waiter: %s\n", strerror(rv));
+	fprintf(stderr, "Could not allocate OS waiter: %s\n",
+		gensio_err_to_str(rv));
 	return 1;
     }
     userdata2.waiter = userdata1.waiter;
 
     closewaiter = o->alloc_waiter(o);
     if (!closewaiter) {
-	fprintf(stderr, "Could not allocate close waiter: %s\n", strerror(rv));
+	fprintf(stderr, "Could not allocate close waiter: %s\n",
+		gensio_err_to_str(rv));
 	return 1;
     }
 
@@ -279,7 +282,7 @@ main(int argc, char *argv[])
     rv = str_to_gensio(userdata1.ios, o, NULL, ioinfo1, &userdata1.io);
     if (rv) {
 	fprintf(stderr, "Could not allocate %s: %s\n",
-		userdata1.ios, strerror(rv));
+		userdata1.ios, gensio_err_to_str(rv));
 	return 1;
     }
 
@@ -293,7 +296,7 @@ main(int argc, char *argv[])
 	rv = str_to_gensio(userdata2.ios, o, NULL, ioinfo2, &userdata2.io);
     if (rv) {
 	fprintf(stderr, "Could not allocate %s: %s\n", userdata2.ios,
-		strerror(rv));
+		gensio_err_to_str(rv));
 	return 1;
     }
 
@@ -301,7 +304,8 @@ main(int argc, char *argv[])
     rv = gensio_open(userdata1.io, io_open, NULL);
     if (rv) {
 	userdata1.can_close = false;
-	fprintf(stderr, "Could not open %s: %s\n", userdata1.ios, strerror(rv));
+	fprintf(stderr, "Could not open %s: %s\n", userdata1.ios,
+		gensio_err_to_str(rv));
 	return 1;
     }
 
@@ -309,7 +313,7 @@ main(int argc, char *argv[])
 	rv = gensio_acc_startup(io2_acc);
 	if (rv) {
 	    fprintf(stderr, "Could not start %s: %s\n", userdata2.ios,
-		    strerror(rv));
+		    gensio_err_to_str(rv));
 	    goto close1;
 	}
     } else {
@@ -318,7 +322,7 @@ main(int argc, char *argv[])
 	if (rv) {
 	    userdata2.can_close = false;
 	    fprintf(stderr, "Could not open %s: %s\n", userdata2.ios,
-		    strerror(rv));
+		    gensio_err_to_str(rv));
 	    goto close1;
 	}
     }
@@ -328,7 +332,8 @@ main(int argc, char *argv[])
     if (userdata2.can_close) {
 	rv = gensio_close(userdata2.io, io_close, closewaiter);
 	if (rv)
-	    printf("Unable to close %s: %s\n", userdata2.ios, strerror(rv));
+	    printf("Unable to close %s: %s\n", userdata2.ios,
+		   gensio_err_to_str(rv));
 	else
 	    closecount++;
     } else if (!userdata2.io && io2_do_acc) {
@@ -339,7 +344,8 @@ main(int argc, char *argv[])
     if (userdata1.can_close) {
 	rv = gensio_close(userdata1.io, io_close, closewaiter);
 	if (rv)
-	    printf("Unable to close %s: %s\n", userdata1.ios, strerror(rv));
+	    printf("Unable to close %s: %s\n", userdata1.ios,
+		   gensio_err_to_str(rv));
 	else
 	    closecount++;
     }

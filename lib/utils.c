@@ -67,7 +67,7 @@ gensio_argv_copy(struct gensio_os_funcs *o,
 	;
     argv = o->zalloc(o, (len + 1) * sizeof(*argv));
     if (!argv)
-	return ENOMEM;
+	return GE_NOMEM;
     for (len = 0; oargv[len]; len++) {
 	argv[len] = gensio_strdup(o, oargv[len]);
 	if (!argv[len])
@@ -85,7 +85,7 @@ gensio_argv_copy(struct gensio_os_funcs *o,
 	o->free(o, (void *) argv[len]);
     }
     o->free(o, argv);
-    return ENOMEM;
+    return GE_NOMEM;
 }
 
 void
@@ -225,12 +225,12 @@ gettok(struct gensio_os_funcs *o,
     }
 
     if (inquote || escape)
-	return EINVAL;
+	return GE_INVAL;
 
     if (!out) {
 	out = o->zalloc(o, len + 1);
 	if (!out)
-	    return ENOMEM;
+	    return GE_NOMEM;
 	*tok = out;
 	len = 0;
 	p = t;
@@ -264,7 +264,7 @@ gensio_str_to_argv_endchar(struct gensio_os_funcs *o,
     args = 10;
     argv = o->zalloc(o, sizeof(*argv) * args);
     if (!argv)
-	return ENOMEM;
+	return GE_NOMEM;
 
     err = gettok(o, &ins, &tok, seps, endchars);
     while (tok && !err) {
@@ -275,7 +275,7 @@ gensio_str_to_argv_endchar(struct gensio_os_funcs *o,
 	    args += 10;
 	    nargv = realloc(argv, sizeof(*argv) * args);
 	    if (!nargv) {
-		err = ENOMEM;
+		err = GE_NOMEM;
 		goto out;
 	    }
 	    argv = nargv;

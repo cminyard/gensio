@@ -37,6 +37,7 @@ extern "C" {
 #include <netdb.h>
 
 #include <gensio/gensio_os_funcs.h>
+#include <gensio/gensio_err.h>
 
 struct gensio;
 

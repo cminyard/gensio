@@ -219,7 +219,7 @@ handle_sio_event(struct gensio *io, int event,
 
     sio = gensio_to_sergensio(io);
     if (!sio)
-	return ENOTSUP;
+	return GE_NOTSUP;
 
     if (event == GENSIO_EVENT_SER_SIGNATURE) {
 	sergensio_signature(sio, serinfo->signature,
@@ -229,7 +229,7 @@ handle_sio_event(struct gensio *io, int event,
 
     rsio = gensio_to_sergensio(rio);
     if (!rsio)
-	return ENOTSUP;
+	return GE_NOTSUP;
 
     /* Telnet breaks work even if you don't have RFC2217 support. */
     if (event == GENSIO_EVENT_SEND_BREAK) {
@@ -242,7 +242,7 @@ handle_sio_event(struct gensio *io, int event,
 
 	if (sergensio_is_client(rsio))
 	    /* Both ends are clients. */
-	    return ENOTSUP;
+	    return GE_NOTSUP;
 
 	switch (event) {
 	case GENSIO_EVENT_SER_MODEMSTATE:
@@ -259,12 +259,12 @@ handle_sio_event(struct gensio *io, int event,
 		sergensio_linestate(rsio, state);
 	    return 0;
 	}
-	return ENOTSUP;
+	return GE_NOTSUP;
     }
 
     if (!sergensio_is_client(rsio))
 	/* Both ends are servers. */
-	return ENOTSUP;
+	return GE_NOTSUP;
 
     switch (event) {
     case GENSIO_EVENT_SER_MODEMSTATE:
@@ -335,7 +335,7 @@ handle_sio_event(struct gensio *io, int event,
 	return 0;
     }
 
-    return ENOTSUP;
+    return GE_NOTSUP;
 }
 
 static bool

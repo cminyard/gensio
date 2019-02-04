@@ -161,7 +161,7 @@ io_event(struct gensio *io, int event, int err,
     gensiods count = 0;
 
     if (err) {
-	if (err != EPIPE) /* EPIPE means the other end closed. */
+	if (err != GE_REMCLOSE) 
 	    ioinfo_err(ioinfo, "%s", strerror(err));
 	ioinfo->uh->shutdown(ioinfo);
 	return 0;
@@ -232,11 +232,11 @@ io_event(struct gensio *io, int event, int err,
     if (!rioinfo->ready)
 	return 0;
 
-    rv = ENOTSUP;
+    rv = GE_NOTSUP;
     if (ioinfo->sh)
 	rv = ioinfo->sh->handle_event(io, event, buf, buflen);
 
-    if (rv == ENOTSUP && ioinfo->uh->event)
+    if (rv == GE_NOTSUP && ioinfo->uh->event)
 	rv = ioinfo->uh->event(ioinfo, io, event, err, buf, buflen, auxdata);
 
     return rv;

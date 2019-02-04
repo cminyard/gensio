@@ -52,7 +52,7 @@ ssl_gensio_alloc(struct gensio *child, const char *const args[],
 
     if (!gensio_is_reliable(child))
 	/* Cowardly refusing to run SSL over an unreliable connection. */
-	return EOPNOTSUPP;
+	return GE_NOTSUP;
 
     err = gensio_ssl_filter_config(o, args, true, &data);
     if (err)
@@ -66,7 +66,7 @@ ssl_gensio_alloc(struct gensio *child, const char *const args[],
     ll = gensio_gensio_ll_alloc(o, child);
     if (!ll) {
 	gensio_filter_free(filter);
-	return ENOMEM;
+	return GE_NOMEM;
     }
     gensio_ref(child);
 
@@ -74,7 +74,7 @@ ssl_gensio_alloc(struct gensio *child, const char *const args[],
     if (!io) {
 	gensio_ll_free(ll);
 	gensio_filter_free(filter);
-	return ENOMEM;
+	return GE_NOMEM;
     }
 
     gensio_set_is_packet(io, true);
@@ -147,7 +147,7 @@ sslna_gensio_event(struct gensio *io, int event, int err,
     struct sslna_data *nadata = gensio_get_user_data(io);
 
     if (event != GENSIO_EVENT_PRECERT_VERIFY)
-	return ENOTSUP;
+	return GE_NOTSUP;
 
     return gensio_acc_cb(nadata->acc, GENSIO_ACC_EVENT_PRECERT_VERIFY, io);
 }
@@ -181,7 +181,7 @@ gensio_gensio_acc_ssl_cb(void *acc_data, int op, void *data1, void *data2,
 	return 0;
 
     default:
-	return ENOTSUP;
+	return GE_NOTSUP;
     }
 }
 
@@ -197,11 +197,11 @@ ssl_gensio_accepter_alloc(struct gensio_accepter *child,
 
     if (!gensio_acc_is_reliable(child))
 	/* Cowardly refusing to run SSL over an unreliable connection. */
-	return EOPNOTSUPP;
+	return GE_NOTSUP;
 
     nadata = o->zalloc(o, sizeof(*nadata));
     if (!nadata)
-	return ENOMEM;
+	return GE_NOMEM;
 
     err = gensio_ssl_filter_config(o, args, false, &nadata->data);
     if (err) {
@@ -254,7 +254,7 @@ ssl_gensio_alloc(struct gensio *child, const char * const args[],
 		 gensio_event cb, void *user_data,
 		 struct gensio **net)
 {
-    return ENOTSUP;
+    return GE_NOTSUP;
 }
 
 int
@@ -263,7 +263,7 @@ str_to_ssl_gensio(const char *str, const char * const args[],
 		  gensio_event cb, void *user_data,
 		  struct gensio **new_gensio)
 {
-    return ENOTSUP;
+    return GE_NOTSUP;
 }
 
 int
@@ -273,7 +273,7 @@ ssl_gensio_accepter_alloc(struct gensio_accepter *child,
 			  gensio_accepter_event cb, void *user_data,
 			  struct gensio_accepter **accepter)
 {
-    return ENOTSUP;
+    return GE_NOTSUP;
 }
 
 int
@@ -283,7 +283,7 @@ str_to_ssl_gensio_accepter(const char *str, const char * const args[],
 			   void *user_data,
 			   struct gensio_accepter **acc)
 {
-    return ENOTSUP;
+    return GE_NOTSUP;
 }
 
 #endif /* HAVE_OPENSSL */

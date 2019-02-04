@@ -150,7 +150,8 @@ io_open(struct gensio *io, int err, void *open_data)
 
     if (err) {
 	ginfo->can_close = false;
-	fprintf(stderr, "open error on %s: %s\n", ginfo->ios, strerror(err));
+	fprintf(stderr, "open error on %s: %s\n", ginfo->ios,
+		gensio_err_to_str(err));
 	gshutdown(ioinfo);
     } else {
 	struct ioinfo *other_ioinfo = ioinfo_otherioinfo(ioinfo);
@@ -165,7 +166,7 @@ io_open(struct gensio *io, int err, void *open_data)
 	    if (rv) {
 		other_ginfo->can_close = false;
 		fprintf(stderr, "Could not open %s: %s\n",
-			other_ginfo->ios, strerror(rv));
+			other_ginfo->ios, gensio_err_to_str(rv));
 		gshutdown(ioinfo);
 	    }
 	}
@@ -224,12 +225,12 @@ lookup_certfiles(const char *tlssh_dir, const char *username,
 		 const char *hostname, int port,
 		 char **rCAdir, char **rcertfile, char **rkeyfile)
 {
-    int err = ENOMEM;
+    int err = GE_NOMEM;
 
     CAdir = alloc_sprintf("%s/server_certs", tlssh_dir);
     if (!CAdir) {
 	fprintf(stderr, "Error allocating memory for CAdir\n");
-	return ENOMEM;
+	return GE_NOMEM;
     }
 
     certfile = alloc_sprintf("%s/default.crt", tlssh_dir);
@@ -256,7 +257,7 @@ lookup_certfiles(const char *tlssh_dir, const char *username,
     if (err)
 	goto out_err;
 
-    err = ENOMEM;
+    err = GE_NOMEM;
     *rCAdir = alloc_sprintf("CA=%s/", CAdir);
     if (!*rCAdir)
 	goto out_err;
@@ -279,7 +280,7 @@ lookup_certfiles(const char *tlssh_dir, const char *username,
 }
 
 static int
-add_certfile(const char *cert, const char *fmt, ...)
+add_certfile(struct gensio_os_funcs *o, const char *cert, const char *fmt, ...)
 {
     int rv;
     va_list va;
@@ -290,7 +291,7 @@ add_certfile(const char *cert, const char *fmt, ...)
     va_end(va);
     if (!filename) {
 	fprintf(stderr, "Out of memory allocating filename");
-	return ENOMEM;
+	return GE_NOMEM;
     }
 
     rv = open(filename, O_CREAT | O_EXCL | O_WRONLY, 0600);
@@ -300,11 +301,12 @@ add_certfile(const char *cert, const char *fmt, ...)
 		"certificate has changed.  Someone may be trying to\n"
 		"intercept your communications.  Giving up, remove the\n"
 		"file if it is incorrect and try again\n", filename);
-	rv = EKEYREJECTED;
+	rv = GE_KEYINVALID;
     } else if (rv == -1) {
 	rv = errno;
 	fprintf(stderr, "Error opening '%s', could not save certificate: %s\n",
 		filename, strerror(rv));
+	rv = gensio_os_err_to_err(o, rv);
     } else {
 	int fd = rv, len = strlen(cert);
 
@@ -314,6 +316,7 @@ add_certfile(const char *cert, const char *fmt, ...)
 	    rv = errno;
 	    fprintf(stderr, "Error writing '%s', could not save certificate:"
 		    " %s\n", filename, strerror(rv));
+	    rv = gensio_os_err_to_err(o, rv);
 	    goto out;
 	} else if (rv != len) {
 	    len -= rv;
@@ -331,7 +334,8 @@ add_certfile(const char *cert, const char *fmt, ...)
 }
 
 static int
-verify_certfile(const char *cert, const char *fmt, ...)
+verify_certfile(struct gensio_os_funcs *o,
+		const char *cert, const char *fmt, ...)
 {
     int rv;
     va_list va;
@@ -343,7 +347,7 @@ verify_certfile(const char *cert, const char *fmt, ...)
     va_end(va);
     if (!filename) {
 	fprintf(stderr, "Out of memory allocating filename");
-	return ENOMEM;
+	return GE_NOMEM;
     }
 
     rv = open(filename, O_RDONLY);
@@ -360,14 +364,15 @@ verify_certfile(const char *cert, const char *fmt, ...)
 	    rv = errno;
 	    fprintf(stderr, "Error reading '%s', could not verify certificate:"
 		    " %s\n", filename, strerror(rv));
+	    rv = gensio_os_err_to_err(o, rv);
 	    goto out;
 	} else if (rv != len) {
 	    fprintf(stderr, "Certificate at '%s': length mismatch\n", filename);
-	    rv = EINVAL;
+	    rv = GE_CERTINVALID;
 	    goto out;
 	} else if (memcmp(cert, cmpcert, len) != 0) {
 	    fprintf(stderr, "Certificate at '%s': compare failure\n", filename);
-	    rv = EINVAL;
+	    rv = GE_CERTINVALID;
 	    goto out;
 	}
 	rv = 0;
@@ -385,6 +390,8 @@ auth_event(struct gensio *io, int event, int ierr,
 	   unsigned char *ibuf, gensiods *buflen,
 	   const char *const *auxdata)
 {
+    struct ioinfo *ioinfo = gensio_get_user_data(io);
+    struct gdata *ginfo = ioinfo_userdata(ioinfo);
     struct gensio *ssl_io;
     char raddr[256];
     char fingerprint[256];
@@ -404,7 +411,7 @@ auth_event(struct gensio *io, int event, int ierr,
 	}
 	if (!ssl_io) {
 	    fprintf(stderr, "SSL was not in the gensio stack?\n");
-	    return EINVAL;
+	    return GE_INVAL;
 	}
 
 	len = sizeof(cert);
@@ -412,21 +419,23 @@ auth_event(struct gensio *io, int event, int ierr,
 			     cert, &len);
 	if (err) {
 	    fprintf(stderr, "Error getting certificate: %s\n",
-		    strerror(err));
-	    return ENOMEM;
+		    gensio_err_to_str(err));
+	    return GE_NOMEM;
 	}
 	if (len >= sizeof(cert)) {
 	    fprintf(stderr, "certificate is too large");
-	    return ENOMEM;
+	    return GE_NOMEM;
 	}
 
 	gensio_raddr_to_str(ssl_io, NULL, raddr, sizeof(raddr));
 
 	if (!ierr) {
 	    /* Found a certificate, make sure it's the right one. */
-	    err = verify_certfile(cert, "%s/%s,%d.crt", CAdir, hostname, port);
+	    err = verify_certfile(ginfo->o,
+				  cert, "%s/%s,%d.crt", CAdir, hostname, port);
 	    if (!err)
-		err = verify_certfile(cert, "%s/%s.crt", CAdir, raddr);
+		err = verify_certfile(ginfo->o,
+				      cert, "%s/%s.crt", CAdir, raddr);
 	    return err;
 	}
 
@@ -434,11 +443,11 @@ auth_event(struct gensio *io, int event, int ierr,
 	 * Called from the SSL layer if the certificate provided by
 	 * the server didn't have a match.
 	 */
-	if (ierr != ENOKEY) {
+	if (ierr != GE_KEYNOTFOUND) {
 	    const char *errstr = "probably didn't match host certificate.";
-	    if (err == EKEYREVOKED)
+	    if (err == GE_KEYREVOKED)
 		errstr = "is revoked";
-	    else if (err == EKEYEXPIRED)
+	    else if (err == GE_KEYEXPIRED)
 		errstr = "is expired";
 	    fprintf(stderr, "Certificate for %s failed validation: %s\n",
 		    hostname, auxdata[0]);
@@ -457,12 +466,13 @@ auth_event(struct gensio *io, int event, int ierr,
 	err = gensio_control(ssl_io, 0, true, GENSIO_CONTROL_CERT_FINGERPRINT,
 			     fingerprint, &len);
 	if (err) {
-	    fprintf(stderr, "Error getting fingerprint: %s\n", strerror(err));
-	    return EKEYREJECTED;
+	    fprintf(stderr, "Error getting fingerprint: %s\n",
+		    gensio_err_to_str(err));
+	    return GE_KEYINVALID;
 	}
 	if (len >= sizeof(fingerprint)) {
 	    fprintf(stderr, "fingerprint is too large\n");
-	    return EKEYREJECTED;
+	    return GE_KEYINVALID;
 	}
 
 	printf("Certificate for %s is not present, fingerprint is:\n%s\n",
@@ -476,7 +486,7 @@ auth_event(struct gensio *io, int event, int ierr,
 		err = 0;
 		break;
 	    } else if (buf[0] == 'n') {
-		err = EKEYREJECTED;
+		err = GE_KEYINVALID;
 		break;
 	    } else {
 		printf("Invalid input: %s", buf);
@@ -490,17 +500,19 @@ auth_event(struct gensio *io, int event, int ierr,
 	err = gensio_control(ssl_io, 0, true, GENSIO_CONTROL_CERT,
 			     cert, &len);
 	if (err) {
-	    fprintf(stderr, "Error getting certificate: %s\n", strerror(err));
-	    return ENOMEM;
+	    fprintf(stderr, "Error getting certificate: %s\n",
+		    gensio_err_to_str(err));
+	    return GE_NOMEM;
 	}
 	if (len >= sizeof(cert)) {
 	    fprintf(stderr, "certificate is too large");
-	    return ENOMEM;
+	    return GE_NOMEM;
 	}
 
-	err = add_certfile(cert, "%s/%s,%d.crt", CAdir, hostname, port);
+	err = add_certfile(ginfo->o,
+			   cert, "%s/%s,%d.crt", CAdir, hostname, port);
 	if (!err)
-	    err = add_certfile(cert, "%s/%s.crt", CAdir, raddr);
+	    err = add_certfile(ginfo->o, cert, "%s/%s.crt", CAdir, raddr);
 
 	cmd = alloc_sprintf("openssl rehash %s", CAdir);
 	system(cmd);
@@ -512,7 +524,7 @@ auth_event(struct gensio *io, int event, int ierr,
 	return getpassword((char *) ibuf, buflen);
 
     default:
-	return ENOTSUP;
+	return GE_NOTSUP;
     }
 }
 
@@ -636,7 +648,8 @@ main(int argc, char *argv[])
 
     rv = gensio_default_os_hnd(0, &o);
     if (rv) {
-	fprintf(stderr, "Could not allocate OS handler: %s\n", strerror(rv));
+	fprintf(stderr, "Could not allocate OS handler: %s\n",
+		gensio_err_to_str(rv));
 	return 1;
     }
     o->vlog = do_vlog;
@@ -646,14 +659,14 @@ main(int argc, char *argv[])
 
     userdata1.waiter = o->alloc_waiter(o);
     if (!userdata1.waiter) {
-	fprintf(stderr, "Could not allocate OS waiter: %s\n", strerror(rv));
+	fprintf(stderr, "Could not allocate OS waiter\n");
 	return 1;
     }
     userdata2.waiter = userdata1.waiter;
 
     closewaiter = o->alloc_waiter(o);
     if (!closewaiter) {
-	fprintf(stderr, "Could not allocate close waiter: %s\n", strerror(rv));
+	fprintf(stderr, "Could not allocate close waiter\n");
 	return 1;
     }
 
@@ -685,7 +698,7 @@ main(int argc, char *argv[])
     rv = str_to_gensio(userdata1.ios, o, NULL, ioinfo1, &userdata1.io);
     if (rv) {
 	fprintf(stderr, "Could not allocate %s: %s\n",
-		userdata1.ios, strerror(rv));
+		userdata1.ios, gensio_err_to_str(rv));
 	return 1;
     }
 
@@ -695,7 +708,7 @@ main(int argc, char *argv[])
     rv = str_to_gensio(userdata2.ios, o, auth_event, ioinfo2, &userdata2.io);
     if (rv) {
 	fprintf(stderr, "Could not allocate %s: %s\n", userdata2.ios,
-		strerror(rv));
+		gensio_err_to_str(rv));
 	return 1;
     }
 
@@ -704,7 +717,7 @@ main(int argc, char *argv[])
     if (rv) {
 	userdata2.can_close = false;
 	fprintf(stderr, "Could not open %s: %s\n", userdata2.ios,
-		strerror(rv));
+		gensio_err_to_str(rv));
 	goto close1;
     }
 
@@ -713,7 +726,8 @@ main(int argc, char *argv[])
     if (userdata2.can_close) {
 	rv = gensio_close(userdata2.io, io_close, closewaiter);
 	if (rv)
-	    printf("Unable to close %s: %s\n", userdata2.ios, strerror(rv));
+	    printf("Unable to close %s: %s\n", userdata2.ios,
+		   gensio_err_to_str(rv));
 	else
 	    closecount++;
     }
@@ -722,7 +736,8 @@ main(int argc, char *argv[])
     if (userdata1.can_close) {
 	rv = gensio_close(userdata1.io, io_close, closewaiter);
 	if (rv)
-	    printf("Unable to close %s: %s\n", userdata1.ios, strerror(rv));
+	    printf("Unable to close %s: %s\n", userdata1.ios,
+		   gensio_err_to_str(rv));
 	else
 	    closecount++;
     }

@@ -55,7 +55,7 @@ certauth_gensio_alloc(struct gensio *child, const char *const args[],
 	 * Cowardly refusing to run over an unreliable or unencrypted
 	 * connection.
 	 */
-	return EOPNOTSUPP;
+	return GE_NOTSUP;
 
     err = gensio_certauth_filter_config(o, args, true, &data);
     if (err)
@@ -69,7 +69,7 @@ certauth_gensio_alloc(struct gensio *child, const char *const args[],
     ll = gensio_gensio_ll_alloc(o, child);
     if (!ll) {
 	gensio_filter_free(filter);
-	return ENOMEM;
+	return GE_NOMEM;
     }
     gensio_ref(child);
 
@@ -77,7 +77,7 @@ certauth_gensio_alloc(struct gensio *child, const char *const args[],
     if (!io) {
 	gensio_ll_free(ll);
 	gensio_filter_free(filter);
-	return ENOMEM;
+	return GE_NOMEM;
     }
 
     gensio_set_is_packet(io, true);
@@ -176,7 +176,7 @@ certauthna_gensio_event(struct gensio *io, int event, int err,
 	return rv;
 
     default:
-	return ENOTSUP;
+	return GE_NOTSUP;
     }
 }
 
@@ -206,7 +206,7 @@ gensio_gensio_acc_certauth_cb(void *acc_data, int op, void *data1, void *data2,
 	return 0;
 
     default:
-	return ENOTSUP;
+	return GE_NOTSUP;
     }
 }
 
@@ -222,11 +222,11 @@ certauth_gensio_accepter_alloc(struct gensio_accepter *child,
 
     if (!gensio_acc_is_reliable(child))
 	/* Cowardly refusing to run over an unreliable connection. */
-	return EOPNOTSUPP;
+	return GE_NOTSUP;
 
     nadata = o->zalloc(o, sizeof(*nadata));
     if (!nadata)
-	return ENOMEM;
+	return GE_NOMEM;
 
     err = gensio_certauth_filter_config(o, args, false, &nadata->data);
     if (err) {
@@ -279,7 +279,7 @@ certauth_gensio_alloc(struct gensio *child, const char * const args[],
 		      gensio_event cb, void *user_data,
 		      struct gensio **net)
 {
-    return ENOTSUP;
+    return GE_NOTSUP;
 }
 
 int
@@ -288,7 +288,7 @@ str_to_certauth_gensio(const char *str, const char * const args[],
 		  gensio_event cb, void *user_data,
 		  struct gensio **new_gensio)
 {
-    return ENOTSUP;
+    return GE_NOTSUP;
 }
 
 int
@@ -298,7 +298,7 @@ certauth_gensio_accepter_alloc(struct gensio_accepter *child,
 			       gensio_accepter_event cb, void *user_data,
 			       struct gensio_accepter **accepter)
 {
-    return ENOTSUP;
+    return GE_NOTSUP;
 }
 
 int
@@ -308,7 +308,7 @@ str_to_certauth_gensio_accepter(const char *str, const char * const args[],
 				void *user_data,
 				struct gensio_accepter **acc)
 {
-    return ENOTSUP;
+    return GE_NOTSUP;
 }
 
 #endif /* HAVE_OPENSSL */

@@ -46,6 +46,7 @@ struct telnet_filter {
     int in_urgent;
 
     const struct telnet_cmd *telnet_cmds;
+    struct telnet_cmd *working_telnet_cmds;
     const unsigned char *telnet_init_seq;
     unsigned int telnet_init_seq_len;
 
@@ -164,7 +165,7 @@ telnet_try_connect(struct gensio_filter *filter, struct timeval *timeout)
 
     timeout->tv_sec = 0;
     timeout->tv_usec = 500000;
-    return EAGAIN;
+    return GE_RETRY;
 }
 
 static int
@@ -392,22 +393,45 @@ telnet_cmd_handler(void *cb_data, unsigned char cmd)
 	tfilter->telnet_cbs->got_cmd(tfilter->handler_data, cmd);
 }
 
+static struct telnet_cmd *
+telnet_cmds_copy(struct gensio_os_funcs *o, const struct telnet_cmd *in)
+{
+    unsigned int i;
+    struct telnet_cmd *out;
+
+    for (i = 0; in[i].option != TELNET_CMD_END_OPTION; i++)
+	;
+    i++;
+
+    out = o->zalloc(o, i * sizeof(*out));
+    if (!out)
+	return NULL;
+    memcpy(out, in, i * sizeof(*out));
+    return out;
+}
+
 static int
 telnet_setup(struct gensio_filter *filter)
 {
     struct telnet_filter *tfilter = filter_to_telnet(filter);
-    int err;
+    struct telnet_cmd *cmds;
 
-    err = telnet_init(&tfilter->tn_data, tfilter, telnet_output_ready,
-		      telnet_cmd_handler, tfilter->telnet_cmds,
-		      tfilter->telnet_init_seq, tfilter->telnet_init_seq_len);
+    cmds = telnet_cmds_copy(tfilter->o, tfilter->telnet_cmds);
+    if (!cmds)
+	return GE_NOMEM;
+    if (tfilter->working_telnet_cmds)
+	tfilter->o->free(tfilter->o, tfilter->working_telnet_cmds);
+    tfilter->working_telnet_cmds = cmds;
+    telnet_init(&tfilter->tn_data, tfilter, telnet_output_ready,
+		telnet_cmd_handler, cmds,
+		tfilter->telnet_init_seq, tfilter->telnet_init_seq_len);
     if (tfilter->is_client)
 	tfilter->rfc2217_set = !tfilter->allow_2217;
     else {
 	tfilter->rfc2217_set = true; /* Don't wait for this on the server. */
 	tfilter->setup_done = true;
     }
-    if (!err && !tfilter->rfc2217_set) {
+    if (!tfilter->rfc2217_set) {
 	tfilter->o->get_monotonic_time(tfilter->o,
 				       &tfilter->rfc2217_end_wait);
 	tfilter->rfc2217_end_wait.tv_sec += 4; /* FIXME - magic number */
@@ -417,7 +441,7 @@ telnet_setup(struct gensio_filter *filter)
 	else
 	    tfilter->write_state = TELNET_NOT_WRITING;
     }
-    return err;
+    return 0;
 }
 
 static void
@@ -469,9 +493,9 @@ telnet_filter_control(struct gensio_filter *filter, bool get, int op,
     unsigned char buf[2];
 
     if (get)
-	return ENOTSUP;
+	return GE_NOTSUP;
     if (op != GENSIO_CONTROL_SEND_BREAK)
-	return ENOTSUP;
+	return GE_NOTSUP;
 
     buf[0] = TN_IAC;
     buf[1] = TN_BREAK;
@@ -535,7 +559,7 @@ static int gensio_telnet_filter_func(struct gensio_filter *filter, int op,
 				     count);
 
     default:
-	return ENOTSUP;
+	return GE_NOTSUP;
     }
 }
 
@@ -718,7 +742,7 @@ gensio_telnet_filter_alloc(struct gensio_os_funcs *o, const char * const args[],
 	if (gensio_check_keyboolv(args[i], "mode", "client", "server",
 				  &is_client) > 0)
 	    continue;
-	return EINVAL;
+	return GE_INVAL;
     }
 
     if (is_client) {
@@ -742,7 +766,7 @@ gensio_telnet_filter_alloc(struct gensio_os_funcs *o, const char * const args[],
 					    init_seq, init_seq_len, rops);
 
     if (!filter)
-	return ENOMEM;
+	return GE_NOMEM;
 
     *rfilter = filter;
     return 0;
