@@ -544,6 +544,8 @@ main(int argc, char *argv[])
     int err;
     char *do_telnet = "";
     char *CAdirspec, *certfilespec, *keyfilespec;
+    const char *service = "login:";
+    char *free_service = NULL;
 
     memset(&userdata1, 0, sizeof(userdata1));
     memset(&userdata2, 0, sizeof(userdata2));
@@ -610,6 +612,18 @@ main(int argc, char *argv[])
 	hostname = argv[arg];
     }
 
+    arg++;
+    if (arg < argc) {
+	/* User gave us a remote program. */
+	free_service = alloc_sprintf("program:%s", argv[arg]);
+	if (!free_service) {
+	    fprintf(stderr, "Unable to allocate remote program request\n");
+	    return 1;
+	}
+	service = free_service;
+	userdata1.ios = io1_default_notty;
+    }
+
     if (!tlssh_dir) {
 	const char *home = getenv("HOME");
 
@@ -634,8 +648,9 @@ main(int argc, char *argv[])
     if (err)
 	return 1;
 
-    s = alloc_sprintf("%scertauth(username=%s%s%s),ssl(%s),tcp,%s,%d",
-		      do_telnet, username, certfilespec, keyfilespec,
+    s = alloc_sprintf("%scertauth(username=%s,service=%s%s%s,),"
+		      "ssl(%s),tcp,%s,%d",
+		      do_telnet, username, service, certfilespec, keyfilespec,
 		      CAdirspec, hostname, port);
     free(CAdirspec);
     free(certfilespec);

@@ -166,14 +166,21 @@ pam_cb(int num_msg, const struct pam_message **msg,
     return PAM_CONV_ERR;
 }
 
+static const char *login_service = "login:";
+static const char *program_service = "program:";
+
 struct pam_conv auth_conv = { pam_cb, NULL };
+static bool pam_started = false;
 static bool pam_cred_set = false;
 static bool pam_session_open = false;
 static char username[100];
-static char *userpgm;
+static char *prog; /* If set in the service. */
+static char *service;
+static char *pwshell;
 static char *homedir;
 static int uid = -1;
 static int gid = -1;
+static int pam_err;
 
 static int
 certauth_event(struct gensio *io, int event, int ierr,
@@ -193,7 +200,7 @@ certauth_event(struct gensio *io, int event, int ierr,
 			     &len);
 	if (err) {
 	    syslog(LOG_ERR, "No username provided by remote: %s",
-		   strerror(err));
+		   gensio_err_to_str(err));
 	    return GE_KEYINVALID;
 	}
 	pw = getpwnam(username);
@@ -203,12 +210,13 @@ certauth_event(struct gensio *io, int event, int ierr,
 	    return GE_KEYINVALID;
 	}
 
-	err = pam_start(progname, username, &auth_conv, &pamh);
-	if (err != PAM_SUCCESS) {
+	pam_err = pam_start(progname, username, &auth_conv, &pamh);
+	if (pam_err != PAM_SUCCESS) {
 	    syslog(LOG_ERR, "pam_start failed for %s: %s", username,
-		   pam_strerror(pamh, err));
+		   pam_strerror(pamh, pam_err));
 	    return GE_INVAL;
 	}
+	pam_started = true;
 
 	len = snprintf(authdir, sizeof(authdir), "%s/.gtlssh/allowed_certs/",
 		       pw->pw_dir);
@@ -216,13 +224,45 @@ certauth_event(struct gensio *io, int event, int ierr,
 			     authdir, &len);
 	if (err) {
 	    syslog(LOG_ERR, "Could not set authdir %s: %s", authdir,
-		   strerror(err));
+		   gensio_err_to_str(err));
 	    return GE_KEYINVALID;
 	}
-	userpgm = pw->pw_shell;
+	pwshell = pw->pw_shell;
 	uid = pw->pw_uid;
 	gid = pw->pw_gid;
 	homedir = pw->pw_dir;
+
+	len = 0;
+	err = gensio_control(io, 0, true, GENSIO_CONTROL_SERVICE,
+			     NULL, &len);
+	if (err) {
+	    syslog(LOG_ERR, "Could not get service: %s",
+		   gensio_err_to_str(err));
+	    return GE_INVAL;
+	}
+	len++; /* Add terminating nil. */
+	service = malloc(len);
+	if (!service) {
+	    syslog(LOG_ERR, "Could not allocate service memory");
+	    return GE_NOMEM;
+	}
+	err = gensio_control(io, 0, true, GENSIO_CONTROL_SERVICE,
+			     service, &len);
+	if (err) {
+	    syslog(LOG_ERR, "Could not get service(2): %s",
+		   gensio_err_to_str(err));
+	    return GE_INVAL;
+	}
+	if (strncmp(service, program_service, strlen(program_service)) == 0) {
+	    prog = strchr(service, ':') + 1;
+	} else if (strncmp(service, login_service,
+			   strlen(login_service)) == 0) {
+	    /* Nothing to do. */
+	} else {
+	    syslog(LOG_ERR, "unknown service for %s: %s", username, service);
+	    return GE_INVAL;
+	}
+
 	return GE_NOTSUP;
     }
 
@@ -234,11 +274,11 @@ certauth_event(struct gensio *io, int event, int ierr,
 
     case GENSIO_EVENT_PASSWORD_VERIFY:
 	passwd = (char *) buf;
-	err = pam_authenticate(pamh, PAM_SILENT);
+	pam_err = pam_authenticate(pamh, PAM_SILENT);
 	passwd = NULL;
-	if (err != PAM_SUCCESS) {
+	if (pam_err != PAM_SUCCESS) {
 	    syslog(LOG_ERR, "pam_authenticate failed for %s: %s", username,
-		   pam_strerror(pamh, err));
+		   pam_strerror(pamh, pam_err));
 	    return GE_KEYINVALID;
 	}
 	return 0;
@@ -300,26 +340,26 @@ tcp_handle_new(struct gensio_runner *r, void *cb_data)
     pty_ioinfo = ioinfo_otherioinfo(ioinfo);
     pty_ginfo = ioinfo_userdata(pty_ioinfo);
 
-    err = pam_acct_mgmt(pamh, PAM_SILENT);
-    if (err != PAM_SUCCESS) {
+    pam_err = pam_acct_mgmt(pamh, PAM_SILENT);
+    if (pam_err != PAM_SUCCESS) {
 	/* FIXME - handle PAM_NEW_AUTHTOK_REQD */
 	syslog(LOG_ERR, "pam_acct_mgmt failed for %s: %s", username,
-	       pam_strerror(pamh, err));
+	       pam_strerror(pamh, pam_err));
 	goto out_err;
     }
 
-    err = pam_setcred(pamh, PAM_ESTABLISH_CRED | PAM_SILENT);
-    if (err != PAM_SUCCESS) {
+    pam_err = pam_setcred(pamh, PAM_ESTABLISH_CRED | PAM_SILENT);
+    if (pam_err != PAM_SUCCESS) {
 	syslog(LOG_ERR, "pam_setcred establish failed for %s: %s", username,
-	       pam_strerror(pamh, err));
+	       pam_strerror(pamh, pam_err));
 	goto out_err;
     }
     pam_cred_set = true;
 
-    err = pam_open_session(pamh, PAM_SILENT);
-    if (err != PAM_SUCCESS) {
+    pam_err = pam_open_session(pamh, PAM_SILENT);
+    if (pam_err != PAM_SUCCESS) {
 	syslog(LOG_ERR, "pam_open_session failed for %s: %s", username,
-	       pam_strerror(pamh, err));
+	       pam_strerror(pamh, pam_err));
 	goto out_err;
     }
     pam_session_open = true;
@@ -332,12 +372,12 @@ tcp_handle_new(struct gensio_runner *r, void *cb_data)
 
     orig_uid = getuid();
     orig_gid = getuid();
-    err = setgid(gid);
+    err = setregid(gid, -1);
     if (err) {
 	syslog(LOG_ERR, "Unable to set gid to %d: %s", gid, strerror(errno));
 	goto out_err;
     }
-    err = setuid(uid);
+    err = setreuid(uid, -1);
     if (err) {
 	syslog(LOG_ERR, "Unable to set uid to %d: %s", uid, strerror(errno));
 	goto out_err;
@@ -350,8 +390,12 @@ tcp_handle_new(struct gensio_runner *r, void *cb_data)
 	goto out_err;
     }
 
-    /* The '-' makes it a login shell.  pty will remove it. */
-    s = alloc_sprintf("pty,-%s", userpgm);
+    if (prog) {
+	s = alloc_sprintf("stdio(stderr-to-stdout),%s", prog);
+    } else {
+	/* The '-' makes it a login shell.  pty will remove it. */
+	s = alloc_sprintf("pty,-%s", pwshell);
+    }
     if (!s) {
 	syslog(LOG_ERR, "Out of memory allocating program name");
 	goto out_err;
@@ -365,7 +409,7 @@ tcp_handle_new(struct gensio_runner *r, void *cb_data)
     err = gensio_control(pty_io, 0, false, GENSIO_CONTROL_ENVIRONMENT,
 			 (char *) env, NULL);
     if (err) {
-	syslog(LOG_ERR, "pty set env failed for %s: %s", username,
+	syslog(LOG_ERR, "set env failed for %s: %s", username,
 	       gensio_err_to_str(err));
 	goto out_err;
     }
@@ -380,15 +424,15 @@ tcp_handle_new(struct gensio_runner *r, void *cb_data)
     pty_ginfo->io = pty_io;
     ioinfo_set_ready(pty_ioinfo, pty_io);
 
-    setuid(orig_uid);
-    setgid(orig_gid);
+    setreuid(orig_uid, -1);
+    setregid(orig_gid, -1);
     return;
 
  out_err:
     if (orig_uid != -1)
-	setuid(orig_uid);
+	setreuid(orig_uid, -1);
     if (orig_gid != -1)
-	setgid(orig_gid);
+	setregid(orig_gid, -1);
     gshutdown(ioinfo);
 }
 
@@ -676,16 +720,23 @@ main(int argc, char *argv[])
     free_ioinfo(ioinfo2);
 
     if (pam_session_open) {
-	rv = pam_close_session(pamh, PAM_SILENT);
-	if (rv != PAM_SUCCESS)
+	pam_err = pam_close_session(pamh, PAM_SILENT);
+	if (pam_err != PAM_SUCCESS)
 	    syslog(LOG_ERR, "pam_close_session failed for %s: %s", username,
-		   pam_strerror(pamh, rv));
+		   pam_strerror(pamh, pam_err));
     }
 
     if (pam_cred_set) {
-	rv = pam_setcred(pamh, PAM_DELETE_CRED | PAM_SILENT);
-	if (rv != PAM_SUCCESS)
+	pam_err = pam_setcred(pamh, PAM_DELETE_CRED | PAM_SILENT);
+	if (pam_err != PAM_SUCCESS)
 	    syslog(LOG_ERR, "pam_setcred delete failed for %s: %s", username,
+		   pam_strerror(pamh, pam_err));
+    }
+
+    if (pam_started) {
+	rv = pam_end(pamh, pam_err);
+	if (rv != PAM_SUCCESS)
+	    syslog(LOG_ERR, "pam_en failed for %s: %s", username,
 		   pam_strerror(pamh, rv));
     }
 
