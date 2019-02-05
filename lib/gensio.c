@@ -26,6 +26,7 @@
 #include <limits.h>
 #include <limits.h>
 #include <stdio.h>
+#include <assert.h>
 
 #include <arpa/inet.h>
 #ifdef HAVE_LIBSCTP
@@ -75,10 +76,19 @@ gen_getclass(struct gensio_classobj *classes, const char *name)
     return NULL;
 }
 
+struct gensio_nocbwait {
+    bool queued;
+    struct gensio_waiter *waiter;
+    struct gensio_link link;
+};
+
 struct gensio {
     struct gensio_os_funcs *o;
     void *user_data;
     gensio_event cb;
+    unsigned int cb_count;
+    struct gensio_list waiters;
+    struct gensio_lock *lock;
 
     struct gensio_classobj *classes;
 
@@ -109,6 +119,12 @@ gensio_data_alloc(struct gensio_os_funcs *o,
     if (!io)
 	return NULL;
 
+    io->lock = o->alloc_lock(o);
+    if (!io->lock) {
+	o->free(o, io);
+	return NULL;
+    }
+    gensio_list_init(&io->waiters);
     io->o = o;
     io->cb = cb;
     io->user_data = user_data;
@@ -123,12 +139,15 @@ gensio_data_alloc(struct gensio_os_funcs *o,
 void
 gensio_data_free(struct gensio *io)
 {
+    assert(gensio_list_empty(&io->waiters));
+
     while (io->classes) {
 	struct gensio_classobj *c = io->classes;
 
 	io->classes = c->next;
 	io->o->free(io->o, c);
     }
+    io->o->free_lock(io->lock);
     io->o->free(io->o, io);
 }
 
@@ -154,9 +173,34 @@ int
 gensio_cb(struct gensio *io, int event, int err,
 	  unsigned char *buf, gensiods *buflen, const char *const *auxdata)
 {
+    struct gensio_os_funcs *o = io->o;
+    int rv;
+
     if (!io->cb)
 	return GE_NOTSUP;
-    return io->cb(io, io->user_data, event, err, buf, buflen, auxdata);
+    o->lock(io->lock);
+    io->cb_count++;
+    o->unlock(io->lock);
+    rv = io->cb(io, io->user_data, event, err, buf, buflen, auxdata);
+    o->lock(io->lock);
+    assert(io->cb_count > 0);
+    io->cb_count--;
+    if (io->cb_count == 0) {
+	struct gensio_link *l, *l2;
+
+	gensio_list_for_each_safe(&io->waiters, l, l2) {
+	    struct gensio_nocbwait *w = gensio_container_of(l,
+							struct gensio_nocbwait,
+							link);
+
+	    gensio_list_rm(&io->waiters, l);
+	    w->queued = false;
+	    o->wake(w->waiter);
+	}
+    }
+    o->unlock(io->lock);
+
+    return rv;
 }
 
 int
@@ -2114,7 +2158,41 @@ gensio_log_level_to_str(enum gensio_log_levels level)
     }
 }
 
+static int
+gensio_wait_no_cb(struct gensio *io, struct gensio_waiter *waiter,
+		  struct timeval *timeout)
+{
+    struct gensio_os_funcs *o = io->o;
+    struct gensio_nocbwait wait;
+    int rv = 0;
+
+    wait.waiter = waiter;
+    o->lock(io->lock);
+    if (io->cb_count != 0) {
+	wait.queued = true;
+	gensio_list_add_tail(&io->waiters, &wait.link);
+	o->unlock(io->lock);
+	rv = o->wait(waiter, 1, timeout);
+	o->lock(io->lock);
+	if (wait.queued) {
+	    rv = GE_TIMEDOUT;
+	    gensio_list_rm(&io->waiters, &wait.link);
+	}
+    }
+    o->unlock(io->lock);
+    return rv;
+}
+
 #define GENSIO_SYNCIO_SIG 0x734580fc
+
+struct gensio_sync_op {
+    bool queued;
+    unsigned char *buf;
+    gensiods len;
+    int err;
+    struct gensio_waiter *waiter;
+    struct gensio_link link;
+};
 
 struct gensio_sync_io {
     unsigned int sig;
@@ -2122,12 +2200,42 @@ struct gensio_sync_io {
     gensio_event old_cb;
     void *old_user_data;
 
-    void *readbuf;
-    gensiods readbuf_len;
+    struct gensio_list readops;
+    struct gensio_list writeops;
+    int err;
 
-    void *writebuf;
-    gensiods writebuf_len;
+    struct gensio_lock *lock;
+    struct gensio_waiter *close_waiter;
 };
+
+static void
+gensio_sync_flush_waiters(struct gensio_sync_io *sync_io,
+			  struct gensio_os_funcs *o)
+{
+    struct gensio_link *l, *l2;
+
+    gensio_list_for_each_safe(&sync_io->readops, l, l2) {
+	struct gensio_sync_op *op = gensio_container_of(l,
+							struct gensio_sync_op,
+							link);
+
+	op->err = sync_io->err;
+	op->queued = false;
+	o->wake(op->waiter);
+	gensio_list_rm(&sync_io->readops, l);
+    }
+
+    gensio_list_for_each_safe(&sync_io->writeops, l, l2) {
+	struct gensio_sync_op *op = gensio_container_of(l,
+							struct gensio_sync_op,
+							link);
+
+	op->err = sync_io->err;
+	op->queued = false;
+	o->wake(op->waiter);
+	gensio_list_rm(&sync_io->writeops, l);
+    }
+}
 
 static int
 gensio_syncio_event(struct gensio *io, void *user_data,
@@ -2135,13 +2243,82 @@ gensio_syncio_event(struct gensio *io, void *user_data,
 		    unsigned char *buf, gensiods *buflen,
 		    const char *const *auxdata)
 {
+    struct gensio_os_funcs *o = io->o;
     struct gensio_sync_io *sync_io = gensio_get_user_data(io);
+    gensiods done_len;
 
     switch (event) {
     case GENSIO_EVENT_READ:
+	o->lock(sync_io->lock);
+	if (err) {
+	    if (!sync_io->err)
+		sync_io->err = err;
+	    gensio_sync_flush_waiters(sync_io, o);
+	    goto read_unlock;
+	}
+	if (gensio_list_empty(&sync_io->readops)) {
+	    *buflen = 0;
+	    gensio_set_read_callback_enable(io, false);
+	    goto read_unlock;
+	}
+	done_len = *buflen;
+	while (*buflen && !gensio_list_empty(&sync_io->readops)) {
+	    struct gensio_link *l = gensio_list_first(&sync_io->readops);
+	    struct gensio_sync_op *op = gensio_container_of(l,
+							struct gensio_sync_op,
+							link);
+	    gensiods len = done_len;
+
+	    if (len > op->len)
+		len = op->len;
+	    memcpy(op->buf, buf, len);
+	    op->len = len;
+	    gensio_list_rm(&sync_io->readops, l);
+	    op->queued = false;
+	    o->wake(op->waiter);
+	    done_len -= len;
+	}
+	*buflen -= done_len;
+	if (done_len > 0)
+	    gensio_set_read_callback_enable(io, false);
+    read_unlock:
+	o->unlock(sync_io->lock);
 	return 0;
 
     case GENSIO_EVENT_WRITE_READY:
+	o->lock(sync_io->lock);
+	if (gensio_list_empty(&sync_io->writeops)) {
+	    gensio_set_write_callback_enable(io, false);
+	    goto write_unlock;
+	}
+	while (!gensio_list_empty(&sync_io->writeops)) {
+	    struct gensio_link *l = gensio_list_first(&sync_io->writeops);
+	    struct gensio_sync_op *op = gensio_container_of(l,
+							struct gensio_sync_op,
+							link);
+	    gensiods len = 0;
+
+	    err = gensio_write(io, &len, op->buf, op->len, NULL);
+	    if (err) {
+		if (!sync_io->err)
+		    sync_io->err = err;
+		gensio_sync_flush_waiters(sync_io, o);
+	    } else {
+		op->buf += len;
+		op->len -= len;
+		if (op->len == 0) {
+		    gensio_list_rm(&sync_io->readops, l);
+		    op->queued = false;
+		    o->wake(op->waiter);
+		} else {
+		    break;
+		}
+	    }
+	}
+	if (gensio_list_empty(&sync_io->writeops))
+	    gensio_set_write_callback_enable(io, false);
+    write_unlock:
+	o->unlock(sync_io->lock);
 	return 0;
 
     default:
@@ -2155,17 +2332,161 @@ gensio_syncio_event(struct gensio *io, void *user_data,
 int
 gensio_set_sync(struct gensio *io)
 {
-    struct gensio_sync_io *sync_io = io->o->zalloc(io->o, sizeof(*sync_io));
+    struct gensio_os_funcs *o = io->o;
+    struct gensio_sync_io *sync_io = o->zalloc(o, sizeof(*sync_io));
 
     if (!sync_io)
 	return GE_NOMEM;
     sync_io->sig = GENSIO_SYNCIO_SIG;
 
+    sync_io->lock = o->alloc_lock(o);
+    if (!sync_io->lock) {
+	o->free(o, sync_io);
+	return GE_NOMEM;
+    }
+
+    sync_io->close_waiter = o->alloc_waiter(o);
+    if (!sync_io->close_waiter) {
+	o->free_lock(sync_io->lock);
+	o->free(o, sync_io);
+	return GE_NOMEM;
+    }
+
+    gensio_list_init(&sync_io->readops);
+    gensio_list_init(&sync_io->writeops);
+
     gensio_set_read_callback_enable(io, false);
     gensio_set_write_callback_enable(io, false);
+    gensio_wait_no_cb(io, sync_io->close_waiter, NULL);
 
     sync_io->old_cb = io->cb;
     sync_io->old_user_data = io->user_data;
     gensio_set_cb(io, gensio_syncio_event, sync_io);
     return 0;
+}
+
+int
+gensio_clear_sync(struct gensio *io)
+{
+    struct gensio_os_funcs *o = io->o;
+    struct gensio_sync_io *sync_io = io->user_data;
+
+    if (!sync_io || sync_io->sig != GENSIO_SYNCIO_SIG)
+	return GE_NOTREADY;
+
+    gensio_set_read_callback_enable(io, false);
+    gensio_set_write_callback_enable(io, false);
+    gensio_wait_no_cb(io, sync_io->close_waiter, NULL);
+
+    gensio_set_cb(io, sync_io->old_cb, sync_io->old_user_data);
+
+    o->free_waiter(sync_io->close_waiter);
+    o->free_lock(sync_io->lock);
+    o->free(o, sync_io);
+
+    return 0;
+}
+
+int
+gensio_read_s(struct gensio *io, gensiods *count, void *data, gensiods datalen,
+	      struct timeval *timeout)
+{
+    struct gensio_os_funcs *o = io->o;
+    struct gensio_sync_io *sync_io = io->user_data;
+    struct gensio_sync_op op;
+    int rv = 0;
+
+    if (!sync_io || sync_io->sig != GENSIO_SYNCIO_SIG)
+	return GE_NOTREADY;
+
+    if (datalen == 0) {
+	if (count)
+	    *count = 0;
+	return 0;
+    }
+
+    op.queued = true;
+    op.buf = data;
+    op.len = datalen;
+    op.err = 0;
+    op.waiter = o->alloc_waiter(o);
+    if (!op.waiter)
+	return GE_NOMEM;
+    o->lock(sync_io->lock);
+    if (sync_io->err) {
+	rv = sync_io->err;
+	goto out_unlock;
+    }
+    gensio_set_read_callback_enable(io, true);
+    gensio_list_add_tail(&sync_io->readops, &op.link);
+
+    o->unlock(sync_io->lock);
+    rv = o->wait(op.waiter, 1, timeout);
+    o->lock(sync_io->lock);
+    if (op.err) {
+	rv = op.err;
+    } else if (op.queued) {
+	if (count)
+	    *count = 0;
+	gensio_list_rm(&sync_io->readops, &op.link);
+    } else if (count) {
+	*count = op.len;
+    }
+ out_unlock:
+    o->unlock(sync_io->lock);
+    o->free_waiter(op.waiter);
+
+    return rv;
+}
+
+int
+gensio_write_s(struct gensio *io, gensiods *count,
+	       const void *data, gensiods datalen,
+	       struct timeval *timeout)
+{
+    struct gensio_os_funcs *o = io->o;
+    struct gensio_sync_io *sync_io = io->user_data;
+    struct gensio_sync_op op;
+    int rv = 0;
+    gensiods origlen;
+
+    if (!sync_io || sync_io->sig != GENSIO_SYNCIO_SIG)
+	return GE_NOTREADY;
+
+    if (datalen == 0) {
+	if (count)
+	    *count = 0;
+	return 0;
+    }
+
+    origlen = datalen;
+    op.queued = true;
+    op.buf = (void *) data;
+    op.len = datalen;
+    op.err = 0;
+    op.waiter = o->alloc_waiter(o);
+    if (!op.waiter)
+	return GE_NOMEM;
+    o->lock(sync_io->lock);
+    if (sync_io->err) {
+	rv = sync_io->err;
+	goto out_unlock;
+    }
+    gensio_set_write_callback_enable(io, true);
+    gensio_list_add_tail(&sync_io->writeops, &op.link);
+
+    o->unlock(sync_io->lock);
+    rv = o->wait(op.waiter, 1, timeout);
+    o->lock(sync_io->lock);
+    if (op.queued)
+	gensio_list_rm(&sync_io->readops, &op.link);
+    if (op.err)
+	rv = op.err;
+    else if (count)
+	*count = origlen - op.len;
+ out_unlock:
+    o->unlock(sync_io->lock);
+    o->free_waiter(op.waiter);
+
+    return rv;
 }

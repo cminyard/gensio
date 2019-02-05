@@ -217,7 +217,7 @@ struct gensio_os_funcs {
     /*
      * Wait for count wakeups for up to the amount of time (relative)
      * given in timeout.  If timeout is NULL wait forever.  This
-     * returns ETIMEDOUT on a timeout.  It can return other errors.
+     * returns GE_TIMEDOUT on a timeout.  It can return other errors.
      * The timeout is updated to the remaining time.
      * Note that if you get a timeout, none of the wakeups will be
      * "used" by this call.

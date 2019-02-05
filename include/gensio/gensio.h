@@ -74,12 +74,16 @@ typedef size_t gensiods; /* Data size */
  * The new channel gensio is in auxdata.  buf may contain a string
  * with information about the new channel.  If this returns an error,
  * the channel creation is refused and the channel is closed.
+ *
+ * Blocked if gensio read is disabled.
  */
 #define GENSIO_EVENT_NEW_CHANNEL	3
 
 /*
  * Got a request from the other end to send a break.  Client or
  * server.
+ *
+ * Blocked if gensio read is disabled.
  */
 #define GENSIO_EVENT_SEND_BREAK		4
 
@@ -554,6 +558,47 @@ bool gensio_is_authenticated(struct gensio *io);
  * Is the connection encrypted?
  */
 bool gensio_is_encrypted(struct gensio *io);
+
+/*
+ * Set up the gensio for syncronous I/O.  If you do this, the event
+ * callback that is currently registered will no longer receive read
+ * and write callbacks.  It *will* receive other callbacks.
+ *
+ * You must call this before doing any of the synchronous read and write
+ * operations.
+ */
+int gensio_set_sync(struct gensio *io);
+
+/*
+ * Return the gensio to asyncronous I/O.  The callback will be restored
+ * to the one that was set when gensio_set_sync() was called.
+ */
+int gensio_clear_sync(struct gensio *io);
+
+/*
+ * Wait for data from the gensio.  count (if not NULL) will be updated
+ * to the actual number of bytes read.  This will wait for any read
+ * and will return whatever that read was, even if it is less than
+ * datalen.
+ *
+ * Will wait for the amount of time in timeout.  timeout is updated to
+ * the amount of time left to wait.  If timeout is NULL, wait forever.
+ */
+int gensio_read_s(struct gensio *io, gensiods *count,
+		  void *data, gensiods datalen,
+		  struct timeval *timeout);
+
+/*
+ * Write data to the gensio.  count (if not NULL) will be updated
+ * to the actual number of written.  This will wait until either
+ * the timeout occurs or all the data is written.
+ *
+ * Will wait for the amount of time in timeout.  timeout is updated to
+ * the amount of time left to wait.  If timeout is NULL, wait forever.
+ */
+int gensio_write_s(struct gensio *io, gensiods *count,
+		   const void *data, gensiods datalen,
+		   struct timeval *timeout);
 
 
 struct gensio_accepter;

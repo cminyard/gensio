@@ -290,7 +290,9 @@ void gensio_list_add_tail(struct gensio_list *list, struct gensio_link *link);
 void gensio_list_init(struct gensio_list *list);
 bool gensio_list_empty(struct gensio_list *list);
 
-#define gensio_list_for_each(list, l) \
+#define gensio_list_first(list) ((list)->link.next)
+
+#define gensio_list_for_each(list, l)					\
     for ((l) = (list)->link.next; (l) != &(list)->link; l = l->next)
 
 #define gensio_list_for_each_safe(list, l, l2) \
