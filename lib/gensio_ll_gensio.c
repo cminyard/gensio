@@ -199,10 +199,10 @@ gensio_ll_child_func(struct gensio_ll *ll, int op, gensiods *count,
 }
 
 static int
-child_event(struct gensio *io, int event, int err,
+child_event(struct gensio *io, void *user_data, int event, int err,
 	    unsigned char *buf, gensiods *buflen, const char *const *auxdata)
 {
-    struct gensio_ll_child *cdata = gensio_get_user_data(io);
+    struct gensio_ll_child *cdata = user_data;
 
     switch (event) {
     case GENSIO_EVENT_READ:

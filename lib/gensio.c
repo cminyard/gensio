@@ -156,7 +156,7 @@ gensio_cb(struct gensio *io, int event, int err,
 {
     if (!io->cb)
 	return GE_NOTSUP;
-    return io->cb(io, event, err, buf, buflen, auxdata);
+    return io->cb(io, io->user_data, event, err, buf, buflen, auxdata);
 }
 
 int
@@ -237,7 +237,7 @@ gensio_acc_get_gensio_data(struct gensio_accepter *acc)
 int
 gensio_acc_cb(struct gensio_accepter *acc, int event, void *data)
 {
-    return acc->cb(acc, event, data);
+    return acc->cb(acc, acc->user_data, event, data);
 }
 
 int
@@ -1665,7 +1665,7 @@ gensio_acc_vlog(struct gensio_accepter *acc, enum gensio_log_levels level,
     info.level = level;
     info.str = str;
     va_copy(info.args, args);
-    acc->cb(acc, GENSIO_ACC_EVENT_LOG, &info);
+    acc->cb(acc, acc->user_data, GENSIO_ACC_EVENT_LOG, &info);
     va_end(info.args);
 }
 
@@ -2112,4 +2112,60 @@ gensio_log_level_to_str(enum gensio_log_levels level)
     case GENSIO_LOG_DEBUG: return "debug"; break;
     default: return "invalid";
     }
+}
+
+#define GENSIO_SYNCIO_SIG 0x734580fc
+
+struct gensio_sync_io {
+    unsigned int sig;
+
+    gensio_event old_cb;
+    void *old_user_data;
+
+    void *readbuf;
+    gensiods readbuf_len;
+
+    void *writebuf;
+    gensiods writebuf_len;
+};
+
+static int
+gensio_syncio_event(struct gensio *io, void *user_data,
+		    int event, int err,
+		    unsigned char *buf, gensiods *buflen,
+		    const char *const *auxdata)
+{
+    struct gensio_sync_io *sync_io = gensio_get_user_data(io);
+
+    switch (event) {
+    case GENSIO_EVENT_READ:
+	return 0;
+
+    case GENSIO_EVENT_WRITE_READY:
+	return 0;
+
+    default:
+	if (sync_io->old_cb)
+	    return sync_io->old_cb(io, sync_io->old_user_data,
+				   event, err, buf, buflen, auxdata);
+	return GE_NOTSUP;
+    }
+}
+
+int
+gensio_set_sync(struct gensio *io)
+{
+    struct gensio_sync_io *sync_io = io->o->zalloc(io->o, sizeof(*sync_io));
+
+    if (!sync_io)
+	return GE_NOMEM;
+    sync_io->sig = GENSIO_SYNCIO_SIG;
+
+    gensio_set_read_callback_enable(io, false);
+    gensio_set_write_callback_enable(io, false);
+
+    sync_io->old_cb = io->cb;
+    sync_io->old_user_data = io->user_data;
+    gensio_set_cb(io, gensio_syncio_event, sync_io);
+    return 0;
 }

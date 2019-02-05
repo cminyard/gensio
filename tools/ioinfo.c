@@ -151,11 +151,11 @@ handle_escapechar(struct ioinfo *ioinfo, char c)
 }
 
 static int
-io_event(struct gensio *io, int event, int err,
+io_event(struct gensio *io, void *user_data, int event, int err,
 	 unsigned char *buf, gensiods *buflen,
 	 const char *const *auxdata)
 {
-    struct ioinfo *ioinfo = gensio_get_user_data(io);
+    struct ioinfo *ioinfo = user_data;
     struct ioinfo *rioinfo = ioinfo->otherio;
     int rv, escapepos = -1;
     gensiods count = 0;

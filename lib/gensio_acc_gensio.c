@@ -326,10 +326,10 @@ basena_finish_server_open(struct gensio *net, int err, void *cb_data)
 }
 
 static int
-basena_child_event(struct gensio_accepter *accepter, int event,
-		   void *data)
+basena_child_event(struct gensio_accepter *accepter, void *user_data,
+		   int event, void *data)
 {
-    struct basena_data *nadata = gensio_acc_get_user_data(accepter);
+    struct basena_data *nadata = user_data;
     struct gensio_os_funcs *o = nadata->o;
     struct gensio_filter *filter;
     struct gensio_ll *ll;

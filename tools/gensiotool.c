@@ -98,10 +98,11 @@ io_close(struct gensio *io, void *close_data)
 }
 
 static int
-io_acc_event(struct gensio_accepter *accepter, int event, void *data)
+io_acc_event(struct gensio_accepter *accepter, void *user_data,
+	     int event, void *data)
 {
 
-    struct ioinfo *ioinfo = gensio_acc_get_user_data(accepter);
+    struct ioinfo *ioinfo = user_data;
     struct gdata *ginfo = ioinfo_userdata(ioinfo);
 
     if (event != GENSIO_ACC_EVENT_NEW_CONNECTION)

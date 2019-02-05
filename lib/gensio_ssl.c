@@ -140,11 +140,11 @@ sslna_new_child(void *acc_data, void **finish_data,
 }
 
 static int
-sslna_gensio_event(struct gensio *io, int event, int err,
+sslna_gensio_event(struct gensio *io, void *user_data, int event, int err,
 		   unsigned char *buf, gensiods *buflen,
 		   const char *const *auxdata)
 {
-    struct sslna_data *nadata = gensio_get_user_data(io);
+    struct sslna_data *nadata = user_data;
 
     if (event != GENSIO_EVENT_PRECERT_VERIFY)
 	return GE_NOTSUP;

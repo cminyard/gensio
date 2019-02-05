@@ -408,11 +408,11 @@ verify_certfile(struct gensio_os_funcs *o,
 }
 
 static int
-auth_event(struct gensio *io, int event, int ierr,
+auth_event(struct gensio *io, void *user_data, int event, int ierr,
 	   unsigned char *ibuf, gensiods *buflen,
 	   const char *const *auxdata)
 {
-    struct ioinfo *ioinfo = gensio_get_user_data(io);
+    struct ioinfo *ioinfo = user_data;
     struct gdata *ginfo = ioinfo_userdata(ioinfo);
     struct gensio *ssl_io;
     char raddr[256];

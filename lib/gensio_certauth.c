@@ -143,11 +143,11 @@ certauthna_new_child(void *acc_data, void **finish_data,
 }
 
 static int
-certauthna_gensio_event(struct gensio *io, int event, int err,
+certauthna_gensio_event(struct gensio *io, void *user_data, int event, int err,
 			unsigned char *buf, gensiods *buflen,
 			const char *const *auxdata)
 {
-    struct certauthna_data *nadata = gensio_get_user_data(io);
+    struct certauthna_data *nadata = user_data;
     struct gensio_acc_password_verify_data pwvfy;
     int rv;
 

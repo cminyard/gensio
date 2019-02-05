@@ -641,11 +641,11 @@ sgensio_rts(struct sergensio *sio, int rts)
 }
 
 static int
-gensio_child_event(struct gensio *io, int event, int readerr,
+gensio_child_event(struct gensio *io, void *user_data, int event, int readerr,
 		   unsigned char *buf, gensiods *buflen,
 		   const char *const *auxdata)
 {
-    struct gensio_data *data = gensio_get_user_data(io);
+    struct gensio_data *data = user_data;
     swig_ref io_ref = { .val = NULL };
     PyObject *args, *o;
     OI_PY_STATE gstate;
@@ -916,9 +916,10 @@ gensio_acc_io_call_cb(struct gensio_accepter *accepter, struct gensio *io,
 }
 
 static int
-gensio_acc_child_event(struct gensio_accepter *accepter, int event, void *cdata)
+gensio_acc_child_event(struct gensio_accepter *accepter, void *user_data,
+		       int event, void *cdata)
 {
-    struct gensio_data *data = gensio_acc_get_user_data(accepter);
+    struct gensio_data *data = user_data;
     swig_ref acc_ref, io_ref;
     PyObject *args, *o;
     OI_PY_STATE gstate;

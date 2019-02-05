@@ -174,7 +174,8 @@ typedef size_t gensiods; /* Data size */
  * This function should return 0 if it handled the event, or ENOTSUP if
  * it didn't.
  */
-typedef int (*gensio_event)(struct gensio *io, int event, int err,
+typedef int (*gensio_event)(struct gensio *io, void *user_data,
+			    int event, int err,
 			    unsigned char *buf, gensiods *buflen,
 			    const char *const *auxdata);
 
@@ -599,8 +600,7 @@ struct gensio_acc_password_verify_data {
  *
  */
 typedef int (*gensio_accepter_event)(struct gensio_accepter *accepter,
-				     int event,
-				     void *data);
+				     void *user_data, int event, void *data);
 
 /*
  * Callbacks for functions that don't give an error (close);

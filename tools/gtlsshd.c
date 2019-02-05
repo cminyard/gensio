@@ -183,7 +183,7 @@ static int gid = -1;
 static int pam_err;
 
 static int
-certauth_event(struct gensio *io, int event, int ierr,
+certauth_event(struct gensio *io, void *user_data, int event, int ierr,
 	       unsigned char *buf, gensiods *buflen,
 	       const char *const *auxdata)
 {
@@ -439,7 +439,8 @@ tcp_handle_new(struct gensio_runner *r, void *cb_data)
 static struct gensio_accepter *tcp_acc;
 
 static int
-tcp_acc_event(struct gensio_accepter *accepter, int event, void *data)
+tcp_acc_event(struct gensio_accepter *accepter, void *user_data,
+	      int event, void *data)
 {
     struct ioinfo *ioinfo = gensio_acc_get_user_data(accepter);
     struct gdata *ginfo = ioinfo_userdata(ioinfo);

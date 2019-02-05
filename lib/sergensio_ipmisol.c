@@ -41,9 +41,6 @@ struct iterm_data {
     struct gensio *io;
 
     gensio_ll_ipmisol_ops ops;
-
-    gensio_event cb;
-    void *user_data;
 };
 
 static void
@@ -64,7 +61,7 @@ iterm_ser_cb(void *handler_data, int op, void *data)
 	return;
     }
 
-    idata->cb(idata->io, op, 0, NULL, NULL, NULL);
+    gensio_cb(idata->io, op, 0, NULL, NULL, NULL);
 }
 
 static int
@@ -100,9 +97,8 @@ ipmisol_gensio_alloc(const char *devname, const char * const args[],
 	return GE_NOMEM;
 
     idata->o = o;
-    idata->cb = cb;
 
-    err = ipmisol_gensio_ll_alloc(o, devname, &iterm_ser_cb, idata,
+    err = ipmisol_gensio_ll_alloc(o, devname, iterm_ser_cb, idata,
 				  max_read_size, max_write_size,
 				  &idata->ops, &idata->ll);
     if (err)
