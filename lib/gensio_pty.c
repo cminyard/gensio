@@ -165,7 +165,7 @@ pty_read_ready(void *handler_data, int fd)
 {
     struct pty_data *tdata = handler_data;
 
-    gensio_fd_ll_handle_incoming(tdata->ll, pty_do_read, NULL, NULL);
+    gensio_fd_ll_handle_incoming(tdata->ll, pty_do_read, NULL, tdata);
 }
 
 static int
