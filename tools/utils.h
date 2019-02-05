@@ -32,7 +32,14 @@ char *alloc_sprintf(const char *fmt, ...);
 char *alloc_vsprintf(const char *fmt, va_list ap);
 int checkout_file(const char *filename, bool expect_dir);
 bool file_is_readable(char *filename);
-int write_file_to_gensio(char *filename, struct gensio *io,
-			 struct gensio_os_funcs *o, struct timeval *timeout);
+int write_file_to_gensio(const char *filename, struct gensio *io,
+			 struct gensio_os_funcs *o, struct timeval *timeout,
+			 bool xlatnl);
+int write_buf_to_gensio(const char *buf, gensiods len, struct gensio *io,
+			struct timeval *timeout, bool xlatnl);
+int write_str_to_gensio(const char *str, struct gensio *io,
+			struct timeval *timeout, bool xlatnl);
+int read_rsp_from_gensio(char *buf, gensiods *len, struct gensio *io,
+			 struct timeval *timeout, bool echo);
 
 #endif /* GENSIOTOOL_UTILS_H */

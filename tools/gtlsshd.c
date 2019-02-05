@@ -166,23 +166,21 @@ pam_cb(int num_msg, const struct pam_message **msg,
     return PAM_CONV_ERR;
 }
 
+static struct pam_conv auth_conv = { pam_cb, NULL };
+
 static const char *login_service = "login:";
 static const char *program_service = "program:";
 
 static bool permit_root = false;
+static bool no_pw_login = false;
 
-struct pam_conv auth_conv = { pam_cb, NULL };
 static bool pam_started = false;
 static bool pam_cred_set = false;
-static bool pam_session_open = false;
 static char username[100];
 static char *prog; /* If set in the service. */
 static char *service;
-static char *pwshell;
-static char *homedir;
-static int uid = -1;
-static int gid = -1;
 static int pam_err;
+static uid_t uid = -1;
 
 static int
 certauth_event(struct gensio *io, void *user_data, int event, int ierr,
@@ -203,25 +201,26 @@ certauth_event(struct gensio *io, void *user_data, int event, int ierr,
 	if (err) {
 	    syslog(LOG_ERR, "No username provided by remote: %s",
 		   gensio_err_to_str(err));
-	    return GE_KEYINVALID;
+	    return GE_AUTHREJECT;
 	}
-	if (!permit_root && strcmp(username, "root") == 0)
-	    return GE_INVAL;
-
 	pw = getpwnam(username);
 	if (!pw) {
 	    syslog(LOG_ERR, "Invalid username provided by remote: %s",
 		   username);
-	    return GE_KEYINVALID;
+	    return GE_AUTHREJECT;
 	}
-	if (!permit_root && pw->pw_uid == 0)
-	    return GE_INVAL;
+	if (!permit_root &&
+			(strcmp(username, "root") == 0 || pw->pw_uid == 0)) {
+	    syslog(LOG_ERR, "Root login not permitted");
+	    return GE_AUTHREJECT;
+	}
+	uid = pw->pw_uid;
 
 	pam_err = pam_start(progname, username, &auth_conv, &pamh);
 	if (pam_err != PAM_SUCCESS) {
 	    syslog(LOG_ERR, "pam_start failed for %s: %s", username,
 		   pam_strerror(pamh, pam_err));
-	    return GE_INVAL;
+	    return GE_AUTHREJECT;
 	}
 	pam_started = true;
 
@@ -232,12 +231,8 @@ certauth_event(struct gensio *io, void *user_data, int event, int ierr,
 	if (err) {
 	    syslog(LOG_ERR, "Could not set authdir %s: %s", authdir,
 		   gensio_err_to_str(err));
-	    return GE_KEYINVALID;
+	    return GE_NOTSUP;
 	}
-	pwshell = pw->pw_shell;
-	uid = pw->pw_uid;
-	gid = pw->pw_gid;
-	homedir = pw->pw_dir;
 
 	len = 0;
 	err = gensio_control(io, 0, true, GENSIO_CONTROL_SERVICE,
@@ -245,7 +240,7 @@ certauth_event(struct gensio *io, void *user_data, int event, int ierr,
 	if (err) {
 	    syslog(LOG_ERR, "Could not get service: %s",
 		   gensio_err_to_str(err));
-	    return GE_INVAL;
+	    return GE_AUTHREJECT;
 	}
 	len++; /* Add terminating nil. */
 	service = malloc(len);
@@ -258,7 +253,7 @@ certauth_event(struct gensio *io, void *user_data, int event, int ierr,
 	if (err) {
 	    syslog(LOG_ERR, "Could not get service(2): %s",
 		   gensio_err_to_str(err));
-	    return GE_INVAL;
+	    return GE_AUTHREJECT;
 	}
 	if (strncmp(service, program_service, strlen(program_service)) == 0) {
 	    prog = strchr(service, ':') + 1;
@@ -267,7 +262,7 @@ certauth_event(struct gensio *io, void *user_data, int event, int ierr,
 	    /* Nothing to do. */
 	} else {
 	    syslog(LOG_ERR, "unknown service for %s: %s", username, service);
-	    return GE_INVAL;
+	    return GE_AUTHREJECT;
 	}
 
 	return GE_NOTSUP;
@@ -277,23 +272,106 @@ certauth_event(struct gensio *io, void *user_data, int event, int ierr,
 	return GE_NOTSUP;
 
     case GENSIO_EVENT_POSTCERT_VERIFY:
+	if (ierr && no_pw_login) {
+	    syslog(LOG_ERR, "certificate failed verify for %s, "
+		   "passwords disabled: %s\n", username,
+		   auxdata[0] ? auxdata[0] : "");
+	    return GE_AUTHREJECT;
+	}
+	if (!ierr)
+	    syslog(LOG_INFO, "Accepted certificate for %s\n", username);
 	return GE_NOTSUP;
 
     case GENSIO_EVENT_PASSWORD_VERIFY:
 	passwd = (char *) buf;
 	pam_err = pam_authenticate(pamh, PAM_SILENT);
 	passwd = NULL;
-	if (pam_err != PAM_SUCCESS) {
+	if (pam_err == PAM_AUTH_ERR) {
+	    return GE_NOTSUP;
+	} else if (pam_err != PAM_SUCCESS) {
 	    syslog(LOG_ERR, "pam_authenticate failed for %s: %s", username,
 		   pam_strerror(pamh, pam_err));
-	    return GE_KEYINVALID;
+	    return GE_INVAL;
 	}
+	syslog(LOG_INFO, "Accepted password for %s\n", username);
 	return 0;
 
     default:
 	return GE_NOTSUP;
     }
 }
+
+static int
+gensio_pam_cb(int num_msg, const struct pam_message **msg,
+	      struct pam_response **resp, void *appdata_ptr)
+{
+    int i, j, err;
+    struct pam_response *reply = NULL;
+    struct gdata *ginfo = appdata_ptr;
+    struct gensio *io = ginfo->io;
+    char buf[100];
+    struct timeval timeout = { 60, 0 };
+
+    if (num_msg <= 0 || num_msg > PAM_MAX_NUM_MSG)
+	return PAM_CONV_ERR;
+
+    reply = malloc(sizeof(*reply) * num_msg);
+    if (!reply)
+	return PAM_CONV_ERR;
+
+    for (i = 0; i < num_msg; i++) {
+	int style = PAM_MSG_MEMBER(msg, i, msg_style);
+	const char *msgdata = PAM_MSG_MEMBER(msg, i, msg);
+	gensiods len;
+
+	reply[i].resp = NULL;
+	reply[i].resp_retcode = 0;
+
+	switch (style) {
+	case PAM_PROMPT_ECHO_OFF:
+	case PAM_PROMPT_ECHO_ON:
+	    if (msgdata) {
+		err = write_str_to_gensio(msgdata, io, &timeout, true);
+		if (err)
+		    goto out_err;
+	    }
+	    len = sizeof(buf);
+	    err = read_rsp_from_gensio(buf, &len, io, &timeout,
+				       style == PAM_PROMPT_ECHO_ON);
+	    write_str_to_gensio("\n", io, &timeout, true);
+	    if (err == GE_TIMEDOUT)
+		write_str_to_gensio("Timed out waiting for respnse\n",
+				    io, &timeout, true);
+	    if (err)
+		goto out_err;
+	    reply[i].resp = strdup(buf);
+	    if (!reply[i].resp)
+		goto out_err;
+	    break;
+
+	case PAM_ERROR_MSG:
+	case PAM_TEXT_INFO:
+	    write_str_to_gensio(msgdata, io, &timeout, true);
+	    write_str_to_gensio("\n", io, &timeout, true);
+	    break;
+
+	default:
+	    goto out_err;
+	}
+    }
+    *resp = reply;
+    return PAM_SUCCESS;
+
+ out_err:
+    for (j = 0; j < i; j++) {
+	if (reply[j].resp)
+	    free(reply[j].resp);
+    }
+    free(reply);
+    return PAM_CONV_ERR;
+}
+
+static struct pam_conv gensio_conv = { gensio_pam_cb, NULL };
 
 static void
 tcp_handle_new(struct gensio_runner *r, void *cb_data)
@@ -308,8 +386,6 @@ tcp_handle_new(struct gensio_runner *r, void *cb_data)
     struct ioinfo *pty_ioinfo;
     struct gdata *pty_ginfo;
     char *s;
-    int orig_uid = -1;
-    int orig_gid = -1;
     char **env;
 
     ginfo->o->free_runner(r);
@@ -336,16 +412,68 @@ tcp_handle_new(struct gensio_runner *r, void *cb_data)
 
     err = gensio_open_nochild_s(certauth_io);
     if (err) {
-	syslog(LOG_ERR, "certauth open failed: %s", gensio_err_to_str(errno));
+	syslog(LOG_ERR, "certauth open failed: %s", gensio_err_to_str(err));
 	exit(1);
     }
 
     ginfo->can_close = true;
     ginfo->io = certauth_io;
 
+    gensio_conv.appdata_ptr = ginfo;
+    pam_err = pam_set_item(pamh, PAM_CONV, &gensio_conv);
+    if (pam_err) {
+	syslog(LOG_ERR, "Unable to set PAM_CONV");
+	goto out_err;
+    }
+
+    if (!gensio_is_authenticated(certauth_io)) {
+	int tries = 3;
+
+	do {
+	    struct timeval timeout = {10, 0};
+
+	    write_str_to_gensio("Permission denied, please try again\n",
+				certauth_io, &timeout, true);
+	    pam_err = pam_authenticate(pamh, 0);
+	    tries--;
+	} while (pam_err != PAM_SUCCESS && tries > 0);
+
+	if (pam_err != PAM_SUCCESS) {
+	    struct timeval timeout = {10, 0};
+
+	    write_str_to_gensio("Too many tries, giving up\n", certauth_io,
+				&timeout, true);
+	    syslog(LOG_ERR, "Too many login tries for %s\n", username);
+	    goto out_err;
+	}
+	syslog(LOG_INFO, "Accepted password for %s\n", username);
+	//gensio_set_is_authenticated(certauth_io, true);
+    }
+
     if (file_is_readable("/etc/nologin") && uid != 0) {
 	struct timeval t = { 10, 0 }; /* Give it 10 seconds. */
-	write_file_to_gensio("/etc/nologin", certauth_io, ginfo->o, &t);
+	if (!prog)
+	    /* Don't send this to non-interactive logins. */
+	    write_file_to_gensio("/etc/nologin", certauth_io, ginfo->o, &t,
+				 true);
+	goto out_err;
+    }
+
+    pam_err = pam_acct_mgmt(pamh, 0);
+    if (pam_err == PAM_NEW_AUTHTOK_REQD) {
+	if (prog) {
+	    syslog(LOG_ERR, "user %s password expired, non-interactive login",
+		   username);
+	    goto out_err;
+	}
+	pam_err = pam_chauthtok(pamh, 0);
+	if (pam_err != PAM_SUCCESS) {
+	    syslog(LOG_ERR, "Changing password for %s failed", username);
+	    goto out_err;
+	}
+    } else if (pam_err != PAM_SUCCESS) {
+	syslog(LOG_ERR, "pam_acct_mgmt failed for %s: %s", username,
+	       pam_strerror(pamh, pam_err));
 	goto out_err;
     }
 
@@ -354,29 +482,15 @@ tcp_handle_new(struct gensio_runner *r, void *cb_data)
     pty_ioinfo = ioinfo_otherioinfo(ioinfo);
     pty_ginfo = ioinfo_userdata(pty_ioinfo);
 
-    pam_err = pam_acct_mgmt(pamh, PAM_SILENT);
-    if (pam_err != PAM_SUCCESS) {
-	/* FIXME - handle PAM_NEW_AUTHTOK_REQD */
-	syslog(LOG_ERR, "pam_acct_mgmt failed for %s: %s", username,
-	       pam_strerror(pamh, pam_err));
-	goto out_err;
-    }
-
     pam_err = pam_setcred(pamh, PAM_ESTABLISH_CRED | PAM_SILENT);
     if (pam_err != PAM_SUCCESS) {
-	syslog(LOG_ERR, "pam_setcred establish failed for %s: %s", username,
+	syslog(LOG_ERR, "pam_setcred failed for %s: %s", username,
 	       pam_strerror(pamh, pam_err));
 	goto out_err;
     }
     pam_cred_set = true;
 
-    pam_err = pam_open_session(pamh, PAM_SILENT);
-    if (pam_err != PAM_SUCCESS) {
-	syslog(LOG_ERR, "pam_open_session failed for %s: %s", username,
-	       pam_strerror(pamh, pam_err));
-	goto out_err;
-    }
-    pam_session_open = true;
+    /* login will open the session, don't do it here. */
 
     env = pam_getenvlist(pamh);
     if (!env) {
@@ -384,31 +498,14 @@ tcp_handle_new(struct gensio_runner *r, void *cb_data)
 	goto out_err;
     }
 
-    orig_uid = getuid();
-    orig_gid = getuid();
-    err = setregid(gid, -1);
-    if (err) {
-	syslog(LOG_ERR, "Unable to set gid to %d: %s", gid, strerror(errno));
-	goto out_err;
-    }
-    err = setreuid(uid, -1);
-    if (err) {
-	syslog(LOG_ERR, "Unable to set uid to %d: %s", uid, strerror(errno));
-	goto out_err;
-    }
-
-    err = chdir(homedir);
-    if (err == -1) {
-	syslog(LOG_ERR, "Unable to chdir to %s for user %s: %s",
-	       homedir, username, strerror(errno));
-	goto out_err;
-    }
-
     if (prog) {
 	s = alloc_sprintf("stdio(stderr-to-stdout),%s", prog);
     } else {
-	/* The '-' makes it a login shell.  pty will remove it. */
-	s = alloc_sprintf("pty,-%s", pwshell);
+	/*
+	 * Let login handle everything else.  If the password
+	 * authentication from pam succeeded, don't ask for password.
+	 */
+	s = alloc_sprintf("pty,/bin/login -f -p %s", username);
     }
     if (!s) {
 	syslog(LOG_ERR, "Out of memory allocating program name");
@@ -438,15 +535,9 @@ tcp_handle_new(struct gensio_runner *r, void *cb_data)
     pty_ginfo->io = pty_io;
     ioinfo_set_ready(pty_ioinfo, pty_io);
 
-    setreuid(orig_uid, -1);
-    setregid(orig_gid, -1);
     return;
 
  out_err:
-    if (orig_uid != -1)
-	setreuid(orig_uid, -1);
-    if (orig_gid != -1)
-	setregid(orig_gid, -1);
     gshutdown(ioinfo);
 }
 
@@ -526,9 +617,6 @@ tcp_acc_event(struct gensio_accepter *accepter, void *user_data,
     return 0;
 }
 
-static const char *io1_default_tty = "serialdev,/dev/tty";
-static const char *io1_default_notty = "stdio(self)";
-
 static void
 help(int err)
 {
@@ -536,16 +624,17 @@ help(int err)
     printf("\nA program to connect gensios together.  This programs has two\n");
     printf("gensios, io1 (default is local terminal) and io2 (must be set).\n");
     printf("\noptions are:\n");
-    printf("  -i, --input <gensio) - Set the io1 device, default is\n"
-	   "    %s for tty or %s for non-tty stdin\n",
-	   io1_default_tty, io1_default_notty);
+    printf("  -p, --port <port>) - Use the given port instead of "
+	   "the default\n");
     printf("  -d, --debug - Enable debug.  Specify more than once to increase\n"
 	   "    the debug level\n");
-    printf("  -a, --accepter - Accept a connection on io2 instead of"
-	   " initiating a connection\n");
+    printf("  -c, --certfile <file> - The certificate file to use.\n");
+    printf("  -h, --keyfile <file> - The private key file to use.\n");
     printf("  -e, --escchar - Set the local terminal escape character.\n"
 	   "    Set to 0 to disable the escape character\n"
 	   "    Default is ^\\ for tty stdin and disabled for non-tty stdin\n");
+    printf("  --permit-root - Allow root logins.\n");
+    printf("  --no-password - Do not allow password-based logins.\n");
     printf("  -h, --help - This help\n");
     exit(err);
 }
@@ -602,6 +691,10 @@ main(int argc, char *argv[])
 	else if ((rv = cmparg(argc, argv, &arg, "-h", "--keyfile",
 			      &keyfile)))
 	    ;
+	else if ((rv = cmparg(argc, argv, &arg, NULL, "--permit-root", NULL)))
+	    permit_root = true;
+	else if ((rv = cmparg(argc, argv, &arg, NULL, "--no-password", NULL)))
+	    no_pw_login = true;
 	else if ((rv = cmparg(argc, argv, &arg, "-d", "--debug", NULL))) {
 	    debug++;
 	    if (debug > 1)
@@ -733,13 +826,6 @@ main(int argc, char *argv[])
 
     free_ioinfo(ioinfo1);
     free_ioinfo(ioinfo2);
-
-    if (pam_session_open) {
-	pam_err = pam_close_session(pamh, PAM_SILENT);
-	if (pam_err != PAM_SUCCESS)
-	    syslog(LOG_ERR, "pam_close_session failed for %s: %s", username,
-		   pam_strerror(pamh, pam_err));
-    }
 
     if (pam_cred_set) {
 	pam_err = pam_setcred(pamh, PAM_DELETE_CRED | PAM_SILENT);

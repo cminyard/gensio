@@ -97,8 +97,23 @@ typedef size_t gensiods; /* Data size */
  */
 
 /*
- * Authorization has begun, the username is available but nothing
- * else.
+ * Authorization has begun, the username and service is available but
+ * nothing else.
+ *
+ * There are a few special return values from this event:
+ *
+ *  GE_AUTHREJECT - Fail the connection, but continue to go through
+ *  the motions.  This should be called if the user was invalid or
+ *  data wasn't properly provided.
+ *
+ *  0 - authorization has succeeded.  No more authentication
+ *  is required.
+ *
+ *  GE_NOTSUP - Just continue with authentication.
+ *
+ * Any other error will terminate the connection, these should
+ * generally be things like out of memory and such, *NOT*
+ * authentication failures of any kind.
  *
  * certauth only
  */
@@ -107,9 +122,9 @@ typedef size_t gensiods; /* Data size */
 /*
  * The connection has received a certificate but has not verified it
  * yet.  This lets the user modify the certificate authority based on
- * certificate information.  Return ENOTSUP or zero for standard
- * verification.  If this returns an error besides ENOTSUP, the
- * verification fails and the connection is terminated.
+ * certificate information.
+ *
+ * Return values are the same as GENSIO_EVENT_AUTH_BEGIN.
  *
  * ssl and certauth
  */
@@ -122,6 +137,11 @@ typedef size_t gensiods; /* Data size */
  * success, ENOKEY if no key was found, or EKEYREJECTED if the
  * key was invalid for some reason.  auxdata[0] will be an
  * error string (or NULL if none available).
+ *
+ * Return values are:
+ *
+ * GE_KEYINVALID - Fail this stage of the authentication.  Password
+ * authentication may still occur.
  *
  * ssl and certauth
  */

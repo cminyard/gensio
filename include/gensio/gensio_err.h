@@ -52,6 +52,7 @@
 #define GE_CONNREFUSE		28
 #define GE_DATAMISSING		29
 #define GE_CERTNOTFOUND		30
+#define GE_AUTHREJECT		31
 
 #define gensio_os_err_to_err(o, oserr)			\
     gensio_i_os_err_to_err(o, oserr, __FUNCTION__, __FILE__, __LINE__)

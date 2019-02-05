@@ -514,7 +514,8 @@ const char *gensio_errs[] = {
     /*  27 */    "Host could not be reached",
     /*  28 */    "Connection refused",
     /*  29 */    "Data was missing",
-    /*  30 */    "Unable to find given certificate"
+    /*  30 */    "Unable to find given certificate",
+    /*  31 */    "Authentication tokens rejected"
 };
 const unsigned int errno_len = sizeof(gensio_errs) / sizeof(char *);
 

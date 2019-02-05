@@ -246,7 +246,8 @@ enum certauth_elements {
 #define CERTAUTH_MAX_ELEMENT CERTAUTH_PASSWORD_TYPE
 
 #define CERTAUTH_RESULT_SUCCESS	1
-#define CERTAUTH_RESULT_ERR	2
+#define CERTAUTH_RESULT_FAILURE	2
+#define CERTAUTH_RESULT_ERR	3
 
 #define CERTAUTH_PASSWORD_TYPE_REQ	1
 #define CERTAUTH_PASSWORD_TYPE_DUMMY	2
@@ -438,11 +439,16 @@ certauth_check_open_done(struct gensio_filter *filter, struct gensio *io)
     int rv = 0;
 
     certauth_lock(sfilter);
-    if (!sfilter->is_client && sfilter->result != CERTAUTH_RESULT_SUCCESS
-		&& !sfilter->allow_authfail)
-	rv = GE_KEYINVALID;
-    else if (sfilter->result == CERTAUTH_RESULT_SUCCESS)
+    if (!sfilter->result)
+	sfilter->result = CERTAUTH_RESULT_FAILURE;
+
+    if (sfilter->result == CERTAUTH_RESULT_SUCCESS)
 	gensio_set_is_authenticated(io, true);
+    else if (sfilter->result == CERTAUTH_RESULT_ERR)
+	rv = GE_AUTHREJECT;
+    else if (sfilter->is_client || !sfilter->allow_authfail)
+	rv = GE_KEYINVALID;
+
     certauth_unlock(sfilter);
     return rv;
 }
@@ -558,14 +564,13 @@ certauth_verify_cert(struct certauth_filter *sfilter)
 	    gca_logs_info(sfilter,
 			  "Remote peer certificate verify failed: %s",
 			  X509_verify_cert_error_string(verify_err));
-	    rv = GE_KEYINVALID;
+	    rv = GE_NOTSUP;
 	} else {
 	    rv = 0;
 	}
     }
     if (rv == 0)
 	sfilter->verified = true;
-    rv = 0;
 
  out_err:
     if (cert_store_ctx)
@@ -713,7 +718,7 @@ certauth_check_challenge(struct certauth_filter *sfilter)
     if (rv) {
 	sfilter->response_result = CERTAUTH_RESULT_SUCCESS;
     } else {
-	sfilter->response_result = CERTAUTH_RESULT_ERR;
+	sfilter->response_result = CERTAUTH_RESULT_FAILURE;
 	gca_logs_info(sfilter, "Challenge verify failed");
     }
 
@@ -739,13 +744,20 @@ certauth_add_dummy(struct certauth_filter *sfilter, unsigned int len)
 static void
 certauth_send_server_done(struct certauth_filter *sfilter)
 {
+    int result = CERTAUTH_RESULT_SUCCESS;
+
     if (!sfilter->result)
-	sfilter->result = CERTAUTH_RESULT_ERR;
+	sfilter->result = CERTAUTH_RESULT_FAILURE;
+    if (!sfilter->allow_authfail)
+	result = sfilter->result;
+    if (sfilter->result == CERTAUTH_RESULT_ERR)
+	result = CERTAUTH_RESULT_FAILURE;
+
     sfilter->write_buf_len = 0;
     certauth_write_byte(sfilter, CERTAUTH_SERVERDONE);
     certauth_write_byte(sfilter, CERTAUTH_RESULT);
     certauth_write_u16(sfilter, 2);
-    certauth_write_u16(sfilter, sfilter->result);
+    certauth_write_u16(sfilter, result);
     certauth_write_byte(sfilter, CERTAUTH_END);
 }
 
@@ -790,7 +802,7 @@ certauth_try_connect(struct gensio_filter *filter, struct timeval *timeout)
 	if (!sfilter->version) {
 	    /* Remote end didn't send version. */
 	    gca_log_err(sfilter,
-			   "Remote client didn't send username or version");
+			   "Remote client didn't send version");
 	    sfilter->pending_err = GE_DATAMISSING;
 	    break;
 	}
@@ -802,7 +814,7 @@ certauth_try_connect(struct gensio_filter *filter, struct timeval *timeout)
 		 */
 		gca_log_info(sfilter, "Using lower layer authentication");
 		sfilter->result = CERTAUTH_RESULT_SUCCESS;
-		goto finish_result;
+		/* Go ahead and go through the motions. */
 	    }
 	} else {
 	    /* Override child setting. */
@@ -822,12 +834,10 @@ certauth_try_connect(struct gensio_filter *filter, struct timeval *timeout)
 	     * no credentials.
 	     */
 	    sfilter->result = CERTAUTH_RESULT_SUCCESS;
-	if (err == GE_KEYINVALID) {
-	    gca_log_err(sfilter, "Application rejected auth begin");
-	    sfilter->pending_err = err;
-	    goto finish_result;
-	}
-	if (err && err != GE_NOTSUP) {
+	else if (err == GE_AUTHREJECT) {
+	    sfilter->result = CERTAUTH_RESULT_ERR;
+	    gca_log_err(sfilter, "auth begin rejected connection");
+	} else if (err != GE_NOTSUP) {
 	    gca_log_err(sfilter, "Error from application at auth begin: %s",
 			gensio_err_to_str(err));
 	    sfilter->pending_err = err;
@@ -901,53 +911,52 @@ certauth_try_connect(struct gensio_filter *filter, struct timeval *timeout)
 	    goto try_password;
 	}
 	if (!!sfilter->cert != !!sfilter->response_result) {
-	    gca_log_err(sfilter, "Application did not send cert and response");
+	    gca_log_err(sfilter, "Remote end did not send cert and response");
 	    sfilter->pending_err = GE_PROTOERR;
 	    goto finish_result;
 	}
 
-	certauth_unlock(sfilter);
-	err = gensio_filter_do_event(sfilter->filter,
-				     GENSIO_EVENT_PRECERT_VERIFY, 0,
-				     NULL, NULL, NULL);
-	certauth_lock(sfilter);
-	if (!err) {
-	    sfilter->result = CERTAUTH_RESULT_SUCCESS;
-	    goto finish_result;
+	if (!sfilter->result) {
+	    certauth_unlock(sfilter);
+	    err = gensio_filter_do_event(sfilter->filter,
+					 GENSIO_EVENT_PRECERT_VERIFY, 0,
+					 NULL, NULL, NULL);
+	    certauth_lock(sfilter);
+	    if (!err) {
+		sfilter->result = CERTAUTH_RESULT_SUCCESS;
+	    } else if (err == GE_AUTHREJECT) {
+		gca_log_err(sfilter, "precert verify rejected connection");
+		sfilter->result = CERTAUTH_RESULT_ERR;
+	    } else if (err != GE_NOTSUP) {
+		gca_log_err(sfilter, "Error from application at precert: %s",
+			    gensio_err_to_str(err));
+		sfilter->pending_err = err;
+		goto finish_result;
+	    }
 	}
-	if (err == GE_KEYINVALID) {
-	    gca_log_err(sfilter, "Application rejected precert key");
-	    sfilter->pending_err = err;
-	    goto finish_result;
-	}
-	if (err != GE_NOTSUP) {
-	    gca_log_err(sfilter, "Error from application at precert: %s",
-			gensio_err_to_str(err));
-	    sfilter->pending_err = err;
-	    goto finish_result;
-	}
-
-	sfilter->pending_err = certauth_verify_cert(sfilter);
-	if (sfilter->pending_err)
-	    goto finish_result;
-
-	if (sfilter->verified) {
-	    if (sfilter->response_result != CERTAUTH_RESULT_SUCCESS) {
-		/*
-		 * Certificate verification log already sent for result
-		 * If the signature fails, reject the connection.
-		 */
-		sfilter->pending_err = GE_KEYINVALID;
+	err = certauth_verify_cert(sfilter);
+	if (!sfilter->result) {
+	    if (err == GE_AUTHREJECT) {
+		gca_log_err(sfilter, "precert verify rejected connection");
+		sfilter->result = CERTAUTH_RESULT_ERR;
+	    } else if (err && err != GE_NOTSUP) {
+		gca_log_err(sfilter, "Error from application at precert: %s",
+			    gensio_err_to_str(err));
+		sfilter->pending_err = err;
 		goto finish_result;
 	    }
 
-	    /*
-	     * We mark it as authenticated, but go through the password
-	     * request so an attacker can't tell how the authentication
-	     * was done.
-	     */
-	    sfilter->result = CERTAUTH_RESULT_SUCCESS;
+	    if (sfilter->verified &&
+			sfilter->response_result == CERTAUTH_RESULT_SUCCESS) {
+		sfilter->result = CERTAUTH_RESULT_SUCCESS;
+	    }
 	}
+
+	/*
+	 * We may mark it as authenticated, but go through the
+	 * password request so an attacker can't tell how the
+	 * authentication was done.
+	 */
 
     try_password:
 	sfilter->write_buf_len = 0;
@@ -1046,16 +1055,13 @@ certauth_try_connect(struct gensio_filter *filter, struct timeval *timeout)
 	memset(sfilter->password, 0, sfilter->password_len);
 	if (!err) {
 	    sfilter->result = CERTAUTH_RESULT_SUCCESS;
-	    goto finish_result;
-	}
-	if (err == GE_KEYINVALID) {
+	} else if (err == GE_KEYINVALID) {
 	    gca_log_err(sfilter, "Application rejected password");
+	} else if (err != GE_NOTSUP) {
+	    gca_log_err(sfilter, "Error from application at password: %s",
+			gensio_err_to_str(err));
 	    sfilter->pending_err = err;
-	    goto finish_result;
 	}
-	gca_log_err(sfilter, "Error from application at password: %s",
-		    gensio_err_to_str(err));
-	sfilter->pending_err = err;
 
     finish_result:
 	certauth_send_server_done(sfilter);

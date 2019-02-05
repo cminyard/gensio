@@ -84,7 +84,7 @@ cmparg(int argc, char *argv[], int *arg, char *sarg, char *larg,
 {
     char *a = argv[*arg];
 
-    if (strcmp(a, sarg) == 0 || strcmp(a, larg) == 0) {
+    if ((sarg && strcmp(a, sarg) == 0) || strcmp(a, larg) == 0) {
 	if (!opt)
 	    return 1;
 	(*arg)++;
@@ -196,9 +196,48 @@ file_is_readable(char *filename)
     return false;
 }
 
+static int
+write_s_nl_addc(struct gensio *io, char *obuf, char c,
+		gensiods *pos, gensiods len, struct timeval *timeout)
+{
+    int err = 0;
+
+    obuf[(*pos)++] = c;
+    if (*pos >= len) {
+	err = gensio_write_s(io, NULL, obuf, len, timeout);
+	*pos = 0;
+    }
+    return err;
+}
+
+static int
+write_s_nl(struct gensio *io, const char *buf, gensiods len,
+	   struct timeval *timeout)
+{
+    char buf2[100];
+    gensiods i, j;
+    int err;
+
+    for (i = 0, j = 0; i < len; i++) {
+	if (buf[i] == '\n') {
+	    err = write_s_nl_addc(io, buf2, '\r', &j, sizeof(buf2), timeout);
+	    if (err)
+		break;
+	}
+	err = write_s_nl_addc(io, buf2, buf[i], &j, sizeof(buf2), timeout);
+	if (err)
+	    break;
+    }
+    if (!err && j)
+	err = gensio_write_s(io, NULL, buf2, j, timeout);
+
+    return err;
+}
+
 int
-write_file_to_gensio(char *filename, struct gensio *io,
-		     struct gensio_os_funcs *o, struct timeval *timeout)
+write_file_to_gensio(const char *filename, struct gensio *io,
+		     struct gensio_os_funcs *o, struct timeval *timeout,
+		     bool xlatnl)
 {
     int err;
     int fd;
@@ -223,7 +262,10 @@ write_file_to_gensio(char *filename, struct gensio *io,
 	}
 	if (count == 0)
 	    break;
-	err = gensio_write_s(io, NULL, buf, count, timeout);
+	if (xlatnl)
+	    err = write_s_nl(io, buf, count, timeout);
+	else
+	    err = gensio_write_s(io, NULL, buf, count, timeout);
 	if (err)
 	    break;
     }
@@ -232,6 +274,77 @@ write_file_to_gensio(char *filename, struct gensio *io,
 
  out_unsync:
     gensio_clear_sync(io);
+
+    return err;
+}
+
+int
+write_buf_to_gensio(const char *buf, gensiods len, struct gensio *io,
+		    struct timeval *timeout, bool xlatnl)
+{
+    int err;
+
+    err = gensio_set_sync(io);
+    if (err)
+	return err;
+
+    if (xlatnl)
+	err = write_s_nl(io, buf, len, timeout);
+    else
+	err = gensio_write_s(io, NULL, buf, len, timeout);
+
+    gensio_clear_sync(io);
+
+    return err;
+}
+
+int
+write_str_to_gensio(const char *str, struct gensio *io,
+		    struct timeval *timeout, bool xlatnl)
+{
+    return write_buf_to_gensio(str, strlen(str), io, timeout, xlatnl);
+}
+
+int
+read_rsp_from_gensio(char *buf, gensiods *len, struct gensio *io,
+		     struct timeval *timeout, bool echo)
+{
+    int err;
+    gensiods pos = 0, count;
+    gensiods size = *len;
+    char c;
+
+    err = gensio_set_sync(io);
+    if (err)
+	return err;
+
+    while (true) {
+	err = gensio_read_s(io, &count, &c, 1, timeout);
+	if (err)
+	    break;
+	if (count == 0) {
+	    err = GE_TIMEDOUT;
+	    break;
+	}
+	if (c == '\r' || c == '\n')
+	    break;
+	if (c == '\b' || c == 0x7f) {
+	    if (pos > 0)
+		pos--;
+	    if (echo)
+		gensio_write_s(io, NULL, "\b \b", 3, timeout);
+	    continue;
+	}
+	if (pos < size - 1) {
+	    buf[pos++] = c;
+	    if (echo)
+		gensio_write_s(io, NULL, &c, 1, timeout);
+	}
+    }
+
+    gensio_clear_sync(io);
+    buf[pos] = '\0';
+    *len = pos;
 
     return err;
 }
