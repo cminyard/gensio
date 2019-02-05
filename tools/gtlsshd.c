@@ -376,8 +376,8 @@ static struct pam_conv gensio_conv = { gensio_pam_cb, NULL };
 static void
 tcp_handle_new(struct gensio_runner *r, void *cb_data)
 {
-    struct gensio *io = cb_data;
-    struct ioinfo *ioinfo = gensio_get_user_data(io);
+    struct gensio *tcp_io = cb_data;
+    struct ioinfo *ioinfo = gensio_get_user_data(tcp_io);
     struct gdata *ginfo = ioinfo_userdata(ioinfo);
     int err;
     const char *ssl_args[] = { ginfo->key, ginfo->cert, "mode=server", NULL };
@@ -389,7 +389,7 @@ tcp_handle_new(struct gensio_runner *r, void *cb_data)
     char **env;
 
     ginfo->o->free_runner(r);
-    err = ssl_gensio_alloc(io, ssl_args, ginfo->o, NULL, NULL, &ssl_io);
+    err = ssl_gensio_alloc(tcp_io, ssl_args, ginfo->o, NULL, NULL, &ssl_io);
     if (err) {
 	syslog(LOG_ERR, "Unable to allocate SSL gensio: %s",
 	       gensio_err_to_str(errno));
