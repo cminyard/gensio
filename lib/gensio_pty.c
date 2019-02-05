@@ -178,7 +178,7 @@ pty_control(void *handler_data, int fd, bool get, unsigned int option,
 
     switch (option) {
     case GENSIO_CONTROL_ENVIRONMENT:
-	if (!get)
+	if (get)
 	    return GE_NOTSUP;
 	err = gensio_argv_copy(tdata->o, (const char **) data, NULL, &env);
 	if (err)
@@ -186,7 +186,7 @@ pty_control(void *handler_data, int fd, bool get, unsigned int option,
 	if (tdata->env)
 	    gensio_argv_free(tdata->o, tdata->env);
 	tdata->env = env;
-	break;
+	return 0;
     }
 
     return GE_NOTSUP;

@@ -556,6 +556,18 @@ setup_child_proc(struct stdiona_data *nadata)
 	for (i = 3; i < openfiles; i++)
 	    close(i);
 
+	err = seteuid(getuid());
+	if (err == -1) {
+	    fprintf(stderr, "Unable to set euid: %s\n", strerror(errno));
+	    exit(1);
+	}
+
+	err = setegid(getgid());
+	if (err == -1) {
+	    fprintf(stderr, "Unable to set euid: %s\n", strerror(errno));
+	    exit(1);
+	}
+
 	if (nadata->env)
 	    environ = (char **) nadata->env;
 

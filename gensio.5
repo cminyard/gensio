@@ -292,11 +292,19 @@ connecting =
 
 The stdio gensio is a fairly strange one, but it's fairly useful.
 
-A connection stdio gensio runs the given program (unless self is set
+A connecting stdio gensio runs the given program (unless self is set
 as an option) and connects its standard input and output to the
 gensio's main channel.  So it's easy to run a program and interact
 with it.  If you want to get stderr from the gensio, open a channel on
 the main channel gensio.  The new gensio you get will be stderr.
+
+For connecting gensios, n the forked process, the code will set the
+effective uid and guid to the current set uid and guid.  This way a
+user can set the uid and gid to what the want to pty to run under, but
+keep the euid and egid to the (probably root) values.
+
+The connecting gensio support the GENSIO_CONTROL ENVIRONMENT control
+to allow the environment to be set for the new process.
 
 An accepting gensio immediately does a connection when started and
 connection stdin and stdout of the running program to the gensio.
@@ -552,6 +560,21 @@ the server.
 Create a pty and run a program on the other end of it.  This is sort
 of like stdio, but the program is running on a terminal.  Only
 connection gensios are supported.
+
+pty has some unusual handling to allow execution of login shells of
+users from root.
+
+If the first character of the program is '-', it is removed from the
+execution of the command but left in argv[0].  This will cause a shell
+to act as a login shell.
+
+In the forked process, the pty code will set the effective uid and
+guid to the current set uid and guid.  This way a user can set the
+uid and gid to what the want to pty to run under, but keep the euid
+and egid to the (probably root) values.
+
+The pty gensio support the GENSIO_CONTROL ENVIRONMENT control to allow
+the environment to be set for the new process.
 
 .SH "Forking and gensios"
 

@@ -199,6 +199,7 @@ gensio_setup_child_on_pty(struct gensio_os_funcs *o,
 {
     pid_t pid;
     int ptym, err = 0;
+    const char *pgm;
 
     ptym = posix_openpt(O_RDWR | O_NOCTTY);
     if (ptym == -1)
@@ -296,9 +297,27 @@ gensio_setup_child_on_pty(struct gensio_os_funcs *o,
 	for (i = 3; i < openfiles; i++)
 		close(i);
 
+	err = seteuid(getuid());
+	if (err == -1) {
+	    fprintf(stderr, "pty fork: Unable to set euid: %s\n",
+		    strerror(errno));
+	    exit(1);
+	}
+
+	err = setegid(getgid());
+	if (err == -1) {
+	    fprintf(stderr, "pty fork: Unable to set euid: %s\n",
+		    strerror(errno));
+	    exit(1);
+	}
+
 	if (env)
 	    environ = (char **) env;
-	execvp(argv[0], argv);
+
+	pgm = argv[0];
+	if (*pgm == '-')
+	    pgm++;
+	execvp(pgm, argv);
 	fprintf(stderr, "Unable to exec %s: %s\n", argv[0], strerror(errno));
 	exit(1); /* Only reached on error. */
     }
