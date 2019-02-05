@@ -60,10 +60,10 @@ static void prbuf(const unsigned char *buf, unsigned int len)
 
     for (i = 0; i < len; i++) {
        if (i % 16 == 0)
-           printf("\n");
+           printf("\r\n");
        printf(" %2.2x", buf[i]);
     }
-    printf("\n");
+    printf("\r\n");
     fflush(stdout);
 }
 #endif
