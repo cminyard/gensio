@@ -27,6 +27,7 @@
 #include <termios.h>
 #include <gensio/gensio.h>
 #include <pwd.h>
+#include <sys/stat.h>
 
 #include "ioinfo.h"
 #include "ser_ioinfo.h"
@@ -226,6 +227,7 @@ lookup_certfiles(const char *tlssh_dir, const char *username,
 		 char **rCAdir, char **rcertfile, char **rkeyfile)
 {
     int err = GE_NOMEM;
+    struct stat st;
 
     CAdir = alloc_sprintf("%s/server_certs", tlssh_dir);
     if (!CAdir) {
@@ -233,13 +235,33 @@ lookup_certfiles(const char *tlssh_dir, const char *username,
 	return GE_NOMEM;
     }
 
+    certfile = alloc_sprintf("%s/keycerts/%s,%d.crt", tlssh_dir,
+			     hostname, port);
+    if (!certfile)
+	goto cert_nomem;
+    if (stat(certfile, &st) == 0 && S_ISREG(st.st_mode)) {
+	keyfile = alloc_sprintf("%s/keycerts/%s,%d.key", tlssh_dir,
+				hostname, port);
+	goto found_cert;
+    }
+    free(certfile);
+    certfile = alloc_sprintf("%s/keycerts/%s.crt", tlssh_dir, hostname);
+    if (!certfile)
+	goto cert_nomem;
+    if (stat(certfile, &st) == 0 && S_ISREG(st.st_mode)) {
+	keyfile = alloc_sprintf("%s/keycerts/%s.key", tlssh_dir, hostname);
+	goto found_cert;
+    }
+    free(certfile);
+
     certfile = alloc_sprintf("%s/default.crt", tlssh_dir);
     if (!certfile) {
+    cert_nomem:
 	fprintf(stderr, "Error allocating memory for certificate file\n");
 	goto out_err;
     }
-
     keyfile = alloc_sprintf("%s/default.key", tlssh_dir);
+ found_cert:
     if (!keyfile) {
 	fprintf(stderr, "Error allocating memory for private key file\n");
 	goto out_err;
