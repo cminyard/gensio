@@ -67,6 +67,7 @@ static int tcp_check_open(void *handler_data, int fd)
 	tdata->last_err = gensio_os_err_to_err(tdata->o, errno);
 	return tdata->last_err;
     }
+    optval = gensio_os_err_to_err(tdata->o, optval);
     tdata->last_err = optval;
     if (!optval) {
 	struct addrinfo *ai = tdata->curr_ai;
