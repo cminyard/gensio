@@ -26,6 +26,8 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <errno.h>
+#include <sys/types.h>
+#include <fcntl.h>
 
 #include "utils.h"
 
@@ -165,4 +167,71 @@ checkout_file(const char *filename, bool expect_dir)
     }
 
     return 0;
+}
+
+bool
+file_is_readable(char *filename)
+{
+    struct stat sb;
+    int rv;
+
+    rv = stat(filename, &sb);
+    if (rv == -1)
+	return false;
+
+    if (!S_ISREG(sb.st_mode))
+	return false;
+
+    if (sb.st_uid == getuid()) {
+	if (sb.st_mode & 0400)
+	    return true;
+    }
+    if (sb.st_gid == getgid()) {
+	if (sb.st_mode & 0040)
+	    return true;
+    }
+    if (sb.st_mode & 0004)
+	return true;
+
+    return false;
+}
+
+int
+write_file_to_gensio(char *filename, struct gensio *io,
+		     struct gensio_os_funcs *o, struct timeval *timeout)
+{
+    int err;
+    int fd;
+    char buf[100];
+    int count;
+
+    err = gensio_set_sync(io);
+    if (err)
+	return err;
+
+    fd = open(filename, O_RDONLY);
+    if (fd == -1) {
+	err = gensio_os_err_to_err(o, errno);
+	goto out_unsync;
+    }
+
+    while (true) {
+	count = read(fd, buf, sizeof(buf));
+	if (count == -1) {
+	    err = gensio_os_err_to_err(o, errno);
+	    break;
+	}
+	if (count == 0)
+	    break;
+	err = gensio_write_s(io, NULL, buf, count, timeout);
+	if (err)
+	    break;
+    }
+
+    close(fd);
+
+ out_unsync:
+    gensio_clear_sync(io);
+
+    return err;
 }
