@@ -27,7 +27,6 @@
 #include <termios.h>
 #include <gensio/gensio.h>
 #include <pwd.h>
-#include <sys/stat.h>
 
 #include "ioinfo.h"
 #include "ser_ioinfo.h"
@@ -227,7 +226,6 @@ lookup_certfiles(const char *tlssh_dir, const char *username,
 		 char **rCAdir, char **rcertfile, char **rkeyfile)
 {
     int err = GE_NOMEM;
-    struct stat st;
 
     CAdir = alloc_sprintf("%s/server_certs", tlssh_dir);
     if (!CAdir) {
@@ -239,7 +237,7 @@ lookup_certfiles(const char *tlssh_dir, const char *username,
 			     hostname, port);
     if (!certfile)
 	goto cert_nomem;
-    if (stat(certfile, &st) == 0 && S_ISREG(st.st_mode)) {
+    if (file_is_readable(certfile)) {
 	keyfile = alloc_sprintf("%s/keycerts/%s,%d.key", tlssh_dir,
 				hostname, port);
 	goto found_cert;
@@ -248,7 +246,7 @@ lookup_certfiles(const char *tlssh_dir, const char *username,
     certfile = alloc_sprintf("%s/keycerts/%s.crt", tlssh_dir, hostname);
     if (!certfile)
 	goto cert_nomem;
-    if (stat(certfile, &st) == 0 && S_ISREG(st.st_mode)) {
+    if (file_is_readable(certfile)) {
 	keyfile = alloc_sprintf("%s/keycerts/%s.key", tlssh_dir, hostname);
 	goto found_cert;
     }
