@@ -91,6 +91,8 @@ struct stdiona_data {
 
     struct gensio_os_funcs *o;
 
+    bool stderr_to_stdout;
+
     unsigned int refcount;
 
     int argc;
@@ -142,6 +144,8 @@ stdiona_finish_free(struct stdiona_data *nadata)
 {
     if (nadata->argv)
 	gensio_argv_free(nadata->o, nadata->argv);
+    if (nadata->env)
+	gensio_argv_free(nadata->o, nadata->env);
     if (nadata->io.deferred_op_runner)
 	nadata->o->free_runner(nadata->io.deferred_op_runner);
     if (nadata->err.deferred_op_runner)
@@ -516,17 +520,8 @@ setup_child_proc(struct stdiona_data *nadata)
 	goto out_err;
     }
 
-    err = pipe(stderrpipe);
-    if (err) {
-	err = errno;
-	goto out_err;
-    }
-
     nadata->io.infd = stdinpipe[1];
     nadata->io.outfd = stdoutpipe[0];
-    nadata->err.infd = -1;
-    nadata->err.outfd = stderrpipe[0];
-
     if (fcntl(nadata->io.infd, F_SETFL, O_NONBLOCK) == -1) {
 	err = errno;
 	goto out_err;
@@ -535,9 +530,24 @@ setup_child_proc(struct stdiona_data *nadata)
 	err = errno;
 	goto out_err;
     }
-    if (fcntl(nadata->err.outfd, F_SETFL, O_NONBLOCK) == -1) {
-	err = errno;
-	goto out_err;
+
+    nadata->err.infd = -1;
+
+    if (nadata->stderr_to_stdout) {
+	nadata->err.outfd = stdoutpipe[0];
+	stderrpipe[0] = stdoutpipe[0];
+	stderrpipe[1] = stdoutpipe[1];
+    } else {
+	err = pipe(stderrpipe);
+	if (err) {
+	    err = errno;
+	    goto out_err;
+	}
+	nadata->err.outfd = stderrpipe[0];
+	if (fcntl(nadata->err.outfd, F_SETFL, O_NONBLOCK) == -1) {
+	    err = errno;
+	    goto out_err;
+	}
     }
 
     nadata->opid = fork();
@@ -558,13 +568,13 @@ setup_child_proc(struct stdiona_data *nadata)
 
 	err = seteuid(getuid());
 	if (err == -1) {
-	    fprintf(stderr, "Unable to set euid: %s\n", strerror(errno));
+	    fprintf(stderr, "Unable to set euid: %s\r\n", strerror(errno));
 	    exit(1);
 	}
 
 	err = setegid(getgid());
 	if (err == -1) {
-	    fprintf(stderr, "Unable to set euid: %s\n", strerror(errno));
+	    fprintf(stderr, "Unable to set egid: %s\r\n", strerror(errno));
 	    exit(1);
 	}
 
@@ -572,18 +582,14 @@ setup_child_proc(struct stdiona_data *nadata)
 	    environ = (char **) nadata->env;
 
 	execvp(nadata->argv[0], (char * const *) nadata->argv);
-	{
-	    char buff[1024];
-
-	    fprintf(stderr, "Err: %s %s\n", nadata->argv[0], strerror(errno));
-	    fprintf(stderr, "  pwd = '%s'\n", getcwd(buff, sizeof(buff)));
-	}
+	fprintf(stderr, "Err: %s %s\r\n", nadata->argv[0], strerror(errno));
 	exit(1); /* Only reached on error. */
     }
 
     close(stdinpipe[0]);
     close(stdoutpipe[1]);
-    close(stderrpipe[1]);
+    if (stdoutpipe[1] != stderrpipe[1])
+	close(stderrpipe[1]);
     return 0;
 
  out_err:
@@ -595,9 +601,9 @@ setup_child_proc(struct stdiona_data *nadata)
 	close(stdoutpipe[0]);
     if (stdoutpipe[1] != -1)
 	close(stdoutpipe[1]);
-    if (stderrpipe[0] != -1)
+    if (stderrpipe[0] != -1 && stderrpipe[0] != stdoutpipe[0])
 	close(stderrpipe[0]);
-    if (stderrpipe[1] != -1)
+    if (stderrpipe[1] != -1 && stderrpipe[1] != stdoutpipe[1])
 	close(stderrpipe[1]);
 
     return gensio_os_err_to_err(nadata->o, err);
@@ -655,18 +661,16 @@ stdion_open(struct gensio *io, gensio_done_err open_done, void *open_data)
     if (nadata->io.in_handler_set)
 	nadata->o->clear_fd_handlers_norpt(nadata->o, nadata->io.infd);
     nadata->io.in_handler_set = false;
-    if (nadata->io.infd != -1 && nadata->io.infd != 1) {
+    if (nadata->io.infd != -1 && nadata->io.infd != 1)
 	close(nadata->io.infd);
-	nadata->io.infd = -1;
-    }
-    if (nadata->io.outfd != -1 && nadata->io.outfd != 0) {
+    nadata->io.infd = -1;
+    if (nadata->io.outfd != -1 && nadata->io.outfd != 0)
 	close(nadata->io.outfd);
-	nadata->io.outfd = -1;
-    }
-    if (nadata->err.outfd != -1 && nadata->err.outfd != 2) {
+    nadata->io.outfd = -1;
+    if (nadata->err.outfd != -1 && nadata->err.outfd != 2 &&
+		nadata->err.outfd != nadata->io.outfd)
 	close(nadata->err.outfd);
-	nadata->err.outfd = -1;
-    }
+    nadata->err.outfd = -1;
  out_unlock:
     stdiona_unlock(nadata);
 
@@ -684,6 +688,9 @@ stdion_open_channel(struct gensio *io, const char * const args[],
     int rv = 0;
     unsigned int i;
     gensiods max_read_size = nadata->io.max_read_size;
+
+    if (nadata->stderr_to_stdout)
+	return GE_INVAL;
 
     for (i = 0; args && args[i]; i++) {
 	if (gensio_check_keyds(args[i], "readbuf", &max_read_size) > 0)
@@ -866,7 +873,7 @@ stdion_control(struct gensio *io, bool get, unsigned int option,
 
     switch (option) {
     case GENSIO_CONTROL_ENVIRONMENT:
-	if (!get)
+	if (get)
 	    return GE_NOTSUP;
 	err = gensio_argv_copy(nadata->o, (const char **) data, NULL, &env);
 	if (err)
@@ -874,7 +881,7 @@ stdion_control(struct gensio *io, bool get, unsigned int option,
 	if (nadata->env)
 	    gensio_argv_free(nadata->o, nadata->env);
 	nadata->env = env;
-	break;
+	return 0;
     }
 
     return GE_NOTSUP;
@@ -1003,11 +1010,15 @@ stdio_gensio_alloc(const char * const argv[], const char * const args[],
     int i;
     gensiods max_read_size = GENSIO_DEFAULT_BUF_SIZE;
     bool self = false;
+    bool stderr_to_stdout = false;
 
     for (i = 0; args && args[i]; i++) {
 	if (gensio_check_keyds(args[i], "readbuf", &max_read_size) > 0)
 	    continue;
 	if (gensio_check_keybool(args[i], "self", &self) > 0)
+	    continue;
+	if (gensio_check_keybool(args[i], "stderr-to-stdout",
+				 &stderr_to_stdout) > 0)
 	    continue;
 	return GE_INVAL;
     }
@@ -1015,6 +1026,8 @@ stdio_gensio_alloc(const char * const argv[], const char * const args[],
     err = stdio_nadata_setup(o, max_read_size, &nadata);
     if (err)
 	return err;
+
+    nadata->stderr_to_stdout = stderr_to_stdout;
 
     if (self) {
 	nadata->io.infd = 1;

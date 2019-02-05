@@ -246,14 +246,14 @@ gensio_setup_child_on_pty(struct gensio_os_funcs *o,
 
 	    fd = open("/dev/tty", O_RDWR);
 	    if (fd != -1) {
-		fprintf(stderr, "pty fork: failed to drop control term: %s\n",
+		fprintf(stderr, "pty fork: failed to drop control term: %s\r\n",
 			strerror(errno));
 		exit(1);
 	    }
 	}
 
 	if (setsid() == -1) {
-	    fprintf(stderr, "pty fork: failed to start new session: %s\n",
+	    fprintf(stderr, "pty fork: failed to start new session: %s\r\n",
 		    strerror(errno));
 	    exit(1);
 	}
@@ -266,30 +266,30 @@ gensio_setup_child_on_pty(struct gensio_os_funcs *o,
 
 	fd = open(slave, O_RDWR);
 	if (fd == -1) {
-	    fprintf(stderr, "pty fork: failed to open slave terminal: %s\n",
+	    fprintf(stderr, "pty fork: failed to open slave terminal: %s\r\n",
 		    strerror(errno));
 	    exit(1);
 	}
 
 	/* fd will be closed by the loop to close everything. */
 	if (open("/dev/tty", O_RDWR) == -1) {
-	    fprintf(stderr, "pty fork: failed to set control term: %s\n",
+	    fprintf(stderr, "pty fork: failed to set control term: %s\r\n",
 		    strerror(errno));
 	    exit(1);
 	}
 
 	if (dup2(fd, 0) == -1) {
-	    fprintf(stderr, "pty fork: stdin open fail\n");
+	    fprintf(stderr, "pty fork: stdin open fail\r\n");
 	    exit(1);
 	}
 
 	if (dup2(fd, 1) == -1) {
-	    fprintf(stderr, "pty fork: stdout open fail\n");
+	    fprintf(stderr, "pty fork: stdout open fail\r\n");
 	    exit(1);
 	}
 
 	if (dup2(fd, 2) == -1) {
-	    fprintf(stderr, "pty fork: stderr open fail\n");
+	    fprintf(stderr, "pty fork: stderr open fail\r\n");
 	    exit(1);
 	}
 
@@ -299,14 +299,14 @@ gensio_setup_child_on_pty(struct gensio_os_funcs *o,
 
 	err = seteuid(getuid());
 	if (err == -1) {
-	    fprintf(stderr, "pty fork: Unable to set euid: %s\n",
+	    fprintf(stderr, "pty fork: Unable to set euid: %s\r\n",
 		    strerror(errno));
 	    exit(1);
 	}
 
 	err = setegid(getgid());
 	if (err == -1) {
-	    fprintf(stderr, "pty fork: Unable to set euid: %s\n",
+	    fprintf(stderr, "pty fork: Unable to set egid: %s\r\n",
 		    strerror(errno));
 	    exit(1);
 	}
@@ -318,7 +318,7 @@ gensio_setup_child_on_pty(struct gensio_os_funcs *o,
 	if (*pgm == '-')
 	    pgm++;
 	execvp(pgm, argv);
-	fprintf(stderr, "Unable to exec %s: %s\n", argv[0], strerror(errno));
+	fprintf(stderr, "Unable to exec %s: %s\r\n", argv[0], strerror(errno));
 	exit(1); /* Only reached on error. */
     }
 
