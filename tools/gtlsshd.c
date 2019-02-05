@@ -169,6 +169,8 @@ pam_cb(int num_msg, const struct pam_message **msg,
 static const char *login_service = "login:";
 static const char *program_service = "program:";
 
+static bool permit_root = false;
+
 struct pam_conv auth_conv = { pam_cb, NULL };
 static bool pam_started = false;
 static bool pam_cred_set = false;
@@ -203,12 +205,17 @@ certauth_event(struct gensio *io, void *user_data, int event, int ierr,
 		   gensio_err_to_str(err));
 	    return GE_KEYINVALID;
 	}
+	if (!permit_root && strcmp(username, "root") == 0)
+	    return GE_INVAL;
+
 	pw = getpwnam(username);
 	if (!pw) {
 	    syslog(LOG_ERR, "Invalid username provided by remote: %s",
 		   username);
 	    return GE_KEYINVALID;
 	}
+	if (!permit_root && pw->pw_uid == 0)
+	    return GE_INVAL;
 
 	pam_err = pam_start(progname, username, &auth_conv, &pamh);
 	if (pam_err != PAM_SUCCESS) {
@@ -335,6 +342,13 @@ tcp_handle_new(struct gensio_runner *r, void *cb_data)
 
     ginfo->can_close = true;
     ginfo->io = certauth_io;
+
+    if (file_is_readable("/etc/nologin") && uid != 0) {
+	struct timeval t = { 10, 0 }; /* Give it 10 seconds. */
+	write_file_to_gensio("/etc/nologin", certauth_io, ginfo->o, &t);
+	goto out_err;
+    }
+
     ioinfo_set_ready(ioinfo, certauth_io);
 
     pty_ioinfo = ioinfo_otherioinfo(ioinfo);
