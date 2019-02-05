@@ -171,6 +171,9 @@ static bool pam_cred_set = false;
 static bool pam_session_open = false;
 static char username[100];
 static char *userpgm;
+static char *homedir;
+static int uid = -1;
+static int gid = -1;
 
 static int
 certauth_event(struct gensio *io, int event, int ierr,
@@ -217,6 +220,9 @@ certauth_event(struct gensio *io, int event, int ierr,
 	    return GE_KEYINVALID;
 	}
 	userpgm = pw->pw_shell;
+	uid = pw->pw_uid;
+	gid = pw->pw_gid;
+	homedir = pw->pw_dir;
 	return GE_NOTSUP;
     }
 
@@ -255,6 +261,9 @@ tcp_handle_new(struct gensio_runner *r, void *cb_data)
     struct ioinfo *pty_ioinfo;
     struct gdata *pty_ginfo;
     char *s;
+    int orig_uid = -1;
+    int orig_gid = -1;
+    char **env;
 
     ginfo->o->free_runner(r);
     err = ssl_gensio_alloc(io, ssl_args, ginfo->o, NULL, NULL, &ssl_io);
@@ -315,7 +324,34 @@ tcp_handle_new(struct gensio_runner *r, void *cb_data)
     }
     pam_session_open = true;
 
-    s = alloc_sprintf("pty,%s", userpgm);
+    env = pam_getenvlist(pamh);
+    if (!env) {
+	syslog(LOG_ERR, "pam_getenvlist failed for %s", username);
+	goto out_err;
+    }
+
+    orig_uid = getuid();
+    orig_gid = getuid();
+    err = setgid(gid);
+    if (err) {
+	syslog(LOG_ERR, "Unable to set gid to %d: %s", gid, strerror(errno));
+	goto out_err;
+    }
+    err = setuid(uid);
+    if (err) {
+	syslog(LOG_ERR, "Unable to set uid to %d: %s", uid, strerror(errno));
+	goto out_err;
+    }
+
+    err = chdir(homedir);
+    if (err == -1) {
+	syslog(LOG_ERR, "Unable to chdir to %s for user %s: %s",
+	       homedir, username, strerror(errno));
+	goto out_err;
+    }
+
+    /* The '-' makes it a login shell.  pty will remove it. */
+    s = alloc_sprintf("pty,-%s", userpgm);
     if (!s) {
 	syslog(LOG_ERR, "Out of memory allocating program name");
 	goto out_err;
@@ -323,12 +359,20 @@ tcp_handle_new(struct gensio_runner *r, void *cb_data)
     err = str_to_gensio(s, ginfo->o, NULL, NULL, &pty_io);
     free(s);
     if (err) {
-	syslog(LOG_ERR, "pty alloc failed: %s", gensio_err_to_str(errno));
+	syslog(LOG_ERR, "pty alloc failed: %s", gensio_err_to_str(err));
 	goto out_err;
     }
+    err = gensio_control(pty_io, 0, false, GENSIO_CONTROL_ENVIRONMENT,
+			 (char *) env, NULL);
+    if (err) {
+	syslog(LOG_ERR, "pty set env failed for %s: %s", username,
+	       gensio_err_to_str(err));
+	goto out_err;
+    }
+
     err = gensio_open_s(pty_io);
     if (err) {
-	syslog(LOG_ERR, "pty open failed: %s", gensio_err_to_str(errno));
+	syslog(LOG_ERR, "pty open failed: %s", gensio_err_to_str(err));
 	goto out_err;
     }
 
@@ -336,9 +380,15 @@ tcp_handle_new(struct gensio_runner *r, void *cb_data)
     pty_ginfo->io = pty_io;
     ioinfo_set_ready(pty_ioinfo, pty_io);
 
+    setuid(orig_uid);
+    setgid(orig_gid);
     return;
 
  out_err:
+    if (orig_uid != -1)
+	setuid(orig_uid);
+    if (orig_gid != -1)
+	setgid(orig_gid);
     gshutdown(ioinfo);
 }
 
