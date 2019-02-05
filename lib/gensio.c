@@ -2421,7 +2421,7 @@ gensio_read_s(struct gensio *io, gensiods *count, void *data, gensiods datalen,
     gensio_list_add_tail(&sync_io->readops, &op.link);
 
     o->unlock(sync_io->lock);
-    rv = o->wait(op.waiter, 1, timeout);
+    o->wait(op.waiter, 1, timeout);
     o->lock(sync_io->lock);
     if (op.err) {
 	rv = op.err;
@@ -2432,6 +2432,8 @@ gensio_read_s(struct gensio *io, gensiods *count, void *data, gensiods datalen,
     } else if (count) {
 	*count = op.len;
     }
+    if (gensio_list_empty(&sync_io->readops))
+	gensio_set_read_callback_enable(io, false);
  out_unlock:
     o->unlock(sync_io->lock);
     o->free_waiter(op.waiter);
@@ -2476,7 +2478,7 @@ gensio_write_s(struct gensio *io, gensiods *count,
     gensio_list_add_tail(&sync_io->writeops, &op.link);
 
     o->unlock(sync_io->lock);
-    rv = o->wait(op.waiter, 1, timeout);
+    o->wait(op.waiter, 1, timeout);
     o->lock(sync_io->lock);
     if (op.queued)
 	gensio_list_rm(&sync_io->readops, &op.link);
@@ -2484,6 +2486,8 @@ gensio_write_s(struct gensio *io, gensiods *count,
 	rv = op.err;
     else if (count)
 	*count = origlen - op.len;
+    if (gensio_list_empty(&sync_io->writeops))
+	gensio_set_write_callback_enable(io, false);
  out_unlock:
     o->unlock(sync_io->lock);
     o->free_waiter(op.waiter);
