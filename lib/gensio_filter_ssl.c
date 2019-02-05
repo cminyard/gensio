@@ -349,7 +349,8 @@ static int
 ssl_ul_write(struct gensio_filter *filter,
 	     gensio_ul_filter_data_handler handler, void *cb_data,
 	     gensiods *rcount,
-	     const unsigned char *buf, gensiods buflen, const char *const *auxdata)
+	     const unsigned char *buf, gensiods buflen,
+	     const char *const *auxdata)
 {
     struct ssl_filter *sfilter = filter_to_ssl(filter);
     int err = 0;
