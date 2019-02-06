@@ -37,6 +37,7 @@
 #include "utils.h"
 
 unsigned int debug;
+bool oneshot;
 static const char *progname;
 
 struct gdata {
@@ -49,9 +50,9 @@ struct gdata {
     bool can_close;
 };
 
-static char *default_keyfile = SYSCONFDIR "/gtlsshd/gtlsshd.key";
-static char *default_certfile = SYSCONFDIR "/gtlsshd/gtlsshd.crt";
-static char *default_configfile = SYSCONFDIR "/gtlsshd/gtlsshd.conf";
+static char *default_keyfile = SYSCONFDIR "/gtlssh/gtlsshd.key";
+static char *default_certfile = SYSCONFDIR "/gtlssh/gtlsshd.crt";
+static char *default_configfile = SYSCONFDIR "/gtlssh/gtlsshd.conf";
 
 static void
 gshutdown(struct ioinfo *ioinfo)
@@ -566,6 +567,9 @@ tcp_acc_event(struct gensio_accepter *accepter, void *user_data,
 
     io = data;
 
+    if (oneshot)
+	goto skip_fork;
+
     switch ((pid = fork())) {
     case -1:
 	syslog(LOG_ERR, "Could not fork: %s", strerror(errno));
@@ -585,9 +589,6 @@ tcp_acc_event(struct gensio_accepter *accepter, void *user_data,
 	    exit(1);
 	}
 
-	gensio_acc_disable(tcp_acc);
-	gensio_acc_free(tcp_acc);
-	tcp_acc = NULL;
 	setsid();
 	switch (fork()) {
 	case -1:
@@ -598,6 +599,11 @@ tcp_acc_event(struct gensio_accepter *accepter, void *user_data,
 	default:
 	    exit(0);
 	}
+
+    skip_fork:
+	gensio_acc_disable(tcp_acc);
+	gensio_acc_free(tcp_acc);
+	tcp_acc = NULL;
 
 	/* Since tcp_handle_new does blocking calls, can't do it here. */
 	gensio_set_user_data(io, ioinfo);
@@ -643,6 +649,7 @@ help(int err)
 	   "    Default is ^\\ for tty stdin and disabled for non-tty stdin\n");
     printf("  --permit-root - Allow root logins.\n");
     printf("  --no-password - Do not allow password-based logins.\n");
+    printf("  --oneshot - Do not fork new connections, do one and exit.\n");
     printf("  -h, --help - This help\n");
     exit(err);
 }
@@ -703,6 +710,8 @@ main(int argc, char *argv[])
 	    permit_root = true;
 	else if ((rv = cmparg(argc, argv, &arg, NULL, "--no-password", NULL)))
 	    no_pw_login = true;
+	else if ((rv = cmparg(argc, argv, &arg, NULL, "--oneshot", NULL)))
+	    oneshot = true;
 	else if ((rv = cmparg(argc, argv, &arg, "-d", "--debug", NULL))) {
 	    debug++;
 	    if (debug > 1)
