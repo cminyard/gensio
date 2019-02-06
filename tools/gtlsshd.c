@@ -44,8 +44,8 @@ struct gdata {
     struct gensio_os_funcs *o;
     struct gensio_waiter *waiter;
     struct gensio *io;
-    const char *key;
-    const char *cert;
+    char *key;
+    char *cert;
 
     bool can_close;
 };
@@ -387,7 +387,8 @@ tcp_handle_new(struct gensio_runner *r, void *cb_data)
     struct ioinfo *pty_ioinfo;
     struct gdata *pty_ginfo;
     char *s;
-    char **env;
+    char **env = NULL;
+    unsigned int i;
 
     ginfo->o->free_runner(r);
     err = ssl_gensio_alloc(tcp_io, ssl_args, ginfo->o, NULL, NULL, &ssl_io);
@@ -493,12 +494,6 @@ tcp_handle_new(struct gensio_runner *r, void *cb_data)
 
     /* login will open the session, don't do it here. */
 
-    env = pam_getenvlist(pamh);
-    if (!env) {
-	syslog(LOG_ERR, "pam_getenvlist failed for %s", username);
-	goto out_err;
-    }
-
     if (prog) {
 	s = alloc_sprintf("stdio(stderr-to-stdout),%s", prog);
     } else {
@@ -526,8 +521,18 @@ tcp_handle_new(struct gensio_runner *r, void *cb_data)
 	syslog(LOG_ERR, "pty alloc failed: %s", gensio_err_to_str(err));
 	goto out_err;
     }
+
+    env = pam_getenvlist(pamh);
+    if (!env) {
+	syslog(LOG_ERR, "pam_getenvlist failed for %s", username);
+	goto out_err;
+    }
+
     err = gensio_control(pty_io, 0, false, GENSIO_CONTROL_ENVIRONMENT,
 			 (char *) env, NULL);
+    for (i = 0; env[i]; i++)
+	free(env[i]);
+    free(env);
     if (err) {
 	syslog(LOG_ERR, "set env failed for %s: %s", username,
 	       gensio_err_to_str(err));
@@ -791,6 +796,7 @@ main(int argc, char *argv[])
 		gensio_err_to_str(rv));
 	return 1;
     }
+    free(s);
 
     rv = gensio_acc_startup(tcp_acc);
     if (rv) {
@@ -837,6 +843,9 @@ main(int argc, char *argv[])
 	gensio_free(userdata2.io);
     if (tcp_acc)
 	gensio_acc_free(tcp_acc);
+
+    free(userdata1.key);
+    free(userdata1.cert);
 
     o->free_waiter(closewaiter);
     o->free_waiter(userdata1.waiter);
