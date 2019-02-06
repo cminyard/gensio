@@ -21,9 +21,9 @@
 #define GENSIO_OSOPS_H
 
 #include <sys/types.h> /* For pid_t */
-#ifdef HAVE_LIBSCTP
-#include <netinet/sctp.h>
-#endif
+
+/* To avoid having to include netinet/sctp.h here. */
+struct sctp_sndrcvinfo;
 
 #include <gensio/gensio.h>
 

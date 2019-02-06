@@ -29,6 +29,10 @@
 #include <termios.h>
 #include <sys/ioctl.h>
 
+#ifdef HAVE_LIBSCTP
+#include <netinet/sctp.h>
+#endif
+
 #include <gensio/gensio_osops.h>
 
 static int
