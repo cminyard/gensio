@@ -54,6 +54,27 @@ static char *default_keyfile = SYSCONFDIR "/gtlssh/gtlsshd.key";
 static char *default_certfile = SYSCONFDIR "/gtlssh/gtlsshd.crt";
 static char *default_configfile = SYSCONFDIR "/gtlssh/gtlsshd.conf";
 
+static char *pid_file = NULL;
+
+static void
+make_pidfile(void)
+{
+    FILE *fpidfile;
+
+    if (!pid_file)
+	return;
+    fpidfile = fopen(pid_file, "w");
+    if (!fpidfile) {
+	syslog(LOG_WARNING,
+	       "Error opening pidfile '%s': %m, pidfile not created",
+	       pid_file);
+	pid_file = NULL;
+	return;
+    }
+    fprintf(fpidfile, "%d\n", getpid());
+    fclose(fpidfile);
+}
+
 static void
 gshutdown(struct ioinfo *ioinfo)
 {
@@ -661,6 +682,7 @@ help(int err)
     printf("  --oneshot - Do not fork new connections, do one and exit.\n");
     printf("  --nosctp - Disable SCTP support.\n");
     printf("  --notcp - Disable TCP support.\n");
+    printf("  -P, --pidfile <file> - Create the given pidfile.\n");
     printf("  -h, --help - This help\n");
     exit(err);
 }
@@ -696,9 +718,6 @@ main(int argc, char *argv[])
     else
 	progname++;
 
-    openlog(progname, 0, LOG_AUTH);
-    syslog(LOG_INFO, "%s start", progname);
-
     for (arg = 1; arg < argc; arg++) {
 	if (argv[arg][0] != '-')
 	    break;
@@ -728,6 +747,8 @@ main(int argc, char *argv[])
 	    no_pw_login = true;
 	else if ((rv = cmparg(argc, argv, &arg, NULL, "--oneshot", NULL)))
 	    oneshot = true;
+	else if ((rv = cmparg(argc, argv, &arg, "-P", "--pidfile", &pid_file)))
+	    ;
 	else if ((rv = cmparg(argc, argv, &arg, "-d", "--debug", NULL))) {
 	    debug++;
 	    if (debug > 1)
@@ -855,6 +876,42 @@ main(int argc, char *argv[])
     }
 
  start_io:
+    openlog(progname, 0, LOG_AUTH);
+    syslog(LOG_NOTICE, "gtlsshd startup");
+    if (!oneshot) {
+	pid_t pid;
+
+	if ((pid = fork()) > 0) {
+	    exit(0);
+	} else if (pid < 0) {
+	    fprintf(stderr, "Error forking first fork: %s", strerror(errno));
+	    exit(1);
+	} else {
+	    /* setsid() is necessary if we really want to demonize */
+	    setsid();
+	    /* Second fork to really deamonize me. */
+	    if ((pid = fork()) > 0) {
+		exit(0);
+	    } else if (pid < 0) {
+		syslog(LOG_ERR, "Error forking second fork: %s",
+		       strerror(errno));
+		exit(1);
+	    }
+	}
+	o->handle_fork(o);
+
+	/* Close all my standard I/O. */
+	if (chdir("/") < 0) {
+	    syslog(LOG_ERR, "unable to chdir to '/': %s", strerror(errno));
+	    exit(1);
+	}
+	close(0);
+	close(1);
+	close(2);
+
+	make_pidfile();
+    }
+
     o->wait(userdata1.waiter, 1, NULL);
 
     if (tcp_acc) {
@@ -925,6 +982,9 @@ main(int argc, char *argv[])
 	    syslog(LOG_ERR, "pam_en failed for %s: %s", username,
 		   pam_strerror(pamh, rv));
     }
+
+    if (pid_file)
+	unlink(pid_file);
 
     return 0;
 }
