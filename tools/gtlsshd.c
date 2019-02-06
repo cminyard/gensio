@@ -555,7 +555,7 @@ tcp_handle_new(struct gensio_runner *r, void *cb_data)
     gshutdown(ioinfo);
 }
 
-static struct gensio_accepter *tcp_acc;
+static struct gensio_accepter *tcp_acc, *sctp_acc;
 
 static int
 tcp_acc_event(struct gensio_accepter *accepter, void *user_data,
@@ -609,6 +609,9 @@ tcp_acc_event(struct gensio_accepter *accepter, void *user_data,
 	gensio_acc_disable(tcp_acc);
 	gensio_acc_free(tcp_acc);
 	tcp_acc = NULL;
+	gensio_acc_disable(sctp_acc);
+	gensio_acc_free(sctp_acc);
+	sctp_acc = NULL;
 
 	/* Since tcp_handle_new does blocking calls, can't do it here. */
 	gensio_set_user_data(io, ioinfo);
@@ -680,6 +683,7 @@ main(int argc, char *argv[])
     char *configfile = default_configfile;
     int port = 852;
     char *s;
+    bool notcp = false, nosctp = false;
 
     if ((progname = strrchr(argv[0], '/')) == NULL)
 	progname = argv[0];
@@ -708,6 +712,10 @@ main(int argc, char *argv[])
 	else if ((rv = cmparg(argc, argv, &arg, "-h", "--keyfile",
 			      &keyfile)))
 	    ;
+	else if ((rv = cmparg(argc, argv, &arg, NULL, "--notcp", NULL)))
+	    notcp = true;
+	else if ((rv = cmparg(argc, argv, &arg, NULL, "--nosctp", NULL)))
+	    nosctp = true;
 	else if ((rv = cmparg(argc, argv, &arg, NULL, "--permit-root", NULL)))
 	    permit_root = true;
 	else if ((rv = cmparg(argc, argv, &arg, NULL, "--no-password", NULL)))
@@ -726,6 +734,11 @@ main(int argc, char *argv[])
 	}
 	if (rv < 0)
 	    return 1;
+    }
+
+    if (nosctp && notcp) {
+	fprintf(stderr, "You cannot disable both TCP and SCTP\n");
+	exit(1);
     }
 
     if (checkout_file(keyfile, false, true))
@@ -785,27 +798,70 @@ main(int argc, char *argv[])
 
     ioinfo_set_otherioinfo(ioinfo1, ioinfo2);
 
-    s = alloc_sprintf("tcp,%d", port);
+    if (!notcp) {
+	s = alloc_sprintf("tcp,%d", port);
+	if (!s) {
+	    fprintf(stderr, "Could not allocate tcp descriptor\n");
+	    return 1;
+	}
 
-    rv = str_to_gensio_accepter(s, o, tcp_acc_event, ioinfo1, &tcp_acc);
-    if (rv) {
-	fprintf(stderr, "Could not allocate %s: %s\n", s,
-		gensio_err_to_str(rv));
-	return 1;
+	rv = str_to_gensio_accepter(s, o, tcp_acc_event, ioinfo1, &tcp_acc);
+	if (rv) {
+	    fprintf(stderr, "Could not allocate %s: %s\n", s,
+		    gensio_err_to_str(rv));
+	    return 1;
+	}
+	free(s);
+
+	rv = gensio_acc_startup(tcp_acc);
+	if (rv) {
+	    fprintf(stderr, "Could not start TCP accepter: %s\n",
+		    gensio_err_to_str(rv));
+	    return 1;
+	}
     }
-    free(s);
 
-    rv = gensio_acc_startup(tcp_acc);
-    if (rv) {
-	fprintf(stderr, "Could not start %s: %s\n", s,
-		gensio_err_to_str(rv));
-	return 1;
+    if (!nosctp) {
+	s = alloc_sprintf("sctp,%d", port);
+	if (!s) {
+	    fprintf(stderr, "Could not allocate sctp descriptor\n");
+	    return 1;
+	}
+
+	rv = str_to_gensio_accepter(s, o, tcp_acc_event, ioinfo1, &sctp_acc);
+	if (rv == GE_NOTSUP)
+	    /* No SCTP support */
+	    goto start_io;
+
+	if (rv) {
+	    fprintf(stderr, "Could not allocate %s: %s\n", s,
+		    gensio_err_to_str(rv));
+	    return 1;
+	}
+	free(s);
+
+	rv = gensio_acc_startup(sctp_acc);
+	if (rv) {
+	    fprintf(stderr, "Could not start SCTP accepter: %s\n",
+		    gensio_err_to_str(rv));
+	    return 1;
+	}
     }
 
+ start_io:
     o->wait(userdata1.waiter, 1, NULL);
 
     if (tcp_acc) {
 	rv = gensio_acc_shutdown(tcp_acc, acc_shutdown, closewaiter);
+	if (rv)
+	    syslog(LOG_ERR, "Unable to close accepter: %s",
+		   gensio_err_to_str(rv));
+	else
+	    closecount++;
+    }
+
+    if (sctp_acc) {
+	rv = gensio_acc_shutdown(sctp_acc, acc_shutdown, closewaiter);
 	if (rv)
 	    syslog(LOG_ERR, "Unable to close accepter: %s",
 		   gensio_err_to_str(rv));

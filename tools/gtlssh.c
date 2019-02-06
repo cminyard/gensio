@@ -143,37 +143,6 @@ static struct ioinfo_user_handlers guh = {
 };
 
 static void
-io_open(struct gensio *io, int err, void *open_data)
-{
-    struct ioinfo *ioinfo = gensio_get_user_data(io);
-    struct gdata *ginfo = ioinfo_userdata(ioinfo);
-
-    if (err) {
-	ginfo->can_close = false;
-	fprintf(stderr, "open error on %s: %s\n", ginfo->ios,
-		gensio_err_to_str(err));
-	gshutdown(ioinfo);
-    } else {
-	struct ioinfo *other_ioinfo = ioinfo_otherioinfo(ioinfo);
-	struct gdata *other_ginfo = ioinfo_userdata(other_ioinfo);
-	int rv;
-
-	ioinfo_set_ready(ioinfo, io);
-
-	if (!other_ginfo->can_close) {
-	    other_ginfo->can_close = true;
-	    rv = gensio_open(other_ginfo->io, io_open, NULL);
-	    if (rv) {
-		other_ginfo->can_close = false;
-		fprintf(stderr, "Could not open %s: %s\n",
-			other_ginfo->ios, gensio_err_to_str(rv));
-		gshutdown(ioinfo);
-	    }
-	}
-    }
-}
-
-static void
 io_close(struct gensio *io, void *close_data)
 {
     struct ioinfo *ioinfo = gensio_get_user_data(io);
@@ -378,10 +347,10 @@ verify_certfile(struct gensio_os_funcs *o,
 
     rv = open(filename, O_RDONLY);
     if (rv == -1) {
-	rv = errno;
 	fprintf(stderr,
 		"Unable to open certificate file at %s: %s\n", filename,
-		strerror(rv));
+		strerror(errno));
+	rv = GE_CERTNOTFOUND;
     } else {
 	int fd = rv, len = strlen(cert);
 
@@ -459,9 +428,33 @@ auth_event(struct gensio *io, void *user_data, int event, int ierr,
 	    /* Found a certificate, make sure it's the right one. */
 	    err = verify_certfile(ginfo->o,
 				  cert, "%s/%s,%d.crt", CAdir, hostname, port);
-	    if (!err)
+	    if (!err) {
 		err = verify_certfile(ginfo->o,
 				      cert, "%s/%s.crt", CAdir, raddr);
+		if (err == GE_CERTNOTFOUND) {
+		    printf("\nCertificate for %s found and correct, but"
+			   " address file was\nmissing for\n  %s\n",
+			   hostname, raddr);
+		    printf("It is possible that the host changed addresses, but"
+			   " there may also be a\nman in the middle\n");
+		    printf("Verify carefully, add if it is ok.\n");
+		    do {
+			printf("Add this certificate? (y/n): ");
+			fgets(buf, sizeof(buf), stdin);
+			if (buf[0] == 'y') {
+			    err = 0;
+			    break;
+			} else if (buf[0] == 'n') {
+			    err = GE_AUTHREJECT;
+			    break;
+			} else {
+			    printf("Invalid input: %s", buf);
+			}
+		    } while (true);
+		    if (!err)
+			add_certfile(ginfo->o, cert, "%s/%s.crt", CAdir, raddr);
+		}
+	    }
 	    return err;
 	}
 
@@ -469,11 +462,11 @@ auth_event(struct gensio *io, void *user_data, int event, int ierr,
 	 * Called from the SSL layer if the certificate provided by
 	 * the server didn't have a match.
 	 */
-	if (ierr != GE_KEYNOTFOUND) {
+	if (ierr != GE_CERTNOTFOUND) {
 	    const char *errstr = "probably didn't match host certificate.";
-	    if (err == GE_KEYREVOKED)
+	    if (err == GE_CERTREVOKED)
 		errstr = "is revoked";
-	    else if (err == GE_KEYEXPIRED)
+	    else if (err == GE_CERTEXPIRED)
 		errstr = "is expired";
 	    fprintf(stderr, "Certificate for %s failed validation: %s\n",
 		    hostname, auxdata[0]);
@@ -494,15 +487,17 @@ auth_event(struct gensio *io, void *user_data, int event, int ierr,
 	if (err) {
 	    fprintf(stderr, "Error getting fingerprint: %s\n",
 		    gensio_err_to_str(err));
-	    return GE_KEYINVALID;
+	    return GE_CERTINVALID;
 	}
 	if (len >= sizeof(fingerprint)) {
 	    fprintf(stderr, "fingerprint is too large\n");
-	    return GE_KEYINVALID;
+	    return GE_CERTINVALID;
 	}
 
-	printf("Certificate for %s is not present, fingerprint is:\n%s\n",
-	       raddr, fingerprint);
+	printf("Certificate for %s", hostname);
+	if (strcmp(hostname, raddr) != 0)
+	    printf(" %s\n", raddr);
+	printf(" is not present, fingerprint is:\n%s\n", fingerprint);
 	printf("Please validate the fingerprint and verify if you want it\n"
 	       "added to the set of valid servers.\n");
 	do {
@@ -512,7 +507,7 @@ auth_event(struct gensio *io, void *user_data, int event, int ierr,
 		err = 0;
 		break;
 	    } else if (buf[0] == 'n') {
-		err = GE_KEYINVALID;
+		err = GE_AUTHREJECT;
 		break;
 	    } else {
 		printf("Invalid input: %s", buf);
@@ -569,10 +564,12 @@ main(int argc, char *argv[])
     char *s;
     int err;
     char *do_telnet = "";
-    char *CAdirspec, *certfilespec, *keyfilespec;
+    char *CAdirspec = NULL, *certfilespec = NULL, *keyfilespec = NULL;
     const char *service = "login:";
     char *free_service = NULL;
     bool interactive = true;
+    const char *transport = "sctp";
+    bool notcp = false, nosctp = false;
 
     memset(&userdata1, 0, sizeof(userdata1));
     memset(&userdata2, 0, sizeof(userdata2));
@@ -617,6 +614,10 @@ main(int argc, char *argv[])
 	} else if ((rv = cmparg_int(argc, argv, &arg, "-e", "--escchar",
 			     &escape_char))) {
 	    ;
+	} else if ((rv = cmparg(argc, argv, &arg, NULL, "--notcp", NULL))) {
+	    notcp = true;
+	} else if ((rv = cmparg(argc, argv, &arg, NULL, "--nosctp", NULL))) {
+	    nosctp = true;
 	} else if ((rv = cmparg(argc, argv, &arg, "-r", "--telnet", NULL))) {
 	    do_telnet = "telnet(rfc2217)";
 	} else if ((rv = cmparg(argc, argv, &arg, "-d", "--debug", NULL))) {
@@ -632,6 +633,14 @@ main(int argc, char *argv[])
 	if (rv < 0)
 	    return 1;
     }
+
+    if (nosctp && notcp) {
+	fprintf(stderr, "You cannot disable both TCP and SCTP\n");
+	exit(1);
+    }
+
+    if (nosctp)
+	transport = "tcp";
 
     if (!!certfile != !!keyfile) {
 	fprintf(stderr,
@@ -696,24 +705,6 @@ main(int argc, char *argv[])
     if (err)
 	return 1;
 
-    err = lookup_certfiles(tlssh_dir, username, hostname, port,
-			   &CAdirspec, &certfilespec, &keyfilespec);
-    if (err)
-	return 1;
-
-    s = alloc_sprintf("%scertauth(username=%s,service=%s%s%s,),"
-		      "ssl(%s),tcp,%s,%d",
-		      do_telnet, username, service, certfilespec, keyfilespec,
-		      CAdirspec, hostname, port);
-    free(CAdirspec);
-    free(certfilespec);
-    free(keyfilespec);
-    if (!s) {
-	fprintf(stderr, "out of memory allocating IO string\n");
-	return 1;
-    }
-    userdata2.ios = s;
-
     rv = gensio_default_os_hnd(0, &o);
     if (rv) {
 	fprintf(stderr, "Could not allocate OS handler: %s\n",
@@ -773,20 +764,27 @@ main(int argc, char *argv[])
     userdata1.user_io = userdata1.io;
     userdata2.user_io = userdata1.io;
 
+    err = lookup_certfiles(tlssh_dir, username, hostname, port,
+			   &CAdirspec, &certfilespec, &keyfilespec);
+    if (err)
+	return 1;
+
+ retry:
+    s = alloc_sprintf("%scertauth(username=%s,service=%s%s%s,),"
+		      "ssl(%s),%s,%s,%d",
+		      do_telnet, username, service, certfilespec, keyfilespec,
+		      CAdirspec, transport, hostname, port);
+    if (!s) {
+	fprintf(stderr, "out of memory allocating IO string\n");
+	return 1;
+    }
+    userdata2.ios = s;
+
     rv = str_to_gensio(userdata2.ios, o, auth_event, ioinfo2, &userdata2.io);
     if (rv) {
 	fprintf(stderr, "Could not allocate %s: %s\n", userdata2.ios,
 		gensio_err_to_str(rv));
 	return 1;
-    }
-
-    userdata2.can_close = true;
-    rv = gensio_open(userdata2.io, io_open, NULL);
-    if (rv) {
-	userdata2.can_close = false;
-	fprintf(stderr, "Could not open %s: %s\n", userdata2.ios,
-		gensio_err_to_str(rv));
-	goto close1;
     }
 
     if (interactive) {
@@ -799,8 +797,37 @@ main(int argc, char *argv[])
 	}
     }
 
+    userdata2.can_close = true;
+    rv = gensio_open_s(userdata2.io);
+    if (rv) {
+	userdata2.can_close = false;
+	fprintf(stderr, "Could not open %s: %s\n", userdata2.ios,
+		gensio_err_to_str(rv));
+	if (strcmp(transport, "sctp") == 0 && !notcp) {
+	    fprintf(stderr, "Falling back to tcp\n");
+	    free(userdata2.ios);
+	    userdata2.ios = NULL;
+	    transport = "tcp";
+	    goto retry;
+	}
+	goto closeit;
+    }
+
+    ioinfo_set_ready(ioinfo2, userdata2.io);
+
+    userdata1.can_close = true;
+    rv = gensio_open_s(userdata1.io);
+    if (rv) {
+	userdata1.can_close = false;
+	fprintf(stderr, "Could not open %s: %s\n",
+		userdata1.ios, gensio_err_to_str(rv));
+	goto closeit;
+    }
+    ioinfo_set_ready(ioinfo1, userdata1.io);
+
     o->wait(userdata1.waiter, 1, NULL);
 
+ closeit:
     if (userdata2.can_close) {
 	rv = gensio_close(userdata2.io, io_close, closewaiter);
 	if (rv)
@@ -810,7 +837,6 @@ main(int argc, char *argv[])
 	    closecount++;
     }
 
- close1:
     if (userdata1.can_close) {
 	rv = gensio_close(userdata1.io, io_close, closewaiter);
 	if (rv)
@@ -824,11 +850,19 @@ main(int argc, char *argv[])
 	o->wait(closewaiter, closecount, NULL);
     }
 
+    if (CAdirspec)
+	free(CAdirspec);
+    if (certfilespec)
+	free(certfilespec);
+    if (keyfilespec)
+	free(keyfilespec);
+
     gensio_free(userdata1.io);
     if (userdata2.io)
 	gensio_free(userdata2.io);
 
-    free(userdata2.ios);
+    if (userdata2.ios)
+	free(userdata2.ios);
     o->free_waiter(closewaiter);
     o->free_waiter(userdata1.waiter);
 
