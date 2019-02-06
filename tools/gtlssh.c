@@ -571,6 +571,7 @@ main(int argc, char *argv[])
     char *CAdirspec, *certfilespec, *keyfilespec;
     const char *service = "login:";
     char *free_service = NULL;
+    bool interactive = true;
 
     memset(&userdata1, 0, sizeof(userdata1));
     memset(&userdata2, 0, sizeof(userdata2));
@@ -582,6 +583,7 @@ main(int argc, char *argv[])
 	userdata1.ios = io1_default_tty;
     } else {
 	userdata1.ios = io1_default_notty;
+	interactive = false;
     }
 
     for (arg = 1; arg < argc; arg++) {
@@ -632,8 +634,6 @@ main(int argc, char *argv[])
 	help(1);
     }
 
-    /* FIXME - Nagle handling for interactive I/O. */
-
     s = strrchr(argv[arg], '@');
     if (s) {
 	*s++ = '\0';
@@ -664,6 +664,7 @@ main(int argc, char *argv[])
 	}
 	service = free_service;
 	userdata1.ios = io1_default_notty;
+	interactive = false;
     }
 
     if (!tlssh_dir) {
@@ -776,6 +777,16 @@ main(int argc, char *argv[])
 	fprintf(stderr, "Could not open %s: %s\n", userdata2.ios,
 		gensio_err_to_str(rv));
 	goto close1;
+    }
+
+    if (interactive) {
+	rv = gensio_control(userdata2.io, GENSIO_CONTROL_DEPTH_ALL, false,
+			    GENSIO_CONTROL_NODELAY, "1", NULL);
+	if (rv) {
+	    fprintf(stderr, "Could not set nodelay on %s: %s\n", userdata2.ios,
+		    gensio_err_to_str(rv));
+	    return 1;
+	}
     }
 
     o->wait(userdata1.waiter, 1, NULL);

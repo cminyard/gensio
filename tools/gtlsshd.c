@@ -501,6 +501,14 @@ tcp_handle_new(struct gensio_runner *r, void *cb_data)
     if (prog) {
 	s = alloc_sprintf("stdio(stderr-to-stdout),%s", prog);
     } else {
+	err = gensio_control(certauth_io, GENSIO_CONTROL_DEPTH_ALL, false,
+			     GENSIO_CONTROL_NODELAY, "1", NULL);
+	if (err) {
+	    fprintf(stderr, "Could not set nodelay: %s\n",
+		    gensio_err_to_str(err));
+	    goto out_err;
+	}
+
 	/*
 	 * Let login handle everything else.  If the password
 	 * authentication from pam succeeded, don't ask for password.
