@@ -45,7 +45,7 @@ struct gdata {
 
 char *username, *hostname, *keyfile, *certfile, *CAdir;
 char *tlssh_dir = NULL;
-int port = 2190;
+int port = 852;
 
 static void
 gshutdown(struct ioinfo *ioinfo)
@@ -265,15 +265,15 @@ lookup_certfiles(const char *tlssh_dir, const char *username,
 	goto out_err;
     }
 
-    err = checkout_file(CAdir, true);
+    err = checkout_file(CAdir, true, false);
     if (err)
 	goto out_err;
 
-    err = checkout_file(certfile, false);
+    err = checkout_file(certfile, false, false);
     if (err)
 	goto out_err;
 
-    err = checkout_file(keyfile, false);
+    err = checkout_file(keyfile, false, true);
     if (err)
 	goto out_err;
 
@@ -659,7 +659,7 @@ main(int argc, char *argv[])
 	}
     }
 
-    err = checkout_file(tlssh_dir, true);
+    err = checkout_file(tlssh_dir, true, true);
     if (err)
 	return 1;
 

@@ -132,7 +132,7 @@ cmparg_int(int argc, char *argv[], int *arg, char *sarg, char *larg, int *rc)
 }
 
 int
-checkout_file(const char *filename, bool expect_dir)
+checkout_file(const char *filename, bool expect_dir, bool check_private)
 {
     struct stat sb;
     int rv;
@@ -149,7 +149,7 @@ checkout_file(const char *filename, bool expect_dir)
 	return EPERM;
     }
 
-    if (sb.st_mode & 077) {
+    if (check_private && sb.st_mode & 077) {
 	fprintf(stderr, "%s is accessible by others, giving up\n", filename);
 	return EPERM;
     }

@@ -661,7 +661,7 @@ main(int argc, char *argv[])
     const char *keyfile = default_keyfile;
     const char *certfile = default_certfile;
     const char *configfile = default_configfile;
-    int port = 2190;
+    int port = 852;
     char *s;
 
     if ((progname = strrchr(argv[0], '/')) == NULL)
@@ -709,9 +709,9 @@ main(int argc, char *argv[])
 	    return 1;
     }
 
-    if (checkout_file(keyfile, false))
+    if (checkout_file(keyfile, false, true))
 	return 1;
-    if (checkout_file(certfile, false))
+    if (checkout_file(certfile, false, false))
 	return 1;
 
     memset(&userdata1, 0, sizeof(userdata1));

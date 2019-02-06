@@ -30,7 +30,7 @@ int cmparg_int(int argc, char *argv[], int *arg, char *sarg,
 		      char *larg, int *rc);
 char *alloc_sprintf(const char *fmt, ...);
 char *alloc_vsprintf(const char *fmt, va_list ap);
-int checkout_file(const char *filename, bool expect_dir);
+int checkout_file(const char *filename, bool expect_dir, bool check_private);
 bool file_is_readable(char *filename);
 int write_file_to_gensio(const char *filename, struct gensio *io,
 			 struct gensio_os_funcs *o, struct timeval *timeout,
