@@ -921,8 +921,8 @@ sctpna_startup(struct gensio_accepter *accepter)
 }
 
 static void
-_sctpna_shutdown(struct sctpna_data *nadata,
-		 gensio_acc_done shutdown_done, void *shutdown_data)
+i_sctpna_shutdown(struct sctpna_data *nadata,
+		  gensio_acc_done shutdown_done, void *shutdown_data)
 {
     unsigned int i;
 
@@ -945,7 +945,7 @@ sctpna_shutdown(struct gensio_accepter *accepter,
 
     sctpna_lock(nadata);
     if (nadata->setup)
-	_sctpna_shutdown(nadata, shutdown_done, shutdown_data);
+	i_sctpna_shutdown(nadata, shutdown_done, shutdown_data);
     else
 	rv = GE_NOTREADY;
     sctpna_unlock(nadata);
@@ -973,7 +973,7 @@ sctpna_free(struct gensio_accepter *accepter)
 
     sctpna_lock(nadata);
     if (nadata->setup)
-	_sctpna_shutdown(nadata, NULL, NULL);
+	i_sctpna_shutdown(nadata, NULL, NULL);
     sctpna_deref_and_unlock(nadata);
 }
 
@@ -983,6 +983,7 @@ sctpna_disable(struct gensio_accepter *accepter)
     struct sctpna_data *nadata = gensio_acc_get_gensio_data(accepter);
     unsigned int i;
 
+    sctpna_lock(nadata);
     nadata->in_shutdown = false;
     nadata->shutdown_done = NULL;
     for (i = 0; i < nadata->nfds; i++)
@@ -991,6 +992,7 @@ sctpna_disable(struct gensio_accepter *accepter)
 	close(nadata->fds[i].fd);
     nadata->setup = false;
     nadata->enabled = false;
+    sctpna_deref_and_unlock(nadata);
 }
 
 int
