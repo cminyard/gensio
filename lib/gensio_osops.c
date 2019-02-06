@@ -372,7 +372,7 @@ gensio_open_socket(struct gensio_os_funcs *o,
     struct opensocks *fds;
     unsigned int curr_fd = 0;
     unsigned int max_fds = 0;
-    int rv;
+    int rv = 0;
 
     for (rp = ai; rp != NULL; rp = rp->ai_next)
 	max_fds++;
@@ -408,6 +408,8 @@ gensio_open_socket(struct gensio_os_funcs *o,
 
     if (curr_fd == 0) {
 	o->free(o, fds);
+	if (rv)
+	    return rv;
 	return GE_NOTFOUND;
     }
 
@@ -519,7 +521,8 @@ const char *gensio_errs[] = {
     /*  28 */    "Connection refused",
     /*  29 */    "Data was missing",
     /*  30 */    "Unable to find given certificate",
-    /*  31 */    "Authentication tokens rejected"
+    /*  31 */    "Authentication tokens rejected",
+    /*  32 */    "Address already in use"
 };
 const unsigned int errno_len = sizeof(gensio_errs) / sizeof(char *);
 
@@ -554,6 +557,7 @@ gensio_i_os_err_to_err(struct gensio_os_funcs *o,
     case EHOSTUNREACH:	err = GE_HOSTDOWN; break;
     case ECONNREFUSED:	err = GE_CONNREFUSE; break;
     case EIO:		err = GE_IOERR; break;
+    case EADDRINUSE:	err = GE_ADDRINUSE; break;
     default:		err = GE_OSERR;
     }
 
