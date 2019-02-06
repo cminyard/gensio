@@ -606,12 +606,16 @@ tcp_acc_event(struct gensio_accepter *accepter, void *user_data,
 	}
 
     skip_fork:
-	gensio_acc_disable(tcp_acc);
-	gensio_acc_free(tcp_acc);
-	tcp_acc = NULL;
-	gensio_acc_disable(sctp_acc);
-	gensio_acc_free(sctp_acc);
-	sctp_acc = NULL;
+	if (tcp_acc) {
+	    gensio_acc_disable(tcp_acc);
+	    gensio_acc_free(tcp_acc);
+	    tcp_acc = NULL;
+	}
+	if (sctp_acc) {
+	    gensio_acc_disable(sctp_acc);
+	    gensio_acc_free(sctp_acc);
+	    sctp_acc = NULL;
+	}
 
 	/* Since tcp_handle_new does blocking calls, can't do it here. */
 	gensio_set_user_data(io, ioinfo);
