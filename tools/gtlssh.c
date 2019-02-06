@@ -534,7 +534,7 @@ auth_event(struct gensio *io, void *user_data, int event, int ierr,
 	if (!err)
 	    err = add_certfile(ginfo->o, cert, "%s/%s.crt", CAdir, raddr);
 
-	cmd = alloc_sprintf("openssl rehash %s", CAdir);
+	cmd = alloc_sprintf("gtlssh-keygen rehash %s", CAdir);
 	system(cmd);
 	free(cmd);
 
