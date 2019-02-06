@@ -229,6 +229,18 @@ AC_SUBST(PYTHON_SWIG_FLAGS)
 
 AC_CHECK_LIB(sctp, sctp_bindx)
 
+AC_CHECK_LIB(pam, pam_start, [HAVE_PAM=true], [HAVE_PAM=false])
+if $HAVE_PAM; then
+   AC_DEFINE([HAVE_LIBPAM], [1], [PAM libraries are present])
+   PAMLIB=-lpam
+   GTLSSHD=gtlsshd
+else
+   PAMLIB=
+   GTLSSHD=
+fi
+AC_SUBST(PAMLIB)
+AC_SUBST(GTLSSHD)
+
 AC_OUTPUT([Makefile
 	lib/Makefile
 	include/Makefile
