@@ -9,6 +9,14 @@ libgensiotool_a_SOURCES = ioinfo.c ser_ioinfo.c utils.c
 
 bin_PROGRAMS = gensiotool gtlssh gtlsshd
 
+bin_SCRIPTS = gtlssh-keygen
+
+do_subst = sed -e 's,[@]sysconfdir[@],$(sysconfdir),g'
+
+gtlssh-keygen: gtlssh-keygen.in
+	$(do_subst) <$(srcdir)/gtlssh-keygen.in >gtlssh-keygen
+	chmod +x gtlssh-keygen
+
 gensiotool_SOURCES = gensiotool.c
 
 gtlssh_SOURCES = gtlssh.c

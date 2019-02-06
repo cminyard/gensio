@@ -1,0 +1,266 @@
+#!/bin/bash
+
+DEFAULT_KEYSIZE=2048
+KEYSIZE=$DEFAULT_KEYSIZE
+
+DEFAULT_GTLSSHDIR="$HOME/.gtlssh"
+GTLSSHDIR="$DEFAULT_GTLSSHDIR"
+
+DEFAULT_KEYDIR="$GTLSSHDIR/keycerts"
+KEYDIR="$DEFAULT_KEYDIR"
+
+DEFAULT_KEYDAYS=365
+KEYDAYS=$DEFAULT_KEYDAYS
+
+CONFDIR="@sysconfdir@/gtlssh"
+
+help() {
+    echo "Key handling tool for gtlssh.  Format is:"
+    echo "$1 [<option> [<option> [...]]] command <command options>"
+    echo
+    echo "Options are:"
+    echo "  --keysize <size> - Create an RSA key with the given number of bits."
+    echo "        default is $DEFAULT_KEYSIZE"
+    echo "  --keydays <days> - Create a key that expires in the given number"
+    echo "        of days.  Default is $DEFAULT_KEYDAYS"
+    echo "  --basedir <dir> - Base directory for gtlssh.  Default is"
+    echo "        $DEFAULT_GTLSSHDIR. Default keys also go here."
+    echo "  --keydir <days> - Location to put the non-default generated keys."
+    echo "        Default is $DEFAULT_KEYDIR"
+    echo ""
+    echo "Commands are:"
+    echo "  keygen [-p <port>] <hostname>"
+    echo "    Generate a key for the given hostname, optionally at the given"
+    echo "    port.  If no hostname is given, the default key/cert is generated"
+    echo "    in $GTLSSHDIR/default.key and $GTLSSHDIR/default.crt.  Otherwise"
+    echo "    The key is generated in $KEYDIR/<hostname>[,<port>].key/crt."
+    echo "    When gtlssh makes a connection, it will look for the hostname"
+    echo "    with the port, then just the hostname, then the default key in"
+    echo "    that order for the key to use for the connection."
+    echo ""
+    echo "  rehash [<dir> [<dir> [...]]]"
+    echo "    Redo the hash entries in the given directories.  If you put"
+    echo "    certificates into those directories but do not rehash them,"
+    echo "    the tools will not be able to find the new certificates."
+    echo "    If you don't enter any directories, it will rehash the following:"
+    echo "      $GTLSSHDIR/allowed_certs"
+    echo "      $GTLSSHDIR/server_certs"
+    echo ""
+    echo "  setup"
+    echo "    Create the directory structure for gtlssh and create the"
+    echo "    default keys."
+    echo ""
+    echo "  serverkey"
+    echo "    Create keys for the gtlsshd server.  Probably requires root."
+}
+
+promptyn() {
+    echo -n "$1 (y/n): "
+    while true; do
+	rsp=""
+	read rsp
+	case "$rsp" in
+	    y)
+		return 0
+		;;
+	    n)
+		return 1
+		;;
+	    *)
+		echo "Unknown response, please enter y or n: "
+	esac
+    done
+}
+
+check_dir() {
+    if [ ! -d "$2" ]; then
+	if $1; then
+	    mkdir -m 700 "$2"
+	else
+	    if promptyn "$2 does not exist.  Create it?"; then
+		rm -f "$2"
+		mkdir -m 700 "$2"
+	    else
+		echo "Not creating $2, giving up"
+		exit 1
+	    fi
+	fi
+    fi
+}
+
+check_dirstruct() {
+    created=false
+    if [ ! -d "$GTLSSHDIR" ]; then
+	if promptyn "$GTLSSHDIR does not exist or is not a directory.  Do you want to correct that?"; then
+	    rm -f "$GTLSSHDIR"
+	else
+	    echo "Not modifying $GTLSSHDIR, giving up"
+	    exit 1
+	fi
+	mkdir -m 700 "$GTLSSHDIR"
+	created=true
+    fi
+
+    check_dir $created "$GTLSSHDIR/keycerts"
+    check_dir $created "$GTLSSHDIR/allowed_certs"
+    check_dir $created "$GTLSSHDIR/server_certs"
+}
+
+hash_dir() {
+    pushd "$1" >/dev/null
+    for i in `ls | grep '[0-9a-f]\{8\}\.r\?[0-9]\+'`; do
+	rm "$i"
+    done
+    for i in `ls *.crt`; do
+	hash=`openssl x509 -subject_hash -fingerprint -noout -in "$i" | head -n 1`
+	j=0
+	while [ -e "$hash.$j" ]; do
+	    j=`expr $j + 1`
+	done
+	ln -sf "$i" "$hash.$j"
+    done
+    popd >/dev/null
+}
+
+rehash() {
+    if [ $# -eq 0 ]; then
+	hash_dir "$GTLSSHDIR/allowed_certs"
+	hash_dir "$GTLSSHDIR/server_certs"
+    else
+	while [ $# -gt 0 ]; do
+	    if [ ! -d "$1" ]; then
+		echo "$1 is not a directory" 1>&2
+	    else
+		hash_dir "$1"
+	    fi
+	    shift
+	done
+    fi
+}
+
+keygen_one() {
+    if [ -e "$2" -o -e "$3" ]; then
+	if promptyn "Files $2 or $3 already exist, do you want to overwrite them?"; then
+	    rm -f $2 $3
+	else
+	    echo "Not generating key for $1"
+	    return 1
+	fi
+    fi
+    openssl req -newkey rsa:"$KEYSIZE" -nodes -keyout "$2" -x509 \
+	    -days "$KEYDAYS" -out "$3" -subj "/CN=`whoami`"
+    echo "Key created.  Put $3 into:"
+    echo "  .gtlssh/allowed_certs"
+    echo "on remote systems you want to log into without a password."
+}
+
+keygen() {
+    if [ $# -eq 0 ]; then
+	keygen_one default "$GTLSSHDIR/default.key" "$GTLSSHDIR/default.crt"
+    else
+	PORT=""
+	while [ $# -gt 0 ]; do
+	    case "$1" in
+		-p)
+		    shift
+		    if [ $# -eq 0 ]; then
+			echo "No port given with -p" 1>&2
+			exit 1
+		    fi
+		    if [ "X$1" == "X" ]; then
+			PORT=""
+		    else
+			PORT=",$1"
+		    fi
+		    ;;
+
+		*)
+		    keygen_one $1 "$KEYDIR/$1$PORT.key" "$KEYDIR/$1$PORT.crt"
+	    esac
+	    shift
+	done
+    fi
+}
+
+serverkey() {
+    SERVERKEY="$CONFDIR/gtlsshd.key"
+    SERVERCERT="$CONFDIR/gtlsshd.crt"
+
+    if [ -e "$SERVERKEY" -o -e "$SERVERCERT" ]; then
+	if promptyn "Files $SERVERKEY or $SERVERCERT already exist, do you want to overwrite them?"; then
+	    rm -f "$SERVERKEY" "$SERVERCERT"
+	else
+	    echo "Not generating server keys"
+	    return 1
+	fi
+    fi
+    mkdir -p "$CONFDIR"
+    openssl req -newkey rsa:"$KEYSIZE" -nodes -keyout "$SERVERKEY" -x509 \
+	    -days "$KEYDAYS" -out "$SERVERCERT" -subj "/CN=`hostname -f`"
+}
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+	--keysize)
+	    shift
+	    if [ $# -eq 0 ]; then
+		echo "No keysize given" 1>&2
+		exit 1
+	    fi
+	    KEYSIZE="$1"
+	    ;;
+
+	--keydays)
+	    shift
+	    if [ $# -eq 0 ]; then
+		echo "No days given" 1>&2
+		exit 1
+	    fi
+	    KEYDAYS="$1"
+	    ;;
+
+	--help | -h | -\?)
+	    help "$0"
+	    exit 0
+	    ;;
+
+	-*)
+	    echo "Unknown option '$1'" 1>&2
+	    exit 1
+	    ;;
+
+	*)
+	    break
+	    ;;
+    esac
+    shift
+done
+
+case "$1" in
+    rehash)
+	shift
+	rehash $@
+	;;
+
+    keygen)
+	shift
+	check_dirstruct
+	keygen $@
+	;;
+
+    setup)
+	check_dirstruct
+	keygen
+	;;
+
+    serverkey)
+	serverkey
+	;;
+
+    *)
+	echo "Unknown command '$1'" 1>&2
+	help
+	exit 1
+	;;
+esac
+exit 0
