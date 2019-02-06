@@ -833,12 +833,12 @@ main(int argc, char *argv[])
 	}
 
 	rv = str_to_gensio_accepter(s, o, tcp_acc_event, ioinfo1, &tcp_acc);
+	free(s);
 	if (rv) {
 	    fprintf(stderr, "Could not allocate %s: %s\n", s,
 		    gensio_err_to_str(rv));
 	    return 1;
 	}
-	free(s);
 
 	rv = gensio_acc_startup(tcp_acc);
 	if (rv) {
@@ -856,6 +856,7 @@ main(int argc, char *argv[])
 	}
 
 	rv = str_to_gensio_accepter(s, o, tcp_acc_event, ioinfo1, &sctp_acc);
+	free(s);
 	if (rv == GE_NOTSUP)
 	    /* No SCTP support */
 	    goto start_io;
@@ -865,7 +866,6 @@ main(int argc, char *argv[])
 		    gensio_err_to_str(rv));
 	    return 1;
 	}
-	free(s);
 
 	rv = gensio_acc_startup(sctp_acc);
 	if (rv) {
