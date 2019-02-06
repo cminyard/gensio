@@ -1,0 +1,73 @@
+.TH gtlssh-keygen 1 01/02/19  "Key handling for gtlssh"
+
+.SH NAME
+gtlssh-keygen \- Key handling for gtlssh
+
+.SH SYNOPSIS
+.B gtlssh-keygen [options] <command> [command options]
+
+.SH DESCRIPTION
+The
+.BR gtlssh-keygen
+program is used for making key handling for gtlssh easier.
+
+.SH OPTIONS
+.TP
+.I \-\-keysize size
+Create an RSA key with the given number of bits.  Default is 2048.
+Usually 1024, 2048, or 4096.
+.TP
+.I \-\-keydays days
+Create a key that expires in the given number of days.  Default is 365.
+.TP
+.I \-\-basedir dir
+Base directory for gtlssh.  Default is $HOME/.gtlssh.
+Default keys go here.
+.TP
+.I \-\-keydir dir
+Location to put the non-default generated keys.  Default is
+$HOME/.gtlssh/keycerts
+.I \-h|\-\-help
+Help output
+
+.SH "COMMAND"
+
+Commands are:
+.TP
+.I keygen [-p <port>] [hostname]
+Setup of the base directory (if not already set up) and create keys.
+If nothing is specified, create the default key in
+<basedir>/default.key and <basedir>/default.crt.  Otherwise create
+keys in the form <keydir>/<host>[,<port>].key and
+<keydir>/<host>[,<port>].crt.
+
+.TP
+.I setup
+Like keygen, but take no options and create the default certificate
+only.
+
+.TP
+.I rehash [directory [directory [...]]]
+The openssl library used by gtlssh requires that certificates in a
+library be hashed so it can find them.  This command redoes the hashes
+in the given directories.  If no directory is specified, it rehashes
+<basedir>/allowed_certs and <basedir>/server_certs.
+
+Note that if you add keys to these directories, you must rehash them
+or they will not work.
+
+.TP
+.I serverkey
+Create keys for the server, generally in /etc/gtlssh/gtlsshd.key and
+/etc/gtlssh/gtlsshd.crt.  You generally must be root to do this.  Use
+for initial setup of gtlsshd.
+
+.SH "SEE ALSO"
+gtlssh(1), gtlsshd(8)
+
+.SH "KNOWN PROBLEMS"
+None.
+
+.SH AUTHOR
+.PP
+Corey Minyard <minyard@acm.org>

@@ -34,6 +34,6 @@ gtlssh_LDADD = libgensiotool.a $(top_builddir)/lib/libgensio.la \
 gtlsshd_LDADD = libgensiotool.a $(top_builddir)/lib/libgensio.la \
 	$(OPENSSL_LIBS) -lpam
 
-man_MANS = gensiotool.1 gtlsshd.8 gtlssh.1
+man_MANS = gensiotool.1 gtlsshd.8 gtlssh.1 gtlssh-keygen.1
 
 EXTRA_DIST = $(man_MANS)

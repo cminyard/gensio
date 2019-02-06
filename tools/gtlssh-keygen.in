@@ -25,7 +25,7 @@ help() {
     echo "        of days.  Default is $DEFAULT_KEYDAYS"
     echo "  --basedir <dir> - Base directory for gtlssh.  Default is"
     echo "        $DEFAULT_GTLSSHDIR. Default keys also go here."
-    echo "  --keydir <days> - Location to put the non-default generated keys."
+    echo "  --keydir <dir> - Location to put the non-default generated keys."
     echo "        Default is $DEFAULT_KEYDIR"
     echo ""
     echo "Commands are:"
