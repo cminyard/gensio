@@ -354,17 +354,25 @@ sctp_control(void *handler_data, int fd, bool get, unsigned int option,
     switch (option) {
     case GENSIO_CONTROL_NODELAY:
 	if (get) {
-	    socklen_t vallen = sizeof(val);
+	    if (fd != -1) {
+		socklen_t vallen = sizeof(val);
 
-	    rv = getsockopt(fd, IPPROTO_SCTP, SCTP_NODELAY, &val, &vallen);
-	    if (rv == -1)
-		return gensio_os_err_to_err(tdata->o, errno);
+		rv = getsockopt(fd, IPPROTO_SCTP, SCTP_NODELAY, &val, &vallen);
+		if (rv == -1)
+		    return gensio_os_err_to_err(tdata->o, errno);
+	    } else {
+		val = tdata->nodelay;
+	    }
 	    *datalen = snprintf(data, *datalen, "%d", val);
 	} else {
 	    val = strtoul(data, NULL, 0);
-	    rv = setsockopt(fd, IPPROTO_SCTP, SCTP_NODELAY, &val, sizeof(val));
-	    if (rv == -1)
-		return gensio_os_err_to_err(tdata->o, errno);
+	    tdata->nodelay = val;
+	    if (fd != -1) {
+		rv = setsockopt(fd, IPPROTO_SCTP, SCTP_NODELAY, &val,
+				sizeof(val));
+		if (rv == -1)
+		    return gensio_os_err_to_err(tdata->o, errno);
+	    }
 	}
 	return 0;
 
