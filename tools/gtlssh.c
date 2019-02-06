@@ -39,7 +39,7 @@ struct gdata {
     struct gensio_waiter *waiter;
     struct gensio *user_io;
     struct gensio *io;
-    const char *ios;
+    char *ios;
     bool can_close;
 };
 
@@ -184,8 +184,8 @@ io_close(struct gensio *io, void *close_data)
 }
 
 static const char *progname;
-static const char *io1_default_tty = "serialdev,/dev/tty";
-static const char *io1_default_notty = "stdio(self)";
+static char *io1_default_tty = "serialdev,/dev/tty";
+static char *io1_default_notty = "stdio(self)";
 
 static void
 help(int err)
@@ -818,6 +818,7 @@ main(int argc, char *argv[])
     if (userdata2.io)
 	gensio_free(userdata2.io);
 
+    free(userdata2.ios);
     o->free_waiter(closewaiter);
     o->free_waiter(userdata1.waiter);
 
