@@ -1,0 +1,62 @@
+.TH gtlsshd 8 01/02/19  "Server for shell over TLS"
+
+.SH NAME
+gtlsshd \- Server for shell over TLS
+
+.SH SYNOPSIS
+.B gtlsshd [options]
+
+.SH DESCRIPTION
+The
+.BR gtlsshd
+program receives connections from gtlssh, authenticates the
+connections, and connects them to a shell or a program as requested.
+
+.BR gtlsshd
+uses openssl public key certificate authentication both
+directions.  When something connections, it uses standard SSL handling
+to validate itself to the user with the given key and certificate
+files.
+
+On SSL does its job, it then runs an authentication protocol for the
+user on top of the SSL connection.  The user sends the username, and
+gtlsshd will use the $HOME/.gtlssh/allowed_certs directory to
+authenticate a certificate the user presents.  If the user doesn't
+have a certificate that matches the presented certificate,
+.BR gtlsshd
+will attempt a normal password login unless that is disabled.
+
+.SH OPTIONS
+.TP
+.I \-p|\-\-port port
+Use the given port instead of the default port.
+.TP
+.I \-h|\-\-keyfile file
+Use the given file for the key instead of the default.  Defaults to
+/etc/gtlssh/gtlsshd.key.
+.TP
+.I \-c|\-\-certfile file
+Set the certificate to use.  Defaults to /etc/gtlssh/gtlsshd.crt.
+.TP
+.I \-\-permit-root
+Allow root logins.  Otherwise root or uid=0 is denied.
+.I \-\-no-password
+Do not allow password logins, only certificate-based logins.
+.I \-\-oneshot
+Do not fork the program at the beginning or when a connection is
+received.  This allows easier debugging of the program.
+.I \-d|\-\-debug
+Generate debugging output.  Specifying more than once increases the output.
+.TP
+.I \-h|\-\-help
+Help output
+
+.SH "SEE ALSO"
+gensio(5), gtlssh(1), gtlssh-keygen(1)
+
+.SH "KNOWN PROBLEMS"
+None.
+
+.SH AUTHOR
+.PP
+Corey Minyard <minyard@acm.org>

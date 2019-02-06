@@ -196,13 +196,14 @@ help(int err)
     printf("if stdin is a tty, the connection is interactive.  Otherwise\n");
     printf("the connection is not interactive and buffered.\n");
     printf("\noptions are:\n");
-    printf("  -i, --keyfile <file>) - Use the given file for the key instead\n"
+    printf("  -p, --port <port> - Use the given port instead of the default.");
+    printf("  -i, --keyfile <file> - Use the given file for the key instead\n"
 	   "    of the default.  The certificate will default to the same\n"
 	   "    name ending in .crt");
     printf("  --certfile <file> - Set the certificate to use.\n");
     printf("  -r, --telnet - Do telnet processing with RFC2217 handling.\n");
     printf("  -e, --escchar - Set the local terminal escape character.\n"
-	   "    Set to 0 to disable the escape character\n"
+	   "    Set to -1 to disable the escape character\n"
 	   "    Default is ^\\ for tty stdin and disabled for non-tty stdin\n");
     printf("  -d, --debug - Enable debug.  Specify more than once to increase\n"
 	   "    the debug level\n");
@@ -607,6 +608,9 @@ main(int argc, char *argv[])
 		    exit(1);
 		}
 	    }
+	} else if ((rv = cmparg_int(argc, argv, &arg, "-p", "--port",
+				    &port))) {
+	    ;
 	} else if ((rv = cmparg(argc, argv, &arg, NULL, "--certfile",
 				&certfile))) {
 	    ;
@@ -627,6 +631,12 @@ main(int argc, char *argv[])
 	}
 	if (rv < 0)
 	    return 1;
+    }
+
+    if (!!certfile != !!keyfile) {
+	fprintf(stderr,
+		"If you specify a certfile, you must specify a keyfile\n");
+	exit(1);
     }
 
     if (arg >= argc) {

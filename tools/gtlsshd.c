@@ -639,7 +639,7 @@ tcp_acc_event(struct gensio_accepter *accepter, void *user_data,
 static void
 help(int err)
 {
-    printf("%s [options] io2\n", progname);
+    printf("%s [options]\n", progname);
     printf("\nA program to connect gensios together.  This programs has two\n");
     printf("gensios, io1 (default is local terminal) and io2 (must be set).\n");
     printf("\noptions are:\n");
@@ -649,9 +649,6 @@ help(int err)
 	   "    the debug level\n");
     printf("  -c, --certfile <file> - The certificate file to use.\n");
     printf("  -h, --keyfile <file> - The private key file to use.\n");
-    printf("  -e, --escchar - Set the local terminal escape character.\n"
-	   "    Set to 0 to disable the escape character\n"
-	   "    Default is ^\\ for tty stdin and disabled for non-tty stdin\n");
     printf("  --permit-root - Allow root logins.\n");
     printf("  --no-password - Do not allow password-based logins.\n");
     printf("  --oneshot - Do not fork new connections, do one and exit.\n");

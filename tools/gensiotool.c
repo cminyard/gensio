@@ -142,7 +142,7 @@ help(int err)
 	   " initiating a connection\n");
     printf("  --signature <sig> - Set the RFC2217 server signature to <sig>\n");
     printf("  -e, --escchar - Set the local terminal escape character.\n"
-	   "    Set to 0 to disable the escape character\n"
+	   "    Set to -1 to disable the escape character\n"
 	   "    Default is ^\\ for tty stdin and disabled for non-tty stdin\n");
     printf("  -h, --help - This help\n");
     exit(err);
