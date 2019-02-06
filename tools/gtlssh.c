@@ -111,7 +111,12 @@ getpassword(char *pw, gensiods *len)
 	goto out_close;
     }
 
-    write(fd, prompt, strlen(prompt));
+    err = write(fd, prompt, strlen(prompt));
+    if (err == -1) {
+	fprintf(stderr, "Error writing password prompt, giving up: %s\n",
+		strerror(err));
+	exit(1);
+    }
     while (true) {
 	err = read(fd, &c, 1);
 	if (err < 0) {
@@ -439,8 +444,14 @@ auth_event(struct gensio *io, void *user_data, int event, int ierr,
 			   " there may also be a\nman in the middle\n");
 		    printf("Verify carefully, add if it is ok.\n");
 		    do {
+			char *s;
+
 			printf("Add this certificate? (y/n): ");
-			fgets(buf, sizeof(buf), stdin);
+			s = fgets(buf, sizeof(buf), stdin);
+			if (s == NULL) {
+			    printf("Error reading input, giving up\n");
+			    exit(1);
+			}
 			if (buf[0] == 'y') {
 			    err = 0;
 			    break;
@@ -501,8 +512,14 @@ auth_event(struct gensio *io, void *user_data, int event, int ierr,
 	printf("Please validate the fingerprint and verify if you want it\n"
 	       "added to the set of valid servers.\n");
 	do {
+	    char *s;
+
 	    printf("Add this certificate? (y/n): ");
-	    fgets(buf, sizeof(buf), stdin);
+	    s = fgets(buf, sizeof(buf), stdin);
+	    if (s == NULL) {
+		printf("Error reading input, giving up\n");
+		exit(1);
+	    }
 	    if (buf[0] == 'y') {
 		err = 0;
 		break;
@@ -536,8 +553,16 @@ auth_event(struct gensio *io, void *user_data, int event, int ierr,
 	    err = add_certfile(ginfo->o, cert, "%s/%s.crt", CAdir, raddr);
 
 	cmd = alloc_sprintf("gtlssh-keygen rehash %s", CAdir);
-	system(cmd);
-	free(cmd);
+	if (!cmd) {
+	    fprintf(stderr, "Could not allocate memory for rehash, skipping\n");
+	} else {
+	    int rv = system(cmd);
+
+	    if (rv != 0)
+		fprintf(stderr, "Error from %s, rehash skipped\n", cmd);
+
+	    free(cmd);
+	}
 
 	return err;
 
