@@ -39,8 +39,8 @@
 #define GE_RETRY		15
 #define GE_NOKEY		16
 #define GE_KEYNOTFOUND		17
-#define GE_KEYREVOKED		18
-#define GE_KEYEXPIRED		19
+#define GE_CERTREVOKED		18
+#define GE_CERTEXPIRED		19
 #define GE_KEYINVALID		20
 #define GE_NOCERT		21
 #define GE_CERTINVALID		22

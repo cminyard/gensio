@@ -234,7 +234,7 @@ ssl_check_open_done(struct gensio_filter *filter, struct gensio *io)
 	sfilter->remcert = SSL_get_peer_certificate(sfilter->ssl);
 	if (!sfilter->remcert) {
 	    gssl_log_info(sfilter, "Remote peer offered no certificate");
-	    rv = GE_NOKEY;
+	    rv = GE_NOCERT;
 	    goto out_unlock;
 	}
 
@@ -243,14 +243,14 @@ ssl_check_open_done(struct gensio_filter *filter, struct gensio *io)
 	    gensio_set_is_authenticated(io, true);
 	else if (verify_err == X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT_LOCALLY ||
 		 verify_err == X509_V_ERR_DEPTH_ZERO_SELF_SIGNED_CERT)
-	    rv = GE_KEYNOTFOUND;
+	    rv = GE_CERTNOTFOUND;
 	else if (verify_err == X509_V_ERR_CERT_REVOKED)
-	    rv = GE_KEYREVOKED;
+	    rv = GE_CERTREVOKED;
 	else if (verify_err == X509_V_ERR_CERT_HAS_EXPIRED ||
 		 verify_err == X509_V_ERR_CRL_HAS_EXPIRED)
-	    rv = GE_KEYEXPIRED;
+	    rv = GE_CERTEXPIRED;
 	else
-	    rv = GE_KEYINVALID;
+	    rv = GE_CERTINVALID;
 
 	ssl_unlock(sfilter);
 	if (rv)
@@ -265,7 +265,7 @@ ssl_check_open_done(struct gensio_filter *filter, struct gensio *io)
 			       "Remote peer certificate verify failed");
 		X509_free(sfilter->remcert);
 		sfilter->remcert = NULL;
-		rv = GE_KEYINVALID;
+		rv = GE_CERTINVALID;
 	    } else {
 		rv = 0;
 	    }
@@ -700,7 +700,7 @@ ssl_filter_control(struct gensio_filter *filter, bool get, int op, char *data,
 	    CAfile = data;
 	if (!X509_STORE_load_locations(store, CAfile, CApath)) {
 	    X509_STORE_free(store);
-	    return GE_KEYNOTFOUND;
+	    return GE_CERTNOTFOUND;
 	}
 
 	ssl_lock(sfilter);
@@ -1069,7 +1069,7 @@ gensio_ssl_filter_alloc(struct gensio_ssl_filter_data *data,
 	else
 	    CAfile = data->CAfilepath;
 	if (!SSL_CTX_load_verify_locations(ctx, CAfile, CApath)) {
-	    rv = GE_KEYNOTFOUND;
+	    rv = GE_CERTNOTFOUND;
 	    goto err;
 	}
     }

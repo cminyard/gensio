@@ -447,7 +447,7 @@ certauth_check_open_done(struct gensio_filter *filter, struct gensio *io)
     else if (sfilter->result == CERTAUTH_RESULT_ERR)
 	rv = GE_AUTHREJECT;
     else if (sfilter->is_client || !sfilter->allow_authfail)
-	rv = GE_KEYINVALID;
+	rv = GE_AUTHREJECT;
 
     certauth_unlock(sfilter);
     return rv;
@@ -543,12 +543,12 @@ certauth_verify_cert(struct certauth_filter *sfilter)
 	    verify_err == X509_V_ERR_DEPTH_ZERO_SELF_SIGNED_CERT)
 	    rv = GE_NOKEY;
 	else if (verify_err == X509_V_ERR_CERT_REVOKED)
-	    rv = GE_KEYREVOKED;
+	    rv = GE_CERTREVOKED;
 	else if (verify_err == X509_V_ERR_CERT_HAS_EXPIRED ||
 		 verify_err == X509_V_ERR_CRL_HAS_EXPIRED)
-	    rv = GE_KEYEXPIRED;
+	    rv = GE_CERTEXPIRED;
 	else
-	    rv = GE_KEYINVALID;
+	    rv = GE_CERTINVALID;
     } else {
 	verify_err = X509_V_OK;
     }
@@ -1055,7 +1055,7 @@ certauth_try_connect(struct gensio_filter *filter, struct timeval *timeout)
 	memset(sfilter->password, 0, sfilter->password_len);
 	if (!err) {
 	    sfilter->result = CERTAUTH_RESULT_SUCCESS;
-	} else if (err == GE_KEYINVALID) {
+	} else if (err == GE_CERTINVALID) {
 	    gca_log_err(sfilter, "Application rejected password");
 	} else if (err != GE_NOTSUP) {
 	    gca_log_err(sfilter, "Error from application at password: %s",
@@ -1081,7 +1081,7 @@ certauth_try_connect(struct gensio_filter *filter, struct timeval *timeout)
 
     handle_server_done:
 	if (sfilter->result != CERTAUTH_RESULT_SUCCESS) {
-	    sfilter->pending_err = GE_KEYINVALID;
+	    sfilter->pending_err = GE_AUTHREJECT;
 	    goto out_finish;
 	}
 
@@ -1583,7 +1583,7 @@ certauth_filter_control(struct gensio_filter *filter, bool get, int op,
 	    CAfile = data;
 	if (!X509_STORE_load_locations(store, CAfile, CApath)) {
 	    X509_STORE_free(store);
-	    return GE_KEYNOTFOUND;
+	    return GE_CERTNOTFOUND;
 	}
 
 	certauth_lock(sfilter);
@@ -2047,7 +2047,7 @@ gensio_certauth_filter_alloc(struct gensio_certauth_filter_data *data,
 	else
 	    CAfile = data->CAfilepath;
 	if (!X509_STORE_load_locations(store, CAfile, CApath)) {
-	    rv = GE_KEYNOTFOUND;
+	    rv = GE_CERTNOTFOUND;
 	    goto err;
 	}
     }
