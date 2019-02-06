@@ -628,7 +628,7 @@ gensio_cert_to_buf(X509 *cert, char *buf, gensiods *buflen)
 {
     BIO *mbio;
     BUF_MEM *bptr;
-    gensiods len = *buflen;
+    gensiods len = *buflen, copylen;
 
     mbio = BIO_new(BIO_s_mem());
     if (!mbio)
@@ -641,9 +641,12 @@ gensio_cert_to_buf(X509 *cert, char *buf, gensiods *buflen)
 
     BIO_get_mem_ptr(mbio, &bptr);
     *buflen = bptr->length;
-    if (len > bptr->length)
-	len = bptr->length;
-    memcpy(buf, bptr->data, len);
+    copylen = len;
+    if (copylen > bptr->length)
+	copylen = bptr->length;
+    memcpy(buf, bptr->data, copylen);
+    if (len > copylen)
+	buf[copylen] = '\0';
     BIO_free(mbio);
     return 0;
 }
