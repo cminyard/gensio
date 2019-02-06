@@ -79,8 +79,7 @@ alloc_sprintf(const char *fmt, ...)
 }
 
 int
-cmparg(int argc, char *argv[], int *arg, char *sarg, char *larg,
-       const char **opt)
+cmparg(int argc, char *argv[], int *arg, char *sarg, char *larg, char **opt)
 {
     char *a = argv[*arg];
 
@@ -109,7 +108,7 @@ cmparg(int argc, char *argv[], int *arg, char *sarg, char *larg,
 int
 cmparg_int(int argc, char *argv[], int *arg, char *sarg, char *larg, int *rc)
 {
-    const char *str;
+    char *str;
     char *end;
     int rv = cmparg(argc, argv, arg, sarg, larg, &str);
     long v;

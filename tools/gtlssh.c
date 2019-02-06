@@ -190,21 +190,22 @@ static const char *io1_default_notty = "stdio(self)";
 static void
 help(int err)
 {
-    printf("%s [options] io2\n", progname);
-    printf("\nA program to connect gensios together.  This programs has two\n");
-    printf("gensios, io1 (default is local terminal) and io2 (must be set).\n");
+    printf("%s [options] hostname [program]\n", progname);
+    printf("\nA program to connect to a remote system over TLS.  The\n");
+    printf("hostname is the remote system.  If no program is given and\n");
+    printf("if stdin is a tty, the connection is interactive.  Otherwise\n");
+    printf("the connection is not interactive and buffered.\n");
     printf("\noptions are:\n");
-    printf("  -i, --input <gensio) - Set the io1 device, default is\n"
-	   "    %s for tty or %s for non-tty stdin\n",
-	   io1_default_tty, io1_default_notty);
-    printf("  -d, --debug - Enable debug.  Specify more than once to increase\n"
-	   "    the debug level\n");
-    printf("  -a, --accepter - Accept a connection on io2 instead of"
-	   " initiating a connection\n");
-    printf("  --signature <sig> - Set the RFC2217 server signature to <sig>\n");
+    printf("  -i, --keyfile <file>) - Use the given file for the key instead\n"
+	   "    of the default.  The certificate will default to the same\n"
+	   "    name ending in .crt");
+    printf("  --certfile <file> - Set the certificate to use.\n");
+    printf("  -r, --telnet - Do telnet processing with RFC2217 handling.\n");
     printf("  -e, --escchar - Set the local terminal escape character.\n"
 	   "    Set to 0 to disable the escape character\n"
 	   "    Default is ^\\ for tty stdin and disabled for non-tty stdin\n");
+    printf("  -d, --debug - Enable debug.  Specify more than once to increase\n"
+	   "    the debug level\n");
     printf("  -h, --help - This help\n");
     exit(err);
 }
@@ -227,42 +228,46 @@ lookup_certfiles(const char *tlssh_dir, const char *username,
 {
     int err = GE_NOMEM;
 
-    CAdir = alloc_sprintf("%s/server_certs", tlssh_dir);
     if (!CAdir) {
-	fprintf(stderr, "Error allocating memory for CAdir\n");
-	return GE_NOMEM;
+	CAdir = alloc_sprintf("%s/server_certs", tlssh_dir);
+	if (!CAdir) {
+	    fprintf(stderr, "Error allocating memory for CAdir\n");
+	    return GE_NOMEM;
+	}
     }
 
-    certfile = alloc_sprintf("%s/keycerts/%s,%d.crt", tlssh_dir,
-			     hostname, port);
-    if (!certfile)
-	goto cert_nomem;
-    if (file_is_readable(certfile)) {
-	keyfile = alloc_sprintf("%s/keycerts/%s,%d.key", tlssh_dir,
-				hostname, port);
-	goto found_cert;
-    }
-    free(certfile);
-    certfile = alloc_sprintf("%s/keycerts/%s.crt", tlssh_dir, hostname);
-    if (!certfile)
-	goto cert_nomem;
-    if (file_is_readable(certfile)) {
-	keyfile = alloc_sprintf("%s/keycerts/%s.key", tlssh_dir, hostname);
-	goto found_cert;
-    }
-    free(certfile);
-
-    certfile = alloc_sprintf("%s/default.crt", tlssh_dir);
     if (!certfile) {
-    cert_nomem:
-	fprintf(stderr, "Error allocating memory for certificate file\n");
-	goto out_err;
-    }
-    keyfile = alloc_sprintf("%s/default.key", tlssh_dir);
- found_cert:
-    if (!keyfile) {
-	fprintf(stderr, "Error allocating memory for private key file\n");
-	goto out_err;
+	certfile = alloc_sprintf("%s/keycerts/%s,%d.crt", tlssh_dir,
+				 hostname, port);
+	if (!certfile)
+	    goto cert_nomem;
+	if (file_is_readable(certfile)) {
+	    keyfile = alloc_sprintf("%s/keycerts/%s,%d.key", tlssh_dir,
+				    hostname, port);
+	    goto found_cert;
+	}
+	free(certfile);
+	certfile = alloc_sprintf("%s/keycerts/%s.crt", tlssh_dir, hostname);
+	if (!certfile)
+	    goto cert_nomem;
+	if (file_is_readable(certfile)) {
+	    keyfile = alloc_sprintf("%s/keycerts/%s.key", tlssh_dir, hostname);
+	    goto found_cert;
+	}
+	free(certfile);
+
+	certfile = alloc_sprintf("%s/default.crt", tlssh_dir);
+	if (!certfile) {
+	cert_nomem:
+	    fprintf(stderr, "Error allocating memory for certificate file\n");
+	    goto out_err;
+	}
+	keyfile = alloc_sprintf("%s/default.key", tlssh_dir);
+    found_cert:
+	if (!keyfile) {
+	    fprintf(stderr, "Error allocating memory for private key file\n");
+	    goto out_err;
+	}
     }
 
     err = checkout_file(CAdir, true, false);
@@ -586,7 +591,24 @@ main(int argc, char *argv[])
 	    arg++;
 	    break;
 	}
-	if ((rv = cmparg_int(argc, argv, &arg, "-e", "--escchar",
+	if ((rv = cmparg(argc, argv, &arg, "-i", "--keyfile", &keyfile))) {
+	    if (!certfile) {
+		char *dotpos = strrchr(keyfile, '.');
+
+		if (dotpos)
+		    *dotpos = '\0';
+		certfile = alloc_sprintf("%s.crt", keyfile);
+		if (dotpos)
+		    *dotpos = '.';
+		if (!certfile) {
+		    fprintf(stderr, "Unable to allocate memory for certfile\n");
+		    exit(1);
+		}
+	    }
+	} else if ((rv = cmparg(argc, argv, &arg, NULL, "--certfile",
+				&certfile))) {
+	    ;
+	} else if ((rv = cmparg_int(argc, argv, &arg, "-e", "--escchar",
 			     &escape_char))) {
 	    ;
 	} else if ((rv = cmparg(argc, argv, &arg, "-r", "--telnet", NULL))) {

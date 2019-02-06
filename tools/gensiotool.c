@@ -123,8 +123,8 @@ io_acc_event(struct gensio_accepter *accepter, void *user_data,
 }
 
 static const char *progname;
-static const char *io1_default_tty = "serialdev,/dev/tty";
-static const char *io1_default_notty = "stdio(self)";
+static char *io1_default_tty = "serialdev,/dev/tty";
+static char *io1_default_notty = "stdio(self)";
 
 static void
 help(int err)
@@ -169,8 +169,8 @@ main(int argc, char *argv[])
     bool esc_set = false;
     bool io1_set = false;
     int escape_char = -1;
-    const char *signature = "gensiotool";
-    const char *deftty = io1_default_notty;
+    char *signature = "gensiotool";
+    char *deftty = io1_default_notty;
     struct gensio_os_funcs *o;
     struct ioinfo_sub_handlers *sh1 = NULL, *sh2 = NULL;
     void *subdata1 = NULL, *subdata2 = NULL;

@@ -49,9 +49,9 @@ struct gdata {
     bool can_close;
 };
 
-static const char *default_keyfile = SYSCONFDIR "/gtlsshd/gtlsshd.key";
-static const char *default_certfile = SYSCONFDIR "/gtlsshd/gtlsshd.crt";
-static const char *default_configfile = SYSCONFDIR "/gtlsshd/gtlsshd.conf";
+static char *default_keyfile = SYSCONFDIR "/gtlsshd/gtlsshd.key";
+static char *default_certfile = SYSCONFDIR "/gtlsshd/gtlsshd.crt";
+static char *default_configfile = SYSCONFDIR "/gtlsshd/gtlsshd.conf";
 
 static void
 gshutdown(struct ioinfo *ioinfo)
@@ -658,9 +658,9 @@ main(int argc, char *argv[])
     struct gensio_os_funcs *o;
     struct ioinfo *ioinfo1, *ioinfo2;
     struct gdata userdata1, userdata2;
-    const char *keyfile = default_keyfile;
-    const char *certfile = default_certfile;
-    const char *configfile = default_configfile;
+    char *keyfile = default_keyfile;
+    char *certfile = default_certfile;
+    char *configfile = default_configfile;
     int port = 852;
     char *s;
 
