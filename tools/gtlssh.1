@@ -12,6 +12,10 @@ The
 program connects to a remote server, authenticates the remote server
 using SSL, then authenticates itself with the server.
 
+.BR gtlsshd
+will attempt an SCTP connection first, and fall back to TCP if that
+doesn't work.
+
 .SH OPTIONS
 .TP
 .I \-p|\-\-port port

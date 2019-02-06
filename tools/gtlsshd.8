@@ -13,6 +13,9 @@ program receives connections from gtlssh, authenticates the
 connections, and connects them to a shell or a program as requested.
 
 .BR gtlsshd
+will listen on both SCTP and TCP sockets unless told otherwise.
+
+.BR gtlsshd
 uses openssl public key certificate authentication both
 directions.  When something connections, it uses standard SSL handling
 to validate itself to the user with the given key and certificate
