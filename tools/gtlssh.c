@@ -179,6 +179,8 @@ help(int err)
     printf("  -e, --escchar - Set the local terminal escape character.\n"
 	   "    Set to -1 to disable the escape character\n"
 	   "    Default is ^\\ for tty stdin and disabled for non-tty stdin\n");
+    printf("  --nosctp - Disable SCTP support.\n");
+    printf("  --notcp - Disable TCP support.\n");
     printf("  -d, --debug - Enable debug.  Specify more than once to increase\n"
 	   "    the debug level\n");
     printf("  -h, --help - This help\n");

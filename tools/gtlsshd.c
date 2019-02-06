@@ -659,6 +659,8 @@ help(int err)
     printf("  --permit-root - Allow root logins.\n");
     printf("  --no-password - Do not allow password-based logins.\n");
     printf("  --oneshot - Do not fork new connections, do one and exit.\n");
+    printf("  --nosctp - Disable SCTP support.\n");
+    printf("  --notcp - Disable TCP support.\n");
     printf("  -h, --help - This help\n");
     exit(err);
 }
