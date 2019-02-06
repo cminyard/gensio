@@ -105,9 +105,11 @@ gensio_sel_set_fd_handlers(struct gensio_os_funcs *f,
 			   void (*cleared_handler)(int fd, void *cb_data))
 {
     struct gensio_data *d = f->user_data;
+    int rv;
 
-    return sel_set_fd_handlers(d->sel, fd, cb_data, read_handler, write_handler,
-			       except_handler, cleared_handler);
+    rv = sel_set_fd_handlers(d->sel, fd, cb_data, read_handler, write_handler,
+			     except_handler, cleared_handler);
+    return gensio_os_err_to_err(f, rv);
 }
 
 
@@ -116,7 +118,7 @@ gensio_sel_clear_fd_handlers(struct gensio_os_funcs *f, int fd)
 {
     struct gensio_data *d = f->user_data;
 
-    return sel_clear_fd_handlers(d->sel, fd);
+    sel_clear_fd_handlers(d->sel, fd);
 }
 
 static void
@@ -124,7 +126,7 @@ gensio_sel_clear_fd_handlers_norpt(struct gensio_os_funcs *f, int fd)
 {
     struct gensio_data *d = f->user_data;
 
-    return sel_clear_fd_handlers_norpt(d->sel, fd);
+    sel_clear_fd_handlers_norpt(d->sel, fd);
 }
 
 static void
@@ -138,7 +140,7 @@ gensio_sel_set_read_handler(struct gensio_os_funcs *f, int fd, bool enable)
     else
 	op = SEL_FD_HANDLER_DISABLED;
 
-    return sel_set_fd_read_handler(d->sel, fd, op);
+    sel_set_fd_read_handler(d->sel, fd, op);
 }
 
 static void
@@ -152,7 +154,7 @@ gensio_sel_set_write_handler(struct gensio_os_funcs *f, int fd, bool enable)
     else
 	op = SEL_FD_HANDLER_DISABLED;
 
-    return sel_set_fd_write_handler(d->sel, fd, op);
+    sel_set_fd_write_handler(d->sel, fd, op);
 }
 
 static void
@@ -166,7 +168,7 @@ gensio_sel_set_except_handler(struct gensio_os_funcs *f, int fd, bool enable)
     else
 	op = SEL_FD_HANDLER_DISABLED;
 
-    return sel_set_fd_except_handler(d->sel, fd, op);
+    sel_set_fd_except_handler(d->sel, fd, op);
 }
 
 struct gensio_timer {
@@ -228,22 +230,30 @@ static int
 gensio_sel_start_timer(struct gensio_timer *timer, struct timeval *timeout)
 {
     struct timeval tv;
+    int rv;
 
     sel_get_monotonic_time(&tv);
     add_to_timeval(&tv, timeout);
-    return sel_start_timer(timer->sel_timer, &tv);
+    rv = sel_start_timer(timer->sel_timer, &tv);
+    return gensio_os_err_to_err(timer->f, rv);
 }
 
 static int
 gensio_sel_start_timer_abs(struct gensio_timer *timer, struct timeval *timeout)
 {
-    return sel_start_timer(timer->sel_timer, timeout);
+    int rv;
+
+    rv = sel_start_timer(timer->sel_timer, timeout);
+    return gensio_os_err_to_err(timer->f, rv);
 }
 
 static int
 gensio_sel_stop_timer(struct gensio_timer *timer)
 {
-    return sel_stop_timer(timer->sel_timer);
+    int rv;
+
+    rv = sel_stop_timer(timer->sel_timer);
+    return gensio_os_err_to_err(timer->f, rv);
 }
 
 static void
@@ -277,7 +287,7 @@ gensio_sel_stop_timer_with_done(struct gensio_timer *timer,
 	timer->done_cb_data = cb_data;
     }
     pthread_mutex_unlock(&timer->lock);
-    return rv;
+    return gensio_os_err_to_err(timer->f, rv);
 }
 
 struct gensio_runner {
@@ -374,9 +384,7 @@ gensio_sel_wait(struct gensio_waiter *waiter, unsigned int count,
     int err;
 
     err = wait_for_waiter_timeout(waiter->sel_waiter, count, timeout);
-    if (err)
-	err = gensio_os_err_to_err(waiter->f, err);
-    return err;
+    return gensio_os_err_to_err(waiter->f, err);
 }
 
 
@@ -387,9 +395,7 @@ gensio_sel_wait_intr(struct gensio_waiter *waiter, unsigned int count,
     int err;
 
     err = wait_for_waiter_timeout_intr(waiter->sel_waiter, count, timeout);
-    if (err)
-	err = gensio_os_err_to_err(waiter->f, err);
-    return err;
+    return gensio_os_err_to_err(waiter->f, err);
 }
 
 static void
