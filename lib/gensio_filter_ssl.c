@@ -96,6 +96,13 @@ struct ssl_filter {
     unsigned char xmit_buf[1024];
     gensiods xmit_buf_pos;
     gensiods xmit_buf_len;
+
+    /*
+     * This is not intrinsically part of the SSL protocol, but is here
+     * so the set username control works, for convenience of the user
+     * and consistency with certauth.
+     */
+    char *username;
 };
 
 #define filter_to_ssl(v) ((struct ssl_filter *) gensio_filter_get_user_data(v))
@@ -723,6 +730,35 @@ ssl_filter_control(struct gensio_filter *filter, bool get, int op, char *data,
 	if (!sfilter->remcert)
 	    return GE_NOTFOUND;
 	return gensio_cert_fingerprint(sfilter->remcert, data, datalen);
+
+    case GENSIO_CONTROL_USERNAME: {
+	int rv = 0;
+
+	ssl_lock(sfilter);
+	if (get) {
+	    if (!sfilter->username) {
+		rv = GE_DATAMISSING;
+		goto out_username;
+	    }
+	    *datalen = snprintf(data, *datalen, "%s", sfilter->username);
+	} else {
+	    char *newusername = NULL;
+
+	    if (data) {
+		newusername = gensio_strdup(sfilter->o, data);
+		if (!newusername) {
+		    rv = GE_NOMEM;
+		    goto out_username;
+		}
+	    }
+	    if (sfilter->username)
+		sfilter->o->free(sfilter->o, sfilter->username);
+	    sfilter->username = data;
+	}
+	out_username:
+	ssl_unlock(sfilter);
+	return rv;
+    }
 
     default:
 	return GE_NOTSUP;

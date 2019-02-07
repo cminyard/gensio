@@ -1559,13 +1559,38 @@ certauth_filter_control(struct gensio_filter *filter, bool get, int op,
 	    return GE_NOTFOUND;
 	return gensio_cert_to_buf(sfilter->cert, data, datalen);
 
-    case GENSIO_CONTROL_USERNAME:
-	if (!sfilter->username)
-	    return GE_DATAMISSING;
-	*datalen = snprintf(data, *datalen, "%s", sfilter->username);
-	return 0;
+    case GENSIO_CONTROL_USERNAME: {
+	int rv = 0;
+
+	certauth_lock(sfilter);
+	if (get) {
+	    if (!sfilter->username) {
+		rv = GE_DATAMISSING;
+		goto out_username;
+	    }
+	    *datalen = snprintf(data, *datalen, "%s", sfilter->username);
+	} else {
+	    char *newusername = NULL;
+
+	    if (data) {
+		newusername = gensio_strdup(sfilter->o, data);
+		if (!newusername) {
+		    rv = GE_NOMEM;
+		    goto out_username;
+		}
+	    }
+	    if (sfilter->username)
+		sfilter->o->free(sfilter->o, sfilter->username);
+	    sfilter->username = data;
+	}
+	out_username:
+	certauth_unlock(sfilter);
+	return rv;
+    }
 
     case GENSIO_CONTROL_SERVICE:
+	if (!get)
+	    return GE_NOTSUP;
 	if (!sfilter->service)
 	    return GE_DATAMISSING;
 	*datalen = snprintf(data, *datalen, "%s", sfilter->service);
