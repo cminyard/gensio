@@ -2112,7 +2112,10 @@ gensio_get_default(struct gensio_os_funcs *o,
 
     if (c)
 	val = &c->val;
-    else if (d->val_set)
+    else if (classonly) {
+	err = GE_NOTFOUND;
+	goto out_unlock;
+    } else if (d->val_set)
 	val = &d->val;
     else
 	val = &d->def;
