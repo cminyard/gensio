@@ -219,6 +219,15 @@ while [ $# -gt 0 ]; do
 	    KEYDAYS="$1"
 	    ;;
 
+	--keydir)
+	    shift
+	    if [ $# -eq 0 ]; then
+		echo "No directory given" 1>&2
+		exit 1
+	    fi
+	    KEYDIR="$1"
+	    ;;
+
 	--help | -h | -\?)
 	    help "$0"
 	    exit 0
