@@ -8,6 +8,7 @@ GTLSSHDIR="$DEFAULT_GTLSSHDIR"
 
 DEFAULT_KEYDIR="$GTLSSHDIR/keycerts"
 KEYDIR="$DEFAULT_KEYDIR"
+KEYDIR_SET=false
 
 DEFAULT_KEYDAYS=365
 KEYDAYS=$DEFAULT_KEYDAYS
@@ -226,6 +227,7 @@ while [ $# -gt 0 ]; do
 		exit 1
 	    fi
 	    KEYDIR="$1"
+	    KEYDIR_SET=true
 	    ;;
 
 	--help | -h | -\?)
@@ -253,7 +255,9 @@ case "$1" in
 
     keygen)
 	shift
-	check_dirstruct
+	if ! ${KEYDIR_SET}; then
+	    check_dirstruct
+	fi
 	keygen $@
 	;;
 
