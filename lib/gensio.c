@@ -2075,16 +2075,16 @@ gensio_set_default(struct gensio_os_funcs *o,
 		err = GE_NOMEM;
 		goto out_unlock;
 	    }
-	    if (d->type == GENSIO_DEFAULT_STR) {
-		if (c->val.strval)
-		    o->free(o, c->val.strval);
-		c->val.strval = new_strval;
-		new_strval = NULL;
-	    } else {
-		c->val.intval = intval;
-	    }
 	    c->next = d->classvals;
 	    d->classvals = c;
+	}
+	if (d->type == GENSIO_DEFAULT_STR) {
+	    if (c->val.strval)
+		o->free(o, c->val.strval);
+	    c->val.strval = new_strval;
+	    new_strval = NULL;
+	} else {
+	    c->val.intval = intval;
 	}
     } else {
 	if (d->type == GENSIO_DEFAULT_STR) {
