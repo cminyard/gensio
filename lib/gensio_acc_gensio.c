@@ -343,7 +343,7 @@ basena_child_event(struct gensio_accepter *accepter, void *user_data,
     }
 
     if (event != GENSIO_ACC_EVENT_NEW_CONNECTION)
-	return GE_NOTSUP;
+	return gensio_acc_cb(nadata->acc, event, data);
 
     child = data;
 
