@@ -1111,12 +1111,19 @@ gensio_ssl_filter_alloc(struct gensio_ssl_filter_data *data,
     }
 
     if (data->certfile) {
-	if (!SSL_CTX_use_certificate_chain_file(ctx, data->certfile))
+	if (!SSL_CTX_use_certificate_chain_file(ctx, data->certfile)) {
+	    rv = GE_CERTNOTFOUND;
 	    goto err;
-	if (!SSL_CTX_use_PrivateKey_file(ctx, data->keyfile, SSL_FILETYPE_PEM))
+	}
+	if (!SSL_CTX_use_PrivateKey_file(ctx, data->keyfile,
+					 SSL_FILETYPE_PEM)) {
+	    rv = GE_KEYNOTFOUND;
 	    goto err;
-	if (!SSL_CTX_check_private_key(ctx))
+	}
+	if (!SSL_CTX_check_private_key(ctx)) {
+	    rv = GE_KEYINVALID;
 	    goto err;
+	}
     }
 
     filter = gensio_ssl_filter_raw_alloc(o, data->is_client, ctx,
