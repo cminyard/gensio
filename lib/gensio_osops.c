@@ -554,6 +554,7 @@ gensio_i_os_err_to_err(struct gensio_os_funcs *o,
     case EINPROGRESS:	err = GE_INPROGRESS; break;
     case ETIMEDOUT:	err = GE_TIMEDOUT; break;
     case EPIPE:		err = GE_REMCLOSE; break;
+    case ECONNRESET:	err = GE_REMCLOSE; break;
     case EHOSTUNREACH:	err = GE_HOSTDOWN; break;
     case ECONNREFUSED:	err = GE_CONNREFUSE; break;
     case EIO:		err = GE_IOERR; break;
