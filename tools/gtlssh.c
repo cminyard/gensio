@@ -646,7 +646,7 @@ main(int argc, char *argv[])
 	} else if ((rv = cmparg(argc, argv, &arg, NULL, "--nosctp", NULL))) {
 	    nosctp = true;
 	} else if ((rv = cmparg(argc, argv, &arg, "-r", "--telnet", NULL))) {
-	    do_telnet = "telnet(rfc2217)";
+	    do_telnet = "telnet(rfc2217),";
 	} else if ((rv = cmparg(argc, argv, &arg, "-d", "--debug", NULL))) {
 	    debug++;
 	    if (debug > 1)
