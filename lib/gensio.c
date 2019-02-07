@@ -1970,6 +1970,10 @@ gensio_set_default(struct gensio_os_funcs *o,
 
     switch (d->type) {
     case GENSIO_DEFAULT_ENUM:
+	if (!strval) {
+	    err = GE_INVAL;
+	    goto out_unlock;
+	}
 	for (i = 0; d->enums[i].name; i++) {
 	    if (strcmp(d->enums[i].name, strval) == 0)
 		break;
@@ -1982,18 +1986,23 @@ gensio_set_default(struct gensio_os_funcs *o,
 	break;
 
     case GENSIO_DEFAULT_BOOL:
-	intval = strtoul(strval, &end, 10);
-	if (end == strval || *end)
+	if (strval) {
+	    intval = strtoul(strval, &end, 10);
+	    if (end == strval || *end) {
+		err = GE_INVAL;
+		goto out_unlock;
+	    } else if (strcmp(strval, "true") == 0 ||
+		     strcmp(strval, "TRUE") == 0)
+		intval = 1;
+	    else if (strcmp(strval, "false") == 0 ||
+		     strcmp(strval, "FALSE") == 0)
+		intval = 0;
+	    else {
+		err = GE_INVAL;
+		goto out_unlock;
+	    }
+	} else {
 	    intval = !!intval;
-	else if (strcmp(strval, "true") == 0 ||
-		 strcmp(strval, "TRUE") == 0)
-	    intval = 1;
-	else if (strcmp(strval, "false") == 0 ||
-		 strcmp(strval, "FALSE") == 0)
-	    intval = 0;
-	else {
-	    err = GE_INVAL;
-	    goto out_unlock;
 	}
 	break;
 
@@ -2012,10 +2021,12 @@ gensio_set_default(struct gensio_os_funcs *o,
 	break;
 
     case GENSIO_DEFAULT_STR:
-	new_strval = gensio_strdup(o, strval);
-	if (!new_strval) {
-	    err = GE_NOMEM;
-	    goto out_unlock;
+	if (strval) {
+	    new_strval = gensio_strdup(o, strval);
+	    if (!new_strval) {
+		err = GE_NOMEM;
+		goto out_unlock;
+	    }
 	}
 	break;
 
@@ -2033,21 +2044,32 @@ gensio_set_default(struct gensio_os_funcs *o,
 		err = GE_NOMEM;
 		goto out_unlock;
 	    }
-	    c->class = class;
-	    if (c->val.strval)
-		o->free(o, c->val.strval);
-	    c->val.strval = new_strval;
-	    new_strval = NULL;
-	    c->val.intval = intval;
+	    c->class = gensio_strdup(o, class);
+	    if (!c->class) {
+		o->free(o, c);
+		err = GE_NOMEM;
+		goto out_unlock;
+	    }
+	    if (d->type == GENSIO_DEFAULT_STR) {
+		if (c->val.strval)
+		    o->free(o, c->val.strval);
+		c->val.strval = new_strval;
+		new_strval = NULL;
+	    } else {
+		c->val.intval = intval;
+	    }
 	    c->next = d->classvals;
 	    d->classvals = c;
 	}
     } else {
-	if (d->val.strval)
-	    o->free(o, d->val.strval);
-	d->val.strval = new_strval;
-	new_strval = NULL;
-	d->val.intval = intval;
+	if (d->type == GENSIO_DEFAULT_STR) {
+	    if (d->val.strval)
+		o->free(o, d->val.strval);
+	    d->val.strval = new_strval;
+	    new_strval = NULL;
+	} else {
+	    d->val.intval = intval;
+	}
 	d->val_set = true;
     }
 
