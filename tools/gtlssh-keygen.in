@@ -15,6 +15,9 @@ KEYDAYS=$DEFAULT_KEYDAYS
 
 CONFDIR="@sysconfdir@/gtlssh"
 
+COMMONNAME=
+COMMONNAME_SET=false
+
 help() {
     echo "Key handling tool for gtlssh.  Format is:"
     echo "$1 [<option> [<option> [...]]] command <command options>"
@@ -28,6 +31,9 @@ help() {
     echo "        $DEFAULT_GTLSSHDIR. Default keys also go here."
     echo "  --keydir <dir> - Location to put the non-default generated keys."
     echo "        Default is $DEFAULT_KEYDIR"
+    echo "  --commonname <name> - Set the common name in the certificate."
+    echo "        The default is your username for normal certificates and"
+    echo "        the fully qualified domain name for server certificates."
     echo ""
     echo "Commands are:"
     echo "  keygen [-p <port>] <hostname>"
@@ -149,7 +155,7 @@ keygen_one() {
 	fi
     fi
     openssl req -newkey rsa:"$KEYSIZE" -nodes -keyout "$2" -x509 \
-	    -days "$KEYDAYS" -out "$3" -subj "/CN=`whoami`"
+	    -days "$KEYDAYS" -out "$3" -subj "/CN=$COMMONNAME"
     echo "Key created.  Put $3 into:"
     echo "  .gtlssh/allowed_certs"
     echo "on remote systems you want to log into without a password."
@@ -197,7 +203,7 @@ serverkey() {
     fi
     mkdir -p "$CONFDIR"
     openssl req -newkey rsa:"$KEYSIZE" -nodes -keyout "$SERVERKEY" -x509 \
-	    -days "$KEYDAYS" -out "$SERVERCERT" -subj "/CN=`hostname -f`"
+	    -days "$KEYDAYS" -out "$SERVERCERT" -subj "/CN=$COMMONNAME"
 }
 
 while [ $# -gt 0 ]; do
@@ -230,6 +236,16 @@ while [ $# -gt 0 ]; do
 	    KEYDIR_SET=true
 	    ;;
 
+	--commonname)
+	    shift
+	    if [ $# -eq 0 ]; then
+		echo "No commonname given" 1>&2
+		exit 1
+	    fi
+	    COMMONNAME="$1"
+	    COMMONNAME_SET=true
+	    ;;
+
 	--help | -h | -\?)
 	    help "$0"
 	    exit 0
@@ -258,6 +274,9 @@ case "$1" in
 	if ! ${KEYDIR_SET}; then
 	    check_dirstruct
 	fi
+	if ! ${COMMONNAME_SET}; then
+	    COMMONNAME=`whoami`
+	fi
 	keygen $@
 	;;
 
@@ -267,6 +286,9 @@ case "$1" in
 	;;
 
     serverkey)
+	if ! ${COMMONNAME_SET}; then
+	    COMMONNAME=`hostname -f`
+	fi
 	serverkey
 	;;
 
