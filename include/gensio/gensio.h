@@ -1150,6 +1150,9 @@ int gensio_get_default(struct gensio_os_funcs *o,
 		       enum gensio_default_type type,
 		       const char **strval, int *intval);
 
+int gensio_del_default(struct gensio_os_funcs *o,
+		       const char *class, const char *name, bool delclasses);
+
 /*
  * There are no provided routines to duplicate addrinfo structures,
  * so we really need to do it ourselves.
