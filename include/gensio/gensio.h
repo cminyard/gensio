@@ -1203,6 +1203,25 @@ int gensio_sockaddr_to_str(const struct sockaddr *addr, socklen_t *addrlen,
  */
 extern bool gensio_uucp_locking_enabled;
 
+/*
+ * These are some general key/value string handling functions to fetch
+ * various items from a "key=value" pair.  These return -1 on invalid
+ * data, 0, on no match, and 1 a successful match.  Any string value
+ * returned is from the passed in string, it is not allocated.
+ */
+int gensio_check_keyvalue(const char *str, const char *key, const char **value);
+int gensio_check_keyds(const char *str, const char *key, gensiods *value);
+int gensio_check_keyuint(const char *str, const char *key, unsigned int *value);
+int gensio_check_keybool(const char *str, const char *key, bool *rvalue);
+int gensio_check_keyboolv(const char *str, const char *key,
+			  const char *trueval, const char *falseval,
+			  bool *rvalue);
+int gensio_check_keyenum(const char *str, const char *key,
+			 struct gensio_enum_val *enums, int *rval);
+int gensio_check_keyaddrs(struct gensio_os_funcs *o,
+			  const char *str, const char *key, int protocol,
+			  bool listen, bool require_port, struct addrinfo **ai);
+
 #ifdef __cplusplus
 }
 #endif

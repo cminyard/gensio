@@ -256,19 +256,6 @@ int gensio_scan_netaddr(struct gensio_os_funcs *o, const char *str, bool listen,
 
 char *gensio_strdup(struct gensio_os_funcs *o, const char *str);
 
-int gensio_check_keyvalue(const char *str, const char *key, const char **value);
-int gensio_check_keyds(const char *str, const char *key, gensiods *value);
-int gensio_check_keyuint(const char *str, const char *key, unsigned int *value);
-int gensio_check_keybool(const char *str, const char *key, bool *rvalue);
-int gensio_check_keyboolv(const char *str, const char *key,
-			  const char *trueval, const char *falseval,
-			  bool *rvalue);
-int gensio_check_keyenum(const char *str, const char *key,
-			 struct gensio_enum_val *enums, int *rval);
-int gensio_check_keyaddrs(struct gensio_os_funcs *o,
-			  const char *str, const char *key, int protocol,
-			  bool listen, bool require_port, struct addrinfo **ai);
-
 int gensio_scan_args(struct gensio_os_funcs *o,
 		     const char **rstr, int *argc, const char ***args);
 
