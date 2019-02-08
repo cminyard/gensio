@@ -90,6 +90,22 @@ Unless othersize noted, every gensio takes a:
 .B readbuf=<n>
 option to specify the read buffer size.
 
+.SH "DEFAULTS"
+
+Every option to a gensio (including the serialdev and ipmisol
+options), unless othersize stated, is available as a default for the
+gensios.  You can use gensio_set_default() to set the default value
+used by all gensios allocated after that point.  If you leave the
+class NULL, it will set the base default, which will affect all
+gensios unless they have an override.  If you set the class, it will
+only affect gensios with that class name.
+
+Be very careful with some defaults.  Setting "mode" default, for
+instance, could really screw things up.
+
+For string defaults, setting the default value to NULL causes
+the gensio to use it's backup default.
+
 .SH "Serial gensios"
 
 Some gensio types support serial port setting options.  Standard
@@ -331,7 +347,7 @@ channel for it.
 
 .SH "ipmisol"
 
-.B ipmisol[(options)],<openipmi arguments>[,parm[,parm[...]]]
+.B ipmisol[(options)],<openipmi arguments>[,ipmisol option[,...]]
 
 An ipmisol gensio creates an IPMI Serial Over LAN connection to an
 IPMI server.  See the OpenIPMI documentation for information on the
@@ -345,7 +361,7 @@ In addition to readbuf, the ipmisol gensio takes the following options:
 to set the size of the write buffer.
 
 .PP
-It also takes the following parms:
+It also takes the following ipmisol options:
 .TP
 .B 9600, 19200, 38400, 57600, 115200
 Baud rate, 9600 by default.  Anything after the number is ignored, for
@@ -524,6 +540,12 @@ Specify a username to authenticate with on the remote end.  This is
 required for the client.  It is ignored on the server.
 
 .TP
+.B service=<string>
+Set the remote service requested by the client.  Optional, but the
+other end may reject the connection if it is not supplied. Ignored on
+the server.
+
+.TP
 .B password=<string>
 Specify the password to use for password authentication.  This is not
 recommended, the callback is more secure to use.
@@ -551,6 +573,7 @@ go straight into passthrough mode and don't do any authentication.
 On the server, only use key authentication and don't ask for a password.
 On the client, don't send a password if asked for one.
 
+.PP
 Verification of the common name is
 .B not
 done.  The application should do this, it can fetch the common name
