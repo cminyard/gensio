@@ -1843,10 +1843,20 @@ gensio_certauth_filter_config(struct gensio_os_funcs *o,
     data->o = o;
     data->is_client = default_is_client;
 
-    rv = gensio_get_default(o, "certauth", "allow_authfail", false,
+    rv = gensio_get_default(o, "certauth", "allow-authfail", false,
 			    GENSIO_DEFAULT_BOOL, NULL, &ival);
     if (!rv)
 	data->allow_authfail = ival;
+
+    rv = gensio_get_default(o, "certauth", "use-child-auth", false,
+			    GENSIO_DEFAULT_BOOL, NULL, &ival);
+    if (!rv)
+	data->use_child_auth = ival;
+
+    rv = gensio_get_default(o, "certauth", "disable-password", false,
+			    GENSIO_DEFAULT_BOOL, NULL, &ival);
+    if (!rv)
+	data->disable_password = ival;
 
     for (i = 0; args && args[i]; i++) {
 	if (gensio_check_keyvalue(args[i], "CA", &CAfilepath))

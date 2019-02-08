@@ -1819,6 +1819,7 @@ struct gensio_def_entry builtin_defaults[] = {
     { "password",	GENSIO_DEFAULT_STR,	.def.strval = NULL },
     { "service",	GENSIO_DEFAULT_STR,	.def.strval = NULL },
     { "use-child-auth",	GENSIO_DEFAULT_BOOL,	.def.intval = false, },
+    { "disable-password",GENSIO_DEFAULT_BOOL,	.def.intval = false, },
     {}
 };
 
