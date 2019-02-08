@@ -1807,6 +1807,8 @@ struct gensio_def_entry builtin_defaults[] = {
 				.def.intval = ipmi_sol_serial_alerts_fail },
     { "deassert_CTS_DCD_DSR_on_connect", GENSIO_DEFAULT_BOOL, .def.intval = 0 },
 #endif
+    /* For client/server protocols. */
+    { "mode",		GENSIO_DEFAULT_STR,	.def.strval = NULL },
     /* For telnet */
     { "rfc2217",	GENSIO_DEFAULT_BOOL,	.def.intval = false },
     /* For SSL or other key authentication. */

@@ -949,6 +949,7 @@ gensio_ssl_filter_config(struct gensio_os_funcs *o,
     struct gensio_ssl_filter_data *data = o->zalloc(o, sizeof(*data));
     const char *CAfilepath = NULL, *keyfile = NULL, *certfile = NULL;
     int rv = GE_NOMEM, ival;
+    const char *str;
 
     if (!data)
 	return GE_NOMEM;
@@ -965,6 +966,19 @@ gensio_ssl_filter_config(struct gensio_os_funcs *o,
 			    GENSIO_DEFAULT_BOOL, NULL, &ival);
     if (!rv)
 	data->clientauth = ival;
+
+    rv = gensio_get_default(o, "ssl", "mode", false,
+			    GENSIO_DEFAULT_STR, &str, NULL);
+    if (!rv && str) {
+	if (strcasecmp(str, "client") == 0)
+	    data->is_client = true;
+	else if (strcasecmp(str, "server") == 0)
+	    data->is_client = false;
+	else {
+	    gensio_log(o, GENSIO_LOG_ERR,
+		       "Unknown default ssl mode (%s), ignoring", str);
+	}
+    }
 
     for (i = 0; args && args[i]; i++) {
 	if (gensio_check_keyvalue(args[i], "CA", &CAfilepath))

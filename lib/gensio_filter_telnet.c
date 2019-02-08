@@ -726,11 +726,25 @@ gensio_telnet_filter_alloc(struct gensio_os_funcs *o, const char * const args[],
     const unsigned char *init_seq;
     unsigned int init_seq_len;
     int rv, ival;
+    const char *str;
 
     rv = gensio_get_default(o, "telnet", "rfc2217", false,
 			    GENSIO_DEFAULT_BOOL, NULL, &ival);
     if (!rv)
 	allow_2217 = ival;
+
+    rv = gensio_get_default(o, "telnet", "mode", false,
+			    GENSIO_DEFAULT_STR, &str, NULL);
+    if (!rv && str) {
+	if (strcasecmp(str, "client") == 0)
+	    is_client = true;
+	else if (strcasecmp(str, "server") == 0)
+	    is_client = false;
+	else {
+	    gensio_log(o, GENSIO_LOG_ERR,
+		       "Unknown default telnet mode (%s), ignoring", str);
+	}
+    }
 
     for (i = 0; args && args[i]; i++) {
 	if (gensio_check_keybool(args[i], "rfc2217", &allow_2217) > 0)

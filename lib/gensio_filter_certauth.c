@@ -1837,6 +1837,7 @@ gensio_certauth_filter_config(struct gensio_os_funcs *o,
     const char *CAfilepath = NULL, *keyfile = NULL, *certfile = NULL;
     const char *username = NULL, *password = NULL, *service = NULL;
     int rv = GE_NOMEM, ival;
+    const char *str;
 
     if (!data)
 	return GE_NOMEM;
@@ -1857,6 +1858,19 @@ gensio_certauth_filter_config(struct gensio_os_funcs *o,
 			    GENSIO_DEFAULT_BOOL, NULL, &ival);
     if (!rv)
 	data->disable_password = ival;
+
+    rv = gensio_get_default(o, "certauth", "mode", false,
+			    GENSIO_DEFAULT_STR, &str, NULL);
+    if (!rv && str) {
+	if (strcasecmp(str, "client") == 0)
+	    data->is_client = true;
+	else if (strcasecmp(str, "server") == 0)
+	    data->is_client = false;
+	else {
+	    gensio_log(o, GENSIO_LOG_ERR,
+		       "Unknown default certauth mode (%s), ignoring", str);
+	}
+    }
 
     for (i = 0; args && args[i]; i++) {
 	if (gensio_check_keyvalue(args[i], "CA", &CAfilepath))
