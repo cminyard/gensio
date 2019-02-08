@@ -478,9 +478,20 @@ sctp_gensio_alloc(struct addrinfo *iai, const char * const args[],
     struct gensio *io;
     gensiods max_read_size = GENSIO_DEFAULT_BUF_SIZE;
     unsigned int instreams = 1, ostreams = 1;
-    int i, family = AF_INET, err;
+    int i, family = AF_INET, err, ival;
     struct addrinfo *lai = NULL;
     bool nodelay = false;
+
+    err = gensio_get_default(o, "sctp", "nodelay", false,
+			    GENSIO_DEFAULT_BOOL, NULL, &ival);
+    if (!err)
+	nodelay = ival;
+
+    err = gensio_get_defaultaddr(o, "sctp", "laddr", false,
+				 IPPROTO_SCTP, true, false, &lai);
+    if (err)
+	gensio_log(o, GENSIO_LOG_ERR, "Invalid default sctp laddr, ignoring");
+
 
     for (i = 0; args && args[i]; i++) {
 	if (gensio_check_keyds(args[i], "readbuf", &max_read_size) > 0)
@@ -997,7 +1008,8 @@ sctpna_disable(struct gensio_accepter *accepter)
 
 int
 sctpna_str_to_gensio(struct gensio_accepter *accepter, const char *addr,
-	       gensio_event cb, void *user_data, struct gensio **new_net)
+		     gensio_event cb, void *user_data,
+		     struct gensio **new_net)
 {
     struct sctpna_data *nadata = gensio_acc_get_gensio_data(accepter);
     int err;

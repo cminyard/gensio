@@ -1676,10 +1676,13 @@ gensio_check_keyaddrs(struct gensio_os_funcs *o,
     if (rv)
 	return -1;
 
-    if (require_port && !is_port_set)
+    if ((require_port && !is_port_set) || protocol != iprotocol) {
+	gensio_free_addrinfo(o, ai);
 	return -1;
-    if (protocol != iprotocol)
-	return -1;
+    }
+
+    if (*rai)
+	gensio_free_addrinfo(o, *rai);
 
     *rai = ai;
 
@@ -1786,6 +1789,8 @@ struct gensio_enum_val shared_serial_alert_enums[] = {
 #endif
 
 struct gensio_def_entry builtin_defaults[] = {
+    { "nodelay",	GENSIO_DEFAULT_BOOL,	.def.intval = 0 },
+    { "laddr",		GENSIO_DEFAULT_STR,	.def.strval = NULL },
     /* serialdev */
     { "rtscts",		GENSIO_DEFAULT_BOOL,	.def.intval = 0 },
     { "local",		GENSIO_DEFAULT_BOOL,	.def.intval = 0 },
@@ -2240,6 +2245,44 @@ gensio_del_default(struct gensio_os_funcs *o,
     o->unlock(deflock);
 
     return err;
+}
+
+int
+gensio_get_defaultaddr(struct gensio_os_funcs *o,
+		       const char *class, const char *name, bool classonly,
+		       int iprotocol, bool listen, bool require_port,
+		       struct addrinfo **rai)
+{
+    int err;
+    int socktype, protocol;
+    struct addrinfo *ai;
+    bool is_port_set;
+    const char *str;
+
+    err = gensio_get_default(o, class, name, classonly, GENSIO_DEFAULT_STR,
+			     &str, NULL);
+    if (err)
+	return err;
+
+    if (!str)
+	return GE_NOTSUP;
+
+    err = gensio_scan_network_port(o, str, listen, &ai, &socktype,
+				   &protocol, &is_port_set, NULL, NULL);
+    if (err)
+	return err;
+
+    if ((require_port && !is_port_set) || protocol != iprotocol) {
+	gensio_free_addrinfo(o, ai);
+	return GE_INCONSISTENT;
+    }
+
+    if (*rai)
+	gensio_free_addrinfo(o, *rai);
+
+    *rai = ai;
+
+    return 1;
 }
 
 void

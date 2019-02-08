@@ -318,6 +318,18 @@ tcp_gensio_alloc(struct addrinfo *iai, const char * const args[],
     gensiods max_read_size = GENSIO_DEFAULT_BUF_SIZE;
     bool nodelay = false;
     unsigned int i;
+    int ival;
+    int err;
+
+    err = gensio_get_default(o, "tcp", "nodelay", false,
+			    GENSIO_DEFAULT_BOOL, NULL, &ival);
+    if (!err)
+	nodelay = ival;
+
+    err = gensio_get_defaultaddr(o, "tcp", "laddr", false,
+				 IPPROTO_TCP, true, false, &lai);
+    if (err)
+	gensio_log(o, GENSIO_LOG_ERR, "Invalid default tcp laddr, ignoring");
 
     for (i = 0; args && args[i]; i++) {
 	if (gensio_check_keyds(args[i], "readbuf", &max_read_size) > 0)
@@ -331,16 +343,24 @@ tcp_gensio_alloc(struct addrinfo *iai, const char * const args[],
     }
 
     for (ai = iai; ai; ai = ai->ai_next) {
-	if (ai->ai_addrlen > sizeof(struct sockaddr_storage))
+	if (ai->ai_addrlen > sizeof(struct sockaddr_storage)) {
+	    if (lai)
+		gensio_free_addrinfo(o, lai);
 	    return E2BIG;
+	}
     }
 
     tdata = o->zalloc(o, sizeof(*tdata));
-    if (!tdata)
+    if (!tdata) {
+	if (lai)
+	    gensio_free_addrinfo(o, lai);
 	return ENOMEM;
+    }
 
     ai = gensio_dup_addrinfo(o, iai);
     if (!ai) {
+	if (lai)
+	    gensio_free_addrinfo(o, lai);
 	o->free(o, tdata);
 	return ENOMEM;
     }
@@ -353,6 +373,8 @@ tcp_gensio_alloc(struct addrinfo *iai, const char * const args[],
 
     tdata->ll = fd_gensio_ll_alloc(o, -1, &tcp_fd_ll_ops, tdata, max_read_size);
     if (!tdata->ll) {
+	if (lai)
+	    gensio_free_addrinfo(o, lai);
 	gensio_free_addrinfo(o, ai);
 	o->free(o, tdata);
 	return ENOMEM;
@@ -361,6 +383,8 @@ tcp_gensio_alloc(struct addrinfo *iai, const char * const args[],
     io = base_gensio_alloc(o, tdata->ll, NULL, NULL, "tcp", cb, user_data);
     if (!io) {
 	gensio_ll_free(tdata->ll);
+	if (lai)
+	    gensio_free_addrinfo(o, lai);
 	gensio_free_addrinfo(o, ai);
 	o->free(o, tdata);
 	return ENOMEM;

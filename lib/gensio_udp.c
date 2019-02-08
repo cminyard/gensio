@@ -1241,6 +1241,11 @@ udp_gensio_alloc(struct addrinfo *ai, const char * const args[],
     gensiods max_read_size = GENSIO_DEFAULT_UDP_BUF_SIZE;
     unsigned int i;
 
+    err = gensio_get_defaultaddr(o, "udp", "laddr", false,
+				 IPPROTO_TCP, true, false, &lai);
+    if (err)
+	gensio_log(o, GENSIO_LOG_ERR, "Invalid default udp laddr, ignoring");
+
     for (i = 0; args && args[i]; i++) {
 	if (gensio_check_keyds(args[i], "readbuf", &max_read_size) > 0)
 	    continue;
@@ -1254,12 +1259,17 @@ udp_gensio_alloc(struct addrinfo *ai, const char * const args[],
 	return GE_TOOBIG;
 
     new_fd = socket(ai->ai_family, SOCK_DGRAM, 0);
-    if (new_fd == -1)
+    if (new_fd == -1) {
+	if (lai)
+	    gensio_free_addrinfo(o, lai);
 	return gensio_os_err_to_err(o, errno);
+    }
 
     if (fcntl(new_fd, F_SETFL, O_NONBLOCK) == -1) {
 	err = errno;
 	close(new_fd);
+	if (lai)
+	    gensio_free_addrinfo(o, lai);
 	return gensio_os_err_to_err(o, err);
     }
 
@@ -1268,6 +1278,8 @@ udp_gensio_alloc(struct addrinfo *ai, const char * const args[],
 		   (void *)&optval, sizeof(optval)) == -1) {
 	err = errno;
 	close(new_fd);
+	if (lai)
+	    gensio_free_addrinfo(o, lai);
 	return gensio_os_err_to_err(o, err);
     }
 
@@ -1277,6 +1289,8 @@ udp_gensio_alloc(struct addrinfo *ai, const char * const args[],
 	    close(new_fd);
 	    return gensio_os_err_to_err(o, err);
 	}
+	gensio_free_addrinfo(o, lai);
+	lai = NULL;
     }
 
     /* Allocate a dummy network accepter. */

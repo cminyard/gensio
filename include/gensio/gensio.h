@@ -1150,6 +1150,12 @@ int gensio_get_default(struct gensio_os_funcs *o,
 		       enum gensio_default_type type,
 		       const char **strval, int *intval);
 
+/* Get the default, but as an addrinfo. */
+int gensio_get_defaultaddr(struct gensio_os_funcs *o,
+			   const char *class, const char *name, bool classonly,
+			   int iprotocol, bool listen, bool require_port,
+			   struct addrinfo **rai);
+
 int gensio_del_default(struct gensio_os_funcs *o,
 		       const char *class, const char *name, bool delclasses);
 
