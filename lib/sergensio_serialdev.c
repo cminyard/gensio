@@ -1351,48 +1351,69 @@ static const struct gensio_fd_ll_ops sterm_fd_ll_ops = {
     .control = sterm_control
 };
 
+static int
+handle_speedstr(struct termios *termio, const char *str)
+{
+    int val;
+    const char *rest = "";
+
+    val = speedstr_to_speed(str, &rest);
+    if (val == -1)
+	return GE_INVAL;
+    if (set_termios_from_speed(termio, val, rest) == -1)
+	return GE_INVAL;
+    return 0;
+}
 
 static int
 process_termios_parm(struct termios *termio, const char *parm)
 {
     int rv = 0, val;
-    const char *rest = "";
+    const char *str;
+    bool bval;
 
-    if ((val = speedstr_to_speed(parm, &rest)) != -1) {
-	if (set_termios_from_speed(termio, val, rest) == -1)
-	    rv = GE_INVAL;
-    } else if (strcmp(parm, "1STOPBIT") == 0) {
+    if (gensio_check_keyvalue(parm, "speed", &str) > 0) {
+	rv = handle_speedstr(termio, str);
+    } else if (handle_speedstr(termio, parm) == 0) {
+	;
+    } else if (gensio_check_keybool(parm, "xonxoff", &bval) > 0) {
+	set_termios_xonxoff(termio, bval);
+    } else if (gensio_check_keybool(parm, "rtscts", &bval) > 0) {
+	set_termios_rtscts(termio, bval);
+    } else if (gensio_check_keybool(parm, "local", &bval) > 0) {
+	if (bval)
+	    termio->c_cflag |= CLOCAL;
+    } else if (gensio_check_keybool(parm, "hangup-when-done", &bval) > 0) {
+	if (bval)
+	    termio->c_cflag |= HUPCL;
+
+    /* Everything below is deprecated. */
+    } else if (strcasecmp(parm, "1STOPBIT") == 0) {
 	termio->c_cflag &= ~(CSTOPB);
-    } else if (strcmp(parm, "2STOPBITS") == 0) {
+    } else if (strcasecmp(parm, "2STOPBITS") == 0) {
 	termio->c_cflag |= CSTOPB;
-    } else if (strcmp(parm, "5DATABITS") == 0) {
+    } else if (strcasecmp(parm, "5DATABITS") == 0) {
 	set_termios_datasize(termio, 5);
-    } else if (strcmp(parm, "6DATABITS") == 0) {
+    } else if (strcasecmp(parm, "6DATABITS") == 0) {
 	set_termios_datasize(termio, 6);
-    } else if (strcmp(parm, "7DATABITS") == 0) {
+    } else if (strcasecmp(parm, "7DATABITS") == 0) {
 	set_termios_datasize(termio, 7);
-    } else if (strcmp(parm, "8DATABITS") == 0) {
+    } else if (strcasecmp(parm, "8DATABITS") == 0) {
 	set_termios_datasize(termio, 8);
     } else if ((val = lookup_parity_str(parm)) != -1) {
 	set_termios_parity(termio, val);
-    } else if (strcmp(parm, "XONXOFF") == 0) {
-	set_termios_xonxoff(termio, 1);
-    } else if (strcmp(parm, "-XONXOFF") == 0) {
+    } else if (strcasecmp(parm, "-XONXOFF") == 0) {
 	set_termios_xonxoff(termio, 0);
-    } else if (strcmp(parm, "RTSCTS") == 0) {
-	set_termios_rtscts(termio, 1);
-    } else if (strcmp(parm, "-RTSCTS") == 0) {
+    } else if (strcasecmp(parm, "-RTSCTS") == 0) {
 	set_termios_rtscts(termio, 0);
-    } else if (strcmp(parm, "LOCAL") == 0) {
-	termio->c_cflag |= CLOCAL;
-    } else if (strcmp(parm, "-LOCAL") == 0) {
+    } else if (strcasecmp(parm, "-LOCAL") == 0) {
 	termio->c_cflag &= ~CLOCAL;
-    } else if (strcmp(parm, "HANGUP_WHEN_DONE") == 0) {
+    } else if (strcasecmp(parm, "HANGUP_WHEN_DONE") == 0) {
 	termio->c_cflag |= HUPCL;
-    } else if (strcmp(parm, "-HANGUP_WHEN_DONE") == 0) {
+    } else if (strcasecmp(parm, "-HANGUP_WHEN_DONE") == 0) {
 	termio->c_cflag &= ~HUPCL;
     } else {
-	rv = GE_NOTSUP;
+	rv = GE_INVAL;
     }
 
     return rv;
@@ -1405,7 +1426,14 @@ process_rs485(struct sterm_data *sdata, const char *str)
     int argc, i;
     const char **argv;
     char *end;
-    int err = gensio_str_to_argv(sdata->o, str, &argc, &argv, ":");
+    int err;
+
+    if (!str || strcasecmp(str, "off") == 0) {
+	sdata->rs485.flags &= ~SER_RS485_ENABLED;
+	return 0;
+    }
+
+    err = gensio_str_to_argv(sdata->o, str, &argc, &argv, ":");
 
     if (err)
 	return err;
@@ -1457,24 +1485,26 @@ sergensio_process_parms(struct sterm_data *sdata)
     const char **argv;
     int err = gensio_str_to_argv(sdata->o, sdata->parms, &argc, &argv,
 				 " \f\t\n\r\v,");
+    const char *str;
 
     if (err)
 	return err;
 
     for (i = 0; i < argc; i++) {
-	if (strcmp(argv[i], "WRONLY") == 0) {
-	    sdata->write_only = true;
+	if (gensio_check_keybool(argv[i], "wronly", &sdata->write_only) > 0) {
 	    continue;
-	} else if (strcmp(argv[i], "NOBREAK") == 0) {
-	    sdata->disablebreak = true;
+	} else if (gensio_check_keybool(argv[i], "nobreak",
+					&sdata->disablebreak) > 0) {
 	    continue;
-	} else if (strcmp(argv[i], "-NOBREAK") == 0) {
-	    sdata->disablebreak = false;
-	    continue;
-	} else if (strncmp(argv[i], "rs485=", 6) == 0) {
-	    err = process_rs485(sdata, argv[i] + 6);
+	} else if (gensio_check_keyvalue(argv[i], "rs485", &str) > 0) {
+	    err = process_rs485(sdata, str);
 	    if (err)
 		break;
+	    continue;
+
+	/* The following is deprecated. */
+	} else if (strcasecmp(argv[i], "-NOBREAK") == 0) {
+	    sdata->disablebreak = false;
 	    continue;
 	}
 	err = process_termios_parm(&sdata->default_termios, argv[i]);
@@ -1491,34 +1521,22 @@ sergensio_setup_defaults(struct gensio_os_funcs *o, struct sterm_data *sdata)
 {
     int val;
     struct termios *termctl = &sdata->default_termios;
+    const char *str;
 
     cfmakeraw(termctl);
 
-    val = 9600;
     gensio_get_default(o, "serialdev", "speed", false,
-		       GENSIO_DEFAULT_INT, NULL, &val);
-    if (!get_baud_rate(val, &val))
-	val = B9600;
-    cfsetospeed(termctl, val);
-    cfsetispeed(termctl, val);
-
-    val = 'N';
-    gensio_get_default(o, "serialdev", "parity", false,
-		       GENSIO_DEFAULT_INT, NULL, &val);
-    set_termios_parity(termctl, val);
-
-    val = 8;
-    gensio_get_default(o, "serialdev", "databits", false,
-		       GENSIO_DEFAULT_INT, NULL, &val);
-    set_termios_datasize(termctl, val);
-
-    val = 1;
-    gensio_get_default(o, "serialdev", "stopbits", false,
-		       GENSIO_DEFAULT_INT, NULL, &val);
-    if (val == 2)
-	termctl->c_cflag |= CSTOPB;
-    else
-	termctl->c_cflag &= ~(CSTOPB);
+		       GENSIO_DEFAULT_STR, &str, NULL);
+    if (handle_speedstr(termctl, str)) {
+	gensio_log(o, GENSIO_LOG_ERR,
+		   "Default speed settings (%s) are invalid,"
+		   " defaulting to 9600N81", str);
+	cfsetospeed(termctl, B9600);
+	cfsetispeed(termctl, B9600);
+	set_termios_parity(termctl, 'N');
+	set_termios_datasize(termctl, 8);
+	termctl->c_cflag &= ~(CSTOPB); /* 1 stopbit */
+    }
 
     sdata->default_termios.c_cflag |= CREAD;
     sdata->default_termios.c_cc[VSTART] = 17;
@@ -1546,6 +1564,12 @@ sergensio_setup_defaults(struct gensio_os_funcs *o, struct sterm_data *sdata)
 		       GENSIO_DEFAULT_BOOL, NULL, &val);
     if (val)
 	termctl->c_cflag |= HUPCL;
+
+    gensio_get_default(o, "serialdev", "rs485", false, GENSIO_DEFAULT_STR,
+		       &str, NULL);
+    if (process_rs485(sdata, str))
+	gensio_log(o, GENSIO_LOG_ERR,
+		   "Default rs485 settings (%s) are invalid, ignoring", str);
 }
 
 int

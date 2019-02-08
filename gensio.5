@@ -237,50 +237,57 @@ In addition to readbuf, the serialdev gensio takes the following options:
 .TP
 .B nouucplock[=true|false]
 disables UUCP locking on the device.  Useful for /dev/tty, which shouldn't
-use locking.
+use locking.  This is not available as a default.
 
-There are a plethora of serialoptions:
-
-.TP
-.B <speed><parity><databits><stopbits>
-This is a normal serial port configuration specification, like "9600N81".
+.PP
+There are a plethora of serialoptions, available as defaults:
 
 .TP
-.B WRONLY
+.B [speed=]<speed><parity><databits><stopbits>
+This is a normal serial port configuration specification, like
+"9600N81".  The "speed=" at the beginning is optional, but "speed" is
+a default type for this.
+
+.TP
+.B wronly[=true|false]
 Set the device to write only.  No termios definition is done on the
 port.  This can be done to talk to a line printer port, for instance.
+False by default.
 
 .TP
-.B NOBREAK, -NOBREAK
+.B nobreak[=true|false]
 Clear the break line at start (or don't clear it).  Default it to not
-clear it.
+clear it (false).
 
 .TP
-.B rs485=<delay rts before send>:<delay rts after send>[:<conf>[:<conf>]]
+.B rs485=off|<delay rts before send>:<delay rts after send>[:<conf>[:<conf>]]
 Set up RS-485 for the serial port.  The first two parameters set the
 RTS delay (in milliseconds) of RTS before and after sending.  The conf
 values can be: "rts_on_send" - RTS set when sending, "rts_after_send" -
 RTS set after sending, "rx_during_tx" - can receive and transmit at
 the same time, and "terminate_bus" - enable bus termination.
 
-.TP
-.B XONXOFF, -XONXOFF
-Enable/disable xon/xoff flow control.  Default is off.
+Using "off" will disable rs485, that is useful for overriding a default.
+default is "off".
 
 .TP
-.B RTSCTS, -RTSCTS
-Enable/disable rts/cts flow control.  Default is off.
+.B xonxoff[=true|false]
+Enable/disable xon/xoff flow control.  Default is false.
 
 .TP
-.B LOCAL, -LOCAL
+.B rtscts[=true|false]
+Enable/disable rts/cts flow control.  Default is false.
+
+.TP
+.B local[=true|false]
 Ignore/don't ignore the modem control lines.  The default it to not
-ignore them.  However, if you don't ignore the modem control lines, it
-can result in long shutdown delays.
+ignore them (false).  However, if you don't ignore the modem control
+lines, it can result in long shutdown delays.
 
 .TP
-.B HANGUP_WHEN_DONE, -HANGUP_WHEN_DONE
+.B hangup-when-done[=true|false]
 Lower/don't lower the modem control lines when the gensio is closed.
-The default is to not lower the modem control lines on close.
+The default is to not lower the modem control lines on close (false).
 
 .SH "stdio"
 
@@ -324,7 +331,7 @@ channel for it.
 
 .SH "ipmisol"
 
-.B ipmisol[(options)],<openipmi arguments>
+.B ipmisol[(options)],<openipmi arguments>[,parm[,parm[...]]]
 
 An ipmisol gensio creates an IPMI Serial Over LAN connection to an
 IPMI server.  See the OpenIPMI documentation for information on the
@@ -333,10 +340,47 @@ arguments.
 This is a serial gensio, but the baud rate settings are fairly limited.
 
 In addition to readbuf, the ipmisol gensio takes the following options:
-
 .TP
 .B writebuf=<n>
 to set the size of the write buffer.
+
+.PP
+It also takes the following parms:
+.TP
+.B 9600, 19200, 38400, 57600, 115200
+Baud rate, 9600 by default.  Anything after the number is ignored, for
+compatibility with things like "N81".  You cannot set those values for
+ipmisol, they are fixed at "N81".
+
+.TP
+.B nobreak[=true|false]
+Disable break processing.  False by default.
+
+.TP
+.B authenticated[=true|false]
+Enable or disable authentication.  True by default.
+
+.TP
+.B encrypted[=true|false]
+Enable or disable encrypted.  True by default.
+
+.TP
+.B deassert-CTS-DCD-DSR-on-connect[=true|false]
+False by default
+
+.TP
+.B shared-serial-alert=fail|deferred|succeed
+Behavior of handling serial alerts.  fail by default.
+
+.TP
+.B ack-timeout=<number>
+The time (in microseconds) when an ack times out.  1000000 by default.
+
+.TP
+.B ack-retries=<number>
+The number of times (ack-timeouts) an ack is re-sent before giving up.
+10 by default.
+
 
 .SH "telnet"
 
@@ -457,9 +501,9 @@ The certauth gensio takes the following options:
 .B CA=<filepath>
 Set a place to look for certificates for authorization.  If this ends
 in a "/", then this is expected to be a directory that contains files
-with certificates that must be hashed per OpenSSL (see the "openssl
-rehash" command for details.  Otherwise it is a single file that
-contains one or more certificates.  The default CA path is used
+with certificates that must be hashed per OpenSSL, see the gensio-keygen(1)
+in the rehash section for details.  Otherwise it is a single file that
+contains one or more certificates.  The default CA path for openssl is used
 if not specified.  This is used on the server only, it is ignored
 on clients.
 

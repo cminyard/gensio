@@ -1524,7 +1524,7 @@ gensio_check_keyvalue(const char *str, const char *key, const char **value)
 {
     unsigned int keylen = strlen(key);
 
-    if (strncmp(str, key, keylen) != 0)
+    if (strncasecmp(str, key, keylen) != 0)
 	return 0;
     if (str[keylen] != '=')
 	return 0;
@@ -1585,7 +1585,7 @@ gensio_check_keybool(const char *str, const char *key, bool *rvalue)
     const char *sval;
     int rv;
 
-    if (strcmp(str, key) == 0) {
+    if (strcasecmp(str, key) == 0) {
 	*rvalue = true;
 	return 1;
     }
@@ -1629,6 +1629,28 @@ gensio_check_keyboolv(const char *str, const char *key, const char *trueval,
 	return -1;
 
     return 1;
+}
+
+int
+gensio_check_keyenum(const char *str, const char *key,
+		     struct gensio_enum_val *enums, int *rval)
+{
+    const char *sval;
+    int rv;
+    unsigned int i;
+
+    rv = gensio_check_keyvalue(str, key, &sval);
+    if (!rv)
+	return 0;
+
+    for (i = 0; enums[i].name; i++) {
+	if (strcasecmp(sval, enums[i].name) == 0) {
+	    *rval = enums[i].val;
+	    return 1;
+	}
+    }
+
+    return -1;
 }
 
 int
@@ -1752,20 +1774,6 @@ struct gensio_def_entry {
     struct gensio_def_entry *next;
 };
 
-static struct gensio_enum_val gensio_parity_enums[] = {
-    { "NONE", 'N' },
-    { "EVEN", 'E' },
-    { "ODD", 'O' },
-    { "none", 'N' },
-    { "even", 'E' },
-    { "odd", 'O' },
-    { "MARK", 'M' },
-    { "SPACE", 'S' },
-    { "mark", 'M' },
-    { "space", 'S' },
-    { NULL }
-};
-
 #ifdef HAVE_OPENIPMI
 #include <OpenIPMI/ipmi_conn.h>
 #include <OpenIPMI/ipmi_sol.h>
@@ -1779,19 +1787,12 @@ struct gensio_enum_val shared_serial_alert_enums[] = {
 
 struct gensio_def_entry builtin_defaults[] = {
     /* serialdev */
-    { "stopbits",	GENSIO_DEFAULT_INT,	.min = 1, .max = 2,
-						.def.intval = 1},
-    { "databits",	GENSIO_DEFAULT_INT,	.min = 5, .max = 8,
-						.def.intval = 8 },
-    { "parity",		GENSIO_DEFAULT_ENUM,	.enums = gensio_parity_enums,
-						.def.intval = 'N' },
-    { "xonxoff",	GENSIO_DEFAULT_BOOL,	.def.intval = 0 },
     { "rtscts",		GENSIO_DEFAULT_BOOL,	.def.intval = 0 },
     { "local",		GENSIO_DEFAULT_BOOL,	.def.intval = 0 },
     { "hangup_when_done", GENSIO_DEFAULT_BOOL,	.def.intval = 0 },
+    { "rs485",		GENSIO_DEFAULT_STR,	.def.strval = NULL },
     /* serialdev and SOL */
-    { "speed",		GENSIO_DEFAULT_INT,	.min = 1, .max = INT_MAX,
-						.def.intval = 9600 },
+    { "speed",		GENSIO_DEFAULT_STR,	.def.strval = "9600N81" },
     { "nobreak",	GENSIO_DEFAULT_BOOL,	.def.intval = 0 },
 #ifdef HAVE_OPENIPMI
     /* SOL only */

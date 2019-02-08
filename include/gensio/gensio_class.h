@@ -263,6 +263,8 @@ int gensio_check_keybool(const char *str, const char *key, bool *rvalue);
 int gensio_check_keyboolv(const char *str, const char *key,
 			  const char *trueval, const char *falseval,
 			  bool *rvalue);
+int gensio_check_keyenum(const char *str, const char *key,
+			 struct gensio_enum_val *enums, int *rval);
 int gensio_check_keyaddrs(struct gensio_os_funcs *o,
 			  const char *str, const char *key, int protocol,
 			  bool listen, bool require_port, struct addrinfo **ai);
