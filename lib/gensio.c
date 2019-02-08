@@ -1789,8 +1789,14 @@ struct gensio_enum_val shared_serial_alert_enums[] = {
 #endif
 
 struct gensio_def_entry builtin_defaults[] = {
+    /* Defaults for TCP, UDP, and SCTP. */
     { "nodelay",	GENSIO_DEFAULT_BOOL,	.def.intval = 0 },
     { "laddr",		GENSIO_DEFAULT_STR,	.def.strval = NULL },
+    /* sctp */
+    { "instreams",	GENSIO_DEFAULT_INT,	.min = 1, .max = INT_MAX,
+						.def.intval = 1 },
+    { "ostreams",	GENSIO_DEFAULT_INT,	.min = 1, .max = INT_MAX,
+						.def.intval = 1 },
     /* serialdev */
     { "rtscts",		GENSIO_DEFAULT_BOOL,	.def.intval = 0 },
     { "local",		GENSIO_DEFAULT_BOOL,	.def.intval = 0 },

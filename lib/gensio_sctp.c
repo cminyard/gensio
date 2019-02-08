@@ -487,6 +487,16 @@ sctp_gensio_alloc(struct addrinfo *iai, const char * const args[],
     if (!err)
 	nodelay = ival;
 
+    err = gensio_get_default(o, "sctp", "instreams", false,
+			     GENSIO_DEFAULT_INT, NULL, &ival);
+    if (!err)
+	instreams = ival;
+
+    err = gensio_get_default(o, "sctp", "ostreams", false,
+			     GENSIO_DEFAULT_INT, NULL, &ival);
+    if (!err)
+	ostreams = ival;
+
     err = gensio_get_defaultaddr(o, "sctp", "laddr", false,
 				 IPPROTO_SCTP, true, false, &lai);
     if (err)
