@@ -1145,10 +1145,15 @@ int gensio_set_default(struct gensio_os_funcs *o,
 		       const char *class, const char *name,
 		       const char *strval, int intval);
 
+
+/*
+ * Note that the strval is gensio_strdup()-ed if not NULL, you must
+ * free it with o->free().
+ */
 int gensio_get_default(struct gensio_os_funcs *o,
 		       const char *class, const char *name, bool classonly,
 		       enum gensio_default_type type,
-		       const char **strval, int *intval);
+		       char **strval, int *intval);
 
 /* Get the default, but as an addrinfo. */
 int gensio_get_defaultaddr(struct gensio_os_funcs *o,

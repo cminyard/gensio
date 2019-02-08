@@ -2125,12 +2125,13 @@ int
 gensio_get_default(struct gensio_os_funcs *o,
 		   const char *class, const char *name, bool classonly,
 		   enum gensio_default_type type,
-		   const char **strval, int *intval)
+		   char **strval, int *intval)
 {
     struct gensio_def_entry *d;
     struct gensio_class_def *c = NULL;
     union gensio_def_val *val;
     int err = 0;
+    char *str;
 
     o->call_once(o, &gensio_default_initialized, gensio_default_init, o);
 
@@ -2169,7 +2170,16 @@ gensio_get_default(struct gensio_os_funcs *o,
 	break;
 
     case GENSIO_DEFAULT_STR:
-	*strval = val->strval;
+	if (val->strval) {
+	    str = gensio_strdup(o, val->strval);
+	    if (!str) {
+		err = GE_NOMEM;
+		goto out_unlock;
+	    }
+	    *strval = str;
+	} else {
+	    *strval = NULL;
+	}
 	break;
 
     default:
@@ -2263,7 +2273,7 @@ gensio_get_defaultaddr(struct gensio_os_funcs *o,
     int socktype, protocol;
     struct addrinfo *ai;
     bool is_port_set;
-    const char *str;
+    char *str;
 
     err = gensio_get_default(o, class, name, classonly, GENSIO_DEFAULT_STR,
 			     &str, NULL);
@@ -2275,6 +2285,7 @@ gensio_get_defaultaddr(struct gensio_os_funcs *o,
 
     err = gensio_scan_network_port(o, str, listen, &ai, &socktype,
 				   &protocol, &is_port_set, NULL, NULL);
+    o->free(o, str);
     if (err)
 	return err;
 

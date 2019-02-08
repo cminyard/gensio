@@ -726,7 +726,7 @@ gensio_telnet_filter_alloc(struct gensio_os_funcs *o, const char * const args[],
     const unsigned char *init_seq;
     unsigned int init_seq_len;
     int rv, ival;
-    const char *str;
+    char *str;
 
     rv = gensio_get_default(o, "telnet", "rfc2217", false,
 			    GENSIO_DEFAULT_BOOL, NULL, &ival);
@@ -744,6 +744,11 @@ gensio_telnet_filter_alloc(struct gensio_os_funcs *o, const char * const args[],
 	    gensio_log(o, GENSIO_LOG_ERR,
 		       "Unknown default telnet mode (%s), ignoring", str);
 	}
+	o->free(o, str);
+    } else if (rv) {
+	gensio_log(o, GENSIO_LOG_ERR,
+		   "Failed getting telnet mode, ignoring: %s",
+		   gensio_err_to_str(rv));
     }
 
     for (i = 0; args && args[i]; i++) {

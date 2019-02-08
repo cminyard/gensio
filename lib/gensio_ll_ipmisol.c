@@ -1329,26 +1329,33 @@ static int
 sol_get_defaults(struct sol_ll *solll)
 {
     struct gensio_os_funcs *o = solll->o;
-    const char *speed;
-    int ival;
+    char *speed;
+    int ival, err;
 
-    gensio_get_default(o, "sol", "speed", false,
-		       GENSIO_DEFAULT_STR, &speed, NULL);
-    if (strncmp(speed, "9600", 4) == 0)
-	solll->speed = IPMI_SOL_BIT_RATE_9600;
-    else if (strncmp(speed, "19200", 5) == 0)
-	solll->speed = IPMI_SOL_BIT_RATE_19200;
-    else if (strncmp(speed, "38400", 5) == 0)
-	solll->speed = IPMI_SOL_BIT_RATE_38400;
-    else if (strncmp(speed, "57600", 5) == 0)
-	solll->speed = IPMI_SOL_BIT_RATE_57600;
-    else if (strncmp(speed, "115200", 6) == 0)
-	solll->speed = IPMI_SOL_BIT_RATE_115200;
-    else {
-	gensio_log(o, GENSIO_LOG_WARNING,
-		   "Invalid default speed for SOL %s: %s.  Defaulting to 9600",
-		   solll->devname, speed);
-	solll->speed = IPMI_SOL_BIT_RATE_9600;
+    err = gensio_get_default(o, "sol", "speed", false,
+			     GENSIO_DEFAULT_STR, &speed, NULL);
+    if (!err && speed) {
+	if (strncmp(speed, "9600", 4) == 0)
+	    solll->speed = IPMI_SOL_BIT_RATE_9600;
+	else if (strncmp(speed, "19200", 5) == 0)
+	    solll->speed = IPMI_SOL_BIT_RATE_19200;
+	else if (strncmp(speed, "38400", 5) == 0)
+	    solll->speed = IPMI_SOL_BIT_RATE_38400;
+	else if (strncmp(speed, "57600", 5) == 0)
+	    solll->speed = IPMI_SOL_BIT_RATE_57600;
+	else if (strncmp(speed, "115200", 6) == 0)
+	    solll->speed = IPMI_SOL_BIT_RATE_115200;
+	else {
+	    gensio_log(o, GENSIO_LOG_ERR,
+		       "Invalid default speed for SOL %s: %s."
+		       " Defaulting to 9600",
+		       solll->devname, speed);
+	    solll->speed = IPMI_SOL_BIT_RATE_9600;
+	}
+	o->free(o, speed);
+    } else if (err) {
+	gensio_log(o, GENSIO_LOG_ERR, "Failed getting default sol speed,"
+		   " ignoring: %s\n", gensio_err_to_str(err));
     }
 
     /* Enable authentication and encryption by default. */

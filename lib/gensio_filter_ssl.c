@@ -947,9 +947,9 @@ gensio_ssl_filter_config(struct gensio_os_funcs *o,
 {
     unsigned int i;
     struct gensio_ssl_filter_data *data = o->zalloc(o, sizeof(*data));
-    const char *CAfilepath = NULL, *keyfile = NULL, *certfile = NULL;
     int rv = GE_NOMEM, ival;
-    const char *str;
+    char *str;
+    const char *cstr;
 
     if (!data)
 	return GE_NOMEM;
@@ -978,15 +978,33 @@ gensio_ssl_filter_config(struct gensio_os_funcs *o,
 	    gensio_log(o, GENSIO_LOG_ERR,
 		       "Unknown default ssl mode (%s), ignoring", str);
 	}
+	o->free(o, str);
+    } else if (rv) {
+	gensio_log(o, GENSIO_LOG_ERR,
+		   "Failed getting ssl mode, ignoring: %s",
+		   gensio_err_to_str(rv));
     }
 
+    rv = GE_NOMEM;
     for (i = 0; args && args[i]; i++) {
-	if (gensio_check_keyvalue(args[i], "CA", &CAfilepath))
+	if (gensio_check_keyvalue(args[i], "CA", &cstr)) {
+	    data->CAfilepath = gensio_strdup(o, cstr);
+	    if (!data->CAfilepath)
+		goto out_err;
 	    continue;
-	if (gensio_check_keyvalue(args[i], "key", &keyfile))
+	}
+	if (gensio_check_keyvalue(args[i], "key", &cstr)) {
+	    data->keyfile = gensio_strdup(o, cstr);
+	    if (!data->keyfile)
+		goto out_err;
 	    continue;
-	if (gensio_check_keyvalue(args[i], "cert", &certfile))
+	}
+	if (gensio_check_keyvalue(args[i], "cert", &cstr)) {
+	    data->certfile = gensio_strdup(o, cstr);
+	    if (!data->certfile)
+		goto out_err;
 	    continue;
+	}
 	if (gensio_check_keyds(args[i], "readbuf", &data->max_read_size) > 0)
 	    continue;
 	if (gensio_check_keyds(args[i], "writebuf", &data->max_write_size) > 0)
@@ -1004,45 +1022,32 @@ gensio_ssl_filter_config(struct gensio_os_funcs *o,
 	goto out_err;
     }
 
-    if (!keyfile) {
+    if (!data->keyfile) {
 	gensio_get_default(o, "ssl", "key", false, GENSIO_DEFAULT_STR,
-			   &keyfile, NULL);
+			   &data->keyfile, NULL);
     }
-    if (!certfile) {
+    if (!data->certfile) {
 	gensio_get_default(o, "ssl", "cert", false, GENSIO_DEFAULT_STR,
-			   &certfile, NULL);
+			   &data->certfile, NULL);
     }
-    if (!CAfilepath) {
+    if (!data->CAfilepath) {
 	gensio_get_default(o, "ssl", "CA", false, GENSIO_DEFAULT_STR,
-			   &CAfilepath, NULL);
+			   &data->CAfilepath, NULL);
     }
 
     if (!data->is_client) {
-	if (!keyfile) {
+	if (!data->keyfile) {
 	    rv = GE_NOKEY;
 	    goto out_err;
 	}
     }
 
-    if (keyfile && !certfile)
-	certfile = keyfile;
-
-    if (CAfilepath) {
-	data->CAfilepath = gensio_strdup(o, CAfilepath);
-	if (!data->CAfilepath)
+    if (data->keyfile && !data->certfile) {
+	data->certfile = gensio_strdup(o, data->keyfile);
+	if (!data->certfile) {
+	    rv = GE_NOMEM;
 	    goto out_err;
-    }
-
-    if (keyfile) {
-	data->keyfile = gensio_strdup(o, keyfile);
-	if (!data->keyfile)
-	    goto out_err;
-    }
-
-    if (certfile) {
-	data->certfile = gensio_strdup(o, certfile);
-	if (!data->certfile)
-	    goto out_err;
+	}
     }
 
     *rdata = data;

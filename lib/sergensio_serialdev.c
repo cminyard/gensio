@@ -1519,23 +1519,29 @@ sergensio_process_parms(struct sterm_data *sdata)
 static void
 sergensio_setup_defaults(struct gensio_os_funcs *o, struct sterm_data *sdata)
 {
-    int val;
+    int val, err;
     struct termios *termctl = &sdata->default_termios;
-    const char *str;
+    char *str;
 
     cfmakeraw(termctl);
 
-    gensio_get_default(o, "serialdev", "speed", false,
-		       GENSIO_DEFAULT_STR, &str, NULL);
-    if (handle_speedstr(termctl, str)) {
-	gensio_log(o, GENSIO_LOG_ERR,
-		   "Default speed settings (%s) are invalid,"
-		   " defaulting to 9600N81", str);
-	cfsetospeed(termctl, B9600);
-	cfsetispeed(termctl, B9600);
-	set_termios_parity(termctl, 'N');
-	set_termios_datasize(termctl, 8);
-	termctl->c_cflag &= ~(CSTOPB); /* 1 stopbit */
+    err = gensio_get_default(o, "serialdev", "speed", false,
+			     GENSIO_DEFAULT_STR, &str, NULL);
+    if (!err && str) {
+	if (handle_speedstr(termctl, str)) {
+	    gensio_log(o, GENSIO_LOG_ERR,
+		       "Default speed settings (%s) are invalid,"
+		       " defaulting to 9600N81", str);
+	    cfsetospeed(termctl, B9600);
+	    cfsetispeed(termctl, B9600);
+	    set_termios_parity(termctl, 'N');
+	    set_termios_datasize(termctl, 8);
+	    termctl->c_cflag &= ~(CSTOPB); /* 1 stopbit */
+	}
+	o->free(o, str);
+    } else if (err) {
+	gensio_log(o, GENSIO_LOG_ERR, "Failed getting default serialdev speed,"
+		   " ignoring: %s\n", gensio_err_to_str(err));
     }
 
     sdata->default_termios.c_cflag |= CREAD;
@@ -1565,11 +1571,18 @@ sergensio_setup_defaults(struct gensio_os_funcs *o, struct sterm_data *sdata)
     if (val)
 	termctl->c_cflag |= HUPCL;
 
-    gensio_get_default(o, "serialdev", "rs485", false, GENSIO_DEFAULT_STR,
-		       &str, NULL);
-    if (process_rs485(sdata, str))
-	gensio_log(o, GENSIO_LOG_ERR,
-		   "Default rs485 settings (%s) are invalid, ignoring", str);
+    err = gensio_get_default(o, "serialdev", "rs485", false, GENSIO_DEFAULT_STR,
+			     &str, NULL);
+    if (!err && str) {
+	if (process_rs485(sdata, str))
+	    gensio_log(o, GENSIO_LOG_ERR,
+		       "Default rs485 settings (%s) are invalid, ignoring",
+		       str);
+	o->free(0, str);
+    } else if (err) {
+	gensio_log(o, GENSIO_LOG_ERR, "Failed getting default serialdev rs485,"
+		   " ignoring: %s\n", gensio_err_to_str(err));
+    }
 }
 
 int

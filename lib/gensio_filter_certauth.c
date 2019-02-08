@@ -1834,10 +1834,9 @@ gensio_certauth_filter_config(struct gensio_os_funcs *o,
 {
     unsigned int i;
     struct gensio_certauth_filter_data *data = o->zalloc(o, sizeof(*data));
-    const char *CAfilepath = NULL, *keyfile = NULL, *certfile = NULL;
-    const char *username = NULL, *password = NULL, *service = NULL;
     int rv = GE_NOMEM, ival;
     const char *str;
+    char *fstr;
 
     if (!data)
 	return GE_NOMEM;
@@ -1860,31 +1859,61 @@ gensio_certauth_filter_config(struct gensio_os_funcs *o,
 	data->disable_password = ival;
 
     rv = gensio_get_default(o, "certauth", "mode", false,
-			    GENSIO_DEFAULT_STR, &str, NULL);
-    if (!rv && str) {
-	if (strcasecmp(str, "client") == 0)
+			    GENSIO_DEFAULT_STR, &fstr, NULL);
+    if (!rv && fstr) {
+	if (strcasecmp(fstr, "client") == 0)
 	    data->is_client = true;
-	else if (strcasecmp(str, "server") == 0)
+	else if (strcasecmp(fstr, "server") == 0)
 	    data->is_client = false;
 	else {
 	    gensio_log(o, GENSIO_LOG_ERR,
 		       "Unknown default certauth mode (%s), ignoring", str);
 	}
+	o->free(o, fstr);
+    } else if (rv) {
+	gensio_log(o, GENSIO_LOG_ERR,
+		   "Failed getting certauth mode, ignoring: %s",
+		   gensio_err_to_str(rv));
     }
 
+    rv = GE_NOMEM;
     for (i = 0; args && args[i]; i++) {
-	if (gensio_check_keyvalue(args[i], "CA", &CAfilepath))
+	if (gensio_check_keyvalue(args[i], "CA", &str) > 0) {
+	    data->CAfilepath = gensio_strdup(o, str);
+	    if (!data->CAfilepath)
+		goto out_err;
 	    continue;
-	if (gensio_check_keyvalue(args[i], "key", &keyfile))
+	}
+	if (gensio_check_keyvalue(args[i], "key", &str) > 0) {
+	    data->keyfile = gensio_strdup(o, str);
+	    if (!data->keyfile)
+		goto out_err;
 	    continue;
-	if (gensio_check_keyvalue(args[i], "cert", &certfile))
+	}
+	if (gensio_check_keyvalue(args[i], "cert", &str) > 0) {
+	    data->certfile = gensio_strdup(o, str);
+	    if (!data->certfile)
+		goto out_err;
 	    continue;
-	if (gensio_check_keyvalue(args[i], "username", &username))
+	}
+	if (gensio_check_keyvalue(args[i], "username", &str) > 0) {
+	    data->username = gensio_strdup(o, str);
+	    if (!data->username)
+		goto out_err;
 	    continue;
-	if (gensio_check_keyvalue(args[i], "password", &password))
+	}
+	if (gensio_check_keyvalue(args[i], "password", &str) > 0) {
+	    data->password = gensio_strdup(o, str);
+	    if (!data->password)
+		goto out_err;
 	    continue;
-	if (gensio_check_keyvalue(args[i], "service", &service))
+	}
+	if (gensio_check_keyvalue(args[i], "service", &str) > 0) {
+	    data->service = gensio_strdup(o, str);
+	    if (!data->service)
+		goto out_err;
 	    continue;
+	}
 	if (gensio_check_keyboolv(args[i], "mode", "client", "server",
 				  &data->is_client) > 0)
 	    continue;
@@ -1901,81 +1930,79 @@ gensio_certauth_filter_config(struct gensio_os_funcs *o,
 	goto out_err;
     }
 
-    if (!keyfile) {
-	gensio_get_default(o, "certauth", "key", false, GENSIO_DEFAULT_STR,
-			   &keyfile, NULL);
+    if (!data->keyfile) {
+	rv = gensio_get_default(o, "certauth", "key", false, GENSIO_DEFAULT_STR,
+				&data->keyfile, NULL);
+	if (rv) {
+	    gensio_log(o, GENSIO_LOG_ERR,
+		       "Unable to get default key for certauth, ignoring: %s",
+		       gensio_err_to_str(rv));
+	}
     }
-    if (!certfile) {
-	gensio_get_default(o, "certauth", "cert", false, GENSIO_DEFAULT_STR,
-			   &certfile, NULL);
+    if (!data->certfile) {
+	rv = gensio_get_default(o, "certauth", "cert", false,
+				GENSIO_DEFAULT_STR, &data->certfile, NULL);
+	if (rv) {
+	    gensio_log(o, GENSIO_LOG_ERR,
+		       "Unable to get default cert for certauth, ignoring: %s",
+		       gensio_err_to_str(rv));
+	}
     }
-    if (!CAfilepath) {
-	gensio_get_default(o, "certauth", "CA", false, GENSIO_DEFAULT_STR,
-			   &CAfilepath, NULL);
+    if (!data->CAfilepath) {
+	rv = gensio_get_default(o, "certauth", "CA", false, GENSIO_DEFAULT_STR,
+				&data->CAfilepath, NULL);
+	if (rv) {
+	    gensio_log(o, GENSIO_LOG_ERR,
+		       "Unable to get default CA for certauth, ignoring: %s",
+		       gensio_err_to_str(rv));
+	}
     }
-    if (!username) {
-	gensio_get_default(o, "certauth", "username", false, GENSIO_DEFAULT_STR,
-			   &username, NULL);
+    if (!data->username) {
+	rv = gensio_get_default(o, "certauth", "username", false,
+				GENSIO_DEFAULT_STR, &data->username, NULL);
+	if (rv) {
+	    gensio_log(o, GENSIO_LOG_ERR,
+		       "Unable to get default username for certauth,"
+		       " ignoring: %s", gensio_err_to_str(rv));
+	}
     }
-    if (!password) {
-	gensio_get_default(o, "certauth", "password", false, GENSIO_DEFAULT_STR,
-			   &password, NULL);
+    if (!data->password) {
+	rv = gensio_get_default(o, "certauth", "password", false,
+				GENSIO_DEFAULT_STR, &data->password, NULL);
+	if (rv) {
+	    gensio_log(o, GENSIO_LOG_ERR,
+		       "Unable to get default password for certauth,"
+		       " ignoring: %s", gensio_err_to_str(rv));
+	}
     }
-
-    if (!service) {
+    if (!data->service) {
 	gensio_get_default(o, "certauth", "service", false, GENSIO_DEFAULT_STR,
-			   &service, NULL);
+			   &data->service, NULL);
+	if (rv) {
+	    gensio_log(o, GENSIO_LOG_ERR,
+		       "Unable to get default service for certauth,"
+		       " ignoring: %s", gensio_err_to_str(rv));
+	}
     }
 
-    if (!keyfile)
-	keyfile = certfile;
+    if (!data->keyfile && data->certfile) {
+	data->keyfile = gensio_strdup(o, data->certfile);
+	if (!data->keyfile) {
+	    rv = GE_NOMEM;
+	    goto out_err;
+	}
+    }
 
     if (data->is_client) {
-	if (CAfilepath) {
+	if (data->CAfilepath) {
 	    rv = GE_INVAL;
 	    goto out_err;
 	}
     } else {
-	if (keyfile || username) {
+	if (data->keyfile || data->username) {
 	    rv = GE_INVAL;
 	    goto out_err;
 	}
-    }
-
-    if (CAfilepath) {
-	data->CAfilepath = gensio_strdup(o, CAfilepath);
-	if (!data->CAfilepath)
-	    goto out_err;
-    }
-
-    if (keyfile) {
-	data->keyfile = gensio_strdup(o, keyfile);
-	if (!data->keyfile)
-	    goto out_err;
-    }
-
-    if (certfile) {
-	data->certfile = gensio_strdup(o, certfile);
-	if (!data->certfile)
-	    goto out_err;
-    }
-
-    if (username) {
-	data->username = gensio_strdup(o, username);
-	if (!data->username)
-	    goto out_err;
-    }
-
-    if (password) {
-	data->password = gensio_strdup(o, password);
-	if (!data->password)
-	    goto out_err;
-    }
-
-    if (service) {
-	data->service = gensio_strdup(o, service);
-	if (!data->service)
-	    goto out_err;
     }
 
     *rdata = data;
