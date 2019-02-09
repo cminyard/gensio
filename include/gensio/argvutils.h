@@ -29,7 +29,7 @@
 
 /*
  * Separate out a string into an argv array, returning the argc/argv
- * values given.  Returns -ENOMEM when out of memory or -EINVAL if
+ * values given.  Returns GE_NOMEM when out of memory or GE_INVAL if
  * there is something wrong with the string.  seps is a list of
  * separators, parameters will be separated by that vlaue.  If seps is
  * NULL it will default to the equivalent of isspace().  The argv
