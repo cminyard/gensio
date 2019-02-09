@@ -494,7 +494,7 @@ const char *gensio_errs[] = {
     /*   1 */    "Out of memory",
     /*   2 */    "Operation not supported",
     /*   3 */    "Invalid data to parameter",
-    /*   4 */    "Value not found",
+    /*   4 */    "Value or file not found",
     /*   5 */    "Value already exists",
     /*   6 */    "Value out of range",
     /*   7 */    "Parameters inconsistent in call",
