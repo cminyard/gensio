@@ -1858,13 +1858,13 @@ gensio_reset_default(struct gensio_os_funcs *o, struct gensio_def_entry *d)
     for (; c; c = n) {
 	n = c->next;
 	o->free(o, c->class);
-	if (c->val.strval)
+	if (d->type == GENSIO_DEFAULT_STR && c->val.strval)
 	    o->free(o, c->val.strval);
 	o->free(o, c);
     }
     d->classvals = NULL;
 
-    if (d->val.strval) {
+    if (d->type == GENSIO_DEFAULT_STR && d->val.strval) {
 	o->free(o, d->val.strval);
 	d->val.strval = NULL;
     }
