@@ -474,6 +474,8 @@ telnet_free(struct gensio_filter *filter)
 
     if (tfilter->lock)
 	tfilter->o->free_lock(tfilter->lock);
+    if (tfilter->working_telnet_cmds)
+	tfilter->o->free(tfilter->o, tfilter->working_telnet_cmds);
     if (tfilter->read_data)
 	tfilter->o->free(tfilter->o, tfilter->read_data);
     if (tfilter->write_data)
