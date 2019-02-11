@@ -435,37 +435,42 @@ auth_event(struct gensio *io, void *user_data, int event, int ierr,
 	    /* Found a certificate, make sure it's the right one. */
 	    err = verify_certfile(ginfo->o,
 				  cert, "%s/%s,%d.crt", CAdir, hostname, port);
-	    if (!err) {
+	    if (!err)
 		err = verify_certfile(ginfo->o,
 				      cert, "%s/%s.crt", CAdir, raddr);
-		if (err == GE_CERTNOTFOUND) {
-		    printf("\nCertificate for %s found and correct, but"
-			   " address file was\nmissing for\n  %s\n",
-			   hostname, raddr);
-		    printf("It is possible that the host changed addresses, but"
-			   " there may also be a\nman in the middle\n");
-		    printf("Verify carefully, add if it is ok.\n");
-		    do {
-			char *s;
+	    if (err == GE_CERTNOTFOUND) {
+		printf("\nCertificate for %s found and correct, but"
+		       " address file was\nmissing for it an/or\n  %s\n",
+		       hostname, raddr);
+		printf("It is possible that the same key is used for"
+		       " different connections,\n but"
+		       " there may also be aman in the middle\n");
+		printf("Verify carefully, add if it is ok.\n");
+		do {
+		    char *s;
 
-			printf("Add this certificate? (y/n): ");
-			s = fgets(buf, sizeof(buf), stdin);
-			if (s == NULL) {
-			    printf("Error reading input, giving up\n");
-			    exit(1);
-			}
-			if (buf[0] == 'y') {
-			    err = 0;
-			    break;
-			} else if (buf[0] == 'n') {
-			    err = GE_AUTHREJECT;
-			    break;
-			} else {
-			    printf("Invalid input: %s", buf);
-			}
-		    } while (true);
+		    printf("Add this certificate? (y/n): ");
+		    s = fgets(buf, sizeof(buf), stdin);
+		    if (s == NULL) {
+			printf("Error reading input, giving up\n");
+			exit(1);
+		    }
+		    if (buf[0] == 'y') {
+			err = 0;
+			break;
+		    } else if (buf[0] == 'n') {
+			err = GE_AUTHREJECT;
+			break;
+		    } else {
+			printf("Invalid input: %s", buf);
+		    }
+		} while (true);
+		if (!err) {
+		    err = add_certfile(ginfo->o, cert,
+				       "%s/%s,%d.crt", CAdir, hostname, port);
 		    if (!err)
-			add_certfile(ginfo->o, cert, "%s/%s.crt", CAdir, raddr);
+			err = add_certfile(ginfo->o, cert,
+					   "%s/%s.crt", CAdir, raddr);
 		}
 	    }
 	    return err;
