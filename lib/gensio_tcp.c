@@ -414,6 +414,14 @@ str_to_tcp_gensio(const char *str, const char * const args[],
     return err;
 }
 
+struct tcpna_waiters {
+    struct gensio_os_funcs *o;
+    gensio_generic_done done;
+    void *done_data;
+    struct gensio_runner *runner;
+    struct tcpna_waiters *next;
+};
+
 struct tcpna_data {
     struct gensio_accepter *acc;
 
@@ -427,6 +435,8 @@ struct tcpna_data {
     bool setup;			/* Network sockets are allocated. */
     bool enabled;		/* Accepts are being handled. */
     bool in_shutdown;		/* Currently being shut down. */
+    bool in_accept_cb;		/* Currently in a callback. */
+    struct tcpna_waiters *acc_disable_waiters;
 
     unsigned int refcount;
 
@@ -509,6 +519,7 @@ static void
 tcpna_server_open_done(struct gensio *io, int err, void *open_data)
 {
     struct tcpna_data *nadata = open_data;
+    struct tcpna_waiters *waiters, *next;
 
     tcpna_lock(nadata);
     gensio_acc_remove_pending_gensio(nadata->acc, io);
@@ -523,7 +534,16 @@ tcpna_server_open_done(struct gensio *io, int err, void *open_data)
     }
 
     tcpna_lock(nadata);
+    nadata->in_accept_cb = false;
+    waiters = nadata->acc_disable_waiters;
+    nadata->acc_disable_waiters = NULL;
     tcpna_deref_and_unlock(nadata);
+    while (waiters) {
+	next = waiters->next;
+	waiters->done(waiters->done_data);
+	nadata->o->free(nadata->o, waiters);
+	waiters = next;
+    }
 }
 
 static void
@@ -538,6 +558,10 @@ tcpna_readhandler(int fd, void *cbdata)
     const char *errstr;
     int err;
 
+    tcpna_lock(nadata);
+    if (!nadata->enabled)
+	goto out_unlock; /* We can race, just ignore this if so. */
+
     err = gensio_os_accept(nadata->o,
 			   fd, (struct sockaddr *) &addr, &addrlen, &new_fd);
     if (err) {
@@ -545,14 +569,14 @@ tcpna_readhandler(int fd, void *cbdata)
 	    gensio_acc_log(nadata->acc, GENSIO_LOG_ERR,
 			   "Error accepting TCP gensio: %s",
 			   gensio_err_to_str(err));
-	return;
+	goto out_unlock;
     }
 
     errstr = gensio_check_tcpd_ok(new_fd);
     if (errstr) {
 	write_nofail(new_fd, errstr, strlen(errstr));
 	close(new_fd);
-	return;
+	goto out_unlock;
     }
 
     tdata = nadata->o->zalloc(nadata->o, sizeof(*tdata));
@@ -560,7 +584,7 @@ tcpna_readhandler(int fd, void *cbdata)
 	errstr = "Out of memory\r\n";
 	write_nofail(new_fd, errstr, strlen(errstr));
 	close(new_fd);
-	return;
+	goto out_unlock;
     }
 
     tdata->o = nadata->o;
@@ -575,7 +599,7 @@ tcpna_readhandler(int fd, void *cbdata)
 		       "Error setting up tcp port: %s", gensio_err_to_str(err));
 	close(new_fd);
 	tcp_free(tdata);
-	return;
+	goto out_unlock;
     }
 
     tdata->ll = fd_gensio_ll_alloc(nadata->o, new_fd, &tcp_server_fd_ll_ops,
@@ -585,10 +609,9 @@ tcpna_readhandler(int fd, void *cbdata)
 		       "Out of memory allocating tcp ll");
 	close(new_fd);
 	tcp_free(tdata);
-	return;
+	goto out_unlock;
     }
 
-    tcpna_lock(nadata);
     io = base_gensio_server_alloc(nadata->o, tdata->ll, NULL, NULL, "tcp",
 				  tcpna_server_open_done, nadata);
     if (!io) {
@@ -603,6 +626,8 @@ tcpna_readhandler(int fd, void *cbdata)
     tcpna_ref(nadata);
     gensio_set_is_reliable(io, true);
     gensio_acc_add_pending_gensio(nadata->acc, io);
+    nadata->in_accept_cb = true;
+ out_unlock:
     tcpna_unlock(nadata);
 }
 
@@ -704,16 +729,53 @@ tcpna_shutdown(struct gensio_accepter *accepter,
 }
 
 static void
-tcpna_set_accept_callback_enable(struct gensio_accepter *accepter, bool enabled)
+waiter_runner_cb(struct gensio_runner *runner, void *cb_data)
+{
+    struct tcpna_waiters *w = cb_data;
+
+    w->done(w->done_data);
+    w->o->free_runner(w->runner);
+    w->o->free(w->o, w);
+}
+
+static int
+tcpna_set_accept_callback_enable(struct gensio_accepter *accepter, bool enabled,
+				 gensio_generic_done done, void *done_data)
 {
     struct tcpna_data *nadata = gensio_acc_get_gensio_data(accepter);
+    int rv = 0;
 
     tcpna_lock(nadata);
     if (nadata->enabled != enabled) {
 	tcpna_set_fd_enables(nadata, enabled);
 	nadata->enabled = enabled;
     }
+    if (done) {
+	struct gensio_os_funcs *o = nadata->o;
+	struct tcpna_waiters *w = o->zalloc(o, sizeof(*w));
+
+	if (!w)
+	    rv = GE_NOMEM;
+	else {
+	    w->o = o;
+	    w->done = done;
+	    w->done_data = done_data;
+	    if (nadata->in_accept_cb) {
+		w->next = nadata->acc_disable_waiters;
+		nadata->acc_disable_waiters = w;
+	    } else {
+		w->runner = o->alloc_runner(o, waiter_runner_cb, w);
+		if (!w->runner) {
+		    o->free(o, w);
+		    rv = GE_NOMEM;
+		} else {
+		    o->run(w->runner);
+		}
+	    }
+	}
+    }
     tcpna_unlock(nadata);
+    return rv;
 }
 
 static void
@@ -819,8 +881,7 @@ gensio_acc_tcp_func(struct gensio_accepter *acc, int func, int val,
 	return tcpna_shutdown(acc, done, data);
 
     case GENSIO_ACC_FUNC_SET_ACCEPT_CALLBACK:
-	tcpna_set_accept_callback_enable(acc, val);
-	return 0;
+	return tcpna_set_accept_callback_enable(acc, val, done, data);
 
     case GENSIO_ACC_FUNC_FREE:
 	tcpna_free(acc);

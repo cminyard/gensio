@@ -1122,6 +1122,52 @@ gensio_acc_set_accept_callback_enable(struct gensio_accepter *accepter,
 		   NULL, NULL, NULL, NULL, NULL);
 }
 
+int
+gensio_acc_set_accept_callback_enable_cb(struct gensio_accepter *accepter,
+					 bool enabled,
+					 gensio_generic_done done,
+					 void *done_data)
+{
+    return accepter->func(accepter, GENSIO_ACC_FUNC_SET_ACCEPT_CALLBACK,
+			  enabled, NULL, done, done_data, NULL, NULL);
+}
+
+struct acc_cb_enable_data {
+    struct gensio_os_funcs *o;
+    struct gensio_waiter *waiter;
+};
+
+static void
+acc_cb_enable_done(void *done_data)
+{
+    struct acc_cb_enable_data *data = done_data;
+
+    data->o->wake(data->waiter);
+}
+
+int
+gensio_acc_set_accept_callback_enable_s(struct gensio_accepter *accepter,
+					bool enabled)
+{
+    struct acc_cb_enable_data data;
+    int err;
+
+    data.o = accepter->o;
+    data.waiter = data.o->alloc_waiter(data.o);
+    if (!data.waiter)
+	return GE_NOMEM;
+    err = gensio_acc_set_accept_callback_enable_cb(accepter, enabled,
+						   acc_cb_enable_done, &data);
+    if (err) {
+	data.o->free_waiter(data.waiter);
+	return err;
+    }
+    data.o->wait(data.waiter, 1, NULL);
+    data.o->free_waiter(data.waiter);
+
+    return 0;
+}
+
 void
 gensio_acc_free(struct gensio_accepter *accepter)
 {

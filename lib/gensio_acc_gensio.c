@@ -189,13 +189,15 @@ basena_shutdown(struct gensio_accepter *accepter,
     return rv;
 }
 
-static void
+static int
 basena_set_accept_callback_enable(struct gensio_accepter *accepter,
-				  bool enabled)
+				  bool enabled,
+				  gensio_generic_done done, void *done_data)
 {
     struct basena_data *nadata = gensio_acc_get_gensio_data(accepter);
 
-    gensio_acc_set_accept_callback_enable(nadata->child, enabled);
+    return gensio_acc_set_accept_callback_enable_cb(nadata->child, enabled,
+						    done, done_data);
 }
 
 static void
@@ -286,8 +288,7 @@ gensio_acc_base_func(struct gensio_accepter *acc, int func, int val,
 	return basena_shutdown(acc, done, data);
 
     case GENSIO_ACC_FUNC_SET_ACCEPT_CALLBACK:
-	basena_set_accept_callback_enable(acc, val);
-	return 0;
+	return basena_set_accept_callback_enable(acc, val, done, data);
 
     case GENSIO_ACC_FUNC_FREE:
 	basena_free(acc);

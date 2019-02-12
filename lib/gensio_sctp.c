@@ -601,6 +601,14 @@ struct sctpna_acceptfds {
     int flags;
 };
 
+struct sctpna_waiters {
+    struct gensio_os_funcs *o;
+    gensio_generic_done done;
+    void *done_data;
+    struct gensio_runner *runner;
+    struct sctpna_waiters *next;
+};
+
 struct sctpna_data {
     struct gensio_accepter *acc;
 
@@ -614,6 +622,8 @@ struct sctpna_data {
     bool setup;			/* Network sockets are allocated. */
     bool enabled;		/* Accepts are being handled. */
     bool in_shutdown;		/* Currently being shut down. */
+    bool in_accept_cb;		/* Currently in a callback. */
+    struct sctpna_waiters *acc_disable_waiters;
 
     unsigned int refcount;
 
@@ -696,6 +706,7 @@ static void
 sctpna_server_open_done(struct gensio *io, int err, void *open_data)
 {
     struct sctpna_data *nadata = open_data;
+    struct sctpna_waiters *waiters, *next;
 
     sctpna_lock(nadata);
     gensio_acc_remove_pending_gensio(nadata->acc, io);
@@ -711,7 +722,16 @@ sctpna_server_open_done(struct gensio *io, int err, void *open_data)
     }
 
     sctpna_lock(nadata);
+    nadata->in_accept_cb = false;
+    waiters = nadata->acc_disable_waiters;
+    nadata->acc_disable_waiters = NULL;
     sctpna_deref_and_unlock(nadata);
+    while (waiters) {
+	next = waiters->next;
+	waiters->done(waiters->done_data);
+	nadata->o->free(nadata->o, waiters);
+	waiters = next;
+    }
 }
 
 static void
@@ -726,13 +746,16 @@ sctpna_readhandler(int fd, void *cbdata)
     const char *errstr;
     int err;
 
+    sctpna_lock(nadata);
+    if (!nadata->enabled)
+	goto out_unlock; /* We can race, just ignore this if so. */
     err = gensio_os_accept(nadata->o,
 			   fd, (struct sockaddr *) &addr, &addrlen, &new_fd);
     if (err) {
 	if (err != GE_NODATA)
 	    gensio_acc_log(nadata->acc, GENSIO_LOG_ERR,
 			   "Could not accept: %s", gensio_err_to_str(err));
-	return;
+	goto out_unlock;
     }
 
     tdata = nadata->o->zalloc(nadata->o, sizeof(*tdata));
@@ -740,7 +763,7 @@ sctpna_readhandler(int fd, void *cbdata)
 	errstr = "Out of memory\r\n";
 	write_nofail(new_fd, errstr, strlen(errstr));
 	close(new_fd);
-	return;
+	goto out_unlock;
     }
 
     tdata->o = nadata->o;
@@ -756,7 +779,7 @@ sctpna_readhandler(int fd, void *cbdata)
 		       "Error setting up sctp port: %s", strerror(err));
 	close(new_fd);
 	sctp_free(tdata);
-	return;
+	goto out_unlock;
     }
 
     tdata->ll = fd_gensio_ll_alloc(nadata->o, new_fd, &sctp_server_fd_ll_ops,
@@ -766,10 +789,9 @@ sctpna_readhandler(int fd, void *cbdata)
 		       "Out of memory allocating sctp ll");
 	close(new_fd);
 	sctp_free(tdata);
-	return;
+	goto out_unlock;
     }
 
-    sctpna_lock(nadata);
     io = base_gensio_server_alloc(nadata->o, tdata->ll, NULL, NULL, "sctp",
 				  sctpna_server_open_done, nadata);
     if (!io) {
@@ -784,6 +806,7 @@ sctpna_readhandler(int fd, void *cbdata)
     sctpna_ref(nadata);
     gensio_set_is_reliable(io, true);
     gensio_acc_add_pending_gensio(nadata->acc, io);
+ out_unlock:
     sctpna_unlock(nadata);
 }
 
@@ -975,16 +998,55 @@ sctpna_shutdown(struct gensio_accepter *accepter,
 }
 
 static void
-sctpna_set_accept_callback_enable(struct gensio_accepter *accepter, bool enabled)
+waiter_runner_cb(struct gensio_runner *runner, void *cb_data)
+{
+    struct sctpna_waiters *w = cb_data;
+
+    w->done(w->done_data);
+    w->o->free_runner(w->runner);
+    w->o->free(w->o, w);
+}
+
+static int
+sctpna_set_accept_callback_enable(struct gensio_accepter *accepter,
+				  bool enabled,
+				  gensio_generic_done done, void *done_data)
 {
     struct sctpna_data *nadata = gensio_acc_get_gensio_data(accepter);
+    int rv = 0;
 
     sctpna_lock(nadata);
     if (nadata->enabled != enabled) {
 	sctpna_set_fd_enables(nadata, enabled);
 	nadata->enabled = enabled;
     }
+    if (done) {
+	struct gensio_os_funcs *o = nadata->o;
+	struct sctpna_waiters *w = o->zalloc(o, sizeof(*w));
+
+	if (!w)
+	    rv = GE_NOMEM;
+	else {
+	    w->o = o;
+	    w->done = done;
+	    w->done_data = done_data;
+	    if (nadata->in_accept_cb) {
+		w->next = nadata->acc_disable_waiters;
+		nadata->acc_disable_waiters = w;
+	    } else {
+		w->runner = o->alloc_runner(o, waiter_runner_cb, w);
+		if (!w->runner) {
+		    o->free(o, w);
+		    rv = GE_NOMEM;
+		} else {
+		    o->run(w->runner);
+		}
+	    }
+	}
+    }
     sctpna_unlock(nadata);
+
+    return rv;
 }
 
 static void
@@ -1103,8 +1165,7 @@ gensio_acc_sctp_func(struct gensio_accepter *acc, int func, int val,
 	return sctpna_shutdown(acc, done, data);
 
     case GENSIO_ACC_FUNC_SET_ACCEPT_CALLBACK:
-	sctpna_set_accept_callback_enable(acc, val);
-	return 0;
+	return sctpna_set_accept_callback_enable(acc, val, done, data);
 
     case GENSIO_ACC_FUNC_FREE:
 	sctpna_free(acc);

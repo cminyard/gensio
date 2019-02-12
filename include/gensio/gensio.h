@@ -209,6 +209,11 @@ typedef int (*gensio_event)(struct gensio *io, void *user_data,
 typedef void (*gensio_done)(struct gensio *io, void *open_data);
 
 /*
+ * Callbacks for functions just have done data.
+ */
+typedef void (*gensio_generic_done)(void *done_data);
+
+/*
  * Callbacks for functions that give an error (open);
  */
 typedef void (*gensio_done_err)(struct gensio *io, int err, void *open_data);
@@ -739,10 +744,26 @@ int gensio_acc_control(struct gensio_accepter *accepter, int depth, bool get,
 		       unsigned int option, char *data, gensiods *datalen);
 
 /*
- * Enable the accept callback when connections come in.
+ * Enable/disable the accept callback when connections come in.
  */
 void gensio_acc_set_accept_callback_enable(struct gensio_accepter *accepter,
 					   bool enabled);
+
+/*
+ * Like the above, but do a callback when the enable is complete.  Really
+ * only useful for disable, when the done callback is called then no
+ * more accepts will be called and all callbacks are done.
+ */
+int gensio_acc_set_accept_callback_enable_cb(struct gensio_accepter *accepter,
+					     bool enabled,
+					     gensio_generic_done done,
+					     void *done_data);
+
+/*
+ * Like above, but a synchronous call.
+ */
+int gensio_acc_set_accept_callback_enable_s(struct gensio_accepter *accepter,
+					    bool enabled);
 
 /*
  * Free the network accepter.  If the network accepter is started

@@ -90,6 +90,14 @@ struct udpn_data {
 #define gensio_link_to_ndata(l) \
     gensio_container_of(l, struct udpn_data, link);
 
+struct udpna_waiters {
+    struct gensio_os_funcs *o;
+    gensio_generic_done done;
+    void *done_data;
+    struct gensio_runner *runner;
+    struct udpna_waiters *next;
+};
+
 struct udpna_data {
     struct gensio_accepter *acc;
     struct gensio_list udpns;
@@ -117,6 +125,7 @@ struct udpna_data {
     struct gensio_runner *deferred_op_runner;
 
     bool in_new_connection;
+    struct udpna_waiters *acc_disable_waiters;
 
     bool setup;
     bool enabled;
@@ -831,6 +840,7 @@ udpna_readhandler(int fd, void *cbdata)
 {
     struct udpna_data *nadata = cbdata;
     struct udpn_data *ndata;
+    struct udpna_waiters *waiters = NULL, *next;
     struct sockaddr_storage addr;
     socklen_t addrlen = sizeof(addr);
     gensiods datalen;
@@ -892,6 +902,8 @@ udpna_readhandler(int fd, void *cbdata)
     udpna_lock(nadata);
     ndata->in_read = false;
     nadata->in_new_connection = false;
+    waiters = nadata->acc_disable_waiters;
+    nadata->acc_disable_waiters = NULL;
 
     if (ndata->state == UDPN_OPEN) {
     got_ndata:
@@ -926,6 +938,14 @@ udpna_readhandler(int fd, void *cbdata)
     udpna_fd_read_enable(nadata);
  out_unlock:
     udpna_unlock(nadata);
+
+    while (waiters) {
+	next = waiters->next;
+	waiters->done(waiters->done_data);
+	nadata->o->free(nadata->o, waiters);
+	waiters = next;
+    }
+
     return;
 }
 
@@ -981,13 +1001,51 @@ udpna_shutdown(struct gensio_accepter *accepter,
 }
 
 static void
-udpna_set_accept_callback_enable(struct gensio_accepter *accepter, bool enabled)
+waiter_runner_cb(struct gensio_runner *runner, void *cb_data)
+{
+    struct udpna_waiters *w = cb_data;
+
+    w->done(w->done_data);
+    w->o->free_runner(w->runner);
+    w->o->free(w->o, w);
+}
+
+static int
+udpna_set_accept_callback_enable(struct gensio_accepter *accepter, bool enabled,
+				 gensio_generic_done done, void *done_data)
 {
     struct udpna_data *nadata = gensio_acc_get_gensio_data(accepter);
+    int rv = 0;
 
     udpna_lock(nadata);
-    nadata->enabled = true;
+    nadata->enabled = enabled;
+    if (done) {
+	struct gensio_os_funcs *o = nadata->o;
+	struct udpna_waiters *w = o->zalloc(o, sizeof(*w));
+
+	if (!w)
+	    rv = GE_NOMEM;
+	else {
+	    w->o = o;
+	    w->done = done;
+	    w->done_data = done_data;
+	    if (nadata->in_new_connection) {
+		w->next = nadata->acc_disable_waiters;
+		nadata->acc_disable_waiters = w;
+	    } else {
+		w->runner = o->alloc_runner(o, waiter_runner_cb, w);
+		if (!w->runner) {
+		    o->free(o, w);
+		    rv = GE_NOMEM;
+		} else {
+		    o->run(w->runner);
+		}
+	    }
+	}
+    }
     udpna_unlock(nadata);
+
+    return rv;
 }
 
 static void
@@ -1122,8 +1180,7 @@ gensio_acc_udp_func(struct gensio_accepter *acc, int func, int val,
 	return udpna_shutdown(acc, done, data);
 
     case GENSIO_ACC_FUNC_SET_ACCEPT_CALLBACK:
-	udpna_set_accept_callback_enable(acc, val);
-	return 0;
+	return udpna_set_accept_callback_enable(acc, val, done, data);
 
     case GENSIO_ACC_FUNC_FREE:
 	udpna_free(acc);
@@ -1242,7 +1299,7 @@ udp_gensio_alloc(struct addrinfo *ai, const char * const args[],
     unsigned int i;
 
     err = gensio_get_defaultaddr(o, "udp", "laddr", false,
-				 IPPROTO_TCP, true, false, &lai);
+				 IPPROTO_UDP, true, false, &lai);
     if (err)
 	gensio_log(o, GENSIO_LOG_ERR, "Invalid default udp laddr, ignoring");
 

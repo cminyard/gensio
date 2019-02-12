@@ -1260,10 +1260,52 @@ stdiona_shutdown(struct gensio_accepter *accepter,
     return rv;
 }
 
+struct stdiona_waiters {
+    struct gensio_os_funcs *o;
+    gensio_generic_done done;
+    void *done_data;
+    struct gensio_runner *runner;
+};
+
 static void
-stdiona_set_accept_callback_enable(struct gensio_accepter *accepter,
-				   bool enabled)
+waiter_runner_cb(struct gensio_runner *runner, void *cb_data)
 {
+    struct stdiona_waiters *w = cb_data;
+
+    w->done(w->done_data);
+    w->o->free_runner(w->runner);
+    w->o->free(w->o, w);
+}
+
+static int
+stdiona_set_accept_callback_enable(struct gensio_accepter *accepter,
+				   bool enabled,
+				   gensio_generic_done done, void *done_data)
+{
+    struct stdiona_data *nadata = gensio_acc_get_gensio_data(accepter);
+    int rv = 0;
+
+    if (done) {
+	struct gensio_os_funcs *o = nadata->o;
+	struct stdiona_waiters *w = o->zalloc(o, sizeof(*w));
+
+	if (!w)
+	    rv = GE_NOMEM;
+	else {
+	    w->o = o;
+	    w->done = done;
+	    w->done_data = done_data;
+	    w->runner = o->alloc_runner(o, waiter_runner_cb, w);
+	    if (!w->runner) {
+		o->free(o, w);
+		rv = GE_NOMEM;
+	    } else {
+		o->run(w->runner);
+	    }
+	}
+    }
+
+    return rv;
 }
 
 static void
@@ -1289,8 +1331,7 @@ gensio_acc_stdio_func(struct gensio_accepter *acc, int func, int val,
 	return stdiona_shutdown(acc, done, data);
 
     case GENSIO_ACC_FUNC_SET_ACCEPT_CALLBACK:
-	stdiona_set_accept_callback_enable(acc, val);
-	return 0;
+	return stdiona_set_accept_callback_enable(acc, val, done, data);
 
     case GENSIO_ACC_FUNC_FREE:
 	stdiona_free(acc);
