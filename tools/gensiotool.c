@@ -80,7 +80,8 @@ io_open(struct gensio *io, int err, void *open_data)
 
     if (err) {
 	ginfo->can_close = false;
-	fprintf(stderr, "open error on %s: %s", ginfo->ios, strerror(err));
+	fprintf(stderr, "open error on %s: %s", ginfo->ios,
+		gensio_err_to_str(err));
 	gshutdown(ioinfo);
     } else {
 	ioinfo_set_ready(ioinfo, io);
