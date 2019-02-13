@@ -796,15 +796,20 @@ tcpna_disable(struct gensio_accepter *accepter)
     unsigned int i;
 
     tcpna_lock(nadata);
-    nadata->in_shutdown = false;
-    nadata->shutdown_done = NULL;
-    for (i = 0; i < nadata->nr_acceptfds; i++)
-	nadata->o->clear_fd_handlers_norpt(nadata->o, nadata->acceptfds[i].fd);
-    for (i = 0; i < nadata->nr_acceptfds; i++)
-	close(nadata->acceptfds[i].fd);
-    nadata->setup = false;
-    nadata->enabled = false;
-    tcpna_deref_and_unlock(nadata);
+    if (nadata->setup) {
+	nadata->in_shutdown = false;
+	nadata->shutdown_done = NULL;
+	for (i = 0; i < nadata->nr_acceptfds; i++)
+	    nadata->o->clear_fd_handlers_norpt(nadata->o,
+					       nadata->acceptfds[i].fd);
+	for (i = 0; i < nadata->nr_acceptfds; i++)
+	    close(nadata->acceptfds[i].fd);
+	nadata->setup = false;
+	nadata->enabled = false;
+	tcpna_deref_and_unlock(nadata);
+    } else {
+	tcpna_unlock(nadata);
+    }
 }
 
 int

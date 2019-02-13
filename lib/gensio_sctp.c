@@ -1067,15 +1067,19 @@ sctpna_disable(struct gensio_accepter *accepter)
     unsigned int i;
 
     sctpna_lock(nadata);
-    nadata->in_shutdown = false;
-    nadata->shutdown_done = NULL;
-    for (i = 0; i < nadata->nfds; i++)
-	nadata->o->clear_fd_handlers(nadata->o, nadata->fds[i].fd);
-    for (i = 0; i < nadata->nfds; i++)
-	close(nadata->fds[i].fd);
-    nadata->setup = false;
-    nadata->enabled = false;
-    sctpna_deref_and_unlock(nadata);
+    if (nadata->enabled) {
+	nadata->in_shutdown = false;
+	nadata->shutdown_done = NULL;
+	for (i = 0; i < nadata->nfds; i++)
+	    nadata->o->clear_fd_handlers(nadata->o, nadata->fds[i].fd);
+	for (i = 0; i < nadata->nfds; i++)
+	    close(nadata->fds[i].fd);
+	nadata->setup = false;
+	nadata->enabled = false;
+	sctpna_deref_and_unlock(nadata);
+    } else {
+	sctpna_unlock(nadata);
+    }
 }
 
 int
