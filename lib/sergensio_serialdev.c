@@ -267,11 +267,11 @@ set_termios_from_speed(struct termios *termctl, int speed, const char *others)
 
     if (*others) {
 	switch (*others) {
-	case 'N':
-	case 'E':
-	case 'O':
-	case 'M':
-	case 'S':
+	case 'N': case 'n':
+	case 'E': case 'e':
+	case 'O': case 'o':
+	case 'M': case 'm':
+	case 'S': case 's':
 	    break;
 	default:
 	    return -1;
@@ -1614,31 +1614,12 @@ serialdev_gensio_alloc(const char *devname, const char * const args[],
 	return GE_INVAL;
     }
 
-    if (!nouucplock_set) {
-	const char *slash = strrchr(devname, '/');
-
-	/*
-	 * If the user didn't force it, don't do uucp locking if the
-	 * devname is "tty", as in "/dev/tty".  That does all sorts
-	 * of bad things...
-	 */
-	if (slash)
-	    slash++;
-	else
-	    slash = devname;
-
-	sdata->no_uucp_lock = strcmp(slash, "tty") == 0;
-    }
-
     sdata->o = o;
+    sdata->fd = -1;
 
     sdata->timer = o->alloc_timer(o, serialdev_timeout, sdata);
     if (!sdata->timer)
 	goto out_nomem;
-
-    sdata->fd = -1;
-
-    sergensio_setup_defaults(o, sdata);
 
     sdata->devname = gensio_strdup(o, devname);
     if (!sdata->devname)
@@ -1653,6 +1634,25 @@ serialdev_gensio_alloc(const char *devname, const char * const args[],
 	    goto out_err;
     }
 
+    if (!nouucplock_set) {
+	const char *slash = strrchr(devname, '/');
+
+	/*
+	 * If the user didn't force it, don't do uucp locking if the
+	 * devname is "tty", as in "/dev/tty".  That does all sorts
+	 * of bad things...
+	 */
+	if (slash)
+	    slash++;
+	else
+	    slash = devname;
+
+	/* Don't do uucp locking on /dev/tty */
+	sdata->no_uucp_lock = strcmp(slash, "tty") == 0;
+    }
+
+    sergensio_setup_defaults(o, sdata);
+
     sdata->deferred_op_runner = o->alloc_runner(o, sterm_deferred_op, sdata);
     if (!sdata->deferred_op_runner)
 	goto out_nomem;
@@ -1661,7 +1661,8 @@ serialdev_gensio_alloc(const char *devname, const char * const args[],
     if (!sdata->lock)
 	goto out_nomem;
 
-    ll = fd_gensio_ll_alloc(o, -1, &sterm_fd_ll_ops, sdata, max_read_size);
+    ll = fd_gensio_ll_alloc(o, -1, &sterm_fd_ll_ops, sdata, max_read_size,
+			    sdata->write_only);
     if (!ll)
 	goto out_nomem;
 

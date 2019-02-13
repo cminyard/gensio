@@ -162,7 +162,7 @@ io_event(struct gensio *io, void *user_data, int event, int err,
 
     if (err) {
 	if (err != GE_REMCLOSE) 
-	    ioinfo_err(ioinfo, "%s", strerror(err));
+	    ioinfo_err(ioinfo, "%s", gensio_err_to_str(err));
 	ioinfo->uh->shutdown(ioinfo);
 	return 0;
     }
