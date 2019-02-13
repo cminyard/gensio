@@ -1300,8 +1300,9 @@ udp_gensio_alloc(struct addrinfo *ai, const char * const args[],
 
     err = gensio_get_defaultaddr(o, "udp", "laddr", false,
 				 IPPROTO_UDP, true, false, &lai);
-    if (err)
-	gensio_log(o, GENSIO_LOG_ERR, "Invalid default udp laddr, ignoring");
+    if (err != GE_NOTSUP)
+	gensio_log(o, GENSIO_LOG_ERR, "Invalid default udp laddr, ignoring: %s",
+		   gensio_err_to_str(err));
 
     for (i = 0; args && args[i]; i++) {
 	if (gensio_check_keyds(args[i], "readbuf", &max_read_size) > 0)

@@ -499,8 +499,9 @@ sctp_gensio_alloc(struct addrinfo *iai, const char * const args[],
 
     err = gensio_get_defaultaddr(o, "sctp", "laddr", false,
 				 IPPROTO_SCTP, true, false, &lai);
-    if (err)
-	gensio_log(o, GENSIO_LOG_ERR, "Invalid default sctp laddr, ignoring");
+    if (err != GE_NOTSUP)
+	gensio_log(o, GENSIO_LOG_ERR, "Invalid default sctp laddr,"
+		   " ignoring: %s", gensio_err_to_str(err));
 
 
     for (i = 0; args && args[i]; i++) {

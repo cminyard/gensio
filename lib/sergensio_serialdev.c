@@ -1626,13 +1626,8 @@ serialdev_gensio_alloc(const char *devname, const char * const args[],
 	goto out_nomem;
 
     comma = strchr(sdata->devname, ',');
-    if (comma) {
+    if (comma)
 	*comma++ = '\0';
-	sdata->parms = comma;
-	err = sergensio_process_parms(sdata);
-	if (err)
-	    goto out_err;
-    }
 
     if (!nouucplock_set) {
 	const char *slash = strrchr(devname, '/');
@@ -1653,6 +1648,12 @@ serialdev_gensio_alloc(const char *devname, const char * const args[],
 
     sergensio_setup_defaults(o, sdata);
 
+    if (comma) {
+	sdata->parms = comma;
+	err = sergensio_process_parms(sdata);
+	if (err)
+	    goto out_err;
+    }
     sdata->deferred_op_runner = o->alloc_runner(o, sterm_deferred_op, sdata);
     if (!sdata->deferred_op_runner)
 	goto out_nomem;
