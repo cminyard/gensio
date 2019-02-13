@@ -1607,8 +1607,10 @@ serialdev_gensio_alloc(const char *devname, const char * const args[],
 	if (gensio_check_keyds(args[i], "readbuf", &max_read_size) > 0)
 	    continue;
 	if (gensio_check_keybool(args[i], "nouucplock",
-				 &sdata->no_uucp_lock) > 0)
+				 &sdata->no_uucp_lock) > 0) {
 	    nouucplock_set = true;
+	    continue;
+	}
 	return GE_INVAL;
     }
 
