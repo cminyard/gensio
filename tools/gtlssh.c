@@ -114,7 +114,7 @@ getpassword(char *pw, gensiods *len)
     err = write(fd, prompt, strlen(prompt));
     if (err == -1) {
 	fprintf(stderr, "Error writing password prompt, giving up: %s\n",
-		strerror(err));
+		strerror(errno));
 	exit(1);
     }
     while (true) {
@@ -482,9 +482,9 @@ auth_event(struct gensio *io, void *user_data, int event, int ierr,
 	 */
 	if (ierr != GE_CERTNOTFOUND) {
 	    const char *errstr = "probably didn't match host certificate.";
-	    if (err == GE_CERTREVOKED)
+	    if (ierr == GE_CERTREVOKED)
 		errstr = "is revoked";
-	    else if (err == GE_CERTEXPIRED)
+	    else if (ierr == GE_CERTEXPIRED)
 		errstr = "is expired";
 	    fprintf(stderr, "Certificate for %s failed validation: %s\n",
 		    hostname, auxdata[0]);
@@ -890,8 +890,7 @@ main(int argc, char *argv[])
 	free(keyfilespec);
 
     gensio_free(userdata1.io);
-    if (userdata2.io)
-	gensio_free(userdata2.io);
+    gensio_free(userdata2.io);
 
     if (userdata2.ios)
 	free(userdata2.ios);

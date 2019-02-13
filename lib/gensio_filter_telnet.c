@@ -468,10 +468,8 @@ telnet_filter_timeout(struct gensio_filter *filter)
 }
 
 static void
-telnet_free(struct gensio_filter *filter)
+tfilter_free(struct telnet_filter *tfilter)
 {
-    struct telnet_filter *tfilter = filter_to_telnet(filter);
-
     if (tfilter->lock)
 	tfilter->o->free_lock(tfilter->lock);
     if (tfilter->working_telnet_cmds)
@@ -486,6 +484,14 @@ telnet_free(struct gensio_filter *filter)
 	gensio_filter_free_data(tfilter->filter);
     telnet_cleanup(&tfilter->tn_data);
     tfilter->o->free(tfilter->o, tfilter);
+}
+
+static void
+telnet_free(struct gensio_filter *filter)
+{
+    struct telnet_filter *tfilter = filter_to_telnet(filter);
+
+    tfilter_free(tfilter);
 }
 
 static int
@@ -653,7 +659,7 @@ gensio_telnet_filter_raw_alloc(struct gensio_os_funcs *o,
     return tfilter->filter;
 
  out_nomem:
-    telnet_free(tfilter->filter);
+    tfilter_free(tfilter);
     return NULL;
 }
 

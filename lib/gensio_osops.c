@@ -156,7 +156,7 @@ gensio_os_accept(struct gensio_os_funcs *o,
 {
     int rv = accept(fd, addr, addrlen);
 
-    if (rv > 0) {
+    if (rv >= 0) {
 	*newsock = rv;
 	return 0;
     }

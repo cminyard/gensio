@@ -556,7 +556,7 @@ setup_child_proc(struct stdiona_data *nadata)
 	goto out_err;
     }
     if (nadata->opid == 0) {
-	unsigned int i, openfiles = sysconf(_SC_OPEN_MAX);
+	int i, openfiles = sysconf(_SC_OPEN_MAX);
 
 	dup2(stdinpipe[0], 0);
 	dup2(stdoutpipe[1], 1);

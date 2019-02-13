@@ -599,7 +599,10 @@ tcp_acc_event(struct gensio_accepter *accepter, void *user_data,
     switch ((pid = fork())) {
     case -1:
 	syslog(LOG_ERR, "Could not fork: %s", strerror(errno));
-	gensio_close(io, NULL, NULL);
+	err = gensio_close(io, NULL, NULL);
+	if (err)
+	    syslog(LOG_ERR, "Could not close after fork: %s",
+		   gensio_err_to_str(err));
 	return 0;
 
     case 0:
@@ -856,16 +859,19 @@ main(int argc, char *argv[])
 	}
 
 	rv = str_to_gensio_accepter(s, o, tcp_acc_event, ioinfo1, &sctp_acc);
-	free(s);
-	if (rv == GE_NOTSUP)
+	if (rv == GE_NOTSUP) {
 	    /* No SCTP support */
+	    free(s);
 	    goto start_io;
+	}
 
 	if (rv) {
 	    fprintf(stderr, "Could not allocate %s: %s\n", s,
 		    gensio_err_to_str(rv));
+	    free(s);
 	    return 1;
 	}
+	free(s);
 
 	rv = gensio_acc_startup(sctp_acc);
 	if (rv) {

@@ -1005,8 +1005,9 @@ certauth_try_connect(struct gensio_filter *filter, struct timeval *timeout)
 					 (unsigned char *) sfilter->password,
 					 &dummy_len, NULL);
 	    certauth_lock(sfilter);
-	    if (!err) {
-		if (err && err != GE_NOTSUP) {
+	    if (err) {
+		memset(sfilter->password, 0, sfilter->password_len);
+		if (err != GE_NOTSUP) {
 		    gca_log_err(sfilter, "Error fetching password: %s",
 				gensio_err_to_str(err));
 		    sfilter->pending_err = err;
@@ -1020,8 +1021,7 @@ certauth_try_connect(struct gensio_filter *filter, struct timeval *timeout)
 	certauth_write_byte(sfilter, CERTAUTH_PASSWORD_DATA);
 	certauth_write_u16(sfilter, sfilter->password_len);
 	if (sfilter->password_len)
-	    certauth_write(sfilter, sfilter->password,
-			   sfilter->password_len);
+	    certauth_write(sfilter, sfilter->password, sfilter->password_len);
 	if (password_requested)
 	    memset(sfilter->password, 0, sfilter->password_len);
 
@@ -1498,10 +1498,8 @@ certauth_cleanup(struct gensio_filter *filter)
 }
 
 static void
-certauth_free(struct gensio_filter *filter)
+sfilter_free(struct certauth_filter *sfilter)
 {
-    struct certauth_filter *sfilter = filter_to_certauth(filter);
-
     if (sfilter->cert)
 	X509_free(sfilter->cert);
     if (sfilter->sk_ca)
@@ -1531,6 +1529,14 @@ certauth_free(struct gensio_filter *filter)
     if (sfilter->verify_store)
 	X509_STORE_free(sfilter->verify_store);
     sfilter->o->free(sfilter->o, sfilter);
+}
+
+static void
+certauth_free(struct gensio_filter *filter)
+{
+    struct certauth_filter *sfilter = filter_to_certauth(filter);
+
+    sfilter_free(sfilter);
 }
 
 /* In gensio_filter_ssl.c, semi-private. */
@@ -1796,7 +1802,7 @@ gensio_certauth_filter_raw_alloc(struct gensio_os_funcs *o,
  out_nomem:
     rv = GE_NOMEM;
  out_err:
-    certauth_free(sfilter->filter);
+    sfilter_free(sfilter);
     return rv;
 }
 

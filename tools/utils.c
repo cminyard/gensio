@@ -54,14 +54,13 @@ alloc_vsprintf(const char *fmt, va_list va)
 {
     va_list va2;
     int len;
-    char c, *str;
+    char c[1], *str;
 
     va_copy(va2, va);
-    len = vsnprintf(&c, 0, fmt, va);
+    len = vsnprintf(c, 0, fmt, va);
     str = malloc(len + 1);
-    if (!str)
-	return NULL;
-    vsnprintf(str, len + 1, fmt, va2);
+    if (str)
+	vsnprintf(str, len + 1, fmt, va2);
     va_end(va2);
     return str;
 }

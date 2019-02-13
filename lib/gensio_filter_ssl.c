@@ -548,10 +548,8 @@ ssl_cleanup(struct gensio_filter *filter)
 }
 
 static void
-ssl_free(struct gensio_filter *filter)
+sfilter_free(struct ssl_filter *sfilter)
 {
-    struct ssl_filter *sfilter = filter_to_ssl(filter);
-
     if (sfilter->verify_store)
 	X509_STORE_free(sfilter->verify_store);
     if (sfilter->remcert)
@@ -572,6 +570,14 @@ ssl_free(struct gensio_filter *filter)
     if (sfilter->filter)
 	gensio_filter_free_data(sfilter->filter);
     sfilter->o->free(sfilter->o, sfilter);
+}
+
+static void
+ssl_free(struct gensio_filter *filter)
+{
+    struct ssl_filter *sfilter = filter_to_ssl(filter);
+
+    return sfilter_free(sfilter);
 }
 
 int
@@ -935,7 +941,7 @@ gensio_ssl_filter_raw_alloc(struct gensio_os_funcs *o,
     return sfilter->filter;
 
  out_nomem:
-    ssl_free(sfilter->filter);
+    sfilter_free(sfilter);
     return NULL;
 }
 
