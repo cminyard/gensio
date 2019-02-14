@@ -129,6 +129,7 @@ getpassword(char *pw, gensiods *len)
 	if (pos < *len)
 	    pw[pos++] = c;
     }
+    err = 0;
     printf("\n");
     if (pos < *len)
 	pw[pos++] = '\0';
