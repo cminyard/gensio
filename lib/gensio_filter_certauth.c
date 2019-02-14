@@ -903,9 +903,9 @@ certauth_try_connect(struct gensio_filter *filter, struct timeval *timeout)
 	break;
 
     case CERTAUTH_CHALLENGE_RESPONSE:
-	if (!sfilter->cert && !sfilter->response_result) {
+	if (!sfilter->cert || !sfilter->response_result) {
 	    /* 
-	     * Remote end didn't send certificate and challenge
+	     * Remote end didn't send certificate and/or challenge
 	     * response, try password.
 	     */
 	    goto try_password;
@@ -1032,16 +1032,16 @@ certauth_try_connect(struct gensio_filter *filter, struct timeval *timeout)
 	break;
 
     case CERTAUTH_PASSWORD:
-	if (!sfilter->password && !sfilter->result) {
-	    /* Remote end didn't send a password. */
+	if (sfilter->result)
+	    /* Already verified, the rest was for show. */
+	    goto finish_result;
+
+	if (!sfilter->disable_password && !sfilter->password) {
+	    /* Remote end didn't send a password and we requested one. */
 	    gca_log_err(sfilter, "Remote client didn't send password");
 	    sfilter->pending_err = GE_DATAMISSING;
 	    goto finish_result;
 	}
-
-	if (sfilter->result)
-	    /* Already verified, the rest was for show. */
-	    goto finish_result;
 
 	if (!sfilter->password || !*sfilter->password)
 	    goto finish_result;
