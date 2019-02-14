@@ -52,8 +52,9 @@ gerr(struct ioinfo *ioinfo, char *fmt, va_list ap)
 {
     struct gdata *ginfo = ioinfo_userdata(ioinfo);
 
-    fprintf(stderr, "Error on %s: \n", ginfo->ios);
+    fprintf(stderr, "Error on %s: ", ginfo->ios);
     vfprintf(stderr, fmt, ap);
+    fprintf(stderr, "\r\n");
 }
 
 static void
