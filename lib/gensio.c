@@ -1357,6 +1357,7 @@ add_default_gensios(void *cb_data)
     register_gensio(o, "certauth", str_to_certauth_gensio);
     register_gensio(o, "telnet", str_to_telnet_gensio);
     register_gensio(o, "serialdev", str_to_serialdev_gensio);
+    register_gensio(o, "echo", str_to_echo_gensio);
 #ifdef HAVE_OPENIPMI
     register_gensio(o, "ipmisol", str_to_ipmisol_gensio);
 #endif

@@ -72,6 +72,10 @@ echon_finish_free(struct echon_data *ndata)
 {
     struct gensio_os_funcs *o = ndata->o;
 
+    if (ndata->io)
+	gensio_data_free(ndata->io);
+    if (ndata->read_data)
+	o->free(o, ndata->read_data);
     if (ndata->deferred_op_runner)
 	o->free_runner(ndata->deferred_op_runner);
     if (ndata->lock)

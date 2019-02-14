@@ -345,6 +345,20 @@ to go through the accept process.
 Send standard error output to standard out instead of having a separate
 channel for it.
 
+.SH "echo"
+
+connecting = 
+.B echo[(options)]
+
+The stdio gensio just echos back all the data written to it.  Useful
+for testing.
+
+In addition to readbuf, a connecting stdio takes the following options:
+
+.TP
+.B noecho[=true|false]
+Instead of echoing the data, just become a data sink.
+
 .SH "dummy"
 
 accepter = 
