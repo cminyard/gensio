@@ -853,6 +853,11 @@ int str_to_stdio_gensio_accepter(const char *str, const char * const args[],
 				 gensio_accepter_event cb,
 				 void *user_data,
 				 struct gensio_accepter **new_acc);
+int str_to_dummy_gensio_accepter(const char *str, const char * const args[],
+				 struct gensio_os_funcs *o,
+				 gensio_accepter_event cb,
+				 void *user_data,
+				 struct gensio_accepter **acc_gensio);
 int str_to_ssl_gensio_accepter(const char *str, const char * const args[],
 			       struct gensio_os_funcs *o,
 			       gensio_accepter_event cb,
@@ -946,6 +951,12 @@ int sctp_gensio_accepter_alloc(struct addrinfo *ai, const char * const args[],
 			       struct gensio_accepter **accepter);
 
 int stdio_gensio_accepter_alloc(const char * const args[],
+				struct gensio_os_funcs *o,
+				gensio_accepter_event cb,
+				void *user_data,
+				struct gensio_accepter **accepter);
+
+int dummy_gensio_accepter_alloc(const char * const args[],
 				struct gensio_os_funcs *o,
 				gensio_accepter_event cb,
 				void *user_data,

@@ -1240,6 +1240,7 @@ add_default_gensio_accepters(void *cb_data)
     register_gensio_accepter(o, "ssl", str_to_ssl_gensio_accepter);
     register_gensio_accepter(o, "certauth", str_to_certauth_gensio_accepter);
     register_gensio_accepter(o, "telnet", str_to_telnet_gensio_accepter);
+    register_gensio_accepter(o, "dummy", str_to_dummy_gensio_accepter);
 }
 
 int
@@ -2073,19 +2074,18 @@ gensio_set_default(struct gensio_os_funcs *o,
 
     case GENSIO_DEFAULT_BOOL:
 	if (strval) {
-	    intval = strtoul(strval, &end, 10);
-	    if (end == strval || *end) {
-		err = GE_INVAL;
-		goto out_unlock;
-	    } else if (strcmp(strval, "true") == 0 ||
-		     strcmp(strval, "TRUE") == 0)
+	    if (strcmp(strval, "true") == 0 ||
+			strcmp(strval, "TRUE") == 0) {
 		intval = 1;
-	    else if (strcmp(strval, "false") == 0 ||
-		     strcmp(strval, "FALSE") == 0)
+	    } else if (strcmp(strval, "false") == 0 ||
+		       strcmp(strval, "FALSE") == 0) {
 		intval = 0;
-	    else {
-		err = GE_INVAL;
-		goto out_unlock;
+	    } else {
+		intval = strtoul(strval, &end, 10);
+		if (end == strval || *end) {
+		    err = GE_INVAL;
+		    goto out_unlock;
+		}
 	    }
 	} else {
 	    intval = !!intval;

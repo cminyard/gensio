@@ -345,6 +345,16 @@ to go through the accept process.
 Send standard error output to standard out instead of having a separate
 channel for it.
 
+.SH "dummy"
+
+accepter = 
+.B dummy
+
+The dummy gensio accepter is useful for place holding, where you don't
+want a real working accepter but need to put something.
+
+As you might guess, it doesn't do anything.
+
 .SH "ipmisol"
 
 .B ipmisol[(options)],<openipmi arguments>[,ipmisol option[,...]]
