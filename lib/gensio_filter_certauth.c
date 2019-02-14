@@ -1335,12 +1335,14 @@ certauth_ll_write(struct gensio_filter *filter,
 	certauth_unlock(sfilter);
 	err = gensio_filter_do_event(sfilter->filter, GENSIO_EVENT_READ, 0,
 				     buf, &buflen, auxdata);
-	*rcount = buflen;
+	if (rcount)
+	    *rcount = buflen;
 	return err;
     }
 
     if (sfilter->pending_err) {
-	*rcount = buflen;
+	if (rcount)
+	    *rcount = buflen;
 	goto out_unlock;
     }
     if (!sfilter->curr_msg_type) {
@@ -1434,7 +1436,8 @@ certauth_ll_write(struct gensio_filter *filter,
     err = sfilter->pending_err;
     certauth_unlock(sfilter);
  out:
-    *rcount = obuf - buf;
+    if (rcount)
+	*rcount = obuf - buf;
 
     return err;
 }

@@ -371,7 +371,8 @@ ssl_ul_write(struct gensio_filter *filter,
 	    buflen = sfilter->max_write_size;
 	memcpy(sfilter->write_data, buf, buflen);
 	sfilter->write_data_len = buflen;
-	*rcount = buflen;
+	if (rcount)
+	    *rcount = buflen;
 	buflen = 0;
     }
 
@@ -451,7 +452,8 @@ ssl_ll_write(struct gensio_filter *filter,
 	/* FIXME - do we need error handling? */
 	if (wrlen < 0)
 	    wrlen = 0;
-	*rcount = wrlen;
+	if (rcount)
+	    *rcount = wrlen;
     }
 
  process_more:
