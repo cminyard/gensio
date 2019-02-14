@@ -28,7 +28,7 @@
 #include <gensio/gensio_class.h>
 #include <gensio/gensio_base.h>
 
-#ifdef DEBUG_ON
+#ifdef DEBUG_DATA
 #define ENABLE_PRBUF 1
 #include <utils/utils.h>
 #endif
@@ -40,6 +40,18 @@ enum basen_state { BASEN_CLOSED,
 		   BASEN_CLOSE_WAIT_DRAIN,
 		   BASEN_IN_FILTER_CLOSE,
 		   BASEN_IN_LL_CLOSE };
+
+#ifdef DEBUG_STATE
+static char *basen_statestr[] = {
+    "CLOSED",
+    "IN_LL_OPEN",
+    "IN_FILTER_OPEN",
+    "OPEN",
+    "CLOSE_WAIT_DRAIN",
+    "IN_FILTER_CLOSE",
+    "IN_LL_CLOSE"
+};
+#endif
 
 struct basen_data {
     struct gensio *io;
@@ -152,6 +164,13 @@ basen_ref(struct basen_data *ndata)
     ndata->refcount++;
 }
 
+static void
+basen_lock_and_ref(struct basen_data *ndata)
+{
+    basen_lock(ndata);
+    basen_ref(ndata);
+}
+
 /*
  * This can *only* be called if the refcount is guaranteed not to reach
  * zero.
@@ -183,6 +202,25 @@ basen_deref_and_unlock(struct basen_data *ndata)
 	basen_finish_free(ndata);
     }
 }
+
+#ifdef DEBUG_STATE
+static void
+i_basen_set_state(struct basen_data *ndata, enum basen_state state, int line)
+{
+    printf("Setting state for %s to %s at line %d\r\n",
+	   gensio_get_type(ndata->io, 0), basen_statestr[state], line);
+    ndata->state = state;
+}
+
+#define basen_set_state(ndata, state) \
+    i_basen_set_state(ndata, state, __LINE__)
+#else
+static void
+basen_set_state(struct basen_data *ndata, enum basen_state state)
+{
+    ndata->state = state;
+}
+#endif
 
 static bool
 filter_ul_read_pending(struct basen_data *ndata)
@@ -277,7 +315,7 @@ static int
 ll_write(struct basen_data *ndata, gensiods *rcount,
 	 const unsigned char *buf, gensiods buflen, const char *const *auxdata)
 {
-#ifdef DEBUG_ON
+#ifdef DEBUG_DATA
     printf("LL write:");
     prbuf(buf, buflen);
 #endif
@@ -301,10 +339,9 @@ ll_close(struct basen_data *ndata, gensio_ll_close_done done, void *close_data)
 {
     int err;
 
+    basen_set_state(ndata, BASEN_IN_LL_CLOSE);
     err = gensio_ll_close(ndata->ll, done, close_data);
-    if (err == GE_INPROGRESS) {
-	basen_ref(ndata);
-    } else {
+    if (err != GE_INPROGRESS) {
 	ndata->deferred_close = true;
 	basen_sched_deferred_op(ndata);
     }
@@ -459,7 +496,8 @@ static void
 basen_finish_close(struct basen_data *ndata)
 {
     filter_cleanup(ndata);
-    ndata->state = BASEN_CLOSED;
+    basen_set_state(ndata, BASEN_CLOSED);
+    basen_deref(ndata);
     if (ndata->close_done) {
 	basen_unlock(ndata);
 	ndata->close_done(ndata->io, ndata->close_data);
@@ -471,10 +509,11 @@ static void
 basen_finish_open(struct basen_data *ndata, int err)
 {
     if (err) {
-	ndata->state = BASEN_CLOSED;
+	basen_set_state(ndata, BASEN_CLOSED);
+	basen_deref(ndata);
 	filter_cleanup(ndata);
     } else {
-	ndata->state = BASEN_OPEN;
+	basen_set_state(ndata, BASEN_OPEN);
 	if (ndata->timer_start_pending)
 	    ndata->o->start_timer(ndata->timer, &ndata->pending_timer);
     }
@@ -491,7 +530,7 @@ basen_ll_close_done(void *cb_data, void *close_data)
 {
     struct basen_data *ndata = cb_data;
 
-    basen_lock(ndata);
+    basen_lock_and_ref(ndata);
     basen_finish_close(ndata);
     basen_deref_and_unlock(ndata);
 }
@@ -501,7 +540,7 @@ basen_ll_close_on_err(void *cb_data, void *close_data)
 {
     struct basen_data *ndata = cb_data;
 
-    basen_lock(ndata);
+    basen_lock_and_ref(ndata);
     basen_finish_open(ndata, (long) close_data);
     basen_deref_and_unlock(ndata);
 }
@@ -530,17 +569,13 @@ basen_try_connect(struct basen_data *ndata)
 	return;
     }
 
-    basen_deref(ndata);
-
     if (!err)
 	err = filter_check_open_done(ndata);
 
-    if (err) {
-	ndata->state = BASEN_IN_LL_CLOSE;
+    if (err)
 	ll_close(ndata, basen_ll_close_on_err, (void *) (long) err);
-    } else {
+    else
 	basen_finish_open(ndata, 0);
-    }
 }
 
 static void
@@ -548,7 +583,7 @@ basen_ll_open_done(void *cb_data, int err, void *open_data)
 {
     struct basen_data *ndata = cb_data;
 
-    basen_lock(ndata);
+    basen_lock_and_ref(ndata);
     if (err) {
 	basen_finish_open(ndata, err);
     } else {
@@ -564,12 +599,7 @@ basen_ll_open_done(void *cb_data, int err, void *open_data)
 		gensio_set_is_encrypted(ndata->io, true);
 	}
 
-	/*
-	 * We will lose the reference for the LL below, add one for the
-	 * filter open.
-	 */
-	basen_ref(ndata);
-	ndata->state = BASEN_IN_FILTER_OPEN;
+	basen_set_state(ndata, BASEN_IN_FILTER_OPEN);
 	basen_try_connect(ndata);
 	basen_set_ll_enables(ndata);
     }
@@ -581,7 +611,7 @@ basen_open(struct basen_data *ndata, gensio_done_err open_done, void *open_data)
 {
     int err = GE_INUSE;
 
-    basen_lock(ndata);
+    basen_lock_and_ref(ndata);
     if (ndata->state == BASEN_CLOSED) {
 	err = filter_setup(ndata);
 	if (err)
@@ -600,11 +630,11 @@ basen_open(struct basen_data *ndata, gensio_done_err open_done, void *open_data)
 	err = ll_open(ndata, basen_ll_open_done, ndata);
 	if (err == 0) {
 	    basen_ref(ndata);
-	    ndata->state = BASEN_IN_FILTER_OPEN;
+	    basen_set_state(ndata, BASEN_IN_FILTER_OPEN);
 	    ndata->deferred_open = true;
 	    basen_sched_deferred_op(ndata);
 	} else if (err == GE_INPROGRESS) {
-	    ndata->state = BASEN_IN_LL_OPEN;
+	    basen_set_state(ndata, BASEN_IN_LL_OPEN);
 	    basen_ref(ndata);
 	    err = 0;
 	} else {
@@ -613,7 +643,7 @@ basen_open(struct basen_data *ndata, gensio_done_err open_done, void *open_data)
 	}	    
     }
  out_err:
-    basen_unlock(ndata);
+    basen_deref_and_unlock(ndata);
 
     return err;
 }
@@ -642,7 +672,7 @@ basen_open_nochild(struct basen_data *ndata,
 	ndata->open_data = open_data;
 
 	basen_ref(ndata);
-	ndata->state = BASEN_IN_FILTER_OPEN;
+	basen_set_state(ndata, BASEN_IN_FILTER_OPEN);
 	ndata->deferred_open = true;
 	basen_sched_deferred_op(ndata);
 	/* Call the first try open from the xmit handler. */
@@ -673,7 +703,6 @@ basen_try_close(struct basen_data *ndata)
     }
 
     /* FIXME - error handling? */
-    ndata->state = BASEN_IN_LL_CLOSE;
     ll_close(ndata, basen_ll_close_done, NULL);
 }
 
@@ -683,13 +712,12 @@ basen_i_close(struct basen_data *ndata,
 {
     ndata->close_done = close_done;
     ndata->close_data = close_data;
-    if (ndata->ll_err_occurred) {
-	ndata->state = BASEN_IN_LL_CLOSE;
+    if (ndata->ll_err_occurred || ndata->state == BASEN_IN_LL_OPEN) {
 	ll_close(ndata, basen_ll_close_done, NULL);
     } else if (filter_ll_write_pending(ndata)) {
-	ndata->state = BASEN_CLOSE_WAIT_DRAIN;
+	basen_set_state(ndata, BASEN_CLOSE_WAIT_DRAIN);
     } else {
-	ndata->state = BASEN_IN_FILTER_CLOSE;
+	basen_set_state(ndata, BASEN_IN_FILTER_CLOSE);
 	basen_try_close(ndata);
     }
     basen_set_ll_enables(ndata);
@@ -705,8 +733,6 @@ basen_close(struct basen_data *ndata, gensio_done close_done, void *close_data)
 	if (ndata->state == BASEN_IN_FILTER_OPEN ||
 			ndata->state == BASEN_IN_LL_OPEN) {
 	    basen_i_close(ndata, close_done, close_data);
-	    /* Lose the ref we get for being in filter or ll open state. */
-	    basen_deref(ndata);
 	} else {
 	    err = GE_NOTREADY;
 	}
@@ -887,10 +913,13 @@ gensio_base_func(struct gensio *io, int func, gensiods *count,
 	return rv2;
 
     case GENSIO_FUNC_DISABLE:
-	ndata->state = BASEN_CLOSED;
-	if (ndata->filter)
-	    gensio_filter_cleanup(ndata->filter);
-	gensio_ll_disable(ndata->ll);
+	if (ndata->state != BASEN_CLOSED) {
+	    basen_set_state(ndata, BASEN_CLOSED);
+	    basen_deref(ndata);
+	    if (ndata->filter)
+		gensio_filter_cleanup(ndata->filter);
+	    gensio_ll_disable(ndata->ll);
+	}
 	return 0;
 
     default:
@@ -907,11 +936,11 @@ basen_ll_read(void *cb_data, int readerr,
     struct gensio *io = ndata->io;
     unsigned char *buf = ibuf;
 
-#ifdef DEBUG_ON
+#ifdef DEBUG_DATA
     printf("LL read:");
     prbuf(buf, buflen);
 #endif
-    basen_lock(ndata);
+    basen_lock_and_ref(ndata);
     ll_set_read_callback_enable(ndata, false);
     if (readerr) {
 	/* Do this here so the user can modify it. */
@@ -919,12 +948,9 @@ basen_ll_read(void *cb_data, int readerr,
 	ndata->ll_err_occurred = true;
 	if (ndata->state == BASEN_IN_FILTER_OPEN ||
 			ndata->state == BASEN_IN_LL_OPEN) {
-	    ndata->state = BASEN_IN_LL_CLOSE;
-	    basen_deref(ndata);
 	    ll_close(ndata, basen_ll_close_on_err, (void *) (long) readerr);
 	} else if (ndata->state == BASEN_CLOSE_WAIT_DRAIN ||
 			ndata->state == BASEN_IN_FILTER_CLOSE) {
-	    ndata->state = BASEN_IN_LL_CLOSE;
 	    ll_close(ndata, basen_ll_close_done, NULL);
 	} else if (gensio_get_cb(io)) {
 	    gensiods len = 0;
@@ -965,7 +991,7 @@ basen_ll_read(void *cb_data, int readerr,
  out_finish:
     basen_set_ll_enables(ndata);
  out_unlock:
-    basen_unlock(ndata);
+    basen_deref_and_unlock(ndata);
 
     return buf - ibuf;
 }
@@ -976,7 +1002,7 @@ basen_ll_write_ready(void *cb_data)
     struct basen_data *ndata = cb_data;
     int err;
 
-    basen_lock(ndata);
+    basen_lock_and_ref(ndata);
     ll_set_write_callback_enable(ndata, false);
     if (filter_ll_write_pending(ndata)) {
 	err = filter_ul_write(ndata, basen_write_data_handler, NULL, NULL, 0,
@@ -987,7 +1013,7 @@ basen_ll_write_ready(void *cb_data)
 
     if (ndata->state == BASEN_CLOSE_WAIT_DRAIN &&
 		!filter_ll_write_pending(ndata))
-	ndata->state = BASEN_IN_FILTER_CLOSE;
+	basen_set_state(ndata, BASEN_IN_FILTER_CLOSE);
     if (ndata->state == BASEN_IN_FILTER_OPEN)
 	basen_try_connect(ndata);
     if (ndata->state == BASEN_IN_FILTER_CLOSE)
@@ -1002,7 +1028,7 @@ basen_ll_write_ready(void *cb_data)
     ndata->tmp_xmit_enabled = false;
 
     basen_set_ll_enables(ndata);
-    basen_unlock(ndata);
+    basen_deref_and_unlock(ndata);
 }
 
 static gensiods
@@ -1109,14 +1135,14 @@ gensio_i_alloc(struct gensio_os_funcs *o,
     gensio_set_is_client(ndata->io, is_client);
     gensio_ll_set_callback(ll, gensio_ll_base_cb, ndata);
     if (is_client)
-	ndata->state = BASEN_CLOSED;
+	basen_set_state(ndata, BASEN_CLOSED);
     else {
 	if (filter_setup(ndata))
 	    goto out_nomem;
 
 	ndata->open_done = open_done;
 	ndata->open_data = open_data;
-	ndata->state = BASEN_IN_FILTER_OPEN;
+	basen_set_state(ndata, BASEN_IN_FILTER_OPEN);
 	basen_ref(ndata);
 	/* Call the first try open from the xmit handler. */
 	ndata->tmp_xmit_enabled = true;
