@@ -274,7 +274,7 @@ main(int argc, char *argv[])
 	return 1;
     }
 
-    ioinfo2 = alloc_ioinfo(o, 0, sh2, subdata1, &guh, &userdata2);
+    ioinfo2 = alloc_ioinfo(o, 0, sh2, subdata2, &guh, &userdata2);
     if (!ioinfo2) {
 	fprintf(stderr, "Could not allocate ioinfo 2\n");
 	return 1;
