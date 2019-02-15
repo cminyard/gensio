@@ -661,6 +661,8 @@ sctpna_finish_free(struct sctpna_data *nadata)
 	gensio_free_addrinfo(nadata->o, nadata->ai);
     if (nadata->acc)
 	gensio_acc_data_free(nadata->acc);
+    if (nadata->fds)
+	nadata->o->free(nadata->o, nadata->fds);
     nadata->o->free(nadata->o, nadata);
 }
 
@@ -1072,7 +1074,7 @@ sctpna_disable(struct gensio_accepter *accepter)
 	nadata->in_shutdown = false;
 	nadata->shutdown_done = NULL;
 	for (i = 0; i < nadata->nfds; i++)
-	    nadata->o->clear_fd_handlers(nadata->o, nadata->fds[i].fd);
+	    nadata->o->clear_fd_handlers_norpt(nadata->o, nadata->fds[i].fd);
 	for (i = 0; i < nadata->nfds; i++)
 	    close(nadata->fds[i].fd);
 	nadata->setup = false;
