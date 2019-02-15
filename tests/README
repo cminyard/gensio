@@ -1,0 +1,8 @@
+This directory holds tests for gensio.  Note that there are also
+extensive tests in ser2net.  These tests are more basic and
+functional.
+
+These tests require the linux serial simulation module in
+linux-serialsim in this package.  You must load that module and the
+user running the test must be able to access the serial ports
+(generally you must be in the dialout group).
