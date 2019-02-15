@@ -246,6 +246,25 @@ int register_gensio(struct gensio_os_funcs *o,
 		    const char *name, str_to_gensio_handler handler);
 
 /*
+ * Handler registered so that str_to_gensio_child can process a filter
+ * gensio with a child.  This is so users can create their own gensio
+ * filter types.
+ */
+typedef int (*str_to_gensio_child_handler)(struct gensio *child,
+					   const char * const args[],
+					   struct gensio_os_funcs *o,
+					   gensio_event cb, void *user_data,
+					   struct gensio **new_gensio);
+
+/*
+ * Add a filter gensio to the set of gensios.
+ */
+int register_filter_gensio(struct gensio_os_funcs *o,
+			   const char *name, str_to_gensio_handler handler,
+			   str_to_gensio_child_handler chandler);
+
+
+/*
  * Take a string in the form [ipv4|ipv6,][hostname,]port and convert
  * it to an addrinfo structure.  If this returns success, the user
  * must free rai with gensio_free_addrinfo().  If socktype or protocol

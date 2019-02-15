@@ -346,6 +346,24 @@ struct waiter { };
 	return io;
     }
 
+    gensio(struct gensio *child, struct gensio_os_funcs *o, char *str,
+	   swig_cb *handler) {
+	int rv;
+	struct gensio_data *data;
+	struct gensio *io = NULL;
+
+	data = alloc_gensio_data(o, handler);
+	if (!data)
+	    return NULL;
+
+	rv = str_to_gensio_child(child, str, o, gensio_child_event, data, &io);
+	if (rv) {
+	    free_gensio_data(data);
+	    err_handle("gensio alloc", rv);
+	}
+	return io;
+    }
+
     ~gensio()
     {
 	struct gensio_data *data = gensio_get_user_data(self);

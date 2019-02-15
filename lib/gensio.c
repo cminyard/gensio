@@ -1337,6 +1337,7 @@ int str_to_gensio_accepter(const char *str,
 struct registered_gensio {
     const char *name;
     str_to_gensio_handler handler;
+    str_to_gensio_child_handler chandler;
     struct registered_gensio *next;
 };
 
@@ -1357,9 +1358,11 @@ add_default_gensios(void *cb_data)
     register_gensio(o, "sctp", str_to_sctp_gensio);
     register_gensio(o, "stdio", str_to_stdio_gensio);
     register_gensio(o, "pty", str_to_pty_gensio);
-    register_gensio(o, "ssl", str_to_ssl_gensio);
-    register_gensio(o, "certauth", str_to_certauth_gensio);
-    register_gensio(o, "telnet", str_to_telnet_gensio);
+    register_filter_gensio(o, "ssl", str_to_ssl_gensio, ssl_gensio_alloc);
+    register_filter_gensio(o, "certauth", str_to_certauth_gensio,
+			   certauth_gensio_alloc);
+    register_filter_gensio(o, "telnet", str_to_telnet_gensio,
+			   telnet_gensio_alloc);
     register_gensio(o, "serialdev", str_to_serialdev_gensio);
     register_gensio(o, "echo", str_to_echo_gensio);
 #ifdef HAVE_OPENIPMI
@@ -1368,8 +1371,9 @@ add_default_gensios(void *cb_data)
 }
 
 int
-register_gensio(struct gensio_os_funcs *o,
-		const char *name, str_to_gensio_handler handler)
+register_filter_gensio(struct gensio_os_funcs *o,
+		       const char *name, str_to_gensio_handler handler,
+		       str_to_gensio_child_handler chandler)
 {
     struct registered_gensio *n;
 
@@ -1381,11 +1385,19 @@ register_gensio(struct gensio_os_funcs *o,
 
     n->name = name;
     n->handler = handler;
+    n->chandler = chandler;
     o->lock(reg_gensio_lock);
     n->next = reg_gensios;
     reg_gensios = n;
     o->unlock(reg_gensio_lock);
     return 0;
+}
+
+int
+register_gensio(struct gensio_os_funcs *o,
+		const char *name, str_to_gensio_handler handler)
+{
+    return register_filter_gensio(o, name, handler, NULL);
 }
 
 int
@@ -1450,6 +1462,41 @@ str_to_gensio(const char *str,
 	gensio_argv_free(o, args);
 
     return err;
+}
+
+int
+str_to_gensio_child(struct gensio *child,
+		    const char *str,
+		    struct gensio_os_funcs *o,
+		    gensio_event cb, void *user_data,
+		    struct gensio **gensio)
+{
+    int err = 0;
+    const char **args = NULL;
+    struct registered_gensio *r;
+    unsigned int len;
+
+    while (isspace(*str))
+	str++;
+    for (r = reg_gensios; r; r = r->next) {
+	len = strlen(r->name);
+	if (strncmp(r->name, str, len) != 0 ||
+			(str[len] != '(' && str[len]))
+	    continue;
+
+	if (!r->chandler)
+	    return GE_INVAL;
+
+	str += len;
+	err = gensio_scan_args(o, &str, NULL, &args);
+	if (!err)
+	    err = r->chandler(child, args, o, cb, user_data, gensio);
+	if (args)
+	    gensio_argv_free(o, args);
+	return err;
+    }
+
+    return GE_INVAL;
 }
 
 struct addrinfo *

@@ -320,6 +320,15 @@ int gensio_open(struct gensio *io, gensio_done_err open_done, void *open_data);
 int gensio_open_s(struct gensio *io);
 
 /*
+ * Allocate a filter genio via string with the given child gensio.
+ * You should use the gensio_open_nochild() function to open it
+ * if the child gensio is already open.
+ */
+int str_to_gensio_child(struct gensio *child, const char *str,
+			struct gensio_os_funcs *o,
+			gensio_event cb, void *user_data,
+			struct gensio **gensio);
+/*
  * Like gensio_open, but this assumes any child gensios are already
  * open and just opens this gensio.  This can be useful if you have
  * a gensio that is already opened and you want to stack another
@@ -1025,8 +1034,23 @@ int pty_gensio_alloc(const char * const argv[], const char * const args[],
 		     gensio_event cb, void *user_data,
 		     struct gensio **new_gensio);
 
+int serialdev_gensio_alloc(const char *devname, const char * const args[],
+			   struct gensio_os_funcs *o,
+			   gensio_event cb, void *user_data,
+			   struct gensio **io);
+
+int ipmisol_gensio_alloc(const char *devname, const char * const args[],
+			 struct gensio_os_funcs *o,
+			 gensio_event cb, void *user_data,
+			 struct gensio **io);
+
+int echo_gensio_alloc(const char * const argv[], const char * const args[],
+		      struct gensio_os_funcs *o,
+		      gensio_event cb, void *user_data,
+		      struct gensio **new_gensio);
+
 /*
- * Make an SSL connection over another gensio.
+ * Filter gensios
  */
 int ssl_gensio_alloc(struct gensio *child, const char * const args[],
 		     struct gensio_os_funcs *o,
@@ -1038,24 +1062,10 @@ int certauth_gensio_alloc(struct gensio *child, const char * const args[],
 			  gensio_event cb, void *user_data,
 			  struct gensio **net);
 
-int serialdev_gensio_alloc(const char *devname, const char * const args[],
-			   struct gensio_os_funcs *o,
-			   gensio_event cb, void *user_data,
-			   struct gensio **io);
-
 int telnet_gensio_alloc(struct gensio *child, const char * const args[],
 			struct gensio_os_funcs *o,
 			gensio_event cb, void *user_data,
 			struct gensio **io);
-
-int ipmisol_gensio_alloc(const char *devname, const char * const args[],
-			 struct gensio_os_funcs *o,
-			 gensio_event cb, void *user_data,
-			 struct gensio **io);
-int echo_gensio_alloc(const char * const argv[], const char * const args[],
-		      struct gensio_os_funcs *o,
-		      gensio_event cb, void *user_data,
-		      struct gensio **new_gensio);
 
 /*
  * Compare two sockaddr structure and return TRUE if they are equal

@@ -414,12 +414,6 @@ parameter that is already open with read disabled.  A gensio received
 from a gensio acceptor may have some limitations.  For instance, you
 may not be able to close and then reopen it.
 
-Error Handling
-==============
-
-As a general principle, almost all gensio calls return an errno on an
-error and zero on success.
-
 Logging
 =======
 
@@ -451,3 +445,5 @@ and server capabilities.
 
 Python Interface
 ================
+
+You can access pretty much all of the gensio interface through python.
