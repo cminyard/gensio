@@ -264,7 +264,8 @@ check_os_funcs_free(struct gensio_os_funcs *o)
     os_funcs_lock(odata);
     if (--odata->refcount == 0) {
 	os_funcs_unlock(odata);
-	deref_swig_cb_val(odata->log_handler);
+	if (odata->log_handler)
+	    deref_swig_cb_val(odata->log_handler);
 	sel_free_selector(odata->sel);
 	free(odata);
 	o->free_funcs(o);
@@ -386,6 +387,9 @@ static void gensio_do_vlog(struct gensio_os_funcs *o,
     va_list tmpva;
     OI_PY_STATE gstate;
 
+    if (!odata->log_handler)
+	return;
+
     gstate = OI_PY_STATE_GET();
 
     va_copy(tmpva, fmtargs);
@@ -460,12 +464,8 @@ sgensio_call(struct sergensio *sio, long val, char *func)
 
     gstate = OI_PY_STATE_GET();
 
-    if (!data->handler_val) {
-	PyErr_Format(PyExc_RuntimeError, "sergensio callback: "
-		     "gensio handler was not set");
-	wake_curr_waiter();
+    if (!data->handler_val)
 	goto out_put;
-    }
 
     sio_ref = swig_make_ref(sio, sergensio);
     args = PyTuple_New(2);
@@ -502,12 +502,8 @@ sgensio_signature(struct sergensio *sio, char *sig, unsigned int len)
 
     gstate = OI_PY_STATE_GET();
 
-    if (!data->handler_val) {
-	PyErr_Format(PyExc_RuntimeError, "sergensio_signature callback: "
-		     "gensio handler was not set");
-	wake_curr_waiter();
+    if (!data->handler_val)
 	goto out_put;
-    }
 
     sio_ref = swig_make_ref(sio, sergensio);
     args = PyTuple_New(2);
@@ -532,12 +528,8 @@ sgensio_sync(struct sergensio *sio)
 
     gstate = OI_PY_STATE_GET();
 
-    if (!data->handler_val) {
-	PyErr_Format(PyExc_RuntimeError, "sergensio_signature callback: "
-		     "gensio handler was not set");
-	wake_curr_waiter();
+    if (!data->handler_val)
 	goto out_put;
-    }
 
     sio_ref = swig_make_ref(sio, sergensio);
     args = PyTuple_New(1);
@@ -560,12 +552,8 @@ sgensio_flowcontrol_state(struct sergensio *sio, bool val)
 
     gstate = OI_PY_STATE_GET();
 
-    if (!data->handler_val) {
-	PyErr_Format(PyExc_RuntimeError, "sergensio callback: "
-		     "gensio handler was not set");
-	wake_curr_waiter();
+    if (!data->handler_val)
 	goto out_put;
-    }
 
     sio_ref = swig_make_ref(sio, sergensio);
     args = PyTuple_New(2);
@@ -655,9 +643,6 @@ gensio_child_event(struct gensio *io, void *user_data, int event, int readerr,
     gstate = OI_PY_STATE_GET();
 
     if (!data->handler_val) {
-	PyErr_Format(PyExc_RuntimeError, "gensio callback: "
-		     "gensio handler was not set");
-	wake_curr_waiter();
 	rv = GE_NOTSUP;
 	goto out_put;
     }
