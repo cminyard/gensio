@@ -446,4 +446,65 @@ and server capabilities.
 Python Interface
 ================
 
-You can access pretty much all of the gensio interface through python.
+You can access pretty much all of the gensio interface through python,
+though it's done a little differently than the C interface.
+
+Since python is fully object oriented, gensios and gensio accepters
+are first-class objects, along with gensio_os_funcs, sergensios, and
+waiters.
+
+Here's a small program::
+
+  import gensio
+
+  class Logger:
+      def gensio_log(self, level, log):
+          print("***%s log: %s" % (level, log))
+
+  class GHandler:
+      def __init__(self, o, to_write):
+          self.to_write = to_write
+          self.waiter = gensio.waiter(o)
+          self.readlen = len(to_write)
+
+      def read_callback(self, io, err, buf, auxdata):
+          if err:
+              print("Got error: " + err)
+          else:
+              print("Got data: " + buf);
+          self.readlen -= len(buf)
+          if self.readlen == 0:
+              io.read_cb_enable(False)
+              self.waiter.wake()
+          return len(buf)
+
+      def write_callback(self, io):
+          print("Write ready!")
+          if self.to_write:
+              written = io.write(self.to_write, None)
+              if (written >= len(self.to_write)):
+                  self.to_write = None
+                  io.write_cb_enable(False)
+              else:
+                  self.to_write = self.to_write[written:]
+          else:
+              io.write_cb_enable(False)
+
+      def open_done(self, io, err):
+          if err:
+              print("Open error: " + err);
+              self.waiter.wake()
+          else:
+              print("Opened!")
+              io.read_cb_enable(True)
+              io.write_cb_enable(True)
+
+      def wait(self):
+          self.waiter.wait_timeout(1, 2000)
+
+  o = gensio.alloc_gensio_selector(Logger())
+  h = GHandler(o, "This is a test")
+  g = gensio.gensio(o, "telnet,tcp,localhost,2002", h)
+  g.open(h)
+
+  h.wait()

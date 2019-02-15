@@ -425,7 +425,12 @@ gensio_open_done(struct gensio *io, int err, void *cb_data) {
     gensio_ref(io);
     args = PyTuple_New(2);
     PyTuple_SET_ITEM(args, 0, io_ref.val);
-    o = PyInt_FromLong(err);
+    if (err) {
+	o = OI_PI_FromString(gensio_err_to_str(err));
+    } else {
+	Py_INCREF(Py_None);
+	o = Py_None;
+    }
     PyTuple_SET_ITEM(args, 1, o);
 
     swig_finish_call(cb, "open_done", args, false);

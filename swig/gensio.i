@@ -346,8 +346,18 @@ struct waiter { };
 	return io;
     }
 
-    gensio(struct gensio *child, struct gensio_os_funcs *o, char *str,
-	   swig_cb *handler) {
+    ~gensio()
+    {
+	struct gensio_data *data = gensio_get_user_data(self);
+
+	if (data->tmpval)
+	    return;
+	deref_gensio_data(data, self);
+    }
+
+    %newobject new_parent;
+    struct gensio *new_parent(struct gensio_os_funcs *o, char *str,
+			      swig_cb *handler) {
 	int rv;
 	struct gensio_data *data;
 	struct gensio *io = NULL;
@@ -356,21 +366,12 @@ struct waiter { };
 	if (!data)
 	    return NULL;
 
-	rv = str_to_gensio_child(child, str, o, gensio_child_event, data, &io);
+	rv = str_to_gensio_child(self, str, o, gensio_child_event, data, &io);
 	if (rv) {
 	    free_gensio_data(data);
 	    err_handle("gensio alloc", rv);
 	}
 	return io;
-    }
-
-    ~gensio()
-    {
-	struct gensio_data *data = gensio_get_user_data(self);
-
-	if (data->tmpval)
-	    return;
-	deref_gensio_data(data, self);
     }
 
     void set_cbs(swig_cb *handler) {
