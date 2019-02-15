@@ -47,7 +47,7 @@ struct user_termios {
     speed_t c_ospeed;               /* output speed */
 };
 
-#include <linux-serial-echo/serialsim.h>
+#include <linux-serialsim/serialsim.h>
 
 int remote_termios(struct termios *itermios, int fd)
 {
