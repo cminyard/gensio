@@ -378,6 +378,14 @@ and delivery through the event interface will continue as before.  You
 must not be in a synchronous read or write call when calling this, the
 results will be undefined.
 
+Note that other I/O on other gensios will still occur when waiting for
+synchronous I/O
+
+There is not currently a way to wait for multiple gensios with
+synchronous I/O.  If you are doing that, you should really just use
+the event-driven I/O.  It's more efficient, and you end up doing the
+same thing in the end, anyway.
+
 Using a gensio accepter
 =======================
 
