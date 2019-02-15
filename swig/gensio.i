@@ -552,7 +552,7 @@ struct waiter { };
     void read_st(char **rbuffer, size_t *rbuffer_len, unsigned int reqlen,
 		 long timeout) {
 	int rv;
-	struct timeval tv = { timeout / 1000000, timeout % 1000000 };
+	struct timeval tv = { timeout / 1000, timeout % 1000 };
 	struct timeval *rtv = &tv;
 	char *buf = malloc(reqlen);
 	gensiods count;
@@ -575,7 +575,7 @@ struct waiter { };
     %rename(write_s) write_st;
     unsigned int write_st(char *bytestr, my_ssize_t len, long timeout) {
 	int rv;
-	struct timeval tv = { timeout / 1000000, timeout % 1000000 };
+	struct timeval tv = { timeout / 1000, timeout % 1000 };
 	struct timeval *rtv = &tv;
 	gensiods count = 0;
 
