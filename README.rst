@@ -206,6 +206,18 @@ gensio_ll_gensio.h
 Each include file has lots of documentation about the individual calls
 and handlers.
 
+Errors
+======
+
+gensio has it's own set of errors to abstract it from the OS errors
+(named GE_xxx) and provide more flexibility in error reporting.  These
+are in the gensio_err.h include file (automatically included from
+gensio.h) and may be translated from numbers to a meaningful string
+with gensio_err_to_str().  Zero is defined to be not an error.
+
+If an unrecongnized operating system error occurs, GE_OSERR is
+returned and a log is reported through the OS handler log interface.
+
 OS Handler
 ==========
 
@@ -324,6 +336,41 @@ create call with ``gensio_get_user_data()``.
 Note that if you open then immediately close a gensio, this is fine,
 even if the open callback hasn't been called.  The open callback may
 or may not be called in that case.
+
+Synchronous I/O
+---------------
+
+You can do basic synchronous I/O with gensios.  This is useful in some
+situations where you need to read something inline.  To do this, call::
+
+  err = gensio_set_sync(io);
+
+The given gensio will cease to deliver read and write events.  Other
+events *are* delivered.  Then you can do::
+
+  err = gensio_read_s(io, &count, data, datalen, &timeout);
+  err = gensio_write_s(io, &count, data, datalen, &timeout);
+
+Count is set to the actual number of bytes read/written.  It may be
+NULL if you don't care (though that doesn't make much sense for read).
+
+Reads will block until some data comes in and returns that data.  It
+does not wait until the buffer is full.  timeout is a timeval, the
+read will wait that amount of time for the read to complete and
+return.  A timeout is not an error, the count will just be set to
+zero.
+
+Writes block until the whole buffer is written or a timeout occurs.
+Again, the timeout is not an error, the total bytes actually written
+is returned in count.
+
+Once you are done doing synchronous I/O with a gensio, call::
+
+  err = gensio_clear_sync(io);
+
+and delivery through the event interface will continue as before.  You
+must not be in a synchronous read or write call when calling this, the
+results will be undefined.
 
 Using a gensio accepter
 =======================
