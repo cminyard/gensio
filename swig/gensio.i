@@ -388,9 +388,31 @@ struct waiter { };
 	err_handle("open", rv);
     }
 
+    %rename(open_nochild) open_nochildt;
+    void open_nochildt(swig_cb *done) {
+	swig_cb_val *done_val = NULL;
+	void (*open_done)(struct gensio *io, int err, void *cb_data) = NULL;
+	int rv;
+
+	if (!nil_swig_cb(done)) {
+	    open_done = gensio_open_done;
+	    done_val = ref_swig_cb(done, open_done);
+	}
+	rv = gensio_open_nochild(self, open_done, done_val);
+	if (rv && done_val)
+	    deref_swig_cb_val(done_val);
+
+	err_handle("open_nochild", rv);
+    }
+
     %rename(open_s) open_st;
     void open_st() {
 	err_handle("open_s", gensio_open_s(self));
+    }
+
+    %rename(open_nochild_s) open_nochild_st;
+    void open_nochild_st() {
+	err_handle("open_nochild_s", gensio_open_nochild_s(self));
     }
 
     %newobject open_channelt;
