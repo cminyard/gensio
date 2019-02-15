@@ -82,6 +82,8 @@ struct gensio_nocbwait {
     struct gensio_link link;
 };
 
+struct gensio_sync_io;
+
 struct gensio {
     struct gensio_os_funcs *o;
     void *user_data;
@@ -104,6 +106,8 @@ struct gensio {
     bool is_reliable;
     bool is_authenticated;
     bool is_encrypted;
+
+    struct gensio_sync_io *sync_io;
 
     struct gensio_link pending_link;
 };
@@ -2431,7 +2435,6 @@ struct gensio_sync_io {
     unsigned int sig;
 
     gensio_event old_cb;
-    void *old_user_data;
 
     struct gensio_list readops;
     struct gensio_list writeops;
@@ -2477,7 +2480,7 @@ gensio_syncio_event(struct gensio *io, void *user_data,
 		    const char *const *auxdata)
 {
     struct gensio_os_funcs *o = io->o;
-    struct gensio_sync_io *sync_io = gensio_get_user_data(io);
+    struct gensio_sync_io *sync_io = io->sync_io;
     gensiods done_len;
 
     switch (event) {
@@ -2555,9 +2558,9 @@ gensio_syncio_event(struct gensio *io, void *user_data,
 	return 0;
 
     default:
-	if (sync_io->old_cb)
-	    return sync_io->old_cb(io, sync_io->old_user_data,
-				   event, err, buf, buflen, auxdata);
+	if (io->cb)
+	    return io->cb(io, io->user_data,
+			  event, err, buf, buflen, auxdata);
 	return GE_NOTSUP;
     }
 }
@@ -2593,8 +2596,7 @@ gensio_set_sync(struct gensio *io)
     gensio_wait_no_cb(io, sync_io->close_waiter, NULL);
 
     sync_io->old_cb = io->cb;
-    sync_io->old_user_data = io->user_data;
-    gensio_set_cb(io, gensio_syncio_event, sync_io);
+    io->cb = gensio_syncio_event;
     return 0;
 }
 
@@ -2611,7 +2613,7 @@ gensio_clear_sync(struct gensio *io)
     gensio_set_write_callback_enable(io, false);
     gensio_wait_no_cb(io, sync_io->close_waiter, NULL);
 
-    gensio_set_cb(io, sync_io->old_cb, sync_io->old_user_data);
+    io->cb = sync_io->old_cb;
 
     o->free_waiter(sync_io->close_waiter);
     o->free_lock(sync_io->lock);
