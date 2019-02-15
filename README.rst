@@ -9,7 +9,7 @@ having to know too much about what is going on underneath.  You can
 stack gensio on top of another one to add protocol funcionality.  For
 instance, you can create a TCP gensio, stack SSL on top of that, and
 stack Telnet on top of that.  It supports a number of network I/O and
-serial ports.
+serial ports.  gensios that stack on other gensios are called filters.
 
 You can do the same thing with receiving ports.  You can set up a
 gensio accepter (accepter) to accept connections in a stack.  So in
@@ -17,16 +17,100 @@ our previous example, you can setup TCP to listen on a specific port
 and automatically stack SSL and Telnet on top when the connection
 comes in, and you are not informed until everything is ready.
 
+A *very* important feature of gensio is that it makes establishing
+encrypted and authenticated connections much easier than without it.
+Beyond basic key management, it's really no harder than TCP or
+anything else.  It offers extended flexibility for controlling the
+authentication process if needed.  It's really easy to use.
+
 Note that the gensio(5) man page has more details on individual gensio
 types.
+
+gensio tools
+============
+
+A couple of tools are available that use gensios, both as an example
+and for trying things out.  These are:
+
+gensiot
+    A tool for making basic gensio connections.  You can create any
+    arbitrary gensio setup you like.  See gensiot(1) for details.
+
+gtlsshd
+    An sshd-like daemon that uses certauth, ssl, and SCTP or TCP
+    gensios for making connections.  It uses standard PAM
+    authentication and uses ptys.  See gtlsshd(8) for details.
+
+gtlssh
+    An ssh-like program that can connect to gtlsshd.  It can also
+    be used with ser2net to make establishing encrypted and
+    authenticated connections easier.  See gtlssh(1) for details.
+
+Available gensios
+=================
+
+The following gensios are available in the library:
+
+sctp
+    Normal SCTP communication.
+
+tcp
+    Normal TCP communication.
+
+udp
+    Sort-of connection oriented UDP.
+
+stdio
+    Access to either the calling program's stdio, or the ability
+    to run a program and connect to its stdin, stdout, and stderr.
+
+pty
+    Run a program in a PTY and use the gensio to communicate with
+    its tty.  No accepter available.
+
+serialdev
+    Connect to a device.  It can hook to termios type devices, more
+    than just serial ports.  It also has a write-only option for
+    talking to printer ports.  No accepter available.
+
+ipmisol
+    Connect to a remote over IPMI SOL.  Full serial port capabilities
+    are available.  No accpeter available, unfortunately.
+
+dummy
+    An accepter that doesn't do anything except look like an accepter
+    to the user.  Useful in some situations where an accepter is
+    expected but you don't need to do anything.
+
+echo
+    A gensio that echos everything that is sent to it.  Useful for
+    testing.
+
+telnet
+    A filter gensio that implements the telnet protocol.  It can do
+    full serial support with RFC2217.
+
+ssl
+    Implement SSL/TLS as a gensio filter.  It support client
+    authentication, too.
+
+certauth
+    A user authentication protocol implemented as a gensio filter.
+
+These are all documented in detail in gensio(5).  Unless otherwise
+stated, these all are available as accepters or connecting gensios.
+
+You can create your own gensios and register them with the library and
+stack them along with the other gensios.
 
 General Concepts
 ================
 
-gensio has an object oriented interface that is event-driven.  You
-deal with two main objects in gensio: a gensio and a gensio accepter.
-A gensio provides a communication interface where you can connect,
-disconnect, write, receive, etc.
+gensio has an object oriented interface that is event-driven.
+Synchronous interfaces are also available.  You deal with two main
+objects in gensio: a gensio and a gensio accepter.  A gensio provides
+a communication interface where you can connect, disconnect, write,
+receive, etc.
 
 A gensio accepter lets you receive incoming connections.  If a
 connection comes in, it gives you a gensio.
