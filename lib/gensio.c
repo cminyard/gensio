@@ -2420,8 +2420,6 @@ gensio_wait_no_cb(struct gensio *io, struct gensio_waiter *waiter,
     return rv;
 }
 
-#define GENSIO_SYNCIO_SIG 0x734580fc
-
 struct gensio_sync_op {
     bool queued;
     unsigned char *buf;
@@ -2432,8 +2430,6 @@ struct gensio_sync_op {
 };
 
 struct gensio_sync_io {
-    unsigned int sig;
-
     gensio_event old_cb;
 
     struct gensio_list readops;
@@ -2558,9 +2554,9 @@ gensio_syncio_event(struct gensio *io, void *user_data,
 	return 0;
 
     default:
-	if (io->cb)
-	    return io->cb(io, io->user_data,
-			  event, err, buf, buflen, auxdata);
+	if (sync_io->old_cb)
+	    return sync_io->old_cb(io, io->user_data,
+				   event, err, buf, buflen, auxdata);
 	return GE_NOTSUP;
     }
 }
@@ -2573,7 +2569,6 @@ gensio_set_sync(struct gensio *io)
 
     if (!sync_io)
 	return GE_NOMEM;
-    sync_io->sig = GENSIO_SYNCIO_SIG;
 
     sync_io->lock = o->alloc_lock(o);
     if (!sync_io->lock) {
@@ -2595,6 +2590,7 @@ gensio_set_sync(struct gensio *io)
     gensio_set_write_callback_enable(io, false);
     gensio_wait_no_cb(io, sync_io->close_waiter, NULL);
 
+    io->sync_io = sync_io;
     sync_io->old_cb = io->cb;
     io->cb = gensio_syncio_event;
     return 0;
@@ -2604,9 +2600,9 @@ int
 gensio_clear_sync(struct gensio *io)
 {
     struct gensio_os_funcs *o = io->o;
-    struct gensio_sync_io *sync_io = io->user_data;
+    struct gensio_sync_io *sync_io = io->sync_io;
 
-    if (!sync_io || sync_io->sig != GENSIO_SYNCIO_SIG)
+    if (!sync_io)
 	return GE_NOTREADY;
 
     gensio_set_read_callback_enable(io, false);
@@ -2618,6 +2614,7 @@ gensio_clear_sync(struct gensio *io)
     o->free_waiter(sync_io->close_waiter);
     o->free_lock(sync_io->lock);
     o->free(o, sync_io);
+    io->sync_io = NULL;
 
     return 0;
 }
@@ -2627,11 +2624,11 @@ gensio_read_s(struct gensio *io, gensiods *count, void *data, gensiods datalen,
 	      struct timeval *timeout)
 {
     struct gensio_os_funcs *o = io->o;
-    struct gensio_sync_io *sync_io = io->user_data;
+    struct gensio_sync_io *sync_io = io->sync_io;
     struct gensio_sync_op op;
     int rv = 0;
 
-    if (!sync_io || sync_io->sig != GENSIO_SYNCIO_SIG)
+    if (!sync_io)
 	return GE_NOTREADY;
 
     if (datalen == 0) {
@@ -2682,12 +2679,12 @@ gensio_write_s(struct gensio *io, gensiods *count,
 	       struct timeval *timeout)
 {
     struct gensio_os_funcs *o = io->o;
-    struct gensio_sync_io *sync_io = io->user_data;
+    struct gensio_sync_io *sync_io = io->sync_io;
     struct gensio_sync_op op;
     int rv = 0;
     gensiods origlen;
 
-    if (!sync_io || sync_io->sig != GENSIO_SYNCIO_SIG)
+    if (!sync_io)
 	return GE_NOTREADY;
 
     if (datalen == 0) {
