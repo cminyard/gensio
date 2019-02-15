@@ -248,6 +248,11 @@ termios work on (except for wronly).
 
 This is, no surprise, a serial gensio.
 
+One problem with serialdev and UUCP locking is that if you fork() a
+process while one is open, the forked process will have the serialdev
+but the value in the UUCP lockfile will be incorrect.  There's not
+much that can be done about this, so be careful.
+
 In addition to readbuf, the serialdev gensio takes the following options:
 
 .TP
