@@ -354,6 +354,12 @@ events *are* delivered.  Then you can do::
 Count is set to the actual number of bytes read/written.  It may be
 NULL if you don't care (though that doesn't make much sense for read).
 
+Timeout may be NULL, if so then wait for forever.  If you set a
+timeout, it is updated to the amount of time left.
+
+Note that signals will cause these to return immediately, but no
+error is reported.
+
 Reads will block until some data comes in and returns that data.  It
 does not wait until the buffer is full.  timeout is a timeval, the
 read will wait that amount of time for the read to complete and
