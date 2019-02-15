@@ -256,7 +256,10 @@ struct gensio_os_funcs *alloc_gensio_selector(swig_cb *log_handler)
     }
     odata->sel = sel;
     o->other_data = odata;
-    odata->log_handler = ref_swig_cb(log_handler, gensio_log);
+    if (log_handler)
+	odata->log_handler = ref_swig_cb(log_handler, gensio_log);
+    else
+	odata->log_handler = NULL;
     o->vlog = gensio_do_vlog;
 
     return o;
@@ -491,6 +494,56 @@ struct waiter { };
 
     void write_cb_enable(bool enable) {
 	gensio_set_write_callback_enable(self, enable);
+    }
+
+    %rename(set_sync) set_synct;
+    void set_synct() {
+	int rv = gensio_set_sync(self);
+	err_handle("set_sync", rv);
+    }
+
+    %rename(clear_sync) clear_synct;
+    void clear_synct() {
+	int rv = gensio_clear_sync(self);
+	err_handle("clear_sync", rv);
+    }
+
+    %rename(read_s) read_st;
+    void read_st(char **rbuffer, size_t *rbuffer_len, unsigned int reqlen,
+		 long timeout) {
+	int rv;
+	struct timeval tv = { timeout / 1000000, timeout % 1000000 };
+	struct timeval *rtv = &tv;
+	char *buf = malloc(reqlen);
+	gensiods count;
+
+	if (!buf) {
+	    rv = GE_NOMEM;
+	    goto out;
+	}
+	if (timeout < 0)
+	    rtv = NULL;
+	rv = gensio_read_s(self, &count, buf, reqlen, rtv);
+	if (!rv) {
+	    *rbuffer = buf;
+	    *rbuffer_len = count;
+	}
+    out:
+	err_handle("clear_sync", rv);
+    }
+
+    %rename(write_s) write_st;
+    unsigned int write_st(char *bytestr, my_ssize_t len, long timeout) {
+	int rv;
+	struct timeval tv = { timeout / 1000000, timeout % 1000000 };
+	struct timeval *rtv = &tv;
+	gensiods count = 0;
+
+	if (timeout < 0)
+	    rtv = NULL;
+	rv = gensio_write_s(self, &count, bytestr, len, rtv);
+	err_handle("clear_sync", rv);
+	return count;
     }
 
     %rename(control) controlt;
