@@ -124,7 +124,7 @@ wake_curr_waiter(void)
 
 #include "gensio_python.h"
 
-static int
+static void
 gensio_do_wait(struct waiter *waiter, unsigned int count,
 	       struct timeval *timeout)
 {
@@ -140,13 +140,11 @@ gensio_do_wait(struct waiter *waiter, unsigned int count,
 		prev_waiter->o->wake(prev_waiter->waiter);
 	    break;
 	}
-	if (err == EINTR)
+	if (err == GE_INTERRUPTED)
 	    continue;
 	break;
     } while (1);
     restore_waiter(prev_waiter);
-
-    return err;
 }
 
 void get_random_bytes(char **rbuffer, size_t *rbuffer_len, int size_to_allocate)
@@ -299,16 +297,6 @@ struct waiter { };
 %extend gensio_os_funcs {
     ~gensio_os_funcs() {
 	check_os_funcs_free(self);
-    }
-
-    void service() {
-	self->service(self, NULL);
-    }
-
-    int service(int timeout) {
-	struct timeval tv = { timeout / 1000, timeout % 1000 };
-
-	return self->service(self, &tv);
     }
 }
 
@@ -550,8 +538,8 @@ struct waiter { };
     }
 
     %rename(read_s) read_st;
-    void read_st(char **rbuffer, size_t *rbuffer_len, unsigned int reqlen,
-		 long timeout) {
+    void read_st(char **rbuffer, size_t *rbuffer_len, long *r_int,
+		 unsigned int reqlen, long timeout) {
 	int rv;
 	struct timeval tv = { timeout / 1000, timeout % 1000 };
 	struct timeval *rtv = &tv;
@@ -569,12 +557,16 @@ struct waiter { };
 	    *rbuffer = buf;
 	    *rbuffer_len = count;
 	}
+	if (rtv)
+	    *r_int = rtv->tv_sec * 1000 + ((rtv->tv_usec + 500) / 1000);
+	else
+	    *r_int = 0;
     out:
 	err_handle("clear_sync", rv);
     }
 
     %rename(write_s) write_st;
-    unsigned int write_st(char *bytestr, my_ssize_t len, long timeout) {
+    long write_st(long *r_int, char *bytestr, my_ssize_t len, long timeout) {
 	int rv;
 	struct timeval tv = { timeout / 1000, timeout % 1000 };
 	struct timeval *rtv = &tv;
@@ -584,6 +576,10 @@ struct waiter { };
 	    rtv = NULL;
 	rv = gensio_write_s(self, &count, bytestr, len, rtv);
 	err_handle("clear_sync", rv);
+	if (rtv)
+	    *r_int = rtv->tv_sec * 1000 + ((rtv->tv_usec + 500) / 1000);
+	else
+	    *r_int = 0;
 	return count;
     }
 
@@ -970,10 +966,11 @@ struct waiter { };
 	free(self);
     }
 
-    int wait_timeout(unsigned int count, int timeout) {
+    long wait_timeout(unsigned int count, int timeout) {
 	struct timeval tv = { timeout / 1000, timeout % 1000 };
 
-	return gensio_do_wait(self, count, &tv);
+	gensio_do_wait(self, count, &tv);
+	return tv.tv_sec * 1000 + ((tv.tv_usec + 500) / 1000);
     }
 
     void wait(unsigned int count) {

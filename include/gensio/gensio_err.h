@@ -54,6 +54,7 @@
 #define GE_CERTNOTFOUND		30
 #define GE_AUTHREJECT		31
 #define GE_ADDRINUSE		32
+#define GE_INTERRUPTED		33
 
 #define gensio_os_err_to_err(o, oserr)			\
     gensio_i_os_err_to_err(o, oserr, __FUNCTION__, __FILE__, __LINE__)

@@ -1097,7 +1097,7 @@ static bool check_for_err(int err)
 {
     bool rv;
 
-    if (err == EINTR)
+    if (err == GE_INTERRUPTED)
 	PyErr_CheckSignals();
     rv = (bool) PyErr_Occurred();
     return rv;

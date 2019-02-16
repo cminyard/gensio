@@ -42,6 +42,16 @@
     free(*$1);
 }
 
+%typemap(in, numinputs=0) long *r_int (long temp) {
+    $1 = &temp;
+}
+
+%typemap(argout) (long *r_int) {
+    PyObject *r = PyInt_FromLong(*$1);
+
+    $result = add_python_result($result, r);
+}
+
 %typemap(in) (char *bytestr, my_ssize_t len) {
     if (OI_PI_BytesCheck($input))
 	OI_PI_AsBytesAndSize($input, &$1, &$2);
