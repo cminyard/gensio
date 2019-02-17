@@ -498,11 +498,15 @@ sgensio_linestate(struct sergensio *sio, unsigned int linestate)
 }
 
 static void
-sgensio_signature(struct sergensio *sio, char *sig, unsigned int len)
+sgensio_signature(struct sergensio *sio)
 {
+    /*
+     * FIXME - this is wrong, it is for the client side, but this needs
+     * to be the server side code that gets a signature.
+     */
     struct gensio_data *data = sergensio_get_user_data(sio);
     swig_ref sio_ref;
-    PyObject *args, *o;
+    PyObject *args;
     OI_PY_STATE gstate;
 
     gstate = OI_PY_STATE_GET();
@@ -511,11 +515,9 @@ sgensio_signature(struct sergensio *sio, char *sig, unsigned int len)
 	goto out_put;
 
     sio_ref = swig_make_ref(sio, sergensio);
-    args = PyTuple_New(2);
+    args = PyTuple_New(1);
     ref_gensio_data(data);
     PyTuple_SET_ITEM(args, 0, sio_ref.val);
-    o = PyBytes_FromStringAndSize(sig, len);
-    PyTuple_SET_ITEM(args, 1, o);
 
     swig_finish_call(data->handler_val, "signature", args, true);
 
@@ -729,6 +731,25 @@ gensio_child_event(struct gensio *io, void *user_data, int event, int readerr,
 				     args, true);
 	break;
 
+    case GENSIO_EVENT_POSTCERT_VERIFY:
+	io_ref = swig_make_ref(io, gensio);
+	args = PyTuple_New(3);
+	ref_gensio_data(data);
+	PyTuple_SET_ITEM(args, 0, io_ref.val);
+	o = PyInt_FromLong(readerr);
+	PyTuple_SET_ITEM(args, 1, o);
+	if (auxdata && auxdata[0]) {
+	    o = OI_PI_FromString(auxdata[0]);
+	} else {
+	    Py_INCREF(Py_None);
+	    o = Py_None;
+	}
+	PyTuple_SET_ITEM(args, 2, o);
+
+	rv = swig_finish_call_rv_int(data->handler_val, "postcert_verify",
+				     args, true);
+	break;
+
     case GENSIO_EVENT_PASSWORD_VERIFY:
 	io_ref = swig_make_ref(io, gensio);
 	args = PyTuple_New(2);
@@ -778,7 +799,7 @@ gensio_child_event(struct gensio *io, void *user_data, int event, int readerr,
 	break;
 
     case GENSIO_EVENT_SER_SIGNATURE:
-	sgensio_signature(gensio_to_sergensio(io), (char *) buf, *buflen);
+	sgensio_signature(gensio_to_sergensio(io));
 	break;
 
     case GENSIO_EVENT_SER_FLOW_STATE:
@@ -1065,6 +1086,38 @@ sergensio_cb(struct sergensio *sio, int err, unsigned int val, void *cb_data)
     swig_finish_call(cbd->h_val, cbd->cbname, args, true);
 
     cleanup_sergensio_cbdata(cbd);
+    OI_PY_STATE_PUT(gstate);
+}
+
+static void
+sergensio_sig_cb(struct sergensio *sio, int err,
+		 const char *sig, unsigned int len, void *cb_data)
+{
+    swig_cb_val *h_val = cb_data;
+    swig_ref sio_ref;
+    PyObject *args, *o;
+    OI_PY_STATE gstate;
+
+    gstate = OI_PY_STATE_GET();
+
+    sio_ref = swig_make_ref(sio, sergensio);
+    args = PyTuple_New(3);
+    sergensio_ref(sio);
+    PyTuple_SET_ITEM(args, 0, sio_ref.val);
+    if (err) {
+	o = OI_PI_FromString(gensio_err_to_str(err));
+    } else {
+	o = Py_None;
+	Py_INCREF(o);
+    }
+    PyTuple_SET_ITEM(args, 1, o);
+
+    o = PyBytes_FromStringAndSize(sig, len);
+    PyTuple_SET_ITEM(args, 2, o);
+
+    swig_finish_call(h_val, "signature", args, true);
+    deref_swig_cb_val(h_val);
+
     OI_PY_STATE_PUT(gstate);
 }
 

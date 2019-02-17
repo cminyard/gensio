@@ -159,12 +159,36 @@ def ta_certauth_tcp():
             "Invalid service, expected %s, got %s" % ("myservice", service))
     ta.close()
 
+class SigRspHandler:
+    def __init__(self, o, sigval):
+        self.sigval = sigval
+        self.waiter = gensio.waiter(o)
+        return
+
+    def signature(self, sio, err, value):
+        if (err):
+            raise Exception("Error getting signature: %s" % err)
+        if (value != self.sigval):
+            raise Exception("Signature value was '%s', expected '%s'" %
+                            (value, self.sigval))
+        self.waiter.wake();
+        return
+
+    def wait_timeout(self, timeout):
+        return self.waiter.wait_timeout(1, timeout)
+
 def do_telnet_test(io1, io2):
     do_test(io1, io2)
     sio1 = io1.cast_to_sergensio()
     sio2 = io1.cast_to_sergensio()
     io1.read_cb_enable(True);
     io2.read_cb_enable(True);
+
+    h = SigRspHandler(o, "testsig")
+    io2.handler.set_expected_sig_server_cb("testsig")
+    sio1.sg_signature(None, h)
+    if (h.wait_timeout(1000) == 0):
+        raise Exception("Timeout waiting for signature")
 
     io2.handler.set_expected_server_cb("baud", 1000, 2000)
     io1.handler.set_expected_client_cb("baud", 2000)

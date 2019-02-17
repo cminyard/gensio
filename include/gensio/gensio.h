@@ -90,10 +90,6 @@ typedef size_t gensiods; /* Data size */
 /*
  * The following events are part of the authorization framework
  * for ssl and certauth (and possibly others).
- *
- * They should return 0 to authorize the connection, EKEYREJECTED to
- * terminate the connection, or ENOTSUP to continue with the
- * verification process.
  */
 
 /*
@@ -131,17 +127,20 @@ typedef size_t gensiods; /* Data size */
 #define GENSIO_EVENT_PRECERT_VERIFY	6
 
 /*
- * The connection has received a certificate and has verified it.
- * The verification may have failed.  This lets the user handle
- * their own verification override.  err will be 0 on verification
- * success, ENOKEY if no key was found, or EKEYREJECTED if the
- * key was invalid for some reason.  auxdata[0] will be an
- * error string (or NULL if none available).
+ * The connection has received a certificate and has verified it.  The
+ * verification may have failed.  This lets the user handle their own
+ * verification override.  err will be 0 on verification success,
+ * GE_CERTNOTFOUND if no certificate was found, or GE_CERTREVOKED if
+ * the if the certificate was revoked, GE_CERTEXPIRED if the
+ * certificate has expired, or GE_CERTINVALID for other errors.
+ * auxdata[0] will be an error string (or NULL if none available).
  *
  * Return values are:
  *
- * GE_KEYINVALID - Fail this stage of the authentication.  Password
- * authentication may still occur.
+ * 0 - Authentication successed (even if an error was reported).
+ * GE_NOTSUP - Continue with the authentication process.  Password
+ *     authentication may occur, for instance, if an error was reported.
+ * GE_AUTHREJECT - Fail the authentication. No more authentication will occur.
  *
  * ssl and certauth
  */

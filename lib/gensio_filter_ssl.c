@@ -1045,7 +1045,7 @@ gensio_ssl_filter_config(struct gensio_os_funcs *o,
 
     if (!data->is_client) {
 	if (!data->keyfile) {
-	    rv = GE_NOKEY;
+	    rv = GE_KEYNOTFOUND;
 	    goto out_err;
 	}
     }

@@ -37,7 +37,7 @@
 #define GE_TOOBIG		13
 #define GE_TIMEDOUT		14
 #define GE_RETRY		15
-#define GE_NOKEY		16
+#define GE_errblank_xxx		16
 #define GE_KEYNOTFOUND		17
 #define GE_CERTREVOKED		18
 #define GE_CERTEXPIRED		19

@@ -508,3 +508,7 @@ Here's a small program::
   g.open(h)
 
   h.wait()
+
+The interface is a pretty direct translation from the C interface.  A
+python representation of the interface is in swig/python/gensiodoc.py,
+you can see that for documentation.

@@ -208,10 +208,7 @@ int sergensio_rts_b(struct sergensio_b *sbio, int *rts);
 
 /*
  * On the server side, these are for reporting that the client is
- * requesting the signature (sig and sig_len are not used).  On
- * the client side, this is the signature response.  The signature
- * is in buf and the signature length is in buflen.  The return value
- * in buflen is ignored.
+ * requesting the signature.  Not for client.
  */
 #define GENSIO_EVENT_SER_SIGNATURE	(SERGENIO_EVENT_BASE + 3)
 

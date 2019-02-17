@@ -301,7 +301,12 @@ struct waiter { };
 }
 
 %constant int GE_NOTSUP = GE_NOTSUP;
+%constant int GE_CERTNOTFOUND = GE_CERTNOTFOUND;
+%constant int GE_CERTREVOKED = GE_CERTREVOKED;
+%constant int GE_CERTEXPIRED = GE_CERTEXPIRED;
+%constant int GE_CERTINVALID = GE_CERTINVALID;
 %constant int GE_KEYINVALID = GE_KEYINVALID;
+%constant int GE_AUTHREJECT = GE_AUTHREJECT;
 
 %constant int GENSIO_CONTROL_DEPTH_ALL = GENSIO_CONTROL_DEPTH_ALL;
 %constant int GENSIO_CONTROL_DEPTH_FIRST = GENSIO_CONTROL_DEPTH_FIRST;
@@ -811,6 +816,25 @@ struct waiter { };
 
     int sg_flush(unsigned int val) {
 	return sergensio_flush(self, val);
+    }
+
+    void sg_signature(char *value, swig_cb *h) {
+	swig_cb_val *h_val = NULL;
+	int rv;
+	unsigned int len = 0;
+
+	if (value)
+	    len = strlen(value);
+	if (!nil_swig_cb(h)) {
+	    h_val = ref_swig_cb(h, signature);
+	    rv = sergensio_signature(self, value, len, sergensio_sig_cb, h_val);
+	} else {
+	    rv = sergensio_signature(self, value, len, NULL, NULL);
+	}
+
+	if (rv && h_val)
+	    deref_swig_cb_val(h_val);
+	ser_err_handle("sg_signature", rv);
     }
 }
 

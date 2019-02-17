@@ -506,7 +506,7 @@ const char *gensio_errs[] = {
     /*  13 */    "Value was too large for data",
     /*  14 */    "Operation timed out",
     /*  15 */    "Retry operation later",
-    /*  16 */    "No key was provided",
+    /*  16 */    "Invalid error number 1",
     /*  17 */    "Unable to find the given key",
     /*  18 */    "Key was revoked",
     /*  19 */    "Key was expired",

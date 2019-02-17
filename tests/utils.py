@@ -69,6 +69,8 @@ class HandleData:
         self.expected_server_cb = None
         self.expected_server_value = 0
         self.expected_server_return = 0
+        self.expected_sig_server_cb = False
+        self.expected_sig_server_val = None
         self.ignore_input = False
         self.stream = None
         self.password = password
@@ -450,6 +452,18 @@ class HandleData:
         if not self.check_set_expected_telnet_cb("rts", rts):
             return
         sio.sg_rts(self.expected_server_return, None)
+        return
+
+    def set_expected_sig_server_cb(self, value):
+        self.expected_sig_server_cb = True
+        self.expected_sig_server_val = value
+        return
+
+    def signature(self, sio):
+        if not self.expected_sig_server_cb:
+            raise Exception("Got unexpected signature request");
+        sio.sg_signature(self.expected_sig_server_val, None)
+        self.expected_sig_server_cb = False
         return
 
     def close_done(self, io):

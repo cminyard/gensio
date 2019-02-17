@@ -207,8 +207,10 @@ basen_deref_and_unlock(struct basen_data *ndata)
 static void
 i_basen_set_state(struct basen_data *ndata, enum basen_state state, int line)
 {
-    printf("Setting state for %s to %s at line %d\r\n",
-	   gensio_get_type(ndata->io, 0), basen_statestr[state], line);
+    printf("Setting state for %s(%s) to %s at line %d\r\n",
+	   gensio_get_type(ndata->io, 0),
+	   gensio_is_client(ndata->io) ? "client" : "server",
+	   basen_statestr[state], line);
     ndata->state = state;
 }
 

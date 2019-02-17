@@ -541,7 +541,7 @@ certauth_verify_cert(struct certauth_filter *sfilter)
 	verify_err = X509_STORE_CTX_get_error(cert_store_ctx);
 	if (verify_err == X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT_LOCALLY ||
 	    verify_err == X509_V_ERR_DEPTH_ZERO_SELF_SIGNED_CERT)
-	    rv = GE_NOKEY;
+	    rv = GE_CERTNOTFOUND;
 	else if (verify_err == X509_V_ERR_CERT_REVOKED)
 	    rv = GE_CERTREVOKED;
 	else if (verify_err == X509_V_ERR_CERT_HAS_EXPIRED ||
