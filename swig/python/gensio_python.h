@@ -578,7 +578,7 @@ sgensio_flowcontrol_state(struct sergensio *sio, bool val)
 static void
 sgensio_flush(struct sergensio *sio, int val)
 {
-    sgensio_call(sio, val, "sflush");
+    sgensio_call(sio, val, "flush");
 }
 
 static void
@@ -884,7 +884,8 @@ gensio_acc_shutdown_done(struct gensio_accepter *accepter, void *cb_data)
 
 static int
 gensio_acc_io_call_cb(struct gensio_accepter *accepter, struct gensio *io,
-		      const char *func, const char *optstr, bool optional)
+		      const char *func, int opterr, const char *optstr,
+		      bool optional)
 {
     struct gensio_data *data = gensio_acc_get_user_data(accepter);
     swig_ref acc_ref, io_ref;
@@ -908,13 +909,25 @@ gensio_acc_io_call_cb(struct gensio_accepter *accepter, struct gensio *io,
     acc_ref = swig_make_ref(accepter, gensio_accepter);
     gensio_accepter_ref(accepter);
     io_ref = swig_make_ref(io, gensio);
-    if (optstr)
+    if (opterr >= 0)
+	args = PyTuple_New(4);
+    else if (optstr)
 	args = PyTuple_New(3);
     else
 	args = PyTuple_New(2);
     PyTuple_SET_ITEM(args, 0, acc_ref.val);
     PyTuple_SET_ITEM(args, 1, io_ref.val);
-    if (optstr) {
+    if (opterr >= 0) {
+	o = PyInt_FromLong(opterr);
+	PyTuple_SET_ITEM(args, 2, o);
+	if (optstr) {
+	    o = OI_PI_FromString(optstr);
+	} else {
+	    Py_INCREF(Py_None);
+	    o = Py_None;
+	}
+	PyTuple_SET_ITEM(args, 3, o);
+    } else if (optstr) {
 	o = OI_PI_FromString(optstr);
 	PyTuple_SET_ITEM(args, 2, o);
     }
@@ -938,6 +951,7 @@ gensio_acc_child_event(struct gensio_accepter *accepter, void *user_data,
     struct gensio *io;
     struct gensio_loginfo *i = cdata;
     struct gensio_acc_password_verify_data *pwvfy;
+    struct gensio_acc_postcert_verify_data *postvfy;
     char buf[256];
     struct gensio_data tmpdata;
     void *old_user_data;
@@ -983,23 +997,27 @@ gensio_acc_child_event(struct gensio_accepter *accepter, void *user_data,
 
     case GENSIO_ACC_EVENT_AUTH_BEGIN:
 	return gensio_acc_io_call_cb(accepter, cdata, "auth_begin",
-				     NULL, true);
+				     -1, NULL, true);
 
     case GENSIO_ACC_EVENT_PRECERT_VERIFY:
 	return gensio_acc_io_call_cb(accepter, cdata, "precert_verify",
-				     NULL, true);
+				     -1, NULL, true);
+
+    case GENSIO_ACC_EVENT_POSTCERT_VERIFY:
+	postvfy = (struct gensio_acc_postcert_verify_data *) cdata;
+	return gensio_acc_io_call_cb(accepter, postvfy->io, "postcert_verify",
+				     postvfy->err, postvfy->errstr, true);
 
     case GENSIO_ACC_EVENT_PASSWORD_VERIFY:
 	pwvfy = (struct gensio_acc_password_verify_data *) cdata;
 	return gensio_acc_io_call_cb(accepter, pwvfy->io, "password_verify",
-				     pwvfy->password, true);
+				     -1, pwvfy->password, true);
 
     case GENSIO_ACC_EVENT_REQUEST_PASSWORD:
 	pwvfy = (struct gensio_acc_password_verify_data *) cdata;
 	io = pwvfy->io;
-	io_ref = swig_make_ref(io, gensio);
-	args = PyTuple_New(1);
-	PyTuple_SET_ITEM(args, 0, io_ref.val);
+
+	gstate = OI_PY_STATE_GET();
 
 	/*
 	 * This is a situation where the gensio has not been reported
@@ -1009,6 +1027,13 @@ gensio_acc_child_event(struct gensio_accepter *accepter, void *user_data,
 	old_user_data = gensio_get_user_data(io);
 	tmpdata.tmpval = true;
 	gensio_set_user_data(io, &tmpdata);
+
+	acc_ref = swig_make_ref(accepter, gensio_accepter);
+	gensio_accepter_ref(accepter);
+	io_ref = swig_make_ref(io, gensio);
+	args = PyTuple_New(2);
+	PyTuple_SET_ITEM(args, 0, acc_ref.val);
+	PyTuple_SET_ITEM(args, 1, io_ref.val);
 
 	o = swig_finish_call_rv(data->handler_val, "request_password",
 				args, true);

@@ -149,6 +149,7 @@ certauthna_gensio_event(struct gensio *io, void *user_data, int event, int err,
 {
     struct certauthna_data *nadata = user_data;
     struct gensio_acc_password_verify_data pwvfy;
+    struct gensio_acc_postcert_verify_data postvfy;
     int rv;
 
     switch (event) {
@@ -157,6 +158,13 @@ certauthna_gensio_event(struct gensio *io, void *user_data, int event, int err,
 
     case GENSIO_EVENT_PRECERT_VERIFY:
 	return gensio_acc_cb(nadata->acc, GENSIO_ACC_EVENT_PRECERT_VERIFY, io);
+
+    case GENSIO_EVENT_POSTCERT_VERIFY:
+	postvfy.io = io;
+	postvfy.err = err;
+	postvfy.errstr = auxdata ? auxdata[0] : NULL;
+	return gensio_acc_cb(nadata->acc, GENSIO_ACC_EVENT_POSTCERT_VERIFY,
+			     &postvfy);
 
     case GENSIO_EVENT_PASSWORD_VERIFY:
 	pwvfy.io = io;

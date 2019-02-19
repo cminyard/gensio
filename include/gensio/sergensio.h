@@ -140,7 +140,9 @@ int sergensio_linestate(struct sergensio *sio, unsigned int linestate);
 int sergensio_modemstate(struct sergensio *sio, unsigned int modemstate);
 
 /*
- * Tell the remote end to enable or disable flow control.
+ * Tell the remote end to enable or disable flow control.  True if the
+ * remote end should disable transmission, false if it should enable
+ * transmission.
  */
 int sergensio_flowcontrol_state(struct sergensio *sio, bool val);
 

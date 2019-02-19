@@ -669,6 +669,14 @@ struct gensio_acc_password_verify_data {
 #define GENSIO_ACC_EVENT_PASSWORD_VERIFY	5
 #define GENSIO_ACC_EVENT_REQUEST_PASSWORD	6
 
+/* cdata is the following structure for POSTCERT_VERIFY */
+struct gensio_acc_postcert_verify_data {
+    struct gensio *io;
+    int err;
+    const char *errstr;
+};
+#define GENSIO_ACC_EVENT_POSTCERT_VERIFY	7
+
 /*
  * Report an event from the accepter to the user.
  *

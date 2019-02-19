@@ -567,7 +567,7 @@ struct waiter { };
 	else
 	    *r_int = 0;
     out:
-	err_handle("clear_sync", rv);
+	err_handle("read_s", rv);
     }
 
     %rename(write_s) write_st;
@@ -580,7 +580,7 @@ struct waiter { };
 	if (timeout < 0)
 	    rtv = NULL;
 	rv = gensio_write_s(self, &count, bytestr, len, rtv);
-	err_handle("clear_sync", rv);
+	err_handle("write_s", rv);
 	if (rtv)
 	    *r_int = rtv->tv_sec * 1000 + ((rtv->tv_usec + 500) / 1000);
 	else
@@ -908,10 +908,6 @@ struct waiter { };
 	int rv = gensio_acc_shutdown_s(self);
 
 	err_handle("shutdown_s", rv);
-    }
-
-    void disable() {
-	gensio_acc_disable(self);
     }
 
     %newobject control;

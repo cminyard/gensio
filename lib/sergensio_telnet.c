@@ -555,13 +555,13 @@ stelc_com_port_cmd(void *handler_data, const unsigned char *option,
 
     case 8:
 	val = 1;
-	gensio_cb(io, GENSIO_EVENT_SER_FLOWCONTROL, 0,
+	gensio_cb(io, GENSIO_EVENT_SER_FLOW_STATE, 0,
 		  (unsigned char *) &val, &vlen, NULL);
 	return;
 
     case 9:
 	val = 0;
-	gensio_cb(io, GENSIO_EVENT_SER_FLOWCONTROL, 0,
+	gensio_cb(io, GENSIO_EVENT_SER_FLOW_STATE, 0,
 		  (unsigned char *) &val, &vlen, NULL);
 	return;
 
