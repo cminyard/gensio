@@ -248,4 +248,5 @@ AC_OUTPUT([Makefile
 	tests/Makefile
 	tools/Makefile
 	swig/Makefile
-	swig/python/Makefile])
+	swig/python/Makefile
+	man/Makefile])
