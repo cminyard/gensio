@@ -141,6 +141,121 @@ channels are closed.
 See the indvidual gensio description for more information on streams
 and channels.
 
+.SH "PUBLIC KEY CRYPTOGRAPHY"
+The ssl and certauth gensios use public key cryptography.  This
+section gives a little overview of how that works.  You can safely
+skip this section if you already understand these concepts.
+
+Public key cryptography is used to authenticate and encrypt
+information at the beginning of a session.  It is a fairly expensive
+operation and is not generally used to encrypt information after the
+beginning.
+
+In public key cryptography, you have three basic things: A private
+key, a certificate (or public key), and a certificate authority (CA).
+
+The private key is just that: private.  You don't even send your
+private key to a certificate authority for signing of your
+certificate.  Keep it private, non-readable by everyone else.  Protect
+it, if it becomes known your certificate becomes useless to you, anyone
+can impersonate you.
+
+The certificate is the public key, and is mathematically associated
+with a single private key.  It's just that, public, anyone can use it
+to test that you have the private key by asking you to sign some data.
+The data in the certificate (like the Common Name) is part of the
+certificate.  If that data is modified, the certificate validation
+will fail.
+
+The CA is generally a trusted third-party that validates you and signs
+your certificate (generally for a fee).  CAs issue their own public
+certificates that are well-known and generally available on your system.
+The CA certificates are used to prove that your certificate is valid.
+
+.SS "SIGNING"
+The process if signing has been mentioned already, but not described.
+Basically, you use your private key to generate a value over some
+given data that proves you have the private key.  The certificate is
+ised to mathematically verify the signature.
+
+Two things are normally done with this:
+
+In a public key exchange, the entity wishing to be authorized sends a
+certificate.  The authorizing entity will look through it's CA for a
+certificate that has signed the sent certificate.  If the authorizing
+entity finds a certificate that can be used to validate the sent
+certificate, the sent certificate is valid.
+
+After that, the authorizing entity sends some generally random data
+to the other entity.  The other entity will take that data, perhaps
+some other important data that it want to make sure is not modified
+in the transfer, and signs that data.  It sends the signature back
+to the authorizing entity.  The authorizing entity can then use
+the data and the signature to validate that the sending entity has
+the private key associated with the certificate.
+
+This is basically how https works.  Note it is the
+.B web client
+that authenticates the
+.B web server,
+not the other way around.  This proves that you are connecting to the
+entity you say you are connecting to.  The authentication of a web
+client to the web server is generally done via a different mechanism
+(though SSL/TLS used by the ssl gensio has a way to do it, it is not
+generally used for that purpose).
+
+In the web server scenario, data in the certificate (specifically the
+Common Name and Subject Alternate Name) must match the name of the web
+page to which you are connecting.  The ssl and certauth gensios do not
+do this authentication, that is up to the user if it is necessary.
+
+.SS "ENCRYPTING"
+The certificate can be used to encrypt data that can only be decrypted
+with the private key.  When establishing an encrypted connection, this
+is generally used to transfer a symmetric cryptography key from one
+entity to another (the authorizing entity to the requesting entity in
+the case above).  You could encrypt all the data with the public key,
+but that is very expensive and in our example above would require
+certificates and private keys on both ends.
+
+.SS "SELF-SIGNED CERTIFICATES"
+It is possible to create a certificate that can act as its own
+certificate authority.  This is how ssh works.  You create a public
+and private key.  You put the public key in the .ssh/authorized_keys
+directory on systems where you want to log in.  The certificate acts
+as both the public key (as part of the initial transfer) and the CA
+(in the authorized_key directory) for authorizing you use of the
+system you are logging in to.
+
+ssh also stores places it has connected to in .ssh/known_hosts, which
+is the CA in the opposite direction.  This is why it asks you if you
+have never connected to a system before, it doesn't have the key in
+its CA.  Or why, if you connect to a system you have connected to
+before and the certificates don't match or fail validation, it
+complains about it.
+
+So if you are using self-signed certificates, you need to be careful
+to put only ones you trust in the CA.  This is obviously not possible
+in a large system like the world wide web, thus the creation of
+third-party trusted CAs.
+
+.SS "TRUST AND CRYPTOGRAPHY"
+The above discussions mention trust several times.  Cryptography does
+not remove the need for trust.  It just makes trust more convenient.
+If someone sends you a certificate, you need to validate that it was
+actually them that sent you the certificate, and that it was not
+modified in transit.  If you add that certificate to your CA, you are
+trusting the certificate, and you better make sure (with fingerprints,
+generally, see the openssl docs for details) that it came from a
+trusted entity.
+
+The hardest part of cryptography in general is key management.
+Breaking cryptographic algorithms is really hard.  Getting people to
+divulge private keys or use the wrong keys is a lot easier.
+
+For more on cryptography in general, and cryptography and trust, Bruce
+Schneier has some excellent books on the subject.
+
 .SH "TCP"
 
 .B tcp[(<options>)][,<hostname>],<port>[[,<hostname>],<port>[...]]
