@@ -809,6 +809,7 @@ sctpna_readhandler(int fd, void *cbdata)
     sctpna_ref(nadata);
     gensio_set_is_reliable(io, true);
     gensio_acc_add_pending_gensio(nadata->acc, io);
+    nadata->in_accept_cb = true;
  out_unlock:
     sctpna_unlock(nadata);
 }

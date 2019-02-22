@@ -44,124 +44,16 @@ struct gensio;
 typedef size_t gensiods; /* Data size */
 
 /*
- * Called when data is read from the I/O device.
- *
- * If err is zero, buf points to a data buffer and buflen is the
- * number of bytes available.
- *
- * If err is set, buf and buflen are undefined.  readerr is a standard
- * gensio errore.
- *
- * You must set the number of bytes consumed in buflen.  Note that you must
- * disable read if you don't consume all the bytes or in other
- * situations where you don't want the read handler called.  auxdata,
- * if not NULL, may contain information about the message, like if it
- * is out of band (oob) data.
- *
- * Return value is ignored.
+ * The following are documented in gensio_event.3
  */
 #define GENSIO_EVENT_READ		1
-
-/*
- * Called when data can be written to the I/O device.  Only io is
- * set, all other parameters are unused and the return value is
- * ignored.
- */
 #define GENSIO_EVENT_WRITE_READY	2
-
-/*
- * A new channel has been created by the remote end of the connection.
- * The new channel gensio is in auxdata.  buf may contain a string
- * with information about the new channel.  If this returns an error,
- * the channel creation is refused and the channel is closed.
- *
- * Blocked if gensio read is disabled.
- */
 #define GENSIO_EVENT_NEW_CHANNEL	3
-
-/*
- * Got a request from the other end to send a break.  Client or
- * server.
- *
- * Blocked if gensio read is disabled.
- */
 #define GENSIO_EVENT_SEND_BREAK		4
-
-/*
- * The following events are part of the authorization framework
- * for ssl and certauth (and possibly others).
- */
-
-/*
- * Authorization has begun, the username and service is available but
- * nothing else.
- *
- * There are a few special return values from this event:
- *
- *  GE_AUTHREJECT - Fail the connection, but continue to go through
- *  the motions.  This should be called if the user was invalid or
- *  data wasn't properly provided.
- *
- *  0 - authorization has succeeded.  No more authentication
- *  is required.
- *
- *  GE_NOTSUP - Just continue with authentication.
- *
- * Any other error will terminate the connection, these should
- * generally be things like out of memory and such, *NOT*
- * authentication failures of any kind.
- *
- * certauth only
- */
 #define GENSIO_EVENT_AUTH_BEGIN		5
-
-/*
- * The connection has received a certificate but has not verified it
- * yet.  This lets the user modify the certificate authority based on
- * certificate information.
- *
- * Return values are the same as GENSIO_EVENT_AUTH_BEGIN.
- *
- * ssl and certauth
- */
 #define GENSIO_EVENT_PRECERT_VERIFY	6
-
-/*
- * The connection has received a certificate and has verified it.  The
- * verification may have failed.  This lets the user handle their own
- * verification override.  err will be 0 on verification success,
- * GE_CERTNOTFOUND if no certificate was found, or GE_CERTREVOKED if
- * the if the certificate was revoked, GE_CERTEXPIRED if the
- * certificate has expired, or GE_CERTINVALID for other errors.
- * auxdata[0] will be an error string (or NULL if none available).
- *
- * Return values are:
- *
- * 0 - Authentication successed (even if an error was reported).
- * GE_NOTSUP - Continue with the authentication process.  Password
- *     authentication may occur, for instance, if an error was reported.
- * GE_AUTHREJECT - Fail the authentication. No more authentication will occur.
- *
- * ssl and certauth
- */
 #define GENSIO_EVENT_POSTCERT_VERIFY	7
-
-/*
- * A password has been received from the remote end.  The callee should
- * validate it.  In general, if GE_NOTSUP is returned here, the validation
- * will fail, but the connection shutdown will depend on the setting of
- * allow-authfail.  Password is passed in the buf field.
- *
- * certauth only
- */
 #define GENSIO_EVENT_PASSWORD_VERIFY	8
-
-/*
- * On the client side of an authorization, the remote end has
- * requested that a password be sent.  buf points to a buffer of
- * *buflen bytes to place the password in, the user should put
- * the password there and update *buflen to the actual length.
- */
 #define GENSIO_EVENT_REQUEST_PASSWORD	9
 
 /*
@@ -691,7 +583,7 @@ typedef int (*gensio_accepter_event)(struct gensio_accepter *accepter,
 /*
  * Callbacks for functions that don't give an error (close);
  */
-typedef void (*gensio_acc_done)(struct gensio_accepter *acc, void *open_data);
+typedef void (*gensio_acc_done)(struct gensio_accepter *acc, void *cb_data);
 
 /*
  * Return the type string for the gensio accepter (if depth is 0) or
