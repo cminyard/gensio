@@ -68,27 +68,6 @@ typedef size_t gensiods; /* Data size */
 #define GENSIO_EVENT_USER_MIN		100000
 #define GENSIO_EVENT_USER_MAX		199999
 
-/*
- * Called for any event from the I/O.  Parameters are:
- *
- *   event - What event is being reported?  One of GENSIO_EVENT_xxx.
- *
- *   err - If zero, there is no error.  If non-zero, this is reporting
- *         an error.  Generally only on read events.
- *
- *   buf - For events reporting data transferred (generally read), this
- *         is the data.  Undefined for events not transferring data.
- *
- *   buflen - The length of data being transferred.  This passes in the
- *            lenth, the user should update it with the number of bytes
- *            actually processed.  NULL for events not transferring data.
- *
- *   auxdata - Depending on the event, other data may be transferred.
- *             this holds a pointer to it.
- *
- * This function should return 0 if it handled the event, or ENOTSUP if
- * it didn't.
- */
 typedef int (*gensio_event)(struct gensio *io, void *user_data,
 			    int event, int err,
 			    unsigned char *buf, gensiods *buflen,
@@ -108,6 +87,25 @@ typedef void (*gensio_generic_done)(void *done_data);
  * Callbacks for functions that give an error (open);
  */
 typedef void (*gensio_done_err)(struct gensio *io, int err, void *open_data);
+
+/*
+ * Convert a string representation of an I/O location into a client
+ * gensio.
+ */
+int str_to_gensio(const char *str,
+		  struct gensio_os_funcs *o,
+		  gensio_event cb, void *user_data,
+		  struct gensio **gensio);
+
+/*
+ * Allocate a filter genio via string with the given child gensio.
+ * You should use the gensio_open_nochild() function to open it
+ * if the child gensio is already open.
+ */
+int str_to_gensio_child(struct gensio *child, const char *str,
+			struct gensio_os_funcs *o,
+			gensio_event cb, void *user_data,
+			struct gensio **gensio);
 
 /*
  * Set the callback data for the net.  This must be done in the
@@ -210,15 +208,6 @@ int gensio_open(struct gensio *io, gensio_done_err open_done, void *open_data);
  */
 int gensio_open_s(struct gensio *io);
 
-/*
- * Allocate a filter genio via string with the given child gensio.
- * You should use the gensio_open_nochild() function to open it
- * if the child gensio is already open.
- */
-int str_to_gensio_child(struct gensio *child, const char *str,
-			struct gensio_os_funcs *o,
-			gensio_event cb, void *user_data,
-			struct gensio **gensio);
 /*
  * Like gensio_open, but this assumes any child gensios are already
  * open and just opens this gensio.  This can be useful if you have
@@ -781,15 +770,6 @@ int str_to_telnet_gensio_accepter(const char *str, const char * const args[],
 				  gensio_accepter_event cb,
 				  void *user_data,
 				  struct gensio_accepter **acc_gensio);
-
-/*
- * Convert a string representation of an I/O location into a client
- * gensio.
- */
-int str_to_gensio(const char *str,
-		  struct gensio_os_funcs *o,
-		  gensio_event cb, void *user_data,
-		  struct gensio **gensio);
 
 /*
  * Allocators for the various gensio types, compatible with
