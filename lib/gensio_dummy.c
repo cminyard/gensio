@@ -106,7 +106,7 @@ dummyna_shutdown(struct gensio_accepter *accepter,
 static int
 dummyna_set_accept_callback_enable(struct gensio_accepter *accepter,
 				   bool enabled,
-				   gensio_generic_done done, void *done_data)
+				   gensio_acc_done done, void *done_data)
 {
     return 0;
 }

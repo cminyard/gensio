@@ -1129,7 +1129,7 @@ gensio_acc_set_accept_callback_enable(struct gensio_accepter *accepter,
 int
 gensio_acc_set_accept_callback_enable_cb(struct gensio_accepter *accepter,
 					 bool enabled,
-					 gensio_generic_done done,
+					 gensio_acc_done done,
 					 void *done_data)
 {
     return accepter->func(accepter, GENSIO_ACC_FUNC_SET_ACCEPT_CALLBACK,
@@ -1142,7 +1142,7 @@ struct acc_cb_enable_data {
 };
 
 static void
-acc_cb_enable_done(void *done_data)
+acc_cb_enable_done(struct gensio_accepter *acc, void *done_data)
 {
     struct acc_cb_enable_data *data = done_data;
 

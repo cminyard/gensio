@@ -192,7 +192,7 @@ basena_shutdown(struct gensio_accepter *accepter,
 static int
 basena_set_accept_callback_enable(struct gensio_accepter *accepter,
 				  bool enabled,
-				  gensio_generic_done done, void *done_data)
+				  gensio_acc_done done, void *done_data)
 {
     struct basena_data *nadata = gensio_acc_get_gensio_data(accepter);
 

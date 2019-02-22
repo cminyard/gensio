@@ -79,11 +79,6 @@ typedef int (*gensio_event)(struct gensio *io, void *user_data,
 typedef void (*gensio_done)(struct gensio *io, void *open_data);
 
 /*
- * Callbacks for functions just have done data.
- */
-typedef void (*gensio_generic_done)(void *done_data);
-
-/*
  * Callbacks for functions that give an error (open);
  */
 typedef void (*gensio_done_err)(struct gensio *io, int err, void *open_data);
@@ -653,7 +648,7 @@ void gensio_acc_set_accept_callback_enable(struct gensio_accepter *accepter,
  */
 int gensio_acc_set_accept_callback_enable_cb(struct gensio_accepter *accepter,
 					     bool enabled,
-					     gensio_generic_done done,
+					     gensio_acc_done done,
 					     void *done_data);
 
 /*

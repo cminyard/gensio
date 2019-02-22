@@ -1262,7 +1262,8 @@ stdiona_shutdown(struct gensio_accepter *accepter,
 
 struct stdiona_waiters {
     struct gensio_os_funcs *o;
-    gensio_generic_done done;
+    struct stdiona_data *nadata;
+    gensio_acc_done done;
     void *done_data;
     struct gensio_runner *runner;
 };
@@ -1272,15 +1273,19 @@ waiter_runner_cb(struct gensio_runner *runner, void *cb_data)
 {
     struct stdiona_waiters *w = cb_data;
 
-    w->done(w->done_data);
+    w->done(w->nadata->acc, w->done_data);
     w->o->free_runner(w->runner);
+
+    stdiona_lock(w->nadata);
+    stdiona_deref_and_unlock(w->nadata);
+
     w->o->free(w->o, w);
 }
 
 static int
 stdiona_set_accept_callback_enable(struct gensio_accepter *accepter,
 				   bool enabled,
-				   gensio_generic_done done, void *done_data)
+				   gensio_acc_done done, void *done_data)
 {
     struct stdiona_data *nadata = gensio_acc_get_gensio_data(accepter);
     int rv = 0;
@@ -1295,11 +1300,13 @@ stdiona_set_accept_callback_enable(struct gensio_accepter *accepter,
 	    w->o = o;
 	    w->done = done;
 	    w->done_data = done_data;
+	    w->nadata = nadata;
 	    w->runner = o->alloc_runner(o, waiter_runner_cb, w);
 	    if (!w->runner) {
 		o->free(o, w);
 		rv = GE_NOMEM;
 	    } else {
+		stdiona_ref(nadata);
 		o->run(w->runner);
 	    }
 	}
