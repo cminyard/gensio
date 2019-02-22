@@ -1,0 +1,206 @@
+.TH gensio_event 3 "21 Fed 2019"
+.SH NAME
+gensio_event \- Event handler for events from a gensio
+
+.SH SYNOPSIS
+.B #include <gensio/gensio.h>
+.TP 20
+.B typedef int (*gensio_event)(struct gensio *io, void *user_data,
+.br
+.B                          int event, int err,
+.br
+.B                          unsigned char *buf, gensiods *buflen,
+.br
+.B                          const char *const *auxdata);
+.PP
+
+When an event happens on a gensio that is reported to the user, the
+gensio library calls the gensio_event type handler that was registered
+with the gensio.
+
+The use of the various parameters depends on the particular event.
+The parameters that don't vary are:
+.TP
+.B io
+\- The gensio the event is being reported for.
+.TP
+.B user_data
+\- The user_data supplied when the event handler was registered.
+.TP
+.B event
+\- The particular event being reported.
+.PP
+Events follow.
+.SS "GENSIO_EVENT_READ"
+Called when data is read from the I/O device.
+
+If
+.B err
+is zero, buf points to a data buffer and buflen is the number
+of bytes available.
+
+If
+.B err
+is set, buf and buflen are undefined.
+.B err
+is a standard gensio errno.
+
+You must set the number of bytes consumed in
+.B buflen.
+Note that you must
+disable read if you don't consume all the bytes or in other
+situations where you don't want the read handler called.
+.B auxdata,
+if not NULL, may contain information about the message, like if it
+is out of band (oob) data.  See information on the specific gensio
+for details.
+
+Return value is ignored.
+.SS "GENSIO_EVENT_WRITE_READY"
+Called when data can be written to the I/O device.
+
+Return value is ignored.
+.SS "GENSIO_EVENT_NEW_CHANNEL"
+A new channel has been created by the remote end of the connection.
+The new channel gensio is in buf and must be cast.  Information about
+the channel will be passed in
+.B auxdata,
+see documentation on the particular gensio for details.  This function
+should return 0 to accept the channel, or a gensio error if the
+channel creation is refused.
+
+Blocked if gensio read is disabled.
+.SS "GENSIO_EVENT_SEND_BREAK"
+Got a request from the other end to send a break.  Telnet client or
+server.
+
+Blocked if gensio read is disabled.
+.SS "GENSIO_EVENT_AUTH_BEGIN"
+Authorization has begun, the username and service is available but
+nothing else.
+
+There are a few special return values from this event:
+.TP
+.B GE_AUTHREJECT
+\- Fail the connection, but continue to go through the motions.  This
+should be called if the user was invalid or data wasn't properly
+provided.
+.TP 
+.B 0
+\- authorization has succeeded.  No more authentication is required,
+but the protocol may still go through the motions of the protocol.
+.TP
+.B GE_NOTSUP
+\- Just continue with authentication.
+
+Any other error will terminate the connection, these should
+generally be things like out of memory and such,
+.B NOT
+authentication failures of any kind.
+
+certauth only
+.SS "GENSIO_EVENT_PRECERT_VERIFY"
+The connection has received a certificate but has not verified it
+yet.  This lets the user modify the certificate authority based on
+certificate information.
+
+Return values are the same as
+.B GENSIO_EVENT_AUTH_BEGIN.
+
+ssl and certauth
+.SS "GENSIO_EVENT_POSTCERT_VERIFY"
+The connection has received a certificate and has verified it.  The
+verification may have failed.  This lets the user handle their own
+verification override.  err will be one of the following:
+.TP
+0
+on verification success.
+.TP
+.B GE_CERTNOTFOUND
+if no certificate was found
+.TP
+.B GE_CERTREVOKED
+if the if the certificate was revoked
+.TP
+.B GE_CERTEXPIRED
+if the certificate has expired
+.TP
+.B GE_CERTINVALID
+for other errors.
+.PP
+Any other error will terminate the connection, these should
+generally be things like out of memory and such,
+.B NOT
+authentication failures of any kind.
+
+.B auxdata[0]
+will be an error string (or NULL if none available).  Make sure to check
+if
+.B auxdata
+is NULL before indexing
+.B auxdata[0].
+
+Return values are:
+.TP
+.B 0
+\- Authentication successed (even if an error was reported).
+.TP
+.B GE_NOTSUP
+\- Continue with the authentication process.  Password
+authentication may occur, for instance, if an error was reported.
+.TP
+.B GE_AUTHREJECT
+\- Fail the authentication. No more authentication will occur.
+.PP
+ssl and certauth
+.SS "GENSIO_EVENT_PASSWORD_VERIFY"
+A password has been received from the remote end, it is passed
+in
+.B buf.
+The callee should validate it.  Return values are:
+.TP
+.B 0
+\- The password verification succeeds.
+.B GE_NOTSUP
+\- Fail the validation, but the connection shutdown will
+depend on the setting of allow-authfail.
+.TP
+.B GE_AUTHREJECT
+\- Reject the authorization for some other reason besides vailing
+validation.
+.PP
+Any other error will terminate the connection, these should
+generally be things like out of memory and such,
+.B NOT
+authentication failures of any kind.
+
+certauth only
+.SS "GENSIO_EVENT_REQUEST_PASSWORD"
+On the client side of an authorization, the remote end has requested
+that a password be sent.
+.B buf
+points to a buffer of
+.B *buflen
+bytes to place the password in, the user should put the password there
+and update
+.B *buflen
+to the actual length.
+
+Return 0 for success, or any other gensio error to fail the password
+fetch.
+.SH "OTHER EVENTS"
+sergensio gensios have a set of other events, see sergensio(5) for
+details.  Other gensio that are not part of the gensio library proper
+may have their own events, too.
+.SH "RETURN VALUES"
+See the individual events for the values you should return.  If an
+event is not handled by the event handler, the handler must return
+GE_NOTSUP, except in the case of
+.B GENSIO_EVENT_READ
+and
+.B GENSIO_EVENT_WRITE_READY
+which must be handled.
+.SH "SEE ALSO"
+gensio_set_callback(3), str_to_gensio_child(3), gensio_open_channel(3),
+gensio_open_channel_s(3), gensio_acc_str_to_gensio(3), str_to_gensio(3)
+sergensio(5)

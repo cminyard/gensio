@@ -50,7 +50,7 @@ typedef size_t gensiods; /* Data size */
  * number of bytes available.
  *
  * If err is set, buf and buflen are undefined.  readerr is a standard
- * *nix errno.
+ * gensio errore.
  *
  * You must set the number of bytes consumed in buflen.  Note that you must
  * disable read if you don't consume all the bytes or in other
@@ -148,7 +148,7 @@ typedef size_t gensiods; /* Data size */
 
 /*
  * A password has been received from the remote end.  The callee should
- * validate it.  In general, if ENOTSUP is returned here, the validation
+ * validate it.  In general, if GE_NOTSUP is returned here, the validation
  * will fail, but the connection shutdown will depend on the setting of
  * allow-authfail.  Password is passed in the buf field.
  *
