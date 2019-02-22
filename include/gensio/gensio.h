@@ -83,20 +83,11 @@ typedef void (*gensio_done)(struct gensio *io, void *open_data);
  */
 typedef void (*gensio_done_err)(struct gensio *io, int err, void *open_data);
 
-/*
- * Convert a string representation of an I/O location into a client
- * gensio.
- */
 int str_to_gensio(const char *str,
 		  struct gensio_os_funcs *o,
 		  gensio_event cb, void *user_data,
 		  struct gensio **gensio);
 
-/*
- * Allocate a filter genio via string with the given child gensio.
- * You should use the gensio_open_nochild() function to open it
- * if the child gensio is already open.
- */
 int str_to_gensio_child(struct gensio *child, const char *str,
 			struct gensio_os_funcs *o,
 			gensio_event cb, void *user_data,
@@ -663,17 +654,6 @@ int gensio_acc_set_accept_callback_enable_s(struct gensio_accepter *accepter,
  */
 void gensio_acc_free(struct gensio_accepter *accepter);
 
-/*
- * Create a new connecting gensio from the given gensio accepter.
- * This will come from the first address/port that the accepter is on
- * for TCP and UDP.  It will bind to all the address/ports for SCTP.
- * To use this, you must specify a string that exactly matches the
- * layers of the accepter.  So, for instance, if the accepter is
- * "telnet,ssl(CA=x1,key=x2,cert=x3),sctp,3095", then the
- * string must be in the form "telnet,ssl(CA=x2),sctp,otherserver,3820"
- * The layers are exactly the same, but you can vary the options to
- * the layers.
- */
 int gensio_acc_str_to_gensio(struct gensio_accepter *accepter,
 			     const char *str,
 			     gensio_event cb, void *user_data,

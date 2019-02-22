@@ -1,0 +1,87 @@
+.TH str_to_gensio 3 "22 Feb 2019"
+.SH NAME
+str_to_gensio, str_to_gensio_child, gensio_acc_str_to_gensio
+\- Create a gensio from a string
+
+.SH SYNOPSIS
+.B #include <gensio/gensio.h>
+.TP 20
+.B int str_to_gensio(const char *str,
+.br
+.B                   struct gensio_os_funcs *o,
+.br
+.B                   gensio_event cb, void *user_data,
+.br
+.B                   struct gensio **io);
+.PP
+.TP 20
+.B int str_to_gensio_child(struct gensio *child, const char *str,
+.br
+.B                   struct gensio_os_funcs *o,
+.br
+.B                   gensio_event cb, void *user_data,
+.br
+.B                   struct gensio **io);
+.PP
+.TP 20
+.B int gensio_acc_str_to_gensio(struct gensio_accepter *accepter,
+.br
+.B                   const char *str, struct gensio_os_funcs *o,
+.br
+.B                   gensio_event cb, void *user_data,
+.br
+.B                   struct gensio **io);
+.PP
+
+.B str_to_gensio
+allocates a new gensio stack based upon the given string
+.B str.
+
+.B str_to_gensio_child
+allocates a partial gensio stack and stacks it on top of the given
+.B child.
+Note that if the child is already open, you should use
+.B gesnio_open_nochild()
+to open just this gensio.  This can only be used to allocate filter
+gensios.
+
+.B gensio_acc_str_to_gensio
+allocates a gensio based upon the given accepter.  The avaiability and
+use of this varies from gensio to gensio, but it can be used on UDP to
+create a gensio that uses the UDP ports that the accepter owns.
+This will come from the first address/port that the accepter is on
+for TCP and UDP.  It will bind to all the address/ports for SCTP.
+To use this, you must specify a string that exactly matches the
+layers of the accepter.  So, for instance, if the accepter is
+"telnet,ssl(CA=x1,key=x2,cert=x3),sctp,3095", then the
+string must be in the form "telnet,ssl(CA=x2),sctp,otherserver,3820"
+The layers are exactly the same, but you can vary the options to
+the layers.
+
+The
+.B cb
+and
+.B user_data
+parameters set a function that will be called when events come in on
+the gensio.
+.B user_data
+is unused by the gensio stack itself, it is there for the user and may
+be anything the user wishes.
+.B cb
+may be NULL before the gensio is opened, but must be set before it is
+opened.  In particular, the
+.B cb
+does not need to be set if other gensios will be stacked on top of
+it in the future, as the gensios stacked on top will set the
+.B cb
+and
+.B user_data
+values.
+
+The new gensio is returned in
+.B io.
+It will be in the closed state.
+.SH "RETURN VALUES"
+Zero is returned on succes, or a gensio error on failure.
+.SH "SEE ALSO"
+gensio_set_callback(3), gensio_err(3), gensio(5)
