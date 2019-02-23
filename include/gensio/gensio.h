@@ -93,23 +93,10 @@ int str_to_gensio_child(struct gensio *child, const char *str,
 			gensio_event cb, void *user_data,
 			struct gensio **gensio);
 
-/*
- * Set the callback data for the net.  This must be done in the
- * new_connection callback for the accepter before any other operation
- * is done on the gensio.  The only exception is that gensio_close() may
- * be called with callbacks not set.  This function may be called
- * again if the gensio is not enabled.
- */
 void gensio_set_callback(struct gensio *io, gensio_event cb, void *user_data);
 
-/*
- * Return the user data supplied in gensio_set_callbacks().
- */
 void *gensio_get_user_data(struct gensio *io);
 
-/*
- * Set the user data.  May be called if the gensio is not enabled.
- */
 void gensio_set_user_data(struct gensio *io, void *user_data);
 
 /*
