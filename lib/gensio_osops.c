@@ -522,7 +522,8 @@ const char *gensio_errs[] = {
     /*  29 */    "Data was missing",
     /*  30 */    "Unable to find given certificate",
     /*  31 */    "Authentication tokens rejected",
-    /*  32 */    "Address already in use"
+    /*  32 */    "Address already in use",
+    /*  33 */    "Operation was interrupted by a signal"
 };
 const unsigned int errno_len = sizeof(gensio_errs) / sizeof(char *);
 
