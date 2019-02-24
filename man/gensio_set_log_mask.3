@@ -1,0 +1,68 @@
+.TH gensio_set_log_mask 3 "23 Feb 2019"
+.SH NAME
+gensio_set_log_mask, gensio_get_log_mask, gensio_log_level_to_str,
+
+\- Logging and seting which gensio logs are passed or ignored
+
+.SH SYNOPSIS
+.B #include <gensio/gensio_os_funcs.h>
+.TP 20
+.B void gensio_set_log_mask(unsigned int mask);
+.PP
+.TP 20
+.B unsigned int gensio_get_log_mask(void);
+.PP
+.TP 20
+.B const char *gensio_log_level_to_str(enum gensio_log_levels level);
+.PP
+.TP 20
+.B void gensio_vlog(struct gensio_os_funcs *o,
+.br
+.B enum gensio_log_levels level,
+.br
+.B const char *str, va_list args);
+.PP
+.TP 20
+.B void gensio_log(struct gensio_os_funcs *o,
+.br
+.B enum gensio_log_levels level,
+.br
+.B const char *str, ...);
+.PP
+
+The log mask is a global variable in the gensio library that sets what
+level of logs are delivered through the vlog function pointer in
+.B gensio_os_funcs.
+Log levels are:
+
+.IP
+GENSIO_LOG_FATAL
+GENSIO_LOG_ERR
+GENSIO_LOG_WARNING
+GENSIO_LOG_INFO
+GENSIO_LOG_DEBUG
+.PP
+
+with obvious meanings.  There is also:
+
+.IP
+GENSIO_LOG_MASK_ALL
+.PP
+
+which is a bitmask of all the log levels.
+
+The default log mask is
+.B (1 << GENSIO_LOG_FATAL | 1 << GENSIO_LOG_ERR).
+Setting other log values can be helpful in debugging problems with gensios.
+
+.B gensio_log_level_to_str
+converts a log level to a string representation of that level.
+
+.B gensio_vlog
+and
+.B gensio_log
+are the functions used to generate logs.  These are primarily for use
+in the gensio library, though you may use them, too, if you like.
+
+.SH "SEE ALSO"
+gensio(5), gensio_os_funcs(3)

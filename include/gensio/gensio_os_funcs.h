@@ -248,12 +248,20 @@ struct gensio_os_funcs {
     /* Free this structure. */
     void (*free_funcs)(struct gensio_os_funcs *f);
 
-    /* Call this function once. */
+    /*
+     * Use the "gensio_once" structure to ensure that the func is only
+     * called one time.
+     */
     void (*call_once)(struct gensio_os_funcs *f, struct gensio_once *once,
 		      void (*func)(void *cb_data), void *cb_data);
 
     void (*get_monotonic_time)(struct gensio_os_funcs *f, struct timeval *time);
 
+    /*
+     * Called from the gensio library when it logs something.  This must
+     * generally be set by the user, the library providing the os funcs
+     * will set it to NULL.
+     */
     void (*vlog)(struct gensio_os_funcs *f, enum gensio_log_levels level,
 		 const char *log, va_list args);
 

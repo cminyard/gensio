@@ -1,0 +1,65 @@
+.TH gensio_os_funcs 3 "23 Feb 2019"
+.SH NAME
+gensio_os_funcs \- Abstraction for some operating system functions used
+by the gensio library
+
+.SH SYNOPSIS
+.B #include <gensio/gensio_os_funcs.h>
+.PP
+.B struct gensio_os_funcs {}
+.PP
+.B int gensio_default_os_hnd(int wake_sig, struct gensio_os_funcs *o)
+
+This structure provides an abstraction for the gensio library that
+lets it work with various event libraries.  It provides the following
+basic functions:
+.TP
+memory allocation \- Allocate and free memory.
+.TP
+mutexes \- Provide mutual exclusion.
+.TP
+file handler callbacks \- Allows file descriptors to be monitored
+and report when I/O is ready on them.
+.TP
+timers \- Call callbacks after a certain amount of time has elapsed.
+.TP
+runners \- Run a function in a new execution context.  Calling callbacks
+straight from user functions can result in deadlocks, this provides a
+way to call callbacks from a separate context.
+.TP
+waiters \- Wait for operations to occur while running timers, runners
+and watching for file descriptors.
+.TP
+logging \- Allow the gensio library to generate logs to report issues.
+.PP
+
+These are documented in the include file.
+
+The basic issue is that there are various event handling libraries
+(Tcl/Tk, glib, Xlib, custom ones, etc.) and you may want to integrate
+the gensio library with one of these.  Even though it's a bit of a
+pain to have to pass one of these around, it adds needed flexibility.
+
+.B gensio_default_os_hnd
+provides a way to allocate a default OS function handler for the
+platform.  The same value will be returned each time, only one is
+created.  You should generally use this one unless you have a special
+need as documented above.
+
+The
+.I wake_sig
+value is a signal for use by the OS functions for internal
+communication between threads.  If you are running a multi-threaded
+application, you must provide a valid signal that you don't use for
+any other purpose, generally
+.B SIGUSR1
+or
+.B SIGUSR2.
+
+.SH "RETURN VALUES"
+.B gensio_default_os_hnd
+returns a standard gensio error.
+
+.SH "SEE ALSO"
+gensio_set_log_mask(3), gensio_get_log_mask(3), gensio_log_level_to_str(3),
+gensio(5), gensio_err(3)
