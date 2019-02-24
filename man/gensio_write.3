@@ -1,0 +1,46 @@
+.TH gensio_write 3 "24 Feb 2019"
+.SH NAME
+gensio_write \- Write data to a gensio
+
+.SH SYNOPSIS
+.B #include <gensio/gensio.h>
+.TP 20
+.B int gensio_write(struct gensio *io, gensiods *count,
+.br
+.B                   const void *buf, gensiods buflen,
+.br
+.B                   const char *const *auxdata);
+.PP
+
+Write data to the given gensio.  The data is in
+.I buf
+and the length of
+the data is in
+.I buflen.
+Note that
+.B gensio_write
+may not write all of the data given, depending on the gensio type and
+the internal buffer space.  It will return the number of bytes actually
+written in
+.B count
+which may be NULL if you don't care.  (Hint: you should almost always
+care.)
+
+If
+.B gensio_write
+is unable to write the full amount of data, you should generally buffer
+the unwritten data and call
+.B gensio_set_write_callback_enable(3)
+to know when you can write the rest of the data.  Many applications
+always buffer the data and enable the write callback to do the write
+and then disable the write callback when all data is written, for
+consistency.
+
+.B auxdata
+is used to pass in gensio specific auxiliary data, such as the stream
+number for SCTP or whether the data is out of band data for SCTP or
+TCP.
+.SH "RETURN VALUES"
+Zero is returned on success, or a gensio error on failure.
+.SH "SEE ALSO"
+gensio_err(3), gensio(5)

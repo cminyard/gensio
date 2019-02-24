@@ -1,5 +1,5 @@
 man_MANS = gensio.5 gensio_event.3 str_to_gensio.3 gensio_set_callback.3 \
-	gensio_set_log_mask.3 gensio_os_funcs.3 gensio_err.3
+	gensio_set_log_mask.3 gensio_os_funcs.3 gensio_err.3 gensio_write.3
 
 install-data-hook:
 	$(LN_S) str_to_gensio.3 $(DESTDIR)$(man3dir)/str_to_gensio_child.3
