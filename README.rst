@@ -512,3 +512,18 @@ Here's a small program::
 The interface is a pretty direct translation from the C interface.  A
 python representation of the interface is in swig/python/gensiodoc.py,
 you can see that for documentation.
+
+=============
+Running Tests
+=============
+
+There are a number of tests for gensios.  They currently only run on
+Linux and require some external tools.
+
+They require the serialsim kernel module and python interface.  These
+are at https://github.com/cminyard/serialsim and allow the tests to
+use a simulated serial port to read modem control line, inject errors,
+etc.
+
+They also require the ipmi_sim program from the OpenIPMI library at
+https://github.com/cminyard/openipmi to run the ipmisol tests.
