@@ -565,8 +565,10 @@ sfilter_free(struct ssl_filter *sfilter)
 	SSL_CTX_free(sfilter->ctx);
     if (sfilter->lock)
 	sfilter->o->free_lock(sfilter->lock);
-    if (sfilter->read_data)
+    if (sfilter->read_data) {
+	memset(sfilter->read_data, 0, sfilter->max_read_size);
 	sfilter->o->free(sfilter->o, sfilter->read_data);
+    }
     if (sfilter->write_data)
 	sfilter->o->free(sfilter->o, sfilter->write_data);
     if (sfilter->filter)

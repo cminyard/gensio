@@ -1511,8 +1511,10 @@ sfilter_free(struct certauth_filter *sfilter)
 	BIO_free(sfilter->cert_bio);
     if (sfilter->lock)
 	sfilter->o->free_lock(sfilter->lock);
-    if (sfilter->read_buf)
+    if (sfilter->read_buf) {
+	memset(sfilter->read_buf, 0, sfilter->max_read_size);
 	sfilter->o->free(sfilter->o, sfilter->read_buf);
+    }
     if (sfilter->write_buf)
 	sfilter->o->free(sfilter->o, sfilter->write_buf);
     if (sfilter->pkey)

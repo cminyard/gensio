@@ -367,6 +367,13 @@ gensio_pam_cb(int num_msg, const struct pam_message **msg,
 	    if (err)
 		goto out_err;
 	    reply[i].resp = strdup(buf);
+	    memset(buf, 0, len);
+	    /*
+	     * FIXME - we scrub the above buffer, but should we scrub
+	     * the buffers from io?  gensio currently doesn't have a
+	     * way to do it, and the bytes generally come in one at a
+	     * time, and will be overwritten pretty quickly, anyway.
+	     */
 	    if (!reply[i].resp)
 		goto out_err;
 	    break;
