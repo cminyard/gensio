@@ -682,7 +682,7 @@ tcpna_startup(struct gensio_accepter *accepter)
 
     tcpna_lock(nadata);
     if (nadata->in_shutdown || nadata->setup) {
-	rv = EBUSY;
+	rv = GE_INUSE;
 	goto out_unlock;
     }
 
@@ -729,7 +729,7 @@ tcpna_shutdown(struct gensio_accepter *accepter,
     if (nadata->setup)
 	i_tcpna_shutdown(nadata, shutdown_done, shutdown_data);
     else
-	rv = EBUSY;
+	rv = GE_INUSE;
     tcpna_unlock(nadata);
 
     return rv;
