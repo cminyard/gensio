@@ -241,12 +241,27 @@ typedef int (*str_to_gensio_acc_handler)(const char *str,
 					 gensio_accepter_event cb,
 					 void *user_data,
 					 struct gensio_accepter **new_gensio);
+typedef int (*str_to_gensio_acc_child_handler)(struct gensio_accepter *child,
+					 const char * const args[],
+					 struct gensio_os_funcs *o,
+					 gensio_accepter_event cb,
+					 void *user_data,
+					 struct gensio_accepter **new_gensio);
 /*
  * Add a gensio accepter to the set of registered gensio accepters.
  */
 int register_gensio_accepter(struct gensio_os_funcs *o,
 			     const char *name,
 			     str_to_gensio_acc_handler handler);
+
+/*
+ * Like above, but use for filter gensios so str_to_gensio_accepter_child()
+ * will work.
+ */
+int register_filter_gensio_accepter(struct gensio_os_funcs *o,
+				    const char *name,
+				    str_to_gensio_acc_handler handler,
+				    str_to_gensio_acc_child_handler chandler);
 
 /*
  * Handler registered so that str_to_gensio can process a gensio.

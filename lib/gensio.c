@@ -1223,6 +1223,7 @@ gensio_acc_set_is_packet(struct gensio_accepter *accepter, bool is_packet)
 struct registered_gensio_accepter {
     const char *name;
     str_to_gensio_acc_handler handler;
+    str_to_gensio_acc_child_handler chandler;
     struct registered_gensio_accepter *next;
 };
 
@@ -1242,15 +1243,21 @@ add_default_gensio_accepters(void *cb_data)
     register_gensio_accepter(o, "udp", str_to_udp_gensio_accepter);
     register_gensio_accepter(o, "sctp", str_to_sctp_gensio_accepter);
     register_gensio_accepter(o, "stdio", str_to_stdio_gensio_accepter);
-    register_gensio_accepter(o, "ssl", str_to_ssl_gensio_accepter);
-    register_gensio_accepter(o, "certauth", str_to_certauth_gensio_accepter);
-    register_gensio_accepter(o, "telnet", str_to_telnet_gensio_accepter);
+    register_filter_gensio_accepter(o, "ssl", str_to_ssl_gensio_accepter,
+				    ssl_gensio_accepter_alloc);
+    register_filter_gensio_accepter(o, "certauth",
+				    str_to_certauth_gensio_accepter,
+				    certauth_gensio_accepter_alloc);
+    register_filter_gensio_accepter(o, "telnet", str_to_telnet_gensio_accepter,
+				    telnet_gensio_accepter_alloc);
     register_gensio_accepter(o, "dummy", str_to_dummy_gensio_accepter);
 }
 
 int
-register_gensio_accepter(struct gensio_os_funcs *o,
-			 const char *name, str_to_gensio_acc_handler handler)
+register_filter_gensio_accepter(struct gensio_os_funcs *o,
+				const char *name,
+				str_to_gensio_acc_handler handler,
+				str_to_gensio_acc_child_handler chandler)
 {
     struct registered_gensio_accepter *n;
 
@@ -1263,6 +1270,7 @@ register_gensio_accepter(struct gensio_os_funcs *o,
 
     n->name = name;
     n->handler = handler;
+    n->chandler = chandler;
     o->lock(reg_gensio_acc_lock);
     n->next = reg_gensio_accs;
     reg_gensio_accs = n;
@@ -1270,10 +1278,19 @@ register_gensio_accepter(struct gensio_os_funcs *o,
     return 0;
 }
 
-int str_to_gensio_accepter(const char *str,
-			   struct gensio_os_funcs *o,
-			   gensio_accepter_event cb, void *user_data,
-			   struct gensio_accepter **accepter)
+int
+register_gensio_accepter(struct gensio_os_funcs *o,
+			 const char *name,
+			 str_to_gensio_acc_handler handler)
+{
+    return register_filter_gensio_accepter(o, name, handler, NULL);
+}
+
+int
+str_to_gensio_accepter(const char *str,
+		       struct gensio_os_funcs *o,
+		       gensio_accepter_event cb, void *user_data,
+		       struct gensio_accepter **accepter)
 {
     int err;
     struct addrinfo *ai = NULL;
@@ -1327,6 +1344,44 @@ int str_to_gensio_accepter(const char *str,
 
 	    gensio_free_addrinfo(o, ai);
 	}
+    }
+
+    if (args)
+	gensio_argv_free(o, args);
+
+    return err;
+}
+
+int
+str_to_gensio_accepter_child(struct gensio_accepter *child,
+			     const char *str,
+			     struct gensio_os_funcs *o,
+			     gensio_accepter_event cb, void *user_data,
+			     struct gensio_accepter **accepter)
+{
+    int err = GE_INVAL;
+    const char **args = NULL;
+    struct registered_gensio_accepter *r;
+    unsigned int len;
+
+    o->call_once(o, &gensio_acc_str_initialized,
+		 add_default_gensio_accepters, o);
+
+    while (isspace(*str))
+	str++;
+    for (r = reg_gensio_accs; r; r = r->next) {
+	len = strlen(r->name);
+	if (strncmp(r->name, str, len) != 0 ||
+			(str[len] != ',' && str[len] != '(' && str[len]))
+	    continue;
+
+	str += len;
+	err = gensio_scan_args(o, &str, NULL, &args);
+	if (!err)
+	    err = r->chandler(child, args, o, cb, user_data, accepter);
+	if (args)
+	    gensio_argv_free(o, args);
+	return err;
     }
 
     if (args)

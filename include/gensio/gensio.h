@@ -221,6 +221,12 @@ int str_to_gensio_accepter(const char *str, struct gensio_os_funcs *o,
 			   gensio_accepter_event cb, void *user_data,
 			   struct gensio_accepter **accepter);
 
+int str_to_gensio_accepter_child(struct gensio_accepter *child,
+				 const char *str,
+				 struct gensio_os_funcs *o,
+				 gensio_accepter_event cb, void *user_data,
+				 struct gensio_accepter **accepter);
+
 void *gensio_acc_get_user_data(struct gensio_accepter *accepter);
 
 void gensio_acc_set_user_data(struct gensio_accepter *accepter,

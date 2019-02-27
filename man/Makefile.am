@@ -35,6 +35,7 @@ install-data-hook:
 	$(LN_S) -f gensio_set_sync.3 $(DESTDIR)$(man3dir)/gensio_clear_sync.3
 	$(LN_S) -f gensio_set_sync.3 $(DESTDIR)$(man3dir)/gensio_read_s.3
 	$(LN_S) -f gensio_set_sync.3 $(DESTDIR)$(man3dir)/gensio_write_s.3
+	$(LN_S) -f str_to_gensio_accepter.3 $(DESTDIR)$(man3dir)/str_to_gensio_accepter_child.3
 	$(LN_S) -f gensio_acc_set_callback.3 $(DESTDIR)$(man3dir)/gensio_acc_set_user_data.3
 	$(LN_S) -f gensio_acc_set_callback.3 $(DESTDIR)$(man3dir)/gensio_acc_get_user_data.3
 	$(LN_S) -f gensio_acc_shutdown.3 $(DESTDIR)$(man3dir)/gensio_acc_shutdown_s.3
@@ -78,6 +79,7 @@ uninstall-hook:
 	-rm -f $(DESTDIR)$(man3dir)/gensio_clear_sync.3
 	-rm -f $(DESTDIR)$(man3dir)/gensio_read_s.3
 	-rm -f $(DESTDIR)$(man3dir)/gensio_write_s.3
+	-rm -f $(DESTDIR)$(man3dir)/str_to_gensio_accepter_child.3
 	-rm -f $(DESTDIR)$(man3dir)/gensio_acc_set_user_data.3
 	-rm -f $(DESTDIR)$(man3dir)/gensio_acc_get_user_data.3
 	-rm -f $(DESTDIR)$(man3dir)/gensio_acc_shutdown_s.3
