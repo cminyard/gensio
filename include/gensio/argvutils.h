@@ -25,6 +25,10 @@
 #ifndef GENSIO_ARGVUTILS_H
 #define GENSIO_ARGVUTILS_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <gensio/gensio_os_funcs.h>
 
 /*
@@ -71,5 +75,9 @@ int gensio_argv_copy(struct gensio_os_funcs *o,
 
 /* Free the return of str_to_argv */
 void gensio_argv_free(struct gensio_os_funcs *o, const char **argv);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* GENSIO_ARGVUTILS_H */
