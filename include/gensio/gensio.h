@@ -99,22 +99,6 @@ void *gensio_get_user_data(struct gensio *io);
 
 void gensio_set_user_data(struct gensio *io, void *user_data);
 
-/*
- * Write data to the gensio.  This should only be called from the
- * write callback for most general usage.  Writes buflen bytes
- * from buf.
- *
- * Returns errno on error, or 0 on success.  This will NEVER return
- * EAGAIN, EWOULDBLOCK, or EINTR.  Those are handled internally.
- *
- * On a non-error return, count is set to the number of bytes
- * consumed by the write call, which may be less than buflen.  If
- * it is less than buflen, then not all the data was written.
- * Note that count may be set to zero.  This can happen on an
- * EAGAIN type situation.  count may be NULL if you don't care.
- * auxdata contains additional information about the write,
- * and depends on the particular gensio type.
- */
 int gensio_write(struct gensio *io, gensiods *count,
 		 const void *buf, gensiods buflen,
 		 const char *const *auxdata);

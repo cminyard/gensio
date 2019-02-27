@@ -289,6 +289,19 @@ In addition to readbuf, the tcp gensio takes the following options:
 An address specification to bind to on the local socket to set the
 local address.
 
+.SS Remote Address String
+
+The remote address will be in the format "<addr>,<port>" where the
+address is in numeric format, IPv4, or IPv6.
+
+.SS Remote Address
+
+TCP returns a standard struct sockaddr for gensio_get_raddr(3).
+
+.SS Remote ID
+
+Remote is not supported.
+
 .SH "UDP"
 
 .B udp[(<options>)][,<hostname>],<port>[[,<hostname>],<port>[...]]
@@ -315,6 +328,19 @@ In addition to readbuf, the udp gensio takes the following options:
 .B laddr=<addr>
 An address specification to bind to on the local socket to set the
 local address.
+
+.SS Remote Address String
+
+The remote address will be in the format "<addr>,<port>" where the
+address is in numeric format, IPv4, or IPv6.
+
+.SS Remote Address
+
+UDP returns a standard struct sockaddr for gensio_get_raddr(3).
+
+.SS Remote ID
+
+Remote is not supported.
 
 .SH "SCTP"
 
@@ -352,6 +378,22 @@ read, but with "oob" in the auxdata.  You can send oob data by adding
 "oob" to the write auxdata.
 
 See documentation on SCTP for more details.
+
+.SS Remote Address String
+
+The remote address will be in the format
+"<addr>,<port>[,<addr>,<port>[...]]" where the address is in numeric
+format, IPv4, or IPv6.  Each remote address for the SCTP connection is
+listed.
+
+.SS Remote Address
+
+SCTP returns a packed struct sockaddr for gensio_get_raddr(3), per
+SCTP semantics.
+
+.SS Remote ID
+
+Remote is not supported.
 
 .SH "serialdev"
 
@@ -426,6 +468,22 @@ lines, it can result in long shutdown delays.
 Lower/don't lower the modem control lines when the gensio is closed.
 The default is to not lower the modem control lines on close (false).
 
+.SS Remote Address String
+
+The remote address string is the device and serial parms, in a format
+like "9600N81[,<option>[,<option>[...]]]".  Options are one of:
+XONXOFF, RTSCTS, CLOCAL, HANGUP_WHEN_DONE, RTSHI, RTSLO, DTRHI, DRLO,
+offline.
+
+.SS Remote Address
+
+Remote address is not supported.
+
+.SS Remote ID
+
+The remote ID for the serial dev is the file descriptor returned as an
+integer.
+
 .SH "stdio"
 
 accepter = 
@@ -466,6 +524,20 @@ to go through the accept process.
 Send standard error output to standard out instead of having a separate
 channel for it.
 
+.SS Remote Address String
+
+The remote address string is either "stdio" for the main channel or
+"stderr" for the error channel.
+
+.SS Remote Address
+
+Remote address is not supported.
+
+.SS Remote ID
+
+The remote ID is the pid for the remote device, only for connecting
+gensios that start a program, not for any other type.
+
 .SH "echo"
 
 connecting = 
@@ -480,6 +552,18 @@ In addition to readbuf, a connecting stdio takes the following options:
 .B noecho[=true|false]
 Instead of echoing the data, just become a data sink.
 
+.SS Remote Address String
+
+The remote address string is "echo".
+
+.SS Remote Address
+
+Remote address is not supported.
+
+.SS Remote ID
+
+Remote ID is not supported.
+
 .SH "dummy"
 
 accepter = 
@@ -489,6 +573,18 @@ The dummy gensio accepter is useful for place holding, where you don't
 want a real working accepter but need to put something.
 
 As you might guess, it doesn't do anything.
+
+.SS Remote Address String
+
+The remote address string is not supported.
+
+.SS Remote Address
+
+Remote address is not supported.
+
+.SS Remote ID
+
+Remote ID is not supported.
 
 .SH "ipmisol"
 
@@ -542,6 +638,17 @@ The time (in microseconds) when an ack times out.  1000000 by default.
 The number of times (ack-timeouts) an ack is re-sent before giving up.
 10 by default.
 
+.SS Remote Address String
+
+The remote address string is not supported.
+
+.SS Remote Address
+
+Remote address is not supported.
+
+.SS Remote ID
+
+Remote ID is not supported.
 
 .SH "telnet"
 
@@ -643,6 +750,11 @@ GENSIO_EVENT_PRECERT_VERIFY or GENSIO_ACC_EVENT_PRECERT_VERIFY events.
 This allows the user to validate data from the certificate (like
 common name) with GENSIO_CONTROL_GET_PEER_CERT_NAME or set a
 certificate authority for the validation with GENSIO_CONTROL_CERT_AUTH.
+
+.SS Remote info
+
+ssl passes remote id, remote address, and remote string to the child
+gensio.
 
 .SH "certauth"
 
@@ -770,6 +882,11 @@ password be sent and the password is not already set for the gensio.
 The requested password is immediately cleared after being sent to
 the server.
 
+.SS Remote info
+
+certauth passes remote id, remote address, and remote string to the child
+gensio.
+
 .SH "pty"
 
 .B pty[(options)],<program>
@@ -792,6 +909,18 @@ and egid to the (probably root) values.
 
 The pty gensio support the GENSIO_CONTROL ENVIRONMENT control to allow
 the environment to be set for the new process.
+
+.SS Remote Address String
+
+The remote address string the program and arguments run on the pty.
+
+.SS Remote Address
+
+Remote address is not supported.
+
+.SS Remote ID
+
+Remote ID is the pid if the process run on the pty.
 
 .SH "Forking and gensios"
 

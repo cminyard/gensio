@@ -1,0 +1,48 @@
+.TH gensio_raddr_to_str 3 "26 Feb 2019"
+.SH NAME
+gensio_raddr_to_str \- Return the remote address for the gensio as a string
+
+.SH SYNOPSIS
+.B #include <gensio/gensio.h>
+.TP 20
+.B int gensio_raddr_to_str(struct gensio *io, gensiods *pos,
+.br
+.B                         char *buf, gensiods buflen);
+.PP
+
+Convert the remote address for this gensio to a string.  The string
+starts at
+.I buf + *pos
+and goes to
+.I buf + buflen.
+If
+.I pos
+is NULL, then zero is used as the starting position.  The string is
+NIL terminated.
+
+The actual contents of the remote address string depends on the
+particular gensio.  See the gensio description for details.
+
+In all cases, if
+.I pos
+is non-NULL and the output string fits into the buffer,
+.I *pos
+will be
+updated to be the NIL char after the last byte of the string, where
+you would want to put any new data into the string.
+
+If the output string does not fit,
+.I *pos
+is updated to where it would have been if it had enough bytes (one
+less than the total number of bytes required), but the output in
+.I buf
+is truncated.  This can be used to probe to see how long a buffer is
+required by passing in a zero
+.I buflen and
+.I *pos, and then allocating
+.I *pos + 1
+and calling the function again with that data.
+.SH "RETURN VALUES"
+Zero is returned on success, or a gensio error on failure.
+.SH "SEE ALSO"
+gensio_err(3), gensio(5)

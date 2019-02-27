@@ -36,6 +36,10 @@ always buffer the data and enable the write callback to do the write
 and then disable the write callback when all data is written, for
 consistency.
 
+.B gensio_write
+will never block, if it cannot write all the data it will write what
+it can and return.
+
 .B auxdata
 is used to pass in gensio specific auxiliary data, such as the stream
 number for SCTP or whether the data is out of band data for SCTP or
