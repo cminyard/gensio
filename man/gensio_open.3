@@ -1,0 +1,58 @@
+.TH gensio_open 3 "27 Feb 2019"
+.SH NAME
+gensio_open, gensio_open_s, gensio_open_nochild, gensio_open_nochild_s
+\- Start a connecting gensio
+.SH SYNOPSIS
+.B #include <gensio/gensio.h>
+.TP 20
+.B typedef void (*gensio_done_err)(struct gensio *io, int err,
+.br
+.B                                 void *open_data);
+.TP 20
+.B int gensio_open(struct gensio *io, gensio_done_err open_done,
+.br
+.B                 void *open_data);
+.TP 20
+.B int gensio_open_s(struct gensio *io);
+.TP 20
+.B int gensio_open_nochild(struct gensio *io, gensio_done_err open_done,
+.br
+.B                         void *open_data);
+.TP 20
+int gensio_open_nochild_s(struct gensio *io);
+.SH "DESCRIPTION"
+.B gensio_open
+starts the gensio.  gensios recevied from an accepter are
+open upon receipt, but connecting gensios are started closed and need
+to be opened before use.  If no error is returned, the
+.I open_done
+callback will be called, if there is no error in the callback
+.I err
+value the gensio will be open.  This will open all children, too.
+
+.B gensio_open_s
+is like
+.B gensio_open, but waits for the open to complete.  Normal gensio
+processing will happen while waiting.  Note that you must be careful
+to not call this from a callback, you should only call this from a
+non-callback thread or a runner (see gensio_os_funcs(3) for details on
+runners).
+
+.B gensio_open_nochild
+is like
+.B gensio_open,
+but assumes any child gensios are already open and just opens this
+gensio.  This can be useful if you have a gensio that is already
+opened (like you received it from an accepter) and you want to stack
+another gensio on top of it.  Only filter gensios will support this.
+
+.B gensio_open_nochild_s
+is like
+.B gensio_open_nochild,
+but waits for the open to complete.  See the notes on
+.B gensio_open_s
+above for warnings.
+.SH "RETURN VALUES"
+Zero is returned on success, or a gensio error on failure.
+.SH "SEE ALSO"
+gensio_err(3), gensio(5), gensio_os_funcs(3)

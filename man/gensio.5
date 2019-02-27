@@ -1,11 +1,8 @@
 .TH gensio 5 01/02/19  "Specifying a gensio"
-
 .SH NAME
 gensio \- How to specify a gensio
-
 .SH SYNOPSIS
 .B <type>[(options)][,gensio|terminaloptions]
-
 .SH DESCRIPTION
 .BR gensio
 stands for GENeral Stream Input Output.  It provides an abstraction
@@ -90,9 +87,7 @@ Unless othersize noted, every gensio takes a:
 .TP
 .B readbuf=<n>
 option to specify the read buffer size.
-
 .SH "DEFAULTS"
-
 Every option to a gensio (including the serialdev and ipmisol
 options), unless othersize stated, is available as a default for the
 gensios.  You can use gensio_set_default() to set the default value
@@ -106,9 +101,7 @@ instance, could really screw things up.
 
 For string defaults, setting the default value to NULL causes
 the gensio to use it's backup default.
-
 .SH "Serial gensios"
-
 Some gensio types support serial port setting options.  Standard
 serial ports, IPMI Serial Over LAN, and telnet with RFC2217 enabled.
 
@@ -117,9 +110,7 @@ A client serial gensio can set and get serial port options using the
 functions.  Server serial gensios receive requests from the client via
 .I GENSIO_EVENT_SER_xxx
 events in the callback.
-
 .SH "Streams and Channels"
-
 Some gensios support the concept of a stream and/or a channel.
 
 A stream is delivered as part of the normal data stream of a gensio.
@@ -140,7 +131,6 @@ channels are closed.
 
 See the indvidual gensio description for more information on streams
 and channels.
-
 .SH "PUBLIC KEY CRYPTOGRAPHY"
 The ssl and certauth gensios use public key cryptography.  This
 section gives a little overview of how that works.  You can safely
@@ -171,7 +161,6 @@ The CA is generally a trusted third-party that validates you and signs
 your certificate (generally for a fee).  CAs issue their own public
 certificates that are well-known and generally available on your system.
 The CA certificates are used to prove that your certificate is valid.
-
 .SS "SIGNING"
 The process if signing has been mentioned already, but not described.
 Basically, you use your private key to generate a value over some
@@ -208,7 +197,6 @@ In the web server scenario, data in the certificate (specifically the
 Common Name and Subject Alternate Name) must match the name of the web
 page to which you are connecting.  The ssl and certauth gensios do not
 do this authentication, that is up to the user if it is necessary.
-
 .SS "ENCRYPTING"
 The certificate can be used to encrypt data that can only be decrypted
 with the private key.  When establishing an encrypted connection, this
@@ -217,7 +205,6 @@ entity to another (the authorizing entity to the requesting entity in
 the case above).  You could encrypt all the data with the public key,
 but that is very expensive and in our example above would require
 certificates and private keys on both ends.
-
 .SS "SELF-SIGNED CERTIFICATES"
 It is possible to create a certificate that can act as its own
 certificate authority.  This is how ssh works.  You create a public
@@ -238,7 +225,6 @@ So if you are using self-signed certificates, you need to be careful
 to put only ones you trust in the CA.  This is obviously not possible
 in a large system like the world wide web, thus the creation of
 third-party trusted CAs.
-
 .SS "TRUST AND CRYPTOGRAPHY"
 The above discussions mention trust several times.  Cryptography does
 not remove the need for trust.  It just makes trust more convenient.
@@ -255,11 +241,9 @@ divulge private keys or use the wrong keys is a lot easier.
 
 For more on cryptography in general, and cryptography and trust, Bruce
 Schneier has some excellent books on the subject.
-
 .SH "TCP"
-
 .B tcp[(<options>)][,<hostname>],<port>[[,<hostname>],<port>[...]]
-
+.br
 .B hostname = [ipv4|ipv6|ipv6n4,]<name>
 
 A TCP connecting gensio must have the hostname specified.  Mulitiple
@@ -283,29 +267,20 @@ read, but with "oob" in the auxdata.  You can send oob data by adding
 writing any more than this results in undefined behavior.
 
 In addition to readbuf, the tcp gensio takes the following options:
-
 .TP
 .B laddr=<addr>
 An address specification to bind to on the local socket to set the
 local address.
-
 .SS Remote Address String
-
 The remote address will be in the format "<addr>,<port>" where the
 address is in numeric format, IPv4, or IPv6.
-
 .SS Remote Address
-
 TCP returns a standard struct sockaddr for gensio_get_raddr(3).
-
 .SS Remote ID
-
 Remote is not supported.
-
 .SH "UDP"
-
 .B udp[(<options>)][,<hostname>],<port>[[,<hostname>],<port>[...]]
-
+.br
 .B hostname = [ipv4|ipv6|ipv6n4,]<name>
 
 A UDP gensio creates a UDP socket, but it makes it look like an
@@ -323,29 +298,20 @@ disable accepts on the accepting gensio, it will stop all reads on all
 gensios associated with that accepting gensio.
 
 In addition to readbuf, the udp gensio takes the following options:
-
 .TP
 .B laddr=<addr>
 An address specification to bind to on the local socket to set the
 local address.
-
-.SS Remote Address String
-
+.SS "Remote Address String"
 The remote address will be in the format "<addr>,<port>" where the
 address is in numeric format, IPv4, or IPv6.
-
-.SS Remote Address
-
+.SS "Remote Address"
 UDP returns a standard struct sockaddr for gensio_get_raddr(3).
-
-.SS Remote ID
-
+.SS "Remote ID"
 Remote is not supported.
-
 .SH "SCTP"
-
 .B sctp[(<options>)][,<hostname>],<port>[[,<hostname>],<port>[...]]
-
+.br
 .B hostname = [ipv4|ipv6|ipv6n4,]<name>
 
 An SCTP gensio is specified like a UDP or TCP one.  However, the
@@ -358,7 +324,6 @@ specified addresses as possible destinations.  Again, all the ports
 must be the same.
 
 In addition to readbuf, the sctp gensio takes the following options:
-
 .TP
 .B instreams=<n>
 .TP
@@ -366,7 +331,6 @@ In addition to readbuf, the sctp gensio takes the following options:
 These specify the number of incoming and outgoing streams for the
 connection.  The default is one.  The stream is given in the auxdata
 for read and write in the format "stream=<n>".
-
 .TP
 .B laddr=<addr>
 An address specification to bind to on the local socket to set the
@@ -378,25 +342,17 @@ read, but with "oob" in the auxdata.  You can send oob data by adding
 "oob" to the write auxdata.
 
 See documentation on SCTP for more details.
-
-.SS Remote Address String
-
+.SS "Remote Address String"
 The remote address will be in the format
 "<addr>,<port>[,<addr>,<port>[...]]" where the address is in numeric
 format, IPv4, or IPv6.  Each remote address for the SCTP connection is
 listed.
-
-.SS Remote Address
-
+.SS "Remote Address"
 SCTP returns a packed struct sockaddr for gensio_get_raddr(3), per
 SCTP semantics.
-
-.SS Remote ID
-
+.SS "Remote ID"
 Remote is not supported.
-
 .SH "serialdev"
-
 .B serialdev[(<options>)],<device>[,<serialoption>[,<serialoption>]]
 
 A serialdev connection is a local serial port.  The device is a
@@ -412,32 +368,26 @@ but the value in the UUCP lockfile will be incorrect.  There's not
 much that can be done about this, so be careful.
 
 In addition to readbuf, the serialdev gensio takes the following options:
-
 .TP
 .B nouucplock[=true|false]
 disables UUCP locking on the device.  Useful for /dev/tty, which shouldn't
 use locking.  This is not available as a default.
-
 .PP
 There are a plethora of serialoptions, available as defaults:
-
 .TP
 .B [speed=]<speed><parity><databits><stopbits>
 This is a normal serial port configuration specification, like
 "9600N81".  The "speed=" at the beginning is optional, but "speed" is
 a default type for this.
-
 .TP
 .B wronly[=true|false]
 Set the device to write only.  No termios definition is done on the
 port.  This can be done to talk to a line printer port, for instance.
 False by default.
-
 .TP
 .B nobreak[=true|false]
 Clear the break line at start (or don't clear it).  Default it to not
 clear it (false).
-
 .TP
 .B rs485=off|<delay rts before send>:<delay rts after send>[:<conf>[:<conf>]]
 Set up RS-485 for the serial port.  The first two parameters set the
@@ -448,47 +398,35 @@ the same time, and "terminate_bus" - enable bus termination.
 
 Using "off" will disable rs485, that is useful for overriding a default.
 default is "off".
-
 .TP
 .B xonxoff[=true|false]
 Enable/disable xon/xoff flow control.  Default is false.
-
 .TP
 .B rtscts[=true|false]
 Enable/disable rts/cts flow control.  Default is false.
-
 .TP
 .B local[=true|false]
 Ignore/don't ignore the modem control lines.  The default it to not
 ignore them (false).  However, if you don't ignore the modem control
 lines, it can result in long shutdown delays.
-
 .TP
 .B hangup-when-done[=true|false]
 Lower/don't lower the modem control lines when the gensio is closed.
 The default is to not lower the modem control lines on close (false).
-
-.SS Remote Address String
-
+.SS "Remote Address String"
 The remote address string is the device and serial parms, in a format
 like "9600N81[,<option>[,<option>[...]]]".  Options are one of:
 XONXOFF, RTSCTS, CLOCAL, HANGUP_WHEN_DONE, RTSHI, RTSLO, DTRHI, DRLO,
 offline.
-
-.SS Remote Address
-
+.SS "Remote Address"
 Remote address is not supported.
-
-.SS Remote ID
-
+.SS "Remote ID"
 The remote ID for the serial dev is the file descriptor returned as an
 integer.
-
 .SH "stdio"
-
 accepter = 
 .B stdio[(options)]
-
+.br
 connecting = 
 .B stdio[(options)],<program>
 
@@ -498,7 +436,7 @@ A connecting stdio gensio runs the given program (unless self is set
 as an option) and connects its standard input and output to the
 gensio's main channel.  So it's easy to run a program and interact
 with it.  If you want to get stderr from the gensio, open a channel on
-the main channel gensio.  The new gensio you get will be stderr.
+the main channel gensio, see below.
 
 For connecting gensios, n the forked process, the code will set the
 effective uid and guid to the current set uid and guid.  This way a
@@ -512,34 +450,30 @@ An accepting gensio immediately does a connection when started and
 connection stdin and stdout of the running program to the gensio.
 
 In addition to readbuf, a connecting stdio takes the following options:
-
 .TP
 .B self[=true|false]
 Instead of starting a program, connect to the running program's stdio.
 This is the same as an accepting stdio gensio, except you don't have
 to go through the accept process.
-
 .TP
 .B stderr-to-stdout
 Send standard error output to standard out instead of having a separate
 channel for it.
-
-.SS Remote Address String
-
+.SS "Channels"
+The stdio connecting gensio that start another program does not
+provide stderr as part of the main gensio. You must open a channel
+with gensio_open_channnel() to get stderr output.  The args for
+gensio_open_channel() may be an optional "readbuf=<num>" and sets the
+size of the input buffer.
+.SS "Remote Address String"
 The remote address string is either "stdio" for the main channel or
 "stderr" for the error channel.
-
-.SS Remote Address
-
+.SS "Remote Address"
 Remote address is not supported.
-
-.SS Remote ID
-
+.SS "Remote ID"
 The remote ID is the pid for the remote device, only for connecting
 gensios that start a program, not for any other type.
-
 .SH "echo"
-
 connecting = 
 .B echo[(options)]
 
@@ -547,25 +481,16 @@ The stdio gensio just echos back all the data written to it.  Useful
 for testing.
 
 In addition to readbuf, a connecting stdio takes the following options:
-
 .TP
 .B noecho[=true|false]
 Instead of echoing the data, just become a data sink.
-
-.SS Remote Address String
-
+.SS "Remote Address String"
 The remote address string is "echo".
-
-.SS Remote Address
-
+.SS "Remote Address"
 Remote address is not supported.
-
-.SS Remote ID
-
+.SS "Remote ID"
 Remote ID is not supported.
-
 .SH "dummy"
-
 accepter = 
 .B dummy
 
@@ -573,21 +498,13 @@ The dummy gensio accepter is useful for place holding, where you don't
 want a real working accepter but need to put something.
 
 As you might guess, it doesn't do anything.
-
-.SS Remote Address String
-
+.SS "Remote Address String"
 The remote address string is not supported.
-
-.SS Remote Address
-
+.SS "Remote Address"
 Remote address is not supported.
-
-.SS Remote ID
-
+.SS "Remote ID"
 Remote ID is not supported.
-
 .SH "ipmisol"
-
 .B ipmisol[(options)],<openipmi arguments>[,ipmisol option[,...]]
 
 An ipmisol gensio creates an IPMI Serial Over LAN connection to an
@@ -600,7 +517,6 @@ In addition to readbuf, the ipmisol gensio takes the following options:
 .TP
 .B writebuf=<n>
 to set the size of the write buffer.
-
 .PP
 It also takes the following ipmisol options:
 .TP
@@ -608,74 +524,57 @@ It also takes the following ipmisol options:
 Baud rate, 9600 by default.  Anything after the number is ignored, for
 compatibility with things like "N81".  You cannot set those values for
 ipmisol, they are fixed at "N81".
-
 .TP
 .B nobreak[=true|false]
 Disable break processing.  False by default.
-
 .TP
 .B authenticated[=true|false]
 Enable or disable authentication.  True by default.
-
 .TP
 .B encrypted[=true|false]
 Enable or disable encrypted.  True by default.
-
 .TP
 .B deassert-CTS-DCD-DSR-on-connect[=true|false]
 False by default
-
 .TP
 .B shared-serial-alert=fail|deferred|succeed
 Behavior of handling serial alerts.  fail by default.
-
 .TP
 .B ack-timeout=<number>
 The time (in microseconds) when an ack times out.  1000000 by default.
-
 .TP
 .B ack-retries=<number>
 The number of times (ack-timeouts) an ack is re-sent before giving up.
 10 by default.
-
-.SS Remote Address String
-
+.SS "Remote Address String"
 The remote address string is not supported.
-
-.SS Remote Address
-
+.SS "Remote Address"
 Remote address is not supported.
-
-.SS Remote ID
-
+.SS "Remote ID"
 Remote ID is not supported.
-
 .SH "telnet"
-
 A telnet gensio is a filter that sits on top of another gensio.  It
 runs the standard telnet protocol andn support RFC2217.
 
 In addition to readbuf, the telnet gensio takes the following options:
-
 .TP
 .B writebuf=<n>
 set the size of the write buffer.
-
 .TP
 .B rfc2217[=true|false]
 enable or disable RFC2217 mode for this gensio.  If this is enabled
 and the remote end of the connection supports RFC2217 also, the gensio
 will be set up as a serial gensio and you can do normal serial gensio
 handling on it.
-
 .TP
 .B mode=client|server
 Set the telnet mode to client or server.  This lets you run a telnet
 server on a connecting gensio, or a telnet client on an accepter
 gensio.
-
+.SS "Remote info"
+telnet passes remote id, remote address, and remote string to the child
+gensio.
 .SH "ssl"
-
 An SSL gensio runs the SSL/TLS protocol on top of another gensio.
 That gensio must be reliable.
 
@@ -689,11 +588,9 @@ The gensio has options to have the server request the certificate from
 the client and validate it.
 
 In addition to readbuf, the SSL gensio takes the following options:
-
 .TP
 .B writebuf=<n>
 set the size of the write buffer.
-
 .TP
 .B CA=<filepath>
 Set a place to look for certificates for authorization.  If this ends
@@ -702,31 +599,26 @@ with certificates that must be hashed per OpenSSL (see the "openssl
 rehash" command for details.  Otherwise it is a single file that
 contains one or more certificates.  The default CA path is used
 if not specified.
-
 .TP
 .B key=<filename>
 Specify the file to get the private key for the server.  This is
 required for servers.  It may be specified for clients, and is required
 for the client if the server requires a certificate (it has CA set).
-
 .TP
 .B cert=<filename>
 Specify the file that contains the certificate used for the
 connection.  If this is not specified, the certificate is expected to
 be in the key file.
-
 .TP
 .B mode=client|server
 Normally an accepter gensio is in server mode and a connecting gensio
 is in client mode.  This can be used to switch the roles and run in
 SSL server mode on a connecting gensio, or vice versa.
-
 .TP
 .B clientauth[=true|false]
 Normally a client is not authorized by the server.  This requires
 that the client provide a certificate and authorizes that certificate.
 Ignored for client mode.
-
 .TP
 .B allow-authfail[=true|false]
 Normally if the remote end certificate is not valid, the SSL gensio
@@ -750,14 +642,10 @@ GENSIO_EVENT_PRECERT_VERIFY or GENSIO_ACC_EVENT_PRECERT_VERIFY events.
 This allows the user to validate data from the certificate (like
 common name) with GENSIO_CONTROL_GET_PEER_CERT_NAME or set a
 certificate authority for the validation with GENSIO_CONTROL_CERT_AUTH.
-
-.SS Remote info
-
+.SS "Remote info"
 ssl passes remote id, remote address, and remote string to the child
 gensio.
-
 .SH "certauth"
-
 An certauth gensio runs an authentication protocol to on top of
 another gensio.  That gensio must be reliable and encrypted.
 
@@ -769,7 +657,6 @@ Once authentication occurs, this gensio acts as a passthrough.  The
 readbuf option is not available in the gensio.
 
 The certauth gensio takes the following options:
-
 .TP
 .B CA=<filepath>
 Set a place to look for certificates for authorization.  If this ends
@@ -779,57 +666,47 @@ in the rehash section for details.  Otherwise it is a single file that
 contains one or more certificates.  The default CA path for openssl is used
 if not specified.  This is used on the server only, it is ignored
 on clients.
-
 .TP
 .B key=<filename>
 Specify the file to get the private key for the client.  This is
 required for clients.  It is ignored on server.
-
 .TP
 .B cert=<filename>
 Specify the file to get the private key for the client.  This is
 required for clients.  It is ignored on server.  If this is not
 specified, the certificate is expected to be in the key file.
-
 .TP
 .B username=<name>
 Specify a username to authenticate with on the remote end.  This is
 required for the client.  It is ignored on the server.
-
 .TP
 .B service=<string>
 Set the remote service requested by the client.  Optional, but the
 other end may reject the connection if it is not supplied. Ignored on
 the server.
-
 .TP
 .B password=<string>
 Specify the password to use for password authentication.  This is not
 recommended, the callback is more secure to use.
-
 .TP
 .B mode=client|server
 Normally an accepter gensio is in server mode and a connecting gensio
 is in client mode.  This can be used to switch the roles and run in
 server mode on a connecting gensio, or vice versa.
-
 .TP
 .B allow-authfail[=true|false]
 Normally if the remote end certificate is not valid, the certauth gensio
 will close the connection.  This open allows the open to succeed with
 an invalid or missing certificate.  Note that the user should verify
 that authentication is set using gensio_is_authenticated().
-
 .TP
 .B use-child-auth[=true|false]
 If the child gensio is authenticated, then do not run the protocol, just
 go straight into passthrough mode and don't do any authentication.
-
 .TP
 .B disable-password[=true|false]
 On the server, only use key authentication and don't ask for a password.
 On the client, don't send a password if asked for one.
-
 .PP
 Verification of the common name is
 .B not
@@ -855,40 +732,32 @@ ENOTSUP if they want certauth to ignore that part of the authentication,
 or any other errno will result in the connetion being shut down.
 
 The callbacks are:
-
 .TP
 .B GENSIO_EVENT_AUTH_BEGIN / GENSIO_ACC_EVENT_AUTH_BEGIN
 On the server side, this is called when to authentication is requested
 buy the client.  The username will be available if the user provided
 it via GENSIO_CONTROL_USERNAME.
-
 .TP
 .B GENSIO_EVENT_PRECERT_VERIFY / GENSIO_ACC_EVENT_PRECERT_VERIFY
 On the server side, thi is called after the certificate has been
 received but before it is verified.  The user can use this to query
 the certificate and update the certificate authority based on username
 or certificate information.
-
 .TP
 .B GENSIO_EVENT_VERIFY_PASSWORD / GENSIO_ACC_EVENT_VERIFY_PASSWORD
 On the server side, this is called if the certificate verification has
 failed and after the password has been requested from the remote end.
 The password is passed in, it is cleared immediately after this call.
-
 .TP
 .B GENSIO_EVENT_REQUEST_PASSWORD / GENSIO_ACC_EVENT_REQUEST_PASSWORD
 On the client side, this is called if the server requests that a
 password be sent and the password is not already set for the gensio.
 The requested password is immediately cleared after being sent to
 the server.
-
-.SS Remote info
-
+.SS "Remote info"
 certauth passes remote id, remote address, and remote string to the child
 gensio.
-
 .SH "pty"
-
 .B pty[(options)],<program>
 
 Create a pty and run a program on the other end of it.  This is sort
@@ -909,21 +778,13 @@ and egid to the (probably root) values.
 
 The pty gensio support the GENSIO_CONTROL ENVIRONMENT control to allow
 the environment to be set for the new process.
-
-.SS Remote Address String
-
+.SS "Remote Address String"
 The remote address string the program and arguments run on the pty.
-
-.SS Remote Address
-
+.SS "Remote Address"
 Remote address is not supported.
-
-.SS Remote ID
-
+.SS "Remote ID"
 Remote ID is the pid if the process run on the pty.
-
 .SH "Forking and gensios"
-
 Unlike normal file descriptors, when you fork with a gensio, you now
 have two unassociated copies of the gensios.  So if you do operations
 on one, it might mess up the other.  Even a close might cause issues,
@@ -953,13 +814,10 @@ connection is in progress and has not been reported to the user, it
 will be disabled then closed.
 
 You cannot share a gensio between two different processes.
-
 .SH "SEE ALSO"
 gensiotool(1), sctp(7), udp(7), tcp(7)
-
 .SH "KNOWN PROBLEMS"
 None.
-
 .SH AUTHOR
 .PP
 Corey Minyard <minyard@acm.org>

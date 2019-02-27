@@ -13,7 +13,7 @@ gensio_event \- Event handler for events from a gensio
 .br
 .B                          const char *const *auxdata);
 .PP
-
+.SH "DESCRIPTION"
 When an event happens on a gensio that is reported to the user, the
 gensio library calls the gensio_event type handler that was registered
 with the gensio.
@@ -55,9 +55,15 @@ if not NULL, may contain information about the message, like if it
 is out of band (oob) data.  See information on the specific gensio
 for details.
 
+Note that only one read callback is allowed to run at a time on a
+gensio.
+
 Return value is ignored.
 .SS "GENSIO_EVENT_WRITE_READY"
 Called when data can be written to the I/O device.
+
+Note that only one write callback is allowed to run at a time on a
+gensio.
 
 Return value is ignored.
 .SS "GENSIO_EVENT_NEW_CHANNEL"

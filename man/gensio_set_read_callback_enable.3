@@ -1,0 +1,47 @@
+.TH gensio_set_read_callback_enable 3 "27 Feb 2019"
+.SH NAME
+gensio_set_read_callback_enable, gensio_set_write_callback_enable
+\- Enable or disable read data and write ready
+.SH SYNOPSIS
+.B #include <gensio/gensio.h>
+.TP 20
+.B void gensio_set_read_callback_enable(struct gensio *io,
+.br
+.B                                      bool enabled);
+.TP 20
+.B void gensio_set_write_callback_enable(struct gensio *io,
+.br
+.B                                       bool enabled);
+.SH "DESCRIPTION"
+These function enable the write callback, or the read callback, for
+gensios (and all child gensios).  Generally disabling the read
+callback will disable all callbacks except write because it won't
+receive any data to do any processing.
+
+After you open a gensio or receive a gensio from an accepter, the
+gensio has all the enables set to false.  You would generally want to
+enable the read callback and leave it enabled as much as possible so
+that low-level processing will happen on the gensio.  In particular,
+disabling read on a UDP gensio will disable all read an accept
+processing.
+
+Enabling the write callback will enable the callback to tell you if
+the gensio can currently write any data.  You normally want to leave
+this disabled and enable it if you write data and get a partial write.
+Or even better, when you have data to write, enable the write callback
+and write the data from the callback, disabling when it is all
+written.
+
+Disabling the write callback does not necessarily keep data from being
+transmitted by the gensio.  The SSL gensio, for instance, may transmit
+key information on a rekey, or other gensios may transmit flow-control
+information.  This only affects the write callback.
+
+Disabling the callbacks may not be immediate.  "Immediate" is hard to
+define in a SMP system, anyway.  There may be callbacks running or
+about to be called when you disable the callback, they may still run.
+You must be prepared to handle these race conditions.
+.SH "RETURN VALUES"
+Zero is returned on success, or a gensio error on failure.
+.SH "SEE ALSO"
+gensio_err(3), gensio(5)

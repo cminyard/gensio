@@ -103,291 +103,37 @@ int gensio_write(struct gensio *io, gensiods *count,
 		 const void *buf, gensiods buflen,
 		 const char *const *auxdata);
 
-/*
- * Convert the remote address for this network connection to a
- * string.  The string starts at buf + *pos and goes to buf +
- * buflen.  If pos is NULL, then zero is used.  The string is
- * NIL terminated.
- *
- * Returns an errno on an error, and a string error will be put
- * into the buffer.
- *
- * In all cases, if pos is non-NULL and the output string fits into
- * the buffer, it will be updated to be the NIL char after the last
- * byte of the string, where you would want to put any new data into
- * the string.
- *
- * If the output string does not fit, pos is updated to where it would
- * have been if it had enough bytes (one less than the total number of
- * bytes required), but the output in buf is truncated.  This can be
- * used to probe to see how long a buffer is required by passing in a
- * zero buflen and *pos, and then allocating *pos + 1 and calling the
- * function again with that data.
- */
 int gensio_raddr_to_str(struct gensio *io, gensiods *pos,
 			char *buf, gensiods buflen);
 
-/*
- * Return the remote address for the connection.  addrlen must be
- * set to the size of addr and will be updated to the actual size.
- * If addrlen is not large enough to hold the data, the updated
- * addrlen will be set to the number of bytes required to hold the
- * address, though the data in the address will be truncated.
- *
- * The value returned here is connection dependent, and for filter
- * layers it will pass the call down to the lowest layer to get
- * the addresses.
- *
- * For TCP and UDP connections, this is sockaddr type.  For SCTP,
- * this is a packed sockaddr buffer per SCTP semantics.  For serial
- * ports, this return an error.
- */
 int gensio_get_raddr(struct gensio *io, void *addr, gensiods *addrlen);
 
-/*
- * Returns an id for the remote end.  For stdio and pty clients this
- * is the pid.  For serialdev this is the fd.  It returns an error for
- * all others.
- */
 int gensio_remote_id(struct gensio *io, int *id);
 
-/*
- * Open the gensio.  gensios recevied from an accepter are open upon
- * receipt, but client gensios are started closed and need to be opened
- * before use.  If no error is returned, the open_done callback will
- * be called, if there is no error in the callback err value the gensio
- * will be open.  This will open all children, too.
- */
 int gensio_open(struct gensio *io, gensio_done_err open_done, void *open_data);
 
-/*
- * Like gensio_open(), but waits for the open to complete.
- */
 int gensio_open_s(struct gensio *io);
 
-/*
- * Like gensio_open, but this assumes any child gensios are already
- * open and just opens this gensio.  This can be useful if you have
- * a gensio that is already opened and you want to stack another
- * gensio on top of it, allocate the new gensio and call this to
- * start it up.  Only filter gensios will support this.
- */
 int gensio_open_nochild(struct gensio *io, gensio_done_err open_done,
 			void *open_data);
 
-/*
- * Like gensio_open_nochild(), but waits for the open to complete.
- */
 int gensio_open_nochild_s(struct gensio *io);
 
-/*
- * Open a channel on the given gensio.  The gensio must one that
- * supports channels (like SCTP, SSH, or stdio).  The args parm is
- * specific to the gensio type, and contains information that
- * describes how to set up the new channel.  The channel open creates
- * a new gensio object with its own callbacks and user data.
- *
- * For stdio, this only opens a channel for stderr input, args can be
- * "readbuf=<num>" and sets the size of the input buffer.  This is how
- * you get stderr output from a stdio channel, and it only works for
- * client-created stdio, not acceptor-created stdio.
- */
 int gensio_open_channel(struct gensio *io, const char * const args[],
 			gensio_event cb, void *user_data,
 			gensio_done_err open_done, void *open_data,
 			struct gensio **new_io);
 
-/*
- * Like gensio_open_channel, but waits for the open to complete and
- * returns the gensio for the channel.
- */
 int gensio_open_channel_s(struct gensio *io, const char * const args[],
 			  gensio_event cb, void *user_data,
 			  struct gensio **new_io);
 
-/*
- * Perform a gensio-specific operation on the gensio (if depth is 0) or
- * one of its children (depth > 0).  If depth is GENSIO_CONTROL_DEPTH_ALL,
- * then call all the children with the data.  ENOTSUP is ignored in
- * that case, but it will stop at the first error besides that.  If
- * depth is GENSIO_CONTROL_DEPTH_FIRST, it will return on the first
- * gensio that doesn't return ENOTSUP.  It returns ENOTSUP is nothing
- * handled it.
- *
- * If get is true, attempt to fetch the option.  You cannot use
- * GENSIO_CONTROL_DEPTH_ALL with get==true.  To fetch an option, you
- * must pass in a string long enough to hold the output and set
- * datalen to the number of bytes available.  It will return the
- * length of the string (like strlen, not including the terminating
- * nil) in datalen.  datalen is not used in a put operation or
- * for determining the length of the input string, it must be a
- * nil terminated string.
- *
- * A get operation is alway indepotent (it won't change anything, so
- * multiple calls will not have any effect on the state of the system).
- * A get operation may or may not have data passed in, and returns
- * information in the passed string.
- *
- * If the output string does not fit, data is updated to where it
- * would have been if it had enough bytes (one less than the total
- * number of bytes required), but the output in buf is truncated (and
- * nil terminated if possible).  This can be used to probe to see how
- * long a buffer is required by passing in a zero *datalen, and then
- * allocating *datalen + 1 and calling the function again with that
- * data.
- */
-int gensio_control(struct gensio *io, int depth, bool get,
-		   unsigned int option, char *data, gensiods *datalen);
-#define GENSIO_CONTROL_DEPTH_ALL	-1
-#define GENSIO_CONTROL_DEPTH_FIRST	-2
-
-/*
- * Set the enable/disable for any NAGLE type algorithms.
- * auxdata points to an integer with a boolean value.
- */
-#define GENSIO_CONTROL_NODELAY		1
-
-/*
- * Return information about incoming and outgoing streams for
- * the gensio.  This is read(get)-only and returns the value in
- * the data in the form "instream=<n>,ostream=<n>".
- */
-#define GENSIO_CONTROL_STREAMS		2
-
-/*
- * Request that a break be sent over the line (primarily for telnet).
- */
-#define GENSIO_CONTROL_SEND_BREAK	3
-
-/*
- * Return the object from the certificate from the remote end.  This
- * is primarily for SSL so the application can validate the
- * certificate's common name, but it can fetch any object from the
- * certificate.
- *
- * There are two ways to use this interface: fetch by index or fetch
- * by object type.
- *
- * To fetch by index, just pass in a number in the data, like "0"
- * and it will fetch the value at that index.
- *
- * To fetch by object type, pass in a number and the object type
- * separated by a comma.  The object type to fetch is SN or LN
- * descriptor per /usr/include/openssl/object.h.  Like "CN" or
- * "commonName".  The index should be one less than the start
- * search, you should use -1, for instance to fetch the first
- * index.
- *
- * The data returned is in the form: "<index>,<sn>,<value>".
- * Where sn is the short name.
- *
- * In fetch by object type mode, there may be more than one of an
- * object in a certificate, so this interface can handle that.
- * just pass in the index returned by the first into the second
- * call and it will start after that index.  For instance, to
- * fetch the first common name, do (with error checking removed for
- * clarity):
- *   strcpy(data, "-1,CN");
- *   gensio_control(io, 0, true, data, &len)
- * Say it returns "3,CN,MyName.org"  You would use
- *   strcpy(data, "3,CN");
- *   gensio_control(io, 0, true, data, &len)
- * to get the next common name, which might be "4,CN,MyName2.org".
- * You get an ENOENT at the end.
- *
- * Returns ENXIO if there is no remote certificate, EINVAL if the
- * pass in object name is not valid, and ENOENT if the object was
- * not available in the certificate.
- */
-#define GENSIO_CONTROL_GET_PEER_CERT_NAME	4
-
-/*
- * Set the certificate authority file to the string in "data".  If
- * it ends in '/', it is assumed to be a directory, otherwise it is
- * assumed to be a file.  This generally must be done before
- * authorization is done, generally before open or in the
- * GENSIO_EVENT_PRECERT_VERIFY event.
- */
-#define GENSIO_CONTROL_CERT_AUTH		5
-
-/*
- * Get the username for the gensio, generally the username sent from
- * the remote end in the precert_verify event.
- */
-#define GENSIO_CONTROL_USERNAME			6
-
-/*
- * Get the service sent from the gensio client.  Returns ENOENT if a
- * service was not sent.
- */
-#define GENSIO_CONTROL_SERVICE			7
-
-/*
- * Get the full certificate in text form sent from the other end.
- */
-#define GENSIO_CONTROL_CERT			8
-
-/*
- * Get the fingerprint for the certificate from the other end.
- */
-#define GENSIO_CONTROL_CERT_FINGERPRINT		9
-
-/*
- * Set the environment pointer for an exec.  For pty and stdio gensios.
- * The data is a pointer to an argv array (char * const envp[])
- */
-#define GENSIO_CONTROL_ENVIRONMENT		10
-
-/*
- * Return the type string for the gensio (if depth is 0) or one of its
- * children (depth > 0).  Return NULL if the depth is greater than the
- * number of children.
- */
-const char *gensio_get_type(struct gensio *io, unsigned int depth);
-
-/*
- * Return the given child of the gensio, returns NULL if the depth is
- * gerater than the number of children.
- */
-struct gensio *gensio_get_child(struct gensio *io, unsigned int depth);
-
-/*
- * Close the gensio.  Note that the close operation is not complete
- * until close_done() is called.  This shuts down internal file
- * descriptors and such, but does not free the gensio.
- */
 int gensio_close(struct gensio *io, gensio_done close_done, void *close_data);
 
-/*
- * Like gensio_close, but blocks until the operation is complete.
- *
- * BE VERY CAREFUL WITH THIS FUNCTION.  Do not call it from a callback
- * because it waits until all operations on the gensio are done, and
- * they won't be done until the callback returns.  You will deadlock
- * if you do this.
- */
 int gensio_close_s(struct gensio *io);
 
-/*
- * Disable operation of the gensio so that closing will not result in
- * any data being transmitted.  This will not close file descriptors
- * nor disable I/O, necessarily, but will put the gensio(s) into a
- * state where freeing them will not result in any transmission of
- * data to the other end.  This is primarily to allow a close of
- * something like an SSL connection after a fork.  See gensio.5
- * for details on forking.
- *
- * Note that this can only be safely called if no threads are
- * processing gensio events.  You may be able to open a connecting
- * gensio after this is called.
- */
 void gensio_disable(struct gensio *io);
 
-/*
- * Frees data assoicated with the gensio.  If it is open, the gensio is
- * closed.  Note that you should not call gensio_free() after gensio_close()
- * before the done callback is called.  The results are undefined.
- */
 void gensio_free(struct gensio *io);
 
 /*
@@ -401,33 +147,28 @@ void gensio_set_read_callback_enable(struct gensio *io, bool enabled);
  */
 void gensio_set_write_callback_enable(struct gensio *io, bool enabled);
 
-/*
- * Is the gensio a client or server?
- */
+int gensio_control(struct gensio *io, int depth, bool get,
+		   unsigned int option, char *data, gensiods *datalen);
+#define GENSIO_CONTROL_DEPTH_ALL	-1
+#define GENSIO_CONTROL_DEPTH_FIRST	-2
+
+#define GENSIO_CONTROL_NODELAY			1
+#define GENSIO_CONTROL_STREAMS			2
+#define GENSIO_CONTROL_SEND_BREAK		3
+#define GENSIO_CONTROL_GET_PEER_CERT_NAME	4
+#define GENSIO_CONTROL_CERT_AUTH		5
+#define GENSIO_CONTROL_USERNAME			6
+#define GENSIO_CONTROL_SERVICE			7
+#define GENSIO_CONTROL_CERT			8
+#define GENSIO_CONTROL_CERT_FINGERPRINT		9
+#define GENSIO_CONTROL_ENVIRONMENT		10
+
+const char *gensio_get_type(struct gensio *io, unsigned int depth);
+struct gensio *gensio_get_child(struct gensio *io, unsigned int depth);
 bool gensio_is_client(struct gensio *io);
-
-/*
- * Is the genio reliable (won't loose data).
- */
 bool gensio_is_reliable(struct gensio *io);
-
-/*
- * Is the genio packet-oriented.  In a packet-oriented genio, if one
- * side writes a chunk of data, when the other side does a read it
- * will get the same chunk of data as a single unit assuming it's
- * buffer sizes are set properly.
- */
 bool gensio_is_packet(struct gensio *io);
-
-/*
- * Is the remote end authenticated?  In the SSL case, this means that
- * the remote certificate was received and verified.
- */
 bool gensio_is_authenticated(struct gensio *io);
-
-/*
- * Is the connection encrypted?
- */
 bool gensio_is_encrypted(struct gensio *io);
 
 /*

@@ -1,0 +1,70 @@
+.TH gensio_get_type 3 "27 Feb 2019"
+.SH NAME
+gensio_get_type, gensio_get_child, gensio_is_client, gensio_is_reliable,
+gensio_is_packet, gensio_is_authenticated, gensio_is_encrypted
+\- Return general information about a gensio
+.SH SYNOPSIS
+.B #include <gensio/gensio.h>
+.TP 20
+.B const char *gensio_get_type(struct gensio *io,
+.br
+.B                             unsigned int depth);
+.TP 20
+.B struct gensio *gensio_get_child(struct gensio *io,
+.br
+.B                                 unsigned int depth);
+.TP 20
+.B bool gensio_is_client(struct gensio *io);
+.TP 20
+.B bool gensio_is_reliable(struct gensio *io);
+.TP 20
+.B bool gensio_is_packet(struct gensio *io);
+.TP 20
+.B bool gensio_is_authenticated(struct gensio *io);
+.TP 20
+.B bool gensio_is_encrypted(struct gensio *io);
+.SH "DESCRIPTION"
+.B gensio_get_type
+return the type string for the gensio (if
+.I depth
+is 0) or one of its children
+.I (depth > 0).
+Returns NULL if the depth is greater than the number of children.
+
+.B gensio_get_child
+returns the given child of the gensio, returns NULL if the
+.I depth
+is greater than the number of children.
+
+.B gensio_is_client
+returns true if the gensio a client or false if it is a server.
+
+.B gensio_is_reliable
+return true if the genio is reliable (won't loose data).  Serial
+devices are not considered reliable, nor is UDP.  Pretty much
+everything else is, because they won't drop data and are
+flow-controlled.
+
+.B gensio_is_packet
+returns if the genio is packet-oriented.  In a packet-oriented genio,
+if one side writes a chunk of data, when the other side does a read it
+will get the same chunk of data as a single unit assuming it's buffer
+sizes are set properly.
+
+.B gensio_is_authenticated
+return true if the remote end authenticated, false if not.  In the SSL
+case, this means that the remote certificate was received and verified
+(client and server, see gensio(5) SSL section for details).  For
+certauth server, this means that the authentication successfully
+authenticated the certauth client by either certificate or password.
+
+.B gensio_is_encrypted
+returns true if the connection is encrypted, false if not.
+
+Note that for the "gensio_is_xxx" type of requests, the properly is
+usually inherited from the child.  So if you run a telnet gensio on
+top of an SSL gensio, the telnet gensio will return true for
+.B gensio_is_encrypted
+because SSL is encrypted.
+.SH "SEE ALSO"
+gensio_err(3), gensio(5), gensio_os_funcs(3)

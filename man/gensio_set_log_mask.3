@@ -1,9 +1,7 @@
 .TH gensio_set_log_mask 3 "23 Feb 2019"
 .SH NAME
 gensio_set_log_mask, gensio_get_log_mask, gensio_log_level_to_str,
-
 \- Logging and seting which gensio logs are passed or ignored
-
 .SH SYNOPSIS
 .B #include <gensio/gensio_os_funcs.h>
 .TP 20
@@ -28,8 +26,7 @@ gensio_set_log_mask, gensio_get_log_mask, gensio_log_level_to_str,
 .B enum gensio_log_levels level,
 .br
 .B const char *str, ...);
-.PP
-
+.SH "DESCRIPTION"
 The log mask is a global variable in the gensio library that sets what
 level of logs are delivered through the vlog function pointer in
 .B gensio_os_funcs.
@@ -63,6 +60,5 @@ and
 .B gensio_log
 are the functions used to generate logs.  These are primarily for use
 in the gensio library, though you may use them, too, if you like.
-
 .SH "SEE ALSO"
 gensio(5), gensio_os_funcs(3)

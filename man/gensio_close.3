@@ -1,0 +1,58 @@
+.TH gensio_close 3 "27 Feb 2019"
+.SH NAME
+gensio_close, gensio_close_s, gensio_disable, gensio_free
+\- Stop/free a gensio that is open
+.SH SYNOPSIS
+.B #include <gensio/gensio.h>
+.TP 20
+.B typedef void (*gensio_done)(struct gensio *io, void *close_data);
+.TP 20
+.B int gensio_close(struct gensio *io, gensio_done close_done,
+.br
+.B                  void *close_data);
+.TP 20
+int gensio_close_s(struct gensio *io);
+.TP 20
+void gensio_disable(struct gensio *io);
+.TP 20
+void gensio_free(struct gensio *io);
+.PP
+.B gensio_close
+closes an open gensio.  Note that the close operation is not complete
+until close_done() is called.  This shuts down internal file
+descriptors and such, but does not free the gensio.  If the gensio is
+a connecting one, you can generally re-open it.
+
+.B gensio_close_s
+is like gensio_close, but blocks until the operation is complete.
+.B BE VERY CAREFUL WITH THIS FUNCTION.
+Do not call it from a callback because it waits until all operations
+on the gensio are done, and they won't be done until the callback
+returns.  You will deadlock if you do this.
+
+.B gensio_disable
+disables operation of the gensio so that closing will not result in
+any data being transmitted.
+.B THIS IS FOR EXTREMELY LIMITED USE.
+This will not close file descriptors nor disable I/O, necessarily, but
+will put the gensio stack into a state where free them will not result
+in any transmission of data to the other end.  You
+.B MUST
+be in a state where no callbacks are running or can run.  This is
+primarily to allow a close of something like an SSL connection after a
+fork.  If you didn't have this, the normal close in the one fork would
+shut down the SSL connection for the other fork, too.  See gensio(5)
+for details on forking.
+
+.B gensio_free
+grees data assoicated with the gensio.  If it is open, the gensio is
+closed.  Note that you should not call
+.B gensio_free after
+.B gensio_close
+before the done callback is called.  The results (primarily if
+.B close_done
+is called) are undefined.
+.SH "RETURN VALUES"
+Zero is returned on success, or a gensio error on failure.
+.SH "SEE ALSO"
+gensio_err(3), gensio(5)

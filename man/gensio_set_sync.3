@@ -1,0 +1,98 @@
+.TH gensio_set_sync 3 "27 Feb 2019"
+.SH NAME
+gensio_set_sync, gensio_clear_sync, gensio_read_s, gensio_write_s
+\- Synchronous I/O operations on a gensio
+.SH SYNOPSIS
+.B #include <gensio/gensio.h>
+.TP 20
+.B int gensio_set_sync(struct gensio *io);
+.TP 20
+.B int gensio_clear_sync(struct gensio *io);
+.TP 20
+.B int gensio_read_s(struct gensio *io, gensiods *count,
+.br
+.B                   void *data, gensiods datalen,
+.br
+.B                   struct timeval *timeout);
+.TP 20
+.B int gensio_write_s(struct gensio *io, gensiods *count,
+.br
+.B                    const void *data, gensiods datalen,
+.br
+.B                    struct timeval *timeout);
+.SH "DESCRIPTION"
+Normal gensio operation is asynchronous callback based.  This serves
+most programs fairly well, especially if they are listening to
+multiple connections at the same time.  You wouldn't want to write a
+compiler this way, but if you are writing something that is driven by
+external events, this event-driven type of programming works well.  If
+you think about it, if you are using something like poll, select,
+etc., you almost always end up with something like:
+.IP
+poll(fds...)
+.br
+if (fd1 read is set)
+.br
+   call fd1_read_handler()
+.br
+if (fd1 write is set)
+.br
+   call fd1_write_handler()
+.br
+if (fd2 read is set)
+...
+.PP
+The gensio handling does all this for you.  Just register a handler
+with the gensio to get the read and write calls.  It's more efficient,
+neater, and you end up with less code.
+
+But occasionally you need to do something synchronous with the program
+execution.  For instance, in gtlsshd, if the initial certificate and
+password verification fails, it uses PAM to handle reading the
+password from the remote gensio.  This requires synchronous I/O, and
+it uses this capability.
+
+.B gensio_set_sync
+sets up the gensio for syncronous I/O.  If you do this, the event
+callback that is currently registered will no longer receive read and
+write callbacks.  It *will* receive other callbacks.  You must call
+this before doing any of the synchronous read and write operations.
+This function will block (while handling normal gensio events) until
+no callbacks are active.
+
+.B gensio_clear_sync
+returns the gensio to asyncronous I/O.  The callback will be restored
+to the one that was set when gensio_set_sync() was called.
+
+.B gensio_read_s
+Waits for data from the gensio, up to
+.I datalen
+bytes.
+.I count
+(if not NULL) will be updated to the actual number of bytes read.
+This will wait for any read and will return whatever that read was,
+even if it is less than
+.I datalen.
+This function waits for the amount of time in
+.I timeout.
+.I timeout
+is updated to the amount of time left to wait.  If
+.I timeout
+is NULL, wait forever.
+
+.B gensio_write_s
+writes data to the gensio.
+.I count
+(if not NULL) will be updated to the actual number of bytes written.
+This function will wait until either the timeout occurs or all the
+data is written.
+This function waits for the amount of time in
+.I timeout.
+.I timeout
+is updated to the amount of time left to wait.  If
+.I timeout
+is NULL, wait forever.
+.SH "RETURN VALUES"
+Zero is returned on success, or a gensio error on failure.
+.SH "SEE ALSO"
+gensio_err(3), gensio(5)

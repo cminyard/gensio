@@ -1,15 +1,13 @@
 .TH gensio_raddr_to_str 3 "26 Feb 2019"
 .SH NAME
 gensio_raddr_to_str \- Return the remote address for the gensio as a string
-
 .SH SYNOPSIS
 .B #include <gensio/gensio.h>
 .TP 20
 .B int gensio_raddr_to_str(struct gensio *io, gensiods *pos,
 .br
 .B                         char *buf, gensiods buflen);
-.PP
-
+.SH "DESCRIPTION"
 Convert the remote address for this gensio to a string.  The string
 starts at
 .I buf + *pos

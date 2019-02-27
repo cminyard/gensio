@@ -2,14 +2,13 @@
 .SH NAME
 gensio_os_funcs \- Abstraction for some operating system functions used
 by the gensio library
-
 .SH SYNOPSIS
 .B #include <gensio/gensio_os_funcs.h>
 .PP
 .B struct gensio_os_funcs {}
 .PP
 .B int gensio_default_os_hnd(int wake_sig, struct gensio_os_funcs *o)
-
+.SH "DESCRIPTION"
 This structure provides an abstraction for the gensio library that
 lets it work with various event libraries.  It provides the following
 basic functions:
@@ -55,11 +54,9 @@ any other purpose, generally
 .B SIGUSR1
 or
 .B SIGUSR2.
-
 .SH "RETURN VALUES"
 .B gensio_default_os_hnd
 returns a standard gensio error.
-
 .SH "SEE ALSO"
 gensio_set_log_mask(3), gensio_get_log_mask(3), gensio_log_level_to_str(3),
 gensio(5), gensio_err(3)

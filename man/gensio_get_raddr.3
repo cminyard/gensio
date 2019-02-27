@@ -2,7 +2,6 @@
 .SH NAME
 gensio_get_raddr \- Return the remote address for the gensio as a raw
 address
-
 .SH SYNOPSIS
 .B #include <gensio/gensio.h>
 .TP 20
@@ -10,7 +9,7 @@ address
 .br
 .B                         void *addrlen);
 .PP
-
+.SH "DESCRIPTION"
 Return the remote address for the connection.
 .I addrlen
 must be set to the size of
@@ -25,7 +24,6 @@ though the data in the address will be truncated.
 The value returned here is connection dependent, and for filter
 layers it will pass the call down to the lowest layer to get
 the addresses.  Some connection types will not support this.
-
 .SH "RETURN VALUES"
 Zero is returned on success, or a gensio error on failure.
 .SH "SEE ALSO"

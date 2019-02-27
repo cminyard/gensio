@@ -1,0 +1,164 @@
+.TH gensio_control 3 "27 Feb 2019"
+.SH NAME
+gensio_control \- Perform gensio-specific actions
+.SH SYNOPSIS
+.B #include <gensio/gensio.h>
+.TP 20
+.B int gensio_control(struct gensio *io, int depth, bool get,
+.br
+.B                    unsigned int option,
+.br
+.B                    char *data, gensiods *datalen);
+.PP
+.B gensio_control
+performs a gensio-specific operation on the gensio (if
+.I depth
+is 0) or
+one of its children (
+.I depth
+> 0).  If depth is
+.I GENSIO_CONTROL_DEPTH_ALL,
+then call all the children with the data.
+.I GE_NOTSUP
+error returns from individual gensios are ignored in that case, but it
+will stop at the first error besides that.  If depth is
+GENSIO_CONTROL_DEPTH_FIRST, it will return on the first gensio that
+doesn't return
+.I GE_NOTSUP.
+It returns
+.I GE_NOTSUP
+is nothing handled it.
+
+If
+.I get
+is true, attempt to fetch the option.  You cannot use
+.I GENSIO_CONTROL_DEPTH_ALL
+with get==true.  To fetch an option, you must pass in a string long
+enough to hold the output and set
+.I datalen
+to the number of bytes available in
+.I data
+for the output.  It will return the length of the string (like strlen,
+not including the terminating nil) in
+.I datalen.
+
+An operation with
+.I get
+false is a put operation, it will set values or controls in the gensio.
+.I datalen
+is not used in a put operation or for determining the length
+of the input string in
+.I data,
+it must be a nil terminated string.
+
+A get operation is alway indepotent (it won't change anything, so
+multiple calls will not have any effect on the state of the system).
+A get operation may or may not use infromation passed in
+.I data,
+and returns information in the
+.I data
+field.
+
+If the output string does not fit in a get operation,
+.I datalen
+is updated to where it would have been if it had enough bytes (one
+less than the total number of bytes required), but the output in
+.I data
+is truncated (and nil terminated if possible).  This can be used to
+probe to see how long a buffer is required by passing in a zero
+.I *datalen,
+and then allocating
+.I *datalen
++ 1 and calling the function again with that data.
+
+gensio control operations in
+.I option
+depend on the particular gensio.  Below some are documented, but there
+may be other controls available.  See the gensio documentation in
+gensio(5) for details.
+.SS "GENSIO_CONTROL_NODELAY"
+Set the enable/disable for any NAGLE type algorithms.
+For put the
+.I data
+should be a string "1" to disable delay, or "0" to enable delay.
+Return value from a get is a string "1" or "0".
+.SS "GENSIO_CONTROL_STREAMS"
+Return information about incoming and outgoing streams for the gensio.
+This is read(get)-only and returns the value in the data in the form
+"instream=<n>,ostream=<n>".  Used by SCTP.
+.SS "GENSIO_CONTROL_SEND_BREAK"
+Request that a break be sent over the line (primarily for telnet).
+.SS "GENSIO_CONTROL_GET_PEER_CERT_NAME"
+Return the object from the certificate from the remote end.  This is
+primarily for SSL and certauth so the application can validate the
+certificate's common name, but it can fetch any object from the
+certificate.
+
+There are two ways to use this interface: fetch by index or fetch
+by object type.
+
+To fetch by index, just pass in a number in the data, like "0"
+and it will fetch the value at that index.
+
+To fetch by object type, pass in a number and the object type
+separated by a comma.  The object type to fetch is SN (short name) or
+LN (long name) descriptor per /usr/include/openssl/object.h.  Like
+"CN" or "commonName".  The index should be one less than the start
+search, you should use -1, for instance to fetch the first index.
+
+The data returned is in the form: "<index>,<sn>,<value>".
+Where sn is the short name.
+
+In fetch by object type mode, there may be more than one of an
+object in a certificate, so this interface can handle that.
+just pass in the index returned by the first into the second
+call and it will start after that index.  For instance, to
+fetch the first common name, do (with error checking removed for
+clarity):
+.IP
+strcpy(data, "-1,CN");
+.br
+gensio_control(io, 0, true, data, &len)
+.PP
+Say it returns "3,CN,MyName.org"  You would use
+.IP
+strcpy(data, "3,CN");
+.br
+gensio_control(io, 0, true, data, &len)
+.PP
+to get the next common name, which might be "4,CN,MyName2.org".
+You get an GE_NOTFOUND at the end.
+
+Returns
+.I GE_NOCERT if there is no remote certificate,
+.I GE_CERTINVAL
+if the passed in object name is not valid, and
+.I GE_NOTFOUND
+if the object was not available in the certificate.
+.SS "GENSIO_CONTROL_CERT_AUTH"
+Set the certificate authority file to the string in
+.I data.
+If it ends in '/', it is assumed to be a directory, otherwise it is
+assumed to be a file.  This generally must be done before
+authorization is done, generally before open or in the
+.I GENSIO_EVENT_PRECERT_VERIFY
+event (see gensio_event(3) for details).
+.SS "GENSIO_CONTROL_USERNAME"
+Get the username for the gensio, generally the username sent from
+the remote end or a certauth gensio.
+.SS "GENSIO_CONTROL_SERVICE"
+Get the service sent from the gensio client, generally available on a
+certauth server.  Returns
+.I GE_DATAMISSING
+if a service was not sent.
+.SS "GENSIO_CONTROL_CERT"
+Get the full certificate in text form sent from the other end.
+.SS "GENSIO_CONTROL_CERT_FINGERPRINT"
+Get the fingerprint for the certificate from the other end.
+.SS "GENSIO_CONTROL_ENVIRONMENT"
+Set the environment pointer for an exec.  For pty and stdio gensios.
+The data is a pointer to an argv array (char * const envp[])
+.SH "RETURN VALUES"
+Zero is returned on success, or a gensio error on failure.
+.SH "SEE ALSO"
+gensio_err(3), gensio(5)

@@ -2,7 +2,6 @@
 .SH NAME
 gensio_set_callback, gensio_get_user_data, gensio_set_user_data
 \- Set the event callback and user data for a gensio
-
 .SH SYNOPSIS
 .B #include <gensio/gensio.h>
 .TP 20
@@ -15,8 +14,7 @@ gensio_set_callback, gensio_get_user_data, gensio_set_user_data
 .PP
 .TP 20
 .B void *gensio_get_user_data(struct gensio *io)
-.PP
-
+.SH "DESCRIPTION"
 .B gensio_set_callback
 sets the event handler and data for the gensio.  This must be done in the
 .B GENSIO_ACC_EVENT_NEW_CONNECTION
@@ -37,6 +35,5 @@ the gensio is running, race conditions may occur.
 .B gensio_get_user_data
 Return the user data passed in with the gensio was created or set
 by one of the above two functions.
-
 .SH "SEE ALSO"
 gensio(5), gensio_accepter_event(3)
