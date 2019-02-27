@@ -130,7 +130,7 @@ dummyna_free(struct gensio_accepter *accepter)
 }
 
 static int
-gensio_acc_stdio_func(struct gensio_accepter *acc, int func, int val,
+gensio_acc_dummy_func(struct gensio_accepter *acc, int func, int val,
 		      const char *addr, void *done, void *data,
 		      const void *data2, void *ret)
 {
@@ -177,8 +177,8 @@ dummy_gensio_accepter_alloc(const char * const args[],
 	return GE_NOMEM;
     }
 
-    nadata->acc = gensio_acc_data_alloc(o, cb, user_data, gensio_acc_stdio_func,
-					NULL, "stdio", nadata);
+    nadata->acc = gensio_acc_data_alloc(o, cb, user_data, gensio_acc_dummy_func,
+					NULL, "dummy", nadata);
     if (!nadata->acc) {
 	dummyna_finish_free(nadata);
 	return GE_NOMEM;
@@ -195,5 +195,5 @@ str_to_dummy_gensio_accepter(const char *str, const char * const args[],
 			     void *user_data,
 			     struct gensio_accepter **acc)
 {
-    return stdio_gensio_accepter_alloc(args, o, cb, user_data, acc);
+    return dummy_gensio_accepter_alloc(args, o, cb, user_data, acc);
 }
