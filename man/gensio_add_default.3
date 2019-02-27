@@ -1,0 +1,160 @@
+.TH gensio_add_default 3 "27 Feb 2019"
+.SH NAME
+gensio_add_default, gensio_set_default, gensio_get_default,
+gensio_get_defaultaddr, gensio_del_default, gensio_reset_defaults
+\- Handle default values for gensios
+.SH SYNOPSIS
+.B #include <gensio/gensio.h>
+.br
+struct gensio_enum_val {
+.br
+    char *name;
+.br
+    int val;
+.br
+};
+.TP 20
+.B int gensio_add_default(struct gensio_os_funcs *o,
+.br
+.B       const char *name,
+.br
+.B       enum gensio_default_type type,
+.br
+.B       const char *strval, int intval,
+.br
+.B       int minval, int maxval,
+.br
+.B       const struct gensio_enum_val *enums);
+.TP 20
+.B int gensio_set_default(struct gensio_os_funcs *o,
+.br
+.B       const char *class, const char *name,
+.br
+.B       const char *strval, int intval);
+.TP 20
+.B int gensio_get_default(struct gensio_os_funcs *o,
+.br
+.B       const char *class, const char *name,
+.br
+.B       bool classonly,
+.br
+.B       enum gensio_default_type type,
+.br
+.B       char **strval, int *intval);
+.TP 20
+.B int gensio_get_defaultaddr(struct gensio_os_funcs *o,
+.br
+.B   const char *class, const char *name,
+.br
+.B   bool classonly,
+.br
+.B   int iprotocol, bool listen,
+.br
+.B   bool require_port,
+.br
+.B   struct addrinfo **rai);
+.TP 20
+.B int gensio_del_default(struct gensio_os_funcs *o,
+.br
+.B       const char *class, const char *name,
+.br
+.B       bool delclasses);
+.TP 20
+.B void gensio_reset_defaults(struct gensio_os_funcs *o);
+.SH "DESCRIPTION"
+Defaults provide a way to set overall or class-based defaults for
+gensio options (or you can use it yourself to create your own
+defaults).  The various options for gensios are described in
+gensio(5).
+
+For default values, each class will use
+.B gensio_get_default
+with their
+.I class
+(serialdev, telnet, ssl, etc.) with the
+.I name
+as the given option name.  If a value has been set for its class, it
+will use that value.  If a value has been set with class set to NULL
+(a "global" default) then the value will be used from there.
+Otherwise the code will use it's own internal default value.
+
+Any option provided in the gensio string will override any default
+value, of course.
+
+The
+.I classonly
+parameter means to not look in the global defaults.  If you use this
+for your own defaults, it is recommended that you use your own
+.I class
+and set
+.I classonly to true.
+
+Defaults come in one of four formats defined by
+.I type:
+.I GENSIO_DEFAULT_INT,
+.I GENSIO_DEFAULT_BOOL,
+.I GENSIO_DEFAULT_ENUM,
+.I GENSIO_DEFAULT_STR.
+int and bool are pretty self-explanatory.  Except that if you pass in
+a non-NULL strval when setting one, the code will attempt to get the
+value from the strval and will return NULL if the value is not valid.
+It will attempt to translate "true" and "false" for bool values.
+If the value is
+.I <minval
+or
+.I >maxval,
+.I GE_OUTOFRANGE
+is returned from any set operation.
+
+When setting a str, the value is copied, you don't have to keep the
+copy around for yourself.
+
+When getting a string value, the value is duplicated with
+.B gensio_strdup,
+you should free it with
+.B o->free().
+
+If it's a enum, setting the value you will pass in a string and a
+table of possible values in
+.I enum
+(terminated with a NULL name).
+The code will look up the string you pass in in the enums table,
+and set the value to the integer value.  If the string is not in
+the enums table, it will return
+.I GE_INVAL.
+When you get the value, it will return the value in intval.
+
+When getting the value, the type must match what is set in the set
+call.  If the name is not found,
+.I GE_NOTFOUND
+is returned.  If the type does not match, then
+.I GE_INVAL
+is returned.  Note that if you save a value as an enum, you can fetch
+it as an int.
+
+Setting the same default again will replace the old value.
+
+.B gensio_del_default
+deletes the given default.  You can only delete user-added defaults,
+not ones created by the gensio library.  If there are any
+class-specific default registered against the default, this call will
+fail with
+.I GE_INUSE
+unless
+.I delclasses
+is true, which will cause all the class defaults to be deleted, too.
+
+.B gensio_reset_defaults
+will reset all defaults to the value set when
+.B gensio_add_default
+was called to create the default, or the built-in default value.
+
+.B gesnio_get_defaultaddr
+gets an address from the given default string.  See
+gensi_scan_network_port in gensio/gensio.h for details on how the
+string is formatted, what the parameters mean, and how to handle the
+addrinfo struct.
+.SH "RETURN VALUES"
+Zero is returned on success, or a gensio error on failure.
+.SH "SEE ALSO"
+gensio_err(3), gensio(5)

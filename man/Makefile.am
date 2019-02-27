@@ -5,7 +5,7 @@ man_MANS = gensio.5 gensio_event.3 str_to_gensio.3 gensio_set_callback.3 \
 	gensio_set_read_callback_enable.3 gensio_get_type.3 gensio_set_sync.3 \
 	gensio_accepter_event.3 gensio_acc_set_callback.3 \
 	gensio_acc_shutdown.3 gensio_acc_set_accept_callback_enable.3 \
-	gensio_acc_control.3 gensio_acc_get_type.3
+	gensio_acc_control.3 gensio_acc_get_type.3 gensio_add_default.3
 
 install-data-hook:
 	$(LN_S) -f str_to_gensio.3 $(DESTDIR)$(man3dir)/str_to_gensio_child.3
@@ -44,6 +44,11 @@ install-data-hook:
 	$(LN_S) -f gensio_acc_set_accept_callback_enable.3 $(DESTDIR)$(man3dir)/gensio_acc_set_accept_callback_enable_s.3
 	$(LN_S) -f gensio_acc_get_type.3 $(DESTDIR)$(man3dir)/gensio_acc_is_reliable.3
 	$(LN_S) -f gensio_acc_get_type.3 $(DESTDIR)$(man3dir)/gensio_acc_is_packet.3
+	$(LN_S) -f gensio_add_default.3 $(DESTDIR)$(man3dir)/gensio_set_default.3
+	$(LN_S) -f gensio_add_default.3 $(DESTDIR)$(man3dir)/gensio_get_default.3
+	$(LN_S) -f gensio_add_default.3 $(DESTDIR)$(man3dir)/gensio_get_defaultaddr.3
+	$(LN_S) -f gensio_add_default.3 $(DESTDIR)$(man3dir)/gensio_del_default.3
+	$(LN_S) -f gensio_add_default.3 $(DESTDIR)$(man3dir)/gensio_reset_defaults.3
 
 uninstall-hook:
 	-rm -f $(DESTDIR)$(man3dir)/str_to_gensio_child.3
@@ -82,5 +87,10 @@ uninstall-hook:
 	-rm -f $(DESTDIR)$(man3dir)/gensio_acc_set_accept_callback_enable_s.3
 	-rm -f $(DESTDIR)$(man3dir)/gensio_acc_is_reliable.3
 	-rm -f $(DESTDIR)$(man3dir)/gensio_acc_is_packet.3
+	-rm -f $(DESTDIR)$(man3dir)/gensio_set_default.3
+	-rm -f $(DESTDIR)$(man3dir)/gensio_get_default.3
+	-rm -f $(DESTDIR)$(man3dir)/gensio_get_defaultaddr.3
+	-rm -f $(DESTDIR)$(man3dir)/gensio_del_default.3
+	-rm -f $(DESTDIR)$(man3dir)/gensio_reset_defaults.3
 
 EXTRA_DIST = $(man_MANS)
