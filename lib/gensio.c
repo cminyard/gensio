@@ -34,6 +34,7 @@
 #endif
 
 #include <gensio/gensio.h>
+#include <gensio/gensio_builtins.h>
 #include <gensio/gensio_class.h>
 
 #include "utils.h"

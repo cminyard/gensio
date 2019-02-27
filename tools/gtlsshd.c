@@ -31,6 +31,7 @@
 #include <security/pam_misc.h>
 
 #include <gensio/gensio.h>
+#include <gensio/gensio_builtins.h>
 
 #include "ioinfo.h"
 #include "ser_ioinfo.h"
