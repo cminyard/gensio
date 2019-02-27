@@ -1,0 +1,33 @@
+.TH gensio_accepter_set_callback 3 "27 Feb 2019"
+.SH NAME
+gensio_accepter_set_callback, gensio_accepter_get_user_data,
+gensio_accepter_set_user_data
+\- Set the event callback and user data for a gensio accepter
+.SH SYNOPSIS
+.B #include <gensio/gensio.h>
+.TP 20
+.B void gensio_accepter_set_callback(struct gensio *io,
+.br
+.B                          gensio_accepter_event cb, void *user_data)
+.PP
+.TP 20
+.B void gensio_accepter_set_user_data(struct gensio *io, void *user_data);
+.PP
+.TP 20
+.B void *gensio_accepter_get_user_data(struct gensio *io)
+.SH "DESCRIPTION"
+.B gensio_accepter_set_callback
+sets the event handler and data for the gensio accepter.  This
+function may be called again if the gensio accepter cannot generate
+any callbacks, generally after it has been shutdown.  Otherwise race
+conditions may occur.
+
+.B gensio_accepter_set_user_data
+Just sets the user_data field in the gensio accepter.  If this is
+called when the gensio is running, race conditions may occur.
+
+.B gensio_accepter_get_user_data
+Return the user data passed in with the gensio accepter was created or
+set by one of the above two functions.
+.SH "SEE ALSO"
+gensio(5), gensio_accepter_event(3)

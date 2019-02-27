@@ -171,43 +171,11 @@ bool gensio_is_packet(struct gensio *io);
 bool gensio_is_authenticated(struct gensio *io);
 bool gensio_is_encrypted(struct gensio *io);
 
-/*
- * Set up the gensio for syncronous I/O.  If you do this, the event
- * callback that is currently registered will no longer receive read
- * and write callbacks.  It *will* receive other callbacks.
- *
- * You must call this before doing any of the synchronous read and write
- * operations.
- */
 int gensio_set_sync(struct gensio *io);
-
-/*
- * Return the gensio to asyncronous I/O.  The callback will be restored
- * to the one that was set when gensio_set_sync() was called.
- */
 int gensio_clear_sync(struct gensio *io);
-
-/*
- * Wait for data from the gensio.  count (if not NULL) will be updated
- * to the actual number of bytes read.  This will wait for any read
- * and will return whatever that read was, even if it is less than
- * datalen.
- *
- * Will wait for the amount of time in timeout.  timeout is updated to
- * the amount of time left to wait.  If timeout is NULL, wait forever.
- */
 int gensio_read_s(struct gensio *io, gensiods *count,
 		  void *data, gensiods datalen,
 		  struct timeval *timeout);
-
-/*
- * Write data to the gensio.  count (if not NULL) will be updated
- * to the actual number of written.  This will wait until either
- * the timeout occurs or all the data is written.
- *
- * Will wait for the amount of time in timeout.  timeout is updated to
- * the amount of time left to wait.  If timeout is NULL, wait forever.
- */
 int gensio_write_s(struct gensio *io, gensiods *count,
 		   const void *data, gensiods datalen,
 		   struct timeval *timeout);
@@ -215,15 +183,7 @@ int gensio_write_s(struct gensio *io, gensiods *count,
 
 struct gensio_accepter;
 
-/*
- * Got a new connection on the event.  data points to the new gensio.
- */
 #define GENSIO_ACC_EVENT_NEW_CONNECTION	1
-
-/*
- * The gensio accepter had an issue that wouldn't otherwise be reported
- * as an error return.  data points to a gensio_loginfo.
- */
 #define GENSIO_ACC_EVENT_LOG		2
 struct gensio_loginfo {
     enum gensio_log_levels level;
@@ -231,140 +191,68 @@ struct gensio_loginfo {
     va_list args;
 };
 
-/*
- * Called right before certificate verification on a new incoming
- * connection.  See GENSIO_EVENT_PRECERT_VERIFY and friends for
- * details.  data points to the new gensio object.
- */
 #define GENSIO_ACC_EVENT_PRECERT_VERIFY		3
 #define GENSIO_ACC_EVENT_AUTH_BEGIN		4
 
-/* cdata is the following structure for PASSWORD_VERIFY and REQUEST_PASSWORD */
+#define GENSIO_ACC_EVENT_PASSWORD_VERIFY	5
+#define GENSIO_ACC_EVENT_REQUEST_PASSWORD	6
 struct gensio_acc_password_verify_data {
     struct gensio *io;
     char *password;
     gensiods password_len;
 };
-#define GENSIO_ACC_EVENT_PASSWORD_VERIFY	5
-#define GENSIO_ACC_EVENT_REQUEST_PASSWORD	6
 
-/* cdata is the following structure for POSTCERT_VERIFY */
+#define GENSIO_ACC_EVENT_POSTCERT_VERIFY	7
 struct gensio_acc_postcert_verify_data {
     struct gensio *io;
     int err;
     const char *errstr;
 };
-#define GENSIO_ACC_EVENT_POSTCERT_VERIFY	7
 
-/*
- * Report an event from the accepter to the user.
- *
- *  event - The event that occurred, of the type GENSIO_ACC_EVENT_xxx.
- *
- *  data - Specific data for the event, see the event description.
- *
- */
 typedef int (*gensio_accepter_event)(struct gensio_accepter *accepter,
 				     void *user_data, int event, void *data);
 
 /*
- * Callbacks for functions that don't give an error (close);
+ * Callbacks for functions that don't give an error (shutdown);
  */
 typedef void (*gensio_acc_done)(struct gensio_accepter *acc, void *cb_data);
 
-/*
- * Return the type string for the gensio accepter (if depth is 0) or
- * one of its children (depth > 0).  Return NULL if the depth is
- * greater than the number of children.
- */
-const char *gensio_acc_get_type(struct gensio_accepter *acc,
-				unsigned int depth);
-    
-/*
- * Return the user data supplied to the allocator.
- */
+int str_to_gensio_accepter(const char *str, struct gensio_os_funcs *o,
+			   gensio_accepter_event cb, void *user_data,
+			   struct gensio_accepter **accepter);
+
 void *gensio_acc_get_user_data(struct gensio_accepter *accepter);
 
-/*
- * Set the user data.  May be called if the accepter is not enabled.
- */
 void gensio_acc_set_user_data(struct gensio_accepter *accepter,
 			      void *user_data);
 
-/*
- * Set the callbacks and user data.  May be called if the accepter is
- * not enabled.
- */
 void gensio_acc_set_callback(struct gensio_accepter *accepter,
 			     gensio_accepter_event cb, void *user_data);
 
-/*
- * An accepter is allocated without opening any sockets.  This
- * actually starts up the accepter, allocating the sockets and
- * such.  It is started with accepts enabled.
- *
- * Returns a standard errno on an error, zero otherwise.
- */
 int gensio_acc_startup(struct gensio_accepter *accepter);
 
-/*
- * Closes all sockets and disables everything.  shutdown_complete()
- * will be called if successful after the shutdown is complete, if it
- * is not NULL.
- *
- * Returns a EAGAIN if the accepter is already shut down, zero
- * otherwise.
- */
 int gensio_acc_shutdown(struct gensio_accepter *accepter,
 			gensio_acc_done shutdown_done, void *shutdown_data);
 
-/*
- * Shut down the gensio and wait for the shutdown to finish.  See the
- * notes in gensio_close_s() for warning on using this.
- */
 int gensio_acc_shutdown_s(struct gensio_accepter *accepter);
 
-/*
- * Like gensio_disable, but for accepters.  See gensio_disable for
- * details.
- */
 void gensio_acc_disable(struct gensio_accepter *accepter);
 
-/*
- * Equivalent to gensio_control, but for accepters.  There are
- * currently no controls (int standard gensios) for gensio accepters,
- * but the interface is here for future use.
- */
-int gensio_acc_control(struct gensio_accepter *accepter, int depth, bool get,
-		       unsigned int option, char *data, gensiods *datalen);
+void gensio_acc_free(struct gensio_accepter *accepter);
 
-/*
- * Enable/disable the accept callback when connections come in.
- */
 void gensio_acc_set_accept_callback_enable(struct gensio_accepter *accepter,
 					   bool enabled);
 
-/*
- * Like the above, but do a callback when the enable is complete.  Really
- * only useful for disable, when the done callback is called then no
- * more accepts will be called and all callbacks are done.
- */
 int gensio_acc_set_accept_callback_enable_cb(struct gensio_accepter *accepter,
 					     bool enabled,
 					     gensio_acc_done done,
 					     void *done_data);
 
-/*
- * Like above, but a synchronous call.
- */
 int gensio_acc_set_accept_callback_enable_s(struct gensio_accepter *accepter,
 					    bool enabled);
 
-/*
- * Free the network accepter.  If the network accepter is started
- * up, this shuts it down first and shutdown_complete() is NOT called.
- */
-void gensio_acc_free(struct gensio_accepter *accepter);
+int gensio_acc_control(struct gensio_accepter *accepter, int depth, bool get,
+		       unsigned int option, char *data, gensiods *datalen);
 
 int gensio_acc_str_to_gensio(struct gensio_accepter *accepter,
 			     const char *str,
@@ -372,46 +260,16 @@ int gensio_acc_str_to_gensio(struct gensio_accepter *accepter,
 			     struct gensio **new_io);
 /*
  * Returns if the accepter requests exit on close.  A hack for stdio.
+ * Do not use.
  */
 bool gensio_acc_exit_on_close(struct gensio_accepter *accepter);
 
-/*
- * Is the genio reliable (won't loose data).
- */
+const char *gensio_acc_get_type(struct gensio_accepter *acc,
+				unsigned int depth);
+    
 bool gensio_acc_is_reliable(struct gensio_accepter *accepter);
 
-/*
- * Is the genio packet-oriented.  In a packet-oriented genio, if one
- * side writes a chunk of data, when the other side does a read it
- * will get the same chunk of data as a single unit assuming it's
- * buffer sizes are set properly.
- */
 bool gensio_acc_is_packet(struct gensio_accepter *accepter);
-
-/*
- * Convert a string representation of an I/O location into an accepter.
- */
-int str_to_gensio_accepter(const char *str, struct gensio_os_funcs *o,
-			   gensio_accepter_event cb, void *user_data,
-			   struct gensio_accepter **accepter);
-
-/*
- * Handler registered so that str_to_gensio_accepter can process an
- * accepter.  This is so users can create their own gensio accepter
- * types.
- */
-typedef int (*str_to_gensio_acc_handler)(const char *str,
-					 const char * const args[],
-					 struct gensio_os_funcs *o,
-					 gensio_accepter_event cb,
-					 void *user_data,
-					 struct gensio_accepter **new_gensio);
-/*
- * Add a gensio accepter to the set of registered gensio accepters.
- */
-int register_gensio_accepter(struct gensio_os_funcs *o,
-			     const char *name,
-			     str_to_gensio_acc_handler handler);
 
 /*
  * Allocators for the various gensio accepter types, compatible with

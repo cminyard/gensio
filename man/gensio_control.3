@@ -9,14 +9,13 @@ gensio_control \- Perform gensio-specific actions
 .B                    unsigned int option,
 .br
 .B                    char *data, gensiods *datalen);
-.PP
+.SH "DESCRIPTION"
 .B gensio_control
 performs a gensio-specific operation on the gensio (if
 .I depth
 is 0) or
 one of its children (
-.I depth
-> 0).  If depth is
+.I depth > 0).  If depth is
 .I GENSIO_CONTROL_DEPTH_ALL,
 then call all the children with the data.
 .I GE_NOTSUP

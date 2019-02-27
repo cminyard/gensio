@@ -1,0 +1,50 @@
+.TH gensio_acc_set_accept_callback_enable 3 "27 Feb 2019"
+.SH NAME
+gensio_acc_set_accept_callback_enable,
+gensio_acc_set_accept_callback_enable_cb,
+gensio_acc_set_accept_callback_enable_s
+\- Enable or disable the accept ready callback
+.SH SYNOPSIS
+.B #include <gensio/gensio.h>
+.TP 20
+.B void gensio_acc_set_accept_callback_enable(
+.br
+.B           struct gensio_accepter *accepter,
+.br
+.B           bool enabled);
+.TP 20
+.B int gensio_acc_set_accept_callback_enable_cb(
+.br
+.B           struct gensio_accepter *accepter,
+.br
+             bool enabled,
+.br
+             gensio_acc_done done,
+.br
+             void *done_data);
+.TP 20
+.B int gensio_acc_set_accept_callback_enable_s(
+.br
+.B           struct gensio_accepter *accepter,
+.br
+             bool enabled);
+.SH "DESCRIPTION"
+These functions enable/disable the accept callback when connections
+come in.
+
+.B gensio_acc_set_accept_callback_enable
+will do an asynchronous disable.  Note that this can race with pending
+and running callbacks, you must be prepared to handle these races.
+
+.B gensio_acc_set_accept_callback_enable_cb
+is like the above, but do a callback when the enable is complete.  Really
+only useful for disable, when the done callback is called then no
+more accepts will be called and all callbacks are done.
+
+.B gensio_acc_set_accept_callback_enable_s
+Like above, but a synchronous call.  See the notes on gensio_open_s()
+for the dangers of using this function.
+.SH "RETURN VALUES"
+Zero is returned on success, or a gensio error on failure.
+.SH "SEE ALSO"
+gensio_err(3), gensio(5), gensio_open_s(3)

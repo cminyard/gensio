@@ -1,0 +1,136 @@
+.TH gensio_accepter_event 3 "27 Feb 2019"
+.SH NAME
+gensio_accepter_event \- Event handler for events from a gensio
+.SH SYNOPSIS
+.B #include <gensio/gensio.h>
+.TP 20
+.B typedef int (*gensio_accepter_event)(struct gensio_accepter *acc,
+.br
+.B                          void *user_data,
+.br
+.B                          int event, void *data);
+.SH "DESCRIPTION"
+When an event happens on a gensio accepter that is reported to the
+user, the gensio library calls the
+.I gensio_accepter_event
+type handler that was registered with the gensio accepter.
+
+The use of the various parameters depends on the particular event.
+The parameters that don't vary are:
+.TP
+.B acc
+\- The gensio_accepter the event is being reported for.
+.TP
+.B user_data
+\- The user_data supplied when the event handler was registered.
+.TP
+.B event
+\- The particular event being reported.
+.TP
+.B data
+\- Data specific to the event (may not be used).
+.PP
+Events follow.
+.SS "GENSIO_ACC_EVENT_NEW_CONNECTION"
+Got a new connection on the accepter.
+.I data
+points to the new gensio.
+.SS "GENSIO_ACC_EVENT_LOG"
+.IP
+struct gensio_loginfo {
+.br
+    enum gensio_log_levels level;
+.br
+    char *str;
+.br
+    va_list args;
+.br
+};
+.PP
+The gensio accepter had an issue that wouldn't otherwise be reported
+as an error return.
+.I data
+points to a
+.I struct gensio_loginfo.
+.SS "GENSIO_ACC_EVENT_PRECERT_VERIFY"
+Called right before certificate verification on a new incoming
+connection.  See
+.I GENSIO_EVENT_PRECERT_VERIFY
+in gensio_event(3) for
+details.
+.I data
+points to the new gensio object.  Note that this gensio has
+.B not
+yet been reported in a new connection.
+.SS "GENSIO_ACC_EVENT_AUTH_BEGIN"
+Called at the start of an authorization process for a new connection.
+See
+.I GENSIO_EVENT_AUTH_BEGIN
+in gensio_event(3) for details.
+.I data
+points to the new gensio object.  Note that this gensio has
+.B not
+yet been reported in a new connection.
+.SS "GENSIO_ACC_EVENT_PASSWORD_VERIFY"
+.IP
+struct gensio_acc_password_verify_data {
+.br
+    struct gensio *io;
+.br
+    char *password;
+.br
+    gensiods password_len;
+.br
+};
+.PP
+A server gensio has received a password that requires verification.
+The gensio handlers do not actually verify the passwords, they transfer
+them and provide them for the user to verify.
+.I data
+points to a
+.I struct gensio_acc_password_verify_data
+that holds the new gensio and the password information.  See
+.I GENSIO_EVENT_PASSWORD_VERIFY
+in gensio_event(3) for details.
+
+.SS "GENSIO_ACC_EVENT_REQUEST_PASSWORD"
+A remote server gensio has requested that a password be sent for
+verification
+.I data
+points to a
+.I struct gensio_acc_password_verify_data
+that holds the new gensio and the password information.  See
+.I GENSIO_EVENT_REQUEST_PASSWORD
+in gensio_event(3) for details.
+.SS "GENSIO_ACC_EVENT_POSTCERT_VERIFY"
+.IP
+struct gensio_acc_postcert_verify_data {
+.br
+    struct gensio *io;
+.br
+    int err;
+.br
+    const char *errstr;
+.br
+};
+.PP
+A server gensio has finished certificate verification (and has not
+done any password verification).
+.I data
+points to a
+.I struct gensio_acc_postcert_verify_data
+that holds the new gensio and error information.  See
+.I GENSIO_EVENT_POSTCERT_VERIFY
+in gensio_event(3) for details.
+.SH "OTHER EVENTS"
+Other gensio accepters that are not part of the gensio library proper
+may have their own events, too.
+.SH "RETURN VALUES"
+See the individual events for the values you should return.  If an
+event is not handled by the event handler, the handler must return
+GE_NOTSUP, except in the case of
+.B GENSIO_ACC_EVENT_NEW_CONNECTSION
+which must be handled.
+.SH "SEE ALSO"
+gensio_err(3), gensio(5), gensio_event(3), gensio_acc_set_callback(3),
+str_to_gensio_accepter(3)

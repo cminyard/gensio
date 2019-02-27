@@ -1,0 +1,42 @@
+.TH gensio_acc_shutdown 3 "27 Feb 2019"
+.SH NAME
+gensio_acc_shutdown, gensio_acc_shutdown_s, gensio_acc_disable, gensio_acc_free
+\- Stop/free a gensio accepter that is started up
+.SH SYNOPSIS
+.B #include <gensio/gensio.h>
+.TP 20
+.B int gensio_acc_shutdown(struct gensio_accepter *accepter,
+.br
+			gensio_acc_done shutdown_done,
+.br
+			void *shutdown_data);
+.br
+.TP 20
+.B int gensio_acc_shutdown_s(struct gensio_accepter *accepter);
+.TP 20
+.B void gensio_acc_disable(struct gensio_accepter *accepter);
+.TP 20
+.B void gensio_acc_free(struct gensio_accepter *accepter);
+.SH "DESCRIPTION"
+
+.B gensio_acc_shutdown
+Closes all sockets and disables everything in the gensio accepter.
+shutdown_done() will be called if successful after the shutdown is
+complete, if it is not NULL.  Returns a GE_INUSE if the accepter is
+already shut down, zero otherwise.
+
+.B gensio_acc_shutdown_s
+shuts down the gensio and wait for the shutdown to finish.  See the
+notes in gensio_close_s(3) for warning on using this.
+
+.B gensio_acc_disable
+is like gensio_disable(3), but for accepters.  See gensio_disable(3) for
+details.
+
+.B gensio_acc_free
+frees the network accepter.  If the network accepter is started
+up, this shuts it down first and shutdown_done() is NOT called.
+.SH "RETURN VALUES"
+Zero is returned on success, or a gensio error on failure.
+.SH "SEE ALSO"
+gensio_err(3), gensio(5)

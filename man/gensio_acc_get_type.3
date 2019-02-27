@@ -1,0 +1,33 @@
+.TH gensio_acc_get_type 3 "27 Feb 2019"
+.SH NAME
+gensio_acc_get_type, gensio_acc_is_reliable, gensio_acc_is_packet
+\- Return general information about a gensio accepter
+.SH SYNOPSIS
+.B #include <gensio/gensio.h>
+.TP 20
+.B const char *gensio_acc_get_type(struct gensio *io,
+.br
+.B                             unsigned int depth);
+.TP 20
+.B bool gensio_acc_is_reliable(struct gensio *io);
+.TP 20
+.B bool gensio_acc_is_packet(struct gensio *io);
+.SH "DESCRIPTION"
+.B gensio_acc_get_type
+return the type string for the gensio accepter (if
+.I depth
+is 0) or one of its children
+.I (depth > 0).
+Returns NULL if the depth is greater than the number of children.
+
+.B gensio_acc_is_reliable
+return true if the genios produce by this accepter are reliable.  See
+gensio_is_reliable(3) for details.
+
+.B gensio_acc_is_packet
+returns if the genios produce by this accepter are packet-oriented.  See
+gensio_is_packet(3) for details.
+
+.SH "SEE ALSO"
+gensio_err(3), gensio(5), gensio_get_type(3), gensio_is_reliable(3),
+gensio_is_packet(3)

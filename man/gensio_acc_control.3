@@ -1,0 +1,22 @@
+.TH gensio_acc_control 3 "27 Feb 2019"
+.SH NAME
+gensio_acc_control \- Perform gensio accepter specific actions
+.SH SYNOPSIS
+.B #include <gensio/gensio.h>
+.TP 20
+.B int gensio_acc_control(struct gensio *io, int depth, bool get,
+.br
+.B                    unsigned int option,
+.br
+.B                    char *data, gensiods *datalen);
+.SH "DESCRIPTION"
+.B gensio_acc_control
+performs a gensio accepter specific operation on the gensio accepter.
+This works exactly like gensio_control(3), see that for details.
+
+Currently no built-in gensio accepters support this, it is here for
+future.
+.SH "RETURN VALUES"
+Zero is returned on success, or a gensio error on failure.
+.SH "SEE ALSO"
+gensio_err(3), gensio(5), gensio_control(3)

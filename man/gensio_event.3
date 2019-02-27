@@ -1,7 +1,6 @@
 .TH gensio_event 3 "21 Feb 2019"
 .SH NAME
 gensio_event \- Event handler for events from a gensio
-
 .SH SYNOPSIS
 .B #include <gensio/gensio.h>
 .TP 20
@@ -12,11 +11,11 @@ gensio_event \- Event handler for events from a gensio
 .B                          unsigned char *buf, gensiods *buflen,
 .br
 .B                          const char *const *auxdata);
-.PP
 .SH "DESCRIPTION"
 When an event happens on a gensio that is reported to the user, the
-gensio library calls the gensio_event type handler that was registered
-with the gensio.
+gensio library calls the
+.I gensio_event
+type handler that was registered with the gensio.
 
 The use of the various parameters depends on the particular event.
 The parameters that don't vary are:

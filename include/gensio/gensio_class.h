@@ -231,6 +231,24 @@ void gensio_acc_log(struct gensio_accepter *acc, enum gensio_log_levels level,
 		    char *str, ...);
 
 /*
+ * Handler registered so that str_to_gensio_accepter can process an
+ * accepter.  This is so users can create their own gensio accepter
+ * types.
+ */
+typedef int (*str_to_gensio_acc_handler)(const char *str,
+					 const char * const args[],
+					 struct gensio_os_funcs *o,
+					 gensio_accepter_event cb,
+					 void *user_data,
+					 struct gensio_accepter **new_gensio);
+/*
+ * Add a gensio accepter to the set of registered gensio accepters.
+ */
+int register_gensio_accepter(struct gensio_os_funcs *o,
+			     const char *name,
+			     str_to_gensio_acc_handler handler);
+
+/*
  * Handler registered so that str_to_gensio can process a gensio.
  * This is so users can create their own gensio types.
  */

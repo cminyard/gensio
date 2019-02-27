@@ -1,0 +1,19 @@
+.TH gensio_acc_startup 3 "27 Feb 2019"
+.SH NAME
+gensio_acc_startup \- Start a gensio accepter
+.SH SYNOPSIS
+.B #include <gensio/gensio.h>
+.TP 20
+.B int gensio_acc_startup(struct gensio_accepter *acc);
+.SH "DESCRIPTION"
+.B gensio_acc_startup
+starts the gensio accepter.  A gensio accepter is started not running,
+you must call this to start it up.
+
+Unlike
+.B gensio_open
+this also enables events from the gensio accepter.
+.SH "RETURN VALUES"
+Zero is returned on success, or a gensio error on failure.
+.SH "SEE ALSO"
+gensio_err(3), gensio(5), gensio_open(3)
