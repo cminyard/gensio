@@ -1323,7 +1323,7 @@ certauth_ll_write(struct gensio_filter *filter,
 		  const char *const *auxdata)
 {
     struct certauth_filter *sfilter = filter_to_certauth(filter);
-    int err;
+    int err = 0;
     unsigned char *obuf = buf;
     gensiods elemleft;
 

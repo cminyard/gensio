@@ -88,17 +88,19 @@ dummyna_shutdown(struct gensio_accepter *accepter,
 		 gensio_acc_done shutdown_done, void *shutdown_data)
 {
     struct dummyna_data *nadata = gensio_acc_get_gensio_data(accepter);
-    int rv;
+    int rv = 0;
 
     dummyna_lock(nadata);
-    if (nadata->state != DUMMY_ENABLED)
+    if (nadata->state != DUMMY_ENABLED) {
 	rv = GE_INUSE;
-    nadata->state = DUMMY_IN_SHUTDOWN;
-    /* Run the shutdown response in a runner to avoid deadlocks. */
-    nadata->shutdown_done = shutdown_data;
-    nadata->shutdown_data = shutdown_data;
-    nadata->o->run(nadata->shutdown_runner);
-    dummyna_unlock(nadata);
+    } else {
+	nadata->state = DUMMY_IN_SHUTDOWN;
+	/* Run the shutdown response in a runner to avoid deadlocks. */
+	nadata->shutdown_done = shutdown_data;
+	nadata->shutdown_data = shutdown_data;
+	nadata->o->run(nadata->shutdown_runner);
+	dummyna_unlock(nadata);
+    }
 
     return rv;
 }

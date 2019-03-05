@@ -1360,7 +1360,6 @@ str_to_gensio_accepter_child(struct gensio_accepter *child,
 			     struct gensio_accepter **accepter)
 {
     int err = GE_INVAL;
-    const char **args = NULL;
     struct registered_gensio_accepter *r;
     unsigned int len;
 
@@ -1370,6 +1369,8 @@ str_to_gensio_accepter_child(struct gensio_accepter *child,
     while (isspace(*str))
 	str++;
     for (r = reg_gensio_accs; r; r = r->next) {
+	const char **args = NULL;
+
 	len = strlen(r->name);
 	if (strncmp(r->name, str, len) != 0 ||
 			(str[len] != ',' && str[len] != '(' && str[len]))
@@ -1383,9 +1384,6 @@ str_to_gensio_accepter_child(struct gensio_accepter *child,
 	    gensio_argv_free(o, args);
 	return err;
     }
-
-    if (args)
-	gensio_argv_free(o, args);
 
     return err;
 }
