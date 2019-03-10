@@ -558,7 +558,12 @@ sctp_gensio_alloc(struct addrinfo *iai, const char * const args[],
 	goto out_nomem;
 
     gensio_set_is_reliable(io, true);
-    gensio_set_is_packet(io, true);
+    /*
+     * We can't really support packet unless we have working
+     * SCTP_EXPLICIT_EOR capability.  I'll need that in something
+     * I can test with to add this.
+     */
+    /* gensio_set_is_packet(io, true); */
 
     *new_gensio = io;
     return 0;
@@ -1247,7 +1252,8 @@ sctp_gensio_accepter_alloc(struct addrinfo *iai, const char * const args[],
     if (!nadata->acc)
 	goto out_nomem;
     gensio_acc_set_is_reliable(nadata->acc, true);
-    gensio_acc_set_is_packet(nadata->acc, true);
+    /* See comment on gensio_set_is_packet() above. */
+    /* gensio_acc_set_is_packet(nadata->acc, true); */
 
     nadata->max_read_size = max_read_size;
     nadata->nodelay = nodelay;

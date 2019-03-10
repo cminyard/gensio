@@ -66,16 +66,19 @@ overridden.
 
 A gensio may be reliable or not.  A reliable gensio will reliably
 deliver all data in sequence, like TCP.  An gensio that is not
-reliable may drop packets or deliver data out of sequence, like UDP.
+reliable may drop data or deliver data out of sequence, like UDP.
 This can be queried with
 .I gensio_is_reliable().
 
 A gensio may be packet or not.  A packet gensio will exactly match up
 writes and reads.  So if you write 15 bytes into one side, a 15 byte
-read for that data will appear on the other side.  A gnesio that is
+read for that data will appear on the other side.  A gensio that is
 not packet will not respect write boundaries, that 15 byte write may
 result in multiple reads or it may be combined with another write into
-more than 15 bytes.
+more than 15 bytes.  Packet I/O requires careful use to make it work
+correctly.  Particularly, you must set the max read and write size to
+the same value, and you must accept all data on receipt and write
+complete packets all at once.
 
 The options vary greatly between the different gensios.  Each gensio
 type will be covered in a separate section.  Also note that gensio
@@ -291,11 +294,13 @@ The semantics of a UDP socket are a little bit strange.  A connecting
 UDP socket is fairly straightforward, it opens a local socket and
 sends data to the remote socket.
 
-An accepter socket is not so straightforward.  The accepter gensio
+An accepter gensio is not so straightforward.  The accepter gensio
 will create a new accepted gensio for any packet it receives from a
 new remote host.  If you disable read on any of the accepted gensio or
 disable accepts on the accepting gensio, it will stop all reads on all
 gensios associated with that accepting gensio.
+
+UDP gensios are not reliable, but are obviously packet-oriented.
 
 In addition to readbuf, the udp gensio takes the following options:
 .TP
@@ -322,6 +327,11 @@ ports.  All the ports must be the same.
 For an accepter gensio, it will create a single socket with all the
 specified addresses as possible destinations.  Again, all the ports
 must be the same.
+
+SCTP gensios are reliable.  They are not, at the moment, packet
+oriented.  There is currently no support of SCTP_EXPLICIT_EOR in the
+Linux implementation of SCTP, and without that it would be hard to
+make it packet oriented.
 
 In addition to readbuf, the sctp gensio takes the following options:
 .TP
@@ -586,6 +596,8 @@ to verify that the server has the proper certificate and keys.
 
 The gensio has options to have the server request the certificate from
 the client and validate it.
+
+SSL gensios are reliable.  They are also packet-oriented.
 
 In addition to readbuf, the SSL gensio takes the following options:
 .TP
