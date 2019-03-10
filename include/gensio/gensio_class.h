@@ -140,6 +140,7 @@ void gensio_set_is_packet(struct gensio *io, bool is_packet);
 void gensio_set_is_reliable(struct gensio *io, bool is_reliable);
 void gensio_set_is_authenticated(struct gensio *io, bool is_authenticate);
 void gensio_set_is_encrypted(struct gensio *io, bool is_encrypted);
+void gensio_set_is_message(struct gensio *io, bool is_message);
 gensio_event gensio_get_cb(struct gensio *io);
 void gensio_set_cb(struct gensio *io, gensio_event cb, void *user_data);
 int gensio_cb(struct gensio *io, int event, int err,
@@ -224,6 +225,7 @@ void gensio_acc_remove_pending_gensio(struct gensio_accepter *acc,
 
 void gensio_acc_set_is_packet(struct gensio_accepter *io, bool is_packet);
 void gensio_acc_set_is_reliable(struct gensio_accepter *io, bool is_reliable);
+void gensio_acc_set_is_message(struct gensio_accepter *io, bool is_message);
 
 void gensio_acc_vlog(struct gensio_accepter *acc, enum gensio_log_levels level,
 		     char *str, va_list args);

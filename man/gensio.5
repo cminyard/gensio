@@ -80,6 +80,20 @@ correctly.  Particularly, you must set the max read and write size to
 the same value, and you must accept all data on receipt and write
 complete packets all at once.
 
+A gensio may be message oriented.  This implementation is stolen from
+SCTP (even though it's not really supported on Linux at the moment).
+It basically means you can explicitly mark message boundaries when
+sending data, and that explicit mark will be set on the read side.
+You do this by adding an "eom" auxdata on the write; the end of that
+write it assumed to be the end of a message.  If the write does not
+accept all the data, the "eom" is ignored, you must write the remaning
+data again with "eom" set.  You may also do partial write of messages
+and set "eom" at the end.  On the receive side, "eom" will be set when
+the end of a message is delivered.  The data delivered in the receive
+callback will be only the data for that message.  If the user does not
+accept all the data, the data left in the message is again presented
+to the user with "eom" set.
+
 The options vary greatly between the different gensios.  Each gensio
 type will be covered in a separate section.  Also note that gensio
 types can be dynamically added by the user, so there may be gensios

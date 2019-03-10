@@ -170,6 +170,7 @@ bool gensio_is_reliable(struct gensio *io);
 bool gensio_is_packet(struct gensio *io);
 bool gensio_is_authenticated(struct gensio *io);
 bool gensio_is_encrypted(struct gensio *io);
+bool gensio_is_message(struct gensio *io);
 
 int gensio_set_sync(struct gensio *io);
 int gensio_clear_sync(struct gensio *io);
@@ -274,8 +275,8 @@ const char *gensio_acc_get_type(struct gensio_accepter *acc,
 				unsigned int depth);
     
 bool gensio_acc_is_reliable(struct gensio_accepter *accepter);
-
 bool gensio_acc_is_packet(struct gensio_accepter *accepter);
+bool gensio_acc_is_message(struct gensio_accepter *accepter);
 
 
 enum gensio_default_type {

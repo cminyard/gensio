@@ -107,6 +107,7 @@ struct gensio {
     bool is_reliable;
     bool is_authenticated;
     bool is_encrypted;
+    bool is_message;
 
     struct gensio_sync_io *sync_io;
 
@@ -238,6 +239,7 @@ struct gensio_accepter {
 
     bool is_packet;
     bool is_reliable;
+    bool is_message;
 
     struct gensio_list pending_ios;
 };
@@ -949,6 +951,12 @@ gensio_is_packet(struct gensio *io)
 }
 
 bool
+gensio_is_message(struct gensio *io)
+{
+    return io->is_message;
+}
+
+bool
 gensio_is_authenticated(struct gensio *io)
 {
     return io->is_authenticated;
@@ -976,6 +984,12 @@ void
 gensio_set_is_packet(struct gensio *io, bool is_packet)
 {
     io->is_packet = is_packet;
+}
+
+void
+gensio_set_is_message(struct gensio *io, bool is_message)
+{
+    io->is_message = is_message;
 }
 
 void
@@ -1208,6 +1222,12 @@ gensio_acc_is_packet(struct gensio_accepter *accepter)
     return accepter->is_packet;
 }
 
+bool
+gensio_acc_is_message(struct gensio_accepter *accepter)
+{
+    return accepter->is_message;
+}
+
 void
 gensio_acc_set_is_reliable(struct gensio_accepter *accepter, bool is_reliable)
 {
@@ -1218,6 +1238,12 @@ void
 gensio_acc_set_is_packet(struct gensio_accepter *accepter, bool is_packet)
 {
     accepter->is_packet = is_packet;
+}
+
+void
+gensio_acc_set_is_message(struct gensio_accepter *accepter, bool is_message)
+{
+    accepter->is_message = is_message;
 }
 
 struct registered_gensio_accepter {
