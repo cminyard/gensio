@@ -768,6 +768,23 @@ udpna_writehandler(int fd, void *cbdata)
     udpna_unlock(nadata);
 }
 
+int
+udpn_control(bool get, int option, char *data, gensiods *datalen)
+{
+    if (!get)
+	return GE_NOTSUP;
+    if (option != GENSIO_CONTROL_MAX_WRITE_PACKET)
+	return GE_NOTSUP;
+
+    /*
+     * This is the maximum size for a normal IPv4 UDP packet (per
+     * wikipedia).  IPv6 jumbo packets can go larger, but this should
+     * be safe to advertise.
+     */
+    *datalen = snprintf(data, *datalen, "%d", 65507);
+    return 0;
+}
+
 static int
 gensio_udp_func(struct gensio *io, int func, gensiods *count,
 		const void *cbuf, gensiods buflen, void *buf,
@@ -808,6 +825,9 @@ gensio_udp_func(struct gensio *io, int func, gensiods *count,
     case GENSIO_FUNC_DISABLE:
 	udpn_disable(io);
 	return 0;
+
+    case GENSIO_FUNC_CONTROL:
+	return udpn_control(*((bool *) cbuf), buflen, buf, count);
 
     case GENSIO_FUNC_REMOTE_ID:
     default:
