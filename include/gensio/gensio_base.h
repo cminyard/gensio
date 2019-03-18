@@ -191,6 +191,15 @@ void gensio_filter_free(struct gensio_filter *filter);
 int gensio_filter_control(struct gensio_filter *filter, bool get,
 			  unsigned int option, char *data, gensiods *datalen);
 
+/*
+ * Open channel.  Return ENOTSUP if not supported.
+ *
+ * data => buf (see GENSIO_FUNC_OPEN_CHANNEL for details).
+ */
+#define GENSIO_FILTER_FUNC_OPEN_CHANNEL		16
+int gensio_filter_open_channel(struct gensio_filter *filter,
+			       struct gensio_func_open_channel_data *data);
+
 typedef int (*gensio_filter_func)(struct gensio_filter *filter, int op,
 				  const void *func, void *data,
 				  gensiods *count, void *buf,
