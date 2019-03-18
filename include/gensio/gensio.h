@@ -103,6 +103,16 @@ int gensio_write(struct gensio *io, gensiods *count,
 		 const void *buf, gensiods buflen,
 		 const char *const *auxdata);
 
+/* Purposefully exactly the same as iovev (see writev(2)) */
+struct gensio_sg {
+    const void *buf;
+    gensiods buflen;
+};
+
+int gensio_write_sg(struct gensio *io, gensiods *count,
+		    const struct gensio_sg *sg, gensiods sglen,
+		    const char *const *auxdata);
+
 int gensio_raddr_to_str(struct gensio *io, gensiods *pos,
 			char *buf, gensiods buflen);
 

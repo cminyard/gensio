@@ -186,9 +186,10 @@ telnet_buffer_do_write(void *cb_data, void *buf, unsigned int buflen,
 {
     struct telnet_buffer_data *data = cb_data;
     gensiods count;
+    struct gensio_sg sg = { buf, buflen };
     int err;
 
-    err = data->handler(data->cb_data, &count, buf, buflen, data->auxdata);
+    err = data->handler(data->cb_data, &count, &sg, 1, data->auxdata);
     if (!err)
 	*written = count;
     return err;
@@ -198,24 +199,33 @@ static int
 telnet_ul_write(struct gensio_filter *filter,
 		gensio_ul_filter_data_handler handler, void *cb_data,
 		gensiods *rcount,
-		const unsigned char *buf, gensiods buflen,
+		const struct gensio_sg *sg, gensiods sglen,
 		const char *const *auxdata)
 {
     struct telnet_filter *tfilter = filter_to_telnet(filter);
     int err = 0;
 
     telnet_lock(tfilter);
-    if (tfilter->write_data_len || buflen == 0) {
+    if (tfilter->write_data_len) {
 	if (rcount)
 	    *rcount = 0;
     } else {
-	unsigned int inlen = buflen;
+	gensiods i, writelen = 0;
 
-	tfilter->write_data_len =
-	    process_telnet_xmit(tfilter->write_data, tfilter->max_write_size,
-				&buf, &inlen);
+	for (i = 0; i < sglen; i++) {
+	    unsigned int inlen = sg[i].buflen;
+	    const unsigned char *buf = sg[i].buf;
+
+	    tfilter->write_data_len =
+		process_telnet_xmit(tfilter->write_data,
+				    tfilter->max_write_size,
+				    &buf, &inlen);
+	    writelen += sg[i].buflen - inlen;
+	    if (inlen != sg[i].buflen)
+		break;
+	}
 	if (rcount)
-	    *rcount = buflen - inlen;
+	    *rcount = writelen;
     }
 
     if (tfilter->write_state != TELNET_IN_USER_WRITE &&
@@ -235,10 +245,10 @@ telnet_ul_write(struct gensio_filter *filter,
     if (tfilter->write_state != TELNET_IN_TN_WRITE &&
 		tfilter->write_data_len) {
 	gensiods count = 0;
+	struct gensio_sg sg = { tfilter->write_data + tfilter->write_data_pos,
+				tfilter->write_data_len };
 
-	err = handler(cb_data, &count,
-		      tfilter->write_data + tfilter->write_data_pos,
-		      tfilter->write_data_len, auxdata);
+	err = handler(cb_data, &count, &sg, 1, auxdata);
 	if (!err) {
 	    if (count >= tfilter->write_data_len) {
 		tfilter->write_state = TELNET_NOT_WRITING;
@@ -541,7 +551,7 @@ static int gensio_telnet_filter_func(struct gensio_filter *filter, int op,
     case GENSIO_FILTER_FUNC_TRY_DISCONNECT:
 	return telnet_try_disconnect(filter, data);
 
-    case GENSIO_FILTER_FUNC_UL_WRITE:
+    case GENSIO_FILTER_FUNC_UL_WRITE_SG:
 	return telnet_ul_write(filter, func, data, count, cbuf, buflen, buf);
 
     case GENSIO_FILTER_FUNC_LL_WRITE:

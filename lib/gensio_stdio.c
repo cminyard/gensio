@@ -32,6 +32,7 @@
 
 #include <gensio/gensio.h>
 #include <gensio/gensio_class.h>
+#include <gensio/gensio_osops.h>
 
 #include "utils.h"
 
@@ -188,29 +189,12 @@ stdiona_deref_and_unlock(struct stdiona_data *nadata)
 
 static int
 stdion_write(struct gensio *io, gensiods *count,
-	     const void *buf, gensiods buflen)
+	     const struct gensio_sg *sg, gensiods sglen)
 {
     struct stdion_channel *schan = gensio_get_gensio_data(io);
     struct stdiona_data *nadata = schan->nadata;
-    int rv, err = 0;
 
- retry:
-    rv = write(schan->infd, buf, buflen);
-    if (rv < 0) {
-	if (errno == EINTR)
-	    goto retry;
-	if (errno == EWOULDBLOCK || errno == EAGAIN)
-	    rv = 0; /* Handle like a it wrote zero bytes. */
-	else
-	    err = errno;
-    } else if (rv == 0) {
-	err = EPIPE;
-    }
-
-    if (!err && count)
-	*count = rv;
-
-    return gensio_os_err_to_err(nadata->o, err);
+    return gensio_os_write(nadata->o, schan->infd, sg, sglen, count);
 }
 
 static int
@@ -893,7 +877,7 @@ gensio_stdio_func(struct gensio *io, int func, gensiods *count,
 		  const char *const *auxdata)
 {
     switch (func) {
-    case GENSIO_FUNC_WRITE:
+    case GENSIO_FUNC_WRITE_SG:
 	return stdion_write(io, count, cbuf, buflen);
 
     case GENSIO_FUNC_RADDR_TO_STR:

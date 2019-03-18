@@ -373,12 +373,12 @@ udpn_finish_free(struct udpn_data *ndata)
 
 static int
 udpn_write(struct gensio *io, gensiods *count,
-	   const void *buf, gensiods buflen)
+	   const struct gensio_sg *sg, gensiods sglen)
 {
     struct udpn_data *ndata = gensio_get_gensio_data(io);
 
-    return gensio_os_sendto(ndata->o, ndata->myfd, buf, buflen, count, 0,
-			    ndata->raddr,ndata->raddrlen);
+    return gensio_os_sendto(ndata->o, ndata->myfd, sg, sglen, count, 0,
+			    ndata->raddr, ndata->raddrlen);
 }
 
 static int
@@ -791,7 +791,7 @@ gensio_udp_func(struct gensio *io, int func, gensiods *count,
 		const char *const *auxdata)
 {
     switch (func) {
-    case GENSIO_FUNC_WRITE:
+    case GENSIO_FUNC_WRITE_SG:
 	return udpn_write(io, count, cbuf, buflen);
 
     case GENSIO_FUNC_RADDR_TO_STR:

@@ -269,7 +269,7 @@ tcp_except_ready(void *handler_data, int fd)
 
 static int
 tcp_write(void *handler_data, int fd, gensiods *rcount,
-	  const unsigned char *buf, gensiods buflen,
+	  const struct gensio_sg *sg, gensiods sglen,
 	  const char *const *auxdata)
 {
     struct tcp_data *tdata = handler_data;
@@ -291,7 +291,7 @@ tcp_write(void *handler_data, int fd, gensiods *rcount,
 	    return err;
     }
 
-    return gensio_os_send(tdata->o, fd, buf, buflen, rcount, flags);
+    return gensio_os_send(tdata->o, fd, sg, sglen, rcount, flags);
 }
 
 static const struct gensio_fd_ll_ops tcp_fd_ll_ops = {

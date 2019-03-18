@@ -9,6 +9,20 @@ gensio_write \- Write data to a gensio
 .B                   const void *buf, gensiods buflen,
 .br
 .B                   const char *const *auxdata);
+.PP
+.B struct gensio_sg {
+.RS 4
+.B     const void *buf;
+.br
+.B     gensiods buflen;
+.RE
+.B };
+.TP 20
+.B int gensio_write_sg(struct gensio *io, gensiods *count,
+.br
+.B                   const struct gensio_sg *sg, gensiods sglen,
+.br
+.B                   const char *const *auxdata);
 .SH "DESCRIPTION"
 Write data to the given gensio.  The data is in
 .I buf
@@ -42,6 +56,14 @@ it can and return.
 is used to pass in gensio specific auxiliary data, such as the stream
 number for SCTP or whether the data is out of band data for SCTP or
 TCP.
+
+.B gensio_write_sg
+is like
+.B gensio_write,
+but it takes a scatter-gather structure to allow you to combine multiple
+chunks of data without copying.  Note that if you get a partial write,
+you must figure out where the write ended in your scatter-gather list
+and start the next write from there.
 .SH "RETURN VALUES"
 Zero is returned on success, or a gensio error on failure.
 .SH "SEE ALSO"

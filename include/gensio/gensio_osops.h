@@ -28,7 +28,8 @@ struct sctp_sndrcvinfo;
 #include <gensio/gensio.h>
 
 int gensio_os_write(struct gensio_os_funcs *o,
-		    int fd, const void *buf, gensiods buflen, gensiods *rcount);
+		    int fd, const struct gensio_sg *sg, gensiods sglen,
+		    gensiods *rcount);
 
 int gensio_os_read(struct gensio_os_funcs *o,
 		   int fd, void *buf, gensiods buflen, gensiods *rcount);
@@ -38,12 +39,12 @@ int gensio_os_recv(struct gensio_os_funcs *o,
 		   int flags);
 
 int gensio_os_send(struct gensio_os_funcs *o,
-		   int fd, const void *buf, gensiods buflen, gensiods *rcount,
-		   int flags);
+		   int fd, const struct gensio_sg *sg, gensiods sglen,
+		   gensiods *rcount, int flags);
 
 int gensio_os_sendto(struct gensio_os_funcs *o,
-		     int fd, const void *buf, gensiods buflen, gensiods *rcount,
-		     int flags,
+		     int fd, const struct gensio_sg *sg, gensiods sglen,
+		     gensiods *rcount, int flags,
 		     const struct sockaddr *raddr,socklen_t raddrlen);
 
 int gensio_os_recvfrom(struct gensio_os_funcs *o,
@@ -59,7 +60,8 @@ int gensio_os_sctp_recvmsg(struct gensio_os_funcs *o,
 			   struct sctp_sndrcvinfo *sinfo, int *msg_flags);
 
 int gensio_os_sctp_send(struct gensio_os_funcs *o,
-			int fd, const void *msg, gensiods len, gensiods *rcount,
+			int fd, const struct gensio_sg *sg, gensiods sglen,
+			gensiods *rcount,
                         const struct sctp_sndrcvinfo *sinfo, uint32_t flags);
 
 int gensio_setup_child_on_pty(struct gensio_os_funcs *o,

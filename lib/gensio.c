@@ -649,11 +649,27 @@ gensio_write(struct gensio *io, gensiods *count,
 	     const void *buf, gensiods buflen,
 	     const char *const *auxdata)
 {
+    struct gensio_sg sg;
+
     if (buflen == 0) {
 	*count = 0;
 	return 0;
     }
-    return io->func(io, GENSIO_FUNC_WRITE, count, buf, buflen, NULL, auxdata);
+    sg.buf = buf;
+    sg.buflen = buflen;
+    return io->func(io, GENSIO_FUNC_WRITE_SG, count, &sg, 1, NULL, auxdata);
+}
+
+int
+gensio_write_sg(struct gensio *io, gensiods *count,
+		const struct gensio_sg *sg, gensiods sglen,
+		const char *const *auxdata)
+{
+    if (sglen == 0) {
+	*count = 0;
+	return 0;
+    }
+    return io->func(io, GENSIO_FUNC_WRITE_SG, count, sg, sglen, NULL, auxdata);
 }
 
 int

@@ -28,6 +28,7 @@
 #include <unistd.h>
 #include <termios.h>
 #include <sys/ioctl.h>
+#include <sys/uio.h>
 
 #ifdef HAVE_LIBSCTP
 #include <netinet/sctp.h>
@@ -82,12 +83,13 @@ do {								\
 
 int
 gensio_os_write(struct gensio_os_funcs *o,
-		int fd, const void *buf, gensiods buflen, gensiods *rcount)
+		int fd, const struct gensio_sg *sg, gensiods sglen,
+		gensiods *rcount)
 {
     ssize_t rv;
 
  retry:
-    rv = write(fd, buf, buflen);
+    rv = writev(fd, (struct iovec *) sg, sglen);
     ERRHANDLE();
 }
 
@@ -115,25 +117,37 @@ gensio_os_recv(struct gensio_os_funcs *o,
 
 int
 gensio_os_send(struct gensio_os_funcs *o,
-	       int fd, const void *buf, gensiods buflen, gensiods *rcount,
-	       int flags)
+	       int fd, const struct gensio_sg *sg, gensiods sglen,
+	       gensiods *rcount, int flags)
 {
     ssize_t rv;
+    struct msghdr hdr;
+
+    memset(&hdr, 0, sizeof(hdr));
+    hdr.msg_iov = (struct iovec *) sg;
+    hdr.msg_iovlen = sglen;
 
  retry:
-    rv = send(fd, buf, buflen, flags);
+    rv = sendmsg(fd, &hdr, flags);
     ERRHANDLE();
 }
 
 int
 gensio_os_sendto(struct gensio_os_funcs *o,
-		 int fd, const void *buf, gensiods buflen, gensiods *rcount,
+		 int fd, const struct gensio_sg *sg, gensiods sglen,
+		 gensiods *rcount,
 		 int flags, const struct sockaddr *raddr, socklen_t raddrlen)
 {
     ssize_t rv;
+    struct msghdr hdr;
 
+    memset(&hdr, 0, sizeof(hdr));
+    hdr.msg_name = (void *) raddr;
+    hdr.msg_namelen = raddrlen;
+    hdr.msg_iov = (struct iovec *) sg;
+    hdr.msg_iovlen = sglen;
  retry:
-    rv = sendto(fd, buf, buflen, flags, raddr, raddrlen);
+    rv = sendmsg(fd, &hdr, flags);
     ERRHANDLE();
 }
 
@@ -178,16 +192,37 @@ gensio_os_sctp_recvmsg(struct gensio_os_funcs *o,
     ERRHANDLE();
 }
 
-int
-gensio_os_sctp_send(struct gensio_os_funcs *o,
-		    int fd, const void *msg, gensiods len, gensiods *rcount,
-		    const struct sctp_sndrcvinfo *sinfo, uint32_t flags)
+static int
+l_sctp_send(struct gensio_os_funcs *o,
+	    int fd, const void *msg, size_t len, gensiods *rcount,
+	    const struct sctp_sndrcvinfo *sinfo, uint32_t flags)
 {
     int rv;
 
  retry:
     rv = sctp_send(fd, msg, len, sinfo, flags);
     ERRHANDLE();
+}
+
+int
+gensio_os_sctp_send(struct gensio_os_funcs *o,
+		    int fd, const struct gensio_sg *sg, gensiods sglen,
+		    gensiods *rcount,
+		    const struct sctp_sndrcvinfo *sinfo, uint32_t flags)
+{
+    int err = 0;
+    gensiods i, count, total_write = 0;
+
+    /* Without sctp_sendv, this is really hard to do. */
+    for (i = 0; i < sglen; i++) {
+	err = l_sctp_send(o, fd, sg[i].buf, sg[i].buflen, &count, sinfo, flags);
+	if (err || count == 0)
+	    break;
+	total_write += count;
+    }
+    if (rcount)
+	*rcount = total_write;
+    return err;
 }
 #endif
 

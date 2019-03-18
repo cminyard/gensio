@@ -26,8 +26,8 @@ struct gensio_filter;
 
 typedef int (*gensio_ul_filter_data_handler)(void *cb_data,
 					     gensiods *rcount,
-					     const unsigned char *buf,
-					     gensiods buflen,
+					     const struct gensio_sg *sg,
+					     gensiods sglen,
 					     const char *const *auxdata);
 
 typedef int (*gensio_ll_filter_data_handler)(void *cb_data,
@@ -124,15 +124,15 @@ int gensio_filter_try_disconnect(struct gensio_filter *filter,
  * handler => func
  * cb_data => data
  * rcount => count
- * buf => cbuf
- * buflen => buflen
+ * sg => cbuf
+ * sglen => buflen
  * auxdata => buf
  */
-#define GENSIO_FILTER_FUNC_UL_WRITE		8
+#define GENSIO_FILTER_FUNC_UL_WRITE_SG		8
 int gensio_filter_ul_write(struct gensio_filter *filter,
 			   gensio_ul_filter_data_handler handler, void *cb_data,
 			   gensiods *rcount,
-			   const unsigned char *buf, gensiods buflen,
+			   const struct gensio_sg *sg, gensiods sglen,
 			   const char *const *auxdata);
 
 /*
@@ -143,8 +143,8 @@ int gensio_filter_ul_write(struct gensio_filter *filter,
  * gensio_ul_filter_data_handler handler => func
  * void *cb_data => data
  * gensiods *rcount => count
- * unsigned char *buf => buf
- * gensiods buflen => buflen
+ * buf => buf
+ * buflen => buflen
  */
 #define GENSIO_FILTER_FUNC_LL_WRITE		9
 int gensio_filter_ll_write(struct gensio_filter *filter,
@@ -248,9 +248,9 @@ void gensio_ll_set_callback(struct gensio_ll *ll,
  * buflen => buflen
  * auxdata => buf
  */
-#define GENSIO_LL_FUNC_WRITE			2
+#define GENSIO_LL_FUNC_WRITE_SG			2
 int gensio_ll_write(struct gensio_ll *ll, gensiods *rcount,
-		    const unsigned char *buf, gensiods buflen,
+		    const struct gensio_sg *sg, gensiods sglen,
 		    const char *const *auxdata);
 
 /*

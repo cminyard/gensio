@@ -391,7 +391,7 @@ sctp_control(void *handler_data, int fd, bool get, unsigned int option,
 
 static int
 sctp_write(void *handler_data, int fd, gensiods *rcount,
-	  const unsigned char *buf, gensiods buflen,
+	  const struct gensio_sg *sg, gensiods sglen,
 	  const char *const *auxdata)
 {
     struct sctp_data *tdata = handler_data;
@@ -414,7 +414,7 @@ sctp_write(void *handler_data, int fd, gensiods *rcount,
 
     sinfo.sinfo_stream = stream;
     return gensio_os_sctp_send(tdata->o,
-			       tdata->fd, buf, buflen, rcount, &sinfo, 0);
+			       tdata->fd, sg, sglen, rcount, &sinfo, 0);
 }
 
 static int

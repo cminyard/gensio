@@ -830,12 +830,13 @@ transmit_complete(ipmi_sol_conn_t *conn,
 
 static int
 sol_write(struct gensio_ll *ll, gensiods *rcount,
-	  const unsigned char *buf, gensiods buflen)
+	  const struct gensio_sg *sg, gensiods sglen)
 {
     struct sol_ll *solll = ll_to_sol(ll);
     int err = 0;
     struct sol_tc *tc;
-    gensiods left;
+    gensiods left, i, total_write = 0, pos = 0;
+    unsigned char *buf = NULL;
 
     sol_lock(solll);
     if (solll->state != SOL_OPEN) {
@@ -844,33 +845,52 @@ sol_write(struct gensio_ll *ll, gensiods *rcount,
     }
 
     left = solll->max_write_size - solll->write_outstanding;
-    if (left < buflen)
-	buflen = left;
 
-    if (buflen == 0)
+    for (i = 0; i < sglen; i++)
+	total_write += sg[i].buflen;
+    if (total_write > left)
+	total_write = left;
+    if (total_write == 0)
 	goto out_finish;
 
+    buf = solll->o->zalloc(solll->o, total_write);
+    if (!buf) {
+	err = GE_NOMEM;
+	goto out_unlock;
+    }
     tc = solll->o->zalloc(solll->o, sizeof(*tc));
     if (!tc) {
 	err = GE_NOMEM;
 	goto out_unlock;
     }
+    for (i = 0; i < sglen; i++) {
+	if (sg[i].buflen >= total_write - pos) {
+	    memcpy(buf + pos, sg[i].buf, total_write - pos);
+	    break;
+	} else {
+	    memcpy(buf + pos, sg[i].buf, sg[i].buflen);
+	    pos += sg[i].buflen;
+	}
+    }
 
-    tc->size = buflen;
+    tc->size = total_write;
     tc->solll = solll;
-    err = ipmi_sol_write(solll->sol, buf, buflen, transmit_complete, tc);
+    err = ipmi_sol_write(solll->sol, buf, total_write, transmit_complete, tc);
     if (err) {
 	err = sol_xlat_ipmi_err(solll->o, err);
 	free(tc);
 	goto out_unlock;
     } else {
-	solll->write_outstanding += buflen;
+	solll->write_outstanding += total_write;
 	sol_ref(solll);
     }
     
  out_finish:
-    *rcount = buflen;
+    if (rcount)
+	*rcount = total_write;
  out_unlock:
+    if (buf)
+	solll->o->free(solll->o, buf);
     sol_unlock(solll);
 
     return err;
@@ -1253,7 +1273,7 @@ gensio_ll_sol_func(struct gensio_ll *ll, int op, gensiods *count,
 	sol_set_callbacks(ll, cbuf, buf);
 	return 0;
 
-    case GENSIO_LL_FUNC_WRITE:
+    case GENSIO_LL_FUNC_WRITE_SG:
 	return sol_write(ll, count, cbuf, buflen);
 
     case GENSIO_LL_FUNC_RADDR_TO_STR:

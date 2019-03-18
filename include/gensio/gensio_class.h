@@ -35,11 +35,11 @@
 
 /*
  * count => count
- * buf => buf
- * buflen => buflen
+ * sg => buf
+ * sgnum => buflen
  * auxdata => auxdata
  */
-#define GENSIO_FUNC_WRITE		1
+#define GENSIO_FUNC_WRITE_SG		1
 
 /*
  * pos => count

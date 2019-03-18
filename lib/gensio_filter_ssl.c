@@ -356,33 +356,37 @@ static int
 ssl_ul_write(struct gensio_filter *filter,
 	     gensio_ul_filter_data_handler handler, void *cb_data,
 	     gensiods *rcount,
-	     const unsigned char *buf, gensiods buflen,
+	     const struct gensio_sg *sg, gensiods sglen,
 	     const char *const *auxdata)
 {
     struct ssl_filter *sfilter = filter_to_ssl(filter);
     int err = 0;
+    gensiods i;
 
     ssl_lock(sfilter);
-    if (sfilter->write_data_len || buflen == 0) {
+    if (sfilter->write_data_len) {
 	if (rcount)
 	    *rcount = 0;
     } else {
-	if (buflen > sfilter->max_write_size)
-	    buflen = sfilter->max_write_size;
-	memcpy(sfilter->write_data, buf, buflen);
-	sfilter->write_data_len = buflen;
+	for (i = 0; i < sglen; i++) {
+	    gensiods buflen = sg[i].buflen;
+
+	    if (buflen > sfilter->max_write_size - sfilter->write_data_len)
+		buflen = sfilter->max_write_size - sfilter->write_data_len;
+	    memcpy(sfilter->write_data, sg[i].buf, buflen);
+	    sfilter->write_data_len += buflen;
+	}
 	if (rcount)
-	    *rcount = buflen;
-	buflen = 0;
+	    *rcount = sfilter->write_data_len;
     }
 
  restart:
     if (sfilter->xmit_buf_len) {
 	gensiods written;
+	struct gensio_sg sg = { sfilter->xmit_buf + sfilter->xmit_buf_pos,
+				sfilter->xmit_buf_len - sfilter->xmit_buf_pos };
 
-	err = handler(cb_data, &written,
-		      sfilter->xmit_buf + sfilter->xmit_buf_pos,
-		      sfilter->xmit_buf_len - sfilter->xmit_buf_pos, NULL);
+	err = handler(cb_data, &written, &sg, 1, NULL);
 	if (err) {
 	    sfilter->xmit_buf_len = 0;
 	} else {
@@ -773,7 +777,7 @@ ssl_filter_control(struct gensio_filter *filter, bool get, int op, char *data,
     case GENSIO_CONTROL_MAX_WRITE_PACKET:
 	if (!get)
 	    return GE_NOTSUP;
-	*datalen = snprintf(data, *datalen, "%d", sfilter->max_write_size);
+	*datalen = snprintf(data, *datalen, "%ld", sfilter->max_write_size);
 	return 0;
 
     default:
@@ -811,7 +815,7 @@ static int gensio_ssl_filter_func(struct gensio_filter *filter, int op,
     case GENSIO_FILTER_FUNC_TRY_DISCONNECT:
 	return ssl_try_disconnect(filter, data);
 
-    case GENSIO_FILTER_FUNC_UL_WRITE:
+    case GENSIO_FILTER_FUNC_UL_WRITE_SG:
 	return ssl_ul_write(filter, func, data, count, cbuf, buflen, buf);
 
     case GENSIO_FILTER_FUNC_LL_WRITE:

@@ -137,11 +137,11 @@ pty_free(void *handler_data)
 
 static int
 pty_write(void *handler_data, int fd, gensiods *rcount,
-	  const unsigned char *buf, gensiods buflen,
+	  const struct gensio_sg *sg, gensiods sglen,
 	  const char *const *auxdata)
 {
     struct pty_data *tdata = handler_data;
-    int rv = gensio_os_write(tdata->o, fd, buf, buflen, rcount);
+    int rv = gensio_os_write(tdata->o, fd, sg, sglen, rcount);
 
     if (rv && rv == GE_IOERR)
 	return GE_REMCLOSE; /* We don't seem to get EPIPE from ptys */

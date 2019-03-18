@@ -117,10 +117,10 @@ echon_unlock_and_deref(struct echon_data *ndata)
 
 static int
 echon_write(struct gensio *io, gensiods *count,
-	    const void *buf, gensiods buflen)
+	    const struct gensio_sg *sg, gensiods sglen)
 {
     struct echon_data *ndata = gensio_get_gensio_data(io);
-    gensiods to_write;
+    gensiods total_write = 0, to_write, i;
 
     echon_lock(ndata);
     if (ndata->state != ECHON_OPEN) {
@@ -131,17 +131,20 @@ echon_write(struct gensio *io, gensiods *count,
 	echon_unlock(ndata);
 	return 0;
     }
-    to_write = ndata->max_read_size - ndata->data_pending_len;
-    if (to_write > buflen)
-	to_write = buflen;
-    if (to_write > 0) {
-	memcpy(ndata->read_data + ndata->data_pending_len, buf, to_write);
+    for (i = 0; i < sglen; i++) {
+	to_write = ndata->max_read_size - ndata->data_pending_len;
+	if (to_write > sg[i].buflen)
+	    to_write = sg[i].buflen;
+	memcpy(ndata->read_data + ndata->data_pending_len,
+	       sg[i].buf, to_write);
 	ndata->data_pending_len += to_write;
-	echon_start_deferred_op(ndata);
+	total_write += to_write;
     }
+    if (total_write)
+	echon_start_deferred_op(ndata);
     echon_unlock(ndata);
     if (count)
-	*count = to_write;
+	*count = total_write;
     return 0;
 }
 
@@ -347,7 +350,7 @@ gensio_echo_func(struct gensio *io, int func, gensiods *count,
 		  const char *const *auxdata)
 {
     switch (func) {
-    case GENSIO_FUNC_WRITE:
+    case GENSIO_FUNC_WRITE_SG:
 	return echon_write(io, count, cbuf, buflen);
 
     case GENSIO_FUNC_RADDR_TO_STR:
