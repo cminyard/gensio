@@ -237,8 +237,8 @@ class HandleData:
                 raise HandlerException("%s: %scompare failure on byte %d, "
                                        "expected %x, got %x" %
                                        (self.name, oob, compared,
-                                        compare_with[compared],
-                                        buf[i]))
+                                        ord(compare_with[compared]),
+                                        ord(buf[i])))
             compared += 1
 
         if oob == "oob ":
