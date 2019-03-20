@@ -691,6 +691,7 @@ help(int err)
     printf("  --permit-root - Allow root logins.\n");
     printf("  --no-password - Do not allow password-based logins.\n");
     printf("  --oneshot - Do not fork new connections, do one and exit.\n");
+    printf("  --nodaemon - Do not daemonize.\n");
     printf("  --nosctp - Disable SCTP support.\n");
     printf("  --notcp - Disable TCP support.\n");
     printf("  -P, --pidfile <file> - Create the given pidfile.\n");
@@ -723,6 +724,7 @@ main(int argc, char *argv[])
     int port = 852;
     char *s;
     bool notcp = false, nosctp = false;
+    bool daemonize = true;
 
     if ((progname = strrchr(argv[0], '/')) == NULL)
 	progname = argv[0];
@@ -758,6 +760,8 @@ main(int argc, char *argv[])
 	    no_pw_login = true;
 	else if ((rv = cmparg(argc, argv, &arg, NULL, "--oneshot", NULL)))
 	    oneshot = true;
+	else if ((rv = cmparg(argc, argv, &arg, NULL, "--nodaemon", NULL)))
+	    daemonize = false;
 	else if ((rv = cmparg(argc, argv, &arg, "-P", "--pidfile", &pid_file)))
 	    ;
 	else if ((rv = cmparg(argc, argv, &arg, "-d", "--debug", NULL))) {
@@ -893,7 +897,7 @@ main(int argc, char *argv[])
  start_io:
     openlog(progname, 0, LOG_AUTH);
     syslog(LOG_NOTICE, "gtlsshd startup");
-    if (!oneshot) {
+    if (!oneshot && daemonize) {
 	pid_t pid;
 
 	if ((pid = fork()) > 0) {
