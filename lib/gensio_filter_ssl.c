@@ -777,7 +777,8 @@ ssl_filter_control(struct gensio_filter *filter, bool get, int op, char *data,
     case GENSIO_CONTROL_MAX_WRITE_PACKET:
 	if (!get)
 	    return GE_NOTSUP;
-	*datalen = snprintf(data, *datalen, "%ld", sfilter->max_write_size);
+	*datalen = snprintf(data, *datalen, "%lu",
+			    (unsigned long) sfilter->max_write_size);
 	return 0;
 
     default:

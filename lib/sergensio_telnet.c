@@ -1099,11 +1099,13 @@ stela_alloc_gensio(void *acc_data, const char * const *iargs,
     if (allow_2217)
 	args[i++] = "rfc2217=true";
     if (max_read_size != GENSIO_DEFAULT_BUF_SIZE) {
-	snprintf(buf1, sizeof(buf1), "readbuf=%ld", max_read_size);
+	snprintf(buf1, sizeof(buf1), "readbuf=%lu",
+		 (unsigned long) max_read_size);
 	args[i++] = buf1;
     }
     if (max_write_size != GENSIO_DEFAULT_BUF_SIZE) {
-	snprintf(buf2, sizeof(buf2), "writebuf=%ld", max_write_size);
+	snprintf(buf2, sizeof(buf2), "writebuf=%lu",
+		 (unsigned long) max_write_size);
 	args[i++] = buf2;
     }
     if (!is_client)
@@ -1124,8 +1126,10 @@ stela_new_child(void *acc_data, void **finish_data,
     const char *args[5] = { arg1, arg2, arg3, arg4, NULL };
 
     snprintf(arg1, sizeof(arg1), "rfc2217=%d", stela->allow_2217);
-    snprintf(arg2, sizeof(arg2), "writebuf=%ld", stela->max_write_size);
-    snprintf(arg3, sizeof(arg3), "readbuf=%ld", stela->max_read_size);
+    snprintf(arg2, sizeof(arg2), "writebuf=%lu",
+	     (unsigned long) stela->max_write_size);
+    snprintf(arg3, sizeof(arg3), "readbuf=%lu",
+             (unsigned long) stela->max_read_size);
     snprintf(arg4, sizeof(arg4), "mode=%s",
 	     stela->is_client ? "client" : "server");
 

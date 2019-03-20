@@ -866,7 +866,8 @@ tcpna_str_to_gensio(struct gensio_accepter *accepter, const char *addr,
 
     i = 0;
     if (max_read_size != GENSIO_DEFAULT_BUF_SIZE) {
-	snprintf(buf, sizeof(buf), "readbuf=%ld", nadata->max_read_size);
+	snprintf(buf, sizeof(buf), "readbuf=%lu",
+		 (unsigned long) nadata->max_read_size);
 	args[i++] = buf;
     }
 
