@@ -330,10 +330,19 @@ struct gensio_list {
 
 void gensio_list_rm(struct gensio_list *list, struct gensio_link *link);
 void gensio_list_add_tail(struct gensio_list *list, struct gensio_link *link);
+void gensio_list_add_next(struct gensio_list *list, struct gensio_link *curr,
+			  struct gensio_link *link);
+void gensio_list_add_prev(struct gensio_list *list, struct gensio_link *curr,
+			  struct gensio_link *link);
 void gensio_list_init(struct gensio_list *list);
 bool gensio_list_empty(struct gensio_list *list);
 
 #define gensio_list_first(list) ((list)->link.next)
+#define gensio_list_last(list) ((list)->link.prev)
+#define gensio_list_next(list, link) ((link)->next == &(list)->link ? \
+				      NULL : (link)->next)
+#define gensio_list_next_wrap(list, link) ((link)->next == &(list)->link ? \
+					   (list)->link.next : (link)->next)
 
 #define gensio_list_for_each(list, l)					\
     for ((l) = (list)->link.next; (l) != &(list)->link; l = l->next)

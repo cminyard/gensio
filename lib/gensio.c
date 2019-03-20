@@ -2513,6 +2513,26 @@ gensio_list_add_tail(struct gensio_list *list, struct gensio_link *link)
 }
 
 void
+gensio_list_add_next(struct gensio_list *list, struct gensio_link *curr,
+		     struct gensio_link *link)
+{
+    link->next = curr->next;
+    link->prev = curr;
+    curr->next->prev = link;
+    curr->next = link;
+}
+
+void
+gensio_list_add_prev(struct gensio_list *list, struct gensio_link *curr,
+		     struct gensio_link *link)
+{
+    link->prev = curr->prev;
+    link->next = curr;
+    curr->prev->next = link;
+    curr->prev = link;
+}
+
+void
 gensio_list_init(struct gensio_list *list)
 {
     list->link.next = &list->link;
