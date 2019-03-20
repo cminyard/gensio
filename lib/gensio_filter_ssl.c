@@ -844,6 +844,7 @@ static int gensio_ssl_filter_func(struct gensio_filter *filter, int op,
 
 #if OPENSSL_VERSION_NUMBER < 0x10100000L
 #define X509_STORE_CTX_get0_cert(ctx) ((ctx)->cert)
+#define X509_STORE_CTX_get0_chain(ctx) ((ctx)->chain)
 #endif
 
 static int

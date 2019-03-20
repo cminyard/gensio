@@ -52,6 +52,23 @@ struct gensio_certauth_filter_data {
 #include <openssl/rand.h>
 #include <openssl/err.h>
 
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
+#define X509_get0_pubkey(x) ((x)->cert_info->key->pkey)
+#define X509_up_ref(x) CRYPTO_add(&x->references, 1, CRYPTO_LOCK_X509)
+static EVP_MD_CTX *EVP_MD_CTX_new(void)
+{
+    EVP_MD_CTX *c = OPENSSL_malloc(sizeof(*c));
+
+    if (c)
+	memset(c, 0, sizeof(*c));
+    return c;
+}
+static void EVP_MD_CTX_free(EVP_MD_CTX *c)
+{
+    OPENSSL_free(c);
+}
+#endif
+
 #define GENSIO_CERTAUTH_DATA_SIZE	2048
 #define GENSIO_CERTAUTH_CHALLENGE_SIZE	32
 #define GENSIO_CERTAUTH_VERSION		1
