@@ -118,13 +118,18 @@ hash_dir() {
     for i in `ls | grep '[0-9a-f]\{8\}\.r\?[0-9]\+'`; do
 	rm "$i"
     done
+    declare -A fingerprints
     for i in `ls *.crt`; do
-	hash=`openssl x509 -subject_hash -fingerprint -noout -in "$i" | head -n 1`
-	j=0
-	while [ -e "$hash.$j" ]; do
-	    j=`expr $j + 1`
-	done
-	ln -sf "$i" "$hash.$j"
+	fingerprint=`openssl x509 -fingerprint -noout -in "$i"`
+	if [ "x${fingerprints[${fingerprint}]}" == 'x' ]; then
+	    fingerprints[${fingerprint}]=1
+	    hash=`openssl x509 -subject_hash -noout -in "$i"`
+	    j=0
+	    while [ -e "$hash.$j" ]; do
+		j=`expr $j + 1`
+	    done
+	    ln -sf "$i" "$hash.$j"
+	fi
     done
     popd >/dev/null
 }
