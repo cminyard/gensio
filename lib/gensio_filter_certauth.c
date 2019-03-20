@@ -53,7 +53,6 @@ struct gensio_certauth_filter_data {
 #include <openssl/err.h>
 
 #if OPENSSL_VERSION_NUMBER < 0x10100000L
-#define X509_get0_pubkey(x) ((x)->cert_info->key->pkey)
 #define X509_up_ref(x) CRYPTO_add(&x->references, 1, CRYPTO_LOCK_X509)
 static EVP_MD_CTX *EVP_MD_CTX_new(void)
 {
@@ -706,6 +705,7 @@ certauth_check_challenge(struct certauth_filter *sfilter)
 {
     EVP_MD_CTX *sign_ctx;
     int rv = 0;
+    EVP_PKEY *pkey;
 
     sign_ctx = EVP_MD_CTX_new();
     if (!sign_ctx) {
@@ -725,8 +725,14 @@ certauth_check_challenge(struct certauth_filter *sfilter)
 	gca_logs_err(sfilter, "Verify update (service) failed");
 	goto out_nomem;
     }
+    pkey = X509_get_pubkey(sfilter->cert);
+    if (!pkey) {
+	gca_logs_err(sfilter, "Getting public key failed");
+	goto out_nomem;
+    }
     rv = EVP_VerifyFinal(sign_ctx, sfilter->read_buf, sfilter->read_buf_len,
-			 X509_get0_pubkey(sfilter->cert));
+			 pkey);
+    EVP_PKEY_free(pkey);
     if (rv < 0) {
 	gca_logs_err(sfilter, "Verify final failed");
 	goto out_nomem;
