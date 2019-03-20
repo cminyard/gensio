@@ -445,9 +445,9 @@ fd_write_ready(int fd, void *cbdata)
 {
     struct fd_ll *fdll = cbdata;
 
-    fd_lock(fdll);
+    fd_lock_and_ref(fdll);
     fd_handle_write_ready(fdll);
-    fd_unlock(fdll);
+    fd_deref_and_unlock(fdll);
 }
 
 static void
@@ -461,8 +461,9 @@ fd_except_ready(int fd, void *cbdata)
      * not a write ready.  So in the open case, call write ready.
      */
     if (fdll->state == FD_IN_OPEN) {
+	fd_ref(fdll);
 	fd_handle_write_ready(fdll);
-	fd_unlock(fdll);
+	fd_deref_and_unlock(fdll);
     } else if (fdll->ops->except_ready) {
 	fd_unlock(fdll);
 	fdll->ops->except_ready(fdll->handler_data, fdll->fd);
