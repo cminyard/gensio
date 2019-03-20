@@ -7,7 +7,8 @@ noinst_LIBRARIES = libgensiotool.a
 
 libgensiotool_a_SOURCES = ioinfo.c ser_ioinfo.c utils.c
 
-bin_PROGRAMS = gensiot gtlssh @GTLSSHD@
+bin_PROGRAMS = gensiot gtlssh
+sbin_PROGRAMS = @GTLSSHD@
 EXTRA_PROGRAMS = gtlsshd
 
 bin_SCRIPTS = gtlssh-keygen
