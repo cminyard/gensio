@@ -156,6 +156,8 @@ keygen_one() {
     fi
     openssl req -newkey rsa:"$KEYSIZE" -nodes -keyout "$2" -x509 \
 	    -days "$KEYDAYS" -out "$3" -subj "/CN=$COMMONNAME"
+    # Just to be sure.
+    chmod 600 "$3"
     echo "Key created.  Put $3 into:"
     echo "  .gtlssh/allowed_certs"
     echo "on remote systems you want to log into without a password."
@@ -204,6 +206,8 @@ serverkey() {
     mkdir -p "$CONFDIR"
     openssl req -newkey rsa:"$KEYSIZE" -nodes -keyout "$SERVERKEY" -x509 \
 	    -days "$KEYDAYS" -out "$SERVERCERT" -subj "/CN=$COMMONNAME"
+    # Just to be sure.
+    chmod 600 "$SERVERKEY"
 }
 
 while [ $# -gt 0 ]; do
