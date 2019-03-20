@@ -1150,7 +1150,7 @@ sctpna_str_to_gensio(struct gensio_accepter *accepter, const char *addr,
 
     i = 0;
     if (nadata->max_read_size != GENSIO_DEFAULT_BUF_SIZE) {
-	snprintf(buf, 100, "readbuf=%lu", max_read_size);
+	snprintf(buf, 100, "readbuf=%lu", (unsigned long) max_read_size);
 	args[i++] = buf;
     }
     if (laddr)
