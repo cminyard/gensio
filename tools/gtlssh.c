@@ -402,7 +402,7 @@ auth_event(struct gensio *io, void *user_data, int event, int ierr,
     char buf[100];
     char *cmd;
     gensiods len;
-    int err;
+    int err, err1, err2;
 
     switch (event) {
     case GENSIO_EVENT_POSTCERT_VERIFY:
@@ -434,18 +434,23 @@ auth_event(struct gensio *io, void *user_data, int event, int ierr,
 
 	if (!ierr) {
 	    /* Found a certificate, make sure it's the right one. */
-	    err = verify_certfile(ginfo->o,
-				  cert, "%s/%s,%d.crt", CAdir, hostname, port);
-	    if (!err)
-		err = verify_certfile(ginfo->o,
-				      cert, "%s/%s.crt", CAdir, raddr);
-	    if (err == GE_CERTNOTFOUND) {
-		printf("\nCertificate for %s found and correct, but"
-		       " address file was\nmissing for it an/or\n  %s\n",
-		       hostname, raddr);
+	    err1 = verify_certfile(ginfo->o,
+				   cert, "%s/%s,%d.crt", CAdir, hostname, port);
+	    err2 = verify_certfile(ginfo->o,
+				   cert, "%s/%s.crt", CAdir, raddr);
+	    if (err1 == GE_CERTNOTFOUND && err1 == err2 ||
+			err1 == GE_CERTNOTFOUND && !err2 ||
+			err2 == GE_CERTNOTFOUND && !err1) {
+		if (err1)
+		    printf("\nCertificate for %s found and correct, but"
+			   " address file was\nmissing for it.\n", hostname);
+		if (err2)
+		    printf("\nCertificate for %s found and correct, but"
+			   " address file was\nmissing for\n  %s\n",
+			   hostname, raddr);
 		printf("It is possible that the same key is used for"
-		       " different connections,\n but"
-		       " there may also be aman in the middle\n");
+		       " different connections,\nbut"
+		       " there may also be a man in the middle\n");
 		printf("Verify carefully, add if it is ok.\n");
 		do {
 		    char *s;
@@ -467,9 +472,11 @@ auth_event(struct gensio *io, void *user_data, int event, int ierr,
 		    }
 		} while (true);
 		if (!err) {
-		    err = add_certfile(ginfo->o, cert,
-				       "%s/%s,%d.crt", CAdir, hostname, port);
-		    if (!err)
+		    if (err1)
+			err = add_certfile(ginfo->o, cert,
+					   "%s/%s,%d.crt", CAdir, hostname,
+					   port);
+		    if (!err && err2)
 			err = add_certfile(ginfo->o, cert,
 					   "%s/%s.crt", CAdir, raddr);
 		}
