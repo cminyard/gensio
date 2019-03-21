@@ -339,8 +339,10 @@ bool gensio_list_empty(struct gensio_list *list);
 
 #define gensio_list_first(list) ((list)->link.next)
 #define gensio_list_last(list) ((list)->link.prev)
+/* Go to the next entry, returning NULL if at the end. */
 #define gensio_list_next(list, link) ((link)->next == &(list)->link ? \
 				      NULL : (link)->next)
+/* Go to the next entry, wrapping around to the first entry if at end. */
 #define gensio_list_next_wrap(list, link) ((link)->next == &(list)->link ? \
 					   (list)->link.next : (link)->next)
 

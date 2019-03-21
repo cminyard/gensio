@@ -438,9 +438,9 @@ auth_event(struct gensio *io, void *user_data, int event, int ierr,
 				   cert, "%s/%s,%d.crt", CAdir, hostname, port);
 	    err2 = verify_certfile(ginfo->o,
 				   cert, "%s/%s.crt", CAdir, raddr);
-	    if (err1 == GE_CERTNOTFOUND && err1 == err2 ||
-			err1 == GE_CERTNOTFOUND && !err2 ||
-			err2 == GE_CERTNOTFOUND && !err1) {
+	    if ((err1 == GE_CERTNOTFOUND && err1 == err2) ||
+			(err1 == GE_CERTNOTFOUND && !err2) ||
+			(err2 == GE_CERTNOTFOUND && !err1)) {
 		if (err1)
 		    printf("\nCertificate for %s found and correct, but"
 			   " address file was\nmissing for it.\n", hostname);

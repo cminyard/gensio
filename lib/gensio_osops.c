@@ -211,7 +211,7 @@ gensio_os_sctp_send(struct gensio_os_funcs *o,
 		    const struct sctp_sndrcvinfo *sinfo, uint32_t flags)
 {
     int err = 0;
-    gensiods i, count, total_write = 0;
+    gensiods i, count = 0, total_write = 0;
 
     /* Without sctp_sendv, this is really hard to do. */
     for (i = 0; i < sglen; i++) {

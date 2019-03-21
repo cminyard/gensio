@@ -1111,7 +1111,7 @@ sel_select_intr(struct selector_s *sel,
     struct timeval  loc_timeout;
     sel_wait_list_t wait_entry;
     unsigned int    count;
-    struct timeval  end, now;
+    struct timeval  end = { 0, 0 }, now;
     int user_timeout = 0;
 
     if (timeout) {

@@ -549,7 +549,7 @@ struct waiter { };
 	struct timeval tv = { timeout / 1000, timeout % 1000 };
 	struct timeval *rtv = &tv;
 	char *buf = malloc(reqlen);
-	gensiods count;
+	gensiods count = 0;
 
 	if (!buf) {
 	    rv = GE_NOMEM;

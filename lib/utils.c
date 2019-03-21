@@ -250,7 +250,7 @@ gensio_str_to_argv_endchar(struct gensio_os_funcs *o,
 			   const char **nextptr)
 {
     const char **argv = NULL;
-    char *tok;
+    char *tok = NULL;
     unsigned int argc = 0;
     unsigned int args = 0;
     int err;

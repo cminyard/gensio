@@ -30,8 +30,8 @@
 	SWIG_fail;
 }
 
-%typemap(in, numinputs=0) char **rbuffer (char *temp),
-                          size_t *rbuffer_len (size_t temp) {
+%typemap(in, numinputs=0) char **rbuffer (char *temp = NULL),
+                          size_t *rbuffer_len (size_t temp = 0) {
     $1 = &temp;
 }
 
@@ -42,7 +42,7 @@
     free(*$1);
 }
 
-%typemap(in, numinputs=0) long *r_int (long temp) {
+%typemap(in, numinputs=0) long *r_int (long temp = 0) {
     $1 = &temp;
 }
 
