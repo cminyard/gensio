@@ -330,7 +330,7 @@ fd_handle_incoming(struct fd_ll *fdll,
     int err = 0;
     gensiods count;
 
-    fd_lock(fdll);
+    fd_lock_and_ref(fdll);
     fdll->o->set_read_handler(fdll->o, fdll->fd, false);
     fdll->o->set_except_handler(fdll->o, fdll->fd, false);
     if (fdll->in_read)
@@ -356,7 +356,7 @@ fd_handle_incoming(struct fd_ll *fdll,
 	fdll->o->set_read_handler(fdll->o, fdll->fd, true);
 	fdll->o->set_except_handler(fdll->o, fdll->fd, true);
     }
-    fd_unlock(fdll);
+    fd_deref_and_unlock(fdll);
 }
 
 void gensio_fd_ll_handle_incoming(struct gensio_ll *ll,
