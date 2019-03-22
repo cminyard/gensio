@@ -202,6 +202,7 @@ static bool pam_cred_set = false;
 static char username[100];
 static char *prog; /* If set in the service. */
 static char *service;
+static char *homedir;
 static int pam_err;
 static uid_t uid = -1;
 
@@ -246,6 +247,7 @@ certauth_event(struct gensio *io, void *user_data, int event, int ierr,
 	    return GE_AUTHREJECT;
 	}
 	pam_started = true;
+	homedir = pw->pw_dir;
 
 	len = snprintf(authdir, sizeof(authdir), "%s/.gtlssh/allowed_certs/",
 		       pw->pw_dir);
@@ -520,6 +522,11 @@ tcp_handle_new(struct gensio_runner *r, void *cb_data)
 	goto out_err;
     }
     pam_cred_set = true;
+
+    if (chdir(homedir)) {
+	syslog(LOG_WARNING, "chdir failed for %s to %s: %s", username, homedir,
+	       strerror(errno));
+    }
 
     /* login will open the session, don't do it here. */
 
