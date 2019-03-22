@@ -916,6 +916,8 @@ main(int argc, char *argv[])
     o->wait(userdata1.waiter, 1, NULL);
 
  closeit:
+    free(service);
+
     if (userdata2.can_close) {
 	rv = gensio_close(userdata2.io, io_close, closewaiter);
 	if (rv)
