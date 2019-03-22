@@ -550,15 +550,10 @@ setup_child_proc(struct stdiona_data *nadata)
 	for (i = 3; i < openfiles; i++)
 	    close(i);
 
-	err = seteuid(getuid());
-	if (err == -1) {
-	    fprintf(stderr, "Unable to set euid: %s\r\n", strerror(errno));
-	    exit(1);
-	}
-
-	err = setegid(getgid());
-	if (err == -1) {
-	    fprintf(stderr, "Unable to set egid: %s\r\n", strerror(errno));
+	err = gensio_setupnewprog();
+	if (err) {
+	    fprintf(stderr, "Unable to set groups or user: %s\r\n",
+		    strerror(err));
 	    exit(1);
 	}
 

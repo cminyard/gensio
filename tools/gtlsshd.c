@@ -205,6 +205,7 @@ static char *service;
 static char *homedir;
 static int pam_err;
 static uid_t uid = -1;
+static gid_t gid = -1;
 static char **env;
 unsigned int env_len;
 
@@ -283,6 +284,7 @@ certauth_event(struct gensio *io, void *user_data, int event, int ierr,
 	    return GE_AUTHREJECT;
 	}
 	uid = pw->pw_uid;
+	gid = pw->pw_gid;
 
 	pam_err = pam_start(progname, username, &auth_conv, &pamh);
 	if (pam_err != PAM_SUCCESS) {
@@ -592,7 +594,7 @@ tcp_handle_new(struct gensio_runner *r, void *cb_data)
 
     if (progv) {
 	/* Dummy out the program, we will set it later with a control. */
-	s = alloc_sprintf("stdio(stderr-to-stdout,user=%s),dummy", username);
+	s = alloc_sprintf("stdio(stderr-to-stdout),dummy");
     } else {
 	err = gensio_control(certauth_io, GENSIO_CONTROL_DEPTH_ALL, false,
 			     GENSIO_CONTROL_NODELAY, "1", NULL);
@@ -659,7 +661,28 @@ tcp_handle_new(struct gensio_runner *r, void *cb_data)
 	goto out_err;
     }
 
+    if (progv) {
+	err = setegid(gid);
+	if (err) {
+	    syslog(LOG_ERR, "setgid failed: %s", strerror(errno));
+	    goto out_err;
+	}
+	err = seteuid(uid);
+	if (err) {
+	    syslog(LOG_ERR, "setuid failed: %s", strerror(errno));
+	    goto out_err;
+	}
+    }
     err = gensio_open_s(pty_io);
+    if (progv) {
+	int err2;
+	err2 = seteuid(getuid());
+	if (err2)
+	    syslog(LOG_WARNING, "reset setuid failed: %s", strerror(errno));
+	err2 = setegid(getgid());
+	if (err2)
+	    syslog(LOG_WARNING, "reset setgid failed: %s", strerror(errno));
+    }
     if (err) {
 	syslog(LOG_ERR, "pty open failed: %s", gensio_err_to_str(err));
 	goto out_err;

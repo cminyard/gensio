@@ -19,6 +19,7 @@
 
 #include "config.h"
 #define _XOPEN_SOURCE 600 /* Get posix_openpt() and friends. */
+#define _DEFAULT_SOURCE /* Get getgrouplist(), setgroups() */
 #include <stdio.h>
 #include <string.h>
 #include <arpa/inet.h>
@@ -29,6 +30,8 @@
 #include <termios.h>
 #include <sys/ioctl.h>
 #include <sys/uio.h>
+#include <grp.h>
+#include <pwd.h>
 
 #ifdef HAVE_LIBSCTP
 #include <netinet/sctp.h>
@@ -226,6 +229,58 @@ gensio_os_sctp_send(struct gensio_os_funcs *o,
 }
 #endif
 
+int
+gensio_setupnewprog(void)
+{
+    struct passwd *pw;
+    int err;
+    uid_t uid = geteuid();
+    gid_t *groups = NULL;
+    int ngroup = 0;
+
+    if (uid == getuid())
+	return 0;
+
+    err = seteuid(getuid());
+    if (err)
+	return errno;
+
+    pw = getpwuid(uid);
+    if (!pw)
+	return errno;
+
+    getgrouplist(pw->pw_name, pw->pw_gid, groups, &ngroup);
+    if (ngroup > 0) {
+	groups = malloc(sizeof(gid_t) * ngroup);
+	if (!groups)
+	    return ENOMEM;
+
+	err = getgrouplist(pw->pw_name, pw->pw_gid, groups, &ngroup);
+	if (err == -1) {
+	    err = errno;
+	    free(groups);
+	    return err;
+	}
+
+	err = setgroups(err, groups);
+	if (err) {
+	    err = errno;
+	    free(groups);
+	    return err;
+	}
+	free(groups);
+    }
+
+    err = setgid(getegid());
+    if (err)
+	return errno;
+
+    err = setuid(uid);
+    if (err)
+	return errno;
+    return 0;
+}
+
 /*
  * This is ugly, but it's by far the simplest way.
  */
@@ -336,17 +391,10 @@ gensio_setup_child_on_pty(struct gensio_os_funcs *o,
 	for (i = 3; i < openfiles; i++)
 		close(i);
 
-	err = seteuid(getuid());
-	if (err == -1) {
-	    fprintf(stderr, "pty fork: Unable to set euid: %s\r\n",
-		    strerror(errno));
-	    exit(1);
-	}
-
-	err = setegid(getgid());
-	if (err == -1) {
-	    fprintf(stderr, "pty fork: Unable to set egid: %s\r\n",
-		    strerror(errno));
+	err = gensio_setupnewprog();
+	if (err) {
+	    fprintf(stderr, "Unable to set groups or user: %s\r\n",
+		    strerror(err));
 	    exit(1);
 	}
 

@@ -462,10 +462,14 @@ gensio's main channel.  So it's easy to run a program and interact
 with it.  If you want to get stderr from the gensio, open a channel on
 the main channel gensio, see below.
 
-For connecting gensios, n the forked process, the code will set the
-effective uid and guid to the current set uid and guid.  This way a
-user can set the uid and gid to what the want to pty to run under, but
-keep the euid and egid to the (probably root) values.
+For connecting gensios, in the forked process, the code will set the
+uid and guid to the current set effective uid and guid if the
+effective and real uids are different.  This way a user can set the
+effective uid and gid to what they want the program to run under, but
+keep the uid and gid to the (probably root) values so they can be
+restored to those values after opening the pty.  The group list is
+also set to the groups the effective userid is in.  Note that nothing
+is done if the effective and real userids are the same.
 
 The connecting gensio support the GENSIO_CONTROL ENVIRONMENT control
 to allow the environment to be set for the new process.
@@ -501,7 +505,7 @@ gensios that start a program, not for any other type.
 connecting = 
 .B echo[(options)]
 
-The stdio gensio just echos back all the data written to it.  Useful
+The echo gensio just echos back all the data written to it.  Useful
 for testing.
 
 In addition to readbuf, a connecting stdio takes the following options:
@@ -797,10 +801,14 @@ If the first character of the program is '-', it is removed from the
 execution of the command but left in argv[0].  This will cause a shell
 to act as a login shell.
 
-In the forked process, the pty code will set the effective uid and
-guid to the current set uid and guid.  This way a user can set the
-uid and gid to what the want to pty to run under, but keep the euid
-and egid to the (probably root) values.
+In the forked process, the pty code will set the uid and guid to the
+current set effective uid and guid if the effective and real uids are
+different.  This way a user can set the effective uid and gid to what
+the want to pty to run under, but keep the real uid and gid to the
+(probably root) values so they can be restored to those values after
+opening the pty.  The group list is also set to the groups the
+effective userid is in.  Note that nothing is done if the effective
+and real userids are the same.
 
 The pty gensio support the GENSIO_CONTROL ENVIRONMENT control to allow
 the environment to be set for the new process.

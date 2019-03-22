@@ -64,6 +64,8 @@ int gensio_os_sctp_send(struct gensio_os_funcs *o,
 			gensiods *rcount,
                         const struct sctp_sndrcvinfo *sinfo, uint32_t flags);
 
+int gensio_setupnewprog(void);
+
 int gensio_setup_child_on_pty(struct gensio_os_funcs *o,
 			      char *const argv[], const char **env,
 			      int *rptym, pid_t *rpid);
