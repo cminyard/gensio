@@ -715,12 +715,29 @@ main(int argc, char *argv[])
 
     arg++;
     if (arg < argc) {
+	int i;
+	unsigned int len = 0;
+
 	/* User gave us a remote program. */
-	free_service = alloc_sprintf("program:%s", argv[arg]);
+	for (i = arg; i < argc; i++)
+	    len += strlen(argv[i]) + 3; /* Extra space for '' and space */
+	len += 10; /* Space for "program:" and "" around it. */
+	/* Note that ending '\0' is handled by final space. */
+
+	free_service = malloc(len);
 	if (!free_service) {
 	    fprintf(stderr, "Unable to allocate remote program request\n");
 	    return 1;
 	}
+	strcpy(free_service, "\"program:");
+	len = 9;
+	for (i = arg; i < argc; i++) {
+	    if (i + 1 == argc)
+		len += sprintf(free_service + len, "'%s'\"", argv[i]);
+	    else
+		len += sprintf(free_service + len, "'%s' ", argv[i]);
+	}
+
 	service = free_service;
 	userdata1.ios = io1_default_notty;
 	interactive = false;
@@ -786,7 +803,7 @@ main(int argc, char *argv[])
 	return 1;
     }
 
-    ioinfo2 = alloc_ioinfo(o, 0, sh2, subdata2, &guh, &userdata2);
+    ioinfo2 = alloc_ioinfo(o, -1, sh2, subdata2, &guh, &userdata2);
     if (!ioinfo2) {
 	fprintf(stderr, "Could not allocate ioinfo 2\n");
 	return 1;
