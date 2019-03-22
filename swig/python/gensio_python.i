@@ -36,10 +36,17 @@
 }
 
 %typemap(argout) (char **rbuffer, size_t *rbuffer_len) {
-    PyObject *r = PyBytes_FromStringAndSize(*$1, *$2);
+    PyObject *r;
+
+    if (*$1) {
+	r = PyBytes_FromStringAndSize(*$1, *$2);
+	free(*$1);
+    } else {
+	Py_INCREF(Py_None);
+	r = Py_None;
+    }
 
     $result = add_python_result($result, r);
-    free(*$1);
 }
 
 %typemap(in, numinputs=0) long *r_int (long temp = 0) {
@@ -53,9 +60,12 @@
 }
 
 %typemap(in) (char *bytestr, my_ssize_t len) {
-    if (OI_PI_BytesCheck($input))
+    if ($input == Py_None) {
+	$1 = NULL;
+	$2 = 0;
+    } else if (OI_PI_BytesCheck($input)) {
 	OI_PI_AsBytesAndSize($input, &$1, &$2);
-    else if (PyByteArray_Check($input)) {
+    } else if (PyByteArray_Check($input)) {
 	$1 = PyByteArray_AsString($input);
 	$2 = PyByteArray_Size($input);
     } else {

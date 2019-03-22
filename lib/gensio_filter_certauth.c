@@ -1622,11 +1622,28 @@ certauth_filter_control(struct gensio_filter *filter, bool get, int op,
     }
 
     case GENSIO_CONTROL_SERVICE:
-	if (!get)
-	    return GE_NOTSUP;
-	if (!sfilter->service)
-	    return GE_DATAMISSING;
-	*datalen = snprintf(data, *datalen, "%s", sfilter->service);
+	if (get) {
+	    gensiods to_copy;
+
+	    if (!sfilter->service)
+		return GE_DATAMISSING;
+
+	    to_copy = sfilter->service_len;
+	    if (to_copy > *datalen)
+		to_copy = *datalen;
+	    memcpy(data, sfilter->service, *datalen);
+	    *datalen = sfilter->service_len;
+	} else {
+	    char *new_service = sfilter->o->zalloc(sfilter->o, *datalen);
+
+	    if (!new_service)
+		return GE_NOMEM;
+	    memcpy(new_service, data, *datalen);
+	    if (sfilter->service)
+		sfilter->o->free(sfilter->o, sfilter->service);
+	    sfilter->service = new_service;
+	    sfilter->service_len = *datalen;
+	}
 	return 0;
 
     case GENSIO_CONTROL_CERT_AUTH:

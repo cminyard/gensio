@@ -28,47 +28,56 @@ It returns
 .I GE_NOTSUP
 is nothing handled it.
 
+Most controls use normal strings for configuration, a control will be
+this way unless othersise specified.  Some controls allow binary
+information to be passed.
+
 If
 .I get
 is true, attempt to fetch the option.  You cannot use
 .I GENSIO_CONTROL_DEPTH_ALL
-with get==true.  To fetch an option, you must pass in a string long
+with get==true.  To fetch an option, you must pass in data long
 enough to hold the output and set
 .I datalen
 to the number of bytes available in
 .I data
 for the output.  It will return the length of the string (like strlen,
-not including the terminating nil) in
+not including the terminating nil) or binary data in
 .I datalen.
 
 An operation with
 .I get
 false is a put operation, it will set values or controls in the gensio.
+For string gensios,
 .I datalen
 is not used in a put operation or for determining the length
 of the input string in
 .I data,
-it must be a nil terminated string.
+it must be a nil terminated string.  For binary gensios,
+.I datalen
+must be provided.
 
 A get operation is alway indepotent (it won't change anything, so
 multiple calls will not have any effect on the state of the system).
-A get operation may or may not use infromation passed in
+A get operation may or may not use information passed in
 .I data,
 and returns information in the
 .I data
 field.
 
-If the output string does not fit in a get operation,
+If the output does not fit in a get operation,
 .I datalen
 is updated to where it would have been if it had enough bytes (one
-less than the total number of bytes required), but the output in
+less than the total number of bytes required for string controls), but
+the output in
 .I data
-is truncated (and nil terminated if possible).  This can be used to
-probe to see how long a buffer is required by passing in a zero
+is truncated (and nil terminated if possible for string controls).
+This can be used to probe to see how long a buffer is required by
+passing in a zero
 .I *datalen,
 and then allocating
 .I *datalen
-+ 1 and calling the function again with that data.
+(+ 1 for string gensios) and calling the function again with that data.
 
 gensio control operations in
 .I option
@@ -146,10 +155,14 @@ event (see gensio_event(3) for details).
 Get the username for the gensio, generally the username sent from
 the remote end or a certauth gensio.
 .SS "GENSIO_CONTROL_SERVICE"
-Get the service sent from the gensio client, generally available on a
-certauth server.  Returns
+On a client, set the service data passed by the gensio to the server.
+On a server, et the service sent from the gensio client, generally
+available on a certauth server.  Returns
 .I GE_DATAMISSING
 if a service was not sent.
+.PP
+This is a binary control, so arbitrary data can be passed in the
+service.
 .SS "GENSIO_CONTROL_CERT"
 Get the full certificate in text form sent from the other end.
 .SS "GENSIO_CONTROL_CERT_FINGERPRINT"

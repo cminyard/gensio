@@ -590,48 +590,52 @@ struct waiter { };
 
     %rename(control) controlt;
     %newobject controlt;
-    char *controlt(int depth, bool get, int option, char *controldata) {
+    void controlt(char **rbuffer, size_t *rbuffer_len, int depth,
+		  bool get, int option, char *bytestr, my_ssize_t len) {
 	int rv;
 	char *data = NULL;
+	gensiods glen = 0, slen = len;
 
 	if (get) {
-	    gensiods len = 0, slen = 1;
-
-	    if (controldata)
-		slen = strlen(controldata) + 1;
-
 	    /* Pass in a zero length to get the actual length. */
-	    rv = gensio_control(self, depth, get, option, controldata, &len);
+	    rv = gensio_control(self, depth, get, option, bytestr, &glen);
 	    if (rv)
 		goto out;
-	    len += 1;
-	    /* Allocate the larger of strlen(controldata) and len) */
-	    if (slen > len)
-		data = malloc(slen);
-	    else
-		data = malloc(len);
+	    /* Allocate the larger of strlen(bytestr) and len) */
+	    if (slen > glen) {
+		data = malloc(slen + 1);
+		glen = slen;
+	    } else {
+		data = malloc(glen + 1);
+	    }
 	    if (!data) {
 		rv = GE_NOMEM;
 		goto out;
 	    }
-	    if (controldata)
-		memcpy(data, controldata, slen);
-	    else
+	    data[glen] = '\0';
+	    data[slen] = '\0';
+	    glen += 1;
+	    if (bytestr) {
+		memcpy(data, bytestr, slen);
+	    } else {
 		data[0] = '\0';
-	    rv = gensio_control(self, depth, get, option, data, &len);
+	    }
+	    rv = gensio_control(self, depth, get, option, data, &glen);
 	    if (rv) {
 		free(data);
 		data = NULL;
 	    }
 	out:
 	    if (rv == GE_NOTFOUND) /* Return None for ENOENT. */
-		return NULL;
+		goto out_ret;
 	} else {
-	    rv = gensio_control(self, depth, get, option, controldata, NULL);
+	    rv = gensio_control(self, depth, get, option, bytestr, &slen);
 	}
 
 	err_handle("control", rv);
-	return data;
+    out_ret:
+	*rbuffer = data;
+	*rbuffer_len = glen;
     }
 
     %rename(is_client) is_clientt;
