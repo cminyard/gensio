@@ -720,8 +720,8 @@ main(int argc, char *argv[])
 
 	/* User gave us a remote program. */
 	for (i = arg; i < argc; i++)
-	    len += strlen(argv[i]) + 3; /* Extra space for '' and space */
-	len += 10; /* Space for "program:" and "" around it. */
+	    len += strlen(argv[i]) + 1; /* Extra space for nil at end */
+	len += 9; /* Space for "program:" and final nil. */
 	/* Note that ending '\0' is handled by final space. */
 
 	service = malloc(len);
@@ -729,14 +729,13 @@ main(int argc, char *argv[])
 	    fprintf(stderr, "Unable to allocate remote program request\n");
 	    return 1;
 	}
-	strcpy(service, "\"program:");
-	len = 9;
+	strcpy(service, "program:");
+	len = 8;
 	for (i = arg; i < argc; i++) {
-	    if (i + 1 == argc)
-		len += sprintf(service + len, "'%s'\"", argv[i]);
-	    else
-		len += sprintf(service + len, "'%s' ", argv[i]);
+	    len += sprintf(service + len, "%s", argv[i]);
+	    service[len++] = '\0';
 	}
+	service[len++] = '\0';
 
 	userdata1.ios = io1_default_notty;
 	interactive = false;

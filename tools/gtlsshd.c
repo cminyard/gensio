@@ -200,7 +200,7 @@ static bool no_pw_login = false;
 static bool pam_started = false;
 static bool pam_cred_set = false;
 static char username[100];
-static char *prog; /* If set in the service. */
+static char **progv; /* If set in the service. */
 static char *service;
 static char *homedir;
 static int pam_err;
@@ -214,7 +214,7 @@ get_vals_from_service(char ***rvals, unsigned int *rvlen,
 {
     unsigned int i;
     static char **vals = NULL;
-    unsigned int vlen;
+    unsigned int vlen = 0;
 
     /*
      * Scan for a double nil that marks the end, counting the number
@@ -232,19 +232,21 @@ get_vals_from_service(char ***rvals, unsigned int *rvlen,
     if (vlen == 0)
 	return 0;
 
-    vals = malloc(vlen * sizeof(char *));
+    vals = malloc((vlen + 1) * sizeof(char *));
     if (!vals)
 	return GE_NOMEM;
 
     /* Rescan, setting the variable array items. */
     *rvals = vals;
-    *rvlen = vlen;
+    if (rvlen)
+	*rvlen = vlen;
     for (i = 0; str[i]; ) {
 	*vals++ = str + i;
 	for (; str[i]; i++)
 	    ;
 	i++;
     }
+    *vals = NULL;
     return 0;
 }
 
@@ -323,7 +325,15 @@ certauth_event(struct gensio *io, void *user_data, int event, int ierr,
 	    return GE_AUTHREJECT;
 	}
 	if (strncmp(service, program_service, strlen(program_service)) == 0) {
-	    prog = strchr(service, ':') + 1;
+	    char *str = strchr(service, ':') + 1;
+
+	    len -= str - service;
+	    err = get_vals_from_service(&progv, NULL, str, len);
+	    if (err) {
+		syslog(LOG_ERR, "Could not get vals from service: %s",
+		       gensio_err_to_str(err));
+		return GE_AUTHREJECT;
+	    }
 	} else if (strncmp(service, login_service,
 			   strlen(login_service)) == 0) {
 	    char *str = strchr(service, ':') + 1;
@@ -535,7 +545,7 @@ tcp_handle_new(struct gensio_runner *r, void *cb_data)
 
     if (file_is_readable("/etc/nologin") && uid != 0) {
 	struct timeval t = { 10, 0 }; /* Give it 10 seconds. */
-	if (!prog)
+	if (!progv)
 	    /* Don't send this to non-interactive logins. */
 	    write_file_to_gensio("/etc/nologin", certauth_io, ginfo->o, &t,
 				 true);
@@ -544,7 +554,7 @@ tcp_handle_new(struct gensio_runner *r, void *cb_data)
 
     pam_err = pam_acct_mgmt(pamh, 0);
     if (pam_err == PAM_NEW_AUTHTOK_REQD) {
-	if (prog) {
+	if (progv) {
 	    syslog(LOG_ERR, "user %s password expired, non-interactive login",
 		   username);
 	    goto out_err;
@@ -580,8 +590,9 @@ tcp_handle_new(struct gensio_runner *r, void *cb_data)
 
     /* login will open the session, don't do it here. */
 
-    if (prog) {
-	s = alloc_sprintf("stdio(stderr-to-stdout),%s", prog);
+    if (progv) {
+	/* Dummy out the program, we will set it later with a control. */
+	s = alloc_sprintf("stdio(stderr-to-stdout,user=%s),dummy", username);
     } else {
 	err = gensio_control(certauth_io, GENSIO_CONTROL_DEPTH_ALL, false,
 			     GENSIO_CONTROL_NODELAY, "1", NULL);
@@ -606,6 +617,11 @@ tcp_handle_new(struct gensio_runner *r, void *cb_data)
     if (err) {
 	syslog(LOG_ERR, "pty alloc failed: %s", gensio_err_to_str(err));
 	goto out_err;
+    }
+
+    if (progv) {
+	err = gensio_control(pty_io, 0, false, GENSIO_CONTROL_ARGS,
+			     (char *) progv, NULL);
     }
 
     penv = pam_getenvlist(pamh);
@@ -972,6 +988,8 @@ main(int argc, char *argv[])
  start_io:
     if (!oneshot)
 	openlog(progname, 0, LOG_AUTH);
+    else
+	openlog("progname", LOG_PID | LOG_CONS | LOG_PERROR, LOG_DAEMON);
     syslog(LOG_NOTICE, "gtlsshd startup");
     if (!oneshot && daemonize) {
 	pid_t pid;
