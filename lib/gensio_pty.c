@@ -173,7 +173,7 @@ pty_control(void *handler_data, int fd, bool get, unsigned int option,
 	    char *data, gensiods *datalen)
 {
     struct pty_data *tdata = handler_data;
-    const char **env;
+    const char **env, **argv;
     int err;
 
     switch (option) {
@@ -186,6 +186,17 @@ pty_control(void *handler_data, int fd, bool get, unsigned int option,
 	if (tdata->env)
 	    gensio_argv_free(tdata->o, tdata->env);
 	tdata->env = env;
+	return 0;
+
+    case GENSIO_CONTROL_ARGS:
+	if (get)
+	    return GE_NOTSUP;
+	err = gensio_argv_copy(tdata->o, (const char **) data, NULL, &argv);
+	if (err)
+	    return err;
+	if (tdata->argv)
+	    gensio_argv_free(tdata->o, tdata->argv);
+	tdata->argv = argv;
 	return 0;
     }
 

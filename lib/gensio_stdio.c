@@ -852,7 +852,7 @@ stdion_control(struct gensio *io, bool get, unsigned int option,
 {
     struct stdion_channel *schan = gensio_get_gensio_data(io);
     struct stdiona_data *nadata = schan->nadata;
-    const char **env;
+    const char **env, **argv;
     int err;
 
     switch (option) {
@@ -865,6 +865,17 @@ stdion_control(struct gensio *io, bool get, unsigned int option,
 	if (nadata->env)
 	    gensio_argv_free(nadata->o, nadata->env);
 	nadata->env = env;
+	return 0;
+
+    case GENSIO_CONTROL_ARGS:
+	if (get)
+	    return GE_NOTSUP;
+	err = gensio_argv_copy(nadata->o, (const char **) data, NULL, &argv);
+	if (err)
+	    return err;
+	if (nadata->argv)
+	    gensio_argv_free(nadata->o, nadata->argv);
+	nadata->argv = argv;
 	return 0;
     }
 

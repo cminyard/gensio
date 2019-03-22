@@ -170,6 +170,9 @@ Get the fingerprint for the certificate from the other end.
 .SS "GENSIO_CONTROL_ENVIRONMENT"
 Set the environment pointer for an exec.  For pty and stdio gensios.
 The data is a pointer to an argv array (char * const envp[])
+.SS "GENSIO_CONTROL_ARGS"
+Set the arguments for an exec.  For pty and stdio gensios.
+The data is a pointer to an argv array (char * const argv[])
 .SS "GENSIO_CONTROL_MAX_WRITE_PACKET"
 On a packet gensio, return the maximum packet size that can be sent.
 Any write of this amount or less will be sent as a single message

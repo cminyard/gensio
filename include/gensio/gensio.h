@@ -173,6 +173,7 @@ int gensio_control(struct gensio *io, int depth, bool get,
 #define GENSIO_CONTROL_CERT_FINGERPRINT		9
 #define GENSIO_CONTROL_ENVIRONMENT		10
 #define GENSIO_CONTROL_MAX_WRITE_PACKET		11
+#define GENSIO_CONTROL_ARGS			12
 
 const char *gensio_get_type(struct gensio *io, unsigned int depth);
 struct gensio *gensio_get_child(struct gensio *io, unsigned int depth);
