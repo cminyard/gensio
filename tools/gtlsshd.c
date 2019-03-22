@@ -205,6 +205,48 @@ static char *service;
 static char *homedir;
 static int pam_err;
 static uid_t uid = -1;
+static char **env;
+unsigned int env_len;
+
+static int
+get_vals_from_service(char ***rvals, unsigned int *rvlen,
+		      char *str, gensiods len)
+{
+    unsigned int i;
+    static char **vals = NULL;
+    unsigned int vlen;
+
+    /*
+     * Scan for a double nil that marks the end, counting the number
+     * of items we find along the way.
+     */
+    for (i = 0; str[i]; ) {
+	for (; str[i]; i++) {
+	    if (i >= len)
+		return GE_INVAL;
+	}
+	if (++i >= len)
+	    return GE_INVAL;
+	vlen++;
+    }
+    if (vlen == 0)
+	return 0;
+
+    vals = malloc(vlen * sizeof(char *));
+    if (!vals)
+	return GE_NOMEM;
+
+    /* Rescan, setting the variable array items. */
+    *rvals = vals;
+    *rvlen = vlen;
+    for (i = 0; str[i]; ) {
+	*vals++ = str + i;
+	for (; str[i]; i++)
+	    ;
+	i++;
+    }
+    return 0;
+}
 
 static int
 certauth_event(struct gensio *io, void *user_data, int event, int ierr,
@@ -284,7 +326,15 @@ certauth_event(struct gensio *io, void *user_data, int event, int ierr,
 	    prog = strchr(service, ':') + 1;
 	} else if (strncmp(service, login_service,
 			   strlen(login_service)) == 0) {
-	    /* Nothing to do. */
+	    char *str = strchr(service, ':') + 1;
+
+	    len -= str - service;
+	    err = get_vals_from_service(&env, &env_len, str, len);
+	    if (err) {
+		syslog(LOG_ERR, "Could not get vals from service: %s",
+		       gensio_err_to_str(err));
+		return GE_AUTHREJECT;
+	    }
 	} else {
 	    syslog(LOG_ERR, "unknown service for %s: %s", username, service);
 	    return GE_AUTHREJECT;
@@ -418,8 +468,8 @@ tcp_handle_new(struct gensio_runner *r, void *cb_data)
     struct ioinfo *pty_ioinfo;
     struct gdata *pty_ginfo;
     char *s;
-    char **env = NULL;
-    unsigned int i;
+    char **penv = NULL, **penv2;
+    unsigned int i, j;
 
     ginfo->o->free_runner(r);
     err = ssl_gensio_alloc(tcp_io, ssl_args, ginfo->o, NULL, NULL, &ssl_io);
@@ -558,17 +608,35 @@ tcp_handle_new(struct gensio_runner *r, void *cb_data)
 	goto out_err;
     }
 
-    env = pam_getenvlist(pamh);
-    if (!env) {
+    penv = pam_getenvlist(pamh);
+    if (!penv) {
 	syslog(LOG_ERR, "pam_getenvlist failed for %s", username);
 	goto out_err;
     }
+    for (i = 0; penv[i]; i++)
+	;
+    if (env_len > 0) {
+	penv2 = malloc((i + env_len + 1) * sizeof(char *));
+	if (!penv2) {
+	    syslog(LOG_ERR, "Failure to reallocate env for %s", username);
+	    goto out_err;
+	}
+	for (i = 0; penv[i]; i++)
+	    penv2[i] = penv[i];
+	for (j = 0; j < env_len; i++, j++)
+	    penv2[i] = env[j];
+	penv2[i] = NULL;
+    } else {
+	penv2 = penv;
+    }
 
     err = gensio_control(pty_io, 0, false, GENSIO_CONTROL_ENVIRONMENT,
-			 (char *) env, NULL);
-    for (i = 0; env[i]; i++)
-	free(env[i]);
-    free(env);
+			 (char *) penv2, NULL);
+    for (i = 0; penv[i]; i++)
+	free(penv[i]);
+    if (penv2 != penv)
+	free(penv2);
+    free(penv);
     if (err) {
 	syslog(LOG_ERR, "set env failed for %s: %s", username,
 	       gensio_err_to_str(err));
@@ -902,7 +970,8 @@ main(int argc, char *argv[])
     }
 
  start_io:
-    openlog(progname, 0, LOG_AUTH);
+    if (!oneshot)
+	openlog(progname, 0, LOG_AUTH);
     syslog(LOG_NOTICE, "gtlsshd startup");
     if (!oneshot && daemonize) {
 	pid_t pid;

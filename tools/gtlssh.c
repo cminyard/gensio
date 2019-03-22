@@ -605,8 +605,8 @@ main(int argc, char *argv[])
     int err;
     char *do_telnet = "";
     char *CAdirspec = NULL, *certfilespec = NULL, *keyfilespec = NULL;
-    const char *service = "login:";
-    char *free_service = NULL;
+    char *service;
+    gensiods service_len;
     bool interactive = true;
     const char *transport = "sctp";
     bool notcp = false, nosctp = false;
@@ -724,23 +724,47 @@ main(int argc, char *argv[])
 	len += 10; /* Space for "program:" and "" around it. */
 	/* Note that ending '\0' is handled by final space. */
 
-	free_service = malloc(len);
-	if (!free_service) {
+	service = malloc(len);
+	if (!service) {
 	    fprintf(stderr, "Unable to allocate remote program request\n");
 	    return 1;
 	}
-	strcpy(free_service, "\"program:");
+	strcpy(service, "\"program:");
 	len = 9;
 	for (i = arg; i < argc; i++) {
 	    if (i + 1 == argc)
-		len += sprintf(free_service + len, "'%s'\"", argv[i]);
+		len += sprintf(service + len, "'%s'\"", argv[i]);
 	    else
-		len += sprintf(free_service + len, "'%s' ", argv[i]);
+		len += sprintf(service + len, "'%s' ", argv[i]);
 	}
 
-	service = free_service;
 	userdata1.ios = io1_default_notty;
 	interactive = false;
+	service_len = len;
+    } else {
+	char *termvar = getenv("TERM");
+	unsigned int len = 0;
+
+	if (termvar) {
+	    len = 6 + 5 + strlen(termvar) + 2;
+	    service = malloc(len);
+	    if (!service) {
+		fprintf(stderr, "Unable to allocate remote login request\n");
+		return 1;
+	    }
+	    len = sprintf(service, "login:TERM=%s", termvar);
+	    service[len++] = '\0';
+	    service[len++] = '\0';
+	} else {
+	    service = malloc(6 + 1);
+	    if (!service) {
+		fprintf(stderr, "Unable to allocate remote login request\n");
+		return 1;
+	    }
+	    len = sprintf(service, "login:");
+	    service[len++] = '\0';
+	}
+	service_len = len;
     }
 
     if (!tlssh_dir) {
@@ -827,9 +851,9 @@ main(int argc, char *argv[])
 	return 1;
 
  retry:
-    s = alloc_sprintf("%scertauth(username=%s,service=%s%s%s,),"
+    s = alloc_sprintf("%scertauth(username=%s%s%s,),"
 		      "ssl(%s),%s,%s,%d",
-		      do_telnet, username, service, certfilespec, keyfilespec,
+		      do_telnet, username, certfilespec, keyfilespec,
 		      CAdirspec, transport, hostname, port);
     if (!s) {
 	fprintf(stderr, "out of memory allocating IO string\n");
@@ -840,6 +864,14 @@ main(int argc, char *argv[])
     rv = str_to_gensio(userdata2.ios, o, auth_event, ioinfo2, &userdata2.io);
     if (rv) {
 	fprintf(stderr, "Could not allocate %s: %s\n", userdata2.ios,
+		gensio_err_to_str(rv));
+	return 1;
+    }
+
+    rv = gensio_control(userdata2.io, 0, false, GENSIO_CONTROL_SERVICE,
+			service, &service_len);
+    if (rv) {
+	fprintf(stderr, "Could not set service %s: %s\n", userdata2.ios,
 		gensio_err_to_str(rv));
 	return 1;
     }
