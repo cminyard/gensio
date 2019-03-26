@@ -195,7 +195,7 @@ static const char *login_service = "login:";
 static const char *program_service = "program:";
 
 static bool permit_root = false;
-static bool no_pw_login = false;
+static bool pw_login = false;
 
 static bool pam_started = false;
 static bool pam_cred_set = false;
@@ -359,7 +359,7 @@ certauth_event(struct gensio *io, void *user_data, int event, int ierr,
 	return GE_NOTSUP;
 
     case GENSIO_EVENT_POSTCERT_VERIFY:
-	if (ierr && no_pw_login) {
+	if (ierr && !pw_login) {
 	    syslog(LOG_ERR, "certificate failed verify for %s, "
 		   "passwords disabled: %s\n", username,
 		   auxdata[0] ? auxdata[0] : "");
@@ -475,7 +475,8 @@ tcp_handle_new(struct gensio_runner *r, void *cb_data)
     struct gdata *ginfo = ioinfo_userdata(ioinfo);
     int err;
     const char *ssl_args[] = { ginfo->key, ginfo->cert, "mode=server", NULL };
-    const char *certauth_args[] = { "mode=server", "allow-authfail", NULL };
+    const char *certauth_args[] = { "mode=server", "allow-authfail", NULL,
+				    NULL };
     struct gensio *ssl_io, *certauth_io, *pty_io;
     struct ioinfo *pty_ioinfo;
     struct gdata *pty_ginfo;
@@ -497,6 +498,8 @@ tcp_handle_new(struct gensio_runner *r, void *cb_data)
 	exit(1);
     }
 
+    if (pw_login)
+	certauth_args[2] = "enable-password";
     err = certauth_gensio_alloc(ssl_io, certauth_args, ginfo->o,
 				certauth_event, ioinfo, &certauth_io);
     if (err) {
@@ -803,7 +806,7 @@ help(int err)
     printf("  -c, --certfile <file> - The certificate file to use.\n");
     printf("  -h, --keyfile <file> - The private key file to use.\n");
     printf("  --permit-root - Allow root logins.\n");
-    printf("  --no-password - Do not allow password-based logins.\n");
+    printf("  --allow-password - Allow password-based logins.\n");
     printf("  --oneshot - Do not fork new connections, do one and exit.\n");
     printf("  --nodaemon - Do not daemonize.\n");
     printf("  --nosctp - Disable SCTP support.\n");
@@ -870,8 +873,8 @@ main(int argc, char *argv[])
 	    nosctp = true;
 	else if ((rv = cmparg(argc, argv, &arg, NULL, "--permit-root", NULL)))
 	    permit_root = true;
-	else if ((rv = cmparg(argc, argv, &arg, NULL, "--no-password", NULL)))
-	    no_pw_login = true;
+	else if ((rv = cmparg(argc, argv, &arg, NULL, "--allow-password", NULL)))
+	    pw_login = true;
 	else if ((rv = cmparg(argc, argv, &arg, NULL, "--oneshot", NULL)))
 	    oneshot = true;
 	else if ((rv = cmparg(argc, argv, &arg, NULL, "--nodaemon", NULL)))

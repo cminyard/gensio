@@ -27,7 +27,7 @@ gtlsshd will use the $HOME/.gtlssh/allowed_certs directory to
 authenticate a certificate the user presents.  If the user doesn't
 have a certificate that matches the presented certificate,
 .BR gtlsshd
-will attempt a normal password login unless that is disabled.
+will attempt a normal password login if that is enabled.
 
 .SH OPTIONS
 .TP
@@ -44,8 +44,10 @@ Set the certificate to use.  Defaults to /etc/gtlssh/gtlsshd.crt.
 .I \-\-permit-root
 Allow root logins.  Otherwise root or uid=0 is denied.
 .TP
-.I \-\-no-password
-Do not allow password logins, only certificate-based logins.
+.I \-\-allow-password
+Allow password logins.  By default only certificate-based logins
+are allowed.  Passwords are much less secure than certificate
+logins, so their use is discouraged.
 .TP
 .I \-\-oneshot
 Do not fork the program at the beginning or when a connection is

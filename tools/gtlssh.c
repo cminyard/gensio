@@ -850,7 +850,7 @@ main(int argc, char *argv[])
 	return 1;
 
  retry:
-    s = alloc_sprintf("%scertauth(username=%s%s%s,),"
+    s = alloc_sprintf("%scertauth(enable-password,username=%s%s%s),"
 		      "ssl(%s),%s,%s,%d",
 		      do_telnet, username, certfilespec, keyfilespec,
 		      CAdirspec, transport, hostname, port);

@@ -734,9 +734,11 @@ that authentication is set using gensio_is_authenticated().
 If the child gensio is authenticated, then do not run the protocol, just
 go straight into passthrough mode and don't do any authentication.
 .TP
-.B disable-password[=true|false]
-On the server, only use key authentication and don't ask for a password.
-On the client, don't send a password if asked for one.
+.B enable-password[=true|false]
+On the server, allow passwords for login.  On the client, send a
+password if asked for one.  By default passwords are disabled.
+Use of passwords is much less secure than certificates, so this
+is discouraged.
 .PP
 Verification of the common name is
 .B not
