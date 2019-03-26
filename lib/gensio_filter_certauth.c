@@ -987,9 +987,9 @@ certauth_try_connect(struct gensio_filter *filter, struct timeval *timeout)
 	certauth_write_byte(sfilter, CERTAUTH_PASSWORD_TYPE);
 	certauth_write_u16(sfilter, 2);
 	certauth_write_u16(sfilter,
-			   sfilter->result || sfilter->enable_password ?
-			   CERTAUTH_PASSWORD_TYPE_REQ :
-			   CERTAUTH_PASSWORD_TYPE_DUMMY);
+			   sfilter->result || !sfilter->enable_password ?
+			   CERTAUTH_PASSWORD_TYPE_DUMMY :
+			   CERTAUTH_PASSWORD_TYPE_REQ);
 	certauth_write_byte(sfilter, CERTAUTH_END);
 	sfilter->state = CERTAUTH_PASSWORD;
 	break;
