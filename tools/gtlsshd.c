@@ -627,6 +627,11 @@ tcp_handle_new(struct gensio_runner *r, void *cb_data)
     if (progv) {
 	err = gensio_control(pty_io, 0, false, GENSIO_CONTROL_ARGS,
 			     (char *) progv, NULL);
+	if (err) {
+		syslog(LOG_ERR, "Setting program arguments failed: %s",
+		       gensio_err_to_str(err));
+		goto out_err;
+	}
     }
 
     penv = pam_getenvlist(pamh);
