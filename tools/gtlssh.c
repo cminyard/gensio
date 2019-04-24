@@ -867,8 +867,8 @@ main(int argc, char *argv[])
 	return 1;
     }
 
-    rv = gensio_control(userdata2.io, 0, false, GENSIO_CONTROL_SERVICE,
-			service, &service_len);
+    rv = gensio_control(userdata2.io, GENSIO_CONTROL_DEPTH_FIRST, false,
+			GENSIO_CONTROL_SERVICE, service, &service_len);
     if (rv) {
 	fprintf(stderr, "Could not set service %s: %s\n", userdata2.ios,
 		gensio_err_to_str(rv));
