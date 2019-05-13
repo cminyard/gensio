@@ -119,7 +119,7 @@ hash_dir() {
 	rm "$i"
     done
     declare -A fingerprints
-    for i in `ls *.crt`; do
+    for i in `ls *.crt 2>/dev/null`; do
 	fingerprint=`openssl x509 -fingerprint -noout -in "$i"`
 	if [ "x${fingerprints[${fingerprint}]}" == 'x' ]; then
 	    fingerprints[${fingerprint}]=1
