@@ -290,6 +290,9 @@ case "$1" in
 	;;
 
     setup)
+	if ! ${COMMONNAME_SET}; then
+	    COMMONNAME=`whoami`
+	fi
 	check_dirstruct
 	keygen
 	;;
