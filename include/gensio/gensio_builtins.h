@@ -64,6 +64,11 @@ int str_to_ssl_gensio_accepter(const char *str, const char * const args[],
 			       gensio_accepter_event cb,
 			       void *user_data,
 			       struct gensio_accepter **new_acc);
+int str_to_mux_gensio_accepter(const char *str, const char * const args[],
+			       struct gensio_os_funcs *o,
+			       gensio_accepter_event cb,
+			       void *user_data,
+			       struct gensio_accepter **new_acc);
 int str_to_certauth_gensio_accepter(const char *str, const char * const args[],
 				    struct gensio_os_funcs *o,
 				    gensio_accepter_event cb,
@@ -100,6 +105,10 @@ int str_to_pty_gensio(const char *str, const char * const args[],
 		      gensio_event cb, void *user_data,
 		      struct gensio **new_gensio);
 int str_to_ssl_gensio(const char *str, const char * const args[],
+		      struct gensio_os_funcs *o,
+		      gensio_event cb, void *user_data,
+		      struct gensio **new_gensio);
+int str_to_mux_gensio(const char *str, const char * const args[],
 		      struct gensio_os_funcs *o,
 		      gensio_event cb, void *user_data,
 		      struct gensio **new_gensio);
@@ -159,6 +168,13 @@ int dummy_gensio_accepter_alloc(const char * const args[],
 				struct gensio_accepter **accepter);
 
 int ssl_gensio_accepter_alloc(struct gensio_accepter *child,
+			      const char * const args[],
+			      struct gensio_os_funcs *o,
+			      gensio_accepter_event cb,
+			      void *user_data,
+			      struct gensio_accepter **accepter);
+
+int mux_gensio_accepter_alloc(struct gensio_accepter *child,
 			      const char * const args[],
 			      struct gensio_os_funcs *o,
 			      gensio_accepter_event cb,
@@ -236,6 +252,11 @@ int echo_gensio_alloc(const char * const argv[], const char * const args[],
  * Filter gensios
  */
 int ssl_gensio_alloc(struct gensio *child, const char * const args[],
+		     struct gensio_os_funcs *o,
+		     gensio_event cb, void *user_data,
+		     struct gensio **io);
+
+int mux_gensio_alloc(struct gensio *child, const char * const args[],
 		     struct gensio_os_funcs *o,
 		     gensio_event cb, void *user_data,
 		     struct gensio **io);
