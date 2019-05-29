@@ -1287,6 +1287,8 @@ add_default_gensio_accepters(void *cb_data)
     register_gensio_accepter(o, "stdio", str_to_stdio_gensio_accepter);
     register_filter_gensio_accepter(o, "ssl", str_to_ssl_gensio_accepter,
 				    ssl_gensio_accepter_alloc);
+    register_filter_gensio_accepter(o, "mux", str_to_mux_gensio_accepter,
+				    mux_gensio_accepter_alloc);
     register_filter_gensio_accepter(o, "certauth",
 				    str_to_certauth_gensio_accepter,
 				    certauth_gensio_accepter_alloc);
@@ -1455,6 +1457,7 @@ add_default_gensios(void *cb_data)
     register_gensio(o, "stdio", str_to_stdio_gensio);
     register_gensio(o, "pty", str_to_pty_gensio);
     register_filter_gensio(o, "ssl", str_to_ssl_gensio, ssl_gensio_alloc);
+    register_filter_gensio(o, "mux", str_to_mux_gensio, mux_gensio_alloc);
     register_filter_gensio(o, "certauth", str_to_certauth_gensio,
 			   certauth_gensio_alloc);
     register_filter_gensio(o, "telnet", str_to_telnet_gensio,
