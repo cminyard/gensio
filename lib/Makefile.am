@@ -4,7 +4,8 @@ AM_CFLAGS = -I$(top_srcdir)/include -I$(top_srcdir) $(OPENSSL_INCLUDES)
 lib_LTLIBRARIES = libgensio.la
 
 noinst_HEADERS = telnet.h heap.h utils.h uucplock.h buffer.h \
-	gensio_filter_ssl.h gensio_filter_telnet.h gensio_ll_ipmisol.h
+	gensio_filter_ssl.h gensio_filter_telnet.h gensio_ll_ipmisol.h \
+	gensio_filter_certauth.h
 
 libgensio_la_SOURCES = \
 	gensio.c gensio_osops.c gensio_tcp.c gensio_udp.c gensio_stdio.c \
