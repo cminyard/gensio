@@ -704,7 +704,7 @@ stels_cb_com_port_will_do(void *handler_data, unsigned char cmd)
     else
 	sdata->do_2217 = sdata->allow_2217;
 
-    if (!sdata->reported_modemstate &&sdata->do_2217) {
+    if (!sdata->reported_modemstate && sdata->do_2217) {
 	struct gensio *io = sergensio_to_gensio(sdata->sio);
 
 	if (gensio_get_cb(io)) {
@@ -886,7 +886,7 @@ stels_timeout(void *handler_data)
     struct stel_data *sdata = handler_data;
 
     stel_lock(sdata);
-    if (!sdata->reported_modemstate &&sdata->do_2217) {
+    if (!sdata->reported_modemstate && sdata->do_2217) {
 	struct gensio *io = sergensio_to_gensio(sdata->sio);
 	int val = 255;
 	gensiods vlen = sizeof(val);
