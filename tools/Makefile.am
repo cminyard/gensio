@@ -38,4 +38,5 @@ gtlsshd_LDADD = libgensiotool.a $(top_builddir)/lib/libgensio.la \
 
 man_MANS = gensiot.1 gtlsshd.8 gtlssh.1 gtlssh-keygen.1
 
-EXTRA_DIST = $(man_MANS)
+EXTRA_DIST = $(man_MANS) gtlssh-keygen.in
+
