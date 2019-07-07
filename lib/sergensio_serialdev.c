@@ -720,15 +720,23 @@ termios_get_set_flowcontrol(struct termios *termio, int *mctl, int *ival)
     if (*ival) {
 	int val;
 
-	switch (*ival) {
-	case SERGENSIO_FLOWCONTROL_NONE: val = 0; break;
-	case SERGENSIO_FLOWCONTROL_XON_XOFF: val = IXON | IXOFF; break;
-	case SERGENSIO_FLOWCONTROL_RTS_CTS: val = CRTSCTS; break;
-	default:
-	    return GE_INVAL;
-	}
-	termio->c_cflag &= ~(IXON | IXOFF | CRTSCTS);
-	termio->c_cflag |= val;
+        switch (*ival) {
+        case SERGENSIO_FLOWCONTROL_NONE:
+                termio->c_iflag &= ~(IXON | IXOFF);
+                termio->c_cflag &= ~(CRTSCTS);
+                break;
+        case SERGENSIO_FLOWCONTROL_XON_XOFF:
+                termio->c_iflag |= (IXON | IXOFF);
+                termio->c_cflag &= ~(CRTSCTS);
+                break;
+        case SERGENSIO_FLOWCONTROL_RTS_CTS: val = CRTSCTS; break;
+                termio->c_iflag &= ~(IXON | IXOFF);
+                termio->c_cflag |= (CRTSCTS);
+                break;
+        default:
+            return GE_INVAL;
+        }
+
     } else {
 	if (termio->c_cflag & CRTSCTS)
 	    *ival = SERGENSIO_FLOWCONTROL_RTS_CTS;
