@@ -740,7 +740,7 @@ termios_get_set_flowcontrol(struct termios *termio, int *mctl, int *ival)
     } else {
 	if (termio->c_cflag & CRTSCTS)
 	    *ival = SERGENSIO_FLOWCONTROL_RTS_CTS;
-	else if (termio->c_cflag & (IXON | IXOFF))
+	else if (termio->c_iflag & (IXON | IXOFF))
 	    *ival = SERGENSIO_FLOWCONTROL_XON_XOFF;
 	else
 	    *ival = SERGENSIO_FLOWCONTROL_NONE;
