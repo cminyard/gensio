@@ -71,7 +71,7 @@ bool gensio_filter_ul_read_pending(struct gensio_filter *filter);
 /*
  * Is there data ready to be written out of the bottom of the filter?
  */
-#define GENSIO_FILTER_FUNC_UL_WRITE_PENDING	3
+#define GENSIO_FILTER_FUNC_LL_WRITE_PENDING	3
 bool gensio_filter_ll_write_pending(struct gensio_filter *filter);
 
 /*

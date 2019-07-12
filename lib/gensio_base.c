@@ -1205,7 +1205,7 @@ gensio_filter_ul_read_pending(struct gensio_filter *filter)
 bool
 gensio_filter_ll_write_pending(struct gensio_filter *filter)
 {
-    return filter->func(filter, GENSIO_FILTER_FUNC_UL_WRITE_PENDING,
+    return filter->func(filter, GENSIO_FILTER_FUNC_LL_WRITE_PENDING,
 			NULL, NULL, NULL, NULL, NULL, 0, NULL);
 }
 

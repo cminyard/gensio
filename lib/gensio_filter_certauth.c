@@ -1696,7 +1696,7 @@ int gensio_certauth_filter_func(struct gensio_filter *filter, int op,
     case GENSIO_FILTER_FUNC_UL_READ_PENDING:
 	return certauth_ul_read_pending(filter);
 
-    case GENSIO_FILTER_FUNC_UL_WRITE_PENDING:
+    case GENSIO_FILTER_FUNC_LL_WRITE_PENDING:
 	return certauth_ll_write_pending(filter);
 
     case GENSIO_FILTER_FUNC_LL_READ_NEEDED:
