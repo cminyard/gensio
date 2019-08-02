@@ -340,11 +340,11 @@ bool gensio_list_empty(struct gensio_list *list);
 #define gensio_list_first(list) ((list)->link.next)
 #define gensio_list_last(list) ((list)->link.prev)
 /* Go to the next entry, returning NULL if at the end. */
-#define gensio_list_next(list, link) ((link)->next == &(list)->link ? \
-				      NULL : (link)->next)
+#define gensio_list_next(list, linkv) ((linkv)->next == &(list)->link ? \
+				       NULL : (linkv)->next)
 /* Go to the next entry, wrapping around to the first entry if at end. */
-#define gensio_list_next_wrap(list, link) ((link)->next == &(list)->link ? \
-					   (list)->link.next : (link)->next)
+#define gensio_list_next_wrap(list, linkv) ((linkv)->next == &(list)->link ? \
+					    (list)->link.next : (linkv)->next)
 
 #define gensio_list_for_each(list, l)					\
     for ((l) = (list)->link.next; (l) != &(list)->link; l = l->next)
