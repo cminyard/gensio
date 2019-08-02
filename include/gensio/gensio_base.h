@@ -140,7 +140,7 @@ int gensio_filter_ul_write(struct gensio_filter *filter,
  * provided (buf is NULL) then this will just attempt to write any
  * pending data out of the top of the filter into the handler.
  *
- * gensio_ul_filter_data_handler handler => func
+ * gensio_ll_filter_data_handler handler => func
  * void *cb_data => data
  * gensiods *rcount => count
  * buf => buf
