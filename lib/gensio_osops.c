@@ -37,6 +37,11 @@
 #include <netinet/sctp.h>
 #endif
 
+#ifdef HAVE_TCPD_H
+#include <tcpd.h>
+static char *progname = "gensio";
+#endif /* HAVE_TCPD_H */
+
 #include <gensio/gensio_osops.h>
 
 static int
