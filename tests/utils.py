@@ -598,8 +598,7 @@ def io_close(io, timeout = 1000):
     del io.handler
     return
 
-srcdir = os.getenv("srcdir")
-if not srcdir:
-    srcdir = os.path.dirname(sys.argv[0])
-    if (not srcdir):
-        srcdir = "."
+keydir = os.getenv("keydir")
+if not keydir:
+    if (not keydir):
+        keydir = "ca"

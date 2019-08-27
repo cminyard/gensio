@@ -105,8 +105,8 @@ def ta_sctp():
 
 def ta_ssl_tcp():
     print("Test accept ssl-tcp")
-    io1 = utils.alloc_io(o, "ssl(CA=%s/CA.pem),tcp,localhost,3023" % utils.srcdir, do_open = False)
-    ta = TestAccept(o, io1, "ssl(key=%s/key.pem,cert=%s/cert.pem),3023" % (utils.srcdir, utils.srcdir), do_test, do_close = False)
+    io1 = utils.alloc_io(o, "ssl(CA=%s/CA.pem),tcp,localhost,3023" % utils.keydir, do_open = False)
+    ta = TestAccept(o, io1, "ssl(key=%s/key.pem,cert=%s/cert.pem),3023" % (utils.keydir, utils.keydir), do_test, do_close = False)
     cn = io1.control(0, True, gensio.GENSIO_CONTROL_GET_PEER_CERT_NAME,
                      "-1,CN");
     i = cn.index(',')
@@ -135,8 +135,8 @@ def ta_ssl_tcp():
 
 def ta_certauth_tcp():
     print("Test accept certauth-ssl-tcp")
-    io1 = utils.alloc_io(o, "certauth(cert=%s/clientcert.pem,key=%s/clientkey.pem,username=testuser,service=myservice),ssl(CA=%s/CA.pem),tcp,localhost,3023" % (utils.srcdir, utils.srcdir, utils.srcdir), do_open = False)
-    ta = TestAccept(o, io1, "certauth(CA=%s/clientcert.pem),ssl(key=%s/key.pem,cert=%s/cert.pem),tcp,3023" % (utils.srcdir, utils.srcdir, utils.srcdir), do_test, do_close = False)
+    io1 = utils.alloc_io(o, "certauth(cert=%s/clientcert.pem,key=%s/clientkey.pem,username=testuser,service=myservice),ssl(CA=%s/CA.pem),tcp,localhost,3023" % (utils.keydir, utils.keydir, utils.keydir), do_open = False)
+    ta = TestAccept(o, io1, "certauth(CA=%s/clientcert.pem),ssl(key=%s/key.pem,cert=%s/cert.pem),tcp,3023" % (utils.keydir, utils.keydir, utils.keydir), do_test, do_close = False)
     cn = ta.io2.control(0, True, gensio.GENSIO_CONTROL_GET_PEER_CERT_NAME,
                         "-1,CN");
     i = cn.index(',')
@@ -616,10 +616,10 @@ def test_ssl_sctp_acc_connect():
     try:
         TestAcceptConnect(o,
                 "ssl(key=%s/key.pem,cert=%s/cert.pem,clientauth),sctp,3023"
-                               % (utils.srcdir, utils.srcdir),
+                               % (utils.keydir, utils.keydir),
                 "ssl(key=%s/key.pem,cert=%s/cert.pem),sctp,3024"
-                           % (utils.srcdir, utils.srcdir),
-                "ssl(CA=%s/CA.pem),sctp,localhost,3023" % utils.srcdir,
+                           % (utils.keydir, utils.keydir),
+                "ssl(CA=%s/CA.pem),sctp,localhost,3023" % utils.keydir,
                            do_small_test)
     except Exception as E:
         s = str(E)
@@ -636,12 +636,12 @@ def test_ssl_sctp_acc_connect():
     try:
         TestAcceptConnect(o,
                 "ssl(key=%s/key.pem,cert=%s/cert.pem,clientauth),sctp,3023"
-                               % (utils.srcdir, utils.srcdir),
+                               % (utils.keydir, utils.keydir),
                 "ssl(key=%s/key.pem,cert=%s/cert.pem),sctp,3024"
-                               % (utils.srcdir, utils.srcdir),
+                               % (utils.keydir, utils.keydir),
                 "ssl(CA=%s/CA.pem,key=%s/clientkey.pem,cert=%s/clientcert.pem)"
                 ",sctp,localhost,3023"
-                               % (utils.srcdir, utils.srcdir, utils.srcdir),
+                               % (utils.keydir, utils.keydir, utils.keydir),
                            do_small_test)
     except Exception as E:
         s = str(E)
@@ -656,22 +656,22 @@ def test_ssl_sctp_acc_connect():
     
     TestAcceptConnect(o,
                 "ssl(key=%s/key.pem,cert=%s/cert.pem,clientauth),sctp,3023"
-                               % (utils.srcdir, utils.srcdir),
+                               % (utils.keydir, utils.keydir),
                 "ssl(key=%s/key.pem,cert=%s/cert.pem),sctp,3024"
-                               % (utils.srcdir, utils.srcdir),
+                               % (utils.keydir, utils.keydir),
                 "ssl(CA=%s/CA.pem,key=%s/clientkey.pem,cert=%s/clientcert.pem)"
                 ",sctp,localhost,3023"
-                               % (utils.srcdir, utils.srcdir, utils.srcdir),
-                           do_small_test, CA="%s/clientcert.pem" % utils.srcdir)
+                               % (utils.keydir, utils.keydir, utils.keydir),
+                           do_small_test, CA="%s/clientcert.pem" % utils.keydir)
 
 def test_certauth_sctp_acc_connect():
     print("Test certauth over ssl over sctp accepter connect")
     goterr = False
     try:
         TestAcceptConnect(o,
-                "certauth(CA=%s/clientcert.pem),ssl(key=%s/key.pem,cert=%s/cert.pem),sctp,3023" % (utils.srcdir, utils.srcdir, utils.srcdir),
-                "certauth(CA=%s/clientcert.pem),ssl(key=%s/key.pem,cert=%s/cert.pem),sctp,3024" % (utils.srcdir, utils.srcdir, utils.srcdir),
-                "certauth(cert=%s/cert.pem,key=%s/key.pem,username=test1),ssl(CA=%s/CA.pem),sctp,localhost,3023" % (utils.srcdir, utils.srcdir, utils.srcdir),
+                "certauth(CA=%s/clientcert.pem),ssl(key=%s/key.pem,cert=%s/cert.pem),sctp,3023" % (utils.keydir, utils.keydir, utils.keydir),
+                "certauth(CA=%s/clientcert.pem),ssl(key=%s/key.pem,cert=%s/cert.pem),sctp,3024" % (utils.keydir, utils.keydir, utils.keydir),
+                "certauth(cert=%s/cert.pem,key=%s/key.pem,username=test1),ssl(CA=%s/CA.pem),sctp,localhost,3023" % (utils.keydir, utils.keydir, utils.keydir),
                            do_small_test)
     except Exception as E:
         s = str(E)
@@ -685,10 +685,10 @@ def test_certauth_sctp_acc_connect():
         raise Exception("Did not get error on invalid client certificate.")
 
     TestAcceptConnect(o,
-                "certauth(),ssl(key=%s/key.pem,cert=%s/cert.pem),sctp,3023" % (utils.srcdir, utils.srcdir),
-                "certauth(),ssl(key=%s/key.pem,cert=%s/cert.pem),sctp,3024" % (utils.srcdir, utils.srcdir),
-                "certauth(cert=%s/clientcert.pem,key=%s/clientkey.pem,username=test1),ssl(CA=%s/CA.pem),sctp,localhost,3023" % (utils.srcdir, utils.srcdir, utils.srcdir),
-                           do_small_test, CA="%s/clientcert.pem" % utils.srcdir)
+                "certauth(),ssl(key=%s/key.pem,cert=%s/cert.pem),sctp,3023" % (utils.keydir, utils.keydir),
+                "certauth(),ssl(key=%s/key.pem,cert=%s/cert.pem),sctp,3024" % (utils.keydir, utils.keydir),
+                "certauth(cert=%s/clientcert.pem,key=%s/clientkey.pem,username=test1),ssl(CA=%s/CA.pem),sctp,localhost,3023" % (utils.keydir, utils.keydir, utils.keydir),
+                           do_small_test, CA="%s/clientcert.pem" % utils.keydir)
 
 def test_certauth_ssl_tcp_acc_connect():
     print("Test certauth over ssl over tcp")
@@ -696,30 +696,30 @@ def test_certauth_ssl_tcp_acc_connect():
     # First test bypassing authentication from the auth_begin callback;
     TestAcceptConnect(o,
            ("certauth(),ssl(key=%s/key.pem,cert=%s/cert.pem),tcp,3023" %
-            (utils.srcdir, utils.srcdir)),
+            (utils.keydir, utils.keydir)),
            ("certauth(),ssl(key=%s/key.pem,cert=%s/cert.pem),tcp,3024" %
-            (utils.srcdir, utils.srcdir)),
-           "certauth(),ssl(CA=%s/CA.pem),tcp,localhost,3023" % utils.srcdir,
+            (utils.keydir, utils.keydir)),
+           "certauth(),ssl(CA=%s/CA.pem),tcp,localhost,3023" % utils.keydir,
                       do_small_test, auth_begin_rv=0)
 
     # Now try password authentication.
     TestAcceptConnect(o,
            ("certauth(enable-password),ssl(key=%s/key.pem,cert=%s/cert.pem),tcp,3023" %
-            (utils.srcdir, utils.srcdir)),
+            (utils.keydir, utils.keydir)),
            ("certauth(enable-password),ssl(key=%s/key.pem,cert=%s/cert.pem),tcp,3024" %
-            (utils.srcdir, utils.srcdir)),
+            (utils.keydir, utils.keydir)),
            ("certauth(enable-password,password=asdfasdf),ssl(CA=%s/CA.pem),tcp,localhost,3023" %
-            utils.srcdir),
+            utils.keydir),
                       do_small_test, expect_pw = "asdfasdf", expect_pw_rv = 0)
 
     # Test the password request
     TestAcceptConnect(o,
            ("certauth(enable-password),ssl(key=%s/key.pem,cert=%s/cert.pem),tcp,3023" %
-            (utils.srcdir, utils.srcdir)),
+            (utils.keydir, utils.keydir)),
            ("certauth(enable-password),ssl(key=%s/key.pem,cert=%s/cert.pem),tcp,3024" %
-            (utils.srcdir, utils.srcdir)),
+            (utils.keydir, utils.keydir)),
            ("certauth(enable-password),ssl(CA=%s/CA.pem),tcp,localhost,3023" %
-            utils.srcdir),
+            utils.keydir),
                       do_small_test, expect_pw = "jkl;", expect_pw_rv = 0,
                       password = "jkl;")
 
