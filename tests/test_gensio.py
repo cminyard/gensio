@@ -704,21 +704,21 @@ def test_certauth_ssl_tcp_acc_connect():
 
     # Now try password authentication.
     TestAcceptConnect(o,
-           ("certauth(),ssl(key=%s/key.pem,cert=%s/cert.pem),tcp,3023" %
+           ("certauth(enable-password),ssl(key=%s/key.pem,cert=%s/cert.pem),tcp,3023" %
             (utils.srcdir, utils.srcdir)),
-           ("certauth(),ssl(key=%s/key.pem,cert=%s/cert.pem),tcp,3024" %
+           ("certauth(enable-password),ssl(key=%s/key.pem,cert=%s/cert.pem),tcp,3024" %
             (utils.srcdir, utils.srcdir)),
-           ("certauth(password=asdfasdf),ssl(CA=%s/CA.pem),tcp,localhost,3023" %
+           ("certauth(enable-password,password=asdfasdf),ssl(CA=%s/CA.pem),tcp,localhost,3023" %
             utils.srcdir),
                       do_small_test, expect_pw = "asdfasdf", expect_pw_rv = 0)
 
     # Test the password request
     TestAcceptConnect(o,
-           ("certauth(),ssl(key=%s/key.pem,cert=%s/cert.pem),tcp,3023" %
+           ("certauth(enable-password),ssl(key=%s/key.pem,cert=%s/cert.pem),tcp,3023" %
             (utils.srcdir, utils.srcdir)),
-           ("certauth(),ssl(key=%s/key.pem,cert=%s/cert.pem),tcp,3024" %
+           ("certauth(enable-password),ssl(key=%s/key.pem,cert=%s/cert.pem),tcp,3024" %
             (utils.srcdir, utils.srcdir)),
-           ("certauth(),ssl(CA=%s/CA.pem),tcp,localhost,3023" %
+           ("certauth(enable-password),ssl(CA=%s/CA.pem),tcp,localhost,3023" %
             utils.srcdir),
                       do_small_test, expect_pw = "jkl;", expect_pw_rv = 0,
                       password = "jkl;")
