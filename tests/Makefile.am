@@ -10,7 +10,7 @@ AM_TESTS_ENVIRONMENT = \
     fi;
 
 test_setup:
-	echo $(AM_TESTS_ENVIRONMENT) python $(utst_srcdir)/tests/
+	echo "$(AM_TESTS_ENVIRONMENT) python $(utst_srcdir)/tests/"
 
 TESTS = test_gensio.py test_syncio.py
 
