@@ -332,9 +332,9 @@ basena_child_event(struct gensio_accepter *accepter, void *user_data,
 {
     struct basena_data *nadata = user_data;
     struct gensio_os_funcs *o = nadata->o;
-    struct gensio_filter *filter;
-    struct gensio_ll *ll;
-    struct gensio *io, *child;
+    struct gensio_filter *filter = NULL;
+    struct gensio_ll *ll = NULL;
+    struct gensio *io = NULL, *child;
     void *finish_data;
     int err;
 
@@ -350,19 +350,32 @@ basena_child_event(struct gensio_accepter *accepter, void *user_data,
 
     err = nadata->acc_cb(nadata->acc_data, GENSIO_GENSIO_ACC_NEW_CHILD,
 			 &finish_data, &filter, child, NULL);
+    if (err == GE_NOTSUP) {
+	struct gensio_new_child_io ncio;
+
+	ncio.child = child;
+	ncio.open_done = basena_finish_server_open;
+	ncio.open_data = nadata;
+	err = nadata->acc_cb(nadata->acc_data, GENSIO_GENSIO_ACC_NEW_CHILD_IO,
+			     &finish_data, &ncio, NULL, NULL);
+	if (!err)
+	    io = ncio.new_io;
+    }
+	
     if (err)
 	goto out_err;
 
-    ll = gensio_gensio_ll_alloc(o, child);
-    if (!ll) {
-	gensio_filter_free(filter);
-	goto out_nomem;
+    if (filter) {
+	ll = gensio_gensio_ll_alloc(o, child);
+	if (!ll)
+	    goto out_nomem;
     }
 
     basena_lock(nadata);
-    io = base_gensio_server_alloc(o, ll, filter, child,
-				  gensio_acc_get_type(nadata->acc, 0),
-				  basena_finish_server_open, nadata);
+    if (filter)
+	io = base_gensio_server_alloc(o, ll, filter, child,
+				      gensio_acc_get_type(nadata->acc, 0),
+				      basena_finish_server_open, nadata);
     if (io) {
 	if (gensio_is_reliable(child))
 	    gensio_set_is_reliable(io, true);
@@ -375,17 +388,12 @@ basena_child_event(struct gensio_accepter *accepter, void *user_data,
 			     finish_data, io, child, NULL);
 	if (err && err != GE_NOTSUP) {
 	    basena_unlock(nadata);
-	    gensio_free(io);
-	    gensio_ll_free(ll);
-	    gensio_filter_free(filter);
 	    goto out_err;
 	}
 	gensio_acc_add_pending_gensio(nadata->acc, io);
 	basena_unlock(nadata);
     } else {
 	basena_unlock(nadata);
-	gensio_ll_free(ll);
-	gensio_filter_free(filter);
 	goto out_nomem;
     }
     return 0;
@@ -393,6 +401,14 @@ basena_child_event(struct gensio_accepter *accepter, void *user_data,
  out_nomem:
     err = GE_NOMEM;
  out_err:
+    if (io) {
+	gensio_free(io);
+    } else {
+	if (ll)
+	    gensio_ll_free(ll);
+	if (filter)
+	    gensio_filter_free(filter);
+    }
     gensio_acc_log(nadata->acc, GENSIO_LOG_ERR,
 		   "Error allocating basena gensio: %s",
 		   gensio_err_to_str(err));

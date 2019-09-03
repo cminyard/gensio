@@ -72,6 +72,21 @@
  */
 #define GENSIO_GENSIO_ACC_DISABLE		6
 
+/*
+ * Allocate a new child without filter, the function returns the io,
+ * not a filter.  If you enable this, you should not implement
+ * GENSIO_GENSIO_ACC_NEW_CHILD and that should return GE_NOTSUP.
+ * finish_data => data1
+ * struct gensio_new_child_io => data2;
+ */
+struct gensio_new_child_io {
+    struct gensio *child;
+    gensio_done_err open_done;
+    void *open_data;
+    struct gensio *new_io;
+};
+#define GENSIO_GENSIO_ACC_NEW_CHILD_IO		7
+
 typedef int (*gensio_gensio_acc_cb)(void *acc_data, int op,
 				    void *data1, void *data2, void *data3,
 				    const void *data4);
