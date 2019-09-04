@@ -57,6 +57,12 @@ for details.
 Note that only one read callback is allowed to run at a time on a
 gensio.
 
+If an error is reported in
+.B err,
+then the gensio will be closed.  This is used to report that the other
+end closed the connection (GE_REMCLOSE), or that other internal errors
+occurred.
+
 Return value is ignored.
 .SS "GENSIO_EVENT_WRITE_READY"
 Called when data can be written to the I/O device.
@@ -73,6 +79,11 @@ the channel will be passed in
 see documentation on the particular gensio for details.  This function
 should return 0 to accept the channel, or a gensio error if the
 channel creation is refused.
+.B gensio_close()
+or
+.B gensio_free()
+should not be called from this, if you want to refuse the new channel,
+return an error.
 
 Blocked if gensio read is disabled.
 .SS "GENSIO_EVENT_SEND_BREAK"
