@@ -328,7 +328,8 @@ echon_free(struct gensio *io)
 
     echon_lock(ndata);
     assert(ndata->refcount > 0);
-    ndata->state = ECHON_CLOSED;
+    if (ndata->refcount == 1)
+	ndata->state = ECHON_CLOSED;
     echon_unlock_and_deref(ndata);
 }
 
