@@ -329,6 +329,7 @@ struct gensio_list {
 };
 
 void gensio_list_rm(struct gensio_list *list, struct gensio_link *link);
+void gensio_list_add_head(struct gensio_list *list, struct gensio_link *link);
 void gensio_list_add_tail(struct gensio_list *list, struct gensio_link *link);
 void gensio_list_add_next(struct gensio_list *list, struct gensio_link *curr,
 			  struct gensio_link *link);

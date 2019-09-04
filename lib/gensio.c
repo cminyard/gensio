@@ -2504,6 +2504,15 @@ gensio_list_rm(struct gensio_list *list, struct gensio_link *link)
 }
 
 void
+gensio_list_add_head(struct gensio_list *list, struct gensio_link *link)
+{
+    link->next = list->link.next;
+    link->prev = &list->link;
+    list->link.next->prev = link;
+    list->link.next = link;
+}
+
+void
 gensio_list_add_tail(struct gensio_list *list, struct gensio_link *link)
 {
     link->prev = list->link.prev;
