@@ -21,7 +21,11 @@ void gensio_free(struct gensio *io);
 closes an open gensio.  Note that the close operation is not complete
 until close_done() is called.  This shuts down internal file
 descriptors and such, but does not free the gensio.  If the gensio is
-a connecting one, you can generally re-open it.
+a connecting one, you can generally re-open it.  If you
+.B gensio_close
+before an open done is reported, the results (primarily whether the
+open done is called) are undefined.  If the open done is called, it
+will be called before the close done.
 
 .B gensio_close_s
 is like gensio_close, but blocks until the operation is complete.
