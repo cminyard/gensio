@@ -135,7 +135,7 @@ help(int err)
     printf("\nA program to connect gensios together.  This programs has two\n");
     printf("gensios, io1 (default is local terminal) and io2 (must be set).\n");
     printf("\noptions are:\n");
-    printf("  -i, --input <gensio) - Set the io1 device, default is\n"
+    printf("  -i, --input <gensio> - Set the io1 device, default is\n"
 	   "    %s for tty or %s for non-tty stdin\n",
 	   io1_default_tty, io1_default_notty);
     printf("  -d, --debug - Enable debug.  Specify more than once to increase\n"
