@@ -925,6 +925,8 @@ gensio_base_func(struct gensio *io, int func, gensiods *count,
 	    if (ndata->filter)
 		gensio_filter_cleanup(ndata->filter);
 	    gensio_ll_disable(ndata->ll);
+	    if (ndata->child)
+		gensio_disable(ndata->child);
 	}
 	return 0;
 
