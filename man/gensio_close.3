@@ -35,7 +35,7 @@ disables operation of the gensio so that closing will not result in
 any data being transmitted.
 .B THIS IS FOR EXTREMELY LIMITED USE.
 This will not close file descriptors nor disable I/O, necessarily, but
-will put the gensio stack into a state where free them will not result
+will put the gensio stack into a state where freeing will not result
 in any transmission of data to the other end.  You
 .B MUST
 be in a state where no callbacks are running or can run.  This is
@@ -47,7 +47,8 @@ for details on forking.
 .B gensio_free
 grees data assoicated with the gensio.  If it is open, the gensio is
 closed.  Note that you should not call
-.B gensio_free after
+.B gensio_free
+after
 .B gensio_close
 before the done callback is called.  The results (primarily if
 .B close_done
