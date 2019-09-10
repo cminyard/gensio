@@ -665,6 +665,8 @@ gensio_child_event(struct gensio *io, void *user_data, int event, int readerr,
     OI_PY_STATE gstate;
     int rv = 0;
     gensiods rsize;
+    struct gensio *io2;
+    struct gensio_data *iodata;
 
     gstate = OI_PY_STATE_GET();
 
@@ -701,7 +703,7 @@ gensio_child_event(struct gensio *io, void *user_data, int event, int readerr,
 
 	rsize = swig_finish_call_rv_gensiods(data->handler_val,
 					     "read_callback", args, false);
-	if (!PyErr_Occurred())
+	if (!PyErr_Occurred() && buflen)
 	    *buflen = rsize;
 	break;
 
@@ -715,6 +717,10 @@ gensio_child_event(struct gensio *io, void *user_data, int event, int readerr,
 	break;
 
     case GENSIO_EVENT_NEW_CHANNEL:
+	io2 = (struct gensio *) buf;
+	iodata = alloc_gensio_data(data->o, NULL);
+	gensio_set_callback(io2, gensio_child_event, iodata);
+
 	args = PyTuple_New(3);
 
 	ref_gensio_data(data);
@@ -722,7 +728,7 @@ gensio_child_event(struct gensio *io, void *user_data, int event, int readerr,
 	io_ref = swig_make_ref(io, gensio);
 	PyTuple_SET_ITEM(args, 0, io_ref.val);
 
-	new_con = swig_make_ref((struct gensio *) buf, gensio);
+	new_con = swig_make_ref(io2, gensio);
 	PyTuple_SET_ITEM(args, 1, new_con.val);
 
 	PyTuple_SET_ITEM(args, 2, gensio_py_handle_auxdata(auxdata));
