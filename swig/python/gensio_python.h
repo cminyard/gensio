@@ -670,7 +670,12 @@ gensio_child_event(struct gensio *io, void *user_data, int event, int readerr,
 	}
 	PyTuple_SET_ITEM(args, 1, o);
 
-	o = PyBytes_FromStringAndSize((char *) buf, *buflen);
+	if (buf) {
+	    o = PyBytes_FromStringAndSize((char *) buf, *buflen);
+	} else {
+	    o = Py_None;
+	    Py_INCREF(Py_None);
+	}
 	PyTuple_SET_ITEM(args, 2, o);
 
 	if (!auxdata || !auxdata[0]) {
