@@ -159,6 +159,17 @@ def ta_certauth_tcp():
             "Invalid service, expected %s, got %s" % ("myservice", service))
     ta.close()
 
+def ta_mux_sctp():
+    print("Test accept mux-tcp")
+    io1 = utils.alloc_io(o, "mux(service=myservice),sctp,localhost,3023",
+                         do_open = False)
+    ta = TestAccept(o, io1, "mux,sctp,3023", do_test, do_close = False)
+    service = ta.io2.control(0, True, gensio.GENSIO_CONTROL_SERVICE, None)
+    if service != "myservice":
+        raise Exception(
+            "Invalid service, expected %s, got %s" % ("myservice", service))
+    ta.close()
+
 class SigRspHandler:
     def __init__(self, o, sigval):
         self.sigval = sigval
@@ -396,6 +407,14 @@ def do_small_test(io1, io2):
     utils.test_dataxfer(io2, io1, rb)
     print("  Success!")
 
+def do_large_test(io1, io2):
+    rb = gensio.get_random_bytes(1048570)
+    print("  testing io1 to io2")
+    utils.test_dataxfer(io1, io2, rb, timeout=30000)
+    print("  testing io2 to io1")
+    utils.test_dataxfer(io2, io1, rb, timeout=30000)
+    print("  Success!")
+
 def test_tcp_small():
     print("Test tcp small")
     io1 = utils.alloc_io(o, "tcp,localhost,3023", do_open = False,
@@ -421,6 +440,18 @@ def test_sctp_small():
     io1 = utils.alloc_io(o, "sctp,localhost,3023", do_open = False,
                          chunksize = 64)
     ta = TestAccept(o, io1, "sctp,3023", do_small_test)
+
+def test_mux_sctp_small():
+    print("Test mux sctp small")
+    io1 = utils.alloc_io(o, "mux,sctp,localhost,3023", do_open = False,
+                         chunksize = 64)
+    ta = TestAccept(o, io1, "mux,sctp,3023", do_small_test)
+
+def test_mux_tcp_large():
+    print("Test mux tcp large")
+    io1 = utils.alloc_io(o, "mux,tcp,localhost,3023", do_open = False,
+                         chunksize = 64)
+    ta = TestAccept(o, io1, "mux,tcp,3023", do_large_test)
 
 def do_stream_test(io1, io2):
     rb = gensio.get_random_bytes(10)
@@ -722,6 +753,10 @@ def test_certauth_ssl_tcp_acc_connect():
             utils.keydir),
                       do_small_test, expect_pw = "jkl;", expect_pw_rv = 0,
                       password = "jkl;")
+
+ta_mux_sctp()
+test_mux_sctp_small()
+test_mux_tcp_large()
 
 test_echo_device()
 test_serial_pipe_device()
