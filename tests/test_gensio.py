@@ -159,6 +159,17 @@ def ta_certauth_tcp():
             "Invalid service, expected %s, got %s" % ("myservice", service))
     ta.close()
 
+def ta_mux_sctp():
+    print("Test accept mux-tcp")
+    io1 = utils.alloc_io(o, "mux(service=myservice),sctp,localhost,3023",
+                         do_open = False)
+    ta = TestAccept(o, io1, "mux,sctp,3023", do_test, do_close = False)
+    service = ta.io2.control(0, True, gensio.GENSIO_CONTROL_SERVICE, None)
+    if service != "myservice":
+        raise Exception(
+            "Invalid service, expected %s, got %s" % ("myservice", service))
+    ta.close()
+
 class SigRspHandler:
     def __init__(self, o, sigval):
         self.sigval = sigval
@@ -394,6 +405,18 @@ def do_small_test(io1, io2):
     utils.test_dataxfer(io1, io2, rb)
     print("  testing io2 to io1")
     utils.test_dataxfer(io2, io1, rb)
+    print("  testing bidirection between io1 and io2")
+    utils.test_dataxfer_simul(io1, io2, rb)
+    print("  Success!")
+
+def do_large_test(io1, io2):
+    rb = gensio.get_random_bytes(1048570)
+    print("  testing io1 to io2")
+    utils.test_dataxfer(io1, io2, rb, timeout=30000)
+    print("  testing io2 to io1")
+    utils.test_dataxfer(io2, io1, rb, timeout=30000)
+    print("  testing bidirection between io1 and io2")
+    utils.test_dataxfer_simul(io1, io2, rb, timeout=30000)
     print("  Success!")
 
 def test_tcp_small():
@@ -421,6 +444,18 @@ def test_sctp_small():
     io1 = utils.alloc_io(o, "sctp,localhost,3023", do_open = False,
                          chunksize = 64)
     ta = TestAccept(o, io1, "sctp,3023", do_small_test)
+
+def test_mux_sctp_small():
+    print("Test mux sctp small")
+    io1 = utils.alloc_io(o, "mux,sctp,localhost,3023", do_open = False,
+                         chunksize = 64)
+    ta = TestAccept(o, io1, "mux,sctp,3023", do_small_test)
+
+def test_mux_tcp_large():
+    print("Test mux tcp large")
+    io1 = utils.alloc_io(o, "mux,tcp,localhost,3023", do_open = False,
+                         chunksize = 64)
+    ta = TestAccept(o, io1, "mux,tcp,3023", do_large_test)
 
 def do_stream_test(io1, io2):
     rb = gensio.get_random_bytes(10)
@@ -722,6 +757,191 @@ def test_certauth_ssl_tcp_acc_connect():
             utils.keydir),
                       do_small_test, expect_pw = "jkl;", expect_pw_rv = 0,
                       password = "jkl;")
+
+class MuxHandler:
+    """ """
+    def __init__(self, o, num_channels = 10):
+        self.o = o
+        self.channels = [None for x in range(num_channels)]
+        self.waiter = gensio.waiter(o)
+        self.expect_close = -1
+        self.op_count = 0
+        return
+
+    def read_callback(self, io, err, buf, auxdata):
+        i = int(io.control(0, True, gensio.GENSIO_CONTROL_SERVICE, None))
+        if (err):
+            if (self.expect_close != -1 and i != self.expect_close):
+                raise utils.HandlerException(
+                    "Invalid read close on channel %d: %s" % (i, err))
+            if err != "Remote end closed connection":
+                raise utils.HandlerException(
+                    "Invalid error on read close: %s" % err)
+            io.close(self)
+            return 0
+        raise utils.HandlerException("Unexpected read")
+        return len(buf)
+
+    def write_callback(self, io):
+        return
+
+    def dec_op_count(self):
+        if (self.op_count == 0):
+            raise utils.HandlerException("Too many ops")
+        self.op_count -= 1
+        if (self.op_count == 0):
+            self.waiter.wake()
+        return
+
+    def new_channel(self, io1, io2, auxdata):
+        i = int(io2.control(0, True, gensio.GENSIO_CONTROL_SERVICE, None))
+        if (self.channels[i]):
+            raise utils.HandlerException(
+                "Got channel %d, but it already exists" % i)
+        self.channels[i] = io2
+        io2.set_cbs(self)
+        self.dec_op_count()
+        io2.read_cb_enable(True)
+        return 0
+
+    def new_connection(self, acc, io):
+        self.new_channel(None, io, None)
+        return
+
+    def close_done(self, io):
+        i = int(io.control(0, True, gensio.GENSIO_CONTROL_SERVICE, None))
+        if (self.expect_close != -1 and self.expect_close != i):
+            raise utils.HandlerException("Unexpected close for channel %d" % i)
+        if (self.channels[i] is None):
+            raise utils.HandlerException(
+                "Got channel %d, but it didn't exist in array" % i)
+        self.channels[i] = None;
+        self.dec_op_count()
+        return
+
+    def set_expect_close(self, nr):
+        self.expect_close = nr
+        return
+
+    def set_op_count(self, nr):
+        self.op_count = nr
+        return
+
+    def open_done(self, io, err):
+        i = int(io.control(0, True, gensio.GENSIO_CONTROL_SERVICE, None))
+        if (err):
+            raise utils.HandlerException(
+                "Error opening channel %d: %s" % (i, err))
+        io.read_cb_enable(True)
+        self.dec_op_count()
+        return
+
+    def wait(self, count = 1, timeout = 0):
+        if (timeout > 0):
+            return self.waiter.wait_timeout(count, timeout)
+        else:
+            return self.waiter.wait(count)
+        return
+
+def test_mux_limits():
+    print("Testing mux limits")
+    handlemuxacc = MuxHandler(o, num_channels = 10)
+    muxacc = gensio.gensio_accepter(o, "mux(max_channels=10),tcp,3023",
+                                    handlemuxacc)
+    muxacc.startup()
+
+    handlemuxcl = MuxHandler(o, num_channels = 10)
+    muxcl = gensio.gensio(o,
+                          "mux(service=0,max_channels=10),tcp,localhost,3023",
+                          handlemuxcl)
+    handlemuxcl.channels[0] = muxcl
+    handlemuxacc.set_op_count(1)
+    handlemuxcl.set_op_count(1)
+    muxcl.open(handlemuxcl)
+
+    if (handlemuxcl.wait(timeout = 1000) == 0):
+        raise utils.HandlerException(
+            "Timeout waiting for single client open finish")
+    if (handlemuxacc.wait(timeout = 1000) == 0):
+        raise utils.HandlerException(
+            "Timeout waiting for single client open finish")
+
+    print("Opening all channels")
+    handlemuxcl.set_op_count(9)
+    handlemuxacc.set_op_count(9)
+    for i in range(1, 10):
+        handlemuxcl.channels[i] = muxcl.open_channel(["service=%d" % i],
+                                                     handlemuxcl, handlemuxcl)
+
+    print("Waiting for channels");
+    if (handlemuxcl.wait(timeout = 2000) == 0):
+        raise utils.HandlerException(
+            "Timeout waiting for client open finish")
+    if (handlemuxacc.wait(timeout = 2000) == 0):
+        raise utils.HandlerException(
+            "Timeout waiting for client open finish")
+
+    print("Trying an open that should fail")
+    try:
+        muxcl.open_channel(["service=%d" % 10], handlemuxcl, handlemuxcl)
+    except Exception as err:
+        if str(err) != "gensio:open_channel: Object was already in use":
+            raise utils.HandlerException("Got wrong error: %s" % str(err))
+    else:
+        raise utils.HandlerException(
+            "No exception when opening too many channels")
+
+    print("Close one channel")
+    handlemuxcl.set_expect_close(3)
+    handlemuxacc.set_expect_close(3)
+    handlemuxcl.set_op_count(1)
+    handlemuxacc.set_op_count(1)
+    handlemuxacc.channels[3].close(handlemuxacc)
+
+    if (handlemuxcl.wait(timeout = 1000) == 0):
+        raise utils.HandlerException(
+            "Timeout waiting for single client close finish")
+    if (handlemuxacc.wait(timeout = 1000) == 0):
+        raise utils.HandlerException(
+            "Timeout waiting for single server close finish")
+
+    print("Open that channel again")
+    handlemuxacc.set_op_count(1)
+    handlemuxcl.set_op_count(1)
+    handlemuxcl.channels[3] = muxcl.open_channel(["service=3"],
+                                                 handlemuxcl, handlemuxcl)
+
+    if (handlemuxcl.wait(timeout = 1000) == 0):
+        raise utils.HandlerException(
+            "Timeout waiting for client singe close finish")
+    if (handlemuxacc.wait(timeout = 1000) == 0):
+        raise utils.HandlerException(
+            "Timeout waiting for server single close finish")
+
+    print("Close all channels")
+    handlemuxcl.set_expect_close(-1)
+    handlemuxacc.set_expect_close(-1)
+    handlemuxcl.set_op_count(10)
+    handlemuxacc.set_op_count(10)
+    for i in range(0, 10):
+        if (i % 2 == 0):
+            handlemuxcl.channels[i].close(handlemuxcl)
+        else:
+            handlemuxacc.channels[i].close(handlemuxacc)
+
+    if (handlemuxcl.wait(timeout = 2000) == 0):
+        raise utils.HandlerException(
+            "Timeout waiting for client all close finish")
+    if (handlemuxacc.wait(timeout = 2000) == 0):
+        raise utils.HandlerException(
+            "Timeout waiting for server all close finish")
+
+    return
+
+test_mux_limits()
+ta_mux_sctp()
+test_mux_sctp_small()
+test_mux_tcp_large()
 
 test_echo_device()
 test_serial_pipe_device()
