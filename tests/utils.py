@@ -492,12 +492,10 @@ def test_dataxfer(io1, io2, data, timeout = 1000):
     io2.handler.set_compare(data)
     if (io1.handler.wait_timeout(timeout) == 0):
         raise Exception(("%s: %s: " % ("test_dataxfer", io1.handler.name)) +
-
                         ("Timed out waiting for write completion at byte %d" %
                          io1.handler.wrpos))
     if (io2.handler.wait_timeout(timeout) == 0):
         raise Exception(("%s: %s: " % ("test_dataxfer", io2.handler.name)) +
-
                         ("Timed out waiting for read completion at byte %d" %
                          io2.handler.compared))
     return
@@ -512,12 +510,10 @@ def test_dataxfer_oob(io1, io2, data, timeout = 1000):
     io2.handler.set_compare_oob(data)
     if (io1.handler.wait_timeout(timeout) == 0):
         raise Exception(("%s: %s: " % ("test_dataxfer", io1.handler.name)) +
-
                         ("Timed out waiting for write completion at byte %d" %
                          io1.handler.wrpos))
     if (io2.handler.wait_timeout(timeout) == 0):
         raise Exception(("%s: %s: " % ("test_dataxfer", io2.handler.name)) +
-
                         ("Timed out waiting for read completion at byte %d" %
                          io2.handler.compared))
     return
@@ -532,12 +528,10 @@ def test_dataxfer_stream(io1, io2, data, stream, timeout = 1000):
     io2.handler.set_compare(data, stream = stream)
     if (io1.handler.wait_timeout(timeout) == 0):
         raise Exception(("%s: %s: " % ("test_dataxfer_s", io1.handler.name)) +
-
                         ("Timed out waiting for write completion at byte %d" %
                          io1.handler.wrpos))
     if (io2.handler.wait_timeout(timeout) == 0):
         raise Exception(("%s: %s: " % ("test_dataxfer_s", io2.handler.name)) +
-
                         ("Timed out waiting for read completion at byte %d" %
                          io2.handler.compared))
     return
