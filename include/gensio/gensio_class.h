@@ -352,6 +352,6 @@ bool gensio_list_empty(struct gensio_list *list);
 
 #define gensio_list_for_each_safe(list, l, l2) \
     for ((l) = (list)->link.next, (l2) = (l)->next; \
-	 (l) != &(list)->link; l = l2)
+	 (l) != &(list)->link; (l) = (l2), (l2) = (l)->next )
 
 #endif /* GENSIO_CLASS_H */
