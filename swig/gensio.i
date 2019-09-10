@@ -429,7 +429,11 @@ struct waiter { };
 
     %newobject open_channelt;
     %rename(open_channel) open_channelt;
-    struct gensio *open_channelt(const char * const *args,
+    /*
+     * Note that auxdata is really args, but we are reusing the typemap
+     * for auxdata for it.
+     */
+    struct gensio *open_channelt(const char * const *auxdata,
 				 swig_cb *handler, swig_cb *done) {
 	struct gensio_data *olddata = gensio_get_user_data(self);
 	swig_cb_val *done_val = NULL;
@@ -448,7 +452,7 @@ struct waiter { };
 	    open_done = gensio_open_done;
 	    done_val = ref_swig_cb(done, open_done);
 	}
-	rv = gensio_open_channel(self, args, gensio_child_event, data,
+	rv = gensio_open_channel(self, auxdata, gensio_child_event, data,
 				 open_done, done_val, &io);
 	if (rv) {
 	    if (done_val)
@@ -462,7 +466,11 @@ struct waiter { };
 
     %newobject open_channel_st;
     %rename(open_channel_s) open_channel_st;
-    struct gensio *open_channel_st(const char * const *args, swig_cb *handler) {
+    /*
+     * Note that auxdata is really args, but we are reusing the typemap
+     * for auxdata for it.
+     */
+    struct gensio *open_channel_st(const char * const *auxdata, swig_cb *handler) {
 	struct gensio_data *olddata = gensio_get_user_data(self);
 	struct gensio_os_funcs *o = olddata->o;
 	int rv = 0;
@@ -475,7 +483,7 @@ struct waiter { };
 	    return NULL;
 	}
 
-	rv = gensio_open_channel_s(self, args, gensio_child_event, data, &io);
+	rv = gensio_open_channel_s(self, auxdata, gensio_child_event, data, &io);
 	if (rv) {
 	    free_gensio_data(data);
 	    err_handle("open_channel", rv);
