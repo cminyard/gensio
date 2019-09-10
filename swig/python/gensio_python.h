@@ -635,13 +635,32 @@ sgensio_rts(struct sergensio *sio, int rts)
     sgensio_call(sio, rts, "srts");
 }
 
+static PyObject *
+gensio_py_handle_auxdata(const char *const *auxdata)
+{
+    if (!auxdata || !auxdata[0]) {
+	Py_INCREF(Py_None);
+	return Py_None;
+    } else {
+	PyObject *o;
+	unsigned int i, len = 0;
+
+	while (auxdata[len])
+	    len++;
+	o = PyTuple_New(len);
+	for (i = 0; i < len; i++)
+	    PyTuple_SetItem(o, i, PyString_FromString(auxdata[i]));
+	return o;
+    }
+}
+
 static int
 gensio_child_event(struct gensio *io, void *user_data, int event, int readerr,
 		   unsigned char *buf, gensiods *buflen,
 		   const char *const *auxdata)
 {
     struct gensio_data *data = user_data;
-    swig_ref io_ref = { .val = NULL };
+    swig_ref io_ref = { .val = NULL }, new_con = { .val = NULL };
     PyObject *args, *o;
     OI_PY_STATE gstate;
     int rv = 0;
@@ -678,19 +697,7 @@ gensio_child_event(struct gensio *io, void *user_data, int event, int readerr,
 	}
 	PyTuple_SET_ITEM(args, 2, o);
 
-	if (!auxdata || !auxdata[0]) {
-	    Py_INCREF(Py_None);
-	    PyTuple_SET_ITEM(args, 3, Py_None);
-	} else {
-	    unsigned int i, len = 0;
-
-	    while (auxdata[len])
-		len++;
-	    o = PyTuple_New(len);
-	    for (i = 0; i < len; i++)
-		PyTuple_SetItem(o, i, PyString_FromString(auxdata[i]));
-	    PyTuple_SET_ITEM(args, 3, o);
-	}
+	PyTuple_SET_ITEM(args, 3, gensio_py_handle_auxdata(auxdata));
 
 	rsize = swig_finish_call_rv_gensiods(data->handler_val,
 					     "read_callback", args, false);
@@ -705,6 +712,23 @@ gensio_child_event(struct gensio *io, void *user_data, int event, int readerr,
 	PyTuple_SET_ITEM(args, 0, io_ref.val);
 
 	swig_finish_call(data->handler_val, "write_callback", args, false);
+	break;
+
+    case GENSIO_EVENT_NEW_CHANNEL:
+	args = PyTuple_New(3);
+
+	ref_gensio_data(data);
+
+	io_ref = swig_make_ref(io, gensio);
+	PyTuple_SET_ITEM(args, 0, io_ref.val);
+
+	new_con = swig_make_ref((struct gensio *) buf, gensio);
+	PyTuple_SET_ITEM(args, 1, new_con.val);
+
+	PyTuple_SET_ITEM(args, 2, gensio_py_handle_auxdata(auxdata));
+
+	rv = swig_finish_call_rv_int(data->handler_val, "new_channel",
+				     args, false);
 	break;
 
     case GENSIO_EVENT_SEND_BREAK:
