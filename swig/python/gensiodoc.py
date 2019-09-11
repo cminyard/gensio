@@ -63,6 +63,20 @@ class EventHandler:
         """
         return
 
+    def new_channel(self, old_io, new_io):
+        """A new channel has been requested from the other end.
+
+        old_io - an existing channel on a mux gensio
+        new_io - a new channel for the mux gensio
+
+        Return an integer. If you return 0, the new channel is
+        accepted.  If you return non-zero, it is considered a gensio
+        error and that error is reported as an open channel failure on
+        the remote end.  If you return non-zero, the new_io is freed,
+        you should not use it.
+        """
+        return
+
     def send_break(self, io):
         """The remote end has requested that a break be sent.  This
         is for a telnet server where the remote end sent a break.
