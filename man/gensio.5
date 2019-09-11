@@ -676,7 +676,7 @@ certificate authority for the validation with GENSIO_CONTROL_CERT_AUTH.
 ssl passes remote id, remote address, and remote string to the child
 gensio.
 .SH "certauth"
-An certauth gensio runs an authentication protocol to on top of
+A certauth gensio runs an authentication protocol to on top of
 another gensio.  That gensio must be reliable and encrypted.
 
 This is like the reverse of SSL.  The client has a key and certificate,
@@ -789,6 +789,71 @@ the server.
 .SS "Remote info"
 certauth passes remote id, remote address, and remote string to the child
 gensio.
+.SH "mux"
+A mux gensio is a gensio filter that allows one or more channels to be
+created on top of a single gensio, multiplexing the connection.  Each
+channel has full individual flow-control.  The channels are message
+oriented as described above, and use can use a mux without additional
+channels to just do message demarcation.
+
+A mux gensio takes the following options:
+.TP
+.B max_channels=<n>
+Allow at most <n> channels to be created in the mux.  The default is 1000.
+The minimum value of <n> is 1, the maximum is 65536.
+.TP
+.B service=<string>
+Set the remote service requested by the client.  Optional, but the
+other end may reject the connection if it is not supplied. Ignored on
+the server.
+.PP
+When the open is complete on the mux gensio, it will work just like a
+transparent filter with message demarcation.  In effect, you have
+one channel open.
+.SS "Creating Channels"
+To create a channel, call the
+.B gensio_open_channel()
+function on the mux gensio.  This will return a new gensio that is a
+channel on the mux gensio.  You can pass in arguments, which is an
+array of strings, currently
+.B readbuf, writebuf,
+and
+.B service
+are accepted.  The service you set here will be set on the remote channel
+so the other end can fetch it.
+
+As you might imaging, the other end of a mux needs to know about the
+new channel.  If one end (either end, doesn't matter) calls
+.B gensio_open_channel()
+the other end will get a 
+.I GENSIO\_EVENT\_NEW\_CHANNEL
+event as described in the
+.B Streams and Channels
+section.  You can call it using any mux channel.
+.SS "Mux Events"
+As you might imaging, normal data events come through the gensio
+channel they are associated with.  Close events will, too.  If a mux
+gensio closes abnormally (like the underlying connection fails) you
+will get a read error on each channel.
+
+New channel events (and other global events coming from lower gensios,
+like if you are running over ssl or telnet) come in through the
+original gensio normally.  However, you can close that, another
+channel will be chosen to receive those event.  In general, it's best
+to handle the global events on all channels and not assume.
+.SS "Closing and Freeing a Mux"
+To close a mux gensio, just close all channels associated with it.
+There is no global close mechanism (you would not believe the complexity
+that adds).  Once you have closed a mux gensio, you can re-open it with
+.B gensio_open().
+It will not recreate all the channels for you, you will have one channel,
+and the channel you use to call
+.B gensio_open()
+will become the first channel.
+
+You cannot re-open individual channels.
+
+To free a mux gensio, you must free all the channels on it.
 .SH "pty"
 .B pty[(options)],<program>
 

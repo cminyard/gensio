@@ -97,6 +97,15 @@ ssl
 certauth
     A user authentication protocol implemented as a gensio filter.
 
+mux
+    A channel multiplexer.  You can create channels on top of it using
+    open_channel().  Channels work as normal gensio, so you can have a
+    number of gensios running on top of a single gensio.  It also has
+    end-of-message demarcation and obviously full flow-control
+    capability individually on each channel.  If you just need a
+    gensio with end-of-message demarcation, you can use this as
+    without creating channels.
+
 These are all documented in detail in gensio(5).  Unless otherwise
 stated, these all are available as accepters or connecting gensios.
 
