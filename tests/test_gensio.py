@@ -2,6 +2,7 @@
 import utils
 import gensio
 import sys
+import os
 from serialsim import *
 
 class Logger:
@@ -393,14 +394,14 @@ def test_stdio_basic_stderr():
 
 def test_stdio_small():
     print("Test stdio small echo")
-    rb = gensio.get_random_bytes(512)
+    rb = os.urandom(512)
     io = utils.alloc_io(o, "stdio,cat", chunksize = 64)
     utils.test_dataxfer(io, io, rb)
     utils.io_close(io)
     print("  Success!")
 
 def do_small_test(io1, io2):
-    rb = gensio.get_random_bytes(512)
+    rb = os.urandom(512)
     print("  testing io1 to io2")
     utils.test_dataxfer(io1, io2, rb)
     print("  testing io2 to io1")
@@ -410,7 +411,7 @@ def do_small_test(io1, io2):
     print("  Success!")
 
 def do_large_test(io1, io2):
-    rb = gensio.get_random_bytes(1048570)
+    rb = os.urandom(1048570)
     print("  testing io1 to io2")
     utils.test_dataxfer(io1, io2, rb, timeout=30000)
     print("  testing io2 to io1")
@@ -458,7 +459,7 @@ def test_mux_tcp_large():
     ta = TestAccept(o, io1, "mux,tcp,3023", do_large_test)
 
 def do_stream_test(io1, io2):
-    rb = gensio.get_random_bytes(10)
+    rb = os.urandom(10)
     print("  testing io1 to io2")
     utils.test_dataxfer_stream(io1, io2, rb, 2)
     print("  testing io2 to io1")
@@ -472,7 +473,7 @@ def test_sctp_streams():
     ta = TestAccept(o, io1, "sctp(instreams=3,ostreams=2),3023", do_stream_test)
 
 def do_oob_test(io1, io2):
-    rb = gensio.get_random_bytes(512)
+    rb = os.urandom(512)
     print("  testing io1 to io2")
     utils.test_dataxfer_oob(io1, io2, rb)
     print("  testing io2 to io1")
@@ -507,7 +508,7 @@ def test_ipmisol_large():
     isim = ipmisimdaemon.IPMISimDaemon(o)
     io1 = utils.alloc_io(o, "serialdev,/dev/ttyPipeA0,115200")
     io2 = utils.alloc_io(o, "ipmisol,lan -U ipmiusr -P test -p 9001 localhost,115200")
-    rb = gensio.get_random_bytes(104857)
+    rb = os.urandom(104857)
     utils.test_dataxfer(io1, io2, rb, timeout=10000)
     utils.io_close(io1)
     utils.io_close(io2)

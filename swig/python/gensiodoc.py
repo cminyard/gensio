@@ -1004,10 +1004,6 @@ class waiter:
         """Do a wakeup on this object."""
         return
 
-def get_random_bytes(size):
-    """Return size random bytes"""
-    return ""
-
 def gensio_set_log_mask(mask):
     """Set the logs that are delivered by the gensio system.
 

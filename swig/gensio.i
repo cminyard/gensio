@@ -147,25 +147,6 @@ gensio_do_wait(struct waiter *waiter, unsigned int count,
     restore_waiter(prev_waiter);
 }
 
-void get_random_bytes(char **rbuffer, size_t *rbuffer_len, int size_to_allocate)
-{
-    char *buffer;
-    int i;
-
-    buffer = malloc(size_to_allocate);
-    if (!buffer) {
-	*rbuffer = NULL;
-	*rbuffer_len = 0;
-	return;
-    }
-    srandom(time(NULL));
-
-    for (i = 0; i < size_to_allocate; i++)
-	buffer[i] = random();
-    *rbuffer = buffer;
-    *rbuffer_len = size_to_allocate;
-}
-
 #ifdef USE_POSIX_THREADS
 struct sel_lock_s {
     pthread_mutex_t lock;
@@ -1015,10 +996,6 @@ struct waiter { };
 	self->o->wake(self->waiter);
     }
 }
-
-/* Get a bunch of random bytes. */
-void get_random_bytes(char **rbuffer, size_t *rbuffer_len,
-		      int size_to_allocate);
 
 %newobject alloc_gensio_selector;
 struct gensio_os_funcs *alloc_gensio_selector(swig_cb *log_handler);
