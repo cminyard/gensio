@@ -479,8 +479,8 @@ Here's a small program::
       def read_callback(self, io, err, buf, auxdata):
           if err:
               print("Got error: " + err)
-          else:
-              print("Got data: " + buf);
+	      return 0
+          print("Got data: " + buf);
           self.readlen -= len(buf)
           if self.readlen == 0:
               io.read_cb_enable(False)
