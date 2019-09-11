@@ -56,7 +56,16 @@
 #define GE_ADDRINUSE		32
 #define GE_INTERRUPTED		33
 
-#define gensio_os_err_to_err(o, oserr)			\
+/*
+ * Gensio mux has the ability to return an arbitrary error from the
+ * new channel event that is passed back to the open_channel() return
+ * error.  This range can be used to pass back an arbitrary error or
+ * information.
+ */
+#define GE_USER_CHAN_ERR_BASE	10000
+#define GE_USER_CHAN_ERR_END	10999
+
+#define gensio_os_err_to_err(o, oserr)					\
     gensio_i_os_err_to_err(o, oserr, __FUNCTION__, __FILE__, __LINE__)
 
 const char *gensio_err_to_str(int err);
