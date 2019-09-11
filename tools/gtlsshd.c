@@ -739,7 +739,7 @@ tcp_acc_event(struct gensio_accepter *accepter, void *user_data,
 	/*
 	 * The fork, let the parent have the accepter and double fork
 	 * so parent doesn't own us.  We have to tell the os handler,
-	 * too that we worked, or epoll() misbehaves.
+	 * too that we forked, or epoll() misbehaves.
 	 */
 	err = ginfo->o->handle_fork(ginfo->o);
 	if (err) {
