@@ -189,10 +189,15 @@ pam_cb(int num_msg, const struct pam_message **msg,
     return PAM_CONV_ERR;
 }
 
-static struct pam_conv auth_conv = { pam_cb, NULL };
+static bool
+strstartswith(const char *str, const char *cmp)
+{
+    if (strncmp(str, cmp, strlen(cmp)) == 0)
+	return true;
+    return false;
+}
 
-static const char *login_service = "login:";
-static const char *program_service = "program:";
+static struct pam_conv auth_conv = { pam_cb, NULL };
 
 static bool permit_root = false;
 static bool pw_login = false;
@@ -326,7 +331,7 @@ certauth_event(struct gensio *io, void *user_data, int event, int ierr,
 		   gensio_err_to_str(err));
 	    return GE_AUTHREJECT;
 	}
-	if (strncmp(service, program_service, strlen(program_service)) == 0) {
+	if (strstartswith(service, "program:")) {
 	    char *str = strchr(service, ':') + 1;
 
 	    len -= str - service;
@@ -336,8 +341,7 @@ certauth_event(struct gensio *io, void *user_data, int event, int ierr,
 		       gensio_err_to_str(err));
 		return GE_AUTHREJECT;
 	    }
-	} else if (strncmp(service, login_service,
-			   strlen(login_service)) == 0) {
+	} else if (strstartswith(service, "login:"))
 	    char *str = strchr(service, ':') + 1;
 
 	    len -= str - service;
