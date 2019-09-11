@@ -1864,6 +1864,7 @@ mux_child_read(struct mux_data *muxdata, int ierr,
     if (ierr) {
 	gensio_set_read_callback_enable(muxdata->child, false);
 	gensio_set_write_callback_enable(muxdata->child, false);
+	gensio_close(muxdata->child, NULL, NULL);
 	mux_shutdown_channels(muxdata, ierr);
 	mux_unlock(muxdata);
 	return 0;
