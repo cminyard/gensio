@@ -159,7 +159,7 @@ static unsigned int mux_msg_hdr_sizes[] = { 0, 1, 2, 3, 2, 2 };
 
 #define MUX_MAX_HDR_SIZE	12
 
-#if 0
+#if 1
 #include <stdio.h>
 #define TRACE_MSG(fmt, ...) printf("%p: " fmt "\r\n", muxdata, ##__VA_ARGS__)
 #define TRACE_MSG_CHAN(fmt, ...) \
@@ -268,7 +268,10 @@ struct mux_inst {
 
     /* Link for list of channels waiting write. */
     struct gensio_link wrlink;
-    bool in_wrlist; /* Also true if chan == muxdata->sending_chan. */
+    bool wr_ready; /* Also true if chan == muxdata->sending_chan. */
+
+    bool in_wrlist;
+    bool in_open_chan;
 
     struct gensio_link link;
 };
@@ -418,8 +421,12 @@ struct mux_data {
     gensiods xmit_data_pos;
     gensiods xmit_data_len;
 
-    gensio_done_err open_done;
-    void *open_data;
+    /*
+     * This is for calling the gensio_acc_gensio's open done handler
+     * when the mux is completely opened in server mode.
+     */
+    gensio_done_err acc_open_done;
+    void *acc_open_data;
 
     /*
      * Channel I am currently sending data on.
@@ -671,6 +678,7 @@ finish_close_close_done(struct gensio *child, void *close_data)
 
     mux_lock(muxdata);
     finish_close(chan);
+    muxdata->state = MUX_CLOSED;
     mux_unlock(muxdata);
 }
 
@@ -726,6 +734,17 @@ mux_send_new_channel_rsp(struct mux_data *muxdata, unsigned int remote_id,
     muxdata->xmit_data_pos = 0;
     muxdata->xmit_data_len = 12;
     gensio_set_write_callback_enable(muxdata->child, true);
+}
+
+static void
+mux_send_init(struct mux_data *muxdata)
+{
+    muxdata->xmit_data[0] = (MUX_INIT << 4) | 0x1;
+    muxdata->xmit_data[1] = 0;
+    muxdata->xmit_data[2] = 1;
+    muxdata->xmit_data[3] = 0;
+    muxdata->xmit_data_pos = 0;
+    muxdata->xmit_data_len = 4;
 }
 
 /*
@@ -834,7 +853,7 @@ chan_check_read(struct mux_inst *chan)
 	    chan->received_unacked += 3;
 	}
     }
-    if (chan->read_data_len == 0 && !chan->in_wrlist &&
+    if (chan->read_data_len == 0 && !chan->wr_ready &&
 		chan->state == MUX_INST_IN_CLOSE_FINAL)
 	mux_channel_finish_close(chan);
 }
@@ -868,8 +887,9 @@ muxc_add_to_wrlist(struct mux_inst *chan)
 {
     struct mux_data *muxdata = chan->mux;
 
-    if (!chan->in_wrlist) {
+    if (!chan->wr_ready) {
 	gensio_list_add_tail(&muxdata->wrchans, &chan->wrlink);
+	chan->wr_ready = true;
 	chan->in_wrlist = true;
 	if (muxdata->state != MUX_CLOSED)
 	    gensio_set_write_callback_enable(muxdata->child, true);
@@ -1252,10 +1272,12 @@ muxc_open_channel_data(struct mux_data *muxdata,
 
     if (is_client) {
 	/* Only one open at a time is allowed, queue them otherwise. */
-	if (muxdata->opencount == 0 && muxdata->state == MUX_OPEN)
+	if (muxdata->opencount == 0 && muxdata->state == MUX_OPEN) {
 	    muxc_add_to_wrlist(chan);
-	else
+	} else {
 	    gensio_list_add_tail(&muxdata->openchans, &chan->wrlink);
+	    chan->in_open_chan = true;
+	}
 	muxdata->opencount++;
 	chan->send_new_channel = true;
     }
@@ -1372,6 +1394,37 @@ mux_child_open_done(struct gensio *child, int err, void *open_data)
     mux_unlock(muxdata);
 }
 
+static void
+muxc_reinit(struct mux_inst *chan)
+{
+    chan->id = 0;
+    chan->remote_id = 0;
+    chan->refcount = 1;
+    chan->state = MUX_INST_PENDING_OPEN;
+    chan->send_close = false;
+    chan->ack_pending = false;
+    chan->read_enabled = false;
+    chan->read_data_pos = 0;
+    chan->read_data_len = 0;
+    chan->in_read_report = false;
+    chan->received_unacked = 0;
+    chan->write_data_pos = 0;
+    chan->write_data_len = 0;
+    chan->write_ready_enabled = false;
+    chan->in_write_ready = false;
+    chan->sent_unacked = 0;
+    chan->deferred_op_pending = false;
+    chan->cur_msg_len = 0;
+    chan->close_done = NULL;
+    chan->wr_ready = false;
+    if (!chan->in_open_chan) {
+	gensio_list_add_tail(&chan->mux->openchans, &chan->wrlink);
+	chan->in_open_chan = true;
+    }
+    chan->mux->opencount = 1;
+    chan->send_new_channel = true;
+}
+
 static int
 muxc_open(struct mux_inst *chan, gensio_done_err open_done, void *open_data)
 {
@@ -1380,12 +1433,19 @@ muxc_open(struct mux_inst *chan, gensio_done_err open_done, void *open_data)
 
     mux_lock(muxdata);
     if (muxdata->state == MUX_CLOSED) {
-	struct mux_inst *chan = mux_chan0(muxdata);
+	if (!muxdata->is_client) {
+	    err = GE_NOTSUP;
+	    goto out_unlock;
+	}
 
-	chan->id = 0;
-	chan->remote_id = 0;
-	chan->state = MUX_INST_IN_OPEN;
-	chan->send_new_channel = true;
+	muxdata->sending_chan = NULL;
+	muxdata->in_hdr = true;
+	muxdata->hdr_pos = 0;
+	muxdata->hdr_size = 0;
+	muxdata->last_id = 0;
+	muxc_reinit(chan);
+	mux_send_init(muxdata);
+
 	gensio_list_rm(&muxdata->chans, &chan->link);
 	gensio_list_add_head(&muxdata->chans, &chan->link);
 	chan->open_done = open_done;
@@ -1397,6 +1457,7 @@ muxc_open(struct mux_inst *chan, gensio_done_err open_done, void *open_data)
 	    muxdata->state = MUX_UNINITIALIZED;
 	}
     }
+ out_unlock:
     mux_unlock(muxdata);
     return err;
 }
@@ -1508,12 +1569,21 @@ mux_shutdown_channels(struct mux_data *muxdata, int err)
     if (muxdata->state == MUX_WAITING_OPEN) {
 	chan = mux_chan0(muxdata);
 	mux_unlock(muxdata);
-	muxdata->open_done(chan->io, err, muxdata->open_data);
+	muxdata->acc_open_done(chan->io, err, muxdata->acc_open_data);
 	mux_lock(muxdata);
     }
 
     gensio_list_for_each_safe(&muxdata->chans, l, l2) {
 	chan = gensio_container_of(l, struct mux_inst, link);
+	if (chan->in_wrlist) {
+	    gensio_list_rm(&muxdata->wrchans, &chan->wrlink);
+	    chan->in_wrlist = false;
+	}
+	if (chan->in_open_chan) {
+	    gensio_list_rm(&muxdata->openchans, &chan->wrlink);
+	    muxdata->opencount--;
+	    chan->in_open_chan = false;
+	}
 	if (chan->state == MUX_INST_CLOSED ||
 		chan->state == MUX_INST_IN_REM_CLOSE ||
 		chan->state == MUX_INST_IN_CLOSE_FINAL)
@@ -1525,8 +1595,8 @@ mux_shutdown_channels(struct mux_data *muxdata, int err)
 	}
 	if (chan->state == MUX_INST_IN_OPEN ||
 		chan->state == MUX_INST_IN_OPEN_CLOSE) {
+	    chan->state = MUX_INST_IN_CLOSE_FINAL;
 	    if (chan->open_done) {
-		chan->state = MUX_INST_IN_CLOSE_FINAL;
 		chan_ref(chan);
 		mux_unlock(muxdata);
 		chan->open_done(chan->io, err, chan->open_data);
@@ -1536,6 +1606,7 @@ mux_shutdown_channels(struct mux_data *muxdata, int err)
 	    continue;
 	}
 
+	/* Report the error through the read interface. */
 	chan->errcode = err;
 	chan->state = MUX_INST_IN_REM_CLOSE;
 	chan_sched_deferred_op(chan);
@@ -1671,12 +1742,13 @@ mux_child_write_ready(struct mux_data *muxdata)
 			chan->send_close) {
 		/* More messages to send, add it to the tail for fairness. */
 		gensio_list_add_tail(&muxdata->wrchans, &chan->wrlink);
+		chan->in_wrlist = true;
 	    } else if (chan->state == MUX_INST_IN_CLOSE_FINAL &&
 		       chan->read_data_len == 0) {
 		mux_channel_finish_close(chan);
 		/* chan could be freed after this point, be careful! */
 	    } else {
-		chan->in_wrlist = false;
+		chan->wr_ready = false;
 		if (chan->state == MUX_INST_IN_CLOSE_FINAL)
 		    chan_sched_deferred_op(chan);
 	    }
@@ -1711,6 +1783,7 @@ mux_child_write_ready(struct mux_data *muxdata)
 	chan = gensio_container_of(gensio_list_first(&muxdata->wrchans),
 				   struct mux_inst, wrlink);
 	gensio_list_rm(&muxdata->wrchans, &chan->wrlink);
+	chan->in_wrlist = false;
 	chan->sgpos = 0;
 
 	if (chan->send_new_channel) {
@@ -1719,7 +1792,7 @@ mux_child_write_ready(struct mux_data *muxdata)
 	    muxdata->sending_chan = chan;
 	} else if (chan->write_data_len || chan->ack_pending) {
 	    if (!chan_setup_send_data(chan)) {
-		chan->in_wrlist = false;
+		chan->wr_ready = false;
 		goto check_next_channel;
 	    }
 	    muxdata->sending_chan = chan;
@@ -1730,7 +1803,7 @@ mux_child_write_ready(struct mux_data *muxdata)
 	    muxdata->sending_chan = chan;
 	} else {
 	    muxdata->sending_chan = NULL;
-	    chan->in_wrlist = false;
+	    chan->wr_ready = false;
 	    goto check_next_channel;
 	}
 	goto next_channel;
@@ -1917,6 +1990,7 @@ mux_child_read(struct mux_data *muxdata, int ierr,
 				gensio_list_first(&muxdata->openchans),
 				struct mux_inst, wrlink);
 		    gensio_list_rm(&muxdata->openchans, &next_chan->wrlink);
+		    next_chan->in_open_chan = false;
 		    muxc_add_to_wrlist(next_chan);
 		}
 
@@ -1946,7 +2020,7 @@ mux_child_read(struct mux_data *muxdata, int ierr,
 		chan->errcode = mux_buf_to_u16(muxdata->hdr + 4);
 		if (chan->state == MUX_INST_IN_CLOSE) {
 		    chan->state = MUX_INST_IN_CLOSE_FINAL;
-		    if (chan->read_data_len == 0 && !chan->in_wrlist)
+		    if (chan->read_data_len == 0 && !chan->wr_ready)
 			mux_channel_finish_close(chan);
 		    /* chan could be freed after this point, be careful. */
 		} else {
@@ -2079,7 +2153,7 @@ mux_child_read(struct mux_data *muxdata, int ierr,
 		    muxdata->state = MUX_OPEN;
 		    chan->state = MUX_INST_OPEN;
 		    mux_unlock(muxdata);
-		    muxdata->open_done(chan->io, 0, muxdata->open_data);
+		    muxdata->acc_open_done(chan->io, 0, muxdata->acc_open_data);
 		    mux_lock(muxdata);
 		    mux_send_new_channel_rsp(muxdata, chan->remote_id,
 					     chan->max_read_size,
@@ -2218,12 +2292,7 @@ mux_gensio_alloc_data(struct gensio *child, struct gensio_mux_config *data,
     gensio_set_callback(child, mux_child_cb, muxdata);
 
     /* Set up to send the init message. */
-    muxdata->xmit_data[0] = (MUX_INIT << 4) | 0x1;
-    muxdata->xmit_data[1] = 0;
-    muxdata->xmit_data[2] = 1;
-    muxdata->xmit_data[3] = 0;
-    muxdata->xmit_data_pos = 0;
-    muxdata->xmit_data_len = 4;
+    mux_send_init(muxdata);
 
     /* Allocate channel 0. */
     rv = muxc_open_channel_data(muxdata, cb, user_data,
@@ -2344,8 +2413,8 @@ muxna_new_child(void *acc_data, void **finish_data,
 	chan = mux_chan0(muxdata);
 	ncio->new_io = chan->io;
 	muxdata->state = MUX_UNINITIALIZED;
-	muxdata->open_done = ncio->open_done;
-	muxdata->open_data = ncio->open_data;
+	muxdata->acc_open_done = ncio->open_done;
+	muxdata->acc_open_data = ncio->open_data;
 	gensio_set_write_callback_enable(muxdata->child, true);
 	gensio_set_read_callback_enable(muxdata->child, true);
 	mux_unlock(muxdata);

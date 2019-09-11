@@ -936,6 +936,29 @@ def test_mux_limits():
         raise utils.HandlerException(
             "Timeout waiting for server all close finish")
 
+    print("Re-open the mux")
+    handlemuxacc.set_op_count(1)
+    handlemuxcl.set_op_count(1)
+    muxcl.open(handlemuxcl)
+    if (handlemuxcl.wait(timeout = 1000) == 0):
+        raise utils.HandlerException(
+            "Timeout waiting for single client open finish")
+    if (handlemuxacc.wait(timeout = 1000) == 0):
+        raise utils.HandlerException(
+            "Timeout waiting for single client open finish")
+
+    print("Re-close the mux")
+    handlemuxacc.set_op_count(1)
+    handlemuxcl.set_op_count(1)
+    handlemuxcl.channels[0] = muxcl
+    muxcl.close(handlemuxcl)
+    if (handlemuxcl.wait(timeout = 1000) == 0):
+        raise utils.HandlerException(
+            "Timeout waiting for single client open finish")
+    if (handlemuxacc.wait(timeout = 1000) == 0):
+        raise utils.HandlerException(
+            "Timeout waiting for single client open finish")
+
     return
 
 test_mux_limits()
