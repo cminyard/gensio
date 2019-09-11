@@ -479,7 +479,7 @@ Here's a small program::
       def read_callback(self, io, err, buf, auxdata):
           if err:
               print("Got error: " + err)
-	      return 0
+              return 0
           print("Got data: " + buf);
           self.readlen -= len(buf)
           if self.readlen == 0:
