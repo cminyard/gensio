@@ -159,7 +159,7 @@ static unsigned int mux_msg_hdr_sizes[] = { 0, 1, 2, 3, 2, 2 };
 
 #define MUX_MAX_HDR_SIZE	12
 
-#if 1
+#if 0
 #include <stdio.h>
 #define TRACE_MSG(fmt, ...) printf("%p: " fmt "\r\n", muxdata, ##__VA_ARGS__)
 #define TRACE_MSG_CHAN(fmt, ...) \
@@ -2082,6 +2082,8 @@ mux_child_read(struct mux_data *muxdata, int ierr,
 	    chan = muxdata->curr_chan;
 	    if (muxdata->data_pos == 1) {
 		muxdata->data_size |= *buf;
+		muxdata->data_pos++;
+		used = 1;
 		switch (muxdata->msgid) {
 		case MUX_NEW_CHANNEL:
 		    if (!chan)
@@ -2101,11 +2103,8 @@ mux_child_read(struct mux_data *muxdata, int ierr,
 		    break;
 
 		case MUX_DATA:
-		    if (muxdata->data_size == 0) {
-			muxdata->data_pos++;
-			used = 1;
+		    if (muxdata->data_size == 0)
 			goto handle_read_no_data;
-		    }
 		    if (chan_rdbufleft(chan) < muxdata->data_size + 3) {
 			proto_err_str = "Too much data from remote end";
 			goto protocol_err;
@@ -2119,8 +2118,6 @@ mux_child_read(struct mux_data *muxdata, int ierr,
 		default:
 		    abort();
 		}
-		muxdata->data_pos++;
-		used = 1;
 		goto more_data;
 	    }
 
@@ -2199,7 +2196,8 @@ mux_child_read(struct mux_data *muxdata, int ierr,
 		    }
 		}
 		muxdata->in_hdr = true;
-		chan_deref(chan);
+		if (chan)
+		    chan_deref(chan);
 		goto more_data;
 
 	    case MUX_DATA:

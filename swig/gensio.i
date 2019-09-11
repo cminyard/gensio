@@ -566,7 +566,9 @@ struct waiter { };
 	if (timeout < 0)
 	    rtv = NULL;
 	rv = gensio_read_s(self, &count, buf, reqlen, rtv);
-	if (!rv) {
+	if (rv) {
+	    free(buf);
+	} else {
 	    *rbuffer = buf;
 	    *rbuffer_len = count;
 	}
