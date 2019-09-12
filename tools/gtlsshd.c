@@ -281,14 +281,10 @@ static bool pw_login = false;
 static bool pam_started = false;
 static bool pam_cred_set = false;
 static char username[100];
-static char **progv; /* If set in the service. */
-static char *service;
 static char *homedir;
 static int pam_err;
 static uid_t uid = -1;
 static gid_t gid = -1;
-static char **env;
-unsigned int env_len;
 
 static int
 get_vals_from_service(char ***rvals, unsigned int *rvlen,
@@ -384,52 +380,6 @@ certauth_event(struct gensio *io, void *user_data, int event, int ierr,
 	    syslog(LOG_ERR, "Could not set authdir %s: %s", authdir,
 		   gensio_err_to_str(err));
 	    return GE_NOTSUP;
-	}
-
-	len = 0;
-	err = gensio_control(io, 0, true, GENSIO_CONTROL_SERVICE,
-			     NULL, &len);
-	if (err) {
-	    syslog(LOG_ERR, "Could not get service: %s",
-		   gensio_err_to_str(err));
-	    return GE_AUTHREJECT;
-	}
-	len++; /* Add terminating nil. */
-	service = malloc(len);
-	if (!service) {
-	    syslog(LOG_ERR, "Could not allocate service memory");
-	    return GE_NOMEM;
-	}
-	err = gensio_control(io, 0, true, GENSIO_CONTROL_SERVICE,
-			     service, &len);
-	if (err) {
-	    syslog(LOG_ERR, "Could not get service(2): %s",
-		   gensio_err_to_str(err));
-	    return GE_AUTHREJECT;
-	}
-	if (strstartswith(service, "program:")) {
-	    char *str = strchr(service, ':') + 1;
-
-	    len -= str - service;
-	    err = get_vals_from_service(&progv, NULL, str, len);
-	    if (err) {
-		syslog(LOG_ERR, "Could not get vals from service: %s",
-		       gensio_err_to_str(err));
-		return GE_AUTHREJECT;
-	    }
-	} else if (strstartswith(service, "login:")) {
-	    char *str = strchr(service, ':') + 1;
-
-	    len -= str - service;
-	    err = get_vals_from_service(&env, &env_len, str, len);
-	    if (err) {
-		syslog(LOG_ERR, "Could not get vals from service: %s",
-		       gensio_err_to_str(err));
-		return GE_AUTHREJECT;
-	    }
-	} else {
-	    syslog(LOG_ERR, "unknown service for %s: %s", username, service);
-	    return GE_AUTHREJECT;
 	}
 
 	return GE_NOTSUP;
@@ -554,8 +504,83 @@ new_rem_io(struct gensio *io, struct gdata *ginfo)
     struct gensio_os_funcs *o = ginfo->o;
     struct per_con_info *pcinfo;
     struct gensio *pty_io;
+    gensiods len;
     char *s;
     int err;
+    char **progv = NULL; /* If set in the service. */
+    char *service = NULL;
+    char **env = NULL;
+    unsigned int env_len;
+    unsigned int i, j;
+
+    len = 0;
+    err = gensio_control(io, 0, true, GENSIO_CONTROL_SERVICE,
+			 NULL, &len);
+    if (err) {
+	struct timeval timeout = {10, 0};
+
+	write_str_to_gensio("No service set on this connection\n",
+			    io, &timeout, true);
+	goto out_free;
+    }
+    len++; /* Add terminating nil. */
+    service = malloc(len);
+    if (!service) {
+	syslog(LOG_ERR, "Could not allocate service memory");
+	goto out_free;
+    }
+    err = gensio_control(io, 0, true, GENSIO_CONTROL_SERVICE,
+			 service, &len);
+    if (err) {
+	syslog(LOG_ERR, "Could not get service(2): %s",
+	       gensio_err_to_str(err));
+	goto out_free;
+    }
+    if (strstartswith(service, "program:")) {
+	char *str = strchr(service, ':') + 1;
+
+	len -= str - service;
+	err = get_vals_from_service(&progv, NULL, str, len);
+    out_bad_vals:
+	if (err) {
+	    struct timeval timeout = {10, 0};
+
+	    write_str_to_gensio("Could not get vals from service",
+				io, &timeout, true);
+	    goto out_free;
+	}
+    } else if (strstartswith(service, "login:")) {
+	char *str = strchr(service, ':') + 1;
+
+	len -= str - service;
+	err = get_vals_from_service(&env, &env_len, str, len);
+	if (err)
+	    goto out_bad_vals;
+    } else {
+	struct timeval timeout = {10, 0};
+
+	write_str_to_gensio("Unknown service", io, &timeout, true);
+	goto out_free;
+    }
+
+    if (env_len > 0) {
+	char **penv2;
+
+	for (i = 0; pam_env[i]; i++)
+	    ;
+	penv2 = malloc((i + env_len + 1) * sizeof(char *));
+	if (!penv2) {
+	    syslog(LOG_ERR, "Failure to reallocate env for %s", username);
+	    exit(1);
+	}
+	for (i = 0; pam_env[i]; i++)
+	    penv2[i] = pam_env[i];
+	for (j = 0; j < env_len; i++, j++)
+	    penv2[i] = env[j];
+	penv2[i] = NULL;
+	free(env);
+	env = penv2;
+    }
 
     pcinfo = malloc(sizeof(*pcinfo));
     if (!pcinfo) {
@@ -666,13 +691,22 @@ new_rem_io(struct gensio *io, struct gdata *ginfo)
 
     ioinfo_set_ready(pcinfo->ioinfo1, io);
     ioinfo_set_ready(pcinfo->ioinfo2, pty_io);
-    return;
+    io = NULL;
+    goto out_free;
 
  out_err:
     gshutdown(pcinfo->ioinfo1, false);
-    return;
+    io = NULL;
+
  out_free:
-    gensio_free(io);
+    if (io)
+	gensio_free(io);
+    if (env)
+	free(env);
+    if (progv)
+	free(progv);
+    if (service)
+	free(service);
 }
 
 static void
@@ -686,7 +720,9 @@ handle_new(struct gensio_runner *r, void *cb_data)
     const char *certauth_args[] = { "mode=server", "allow-authfail", NULL,
 				    NULL };
     struct gensio *ssl_io, *certauth_io;
-    unsigned int i, j;
+    gensiods len;
+    char tmpservice[20];
+    bool interactive = false;
 
     o->free_runner(r);
 
@@ -754,17 +790,29 @@ handle_new(struct gensio_runner *r, void *cb_data)
 	/* FIXME - gensio_set_is_authenticated(certauth_io, true); */
     }
 
+    len = sizeof(tmpservice);
+    err = gensio_control(certauth_io, 0, true, GENSIO_CONTROL_SERVICE,
+			 tmpservice, &len);
+    if (err) {
+	struct timeval timeout = {10, 0};
+	write_str_to_gensio("Could not get service\n", certauth_io,
+			    &timeout, true);
+	exit(1);
+    }
+    if (strstartswith(tmpservice, "login:"))
+	interactive = true;
+
     if (file_is_readable("/etc/nologin") && uid != 0) {
-	struct timeval t = { 10, 0 }; /* Give it 10 seconds. */
-	if (!progv)
+	struct timeval timeout = {10, 0};
+	if (interactive)
 	    /* Don't send this to non-interactive logins. */
-	    write_file_to_gensio("/etc/nologin", certauth_io, o, &t, true);
+	    write_file_to_gensio("/etc/nologin", certauth_io, o, &timeout, true);
 	exit(1);
     }
 
     pam_err = pam_acct_mgmt(pamh, 0);
     if (pam_err == PAM_NEW_AUTHTOK_REQD) {
-	if (progv) {
+	if (interactive) {
 	    syslog(LOG_ERR, "user %s password expired, non-interactive login",
 		   username);
 	    exit(1);
@@ -798,30 +846,6 @@ handle_new(struct gensio_runner *r, void *cb_data)
 	syslog(LOG_ERR, "pam_getenvlist failed for %s", username);
 	exit(1);
     }
-    if (env_len > 0) {
-	char **penv2;
-
-	for (i = 0; pam_env[i]; i++)
-	    ;
-	penv2 = malloc((i + env_len + 1) * sizeof(char *));
-	if (!penv2) {
-	    syslog(LOG_ERR, "Failure to reallocate env for %s", username);
-	    exit(1);
-	}
-	for (i = 0; pam_env[i]; i++)
-	    penv2[i] = pam_env[i];
-	for (j = 0; j < env_len; i++, j++) {
-	    penv2[i] = strdup(env[j]);
-	    if (!penv2[i]) {
-		syslog(LOG_ERR, "Failure to alloc env value %s", env[j]);
-		exit(1);
-	    }
-	}
-	penv2[i] = NULL;
-	free(pam_env);
-	pam_env = penv2;
-    }
-
     /* login will open the session, don't do it here. */
 
     /* At this point we are fully authenticated and have all global info. */
