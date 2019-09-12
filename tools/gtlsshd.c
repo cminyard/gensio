@@ -1024,7 +1024,7 @@ main(int argc, char *argv[])
     if (!oneshot)
 	openlog(progname, 0, LOG_AUTH);
     else
-	openlog("progname", LOG_PID | LOG_CONS | LOG_PERROR, LOG_DAEMON);
+	openlog(progname, LOG_PID | LOG_CONS | LOG_PERROR, LOG_DAEMON);
     syslog(LOG_NOTICE, "gtlsshd startup");
     if (!oneshot && daemonize) {
 	pid_t pid;
