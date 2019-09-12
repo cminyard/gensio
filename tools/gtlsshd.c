@@ -592,13 +592,13 @@ new_rem_io(struct gensio *io, struct gdata *ginfo)
 
     pcinfo->ioinfo1 = alloc_ioinfo(o, -1, NULL, NULL, &guh, pcinfo);
     if (!pcinfo->ioinfo1) {
-	fprintf(stderr, "Could not allocate ioinfo 1\n");
+	syslog(LOG_ERR, "Could not allocate ioinfo 1\n");
 	goto out_free;
     }
 
     pcinfo->ioinfo2 = alloc_ioinfo(o, -1, NULL, NULL, &guh, pcinfo);
     if (!pcinfo->ioinfo2) {
-	fprintf(stderr, "Could not allocate ioinfo 2\n");
+	syslog(LOG_ERR, "Could not allocate ioinfo 2\n");
 	goto out_free;
     }
 
