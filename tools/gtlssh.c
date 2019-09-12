@@ -48,7 +48,7 @@ char *tlssh_dir = NULL;
 int port = 852;
 
 static void
-gshutdown(struct ioinfo *ioinfo)
+gshutdown(struct ioinfo *ioinfo, bool user_req)
 {
     struct gdata *ginfo = ioinfo_userdata(ioinfo);
 
