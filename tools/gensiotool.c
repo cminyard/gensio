@@ -40,7 +40,7 @@ struct gdata {
 };
 
 static void
-gshutdown(struct ioinfo *ioinfo)
+gshutdown(struct ioinfo *ioinfo, bool user_req)
 {
     struct gdata *ginfo = ioinfo_userdata(ioinfo);
 
@@ -83,7 +83,7 @@ io_open(struct gensio *io, int err, void *open_data)
 	ginfo->can_close = false;
 	fprintf(stderr, "open error on %s: %s", ginfo->ios,
 		gensio_err_to_str(err));
-	gshutdown(ioinfo);
+	gshutdown(ioinfo, false);
     } else {
 	ioinfo_set_ready(ioinfo, io);
     }

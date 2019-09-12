@@ -126,7 +126,7 @@ handle_escapechar(struct ioinfo *ioinfo, char c)
     c = tolower(c);
 
     if (c == 'q') {
-	ioinfo->uh->shutdown(ioinfo);
+	ioinfo->uh->shutdown(ioinfo, true);
 	return false;
     }
 
@@ -163,7 +163,7 @@ io_event(struct gensio *io, void *user_data, int event, int err,
     if (err) {
 	if (err != GE_REMCLOSE) 
 	    ioinfo_err(ioinfo, "read error: %s", gensio_err_to_str(err));
-	ioinfo->uh->shutdown(ioinfo);
+	ioinfo->uh->shutdown(ioinfo, false);
 	return 0;
     }
 
@@ -199,7 +199,7 @@ io_event(struct gensio *io, void *user_data, int event, int err,
 	    if (rv) {
 		gensio_set_read_callback_enable(ioinfo->io, false);
 		ioinfo_err(rioinfo, "write error: %s", gensio_err_to_str(rv));
-		ioinfo->uh->shutdown(ioinfo);
+		ioinfo->uh->shutdown(ioinfo, false);
 		return 0;
 	    }
 	} else {

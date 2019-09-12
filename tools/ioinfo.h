@@ -94,9 +94,11 @@ struct ioinfo_sub_handlers {
 struct ioinfo_user_handlers {
     /*
      * Called when an error occurs on the gensios or when escape-q is
-     * received.  The user should shut down the gensios.
+     * received.  The user should shut down the gensios.  If user_req
+     * is set, then it was due to a user command.  Otherwise it was
+     * due to an I/O error from either end.
      */
-    void (*shutdown)(struct ioinfo *ioinfo);
+    void (*shutdown)(struct ioinfo *ioinfo, bool user_req);
 
     /*
      * Called to report an error received from the gensio.
