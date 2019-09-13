@@ -350,7 +350,7 @@ stdion_deferred_op(struct gensio_runner *runner, void *cbdata)
 	    schan->close_done(schan->io, schan->close_data);
 	    stdiona_lock(nadata);
 	}
-	if (schan->in_free) {
+	if (schan->in_free && schan->io) {
 	    gensio_data_free(schan->io);
 	    schan->io = NULL;
 	}

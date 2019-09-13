@@ -106,6 +106,16 @@ closecount_decr(struct gdata *ginfo)
 }
 
 static void
+io_finish_close(struct per_con_info *pcinfo)
+{
+    if (pcinfo->io1 == NULL && pcinfo->io2 == NULL) {
+	free(pcinfo->ioinfo1);
+	free(pcinfo->ioinfo2);
+	free(pcinfo);
+    }
+}
+
+static void
 io_close(struct gensio *io, void *close_data)
 {
     struct per_con_info *pcinfo = close_data;
@@ -119,12 +129,7 @@ io_close(struct gensio *io, void *close_data)
 	abort();
 
     gensio_free(io);
-
-    if (pcinfo->io1 == NULL && pcinfo->io2 == NULL) {
-	free(pcinfo->ioinfo1);
-	free(pcinfo->ioinfo2);
-	free(pcinfo);
-    }
+    io_finish_close(pcinfo);
 
     closecount_decr(ginfo);
 }
@@ -143,7 +148,14 @@ close_con_info(struct per_con_info *pcinfo)
 	    syslog(LOG_ERR, "Unable to close remote: %s",
 		   gensio_err_to_str(err));
 	    ginfo->closecount--;
+	    gensio_free(pcinfo->io1);
+	    pcinfo->io1 = NULL;
+	    io_finish_close(pcinfo);
 	}
+    } else if (pcinfo->io1) {
+	gensio_free(pcinfo->io1);
+	pcinfo->io1 = NULL;
+	io_finish_close(pcinfo);
     }
 
     if (pcinfo->io2_can_close) {
@@ -153,7 +165,14 @@ close_con_info(struct per_con_info *pcinfo)
 	    syslog(LOG_ERR, "Unable to close local: %s",
 		   gensio_err_to_str(err));
 	    ginfo->closecount--;
+	    gensio_free(pcinfo->io2);
+	    pcinfo->io2 = NULL;
+	    io_finish_close(pcinfo);
 	}
+    } else if (pcinfo->io2) {
+	gensio_free(pcinfo->io2);
+	pcinfo->io2 = NULL;
+	io_finish_close(pcinfo);
     }
 }
 
@@ -517,15 +536,15 @@ static void
 new_rem_io(struct gensio *io, struct gdata *ginfo)
 {
     struct gensio_os_funcs *o = ginfo->o;
-    struct per_con_info *pcinfo;
+    struct per_con_info *pcinfo = NULL;
     struct gensio *pty_io;
     gensiods len;
     char *s;
     int err;
     char **progv = NULL; /* If set in the service. */
     char *service = NULL;
-    char **env = NULL;
-    unsigned int env_len;
+    char **env = NULL, **penv2;
+    unsigned int env_len = 0;
     unsigned int i, j;
 
     len = 0;
@@ -578,24 +597,22 @@ new_rem_io(struct gensio *io, struct gdata *ginfo)
 	goto out_free;
     }
 
-    if (env_len > 0) {
-	char **penv2;
-
-	for (i = 0; pam_env[i]; i++)
-	    ;
-	penv2 = malloc((i + env_len + 1) * sizeof(char *));
-	if (!penv2) {
-	    syslog(LOG_ERR, "Failure to reallocate env for %s", username);
-	    exit(1);
-	}
-	for (i = 0; pam_env[i]; i++)
-	    penv2[i] = pam_env[i];
+    for (i = 0; pam_env[i]; i++)
+	;
+    penv2 = malloc((i + env_len + 1) * sizeof(char *));
+    if (!penv2) {
+	syslog(LOG_ERR, "Failure to reallocate env for %s", username);
+	exit(1);
+    }
+    for (i = 0; pam_env[i]; i++)
+	penv2[i] = pam_env[i];
+    if (env) {
 	for (j = 0; j < env_len; i++, j++)
 	    penv2[i] = env[j];
-	penv2[i] = NULL;
 	free(env);
-	env = penv2;
     }
+    penv2[i] = NULL;
+    env = penv2;
 
     pcinfo = malloc(sizeof(*pcinfo));
     if (!pcinfo) {
@@ -668,7 +685,7 @@ new_rem_io(struct gensio *io, struct gdata *ginfo)
     }
 
     err = gensio_control(pty_io, 0, false, GENSIO_CONTROL_ENVIRONMENT,
-			 (char *) pam_env, NULL);
+			 (char *) env, NULL);
     if (err) {
 	syslog(LOG_ERR, "set env failed for %s: %s", username,
 	       gensio_err_to_str(err));
