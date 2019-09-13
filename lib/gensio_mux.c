@@ -612,16 +612,32 @@ mux_chan0(struct mux_data *muxdata)
 			       struct mux_inst, link);
 }
 
+static struct mux_inst *
+mux_firstchan(struct mux_data *muxdata)
+{
+    struct gensio_link *l;
+    struct mux_inst *chan;
+
+    gensio_list_for_each(&muxdata->chans, l) {
+	chan = gensio_container_of(gensio_list_first(&muxdata->chans),
+				   struct mux_inst, link);
+	if (chan->state != MUX_INST_CLOSED &&
+		chan->state != MUX_INST_PENDING_OPEN)
+	    return chan;
+    }
+    abort();
+}
+
 static int
-mux_chan0_event(struct mux_data *muxdata, int event, int err,
-		unsigned char *buf, gensiods *buflen,
-		const char * const * auxdata)
+mux_firstchan_event(struct mux_data *muxdata, int event, int err,
+		    unsigned char *buf, gensiods *buflen,
+		    const char * const * auxdata)
 {
     int rerr;
     struct mux_inst *chan;
 
     mux_lock(muxdata);
-    chan = mux_chan0(muxdata);
+    chan = mux_firstchan(muxdata);
     chan_ref(chan);
     mux_unlock(muxdata);
     rerr = gensio_cb(chan->io, event, err, buf, buflen, auxdata);
@@ -2160,8 +2176,8 @@ mux_child_read(struct mux_data *muxdata, int ierr,
 			auxdata[0] = chan->service;
 		    else
 			auxdata[0] = "";
-		    err = mux_chan0_event(muxdata, GENSIO_EVENT_NEW_CHANNEL, 0,
-					  (void *) chan->io, 0, auxdata);
+		    err = mux_firstchan_event(muxdata, GENSIO_EVENT_NEW_CHANNEL,
+					      0, (void *) chan->io, 0, auxdata);
 		    mux_lock(muxdata);
 		    if (err) {
 		    new_chan_err:
@@ -2256,7 +2272,7 @@ mux_child_cb(struct gensio *io, void *user_data, int event,
 	return GE_NOTSUP;
 
     default:
-	return mux_chan0_event(muxdata, event, err, buf, buflen, auxdata);
+	return mux_firstchan_event(muxdata, event, err, buf, buflen, auxdata);
     }
 }
 
