@@ -410,6 +410,9 @@ struct mux_data {
 
     unsigned int max_channels;
 
+    /* Number of channels that are not closed. */
+    unsigned int nr_not_closed;
+
     bool is_client;
 
     /*
@@ -464,9 +467,8 @@ struct mux_data {
     unsigned int opencount;
 
     /*
-     * All the channels in the mux.  The non-closed channels are
-     * kept in id order at the begining of this list.  The closed
-     * channels are kept at the end in no particular order.
+     * All the channels in the mux.  The channels are kept in id
+     * order.
      */
     struct gensio_list chans;
 };
@@ -638,9 +640,9 @@ mux_channel_set_closed(struct mux_inst *chan, gensio_done close_done,
     int err;
 
     chan->state = MUX_INST_CLOSED;
-    gensio_list_rm(&muxdata->chans, &chan->link);
-    gensio_list_add_tail(&muxdata->chans, &chan->link);
-    if (mux_chan0(muxdata)->state == MUX_INST_CLOSED) {
+    assert(muxdata->nr_not_closed > 0);
+    muxdata->nr_not_closed--;
+    if (muxdata->nr_not_closed == 0) {
 	/* There are no open instances, shut the mux down. */
 	muxdata->state = MUX_IN_CLOSE;
 	err = gensio_close(muxdata->child, close_done, close_data);
@@ -1194,22 +1196,16 @@ mux_new_channel(struct mux_data *muxdata, gensio_event cb, void *user_data,
 	id = muxdata->last_id;
 	gensio_list_for_each(&muxdata->chans, l) {
 	    tchan = gensio_container_of(l, struct mux_inst, link);
-	    if (tchan->id > id || tchan->state == MUX_INST_CLOSED)
+	    if (tchan->id > id)
 		break;
 	    p = l;
 	}
 
 	id = next_chan_id(muxdata, id);
 	l = gensio_list_next_wrap(&muxdata->chans, p);
-	if (tchan->state == MUX_INST_CLOSED)
-	    l = gensio_list_first(&muxdata->chans);
 	f = l;
 	do {
 	    tchan = gensio_container_of(l, struct mux_inst, link);
-	    if (tchan->state == MUX_INST_CLOSED) {
-		l = gensio_list_first(&muxdata->chans);
-		continue;
-	    }
 	    if (id != tchan->id)
 		goto found;
 	    id = next_chan_id(muxdata, id);
@@ -1381,9 +1377,6 @@ mux_child_open_done(struct gensio *child, int err, void *open_data)
 static void
 muxc_reinit(struct mux_inst *chan)
 {
-    chan->id = 0;
-    chan->remote_id = 0;
-    chan->refcount = 1;
     chan->state = MUX_INST_PENDING_OPEN;
     chan->send_close = false;
     chan->ack_pending = false;
@@ -1401,12 +1394,6 @@ muxc_reinit(struct mux_inst *chan)
     chan->cur_msg_len = 0;
     chan->close_done = NULL;
     chan->wr_ready = false;
-    if (!chan->in_open_chan) {
-	gensio_list_add_tail(&chan->mux->openchans, &chan->wrlink);
-	chan->in_open_chan = true;
-    }
-    chan->mux->opencount = 1;
-    chan->send_new_channel = true;
 }
 
 static int
@@ -1428,6 +1415,12 @@ muxc_open(struct mux_inst *chan, gensio_done_err open_done, void *open_data)
 	muxdata->hdr_size = 0;
 	muxdata->last_id = 0;
 	muxc_reinit(chan);
+	if (!chan->in_open_chan) {
+	    gensio_list_add_tail(&chan->mux->openchans, &chan->wrlink);
+	    chan->in_open_chan = true;
+	}
+	chan->mux->opencount = 1;
+	chan->send_new_channel = true;
 	mux_send_init(muxdata);
 
 	gensio_list_rm(&muxdata->chans, &chan->link);
@@ -1439,11 +1432,14 @@ muxc_open(struct mux_inst *chan, gensio_done_err open_done, void *open_data)
 	if (!err) {
 	    gensio_set_write_callback_enable(muxdata->child, true);
 	    muxdata->opencount++;
+	    muxdata->nr_not_closed = 1;
+	    chan->state = MUX_INST_CLOSED;
 	    muxdata->state = MUX_UNINITIALIZED;
 	}
     } else {
 	if (chan->state != MUX_INST_CLOSED)
 	    goto out_unlock;
+	muxc_reinit(chan);
 	/* Only one open at a time is allowed, queue them otherwise. */
 	if (muxdata->opencount == 0 && muxdata->state == MUX_OPEN) {
 	    muxc_add_to_wrlist(chan);
@@ -1452,6 +1448,7 @@ muxc_open(struct mux_inst *chan, gensio_done_err open_done, void *open_data)
 	    chan->in_open_chan = true;
 	}
 	muxdata->opencount++;
+	muxdata->nr_not_closed++;
 	chan->open_done = open_done;
 	chan->open_data = open_data;
 	chan->send_new_channel = true;
@@ -1842,8 +1839,6 @@ mux_get_channel(struct mux_data *muxdata)
     gensio_list_for_each(&muxdata->chans, l) {
 	struct mux_inst *chan = gensio_container_of(l, struct mux_inst, link);
 
-	if (chan->state == MUX_INST_CLOSED)
-	    break;
 	if (chan->id == id)
 	    return chan;
     }
@@ -1943,6 +1938,8 @@ mux_child_read(struct mux_data *muxdata, int ierr,
 		    int err = mux_new_channel(muxdata, NULL, NULL, false, &chan);
 		    if (err)
 			chan = NULL;
+		    else
+			muxdata->nr_not_closed++;
 		}
 		muxdata->curr_chan = chan;
 		if (chan) {
@@ -2177,8 +2174,8 @@ mux_child_read(struct mux_data *muxdata, int ierr,
 					     mux_buf_to_u16(muxdata->hdr + 2),
 					     0, 0, err);
 			if (chan) {
-			    gensio_list_rm(&chan->mux->chans, &chan->link);
-			    mux_channel_free(chan);
+			    mux_channel_finish_close(chan);
+			    chan_deref(chan);
 			}
 		    } else {
 			if (muxdata->xmit_data_len) {
@@ -2299,6 +2296,7 @@ mux_gensio_alloc_data(struct gensio *child, struct gensio_mux_config *data,
     if (rv)
 	goto out_nomem;
 
+    muxdata->nr_not_closed = 1;
     *rmuxdata = muxdata;
     return 0;
 
