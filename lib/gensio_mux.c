@@ -156,6 +156,7 @@ static unsigned int mux_msg_hdr_sizes[] = { 0, 1, 2, 3, 2, 2 };
 
 /* External flags for MUX_DATA */
 #define MUX_FLAG_END_OF_MESSAGE		(1 << 0)
+#define MUX_FLAG_OUT_OF_BOUND		(1 << 1)
 
 #define MUX_MAX_HDR_SIZE	12
 
@@ -794,7 +795,8 @@ chan_check_read(struct mux_inst *chan)
     struct mux_data *muxdata = chan->mux;
     unsigned char flags;
     gensiods len, olen, rcount, orcount, pos;
-    static const char *eom[] = { "eom", NULL };
+    const char *flstr[3];
+    unsigned int i;
 
     while ((chan->read_data_len || chan->errcode) &&
 	   chan->read_enabled && !chan->in_read_report) {
@@ -841,9 +843,14 @@ chan_check_read(struct mux_inst *chan)
 	rcount = len;
 	orcount = rcount;
 	mux_unlock(muxdata);
+	i = 0;
+	if (flags & MUX_FLAG_END_OF_MESSAGE)
+	    flstr[i++] = "eom";
+	if (flags & MUX_FLAG_OUT_OF_BOUND)
+	    flstr[i++] = "oob";
+	flstr[i] = NULL;
 	gensio_cb(chan->io, GENSIO_EVENT_READ,
-		  0, chan->read_data + pos, &rcount,
-		  flags & MUX_FLAG_END_OF_MESSAGE ? eom : NULL);
+		  0, chan->read_data + pos, &rcount, flstr);
 	mux_lock(muxdata);
 	if (rcount > orcount)
 	    rcount = orcount;
@@ -914,6 +921,19 @@ muxc_add_to_wrlist(struct mux_inst *chan)
     }
 }
 
+static bool str_in_auxdata(const char *const *auxdata, const char *str)
+{
+    unsigned int i;
+
+    if (!auxdata)
+	return false;
+    for (i = 0; auxdata[i]; i++) {
+	if (strcmp(auxdata[i], str) == 0)
+	    return true;
+    }
+    return false;
+}
+
 static int
 muxc_write(struct mux_inst *chan, gensiods *count,
 	   const struct gensio_sg *sg, gensiods sglen,
@@ -972,10 +992,11 @@ muxc_write(struct mux_inst *chan, gensiods *count,
     /* FIXME - consolidate writes if possible. */
 
     /* Construct the header and put it in first. */
-    if (!truncated && auxdata && auxdata[0] && strcmp(auxdata[0], "eom") == 0)
-	hdr[0] = MUX_FLAG_END_OF_MESSAGE;
-    else
-	hdr[0] = 0; /* flags */
+    hdr[0] = 0; /* flags */
+    if (!truncated && str_in_auxdata(auxdata, "eom"))
+	hdr[0] |= MUX_FLAG_END_OF_MESSAGE;
+    if (str_in_auxdata(auxdata, "oob"))
+	hdr[0] |= MUX_FLAG_OUT_OF_BOUND;
     mux_u16_to_buf(hdr + 1, tot_len - 3);
     chan_addwrbuf(chan, hdr, 3);
     tot_len -= 3;

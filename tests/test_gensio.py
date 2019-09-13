@@ -965,10 +965,17 @@ def test_mux_limits():
 
     return
 
+def test_mux_oob():
+    print("Test mux sctp oob")
+    io1 = utils.alloc_io(o, "mux,sctp,localhost,3023",
+                         do_open = False, chunksize = 64)
+    ta = TestAccept(o, io1, "mux,sctp,3023", do_oob_test)
+
 test_mux_limits()
 ta_mux_sctp()
 test_mux_sctp_small()
 test_mux_tcp_large()
+test_mux_oob()
 
 test_echo_device()
 test_serial_pipe_device()

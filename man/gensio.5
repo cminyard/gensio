@@ -799,7 +799,8 @@ A mux gensio is a gensio filter that allows one or more channels to be
 created on top of a single gensio, multiplexing the connection.  Each
 channel has full individual flow-control.  The channels are message
 oriented as described above, and use can use a mux without additional
-channels to just do message demarcation.
+channels to just do message demarcation.  They also support out-of-bounds
+messages.
 
 A mux gensio takes the following options:
 .TP
@@ -840,6 +841,15 @@ section.  You can call it using any mux channel.
 
 You can modify the service value after you allocate the channel but
 before you open it.
+.SS "Out Of Band Messages"
+mux support out of band (oob) data, which is data that will be
+delivered normally.  This comes in a normal read, but with "oob" in
+the auxdata.  You can send oob data by adding "oob" to the write
+auxdata.  You should normally use the "eom" flag so the end of the out
+of band messages ismarked.
+
+This is so you can send special data outside of the normal processing
+of data.
 .SS "Mux Events"
 As you might imaging, normal data events come through the gensio
 channel they are associated with.  Close events will, too.  If a mux
