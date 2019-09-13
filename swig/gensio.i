@@ -408,66 +408,29 @@ struct waiter { };
 	err_handle("open_nochild_s", gensio_open_nochild_s(self));
     }
 
-    %newobject open_channelt;
-    %rename(open_channel) open_channelt;
+    %newobject alloc_channelt;
+    %rename(alloc_channel) alloc_channelt;
     /*
      * Note that auxdata is really args, but we are reusing the typemap
      * for auxdata for it.
      */
-    struct gensio *open_channelt(const char * const *auxdata,
-				 swig_cb *handler, swig_cb *done) {
+    struct gensio *alloc_channelt(const char * const *auxdata,
+				  swig_cb *handler) {
 	struct gensio_data *olddata = gensio_get_user_data(self);
-	swig_cb_val *done_val = NULL;
-	void (*open_done)(struct gensio *io, int err, void *cb_data) = NULL;
 	int rv = 0;
 	struct gensio_data *data;
 	struct gensio *io = NULL;
 
 	data = alloc_gensio_data(olddata->o, handler);
 	if (!data) {
-	    err_handle("gensio open channel", rv);
+	    err_handle("gensio alloc channel", rv);
 	    return NULL;
 	}
 
-	if (!nil_swig_cb(done)) {
-	    open_done = gensio_open_done;
-	    done_val = ref_swig_cb(done, open_done);
-	}
-	rv = gensio_open_channel(self, auxdata, gensio_child_event, data,
-				 open_done, done_val, &io);
-	if (rv) {
-	    if (done_val)
-		deref_swig_cb_val(done_val);
-	    free_gensio_data(data);
-	    err_handle("open_channel", rv);
-	}
-
-	return io;
-    }
-
-    %newobject open_channel_st;
-    %rename(open_channel_s) open_channel_st;
-    /*
-     * Note that auxdata is really args, but we are reusing the typemap
-     * for auxdata for it.
-     */
-    struct gensio *open_channel_st(const char * const *auxdata, swig_cb *handler) {
-	struct gensio_data *olddata = gensio_get_user_data(self);
-	struct gensio_os_funcs *o = olddata->o;
-	int rv = 0;
-	struct gensio_data *data;
-	struct gensio *io = NULL;
-
-	data = alloc_gensio_data(o, handler);
-	if (!data) {
-	    err_handle("gensio alloc", rv);
-	    return NULL;
-	}
-
-	rv = gensio_open_channel_s(self, auxdata, gensio_child_event, data, &io);
+	rv = gensio_alloc_channel(self, auxdata, gensio_child_event, data, &io);
 	if (rv) {
 	    free_gensio_data(data);
-	    err_handle("open_channel", rv);
+	    err_handle("alloc_channel", rv);
 	}
 
 	return io;

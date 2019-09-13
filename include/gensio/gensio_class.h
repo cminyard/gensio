@@ -86,15 +86,13 @@
 /*
  * Following struct in buf
  */
-struct gensio_func_open_channel_data {
+struct gensio_func_alloc_channel_data {
     const char * const *args;
     gensio_event cb;
     void *user_data;
-    gensio_done_err open_done;
-    void *open_data;
     struct gensio *new_io;
 };
-#define GENSIO_FUNC_OPEN_CHANNEL	11
+#define GENSIO_FUNC_ALLOC_CHANNEL	11
 
 /*
  * get => cbuf

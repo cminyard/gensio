@@ -597,32 +597,34 @@ stdion_open(struct gensio *io, gensio_done_err open_done, void *open_data)
 
     stdiona_lock(nadata);
 
-    if (!schan->closed || schan->in_close || nadata->err.io) {
+    if (!schan->closed || schan->in_close) {
 	err = GE_NOTREADY;
 	goto out_unlock;
     }
 
-    if (nadata->argv) {
+    if (nadata->argv && schan == &nadata->io) {
 	err = setup_child_proc(nadata);
 	if (err)
 	    goto out_err;
     }
 
-    err = nadata->o->set_fd_handlers(nadata->o, nadata->io.outfd, &nadata->io,
+    err = nadata->o->set_fd_handlers(nadata->o, schan->outfd, schan,
 				     stdion_read_ready, NULL, NULL,
 				     stdio_client_fd_cleared);
     if (err)
 	goto out_err;
-    nadata->io.out_handler_set = true;
+    schan->out_handler_set = true;
     stdiona_ref(nadata);
 
-    err = nadata->o->set_fd_handlers(nadata->o, nadata->io.infd, &nadata->io,
-				     NULL, stdion_write_ready, NULL,
-				     stdio_client_fd_cleared);
-    if (err)
-	goto out_err;
-    nadata->io.in_handler_set = true;
-    stdiona_ref(nadata);
+    if (schan->infd != -1) {
+	err = nadata->o->set_fd_handlers(nadata->o, schan->infd, schan,
+					 NULL, stdion_write_ready, NULL,
+					 stdio_client_fd_cleared);
+	if (err)
+	    goto out_err;
+	schan->in_handler_set = true;
+	stdiona_ref(nadata);
+    }
 
     schan->closed = false;
     schan->in_open = true;
@@ -657,9 +659,8 @@ stdion_open(struct gensio *io, gensio_done_err open_done, void *open_data)
 }
 
 static int
-stdion_open_channel(struct gensio *io, const char * const args[],
+stdion_alloc_channel(struct gensio *io, const char * const args[],
 		    gensio_event cb, void *user_data,
-		    gensio_done_err open_done, void *open_data,
 		    struct gensio **new_io)
 {
     struct stdion_channel *schan = gensio_get_gensio_data(io);
@@ -711,24 +712,8 @@ stdion_open_channel(struct gensio *io, const char * const args[],
 	rv = GE_NOMEM;
 	goto out_err;
     }
-
-    rv = nadata->o->set_fd_handlers(nadata->o, nadata->err.outfd, &nadata->err,
-				    stdion_read_ready, NULL, NULL,
-				    stdio_client_fd_cleared);
-    if (!rv) {
-	nadata->err.out_handler_set = true;
-	stdiona_ref(nadata);
-    } else {
-	nadata->o->free(nadata->o, nadata->err.read_data);
-	nadata->err.read_data = NULL;
-    }
-
-    nadata->err.closed = false;
-    nadata->err.in_open = true;
-    nadata->err.open_done = open_done;
-    nadata->err.open_data = open_data;
-    stdion_start_deferred_op(&nadata->err);
     stdiona_ref(nadata);
+
     *new_io = nadata->err.io;
 
  out_err:
@@ -914,11 +899,11 @@ gensio_stdio_func(struct gensio *io, int func, gensiods *count,
     case GENSIO_FUNC_REMOTE_ID:
 	return stdion_remote_id(io, buf);
 
-    case GENSIO_FUNC_OPEN_CHANNEL:
+    case GENSIO_FUNC_ALLOC_CHANNEL:
     {
-	struct gensio_func_open_channel_data *d = buf;
-	return stdion_open_channel(io, d->args, d->cb, d->user_data,
-				   d->open_done, d->open_data, &d->new_io);
+	struct gensio_func_alloc_channel_data *d = buf;
+	return stdion_alloc_channel(io, d->args, d->cb, d->user_data,
+				    &d->new_io);
     }
 
     case GENSIO_FUNC_DISABLE:

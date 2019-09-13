@@ -385,7 +385,8 @@ def test_stdio_basic_stderr():
     io = utils.alloc_io(o, "stdio,sh -c 'cat 1>&2'", chunksize = 64)
     io.handler.ignore_input = True
     io.read_cb_enable(True)
-    err = io.open_channel_s(None, None)
+    err = io.alloc_channel(None, None)
+    err.open_s()
     utils.HandleData(o, "stderr", chunksize = 64, io = err)
     utils.test_dataxfer(io, err, "This is a test string!")
     utils.io_close(io)
@@ -871,8 +872,9 @@ def test_mux_limits():
     handlemuxcl.set_op_count(9)
     handlemuxacc.set_op_count(9)
     for i in range(1, 10):
-        handlemuxcl.channels[i] = muxcl.open_channel(["service=%d" % i],
-                                                     handlemuxcl, handlemuxcl)
+        handlemuxcl.channels[i] = muxcl.alloc_channel(["service=%d" % i],
+                                                      handlemuxcl)
+        handlemuxcl.channels[i].open(handlemuxcl)
 
     print("Waiting for channels");
     if (handlemuxcl.wait(timeout = 2000) == 0):
@@ -884,9 +886,9 @@ def test_mux_limits():
 
     print("Trying an open that should fail")
     try:
-        muxcl.open_channel(["service=%d" % 10], handlemuxcl, handlemuxcl)
+        muxcl.alloc_channel(["service=%d" % 10], handlemuxcl)
     except Exception as err:
-        if str(err) != "gensio:open_channel: Object was already in use":
+        if str(err) != "gensio:alloc_channel: Object was already in use":
             raise utils.HandlerException("Got wrong error: %s" % str(err))
     else:
         raise utils.HandlerException(
@@ -909,8 +911,9 @@ def test_mux_limits():
     print("Open that channel again")
     handlemuxacc.set_op_count(1)
     handlemuxcl.set_op_count(1)
-    handlemuxcl.channels[3] = muxcl.open_channel(["service=3"],
-                                                 handlemuxcl, handlemuxcl)
+    handlemuxcl.channels[3] = muxcl.alloc_channel(["service=3"],
+                                                  handlemuxcl)
+    handlemuxcl.channels[3].open(handlemuxcl)
 
     if (handlemuxcl.wait(timeout = 1000) == 0):
         raise utils.HandlerException(

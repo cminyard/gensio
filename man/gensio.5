@@ -68,7 +68,7 @@ A gensio may be reliable or not.  A reliable gensio will reliably
 deliver all data in sequence, like TCP.  An gensio that is not
 reliable may drop data or deliver data out of sequence, like UDP.
 This can be queried with
-.I gensio_is_reliable().
+.B gensio_is_reliable().
 
 A gensio may be packet or not.  A packet gensio will exactly match up
 writes and reads.  So if you write 15 bytes into one side, a 15 byte
@@ -123,7 +123,7 @@ Some gensio types support serial port setting options.  Standard
 serial ports, IPMI Serial Over LAN, and telnet with RFC2217 enabled.
 
 A client serial gensio can set and get serial port options using the
-.I sergensio_xxx()
+.Bsergensio_xxx()
 functions.  Server serial gensios receive requests from the client via
 .I GENSIO_EVENT_SER_xxx
 events in the callback.
@@ -140,9 +140,11 @@ A channel is a flow of data like a stream, but it can be individually
 flow controlled.  It appears as a new gensio in the
 .I GENSIO\_EVENT\_NEW\_CHANNEL
 callback.  You can create a channel with
-.I gensio\_open\_channel().
+.B gensio\_alloc\_channel()
+and then open it with
+.B gensio\_open().
 Once open, a channel works like a normal gensio.  If you close the
-main channel for a gensio, the other channels will stay open, but the
+main channel for a gensio, the other channels will stay open; the
 resources for the main channel will still be kept around until all
 channels are closed.
 
@@ -489,10 +491,13 @@ Send standard error output to standard out instead of having a separate
 channel for it.
 .SS "Channels"
 The stdio connecting gensio that start another program does not
-provide stderr as part of the main gensio. You must open a channel
-with gensio_open_channnel() to get stderr output.  The args for
-gensio_open_channel() may be an optional "readbuf=<num>" and sets the
-size of the input buffer.
+provide stderr as part of the main gensio. You must create a channel
+with
+.B gensio_alloc_channnel()
+and then open it get stderr output.  The args for
+.B gensio_alloc_channel()
+may be an optional "readbuf=<num>" and sets the size of the input
+buffer.
 .SS "Remote Address String"
 The remote address string is either "stdio" for the main channel or
 "stderr" for the error channel.
@@ -812,7 +817,7 @@ transparent filter with message demarcation.  In effect, you have
 one channel open.
 .SS "Creating Channels"
 To create a channel, call the
-.B gensio_open_channel()
+.B gensio_alloc_channel()
 function on the mux gensio.  This will return a new gensio that is a
 channel on the mux gensio.  You can pass in arguments, which is an
 array of strings, currently
@@ -820,16 +825,21 @@ array of strings, currently
 and
 .B service
 are accepted.  The service you set here will be set on the remote channel
-so the other end can fetch it.
+so the other end can fetch it.  The new channel needs to be opened with
+.B gensio_open()
+before it can be used.
 
 As you might imaging, the other end of a mux needs to know about the
 new channel.  If one end (either end, doesn't matter) calls
-.B gensio_open_channel()
-the other end will get a 
+.B gensio_alloc_channel()
+and then opens the new channel, the other end will get a 
 .I GENSIO\_EVENT\_NEW\_CHANNEL
 event as described in the
 .B Streams and Channels
 section.  You can call it using any mux channel.
+
+You can modify the service value after you allocate the channel but
+before you open it.
 .SS "Mux Events"
 As you might imaging, normal data events come through the gensio
 channel they are associated with.  Close events will, too.  If a mux

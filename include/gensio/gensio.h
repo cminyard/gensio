@@ -129,6 +129,10 @@ int gensio_open_nochild(struct gensio *io, gensio_done_err open_done,
 
 int gensio_open_nochild_s(struct gensio *io);
 
+int gensio_alloc_channel(struct gensio *io, const char * const args[],
+			 gensio_event cb, void *user_data,
+			 struct gensio **new_io);
+
 int gensio_open_channel(struct gensio *io, const char * const args[],
 			gensio_event cb, void *user_data,
 			gensio_done_err open_done, void *open_data,

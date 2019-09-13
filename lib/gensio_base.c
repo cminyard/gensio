@@ -901,9 +901,6 @@ gensio_base_func(struct gensio *io, int func, gensiods *count,
     case GENSIO_FUNC_REMOTE_ID:
 	return gensio_ll_remote_id(ndata->ll, buf);
 
-    case GENSIO_FUNC_OPEN_CHANNEL:
-	return gensio_filter_open_channel(ndata->filter, buf);
-
     case GENSIO_FUNC_CONTROL:
 	rv = GE_NOTSUP;
 	if (ndata->filter) {
@@ -1290,14 +1287,6 @@ gensio_filter_free(struct gensio_filter *filter)
 {
     filter->func(filter, GENSIO_FILTER_FUNC_FREE,
 		 NULL, NULL, NULL, NULL, NULL, 0, NULL);
-}
-
-int
-gensio_filter_open_channel(struct gensio_filter *filter,
-			   struct gensio_func_open_channel_data *data)
-{
-    return filter->func(filter, GENSIO_FILTER_FUNC_OPEN_CHANNEL,
-			NULL, data, NULL, NULL, NULL, 0, NULL);
 }
 
 int

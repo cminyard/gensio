@@ -756,48 +756,21 @@ gensio_open_nochild_s(struct gensio *io)
 }
 
 int
-gensio_open_channel(struct gensio *io, const char * const args[],
-		    gensio_event cb, void *user_data,
-		    gensio_done_err open_done, void *open_data,
-		    struct gensio **new_io)
+gensio_alloc_channel(struct gensio *io, const char * const args[],
+		     gensio_event cb, void *user_data,
+		     struct gensio **new_io)
 {
     int rv;
-    struct gensio_func_open_channel_data d;
+    struct gensio_func_alloc_channel_data d;
 
     d.args = args;
     d.cb = cb;
     d.user_data = user_data;
-    d.open_done = open_done;
-    d.open_data = open_data;
-    rv = io->func(io, GENSIO_FUNC_OPEN_CHANNEL, NULL, NULL, 0, &d, NULL);
+    rv = io->func(io, GENSIO_FUNC_ALLOC_CHANNEL, NULL, NULL, 0, &d, NULL);
     if (!rv)
 	*new_io = d.new_io;
 
     return rv;
-}
-
-int
-gensio_open_channel_s(struct gensio *io, const char * const args[],
-		      gensio_event cb, void *user_data,
-		      struct gensio **new_io)
-{
-    struct gensio_os_funcs *o = io->o;
-    struct gensio_open_s_data data;
-    int err;
-
-    data.o = o;
-    data.err = 0;
-    data.waiter = o->alloc_waiter(o);
-    if (!data.waiter)
-	return GE_NOMEM;
-    err = gensio_open_channel(io, args, cb, user_data,
-			      gensio_open_s_done, &data, new_io);
-    if (!err) {
-	o->wait(data.waiter, 1, NULL);
-	err = data.err;
-    }
-    o->free_waiter(data.waiter);
-    return err;
 }
 
 int

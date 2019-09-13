@@ -5,45 +5,22 @@ channel-capable gensio
 .SH SYNOPSIS
 .B #include <gensio/gensio.h>
 .TP 20
-.B typedef void (*gensio_done_err)(struct gensio *io, int err,
+.B int gensio_alloc_channel(struct gensio *io, const char * const args[],
 .br
-.B                                 void *open_data);
-.TP 20
-.B int gensio_open_channel(struct gensio *io, const char * const args[],
+.B                          gensio_event cb, void *user_data,
 .br
-.B                         gensio_event cb, void *user_data,
-.br
-.B                         gensio_done_err open_done, void *open_data,
-.br
-.B                         struct gensio **new_io);
-.TP 20
-.B int gensio_open_channel_s(struct gensio *io, const char * const args[],
-.br
-.B                           gensio_event cb, void *user_data,
-.br
-.B                           struct gensio **new_io);
+.B                          struct gensio **new_io);
 .SH "DESCRIPTION"
 .B gensio_open_channel
 creates a new channel on a channel-capable gensio.  The exact meaning
 of channel, and the meaning of
 .I args
 depends on the particular gensio, see the the particular gensio class
-in gensio(5). If no error is returned, the
-.I open_done
-callback will be called, if there is no error in the callback
-.I err
-value the gensio channel will be open.  The
-.I cb
-is set for that channel, see gensio_event(3) for details on that.
-
-.B gensio_open_channel_s
-is like
-.B gensio_open_channel, but waits for the open to complete.  Normal gensio
-processing will happen while waiting.  Note that you must be careful
-to not call this from a callback, you should only call this from a
-non-callback thread or a runner (see gensio_os_funcs(3) for details on
-runners).
+in gensio(5). The new gensio created will be closed and you must
+call
+.B gensio_open
+on it to start it up.
 .SH "RETURN VALUES"
 Zero is returned on success, or a gensio error on failure.
 .SH "SEE ALSO"
-gensio_err(3), gensio(5), gensio_os_funcs(3), gensio_event(3)
+gensio_err(3), gensio(5), gensio_os_funcs(3), gensio_event(3), gensio_open(3)

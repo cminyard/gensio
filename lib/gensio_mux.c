@@ -1236,14 +1236,12 @@ mux_new_channel(struct mux_data *muxdata, gensio_event cb, void *user_data,
 }
 
 static int
-muxc_open_channel_data(struct mux_data *muxdata,
-		       gensio_event cb,
-		       void *user_data,
-		       gensio_done_err open_done,
-		       void *open_data,
-		       struct gensio_mux_config *data,
-		       bool is_client,
-		       struct gensio **new_io)
+muxc_alloc_channel_data(struct mux_data *muxdata,
+			gensio_event cb,
+			void *user_data,
+			struct gensio_mux_config *data,
+			bool is_client,
+			struct gensio **new_io)
 {
     struct mux_inst *chan = NULL;
     int err = 0;
@@ -1266,21 +1264,8 @@ muxc_open_channel_data(struct mux_data *muxdata,
 	chan->service_len = data->service_len;
     }
 
-    chan->open_done = open_done;
-    chan->open_data = open_data;
-    chan->state = MUX_INST_IN_OPEN;
+    chan->state = MUX_INST_CLOSED;
 
-    if (is_client) {
-	/* Only one open at a time is allowed, queue them otherwise. */
-	if (muxdata->opencount == 0 && muxdata->state == MUX_OPEN) {
-	    muxc_add_to_wrlist(chan);
-	} else {
-	    gensio_list_add_tail(&muxdata->openchans, &chan->wrlink);
-	    chan->in_open_chan = true;
-	}
-	muxdata->opencount++;
-	chan->send_new_channel = true;
-    }
     mux_unlock(muxdata);
 
     if (new_io)
@@ -1348,8 +1333,8 @@ gensio_mux_config_cleanup(struct gensio_mux_config *data)
 }
 
 static int
-muxc_open_channel(struct mux_data *muxdata,
-		  struct gensio_func_open_channel_data *ocdata)
+muxc_alloc_channel(struct mux_data *muxdata,
+		   struct gensio_func_alloc_channel_data *ocdata)
 {
     int err;
     struct gensio_mux_config data;
@@ -1365,9 +1350,8 @@ muxc_open_channel(struct mux_data *muxdata,
     if (err)
 	return err;
 
-    err = muxc_open_channel_data(muxdata, ocdata->cb, ocdata->user_data,
-				 ocdata->open_done, ocdata->open_data,
-				 &data, true, &ocdata->new_io);
+    err = muxc_alloc_channel_data(muxdata, ocdata->cb, ocdata->user_data,
+				  &data, true, &ocdata->new_io);
     gensio_mux_config_cleanup(&data);
     return err;
 }
@@ -1432,12 +1416,12 @@ muxc_open(struct mux_inst *chan, gensio_done_err open_done, void *open_data)
     int err = GE_NOTREADY;
 
     mux_lock(muxdata);
-    if (muxdata->state == MUX_CLOSED) {
-	if (!muxdata->is_client) {
-	    err = GE_NOTSUP;
-	    goto out_unlock;
-	}
+    if (!muxdata->is_client) {
+	err = GE_NOTSUP;
+	goto out_unlock;
+    }
 
+    if (muxdata->state == MUX_CLOSED) {
 	muxdata->sending_chan = NULL;
 	muxdata->in_hdr = true;
 	muxdata->hdr_pos = 0;
@@ -1450,12 +1434,29 @@ muxc_open(struct mux_inst *chan, gensio_done_err open_done, void *open_data)
 	gensio_list_add_head(&muxdata->chans, &chan->link);
 	chan->open_done = open_done;
 	chan->open_data = open_data;
+	chan->state = MUX_INST_IN_OPEN;
 	err = gensio_open(muxdata->child, mux_child_open_done, muxdata);
 	if (!err) {
 	    gensio_set_write_callback_enable(muxdata->child, true);
 	    muxdata->opencount++;
 	    muxdata->state = MUX_UNINITIALIZED;
 	}
+    } else {
+	if (chan->state != MUX_INST_CLOSED)
+	    goto out_unlock;
+	/* Only one open at a time is allowed, queue them otherwise. */
+	if (muxdata->opencount == 0 && muxdata->state == MUX_OPEN) {
+	    muxc_add_to_wrlist(chan);
+	} else {
+	    gensio_list_add_tail(&muxdata->openchans, &chan->wrlink);
+	    chan->in_open_chan = true;
+	}
+	muxdata->opencount++;
+	chan->open_done = open_done;
+	chan->open_data = open_data;
+	chan->send_new_channel = true;
+	chan->state = MUX_INST_IN_OPEN;
+	err = 0;
     }
  out_unlock:
     mux_unlock(muxdata);
@@ -1544,8 +1545,8 @@ muxc_gensio_handler(struct gensio *io, int func, gensiods *count,
     case GENSIO_FUNC_DISABLE:
 	return muxc_disable(chan);
 
-    case GENSIO_FUNC_OPEN_CHANNEL:
-	return muxc_open_channel(chan->mux, buf);
+    case GENSIO_FUNC_ALLOC_CHANNEL:
+	return muxc_alloc_channel(chan->mux, buf);
 
     case GENSIO_FUNC_OPEN:
 	return muxc_open(chan, cbuf, buf);
@@ -2294,8 +2295,7 @@ mux_gensio_alloc_data(struct gensio *child, struct gensio_mux_config *data,
     mux_send_init(muxdata);
 
     /* Allocate channel 0. */
-    rv = muxc_open_channel_data(muxdata, cb, user_data,
-				NULL, NULL, data, is_client, NULL);
+    rv = muxc_alloc_channel_data(muxdata, cb, user_data, data, is_client, NULL);
     if (rv)
 	goto out_nomem;
 
