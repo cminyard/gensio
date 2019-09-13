@@ -1631,7 +1631,7 @@ certauth_filter_control(struct gensio_filter *filter, bool get, int op,
 	    to_copy = sfilter->service_len;
 	    if (to_copy > *datalen)
 		to_copy = *datalen;
-	    memcpy(data, sfilter->service, *datalen);
+	    memcpy(data, sfilter->service, to_copy);
 	    *datalen = sfilter->service_len;
 	} else {
 	    char *new_service = sfilter->o->zalloc(sfilter->o, *datalen);

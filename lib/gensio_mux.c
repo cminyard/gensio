@@ -1482,7 +1482,7 @@ muxc_control(struct mux_inst *chan, bool get, int op,
 	    to_copy = chan->service_len;
 	    if (to_copy > *datalen)
 		to_copy = *datalen;
-	    memcpy(data, chan->service, *datalen);
+	    memcpy(data, chan->service, to_copy);
 	    *datalen = chan->service_len;
 	} else {
 	    char *new_service = chan->o->zalloc(chan->o, *datalen);
