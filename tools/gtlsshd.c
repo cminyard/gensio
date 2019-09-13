@@ -184,10 +184,25 @@ gout(struct ioinfo *ioinfo, char *fmt, va_list ap)
     /* We shouldn't get any of these. */
 }
 
+static int mux_event(struct gensio *io, void *user_data, int event, int ierr,
+		     unsigned char *buf, gensiods *buflen,
+		     const char *const *auxdata);
+
+static int gevent(struct ioinfo *ioinfo, struct gensio *io, int event,
+		  int ierr, unsigned char *buf, gensiods *buflen,
+		  const char *const *auxdata)
+{
+    struct per_con_info *pcinfo = ioinfo_userdata(ioinfo);
+    struct gdata *ginfo = pcinfo->ginfo;
+
+    return mux_event(io, ginfo, event, ierr, buf, buflen, auxdata);
+}
+
 static struct ioinfo_user_handlers guh = {
     .shutdown = gshutdown,
     .err = gerr,
-    .out = gout
+    .out = gout,
+    .event = gevent
 };
 
 static void
@@ -709,6 +724,47 @@ new_rem_io(struct gensio *io, struct gdata *ginfo)
 	free(service);
 }
 
+static int
+mux_event(struct gensio *io, void *user_data, int event, int ierr,
+	  unsigned char *buf, gensiods *buflen,
+	  const char *const *auxdata)
+{
+    switch (event) {
+    case GENSIO_EVENT_READ:
+    case GENSIO_EVENT_WRITE_READY:
+	abort();
+
+    case GENSIO_EVENT_NEW_CHANNEL:
+	new_rem_io((struct gensio *) buf, user_data);
+	return 0;
+    }
+
+    return GE_NOTSUP;
+}
+
+static void
+open_mux(struct gensio *io, struct gdata *ginfo, const char *service)
+{
+    struct gensio_os_funcs *o = ginfo->o;
+    struct gensio *mux_io;
+    int err;
+
+    err = mux_gensio_alloc(io, NULL, o, mux_event, ginfo, &mux_io);
+    if (err) {
+	syslog(LOG_ERR, "Unable to allocate mux gensio: %s",
+	       gensio_err_to_str(errno));
+	exit(1);
+    }
+
+    err = gensio_open_nochild_s(mux_io);
+    if (err) {
+	syslog(LOG_ERR, "mux open failed: %s", gensio_err_to_str(errno));
+	exit(1);
+    }
+
+    new_rem_io(mux_io, ginfo);
+}
+
 static void
 handle_new(struct gensio_runner *r, void *cb_data)
 {
@@ -850,7 +906,10 @@ handle_new(struct gensio_runner *r, void *cb_data)
 
     /* At this point we are fully authenticated and have all global info. */
 
-    new_rem_io(certauth_io, ginfo);
+    if (strstartswith(tmpservice, "mux"))
+	open_mux(certauth_io, ginfo, tmpservice);
+    else
+	new_rem_io(certauth_io, ginfo);
     return;
 }
 
