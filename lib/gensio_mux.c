@@ -1639,7 +1639,6 @@ mux_shutdown_channels(struct mux_data *muxdata, int err)
 	}
 	if (chan->in_open_chan) {
 	    gensio_list_rm(&muxdata->openchans, &chan->wrlink);
-	    muxdata->opencount--;
 	    chan->in_open_chan = false;
 	}
 	if (chan->state == MUX_INST_CLOSED ||
@@ -2072,6 +2071,9 @@ mux_child_read(struct mux_data *muxdata, int ierr,
 		chan->errcode = mux_buf_to_u16(muxdata->hdr + 10);
 		muxdata->sending_chan = NULL;
 
+		assert(muxdata->opencount > 0);
+		muxdata->opencount--;
+
 		if (chan->errcode) {
 		    chan->state = MUX_INST_IN_CLOSE_FINAL;
 		} else if (chan->state == MUX_INST_IN_OPEN_CLOSE) {
@@ -2084,7 +2086,6 @@ mux_child_read(struct mux_data *muxdata, int ierr,
 		}
 
 	    next_channel_req_send:
-		muxdata->opencount--;
 		/* Start the next channel open, if necessary. */
 		if (!gensio_list_empty(&muxdata->openchans)) {
 		    struct mux_inst *next_chan =
@@ -2094,6 +2095,8 @@ mux_child_read(struct mux_data *muxdata, int ierr,
 		    gensio_list_rm(&muxdata->openchans, &next_chan->wrlink);
 		    next_chan->in_open_chan = false;
 		    muxc_add_to_wrlist(next_chan);
+		} else {
+		    assert(muxdata->opencount == 0);
 		}
 
 		if (chan && chan->open_done) {
