@@ -283,7 +283,9 @@ TCP support out of band (oob) data, which is data that will be
 delivered out of order as soon as possible.  This comes in a normal
 read, but with "oob" in the auxdata.  You can send oob data by adding
 "oob" to the write auxdata, but oob writes are limited to 1 byte and
-writing any more than this results in undefined behavior.
+writing any more than this results in undefined behavior.  Note that
+"oobtcp" is also delivered and accepted in auxdata, so you can tell
+TCP oob data from other oob data.
 
 In addition to readbuf, the tcp gensio takes the following options:
 .TP
