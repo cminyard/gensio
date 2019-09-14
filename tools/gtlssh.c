@@ -604,6 +604,7 @@ main(int argc, char *argv[])
     char *s;
     int err;
     char *do_telnet = "";
+    unsigned int use_telnet = 0;
     char *CAdirspec = NULL, *certfilespec = NULL, *keyfilespec = NULL;
     char *service;
     gensiods service_len, len;
@@ -665,6 +666,7 @@ main(int argc, char *argv[])
 	    nosctp = true;
 	} else if ((rv = cmparg(argc, argv, &arg, "-r", "--telnet", NULL))) {
 	    do_telnet = "telnet(rfc2217),";
+	    use_telnet = 1;
 	} else if ((rv = cmparg(argc, argv, &arg, "-d", "--debug", NULL))) {
 	    debug++;
 	    if (debug > 1)
@@ -874,7 +876,7 @@ main(int argc, char *argv[])
 
     if (use_mux) {
 	len = 4;
-	rv = gensio_control(userdata2.io, 1, false,
+	rv = gensio_control(userdata2.io, 1 + use_telnet, false,
 			    GENSIO_CONTROL_SERVICE, "mux", &len);
 	if (rv) {
 	    fprintf(stderr, "Could not set mux service %s: %s\n",
@@ -883,7 +885,7 @@ main(int argc, char *argv[])
 	}
     }
 
-    rv = gensio_control(userdata2.io, 0, false,
+    rv = gensio_control(userdata2.io, 0 + use_telnet, false,
 			GENSIO_CONTROL_SERVICE, service, &service_len);
     if (rv) {
 	fprintf(stderr, "Could not set service %s: %s\n", userdata2.ios,

@@ -203,11 +203,14 @@ child_event(struct gensio *io, void *user_data, int event, int err,
 	    unsigned char *buf, gensiods *buflen, const char *const *auxdata)
 {
     struct gensio_ll_child *cdata = user_data;
+    gensiods rv;
 
     switch (event) {
     case GENSIO_EVENT_READ:
-	*buflen = cdata->cb(cdata->cb_data, GENSIO_LL_CB_READ, err, buf,
-			    *buflen, NULL);
+	rv = cdata->cb(cdata->cb_data, GENSIO_LL_CB_READ, err, buf,
+		       buflen ? *buflen : 0, NULL);
+	if (buflen)
+	    *buflen = rv;
 	return 0;
 
     case GENSIO_EVENT_WRITE_READY:
