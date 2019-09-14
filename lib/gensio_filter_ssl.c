@@ -450,6 +450,13 @@ ssl_ll_write(struct gensio_filter *filter,
     struct ssl_filter *sfilter = filter_to_ssl(filter);
     int err = 0;
 
+    if (gensio_str_in_auxdata(auxdata, "oob")) {
+	/* Ignore oob data. */
+	if (rcount)
+	    *rcount = buflen;
+	return 0;
+    }
+
     ssl_lock(sfilter);
     if (buflen > 0) {
 	int wrlen = BIO_write(sfilter->io_bio, buf, buflen);

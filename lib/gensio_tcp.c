@@ -262,7 +262,7 @@ static void
 tcp_except_ready(void *handler_data, int fd)
 {
     struct tcp_data *tdata = handler_data;
-    static const char *argv[2] = { "oob", NULL };
+    static const char *argv[3] = { "oob", "oobtcp", NULL };
 
     gensio_fd_ll_handle_incoming(tdata->ll, tcp_oob_read, argv, tdata);
 }
@@ -280,11 +280,12 @@ tcp_write(void *handler_data, int fd, gensiods *rcount,
 	int i;
 
 	for (i = 0; !err && auxdata[i]; i++) {
-	    if (strcasecmp(auxdata[i], "oob") == 0) {
+	    if (strcasecmp(auxdata[i], "oob") == 0)
 		flags |= MSG_OOB;
-	    } else {
+	    else if (strcasecmp(auxdata[i], "oobtcp") == 0)
+		flags |= MSG_OOB;
+	    else
 		err = EINVAL;
-	    }
 	}
 
 	if (err)

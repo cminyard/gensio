@@ -1362,6 +1362,13 @@ certauth_ll_write(struct gensio_filter *filter,
 	return err;
     }
 
+    if (gensio_str_in_auxdata(auxdata, "oob")) {
+	/* Ignore oob data. */
+	if (rcount)
+	    *rcount = buflen;
+	goto out_unlock;
+    }
+
     if (sfilter->pending_err) {
 	if (rcount)
 	    *rcount = buflen;

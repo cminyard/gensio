@@ -277,21 +277,21 @@ telnet_ll_write(struct gensio_filter *filter,
     int err = 0;
 
     telnet_lock(tfilter);
-    if (auxdata) {
-	unsigned int i;
-
-	for (i = 0; auxdata[i]; i++) {
-	    if (strcasecmp(auxdata[i], "oob") == 0) {
-		/*
-		 * Just ignore OOB data, but set that we are looking for a
-		 * telnet mark.
-		 */
-		tfilter->in_urgent = true;
-		if (rcount)
-		    *rcount = buflen;
-		goto out_unlock;
-	    }
-	}
+    if (gensio_str_in_auxdata(auxdata, "oobtcp")) {
+	/*
+	 * Just ignore OOB data, but set that we are looking for a
+	 * telnet mark.
+	 */
+	tfilter->in_urgent = true;
+	if (rcount)
+	    *rcount = buflen;
+	goto out_unlock;
+    }
+    if (gensio_str_in_auxdata(auxdata, "oob")) {
+	/* Ignore other oob data. */
+	if (rcount)
+	    *rcount = buflen;
+	goto out_unlock;
     }
 
     if (tfilter->read_data_pos || buflen == 0) {

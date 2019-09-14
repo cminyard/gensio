@@ -2874,3 +2874,17 @@ gensio_write_s(struct gensio *io, gensiods *count,
 
     return rv;
 }
+
+bool
+gensio_str_in_auxdata(const char *const *auxdata, const char *str)
+{
+    unsigned int i;
+
+    if (!auxdata)
+	return false;
+    for (i = 0; auxdata[i]; i++) {
+	if (strcmp(auxdata[i], str) == 0)
+	    return true;
+    }
+    return false;
+}

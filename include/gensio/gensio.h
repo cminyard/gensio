@@ -464,6 +464,11 @@ int gensio_check_keyaddrs(struct gensio_os_funcs *o,
 			  const char *str, const char *key, int protocol,
 			  bool listen, bool require_port, struct addrinfo **ai);
 
+/*
+ * Helper functions that don't fit anywhere else.
+ */
+bool gensio_str_in_auxdata(const char *const *auxdata, const char *str);
+
 #ifdef __cplusplus
 }
 #endif

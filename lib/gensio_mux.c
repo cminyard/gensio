@@ -922,19 +922,6 @@ muxc_add_to_wrlist(struct mux_inst *chan)
     }
 }
 
-static bool str_in_auxdata(const char *const *auxdata, const char *str)
-{
-    unsigned int i;
-
-    if (!auxdata)
-	return false;
-    for (i = 0; auxdata[i]; i++) {
-	if (strcmp(auxdata[i], str) == 0)
-	    return true;
-    }
-    return false;
-}
-
 static int
 muxc_write(struct mux_inst *chan, gensiods *count,
 	   const struct gensio_sg *sg, gensiods sglen,
@@ -994,9 +981,9 @@ muxc_write(struct mux_inst *chan, gensiods *count,
 
     /* Construct the header and put it in first. */
     hdr[0] = 0; /* flags */
-    if (!truncated && str_in_auxdata(auxdata, "eom"))
+    if (!truncated && gensio_str_in_auxdata(auxdata, "eom"))
 	hdr[0] |= MUX_FLAG_END_OF_MESSAGE;
-    if (str_in_auxdata(auxdata, "oob"))
+    if (gensio_str_in_auxdata(auxdata, "oob"))
 	hdr[0] |= MUX_FLAG_OUT_OF_BOUND;
     mux_u16_to_buf(hdr + 1, tot_len - 3);
     chan_addwrbuf(chan, hdr, 3);
@@ -1957,6 +1944,12 @@ mux_child_read(struct mux_data *muxdata, int ierr,
 	gensio_set_write_callback_enable(muxdata->child, false);
 	gensio_close(muxdata->child, NULL, NULL);
 	mux_shutdown_channels(muxdata, ierr);
+	mux_unlock(muxdata);
+	return 0;
+    }
+
+    if (gensio_str_in_auxdata(nauxdata, "oob")) {
+	/* We can't handle OOB data here. */
 	mux_unlock(muxdata);
 	return 0;
     }
