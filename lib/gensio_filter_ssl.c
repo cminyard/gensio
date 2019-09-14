@@ -373,7 +373,8 @@ ssl_ul_write(struct gensio_filter *filter,
 
 	    if (buflen > sfilter->max_write_size - sfilter->write_data_len)
 		buflen = sfilter->max_write_size - sfilter->write_data_len;
-	    memcpy(sfilter->write_data, sg[i].buf, buflen);
+	    memcpy(sfilter->write_data + sfilter->write_data_len,
+		   sg[i].buf, buflen);
 	    sfilter->write_data_len += buflen;
 	}
 	if (rcount)
