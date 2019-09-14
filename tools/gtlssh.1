@@ -45,6 +45,10 @@ Disable SCTP support.
 .TP
 .I \-\-notcp
 Disable TCP support
+.TP
+.I \-\-nomux
+Don't use a mux gensio.  This may cause issues with gtlsshd, but is
+useful in some cases for talking with ser2net with no mux support.
 .I \-d|\-\-debug
 Generate debugging output.  Specifying more than once increases the output.
 .TP

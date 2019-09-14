@@ -606,10 +606,12 @@ main(int argc, char *argv[])
     char *do_telnet = "";
     char *CAdirspec = NULL, *certfilespec = NULL, *keyfilespec = NULL;
     char *service;
-    gensiods service_len;
+    gensiods service_len, len;
     bool interactive = true;
     const char *transport = "sctp";
     bool notcp = false, nosctp = false;
+    const char *muxstr = "mux,";
+    bool use_mux = true;
 
     memset(&userdata1, 0, sizeof(userdata1));
     memset(&userdata2, 0, sizeof(userdata2));
@@ -654,6 +656,9 @@ main(int argc, char *argv[])
 	} else if ((rv = cmparg_int(argc, argv, &arg, "-e", "--escchar",
 			     &escape_char))) {
 	    ;
+	} else if ((rv = cmparg(argc, argv, &arg, NULL, "--nomux", NULL))) {
+	    muxstr = "";
+	    use_mux = false;
 	} else if ((rv = cmparg(argc, argv, &arg, NULL, "--notcp", NULL))) {
 	    notcp = true;
 	} else if ((rv = cmparg(argc, argv, &arg, NULL, "--nosctp", NULL))) {
@@ -850,9 +855,9 @@ main(int argc, char *argv[])
 	return 1;
 
  retry:
-    s = alloc_sprintf("%scertauth(enable-password,username=%s%s%s),"
+    s = alloc_sprintf("%s%scertauth(enable-password,username=%s%s%s),"
 		      "ssl(%s),%s,%s,%d",
-		      do_telnet, username, certfilespec, keyfilespec,
+		      do_telnet, muxstr, username, certfilespec, keyfilespec,
 		      CAdirspec, transport, hostname, port);
     if (!s) {
 	fprintf(stderr, "out of memory allocating IO string\n");
@@ -867,7 +872,18 @@ main(int argc, char *argv[])
 	return 1;
     }
 
-    rv = gensio_control(userdata2.io, GENSIO_CONTROL_DEPTH_FIRST, false,
+    if (use_mux) {
+	len = 4;
+	rv = gensio_control(userdata2.io, 1, false,
+			    GENSIO_CONTROL_SERVICE, "mux", &len);
+	if (rv) {
+	    fprintf(stderr, "Could not set mux service %s: %s\n",
+		    userdata2.ios, gensio_err_to_str(rv));
+	    return 1;
+	}
+    }
+
+    rv = gensio_control(userdata2.io, 0, false,
 			GENSIO_CONTROL_SERVICE, service, &service_len);
     if (rv) {
 	fprintf(stderr, "Could not set service %s: %s\n", userdata2.ios,
