@@ -1662,6 +1662,11 @@ mux_shutdown_channels(struct mux_data *muxdata, int err)
 	    }
 	    continue;
 	}
+	if (chan->state == MUX_INST_IN_CLOSE) {
+	    /* Just close it. */
+	    finish_close(chan);
+	    continue;
+	}
 
 	/* Report the error through the read interface. */
 	chan->errcode = err;
