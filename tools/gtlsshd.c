@@ -765,17 +765,18 @@ open_mux(struct gensio *io, struct gdata *ginfo, const char *service)
     struct gensio_os_funcs *o = ginfo->o;
     struct gensio *mux_io;
     int err;
+    static const char *isclient[2] = { "mode=server", NULL };
 
-    err = mux_gensio_alloc(io, NULL, o, mux_event, ginfo, &mux_io);
+    err = mux_gensio_alloc(io, isclient, o, mux_event, ginfo, &mux_io);
     if (err) {
 	syslog(LOG_ERR, "Unable to allocate mux gensio: %s",
-	       gensio_err_to_str(errno));
+	       gensio_err_to_str(err));
 	exit(1);
     }
 
     err = gensio_open_nochild_s(mux_io);
     if (err) {
-	syslog(LOG_ERR, "mux open failed: %s", gensio_err_to_str(errno));
+	syslog(LOG_ERR, "mux open failed: %s", gensio_err_to_str(err));
 	exit(1);
     }
 
@@ -802,13 +803,13 @@ handle_new(struct gensio_runner *r, void *cb_data)
     err = ssl_gensio_alloc(net_io, ssl_args, o, NULL, NULL, &ssl_io);
     if (err) {
 	syslog(LOG_ERR, "Unable to allocate SSL gensio: %s",
-	       gensio_err_to_str(errno));
+	       gensio_err_to_str(err));
 	exit(1);
     }
 
     err = gensio_open_nochild_s(ssl_io);
     if (err) {
-	syslog(LOG_ERR, "SSL open failed: %s", gensio_err_to_str(errno));
+	syslog(LOG_ERR, "SSL open failed: %s", gensio_err_to_str(err));
 	exit(1);
     }
 
@@ -818,7 +819,7 @@ handle_new(struct gensio_runner *r, void *cb_data)
 				certauth_event, NULL, &certauth_io);
     if (err) {
 	syslog(LOG_ERR, "Unable to allocate certauth gensio: %s",
-	       gensio_err_to_str(errno));
+	       gensio_err_to_str(err));
 	exit(1);
     }
 
@@ -1005,7 +1006,7 @@ acc_event(struct gensio_accepter *accepter, void *user_data,
 	err = o->run(r);
 	if (err) {
 	    syslog(LOG_ERR, "Could not run runner: %s",
-		   gensio_err_to_str(errno));
+		   gensio_err_to_str(err));
 	    exit(1);
 	}
 	break;
