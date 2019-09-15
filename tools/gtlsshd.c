@@ -150,12 +150,10 @@ close_con_info(struct per_con_info *pcinfo)
 	    ginfo->closecount--;
 	    gensio_free(pcinfo->io1);
 	    pcinfo->io1 = NULL;
-	    io_finish_close(pcinfo);
 	}
     } else if (pcinfo->io1) {
 	gensio_free(pcinfo->io1);
 	pcinfo->io1 = NULL;
-	io_finish_close(pcinfo);
     }
 
     if (pcinfo->io2_can_close) {
@@ -167,13 +165,12 @@ close_con_info(struct per_con_info *pcinfo)
 	    ginfo->closecount--;
 	    gensio_free(pcinfo->io2);
 	    pcinfo->io2 = NULL;
-	    io_finish_close(pcinfo);
 	}
     } else if (pcinfo->io2) {
 	gensio_free(pcinfo->io2);
 	pcinfo->io2 = NULL;
-	io_finish_close(pcinfo);
     }
+    io_finish_close(pcinfo);
 }
 
 static void
