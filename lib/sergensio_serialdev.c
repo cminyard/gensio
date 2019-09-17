@@ -885,13 +885,13 @@ serialdev_timeout(struct gensio_timer *t, void *cb_data)
 	return;
 
     if (val & TIOCM_CD)
-	modemstate |= 0x80;
+	modemstate |= SERGENSIO_MODEMSTATE_CD;
     if (val & TIOCM_RI)
-	modemstate |= 0x40;
+	modemstate |= SERGENSIO_MODEMSTATE_RI;
     if (val & TIOCM_DSR)
-	modemstate |= 0x20;
+	modemstate |= SERGENSIO_MODEMSTATE_DSR;
     if (val & TIOCM_CTS)
-	modemstate |= 0x10;
+	modemstate |= SERGENSIO_MODEMSTATE_CTS;
 
     sterm_lock(sdata);
     /* Bits for things that changed. */
