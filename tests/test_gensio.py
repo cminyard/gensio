@@ -192,7 +192,6 @@ class SigRspHandler:
 def do_telnet_test(io1, io2):
     do_test(io1, io2)
     sio1 = io1.cast_to_sergensio()
-    sio2 = io1.cast_to_sergensio()
     io1.read_cb_enable(True);
     io2.read_cb_enable(True);
 
@@ -291,7 +290,10 @@ def test_modemstate():
 
     io1 = utils.alloc_io(o, io1str, do_open = False)
     io2 = utils.alloc_io(o, io2str)
+    sio2 = io2.cast_to_sergensio();
 
+    sio2.sg_dtr_s(gensio.SERGENSIO_DTR_OFF);
+    sio2.sg_rts_s(gensio.SERGENSIO_RTS_OFF);
     set_remote_null_modem(io2.remote_id(), False);
     set_remote_modem_ctl(io2.remote_id(), (SERIALSIM_TIOCM_CAR |
                                            SERIALSIM_TIOCM_CTS |
@@ -363,6 +365,8 @@ def test_modemstate():
                                         gensio.SERGENSIO_MODEMSTATE_CD |
                                         gensio.SERGENSIO_MODEMSTATE_DSR |
                                         gensio.SERGENSIO_MODEMSTATE_CTS)
+    sio2.sg_dtr_s(gensio.SERGENSIO_DTR_ON);
+    sio2.sg_rts_s(gensio.SERGENSIO_RTS_ON);
     set_remote_null_modem(io2.remote_id(), True);
     if (io1.handler.wait_timeout(2000) == 0):
         raise Exception("%s: %s: Timed out waiting for modemstate 7" %
