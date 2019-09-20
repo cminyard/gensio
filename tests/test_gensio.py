@@ -190,6 +190,13 @@ class SigRspHandler:
         return self.waiter.wait_timeout(1, timeout)
 
 def do_telnet_test(io1, io2):
+    io1.handler.set_expected_modemstate(0)
+    io1.read_cb_enable(True);
+    sio2 = io2.cast_to_sergensio()
+    sio2.sg_modemstate(0);
+    if (io1.handler.wait_timeout(2000) == 0):
+        raise Exception("%s: %s: Timed out waiting for telnet modemstate 1" %
+                        ("test open", io1.handler.name))
     do_test(io1, io2)
     sio1 = io1.cast_to_sergensio()
     io1.read_cb_enable(True);
