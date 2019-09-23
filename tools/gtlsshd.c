@@ -969,6 +969,7 @@ acc_event(struct gensio_accepter *accepter, void *user_data,
 		   gensio_err_to_str(err));
 	    exit(1);
 	}
+	pid_file = NULL; /* Make sure children don't delete this. */
 
 	setsid();
 	switch (fork()) {
