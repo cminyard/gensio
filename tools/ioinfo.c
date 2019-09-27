@@ -203,12 +203,18 @@ io_event(struct gensio *io, void *user_data, int event, int err,
 		return 0;
 	    }
 	} else {
-	    count = *buflen;
+	    /*
+	     * The remote end isn't ready, cause the read to be
+	     * disabled for now.  The remote gensio coming ready will
+	     * enable read again.
+	     */
+	    count = 0;
 	}
 	if (count < *buflen) {
 	    *buflen = count;
 	    gensio_set_read_callback_enable(ioinfo->io, false);
-	    gensio_set_write_callback_enable(rioinfo->io, true);
+	    if (rioinfo->ready)
+		gensio_set_write_callback_enable(rioinfo->io, true);
 	} else if (escapepos >= 0) {
 	    /*
 	     * Don't do this if we didn't handle all the characters, get
@@ -245,10 +251,14 @@ io_event(struct gensio *io, void *user_data, int event, int err,
 void
 ioinfo_set_ready(struct ioinfo *ioinfo, struct gensio *io)
 {
+    struct ioinfo *rioinfo = ioinfo->otherio;
+
     ioinfo->io = io;
     gensio_set_callback(io, io_event, ioinfo);
     gensio_set_read_callback_enable(ioinfo->io, true);
     ioinfo->ready = true;
+    if (rioinfo->ready)
+	gensio_set_read_callback_enable(rioinfo->io, true);
 }
 
 void
