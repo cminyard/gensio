@@ -231,6 +231,13 @@ acc_shutdown(struct gensio_accepter *acc, void *done_data)
 
 static pam_handle_t *pamh;
 static char *passwd;
+static bool pam_started = false;
+static bool pam_cred_set = false;
+static char username[100];
+static char *homedir;
+static int pam_err;
+static uid_t uid = -1;
+static gid_t gid = -1;
 
 /*
  * Ambiguity in spec: is it an array of pointers or a pointer to an array?
@@ -308,14 +315,6 @@ static struct pam_conv auth_conv = { pam_cb, NULL };
 
 static bool permit_root = false;
 static bool pw_login = false;
-
-static bool pam_started = false;
-static bool pam_cred_set = false;
-static char username[100];
-static char *homedir;
-static int pam_err;
-static uid_t uid = -1;
-static gid_t gid = -1;
 
 static int
 get_vals_from_service(char ***rvals, unsigned int *rvlen,
@@ -907,17 +906,17 @@ handle_new(struct gensio_runner *r, void *cb_data)
     }
     pam_cred_set = true;
 
-    if (chdir(homedir)) {
-	syslog(LOG_WARNING, "chdir failed for %s to %s: %s", username,
-	       homedir, strerror(errno));
-    }
-
     pam_env = pam_getenvlist(pamh);
     if (!pam_env) {
 	syslog(LOG_ERR, "pam_getenvlist failed for %s", username);
 	exit(1);
     }
     /* login will open the session, don't do it here. */
+
+    if (chdir(homedir)) {
+	syslog(LOG_WARNING, "chdir failed for %s to %s: %s", username,
+	       homedir, strerror(errno));
+    }
 
     /* At this point we are fully authenticated and have all global info. */
 

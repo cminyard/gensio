@@ -39,10 +39,17 @@
 
 #ifdef HAVE_TCPD_H
 #include <tcpd.h>
-static char *progname = "gensio";
 #endif /* HAVE_TCPD_H */
 
+static const char *progname = "gensio";
+
 #include <gensio/gensio_osops.h>
+#include <gensio/gensio.h>
+
+bool gensio_set_progname(const char *iprogname)
+{
+    progname = iprogname;
+}
 
 static int
 check_ipv6_only(int family, int protocol, int flags, int fd)

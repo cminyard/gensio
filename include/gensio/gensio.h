@@ -467,7 +467,22 @@ int gensio_check_keyaddrs(struct gensio_os_funcs *o,
 /*
  * Helper functions that don't fit anywhere else.
  */
+
+/*
+ * Returns true of str is in one of auxdata, false if not.
+ */
 bool gensio_str_in_auxdata(const char *const *auxdata, const char *str);
+
+/*
+ * Set the program name, used by TCPD (and possibly others).  You should
+ * do this very early in initialization, first if possible.  The default
+ * progname is "gensio".
+ *
+ * The string is *NOT* copied, so you must make sure it stays around.
+ * Generally you are passing in a constant string or part of argv[0],
+ * so it's not a problem
+ */
+bool gensio_set_progname(const char *progname);
 
 #ifdef __cplusplus
 }
