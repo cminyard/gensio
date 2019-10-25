@@ -118,6 +118,12 @@ struct ioinfo_user_handlers {
     int (*event)(struct ioinfo *ioinfo, struct gensio *io, int event,
 		 int err, unsigned char *buf, gensiods *buflen,
 		 const char *const *auxdata);
+
+    /*
+     * Called when out of band data is received.  May be NULL to ignore.
+     */
+    void (*oobdata)(struct ioinfo *ioinfo,
+		    unsigned char *buf, gensiods *buflen);
 };
 
 /* Get the ioinfo for the other side of the connection. */
@@ -155,6 +161,22 @@ void ioinfo_out(struct ioinfo *ioinfo, char *fmt, ...);
 
 /* Send data to the ioinfo user's err function. */
 void ioinfo_err(struct ioinfo *ioinfo, char *fmt, ...);
+
+struct ioinfo_oob
+{
+    unsigned char *buf;
+    gensiods len;
+    void *cb_data;
+    void (*send_done)(void *cb_data);
+
+    struct ioinfo_oob *next;
+};
+/*
+ * Send out of band data.  It will not be sent immediately, instead it
+ * will be queued and send_done() will be called when the send is complete,
+ * if it is not NULL.
+ */
+void ioinfo_sendoob(struct ioinfo *ioinfo, struct ioinfo_oob *oobinfo);
 
 /*
  * Allocate an ioinfo.

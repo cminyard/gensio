@@ -41,6 +41,9 @@ struct ioinfo {
 
     struct ioinfo_user_handlers *uh;
     void *userdata;
+
+    struct ioinfo_oob *oob_head;
+    struct ioinfo_oob *oob_tail;
 };
 
 void
@@ -91,6 +94,18 @@ struct ioinfo *
 ioinfo_otherioinfo(struct ioinfo *ioinfo)
 {
     return ioinfo->otherio;
+}
+
+void
+ioinfo_sendoob(struct ioinfo *ioinfo, struct ioinfo_oob *oobinfo)
+{
+    oobinfo->next = NULL;
+    if (ioinfo->oob_tail)
+	ioinfo->oob_tail->next = oobinfo;
+    else
+	ioinfo->oob_head = oobinfo;
+    ioinfo->oob_tail = oobinfo;
+    gensio_set_write_callback_enable(ioinfo->io, true);
 }
 
 static bool
@@ -159,6 +174,7 @@ io_event(struct gensio *io, void *user_data, int event, int err,
     struct ioinfo *rioinfo = ioinfo->otherio;
     int rv, escapepos = -1;
     gensiods count = 0;
+    static const char *oobaux[2] = { "oob", NULL };
 
     if (err) {
 	if (err != GE_REMCLOSE) 
@@ -171,6 +187,12 @@ io_event(struct gensio *io, void *user_data, int event, int err,
     case GENSIO_EVENT_READ:
 	if (*buflen == 0)
 	    return 0;
+
+	if (gensio_str_in_auxdata(auxdata, "oob")) {
+	    if (ioinfo->uh->oobdata)
+		ioinfo->uh->oobdata(ioinfo, buf, buflen);
+	    return 0;
+	}
 
 	if (ioinfo->escape_char >= 0) {
 	    unsigned int i;
@@ -227,6 +249,31 @@ io_event(struct gensio *io, void *user_data, int event, int err,
 	return 0;
 
     case GENSIO_EVENT_WRITE_READY:
+	if (ioinfo->oob_head) {
+	    struct ioinfo_oob *oob = ioinfo->oob_head;
+	    gensiods count;
+
+	    rv = gensio_write(ioinfo->io, &count, oob->buf, oob->len, oobaux);
+	    if (rv) {
+		gensio_set_read_callback_enable(ioinfo->io, false);
+		ioinfo_err(rioinfo, "write error: %s", gensio_err_to_str(rv));
+		ioinfo->uh->shutdown(ioinfo, false);
+		return 0;
+	    }
+	    if (count >= oob->len) {
+		if (oob->send_done)
+		    oob->send_done(oob->cb_data);
+		ioinfo->oob_head = oob->next;
+		if (ioinfo->oob_head == NULL)
+		    /* No more OOB data. */
+		    ioinfo->oob_tail = NULL;
+	    } else {
+		oob->buf += count;
+		oob->len -= count;
+	    }
+	    return 0;
+	}
+
 	gensio_set_read_callback_enable(rioinfo->io, true);
 	gensio_set_write_callback_enable(ioinfo->io, false);
 	return 0;
