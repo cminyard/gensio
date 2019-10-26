@@ -1040,6 +1040,9 @@ main(int argc, char *argv[])
     }
     o->set_read_handler(o, winch_pipe[0], true);
 
+    if (interactive)
+	winch_ready(winch_pipe[0], ioinfo2);
+
     o->wait(userdata1.waiter, 1, NULL);
 
  closeit:
