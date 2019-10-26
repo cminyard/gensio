@@ -592,7 +592,7 @@ auth_event(struct gensio *io, void *user_data, int event, int ierr,
 }
 
 static int winch_pipe[2];
-static unsigned char winch_buf[9];
+static unsigned char winch_buf[11];
 static struct ioinfo_oob winch_oob = { .buf = winch_buf };
 bool winch_oob_sending;
 bool winch_oob_pending;
@@ -610,12 +610,14 @@ send_winch(struct ioinfo *ioinfo)
     if (rv == -1)
 	return;
 
+    /* See goobdata() comment for message format. */
     winch_oob.buf[0] = 'w';
-    gensio_u16_to_buf(winch_oob.buf + 1, win.ws_row);
-    gensio_u16_to_buf(winch_oob.buf + 3, win.ws_col);
-    gensio_u16_to_buf(winch_oob.buf + 5, win.ws_xpixel);
-    gensio_u16_to_buf(winch_oob.buf + 7, win.ws_ypixel);
-    winch_oob.len = 9;
+    gensio_u16_to_buf(winch_oob.buf + 1, 8); /* Number of following bytes. */
+    gensio_u16_to_buf(winch_oob.buf + 3, win.ws_row);
+    gensio_u16_to_buf(winch_oob.buf + 5, win.ws_col);
+    gensio_u16_to_buf(winch_oob.buf + 7, win.ws_xpixel);
+    gensio_u16_to_buf(winch_oob.buf + 9, win.ws_ypixel);
+    winch_oob.len = 11;
     winch_oob.cb_data = ioinfo;
     winch_oob.send_done = winch_sent;
     ioinfo_sendoob(ioinfo, &winch_oob);

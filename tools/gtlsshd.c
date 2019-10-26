@@ -74,7 +74,7 @@ struct per_con_info {
 
     bool is_pty;
 
-    unsigned char oobbuf[9];
+    unsigned char oobbuf[65536]; /* Max possible message length. */
     unsigned int ooblen;
     unsigned int oobpos;
 };
@@ -223,23 +223,34 @@ static int gevent(struct ioinfo *ioinfo, struct gensio *io, int event,
 }
 
 static void
-handle_winch(struct per_con_info *pcinfo)
+handle_winch(struct per_con_info *pcinfo,
+	     unsigned char *msg, unsigned int msglen)
 {
     int err, ptym;
     struct winsize win;
     gensiods len = sizeof(int);
 
+    if (msglen < 8)
+	return;
+
     err = gensio_get_raddr(pcinfo->io2, &ptym, &len);
     if (err)
 	return;
 
-    win.ws_row = gensio_buf_to_u16(pcinfo->oobbuf + 1);
-    win.ws_col = gensio_buf_to_u16(pcinfo->oobbuf + 3);
-    win.ws_xpixel = gensio_buf_to_u16(pcinfo->oobbuf + 5);
-    win.ws_ypixel = gensio_buf_to_u16(pcinfo->oobbuf + 7);
+    win.ws_row = gensio_buf_to_u16(msg + 0);
+    win.ws_col = gensio_buf_to_u16(msg + 2);
+    win.ws_xpixel = gensio_buf_to_u16(msg + 4);
+    win.ws_ypixel = gensio_buf_to_u16(msg + 6);
     ioctl(ptym, TIOCSWINSZ, &win);
 }
 
+/*
+ * The OOB data has a 3 byte header:
+ *
+ *  <msgid> <len msb> <len lsb>
+ *
+ * followed by len bytes.
+ */
 static void
 goobdata(struct ioinfo *ioinfo, unsigned char *buf, gensiods *buflen)
 {
@@ -247,21 +258,16 @@ goobdata(struct ioinfo *ioinfo, unsigned char *buf, gensiods *buflen)
     gensiods pos = 0;
 
     while (pos < *buflen ) {
-	if (pcinfo->oobpos == 0) {
-	    if (buf[pos] == 'w') {
-		/* window change, get struct winsize data. */
-		pcinfo->oobbuf[0] = buf[pos];
-		pcinfo->oobpos = 1;
-		pcinfo->ooblen = 9;
-	    }
-	} else {
-	    pcinfo->oobbuf[pcinfo->oobpos++] = buf[pos];
-	    if (pcinfo->oobpos == pcinfo->ooblen) {
-		pcinfo->oobpos = 0;
-		if (pcinfo->oobbuf[0] == 'w' && pcinfo->is_pty)
+	pcinfo->oobbuf[pcinfo->oobpos++] = buf[pos];
+	if (pcinfo->oobpos == 3)
+	    /* Get the number of bytes in the message. */
+	    pcinfo->ooblen = gensio_buf_to_u16(pcinfo->oobbuf + 1) + 3;
+	if (pcinfo->oobpos >= pcinfo->ooblen) {
+	    pcinfo->oobpos = 0;
+	    if (pcinfo->oobbuf[0] == 'w' && pcinfo->is_pty)
 		    /* window change. */
-		    handle_winch(pcinfo);
-	    }
+		handle_winch(pcinfo, pcinfo->oobbuf + 3, pcinfo->ooblen - 3);
+	    pcinfo->ooblen = 3; /* Give enough room for the next 3 bytes. */
 	}
 	pos++;
     }
@@ -671,6 +677,7 @@ new_rem_io(struct gensio *io, struct gdata *ginfo)
     }
     memset(pcinfo, 0, sizeof(*pcinfo));
     pcinfo->ginfo = ginfo;
+    pcinfo->ooblen = 3;
 
     pcinfo->ioinfo1 = alloc_ioinfo(o, -1, NULL, NULL, &guh, pcinfo);
     if (!pcinfo->ioinfo1) {
