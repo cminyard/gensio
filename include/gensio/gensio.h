@@ -484,6 +484,14 @@ bool gensio_str_in_auxdata(const char *const *auxdata, const char *str);
  */
 bool gensio_set_progname(const char *progname);
 
+/*
+ * Various conversion helpers.  These may become inline someday...
+ */
+uint32_t gensio_buf_to_u32(unsigned char *data);
+void gensio_u32_to_buf(unsigned char *data, uint32_t v);
+uint16_t gensio_buf_to_u16(unsigned char *data);
+void gensio_u16_to_buf(unsigned char *data, uint16_t v);
+
 #ifdef __cplusplus
 }
 #endif

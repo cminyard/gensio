@@ -709,37 +709,6 @@ mux_channel_finish_close(struct mux_inst *chan)
 	finish_close(chan);
 }
 
-static uint32_t
-mux_buf_to_u32(unsigned char *data)
-{
-    return (data[0] << 24 |
-	    data[1] << 16 |
-	    data[2] << 8 |
-	    data[3]);
-}
-
-static void
-mux_u32_to_buf(unsigned char *data, uint32_t v)
-{
-    data[0] = v >> 24;
-    data[1] = v >> 16;
-    data[2] = v >> 8;
-    data[3] = v;
-}
-
-static uint16_t
-mux_buf_to_u16(unsigned char *data)
-{
-    return (data[0] << 8 | data[1]);
-}
-
-static void
-mux_u16_to_buf(unsigned char *data, uint16_t v)
-{
-    data[0] = v >> 8;
-    data[1] = v;
-}
-
 static void
 mux_send_new_channel_rsp(struct mux_data *muxdata, unsigned int remote_id,
 			 unsigned int max_read_size, unsigned int id,
@@ -747,10 +716,10 @@ mux_send_new_channel_rsp(struct mux_data *muxdata, unsigned int remote_id,
 {
     muxdata->xmit_data[0] = (MUX_NEW_CHANNEL_RSP << 4) | 0x3;
     muxdata->xmit_data[1] = 0;
-    mux_u16_to_buf(&muxdata->xmit_data[2], remote_id);
-    mux_u32_to_buf(&muxdata->xmit_data[4], max_read_size);
-    mux_u16_to_buf(&muxdata->xmit_data[8], id);
-    mux_u16_to_buf(&muxdata->xmit_data[10], err);
+    gensio_u16_to_buf(&muxdata->xmit_data[2], remote_id);
+    gensio_u32_to_buf(&muxdata->xmit_data[4], max_read_size);
+    gensio_u16_to_buf(&muxdata->xmit_data[8], id);
+    gensio_u16_to_buf(&muxdata->xmit_data[10], err);
     muxdata->xmit_data_pos = 0;
     muxdata->xmit_data_len = 12;
     gensio_set_write_callback_enable(muxdata->child, true);
@@ -985,7 +954,7 @@ muxc_write(struct mux_inst *chan, gensiods *count,
 	hdr[0] |= MUX_FLAG_END_OF_MESSAGE;
     if (gensio_str_in_auxdata(auxdata, "oob"))
 	hdr[0] |= MUX_FLAG_OUT_OF_BOUND;
-    mux_u16_to_buf(hdr + 1, tot_len - 3);
+    gensio_u16_to_buf(hdr + 1, tot_len - 3);
     chan_addwrbuf(chan, hdr, 3);
     tot_len -= 3;
 
@@ -1048,9 +1017,9 @@ chan_send_close(struct mux_inst *chan)
 {
     chan->hdr[0] = (MUX_CLOSE_CHANNEL << 4) | 0x2;
     chan->hdr[1] = 0;
-    mux_u16_to_buf(&chan->hdr[2], chan->remote_id);
-    mux_u16_to_buf(&chan->hdr[4], chan->errcode);
-    mux_u16_to_buf(&chan->hdr[6], 0);
+    gensio_u16_to_buf(&chan->hdr[2], chan->remote_id);
+    gensio_u16_to_buf(&chan->hdr[4], chan->errcode);
+    gensio_u16_to_buf(&chan->hdr[6], 0);
     chan->sg[0].buf = chan->hdr;
     chan->sg[0].buflen = 8;
     chan->sglen = 1;
@@ -1667,9 +1636,9 @@ chan_setup_send_new_channel(struct mux_inst *chan)
 {
     chan->hdr[0] = (MUX_NEW_CHANNEL << 4) | 0x2;
     chan->hdr[1] = 0;
-    mux_u16_to_buf(&chan->hdr[2], chan->id);
-    mux_u32_to_buf(&chan->hdr[4], chan->max_read_size);
-    mux_u16_to_buf(&chan->hdr[8], chan->service_len);
+    gensio_u16_to_buf(&chan->hdr[2], chan->id);
+    gensio_u32_to_buf(&chan->hdr[4], chan->max_read_size);
+    gensio_u16_to_buf(&chan->hdr[8], chan->service_len);
     chan->sg[0].buf = chan->hdr;
     chan->sg[0].buflen = 10;
     chan->sglen = 1;
@@ -1690,8 +1659,8 @@ chan_setup_send_data(struct mux_inst *chan)
 
     chan->hdr[0] = (MUX_DATA << 4) | 0x2;
     chan->hdr[1] = 0;
-    mux_u16_to_buf(chan->hdr + 2, chan->remote_id);
-    mux_u32_to_buf(chan->hdr + 4, chan->received_unacked);
+    gensio_u16_to_buf(chan->hdr + 2, chan->remote_id);
+    gensio_u32_to_buf(chan->hdr + 4, chan->received_unacked);
     chan->ack_pending = false;
 
     chan->sg[0].buf = chan->hdr;
@@ -1703,7 +1672,7 @@ chan_setup_send_data(struct mux_inst *chan)
 	    return false;
 	chan->received_unacked = 0;
 	/* Just sending an ack. */
-	mux_u16_to_buf(chan->hdr + 8, 0);
+	gensio_u16_to_buf(chan->hdr + 8, 0);
 	chan->sg[0].buflen = 10;
 	chan->sglen = 1;
 	return true;
@@ -1898,7 +1867,7 @@ static struct mux_inst *
 mux_get_channel(struct mux_data *muxdata)
 {
     struct gensio_link *l;
-    unsigned int id = mux_buf_to_u16(muxdata->hdr + 2);
+    unsigned int id = gensio_buf_to_u16(muxdata->hdr + 2);
 
     gensio_list_for_each(&muxdata->chans, l) {
 	struct mux_inst *chan = gensio_container_of(l, struct mux_inst, link);
@@ -2024,7 +1993,7 @@ mux_child_read(struct mux_data *muxdata, int ierr,
 
 	    switch (muxdata->msgid) {
 	    case MUX_NEW_CHANNEL: {
-		unsigned int remote_id = mux_buf_to_u16(muxdata->hdr + 2);
+		unsigned int remote_id = gensio_buf_to_u16(muxdata->hdr + 2);
 		if (muxdata->state == MUX_WAITING_OPEN)
 		    chan = mux_chan0(muxdata);
 		else {
@@ -2043,7 +2012,8 @@ mux_child_read(struct mux_data *muxdata, int ierr,
 		}
 		muxdata->curr_chan = chan;
 		if (chan) {
-		    chan->send_window_size = mux_buf_to_u32(muxdata->hdr + 4);
+		    chan->send_window_size =
+			gensio_buf_to_u32(muxdata->hdr + 4);
 		    chan->remote_id = remote_id;
 		    muxdata->data_pos = 0;
 		    muxdata->in_hdr = false; /* Receive the service data */
@@ -2064,9 +2034,9 @@ mux_child_read(struct mux_data *muxdata, int ierr,
 		}
 		if (muxdata->state == MUX_IN_OPEN)
 		    muxdata->state = MUX_OPEN;
-		chan->remote_id = mux_buf_to_u16(muxdata->hdr + 8);
-		chan->send_window_size = mux_buf_to_u32(muxdata->hdr + 4);
-		chan->errcode = mux_buf_to_u16(muxdata->hdr + 10);
+		chan->remote_id = gensio_buf_to_u16(muxdata->hdr + 8);
+		chan->send_window_size = gensio_buf_to_u32(muxdata->hdr + 4);
+		chan->errcode = gensio_buf_to_u16(muxdata->hdr + 10);
 		muxdata->sending_chan = NULL;
 
 		assert(muxdata->opencount > 0);
@@ -2120,7 +2090,7 @@ mux_child_read(struct mux_data *muxdata, int ierr,
 		    proto_err_str = "Invalid channel state on close";
 		    goto protocol_err;
 		}
-		chan->errcode = mux_buf_to_u16(muxdata->hdr + 4);
+		chan->errcode = gensio_buf_to_u16(muxdata->hdr + 4);
 		if (chan->state == MUX_INST_IN_CLOSE) {
 		    chan->state = MUX_INST_IN_CLOSE_FINAL;
 		    if (chan->read_data_len == 0 && !chan->wr_ready)
@@ -2150,7 +2120,7 @@ mux_child_read(struct mux_data *muxdata, int ierr,
 		    proto_err_str = "Invalid channel state on data";
 		    goto protocol_err;
 		}
-		acked = mux_buf_to_u32(muxdata->hdr + 4);
+		acked = gensio_buf_to_u32(muxdata->hdr + 4);
 		if (acked > chan->sent_unacked)
 		    chan->sent_unacked = 0; /* FIXME - Should we protocol err? */
 		else
@@ -2275,8 +2245,8 @@ mux_child_read(struct mux_data *muxdata, int ierr,
 			    goto protocol_err;
 			}
 			mux_send_new_channel_rsp(muxdata,
-					     mux_buf_to_u16(muxdata->hdr + 2),
-					     0, 0, err);
+					   gensio_buf_to_u16(muxdata->hdr + 2),
+					   0, 0, err);
 			if (chan)
 			    mux_channel_finish_close(chan);
 		    } else {

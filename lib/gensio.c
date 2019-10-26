@@ -2888,3 +2888,34 @@ gensio_str_in_auxdata(const char *const *auxdata, const char *str)
     }
     return false;
 }
+
+uint32_t
+gensio_buf_to_u32(unsigned char *data)
+{
+    return (data[0] << 24 |
+	    data[1] << 16 |
+	    data[2] << 8 |
+	    data[3]);
+}
+
+void
+gensio_u32_to_buf(unsigned char *data, uint32_t v)
+{
+    data[0] = v >> 24;
+    data[1] = v >> 16;
+    data[2] = v >> 8;
+    data[3] = v;
+}
+
+uint16_t
+gensio_buf_to_u16(unsigned char *data)
+{
+    return (data[0] << 8 | data[1]);
+}
+
+void
+gensio_u16_to_buf(unsigned char *data, uint16_t v)
+{
+    data[0] = v >> 8;
+    data[1] = v;
+}
