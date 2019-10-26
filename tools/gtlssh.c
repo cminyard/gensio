@@ -27,6 +27,8 @@
 #include <termios.h>
 #include <gensio/gensio.h>
 #include <pwd.h>
+#include <signal.h>
+#include <sys/ioctl.h>
 
 #include "ioinfo.h"
 #include "ser_ioinfo.h"
@@ -589,6 +591,81 @@ auth_event(struct gensio *io, void *user_data, int event, int ierr,
     }
 }
 
+static int winch_pipe[2];
+static unsigned char winch_buf[9];
+static struct ioinfo_oob winch_oob = { .buf = winch_buf };
+bool winch_oob_sending;
+bool winch_oob_pending;
+
+static void winch_sent(void *cb_data);
+
+static void
+send_winch(struct ioinfo *ioinfo)
+{
+    struct gdata *ginfo = ioinfo_userdata(ioinfo);
+    struct winsize win;
+    int rv;
+
+    rv = ioctl(0, TIOCGWINSZ, &win);
+    if (rv == -1)
+	return;
+
+    winch_oob.buf[0] = 'w';
+    gensio_u16_to_buf(winch_oob.buf + 1, win.ws_row);
+    gensio_u16_to_buf(winch_oob.buf + 3, win.ws_col);
+    gensio_u16_to_buf(winch_oob.buf + 5, win.ws_xpixel);
+    gensio_u16_to_buf(winch_oob.buf + 7, win.ws_ypixel);
+    winch_oob.len = 9;
+    winch_oob.cb_data = ioinfo;
+    winch_oob.send_done = winch_sent;
+    ioinfo_sendoob(ioinfo, &winch_oob);
+    winch_oob_sending = true;
+}
+
+static void
+winch_sent(void *cb_data)
+{
+    struct ioinfo *ioinfo = cb_data;
+
+    winch_oob_sending = false;
+    if (winch_oob_pending) {
+	winch_oob_pending = false;
+	send_winch(ioinfo);
+    }
+}
+
+static void
+winch_ready(int fd, void *cb_data)
+{
+    struct ioinfo *ioinfo = cb_data;
+    char dummy;
+    int rv = 1;
+
+    /* Clear out the pipe. */
+    while (rv == 1)
+	rv = read(winch_pipe[0], &dummy, 1);
+    /* errno should be EAGAIN here. */
+
+    if (!isatty(0))
+	return;
+
+    if (winch_oob_sending)
+	winch_oob_pending = true;
+    else
+	send_winch(ioinfo);
+}
+
+static void
+handle_sigwinch(int signum)
+{
+    int rv;
+
+    rv = write(winch_pipe[1], "w", 1);
+    if (rv != 1) {
+	/* What can be done here? */
+    }
+}
+
 int
 main(int argc, char *argv[])
 {
@@ -613,9 +690,31 @@ main(int argc, char *argv[])
     bool notcp = false, nosctp = false;
     const char *muxstr = "mux,";
     bool use_mux = true;
+    struct sigaction sigact;
 
     memset(&userdata1, 0, sizeof(userdata1));
     memset(&userdata2, 0, sizeof(userdata2));
+    memset(&sigact, 0, sizeof(sigact));
+
+    if (pipe(winch_pipe) == -1) {
+	perror("Unable to allocate SIGWINCH pipe");
+	return 1;
+    }
+    if (fcntl(winch_pipe[0], F_SETFL, O_NONBLOCK) == -1) {
+	perror("Unable to set nonblock on SIGWINCH pipe[0]");
+	return 1;
+    }
+    if (fcntl(winch_pipe[1], F_SETFL, O_NONBLOCK) == -1) {
+	perror("Unable to set nonblock on SIGWINCH pipe[1]");
+	return 1;
+    }
+
+    sigact.sa_handler = handle_sigwinch;
+    err = sigaction(SIGWINCH, &sigact, NULL);
+    if (err) {
+	perror("Unable to setup SIGWINCH");
+	return 1;
+    }
 
     progname = argv[0];
 
@@ -798,6 +897,7 @@ main(int argc, char *argv[])
 		gensio_err_to_str(rv));
 	return 1;
     }
+
     o->vlog = do_vlog;
 
     userdata1.o = o;
@@ -931,6 +1031,15 @@ main(int argc, char *argv[])
     }
     ioinfo_set_ready(ioinfo1, userdata1.io);
 
+    rv = o->set_fd_handlers(o, winch_pipe[0], ioinfo2, winch_ready,
+			    NULL, NULL, NULL);
+    if (rv) {
+	fprintf(stderr, "Could not set SIGWINCH fd handler: %s\n",
+		gensio_err_to_str(rv));
+	return 1;
+    }
+    o->set_read_handler(o, winch_pipe[0], true);
+
     o->wait(userdata1.waiter, 1, NULL);
 
  closeit:
@@ -954,9 +1063,8 @@ main(int argc, char *argv[])
 	    closecount++;
     }
 
-    if (closecount > 0) {
+    if (closecount > 0)
 	o->wait(closewaiter, closecount, NULL);
-    }
 
     if (CAdirspec)
 	free(CAdirspec);

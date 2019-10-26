@@ -27,6 +27,8 @@
 #include <sys/wait.h>
 #include <pwd.h>
 #include <assert.h>
+#include <sys/ioctl.h>
+#include <termios.h>
 
 #include <security/pam_appl.h>
 #include <security/pam_misc.h>
@@ -69,6 +71,12 @@ struct per_con_info {
     struct ioinfo *ioinfo2;
 
     struct gensio_link link;
+
+    bool is_pty;
+
+    unsigned char oobbuf[9];
+    unsigned int ooblen;
+    unsigned int oobpos;
 };
 
 static char *default_keyfile = SYSCONFDIR "/gtlssh/gtlsshd.key";
@@ -214,11 +222,57 @@ static int gevent(struct ioinfo *ioinfo, struct gensio *io, int event,
     return mux_event(io, ginfo, event, ierr, buf, buflen, auxdata);
 }
 
+static void
+handle_winch(struct per_con_info *pcinfo)
+{
+    int err, ptym;
+    struct winsize win;
+    gensiods len = sizeof(int);
+
+    err = gensio_get_raddr(pcinfo->io2, &ptym, &len);
+    if (err)
+	return;
+
+    win.ws_row = gensio_buf_to_u16(pcinfo->oobbuf + 1);
+    win.ws_col = gensio_buf_to_u16(pcinfo->oobbuf + 3);
+    win.ws_xpixel = gensio_buf_to_u16(pcinfo->oobbuf + 5);
+    win.ws_ypixel = gensio_buf_to_u16(pcinfo->oobbuf + 7);
+    ioctl(ptym, TIOCSWINSZ, &win);
+}
+
+static void
+goobdata(struct ioinfo *ioinfo, unsigned char *buf, gensiods *buflen)
+{
+    struct per_con_info *pcinfo = ioinfo_userdata(ioinfo);
+    gensiods pos = 0;
+
+    while (pos < *buflen ) {
+	if (pcinfo->oobpos == 0) {
+	    if (buf[pos] == 'w') {
+		/* window change, get struct winsize data. */
+		pcinfo->oobbuf[0] = buf[pos];
+		pcinfo->oobpos = 1;
+		pcinfo->ooblen = 9;
+	    }
+	} else {
+	    pcinfo->oobbuf[pcinfo->oobpos++] = buf[pos];
+	    if (pcinfo->oobpos == pcinfo->ooblen) {
+		pcinfo->oobpos = 0;
+		if (pcinfo->oobbuf[0] == 'w' && pcinfo->is_pty)
+		    /* window change. */
+		    handle_winch(pcinfo);
+	    }
+	}
+	pos++;
+    }
+}
+
 static struct ioinfo_user_handlers guh = {
     .shutdown = gshutdown,
     .err = gerr,
     .out = gout,
-    .event = gevent
+    .event = gevent,
+    .oobdata = goobdata
 };
 
 static void
@@ -657,6 +711,7 @@ new_rem_io(struct gensio *io, struct gdata *ginfo)
 	 * authentication from pam succeeded, don't ask for password.
 	 */
 	s = alloc_sprintf("pty,/bin/login -f -p %s", username);
+	pcinfo->is_pty = true;
     }
     if (!s) {
 	syslog(LOG_ERR, "Out of memory allocating program name");
