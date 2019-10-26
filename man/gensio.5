@@ -904,7 +904,8 @@ the environment to be set for the new process.
 .SS "Remote Address String"
 The remote address string the program and arguments run on the pty.
 .SS "Remote Address"
-Remote address is not supported.
+The address is a pointer to an integer, the ptym file descriptor is
+returned.  addrlen must be set to sizeof(int) when passed in.
 .SS "Remote ID"
 Remote ID is the pid if the process run on the pty.
 .SH "Forking and gensios"

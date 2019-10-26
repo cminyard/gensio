@@ -88,6 +88,19 @@ pty_raddr_to_str(void *handler_data, gensiods *epos,
 }
 
 static int
+pty_get_raddr(void *handler_data, void *addr, gensiods *addrlen)
+{
+    struct pty_data *tdata = handler_data;
+
+    if (*addrlen < sizeof(int))
+	return GE_TOOBIG;
+
+    *((int *) addr) = tdata->ptym;
+    *addrlen = sizeof(int);
+    return 0;
+}
+
+static int
 pty_remote_id(void *handler_data, int *id)
 {
     struct pty_data *tdata = handler_data;
@@ -208,6 +221,7 @@ static const struct gensio_fd_ll_ops pty_fd_ll_ops = {
     .check_open = pty_check_open,
     .read_ready = pty_read_ready,
     .raddr_to_str = pty_raddr_to_str,
+    .get_raddr = pty_get_raddr,
     .remote_id = pty_remote_id,
     .check_close = pty_check_close,
     .free = pty_free,
