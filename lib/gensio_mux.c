@@ -1363,6 +1363,7 @@ muxc_alloc_channel(struct mux_data *muxdata,
     memset(&data, 0, sizeof(data));
     data.max_read_size = muxdata->max_read_size;
     data.max_write_size = muxdata->max_write_size;
+    data.max_channels = muxdata->max_channels;
     data.is_client = true;
     get_default_mode(muxdata->o, &data.is_client);
 
@@ -2420,6 +2421,7 @@ mux_gensio_alloc(struct gensio *child, const char *const args[],
     struct gensio *io;
     struct gensio_mux_config data;
     struct mux_data *muxdata;
+    int ival;
 
     if (!gensio_is_reliable(child))
 	/* Cowardly refusing to run MUX over an unreliable connection. */
@@ -2429,6 +2431,10 @@ mux_gensio_alloc(struct gensio *child, const char *const args[],
     data.max_read_size = GENSIO_DEFAULT_BUF_SIZE;
     data.max_write_size = GENSIO_DEFAULT_BUF_SIZE;
     data.max_channels = 1000;
+    err = gensio_get_default(o, "mux", "max-channels", false,
+			     GENSIO_DEFAULT_INT, NULL, &ival);
+    if (!err)
+	data.max_channels = ival;
     data.is_client = true;
     get_default_mode(o, &data.is_client);
 
@@ -2549,7 +2555,7 @@ mux_gensio_accepter_alloc(struct gensio_accepter *child,
 			  struct gensio_accepter **accepter)
 {
     struct muxna_data *nadata;
-    int err;
+    int err, ival;
 
     if (!gensio_acc_is_reliable(child))
 	/* Cowardly refusing to run MUX over an unreliable connection. */
@@ -2562,6 +2568,10 @@ mux_gensio_accepter_alloc(struct gensio_accepter *child,
     nadata->data.max_read_size = GENSIO_DEFAULT_BUF_SIZE;
     nadata->data.max_write_size = GENSIO_DEFAULT_BUF_SIZE;
     nadata->data.max_channels = 1000;
+    err = gensio_get_default(o, "mux", "max-channels", false,
+			     GENSIO_DEFAULT_INT, NULL, &ival);
+    if (!err)
+	nadata->data.max_channels = ival;
     nadata->data.is_client = false;
     get_default_mode(o, &nadata->data.is_client);
     err = gensio_mux_config(o, args, &nadata->data);

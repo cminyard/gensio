@@ -2003,8 +2003,11 @@ struct gensio_def_entry builtin_defaults[] = {
     { "username",	GENSIO_DEFAULT_STR,	.def.strval = NULL },
     { "password",	GENSIO_DEFAULT_STR,	.def.strval = NULL },
     { "service",	GENSIO_DEFAULT_STR,	.def.strval = NULL },
-    { "use-child-auth",	GENSIO_DEFAULT_BOOL,	.def.intval = false, },
-    { "enable-password",GENSIO_DEFAULT_BOOL,	.def.intval = false, },
+    { "use-child-auth",	GENSIO_DEFAULT_BOOL,	.def.intval = false },
+    { "enable-password",GENSIO_DEFAULT_BOOL,	.def.intval = false },
+    /* For mux */
+    { "max-channels",	GENSIO_DEFAULT_INT,	.min = 1, .max = INT_MAX,
+						.def.intval = 1000 },
     {}
 };
 
