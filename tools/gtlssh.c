@@ -602,7 +602,6 @@ static void winch_sent(void *cb_data);
 static void
 send_winch(struct ioinfo *ioinfo)
 {
-    struct gdata *ginfo = ioinfo_userdata(ioinfo);
     struct winsize win;
     int rv;
 
