@@ -74,7 +74,8 @@ struct per_con_info {
 
     bool is_pty;
 
-    unsigned char oobbuf[65536]; /* Max possible message length. */
+    /* A 3-byte header and a 65535 byte payload. */
+    unsigned char oobbuf[65538];
     unsigned int ooblen;
     unsigned int oobpos;
 };
