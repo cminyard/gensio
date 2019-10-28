@@ -380,6 +380,33 @@ SCTP returns a packed struct sockaddr for gensio_get_raddr(3), per
 SCTP semantics.
 .SS "Remote ID"
 Remote is not supported.
+.SH "UNIX"
+.B unix[(<options>)],<socket_path>
+
+Create a unix domain socket as an accepter, or connect to a unix
+domain socket as a connecter.
+
+A file will be created with the given socket path, you must have
+permissions to create a writeable file in that location.  If the file
+already exists, an error will be returned on an accepter socket unless
+you specify
+.i delsock
+which will cause the file to be deleted.
+
+You should read the unix(7) man page for details on the semantics of
+these sockets, especially permissions.  Also note that remote
+credentials are not currently implemented.
+
+In addition to readbuf, the unix gensio takes the following options:
+.TP
+.B delsock[=true|false]
+If the socket path already exists, delete it before opening the socket.
+.SS Remote Address String
+The remote address will be the socket path.
+.SS Remote Address
+UNIX returns a standard struct sockaddr_un for gensio_get_raddr(3).
+.SS Remote ID
+Remote is not supported.
 .SH "serialdev"
 .B serialdev[(<options>)],<device>[,<serialoption>[,<serialoption>]]
 
@@ -939,7 +966,7 @@ will be disabled then closed.
 
 You cannot share a gensio between two different processes.
 .SH "SEE ALSO"
-gensiotool(1), sctp(7), udp(7), tcp(7)
+gensiot(1), sctp(7), udp(7), tcp(7), unix(7)
 .SH "KNOWN PROBLEMS"
 None.
 .SH AUTHOR

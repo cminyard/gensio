@@ -49,6 +49,7 @@ static const char *progname = "gensio";
 bool gensio_set_progname(const char *iprogname)
 {
     progname = iprogname;
+    return true;
 }
 
 static int
@@ -498,6 +499,10 @@ gensio_open_socket(struct gensio_os_funcs *o,
     }
     if (family == AF_INET6) {
 	family = AF_INET;
+	goto restart;
+    }
+    if (family == AF_INET) {
+	family = AF_UNIX;
 	goto restart;
     }
 

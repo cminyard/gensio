@@ -49,6 +49,11 @@ int str_to_sctp_gensio_accepter(const char *str, const char * const args[],
 				gensio_accepter_event cb,
 				void *user_data,
 				struct gensio_accepter **new_acc);
+int str_to_unix_gensio_accepter(const char *str, const char * const args[],
+				struct gensio_os_funcs *o,
+				gensio_accepter_event cb,
+				void *user_data,
+				struct gensio_accepter **new_acc);
 int str_to_stdio_gensio_accepter(const char *str, const char * const args[],
 				 struct gensio_os_funcs *o,
 				 gensio_accepter_event cb,
@@ -93,6 +98,10 @@ int str_to_udp_gensio(const char *str, const char * const args[],
 		      gensio_event cb, void *user_data,
 		      struct gensio **new_gensio);
 int str_to_sctp_gensio(const char *str, const char * const args[],
+		       struct gensio_os_funcs *o,
+		       gensio_event cb, void *user_data,
+		       struct gensio **new_gensio);
+int str_to_unix_gensio(const char *str, const char * const args[],
 		       struct gensio_os_funcs *o,
 		       gensio_event cb, void *user_data,
 		       struct gensio **new_gensio);

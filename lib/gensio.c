@@ -32,6 +32,7 @@
 #ifdef HAVE_LIBSCTP
 #include <netinet/sctp.h>
 #endif
+#include <sys/un.h>
 
 #include <gensio/gensio.h>
 #include <gensio/gensio_builtins.h>
@@ -571,6 +572,63 @@ gensio_scan_netaddr(struct gensio_os_funcs *o, const char *str, bool listen,
     return scan_ips(o, str, listen, family, socktype, protocol, NULL, rai);
 }
 
+int
+gensio_scan_unixaddr(struct gensio_os_funcs *o, const char *str,
+		     struct addrinfo **rai,
+		     int *rargc, const char ***rargs)
+{
+    struct sockaddr_un *saddr;
+    struct addrinfo *ai;
+    int len, argc, err;
+    const char **args = NULL;
+
+    if (rargs && strncmp(str, "unix,", 5) == 0) {
+	str += 5;
+    } else if (rargs && strncmp(str, "unix(", 5) == 0) {
+	if (!rargs)
+	    return GE_INVAL;
+	str += 4;
+	err = gensio_scan_args(o, &str, &argc, &args);
+	if (err)
+	    return err;
+    }
+
+    len = strlen(str);
+    if (len >= sizeof(saddr->sun_path) - 1)
+	return GE_TOOBIG;
+
+    ai = o->zalloc(o, sizeof(*ai));
+    if (!ai) {
+	if (args)
+	    gensio_argv_free(o, args);
+	return GE_NOMEM;
+    }
+
+    saddr = o->zalloc(o, sizeof(socklen_t) + len + 1);
+    if (!saddr) {
+	if (args)
+	    gensio_argv_free(o, args);
+	o->free(o, ai);
+	return GE_NOMEM;
+    }
+
+    saddr->sun_family = AF_UNIX;
+    strcpy(saddr->sun_path, str);
+    ai->ai_family = AF_UNIX;
+    ai->ai_socktype = SOCK_STREAM;
+    ai->ai_addrlen = sizeof(socklen_t) + len + 1;
+    ai->ai_addr = (struct sockaddr *) saddr;
+
+    if (rargc)
+	*rargc = argc;
+    if (rargs)
+	*rargs = args;
+
+    *rai = ai;
+
+    return 0;
+}
+
 bool
 gensio_sockaddr_equal(const struct sockaddr *a1, socklen_t l1,
 		      const struct sockaddr *a2, socklen_t l2,
@@ -600,6 +658,15 @@ gensio_sockaddr_equal(const struct sockaddr *a1, socklen_t l1,
 		return false;
 	    if (memcmp(s1->sin6_addr.s6_addr, s2->sin6_addr.s6_addr,
 		       sizeof(s1->sin6_addr.s6_addr)) != 0)
+		return false;
+	}
+	break;
+
+    case AF_UNIX:
+	{
+	    struct sockaddr_un *s1 = (struct sockaddr_un *) a1;
+	    struct sockaddr_un *s2 = (struct sockaddr_un *) a2;
+	    if (strcmp(s1->sun_path, s2->sun_path) != 0)
 		return false;
 	}
 	break;
@@ -1258,6 +1325,7 @@ add_default_gensio_accepters(void *cb_data)
     register_gensio_accepter(o, "udp", str_to_udp_gensio_accepter);
     register_gensio_accepter(o, "sctp", str_to_sctp_gensio_accepter);
     register_gensio_accepter(o, "stdio", str_to_stdio_gensio_accepter);
+    register_gensio_accepter(o, "unix", str_to_unix_gensio_accepter);
     register_filter_gensio_accepter(o, "ssl", str_to_ssl_gensio_accepter,
 				    ssl_gensio_accepter_alloc);
     register_filter_gensio_accepter(o, "mux", str_to_mux_gensio_accepter,
@@ -1427,6 +1495,7 @@ add_default_gensios(void *cb_data)
     register_gensio(o, "tcp", str_to_tcp_gensio);
     register_gensio(o, "udp", str_to_udp_gensio);
     register_gensio(o, "sctp", str_to_sctp_gensio);
+    register_gensio(o, "unix", str_to_unix_gensio);
     register_gensio(o, "stdio", str_to_stdio_gensio);
     register_gensio(o, "pty", str_to_pty_gensio);
     register_filter_gensio(o, "ssl", str_to_ssl_gensio, ssl_gensio_alloc);
@@ -1677,6 +1746,10 @@ gensio_sockaddr_to_str(const struct sockaddr *addr, socklen_t *addrlen,
 			ntohs(a6->sin6_port));
 	if (addrlen)
 	    *addrlen = sizeof(struct sockaddr_in6);
+    } else if (addr->sa_family == AF_UNIX) {
+	struct sockaddr_un *au = (struct sockaddr_un *) addr;
+
+	pos += snprintf(buf + pos, left, "%s", au->sun_path);
     } else {
     out_err:
 	if (left)
@@ -2008,6 +2081,8 @@ struct gensio_def_entry builtin_defaults[] = {
     /* For mux */
     { "max-channels",	GENSIO_DEFAULT_INT,	.min = 1, .max = INT_MAX,
 						.def.intval = 1000 },
+    /* For unix (accepter only) */
+    { "delsock",	GENSIO_DEFAULT_BOOL,	.def.intval = false },
     {}
 };
 
