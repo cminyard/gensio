@@ -337,8 +337,12 @@ tcp_gensio_alloc(struct addrinfo *iai, const char * const args[],
 	if (gensio_check_keyds(args[i], "readbuf", &max_read_size) > 0)
 	    continue;
 	if (gensio_check_keyaddrs(o, args[i], "laddr", IPPROTO_TCP,
-				  true, false, &lai) > 0)
+				  true, false, &ai) > 0) {
+	    if (lai)
+		gensio_free_addrinfo(o, lai);
+	    lai = ai;
 	    continue;
+	}
 	if (gensio_check_keybool(args[i], "nodelay", &nodelay) > 0)
 	    continue;
 	return EINVAL;
