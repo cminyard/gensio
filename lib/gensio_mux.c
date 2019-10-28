@@ -1325,6 +1325,31 @@ gensio_mux_config_cleanup(struct gensio_mux_config *data)
 	o->free(o, data->service);
 }
 
+/* If the mode is specified in the default, override is_client. */
+static void get_default_mode(struct gensio_os_funcs *o, bool *is_client)
+{
+    int rv;
+    char *str;
+
+    rv = gensio_get_default(o, "mux", "mode", false,
+			    GENSIO_DEFAULT_STR, &str, NULL);
+    if (!rv && str) {
+	if (strcasecmp(str, "client") == 0)
+	    *is_client = true;
+	else if (strcasecmp(str, "server") == 0)
+	    *is_client = false;
+	else {
+	    gensio_log(o, GENSIO_LOG_ERR,
+		       "Unknown default mux mode (%s), ignoring", str);
+	}
+	o->free(o, str);
+    } else if (rv) {
+	gensio_log(o, GENSIO_LOG_ERR,
+		   "Failed getting mux mode, ignoring: %s",
+		   gensio_err_to_str(rv));
+    }
+}
+
 static int
 muxc_alloc_channel(struct mux_data *muxdata,
 		   struct gensio_func_alloc_channel_data *ocdata)
@@ -1339,6 +1364,7 @@ muxc_alloc_channel(struct mux_data *muxdata,
     data.max_read_size = muxdata->max_read_size;
     data.max_write_size = muxdata->max_write_size;
     data.is_client = true;
+    get_default_mode(muxdata->o, &data.is_client);
 
     err = gensio_mux_config(muxdata->o, ocdata->args, &data);
     if (err)
@@ -2404,6 +2430,7 @@ mux_gensio_alloc(struct gensio *child, const char *const args[],
     data.max_write_size = GENSIO_DEFAULT_BUF_SIZE;
     data.max_channels = 1000;
     data.is_client = true;
+    get_default_mode(o, &data.is_client);
 
     err = gensio_mux_config(o, args, &data);
     if (err)
@@ -2536,6 +2563,7 @@ mux_gensio_accepter_alloc(struct gensio_accepter *child,
     nadata->data.max_write_size = GENSIO_DEFAULT_BUF_SIZE;
     nadata->data.max_channels = 1000;
     nadata->data.is_client = false;
+    get_default_mode(o, &nadata->data.is_client);
     err = gensio_mux_config(o, args, &nadata->data);
     if (err) {
 	o->free(o, nadata);
