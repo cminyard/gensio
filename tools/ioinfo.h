@@ -107,7 +107,9 @@ struct ioinfo_user_handlers {
 
     /*
      * Called when something in the ioinfo or sub-ioinfo wants to
-     * display output to the user.
+     * display output to the user.  This is only used for escape
+     * character handling and may be NULL if escape handling is
+     * disabled.
      */
     void (*out)(struct ioinfo *ioinfo, char *fmt, va_list va);
 
