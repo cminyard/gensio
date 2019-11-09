@@ -128,6 +128,11 @@ echon_write(struct gensio *io, gensiods *count,
 	return GE_NOTREADY;
     }
     if (ndata->noecho) {
+	gensiods i, total = 0;
+
+	for (i = 0; i < sglen; i++)
+	    total += sg[i].buflen;
+	*count = total;
 	echon_unlock(ndata);
 	return 0;
     }
