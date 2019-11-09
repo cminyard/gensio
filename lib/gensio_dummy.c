@@ -166,6 +166,7 @@ dummy_gensio_accepter_alloc(const char * const args[],
     nadata = o->zalloc(o, sizeof(*nadata));
     if (!nadata)
 	return GE_NOMEM;
+    nadata->o = o;
 
     nadata->lock = o->alloc_lock(o);
     if (!nadata->lock) {
