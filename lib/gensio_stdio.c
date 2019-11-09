@@ -941,7 +941,7 @@ stdio_nadata_setup(struct gensio_os_funcs *o, gensiods max_read_size,
     nadata->io.outfd = -1;
     nadata->opid = -1;
 
-    nadata->waitpid_timer = o->alloc_timer(o, check_waitpid, nadata);
+    nadata->waitpid_timer = o->alloc_timer(o, check_waitpid, &nadata->io);
     if (!nadata->waitpid_timer)
 	goto out_nomem;
 
@@ -1100,7 +1100,7 @@ stdiona_fd_cleared(int fd, void *cbdata)
 
     if (!schan->in_handler_set && !schan->out_handler_set && schan->in_close) {
 	schan->in_close = false;
-	check_waitpid(nadata->waitpid_timer, nadata);
+	check_waitpid(nadata->waitpid_timer, schan);
     }
 
     /* Lose the refcount we got when we added the fd handler. */
