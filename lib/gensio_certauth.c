@@ -50,16 +50,19 @@ certauth_gensio_alloc(struct gensio *child, const char *const args[],
     struct gensio *io;
     struct gensio_certauth_filter_data *data;
 
-    if (!gensio_is_reliable(child) || !gensio_is_encrypted(child))
-	/*
-	 * Cowardly refusing to run over an unreliable or unencrypted
-	 * connection.
-	 */
-	return GE_NOTSUP;
-
     err = gensio_certauth_filter_config(o, args, true, &data);
     if (err)
 	return err;
+
+    if (!gensio_is_reliable(child) ||
+	!(gensio_is_encrypted(child) ||
+	  gensio_certauth_filter_config_allow_unencrypted(data)))
+	/*
+	 * Cowardly refusing to run over an unreliable or unencrypted
+	 * connection.  The allow-unencrypted flag is internal for
+	 * testing and undocumented.
+	 */
+	return GE_NOTSUP;
 
     err = gensio_certauth_filter_alloc(data, &filter);
     gensio_certauth_filter_config_free(data);

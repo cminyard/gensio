@@ -37,6 +37,12 @@ struct gensio_certauth_filter_data {
     bool allow_authfail;
     bool use_child_auth;
     bool enable_password;
+
+    /*
+     * The following is only used for testing. so certauth can be run
+     * over stdio for fuzz testing.  Do not document.
+     */
+    bool allow_unencrypted;
 };
 
 #ifdef HAVE_OPENSSL
@@ -1983,6 +1989,9 @@ gensio_certauth_filter_config(struct gensio_os_funcs *o,
 	if (gensio_check_keybool(args[i], "enable-password",
 				 &data->enable_password) > 0)
 	    continue;
+	if (gensio_check_keybool(args[i], "allow-unencrypted",
+				 &data->allow_unencrypted) > 0)
+	    continue;
 	rv = GE_INVAL;
 	goto out_err;
     }
@@ -2068,6 +2077,12 @@ gensio_certauth_filter_config(struct gensio_os_funcs *o,
  out_err:
     gensio_certauth_filter_config_free(data);
     return rv;
+}
+
+bool gensio_certauth_filter_config_allow_unencrypted(
+	     struct gensio_certauth_filter_data *data)
+{
+    return data->allow_unencrypted;
 }
 
 static int
