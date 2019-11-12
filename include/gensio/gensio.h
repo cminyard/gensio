@@ -133,15 +133,6 @@ int gensio_alloc_channel(struct gensio *io, const char * const args[],
 			 gensio_event cb, void *user_data,
 			 struct gensio **new_io);
 
-int gensio_open_channel(struct gensio *io, const char * const args[],
-			gensio_event cb, void *user_data,
-			gensio_done_err open_done, void *open_data,
-			struct gensio **new_io);
-
-int gensio_open_channel_s(struct gensio *io, const char * const args[],
-			  gensio_event cb, void *user_data,
-			  struct gensio **new_io);
-
 int gensio_close(struct gensio *io, gensio_done close_done, void *close_data);
 
 int gensio_close_s(struct gensio *io);
