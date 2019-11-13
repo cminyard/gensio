@@ -31,6 +31,7 @@
 #include <sys/ioctl.h>
 
 #include "ioinfo.h"
+#include "localports.h"
 #include "ser_ioinfo.h"
 #include "utils.h"
 
@@ -44,10 +45,6 @@ struct gdata {
     char *ios;
     bool can_close;
 };
-
-char *username, *hostname, *keyfile, *certfile, *CAdir;
-char *tlssh_dir = NULL;
-int port = 852;
 
 static void
 gshutdown(struct ioinfo *ioinfo, bool user_req)
@@ -76,6 +73,29 @@ gout(struct ioinfo *ioinfo, char *fmt, va_list ap)
     vsnprintf(str, sizeof(str), fmt, ap);
     gensio_write(ginfo->user_io, NULL, str, strlen(str), NULL);
 }
+
+static void handle_rem_req(struct gensio *io, const char *service);
+
+static int gevent(struct ioinfo *ioinfo, struct gensio *io, int event,
+		  int ierr, unsigned char *buf, gensiods *buflen,
+		  const char *const *auxdata)
+{
+    if (event != GENSIO_EVENT_NEW_CHANNEL)
+	return GE_NOTSUP;
+    handle_rem_req((struct gensio *) buf, auxdata[0]);
+    return 0;
+}
+
+static struct ioinfo_user_handlers guh = {
+    .shutdown = gshutdown,
+    .err = gerr,
+    .event = gevent,
+    .out = gout
+};
+
+char *username, *hostname, *keyfile, *certfile, *CAdir;
+char *tlssh_dir = NULL;
+int port = 852;
 
 static int
 getpassword(char *pw, gensiods *len)
@@ -144,12 +164,6 @@ getpassword(char *pw, gensiods *len)
     return err;
 }
 
-static struct ioinfo_user_handlers guh = {
-    .shutdown = gshutdown,
-    .err = gerr,
-    .out = gout
-};
-
 static void
 io_close(struct gensio *io, void *close_data)
 {
@@ -173,10 +187,11 @@ help(int err)
     printf("if stdin is a tty, the connection is interactive.  Otherwise\n");
     printf("the connection is not interactive and buffered.\n");
     printf("\noptions are:\n");
-    printf("  -p, --port <port> - Use the given port instead of the default.");
+    printf("  -p, --port <port> - Use the given port instead of the\n"
+	   "    default.\n");
     printf("  -i, --keyfile <file> - Use the given file for the key instead\n"
 	   "    of the default.  The certificate will default to the same\n"
-	   "    name ending in .crt");
+	   "    name ending in .crt\n");
     printf("  --certfile <file> - Set the certificate to use.\n");
     printf("  -r, --telnet - Do telnet processing with RFC2217 handling.\n");
     printf("  -e, --escchar - Set the local terminal escape character.\n"
@@ -186,6 +201,22 @@ help(int err)
     printf("  --notcp - Disable TCP support.\n");
     printf("  -d, --debug - Enable debug.  Specify more than once to increase\n"
 	   "    the debug level\n");
+    printf("  -L <accept addr>:<connect addr> - Listen at the <accept addr>\n"
+	   "    on the local machine, and if a connection comes in forward it\n"
+	   "    to the <connect addr> from the remote machine on the gtlssh\n"
+	   "    connection.  A local address is in the form:\n"
+	   "      [<bind addr>:][sctp|tcp,]port\n"
+	   "    or:\n"
+	   "      <unix socket path>\n"
+	   "    Remote addresses are in the form:\n"
+	   "      <hostname>:[sctp|tcp,]port\n"
+	   "    or:\n"
+	   "      <unix socket path>\n"
+	   "    If a name begins with '/' it is a unix socket path.  hostname\n"
+	   "    and bind addr are standard internet names or addresses.\n");
+    printf("  -R <accept addr>:<connect addr> - Like -L, except the\n"
+	   "    <accept addr> is on the remote machine and <connect addr> is\n"
+	   "    done from the local machine\n");
     printf("  -h, --help - This help\n");
     exit(err);
 }
@@ -667,6 +698,244 @@ handle_sigwinch(int signum)
     }
 }
 
+static void
+pr_localport(const char *fmt, va_list ap)
+{
+    vfprintf(stderr, fmt, ap);
+}
+
+struct remote_portinfo {
+    char *accepter_str;
+    char *connecter_str;
+    char *id_str;
+
+    char service[5];
+
+    struct ioinfo_oob oob;
+
+    struct gensio_os_funcs *o;
+
+    struct remote_portinfo *next;
+};
+
+static unsigned int curr_service;
+static struct remote_portinfo *remote_ports;
+
+static void
+handle_rem_req(struct gensio *io, const char *service)
+{
+    struct remote_portinfo *pi = remote_ports;
+
+    for (; pi; pi = pi->next) {
+	if (strcmp(pi->service, service) == 0)
+	    break;
+    }
+    if (!pi) {
+	fprintf(stderr, "Unknown remote service request: %s\n", service);
+	gensio_free(io);
+	return;
+    }
+
+    remote_port_new_con(pi->o, io, pi->connecter_str, pi->id_str);
+}
+
+static int
+add_remote_port(struct gensio_os_funcs *o,
+		const char *accepter_str, const char *connecter_str,
+		const char *id_str)
+{
+    struct remote_portinfo *np = NULL;
+    int err = GE_NOMEM;
+
+    np = malloc(sizeof(*np));
+    if (!np) {
+	fprintf(stderr, "Out of memory allocating port info\n");
+	goto out_err;
+    }
+    memset(np, 0, sizeof(*np));
+    np->o = o;
+    snprintf(np->service, sizeof(np->service), "%4.4d", curr_service++);
+
+    np->accepter_str = alloc_sprintf("r  %s%s", np->service, accepter_str);
+    if (!np->accepter_str) {
+	fprintf(stderr, "Out of memory allocating accept string: %s\n",
+		accepter_str);
+	goto out_err;
+    }
+    np->oob.buf = (unsigned char *) np->accepter_str;
+    np->oob.len = strlen(np->accepter_str) + 1; /* Send the nil, too. */
+    if (np->oob.len > 65535) {
+	fprintf(stderr, "Accepter string to long: %s\n", accepter_str);
+	goto out_err;
+    }
+    np->oob.buf[1] = (np->oob.len - 3) >> 8;
+    np->oob.buf[2] = (np->oob.len - 3) & 0xff;
+
+    np->connecter_str = strdup(connecter_str);
+    if (!np->connecter_str) {
+	fprintf(stderr, "Out of memory allocating connecter string: %s\n",
+		connecter_str);
+	goto out_err;
+    }
+
+    np->id_str = strdup(id_str);
+    if (!np->id_str) {
+	fprintf(stderr, "Out of memory allocating id string: %s\n", id_str);
+	goto out_err;
+    }
+    np->next = remote_ports;
+    remote_ports = np;
+    np = NULL;
+    err = 0;
+
+ out_err:
+    if (np) {
+	if (np->accepter_str)
+	    free(np->accepter_str);
+	if (np->connecter_str)
+	    free(np->connecter_str);
+	if (np->id_str)
+	    free(np->id_str);
+	free(np);
+    }
+    return err;
+}
+
+static void
+start_remote_ports(struct ioinfo *ioinfo)
+{
+    struct remote_portinfo *pi = remote_ports;
+
+    for (; pi; pi = pi->next)
+	ioinfo_sendoob(ioinfo, &pi->oob);
+}
+
+static bool
+validate_port(const char *host, const char *port, const char **rtype,
+	      const char *addr)
+{
+    const char *type = "tcp";
+    unsigned long val;
+    char *end;
+
+    if (strncmp(port, "tcp,", 4) == 0)
+	port += 4;
+    if (strncmp(port, "sctp,", 5) == 0) {
+	port += 5;
+	type = "sctp";
+    }
+
+    if (host && *host == '\0') {
+	fprintf(stderr, "No host given in '%s'\n", addr);
+	return false;
+    }
+
+    val = strtoul(port, &end, 10);
+    if (*port == '\0' || *end != '\0' || val > 65535) {
+	fprintf(stderr, "Invalid port given in '%s'\n", addr);
+	return false;
+    }
+
+    *rtype = type;
+    return true;
+}
+
+static int
+handle_port(struct gensio_os_funcs *o, bool remote, char *iaddr)
+{
+    char *s[4];
+    const char *type = NULL;
+    unsigned int num_s = 0, pos = 0;
+    char *connecter_str, *accepter_str;
+    char *addr = strdup(iaddr);
+    int err = -1;
+    bool has_bind = false;
+
+    if (!addr) {
+	fprintf(stderr, "Out of memory duplicating port '%s'\n", iaddr);
+	goto out_err;
+    }
+
+    while (num_s < 4) {
+	s[num_s++] = addr;
+	addr = strchr(addr, ':');
+	if (addr)
+	    *addr++ = '\0';
+	else
+	    break;
+    }
+
+    if (num_s < 2)
+	goto out_not_enough_fields;
+    if (num_s > 4)
+	goto out_too_many_fields;
+
+    if (s[num_s - 1][0] == '/') { /* remote is a unix socket. */
+	connecter_str = alloc_sprintf("unix,%s", s[num_s - 1]);
+	if (s[0][0] == '/') { /* local is a unix socket */
+	    if (num_s > 2)
+		goto out_too_many_fields;
+	} else if (num_s > 3) {
+	    goto out_too_many_fields;
+	} else if (num_s == 3) {
+	    has_bind = true;
+	}
+    } else if (s[0][0] == '/') { /* local is a unix socket */
+	if (num_s > 3)
+	    goto out_too_many_fields;
+    } else if (num_s < 3) {
+	goto out_not_enough_fields;
+    } else if (num_s == 4) {
+	has_bind = true;
+    }
+
+    if (has_bind) {
+	if (!validate_port(s[pos], s[pos + 1], &type, iaddr))
+	    goto out_err;
+	accepter_str = alloc_sprintf("%s,%s,%s", type, s[pos], s[pos + 1]);
+	pos += 2;
+    } else if (s[pos][0] == '/') { /* accepter is a unix socket */
+	accepter_str = alloc_sprintf("unix,%s", s[pos]);
+	pos++;
+    } else {
+	if (!validate_port(NULL, s[pos], &type, iaddr))
+	    goto out_err;
+	accepter_str = alloc_sprintf("%s,%s", type, s[pos]);
+	pos++;
+    }
+
+    if (s[pos][0] == '/') { /* remote is a unix socket */
+	connecter_str = alloc_sprintf("unix,%s", s[pos]);
+    } else {
+	if (!validate_port(s[pos], s[pos + 1], &type, iaddr))
+	    goto out_err;
+	connecter_str = alloc_sprintf("%s,%s,%s", type, s[pos], s[pos + 1]);
+    }
+
+    if (remote)
+	err = add_remote_port(o, accepter_str, connecter_str, iaddr);
+    else
+	err = add_local_port(o, accepter_str, connecter_str, iaddr);
+    goto out_err;
+
+ out_not_enough_fields:
+    fprintf(stderr, "Not enough fields in port info '%s'\n", iaddr);
+    goto out_err;
+ out_too_many_fields:
+    fprintf(stderr, "Too many fields in port info '%s'\n", iaddr);
+    goto out_err;
+
+ out_err:
+    if (accepter_str)
+	free(accepter_str);
+    if (connecter_str)
+	free(connecter_str);
+    if (addr)
+	free(addr);
+
+    return err;
+}
+
 int
 main(int argc, char *argv[])
 {
@@ -692,10 +961,20 @@ main(int argc, char *argv[])
     const char *muxstr = "mux,";
     bool use_mux = true;
     struct sigaction sigact;
+    char *addr;
+
+    localport_err = pr_localport;
 
     memset(&userdata1, 0, sizeof(userdata1));
     memset(&userdata2, 0, sizeof(userdata2));
     memset(&sigact, 0, sizeof(sigact));
+
+    rv = gensio_default_os_hnd(0, &o);
+    if (rv) {
+	fprintf(stderr, "Could not allocate OS handler: %s\n",
+		gensio_err_to_str(rv));
+	return 1;
+    }
 
     if (pipe(winch_pipe) == -1) {
 	perror("Unable to allocate SIGWINCH pipe");
@@ -767,13 +1046,17 @@ main(int argc, char *argv[])
 	} else if ((rv = cmparg(argc, argv, &arg, "-r", "--telnet", NULL))) {
 	    do_telnet = "telnet(rfc2217),";
 	    use_telnet = 1;
+	} else if ((rv = cmparg(argc, argv, &arg, "-L", NULL, &addr))) {
+	    rv = handle_port(o, false, addr);
+	} else if ((rv = cmparg(argc, argv, &arg, "-R", NULL, &addr))) {
+	    rv = handle_port(o, true, addr);
 	} else if ((rv = cmparg(argc, argv, &arg, "-d", "--debug", NULL))) {
 	    debug++;
 	    if (debug > 1)
 		gensio_set_log_mask(GENSIO_LOG_MASK_ALL);
-	} else if ((rv = cmparg(argc, argv, &arg, "-h", "--help", NULL)))
+	} else if ((rv = cmparg(argc, argv, &arg, "-h", "--help", NULL))) {
 	    help(0);
-	else {
+	} else {
 	    fprintf(stderr, "Unknown argument: %s\n", argv[arg]);
 	    help(1);
 	}
@@ -891,13 +1174,6 @@ main(int argc, char *argv[])
     err = checkout_file(tlssh_dir, true, true);
     if (err)
 	return 1;
-
-    rv = gensio_default_os_hnd(0, &o);
-    if (rv) {
-	fprintf(stderr, "Could not allocate OS handler: %s\n",
-		gensio_err_to_str(rv));
-	return 1;
-    }
 
     o->vlog = do_vlog;
 
@@ -1043,6 +1319,9 @@ main(int argc, char *argv[])
 
     if (interactive)
 	winch_ready(winch_pipe[0], ioinfo2);
+
+    start_local_ports(userdata2.io);
+    start_remote_ports(ioinfo2);
 
     o->wait(userdata1.waiter, 1, NULL);
 
