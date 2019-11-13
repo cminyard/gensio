@@ -82,7 +82,7 @@ cmparg(int argc, char *argv[], int *arg, char *sarg, char *larg, char **opt)
 {
     char *a = argv[*arg];
 
-    if ((sarg && strcmp(a, sarg) == 0) || strcmp(a, larg) == 0) {
+    if ((sarg && strcmp(a, sarg) == 0) || larg && strcmp(a, larg) == 0) {
 	if (!opt)
 	    return 1;
 	(*arg)++;
@@ -92,7 +92,7 @@ cmparg(int argc, char *argv[], int *arg, char *sarg, char *larg, char **opt)
 	}
 	*opt = argv[*arg];
 	return 1;
-    } else {
+    } else if (larg && opt) {
 	unsigned int len = strlen(larg);
 
 	if (strncmp(a, larg, len) == 0 && a[len] == '=') {
