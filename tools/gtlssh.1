@@ -49,6 +49,32 @@ Disable TCP support
 .I \-\-nomux
 Don't use a mux gensio.  This may cause issues with gtlsshd, but is
 useful in some cases for talking with ser2net with no mux support.
+.TP
+.I \-L <accept addr>:<connect addr>
+Listen at the
+.I <accept addr>
+on the local machine, and if a connection comes in forward it to the
+<connect addr> from the remote machine on the gtlssh connection.  A
+local address is in the form
+.I [<bind addr>:][sctp|tcp,]port
+or
+.I <unix socket path>.
+Remote addresses are in the form
+.I <hostname>:[sctp|tcp,]port
+or
+.I <unix socket path>.
+If a name begins with '/' it is a unix socket path.
+.I <hostname>
+and
+.I <bindaddr>
+are standard internet names or addresses.
+.TP
+.I \-R <accept addr>:<connect addr>
+Like -L, except the
+.I <accept addr>
+is on the remote machine and
+.I <connect addr>
+is done from the local machine.
 .I \-d|\-\-debug
 Generate debugging output.  Specifying more than once increases the output.
 .TP

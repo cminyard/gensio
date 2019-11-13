@@ -38,6 +38,7 @@
 #include <gensio/gensio_list.h>
 
 #include "ioinfo.h"
+#include "localports.h"
 #include "ser_ioinfo.h"
 #include "utils.h"
 
@@ -245,6 +246,30 @@ handle_winch(struct per_con_info *pcinfo,
     ioctl(ptym, TIOCSWINSZ, &win);
 }
 
+static void
+handle_remote_socket(struct per_con_info *pcinfo,
+		     unsigned char *msg, unsigned int msglen)
+{
+    char service[5], *accepter;
+    unsigned int len;
+
+    if (msglen < 5)
+	return;
+    memcpy(service, msg, 4);
+    service[4] = '\0';
+    accepter = (char *) (msg + 4);
+    len = msglen - 4;
+    accepter[len - 1] = '\0'; /* It's supposed to be nil, but just in case. */
+
+    if (!strstartswith(accepter, "tcp,") &&
+		!strstartswith(accepter, "sctp,") &&
+		!strstartswith(accepter, "unix,")) {
+	syslog(LOG_ERR, "Unknown accepter type: %s\n", accepter);
+	return;
+    }
+    add_local_port(pcinfo->ginfo->o, accepter, service, accepter);
+}
+
 /*
  * The OOB data has a 3 byte header:
  *
@@ -265,9 +290,16 @@ goobdata(struct ioinfo *ioinfo, unsigned char *buf, gensiods *buflen)
 	    pcinfo->ooblen = gensio_buf_to_u16(pcinfo->oobbuf + 1) + 3;
 	if (pcinfo->oobpos >= pcinfo->ooblen) {
 	    pcinfo->oobpos = 0;
-	    if (pcinfo->oobbuf[0] == 'w' && pcinfo->is_pty)
-		    /* window change. */
-		handle_winch(pcinfo, pcinfo->oobbuf + 3, pcinfo->ooblen - 3);
+	    if (pcinfo->oobbuf[0] == 'w') {
+		/* window change. */
+		if (pcinfo->is_pty)
+		    handle_winch(pcinfo, pcinfo->oobbuf + 3,
+				 pcinfo->ooblen - 3);
+	    } else if (pcinfo->oobbuf[0] == 'r') {
+		/* Remote socket request. */
+		handle_remote_socket(pcinfo, pcinfo->oobbuf + 3,
+				     pcinfo->ooblen - 3);
+	    }
 	    pcinfo->ooblen = 3; /* Give enough room for the next 3 bytes. */
 	}
 	pos++;
@@ -588,13 +620,15 @@ new_rem_io(struct gensio *io, struct gdata *ginfo)
     struct per_con_info *pcinfo = NULL;
     struct gensio *pty_io;
     gensiods len;
-    char *s;
+    char *s = NULL;
     int err;
     char **progv = NULL; /* If set in the service. */
+    bool login = false;
     char *service = NULL;
     char **env = NULL, **penv2;
     unsigned int env_len = 0;
     unsigned int i, j;
+    bool set_uid = false;
 
     len = 0;
     err = gensio_control(io, 0, true, GENSIO_CONTROL_SERVICE,
@@ -632,6 +666,9 @@ new_rem_io(struct gensio *io, struct gdata *ginfo)
 				io, &timeout, true);
 	    goto out_free;
 	}
+	/* Dummy out the program, we will set it later with a control. */
+	s = alloc_sprintf("stdio(stderr-to-stdout),dummy");
+	set_uid = true;
     } else if (strstartswith(service, "login:")) {
 	char *str = strchr(service, ':') + 1;
 
@@ -639,29 +676,75 @@ new_rem_io(struct gensio *io, struct gdata *ginfo)
 	err = get_vals_from_service(&env, &env_len, str, len);
 	if (err)
 	    goto out_bad_vals;
+	login = true;
+	/*
+	 * Let login handle everything else.  If the password
+	 * authentication from pam succeeded, don't ask for password.
+	 */
+	s = alloc_sprintf("pty,/bin/login -f -p %s", username);
+    } else if (strstartswith(service, "tcp,") ||
+	       strstartswith(service, "sctp,")) {
+	char *host = strchr(service, ',');
+	char *end, *portstr;
+	unsigned long port;
+
+	*host++ = '\0';
+	portstr = strchr(host, ',');
+	if (!portstr) {
+	    struct timeval timeout = {1, 0};
+
+	    write_str_to_gensio("Invalid port in tcp service",
+				io, &timeout, true);
+	    goto out_free;
+	}
+	*portstr++ = '\0';
+	end = strchr(portstr, ','); /* Ignore anything after the next ':' */
+	if (end)
+	    *end = '\0';
+	port = strtoul(portstr, &end, 0);
+	if (*portstr == '\0' || *end != '\0' || port > 65535) {
+	    struct timeval timeout = {1, 0};
+
+	    write_str_to_gensio("Invalid port number in tcp service",
+				io, &timeout, true);
+	    goto out_free;
+	}
+
+	s = alloc_sprintf("%s,%s,%ld", service, host, port);
+    } else if (strstartswith(service, "unix,")) {
+	char *path = strchr(service, ',') + 1;
+
+	s = alloc_sprintf("unix,%s", service, path);
+	set_uid = true; /* Open the Unix device as the user, not root. */
     } else {
 	struct timeval timeout = {10, 0};
 
 	write_str_to_gensio("Unknown service", io, &timeout, true);
 	goto out_free;
     }
+    if (!s) {
+	syslog(LOG_ERR, "Out of memory allocating program name");
+	goto out_err;
+    }
 
-    for (i = 0; pam_env[i]; i++)
-	;
-    penv2 = malloc((i + env_len + 1) * sizeof(char *));
-    if (!penv2) {
-	syslog(LOG_ERR, "Failure to reallocate env for %s", username);
-	exit(1);
+    if (login || service) {
+	for (i = 0; pam_env[i]; i++)
+	    ;
+	penv2 = malloc((i + env_len + 1) * sizeof(char *));
+	if (!penv2) {
+	    syslog(LOG_ERR, "Failure to reallocate env for %s", username);
+	    exit(1);
+	}
+	for (i = 0; pam_env[i]; i++)
+	    penv2[i] = pam_env[i];
+	if (env) {
+	    for (j = 0; j < env_len; i++, j++)
+		penv2[i] = env[j];
+	    free(env);
+	}
+	penv2[i] = NULL;
+	env = penv2;
     }
-    for (i = 0; pam_env[i]; i++)
-	penv2[i] = pam_env[i];
-    if (env) {
-	for (j = 0; j < env_len; i++, j++)
-	    penv2[i] = env[j];
-	free(env);
-    }
-    penv2[i] = NULL;
-    env = penv2;
 
     pcinfo = malloc(sizeof(*pcinfo));
     if (!pcinfo) {
@@ -694,10 +777,7 @@ new_rem_io(struct gensio *io, struct gdata *ginfo)
     ginfo->closecount++;
     pcinfo->io1 = io;
 
-    if (progv) {
-	/* Dummy out the program, we will set it later with a control. */
-	s = alloc_sprintf("stdio(stderr-to-stdout),dummy");
-    } else {
+    if (login) {
 	err = gensio_control(io, GENSIO_CONTROL_DEPTH_ALL, false,
 			     GENSIO_CONTROL_NODELAY, "1", NULL);
 	if (err) {
@@ -706,19 +786,11 @@ new_rem_io(struct gensio *io, struct gdata *ginfo)
 	    goto out_err;
 	}
 
-	/*
-	 * Let login handle everything else.  If the password
-	 * authentication from pam succeeded, don't ask for password.
-	 */
-	s = alloc_sprintf("pty,/bin/login -f -p %s", username);
 	pcinfo->is_pty = true;
-    }
-    if (!s) {
-	syslog(LOG_ERR, "Out of memory allocating program name");
-	goto out_err;
     }
     err = str_to_gensio(s, o, NULL, NULL, &pty_io);
     free(s);
+    s = NULL;
     if (err) {
 	syslog(LOG_ERR, "pty alloc failed: %s", gensio_err_to_str(err));
 	goto out_err;
@@ -735,15 +807,17 @@ new_rem_io(struct gensio *io, struct gdata *ginfo)
 	}
     }
 
-    err = gensio_control(pty_io, 0, false, GENSIO_CONTROL_ENVIRONMENT,
-			 (char *) env, NULL);
-    if (err) {
-	syslog(LOG_ERR, "set env failed for %s: %s", username,
-	       gensio_err_to_str(err));
-	goto out_err;
+    if (progv || login) {
+	err = gensio_control(pty_io, 0, false, GENSIO_CONTROL_ENVIRONMENT,
+			     (char *) env, NULL);
+	if (err) {
+	    syslog(LOG_ERR, "set env failed for %s: %s", username,
+		   gensio_err_to_str(err));
+	    goto out_err;
+	}
     }
 
-    if (progv) {
+    if (set_uid) {
 	err = setegid(gid);
 	if (err) {
 	    syslog(LOG_ERR, "setgid failed: %s", strerror(errno));
@@ -756,7 +830,7 @@ new_rem_io(struct gensio *io, struct gdata *ginfo)
 	}
     }
     err = gensio_open_s(pty_io);
-    if (progv) {
+    if (set_uid) {
 	int err2;
 	err2 = seteuid(getuid());
 	if (err2)
@@ -790,6 +864,8 @@ new_rem_io(struct gensio *io, struct gdata *ginfo)
 	free(progv);
     if (service)
 	free(service);
+    if (s)
+	free(s);
 }
 
 static int
@@ -831,6 +907,7 @@ open_mux(struct gensio *io, struct gdata *ginfo, const char *service)
 	exit(1);
     }
 
+    start_local_ports(mux_io);
     new_rem_io(mux_io, ginfo);
 }
 
@@ -975,10 +1052,12 @@ handle_new(struct gensio_runner *r, void *cb_data)
 
     /* At this point we are fully authenticated and have all global info. */
 
-    if (strstartswith(tmpservice, "mux"))
+    if (strstartswith(tmpservice, "mux")) {
 	open_mux(certauth_io, ginfo, tmpservice);
-    else
+    } else {
+	start_local_ports(certauth_io);
 	new_rem_io(certauth_io, ginfo);
+    }
     return;
 }
 
@@ -993,6 +1072,21 @@ acc_event(struct gensio_accepter *accepter, void *user_data,
     struct gensio *io;
     struct gensio_runner *r;
     int pid, err;
+
+    if (event == GENSIO_ACC_EVENT_LOG) {
+	struct gensio_loginfo *li = data;
+	int level = LOG_INFO;
+
+	switch (li->level) {
+	case GENSIO_LOG_FATAL:	level = LOG_CRIT; break;
+	case GENSIO_LOG_ERR:	level = LOG_ERR; break;
+	case GENSIO_LOG_WARNING:level = LOG_WARNING; break;
+	case GENSIO_LOG_INFO:	level = LOG_INFO; break;
+	case GENSIO_LOG_DEBUG:	level = LOG_DEBUG; break;
+	}
+	vsyslog(LOG_DAEMON | level, li->str, li->args);
+	return 0;
+    }
 
     if (event != GENSIO_ACC_EVENT_NEW_CONNECTION)
 	return ENOTSUP;
@@ -1121,6 +1215,12 @@ close_cons(struct gdata *ginfo)
     }
 }
 
+static void
+pr_localport(const char *fmt, va_list ap)
+{
+    vsyslog(LOG_ERR, fmt, ap);
+}
+
 int
 main(int argc, char *argv[])
 {
@@ -1134,6 +1234,8 @@ main(int argc, char *argv[])
     char *s;
     bool notcp = false, nosctp = false;
     bool daemonize = true;
+
+    localport_err = pr_localport;
 
     if ((progname = strrchr(argv[0], '/')) == NULL)
 	progname = argv[0];
