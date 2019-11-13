@@ -82,7 +82,7 @@ cmparg(int argc, char *argv[], int *arg, char *sarg, char *larg, char **opt)
 {
     char *a = argv[*arg];
 
-    if ((sarg && strcmp(a, sarg) == 0) || larg && strcmp(a, larg) == 0) {
+    if ((sarg && strcmp(a, sarg) == 0) || (larg && strcmp(a, larg) == 0)) {
 	if (!opt)
 	    return 1;
 	(*arg)++;
