@@ -76,14 +76,8 @@ A new channel has been created by the remote end of the connection.
 The new channel gensio is in buf and must be cast.  Information about
 the channel will be passed in
 .B auxdata,
-see documentation on the particular gensio for details.  This function
-should return 0 to accept the channel, or a gensio error if the
-channel creation is refused.
-.B gensio_close()
-or
-.B gensio_free()
-should not be called from this, if you want to refuse the new channel,
-return an error.
+see documentation on the particular gensio for details.  The return
+value is ignored.
 
 .SS "GENSIO_EVENT_SEND_BREAK"
 Got a request from the other end to send a break.  Telnet client or

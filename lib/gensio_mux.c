@@ -1513,8 +1513,10 @@ muxc_control(struct mux_inst *chan, bool get, int op,
 	if (get) {
 	    gensiods to_copy;
 
-	    if (!chan->service)
-		return GE_DATAMISSING;
+	    if (!chan->service) {
+		err = GE_DATAMISSING;
+		goto out;
+	    }
 
 	    to_copy = chan->service_len;
 	    if (to_copy > *datalen)
@@ -1524,8 +1526,10 @@ muxc_control(struct mux_inst *chan, bool get, int op,
 	} else {
 	    char *new_service = chan->o->zalloc(chan->o, *datalen);
 
-	    if (!new_service)
-		return GE_NOMEM;
+	    if (!new_service) {
+		err = GE_NOMEM;
+		goto out;
+	    }
 	    memcpy(new_service, data, *datalen);
 	    if (chan->service)
 		chan->o->free(chan->o, chan->service);
@@ -1538,6 +1542,7 @@ muxc_control(struct mux_inst *chan, bool get, int op,
 	err = GE_NOTSUP;
 	break;
     }
+ out:
     mux_unlock(muxdata);
 
     return err;
@@ -2237,7 +2242,17 @@ mux_child_read(struct mux_data *muxdata, int ierr,
 		    memcpy(chan->service + muxdata->data_pos - 2, buf, used);
 		} else {
 		    err = GE_INUSE;
-		    goto new_chan_err;
+		    if (muxdata->xmit_data_len) {
+			/* Only one new channel allowed at a time. */
+			proto_err_str = "New channel while in progress";
+			goto protocol_err;
+		    }
+		    mux_send_new_channel_rsp(muxdata,
+				gensio_buf_to_u16(muxdata->hdr + 2),
+				0, 0, err);
+		    if (chan)
+			mux_channel_finish_close(chan);
+		    goto finish_new_chan;
 		}
 	    new_chan_no_service:
 		chan->state = MUX_INST_OPEN;
@@ -2256,42 +2271,29 @@ mux_child_read(struct mux_data *muxdata, int ierr,
 					     chan->max_read_size,
 					     chan->id, 0);
 		} else {
+		    if (muxdata->xmit_data_len) {
+			proto_err_str = "New channel while in progress";
+			goto protocol_err;
+		    }
+		    mux_send_new_channel_rsp(muxdata, chan->remote_id,
+					     chan->max_read_size,
+					     chan->id, 0);
+		    if (chan->service_len) {
+			/* Ack the service data. */
+			chan->received_unacked = chan->service_len;
+			chan->ack_pending = true;
+			muxc_add_to_wrlist(chan);
+		    }
 		    mux_unlock(muxdata);
 		    if (chan->service)
 			auxdata[0] = chan->service;
 		    else
 			auxdata[0] = "";
-		    err = mux_firstchan_event(muxdata, GENSIO_EVENT_NEW_CHANNEL,
-					      0, (void *) chan->io, 0, auxdata);
+		    mux_firstchan_event(muxdata, GENSIO_EVENT_NEW_CHANNEL,
+					0, (void *) chan->io, 0, auxdata);
 		    mux_lock(muxdata);
-		    if (err) {
-		    new_chan_err:
-			if (muxdata->xmit_data_len) {
-			    /* Only one new channel allowed at a time. */
-			    proto_err_str = "New channel while in progress";
-			    goto protocol_err;
-			}
-			mux_send_new_channel_rsp(muxdata,
-					   gensio_buf_to_u16(muxdata->hdr + 2),
-					   0, 0, err);
-			if (chan)
-			    mux_channel_finish_close(chan);
-		    } else {
-			if (muxdata->xmit_data_len) {
-			    proto_err_str = "New channel while in progress";
-			    goto protocol_err;
-			}
-			mux_send_new_channel_rsp(muxdata, chan->remote_id,
-						 chan->max_read_size,
-						 chan->id, 0);
-			if (chan->service_len) {
-			    /* Ack the service data. */
-			    chan->received_unacked = chan->service_len;
-			    chan->ack_pending = true;
-			    muxc_add_to_wrlist(chan);
-			}
-		    }
 		}
+	    finish_new_chan:
 		muxdata->in_hdr = true;
 		if (chan)
 		    chan_deref(chan);

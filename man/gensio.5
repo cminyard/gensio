@@ -866,7 +866,8 @@ and then opens the new channel, the other end will get a
 .I GENSIO\_EVENT\_NEW\_CHANNEL
 event as described in the
 .B Streams and Channels
-section.  You can call it using any mux channel.
+section.  You can call it using any mux channel.  The first element in
+the auxdata is the service.
 
 You can modify the service value after you allocate the channel but
 before you open it.

@@ -733,8 +733,7 @@ gensio_child_event(struct gensio *io, void *user_data, int event, int readerr,
 
 	PyTuple_SET_ITEM(args, 2, gensio_py_handle_auxdata(auxdata));
 
-	rv = swig_finish_call_rv_int(data->handler_val, "new_channel",
-				     args, false);
+	swig_finish_call(data->handler_val, "new_channel", args, false);
 	break;
 
     case GENSIO_EVENT_SEND_BREAK:
