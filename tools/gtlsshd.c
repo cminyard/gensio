@@ -364,14 +364,6 @@ pam_cb(int num_msg, const struct pam_message **msg,
     return PAM_CONV_ERR;
 }
 
-static bool
-strstartswith(const char *str, const char *cmp)
-{
-    if (strncmp(str, cmp, strlen(cmp)) == 0)
-	return true;
-    return false;
-}
-
 static struct pam_conv auth_conv = { pam_cb, NULL };
 
 static bool permit_root = false;

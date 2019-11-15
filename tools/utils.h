@@ -41,4 +41,6 @@ int write_str_to_gensio(const char *str, struct gensio *io,
 int read_rsp_from_gensio(char *buf, gensiods *len, struct gensio *io,
 			 struct timeval *timeout, bool echo);
 
+bool strstartswith(const char *str, const char *cmp);
+
 #endif /* GENSIOTOOL_UTILS_H */

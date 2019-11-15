@@ -346,3 +346,11 @@ read_rsp_from_gensio(char *buf, gensiods *len, struct gensio *io,
 
     return err;
 }
+
+bool
+strstartswith(const char *str, const char *cmp)
+{
+    if (strncmp(str, cmp, strlen(cmp)) == 0)
+	return true;
+    return false;
+}
