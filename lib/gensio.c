@@ -579,7 +579,7 @@ gensio_scan_unixaddr(struct gensio_os_funcs *o, const char *str,
 {
     struct sockaddr_un *saddr;
     struct addrinfo *ai;
-    int len, argc, err;
+    int len, argc = 0, err;
     const char **args = NULL;
 
     if (rargs && strncmp(str, "unix,", 5) == 0) {
