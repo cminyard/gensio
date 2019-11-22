@@ -723,7 +723,7 @@ new_rem_io(struct gensio *io, struct gdata *ginfo)
     }
     if (!s) {
 	syslog(LOG_ERR, "Out of memory allocating program name");
-	goto out_err;
+	goto out_free;
     }
 
     if (login || service) {
@@ -757,11 +757,14 @@ new_rem_io(struct gensio *io, struct gdata *ginfo)
     pcinfo->ioinfo1 = alloc_ioinfo(o, -1, NULL, NULL, &guh, pcinfo);
     if (!pcinfo->ioinfo1) {
 	syslog(LOG_ERR, "Could not allocate ioinfo 1\n");
+	free(pcinfo);
 	goto out_free;
     }
 
     pcinfo->ioinfo2 = alloc_ioinfo(o, -1, NULL, NULL, &guh, pcinfo);
     if (!pcinfo->ioinfo2) {
+	free_ioinfo(pcinfo->ioinfo1);
+	free(pcinfo);
 	syslog(LOG_ERR, "Could not allocate ioinfo 2\n");
 	goto out_free;
     }
