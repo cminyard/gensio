@@ -871,7 +871,6 @@ handle_port(struct gensio_os_funcs *o, bool remote, char *iaddr)
 	goto out_too_many_fields;
 
     if (s[num_s - 1][0] == '/') { /* remote is a unix socket. */
-	connecter_str = alloc_sprintf("unix,%s", s[num_s - 1]);
 	if (s[0][0] == '/') { /* local is a unix socket */
 	    if (num_s > 2)
 		goto out_too_many_fields;
