@@ -2250,8 +2250,6 @@ mux_child_read(struct mux_data *muxdata, int ierr,
 		    mux_send_new_channel_rsp(muxdata,
 				gensio_buf_to_u16(muxdata->hdr + 2),
 				0, 0, err);
-		    if (chan)
-			mux_channel_finish_close(chan);
 		    goto finish_new_chan;
 		}
 	    new_chan_no_service:
