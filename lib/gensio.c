@@ -582,9 +582,9 @@ gensio_scan_unixaddr(struct gensio_os_funcs *o, const char *str,
     int len, argc = 0, err;
     const char **args = NULL;
 
-    if (rargs && strncmp(str, "unix,", 5) == 0) {
+    if (strncmp(str, "unix,", 5) == 0) {
 	str += 5;
-    } else if (rargs && strncmp(str, "unix(", 5) == 0) {
+    } else if (strncmp(str, "unix(", 5) == 0) {
 	if (!rargs)
 	    return GE_INVAL;
 	str += 4;
