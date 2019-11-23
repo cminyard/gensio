@@ -846,7 +846,7 @@ handle_port(struct gensio_os_funcs *o, bool remote, char *iaddr)
     char *s[4];
     const char *type = NULL;
     unsigned int num_s = 0, pos = 0;
-    char *connecter_str, *accepter_str;
+    char *connecter_str = NULL, *accepter_str = NULL;
     char *addr = strdup(iaddr);
     int err = -1;
     bool has_bind = false;
