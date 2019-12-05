@@ -23,12 +23,97 @@
 #include <string.h>
 #include <errno.h>
 #include <gensio/gensio.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 
 #include "ioinfo.h"
 #include "ser_ioinfo.h"
 #include "utils.h"
 
 unsigned int debug;
+
+/*
+ * Set a dummy random input file, for reproducable openssl usage for
+ * fuzz testing.
+ */
+#include <openssl/rand.h>
+
+static int dummyrnd_file = -1;
+
+int
+dummyrnd_seed(const void *buf, int num)
+{
+    return 1;
+}
+
+int
+dummyrnd_bytes(unsigned char *buf, int num)
+{
+    int rc;
+    int count = 0;
+
+    while (num > 0) {
+	rc = read(dummyrnd_file, buf, num);
+	if (rc < 0) {
+	    fprintf(stderr, "Error reading from dummyrnd file: %s\n",
+		    strerror(errno));
+	    return 0;
+	}
+	if (rc == 0) {
+	    off_t pos = lseek(dummyrnd_file, 0, SEEK_SET);
+
+	    if (pos == -1) {
+		fprintf(stderr, "Error seeking dummyrnd file: %s\n",
+			strerror(errno));
+		return 0;
+	    }
+	    rc = read(dummyrnd_file, buf, num);
+	    if (rc <= 0) {
+		fprintf(stderr, "Error reading from dummyrnd file: %s\n",
+			strerror(errno));
+		return 0;
+	    }
+	}
+	count += rc;
+	buf += rc;
+	num -= rc;
+    }
+
+    return count;
+}
+
+void
+dummyrnd_cleanup(void)
+{
+}
+
+int
+dummyrnd_add(const void *buf, int num, double randomness)
+{
+    return 1;
+}
+
+int
+dummyrnd_pseudorand(unsigned char *buf, int num)
+{
+    return dummyrnd_bytes(buf, num);
+}
+
+int
+dummyrnd_status(void)
+{
+    return 1;
+}
+
+struct rand_meth_st dummyrnd = {
+    .seed = dummyrnd_seed,
+    .bytes = dummyrnd_bytes,
+    .cleanup = dummyrnd_cleanup,
+    .add = dummyrnd_add,
+    .pseudorand = dummyrnd_pseudorand,
+    .status = dummyrnd_status,
+};
 
 struct gdata {
     struct gensio_os_funcs *o;
@@ -178,6 +263,7 @@ main(int argc, char *argv[])
     void *subdata1 = NULL, *subdata2 = NULL;
     struct ioinfo *ioinfo1, *ioinfo2;
     struct gdata userdata1, userdata2;
+    char *filename;
 
     progname = argv[0];
 
@@ -209,7 +295,27 @@ main(int argc, char *argv[])
 		gensio_set_log_mask(GENSIO_LOG_MASK_ALL);
 	} else if ((rv = cmparg(argc, argv, &arg, "-h", "--help", NULL)))
 	    help(0);
-	else {
+	else if ((rv = cmparg(argc, argv, &arg, NULL, "--dummyrand",
+			      &filename))) {
+	    /*
+	     * This option is undocumented and only for testing.  Do not
+	     * use it!
+	     */
+	    if (dummyrnd_file != -1)
+		close(dummyrnd_file);
+	    dummyrnd_file = open(filename, O_RDONLY);
+	    if (dummyrnd_file == -1) {
+		fprintf(stderr, "Could not open rand file: %s\n",
+			strerror(errno));
+		exit(1);
+	    }
+
+	    rv = RAND_set_rand_method(&dummyrnd);
+	    if (rv != 1) {
+		fprintf(stderr, "Error setting random method\n");
+		exit(1);
+	    }
+	} else {
 	    fprintf(stderr, "Unknown argument: %s\n", argv[arg]);
 	    help(1);
 	}
