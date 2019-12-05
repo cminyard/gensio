@@ -317,10 +317,14 @@ basena_finish_server_open(struct gensio *net, int err, void *cb_data)
     gensio_acc_remove_pending_gensio(nadata->acc, net);
     basena_unlock(nadata);
 
-    if (err)
+    if (err) {
 	gensio_free(net);
-    else
+	gensio_acc_log(nadata->acc, GENSIO_LOG_ERR,
+		       "Error accepting a gensio: %s",
+		       gensio_err_to_str(err));
+    } else {
 	gensio_acc_cb(nadata->acc, GENSIO_ACC_EVENT_NEW_CONNECTION, net);
+    }
 
     basena_lock(nadata);
     basena_leave_cb_unlock(nadata);
@@ -337,11 +341,6 @@ basena_child_event(struct gensio_accepter *accepter, void *user_data,
     struct gensio *io = NULL, *child;
     void *finish_data;
     int err;
-
-    if (event == GENSIO_ACC_EVENT_LOG) {
-	gensio_acc_cb(nadata->acc, event, data);
-	return 0;
-    }
 
     if (event != GENSIO_ACC_EVENT_NEW_CONNECTION)
 	return gensio_acc_cb(nadata->acc, event, data);
