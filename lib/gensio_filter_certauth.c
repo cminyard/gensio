@@ -1471,8 +1471,8 @@ certauth_ll_write(struct gensio_filter *filter,
     } else {
 	memcpy(sfilter->read_buf + sfilter->read_buf_len, buf, buflen);
 	sfilter->read_buf_len += buflen;
-	buflen = 0;
 	buf += buflen;
+	buflen = 0;
     }
 
  out_unlock:
@@ -1480,7 +1480,7 @@ certauth_ll_write(struct gensio_filter *filter,
     certauth_unlock(sfilter);
  out:
     if (rcount)
-	*rcount = obuf - buf;
+	*rcount = buf - obuf;
 
     return err;
 }
