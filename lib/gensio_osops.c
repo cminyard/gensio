@@ -104,6 +104,11 @@ gensio_os_write(struct gensio_os_funcs *o,
 {
     ssize_t rv;
 
+    if (sglen == 0) {
+	if (rcount)
+	    *rcount = 0;
+	return 0;
+    }
  retry:
     rv = writev(fd, (struct iovec *) sg, sglen);
     ERRHANDLE();
@@ -115,6 +120,11 @@ gensio_os_read(struct gensio_os_funcs *o,
 {
     ssize_t rv;
 
+    if (buflen == 0) {
+	if (rcount)
+	    *rcount = 0;
+	return 0;
+    }
  retry:
     rv = read(fd, buf, buflen);
     ERRHANDLE();
