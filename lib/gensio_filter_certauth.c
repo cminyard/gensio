@@ -796,7 +796,7 @@ certauth_try_connect(struct gensio_filter *filter, struct timeval *timeout)
     struct certauth_filter *sfilter = filter_to_certauth(filter);
     struct gensio *io;
     bool password_requested = false;
-    int err;
+    int err, rv;
 
     certauth_lock(sfilter);
     if (sfilter->pending_err)
@@ -1123,11 +1123,13 @@ certauth_try_connect(struct gensio_filter *filter, struct timeval *timeout)
 
     sfilter->got_msg = false;
  out_inprogress:
-    certauth_unlock(sfilter);
-    return GE_INPROGRESS;
+    rv = GE_INPROGRESS;
+    goto out;
  out_finish:
+    rv = sfilter->pending_err;
+ out:
     certauth_unlock(sfilter);
-    return sfilter->pending_err;
+    return rv;
 }
 
 static int
@@ -1144,22 +1146,26 @@ certauth_ul_write(struct gensio_filter *filter,
 		  const char *const *auxdata)
 {
     struct certauth_filter *sfilter = filter_to_certauth(filter);
+    int rv = 0;
 
-    if (sg && (sfilter->state != CERTAUTH_PASSTHROUGH || sfilter->pending_err))
-	return GE_NOTREADY;
-
-    if (sg)
-	return handler(cb_data, rcount, sg, sglen, auxdata);
+    certauth_lock(sfilter);
+    if (sg) {
+	if (sfilter->state != CERTAUTH_PASSTHROUGH || sfilter->pending_err)
+	    rv = GE_NOTREADY;
+	else
+	    rv = handler(cb_data, rcount, sg, sglen, auxdata);
+	if (rv)
+	    goto out_unlock;
+    }
 
     if (sfilter->write_buf_len) {
 	gensiods count = 0;
-	int rv;
 	struct gensio_sg sg = { sfilter->write_buf + sfilter->write_buf_pos,
 			      sfilter->write_buf_len - sfilter->write_buf_pos };
 
 	rv = handler(cb_data, &count, &sg, 1, auxdata);
 	if (rv)
-	    return rv;
+	    goto out_unlock;
 	if (count + sfilter->write_buf_pos >= sfilter->write_buf_len) {
 	    sfilter->write_buf_len = 0;
 	    sfilter->write_buf_pos = 0;
@@ -1168,7 +1174,9 @@ certauth_ul_write(struct gensio_filter *filter,
 	}
     }
 
-    return 0;
+ out_unlock:
+    certauth_unlock(sfilter);
+    return rv;
 }
 
 static unsigned int
