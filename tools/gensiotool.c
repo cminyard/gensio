@@ -188,9 +188,16 @@ static int
 io_acc_event(struct gensio_accepter *accepter, void *user_data,
 	     int event, void *data)
 {
-
     struct ioinfo *ioinfo = user_data;
     struct gdata *ginfo = ioinfo_userdata(ioinfo);
+
+    if (event == GENSIO_ACC_EVENT_LOG) {
+	struct gensio_loginfo *li = data;
+
+	vfprintf(stderr, li->str, li->args);
+	fprintf(stderr, "\n");
+	exit(1);
+    }
 
     if (event != GENSIO_ACC_EVENT_NEW_CONNECTION)
 	return GE_NOTSUP;
