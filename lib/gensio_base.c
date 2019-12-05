@@ -565,6 +565,8 @@ basen_try_connect(struct basen_data *ndata)
     ll_set_read_callback_enable(ndata, false);
 
     err = filter_try_connect(ndata, &timeout);
+    if (!err || err == GE_INPROGRESS || err == GE_RETRY)
+	basen_set_ll_enables(ndata);
     if (err == GE_INPROGRESS)
 	return;
     if (err == GE_RETRY) {
@@ -698,6 +700,8 @@ basen_try_close(struct basen_data *ndata)
     ll_set_read_callback_enable(ndata, false);
 
     err = filter_try_disconnect(ndata, &timeout);
+    if (!err || err == GE_INPROGRESS || err == GE_RETRY)
+	basen_set_ll_enables(ndata);
     if (err == GE_INPROGRESS)
 	return;
     if (err == GE_RETRY) {
