@@ -768,6 +768,13 @@ chan_check_read(struct mux_inst *chan)
     const char *flstr[3];
     unsigned int i;
 
+#ifdef MUX_TRACING
+    TRACE_MSG_CHAN("read data len: %ld",
+		   (unsigned long) chan->read_data_len);
+    TRACE_MSG_CHAN("read enabled: %d", chan->read_enabled);
+    TRACE_MSG_CHAN("errcode: %d", chan->errcode);
+    TRACE_MSG_CHAN("in_read_report: %d", chan->in_read_report);
+#endif
     while ((chan->read_data_len || chan->errcode) &&
 	   chan->read_enabled && !chan->in_read_report) {
 	if (chan->read_data_len == 0) {
@@ -804,6 +811,8 @@ chan_check_read(struct mux_inst *chan)
 		rcount = orcount;
 	    len -= rcount;
 	    chan->received_unacked += rcount;
+	    TRACE_MSG_CHAN("received_unacked(1): %ld",
+			   (unsigned long) chan->received_unacked);
 	    olen += rcount;
 	    if (rcount < orcount)
 		/* User didn't consume all data. */
@@ -826,11 +835,15 @@ chan_check_read(struct mux_inst *chan)
 	    rcount = orcount;
 	len -= rcount;
 	chan->received_unacked += rcount;
+	TRACE_MSG_CHAN("received_unacked(2): %ld",
+		       (unsigned long) chan->received_unacked);
 	olen += rcount;
     after_read_done:
 	chan->in_read_report = false;
 
 	/* Schedule an ack send if we need it. */
+	TRACE_MSG_CHAN("received_unacked(2): %ld",
+		       (unsigned long) chan->received_unacked);
 	if (chan->received_unacked) {
 	    chan->ack_pending = true;
 	    muxc_add_to_wrlist(chan);
@@ -846,6 +859,8 @@ chan_check_read(struct mux_inst *chan)
 	    chan->read_data_pos = chan_next_read_pos(chan, olen + 3);
 	    chan->read_data_len -= olen + 3;
 	    chan->received_unacked += 3;
+	    TRACE_MSG_CHAN("received_unacked(3): %ld",
+			   (unsigned long) chan->received_unacked);
 	}
     }
     if (chan->read_data_len == 0 && !chan->wr_ready &&
@@ -1703,6 +1718,8 @@ chan_setup_send_data(struct mux_inst *chan)
 	if (chan->received_unacked == 0)
 	    return false;
 	chan->received_unacked = 0;
+	TRACE_MSG_CHAN("received_unacked(4): %ld",
+		       (unsigned long) chan->received_unacked);
 	/* Just sending an ack. */
 	gensio_u16_to_buf(chan->hdr + 8, 0);
 	chan->sg[0].buflen = 10;
@@ -1710,6 +1727,8 @@ chan_setup_send_data(struct mux_inst *chan)
 	return true;
     }
     chan->received_unacked = 0;
+    TRACE_MSG_CHAN("received_unacked(5): %ld",
+		   (unsigned long) chan->received_unacked);
 
     assert(chan->write_data_len > 3);
 
@@ -1765,7 +1784,12 @@ mux_child_write_ready(struct mux_data *muxdata)
 			       ((uint8_t *) (chan->sg[0].buf))[i + 1],
 			       ((uint8_t *) (chan->sg[0].buf))[i + 2],
 			       ((uint8_t *) (chan->sg[0].buf))[i + 3]);
-	    TRACE_MSG_CHAN("pos: %d\n", chan->sgpos);
+	    TRACE_MSG_CHAN("pos: %d", chan->sgpos);
+	    TRACE_MSG_CHAN("received_unacked: %ld",
+			   (unsigned long) chan->received_unacked);
+	    TRACE_MSG_CHAN("read_enabled: %d", chan->read_enabled);
+	    TRACE_MSG_CHAN("read_data_len: %ld",
+			   (unsigned long) chan->read_data_len);
 	}
 #endif
 	err = gensio_write_sg(muxdata->child, &rcount, chan->sg + chan->sgpos,
@@ -2153,6 +2177,16 @@ mux_child_read(struct mux_data *muxdata, int ierr,
 		    goto protocol_err;
 		}
 		acked = gensio_buf_to_u32(muxdata->hdr + 4);
+#ifdef MUX_TRACING
+		TRACE_MSG_CHAN("received_unacked: %ld",
+			       (unsigned long) chan->received_unacked);
+		TRACE_MSG_CHAN("read_enabled: %d", chan->read_enabled);
+		TRACE_MSG_CHAN("read_data_len: %ld",
+			       (unsigned long) chan->read_data_len);
+		TRACE_MSG_CHAN("acked: %ld", (unsigned long) acked);
+		TRACE_MSG_CHAN("sent_unacked: %ld",
+			       (unsigned long) chan->sent_unacked);
+#endif
 		if (acked > chan->sent_unacked)
 		    chan->sent_unacked = 0; /* FIXME - Should we protocol err? */
 		else
@@ -2207,6 +2241,10 @@ mux_child_read(struct mux_data *muxdata, int ierr,
 		    break;
 
 		case MUX_DATA:
+#ifdef MUX_TRACING
+		TRACE_MSG_CHAN("read data size: %ld",
+			       (unsigned long) muxdata->data_size);
+#endif
 		    if (muxdata->data_size == 0)
 			goto handle_read_no_data;
 		    if (chan_rdbufleft(chan) < muxdata->data_size + 3) {
@@ -2279,6 +2317,8 @@ mux_child_read(struct mux_data *muxdata, int ierr,
 		    if (chan->service_len) {
 			/* Ack the service data. */
 			chan->received_unacked = chan->service_len;
+			TRACE_MSG_CHAN("received_unacked(6): %ld",
+				       (unsigned long) chan->received_unacked);
 			chan->ack_pending = true;
 			muxc_add_to_wrlist(chan);
 		    }
