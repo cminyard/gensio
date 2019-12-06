@@ -6,3 +6,10 @@ These tests require the linux serial simulation module in
 linux-serialsim in this package.  You must load that module and the
 user running the test must be able to access the serial ports
 (generally you must be in the dialout group).
+
+Fuzz testing is also available for some of the filter gensios, see the
+makefile for details on what is available.  These tests work by
+running a standard scenario and saving the data written to the
+accepting gensio, then using that as input for the afl fuzz tester.
+There's quite a bit of setup involved, but the afl program will tell
+you what is wrong and how to fix it.

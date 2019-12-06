@@ -1,5 +1,15 @@
 #!/usr/bin/python
 
+#
+# This program creates some random data into a file and then runs a
+# gensio connector and accepter over stdio.  The data written to the
+# accepter gensio filter is saved in tracefile.
+#
+# This is for support of fuzz testing.  The random data can be used to
+# create a completely reproducable testcase with the ssl library.  The
+# tracefile is used for fuzzing the program.
+#
+
 import sys
 import subprocess
 import os
