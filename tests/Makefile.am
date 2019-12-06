@@ -37,7 +37,21 @@ test_fuzz_mux:
 		$(top_builddir)/tools/gensiot --dummyrand randfile \
 		-i echo -a "mux,stdio"
 
-test_fuzz: test_fuzz_certauth test_fuzz_mux
+test_fuzz_ssl:
+	-rm -rf fuzz-test-ssl fuzz-results-ssl
+	mkdir -p fuzz-test-ssl
+	mkdir -p fuzz-results-ssl
+	$(AM_TESTS_ENVIRONMENT) python $(utst_srcdir)/tests/test_fuzz_setup.py \
+		$(top_builddir)/tools/gensiot randfile \
+		'ssl(CA=ca/CA.pem)'\
+		'ssl(key=ca/key.pem,cert=ca/cert.pem)' \
+		fuzz-test-ssl/tracefile
+	afl-fuzz -i fuzz-test-ssl -o fuzz-results-ssl \
+		$(top_builddir)/tools/gensiot --dummyrand randfile \
+		-i echo -a \
+		"ssl(key=ca/key.pem,cert=ca/cert.pem),stdio"
+
+test_fuzz: test_fuzz_certauth test_fuzz_mux test_fuzz_certauth
 
 TESTS = test_gensio.py test_syncio.py
 
@@ -46,4 +60,5 @@ EXTRA_DIST = $(TESTS) utils.py ipmisimdaemon.py termioschk.py \
 
 clean-local:
 	-rm -rf ca randfile fuzz-test-certauth fuzz-results-certauth \
-		 fuzz-test-mux fuzz-results-mux
+		fuzz-test-mux fuzz-results-mux \
+		fuzz-test-ssl fuzz-results-ssl
