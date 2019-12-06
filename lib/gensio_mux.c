@@ -159,6 +159,7 @@ static unsigned int mux_msg_hdr_sizes[] = { 0, 1, 2, 3, 2, 2 };
 #define MUX_FLAG_OUT_OF_BOUND		(1 << 1)
 
 #define MUX_MAX_HDR_SIZE	12
+#define MUX_MIN_SEND_WINDOW_SIZE	128
 
 #if 0
 #include <stdio.h>
@@ -440,6 +441,9 @@ struct mux_data {
 
     enum mux_state state;
 
+    /* If the mux was shutdown due to an error, this is set. */
+    bool err_shutdown;
+
     /* Am I currently receiving header or data? */
     bool in_hdr;
 
@@ -621,8 +625,7 @@ mux_firstchan(struct mux_data *muxdata)
     struct mux_inst *chan;
 
     gensio_list_for_each(&muxdata->chans, l) {
-	chan = gensio_container_of(gensio_list_first(&muxdata->chans),
-				   struct mux_inst, link);
+	chan = gensio_container_of(l, struct mux_inst, link);
 	if (chan->state != MUX_INST_CLOSED &&
 		chan->state != MUX_INST_PENDING_OPEN)
 	    return chan;
@@ -756,6 +759,25 @@ chan_check_send_more(struct mux_inst *chan)
     }
 }
 
+static bool
+full_msg_ready(struct mux_inst *chan, gensiods *rlen)
+{
+    gensiods len;
+
+    if (chan->read_data_len == 0)
+	return false;
+
+    assert(chan->read_data_len >= 3);
+    len = chan->read_data[chan_next_read_pos(chan, 1)] << 8;
+    len |= chan->read_data[chan_next_read_pos(chan, 2)];
+    assert(len > 0);
+
+    if (rlen)
+	*rlen = len;
+
+    return len + 3 <= chan->read_data_len;
+}
+
 /*
  * Must be called with an extra refcount held.
  */
@@ -764,9 +786,10 @@ chan_check_read(struct mux_inst *chan)
 {
     struct mux_data *muxdata = chan->mux;
     unsigned char flags;
-    gensiods len, olen, rcount, orcount, pos;
+    gensiods len = 0, olen, rcount, orcount, pos;
     const char *flstr[3];
     unsigned int i;
+    bool fullmsg;
 
 #ifdef MUX_TRACING
     TRACE_MSG_CHAN("read data len: %ld",
@@ -775,10 +798,10 @@ chan_check_read(struct mux_inst *chan)
     TRACE_MSG_CHAN("errcode: %d", chan->errcode);
     TRACE_MSG_CHAN("in_read_report: %d", chan->in_read_report);
 #endif
-    while ((chan->read_data_len || chan->errcode) &&
+    while (((fullmsg = full_msg_ready(chan, &len)) || chan->errcode) &&
 	   chan->read_enabled && !chan->in_read_report) {
-	if (chan->read_data_len == 0) {
-	    /* error is true and no data. */
+	if (chan->errcode && !fullmsg) {
+	    /* error is true and a full message is not present. */
 	    chan->in_read_report = true;
 	    chan->read_enabled = false;
 	    mux_unlock(muxdata);
@@ -789,14 +812,9 @@ chan_check_read(struct mux_inst *chan)
 	    continue;
 	}
 
-	assert(chan->read_data_len > 3); /* FIXME - should this be protocol err? */
-
 	flags = chan->read_data[chan->read_data_pos];
-	len = chan->read_data[chan_next_read_pos(chan, 1)] << 8;
-	len |= chan->read_data[chan_next_read_pos(chan, 2)];
-	olen = 0;
-	assert(len > 0 && len + 3 <= chan->read_data_len);
 	pos = chan_next_read_pos(chan, 3);
+	olen = 0;
 
 	chan->in_read_report = true;
 	if (len > chan->max_read_size - pos) {
@@ -863,8 +881,7 @@ chan_check_read(struct mux_inst *chan)
 			   (unsigned long) chan->received_unacked);
 	}
     }
-    if (chan->read_data_len == 0 && !chan->wr_ready &&
-		chan->state == MUX_INST_IN_CLOSE_FINAL)
+    if (!fullmsg && !chan->wr_ready && chan->state == MUX_INST_IN_CLOSE_FINAL)
 	mux_channel_finish_close(chan);
 }
 
@@ -897,7 +914,7 @@ muxc_add_to_wrlist(struct mux_inst *chan)
 {
     struct mux_data *muxdata = chan->mux;
 
-    if (!chan->wr_ready) {
+    if (!chan->wr_ready && !muxdata->err_shutdown) {
 	gensio_list_add_tail(&muxdata->wrchans, &chan->wrlink);
 	chan->wr_ready = true;
 	chan->in_wrlist = true;
@@ -943,6 +960,7 @@ muxc_write(struct mux_inst *chan, gensiods *count,
      * least a byte of data.
      */
     if (chan->max_write_size - chan->write_data_len < 4) {
+    out_unlock_nosend:
 	mux_unlock(muxdata);
 	*count = 0;
 	return 0;
@@ -951,15 +969,18 @@ muxc_write(struct mux_inst *chan, gensiods *count,
     if (tot_len > chan->max_write_size - chan->write_data_len) {
 	/* Can only send as much as we have buffer for. */
 	tot_len = chan->max_write_size - chan->write_data_len;
+	if (tot_len <= 3)
+	    goto out_unlock_nosend;
 	truncated = true;
     }
 
     if (tot_len > chan->send_window_size / 2) {
 	/* Only allow sends to 1/2 the window size. */
 	tot_len = chan->send_window_size / 2;
+	if (tot_len <= 3)
+	    goto out_unlock_nosend;
 	truncated = true;
     }
-
 
     /* FIXME - consolidate writes if possible. */
 
@@ -1246,6 +1267,7 @@ muxc_alloc_channel_data(struct mux_data *muxdata,
 			gensio_event cb,
 			void *user_data,
 			struct gensio_mux_config *data,
+			enum mux_inst_state state,
 			struct gensio **new_io)
 {
     struct mux_inst *chan = NULL;
@@ -1269,7 +1291,7 @@ muxc_alloc_channel_data(struct mux_data *muxdata,
 	chan->service_len = data->service_len;
     }
 
-    chan->state = MUX_INST_CLOSED;
+    chan->state = state;
 
     mux_unlock(muxdata);
 
@@ -1387,7 +1409,7 @@ muxc_alloc_channel(struct mux_data *muxdata,
 	return err;
 
     err = muxc_alloc_channel_data(muxdata, ocdata->cb, ocdata->user_data,
-				  &data, &ocdata->new_io);
+				  &data, MUX_INST_CLOSED, &ocdata->new_io);
     gensio_mux_config_cleanup(&data);
     return err;
 }
@@ -1624,14 +1646,23 @@ mux_shutdown_channels(struct mux_data *muxdata, int err)
 {
     struct gensio_link *l, *l2;
     struct mux_inst *chan;
+    enum mux_state oldstate;
 
+    oldstate = muxdata->state;
     muxdata->state = MUX_IN_CLOSE;
+    muxdata->err_shutdown = true;
 
-    if (muxdata->state == MUX_WAITING_OPEN) {
-	chan = mux_chan0(muxdata);
-	mux_unlock(muxdata);
-	muxdata->acc_open_done(chan->io, err, muxdata->acc_open_data);
-	mux_lock(muxdata);
+    if (oldstate == MUX_WAITING_OPEN || oldstate == MUX_UNINITIALIZED) {
+	gensio_done_err acc_open_done = muxdata->acc_open_done;
+	void *acc_open_data = muxdata->acc_open_data;
+
+	if (acc_open_done) {
+	    chan = mux_chan0(muxdata);
+	    muxdata->acc_open_done = NULL;
+	    mux_unlock(muxdata);
+	    acc_open_done(chan->io, err, acc_open_data);
+	    mux_lock(muxdata);
+	}
     }
 
     gensio_list_for_each_safe(&muxdata->chans, l, l2) {
@@ -1640,13 +1671,17 @@ mux_shutdown_channels(struct mux_data *muxdata, int err)
 	    gensio_list_rm(&muxdata->wrchans, &chan->wrlink);
 	    chan->in_wrlist = false;
 	}
+	chan->wr_ready = false;
 	if (chan->in_open_chan) {
 	    gensio_list_rm(&muxdata->openchans, &chan->wrlink);
 	    chan->in_open_chan = false;
 	}
+	if (chan->state == MUX_INST_IN_CLOSE_FINAL) {
+	    chan_sched_deferred_op(chan);
+	    continue;
+	}
 	if (chan->state == MUX_INST_CLOSED ||
-		chan->state == MUX_INST_IN_REM_CLOSE ||
-		chan->state == MUX_INST_IN_CLOSE_FINAL)
+		chan->state == MUX_INST_IN_REM_CLOSE)
 	    continue;
 	if (chan->state == MUX_INST_PENDING_OPEN) {
 	    gensio_list_rm(&muxdata->chans, &chan->link);
@@ -1655,7 +1690,7 @@ mux_shutdown_channels(struct mux_data *muxdata, int err)
 	}
 	if (chan->state == MUX_INST_IN_OPEN ||
 		chan->state == MUX_INST_IN_OPEN_CLOSE) {
-	    chan->state = MUX_INST_IN_CLOSE_FINAL;
+	    chan->state = MUX_INST_CLOSED;
 	    if (chan->open_done) {
 		chan_ref(chan);
 		mux_unlock(muxdata);
@@ -1822,7 +1857,7 @@ mux_child_write_ready(struct mux_data *muxdata)
 		gensio_list_add_tail(&muxdata->wrchans, &chan->wrlink);
 		chan->in_wrlist = true;
 	    } else if (chan->state == MUX_INST_IN_CLOSE_FINAL &&
-		       chan->read_data_len == 0) {
+		       !full_msg_ready(chan, NULL)) {
 		mux_channel_finish_close(chan);
 		/* chan could be freed after this point, be careful! */
 	    } else {
@@ -2073,6 +2108,10 @@ mux_child_read(struct mux_data *muxdata, int ierr,
 		if (chan) {
 		    chan->send_window_size =
 			gensio_buf_to_u32(muxdata->hdr + 4);
+		    if (chan->send_window_size <= MUX_MIN_SEND_WINDOW_SIZE) {
+			proto_err_str = "Invalid send window size";
+			goto protocol_err;
+		    }
 		    chan->remote_id = remote_id;
 		    muxdata->data_pos = 0;
 		    muxdata->in_hdr = false; /* Receive the service data */
@@ -2091,10 +2130,19 @@ mux_child_read(struct mux_data *muxdata, int ierr,
 		    proto_err_str = "Invalid channel state on open response";
 		    goto protocol_err;
 		}
-		if (muxdata->state == MUX_IN_OPEN)
+		if (muxdata->state == MUX_IN_OPEN) {
 		    muxdata->state = MUX_OPEN;
+		} else if (muxdata->state != MUX_OPEN &&
+			   muxdata->state != MUX_IN_CLOSE) {
+		    proto_err_str = "New channel response in bad state";
+		    goto protocol_err;
+		}
 		chan->remote_id = gensio_buf_to_u16(muxdata->hdr + 8);
 		chan->send_window_size = gensio_buf_to_u32(muxdata->hdr + 4);
+		if (chan->send_window_size <= MUX_MIN_SEND_WINDOW_SIZE) {
+		    proto_err_str = "Invalid send window size";
+		    goto protocol_err;
+		}
 		chan->errcode = gensio_buf_to_u16(muxdata->hdr + 10);
 		muxdata->sending_chan = NULL;
 
@@ -2103,6 +2151,7 @@ mux_child_read(struct mux_data *muxdata, int ierr,
 
 		if (chan->errcode) {
 		    chan->state = MUX_INST_IN_CLOSE_FINAL;
+		    chan_sched_deferred_op(chan);
 		} else if (chan->state == MUX_INST_IN_OPEN_CLOSE) {
 		    chan->send_close = true;
 		    muxc_add_to_wrlist(chan);
@@ -2152,8 +2201,10 @@ mux_child_read(struct mux_data *muxdata, int ierr,
 		chan->errcode = gensio_buf_to_u16(muxdata->hdr + 4);
 		if (chan->state == MUX_INST_IN_CLOSE) {
 		    chan->state = MUX_INST_IN_CLOSE_FINAL;
-		    if (chan->read_data_len == 0 && !chan->wr_ready)
+		    if (!full_msg_ready(chan, NULL) && !chan->wr_ready)
 			mux_channel_finish_close(chan);
+		    else
+			chan_sched_deferred_op(chan);
 		    /* chan could be freed after this point, be careful. */
 		} else {
 		    chan->state = MUX_INST_IN_REM_CLOSE;
@@ -2246,8 +2297,8 @@ mux_child_read(struct mux_data *muxdata, int ierr,
 
 		case MUX_DATA:
 #ifdef MUX_TRACING
-		TRACE_MSG_CHAN("read data size: %ld",
-			       (unsigned long) muxdata->data_size);
+		    TRACE_MSG_CHAN("read data size: %ld",
+				   (unsigned long) muxdata->data_size);
 #endif
 		    if (muxdata->data_size == 0)
 			goto handle_read_no_data;
@@ -2379,7 +2430,7 @@ mux_child_read(struct mux_data *muxdata, int ierr,
     if (err)
 	mux_shutdown_channels(muxdata, GE_PROTOERR);
     mux_unlock(muxdata);
-    return 0;
+    return GE_PROTOERR;
 }
 
 static int
@@ -2413,6 +2464,10 @@ mux_gensio_alloc_data(struct gensio *child, struct gensio_mux_config *data,
     struct mux_data *muxdata;
     int rv;
 
+    if (data->max_write_size < MUX_MIN_SEND_WINDOW_SIZE ||
+		data->max_read_size < MUX_MIN_SEND_WINDOW_SIZE)
+	return GE_INVAL;
+
     muxdata = o->zalloc(o, sizeof(*muxdata));
     if (!muxdata)
 	return GE_NOMEM;
@@ -2436,7 +2491,8 @@ mux_gensio_alloc_data(struct gensio *child, struct gensio_mux_config *data,
     mux_send_init(muxdata);
 
     /* Allocate channel 0. */
-    rv = muxc_alloc_channel_data(muxdata, cb, user_data, data, NULL);
+    rv = muxc_alloc_channel_data(muxdata, cb, user_data, data,
+				 MUX_INST_IN_OPEN, NULL);
     if (rv)
 	goto out_nomem;
 
