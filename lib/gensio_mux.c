@@ -1693,6 +1693,7 @@ chan_setup_send_new_channel(struct mux_inst *chan)
 	chan->sg[1].buf = chan->service;
 	chan->sg[1].buflen = chan->service_len;
 	chan->sglen++;
+	chan->sent_unacked = chan->service_len;
     }
     chan->cur_msg_len = 0; /* Data isn't in chan->write_data. */
 }
@@ -1738,8 +1739,10 @@ chan_setup_send_data(struct mux_inst *chan)
     chan->cur_msg_len |= chan->write_data[pos];
     chan->cur_msg_len += 2;
 
-    if (chan->cur_msg_len > window_left)
+    if (chan->cur_msg_len > window_left) {
+	chan->cur_msg_len = 0;
 	goto check_send_ack;
+    }
 
     flags = chan->write_data[chan->write_data_pos];
     chan_incr_write_pos(chan, 1);
@@ -1757,7 +1760,7 @@ chan_setup_send_data(struct mux_inst *chan)
 	chan->sg[1].buf = chan->write_data + chan->write_data_pos;
 	chan->sg[1].buflen = chan->cur_msg_len;
     }
-    chan->sent_unacked += chan->cur_msg_len;
+    chan->sent_unacked += chan->cur_msg_len + 1;
 
     return true;
 }
@@ -2187,10 +2190,11 @@ mux_child_read(struct mux_data *muxdata, int ierr,
 		TRACE_MSG_CHAN("sent_unacked: %ld",
 			       (unsigned long) chan->sent_unacked);
 #endif
-		if (acked > chan->sent_unacked)
-		    chan->sent_unacked = 0; /* FIXME - Should we protocol err? */
-		else
-		    chan->sent_unacked -= acked;
+		if (acked > chan->sent_unacked) {
+		    proto_err_str = "acked > chan->sent_unacked";
+		    goto protocol_err;
+		}
+		chan->sent_unacked -= acked;
 		if (acked > 0 && chan->write_data_len)
 		    muxc_add_to_wrlist(chan);
 		muxdata->curr_chan = chan;
