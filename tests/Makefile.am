@@ -51,7 +51,7 @@ test_fuzz_ssl:
 		-i echo -a \
 		"ssl(key=ca/key.pem,cert=ca/cert.pem),stdio"
 
-test_fuzz: test_fuzz_certauth test_fuzz_mux test_fuzz_certauth
+test_fuzz: test_fuzz_certauth test_fuzz_mux test_fuzz_ssl
 
 TESTS = test_gensio.py test_syncio.py
 
