@@ -35,7 +35,7 @@ test_fuzz_mux:
 		'mux' 'mux' fuzz-test-mux/tracefile
 	afl-fuzz -i fuzz-test-mux -o fuzz-results-mux \
 		$(top_builddir)/tools/gensiot --dummyrand randfile \
-		-i echo -a "mux,stdio"
+		-i echo -a "mux(writebuf=10000),stdio"
 
 test_fuzz_ssl:
 	-rm -rf fuzz-test-ssl fuzz-results-ssl
