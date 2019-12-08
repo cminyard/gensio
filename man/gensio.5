@@ -482,7 +482,7 @@ integer.
 accepter = 
 .B stdio[(options)]
 .br
-connecting = 
+connecting =
 .B stdio[(options)],<program>
 
 The stdio gensio is a fairly strange one, but it's fairly useful.
@@ -492,6 +492,11 @@ as an option) and connects its standard input and output to the
 gensio's main channel.  So it's easy to run a program and interact
 with it.  If you want to get stderr from the gensio, open a channel on
 the main channel gensio, see below.
+
+.B NOTE:
+Do not use this for file I/O, only for pipes or ttys.  The epoll
+semantics to not work properly with file I/O.  Instead, use the file
+gensio.
 
 For connecting gensios, in the forked process, the code will set the
 uid and guid to the current set effective uid and guid if the
@@ -508,7 +513,7 @@ to allow the environment to be set for the new process.
 An accepting gensio immediately does a connection when started and
 connection stdin and stdout of the running program to the gensio.
 
-In addition to readbuf, a connecting stdio takes the following options:
+In addition to readbuf, a connecting echo takes the following options:
 .TP
 .B self[=true|false]
 Instead of starting a program, connect to the running program's stdio.
@@ -536,7 +541,7 @@ Remote address is not supported.
 The remote ID is the pid for the remote device, only for connecting
 gensios that start a program, not for any other type.
 .SH "echo"
-connecting = 
+connecting =
 .B echo[(options)]
 
 The echo gensio just echos back all the data written to it.  Useful
@@ -548,6 +553,47 @@ In addition to readbuf, a connecting stdio takes the following options:
 Instead of echoing the data, just become a data sink.
 .SS "Remote Address String"
 The remote address string is "echo".
+.SS "Remote Address"
+Remote address is not supported.
+.SS "Remote ID"
+Remote ID is not supported.
+.SH "file"
+connecting =
+.B file[(options)]
+
+The file gensio opens an (optional) input file and (optional) output
+file for the gensio.  If you need to read/write a file in gensio, you
+.B must
+use this.  Semantics on files for stdio do not alway work correctly.
+
+If an input file is specified, data will be read from the input file
+and delivered on the read interface of the gensio until end of file,
+when the GE_REMCLOSE error will be returned.
+
+If an output file is specified, data will be written to the output
+file on writes.  The output file is always ready to receive data.
+
+In addition to readbuf, a connecting file takes the following options:
+.TP
+.B infile=filename
+Set the input filename.
+.B outfile=filename
+Set the output filename.
+.B create[=true|false]
+Create the output file if it does not exist.
+.B umode=[0-7|[rwx]*]
+Set the user file mode for the file if the file is created.  This is
+the usual read(4)/write(2)/execute(2) bitmask per chmod, but only for
+the user portion.  If not specified, it is "6" (rw) and is modified by
+the umode per standard *nix semantics.
+.B gmode=[0-7|[rwx]*]
+Set the group file mode for the file if the file is created, see umode
+for details.
+.B omode=[0-7|[rwx]*]
+Set the other file mode for the file if the file is created, see umode
+for details.
+.SS "Remote Address String"
+The remote address string is "file([infile=<filename][,][outfile=<filename>])".
 .SS "Remote Address"
 Remote address is not supported.
 .SS "Remote ID"
