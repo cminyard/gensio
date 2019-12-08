@@ -51,7 +51,18 @@ test_fuzz_ssl:
 		-i echo -a \
 		"ssl(key=ca/key.pem,cert=ca/cert.pem),stdio"
 
-test_fuzz: test_fuzz_certauth test_fuzz_mux test_fuzz_ssl
+test_fuzz_telnet:
+	-rm -rf fuzz-test-telnet fuzz-results-telnet
+	mkdir -p fuzz-test-telnet
+	mkdir -p fuzz-results-telnet
+	$(AM_TESTS_ENVIRONMENT) python $(utst_srcdir)/tests/test_fuzz_setup.py \
+		$(top_builddir)/tools/gensiot randfile \
+		'telnet' 'telnet' fuzz-test-telnet/tracefile
+	afl-fuzz -i fuzz-test-telnet -o fuzz-results-telnet \
+		$(top_builddir)/tools/gensiot --dummyrand randfile \
+		-i echo -a "telnet,stdio"
+
+test_fuzz: test_fuzz_certauth test_fuzz_mux test_fuzz_ssl test_fuzz_telnet
 
 TESTS = test_gensio.py test_syncio.py
 
