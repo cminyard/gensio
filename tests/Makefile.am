@@ -12,6 +12,15 @@ AM_TESTS_ENVIRONMENT = \
 test_setup:
 	echo "$(AM_TESTS_ENVIRONMENT) python $(utst_srcdir)/tests/"
 
+#
+# If you get certauth fuzz failures, they will be in the
+# fuzz-results-certauth/crashes or fuzz-results-certauth/hangs directories.
+# To reproduce the failure, in this directory, run:
+#
+# ../tools/gensiot --dummyrand randfile -i echo 'certauth(CA=ca/clientcert.pem,allow-unencrypted,mode=server),file(infile=fuzz-results-certauth/[hangs|crashes]/<file>)'
+#
+# where the <file> is the specific failure.
+#
 test_fuzz_certauth:
 	-rm -rf fuzz-test-certauth fuzz-results-certauth
 	mkdir -p fuzz-test-certauth
@@ -26,6 +35,15 @@ test_fuzz_certauth:
 		-i echo -a \
 		"certauth(CA=ca/clientcert.pem,allow-unencrypted),stdio"
 
+#
+# If you get mux fuzz failures, they will be in the
+# fuzz-results-mux/crashes or fuzz-results-mux/hangs directories.
+# To reproduce the failure, in this directory, run:
+#
+# ../tools/gensiot --dummyrand randfile -i echo 'mux(writebuf=10000,mode=server),file(infile=fuzz-results-mux/[hangs|crashes]/<file>)'
+#
+# where the <file> is the specific failure.
+#
 test_fuzz_mux:
 	-rm -rf fuzz-test-mux fuzz-results-mux
 	mkdir -p fuzz-test-mux
@@ -37,6 +55,15 @@ test_fuzz_mux:
 		$(top_builddir)/tools/gensiot --dummyrand randfile \
 		-i echo -a "mux(writebuf=10000),stdio"
 
+#
+# If you get ssl fuzz failures, they will be in the
+# fuzz-results-ssl/crashes or fuzz-results-ssl/hangs directories.
+# To reproduce the failure, in this directory, run:
+#
+# ../tools/gensiot --dummyrand randfile -i echo 'ssl(key=ca/key.pem,cert=ca/cert.pem,mode=server),file(infile=fuzz-results-ssl/[hangs|crashes]/<file>)'
+#
+# where the <file> is the specific failure.
+#
 test_fuzz_ssl:
 	-rm -rf fuzz-test-ssl fuzz-results-ssl
 	mkdir -p fuzz-test-ssl
@@ -51,6 +78,15 @@ test_fuzz_ssl:
 		-i echo -a \
 		"ssl(key=ca/key.pem,cert=ca/cert.pem),stdio"
 
+#
+# If you get telnet fuzz failures, they will be in the
+# fuzz-results-telnet/crashes or fuzz-results-telnet/hangs directories.
+# To reproduce the failure, in this directory, run:
+#
+# ../tools/gensiot --dummyrand randfile -i echo 'telnet,file(infile=fuzz-results-telnet/[hangs|crashes]/<file>)'
+#
+# where the <file> is the specific failure.
+#
 test_fuzz_telnet:
 	-rm -rf fuzz-test-telnet fuzz-results-telnet
 	mkdir -p fuzz-test-telnet
