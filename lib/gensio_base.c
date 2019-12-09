@@ -373,7 +373,7 @@ basen_set_ll_enables(struct basen_data *ndata)
 		filter_ll_read_needed(ndata)) && ndata->state == BASEN_OPEN) ||
 	    ndata->state == BASEN_IN_FILTER_OPEN ||
 	    ndata->state == BASEN_IN_FILTER_CLOSE) &&
-	   !ndata->in_read)
+	   !ndata->in_read && !ndata->ll_err_occurred)
 	ll_set_read_callback_enable(ndata, true);
     else
 	ll_set_read_callback_enable(ndata, false);
