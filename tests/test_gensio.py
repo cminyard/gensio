@@ -521,7 +521,7 @@ def test_ipmisol_large():
     io1 = utils.alloc_io(o, "serialdev,/dev/ttyPipeA0,115200")
     io2 = utils.alloc_io(o, "ipmisol,lan -U ipmiusr -P test -p 9001 localhost,115200")
     rb = os.urandom(104857)
-    utils.test_dataxfer(io1, io2, rb, timeout=10000)
+    utils.test_dataxfer(io1, io2, rb, timeout=20000)
     utils.io_close(io1)
     utils.io_close(io2)
     print("  Success!")
