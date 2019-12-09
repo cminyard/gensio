@@ -1467,10 +1467,6 @@ muxc_open(struct mux_inst *chan, gensio_done_err open_done, void *open_data,
 
     mux_lock(muxdata);
     if (muxdata->state == MUX_CLOSED) {
-	if (!muxdata->is_client && do_child) {
-	    err = GE_NOTSUP;
-	    goto out_unlock;
-	}
 	muxdata->sending_chan = NULL;
 	muxdata->in_hdr = true;
 	muxdata->hdr_pos = 0;
@@ -1486,13 +1482,8 @@ muxc_open(struct mux_inst *chan, gensio_done_err open_done, void *open_data,
 	}
 	mux_send_init(muxdata);
 
-	if (muxdata->is_client) {
-	    chan->open_done = open_done;
-	    chan->open_data = open_data;
-	} else {
-	    muxdata->acc_open_done = open_done;
-	    muxdata->acc_open_data = open_data;
-	}
+	chan->open_done = open_done;
+	chan->open_data = open_data;
 	chan->state = MUX_INST_IN_OPEN;
 	if (do_child) {
 	    err = gensio_open(muxdata->child, mux_child_open_done, muxdata);
@@ -1503,8 +1494,10 @@ muxc_open(struct mux_inst *chan, gensio_done_err open_done, void *open_data,
 	    } else {
 		chan->state = MUX_INST_CLOSED;
 		muxdata->opencount--;
-		gensio_list_rm(&muxdata->openchans, &chan->wrlink);
-		chan->in_open_chan = false;
+		if (muxdata->is_client && chan->in_open_chan) {
+		    gensio_list_rm(&muxdata->openchans, &chan->wrlink);
+		    chan->in_open_chan = false;
+		}
 	    }
 	} else {
 	    muxdata->nr_not_closed = 1;
@@ -2355,9 +2348,18 @@ mux_child_read(struct mux_data *muxdata, int ierr,
 		     */
 		    muxdata->state = MUX_OPEN;
 		    chan->state = MUX_INST_OPEN;
-		    mux_unlock(muxdata);
-		    muxdata->acc_open_done(chan->io, 0, muxdata->acc_open_data);
-		    mux_lock(muxdata);
+		    if (muxdata->acc_open_done) {
+			mux_unlock(muxdata);
+			muxdata->acc_open_done(chan->io, 0,
+					       muxdata->acc_open_data);
+			mux_lock(muxdata);
+		    } else {
+			chan_ref(chan);
+			mux_unlock(muxdata);
+			chan->open_done(chan->io, err, chan->open_data);
+			mux_lock(muxdata);
+			chan_deref(chan);
+		    }
 		    mux_send_new_channel_rsp(muxdata, chan->remote_id,
 					     chan->max_read_size,
 					     chan->id, 0);
