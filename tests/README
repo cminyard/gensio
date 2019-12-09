@@ -13,3 +13,14 @@ running a standard scenario and saving the data written to the
 accepting gensio, then using that as input for the afl fuzz tester.
 There's quite a bit of setup involved, but the afl program will tell
 you what is wrong and how to fix it.
+
+To compile for fuzzing, you have to configure it to use the afl
+compiler, and you have to use static binaries.  To do this, make a
+separate build directory in the mai directory, then cd into it and
+run:
+
+  ../configure --disable-shared CC=afl-gcc
+
+Then "make".  After that, in the tests directory, you can run the
+individual fuzzers for the filters.  See Makefile.am for details on
+them.
