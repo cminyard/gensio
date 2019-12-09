@@ -219,12 +219,12 @@ filen_deferred_op(struct gensio_runner *runner, void *cb_data)
 			      ndata->max_read_size);
 
 	    if (rv == -1) {
+		ndata->read_enabled = false;
 		ndata->read_err = gensio_os_err_to_err(ndata->o, errno);
 	    } else if (rv == 0) {
 		ndata->read_enabled = false;
 		ndata->read_err = GE_REMCLOSE;
 	    } else {
-		ndata->read_enabled = false;
 		ndata->data_pending_len = rv;
 	    }
 	}
