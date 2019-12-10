@@ -573,6 +573,7 @@ class TestAcceptConnect:
             self.io1 = None
             self.close()
             raise
+        self.io1.read_cb_enable(True)
         if (io1_dummy_write):
             # For UDP, kick start things.
             self.io1.write(io1_dummy_write, None)
