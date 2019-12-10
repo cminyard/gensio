@@ -26,6 +26,17 @@ authentication process if needed.  It's really easy to use.
 Note that the gensio(5) man page has more details on individual gensio
 types.
 
+Building
+========
+
+This is a normal autoconf system, nothing special.  Note that if you
+get this directly from git, you won't have the build infrastructure
+included.  There is a script named "reconf" in the main directory
+that will create it for you.
+
+If you don't know about autoconf, the INSTALL file has some info,
+or google it.
+
 gensio tools
 ============
 
