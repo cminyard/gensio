@@ -491,8 +491,26 @@ ssl_ll_write(struct gensio_filter *filter,
 
 	rlen = SSL_read(sfilter->ssl, sfilter->read_data,
 			sfilter->max_read_size);
-	if (rlen > 0)
+	if (rlen <= 0) {
+	    err = SSL_get_error(sfilter->ssl, err);
+	    switch (err) {
+	    case SSL_ERROR_WANT_READ:
+	    case SSL_ERROR_WANT_WRITE:
+		err = 0;
+		break;
+
+	    case SSL_ERROR_SSL:
+		gssl_logs_err(sfilter, "Failed SSL read");
+		err = GE_PROTOERR;
+		break;
+
+	    default:
+		gssl_log_err(sfilter, "Failed SSL read");
+		err = GE_COMMERR;
+	    }
+	} else {
 	    sfilter->read_data_len = rlen;
+	}
 	sfilter->read_data_pos = 0;
     }
 
