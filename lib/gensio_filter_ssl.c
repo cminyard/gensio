@@ -431,9 +431,12 @@ ssl_ul_write(struct gensio_filter *filter,
 			     sizeof(sfilter->xmit_buf));
 
 	if (rdlen <= 0) {
-	    if (!BIO_should_retry(sfilter->io_bio)) {
+	    if (!BIO_should_retry(sfilter->io_bio) &&
+			!BIO_should_read(sfilter->io_bio) &&
+			!BIO_should_write(sfilter->io_bio)) {
 		gssl_log_err(sfilter, "Failed BIO read");
 		err = GE_COMMERR;
+		rdlen = 0;
 	    }
 	} else {
 	    sfilter->xmit_buf_len = rdlen;
@@ -468,14 +471,15 @@ ssl_ll_write(struct gensio_filter *filter,
 	int wrlen = BIO_write(sfilter->io_bio, buf, buflen);
 
 	if (wrlen <= 0) {
-	    /*
-	     * FIXME - you are supposed to call BIO_should_retry() to
-	     * determine if the <= return is due to an error, but that
-	     * doesn't seem to work.
-	     */
-	    gssl_log_err(sfilter, "Failed BIO write");
-	    err = GE_COMMERR;
-	    wrlen = buflen;
+	    if (BIO_should_retry(sfilter->io_bio) &&
+			!BIO_should_read(sfilter->io_bio) &&
+			!BIO_should_write(sfilter->io_bio)) {
+		gssl_log_err(sfilter, "Failed BIO write");
+		err = GE_COMMERR;
+		wrlen = buflen;
+	    } else {
+		wrlen = 0;
+	    }
 	}
 	if (rcount)
 	    *rcount = wrlen;
