@@ -63,10 +63,12 @@ Available gensios
 The following gensios are available in the library:
 
 sctp
-    Normal SCTP communication.
+    Normal SCTP communication.  Streams and out of bound data are
+    supported.  End of message demarcation is not supported because it
+    doesn't currently work on Linux.
 
 tcp
-    Normal TCP communication.
+    Normal TCP communication.  Out of bound data is supported.
 
 udp
     Sort-of connection oriented UDP.
@@ -74,6 +76,11 @@ udp
 stdio
     Access to either the calling program's stdio, or the ability
     to run a program and connect to its stdin, stdout, and stderr.
+    NOTE: Do not use this for file I/O.  Use the file gensio.
+
+file
+    Used for accessing files.  Allows both input and output file,
+    and streams the data to/from the files.
 
 pty
     Run a program in a PTY and use the gensio to communicate with
@@ -102,7 +109,7 @@ telnet
     full serial support with RFC2217.
 
 ssl
-    Implement SSL/TLS as a gensio filter.  It support client
+    Implement SSL/TLS as a gensio filter.  It supports client
     authentication, too.
 
 certauth
