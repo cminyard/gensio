@@ -80,7 +80,7 @@ stdio
 
 file
     Used for accessing files.  Allows both input and output file,
-    and streams the data to/from the files.
+    and streams the data to/from the files.  No accepter available.
 
 pty
     Run a program in a PTY and use the gensio to communicate with
@@ -93,7 +93,7 @@ serialdev
 
 ipmisol
     Connect to a remote over IPMI SOL.  Full serial port capabilities
-    are available.  No accpeter available, unfortunately.
+    are available.  No accepter available, unfortunately.
 
 dummy
     An accepter that doesn't do anything except look like an accepter
@@ -102,7 +102,7 @@ dummy
 
 echo
     A gensio that echos everything that is sent to it.  Useful for
-    testing.
+    testing.  No accepter available.
 
 telnet
     A filter gensio that implements the telnet protocol.  It can do
