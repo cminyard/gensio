@@ -1988,7 +1988,7 @@ mux_child_read(struct mux_data *muxdata, int ierr,
 	       unsigned char *buf, gensiods *ibuflen,
 	       const char *const *nauxdata)
 {
-    gensiods processed = 0, used, acked, buflen = *ibuflen;
+    gensiods processed = 0, used, acked, buflen;
     int err = 0;
     struct mux_inst *chan;
     const char *auxdata[2] = { NULL, NULL };
@@ -2010,6 +2010,7 @@ mux_child_read(struct mux_data *muxdata, int ierr,
 	return 0;
     }
 
+    buflen = *ibuflen;
     while (buflen > 0) {
 	if (muxdata->in_hdr) {
 	    if (muxdata->hdr_pos == 0) {
