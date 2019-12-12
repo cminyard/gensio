@@ -49,21 +49,12 @@ openssl) and gensio_base.c provides the state machine handling.
 The files name sergensio_xxx.c are gensios that provide a serial
 interface class.  The main docs talk about this.
 
-The following gensios use gensio_base.c::
-  certauth
-  ssl
-  telnet
-  tcp
-  unix
-  sctp
-  serialdev
-  pty
+The following gensios use gensio_base.c: certauth, ssl, telnet, tcp,
+unix, sctp, serialdev, pty
 
 The following do not:
 
-  dummy
-  echo
-  file
+  dummy, echo, file
     These are just too simple to have a meaningful state machine.
 
   udp
@@ -76,7 +67,8 @@ The following do not:
     handling, so it doesn't really fit into gensio_base.c
 
   stdio
-    The handling of stderr makes it too hard to fit into gensio_ll_fd.c.
+    The handling of stderr and having a separate fd for stdin and stdout
+    makes it too hard to fit into gensio_ll_fd.c.
 
 gensio_acc_gensio.c
 ===================
