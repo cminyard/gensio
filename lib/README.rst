@@ -29,6 +29,10 @@ interface (talking to whatever is below the gensio) and an optional
 filter, which is used for processing the data going between the user
 and the ll.
 
+The interface for gensio_base.c is in the main include directory under
+gensio_base.h and is available for users implementing their own
+gensios.
+
 Various gensio files
 ====================
 
@@ -38,6 +42,10 @@ used by several gensios that deal with sockets and pipe-type things
 sets up the sctp sockets, gensio_base.c provides the state machine,
 and gensio_ll_fd.c provides the code for talking to the file
 descriptor.
+
+gensio_ll_gensio.c and gensio_ll_fd.c have include files in the main
+include directory and are available for users implementing their own
+gensios.
 
 The files named gensio_filter_xxx.[ch] are filters.  They all stack on
 top of other gensios (read the main documentation if you want to know
@@ -75,3 +83,9 @@ gensio_acc_gensio.c
 
 Finally for accepters that stack over other accepter gensios
 (certauth, ssl, telnet) use gensio_acc_gensio.c for this interface.
+
+gensio_class.h
+==============
+
+For users implementing their own gensios, gensio_class.h provides the
+interface between gensio.c and the connecter/accepters.
