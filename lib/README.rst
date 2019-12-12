@@ -54,21 +54,21 @@ unix, sctp, serialdev, pty
 
 The following do not:
 
-  dummy, echo, file
-    These are just too simple to have a meaningful state machine.
+dummy, echo, file
+  These are just too simple to have a meaningful state machine.
 
-  udp
-    UDP is just too wierd to fit into anything standard.  UDP is
-    kind of weird for a stream interface, anyway, but I needed it for
-    ser2net.  Tons of users use it.
+udp
+  UDP is just too wierd to fit into anything standard.  UDP is
+  kind of weird for a stream interface, anyway, but I needed it for
+  ser2net.  Tons of users use it.
 
-  ipmisol
-    ipmisol uses the openipmi library, which provides its own socket
-    handling, so it doesn't really fit into gensio_base.c
+ipmisol
+  ipmisol uses the openipmi library, which provides its own socket
+  handling, so it doesn't really fit into gensio_base.c
 
-  stdio
-    The handling of stderr and having a separate fd for stdin and stdout
-    makes it too hard to fit into gensio_ll_fd.c.
+stdio
+  The handling of stderr and having a separate fd for stdin and stdout
+  makes it too hard to fit into gensio_ll_fd.c.
 
 gensio_acc_gensio.c
 ===================
