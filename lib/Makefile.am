@@ -20,3 +20,5 @@ libgensio_la_SOURCES = \
 	gensio_dummy.c gensio_echo.c gensio_mux.c gensio_file.c
 
 libgensio_la_LDFLAGS = $(OPENSSL_LIBS)
+
+EXTRA_DIST = README.rst
