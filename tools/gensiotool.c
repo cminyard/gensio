@@ -33,6 +33,7 @@
 
 unsigned int debug;
 
+#ifdef HAVE_OPENSSL
 /*
  * Set a dummy random input file, for reproducable openssl usage for
  * fuzz testing.
@@ -114,6 +115,7 @@ struct rand_meth_st dummyrnd = {
     .pseudorand = dummyrnd_pseudorand,
     .status = dummyrnd_status,
 };
+#endif
 
 struct gdata {
     struct gensio_os_funcs *o;
@@ -304,6 +306,7 @@ main(int argc, char *argv[])
 	    help(0);
 	else if ((rv = cmparg(argc, argv, &arg, NULL, "--dummyrand",
 			      &filename))) {
+#ifdef HAVE_OPENSSL
 	    /*
 	     * This option is undocumented and only for testing.  Do not
 	     * use it!
@@ -322,6 +325,7 @@ main(int argc, char *argv[])
 		fprintf(stderr, "Error setting random method\n");
 		exit(1);
 	    }
+#endif
 	} else {
 	    fprintf(stderr, "Unknown argument: %s\n", argv[arg]);
 	    help(1);
