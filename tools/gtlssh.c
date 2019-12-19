@@ -277,6 +277,8 @@ lookup_certfiles(const char *tlssh_dir, const char *username,
     found_cert:
 	if (!keyfile) {
 	    fprintf(stderr, "Error allocating memory for private key file\n");
+	    free(certfile);
+	    certfile = NULL;
 	    goto out_err;
 	}
     }
@@ -299,12 +301,15 @@ lookup_certfiles(const char *tlssh_dir, const char *username,
 	goto out_err;
     *rcertfile = alloc_sprintf(",cert=%s", certfile);
     if (!*rcertfile) {
+	free(*rCAdir);
 	*rCAdir = NULL;
 	goto out_err;
     }
     *rkeyfile = alloc_sprintf(",key=%s", keyfile);
     if (!*rkeyfile) {
+	free(*rcertfile);
 	*rcertfile = NULL;
+	free(*rCAdir);
 	*rCAdir = NULL;
 	goto out_err;
     }
