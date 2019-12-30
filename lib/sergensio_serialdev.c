@@ -21,15 +21,99 @@
 #include <stdlib.h>
 #include <errno.h>
 #include <limits.h>
-#include <termios.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <string.h>
 #include <stdio.h>
 #include <ctype.h>
-#include <sys/ioctl.h>
+#include <stdbool.h>
 #if HAVE_DECL_TIOCSRS485
 #include <linux/serial.h>
+#endif
+
+#ifdef HAVE_TERMIOS2
+/*
+ * termios2 allows the setting of custom serial port speeds.
+ *
+ * There is unfortunate complexity with handling termios2 on Linux.
+ * You cannot include asm/termios.h and termios.h or sys/ioctl.h at
+ * the same time.  So that means a lot of stuff has to be be handled
+ * by hand, not with the tcxxx() functions.  The standard tcxxx()
+ * function do not use the termios2 ioctls when talking to the
+ * kernel (at the current time).  It's kind of a mess.
+ */
+#include <asm/termios.h>
+int ioctl(int fd, int op, ...);
+
+typedef struct termios2 g_termios;
+
+static int
+set_termios(int fd, struct termios2 *t)
+{
+    return ioctl(fd, TCSETS2, t);
+}
+
+static int
+get_termios(int fd, struct termios2 *t)
+{
+    return ioctl(fd, TCGETS2, t);
+}
+
+static int
+set_flowcontrol(int fd, bool val)
+{
+    return ioctl(fd, TCXONC, val ? TCOOFF : TCOON);
+}
+
+static int
+do_flush(int fd, int val)
+{
+    return ioctl(fd, TCFLSH, val);
+}
+
+static void
+do_break(int fd)
+{
+    ioctl(fd, TCSBRK, 0);
+}
+
+#else
+
+#include <sys/ioctl.h>
+#include <termios.h>
+
+typedef struct termios g_termios;
+
+static int
+set_termios(int fd, struct termios *t)
+{
+    return tcsetattr(fd, TCSANOW, t);
+}
+
+static int
+get_termios(int fd, struct termios *t)
+{
+    return tcgetattr(fd, t);
+}
+
+static int
+set_flowcontrol(int fd, bool val)
+{
+    return tcflow(fd, val ? TCOOFF : TCOON);
+}
+
+static int
+do_flush(int fd, int val)
+{
+    return tcflush(fd, val);
+}
+
+static void
+do_break(int fd)
+{
+    tcsendbreak(fd, 0);
+}
+
 #endif
 
 #include <gensio/sergensio_class.h>
@@ -105,25 +189,52 @@ static struct baud_rates_s {
 #define BAUD_RATES_LEN ((sizeof(baud_rates) / sizeof(struct baud_rates_s)))
 
 static int
-get_baud_rate(struct termios *t, int rate)
+set_baud_rate(g_termios *t, int rate, bool custspeed)
 {
     unsigned int i;
 
     for (i = 0; i < BAUD_RATES_LEN; i++) {
 	if (rate == baud_rates[i].real_rate) {
-	    cfsetospeed(t, baud_rates[i].val);
+#ifdef HAVE_TERMIOS2
+	    t->c_cflag &= CBAUD;
+	    t->c_cflag |= baud_rates[i].val;
+	    t->c_ispeed = rate;
+	    t->c_ospeed = rate;
+#else
 	    cfsetispeed(t, baud_rates[i].val);
+	    cfsetospeed(t, baud_rates[i].val);
+#endif
 	    return 1;
 	}
     }
+
+#ifdef HAVE_TERMIOS2
+    if (custspeed) {
+	t->c_cflag &= ~CBAUD;
+	t->c_cflag |= CBAUDEX;
+	t->c_ispeed = rate;
+	t->c_ospeed = rate;
+	return 1;
+    }
+#endif
 
     return 0;
 }
 
 static int
-get_baud_rate_val(int baud_rate)
+get_baud_rate_val(g_termios *t)
 {
     unsigned int i;
+    int baud_rate;
+
+#ifdef HAVE_TERMIOS2
+    if ((t->c_cflag & CBAUD) == CBAUDEX)
+	return t->c_ospeed;
+    baud_rate = t->c_cflag & CBAUD;
+#else
+    baud_rate = cfgetospeed(t);
+#endif
+
     for (i = 0; i < BAUD_RATES_LEN; i++) {
 	if (baud_rate == baud_rates[i].val)
 	    return baud_rates[i].real_rate;
@@ -131,19 +242,11 @@ get_baud_rate_val(int baud_rate)
 
     return 0;
 }
+
 static void
-get_rate_from_baud_rate(int baud_rate, int *val)
+get_rate_from_baud_rate(g_termios *t, int *val)
 {
-    unsigned int i;
-
-    for (i = 0; i < BAUD_RATES_LEN; i++) {
-	if (baud_rate == baud_rates[i].val) {
-	    *val = baud_rates[i].real_rate;
-	    return;
-	}
-    }
-
-    *val = 0;
+    *val = get_baud_rate_val(t);
 }
 
 static int
@@ -166,7 +269,7 @@ speedstr_to_speed(const char *speed, const char **rest)
 }
 
 static void
-set_termios_parity(struct termios *termctl, int val)
+set_termios_parity(g_termios *termctl, int val)
 {
     switch (val) {
     default:
@@ -222,7 +325,7 @@ lookup_parity_str(const char *str)
 }
 
 static void
-set_termios_xonxoff(struct termios *termctl, int enabled)
+set_termios_xonxoff(g_termios *termctl, int enabled)
 {
     if (enabled) {
 	termctl->c_iflag |= (IXON | IXOFF | IXANY);
@@ -234,7 +337,7 @@ set_termios_xonxoff(struct termios *termctl, int enabled)
 }
 
 static void
-set_termios_rtscts(struct termios *termctl, int enabled)
+set_termios_rtscts(g_termios *termctl, int enabled)
 {
     if (enabled)
 	termctl->c_cflag |= CRTSCTS;
@@ -243,7 +346,7 @@ set_termios_rtscts(struct termios *termctl, int enabled)
 }
 
 static void
-set_termios_datasize(struct termios *termctl, int size)
+set_termios_datasize(g_termios *termctl, int size)
 {
     termctl->c_cflag &= ~CSIZE;
     switch (size) {
@@ -255,9 +358,10 @@ set_termios_datasize(struct termios *termctl, int size)
 }
 
 static int
-set_termios_from_speed(struct termios *termctl, int speed, const char *others)
+set_termios_from_speed(g_termios *termctl, int speed, const char *others,
+		       bool custspeed)
 {
-    if (!get_baud_rate(termctl, speed))
+    if (!set_baud_rate(termctl, speed, custspeed))
 	return -1;
 
     if (*others) {
@@ -318,9 +422,11 @@ enum termio_op {
     TERMIO_OP_BRK
 };
 
+struct sterm_data;
+
 struct termio_op_q {
     enum termio_op op;
-    int (*getset)(struct termios *termio, int *mctl, int *val);
+    int (*getset)(g_termios *termio, int *mctl, int *val, struct sterm_data *);
     void (*done)(struct sergensio *sio, int err, int val, void *cb_data);
     void *cb_data;
     struct termio_op_q *next;
@@ -347,8 +453,10 @@ struct sterm_data {
 
     bool no_uucp_lock;
 
-    struct termios default_termios;
-    struct termios orig_termios;
+    bool allow_custspeed;
+
+    g_termios default_termios;
+    g_termios orig_termios;
 
     bool deferred_op_pending;
     struct gensio_runner *deferred_op_runner;
@@ -415,19 +523,19 @@ termios_process(struct sterm_data *sdata)
 	sdata->termio_q = qe->next;
 
 	if (qe->op == TERMIO_OP_TERMIO) {
-	    struct termios termio;
+	    g_termios termio;
 
-	    if (tcgetattr(sdata->fd, &termio) == -1)
+	    if (get_termios(sdata->fd, &termio) == -1)
 		err = gensio_os_err_to_err(sdata->o, errno);
 	    else
-		err = qe->getset(&termio, NULL, &val);
+		err = qe->getset(&termio, NULL, &val, sdata);
 	} else if (qe->op == TERMIO_OP_MCTL) {
 	    int mctl = 0;
 
 	    if (ioctl(sdata->fd, TIOCMGET, &mctl) == -1)
 		err = gensio_os_err_to_err(sdata->o, errno);
 	    else
-		err = qe->getset(NULL, &mctl, &val);
+		err = qe->getset(NULL, &mctl, &val, sdata);
 	} else if (qe->op == TERMIO_OP_BRK) {
 	    if (sdata->break_set)
 		val = SERGENSIO_BREAK_ON;
@@ -455,12 +563,13 @@ termios_clear_q(struct sterm_data *sdata)
 
 static int
 termios_set_get(struct sterm_data *sdata, int val, enum termio_op op,
-		int (*getset)(struct termios *termio, int *mctl, int *val),
+		int (*getset)(g_termios *termio, int *mctl, int *val,
+			      struct sterm_data *sdata),
 		void (*done)(struct sergensio *sio, int err,
 			     int val, void *cb_data),
 		void *cb_data)
 {
-    struct termios termio;
+    g_termios termio;
     struct termio_op_q *qe = NULL;
     int err = 0;
 
@@ -486,22 +595,22 @@ termios_set_get(struct sterm_data *sdata, int val, enum termio_op op,
 
     if (val) {
 	if (op == TERMIO_OP_TERMIO) {
-	    if (tcgetattr(sdata->fd, &termio) == -1) {
+	    if (get_termios(sdata->fd, &termio) == -1) {
 		err = errno;
 		goto out_unlock;
 	    }
 
-	    err = getset(&termio, NULL, &val);
+	    err = getset(&termio, NULL, &val, sdata);
 	    if (err)
 		goto out_unlock;
-	    tcsetattr(sdata->fd, TCSANOW, &termio);
+	    set_termios(sdata->fd, &termio);
 	} else if (op == TERMIO_OP_MCTL) {
 	    int mctl = 0;
 
 	    if (ioctl(sdata->fd, TIOCMGET, &mctl) == -1) {
 		err = errno;
 	    } else {
-		err = qe->getset(NULL, &mctl, &val);
+		err = qe->getset(NULL, &mctl, &val, sdata);
 		if (!err) {
 		    if (ioctl(sdata->fd, TIOCMSET, &mctl) == -1)
 			err = errno;
@@ -554,15 +663,16 @@ termios_set_get(struct sterm_data *sdata, int val, enum termio_op op,
 }
 
 static int
-termios_get_set_baud(struct termios *termio, int *mctl, int *ival)
+termios_get_set_baud(g_termios *termio, int *mctl, int *ival,
+		     struct sterm_data *sdata)
 {
     int val = *ival;
 
     if (val) {
-	if (!get_baud_rate(termio, val))
+	if (!set_baud_rate(termio, val, sdata->allow_custspeed))
 	    return GE_INVAL;
     } else {
-	get_rate_from_baud_rate(cfgetispeed(termio), ival);
+	get_rate_from_baud_rate(termio, ival);
     }
 
     return 0;
@@ -580,7 +690,8 @@ sterm_baud(struct sergensio *sio, int baud,
 }
 
 static int
-termios_get_set_datasize(struct termios *termio, int *mctl, int *ival)
+termios_get_set_datasize(g_termios *termio, int *mctl, int *ival,
+			 struct sterm_data *sdata)
 {
     if (*ival) {
 	int val;
@@ -620,7 +731,8 @@ sterm_datasize(struct sergensio *sio, int datasize,
 }
 
 static int
-termios_get_set_parity(struct termios *termio, int *mctl, int *ival)
+termios_get_set_parity(g_termios *termio, int *mctl, int *ival,
+		       struct sterm_data *sdata)
 {
     if (*ival) {
 	int val;
@@ -676,7 +788,8 @@ sterm_parity(struct sergensio *sio, int parity,
 }
 
 static int
-termios_get_set_stopbits(struct termios *termio, int *mctl, int *ival)
+termios_get_set_stopbits(g_termios *termio, int *mctl, int *ival,
+			 struct sterm_data *sdata)
 {
     if (*ival) {
 	if (*ival == 1)
@@ -707,7 +820,8 @@ sterm_stopbits(struct sergensio *sio, int stopbits,
 }
 
 static int
-termios_get_set_flowcontrol(struct termios *termio, int *mctl, int *ival)
+termios_get_set_flowcontrol(g_termios *termio, int *mctl, int *ival,
+			    struct sterm_data *sdata)
 {
     if (*ival) {
         switch (*ival) {
@@ -740,7 +854,8 @@ termios_get_set_flowcontrol(struct termios *termio, int *mctl, int *ival)
 }
 
 static int
-termios_get_set_iflowcontrol(struct termios *termio, int *mctl, int *ival)
+termios_get_set_iflowcontrol(g_termios *termio, int *mctl, int *ival,
+			     struct sterm_data *sdata)
 {
     if (*ival) {
 	int val;
@@ -798,7 +913,8 @@ sterm_sbreak(struct sergensio *sio, int breakv,
 }
 
 static int
-termios_get_set_dtr(struct termios *termio, int *mctl, int *ival)
+termios_get_set_dtr(g_termios *termio, int *mctl, int *ival,
+		    struct sterm_data *sdata)
 {
     if (*ival) {
 	if (*ival == SERGENSIO_DTR_ON)
@@ -828,7 +944,8 @@ sterm_dtr(struct sergensio *sio, int dtr,
 }
 
 static int
-termios_get_set_rts(struct termios *termio, int *mctl, int *ival)
+termios_get_set_rts(g_termios *termio, int *mctl, int *ival,
+		    struct sterm_data *sdata)
 {
     if (*ival) {
 	if (*ival == SERGENSIO_RTS_ON)
@@ -940,14 +1057,8 @@ sterm_flowcontrol_state(struct sergensio *sio, bool val)
 {
     struct sterm_data *sdata = sergensio_get_gensio_data(sio);
     int err;
-    int tval;
 
-    if (val)
-	tval = TCOOFF;
-    else
-	tval = TCOON;
-
-    err = tcflow(sdata->fd, tval);
+    err = set_flowcontrol(sdata->fd, val);
     if (err)
 	return errno;
     return 0;
@@ -967,7 +1078,7 @@ sterm_flush(struct sergensio *sio, unsigned int val)
     default: return GE_INVAL;
     }
 
-    err = tcflush(sdata->fd, tval);
+    err = do_flush(sdata->fd, tval);
     if (err)
 	return errno;
     return 0;
@@ -978,7 +1089,7 @@ sterm_send_break(struct sergensio *sio)
 {
     struct sterm_data *sdata = sergensio_get_gensio_data(sio);
 
-    tcsendbreak(sdata->fd, 0);
+    do_break(sdata->fd);
     return 0;
 }
 
@@ -1088,7 +1199,7 @@ sterm_check_close_drain(void *handler_data, enum gensio_ll_close_state state,
     next_timeout->tv_usec = 10000;
  out_rm_uucp:
     if (!err) {
-	tcsetattr(sdata->fd, TCSANOW, &sdata->orig_termios);
+	set_termios(sdata->fd, &sdata->orig_termios);
 	if (!sdata->no_uucp_lock)
 	    uucp_rm_lock(sdata->devname);
     }
@@ -1097,8 +1208,8 @@ sterm_check_close_drain(void *handler_data, enum gensio_ll_close_state state,
     return err;
 }
 
-#ifdef __CYGWIN__
-static void cfmakeraw(struct termios *termios_p) {
+#if defined(__CYGWIN__) || defined(HAVE_TERMIOS2)
+static void cfmakeraw(g_termios *termios_p) {
     termios_p->c_iflag &= ~(IGNBRK|BRKINT|PARMRK|ISTRIP|INLCR|IGNCR|ICRNL|IXON);
     termios_p->c_oflag &= ~OPOST;
     termios_p->c_lflag &= ~(ECHO|ECHONL|ICANON|ISIG|IEXTEN);
@@ -1139,10 +1250,10 @@ sterm_sub_open(void *handler_data, int *fd)
 	goto out_uucp;
     }
 
-    tcgetattr(sdata->fd, &sdata->orig_termios);
+    get_termios(sdata->fd, &sdata->orig_termios);
 
     if (!sdata->write_only &&
-		tcsetattr(sdata->fd, TCSANOW, &sdata->default_termios) == -1) {
+		set_termios(sdata->fd, &sdata->default_termios) == -1) {
 	err = errno;
 	goto out_restore;
     }
@@ -1176,7 +1287,7 @@ sterm_sub_open(void *handler_data, int *fd)
     return 0;
 
  out_restore:
-    tcsetattr(sdata->fd, TCSANOW, &sdata->orig_termios);
+    set_termios(sdata->fd, &sdata->orig_termios);
  out_uucp:
     if (!sdata->no_uucp_lock)
 	uucp_rm_lock(sdata->devname);
@@ -1208,7 +1319,7 @@ sterm_raddr_to_str(void *handler_data, gensiods *epos,
     pos += snprintf(buf + pos, buflen - pos, "%s", sdata->devname);
 
     if (!sdata->write_only) {
-	struct termios itermio, *termio;
+	g_termios itermio, *termio;
 	speed_t speed;
 	int stopbits;
 	int databits;
@@ -1225,12 +1336,11 @@ sterm_raddr_to_str(void *handler_data, gensiods *epos,
 	if (sdata->fd == -1) {
 	    termio = &sdata->default_termios;
 	} else {
-	    if (tcgetattr(sdata->fd, &itermio) == -1)
+	    if (get_termios(sdata->fd, &itermio) == -1)
 		goto out;
 	    termio = &itermio;
 	}
 
-	speed = cfgetospeed(termio);
 	stopbits = termio->c_cflag & CSTOPB;
 	databits = termio->c_cflag & CSIZE;
 	parity_enabled = termio->c_cflag & PARENB;
@@ -1265,7 +1375,7 @@ sterm_raddr_to_str(void *handler_data, gensiods *epos,
 	str[3] = '\0';
 
 	pos += snprintf(buf + pos, buflen - pos,
-			",%d%s", get_baud_rate_val(speed), str);
+			",%d%s", get_baud_rate_val(termio), str);
 
 	if (xon && xoff && xany)
 	    pos += snprintf(buf + pos, buflen - pos, ",%s", "XONXOFF");
@@ -1336,7 +1446,7 @@ sterm_control(void *handler_data, int fd, bool get, unsigned int option,
     if (get || option != GENSIO_CONTROL_SEND_BREAK)
 	return GE_NOTSUP;
 
-    tcsendbreak(fd, 0);
+    do_break(fd);
     return 0;
 }
 
@@ -1350,7 +1460,7 @@ static const struct gensio_fd_ll_ops sterm_fd_ll_ops = {
 };
 
 static int
-handle_speedstr(struct termios *termio, const char *str)
+handle_speedstr(g_termios *termio, const char *str, bool custspeed)
 {
     int val;
     const char *rest = "";
@@ -1358,21 +1468,21 @@ handle_speedstr(struct termios *termio, const char *str)
     val = speedstr_to_speed(str, &rest);
     if (val == -1)
 	return GE_INVAL;
-    if (set_termios_from_speed(termio, val, rest) == -1)
+    if (set_termios_from_speed(termio, val, rest, custspeed) == -1)
 	return GE_INVAL;
     return 0;
 }
 
 static int
-process_termios_parm(struct termios *termio, const char *parm)
+process_termios_parm(g_termios *termio, const char *parm, bool custspeed)
 {
     int rv = 0, val;
     const char *str;
     bool bval;
 
     if (gensio_check_keyvalue(parm, "speed", &str) > 0) {
-	rv = handle_speedstr(termio, str);
-    } else if (handle_speedstr(termio, parm) == 0) {
+	rv = handle_speedstr(termio, str, custspeed);
+    } else if (handle_speedstr(termio, parm, custspeed) == 0) {
 	;
     } else if (gensio_check_keybool(parm, "xonxoff", &bval) > 0) {
 	set_termios_xonxoff(termio, bval);
@@ -1381,9 +1491,13 @@ process_termios_parm(struct termios *termio, const char *parm)
     } else if (gensio_check_keybool(parm, "local", &bval) > 0) {
 	if (bval)
 	    termio->c_cflag |= CLOCAL;
+	else
+	    termio->c_cflag &= ~CLOCAL;
     } else if (gensio_check_keybool(parm, "hangup-when-done", &bval) > 0) {
 	if (bval)
 	    termio->c_cflag |= HUPCL;
+	else
+	    termio->c_cflag &= ~HUPCL;
 
     /* Everything below is deprecated. */
     } else if (strcasecmp(parm, "1STOPBIT") == 0) {
@@ -1505,7 +1619,8 @@ sergensio_process_parms(struct sterm_data *sdata)
 	    sdata->disablebreak = false;
 	    continue;
 	}
-	err = process_termios_parm(&sdata->default_termios, argv[i]);
+	err = process_termios_parm(&sdata->default_termios, argv[i],
+				   &sdata->allow_custspeed);
 	if (err)
 	    break;
     }
@@ -1518,7 +1633,7 @@ static void
 sergensio_setup_defaults(struct gensio_os_funcs *o, struct sterm_data *sdata)
 {
     int val, err;
-    struct termios *termctl = &sdata->default_termios;
+    g_termios *termctl = &sdata->default_termios;
     char *str;
 
     cfmakeraw(termctl);
@@ -1526,12 +1641,11 @@ sergensio_setup_defaults(struct gensio_os_funcs *o, struct sterm_data *sdata)
     err = gensio_get_default(o, "serialdev", "speed", false,
 			     GENSIO_DEFAULT_STR, &str, NULL);
     if (!err && str) {
-	if (handle_speedstr(termctl, str)) {
+	if (handle_speedstr(termctl, str, sdata->allow_custspeed)) {
 	    gensio_log(o, GENSIO_LOG_ERR,
 		       "Default speed settings (%s) are invalid,"
 		       " defaulting to 9600N81", str);
-	    cfsetospeed(termctl, B9600);
-	    cfsetispeed(termctl, B9600);
+	    set_baud_rate(termctl, 9600, false);
 	    set_termios_parity(termctl, 'N');
 	    set_termios_datasize(termctl, 8);
 	    termctl->c_cflag &= ~(CSTOPB); /* 1 stopbit */
@@ -1601,6 +1715,11 @@ serialdev_gensio_alloc(const char *devname, const char * const args[],
     if (!sdata)
 	return GE_NOMEM;
 
+    i = 0;
+    gensio_get_default(o, "serialdev", "custspeed", false,
+		       GENSIO_DEFAULT_BOOL, NULL, &i);
+    sdata->allow_custspeed = i;
+
     for (i = 0; args && args[i]; i++) {
 	if (gensio_check_keyds(args[i], "readbuf", &max_read_size) > 0)
 	    continue;
@@ -1609,6 +1728,9 @@ serialdev_gensio_alloc(const char *devname, const char * const args[],
 	    nouucplock_set = true;
 	    continue;
 	}
+	if (gensio_check_keybool(args[i], "custspeed",
+				 &sdata->allow_custspeed) > 0)
+	    continue;
 	return GE_INVAL;
     }
 

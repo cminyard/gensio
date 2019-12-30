@@ -21,7 +21,6 @@
 #define UTILS
 
 #include <stdbool.h>
-#include <termios.h>
 #include <sys/time.h> /* struct timeval */
 
 #include <gensio/argvutils.h>

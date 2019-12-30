@@ -2046,6 +2046,7 @@ struct gensio_def_entry builtin_defaults[] = {
     { "rtscts",		GENSIO_DEFAULT_BOOL,	.def.intval = 0 },
     { "local",		GENSIO_DEFAULT_BOOL,	.def.intval = 0 },
     { "hangup_when_done", GENSIO_DEFAULT_BOOL,	.def.intval = 0 },
+    { "custspeed",	GENSIO_DEFAULT_BOOL,	.def.intval = 0 },
     { "rs485",		GENSIO_DEFAULT_STR,	.def.strval = NULL },
     /* serialdev and SOL */
     { "speed",		GENSIO_DEFAULT_STR,	.def.strval = "9600N81" },

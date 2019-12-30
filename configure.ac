@@ -241,6 +241,10 @@ fi
 AC_SUBST(PAMLIB)
 AC_SUBST(GTLSSHD)
 
+AC_CHECK_MEMBER([struct termios2.c_ispeed],
+	[AC_DEFINE([HAVE_TERMIOS2], [1], [termios2 is present])],
+	[], [[#include <asm/termios.h>]])
+
 AC_OUTPUT([Makefile
 	lib/Makefile
 	include/Makefile

@@ -468,6 +468,11 @@ lines, it can result in long shutdown delays.
 .B hangup-when-done[=true|false]
 Lower/don't lower the modem control lines when the gensio is closed.
 The default is to not lower the modem control lines on close (false).
+.B custspeed[=true|false]
+Allow/don't allow setting of custom baud rates.  Ignored if custom
+baud rates are not supported.  Normally only standard baud rates are
+supported (1200, 2400, etc).  If supported by the hardware, this
+allows any arbitrary value to be set.
 .SS "Remote Address String"
 The remote address string is the device and serial parms, in a format
 like "9600N81[,<option>[,<option>[...]]]".  Options are one of:
