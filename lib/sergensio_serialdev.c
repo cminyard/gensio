@@ -105,13 +105,14 @@ static struct baud_rates_s {
 #define BAUD_RATES_LEN ((sizeof(baud_rates) / sizeof(struct baud_rates_s)))
 
 static int
-get_baud_rate(int rate, int *val)
+get_baud_rate(struct termios *t, int rate)
 {
     unsigned int i;
+
     for (i = 0; i < BAUD_RATES_LEN; i++) {
 	if (rate == baud_rates[i].real_rate) {
-	    if (val)
-		*val = baud_rates[i].val;
+	    cfsetospeed(t, baud_rates[i].val);
+	    cfsetispeed(t, baud_rates[i].val);
 	    return 1;
 	}
     }
@@ -256,13 +257,8 @@ set_termios_datasize(struct termios *termctl, int size)
 static int
 set_termios_from_speed(struct termios *termctl, int speed, const char *others)
 {
-    int speed_val;
-
-    if (!get_baud_rate(speed, &speed_val))
+    if (!get_baud_rate(termctl, speed))
 	return -1;
-
-    cfsetospeed(termctl, speed_val);
-    cfsetispeed(termctl, speed_val);
 
     if (*others) {
 	switch (*others) {
@@ -563,11 +559,8 @@ termios_get_set_baud(struct termios *termio, int *mctl, int *ival)
     int val = *ival;
 
     if (val) {
-	if (!get_baud_rate(val, &val))
+	if (!get_baud_rate(termio, val))
 	    return GE_INVAL;
-
-	cfsetispeed(termio, val);
-	cfsetospeed(termio, val);
     } else {
 	get_rate_from_baud_rate(cfgetispeed(termio), ival);
     }
