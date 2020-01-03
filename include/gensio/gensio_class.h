@@ -186,7 +186,7 @@ void *gensio_getclass(struct gensio *io, const char *name);
 
 /*
  * get => val
- * option => addr
+ * &option => done
  * data => data
  * datalen => ret
  */

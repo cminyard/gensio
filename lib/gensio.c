@@ -1153,7 +1153,7 @@ gensio_acc_control(struct gensio_accepter *acc, int depth, bool get,
 	if (get)
 	    return GE_INVAL;
 	while (c) {
-	    int rv = c->func(c, GENSIO_ACC_FUNC_CONTROL, get, NULL, NULL,
+	    int rv = c->func(c, GENSIO_ACC_FUNC_CONTROL, get, NULL, &option,
 			     data, NULL, datalen);
 
 	    if (rv && rv != GE_NOTSUP)
@@ -1165,7 +1165,7 @@ gensio_acc_control(struct gensio_accepter *acc, int depth, bool get,
 
     if (depth == GENSIO_CONTROL_DEPTH_FIRST) {
 	while (c) {
-	    int rv = c->func(c, GENSIO_ACC_FUNC_CONTROL, get, NULL, NULL,
+	    int rv = c->func(c, GENSIO_ACC_FUNC_CONTROL, get, NULL, &option,
 			     data, NULL, datalen);
 
 	    if (rv != GE_NOTSUP)
@@ -1185,7 +1185,7 @@ gensio_acc_control(struct gensio_accepter *acc, int depth, bool get,
 	c = c->child;
     }
 
-    return c->func(c, GENSIO_ACC_FUNC_CONTROL, get, NULL, NULL,
+    return c->func(c, GENSIO_ACC_FUNC_CONTROL, get, NULL, &option,
 		   data, NULL, datalen);
 }
 
