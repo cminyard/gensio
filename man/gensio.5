@@ -293,7 +293,7 @@ In addition to readbuf, the tcp gensio takes the following options:
 An address specification to bind to on the local socket to set the
 local address.
 .SS Remote Address String
-The remote address will be in the format "<addr>,<port>" where the
+The remote address will be in the format "[ipv4|ipv6],<addr>,<port>" where the
 address is in numeric format, IPv4, or IPv6.
 .SS Remote Address
 TCP returns a standard struct sockaddr for gensio_get_raddr(3).
@@ -326,7 +326,7 @@ In addition to readbuf, the udp gensio takes the following options:
 An address specification to bind to on the local socket to set the
 local address.
 .SS "Remote Address String"
-The remote address will be in the format "<addr>,<port>" where the
+The remote address will be in the format "[ipv4|ipv6],<addr>,<port>" where the
 address is in numeric format, IPv4, or IPv6.
 .SS "Remote Address"
 UDP returns a standard struct sockaddr for gensio_get_raddr(3).
@@ -372,7 +372,8 @@ read, but with "oob" in the auxdata.  You can send oob data by adding
 See documentation on SCTP for more details.
 .SS "Remote Address String"
 The remote address will be in the format
-"<addr>,<port>[,<addr>,<port>[...]]" where the address is in numeric
+"[ipv4|ipv6],<addr>,<port>[;[ipv4|ipv6],<addr>,<port>[...]]"
+where the address is in numeric
 format, IPv4, or IPv6.  Each remote address for the SCTP connection is
 listed.
 .SS "Remote Address"
@@ -402,7 +403,7 @@ In addition to readbuf, the unix gensio takes the following options:
 .B delsock[=true|false]
 If the socket path already exists, delete it before opening the socket.
 .SS Remote Address String
-The remote address will be the socket path.
+The remote address will be: "unix,<socket path>".
 .SS Remote Address
 UNIX returns a standard struct sockaddr_un for gensio_get_raddr(3).
 .SS Remote ID

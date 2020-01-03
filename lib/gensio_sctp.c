@@ -260,9 +260,9 @@ sctp_raddr_to_str(void *handler_data, gensiods *epos,
 	socklen_t addrlen = 0;
 
 	if (i > 0) {
-	    /* Add the comma between the addresses. */
+	    /* Add the semicolons between the addresses. */
 	    if (pos < buflen && buflen - pos > 1)
-		buf[pos] = ',';
+		buf[pos] = ';';
 	    pos++;
 	}
 

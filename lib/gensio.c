@@ -1731,7 +1731,7 @@ gensio_sockaddr_to_str(const struct sockaddr *addr, socklen_t *addrlen,
 
 	if (addrlen && *addrlen && *addrlen != sizeof(struct sockaddr_in))
 	    goto out_err;
-	pos += snprintf(buf + pos, left, "%s,%d",
+	pos += snprintf(buf + pos, left, "ipv4,%s,%d",
 			inet_ntop(AF_INET, &a4->sin_addr, ibuf, sizeof(ibuf)),
 			ntohs(a4->sin_port));
 	if (addrlen)
@@ -1742,7 +1742,7 @@ gensio_sockaddr_to_str(const struct sockaddr *addr, socklen_t *addrlen,
 
 	if (addrlen && *addrlen && *addrlen != sizeof(struct sockaddr_in6))
 	    goto out_err;
-	pos += snprintf(buf + pos, left, "%s,%d",
+	pos += snprintf(buf + pos, left, "ipv6,%s,%d",
 			inet_ntop(AF_INET6, &a6->sin6_addr, ibuf, sizeof(ibuf)),
 			ntohs(a6->sin6_port));
 	if (addrlen)
@@ -1750,7 +1750,7 @@ gensio_sockaddr_to_str(const struct sockaddr *addr, socklen_t *addrlen,
     } else if (addr->sa_family == AF_UNIX) {
 	struct sockaddr_un *au = (struct sockaddr_un *) addr;
 
-	pos += snprintf(buf + pos, left, "%s", au->sun_path);
+	pos += snprintf(buf + pos, left, "unix,%s", au->sun_path);
     } else {
     out_err:
 	if (left)

@@ -267,6 +267,9 @@ int gensio_acc_set_accept_callback_enable_s(struct gensio_accepter *accepter,
 
 int gensio_acc_control(struct gensio_accepter *accepter, int depth, bool get,
 		       unsigned int option, char *data, gensiods *datalen);
+/* Uses GENSIO_CONTROL_DEPTH_xxx options above. */
+#define GENSIO_ACC_CONTROL_LADDR	1
+#define GENSIO_ACC_CONTROL_LPORT	2
 
 int gensio_acc_str_to_gensio(struct gensio_accepter *accepter,
 			     const char *str,
