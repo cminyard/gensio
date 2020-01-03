@@ -1321,7 +1321,6 @@ sterm_raddr_to_str(void *handler_data, gensiods *epos,
 
     if (!sdata->write_only) {
 	g_termios itermio, *termio;
-	speed_t speed;
 	int stopbits;
 	int databits;
 	int parity_enabled;
