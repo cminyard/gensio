@@ -1215,6 +1215,7 @@ static void cfmakeraw(g_termios *termios_p) {
     termios_p->c_lflag &= ~(ECHO|ECHONL|ICANON|ISIG|IEXTEN);
     termios_p->c_cflag &= ~(CSIZE|PARENB);
     termios_p->c_cflag |= CS8;
+    termios_p->c_cc[VMIN] = 1;
 }
 #endif
 
