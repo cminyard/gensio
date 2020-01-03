@@ -41,7 +41,8 @@ used by several gensios that deal with sockets and pipe-type things
 (tcp, sctp, unix, pty, serialdev).  So, for instance, gensio_sctp.c
 sets up the sctp sockets, gensio_base.c provides the state machine,
 and gensio_ll_fd.c provides the code for talking to the file
-descriptor.
+descriptor.  Note that tcp and unix sockets are in the same file:
+gensio_net.c  The code was so common that they were merged.
 
 gensio_ll_gensio.c and gensio_ll_fd.c have include files in the main
 include directory and are available for users implementing their own
@@ -77,6 +78,10 @@ ipmisol
 stdio
   The handling of stderr and having a separate fd for stdin and stdout
   makes it too hard to fit into gensio_ll_fd.c.
+
+mux
+  The mux handling is a mix of a base state machine and a state machine
+  for each instance.
 
 gensio_acc_gensio.c
 ===================
