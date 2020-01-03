@@ -196,7 +196,7 @@ set_baud_rate(g_termios *t, int rate, bool custspeed)
     for (i = 0; i < BAUD_RATES_LEN; i++) {
 	if (rate == baud_rates[i].real_rate) {
 #ifdef HAVE_TERMIOS2
-	    t->c_cflag &= CBAUD;
+	    t->c_cflag &= ~CBAUD;
 	    t->c_cflag |= baud_rates[i].val;
 	    t->c_ispeed = rate;
 	    t->c_ospeed = rate;
