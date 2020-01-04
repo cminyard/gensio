@@ -154,19 +154,10 @@ echon_write(struct gensio *io, gensiods *count,
 }
 
 static int
-echon_raddr_to_str(struct gensio *io, gensiods *epos,
+echon_raddr_to_str(struct gensio *io, gensiods *pos,
 		    char *buf, gensiods buflen)
 {
-    gensiods pos = 0;
-
-    if (epos)
-	pos = *epos;
-
-    pos += gensio_pos_snprintf(buf, buflen, pos, "echo");
-
-    if (epos)
-	*epos = pos;
-
+    gensio_pos_snprintf(buf, buflen, pos, "echo");
     return 0;
 }
 

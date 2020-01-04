@@ -71,20 +71,12 @@ pty_sub_open(void *handler_data, int *fd)
 }
 
 static int
-pty_raddr_to_str(void *handler_data, gensiods *epos,
+pty_raddr_to_str(void *handler_data, gensiods *pos,
 		 char *buf, gensiods buflen)
 {
     struct pty_data *tdata = handler_data;
-    gensiods pos = 0;
 
-    if (epos)
-	pos = *epos;
-
-    pos += gensio_argv_snprintf(buf, buflen, pos, tdata->argv);
-
-    if (epos)
-	*epos = pos;
-
+    gensio_argv_snprintf(buf, buflen, pos, tdata->argv);
     return 0;
 }
 

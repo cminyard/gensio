@@ -235,14 +235,14 @@ sctp_sub_open(void *handler_data, int *fd)
 }
 
 static int
-sctp_raddr_to_str(void *handler_data, gensiods *epos,
+sctp_raddr_to_str(void *handler_data, gensiods *pos,
 		  char *buf, gensiods buflen)
 {
     struct sctp_data *tdata = handler_data;
     struct sockaddr *addrs;
     unsigned char *d;
     unsigned int i;
-    gensiods count, pos = 0;
+    gensiods count;
     int rv;
 
     rv = sctp_getpaddrs(tdata->fd, 0, &addrs);
@@ -251,9 +251,6 @@ sctp_raddr_to_str(void *handler_data, gensiods *epos,
     if (rv == 0)
 	return GE_NOTFOUND;
 
-    if (epos)
-	pos = *epos;
-
     count = rv;
     d = (unsigned char *) addrs;
     for (i = 0; i < count; i++) {
@@ -261,10 +258,10 @@ sctp_raddr_to_str(void *handler_data, gensiods *epos,
 
 	if (i > 0)
 	    /* Add the semicolons between the addresses. */
-	    pos += gensio_pos_snprintf(buf, buflen, pos, ";");
+	    gensio_pos_snprintf(buf, buflen, pos, ";");
 
 	rv = gensio_sockaddr_to_str((struct sockaddr *) d, &addrlen,
-				    buf, &pos, buflen);
+				    buf, pos, buflen);
 	if (rv)
 	    goto out;
 	d += addrlen;
@@ -272,8 +269,6 @@ sctp_raddr_to_str(void *handler_data, gensiods *epos,
 
  out:
     sctp_freepaddrs(addrs);
-    if (!rv && epos)
-	*epos = pos;
     return rv;
 }
 

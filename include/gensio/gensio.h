@@ -495,18 +495,19 @@ void gensio_u16_to_buf(unsigned char *data, uint16_t v);
 
 /*
  * A helper function, very useful for raddr handling.  Do an
- * snprintf() at buf + pos, writing to up to buf + len.  If pos > len,
+ * snprintf() at buf + *pos, writing to up to buf + len.  If *pos > len,
  * then don't do anything, but alway return the number of characters
- * that would have been output if there was enough room.
+ * that would have been output if there was enough room.  Pos is updated
+ * to the new location it would have been if there was enough room.
  */
-int gensio_pos_snprintf(char *buf, gensiods len, gensiods pos,
+int gensio_pos_snprintf(char *buf, gensiods len, gensiods *pos,
 			char *format, ...);
 
 /*
  * Like the above, but it handles converting an argv to a string, properly
  * quoting everything.
  */
-int gensio_argv_snprintf(char *buf, gensiods len, gensiods pos,
+int gensio_argv_snprintf(char *buf, gensiods len, gensiods *pos,
 			 const char **argv);
 
 #ifdef __cplusplus

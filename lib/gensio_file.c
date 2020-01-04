@@ -164,25 +164,18 @@ filen_write(struct gensio *io, gensiods *count,
 }
 
 static int
-filen_raddr_to_str(struct gensio *io, gensiods *epos,
+filen_raddr_to_str(struct gensio *io, gensiods *pos,
 		    char *buf, gensiods buflen)
 {
     struct filen_data *ndata = gensio_get_gensio_data(io);
-    gensiods pos = 0;
 
-    if (epos)
-	pos = *epos;
-
-    pos += gensio_pos_snprintf(buf, buflen, pos,
+    gensio_pos_snprintf(buf, buflen, pos,
 		    "file(%s%s%s%s%s)",
 		    ndata->infile ? "infile=" : "",
 		    ndata->infile ? ndata->infile : "",
 		    (ndata->infile && ndata->outfile) ? "," : "",
 		    ndata->outfile ? "outfile=" : "",
 		    ndata->outfile ? ndata->outfile : "");
-
-    if (epos)
-	*epos = pos;
 
     return 0;
 }

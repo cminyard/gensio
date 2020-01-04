@@ -225,24 +225,17 @@ stdion_write(struct gensio *io, gensiods *count,
 }
 
 static int
-stdion_raddr_to_str(struct gensio *io, gensiods *epos,
+stdion_raddr_to_str(struct gensio *io, gensiods *pos,
 		    char *buf, gensiods buflen)
 {
     struct stdion_channel *schan = gensio_get_gensio_data(io);
     struct stdiona_data *nadata = schan->nadata;
-    gensiods pos = 0;
-
-    if (epos)
-	pos = *epos;
 
     if (io == nadata->io.io)
-	pos += gensio_pos_snprintf(buf, buflen, pos, "stdio,");
+	gensio_pos_snprintf(buf, buflen, pos, "stdio,");
     else
-	pos += gensio_pos_snprintf(buf, buflen, pos, "stderr,");
-    pos += gensio_argv_snprintf(buf, buflen, pos, nadata->argv);
-
-    if (epos)
-	*epos = pos;
+	gensio_pos_snprintf(buf, buflen, pos, "stderr,");
+    gensio_argv_snprintf(buf, buflen, pos, nadata->argv);
 
     return 0;
 }
