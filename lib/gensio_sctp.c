@@ -943,10 +943,9 @@ sctpna_startup(struct gensio_accepter *accepter)
 					sctpna_readhandler, NULL, nadata,
 					sctpna_fd_cleared,
 					sctpna_setup_socket,
-					&fds[i].fd);
+					&fds[i].fd, &fds[i].port);
 	if (rv)
 	    goto out_err;
-	fds[i].port = port;
 	fds[i].family = ai->ai_family;
 	fds[i].flags = ai->ai_flags;
 	o->free(o, nadata->fds);
@@ -1181,7 +1180,6 @@ sctpna_control_laddr(struct sctpna_data *nadata, bool get,
 		     char *data, gensiods *datalen)
 {
     unsigned int i;
-    struct sockaddr_storage sa;
     gensiods pos = 0;
     int rv;
     struct sockaddr *addrs;
@@ -1215,9 +1213,6 @@ sctpna_control_lport(struct sctpna_data *nadata, bool get,
 		     char *data, gensiods *datalen)
 {
     unsigned int i;
-    struct sockaddr_storage sa;
-    int rv;
-    socklen_t len = sizeof(sa);
 
     if (!get)
 	return GE_NOTSUP;
@@ -1229,15 +1224,7 @@ sctpna_control_lport(struct sctpna_data *nadata, bool get,
     if (i >= nadata->nfds)
 	return GE_NOTFOUND;
 
-    rv = getsockname(nadata->fds[i].fd, (struct sockaddr *) &sa, &len);
-    if (rv)
-	return gensio_os_err_to_err(nadata->o, errno);
-
-    rv = gensio_sockaddr_get_port((struct sockaddr *) &sa);
-    if (rv == -1)
-	return GE_INVAL;
-
-    *datalen = snprintf(data, *datalen, "%d", rv);
+    *datalen = snprintf(data, *datalen, "%d", nadata->fds[i].port);
     return 0;
 }
 

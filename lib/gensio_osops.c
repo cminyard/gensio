@@ -501,7 +501,7 @@ gensio_open_socket(struct gensio_os_funcs *o,
 					rp->ai_addr, rp->ai_addrlen,
 					readhndlr, writehndlr, data,
 					fd_handler_cleared, NULL,
-					&fds[curr_fd].fd);
+					&fds[curr_fd].fd, &fds[curr_fd].port);
 	if (!rv) {
 	    fds[curr_fd].family = rp->ai_family;
 	    curr_fd++;
@@ -529,6 +529,25 @@ gensio_open_socket(struct gensio_os_funcs *o,
     return 0;
 }
 
+static int
+gensio_socket_get_port(struct gensio_os_funcs *o, int fd, int *port)
+{
+    struct sockaddr_storage sa;
+    socklen_t len = sizeof(sa);
+    int rv;
+
+    rv = getsockname(fd, (struct sockaddr *) &sa, &len);
+    if (rv)
+	return gensio_os_err_to_err(o, errno);
+
+    rv = gensio_sockaddr_get_port((struct sockaddr *) &sa);
+    if (rv == -1)
+	return GE_INVAL;
+
+    *port = rv;
+    return 0;
+}
+
 int
 gensio_setup_listen_socket(struct gensio_os_funcs *o, bool do_listen,
 			   int family, int socktype, int protocol, int flags,
@@ -537,7 +556,7 @@ gensio_setup_listen_socket(struct gensio_os_funcs *o, bool do_listen,
 			   void (*writehndlr)(int, void *), void *data,
 			   void (*fd_handler_cleared)(int, void *),
 			   int (*call_b4_listen)(int, void *),
-			   int *rfd)
+			   int *rfd, int *port)
 {
     int optval = 1;
     int fd, rv = 0;
@@ -558,6 +577,10 @@ gensio_setup_listen_socket(struct gensio_os_funcs *o, bool do_listen,
 
     if (bind(fd, addr, addrlen) != 0)
 	goto out_err;
+
+    rv = gensio_socket_get_port(o, fd, port);
+    if (rv)
+	goto out;
 
     if (call_b4_listen) {
 	rv = call_b4_listen(fd, data);

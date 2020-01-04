@@ -1248,9 +1248,6 @@ udpna_control_lport(struct udpna_data *nadata, bool get,
 		    char *data, gensiods *datalen)
 {
     unsigned int i;
-    struct sockaddr_storage sa;
-    int rv;
-    socklen_t len = sizeof(sa);
 
     if (!get)
 	return GE_NOTSUP;
@@ -1262,15 +1259,7 @@ udpna_control_lport(struct udpna_data *nadata, bool get,
     if (i >= nadata->nr_fds)
 	return GE_NOTFOUND;
 
-    rv = getsockname(nadata->fds[i].fd, (struct sockaddr *) &sa, &len);
-    if (rv)
-	return gensio_os_err_to_err(nadata->o, errno);
-
-    rv = gensio_sockaddr_get_port((struct sockaddr *) &sa);
-    if (rv == -1)
-	return GE_INVAL;
-
-    *datalen = snprintf(data, *datalen, "%d", rv);
+    *datalen = snprintf(data, *datalen, "%d", nadata->fds[i].port);
     return 0;
 }
 

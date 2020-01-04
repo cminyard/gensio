@@ -77,6 +77,7 @@ struct opensocks
 {
     int fd;
     int family;
+    int port;
 };
 
 /*
@@ -110,7 +111,7 @@ int gensio_setup_listen_socket(struct gensio_os_funcs *o, bool do_listen,
 			       void (*writehndlr)(int, void *), void *data,
 			       void (*fd_handler_cleared)(int, void *),
 			       int (*call_b4_listen)(int, void *),
-			       int *rfd);
+			       int *rfd, int *port);
 
 /* Returns a NULL if the fd is ok, a non-NULL error string if not */
 const char *gensio_check_tcpd_ok(int new_fd);
