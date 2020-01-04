@@ -12,9 +12,24 @@ class Logger:
 gensio.gensio_set_log_mask(gensio.GENSIO_LOG_MASK_ALL)
 o = gensio.alloc_gensio_selector(Logger());
 
+def check_raddr(io, testname, expected):
+    r = io.raddr()
+    if r != expected:
+        raise Exception("%s raddr was not '%s', it was '%s'" %
+                        (testname, expected, r));
+
+def test_echo_gensio():
+    print("Test echo gensio")
+    io = utils.alloc_io(o, "echo")
+    check_raddr(io, "echo", "echo")
+    utils.test_dataxfer(io, io, "This is a test string!")
+    utils.io_close(io)
+    print("  Success!")
+
 def test_echo_device():
     print("Test echo device")
     io = utils.alloc_io(o, "serialdev,/dev/ttyEcho0,38400")
+    check_raddr(io, "echo device", "/dev/ttyEcho0,38400N81 RTSHI DTRHI")
     utils.test_dataxfer(io, io, "This is a test string!")
     utils.io_close(io)
     print("  Success!")
@@ -30,7 +45,8 @@ def test_serial_pipe_device():
 
 class TestAccept:
     def __init__(self, o, io1, iostr, tester, name = None,
-                 io1_dummy_write = None, do_close = True):
+                 io1_dummy_write = None, do_close = True,
+                 expected_raddr = None):
         self.o = o
         if (name):
             self.name = name
@@ -42,6 +58,8 @@ class TestAccept:
         self.acc = gensio.gensio_accepter(o, iostr, self);
         self.acc.startup()
         io1.open_s()
+        if expected_raddr:
+            check_raddr(io1, name, expected_raddr)
         if (io1_dummy_write):
             # For UDP, kick start things.
             io1.write(io1_dummy_write, None)
@@ -89,16 +107,20 @@ def do_test(io1, io2):
 def ta_tcp():
     print("Test accept tcp")
     io1 = utils.alloc_io(o, "tcp,localhost,3023", do_open = False)
-    TestAccept(o, io1, "tcp,3023", do_test)
+    TestAccept(o, io1, "tcp,3023", do_test,
+               expected_raddr = "ipv4,127.0.0.1,3023")
 
 def ta_udp():
     print("Test accept udp")
     io1 = utils.alloc_io(o, "udp,localhost,3023", do_open = False)
-    TestAccept(o, io1, "udp,3023", do_test, io1_dummy_write = "A")
+    TestAccept(o, io1, "udp,3023", do_test, io1_dummy_write = "A",
+               expected_raddr = "ipv4,127.0.0.1,3023")
 
 def ta_sctp():
     print("Test accept sctp")
     io1 = utils.alloc_io(o, "sctp,localhost,3023", do_open = False)
+    # FIXME - the raddr is not tested here, it's hard to know what it would be
+    # because of sctp multihoming.
     TestAccept(o, io1, "sctp,3023", do_test)
     c = io1.control(0, True, gensio.GENSIO_CONTROL_STREAMS, None)
     if c != "instreams=1,ostreams=1":
@@ -107,7 +129,8 @@ def ta_sctp():
 def ta_ssl_tcp():
     print("Test accept ssl-tcp")
     io1 = utils.alloc_io(o, "ssl(CA=%s/CA.pem),tcp,localhost,3023" % utils.keydir, do_open = False)
-    ta = TestAccept(o, io1, "ssl(key=%s/key.pem,cert=%s/cert.pem),3023" % (utils.keydir, utils.keydir), do_test, do_close = False)
+    ta = TestAccept(o, io1, "ssl(key=%s/key.pem,cert=%s/cert.pem),3023" % (utils.keydir, utils.keydir), do_test, do_close = False,
+                    expected_raddr = "ipv4,127.0.0.1,3023")
     cn = io1.control(0, True, gensio.GENSIO_CONTROL_GET_PEER_CERT_NAME,
                      "-1,CN");
     i = cn.index(',')
@@ -387,6 +410,7 @@ def test_modemstate():
 def test_stdio_basic():
     print("Test stdio basic echo")
     io = utils.alloc_io(o, "stdio,cat", chunksize = 64)
+    check_raddr(io, "stdio basic", 'stdio,"cat"')
     utils.test_dataxfer(io, io, "This is a test string!")
     utils.io_close(io)
     print("  Success!")
@@ -398,10 +422,19 @@ def test_stdio_basic_stderr():
     io.read_cb_enable(True)
     err = io.alloc_channel(None, None)
     err.open_s()
+    check_raddr(err, "stderr basic", 'stderr,"sh" "-c" "cat 1>&2"')
     utils.HandleData(o, "stderr", chunksize = 64, io = err)
     utils.test_dataxfer(io, err, "This is a test string!")
     utils.io_close(io)
     utils.io_close(err)
+    print("  Success!")
+
+def test_pty_basic():
+    print("Test pty basic echo")
+    io = utils.alloc_io(o, "pty,cat", chunksize = 64)
+    check_raddr(io, "pty basic", '"cat"')
+    utils.test_dataxfer(io, io, "This is a test string!")
+    utils.io_close(io)
     print("  Success!")
 
 def test_stdio_small():
@@ -983,16 +1016,12 @@ def test_mux_oob():
                          do_open = False, chunksize = 64)
     ta = TestAccept(o, io1, "mux,sctp,3023", do_oob_test)
 
-test_mux_limits()
-ta_mux_sctp()
-test_mux_sctp_small()
-test_mux_tcp_large()
-test_mux_oob()
-
+test_echo_gensio()
 test_echo_device()
 test_serial_pipe_device()
 test_stdio_basic()
 test_stdio_basic_stderr()
+test_pty_basic()
 test_stdio_small()
 ta_tcp()
 ta_udp()
@@ -1020,3 +1049,9 @@ test_certauth_ssl_tcp_acc_connect()
 
 test_ipmisol_large()
 test_rs485()
+
+test_mux_limits()
+ta_mux_sctp()
+test_mux_sctp_small()
+test_mux_tcp_large()
+test_mux_oob()
