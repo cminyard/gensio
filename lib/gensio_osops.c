@@ -584,9 +584,13 @@ gensio_setup_listen_socket(struct gensio_os_funcs *o, bool do_listen,
     if (bind(fd, addr, addrlen) != 0)
 	goto out_err;
 
-    rv = gensio_socket_get_port(o, fd, port);
-    if (rv)
-	goto out;
+    if (family == AF_INET || family == AF_INET6) {
+	rv = gensio_socket_get_port(o, fd, port);
+	if (rv)
+	    goto out;
+    } else {
+	*port = 0;
+    }
 
     if (call_b4_listen) {
 	rv = call_b4_listen(fd, data);
