@@ -1211,6 +1211,88 @@ udpna_str_to_gensio(struct gensio_accepter *accepter, const char *addr,
 }
 
 static int
+udpna_control_laddr(struct udpna_data *nadata, bool get,
+		    char *data, gensiods *datalen)
+{
+    unsigned int i;
+    struct sockaddr_storage sa;
+    gensiods pos = 0;
+    int rv;
+    socklen_t len = sizeof(sa);
+
+    if (!get)
+	return GE_NOTSUP;
+
+    if (!nadata->enabled)
+	return GE_NOTREADY;
+
+    i = strtoul(data, NULL, 0);
+    if (i >= nadata->nr_fds)
+	return GE_NOTFOUND;
+
+    rv = getsockname(nadata->fds[i].fd, (struct sockaddr *) &sa, &len);
+    if (rv)
+	return gensio_os_err_to_err(nadata->o, errno);
+
+    rv = gensio_sockaddr_to_str((struct sockaddr *) &sa, &len, data,
+				&pos, *datalen);
+    if (rv)
+	return rv;
+
+    *datalen = pos;
+    return 0;
+}
+
+static int
+udpna_control_lport(struct udpna_data *nadata, bool get,
+		    char *data, gensiods *datalen)
+{
+    unsigned int i;
+    struct sockaddr_storage sa;
+    int rv;
+    socklen_t len = sizeof(sa);
+
+    if (!get)
+	return GE_NOTSUP;
+
+    if (!nadata->enabled)
+	return GE_NOTREADY;
+
+    i = strtoul(data, NULL, 0);
+    if (i >= nadata->nr_fds)
+	return GE_NOTFOUND;
+
+    rv = getsockname(nadata->fds[i].fd, (struct sockaddr *) &sa, &len);
+    if (rv)
+	return gensio_os_err_to_err(nadata->o, errno);
+
+    rv = gensio_sockaddr_get_port((struct sockaddr *) &sa);
+    if (rv == -1)
+	return GE_INVAL;
+
+    *datalen = snprintf(data, *datalen, "%d", rv);
+    return 0;
+}
+
+static int
+udpna_control(struct gensio_accepter *acc, bool get,
+	      unsigned int option, char *data, gensiods *datalen)
+{
+    struct udpna_data *nadata = gensio_acc_get_gensio_data(acc);
+
+    switch (option) {
+    case GENSIO_ACC_CONTROL_LADDR:
+	return udpna_control_laddr(nadata, get, data, datalen);
+
+    case GENSIO_ACC_CONTROL_LPORT:
+	return udpna_control_lport(nadata, get, data, datalen);
+
+    default:
+	return GE_NOTSUP;
+    }
+}
+
+static int
 gensio_acc_udp_func(struct gensio_accepter *acc, int func, int val,
 		    const char *addr, void *done, void *data,
 		    const void *data2, void *ret)
@@ -1235,6 +1317,10 @@ gensio_acc_udp_func(struct gensio_accepter *acc, int func, int val,
     case GENSIO_ACC_FUNC_DISABLE:
 	udpna_disable(acc);
 	return 0;
+
+    case GENSIO_ACC_FUNC_CONTROL:
+	return udpna_control(acc, (bool) val, *((unsigned int *) done),
+			     (char *) data, (gensiods *) ret);
 
     default:
 	return GE_NOTSUP;

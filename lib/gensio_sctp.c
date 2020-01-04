@@ -235,23 +235,13 @@ sctp_sub_open(void *handler_data, int *fd)
 }
 
 static int
-sctp_raddr_to_str(void *handler_data, gensiods *pos,
-		  char *buf, gensiods buflen)
+sctp_addr_to_str(struct sockaddr *addrs, unsigned int count,
+		 char *buf, gensiods *pos, gensiods buflen)
 {
-    struct sctp_data *tdata = handler_data;
-    struct sockaddr *addrs;
     unsigned char *d;
     unsigned int i;
-    gensiods count;
     int rv;
 
-    rv = sctp_getpaddrs(tdata->fd, 0, &addrs);
-    if (rv < 0)
-	return gensio_os_err_to_err(tdata->o, errno);
-    if (rv == 0)
-	return GE_NOTFOUND;
-
-    count = rv;
     d = (unsigned char *) addrs;
     for (i = 0; i < count; i++) {
 	socklen_t addrlen = 0;
@@ -263,11 +253,29 @@ sctp_raddr_to_str(void *handler_data, gensiods *pos,
 	rv = gensio_sockaddr_to_str((struct sockaddr *) d, &addrlen,
 				    buf, pos, buflen);
 	if (rv)
-	    goto out;
+	    return rv;
 	d += addrlen;
     }
 
- out:
+    return 0;
+}
+
+static int
+sctp_raddr_to_str(void *handler_data, gensiods *pos,
+		  char *buf, gensiods buflen)
+{
+    struct sctp_data *tdata = handler_data;
+    struct sockaddr *addrs;
+    int rv;
+
+    rv = sctp_getpaddrs(tdata->fd, 0, &addrs);
+    if (rv < 0)
+	return gensio_os_err_to_err(tdata->o, errno);
+    if (rv == 0)
+	return GE_NOTFOUND;
+
+    rv = sctp_addr_to_str(addrs, rv, buf, pos, buflen);
+
     sctp_freepaddrs(addrs);
     return rv;
 }
@@ -1169,6 +1177,89 @@ sctpna_str_to_gensio(struct gensio_accepter *accepter, const char *addr,
 }
 
 static int
+sctpna_control_laddr(struct sctpna_data *nadata, bool get,
+		     char *data, gensiods *datalen)
+{
+    unsigned int i;
+    struct sockaddr_storage sa;
+    gensiods pos = 0;
+    int rv;
+    struct sockaddr *addrs;
+
+    if (!get)
+	return GE_NOTSUP;
+
+    if (!nadata->setup)
+	return GE_NOTREADY;
+
+    i = strtoul(data, NULL, 0);
+    if (i >= nadata->nfds)
+	return GE_NOTFOUND;
+
+    rv = sctp_getladdrs(nadata->fds[i].fd, 0, &addrs);
+    if (rv < 0)
+	return gensio_os_err_to_err(nadata->o, errno);
+    if (rv == 0)
+	return GE_DATAMISSING;
+
+    rv = sctp_addr_to_str(addrs, rv, data, &pos, *datalen);
+
+    sctp_freeladdrs(addrs);
+    if (!rv)
+	*datalen = pos;
+    return rv;
+}
+
+static int
+sctpna_control_lport(struct sctpna_data *nadata, bool get,
+		     char *data, gensiods *datalen)
+{
+    unsigned int i;
+    struct sockaddr_storage sa;
+    int rv;
+    socklen_t len = sizeof(sa);
+
+    if (!get)
+	return GE_NOTSUP;
+
+    if (!nadata->setup)
+	return GE_NOTREADY;
+
+    i = strtoul(data, NULL, 0);
+    if (i >= nadata->nfds)
+	return GE_NOTFOUND;
+
+    rv = getsockname(nadata->fds[i].fd, (struct sockaddr *) &sa, &len);
+    if (rv)
+	return gensio_os_err_to_err(nadata->o, errno);
+
+    rv = gensio_sockaddr_get_port((struct sockaddr *) &sa);
+    if (rv == -1)
+	return GE_INVAL;
+
+    *datalen = snprintf(data, *datalen, "%d", rv);
+    return 0;
+}
+
+static int
+sctpna_control(struct gensio_accepter *acc, bool get,
+	       unsigned int option, char *data, gensiods *datalen)
+{
+    struct sctpna_data *nadata = gensio_acc_get_gensio_data(acc);
+
+    switch (option) {
+    case GENSIO_ACC_CONTROL_LADDR:
+	return sctpna_control_laddr(nadata, get, data, datalen);
+
+    case GENSIO_ACC_CONTROL_LPORT:
+	return sctpna_control_lport(nadata, get, data, datalen);
+
+    default:
+	return GE_NOTSUP;
+    }
+}
+
+static int
 gensio_acc_sctp_func(struct gensio_accepter *acc, int func, int val,
 		     const char *addr, void *done, void *data,
 		     const void *data2, void *ret)
@@ -1193,6 +1284,10 @@ gensio_acc_sctp_func(struct gensio_accepter *acc, int func, int val,
     case GENSIO_ACC_FUNC_DISABLE:
 	sctpna_disable(acc);
 	return 0;
+
+    case GENSIO_ACC_FUNC_CONTROL:
+	return sctpna_control(acc, (bool) val, *((unsigned int *) done),
+			      (char *) data, (gensiods *) ret);
 
     default:
 	return GE_NOTSUP;
