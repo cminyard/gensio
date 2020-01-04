@@ -476,7 +476,7 @@ gensio_open_socket(struct gensio_os_funcs *o,
     struct addrinfo *rp;
     int family = AF_INET6; /* Try IPV6 first, then IPV4. */
     struct opensocks *fds;
-    unsigned int curr_fd = 0;
+    unsigned int curr_fd = 0, i;
     unsigned int max_fds = 0;
     int rv = 0;
 
@@ -502,10 +502,10 @@ gensio_open_socket(struct gensio_os_funcs *o,
 					readhndlr, writehndlr, data,
 					fd_handler_cleared, NULL,
 					&fds[curr_fd].fd, &fds[curr_fd].port);
-	if (!rv) {
-	    fds[curr_fd].family = rp->ai_family;
-	    curr_fd++;
-	}
+	if (rv)
+	    goto out_close;
+	fds[curr_fd].family = rp->ai_family;
+	curr_fd++;
     }
     if (family == AF_INET6) {
 	family = AF_INET;
@@ -527,6 +527,12 @@ gensio_open_socket(struct gensio_os_funcs *o,
     *rfds = fds;
 
     return 0;
+
+ out_close:
+    for (i = 0; i < curr_fd; i++)
+	close(fds[i].fd);
+    o->free(o, fds);
+    return rv;
 }
 
 static int
