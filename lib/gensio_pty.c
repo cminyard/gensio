@@ -44,7 +44,6 @@ struct pty_data {
 
     pid_t pid;
     int ptym;
-    char *progargs;
     const char **argv;
     const char **env;
 
@@ -81,9 +80,11 @@ pty_raddr_to_str(void *handler_data, gensiods *epos,
     if (epos)
 	pos = *epos;
 
-    pos = snprintf(buf + pos, buflen - pos, "%s", tdata->progargs);
+    pos += gensio_argv_snprintf(buf, buflen, pos, tdata->argv);
+
     if (epos)
 	*epos = pos;
+
     return 0;
 }
 

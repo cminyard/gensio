@@ -236,12 +236,10 @@ stdion_raddr_to_str(struct gensio *io, gensiods *epos,
 	pos = *epos;
 
     if (io == nadata->io.io)
-	strncpy(buf + pos, "stdio", buflen - pos - 1);
+	pos += gensio_pos_snprintf(buf, buflen, pos, "stdio,");
     else
-	strncpy(buf + pos, "stderr", buflen - pos - 1);
-    /* Fix stupid no-nil issue with strncpy. */
-    buf[buflen - 1] = '\0';
-    pos += strlen(buf + pos);
+	pos += gensio_pos_snprintf(buf, buflen, pos, "stderr,");
+    pos += gensio_argv_snprintf(buf, buflen, pos, nadata->argv);
 
     if (epos)
 	*epos = pos;

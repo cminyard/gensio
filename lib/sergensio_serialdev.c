@@ -1311,13 +1311,13 @@ sterm_raddr_to_str(void *handler_data, gensiods *epos,
 
     if (!sdata->write_only && sdata->fd != -1) {
 	if (ioctl(sdata->fd, TIOCMGET, &status) == -1)
-	    return errno;
+	    return gensio_os_err_to_err(sdata->o, errno);
     }
 
     if (epos)
 	pos = *epos;
 
-    pos += snprintf(buf + pos, buflen - pos, "%s", sdata->devname);
+    pos += gensio_pos_snprintf(buf, buflen, pos, "%s", sdata->devname);
 
     if (!sdata->write_only) {
 	g_termios itermio, *termio;
@@ -1352,6 +1352,7 @@ sterm_raddr_to_str(void *handler_data, gensiods *epos,
 	clocal = termio->c_cflag & CLOCAL;
 	hangup_when_done = termio->c_cflag & HUPCL;
 
+	memset(str, 0, sizeof(str));
 	if (parity_enabled && parity)
 	    str[0] = 'O';
 	else if (parity_enabled)
@@ -1372,36 +1373,34 @@ sterm_raddr_to_str(void *handler_data, gensiods *epos,
 	else
 	    str[2] = '1';
 
-	str[3] = '\0';
-
-	pos += snprintf(buf + pos, buflen - pos,
-			",%d%s", get_baud_rate_val(termio), str);
+	pos += gensio_pos_snprintf(buf, buflen, pos, ",%d%s",
+				   get_baud_rate_val(termio), str);
 
 	if (xon && xoff && xany)
-	    pos += snprintf(buf + pos, buflen - pos, ",%s", "XONXOFF");
+	    pos += gensio_pos_snprintf(buf, buflen, pos, ",XONXOFF");
 
 	if (flow_rtscts)
-	    pos += snprintf(buf + pos, buflen - pos, ",%s", "RTSCTS");
+	    pos += gensio_pos_snprintf(buf, buflen, pos, ",RTSCTS");
 
 	if (clocal)
-	    pos += snprintf(buf + pos, buflen - pos, ",%s", "CLOCAL");
+	    pos += gensio_pos_snprintf(buf, buflen, pos, ",CLOCAL");
 
 	if (hangup_when_done)
-	    pos += snprintf(buf + pos, buflen - pos, ",%s", "HANGUP_WHEN_DONE");
+	    pos += gensio_pos_snprintf(buf, buflen, pos, ",HANGUP_WHEN_DONE");
 
     }
     if (!sdata->write_only && sdata->fd != -1) {
 	if (status & TIOCM_RTS)
-	    pos += snprintf(buf + pos, buflen - pos, " %s", "RTSHI");
+	    pos += gensio_pos_snprintf(buf, buflen, pos, " RTSHI");
 	else
-	    pos += snprintf(buf + pos, buflen - pos, " %s", "RTSLO");
+	    pos += gensio_pos_snprintf(buf, buflen, pos, " RTSLO");
 
 	if (status & TIOCM_DTR)
-	    pos += snprintf(buf + pos, buflen - pos, " %s", "DTRHI");
+	    pos += gensio_pos_snprintf(buf, buflen, pos, " DTRHI");
 	else
-	    pos += snprintf(buf + pos, buflen - pos, " %s", "DTRLO");
+	    pos += gensio_pos_snprintf(buf, buflen, pos, " DTRLO");
     } else {
-	pos += snprintf(buf + pos, buflen - pos, " %s", "offline");
+	pos += gensio_pos_snprintf(buf, buflen, pos, " offline");
     }
 
  out:

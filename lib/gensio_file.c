@@ -173,7 +173,7 @@ filen_raddr_to_str(struct gensio *io, gensiods *epos,
     if (epos)
 	pos = *epos;
 
-    pos += snprintf(buf + pos, buflen - pos,
+    pos += gensio_pos_snprintf(buf, buflen, pos,
 		    "file(%s%s%s%s%s)",
 		    ndata->infile ? "infile=" : "",
 		    ndata->infile ? ndata->infile : "",

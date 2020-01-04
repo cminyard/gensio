@@ -162,8 +162,7 @@ echon_raddr_to_str(struct gensio *io, gensiods *epos,
     if (epos)
 	pos = *epos;
 
-    strncpy(buf + pos, "echo", buflen - pos - 1);
-    pos += 4;
+    pos += gensio_pos_snprintf(buf, buflen, pos, "echo");
 
     if (epos)
 	*epos = pos;

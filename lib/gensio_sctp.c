@@ -259,12 +259,9 @@ sctp_raddr_to_str(void *handler_data, gensiods *epos,
     for (i = 0; i < count; i++) {
 	socklen_t addrlen = 0;
 
-	if (i > 0) {
+	if (i > 0)
 	    /* Add the semicolons between the addresses. */
-	    if (pos < buflen && buflen - pos > 1)
-		buf[pos] = ';';
-	    pos++;
-	}
+	    pos += gensio_pos_snprintf(buf, buflen, pos, ";");
 
 	rv = gensio_sockaddr_to_str((struct sockaddr *) d, &addrlen,
 				    buf, &pos, buflen);
