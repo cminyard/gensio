@@ -40,6 +40,11 @@ required by passing in a zero
 .I *pos, and then allocating
 .I *pos + 1
 and calling the function again with that data.
+
+Note that if you call this on a gensio stack, it will descend down the
+stack until it encounters a gensio that implemments the function.
+This will generally be the bottom one, since that's where the remote
+address is.
 .SH "RETURN VALUES"
 Zero is returned on success, or a gensio error on failure.
 .SH "SEE ALSO"

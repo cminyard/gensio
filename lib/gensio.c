@@ -743,7 +743,16 @@ int
 gensio_raddr_to_str(struct gensio *io, gensiods *pos,
 		    char *buf, gensiods buflen)
 {
-    return io->func(io, GENSIO_FUNC_RADDR_TO_STR, pos, NULL, buflen, buf, NULL);
+    struct gensio *c = io;
+
+    while (c) {
+	int rv = c->func(c, GENSIO_FUNC_RADDR_TO_STR, pos, NULL, buflen,
+			 buf, NULL);
+	if (rv != GE_NOTSUP)
+	    return rv;
+	c = c->child;
+    }
+    return GE_NOTSUP;
 }
 
 int
@@ -1715,15 +1724,9 @@ gensio_sockaddr_to_str(const struct sockaddr *addr, socklen_t *addrlen,
 		       char *buf, gensiods *epos, gensiods buflen)
 {
     gensiods pos = 0;
-    gensiods left;
 
     if (epos)
 	pos = *epos;
-
-    if (pos >= buflen)
-	left = 0;
-    else
-	left = buflen - pos;
 
     if (addr->sa_family == AF_INET) {
 	struct sockaddr_in *a4 = (struct sockaddr_in *) addr;
@@ -1731,7 +1734,7 @@ gensio_sockaddr_to_str(const struct sockaddr *addr, socklen_t *addrlen,
 
 	if (addrlen && *addrlen && *addrlen != sizeof(struct sockaddr_in))
 	    goto out_err;
-	pos += snprintf(buf + pos, left, "ipv4,%s,%d",
+	pos += gensio_pos_snprintf(buf, buflen, pos, "ipv4,%s,%d",
 			inet_ntop(AF_INET, &a4->sin_addr, ibuf, sizeof(ibuf)),
 			ntohs(a4->sin_port));
 	if (addrlen)
@@ -1742,7 +1745,7 @@ gensio_sockaddr_to_str(const struct sockaddr *addr, socklen_t *addrlen,
 
 	if (addrlen && *addrlen && *addrlen != sizeof(struct sockaddr_in6))
 	    goto out_err;
-	pos += snprintf(buf + pos, left, "ipv6,%s,%d",
+	pos += gensio_pos_snprintf(buf, buflen, pos, "ipv6,%s,%d",
 			inet_ntop(AF_INET6, &a6->sin6_addr, ibuf, sizeof(ibuf)),
 			ntohs(a6->sin6_port));
 	if (addrlen)
@@ -1750,10 +1753,10 @@ gensio_sockaddr_to_str(const struct sockaddr *addr, socklen_t *addrlen,
     } else if (addr->sa_family == AF_UNIX) {
 	struct sockaddr_un *au = (struct sockaddr_un *) addr;
 
-	pos += snprintf(buf + pos, left, "unix,%s", au->sun_path);
+	pos += gensio_pos_snprintf(buf, buflen, pos, "unix,%s", au->sun_path);
     } else {
     out_err:
-	if (left)
+	if (pos < buflen)
 	    buf[pos] = '\0';
 	return GE_INVAL;
     }
@@ -2998,4 +3001,86 @@ gensio_u16_to_buf(unsigned char *data, uint16_t v)
 {
     data[0] = v >> 8;
     data[1] = v;
+}
+
+int
+gensio_pos_snprintf(char *buf, gensiods len, gensiods pos, char *format, ...)
+{
+    va_list ap;
+    int rv;
+    gensiods size = len;
+
+    if (pos > len) {
+	/*
+	 * If we are past the end of buffer, go to the end and don't
+	 * output anything, just get the return from vsnprintf().
+	 */
+	size = 0;
+	buf += len;
+    } else {
+	size = len - pos;
+	buf += pos;
+    }
+
+    va_start(ap, format);
+    rv = vsnprintf(buf, size, format, ap);
+    va_end(ap);
+    return rv;
+}
+
+int
+gensio_quote_str(char *buf, gensiods len, gensiods pos, const char *arg)
+{
+    int tlen, olen = 0;
+
+    tlen = gensio_pos_snprintf(buf, len, pos, "\"");
+    pos += tlen;
+    olen += tlen;
+    while (*arg) {
+	if (*arg == '"')
+	    tlen = gensio_pos_snprintf(buf, len, pos, "\\\"");
+	else if (*arg == '\\')
+	    tlen = gensio_pos_snprintf(buf, len, pos, "\\\\");
+	else
+	    tlen = gensio_pos_snprintf(buf, len, pos, "%c", *arg);
+	pos += tlen;
+	olen += tlen;
+	arg++;
+    }
+    tlen = gensio_pos_snprintf(buf, len, pos, "\"");
+    pos += tlen;
+    olen += tlen;
+
+    if (pos < len)
+	buf[pos] = '\0';
+
+    return olen;
+}
+
+int
+gensio_argv_snprintf(char *buf, gensiods len, gensiods pos, const char **argv)
+{
+    int olen = 0, tlen;
+    bool first = true;
+
+    while (argv && *argv) {
+	if (!first) {
+	    tlen = gensio_pos_snprintf(buf, len, pos, " ");
+	    olen += tlen;
+	    pos += tlen;
+	} else {
+	    tlen = 0;
+	    first = false;
+	}
+
+	tlen = gensio_quote_str(buf, len, pos, *argv);
+	olen += tlen;
+	pos += tlen;
+	argv++;
+    }
+
+    if (pos < len)
+	buf[pos] = '\0';
+
+    return olen;
 }
