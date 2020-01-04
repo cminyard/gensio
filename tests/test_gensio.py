@@ -18,6 +18,18 @@ def check_raddr(io, testname, expected):
         raise Exception("%s raddr was not '%s', it was '%s'" %
                         (testname, expected, r));
 
+def check_laddr(acc, testname, expected):
+    r = acc.control(0, True, gensio.GENSIO_ACC_CONTROL_LADDR, "0")
+    if r != expected:
+        raise Exception("%s laddr was not '%s', it was '%s'" %
+                        (testname, expected, r));
+
+def check_port(acc, testname, expected):
+    r = acc.control(0, True, gensio.GENSIO_ACC_CONTROL_LPORT, "0")
+    if r != expected:
+        raise Exception("%s port was not '%s', it was '%s'" %
+                        (testname, expected, r));
+
 def test_echo_gensio():
     print("Test echo gensio")
     io = utils.alloc_io(o, "echo")
@@ -46,7 +58,8 @@ def test_serial_pipe_device():
 class TestAccept:
     def __init__(self, o, io1, iostr, tester, name = None,
                  io1_dummy_write = None, do_close = True,
-                 expected_raddr = None):
+                 expected_raddr = None, expected_acc_laddr = None,
+                 expected_acc_port = None):
         self.o = o
         if (name):
             self.name = name
@@ -57,9 +70,13 @@ class TestAccept:
         self.waiter = gensio.waiter(o)
         self.acc = gensio.gensio_accepter(o, iostr, self);
         self.acc.startup()
+        if expected_acc_laddr:
+            check_laddr(self.acc, self.name, expected_acc_laddr)
+        if expected_acc_port:
+            check_port(self.acc, self.name, expected_acc_port)
         io1.open_s()
         if expected_raddr:
-            check_raddr(io1, name, expected_raddr)
+            check_raddr(io1, self.name, expected_raddr)
         if (io1_dummy_write):
             # For UDP, kick start things.
             io1.write(io1_dummy_write, None)
@@ -107,21 +124,26 @@ def do_test(io1, io2):
 def ta_tcp():
     print("Test accept tcp")
     io1 = utils.alloc_io(o, "tcp,localhost,3023", do_open = False)
-    TestAccept(o, io1, "tcp,3023", do_test,
-               expected_raddr = "ipv4,127.0.0.1,3023")
+    TestAccept(o, io1, "tcp,localhost,3023", do_test,
+               expected_raddr = "ipv4,127.0.0.1,3023",
+               expected_acc_laddr = "ipv4,127.0.0.1,3023",
+               expected_acc_port = "3023")
 
 def ta_udp():
     print("Test accept udp")
     io1 = utils.alloc_io(o, "udp,localhost,3023", do_open = False)
-    TestAccept(o, io1, "udp,3023", do_test, io1_dummy_write = "A",
-               expected_raddr = "ipv4,127.0.0.1,3023")
+    TestAccept(o, io1, "udp,localhost,3023", do_test, io1_dummy_write = "A",
+               expected_raddr = "ipv4,127.0.0.1,3023",
+               expected_acc_laddr = "ipv4,127.0.0.1,3023",
+               expected_acc_port = "3023")
 
 def ta_sctp():
     print("Test accept sctp")
     io1 = utils.alloc_io(o, "sctp,localhost,3023", do_open = False)
-    # FIXME - the raddr is not tested here, it's hard to know what it would be
-    # because of sctp multihoming.
-    TestAccept(o, io1, "sctp,3023", do_test)
+    # FIXME - the raddr and laddr areq not tested here, it's hard to
+    # know what it would be because of sctp multihoming.
+    TestAccept(o, io1, "sctp,3023", do_test,
+               expected_acc_port = "3023")
     c = io1.control(0, True, gensio.GENSIO_CONTROL_STREAMS, None)
     if c != "instreams=1,ostreams=1":
         raise Exception("Invalid stream settings: %s" % c)
