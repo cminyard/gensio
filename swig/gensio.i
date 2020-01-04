@@ -824,6 +824,9 @@ struct waiter { };
     }
 }
 
+%constant int GENSIO_ACC_CONTROL_LADDR = GENSIO_ACC_CONTROL_LADDR;
+%constant int GENSIO_ACC_CONTROL_LPORT = GENSIO_ACC_CONTROL_LPORT;
+
 %extend gensio_accepter {
     gensio_accepter(struct gensio_os_funcs *o, char *str, swig_cb *handler) {
 	struct gensio_data *data;
@@ -896,7 +899,6 @@ struct waiter { };
 	err_handle("shutdown_s", rv);
     }
 
-    %newobject control;
     char *control(int depth, bool get, int option, char *controldata) {
 	int rv;
 	char *data = NULL;
