@@ -560,6 +560,8 @@ gensio_scan_netaddr(struct gensio_os_funcs *o, const char *str, bool listen,
 		    int socktype, int protocol, struct addrinfo **rai)
 {
     int family = AF_UNSPEC;
+    bool is_port_set;
+    int rv;
 
     if (strncmp(str, "ipv4,", 5) == 0) {
 	family = AF_INET;
@@ -569,7 +571,11 @@ gensio_scan_netaddr(struct gensio_os_funcs *o, const char *str, bool listen,
 	str += 5;
     }
 
-    return scan_ips(o, str, listen, family, socktype, protocol, NULL, rai);
+    rv = scan_ips(o, str, listen, family, socktype, protocol,
+		  &is_port_set, rai);
+    if (!rv && !listen && !is_port_set)
+	rv = GE_INVAL;
+    return rv;
 }
 
 int
@@ -1392,7 +1398,6 @@ str_to_gensio_accepter(const char *str,
 {
     int err;
     struct addrinfo *ai = NULL;
-    bool is_port_set;
     int socktype, protocol;
     const char **args = NULL;
     struct registered_gensio_accepter *r;
@@ -1423,11 +1428,9 @@ str_to_gensio_accepter(const char *str,
 					  accepter);
     } else {
 	err = gensio_scan_network_port(o, str, true, &ai, &socktype, &protocol,
-				       &is_port_set, NULL, &args);
+				       NULL, NULL, &args);
 	if (!err) {
-	    if (!is_port_set) {
-		err = GE_INVAL;
-	    } else if (protocol == IPPROTO_UDP) {
+	    if (protocol == IPPROTO_UDP) {
 		err = udp_gensio_accepter_alloc(ai, args, o, cb,
 						user_data, accepter);
 	    } else if (protocol == IPPROTO_TCP) {
