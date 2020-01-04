@@ -698,6 +698,19 @@ gensio_sockaddr_get_port(const struct sockaddr *s)
     return -1;
 }
 
+int
+gensio_sockaddr_set_port(const struct sockaddr *s, int port)
+{
+    switch (s->sa_family) {
+    case AF_INET:
+	return ((struct sockaddr_in *) s)->sin_port = htons(port);
+
+    case AF_INET6:
+	return ((struct sockaddr_in6 *) s)->sin6_port = htons(port);
+    }
+    return -1;
+}
+
 void
 gensio_set_callback(struct gensio *io, gensio_event cb, void *user_data)
 {

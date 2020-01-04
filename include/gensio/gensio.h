@@ -345,10 +345,11 @@ bool gensio_sockaddr_equal(const struct sockaddr *a1, socklen_t l1,
 			   bool compare_ports);
 
 /*
- * Extract the port from a sockaddr.  If the sockaddr is not AF_INET
+ * Extract/set the port on a sockaddr.  If the sockaddr is not AF_INET
  * or AF_INET6, return -1.
  */
 int gensio_sockaddr_get_port(const struct sockaddr *s);
+int gensio_sockaddr_set_port(const struct sockaddr *s, int port);
 
 /*
  * Scan for a network port in the form:
