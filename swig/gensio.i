@@ -592,6 +592,34 @@ struct waiter { };
 	*rbuffer_len = glen;
     }
 
+    char *raddr() {
+	int rv;
+	char dummy[1];
+	gensiods pos = 0;
+	char *val;
+
+	rv = gensio_raddr_to_str(self, &pos, dummy, 0);
+	if (rv) {
+	    err_handle("raddr", rv);
+	    return NULL;
+	}
+
+	val = malloc(pos + 1);
+	if (!val) {
+	    err_handle("raddr", GE_NOMEM);
+	    return NULL;
+	}
+
+	rv = gensio_raddr_to_str(self, NULL, val, pos + 1);
+	if (rv) {
+	    free(val);
+	    err_handle("raddr", rv);
+	    return NULL;
+	}
+
+	return val;
+    }
+
     %rename(is_client) is_clientt;
     bool is_clientt() {
 	return gensio_is_client(self);

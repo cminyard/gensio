@@ -116,3 +116,13 @@
 	free($1);
     }
 };
+
+%typemap(ret) const char * {
+    /* const char * means we don't have to free the string. */
+}
+
+%typemap(ret) char * {
+    if ($1) {
+	free($1);
+    }
+}
