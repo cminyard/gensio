@@ -274,11 +274,19 @@ listened to.
 Note that a single hostname may result in more than one address.  For
 instance, it may have both an IPv4 and IPv6 address.  These are
 treated just like multiple hostnames.  IPv6 is generally tried first
-and it valls back to IPv4 if that fails.  The hostname may be prefixed
+and it falls back to IPv4 if that fails.  The hostname may be prefixed
 with ipv4 or ipv6, which will force the connections to those
 protocols.  Specifying ipv6n4 will create a socket that is IPv6 but
 will accept IPv4 connections.
 
+.SS Dynamic Ports
+For accepters, if the port is specified as zero, a random port in the
+dynamic port range specified by IANA will be chosen.  If more than one
+address is present, the same port will be chosen for all addresses.
+You can fetch the port using the gensio_acc_control() function with
+the option GENSIO_ACC_CONTROL_LPORT.
+
+.SS Out Of Band Data
 TCP supports out of band (oob) data, which is data that will be
 delivered out of order as soon as possible.  This comes in a normal
 read, but with "oob" in the auxdata.  You can send oob data by adding
@@ -319,6 +327,9 @@ disable accepts on the accepting gensio, it will stop all reads on all
 gensios associated with that accepting gensio.
 
 UDP gensios are not reliable, but are obviously packet-oriented.
+
+Port 0 is supported just like TCP for accepters, see Dynamic Ports in
+the TCP section above for details.
 
 In addition to readbuf, the udp gensio takes the following options:
 .TP
@@ -363,6 +374,9 @@ for read and write in the format "stream=<n>".
 .B laddr=<addr>
 An address specification to bind to on the local socket to set the
 local address.
+
+Port 0 is supported just like TCP for accepters, see Dynamic Ports in
+the TCP section above for details.
 
 SCTP support out of band (oob) data, which is data that will be
 delivered out of order as soon as possible.  This comes in a normal
