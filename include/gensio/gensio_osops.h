@@ -108,6 +108,22 @@ struct gensio_listen_scan_info {
  * Setup a receiving socket given the socket() parameters.  If do_listen
  * is true, call listen on the socket.  This sets nonblocking, reuse,
  * does a bind, etc.
+ *
+ * The new file descriptor is returned in rfd, and the chosen port is
+ * returned in port.  If the address has a port set to 0, this
+ * function choose random port from the IANA dynamic range.
+ *
+ * The rsi parameter is used for handling port 0 for multiple sockets.
+ * Pass in a zero-ed structure here.  If the code encounters a zero
+ * port, it will set some information int the rsi structure and for
+ * every other zero port in future calls it will choose the same port.
+ * If it chooses a port that is already in use on one of the later
+ * addresses with a zero port, you can clear the reqport member, close
+ * everything, and start over.  The function will continue scanning
+ * from the next port.  If it returns GE_ADDRINUSE and the curr and
+ * start value are the same, then no port was found that could be
+ * opened on all addresses.  Errors besides GE_ADDRINUSE should be
+ * treated as immediate errors, something else went wrong.
  */
 int gensio_setup_listen_socket(struct gensio_os_funcs *o, bool do_listen,
 			       int family, int socktype, int protocol,
