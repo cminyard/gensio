@@ -602,7 +602,7 @@ str_to_sctp_gensio(const char *str, const char * const args[],
 
 struct sctpna_acceptfds {
     int fd;
-    int port;
+    unsigned int port;
     int family;
     int flags;
 };
@@ -896,6 +896,7 @@ sctpna_startup(struct gensio_accepter *accepter)
     unsigned int i;
     int family = AF_INET6;
     int rv = 0;
+    struct gensio_listen_scan_info scaninfo;
 
     sctpna_lock(nadata);
     if (nadata->in_shutdown || nadata->setup) {
@@ -903,17 +904,19 @@ sctpna_startup(struct gensio_accepter *accepter)
 	goto out_unlock;
     }
 
+    memset(&scaninfo, 0, sizeof(scaninfo));
+
  retry:
     for (ai = nadata->ai; ai; ai = ai->ai_next) {
 	struct sctpna_acceptfds *fds = nadata->fds;
-	int port = gensio_sockaddr_get_port(ai->ai_addr);
+	unsigned int port;
 
-	if (port == -1) {
-	    rv = GE_INVAL;
-	    goto out_err;
-	}
 	if (family != ai->ai_family)
 	    continue;
+
+	rv = gensio_sockaddr_get_port(ai->ai_addr, &port);
+	if (rv)
+	    goto out_err;
 
 	for (i = 0; i < nadata->nfds; i++) {
 	    if (port == fds[i].port &&
@@ -943,7 +946,7 @@ sctpna_startup(struct gensio_accepter *accepter)
 					sctpna_readhandler, NULL, nadata,
 					sctpna_fd_cleared,
 					sctpna_setup_socket,
-					&fds[i].fd, &fds[i].port);
+					&fds[i].fd, &fds[i].port, &scaninfo);
 	if (rv)
 	    goto out_err;
 	fds[i].family = ai->ai_family;
@@ -974,6 +977,15 @@ sctpna_startup(struct gensio_accepter *accepter)
 
  out_err:
     sctpna_shutdown_fds(nadata);
+
+    if (rv == GE_ADDRINUSE && scaninfo.start != 0 &&
+		scaninfo.curr != scaninfo.start) {
+	/* We need to keep scanning. */
+	scaninfo.reqport = 0;
+	family = AF_INET6;
+	goto retry;
+    }
+
     goto out_unlock;
 }
 

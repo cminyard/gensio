@@ -378,7 +378,7 @@ scan_ips(struct gensio_os_funcs *o, const char *str, bool listen, int ifamily,
     struct addrinfo hints, *ai = NULL, *ai2 = NULL, *ai3, *ai4;
     char *ip;
     char *port;
-    int portnum;
+    unsigned int portnum;
     bool first = true, portset = false;
     int rv = 0;
     int bflags = AI_ADDRCONFIG;
@@ -434,12 +434,9 @@ scan_ips(struct gensio_os_funcs *o, const char *str, bool listen, int ifamily,
 	 * If a port was/was not set, this must be consistent for all
 	 * addresses.
 	 */
-	portnum = gensio_sockaddr_get_port(ai->ai_addr);
-	if (portnum == -1) {
-	    /* Not AF_INET or AF_INET6. */
-	    rv = GE_INVAL;
+	rv = gensio_sockaddr_get_port(ai->ai_addr, &portnum);
+	if (rv)
 	    goto out_err;
-	}
 	if (first) {
 	    portset = portnum != 0;
 	} else {
@@ -686,29 +683,41 @@ gensio_sockaddr_equal(const struct sockaddr *a1, socklen_t l1,
 }
 
 int
-gensio_sockaddr_get_port(const struct sockaddr *s)
+gensio_sockaddr_get_port(const struct sockaddr *s, unsigned int *port)
 {
     switch (s->sa_family) {
     case AF_INET:
-	return ntohs(((struct sockaddr_in *) s)->sin_port);
+	*port = ntohs(((struct sockaddr_in *) s)->sin_port);
+	break;
 
     case AF_INET6:
-	return ntohs(((struct sockaddr_in6 *) s)->sin6_port);
+	*port = ntohs(((struct sockaddr_in6 *) s)->sin6_port);
+	break;
+
+    default:
+	return GE_INVAL;
     }
-    return -1;
+
+    return 0;
 }
 
 int
-gensio_sockaddr_set_port(const struct sockaddr *s, int port)
+gensio_sockaddr_set_port(const struct sockaddr *s, unsigned int port)
 {
     switch (s->sa_family) {
     case AF_INET:
-	return ((struct sockaddr_in *) s)->sin_port = htons(port);
+	((struct sockaddr_in *) s)->sin_port = htons(port);
+	break;
 
     case AF_INET6:
-	return ((struct sockaddr_in6 *) s)->sin6_port = htons(port);
+	((struct sockaddr_in6 *) s)->sin6_port = htons(port);
+	break;
+
+    default:
+	return GE_INVAL;
     }
-    return -1;
+
+    return 0;
 }
 
 void

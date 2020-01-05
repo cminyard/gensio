@@ -464,6 +464,20 @@ gensio_get_random(struct gensio_os_funcs *o,
     return gensio_os_err_to_err(o, rv);
 }
 
+/*
+ * For assigning zero ports.
+ */
+#define IP_DYNRANGE_START	49152
+#define IP_DYNRANGE_END		65535
+
+unsigned int gensio_dyn_scan_next(unsigned int port)
+{
+    if (port == IP_DYNRANGE_END)
+	return IP_DYNRANGE_START;
+    else
+	return port + 1;
+}
+
 int
 gensio_open_socket(struct gensio_os_funcs *o,
 		   struct addrinfo *ai,
@@ -479,6 +493,7 @@ gensio_open_socket(struct gensio_os_funcs *o,
     unsigned int curr_fd = 0, i;
     unsigned int max_fds = 0;
     int rv = 0;
+    struct gensio_listen_scan_info scaninfo;
 
     for (rp = ai; rp != NULL; rp = rp->ai_next)
 	max_fds++;
@@ -490,7 +505,9 @@ gensio_open_socket(struct gensio_os_funcs *o,
     if (!fds)
 	return GE_NOMEM;
 
-  restart:
+    memset(&scaninfo, 0, sizeof(scaninfo));
+
+ restart:
     for (rp = ai; rp != NULL; rp = rp->ai_next) {
 	if (family != rp->ai_family)
 	    continue;
@@ -501,7 +518,8 @@ gensio_open_socket(struct gensio_os_funcs *o,
 					rp->ai_addr, rp->ai_addrlen,
 					readhndlr, writehndlr, data,
 					fd_handler_cleared, NULL,
-					&fds[curr_fd].fd, &fds[curr_fd].port);
+					&fds[curr_fd].fd, &fds[curr_fd].port,
+					&scaninfo);
 	if (rv)
 	    goto out_close;
 	fds[curr_fd].family = rp->ai_family;
@@ -531,12 +549,21 @@ gensio_open_socket(struct gensio_os_funcs *o,
  out_close:
     for (i = 0; i < curr_fd; i++)
 	close(fds[i].fd);
+
+    if (rv == GE_ADDRINUSE && scaninfo.start != 0 &&
+		scaninfo.curr != scaninfo.start) {
+	/* We need to keep scanning. */
+	scaninfo.reqport = 0;
+	family = AF_INET6;
+	goto restart;
+    }
+
     o->free(o, fds);
     return rv;
 }
 
 static int
-gensio_socket_get_port(struct gensio_os_funcs *o, int fd, int *port)
+gensio_socket_get_port(struct gensio_os_funcs *o, int fd, unsigned int *port)
 {
     struct sockaddr_storage sa;
     socklen_t len = sizeof(sa);
@@ -546,11 +573,10 @@ gensio_socket_get_port(struct gensio_os_funcs *o, int fd, int *port)
     if (rv)
 	return gensio_os_err_to_err(o, errno);
 
-    rv = gensio_sockaddr_get_port((struct sockaddr *) &sa);
-    if (rv == -1)
-	return GE_INVAL;
+    rv = gensio_sockaddr_get_port((struct sockaddr *) &sa, port);
+    if (rv)
+	return rv;
 
-    *port = rv;
     return 0;
 }
 
@@ -562,10 +588,29 @@ gensio_setup_listen_socket(struct gensio_os_funcs *o, bool do_listen,
 			   void (*writehndlr)(int, void *), void *data,
 			   void (*fd_handler_cleared)(int, void *),
 			   int (*call_b4_listen)(int, void *),
-			   int *rfd, int *port)
+			   int *rfd, unsigned int *rport,
+			   struct gensio_listen_scan_info *rsi)
 {
     int optval = 1;
     int fd, rv = 0;
+    unsigned int port;
+    struct sockaddr_storage sa;
+
+    rv = gensio_sockaddr_get_port(addr, &port);
+    if (rv == -1)
+	return GE_INVAL;
+
+    if (addrlen > sizeof(sa))
+	return GE_TOOBIG;
+    memcpy(&sa, addr, addrlen);
+    addr = (struct sockaddr *) &sa;
+
+    if (rsi && rsi->reqport != 0 && port == 0) {
+	rv = gensio_sockaddr_set_port(addr, rsi->reqport);
+	if (rv)
+	    return rv;
+	port = rsi->reqport;
+    }
 
     fd = socket(family, socktype, protocol);
     if (fd == -1)
@@ -581,15 +626,55 @@ gensio_setup_listen_socket(struct gensio_os_funcs *o, bool do_listen,
     if (check_ipv6_only(family, protocol, flags, fd) == -1)
 	goto out_err;
 
-    if (bind(fd, addr, addrlen) != 0)
-	goto out_err;
+    if (port == 0 && (family == AF_INET || family == AF_INET6)) {
+	struct gensio_listen_scan_info lsi;
+	struct gensio_listen_scan_info *si = rsi;
 
+	if (!si) {
+	    si = &lsi;
+	    memset(si, 0, sizeof(*si));
+	}
+
+	if (si->start == 0) {
+	    /* Get a random port in the dynamic range. */
+	    gensio_get_random(o, &si->start, sizeof(si->start));
+	    si->start %= IP_DYNRANGE_END - IP_DYNRANGE_START + 1;
+	    si->start += IP_DYNRANGE_START;
+	    si->curr = si->start;
+	} else {
+	    si->curr = gensio_dyn_scan_next(si->curr);
+	}
+
+	do {
+	    rv = gensio_sockaddr_set_port(addr, si->curr);
+	    if (rv)
+		goto out;
+	    if (bind(fd, addr, addrlen) == 0) {
+		goto got_it;
+	    } else {
+		if (errno != EADDRINUSE)
+		    goto out_err;
+	    }
+
+	    si->curr = gensio_dyn_scan_next(si->curr);
+	} while (si->curr != si->start);
+	/* Unable to find an open port, give up. */
+	rv = GE_ADDRINUSE;
+	goto out;
+    } else {
+	if (bind(fd, addr, addrlen) != 0)
+	    goto out_err;
+    }
+ got_it:
     if (family == AF_INET || family == AF_INET6) {
-	rv = gensio_socket_get_port(o, fd, port);
+	rv = gensio_socket_get_port(o, fd, &port);
 	if (rv)
 	    goto out;
+	if (rsi && rsi->reqport == 0)
+	    rsi->reqport = port;
+	*rport = port;
     } else {
-	*port = 0;
+	*rport = 0;
     }
 
     if (call_b4_listen) {

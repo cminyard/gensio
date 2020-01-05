@@ -77,7 +77,7 @@ struct opensocks
 {
     int fd;
     int family;
-    int port;
+    unsigned int port;
 };
 
 /*
@@ -98,6 +98,12 @@ int gensio_open_socket(struct gensio_os_funcs *o,
 		       void *data,
 		       struct opensocks **socks, unsigned int *nr_fds);
 
+struct gensio_listen_scan_info {
+    unsigned int curr;
+    unsigned int start;
+    unsigned int reqport;
+};
+
 /*
  * Setup a receiving socket given the socket() parameters.  If do_listen
  * is true, call listen on the socket.  This sets nonblocking, reuse,
@@ -111,7 +117,8 @@ int gensio_setup_listen_socket(struct gensio_os_funcs *o, bool do_listen,
 			       void (*writehndlr)(int, void *), void *data,
 			       void (*fd_handler_cleared)(int, void *),
 			       int (*call_b4_listen)(int, void *),
-			       int *rfd, int *port);
+			       int *rfd, unsigned int *port,
+			       struct gensio_listen_scan_info *rsi);
 
 /* Returns a NULL if the fd is ok, a non-NULL error string if not */
 const char *gensio_check_tcpd_ok(int new_fd);
