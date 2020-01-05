@@ -248,6 +248,8 @@ help(int err)
 	   "    the debug level\n");
     printf("  -a, --accepter - Accept a connection on io2 instead of"
 	   " initiating a connection\n");
+    printf("  -p, --printacc - When the accepter is started, print out all"
+	   " the addresses being listened on.\n");
     printf("  --signature <sig> - Set the RFC2217 server signature to <sig>\n");
     printf("  -e, --escchar - Set the local terminal escape character.\n"
 	   "    Set to -1 to disable the escape character\n"
@@ -272,7 +274,7 @@ main(int argc, char *argv[])
     int arg, rv;
     struct gensio_waiter *closewaiter;
     unsigned int closecount = 0;
-    bool io2_do_acc = false;
+    bool io2_do_acc = false, io2_acc_print = false;
     struct gensio_accepter *io2_acc;
     bool esc_set = false;
     bool io1_set = false;
@@ -304,6 +306,8 @@ main(int argc, char *argv[])
 	    io1_set = true;
 	else if ((rv = cmparg(argc, argv, &arg, "-a", "--accepter", NULL)))
 	    io2_do_acc = true;
+	else if ((rv = cmparg(argc, argv, &arg, "-p", "--printacc", NULL)))
+	    io2_acc_print = true;
 	else if ((rv = cmparg_int(argc, argv, &arg, "-e", "--escchar",
 				  &escape_char)))
 	    esc_set = true;
@@ -438,6 +442,27 @@ main(int argc, char *argv[])
 	    fprintf(stderr, "Could not start %s: %s\n", userdata2.ios,
 		    gensio_err_to_str(rv));
 	    goto close1;
+	}
+	if (io2_acc_print) {
+	    char str[256];
+	    gensiods size;
+	    unsigned int i;
+
+	    for (i = 0; ; i++) {
+		snprintf(str, sizeof(str), "%u", i);
+		size = sizeof(str);
+		rv = gensio_acc_control(io2_acc, GENSIO_CONTROL_DEPTH_FIRST,
+					true, GENSIO_ACC_CONTROL_LADDR,
+					str, &size);
+		if (rv == GE_NOTFOUND)
+		    break;
+		if (rv)
+		    fprintf(stderr,
+			    "Unable to fetch accept address %d: %s\n", i,
+			    gensio_err_to_str(rv));
+		else
+		    printf("Address %d: %s\n", i, str);
+	    }
 	}
     } else {
 	userdata2.can_close = true;

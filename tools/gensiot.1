@@ -5,8 +5,8 @@ gensio \- Tool for doing gensio connections
 
 .SH SYNOPSIS
 .B gensiotool
-[\-i|--input io1] [\-d|\-\-debug] [\-a|\-\-accepter] [\-\-signature <sig>]
-[\-e|--escchar char] [\-h|\-\-help]
+[\-i|\-\-input io1] [\-d|\-\-debug] [\-a|\-\-accepter] [\-\-signature <sig>]
+[\-e|\-\-escchar char] [\-p|\-\-printacc] [\-h|\-\-help]
 io2
 
 .SH DESCRIPTION
@@ -56,6 +56,11 @@ hexadeximal number or ^x to set a control character.  By default it is
 ^\\ if io1 is the default and stdin is a tty, or disabled otherwise.
 See ESCAPES below for more details on the escape character.  Only handled
 on io1.
+.TP
+.I \-p|\-\-printacc
+If
+.I -a
+is specified, print out all the accept addresses chosen by the program.
 .TP
 .I \-h|\-\-help
 Help output
