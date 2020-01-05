@@ -192,6 +192,9 @@ io_acc_event(struct gensio_accepter *accepter, void *user_data,
 {
     struct ioinfo *ioinfo = user_data;
     struct gdata *ginfo = ioinfo_userdata(ioinfo);
+    struct ioinfo *oioinfo = ioinfo_otherioinfo(ioinfo);
+    struct gdata *oginfo = ioinfo_userdata(oioinfo);
+    int rv;
 
     if (event == GENSIO_ACC_EVENT_LOG) {
 	struct gensio_loginfo *li = data;
@@ -215,6 +218,15 @@ io_acc_event(struct gensio_accepter *accepter, void *user_data,
     gensio_acc_free(accepter);
     if (debug)
 	printf("Connected\r\n");
+
+    oginfo->can_close = true;
+    rv = gensio_open(oginfo->io, io_open, NULL);
+    if (rv) {
+	oginfo->can_close = false;
+	fprintf(stderr, "Could not open %s: %s\n", oginfo->ios,
+		gensio_err_to_str(rv));
+	exit(1);
+    }
     return 0;
 }
 
@@ -420,15 +432,6 @@ main(int argc, char *argv[])
 	return 1;
     }
 
-    userdata1.can_close = true;
-    rv = gensio_open(userdata1.io, io_open, NULL);
-    if (rv) {
-	userdata1.can_close = false;
-	fprintf(stderr, "Could not open %s: %s\n", userdata1.ios,
-		gensio_err_to_str(rv));
-	return 1;
-    }
-
     if (io2_do_acc) {
 	rv = gensio_acc_startup(io2_acc);
 	if (rv) {
@@ -444,6 +447,15 @@ main(int argc, char *argv[])
 	    fprintf(stderr, "Could not open %s: %s\n", userdata2.ios,
 		    gensio_err_to_str(rv));
 	    goto close1;
+	}
+
+	userdata1.can_close = true;
+	rv = gensio_open(userdata1.io, io_open, NULL);
+	if (rv) {
+	    userdata1.can_close = false;
+	    fprintf(stderr, "Could not open %s: %s\n", userdata1.ios,
+		    gensio_err_to_str(rv));
+	    return 1;
 	}
     }
 
