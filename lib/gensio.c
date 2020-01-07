@@ -1350,11 +1350,25 @@ struct registered_gensio_accepter {
     struct registered_gensio_accepter *next;
 };
 
-struct registered_gensio_accepter *reg_gensio_accs;
-struct gensio_lock *reg_gensio_acc_lock;
+static struct registered_gensio_accepter *reg_gensio_accs;
+static struct gensio_lock *reg_gensio_acc_lock;
 
 
-struct gensio_once gensio_acc_str_initialized;
+static struct gensio_once gensio_acc_str_initialized;
+static int reg_gensio_acc_rv;
+
+#define REG_GENSIO_ACC(o, str, acc) \
+    do {								\
+	reg_gensio_acc_rv = register_gensio_accepter(o, str, acc);	\
+	if (reg_gensio_acc_rv)						\
+	    return;							\
+    } while(0)
+#define REG_FILT_GENSIO_ACC(o, str, acc, aloc) \
+    do {								\
+	reg_gensio_acc_rv = register_filter_gensio_accepter(o, str, acc, aloc);\
+	if (reg_gensio_acc_rv)						\
+	    return;							\
+    } while(0)
 
 static void
 add_default_gensio_accepters(void *cb_data)
@@ -1362,21 +1376,25 @@ add_default_gensio_accepters(void *cb_data)
     struct gensio_os_funcs *o = cb_data;
 
     reg_gensio_acc_lock = o->alloc_lock(o);
-    register_gensio_accepter(o, "tcp", str_to_tcp_gensio_accepter);
-    register_gensio_accepter(o, "udp", str_to_udp_gensio_accepter);
-    register_gensio_accepter(o, "sctp", str_to_sctp_gensio_accepter);
-    register_gensio_accepter(o, "stdio", str_to_stdio_gensio_accepter);
-    register_gensio_accepter(o, "unix", str_to_unix_gensio_accepter);
-    register_filter_gensio_accepter(o, "ssl", str_to_ssl_gensio_accepter,
-				    ssl_gensio_accepter_alloc);
-    register_filter_gensio_accepter(o, "mux", str_to_mux_gensio_accepter,
-				    mux_gensio_accepter_alloc);
-    register_filter_gensio_accepter(o, "certauth",
-				    str_to_certauth_gensio_accepter,
-				    certauth_gensio_accepter_alloc);
-    register_filter_gensio_accepter(o, "telnet", str_to_telnet_gensio_accepter,
-				    telnet_gensio_accepter_alloc);
-    register_gensio_accepter(o, "dummy", str_to_dummy_gensio_accepter);
+    if (!reg_gensio_acc_lock) {
+	reg_gensio_acc_rv = GE_NOMEM;
+	return;
+    }
+    REG_GENSIO_ACC(o, "tcp", str_to_tcp_gensio_accepter);
+    REG_GENSIO_ACC(o, "udp", str_to_udp_gensio_accepter);
+    REG_GENSIO_ACC(o, "sctp", str_to_sctp_gensio_accepter);
+    REG_GENSIO_ACC(o, "stdio", str_to_stdio_gensio_accepter);
+    REG_GENSIO_ACC(o, "unix", str_to_unix_gensio_accepter);
+    REG_FILT_GENSIO_ACC(o, "ssl", str_to_ssl_gensio_accepter,
+			ssl_gensio_accepter_alloc);
+    REG_FILT_GENSIO_ACC(o, "mux", str_to_mux_gensio_accepter,
+			mux_gensio_accepter_alloc);
+    REG_FILT_GENSIO_ACC(o, "certauth",
+			str_to_certauth_gensio_accepter,
+			certauth_gensio_accepter_alloc);
+    REG_FILT_GENSIO_ACC(o, "telnet", str_to_telnet_gensio_accepter,
+			telnet_gensio_accepter_alloc);
+    REG_GENSIO_ACC(o, "dummy", str_to_dummy_gensio_accepter);
 }
 
 int
@@ -1488,6 +1506,8 @@ str_to_gensio_accepter_child(struct gensio_accepter *child,
 
     o->call_once(o, &gensio_acc_str_initialized,
 		 add_default_gensio_accepters, o);
+    if (reg_gensio_acc_rv)
+	return reg_gensio_acc_rv;
 
     while (isspace(*str))
 	str++;
@@ -1518,11 +1538,26 @@ struct registered_gensio {
     struct registered_gensio *next;
 };
 
-struct registered_gensio *reg_gensios;
-struct gensio_lock *reg_gensio_lock;
+static struct registered_gensio *reg_gensios;
+static struct gensio_lock *reg_gensio_lock;
 
 
-struct gensio_once gensio_str_initialized;
+static struct gensio_once gensio_str_initialized;
+static int reg_gensio_rv;
+
+#define REG_GENSIO(o, str, con) \
+    do {								\
+	reg_gensio_rv = register_gensio(o, str, con);			\
+	if (reg_gensio_rv)						\
+	    return;							\
+    } while(0)
+
+#define REG_FILT_GENSIO(o, str, con, aloc)				\
+    do {								\
+	reg_gensio_rv = register_filter_gensio(o, str, con, aloc);	\
+	if (reg_gensio_rv)						\
+	    return;							\
+    } while(0)
 
 static void
 add_default_gensios(void *cb_data)
@@ -1530,23 +1565,26 @@ add_default_gensios(void *cb_data)
     struct gensio_os_funcs *o = cb_data;
 
     reg_gensio_lock = o->alloc_lock(o);
-    register_gensio(o, "tcp", str_to_tcp_gensio);
-    register_gensio(o, "udp", str_to_udp_gensio);
-    register_gensio(o, "sctp", str_to_sctp_gensio);
-    register_gensio(o, "unix", str_to_unix_gensio);
-    register_gensio(o, "stdio", str_to_stdio_gensio);
-    register_gensio(o, "pty", str_to_pty_gensio);
-    register_filter_gensio(o, "ssl", str_to_ssl_gensio, ssl_gensio_alloc);
-    register_filter_gensio(o, "mux", str_to_mux_gensio, mux_gensio_alloc);
-    register_filter_gensio(o, "certauth", str_to_certauth_gensio,
-			   certauth_gensio_alloc);
-    register_filter_gensio(o, "telnet", str_to_telnet_gensio,
-			   telnet_gensio_alloc);
-    register_gensio(o, "serialdev", str_to_serialdev_gensio);
-    register_gensio(o, "echo", str_to_echo_gensio);
-    register_gensio(o, "file", str_to_file_gensio);
+    if (!reg_gensio_lock) {
+	reg_gensio_rv = GE_NOMEM;
+	return;
+    }
+    REG_GENSIO(o, "tcp", str_to_tcp_gensio);
+    REG_GENSIO(o, "udp", str_to_udp_gensio);
+    REG_GENSIO(o, "sctp", str_to_sctp_gensio);
+    REG_GENSIO(o, "unix", str_to_unix_gensio);
+    REG_GENSIO(o, "stdio", str_to_stdio_gensio);
+    REG_GENSIO(o, "pty", str_to_pty_gensio);
+    REG_FILT_GENSIO(o, "ssl", str_to_ssl_gensio, ssl_gensio_alloc);
+    REG_FILT_GENSIO(o, "mux", str_to_mux_gensio, mux_gensio_alloc);
+    REG_FILT_GENSIO(o, "certauth", str_to_certauth_gensio,
+		    certauth_gensio_alloc);
+    REG_FILT_GENSIO(o, "telnet", str_to_telnet_gensio, telnet_gensio_alloc);
+    REG_GENSIO(o, "serialdev", str_to_serialdev_gensio);
+    REG_GENSIO(o, "echo", str_to_echo_gensio);
+    REG_GENSIO(o, "file", str_to_file_gensio);
 #ifdef HAVE_OPENIPMI
-    register_gensio(o, "ipmisol", str_to_ipmisol_gensio);
+    REG_GENSIO(o, "ipmisol", str_to_ipmisol_gensio);
 #endif
 }
 
@@ -1558,6 +1596,8 @@ register_filter_gensio(struct gensio_os_funcs *o,
     struct registered_gensio *n;
 
     o->call_once(o, &gensio_str_initialized, add_default_gensios, o);
+    if (reg_gensio_rv)
+	return reg_gensio_rv;
 
     n = o->zalloc(o, sizeof(*n));
     if (!n)
@@ -1595,6 +1635,8 @@ str_to_gensio(const char *str,
     unsigned int len;
 
     o->call_once(o, &gensio_str_initialized, add_default_gensios, o);
+    if (reg_gensio_rv)
+	return reg_gensio_rv;
 
     while (isspace(*str))
 	str++;
@@ -2113,6 +2155,7 @@ struct gensio_def_entry builtin_defaults[] = {
 };
 
 static struct gensio_def_entry *defaults;
+static int gensio_def_init_rv;
 
 static void
 gensio_default_init(void *cb_data)
@@ -2121,8 +2164,7 @@ gensio_default_init(void *cb_data)
 
     deflock = o->alloc_lock(o);
     if (!deflock)
-	gensio_log(o, GENSIO_LOG_FATAL,
-		   "Unable to allocate gensio default lock");
+	gensio_def_init_rv = GE_NOMEM;
 }
 
 static void
@@ -2146,13 +2188,15 @@ gensio_reset_default(struct gensio_os_funcs *o, struct gensio_def_entry *d)
     d->val_set = false;
 }
 
-void
+int
 gensio_reset_defaults(struct gensio_os_funcs *o)
 {
     struct gensio_def_entry *d;
     unsigned int i;
 
     o->call_once(o, &gensio_default_initialized, gensio_default_init, o);
+    if (gensio_def_init_rv)
+	return gensio_def_init_rv;
 
     o->lock(deflock);
     for (i = 0; builtin_defaults[i].name; i++)
@@ -2160,6 +2204,7 @@ gensio_reset_defaults(struct gensio_os_funcs *o)
     for (d = defaults; d; d = d->next)
 	gensio_reset_default(o, d);
     o->unlock(deflock);
+    return 0;
 }
 
 static struct gensio_def_entry *
@@ -2221,6 +2266,8 @@ gensio_add_default(struct gensio_os_funcs *o,
     struct gensio_def_entry *d;
 
     o->call_once(o, &gensio_default_initialized, gensio_default_init, o);
+    if (gensio_def_init_rv)
+	return gensio_def_init_rv;
 
     o->lock(deflock);
     d = gensio_lookup_default(name, NULL, NULL);
@@ -2275,6 +2322,8 @@ gensio_set_default(struct gensio_os_funcs *o,
     unsigned int i;
 
     o->call_once(o, &gensio_default_initialized, gensio_default_init, o);
+    if (gensio_def_init_rv)
+	return gensio_def_init_rv;
 
     o->lock(deflock);
     d = gensio_lookup_default(name, NULL, NULL);
@@ -2408,6 +2457,8 @@ gensio_get_default(struct gensio_os_funcs *o,
     char *str;
 
     o->call_once(o, &gensio_default_initialized, gensio_default_init, o);
+    if (gensio_def_init_rv)
+	return gensio_def_init_rv;
 
     o->lock(deflock);
     d = gensio_lookup_default(name, NULL, NULL);
@@ -2476,6 +2527,8 @@ gensio_del_default(struct gensio_os_funcs *o,
     int err = 0;
 
     o->call_once(o, &gensio_default_initialized, gensio_default_init, o);
+    if (gensio_def_init_rv)
+	return gensio_def_init_rv;
 
     o->lock(deflock);
     d = gensio_lookup_default(name, &prev, &isdefault);

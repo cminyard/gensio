@@ -60,7 +60,7 @@ struct gensio_enum_val {
 .br
 .B       bool delclasses);
 .TP 20
-.B void gensio_reset_defaults(struct gensio_os_funcs *o);
+.B int gensio_reset_defaults(struct gensio_os_funcs *o);
 .SH "DESCRIPTION"
 Defaults provide a way to set overall or class-based defaults for
 gensio options (or you can use it yourself to create your own

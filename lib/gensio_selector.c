@@ -44,7 +44,7 @@ struct gensio_data {
     int wake_sig;
 };
 
-#if 0
+#if 1
 #define OUT_OF_MEMORY_TEST
 #endif
 

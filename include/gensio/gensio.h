@@ -308,7 +308,7 @@ int gensio_add_default(struct gensio_os_funcs *o,
 		       int minval, int maxval,
 		       const struct gensio_enum_val *enums);
 
-void gensio_reset_defaults(struct gensio_os_funcs *o);
+int gensio_reset_defaults(struct gensio_os_funcs *o);
 
 int gensio_set_default(struct gensio_os_funcs *o,
 		       const char *class, const char *name,
