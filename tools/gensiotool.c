@@ -333,13 +333,13 @@ main(int argc, char *argv[])
 	    if (dummyrnd_file == -1) {
 		fprintf(stderr, "Could not open rand file: %s\n",
 			strerror(errno));
-		exit(1);
+		goto out_err;
 	    }
 
 	    rv = RAND_set_rand_method(&dummyrnd);
 	    if (rv != 1) {
 		fprintf(stderr, "Error setting random method\n");
-		exit(1);
+		goto out_err;
 	    }
 #endif
 	} else {
@@ -347,7 +347,7 @@ main(int argc, char *argv[])
 	    help(1);
 	}
 	if (rv < 0)
-	    return 1;
+	    goto out_err;
     }
 
     if (io1_set && !esc_set)
@@ -368,7 +368,7 @@ main(int argc, char *argv[])
     if (rv) {
 	fprintf(stderr, "Could not allocate OS handler: %s\n",
 		gensio_err_to_str(rv));
-	return 1;
+	goto out_err;
     }
     o->vlog = do_vlog;
 
@@ -379,7 +379,7 @@ main(int argc, char *argv[])
     if (!userdata1.waiter) {
 	fprintf(stderr, "Could not allocate OS waiter: %s\n",
 		gensio_err_to_str(rv));
-	return 1;
+	goto out_err;
     }
     userdata2.waiter = userdata1.waiter;
 
@@ -387,30 +387,30 @@ main(int argc, char *argv[])
     if (!closewaiter) {
 	fprintf(stderr, "Could not allocate close waiter: %s\n",
 		gensio_err_to_str(rv));
-	return 1;
+	goto out_err;
     }
 
     subdata1 = alloc_ser_ioinfo(0, signature, &sh1);
     if (!subdata1) {
 	fprintf(stderr, "Could not allocate subdata 1\n");
-	return 1;
+	goto out_err;
     }
     subdata2 = alloc_ser_ioinfo(0, signature, &sh2);
     if (!subdata2) {
 	fprintf(stderr, "Could not allocate subdata 2\n");
-	return 1;
+	goto out_err;
     }
 
     ioinfo1 = alloc_ioinfo(o, escape_char, sh1, subdata1, &guh, &userdata1);
     if (!ioinfo1) {
 	fprintf(stderr, "Could not allocate ioinfo 1\n");
-	return 1;
+	goto out_err;
     }
 
     ioinfo2 = alloc_ioinfo(o, -1, sh2, subdata2, &guh, &userdata2);
     if (!ioinfo2) {
 	fprintf(stderr, "Could not allocate ioinfo 2\n");
-	return 1;
+	goto out_err;
     }
 
     ioinfo_set_otherioinfo(ioinfo1, ioinfo2);
@@ -419,7 +419,7 @@ main(int argc, char *argv[])
     if (rv) {
 	fprintf(stderr, "Could not allocate %s: %s\n",
 		userdata1.ios, gensio_err_to_str(rv));
-	return 1;
+	goto out_err;
     }
 
     userdata1.user_io = userdata1.io;
@@ -433,7 +433,7 @@ main(int argc, char *argv[])
     if (rv) {
 	fprintf(stderr, "Could not allocate %s: %s\n", userdata2.ios,
 		gensio_err_to_str(rv));
-	return 1;
+	goto out_err;
     }
 
     if (io2_do_acc) {
@@ -480,7 +480,7 @@ main(int argc, char *argv[])
 	    userdata1.can_close = false;
 	    fprintf(stderr, "Could not open %s: %s\n", userdata1.ios,
 		    gensio_err_to_str(rv));
-	    return 1;
+	    goto out_err;
 	}
     }
 
@@ -523,5 +523,8 @@ main(int argc, char *argv[])
     free_ser_ioinfo(subdata1);
     free_ser_ioinfo(subdata2);
 
-    return 0;
+    exit(0);
+
+ out_err:
+    exit(1);
 }
