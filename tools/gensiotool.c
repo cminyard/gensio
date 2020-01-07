@@ -378,16 +378,14 @@ main(int argc, char *argv[])
 
     userdata1.waiter = o->alloc_waiter(o);
     if (!userdata1.waiter) {
-	fprintf(stderr, "Could not allocate OS waiter: %s\n",
-		gensio_err_to_str(rv));
+	fprintf(stderr, "Could not allocate OS waiter\n");
 	goto out_err;
     }
     userdata2.waiter = userdata1.waiter;
 
     closewaiter = o->alloc_waiter(o);
     if (!closewaiter) {
-	fprintf(stderr, "Could not allocate close waiter: %s\n",
-		gensio_err_to_str(rv));
+	fprintf(stderr, "Could not allocate close waiter\n");
 	goto out_err;
     }
 
