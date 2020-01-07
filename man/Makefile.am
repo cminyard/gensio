@@ -5,7 +5,8 @@ man_MANS = gensio.5 gensio_event.3 str_to_gensio.3 gensio_set_callback.3 \
 	gensio_set_read_callback_enable.3 gensio_get_type.3 gensio_set_sync.3 \
 	gensio_accepter_event.3 gensio_acc_set_callback.3 \
 	gensio_acc_shutdown.3 gensio_acc_set_accept_callback_enable.3 \
-	gensio_acc_control.3 gensio_acc_get_type.3 gensio_add_default.3
+	gensio_acc_control.3 gensio_acc_get_type.3 gensio_add_default.3 \
+	str_to_gensio_accepter.3
 
 LN_SF = $(LN_S) -f
 
