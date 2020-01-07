@@ -168,16 +168,20 @@ Get the full certificate in text form sent from the other end.
 .SS "GENSIO_CONTROL_CERT_FINGERPRINT"
 Get the fingerprint for the certificate from the other end.
 .SS "GENSIO_CONTROL_ENVIRONMENT"
-Set the environment pointer for an exec.  For pty and stdio gensios.
-The data is a pointer to an argv array (char * const envp[])
+Set the environment pointer for an exec.  For pty and stdio connecter
+gensios.  The data is a pointer to an argv array (char * const envp[])
 .SS "GENSIO_CONTROL_ARGS"
-Set the arguments for an exec.  For pty and stdio gensios.
+Set the arguments for an exec.  For pty and stdio connecter gensios.
 The data is a pointer to an argv array (char * const argv[])
 .SS "GENSIO_CONTROL_MAX_WRITE_PACKET"
 On a packet gensio, return the maximum packet size that can be sent.
 Any write of this amount or less will be sent as a single message
 that will be delivered as one read on the other end, or it will
 not be sent at all (zero-byte send count).
+.SS "GENSIO_CONTROL_EXIT_CODE"
+On a stdio connectors and pty gensios, the exit code of the process
+that ran.  This is only valid after close has completed.  An integer
+string is returned.
 .SH "RETURN VALUES"
 Zero is returned on success, or a gensio error on failure.
 .SH "SEE ALSO"

@@ -48,6 +48,10 @@ struct pty_data {
     const char **env;
 
     int last_err;
+
+    /* exit code from the sub-program, after close. */
+    int exit_code;
+    bool exit_code_set;
 };
 
 static int pty_check_open(void *handler_data, int fd)
@@ -107,7 +111,6 @@ pty_check_close(void *handler_data, enum gensio_ll_close_state state,
 		struct timeval *timeout)
 {
     struct pty_data *tdata = handler_data;
-    int wstatus;
     pid_t rv;
 
     if (state != GENSIO_LL_CLOSE_STATE_DONE)
@@ -118,7 +121,7 @@ pty_check_close(void *handler_data, enum gensio_ll_close_state state,
 	tdata->ptym = -1;
     }
 
-    rv = waitpid(tdata->pid, &wstatus, WNOHANG);
+    rv = waitpid(tdata->pid, &tdata->exit_code, WNOHANG);
     if (rv < 0)
 	return gensio_os_err_to_err(tdata->o, errno);
     if (rv == 0) {
@@ -126,6 +129,7 @@ pty_check_close(void *handler_data, enum gensio_ll_close_state state,
 	timeout->tv_usec = 10000;
 	return GE_INPROGRESS;
     }
+    tdata->exit_code_set = true;
     return 0;
 }
 
@@ -204,6 +208,11 @@ pty_control(void *handler_data, int fd, bool get, unsigned int option,
 	    gensio_argv_free(tdata->o, tdata->argv);
 	tdata->argv = argv;
 	return 0;
+
+    case GENSIO_CONTROL_EXIT_CODE:
+	if (!tdata->exit_code_set)
+	    return GE_NOTREADY;
+	*datalen = snprintf(data, *datalen, "%d", tdata->exit_code);
     }
 
     return GE_NOTSUP;

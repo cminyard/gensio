@@ -116,6 +116,10 @@ struct stdiona_data {
     gensio_acc_done shutdown_done;
     void *shutdown_data;
 
+    /* exit code from the sub-program, after close. */
+    int exit_code;
+    bool exit_code_set;
+
     /*
      * If non-zero, this is the PID of the other process and we are
      * in client mode.
@@ -298,8 +302,7 @@ check_waitpid(struct gensio_timer *t, void *cb_data)
     struct stdiona_data *nadata = schan->nadata;
 
     if (nadata->opid != -1) {
-	int wstatus;
-	pid_t rv = waitpid(nadata->opid, &wstatus, WNOHANG);
+	pid_t rv = waitpid(nadata->opid, &nadata->exit_code, WNOHANG);
 
 	if (rv < 0)
 	    /* FIXME = no real way to report this. */
@@ -313,6 +316,8 @@ check_waitpid(struct gensio_timer *t, void *cb_data)
 	    nadata->o->start_timer(t, &timeout);
 	    return;
 	}
+
+	nadata->exit_code_set = true;
     }
 
     if (schan->close_done) {
@@ -874,6 +879,12 @@ stdion_control(struct gensio *io, bool get, unsigned int option,
 	if (nadata->argv)
 	    gensio_argv_free(nadata->o, nadata->argv);
 	nadata->argv = argv;
+	return 0;
+
+    case GENSIO_CONTROL_EXIT_CODE:
+	if (!nadata->exit_code_set)
+	    return GE_NOTREADY;
+	*datalen = snprintf(data, *datalen, "%d", nadata->exit_code);
 	return 0;
     }
 

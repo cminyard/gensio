@@ -102,7 +102,11 @@ test_fuzz_telnet:
 
 test_fuzz: test_fuzz_certauth test_fuzz_mux test_fuzz_ssl test_fuzz_telnet
 
-TESTS = test_gensio.py test_syncio.py
+oomtest_SOURCES = oomtest.c
+
+noinst_PROGRAMS = oomtest
+
+TESTS = test_gensio.py test_syncio.py oomtest
 
 EXTRA_DIST = $(TESTS) utils.py ipmisimdaemon.py termioschk.py \
 	test_fuzz_setup.py make_keys
