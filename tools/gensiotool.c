@@ -23,6 +23,7 @@
 #include <string.h>
 #include <errno.h>
 #include <gensio/gensio.h>
+#include <gensio/gensio_selector.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
@@ -201,7 +202,7 @@ io_acc_event(struct gensio_accepter *accepter, void *user_data,
 
 	vfprintf(stderr, li->str, li->args);
 	fprintf(stderr, "\n");
-	exit(1);
+	gensio_sel_exit(1);
     }
 
     if (event != GENSIO_ACC_EVENT_NEW_CONNECTION)
@@ -225,7 +226,7 @@ io_acc_event(struct gensio_accepter *accepter, void *user_data,
 	oginfo->can_close = false;
 	fprintf(stderr, "Could not open %s: %s\n", oginfo->ios,
 		gensio_err_to_str(rv));
-	exit(1);
+	gensio_sel_exit(1);
     }
     return 0;
 }
@@ -255,7 +256,7 @@ help(int err)
 	   "    Set to -1 to disable the escape character\n"
 	   "    Default is ^\\ for tty stdin and disabled for non-tty stdin\n");
     printf("  -h, --help - This help\n");
-    exit(err);
+    gensio_sel_exit(err);
 }
 
 static void
@@ -523,8 +524,8 @@ main(int argc, char *argv[])
     free_ser_ioinfo(subdata1);
     free_ser_ioinfo(subdata2);
 
-    exit(0);
+    gensio_sel_exit(0);
 
  out_err:
-    exit(1);
+    gensio_sel_exit(1);
 }

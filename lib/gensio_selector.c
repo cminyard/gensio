@@ -37,17 +37,60 @@
 
 #include <gensio/waiter.h>
 #include "utils.h"
+#include <stdlib.h>
 
 struct gensio_data {
     struct selector_s *sel;
     int wake_sig;
 };
 
+#if 0
+#define OUT_OF_MEMORY_TEST
+#endif
+
+#ifdef OUT_OF_MEMORY_TEST
+#include <assert.h>
+/*
+ * Some memory allocation failure testing.  If the GENSIO_OOM_TEST
+ * environment variable is set to number N, the Nth memory allocation
+ * will fail (return NULL).  The program should call gensio_sel_exit
+ * (below); it will cause specific values to be returned on an exit
+ * failure.
+ */
+pthread_mutex_t oom_mutex = PTHREAD_MUTEX_INITIALIZER;
+bool oom_initialized;
+bool oom_ready;
+bool triggered;
+unsigned int oom_count;
+unsigned int oom_curr;
+#endif
+
 static void *
 gensio_sel_zalloc(struct gensio_os_funcs *f, unsigned int size)
 {
-    void *d = malloc(size);
+    void *d;
+    unsigned int curr;
 
+#ifdef OUT_OF_MEMORY_TEST
+    if (!oom_initialized) {
+	char *s = getenv("GENSIO_OOM_TEST");
+
+	oom_initialized = true;
+	if (s) {
+	    oom_count = strtoul(s, NULL, 0);
+	    oom_ready = true;
+	}
+    }
+    if (oom_ready) {
+	curr = oom_curr++;
+	if (curr == oom_count) {
+	    triggered = true;
+	    return NULL;
+	}
+    }
+#endif
+
+    d = malloc(size);
     if (d)
 	memset(d, 0, size);
     return d;
@@ -635,4 +678,34 @@ gensio_default_os_hnd(int wake_sig, struct gensio_os_funcs **o)
 
     *o = defoshnd;
     return 0;
+}
+
+void
+gensio_sel_exit(int rv)
+{
+#ifndef OUT_OF_MEMORY_TEST
+    exit(rv);
+#else
+    if (!oom_ready)
+	exit(rv);
+    assert (rv == 1 || rv == 0); /* Only these values are allowed. */
+
+    /*
+     * Return an error.  The values mean:
+     *
+     * 0 - No error occurred and the memory allocation failure didn't happen
+     * 1 - An error occurred and the memory allocation failure happenned
+     * 2 - No error occurred and the memory allocation failure happenned
+     * 3 - An error occurred and the memory allocation failure didn't happen
+     */
+    if (rv == 0 && triggered)
+	exit(2);
+    if (rv == 0 && !triggered)
+	exit(0);
+    if (rv == 1 && triggered)
+	exit(1);
+    if (rv == 1 && !triggered)
+	exit(3);
+    assert(false); /* Shouldn't get here. */
+#endif
 }
