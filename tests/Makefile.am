@@ -7,7 +7,9 @@ AM_TESTS_ENVIRONMENT = \
     TESTPATH=$(utst_srcdir)/tests; export TESTPATH; \
     if [ ! -e ca ]; then \
 	$(utst_srcdir)/tests/make_keys; \
-    fi;
+    fi; GENSIOT=$(top_builddir)/tools/gensiot
+
+AM_CFLAGS = -I$(top_srcdir)/include
 
 test_setup:
 	echo "$(AM_TESTS_ENVIRONMENT) python $(utst_srcdir)/tests/"
@@ -103,6 +105,8 @@ test_fuzz_telnet:
 test_fuzz: test_fuzz_certauth test_fuzz_mux test_fuzz_ssl test_fuzz_telnet
 
 oomtest_SOURCES = oomtest.c
+
+oomtest_LDADD = $(top_builddir)/lib/libgensio.la $(OPENSSL_LIBS)
 
 noinst_PROGRAMS = oomtest
 
