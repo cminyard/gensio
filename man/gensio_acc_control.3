@@ -4,9 +4,9 @@ gensio_acc_control \- Perform gensio accepter specific actions
 .SH SYNOPSIS
 .B #include <gensio/gensio.h>
 .TP 20
-.B int gensio_acc_control(struct gensio *io, int depth, bool get,
+.B int gensio_acc_control(struct gensio_accepter *acc, int depth,
 .br
-.B                    unsigned int option,
+.B                    bool get, unsigned int option,
 .br
 .B                    char *data, gensiods *datalen);
 .SH "DESCRIPTION"
