@@ -302,8 +302,10 @@ check_waitpid(struct gensio_timer *t, void *cb_data)
     struct stdiona_data *nadata = schan->nadata;
 
     if (nadata->opid != -1) {
-	pid_t rv = waitpid(nadata->opid, &nadata->exit_code, WNOHANG);
+	pid_t rv;
 
+	stdiona_lock(nadata);
+	rv = waitpid(nadata->opid, &nadata->exit_code, WNOHANG);
 	if (rv < 0)
 	    /* FIXME = no real way to report this. */
 	    ;
@@ -318,6 +320,8 @@ check_waitpid(struct gensio_timer *t, void *cb_data)
 	}
 
 	nadata->exit_code_set = true;
+	nadata->opid = -1;
+	stdiona_unlock(nadata);
     }
 
     if (schan->close_done) {
@@ -856,7 +860,7 @@ stdion_control(struct gensio *io, bool get, unsigned int option,
     struct stdion_channel *schan = gensio_get_gensio_data(io);
     struct stdiona_data *nadata = schan->nadata;
     const char **env, **argv;
-    int err;
+    int err, status;
 
     switch (option) {
     case GENSIO_CONTROL_ENVIRONMENT:
@@ -885,6 +889,15 @@ stdion_control(struct gensio *io, bool get, unsigned int option,
 	if (!nadata->exit_code_set)
 	    return GE_NOTREADY;
 	*datalen = snprintf(data, *datalen, "%d", nadata->exit_code);
+	return 0;
+
+    case GENSIO_CONTROL_WAIT_TASK:
+	if (nadata->opid == -1)
+	    return GE_NOTREADY;
+	err = waitpid(nadata->opid, &status, WNOHANG | WNOWAIT);
+	if (err <= 0)
+	    return GE_NOTREADY;
+	*datalen = snprintf(data, *datalen, "%d", status);
 	return 0;
     }
 

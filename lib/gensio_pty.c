@@ -121,15 +121,18 @@ pty_check_close(void *handler_data, enum gensio_ll_close_state state,
 	tdata->ptym = -1;
     }
 
-    rv = waitpid(tdata->pid, &tdata->exit_code, WNOHANG);
-    if (rv < 0)
-	return gensio_os_err_to_err(tdata->o, errno);
-    if (rv == 0) {
-	timeout->tv_sec = 0;
-	timeout->tv_usec = 10000;
-	return GE_INPROGRESS;
+    if (tdata->pid != -1) {
+	rv = waitpid(tdata->pid, &tdata->exit_code, WNOHANG);
+	if (rv < 0)
+	    return gensio_os_err_to_err(tdata->o, errno);
+	if (rv == 0) {
+	    timeout->tv_sec = 0;
+	    timeout->tv_usec = 10000;
+	    return GE_INPROGRESS;
+	}
+	tdata->exit_code_set = true;
+	tdata->pid = -1;
     }
-    tdata->exit_code_set = true;
     return 0;
 }
 
@@ -184,7 +187,7 @@ pty_control(void *handler_data, int fd, bool get, unsigned int option,
 {
     struct pty_data *tdata = handler_data;
     const char **env, **argv;
-    int err;
+    int err, status;
 
     switch (option) {
     case GENSIO_CONTROL_ENVIRONMENT:
@@ -213,6 +216,16 @@ pty_control(void *handler_data, int fd, bool get, unsigned int option,
 	if (!tdata->exit_code_set)
 	    return GE_NOTREADY;
 	*datalen = snprintf(data, *datalen, "%d", tdata->exit_code);
+	return 0;
+
+    case GENSIO_CONTROL_WAIT_TASK:
+	if (tdata->pid == -1)
+	    return GE_NOTREADY;
+	err = waitpid(tdata->pid, &status, WNOHANG | WNOWAIT);
+	if (err <= 0)
+	    return GE_NOTREADY;
+	*datalen = snprintf(data, *datalen, "%d", status);
+	return 0;
     }
 
     return GE_NOTSUP;

@@ -170,6 +170,7 @@ int gensio_control(struct gensio *io, int depth, bool get,
 #define GENSIO_CONTROL_MAX_WRITE_PACKET		11
 #define GENSIO_CONTROL_ARGS			12
 #define GENSIO_CONTROL_EXIT_CODE		13
+#define GENSIO_CONTROL_WAIT_TASK		14
 
 const char *gensio_get_type(struct gensio *io, unsigned int depth);
 struct gensio *gensio_get_child(struct gensio *io, unsigned int depth);

@@ -182,6 +182,10 @@ not be sent at all (zero-byte send count).
 On a stdio connectors and pty gensios, the exit code of the process
 that ran.  This is only valid after close has completed.  An integer
 string is returned.
+.SS "GENSIO_CONTROL_WAIT_TASK"
+On a stdio connectors and pty gensios, do a waitpid on the process.
+If it has closed, this will return success and the exit code in the
+string.  Otherwise it will return GE_NOTREADY.
 .SH "RETURN VALUES"
 Zero is returned on success, or a gensio error on failure.
 .SH "SEE ALSO"
