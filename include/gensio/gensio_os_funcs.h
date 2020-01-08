@@ -26,6 +26,7 @@
 #include <stdbool.h>
 #include <stdarg.h>
 #include <sys/time.h> /* For timeval */
+#include <signal.h> /* For sigset_t */
 
 /*
  * Function pointers to provide OS functions.
@@ -272,6 +273,16 @@ struct gensio_os_funcs {
      * an error, the child is likely to be unusable.
      */
     int (*handle_fork)(struct gensio_os_funcs *f);
+
+
+    /****** Waiters ******/
+    /*
+     * Like wait_intr, but allows the user to install their own sigmask
+     * atomically while waiting.
+     */
+    int (*wait_intr_sigmask)(struct gensio_waiter *waiter, unsigned int count,
+			     struct timeval *timeout, sigset_t *sigmask);
+
 };
 
 void gensio_vlog(struct gensio_os_funcs *o, enum gensio_log_levels level,

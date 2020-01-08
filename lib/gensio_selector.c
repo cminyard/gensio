@@ -442,6 +442,17 @@ gensio_sel_wait_intr(struct gensio_waiter *waiter, unsigned int count,
     return gensio_os_err_to_err(waiter->f, err);
 }
 
+static int
+gensio_sel_wait_intr_sigmask(struct gensio_waiter *waiter, unsigned int count,
+			     struct timeval *timeout, sigset_t *sigmask)
+{
+    int err;
+
+    err = wait_for_waiter_timeout_intr_sigmask(waiter->sel_waiter, count,
+					       timeout, sigmask);
+    return gensio_os_err_to_err(waiter->f, err);
+}
+
 static void
 gensio_sel_wake(struct gensio_waiter *waiter)
 {
@@ -595,6 +606,7 @@ gensio_selector_alloc(struct selector_s *sel, int wake_sig)
     o->call_once = gensio_sel_call_once;
     o->get_monotonic_time = gensio_sel_get_monotonic_time;
     o->handle_fork = gensio_handle_fork;
+    o->wait_intr_sigmask = gensio_sel_wait_intr_sigmask;
 
     return o;
 }

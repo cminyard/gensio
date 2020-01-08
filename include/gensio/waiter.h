@@ -40,6 +40,10 @@ int wait_for_waiter_timeout_intr(waiter_t *waiter, unsigned int count,
 
 int wait_for_waiter_intr(waiter_t *waiter, unsigned int count);
 
+int wait_for_waiter_timeout_intr_sigmask(waiter_t *waiter, unsigned int count,
+					 struct timeval *timeout,
+					 sigset_t *sigmask);
+
 void wake_waiter(waiter_t *waiter);
 
 #endif /* WAITER_H */

@@ -30,8 +30,13 @@ struct selector_s;
 
 /* You have to create a selector before you can use it. */
 
-/* Create a selector for use with threads.  You have to pass in the
-   lock functions and a signal used to wake waiting threads. */
+/*
+ * Create a selector for use with threads.  You have to pass in the
+ * lock functions and a signal used to wake waiting threads.
+ *
+ * Note that this function will block wake_sig in the calling thread, and you
+ * must have it blocked on all threads.
+ */
 typedef struct sel_lock_s sel_lock_t;
 int sel_alloc_selector_thread(struct selector_s **new_selector, int wake_sig,
 			      sel_lock_t *(*sel_lock_alloc)(void *cb_data),
@@ -47,7 +52,6 @@ int sel_alloc_selector_nothread(struct selector_s **new_selector);
 
 /* Used to destroy a selector. */
 int sel_free_selector(struct selector_s *new_selector);
-
 
 /* A function to call when select sees something on a file
    descriptor. */
@@ -151,6 +155,17 @@ int sel_select_intr(struct selector_s *sel,
 		    long            thread_id,
 		    void            *cb_data,
 		    struct timeval  *timeout);
+
+/*
+ * Like the above call, but allows the user to install their own sigmask
+ * while waiting.
+ */
+int sel_select_intr_sigmask(struct selector_s *sel,
+			    sel_send_sig_cb send_sig,
+			    long            thread_id,
+			    void            *cb_data,
+			    struct timeval  *timeout,
+			    sigset_t        *sigmask);
 
 /* This is the main loop for the program.  If NULL is passed in to
    send_sig, then the signal sender is not used.  If this encounters

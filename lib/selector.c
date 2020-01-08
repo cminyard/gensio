@@ -158,10 +158,6 @@ typedef struct sel_wait_list_s
     sel_send_sig_cb send_sig;
     void            *send_sig_cb_data;
 
-    /* This is the memory used to hold the timeout for select
-       operation. */
-    volatile struct timeval *timeout;
-
     struct sel_wait_list_s *next, *prev;
 } sel_wait_list_t;
 
@@ -253,8 +249,6 @@ i_wake_sel_thread(struct selector_s *sel)
 
     item = sel->wait_list.next;
     while (item != &sel->wait_list) {
-	item->timeout->tv_sec = 0;
-	item->timeout->tv_usec = 0;
 	if (item->send_sig)
 	    item->send_sig(item->thread_id, item->send_sig_cb_data);
 	item = item->next;
@@ -291,10 +285,9 @@ static void
 add_sel_wait_list(struct selector_s *sel, sel_wait_list_t *item,
 		  sel_send_sig_cb send_sig,
 		  void            *cb_data,
-		  long thread_id, volatile struct timeval *timeout)
+		  long thread_id)
 {
     item->thread_id = thread_id;
-    item->timeout = timeout;
     item->send_sig = send_sig;
     item->send_sig_cb_data = cb_data;
     item->next = sel->wait_list.next;
@@ -956,6 +949,20 @@ handle_selector_call(struct selector_s *sel, int i, volatile fd_set *fdset,
     }
 }
 
+static void
+setup_my_sigmask(sigset_t *sigmask, sigset_t *isigmask)
+{
+    if (isigmask) {
+	*sigmask = *isigmask;
+    } else {
+#ifdef USE_PTHREADS
+	pthread_sigmask(SIG_SETMASK, NULL, sigmask);
+#else
+	sigprocmask(SIG_SETMASK, NULL, sigmask);
+#endif
+    }
+}
+
 /*
  * return == 0  when timeout
  * 	  >  0  when successful
@@ -963,7 +970,8 @@ handle_selector_call(struct selector_s *sel, int i, volatile fd_set *fdset,
  */
 static int
 process_fds(struct selector_s	    *sel,
-	    volatile struct timeval *timeout)
+	    volatile struct timeval *timeout,
+	    sigset_t *isigmask)
 {
     fd_set      tmp_read_set;
     fd_set      tmp_write_set;
@@ -971,6 +979,11 @@ process_fds(struct selector_s	    *sel,
     int i;
     int err;
     int num_fds;
+    sigset_t sigmask;
+    struct timespec ts = { .tv_sec = timeout->tv_sec,
+			   .tv_nsec = timeout->tv_usec * 1000 };
+
+    setup_my_sigmask(&sigmask, isigmask);
 
     sel_fd_lock(sel);
     memcpy(&tmp_read_set, (void *) &sel->read_set, sizeof(tmp_read_set));
@@ -979,11 +992,12 @@ process_fds(struct selector_s	    *sel,
     num_fds = sel->maxfd + 1;
     sel_fd_unlock(sel);
 
-    err = select(num_fds,
-		 &tmp_read_set,
-		 &tmp_write_set,
-		 &tmp_except_set,
-		 (struct timeval *) timeout);
+    sigdelset(&sigmask, sel->wake_sig);
+    err = pselect(num_fds,
+		  &tmp_read_set,
+		  &tmp_write_set,
+		  &tmp_except_set,
+		  &ts, &sigmask);
     if (err <= 0)
 	goto out;
 
@@ -1007,13 +1021,16 @@ out:
 
 #ifdef HAVE_EPOLL_PWAIT
 static int
-process_fds_epoll(struct selector_s *sel, struct timeval *tvtimeout)
+process_fds_epoll(struct selector_s *sel, struct timeval *tvtimeout,
+		  sigset_t *isigmask)
 {
     int rv, fd;
     struct epoll_event event;
     int timeout;
     sigset_t sigmask;
     fd_control_t *fdc;
+
+    setup_my_sigmask(&sigmask, isigmask);
 
     if (tvtimeout->tv_sec > 600)
 	 /* Don't wait over 10 minutes, to work around an old epoll bug
@@ -1024,11 +1041,6 @@ process_fds_epoll(struct selector_s *sel, struct timeval *tvtimeout)
 	timeout = ((tvtimeout->tv_sec * 1000) +
 		   (tvtimeout->tv_usec + 999) / 1000);
 
-#ifdef USE_PTHREADS
-    pthread_sigmask(SIG_SETMASK, NULL, &sigmask);
-#else
-    sigprocmask(SIG_SETMASK, NULL, &sigmask);
-#endif
     sigdelset(&sigmask, sel->wake_sig);
     rv = epoll_pwait(sel->epollfd, &event, 1, timeout, &sigmask);
     if (rv <= 0)
@@ -1101,11 +1113,12 @@ sel_setup_forked_process(struct selector_s *sel)
 #endif
 
 int
-sel_select_intr(struct selector_s *sel,
-		sel_send_sig_cb send_sig,
-		long            thread_id,
-		void            *cb_data,
-		struct timeval  *timeout)
+sel_select_intr_sigmask(struct selector_s *sel,
+			sel_send_sig_cb send_sig,
+			long            thread_id,
+			void            *cb_data,
+			struct timeval  *timeout,
+			sigset_t        *sigmask)
 {
     int             err, old_errno;
     struct timeval  loc_timeout;
@@ -1121,24 +1134,22 @@ sel_select_intr(struct selector_s *sel,
 
     sel_timer_lock(sel);
     count = process_runners(sel);
-    /* If count is non-zero or any timers are processed, timeout is set to 0. */
-    process_timers(sel, &count, (struct timeval *)(&loc_timeout));
+    process_timers(sel, &count, &loc_timeout);
     if (timeout) {
-	if (cmp_timeval((struct timeval *)(&loc_timeout), timeout) >= 0) {
+	if (cmp_timeval(&loc_timeout, timeout) >= 0) {
 	    loc_timeout = *timeout;
 	    user_timeout = 1;
 	}
     }
-    add_sel_wait_list(sel, &wait_entry, send_sig, cb_data, thread_id,
-		      &loc_timeout);
+    add_sel_wait_list(sel, &wait_entry, send_sig, cb_data, thread_id);
     sel_timer_unlock(sel);
 
 #ifdef HAVE_EPOLL_PWAIT
     if (sel->epollfd >= 0)
-	err = process_fds_epoll(sel, &loc_timeout);
+	err = process_fds_epoll(sel, &loc_timeout, sigmask);
     else
 #endif
-	err = process_fds(sel, &loc_timeout);
+	err = process_fds(sel, &loc_timeout, sigmask);
 
     old_errno = errno;
     if (!user_timeout && !err) {
@@ -1168,6 +1179,17 @@ sel_select_intr(struct selector_s *sel,
 }
 
 int
+sel_select_intr(struct selector_s *sel,
+		sel_send_sig_cb send_sig,
+		long            thread_id,
+		void            *cb_data,
+		struct timeval  *timeout)
+{
+    return sel_select_intr_sigmask(sel, send_sig, thread_id, cb_data, timeout,
+				   NULL);
+}
+
+int
 sel_select(struct selector_s *sel,
 	   sel_send_sig_cb send_sig,
 	   long            thread_id,
@@ -1176,7 +1198,8 @@ sel_select(struct selector_s *sel,
 {
     int err;
 
-    err = sel_select_intr(sel, send_sig, thread_id, cb_data, timeout);
+    err = sel_select_intr_sigmask(sel, send_sig, thread_id, cb_data, timeout,
+				  NULL);
     if (err < 0 && errno == EINTR)
 	/*
 	 * If we get an EINTR, we don't want to report a timeout.  Just
@@ -1219,6 +1242,8 @@ sel_alloc_selector_thread(struct selector_s **new_selector, int wake_sig,
 {
     struct selector_s *sel;
     unsigned int i;
+    int rv;
+    sigset_t sigset;
 
     sel = malloc(sizeof(*sel));
     if (!sel)
@@ -1260,28 +1285,23 @@ sel_alloc_selector_thread(struct selector_s **new_selector, int wake_sig,
 	}
     }
 
+    sigemptyset(&sigset);
+    sigaddset(&sigset, wake_sig);
+    rv = sigprocmask(SIG_BLOCK, &sigset, NULL);
+    if (rv == -1) {
+	rv = errno;
+	if (sel->sel_lock_alloc) {
+	    sel->sel_lock_free(sel->fd_lock);
+		sel->sel_lock_free(sel->timer_lock);
+	}
+	free(sel);
+	return rv;
+    }
+
 #ifdef HAVE_EPOLL_PWAIT
     sel->epollfd = epoll_create(32768);
-    if (sel->epollfd == -1) {
+    if (sel->epollfd == -1)
 	syslog(LOG_ERR, "Unable to set up epoll, falling back to select: %m");
-    } else {
-	int rv;
-	sigset_t sigset;
-
-	sigemptyset(&sigset);
-	sigaddset(&sigset, wake_sig);
-	rv = sigprocmask(SIG_BLOCK, &sigset, NULL);
-	if (rv == -1) {
-	    rv = errno;
-	    close(sel->epollfd);
-	    if (sel->sel_lock_alloc) {
-		sel->sel_lock_free(sel->fd_lock);
-		sel->sel_lock_free(sel->timer_lock);
-	    }
-	    free(sel);
-	    return rv;
-	}
-    }
 #endif
 
     *new_selector = sel;
