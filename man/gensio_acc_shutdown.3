@@ -5,6 +5,10 @@ gensio_acc_shutdown, gensio_acc_shutdown_s, gensio_acc_disable, gensio_acc_free
 .SH SYNOPSIS
 .B #include <gensio/gensio.h>
 .TP 20
+.B typedef void (*gensio_acc_done)(struct gensio_accepter *acc,
+.br
+			void *cb_data);
+.TP 20
 .B int gensio_acc_shutdown(struct gensio_accepter *accepter,
 .br
 			gensio_acc_done shutdown_done,
