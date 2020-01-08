@@ -1,6 +1,6 @@
-.TH gensio_open_channel 3 "27 Feb 2019"
+.TH gensio_alloc_channel 3 "27 Feb 2019"
 .SH NAME
-gensio_open_channel, gensio_open_channel_s \- Open a channel on a
+gensio_alloc_channel \- Create a new channel on a
 channel-capable gensio
 .SH SYNOPSIS
 .B #include <gensio/gensio.h>
@@ -11,7 +11,7 @@ channel-capable gensio
 .br
 .B                          struct gensio **new_io);
 .SH "DESCRIPTION"
-.B gensio_open_channel
+.B gensio_alloc_channel
 creates a new channel on a channel-capable gensio.  The exact meaning
 of channel, and the meaning of
 .I args
