@@ -10,71 +10,71 @@ The return values for gensio functions that return errors and the
 reported values in callbacks from the gensio library are all gensio
 errors.  Possible values are:
 .IP
-E_NOERR                 No error
+GE_NOERR                 No error
 .br
-E_NOMEM                 Out of memory
+GE_NOMEM                 Out of memory
 .br
-E_NOTSUP                Operation not supported
+GE_NOTSUP                Operation not supported
 .br
-E_INVAL                 Invalid data to parameter
+GE_INVAL                 Invalid data to parameter
 .br
-E_NOTFOUND              Value or file not found
+GE_NOTFOUND              Value or file not found
 .br
-E_EXISTS                Value already exists
+GE_EXISTS                Value already exists
 .br
-E_OUTOFRANGE            Value out of range
+GE_OUTOFRANGE            Value out of range
 .br
-E_INCONSISTENT          Parameters inconsistent in call
+GE_INCONSISTENT          Parameters inconsistent in call
 .br
-E_NODATA                No data was available for the function
+GE_NODATA                No data was available for the function
 .br
-E_OSERR                 OS error, see logs
+GE_OSERR                 OS error, see logs
 .br
-E_INUSE                 Object was already in use
+GE_INUSE                 Object was already in use
 .br
-E_INPROGRESS            Operation is in progress
+GE_INPROGRESS            Operation is in progress
 .br
-E_NOTREADY              Object was not ready for operation
+GE_NOTREADY              Object was not ready for operation
 .br
-E_TOOBIG                Value was too large for data
+GE_TOOBIG                Value was too large for data
 .br
-E_TIMEDOUT              Operation timed out
+GE_TIMEDOUT              Operation timed out
 .br
-E_RETRY                 Retry operation later
+GE_RETRY                 Retry operation later
 .br
-E_KEYNOTFOUND           Unable to find the given key
+GE_KEYNOTFOUND           Unable to find the given key
 .br
-E_CERTREVOKED           Key was revoked
+GE_CERTREVOKED           Key was revoked
 .br
-E_CERTEXPIRED           Key was expired
+GE_CERTEXPIRED           Key was expired
 .br
-E_KEYINVALID            Key is not valid
+GE_KEYINVALID            Key is not valid
 .br
-E_NOCERT                Certificate not provided
+GE_NOCERT                Certificate not provided
 .br
-E_CERTINVALID           Certificate is not valid
+GE_CERTINVALID           Certificate is not valid
 .br
-E_PROTOERR              Protocol error
+GE_PROTOERR              Protocol error
 .br
-E_COMMERR               Communication error
+GE_COMMERR               Communication error
 .br
-E_IOERR                 Internal I/O error
+GE_IOERR                 Internal I/O error
 .br
-E_REMCLOSE              Remote end closed connection
+GE_REMCLOSE              Remote end closed connection
 .br
-E_HOSTDOWN              Host could not be reached
+GE_HOSTDOWN              Host could not be reached
 .br
-E_CONNREFUSE            Connection refused
+GE_CONNREFUSE            Connection refused
 .br
-E_DATAMISSING           Data was missing
+GE_DATAMISSING           Data was missing
 .br
-E_CERTNOTFOUND          Unable to find given certificate
+GE_CERTNOTFOUND          Unable to find given certificate
 .br
-E_AUTHREJECT            Authentication tokens rejected
+GE_AUTHREJECT            Authentication tokens rejected
 .br
-E_ADDRINUSE             Address already in use
+GE_ADDRINUSE             Address already in use
 .br
-E_INTERRUPTED           Operation was interrupted by a signal
+GE_INTERRUPTED           Operation was interrupted by a signal
 .PP
 .B gensio_err_to_str
 converts an integer error value to the given string.
