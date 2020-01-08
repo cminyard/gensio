@@ -72,7 +72,6 @@ struct stdion_channel {
 
     /* For the client only. */
     bool in_close; /* A close is pending the running running. */
-    bool deferred_close;
     bool closed;
     gensio_done close_done;
     void *close_data;
@@ -128,6 +127,9 @@ struct stdiona_data {
 
     struct stdion_channel io; /* stdin, stdout */
     struct stdion_channel err; /* stderr */
+
+    /* If we are in a final close, this is the channel that did it. */
+    struct stdion_channel *closing_chan;
 
     struct gensio_accepter *acc;
 
@@ -296,15 +298,16 @@ stdion_finish_read(struct stdion_channel *schan, int err)
 }
 
 static void
-check_waitpid(struct gensio_timer *t, void *cb_data)
+check_waitpid(struct stdion_channel *schan)
 {
-    struct stdion_channel *schan = cb_data;
     struct stdiona_data *nadata = schan->nadata;
 
-    if (nadata->opid != -1) {
+    if (nadata->closing_chan)
+	schan = nadata->closing_chan;
+    if (nadata->opid != -1 && !nadata->io.out_handler_set &&
+		!nadata->io.in_handler_set && !nadata->err.out_handler_set) {
 	pid_t rv;
 
-	stdiona_lock(nadata);
 	rv = waitpid(nadata->opid, &nadata->exit_code, WNOHANG);
 	if (rv < 0)
 	    /* FIXME = no real way to report this. */
@@ -313,25 +316,46 @@ check_waitpid(struct gensio_timer *t, void *cb_data)
 	if (rv == 0) {
 	    struct timeval timeout;
 
+	    /* The sub-process has not died, wait a bit and try again. */
+	    stdiona_ref(nadata);
 	    timeout.tv_sec = 0;
 	    timeout.tv_usec = 10000;
-	    nadata->o->start_timer(t, &timeout);
+	    nadata->o->start_timer(nadata->waitpid_timer, &timeout);
+	    nadata->closing_chan = schan;
 	    return;
 	}
 
 	nadata->exit_code_set = true;
 	nadata->opid = -1;
-	stdiona_unlock(nadata);
     }
 
     if (schan->close_done) {
 	gensio_done close_done = schan->close_done;
 	void *close_data = schan->close_data;
 
+	schan->in_close = false;
+	schan->close_done = NULL;
+
 	stdiona_unlock(nadata);
 	close_done(schan->io, close_data);
 	stdiona_lock(nadata);
+
+	if (schan->in_free && schan->io) {
+	    gensio_data_free(schan->io);
+	    schan->io = NULL;
+	}
     }
+}
+
+static void
+check_waitpid_timeout(struct gensio_timer *t, void *cb_data)
+{
+    struct stdion_channel *schan = cb_data;
+    struct stdiona_data *nadata = schan->nadata;
+
+    stdiona_lock(nadata);
+    check_waitpid(schan);
+    stdiona_deref_and_unlock(nadata);
 }
 
 static void
@@ -369,20 +393,6 @@ stdion_deferred_op(struct gensio_runner *runner, void *cbdata)
 
     schan->deferred_op_pending = false;
 
-    if (schan->deferred_close) {
-	schan->in_close = false;
-	schan->deferred_close = false;
-	if (schan->close_done) {
-	    stdiona_unlock(nadata);
-	    schan->close_done(schan->io, schan->close_data);
-	    stdiona_lock(nadata);
-	}
-	if (schan->in_free && schan->io) {
-	    gensio_data_free(schan->io);
-	    schan->io = NULL;
-	}
-    }
-
     stdiona_deref_and_unlock(nadata);
 }
 
@@ -404,22 +414,26 @@ stdio_client_fd_cleared(int fd, void *cbdata)
     struct stdiona_data *nadata = schan->nadata;
 
     stdiona_lock(nadata);
-    if (fd == schan->infd)
+    if (fd == schan->infd) {
 	schan->in_handler_set = false;
-    else
+	schan->infd = -1;
+    } else if (fd == schan->outfd) {
 	schan->out_handler_set = false;
-
-    if (!nadata->io.in_handler_set && !nadata->io.out_handler_set &&
-		!nadata->err.out_handler_set) {
-	close(nadata->io.infd);
-	close(nadata->io.outfd);
-	if (nadata->err.outfd != -1)
-	    close(nadata->err.outfd);
+	schan->outfd = -1;
+    } else {
+	assert(false);
     }
 
-    if (!schan->in_handler_set && !schan->out_handler_set && schan->in_close) {
-	schan->deferred_close = true;
-	stdion_start_deferred_op(schan);
+    close(fd);
+
+    if (schan->in_close && !schan->in_handler_set && !schan->out_handler_set) {
+	if (schan == &nadata->io && !nadata->err.out_handler_set &&
+		nadata->err.outfd != -1) {
+	    /* The stderr channel is not open, so close the fd. */
+	    close(nadata->err.outfd);
+	    nadata->err.outfd = -1;
+	}
+	check_waitpid(schan);
     }
 
     stdiona_deref_and_unlock(nadata);
@@ -984,7 +998,8 @@ stdio_nadata_setup(struct gensio_os_funcs *o, gensiods max_read_size,
     nadata->opid = -1;
     nadata->tracewrite = -1;
 
-    nadata->waitpid_timer = o->alloc_timer(o, check_waitpid, &nadata->io);
+    nadata->waitpid_timer = o->alloc_timer(o, check_waitpid_timeout,
+					   &nadata->io);
     if (!nadata->waitpid_timer)
 	goto out_nomem;
 
@@ -1160,7 +1175,6 @@ stdiona_fd_cleared(int fd, void *cbdata)
 
     if (!schan->in_handler_set && !schan->out_handler_set && schan->in_close) {
 	schan->in_close = false;
-	check_waitpid(nadata->waitpid_timer, schan);
     }
 
     /* Lose the refcount we got when we added the fd handler. */

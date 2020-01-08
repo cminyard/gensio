@@ -527,6 +527,10 @@ restored to those values after opening the pty.  The group list is
 also set to the groups the effective userid is in.  Note that nothing
 is done if the effective and real userids are the same.
 
+If you have both stdin/stdout and stderr opened, you must close both
+of them to completely close the gensio.  You cannot re-open the gensio
+until both are closed.
+
 The connecting gensio support the GENSIO_CONTROL_ENVIRONMENT control
 to allow the environment to be set for the new process.
 
