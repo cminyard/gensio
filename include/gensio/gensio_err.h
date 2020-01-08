@@ -65,6 +65,12 @@
 #define GE_USER_CHAN_ERR_BASE	10000
 #define GE_USER_CHAN_ERR_END	10999
 
+/*
+ * Users can define their own error code, but they must be >= the
+ * following value.  gensio will never return an error in that range.
+ */
+#define GE_USER_ERR_START	1000000
+
 #define gensio_os_err_to_err(o, oserr)					\
     gensio_i_os_err_to_err(o, oserr, __FUNCTION__, __FILE__, __LINE__)
 
