@@ -83,6 +83,8 @@ struct basen_data {
 
     bool xmit_enabled;
     bool tmp_xmit_enabled; /* Make sure the xmit code get called once. */
+    bool in_xmit_ready;
+    bool redo_xmit_ready;
 
     int saved_xmit_err;
 
@@ -1059,6 +1061,18 @@ basen_ll_write_ready(void *cb_data)
     int err;
 
     basen_lock_and_ref(ndata);
+    if (ndata->in_xmit_ready) {
+	/*
+	 * Another thread is already in the loop, we don't allow two
+	 * callbacks at a time.  Just tell the other loop to do it
+	 * again.
+	 */
+	ll_set_write_callback_enable(ndata, false);
+	ndata->redo_xmit_ready = true;
+	goto out;
+    }
+    ndata->in_xmit_ready = true;
+ retry:
     ll_set_write_callback_enable(ndata, false);
     if (filter_ll_write_pending(ndata)) {
 	err = filter_ul_write(ndata, basen_write_data_handler, NULL, NULL, 0,
@@ -1083,7 +1097,16 @@ basen_ll_write_ready(void *cb_data)
 
     ndata->tmp_xmit_enabled = false;
 
+    if (ndata->redo_xmit_ready) {
+	/* Got another xmit ready while we were unlocked. */
+	ndata->redo_xmit_ready = false;
+	if (ndata->xmit_enabled || filter_ll_write_pending(ndata))
+	    goto retry;
+    }
+
     basen_set_ll_enables(ndata);
+    ndata->in_xmit_ready = false;
+ out:
     basen_deref_and_unlock(ndata);
 }
 

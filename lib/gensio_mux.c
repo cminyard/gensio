@@ -745,18 +745,22 @@ mux_send_init(struct mux_data *muxdata)
 static void
 chan_check_send_more(struct mux_inst *chan)
 {
+    if (chan->in_write_ready)
+	/* Another caller is already handling, just let it retry. */
+	return;
+    chan->in_write_ready = true;
+
     /* Need at least 3 bytes to write a message. */
     while (chan->write_data_len + 3 < chan->max_write_size &&
-	   chan->write_ready_enabled && !chan->in_write_ready) {
-	chan->in_write_ready = true;
+	   chan->write_ready_enabled) {
 	chan_ref(chan);
 	mux_unlock(chan->mux);
 	gensio_cb(chan->io, GENSIO_EVENT_WRITE_READY, 0, NULL, NULL, NULL);
 	mux_lock(chan->mux);
 	if (chan_deref(chan))
-	    return;
-	chan->in_write_ready = false;
+	    break;
     }
+    chan->in_write_ready = false;
 }
 
 static bool

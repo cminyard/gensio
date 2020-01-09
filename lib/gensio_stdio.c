@@ -65,6 +65,8 @@ struct stdion_channel {
     bool xmit_enabled;
     bool in_read;
     bool deferred_read;
+    bool in_write_ready;
+    bool write_pending;
 
     bool in_open;
     gensio_done_err open_done;
@@ -519,8 +521,26 @@ static void
 stdion_write_ready(int fd, void *cbdata)
 {
     struct stdion_channel *schan = cbdata;
+    struct stdiona_data *nadata = schan->nadata;
 
+    stdiona_lock(nadata);
+    if (schan->in_write_ready) {
+	schan->write_pending = true;
+	goto out;
+    }
+    schan->in_write_ready = true;
+ retry:
+    stdiona_unlock(nadata);
     gensio_cb(schan->io, GENSIO_EVENT_WRITE_READY, 0, NULL, NULL, NULL);
+    stdiona_lock(nadata);
+    if (schan->write_pending) {
+	schan->write_pending = false;
+	if (schan->xmit_enabled)
+	    goto retry;
+    }
+    schan->in_write_ready = false;
+ out:
+    stdiona_unlock(nadata);
 }
 
 extern char **environ;

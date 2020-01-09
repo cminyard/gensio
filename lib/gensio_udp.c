@@ -64,6 +64,7 @@ struct udpn_data {
     bool write_enabled;	/* Write callbacks are enabled. */
     bool in_read;	/* Currently in a read callback. */
     bool in_write;	/* Currently in a write callback. */
+    bool write_pending; /* Need to redo the write callback. */
     bool in_open_cb;	/* Currently in an open callback. */
     bool in_close_cb;	/* Currently in a close callback. */
 
@@ -729,10 +730,22 @@ udpn_handle_write_incoming(struct udpna_data *nadata, struct udpn_data *ndata)
 {
     struct gensio *io = ndata->io;
 
+    if (ndata->in_write) {
+	/* Only one write callback at a time. */
+	ndata->write_pending = true;
+	return;
+    }
     ndata->in_write = true;
+ retry:
     udpna_unlock(nadata);
     gensio_cb(io, GENSIO_EVENT_WRITE_READY, 0, NULL, NULL, NULL);
     udpna_lock(nadata);
+    if (ndata->write_pending) {
+	/* Another write came in while we were unlocked.  Retry. */
+	ndata->write_pending = false;
+	if (ndata->write_enabled)
+	    goto retry;
+    }
     ndata->in_write = false;
 
     if (ndata->state == UDPN_IN_CLOSE)
