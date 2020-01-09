@@ -168,6 +168,8 @@ sctp_addrinfo_to_sockaddr(struct gensio_os_funcs *o, struct addrinfo *iai,
 	return GE_INVAL;
 
     a = o->zalloc(0, size);
+    if (!a)
+	return GE_NOMEM;
     d = (unsigned char *) a;
     for (ai = iai; ai; ai = ai->ai_next) {
 	memcpy(d, ai->ai_addr, ai->ai_addrlen);
