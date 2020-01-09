@@ -370,12 +370,12 @@ stdion_deferred_op(struct gensio_runner *runner, void *cbdata)
     stdiona_lock(nadata);
  restart:
     if (schan->in_open) {
-	schan->in_open = false;
 	if (schan->open_done) {
 	    stdiona_unlock(nadata);
 	    schan->open_done(io, 0, schan->open_data);
 	    stdiona_lock(nadata);
 	}
+	schan->in_open = false;
 	nadata->o->set_read_handler(nadata->o, schan->outfd,
 				    schan->read_enabled);
 	if (schan->infd != -1)
