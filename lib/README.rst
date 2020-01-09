@@ -59,7 +59,7 @@ The files name sergensio_xxx.c are gensios that provide a serial
 interface class.  The main docs talk about this.
 
 The following gensios use gensio_base.c: certauth, ssl, telnet, tcp,
-unix, sctp, serialdev, pty
+unix, sctp, serialdev, pty, ipmisol
 
 The following do not:
 
@@ -70,10 +70,6 @@ udp
   UDP is just too wierd to fit into anything standard.  UDP is
   kind of weird for a stream interface, anyway, but I needed it for
   ser2net.  Tons of users use it.
-
-ipmisol
-  ipmisol uses the openipmi library, which provides its own socket
-  handling, so it doesn't really fit into gensio_base.c
 
 stdio
   The handling of stderr and having a separate fd for stdin and stdout
