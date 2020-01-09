@@ -277,23 +277,19 @@ net_write(void *handler_data, int fd, gensiods *rcount,
 	  const char *const *auxdata)
 {
     struct net_data *tdata = handler_data;
-    int err = 0;
     int flags = 0;
 
     if (auxdata) {
 	int i;
 
-	for (i = 0; !err && auxdata[i]; i++) {
+	for (i = 0; auxdata[i]; i++) {
 	    if (strcasecmp(auxdata[i], "oob") == 0)
 		flags |= MSG_OOB;
 	    else if (strcasecmp(auxdata[i], "oobtcp") == 0)
 		flags |= MSG_OOB;
 	    else
-		err = EINVAL;
+		return GE_INVAL;
 	}
-
-	if (err)
-	    return err;
     }
 
     return gensio_os_send(tdata->o, fd, sg, sglen, rcount, flags);
@@ -350,33 +346,26 @@ net_gensio_alloc(struct addrinfo *iai, const char * const args[],
 	}
 	if (istcp && gensio_check_keybool(args[i], "nodelay", &nodelay) > 0)
 	    continue;
-	return EINVAL;
+	return GE_INVAL;
     }
 
     for (ai = iai; ai; ai = ai->ai_next) {
 	if (ai->ai_addrlen > sizeof(struct sockaddr_storage)) {
 	    if (lai)
 		gensio_free_addrinfo(o, lai);
-	    return E2BIG;
+	    return GE_TOOBIG;
 	}
     }
 
     tdata = o->zalloc(o, sizeof(*tdata));
-    if (!tdata) {
-	if (lai)
-	    gensio_free_addrinfo(o, lai);
-	return ENOMEM;
-    }
+    if (!tdata)
+	goto out_nomem;
 
     tdata->istcp = istcp;
 
     ai = gensio_dup_addrinfo(o, iai);
-    if (!ai) {
-	if (lai)
-	    gensio_free_addrinfo(o, lai);
-	o->free(o, tdata);
-	return ENOMEM;
-    }
+    if (!ai)
+	goto out_nomem;
 
     tdata->o = o;
     tdata->ai = ai;
@@ -386,27 +375,29 @@ net_gensio_alloc(struct addrinfo *iai, const char * const args[],
 
     tdata->ll = fd_gensio_ll_alloc(o, -1, &net_fd_ll_ops, tdata, max_read_size,
 				   false);
-    if (!tdata->ll) {
-	if (lai)
-	    gensio_free_addrinfo(o, lai);
-	gensio_free_addrinfo(o, ai);
-	o->free(o, tdata);
-	return ENOMEM;
-    }
+    if (!tdata->ll)
+	goto out_nomem;
 
     io = base_gensio_alloc(o, tdata->ll, NULL, NULL, type, cb, user_data);
-    if (!io) {
-	gensio_ll_free(tdata->ll);
-	if (lai)
-	    gensio_free_addrinfo(o, lai);
-	gensio_free_addrinfo(o, ai);
-	o->free(o, tdata);
-	return ENOMEM;
-    }
+    if (!io)
+	goto out_nomem;
+
     gensio_set_is_reliable(io, true);
 
     *new_gensio = io;
     return 0;
+
+ out_nomem:
+    if (lai)
+	gensio_free_addrinfo(o, lai);
+    if (ai)
+	gensio_free_addrinfo(o, ai);
+    if (tdata) {
+	if (tdata->ll)
+	    gensio_ll_free(tdata->ll);
+	o->free(o, tdata);
+    }
+    return GE_NOMEM;
 }
 
 int
@@ -1102,12 +1093,12 @@ net_gensio_accepter_alloc(struct addrinfo *iai,
 	if (!istcp &&
 		gensio_check_keybool(args[i], "delsock", &delsock) > 0)
 	    continue;
-	return EINVAL;
+	return GE_INVAL;
     }
 
     nadata = o->zalloc(o, sizeof(*nadata));
     if (!nadata)
-	return ENOMEM;
+	return GE_NOMEM;
     nadata->o = o;
 
     nadata->ai = gensio_dup_addrinfo(o, iai);
@@ -1136,7 +1127,7 @@ net_gensio_accepter_alloc(struct addrinfo *iai,
 
  out_nomem:
     netna_finish_free(nadata);
-    return ENOMEM;
+    return GE_NOMEM;
 }
 
 int
