@@ -172,7 +172,7 @@ io_open(struct gensio *io, int err, void *open_data)
 
     if (err) {
 	ginfo->can_close = false;
-	fprintf(stderr, "open error on %s: %s", ginfo->ios,
+	fprintf(stderr, "open error on %s: %s\n", ginfo->ios,
 		gensio_err_to_str(err));
 	gshutdown(ioinfo, false);
     } else {
@@ -254,6 +254,7 @@ help(int err)
 	   " initiating a connection\n");
     printf("  -p, --printacc - When the accepter is started, print out all"
 	   " the addresses being listened on.\n");
+    printf("  -v, --verbose - Print all gensio logs\n");
     printf("  --signature <sig> - Set the RFC2217 server signature to <sig>\n");
     printf("  -e, --escchar - Set the local terminal escape character.\n"
 	   "    Set to -1 to disable the escape character\n"
@@ -270,6 +271,7 @@ do_vlog(struct gensio_os_funcs *f, enum gensio_log_levels level,
 	return;
     fprintf(stderr, "gensio %s log: ", gensio_log_level_to_str(level));
     vfprintf(stderr, log, args);
+    fprintf(stderr, "\n");
 }
 
 int
@@ -325,6 +327,8 @@ main(int argc, char *argv[])
 	    io2_do_acc = true;
 	else if ((rv = cmparg(argc, argv, &arg, "-p", "--printacc", NULL)))
 	    io2_acc_print = true;
+	else if ((rv = cmparg(argc, argv, &arg, "-v", "--verbose", NULL)))
+	    gensio_set_log_mask(GENSIO_LOG_MASK_ALL);
 	else if ((rv = cmparg_int(argc, argv, &arg, "-e", "--escchar",
 				  &escape_char)))
 	    esc_set = true;
