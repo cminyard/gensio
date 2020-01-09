@@ -2109,6 +2109,7 @@ struct gensio_def_entry builtin_defaults[] = {
     { "ostreams",	GENSIO_DEFAULT_INT,	.min = 1, .max = INT_MAX,
 						.def.intval = 1 },
     /* serialdev */
+    { "xonxoff",	GENSIO_DEFAULT_BOOL,	.def.intval = 0 },
     { "rtscts",		GENSIO_DEFAULT_BOOL,	.def.intval = 0 },
     { "local",		GENSIO_DEFAULT_BOOL,	.def.intval = 0 },
     { "hangup_when_done", GENSIO_DEFAULT_BOOL,	.def.intval = 0 },
@@ -2128,7 +2129,7 @@ struct gensio_def_entry builtin_defaults[] = {
     { "shared-serial-alert", GENSIO_DEFAULT_ENUM,
 				.enums = shared_serial_alert_enums,
 				.def.intval = ipmi_sol_serial_alerts_fail },
-    { "deassert_CTS_DCD_DSR_on_connect", GENSIO_DEFAULT_BOOL, .def.intval = 0 },
+    { "deassert-CTS-DCD-DSR-on-connect", GENSIO_DEFAULT_BOOL, .def.intval = 0 },
 #endif
     /* For client/server protocols. */
     { "mode",		GENSIO_DEFAULT_STR,	.def.strval = NULL },
