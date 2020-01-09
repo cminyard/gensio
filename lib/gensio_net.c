@@ -699,6 +699,7 @@ netna_fd_cleared(int fd, void *cbdata)
     close(fd);
 
     netna_lock(nadata);
+    assert(nadata->nr_accept_close_waiting > 0);
     num_left = --nadata->nr_accept_close_waiting;
     if (num_left == 0) {
 	nadata->in_shutdown = false;
