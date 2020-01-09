@@ -755,7 +755,8 @@ const char *gensio_errs[] = {
     /*  30 */    "Unable to find given certificate",
     /*  31 */    "Authentication tokens rejected",
     /*  32 */    "Address already in use",
-    /*  33 */    "Operation was interrupted by a signal"
+    /*  33 */    "Operation was interrupted by a signal",
+    /*  34 */    "Operation on shutdown fd"
 };
 const unsigned int errno_len = sizeof(gensio_errs) / sizeof(char *);
 
@@ -793,6 +794,7 @@ gensio_i_os_err_to_err(struct gensio_os_funcs *o,
     case EIO:		err = GE_IOERR; break;
     case EADDRINUSE:	err = GE_ADDRINUSE; break;
     case EINTR:		err = GE_INTERRUPTED; break;
+    case ESHUTDOWN:     err = GE_SHUTDOWN; break;
     default:		err = GE_OSERR;
     }
 

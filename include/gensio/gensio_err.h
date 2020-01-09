@@ -55,6 +55,7 @@
 #define GE_AUTHREJECT		31
 #define GE_ADDRINUSE		32
 #define GE_INTERRUPTED		33
+#define GE_SHUTDOWN		34
 
 /*
  * Gensio mux has the ability to return an arbitrary error from the
