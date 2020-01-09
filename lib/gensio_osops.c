@@ -553,6 +553,7 @@ gensio_open_socket(struct gensio_os_funcs *o,
     if (rv == GE_ADDRINUSE && scaninfo.start != 0 &&
 		scaninfo.curr != scaninfo.start) {
 	/* We need to keep scanning. */
+	curr_fd = 0;
 	scaninfo.reqport = 0;
 	family = AF_INET6;
 	goto restart;
@@ -641,8 +642,6 @@ gensio_setup_listen_socket(struct gensio_os_funcs *o, bool do_listen,
 	    si->start %= IP_DYNRANGE_END - IP_DYNRANGE_START + 1;
 	    si->start += IP_DYNRANGE_START;
 	    si->curr = si->start;
-	} else {
-	    si->curr = gensio_dyn_scan_next(si->curr);
 	}
 
 	do {
@@ -662,8 +661,11 @@ gensio_setup_listen_socket(struct gensio_os_funcs *o, bool do_listen,
 	rv = GE_ADDRINUSE;
 	goto out;
     } else {
-	if (bind(fd, addr, addrlen) != 0)
+	if (bind(fd, addr, addrlen) != 0) {
+	    if (rsi)
+		rsi->curr = gensio_dyn_scan_next(rsi->curr);
 	    goto out_err;
+	}
     }
  got_it:
     if (family == AF_INET || family == AF_INET6) {
