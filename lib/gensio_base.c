@@ -1199,9 +1199,7 @@ gensio_i_alloc(struct gensio_os_funcs *o,
     if (!ndata->deferred_op_runner)
 	goto out_nomem;
 
-    ndata->ll = ll;
     ll->ndata = ndata;
-    ndata->filter = filter;
     if (filter) {
 	filter->ndata = ndata;
 	gensio_filter_set_callback(filter, gensio_base_filter_cb, ndata);
@@ -1213,11 +1211,22 @@ gensio_i_alloc(struct gensio_os_funcs *o,
     ndata->child = child;
     gensio_set_is_client(ndata->io, is_client);
     gensio_ll_set_callback(ll, gensio_ll_base_cb, ndata);
-    if (is_client)
+
+    /*
+     * Save this until we succeed, otherwise basen_finish_free will
+     * free them, but we don't want them freed if we fail.
+     */
+    ndata->ll = ll;
+    ndata->filter = filter;
+
+    if (is_client) {
 	basen_set_state(ndata, BASEN_CLOSED);
-    else {
-	if (filter_setup(ndata))
+    } else {
+	if (filter_setup(ndata)) {
+	    ndata->filter = NULL;
+	    ndata->ll = NULL;
 	    goto out_nomem;
+	}
 
 	ndata->open_done = open_done;
 	ndata->open_data = open_data;
