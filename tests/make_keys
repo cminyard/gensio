@@ -6,7 +6,7 @@ cd ca
 
 # NOTE: CN for CA certificate and other certificates must be different.
 
-openssl req -newkey rsa:2048 -nodes -x509 -keyout CA.key \
+openssl req -newkey rsa:2048 -nodes -x509 -days 10000 -keyout CA.key \
 	-subj "/C=US/ST=Texas/O=ser2net/OU=test/CN=ser2net.admin/emailAddress=ser2net@ser2net.org" \
 	-out CA.pem
 
@@ -19,6 +19,6 @@ openssl x509 -req -in key.csr -CA CA.pem -CAkey CA.key -CAcreateserial -out cert
 
 # Self-signed certificate for the client
 
-openssl req -newkey rsa:2048 -nodes -x509 -keyout clientkey.pem \
+openssl req -newkey rsa:2048 -nodes -x509 -days 10000 -keyout clientkey.pem \
 	-subj "/C=US/ST=Texas/O=ser2net/OU=test/CN=gensio.org/emailAddress=ser2net@ser2net.org" \
 	-out clientcert.pem
