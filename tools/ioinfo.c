@@ -177,9 +177,12 @@ io_event(struct gensio *io, void *user_data, int event, int err,
     static const char *oobaux[2] = { "oob", NULL };
 
     if (err) {
-	if (err != GE_REMCLOSE) 
+	if (err != GE_REMCLOSE) {
 	    ioinfo_err(ioinfo, "read error: %s", gensio_err_to_str(err));
-	ioinfo->uh->shutdown(ioinfo, false);
+	    ioinfo->uh->shutdown(ioinfo, false);
+	} else {
+	    ioinfo->uh->shutdown(ioinfo, true);
+	}
 	return 0;
     }
 

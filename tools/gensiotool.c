@@ -125,6 +125,7 @@ struct gdata {
     struct gensio *io;
     const char *ios;
     bool can_close;
+    int err;
 };
 
 static void
@@ -132,6 +133,8 @@ gshutdown(struct ioinfo *ioinfo, bool user_req)
 {
     struct gdata *ginfo = ioinfo_userdata(ioinfo);
 
+    if (!user_req)
+	ginfo->err = 1;
     ginfo->o->wake(ginfo->waiter);
 }
 
@@ -288,6 +291,19 @@ main(int argc, char *argv[])
     struct ioinfo *ioinfo1, *ioinfo2;
     struct gdata userdata1, userdata2;
     char *filename;
+    sigset_t sigs;
+
+    /*
+     * Make sure that SIGPIPE doesn't kill is if the user is doing
+     * something involving a pipe.
+     */
+    sigemptyset(&sigs);
+    sigaddset(&sigs, SIGPIPE);
+    rv = sigprocmask(SIG_BLOCK, &sigs, NULL);
+    if (rv) {
+	perror("Could not set up signal mask");
+	exit(1);
+    }
 
     progname = argv[0];
 
@@ -522,7 +538,12 @@ main(int argc, char *argv[])
     free_ser_ioinfo(subdata1);
     free_ser_ioinfo(subdata2);
 
-    gensio_sel_exit(0);
+    if (!rv && userdata1.err)
+	rv = userdata1.err;
+    if (!rv && userdata2.err)
+	rv = userdata2.err;
+
+    gensio_sel_exit(!!rv);
 
  out_err:
     gensio_sel_exit(1);
