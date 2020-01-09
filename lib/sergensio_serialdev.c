@@ -1620,7 +1620,7 @@ sergensio_process_parms(struct sterm_data *sdata)
     return err;
 }
 
-static void
+static int
 sergensio_setup_defaults(struct gensio_os_funcs *o, struct sterm_data *sdata)
 {
     int val, err;
@@ -1631,7 +1631,12 @@ sergensio_setup_defaults(struct gensio_os_funcs *o, struct sterm_data *sdata)
 
     err = gensio_get_default(o, "serialdev", "speed", false,
 			     GENSIO_DEFAULT_STR, &str, NULL);
-    if (!err && str) {
+    if (err) {
+	gensio_log(o, GENSIO_LOG_ERR, "Failed getting default serialdev speed:"
+		   " %s\n", gensio_err_to_str(err));
+	return err;
+    }
+    if (str) {
 	if (handle_speedstr(termctl, str, sdata->allow_custspeed)) {
 	    gensio_log(o, GENSIO_LOG_ERR,
 		       "Default speed settings (%s) are invalid,"
@@ -1642,9 +1647,6 @@ sergensio_setup_defaults(struct gensio_os_funcs *o, struct sterm_data *sdata)
 	    termctl->c_cflag &= ~(CSTOPB); /* 1 stopbit */
 	}
 	o->free(o, str);
-    } else if (err) {
-	gensio_log(o, GENSIO_LOG_ERR, "Failed getting default serialdev speed,"
-		   " ignoring: %s\n", gensio_err_to_str(err));
     }
 
     sdata->default_termios.c_cflag |= CREAD;
@@ -1653,39 +1655,51 @@ sergensio_setup_defaults(struct gensio_os_funcs *o, struct sterm_data *sdata)
     sdata->default_termios.c_iflag |= IGNBRK;
 
     val = 0;
-    gensio_get_default(o, "serialdev", "xonxoff", false,
-		       GENSIO_DEFAULT_BOOL, NULL, &val);
+    err = gensio_get_default(o, "serialdev", "xonxoff", false,
+			     GENSIO_DEFAULT_BOOL, NULL, &val);
+    if (err)
+	return err;
     set_termios_xonxoff(termctl, val);
 
     val = 0;
-    gensio_get_default(o, "serialdev", "rtscts", false,
-		       GENSIO_DEFAULT_BOOL, NULL, &val);
+    err = gensio_get_default(o, "serialdev", "rtscts", false,
+			     GENSIO_DEFAULT_BOOL, NULL, &val);
+    if (err)
+	return err;
     set_termios_rtscts(termctl, val);
 
     val = 0;
-    gensio_get_default(o, "serialdev", "local", false,
-		       GENSIO_DEFAULT_BOOL, NULL, &val);
+    err = gensio_get_default(o, "serialdev", "local", false,
+			     GENSIO_DEFAULT_BOOL, NULL, &val);
+    if (err)
+	return err;
     if (val)
 	termctl->c_cflag |= CLOCAL;
 
     val = 0;
-    gensio_get_default(o, "serialdev", "hangup_when_done", false,
-		       GENSIO_DEFAULT_BOOL, NULL, &val);
+    err = gensio_get_default(o, "serialdev", "hangup_when_done", false,
+			     GENSIO_DEFAULT_BOOL, NULL, &val);
+    if (err)
+	return err;
     if (val)
 	termctl->c_cflag |= HUPCL;
 
     err = gensio_get_default(o, "serialdev", "rs485", false, GENSIO_DEFAULT_STR,
 			     &str, NULL);
-    if (!err && str) {
+    if (err) {
+	gensio_log(o, GENSIO_LOG_ERR, "Failed getting default serialdev rs485:"
+		   " %s\n", gensio_err_to_str(err));
+	return err;
+    }
+    if (str) {
 	if (process_rs485(sdata, str))
 	    gensio_log(o, GENSIO_LOG_ERR,
 		       "Default rs485 settings (%s) are invalid, ignoring",
 		       str);
 	o->free(0, str);
-    } else if (err) {
-	gensio_log(o, GENSIO_LOG_ERR, "Failed getting default serialdev rs485,"
-		   " ignoring: %s\n", gensio_err_to_str(err));
     }
+
+    return 0;
 }
 
 int
@@ -1707,8 +1721,10 @@ serialdev_gensio_alloc(const char *devname, const char * const args[],
 	return GE_NOMEM;
 
     i = 0;
-    gensio_get_default(o, "serialdev", "custspeed", false,
-		       GENSIO_DEFAULT_BOOL, NULL, &i);
+    err = gensio_get_default(o, "serialdev", "custspeed", false,
+			     GENSIO_DEFAULT_BOOL, NULL, &i);
+    if (err)
+	return err;
     sdata->allow_custspeed = i;
 
     for (i = 0; args && args[i]; i++) {
@@ -1757,7 +1773,9 @@ serialdev_gensio_alloc(const char *devname, const char * const args[],
 	sdata->no_uucp_lock = strcmp(slash, "tty") == 0;
     }
 
-    sergensio_setup_defaults(o, sdata);
+    err = sergensio_setup_defaults(o, sdata);
+    if (err)
+	goto out_err;
 
     if (comma) {
 	sdata->parms = comma;

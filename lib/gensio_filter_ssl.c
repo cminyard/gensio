@@ -1019,18 +1019,25 @@ gensio_ssl_filter_config(struct gensio_os_funcs *o,
     data->max_write_size = SSL3_RT_MAX_PLAIN_LENGTH;
     data->max_read_size = SSL3_RT_MAX_PLAIN_LENGTH;
 
-    rv = gensio_get_default(o, "ssl", "allow_authfail", false,
+    rv = gensio_get_default(o, "ssl", "allow-authfail", false,
 			    GENSIO_DEFAULT_BOOL, NULL, &ival);
-    if (!rv)
-	data->allow_authfail = ival;
+    if (rv)
+	return rv;
+    data->allow_authfail = ival;
     rv = gensio_get_default(o, "ssl", "clientauth", false,
 			    GENSIO_DEFAULT_BOOL, NULL, &ival);
-    if (!rv)
-	data->clientauth = ival;
+    if (rv)
+	return rv;
+    data->clientauth = ival;
 
     rv = gensio_get_default(o, "ssl", "mode", false,
 			    GENSIO_DEFAULT_STR, &str, NULL);
-    if (!rv && str) {
+    if (rv) {
+	gensio_log(o, GENSIO_LOG_ERR,
+		   "Failed getting ssl mode: %s", gensio_err_to_str(rv));
+	return rv;
+    }
+    if (str) {
 	if (strcasecmp(str, "client") == 0)
 	    data->is_client = true;
 	else if (strcasecmp(str, "server") == 0)
@@ -1040,10 +1047,6 @@ gensio_ssl_filter_config(struct gensio_os_funcs *o,
 		       "Unknown default ssl mode (%s), ignoring", str);
 	}
 	o->free(o, str);
-    } else if (rv) {
-	gensio_log(o, GENSIO_LOG_ERR,
-		   "Failed getting ssl mode, ignoring: %s",
-		   gensio_err_to_str(rv));
     }
 
     rv = GE_NOMEM;
@@ -1084,16 +1087,22 @@ gensio_ssl_filter_config(struct gensio_os_funcs *o,
     }
 
     if (!data->keyfile) {
-	gensio_get_default(o, "ssl", "key", false, GENSIO_DEFAULT_STR,
-			   &data->keyfile, NULL);
+	rv = gensio_get_default(o, "ssl", "key", false, GENSIO_DEFAULT_STR,
+				&data->keyfile, NULL);
+	if (rv)
+	    goto out_err;
     }
     if (!data->certfile) {
-	gensio_get_default(o, "ssl", "cert", false, GENSIO_DEFAULT_STR,
-			   &data->certfile, NULL);
+	rv = gensio_get_default(o, "ssl", "cert", false, GENSIO_DEFAULT_STR,
+				&data->certfile, NULL);
+	if (rv)
+	    goto out_err;
     }
     if (!data->CAfilepath) {
-	gensio_get_default(o, "ssl", "CA", false, GENSIO_DEFAULT_STR,
-			   &data->CAfilepath, NULL);
+	rv = gensio_get_default(o, "ssl", "CA", false, GENSIO_DEFAULT_STR,
+				&data->CAfilepath, NULL);
+	if (rv)
+	    goto out_err;
     }
 
     if (!data->is_client) {

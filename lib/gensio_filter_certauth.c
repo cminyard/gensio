@@ -1916,22 +1916,31 @@ gensio_certauth_filter_config(struct gensio_os_funcs *o,
 
     rv = gensio_get_default(o, "certauth", "allow-authfail", false,
 			    GENSIO_DEFAULT_BOOL, NULL, &ival);
-    if (!rv)
-	data->allow_authfail = ival;
+    if (rv)
+	return rv;
+    data->allow_authfail = ival;
 
     rv = gensio_get_default(o, "certauth", "use-child-auth", false,
 			    GENSIO_DEFAULT_BOOL, NULL, &ival);
-    if (!rv)
-	data->use_child_auth = ival;
+    if (rv)
+	return rv;
+    data->use_child_auth = ival;
 
     rv = gensio_get_default(o, "certauth", "enable-password", false,
 			    GENSIO_DEFAULT_BOOL, NULL, &ival);
-    if (!rv)
-	data->enable_password = ival;
+    if (rv)
+	return rv;
+    data->enable_password = ival;
 
     rv = gensio_get_default(o, "certauth", "mode", false,
 			    GENSIO_DEFAULT_STR, &fstr, NULL);
-    if (!rv && fstr) {
+    if (rv) {
+	gensio_log(o, GENSIO_LOG_ERR,
+		   "Failed getting certauth mode: %s",
+		   gensio_err_to_str(rv));
+	return rv;
+    }
+    if (fstr) {
 	if (strcasecmp(fstr, "client") == 0)
 	    data->is_client = true;
 	else if (strcasecmp(fstr, "server") == 0)
@@ -1941,10 +1950,6 @@ gensio_certauth_filter_config(struct gensio_os_funcs *o,
 		       "Unknown default certauth mode (%s), ignoring", str);
 	}
 	o->free(o, fstr);
-    } else if (rv) {
-	gensio_log(o, GENSIO_LOG_ERR,
-		   "Failed getting certauth mode, ignoring: %s",
-		   gensio_err_to_str(rv));
     }
 
     rv = GE_NOMEM;
@@ -2009,8 +2014,9 @@ gensio_certauth_filter_config(struct gensio_os_funcs *o,
 				&data->keyfile, NULL);
 	if (rv) {
 	    gensio_log(o, GENSIO_LOG_ERR,
-		       "Unable to get default key for certauth, ignoring: %s",
+		       "Unable to get default key for certauth: %s",
 		       gensio_err_to_str(rv));
+	    goto out_err;
 	}
     }
     if (!data->certfile) {
@@ -2018,8 +2024,9 @@ gensio_certauth_filter_config(struct gensio_os_funcs *o,
 				GENSIO_DEFAULT_STR, &data->certfile, NULL);
 	if (rv) {
 	    gensio_log(o, GENSIO_LOG_ERR,
-		       "Unable to get default cert for certauth, ignoring: %s",
+		       "Unable to get default cert for certauth: %s",
 		       gensio_err_to_str(rv));
+	    goto out_err;
 	}
     }
     if (!data->CAfilepath) {
@@ -2027,8 +2034,9 @@ gensio_certauth_filter_config(struct gensio_os_funcs *o,
 				&data->CAfilepath, NULL);
 	if (rv) {
 	    gensio_log(o, GENSIO_LOG_ERR,
-		       "Unable to get default CA for certauth, ignoring: %s",
+		       "Unable to get default CA for certauth: %s",
 		       gensio_err_to_str(rv));
+	    goto out_err;
 	}
     }
     if (!data->username) {
@@ -2036,8 +2044,9 @@ gensio_certauth_filter_config(struct gensio_os_funcs *o,
 				GENSIO_DEFAULT_STR, &data->username, NULL);
 	if (rv) {
 	    gensio_log(o, GENSIO_LOG_ERR,
-		       "Unable to get default username for certauth,"
-		       " ignoring: %s", gensio_err_to_str(rv));
+		       "Unable to get default username for certauth: %s",
+		       gensio_err_to_str(rv));
+	    goto out_err;
 	}
     }
     if (!data->password) {
@@ -2045,8 +2054,9 @@ gensio_certauth_filter_config(struct gensio_os_funcs *o,
 				GENSIO_DEFAULT_STR, &data->password, NULL);
 	if (rv) {
 	    gensio_log(o, GENSIO_LOG_ERR,
-		       "Unable to get default password for certauth,"
-		       " ignoring: %s", gensio_err_to_str(rv));
+		       "Unable to get default password for certauth: %s",
+		       gensio_err_to_str(rv));
+	    goto out_err;
 	}
     }
     if (!data->service) {
@@ -2054,8 +2064,9 @@ gensio_certauth_filter_config(struct gensio_os_funcs *o,
 			   &data->service, NULL);
 	if (rv) {
 	    gensio_log(o, GENSIO_LOG_ERR,
-		       "Unable to get default service for certauth,"
-		       " ignoring: %s", gensio_err_to_str(rv));
+		       "Unable to get default service for certauth: %s",
+		       gensio_err_to_str(rv));
+	    goto out_err;
 	}
     }
 

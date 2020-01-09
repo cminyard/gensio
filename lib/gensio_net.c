@@ -324,15 +324,18 @@ net_gensio_alloc(struct addrinfo *iai, const char * const args[],
     bool istcp = strcmp(type, "tcp") == 0;
 
     err = gensio_get_default(o, type, "nodelay", false,
-			    GENSIO_DEFAULT_BOOL, NULL, &ival);
-    if (!err)
-	nodelay = ival;
+			     GENSIO_DEFAULT_BOOL, NULL, &ival);
+    if (err)
+	return err;
+    nodelay = ival;
 
     err = gensio_get_defaultaddr(o, type, "laddr", false,
 				 IPPROTO_TCP, true, false, &lai);
-    if (err != GE_NOTSUP)
-	gensio_log(o, GENSIO_LOG_ERR, "Invalid default %d laddr, ignoring: %s",
+    if (err && err != GE_NOTSUP) {
+	gensio_log(o, GENSIO_LOG_ERR, "Invalid default %d laddr: %s",
 		   type, gensio_err_to_str(err));
+	return err;
+    }
 
     for (i = 0; args && args[i]; i++) {
 	if (gensio_check_keyds(args[i], "readbuf", &max_read_size) > 0)
@@ -1082,8 +1085,9 @@ net_gensio_accepter_alloc(struct addrinfo *iai,
 
     err = gensio_get_default(o, type, "delsock", false,
 			    GENSIO_DEFAULT_BOOL, NULL, &ival);
-    if (!err)
-	delsock = ival;
+    if (err)
+	return err;
+    delsock = ival;
 
     for (i = 0; args && args[i]; i++) {
 	if (gensio_check_keyds(args[i], "readbuf", &max_read_size) > 0)

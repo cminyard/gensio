@@ -484,25 +484,29 @@ sctp_gensio_alloc(struct addrinfo *iai, const char * const args[],
 
     err = gensio_get_default(o, "sctp", "nodelay", false,
 			    GENSIO_DEFAULT_BOOL, NULL, &ival);
-    if (!err)
-	nodelay = ival;
+    if (err)
+	return err;
+    nodelay = ival;
 
     err = gensio_get_default(o, "sctp", "instreams", false,
 			     GENSIO_DEFAULT_INT, NULL, &ival);
-    if (!err)
-	instreams = ival;
+    if (err)
+	return err;
+    instreams = ival;
 
     err = gensio_get_default(o, "sctp", "ostreams", false,
 			     GENSIO_DEFAULT_INT, NULL, &ival);
-    if (!err)
-	ostreams = ival;
+    if (err)
+	return err;
+    ostreams = ival;
 
     err = gensio_get_defaultaddr(o, "sctp", "laddr", false,
 				 IPPROTO_SCTP, true, false, &lai);
-    if (err != GE_NOTSUP)
-	gensio_log(o, GENSIO_LOG_ERR, "Invalid default sctp laddr,"
-		   " ignoring: %s", gensio_err_to_str(err));
-
+    if (err && err != GE_NOTSUP) {
+	gensio_log(o, GENSIO_LOG_ERR, "Invalid default sctp laddr: %s",
+		   gensio_err_to_str(err));
+	return err;
+    }
 
     for (i = 0; args && args[i]; i++) {
 	if (gensio_check_keyds(args[i], "readbuf", &max_read_size) > 0)

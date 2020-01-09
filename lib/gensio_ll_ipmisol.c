@@ -1354,7 +1354,12 @@ sol_get_defaults(struct sol_ll *solll)
 
     err = gensio_get_default(o, "sol", "speed", false,
 			     GENSIO_DEFAULT_STR, &speed, NULL);
-    if (!err && speed) {
+    if (err) {
+	gensio_log(o, GENSIO_LOG_ERR, "Failed getting default sol speed: %s\n",
+		   gensio_err_to_str(err));
+	return err;
+    }
+    if (speed) {
 	if (strncmp(speed, "9600", 4) == 0)
 	    solll->speed = IPMI_SOL_BIT_RATE_9600;
 	else if (strncmp(speed, "19200", 5) == 0)
@@ -1373,32 +1378,43 @@ sol_get_defaults(struct sol_ll *solll)
 	    solll->speed = IPMI_SOL_BIT_RATE_9600;
 	}
 	o->free(o, speed);
-    } else if (err) {
-	gensio_log(o, GENSIO_LOG_ERR, "Failed getting default sol speed,"
-		   " ignoring: %s\n", gensio_err_to_str(err));
     }
 
     /* Enable authentication and encryption by default. */
-    gensio_get_default(o, "sol", "authenticated", false,
-		       GENSIO_DEFAULT_BOOL, NULL, &ival);
+    err = gensio_get_default(o, "sol", "authenticated", false,
+			     GENSIO_DEFAULT_BOOL, NULL, &ival);
+    if (err)
+	return err;
     solll->authenticated = ival;
-    gensio_get_default(o, "sol", "encrypted", false,
-		       GENSIO_DEFAULT_BOOL, NULL, &ival);
+    err = gensio_get_default(o, "sol", "encrypted", false,
+			     GENSIO_DEFAULT_BOOL, NULL, &ival);
+    if (err)
+	return err;
     solll->encrypted = ival;
-    gensio_get_default(o, "sol", "nobreak", false,
-		       GENSIO_DEFAULT_BOOL, NULL, &ival);
+    err = gensio_get_default(o, "sol", "nobreak", false,
+			     GENSIO_DEFAULT_BOOL, NULL, &ival);
+    if (err)
+	return err;
     ival = solll->disablebreak;
-    gensio_get_default(o, "sol", "ack-timeout", false,
-		       GENSIO_DEFAULT_INT, NULL, &ival);
+    err = gensio_get_default(o, "sol", "ack-timeout", false,
+			     GENSIO_DEFAULT_INT, NULL, &ival);
+    if (err)
+	return err;
     solll->ack_timeout = ival;
-    gensio_get_default(o, "sol", "ack-retries", false,
-		       GENSIO_DEFAULT_INT, NULL, &ival);
+    err = gensio_get_default(o, "sol", "ack-retries", false,
+			     GENSIO_DEFAULT_INT, NULL, &ival);
+    if (err)
+	return err;
     solll->ack_retries = ival;
-    gensio_get_default(o, "sol", "shared-serial-alert", false,
-		       GENSIO_DEFAULT_INT, NULL, &ival);
+    err = gensio_get_default(o, "sol", "shared-serial-alert", false,
+			     GENSIO_DEFAULT_INT, NULL, &ival);
+    if (err)
+	return err;
     ival = solll->shared_serial_alert_behavior;
-    gensio_get_default(o, "sol", "deassert-CTS-DCD-DSR-on-connect", false,
-		       GENSIO_DEFAULT_BOOL, NULL, &ival);
+    err = gensio_get_default(o, "sol", "deassert-CTS-DCD-DSR-on-connect", false,
+			     GENSIO_DEFAULT_BOOL, NULL, &ival);
+    if (err)
+	return err;
     solll->deassert_CTS_DCD_DSR_on_connect = ival;
 
     return 0;

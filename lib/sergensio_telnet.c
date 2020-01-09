@@ -928,8 +928,9 @@ stel_setup(const char * const args[], bool default_is_client,
 
     rv = gensio_get_default(o, "telnet", "rfc2217", false,
 			    GENSIO_DEFAULT_BOOL, NULL, &ival);
-    if (!rv)
-	allow_2217 = ival;
+    if (rv)
+	return rv;
+    allow_2217 = ival;
 
     for (i = 0; args && args[i]; i++) {
 	if (gensio_check_keybool(args[i], "rfc2217", &allow_2217) > 0)
@@ -1213,8 +1214,9 @@ telnet_gensio_accepter_alloc(struct gensio_accepter *child,
 
     rv = gensio_get_default(o, "telnet", "rfc2217", false,
 			    GENSIO_DEFAULT_BOOL, NULL, &ival);
-    if (!rv)
-	allow_2217 = ival;
+    if (rv)
+	return rv;
+    allow_2217 = ival;
 
     for (i = 0; args && args[i]; i++) {
 	if (gensio_check_keybool(args[i], "rfc2217", &allow_2217) > 0)
