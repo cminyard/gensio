@@ -298,7 +298,7 @@ gensio_acc_base_func(struct gensio_accepter *acc, int func, int val,
 	return basena_str_to_gensio(acc, addr, done, data, ret);
 
     case GENSIO_ACC_FUNC_CONTROL:
-	return basena_control(acc, val, *((unsigned int *) addr), data, ret);
+	return basena_control(acc, val, *((unsigned int *) done), data, ret);
 
     case GENSIO_ACC_FUNC_DISABLE:
 	return basena_disable(acc);
