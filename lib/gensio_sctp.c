@@ -77,12 +77,12 @@ sctp_setup(struct sctp_data *tdata)
 
     tdata->strind = o->zalloc(o, sizeof(char *) * tdata->instreams);
     if (!tdata->strind)
-	return GE_NOMEM;
+	return ENOMEM;
 
     for (i = 1; i < tdata->instreams; i++) {
 	tdata->strind[i] = o->zalloc(o, 17);
 	if (!tdata->strind[i])
-	    return GE_NOMEM;
+	    return ENOMEM;
 	snprintf(tdata->strind[i], 17, "stream=%d", i);
     }
 
@@ -100,12 +100,14 @@ static int sctp_check_open(void *handler_data, int fd)
 	return gensio_os_err_to_err(tdata->o, errno);
 
     if (optval == 0)
-	optval = sctp_setup(tdata);
+	err = sctp_setup(tdata);
+    else
+	err = optval;
 
-    if (optval)
-	optval = gensio_os_err_to_err(tdata->o, optval);
+    if (err)
+	err = gensio_os_err_to_err(tdata->o, err);
 
-    return optval;
+    return err;
 }
 
 static int
@@ -732,7 +734,7 @@ sctpna_server_open_done(struct gensio *io, int err, void *open_data)
     if (err) {
 	gensio_free(io);
 	gensio_acc_log(nadata->acc, GENSIO_LOG_ERR,
-		       "Error setting up TCP server gensio: %s",
+		       "Error setting up SCTP server gensio: %s",
 		       gensio_err_to_str(err));
     } else {
 	gensio_acc_cb(nadata->acc, GENSIO_ACC_EVENT_NEW_CONNECTION, io);
