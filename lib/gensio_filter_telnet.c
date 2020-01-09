@@ -655,7 +655,7 @@ gensio_telnet_filter_raw_alloc(struct gensio_os_funcs *o,
 	goto out_nomem;
 
     tfilter->write_data = o->zalloc(o, max_write_size);
-    if (!tfilter->read_data)
+    if (!tfilter->write_data)
 	goto out_nomem;
 
     *rops = &telnet_filter_rops;

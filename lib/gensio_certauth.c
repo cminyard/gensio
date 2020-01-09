@@ -69,6 +69,7 @@ certauth_gensio_alloc(struct gensio *child, const char *const args[],
     if (err)
 	return err;
 
+    gensio_ref(child); /* So gensio_ll_free doesn't free the child if fail */
     ll = gensio_gensio_ll_alloc(o, child);
     if (!ll) {
 	gensio_filter_free(filter);
@@ -86,6 +87,7 @@ certauth_gensio_alloc(struct gensio *child, const char *const args[],
     gensio_set_is_packet(io, true);
     gensio_set_is_reliable(io, true);
     gensio_set_is_encrypted(io, true);
+    gensio_free(child); /* Lose the ref we acquired. */
     gensio_free(child); /* Lose the ref we acquired. */
 
     *net = io;

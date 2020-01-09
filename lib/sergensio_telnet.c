@@ -971,10 +971,11 @@ stel_setup(const char * const args[], bool default_is_client,
  out_nomem:
     err = GE_NOMEM;
  out_err:
+    /* Freeing the filter frees sdata. */
     if (sdata->filter)
 	gensio_filter_free(sdata->filter);
-    sdata->filter = NULL;
-    stel_free(sdata);
+    else
+	stel_free(sdata);
     return err;
 }
 
@@ -993,6 +994,7 @@ telnet_gensio_alloc(struct gensio *child, const char * const args[],
     if (err)
 	return err;
 
+    gensio_ref(child); /* So gensio_ll_free doesn't free the child if fail */
     ll = gensio_gensio_ll_alloc(o, child);
     if (!ll)
 	goto out_nomem;
@@ -1016,6 +1018,7 @@ telnet_gensio_alloc(struct gensio *child, const char * const args[],
 	    goto out_err;
     }
 
+    gensio_free(child); /* Lose the ref we acquired. */
     gensio_set_is_client(io, sdata->is_client);
     *rio = io;
     return 0;
@@ -1023,11 +1026,13 @@ telnet_gensio_alloc(struct gensio *child, const char * const args[],
  out_nomem:
     err = GE_NOMEM;
  out_err:
+    /* Freeing the filter frees sdata. */
     if (sdata->filter)
 	gensio_filter_free(sdata->filter);
+    else
+	stel_free(sdata);
     if (ll)
 	gensio_ll_free(ll);
-    stel_free(sdata);
     return err;
 }
 
