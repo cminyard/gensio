@@ -547,8 +547,10 @@ gensio_open_socket(struct gensio_os_funcs *o,
     return 0;
 
  out_close:
-    for (i = 0; i < curr_fd; i++)
+    for (i = 0; i < curr_fd; i++) {
+	o->clear_fd_handlers_norpt(o, fds[i].fd);
 	close(fds[i].fd);
+    }
 
     if (rv == GE_ADDRINUSE && scaninfo.start != 0 &&
 		scaninfo.curr != scaninfo.start) {
