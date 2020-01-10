@@ -434,13 +434,13 @@ sctp_do_read(int fd, void *data, gensiods count, gensiods *rcount,
 
     rv = gensio_os_sctp_recvmsg(tdata->o,
 				fd, data, count, rcount, &sinfo, &flags);
-    if (rv)
+    /* If the data length is zero, we won't have any info. */
+    if (rv || *rcount == 0)
 	return rv;
 
     stream = sinfo.sinfo_stream;
-    if (stream >= tdata->instreams)
-	/* Shouldn't happen, but just in case. */
-	return GE_OUTOFRANGE;
+    /* Shouldn't happen, but just in case. */
+    assert(stream < tdata->instreams);
 
     if (tdata->strind[stream])
 	auxdata[i++] = tdata->strind[stream];
