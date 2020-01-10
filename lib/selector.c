@@ -168,7 +168,7 @@ struct selector_s
        cheap. */
     volatile fd_control_t fds[FD_SETSIZE];
 
-  /* These are the offical fd_sets used to track what file descriptors
+    /* These are the offical fd_sets used to track what file descriptors
        need to be monitored. */
     volatile fd_set read_set;
     volatile fd_set write_set;
@@ -176,6 +176,11 @@ struct selector_s
 
     volatile int maxfd; /* The largest file descriptor registered with
 			   this code. */
+
+    /* If something is deleted, we increment this count.  This way when
+       a select/epoll returns a non-timeout, we know that we need to ignore
+       it as it may be  from the just deleted fd. */
+    unsigned long fd_del_count;
 
     void *fd_lock;
 
@@ -308,7 +313,7 @@ init_fd(fd_control_t *fd)
 
 #ifdef HAVE_EPOLL_PWAIT
 static int
-sel_update_epoll(struct selector_s *sel, int fd, int op, int read_enable)
+sel_update_fd(struct selector_s *sel, int fd, int op)
 {
     fd_control_t *fdc = (fd_control_t *) &sel->fds[fd];
     struct epoll_event event;
@@ -320,11 +325,17 @@ sel_update_epoll(struct selector_s *sel, int fd, int op, int read_enable)
     event.events = EPOLLONESHOT;
     event.data.fd = fd;
     if (fdc->saved_events) {
-	if (!read_enable)
+	if (op == EPOLL_CTL_DEL)
 	    return 0;
+	if (!FD_ISSET(fd, &sel->read_set) && !FD_ISSET(fd, &sel->except_set))
+	    return 0;
+	fdc->saved_events = 0;
 	op = EPOLL_CTL_ADD;
-	event.events = EPOLLIN | EPOLLHUP;
-    } else {
+	if (FD_ISSET(fd, &sel->read_set))
+	    event.events |= EPOLLIN | EPOLLHUP;
+	if (FD_ISSET(fd, &sel->except_set))
+	    event.events |= EPOLLERR | EPOLLPRI;
+    } else if (op != EPOLL_CTL_DEL) {
 	if (FD_ISSET(fd, &sel->read_set))
 	    event.events |= EPOLLIN | EPOLLHUP;
 	if (FD_ISSET(fd, &sel->write_set))
@@ -332,12 +343,14 @@ sel_update_epoll(struct selector_s *sel, int fd, int op, int read_enable)
 	if (FD_ISSET(fd, &sel->except_set))
 	    event.events |= EPOLLERR | EPOLLPRI;
     }
-    epoll_ctl(sel->epollfd, op, fd, &event);
+    /* This should only fail due to system problems, and if that's the case,
+       well, we should probably terminate. */
+    assert(epoll_ctl(sel->epollfd, op, fd, &event) == 0);
     return 0;
 }
 #else
 static int
-sel_update_epoll(struct selector_s *sel, int fd, int op, int dummy)
+sel_update_fd(struct selector_s *sel, int fd, int op)
 {
     return 1;
 }
@@ -382,6 +395,10 @@ sel_set_fd_handlers(struct selector_s *sel,
 	oldstate = fdc->state;
 	olddata = fdc->data;
 	added = 0;
+#ifdef HAVE_EPOLL_PWAIT
+	fdc->saved_events = 0;
+#endif
+	sel->fd_del_count++;
     }
     fdc->state = state;
     fdc->data = data;
@@ -395,7 +412,10 @@ sel_set_fd_handlers(struct selector_s *sel,
 	    sel->maxfd = fd;
 	}
 
-	if (sel_update_epoll(sel, fd, EPOLL_CTL_ADD, 0))
+	if (sel_update_fd(sel, fd, EPOLL_CTL_ADD))
+	    sel_wake_all(sel);
+    } else {
+	if (sel_update_fd(sel, fd, EPOLL_CTL_MOD))
 	    sel_wake_all(sel);
     }
     sel_fd_unlock(sel);
@@ -426,10 +446,11 @@ i_sel_clear_fd_handler(struct selector_s *sel, int fd, int rpt)
 	olddata = fdc->data;
 	fdc->state = NULL;
 
-	sel_update_epoll(sel, fd, EPOLL_CTL_DEL, 0);
+	sel_update_fd(sel, fd, EPOLL_CTL_DEL);
 #ifdef HAVE_EPOLL_PWAIT
 	fdc->saved_events = 0;
 #endif
+	sel->fd_del_count++;
     }
 
     init_fd(fdc);
@@ -494,8 +515,7 @@ sel_set_fd_read_handler(struct selector_s *sel, int fd, int state)
 	    goto out;
 	FD_CLR(fd, &sel->read_set);
     }
-    if (sel_update_epoll(sel, fd, EPOLL_CTL_MOD,
-			 state == SEL_FD_HANDLER_ENABLED))
+    if (sel_update_fd(sel, fd, EPOLL_CTL_MOD))
 	sel_wake_all(sel);
 
  out:
@@ -522,7 +542,7 @@ sel_set_fd_write_handler(struct selector_s *sel, int fd, int state)
 	    goto out;
 	FD_CLR(fd, &sel->write_set);
     }
-    if (sel_update_epoll(sel, fd, EPOLL_CTL_MOD, 0))
+    if (sel_update_fd(sel, fd, EPOLL_CTL_MOD))
 	sel_wake_all(sel);
 
  out:
@@ -549,7 +569,7 @@ sel_set_fd_except_handler(struct selector_s *sel, int fd, int state)
 	    goto out;
 	FD_CLR(fd, &sel->except_set);
     }
-    if (sel_update_epoll(sel, fd, EPOLL_CTL_MOD, 0))
+    if (sel_update_fd(sel, fd, EPOLL_CTL_MOD))
 	sel_wake_all(sel);
 
  out:
@@ -966,6 +986,7 @@ process_fds(struct selector_s	    *sel,
     sigset_t sigmask;
     struct timespec ts = { .tv_sec = timeout->tv_sec,
 			   .tv_nsec = timeout->tv_usec * 1000 };
+    unsigned long entry_fd_del_count = sel->fd_del_count;
 
     setup_my_sigmask(&sigmask, isigmask);
  retry:
@@ -991,6 +1012,10 @@ process_fds(struct selector_s	    *sel,
 
     /* We got some I/O. */
     sel_fd_lock(sel);
+    if (entry_fd_del_count != sel->fd_del_count)
+	/* Something was deleted from the FD set, don't process this as it
+	   may be from the old fd wakeup. */
+	goto out_unlock;
     for (i = 0; i <= sel->maxfd; i++) {
 	if (FD_ISSET(i, &tmp_read_set))
 	    handle_selector_call(sel, i, &sel->read_set,
@@ -1002,6 +1027,7 @@ process_fds(struct selector_s	    *sel,
 	    handle_selector_call(sel, i, &sel->except_set,
 				 sel->fds[i].handle_except);
     }
+ out_unlock:
     sel_fd_unlock(sel);
 out:
     return err;
@@ -1017,6 +1043,7 @@ process_fds_epoll(struct selector_s *sel, struct timeval *tvtimeout,
     int timeout;
     sigset_t sigmask;
     fd_control_t *fdc;
+    unsigned long entry_fd_del_count = sel->fd_del_count;
 
     setup_my_sigmask(&sigmask, isigmask);
 
@@ -1037,6 +1064,10 @@ process_fds_epoll(struct selector_s *sel, struct timeval *tvtimeout,
     sel_fd_lock(sel);
     fd = event.data.fd;
     fdc = (fd_control_t *) &sel->fds[fd];
+    if (entry_fd_del_count != sel->fd_del_count)
+	/* Something was deleted from the FD set, don't process this as it
+	   may be from the old fd wakeup. */
+	goto rearm;
     if (event.events & (EPOLLHUP | EPOLLERR)) {
 	/*
 	 * The crazy people that designed epoll made it so that EPOLLHUP
@@ -1048,7 +1079,7 @@ process_fds_epoll(struct selector_s *sel, struct timeval *tvtimeout,
 	 * EPOLLHUP or EPOLLERR, anyway, and then doing the callback
 	 * by hand.
 	 */
-	sel_update_epoll(sel, fd, EPOLL_CTL_DEL, 0);
+	sel_update_fd(sel, fd, EPOLL_CTL_DEL);
 	fdc->saved_events = event.events & (EPOLLHUP | EPOLLERR);
     }
     if (event.events & (EPOLLIN | EPOLLHUP))
@@ -1058,9 +1089,10 @@ process_fds_epoll(struct selector_s *sel, struct timeval *tvtimeout,
     if (event.events & (EPOLLPRI | EPOLLERR))
 	handle_selector_call(sel, fd, &sel->except_set, fdc->handle_except);
 
+ rearm:
     /* Rearm the event.  Remember it could have been deleted in the handler. */
     if (fdc->state)
-	sel_update_epoll(sel, fd, EPOLL_CTL_MOD, 0);
+	sel_update_fd(sel, fd, EPOLL_CTL_MOD);
     sel_fd_unlock(sel);
 
     return rv;
@@ -1087,7 +1119,7 @@ sel_setup_forked_process(struct selector_s *sel)
     for (i = 0; i <= sel->maxfd; i++) {
 	volatile fd_control_t *fdc = &sel->fds[i];
 	if (fdc->state)
-	    sel_update_epoll(sel, i, EPOLL_CTL_ADD, 1);
+	    sel_update_fd(sel, i, EPOLL_CTL_ADD);
     }
     return 0;
 }
