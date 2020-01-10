@@ -494,7 +494,7 @@ stdion_read_ready(int fd, void *cbdata)
     int rv, err = 0;
 
     stdiona_lock(nadata);
-    if (!schan->read_enabled || schan->in_read) {
+    if (!schan->read_enabled || schan->in_read || schan->data_pending_len) {
 	stdiona_unlock(nadata);
 	return;
     }
