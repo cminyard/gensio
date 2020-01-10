@@ -298,7 +298,7 @@ telnet_ll_write(struct gensio_filter *filter,
 	if (rcount)
 	    *rcount = 0;
     } else {
-	unsigned int inlen = buflen;
+	unsigned int inlen = buflen, proclen;
 
 	if (tfilter->in_urgent) {
 	    /* We are in urgent data, just read until we get a mark. */
@@ -329,11 +329,12 @@ telnet_ll_write(struct gensio_filter *filter,
 	 * data handling here.
 	 */
 	telnet_unlock(tfilter);
-	tfilter->read_data_len +=
+	proclen =
 	    process_telnet_data(tfilter->read_data + tfilter->read_data_len,
 				tfilter->max_read_size - tfilter->read_data_len,
 				&buf, &inlen, &tfilter->tn_data);
 	telnet_lock(tfilter);
+	tfilter->read_data_len += proclen;
 	if (rcount)
 	    *rcount = buflen - inlen;
     }
