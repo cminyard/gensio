@@ -301,6 +301,7 @@ main(int argc, char *argv[])
      */
     sigemptyset(&sigs);
     sigaddset(&sigs, SIGPIPE);
+    sigaddset(&sigs, SIGHUP);
     rv = sigprocmask(SIG_BLOCK, &sigs, NULL);
     if (rv) {
 	perror("Could not set up signal mask");
