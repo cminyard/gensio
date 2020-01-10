@@ -378,9 +378,12 @@ stdion_deferred_op(struct gensio_runner *runner, void *cbdata)
 	schan->in_open = false;
 	nadata->o->set_read_handler(nadata->o, schan->outfd,
 				    schan->read_enabled);
-	if (schan->infd != -1)
+	if (schan->infd != -1) {
 	    nadata->o->set_write_handler(nadata->o, schan->infd,
 					 schan->xmit_enabled);
+	    nadata->o->set_except_handler(nadata->o, schan->infd,
+					  schan->xmit_enabled);
+	}
     }
 
     if (schan->deferred_read) {
@@ -478,6 +481,7 @@ stdion_set_write_callback_enable(struct gensio *io, bool enabled)
     if (schan->in_open)
 	goto out_unlock;
     nadata->o->set_write_handler(nadata->o, schan->infd, enabled);
+    nadata->o->set_except_handler(nadata->o, schan->infd, enabled);
  out_unlock:
     stdiona_unlock(nadata);
 }
@@ -541,6 +545,12 @@ stdion_write_ready(int fd, void *cbdata)
     schan->in_write_ready = false;
  out:
     stdiona_unlock(nadata);
+}
+
+static void
+stdion_write_except_ready(int fd, void *cbdata)
+{
+    stdion_write_ready(fd, cbdata);
 }
 
 extern char **environ;
@@ -678,8 +688,13 @@ stdion_open(struct gensio *io, gensio_done_err open_done, void *open_data)
     stdiona_ref(nadata);
 
     if (schan->infd != -1) {
+	/*
+	 * On the write side we send an exception to the write ready
+	 * operation.
+	 */
 	err = nadata->o->set_fd_handlers(nadata->o, schan->infd, schan,
-					 NULL, stdion_write_ready, NULL,
+					 NULL, stdion_write_ready,
+					 stdion_write_except_ready,
 					 stdio_client_fd_cleared);
 	if (err)
 	    goto out_err;
