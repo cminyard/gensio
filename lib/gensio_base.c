@@ -430,15 +430,22 @@ basen_read_data_handler(void *cb_data,
     struct basen_data *ndata = cb_data;
     gensiods count = 0, rval;
 
- retry:
-    if (ndata->state == BASEN_OPEN && ndata->read_enabled) {
+    basen_lock(ndata);
+    while (ndata->state == BASEN_OPEN && ndata->read_enabled &&
+	   count < buflen) {
 	rval = buflen - count;
+	basen_unlock(ndata);
 	gensio_cb(ndata->io, GENSIO_EVENT_READ, 0, buf + count, &rval, auxdata);
+	if (rval > buflen - count)
+	    rval = buflen - count;
 	count += rval;
-	if (count < buflen)
-	    goto retry;
+	if (count >= buflen)
+	    goto out; /* Don't claim the lock if I don't have to. */
+	basen_lock(ndata);
     }
+    basen_unlock(ndata);
 
+ out:
     *rcount = count;
     return 0;
 }
@@ -489,6 +496,8 @@ handle_readerr(struct basen_data *ndata, int err)
 	ndata->in_read = false;
 	old_enable = false;
     }
+    if (ndata->state != BASEN_CLOSED)
+	basen_set_ll_enables(ndata);
 }
 
 static void basen_finish_close(struct basen_data *ndata);
@@ -1021,24 +1030,28 @@ basen_ll_read(void *cb_data, int readerr,
 	goto out_unlock;
 
     if (buflen > 0) {
-	gensiods wrlen = 0;
-
 	ndata->in_read = true;
 	do {
+	    gensiods wrlen = 0;
+
 	    basen_unlock(ndata);
 	    readerr = filter_ll_write(ndata, basen_read_data_handler, &wrlen,
 				      buf, buflen, auxdata);
 	    basen_lock(ndata);
+
+	    if (!readerr) {
+		if (wrlen > buflen)
+		    wrlen = buflen;
+		buf += wrlen;
+		buflen -= wrlen;
+	    }
 	} while (!readerr && ndata->read_enabled &&
-		 filter_ul_read_pending(ndata));
+		 (buflen > 0 || filter_ul_read_pending(ndata)));
 	ndata->in_read = false;
 	if (readerr) {
 	    handle_readerr(ndata, readerr);
 	    goto out_finish;
 	}
-
-	buf += wrlen;
-	buflen -= wrlen;
 
 	if (ndata->state == BASEN_IN_FILTER_OPEN)
 	    basen_try_connect(ndata);
