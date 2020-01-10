@@ -264,13 +264,6 @@ sel_wake_all(struct selector_s *sel)
 }
 
 static void
-wake_fd_sel_thread(struct selector_s *sel)
-{
-    sel_wake_all(sel);
-    sel_fd_unlock(sel);
-}
-
-static void
 wake_timer_sel_thread(struct selector_s *sel, volatile sel_timer_t *old_top)
 {
     if (old_top != theap_get_top(&sel->timer_heap))
@@ -402,14 +395,11 @@ sel_set_fd_handlers(struct selector_s *sel,
 	    sel->maxfd = fd;
 	}
 
-	if (sel_update_epoll(sel, fd, EPOLL_CTL_ADD, 0)) {
-	    wake_fd_sel_thread(sel);
-	    goto out;
-	}
+	if (sel_update_epoll(sel, fd, EPOLL_CTL_ADD, 0))
+	    sel_wake_all(sel);
     }
     sel_fd_unlock(sel);
 
- out:
     if (oldstate) {
 	oldstate->deleted = 1;
 	if (oldstate->use_count == 0) {
@@ -505,10 +495,8 @@ sel_set_fd_read_handler(struct selector_s *sel, int fd, int state)
 	FD_CLR(fd, &sel->read_set);
     }
     if (sel_update_epoll(sel, fd, EPOLL_CTL_MOD,
-			 state == SEL_FD_HANDLER_ENABLED)) {
-	wake_fd_sel_thread(sel);
-	return;
-    }
+			 state == SEL_FD_HANDLER_ENABLED))
+	sel_wake_all(sel);
 
  out:
     sel_fd_unlock(sel);
@@ -534,10 +522,8 @@ sel_set_fd_write_handler(struct selector_s *sel, int fd, int state)
 	    goto out;
 	FD_CLR(fd, &sel->write_set);
     }
-    if (sel_update_epoll(sel, fd, EPOLL_CTL_MOD, 0)) {
-	wake_fd_sel_thread(sel);
-	return;
-    }
+    if (sel_update_epoll(sel, fd, EPOLL_CTL_MOD, 0))
+	sel_wake_all(sel);
 
  out:
     sel_fd_unlock(sel);
@@ -563,10 +549,8 @@ sel_set_fd_except_handler(struct selector_s *sel, int fd, int state)
 	    goto out;
 	FD_CLR(fd, &sel->except_set);
     }
-    if (sel_update_epoll(sel, fd, EPOLL_CTL_MOD, 0)) {
-	wake_fd_sel_thread(sel);
-	return;
-    }
+    if (sel_update_epoll(sel, fd, EPOLL_CTL_MOD, 0))
+	sel_wake_all(sel);
 
  out:
     sel_fd_unlock(sel);
@@ -984,7 +968,7 @@ process_fds(struct selector_s	    *sel,
 			   .tv_nsec = timeout->tv_usec * 1000 };
 
     setup_my_sigmask(&sigmask, isigmask);
-
+ retry:
     sel_fd_lock(sel);
     memcpy(&tmp_read_set, (void *) &sel->read_set, sizeof(tmp_read_set));
     memcpy(&tmp_write_set, (void *) &sel->write_set, sizeof(tmp_write_set));
@@ -998,8 +982,12 @@ process_fds(struct selector_s	    *sel,
 		  &tmp_write_set,
 		  &tmp_except_set,
 		  &ts, &sigmask);
-    if (err <= 0)
+    if (err <= 0) {
+	if (errno == EBADF || errno == EBADFD)
+	    /* We raced, just retry it. */
+	    goto retry;
 	goto out;
+    }
 
     /* We got some I/O. */
     sel_fd_lock(sel);
