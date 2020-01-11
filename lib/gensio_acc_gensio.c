@@ -47,8 +47,7 @@ struct basena_data {
     bool enabled;
     bool in_shutdown;
     bool call_shutdown_done;
-    void (*shutdown_done)(struct gensio_accepter *accepter,
-			  void *shutdown_data);
+    gensio_acc_done shutdown_done;
     void *shutdown_data;
 };
 
@@ -150,12 +149,27 @@ basena_startup(struct gensio_accepter *accepter)
 }
 
 static void
+basena_pending_io_closed(struct gensio *net, void *cb_data)
+{
+    struct basena_data *nadata = cb_data;
+
+    gensio_free(net);
+    basena_lock(nadata);
+    basena_leave_cb_unlock(nadata);
+}
+
+static void
 basena_child_shutdown(struct gensio_accepter *accepter,
 		     void *shutdown_data)
 {
     struct basena_data *nadata = shutdown_data;
 
     basena_lock(nadata);
+    if (nadata->in_cb_count)
+	nadata->in_cb_count -=
+	    gensio_acc_close_pending_ios(nadata->acc,
+					 basena_pending_io_closed, nadata);
+
     if (nadata->in_cb_count) {
 	nadata->call_shutdown_done = true;
 	basena_unlock(nadata);
@@ -166,9 +180,8 @@ basena_child_shutdown(struct gensio_accepter *accepter,
 
 static int
 basena_shutdown(struct gensio_accepter *accepter,
-	       void (*shutdown_done)(struct gensio_accepter *accepter,
-				     void *shutdown_data),
-	       void *shutdown_data)
+		gensio_acc_done shutdown_done,
+		void *shutdown_data)
 {
     struct basena_data *nadata = gensio_acc_get_gensio_data(accepter);
     int rv = GE_NOTREADY;
@@ -314,19 +327,20 @@ basena_finish_server_open(struct gensio *net, int err, void *cb_data)
     struct basena_data *nadata = cb_data;
 
     basena_lock(nadata);
-    gensio_acc_remove_pending_gensio(nadata->acc, net);
-    basena_unlock(nadata);
-
     if (err) {
 	gensio_free(net);
 	gensio_acc_log(nadata->acc, GENSIO_LOG_ERR,
 		       "Error accepting a gensio: %s",
 		       gensio_err_to_str(err));
-    } else {
+    } else if (!nadata->in_shutdown) {
+	nadata->in_cb_count++;
+	basena_unlock(nadata);
 	gensio_acc_cb(nadata->acc, GENSIO_ACC_EVENT_NEW_CONNECTION, net);
+	basena_lock(nadata);
+	nadata->in_cb_count--;
     }
 
-    basena_lock(nadata);
+    gensio_acc_remove_pending_gensio(nadata->acc, net);
     basena_leave_cb_unlock(nadata);
 }
 
@@ -346,6 +360,12 @@ basena_child_event(struct gensio_accepter *accepter, void *user_data,
 	return gensio_acc_cb(nadata->acc, event, data);
 
     child = data;
+    basena_lock(nadata);
+    if (nadata->in_shutdown) {
+	basena_unlock(nadata);
+	gensio_free(child);
+	return GE_NOTREADY;
+    }
 
     err = nadata->acc_cb(nadata->acc_data, GENSIO_GENSIO_ACC_NEW_CHILD,
 			 &finish_data, &filter, child, NULL);
@@ -362,7 +382,7 @@ basena_child_event(struct gensio_accepter *accepter, void *user_data,
     }
 	
     if (err)
-	goto out_err;
+	goto out_err_unlock;
 
     if (filter) {
 	ll = gensio_gensio_ll_alloc(o, child);
@@ -370,36 +390,32 @@ basena_child_event(struct gensio_accepter *accepter, void *user_data,
 	    goto out_nomem;
     }
 
-    basena_lock(nadata);
     if (filter)
 	io = base_gensio_server_alloc(o, ll, filter, child,
 				      gensio_acc_get_type(nadata->acc, 0),
 				      basena_finish_server_open, nadata);
-    if (io) {
-	if (gensio_is_reliable(child))
-	    gensio_set_is_reliable(io, true);
-	if (gensio_is_authenticated(child))
-	    gensio_set_is_authenticated(io, true);
-	if (gensio_is_encrypted(child))
-	    gensio_set_is_encrypted(io, true);
-	basena_in_cb(nadata);
-	err = nadata->acc_cb(nadata->acc_data, GENSIO_GENSIO_ACC_FINISH_PARENT,
-			     finish_data, io, child, NULL);
-	if (err && err != GE_NOTSUP) {
-	    basena_unlock(nadata);
-	    goto out_err;
-	}
-	gensio_acc_add_pending_gensio(nadata->acc, io);
-	basena_unlock(nadata);
-    } else {
-	basena_unlock(nadata);
+    if (!io)
 	goto out_nomem;
-    }
+
+    if (gensio_is_reliable(child))
+	gensio_set_is_reliable(io, true);
+    if (gensio_is_authenticated(child))
+	gensio_set_is_authenticated(io, true);
+    if (gensio_is_encrypted(child))
+	gensio_set_is_encrypted(io, true);
+    err = nadata->acc_cb(nadata->acc_data, GENSIO_GENSIO_ACC_FINISH_PARENT,
+			 finish_data, io, child, NULL);
+    if (err && err != GE_NOTSUP)
+	goto out_err_unlock;
+    basena_in_cb(nadata);
+    gensio_acc_add_pending_gensio(nadata->acc, io);
+    basena_unlock(nadata);
     return 0;
 
  out_nomem:
     err = GE_NOMEM;
- out_err:
+ out_err_unlock:
+    basena_unlock(nadata);
     if (io) {
 	gensio_free(io);
     } else {
@@ -411,7 +427,7 @@ basena_child_event(struct gensio_accepter *accepter, void *user_data,
     gensio_acc_log(nadata->acc, GENSIO_LOG_ERR,
 		   "Error allocating basena gensio: %s",
 		   gensio_err_to_str(err));
-    return 0;
+    return err;
 }
 
 int
