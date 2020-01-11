@@ -317,6 +317,10 @@ ssl_try_connect(struct gensio_filter *filter, struct timeval *timeout)
 	    rv = GE_PROTOERR;
 	    break;
 
+	case SSL_ERROR_ZERO_RETURN:
+	    err = GE_REMCLOSE;
+	    break;
+
 	default:
 	    gssl_log_err(sfilter, "Failed SSL startup");
 	    rv = GE_COMMERR;
@@ -414,6 +418,11 @@ ssl_ul_write(struct gensio_filter *filter,
 		sfilter->write_data_len = 0;
 		break;
 
+	    case SSL_ERROR_ZERO_RETURN:
+		err = GE_REMCLOSE;
+		sfilter->write_data_len = 0;
+		break;
+
 	    default:
 		gssl_log_err(sfilter, "Failed SSL write: %d", err);
 		err = GE_COMMERR;
@@ -498,6 +507,10 @@ ssl_ll_write(struct gensio_filter *filter,
 	    case SSL_ERROR_SSL:
 		gssl_logs_err(sfilter, "Failed SSL read");
 		err = GE_PROTOERR;
+		break;
+
+	    case SSL_ERROR_ZERO_RETURN:
+		err = GE_REMCLOSE;
 		break;
 
 	    default:
@@ -968,7 +981,6 @@ gensio_ssl_filter_raw_alloc(struct gensio_os_funcs *o,
     
     sfilter->o = o;
     sfilter->is_client = is_client;
-    sfilter->ctx = ctx;
     sfilter->max_write_size = max_write_size;
     sfilter->max_read_size = max_read_size;
     sfilter->expect_peer_cert = expect_peer_cert;
@@ -993,6 +1005,11 @@ gensio_ssl_filter_raw_alloc(struct gensio_os_funcs *o,
     if (!sfilter->filter)
 	goto out_nomem;
 
+    /*
+     * Delay setting this so that it's not freed if there is a memory
+     * allocation error.  The caller passed it in, they should free it.
+     */
+    sfilter->ctx = ctx;
     return sfilter->filter;
 
  out_nomem:
