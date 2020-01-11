@@ -645,10 +645,12 @@ basen_try_connect(struct basen_data *ndata)
     if (!err)
 	err = filter_check_open_done(ndata);
 
-    if (err)
+    if (err) {
+	basen_set_state(ndata, BASEN_CLOSED);
 	ll_close(ndata, basen_ll_close_on_err, (void *) (long) err);
-    else
+    } else {
 	basen_finish_open(ndata, 0);
+    }
 }
 
 static void
