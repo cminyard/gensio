@@ -371,6 +371,11 @@ struct gensio_mux_config {
 
 enum mux_state {
     /*
+     * Mux is currently being allocated.
+     */
+    MUX_IN_ALLOCATION,
+
+    /*
      *  Mux has been allocated but not opened or all channels are closed.
      */
     MUX_CLOSED,
@@ -511,7 +516,7 @@ mux_channel_free(struct mux_inst *chan)
     if (chan->io)
 	gensio_data_free(chan->io);
     if (chan->deferred_op_runner)
-	chan->o->free_runner(chan->deferred_op_runner);
+	o->free_runner(chan->deferred_op_runner);
     o->free(o, chan);
 }
 
@@ -585,6 +590,7 @@ static bool
 i_mux_unlock(struct mux_data *muxdata)
 {
     if (gensio_list_empty(&muxdata->chans) &&
+		muxdata->state != MUX_IN_ALLOCATION &&
 		muxdata->state != MUX_UNINITIALIZED &&
 		muxdata->state != MUX_WAITING_OPEN) {
 	muxdata_free(muxdata);
@@ -1186,6 +1192,8 @@ mux_new_channel(struct mux_data *muxdata, gensio_event cb, void *user_data,
     if (!chan)
 	return GE_NOMEM;
 
+    chan->o = o;
+
     chan->deferred_op_runner = o->alloc_runner(o, chan_deferred_op, chan);
     if (!chan->deferred_op_runner)
 	goto out_free;
@@ -1201,7 +1209,6 @@ mux_new_channel(struct mux_data *muxdata, gensio_event cb, void *user_data,
 	gensio_set_is_authenticated(chan->io, true);
     if (gensio_is_encrypted(muxdata->child))
 	gensio_set_is_encrypted(chan->io, true);
-    chan->o = o;
     chan->mux = muxdata;
     chan->refcount = 1;
     chan->is_client = is_client;
@@ -2509,6 +2516,7 @@ mux_gensio_alloc_data(struct gensio *child, struct gensio_mux_config *data,
     if (rv)
 	goto out_nomem;
 
+    muxdata->state = MUX_CLOSED;
     muxdata->nr_not_closed = 1;
     *rmuxdata = muxdata;
     return 0;
