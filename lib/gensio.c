@@ -1430,6 +1430,8 @@ register_filter_gensio_accepter(struct gensio_os_funcs *o,
 
     o->call_once(o, &gensio_acc_str_initialized,
 		 add_default_gensio_accepters, o);
+    if (reg_gensio_acc_rv)
+	return reg_gensio_acc_rv;
 
     n = o->zalloc(o, sizeof(*n));
     if (!n)
@@ -1468,6 +1470,8 @@ str_to_gensio_accepter(const char *str,
 
     o->call_once(o, &gensio_acc_str_initialized,
 		 add_default_gensio_accepters, o);
+    if (reg_gensio_acc_rv)
+	return reg_gensio_acc_rv;
 
     while (isspace(*str))
 	str++;
