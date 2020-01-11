@@ -79,7 +79,7 @@ ipmisol_gensio_alloc(const char *devname, const char * const args[],
 		     gensio_event cb, void *user_data,
 		     struct gensio **rio)
 {
-    struct iterm_data *idata = o->zalloc(o, sizeof(*idata));
+    struct iterm_data *idata;
     int err;
     gensiods max_read_size = GENSIO_DEFAULT_BUF_SIZE;
     gensiods max_write_size = GENSIO_DEFAULT_BUF_SIZE;
@@ -93,6 +93,7 @@ ipmisol_gensio_alloc(const char *devname, const char * const args[],
 	return GE_INVAL;
     }
 
+    idata = o->zalloc(o, sizeof(*idata));
     if (!idata)
 	return GE_NOMEM;
 
