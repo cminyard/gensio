@@ -481,8 +481,9 @@ main(int argc, char *argv[])
 			    "Unable to fetch accept address %d: %s\n", i,
 			    gensio_err_to_str(rv));
 		else
-		    printf("Address %d: %s\n", i, str);
+		    fprintf(stderr, "Address %d: %s\n", i, str);
 	    }
+	    fprintf(stderr, "Done\n");
 	}
     } else {
 	userdata2.can_close = true;
