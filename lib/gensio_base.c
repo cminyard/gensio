@@ -86,14 +86,13 @@ struct basen_data {
     bool in_xmit_ready;
     bool redo_xmit_ready;
 
-    int saved_xmit_err;
-
     /*
      * We got an error from the lower layer, it's probably not working
      * any more.
      */
     bool ll_err_occurred;
     int ll_err;
+    int saved_xmit_err;
 
     /*
      * Used to run user callbacks from the selector to avoid running
@@ -406,7 +405,6 @@ basen_write(struct basen_data *ndata, gensiods *rcount,
     }
     if (ndata->saved_xmit_err) {
 	err = ndata->saved_xmit_err;
-	ndata->saved_xmit_err = 0;
 	goto out_unlock;
     }
 
@@ -481,7 +479,7 @@ handle_readerr(struct basen_data *ndata, int err)
     } else if (ndata->state == BASEN_CLOSE_WAIT_DRAIN ||
 			ndata->state == BASEN_IN_FILTER_CLOSE) {
 	ll_close(ndata, basen_ll_close_done, NULL);
-    } else if (gensio_get_cb(io)) {
+    } else if (io && gensio_get_cb(io)) {
 	goto call_parent_err;
     } else {
 	basen_i_close(ndata, NULL, NULL);
@@ -793,6 +791,7 @@ basen_i_close(struct basen_data *ndata,
 	ll_close(ndata, basen_ll_close_done, NULL);
     } else if (filter_ll_write_pending(ndata)) {
 	basen_set_state(ndata, BASEN_CLOSE_WAIT_DRAIN);
+	basen_try_close(ndata);
     } else {
 	basen_set_state(ndata, BASEN_IN_FILTER_CLOSE);
 	basen_try_close(ndata);
@@ -1090,12 +1089,23 @@ basen_ll_write_ready(void *cb_data)
     if (filter_ll_write_pending(ndata)) {
 	err = filter_ul_write(ndata, basen_write_data_handler, NULL, NULL, 0,
 			      NULL);
-	if (err)
+	if (err) {
 	    ndata->saved_xmit_err = err;
+	    ndata->ll_err_occurred = true;
+
+	    if (ndata->state == BASEN_IN_FILTER_OPEN ||
+			ndata->state == BASEN_IN_LL_OPEN) {
+		ll_close(ndata, basen_ll_close_on_err, (void *) (long) err);
+	    } else if (ndata->state == BASEN_CLOSE_WAIT_DRAIN ||
+		       ndata->state == BASEN_IN_FILTER_CLOSE) {
+		ll_close(ndata, basen_ll_close_done, NULL);
+	    }
+	    goto out;
+	}
     }
 
     if (ndata->state == BASEN_CLOSE_WAIT_DRAIN &&
-		!filter_ll_write_pending(ndata))
+		(!filter_ll_write_pending(ndata) || ndata->saved_xmit_err))
 	basen_set_state(ndata, BASEN_IN_FILTER_CLOSE);
     if (ndata->state == BASEN_IN_FILTER_OPEN)
 	basen_try_connect(ndata);
