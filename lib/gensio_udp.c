@@ -1521,7 +1521,8 @@ udp_gensio_alloc(struct addrinfo *ai, const char * const args[],
     }
 
     if (err) {
-	udpn_do_free(ndata);
+	if (ndata)
+	    udpn_do_free(ndata);
 	udpna_do_free(nadata);
     } else {
 	nadata->nr_accept_close_waiting = 1;
