@@ -258,8 +258,12 @@ net_oob_read(int fd, void *data, gensiods count, gensiods *rcount,
 	     const char **auxdata, void *cb_data)
 {
     struct net_data *tdata = cb_data;
+    int rv;
 
-    return gensio_os_recv(tdata->o, fd, data, count, rcount, MSG_OOB);
+    rv = gensio_os_recv(tdata->o, fd, data, count, rcount, MSG_OOB);
+    if (rv)
+	*rcount = 0;
+    return 0;
 }
 
 static void
