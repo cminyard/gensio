@@ -464,7 +464,7 @@ main(int argc, char *argv[])
 	    goto close1;
 	}
 	if (io2_acc_print) {
-	    char str[256];
+	    char str[2048];
 	    gensiods size;
 	    unsigned int i;
 
