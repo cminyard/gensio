@@ -1720,6 +1720,8 @@ serialdev_gensio_alloc(const char *devname, const char * const args[],
     if (!sdata)
 	return GE_NOMEM;
 
+    sdata->o = o;
+
     i = 0;
     err = gensio_get_default(o, "serialdev", "custspeed", false,
 			     GENSIO_DEFAULT_BOOL, NULL, &i);
@@ -1742,7 +1744,6 @@ serialdev_gensio_alloc(const char *devname, const char * const args[],
 	goto out_err;
     }
 
-    sdata->o = o;
     sdata->fd = -1;
 
     sdata->timer = o->alloc_timer(o, serialdev_timeout, sdata);
