@@ -997,7 +997,7 @@ gensio_ssl_filter_raw_alloc(struct gensio_os_funcs *o,
 	goto out_nomem;
 
     sfilter->write_data = o->zalloc(o, max_write_size);
-    if (!sfilter->read_data)
+    if (!sfilter->write_data)
 	goto out_nomem;
 
     sfilter->filter = gensio_filter_alloc_data(o, gensio_ssl_filter_func,
