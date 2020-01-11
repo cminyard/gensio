@@ -50,19 +50,13 @@ struct gensio_data {
 
 #ifdef OUT_OF_MEMORY_TEST
 #include <assert.h>
-/*
- * Some memory allocation failure testing.  If the GENSIO_OOM_TEST
- * environment variable is set to number N, the Nth memory allocation
- * will fail (return NULL).  The program should call gensio_sel_exit
- * (below); it will cause specific values to be returned on an exit
- * failure.
- */
-pthread_mutex_t oom_mutex = PTHREAD_MUTEX_INITIALIZER;
-bool oom_initialized;
-bool oom_ready;
-bool triggered;
-unsigned int oom_count;
-unsigned int oom_curr;
+/* Declared in selector.c */
+extern pthread_mutex_t oom_mutex;
+extern bool oom_initialized;
+extern bool oom_ready;
+extern bool triggered;
+extern unsigned int oom_count;
+extern unsigned int oom_curr;
 #endif
 
 static void *

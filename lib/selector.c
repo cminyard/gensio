@@ -46,6 +46,59 @@
 #define EPOLL_CTL_MOD 0
 #endif
 
+#if 1
+#define OUT_OF_MEMORY_TEST
+#endif
+
+#ifdef OUT_OF_MEMORY_TEST
+#include <pthread.h>
+#include <assert.h>
+/*
+ * Some memory allocation failure testing.  If the GENSIO_OOM_TEST
+ * environment variable is set to number N, the Nth memory allocation
+ * will fail (return NULL).  The program should call gensio_sel_exit
+ * (below); it will cause specific values to be returned on an exit
+ * failure.
+ */
+pthread_mutex_t oom_mutex = PTHREAD_MUTEX_INITIALIZER;
+int oom_initialized;
+int oom_ready;
+int triggered;
+unsigned int oom_count;
+unsigned int oom_curr;
+#endif
+
+static void *
+sel_alloc(unsigned int size)
+{
+    void *d;
+    unsigned int curr;
+
+#ifdef OUT_OF_MEMORY_TEST
+    if (!oom_initialized) {
+	char *s = getenv("GENSIO_OOM_TEST");
+
+	oom_initialized = 1;
+	if (s) {
+	    oom_count = strtoul(s, NULL, 0);
+	    oom_ready = 1;
+	}
+    }
+    if (oom_ready) {
+	curr = oom_curr++;
+	if (curr == oom_count) {
+	    triggered = 1;
+	    return NULL;
+	}
+    }
+#endif
+
+    d = malloc(size);
+    if (d)
+	memset(d, 0, size);
+    return d;
+}
+
 struct sel_runner_s
 {
     struct selector_s *sel;
@@ -381,7 +434,7 @@ sel_set_fd_handlers(struct selector_s *sel,
     void         *olddata = NULL;
     int          added = 1;
 
-    state = malloc(sizeof(*state));
+    state = sel_alloc(sizeof(*state));
     if (!state)
 	return ENOMEM;
     memset(state, 0, sizeof(*state));
@@ -621,7 +674,7 @@ sel_alloc_timer(struct selector_s     *sel,
 {
     sel_timer_t *timer;
 
-    timer = malloc(sizeof(*timer));
+    timer = sel_alloc(sizeof(*timer));
     if (!timer)
 	return ENOMEM;
     memset(timer, 0, sizeof(*timer));
@@ -842,7 +895,7 @@ sel_alloc_runner(struct selector_s *sel, sel_runner_t **new_runner)
 {
     sel_runner_t *runner;
 
-    runner = malloc(sizeof(*runner));
+    runner = sel_alloc(sizeof(*runner));
     if (!runner)
 	return ENOMEM;
     memset(runner, 0, sizeof(*runner));
@@ -1265,7 +1318,7 @@ sel_alloc_selector_thread(struct selector_s **new_selector, int wake_sig,
     int rv;
     sigset_t sigset;
 
-    sel = malloc(sizeof(*sel));
+    sel = sel_alloc(sizeof(*sel));
     if (!sel)
 	return ENOMEM;
     memset(sel, 0, sizeof(*sel));
