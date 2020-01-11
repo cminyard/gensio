@@ -658,17 +658,6 @@ struct sctpna_data {
 };
 
 static void
-write_nofail(int fd, const char *data, size_t count)
-{
-    ssize_t written;
-
-    while ((written = write(fd, data, count)) > 0) {
-	data += written;
-	count -= written;
-    }
-}
-
-static void
 sctpna_finish_free(struct sctpna_data *nadata)
 {
     if (nadata->lock)
@@ -764,7 +753,6 @@ sctpna_readhandler(int fd, void *cbdata)
     socklen_t addrlen = sizeof(addr);
     struct sctp_data *tdata = NULL;
     struct gensio *io;
-    const char *errstr;
     int err;
 
     sctpna_lock(nadata);
@@ -781,8 +769,8 @@ sctpna_readhandler(int fd, void *cbdata)
 
     tdata = nadata->o->zalloc(nadata->o, sizeof(*tdata));
     if (!tdata) {
-	errstr = "Out of memory\r\n";
-	write_nofail(new_fd, errstr, strlen(errstr));
+	gensio_acc_log(nadata->acc, GENSIO_LOG_INFO,
+		       "Error accepting sctp gensio: out of memory");
 	close(new_fd);
 	goto out_unlock;
     }
