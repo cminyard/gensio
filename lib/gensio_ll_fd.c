@@ -351,11 +351,11 @@ fd_handle_incoming(struct fd_ll *fdll,
 
     fd_lock(fdll);
     fdll->in_read = false;
- out:
     if (fdll->state == FD_OPEN && fdll->read_enabled) {
 	fdll->o->set_read_handler(fdll->o, fdll->fd, true);
 	fdll->o->set_except_handler(fdll->o, fdll->fd, true);
     }
+ out:
     fd_deref_and_unlock(fdll);
 }
 
@@ -735,7 +735,6 @@ fd_gensio_ll_alloc(struct gensio_os_funcs *o,
 	return NULL;
 
     fdll->o = o;
-    fdll->ops = ops;
     fdll->handler_data = handler_data;
     fdll->fd = fd;
     fdll->refcount = 1;
@@ -773,6 +772,12 @@ fd_gensio_ll_alloc(struct gensio_os_funcs *o,
 	if (err)
 	    goto out_nomem;
     }
+
+    /*
+     * Don't set ops until here to avoid it trying to call ops->free
+     * on an error above.
+     */
+    fdll->ops = ops;
 
     return fdll->ll;
 
