@@ -58,6 +58,8 @@ struct sctp_data {
     unsigned int ostreams;
 
     char **strind;
+
+    const char *auxdata[3];
 };
 
 static int
@@ -448,6 +450,8 @@ sctp_do_read(int fd, void *data, gensiods count, gensiods *rcount,
     if (sinfo.sinfo_flags && SCTP_UNORDERED)
 	auxdata[i++] = "oob";
 
+    auxdata[i] = NULL;
+
     return rv;
 }
 
@@ -455,9 +459,9 @@ static void
 sctp_read_ready(void *handler_data, int fd)
 {
     struct sctp_data *tdata = handler_data;
-    const char *argv[3] = { NULL, NULL, NULL };
 
-    gensio_fd_ll_handle_incoming(tdata->ll, sctp_do_read, argv, tdata);
+    gensio_fd_ll_handle_incoming(tdata->ll, sctp_do_read, tdata->auxdata,
+				 tdata);
 }
 
 static const struct gensio_fd_ll_ops sctp_fd_ll_ops = {
