@@ -1724,7 +1724,7 @@ serialdev_gensio_alloc(const char *devname, const char * const args[],
     err = gensio_get_default(o, "serialdev", "custspeed", false,
 			     GENSIO_DEFAULT_BOOL, NULL, &i);
     if (err)
-	return err;
+	goto out_err;
     sdata->allow_custspeed = i;
 
     for (i = 0; args && args[i]; i++) {
@@ -1738,7 +1738,8 @@ serialdev_gensio_alloc(const char *devname, const char * const args[],
 	if (gensio_check_keybool(args[i], "custspeed",
 				 &sdata->allow_custspeed) > 0)
 	    continue;
-	return GE_INVAL;
+	err = GE_INVAL;
+	goto out_err;
     }
 
     sdata->o = o;
