@@ -1134,6 +1134,11 @@ process_fds_epoll(struct selector_s *sel, struct timeval *tvtimeout,
 	 */
 	sel_update_fd(sel, fd, EPOLL_CTL_DEL);
 	fdc->saved_events = event.events & (EPOLLHUP | EPOLLERR);
+	/*
+	 * Have it handle read data, too, so if there is a pending
+	 * error it will get handled.
+	 */
+	event.events |= EPOLLIN;
     }
     if (event.events & (EPOLLIN | EPOLLHUP))
 	handle_selector_call(sel, fd, &sel->read_set, fdc->handle_read);
