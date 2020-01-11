@@ -445,6 +445,8 @@ gensio_gensio_accepter_alloc(struct gensio_accepter *child,
     if (!nadata)
 	return GE_NOMEM;
 
+    nadata->o = o;
+
     nadata->lock = o->alloc_lock(o);
     if (!nadata->lock)
 	goto out_nomem;
@@ -454,7 +456,6 @@ gensio_gensio_accepter_alloc(struct gensio_accepter *child,
     if (!nadata->acc)
 	goto out_nomem;
 
-    nadata->o = o;
     nadata->child = child;
     nadata->acc_cb = acc_cb;
     nadata->acc_data = acc_data;
