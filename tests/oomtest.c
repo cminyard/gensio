@@ -43,13 +43,13 @@ struct oom_tests {
     const char *connecter;
     const char *accepter;
 } oom_tests[] = {
+    { "mux,sctp,localhost,", "mux,sctp,0" },
+    { "telnet(rfc2217),tcp,localhost,", "telnet(rfc2217),tcp,0" },
     { "ssl(CA=ca/CA.pem),tcp,localhost,",
       "ssl(key=ca/key.pem,cert=ca/cert.pem),tcp,0" },
-    { "mux,sctp,localhost,", "mux,sctp,0" },
     { "serialdev,/dev/ttyEcho0,115200", NULL },
     { "udp,localhost,", "udp,0" },
     { "sctp,localhost,", "sctp,0" },
-    { "telnet(rfc2217),tcp,localhost,", "telnet(rfc2217),tcp,0" },
     { "telnet,tcp,localhost,", "telnet,tcp,0" },
     { "stdio,cat", NULL },
     { "echo", NULL },

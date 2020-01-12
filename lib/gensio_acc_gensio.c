@@ -46,6 +46,7 @@ struct basena_data {
 
     bool enabled;
     bool in_shutdown;
+    bool shutdown_finished;
     bool freed;
     bool call_shutdown_done;
     gensio_acc_done shutdown_done;
@@ -106,6 +107,7 @@ basena_finish_shutdown_unlock(struct basena_data *nadata)
 			  void *shutdown_data);
 
     nadata->in_shutdown = false;
+    nadata->shutdown_finished = true;
     shutdown_done = nadata->shutdown_done;
     shutdown_data = nadata->shutdown_data;
     nadata->shutdown_done = NULL;
@@ -142,9 +144,15 @@ basena_startup(struct gensio_accepter *accepter)
     int err;
 
     basena_lock(nadata);
-    err = gensio_acc_startup(nadata->child);
-    if (!err)
-	nadata->enabled = true;
+    assert(!nadata->freed);
+    if (nadata->enabled || nadata->in_shutdown) {
+	err = GE_NOTREADY;
+    } else {
+	nadata->shutdown_finished = false;
+	err = gensio_acc_startup(nadata->child);
+	if (!err)
+	    nadata->enabled = true;
+    }
     basena_unlock(nadata);
 
     return err;
@@ -211,6 +219,8 @@ basena_free(struct gensio_accepter *accepter)
     nadata->freed = true;
     if (nadata->in_shutdown) {
 	nadata->shutdown_done = NULL;
+	basena_deref_and_unlock(nadata);
+    } else if (nadata->shutdown_finished) {
 	basena_deref_and_unlock(nadata);
     } else {
 	rv = gensio_acc_shutdown(nadata->child, basena_child_shutdown, nadata);
@@ -364,7 +374,7 @@ basena_child_event(struct gensio_accepter *accepter, void *user_data,
 
     child = data;
     basena_lock(nadata);
-    if (nadata->in_shutdown) {
+    if (!nadata->enabled) {
 	basena_unlock(nadata);
 	gensio_free(child);
 	return GE_NOTREADY;
