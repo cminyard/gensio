@@ -478,10 +478,8 @@ handle_readerr(struct basen_data *ndata, int err)
 	basen_set_state(ndata, BASEN_CLOSED);
 	basen_ref(ndata);
 	ll_close(ndata, basen_ll_close_done, NULL);
-    } else if (io && gensio_get_cb(io)) {
+    } else if (gensio_get_cb(io)) {
 	goto call_parent_err;
-    } else {
-	basen_i_close(ndata, NULL, NULL);
     }
     return;
  call_parent_err:
