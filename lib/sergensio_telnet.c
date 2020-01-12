@@ -1160,12 +1160,6 @@ stela_finish_parent(void *acc_data, void *finish_data, struct gensio *io,
     if (!sdata->sio)
 	return GE_NOMEM;
 
-    if (sdata->allow_2217) {
-	err = gensio_addclass(io, "sergensio", sdata->sio);
-	if (err)
-	    return err;
-    }
-
     gensio_set_is_reliable(io, gensio_is_reliable(child));
     if (sdata->allow_2217) {
 	err = gensio_addclass(io, "sergensio", sdata->sio);
