@@ -453,11 +453,6 @@ static void basen_ll_close_done(void *cb_data, void *close_data);
 static void basen_i_close(struct basen_data *ndata,
 			  gensio_done close_done, void *close_data);
 
-static void basen_ll_close_on_err(void *cb_data, void *close_data);
-static void basen_ll_close_done(void *cb_data, void *close_data);
-static void basen_i_close(struct basen_data *ndata,
-			  gensio_done close_done, void *close_data);
-
 static void
 handle_readerr(struct basen_data *ndata, int err)
 {
@@ -475,9 +470,13 @@ handle_readerr(struct basen_data *ndata, int err)
     ndata->ll_err = err;
     if (ndata->state == BASEN_IN_FILTER_OPEN ||
 			ndata->state == BASEN_IN_LL_OPEN) {
+	basen_set_state(ndata, BASEN_CLOSED);
+	basen_ref(ndata);
 	ll_close(ndata, basen_ll_close_on_err, (void *) (long) err);
     } else if (ndata->state == BASEN_CLOSE_WAIT_DRAIN ||
 			ndata->state == BASEN_IN_FILTER_CLOSE) {
+	basen_set_state(ndata, BASEN_CLOSED);
+	basen_ref(ndata);
 	ll_close(ndata, basen_ll_close_done, NULL);
     } else if (io && gensio_get_cb(io)) {
 	goto call_parent_err;
@@ -601,7 +600,7 @@ basen_ll_close_done(void *cb_data, void *close_data)
 {
     struct basen_data *ndata = cb_data;
 
-    basen_lock_and_ref(ndata);
+    basen_lock(ndata);
     basen_finish_close(ndata);
     basen_deref_and_unlock(ndata);
 }
@@ -611,7 +610,7 @@ basen_ll_close_on_err(void *cb_data, void *close_data)
 {
     struct basen_data *ndata = cb_data;
 
-    basen_lock_and_ref(ndata);
+    basen_lock(ndata);
     basen_finish_open(ndata, (long) close_data);
     basen_deref_and_unlock(ndata);
 }
@@ -647,6 +646,7 @@ basen_try_connect(struct basen_data *ndata)
 
     if (err) {
 	basen_set_state(ndata, BASEN_CLOSED);
+	basen_ref(ndata);
 	ll_close(ndata, basen_ll_close_on_err, (void *) (long) err);
     } else {
 	basen_finish_open(ndata, 0);
@@ -780,6 +780,8 @@ basen_try_close(struct basen_data *ndata)
     }
 
     /* FIXME - error handling? */
+    basen_set_state(ndata, BASEN_CLOSED);
+    basen_ref(ndata);
     ll_close(ndata, basen_ll_close_done, NULL);
 }
 
@@ -790,6 +792,8 @@ basen_i_close(struct basen_data *ndata,
     ndata->close_done = close_done;
     ndata->close_data = close_data;
     if (ndata->ll_err_occurred || ndata->state == BASEN_IN_LL_OPEN) {
+	basen_set_state(ndata, BASEN_CLOSED);
+	basen_ref(ndata);
 	ll_close(ndata, basen_ll_close_done, NULL);
     } else if (filter_ll_write_pending(ndata)) {
 	basen_set_state(ndata, BASEN_CLOSE_WAIT_DRAIN);
@@ -1097,9 +1101,13 @@ basen_ll_write_ready(void *cb_data)
 
 	    if (ndata->state == BASEN_IN_FILTER_OPEN ||
 			ndata->state == BASEN_IN_LL_OPEN) {
+		basen_set_state(ndata, BASEN_CLOSED);
+		basen_ref(ndata);
 		ll_close(ndata, basen_ll_close_on_err, (void *) (long) err);
 	    } else if (ndata->state == BASEN_CLOSE_WAIT_DRAIN ||
 		       ndata->state == BASEN_IN_FILTER_CLOSE) {
+		basen_set_state(ndata, BASEN_CLOSED);
+		basen_ref(ndata);
 		ll_close(ndata, basen_ll_close_done, NULL);
 	    }
 	    goto out;
