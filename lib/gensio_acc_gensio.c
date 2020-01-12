@@ -151,27 +151,12 @@ basena_startup(struct gensio_accepter *accepter)
 }
 
 static void
-basena_pending_io_closed(struct gensio *net, void *cb_data)
-{
-    struct basena_data *nadata = cb_data;
-
-    gensio_free(net);
-    basena_lock(nadata);
-    basena_leave_cb_unlock(nadata);
-}
-
-static void
 basena_child_shutdown(struct gensio_accepter *accepter,
 		     void *shutdown_data)
 {
     struct basena_data *nadata = shutdown_data;
 
     basena_lock(nadata);
-    if (nadata->in_cb_count)
-	nadata->in_cb_count -=
-	    gensio_acc_close_pending_ios(nadata->acc,
-					 basena_pending_io_closed, nadata);
-
     if (nadata->in_cb_count) {
 	nadata->call_shutdown_done = true;
 	basena_unlock(nadata);
