@@ -46,6 +46,7 @@ struct basena_data {
 
     bool enabled;
     bool in_shutdown;
+    bool freed;
     bool call_shutdown_done;
     gensio_acc_done shutdown_done;
     void *shutdown_data;
@@ -81,6 +82,7 @@ basena_finish_free(struct basena_data *nadata)
 static void
 basena_ref(struct basena_data *nadata)
 {
+    assert(nadata->refcount > 0);
     nadata->refcount++;
 }
 
@@ -219,6 +221,8 @@ basena_free(struct gensio_accepter *accepter)
     struct basena_data *nadata = gensio_acc_get_gensio_data(accepter);
 
     basena_lock(nadata);
+    assert(!nadata->freed);
+    nadata->freed = true;
     basena_deref_and_unlock(nadata);
 }
 
