@@ -1172,7 +1172,7 @@ gensio_acc_disable(struct gensio_accepter *acc)
     while (c) {
 	struct gensio_link *l, *l2;
 
-	gensio_list_for_each_safe(&c->pending_ios, l, l2) {
+	gensio_list_for_each_safe(&acc->pending_ios, l, l2) {
 	    struct gensio *io = gensio_container_of(l, struct gensio,
 						    pending_link);
 	    gensio_acc_remove_pending_gensio(acc, io);
@@ -1182,29 +1182,6 @@ gensio_acc_disable(struct gensio_accepter *acc)
 	c->func(c, GENSIO_ACC_FUNC_DISABLE, 0, NULL, NULL, NULL, NULL, NULL);
 	c = c->child;
     }
-}
-
-unsigned int
-gensio_acc_close_pending_ios(struct gensio_accepter *acc,
-			     gensio_done done, void *done_data)
-{
-    struct gensio_link *l, *l2;
-    int err;
-    unsigned int rv = 0;
-
-    gensio_list_for_each_safe(&acc->pending_ios, l, l2) {
-	struct gensio *io = gensio_container_of(l, struct gensio,
-						pending_link);
-
-	gensio_acc_remove_pending_gensio(acc, io);
-	err = gensio_close(io, done, done_data);
-	if (err) {
-	    gensio_free(io);
-	    rv++;
-	}
-    }
-
-    return rv;
 }
 
 int

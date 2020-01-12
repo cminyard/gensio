@@ -221,13 +221,6 @@ void gensio_acc_add_pending_gensio(struct gensio_accepter *acc,
 void gensio_acc_remove_pending_gensio(struct gensio_accepter *acc,
 				      struct gensio *io);
 
-/*
- * Close all the pending ios with the done.  Returns the number of close
- * calls that failed and had gensio_free() called on them.
- */
-unsigned int gensio_acc_close_pending_ios(struct gensio_accepter *acc,
-					  gensio_done done, void *done_data);
-
 void gensio_acc_set_is_packet(struct gensio_accepter *io, bool is_packet);
 void gensio_acc_set_is_reliable(struct gensio_accepter *io, bool is_reliable);
 void gensio_acc_set_is_message(struct gensio_accepter *io, bool is_message);
