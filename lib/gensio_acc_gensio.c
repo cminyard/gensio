@@ -204,11 +204,25 @@ static void
 basena_free(struct gensio_accepter *accepter)
 {
     struct basena_data *nadata = gensio_acc_get_gensio_data(accepter);
+    int rv;
 
     basena_lock(nadata);
     assert(!nadata->freed);
     nadata->freed = true;
-    basena_deref_and_unlock(nadata);
+    if (nadata->in_shutdown) {
+	nadata->shutdown_done = NULL;
+	basena_deref_and_unlock(nadata);
+    } else {
+	rv = gensio_acc_shutdown(nadata->child, basena_child_shutdown, nadata);
+	if (rv) {
+	    basena_deref_and_unlock(nadata);
+	} else {
+	    /* No ref here, we let the shutdown ref free it. */
+	    nadata->enabled = false;
+	    nadata->in_shutdown = true;
+	    basena_unlock(nadata);
+	}
+    }
 }
 
 static int
