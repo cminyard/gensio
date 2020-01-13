@@ -787,7 +787,7 @@ chan_check_send_more(struct mux_inst *chan)
 	gensio_cb(chan->io, GENSIO_EVENT_WRITE_READY, 0, NULL, NULL, NULL);
 	mux_lock(chan->mux);
 	if (chan_deref(chan))
-	    break;
+	    return; /* chan was freed. */
     }
     chan->in_write_ready = false;
 }
@@ -814,7 +814,7 @@ full_msg_ready(struct mux_inst *chan, gensiods *rlen)
 /*
  * Must be called with an extra refcount held.
  */
-static void
+static bool
 chan_check_read(struct mux_inst *chan)
 {
     struct mux_data *muxdata = chan->mux;
@@ -914,8 +914,8 @@ chan_check_read(struct mux_inst *chan)
 			   (unsigned long) chan->received_unacked);
 	}
     }
-    if (!fullmsg && !chan->wr_ready && chan->state == MUX_INST_IN_CLOSE_FINAL)
-	mux_channel_finish_close(chan);
+
+    return fullmsg;
 }
 
 static void
@@ -923,11 +923,24 @@ chan_deferred_op(struct gensio_runner *runner, void *cbdata)
 {
     struct mux_inst *chan = cbdata;
     struct mux_data *muxdata = chan->mux;
+    bool fullmsg;
 
     mux_lock(muxdata);
     chan->deferred_op_pending = false;
     chan_check_send_more(chan);
-    chan_check_read(chan);
+    fullmsg = chan_check_read(chan);
+
+    /*
+     * If there is a not full message pending, there is no data to send,
+     * we are not currently in a write callback, and we are ready to close,
+     * finish the close.  We don't have to worry about being in a read
+     * callback because we can't have unlocked from the above call and
+     * another read sneak in.  Since we release the lock in chan_check_read,
+     * a write can sneak in.
+     */
+    if (!fullmsg && !chan->wr_ready && !chan->in_write_ready &&
+		chan->state == MUX_INST_IN_CLOSE_FINAL)
+	mux_channel_finish_close(chan);
     chan_deref(chan);
     mux_unlock(muxdata);
 }
