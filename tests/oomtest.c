@@ -1004,14 +1004,15 @@ print_test(struct oom_tests *test, char *tstr, bool close_acc, long count)
 static unsigned long
 run_oom_tests(struct oom_tests *test, char *tstr,
 	      int (*tester)(struct oom_tests *test, long count,
-			    int *exitcode, bool close_acc))
+			    int *exitcode, bool close_acc),
+	      int start, int end)
 {
     long count, errcount = 0;
     int rv, exit_code = 1;
     bool close_acc = false;
 
     /* First run (count == -1) means no memory allocation failure. */
-    for (count = -1; exit_code == 1 && count < MAX_LOOPS; ) {
+    for (count = start; exit_code == 1 && count < end; ) {
 	if (verbose)
 	    print_test(test, tstr, close_acc, count);
 	rv = tester(test, count, &exit_code, close_acc);
@@ -1090,10 +1091,14 @@ main(int argc, char *argv[])
     int rv;
     pthread_t loopth;
     struct gensio_waiter *loopwaiter;
-    unsigned int i;
+    unsigned int i, j;
     unsigned long errcount = 0;
     struct sigaction sigdo;
     sigset_t sigs;
+    int testnr = -1, numtests = 0, testnrstart = -1, testnrend = MAX_LOOPS;
+
+    for (j = 0; oom_tests[j].connecter; j++)
+	numtests++;
 
     for (i = 1; i < argc; i++) {
 	if (argv[i][0] != '-')
@@ -1104,6 +1109,37 @@ main(int argc, char *argv[])
 	} else if (strcmp(argv[i], "-d") == 0) {
 	    debug = true;
 	    gensio_set_log_mask(GENSIO_LOG_MASK_ALL);
+	} else if (strcmp(argv[i], "-l") == 0) {
+	    for (j = 0; oom_tests[j].connecter; j++)
+		printf("%d : %s %s\n", j, oom_tests[j].connecter,
+		       oom_tests[j].accepter ? oom_tests[j].accepter : "");
+	    exit(0);
+	} else if (strcmp(argv[i], "-t") == 0) {
+	    i++;
+	    if (i >= argc) {
+		fprintf(stderr, "No test number given with -t\n");
+		exit(1);
+	    }
+	    testnr = strtol(argv[i], NULL, 0);
+	    if (testnr >= numtests) {
+		fprintf(stderr, "Test number (-t) too large, max is %d\n",
+			numtests);
+		exit(1);
+	    }
+	} else if (strcmp(argv[i], "-s") == 0) {
+	    i++;
+	    if (i >= argc) {
+		fprintf(stderr, "No start number given with -s\n");
+		exit(1);
+	    }
+	    testnrstart = strtol(argv[i], NULL, 0);
+	} else if (strcmp(argv[i], "-e") == 0) {
+	    i++;
+	    if (i >= argc) {
+		fprintf(stderr, "No end number given with -s\n");
+		exit(1);
+	    }
+	    testnrend = strtol(argv[i], NULL, 0) + 1;
 	} else {
 	    fprintf(stderr, "Unknown argument: '%s'\n", argv[i]);
 	    exit(1);
@@ -1172,11 +1208,22 @@ main(int argc, char *argv[])
 	goto out_err;
     }
 
-    for (i = 0; oom_tests[i].connecter; i++) {
-	errcount += run_oom_tests(oom_tests + i, "oom", run_oom_test);
-	if (oom_tests[i].accepter)
-	    errcount += run_oom_tests(oom_tests + i, "oom acc",
-				      run_oom_acc_test);
+    if (testnr < 0) {
+	for (i = 0; oom_tests[i].connecter; i++) {
+	    errcount += run_oom_tests(oom_tests + i, "oom", run_oom_test,
+				      testnrstart, testnrend);
+	    if (oom_tests[i].accepter)
+		errcount += run_oom_tests(oom_tests + i, "oom acc",
+					  run_oom_acc_test,
+					  testnrstart, testnrend);
+	}
+    } else {
+	    errcount += run_oom_tests(oom_tests + testnr, "oom", run_oom_test,
+				      testnrstart, testnrend);
+	    if (oom_tests[i].accepter)
+		errcount += run_oom_tests(oom_tests + i, "oom acc",
+					  run_oom_acc_test,
+					  testnrstart, testnrend);
     }
 
     o->wake(loopwaiter);
