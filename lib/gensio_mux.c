@@ -2664,28 +2664,24 @@ struct muxna_data {
 };
 
 static void
-muxna_free(void *acc_data)
+muxna_free(struct muxna_data *nadata)
 {
-    struct muxna_data *nadata = acc_data;
 
     gensio_mux_config_cleanup(&nadata->data);
     nadata->o->free(nadata->o, nadata);
 }
 
 int
-muxna_alloc_gensio(void *acc_data, const char * const *iargs,
+muxna_alloc_gensio(struct muxna_data *nadata, const char * const *iargs,
 		   struct gensio *child, struct gensio **rio)
 {
-    struct muxna_data *nadata = acc_data;
-
     return mux_gensio_alloc(child, iargs, nadata->o, NULL, NULL, rio);
 }
 
 static int
-muxna_new_child(void *acc_data, void **finish_data,
+muxna_new_child(struct muxna_data *nadata, void **finish_data,
 		struct gensio_new_child_io *ncio)
 {
-    struct muxna_data *nadata = acc_data;
     struct mux_data *muxdata;
     struct mux_inst *chan;
     int err;
@@ -2699,11 +2695,18 @@ muxna_new_child(void *acc_data, void **finish_data,
 	muxdata->state = MUX_UNINITIALIZED;
 	muxdata->acc_open_done = ncio->open_done;
 	muxdata->acc_open_data = ncio->open_data;
-	gensio_set_write_callback_enable(muxdata->child, true);
-	gensio_set_read_callback_enable(muxdata->child, true);
 	mux_unlock(muxdata);
+	*finish_data = muxdata;
     }
     return err;
+}
+
+static int
+muxna_finish_parent(struct mux_data *muxdata)
+{
+    gensio_set_write_callback_enable(muxdata->child, true);
+    gensio_set_read_callback_enable(muxdata->child, true);
+    return 0;
 }
 
 static int
@@ -2722,6 +2725,8 @@ gensio_gensio_acc_mux_cb(void *acc_data, int op, void *data1, void *data2,
 	return 0;
 
     case GENSIO_GENSIO_ACC_FINISH_PARENT:
+	return muxna_finish_parent(data1);
+
     default:
 	return GE_NOTSUP;
     }
