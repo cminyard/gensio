@@ -13,7 +13,7 @@ libgensio_la_SOURCES = \
 	gensio_selector.c waiter.c \
 	gensio_ssl.c gensio_base.c gensio_filter_ssl.c \
 	gensio_filter_telnet.c telnet.c buffer.c \
-	gensio_ll_fd.c gensio_ll_gensio.c gensio_acc_gensio.c \
+	gensio_ll_fd.c gensio_ll_gensio.c gensio_acc.c gensio_acc_gensio.c \
 	gensio_ll_ipmisol.c sergensio_ipmisol.c \
 	utils.c selector.c gensio_sctp.c \
 	gensio_filter_certauth.c gensio_certauth.c gensio_pty.c \

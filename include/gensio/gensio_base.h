@@ -355,4 +355,109 @@ struct gensio *base_gensio_server_alloc(struct gensio_os_funcs *o,
 					gensio_done_err open_done,
 					void *open_data);
 
+/*
+ * Code for the generic accepter code.  This implements the state
+ * machine for an accepter so you don't have to.  Basically, you
+ * probably don't need locking or checks, you can just do the
+ * operations specific to your gensio.
+ */
+
+/*
+ * The callback code for generic gensio accepter users.
+ */
+typedef int (*gensio_base_acc_op)(struct gensio_accepter *acc, int op,
+				  void *acc_op_data, void *done, int val1,
+				  void *data, void *data2, void *ret);
+
+/*
+ * Note that all the below take an acc an dacc_op_data.  op is set to
+ * the operation numbers below.
+ */
+
+/*
+ * Startup the operation
+ */
+#define GENSIO_BASE_ACC_STARTUP		0
+
+/*
+ * Shutdown the operation and call the done callback when done.
+ *
+ *   done => (gensio_acc_done) done
+ */
+#define GENSIO_BASE_ACC_SHUTDOWN	1
+
+/*
+ * Enable the callbacks.  If done is not NULL, call the done callback
+ * when the operation is complete.
+ *
+ *   enabled => val1
+ *   done => (gensio_acc_done) done
+ */
+#define GENSIO_BASE_ACC_SET_CB_ENABLE	2
+
+/*
+ * Free the data
+ */
+#define GENSIO_BASE_ACC_FREE		3
+
+/*
+ * Disable the gensio (see other docs in disable for semantics.
+ */
+#define GENSIO_BASE_ACC_DISABLE		4
+
+/*
+ * gensio controls
+ *
+ *   done => (unsigned int *) &option
+ *   val1 => get
+ *   data => data
+ *   ret => (gensiods *) datalen
+ */
+#define GENSIO_BASE_ACC_CONTROL		5
+
+/*
+ * Create a new gensio from a string.
+ *
+ *   done => (gensio_event) cb
+ *   data => (const char *) addr
+ *   data2 => user_data
+ *   ret => (struct gensio **) new_io
+ */
+#define GENSIO_BASE_ACC_STR_TO_GENSIO	6
+
+/*
+ * When creating a new connection, call the start operation below to
+ * start things up, if it returns an error then it is not in the right
+ * state to accept a new connection.
+ *
+ * You must call the end operation without blocking when you finish
+ * setting up the child (no matter what, error or not).  Pass in the
+ * gensio error if you get one, zero othersize.  Note that this claims
+ * and releases a lock.
+ */
+int base_gensio_accepter_new_child_start(struct gensio_accepter *accepter);
+void base_gensio_accepter_new_child_end(struct gensio_accepter *accepter,
+					struct gensio *io, int err);
+
+/*
+ * When a new child is completely up (or fails to come up), call this
+ * function to report the new event on the gensio and handle any
+ * internal cleanup.  Pass in the error if there is a failure.
+ */
+void base_gensio_server_open_done(struct gensio_accepter *accepter,
+				  struct gensio *net, int err);
+
+/*
+ * Allocate a new accepter.  Note that the child may be NULL if there
+ * isn't one, this is just passed to the main gensio accepter
+ * allocation.
+ */
+int base_gensio_accepter_alloc(struct gensio_accepter *child,
+			       gensio_base_acc_op ops,
+			       void *acc_op_data,
+			       struct gensio_os_funcs *o,
+			       const char *typename,
+			       gensio_accepter_event cb, void *user_data,
+			       struct gensio_accepter **accepter);
+
 #endif /* GENSIO_BASE_H */
