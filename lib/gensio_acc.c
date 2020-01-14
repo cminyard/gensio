@@ -271,7 +271,11 @@ basena_cb_en_done(struct gensio_accepter *accepter, void *cb_data)
     done_data = nadata->set_cb_enable_done_data;
     nadata->set_cb_enable_done = NULL;
     basena_unlock(nadata);
+
     done(acc, done_data);
+
+    basena_lock(nadata);
+    basena_leave_cb_unlock(nadata);
 }
 
 static int
@@ -281,19 +285,20 @@ basena_set_accept_callback_enable(struct gensio_accepter *accepter,
 {
     struct basena_data *nadata = gensio_acc_get_gensio_data(accepter);
     gensio_acc_done ldone = NULL;
-    int rv;
+    int rv = 0;
 
     basena_lock(nadata);
     if (done && nadata->set_cb_enable_done) {
 	rv = GE_NOTREADY;
-    } else {
+    } else if (done) {
 	nadata->set_cb_enable_done = done;
 	nadata->set_cb_enable_done_data = done_data;
 	ldone = basena_cb_en_done;
-	rv = 0;
     }
     if (!rv)
-	base_gensio_acc_set_cb_enable(nadata, enabled, ldone);
+	rv = base_gensio_acc_set_cb_enable(nadata, enabled, ldone);
+    if (!rv && done)
+	basena_in_cb(nadata);
     basena_unlock(nadata);
     return rv;
 }
