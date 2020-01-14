@@ -1089,8 +1089,8 @@ int
 main(int argc, char *argv[])
 {
     int rv;
-    pthread_t loopth;
-    struct gensio_waiter *loopwaiter;
+    pthread_t loopth[3];
+    struct gensio_waiter *loopwaiter[3];
     unsigned int i, j;
     unsigned long errcount = 0;
     struct sigaction sigdo;
@@ -1196,16 +1196,18 @@ main(int argc, char *argv[])
     }
     o->vlog = do_vlog;
 
-    loopwaiter = o->alloc_waiter(o);
-    if (!loopwaiter) {
-	fprintf(stderr, "Could not allocate loop waiter\n");
-	goto out_err;
-    }
+    for (i = 0; i < 3; i++) {
+	loopwaiter[i] = o->alloc_waiter(o);
+	if (!loopwaiter[i]) {
+	    fprintf(stderr, "Could not allocate loop waiter\n");
+	    goto out_err;
+	}
 
-    rv = pthread_create(&loopth, NULL, gensio_loop, loopwaiter);
-    if (rv) {
-	perror("Could not allocate loop thread");
-	goto out_err;
+	rv = pthread_create(&loopth[i], NULL, gensio_loop, loopwaiter[i]);
+	if (rv) {
+	    perror("Could not allocate loop thread");
+	    goto out_err;
+	}
     }
 
     if (testnr < 0) {
@@ -1226,9 +1228,11 @@ main(int argc, char *argv[])
 					  testnrstart, testnrend);
     }
 
-    o->wake(loopwaiter);
-    pthread_join(loopth, NULL);
-    o->free_waiter(loopwaiter);
+    for (i = 0; i < 3; i++) {
+	o->wake(loopwaiter[i]);
+	pthread_join(loopth[i], NULL);
+	o->free_waiter(loopwaiter[i]);
+    }
 
     printf("Got %ld errors\n", errcount);
     return !!errcount;
