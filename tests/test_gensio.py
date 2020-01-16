@@ -604,7 +604,8 @@ class TestAcceptConnect:
     def __init__(self, o, iostr, io2str, io3str, tester, name = None,
                  io1_dummy_write = None, CA=None, do_close = True,
                  auth_begin_rv = gensio.GE_NOTSUP, expect_pw = None,
-                 expect_pw_rv = gensio.GE_NOTSUP, password = None):
+                 expect_pw_rv = gensio.GE_NOTSUP, password = None,
+                 expect_remclose = True):
         self.o = o
         if (name):
             self.name = name
@@ -618,7 +619,8 @@ class TestAcceptConnect:
         self.io1 = self.acc2.str_to_gensio(io3str, None);
         self.io2 = None
         self.CA = CA
-        h = utils.HandleData(o, io3str, io = self.io1, password = password)
+        h = utils.HandleData(o, io3str, io = self.io1, password = password,
+                             expect_remclose = expect_remclose)
         self.auth_begin_rv = auth_begin_rv
         self.expect_pw = expect_pw
         self.expect_pw_rv = expect_pw_rv
@@ -724,7 +726,8 @@ def test_ssl_sctp_acc_connect():
                 "ssl(key=%s/key.pem,cert=%s/cert.pem),sctp,3024"
                            % (utils.keydir, utils.keydir),
                 "ssl(CA=%s/CA.pem),sctp,localhost,3023" % utils.keydir,
-                           do_small_test)
+                           do_small_test,
+                          expect_remclose = False)
     except Exception as E:
         s = str(E)
         # We can race and get either one of these
@@ -746,7 +749,7 @@ def test_ssl_sctp_acc_connect():
                 "ssl(CA=%s/CA.pem,key=%s/clientkey.pem,cert=%s/clientcert.pem)"
                 ",sctp,localhost,3023"
                                % (utils.keydir, utils.keydir, utils.keydir),
-                           do_small_test)
+                           do_small_test, expect_remclose = False)
     except Exception as E:
         s = str(E)
         # We can race and get either one of these

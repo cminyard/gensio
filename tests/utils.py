@@ -51,7 +51,7 @@ class HandleData:
     """
 
     def __init__(self, o, iostr, name = None, chunksize=10240,
-                 io = None, password = None):
+                 io = None, password = None, expect_remclose = True):
         """Start a gensio object with this handler"""
         if (name):
             self.name = name
@@ -66,6 +66,7 @@ class HandleData:
         self.to_waitfor = None
         self.expecting_modemstate = False
         self.expecting_linestate = False
+        self.expecting_remclose = expect_remclose
         self.expected_server_cb = None
         self.expected_server_value = 0
         self.expected_server_return = 0
@@ -170,7 +171,7 @@ class HandleData:
                     s = s + "\\x%2.2x" % i
             print("%s: Got data: (err %s %d bytes) %s" % (self.name, str(err),
                                                           len(buf), s))
-        if err == "Remote end closed connection":
+        if self.expecting_remclose and err == "Remote end closed connection":
             io.read_cb_enable(False)
             return 0
         if (err):
