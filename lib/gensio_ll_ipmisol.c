@@ -1538,7 +1538,7 @@ ipmisol_gensio_ll_alloc(struct gensio_os_funcs *o,
     solll->refcount = 1;
     solll->state = SOL_CLOSED;
 
-    solll->devname = strdup(devname);
+    solll->devname = gensio_strdup(o, devname);
     if (!solll->devname)
 	goto out_nomem;
 
