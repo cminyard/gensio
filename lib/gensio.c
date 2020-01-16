@@ -2897,7 +2897,7 @@ gensio_syncio_event(struct gensio *io, void *user_data,
 		op->buf += len;
 		op->len -= len;
 		if (op->len == 0) {
-		    gensio_list_rm(&sync_io->readops, l);
+		    gensio_list_rm(&sync_io->writeops, l);
 		    op->queued = false;
 		    o->wake(op->waiter);
 		} else {
@@ -3008,6 +3008,7 @@ gensio_read_s(struct gensio *io, gensiods *count, void *data, gensiods datalen,
 	goto out_unlock;
     }
     gensio_set_read_callback_enable(io, true);
+    memset(&op.link, 0, sizeof(op.link));
     gensio_list_add_tail(&sync_io->readops, &op.link);
 
     o->unlock(sync_io->lock);
@@ -3065,13 +3066,14 @@ gensio_write_s(struct gensio *io, gensiods *count,
 	goto out_unlock;
     }
     gensio_set_write_callback_enable(io, true);
+    memset(&op.link, 0, sizeof(op.link));
     gensio_list_add_tail(&sync_io->writeops, &op.link);
 
     o->unlock(sync_io->lock);
     o->wait_intr(op.waiter, 1, timeout);
     o->lock(sync_io->lock);
     if (op.queued)
-	gensio_list_rm(&sync_io->readops, &op.link);
+	gensio_list_rm(&sync_io->writeops, &op.link);
     if (op.err)
 	rv = op.err;
     else if (count)
