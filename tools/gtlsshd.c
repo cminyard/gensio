@@ -1207,9 +1207,9 @@ do_vlog(struct gensio_os_funcs *f, enum gensio_log_levels level,
 static void
 close_cons(struct gdata *ginfo)
 {
-    struct gensio_link *l;
+    struct gensio_link *l, *l2;
 
-    gensio_list_for_each(&ginfo->cons, l) {
+    gensio_list_for_each_safe(&ginfo->cons, l, l2) {
 	struct per_con_info *pcinfo = gensio_container_of(l, struct per_con_info,
 							  link);
 
