@@ -139,7 +139,9 @@ telnet_ll_write_pending(struct gensio_filter *filter)
 static bool
 telnet_ll_read_needed(struct gensio_filter *filter)
 {
-    return false;
+    struct telnet_filter *tfilter = filter_to_telnet(filter);
+
+    return tfilter->allow_2217 && !tfilter->rfc2217_set;
 }
 
 static int

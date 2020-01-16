@@ -642,6 +642,7 @@ handle_ioerr(struct basen_data *ndata, int err)
     ll_set_read_callback_enable(ndata, false);
 
     ndata->ll_err = err;
+    ndata->open_err = err;
 
     switch(ndata->state) {
     case BASEN_CLOSED:
@@ -652,7 +653,6 @@ handle_ioerr(struct basen_data *ndata, int err)
 
     case BASEN_IN_FILTER_OPEN:
 	ndata->deferred_open = true;
-	ndata->open_err = err;
 	basen_sched_deferred_op(ndata);
 	basen_set_state(ndata, BASEN_IN_LL_IO_ERR_CLOSE);
 	ll_close(ndata);
@@ -715,6 +715,7 @@ basen_finish_close(struct basen_data *ndata)
 static void
 basen_finish_open(struct basen_data *ndata, int err)
 {
+    i_basen_add_trace(ndata, 100, __LINE__);
     if (!err) {
 	assert(ndata->state == BASEN_IN_FILTER_OPEN || ndata->state == BASEN_OPEN);
 	basen_set_state(ndata, BASEN_OPEN);
@@ -989,11 +990,15 @@ basen_i_close(struct basen_data *ndata,
     ndata->xmit_enabled = false;
     ndata->close_done = close_done;
     ndata->close_data = close_data;
+    /*
+     * Set local close no matter what, so it get's delivered if open is
+     * not yet complete.
+     */
+    ndata->open_err = GE_LOCALCLOSED;
     if (ndata->state == BASEN_IN_LL_OPEN ||
 		ndata->state == BASEN_IN_FILTER_OPEN) {
 	basen_set_state(ndata, BASEN_IN_LL_CLOSE);
 	ndata->deferred_open = true;
-	ndata->open_err = GE_LOCALCLOSED;
 	basen_sched_deferred_op(ndata);
 	ll_close(ndata);
     } else if (filter_ll_write_pending(ndata)) {
@@ -1426,7 +1431,6 @@ gensio_i_alloc(struct gensio_os_funcs *o,
 	       gensio_event cb, void *user_data)
 {
     struct basen_data *ndata = o->zalloc(o, sizeof(*ndata));
-    int err;
 
     if (!ndata)
 	return NULL;
@@ -1478,24 +1482,6 @@ gensio_i_alloc(struct gensio_os_funcs *o,
 
 	ndata->open_done = open_done;
 	ndata->open_data = open_data;
-	basen_lock(ndata);
-	basen_set_state(ndata, BASEN_IN_FILTER_OPEN);
-	err = basen_filter_try_connect(ndata);
-	if (!err) {
-	    /* We are fully open, schedule it. */
-	    basen_set_state(ndata, BASEN_OPEN);
-	    ndata->deferred_open = true;
-	    basen_sched_deferred_op(ndata);
-	} else if (err == GE_INPROGRESS) {
-	    err = 0;
-	} else {
-	    basen_set_state(ndata, BASEN_CLOSED);
-	    basen_unlock(ndata);
-	    goto out_nomem;
-	}
-	basen_ref(ndata); /* For the open. */
-	basen_set_ll_enables(ndata);
-	basen_unlock(ndata);
     }
 
     return ndata->io;
@@ -1527,6 +1513,36 @@ base_gensio_server_alloc(struct gensio_os_funcs *o,
 {
     return gensio_i_alloc(o, ll, filter, child, typename, false,
 			  open_done, open_data, NULL, NULL);
+}
+
+int
+base_gensio_server_start(struct gensio *io)
+{
+    struct basen_data *ndata = gensio_get_gensio_data(io);
+    int err;
+
+    basen_lock(ndata);
+    basen_set_state(ndata, BASEN_IN_FILTER_OPEN);
+    err = basen_filter_try_connect(ndata);
+    if (!err) {
+	/* We are fully open, schedule it. */
+	basen_set_state(ndata, BASEN_OPEN);
+	ndata->deferred_open = true;
+	basen_sched_deferred_op(ndata);
+    } else if (err == GE_INPROGRESS) {
+	err = 0;
+    } else {
+	basen_set_state(ndata, BASEN_CLOSED);
+	basen_unlock(ndata);
+	err = GE_NOMEM;
+	goto out_unlock;
+    }
+    basen_ref(ndata); /* For the open. */
+    basen_set_ll_enables(ndata);
+ out_unlock:
+    basen_unlock(ndata);
+
+    return err;
 }
 
 void

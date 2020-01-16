@@ -726,6 +726,7 @@ sctpna_readhandler(int fd, void *cbdata)
     if (!tdata) {
 	gensio_acc_log(nadata->acc, GENSIO_LOG_INFO,
 		       "Error accepting net gensio: out of memory");
+	err = GE_NOMEM;
 	goto out_err;
     }
 
@@ -748,6 +749,7 @@ sctpna_readhandler(int fd, void *cbdata)
     if (!tdata->ll) {
 	gensio_acc_log(nadata->acc, GENSIO_LOG_ERR,
 		       "Out of memory allocating net ll");
+	err = GE_NOMEM;
 	goto out_err;
     }
 
@@ -756,14 +758,18 @@ sctpna_readhandler(int fd, void *cbdata)
     if (!io) {
 	gensio_acc_log(nadata->acc, GENSIO_LOG_ERR,
 		       "Out of memory allocating net base");
+	err = GE_NOMEM;
 	goto out_err;
     }
     gensio_set_is_reliable(io, true);
+    err = base_gensio_server_start(io);
+    if (err)
+	goto out_err;
     base_gensio_accepter_new_child_end(nadata->acc, io, 0);
     return;
 
  out_err:
-    base_gensio_accepter_new_child_end(nadata->acc, io, GE_INVAL);
+    base_gensio_accepter_new_child_end(nadata->acc, io, err);
     if (new_fd != -1)
 	close(new_fd);
     if (tdata) {

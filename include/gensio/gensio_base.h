@@ -354,6 +354,13 @@ struct gensio *base_gensio_server_alloc(struct gensio_os_funcs *o,
 					void *open_data);
 
 /*
+ * base_gensio_server_alloc() does not start the gensio, you have to
+ * call this.  This lets you do some gensio configuration and handle
+ * errors more easily.
+ */
+int base_gensio_server_start(struct gensio *io);
+
+/*
  * Code for the generic accepter code.  This implements the state
  * machine for an accepter so you don't have to.  Basically, you
  * probably don't need locking or checks, you can just do the
