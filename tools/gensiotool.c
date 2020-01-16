@@ -477,7 +477,7 @@ main(int argc, char *argv[])
 	    fprintf(stderr, "Could not start %s: %s\n", userdata2.ios,
 		    gensio_err_to_str(rv));
 	    userdata1.err = rv;
-	    goto close1;
+	    goto out_err;
 	}
 	if (io2_acc_print) {
 	    char str[2048];
@@ -509,7 +509,7 @@ main(int argc, char *argv[])
 	    userdata2.can_close = false;
 	    fprintf(stderr, "Could not open %s: %s\n", userdata2.ios,
 		    gensio_err_to_str(rv));
-	    goto close1;
+	    goto out_err;
 	}
 
 	userdata1.can_close = true;
@@ -537,7 +537,6 @@ main(int argc, char *argv[])
 	gensio_acc_free(io2_acc);
     }
 
- close1:
     if (userdata1.can_close) {
 	rv = gensio_close(userdata1.io, io_close, closewaiter);
 	if (rv)
