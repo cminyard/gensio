@@ -224,7 +224,7 @@ basena_child_shutdown_done(struct gensio_accepter *accepter,
     basena_lock(nadata);
     if (nadata->in_cb_count) {
 	nadata->call_shutdown_done = true;
-	basena_unlock(nadata);
+	basena_deref_and_unlock(nadata);
     } else {
 	basena_finish_shutdown_unlock(nadata);
     }
