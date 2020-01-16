@@ -417,12 +417,6 @@ base_gensio_accepter_new_child_end(struct gensio_accepter *accepter,
 }
 
 void
-base_gensio_io_closed_on_init(struct gensio *io, void *cb_data)
-{
-    gensio_free(io);
-}
-
-void
 base_gensio_server_open_done(struct gensio_accepter *accepter,
 			     struct gensio *net, int err)
 {
@@ -431,7 +425,7 @@ base_gensio_server_open_done(struct gensio_accepter *accepter,
     basena_lock(nadata);
     gensio_acc_remove_pending_gensio(nadata->acc, net);
     if (err) {
-	gensio_close(net, base_gensio_io_closed_on_init, NULL);
+	gensio_free(net);
 	gensio_acc_log(nadata->acc, GENSIO_LOG_ERR,
 		       "Error accepting a gensio: %s",
 		       gensio_err_to_str(err));
