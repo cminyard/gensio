@@ -35,6 +35,11 @@
 #include <gensio/argvutils.h>
 #include <gensio/gensio_osops.h>
 
+#if 0
+#define LOCK_TRACING
+#define LOCK_TRACE_SIZE 64
+#endif
+
 /*
  * Maximum UDP packet size, this avoids partial packet reads.  Probably
  * not a good idea to override this.
@@ -144,31 +149,68 @@ struct udpna_data {
     struct opensocks   *fds;		/* The file descriptor used for
 					   the UDP ports. */
     unsigned int   nr_fds;
-    unsigned int   nr_accept_close_waiting;
 
     bool in_write;
     unsigned int read_disable_count;
     bool read_disabled;
     unsigned int write_enable_count;
+
+#ifdef LOCK_TRACING
+    struct {
+	bool lock;
+	unsigned int line;
+    } locktrace[LOCK_TRACE_SIZE];
+    unsigned int locktrace_pos;
+#endif
 };
 
 static void
-udpna_lock(struct udpna_data *nadata)
+i_udpna_lock(struct udpna_data *nadata)
 {
     nadata->o->lock(nadata->lock);
 }
 
 static void
-udpna_unlock(struct udpna_data *nadata)
+i_udpna_unlock(struct udpna_data *nadata)
 {
     nadata->o->unlock(nadata->lock);
 }
 
+#ifdef LOCK_TRACING
+static void
+i_udpna_locktrace_add(struct udpna_data *nadata, bool locked, unsigned int line)
+{
+    nadata->locktrace[nadata->locktrace_pos].line = line;
+    nadata->locktrace[nadata->locktrace_pos].lock = locked;
+    if (nadata->locktrace_pos == LOCK_TRACE_SIZE - 1)
+	nadata->locktrace_pos = 0;
+    else
+	nadata->locktrace_pos++;
+}
+
+#define udpna_lock(n) \
+    do {						\
+	i_udpna_lock(n);				\
+	i_udpna_locktrace_add(n, true, __LINE__);	\
+    } while(0)
+
+#define udpna_unlock(n) \
+    do {						\
+	i_udpna_locktrace_add(n, false, __LINE__);	\
+	i_udpna_unlock(n);				\
+    } while(0)
+#else
+#define udpna_lock i_udpna_lock
+#define udpna_unlock i_udpna_unlock
+#endif
+
 static void udpna_deferred_op(struct gensio_runner *runner, void *cbdata);
+static void udpna_ref(struct udpna_data *nadata);
 
 static void udpna_start_deferred_op(struct udpna_data *nadata)
 {
     if (!nadata->deferred_op_pending) {
+	udpna_ref(nadata);
 	nadata->deferred_op_pending = true;
 	nadata->o->run(nadata->deferred_op_runner);
     }
@@ -310,6 +352,18 @@ static void udpna_ref(struct udpna_data *nadata)
     nadata->refcount++;
 }
 
+static void udpna_deref(struct udpna_data *nadata)
+{
+    assert(nadata->refcount > 1);
+    nadata->refcount--;
+}
+
+static void udpna_lock_and_ref(struct udpna_data *nadata)
+{
+    udpna_lock(nadata);
+    udpna_ref(nadata);
+}
+
 static void udpna_deref_and_unlock(struct udpna_data *nadata)
 {
     assert(nadata->refcount > 0);
@@ -328,13 +382,7 @@ udpna_fd_cleared(int fd, void *cbdata)
     struct udpna_data *nadata = cbdata;
 
     udpna_lock(nadata);
-    if (--nadata->nr_accept_close_waiting == 0) {
-	if (!nadata->deferred_op_pending) {
-	    udpna_deref_and_unlock(nadata);
-	    return;
-	}
-    }
-    udpna_unlock(nadata);
+    udpna_deref_and_unlock(nadata);
 }
 
 static void
@@ -346,8 +394,11 @@ udpna_check_finish_free(struct udpna_data *nadata)
 		nadata->in_shutdown || !nadata->freed)
 	return;
 
-    for (i = 0; i < nadata->nr_fds; i++)
+    udpna_deref(nadata);
+    for (i = 0; i < nadata->nr_fds; i++) {
+	udpna_ref(nadata);
 	nadata->o->clear_fd_handlers(nadata->o, nadata->fds[i].fd);
+    }
 }
 
 static void
@@ -490,14 +541,9 @@ udpna_deferred_op(struct gensio_runner *runner, void *cbdata)
 	udpna_check_finish_free(nadata);
     }
 
-    if (nadata->freed && nadata->closed &&
-		nadata->nr_accept_close_waiting == 0) {
-	udpna_deref_and_unlock(nadata);
-    } else {
-	nadata->deferred_op_pending = false;
+    if (!nadata->freed || !nadata->closed)
 	udpna_check_read_state(nadata);
-	udpna_unlock(nadata);
-    }
+    udpna_deref_and_unlock(nadata);
 }
 
 static void
@@ -506,7 +552,7 @@ udpn_deferred_op(struct gensio_runner *runner, void *cbdata)
     struct udpn_data *ndata = cbdata;
     struct udpna_data *nadata = ndata->nadata;
 
-    udpna_lock(nadata);
+    udpna_lock_and_ref(nadata);
     ndata->deferred_op_pending = false;
     if (ndata->state == UDPN_IN_OPEN) {
 	ndata->state = UDPN_OPEN;
@@ -524,7 +570,7 @@ udpn_deferred_op(struct gensio_runner *runner, void *cbdata)
 	udpn_finish_close(nadata, ndata);
     }
 
-    udpna_unlock(nadata);
+    udpna_deref_and_unlock(nadata);
 }
 
 static void udpn_start_deferred_op(struct udpn_data *ndata)
@@ -619,7 +665,7 @@ udpn_free(struct gensio *io)
     struct udpn_data *ndata = gensio_get_gensio_data(io);
     struct udpna_data *nadata = ndata->nadata;
 
-    udpna_lock(nadata);
+    udpna_lock_and_ref(nadata);
     assert(ndata->refcount > 0);
     if (--ndata->refcount > 0)
 	goto out_unlock;
@@ -632,11 +678,11 @@ udpn_free(struct gensio *io)
     else if (!ndata->in_close_cb)
 	udpn_finish_free(ndata);
  out_unlock:
-    udpna_unlock(nadata);
+    udpna_deref_and_unlock(nadata);
 }
 
 static void
-udpn_ref(struct gensio *io)
+udpn_do_ref(struct gensio *io)
 {
     struct udpn_data *ndata = gensio_get_gensio_data(io);
     struct udpna_data *nadata = ndata->nadata;
@@ -758,7 +804,7 @@ udpna_writehandler(int fd, void *cbdata)
     struct udpna_data *nadata = cbdata;
     struct gensio_link *l;
 
-    udpna_lock(nadata);
+    udpna_lock_and_ref(nadata);
     if (nadata->in_write)
 	goto out_unlock;
 
@@ -778,7 +824,7 @@ udpna_writehandler(int fd, void *cbdata)
     if (nadata->write_enable_count > 0)
 	udpna_enable_write(nadata);
  out_unlock:
-    udpna_unlock(nadata);
+    udpna_deref_and_unlock(nadata);
 }
 
 int
@@ -824,7 +870,7 @@ gensio_udp_func(struct gensio *io, int func, gensiods *count,
 	return 0;
 
     case GENSIO_FUNC_REF:
-	udpn_ref(io);
+	udpn_do_ref(io);
 	return 0;
 
     case GENSIO_FUNC_SET_READ_CALLBACK:
@@ -901,7 +947,7 @@ udpna_readhandler(int fd, void *cbdata)
     gensiods datalen;
     int err;
 
-    udpna_lock(nadata);
+    udpna_lock_and_ref(nadata);
     if (nadata->data_pending_len)
 	goto out_unlock;
 
@@ -992,7 +1038,7 @@ udpna_readhandler(int fd, void *cbdata)
  out_unlock_enable:
     udpna_fd_read_enable(nadata);
  out_unlock:
-    udpna_unlock(nadata);
+    udpna_deref_and_unlock(nadata);
 
     while (waiters) {
 	next = waiters->next;
@@ -1018,7 +1064,6 @@ udpna_startup(struct gensio_accepter *accepter)
 				&nadata->fds, &nadata->nr_fds);
 	if (rv)
 	    goto out_unlock;
-	nadata->nr_accept_close_waiting = nadata->nr_fds;
     }
 
     nadata->enabled = true;
@@ -1112,28 +1157,31 @@ udpna_free(struct gensio_accepter *accepter)
 {
     struct udpna_data *nadata = gensio_acc_get_gensio_data(accepter);
 
-    udpna_lock(nadata);
+    udpna_lock_and_ref(nadata);
 
+    assert(!nadata->freed);
     nadata->enabled = false;
     nadata->closed = true;
     nadata->freed = true;
 
     if (!nadata->disabled) {
 	udpna_check_finish_free(nadata);
-	udpna_unlock(nadata);
-    } else if (nadata->udpn_count == 0) {
-	unsigned int i;
+    } else {
+	if (nadata->udpn_count == 0) {
+	    unsigned int i;
 
-	for (i = 0; i < nadata->nr_fds; i++)
-	    nadata->o->clear_fd_handlers_norpt(nadata->o, nadata->fds[i].fd);
-	for (i = 0; i < nadata->nr_fds; i++) {
-	    if (nadata->fds[i].fd != -1) {
-		close(nadata->fds[i].fd);
-		nadata->fds[i].fd = -1;
+	    for (i = 0; i < nadata->nr_fds; i++)
+		nadata->o->clear_fd_handlers_norpt(nadata->o,
+						   nadata->fds[i].fd);
+	    for (i = 0; i < nadata->nr_fds; i++) {
+		if (nadata->fds[i].fd != -1) {
+		    close(nadata->fds[i].fd);
+		    nadata->fds[i].fd = -1;
+		}
 	    }
 	}
-	udpna_deref_and_unlock(nadata);
     }
+    udpna_deref_and_unlock(nadata);
 }
 
 static void
@@ -1525,7 +1573,6 @@ udp_gensio_alloc(struct addrinfo *ai, const char * const args[],
 	    udpn_do_free(ndata);
 	udpna_do_free(nadata);
     } else {
-	nadata->nr_accept_close_waiting = 1;
 	*new_gensio = ndata->io;
     }
 
