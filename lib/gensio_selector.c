@@ -76,6 +76,7 @@ struct memory_link memfree = { &memfree, &memfree };
 unsigned long freecount;
 bool memtracking_initialized;
 bool memtracking_ready;
+bool memtracking_abort_on_lost;
 #endif
 
 static void *
@@ -117,8 +118,11 @@ gensio_sel_zalloc(struct gensio_os_funcs *f, unsigned int size)
 	    char *s = getenv("GENSIO_MEMTRACK");
 
 	    memtracking_initialized = true;
-	    if (s)
+	    if (s) {
 		memtracking_ready = true;
+		if (strstr(s, "abort"))
+		    memtracking_abort_on_lost = true;
+	    }
 	}
 	pthread_mutex_unlock(&memtrk_mutex);
     }
@@ -808,8 +812,10 @@ gensio_sel_exit(int rv)
 		    h->callers[2], h->callers[3]);
 	    l = l->next;
 	}
-	if (freecount)
+	if (freecount) {
 	    fprintf(stderr, "Memory tracking done with %lu items\n", freecount);
+	    assert(!memtracking_abort_on_lost);
+	}
     }
 #endif
 #ifdef OUT_OF_MEMORY_TEST
