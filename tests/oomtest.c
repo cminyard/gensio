@@ -466,7 +466,7 @@ scon_open_done(struct gensio *io, int err, void *open_data)
 	/* We can race with the open and a close. */
 	goto out_unlock;
     if (err) {
-	if (err != GE_REMCLOSE)
+	if (debug && err != GE_REMCLOSE)
 	    printf("ERR: %s for %s\n", gensio_err_to_str(err), od->scon.iostr);
 	assert(!debug || err == GE_REMCLOSE || err == GE_INVAL ||
 	       err == GE_SHUTDOWN || err == GE_LOCALCLOSED ||
@@ -1035,7 +1035,7 @@ run_oom_tests(struct oom_tests *test, char *tstr,
 	if (verbose)
 	    print_test(test, tstr, close_acc, count);
 	rv = tester(test, count, &exit_code, close_acc);
-	if (rv && rv != GE_REMCLOSE) {
+	if (rv && rv != GE_REMCLOSE && rv != GE_NOTREADY) {
 	    if (!verbose)
 		print_test(test, tstr, close_acc, count);
 	    printf("  ***Error running %s test (%s): %s\n", tstr,
