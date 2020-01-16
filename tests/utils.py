@@ -170,6 +170,9 @@ class HandleData:
                     s = s + "\\x%2.2x" % i
             print("%s: Got data: (err %s %d bytes) %s" % (self.name, str(err),
                                                           len(buf), s))
+        if err == "Remote end closed connection":
+            io.read_cb_enable(False)
+            return 0
         if (err):
             raise HandlerException(self.name + ": read: " + err)
         if (self.ignore_input):
