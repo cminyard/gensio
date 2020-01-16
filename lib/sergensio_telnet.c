@@ -987,7 +987,7 @@ telnet_gensio_alloc(struct gensio *child, const char * const args[],
 {
     struct stel_data *sdata;
     struct gensio_ll *ll = NULL;
-    struct gensio *io;
+    struct gensio *io = NULL;
     int err;
 
     err = stel_setup(args, true, o, &sdata);
@@ -1024,13 +1024,17 @@ telnet_gensio_alloc(struct gensio *child, const char * const args[],
  out_nomem:
     err = GE_NOMEM;
  out_err:
-    /* Freeing the filter frees sdata. */
-    if (sdata->filter)
-	gensio_filter_free(sdata->filter);
-    else
-	stel_free(sdata);
-    if (ll)
-	gensio_ll_free(ll);
+    if (io) {
+	gensio_free(io);
+    } else {
+	/* Freeing the filter frees sdata. */
+	if (sdata->filter)
+	    gensio_filter_free(sdata->filter);
+	else
+	    stel_free(sdata);
+	if (ll)
+	    gensio_ll_free(ll);
+    }
     return err;
 }
 
