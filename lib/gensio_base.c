@@ -157,6 +157,11 @@ struct basen_state_trace {
     int line;
 };
 #define STATE_TRACE_LEN 256
+struct basen_data;
+static void i_basen_add_trace(struct basen_data *ndata,
+			      enum basen_state new_state, int line);
+#else
+#define i_basen_add_trace(ndata, new_state, line)
 #endif
 
 struct basen_data {
@@ -264,18 +269,11 @@ basen_finish_free(struct basen_data *ndata)
 }
 
 static void
-basen_timer_stopped(struct gensio_timer *t, void *cb_data)
-{
-    struct basen_data *ndata = cb_data;
-
-    basen_finish_free(ndata);
-}
-
-static void
 basen_ref(struct basen_data *ndata)
 {
     assert(ndata->refcount > 0);
     ndata->refcount++;
+    i_basen_add_trace(ndata, 1000 + ndata->refcount, __LINE__);
 }
 
 static void
@@ -293,6 +291,7 @@ static void
 basen_deref(struct basen_data *ndata)
 {
     assert(ndata->refcount > 1);
+    i_basen_add_trace(ndata, 1000 + ndata->refcount, __LINE__);
     ndata->refcount--;
 }
 
@@ -302,19 +301,11 @@ basen_deref_and_unlock(struct basen_data *ndata)
     unsigned int count;
 
     assert(ndata->refcount > 0);
+    i_basen_add_trace(ndata, 1000 + ndata->refcount, __LINE__);
     count = --ndata->refcount;
     basen_unlock(ndata);
-    if (count == 0) {
-	if (ndata->timer) {
-	    int err = ndata->o->stop_timer_with_done(ndata->timer,
-						     basen_timer_stopped,
-						     ndata);
-	    assert(!err || err == GE_TIMEDOUT);
-	    if (!err)
-		return;
-	}
+    if (count == 0)
 	basen_finish_free(ndata);
-    }
 }
 
 static void
@@ -360,7 +351,6 @@ basen_set_state(struct basen_data *ndata, enum basen_state state)
 {
     ndata->state = state;
 }
-#define i_basen_add_trace(ndata, new_state, line)
 #endif
 
 static bool
@@ -681,6 +671,15 @@ handle_ioerr(struct basen_data *ndata, int err)
     }
 }
 
+static void
+basen_timer_stopped(struct gensio_timer *t, void *cb_data)
+{
+    struct basen_data *ndata = cb_data;
+
+    basen_lock(ndata);
+    basen_deref_and_unlock(ndata);
+}
+
 /*
  * Note that you must be holding an extra ref when calling this,
  * the close_done call may free the gensio.
@@ -708,6 +707,17 @@ basen_finish_close(struct basen_data *ndata)
 	basen_unlock(ndata);
 	ndata->close_done(ndata->io, ndata->close_data);
 	basen_lock(ndata);
+    }
+    if (ndata->timer) {
+	/*
+	 * This will either stop the timer and call
+	 * basen_timer_stopped which will do the deref for the timer,
+	 * or it will fail if there was no timer running (no ref) or
+	 * if the timer was in the callback (the callback will deref).
+	 */
+	ndata->o->stop_timer_with_done(ndata->timer,
+				       basen_timer_stopped,
+				       ndata);
     }
     basen_deref(ndata); /* Lose the ref for the open. */
 }
