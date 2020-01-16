@@ -98,6 +98,12 @@ struct ssl_filter {
     gensiods xmit_buf_len;
 
     /*
+     * SSL has asked for something.
+     */
+    bool want_write;
+    bool want_read;
+
+    /*
      * This is not intrinsically part of the SSL protocol, but is here
      * so the set username control works, for convenience of the user
      * and consistency with certauth.
@@ -204,7 +210,7 @@ ssl_ll_write_pending(struct gensio_filter *filter)
 
     ssl_lock(sfilter);
     rv = BIO_pending(sfilter->io_bio) || sfilter->write_data_len ||
-	sfilter->xmit_buf_len;
+	sfilter->xmit_buf_len || sfilter->want_write;
     ssl_unlock(sfilter);
     return rv;
 }
@@ -216,7 +222,7 @@ ssl_ll_read_needed(struct gensio_filter *filter)
     bool rv;
 
     ssl_lock(sfilter);
-    rv = BIO_should_read(sfilter->io_bio);
+    rv = BIO_should_read(sfilter->io_bio) || sfilter->want_read;
     ssl_unlock(sfilter);
     return rv;
 }
@@ -292,6 +298,8 @@ ssl_try_connect(struct gensio_filter *filter, struct timeval *timeout)
     int rv, success, err;
 
     ssl_lock(sfilter);
+    sfilter->want_read = false;
+    sfilter->want_write = false;
     if (sfilter->is_client)
 	success = SSL_connect(sfilter->ssl);
     else
@@ -307,7 +315,12 @@ ssl_try_connect(struct gensio_filter *filter, struct timeval *timeout)
 	err = SSL_get_error(sfilter->ssl, success);
 	switch (err) {
 	case SSL_ERROR_WANT_READ:
+	    sfilter->want_read = true;
+	    rv = GE_INPROGRESS;
+	    break;
+
 	case SSL_ERROR_WANT_WRITE:
+	    sfilter->want_write = true;
 	    rv = GE_INPROGRESS;
 	    break;
 
@@ -402,13 +415,20 @@ ssl_ul_write(struct gensio_filter *filter,
     }
 
     if (!err && sfilter->xmit_buf_len == 0 && sfilter->write_data_len > 0) {
+	sfilter->want_read = false;
+	sfilter->want_write = false;
 	err = SSL_write(sfilter->ssl, sfilter->write_data,
 			sfilter->write_data_len);
 	if (err <= 0) {
 	    err = SSL_get_error(sfilter->ssl, err);
 	    switch (err) {
 	    case SSL_ERROR_WANT_READ:
+		sfilter->want_read = true;
+		err = 0;
+		break;
+
 	    case SSL_ERROR_WANT_WRITE:
+		sfilter->want_write = true;
 		err = 0;
 		break;
 
@@ -494,13 +514,20 @@ ssl_ll_write(struct gensio_filter *filter,
     if (!sfilter->read_data_len && sfilter->connected) {
 	int rlen;
 
+	sfilter->want_read = false;
+	sfilter->want_write = false;
 	rlen = SSL_read(sfilter->ssl, sfilter->read_data,
 			sfilter->max_read_size);
 	if (rlen <= 0) {
 	    err = SSL_get_error(sfilter->ssl, rlen);
 	    switch (err) {
 	    case SSL_ERROR_WANT_READ:
+		sfilter->want_read = true;
+		err = 0;
+		break;
+
 	    case SSL_ERROR_WANT_WRITE:
+		sfilter->want_write = true;
 		err = 0;
 		break;
 

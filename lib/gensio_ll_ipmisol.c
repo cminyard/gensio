@@ -1197,8 +1197,6 @@ static int sol_close(struct gensio_ll *ll, gensio_ll_close_done done,
 
 	if (err)
 	    err = sol_xlat_ipmi_err(solll->o, err);
-	else
-	    err = GE_INPROGRESS;
     }
     sol_unlock(solll);
 

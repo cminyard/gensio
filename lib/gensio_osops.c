@@ -756,7 +756,8 @@ const char *gensio_errs[] = {
     /*  31 */    "Authentication tokens rejected",
     /*  32 */    "Address already in use",
     /*  33 */    "Operation was interrupted by a signal",
-    /*  34 */    "Operation on shutdown fd"
+    /*  34 */    "Operation on shutdown fd",
+    /*  35 */    "Local end closed connection"
 };
 const unsigned int errno_len = sizeof(gensio_errs) / sizeof(char *);
 
@@ -800,7 +801,7 @@ gensio_i_os_err_to_err(struct gensio_os_funcs *o,
 
     if (err == GE_OSERR) {
 	gensio_log(o, GENSIO_LOG_INFO,
-		   "Unhandled OS error in %s: %s (%d)", caller,
+		   "Unhandled OS error in %s:%d: %s (%d)", caller, lineno,
 		   strerror(oserr), oserr);
     }
 

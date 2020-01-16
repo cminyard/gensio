@@ -93,10 +93,9 @@ int gensio_filter_check_open_done(struct gensio_filter *filter,
 
 /*
  * Attempt to start a connection on the filter.  Returns 0 on
- * immediate success.  Returns EINPROGRESS if the connect attempt
- * should be retried when any I/O occurs.  Returns EAGAIN if the
- * connect attempt should be retried after any I/O or when the
- * timeout occurs.
+ * immediate success.  Returns GE_INPROGRESS if the connect attempt
+ * should be retried on any I/O.  Returns GE_RETRY if the connect
+ * attempt should be retried after any I/O or when the timeout occurs.
  *
  * struct timeval *timeout => data
  */
@@ -105,10 +104,10 @@ int gensio_filter_try_connect(struct gensio_filter *filter,
 			      struct timeval *timeout);
 
 /*
- * Attempt to disconnect the filter.  Returns 0 on immediate
- * success.  Returns EINPROGRESS if the connect attempt should be
- * retried.  Returns EAGAIN if the connect attempt should be
- * retried after any I/O or when the timeout occurs.
+ * Attempt to disconnect the filter.  Returns 0 on immediate success.
+ * Returns GE_INPROGRESS if the disconnect attempt should be retried on
+ * any I/O.  Returns GE_RETRY if the connect attempt should be retried
+ * after any I/O or when the timeout occurs.
  *
  * struct timeval *timeout => data
  */
@@ -279,8 +278,7 @@ int gensio_ll_open(struct gensio_ll *ll,
 		   gensio_ll_open_done done, void *open_data);
 
 /*
- * Returns 0 if the open was immediate, EINPROGRESS if it was deferred.
- * No other returns are allowed.
+ * Returns 0 on success, close is always deferred.
  *
  * done => cbuf
  * close_data => buf

@@ -28,7 +28,9 @@
 /*
  * Generic doubly-linked list operations.
  */
+struct gensio_list;
 struct gensio_link {
+    struct gensio_list *list;
     struct gensio_link *next;
     struct gensio_link *prev;
 };

@@ -994,19 +994,17 @@ telnet_gensio_alloc(struct gensio *child, const char * const args[],
     if (err)
 	return err;
 
-    gensio_ref(child); /* So gensio_ll_free doesn't free the child if fail */
     ll = gensio_gensio_ll_alloc(o, child);
     if (!ll)
 	goto out_nomem;
 
-    gensio_ref(child);
+    gensio_ref(child); /* So gensio_ll_free doesn't free the child if fail */
     io = base_gensio_alloc(o, ll, sdata->filter, child, "telnet", cb,
 			   user_data);
     if (!io)
 	goto out_nomem;
 
     gensio_set_is_reliable(io, gensio_is_reliable(child));
-    gensio_free(child); /* Lose the ref we acquired. */
 
     sdata->sio = sergensio_data_alloc(o, io, sergensio_stel_func, sdata);
     if (!sdata->sio)

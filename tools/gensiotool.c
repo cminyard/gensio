@@ -205,7 +205,10 @@ io_acc_event(struct gensio_accepter *accepter, void *user_data,
 
 	vfprintf(stderr, li->str, li->args);
 	fprintf(stderr, "\n");
-	gensio_sel_exit(1);
+
+	ginfo->err = 1;
+	ginfo->o->wake(ginfo->waiter);
+	return 0;
     }
 
     if (event != GENSIO_ACC_EVENT_NEW_CONNECTION)
@@ -229,7 +232,10 @@ io_acc_event(struct gensio_accepter *accepter, void *user_data,
 	oginfo->can_close = false;
 	fprintf(stderr, "Could not open %s: %s\n", oginfo->ios,
 		gensio_err_to_str(rv));
-	gensio_sel_exit(1);
+
+	ginfo->err = rv;
+	ginfo->o->wake(ginfo->waiter);
+	return 0;
     }
     return 0;
 }
@@ -278,22 +284,23 @@ int
 main(int argc, char *argv[])
 {
     int arg, rv;
-    struct gensio_waiter *closewaiter;
+    struct gensio_waiter *closewaiter = NULL;
     unsigned int closecount = 0;
     bool io2_do_acc = false, io2_acc_print = false;
-    struct gensio_accepter *io2_acc;
+    struct gensio_accepter *io2_acc = NULL;
     bool esc_set = false;
     bool io1_set = false;
     int escape_char = -1;
     char *signature = "gensiotool";
     char *deftty = io1_default_notty;
-    struct gensio_os_funcs *o;
+    struct gensio_os_funcs *o = NULL;
     struct ioinfo_sub_handlers *sh1 = NULL, *sh2 = NULL;
     void *subdata1 = NULL, *subdata2 = NULL;
-    struct ioinfo *ioinfo1, *ioinfo2;
+    struct ioinfo *ioinfo1 = NULL, *ioinfo2 = NULL;
     struct gdata userdata1, userdata2;
     char *filename;
     sigset_t sigs;
+    struct timeval zerotime = { 0, 0 };
 
     /*
      * Make sure that SIGPIPE doesn't kill is if the user is doing
@@ -307,6 +314,9 @@ main(int argc, char *argv[])
 	perror("Could not set up signal mask");
 	exit(1);
     }
+
+    memset(&userdata1, 0, sizeof(userdata1));
+    memset(&userdata2, 0, sizeof(userdata2));
 
     progname = argv[0];
 
@@ -380,9 +390,6 @@ main(int argc, char *argv[])
 	help(1);
     }
 
-    memset(&userdata1, 0, sizeof(userdata1));
-    memset(&userdata2, 0, sizeof(userdata2));
-
     userdata1.ios = deftty;
     userdata2.ios = argv[arg];
 
@@ -399,6 +406,7 @@ main(int argc, char *argv[])
 
     userdata1.waiter = o->alloc_waiter(o);
     if (!userdata1.waiter) {
+	userdata1.err = GE_NOMEM;
 	fprintf(stderr, "Could not allocate OS waiter\n");
 	goto out_err;
     }
@@ -406,29 +414,34 @@ main(int argc, char *argv[])
 
     closewaiter = o->alloc_waiter(o);
     if (!closewaiter) {
+	userdata1.err = GE_NOMEM;
 	fprintf(stderr, "Could not allocate close waiter\n");
 	goto out_err;
     }
 
     subdata1 = alloc_ser_ioinfo(0, signature, &sh1);
     if (!subdata1) {
+	userdata1.err = GE_NOMEM;
 	fprintf(stderr, "Could not allocate subdata 1\n");
 	goto out_err;
     }
     subdata2 = alloc_ser_ioinfo(0, signature, &sh2);
     if (!subdata2) {
+	userdata1.err = GE_NOMEM;
 	fprintf(stderr, "Could not allocate subdata 2\n");
 	goto out_err;
     }
 
     ioinfo1 = alloc_ioinfo(o, escape_char, sh1, subdata1, &guh, &userdata1);
     if (!ioinfo1) {
+	userdata1.err = GE_NOMEM;
 	fprintf(stderr, "Could not allocate ioinfo 1\n");
 	goto out_err;
     }
 
     ioinfo2 = alloc_ioinfo(o, -1, sh2, subdata2, &guh, &userdata2);
     if (!ioinfo2) {
+	userdata1.err = GE_NOMEM;
 	fprintf(stderr, "Could not allocate ioinfo 2\n");
 	goto out_err;
     }
@@ -439,6 +452,7 @@ main(int argc, char *argv[])
     if (rv) {
 	fprintf(stderr, "Could not allocate %s: %s\n",
 		userdata1.ios, gensio_err_to_str(rv));
+	userdata1.err = rv;
 	goto out_err;
     }
 
@@ -451,6 +465,7 @@ main(int argc, char *argv[])
     else
 	rv = str_to_gensio(userdata2.ios, o, NULL, ioinfo2, &userdata2.io);
     if (rv) {
+	userdata2.err = rv;
 	fprintf(stderr, "Could not allocate %s: %s\n", userdata2.ios,
 		gensio_err_to_str(rv));
 	goto out_err;
@@ -461,6 +476,7 @@ main(int argc, char *argv[])
 	if (rv) {
 	    fprintf(stderr, "Could not start %s: %s\n", userdata2.ios,
 		    gensio_err_to_str(rv));
+	    userdata1.err = rv;
 	    goto close1;
 	}
 	if (io2_acc_print) {
@@ -489,6 +505,7 @@ main(int argc, char *argv[])
 	userdata2.can_close = true;
 	rv = gensio_open(userdata2.io, io_open, NULL);
 	if (rv) {
+	    userdata2.err = rv;
 	    userdata2.can_close = false;
 	    fprintf(stderr, "Could not open %s: %s\n", userdata2.ios,
 		    gensio_err_to_str(rv));
@@ -498,6 +515,7 @@ main(int argc, char *argv[])
 	userdata1.can_close = true;
 	rv = gensio_open(userdata1.io, io_open, NULL);
 	if (rv) {
+	    userdata1.err = rv;
 	    userdata1.can_close = false;
 	    fprintf(stderr, "Could not open %s: %s\n", userdata1.ios,
 		    gensio_err_to_str(rv));
@@ -507,14 +525,15 @@ main(int argc, char *argv[])
 
     o->wait(userdata1.waiter, 1, NULL);
 
+ out_err:
     if (userdata2.can_close) {
 	rv = gensio_close(userdata2.io, io_close, closewaiter);
 	if (rv)
-	    printf("Unable to close %s: %s\n", userdata2.ios,
-		   gensio_err_to_str(rv));
+	    fprintf(stderr, "Unable to close %s: %s\n", userdata2.ios,
+		    gensio_err_to_str(rv));
 	else
 	    closecount++;
-    } else if (!userdata2.io && io2_do_acc) {
+    } else if (!userdata2.io && io2_do_acc && io2_acc) {
 	gensio_acc_free(io2_acc);
     }
 
@@ -522,8 +541,8 @@ main(int argc, char *argv[])
     if (userdata1.can_close) {
 	rv = gensio_close(userdata1.io, io_close, closewaiter);
 	if (rv)
-	    printf("Unable to close %s: %s\n", userdata1.ios,
-		   gensio_err_to_str(rv));
+	    fprintf(stderr, "Unable to close %s: %s\n", userdata1.ios,
+		    gensio_err_to_str(rv));
 	else
 	    closecount++;
     }
@@ -532,25 +551,32 @@ main(int argc, char *argv[])
 	o->wait(closewaiter, closecount, NULL);
     }
 
-    gensio_free(userdata1.io);
+    if (userdata1.io)
+	gensio_free(userdata1.io);
     if (userdata2.io)
 	gensio_free(userdata2.io);
 
-    o->free_waiter(closewaiter);
-    o->free_waiter(userdata1.waiter);
-
-    free_ioinfo(ioinfo1);
-    free_ioinfo(ioinfo2);
-    free_ser_ioinfo(subdata1);
-    free_ser_ioinfo(subdata2);
+    if (ioinfo1)
+	free_ioinfo(ioinfo1);
+    if (ioinfo2)
+	free_ioinfo(ioinfo2);
+    if (subdata1)
+	free_ser_ioinfo(subdata1);
+    if (subdata2)
+	free_ser_ioinfo(subdata2);
 
     if (!rv && userdata1.err)
 	rv = userdata1.err;
     if (!rv && userdata2.err)
 	rv = userdata2.err;
 
+    while (o && o->service(o, &zerotime) == 0)
+	;
+    if (userdata1.waiter)
+	o->free_waiter(userdata1.waiter);
+    if (closewaiter)
+	o->free_waiter(closewaiter);
+    if (o)
+	gensio_cleanup_mem(o);
     gensio_sel_exit(!!rv);
-
- out_err:
-    gensio_sel_exit(1);
 }

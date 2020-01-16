@@ -111,14 +111,10 @@ static int
 child_close(struct gensio_ll *ll, gensio_ll_close_done done, void *close_data)
 {
     struct gensio_ll_child *cdata = ll_to_child(ll);
-    int rv;
 
     cdata->close_done = done;
     cdata->close_data = close_data;
-    rv = gensio_close(cdata->child, child_close_handler, cdata);
-    if (rv == 0)
-	rv = GE_INPROGRESS; /* Close is always deferred. */
-    return rv;
+    return gensio_close(cdata->child, child_close_handler, cdata);
 }
 
 static void child_set_read_callback_enable(struct gensio_ll *ll, bool enabled)
@@ -221,13 +217,13 @@ gensio_gensio_ll_alloc(struct gensio_os_funcs *o,
 	return NULL;
 
     cdata->o = o;
-    cdata->child = child;
     cdata->ll = gensio_ll_alloc_data(o, gensio_ll_child_func, cdata);
     if (!cdata->ll) {
 	o->free(o, cdata);
 	return NULL;
     }
 
+    cdata->child = child;
     gensio_set_callback(child, child_event, cdata);
 
     return cdata->ll;

@@ -487,7 +487,8 @@ fd_finish_cleared(struct fd_ll *fdll)
 	fd_unlock(fdll);
 	open_done(fdll->open_data, fdll->open_err, fdll->open_data);
 	fd_lock(fdll);
-    } else if (fdll->deferred_op_pending) {
+    }
+    if (fdll->deferred_op_pending) {
 	/* Call it from the deferred_op handler. */
 	fdll->deferred_close = true;
     } else {
@@ -584,7 +585,7 @@ static int fd_close(struct gensio_ll *ll, gensio_ll_close_done done,
 	fdll->close_done = done;
 	fdll->close_data = close_data;
 	fd_start_close(fdll);
-	err = GE_INPROGRESS;
+	err = 0;
     }
     fd_unlock(fdll);
 

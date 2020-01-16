@@ -375,8 +375,6 @@ net_gensio_alloc(struct addrinfo *iai, const char * const args[],
 	goto out_nomem;
 
     tdata->o = o;
-    tdata->ai = ai;
-    tdata->lai = lai;
     tdata->raddr = (struct sockaddr *) &tdata->remote;
     tdata->nodelay = nodelay;
 
@@ -388,6 +386,10 @@ net_gensio_alloc(struct addrinfo *iai, const char * const args[],
     io = base_gensio_alloc(o, tdata->ll, NULL, NULL, type, cb, user_data);
     if (!io)
 	goto out_nomem;
+
+    /* Assign these last so gensio_ll_free() won't free it on err. */
+    tdata->ai = ai;
+    tdata->lai = lai;
 
     gensio_set_is_reliable(io, true);
 
@@ -402,7 +404,9 @@ net_gensio_alloc(struct addrinfo *iai, const char * const args[],
     if (tdata) {
 	if (tdata->ll)
 	    gensio_ll_free(tdata->ll);
-	o->free(o, tdata);
+	else
+	    /* gensio_ll_free() frees it otherwise. */
+	    o->free(o, tdata);
     }
     return GE_NOMEM;
 }
@@ -621,7 +625,9 @@ netna_readhandler(int fd, void *cbdata)
     if (tdata) {
 	if (tdata->ll)
 	    gensio_ll_free(tdata->ll);
-	net_free(tdata);
+	else
+	    /* gensio_ll_free() frees it otherwise. */
+	    net_free(tdata);
     }
 }
 

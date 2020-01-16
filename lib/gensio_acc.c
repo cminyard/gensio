@@ -423,6 +423,7 @@ base_gensio_server_open_done(struct gensio_accepter *accepter,
     struct basena_data *nadata = gensio_acc_get_gensio_data(accepter);
 
     basena_lock(nadata);
+    gensio_acc_remove_pending_gensio(nadata->acc, net);
     if (err) {
 	gensio_free(net);
 	gensio_acc_log(nadata->acc, GENSIO_LOG_ERR,
@@ -436,7 +437,6 @@ base_gensio_server_open_done(struct gensio_accepter *accepter,
 	nadata->in_cb_count--;
     }
 
-    gensio_acc_remove_pending_gensio(nadata->acc, net);
     basena_leave_cb_unlock(nadata);
 }
 

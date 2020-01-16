@@ -46,6 +46,7 @@ struct gensio_data {
 
 #if 1
 #define OUT_OF_MEMORY_TEST
+#define TRACK_ALLOCED_MEMORY
 #endif
 
 #ifdef OUT_OF_MEMORY_TEST
@@ -58,6 +59,21 @@ extern bool triggered;
 extern unsigned int oom_count;
 extern unsigned int oom_curr;
 #endif
+#ifdef TRACK_ALLOCED_MEMORY
+pthread_mutex_t memtrk_mutex = PTHREAD_MUTEX_INITIALIZER;
+struct memory_link {
+    struct memory_link *next;
+    struct memory_link *prev;
+};
+struct memory_header {
+    struct memory_link link;
+    void *callers[4];
+    void *freers[4];
+    bool inuse;
+};
+struct memory_link memhead = { &memhead, &memhead };
+unsigned long freecount;
+#endif
 
 static void *
 gensio_sel_zalloc(struct gensio_os_funcs *f, unsigned int size)
@@ -66,25 +82,54 @@ gensio_sel_zalloc(struct gensio_os_funcs *f, unsigned int size)
     unsigned int curr;
 
 #ifdef OUT_OF_MEMORY_TEST
-    if (!oom_initialized) {
-	char *s = getenv("GENSIO_OOM_TEST");
+    {
+	bool triggerit = false;
 
-	oom_initialized = true;
-	if (s) {
-	    oom_count = strtoul(s, NULL, 0);
-	    oom_ready = true;
+	pthread_mutex_lock(&oom_mutex);
+	if (!oom_initialized) {
+	    char *s = getenv("GENSIO_OOM_TEST");
+
+	    oom_initialized = true;
+	    if (s) {
+		oom_count = strtoul(s, NULL, 0);
+		oom_ready = true;
+	    }
 	}
-    }
-    if (oom_ready) {
-	curr = oom_curr++;
-	if (curr == oom_count) {
-	    triggered = true;
+	if (oom_ready) {
+	    curr = oom_curr++;
+	    if (curr == oom_count) {
+		triggered = true;
+		triggerit = true;
+	    }
+	}
+	pthread_mutex_unlock(&oom_mutex);
+	if (triggerit)
 	    return NULL;
-	}
     }
 #endif
+#ifdef TRACK_ALLOCED_MEMORY
+    d = malloc(size + sizeof(struct memory_header));
+    if (d) {
+	struct memory_header *h = d;
 
+	d = ((char *) d) + sizeof(struct memory_header);
+	h->callers[0] = __builtin_return_address(0);
+	h->callers[1] = __builtin_return_address(1);
+	h->callers[2] = __builtin_return_address(2);
+	h->callers[3] = __builtin_return_address(3);
+	memset(h->freers, 0, sizeof(void *) * 4);
+	h->inuse = true;
+	pthread_mutex_lock(&memtrk_mutex);
+	h->link.next = &memhead;
+	h->link.prev = memhead.prev;
+	memhead.prev->next = &h->link;
+	memhead.prev = &h->link;
+	freecount++;
+	pthread_mutex_unlock(&memtrk_mutex);
+    }
+#else
     d = malloc(size);
+#endif
     if (d)
 	memset(d, 0, size);
     return d;
@@ -93,6 +138,33 @@ gensio_sel_zalloc(struct gensio_os_funcs *f, unsigned int size)
 static void
 gensio_sel_free(struct gensio_os_funcs *f, void *data)
 {
+    assert(data);
+#ifdef TRACK_ALLOCED_MEMORY
+    struct memory_header *h = ((struct memory_header *)
+			       (((char *) data) - sizeof(*h)));
+
+    if (!h->inuse) {
+	fprintf(stderr, "Free of already freed data at %p.\n", data);
+	fprintf(stderr, "  allocated at %p %p %p %p.\n",
+		h->callers[0], h->callers[1],
+		h->callers[2], h->callers[3]);
+	fprintf(stderr, "  freed at %p %p %p %p.\n",
+		h->freers[0], h->freers[1],
+		h->freers[2], h->freers[3]);
+	assert(h->inuse);
+    }
+    data = h;
+    h->freers[0] = __builtin_return_address(0);
+    h->freers[1] = __builtin_return_address(1);
+    h->freers[2] = __builtin_return_address(2);
+    h->freers[3] = __builtin_return_address(3);
+    pthread_mutex_lock(&memtrk_mutex);
+    h->link.next->prev = h->link.prev;
+    h->link.prev->next = h->link.next;
+    h->inuse = false;
+    freecount--;
+    pthread_mutex_unlock(&memtrk_mutex);
+#endif
     free(data);
 }
 
@@ -318,6 +390,10 @@ gensio_sel_stop_timer_with_done(struct gensio_timer *timer,
     int rv;
 
     pthread_mutex_lock(&timer->lock);
+    if (timer->done_handler) {
+	pthread_mutex_unlock(&timer->lock);
+	return GE_INUSE;
+    }
     rv = sel_stop_timer_with_done(timer->sel_timer, gensio_stop_timer_done,
 				  timer);
     if (!rv) {
@@ -689,29 +765,44 @@ gensio_default_os_hnd(int wake_sig, struct gensio_os_funcs **o)
 void
 gensio_sel_exit(int rv)
 {
-#ifndef OUT_OF_MEMORY_TEST
-    exit(rv);
-#else
-    if (!oom_ready)
-	exit(rv);
-    assert (rv == 1 || rv == 0); /* Only these values are allowed. */
+#ifdef TRACK_ALLOCED_MEMORY
+    {
+	struct memory_link *l = memhead.next;
 
-    /*
-     * Return an error.  The values mean:
-     *
-     * 0 - No error occurred and the memory allocation failure didn't happen
-     * 1 - An error occurred and the memory allocation failure happenned
-     * 2 - No error occurred and the memory allocation failure happenned
-     * 3 - An error occurred and the memory allocation failure didn't happen
-     */
-    if (rv == 0 && triggered)
-	exit(2);
-    if (rv == 0 && !triggered)
-	exit(0);
-    if (rv == 1 && triggered)
-	exit(1);
-    if (rv == 1 && !triggered)
-	exit(3);
-    assert(false); /* Shouldn't get here. */
+	while (l != &memhead) {
+	    /* link is first element */
+	    struct memory_header *h = (struct memory_header *) l;
+
+	    fprintf(stderr, "Lost memory at %p allocated at %p %p %p %p\n",
+		    ((char *) h) + sizeof(*h), h->callers[0], h->callers[1],
+		    h->callers[2], h->callers[3]);
+	    l = l->next;
+	}
+	if (freecount)
+	    fprintf(stderr, "Memory tracking done with %lu items\n", freecount);
+    }
 #endif
+#ifdef OUT_OF_MEMORY_TEST
+    if (oom_ready) {
+	assert (rv == 1 || rv == 0); /* Only these values are allowed. */
+
+	/*
+	 * Return an error.  The values mean:
+	 *
+	 * 0 - No error occurred and the memory allocation failure didn't happen
+	 * 1 - An error occurred and the memory allocation failure happenned
+	 * 2 - No error occurred and the memory allocation failure happenned
+	 * 3 - An error occurred and the memory allocation failure didn't happen
+	 */
+	if (rv == 0 && triggered)
+	    rv = 2;
+	if (rv == 0 && !triggered)
+	    rv = 0;
+	if (rv == 1 && triggered)
+	    rv = 1;
+	if (rv == 1 && !triggered)
+	    rv = 3;
+    }
+#endif
+    exit(rv);
 }

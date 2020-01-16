@@ -2172,6 +2172,41 @@ gensio_default_init(void *cb_data)
 	gensio_def_init_rv = GE_NOMEM;
 }
 
+void
+gensio_cleanup_mem(struct gensio_os_funcs *o)
+{
+    struct registered_gensio_accepter *n, *n2;
+    struct registered_gensio *g, *g2;
+
+    if (deflock)
+	o->free_lock(deflock);
+    deflock = NULL;
+
+    if (reg_gensio_acc_lock)
+	o->free_lock(reg_gensio_acc_lock);
+    reg_gensio_acc_lock = NULL;
+
+    n = reg_gensio_accs;
+    while (n) {
+	n2 = n->next;
+	o->free(o, n);
+	n = n2;
+    }
+    reg_gensio_accs = NULL;
+
+    if (reg_gensio_lock)
+	o->free_lock(reg_gensio_lock);
+    reg_gensio_lock = NULL;
+
+    g = reg_gensios;
+    while (g) {
+	g2 = g->next;
+	o->free(o, g);
+	g = g2;
+    }
+    reg_gensios = NULL;
+}
+
 static void
 gensio_reset_default(struct gensio_os_funcs *o, struct gensio_def_entry *d)
 {
@@ -2637,46 +2672,58 @@ gensio_get_defaultaddr(struct gensio_os_funcs *o,
 void
 gensio_list_rm(struct gensio_list *list, struct gensio_link *link)
 {
+    assert(link->list == list);
     link->next->prev = link->prev;
     link->prev->next = link->next;
+    link->next = NULL;
+    link->prev = NULL;
+    link->list = NULL;
 }
 
 void
 gensio_list_add_head(struct gensio_list *list, struct gensio_link *link)
 {
+    assert(link->list == NULL && link->next == NULL && link->prev == NULL);
     link->next = list->link.next;
     link->prev = &list->link;
     list->link.next->prev = link;
     list->link.next = link;
+    link->list = list;
 }
 
 void
 gensio_list_add_tail(struct gensio_list *list, struct gensio_link *link)
 {
+    assert(link->list == NULL && link->next == NULL && link->prev == NULL);
     link->prev = list->link.prev;
     link->next = &list->link;
     list->link.prev->next = link;
     list->link.prev = link;
+    link->list = list;
 }
 
 void
 gensio_list_add_next(struct gensio_list *list, struct gensio_link *curr,
 		     struct gensio_link *link)
 {
+    assert(link->list == NULL && link->next == NULL && link->prev == NULL);
     link->next = curr->next;
     link->prev = curr;
     curr->next->prev = link;
     curr->next = link;
+    link->list = list;
 }
 
 void
 gensio_list_add_prev(struct gensio_list *list, struct gensio_link *curr,
 		     struct gensio_link *link)
 {
+    assert(link->list == NULL && link->next == NULL && link->prev == NULL);
     link->prev = curr->prev;
     link->next = curr;
     curr->prev->next = link;
     curr->prev = link;
+    link->list = list;
 }
 
 void
@@ -2684,6 +2731,7 @@ gensio_list_init(struct gensio_list *list)
 {
     list->link.next = &list->link;
     list->link.prev = &list->link;
+    list->link.list = list;
 }
 
 bool

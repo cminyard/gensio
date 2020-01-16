@@ -38,22 +38,23 @@
 #include <assert.h>
 #include <sys/wait.h>
 #include <gensio/gensio.h>
+#include <gensio/gensio_selector.h>
 
 struct oom_tests {
     const char *connecter;
     const char *accepter;
 } oom_tests[] = {
-    { "mux,sctp,localhost,", "mux,sctp,0" },
-    { "telnet(rfc2217),tcp,localhost,", "telnet(rfc2217),tcp,0" },
     { "ssl(CA=ca/CA.pem),tcp,localhost,",
       "ssl(key=ca/key.pem,cert=ca/cert.pem),tcp,0" },
-    { "serialdev,/dev/ttyEcho0,115200", NULL },
-    { "udp,localhost,", "udp,0" },
-    { "sctp,localhost,", "sctp,0" },
-    { "telnet,tcp,localhost,", "telnet,tcp,0" },
-    { "stdio,cat", NULL },
     { "echo", NULL },
     { "tcp,localhost,", "tcp,0" },
+    { "sctp,localhost,", "sctp,0" },
+    { "udp,localhost,", "udp,0" },
+    //{ "mux,sctp,localhost,", "mux,sctp,0" },
+    { "telnet(rfc2217),tcp,localhost,", "telnet(rfc2217),tcp,0" },
+    { "serialdev,/dev/ttyEcho0,115200", NULL },
+    { "telnet,tcp,localhost,", "telnet,tcp,0" },
+    { "stdio,cat", NULL },
     { NULL }
 };
 
@@ -236,6 +237,7 @@ acc_closed(struct gensio_accepter *acc, void *close_data)
 {
     struct oom_test_data *od = close_data;
 
+    assert(acc == od->acc);
     pthread_mutex_lock(&od->lock);
     od->acc = NULL;
     o->wake(od->waiter);
@@ -256,7 +258,7 @@ con_cb(struct gensio *io, void *user_data,
 
     assert(id->io == io);
     if (err) {
-	assert(!debug || err == GE_REMCLOSE);
+	assert(!debug || err == GE_REMCLOSE || err == GE_NOTREADY || err == GE_LOCALCLOSED);
 	pthread_mutex_lock(&od->lock);
 	gensio_set_write_callback_enable(io, false);
 	gensio_set_read_callback_enable(io, false);
@@ -280,7 +282,7 @@ con_cb(struct gensio *io, void *user_data,
 	    id->err = OOME_READ_OVERFLOW;
 	    printf("  readpos = %ld, buflen = %ld, read '%s'\n",
 		   (long) id->read_pos, (long) *buflen, buf);
-	    assert(0);
+	    assert(!debug);
 	    o->wake(od->waiter);
 	    goto out_leave_read;
 	}
@@ -370,6 +372,7 @@ ccon_stderr_cb(struct gensio *io, void *user_data,
     gensiods size;
 
     if (err) {
+	assert(!debug || err == GE_REMCLOSE);
 	gensio_set_read_callback_enable(io, false);
 	if (!od->stderr_expect_close || err != GE_REMCLOSE)
 	    od->ccon.err = err;
@@ -435,13 +438,17 @@ ccon_stderr_open_done(struct gensio *io, int err, void *open_data)
     struct oom_test_data *od = open_data;
 
     pthread_mutex_lock(&od->lock);
+    if (od->stderr_expect_close)
+	goto out_unlock;
     od->stderr_open_done = true;
     if (err) {
+	assert(!debug || err == GE_REMCLOSE);
 	od->ccon.err = err;
 	o->wake(od->waiter);
     } else {
 	gensio_set_read_callback_enable(io, true);
     }
+ out_unlock:
     pthread_mutex_unlock(&od->lock);
 }
 
@@ -451,11 +458,19 @@ scon_open_done(struct gensio *io, int err, void *open_data)
     struct oom_test_data *od = open_data;
 
     pthread_mutex_lock(&od->lock);
+    if (od->scon.expect_close)
+	goto out_unlock;
+    assert(!od->scon.open_done);
     od->scon.open_done = true;
     if (!od->scon.io)
 	/* We can race with the open and a close. */
 	goto out_unlock;
     if (err) {
+	if (err != GE_REMCLOSE)
+	    printf("ERR: %s for %s\n", gensio_err_to_str(err), od->scon.iostr);
+	assert(!debug || err == GE_REMCLOSE || err == GE_INVAL ||
+	       err == GE_SHUTDOWN || err == GE_LOCALCLOSED ||
+	       err == GE_NOTREADY);
 	od->scon.err = err;
 	o->wake(od->waiter);
 	gensio_free(io);
@@ -476,11 +491,15 @@ ccon_open_done(struct gensio *io, int err, void *open_data)
     int rv;
 
     pthread_mutex_lock(&od->lock);
+    if (od->ccon.expect_close)
+	goto out_unlock;
+    assert(!od->ccon.open_done);
     od->ccon.open_done = true;
     if (!od->ccon.io)
 	/* We can race with the open and a close. */
 	goto out_unlock;
     if (err) {
+	assert(!debug || !err || err == GE_REMCLOSE || err == GE_LOCALCLOSED);
 	od->ccon.err = err;
 	o->wake(od->waiter);
 	gensio_free(io);
@@ -1096,6 +1115,7 @@ main(int argc, char *argv[])
     struct sigaction sigdo;
     sigset_t sigs;
     int testnr = -1, numtests = 0, testnrstart = -1, testnrend = MAX_LOOPS;
+    struct timeval zerotime = { 0, 0 };
 
     for (j = 0; oom_tests[j].connecter; j++)
 	numtests++;
@@ -1235,8 +1255,13 @@ main(int argc, char *argv[])
     }
 
     printf("Got %ld errors\n", errcount);
-    return !!errcount;
+    while (o && o->service(o, &zerotime) == 0)
+	;
+    gensio_cleanup_mem(o);
+    gensio_sel_exit(!!errcount);
 
  out_err:
+    gensio_cleanup_mem(o);
+    gensio_sel_exit(1);
     return 1;
 }

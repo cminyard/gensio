@@ -189,6 +189,13 @@ stdiona_ref(struct stdiona_data *nadata)
 }
 
 static void
+stdiona_deref(struct stdiona_data *nadata)
+{
+    assert(nadata->refcount > 1);
+    nadata->refcount--;
+}
+
+static void
 stdiona_deref_and_unlock(struct stdiona_data *nadata)
 {
     assert(nadata->refcount > 0);
@@ -697,7 +704,7 @@ stdion_open(struct gensio *io, gensio_done_err open_done, void *open_data)
 					 stdion_write_except_ready,
 					 stdio_client_fd_cleared);
 	if (err)
-	    goto out_err;
+	    goto out_err_deref;
 	schan->in_handler_set = true;
 	stdiona_ref(nadata);
     }
@@ -711,6 +718,8 @@ stdion_open(struct gensio *io, gensio_done_err open_done, void *open_data)
 
     return 0;
 
+ out_err_deref:
+    stdiona_deref(nadata);
  out_err:
     if (nadata->io.out_handler_set)
 	nadata->o->clear_fd_handlers_norpt(nadata->o, nadata->io.outfd);

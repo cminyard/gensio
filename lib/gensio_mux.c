@@ -276,6 +276,9 @@ struct mux_inst {
     bool in_open_chan;
 
     struct gensio_link link;
+
+    int open_rpt_loc1;
+    int open_rpt_loc2;
 };
 
 static gensiods
@@ -932,13 +935,11 @@ chan_deferred_op(struct gensio_runner *runner, void *cbdata)
 
     /*
      * If there is a not full message pending, there is no data to send,
-     * we are not currently in a write callback, and we are ready to close,
-     * finish the close.  We don't have to worry about being in a read
-     * callback because we can't have unlocked from the above call and
-     * another read sneak in.  Since we release the lock in chan_check_read,
-     * a write can sneak in.
+     * we are not currently in a read/write callback, and we are ready to
+     * finish the close.
      */
     if (!fullmsg && !chan->wr_ready && !chan->in_write_ready &&
+		!chan->in_read_report &&
 		chan->state == MUX_INST_IN_CLOSE_FINAL)
 	mux_channel_finish_close(chan);
     chan_deref(chan);
@@ -1464,6 +1465,22 @@ muxc_alloc_channel(struct mux_data *muxdata,
 }
 
 static void
+mux_call_open_done(struct mux_data *muxdata, struct mux_inst *chan, int err, int pos)
+{
+    gensio_done_err open_done = chan->open_done;
+    void *open_data = chan->open_data;
+
+    chan->open_done = NULL;
+    if (open_done) {
+	chan->open_rpt_loc1 = pos;
+	mux_unlock(muxdata);
+	open_done(chan->io, err, open_data);
+	mux_lock(muxdata);
+	chan->open_rpt_loc2 = pos;
+    }
+}
+
+static void
 mux_child_open_done(struct gensio *child, int err, void *open_data)
 {
     struct mux_data *muxdata = open_data;
@@ -1471,13 +1488,8 @@ mux_child_open_done(struct gensio *child, int err, void *open_data)
 
     mux_lock(muxdata);
     if (err) {
-	gensio_done_err fopen_done = chan->open_done;
-	void *fopen_data = chan->open_data;
-
 	muxdata->state = MUX_CLOSED;
-	mux_unlock(muxdata);
-	fopen_done(chan->io, err, fopen_data);
-	mux_lock(muxdata);
+	mux_call_open_done(muxdata, chan, err, 1);
     } else {
 	muxdata->state = MUX_UNINITIALIZED;
 	chan->state = MUX_INST_IN_OPEN;
@@ -1733,13 +1745,9 @@ mux_shutdown_channels(struct mux_data *muxdata, int err)
 	if (chan->state == MUX_INST_IN_OPEN ||
 		chan->state == MUX_INST_IN_OPEN_CLOSE) {
 	    chan->state = MUX_INST_CLOSED;
-	    if (chan->open_done) {
-		chan_ref(chan);
-		mux_unlock(muxdata);
-		chan->open_done(chan->io, err, chan->open_data);
-		mux_lock(muxdata);
-		chan_deref(chan);
-	    }
+	    chan_ref(chan);
+	    mux_call_open_done(muxdata, chan, err, 2);
+	    chan_deref(chan);
 	    continue;
 	}
 	if (chan->state == MUX_INST_IN_CLOSE) {
@@ -2234,11 +2242,9 @@ mux_child_read(struct mux_data *muxdata, int ierr,
 		    assert(muxdata->opencount == 0);
 		}
 
-		if (chan && chan->open_done) {
+		if (chan) {
 		    chan_ref(chan);
-		    mux_unlock(muxdata);
-		    chan->open_done(chan->io, chan->errcode, chan->open_data);
-		    mux_lock(muxdata);
+		    mux_call_open_done(muxdata, chan, chan->errcode, 3);
 		    if (chan_deref(chan))
 			goto more_data;
 		    /* Deliver a read error if read is enabled. */
@@ -2421,9 +2427,7 @@ mux_child_read(struct mux_data *muxdata, int ierr,
 			mux_lock(muxdata);
 		    } else {
 			chan_ref(chan);
-			mux_unlock(muxdata);
-			chan->open_done(chan->io, err, chan->open_data);
-			mux_lock(muxdata);
+			mux_call_open_done(muxdata, chan, err, 4);
 			chan_deref(chan);
 		    }
 		    mux_send_new_channel_rsp(muxdata, chan->remote_id,

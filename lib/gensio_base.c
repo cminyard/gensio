@@ -33,14 +33,109 @@
 #include <utils/utils.h>
 #endif
 
-enum basen_state { BASEN_CLOSED,
-		   BASEN_IN_LL_OPEN,
-		   BASEN_IN_FILTER_OPEN,
-		   BASEN_OPEN,
-		   BASEN_CLOSE_WAIT_DRAIN,
-		   BASEN_IN_FILTER_CLOSE,
-		   BASEN_IN_LL_CLOSE };
+/*
+ * Events:
+ *   ll_write_ready
+ *   ll_read
+ *   ll_open_done
+ *   ll_close_done
+ *   write
+ *   open
+ *   close
+ *   free
+ */
+enum basen_state {
+    /*
+     * gensio is closed, either at initial startup after close is
+     * complete.
+     *
+     * open && ll open deferred -> BASEN_IN_LL_OPEN
+     * open && ll open success && filter open deferred -> BASEN_IN_FILTER_OPEN
+     * open && ll open success && filter open success -> BASEN_OPEN
+     */
+    BASEN_CLOSED,
 
+    /*
+     * We have requested that our ll open, but have not received the
+     * confirmation yet.
+     *
+     * ll open done (err) -> BASEN_CLOSED
+     * ll open done && filter open deferred -> BASEN_IN_FILTER_OPEN
+     * ll open done && filter open success -> BASEN_OPEN
+     * close -> BASEN_IN_LL_CLOSE
+     * io err should not be possible
+     */
+    BASEN_IN_LL_OPEN,
+
+    /*
+     * We have requested that the filter open (if we have a filter)
+     * but it has not yet been confirmed.
+     *
+     * filter open done -> BASEN_OPEN
+     * close -> BASEN_IN_LL_CLOSE
+     * io err -> BASEN_IN_LL_IO_ERR_CLOSE
+     */
+    BASEN_IN_FILTER_OPEN,
+
+    /*
+     * gensio is operational
+     *
+     * close && write data pending -> BASEN_CLOSE_WAIT_DRAIN
+     * close && no write data pending && filter close deferred ->
+     *                 BASEN_IN_FILTER_CLOSE
+     * close && no write data pending && filter close complete ->
+		       BASEN_IN_LL_CLOSE
+     * io err -> BASEN_IN_LL_IO_ERR_CLOSE
+     */
+    BASEN_OPEN,
+
+    /*
+     * A close has been requested, but we have write data to deliver.
+     *
+     * All data written && filter close deferred -> BASEN_IN_FILTER_CLOSE
+     * All data written && filter close complete -> BASEN_IN_LL_CLOSE
+     * io err -> BASEN_IN_LL_CLOSE
+     */
+    BASEN_CLOSE_WAIT_DRAIN,
+
+    /*
+     * A close has been requested and all data is delivered.  The
+     * filter close has been requested but it has not yet reported
+     * closed.
+     *
+     * filter close done -> BASEN_IN_LL_CLOSE
+     * io err -> BASEN_IN_LL_CLOSE
+     */
+    BASEN_IN_FILTER_CLOSE,
+
+    /*
+     * A close has been requested and the filter is closed.  The ll
+     * close has been requested but it has not yet reported closed.
+     *
+     * ll close done -> BASEN_CLOSE
+     * io err -> ignore
+     */
+    BASEN_IN_LL_CLOSE,
+
+    /*
+     * An I/O error happened on BASEN_OPEN, waiting for the LL to close.
+     *
+     * close -> BASEN_IN_LL_CLOSE
+     * ll close done -> BASEN_IO_ERR_CLOSE
+     * io err -> ignore
+     */
+    BASEN_IN_LL_IO_ERR_CLOSE,
+
+    /*
+     * An I/O error happened on BASEN_OPEN or before, waiting close call.
+     *
+     * close -> BASEN_CLOSE
+     * io err should not be possible
+     */
+    BASEN_IO_ERR_CLOSE
+};
+
+#define DEBUG_STATE
 #ifdef DEBUG_STATE
 static char *basen_statestr[] = {
     "CLOSED",
@@ -50,7 +145,18 @@ static char *basen_statestr[] = {
     "CLOSE_WAIT_DRAIN",
     "IN_FILTER_CLOSE",
     "IN_LL_CLOSE"
+    "IN_LL_IO_ERR_CLOSE",
+    "IO_ERR_CLOSE"
 };
+#endif
+
+#ifdef DEBUG_STATE
+struct basen_state_trace {
+    enum basen_state old_state;
+    enum basen_state new_state;
+    int line;
+};
+#define STATE_TRACE_LEN 256
 #endif
 
 struct basen_data {
@@ -82,7 +188,6 @@ struct basen_data {
     bool in_read;
 
     bool xmit_enabled;
-    bool tmp_xmit_enabled; /* Make sure the xmit code get called once. */
     bool in_xmit_ready;
     bool redo_xmit_ready;
 
@@ -90,9 +195,12 @@ struct basen_data {
      * We got an error from the lower layer, it's probably not working
      * any more.
      */
-    bool ll_err_occurred;
     int ll_err;
-    int saved_xmit_err;
+
+    /*
+     * Transfer data to the deferred open.
+     */
+    int open_err;
 
     /*
      * Used to run user callbacks from the selector to avoid running
@@ -105,7 +213,10 @@ struct basen_data {
     bool deferred_open;
     bool deferred_close;
 
-    struct stel_req *reqs;
+#ifdef DEBUG_STATE
+    struct basen_state_trace state_trace[STATE_TRACE_LEN];
+    unsigned int state_trace_pos;
+#endif
 };
 
 struct gensio_ll {
@@ -163,6 +274,7 @@ basen_timer_stopped(struct gensio_timer *t, void *cb_data)
 static void
 basen_ref(struct basen_data *ndata)
 {
+    assert(ndata->refcount > 0);
     ndata->refcount++;
 }
 
@@ -197,22 +309,46 @@ basen_deref_and_unlock(struct basen_data *ndata)
 	    int err = ndata->o->stop_timer_with_done(ndata->timer,
 						     basen_timer_stopped,
 						     ndata);
-
-	    if (err != GE_TIMEDOUT)
+	    assert(!err || err == GE_TIMEDOUT);
+	    if (!err)
 		return;
 	}
 	basen_finish_free(ndata);
     }
 }
 
+static void
+basen_start_timer(struct basen_data *ndata, struct timeval *timeout)
+{
+    if (ndata->o->start_timer(ndata->timer, timeout) == 0)
+	basen_ref(ndata);
+}
+
 #ifdef DEBUG_STATE
+static void
+i_basen_add_trace(struct basen_data *ndata,
+		  enum basen_state new_state, int line)
+{
+    ndata->state_trace[ndata->state_trace_pos].old_state = ndata->state;
+    ndata->state_trace[ndata->state_trace_pos].new_state = new_state;
+    ndata->state_trace[ndata->state_trace_pos].line = line;
+    if (ndata->state_trace_pos == STATE_TRACE_LEN - 1)
+	ndata->state_trace_pos = 0;
+    else
+	ndata->state_trace_pos++;
+}
+
 static void
 i_basen_set_state(struct basen_data *ndata, enum basen_state state, int line)
 {
+#if 0
     printf("Setting state for %s(%s) to %s at line %d\r\n",
 	   gensio_get_type(ndata->io, 0),
 	   gensio_is_client(ndata->io) ? "client" : "server",
 	   basen_statestr[state], line);
+#else
+    i_basen_add_trace(ndata, state, line);
+#endif
     ndata->state = state;
 }
 
@@ -224,6 +360,7 @@ basen_set_state(struct basen_data *ndata, enum basen_state state)
 {
     ndata->state = state;
 }
+#define i_basen_add_trace(ndata, new_state, line)
 #endif
 
 static bool
@@ -296,7 +433,9 @@ filter_ll_write(struct basen_data *ndata, gensio_ll_filter_data_handler handler,
     if (ndata->filter)
 	return gensio_filter_ll_write(ndata->filter, handler,
 				      ndata, rcount, buf, buflen, auxdata);
-    return handler(ndata, rcount, buf, buflen, auxdata);
+    if (buflen)
+	return handler(ndata, rcount, buf, buflen, auxdata);
+    return 0;
 }	     
 
 static int
@@ -339,16 +478,36 @@ ll_open(struct basen_data *ndata, gensio_ll_open_done done, void *open_data)
 static void basen_sched_deferred_op(struct basen_data *ndata);
 
 static void
-ll_close(struct basen_data *ndata, gensio_ll_close_done done, void *close_data)
+basen_ll_close_done(void *cb_data, void *close_data)
+{
+    struct basen_data *ndata = cb_data;
+
+    basen_lock(ndata);
+    switch(ndata->state) {
+    case BASEN_IN_LL_CLOSE:
+	/* Don't move to BASEN_CLOSED until later to avoid races. */
+	i_basen_add_trace(ndata, 102, __LINE__);
+	ndata->deferred_close = true;
+	basen_sched_deferred_op(ndata);
+	break;
+
+    case BASEN_IN_LL_IO_ERR_CLOSE:
+	basen_set_state(ndata, BASEN_IO_ERR_CLOSE);
+	break;
+
+    default:
+	assert(0);
+    }
+    basen_unlock(ndata);
+}
+
+static void
+ll_close(struct basen_data *ndata)
 {
     int err;
 
-    basen_set_state(ndata, BASEN_IN_LL_CLOSE);
-    err = gensio_ll_close(ndata->ll, done, close_data);
-    if (err != GE_INPROGRESS) {
-	ndata->deferred_close = true;
-	basen_sched_deferred_op(ndata);
-    }
+    err = gensio_ll_close(ndata->ll, basen_ll_close_done, ndata);
+    assert(err == 0); /* Should never be able to fail. */
 }
 
 static void
@@ -366,19 +525,40 @@ ll_set_write_callback_enable(struct basen_data *ndata, bool enable)
 static void
 basen_set_ll_enables(struct basen_data *ndata)
 {
-    if (filter_ll_write_pending(ndata) || ndata->xmit_enabled ||
-		ndata->tmp_xmit_enabled)
+    bool enabled;
+
+    if (ndata->state == BASEN_CLOSED || ndata->ll_err) {
+	ll_set_write_callback_enable(ndata, false);
+	ll_set_read_callback_enable(ndata, false);
+	return;
+    }
+
+    if (filter_ll_write_pending(ndata) || ndata->xmit_enabled)
 	ll_set_write_callback_enable(ndata, true);
     else
 	ll_set_write_callback_enable(ndata, false);
-    if (((((ndata->read_enabled && !filter_ul_read_pending(ndata)) ||
-		filter_ll_read_needed(ndata)) && ndata->state == BASEN_OPEN) ||
-	    ndata->state == BASEN_IN_FILTER_OPEN ||
-	    ndata->state == BASEN_IN_FILTER_CLOSE) &&
-	   !ndata->in_read && !ndata->ll_err_occurred)
-	ll_set_read_callback_enable(ndata, true);
-    else
-	ll_set_read_callback_enable(ndata, false);
+
+    enabled = false;
+    if (ndata->in_read)
+	goto out_set;
+
+    switch(ndata->state) {
+    case BASEN_IN_FILTER_OPEN:
+    case BASEN_IN_FILTER_CLOSE:
+	enabled = filter_ll_read_needed(ndata);
+	break;
+
+    case BASEN_OPEN:
+	enabled = ((ndata->read_enabled && !filter_ul_read_pending(ndata)) ||
+		   filter_ll_read_needed(ndata));
+	break;
+
+    default:
+	/* Nothing to do */
+	break;
+    }
+ out_set:
+    ll_set_read_callback_enable(ndata, enabled);
 }
 
 static int
@@ -403,8 +583,8 @@ basen_write(struct basen_data *ndata, gensiods *rcount,
 	err = GE_NOTREADY;
 	goto out_unlock;
     }
-    if (ndata->saved_xmit_err) {
-	err = ndata->saved_xmit_err;
+    if (ndata->ll_err) {
+	err = ndata->ll_err;
 	goto out_unlock;
     }
 
@@ -448,56 +628,104 @@ basen_read_data_handler(void *cb_data,
     return 0;
 }
 
-static void basen_ll_close_on_err(void *cb_data, void *close_data);
-static void basen_ll_close_done(void *cb_data, void *close_data);
-static void basen_i_close(struct basen_data *ndata,
-			  gensio_done close_done, void *close_data);
-
 static void
-handle_readerr(struct basen_data *ndata, int err)
+handle_ioerr(struct basen_data *ndata, int err)
 {
-    struct gensio *io = ndata->io;
-    bool old_enable;
-
-    old_enable = ndata->read_enabled;
-    /* Do this here so the user can modify it. */
-    ndata->read_enabled = false;
+    assert(err);
 
     if (ndata->ll_err)
-	goto call_parent_err;
+	return; /* Already handled. */
 
-    ndata->ll_err_occurred = true;
+    ndata->read_enabled = false;
+    ndata->xmit_enabled = false;
+    ll_set_write_callback_enable(ndata, false);
+    ll_set_read_callback_enable(ndata, false);
+
     ndata->ll_err = err;
-    if (ndata->state == BASEN_IN_FILTER_OPEN ||
-			ndata->state == BASEN_IN_LL_OPEN) {
-	basen_set_state(ndata, BASEN_CLOSED);
-	basen_ref(ndata);
-	ll_close(ndata, basen_ll_close_on_err, (void *) (long) err);
-    } else if (ndata->state == BASEN_CLOSE_WAIT_DRAIN ||
-			ndata->state == BASEN_IN_FILTER_CLOSE) {
-	basen_set_state(ndata, BASEN_CLOSED);
-	basen_ref(ndata);
-	ll_close(ndata, basen_ll_close_done, NULL);
-    } else if (gensio_get_cb(io)) {
-	goto call_parent_err;
+
+    switch(ndata->state) {
+    case BASEN_CLOSED:
+    case BASEN_IN_LL_OPEN:
+    case BASEN_IO_ERR_CLOSE:
+	assert(0);
+	break;
+
+    case BASEN_IN_FILTER_OPEN:
+	ndata->deferred_open = true;
+	ndata->open_err = err;
+	basen_sched_deferred_op(ndata);
+	basen_set_state(ndata, BASEN_IN_LL_IO_ERR_CLOSE);
+	ll_close(ndata);
+	break;
+
+    case BASEN_OPEN:
+	ndata->deferred_read = true;
+	basen_sched_deferred_op(ndata);
+	basen_set_state(ndata, BASEN_IN_LL_IO_ERR_CLOSE);
+	ll_close(ndata);
+	break;
+
+    case BASEN_CLOSE_WAIT_DRAIN:
+	basen_set_state(ndata, BASEN_IN_LL_CLOSE);
+	ll_close(ndata);
+	break;
+
+    case BASEN_IN_FILTER_CLOSE:
+	basen_set_state(ndata, BASEN_IN_LL_CLOSE);
+	ll_close(ndata);
+	break;
+
+    case BASEN_IN_LL_CLOSE:
+    case BASEN_IN_LL_IO_ERR_CLOSE:
+	break;
     }
-    return;
- call_parent_err:
-    while ((old_enable || ndata->read_enabled) && !ndata->in_read) {
-	ndata->in_read = true;
-	basen_unlock(ndata);
-	gensio_cb(io, GENSIO_EVENT_READ, err, NULL, NULL, NULL);
-	basen_lock(ndata);
-	ndata->in_read = false;
-	old_enable = false;
-    }
-    if (ndata->state != BASEN_CLOSED)
-	basen_set_ll_enables(ndata);
 }
 
-static void basen_finish_close(struct basen_data *ndata);
+/*
+ * Note that you must be holding an extra ref when calling this,
+ * the close_done call may free the gensio.
+ */
+static void
+basen_finish_close(struct basen_data *ndata)
+{
+    /*
+     * We don't have to worry about write here, write is only done in
+     * write callbacks from the ll close, and when the ll close is
+     * reported we are guaranteed to not be in a write callback.  We
+     * also don't need to worry about a read operation except for a
+     * deferred one for the same reason.
+     */
+    assert(!ndata->in_xmit_ready);
+    if (ndata->deferred_op_pending) {
+	i_basen_add_trace(ndata, 101, __LINE__);
+	ndata->deferred_close = true;
+	return;
+    }
+    assert(!ndata->in_read);
+    filter_cleanup(ndata);
+    basen_set_state(ndata, BASEN_CLOSED);
+    if (ndata->close_done) {
+	basen_unlock(ndata);
+	ndata->close_done(ndata->io, ndata->close_data);
+	basen_lock(ndata);
+    }
+    basen_deref(ndata); /* Lose the ref for the open. */
+}
 
-static void basen_try_connect(struct basen_data *ndata);
+static void
+basen_finish_open(struct basen_data *ndata, int err)
+{
+    if (!err) {
+	assert(ndata->state == BASEN_IN_FILTER_OPEN || ndata->state == BASEN_OPEN);
+	basen_set_state(ndata, BASEN_OPEN);
+	if (ndata->timer_start_pending)
+	    basen_start_timer(ndata, &ndata->pending_timer);
+    }
+
+    basen_unlock(ndata);
+    ndata->open_done(ndata->io, err, ndata->open_data);
+    basen_lock(ndata);
+}
 
 static void
 basen_deferred_op(struct gensio_runner *runner, void *cbdata)
@@ -506,149 +734,99 @@ basen_deferred_op(struct gensio_runner *runner, void *cbdata)
     int err;
 
     basen_lock(ndata);
- retry:
     if (ndata->deferred_open) {
 	ndata->deferred_open = false;
-	basen_try_connect(ndata);
+	i_basen_add_trace(ndata, 100, __LINE__);
+	basen_finish_open(ndata, ndata->open_err);
     }
 
-    if (ndata->deferred_close) {
-	ndata->deferred_close = false;
-	basen_finish_close(ndata);
-    }
-
-    if (ndata->deferred_read) {
-	if (ndata->state != BASEN_OPEN)
-	    goto out_unlock;
-
+    while (ndata->deferred_read) {
 	ndata->deferred_read = false;
-
-	if (ndata->ll_err) {
-	    err = ndata->ll_err;
-	} else {
-	    do {
+	if (ndata->in_read)
+	    goto skip_read;
+	ndata->in_read = true;
+	do {
+	    if (ndata->ll_err) {
+		basen_unlock(ndata);
+		gensio_cb(ndata->io, GENSIO_EVENT_READ, ndata->ll_err,
+			  NULL, NULL, NULL);
+		basen_lock(ndata);
+	    } else {
 		basen_unlock(ndata);
 		err = filter_ll_write(ndata, basen_read_data_handler,
 				      NULL, NULL, 0, NULL);
 		basen_lock(ndata);
-	    } while (!err && ndata->read_enabled &&
-		     filter_ul_read_pending(ndata));
-	}
+		if (err) {
+		    handle_ioerr(ndata, err);
+		    break;
+		}
+	    }
+	} while (ndata->read_enabled &&
+		 (ndata->ll_err || filter_ul_read_pending(ndata)));
 	ndata->in_read = false;
-	if (err)
-	    handle_readerr(ndata, err);
     }
 
-    if (ndata->deferred_read || ndata->deferred_open || ndata->deferred_close)
-	goto retry;
-
- out_unlock:
+ skip_read:
+    /*
+     * Close callback may call open, if open defers make sure we
+     * run the runner.
+     */
     ndata->deferred_op_pending = false;
+
+    if (ndata->deferred_close) {
+	ndata->deferred_close = false;
+	i_basen_add_trace(ndata, 101, __LINE__);
+	basen_finish_close(ndata);
+    }
+
     if (ndata->state != BASEN_CLOSED)
 	basen_set_ll_enables(ndata);
-    basen_deref_and_unlock(ndata);
+    basen_deref_and_unlock(ndata); /* Ref from basen_sched_deferred_op */
 }
 
 static void
 basen_sched_deferred_op(struct basen_data *ndata)
 {
     if (!ndata->deferred_op_pending) {
-	/* Call the read from the selector to avoid lock nesting issues. */
 	ndata->deferred_op_pending = true;
 	basen_ref(ndata);
 	ndata->o->run(ndata->deferred_op_runner);
     }
 }
 
-static void
-basen_finish_close(struct basen_data *ndata)
-{
-    filter_cleanup(ndata);
-    basen_set_state(ndata, BASEN_CLOSED);
-    basen_deref(ndata);
-    if (ndata->close_done) {
-	basen_unlock(ndata);
-	ndata->close_done(ndata->io, ndata->close_data);
-	basen_lock(ndata);
-    }
-}
-
-static void
-basen_finish_open(struct basen_data *ndata, int err)
-{
-    if (err) {
-	basen_set_state(ndata, BASEN_CLOSED);
-	basen_deref(ndata);
-	filter_cleanup(ndata);
-    } else {
-	basen_set_state(ndata, BASEN_OPEN);
-	if (ndata->timer_start_pending)
-	    ndata->o->start_timer(ndata->timer, &ndata->pending_timer);
-    }
-
-    if (ndata->open_done) {
-	basen_unlock(ndata);
-	ndata->open_done(ndata->io, err, ndata->open_data);
-	basen_lock(ndata);
-    }
-}
-
-static void
-basen_ll_close_done(void *cb_data, void *close_data)
-{
-    struct basen_data *ndata = cb_data;
-
-    basen_lock(ndata);
-    basen_finish_close(ndata);
-    basen_deref_and_unlock(ndata);
-}
-
-static void
-basen_ll_close_on_err(void *cb_data, void *close_data)
-{
-    struct basen_data *ndata = cb_data;
-
-    basen_lock(ndata);
-    basen_finish_open(ndata, (long) close_data);
-    basen_deref_and_unlock(ndata);
-}
-
-static void
-basen_try_connect(struct basen_data *ndata)
+static int
+basen_filter_try_connect(struct basen_data *ndata)
 {
     int err;
     struct timeval timeout = {0, 0};
-
-    if (ndata->state != BASEN_IN_FILTER_OPEN)
-	/*
-	 * We can race between the timer, input, and output, make sure
-	 * not to call this extraneously.
-	 */
-	return;
-
-    ll_set_write_callback_enable(ndata, false);
-    ll_set_read_callback_enable(ndata, false);
 
     err = filter_try_connect(ndata, &timeout);
     if (!err || err == GE_INPROGRESS || err == GE_RETRY)
 	basen_set_ll_enables(ndata);
     if (err == GE_INPROGRESS)
-	return;
+	return GE_INPROGRESS;
     if (err == GE_RETRY) {
-	ndata->o->start_timer(ndata->timer, &timeout);
-	return;
+	basen_start_timer(ndata, &timeout);
+	return GE_INPROGRESS;
     }
 
     if (!err)
 	err = filter_check_open_done(ndata);
 
-    if (err) {
-	basen_set_state(ndata, BASEN_CLOSED);
-	basen_ref(ndata);
-	ll_close(ndata, basen_ll_close_on_err, (void *) (long) err);
-    } else {
+    return err;
+}
+
+static void
+basen_filter_try_connect_finish(struct basen_data *ndata)
+{
+    int err;
+
+    err = basen_filter_try_connect(ndata);
+    if (!err) {
+	i_basen_add_trace(ndata, 100, __LINE__);
 	basen_finish_open(ndata, 0);
-    }
+    } else if (err != GE_INPROGRESS)
+	handle_ioerr(ndata, err);
 }
 
 static void
@@ -657,8 +835,13 @@ basen_ll_open_done(void *cb_data, int err, void *open_data)
     struct basen_data *ndata = cb_data;
 
     basen_lock_and_ref(ndata);
-    if (err) {
+    if (ndata->ll_err || ndata->open_err) {
+	/* Nothing to do here, we failed the open, a close should be pending. */
+    } else if (err) {
+	basen_set_state(ndata, BASEN_CLOSED);
+	i_basen_add_trace(ndata, 100, __LINE__);
 	basen_finish_open(ndata, err);
+	basen_deref(ndata);
     } else {
 	/*
 	 * Once the lower layer is open, propagate the traits.
@@ -673,7 +856,7 @@ basen_ll_open_done(void *cb_data, int err, void *open_data)
 	}
 
 	basen_set_state(ndata, BASEN_IN_FILTER_OPEN);
-	basen_try_connect(ndata);
+	basen_filter_try_connect_finish(ndata);
 	basen_set_ll_enables(ndata);
     }
     basen_deref_and_unlock(ndata);
@@ -684,12 +867,14 @@ basen_open(struct basen_data *ndata, gensio_done_err open_done, void *open_data)
 {
     int err = GE_INUSE;
 
-    basen_lock_and_ref(ndata);
+    basen_lock(ndata);
     if (ndata->state == BASEN_CLOSED) {
 	err = filter_setup(ndata);
 	if (err)
 	    goto out_err;
 
+	ndata->ll_err = 0;
+	ndata->open_err = 0;
 	ndata->in_read = false;
 	ndata->deferred_read = false;
 	ndata->deferred_open = false;
@@ -700,23 +885,29 @@ basen_open(struct basen_data *ndata, gensio_done_err open_done, void *open_data)
 
 	ndata->open_done = open_done;
 	ndata->open_data = open_data;
+	basen_set_state(ndata, BASEN_IN_LL_OPEN);
 	err = ll_open(ndata, basen_ll_open_done, ndata);
 	if (err == 0) {
-	    basen_ref(ndata);
 	    basen_set_state(ndata, BASEN_IN_FILTER_OPEN);
-	    ndata->deferred_open = true;
-	    basen_sched_deferred_op(ndata);
+	    err = basen_filter_try_connect(ndata);
+	    if (!err) {
+		/* We are fully open, schedule it. */
+		basen_set_state(ndata, BASEN_OPEN);
+		ndata->deferred_open = true;
+		basen_sched_deferred_op(ndata);
+	    } else if (err == GE_INPROGRESS) {
+		err = 0;
+	    }
 	} else if (err == GE_INPROGRESS) {
-	    basen_set_state(ndata, BASEN_IN_LL_OPEN);
-	    basen_ref(ndata);
 	    err = 0;
-	} else {
-	    filter_cleanup(ndata);
-	    goto out_err;
-	}	    
+	}
+	if (err)
+	    basen_set_state(ndata, BASEN_CLOSED);
+	else
+	    basen_ref(ndata); /* Ref for open. */
     }
  out_err:
-    basen_deref_and_unlock(ndata);
+    basen_unlock(ndata);
 
     return err;
 }
@@ -733,6 +924,8 @@ basen_open_nochild(struct basen_data *ndata,
 	if (err)
 	    goto out_err;
 
+	ndata->ll_err = 0;
+	ndata->open_err = 0;
 	ndata->in_read = false;
 	ndata->deferred_read = false;
 	ndata->deferred_open = false;
@@ -744,12 +937,20 @@ basen_open_nochild(struct basen_data *ndata,
 	ndata->open_done = open_done;
 	ndata->open_data = open_data;
 
-	basen_ref(ndata);
 	basen_set_state(ndata, BASEN_IN_FILTER_OPEN);
-	ndata->deferred_open = true;
-	basen_sched_deferred_op(ndata);
-	/* Call the first try open from the xmit handler. */
-	ndata->tmp_xmit_enabled = true;
+	err = basen_filter_try_connect(ndata);
+	if (!err) {
+	    /* We are fully open, schedule it. */
+	    basen_set_state(ndata, BASEN_OPEN);
+	    ndata->deferred_open = true;
+	    basen_sched_deferred_op(ndata);
+	} else if (err == GE_INPROGRESS) {
+	    err = 0;
+	}
+	if (err)
+	    basen_set_state(ndata, BASEN_CLOSED);
+	else
+	    basen_ref(ndata); /* Ref for open */
 	basen_set_ll_enables(ndata);
     }
  out_err:
@@ -759,13 +960,11 @@ basen_open_nochild(struct basen_data *ndata,
 }
 
 static void
-basen_try_close(struct basen_data *ndata)
+basen_filter_try_close(struct basen_data *ndata)
 {
     int err;
     struct timeval timeout = {0, 0};
 
-    ll_set_write_callback_enable(ndata, false);
-    ll_set_read_callback_enable(ndata, false);
 
     err = filter_try_disconnect(ndata, &timeout);
     if (err == GE_INPROGRESS || err == GE_RETRY)
@@ -773,32 +972,35 @@ basen_try_close(struct basen_data *ndata)
     if (err == GE_INPROGRESS)
 	return;
     if (err == GE_RETRY) {
-	ndata->o->start_timer(ndata->timer, &timeout);
+	basen_start_timer(ndata, &timeout);
 	return;
     }
 
-    /* FIXME - error handling? */
-    basen_set_state(ndata, BASEN_CLOSED);
-    basen_ref(ndata);
-    ll_close(ndata, basen_ll_close_done, NULL);
+    /* Ignore errors here, just go on. */
+    basen_set_state(ndata, BASEN_IN_LL_CLOSE);
+    ll_close(ndata);
 }
 
 static void
 basen_i_close(struct basen_data *ndata,
 	      gensio_done close_done, void *close_data)
 {
+    ndata->read_enabled = false;
+    ndata->xmit_enabled = false;
     ndata->close_done = close_done;
     ndata->close_data = close_data;
-    if (ndata->ll_err_occurred || ndata->state == BASEN_IN_LL_OPEN) {
-	basen_set_state(ndata, BASEN_CLOSED);
-	basen_ref(ndata);
-	ll_close(ndata, basen_ll_close_done, NULL);
+    if (ndata->state == BASEN_IN_LL_OPEN ||
+		ndata->state == BASEN_IN_FILTER_OPEN) {
+	basen_set_state(ndata, BASEN_IN_LL_CLOSE);
+	ndata->deferred_open = true;
+	ndata->open_err = GE_LOCALCLOSED;
+	basen_sched_deferred_op(ndata);
+	ll_close(ndata);
     } else if (filter_ll_write_pending(ndata)) {
 	basen_set_state(ndata, BASEN_CLOSE_WAIT_DRAIN);
-	basen_try_close(ndata);
     } else {
 	basen_set_state(ndata, BASEN_IN_FILTER_CLOSE);
-	basen_try_close(ndata);
+	basen_filter_try_close(ndata);
     }
     basen_set_ll_enables(ndata);
 }
@@ -809,15 +1011,22 @@ basen_close(struct basen_data *ndata, gensio_done close_done, void *close_data)
     int err = 0;
 
     basen_lock(ndata);
-    if (ndata->state != BASEN_OPEN) {
-	if (ndata->state == BASEN_IN_FILTER_OPEN ||
-			ndata->state == BASEN_IN_LL_OPEN) {
-	    basen_i_close(ndata, close_done, close_data);
-	} else {
-	    err = GE_NOTREADY;
-	}
-    } else {
+    i_basen_add_trace(ndata, 103, __LINE__);
+    if (ndata->state == BASEN_OPEN || ndata->state == BASEN_IN_FILTER_OPEN ||
+		ndata->state == BASEN_IN_LL_OPEN) {
 	basen_i_close(ndata, close_done, close_data);
+    } else if (ndata->state == BASEN_IN_LL_IO_ERR_CLOSE) {
+	ndata->close_done = close_done;
+	ndata->close_data = close_data;
+	basen_set_state(ndata, BASEN_IN_LL_CLOSE);
+    } else if (ndata->state == BASEN_IO_ERR_CLOSE) {
+	ndata->close_done = close_done;
+	ndata->close_data = close_data;
+	i_basen_add_trace(ndata, 102, __LINE__);
+	ndata->deferred_close = true;
+	basen_sched_deferred_op(ndata);
+    } else {
+	err = GE_NOTREADY;
     }
     basen_unlock(ndata);
 
@@ -828,22 +1037,42 @@ static void
 basen_free(struct basen_data *ndata)
 {
     basen_lock(ndata);
+    i_basen_add_trace(ndata, 103, __LINE__);
     assert(ndata->freeref > 0);
     if (--ndata->freeref > 0) {
 	basen_unlock(ndata);
 	return;
     }
 
-    if (ndata->state == BASEN_IN_FILTER_CLOSE ||
-		ndata->state == BASEN_IN_LL_CLOSE) {
+    i_basen_add_trace(ndata, 103, __LINE__);
+    switch (ndata->state) {
+    case BASEN_CLOSED:
+	/* We can free immediately. */
+	break;
+
+    case BASEN_IN_LL_OPEN:
+    case BASEN_IN_FILTER_OPEN:
+    case BASEN_OPEN:
+	/* Need to close before we can free */
+	basen_i_close(ndata, NULL, NULL);
+	break;
+
+    case BASEN_IN_LL_IO_ERR_CLOSE:
 	ndata->close_done = NULL;
-    } else if (ndata->state == BASEN_IN_FILTER_OPEN ||
-			ndata->state == BASEN_IN_LL_OPEN) {
-	basen_i_close(ndata, NULL, NULL);
-	/* We have to lose the reference that in_open state is holding. */
-	basen_deref(ndata);
-    } else if (ndata->state != BASEN_CLOSED) {
-	basen_i_close(ndata, NULL, NULL);
+	basen_set_state(ndata, BASEN_IN_LL_CLOSE);
+	break;
+
+    case BASEN_IO_ERR_CLOSE:
+	ndata->close_done = NULL;
+	ndata->deferred_close = true;
+	basen_sched_deferred_op(ndata);
+	break;
+
+    default:
+	/* In the close process, lose a ref so it will free when done. */
+	/* Don't call the done */
+	ndata->close_done = NULL;
+	break;
     }
     /* Lose the initial ref so it will be freed when done. */
     basen_deref_and_unlock(ndata);
@@ -865,11 +1094,11 @@ basen_timeout(struct gensio_timer *timer, void *cb_data)
     basen_lock(ndata);
     switch (ndata->state) {
     case BASEN_IN_FILTER_OPEN:
-	basen_try_connect(ndata);
+	basen_filter_try_connect_finish(ndata);
 	break;
 
     case BASEN_IN_FILTER_CLOSE:
-	basen_try_close(ndata);
+	basen_filter_try_close(ndata);
 	break;
 
     case BASEN_OPEN:
@@ -882,7 +1111,7 @@ basen_timeout(struct gensio_timer *timer, void *cb_data)
 	break;
     }
     basen_set_ll_enables(ndata);
-    basen_unlock(ndata);
+    basen_deref_and_unlock(ndata);
 }
 
 static void
@@ -891,18 +1120,14 @@ basen_set_read_callback_enable(struct basen_data *ndata, bool enabled)
     bool read_pending;
 
     basen_lock(ndata);
-    if (ndata->state == BASEN_CLOSED || ndata->state == BASEN_IN_FILTER_CLOSE ||
-		ndata->state == BASEN_IN_LL_CLOSE)
+    if (ndata->state != BASEN_OPEN || ndata->read_enabled == enabled)
 	goto out_unlock;
     ndata->read_enabled = enabled;
     read_pending = filter_ul_read_pending(ndata);
-    if (ndata->in_read || ndata->state == BASEN_IN_FILTER_OPEN ||
-			ndata->state == BASEN_IN_LL_OPEN ||
-			(read_pending && !enabled)) {
+    if (ndata->deferred_op_pending && enabled) {
 	/* Nothing to do, let the read/open handling wake things up. */
+	ndata->deferred_read = true;
     } else if (read_pending || ndata->ll_err) {
-	/* in_read keeps this from getting called while pending. */
-	ndata->in_read = true;
 	ndata->deferred_read = true;
 	basen_sched_deferred_op(ndata);
     } else {
@@ -921,14 +1146,10 @@ static void
 basen_set_write_callback_enable(struct basen_data *ndata, bool enabled)
 {
     basen_lock(ndata);
-    if (ndata->state == BASEN_CLOSED || ndata->state == BASEN_IN_FILTER_CLOSE ||
-			ndata->state == BASEN_IN_LL_CLOSE)
-	goto out_unlock;
-    if (ndata->xmit_enabled != enabled) {
+    if (ndata->state == BASEN_OPEN && ndata->xmit_enabled != enabled) {
 	ndata->xmit_enabled = enabled;
 	basen_set_ll_enables(ndata);
     }
- out_unlock:
     basen_unlock(ndata);
 }
 
@@ -1024,15 +1245,17 @@ basen_ll_read(void *cb_data, int readerr,
     basen_lock_and_ref(ndata);
     ll_set_read_callback_enable(ndata, false);
     if (readerr) {
-	handle_readerr(ndata, readerr);
-	goto out_finish;
+	handle_ioerr(ndata, readerr);
+	goto out_unlock;
     }
 
-    if (ndata->in_read)
+    if (ndata->deferred_read || ndata->in_read)
 	/* Currently in a deferred read, just let that handle it. */
 	goto out_unlock;
 
-    if (buflen > 0) {
+    while (buflen > 0 &&
+	   (ndata->read_enabled || filter_ul_read_pending(ndata) ||
+	    filter_ll_read_needed(ndata))) {
 	ndata->in_read = true;
 	do {
 	    gensiods wrlen = 0;
@@ -1047,19 +1270,18 @@ basen_ll_read(void *cb_data, int readerr,
 		    wrlen = buflen;
 		buf += wrlen;
 		buflen -= wrlen;
+	    } else {
+		ndata->in_read = false;
+		handle_ioerr(ndata, readerr);
+		goto out_finish;
 	    }
-	} while (!readerr && ndata->read_enabled &&
-		 (buflen > 0 || filter_ul_read_pending(ndata)));
+	} while (ndata->read_enabled && buflen > 0);
 	ndata->in_read = false;
-	if (readerr) {
-	    handle_readerr(ndata, readerr);
-	    goto out_finish;
-	}
 
 	if (ndata->state == BASEN_IN_FILTER_OPEN)
-	    basen_try_connect(ndata);
+	    basen_filter_try_connect_finish(ndata);
 	if (ndata->state == BASEN_IN_FILTER_CLOSE)
-	    basen_try_close(ndata);
+	    basen_filter_try_close(ndata);
     }
 
  out_finish:
@@ -1077,6 +1299,12 @@ basen_ll_write_ready(void *cb_data)
     int err;
 
     basen_lock_and_ref(ndata);
+    if (ndata->ll_err) {
+	/* Just ignore it if we have an error. */
+	ndata->xmit_enabled = false;
+	ll_set_write_callback_enable(ndata, false);
+	goto out;
+    }
     if (ndata->in_xmit_ready) {
 	/*
 	 * Another thread is already in the loop, we don't allow two
@@ -1094,39 +1322,26 @@ basen_ll_write_ready(void *cb_data)
 	err = filter_ul_write(ndata, basen_write_data_handler, NULL, NULL, 0,
 			      NULL);
 	if (err) {
-	    ndata->saved_xmit_err = err;
-	    ndata->ll_err_occurred = true;
-
-	    if (ndata->state == BASEN_IN_FILTER_OPEN ||
-			ndata->state == BASEN_IN_LL_OPEN) {
-		basen_set_state(ndata, BASEN_CLOSED);
-		basen_ref(ndata);
-		ll_close(ndata, basen_ll_close_on_err, (void *) (long) err);
-	    } else if (ndata->state == BASEN_CLOSE_WAIT_DRAIN ||
-		       ndata->state == BASEN_IN_FILTER_CLOSE) {
-		basen_set_state(ndata, BASEN_CLOSED);
-		basen_ref(ndata);
-		ll_close(ndata, basen_ll_close_done, NULL);
-	    }
-	    goto out;
+	    handle_ioerr(ndata, err);
+	    goto out_setnotready;
 	}
     }
 
-    if (ndata->state == BASEN_CLOSE_WAIT_DRAIN &&
-		(!filter_ll_write_pending(ndata) || ndata->saved_xmit_err))
-	basen_set_state(ndata, BASEN_IN_FILTER_CLOSE);
     if (ndata->state == BASEN_IN_FILTER_OPEN)
-	basen_try_connect(ndata);
+	basen_filter_try_connect_finish(ndata);
     if (ndata->state == BASEN_IN_FILTER_CLOSE)
-	basen_try_close(ndata);
-    if (ndata->state != BASEN_IN_FILTER_OPEN && !filter_ll_write_pending(ndata)
+	basen_filter_try_close(ndata);
+    if (ndata->state == BASEN_CLOSE_WAIT_DRAIN &&
+		!filter_ll_write_pending(ndata)) {
+	basen_set_state(ndata, BASEN_IN_FILTER_CLOSE);
+	basen_filter_try_close(ndata);
+    }
+    if (ndata->state == BASEN_OPEN && !filter_ll_write_pending(ndata)
 		&& ndata->xmit_enabled) {
 	basen_unlock(ndata);
 	gensio_cb(ndata->io, GENSIO_EVENT_WRITE_READY, 0, NULL, 0, NULL);
 	basen_lock(ndata);
     }
-
-    ndata->tmp_xmit_enabled = false;
 
     if (ndata->redo_xmit_ready) {
 	/* Got another xmit ready while we were unlocked. */
@@ -1136,6 +1351,7 @@ basen_ll_write_ready(void *cb_data)
     }
 
     basen_set_ll_enables(ndata);
+ out_setnotready:
     ndata->in_xmit_ready = false;
  out:
     basen_deref_and_unlock(ndata);
@@ -1168,13 +1384,13 @@ basen_output_ready(void *cb_data)
 }
 
 static void
-basen_start_timer(void *cb_data, struct timeval *timeout)
+basen_start_timer_op(void *cb_data, struct timeval *timeout)
 {
     struct basen_data *ndata = cb_data;
 
     basen_lock(ndata);
     if (ndata->state == BASEN_OPEN) {
-	ndata->o->start_timer(ndata->timer, timeout);
+	basen_start_timer(ndata, timeout);
     } else {
 	ndata->timer_start_pending = true;
 	ndata->pending_timer = *timeout;
@@ -1191,7 +1407,7 @@ gensio_base_filter_cb(void *cb_data, int op, void *data)
 	return 0;
 
     case GENSIO_FILTER_CB_START_TIMER:
-	basen_start_timer(cb_data, data);
+	basen_start_timer_op(cb_data, data);
 	return 0;
 
     default:
@@ -1210,6 +1426,7 @@ gensio_i_alloc(struct gensio_os_funcs *o,
 	       gensio_event cb, void *user_data)
 {
     struct basen_data *ndata = o->zalloc(o, sizeof(*ndata));
+    int err;
 
     if (!ndata)
 	return NULL;
@@ -1261,11 +1478,24 @@ gensio_i_alloc(struct gensio_os_funcs *o,
 
 	ndata->open_done = open_done;
 	ndata->open_data = open_data;
+	basen_lock(ndata);
 	basen_set_state(ndata, BASEN_IN_FILTER_OPEN);
-	basen_ref(ndata);
-	/* Call the first try open from the xmit handler. */
-	ndata->tmp_xmit_enabled = true;
+	err = basen_filter_try_connect(ndata);
+	if (!err) {
+	    /* We are fully open, schedule it. */
+	    basen_set_state(ndata, BASEN_OPEN);
+	    ndata->deferred_open = true;
+	    basen_sched_deferred_op(ndata);
+	} else if (err == GE_INPROGRESS) {
+	    err = 0;
+	} else {
+	    basen_set_state(ndata, BASEN_CLOSED);
+	    basen_unlock(ndata);
+	    goto out_nomem;
+	}
+	basen_ref(ndata); /* For the open. */
 	basen_set_ll_enables(ndata);
+	basen_unlock(ndata);
     }
 
     return ndata->io;

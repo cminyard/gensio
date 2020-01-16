@@ -75,21 +75,29 @@ sel_alloc(unsigned int size)
     unsigned int curr;
 
 #ifdef OUT_OF_MEMORY_TEST
-    if (!oom_initialized) {
-	char *s = getenv("GENSIO_OOM_TEST");
+    {
+	int triggerit = 0;
 
-	oom_initialized = 1;
-	if (s) {
-	    oom_count = strtoul(s, NULL, 0);
-	    oom_ready = 1;
+	pthread_mutex_lock(&oom_mutex);
+	if (!oom_initialized) {
+	    char *s = getenv("GENSIO_OOM_TEST");
+
+	    oom_initialized = 1;
+	    if (s) {
+		oom_count = strtoul(s, NULL, 0);
+		oom_ready = 1;
+	    }
 	}
-    }
-    if (oom_ready) {
-	curr = oom_curr++;
-	if (curr == oom_count) {
-	    triggered = 1;
+	if (oom_ready) {
+	    curr = oom_curr++;
+	    if (curr == oom_count) {
+		triggered = 1;
+		triggerit = 1;
+	    }
+	}
+	pthread_mutex_unlock(&oom_mutex);
+	if (triggerit)
 	    return NULL;
-	}
     }
 #endif
 
@@ -777,7 +785,11 @@ sel_stop_timer_with_done(sel_timer_t *timer,
     struct selector_s *sel = timer->val.sel;
 
     sel_timer_lock(sel);
-    if (timer->val.stopped || timer->val.done_handler) {
+    if (timer->val.done_handler) {
+	sel_timer_unlock(sel);
+	return EBUSY;
+    }
+    if (timer->val.stopped) {
 	sel_timer_unlock(sel);
 	return ETIMEDOUT;
     }

@@ -330,6 +330,12 @@ int gensio_get_defaultaddr(struct gensio_os_funcs *o,
 int gensio_del_default(struct gensio_os_funcs *o,
 		       const char *class, const char *name, bool delclasses);
 
+/*
+ * Clean up all the internal gensio memory.  Not really necessary, but
+ * useful for memory leak testing.
+ */
+void gensio_cleanup_mem(struct gensio_os_funcs *o);
+
 /********************************************************************
  * Everything below this point in the file are helper functions
  * that aren't really gensio-specific, but are useful for other

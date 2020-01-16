@@ -101,13 +101,15 @@ static int sctp_check_open(void *handler_data, int fd)
     if (err)
 	return gensio_os_err_to_err(tdata->o, errno);
 
-    if (optval == 0)
+    /* We assume any errors here are a remote close. */
+    if (optval == 0) {
 	err = sctp_setup(tdata);
-    else
-	err = optval;
+	if (err)
+	    err = GE_REMCLOSE;
+    } else {
+	err = GE_REMCLOSE;
+    }
 
-    if (err)
-	err = gensio_os_err_to_err(tdata->o, err);
 
     return err;
 }
@@ -581,11 +583,15 @@ sctp_gensio_alloc(struct addrinfo *iai, const char * const args[],
     return 0;
 
  out_nomem:
-    if (tdata->ll)
-	gensio_ll_free(tdata->ll);
-    if (tdata->ai)
-	gensio_free_addrinfo(o, tdata->ai);
-    o->free(o, tdata);
+    if (tdata) {
+	if (tdata->ll) {
+	    gensio_ll_free(tdata->ll);
+	} else {
+	    if (tdata->ai)
+		gensio_free_addrinfo(o, tdata->ai);
+	    o->free(o, tdata);
+	}
+    }
     err = GE_NOMEM;
  out_err:
     if (lai)
@@ -763,7 +769,8 @@ sctpna_readhandler(int fd, void *cbdata)
     if (tdata) {
 	if (tdata->ll)
 	    gensio_ll_free(tdata->ll);
-	sctp_free(tdata);
+	else
+	    sctp_free(tdata);
     }
 }
 
@@ -839,7 +846,8 @@ sctpna_startup(struct gensio_accepter *accepter, struct sctpna_data *nadata)
 	    rv = GE_NOMEM;
 	    goto out_err;
 	}
-	memcpy(fds, nadata->acceptfds, sizeof(*fds) * i);
+	if (nadata->acceptfds)
+	    memcpy(fds, nadata->acceptfds, sizeof(*fds) * i);
 
 	rv = gensio_setup_listen_socket(o, true, ai->ai_family,
 					SOCK_STREAM, IPPROTO_SCTP, ai->ai_flags,
@@ -852,7 +860,8 @@ sctpna_startup(struct gensio_accepter *accepter, struct sctpna_data *nadata)
 	    goto out_err;
 	fds[i].family = ai->ai_family;
 	fds[i].flags = ai->ai_flags;
-	o->free(o, nadata->acceptfds);
+	if (nadata->acceptfds)
+	    o->free(o, nadata->acceptfds);
 	nadata->acceptfds = fds;
 	nadata->nr_acceptfds++;
     }
