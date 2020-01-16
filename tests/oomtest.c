@@ -1041,7 +1041,9 @@ run_oom_tests(struct oom_tests *test, char *tstr,
 	    printf("  ***Error running %s test (%s): %s\n", tstr,
 		   close_acc ? "sc" : "cc", oom_err_to_str(rv));
 	    errcount++;
-	    break;
+	    if (count < 0) /* No point in going on if the first test fails. */
+		break;
+	    goto next;
 	}
 
 	if (!WIFEXITED(exit_code)) {
@@ -1056,12 +1058,14 @@ run_oom_tests(struct oom_tests *test, char *tstr,
 			exit_code);
 	    }
 	    exit_code = 1;
+	    if (count < 0) /* No point in going on if the first test fails. */
+		break;
 	    goto next;
 	} else {
 	    exit_code = WEXITSTATUS(exit_code);
 	}
 
-	if (count == -1) {
+	if (count < 0) {
 	    /* We should always succeed if no memory allocation failure. */
 	    if (exit_code != 0) {
 		errcount++;
@@ -1243,7 +1247,7 @@ main(int argc, char *argv[])
 	    errcount += run_oom_tests(oom_tests + testnr, "oom", run_oom_test,
 				      testnrstart, testnrend);
 	    if (oom_tests[i].accepter)
-		errcount += run_oom_tests(oom_tests + i, "oom acc",
+		errcount += run_oom_tests(oom_tests + testnr, "oom acc",
 					  run_oom_acc_test,
 					  testnrstart, testnrend);
     }
