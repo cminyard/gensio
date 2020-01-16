@@ -284,6 +284,8 @@ gensna_child_event(struct gensio_accepter *accepter, void *user_data,
     } else {
 	if (ll)
 	    gensio_ll_free(ll);
+	else
+	    gensio_free(child);
 	if (filter)
 	    gensio_filter_free(filter);
     }
