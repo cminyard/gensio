@@ -675,7 +675,7 @@ run_oom_test(struct oom_tests *test, long count, int *exitcode, bool close_acc)
     }
     pthread_mutex_unlock(&od.lock);
 
-    if (od.acc && close_acc) {
+    if (od.acc) {
 	rv = gensio_acc_shutdown(od.acc, acc_closed, &od);
 	assert(!debug || !rv || rv == GE_REMCLOSE);
 	if (rv) {
@@ -703,10 +703,6 @@ run_oom_test(struct oom_tests *test, long count, int *exitcode, bool close_acc)
 	    }
 	    pthread_mutex_unlock(&od.lock);
 	}
-    }
-    if (od.acc) {
-	gensio_acc_free(od.acc);
-	od.acc = NULL;
     }
 
     od.stderr_expect_close = true;
