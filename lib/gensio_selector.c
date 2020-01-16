@@ -72,7 +72,10 @@ struct memory_header {
     bool inuse;
 };
 struct memory_link memhead = { &memhead, &memhead };
+struct memory_link memfree = { &memfree, &memfree };
 unsigned long freecount;
+bool memtracking_initialized;
+bool memtracking_ready;
 #endif
 
 static void *
@@ -108,28 +111,44 @@ gensio_sel_zalloc(struct gensio_os_funcs *f, unsigned int size)
     }
 #endif
 #ifdef TRACK_ALLOCED_MEMORY
-    d = malloc(size + sizeof(struct memory_header));
-    if (d) {
-	struct memory_header *h = d;
-
-	d = ((char *) d) + sizeof(struct memory_header);
-	h->callers[0] = __builtin_return_address(0);
-	h->callers[1] = __builtin_return_address(1);
-	h->callers[2] = __builtin_return_address(2);
-	h->callers[3] = __builtin_return_address(3);
-	memset(h->freers, 0, sizeof(void *) * 4);
-	h->inuse = true;
+    if (!memtracking_initialized) {
 	pthread_mutex_lock(&memtrk_mutex);
-	h->link.next = &memhead;
-	h->link.prev = memhead.prev;
-	memhead.prev->next = &h->link;
-	memhead.prev = &h->link;
-	freecount++;
+	if (!memtracking_initialized) {
+	    char *s = getenv("GENSIO_MEMTRACK");
+
+	    memtracking_initialized = true;
+	    if (s)
+		memtracking_ready = true;
+	}
 	pthread_mutex_unlock(&memtrk_mutex);
     }
-#else
-    d = malloc(size);
+    if (memtracking_ready) {
+	d = malloc(size + sizeof(struct memory_header));
+	if (d) {
+	    struct memory_header *h = d;
+
+	    d = ((char *) d) + sizeof(struct memory_header);
+	    memset(h->callers, 0, sizeof(void *) * 4);
+	    h->callers[0] = __builtin_return_address(0);
+#if 0
+	    h->callers[1] = __builtin_return_address(1);
+	    h->callers[2] = __builtin_return_address(2);
+	    h->callers[3] = __builtin_return_address(3);
 #endif
+	    memset(h->freers, 0, sizeof(void *) * 4);
+	    h->inuse = true;
+	    pthread_mutex_lock(&memtrk_mutex);
+	    h->link.next = &memhead;
+	    h->link.prev = memhead.prev;
+	    memhead.prev->next = &h->link;
+	    memhead.prev = &h->link;
+	    freecount++;
+	    pthread_mutex_unlock(&memtrk_mutex);
+	}
+    } else
+#endif
+    d = malloc(size);
+
     if (d)
 	memset(d, 0, size);
     return d;
@@ -140,30 +159,41 @@ gensio_sel_free(struct gensio_os_funcs *f, void *data)
 {
     assert(data);
 #ifdef TRACK_ALLOCED_MEMORY
-    struct memory_header *h = ((struct memory_header *)
-			       (((char *) data) - sizeof(*h)));
+    if (memtracking_ready) {
+	struct memory_header *h = ((struct memory_header *)
+				   (((char *) data) - sizeof(*h)));
 
-    if (!h->inuse) {
-	fprintf(stderr, "Free of already freed data at %p.\n", data);
-	fprintf(stderr, "  allocated at %p %p %p %p.\n",
-		h->callers[0], h->callers[1],
-		h->callers[2], h->callers[3]);
-	fprintf(stderr, "  freed at %p %p %p %p.\n",
-		h->freers[0], h->freers[1],
-		h->freers[2], h->freers[3]);
-	assert(h->inuse);
-    }
-    data = h;
-    h->freers[0] = __builtin_return_address(0);
-    h->freers[1] = __builtin_return_address(1);
-    h->freers[2] = __builtin_return_address(2);
-    h->freers[3] = __builtin_return_address(3);
-    pthread_mutex_lock(&memtrk_mutex);
-    h->link.next->prev = h->link.prev;
-    h->link.prev->next = h->link.next;
-    h->inuse = false;
-    freecount--;
-    pthread_mutex_unlock(&memtrk_mutex);
+	if (!h->inuse) {
+	    fprintf(stderr, "Free of already freed data at %p.\n", data);
+	    fprintf(stderr, "  allocated at %p %p %p %p.\n",
+		    h->callers[0], h->callers[1],
+		    h->callers[2], h->callers[3]);
+	    fprintf(stderr, "  freed at %p %p %p %p.\n",
+		    h->freers[0], h->freers[1],
+		    h->freers[2], h->freers[3]);
+	    *((char *) 0) = 1;
+	    assert(h->inuse);
+	    return;
+	}
+	data = h;
+	h->freers[0] = __builtin_return_address(0);
+#if 0
+	h->freers[1] = __builtin_return_address(1);
+	h->freers[2] = __builtin_return_address(2);
+	h->freers[3] = __builtin_return_address(3);
+#endif
+	pthread_mutex_lock(&memtrk_mutex);
+	h->link.next->prev = h->link.prev;
+	h->link.prev->next = h->link.next;
+	h->inuse = false;
+	freecount--;
+	/* Add it to the free list, don't free it. */
+	h->link.next = &memfree;
+	h->link.prev = memfree.prev;
+	memfree.prev->next = &h->link;
+	memfree.prev = &h->link;
+	pthread_mutex_unlock(&memtrk_mutex);
+    } else
 #endif
     free(data);
 }
