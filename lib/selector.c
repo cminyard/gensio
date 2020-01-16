@@ -378,6 +378,7 @@ sel_update_fd(struct selector_s *sel, int fd, int op)
 {
     fd_control_t *fdc = (fd_control_t *) &sel->fds[fd];
     struct epoll_event event;
+    int rv;
 
     if (sel->epollfd < 0)
 	return 1;
@@ -406,7 +407,11 @@ sel_update_fd(struct selector_s *sel, int fd, int op)
     }
     /* This should only fail due to system problems, and if that's the case,
        well, we should probably terminate. */
-    assert(epoll_ctl(sel->epollfd, op, fd, &event) == 0);
+    rv = epoll_ctl(sel->epollfd, op, fd, &event);
+    if (rv) {
+	perror("epoll_ctl");
+	assert(0);
+    }
     return 0;
 }
 #else
