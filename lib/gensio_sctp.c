@@ -862,8 +862,10 @@ sctpna_startup(struct gensio_accepter *accepter, struct sctpna_data *nadata)
 					sctpna_fd_cleared,
 					sctpna_setup_socket,
 					&fds[i].fd, &fds[i].port, &scaninfo);
-	if (rv)
+	if (rv) {
+	    o->free(o, fds);
 	    goto out_err;
+	}
 	fds[i].family = ai->ai_family;
 	fds[i].flags = ai->ai_flags;
 	if (nadata->acceptfds)
