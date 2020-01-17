@@ -137,6 +137,7 @@ fd_unlock(struct fd_ll *fdll)
 static void
 fd_ref(struct fd_ll *fdll)
 {
+    assert(fdll->refcount > 0);
     fdll->refcount++;
 }
 
@@ -144,6 +145,7 @@ static void
 fd_lock_and_ref(struct fd_ll *fdll)
 {
     fd_lock(fdll);
+    assert(fdll->refcount > 0);
     fdll->refcount++;
 }
 
