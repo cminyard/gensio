@@ -226,10 +226,12 @@ con_closed(struct gensio *io, void *close_data)
     struct oom_test_data *od = id->od;
 
     pthread_mutex_lock(&od->lock);
-    id->io = NULL;
+    if (id->io) {
+	gensio_free(io);
+	id->io = NULL;
+    }
     o->wake(od->waiter);
     pthread_mutex_unlock(&od->lock);
-    gensio_free(io);
 }
 
 static void
