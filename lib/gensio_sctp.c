@@ -708,18 +708,21 @@ sctpna_readhandler(int fd, void *cbdata)
     struct gensio *io = NULL;
     int err;
 
-    err = base_gensio_accepter_new_child_start(nadata->acc);
-    if (err)
-	return;
-
     err = gensio_os_accept(nadata->o,
 			   fd, (struct sockaddr *) &addr, &addrlen, &new_fd);
     if (err) {
 	if (err != GE_NODATA)
+	    /* FIXME - maybe shut down the socket I/O? */
 	    gensio_acc_log(nadata->acc, GENSIO_LOG_ERR,
 			   "Error accepting sctp gensio: %s",
 			   gensio_err_to_str(err));
-	goto out_err;
+	return;
+    }
+
+    err = base_gensio_accepter_new_child_start(nadata->acc);
+    if (err) {
+	close(new_fd);
+	return;
     }
 
     tdata = nadata->o->zalloc(nadata->o, sizeof(*tdata));
