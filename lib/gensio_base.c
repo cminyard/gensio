@@ -491,13 +491,10 @@ basen_ll_close_done(void *cb_data, void *close_data)
     basen_unlock(ndata);
 }
 
-static void
+static int
 ll_close(struct basen_data *ndata)
 {
-    int err;
-
-    err = gensio_ll_close(ndata->ll, basen_ll_close_done, ndata);
-    assert(err == 0); /* Should never be able to fail. */
+    return gensio_ll_close(ndata->ll, basen_ll_close_done, ndata);
 }
 
 static void
@@ -621,6 +618,8 @@ basen_read_data_handler(void *cb_data,
 static void
 handle_ioerr(struct basen_data *ndata, int err)
 {
+    int rv;
+
     assert(err);
 
     if (ndata->ll_err)
@@ -645,24 +644,36 @@ handle_ioerr(struct basen_data *ndata, int err)
 	ndata->deferred_open = true;
 	basen_sched_deferred_op(ndata);
 	basen_set_state(ndata, BASEN_IN_LL_IO_ERR_CLOSE);
-	ll_close(ndata);
+	rv = ll_close(ndata);
+	if (rv)
+	    basen_set_state(ndata, BASEN_IO_ERR_CLOSE);
 	break;
 
     case BASEN_OPEN:
 	ndata->deferred_read = true;
 	basen_sched_deferred_op(ndata);
 	basen_set_state(ndata, BASEN_IN_LL_IO_ERR_CLOSE);
-	ll_close(ndata);
+	rv = ll_close(ndata);
+	if (rv)
+	    basen_set_state(ndata, BASEN_IO_ERR_CLOSE);
 	break;
 
     case BASEN_CLOSE_WAIT_DRAIN:
 	basen_set_state(ndata, BASEN_IN_LL_CLOSE);
-	ll_close(ndata);
+	rv = ll_close(ndata);
+	if (rv) {
+	    ndata->deferred_close = true;
+	    basen_sched_deferred_op(ndata);
+	}
 	break;
 
     case BASEN_IN_FILTER_CLOSE:
 	basen_set_state(ndata, BASEN_IN_LL_CLOSE);
-	ll_close(ndata);
+	rv = ll_close(ndata);
+	if (rv) {
+	    ndata->deferred_close = true;
+	    basen_sched_deferred_op(ndata);
+	}
 	break;
 
     case BASEN_IN_LL_CLOSE:
@@ -989,13 +1000,19 @@ basen_filter_try_close(struct basen_data *ndata)
 
     /* Ignore errors here, just go on. */
     basen_set_state(ndata, BASEN_IN_LL_CLOSE);
-    ll_close(ndata);
+    err = ll_close(ndata);
+    if (err) {
+	ndata->deferred_close = true;
+	basen_sched_deferred_op(ndata);
+    }
 }
 
 static void
 basen_i_close(struct basen_data *ndata,
 	      gensio_done close_done, void *close_data)
 {
+    int rv;
+
     ndata->read_enabled = false;
     ndata->xmit_enabled = false;
     ndata->close_done = close_done;
@@ -1010,7 +1027,11 @@ basen_i_close(struct basen_data *ndata,
 	basen_set_state(ndata, BASEN_IN_LL_CLOSE);
 	ndata->deferred_open = true;
 	basen_sched_deferred_op(ndata);
-	ll_close(ndata);
+	rv = ll_close(ndata);
+	if (rv) {
+	    ndata->deferred_close = true;
+	    basen_sched_deferred_op(ndata);
+	}
     } else if (filter_ll_write_pending(ndata)) {
 	basen_set_state(ndata, BASEN_CLOSE_WAIT_DRAIN);
     } else {
