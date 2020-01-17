@@ -1031,7 +1031,8 @@ run_oom_tests(struct oom_tests *test, char *tstr,
 	if (verbose)
 	    print_test(test, tstr, close_acc, count);
 	rv = tester(test, count, &exit_code, close_acc);
-	if (rv && rv != GE_REMCLOSE && rv != GE_NOTREADY) {
+	if (rv && rv != GE_REMCLOSE && rv != GE_NOTREADY && rv != GE_SHUTDOWN
+		&& rv != GE_LOCALCLOSED) {
 	    if (!verbose)
 		print_test(test, tstr, close_acc, count);
 	    printf("  ***Error running %s test (%s): %s\n", tstr,
