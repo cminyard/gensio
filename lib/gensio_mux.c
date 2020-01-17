@@ -259,6 +259,8 @@ struct mux_inst {
 
     gensio_done close_done;
     void *close_data;
+    bool close_called;
+    bool freed;
 
     /* Link for list of channels waiting write. */
     struct gensio_link wrlink;
@@ -268,9 +270,6 @@ struct mux_inst {
     bool in_open_chan;
 
     struct gensio_link link;
-
-    int open_rpt_loc1;
-    int open_rpt_loc2;
 };
 
 static gensiods
@@ -424,6 +423,7 @@ struct mux_data {
     struct gensio *child;
     struct gensio_os_funcs *o;
     struct gensio_lock *lock;
+    unsigned int refcount;
 
     gensiods max_read_size;
     gensiods max_write_size;
@@ -563,6 +563,7 @@ static int muxc_gensio_handler(struct gensio *io, int func, gensiods *count,
 			       const void *cbuf, gensiods buflen, void *buf,
 			       const char *const *auxdata);
 static void muxc_add_to_wrlist(struct mux_inst *chan);
+static void mux_shutdown_channels(struct mux_data *muxdata, int err);
 
 static void
 gmux_log_err(struct mux_data *f, char *fmt, ...)
@@ -575,7 +576,53 @@ gmux_log_err(struct mux_data *f, char *fmt, ...)
 }
 
 static void
-mux_channel_free(struct mux_inst *chan)
+muxdata_free(struct mux_data *muxdata)
+{
+    assert(gensio_list_empty(&muxdata->chans));
+
+    if (muxdata->lock)
+	muxdata->o->free_lock(muxdata->lock);
+    if (muxdata->child)
+	gensio_free(muxdata->child);
+    muxdata->o->free(muxdata->o, muxdata);
+}
+
+static void i_mux_ref(struct mux_data *mux)
+{
+    assert(mux->refcount > 0);
+    mux->refcount++;
+}
+
+static bool i_mux_deref(struct mux_data *mux)
+{
+    assert(mux->refcount > 0);
+    if (--mux->refcount == 0) {
+	muxdata_free(mux);
+	return true;
+    }
+    return false;
+}
+
+#ifdef MUX_TRACING
+#define mux_ref(m) do {							\
+	i_mux_add_trace(m, NULL, m->state, 99, 104,			\
+			m->refcount + 2000, __LINE__);			\
+	i_mux_ref(m);							\
+    } while (false)
+
+#define mux_deref(m) do {						\
+	i_mux_add_trace(m, NULL, m->state, 99, 105,			\
+			m->refcount + 2000, __LINE__);			\
+	i_mux_deref(m);							\
+    } while (false)
+
+#else
+#define mux_ref i_mux_ref
+#define mux_deref i_mux_deref
+#endif
+
+static void
+chan_free(struct mux_inst *chan)
 {
     struct gensio_os_funcs *o = chan->o;
 
@@ -592,24 +639,6 @@ mux_channel_free(struct mux_inst *chan)
     o->free(o, chan);
 }
 
-static void
-muxdata_free(struct mux_data *muxdata)
-{
-    struct gensio_link *l;
-    struct mux_inst *chan;
-
-    gensio_list_for_each(&muxdata->chans, l) {
-	chan = gensio_container_of(l, struct mux_inst, link);
-	mux_channel_free(chan);
-    }
-
-    if (muxdata->lock)
-	muxdata->o->free_lock(muxdata->lock);
-    if (muxdata->child)
-	gensio_free(muxdata->child);
-    muxdata->o->free(muxdata->o, muxdata);
-}
-
 static void i_chan_ref(struct mux_inst *chan)
 {
     assert(chan->refcount > 0);
@@ -620,8 +649,11 @@ static bool i_chan_deref(struct mux_inst *chan)
 {
     assert(chan->refcount > 0);
     if (--chan->refcount == 0) {
-	gensio_list_rm(&chan->mux->chans, &chan->link);
-	mux_channel_free(chan);
+	struct mux_data *mux = chan->mux;
+
+	gensio_list_rm(&mux->chans, &chan->link);
+	chan_free(chan);
+	mux_deref(mux);
 	return true;
     }
     return false;
@@ -629,14 +661,14 @@ static bool i_chan_deref(struct mux_inst *chan)
 
 #ifdef MUX_TRACING
 #define chan_ref(c) do {						\
-	i_mux_add_trace(c->mux, c, c->mux->state, 99,			\
+	i_mux_add_trace(c->mux, c, c->mux->state, 106,			\
 			c->state, c->refcount + 2000, __LINE__);	\
 	i_chan_ref(c);							\
     } while (false)
 
 static bool i2_chan_deref(struct mux_inst *chan, int line)
 {
-    i_mux_add_trace(chan->mux, chan, chan->mux->state, 99,
+    i_mux_add_trace(chan->mux, chan, chan->mux->state, 107,
 		    chan->state, chan->refcount + 2000, line);
     return i_chan_deref(chan);
 }
@@ -653,34 +685,50 @@ i_mux_lock(struct mux_data *muxdata)
     muxdata->o->lock(muxdata->lock);
 }
 
-static bool
+static void
 i_mux_unlock(struct mux_data *muxdata)
 {
-    if (gensio_list_empty(&muxdata->chans) && muxdata->state == MUX_CLOSED) {
-	muxdata_free(muxdata);
-	return true;
-    } else {
-	muxdata->o->unlock(muxdata->lock);
-	return false;
-    }
+    muxdata->o->unlock(muxdata->lock);
 }
 
 #ifdef MUX_TRACING
 #define mux_lock(m) do {						\
-	i_mux_add_trace(m, NULL, m->state, 99, 99, 101, __LINE__);	\
 	i_mux_lock(m);							\
+	i_mux_add_trace(m, NULL, m->state, 99, 99, 100, __LINE__);	\
     } while (false)
 
-static bool i2_mux_unlock(struct mux_data *mux, int line)
-{
-    i_mux_add_trace(mux, NULL, mux->state, 99, 99, 102, line);
-    return i_mux_unlock(mux);
-}
+#define mux_unlock(m) do {						\
+	i_mux_add_trace(m, NULL, m->state, 99, 99, 101, __LINE__);	\
+	i_mux_unlock(m);						\
+    } while (false)
 
-#define mux_unlock(m) i2_mux_unlock(m, __LINE__)
+#define mux_lock_and_ref(m) do {					\
+	i_mux_lock(m);							\
+	i_mux_add_trace(m, NULL, m->state, 99, 102, 2000 + m->refcount,	\
+			__LINE__);					\
+	i_mux_ref(m);							\
+    } while (false)
+
+#define mux_deref_and_unlock(m) do {					\
+	i_mux_add_trace(m, NULL, m->state, 99, 103, 2000 + m->refcount, \
+			__LINE__);					\
+	if (!i_mux_deref(m))						\
+	    i_mux_unlock(m);						\
+    } while (false)
+
 #else
 #define mux_lock i_mux_lock
 #define mux_unlock i_mux_unlock
+#define mux_lock_and_ref(m) do {					\
+	i_mux_lock(m);							\
+	i_mux_ref(m);							\
+    } while (false)
+
+#define mux_deref_and_unlock(m) do {					\
+	if (i_mux_deref(m))						\
+	    i_mux_unlock(m);						\
+    } while (false)
+
 #endif
 
 static struct mux_inst *
@@ -713,14 +761,12 @@ mux_firstchan_event(struct mux_data *muxdata, int event, int err,
     int rerr;
     struct mux_inst *chan;
 
-    mux_lock(muxdata);
     chan = mux_firstchan(muxdata);
     chan_ref(chan);
     mux_unlock(muxdata);
     rerr = gensio_cb(chan->io, event, err, buf, buflen, auxdata);
     mux_lock(muxdata);
     chan_deref(chan);
-    mux_unlock(muxdata);
 
     return rerr;
 }
@@ -774,7 +820,7 @@ finish_close_close_done(struct gensio *child, void *close_data)
     mux_lock(muxdata);
     finish_close(chan);
     mux_set_state(muxdata, MUX_CLOSED);
-    mux_unlock(muxdata);
+    mux_deref_and_unlock(muxdata); /* Lose the open ref. */
 }
 
 static void
@@ -951,24 +997,23 @@ chan_deferred_op(struct gensio_runner *runner, void *cbdata)
 {
     struct mux_inst *chan = cbdata;
     struct mux_data *muxdata = chan->mux;
-    bool fullmsg;
 
-    mux_lock(muxdata);
+    mux_lock_and_ref(muxdata);
     chan->deferred_op_pending = false;
     chan_check_send_more(chan);
-    fullmsg = chan_check_read(chan);
+    chan_check_read(chan);
 
     /*
      * If there is a not full message pending, there is no data to send,
      * we are not currently in a read/write callback, and we are ready to
      * finish the close.
      */
-    if (!fullmsg && !chan->wr_ready && !chan->in_write_ready &&
+    if (!chan->wr_ready && !chan->in_write_ready &&
 		!chan->in_read_report &&
 		chan->state == MUX_INST_IN_CLOSE_FINAL)
 	mux_channel_finish_close(chan);
     chan_deref(chan);
-    mux_unlock(muxdata);
+    mux_deref_and_unlock(muxdata);
 }
 
 static void
@@ -1170,10 +1215,13 @@ static int
 muxc_close(struct mux_inst *chan, gensio_done close_done, void *close_data)
 {
     struct mux_data *muxdata = chan->mux;
-    int err = 0;
+    int err = GE_NOTREADY;
 
     mux_lock(muxdata);
-    err = muxc_close_nolock(chan, close_done, close_data);
+    if (!chan->close_called) {
+	chan->close_called = true;
+	err = muxc_close_nolock(chan, close_done, close_data);
+    }
     mux_unlock(muxdata);
     return err;
 }
@@ -1193,7 +1241,9 @@ muxc_free(struct mux_inst *chan)
 {
     struct mux_data *muxdata = chan->mux;
 
-    mux_lock(muxdata);
+    mux_lock_and_ref(muxdata);
+    assert(!chan->freed);
+    chan->freed = true;
     switch (chan->state) {
     case MUX_INST_IN_CLOSE:
     case MUX_INST_IN_REM_CLOSE:
@@ -1218,7 +1268,7 @@ muxc_free(struct mux_inst *chan)
 	abort();
     }
     chan_deref(chan);
-    mux_unlock(muxdata);
+    mux_deref_and_unlock(muxdata);
 }
 
 static int
@@ -1291,6 +1341,7 @@ mux_new_channel(struct mux_data *muxdata, gensio_event cb, void *user_data,
     if (gensio_list_empty(&muxdata->chans)) {
 	id = 0; /* This is always the automatic channel. */
 	gensio_list_add_tail(&muxdata->chans, &chan->link);
+	/* Note that we do not claim a ref here, there is already one. */
     } else {
 	struct gensio_link *l, *p = &muxdata->chans.link, *f;
 	struct mux_inst *tchan = NULL;
@@ -1320,7 +1371,7 @@ mux_new_channel(struct mux_data *muxdata, gensio_event cb, void *user_data,
 
     out_free:
 	/* Didn't find a free number. */
-	mux_channel_free(chan);
+	chan_free(chan);
 	return err;
 
     found:
@@ -1328,6 +1379,7 @@ mux_new_channel(struct mux_data *muxdata, gensio_event cb, void *user_data,
 	chan->id = id;
 	muxdata->last_id = id;
 	gensio_list_add_next(&muxdata->chans, p, &chan->link);
+	mux_ref(muxdata);
     }
 
     *new_mux = chan;
@@ -1339,7 +1391,6 @@ muxc_alloc_channel_data(struct mux_data *muxdata,
 			gensio_event cb,
 			void *user_data,
 			struct gensio_mux_config *data,
-			enum mux_inst_state state,
 			struct gensio **new_io)
 {
     struct mux_inst *chan = NULL;
@@ -1348,22 +1399,22 @@ muxc_alloc_channel_data(struct mux_data *muxdata,
     mux_lock(muxdata);
     err = mux_new_channel(muxdata, cb, user_data, data->is_client, &chan);
     if (err)
-	goto out;
+	goto out_err;
 
     if (data->service) {
 	if (data->service_len > chan->max_write_size - 10) {
 	    err = GE_TOOBIG;
-	    goto out;
+	    goto out_err;
 	}
 	chan->service = gensio_strdup(muxdata->o, data->service);
 	if (!chan->service) {
 	    err = GE_NOMEM;
-	    goto out;
+	    goto out_err;
 	}
 	chan->service_len = data->service_len;
     }
 
-    muxc_set_state(chan, state);
+    muxc_set_state(chan, MUX_INST_CLOSED);
 
     mux_unlock(muxdata);
 
@@ -1371,10 +1422,10 @@ muxc_alloc_channel_data(struct mux_data *muxdata,
 	*new_io = chan->io;
     return 0;
 
- out:
+ out_err:
     mux_unlock(muxdata);
     if (chan)
-	mux_channel_free(chan);
+	chan_deref(chan);
     return err;
 }
 
@@ -1470,8 +1521,11 @@ muxc_alloc_channel(struct mux_data *muxdata,
     int err;
     struct gensio_mux_config data;
 
-    if (muxdata->state != MUX_OPEN)
-	return GE_NOTREADY;
+    mux_lock(muxdata);
+    if (muxdata->state != MUX_OPEN) {
+	err = GE_NOTREADY;
+	goto out_unlock;
+    }
 
     memset(&data, 0, sizeof(data));
     data.max_read_size = muxdata->max_read_size;
@@ -1487,24 +1541,25 @@ muxc_alloc_channel(struct mux_data *muxdata,
 	return err;
 
     err = muxc_alloc_channel_data(muxdata, ocdata->cb, ocdata->user_data,
-				  &data, MUX_INST_CLOSED, &ocdata->new_io);
+				  &data, &ocdata->new_io);
     gensio_mux_config_cleanup(&data);
+ out_unlock:
+    mux_unlock(muxdata);
+
     return err;
 }
 
 static void
-mux_call_open_done(struct mux_data *muxdata, struct mux_inst *chan, int err, int pos)
+mux_call_open_done(struct mux_data *muxdata, struct mux_inst *chan, int err)
 {
     gensio_done_err open_done = chan->open_done;
     void *open_data = chan->open_data;
 
     chan->open_done = NULL;
     if (open_done) {
-	chan->open_rpt_loc1 = pos;
 	mux_unlock(muxdata);
 	open_done(chan->io, err, open_data);
 	mux_lock(muxdata);
-	chan->open_rpt_loc2 = pos;
     }
 }
 
@@ -1512,19 +1567,27 @@ static void
 mux_child_open_done(struct gensio *child, int err, void *open_data)
 {
     struct mux_data *muxdata = open_data;
-    struct mux_inst *chan = mux_chan0(muxdata);
+    struct mux_inst *chan;
 
-    mux_lock(muxdata);
+    mux_lock_and_ref(muxdata);
+    chan = mux_chan0(muxdata);
     if (err) {
+	mux_shutdown_channels(muxdata, err);
+	muxdata->nr_not_closed = 0;
 	mux_set_state(muxdata, MUX_CLOSED);
-	mux_call_open_done(muxdata, chan, err, 1);
+	mux_deref(muxdata); /* Lose the child open ref. */
+    } else if (chan->state != MUX_INST_IN_OPEN) {
+	/* A close was requested, handle it. */	
+	muxc_set_state(chan, MUX_INST_CLOSED);
+	mux_call_open_done(muxdata, chan, err);
+	mux_channel_finish_close(chan);
     } else {
 	mux_set_state(muxdata, MUX_UNINITIALIZED);
 	muxc_set_state(chan, MUX_INST_IN_OPEN);
 	gensio_set_write_callback_enable(muxdata->child, true);
 	gensio_set_read_callback_enable(muxdata->child, true);
     }
-    mux_unlock(muxdata);
+    mux_deref_and_unlock(muxdata);
 }
 
 static void
@@ -1547,6 +1610,7 @@ muxc_reinit(struct mux_inst *chan)
     chan->cur_msg_len = 0;
     chan->close_done = NULL;
     chan->wr_ready = false;
+    chan->close_called = false;
 }
 
 static int
@@ -1597,9 +1661,16 @@ muxc_open(struct mux_inst *chan, gensio_done_err open_done, void *open_data,
 	    gensio_set_read_callback_enable(muxdata->child, true);
 	    err = 0;
 	}
+	if (!err)
+	    mux_ref(muxdata); /* Claim the ref for the channel. */
     } else {
+	if (!do_child) {
+	    err = GE_INVAL;
+	    goto out_unlock;
+	}
 	if (chan->state != MUX_INST_CLOSED)
 	    goto out_unlock;
+
 	muxc_reinit(chan);
 	/* Only one open at a time is allowed, queue them otherwise. */
 	if (muxdata->opencount == 0 && muxdata->state == MUX_OPEN) {
@@ -1617,7 +1688,7 @@ muxc_open(struct mux_inst *chan, gensio_done_err open_done, void *open_data,
 	err = 0;
     }
     if (!err)
-	chan_ref(chan); /* Claim the ref held while open. */
+	chan_ref(chan); /* Claim the ref we hold while open. */
  out_unlock:
     mux_unlock(muxdata);
     return err;
@@ -1735,8 +1806,9 @@ mux_shutdown_channels(struct mux_data *muxdata, int err)
 
     muxdata->err_shutdown = true;
 
-    if (muxdata->exit_state == MUX_WAITING_OPEN ||
-		muxdata->exit_state == MUX_UNINITIALIZED) {
+    if (muxdata->acc_open_done &&
+		(muxdata->exit_state == MUX_WAITING_OPEN ||
+		 muxdata->exit_state == MUX_UNINITIALIZED)) {
 	gensio_done_err acc_open_done = muxdata->acc_open_done;
 	void *acc_open_data = muxdata->acc_open_data;
 
@@ -1746,7 +1818,6 @@ mux_shutdown_channels(struct mux_data *muxdata, int err)
 	mux_unlock(muxdata);
 	acc_open_done(chan->io, err, acc_open_data);
 	mux_lock(muxdata);
-	chan_deref(chan); /* Lose our open ref. */
     }
 
     gensio_list_for_each_safe(&muxdata->chans, l, l2) {
@@ -1771,15 +1842,19 @@ mux_shutdown_channels(struct mux_data *muxdata, int err)
 	    break;
 
 	case MUX_INST_PENDING_OPEN:
-	    gensio_list_rm(&muxdata->chans, &chan->link);
-	    mux_channel_free(chan);
+	    chan_deref(chan); /* Will free it. */
 	    break;
 
 	case MUX_INST_IN_OPEN:
+	    muxc_set_state(chan, MUX_INST_CLOSED);
+	    mux_call_open_done(muxdata, chan, err);
+	    chan_deref(chan); /* Lose our open ref. */
+	    break;
+
 	case MUX_INST_IN_OPEN_CLOSE:
 	    muxc_set_state(chan, MUX_INST_CLOSED);
-	    mux_call_open_done(muxdata, chan, err, 2);
-	    chan_deref(chan); /* Lose our open ref. */
+	    mux_call_open_done(muxdata, chan, err);
+	    finish_close(chan);
 	    break;
 
 	case MUX_INST_IN_CLOSE:
@@ -1890,7 +1965,7 @@ mux_on_err_close(struct gensio *child, void *close_data)
 
     mux_lock(muxdata);
     mux_shutdown_channels(muxdata, muxdata->exit_err);
-    mux_unlock(muxdata);
+    mux_deref_and_unlock(muxdata); /* Lose the open ref. */
 }
 
 static int
@@ -1900,11 +1975,11 @@ mux_child_write_ready(struct mux_data *muxdata)
     struct mux_inst *chan;
     gensiods rcount;
 
-    mux_lock(muxdata);
+    mux_lock_and_ref(muxdata);
     if (muxdata->state == MUX_IN_CLOSE || muxdata->state == MUX_CLOSED) {
 	gensio_set_read_callback_enable(muxdata->child, false);
 	gensio_set_write_callback_enable(muxdata->child, false);
-	mux_unlock(muxdata);
+	mux_deref_and_unlock(muxdata);
 	return 0;
     }
 
@@ -2006,7 +2081,7 @@ mux_child_write_ready(struct mux_data *muxdata)
  out:
     gensio_set_write_callback_enable(muxdata->child,
 		muxdata->sending_chan || !gensio_list_empty(&muxdata->wrchans));
-    mux_unlock(muxdata);
+    mux_deref_and_unlock(muxdata);
     return 0;
 
  out_write_err:
@@ -2018,7 +2093,7 @@ mux_child_write_ready(struct mux_data *muxdata)
     err = gensio_close(muxdata->child, mux_on_err_close, muxdata);
     if (err)
 	mux_shutdown_channels(muxdata, err);
-    mux_unlock(muxdata);
+    mux_deref_and_unlock(muxdata);
     return 0;
 }
 
@@ -2066,11 +2141,11 @@ mux_child_read(struct mux_data *muxdata, int ierr,
     const char *auxdata[2] = { NULL, NULL };
     const char *proto_err_str = "?";
 
-    mux_lock(muxdata);
+    mux_lock_and_ref(muxdata);
     if (muxdata->state == MUX_IN_CLOSE || muxdata->state == MUX_CLOSED) {
 	gensio_set_read_callback_enable(muxdata->child, false);
 	gensio_set_write_callback_enable(muxdata->child, false);
-	mux_unlock(muxdata);
+	mux_deref_and_unlock(muxdata);
 	return 0;
     }
 
@@ -2079,7 +2154,7 @@ mux_child_read(struct mux_data *muxdata, int ierr,
 
     if (gensio_str_in_auxdata(nauxdata, "oob")) {
 	/* We can't handle OOB data here. */
-	mux_unlock(muxdata);
+	mux_deref_and_unlock(muxdata);
 	return 0;
     }
 
@@ -2234,7 +2309,7 @@ mux_child_read(struct mux_data *muxdata, int ierr,
 
 		if (chan) {
 		    chan_ref(chan);
-		    mux_call_open_done(muxdata, chan, chan->errcode, 3);
+		    mux_call_open_done(muxdata, chan, chan->errcode);
 		    if (chan_deref(chan))
 			goto more_data;
 		    /* Deliver a read error if read is enabled. */
@@ -2331,8 +2406,7 @@ mux_child_read(struct mux_data *muxdata, int ierr,
 						       muxdata->data_size + 1);
 		    if (!chan->service) {
 			muxdata->curr_chan = NULL;
-			gensio_list_rm(&chan->mux->chans, &chan->link);
-			mux_channel_free(chan);
+			chan_deref(chan);
 			/* NULL curr_chan will cause an error to be sent. */
 		    }
 		    break;
@@ -2392,6 +2466,9 @@ mux_child_read(struct mux_data *muxdata, int ierr,
 		     * gensio_acc_gensio code as an open.
 		     */
 		    mux_set_state(muxdata, MUX_OPEN);
+		    mux_send_new_channel_rsp(muxdata, chan->remote_id,
+					     chan->max_read_size,
+					     chan->id, 0);
 		    if (muxdata->acc_open_done) {
 			mux_unlock(muxdata);
 			muxdata->acc_open_done(chan->io, 0,
@@ -2399,12 +2476,9 @@ mux_child_read(struct mux_data *muxdata, int ierr,
 			mux_lock(muxdata);
 		    } else {
 			chan_ref(chan);
-			mux_call_open_done(muxdata, chan, err, 4);
+			mux_call_open_done(muxdata, chan, err);
 			chan_deref(chan);
 		    }
-		    mux_send_new_channel_rsp(muxdata, chan->remote_id,
-					     chan->max_read_size,
-					     chan->id, 0);
 		} else {
 		    if (muxdata->xmit_data_len) {
 			proto_err_str = "New channel while in progress";
@@ -2419,14 +2493,12 @@ mux_child_read(struct mux_data *muxdata, int ierr,
 			chan->ack_pending = true;
 			muxc_add_to_wrlist(chan);
 		    }
-		    mux_unlock(muxdata);
 		    if (chan->service)
 			auxdata[0] = chan->service;
 		    else
 			auxdata[0] = "";
 		    mux_firstchan_event(muxdata, GENSIO_EVENT_NEW_CHANNEL,
 					0, (void *) chan->io, 0, auxdata);
-		    mux_lock(muxdata);
 		}
 	    finish_new_chan:
 		muxdata->in_hdr = true;
@@ -2459,7 +2531,7 @@ mux_child_read(struct mux_data *muxdata, int ierr,
     }
 
  out_unlock:
-    mux_unlock(muxdata);
+    mux_deref_and_unlock(muxdata);
     *ibuflen = processed;
     return 0;
 
@@ -2475,7 +2547,7 @@ mux_child_read(struct mux_data *muxdata, int ierr,
     err = gensio_close(muxdata->child, mux_on_err_close, muxdata);
     if (err)
 	mux_shutdown_channels(muxdata, ierr);
-    mux_unlock(muxdata);
+    mux_deref_and_unlock(muxdata);
     return 0;
 }
 
@@ -2485,6 +2557,7 @@ mux_child_cb(struct gensio *io, void *user_data, int event,
 	     const char *const *auxdata)
 {
     struct mux_data *muxdata = user_data;
+    int rv;
 
     switch (event) {
     case GENSIO_EVENT_READ:
@@ -2497,7 +2570,10 @@ mux_child_cb(struct gensio *io, void *user_data, int event,
 	return GE_NOTSUP;
 
     default:
-	return mux_firstchan_event(muxdata, event, err, buf, buflen, auxdata);
+	mux_lock_and_ref(muxdata);
+	rv = mux_firstchan_event(muxdata, event, err, buf, buflen, auxdata);
+	mux_deref_and_unlock(muxdata);
+	return rv;
     }
 }
 
@@ -2520,6 +2596,7 @@ mux_gensio_alloc_data(struct gensio *child, struct gensio_mux_config *data,
 
     mux_set_state(muxdata, MUX_IN_ALLOC);
     muxdata->o = o;
+    muxdata->refcount = 1;
     muxdata->is_client = data->is_client;
     muxdata->child = child;
     muxdata->in_hdr = true;
@@ -2538,8 +2615,7 @@ mux_gensio_alloc_data(struct gensio *child, struct gensio_mux_config *data,
     mux_send_init(muxdata);
 
     /* Allocate channel 0. */
-    rv = muxc_alloc_channel_data(muxdata, cb, user_data, data,
-				 MUX_INST_IN_OPEN, NULL);
+    rv = muxc_alloc_channel_data(muxdata, cb, user_data, data, NULL);
     if (rv)
 	goto out_nomem;
 
@@ -2662,6 +2738,7 @@ muxna_new_child(struct muxna_data *nadata, void **finish_data,
     if (!err) {
 	mux_lock(muxdata);
 	chan = mux_chan0(muxdata);
+	mux_ref(muxdata);
 	ncio->new_io = chan->io;
 	mux_set_state(muxdata, MUX_UNINITIALIZED);
 	muxdata->acc_open_done = ncio->open_done;
