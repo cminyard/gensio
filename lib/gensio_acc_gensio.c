@@ -225,7 +225,7 @@ gensna_child_event(struct gensio_accepter *accepter, void *user_data,
     child = data;
     err = base_gensio_accepter_new_child_start(nadata->acc);
     if (err)
-	return err;
+	goto out_err_unlock;
 
     err = nadata->acc_cb(nadata->acc_data, GENSIO_GENSIO_ACC_NEW_CHILD,
 			 &finish_data, &filter, child, NULL);
