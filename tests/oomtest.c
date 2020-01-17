@@ -50,7 +50,7 @@ struct oom_tests {
     { "tcp,localhost,", "tcp,0" },
     { "sctp,localhost,", "sctp,0" },
     { "udp,localhost,", "udp,0" },
-    //{ "mux,sctp,localhost,", "mux,sctp,0" },
+    { "mux,sctp,localhost,", "mux,sctp,0" },
     { "telnet(rfc2217),tcp,localhost,", "telnet(rfc2217),tcp,0" },
     { "serialdev,/dev/ttyEcho0,115200", NULL },
     { "telnet,tcp,localhost,", "telnet,tcp,0" },
