@@ -50,13 +50,15 @@ for details on forking.
 
 .B gensio_free
 grees data assoicated with the gensio.  If it is open, the gensio is
-closed.  Note that you should not call
+closed.  If you call
 .B gensio_free
 after
 .B gensio_close
-before the done callback is called.  The results (primarily if
+before the
 .B close_done
-is called) are undefined.
+callback is called, whether
+.B close_done
+is called is undefined.
 .SH "RETURN VALUES"
 Zero is returned on success, or a gensio error on failure.
 .SH "SEE ALSO"

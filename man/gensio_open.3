@@ -30,6 +30,12 @@ callback will be called, if there is no error in the callback
 .I err
 value the gensio will be open.  This will open all children, too.
 
+Note that the
+.B open_done
+callback will always be called even if you close the gensio before the
+.B open_done
+callback happens or if an error occurs.  This is guaranteed.
+
 .B gensio_open_s
 is like
 .B gensio_open, but waits for the open to complete.  Normal gensio
