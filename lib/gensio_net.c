@@ -620,9 +620,8 @@ netna_readhandler(int fd, void *cbdata)
     }
     gensio_set_is_reliable(io, true);
     err = base_gensio_server_start(io);
-    if (err) {
+    if (err)
 	goto out_err;
-    }
     base_gensio_accepter_new_child_end(nadata->acc, io, 0);
     return;
 
