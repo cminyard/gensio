@@ -136,7 +136,7 @@ enum basen_state {
 };
 
 #define DEBUG_STATE
-#ifdef DEBUG_STATE
+#if 0
 static char *basen_statestr[] = {
     "CLOSED",
     "IN_LL_OPEN",
