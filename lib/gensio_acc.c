@@ -30,7 +30,15 @@
 #include <gensio/gensio_base.h>
 #include <gensio/argvutils.h>
 
+enum basena_state {
+    BASENA_CLOSED,
+    BASENA_OPEN,
+    BASENA_IN_SHUTDOWN
+};
+
 struct basena_data {
+    enum basena_state state;
+
     struct gensio_accepter *acc;
 
     struct gensio_os_funcs *o;
@@ -49,13 +57,17 @@ struct basena_data {
     unsigned int refcount;
     unsigned int in_cb_count;
 
-    bool enabled;
-    bool in_shutdown;
     bool freed;
     bool call_shutdown_done;
     gensio_acc_done shutdown_done;
     void *shutdown_data;
 };
+
+static void
+basena_set_state(struct basena_data *nadata, enum basena_state state)
+{
+    nadata->state = state;
+}
 
 static int
 base_gensio_acc_startup(struct basena_data *nadata)
@@ -165,7 +177,7 @@ basena_finish_shutdown_unlock(struct basena_data *nadata)
     void (*shutdown_done)(struct gensio_accepter *accepter,
 			  void *shutdown_data);
 
-    nadata->in_shutdown = false;
+    basena_set_state(nadata, BASENA_CLOSED);
     shutdown_done = nadata->shutdown_done;
     shutdown_data = nadata->shutdown_data;
     nadata->shutdown_done = NULL;
@@ -203,12 +215,13 @@ basena_startup(struct gensio_accepter *accepter)
 
     basena_lock(nadata);
     assert(!nadata->freed);
-    if (nadata->enabled || nadata->in_shutdown) {
+    if (nadata->state != BASENA_CLOSED) {
 	err = GE_NOTREADY;
     } else {
+	nadata->shutdown_done = NULL;
 	err = base_gensio_acc_startup(nadata);
 	if (!err)
-	    nadata->enabled = true;
+	    basena_set_state(nadata, BASENA_OPEN);
     }
     basena_unlock(nadata);
 
@@ -239,7 +252,7 @@ basena_shutdown(struct gensio_accepter *accepter,
     int rv = GE_NOTREADY;
 
     basena_lock(nadata);
-    if (nadata->enabled) {
+    if (nadata->state == BASENA_OPEN) {
 	nadata->shutdown_done = shutdown_done;
 	nadata->shutdown_data = shutdown_data;
 
@@ -247,8 +260,7 @@ basena_shutdown(struct gensio_accepter *accepter,
 				      basena_child_shutdown_done);
 	if (!rv) {
 	    basena_ref(nadata);
-	    nadata->enabled = false;
-	    nadata->in_shutdown = true;
+	    basena_set_state(nadata, BASENA_IN_SHUTDOWN);
 	}
     }
     basena_unlock(nadata);
@@ -309,23 +321,29 @@ basena_free(struct gensio_accepter *accepter)
     basena_lock(nadata);
     assert(!nadata->freed);
     nadata->freed = true;
-    if (nadata->in_shutdown) {
+    switch (nadata->state) {
+    case BASENA_CLOSED:
+	break;
+
+    case BASENA_IN_SHUTDOWN:
 	nadata->shutdown_done = NULL;
-	basena_deref_and_unlock(nadata);
-    } else if (!nadata->enabled) {
-	basena_deref_and_unlock(nadata);
-    } else {
+	break;
+
+    case BASENA_OPEN:
 	rv = base_gensio_acc_shutdown(nadata,
 				      basena_child_shutdown_done);
 	if (rv) {
-	    basena_deref_and_unlock(nadata);
+	    basena_set_state(nadata, BASENA_CLOSED);
 	} else {
-	    /* No deref here, we let the shutdown deref free it. */
-	    nadata->enabled = false;
-	    nadata->in_shutdown = true;
-	    basena_unlock(nadata);
+	    basena_ref(nadata);
+	    basena_set_state(nadata, BASENA_IN_SHUTDOWN);
 	}
+	break;
+
+    default:
+	assert(0);
     }
+    basena_deref_and_unlock(nadata);
 }
 
 static int
@@ -393,7 +411,7 @@ base_gensio_accepter_new_child_start(struct gensio_accepter *accepter)
     struct basena_data *nadata = gensio_acc_get_gensio_data(accepter);
 
     basena_lock(nadata);
-    if (!nadata->enabled) {
+    if (nadata->state != BASENA_OPEN) {
 	basena_unlock(nadata);
 	return GE_NOTREADY;
     }
@@ -426,12 +444,14 @@ base_gensio_server_open_done(struct gensio_accepter *accepter,
 	gensio_acc_log(nadata->acc, GENSIO_LOG_ERR,
 		       "Error accepting a gensio: %s",
 		       gensio_err_to_str(err));
-    } else if (!nadata->in_shutdown) {
+    } else if (nadata->state == BASENA_OPEN) {
 	nadata->in_cb_count++;
 	basena_unlock(nadata);
 	gensio_acc_cb(nadata->acc, GENSIO_ACC_EVENT_NEW_CONNECTION, net);
 	basena_lock(nadata);
 	nadata->in_cb_count--;
+    } else {
+	gensio_free(net);
     }
 
     basena_leave_cb_unlock(nadata);
