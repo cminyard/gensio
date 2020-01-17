@@ -217,6 +217,7 @@ gensna_child_event(struct gensio_accepter *accepter, void *user_data,
     struct gensio_ll *ll = NULL;
     struct gensio *io = NULL, *child;
     void *finish_data;
+    bool base_allocated = true;
     int err;
 
     if (event != GENSIO_ACC_EVENT_NEW_CONNECTION)
@@ -239,6 +240,8 @@ gensna_child_event(struct gensio_accepter *accepter, void *user_data,
 			     &finish_data, &ncio, NULL, NULL);
 	if (!err)
 	    io = ncio.new_io;
+	if (io)
+	    base_allocated = false;
     }
 	
     if (err)
@@ -268,9 +271,11 @@ gensna_child_event(struct gensio_accepter *accepter, void *user_data,
     if (err && err != GE_NOTSUP)
 	goto out_err_unlock;
 
-    err = base_gensio_server_start(io);
-    if (err)
-	goto out_err_unlock;
+    if (base_allocated) {
+	err = base_gensio_server_start(io);
+	if (err)
+	    goto out_err_unlock;
+    }
 
     base_gensio_accepter_new_child_end(nadata->acc, io, 0);
 
