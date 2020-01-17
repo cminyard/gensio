@@ -188,6 +188,7 @@ struct basen_data {
 
     gensio_done close_done;
     void *close_data;
+    bool close_requested;
 
     bool read_enabled;
     bool in_read;
@@ -904,6 +905,7 @@ basen_open(struct basen_data *ndata, gensio_done_err open_done, void *open_data)
 	ndata->read_enabled = false;
 	ndata->xmit_enabled = false;
 	ndata->timer_start_pending = false;
+	ndata->close_requested = false;
 
 	ndata->open_done = open_done;
 	ndata->open_data = open_data;
@@ -1047,6 +1049,10 @@ basen_close(struct basen_data *ndata, gensio_done close_done, void *close_data)
     int err = 0;
 
     basen_lock(ndata);
+    if (ndata->close_requested) {
+	err = GE_NOTREADY;
+	goto out_unlock;
+    }
     i_basen_add_trace(ndata, 103, __LINE__);
     if (ndata->state == BASEN_OPEN || ndata->state == BASEN_IN_FILTER_OPEN ||
 		ndata->state == BASEN_IN_LL_OPEN) {
@@ -1064,6 +1070,7 @@ basen_close(struct basen_data *ndata, gensio_done close_done, void *close_data)
     } else {
 	err = GE_NOTREADY;
     }
+ out_unlock:
     basen_unlock(ndata);
 
     return err;
