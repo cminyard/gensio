@@ -705,7 +705,7 @@ sctpna_readhandler(int fd, void *cbdata)
     struct sockaddr_storage addr;
     socklen_t addrlen = sizeof(addr);
     struct sctp_data *tdata = NULL;
-    struct gensio *io;
+    struct gensio *io = NULL;
     int err;
 
     err = base_gensio_accepter_new_child_start(nadata->acc);
@@ -769,10 +769,12 @@ sctpna_readhandler(int fd, void *cbdata)
     return;
 
  out_err:
-    base_gensio_accepter_new_child_end(nadata->acc, io, err);
+    base_gensio_accepter_new_child_end(nadata->acc, NULL, err);
     if (new_fd != -1)
 	close(new_fd);
-    if (tdata) {
+    if (io) {
+	gensio_free(io);
+    } else if (tdata) {
 	if (tdata->ll)
 	    gensio_ll_free(tdata->ll);
 	else

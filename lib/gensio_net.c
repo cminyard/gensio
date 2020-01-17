@@ -553,7 +553,7 @@ netna_readhandler(int fd, void *cbdata)
     struct sockaddr_storage addr;
     socklen_t addrlen = sizeof(addr);
     struct net_data *tdata = NULL;
-    struct gensio *io;
+    struct gensio *io = NULL;
     int err;
 
     err = base_gensio_accepter_new_child_start(nadata->acc);
@@ -620,16 +620,19 @@ netna_readhandler(int fd, void *cbdata)
     }
     gensio_set_is_reliable(io, true);
     err = base_gensio_server_start(io);
-    if (err)
+    if (err) {
 	goto out_err;
+    }
     base_gensio_accepter_new_child_end(nadata->acc, io, 0);
     return;
 
  out_err:
-    base_gensio_accepter_new_child_end(nadata->acc, io, err);
+    base_gensio_accepter_new_child_end(nadata->acc, NULL, err);
     if (new_fd != -1)
 	close(new_fd);
-    if (tdata) {
+    if (io) {
+	gensio_free(io);
+    } else if (tdata) {
 	if (tdata->ll)
 	    gensio_ll_free(tdata->ll);
 	else
