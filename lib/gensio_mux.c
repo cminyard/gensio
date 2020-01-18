@@ -1249,7 +1249,7 @@ muxc_free(struct mux_inst *chan)
     case MUX_INST_IN_REM_CLOSE:
     case MUX_INST_IN_CLOSE_FINAL:
     case MUX_INST_IN_OPEN_CLOSE:
-	chan->open_done = NULL;
+	chan->close_done = NULL;
 	/* deref will cause it to be freed when the close is finished. */
 	break;
 
@@ -1331,7 +1331,6 @@ mux_new_channel(struct mux_data *muxdata, gensio_event cb, void *user_data,
     chan->write_data = o->zalloc(o, chan->max_write_size);
     if (!chan->write_data)
 	goto out_free;
-    muxc_set_state(chan, MUX_INST_PENDING_OPEN);
 
     /*
      * We maintain the list in number order and rotate through the
@@ -1574,7 +1573,6 @@ mux_child_open_done(struct gensio *child, int err, void *open_data)
     if (err) {
 	mux_shutdown_channels(muxdata, err);
 	muxdata->nr_not_closed = 0;
-	mux_set_state(muxdata, MUX_CLOSED);
 	mux_deref(muxdata); /* Lose the child open ref. */
     } else if (chan->state != MUX_INST_IN_OPEN) {
 	/* A close was requested, handle it. */	
@@ -1593,7 +1591,7 @@ mux_child_open_done(struct gensio *child, int err, void *open_data)
 static void
 muxc_reinit(struct mux_inst *chan)
 {
-    muxc_set_state(chan, MUX_INST_PENDING_OPEN);
+    muxc_set_state(chan, MUX_INST_CLOSED);
     chan->send_close = false;
     chan->ack_pending = false;
     chan->read_enabled = false;
@@ -1806,6 +1804,7 @@ mux_shutdown_channels(struct mux_data *muxdata, int err)
 
     muxdata->err_shutdown = true;
 
+    mux_set_state(muxdata, MUX_CLOSED);
     if (muxdata->acc_open_done &&
 		(muxdata->exit_state == MUX_WAITING_OPEN ||
 		 muxdata->exit_state == MUX_UNINITIALIZED)) {
@@ -2238,6 +2237,7 @@ mux_child_read(struct mux_data *muxdata, int ierr,
 		}
 		muxdata->curr_chan = chan;
 		if (chan) {
+		    muxc_set_state(chan, MUX_INST_PENDING_OPEN);
 		    chan->send_window_size =
 			gensio_buf_to_u32(muxdata->hdr + 4);
 		    if (chan->send_window_size <= MUX_MIN_SEND_WINDOW_SIZE) {
@@ -2285,9 +2285,10 @@ mux_child_read(struct mux_data *muxdata, int ierr,
 		    muxc_set_state(chan, MUX_INST_IN_CLOSE_FINAL);
 		    chan_sched_deferred_op(chan);
 		} else if (chan->state == MUX_INST_IN_OPEN_CLOSE) {
+		    muxc_set_state(chan, MUX_INST_IN_CLOSE);
+		    mux_call_open_done(muxdata, chan, GE_LOCALCLOSED);
 		    chan->send_close = true;
 		    muxc_add_to_wrlist(chan);
-		    muxc_set_state(chan, MUX_INST_IN_CLOSE);
 		    chan = NULL;
 		} else {
 		    muxc_set_state(chan, MUX_INST_OPEN);
