@@ -99,6 +99,7 @@ struct fd_ll {
     gensio_ll_close_done close_done;
     void *close_data;
     bool close_requested;
+    bool freed;
 
     unsigned char *read_data;
     gensiods read_data_size;
@@ -139,6 +140,13 @@ fd_ref(struct fd_ll *fdll)
 {
     assert(fdll->refcount > 0);
     fdll->refcount++;
+}
+
+static void
+fd_deref(struct fd_ll *fdll)
+{
+    assert(fdll->refcount > 1);
+    fdll->refcount--;
 }
 
 static void
@@ -304,6 +312,7 @@ static void fd_finish_close(struct fd_ll *fdll)
 	close_done(fdll->cb_data, fdll->close_data);
 	fd_lock(fdll);
     }
+    fd_deref(fdll);
 }
 
 static void
@@ -620,6 +629,7 @@ fd_open(struct gensio_ll *ll, gensio_ll_open_done done, void *open_data)
 	} else {
 	    fd_set_state(fdll, FD_OPEN);
 	}
+	fd_ref(fdll);
     }
 
  out:
@@ -661,8 +671,11 @@ static int fd_close(struct gensio_ll *ll, gensio_ll_close_done done,
 	err = 0;
 	break;
 
-    default:
+    case FD_CLOSED:
 	break;
+
+    default:
+	assert(0);
     }
     fdll->close_requested = true;
  out_unlock:
@@ -713,6 +726,24 @@ static void fd_free(struct gensio_ll *ll)
     struct fd_ll *fdll = ll_to_fd(ll);
 
     fd_lock(fdll);
+    assert(!fdll->freed);
+    fdll->freed = true;
+    switch (fdll->state) {
+    case FD_IN_CLOSE:
+    case FD_CLOSED:
+	break;
+
+    case FD_OPEN:
+    case FD_ERR_WAIT:
+	fdll->close_done = NULL;
+	fd_set_state(fdll, FD_IN_CLOSE);
+	fd_start_close(fdll);
+	break;
+
+    default:
+	assert(0);
+	break;
+    }
     fd_deref_and_unlock(fdll);
 }
 
@@ -733,6 +764,7 @@ static void fd_disable(struct gensio_ll *ll)
     struct fd_ll *fdll = ll_to_fd(ll);
 
     fdll->state = FD_CLOSED;
+    fd_deref(fdll);
     fdll->o->clear_fd_handlers_norpt(fdll->o, fdll->fd);
     close(fdll->fd);
     fdll->fd = -1;
@@ -818,10 +850,12 @@ fd_gensio_ll_alloc(struct gensio_os_funcs *o,
     fdll->fd = fd;
     fdll->refcount = 1;
     fdll->write_only = write_only;
-    if (fd == -1)
+    if (fd == -1) {
 	fdll->state = FD_CLOSED;
-    else
+    } else {
 	fdll->state = FD_OPEN;
+	fd_ref(fdll);
+    }
 
     fdll->close_timer = o->alloc_timer(o, fd_close_timeout, fdll);
     if (!fdll->close_timer)
