@@ -773,15 +773,16 @@ sctpna_readhandler(int fd, void *cbdata)
 
  out_err:
     base_gensio_accepter_new_child_end(nadata->acc, NULL, err);
-    if (new_fd != -1)
-	close(new_fd);
     if (io) {
 	gensio_free(io);
     } else if (tdata) {
 	if (tdata->ll)
 	    gensio_ll_free(tdata->ll);
-	else
+	else {
 	    sctp_free(tdata);
+	    if (new_fd != -1)
+		close(new_fd);
+	}
     }
 }
 
