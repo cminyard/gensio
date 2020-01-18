@@ -1787,10 +1787,6 @@ gensio_certauth_filter_raw_alloc(struct gensio_os_funcs *o,
 	rv = GE_IOERR;
 	goto out_err;
     }
-    sfilter->cert = cert;
-    sfilter->sk_ca = sk_ca;
-    sfilter->pkey = pkey;
-    sfilter->verify_store = store;
 
     if (is_client) {
 	/* Extra byte at the end so it's always nil terminated. */
@@ -1860,6 +1856,12 @@ gensio_certauth_filter_raw_alloc(struct gensio_os_funcs *o,
 					       sfilter);
     if (!sfilter->filter)
 	goto out_nomem;
+
+    /* Don't set these until here so sfilter_free() doesn't free them on err. */
+    sfilter->cert = cert;
+    sfilter->sk_ca = sk_ca;
+    sfilter->pkey = pkey;
+    sfilter->verify_store = store;
 
     *rfilter = sfilter->filter;
     return 0;
