@@ -222,8 +222,10 @@ io_event(struct gensio *io, void *user_data, int event, int err,
 	if (rioinfo->ready) {
 	    rv = gensio_write(rioinfo->io, &count, buf, *buflen, NULL);
 	    if (rv) {
-		ioinfo_err(rioinfo, "write error: %s", gensio_err_to_str(rv));
-		ioinfo->uh->shutdown(ioinfo, false);
+		if (rv != GE_REMCLOSE)
+		    ioinfo_err(rioinfo, "write error: %s",
+			       gensio_err_to_str(rv));
+		ioinfo->uh->shutdown(ioinfo, rv == GE_REMCLOSE);
 		return 0;
 	    }
 	} else {
