@@ -763,7 +763,7 @@ static void fd_disable(struct gensio_ll *ll)
 {
     struct fd_ll *fdll = ll_to_fd(ll);
 
-    fdll->state = FD_CLOSED;
+    fd_set_state(fdll, FD_CLOSED);
     fd_deref(fdll);
     fdll->o->clear_fd_handlers_norpt(fdll->o, fdll->fd);
     close(fdll->fd);
@@ -851,9 +851,9 @@ fd_gensio_ll_alloc(struct gensio_os_funcs *o,
     fdll->refcount = 1;
     fdll->write_only = write_only;
     if (fd == -1) {
-	fdll->state = FD_CLOSED;
+	fd_set_state(fdll, FD_CLOSED);
     } else {
-	fdll->state = FD_OPEN;
+	fd_set_state(fdll, FD_OPEN);
 	fd_ref(fdll);
     }
 
