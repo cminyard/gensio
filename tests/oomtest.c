@@ -80,7 +80,7 @@ handle_sigusr1(int sig)
 }
 
 char *
-alloc_vsprintf(const char *fmt, va_list va)
+alloc_vsprintf(struct gensio_os_funcs *f, const char *fmt, va_list va)
 {
     va_list va2;
     int len;
@@ -88,7 +88,7 @@ alloc_vsprintf(const char *fmt, va_list va)
 
     va_copy(va2, va);
     len = vsnprintf(c, 0, fmt, va);
-    str = malloc(len + 1);
+    str = o->zalloc(o, len + 1);
     if (str)
 	vsnprintf(str, len + 1, fmt, va2);
     va_end(va2);
@@ -96,13 +96,13 @@ alloc_vsprintf(const char *fmt, va_list va)
 }
 
 char *
-alloc_sprintf(const char *fmt, ...)
+alloc_sprintf(struct gensio_os_funcs *f, const char *fmt, ...)
 {
     va_list va;
     char *s;
 
     va_start(va, fmt);
-    s = alloc_vsprintf(fmt, va);
+    s = alloc_vsprintf(f, fmt, va);
     va_end(va);
     return s;
 }
@@ -168,6 +168,7 @@ struct io_test_data {
     bool in_read;
     bool close_done;
     bool open_done;
+    bool closed;
 };
 
 struct oom_test_data {
@@ -184,16 +185,47 @@ struct oom_test_data {
     bool stderr_expect_close;
 
     bool stderr_open_done;
+    bool stderr_closed;
 
     pthread_mutex_t lock;
 
     unsigned int port;
     bool look_for_port;
     bool invalid_port_data;
+
+    unsigned int refcount;
 };
 
 static char *iodata = "Hello There";
 static gensiods iodata_size = 11;
+
+static void
+od_deref_and_unlock(struct oom_test_data *od)
+{
+    unsigned int tcount;
+
+    assert(od->refcount > 0);
+    tcount = --od->refcount;
+    pthread_mutex_unlock(&od->lock);
+    if (tcount == 0) {
+	pthread_mutex_destroy(&od->lock);
+	if (od->ccon.io)
+	    gensio_free(od->ccon.io);
+	if (od->scon.io)
+	    gensio_free(od->scon.io);
+	if (od->ccon_stderr_io)
+	    gensio_free(od->ccon_stderr_io);
+	o->free_waiter(od->waiter);
+	o->free(o, od);
+    }
+}
+
+static void
+od_ref(struct oom_test_data *od)
+{
+    assert(od->refcount > 0);
+    od->refcount++;
+}
 
 static void
 ccon_stderr_closed(struct gensio *io, void *close_data)
@@ -217,8 +249,8 @@ ccon_stderr_closed(struct gensio *io, void *close_data)
     pthread_mutex_lock(&od->lock);
     od->ccon_stderr_io = NULL;
     o->wake(od->waiter);
-    pthread_mutex_unlock(&od->lock);
     gensio_free(io);
+    od_deref_and_unlock(od);
 }
 
 static void
@@ -228,12 +260,10 @@ con_closed(struct gensio *io, void *close_data)
     struct oom_test_data *od = id->od;
 
     pthread_mutex_lock(&od->lock);
-    if (id->io) {
-	gensio_free(io);
-	id->io = NULL;
-    }
+    gensio_free(io);
+    id->io = NULL;
     o->wake(od->waiter);
-    pthread_mutex_unlock(&od->lock);
+    od_deref_and_unlock(od);
 }
 
 static void
@@ -245,8 +275,8 @@ acc_closed(struct gensio_accepter *acc, void *close_data)
     pthread_mutex_lock(&od->lock);
     od->acc = NULL;
     o->wake(od->waiter);
-    pthread_mutex_unlock(&od->lock);
     gensio_acc_free(acc);
+    od_deref_and_unlock(od);
 }
 
 static int
@@ -258,12 +288,12 @@ con_cb(struct gensio *io, void *user_data,
     struct io_test_data *id = user_data;
     struct oom_test_data *od = id->od;
     gensiods count;
-    int rv;
+    int rv = 0;
 
+    pthread_mutex_lock(&od->lock);
     assert(id->io == io);
     if (err) {
 	assert(!debug || err == GE_REMCLOSE || err == GE_NOTREADY || err == GE_LOCALCLOSED);
-	pthread_mutex_lock(&od->lock);
 	gensio_set_write_callback_enable(io, false);
 	gensio_set_read_callback_enable(io, false);
 	if (!id->expect_close || err != GE_REMCLOSE)
@@ -271,15 +301,13 @@ con_cb(struct gensio *io, void *user_data,
 	else
 	    id->got_end = true;
 	o->wake(od->waiter);
-	pthread_mutex_unlock(&od->lock);
-	return 0;
+	goto out;
     }
 
     switch(event) {
     case GENSIO_EVENT_READ:
 	assert(!id->in_read);
 	id->in_read = true;
-	pthread_mutex_lock(&od->lock);
 	if (id->read_pos + *buflen > iodata_size) {
 	    gensio_set_write_callback_enable(io, false);
 	    gensio_set_read_callback_enable(io, false);
@@ -302,14 +330,12 @@ con_cb(struct gensio *io, void *user_data,
 	if (id->read_pos >= iodata_size)
 	    o->wake(od->waiter);
     out_leave_read:
-	pthread_mutex_unlock(&od->lock);
 	id->in_read = false;
-	return 0;
+	break;
 
     case GENSIO_EVENT_WRITE_READY:
 	assert(!id->in_write);
 	id->in_write = true;
-	pthread_mutex_lock(&od->lock);
 	if (id->write_pos < iodata_size) {
 	    rv = gensio_write(io, &count, iodata, iodata_size - id->write_pos,
 			      NULL);
@@ -332,13 +358,15 @@ con_cb(struct gensio *io, void *user_data,
 	    gensio_set_write_callback_enable(io, false);
 	    o->wake(od->waiter);
 	}
-	pthread_mutex_unlock(&od->lock);
 	id->in_write = false;
-	return 0;
+	break;
 
     default:
-	return GE_NOTSUP;
+	rv = GE_NOTSUP;
     }
+ out:
+    pthread_mutex_unlock(&od->lock);
+    return rv;
 }
 
 static int
@@ -347,23 +375,27 @@ acc_cb(struct gensio_accepter *accepter,
 {
     struct gensio_loginfo *li;
     struct oom_test_data *od = user_data;
+    int rv = 0;
 
+    pthread_mutex_lock(&od->lock);
     switch(event) {
     case GENSIO_ACC_EVENT_NEW_CONNECTION:
 	od->scon.io = data;
 	gensio_set_callback(od->scon.io, con_cb, &od->scon);
 	gensio_set_read_callback_enable(od->scon.io, true);
 	gensio_set_write_callback_enable(od->scon.io, true);
-	return 0;
+	break;
 
     case GENSIO_ACC_EVENT_LOG:
 	li = data;
 	do_vlog(o, li->level, li->str, li->args);
-	return 0;
+	break;
 
     default:
-	return GE_NOTSUP;
+	rv = GE_NOTSUP;
     }
+    pthread_mutex_unlock(&od->lock);
+    return rv;
 }
 
 static int
@@ -376,11 +408,13 @@ ccon_stderr_cb(struct gensio *io, void *user_data,
     gensiods size;
 
     if (err) {
+	pthread_mutex_lock(&od->lock);
 	assert(!debug || err == GE_REMCLOSE);
 	gensio_set_read_callback_enable(io, false);
 	if (!od->stderr_expect_close || err != GE_REMCLOSE)
 	    od->ccon.err = err;
 	o->wake(od->waiter);
+	pthread_mutex_unlock(&od->lock);
 	return 0;
     }
 
@@ -442,8 +476,9 @@ ccon_stderr_open_done(struct gensio *io, int err, void *open_data)
     struct oom_test_data *od = open_data;
 
     pthread_mutex_lock(&od->lock);
-    if (od->stderr_expect_close)
+    if (od->stderr_closed)
 	goto out_unlock;
+
     od->stderr_open_done = true;
     if (err) {
 	assert(!debug || err == GE_REMCLOSE);
@@ -453,61 +488,57 @@ ccon_stderr_open_done(struct gensio *io, int err, void *open_data)
 	gensio_set_read_callback_enable(io, true);
     }
  out_unlock:
-    pthread_mutex_unlock(&od->lock);
+    od_deref_and_unlock(od);
 }
 
 static void
 scon_open_done(struct gensio *io, int err, void *open_data)
 {
     struct oom_test_data *od = open_data;
+    struct io_test_data *id = &od->scon;
 
     pthread_mutex_lock(&od->lock);
-    if (od->scon.expect_close)
+    assert(!id->open_done);
+    if (id->closed)
 	goto out_unlock;
-    assert(!od->scon.open_done);
-    od->scon.open_done = true;
-    if (!od->scon.io)
-	/* We can race with the open and a close. */
-	goto out_unlock;
+
     if (err) {
 	if (debug && err != GE_REMCLOSE)
-	    printf("ERR: %s for %s\n", gensio_err_to_str(err), od->scon.iostr);
+	    printf("ERR: %s for %s\n", gensio_err_to_str(err), id->iostr);
 	assert(!debug || err == GE_REMCLOSE || err == GE_INVAL ||
 	       err == GE_SHUTDOWN || err == GE_LOCALCLOSED ||
 	       err == GE_NOTREADY);
-	od->scon.err = err;
+	id->err = err;
 	o->wake(od->waiter);
-	gensio_free(io);
-	od->scon.io = NULL;
 	goto out_unlock;
     }
 
     gensio_set_read_callback_enable(io, true);
     gensio_set_write_callback_enable(io, true);
  out_unlock:
-    pthread_mutex_unlock(&od->lock);
+    id->open_done = true;
+    od_deref_and_unlock(od);
 }
 
 static void
 ccon_open_done(struct gensio *io, int err, void *open_data)
 {
     struct oom_test_data *od = open_data;
+    struct io_test_data *id = &od->ccon;
     int rv;
 
     pthread_mutex_lock(&od->lock);
-    if (od->ccon.expect_close)
+    assert(!id->open_done);
+    if (id->closed)
 	goto out_unlock;
-    assert(!od->ccon.open_done);
-    od->ccon.open_done = true;
-    if (!od->ccon.io)
-	/* We can race with the open and a close. */
-	goto out_unlock;
+
+    id->open_done = true;
     if (err) {
 	assert(!debug || !err || err == GE_REMCLOSE || err == GE_LOCALCLOSED);
-	od->ccon.err = err;
+	id->err = err;
 	o->wake(od->waiter);
 	gensio_free(io);
-	od->ccon.io = NULL;
+	id->io = NULL;
 	goto out_unlock;
     }
 
@@ -515,7 +546,7 @@ ccon_open_done(struct gensio *io, int err, void *open_data)
 			      &od->ccon_stderr_io);
     assert(!debug || !rv || rv == GE_REMCLOSE);
     if (rv) {
-	od->ccon.err = rv;
+	id->err = rv;
 	o->wake(od->waiter);
 	goto out_unlock;
     }
@@ -525,15 +556,77 @@ ccon_open_done(struct gensio *io, int err, void *open_data)
     if (rv) {
 	gensio_free(od->ccon_stderr_io);
 	od->ccon_stderr_io = NULL;
-	od->ccon.err = rv;
+	id->err = rv;
 	o->wake(od->waiter);
 	goto out_unlock;
     }
+    od_ref(od); /* For the open */
 
     gensio_set_read_callback_enable(io, true);
     gensio_set_write_callback_enable(io, true);
  out_unlock:
-    pthread_mutex_unlock(&od->lock);
+    od_deref_and_unlock(od);
+}
+
+static struct oom_test_data *
+alloc_od(struct oom_tests *test)
+{
+    struct oom_test_data *od;
+
+    od = o->zalloc(o, sizeof(*od));
+    if (!od)
+	return NULL;
+    od->refcount = 1;
+    od->waiter = o->alloc_waiter(o);
+    if (!od->waiter) {
+	o->free(o, od);
+	return NULL;
+    }
+    od->ccon.od = od;
+    od->scon.od = od;
+    od->ccon.iostr = test->connecter;
+    od->scon.iostr = test->accepter;
+    pthread_mutex_init(&od->lock, NULL);
+    return od;
+}
+
+static int
+wait_for_data(struct oom_test_data *od, struct timeval *timeout)
+{
+    int err = 0, rv;
+
+    for (;;) {
+	pthread_mutex_unlock(&od->lock);
+	rv = o->wait_intr_sigmask(od->waiter, 1, timeout, &waitsigs);
+	pthread_mutex_lock(&od->lock);
+	if (debug && (rv == GE_TIMEDOUT || od->scon.err == OOME_READ_OVERFLOW ||
+		      od->ccon.err == OOME_READ_OVERFLOW)) {
+	    printf("Waiting on err A\n");
+	    assert(0);
+	}
+	if (rv == GE_INTERRUPTED)
+	    continue;
+	if (rv) {
+	    err = rv;
+	    break;
+	}
+	if (od->ccon.err) {
+	    err = od->ccon.err;
+	    break;
+	}
+	if (od->scon.err) {
+	    err = od->scon.err;
+	    break;
+	}
+	if (od->ccon.write_pos >= iodata_size &&
+		od->ccon.read_pos >= iodata_size &&
+		(!od->scon.io ||
+		 (od->scon.write_pos >= iodata_size &&
+		  od->scon.read_pos >= iodata_size)))
+	    break;
+    }
+
+    return err;
 }
 
 static int
@@ -542,18 +635,17 @@ close_con(struct io_test_data *id, struct timeval *timeout)
     struct oom_test_data *od = id->od;
     int rv = 0;
 
-    pthread_mutex_lock(&od->lock);
-    id->close_done = true;
     if (!id->io)
-	goto out_unlock;
+	return 0;
+    id->close_done = true;
 
     rv = gensio_close(id->io, con_closed, id);
     assert(!debug || !rv || rv == GE_REMCLOSE || rv == GE_NOTREADY);
     if (rv) {
-	gensio_free(id->io);
-	id->io = NULL;
-	goto out_unlock;
+	id->closed = true;
+	goto out;
     }
+    od_ref(od); /* Ref for the close */
     while (id->io) {
 	pthread_mutex_unlock(&od->lock);
 	rv = o->wait_intr_sigmask(id->od->waiter, 1, timeout, &waitsigs);
@@ -569,30 +661,86 @@ close_con(struct io_test_data *id, struct timeval *timeout)
 	if (rv)
 	    break;
     }
- out_unlock:
-    pthread_mutex_unlock(&od->lock);
+ out:
     return rv;
+}
+
+static int
+close_cons(struct oom_test_data *od, bool close_acc, struct timeval *timeout)
+{
+    int rv, err = 0;
+
+    if (close_acc && od->scon.io) {
+	od->ccon.expect_close = true;
+	rv = close_con(&od->scon, timeout);
+	if (rv && !err)
+	    err = rv;
+	rv = close_con(&od->ccon, timeout);
+	if (rv && !err)
+	    err = rv;
+    } else {
+	od->scon.expect_close = true;
+	rv = close_con(&od->ccon, timeout);
+	if (rv && !err)
+	    err = rv;
+	rv = close_con(&od->scon, timeout);
+	if (rv && !err)
+	    err = rv;
+    }
+
+    return err;
+}
+
+static int
+close_stderr(struct oom_test_data *od, struct timeval *timeout)
+{
+    int rv, err = 0;
+
+    if (!od->ccon_stderr_io)
+	return 0;
+
+    rv = gensio_close(od->ccon_stderr_io, ccon_stderr_closed, od);
+    assert(!debug || !rv || rv == GE_REMCLOSE);
+    if (rv && !err) {
+	od->stderr_closed = true;
+	err = rv;
+	goto out_err;
+    }
+    od_ref(od); /* Ref for the close */
+    while (od->ccon_stderr_io) {
+	pthread_mutex_unlock(&od->lock);
+	rv = o->wait_intr_sigmask(od->waiter, 1, timeout, &waitsigs);
+	pthread_mutex_lock(&od->lock);
+	if (rv == GE_TIMEDOUT && debug) {
+	    printf("Waiting on timeout err G\n");
+	    assert(0);
+	}
+	if (rv == GE_INTERRUPTED)
+	    continue;
+	if (rv) {
+	    if (!err)
+		err = rv;
+	    break;
+	}
+    }
+ out_err:
+    return err;
 }
 
 static int
 run_oom_test(struct oom_tests *test, long count, int *exitcode, bool close_acc)
 {
-    struct oom_test_data od;
+    struct oom_test_data *od;
     int rv, err = 0;
     char intstr[30], *constr;
     gensiods size;
     struct timeval timeout = { 5, 0 };
 
-    memset(&od, 0, sizeof(od));
-    od.waiter = o->alloc_waiter(o);
-    if (!od.waiter)
+    od = alloc_od(test);
+    if (!od)
 	return GE_NOMEM;
-    od.ccon.od = &od;
-    od.scon.od = &od;
-    od.ccon.iostr = test->connecter;
-    od.scon.iostr = test->accepter;
-    pthread_mutex_init(&od.lock, NULL);
 
+    pthread_mutex_lock(&od->lock);
     if (count < 0) {
 	rv = unsetenv("GENSIO_OOM_TEST");
     } else {
@@ -601,32 +749,33 @@ run_oom_test(struct oom_tests *test, long count, int *exitcode, bool close_acc)
     }
     if (rv) {
 	fprintf(stderr, "Unable to set environment properly\n");
+	od_deref_and_unlock(od);
 	return gensio_os_err_to_err(o, errno);
     }
 
     if (test->accepter) {
-	rv = str_to_gensio_accepter(test->accepter, o, acc_cb, &od, &od.acc);
+	rv = str_to_gensio_accepter(test->accepter, o, acc_cb, od, &od->acc);
 	assert(!debug || !rv);
 	if (rv)
 	    goto out_err;
 
-	rv = gensio_acc_startup(od.acc);
+	rv = gensio_acc_startup(od->acc);
 	assert(!debug || !rv);
 	if (rv)
 	    goto out_err;
 
 	size = sizeof(intstr);
 	strcpy(intstr, "0");
-	rv = gensio_acc_control(od.acc, GENSIO_CONTROL_DEPTH_FIRST, true,
+	rv = gensio_acc_control(od->acc, GENSIO_CONTROL_DEPTH_FIRST, true,
 				GENSIO_ACC_CONTROL_LPORT, intstr, &size);
 	assert(!debug || !rv);
 	if (rv)
 	    goto out_err;
 
-	constr = alloc_sprintf("stdio, %s -i 'stdio(self)' '%s%s'",
+	constr = alloc_sprintf(o, "stdio, %s -i 'stdio(self)' '%s%s'",
 			       gensiot, test->connecter, intstr);
     } else {
-	constr = alloc_sprintf("stdio, %s -i 'stdio(self)' '%s'",
+	constr = alloc_sprintf(o, "stdio, %s -i 'stdio(self)' '%s'",
 			       gensiot, test->connecter);
     }
     if (!constr) {
@@ -634,53 +783,22 @@ run_oom_test(struct oom_tests *test, long count, int *exitcode, bool close_acc)
 	goto out_err;
     }
 
-    rv = str_to_gensio(constr, o, con_cb, &od.ccon, &od.ccon.io);
+    rv = str_to_gensio(constr, o, con_cb, &od->ccon, &od->ccon.io);
     assert(!debug || !rv);
-    free(constr);
+    o->free(o, constr);
     if (rv)
 	goto out_err;
 
-    rv = gensio_open(od.ccon.io, ccon_open_done, &od);
+    rv = gensio_open(od->ccon.io, ccon_open_done, od);
     assert(!debug || !rv);
     if (rv)
 	goto out_err;
+    od_ref(od); /* Ref for the open */
 
-    pthread_mutex_lock(&od.lock);
-    for (;;) {
-	pthread_mutex_unlock(&od.lock);
-	rv = o->wait_intr_sigmask(od.waiter, 1, &timeout, &waitsigs);
-	pthread_mutex_lock(&od.lock);
-	if (debug && (rv == GE_TIMEDOUT || od.scon.err == OOME_READ_OVERFLOW ||
-		      od.ccon.err == OOME_READ_OVERFLOW)) {
-	    printf("Waiting on err A\n");
-	    assert(0);
-	}
-	if (rv == GE_INTERRUPTED)
-	    continue;
-	if (rv) {
-	    err = rv;
-	    break;
-	}
-	if (od.ccon.err) {
-	    err = od.ccon.err;
-	    break;
-	}
-	if (od.scon.err) {
-	    err = od.scon.err;
-	    break;
-	}
-	if (od.ccon.write_pos >= iodata_size &&
-		od.ccon.read_pos >= iodata_size &&
-		(!od.scon.io ||
-		 (od.scon.write_pos >= iodata_size &&
-		  od.scon.read_pos >= iodata_size))) {
-	    break;
-	}
-    }
-    pthread_mutex_unlock(&od.lock);
+    err = wait_for_data(od, &timeout);
 
-    if (od.acc) {
-	rv = gensio_acc_shutdown(od.acc, acc_closed, &od);
+    if (od->acc) {
+	rv = gensio_acc_shutdown(od->acc, acc_closed, od);
 	assert(!debug || !rv || rv == GE_REMCLOSE);
 	if (rv) {
 	    printf("Unable to shutdown accepter: %s\n",
@@ -688,11 +806,11 @@ run_oom_test(struct oom_tests *test, long count, int *exitcode, bool close_acc)
 	    if (!err)
 		err = rv;
 	} else {
-	    pthread_mutex_lock(&od.lock);
-	    while (od.acc) {
-		pthread_mutex_unlock(&od.lock);
-		rv = o->wait_intr_sigmask(od.waiter, 1, &timeout, &waitsigs);
-		pthread_mutex_lock(&od.lock);
+	    od_ref(od); /* Ref for the close */
+	    while (od->acc) {
+		pthread_mutex_unlock(&od->lock);
+		rv = o->wait_intr_sigmask(od->waiter, 1, &timeout, &waitsigs);
+		pthread_mutex_lock(&od->lock);
 		if (rv == GE_TIMEDOUT && debug) {
 		    printf("Waiting on timeout err C\n");
 		    assert(0);
@@ -705,116 +823,49 @@ run_oom_test(struct oom_tests *test, long count, int *exitcode, bool close_acc)
 		    break;
 		}
 	    }
-	    pthread_mutex_unlock(&od.lock);
 	}
     }
 
-    od.stderr_expect_close = true;
+    od->stderr_expect_close = true;
 
-    if (close_acc && od.scon.io) {
-	od.ccon.expect_close = true;
-	rv = close_con(&od.scon, &timeout);
-	if (rv) {
-	    if (!err)
-		err = rv;
-	}
-	rv = close_con(&od.ccon, &timeout);
-	if (rv) {
-	    if (!err)
-		err = rv;
-	}
-    } else {
-	od.scon.expect_close = true;
-	rv = close_con(&od.ccon, &timeout);
-	if (rv) {
-	    if (!err)
-		err = rv;
-	}
-	rv = close_con(&od.scon, &timeout);
-	if (rv) {
-	    if (!err)
-		err = rv;
-	}
-    }
+    rv = close_cons(od, close_acc, &timeout);
+    if (rv && !err)
+	err = rv;
 
-    if (od.ccon_stderr_io) {
-	rv = gensio_close(od.ccon_stderr_io, ccon_stderr_closed, &od);
-	assert(!debug || !rv || rv == GE_REMCLOSE);
-	if (rv) {
-	    gensio_free(od.ccon_stderr_io);
-	    if (!err)
-		err = rv;
-	}
-	pthread_mutex_lock(&od.lock);
-	while (od.ccon_stderr_io) {
-	    pthread_mutex_unlock(&od.lock);
-	    rv = o->wait_intr_sigmask(od.waiter, 1, &timeout, &waitsigs);
-	    pthread_mutex_lock(&od.lock);
-	    if (rv == GE_TIMEDOUT && debug) {
-		printf("Waiting on timeout err D\n");
-		assert(0);
-	    }
-	    if (rv == GE_INTERRUPTED)
-		continue;
-	    if (rv) {
-		if (!err)
-		    err = rv;
-		break;
-	    }
-	}
-	pthread_mutex_unlock(&od.lock);
-    }
+    rv = close_stderr(od, &timeout);
+    if (rv && !err)
+	err = rv;
 
-    if (od.ccon_exit_code_set)
-	*exitcode = od.ccon_exit_code;
+    if (od->ccon_exit_code_set)
+	*exitcode = od->ccon_exit_code;
     else if (!err)
 	err = OOME_CLIENT_DIDNT_TERMINATE;
 
-    if (od.ccon.io)
-	gensio_free(od.ccon.io);
-    if (od.scon.io)
-	gensio_free(od.scon.io);
-    if (od.ccon_stderr_io)
-	gensio_free(od.ccon_stderr_io);
-    o->free_waiter(od.waiter);
-    pthread_mutex_destroy(&od.lock);
-
-    if (od.ccon_stderr_pos && verbose) {
-	od.ccon_stderr[od.ccon_stderr_pos] = '\0';
-	printf("ERR out: %s", od.ccon_stderr);
+ out_err:
+    if (od->ccon_stderr_pos && verbose) {
+	od->ccon_stderr[od->ccon_stderr_pos] = '\0';
+	printf("ERR out: %s", od->ccon_stderr);
     }
 
-    return err;
+    od_deref_and_unlock(od);
 
- out_err:
-    if (od.ccon.io)
-	gensio_free(od.ccon.io);
-    if (od.acc)
-	gensio_acc_free(od.acc);
-    o->free_waiter(od.waiter);
-    pthread_mutex_destroy(&od.lock);
-    return rv;
+    return err;
 }
 
 static int
 run_oom_acc_test(struct oom_tests *test, long count, int *exitcode,
 		 bool close_acc)
 {
-    struct oom_test_data od;
+    struct oom_test_data *od;
     int rv, err = 0;
     char intstr[30], *constr, *locstr;
     struct timeval timeout = { 5, 0 };
 
-    memset(&od, 0, sizeof(od));
-    od.waiter = o->alloc_waiter(o);
-    if (!od.waiter)
+    od = alloc_od(test);
+    if (!od)
 	return GE_NOMEM;
-    od.ccon.od = &od;
-    od.scon.od = &od;
-    od.ccon.iostr = test->connecter;
-    od.scon.iostr = test->accepter;
-    pthread_mutex_init(&od.lock, NULL);
 
+    pthread_mutex_lock(&od->lock);
     if (count < 0) {
 	rv = unsetenv("GENSIO_OOM_TEST");
     } else {
@@ -823,30 +874,34 @@ run_oom_acc_test(struct oom_tests *test, long count, int *exitcode,
     }
     if (rv) {
 	fprintf(stderr, "Unable to set environment properly\n");
+	od_deref_and_unlock(od);
 	return gensio_os_err_to_err(o, errno);
     }
 
-    constr = alloc_sprintf("stdio, %s -v -a -p -i 'stdio(self)' '%s'",
+    constr = alloc_sprintf(o, "stdio, %s -v -a -p -i 'stdio(self)' '%s'",
 			   gensiot, test->accepter);
     if (!constr) {
 	err = GE_NOMEM;
 	goto out_err;
     }
 
-    err = str_to_gensio(constr, o, con_cb, &od.ccon, &od.ccon.io);
+    err = str_to_gensio(constr, o, con_cb, &od->ccon, &od->ccon.io);
     assert(!debug || !err);
-    free(constr);
+    o->free(o, constr);
     if (err)
 	goto out_err;
 
-    od.look_for_port = true;
-    err = gensio_open(od.ccon.io, ccon_open_done, &od);
+    od->look_for_port = true;
+    err = gensio_open(od->ccon.io, ccon_open_done, od);
     assert(!debug || !err);
     if (err)
 	goto out_err;
+    od_ref(od); /* Ref for the open */
 
     for (;;) {
-	rv = o->wait_intr_sigmask(od.waiter, 1, &timeout, &waitsigs);
+	pthread_mutex_unlock(&od->lock);
+	rv = o->wait_intr_sigmask(od->waiter, 1, &timeout, &waitsigs);
+	pthread_mutex_lock(&od->lock);
 	if (debug && rv == GE_TIMEDOUT) {
 	    printf("Waiting on err E\n");
 	    assert(0);
@@ -857,154 +912,69 @@ run_oom_acc_test(struct oom_tests *test, long count, int *exitcode,
 	    err = rv;
 	    goto out_err;
 	}
-	if (od.invalid_port_data) {
+	if (od->invalid_port_data) {
 	    /* Got out of memory before port, just handle it. */
 	    goto finish_run;
 	}
-	if (od.ccon.err) {
-	    err = od.ccon.err;
+	if (od->ccon.err) {
+	    err = od->ccon.err;
 	    goto finish_run;
 	}
-	if (od.scon.err) {
-	    err = od.scon.err;
+	if (od->scon.err) {
+	    err = od->scon.err;
 	    goto finish_run;
 	}
-	if (!od.look_for_port)
+	if (!od->look_for_port)
 	    break;
     }
-    if (!od.port) {
+    if (!od->port) {
 	err = OOME_NO_PORT;
 	goto out_err;
     }
 
-    locstr = alloc_sprintf("%s%d", test->connecter, od.port);
+    locstr = alloc_sprintf(o, "%s%d", test->connecter, od->port);
     if (!locstr) {
 	err = GE_NOMEM;
 	goto out_err;
     }
 
-    err = str_to_gensio(locstr, o, con_cb, &od.scon, &od.scon.io);
+    err = str_to_gensio(locstr, o, con_cb, &od->scon, &od->scon.io);
     assert(!debug || !err);
-    free(locstr);
+    o->free(o, locstr);
     if (err)
 	goto out_err;
 
-    err = gensio_open(od.scon.io, scon_open_done, &od);
+    err = gensio_open(od->scon.io, scon_open_done, od);
     assert(!debug || !err);
     if (err)
 	goto out_err;
+    od_ref(od); /* Ref for the open */
 
-    pthread_mutex_lock(&od.lock);
-    for (;;) {
-	pthread_mutex_unlock(&od.lock);
-	rv = o->wait_intr_sigmask(od.waiter, 1, &timeout, &waitsigs);
-	pthread_mutex_lock(&od.lock);
-	if (debug && (rv == GE_TIMEDOUT || od.scon.err == OOME_READ_OVERFLOW ||
-		      od.ccon.err == OOME_READ_OVERFLOW)) {
-	    printf("Waiting on err F\n");
-	    assert(0);
-	}
-	if (rv == GE_INTERRUPTED)
-	    continue;
-	if (rv) {
-	    err = rv;
-	    break;
-	}
-	if (od.ccon.err) {
-	    err = od.ccon.err;
-	    break;
-	}
-	if (od.scon.err) {
-	    err = od.scon.err;
-	    break;
-	}
-	if (od.ccon.write_pos >= iodata_size &&
-		od.ccon.read_pos >= iodata_size &&
-		(!od.scon.io ||
-		 (od.scon.write_pos >= iodata_size &&
-		  od.scon.read_pos >= iodata_size))) {
-	    break;
-	}
-    }
-    pthread_mutex_unlock(&od.lock);
+    err = wait_for_data(od, &timeout);
 
  finish_run:
-    od.stderr_expect_close = true;
+    od->stderr_expect_close = true;
 
-    if (!close_acc && od.scon.io) {
-	od.ccon.expect_close = true;
-	rv = close_con(&od.scon, &timeout);
-	if (rv) {
-	    if (!err)
-		err = rv;
-	}
-	rv = close_con(&od.ccon, &timeout);
-	if (rv) {
-	    if (!err)
-		err = rv;
-	}
-    } else {
-	od.scon.expect_close = true;
-	rv = close_con(&od.ccon, &timeout);
-	if (rv) {
-	    if (!err)
-		err = rv;
-	}
-	rv = close_con(&od.scon, &timeout);
-	if (rv) {
-	    if (!err)
-		err = rv;
-	}
-    }
+    rv = close_cons(od, close_acc, &timeout);
+    if (rv && !err)
+	err = rv;
 
-    if (od.ccon_stderr_io) {
-	rv = gensio_close(od.ccon_stderr_io, ccon_stderr_closed, &od);
-	assert(!debug || !rv || rv == GE_REMCLOSE);
-	if (rv) {
-	    gensio_free(od.ccon_stderr_io);
-	    if (!err)
-		err = rv;
-	    goto out_err;
-	}
-	pthread_mutex_lock(&od.lock);
-	while (od.ccon_stderr_io) {
-	    pthread_mutex_unlock(&od.lock);
-	    rv = o->wait_intr_sigmask(od.waiter, 1, &timeout, &waitsigs);
-	    pthread_mutex_lock(&od.lock);
-	    if (rv == GE_TIMEDOUT && debug) {
-		printf("Waiting on timeout err G\n");
-		assert(0);
-	    }
-	    if (rv == GE_INTERRUPTED)
-		continue;
-	    if (rv) {
-		if (!err)
-		    err = rv;
-		break;
-	    }
-	}
-	pthread_mutex_unlock(&od.lock);
-    }
+    rv = close_stderr(od, &timeout);
+    if (rv && !err)
+	err = rv;
 
-    if (od.ccon_exit_code_set)
-	*exitcode = od.ccon_exit_code;
+    if (od->ccon_exit_code_set)
+	*exitcode = od->ccon_exit_code;
     else if (!err)
 	err = OOME_CLIENT_DIDNT_TERMINATE;
 
  out_err:
-    if (od.ccon.io)
-	gensio_free(od.ccon.io);
-    if (od.scon.io)
-	gensio_free(od.scon.io);
-    if (od.ccon_stderr_io)
-	gensio_free(od.ccon_stderr_io);
-    o->free_waiter(od.waiter);
-    pthread_mutex_destroy(&od.lock);
-
-    if (od.ccon_stderr_pos && verbose) {
-	od.ccon_stderr[od.ccon_stderr_pos] = '\0';
-	printf("ERR out: %s", od.ccon_stderr);
+    if (od->ccon_stderr_pos && verbose) {
+	od->ccon_stderr[od->ccon_stderr_pos] = '\0';
+	printf("ERR out: %s", od->ccon_stderr);
     }
+
+    od_deref_and_unlock(od);
 
     return err;
 }
