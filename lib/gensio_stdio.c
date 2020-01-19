@@ -94,6 +94,7 @@ struct stdiona_data {
     struct gensio_os_funcs *o;
 
     bool stderr_to_stdout;
+    bool noredir_stderr;
 
     unsigned int refcount;
 
@@ -599,6 +600,8 @@ setup_child_proc(struct stdiona_data *nadata)
 	nadata->err.outfd = stdoutpipe[0];
 	stderrpipe[0] = stdoutpipe[0];
 	stderrpipe[1] = stdoutpipe[1];
+    } else if (nadata->noredir_stderr) {
+	nadata->err.outfd = -1;
     } else {
 	err = pipe(stderrpipe);
 	if (err) {
@@ -622,7 +625,8 @@ setup_child_proc(struct stdiona_data *nadata)
 
 	dup2(stdinpipe[0], 0);
 	dup2(stdoutpipe[1], 1);
-	dup2(stderrpipe[1], 2);
+	if (!nadata->noredir_stderr)
+	    dup2(stderrpipe[1], 2);
 
 	/* Close everything but stdio. */
 	for (i = 3; i < openfiles; i++)
@@ -754,7 +758,7 @@ stdion_alloc_channel(struct gensio *io, const char * const args[],
     unsigned int i;
     gensiods max_read_size = nadata->io.max_read_size;
 
-    if (nadata->stderr_to_stdout)
+    if (nadata->stderr_to_stdout || nadata->noredir_stderr)
 	return GE_INVAL;
 
     for (i = 0; args && args[i]; i++) {
@@ -1088,6 +1092,7 @@ stdio_gensio_alloc(const char * const argv[], const char * const args[],
     gensiods max_read_size = GENSIO_DEFAULT_BUF_SIZE;
     bool self = false;
     bool stderr_to_stdout = false;
+    bool noredir_stderr = false;
     const char *tracewrite = NULL;
 
     for (i = 0; args && args[i]; i++) {
@@ -1097,6 +1102,9 @@ stdio_gensio_alloc(const char * const argv[], const char * const args[],
 	    continue;
 	if (gensio_check_keybool(args[i], "stderr-to-stdout",
 				 &stderr_to_stdout) > 0)
+	    continue;
+	if (gensio_check_keybool(args[i], "noredir-stderr",
+				 &noredir_stderr) > 0)
 	    continue;
 	if (gensio_check_keyvalue(args[i], "tracewrite",
 				  &tracewrite) > 0)
@@ -1109,6 +1117,7 @@ stdio_gensio_alloc(const char * const argv[], const char * const args[],
 	return err;
 
     nadata->stderr_to_stdout = stderr_to_stdout;
+    nadata->noredir_stderr = noredir_stderr;
 
     if (tracewrite) {
 	int rv = open(tracewrite, O_WRONLY | O_CREAT | O_TRUNC, 0600);
