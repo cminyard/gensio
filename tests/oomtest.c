@@ -1043,7 +1043,8 @@ run_oom_tests(struct oom_tests *test, char *tstr,
 		if (!verbose)
 		    print_test(test, tstr, close_acc, count);
 		fprintf(stderr,
-		    "  ***Error with no memory allocation failure.\n");
+			"  ***Error with no memory allocation failure: %d.\n",
+			exit_code);
 		/* Leave it 0 to terminate the loop, testing is pointless. */
 	    } else {
 		exit_code = 1;
@@ -1217,7 +1218,7 @@ main(int argc, char *argv[])
     } else {
 	    errcount += run_oom_tests(oom_tests + testnr, "oom", run_oom_test,
 				      testnrstart, testnrend);
-	    if (oom_tests[i].accepter)
+	    if (oom_tests[testnr].accepter)
 		errcount += run_oom_tests(oom_tests + testnr, "oom acc",
 					  run_oom_acc_test,
 					  testnrstart, testnrend);
