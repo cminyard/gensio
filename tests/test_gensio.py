@@ -952,7 +952,7 @@ def test_mux_limits():
             "Timeout waiting for client open finish")
     if (handlemuxacc.wait(timeout = 2000) == 0):
         raise utils.HandlerException(
-            "Timeout waiting for client open finish")
+            "Timeout waiting for server open finish")
 
     print("Trying an open that should fail")
     try:
