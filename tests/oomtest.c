@@ -235,6 +235,7 @@ ccon_stderr_closed(struct gensio *io, void *close_data)
     char intstr[10];
     gensiods size = sizeof(intstr);
 
+    od->stderr_closed = true;
     rv = gensio_control(io, GENSIO_CONTROL_DEPTH_FIRST, true,
 			GENSIO_CONTROL_EXIT_CODE, intstr, &size);
     assert(!debug || !rv);
@@ -377,13 +378,14 @@ acc_cb(struct gensio_accepter *accepter,
     struct oom_test_data *od = user_data;
     int rv = 0;
 
-    pthread_mutex_lock(&od->lock);
     switch(event) {
     case GENSIO_ACC_EVENT_NEW_CONNECTION:
+	pthread_mutex_lock(&od->lock);
 	od->scon.io = data;
 	gensio_set_callback(od->scon.io, con_cb, &od->scon);
 	gensio_set_read_callback_enable(od->scon.io, true);
 	gensio_set_write_callback_enable(od->scon.io, true);
+	pthread_mutex_unlock(&od->lock);
 	break;
 
     case GENSIO_ACC_EVENT_LOG:
@@ -394,7 +396,6 @@ acc_cb(struct gensio_accepter *accepter,
     default:
 	rv = GE_NOTSUP;
     }
-    pthread_mutex_unlock(&od->lock);
     return rv;
 }
 
