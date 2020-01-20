@@ -278,7 +278,6 @@ struct certauth_filter {
     struct gensio_filter *filter;
     struct gensio_os_funcs *o;
     bool is_client;
-    bool connected;
     enum certauth_state state;
     struct gensio_lock *lock;
 
