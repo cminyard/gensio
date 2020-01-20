@@ -848,6 +848,7 @@ run_oom_test(struct oom_tests *test, long count, int *exitcode, bool close_acc)
 	printf("ERR out: %s", od->ccon_stderr);
     }
 
+    assert(od->refcount == 1); /* No callbacks should be pending. */
     od_deref_and_unlock(od);
 
     return err;
@@ -975,6 +976,7 @@ run_oom_acc_test(struct oom_tests *test, long count, int *exitcode,
 	printf("ERR out: %s", od->ccon_stderr);
     }
 
+    assert(od->refcount == 1); /* No callbacks should be pending. */
     od_deref_and_unlock(od);
 
     return err;
