@@ -847,7 +847,9 @@ basen_filter_try_connect_finish(struct basen_data *ndata)
     err = basen_filter_try_connect(ndata);
     if (!err) {
 	i_basen_add_trace(ndata, 100, __LINE__);
-	basen_finish_open(ndata, 0);
+	basen_set_state(ndata, BASEN_OPEN);
+	ndata->deferred_open = true;
+	basen_sched_deferred_op(ndata);
     } else if (err != GE_INPROGRESS)
 	handle_ioerr(ndata, err);
 }
