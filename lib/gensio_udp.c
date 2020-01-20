@@ -552,7 +552,7 @@ udpn_deferred_op(struct gensio_runner *runner, void *cbdata)
     struct udpn_data *ndata = cbdata;
     struct udpna_data *nadata = ndata->nadata;
 
-    udpna_lock_and_ref(nadata);
+    udpna_lock(nadata);
     ndata->deferred_op_pending = false;
     if (ndata->state == UDPN_IN_OPEN) {
 	ndata->state = UDPN_OPEN;
@@ -576,6 +576,7 @@ udpn_deferred_op(struct gensio_runner *runner, void *cbdata)
 static void udpn_start_deferred_op(struct udpn_data *ndata)
 {
     if (!ndata->deferred_op_pending) {
+	udpna_ref(ndata->nadata);
 	ndata->deferred_op_pending = true;
 	ndata->o->run(ndata->deferred_op_runner);
     }
