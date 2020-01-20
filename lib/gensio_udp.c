@@ -204,7 +204,6 @@ i_udpna_locktrace_add(struct udpna_data *nadata, bool locked, unsigned int line)
 #define udpna_unlock i_udpna_unlock
 #endif
 
-static void udpna_deferred_op(struct gensio_runner *runner, void *cbdata);
 static void udpna_ref(struct udpna_data *nadata);
 
 static void udpna_start_deferred_op(struct udpna_data *nadata)
@@ -524,7 +523,7 @@ udpna_deferred_op(struct gensio_runner *runner, void *cbdata)
     struct udpna_data *nadata = cbdata;
 
     udpna_lock(nadata);
-
+    nadata->deferred_op_pending = false;
     while (nadata->pending_data_owner &&
 			nadata->pending_data_owner->read_enabled)
 	udpn_finish_read(nadata->pending_data_owner);
@@ -1025,8 +1024,12 @@ udpna_readhandler(int fd, void *cbdata)
     if (nadata->in_shutdown) {
 	struct gensio_accepter *accepter = nadata->acc;
 
+	ndata->in_read = true;
+	udpna_unlock(nadata);
 	if (nadata->shutdown_done)
 	    nadata->shutdown_done(accepter, nadata->shutdown_data);
+	udpna_lock(nadata);
+	ndata->in_read = false;
 	nadata->in_shutdown = false;
     }
     udpna_check_finish_free(nadata);
