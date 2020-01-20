@@ -903,7 +903,7 @@ full_msg_ready(struct mux_inst *chan, gensiods *rlen)
 /*
  * Must be called with an extra refcount held.
  */
-static bool
+static void
 chan_check_read(struct mux_inst *chan)
 {
     struct mux_data *muxdata = chan->mux;
@@ -988,8 +988,6 @@ chan_check_read(struct mux_inst *chan)
 	    chan->received_unacked += 3;
 	}
     }
-
-    return fullmsg;
 }
 
 static void
@@ -1171,7 +1169,10 @@ chan_send_close(struct mux_inst *chan)
     chan->hdr[0] = (MUX_CLOSE_CHANNEL << 4) | 0x2;
     chan->hdr[1] = 0;
     gensio_u16_to_buf(&chan->hdr[2], chan->remote_id);
-    gensio_u16_to_buf(&chan->hdr[4], chan->errcode);
+    if (chan->errcode == GE_REMCLOSE)
+	gensio_u16_to_buf(&chan->hdr[4], 0);
+    else
+	gensio_u16_to_buf(&chan->hdr[4], chan->errcode);
     gensio_u16_to_buf(&chan->hdr[6], 0);
     chan->sg[0].buf = chan->hdr;
     chan->sg[0].buflen = 8;
@@ -1395,7 +1396,6 @@ muxc_alloc_channel_data(struct mux_data *muxdata,
     struct mux_inst *chan = NULL;
     int err = 0;
 
-    mux_lock(muxdata);
     err = mux_new_channel(muxdata, cb, user_data, data->is_client, &chan);
     if (err)
 	goto out_err;
@@ -1415,14 +1415,11 @@ muxc_alloc_channel_data(struct mux_data *muxdata,
 
     muxc_set_state(chan, MUX_INST_CLOSED);
 
-    mux_unlock(muxdata);
-
     if (new_io)
 	*new_io = chan->io;
     return 0;
 
  out_err:
-    mux_unlock(muxdata);
     if (chan)
 	chan_deref(chan);
     return err;
@@ -2012,13 +2009,11 @@ mux_child_write_ready(struct mux_data *muxdata)
 		/* More messages to send, add it to the tail for fairness. */
 		gensio_list_add_tail(&muxdata->wrchans, &chan->wrlink);
 		chan->in_wrlist = true;
-	    } else if (chan->state == MUX_INST_IN_CLOSE_FINAL &&
-		       !full_msg_ready(chan, NULL)) {
-		/* Run the close in the deferred op handling. */
-		chan_sched_deferred_op(chan);
 	    } else {
 		chan->wr_ready = false;
-		if (chan->state == MUX_INST_IN_CLOSE_FINAL)
+		if (chan->state == MUX_INST_IN_CLOSE_FINAL &&
+		       !full_msg_ready(chan, NULL))
+		    /* Run the close in the deferred op handling. */
 		    chan_sched_deferred_op(chan);
 	    }
 	} else {
