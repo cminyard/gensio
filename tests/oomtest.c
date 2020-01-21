@@ -644,6 +644,22 @@ close_con(struct io_test_data *id, struct timeval *timeout)
     assert(!debug || !rv || rv == GE_REMCLOSE || rv == GE_NOTREADY);
     if (rv) {
 	id->closed = true;
+	/* Make sure the open completes. */
+	while (!id->open_done) {
+	    pthread_mutex_unlock(&od->lock);
+	    rv = o->wait_intr_sigmask(id->od->waiter, 1, timeout, &waitsigs);
+	    pthread_mutex_lock(&od->lock);
+	    if (rv == GE_TIMEDOUT && debug) {
+		printf("Waiting on timeout err B\n");
+		assert(0);
+	    }
+	    if (rv == GE_INTERRUPTED) {
+		rv = 0;
+		continue;
+	    }
+	    if (rv)
+		break;
+	}
 	goto out;
     }
     od_ref(od); /* Ref for the close */
