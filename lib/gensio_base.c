@@ -1299,8 +1299,7 @@ basen_ll_read(void *cb_data, int readerr,
 	goto out_unlock;
 
     while (buflen > 0 &&
-	   (ndata->read_enabled || filter_ul_read_pending(ndata) ||
-	    filter_ll_read_needed(ndata))) {
+	   (ndata->read_enabled || filter_ll_read_needed(ndata))) {
 	ndata->in_read = true;
 	do {
 	    gensiods wrlen = 0;
