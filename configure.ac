@@ -82,7 +82,14 @@ if test "x$HAVE_OPENIPMI" != "xno"; then
    AC_DEFINE([HAVE_OPENIPMI], [], [Have IPMI support through OpenIPMI])
 fi
 
-AX_CHECK_OPENSSL([AC_DEFINE([HAVE_OPENSSL], [], [Have SSL support through OpenSSL])])
+AC_ARG_ENABLE(openssl,
+[  --enable-openssl[[=yes|no]]       Enable or disable openssl.],
+[enable_openssl=$enableval], [enable_openssl=yes]
+)
+
+if test "x$enable_openssl" = "xyes"; then
+    AX_CHECK_OPENSSL([AC_DEFINE([HAVE_OPENSSL], [], [Have SSL support through OpenSSL])])
+fi
 
 tryswig=yes
 swigprog=
