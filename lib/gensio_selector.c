@@ -29,7 +29,7 @@
 #define pthread_mutex_lock(l) do { } while (0)
 #define pthread_mutex_unlock(l) do { } while (0)
 #define pthread_mutex_init(l, n) do { } while (0)
-#define pthread_mutex_destroy(l, n) do { } while (0)
+#define pthread_mutex_destroy(l) do { } while (0)
 #define PTHREAD_MUTEX_INITIALIZER 0
 #endif
 
