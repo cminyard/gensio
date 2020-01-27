@@ -555,7 +555,7 @@ static int gensio_telnet_filter_func(struct gensio_filter *filter, int op,
 	return telnet_try_disconnect(filter, data);
 
     case GENSIO_FILTER_FUNC_UL_WRITE_SG:
-	return telnet_ul_write(filter, func, data, count, cbuf, buflen, buf);
+	return telnet_ul_write(filter, func, data, count, cbuf, buflen, auxdata);
 
     case GENSIO_FILTER_FUNC_LL_WRITE:
 	return telnet_ll_write(filter, func, data, count, buf, buflen, auxdata);
