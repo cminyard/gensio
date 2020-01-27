@@ -919,10 +919,10 @@ struct waiter { };
 	    goto out_err;
 	}
 	rv = gensio_acc_accept_s(self, &tv, io);
-	if (rv == GE_TIMEDOUT)
-	    return;
 	if (rv) {
 	    free_gensio_data(data);
+	    if (rv == GE_TIMEDOUT)
+		return;
 	    goto out_err;
 	}
 
