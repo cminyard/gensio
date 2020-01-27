@@ -112,7 +112,7 @@ struct gensio {
 
     struct gensio_sync_io *sync_io;
 
-    struct gensio_link pending_link;
+    struct gensio_link link;
 };
 
 struct gensio *
@@ -227,6 +227,7 @@ struct gensio_accepter {
 
     void *user_data;
     gensio_accepter_event cb;
+    struct gensio_lock *lock;
 
     struct gensio_classobj *classes;
 
@@ -241,8 +242,19 @@ struct gensio_accepter {
     bool is_packet;
     bool is_reliable;
     bool is_message;
+    bool sync;
+    bool enabled;
 
     struct gensio_list pending_ios;
+
+    struct gensio_list waiting_ios;
+    struct gensio_list waiting_accepts;
+};
+
+struct gensio_waiting_accept {
+    bool queued;
+    struct gensio_waiter *waiter;
+    struct gensio_link link;
 };
 
 struct gensio_accepter *
@@ -256,6 +268,11 @@ gensio_acc_data_alloc(struct gensio_os_funcs *o,
     if (!acc)
 	return NULL;
 
+    acc->lock = o->alloc_lock(o);
+    if (!acc->lock) {
+	o->free(o, acc);
+	return NULL;
+    }
     acc->o = o;
     acc->cb = cb;
     acc->user_data = user_data;
@@ -264,6 +281,8 @@ gensio_acc_data_alloc(struct gensio_os_funcs *o,
     acc->child = child;
     acc->gensio_acc_data = gensio_acc_data;
     gensio_list_init(&acc->pending_ios);
+    gensio_list_init(&acc->waiting_ios);
+    gensio_list_init(&acc->waiting_accepts);
 
     return acc;
 }
@@ -289,6 +308,32 @@ gensio_acc_get_gensio_data(struct gensio_accepter *acc)
 int
 gensio_acc_cb(struct gensio_accepter *acc, int event, void *data)
 {
+    if (event == GENSIO_ACC_EVENT_NEW_CONNECTION && acc->sync) {
+	struct gensio *io = data;
+
+	acc->o->lock(acc->lock);
+	if (!acc->enabled) {
+	    gensio_free(io);
+	} else {
+	    gensio_list_add_tail(&acc->waiting_ios, &io->link);
+	    if (!gensio_list_empty(&acc->waiting_accepts)) {
+		struct gensio_link *l =
+		    gensio_list_first(&acc->waiting_accepts);
+		struct gensio_waiting_accept *wa =
+		    gensio_container_of(l,
+					struct gensio_waiting_accept,
+					link);
+
+		wa->queued = false;
+		gensio_list_rm(&acc->waiting_accepts, &wa->link);
+		acc->o->wake(wa->waiter);
+	    }
+	}
+	acc->o->unlock(acc->lock);
+	return 0;
+    }
+    if (!acc->cb)
+	return ENOTSUP;
     return acc->cb(acc, acc->user_data, event, data);
 }
 
@@ -323,14 +368,14 @@ void
 gensio_acc_add_pending_gensio(struct gensio_accepter *acc,
 			      struct gensio *io)
 {
-    gensio_list_add_tail(&acc->pending_ios, &io->pending_link);
+    gensio_list_add_tail(&acc->pending_ios, &io->link);
 }
 
 void
 gensio_acc_remove_pending_gensio(struct gensio_accepter *acc,
 				 struct gensio *io)
 {
-    gensio_list_rm(&acc->pending_ios, &io->pending_link);
+    gensio_list_rm(&acc->pending_ios, &io->link);
 }
 
 int
@@ -1126,6 +1171,7 @@ gensio_acc_set_callback(struct gensio_accepter *accepter,
 int
 gensio_acc_startup(struct gensio_accepter *accepter)
 {
+    accepter->enabled = true;
     return accepter->func(accepter, GENSIO_ACC_FUNC_STARTUP, 0,
 			  NULL, NULL, NULL, NULL, NULL);
 }
@@ -1134,6 +1180,28 @@ int
 gensio_acc_shutdown(struct gensio_accepter *accepter,
 		    gensio_acc_done shutdown_done, void *shutdown_data)
 {
+    struct gensio_link *l, *l2;
+
+    accepter->o->lock(accepter->lock);
+    accepter->enabled = false;
+    accepter->sync = false;
+    gensio_list_for_each_safe(&accepter->waiting_accepts, l, l2) {
+	struct gensio_waiting_accept *wa =
+	    gensio_container_of(l,
+				struct gensio_waiting_accept,
+				link);
+
+	wa->queued = false;
+	gensio_list_rm(&accepter->waiting_accepts, &wa->link);
+	accepter->o->wake(wa->waiter);
+    }
+    gensio_list_for_each_safe(&accepter->waiting_ios, l, l2) {
+	struct gensio *io = gensio_container_of(l, struct gensio, link);
+
+	gensio_list_rm(&accepter->waiting_ios, &io->link);
+	gensio_free(io);
+    }
+    accepter->o->unlock(accepter->lock);
     return accepter->func(accepter, GENSIO_ACC_FUNC_SHUTDOWN, 0,
 			  0, shutdown_done, shutdown_data, NULL, NULL);
 }
@@ -1169,13 +1237,21 @@ gensio_acc_disable(struct gensio_accepter *acc)
 {
     struct gensio_accepter *c = acc;
 
+    acc->enabled = false;
     while (c) {
 	struct gensio_link *l, *l2;
 
 	gensio_list_for_each_safe(&acc->pending_ios, l, l2) {
-	    struct gensio *io = gensio_container_of(l, struct gensio,
-						    pending_link);
+	    struct gensio *io = gensio_container_of(l, struct gensio, link);
+
 	    gensio_acc_remove_pending_gensio(acc, io);
+	    gensio_disable(io);
+	    gensio_free(io);
+	}
+	gensio_list_for_each_safe(&acc->waiting_ios, l, l2) {
+	    struct gensio *io = gensio_container_of(l, struct gensio, link);
+
+	    gensio_list_rm(&acc->waiting_ios, &io->link);
 	    gensio_disable(io);
 	    gensio_free(io);
 	}
@@ -3083,6 +3159,51 @@ gensio_write_s(struct gensio *io, gensiods *count,
  out_unlock:
     o->unlock(sync_io->lock);
     o->free_waiter(op.waiter);
+
+    return rv;
+}
+
+int
+gensio_acc_set_sync(struct gensio_accepter *acc)
+{
+    if (acc->enabled)
+	return GE_NOTREADY;
+    acc->sync = true;
+    return 0;
+}
+
+int
+gensio_acc_accept_s(struct gensio_accepter *acc, struct timeval *timeout,
+		    struct gensio **new_io)
+{
+    struct gensio_os_funcs *o = acc->o;
+    struct gensio_waiting_accept wa;
+    struct gensio_link *l;
+    int rv;
+
+    memset(&wa, 0, sizeof(wa));
+    wa.waiter = o->alloc_waiter(o);
+    if (!wa.waiter)
+	return GE_NOMEM;
+
+    wa.queued = true;
+    o->lock(acc->lock);
+    gensio_list_add_tail(&acc->waiting_accepts, &wa.link);
+    o->unlock(acc->lock);
+    o->wait_intr(wa.waiter, 1, timeout);
+    o->lock(acc->lock);
+    if (wa.queued) {
+	rv = GE_TIMEDOUT;
+	gensio_list_rm(&acc->waiting_accepts, &wa.link);
+    } else if (gensio_list_empty(&acc->waiting_ios)) {
+	rv = GE_LOCALCLOSED;
+    } else {
+	rv = 0;
+	l = gensio_list_first(&acc->waiting_ios);
+	gensio_list_rm(&acc->waiting_ios, l);
+	*new_io = gensio_container_of(l, struct gensio, link);
+    }
+    o->unlock(acc->lock);
 
     return rv;
 }

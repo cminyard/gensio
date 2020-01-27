@@ -441,6 +441,9 @@ parameter that is already open with read disabled.  A gensio received
 from a gensio acceptor may have some limitations.  For instance, you
 may not be able to close and then reopen it.
 
+gensio accepters can do synchronous accepts using ``gensio_acc_set_sync()``
+and ``gensio_acc_accept_s``.  See the man pages on those for details.
+
 Logging
 =======
 

@@ -1,0 +1,45 @@
+.TH gensio_acc_accept_s 3 "27 Jan 2020"
+.SH NAME
+gensio_acc_set_sync, gensio_acc_accept_s
+\- Synchronous I/O operations on a gensio accepter
+.SH SYNOPSIS
+.B #include <gensio/gensio.h>
+.TP 20
+.B int gensio_acc_set_sync(struct gensio_accepter *acc);
+.TP 20
+.B int gensio_acc_accept_s(struct gensio_accepter *acc,
+.br
+.B                         struct timeval *timeout,
+.br
+.B                         struct gensio **new_io);
+.SH "DESCRIPTION"
+Normal gensio accepter operation is asynchronous callback based.  This serves
+most programs fairly well, especially if they need to handle multiple accepts
+on the same or different accepters.
+
+But occasionally you need to do something synchronous with the program
+execution, especially if you have a simple program that just accepts
+one connection and then does something.
+
+.B gensio_acc set_sync
+sets up the gensio accepter for syncronous accepts.  If you do this,
+the event callback that is currently registered will no longer receive
+new connection events.  It *will* receive other callbacks.  You must
+call this before starting up the gensio accepter, and once you call it
+the gensio accepter is in sync mode until you shut it down.
+
+.B gensio_accept_s
+Waits for an incoming connection on the gensio accepter.
+This function waits for the amount of time in
+.I timeout.
+.I timeout
+is updated to the amount of time left to wait.  If
+.I timeout
+is NULL, wait forever.  If no error is returned, the new incoming
+connection is returned in
+.I new_io.
+
+.SH "RETURN VALUES"
+Zero is returned on success, or a gensio error on failure.
+.SH "SEE ALSO"
+gensio_err(3), gensio_set_sync(3), gensio(5)

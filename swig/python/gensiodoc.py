@@ -332,7 +332,7 @@ class OpenDone:
 
         """A template for a class handling the finish of an open."""
 
-    def open_done(io, err):
+    def open_done(self, io, err):
         """Called when the open operation completes.
 
         io -- The gensio that was opened.
@@ -343,7 +343,7 @@ class OpenDone:
 class CloseDone:
     """A template for a class handling the finish of an close."""
 
-    def close_done(io):
+    def close_done(self, io):
         """Called when the close operation completes.
 
         io -- The gensio that was closed.
@@ -361,7 +361,7 @@ class gensio:
         """
         return
 
-    def new_parent(o, gensiostr, handler):
+    def new_parent(self, o, gensiostr, handler):
         """Allocate a new gensio filter stacked on top of this gensio.
         This is the equivalent of str_to_gensio_child().
 
@@ -373,7 +373,7 @@ class gensio:
         """
         return gensio() 
     
-    def set_cbs(handler):
+    def set_cbs(self, handler):
         """Change the callback handler for the gensio.  This should
         only be done when all I/O is disabled.
 
@@ -381,7 +381,7 @@ class gensio:
         """
         return
 
-    def remote_id():
+    def remote_id(self):
         """Return the remote_id value for this gensio.  See the specific
         gensio for the meaning.
 
@@ -389,7 +389,7 @@ class gensio:
         """
         return
 
-    def open(done_handler):
+    def open(self, done_handler):
         """Start up operation on the gensio.  Calls done_handler.open_done
         when the open operation completes.
 
@@ -399,7 +399,7 @@ class gensio:
         """
         return
 
-    def open_nochild(done_handler):
+    def open_nochild(self, done_handler):
         """Start up operation on the gensio, assuming that the child gensio is
         already open.  Useful with the new_parent() method above.  Calls
         done_handler.open_done when the open operation completes.
@@ -410,21 +410,21 @@ class gensio:
         """
         return
 
-    def open_s():
+    def open_s(self):
         """Like open(), but waits for the open to complete and raises an
         exception on an error.  The wait operation is a normal waiter,
         so gensio is fully operational during the wait.
         """
         return
 
-    def open_nochild_s():
+    def open_nochild_s(self):
         """Like open_nochild(), but waits for the open to complete and raises
         an exception on an error.  The wait operation is a normal
         waiter, so gensio is fully operational during the wait.
         """
         return
 
-    def open_channel(args, handler, done):
+    def open_channel(self, args, handler, done):
         """Create a new channel on the gensio.  This is gensio-specific, most
         gensios don't support channels.
 
@@ -435,18 +435,18 @@ class gensio:
         """
         return
 
-    def open_channel_s(args, handler):
+    def open_channel_s(self, args, handler):
         """Like open_channel(), but waits for the open to complete and raises
         an exception on an error.  The wait operation is a normal
         waiter, so gensio is fully operational during the wait.
         """
         return
 
-    def get_type():
+    def get_type(self):
         """Return the type string for the gensio."""
         return
 
-    def close(close_done):
+    def close(self, close_done):
         """Close the gensio.  If it is not open this will raise an exception.
         When the close_done() method is called, the gensio is closed.
 
@@ -455,14 +455,14 @@ class gensio:
         """
         return
 
-    def close_s():
+    def close_s(self):
         """Like close(), but waits for the close to complete.  The wait
         operation is a normal waiter, so gensio is fully operational
         during the wait.
         """
         return
 
-    def write(bytestr, auxdata):
+    def write(self, bytestr, auxdata):
         """Write the given byte string.
 
         bytestr -- The data to write.
@@ -475,7 +475,7 @@ class gensio:
         """
         return 0
 
-    def read_cb_enable(enable):
+    def read_cb_enable(self, enable):
         """Allow read events from the gensio.  When the gensio is opened read
         is disabled, you must call this to get read events to
         read_callback().  Note that some gensios, like UDP, don't
@@ -488,7 +488,7 @@ class gensio:
         """
         return
 
-    def write_cb_enable(enable):
+    def write_cb_enable(self, enable):
         """Allow write ready events from the gensio.  When the gensio is
         opened write callbacks are enabled.  You should generally leave
         them disabled until you have data to write, then enable it 
@@ -498,7 +498,7 @@ class gensio:
         """
         return
 
-    def set_sync():
+    def set_sync(self):
         """Enable synchronous I/O on the gensio.  If you call this, then read
         and write events will not go the the event handler (though
         other events will).  You must call the read_s() and write_s()
@@ -506,7 +506,7 @@ class gensio:
         """
         return
 
-    def clear_sync():
+    def clear_sync(self):
         """Disable synchronous I/O on the gensio.  If you call this, then read
         and write events will go the the event handler.  Read and
         write events will be disabled by this function, you must
@@ -514,7 +514,7 @@ class gensio:
         """
         return
 
-    def read_s(reqlen, timeout):
+    def read_s(self, reqlen, timeout):
         """Read data from the gensio synchronously.  This will read up to
         reqlen bytes and may have a timeout.  Note that this will
         return as soon as it has any data, even if it is less than
@@ -530,7 +530,7 @@ class gensio:
         """
         return { bytes(""), 0 }
 
-    def write_s(bytestr, timeout):
+    def write_s(self, bytestr, timeout):
         """Attempt to write the given byte string to the gensio.  This
         will wait up to timeout milliseconds for the write to complete.
 
@@ -544,7 +544,7 @@ class gensio:
         """
         return { 0, 0 }
 
-    def control(depth, get, option, data):
+    def control(self, depth, get, option, data):
         """Do a gensio-specific control operation.  See the specific gensios
         and the C interface for specific gensio controls.
 
@@ -561,36 +561,36 @@ class gensio:
         """
         return ""
 
-    def is_client():
+    def is_client(self):
         """Return whether the gensio is a client or server."""
         return True
 
-    def is_packet():
+    def is_packet(self):
         """Return whether the gensio is a packet interface.  In a packet
         interface, each write on one end will result in a single read
         on the other end with the same amount of data.
         """
         return False
 
-    def is_reliable():
+    def is_reliable(self):
         """Return whether the gensio provides reliable data transport.  With
         reliable data transport, bytes will not be dropped and data
         will be delivered in the same order it was sent.
         """
         return True
 
-    def is_authenticated():
+    def is_authenticated(self):
         """Return whether the gensio has been authenticated.  This is
         primarily for ssl and certauth, if they succeed in their
         authentication algorithms succeeded.
         """
         return False
 
-    def is_encrypted():
+    def is_encrypted(self):
         """Return whether the data is is encrypted."""
         return False
 
-    def cast_to_sergensio():
+    def cast_to_sergensio(self):
         """Convert the gensio to a sergensio.
 
         Returns the sergensio object if the gensio is a sergensio, or
@@ -647,7 +647,7 @@ class sergensio:
     On a telnet server, these send the request values back to the client.
     """
 
-    def cast_to_gensio():
+    def cast_to_gensio(self):
         """Returns the gensio object for this sergensio.  This cannot fail."""
         return None;
 
@@ -882,7 +882,7 @@ class AccEventHandler:
 class ShutdownDone:
     """A class template for receiving shutdown done reports."""
 
-    def shutdown_done(acc):
+    def shutdown_done(self, acc):
         """The shutdown operation has completed on the gensio_accepter.
 
         acc - The gensio_accepter
@@ -903,7 +903,7 @@ class gensio_accepter:
             """
             return
 
-        def str_to_gensio(gensiostr, handler):
+        def str_to_gensio(self, gensiostr, handler):
             """Allocate a new gensio, coming from the address/port of the
             gensio_accepter, if possible.  This makes it possible to
             create outgoing UDP connections on the same port as the
@@ -918,11 +918,11 @@ class gensio_accepter:
             """
             return None
 
-        def startup():
+        def startup(self):
             """Start accepting connections on the gensio accepter."""
             return
 
-        def shutdown(shutdown_done):
+        def shutdown(self, shutdown_done):
             """Stop accepting connection on the gensio accepter.  The
             accepter will be stopped when the shutdown_done() method
             is called in the shutdown_done object.
@@ -932,11 +932,28 @@ class gensio_accepter:
             """
             return
 
-        def shutdown_s():
+        def shutdown_s(self):
             """Like shutdown, but blocks until the shutdown is complete."""
             return
 
-        def control(depth, get, option, data):
+        def set_sync(self):
+            """Enable synchronous accepts on the accepter.  The accepter must not
+            be started when this is called.  Once called, the accepter
+            is in synchronous mode until it is shutdown"""
+            return
+
+        def accept_s(self, o, handler):
+            """Wait for an incoming connection on the accepter.  Returns the
+            new gensio.  The handler for the gensio is set if returned."""
+            return
+
+        def accept_s_timeout(self, o, handler, timeout):
+            """Like accept_s, but takes a timeout in milliseconds.  Returns
+            a tuple with the new gensio as the first item (or None if timed out)
+            and the remaining time as the second item."""
+            return
+
+        def control(self, depth, get, option, data):
         """Do a gensio_accepter-specific control operation.  See the specific
         gensio and the C interface for specific gensio_accepter controls.
 
@@ -954,7 +971,7 @@ class gensio_accepter:
         """
         return ""
 
-    def is_packet():
+    def is_packet(self):
         """Return whether a gensio from this gensio_accepter is a packet
         interface.  In a packet interface, each write on one end will
         result in a single read on the other end with the same amount
@@ -962,7 +979,7 @@ class gensio_accepter:
         """
         return False
 
-    def is_reliable():
+    def is_reliable(self):
         """Return whether a gensio from this gensio_accepter provides reliable
         data transport.  With reliable data transport, bytes will not
         be dropped and data will be delivered in the same order it was
@@ -984,7 +1001,7 @@ class waiter:
         """
         return
 
-    def wait_timeout(count, timeout):
+    def wait_timeout(self, count, timeout):
         """Wait for count wakeups to this object to be called, or
         for timeout (in milliseconds) to elapse.
 
@@ -993,14 +1010,14 @@ class waiter:
         """
         return
 
-    def wait(count):
+    def wait(self, count):
         """Wait for count wakeups to this object to be called.
 
         count -- The number of wakeups expected.
         """
         return
 
-    def wake():
+    def wake(self):
         """Do a wakeup on this object."""
         return
 

@@ -59,6 +59,30 @@
     $result = add_python_result($result, r);
 }
 
+%typemap(in, numinputs=0) struct gensio **io (struct gensio *temp = NULL) {
+    $1 = &temp;
+}
+
+%typemap(argout) (struct gensio **io) {
+    PyObject *r;
+
+    if (*$1) {
+	r = SWIG_NewPointerObj((void *) *$1, SWIGTYPE_p_gensio,
+			       SWIG_POINTER_NEW);
+    } else {
+	Py_INCREF(Py_None);
+	r = Py_None;
+    }
+
+    /*
+     * This is kind of a hack, gensio must be the first return item.
+     * We can't use add_python_result because *io may be Py_None.
+     */
+    Py_XDECREF($result);
+    $result = PyTuple_New(1);
+    PyTuple_SetItem($result, 0, r);
+}
+
 %typemap(in) (char *bytestr, my_ssize_t len) {
     if ($input == Py_None) {
 	$1 = NULL;

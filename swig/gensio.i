@@ -899,6 +899,58 @@ struct waiter { };
 	err_handle("shutdown_s", rv);
     }
 
+    void set_sync() {
+	int rv = gensio_acc_set_sync(self);
+
+	err_handle("set_sync", rv);
+    }
+
+    void accept_s_timeout(struct gensio **io, long *r_int,
+			  struct gensio_os_funcs *o,
+			  swig_cb *handler, int timeout) {
+	struct timeval tv = { timeout / 1000, timeout % 1000 };
+	int rv;
+	struct gensio_data *data = alloc_gensio_data(o, handler);
+
+	*io = NULL;
+	*r_int = 0;
+	if (!data) {
+	    rv = GE_NOMEM;
+	    goto out_err;
+	}
+	rv = gensio_acc_accept_s(self, &tv, io);
+	if (rv == GE_TIMEDOUT)
+	    return;
+	if (rv) {
+	    free_gensio_data(data);
+	    goto out_err;
+	}
+
+	*r_int = tv.tv_sec * 1000 + ((tv.tv_usec + 500) / 1000);
+	gensio_set_callback(*io, gensio_child_event, data);
+	return;
+
+    out_err:
+	err_handle("accept_s_timeout", rv);
+    }
+
+    %newobject accept_s;
+    struct gensio *accept_s(struct gensio_os_funcs *o, swig_cb *handler) {
+	struct gensio *io = NULL;
+	struct gensio_data *data = alloc_gensio_data(o, handler);
+	int rv;
+
+	rv = gensio_acc_accept_s(self, NULL, &io);
+	if (rv) {
+	    free_gensio_data(data);
+	    err_handle("accept_s", rv);
+	} else {
+	    gensio_set_callback(io, gensio_child_event, data);
+	}
+
+	return io;
+    }
+
     char *control(int depth, bool get, int option, char *controldata) {
 	int rv;
 	char *data = NULL;
