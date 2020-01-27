@@ -17,7 +17,8 @@ libgensio_la_SOURCES = \
 	gensio_ll_ipmisol.c sergensio_ipmisol.c \
 	utils.c selector.c gensio_sctp.c \
 	gensio_filter_certauth.c gensio_certauth.c gensio_pty.c \
-	gensio_dummy.c gensio_echo.c gensio_mux.c gensio_file.c
+	gensio_dummy.c gensio_echo.c gensio_mux.c gensio_file.c \
+	gensio_filter_msgdelim.c gensio_msgdelim.c
 
 libgensio_la_LDFLAGS = $(OPENSSL_LIBS)
 

@@ -84,6 +84,11 @@ int str_to_telnet_gensio_accepter(const char *str, const char * const args[],
 				  gensio_accepter_event cb,
 				  void *user_data,
 				  struct gensio_accepter **acc_gensio);
+int str_to_msgdelim_gensio_accepter(const char *str, const char * const args[],
+				    struct gensio_os_funcs *o,
+				    gensio_accepter_event cb,
+				    void *user_data,
+				    struct gensio_accepter **new_acc);
 
 /*
  * Allocators for the various gensio types, compatible with
@@ -145,6 +150,10 @@ int str_to_file_gensio(const char *str, const char * const args[],
 		       struct gensio_os_funcs *o,
 		       gensio_event cb, void *user_data,
 		       struct gensio **new_gensio);
+int str_to_msgdelim_gensio(const char *str, const char * const args[],
+			   struct gensio_os_funcs *o,
+			   gensio_event cb, void *user_data,
+			   struct gensio **new_gensio);
 
 
 /*
@@ -206,6 +215,13 @@ int telnet_gensio_accepter_alloc(struct gensio_accepter *child,
 				 gensio_accepter_event cb,
 				 void *user_data,
 				 struct gensio_accepter **accepter);
+
+int msgdelim_gensio_accepter_alloc(struct gensio_accepter *child,
+				   const char * const args[],
+				   struct gensio_os_funcs *o,
+				   gensio_accepter_event cb,
+				   void *user_data,
+				   struct gensio_accepter **accepter);
 
 /* Client allocators. */
 
@@ -283,6 +299,11 @@ int telnet_gensio_alloc(struct gensio *child, const char * const args[],
 			struct gensio_os_funcs *o,
 			gensio_event cb, void *user_data,
 			struct gensio **io);
+
+int msgdelim_gensio_alloc(struct gensio *child, const char * const args[],
+			  struct gensio_os_funcs *o,
+			  gensio_event cb, void *user_data,
+			  struct gensio **io);
 
 #ifdef __cplusplus
 }

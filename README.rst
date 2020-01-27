@@ -124,6 +124,12 @@ mux
     gensio with end-of-message demarcation, you can use this as
     without creating channels.
 
+msgdelim
+    Converts an unreliable stream interface into an unreliable packet
+    interface.  This is primarily so a reliable packet interface like
+    relpkt can run over a serial port.  It does not support streaming
+    of data, so it's not very useful by itself.
+
 These are all documented in detail in gensio(5).  Unless otherwise
 stated, these all are available as accepters or connecting gensios.
 

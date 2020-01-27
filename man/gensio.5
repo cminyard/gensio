@@ -1019,6 +1019,19 @@ The address is a pointer to an integer, the ptym file descriptor is
 returned.  addrlen must be set to sizeof(int) when passed in.
 .SS "Remote ID"
 Remote ID is the pid if the process run on the pty.
+.SH "msgdelim"
+A message delimiter converts an unreliable stream (like a serial port)
+into an unreliable packet interface.  This is primarily to allow a
+reliable packet interface like relpkt to run on top of a serial port.
+It does not support streaming of data, so it's not very useful by itself.
+
+Messages are delimited with a start of message and end of message and
+have a CRC16 on the end of them.
+
+In addition to readbuf, the msgdelim gensio takes the following options:
+.TP
+.B writebuf=<n>
+set the size of the write buffer.
 .SH "Forking and gensios"
 Unlike normal file descriptors, when you fork with a gensio, you now
 have two unassociated copies of the gensios.  So if you do operations

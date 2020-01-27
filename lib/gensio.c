@@ -1471,6 +1471,8 @@ add_default_gensio_accepters(void *cb_data)
     REG_FILT_GENSIO_ACC(o, "telnet", str_to_telnet_gensio_accepter,
 			telnet_gensio_accepter_alloc);
     REG_GENSIO_ACC(o, "dummy", str_to_dummy_gensio_accepter);
+    REG_FILT_GENSIO_ACC(o, "msgdelim", str_to_msgdelim_gensio_accepter,
+			msgdelim_gensio_accepter_alloc);
 }
 
 int
@@ -1666,6 +1668,8 @@ add_default_gensios(void *cb_data)
 #ifdef HAVE_OPENIPMI
     REG_GENSIO(o, "ipmisol", str_to_ipmisol_gensio);
 #endif
+    REG_FILT_GENSIO(o, "msgdelim", str_to_msgdelim_gensio,
+		    msgdelim_gensio_alloc);
 }
 
 int
