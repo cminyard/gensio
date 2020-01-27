@@ -914,6 +914,12 @@ The minimum value of <n> is 1, the maximum is 65536.
 Set the remote service requested by the client.  Optional, but the
 other end may reject the connection if it is not supplied. Ignored on
 the server.
+.TP
+.B mode=client|server
+By default a mux accepter is a server and a mux connecter is a client.
+The protocol is mostly symmetric, but it's hard to kick things off
+properly if both sides try to start things.  This option lets you
+override the default mode in case you have some special need to do so.
 .PP
 When the open is complete on the mux gensio, it will work just like a
 transparent filter with message demarcation.  In effect, you have
