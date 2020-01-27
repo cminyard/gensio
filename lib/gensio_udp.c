@@ -490,12 +490,12 @@ udpn_finish_read(struct udpn_data *ndata)
     struct udpna_data *nadata = ndata->nadata;
     struct gensio *io = ndata->io;
     gensiods count;
-    static const char *oomaux[2] = { "oom", NULL };
+    static const char *eomaux[2] = { "eom", NULL };
 
  retry:
     udpna_unlock(nadata);
     count = nadata->data_pending_len;
-    gensio_cb(io, GENSIO_EVENT_READ, 0, nadata->read_data, &count, oomaux);
+    gensio_cb(io, GENSIO_EVENT_READ, 0, nadata->read_data, &count, eomaux);
     udpna_lock(nadata);
 
     if (ndata->state == UDPN_IN_CLOSE) {
