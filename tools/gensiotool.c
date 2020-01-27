@@ -476,7 +476,7 @@ main(int argc, char *argv[])
 	if (rv) {
 	    fprintf(stderr, "Could not start %s: %s\n", userdata2.ios,
 		    gensio_err_to_str(rv));
-	    userdata1.err = rv;
+	    userdata2.err = rv;
 	    goto out_err;
 	}
 	if (io2_acc_print) {
