@@ -331,7 +331,7 @@ ssl_try_connect(struct gensio_filter *filter, struct timeval *timeout)
 	    break;
 
 	case SSL_ERROR_ZERO_RETURN:
-	    err = GE_REMCLOSE;
+	    rv = GE_REMCLOSE;
 	    break;
 
 	default:
