@@ -296,7 +296,7 @@ telnet_ll_write(struct gensio_filter *filter,
 	goto out_unlock;
     }
 
-    if (tfilter->read_data_pos || buflen == 0) {
+    if (tfilter->read_data_len || buflen == 0) {
 	if (rcount)
 	    *rcount = 0;
     } else {
