@@ -240,6 +240,7 @@ ccon_stderr_closed(struct gensio *io, void *close_data)
     rv = gensio_control(io, GENSIO_CONTROL_DEPTH_FIRST, true,
 			GENSIO_CONTROL_EXIT_CODE, intstr, &size);
     assert(!debug || !rv);
+    pthread_mutex_lock(&od->lock);
     if (rv) {
 	if (debug)
 	    assert(0);
@@ -248,7 +249,6 @@ ccon_stderr_closed(struct gensio *io, void *close_data)
 	od->ccon_exit_code = strtoul(intstr, NULL, 0);
 	od->ccon_exit_code_set = true;
     }
-    pthread_mutex_lock(&od->lock);
     od->ccon_stderr_io = NULL;
     o->wake(od->waiter);
     gensio_free(io);
