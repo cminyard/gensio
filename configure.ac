@@ -245,6 +245,27 @@ AC_CHECK_MEMBER([struct termios2.c_ispeed],
 	[AC_DEFINE([HAVE_TERMIOS2], [1], [termios2 is present])],
 	[], [[#include <asm/termios.h>]])
 
+AC_ARG_ENABLE([internal-trace],
+  [AS_HELP_STRING([--enable-internal-trace[[=yes|no]]],
+                  [Enable internal tracing of states and data])],
+  [
+    case $enableval in
+    "" | y | ye | yes)
+      enable_internal_trace=yes
+      ;;
+    "" | n | no)
+      enable_internal_trace=no
+      ;;
+    *)
+      AC_MSG_ERROR([Invalid --enable-internal-trace option])
+      ;;
+    esac
+  ],
+  [enable_internal_trace=no])
+if test "x$enable_internal_trace" != xno; then
+   AC_DEFINE([ENABLE_INTERNAL_TRACE], [1], [Enable internal tracing])
+fi
+
 AC_OUTPUT([Makefile
 	lib/Makefile
 	include/Makefile

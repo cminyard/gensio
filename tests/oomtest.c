@@ -39,6 +39,7 @@
 #include <sys/wait.h>
 #include <gensio/gensio.h>
 #include <gensio/gensio_selector.h>
+#include "config.h"
 
 struct oom_tests {
     const char *connecter;
@@ -1111,6 +1112,13 @@ main(int argc, char *argv[])
     sigset_t sigs;
     int testnr = -1, numtests = 0, testnrstart = -1, testnrend = MAX_LOOPS;
     struct timeval zerotime = { 0, 0 };
+
+#ifndef ENABLE_INTERNAL_TRACE
+    fprintf(stderr, "Internal tracing disabled, cannot run oomtest\n");
+    fprintf(stderr, "Configure with --enable-internal-trace to enable internal"
+	    "tracing\n");
+    exit(1);
+#endif
 
     for (j = 0; oom_tests[j].connecter; j++)
 	numtests++;

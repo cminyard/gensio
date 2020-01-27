@@ -38,19 +38,19 @@
 #include <gensio/waiter.h>
 #include "utils.h"
 #include <stdlib.h>
+#include <assert.h>
 
 struct gensio_data {
     struct selector_s *sel;
     int wake_sig;
 };
 
-#if 1
+#ifdef ENABLE_INTERNAL_TRACE
 #define OUT_OF_MEMORY_TEST
 #define TRACK_ALLOCED_MEMORY
 #endif
 
 #ifdef OUT_OF_MEMORY_TEST
-#include <assert.h>
 /* Declared in selector.c */
 extern pthread_mutex_t oom_mutex;
 extern bool oom_initialized;

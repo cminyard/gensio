@@ -161,7 +161,7 @@ static unsigned int mux_msg_hdr_sizes[] = { 0, 1, 2, 3, 2, 2 };
 #define MUX_MAX_HDR_SIZE	12
 #define MUX_MIN_SEND_WINDOW_SIZE	128
 
-#if 1
+#ifdef ENABLE_INTERNAL_TRACE
 #define MUX_TRACING
 #endif
 

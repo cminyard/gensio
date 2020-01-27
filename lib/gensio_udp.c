@@ -35,7 +35,7 @@
 #include <gensio/argvutils.h>
 #include <gensio/gensio_osops.h>
 
-#if 0
+#ifdef ENABLE_INTERNAL_TRACE
 #define LOCK_TRACING
 #define LOCK_TRACE_SIZE 64
 #endif

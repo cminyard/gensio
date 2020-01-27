@@ -135,19 +135,8 @@ enum basen_state {
     BASEN_IO_ERR_CLOSE
 };
 
+#ifdef ENABLE_INTERNAL_TRACE
 #define DEBUG_STATE
-#if 0
-static char *basen_statestr[] = {
-    "CLOSED",
-    "IN_LL_OPEN",
-    "IN_FILTER_OPEN",
-    "OPEN",
-    "CLOSE_WAIT_DRAIN",
-    "IN_FILTER_CLOSE",
-    "IN_LL_CLOSE"
-    "IN_LL_IO_ERR_CLOSE",
-    "IO_ERR_CLOSE"
-};
 #endif
 
 #ifdef DEBUG_STATE
@@ -333,14 +322,7 @@ i_basen_add_trace(struct basen_data *ndata,
 static void
 i_basen_set_state(struct basen_data *ndata, enum basen_state state, int line)
 {
-#if 0
-    printf("Setting state for %s(%s) to %s at line %d\r\n",
-	   gensio_get_type(ndata->io, 0),
-	   gensio_is_client(ndata->io) ? "client" : "server",
-	   basen_statestr[state], line);
-#else
     i_basen_add_trace(ndata, state, line);
-#endif
     ndata->state = state;
 }
 

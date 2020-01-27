@@ -46,7 +46,7 @@
 #define EPOLL_CTL_MOD 0
 #endif
 
-#if 1
+#ifdef ENABLE_INTERNAL_TRACE
 #define OUT_OF_MEMORY_TEST
 #endif
 
