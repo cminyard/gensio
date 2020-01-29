@@ -274,4 +274,5 @@ AC_OUTPUT([Makefile
 	tools/Makefile
 	swig/Makefile
 	swig/python/Makefile
-	man/Makefile])
+	man/Makefile
+	examples/Makefile])
