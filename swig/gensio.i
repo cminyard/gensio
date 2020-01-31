@@ -544,7 +544,7 @@ struct waiter { };
 
     %rename(control) controlt;
     %newobject controlt;
-    void controlt(char **rbuffer, size_t *rbuffer_len, int depth,
+    void controlt(char **rstr, size_t *rstr_len, int depth,
 		  bool get, int option, char *bytestr, my_ssize_t len) {
 	int rv;
 	char *data = NULL;
@@ -588,8 +588,8 @@ struct waiter { };
 
 	err_handle("control", rv);
     out_ret:
-	*rbuffer = data;
-	*rbuffer_len = glen;
+	*rstr = data;
+	*rstr_len = glen;
     }
 
     char *raddr() {

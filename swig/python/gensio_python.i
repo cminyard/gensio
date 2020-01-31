@@ -49,6 +49,25 @@
     $result = add_python_result($result, r);
 }
 
+%typemap(in, numinputs=0) char **rstr (char *temp = NULL),
+                          size_t *rstr_len (size_t temp = 0) {
+    $1 = &temp;
+}
+
+%typemap(argout) (char **rstr, size_t *rstr_len) {
+    PyObject *r;
+
+    if (*$1) {
+	r = OI_PI_FromStringAndSize(*$1, *$2);
+	free(*$1);
+    } else {
+	Py_INCREF(Py_None);
+	r = Py_None;
+    }
+
+    $result = add_python_result($result, r);
+}
+
 %typemap(in, numinputs=0) long *r_int (long temp = 0) {
     $1 = &temp;
 }

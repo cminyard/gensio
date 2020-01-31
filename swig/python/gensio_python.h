@@ -210,12 +210,14 @@ OI_PI_AsBytesAndSize(PyObject *o, char **buf, my_ssize_t *len)
 }
 #define OI_PI_StringCheck PyUnicode_Check
 #define OI_PI_FromString PyUnicode_FromString
+#define OI_PI_FromStringAndSize PyUnicode_FromStringAndSize
 #define OI_PI_AsString PyUnicode_AsUTF8
 #else
 #define OI_PI_BytesCheck PyString_Check
 #define OI_PI_AsBytesAndSize PyString_AsStringAndSize
 #define OI_PI_StringCheck PyString_Check
 #define OI_PI_FromString PyString_FromString
+#define OI_PI_FromStringAndSize PyString_FromStringAndSize
 #define OI_PI_AsString PyString_AsString
 #endif
 
