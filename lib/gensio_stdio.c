@@ -248,10 +248,15 @@ stdion_raddr_to_str(struct gensio *io, gensiods *pos,
     struct stdiona_data *nadata = schan->nadata;
 
     if (io == nadata->io.io)
-	gensio_pos_snprintf(buf, buflen, pos, "stdio,");
+	gensio_pos_snprintf(buf, buflen, pos, "stdio");
     else
-	gensio_pos_snprintf(buf, buflen, pos, "stderr,");
-    gensio_argv_snprintf(buf, buflen, pos, nadata->argv);
+	gensio_pos_snprintf(buf, buflen, pos, "stderr");
+    if (nadata->argv) {
+	gensio_pos_snprintf(buf, buflen, pos, ",");
+	gensio_argv_snprintf(buf, buflen, pos, nadata->argv);
+    } else {
+	gensio_pos_snprintf(buf, buflen, pos, "(self)");
+    }
 
     return 0;
 }
