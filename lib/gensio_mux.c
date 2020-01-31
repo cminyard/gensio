@@ -725,7 +725,7 @@ i_mux_unlock(struct mux_data *muxdata)
     } while (false)
 
 #define mux_deref_and_unlock(m) do {					\
-	if (i_mux_deref(m))						\
+	if (!i_mux_deref(m))						\
 	    i_mux_unlock(m);						\
     } while (false)
 
