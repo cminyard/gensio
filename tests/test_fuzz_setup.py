@@ -26,12 +26,12 @@ cmd = (filter1 + ',stdio(tracewrite=' + tracefile + ")," +
        gensiot + ' --dummyrand ' + randfile + ' -i echo -a "' + filter2 +
        ',stdio"')
 
-p = subprocess.Popen([gensiot, '--dummyrand', randfile, cmd],
+p = subprocess.Popen([gensiot, '--dummyrand', randfile, '-i', 'stdio(self)', cmd],
                      stdin = subprocess.PIPE,
                      stdout = subprocess.PIPE,
                      stderr = None)
 
-p.stdin.write("a")
-p.stdout.read(1)
+p.stdin.write("a".encode(encoding='utf8'))
 p.stdin.close()
+p.stdout.read(1)
 p.wait()
