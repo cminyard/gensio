@@ -1,5 +1,3 @@
-#!/usr/bin/python
-
 #
 # This program creates some random data into a file and then runs a
 # gensio connector and accepter over stdio.  The data written to the

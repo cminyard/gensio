@@ -1,4 +1,3 @@
-#!/usr/bin/python
 import utils
 import gensio
 import sys
@@ -225,6 +224,7 @@ class SigRspHandler:
     def signature(self, sio, err, value):
         if (err):
             raise Exception("Error getting signature: %s" % err)
+        value = value.decode(encoding='utf-8')
         if (value != self.sigval):
             raise Exception("Signature value was '%s', expected '%s'" %
                             (value, self.sigval))

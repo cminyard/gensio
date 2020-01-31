@@ -7,12 +7,12 @@ AM_TESTS_ENVIRONMENT = \
     TESTPATH=$(utst_srcdir)/tests; export TESTPATH; \
     if [ ! -e ca ]; then \
 	$(utst_srcdir)/tests/make_keys; \
-    fi; GENSIOT=$(top_builddir)/tools/gensiot
+    fi; GENSIOT=$(top_builddir)/tools/gensiot PYTHON=$(PYTHON)
 
 AM_CFLAGS = -I$(top_srcdir)/include
 
 test_setup:
-	echo "$(AM_TESTS_ENVIRONMENT) python $(utst_srcdir)/tests/"
+	echo "$(AM_TESTS_ENVIRONMENT) $(utst_srcdir)/tests/"
 
 #
 # If you get certauth fuzz failures, they will be in the
@@ -27,7 +27,7 @@ test_fuzz_certauth:
 	-rm -rf fuzz-test-certauth fuzz-results-certauth
 	mkdir -p fuzz-test-certauth
 	mkdir -p fuzz-results-certauth
-	$(AM_TESTS_ENVIRONMENT) python $(utst_srcdir)/tests/test_fuzz_setup.py \
+	$(AM_TESTS_ENVIRONMENT) $(PYTHON) $(utst_srcdir)/tests/test_fuzz_setup.py \
 		$(top_builddir)/tools/gensiot certauth-randfile \
 		'certauth(cert=ca/clientcert.pem,key=ca/clientkey.pem,allow-unencrypted)'\
 		'certauth(CA=ca/clientcert.pem,allow-unencrypted)' \
@@ -51,7 +51,7 @@ test_fuzz_mux:
 	-rm -rf fuzz-test-mux fuzz-results-mux
 	mkdir -p fuzz-test-mux
 	mkdir -p fuzz-results-mux
-	$(AM_TESTS_ENVIRONMENT) python $(utst_srcdir)/tests/test_fuzz_setup.py \
+	$(AM_TESTS_ENVIRONMENT) $(PYTHON) $(utst_srcdir)/tests/test_fuzz_setup.py \
 		$(top_builddir)/tools/gensiot mux-randfile \
 		'mux' 'mux' fuzz-test-mux/tracefile
 	afl-fuzz -i fuzz-test-mux -o fuzz-results-mux -f mux-infile \
@@ -72,7 +72,7 @@ test_fuzz_ssl:
 	-rm -rf fuzz-test-ssl fuzz-results-ssl
 	mkdir -p fuzz-test-ssl
 	mkdir -p fuzz-results-ssl
-	$(AM_TESTS_ENVIRONMENT) python $(utst_srcdir)/tests/test_fuzz_setup.py \
+	$(AM_TESTS_ENVIRONMENT) $(PYTHON) $(utst_srcdir)/tests/test_fuzz_setup.py \
 		$(top_builddir)/tools/gensiot ssl-randfile \
 		'ssl(CA=ca/CA.pem)'\
 		'ssl(key=ca/key.pem,cert=ca/cert.pem)' \
@@ -95,7 +95,7 @@ test_fuzz_telnet:
 	-rm -rf fuzz-test-telnet fuzz-results-telnet
 	mkdir -p fuzz-test-telnet
 	mkdir -p fuzz-results-telnet
-	$(AM_TESTS_ENVIRONMENT) python $(utst_srcdir)/tests/test_fuzz_setup.py \
+	$(AM_TESTS_ENVIRONMENT) $(PYTHON) $(utst_srcdir)/tests/test_fuzz_setup.py \
 		$(top_builddir)/tools/gensiot telnet-randfile \
 		'telnet' 'telnet' fuzz-test-telnet/tracefile
 	afl-fuzz -i fuzz-test-telnet -o fuzz-results-telnet -f telnet-infile \
@@ -110,10 +110,10 @@ oomtest_LDADD = $(top_builddir)/lib/libgensio.la $(OPENSSL_LIBS)
 
 noinst_PROGRAMS = oomtest
 
-TESTS = test_gensio.py test_syncio.py oomtest
+TESTS = test_gensio test_syncio oomtest
 
-EXTRA_DIST = $(TESTS) utils.py ipmisimdaemon.py termioschk.py \
-	test_fuzz_setup.py make_keys
+EXTRA_DIST = test_gensio test_syncio utils.py ipmisimdaemon.py termioschk.py \
+	test_fuzz_setup.py make_keys test_gensio.py test_syncio.py
 
 clean-local:
 	-rm -rf ca \
