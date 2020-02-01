@@ -123,7 +123,7 @@ def do_test(io1, io2):
 def ta_tcp():
     print("Test accept tcp")
     io1 = utils.alloc_io(o, "tcp,localhost,3023", do_open = False)
-    TestAccept(o, io1, "tcp,localhost,3023", do_test,
+    TestAccept(o, io1, "tcp,ipv4,localhost,3023", do_test,
                expected_raddr = "ipv4,127.0.0.1,3023",
                expected_acc_laddr = "ipv4,127.0.0.1,3023",
                expected_acc_port = "3023")

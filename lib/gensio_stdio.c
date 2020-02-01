@@ -523,7 +523,6 @@ stdion_read_ready(int fd, void *cbdata)
  retry:
     rv = read(fd, schan->read_data, schan->max_read_size);
     if (rv < 0) {
-	perror("read");
 	if (errno == EINTR)
 	    goto retry;
 	if (errno == EAGAIN || errno == EWOULDBLOCK)
