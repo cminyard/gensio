@@ -1,4 +1,11 @@
 #
+#  gensio - A library for abstracting stream I/O
+#  Copyright (C) 2018  Corey Minyard <minyard@acm.org>
+#
+#  SPDX-License-Identifier: LGPL-2.1-only
+#
+
+#
 # This program creates some random data into a file and then runs a
 # gensio connector and accepter over stdio.  The data written to the
 # accepter gensio filter is saved in tracefile.

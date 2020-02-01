@@ -1,3 +1,12 @@
+#
+#  gensio - A library for abstracting stream I/O
+#  Copyright (C) 2018  Corey Minyard <minyard@acm.org>
+#
+#  SPDX-License-Identifier: LGPL-2.1-only
+#
+
+# This file documents the python interface to gensio via the normal
+# python documentation method.  It is not functional.
 
 class LogHandler:
     """A template class used by gensio_os_funcs to generate logs."""
