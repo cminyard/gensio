@@ -1028,6 +1028,9 @@ It does not support streaming of data, so it's not very useful by itself.
 Messages are delimited with a start of message and end of message and
 have a CRC16 on the end of them.
 
+This is primarily for use on serial ports and other streams that can
+munge up the data.  Use the mux gensio for TCP and such.
+
 In addition to readbuf, the msgdelim gensio takes the following options:
 .TP
 .B writebuf=<n>
