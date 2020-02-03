@@ -1461,6 +1461,8 @@ add_default_gensio_accepters(void *cb_data)
     REG_GENSIO_ACC(o, "dummy", str_to_dummy_gensio_accepter);
     REG_FILT_GENSIO_ACC(o, "msgdelim", str_to_msgdelim_gensio_accepter,
 			msgdelim_gensio_accepter_alloc);
+    REG_FILT_GENSIO_ACC(o, "relpkt", str_to_relpkt_gensio_accepter,
+			relpkt_gensio_accepter_alloc);
 }
 
 int
@@ -1658,6 +1660,8 @@ add_default_gensios(void *cb_data)
 #endif
     REG_FILT_GENSIO(o, "msgdelim", str_to_msgdelim_gensio,
 		    msgdelim_gensio_alloc);
+    REG_FILT_GENSIO(o, "relpkt", str_to_relpkt_gensio,
+		    relpkt_gensio_alloc);
 }
 
 int

@@ -130,6 +130,12 @@ msgdelim
     relpkt can run over a serial port.  It does not support streaming
     of data, so it's not very useful by itself.
 
+relpkt
+    Converts an unreliable packet interface to a reliable packet interface
+    (that also supports streaming).  Made for running over msgdelim.  It will
+    run over UDP, but it's not ideal for that because it doesn't do all the
+    internet-friendly flow control and such that SCTP and TCP do.
+
 These are all documented in detail in gensio(5).  Unless otherwise
 stated, these all are available as accepters or connecting gensios.
 

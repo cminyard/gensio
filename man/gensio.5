@@ -1035,6 +1035,33 @@ In addition to readbuf, the msgdelim gensio takes the following options:
 .TP
 .B writebuf=<n>
 set the size of the write buffer.
+.SH "relpkt"
+Converts an unreliable packet interface (currently only UDP and
+msgdelim) into a reliable packet interface.  This lets you have a
+reliable connection over a serial port (with msgdelim) or UDP.
+
+Note that UDP is not recommended, it doesn't handle flow control and
+such in a friendly manner.
+
+relpkt is unusual in dealing with clients and servers.  The protocol
+is symmetric, for the most part, you can start two clients and they
+will connect to each other, if they are started relatively close in
+time to avoid one timing out.  A relpkt server will simply wait
+forever for an incoming connection on an open.
+
+relpkt does not support readbuf.  It supports the following:
+.TP
+.B max_pktsize=<n>
+Sets the maximum size of a packet.  This may be reduced by the remote
+end, but will never be exceeded.
+.TP
+.B max_packets=<n>
+Sets the maximum number of outstanding packets.  This may be reduced
+by the remote end, but will never be exceeded.
+.TP
+.B mode=client|server
+By default a relpkt is a server on an accepter and a client on a
+connecter.  See the discussion above on clients and servers.
 .SH "Forking and gensios"
 Unlike normal file descriptors, when you fork with a gensio, you now
 have two unassociated copies of the gensios.  So if you do operations

@@ -1411,14 +1411,12 @@ basen_start_timer_op(void *cb_data, struct timeval *timeout)
 {
     struct basen_data *ndata = cb_data;
 
-    basen_lock(ndata);
     if (ndata->state == BASEN_OPEN) {
 	basen_start_timer(ndata, timeout);
     } else {
 	ndata->timer_start_pending = true;
 	ndata->pending_timer = *timeout;
     }
-    basen_unlock(ndata);
 }
 
 static int
