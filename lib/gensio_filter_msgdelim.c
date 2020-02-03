@@ -168,7 +168,7 @@ msgdelim_ul_write(struct gensio_filter *filter,
 	gensiods i, j, writelen = 0;
 
 	for (i = 0; i < sglen; i++) {
-	    unsigned int inlen = sg[i].buflen;
+	    gensiods inlen = sg[i].buflen;
 	    const unsigned char *buf = sg[i].buf;
 
 	    for (j = 0; j < inlen; j++) {

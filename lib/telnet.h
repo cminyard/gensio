@@ -114,7 +114,7 @@ unsigned int process_telnet_data(unsigned char *outdata, unsigned int outlen,
    character. */
 unsigned int process_telnet_xmit(unsigned char *outdata, unsigned int outlen,
 				 const unsigned char **indata,
-				 unsigned int *inlen);
+				 size_t *inlen);
 
 /* Used to send an option.  The option should *not* contain the inital
    "255 250" nor the tailing "255 240" and should *not* double

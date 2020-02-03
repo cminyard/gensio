@@ -259,7 +259,7 @@ process_telnet_data(unsigned char *outdata, unsigned int outlen,
 
 unsigned int
 process_telnet_xmit(unsigned char *outdata, unsigned int outlen,
-		    const unsigned char **indata, unsigned int *r_inlen)
+		    const unsigned char **indata, size_t *r_inlen)
 {
     unsigned int i, j = 0;
     unsigned int inlen = *r_inlen;
