@@ -358,18 +358,21 @@ filter_check_open_done(struct basen_data *ndata)
 }
 
 static int
-filter_try_connect(struct basen_data *ndata, struct timeval *timeout)
+filter_try_connect(struct basen_data *ndata, struct timeval *timeout,
+		   bool was_timeout)
 {
     if (ndata->filter)
-	return gensio_filter_try_connect(ndata->filter, timeout);
+	return gensio_filter_try_connect(ndata->filter, timeout, was_timeout);
     return 0;
 }
 
 static int
-filter_try_disconnect(struct basen_data *ndata, struct timeval *timeout)
+filter_try_disconnect(struct basen_data *ndata, struct timeval *timeout,
+		      bool was_timeout)
 {
     if (ndata->filter)
-	return gensio_filter_try_disconnect(ndata->filter, timeout);
+	return gensio_filter_try_disconnect(ndata->filter, timeout,
+					    was_timeout);
     return 0;
 }
 
@@ -788,12 +791,12 @@ basen_sched_deferred_op(struct basen_data *ndata)
 }
 
 static int
-basen_filter_try_connect(struct basen_data *ndata)
+basen_filter_try_connect(struct basen_data *ndata, bool was_timeout)
 {
     int err;
     struct timeval timeout = {0, 0};
 
-    err = filter_try_connect(ndata, &timeout);
+    err = filter_try_connect(ndata, &timeout, was_timeout);
     if (!err || err == GE_INPROGRESS || err == GE_RETRY)
 	basen_set_ll_enables(ndata);
     if (err == GE_INPROGRESS)
@@ -810,11 +813,11 @@ basen_filter_try_connect(struct basen_data *ndata)
 }
 
 static void
-basen_filter_try_connect_finish(struct basen_data *ndata)
+basen_filter_try_connect_finish(struct basen_data *ndata, bool was_timeout)
 {
     int err;
 
-    err = basen_filter_try_connect(ndata);
+    err = basen_filter_try_connect(ndata, was_timeout);
     if (!err) {
 	i_basen_add_trace(ndata, 100, __LINE__);
 	basen_set_state(ndata, BASEN_OPEN);
@@ -851,7 +854,7 @@ basen_ll_open_done(void *cb_data, int err, void *open_data)
 	}
 
 	basen_set_state(ndata, BASEN_IN_FILTER_OPEN);
-	basen_filter_try_connect_finish(ndata);
+	basen_filter_try_connect_finish(ndata, false);
 	basen_set_ll_enables(ndata);
     }
     basen_deref_and_unlock(ndata);
@@ -885,7 +888,7 @@ basen_open(struct basen_data *ndata, gensio_done_err open_done, void *open_data)
 	err = ll_open(ndata, basen_ll_open_done, ndata);
 	if (err == 0) {
 	    basen_set_state(ndata, BASEN_IN_FILTER_OPEN);
-	    err = basen_filter_try_connect(ndata);
+	    err = basen_filter_try_connect(ndata, false);
 	    if (!err) {
 		/* We are fully open, schedule it. */
 		basen_set_state(ndata, BASEN_OPEN);
@@ -934,7 +937,7 @@ basen_open_nochild(struct basen_data *ndata,
 	ndata->open_data = open_data;
 
 	basen_set_state(ndata, BASEN_IN_FILTER_OPEN);
-	err = basen_filter_try_connect(ndata);
+	err = basen_filter_try_connect(ndata, false);
 	if (!err) {
 	    /* We are fully open, schedule it. */
 	    basen_set_state(ndata, BASEN_OPEN);
@@ -956,13 +959,13 @@ basen_open_nochild(struct basen_data *ndata,
 }
 
 static void
-basen_filter_try_close(struct basen_data *ndata)
+basen_filter_try_close(struct basen_data *ndata, bool was_timeout)
 {
     int err;
     struct timeval timeout = {0, 0};
 
 
-    err = filter_try_disconnect(ndata, &timeout);
+    err = filter_try_disconnect(ndata, &timeout, was_timeout);
     if (err == GE_INPROGRESS || err == GE_RETRY)
 	basen_set_ll_enables(ndata);
     if (err == GE_INPROGRESS)
@@ -1010,7 +1013,7 @@ basen_i_close(struct basen_data *ndata,
 	basen_set_state(ndata, BASEN_CLOSE_WAIT_DRAIN);
     } else {
 	basen_set_state(ndata, BASEN_IN_FILTER_CLOSE);
-	basen_filter_try_close(ndata);
+	basen_filter_try_close(ndata, false);
     }
     basen_set_ll_enables(ndata);
 }
@@ -1109,11 +1112,11 @@ basen_timeout(struct gensio_timer *timer, void *cb_data)
     basen_lock(ndata);
     switch (ndata->state) {
     case BASEN_IN_FILTER_OPEN:
-	basen_filter_try_connect_finish(ndata);
+	basen_filter_try_connect_finish(ndata, true);
 	break;
 
     case BASEN_IN_FILTER_CLOSE:
-	basen_filter_try_close(ndata);
+	basen_filter_try_close(ndata, true);
 	break;
 
     case BASEN_OPEN:
@@ -1293,9 +1296,9 @@ basen_ll_read(void *cb_data, int readerr,
 	ndata->in_read = false;
 
 	if (ndata->state == BASEN_IN_FILTER_OPEN)
-	    basen_filter_try_connect_finish(ndata);
+	    basen_filter_try_connect_finish(ndata, false);
 	if (ndata->state == BASEN_IN_FILTER_CLOSE)
-	    basen_filter_try_close(ndata);
+	    basen_filter_try_close(ndata, false);
     }
 
  out_finish:
@@ -1342,13 +1345,13 @@ basen_ll_write_ready(void *cb_data)
     }
 
     if (ndata->state == BASEN_IN_FILTER_OPEN)
-	basen_filter_try_connect_finish(ndata);
+	basen_filter_try_connect_finish(ndata, false);
     if (ndata->state == BASEN_IN_FILTER_CLOSE)
-	basen_filter_try_close(ndata);
+	basen_filter_try_close(ndata, false);
     if (ndata->state == BASEN_CLOSE_WAIT_DRAIN &&
 		!filter_ll_write_pending(ndata)) {
 	basen_set_state(ndata, BASEN_IN_FILTER_CLOSE);
-	basen_filter_try_close(ndata);
+	basen_filter_try_close(ndata, false);
     }
     if (ndata->state == BASEN_OPEN && !filter_ll_write_pending(ndata)
 		&& ndata->xmit_enabled) {
@@ -1532,7 +1535,7 @@ base_gensio_server_start(struct gensio *io)
 
     basen_lock(ndata);
     basen_set_state(ndata, BASEN_IN_FILTER_OPEN);
-    err = basen_filter_try_connect(ndata);
+    err = basen_filter_try_connect(ndata, false);
     if (!err) {
 	/* We are fully open, schedule it. */
 	basen_set_state(ndata, BASEN_OPEN);
@@ -1594,18 +1597,20 @@ gensio_filter_check_open_done(struct gensio_filter *filter,
 
 int
 gensio_filter_try_connect(struct gensio_filter *filter,
-			  struct timeval *timeout)
+			  struct timeval *timeout,
+			  bool was_timeout)
 {
     return filter->func(filter, GENSIO_FILTER_FUNC_TRY_CONNECT,
-			NULL, timeout, NULL, NULL, NULL, 0, NULL);
+			NULL, timeout, NULL, NULL, NULL, was_timeout, NULL);
 }
 
 int
 gensio_filter_try_disconnect(struct gensio_filter *filter,
-			     struct timeval *timeout)
+			     struct timeval *timeout,
+			     bool was_timeout)
 {
     return filter->func(filter, GENSIO_FILTER_FUNC_TRY_DISCONNECT,
-			NULL, timeout, NULL, NULL, NULL, 0, NULL);
+			NULL, timeout, NULL, NULL, NULL, was_timeout, NULL);
 }
 
 int

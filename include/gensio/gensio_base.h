@@ -84,24 +84,30 @@ int gensio_filter_check_open_done(struct gensio_filter *filter,
  * immediate success.  Returns GE_INPROGRESS if the connect attempt
  * should be retried on any I/O.  Returns GE_RETRY if the connect
  * attempt should be retried after any I/O or when the timeout occurs.
+ * If the is called due to a timeout occurring, was_timeout will be true.
  *
  * struct timeval *timeout => data
+ * bool was_timeout => buflen
  */
 #define GENSIO_FILTER_FUNC_TRY_CONNECT		6
 int gensio_filter_try_connect(struct gensio_filter *filter,
-			      struct timeval *timeout);
+			      struct timeval *timeout,
+			      bool was_timeout);
 
 /*
  * Attempt to disconnect the filter.  Returns 0 on immediate success.
  * Returns GE_INPROGRESS if the disconnect attempt should be retried on
  * any I/O.  Returns GE_RETRY if the connect attempt should be retried
  * after any I/O or when the timeout occurs.
+ * If the is called due to a timeout occurring, was_timeout will be true.
  *
  * struct timeval *timeout => data
+ * bool was_timeout => buflen
  */
 #define GENSIO_FILTER_FUNC_TRY_DISCONNECT	7
 int gensio_filter_try_disconnect(struct gensio_filter *filter,
-				 struct timeval *timeout);
+				 struct timeval *timeout,
+				 bool was_timeout);
 
 /*
  * Write data into the top of the filter.  If no data is provided
