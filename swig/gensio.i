@@ -608,6 +608,12 @@ struct waiter { };
 	return val;
     }
 
+    %rename(get_child) get_childt;
+    %newobject get_childt;
+    bool get_childt(int depth) {
+	return gensio_get_child(self, depth);
+    }
+
     %rename(is_client) is_clientt;
     bool is_clientt() {
 	return gensio_is_client(self);
