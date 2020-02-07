@@ -127,6 +127,7 @@ msgdelim_ll_read_needed(struct gensio_filter *filter)
 static int
 msgdelim_check_open_done(struct gensio_filter *filter, struct gensio *io)
 {
+    gensio_set_is_packet(io, true);
     return 0;
 }
 
