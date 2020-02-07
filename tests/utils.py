@@ -42,6 +42,13 @@ class HandlerException(Exception):
     def __str__(self):
         return str(self.value)
 
+def find_sergensio(io):
+    sio = io.cast_to_sergensio();
+    while sio is None:
+        io = io.child(0)
+        sio = io.cast_to_sergensio();
+    return sio
+
 class HandleData:
     """Data handler for testing gensio.
 
@@ -411,55 +418,64 @@ class HandleData:
             return
         return
 
-    def sbaud(self, sio, baud):
+    def sbaud(self, io, baud):
+        sio = find_sergensio(io)
         if not self.check_set_expected_telnet_cb("baud", baud):
             return
         sio.sg_baud(self.expected_server_return, None)
         return
 
-    def sdatasize(self, sio, datasize):
+    def sdatasize(self, io, datasize):
+        sio = find_sergensio(io)
         if not self.check_set_expected_telnet_cb("datasize", datasize):
             return
         sio.sg_datasize(self.expected_server_return, None)
         return
 
-    def sparity(self, sio, parity):
+    def sparity(self, io, parity):
+        sio = find_sergensio(io)
         if not self.check_set_expected_telnet_cb("parity", parity):
             return
         sio.sg_parity(self.expected_server_return, None)
         return
 
-    def sstopbits(self, sio, stopbits):
+    def sstopbits(self, io, stopbits):
+        sio = find_sergensio(io)
         if not self.check_set_expected_telnet_cb("stopbits", stopbits):
             return
         sio.sg_stopbits(self.expected_server_return, None)
         return
 
-    def sflowcontrol(self, sio, flowcontrol):
+    def sflowcontrol(self, io, flowcontrol):
+        sio = find_sergensio(io)
         if not self.check_set_expected_telnet_cb("flowcontrol", flowcontrol):
             return
         sio.sg_flowcontrol(self.expected_server_return, None)
         return
 
-    def siflowcontrol(self, sio, iflowcontrol):
+    def siflowcontrol(self, io, iflowcontrol):
+        sio = find_sergensio(io)
         if not self.check_set_expected_telnet_cb("iflowcontrol", iflowcontrol):
             return
         sio.sg_iflowcontrol(self.expected_server_return, None)
         return
 
-    def ssbreak(self, sio, sbreak):
+    def ssbreak(self, io, sbreak):
+        sio = find_sergensio(io)
         if not self.check_set_expected_telnet_cb("sbreak", sbreak):
             return
         sio.sg_sbreak(self.expected_server_return, None)
         return
 
-    def sdtr(self, sio, dtr):
+    def sdtr(self, io, dtr):
+        sio = find_sergensio(io)
         if not self.check_set_expected_telnet_cb("dtr", dtr):
             return
         sio.sg_dtr(self.expected_server_return, None)
         return
 
-    def srts(self, sio, rts):
+    def srts(self, io, rts):
+        sio = find_sergensio(io)
         if not self.check_set_expected_telnet_cb("rts", rts):
             return
         sio.sg_rts(self.expected_server_return, None)
@@ -470,7 +486,8 @@ class HandleData:
         self.expected_sig_server_val = value
         return
 
-    def signature(self, sio):
+    def signature(self, io):
+        sio = find_sergensio(io)
         if not self.expected_sig_server_cb:
             raise Exception("Got unexpected signature request");
         sio.sg_signature(self.expected_sig_server_val, None)

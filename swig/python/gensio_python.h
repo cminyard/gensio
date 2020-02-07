@@ -450,10 +450,10 @@ gensio_close_done(struct gensio *io, void *cb_data) {
 }
 
 static void
-sgensio_call(struct sergensio *sio, long val, char *func)
+sgensio_call(struct gensio *io, long val, char *func)
 {
-    struct gensio_data *data = sergensio_get_user_data(sio);
-    swig_ref sio_ref;
+    struct gensio_data *data = gensio_get_user_data(io);
+    swig_ref io_ref;
     PyObject *args, *o;
     OI_PY_STATE gstate;
 
@@ -462,10 +462,10 @@ sgensio_call(struct sergensio *sio, long val, char *func)
     if (!data->handler_val)
 	goto out_put;
 
-    sio_ref = swig_make_ref(sio, sergensio);
+    io_ref = swig_make_ref(io, gensio);
     args = PyTuple_New(2);
     ref_gensio_data(data);
-    PyTuple_SET_ITEM(args, 0, sio_ref.val);
+    PyTuple_SET_ITEM(args, 0, io_ref.val);
     o = PyInt_FromLong(val);
     PyTuple_SET_ITEM(args, 1, o);
 
@@ -476,26 +476,26 @@ sgensio_call(struct sergensio *sio, long val, char *func)
 }
 
 static void
-sgensio_modemstate(struct sergensio *sio, unsigned int modemstate)
+sgensio_modemstate(struct gensio *io, unsigned int modemstate)
 {
-    sgensio_call(sio, modemstate, "modemstate");
+    sgensio_call(io, modemstate, "modemstate");
 }
 
 static void
-sgensio_linestate(struct sergensio *sio, unsigned int linestate)
+sgensio_linestate(struct gensio *io, unsigned int linestate)
 {
-    sgensio_call(sio, linestate, "linestate");
+    sgensio_call(io, linestate, "linestate");
 }
 
 static void
-sgensio_signature(struct sergensio *sio)
+sgensio_signature(struct gensio *io)
 {
     /*
      * FIXME - this is wrong, it is for the client side, but this needs
      * to be the server side code that gets a signature.
      */
-    struct gensio_data *data = sergensio_get_user_data(sio);
-    swig_ref sio_ref;
+    struct gensio_data *data = gensio_get_user_data(io);
+    swig_ref io_ref;
     PyObject *args;
     OI_PY_STATE gstate;
 
@@ -504,10 +504,10 @@ sgensio_signature(struct sergensio *sio)
     if (!data->handler_val)
 	goto out_put;
 
-    sio_ref = swig_make_ref(sio, sergensio);
+    io_ref = swig_make_ref(io, gensio);
     args = PyTuple_New(1);
     ref_gensio_data(data);
-    PyTuple_SET_ITEM(args, 0, sio_ref.val);
+    PyTuple_SET_ITEM(args, 0, io_ref.val);
 
     swig_finish_call(data->handler_val, "signature", args, true);
 
@@ -516,10 +516,10 @@ sgensio_signature(struct sergensio *sio)
 }
 
 static void
-sgensio_sync(struct sergensio *sio)
+sgensio_sync(struct gensio *io)
 {
-    struct gensio_data *data = sergensio_get_user_data(sio);
-    swig_ref sio_ref;
+    struct gensio_data *data = gensio_get_user_data(io);
+    swig_ref io_ref;
     PyObject *args;
     OI_PY_STATE gstate;
 
@@ -528,10 +528,10 @@ sgensio_sync(struct sergensio *sio)
     if (!data->handler_val)
 	goto out_put;
 
-    sio_ref = swig_make_ref(sio, sergensio);
+    io_ref = swig_make_ref(io, gensio);
     args = PyTuple_New(1);
     ref_gensio_data(data);
-    PyTuple_SET_ITEM(args, 0, sio_ref.val);
+    PyTuple_SET_ITEM(args, 0, io_ref.val);
 
     swig_finish_call(data->handler_val, "sync", args, true);
 
@@ -540,10 +540,10 @@ sgensio_sync(struct sergensio *sio)
 }
 
 static void
-sgensio_flowcontrol_state(struct sergensio *sio, bool val)
+sgensio_flowcontrol_state(struct gensio *io, bool val)
 {
-    struct gensio_data *data = sergensio_get_user_data(sio);
-    swig_ref sio_ref;
+    struct gensio_data *data = gensio_get_user_data(io);
+    swig_ref io_ref;
     PyObject *args, *o;
     OI_PY_STATE gstate;
 
@@ -552,10 +552,10 @@ sgensio_flowcontrol_state(struct sergensio *sio, bool val)
     if (!data->handler_val)
 	goto out_put;
 
-    sio_ref = swig_make_ref(sio, sergensio);
+    io_ref = swig_make_ref(io, gensio);
     args = PyTuple_New(2);
     ref_gensio_data(data);
-    PyTuple_SET_ITEM(args, 0, sio_ref.val);
+    PyTuple_SET_ITEM(args, 0, io_ref.val);
     o = PyBool_FromLong(val);
     PyTuple_SET_ITEM(args, 1, o);
 
@@ -566,63 +566,63 @@ sgensio_flowcontrol_state(struct sergensio *sio, bool val)
 }
 
 static void
-sgensio_flush(struct sergensio *sio, int val)
+sgensio_flush(struct gensio *io, int val)
 {
-    sgensio_call(sio, val, "flush");
+    sgensio_call(io, val, "flush");
 }
 
 static void
-sgensio_baud(struct sergensio *sio, int baud)
+sgensio_baud(struct gensio *io, int baud)
 {
-    sgensio_call(sio, baud, "sbaud");
+    sgensio_call(io, baud, "sbaud");
 }
 
 static void
-sgensio_datasize(struct sergensio *sio, int datasize)
+sgensio_datasize(struct gensio *io, int datasize)
 {
-    sgensio_call(sio, datasize, "sdatasize");
+    sgensio_call(io, datasize, "sdatasize");
 }
 
 static void
-sgensio_parity(struct sergensio *sio, int parity)
+sgensio_parity(struct gensio *io, int parity)
 {
-    sgensio_call(sio, parity, "sparity");
+    sgensio_call(io, parity, "sparity");
 }
 
 static void
-sgensio_stopbits(struct sergensio *sio, int stopbits)
+sgensio_stopbits(struct gensio *io, int stopbits)
 {
-    sgensio_call(sio, stopbits, "sstopbits");
+    sgensio_call(io, stopbits, "sstopbits");
 }
 
 static void
-sgensio_flowcontrol(struct sergensio *sio, int flowcontrol)
+sgensio_flowcontrol(struct gensio *io, int flowcontrol)
 {
-    sgensio_call(sio, flowcontrol, "sflowcontrol");
+    sgensio_call(io, flowcontrol, "sflowcontrol");
 }
 
 static void
-sgensio_iflowcontrol(struct sergensio *sio, int iflowcontrol)
+sgensio_iflowcontrol(struct gensio *io, int iflowcontrol)
 {
-    sgensio_call(sio, iflowcontrol, "siflowcontrol");
+    sgensio_call(io, iflowcontrol, "siflowcontrol");
 }
 
 static void
-sgensio_sbreak(struct sergensio *sio, int breakv)
+sgensio_sbreak(struct gensio *io, int breakv)
 {
-    sgensio_call(sio, breakv, "ssbreak");
+    sgensio_call(io, breakv, "ssbreak");
 }
 
 static void
-sgensio_dtr(struct sergensio *sio, int dtr)
+sgensio_dtr(struct gensio *io, int dtr)
 {
-    sgensio_call(sio, dtr, "sdtr");
+    sgensio_call(io, dtr, "sdtr");
 }
 
 static void
-sgensio_rts(struct sergensio *sio, int rts)
+sgensio_rts(struct gensio *io, int rts)
 {
-    sgensio_call(sio, rts, "srts");
+    sgensio_call(io, rts, "srts");
 }
 
 static PyObject *
@@ -815,63 +815,63 @@ gensio_child_event(struct gensio *io, void *user_data, int event, int readerr,
 	break;
 
     case GENSIO_EVENT_SER_MODEMSTATE:
-	sgensio_modemstate(gensio_to_sergensio(io), *((unsigned int *) buf));
+	sgensio_modemstate(io, *((unsigned int *) buf));
 	break;
 
     case GENSIO_EVENT_SER_LINESTATE:
-	sgensio_linestate(gensio_to_sergensio(io), *((unsigned int *) buf));
+	sgensio_linestate(io, *((unsigned int *) buf));
 	break;
 
     case GENSIO_EVENT_SER_SIGNATURE:
-	sgensio_signature(gensio_to_sergensio(io));
+	sgensio_signature(io);
 	break;
 
     case GENSIO_EVENT_SER_FLOW_STATE:
-	sgensio_flowcontrol_state(gensio_to_sergensio(io), *((int *) buf));
+	sgensio_flowcontrol_state(io, *((int *) buf));
 	break;
 
     case GENSIO_EVENT_SER_FLUSH:
-	sgensio_flush(gensio_to_sergensio(io), *((int *) buf));
+	sgensio_flush(io, *((int *) buf));
 	break;
 
     case GENSIO_EVENT_SER_SYNC:
-	sgensio_sync(gensio_to_sergensio(io));
+	sgensio_sync(io);
 	break;
 
     case GENSIO_EVENT_SER_BAUD:
-	sgensio_baud(gensio_to_sergensio(io), *((int *) buf));
+	sgensio_baud(io, *((int *) buf));
 	break;
 
     case GENSIO_EVENT_SER_DATASIZE:
-	sgensio_datasize(gensio_to_sergensio(io), *((int *) buf));
+	sgensio_datasize(io, *((int *) buf));
 	break;
 
     case GENSIO_EVENT_SER_PARITY:
-	sgensio_parity(gensio_to_sergensio(io), *((int *) buf));
+	sgensio_parity(io, *((int *) buf));
 	break;
 
     case GENSIO_EVENT_SER_STOPBITS:
-	sgensio_stopbits(gensio_to_sergensio(io), *((int *) buf));
+	sgensio_stopbits(io, *((int *) buf));
 	break;
 
     case GENSIO_EVENT_SER_FLOWCONTROL:
-	sgensio_flowcontrol(gensio_to_sergensio(io), *((int *) buf));
+	sgensio_flowcontrol(io, *((int *) buf));
 	break;
 
     case GENSIO_EVENT_SER_IFLOWCONTROL:
-	sgensio_iflowcontrol(gensio_to_sergensio(io), *((int *) buf));
+	sgensio_iflowcontrol(io, *((int *) buf));
 	break;
 
     case GENSIO_EVENT_SER_SBREAK:
-	sgensio_sbreak(gensio_to_sergensio(io), *((int *) buf));
+	sgensio_sbreak(io, *((int *) buf));
 	break;
 
     case GENSIO_EVENT_SER_DTR:
-	sgensio_dtr(gensio_to_sergensio(io), *((int *) buf));
+	sgensio_dtr(io, *((int *) buf));
 	break;
 
     case GENSIO_EVENT_SER_RTS:
-	sgensio_rts(gensio_to_sergensio(io), *((int *) buf));
+	sgensio_rts(io, *((int *) buf));
 	break;
 
     default:
