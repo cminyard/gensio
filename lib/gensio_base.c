@@ -510,8 +510,14 @@ basen_set_ll_enables(struct basen_data *ndata)
 	break;
 
     case BASEN_OPEN:
-	enabled = ((ndata->read_enabled && !filter_ul_read_pending(ndata)) ||
-		   filter_ll_read_needed(ndata));
+	if (filter_ul_read_pending(ndata)) {
+	    ndata->deferred_read = true;
+	    basen_sched_deferred_op(ndata);
+	    enabled = false;
+	} else {
+	    enabled = ndata->read_enabled;
+	}
+	enabled = enabled || filter_ll_read_needed(ndata);
 	break;
 
     default:
