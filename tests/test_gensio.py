@@ -477,11 +477,11 @@ def test_stdio_small():
 def do_small_test(io1, io2):
     rb = os.urandom(512)
     print("  testing io1 to io2")
-    utils.test_dataxfer(io1, io2, rb)
+    utils.test_dataxfer(io1, io2, rb, timeout = 2000)
     print("  testing io2 to io1")
-    utils.test_dataxfer(io2, io1, rb)
+    utils.test_dataxfer(io2, io1, rb, timeout = 2000)
     print("  testing bidirection between io1 and io2")
-    utils.test_dataxfer_simul(io1, io2, rb)
+    utils.test_dataxfer_simul(io1, io2, rb, timeout = 2000)
     print("  Success!")
 
 def do_large_test(io1, io2):
@@ -1048,6 +1048,84 @@ def test_mux_oob():
                          do_open = False, chunksize = 64)
     ta = TestAccept(o, io1, "mux,sctp,3023", do_oob_test)
 
+class TestConCon:
+    def __init__(self, o, io1, io2, tester, name,
+                 do_close = True,
+                 expected_raddr1 = None, expected_raddr2 = None):
+        self.o = o
+        self.name = name
+        self.io1 = io1
+        self.io2 = io2
+        self.waiter = gensio.waiter(o)
+        io1.open(self)
+        io2.open(self)
+        self.wait(2)
+        if expected_raddr1:
+            check_raddr(io1, self.name, expected_raddr1)
+        if expected_raddr2:
+            check_raddr(io2, self.name, expected_raddr2)
+        tester(self.io1, self.io2)
+        if do_close:
+            self.close()
+
+    def close(self):
+        self.io1.read_cb_enable(False)
+        self.io2.read_cb_enable(False)
+        utils.io_close(self.io1)
+        utils.io_close(self.io2)
+
+        # Break all the possible circular references.
+        del self.io1
+        del self.io2
+
+    def open_done(self, io, err):
+        if err:
+            raise Exception("TestConCon open error for %s: %s" %
+                            (self.name, err))
+        self.waiter.wake()
+
+    def wait(self, nr):
+        self.waiter.wait(nr)
+
+def tc_relpkt():
+    print("Test relpkt over msgdelim over serial")
+    io1 = utils.alloc_io(o, "mux(mode=server),relpkt(mode=server),msgdelim,serialdev,/dev/ttyPipeA0", do_open = False)
+    io2 = utils.alloc_io(o, "mux,relpkt,msgdelim,serialdev,/dev/ttyPipeB0", do_open = False)
+    TestConCon(o, io1, io2, do_test, "relpkt1",
+               expected_raddr1 = "/dev/ttyPipeA0,9600N81 RTSHI DTRHI",
+               expected_raddr2 = "/dev/ttyPipeB0,9600N81 RTSHI DTRHI")
+
+def tc_small_relpkt():
+    print("Test small relpkt over msgdelim over serial")
+    io1 = utils.alloc_io(o, "relpkt(mode=server),msgdelim,serialdev,/dev/ttyPipeA0", do_open = False)
+    io2 = utils.alloc_io(o, "relpkt,msgdelim,serialdev,/dev/ttyPipeB0", do_open = False)
+    TestConCon(o, io1, io2, do_small_test, "relpkt1",
+               expected_raddr1 = "/dev/ttyPipeA0,9600N81 RTSHI DTRHI",
+               expected_raddr2 = "/dev/ttyPipeB0,9600N81 RTSHI DTRHI")
+
+def do_medium_test(io1, io2):
+    rb = os.urandom(131071)
+    print("  testing io1 to io2")
+    utils.test_dataxfer(io1, io2, rb, timeout=10000)
+    print("  testing io2 to io1")
+    utils.test_dataxfer(io2, io1, rb, timeout=10000)
+    print("  testing bidirection between io1 and io2")
+    utils.test_dataxfer_simul(io1, io2, rb, timeout=10000)
+    print("  Success!")
+
+def tc_medium_relpkt():
+    print("Test medium relpkt over msgdelim over serial")
+    io1 = utils.alloc_io(o, "mux(mode=server),relpkt(mode=server),msgdelim,serialdev,/dev/ttyPipeA0,1000000", do_open = False)
+    io2 = utils.alloc_io(o, "mux,relpkt,msgdelim,serialdev,/dev/ttyPipeB0,1000000", do_open = False)
+    TestConCon(o, io1, io2, do_medium_test, "relpkt1",
+               expected_raddr1 = "/dev/ttyPipeA0,1000000N81 RTSHI DTRHI",
+               expected_raddr2 = "/dev/ttyPipeB0,1000000N81 RTSHI DTRHI")
+
+def tc_large_relpkt():
+    print("Test large relpkt over udp")
+    io1 = utils.alloc_io(o, "mux,relpkt,udp,localhost,3023", do_open = False)
+    TestAccept(o, io1, "mux,relpkt,udp,localhost,3023", do_large_test)
+
 test_echo_gensio()
 test_echo_device()
 test_serial_pipe_device()
@@ -1087,3 +1165,8 @@ ta_mux_sctp()
 test_mux_sctp_small()
 test_mux_tcp_large()
 test_mux_oob()
+
+tc_relpkt()
+tc_small_relpkt()
+tc_medium_relpkt()
+tc_large_relpkt()
