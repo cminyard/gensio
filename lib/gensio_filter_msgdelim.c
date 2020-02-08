@@ -48,15 +48,15 @@ static const uint16_t crc16_table[256]= {
     0x6e17, 0x7e36, 0x4e55, 0x5e74, 0x2e93, 0x3eb2, 0x0ed1, 0x1ef0
 };
 
-uint16_t crc16(const unsigned char *buf, size_t len)
+void crc16(const unsigned char *buf, size_t len, uint16_t *icrc)
 {
     size_t i;
-    uint16_t crc = 0;
+    uint16_t crc = *icrc;
 
     for (i = 0; i < len; i++)
 	crc = (crc << 8) ^ crc16_table[((crc >> 8) ^ buf[i]) & 0xff];
 
-    return crc;
+    *icrc = crc;
 }
 
 struct msgdelim_filter {
@@ -167,11 +167,13 @@ msgdelim_ul_write(struct gensio_filter *filter,
 	    *rcount = 0;
     } else {
 	gensiods i, j, writelen = 0;
+	uint16_t crc = 0;
 
 	for (i = 0; i < sglen; i++) {
 	    gensiods inlen = sg[i].buflen;
 	    const unsigned char *buf = sg[i].buf;
 
+	    crc16(buf, inlen, &crc);
 	    for (j = 0; j < inlen; j++) {
 		if (mfilter->user_write_pos >= mfilter->max_write_size) {
 		    err = GE_TOOBIG;
@@ -189,10 +191,7 @@ msgdelim_ul_write(struct gensio_filter *filter,
 	    *rcount = writelen;
 
 	if (mfilter->user_write_pos > 0) {
-	    uint16_t crc;
-
 	    mfilter->out_msg_complete = true;
-	    crc = crc16(mfilter->write_data + 2, mfilter->write_data_len - 2);
 	    msgdelim_add_wrbyte(mfilter, crc >> 8);
 	    msgdelim_add_wrbyte(mfilter, crc & 0xff);
 	    mfilter->write_data[mfilter->write_data_len++] = 254;
@@ -239,6 +238,7 @@ msgdelim_ll_write(struct gensio_filter *filter,
     gensiods in_buflen = buflen;
     int err = 0;
     static const char *eomaux[2] = { "eom", NULL };
+    uint16_t crc;
 
     msgdelim_lock(mfilter);
     if (mfilter->in_msg_complete || buflen == 0) {
@@ -259,7 +259,6 @@ msgdelim_ll_write(struct gensio_filter *filter,
 
 		case 1: /* 254 1 is start of message */
 		    mfilter->in_msg = true;
-		    mfilter->in_msg_complete = false;
 		    mfilter->read_data_len = 0;
 		    mfilter->read_data_pos = 0;
 		    break;
@@ -268,11 +267,14 @@ msgdelim_ll_write(struct gensio_filter *filter,
 		    if (!mfilter->in_msg)
 			break;
 		    mfilter->in_msg = false;
-		    if (mfilter->read_data_len > 2 &&
-			crc16(mfilter->read_data, mfilter->read_data_len) == 0) {
-			mfilter->read_data_len -= 2; /* Remove the CRC */
-			mfilter->in_msg_complete = true;
-		    }
+		    if (mfilter->read_data_len <= 2)
+			break;
+		    crc = 0;
+		    crc16(mfilter->read_data, mfilter->read_data_len, &crc);
+		    if (crc != 0)
+			break;
+		    mfilter->read_data_len -= 2; /* Remove the CRC */
+		    mfilter->in_msg_complete = true;
 		    break;
 
 		default:
