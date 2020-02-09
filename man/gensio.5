@@ -1035,6 +1035,11 @@ In addition to readbuf, the msgdelim gensio takes the following options:
 .TP
 .B writebuf=<n>
 set the size of the write buffer.
+.TP
+.B crc=on|off
+Enable/disable the CRC at the end of the packet.  Useful if you are
+running over a reliable protocol, and especially for testing relpkt so
+you can fuzz it and bypass the crc errors.
 .SH "relpkt"
 Converts an unreliable packet interface (currently only UDP and
 msgdelim) into a reliable packet interface.  This lets you have a

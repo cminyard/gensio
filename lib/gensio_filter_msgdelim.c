@@ -70,6 +70,7 @@ struct msgdelim_filter {
     bool in_msg; /* Currently processing message data (after a start). */
     bool in_msg_complete; /* A full message is ready. */
     bool out_msg_complete;
+    bool crc;
 
     /* Data waiting to be delivered to the user. */
     unsigned char *read_data;
@@ -192,8 +193,10 @@ msgdelim_ul_write(struct gensio_filter *filter,
 
 	if (mfilter->user_write_pos > 0) {
 	    mfilter->out_msg_complete = true;
-	    msgdelim_add_wrbyte(mfilter, crc >> 8);
-	    msgdelim_add_wrbyte(mfilter, crc & 0xff);
+	    if (mfilter->crc) {
+		msgdelim_add_wrbyte(mfilter, crc >> 8);
+		msgdelim_add_wrbyte(mfilter, crc & 0xff);
+	    }
 	    mfilter->write_data[mfilter->write_data_len++] = 254;
 	    mfilter->write_data[mfilter->write_data_len++] = 2; /* end */
 	}
@@ -267,13 +270,16 @@ msgdelim_ll_write(struct gensio_filter *filter,
 		    if (!mfilter->in_msg)
 			break;
 		    mfilter->in_msg = false;
-		    if (mfilter->read_data_len <= 2)
-			break;
-		    crc = 0;
-		    crc16(mfilter->read_data, mfilter->read_data_len, &crc);
-		    if (crc != 0)
-			break;
-		    mfilter->read_data_len -= 2; /* Remove the CRC */
+		    if (mfilter->crc) {
+			if (mfilter->read_data_len <= 2)
+			    break;
+			crc = 0;
+			crc16(mfilter->read_data, mfilter->read_data_len,
+			      &crc);
+			if (crc != 0)
+			    break;
+			mfilter->read_data_len -= 2; /* Remove the CRC */
+		    }
 		    mfilter->in_msg_complete = true;
 		    break;
 
@@ -423,7 +429,8 @@ static int gensio_msgdelim_filter_func(struct gensio_filter *filter, int op,
 static struct gensio_filter *
 gensio_msgdelim_filter_raw_alloc(struct gensio_os_funcs *o,
 				 gensiods max_read_size,
-				 gensiods max_write_size)
+				 gensiods max_write_size,
+				 bool crc)
 {
     struct msgdelim_filter *mfilter;
 
@@ -437,6 +444,7 @@ gensio_msgdelim_filter_raw_alloc(struct gensio_os_funcs *o,
 
     mfilter->max_write_size = max_write_size;
     mfilter->max_read_size = max_read_size;
+    mfilter->crc = crc;
 
     /*
      * Room to double every byte (worst case) including the CRC and
@@ -481,16 +489,20 @@ gensio_msgdelim_filter_alloc(struct gensio_os_funcs *o,
     unsigned int i;
     gensiods max_read_size = 128; /* FIXME - magic number. */
     gensiods max_write_size = 128; /* FIXME - magic number. */
+    bool crc = true;
 
     for (i = 0; args && args[i]; i++) {
 	if (gensio_check_keyds(args[i], "writebuf", &max_write_size) > 0)
 	    continue;
 	if (gensio_check_keyds(args[i], "readbuf", &max_read_size) > 0)
 	    continue;
+	if (gensio_check_keyboolv(args[i], "crc", "on", "off", &crc) > 0)
+	    continue;
 	return GE_INVAL;
     }
 
-    filter = gensio_msgdelim_filter_raw_alloc(o, max_read_size, max_write_size);
+    filter = gensio_msgdelim_filter_raw_alloc(o, max_read_size, max_write_size,
+					      crc);
     if (!filter)
 	return GE_NOMEM;
 
