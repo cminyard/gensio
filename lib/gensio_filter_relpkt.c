@@ -812,6 +812,8 @@ relpkt_ll_write(struct relpkt_filter *rfilter,
 	case RELPKT_WAITING_INIT:
 	    if (!response) {
 		rfilter->max_xmitpkt = buf[2];
+		if (rfilter->max_xmitpkt == 0)
+		    goto protocol_err;
 		if (rfilter->max_xmitpkt > rfilter->max_pkt)
 		    rfilter->max_xmitpkt = rfilter->max_pkt;
 		rfilter->max_xmit_pktsize = buf[3] << 8 | buf[4];
