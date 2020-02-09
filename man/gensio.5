@@ -1031,6 +1031,9 @@ have a CRC16 on the end of them.
 This is primarily for use on serial ports and other streams that can
 munge up the data.  Use the mux gensio for TCP and such.
 
+THe default buffer size is 128 bytes, which is ok for a reasonable
+fast serial prot interface.
+
 In addition to readbuf, the msgdelim gensio takes the following options:
 .TP
 .B writebuf=<n>
@@ -1058,7 +1061,10 @@ relpkt does not support readbuf.  It supports the following:
 .TP
 .B max_pktsize=<n>
 Sets the maximum size of a packet.  This may be reduced by the remote
-end, but will never be exceeded.
+end, but will never be exceeded.  This must be at least 5 bytes
+shorter than the maximum packet size of the interface below it.  This
+defaults to 123 (msgdelim max packet size - 5).  If run over UDP, this
+should probably be increased for performance.
 .TP
 .B max_packets=<n>
 Sets the maximum number of outstanding packets.  This may be reduced
