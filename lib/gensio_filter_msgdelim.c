@@ -179,7 +179,7 @@ msgdelim_ul_write(struct gensio_filter *filter,
 		if (mfilter->user_write_pos >= mfilter->max_write_size) {
 		    err = GE_TOOBIG;
 		    mfilter->user_write_pos = 0;
-		    mfilter->write_data_len = 2;
+		    mfilter->write_data_len = 0;
 		    mfilter->write_data_pos = 0;
 		    goto out_err;
 		}
@@ -198,7 +198,7 @@ msgdelim_ul_write(struct gensio_filter *filter,
 		msgdelim_add_wrbyte(mfilter, crc & 0xff);
 	    }
 	    mfilter->write_data[mfilter->write_data_len++] = 254;
-	    mfilter->write_data[mfilter->write_data_len++] = 2; /* end */
+	    mfilter->write_data[mfilter->write_data_len++] = 1; /* separator */
 	}
     }
 
@@ -215,7 +215,7 @@ msgdelim_ul_write(struct gensio_filter *filter,
 	msgdelim_lock(mfilter);
 	if (!err) {
 	    if (count >= len) {
-		mfilter->write_data_len = 2;
+		mfilter->write_data_len = 0;
 		mfilter->write_data_pos = 0;
 		mfilter->out_msg_complete = false;
 		mfilter->user_write_pos = 0;
@@ -260,27 +260,21 @@ msgdelim_ll_write(struct gensio_filter *filter,
 		    b = 254;
 		    goto handle_data;
 
-		case 1: /* 254 1 is start of message */
-		    mfilter->in_msg = true;
-		    mfilter->read_data_len = 0;
-		    mfilter->read_data_pos = 0;
-		    break;
-
-		case 2: /* 254 2 is end of message */
-		    if (!mfilter->in_msg)
-			break;
-		    mfilter->in_msg = false;
-		    if (mfilter->crc) {
-			if (mfilter->read_data_len <= 2)
-			    break;
-			crc = 0;
-			crc16(mfilter->read_data, mfilter->read_data_len,
-			      &crc);
-			if (crc != 0)
-			    break;
-			mfilter->read_data_len -= 2; /* Remove the CRC */
+		case 1: /* 254 1 is message separator */
+		    if (mfilter->in_msg) {
+			if (mfilter->crc) {
+			    if (mfilter->read_data_len <= 2)
+				break;
+			    crc = 0;
+			    crc16(mfilter->read_data, mfilter->read_data_len,
+				  &crc);
+			    if (crc != 0)
+				break;
+			    mfilter->read_data_len -= 2; /* Remove the CRC */
+			}
+			mfilter->in_msg_complete = true;
 		    }
-		    mfilter->in_msg_complete = true;
+		    mfilter->in_msg = true;
 		    break;
 
 		default:
@@ -344,7 +338,6 @@ msgdelim_filter_cleanup(struct gensio_filter *filter)
     mfilter->read_data_pos = 0;
     mfilter->write_data_len = 0;
     mfilter->write_data_pos = 0;
-    mfilter->write_data_len = 2;
     mfilter->user_write_pos = 0;
     mfilter->in_msg_complete = false;
     mfilter->in_msg = false;
@@ -448,7 +441,7 @@ gensio_msgdelim_filter_raw_alloc(struct gensio_os_funcs *o,
 
     /*
      * Room to double every byte (worst case) including the CRC and
-     * add start and end.
+     * add two separators (first one only for the first sent packet).
      */
     mfilter->buf_max_write = ((max_write_size + 2) * 2) + 4;
 
@@ -469,9 +462,10 @@ gensio_msgdelim_filter_raw_alloc(struct gensio_os_funcs *o,
     if (!mfilter->filter)
 	goto out_nomem;
 
-    mfilter->write_data_len = 2;
+    /* Add a separator at the beginning of the first message. */
     mfilter->write_data[0] = 254;
-    mfilter->write_data[1] = 1; /* Start of message/ */
+    mfilter->write_data[1] = 1; /* message separator */
+    mfilter->write_data_len = 2;
 
     return mfilter->filter;
 
