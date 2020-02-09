@@ -280,7 +280,7 @@ io_acc_event(struct gensio_accepter *accepter, void *user_data,
     if (!ii) {
 	fprintf(stderr, "Could not allocate info for new io\n");
 	gensio_free(data);
-	return;
+	return 0;
     }
     ii->io = data;
     ii->ai = ai;
