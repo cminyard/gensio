@@ -145,6 +145,22 @@ AC_ARG_WITH(pythonusepthreads,
    fi,
 )
 
+TESTS_DIR=
+use_tests=yes
+AC_ARG_WITH(tests,
+[  --with-tests=yes|no      Build tests or not.],
+    if test "x$withval" = "xyes"; then
+      use_tests=yes
+    elif test "x$withval" = "xno"; then
+      use_tests=no
+    fi,
+)
+
+if test "x$use_tests" != "xno"; then
+   TESTS_DIR="tests"
+fi
+AC_SUBST(TESTS_DIR)
+
 AC_SEARCH_LIBS([clock_gettime], [rt posix4])
 
 # Handle RS485 support
