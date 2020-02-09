@@ -42,7 +42,7 @@ enum relpkt_msgs {
      * is ignore and this is only an ack.
      * 
      * +----------------+----------------+----------------+
-     * |   2   |reserv|A| last recv      |  msg seq       |
+     * |   2   |reserv|A| next expected  |  msg seq       |
      * +----------------+----------------+----------------+
      * A - eom bit, if 1 end of message, if 0 not.
      */
@@ -435,16 +435,30 @@ request_resend(struct relpkt_filter *rfilter, uint8_t first, uint8_t last)
 static bool
 handle_ack(struct relpkt_filter *rfilter, uint8_t seq)
 {
+    unsigned int pos;
+
     /*
      * The last received message on the other end is in seq, but we
      * keep the next thing that should be acked, thus the +1.
      */
-    if (!seq_inside(seq + 1, rfilter->next_acked_seq,
+    if (!seq_inside(seq, rfilter->next_acked_seq,
 		    rfilter->next_send_seq + 1))
 	return true;
-    rfilter->first_xmitpkt = xmitpkt_pos(rfilter,
-					 seq - rfilter->next_acked_seq + 1);
-    rfilter->next_acked_seq = seq + 1;
+    while (rfilter->next_acked_seq != seq) {
+	pos = rfilter->first_xmitpkt;
+	if (!rfilter->xmitpkts[pos].sent) {
+	    /*
+	     * Packets wasn't sent yet, but we got an ack.  Could
+	     * happen on a retransmit or some other error.  Just act
+	     * like it was transmitted.
+	     */
+	    rfilter->xmitpkts[pos].sent = true;
+	    assert(rfilter->nr_waiting_xmitpkt > 0);
+	    rfilter->nr_waiting_xmitpkt--;
+	}
+	rfilter->first_xmitpkt = xmitpkt_pos(rfilter, 1);
+	rfilter->next_acked_seq++;
+    }
     rfilter->timeouts_since_ack = 0;
 
     return false;
@@ -695,14 +709,14 @@ relpkt_ul_write(struct relpkt_filter *rfilter,
 	p = first_xmitpkt_to_send(rfilter);
 	rsg.buf = p->data;
 	rsg.buflen = p->len;
-	p->data[1] = rfilter->next_deliver_seq - 1; /* Add the ack */
+	p->data[1] = rfilter->next_deliver_seq; /* Add the ack */
 	rfilter->send_ack_pkt = false;
     } else if (rfilter->send_resend_pkt) {
 	rsg.buf = rfilter->resend_pkt;
 	rsg.buflen = rfilter->resend_pkt_len;
 	endbool = &rfilter->send_resend_pkt;
     } else if (rfilter->send_ack_pkt) {
-	rfilter->ack_pkt[1] = rfilter->next_deliver_seq - 1;
+	rfilter->ack_pkt[1] = rfilter->next_deliver_seq;
 	rsg.buf = rfilter->ack_pkt;
 	rsg.buflen = 3;
 	endbool = &rfilter->send_ack_pkt;
