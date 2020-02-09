@@ -102,7 +102,28 @@ test_fuzz_telnet:
 		$(top_builddir)/tools/gensiot --dummyrand telnet-randfile \
 		-i echo "telnet(mode=server),file(infile=telnet-infile)"
 
-test_fuzz: test_fuzz_certauth test_fuzz_mux test_fuzz_ssl test_fuzz_telnet
+#
+# If you get relpkt fuzz failures, they will be in the
+# fuzz-results-relpkt/crashes or fuzz-results-relpkt/hangs directories.
+# To reproduce the failure, in this directory, run:
+#
+# ../tools/gensiot --dummyrand relpkt-randfile -i echo 'relpkt(mode=server),file(infile="fuzz-results-relpkt/[hangs|crashes]/<file>")'
+#
+# where the <file> is the specific failure.
+#
+test_fuzz_relpkt:
+	-rm -rf fuzz-test-relpkt fuzz-results-relpkt
+	mkdir -p fuzz-test-relpkt
+	mkdir -p fuzz-results-relpkt
+	$(AM_TESTS_ENVIRONMENT) $(PYTHON) $(utst_srcdir)/tests/test_fuzz_setup.py \
+		$(top_builddir)/tools/gensiot relpkt-randfile \
+		'relpkt,msgdelim' 'relpkt,msgdelim' fuzz-test-relpkt/tracefile
+	afl-fuzz -i fuzz-test-relpkt -o fuzz-results-relpkt -f relpkt-infile \
+		$(top_builddir)/tools/gensiot --dummyrand relpkt-randfile \
+		-i echo "relpkt(mode=server),msgdelim,file(infile=relpkt-infile)"
+
+test_fuzz: test_fuzz_certauth test_fuzz_mux test_fuzz_ssl test_fuzz_telnet \
+	test_fuzz_relpkt
 
 oomtest_SOURCES = oomtest.c
 
