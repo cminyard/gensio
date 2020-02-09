@@ -33,6 +33,7 @@ struct oom_tests {
     const char *connecter;
     const char *accepter;
 } oom_tests[] = {
+    { "relpkt,msgdelim,tcp,localhost,", "relpkt,msgdelim,tcp,0" },
     { "certauth(cert=ca/cert.pem,key=ca/key.pem,username=test1),ssl(CA=ca/CA.pem),tcp,localhost,",
       "certauth(CA=ca/CA.pem),ssl(key=ca/key.pem,cert=ca/cert.pem),tcp,0" },
     { "ssl(CA=ca/CA.pem),tcp,localhost,",
