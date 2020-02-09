@@ -117,10 +117,10 @@ test_fuzz_relpkt:
 	mkdir -p fuzz-results-relpkt
 	$(AM_TESTS_ENVIRONMENT) $(PYTHON) $(utst_srcdir)/tests/test_fuzz_setup.py \
 		$(top_builddir)/tools/gensiot relpkt-randfile \
-		'relpkt,msgdelim' 'relpkt,msgdelim' fuzz-test-relpkt/tracefile
+		'relpkt,msgdelim(crc=off)' 'relpkt,msgdelim(crc=off)' fuzz-test-relpkt/tracefile
 	afl-fuzz -i fuzz-test-relpkt -o fuzz-results-relpkt -f relpkt-infile \
 		$(top_builddir)/tools/gensiot --dummyrand relpkt-randfile \
-		-i echo "relpkt(mode=server),msgdelim,file(infile=relpkt-infile)"
+		-i echo "relpkt(mode=server),msgdelim(crc=off),file(infile=relpkt-infile)"
 
 test_fuzz: test_fuzz_certauth test_fuzz_mux test_fuzz_ssl test_fuzz_telnet \
 	test_fuzz_relpkt
