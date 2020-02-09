@@ -1906,8 +1906,6 @@ chan_setup_send_data(struct mux_inst *chan)
 	chan->sglen = 1;
 	return true;
     }
-    chan->received_unacked = 0;
-
     assert(chan->write_data_len > 3);
 
     pos = chan_next_write_pos(chan, 1);
@@ -1920,6 +1918,8 @@ chan_setup_send_data(struct mux_inst *chan)
 	chan->cur_msg_len = 0;
 	goto check_send_ack;
     }
+
+    chan->received_unacked = 0;
 
     flags = chan->write_data[chan->write_data_pos];
     chan_incr_write_pos(chan, 1);
