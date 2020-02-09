@@ -575,17 +575,21 @@ def test_dataxfer_simul(io1, io2, data, timeout = 10000):
     io2.handler.set_write_data(data)
     io2.handler.set_compare(data)
     if (io1.handler.wait_timeout(timeout) == 0):
-        raise Exception("%s: %s: Timed out waiting for write completion" %
-                        ("test_dataxfer", io1.handler.name))
+        raise Exception("%s: %s: Timed out waiting for write completion at bytes %d %d" %
+                        ("test_dataxfer", io1.handler.name, io1.handler.wrpos,
+                         io2.handler.wrpos))
     if (io2.handler.wait_timeout(timeout) == 0):
-        raise Exception("%s: %s: Timed out waiting for write completion" %
-                        ("test_dataxfer", io2.handler.name))
+        raise Exception("%s: %s: Timed out waiting for write completion at bytes %d %d" %
+                        ("test_dataxfer", io2.handler.name, io1.handler.wrpos,
+                         io2.handler.wrpos))
     if (io1.handler.wait_timeout(timeout) == 0):
-        raise Exception("%s: %s: Timed out waiting for read completion" %
-                        ("test_dataxfer", io1.handler.name))
+        raise Exception("%s: %s: Timed out waiting for read completion at bytes %d %d" %
+                        ("test_dataxfer", io1.handler.name,
+                         io1.handler.compared, io2.handler.compared))
     if (io2.handler.wait_timeout(timeout) == 0):
-        raise Exception("%s: %s: Timed out waiting for read completion" %
-                        ("test_dataxfer", io2.handler.name))
+        raise Exception("%s: %s: Timed out waiting for read completion at bytes %d %d" %
+                        ("test_dataxfer", io2.handler.name,
+                         io1.handler.compared, io2.handler.compared))
     return
 
 def test_write_drain(io1, io2, data, timeout = 1000):
