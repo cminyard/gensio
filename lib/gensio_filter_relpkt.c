@@ -361,14 +361,12 @@ resend_packets(struct relpkt_filter *rfilter, uint8_t first, uint8_t last)
     uint8_t seq;
     unsigned int i, pos;
 
-    for (seq = first, i = first - rfilter->next_acked_seq; ; i++) {
+    for (seq = first, i = first - rfilter->next_acked_seq; seq != last; i++) {
 	pos = xmitpkt_pos(rfilter, i);
 	if (rfilter->xmitpkts[pos].sent) {
 	    rfilter->xmitpkts[pos].sent = false;
 	    rfilter->nr_waiting_xmitpkt++;
 	}
-	if (seq == last)
-	    break;
 	seq++;
     }
 }
@@ -857,7 +855,7 @@ relpkt_ll_write(struct relpkt_filter *rfilter,
 	    if (!response) {
 		send_init(rfilter, true);
 		resend_packets(rfilter, rfilter->next_acked_seq,
-			       rfilter->next_send_seq - 1);
+			       rfilter->next_send_seq);
 	    }
 	    break;
 
@@ -945,7 +943,7 @@ relpkt_ll_write(struct relpkt_filter *rfilter,
 		if (!seq_inside(endseq, rfilter->next_acked_seq,
 				rfilter->next_send_seq))
 		    goto protocol_err;
-		resend_packets(rfilter, seq, endseq);
+		resend_packets(rfilter, seq, endseq + 1);
 	    }
 	    break;
 
@@ -1097,7 +1095,7 @@ i_relpkt_filter_timeout(struct relpkt_filter *rfilter)
 		 * The packet must have been dropped.  Resend.
 		 */
 		resend_packets(rfilter, rfilter->next_acked_seq,
-			       rfilter->next_send_seq - 1);
+			       rfilter->next_send_seq);
 		rfilter->timeout_ack_count = 0;
 	    }
 	} else {
