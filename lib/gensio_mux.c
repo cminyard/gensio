@@ -575,6 +575,33 @@ muxdata_free(struct mux_data *muxdata)
     muxdata->o->free(muxdata->o, muxdata);
 }
 
+static void
+i_mux_lock(struct mux_data *muxdata)
+{
+    muxdata->o->lock(muxdata->lock);
+}
+
+static void
+i_mux_unlock(struct mux_data *muxdata)
+{
+    muxdata->o->unlock(muxdata->lock);
+}
+
+#ifdef MUX_TRACING
+#define mux_lock(m) do {						\
+	i_mux_lock(m);							\
+	i_mux_add_trace(m, NULL, m->state, 99, 99, 100, __LINE__);	\
+    } while (false)
+
+#define mux_unlock(m) do {						\
+	i_mux_add_trace(m, NULL, m->state, 99, 99, 101, __LINE__);	\
+	i_mux_unlock(m);						\
+    } while (false)
+#else
+#define mux_lock i_mux_lock
+#define mux_unlock i_mux_unlock
+#endif
+
 static void i_mux_ref(struct mux_data *mux)
 {
     assert(mux->refcount > 0);
@@ -588,6 +615,18 @@ static bool i_mux_deref(struct mux_data *mux)
 	muxdata_free(mux);
 	return true;
     }
+    return false;
+}
+
+static bool i_mux_deref_and_unlock(struct mux_data *mux)
+{
+    assert(mux->refcount > 0);
+    if (--mux->refcount == 0) {
+	mux_unlock(mux);
+	muxdata_free(mux);
+	return true;
+    }
+    mux_unlock(mux);
     return false;
 }
 
@@ -667,29 +706,7 @@ static bool i2_chan_deref(struct mux_inst *chan, int line)
 #define chan_deref i_chan_deref
 #endif
 
-static void
-i_mux_lock(struct mux_data *muxdata)
-{
-    muxdata->o->lock(muxdata->lock);
-}
-
-static void
-i_mux_unlock(struct mux_data *muxdata)
-{
-    muxdata->o->unlock(muxdata->lock);
-}
-
 #ifdef MUX_TRACING
-#define mux_lock(m) do {						\
-	i_mux_lock(m);							\
-	i_mux_add_trace(m, NULL, m->state, 99, 99, 100, __LINE__);	\
-    } while (false)
-
-#define mux_unlock(m) do {						\
-	i_mux_add_trace(m, NULL, m->state, 99, 99, 101, __LINE__);	\
-	i_mux_unlock(m);						\
-    } while (false)
-
 #define mux_lock_and_ref(m) do {					\
 	i_mux_lock(m);							\
 	i_mux_add_trace(m, NULL, m->state, 99, 102, 2000 + m->refcount,	\
@@ -700,22 +717,16 @@ i_mux_unlock(struct mux_data *muxdata)
 #define mux_deref_and_unlock(m) do {					\
 	i_mux_add_trace(m, NULL, m->state, 99, 103, 2000 + m->refcount, \
 			__LINE__);					\
-	if (!i_mux_deref(m))						\
-	    i_mux_unlock(m);						\
+	i_mux_deref_and_unlock(m);					\
     } while (false)
 
 #else
-#define mux_lock i_mux_lock
-#define mux_unlock i_mux_unlock
 #define mux_lock_and_ref(m) do {					\
 	i_mux_lock(m);							\
 	i_mux_ref(m);							\
     } while (false)
 
-#define mux_deref_and_unlock(m) do {					\
-	if (!i_mux_deref(m))						\
-	    i_mux_unlock(m);						\
-    } while (false)
+#define mux_deref_and_unlock(m) i_mux_deref_and_unlock(m)
 
 #endif
 
