@@ -12,7 +12,7 @@
  *   basic_server telnet,tcp,3023
  * then telnet to it.
  *
- * If you type in "hello" is reponse with "bonjour".
+ * If you type in "hello" is reponds with "bonjour".
  *
  * If you type in "goodbye" it responds with "au revior" and closes
  * the connection.
