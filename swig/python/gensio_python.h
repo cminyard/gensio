@@ -39,6 +39,40 @@ static void gensio_swig_init_lang(void)
 #define GENSIO_SWIG_C_BLOCK_EXIT
 #endif
 
+#define my_ssize_t Py_ssize_t
+#if PY_VERSION_HEX >= 0x03000000
+static int
+OI_PI_BytesCheck(PyObject *o)
+{
+    if (PyUnicode_Check(o))
+	return 1;
+    if (PyBytes_Check(o))
+	return 1;
+    return 0;
+}
+
+static int
+OI_PI_AsBytesAndSize(PyObject *o, char **buf, my_ssize_t *len)
+{
+    if (PyUnicode_Check(o)) {
+	*buf = PyUnicode_AsUTF8AndSize(o, len);
+	return 0;
+    }
+    return PyBytes_AsStringAndSize(o, buf, len);
+}
+#define OI_PI_StringCheck PyUnicode_Check
+#define OI_PI_FromString PyUnicode_FromString
+#define OI_PI_FromStringAndSize PyUnicode_FromStringAndSize
+#define OI_PI_AsString PyUnicode_AsUTF8
+#else
+#define OI_PI_BytesCheck PyString_Check
+#define OI_PI_AsBytesAndSize PyString_AsStringAndSize
+#define OI_PI_StringCheck PyString_Check
+#define OI_PI_FromString PyString_FromString
+#define OI_PI_FromStringAndSize PyString_FromStringAndSize
+#define OI_PI_AsString PyString_AsString
+#endif
+
 static swig_cb_val *
 ref_swig_cb_i(swig_cb *cb)
 {
@@ -99,7 +133,7 @@ swig_finish_call_rv(swig_cb_val *cb, const char *method_name, PyObject *args,
     } else if (!optional) {
 	PyObject *t = PyObject_GetAttrString(cb, "__class__");
 	PyObject *c = PyObject_GetAttrString(t, "__name__");
-	char *class = PyString_AsString(c);
+	char *class = OI_PI_AsString(c);
 
 	PyErr_Format(PyExc_RuntimeError,
 		     "gensio callback: Class '%s' has no method '%s'\n",
@@ -125,7 +159,7 @@ swig_finish_call_rv_gensiods(swig_cb_val *cb, const char *method_name,
 	if (PyErr_Occurred()) {
 	    PyObject *t = PyObject_GetAttrString(cb, "__class__");
 	    PyObject *c = PyObject_GetAttrString(t, "__name__");
-	    char *class = PyString_AsString(c);
+	    char *class = OI_PI_AsString(c);
 
 	    PyErr_Format(PyExc_RuntimeError, "gensio callback: "
 			 "Class '%s' method '%s' did not return "
@@ -151,7 +185,7 @@ swig_finish_call_rv_int(swig_cb_val *cb, const char *method_name,
 	if (PyErr_Occurred()) {
 	    PyObject *t = PyObject_GetAttrString(cb, "__class__");
 	    PyObject *c = PyObject_GetAttrString(t, "__name__");
-	    char *class = PyString_AsString(c);
+	    char *class = OI_PI_AsString(c);
 
 	    PyErr_Format(PyExc_RuntimeError, "gensio callback: "
 			 "Class '%s' method '%s' did not return "
@@ -174,40 +208,6 @@ swig_finish_call(swig_cb_val *cb, const char *method_name, PyObject *args,
     if (o)
 	Py_DECREF(o);
 }
-
-#define my_ssize_t Py_ssize_t
-#if PY_VERSION_HEX >= 0x03000000
-static int
-OI_PI_BytesCheck(PyObject *o)
-{
-    if (PyUnicode_Check(o))
-	return 1;
-    if (PyBytes_Check(o))
-	return 1;
-    return 0;
-}
-
-static int
-OI_PI_AsBytesAndSize(PyObject *o, char **buf, my_ssize_t *len)
-{
-    if (PyUnicode_Check(o)) {
-	*buf = PyUnicode_AsUTF8AndSize(o, len);
-	return 0;
-    }
-    return PyBytes_AsStringAndSize(o, buf, len);
-}
-#define OI_PI_StringCheck PyUnicode_Check
-#define OI_PI_FromString PyUnicode_FromString
-#define OI_PI_FromStringAndSize PyUnicode_FromStringAndSize
-#define OI_PI_AsString PyUnicode_AsUTF8
-#else
-#define OI_PI_BytesCheck PyString_Check
-#define OI_PI_AsBytesAndSize PyString_AsStringAndSize
-#define OI_PI_StringCheck PyString_Check
-#define OI_PI_FromString PyString_FromString
-#define OI_PI_FromStringAndSize PyString_FromStringAndSize
-#define OI_PI_AsString PyString_AsString
-#endif
 
 struct os_funcs_data {
 #ifdef USE_POSIX_THREADS
