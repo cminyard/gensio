@@ -784,6 +784,7 @@ gensio_i_os_err_to_err(struct gensio_os_funcs *o,
     case EADDRINUSE:	err = GE_ADDRINUSE; break;
     case EINTR:		err = GE_INTERRUPTED; break;
     case ESHUTDOWN:     err = GE_SHUTDOWN; break;
+    case EMSGSIZE:      err = GE_TOOBIG; break;
     default:		err = GE_OSERR;
     }
 
