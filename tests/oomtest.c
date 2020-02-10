@@ -17,9 +17,9 @@
  * reached.
  */
 
+#include "config.h"
 #include <stdio.h>
 #include <stdlib.h>
-#include <pthread.h>
 #include <string.h>
 #include <signal.h>
 #include <errno.h>
@@ -27,7 +27,7 @@
 #include <sys/wait.h>
 #include <gensio/gensio.h>
 #include <gensio/gensio_selector.h>
-#include "config.h"
+#include "pthread_handler.h"
 
 struct oom_tests {
     const char *connecter;
@@ -97,6 +97,7 @@ alloc_sprintf(struct gensio_os_funcs *f, const char *fmt, ...)
     return s;
 }
 
+#ifdef USE_PTHREADS
 static void *
 gensio_loop(void *info)
 {
@@ -105,6 +106,7 @@ gensio_loop(void *info)
     o->wait(closewaiter, 1, NULL);
     return NULL;
 }
+#endif
 
 static void
 do_vlog(struct gensio_os_funcs *f, enum gensio_log_levels level,
@@ -177,7 +179,7 @@ struct oom_test_data {
     bool stderr_open_done;
     bool stderr_closed;
 
-    pthread_mutex_t lock;
+    lock_type lock;
 
     unsigned int port;
     bool look_for_port;
@@ -196,9 +198,9 @@ od_deref_and_unlock(struct oom_test_data *od)
 
     assert(od->refcount > 0);
     tcount = --od->refcount;
-    pthread_mutex_unlock(&od->lock);
+    UNLOCK(&od->lock);
     if (tcount == 0) {
-	pthread_mutex_destroy(&od->lock);
+	LOCK_DESTROY(&od->lock);
 	if (od->ccon.io)
 	    gensio_free(od->ccon.io);
 	if (od->scon.io)
@@ -229,7 +231,7 @@ ccon_stderr_closed(struct gensio *io, void *close_data)
     rv = gensio_control(io, GENSIO_CONTROL_DEPTH_FIRST, true,
 			GENSIO_CONTROL_EXIT_CODE, intstr, &size);
     assert(!debug || !rv);
-    pthread_mutex_lock(&od->lock);
+    LOCK(&od->lock);
     if (rv) {
 	if (debug)
 	    assert(0);
@@ -250,7 +252,8 @@ con_closed(struct gensio *io, void *close_data)
     struct io_test_data *id = close_data;
     struct oom_test_data *od = id->od;
 
-    pthread_mutex_lock(&od->lock);
+    LOCK(&od->lock);
+    id->closed = true;
     gensio_free(io);
     id->io = NULL;
     o->wake(od->waiter);
@@ -263,7 +266,7 @@ acc_closed(struct gensio_accepter *acc, void *close_data)
     struct oom_test_data *od = close_data;
 
     assert(acc == od->acc);
-    pthread_mutex_lock(&od->lock);
+    LOCK(&od->lock);
     od->acc = NULL;
     o->wake(od->waiter);
     gensio_acc_free(acc);
@@ -281,7 +284,7 @@ con_cb(struct gensio *io, void *user_data,
     gensiods count;
     int rv = 0;
 
-    pthread_mutex_lock(&od->lock);
+    LOCK(&od->lock);
     assert(id->io == io);
     if (err) {
 	assert(!debug || err == GE_REMCLOSE || err == GE_NOTREADY || err == GE_LOCALCLOSED);
@@ -356,7 +359,7 @@ con_cb(struct gensio *io, void *user_data,
 	rv = GE_NOTSUP;
     }
  out:
-    pthread_mutex_unlock(&od->lock);
+    UNLOCK(&od->lock);
     return rv;
 }
 
@@ -370,12 +373,12 @@ acc_cb(struct gensio_accepter *accepter,
 
     switch(event) {
     case GENSIO_ACC_EVENT_NEW_CONNECTION:
-	pthread_mutex_lock(&od->lock);
+	LOCK(&od->lock);
 	od->scon.io = data;
 	gensio_set_callback(od->scon.io, con_cb, &od->scon);
 	gensio_set_read_callback_enable(od->scon.io, true);
 	gensio_set_write_callback_enable(od->scon.io, true);
-	pthread_mutex_unlock(&od->lock);
+	UNLOCK(&od->lock);
 	break;
 
     case GENSIO_ACC_EVENT_LOG:
@@ -399,13 +402,13 @@ ccon_stderr_cb(struct gensio *io, void *user_data,
     gensiods size;
 
     if (err) {
-	pthread_mutex_lock(&od->lock);
+	LOCK(&od->lock);
 	assert(!debug || err == GE_REMCLOSE);
 	gensio_set_read_callback_enable(io, false);
 	if (!od->stderr_expect_close || err != GE_REMCLOSE)
 	    od->ccon.err = err;
 	o->wake(od->waiter);
-	pthread_mutex_unlock(&od->lock);
+	UNLOCK(&od->lock);
 	return 0;
     }
 
@@ -466,7 +469,7 @@ ccon_stderr_open_done(struct gensio *io, int err, void *open_data)
 {
     struct oom_test_data *od = open_data;
 
-    pthread_mutex_lock(&od->lock);
+    LOCK(&od->lock);
     if (od->stderr_closed)
 	goto out_unlock;
 
@@ -488,7 +491,7 @@ scon_open_done(struct gensio *io, int err, void *open_data)
     struct oom_test_data *od = open_data;
     struct io_test_data *id = &od->scon;
 
-    pthread_mutex_lock(&od->lock);
+    LOCK(&od->lock);
     assert(!id->open_done);
     if (id->closed)
 	goto out_unlock;
@@ -518,7 +521,7 @@ ccon_open_done(struct gensio *io, int err, void *open_data)
     struct io_test_data *id = &od->ccon;
     int rv;
 
-    pthread_mutex_lock(&od->lock);
+    LOCK(&od->lock);
     assert(!id->open_done);
     if (id->closed)
 	goto out_unlock;
@@ -577,7 +580,7 @@ alloc_od(struct oom_tests *test)
     od->scon.od = od;
     od->ccon.iostr = test->connecter;
     od->scon.iostr = test->accepter;
-    pthread_mutex_init(&od->lock, NULL);
+    LOCK_INIT(&od->lock);
     return od;
 }
 
@@ -587,9 +590,9 @@ wait_for_data(struct oom_test_data *od, struct timeval *timeout)
     int err = 0, rv;
 
     for (;;) {
-	pthread_mutex_unlock(&od->lock);
+	UNLOCK(&od->lock);
 	rv = o->wait_intr_sigmask(od->waiter, 1, timeout, &waitsigs);
-	pthread_mutex_lock(&od->lock);
+	LOCK(&od->lock);
 	if (debug && (rv == GE_TIMEDOUT || od->scon.err == OOME_READ_OVERFLOW ||
 		      od->ccon.err == OOME_READ_OVERFLOW)) {
 	    printf("Waiting on err A\n");
@@ -636,9 +639,9 @@ close_con(struct io_test_data *id, struct timeval *timeout)
 	id->closed = true;
 	/* Make sure the open completes. */
 	while (!id->open_done) {
-	    pthread_mutex_unlock(&od->lock);
+	    UNLOCK(&od->lock);
 	    rv = o->wait_intr_sigmask(id->od->waiter, 1, timeout, &waitsigs);
-	    pthread_mutex_lock(&od->lock);
+	    LOCK(&od->lock);
 	    if (rv == GE_TIMEDOUT && debug) {
 		printf("Waiting on timeout err B\n");
 		assert(0);
@@ -654,9 +657,9 @@ close_con(struct io_test_data *id, struct timeval *timeout)
     }
     od_ref(od); /* Ref for the close */
     while (id->io) {
-	pthread_mutex_unlock(&od->lock);
+	UNLOCK(&od->lock);
 	rv = o->wait_intr_sigmask(id->od->waiter, 1, timeout, &waitsigs);
-	pthread_mutex_lock(&od->lock);
+	LOCK(&od->lock);
 	if (rv == GE_TIMEDOUT && debug) {
 	    printf("Waiting on timeout err B\n");
 	    assert(0);
@@ -715,9 +718,9 @@ close_stderr(struct oom_test_data *od, struct timeval *timeout)
     }
     od_ref(od); /* Ref for the close */
     while (od->ccon_stderr_io) {
-	pthread_mutex_unlock(&od->lock);
+	UNLOCK(&od->lock);
 	rv = o->wait_intr_sigmask(od->waiter, 1, timeout, &waitsigs);
-	pthread_mutex_lock(&od->lock);
+	LOCK(&od->lock);
 	if (rv == GE_TIMEDOUT && debug) {
 	    printf("Waiting on timeout err G\n");
 	    assert(0);
@@ -747,7 +750,7 @@ run_oom_test(struct oom_tests *test, long count, int *exitcode, bool close_acc)
     if (!od)
 	return GE_NOMEM;
 
-    pthread_mutex_lock(&od->lock);
+    LOCK(&od->lock);
     if (count < 0) {
 	rv = unsetenv("GENSIO_OOM_TEST");
     } else {
@@ -815,9 +818,9 @@ run_oom_test(struct oom_tests *test, long count, int *exitcode, bool close_acc)
 	} else {
 	    od_ref(od); /* Ref for the close */
 	    while (od->acc) {
-		pthread_mutex_unlock(&od->lock);
+		UNLOCK(&od->lock);
 		rv = o->wait_intr_sigmask(od->waiter, 1, &timeout, &waitsigs);
-		pthread_mutex_lock(&od->lock);
+		LOCK(&od->lock);
 		if (rv == GE_TIMEDOUT && debug) {
 		    printf("Waiting on timeout err C\n");
 		    assert(0);
@@ -873,7 +876,7 @@ run_oom_acc_test(struct oom_tests *test, long count, int *exitcode,
     if (!od)
 	return GE_NOMEM;
 
-    pthread_mutex_lock(&od->lock);
+    LOCK(&od->lock);
     if (count < 0) {
 	rv = unsetenv("GENSIO_OOM_TEST");
     } else {
@@ -907,9 +910,9 @@ run_oom_acc_test(struct oom_tests *test, long count, int *exitcode,
     od_ref(od); /* Ref for the open */
 
     for (;;) {
-	pthread_mutex_unlock(&od->lock);
+	UNLOCK(&od->lock);
 	rv = o->wait_intr_sigmask(od->waiter, 1, &timeout, &waitsigs);
-	pthread_mutex_lock(&od->lock);
+	LOCK(&od->lock);
 	if (debug && rv == GE_TIMEDOUT) {
 	    printf("Waiting on err E\n");
 	    assert(0);
@@ -1093,8 +1096,10 @@ int
 main(int argc, char *argv[])
 {
     int rv;
+#ifdef USE_PTHREADS
     pthread_t loopth[3];
     struct gensio_waiter *loopwaiter[3];
+#endif
     unsigned int i, j;
     unsigned long errcount = 0;
     struct sigaction sigdo;
@@ -1208,6 +1213,7 @@ main(int argc, char *argv[])
     }
     o->vlog = do_vlog;
 
+#ifdef USE_PTHREADS
     for (i = 0; i < 3; i++) {
 	loopwaiter[i] = o->alloc_waiter(o);
 	if (!loopwaiter[i]) {
@@ -1221,6 +1227,7 @@ main(int argc, char *argv[])
 	    goto out_err;
 	}
     }
+#endif
 
     if (testnr < 0) {
 	for (i = 0; oom_tests[i].connecter; i++) {
@@ -1240,11 +1247,13 @@ main(int argc, char *argv[])
 					  testnrstart, testnrend);
     }
 
+#ifdef USE_PTHREADS
     for (i = 0; i < 3; i++) {
 	o->wake(loopwaiter[i]);
 	pthread_join(loopth[i], NULL);
 	o->free_waiter(loopwaiter[i]);
     }
+#endif
 
     printf("Got %ld errors\n", errcount);
     while (o && o->service(o, &zerotime) == 0)

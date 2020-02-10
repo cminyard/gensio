@@ -1,4 +1,6 @@
 
+AM_CFLAGS = -I$(top_srcdir)/include
+
 utst_builddir = $(shell readlink -f $(top_builddir))
 utst_srcdir = $(shell readlink -f $(top_srcdir))
 
@@ -8,8 +10,6 @@ AM_TESTS_ENVIRONMENT = \
     if [ ! -e ca ]; then \
 	$(utst_srcdir)/tests/make_keys; \
     fi; GENSIOT=$(top_builddir)/tools/gensiot PYTHON=$(PYTHON)
-
-AM_CFLAGS = -I$(top_srcdir)/include
 
 test_setup:
 	echo "$(AM_TESTS_ENVIRONMENT) $(utst_srcdir)/tests/"
@@ -127,7 +127,7 @@ test_fuzz: test_fuzz_certauth test_fuzz_mux test_fuzz_ssl test_fuzz_telnet \
 
 oomtest_SOURCES = oomtest.c
 
-oomtest_LDADD = $(top_builddir)/lib/libgensio.la $(OPENSSL_LIBS)
+oomtest_LDADD = $(top_builddir)/lib/libgensio.la $(OPENSSL_LIBS) -lpthread
 
 noinst_PROGRAMS = oomtest
 

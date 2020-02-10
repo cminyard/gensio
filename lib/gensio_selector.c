@@ -10,16 +10,7 @@
 #include <string.h>
 #include <errno.h>
 
-#ifdef USE_PTHREADS
-#include <pthread.h>
-#else
-#define pthread_mutex_t int
-#define pthread_mutex_lock(l) do { } while (0)
-#define pthread_mutex_unlock(l) do { } while (0)
-#define pthread_mutex_init(l, n) do { } while (0)
-#define pthread_mutex_destroy(l) do { } while (0)
-#define PTHREAD_MUTEX_INITIALIZER 0
-#endif
+#include "pthread_handler.h"
 
 #include <gensio/gensio_selector.h>
 
@@ -40,7 +31,7 @@ struct gensio_data {
 
 #ifdef OUT_OF_MEMORY_TEST
 /* Declared in selector.c */
-extern pthread_mutex_t oom_mutex;
+extern lock_type oom_mutex;
 extern bool oom_initialized;
 extern bool oom_ready;
 extern bool triggered;
@@ -48,7 +39,7 @@ extern unsigned int oom_count;
 extern unsigned int oom_curr;
 #endif
 #ifdef TRACK_ALLOCED_MEMORY
-pthread_mutex_t memtrk_mutex = PTHREAD_MUTEX_INITIALIZER;
+lock_type memtrk_mutex = LOCK_INITIALIZER;
 struct memory_link {
     struct memory_link *next;
     struct memory_link *prev;
@@ -77,7 +68,7 @@ gensio_sel_zalloc(struct gensio_os_funcs *f, unsigned int size)
     {
 	bool triggerit = false;
 
-	pthread_mutex_lock(&oom_mutex);
+	LOCK(&oom_mutex);
 	if (!oom_initialized) {
 	    char *s = getenv("GENSIO_OOM_TEST");
 
@@ -94,14 +85,14 @@ gensio_sel_zalloc(struct gensio_os_funcs *f, unsigned int size)
 		triggerit = true;
 	    }
 	}
-	pthread_mutex_unlock(&oom_mutex);
+	UNLOCK(&oom_mutex);
 	if (triggerit)
 	    return NULL;
     }
 #endif
 #ifdef TRACK_ALLOCED_MEMORY
     if (!memtracking_initialized) {
-	pthread_mutex_lock(&memtrk_mutex);
+	LOCK(&memtrk_mutex);
 	if (!memtracking_initialized) {
 	    char *s = getenv("GENSIO_MEMTRACK");
 
@@ -112,7 +103,7 @@ gensio_sel_zalloc(struct gensio_os_funcs *f, unsigned int size)
 		    memtracking_abort_on_lost = true;
 	    }
 	}
-	pthread_mutex_unlock(&memtrk_mutex);
+	UNLOCK(&memtrk_mutex);
     }
     if (memtracking_ready) {
 	d = malloc(size + sizeof(struct memory_header));
@@ -129,13 +120,13 @@ gensio_sel_zalloc(struct gensio_os_funcs *f, unsigned int size)
 #endif
 	    memset(h->freers, 0, sizeof(void *) * 4);
 	    h->inuse = true;
-	    pthread_mutex_lock(&memtrk_mutex);
+	    LOCK(&memtrk_mutex);
 	    h->link.next = &memhead;
 	    h->link.prev = memhead.prev;
 	    memhead.prev->next = &h->link;
 	    memhead.prev = &h->link;
 	    freecount++;
-	    pthread_mutex_unlock(&memtrk_mutex);
+	    UNLOCK(&memtrk_mutex);
 	}
     } else
 #endif
@@ -174,7 +165,7 @@ gensio_sel_free(struct gensio_os_funcs *f, void *data)
 	h->freers[2] = __builtin_return_address(2);
 	h->freers[3] = __builtin_return_address(3);
 #endif
-	pthread_mutex_lock(&memtrk_mutex);
+	LOCK(&memtrk_mutex);
 	h->link.next->prev = h->link.prev;
 	h->link.prev->next = h->link.next;
 	h->inuse = false;
@@ -184,7 +175,7 @@ gensio_sel_free(struct gensio_os_funcs *f, void *data)
 	h->link.prev = memfree.prev;
 	memfree.prev->next = &h->link;
 	memfree.prev = &h->link;
-	pthread_mutex_unlock(&memtrk_mutex);
+	UNLOCK(&memtrk_mutex);
     } else
 #endif
     free(data);
@@ -192,7 +183,7 @@ gensio_sel_free(struct gensio_os_funcs *f, void *data)
 
 struct gensio_lock {
     struct gensio_os_funcs *f;
-    pthread_mutex_t lock;
+    lock_type lock;
 };
 
 static struct gensio_lock *
@@ -202,7 +193,7 @@ gensio_sel_alloc_lock(struct gensio_os_funcs *f)
 
     if (lock) {
 	lock->f = f;
-	pthread_mutex_init(&lock->lock, NULL);
+	LOCK_INIT(&lock->lock);
     }
 
     return lock;
@@ -211,20 +202,20 @@ gensio_sel_alloc_lock(struct gensio_os_funcs *f)
 static void
 gensio_sel_free_lock(struct gensio_lock *lock)
 {
-    pthread_mutex_destroy(&lock->lock);
+    LOCK_DESTROY(&lock->lock);
     lock->f->free(lock->f, lock);
 }
 
 static void
 gensio_sel_lock(struct gensio_lock *lock)
 {
-    pthread_mutex_lock(&lock->lock);
+    LOCK(&lock->lock);
 }
 
 static void
 gensio_sel_unlock(struct gensio_lock *lock)
 {
-    pthread_mutex_unlock(&lock->lock);
+    UNLOCK(&lock->lock);
 }
 
 static int
@@ -308,7 +299,7 @@ struct gensio_timer {
     void (*handler)(struct gensio_timer *t, void *cb_data);
     void *cb_data;
     sel_timer_t *sel_timer;
-    pthread_mutex_t lock;
+    lock_type lock;
 
     void (*done_handler)(struct gensio_timer *t, void *cb_data);
     void *done_cb_data;
@@ -339,7 +330,7 @@ gensio_sel_alloc_timer(struct gensio_os_funcs *f,
     timer->f = f;
     timer->handler = handler;
     timer->cb_data = cb_data;
-    pthread_mutex_init(&timer->lock, NULL);
+    LOCK_INIT(&timer->lock);
 
     rv = sel_alloc_timer(d->sel, gensio_timeout_handler, timer,
 			 &timer->sel_timer);
@@ -396,10 +387,10 @@ gensio_stop_timer_done(struct selector_s *sel,
     void (*done_handler)(struct gensio_timer *t, void *cb_data);
     void *done_cb_data;
 
-    pthread_mutex_lock(&timer->lock);
+    LOCK(&timer->lock);
     done_handler = timer->done_handler;
     done_cb_data = timer->done_cb_data;
-    pthread_mutex_unlock(&timer->lock);
+    UNLOCK(&timer->lock);
     done_handler(timer, done_cb_data);
 }
 
@@ -411,9 +402,9 @@ gensio_sel_stop_timer_with_done(struct gensio_timer *timer,
 {
     int rv;
 
-    pthread_mutex_lock(&timer->lock);
+    LOCK(&timer->lock);
     if (timer->done_handler) {
-	pthread_mutex_unlock(&timer->lock);
+	UNLOCK(&timer->lock);
 	return GE_INUSE;
     }
     rv = sel_stop_timer_with_done(timer->sel_timer, gensio_stop_timer_done,
@@ -422,7 +413,7 @@ gensio_sel_stop_timer_with_done(struct gensio_timer *timer,
 	timer->done_handler = done_handler;
 	timer->done_cb_data = cb_data;
     }
-    pthread_mutex_unlock(&timer->lock);
+    UNLOCK(&timer->lock);
     return gensio_os_err_to_err(timer->f, rv);
 }
 
@@ -613,7 +604,7 @@ gensio_sel_free_funcs(struct gensio_os_funcs *f)
     free(f);
 }
 
-static pthread_mutex_t once_lock = PTHREAD_MUTEX_INITIALIZER;
+static lock_type once_lock = LOCK_INITIALIZER;
 
 static void
 gensio_sel_call_once(struct gensio_os_funcs *f, struct gensio_once *once,
@@ -621,13 +612,13 @@ gensio_sel_call_once(struct gensio_os_funcs *f, struct gensio_once *once,
 {
     if (once->called)
 	return;
-    pthread_mutex_lock(&once_lock);
+    LOCK(&once_lock);
     if (!once->called) {
 	once->called = true;
-	pthread_mutex_unlock(&once_lock);
+	UNLOCK(&once_lock);
 	func(cb_data);
     } else {
-	pthread_mutex_unlock(&once_lock);
+	UNLOCK(&once_lock);
     }
 }
 
@@ -709,7 +700,7 @@ static int defoshnd_wake_sig = -1;
 #ifdef USE_PTHREADS
 struct sel_lock_s
 {
-    pthread_mutex_t lock;
+    lock_type lock;
 };
 
 sel_lock_t *defsel_lock_alloc(void *cb_data)
@@ -719,24 +710,24 @@ sel_lock_t *defsel_lock_alloc(void *cb_data)
     l = malloc(sizeof(*l));
     if (!l)
 	return NULL;
-    pthread_mutex_init(&l->lock, NULL);
+    LOCK_INIT(&l->lock);
     return l;
 }
 
 void defsel_lock_free(sel_lock_t *l)
 {
-    pthread_mutex_destroy(&l->lock);
+    LOCK_DESTROY(&l->lock);
     free(l);
 }
 
 void defsel_lock(sel_lock_t *l)
 {
-    pthread_mutex_lock(&l->lock);
+    LOCK(&l->lock);
 }
 
 void defsel_unlock(sel_lock_t *l)
 {
-    pthread_mutex_unlock(&l->lock);
+    UNLOCK(&l->lock);
 }
 
 static pthread_once_t defos_once = PTHREAD_ONCE_INIT;

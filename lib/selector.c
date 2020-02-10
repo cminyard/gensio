@@ -39,7 +39,7 @@
 #endif
 
 #ifdef OUT_OF_MEMORY_TEST
-#include <pthread.h>
+#include "pthread_handler.h"
 #include <assert.h>
 /*
  * Some memory allocation failure testing.  If the GENSIO_OOM_TEST
@@ -48,7 +48,7 @@
  * (below); it will cause specific values to be returned on an exit
  * failure.
  */
-pthread_mutex_t oom_mutex = PTHREAD_MUTEX_INITIALIZER;
+lock_type oom_mutex = LOCK_INITIALIZER;
 int oom_initialized;
 int oom_ready;
 int triggered;
@@ -66,7 +66,7 @@ sel_alloc(unsigned int size)
     {
 	int triggerit = 0;
 
-	pthread_mutex_lock(&oom_mutex);
+	LOCK(&oom_mutex);
 	if (!oom_initialized) {
 	    char *s = getenv("GENSIO_OOM_TEST");
 
@@ -83,7 +83,7 @@ sel_alloc(unsigned int size)
 		triggerit = 1;
 	    }
 	}
-	pthread_mutex_unlock(&oom_mutex);
+	UNLOCK(&oom_mutex);
 	if (triggerit)
 	    return NULL;
     }
