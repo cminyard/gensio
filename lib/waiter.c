@@ -56,7 +56,6 @@ void
 free_waiter(waiter_t *waiter)
 {
     assert(waiter);
-    /* assert(waiter->count == 0); */
     assert(waiter->wts.next == waiter->wts.prev);
     pthread_mutex_destroy(&waiter->lock);
     free(waiter);
@@ -147,6 +146,7 @@ alloc_waiter(struct selector_s *sel, int wake_sig)
     waiter = malloc(sizeof(waiter_t));
     if (waiter)
 	memset(waiter, 0, sizeof(*waiter));
+    waiter->sel = sel;
     return waiter;
 }
 
@@ -154,7 +154,6 @@ void
 free_waiter(waiter_t *waiter)
 {
     assert(waiter);
-    assert(waiter->count == 0);
     free(waiter);
 }
 
@@ -162,7 +161,7 @@ static int
 i_wait_for_waiter_timeout(waiter_t *waiter, unsigned int count,
 			  struct timeval *timeout, bool intr, sigset_t *sigmask)
 {
-    int err;
+    int err = 0;
 
     while (waiter->count < count) {
 	if (intr)
