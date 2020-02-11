@@ -490,7 +490,7 @@ gensio_msgdelim_filter_alloc(struct gensio_os_funcs *o,
 	    continue;
 	if (gensio_check_keyds(args[i], "readbuf", &max_read_size) > 0)
 	    continue;
-	if (gensio_check_keyboolv(args[i], "crc", "on", "off", &crc) > 0)
+	if (gensio_check_keybool(args[i], "crc", &crc) > 0)
 	    continue;
 	return GE_INVAL;
     }
