@@ -136,6 +136,11 @@ relpkt
     run over UDP, but it's not ideal for that because it doesn't do all the
     internet-friendly flow control and such that SCTP and TCP do.
 
+trace
+    A transparent gensio that allows the data read and/or written to
+    be sent to a file, either as raw data or as human-readable hex
+    data.
+
 These are all documented in detail in gensio(5).  Unless otherwise
 stated, these all are available as accepters or connecting gensios.
 

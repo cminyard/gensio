@@ -537,7 +537,7 @@ to allow the environment to be set for the new process.
 An accepting gensio immediately does a connection when started and
 connection stdin and stdout of the running program to the gensio.
 
-In addition to readbuf, a connecting echo takes the following options:
+In addition to readbuf, a connecting stdio takes the following options:
 .TP
 .B self[=true|false]
 Instead of starting a program, connect to the running program's stdio.
@@ -1039,7 +1039,7 @@ In addition to readbuf, the msgdelim gensio takes the following options:
 .B writebuf=<n>
 set the size of the write buffer.
 .TP
-.B crc=on|off
+.B crc[=on|off]
 Enable/disable the CRC at the end of the packet.  Useful if you are
 running over a reliable protocol, and especially for testing relpkt so
 you can fuzz it and bypass the crc errors.
@@ -1073,6 +1073,32 @@ by the remote end, but will never be exceeded.
 .B mode=client|server
 By default a relpkt is a server on an accepter and a client on a
 connecter.  See the discussion above on clients and servers.
+.SH "trace"
+A transparent gensio that allows the data passing through it to be
+sent to a file.  Useful for debugging.
+
+trace does not support readbuf.  It supports the following:
+.TP
+.B dir=none|read|write|both
+Sets what data is traced.  "none" means no data, "read" means data
+flowing up the gensio stack (read by the parent), write means data
+flowing down the gensio stack (written by the parent), and "both"
+traces reads and writes.
+.TP
+.B raw[=yes|no]
+If set, data will be written as raw bytes.  If not set, data will be
+written in human-readable form.
+.TP
+.B file=<filename>
+The filename to write to.  If not supplied, tracing is disabled.  Note
+that the file is opened append, so it will add new trace data onto the
+end of an existing file.
+.TP
+.B stderr[=yes|no]
+Send the output to standard error.  Overrides file.
+.TP
+.B stdout[=yes|no]
+Send the output to standard output.  Overrides file and stderr.
 .SH "Forking and gensios"
 Unlike normal file descriptors, when you fork with a gensio, you now
 have two unassociated copies of the gensios.  So if you do operations
