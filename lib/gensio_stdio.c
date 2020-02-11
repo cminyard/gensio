@@ -125,9 +125,6 @@ struct stdiona_data {
     struct stdion_channel *closing_chan;
 
     struct gensio_accepter *acc;
-
-    /* If not -1, write all data written to stdio to the given file, too. */
-    int tracewrite;
 };
 
 static void
@@ -145,8 +142,6 @@ stdiona_unlock(struct stdiona_data *nadata)
 static void
 stdiona_finish_free(struct stdiona_data *nadata)
 {
-    if (nadata->tracewrite != -1)
-	close(nadata->tracewrite);
     if (nadata->argv)
 	gensio_argv_free(nadata->o, nadata->argv);
     if (nadata->env)
@@ -206,30 +201,8 @@ stdion_write(struct gensio *io, gensiods *count,
 {
     struct stdion_channel *schan = gensio_get_gensio_data(io);
     struct stdiona_data *nadata = schan->nadata;
-    int err;
 
-    err = gensio_os_write(nadata->o, schan->infd, sg, sglen, count);
-    if (nadata->tracewrite != -1 && err == 0) {
-	gensiods tcount = *count;
-	gensiods sgpos = 0;
-	int rv;
-
-	while (tcount > 0 && sgpos < sglen) {
-	    if (tcount > sg[sgpos].buflen) {
-		rv = write(nadata->tracewrite, sg[sgpos].buf, sg[sgpos].buflen);
-		tcount -= sg[sgpos].buflen;
-	    } else {
-		rv = write(nadata->tracewrite, sg[sgpos].buf, tcount);
-		tcount = 0;
-	    }
-	    if (rv == -1) {
-		/* No real way to report an error. */
-	    }
-	    sgpos++;
-	}
-    }
-
-    return err;
+    return gensio_os_write(nadata->o, schan->infd, sg, sglen, count);
 }
 
 static int
@@ -1094,7 +1067,6 @@ stdio_nadata_setup(struct gensio_os_funcs *o, gensiods max_read_size,
     nadata->io.infd = -1;
     nadata->io.outfd = -1;
     nadata->opid = -1;
-    nadata->tracewrite = -1;
 
     nadata->waitpid_timer = o->alloc_timer(o, check_waitpid_timeout,
 					   &nadata->io);
@@ -1143,7 +1115,6 @@ stdio_gensio_alloc(const char * const argv[], const char * const args[],
     bool self= false;
     bool stderr_to_stdout = false;
     bool noredir_stderr = false;
-    const char *tracewrite = NULL;
 
     for (i = 0; args && args[i]; i++) {
 	if (gensio_check_keyds(args[i], "readbuf", &max_read_size) > 0)
@@ -1156,9 +1127,6 @@ stdio_gensio_alloc(const char * const argv[], const char * const args[],
 	if (gensio_check_keybool(args[i], "noredir-stderr",
 				 &noredir_stderr) > 0)
 	    continue;
-	if (gensio_check_keyvalue(args[i], "tracewrite",
-				  &tracewrite) > 0)
-	    continue;
 	return GE_INVAL;
     }
 
@@ -1168,19 +1136,6 @@ stdio_gensio_alloc(const char * const argv[], const char * const args[],
 
     nadata->stderr_to_stdout = stderr_to_stdout;
     nadata->noredir_stderr = noredir_stderr;
-
-    if (tracewrite) {
-	int rv = open(tracewrite, O_WRONLY | O_CREAT | O_TRUNC, 0600);
-
-	if (rv == -1) {
-	    err = gensio_i_os_err_to_err(o, errno,
-					 "stdio_gensio_alloc",
-					 __FILE__, __LINE__);
-	    stdiona_finish_free(nadata);
-	    return err;
-	}
-	nadata->tracewrite = rv;
-    }
 
     if (self) {
 	nadata->io.infd = 1;
