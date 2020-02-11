@@ -127,7 +127,7 @@ test_fuzz: test_fuzz_certauth test_fuzz_mux test_fuzz_ssl test_fuzz_telnet \
 
 oomtest_SOURCES = oomtest.c
 
-oomtest_LDADD = $(top_builddir)/lib/libgensio.la $(OPENSSL_LIBS) -lpthread
+oomtest_LDADD = $(top_builddir)/lib/libgensio.la $(OPENSSL_LIBS)
 
 noinst_PROGRAMS = oomtest
 
