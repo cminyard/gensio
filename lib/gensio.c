@@ -1988,9 +1988,11 @@ gensio_check_keybool(const char *str, const char *key, bool *rvalue)
     if (!*sval)
 	return -1;
 
-    if (strcmp(sval, "true") == 0 || strcmp(sval, "1") == 0)
+    if (strcmp(sval, "true") == 0 || strcmp(sval, "1") == 0 ||
+		strcmp(sval, "yes") == 0 || strcmp(sval, "on") == 0)
 	*rvalue = true;
-    else if (strcmp(sval, "false") == 0 || strcmp(sval, "0") == 0)
+    else if (strcmp(sval, "false") == 0 || strcmp(sval, "0") == 0 ||
+		strcmp(sval, "no") == 0 || strcmp(sval, "off") == 0)
 	*rvalue = false;
     else
 	return -1;
