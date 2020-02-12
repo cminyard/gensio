@@ -267,6 +267,7 @@ if test "x$enable_internal_trace" != xno; then
 fi
 
 AC_OUTPUT([Makefile
+	lib/libgensio.pc
 	lib/Makefile
 	include/Makefile
 	include/gensio/Makefile

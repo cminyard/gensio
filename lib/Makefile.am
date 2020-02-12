@@ -25,4 +25,9 @@ libgensio_la_SOURCES = \
 
 libgensio_la_LDFLAGS = $(OPENSSL_LIBS)
 
-EXTRA_DIST = README.rst
+EXTRA_DIST = README.rst libgensio.pc.in
+
+# This variable must have 'exec' in its name, in order to be installed
+# by 'install-exec' target (instead of default 'install-data')
+pkgconfigexecdir = $(libdir)/pkgconfig
+pkgconfigexec_DATA = libgensio.pc
