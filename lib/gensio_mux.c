@@ -191,6 +191,7 @@ struct mux_inst {
     struct gensio *io;
     struct mux_data *mux;
     unsigned int refcount;
+    unsigned int freeref; /* Used to count muxc_ref() and muxc_free() */
     unsigned int id;
     unsigned int remote_id;
     enum mux_inst_state state;
@@ -1232,7 +1233,7 @@ muxc_func_ref(struct mux_inst *chan)
     struct mux_data *muxdata = chan->mux;
 
     mux_lock(muxdata);
-    chan_ref(chan);
+    chan->freeref++;
     mux_unlock(muxdata);
 }
 
@@ -1242,8 +1243,9 @@ muxc_free(struct mux_inst *chan)
     struct mux_data *muxdata = chan->mux;
 
     mux_lock_and_ref(muxdata);
-    assert(!chan->freed);
-    chan->freed = true;
+    assert(chan->freeref > 0);
+    if (--chan->freeref > 0)
+	goto out_unlock;
     switch (chan->state) {
     case MUX_INST_IN_CLOSE:
     case MUX_INST_IN_REM_CLOSE:
@@ -1268,6 +1270,7 @@ muxc_free(struct mux_inst *chan)
 	abort();
     }
     chan_deref(chan);
+ out_unlock:
     mux_deref_and_unlock(muxdata);
 }
 
@@ -1322,6 +1325,7 @@ mux_new_channel(struct mux_data *muxdata, gensio_event cb, void *user_data,
 	gensio_set_is_encrypted(chan->io, true);
     chan->mux = muxdata;
     chan->refcount = 1;
+    chan->freeref = 1;
     chan->is_client = is_client;
     chan->max_read_size = muxdata->max_read_size;
     chan->max_write_size = muxdata->max_write_size;
