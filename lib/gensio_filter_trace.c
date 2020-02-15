@@ -176,9 +176,10 @@ trace_data(const char *op, struct gensio_os_funcs *o,
 	gensiods i, len;
 
 	memset(&h, 0, sizeof(h));
-	fprintf(f, "%ld:%6.6ld %s (%lu):\n",
-		time.tv_sec, time.tv_usec,
-		op, (unsigned long) written);
+	if (!raw)
+	    fprintf(f, "%ld:%6.6ld %s (%lu):\n",
+		    time.tv_sec, time.tv_usec,
+		    op, (unsigned long) written);
 	for (i = 0; i < sglen && written > 0; i++, written -= len) {
 	    if (sg[i].buflen > written)
 		len = written;
