@@ -256,15 +256,6 @@ fd_deliver_read_data(struct fd_ll *fdll, int err)
 }
 
 static void
-fd_start_close(struct fd_ll *fdll)
-{
-    if (fdll->ops->check_close)
-	fdll->ops->check_close(fdll->handler_data,
-			       GENSIO_LL_CLOSE_STATE_START, NULL);
-    fdll->o->clear_fd_handlers(fdll->o, fdll->fd);
-}
-
-static void
 fd_finish_open(struct fd_ll *fdll, int err)
 {
     gensio_ll_open_done open_done = fdll->open_done;
@@ -348,6 +339,20 @@ fd_sched_deferred_op(struct fd_ll *fdll)
 	fd_ref(fdll);
 	fdll->deferred_op_pending = true;
 	fdll->o->run(fdll->deferred_op_runner);
+    }
+}
+
+static void
+fd_start_close(struct fd_ll *fdll)
+{
+    if (fdll->ops->check_close)
+	fdll->ops->check_close(fdll->handler_data,
+			       GENSIO_LL_CLOSE_STATE_START, NULL);
+    if (fdll->fd == -1) {
+	fdll->deferred_close = true;
+	fd_sched_deferred_op(fdll);
+    } else {
+	fdll->o->clear_fd_handlers(fdll->o, fdll->fd);
     }
 }
 
