@@ -98,7 +98,7 @@ handle_buffer(struct gensio *io, char *buf)
     return shutdown;
 }
 
-static int
+static void
 process_data(struct gensio *io)
 {
     gensiods i;
@@ -106,7 +106,6 @@ process_data(struct gensio *io)
     char inbuf[100], *buf;
     char dummy[10];
     gensiods inpos = 0, count;
-    int shutdown;
 
     rv = gensio_write_s(io, NULL, "Ready\r\n", 7, NULL);
     if (rv)
@@ -146,8 +145,7 @@ process_data(struct gensio *io)
 			goto out_err;
 		}
 		buf[i++] = '\0';
-		shutdown = handle_buffer(io, inbuf);
-		if (shutdown)
+		if (handle_buffer(io, inbuf))
 		    goto out;
 		inpos = count - i;
 		memmove(inbuf, buf + i, inpos);
@@ -167,13 +165,12 @@ process_data(struct gensio *io)
     if (rv)
 	fprintf(stderr, "Error closing io: %s\n", gensio_err_to_str(rv));
     gensio_free(io);
-
-    return false;
+    return;
 
  out_err:
     if (rv != GE_REMCLOSE)
 	fprintf(stderr, "Error on io: %s\n", gensio_err_to_str(rv));
-    return false;
+    return;
 }
 
 static int
