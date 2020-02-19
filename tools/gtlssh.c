@@ -30,6 +30,9 @@
 #include <signal.h>
 #include <sys/ioctl.h>
 
+#include <openssl/x509.h>
+#include <openssl/pem.h>
+
 #include "ioinfo.h"
 #include "localports.h"
 #include "ser_ioinfo.h"
@@ -232,6 +235,63 @@ do_vlog(struct gensio_os_funcs *f, enum gensio_log_levels level,
     fprintf(stderr, "\r\n");
 }
 
+static void
+check_cert_expiry(const char *name, const char *filename,
+		  const char *cert, gensiods certlen)
+{
+    X509 *x = NULL;
+    const ASN1_TIME *t = NULL;
+    int days, seconds;
+
+    if (filename) {
+	FILE *fp = fopen(filename, "r");
+
+	if (!fp) {
+	    fprintf(stderr,
+		    "Unable to open %s certificate file for "
+		    "expiry verification: %s\n", name, strerror(errno));
+	    return;
+	}
+	x = PEM_read_X509(fp, NULL, NULL, NULL);
+	fclose(fp);
+    } else {
+	BIO *cert_bio = BIO_new_mem_buf(cert, certlen);
+
+	if (!cert_bio) {
+	    fprintf(stderr, "Unable to create %s certificate BIO\n", name);
+	    return;
+	}
+
+	x = PEM_read_bio_X509(cert_bio, NULL, NULL, NULL);
+	BIO_free(cert_bio);
+    }
+    if (!x) {
+	fprintf(stderr,
+		"Unable to load %s certificate for expiry verification\n",
+		name);
+	return;
+    }
+
+    t = X509_get0_notAfter(x);
+    if (!t) {
+	fprintf(stderr, "Unable to get certificate expiry time\n");
+	goto out;
+    }
+
+    if (!ASN1_TIME_diff(&days, &seconds, NULL, t)) {
+	fprintf(stderr, "Unable to compare certificate expiry time\n");
+	goto out;
+    }
+
+    if (days < 30)
+	fprintf(stderr, "***WARNING: %s certificate will expire in %d days\n",
+		name, days);
+
+ out:
+    if (x)
+	X509_free(x);
+}
+
 static int
 lookup_certfiles(const char *tlssh_dir, const char *username,
 		 const char *hostname, int port,
@@ -294,6 +354,8 @@ lookup_certfiles(const char *tlssh_dir, const char *username,
     err = checkout_file(keyfile, false, true);
     if (err)
 	goto out_err;
+
+    check_cert_expiry("local", certfile, NULL, 0);
 
     err = GE_NOMEM;
     *rCAdir = alloc_sprintf("CA=%s/", CAdir);
@@ -439,7 +501,7 @@ auth_event(struct gensio *io, void *user_data, int event, int ierr,
     char cert[16384];
     char buf[100];
     char *cmd;
-    gensiods len;
+    gensiods len, certlen;
     int err, err1, err2;
 
     switch (event) {
@@ -455,15 +517,15 @@ auth_event(struct gensio *io, void *user_data, int event, int ierr,
 	    return GE_INVAL;
 	}
 
-	len = sizeof(cert);
+	certlen = sizeof(cert);
 	err = gensio_control(ssl_io, 0, true, GENSIO_CONTROL_CERT,
-			     cert, &len);
+			     cert, &certlen);
 	if (err) {
 	    fprintf(stderr, "Error getting certificate: %s\n",
 		    gensio_err_to_str(err));
 	    return GE_NOMEM;
 	}
-	if (len >= sizeof(cert)) {
+	if (certlen >= sizeof(cert)) {
 	    fprintf(stderr, "certificate is too large");
 	    return GE_NOMEM;
 	}
@@ -519,7 +581,8 @@ auth_event(struct gensio *io, void *user_data, int event, int ierr,
 					   "%s/%s.crt", CAdir, raddr);
 		}
 	    }
-	    return err;
+
+	    goto postcert_done;
 	}
 
 	/*
@@ -617,6 +680,9 @@ auth_event(struct gensio *io, void *user_data, int event, int ierr,
 	    free(cmd);
 	}
 
+    postcert_done:
+	if (!err)
+	    check_cert_expiry("remote host", NULL, cert, certlen);
 	return err;
 
     case GENSIO_EVENT_REQUEST_PASSWORD:
