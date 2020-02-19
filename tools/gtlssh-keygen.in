@@ -30,7 +30,8 @@ help() {
     echo "  --basedir <dir> - Base directory for gtlssh.  Default is"
     echo "        $DEFAULT_GTLSSHDIR. Default keys also go here."
     echo "  --keydir <dir> - Location to put the non-default generated keys."
-    echo "        Default is $DEFAULT_KEYDIR"
+    echo "        Default is $DEFAULT_KEYDIR for normal certificates and"
+    echo "        $CONFDIF for server certificates."
     echo "  --commonname <name> - Set the common name in the certificate."
     echo "        The default is your username for normal certificates and"
     echo "        the fully qualified domain name for server certificates."
@@ -57,8 +58,10 @@ help() {
     echo "    Create the directory structure for gtlssh and create the"
     echo "    default keys."
     echo ""
-    echo "  serverkey"
+    echo "  serverkey [name]"
     echo "    Create keys for the gtlsshd server.  Probably requires root."
+    echo "    The name is a prefix for they filenames generated which will"
+    echo "    be name.crt and name.key.  The default name is 'default'."
 }
 
 promptyn() {
@@ -197,8 +200,12 @@ keygen() {
 }
 
 serverkey() {
-    SERVERKEY="$CONFDIR/gtlsshd.key"
-    SERVERCERT="$CONFDIR/gtlsshd.crt"
+    keyname="gtlsshd"
+    if [ $# -gt 0 ]; then
+	keyname="$1"
+    fi
+    SERVERKEY="$CONFDIR/$keyname.key"
+    SERVERCERT="$CONFDIR/$keyname.crt"
 
     if [ -e "$SERVERKEY" -o -e "$SERVERCERT" ]; then
 	if promptyn "Files $SERVERKEY or $SERVERCERT already exist, do you want to overwrite them?"; then
@@ -298,10 +305,14 @@ case "$1" in
 	;;
 
     serverkey)
+	shift
+	if ${KEYDIR_SET}; then
+	    CONFDIR="${KEYDIR}"
+	fi
 	if ! ${COMMONNAME_SET}; then
 	    COMMONNAME=`hostname -f`
 	fi
-	serverkey
+	serverkey $@
 	;;
 
     *)
