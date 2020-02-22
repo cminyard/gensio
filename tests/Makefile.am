@@ -27,7 +27,7 @@ oomtest_LDADD = $(top_builddir)/lib/libgensio.la $(OPENSSL_LIBS)
 check_PROGRAMS = oomtest
 
 EXTRA_DIST = utils.py ipmisimdaemon.py termioschk.py \
-	test_fuzz_setup.py make_keys
+	test_fuzz_setup.py make_keys CMakeLists.txt
 
 #
 # If you get certauth fuzz failures, they will be in the
