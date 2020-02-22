@@ -1,0 +1,16 @@
+/*
+ *  gensio - A library for abstracting stream I/O
+ *  Copyright (C) 2018  Corey Minyard <minyard@acm.org>
+ *
+ *  SPDX-License-Identifier: LGPL-2.1-only
+ */
+
+#ifndef GENSIO_VERSION_H
+#define GENSIO_VERSION_H
+
+#define gensio_version_major @gensio_VERSION_MAJOR@
+#define gensio_version_minor @gensio_VERSION_MINOR@
+#define gensio_version_patch @gensio_VERSION_PATCH@
+#define gensio_version_string "@gensio_VERSION_STRING@"
+
+#endif /* GENSIO_VERSION_H */

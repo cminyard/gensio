@@ -1,4 +1,8 @@
 AC_INIT([gensio], [1.5.3], [minyard@acm.org])
+AC_SUBST(gensio_VERSION_MAJOR, 1)
+AC_SUBST(gensio_VERSION_MINOR, 5)
+AC_SUBST(gensio_VERSION_PATCH, 3)
+AC_SUBST(gensio_VERSION_STRING, ${PACKAGE_VERSION})
 AM_INIT_AUTOMAKE([-Wall])
 AC_CONFIG_HEADERS([config.h])
 AC_PROG_CC
@@ -270,6 +274,7 @@ AC_OUTPUT([Makefile
 	lib/Makefile
 	include/Makefile
 	include/gensio/Makefile
+	include/gensio/gensio_version.h
 	tests/Makefile
 	tools/Makefile
 	swig/Makefile

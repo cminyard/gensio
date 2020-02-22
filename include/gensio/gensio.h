@@ -26,6 +26,7 @@ extern "C" {
 
 #include <gensio/gensio_os_funcs.h>
 #include <gensio/gensio_err.h>
+#include <gensio/gensio_version.h>
 
 struct gensio;
 

@@ -1,6 +1,7 @@
 
 AM_CFLAGS = $(PYTHON_CPPFLAGS) \
 	    -I $(top_srcdir)/include \
+	    -I$(top_builddir)/include \
 	    -I $(top_srcdir) \
 	    -DPYTHON_HAS_POSIX_THREADS=@PYTHON_HAS_POSIX_THREADS@
 

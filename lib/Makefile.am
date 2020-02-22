@@ -1,5 +1,6 @@
 
-AM_CFLAGS = -I$(top_srcdir)/include $(OPENSSL_INCLUDES)
+AM_CFLAGS = -I$(top_srcdir)/include -I$(top_builddir)/include \
+	    $(OPENSSL_INCLUDES)
 
 lib_LTLIBRARIES = libgensio.la
 
