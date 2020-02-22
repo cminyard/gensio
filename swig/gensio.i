@@ -106,7 +106,7 @@ static void
 wake_curr_waiter(void)
 {
     if (curr_waiter)
-	curr_waiter->waiter->o->wake(curr_waiter->waiter->waiter);
+	curr_waiter->o->wake(curr_waiter->waiter);
 }
 #endif
 
