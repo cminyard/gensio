@@ -17,7 +17,7 @@ gensio_wrap.c gensio.py: $(top_srcdir)/swig/gensio.i \
 	$(SWIG) $(DEFS) -python $(PYTHON_SWIG_FLAGS) -o gensio_wrap.c \
 		-I$(top_srcdir)/swig/python $<
 
-EXTRA_DIST = gensio_python.i
+EXTRA_DIST = gensio_python.i CMakeLists.txt
 
 nodist__gensio_la_SOURCES = gensio_wrap.c
 _gensio_la_LIBADD = $(top_builddir)/lib/libgensio.la $(OPENSSL_LIBS)

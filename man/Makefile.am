@@ -106,4 +106,4 @@ uninstall-hook:
 	$(RM_F) $(DESTDIR)$(man3dir)/gensio_reset_defaults.3
 	$(RM_F) $(DESTDIR)$(man3dir)/gensio_acc_set_sync.3
 
-EXTRA_DIST = $(man_MANS)
+EXTRA_DIST = $(man_MANS) CMakeLists.txt

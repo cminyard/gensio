@@ -11,7 +11,7 @@ EXTRA_PROGRAMS = gtlsshd
 
 bin_SCRIPTS = gtlssh-keygen
 
-do_subst = sed -e 's,[@]sysconfdir[@],$(sysconfdir),g'
+do_subst = sed -e 's,[@]SYSCONFDIR[@],$(sysconfdir),g'
 
 gtlssh-keygen: gtlssh-keygen.in
 	$(do_subst) <$(srcdir)/gtlssh-keygen.in >gtlssh-keygen
@@ -34,5 +34,5 @@ gtlsshd_LDADD = libgensiotool.a $(top_builddir)/lib/libgensio.la @PAMLIB@ \
 
 man_MANS = gensiot.1 gtlsshd.8 gtlssh.1 gtlssh-keygen.1
 
-EXTRA_DIST = $(man_MANS) gtlssh-keygen.in
+EXTRA_DIST = $(man_MANS) gtlssh-keygen.in CMakeLists.txt
 

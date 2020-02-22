@@ -23,7 +23,7 @@ libgensio_la_SOURCES = \
 
 libgensio_la_LDFLAGS = $(OPENSSL_LIBS)
 
-EXTRA_DIST = README.rst libgensio.pc.in
+EXTRA_DIST = README.rst libgensio.pc.in CMakeLists.txt
 
 # This variable must have 'exec' in its name, in order to be installed
 # by 'install-exec' target (instead of default 'install-data')
