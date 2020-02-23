@@ -1106,6 +1106,7 @@ main(int argc, char *argv[])
     sigset_t sigs;
     int testnr = -1, numtests = 0, testnrstart = -1, testnrend = MAX_LOOPS;
     struct timeval zerotime = { 0, 0 };
+    unsigned int num_extra_threads = 3;
 
 #ifndef ENABLE_INTERNAL_TRACE
     fprintf(stderr, "Internal tracing disabled, cannot run oomtest\n");
@@ -1150,6 +1151,13 @@ main(int argc, char *argv[])
 		exit(1);
 	    }
 	    testnrstart = strtol(argv[i], NULL, 0);
+	} else if (strcmp(argv[i], "-n") == 0) {
+	    i++;
+	    if (i >= argc) {
+		fprintf(stderr, "No number given with -n\n");
+		exit(1);
+	    }
+	    num_extra_threads = strtol(argv[i], NULL, 0);
 	} else if (strcmp(argv[i], "-e") == 0) {
 	    i++;
 	    if (i >= argc) {
@@ -1214,7 +1222,7 @@ main(int argc, char *argv[])
     o->vlog = do_vlog;
 
 #ifdef USE_PTHREADS
-    for (i = 0; i < 3; i++) {
+    for (i = 0; i < num_extra_threads; i++) {
 	loopwaiter[i] = o->alloc_waiter(o);
 	if (!loopwaiter[i]) {
 	    fprintf(stderr, "Could not allocate loop waiter\n");
@@ -1248,7 +1256,7 @@ main(int argc, char *argv[])
     }
 
 #ifdef USE_PTHREADS
-    for (i = 0; i < 3; i++) {
+    for (i = 0; i < num_extra_threads; i++) {
 	o->wake(loopwaiter[i]);
 	pthread_join(loopth[i], NULL);
 	o->free_waiter(loopwaiter[i]);
