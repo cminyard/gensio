@@ -791,6 +791,7 @@ def test_certauth_sctp_acc_connect():
         s = str(E)
         # We can race and get either one of these
         if (not (s.endswith("Communication error") or
+                 s.endswith("Authentication tokens rejected") or
                  s.endswith("Remote end closed connection"))):
             raise
         print("  Success checking invalid client cert")
