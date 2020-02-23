@@ -82,7 +82,11 @@ if test "x$HAVE_OPENIPMI" != "xno"; then
    AC_DEFINE([HAVE_OPENIPMI], [], [Have IPMI support through OpenIPMI])
 fi
 
-AX_CHECK_OPENSSL([AC_DEFINE([HAVE_OPENSSL], [], [Have SSL support through OpenSSL])])
+AX_CHECK_OPENSSL([AC_DEFINE([HAVE_OPENSSL], [],
+			    [Have SSL support through OpenSSL])
+		  LIBS="$LIBS $OPENSSL_LIBS"
+		  LDFLAGS="$LDFLAGS $OPENSSL_LDFLAGS"
+		  CPPFLAGS="$CPPFLAGS $OPENSSL_INCLUDES"])
 
 tryswig=yes
 swigprog=
@@ -265,6 +269,8 @@ AC_ARG_ENABLE([internal-trace],
 if test "x$enable_internal_trace" != xno; then
    AC_DEFINE([ENABLE_INTERNAL_TRACE], [1], [Enable internal tracing])
 fi
+
+CPPFLAGS="$CPPFLAGS -I\$(top_srcdir)/include -I\$(top_builddir)/include"
 
 AC_OUTPUT([Makefile
 	lib/libgensio.pc

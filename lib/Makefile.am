@@ -1,6 +1,4 @@
 
-AM_CFLAGS = -I$(top_srcdir)/include $(OPENSSL_INCLUDES)
-
 lib_LTLIBRARIES = libgensio.la
 
 noinst_HEADERS = telnet.h heap.h utils.h uucplock.h buffer.h \

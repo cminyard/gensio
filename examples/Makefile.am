@@ -1,6 +1,4 @@
 
-AM_CFLAGS = -I$(top_srcdir)/include
-
 noinst_PROGRAMS = basic_server basic_server_sync basic_client
 
 EXTRA_DIST = basic_server.py basic_client.py
