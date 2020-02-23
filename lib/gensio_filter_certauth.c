@@ -161,14 +161,20 @@ enum certauth_state {
     CERTAUTH_SERVERDONE = 6,
 
     /*
+     * We are done, just waiting for the data to be written from the
+     * buffer before reporting so.
+     */
+    CERTAUTH_WAIT_WRITE_DONE = 107,
+
+    /*
      * Just pass all the data through.
      */
-    CERTAUTH_PASSTHROUGH = 107,
+    CERTAUTH_PASSTHROUGH = 108,
 
     /*
      * Something went wrong, abort.
      */
-    CERTAUTH_ERR = 108
+    CERTAUTH_ERR = 109
 };
 #define CERTAUTH_STATE_MAX CERTAUTH_SERVERDONE
 
@@ -1081,11 +1087,16 @@ certauth_try_connect(struct gensio_filter *filter, struct timeval *timeout)
 
     finish_result:
 	certauth_send_server_done(sfilter);
-	if (sfilter->pending_err)
+	if (sfilter->pending_err) {
 	    sfilter->state = CERTAUTH_ERR;
-	else
-	    sfilter->state = CERTAUTH_PASSTHROUGH;
-	goto out_finish;
+	    goto out_finish;
+	}
+	sfilter->state = CERTAUTH_WAIT_WRITE_DONE;
+	/*
+	 * Leave got_msg enabled so we won't read any more until we go
+	 * to passthrough state.
+	 */
+	goto out_inprogress;
 
     case CERTAUTH_SERVERDONE:
 	if (!sfilter->result) {
@@ -1103,6 +1114,13 @@ certauth_try_connect(struct gensio_filter *filter, struct timeval *timeout)
 
 	sfilter->state = CERTAUTH_PASSTHROUGH;
 	goto out_finish;
+
+    case CERTAUTH_WAIT_WRITE_DONE:
+	if (sfilter->write_buf_len == 0) {
+	    sfilter->state = CERTAUTH_PASSTHROUGH;
+	    goto out_finish;
+	}
+	break;
 
     default:
 	assert(false);
