@@ -60,9 +60,9 @@ static void *
 sel_alloc(unsigned int size)
 {
     void *d;
+#ifdef OUT_OF_MEMORY_TEST
     unsigned int curr;
 
-#ifdef OUT_OF_MEMORY_TEST
     {
 	int triggerit = 0;
 
