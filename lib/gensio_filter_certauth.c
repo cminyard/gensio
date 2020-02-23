@@ -1120,7 +1120,7 @@ certauth_try_connect(struct gensio_filter *filter, struct timeval *timeout)
 	    sfilter->state = CERTAUTH_PASSTHROUGH;
 	    goto out_finish;
 	}
-	break;
+	goto out_inprogress;
 
     default:
 	assert(false);
