@@ -1599,7 +1599,7 @@ sergensio_process_parms(struct sterm_data *sdata)
 	    continue;
 	}
 	err = process_termios_parm(&sdata->default_termios, argv[i],
-				   &sdata->allow_custspeed);
+				   sdata->allow_custspeed);
 	if (err)
 	    break;
     }
