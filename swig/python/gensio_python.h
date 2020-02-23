@@ -1173,7 +1173,7 @@ sergensio_sig_cb(struct sergensio *sio, int err,
 static PyObject *
 add_python_result(PyObject *result, PyObject *val)
 {
-    if ((result == Py_None)) {
+    if (result == Py_None) {
 	Py_XDECREF(result);
 	result = val;
     } else {
