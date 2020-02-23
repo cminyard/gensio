@@ -14,6 +14,7 @@
 #include <gensio/gensio.h>
 #include <gensio/sergensio.h>
 #include <gensio/gensio_selector.h>
+#include "config.h"
 
 #if PYTHON_HAS_POSIX_THREADS
 #include <pthread.h>
@@ -202,6 +203,7 @@ struct gensio_os_funcs *alloc_gensio_selector(swig_cb *log_handler)
 				    gensio_alloc_lock, gensio_free_lock,
 				    gensio_lock, gensio_unlock, NULL);
 #else
+    wake_sig = 0;
     err = sel_alloc_selector_nothread(&sel);
 #endif
     if (err) {
