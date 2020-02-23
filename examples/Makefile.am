@@ -1,6 +1,4 @@
 
-AM_CFLAGS = -I$(top_srcdir)/include -I$(top_builddir)/include
-
 noinst_PROGRAMS = basic_server basic_server_sync basic_client \
 	basic_server_sync_fork
 

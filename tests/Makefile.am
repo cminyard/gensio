@@ -1,6 +1,4 @@
 
-AM_CFLAGS = -I$(top_srcdir)/include -I$(top_builddir)/include
-
 utst_builddir = $(shell readlink -f $(top_builddir))
 utst_srcdir = $(shell readlink -f $(top_srcdir))
 
