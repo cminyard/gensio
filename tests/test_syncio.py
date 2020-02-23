@@ -12,6 +12,8 @@ class Logger:
         print("***%s log: %s" % (level, log))
 
 def test_sync_gensio(o):
+    print("Testing basic sync I/O")
+
     g = gensio.gensio(o, "echo(readbuf=10)", None)
     g.set_sync()
     g.open_s()
@@ -63,11 +65,15 @@ class SyncEvent:
         io.write_callback_enable(false);
         return
 
-    def open_done(self, io):
+    def open_done(self, io, err):
+        if err:
+            raise Exception("accept_s_timeout open error: " + err);
         self.opened = True
         return
 
 def test_sync_gensio_accepter(o):
+    print("Testing sync accept")
+
     a = gensio.gensio_accepter(o, "tcp,3023", None)
     a.set_sync()
     a.startup()
