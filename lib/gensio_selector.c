@@ -154,7 +154,7 @@ gensio_sel_free(struct gensio_os_funcs *f, void *data)
 	    fprintf(stderr, "  freed at %p %p %p %p.\n",
 		    h->freers[0], h->freers[1],
 		    h->freers[2], h->freers[3]);
-	    *((char *) 0) = 1;
+	    *((volatile char *) 0) = 1;
 	    assert(h->inuse);
 	    return;
 	}
