@@ -62,9 +62,9 @@ static void *
 gensio_sel_zalloc(struct gensio_os_funcs *f, unsigned int size)
 {
     void *d;
+#ifdef OUT_OF_MEMORY_TEST
     unsigned int curr;
 
-#ifdef OUT_OF_MEMORY_TEST
     {
 	bool triggerit = false;
 
