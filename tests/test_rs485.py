@@ -9,8 +9,11 @@ from utils import *
 import gensio
 from serialsim import *
 
-io1str = "serialdev,/dev/ttyPipeA0,9600N81,LOCAL,rs485=103:495"
-io2str = "serialdev,/dev/ttyPipeB0,9600N81"
+print("Test RS485")
+check_pipe_dev(is_serialsim = True)
+
+io1str = "serialdev," + ttypipe[0] + ",9600N81,LOCAL,rs485=103:495"
+io2str = "serialdev," + ttypipe[1] + ",9600N81"
 
 print("serialdev rs485:\n  io1=%s\n  io2=%s" % (io1str, io2str))
 

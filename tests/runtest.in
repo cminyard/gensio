@@ -66,5 +66,5 @@ fi
 if ${PRINT_MODE}; then
     echo ${RUNPREFIX} ${TEST} $*
 else
-    ${RUNPREFIX} ${TEST} $*
+    exec ${RUNPREFIX} ${TEST} $*
 fi

@@ -19,7 +19,10 @@ PYTESTS = test_syncio.py test_echo_gensio.py test_echo_device.py \
 	test_relpkt_basic.py test_relpkt_small.py test_relpkt_medium.py \
 	test_relpkt_large.py
 
-TESTS = $(PYTESTS) oomtest
+OOMTESTS = oomtest0 oomtest1 oomtest2 oomtest3 oomtest4 oomtest5 oomtest6 \
+	oomtest7 oomtest8 oomtest9 oomtest10 oomtest11
+
+TESTS = $(PYTESTS) $(OOMTESTS)
 
 oomtest_SOURCES = oomtest.c
 
@@ -28,7 +31,7 @@ oomtest_LDADD = $(top_builddir)/lib/libgensio.la $(OPENSSL_LIBS)
 check_PROGRAMS = oomtest
 
 EXTRA_DIST = utils.py ipmisimdaemon.py termioschk.py \
-	test_fuzz_setup.py make_keys $(PYTESTS) CMakeLists.txt
+	test_fuzz_setup.py make_keys $(PYTESTS) $(OOMTESTS) CMakeLists.txt
 
 #
 # If you get certauth fuzz failures, they will be in the

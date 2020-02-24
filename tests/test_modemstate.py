@@ -9,8 +9,11 @@ from utils import *
 import gensio
 from serialsim import *
 
-io1str = "serialdev,/dev/ttyPipeA0,9600N81,LOCAL"
-io2str = "serialdev,/dev/ttyPipeB0,9600N81"
+print("Test modemstates")
+check_pipe_dev(is_serialsim = True)
+
+io1str = "serialdev," + ttypipe[0] + ",9600N81,LOCAL"
+io2str = "serialdev," + ttypipe[1] + ",9600N81"
 
 print("serialdev modemstate:\n  io1=%s\n  io2=%s" % (io1str, io2str))
 

@@ -49,7 +49,7 @@ set_working_mc 0x20\n
 \n
   endlan\n
 \n
-  sol "/dev/ttyPipeB0" 115200\n
+  sol "%s" 115200\n
 \n
   # Start startcmd at startup?  Default is false.\n
   startnow false\n
@@ -70,7 +70,8 @@ class IPMISimDaemon:
     to run ipmi_sim with a specific path.
     """
 
-    def __init__(self, o, configdata = None, emudata = None, extra_args = ""):
+    def __init__(self, o, pipedev,
+                 configdata = None, emudata = None, extra_args = ""):
         """Create a running ipmisim program
 
         The given config data is written to a file and used as the config file.
@@ -83,7 +84,7 @@ class IPMISimDaemon:
             prog = "ipmi_sim"
 
         if not configdata:
-            configdata = default_ipmisim_config
+            configdata = default_ipmisim_config % pipedev
         if not emudata:
             emudata = default_ipmisim_emu
 

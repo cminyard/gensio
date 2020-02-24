@@ -730,14 +730,14 @@ def do_small_test(io1, io2):
     test_dataxfer_simul(io1, io2, rb, timeout = 2000)
     print("  Success!")
 
-def do_medium_test(io1, io2):
+def do_medium_test(io1, io2, timeout = 10000):
     rb = os.urandom(131071)
     print("  testing io1 to io2")
-    test_dataxfer(io1, io2, rb, timeout=10000)
+    test_dataxfer(io1, io2, rb, timeout=timeout)
     print("  testing io2 to io1")
-    test_dataxfer(io2, io1, rb, timeout=10000)
+    test_dataxfer(io2, io1, rb, timeout=timeout)
     print("  testing bidirection between io1 and io2")
-    test_dataxfer_simul(io1, io2, rb, timeout=10000)
+    test_dataxfer_simul(io1, io2, rb, timeout=timeout)
     print("  Success!")
 
 def do_large_test(io1, io2):
@@ -857,7 +857,8 @@ class TestAcceptConnect:
 class TestConCon:
     def __init__(self, o, io1, io2, tester, name,
                  do_close = True,
-                 expected_raddr1 = None, expected_raddr2 = None):
+                 expected_raddr1 = None, expected_raddr2 = None,
+                 timeout = None):
         self.o = o
         self.name = name
         self.io1 = io1
@@ -870,7 +871,10 @@ class TestConCon:
             check_raddr(io1, self.name, expected_raddr1)
         if expected_raddr2:
             check_raddr(io2, self.name, expected_raddr2)
-        tester(self.io1, self.io2)
+        if timeout is None:
+            tester(self.io1, self.io2)
+        else:
+            tester(self.io1, self.io2, timeout=timeout)
         if do_close:
             self.close()
 
@@ -892,3 +896,56 @@ class TestConCon:
 
     def wait(self, nr):
         self.waiter.wait(nr)
+
+e = os.getenv("GENSIO_TEST_ECHO_DEV")
+if e is not None:
+    if e:
+        ttyecho = e
+    else:
+        ttyecho = None
+else:
+    ttyecho = "/dev/ttyEcho0"
+
+ttyecho_def = ttyecho
+if ttyecho and not os.path.exists(ttyecho):
+    ttyecho = None
+
+def check_echo_dev():
+    if ttyecho is None:
+        if ttyecho_def is None:
+            print("Echo device is disabled")
+        else:
+            print("Echo device is not present")
+        sys.exit(77)
+
+e = os.getenv("GENSIO_TEST_PIPE_DEVS")
+if e is not None:
+    if e:
+        ttypipe = e.split(":")
+        if len(ttypipe) != 2:
+            print("GENSIO_TESTS_PIPE_DEVS must be two devices separated by :")
+            sys.exit(1)
+    else:
+        ttypipe = None
+else:
+    ttypipe = [ "/dev/ttyPipeA0", "/dev/ttyPipeB0" ]
+
+ttypipe_def = ttypipe
+if ttypipe and (not os.path.exists(ttypipe[0])
+                or not os.path.exists(ttypipe[1])):
+    ttypipe = None
+
+def is_serialsim_pipe():
+    return (ttypipe[0].startswith("/dev/ttyPipe") and
+            ttypipe[1].startswith("/dev/ttyPipe"))
+
+def check_pipe_dev(is_serialsim = False):
+    if ttypipe is None:
+        if ttypipe_def is None:
+            print("Pipe device is disabled")
+        else:
+            print("Pipe device is not present")
+        sys.exit(77)
+    elif is_serialsim and not is_serialsim_pipe():
+        print("Test requires a serialsim device")
+        sys.exit(77)

@@ -28,11 +28,86 @@
 #include <gensio/gensio.h>
 #include <gensio/gensio_selector.h>
 #include "pthread_handler.h"
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <unistd.h>
 
 struct oom_tests {
     const char *connecter;
     const char *accepter;
-} oom_tests[] = {
+    bool (*check_if_present)(struct gensio_os_funcs *o, struct oom_tests *test);
+    bool check_done;
+    bool check_value;
+};
+
+bool
+file_is_accessible_dev(const char *filename)
+{
+    struct stat sb;
+    int rv;
+
+    rv = stat(filename, &sb);
+    if (rv == -1)
+	return false;
+
+    if (!S_ISCHR(sb.st_mode))
+	return false;
+
+    if (sb.st_uid == getuid()) {
+	if (sb.st_mode & 0400)
+	    return true;
+    }
+    if (sb.st_gid == getgid()) {
+	if (sb.st_mode & 0040)
+	    return true;
+    }
+    if (sb.st_mode & 0004)
+	return true;
+
+    return false;
+}
+
+static bool
+check_serialdev_present(struct gensio_os_funcs *o, struct oom_tests *test)
+{
+    const char *e = getenv("GENSIO_TEST_ECHO_DEV");
+
+    if (e) {
+	if (strlen(e) == 0) {
+	    printf("Serial echo device disabled, skipping serialdev test\n");
+	    return false;
+	}
+    } else {
+	e = "/dev/ttyEcho0";
+    }
+    if (!file_is_accessible_dev(e)) {
+	printf("Serial echo device '%s' doesn't exist or is not accessible,\n"
+	       "skipping serialdev test\n", e);
+	return false;
+    }
+    test->connecter = gensio_alloc_sprintf(o, test->connecter, e);
+    if (!test->connecter) {
+	printf("Unable to allocate memory for echo device '%s',\n"
+	       "skipping serialdev test\n", e);
+	return false;
+    }
+    return true;
+}
+
+static bool
+check_oom_test_present(struct gensio_os_funcs *o, struct oom_tests *test)
+{
+    if (!test->check_done) {
+	test->check_done = true;
+	if (!test->check_if_present)
+	    test->check_value = true;
+	else
+	    test->check_value = test->check_if_present(o, test);
+    }
+    return test->check_value;
+}
+
+struct oom_tests oom_tests[] = {
     { "relpkt,msgdelim,tcp,localhost,", "relpkt,msgdelim,tcp,0" },
     { "certauth(cert=ca/cert.pem,key=ca/key.pem,username=test1),ssl(CA=ca/CA.pem),tcp,localhost,",
       "certauth(CA=ca/CA.pem),ssl(key=ca/key.pem,cert=ca/cert.pem),tcp,0" },
@@ -44,7 +119,8 @@ struct oom_tests {
     { "udp,localhost,", "udp,0" },
     { "mux,sctp,localhost,", "mux,sctp,0" },
     { "telnet(rfc2217),tcp,localhost,", "telnet(rfc2217),tcp,0" },
-    { "serialdev,/dev/ttyEcho0,115200", NULL },
+    { "serialdev,%s,115200", NULL,
+      .check_if_present = check_serialdev_present },
     { "telnet,tcp,localhost,", "telnet,tcp,0" },
     { "stdio,cat", NULL },
     { NULL }
@@ -1102,6 +1178,7 @@ main(int argc, char *argv[])
 #endif
     unsigned int i, j;
     unsigned long errcount = 0;
+    unsigned long skipcount = 0;
     struct sigaction sigdo;
     sigset_t sigs;
     int testnr = -1, numtests = 0, testnrstart = -1, testnrend = MAX_LOOPS;
@@ -1112,8 +1189,16 @@ main(int argc, char *argv[])
     fprintf(stderr, "Internal tracing disabled, cannot run oomtest\n");
     fprintf(stderr, "Configure with --enable-internal-trace to enable internal"
 	    "tracing\n");
-    exit(1);
+    exit(77);
 #endif
+
+    rv = gensio_default_os_hnd(SIGUSR1, &o);
+    if (rv) {
+	fprintf(stderr, "Could not allocate OS handler: %s\n",
+		gensio_err_to_str(rv));
+	goto out_err;
+    }
+    o->vlog = do_vlog;
 
     for (j = 0; oom_tests[j].connecter; j++)
 	numtests++;
@@ -1128,9 +1213,12 @@ main(int argc, char *argv[])
 	    debug = true;
 	    gensio_set_log_mask(GENSIO_LOG_MASK_ALL);
 	} else if (strcmp(argv[i], "-l") == 0) {
-	    for (j = 0; oom_tests[j].connecter; j++)
+	    for (j = 0; oom_tests[j].connecter; j++) {
+		if (!check_oom_test_present(o, oom_tests + j))
+		    continue;
 		printf("%d : %s %s\n", j, oom_tests[j].connecter,
 		       oom_tests[j].accepter ? oom_tests[j].accepter : "");
+	    }
 	    exit(0);
 	} else if (strcmp(argv[i], "-t") == 0) {
 	    i++;
@@ -1213,14 +1301,6 @@ main(int argc, char *argv[])
 	exit(1);
     }
 
-    rv = gensio_default_os_hnd(SIGUSR1, &o);
-    if (rv) {
-	fprintf(stderr, "Could not allocate OS handler: %s\n",
-		gensio_err_to_str(rv));
-	goto out_err;
-    }
-    o->vlog = do_vlog;
-
 #ifdef USE_PTHREADS
     for (i = 0; i < num_extra_threads; i++) {
 	loopwaiter[i] = o->alloc_waiter(o);
@@ -1239,6 +1319,10 @@ main(int argc, char *argv[])
 
     if (testnr < 0) {
 	for (i = 0; oom_tests[i].connecter; i++) {
+	    if (!check_oom_test_present(o, oom_tests + i)) {
+		skipcount++;
+		continue;
+	    }
 	    errcount += run_oom_tests(oom_tests + i, "oom", run_oom_test,
 				      testnrstart, testnrend);
 	    if (oom_tests[i].accepter)
@@ -1247,6 +1331,8 @@ main(int argc, char *argv[])
 					  testnrstart, testnrend);
 	}
     } else {
+	    if (!check_oom_test_present(o, oom_tests + testnr))
+		exit(77);
 	    errcount += run_oom_tests(oom_tests + testnr, "oom", run_oom_test,
 				      testnrstart, testnrend);
 	    if (oom_tests[testnr].accepter)
@@ -1263,7 +1349,7 @@ main(int argc, char *argv[])
     }
 #endif
 
-    printf("Got %ld errors\n", errcount);
+    printf("Got %ld errors, skipped %ld tests\n", errcount, skipcount);
     while (o && o->service(o, &zerotime) == 0)
 	;
     gensio_cleanup_mem(o);
