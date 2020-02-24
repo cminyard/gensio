@@ -1524,6 +1524,14 @@ gensio_i_alloc(struct gensio_os_funcs *o,
 	ndata->open_data = open_data;
     }
 
+    if (ndata->child) {
+	if (gensio_is_reliable(ndata->child))
+	    gensio_set_is_reliable(ndata->io, true);
+	if (gensio_is_authenticated(ndata->child))
+	    gensio_set_is_authenticated(ndata->io, true);
+	if (gensio_is_encrypted(ndata->child))
+	    gensio_set_is_encrypted(ndata->io, true);
+    }
     return ndata->io;
 
 out_nomem:
