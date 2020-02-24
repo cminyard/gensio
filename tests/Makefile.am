@@ -1,16 +1,33 @@
 
-utst_builddir = $(shell readlink -f $(top_builddir))
-utst_srcdir = $(shell readlink -f $(top_srcdir))
+AM_TESTS_ENVIRONMENT = GENSIOT=$(top_builddir)/tools/gensiot
 
-AM_TESTS_ENVIRONMENT = \
-    PYTHONPATH=$(utst_builddir)/swig/python:$(utst_builddir)/tests:$(utst_builddir)/swig/python/.libs:$(utst_builddir)/tests/.libs; export PYTHONPATH; \
-    TESTPATH=$(utst_srcdir)/tests; export TESTPATH; \
-    if [ ! -e ca ]; then \
-	$(utst_srcdir)/tests/make_keys; \
-    fi; GENSIOT=$(top_builddir)/tools/gensiot PYTHON=$(PYTHON)
+LOG_COMPILER = $(SHELL) $(builddir)/runtest
 
-test_setup:
-	echo "$(AM_TESTS_ENVIRONMENT) $(utst_srcdir)/tests/"
+TESTS = test_syncio.py test_echo_gensio.py test_echo_device.py \
+	test_serial_pipe_device.py test_accept_tcp.py test_accept_udp.py \
+	test_accept_sctp.py test_accept_ssl_tcp.py test_accept_certauth_tcp.py \
+	test_accept_mux_sctp.py test_telnet.py test_modemstate.py \
+	test_stdio_basic.py test_stdio_basic_stderr.py test_stdio_small.py \
+	test_tcp_small.py test_tcp_urgent.py test_pty_basic.py \
+	test_sctp_small.py test_sctp_streams.py test_sctp_oob.py \
+	test_telnet_small.py test_ipmisol_small.py test_ipmisol_large.py \
+	test_rs485.py test_tcp_accept_connect.py test_udp_accept_connect.py \
+	test_sctp_accept_connect.py test_telnet_sctp_accept_connect.py \
+	test_ssl_sctp_accept_connect.py test_certauth_sctp_accept_connect.py \
+	test_certauth_ssl_sctp_accept_connect.py test_mux_sctp_small.py \
+	test_mux_tcp_large.py test_mux_limits.py test_mux_oob.py \
+	test_relpkt_basic.py test_relpkt_small.py test_relpkt_medium.py \
+	test_relpkt_large.py \
+	oomtest
+
+oomtest_SOURCES = oomtest.c
+
+oomtest_LDADD = $(top_builddir)/lib/libgensio.la $(OPENSSL_LIBS)
+
+check_PROGRAMS = oomtest
+
+EXTRA_DIST = utils.py ipmisimdaemon.py termioschk.py \
+	test_fuzz_setup.py make_keys
 
 #
 # If you get certauth fuzz failures, they will be in the
@@ -25,7 +42,7 @@ test_fuzz_certauth:
 	-rm -rf fuzz-test-certauth fuzz-results-certauth
 	mkdir -p fuzz-test-certauth
 	mkdir -p fuzz-results-certauth
-	$(AM_TESTS_ENVIRONMENT) $(PYTHON) $(utst_srcdir)/tests/test_fuzz_setup.py \
+	$(AM_TESTS_ENVIRONMENT) $(PYTHON) $(top_srcdir)/tests/test_fuzz_setup.py \
 		$(top_builddir)/tools/gensiot certauth-randfile \
 		'certauth(cert=ca/clientcert.pem,key=ca/clientkey.pem,allow-unencrypted)'\
 		'certauth(CA=ca/clientcert.pem,allow-unencrypted)' \
@@ -49,7 +66,7 @@ test_fuzz_mux:
 	-rm -rf fuzz-test-mux fuzz-results-mux
 	mkdir -p fuzz-test-mux
 	mkdir -p fuzz-results-mux
-	$(AM_TESTS_ENVIRONMENT) $(PYTHON) $(utst_srcdir)/tests/test_fuzz_setup.py \
+	$(AM_TESTS_ENVIRONMENT) $(PYTHON) $(top_srcdir)/tests/test_fuzz_setup.py \
 		$(top_builddir)/tools/gensiot mux-randfile \
 		'mux' 'mux' fuzz-test-mux/tracefile
 	afl-fuzz -i fuzz-test-mux -o fuzz-results-mux -f mux-infile \
@@ -70,7 +87,7 @@ test_fuzz_ssl:
 	-rm -rf fuzz-test-ssl fuzz-results-ssl
 	mkdir -p fuzz-test-ssl
 	mkdir -p fuzz-results-ssl
-	$(AM_TESTS_ENVIRONMENT) $(PYTHON) $(utst_srcdir)/tests/test_fuzz_setup.py \
+	$(AM_TESTS_ENVIRONMENT) $(PYTHON) $(top_srcdir)/tests/test_fuzz_setup.py \
 		$(top_builddir)/tools/gensiot ssl-randfile \
 		'ssl(CA=ca/CA.pem)'\
 		'ssl(key=ca/key.pem,cert=ca/cert.pem)' \
@@ -93,7 +110,7 @@ test_fuzz_telnet:
 	-rm -rf fuzz-test-telnet fuzz-results-telnet
 	mkdir -p fuzz-test-telnet
 	mkdir -p fuzz-results-telnet
-	$(AM_TESTS_ENVIRONMENT) $(PYTHON) $(utst_srcdir)/tests/test_fuzz_setup.py \
+	$(AM_TESTS_ENVIRONMENT) $(PYTHON) $(top_srcdir)/tests/test_fuzz_setup.py \
 		$(top_builddir)/tools/gensiot telnet-randfile \
 		'telnet' 'telnet' fuzz-test-telnet/tracefile
 	afl-fuzz -i fuzz-test-telnet -o fuzz-results-telnet -f telnet-infile \
@@ -113,7 +130,7 @@ test_fuzz_relpkt:
 	-rm -rf fuzz-test-relpkt fuzz-results-relpkt
 	mkdir -p fuzz-test-relpkt
 	mkdir -p fuzz-results-relpkt
-	$(AM_TESTS_ENVIRONMENT) $(PYTHON) $(utst_srcdir)/tests/test_fuzz_setup.py \
+	$(AM_TESTS_ENVIRONMENT) $(PYTHON) $(top_srcdir)/tests/test_fuzz_setup.py \
 		$(top_builddir)/tools/gensiot relpkt-randfile \
 		'relpkt,msgdelim(crc=off)' 'relpkt,msgdelim(crc=off)' fuzz-test-relpkt/tracefile
 	afl-fuzz -i fuzz-test-relpkt -o fuzz-results-relpkt -f relpkt-infile \
@@ -122,17 +139,6 @@ test_fuzz_relpkt:
 
 test_fuzz: test_fuzz_certauth test_fuzz_mux test_fuzz_ssl test_fuzz_telnet \
 	test_fuzz_relpkt
-
-oomtest_SOURCES = oomtest.c
-
-oomtest_LDADD = $(top_builddir)/lib/libgensio.la $(OPENSSL_LIBS)
-
-noinst_PROGRAMS = oomtest
-
-TESTS = test_gensio test_syncio oomtest
-
-EXTRA_DIST = test_gensio test_syncio utils.py ipmisimdaemon.py termioschk.py \
-	test_fuzz_setup.py make_keys test_gensio.py test_syncio.py
 
 clean-local:
 	-rm -rf ca \

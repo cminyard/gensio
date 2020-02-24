@@ -628,3 +628,267 @@ keydir = os.getenv("keydir")
 if not keydir:
     if (not keydir):
         keydir = "ca"
+
+class Logger:
+    def gensio_log(self, level, log):
+        print("***%s log: %s" % (level, log))
+
+gensio.gensio_set_log_mask(gensio.GENSIO_LOG_MASK_ALL)
+o = gensio.alloc_gensio_selector(Logger());
+
+def check_raddr(io, testname, expected):
+    r = io.raddr()
+    if r != expected:
+        raise Exception("%s raddr was not '%s', it was '%s'" %
+                        (testname, expected, r));
+
+def check_laddr(acc, testname, expected):
+    r = acc.control(0, True, gensio.GENSIO_ACC_CONTROL_LADDR, "0")
+    if r != expected:
+        raise Exception("%s laddr was not '%s', it was '%s'" %
+                        (testname, expected, r));
+
+def check_port(acc, testname, expected):
+    r = acc.control(0, True, gensio.GENSIO_ACC_CONTROL_LPORT, "0")
+    if r != expected:
+        raise Exception("%s port was not '%s', it was '%s'" %
+                        (testname, expected, r));
+
+class TestAccept:
+    def __init__(self, o, io1, iostr, tester, name = None,
+                 io1_dummy_write = None, do_close = True,
+                 expected_raddr = None, expected_acc_laddr = None,
+                 expected_acc_port = None):
+        self.o = o
+        if (name):
+            self.name = name
+        else:
+            self.name = iostr
+        self.io1 = io1
+        self.io2 = None
+        self.waiter = gensio.waiter(o)
+        self.acc = gensio.gensio_accepter(o, iostr, self);
+        self.acc.startup()
+        if expected_acc_laddr:
+            check_laddr(self.acc, self.name, expected_acc_laddr)
+        if expected_acc_port:
+            check_port(self.acc, self.name, expected_acc_port)
+        io1.open_s()
+        if expected_raddr:
+            check_raddr(io1, self.name, expected_raddr)
+        if (io1_dummy_write):
+            # For UDP, kick start things.
+            io1.write(io1_dummy_write, None)
+        self.wait()
+        if (io1_dummy_write):
+            self.io2.handler.set_compare(io1_dummy_write)
+            if (self.io2.handler.wait_timeout(1000) == 0):
+                raise Exception(("%s: %s: " % ("test_accept",
+                                               self.io2.handler.name)) +
+                        ("Timed out waiting for dummy read at byte %d" %
+                         self.io2.handler.compared))
+        tester(self.io1, self.io2)
+        if do_close:
+            self.close()
+
+    def close(self):
+        self.io1.read_cb_enable(False)
+        if self.io2:
+            self.io2.read_cb_enable(False)
+        io_close(self.io1)
+        if self.io2:
+            io_close(self.io2)
+
+        # Break all the possible circular references.
+        del self.io1
+        del self.io2
+        self.acc.shutdown_s()
+        del self.acc
+
+    def new_connection(self, acc, io):
+        HandleData(self.o, None, io = io, name = self.name)
+        self.io2 = io
+        self.waiter.wake()
+
+    def accepter_log(self, acc, level, logstr):
+        print("***%s LOG: %s: %s" % (level, self.name, logstr))
+
+    def wait(self):
+        self.waiter.wait(1)
+
+def do_test(io1, io2):
+    test_dataxfer(io1, io2, "This is a test string!")
+    print("  Success!")
+
+def do_small_test(io1, io2):
+    rb = os.urandom(512)
+    print("  testing io1 to io2")
+    test_dataxfer(io1, io2, rb, timeout = 2000)
+    print("  testing io2 to io1")
+    test_dataxfer(io2, io1, rb, timeout = 2000)
+    print("  testing bidirection between io1 and io2")
+    test_dataxfer_simul(io1, io2, rb, timeout = 2000)
+    print("  Success!")
+
+def do_medium_test(io1, io2):
+    rb = os.urandom(131071)
+    print("  testing io1 to io2")
+    test_dataxfer(io1, io2, rb, timeout=10000)
+    print("  testing io2 to io1")
+    test_dataxfer(io2, io1, rb, timeout=10000)
+    print("  testing bidirection between io1 and io2")
+    test_dataxfer_simul(io1, io2, rb, timeout=10000)
+    print("  Success!")
+
+def do_large_test(io1, io2):
+    rb = os.urandom(1048570)
+    print("  testing io1 to io2")
+    test_dataxfer(io1, io2, rb, timeout=30000)
+    print("  testing io2 to io1")
+    test_dataxfer(io2, io1, rb, timeout=30000)
+    print("  testing bidirection between io1 and io2")
+    test_dataxfer_simul(io1, io2, rb, timeout=30000)
+    print("  Success!")
+
+def do_oob_test(io1, io2):
+    rb = os.urandom(512)
+    print("  testing io1 to io2")
+    test_dataxfer_oob(io1, io2, rb)
+    print("  testing io2 to io1")
+    test_dataxfer_oob(io2, io1, rb)
+    print("  Success!")
+
+class TestAcceptConnect:
+    def __init__(self, o, iostr, io2str, io3str, tester, name = None,
+                 io1_dummy_write = None, CA=None, do_close = True,
+                 auth_begin_rv = gensio.GE_NOTSUP, expect_pw = None,
+                 expect_pw_rv = gensio.GE_NOTSUP, password = None,
+                 expect_remclose = True):
+        self.o = o
+        if (name):
+            self.name = name
+        else:
+            self.name = iostr
+        self.waiter = gensio.waiter(o)
+        self.acc = gensio.gensio_accepter(o, iostr, self);
+        self.acc.startup()
+        self.acc2 = gensio.gensio_accepter(o, io2str, self);
+        self.acc2.startup()
+        self.io1 = self.acc2.str_to_gensio(io3str, None);
+        self.io2 = None
+        self.CA = CA
+        h = HandleData(o, io3str, io = self.io1, password = password,
+                             expect_remclose = expect_remclose)
+        self.auth_begin_rv = auth_begin_rv
+        self.expect_pw = expect_pw
+        self.expect_pw_rv = expect_pw_rv
+        try:
+            self.io1.open_s()
+        except:
+            self.io1 = None
+            self.close()
+            raise
+        self.io1.read_cb_enable(True)
+        if (io1_dummy_write):
+            # For UDP, kick start things.
+            self.io1.write(io1_dummy_write, None)
+        try:
+            self.wait()
+        except:
+            self.close()
+            raise
+        if (io1_dummy_write):
+            self.io2.handler.set_compare(io1_dummy_write)
+            if (self.io2.handler.wait_timeout(1000) == 0):
+                raise Exception(("%s: %s: " % ("test_accept",
+                                               self.io2.handler.name)) +
+                        ("Timed out waiting for dummy read at byte %d" %
+                         self.io2.handler.compared))
+        tester(self.io1, self.io2)
+        if do_close:
+            self.close()
+
+    def close(self):
+        if (self.io1):
+            self.io1.read_cb_enable(False)
+        if self.io2:
+            self.io2.read_cb_enable(False)
+        if (self.io1):
+            io_close(self.io1)
+        if self.io2:
+            io_close(self.io2)
+
+        # Break all the possible circular references.
+        del self.io1
+        del self.io2
+        self.acc.shutdown_s()
+        del self.acc
+        self.acc2.shutdown_s()
+        del self.acc2
+
+    def new_connection(self, acc, io):
+        HandleData(self.o, None, io = io, name = self.name)
+        self.io2 = io
+        self.waiter.wake()
+
+    def auth_begin(self, acc, io):
+        return self.auth_begin_rv;
+
+    def precert_verify(self, acc, io):
+        if self.CA:
+            io.control(0, False, gensio.GENSIO_CONTROL_CERT_AUTH, self.CA)
+            return gensio.GE_NOTSUP
+        return gensio.GE_NOTSUP
+
+    def password_verify(self, acc, io, password):
+        if self.expect_pw is None:
+            raise Exception("got password verify when none expected")
+        if self.expect_pw != password:
+            raise Exception("Invalid password in verify, expected %s, got %s"
+                            % (self.expect_pw, password))
+        return self.expect_pw_rv
+
+    def accepter_log(self, acc, level, logstr):
+        print("***%s LOG: %s: %s" % (level, self.name, logstr))
+
+    def wait(self):
+        self.waiter.wait(1)
+
+class TestConCon:
+    def __init__(self, o, io1, io2, tester, name,
+                 do_close = True,
+                 expected_raddr1 = None, expected_raddr2 = None):
+        self.o = o
+        self.name = name
+        self.io1 = io1
+        self.io2 = io2
+        self.waiter = gensio.waiter(o)
+        io1.open(self)
+        io2.open(self)
+        self.wait(2)
+        if expected_raddr1:
+            check_raddr(io1, self.name, expected_raddr1)
+        if expected_raddr2:
+            check_raddr(io2, self.name, expected_raddr2)
+        tester(self.io1, self.io2)
+        if do_close:
+            self.close()
+
+    def close(self):
+        self.io1.read_cb_enable(False)
+        self.io2.read_cb_enable(False)
+        io_close(self.io1)
+        io_close(self.io2)
+
+        # Break all the possible circular references.
+        del self.io1
+        del self.io2
+
+    def open_done(self, io, err):
+        if err:
+            raise Exception("TestConCon open error for %s: %s" %
+                            (self.name, err))
+        self.waiter.wake()
+
+    def wait(self, nr):
+        self.waiter.wait(nr)

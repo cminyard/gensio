@@ -235,6 +235,9 @@ AC_SUBST(PYTHON_INSTALL_LIB_DIR)
 AC_SUBST(PYTHON_HAS_POSIX_THREADS)
 AC_SUBST(PYTHON_SWIG_FLAGS)
 
+PYTHON_EXECUTABLE="${PYTHON}"
+AC_SUBST(PYTHON_EXECUTABLE)
+
 AC_CHECK_LIB(sctp, sctp_bindx)
 
 AC_CHECK_LIB(pam, pam_start, [HAVE_PAM=true], [HAVE_PAM=false])
@@ -287,4 +290,5 @@ AC_OUTPUT([Makefile
 	swig/Makefile
 	swig/python/Makefile
 	man/Makefile
-	examples/Makefile])
+	examples/Makefile
+	tests/runtest])
