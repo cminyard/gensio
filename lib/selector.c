@@ -1061,7 +1061,7 @@ process_fds(struct selector_s	    *sel,
 		  &tmp_write_set,
 		  &tmp_except_set,
 		  &ts, &sigmask);
-    if (err <= 0) {
+    if (err < 0) {
 	if (errno == EBADF || errno == EBADFD)
 	    /* We raced, just retry it. */
 	    goto retry;
