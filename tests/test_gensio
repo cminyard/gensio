@@ -1,3 +1,0 @@
-#!/bin/sh
-
-exec ${PYTHON} ${TESTPATH}/test_gensio.py
