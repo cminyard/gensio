@@ -162,7 +162,6 @@ trace_gensio_accepter_alloc(struct gensio_accepter *child,
 				       &nadata->acc);
     if (err)
 	goto out_err;
-    gensio_acc_set_is_packet(nadata->acc, true);
     *accepter = nadata->acc;
 
     return 0;
