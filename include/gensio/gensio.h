@@ -513,6 +513,14 @@ int gensio_pos_snprintf(char *buf, gensiods len, gensiods *pos,
 int gensio_argv_snprintf(char *buf, gensiods len, gensiods *pos,
 			 const char **argv);
 
+/*
+ * An sprintf that allocates the memory
+ */
+char *gensio_alloc_vsprintf(struct gensio_os_funcs *o,
+			    const char *fmt, va_list va);
+char *gensio_alloc_sprintf(struct gensio_os_funcs *o,
+			   const char *fmt, ...);
+    
 #ifdef __cplusplus
 }
 #endif

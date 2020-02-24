@@ -3331,3 +3331,33 @@ gensio_argv_snprintf(char *buf, gensiods len, gensiods *pos, const char **argv)
 
     return olen;
 }
+
+char *
+gensio_alloc_vsprintf(struct gensio_os_funcs *o, const char *fmt, va_list va)
+{
+    va_list va2;
+    int len;
+    char c[1], *str;
+
+    va_copy(va2, va);
+    len = vsnprintf(c, 0, fmt, va);
+    str = o->zalloc(o, len + 1);
+    if (str)
+	vsnprintf(str, len + 1, fmt, va2);
+    va_end(va2);
+
+    return str;
+}
+
+char *
+gensio_alloc_sprintf(struct gensio_os_funcs *o, const char *fmt, ...)
+{
+    va_list va;
+    char *s;
+
+    va_start(va, fmt);
+    s = gensio_alloc_vsprintf(o, fmt, va);
+    va_end(va);
+
+    return s;
+}
