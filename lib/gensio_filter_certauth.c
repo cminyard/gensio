@@ -33,7 +33,7 @@ struct gensio_certauth_filter_data {
     bool allow_unencrypted;
 };
 
-#ifdef HAVE_OPENSSL
+#if HAVE_OPENSSL
 
 #include <assert.h>
 #include <string.h>

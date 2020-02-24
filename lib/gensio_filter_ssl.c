@@ -12,7 +12,7 @@
 
 #include "gensio_filter_ssl.h"
 
-#ifdef HAVE_OPENSSL
+#if HAVE_OPENSSL
 
 #include <assert.h>
 #include <string.h>

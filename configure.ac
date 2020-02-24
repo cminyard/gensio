@@ -83,14 +83,19 @@ if test "x$HAVE_OPENIPMI" != "xno"; then
    else
       LIBS="$LIBS -lOpenIPMI -lOpenIPMIposix -lOpenIPMIutils"
    fi
-   AC_DEFINE([HAVE_OPENIPMI], [], [Have IPMI support through OpenIPMI])
+   HAVE_OPENIPMI=1
+else
+   HAVE_OPENIPMI=0
 fi
+AC_DEFINE_UNQUOTED([HAVE_OPENIPMI], [$HAVE_OPENIPMI],
+	[Set to 1 to enable IPMI support through OpenIPMI, 0 to disable])
 
-AX_CHECK_OPENSSL([AC_DEFINE([HAVE_OPENSSL], [],
-			    [Have SSL support through OpenSSL])
+AX_CHECK_OPENSSL([HAVE_OPENSSL=1
 		  LIBS="$LIBS $OPENSSL_LIBS"
 		  LDFLAGS="$LDFLAGS $OPENSSL_LDFLAGS"
-		  CPPFLAGS="$CPPFLAGS $OPENSSL_INCLUDES"])
+		  CPPFLAGS="$CPPFLAGS $OPENSSL_INCLUDES"], [HAVE_OPENSSL=0])
+AC_DEFINE_UNQUOTED([HAVE_OPENSSL], [$HAVE_OPENSSL],
+	[Set to 1 to enable SSL support through OpenSSL, 0 to disable])
 
 tryswig=yes
 swigprog=
@@ -238,7 +243,11 @@ AC_SUBST(PYTHON_SWIG_FLAGS)
 PYTHON_EXECUTABLE="${PYTHON}"
 AC_SUBST(PYTHON_EXECUTABLE)
 
-AC_CHECK_LIB(sctp, sctp_bindx)
+AC_CHECK_LIB(sctp, sctp_bindx,
+             [HAVE_LIBSCTP=1; LIBS="$LIBS -lsctp"],
+             [HAVE_LIBSCTP=0])
+AC_DEFINE_UNQUOTED([HAVE_LIBSCTP], [$HAVE_LIBSCTP],
+		   [Set to 1 to enable SCTP, 0 to disable])
 
 AC_CHECK_LIB(pam, pam_start, [HAVE_PAM=true], [HAVE_PAM=false])
 if $HAVE_PAM; then

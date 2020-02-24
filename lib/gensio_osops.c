@@ -21,7 +21,7 @@
 #include <grp.h>
 #include <pwd.h>
 
-#ifdef HAVE_LIBSCTP
+#if HAVE_LIBSCTP
 #include <netinet/sctp.h>
 #endif
 
@@ -56,7 +56,7 @@ check_ipv6_only(int family, int protocol, int flags, int fd)
     if (setsockopt(fd, IPPROTO_IPV6, IPV6_V6ONLY, &val, sizeof(val)) == -1)
 	return -1;
 
-#ifdef HAVE_LIBSCTP
+#if HAVE_LIBSCTP
     if (protocol == IPPROTO_SCTP) {
 	val = !val;
 	if (setsockopt(fd, SOL_SCTP, SCTP_I_WANT_MAPPED_V4_ADDR, &val,
@@ -193,7 +193,7 @@ gensio_os_accept(struct gensio_os_funcs *o,
     return gensio_os_err_to_err(o, errno);
 }
 
-#ifdef HAVE_LIBSCTP
+#if HAVE_LIBSCTP
 int
 gensio_os_sctp_recvmsg(struct gensio_os_funcs *o,
 		       int fd, void *msg, gensiods len, gensiods *rcount,

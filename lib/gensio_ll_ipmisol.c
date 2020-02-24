@@ -26,7 +26,7 @@
 #include "buffer.h"
 #include "utils.h"
 
-#ifdef HAVE_OPENIPMI
+#if HAVE_OPENIPMI
 
 #include <OpenIPMI/ipmiif.h>
 #include <OpenIPMI/ipmi_smi.h>

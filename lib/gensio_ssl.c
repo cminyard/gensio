@@ -10,7 +10,7 @@
 
 #include <gensio/gensio_class.h>
 
-#ifdef HAVE_OPENSSL
+#if HAVE_OPENSSL
 
 #include <stdlib.h>
 #include <limits.h>

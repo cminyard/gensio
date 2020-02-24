@@ -11,7 +11,7 @@
 #include <errno.h>
 #include <gensio/gensio.h>
 
-#ifdef HAVE_LIBSCTP
+#if HAVE_LIBSCTP
 
 #include <stdio.h>
 #include <stdlib.h>

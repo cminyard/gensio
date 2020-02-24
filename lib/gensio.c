@@ -17,7 +17,7 @@
 #include <assert.h>
 
 #include <arpa/inet.h>
-#ifdef HAVE_LIBSCTP
+#if HAVE_LIBSCTP
 #include <netinet/sctp.h>
 #endif
 #include <sys/un.h>
@@ -1657,9 +1657,7 @@ add_default_gensios(void *cb_data)
     REG_GENSIO(o, "serialdev", str_to_serialdev_gensio);
     REG_GENSIO(o, "echo", str_to_echo_gensio);
     REG_GENSIO(o, "file", str_to_file_gensio);
-#ifdef HAVE_OPENIPMI
     REG_GENSIO(o, "ipmisol", str_to_ipmisol_gensio);
-#endif
     REG_FILT_GENSIO(o, "msgdelim", str_to_msgdelim_gensio,
 		    msgdelim_gensio_alloc);
     REG_FILT_GENSIO(o, "relpkt", str_to_relpkt_gensio,
@@ -2170,7 +2168,7 @@ struct gensio_def_entry {
     struct gensio_def_entry *next;
 };
 
-#ifdef HAVE_OPENIPMI
+#if HAVE_OPENIPMI
 #include <OpenIPMI/ipmi_conn.h>
 #include <OpenIPMI/ipmi_sol.h>
 struct gensio_enum_val shared_serial_alert_enums[] = {
@@ -2200,7 +2198,7 @@ struct gensio_def_entry builtin_defaults[] = {
     /* serialdev and SOL */
     { "speed",		GENSIO_DEFAULT_STR,	.def.strval = "9600N81" },
     { "nobreak",	GENSIO_DEFAULT_BOOL,	.def.intval = 0 },
-#ifdef HAVE_OPENIPMI
+#if HAVE_OPENIPMI
     /* SOL only */
     { "authenticated",	GENSIO_DEFAULT_BOOL,	.def.intval = 1 },
     { "encrypted",	GENSIO_DEFAULT_BOOL,	.def.intval = 1 },
