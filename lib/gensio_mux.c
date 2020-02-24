@@ -1841,6 +1841,8 @@ mux_shutdown_channels(struct mux_data *muxdata, int err)
 	    break;
 
 	case MUX_INST_PENDING_OPEN:
+	    muxc_set_state(chan, MUX_INST_CLOSED);
+	    mux_call_open_done(muxdata, chan, err);
 	    chan_deref(chan); /* Will free it. */
 	    break;
 
