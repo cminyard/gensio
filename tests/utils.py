@@ -20,6 +20,7 @@ import time
 import curses.ascii
 import sys
 import sysconfig
+import gensios_enabled
 
 debug = 0
 
@@ -93,6 +94,7 @@ class HandleData:
             self.io = io
             io.set_cbs(self)
         else:
+            gensios_enabled.check_iostr_gensios(iostr)
             self.io = gensio.gensio(o, iostr, self)
         self.io.handler = self
         self.chunksize = chunksize
@@ -667,6 +669,7 @@ class TestAccept:
         self.io1 = io1
         self.io2 = None
         self.waiter = gensio.waiter(o)
+        gensios_enabled.check_iostr_gensios(iostr)
         self.acc = gensio.gensio_accepter(o, iostr, self);
         self.acc.startup()
         if expected_acc_laddr:
@@ -770,6 +773,8 @@ class TestAcceptConnect:
         else:
             self.name = iostr
         self.waiter = gensio.waiter(o)
+        gensios_enabled.check_iostr_gensios(iostr)
+        gensios_enabled.check_iostr_gensios(io2str)
         self.acc = gensio.gensio_accepter(o, iostr, self);
         self.acc.startup()
         self.acc2 = gensio.gensio_accepter(o, io2str, self);

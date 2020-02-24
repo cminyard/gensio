@@ -32,6 +32,7 @@ check_PROGRAMS = oomtest
 
 EXTRA_DIST = utils.py ipmisimdaemon.py termioschk.py \
 	test_fuzz_setup.py make_keys $(PYTESTS) $(OOMTESTS) CMakeLists.txt
+	gensios_enabled.py.in
 
 #
 # If you get certauth fuzz failures, they will be in the

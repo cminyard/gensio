@@ -124,4 +124,4 @@ def do_telnet_test(io1, io2):
 print("Test accept telnet")
 io1 = alloc_io(o, "telnet(rfc2217),tcp,localhost,3027",
                do_open = False)
-ta = TestAccept(o, io1, "telnet(rfc2217=true),3027", do_telnet_test)
+ta = TestAccept(o, io1, "telnet(rfc2217=true),tcp,3027", do_telnet_test)

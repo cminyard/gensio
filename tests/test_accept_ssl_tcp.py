@@ -10,7 +10,7 @@ import gensio
 
 print("Test accept ssl-tcp")
 io1 = alloc_io(o, "ssl(CA=%s/CA.pem),tcp,localhost,3023" % keydir, do_open = False)
-ta = TestAccept(o, io1, "ssl(key=%s/key.pem,cert=%s/cert.pem),3023" % (keydir, keydir), do_test, do_close = False,
+ta = TestAccept(o, io1, "ssl(key=%s/key.pem,cert=%s/cert.pem),tcp,3023" % (keydir, keydir), do_test, do_close = False,
                 expected_raddr = "ipv4,127.0.0.1,3023")
 cn = io1.control(0, True, gensio.GENSIO_CONTROL_GET_PEER_CERT_NAME,
                  "-1,CN");

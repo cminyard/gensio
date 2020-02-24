@@ -42,6 +42,16 @@ AC_ARG_WITH(openipmi,
     fi,
 )
 
+trysctp=yes
+AC_ARG_WITH(sctp,
+[  --with-sctp=yes|no      Look for sctp.],
+    if test "x$withval" = "xyes"; then
+      trysctp=yes
+    elif test "x$withval" = "xno"; then
+      trysctp=no
+    fi,
+)
+
 use_pthreads=yes
 AC_ARG_WITH(pthreads,
 [  --with-pthreads=yes|no      Use pthreads or not.],
@@ -89,6 +99,7 @@ else
 fi
 AC_DEFINE_UNQUOTED([HAVE_OPENIPMI], [$HAVE_OPENIPMI],
 	[Set to 1 to enable IPMI support through OpenIPMI, 0 to disable])
+AC_SUBST(HAVE_OPENIPMI)
 
 AX_CHECK_OPENSSL([HAVE_OPENSSL=1
 		  LIBS="$LIBS $OPENSSL_LIBS"
@@ -96,6 +107,7 @@ AX_CHECK_OPENSSL([HAVE_OPENSSL=1
 		  CPPFLAGS="$CPPFLAGS $OPENSSL_INCLUDES"], [HAVE_OPENSSL=0])
 AC_DEFINE_UNQUOTED([HAVE_OPENSSL], [$HAVE_OPENSSL],
 	[Set to 1 to enable SSL support through OpenSSL, 0 to disable])
+AC_SUBST(HAVE_OPENSSL)
 
 tryswig=yes
 swigprog=
@@ -243,23 +255,32 @@ AC_SUBST(PYTHON_SWIG_FLAGS)
 PYTHON_EXECUTABLE="${PYTHON}"
 AC_SUBST(PYTHON_EXECUTABLE)
 
-AC_CHECK_LIB(sctp, sctp_bindx,
-             [HAVE_LIBSCTP=1; LIBS="$LIBS -lsctp"],
-             [HAVE_LIBSCTP=0])
+HAVE_LIBSCTP=0
+if test "x$trysctp" != "xno"; then
+   AC_CHECK_LIB(sctp, sctp_bindx,
+                [HAVE_LIBSCTP=1; LIBS="$LIBS -lsctp"])
+fi
 AC_DEFINE_UNQUOTED([HAVE_LIBSCTP], [$HAVE_LIBSCTP],
-		   [Set to 1 to enable SCTP, 0 to disable])
+	      [Set to 1 to enable SCTP, 0 to disable])
+AC_SUBST(HAVE_LIBSCTP)
 
-AC_CHECK_LIB(pam, pam_start, [HAVE_PAM=true], [HAVE_PAM=false])
-if $HAVE_PAM; then
+AC_CHECK_LIB(pam, pam_start, [HAVE_PAM=1], [HAVE_PAM=0])
+if [ $HAVE_PAM = 1 ]; then
    AC_DEFINE([HAVE_LIBPAM], [1], [PAM libraries are present])
    PAMLIB=-lpam
-   GTLSSHD=gtlsshd
-else
-   PAMLIB=
-   GTLSSHD=
 fi
 AC_SUBST(PAMLIB)
+
+PAMLIB=
+GTLSSHD=
+if [ $HAVE_OPENSSL = 1]; then
+   if [ $HAVE_PAM = 1 ]; then
+      GTLSSHD=gtlsshd
+   fi
+   GTLSSH=gtlssh
+fi
 AC_SUBST(GTLSSHD)
+AC_SUBST(GTLSSH)
 
 AC_CHECK_MEMBER([struct termios2.c_ispeed],
 	[AC_DEFINE([HAVE_TERMIOS2], [1], [termios2 is present])],
@@ -300,4 +321,5 @@ AC_OUTPUT([Makefile
 	swig/python/Makefile
 	man/Makefile
 	examples/Makefile
-	tests/runtest])
+	tests/runtest
+	tests/gensios_enabled.py])

@@ -31,6 +31,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <fcntl.h>
 
 struct oom_tests {
     const char *connecter;
@@ -53,18 +54,13 @@ file_is_accessible_dev(const char *filename)
     if (!S_ISCHR(sb.st_mode))
 	return false;
 
-    if (sb.st_uid == getuid()) {
-	if (sb.st_mode & 0400)
-	    return true;
-    }
-    if (sb.st_gid == getgid()) {
-	if (sb.st_mode & 0040)
-	    return true;
-    }
-    if (sb.st_mode & 0004)
+    rv = open(filename, O_RDWR);
+    if (rv >= 0) {
+	close(rv);
 	return true;
-
-    return false;
+    } else {
+	return false;
+    }
 }
 
 static bool
@@ -110,14 +106,18 @@ check_oom_test_present(struct gensio_os_funcs *o, struct oom_tests *test)
 struct oom_tests oom_tests[] = {
     { "relpkt,msgdelim,tcp,localhost,", "relpkt,msgdelim,tcp,0" },
     { "certauth(cert=ca/cert.pem,key=ca/key.pem,username=test1),ssl(CA=ca/CA.pem),tcp,localhost,",
-      "certauth(CA=ca/CA.pem),ssl(key=ca/key.pem,cert=ca/cert.pem),tcp,0" },
+      "certauth(CA=ca/CA.pem),ssl(key=ca/key.pem,cert=ca/cert.pem),tcp,0",
+      .check_done = 1, .check_value = HAVE_OPENSSL },
     { "ssl(CA=ca/CA.pem),tcp,localhost,",
-      "ssl(key=ca/key.pem,cert=ca/cert.pem),tcp,0" },
+      "ssl(key=ca/key.pem,cert=ca/cert.pem),tcp,0",
+      .check_done = 1, .check_value = HAVE_OPENSSL },
     { "echo", NULL },
     { "tcp,localhost,", "tcp,0" },
-    { "sctp,localhost,", "sctp,0" },
+    { "sctp,localhost,", "sctp,0",
+      .check_done = 1, .check_value = HAVE_LIBSCTP },
     { "udp,localhost,", "udp,0" },
-    { "mux,sctp,localhost,", "mux,sctp,0" },
+    { "mux,sctp,localhost,", "mux,sctp,0",
+      .check_done = 1, .check_value = HAVE_LIBSCTP },
     { "telnet(rfc2217),tcp,localhost,", "telnet(rfc2217),tcp,0" },
     { "serialdev,%s,115200", NULL,
       .check_if_present = check_serialdev_present },

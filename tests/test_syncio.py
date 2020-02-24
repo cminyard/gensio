@@ -6,6 +6,7 @@
 #
 
 import gensio
+import gensios_enabled
 
 class Logger:
     def gensio_log(self, level, log):
@@ -14,6 +15,7 @@ class Logger:
 def test_sync_gensio(o):
     print("Testing basic sync I/O")
 
+    gensios_enabled.check_iostr_gensios("echo")
     g = gensio.gensio(o, "echo(readbuf=10)", None)
     g.set_sync()
     g.open_s()
@@ -74,6 +76,7 @@ class SyncEvent:
 def test_sync_gensio_accepter(o):
     print("Testing sync accept")
 
+    gensios_enabled.check_iostr_gensios("tcp")
     a = gensio.gensio_accepter(o, "tcp,3023", None)
     a.set_sync()
     a.startup()
@@ -84,6 +87,7 @@ def test_sync_gensio_accepter(o):
         raise Exception("accept_s_timeout didn't time out");
 
     sg = SyncEvent()
+    gensios_enabled.check_iostr_gensios("tcp")
     g = gensio.gensio(o, "tcp,localhost,3023", sg)
     g.open(sg)
 

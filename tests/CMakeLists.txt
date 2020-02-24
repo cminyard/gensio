@@ -7,6 +7,7 @@ target_link_libraries(oomtest gensio)
 set (top_srcdir "${CMAKE_SOURCE_DIR}")
 set (top_builddir "${CMAKE_BINARY_DIR}")
 configure_file(runtest.in runtest @ONLY)
+configure_file(gensios_enabled.py.in gensios_enabled.py @ONLY)
 
 add_test(NAME syncio
          COMMAND runtest test_syncio.py)

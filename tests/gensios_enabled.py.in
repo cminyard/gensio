@@ -1,0 +1,64 @@
+import sys
+
+# Track which gensios are enabled in the library
+gensios_enabled = {
+    "tcp": 1,
+    "udp": 1,
+    "sctp": @HAVE_LIBSCTP@,
+    "stdio": 1,
+    "pty": 1,
+    "unix" : 1,
+    "ssl": @HAVE_OPENSSL@,
+    "mux": 1,
+    "certauth": @HAVE_OPENSSL@,
+    "telnet": 1,
+    "serialdev": 1,
+    "echo": 1,
+    "file": 1,
+    "ipmisol": @HAVE_OPENIPMI@,
+    "dummy": 1,
+    "msgdelim": 1,
+    "relpkt": 1,
+    "trace": 1
+}
+
+# Gensios that are always last in the list.
+final_gensios = [
+    "tcp",
+    "udp",
+    "sctp",
+    "stdio",
+    "pty",
+    "unix",
+    "serialdev",
+    "echo",
+    "file",
+    "ipmisol",
+    "dummy"
+]
+
+def check_gensio_enabled(g):
+    return gensios_enabled[g]
+
+def check_iostr_gensios(s):
+    while True:
+        c = s.find(",")
+        if c == -1:
+            c = len(s)
+        p = s.find("(")
+        if p == -1:
+            p = len(s)
+        if (c < p):
+            g = s[:c]
+            s = s[c + 1:]
+        else:
+            g = s[:p]
+            p = s.find(")")
+            s = s[p + 2:]
+
+        if not gensios_enabled[g]:
+            print("Gensio %s is not enabled, test skipped" % g)
+            sys.exit(77)
+
+        if g in final_gensios:
+            break
