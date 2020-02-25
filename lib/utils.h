@@ -31,7 +31,7 @@ struct enum_val
  * given string in the table.  If "len" is not -1, use it to only
  * compare the first "len" chars of str.
  */
-int lookup_enum(struct enum_val *enums, const char *str, int len);
+int lookup_enum(struct enum_val *enums, const char *str, size_t len);
 
 /* Return -1 if tv1 < tv2, 0 if tv1 == tv2, and 1 if tv1 > tv2 */
 int cmp_timeval(struct timeval *tv1, struct timeval *tv2);

@@ -204,7 +204,7 @@ struct mux_inst {
      * The service, either the local one or the remote one.
      */
     char *service;
-    unsigned int service_len;
+    size_t service_len;
 
     unsigned char *read_data;
     gensiods read_data_pos;
@@ -346,7 +346,7 @@ struct gensio_mux_config {
     gensiods max_read_size;
     gensiods max_write_size;
     char *service;
-    unsigned int service_len;
+    size_t service_len;
     unsigned int max_channels;
     bool is_client;
 };

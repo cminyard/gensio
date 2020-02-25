@@ -32,7 +32,7 @@ gensio_strdup(struct gensio_os_funcs *o, const char *str)
 int
 cmpstrval(const char *s, const char *prefix, const char **val)
 {
-    int len = strlen(prefix);
+    size_t len = strlen(prefix);
 
     if (strncmp(s, prefix, len))
 	return 0;
@@ -302,7 +302,7 @@ gensio_str_to_argv(struct gensio_os_funcs *o,
 }
 
 int
-lookup_enum(struct enum_val *enums, const char *str, int len)
+lookup_enum(struct enum_val *enums, const char *str, size_t len)
 {
     while (enums->str != NULL) {
 	if (len == -1 && strcmp(enums->str, str) == 0)

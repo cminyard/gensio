@@ -1155,7 +1155,7 @@ str_to_gensio_accepter(const char *str,
     int protocol;
     const char **args = NULL;
     struct registered_gensio_accepter *r;
-    unsigned int len;
+    size_t len;
 
     o->call_once(o, &gensio_acc_str_initialized,
 		 add_default_gensio_accepters, o);
@@ -1218,7 +1218,7 @@ str_to_gensio_accepter_child(struct gensio_accepter *child,
 {
     int err = GE_INVAL;
     struct registered_gensio_accepter *r;
-    unsigned int len;
+    size_t len;
 
     o->call_once(o, &gensio_acc_str_initialized,
 		 add_default_gensio_accepters, o);
@@ -1352,7 +1352,7 @@ str_to_gensio(const char *str,
     int protocol;
     const char **args = NULL;
     struct registered_gensio *r;
-    unsigned int len;
+    size_t len;
 
     o->call_once(o, &gensio_str_initialized, add_default_gensios, o);
     if (reg_gensio_rv)
@@ -1416,7 +1416,7 @@ str_to_gensio_child(struct gensio *child,
     int err = 0;
     const char **args = NULL;
     struct registered_gensio *r;
-    unsigned int len;
+    size_t len;
 
     while (isspace(*str))
 	str++;
@@ -1444,7 +1444,7 @@ str_to_gensio_child(struct gensio *child,
 int
 gensio_check_keyvalue(const char *str, const char *key, const char **value)
 {
-    unsigned int keylen = strlen(key);
+    size_t keylen = strlen(key);
 
     if (strncasecmp(str, key, keylen) != 0)
 	return 0;
