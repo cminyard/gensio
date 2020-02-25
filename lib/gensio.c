@@ -2868,14 +2868,14 @@ char *
 gensio_alloc_vsprintf(struct gensio_os_funcs *o, const char *fmt, va_list va)
 {
     va_list va2;
-    int len;
+    size_t len;
     char c[1], *str;
 
     va_copy(va2, va);
-    len = vsnprintf(c, 0, fmt, va);
-    str = o->zalloc(o, len + 1);
+    len = vsnprintf(c, 0, fmt, va) + 1;
+    str = o->zalloc(o, len);
     if (str)
-	vsnprintf(str, len + 1, fmt, va2);
+	vsnprintf(str, len, fmt, va2);
     va_end(va2);
 
     return str;
