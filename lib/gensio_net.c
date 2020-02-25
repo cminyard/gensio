@@ -309,7 +309,7 @@ net_gensio_alloc(struct gensio_addrinfo *iai, const char * const args[],
 		 struct gensio **new_gensio)
 {
     struct net_data *tdata = NULL;
-    struct gensio_addrinfo *lai = NULL, *lai2, *ai;
+    struct gensio_addrinfo *lai = NULL, *lai2, *ai = NULL;
     struct addrinfo *tai;
     struct gensio *io;
     gensiods max_read_size = GENSIO_DEFAULT_BUF_SIZE;
