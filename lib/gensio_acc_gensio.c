@@ -96,7 +96,7 @@ gensna_str_to_gensio(struct gensio_accepter *accepter,
     int err;
     struct gensio *child = NULL, *io;
     const char *type = gensio_acc_get_type(accepter, 0);
-    unsigned int typelen = strlen(type);
+    size_t typelen = strlen(type);
     int argc = 0;
     const char **args = NULL;
 

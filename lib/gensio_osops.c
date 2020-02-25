@@ -1070,7 +1070,8 @@ gensio_scan_unixaddr(struct gensio_os_funcs *o, const char *str, bool doargs,
 #if HAVE_UNIX
     struct sockaddr_un *saddr;
     struct gensio_addrinfo *ai = NULL;
-    int len, argc = 0, err;
+    size_t len;
+    int argc = 0, err;
     const char **args = NULL;
 
     if (doargs) {

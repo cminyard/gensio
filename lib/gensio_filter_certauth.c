@@ -299,14 +299,14 @@ struct certauth_filter {
     bool enable_password;
 
     char *username;
-    unsigned int username_len;
+    size_t username_len;
 
     unsigned int password_req_val;
     char *password;
-    unsigned int password_len;
+    size_t password_len;
 
     char *service;
-    unsigned int service_len;
+    size_t service_len;
 
     unsigned char *challenge_data;
     gensiods challenge_data_size;
@@ -1802,7 +1802,7 @@ gensio_certauth_filter_raw_alloc(struct gensio_os_funcs *o,
 	sfilter->password_len = GENSIO_CERTAUTH_PASSWORD_LEN;
 
 	if (password) {
-	    unsigned int pwlen = strlen(password);
+	    size_t pwlen = strlen(password);
 
 	    if (pwlen > GENSIO_CERTAUTH_PASSWORD_LEN) {
 		rv = GE_TOOBIG;

@@ -26,10 +26,10 @@ bool gensio_uucp_locking_enabled = true;
 static char *uucp_lck_dir = "/var/lock/";
 static char *dev_prefix = "/dev/";
 
-static int
+static size_t
 uucp_fname_lock_size(char *devname)
 {
-    int dev_prefix_len = strlen(dev_prefix);
+    size_t dev_prefix_len = strlen(dev_prefix);
 
     if (strncmp(dev_prefix, devname, dev_prefix_len) == 0)
 	devname += dev_prefix_len;
@@ -44,7 +44,7 @@ uucp_fname_lock_size(char *devname)
 static void
 uucp_fname_lock(char *buf, char *devname)
 {
-    int i, dev_prefix_len = strlen(dev_prefix);
+    size_t i, dev_prefix_len = strlen(dev_prefix);
 
     if (strncmp(dev_prefix, devname, dev_prefix_len) == 0)
 	devname += dev_prefix_len;
