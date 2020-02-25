@@ -13,8 +13,18 @@
 #define GENSIO_OS_FUNCS
 #include <stdbool.h>
 #include <stdarg.h>
+
+#ifdef _WIN32
+struct timeval {
+    long tv_sec;
+    long tv_usec;
+}
+typedef int sigset_t;
+#else
 #include <sys/time.h> /* For timeval */
 #include <signal.h> /* For sigset_t */
+#endif
+
 
 /*
  * Function pointers to provide OS functions.
