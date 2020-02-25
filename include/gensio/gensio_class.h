@@ -288,15 +288,11 @@ int register_filter_gensio(struct gensio_os_funcs *o,
 /*
  * Take a string in the form [ipv4|ipv6,][hostname,]port and convert
  * it to an addrinfo structure.  If this returns success, the user
- * must free rai with gensio_free_addrinfo().  If socktype or protocol
- * are non-zero, allocate for the given socktype and protocol.
+ * must free rai with gensio_free_addrinfo().  If protocol is
+ * non-zero, allocate for the given protocol only.  The value of
+ * protocol is the same as for gensio_scan_network_port().
  */
 int gensio_scan_netaddr(struct gensio_os_funcs *o, const char *str, bool listen,
-			int socktype, int protocol, struct addrinfo **rai);
-
-char *gensio_strdup(struct gensio_os_funcs *o, const char *str);
-
-int gensio_scan_args(struct gensio_os_funcs *o,
-		     const char **rstr, int *argc, const char ***args);
+			int protocol, struct gensio_addrinfo **rai);
 
 #endif /* GENSIO_CLASS_H */

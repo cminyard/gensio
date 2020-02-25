@@ -64,6 +64,15 @@ int gensio_argv_copy(struct gensio_os_funcs *o,
 /* Free the return of str_to_argv */
 void gensio_argv_free(struct gensio_os_funcs *o, const char **argv);
 
+/*
+ * Scan a set of gensio-like arguments separated by commas.  Handles
+ * quotes properly.  If the string begins with a '(', the scan will
+ * end after the matching ')'.  Otherwise it scans to the end of the
+ * string.  *rstr is updated to the end of the scan.
+ */
+int gensio_scan_args(struct gensio_os_funcs *o,
+		     const char **rstr, int *argc, const char ***args);
+
 #ifdef __cplusplus
 }
 #endif

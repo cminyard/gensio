@@ -22,6 +22,8 @@
 #include <gensio/gensio_class.h>
 #include <gensio/argvutils.h>
 #include <gensio/gensio_osops.h>
+#include <gensio/gensio_builtins.h>
+#include "gensio_addrinfo.h"
 
 #ifdef ENABLE_INTERNAL_TRACE
 #define LOCK_TRACING
@@ -133,7 +135,7 @@ struct udpna_data {
     gensio_acc_done shutdown_done;
     void *shutdown_data;
 
-    struct addrinfo    *ai;		/* The address list for the portname. */
+    struct gensio_addrinfo *ai;		/* The address list for the portname. */
     struct opensocks   *fds;		/* The file descriptor used for
 					   the UDP ports. */
     unsigned int   nr_fds;
@@ -1193,27 +1195,28 @@ udpna_str_to_gensio(struct gensio_accepter *accepter, const char *addr,
 {
     struct udpna_data *nadata = gensio_acc_get_gensio_data(accepter);
     struct udpn_data *ndata = NULL;
-    struct addrinfo *ai = NULL, *tai;
+    struct gensio_addrinfo *ai = NULL;
+    struct addrinfo *tai;
     unsigned int fdi;
     int err;
     const char **iargs;
     bool is_port_set;
-    int socktype, protocol;
+    int protocol;
 
-    err = gensio_scan_network_port(nadata->o, addr, false, &ai, &socktype,
+    err = gensio_scan_network_port(nadata->o, addr, false, &ai,
 				   &protocol, &is_port_set, NULL, &iargs);
     if (err)
 	return err;
 
     err = GE_INVAL;
-    if (protocol != IPPROTO_UDP || !is_port_set)
+    if (protocol != GENSIO_NET_PROTOCOL_UDP || !is_port_set)
 	goto out_err;
 
     /* Don't accept any args, we can't set the readbuf size here. */
     if (iargs && iargs[0])
 	goto out_err;
 
-    for (tai = ai; tai; tai = tai->ai_next) {
+    for (tai = ai->a; tai; tai = tai->ai_next) {
 	for (fdi = 0; fdi < nadata->nr_fds; fdi++) {
 	    if (nadata->fds[fdi].family == tai->ai_addr->sa_family)
 		goto found;
@@ -1223,13 +1226,13 @@ udpna_str_to_gensio(struct gensio_accepter *accepter, const char *addr,
 
  found:
 
-    if (ai->ai_addrlen > sizeof(struct sockaddr_storage))
+    if (tai->ai_addrlen > sizeof(struct sockaddr_storage))
 	goto out_err;
 
     udpna_lock(nadata);
-    ndata = udpn_find(&nadata->udpns, ai->ai_addr, ai->ai_addrlen);
+    ndata = udpn_find(&nadata->udpns, tai->ai_addr, tai->ai_addrlen);
     if (!ndata)
-	ndata = udpn_find(&nadata->closed_udpns, ai->ai_addr, ai->ai_addrlen);
+	ndata = udpn_find(&nadata->closed_udpns, tai->ai_addr, tai->ai_addrlen);
     if (ndata) {
 	udpna_unlock(nadata);
 	err = GE_EXISTS;
@@ -1237,7 +1240,7 @@ udpna_str_to_gensio(struct gensio_accepter *accepter, const char *addr,
     }
 
     ndata = udp_alloc_gensio(nadata, nadata->fds[fdi].fd,
-			     ai->ai_addr, ai->ai_addrlen,
+			     tai->ai_addr, tai->ai_addrlen,
 			     cb, user_data, &nadata->closed_udpns);
     if (!ndata) {
 	udpna_unlock(nadata);
@@ -1370,7 +1373,7 @@ gensio_acc_udp_func(struct gensio_accepter *acc, int func, int val,
 }
 
 static int
-i_udp_gensio_accepter_alloc(struct addrinfo *iai, gensiods max_read_size,
+i_udp_gensio_accepter_alloc(struct gensio_addrinfo *iai, gensiods max_read_size,
 			    struct gensio_os_funcs *o,
 			    gensio_accepter_event cb, void *user_data,
 			    struct gensio_accepter **accepter)
@@ -1418,7 +1421,8 @@ i_udp_gensio_accepter_alloc(struct addrinfo *iai, gensiods max_read_size,
 }
 
 int
-udp_gensio_accepter_alloc(struct addrinfo *iai, const char * const args[],
+udp_gensio_accepter_alloc(struct gensio_addrinfo *iai,
+			  const char * const args[],
 			  struct gensio_os_funcs *o,
 			  gensio_accepter_event cb, void *user_data,
 			  struct gensio_accepter **accepter)
@@ -1444,9 +1448,9 @@ str_to_udp_gensio_accepter(const char *str, const char * const args[],
 			   struct gensio_accepter **acc)
 {
     int err;
-    struct addrinfo *ai;
+    struct gensio_addrinfo *ai;
 
-    err = gensio_scan_netaddr(o, str, true, SOCK_DGRAM, IPPROTO_UDP, &ai);
+    err = gensio_scan_netaddr(o, str, true, GENSIO_NET_PROTOCOL_UDP, &ai);
     if (err)
 	return err;
 
@@ -1457,7 +1461,7 @@ str_to_udp_gensio_accepter(const char *str, const char * const args[],
 }
 
 int
-udp_gensio_alloc(struct addrinfo *ai, const char * const args[],
+udp_gensio_alloc(struct gensio_addrinfo *ai, const char * const args[],
 		struct gensio_os_funcs *o,
 		gensio_event cb, void *user_data,
 		struct gensio **new_gensio)
@@ -1465,13 +1469,13 @@ udp_gensio_alloc(struct addrinfo *ai, const char * const args[],
     struct udpn_data *ndata = NULL;
     struct gensio_accepter *accepter;
     struct udpna_data *nadata = NULL;
-    struct addrinfo *lai = NULL;
+    struct gensio_addrinfo *lai = NULL;
     int err, new_fd, optval = 1;
     gensiods max_read_size = GENSIO_DEFAULT_UDP_BUF_SIZE;
     unsigned int i;
 
     err = gensio_get_defaultaddr(o, "udp", "laddr", false,
-				 IPPROTO_UDP, true, false, &lai);
+				 GENSIO_NET_PROTOCOL_UDP, true, false, &lai);
     if (err && err != GE_NOTSUP) {
 	gensio_log(o, GENSIO_LOG_ERR, "Invalid default udp laddr: %s",
 		   gensio_err_to_str(err));
@@ -1481,16 +1485,16 @@ udp_gensio_alloc(struct addrinfo *ai, const char * const args[],
     for (i = 0; args && args[i]; i++) {
 	if (gensio_check_keyds(args[i], "readbuf", &max_read_size) > 0)
 	    continue;
-	if (gensio_check_keyaddrs(o, args[i], "laddr", IPPROTO_UDP,
+	if (gensio_check_keyaddrs(o, args[i], "laddr", GENSIO_NET_PROTOCOL_UDP,
 				  true, false, &lai) > 0)
 	    continue;
 	return GE_INVAL;
     }
 
-    if (ai->ai_addrlen > sizeof(struct sockaddr_storage))
+    if (ai->a->ai_addrlen > sizeof(struct sockaddr_storage))
 	return GE_TOOBIG;
 
-    new_fd = socket(ai->ai_family, SOCK_DGRAM, 0);
+    new_fd = socket(ai->a->ai_family, SOCK_DGRAM, 0);
     if (new_fd == -1) {
 	if (lai)
 	    gensio_free_addrinfo(o, lai);
@@ -1516,7 +1520,7 @@ udp_gensio_alloc(struct addrinfo *ai, const char * const args[],
     }
 
     if (lai) {
-	if (bind(new_fd, lai->ai_addr, lai->ai_addrlen) == -1) {
+	if (bind(new_fd, lai->a->ai_addr, lai->a->ai_addrlen) == -1) {
 	    err = errno;
 	    close(new_fd);
 	    return gensio_os_err_to_err(o, err);
@@ -1540,7 +1544,7 @@ udp_gensio_alloc(struct addrinfo *ai, const char * const args[],
 	udpna_do_free(nadata);
 	return GE_NOMEM;
     }
-    nadata->fds->family = ai->ai_family;
+    nadata->fds->family = ai->a->ai_family;
     nadata->fds->fd = new_fd;
     nadata->nr_fds = 1;
     /* fd belongs to udpn now, updn_do_free() will close it. */
@@ -1548,7 +1552,7 @@ udp_gensio_alloc(struct addrinfo *ai, const char * const args[],
     nadata->closed = true; /* Free nadata when ndata is freed. */
     nadata->freed = true;
 
-    ndata = udp_alloc_gensio(nadata, new_fd, ai->ai_addr, ai->ai_addrlen,
+    ndata = udp_alloc_gensio(nadata, new_fd, ai->a->ai_addr, ai->a->ai_addrlen,
 			     cb, user_data, &nadata->closed_udpns);
     if (!ndata) {
 	err = GE_NOMEM;
@@ -1577,10 +1581,10 @@ str_to_udp_gensio(const char *str, const char * const args[],
 		  gensio_event cb, void *user_data,
 		  struct gensio **new_gensio)
 {
-    struct addrinfo *ai;
+    struct gensio_addrinfo *ai;
     int err;
 
-    err = gensio_scan_netaddr(o, str, false, SOCK_DGRAM, IPPROTO_UDP, &ai);
+    err = gensio_scan_netaddr(o, str, false, GENSIO_NET_PROTOCOL_UDP, &ai);
     if (err)
 	return err;
 

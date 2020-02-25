@@ -165,19 +165,29 @@ int str_to_trace_gensio(const char *str, const char * const args[],
 /*
  * Allocators for accepters for different I/O types.
  */
-int tcp_gensio_accepter_alloc(struct addrinfo *ai, const char * const args[],
+int tcp_gensio_accepter_alloc(struct gensio_addrinfo *ai,
+			      const char * const args[],
 			      struct gensio_os_funcs *o,
 			      gensio_accepter_event cb,
 			      void *user_data,
 			      struct gensio_accepter **accepter);
 
-int udp_gensio_accepter_alloc(struct addrinfo *ai, const char * const args[],
+int unix_gensio_accepter_alloc(struct gensio_addrinfo *ai,
+			       const char * const args[],
+			       struct gensio_os_funcs *o,
+			       gensio_accepter_event cb,
+			       void *user_data,
+			       struct gensio_accepter **accepter);
+
+int udp_gensio_accepter_alloc(struct gensio_addrinfo *ai,
+			      const char * const args[],
 			      struct gensio_os_funcs *o,
 			      gensio_accepter_event cb,
 			      void *user_data,
 			      struct gensio_accepter **accepter);
 
-int sctp_gensio_accepter_alloc(struct addrinfo *ai, const char * const args[],
+int sctp_gensio_accepter_alloc(struct gensio_addrinfo *ai,
+			       const char * const args[],
 			       struct gensio_os_funcs *o,
 			       gensio_accepter_event cb,
 			       void *user_data,
@@ -248,16 +258,24 @@ int trace_gensio_accepter_alloc(struct gensio_accepter *child,
 /*
  * Create a TCP gensio for the given ai.
  */
-int tcp_gensio_alloc(struct addrinfo *ai, const char * const args[],
+int tcp_gensio_alloc(struct gensio_addrinfo *ai, const char * const args[],
 		     struct gensio_os_funcs *o,
 		     gensio_event cb, void *user_data,
 		     struct gensio **new_gensio);
 
 /*
+ * Create a TCP gensio for the given ai.
+ */
+int unix_gensio_alloc(struct gensio_addrinfo *ai, const char * const args[],
+		      struct gensio_os_funcs *o,
+		      gensio_event cb, void *user_data,
+		      struct gensio **new_gensio);
+
+/*
  * Create a UDP gensio for the given ai.  It uses the first entry in
  * ai.
  */
-int udp_gensio_alloc(struct addrinfo *ai, const char * const args[],
+int udp_gensio_alloc(struct gensio_addrinfo *ai, const char * const args[],
 		     struct gensio_os_funcs *o,
 		     gensio_event cb, void *user_data,
 		     struct gensio **new_gensio);
@@ -265,7 +283,7 @@ int udp_gensio_alloc(struct addrinfo *ai, const char * const args[],
 /*
  * Create a SCTP gensio for the given ai.
  */
-int sctp_gensio_alloc(struct addrinfo *ai, const char * const args[],
+int sctp_gensio_alloc(struct gensio_addrinfo *ai, const char * const args[],
 		      struct gensio_os_funcs *o,
 		      gensio_event cb, void *user_data,
 		      struct gensio **new_gensio);

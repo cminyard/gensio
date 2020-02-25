@@ -9,6 +9,7 @@
 #define GENSIO_OSOPS_H
 
 #include <sys/types.h> /* For pid_t */
+struct sockaddr;
 
 /* To avoid having to include netinet/sctp.h here. */
 struct sctp_sndrcvinfo;
@@ -79,7 +80,7 @@ struct opensocks
  * namespaces (like IPV4 and IPV6 on INADDR6_ANY) will work properly
  */
 int gensio_open_socket(struct gensio_os_funcs *o,
-		       struct addrinfo *ai,
+		       struct gensio_addrinfo *ai,
 		       void (*readhndlr)(int, void *),
 		       void (*writehndlr)(int, void *),
 		       void (*fd_handler_cleared)(int, void *),
@@ -126,5 +127,40 @@ int gensio_setup_listen_socket(struct gensio_os_funcs *o, bool do_listen,
 
 /* Returns a NULL if the fd is ok, a non-NULL error string if not */
 const char *gensio_check_tcpd_ok(int new_fd);
+
+/*
+ * Extract/set the port on a sockaddr.  If the sockaddr is not AF_INET
+ * or AF_INET6, the get functions returns a gensio error.
+ */
+int gensio_sockaddr_get_port(const struct sockaddr *s, unsigned int *port);
+int gensio_sockaddr_set_port(const struct sockaddr *s, unsigned int port);
+
+/*
+ * A routine for converting a sockaddr to a numeric IP address.
+ *
+ * If addrlen is non-NULL and is non-zero, it is compared against what
+ * the actual address length should have been and EINVAL is returned
+ * if it doesn't match.  If addrlen is non-NULL and is zero, it will
+ * be updated to the address length.
+ *
+ * The output is put into buf starting at *epos (or zero if epos is NULL)
+ * and will fill in buf up to buf + buflen.  If the buffer is not large
+ * enough, it is truncated, but if epos is not NULL, it will be set to the
+ * byte position where the ending NIL character would have been, one less
+ * than the buflen that would have been required to hold the entire buffer.
+ *
+ * If addr is not AF_INET or AF_INET6, return EINVAL.
+ */
+int gensio_sockaddr_to_str(const struct sockaddr *addr, socklen_t *addrlen,
+			   char *buf, gensiods *epos, gensiods buflen);
+
+/*
+ * Compare two sockaddr structure and return TRUE if they are equal
+ * and FALSE if not.  Only works for AF_INET and AF_INET6.
+ * If compare_ports is false, then the port comparison is ignored.
+ */
+bool gensio_sockaddr_equal(const struct sockaddr *a1, socklen_t l1,
+			   const struct sockaddr *a2, socklen_t l2,
+			   bool compare_ports);
 
 #endif /* GENSIO_OSOPS_H */

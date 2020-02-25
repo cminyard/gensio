@@ -20,15 +20,14 @@ extern "C" {
 
 #include <stdbool.h>
 #include <stdarg.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netdb.h>
+#include <stdint.h>
 
 #include <gensio/gensio_os_funcs.h>
 #include <gensio/gensio_err.h>
 #include <gensio/gensio_version.h>
 
 struct gensio;
+struct gensio_addrinfo;
 
 typedef size_t gensiods; /* Data size */
 
@@ -319,7 +318,7 @@ int gensio_get_default(struct gensio_os_funcs *o,
 int gensio_get_defaultaddr(struct gensio_os_funcs *o,
 			   const char *class, const char *name, bool classonly,
 			   int iprotocol, bool listen, bool require_port,
-			   struct addrinfo **rai);
+			   struct gensio_addrinfo **rai);
 
 int gensio_del_default(struct gensio_os_funcs *o,
 		       const char *class, const char *name, bool delclasses);
@@ -338,20 +337,12 @@ void gensio_cleanup_mem(struct gensio_os_funcs *o);
  *******************************************************************/
 
 /*
- * Compare two sockaddr structure and return TRUE if they are equal
- * and FALSE if not.  Only works for AF_INET and AF_INET6.
- * If compare_ports is false, then the port comparison is ignored.
+ * See if addr is present in ai.  Ports are not compared unless
+ * compare_ports is true.
  */
-bool gensio_sockaddr_equal(const struct sockaddr *a1, socklen_t l1,
-			   const struct sockaddr *a2, socklen_t l2,
-			   bool compare_ports);
-
-/*
- * Extract/set the port on a sockaddr.  If the sockaddr is not AF_INET
- * or AF_INET6, the get functions returns a gensio error.
- */
-int gensio_sockaddr_get_port(const struct sockaddr *s, unsigned int *port);
-int gensio_sockaddr_set_port(const struct sockaddr *s, unsigned int port);
+bool gensio_addrinfo_addr_present(const struct gensio_addrinfo *ai,
+				  const void *addr, int addrlen,
+				  bool compare_ports);
 
 /*
  * Scan for a network port in the form:
@@ -383,20 +374,21 @@ int gensio_sockaddr_set_port(const struct sockaddr *s, unsigned int port);
  * An all zero port means use any port. If the port is all zero on any
  * address, then is_port_set is set to false, true otherwise.
  *
- * The socktype and protocol values are returned for the socket()
- * call.  For UDP, it's SOCK_DGRAM and IPPROTO_UDP, for TCP it's
- * SOCK_SCTREAM and IPPROTO_TCP, and for SCTP it's SOCKSETPACKET and
- * IPPROTO_SCTP.
+ * The protocol type is returned, either TCP, UDP, or SCTP.  Protocol
+ * may be NULL.
  *
  * ai should be freed with gensio_free_addrinfo().
  *
  * args should be freed with str_to_argv_free().
  */
 int gensio_scan_network_port(struct gensio_os_funcs *o, const char *str,
-			     bool listen, struct addrinfo **ai,
-			     int *socktype, int *protocol,
-			     bool *is_port_set,
+			     bool listen, struct gensio_addrinfo **ai,
+			     int *protocol, bool *is_port_set,
 			     int *argc, const char ***args);
+/* Values for protocol above. */
+#define GENSIO_NET_PROTOCOL_TCP 1
+#define GENSIO_NET_PROTOCOL_UDP 2
+#define GENSIO_NET_PROTOCOL_SCTP 3
 
 /*
  * This allows a global to disable uucp locking for everything.
@@ -407,42 +399,24 @@ extern bool gensio_uucp_locking_enabled;
  * Create an addrinfo from a string for a unix socket.
  */
 int gensio_scan_unixaddr(struct gensio_os_funcs *o, const char *str,
-			 struct addrinfo **rai,
+			 struct gensio_addrinfo **rai,
 			 int *rargc, const char ***rargs);
 
 /*
  * There are no provided routines to duplicate addrinfo structures,
  * so we really need to do it ourselves.
  */
-struct addrinfo *gensio_dup_addrinfo(struct gensio_os_funcs *o,
-				     struct addrinfo *ai);
+struct gensio_addrinfo *gensio_dup_addrinfo(struct gensio_os_funcs *o,
+					    struct gensio_addrinfo *ai);
 /*
  * Concatenate to addrinfo functions.  If successful (non-NULL return),
- * ai1 and ai2 are not usable any more.
+ * ai1 and ai2 are not usable any more.  They will have been freed.
  */
-struct addrinfo *gensio_cat_addrinfo(struct gensio_os_funcs *o,
-				     struct addrinfo *ai1,
-				     struct addrinfo *ai2);
-void gensio_free_addrinfo(struct gensio_os_funcs *o, struct addrinfo *ai);
-
-/*
- * A routine for converting a sockaddr to a numeric IP address.
- *
- * If addrlen is non-NULL and is non-zero, it is compared against what
- * the actual address length should have been and EINVAL is returned
- * if it doesn't match.  If addrlen is non-NULL and is zero, it will
- * be updated to the address length.
- *
- * The output is put into buf starting at *epos (or zero if epos is NULL)
- * and will fill in buf up to buf + buflen.  If the buffer is not large
- * enough, it is truncated, but if epos is not NULL, it will be set to the
- * byte position where the ending NIL character would have been, one less
- * than the buflen that would have been required to hold the entire buffer.
- *
- * If addr is not AF_INET or AF_INET6, return EINVAL.
- */
-int gensio_sockaddr_to_str(const struct sockaddr *addr, socklen_t *addrlen,
-			   char *buf, gensiods *epos, gensiods buflen);
+struct gensio_addrinfo *gensio_cat_addrinfo(struct gensio_os_funcs *o,
+					    struct gensio_addrinfo *ai1,
+					    struct gensio_addrinfo *ai2);
+void gensio_free_addrinfo(struct gensio_os_funcs *o,
+			  struct gensio_addrinfo *ai);
 
 /*
  * This allows a global to disable uucp locking for everything.
@@ -464,9 +438,11 @@ int gensio_check_keyboolv(const char *str, const char *key,
 			  bool *rvalue);
 int gensio_check_keyenum(const char *str, const char *key,
 			 struct gensio_enum_val *enums, int *rval);
+/* The value of protocol is the same as for gensio_scan_network_port(). */
 int gensio_check_keyaddrs(struct gensio_os_funcs *o,
 			  const char *str, const char *key, int protocol,
-			  bool listen, bool require_port, struct addrinfo **ai);
+			  bool listen, bool require_port,
+			  struct gensio_addrinfo **ai);
 
 /*
  * Helper functions that don't fit anywhere else.
@@ -521,6 +497,8 @@ char *gensio_alloc_vsprintf(struct gensio_os_funcs *o,
 char *gensio_alloc_sprintf(struct gensio_os_funcs *o,
 			   const char *fmt, ...);
     
+char *gensio_strdup(struct gensio_os_funcs *o, const char *str);
+
 #ifdef __cplusplus
 }
 #endif
