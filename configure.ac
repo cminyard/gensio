@@ -307,6 +307,11 @@ if test "x$enable_internal_trace" != xno; then
    AC_DEFINE([ENABLE_INTERNAL_TRACE], [1], [Enable internal tracing])
 fi
 
+HAVE_UNIX=0
+AC_CHECK_HEADER(sys/un.h, [HAVE_UNIX=1] )
+AC_SUBST(HAVE_UNIX)
+AC_DEFINE_UNQUOTED([HAVE_UNIX], [$HAVE_UNIX], [Enable unix socket handling])
+
 CPPFLAGS="$CPPFLAGS -I\$(top_srcdir)/include -I\$(top_builddir)/include"
 
 AC_OUTPUT([Makefile

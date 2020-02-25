@@ -7,7 +7,7 @@ gensios_enabled = {
     "sctp": @HAVE_LIBSCTP@,
     "stdio": 1,
     "pty": 1,
-    "unix" : 1,
+    "unix" : @HAVE_UNIX@,
     "ssl": @HAVE_OPENSSL@,
     "mux": 1,
     "certauth": @HAVE_OPENSSL@,

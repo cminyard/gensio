@@ -25,7 +25,9 @@
 #if HAVE_LIBSCTP
 #include <netinet/sctp.h>
 #endif
+#if HAVE_UNIX
 #include <sys/un.h>
+#endif
 
 #ifdef HAVE_TCPD_H
 #include <tcpd.h>
@@ -526,10 +528,12 @@ gensio_open_socket(struct gensio_os_funcs *o,
 	family = AF_INET;
 	goto restart;
     }
+#if HAVE_UNIX
     if (family == AF_INET) {
 	family = AF_UNIX;
 	goto restart;
     }
+#endif
 
     if (curr_fd == 0) {
 	o->free(o, fds);
@@ -839,6 +843,7 @@ gensio_sockaddr_equal(const struct sockaddr *a1, socklen_t l1,
 	}
 	break;
 
+#if HAVE_UNIX
     case AF_UNIX:
 	{
 	    struct sockaddr_un *s1 = (struct sockaddr_un *) a1;
@@ -847,6 +852,7 @@ gensio_sockaddr_equal(const struct sockaddr *a1, socklen_t l1,
 		return false;
 	}
 	break;
+#endif
 
     default:
 	/* Unknown family. */
@@ -920,10 +926,12 @@ gensio_sockaddr_to_str(const struct sockaddr *addr, socklen_t *addrlen,
 			ntohs(a6->sin6_port));
 	if (addrlen)
 	    *addrlen = sizeof(struct sockaddr_in6);
+#if HAVE_UNIX
     } else if (addr->sa_family == AF_UNIX) {
 	struct sockaddr_un *au = (struct sockaddr_un *) addr;
 
 	gensio_pos_snprintf(buf, buflen, pos, "unix,%s", au->sun_path);
+#endif
     } else {
     out_err:
 	if (*pos < buflen)

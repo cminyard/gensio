@@ -12,13 +12,16 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <netinet/tcp.h>
-#include <sys/un.h>
 #include <sys/socket.h>
 #include <fcntl.h>
 #include <errno.h>
 #include <string.h>
 #include <strings.h>
 #include <assert.h>
+
+#if HAVE_UNIX
+#include <sys/un.h>
+#endif
 
 #include <gensio/gensio.h>
 #include <gensio/gensio_class.h>
@@ -438,7 +441,11 @@ unix_gensio_alloc(struct gensio_addrinfo *iai, const char * const args[],
 		 gensio_event cb, void *user_data,
 		 struct gensio **new_gensio)
 {
+#if HAVE_UNIX
     return net_gensio_alloc(iai, args, o, cb, user_data, "unix", new_gensio);
+#else
+    return GE_NOTSUP;
+#endif
 }
 
 static int
@@ -446,6 +453,7 @@ gensio_scan_unixaddr(struct gensio_os_funcs *o, const char *str,
 		     struct gensio_addrinfo **rai,
 		     int *rargc, const char ***rargs)
 {
+#if HAVE_UNIX
     struct sockaddr_un *saddr;
     struct gensio_addrinfo *ai = NULL;
     int len, argc = 0, err;
@@ -502,6 +510,9 @@ gensio_scan_unixaddr(struct gensio_os_funcs *o, const char *str,
 	o->free(o, ai);
     }
     return GE_NOMEM;
+#else
+    return GE_NOTSUP;
+#endif
 }
 
 int
@@ -510,6 +521,7 @@ str_to_unix_gensio(const char *str, const char * const args[],
 		   gensio_event cb, void *user_data,
 		   struct gensio **new_gensio)
 {
+#if HAVE_UNIX
     struct gensio_addrinfo *ai;
     int err;
 
@@ -521,6 +533,9 @@ str_to_unix_gensio(const char *str, const char * const args[],
     gensio_free_addrinfo(o, ai);
 
     return err;
+#else
+    return GE_NOTSUP;
+#endif
 }
 
 struct netna_data;
@@ -705,6 +720,7 @@ netna_startup(struct gensio_accepter *accepter, struct netna_data *nadata)
 {
     int rv;
 
+#if HAVE_UNIX
     if (!nadata->istcp && nadata->delsock) {
 	struct sockaddr_un *sun;
 
@@ -712,6 +728,7 @@ netna_startup(struct gensio_accepter *accepter, struct netna_data *nadata)
 	sun = (struct sockaddr_un *) nadata->ai->a->ai_addr;
 	unlink(sun->sun_path);
     }
+#endif
 
     rv = gensio_open_socket(nadata->o, nadata->ai,
 			    netna_readhandler, NULL, netna_fd_cleared, nadata,
@@ -733,6 +750,7 @@ netna_shutdown(struct gensio_accepter *accepter,
     for (i = 0; i < nadata->nr_acceptfds; i++)
 	nadata->o->clear_fd_handlers(nadata->o, nadata->acceptfds[i].fd);
 
+#if HAVE_UNIX
     if (!nadata->istcp) {
 	/* Remove the socket. */
 	struct sockaddr_un *sun;
@@ -740,6 +758,7 @@ netna_shutdown(struct gensio_accepter *accepter,
 	sun = (struct sockaddr_un *) nadata->ai->a->ai_addr;
 	unlink(sun->sun_path);
     }
+#endif
 
     return 0;
 }
@@ -1078,8 +1097,12 @@ unix_gensio_accepter_alloc(struct gensio_addrinfo *iai,
 			   gensio_accepter_event cb, void *user_data,
 			   struct gensio_accepter **accepter)
 {
+#if HAVE_UNIX
     return net_gensio_accepter_alloc(iai, args, o, cb, user_data, "unix",
 				     accepter);
+#else
+    return GE_NOTSUP;
+#endif
 }
 
 int
@@ -1089,6 +1112,7 @@ str_to_unix_gensio_accepter(const char *str, const char * const args[],
 			    void *user_data,
 			    struct gensio_accepter **acc)
 {
+#if HAVE_UNIX
     int err;
     struct gensio_addrinfo *ai;
 
@@ -1100,4 +1124,7 @@ str_to_unix_gensio_accepter(const char *str, const char * const args[],
     gensio_free_addrinfo(o, ai);
 
     return err;
+#else
+    return GE_NOTSUP;
+#endif
 }
