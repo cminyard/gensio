@@ -396,13 +396,6 @@ int gensio_scan_network_port(struct gensio_os_funcs *o, const char *str,
 extern bool gensio_uucp_locking_enabled;
 
 /*
- * Create an addrinfo from a string for a unix socket.
- */
-int gensio_scan_unixaddr(struct gensio_os_funcs *o, const char *str,
-			 struct gensio_addrinfo **rai,
-			 int *rargc, const char ***rargs);
-
-/*
  * There are no provided routines to duplicate addrinfo structures,
  * so we really need to do it ourselves.
  */

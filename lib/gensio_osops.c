@@ -1168,69 +1168,6 @@ gensio_scan_netaddr(struct gensio_os_funcs *o, const char *str, bool listen,
     return rv;
 }
 
-int
-gensio_scan_unixaddr(struct gensio_os_funcs *o, const char *str,
-		     struct gensio_addrinfo **rai,
-		     int *rargc, const char ***rargs)
-{
-    struct sockaddr_un *saddr;
-    struct gensio_addrinfo *ai = NULL;
-    int len, argc = 0, err;
-    const char **args = NULL;
-
-    if (strncmp(str, "unix,", 5) == 0) {
-	str += 5;
-    } else if (strncmp(str, "unix(", 5) == 0) {
-	if (!rargs)
-	    return GE_INVAL;
-	str += 4;
-	err = gensio_scan_args(o, &str, &argc, &args);
-	if (err)
-	    return err;
-    }
-
-    len = strlen(str);
-    if (len >= sizeof(saddr->sun_path) - 1)
-	return GE_TOOBIG;
-
-    ai = o->zalloc(o, sizeof(*ai));
-    if (!ai)
-	goto out_nomem;
-    ai->a = o->zalloc(0, sizeof(*ai->a));
-    if (!ai->a)
-	goto out_nomem;
-
-    saddr = o->zalloc(o, sizeof(socklen_t) + len + 1);
-    if (!saddr)
-	goto out_nomem;
-
-    saddr->sun_family = AF_UNIX;
-    strcpy(saddr->sun_path, str);
-    ai->a->ai_family = AF_UNIX;
-    ai->a->ai_socktype = SOCK_STREAM;
-    ai->a->ai_addrlen = sizeof(socklen_t) + len + 1;
-    ai->a->ai_addr = (struct sockaddr *) saddr;
-
-    if (rargc)
-	*rargc = argc;
-    if (rargs)
-	*rargs = args;
-
-    *rai = ai;
-
-    return 0;
-
- out_nomem:
-    if (args)
-	gensio_argv_free(o, args);
-    if (ai) {
-	if (ai->a)
-	    o->free(o, ai->a);
-	o->free(o, ai);
-    }
-    return GE_NOMEM;
-}
-
 struct gensio_addrinfo *
 gensio_dup_addrinfo(struct gensio_os_funcs *o, struct gensio_addrinfo *igai)
 {
