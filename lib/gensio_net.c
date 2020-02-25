@@ -407,6 +407,26 @@ net_gensio_alloc(struct gensio_addrinfo *iai, const char * const args[],
     return GE_NOMEM;
 }
 
+static int
+str_to_net_gensio(const char *str, const char * const args[],
+		  int protocol, const char *typestr,
+		  struct gensio_os_funcs *o,
+		  gensio_event cb, void *user_data,
+		  struct gensio **new_gensio)
+{
+    struct gensio_addrinfo *ai;
+    int err;
+
+    err = gensio_scan_netaddr(o, str, false, protocol, &ai);
+    if (err)
+	return err;
+
+    err = net_gensio_alloc(ai, args, o, cb, user_data, typestr, new_gensio);
+    gensio_free_addrinfo(o, ai);
+
+    return err;
+}
+
 int
 tcp_gensio_alloc(struct gensio_addrinfo *iai, const char * const args[],
 		 struct gensio_os_funcs *o,
@@ -422,17 +442,8 @@ str_to_tcp_gensio(const char *str, const char * const args[],
 		  gensio_event cb, void *user_data,
 		  struct gensio **new_gensio)
 {
-    struct gensio_addrinfo *ai;
-    int err;
-
-    err = gensio_scan_netaddr(o, str, false, GENSIO_NET_PROTOCOL_TCP, &ai);
-    if (err)
-	return err;
-
-    err = tcp_gensio_alloc(ai, args, o, cb, user_data, new_gensio);
-    gensio_free_addrinfo(o, ai);
-
-    return err;
+    return str_to_net_gensio(str, args, GENSIO_NET_PROTOCOL_TCP, "tcp",
+			     o, cb, user_data, new_gensio);
 }
 
 int
@@ -448,94 +459,14 @@ unix_gensio_alloc(struct gensio_addrinfo *iai, const char * const args[],
 #endif
 }
 
-static int
-gensio_scan_unixaddr(struct gensio_os_funcs *o, const char *str,
-		     struct gensio_addrinfo **rai,
-		     int *rargc, const char ***rargs)
-{
-#if HAVE_UNIX
-    struct sockaddr_un *saddr;
-    struct gensio_addrinfo *ai = NULL;
-    int len, argc = 0, err;
-    const char **args = NULL;
-
-    if (strncmp(str, "unix,", 5) == 0) {
-	str += 5;
-    } else if (strncmp(str, "unix(", 5) == 0) {
-	if (!rargs)
-	    return GE_INVAL;
-	str += 4;
-	err = gensio_scan_args(o, &str, &argc, &args);
-	if (err)
-	    return err;
-    }
-
-    len = strlen(str);
-    if (len >= sizeof(saddr->sun_path) - 1)
-	return GE_TOOBIG;
-
-    ai = o->zalloc(o, sizeof(*ai));
-    if (!ai)
-	goto out_nomem;
-    ai->a = o->zalloc(0, sizeof(*ai->a));
-    if (!ai->a)
-	goto out_nomem;
-
-    saddr = o->zalloc(o, sizeof(socklen_t) + len + 1);
-    if (!saddr)
-	goto out_nomem;
-
-    saddr->sun_family = AF_UNIX;
-    strcpy(saddr->sun_path, str);
-    ai->a->ai_family = AF_UNIX;
-    ai->a->ai_socktype = SOCK_STREAM;
-    ai->a->ai_addrlen = sizeof(socklen_t) + len + 1;
-    ai->a->ai_addr = (struct sockaddr *) saddr;
-
-    if (rargc)
-	*rargc = argc;
-    if (rargs)
-	*rargs = args;
-
-    *rai = ai;
-
-    return 0;
-
- out_nomem:
-    if (args)
-	gensio_argv_free(o, args);
-    if (ai) {
-	if (ai->a)
-	    o->free(o, ai->a);
-	o->free(o, ai);
-    }
-    return GE_NOMEM;
-#else
-    return GE_NOTSUP;
-#endif
-}
-
 int
 str_to_unix_gensio(const char *str, const char * const args[],
 		   struct gensio_os_funcs *o,
 		   gensio_event cb, void *user_data,
 		   struct gensio **new_gensio)
 {
-#if HAVE_UNIX
-    struct gensio_addrinfo *ai;
-    int err;
-
-    err = gensio_scan_unixaddr(o, str, &ai, NULL, NULL);
-    if (err)
-	return err;
-
-    err = unix_gensio_alloc(ai, args, o, cb, user_data, new_gensio);
-    gensio_free_addrinfo(o, ai);
-
-    return err;
-#else
-    return GE_NOTSUP;
-#endif
+    return str_to_net_gensio(str, args, GENSIO_NET_PROTOCOL_UNIX, "unix",
+			     o, cb, user_data, new_gensio);
 }
 
 struct netna_data;
@@ -818,17 +749,19 @@ netna_str_to_gensio(struct gensio_accepter *accepter,
     int protocol = 0;
     bool nodelay = false;
 
-    if (nadata->istcp)
-	err = gensio_scan_network_port(nadata->o, addr, false, &ai,
-				       &protocol, &is_port_set, NULL, &iargs);
-    else
-	err = gensio_scan_unixaddr(nadata->o, addr, &ai, NULL, &iargs);
+    err = gensio_scan_network_port(nadata->o, addr, false, &ai,
+				   &protocol, &is_port_set, NULL, &iargs);
     if (err)
 	return err;
 
     err = EINVAL;
-    if (nadata->istcp && (protocol != GENSIO_NET_PROTOCOL_TCP || !is_port_set))
-	goto out_err;
+    if (nadata->istcp) {
+	if (protocol != GENSIO_NET_PROTOCOL_TCP || !is_port_set)
+	    goto out_err;
+    } else {
+	if (protocol != GENSIO_NET_PROTOCOL_UNIX)
+	    goto out_err;
+    }
 
     for (i = 0; iargs && iargs[i]; i++) {
 	if (gensio_check_keyds(iargs[i], "readbuf", &max_read_size) > 0)
@@ -1060,6 +993,27 @@ net_gensio_accepter_alloc(struct gensio_addrinfo *iai,
 }
 
 int
+str_to_net_gensio_accepter(const char *str, const char * const args[],
+			   int protocol, const char *typestr,
+			   struct gensio_os_funcs *o,
+			   gensio_accepter_event cb,
+			   void *user_data,
+			   struct gensio_accepter **acc)
+{
+    int err;
+    struct gensio_addrinfo *ai;
+
+    err = gensio_scan_netaddr(o, str, true, protocol, &ai);
+    if (err)
+	return err;
+
+    err = net_gensio_accepter_alloc(ai, args, o, cb, user_data, typestr, acc);
+    gensio_free_addrinfo(o, ai);
+
+    return err;
+}
+
+int
 tcp_gensio_accepter_alloc(struct gensio_addrinfo *iai,
 			  const char * const args[],
 			  struct gensio_os_funcs *o,
@@ -1077,17 +1031,8 @@ str_to_tcp_gensio_accepter(const char *str, const char * const args[],
 			   void *user_data,
 			   struct gensio_accepter **acc)
 {
-    int err;
-    struct gensio_addrinfo *ai;
-
-    err = gensio_scan_netaddr(o, str, true, GENSIO_NET_PROTOCOL_TCP, &ai);
-    if (err)
-	return err;
-
-    err = tcp_gensio_accepter_alloc(ai, args, o, cb, user_data, acc);
-    gensio_free_addrinfo(o, ai);
-
-    return err;
+    return str_to_net_gensio_accepter(str, args, GENSIO_NET_PROTOCOL_TCP, "tcp",
+				      o, cb, user_data, acc);
 }
 
 int
@@ -1112,19 +1057,6 @@ str_to_unix_gensio_accepter(const char *str, const char * const args[],
 			    void *user_data,
 			    struct gensio_accepter **acc)
 {
-#if HAVE_UNIX
-    int err;
-    struct gensio_addrinfo *ai;
-
-    err = gensio_scan_unixaddr(o, str, &ai, NULL, NULL);
-    if (err)
-	return err;
-
-    err = unix_gensio_accepter_alloc(ai, args, o, cb, user_data, acc);
-    gensio_free_addrinfo(o, ai);
-
-    return err;
-#else
-    return GE_NOTSUP;
-#endif
+    return str_to_net_gensio_accepter(str, args, GENSIO_NET_PROTOCOL_UNIX,
+				      "unix", o, cb, user_data, acc);
 }

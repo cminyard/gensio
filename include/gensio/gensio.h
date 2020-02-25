@@ -349,11 +349,17 @@ bool gensio_addrinfo_addr_present(const struct gensio_addrinfo *ai,
  *
  *   <ipspec><protocol>,<hostnames>
  *
- *   protocol = [tcp|udp|sctp[(<args>)]]
+ *   protocol = [tcp|udp|sctp|unix[(<args>)]]
  *
+ * for unix:
+ *   hostnames = <file path>
+ *
+ * for others:
  *   hostnames = [[...]<ipspec>[<hostname>,]<port>,]<ipspec>[<hostname>,]<port>
  *
  *   ipspec = [ipv4|ipv6|ipv6n4,]
+ *
+ * ipspec is not allowed with unix.
  *
  * The initial ipspec sets the default for all the addresses.  If it
  * is not specified, the default if AF_UNSPEC and everything will
@@ -389,6 +395,7 @@ int gensio_scan_network_port(struct gensio_os_funcs *o, const char *str,
 #define GENSIO_NET_PROTOCOL_TCP 1
 #define GENSIO_NET_PROTOCOL_UDP 2
 #define GENSIO_NET_PROTOCOL_SCTP 3
+#define GENSIO_NET_PROTOCOL_UNIX 4
 
 /*
  * This allows a global to disable uucp locking for everything.

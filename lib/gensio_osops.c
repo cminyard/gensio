@@ -1058,6 +1058,75 @@ scan_ips(struct gensio_os_funcs *o, const char *str, bool listen, int ifamily,
     return rv;
 }
 
+static int
+gensio_scan_unixaddr(struct gensio_os_funcs *o, const char *str, bool doargs,
+		     struct gensio_addrinfo **rai,
+		     int *rargc, const char ***rargs)
+{
+#if HAVE_UNIX
+    struct sockaddr_un *saddr;
+    struct gensio_addrinfo *ai = NULL;
+    int len, argc = 0, err;
+    const char **args = NULL;
+
+    if (doargs) {
+	if (strncmp(str, "unix,", 5) == 0) {
+	    str += 5;
+	} else if (strncmp(str, "unix(", 5) == 0) {
+	    if (!rargs)
+		return GE_INVAL;
+	    str += 4;
+	    err = gensio_scan_args(o, &str, &argc, &args);
+	    if (err)
+		return err;
+	}
+    }
+
+    len = strlen(str);
+    if (len >= sizeof(saddr->sun_path) - 1)
+	return GE_TOOBIG;
+
+    ai = o->zalloc(o, sizeof(*ai));
+    if (!ai)
+	goto out_nomem;
+    ai->a = o->zalloc(0, sizeof(*ai->a));
+    if (!ai->a)
+	goto out_nomem;
+
+    saddr = o->zalloc(o, sizeof(socklen_t) + len + 1);
+    if (!saddr)
+	goto out_nomem;
+
+    saddr->sun_family = AF_UNIX;
+    strcpy(saddr->sun_path, str);
+    ai->a->ai_family = AF_UNIX;
+    ai->a->ai_socktype = SOCK_STREAM;
+    ai->a->ai_addrlen = sizeof(socklen_t) + len + 1;
+    ai->a->ai_addr = (struct sockaddr *) saddr;
+
+    if (rargc)
+	*rargc = argc;
+    if (rargs)
+	*rargs = args;
+
+    *rai = ai;
+
+    return 0;
+
+ out_nomem:
+    if (args)
+	gensio_argv_free(o, args);
+    if (ai) {
+	if (ai->a)
+	    o->free(o, ai->a);
+	o->free(o, ai);
+    }
+    return GE_NOMEM;
+#else
+    return GE_NOTSUP;
+#endif
+}
+
 int
 gensio_scan_network_port(struct gensio_os_funcs *o, const char *str,
 			 bool listen, struct gensio_addrinfo **rai,
@@ -1069,6 +1138,16 @@ gensio_scan_network_port(struct gensio_os_funcs *o, const char *str,
     const char **args = NULL;
     bool doskip = true;
     int protocol, socktype, irprotocol;
+
+    if (strncmp(str, "unix,", 4) == 0 ||
+		(rargs && strncmp(str, "unix(", 4) == 0)) {
+	err = gensio_scan_unixaddr(o, str, true, rai, rargc, rargs);
+	if (!err) {
+	    *rprotocol = GENSIO_NET_PROTOCOL_UNIX;
+	    *is_port_set = false;
+	}
+	return err;
+    }
 
     if (strncmp(str, "ipv4,", 5) == 0) {
 	family = AF_INET;
@@ -1164,6 +1243,11 @@ gensio_scan_netaddr(struct gensio_os_funcs *o, const char *str, bool listen,
 	socktype = SOCK_SEQPACKET;
 	protocol = IPPROTO_SCTP;
 	break;
+
+    case GENSIO_NET_PROTOCOL_UNIX:
+	if (family != AF_UNSPEC)
+	    return GE_INVAL;
+	return gensio_scan_unixaddr(o, str, false, rai, NULL, NULL);
 
     default:
 	return GE_INVAL;
