@@ -375,7 +375,7 @@ static struct gensio_enum_val trace_dir_enum[] = {
     { "read", TRACE_READ },
     { "write", TRACE_WRITE },
     { "both", TRACE_BOTH },
-    {}
+    { NULL }
 };
 
 int
