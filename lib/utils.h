@@ -9,7 +9,7 @@
 #define UTILS
 
 #include <stdbool.h>
-#include <sys/time.h> /* struct timeval */
+#include <gensio/gensio_os_funcs.h> /* struct timeval */
 
 #include <gensio/argvutils.h>
 

@@ -8,6 +8,7 @@
 #include "config.h"
 #include <string.h>
 #include <stdio.h>
+#include <stdbool.h>
 #include <ctype.h>
 
 #include <gensio/gensio_class.h>
