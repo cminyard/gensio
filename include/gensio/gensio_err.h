@@ -45,6 +45,7 @@
 #define GE_INTERRUPTED		33
 #define GE_SHUTDOWN		34
 #define GE_LOCALCLOSED		35
+#define GE_PERM			36
 
 /*
  * Gensio mux has the ability to return an arbitrary error from the

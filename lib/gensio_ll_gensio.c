@@ -6,12 +6,10 @@
  */
 
 #include "config.h"
-#include <errno.h>
 #include <gensio/gensio_class.h>
 #include <gensio/gensio_ll_gensio.h>
 
 #include <assert.h>
-#include <unistd.h>
 
 struct gensio_ll_child {
     struct gensio_ll *ll;

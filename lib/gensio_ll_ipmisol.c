@@ -6,10 +6,8 @@
  */
 
 #include "config.h"
-#include <errno.h>
 #include <stdlib.h>
 #include <assert.h>
-#include <unistd.h>
 #include <string.h>
 #include <stdio.h>
 

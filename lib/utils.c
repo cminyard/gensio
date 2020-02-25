@@ -9,8 +9,6 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <string.h>
-#include <errno.h>
-#include <unistd.h>
 #include <ctype.h>
 
 #include <gensio/gensio_class.h>

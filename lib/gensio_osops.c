@@ -9,6 +9,7 @@
 #define _XOPEN_SOURCE 600 /* Get posix_openpt() and friends. */
 #define _DEFAULT_SOURCE /* Get getgrouplist(), setgroups() */
 #include <stdio.h>
+#include <errno.h>
 #include <string.h>
 #include <arpa/inet.h>
 #include <errno.h>
@@ -759,6 +760,7 @@ const char *gensio_errs[] = {
     /*  33 */    "Operation was interrupted by a signal",
     /*  34 */    "Operation on shutdown fd",
     /*  35 */    "Local end closed connection"
+    /*  36 */    "Permission denied"
 };
 const unsigned int errno_len = sizeof(gensio_errs) / sizeof(char *);
 
@@ -798,6 +800,8 @@ gensio_i_os_err_to_err(struct gensio_os_funcs *o,
     case EINTR:		err = GE_INTERRUPTED; break;
     case ESHUTDOWN:     err = GE_SHUTDOWN; break;
     case EMSGSIZE:      err = GE_TOOBIG; break;
+    case EPERM:         err = GE_PERM; break;
+    case EACCES:        err = GE_PERM; break;
     default:		err = GE_OSERR;
     }
 

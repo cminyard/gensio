@@ -6,7 +6,6 @@
  */
 
 #include "config.h"
-#include <errno.h>
 #include <string.h>
 #include <stdio.h>
 #include <ctype.h>
@@ -89,7 +88,7 @@ trace_try_connect(struct gensio_filter *filter, struct timeval *timeout)
     } else if (tfilter->filename) {
 	tfilter->tr = fopen(tfilter->filename, "a+");
 	if (!tfilter->tr)
-	    return gensio_os_err_to_err(tfilter->o, errno);
+	    return GE_PERM;
     }
     return 0;
 }

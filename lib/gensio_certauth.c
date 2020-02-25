@@ -6,7 +6,6 @@
  */
 
 #include "config.h"
-#include <errno.h>
 
 #include <gensio/gensio_class.h>
 
