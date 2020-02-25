@@ -87,6 +87,9 @@ set_tests_properties(rs485 PROPERTIES SKIP_RETURN_CODE 77)
 add_test(NAME tcp_accept_connect
          COMMAND runtest test_tcp_accept_connect.py)
 set_tests_properties(tcp_accept_connect PROPERTIES SKIP_RETURN_CODE 77)
+add_test(NAME unix_accept_connect
+         COMMAND runtest test_unix_accept_connect.py)
+set_tests_properties(unix_accept_connect PROPERTIES SKIP_RETURN_CODE 77)
 add_test(NAME udp_accept_connect
          COMMAND runtest test_udp_accept_connect.py)
 set_tests_properties(udp_accept_connect PROPERTIES SKIP_RETURN_CODE 77)

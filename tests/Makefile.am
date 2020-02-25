@@ -3,7 +3,8 @@ AM_TESTS_ENVIRONMENT = GENSIOT=$(top_builddir)/tools/gensiot
 
 LOG_COMPILER = $(SHELL) $(builddir)/runtest
 
-PYTESTS = test_syncio.py test_echo_gensio.py test_echo_device.py \
+PYTESTS = test_syncio.py \
+	test_unix_accept_connect.py test_echo_gensio.py test_echo_device.py \
 	test_serial_pipe_device.py test_accept_tcp.py test_accept_udp.py \
 	test_accept_sctp.py test_accept_ssl_tcp.py test_accept_certauth_tcp.py \
 	test_accept_mux_sctp.py test_telnet.py test_modemstate.py \
