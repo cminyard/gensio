@@ -6,14 +6,6 @@
  */
 
 #include "config.h"
-#include <stdlib.h>
-#include <limits.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <string.h>
-#include <stdio.h>
-#include <ctype.h>
-#include <sys/ioctl.h>
 
 #include <gensio/sergensio_class.h>
 

@@ -43,16 +43,16 @@ set(UNIX_LIBFILES
   uucplock.c
   gensio_pty.c)
 
-if(MSVC)
-  set(LIBFILES ${BASE_LIBFILES})
-  set(HAVE_STDIO 0)
-  set(HAVE_SERIALDEV 0)
-  set(HAVE_PTY 0)
-else()
+if(UNIX)
   set(LIBFILES ${BASE_LIBFILES} ${UNIX_LIBFILES})
   set(HAVE_STDIO 1)
   set(HAVE_SERIALDEV 1)
   set(HAVE_PTY 1)
+else()
+  set(LIBFILES ${BASE_LIBFILES})
+  set(HAVE_STDIO 0)
+  set(HAVE_SERIALDEV 0)
+  set(HAVE_PTY 0)
 endif()
 
 add_library(gensio ${LIBFILES})
