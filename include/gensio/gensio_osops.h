@@ -8,8 +8,12 @@
 #ifndef GENSIO_OSOPS_H
 #define GENSIO_OSOPS_H
 
+#ifdef _WIN32
+#include <Winsock2.h>
+typedef int socklen_t
+#else
 #include <sys/socket.h>
-struct sockaddr;
+#endif
 
 /* To avoid having to include netinet/sctp.h here. */
 struct sctp_sndrcvinfo;
