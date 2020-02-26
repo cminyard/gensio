@@ -841,6 +841,7 @@ basen_ll_open_done(void *cb_data, int err, void *open_data)
     if (ndata->ll_err || ndata->open_err) {
 	/* Nothing to do here, we failed the open, a close should be pending. */
     } else if (err) {
+	ndata->ll_err = err;
 	basen_set_state(ndata, BASEN_CLOSED);
 	i_basen_add_trace(ndata, 100, __LINE__);
 	basen_finish_open(ndata, err);
