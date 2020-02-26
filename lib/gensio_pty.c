@@ -8,6 +8,7 @@
 /* This code handles running a child process using a pty. */
 
 #include "config.h"
+#define _XOPEN_SOURCE 600 /* Get posix_openpt() and friends. */
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -18,6 +19,7 @@
 #include <assert.h>
 #include <pwd.h>
 #include <sys/wait.h>
+#include <sys/ioctl.h>
 
 #include <gensio/gensio.h>
 #include <gensio/gensio_class.h>
@@ -44,6 +46,139 @@ struct pty_data {
 
 static int pty_check_open(void *handler_data, int fd)
 {
+    return 0;
+}
+
+/*
+ * This is ugly, but it's by far the simplest way.
+ */
+extern char **environ;
+
+static int
+gensio_setup_child_on_pty(struct gensio_os_funcs *o,
+			  char *const argv[], const char **env,
+			  int *rptym, pid_t *rpid)
+{
+    pid_t pid;
+    int ptym, err = 0;
+    const char *pgm;
+
+    ptym = posix_openpt(O_RDWR | O_NOCTTY);
+    if (ptym == -1)
+	return gensio_os_err_to_err(o, errno);
+
+    if (fcntl(ptym, F_SETFL, O_NONBLOCK) == -1) {
+	err = errno;
+	close(ptym);
+	return gensio_os_err_to_err(o, err);
+    }
+
+    if (unlockpt(ptym) < 0) {
+	err = errno;
+	close(ptym);
+	return gensio_os_err_to_err(o, err);
+    }
+
+    pid = fork();
+    if (pid < 0) {
+	err = errno;
+	close(ptym);
+	return gensio_os_err_to_err(o, err);
+    }
+
+    if (pid == 0) {
+	/*
+	 * Delay getting the slave until here becase ptsname is not
+	 * thread-safe, but after the fork we are single-threaded.
+	 */
+	char *slave = ptsname(ptym);
+	int i, openfiles = sysconf(_SC_OPEN_MAX);
+	int fd;
+
+	/* Set the owner of the slave PT. */
+	/* FIXME - This should not be necessary, can we remove? */
+	if (grantpt(ptym) < 0)
+	    exit(1);
+
+	/* setsid() does this, but just in case... */
+	fd = open("/dev/tty", O_RDWR);
+	if (fd != -1) {
+	    ioctl(fd, TIOCNOTTY, NULL);
+	    close(fd);
+
+	    fd = open("/dev/tty", O_RDWR);
+	    if (fd != -1) {
+		fprintf(stderr, "pty fork: failed to drop control term: %s\r\n",
+			strerror(errno));
+		exit(1);
+	    }
+	}
+
+	if (setsid() == -1) {
+	    fprintf(stderr, "pty fork: failed to start new session: %s\r\n",
+		    strerror(errno));
+	    exit(1);
+	}
+
+#if 0 /* FIXME = do we need this? */
+	if (setpgid(0, 0) == -1) {
+	    exit(1);
+	}
+#endif
+
+	fd = open(slave, O_RDWR);
+	if (fd == -1) {
+	    fprintf(stderr, "pty fork: failed to open slave terminal: %s\r\n",
+		    strerror(errno));
+	    exit(1);
+	}
+
+	/* fd will be closed by the loop to close everything. */
+	if (open("/dev/tty", O_RDWR) == -1) {
+	    fprintf(stderr, "pty fork: failed to set control term: %s\r\n",
+		    strerror(errno));
+	    exit(1);
+	}
+
+	if (dup2(fd, 0) == -1) {
+	    fprintf(stderr, "pty fork: stdin open fail\r\n");
+	    exit(1);
+	}
+
+	if (dup2(fd, 1) == -1) {
+	    fprintf(stderr, "pty fork: stdout open fail\r\n");
+	    exit(1);
+	}
+
+	if (dup2(fd, 2) == -1) {
+	    fprintf(stderr, "pty fork: stderr open fail\r\n");
+	    exit(1);
+	}
+
+	/* Close everything. */
+	for (i = 3; i < openfiles; i++)
+		close(i);
+
+	err = gensio_setupnewprog();
+	if (err) {
+	    fprintf(stderr, "Unable to set groups or user: %s\r\n",
+		    strerror(err));
+	    exit(1);
+	}
+
+	if (env)
+	    environ = (char **) env;
+
+	pgm = argv[0];
+	if (*pgm == '-')
+	    pgm++;
+	execvp(pgm, argv);
+	fprintf(stderr, "Unable to exec %s: %s\r\n", argv[0], strerror(errno));
+	exit(1); /* Only reached on error. */
+    }
+
+    *rpid = pid;
+    *rptym = ptym;
     return 0;
 }
 

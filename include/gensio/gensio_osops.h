@@ -8,7 +8,6 @@
 #ifndef GENSIO_OSOPS_H
 #define GENSIO_OSOPS_H
 
-#include <sys/types.h> /* For pid_t */
 #include <sys/socket.h>
 struct sockaddr;
 
@@ -55,10 +54,6 @@ int gensio_os_sctp_send(struct gensio_os_funcs *o,
                         const struct sctp_sndrcvinfo *sinfo, uint32_t flags);
 
 int gensio_setupnewprog(void);
-
-int gensio_setup_child_on_pty(struct gensio_os_funcs *o,
-			      char *const argv[], const char **env,
-			      int *rptym, pid_t *rpid);
 
 int gensio_get_random(struct gensio_os_funcs *o,
 		      void *data, unsigned int len);
