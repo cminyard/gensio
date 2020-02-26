@@ -446,6 +446,7 @@ basen_ll_close_done(void *cb_data, void *close_data)
     struct basen_data *ndata = cb_data;
 
     basen_lock(ndata);
+    i_basen_add_trace(ndata, 1100, __LINE__);
     switch(ndata->state) {
     case BASEN_IN_LL_CLOSE:
 	/* Don't move to BASEN_CLOSED until later to avoid races. */
@@ -520,7 +521,7 @@ basen_set_ll_enables(struct basen_data *ndata)
 	break;
 
     default:
-	/* Nothing to do */
+	enabled = true;
 	break;
     }
  out_set:
@@ -575,6 +576,17 @@ basen_read_data_handler(void *cb_data,
     gensiods count = 0, rval;
 
     basen_lock(ndata);
+    if (ndata->state != BASEN_OPEN) {
+	if (ndata->state != BASEN_IN_LL_OPEN &&
+		ndata->state != BASEN_IN_FILTER_OPEN) {
+	    /*
+	     * Just eat the data if we aren't open.  But not on
+	     * pre-open because we can get data there on a race.
+	     */
+	    count = buflen;
+	}
+	goto out_unlock;
+    }
     while (ndata->state == BASEN_OPEN && ndata->read_enabled &&
 	   count < buflen) {
 	rval = buflen - count;
@@ -587,6 +599,7 @@ basen_read_data_handler(void *cb_data,
 	    goto out; /* Don't claim the lock if I don't have to. */
 	basen_lock(ndata);
     }
+ out_unlock:
     basen_unlock(ndata);
 
  out:
@@ -604,7 +617,6 @@ handle_ioerr(struct basen_data *ndata, int err)
     if (ndata->ll_err)
 	return; /* Already handled. */
 
-    ndata->read_enabled = false;
     ndata->xmit_enabled = false;
     ll_set_write_callback_enable(ndata, false);
     ll_set_read_callback_enable(ndata, false);
@@ -743,11 +755,13 @@ basen_deferred_op(struct gensio_runner *runner, void *cbdata)
 
     while (ndata->deferred_read) {
 	ndata->deferred_read = false;
-	if (ndata->in_read)
+	if (ndata->in_read || !ndata->read_enabled)
 	    goto skip_read;
 	ndata->in_read = true;
 	do {
 	    if (ndata->ll_err) {
+		/* Automatically disable read on an error. */
+		ndata->read_enabled = false;
 		basen_unlock(ndata);
 		gensio_cb(ndata->io, GENSIO_EVENT_READ, ndata->ll_err,
 			  NULL, NULL, NULL);
@@ -841,7 +855,6 @@ basen_ll_open_done(void *cb_data, int err, void *open_data)
     if (ndata->ll_err || ndata->open_err) {
 	/* Nothing to do here, we failed the open, a close should be pending. */
     } else if (err) {
-	ndata->ll_err = err;
 	basen_set_state(ndata, BASEN_CLOSED);
 	i_basen_add_trace(ndata, 100, __LINE__);
 	basen_finish_open(ndata, err);
@@ -1144,14 +1157,21 @@ basen_set_read_callback_enable(struct basen_data *ndata, bool enabled)
     bool read_pending;
 
     basen_lock(ndata);
-    if (ndata->state != BASEN_OPEN || ndata->read_enabled == enabled)
+    i_basen_add_trace(ndata, 1100 + enabled, __LINE__);
+    if (ndata->read_enabled == enabled)
+	goto out_unlock;
+    if (ndata->state != BASEN_OPEN &&
+		ndata->state != BASEN_CLOSE_WAIT_DRAIN &&
+		ndata->state != BASEN_IN_LL_IO_ERR_CLOSE &&
+		ndata->state != BASEN_IN_LL_CLOSE &&
+		ndata->state != BASEN_IO_ERR_CLOSE)
 	goto out_unlock;
     ndata->read_enabled = enabled;
     read_pending = filter_ul_read_pending(ndata);
     if (ndata->deferred_op_pending && enabled) {
 	/* Nothing to do, let the read/open handling wake things up. */
 	ndata->deferred_read = true;
-    } else if (read_pending || ndata->ll_err) {
+    } else if (enabled && (read_pending || ndata->ll_err)) {
 	ndata->deferred_read = true;
 	basen_sched_deferred_op(ndata);
     } else {
@@ -1278,14 +1298,16 @@ basen_ll_read(void *cb_data, int readerr,
 	goto out_unlock;
 
     while (buflen > 0 &&
-	   (ndata->read_enabled || filter_ll_read_needed(ndata))) {
+	   (ndata->read_enabled || filter_ll_read_needed(ndata) ||
+	    ndata->state == BASEN_IN_LL_CLOSE ||
+	    ndata->state == BASEN_CLOSE_WAIT_DRAIN)) {
 	ndata->in_read = true;
 	do {
 	    gensiods wrlen = 0;
 
 	    basen_unlock(ndata);
-	    readerr = filter_ll_write(ndata, basen_read_data_handler, &wrlen,
-				      buf, buflen, auxdata);
+	    readerr = filter_ll_write(ndata, basen_read_data_handler,
+				      &wrlen, buf, buflen, auxdata);
 	    basen_lock(ndata);
 
 	    if (!readerr) {
