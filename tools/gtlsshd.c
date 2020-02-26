@@ -41,6 +41,7 @@
 #include "localports.h"
 #include "ser_ioinfo.h"
 #include "utils.h"
+#include "gtlssh.h"
 
 unsigned int debug;
 bool oneshot;

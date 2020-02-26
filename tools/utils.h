@@ -21,7 +21,6 @@
 #define GENSIOTOOL_UTILS_H
 #include <stdarg.h>
 #include <stdbool.h>
-#include <gensio/gensio.h>
 
 int strtocc(const char *str, int *rc);
 int cmparg(int argc, char *argv[], int *arg, char *sarg, char *larg, char **opt);
@@ -29,17 +28,6 @@ int cmparg_int(int argc, char *argv[], int *arg, char *sarg,
 		      char *larg, int *rc);
 char *alloc_sprintf(const char *fmt, ...);
 char *alloc_vsprintf(const char *fmt, va_list ap);
-int checkout_file(const char *filename, bool expect_dir, bool check_private);
-bool file_is_readable(char *filename);
-int write_file_to_gensio(const char *filename, struct gensio *io,
-			 struct gensio_os_funcs *o, struct timeval *timeout,
-			 bool xlatnl);
-int write_buf_to_gensio(const char *buf, gensiods len, struct gensio *io,
-			struct timeval *timeout, bool xlatnl);
-int write_str_to_gensio(const char *str, struct gensio *io,
-			struct timeval *timeout, bool xlatnl);
-int read_rsp_from_gensio(char *buf, gensiods *len, struct gensio *io,
-			 struct timeval *timeout, bool echo);
 
 bool strstartswith(const char *str, const char *cmp);
 

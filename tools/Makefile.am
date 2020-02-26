@@ -1,9 +1,7 @@
 
 AM_CPPFLAGS = -DSYSCONFDIR="\"${sysconfdir}\""
 
-noinst_LIBRARIES = libgensiotool.a
-
-libgensiotool_a_SOURCES = ioinfo.c ser_ioinfo.c utils.c localports.c
+noinst_LIBRARIES = libgensiotool.a libgtlssh.a
 
 bin_PROGRAMS = gensiot @GTLSSH@
 sbin_PROGRAMS = @GTLSSHD@
@@ -19,6 +17,10 @@ gtlssh-keygen: gtlssh-keygen.in
 
 gensiot_SOURCES = gensiotool.c
 
+libgensiotool_a_SOURCES = ioinfo.c ser_ioinfo.c utils.c localports.c
+
+libgtlssh_a_SOURCES = gtlssh-shared.c
+
 gtlssh_SOURCES = gtlssh.c
 
 gtlsshd_SOURCES = gtlsshd.c
@@ -27,10 +29,11 @@ noinst_HEADERS = ioinfo.h ser_ioinfo.h utils.h localports.h
 
 gensiot_LDADD = libgensiotool.a $(top_builddir)/lib/libgensio.la
 
-gtlssh_LDADD = libgensiotool.a $(top_builddir)/lib/libgensio.la $(OPENSSL_LIBS)
+gtlssh_LDADD = libgtlssh.a libgensiotool.a $(top_builddir)/lib/libgensio.la \
+	@OPENSSL_LIBS@
 
-gtlsshd_LDADD = libgensiotool.a $(top_builddir)/lib/libgensio.la @PAMLIB@ \
-	 $(OPENSSL_LIBS)
+gtlsshd_LDADD = libgtlssh.a libgensiotool.a $(top_builddir)/lib/libgensio.la \
+	@PAMLIB@ @OPENSSL_LIBS@
 
 man_MANS = gensiot.1 gtlsshd.8 gtlssh.1 gtlssh-keygen.1
 
