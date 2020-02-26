@@ -9,6 +9,7 @@
 #define GENSIO_OSOPS_H
 
 #include <sys/types.h> /* For pid_t */
+#include <sys/socket.h>
 struct sockaddr;
 
 /* To avoid having to include netinet/sctp.h here. */
@@ -34,7 +35,7 @@ int gensio_os_send(struct gensio_os_funcs *o,
 int gensio_os_sendto(struct gensio_os_funcs *o,
 		     int fd, const struct gensio_sg *sg, gensiods sglen,
 		     gensiods *rcount, int flags,
-		     const struct sockaddr *raddr,socklen_t raddrlen);
+		     const struct sockaddr *raddr, socklen_t raddrlen);
 
 int gensio_os_recvfrom(struct gensio_os_funcs *o,
 		       int fd, void *buf, gensiods buflen, gensiods *rcount,
