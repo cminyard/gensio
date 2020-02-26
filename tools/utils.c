@@ -23,7 +23,6 @@
 #include <malloc.h>
 #include <string.h>
 #include <stdlib.h>
-#include <sys/types.h>
 
 #include "utils.h"
 
