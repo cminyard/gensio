@@ -11,6 +11,7 @@ set(BASE_LIBFILES
   gensio_trace.c
   gensio_base.c
   gensio_ll_gensio.c
+  gensio_ll_fd.c
   gensio_udp.c
   gensio.c
   gensio_ll_ipmisol.c
@@ -37,7 +38,6 @@ set(BASE_LIBFILES
 
 set(UNIX_LIBFILES
   gensio_stdio.c
-  gensio_ll_fd.c
   selector.c
   sergensio_serialdev.c
   uucplock.c
