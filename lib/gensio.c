@@ -1766,7 +1766,7 @@ struct gensio_def_entry builtin_defaults[] = {
 						.def.intval = 1000 },
     /* For unix (accepter only) */
     { "delsock",	GENSIO_DEFAULT_BOOL,	.def.intval = false },
-    {}
+    { NULL }
 };
 
 static struct gensio_def_entry *defaults;
