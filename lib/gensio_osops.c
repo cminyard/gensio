@@ -10,7 +10,6 @@
 #include <stdio.h>
 #include <errno.h>
 #include <string.h>
-#include <arpa/inet.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <stdlib.h>
@@ -21,6 +20,7 @@
 #include <pwd.h>
 
 #include <arpa/inet.h>
+#include <netinet/tcp.h>
 #if HAVE_LIBSCTP
 #include <netinet/sctp.h>
 #endif
@@ -130,9 +130,10 @@ gensio_os_read(struct gensio_os_funcs *o,
 
 int
 gensio_os_recv(struct gensio_os_funcs *o,
-	       int fd, void *buf, gensiods buflen, gensiods *rcount, int flags)
+	       int fd, void *buf, gensiods buflen, gensiods *rcount, int gflags)
 {
     ssize_t rv;
+    int flags = (gflags & GENSIO_MSG_OOB) ? MSG_OOB : 0;
 
  retry:
     rv = recv(fd, buf, buflen, flags);
@@ -142,10 +143,11 @@ gensio_os_recv(struct gensio_os_funcs *o,
 int
 gensio_os_send(struct gensio_os_funcs *o,
 	       int fd, const struct gensio_sg *sg, gensiods sglen,
-	       gensiods *rcount, int flags)
+	       gensiods *rcount, int gflags)
 {
     ssize_t rv;
     struct msghdr hdr;
+    int flags = (gflags & GENSIO_MSG_OOB) ? MSG_OOB : 0;
 
     memset(&hdr, 0, sizeof(hdr));
     hdr.msg_iov = (struct iovec *) sg;
@@ -248,7 +250,209 @@ gensio_os_sctp_send(struct gensio_os_funcs *o,
 	*rcount = total_write;
     return err;
 }
+
+int
+gensio_os_sctp_connectx(struct gensio_os_funcs *o,
+			int fd, struct sockaddr *addrs, unsigned int naddrs)
+{
+    int err = sctp_connectx(fd, addrs, naddrs, NULL);
+
+    if (err == -1)
+	return gensio_os_err_to_err(o, errno);
+    return 0;
+}
 #endif
+
+int gensio_os_close(struct gensio_os_funcs *o, int fd)
+{
+    int err = close(fd);
+
+    if (err == -1)
+	return gensio_os_err_to_err(o, errno);
+    return 0;
+}
+
+int gensio_os_check_socket_open(struct gensio_os_funcs *o, int fd)
+{
+    int err, optval;
+    socklen_t len = sizeof(optval);
+
+    err = getsockopt(fd, SOL_SOCKET, SO_ERROR, &optval, &len);
+    if (err)
+	return gensio_os_err_to_err(o, errno);
+    return gensio_os_err_to_err(o, optval);
+}
+
+int
+gensio_os_set_non_blocking(struct gensio_os_funcs *o, int fd)
+{
+    if (fcntl(fd, F_SETFL, O_NONBLOCK) == -1)
+	return gensio_os_err_to_err(o, errno);
+    return 0;
+}
+
+int
+gensio_os_socket_open(struct gensio_os_funcs *o,
+		      int family, int protocol,
+		      int *fd)
+{
+    int sockproto, socktype;
+    int newfd;
+
+    switch (protocol) {
+    case GENSIO_NET_PROTOCOL_TCP:
+    case GENSIO_NET_PROTOCOL_UNIX:
+	sockproto = 0;
+	socktype = SOCK_STREAM;
+	break;
+
+    case GENSIO_NET_PROTOCOL_UDP:
+	sockproto = 0;
+	socktype = SOCK_DGRAM;
+	break;
+
+#if HAVE_LIBSCTP
+    case GENSIO_NET_PROTOCOL_SCTP:
+	sockproto = IPPROTO_SCTP;
+	socktype = SOCK_STREAM;
+	break;
+#endif
+
+    default:
+	return GE_INVAL;
+    }
+
+    newfd = socket(family, socktype, sockproto);
+    if (newfd == -1)
+	return gensio_os_err_to_err(o, errno);
+    *fd = newfd;
+    return 0;
+}
+
+int
+gensio_os_socket_setup(struct gensio_os_funcs *o, int fd,
+		       int protocol, bool keepalive, bool nodelay,
+		       struct gensio_addrinfo *bindaddr)
+{
+    int err;
+    int val = 1;
+
+    err = gensio_os_set_non_blocking(o, fd);
+    if (err)
+	return err;
+
+    if (keepalive) {
+	if (setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE,
+		       (void *)&val, sizeof(val)) == -1)
+	    return gensio_os_err_to_err(o, errno);
+    }
+
+    if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR,
+		   (void *)&val, sizeof(val)) == -1)
+	    return gensio_os_err_to_err(o, errno);
+
+    if (nodelay) {
+	if (protocol == GENSIO_NET_PROTOCOL_TCP)
+	    err = setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &val, sizeof(val));
+#if HAVE_LIBSCTP
+	else if (protocol == GENSIO_NET_PROTOCOL_SCTP)
+	    err = setsockopt(fd, IPPROTO_SCTP, SCTP_NODELAY, &val, sizeof(val));
+#endif
+	else
+	    err = 0;
+	if (err)
+	    return gensio_os_err_to_err(o, errno);
+    }
+
+    if (bindaddr) {
+	struct addrinfo *ai = bindaddr->a;
+
+	switch (protocol) {
+#if HAVE_LIBSCTP
+	case GENSIO_NET_PROTOCOL_SCTP:
+	    while (ai) {
+		if (sctp_bindx(fd, ai->ai_addr, 1, SCTP_BINDX_ADD_ADDR) == -1)
+		    return gensio_os_err_to_err(o, errno);
+		ai = ai->ai_next;
+	    }
+	    break;
+#endif
+
+	case GENSIO_NET_PROTOCOL_TCP:
+	case GENSIO_NET_PROTOCOL_UDP:
+	case GENSIO_NET_PROTOCOL_UNIX:
+	    if (bind(fd, ai->ai_addr, ai->ai_addrlen) == -1)
+		return gensio_os_err_to_err(o, errno);
+	    break;
+
+	default:
+	    return GE_INVAL;
+	}
+    }
+
+    return 0;
+}
+
+int
+gensio_os_connect(struct gensio_os_funcs *o,
+		  int fd, struct sockaddr *addr, socklen_t addrlen)
+{
+    int err = connect(fd, addr, addrlen);
+
+    if (err == -1)
+	return gensio_os_err_to_err(o, errno);
+    return 0;
+}
+
+int
+gensio_os_get_nodelay(struct gensio_os_funcs *o, int fd, int protocol, int *val)
+{
+    socklen_t vallen = sizeof(*val);
+    int rv;
+
+    if (protocol == GENSIO_NET_PROTOCOL_TCP)
+	rv = getsockopt(fd, IPPROTO_TCP, TCP_NODELAY, val, &vallen);
+#if HAVE_LIBSCTP
+    else if (protocol == GENSIO_NET_PROTOCOL_SCTP)
+	rv = getsockopt(fd, IPPROTO_SCTP, SCTP_NODELAY, &val, &vallen);
+#endif
+    else
+	return GE_INVAL;
+
+    if (rv == -1)
+	return gensio_os_err_to_err(o, errno);
+    return 0;
+}
+
+int
+gensio_os_set_nodelay(struct gensio_os_funcs *o, int fd, int protocol, int val)
+{
+    int rv;
+
+    if (protocol == GENSIO_NET_PROTOCOL_TCP)
+	rv = setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &val, sizeof(val));
+#if HAVE_LIBSCTP
+    else if (protocol == GENSIO_NET_PROTOCOL_SCTP)
+	rv = setsockopt(fd, IPPROTO_SCTP, SCTP_NODELAY, &val, sizeof(val));
+#endif
+    else
+	return GE_INVAL;
+
+    if (rv == -1)
+	return gensio_os_err_to_err(o, errno);
+    return 0;
+}
+
+int
+gensio_os_getsockname(struct gensio_os_funcs *o, int fd,
+		      struct sockaddr *addr, socklen_t *len)
+{
+    int err = getsockname(fd, addr, len);
+
+    if (err)
+	return gensio_os_err_to_err(o, errno);
+    return 0;
+}
 
 int
 gensio_setupnewprog(void)
@@ -1039,12 +1243,14 @@ gensio_scan_network_port(struct gensio_os_funcs *o, const char *str,
 	socktype = SOCK_DGRAM;
 	protocol = IPPROTO_UDP;
 	irprotocol = GENSIO_NET_PROTOCOL_UDP;
+#if HAVE_LIBSCTP
     } else if (strncmp(str, "sctp,", 5) == 0 ||
 	       (rargs && strncmp(str, "sctp(", 5) == 0)) {
 	str += 4;
 	socktype = SOCK_SEQPACKET;
 	protocol = IPPROTO_SCTP;
 	irprotocol = GENSIO_NET_PROTOCOL_SCTP;
+#endif
     } else {
 	doskip = false;
 	socktype = SOCK_STREAM;
@@ -1109,10 +1315,12 @@ gensio_scan_netaddr(struct gensio_os_funcs *o, const char *str, bool listen,
 	protocol = IPPROTO_UDP;
 	break;
 
+#if HAVE_LIBSCTP
     case GENSIO_NET_PROTOCOL_SCTP:
 	socktype = SOCK_SEQPACKET;
 	protocol = IPPROTO_SCTP;
 	break;
+#endif
 
     case GENSIO_NET_PROTOCOL_UNIX:
 	if (family != AF_UNSPEC)

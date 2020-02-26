@@ -20,7 +20,6 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <netinet/sctp.h>
-#include <fcntl.h>
 #include <string.h>
 #include <assert.h>
 
@@ -61,20 +60,25 @@ sctp_setup(struct sctp_data *tdata)
     unsigned int i;
 
     if (getsockopt(tdata->fd, IPPROTO_SCTP, SCTP_STATUS, &status,
-		   &stat_size) == -1)
-	return errno;
+		   &stat_size) == -1) {
+	/*
+	 * If the remote end closes, this fails with EINVAL.  Just
+	 * assume the remote end closed on error.
+	 */
+	return GE_REMCLOSE;
+    }
 
     tdata->instreams = status.sstat_instrms;
     tdata->ostreams = status.sstat_outstrms;
 
     tdata->strind = o->zalloc(o, sizeof(char *) * tdata->instreams);
     if (!tdata->strind)
-	return ENOMEM;
+	return GE_NOMEM;
 
     for (i = 1; i < tdata->instreams; i++) {
 	tdata->strind[i] = o->zalloc(o, 17);
 	if (!tdata->strind[i])
-	    return ENOMEM;
+	    return GE_NOMEM;
 	snprintf(tdata->strind[i], 17, "stream=%d", i);
     }
 
@@ -84,22 +88,11 @@ sctp_setup(struct sctp_data *tdata)
 static int sctp_check_open(void *handler_data, int fd)
 {
     struct sctp_data *tdata = handler_data;
-    int optval = 0, err;
-    socklen_t len = sizeof(optval);
+    int err;
 
-    err = getsockopt(fd, SOL_SOCKET, SO_ERROR, &optval, &len);
-    if (err)
-	return gensio_os_err_to_err(tdata->o, errno);
-
-    /* We assume any errors here are a remote close. */
-    if (optval == 0) {
+    err = gensio_os_check_socket_open(tdata->o, fd);
+    if (!err)
 	err = sctp_setup(tdata);
-	if (err)
-	    err = GE_REMCLOSE;
-    } else {
-	err = GE_REMCLOSE;
-    }
-
 
     return err;
 }
@@ -107,46 +100,23 @@ static int sctp_check_open(void *handler_data, int fd)
 static int
 sctp_socket_setup(struct sctp_data *tdata, int fd)
 {
-    int optval = 1;
     struct sctp_event_subscribe event_sub;
-    struct addrinfo *ai = NULL;
+    int err;
 
-    if (tdata->lai)
-	ai = tdata->lai->a;
-
-    if (fcntl(fd, F_SETFL, O_NONBLOCK) == -1)
-	return errno;
-
-    if (setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE,
-		   (void *)&optval, sizeof(optval)) == -1)
-	return errno;
-
-    if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR,
-		   (void *)&optval, sizeof(optval)) == -1)
-	return errno;
+    err = gensio_os_socket_setup(tdata->o, fd, GENSIO_NET_PROTOCOL_SCTP,
+				 true, tdata->nodelay, tdata->lai);
+    if (err)
+	return err;
 
     if (setsockopt(fd, IPPROTO_SCTP, SCTP_INITMSG, &tdata->initmsg,
 		   sizeof(tdata->initmsg)) == -1)
-	return errno;
-
-    if (tdata->nodelay) {
-	int val = 1;
-
-	if (setsockopt(fd, IPPROTO_SCTP, SCTP_NODELAY, &val, sizeof(val)) == -1)
-	    return errno;
-    }
+	return gensio_os_err_to_err(tdata->o, errno);
 
     memset(&event_sub, 0, sizeof(event_sub));
     event_sub.sctp_data_io_event = 1;
     if (setsockopt(fd, IPPROTO_SCTP, SCTP_EVENTS, &event_sub,
 		   sizeof(event_sub)) == -1)
-	return errno;
-
-    while (ai) {
-	if (sctp_bindx(fd, ai->ai_addr, 1, SCTP_BINDX_ADD_ADDR) == -1)
-	    return errno;
-	ai = ai->ai_next;
-    }
+	return gensio_os_err_to_err(tdata->o, errno);
 
     return 0;
 }
@@ -191,26 +161,24 @@ sctp_try_open(struct sctp_data *tdata, int *fd)
     if (err)
 	return err;
 
-    tdata->fd = socket(tdata->family, SOCK_STREAM, IPPROTO_SCTP);
-    if (tdata->fd == -1) {
-	err = errno;
+    err = gensio_os_socket_open(tdata->o, tdata->family,
+				GENSIO_NET_PROTOCOL_SCTP, &tdata->fd);
+    if (err)
 	goto out;
-    }
 
     err = sctp_socket_setup(tdata, tdata->fd);
     if (err)
 	goto out;
 
-    err = sctp_connectx(tdata->fd, addrs, naddrs, NULL);
-    if (err == -1) {
-	err = errno;
-	if (err == EINPROGRESS) {
-	    *fd = tdata->fd;
-	    goto out_return;
-	}
-    } else {
-	err = sctp_setup(tdata);
+    err = gensio_os_sctp_connectx(tdata->o, tdata->fd, addrs, naddrs);
+    if (err == GE_INPROGRESS) {
+	*fd = tdata->fd;
+	goto out_return;
+    } else if (err) {
+	goto out;
     }
+
+    err = sctp_setup(tdata);
 
  out:
     if (err) {
@@ -224,7 +192,7 @@ sctp_try_open(struct sctp_data *tdata, int *fd)
 
  out_return:
     tdata->o->free(tdata->o, addrs);
-    return gensio_os_err_to_err(tdata->o, err);
+    return err;
 }
 
 static int
@@ -356,24 +324,21 @@ sctp_control(void *handler_data, int fd, bool get, unsigned int option,
     case GENSIO_CONTROL_NODELAY:
 	if (get) {
 	    if (fd != -1) {
-		socklen_t vallen = sizeof(val);
-
-		rv = getsockopt(fd, IPPROTO_SCTP, SCTP_NODELAY, &val, &vallen);
-		if (rv == -1)
-		    return gensio_os_err_to_err(tdata->o, errno);
+		rv = gensio_os_get_nodelay(tdata->o, fd,
+					   GENSIO_NET_PROTOCOL_SCTP, &val);
+		if (rv)
+		    return rv;
 	    } else {
 		val = tdata->nodelay;
 	    }
 	    *datalen = snprintf(data, *datalen, "%d", val);
 	} else {
 	    val = strtoul(data, NULL, 0);
+	    rv = gensio_os_set_nodelay(tdata->o, fd,
+				       GENSIO_NET_PROTOCOL_TCP, val);
+	    if (rv)
+		return rv;
 	    tdata->nodelay = val;
-	    if (fd != -1) {
-		rv = setsockopt(fd, IPPROTO_SCTP, SCTP_NODELAY, &val,
-				sizeof(val));
-		if (rv == -1)
-		    return gensio_os_err_to_err(tdata->o, errno);
-	    }
 	}
 	return 0;
 
@@ -735,9 +700,9 @@ sctpna_readhandler(int fd, void *cbdata)
     if (!err)
 	err = sctp_setup(tdata);
     if (err) {
-	err = gensio_os_err_to_err(tdata->o, err);
 	gensio_acc_log(nadata->acc, GENSIO_LOG_ERR,
-		       "Error setting up sctp port: %s", strerror(err));
+		       "Error setting up sctp port: %s",
+		       gensio_err_to_str(err));
 	goto out_err;
     }
 

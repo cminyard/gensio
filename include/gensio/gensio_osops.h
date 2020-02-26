@@ -27,6 +27,9 @@ int gensio_os_write(struct gensio_os_funcs *o,
 int gensio_os_read(struct gensio_os_funcs *o,
 		   int fd, void *buf, gensiods buflen, gensiods *rcount);
 
+/* For recv and send */
+#define GENSIO_MSG_OOB 1
+
 int gensio_os_recv(struct gensio_os_funcs *o,
 		   int fd, void *buf, gensiods buflen, gensiods *rcount,
 		   int flags);
@@ -56,6 +59,35 @@ int gensio_os_sctp_send(struct gensio_os_funcs *o,
 			int fd, const struct gensio_sg *sg, gensiods sglen,
 			gensiods *rcount,
                         const struct sctp_sndrcvinfo *sinfo, uint32_t flags);
+
+int gensio_os_sctp_connectx(struct gensio_os_funcs *o,
+			    int fd, struct sockaddr *addrs,
+			    unsigned int naddrs);
+
+int gensio_os_close(struct gensio_os_funcs *o, int fd);
+
+int gensio_os_check_socket_open(struct gensio_os_funcs *o, int fd);
+
+int gensio_os_set_non_blocking(struct gensio_os_funcs *o, int fd);
+
+int gensio_os_socket_open(struct gensio_os_funcs *o,
+			  int family, int protocol,
+			  int *fd);
+
+int gensio_os_socket_setup(struct gensio_os_funcs *o, int fd,
+			   int protocol, bool keepalive, bool nodelay,
+			   struct gensio_addrinfo *bindaddr);
+
+int gensio_os_connect(struct gensio_os_funcs *o,
+		      int fd, struct sockaddr *addr, socklen_t addrlen);
+
+int gensio_os_get_nodelay(struct gensio_os_funcs *o, int fd, int protocol,
+			  int *val);
+int gensio_os_set_nodelay(struct gensio_os_funcs *o, int fd, int protocol,
+			  int val);
+
+int gensio_os_getsockname(struct gensio_os_funcs *o, int fd,
+			  struct sockaddr *addr, socklen_t *len);
 
 int gensio_setupnewprog(void);
 

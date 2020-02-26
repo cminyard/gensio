@@ -11,11 +11,6 @@
 #include <string.h>
 #include <stdio.h>
 
-/* For open(). */
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <fcntl.h>
-
 #include <gensio/gensio_class.h>
 #include <gensio/sergensio_class.h>
 #include <gensio/gensio_osops.h>

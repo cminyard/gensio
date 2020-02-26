@@ -10,11 +10,6 @@
 #include "config.h"
 #include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>
-#include <netinet/in.h>
-#include <netinet/tcp.h>
-#include <fcntl.h>
-#include <errno.h>
 #include <string.h>
 #include <assert.h>
 
@@ -317,7 +312,7 @@ udpna_do_free(struct udpna_data *nadata)
 
     for (i = 0; i < nadata->nr_fds; i++) {
 	if (nadata->fds[i].fd != -1)
-	    close(nadata->fds[i].fd);
+	    gensio_os_close(nadata->o, nadata->fds[i].fd);
     }
 
     if (nadata->deferred_op_runner)
@@ -1169,7 +1164,7 @@ udpna_free(struct gensio_accepter *accepter)
 						   nadata->fds[i].fd);
 	    for (i = 0; i < nadata->nr_fds; i++) {
 		if (nadata->fds[i].fd != -1) {
-		    close(nadata->fds[i].fd);
+		    gensio_os_close(nadata->o, nadata->fds[i].fd);
 		    nadata->fds[i].fd = -1;
 		}
 	    }
@@ -1286,9 +1281,10 @@ udpna_control_laddr(struct udpna_data *nadata, bool get,
     if (i >= nadata->nr_fds)
 	return GE_NOTFOUND;
 
-    rv = getsockname(nadata->fds[i].fd, (struct sockaddr *) &sa, &len);
+    rv = gensio_os_getsockname(nadata->o, nadata->fds[i].fd,
+			       (struct sockaddr *) &sa, &len);
     if (rv)
-	return gensio_os_err_to_err(nadata->o, errno);
+	return rv;
 
     rv = gensio_sockaddr_to_str((struct sockaddr *) &sa, &len, data,
 				&pos, *datalen);
@@ -1470,7 +1466,7 @@ udp_gensio_alloc(struct gensio_addrinfo *ai, const char * const args[],
     struct gensio_accepter *accepter;
     struct udpna_data *nadata = NULL;
     struct gensio_addrinfo *lai = NULL;
-    int err, new_fd, optval = 1;
+    int err, new_fd;
     gensiods max_read_size = GENSIO_DEFAULT_UDP_BUF_SIZE;
     unsigned int i;
 
@@ -1494,37 +1490,24 @@ udp_gensio_alloc(struct gensio_addrinfo *ai, const char * const args[],
     if (ai->a->ai_addrlen > sizeof(struct sockaddr_storage))
 	return GE_TOOBIG;
 
-    new_fd = socket(ai->a->ai_family, SOCK_DGRAM, 0);
-    if (new_fd == -1) {
+    err = gensio_os_socket_open(o, ai->a->ai_family,
+				GENSIO_NET_PROTOCOL_UDP, &new_fd);
+    if (err) {
 	if (lai)
 	    gensio_free_addrinfo(o, lai);
-	return gensio_os_err_to_err(o, errno);
+	return err;
     }
 
-    if (fcntl(new_fd, F_SETFL, O_NONBLOCK) == -1) {
-	err = errno;
-	close(new_fd);
+    err = gensio_os_socket_setup(o, new_fd, GENSIO_NET_PROTOCOL_UDP,
+				 false, false, lai);
+    if (err) {
+	gensio_os_close(o, new_fd);
 	if (lai)
 	    gensio_free_addrinfo(o, lai);
-	return gensio_os_err_to_err(o, err);
-    }
-
-    optval = 1;
-    if (setsockopt(new_fd, SOL_SOCKET, SO_REUSEADDR,
-		   (void *)&optval, sizeof(optval)) == -1) {
-	err = errno;
-	close(new_fd);
-	if (lai)
-	    gensio_free_addrinfo(o, lai);
-	return gensio_os_err_to_err(o, err);
+	return err;
     }
 
     if (lai) {
-	if (bind(new_fd, lai->a->ai_addr, lai->a->ai_addrlen) == -1) {
-	    err = errno;
-	    close(new_fd);
-	    return gensio_os_err_to_err(o, err);
-	}
 	gensio_free_addrinfo(o, lai);
 	lai = NULL;
     }
@@ -1533,14 +1516,14 @@ udp_gensio_alloc(struct gensio_addrinfo *ai, const char * const args[],
     err = i_udp_gensio_accepter_alloc(NULL, max_read_size, o,
 				      NULL, NULL, &accepter);
     if (err) {
-	close(new_fd);
+	gensio_os_close(o, new_fd);
 	return err;
     }
     nadata = gensio_acc_get_gensio_data(accepter);
 
     nadata->fds = o->zalloc(o, sizeof(*nadata->fds));
     if (!nadata->fds) {
-	close(new_fd);
+	gensio_os_close(o, new_fd);
 	udpna_do_free(nadata);
 	return GE_NOMEM;
     }

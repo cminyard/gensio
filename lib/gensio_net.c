@@ -10,17 +10,13 @@
 #include "config.h"
 #include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>
-#include <netinet/tcp.h>
-#include <sys/socket.h>
-#include <fcntl.h>
-#include <errno.h>
 #include <string.h>
 #include <strings.h>
 #include <assert.h>
 
 #if HAVE_UNIX
 #include <sys/un.h>
+int unlink(const char *pathname);
 #endif
 
 #include <gensio/gensio.h>
@@ -55,83 +51,40 @@ struct net_data {
 static int net_check_open(void *handler_data, int fd)
 {
     struct net_data *tdata = handler_data;
-    int optval = 0, err;
-    socklen_t len = sizeof(optval);
 
-    err = getsockopt(fd, SOL_SOCKET, SO_ERROR, &optval, &len);
-    if (err) {
-	tdata->last_err = gensio_os_err_to_err(tdata->o, errno);
-	return tdata->last_err;
-    }
-    optval = gensio_os_err_to_err(tdata->o, optval);
-    tdata->last_err = optval;
-    if (!optval) {
+    tdata->last_err = gensio_os_check_socket_open(tdata->o, fd);
+    if (!tdata->last_err) {
 	struct addrinfo *ai = tdata->curr_ai;
 
 	memcpy(tdata->raddr, ai->ai_addr, ai->ai_addrlen);
 	tdata->raddrlen = ai->ai_addrlen;
     }
-    return optval;
-}
-
-static int
-net_socket_setup(struct net_data *tdata, int fd)
-{
-    int optval = 1;
-
-    if (fcntl(fd, F_SETFL, O_NONBLOCK) == -1)
-	return errno;
-
-    if (tdata->istcp && setsockopt(fd, SOL_SOCKET, SO_KEEPALIVE,
-		   (void *)&optval, sizeof(optval)) == -1)
-	return errno;
-
-    if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR,
-		   (void *)&optval, sizeof(optval)) == -1)
-	return errno;
-
-    if (tdata->istcp && tdata->nodelay) {
-	int val = 1;
-
-	if (setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &val, sizeof(val)) == -1)
-	    return errno;
-    }
-
-    if (tdata->lai) {
-	if (bind(fd, tdata->lai->a->ai_addr, tdata->lai->a->ai_addrlen) == -1)
-	    return errno;
-    }
-
-    return 0;
+    return tdata->last_err;
 }
 
 static int
 net_try_open(struct net_data *tdata, int *fd)
 {
-    int new_fd, err = EBUSY;
+    int new_fd, err = GE_INUSE;
     struct addrinfo *ai = tdata->curr_ai;
+    int protocol = tdata->istcp ? GENSIO_NET_PROTOCOL_TCP
+				: GENSIO_NET_PROTOCOL_UNIX;
 
-    new_fd = socket(ai->ai_family, SOCK_STREAM, 0);
-    if (new_fd == -1) {
-	err = errno;
+    err = gensio_os_socket_open(tdata->o, ai->ai_family, protocol, &new_fd);
+    if (err)
 	goto out;
-    }
 
-    err = net_socket_setup(tdata, new_fd);
+    err = gensio_os_socket_setup(tdata->o, new_fd, protocol, tdata->istcp,
+				 tdata->nodelay, tdata->lai);
     if (err)
 	goto out;
 
  retry:
-    err = connect(new_fd, ai->ai_addr, ai->ai_addrlen);
-    if (err == -1) {
-	err = errno;
-	if (err == EINPROGRESS) {
-	    tdata->curr_ai = ai;
-	    *fd = new_fd;
-	    goto out_return;
-	}
-    } else {
-	err = 0;
+    err = gensio_os_connect(tdata->o, new_fd, ai->ai_addr, ai->ai_addrlen);
+    if (err == GE_INPROGRESS) {
+	tdata->curr_ai = ai;
+	*fd = new_fd;
+	goto out_return;
     }
 
     if (err) {
@@ -145,13 +98,13 @@ net_try_open(struct net_data *tdata, int *fd)
  out:
     if (err) {
 	if (new_fd != -1)
-	    close(new_fd);
+	    gensio_os_close(tdata->o, new_fd);
     } else {
 	*fd = new_fd;
     }
 
  out_return:
-    return gensio_os_err_to_err(tdata->o, err);
+    return err;
 }
 
 static int
@@ -222,23 +175,21 @@ net_control(void *handler_data, int fd, bool get, unsigned int option,
 	    return GE_NOTSUP;
 	if (get) {
 	    if (fd != -1) {
-		socklen_t vallen = sizeof(val);
-
-		rv = getsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &val, &vallen);
-		if (rv == -1)
-		    return errno;
+		rv = gensio_os_get_nodelay(tdata->o, fd,
+					   GENSIO_NET_PROTOCOL_TCP, &val);
+		if (rv)
+		    return rv;
 	    } else {
 		val = tdata->nodelay;
 	    }
 	    *datalen = snprintf(data, *datalen, "%d", val);
 	} else {
 	    val = strtoul(data, NULL, 0);
+	    rv = gensio_os_set_nodelay(tdata->o, fd,
+				       GENSIO_NET_PROTOCOL_TCP, val);
+	    if (rv)
+		return rv;
 	    tdata->nodelay = val;
-	    if (fd != -1) {
-		rv = setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &val, sizeof(val));
-		if (rv == -1)
-		    return errno;
-	    }
 	}
 	return 0;
 
@@ -254,7 +205,7 @@ net_oob_read(int fd, void *data, gensiods count, gensiods *rcount,
     struct net_data *tdata = cb_data;
     int rv;
 
-    rv = gensio_os_recv(tdata->o, fd, data, count, rcount, MSG_OOB);
+    rv = gensio_os_recv(tdata->o, fd, data, count, rcount, GENSIO_MSG_OOB);
     if (rv)
 	*rcount = 0;
     return 0;
@@ -282,9 +233,9 @@ net_write(void *handler_data, int fd, gensiods *rcount,
 
 	for (i = 0; auxdata[i]; i++) {
 	    if (strcasecmp(auxdata[i], "oob") == 0)
-		flags |= MSG_OOB;
+		flags |= GENSIO_MSG_OOB;
 	    else if (strcasecmp(auxdata[i], "oobtcp") == 0)
-		flags |= MSG_OOB;
+		flags |= GENSIO_MSG_OOB;
 	    else
 		return GE_INVAL;
 	}
@@ -329,7 +280,7 @@ net_gensio_alloc(struct gensio_addrinfo *iai, const char * const args[],
     nodelay = ival;
 
     err = gensio_get_defaultaddr(o, type, "laddr", false,
-				 IPPROTO_TCP, true, false, &lai);
+				 GENSIO_NET_PROTOCOL_TCP, true, false, &lai);
     if (err && err != GE_NOTSUP) {
 	gensio_log(o, GENSIO_LOG_ERR, "Invalid default %d laddr: %s",
 		   type, gensio_err_to_str(err));
@@ -514,7 +465,7 @@ netna_fd_cleared(int fd, void *cbdata)
     struct netna_data *nadata = cbdata;
     unsigned int num_left;
 
-    close(fd);
+    gensio_os_close(nadata->o, fd);
 
     nadata->o->lock(nadata->lock);
     assert(nadata->nr_accept_close_waiting > 0);
@@ -556,6 +507,8 @@ netna_readhandler(int fd, void *cbdata)
     socklen_t addrlen = sizeof(addr);
     struct net_data *tdata = NULL;
     struct gensio *io = NULL;
+    int protocol = nadata->istcp ? GENSIO_NET_PROTOCOL_TCP
+				 : GENSIO_NET_PROTOCOL_UNIX;
     int err;
 
     err = gensio_os_accept(nadata->o,
@@ -571,7 +524,7 @@ netna_readhandler(int fd, void *cbdata)
 
     err = base_gensio_accepter_new_child_start(nadata->acc);
     if (err) {
-	close(new_fd);
+	gensio_os_close(nadata->o, new_fd);
 	return;
     }
 
@@ -597,9 +550,9 @@ netna_readhandler(int fd, void *cbdata)
     memcpy(tdata->raddr, &addr, addrlen);
     tdata->raddrlen = addrlen;
     
-    err = net_socket_setup(tdata, new_fd);
+    err = gensio_os_socket_setup(tdata->o, new_fd, protocol, tdata->istcp,
+				 tdata->nodelay, tdata->lai);
     if (err) {
-	err = gensio_os_err_to_err(tdata->o, err);
 	gensio_acc_log(nadata->acc, GENSIO_LOG_ERR,
 		       "Error setting up net port: %s", gensio_err_to_str(err));
 	goto out_err;
@@ -641,7 +594,7 @@ netna_readhandler(int fd, void *cbdata)
 	    /* gensio_ll_free() frees it otherwise. */
 	    net_free(tdata);
 	    if (new_fd != -1)
-		close(new_fd);
+		gensio_os_close(nadata->o, new_fd);
 	}
     }
 }
@@ -754,7 +707,7 @@ netna_str_to_gensio(struct gensio_accepter *accepter,
     if (err)
 	return err;
 
-    err = EINVAL;
+    err = GE_INVAL;
     if (nadata->istcp) {
 	if (protocol != GENSIO_NET_PROTOCOL_TCP || !is_port_set)
 	    goto out_err;
@@ -821,9 +774,10 @@ netna_control_laddr(struct netna_data *nadata, bool get,
     if (i >= nadata->nr_acceptfds)
 	return GE_NOTFOUND;
 
-    rv = getsockname(nadata->acceptfds[i].fd, (struct sockaddr *) &sa, &len);
+    rv = gensio_os_getsockname(nadata->o, nadata->acceptfds[i].fd,
+			       (struct sockaddr *) &sa, &len);
     if (rv)
-	return gensio_os_err_to_err(nadata->o, errno);
+	return rv;
 
     rv = gensio_sockaddr_to_str((struct sockaddr *) &sa, &len, data,
 				&pos, *datalen);
@@ -882,7 +836,7 @@ netna_disable(struct gensio_accepter *accepter, struct netna_data *nadata)
 	nadata->o->clear_fd_handlers_norpt(nadata->o,
 					   nadata->acceptfds[i].fd);
     for (i = 0; i < nadata->nr_acceptfds; i++)
-	close(nadata->acceptfds[i].fd);
+	gensio_os_close(nadata->o, nadata->acceptfds[i].fd);
 }
 
 static int

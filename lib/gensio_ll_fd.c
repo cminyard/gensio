@@ -7,7 +7,6 @@
 
 #include "config.h"
 #include <assert.h>
-#include <unistd.h>
 #include <stdio.h>
 
 #include <gensio/gensio_class.h>
@@ -464,12 +463,12 @@ fd_handle_write_ready(struct fd_ll *fdll)
 	err = fdll->ops->check_open(fdll->handler_data, fdll->fd);
 	if (err && fdll->ops->retry_open) {
 	    fdll->o->clear_fd_handlers_norpt(fdll->o, fdll->fd);
-	    close(fdll->fd);
+	    gensio_os_close(fdll->o, fdll->fd);
 	    fdll->fd = -1;
 	    err = fdll->ops->retry_open(fdll->handler_data, &fdll->fd);
-	    if (err != GE_INPROGRESS)
+	    if (err != GE_INPROGRESS) {
 		goto opened;
-	    else {
+	    } else {
 		err = fd_setup_handlers(fdll);
 		if (err) {
 		    goto opened;
@@ -534,7 +533,7 @@ fd_except_ready(int fd, void *cbdata)
 static void
 fd_finish_cleared(struct fd_ll *fdll)
 {
-    close(fdll->fd);
+    gensio_os_close(fdll->o, fdll->fd);
     fdll->fd = -1;
     fdll->deferred_close = true;
     fd_sched_deferred_op(fdll);
@@ -607,7 +606,7 @@ fd_open(struct gensio_ll *ll, gensio_ll_open_done done, void *open_data)
 	int err2 = fd_setup_handlers(fdll);
 	if (err2) {
 	    err = err2;
-	    close(fdll->fd);
+	    gensio_os_close(fdll->o, fdll->fd);
 	    fdll->fd = -1;
 	    goto out;
 	}
@@ -758,7 +757,7 @@ static void fd_disable(struct gensio_ll *ll)
     fd_set_state(fdll, FD_CLOSED);
     fd_deref(fdll);
     fdll->o->clear_fd_handlers_norpt(fdll->o, fdll->fd);
-    close(fdll->fd);
+    gensio_os_close(fdll->o, fdll->fd);
     fdll->fd = -1;
 }
 
