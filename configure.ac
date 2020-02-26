@@ -312,6 +312,21 @@ AC_CHECK_HEADER(sys/un.h, [HAVE_UNIX=1] )
 AC_SUBST(HAVE_UNIX)
 AC_DEFINE_UNQUOTED([HAVE_UNIX], [$HAVE_UNIX], [Enable unix socket handling])
 
+USE_FILE_STDIO=0
+AC_ARG_WITH(file-stdio,
+            [  --with-file-stdio[[=yes|no]]
+	       Use stdio instead of unix files for the file gensio.],
+   if test "x$withval" = "xyes"; then
+      USE_FILE_STDIO=1
+   elif test "x$withval" = "xno"; then
+      USE_FILE_STDIO=0
+   elif test "x$withval" = "x"; then
+      USE_FILE_STDIO=1
+   fi,
+)
+AC_DEFINE_UNQUOTED([USE_FILE_STDIO], [$USE_FILE_STDIO],
+	           [Use stdio for the file gensio])
+
 CPPFLAGS="$CPPFLAGS -I\$(top_srcdir)/include -I\$(top_builddir)/include"
 
 AC_OUTPUT([Makefile

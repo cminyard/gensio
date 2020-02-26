@@ -93,6 +93,9 @@ check_symbol_exists(TIOCSRS485 sys/ioctl.h HAVE_DECL_TIOCSRS485)
 
 CHECK_INCLUDE_FILE(sys/un.h HAVE_UNIX)
 
+option(USE_FILE_STDIO "Use stdio instead of unix files for the file gensio"
+       ${MSVC})
+
 option(ENABLE_INTERNAL_TRACE
        "Enable internal trace tools, required for oomtest"
        OFF)

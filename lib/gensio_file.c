@@ -7,6 +7,7 @@
 
 /* This code is for a gensio that reads/writes files. */
 
+#include "config.h"
 #include <assert.h>
 #include <string.h>
 #include <errno.h>
@@ -16,10 +17,11 @@
 #include <sys/uio.h>
 #include <fcntl.h>
 #include <stdio.h>
-#include "config.h"
 #include <gensio/gensio.h>
 #include <gensio/gensio_class.h>
 #include <gensio/argvutils.h>
+
+#define USE_FILE_STDIO
 
 enum filen_state {
     FILEN_CLOSED,
@@ -45,10 +47,15 @@ struct filen_data {
     char *infile;
     char *outfile;
     bool create;
+#ifdef USE_FILE_STDIO
+    int mode;
+    FILE *inf;
+    FILE *outf;
+#else
     mode_t mode;
-
-    int infd;
-    int outfd;
+    int inf;
+    int outf;
+#endif
 
     bool read_enabled;
     bool xmit_enabled;
@@ -68,6 +75,63 @@ struct filen_data {
 };
 
 static void filen_start_deferred_op(struct filen_data *ndata);
+
+#ifdef USE_FILE_STDIO
+#define f_ready(f) ((f) != NULL)
+#define f_set_not_ready(f) f = NULL
+typedef int mode_type;
+static gensiods
+f_writev(FILE *f, const struct gensio_sg *sg, gensiods sglen)
+{
+    gensiods i, total = 0;
+    size_t rv;
+
+    for (i = 0; i < sglen; i++) {
+	rv = fwrite(sg[i].buf, 1, sg[i].buflen, f);
+	if (rv <= 0) {
+	    if (total == 0)
+		return rv;
+	    return total;
+	}
+	total += rv;
+    }
+
+    return total;
+}
+#define f_read(f, d, l) fread(d, 1, l, f)
+#define F_O_RDONLY 1
+#define F_O_WRONLY 2
+#define F_O_CREAT 4
+static FILE *
+f_open(const char *fn, int flags, int mode)
+{
+    char *fmode;
+
+    if (flags & F_O_RDONLY) {
+	fmode = "r";
+    } else if (flags & F_O_WRONLY) {
+	if (F_O_CREAT)
+	    fmode = "w";
+	else
+	    fmode = "r+";
+    } else {
+	return NULL;
+    }
+    return fopen(fn, fmode);
+}
+#define f_close(f) fclose(f)
+#else
+typedef mode_t mode_type;
+#define f_ready(f) ((f) != -1)
+#define f_set_not_ready(f) f = -1
+#define f_writev(f, g, l) writev(f, (const struct iovec *) g, l)
+#define f_read(f, d, l) read(f, d, l)
+#define f_open(fn, flags, mode) open(fn, flags, mode);
+#define f_close(f) close(f)
+#define F_O_RDONLY O_RDONLY
+#define F_O_WRONLY O_WRONLY
+#define F_O_CREAT O_CREAT
+#endif
 
 static void
 filen_finish_free(struct filen_data *ndata)
@@ -133,11 +197,11 @@ filen_write(struct gensio *io, gensiods *count,
     filen_lock(ndata);
     if (ndata->state != FILEN_OPEN) {
 	err = GE_NOTREADY;
-    } else if (ndata->outfd == -1) {
+    } else if (!f_ready(ndata->outf)) {
 	for (total_write = 0, i = 0; i < sglen; i++)
 	    total_write += sg->buflen;
     } else {
-	rv = writev(ndata->outfd, (const struct iovec *) sg, sglen);
+	rv = f_writev(ndata->outf, sg, sglen);
 	if (rv < 0)
 	    err = gensio_os_err_to_err(ndata->o, errno);
 	else if (rv == 0)
@@ -192,12 +256,12 @@ filen_deferred_op(struct gensio_runner *runner, void *cb_data)
     }
 
     while (ndata->state == FILEN_OPEN &&
-	   (ndata->infd != -1 || ndata->read_err) && ndata->read_enabled) {
+	   (f_ready(ndata->inf) || ndata->read_err) && ndata->read_enabled) {
 	gensiods count;
 
 	if (ndata->data_pending_len == 0 && !ndata->read_err) {
-	    ssize_t rv = read(ndata->infd, ndata->read_data,
-			      ndata->max_read_size);
+	    ssize_t rv = f_read(ndata->inf, ndata->read_data,
+				ndata->max_read_size);
 
 	    if (rv == -1) {
 		ndata->read_enabled = false;
@@ -263,7 +327,7 @@ filen_set_read_callback_enable(struct gensio *io, bool enabled)
     filen_lock(ndata);
     if (ndata->read_enabled != enabled) {
 	ndata->read_enabled = enabled;
-	if (enabled && ndata->state == FILEN_OPEN && ndata->infd != -1)
+	if (enabled && ndata->state == FILEN_OPEN && f_ready(ndata->inf))
 	    filen_start_deferred_op(ndata);
     }
     filen_unlock(ndata);
@@ -295,19 +359,19 @@ filen_open(struct gensio *io, gensio_done_err open_done, void *open_data)
 	goto out_unlock;
     }
     if (ndata->infile) {
-	ndata->infd = open(ndata->infile, O_RDONLY);
-	if (ndata->infd == -1) {
+	ndata->inf = f_open(ndata->infile, F_O_RDONLY, 0);
+	if (!f_ready(ndata->inf)) {
 	    err = gensio_os_err_to_err(ndata->o, errno);
 	    goto out_unlock;
 	}
     }
     if (ndata->outfile) {
-	int flags = O_WRONLY;
+	int flags = F_O_WRONLY;
 
 	if (ndata->create)
-	    flags |= O_CREAT;
-	ndata->outfd = open(ndata->outfile, flags, ndata->mode);
-	if (ndata->outfd == -1) {
+	    flags |= F_O_CREAT;
+	ndata->outf = f_open(ndata->outfile, flags, ndata->mode);
+	if (!f_ready(ndata->outf)) {
 	    err = gensio_os_err_to_err(ndata->o, errno);
 	    goto out_unlock;
 	}
@@ -333,13 +397,13 @@ filen_close(struct gensio *io, gensio_done close_done, void *close_data)
 	err = GE_NOTREADY;
 	goto out_unlock;
     }
-    if (ndata->infd != -1) {
-	close(ndata->infd);
-	ndata->infd = -1;
+    if (f_ready(ndata->inf)) {
+	f_close(ndata->inf);
+	f_set_not_ready(ndata->inf);
     }
-    if (ndata->outfd != -1) {
-	close(ndata->outfd);
-	ndata->outfd = -1;
+    if (f_ready(ndata->outf)) {
+	f_close(ndata->outf);
+	f_set_not_ready(ndata->outf);
     }
     ndata->state = FILEN_IN_CLOSE;
     ndata->close_done = close_done;
@@ -433,7 +497,7 @@ gensio_file_func(struct gensio *io, int func, gensiods *count,
 static int
 file_ndata_setup(struct gensio_os_funcs *o, gensiods max_read_size,
 		 const char *infile, const char *outfile, bool create,
-		 mode_t mode, struct filen_data **new_ndata)
+		 mode_type mode, struct filen_data **new_ndata)
 {
     struct filen_data *ndata;
 
@@ -457,8 +521,8 @@ file_ndata_setup(struct gensio_os_funcs *o, gensiods max_read_size,
 	    goto out_nomem;
     }
 
-    ndata->infd = -1;
-    ndata->outfd = -1;
+    f_set_not_ready(ndata->inf);
+    f_set_not_ready(ndata->outf);
 
     ndata->max_read_size = max_read_size;
     ndata->read_data = o->zalloc(o, max_read_size);
@@ -539,12 +603,14 @@ file_gensio_alloc(const char * const argv[], const char * const args[],
 	    continue;
 	if (gensio_check_keybool(args[i], "create", &create) > 0)
 	    continue;
+#ifndef USE_FILE_STDIO
 	if (gensio_check_keymode(args[i], "umode", &umode) > 0)
 	    continue;
 	if (gensio_check_keymode(args[i], "gmode", &gmode) > 0)
 	    continue;
 	if (gensio_check_keymode(args[i], "omode", &omode) > 0)
 	    continue;
+#endif
 	return GE_INVAL;
     }
 
