@@ -265,16 +265,16 @@ AC_DEFINE_UNQUOTED([HAVE_LIBSCTP], [$HAVE_LIBSCTP],
 AC_SUBST(HAVE_LIBSCTP)
 
 AC_CHECK_LIB(pam, pam_start, [HAVE_PAM=1], [HAVE_PAM=0])
-if [ $HAVE_PAM = 1 ]; then
+if test $HAVE_PAM -eq 1; then
    AC_DEFINE([HAVE_LIBPAM], [1], [PAM libraries are present])
    PAMLIB=-lpam
 fi
 AC_SUBST(PAMLIB)
 
-PAMLIB=
+GTLSSH=
 GTLSSHD=
-if [ $HAVE_OPENSSL = 1]; then
-   if [ $HAVE_PAM = 1 ]; then
+if test $HAVE_OPENSSL -eq 1; then
+   if test $HAVE_PAM -eq 1; then
       GTLSSHD=gtlsshd
    fi
    GTLSSH=gtlssh
