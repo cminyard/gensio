@@ -366,10 +366,13 @@ con_cb(struct gensio *io, void *user_data,
 	assert(!debug || err == GE_REMCLOSE || err == GE_NOTREADY || err == GE_LOCALCLOSED);
 	gensio_set_write_callback_enable(io, false);
 	gensio_set_read_callback_enable(io, false);
-	if (!id->expect_close || err != GE_REMCLOSE)
+	if (!id->expect_close || err != GE_REMCLOSE) {
+	    if (debug)
+		printf("con_cb error 1: %s\n", gensio_err_to_str(err));
 	    id->err = err;
-	else
+	} else {
 	    id->got_end = true;
+	}
 	o->wake(od->waiter);
 	goto out;
     }
@@ -418,6 +421,8 @@ con_cb(struct gensio *io, void *user_data,
 		    /* System should error out elsewhere. */
 		} else {
 		    assert(!debug || !rv || rv == GE_REMCLOSE);
+		    if (debug)
+			printf("con_cb error 2: %s\n", gensio_err_to_str(rv));
 		    id->err = rv;
 		    o->wake(od->waiter);
 		}
@@ -569,17 +574,18 @@ scon_open_done(struct gensio *io, int err, void *open_data)
 
     LOCK(&od->lock);
     assert(!id->open_done);
+    o->wake(od->waiter);
     if (id->closed)
 	goto out_unlock;
 
     if (err) {
-	if (debug && err != GE_REMCLOSE)
-	    printf("ERR: %s for %s\n", gensio_err_to_str(err), id->iostr);
+	if (debug)
+	    printf("scon_open_done: %s for %s\n", gensio_err_to_str(err),
+		   id->iostr);
 	assert(!debug || err == GE_REMCLOSE || err == GE_INVAL ||
 	       err == GE_SHUTDOWN || err == GE_LOCALCLOSED ||
 	       err == GE_NOTREADY);
 	id->err = err;
-	o->wake(od->waiter);
 	goto out_unlock;
     }
 
@@ -599,14 +605,16 @@ ccon_open_done(struct gensio *io, int err, void *open_data)
 
     LOCK(&od->lock);
     assert(!id->open_done);
+    o->wake(od->waiter);
     if (id->closed)
 	goto out_unlock;
 
     id->open_done = true;
     if (err) {
 	assert(!debug || !err || err == GE_REMCLOSE || err == GE_LOCALCLOSED);
+	if (debug)
+	    printf("ccon_open_done error 1: %s\n", gensio_err_to_str(err));
 	id->err = err;
-	o->wake(od->waiter);
 	gensio_free(io);
 	id->io = NULL;
 	goto out_unlock;
@@ -616,8 +624,9 @@ ccon_open_done(struct gensio *io, int err, void *open_data)
 			      &od->ccon_stderr_io);
     assert(!debug || !rv || rv == GE_REMCLOSE);
     if (rv) {
+	if (debug)
+	    printf("ccon_open_done error 2: %s\n", gensio_err_to_str(rv));
 	id->err = rv;
-	o->wake(od->waiter);
 	goto out_unlock;
     }
 
@@ -626,8 +635,9 @@ ccon_open_done(struct gensio *io, int err, void *open_data)
     if (rv) {
 	gensio_free(od->ccon_stderr_io);
 	od->ccon_stderr_io = NULL;
+	if (debug)
+	    printf("ccon_open_done error 3: %s\n", gensio_err_to_str(rv));
 	id->err = rv;
-	o->wake(od->waiter);
 	goto out_unlock;
     }
     od_ref(od); /* For the open */
@@ -718,8 +728,8 @@ close_con(struct io_test_data *id, struct timeval *timeout)
 	    UNLOCK(&od->lock);
 	    rv = o->wait_intr_sigmask(id->od->waiter, 1, timeout, &waitsigs);
 	    LOCK(&od->lock);
-	    if (rv == GE_TIMEDOUT && debug) {
-		printf("Waiting on timeout err B\n");
+	    if (rv == GE_TIMEDOUT) {
+		printf("Waiting on timeout err A\n");
 		assert(0);
 	    }
 	    if (rv == GE_INTERRUPTED) {
@@ -736,7 +746,7 @@ close_con(struct io_test_data *id, struct timeval *timeout)
 	UNLOCK(&od->lock);
 	rv = o->wait_intr_sigmask(id->od->waiter, 1, timeout, &waitsigs);
 	LOCK(&od->lock);
-	if (rv == GE_TIMEDOUT && debug) {
+	if (rv == GE_TIMEDOUT) {
 	    printf("Waiting on timeout err B\n");
 	    assert(0);
 	}
@@ -797,7 +807,7 @@ close_stderr(struct oom_test_data *od, struct timeval *timeout)
 	UNLOCK(&od->lock);
 	rv = o->wait_intr_sigmask(od->waiter, 1, timeout, &waitsigs);
 	LOCK(&od->lock);
-	if (rv == GE_TIMEDOUT && debug) {
+	if (rv == GE_TIMEDOUT) {
 	    printf("Waiting on timeout err G\n");
 	    assert(0);
 	}
@@ -897,7 +907,7 @@ run_oom_test(struct oom_tests *test, long count, int *exitcode, bool close_acc)
 		UNLOCK(&od->lock);
 		rv = o->wait_intr_sigmask(od->waiter, 1, &timeout, &waitsigs);
 		LOCK(&od->lock);
-		if (rv == GE_TIMEDOUT && debug) {
+		if (rv == GE_TIMEDOUT) {
 		    printf("Waiting on timeout err C\n");
 		    assert(0);
 		}
