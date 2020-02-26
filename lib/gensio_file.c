@@ -21,8 +21,6 @@
 #include <gensio/gensio_class.h>
 #include <gensio/argvutils.h>
 
-#define USE_FILE_STDIO
-
 enum filen_state {
     FILEN_CLOSED,
     FILEN_IN_OPEN,
@@ -47,7 +45,7 @@ struct filen_data {
     char *infile;
     char *outfile;
     bool create;
-#ifdef USE_FILE_STDIO
+#if USE_FILE_STDIO
     int mode;
     FILE *inf;
     FILE *outf;
@@ -76,7 +74,7 @@ struct filen_data {
 
 static void filen_start_deferred_op(struct filen_data *ndata);
 
-#ifdef USE_FILE_STDIO
+#if USE_FILE_STDIO
 #define f_ready(f) ((f) != NULL)
 #define f_set_not_ready(f) f = NULL
 typedef int mode_type;
@@ -603,7 +601,7 @@ file_gensio_alloc(const char * const argv[], const char * const args[],
 	    continue;
 	if (gensio_check_keybool(args[i], "create", &create) > 0)
 	    continue;
-#ifndef USE_FILE_STDIO
+#if !USE_FILE_STDIO
 	if (gensio_check_keymode(args[i], "umode", &umode) > 0)
 	    continue;
 	if (gensio_check_keymode(args[i], "gmode", &gmode) > 0)
