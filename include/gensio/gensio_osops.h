@@ -10,7 +10,7 @@
 
 #ifdef _WIN32
 #include <Winsock2.h>
-typedef int socklen_t
+typedef int socklen_t;
 #else
 #include <sys/socket.h>
 #endif
