@@ -312,6 +312,10 @@ AC_CHECK_HEADER(sys/un.h, [HAVE_UNIX=1] )
 AC_SUBST(HAVE_UNIX)
 AC_DEFINE_UNQUOTED([HAVE_UNIX], [$HAVE_UNIX], [Enable unix socket handling])
 
+AC_DEFINE_UNQUOTED([HAVE_STDIO], [1], [Enable stdio gensio])
+AC_DEFINE_UNQUOTED([HAVE_SERIALDEV], [1], [Enable serialdev gensio])
+AC_DEFINE_UNQUOTED([HAVE_PTY], [1], [Enable PTY gensio])
+
 USE_FILE_STDIO=0
 AC_ARG_WITH(file-stdio,
             [  --with-file-stdio[[=yes|no]]
