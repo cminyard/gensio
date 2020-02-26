@@ -214,7 +214,7 @@ gensna_child_event(struct gensio_accepter *accepter, void *user_data,
     child = data;
     err = base_gensio_accepter_new_child_start(nadata->acc);
     if (err)
-	goto out_err_unlock;
+	goto out_err;
 
     err = nadata->acc_cb(nadata->acc_data, GENSIO_GENSIO_ACC_NEW_CHILD,
 			 &finish_data, &filter, child, NULL);
@@ -272,6 +272,8 @@ gensna_child_event(struct gensio_accepter *accepter, void *user_data,
  out_nomem:
     err = GE_NOMEM;
  out_err_unlock:
+    base_gensio_accepter_new_child_end(nadata->acc, NULL, err);
+ out_err:
     if (io) {
 	gensio_free(io);
     } else {
@@ -282,7 +284,6 @@ gensna_child_event(struct gensio_accepter *accepter, void *user_data,
 	if (filter)
 	    gensio_filter_free(filter);
     }
-    base_gensio_accepter_new_child_end(nadata->acc, NULL, err);
     gensio_acc_log(nadata->acc, GENSIO_LOG_ERR,
 		   "Error allocating gensna gensio: %s",
 		   gensio_err_to_str(err));
