@@ -15,10 +15,7 @@
 #include <stdarg.h>
 
 #ifdef _WIN32
-struct timeval {
-    long tv_sec;
-    long tv_usec;
-};
+#include <Winsock2.h> /* For timeval */
 typedef int sigset_t;
 #else
 #include <sys/time.h> /* For timeval */
