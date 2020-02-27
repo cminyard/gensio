@@ -25,6 +25,7 @@ enum filen_state {
     FILEN_CLOSED,
     FILEN_IN_OPEN,
     FILEN_OPEN,
+    FILEN_IN_OPEN_CLOSE,
     FILEN_IN_CLOSE,
 };
 
@@ -244,11 +245,18 @@ filen_deferred_op(struct gensio_runner *runner, void *cb_data)
     filen_lock(ndata);
     ndata->deferred_op_pending = false;
 
-    if (ndata->state == FILEN_IN_OPEN) {
-	ndata->state = FILEN_OPEN;
+    if (ndata->state == FILEN_IN_OPEN || ndata->state == FILEN_IN_OPEN_CLOSE) {
+	int err = 0;
+
+	if (ndata->state == FILEN_IN_OPEN_CLOSE) {
+	    ndata->state = FILEN_IN_CLOSE;
+	    err = GE_LOCALCLOSED;
+	} else {
+	    ndata->state = FILEN_OPEN;
+	}
 	if (ndata->open_done) {
 	    filen_unlock(ndata);
-	    ndata->open_done(ndata->io, 0, ndata->open_data);
+	    ndata->open_done(ndata->io, err, ndata->open_data);
 	    filen_lock(ndata);
 	}
     }
@@ -391,7 +399,7 @@ filen_close(struct gensio *io, gensio_done close_done, void *close_data)
     int err = 0;
 
     filen_lock(ndata);
-    if (ndata->state != FILEN_OPEN) {
+    if (ndata->state != FILEN_OPEN && ndata->state != FILEN_IN_OPEN) {
 	err = GE_NOTREADY;
 	goto out_unlock;
     }
@@ -403,7 +411,10 @@ filen_close(struct gensio *io, gensio_done close_done, void *close_data)
 	f_close(ndata->outf);
 	f_set_not_ready(ndata->outf);
     }
-    ndata->state = FILEN_IN_CLOSE;
+    if (ndata->state == FILEN_IN_OPEN)
+	ndata->state = FILEN_IN_OPEN_CLOSE;
+    else
+	ndata->state = FILEN_IN_CLOSE;
     ndata->close_done = close_done;
     ndata->close_data = close_data;
     filen_start_deferred_op(ndata);
