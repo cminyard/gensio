@@ -23,7 +23,6 @@ set(BASE_LIBFILES
   sergensio_ipmisol.c
   gensio_echo.c
   gensio_file.c
-  gensio_osops.c
   sergensio_telnet.c
   gensio_filter_certauth.c
   telnet.c
@@ -34,14 +33,15 @@ set(BASE_LIBFILES
   gensio_sctp.c
   gensio_filter_ssl.c
   gensio_selector.c
-  waiter.c)
+  gensio_osops.c)
 
 set(UNIX_LIBFILES
   gensio_stdio.c
   selector.c
   sergensio_serialdev.c
   uucplock.c
-  gensio_pty.c)
+  gensio_pty.c
+  waiter.c)
 
 if(UNIX)
   set(LIBFILES ${BASE_LIBFILES} ${UNIX_LIBFILES})

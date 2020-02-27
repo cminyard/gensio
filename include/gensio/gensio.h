@@ -27,7 +27,6 @@ extern "C" {
 #include <gensio/gensio_version.h>
 
 struct gensio;
-struct gensio_addr;
 
 typedef size_t gensiods; /* Data size */
 
@@ -283,7 +282,157 @@ bool gensio_acc_is_reliable(struct gensio_accepter *accepter);
 bool gensio_acc_is_packet(struct gensio_accepter *accepter);
 bool gensio_acc_is_message(struct gensio_accepter *accepter);
 
+/*
+ * These are the low-level network protocol that gensio support.  Used
+ * mostly in interacting with addresses.
+ */
+#define GENSIO_NET_PROTOCOL_TCP 1
+#define GENSIO_NET_PROTOCOL_UDP 2
+#define GENSIO_NET_PROTOCOL_SCTP 3
+#define GENSIO_NET_PROTOCOL_UNIX 4
 
+/*
+ * Gensio address structure
+ *
+ * This is used to hide the details of address handling for network
+ * gensios.  A gensio_addr has a set of addresses embedded in it.  The
+ * list is immutable after allocation.
+ *
+ * The address has the concept of a current address in it that can be
+ * iterated.  You get an address, and you can use the iterater
+ * function to iterate over it and extract information from the
+ * individual addresses.
+ *
+ * Note that some function use the current address, and some use all
+ * the addresses.
+ */
+struct gensio_addr;
+
+/*
+ * Dealing with iterators.
+ */
+void gensio_addr_rewind(struct gensio_addr *addr);
+/* Return false if no more addresses exist. */
+bool gensio_addr_next(struct gensio_addr *addr);
+bool gensio_addr_at_end(struct gensio_addr *addr);
+/*
+ * Gets the current address.  len must be provided, it is the size of
+ * the buffer and is updated to the actual size (which may be larger
+ * than len).  The copy may be partial if len is not enough.
+ */
+void gensio_addr_getaddr(const struct gensio_addr *addr,
+			 void *oaddr, gensiods *len);
+
+/*
+ * Return the network type (ipv4, ipv6, unix socket, etc.) for the
+ * current address.  These numbers are currently internal, but can be
+ * used for comparison.
+ */
+int gensio_addr_get_nettype(const struct gensio_addr *addr);
+
+/*
+ * A routine for converting a current address to a string representation
+ *
+ * The output is put into buf starting at *epos (or zero if epos is NULL)
+ * and will fill in buf up to buf + buflen.  If the buffer is not large
+ * enough, it is truncated, but if epos is not NULL, it will be set to the
+ * byte position where the ending NIL character would have been, one less
+ * than the buflen that would have been required to hold the entire buffer.
+ */
+int gensio_addr_to_str(const struct gensio_addr *addr,
+		       char *buf, gensiods *epos, gensiods buflen);
+
+/*
+ * Like the above, but does all the addresses, not just the current
+ * one, separated by ';'.
+ */
+int gensio_addr_to_str_all(const struct gensio_addr *addr,
+			   char *buf, gensiods *epos, gensiods buflen);
+
+/*
+ * Compare two addresses and return TRUE if they are equal and FALSE
+ * if not.  If compare_ports is false, then the port comparison is
+ * ignored.
+ */
+bool gensio_addr_equal(const struct gensio_addr *a1,
+		       const struct gensio_addr *a2,
+		       bool compare_ports);
+
+/*
+ * Create a new address stucture with the same addresses.
+ */
+struct gensio_addr *gensio_addr_dup(struct gensio_addr *ai);
+
+/*
+ * Concatenate two addr structures and return a new one.
+ */
+struct gensio_addr *gensio_addr_cat(const struct gensio_addr *ai1,
+				    const struct gensio_addr *ai2);
+
+/*
+ * Decrement the refcount on the structure and free if not in use.
+ */
+void gensio_addr_free(struct gensio_addr *ai);
+
+/*
+ * See if addr is present in ai.  Ports are not compared unless
+ * compare_ports is true.
+ */
+bool gensio_addr_addr_present(const struct gensio_addr *ai,
+			      const void *addr, gensiods addrlen,
+			      bool compare_ports);
+
+/*
+ * Scan for a network port in the form:
+ *
+ *   <ipspec><protocol>,<hostnames>
+ *
+ *   protocol = [tcp|udp|sctp|unix[(<args>)]]
+ *
+ * for unix:
+ *   hostnames = <file path>
+ *
+ * for others:
+ *   hostnames = [[...]<ipspec>[<hostname>,]<port>,]<ipspec>[<hostname>,]<port>
+ *
+ *   ipspec = [ipv4|ipv6|ipv6n4,]
+ *
+ * ipspec is not allowed with unix.
+ *
+ * The initial ipspec sets the default for all the addresses.  If it
+ * is not specified, the default if AF_UNSPEC and everything will
+ * be returned.
+ *
+ * If a protocol is not specified, the TCP is assumed.
+ *
+ * If the args parameter supplied is NULL, then you cannot specify
+ * args in the string, EINVAL will be returned.
+ *
+ * You can specify the IP address type on each hostname/port and it
+ * overrides the default.  The hostname can be a resolvable hostname,
+ * an IPv4 octet, an IPv6 address, or an empty string.  If it is not
+ * supplied, inaddr_any is used.  In the absence of a hostname
+ * specification, a wildcard address is used.  The mandatory second
+ * part is the port number or a service name.
+ *
+ * An all zero port means use any port. If the port is all zero on any
+ * address, then is_port_set is set to false, true otherwise.
+ *
+ * The protocol type is returned, either TCP, UDP, or SCTP.  Protocol
+ * may be NULL.
+ *
+ * ai should be freed with gensio_free_addr().
+ *
+ * args should be freed with str_to_argv_free().
+ */
+int gensio_scan_network_port(struct gensio_os_funcs *o, const char *str,
+			     bool listen, struct gensio_addr **ai,
+			     int *protocol, bool *is_port_set,
+			     int *argc, const char ***args);
+
+/*
+ * Handling for gensio parameters.
+ */
 enum gensio_default_type {
     GENSIO_DEFAULT_INT,
     GENSIO_DEFAULT_BOOL,
@@ -337,86 +486,9 @@ void gensio_cleanup_mem(struct gensio_os_funcs *o);
  *******************************************************************/
 
 /*
- * See if addr is present in ai.  Ports are not compared unless
- * compare_ports is true.
- */
-bool gensio_addr_addr_present(const struct gensio_addr *ai,
-			      const void *addr, int addrlen,
-			      bool compare_ports);
-
-/*
- * Scan for a network port in the form:
- *
- *   <ipspec><protocol>,<hostnames>
- *
- *   protocol = [tcp|udp|sctp|unix[(<args>)]]
- *
- * for unix:
- *   hostnames = <file path>
- *
- * for others:
- *   hostnames = [[...]<ipspec>[<hostname>,]<port>,]<ipspec>[<hostname>,]<port>
- *
- *   ipspec = [ipv4|ipv6|ipv6n4,]
- *
- * ipspec is not allowed with unix.
- *
- * The initial ipspec sets the default for all the addresses.  If it
- * is not specified, the default if AF_UNSPEC and everything will
- * be returned.
- *
- * If a protocol is not specified, the TCP is assumed.
- *
- * If the args parameter supplied is NULL, then you cannot specify
- * args in the string, EINVAL will be returned.
- *
- * You can specify the IP address type on each hostname/port and it
- * overrides the default.  The hostname can be a resolvable hostname,
- * an IPv4 octet, an IPv6 address, or an empty string.  If it is not
- * supplied, inaddr_any is used.  In the absence of a hostname
- * specification, a wildcard address is used.  The mandatory second
- * part is the port number or a service name.
- *
- * An all zero port means use any port. If the port is all zero on any
- * address, then is_port_set is set to false, true otherwise.
- *
- * The protocol type is returned, either TCP, UDP, or SCTP.  Protocol
- * may be NULL.
- *
- * ai should be freed with gensio_free_addr().
- *
- * args should be freed with str_to_argv_free().
- */
-int gensio_scan_network_port(struct gensio_os_funcs *o, const char *str,
-			     bool listen, struct gensio_addr **ai,
-			     int *protocol, bool *is_port_set,
-			     int *argc, const char ***args);
-/* Values for protocol above. */
-#define GENSIO_NET_PROTOCOL_TCP 1
-#define GENSIO_NET_PROTOCOL_UDP 2
-#define GENSIO_NET_PROTOCOL_SCTP 3
-#define GENSIO_NET_PROTOCOL_UNIX 4
-
-/*
  * This allows a global to disable uucp locking for everything.
  */
 extern bool gensio_uucp_locking_enabled;
-
-/*
- * There are no provided routines to duplicate addr structures,
- * so we really need to do it ourselves.
- */
-struct gensio_addr *gensio_dup_addr(struct gensio_os_funcs *o,
-				    struct gensio_addr *ai);
-/*
- * Concatenate to addr functions.  If successful (non-NULL return),
- * ai1 and ai2 are not usable any more.  They will have been freed.
- */
-struct gensio_addr *gensio_cat_addr(struct gensio_os_funcs *o,
-				    struct gensio_addr *ai1,
-				    struct gensio_addr *ai2);
-void gensio_free_addr(struct gensio_os_funcs *o,
-		      struct gensio_addr *ai);
 
 /*
  * This allows a global to disable uucp locking for everything.

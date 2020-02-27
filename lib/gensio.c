@@ -1201,7 +1201,7 @@ str_to_gensio_accepter(const char *str,
 		err = GE_INVAL;
 	    }
 
-	    gensio_free_addr(o, ai);
+	    gensio_addr_free(ai);
 	}
     }
 
@@ -1404,7 +1404,7 @@ str_to_gensio(const char *str,
 	    err = GE_INVAL;
 	}
 
-	gensio_free_addr(o, ai);
+	gensio_addr_free(ai);
     }
 
  out:
@@ -1610,12 +1610,12 @@ gensio_check_keyaddrs(struct gensio_os_funcs *o,
 	return -1;
 
     if ((require_port && !is_port_set) || protocol != iprotocol) {
-	gensio_free_addr(o, ai);
+	gensio_addr_free(ai);
 	return -1;
     }
 
     if (*rai)
-	gensio_free_addr(o, *rai);
+	gensio_addr_free(*rai);
 
     *rai = ai;
 
@@ -2275,12 +2275,12 @@ gensio_get_defaultaddr(struct gensio_os_funcs *o,
 	return err;
 
     if ((require_port && !is_port_set) || protocol != iprotocol) {
-	gensio_free_addr(o, ai);
+	gensio_addr_free(ai);
 	return GE_INCONSISTENT;
     }
 
     if (*rai)
-	gensio_free_addr(o, *rai);
+	gensio_addr_free(*rai);
 
     *rai = ai;
 

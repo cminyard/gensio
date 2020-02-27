@@ -40,9 +40,53 @@
 #include <gensio/gensio.h>
 #include <gensio/gensio_class.h>
 #include <gensio/argvutils.h>
-#include "gensio_addrinfo.h"
 
 static const char *progname = "gensio";
+
+struct gensio_addr {
+    struct gensio_os_funcs *o;
+    struct addrinfo *a;
+    struct addrinfo *curr;
+};
+
+struct gensio_listen_scan_info {
+    unsigned int curr;
+    unsigned int start;
+    unsigned int reqport;
+};
+
+/*
+ * Setup a receiving socket given the socket() parameters.  If do_listen
+ * is true, call listen on the socket.  This sets nonblocking, reuse,
+ * does a bind, etc.  Works on the current address in addr.
+ *
+ * The new file descriptor is returned in rfd, and the chosen port is
+ * returned in port.  If the address has a port set to 0, this
+ * function choose random port from the IANA dynamic range.
+ *
+ * The rsi parameter is used for handling port 0 for multiple sockets.
+ * Pass in a zero-ed structure here.  If the code encounters a zero
+ * port, it will set some information int the rsi structure and for
+ * every other zero port in future calls it will choose the same port.
+ * If it chooses a port that is already in use on one of the later
+ * addresses with a zero port, you can clear the reqport member, close
+ * everything, and start over.  The function will continue scanning
+ * from the next port.  If it returns GE_ADDRINUSE and the curr and
+ * start value are the same, then no port was found that could be
+ * opened on all addresses.  Errors besides GE_ADDRINUSE should be
+ * treated as immediate errors, something else went wrong.
+ */
+static int gensio_setup_listen_socket(struct gensio_os_funcs *o, bool do_listen,
+			       int family, int socktype, int protocol,
+			       int flags,
+			       struct sockaddr *addr, socklen_t addrlen,
+			       void (*readhndlr)(int, void *),
+			       void (*writehndlr)(int, void *), void *data,
+			       void (*fd_handler_cleared)(int, void *),
+			       int (*call_b4_listen)(int, void *),
+			       int *rfd, unsigned int *port,
+			       struct gensio_listen_scan_info *rsi);
+
 
 bool gensio_set_progname(const char *iprogname)
 {
@@ -162,14 +206,14 @@ int
 gensio_os_sendto(struct gensio_os_funcs *o,
 		 int fd, const struct gensio_sg *sg, gensiods sglen,
 		 gensiods *rcount,
-		 int flags, const struct sockaddr *raddr, socklen_t raddrlen)
+		 int flags, const struct gensio_addr *raddr)
 {
     ssize_t rv;
     struct msghdr hdr;
 
     memset(&hdr, 0, sizeof(hdr));
-    hdr.msg_name = (void *) raddr;
-    hdr.msg_namelen = raddrlen;
+    hdr.msg_name = (void *) raddr->curr->ai_addr;
+    hdr.msg_namelen = raddr->curr->ai_addrlen;
     hdr.msg_iov = (struct iovec *) sg;
     hdr.msg_iovlen = sglen;
  retry:
@@ -177,35 +221,253 @@ gensio_os_sendto(struct gensio_os_funcs *o,
     ERRHANDLE();
 }
 
+struct gensio_addr *
+gensio_addr_make(struct gensio_os_funcs *o, socklen_t size)
+{
+    struct gensio_addr *addr = o->zalloc(o, sizeof(*addr));
+    struct addrinfo *ai;
+
+    if (!addr)
+	return NULL;
+
+    ai = o->zalloc(o, sizeof(*ai));
+    if (!ai) {
+	o->free(o, addr);
+	return NULL;
+    }
+
+    if (size > 0) {
+	ai->ai_addr = o->zalloc(o, size);
+	if (!ai->ai_addr) {
+	    o->free(o, addr);
+	    o->free(o, ai);
+	    return NULL;
+	}
+    }
+    ai->ai_addrlen = size;
+    addr->o = o;
+    addr->a = ai;
+    addr->curr = ai;
+
+    return addr;
+}
+
 int
 gensio_os_recvfrom(struct gensio_os_funcs *o,
 		   int fd, void *buf, gensiods buflen, gensiods *rcount,
-		   int flags, struct sockaddr *raddr, socklen_t *raddrlen)
+		   int flags, struct gensio_addr **raddr)
 {
     ssize_t rv;
+    struct gensio_addr *addr;
+
+    addr = gensio_addr_make(o, sizeof(struct sockaddr_storage));
+    if (!addr)
+	return GE_NOMEM;
 
  retry:
-    rv = recvfrom(fd, buf, buflen, flags, raddr, raddrlen);
+    rv = recvfrom(fd, buf, buflen, flags,
+		  addr->curr->ai_addr, &addr->curr->ai_addrlen);
+    if (rv > 0) {
+	addr->curr->ai_family = addr->curr->ai_addr->sa_family;
+	*raddr = addr;
+    } else {
+	gensio_addr_free(addr);
+    }
     ERRHANDLE();
 }
 
 int
-gensio_os_accept(struct gensio_os_funcs *o,
-		 int fd, struct sockaddr *addr, socklen_t *addrlen,
-		 int *newsock)
+gensio_os_accept(struct gensio_os_funcs *o, int fd,
+		 struct gensio_addr **raddr, int *newsock)
 {
-    int rv = accept(fd, addr, addrlen);
+    struct gensio_addr *addr = NULL;
+    int rv;
+    struct sockaddr *sa;
+    struct sockaddr_storage sadata;
+    socklen_t len;
+
+    if (raddr) {
+	addr = gensio_addr_make(o, sizeof(struct sockaddr_storage));
+	if (!addr)
+	    return GE_NOMEM;
+	sa = addr->curr->ai_addr;
+	len = addr->curr->ai_addrlen;
+    } else {
+	sa = (struct sockaddr *) &sadata;
+	len = sizeof(sadata);
+    }
+
+    rv = accept(fd, sa, &len);
 
     if (rv >= 0) {
+	if (addr) {
+	    addr->curr->ai_family = addr->curr->ai_addr->sa_family;
+	    *raddr = addr;
+	}
 	*newsock = rv;
 	return 0;
+    } else if (addr) {
+	gensio_addr_free(addr);
     }
     if (errno == EAGAIN && errno == EWOULDBLOCK)
 	return GE_NODATA;
     return gensio_os_err_to_err(o, errno);
 }
 
+static int
+sockaddr_get_port(const struct sockaddr *s, unsigned int *port)
+{
+    switch (s->sa_family) {
+    case AF_INET:
+	*port = ntohs(((struct sockaddr_in *) s)->sin_port);
+	break;
+
+    case AF_INET6:
+	*port = ntohs(((struct sockaddr_in6 *) s)->sin6_port);
+	break;
+
+    default:
+	return GE_INVAL;
+    }
+
+    return 0;
+}
+
+static int
+sockaddr_set_port(const struct sockaddr *s, unsigned int port)
+{
+    switch (s->sa_family) {
+    case AF_INET:
+	((struct sockaddr_in *) s)->sin_port = htons(port);
+	break;
+
+    case AF_INET6:
+	((struct sockaddr_in6 *) s)->sin6_port = htons(port);
+	break;
+
+    default:
+	return GE_INVAL;
+    }
+
+    return 0;
+}
+
 #if HAVE_LIBSCTP
+static void
+sctp_shutdown_fds(struct gensio_os_funcs *o,
+		  struct opensocks *fds, unsigned int nrfds)
+{
+    unsigned int i;
+
+    if (!fds)
+	return;
+
+    for (i = 0; i < nrfds; i++)
+	close(fds[i].fd);
+    o->free(o, fds);
+}
+
+int
+gensio_os_sctp_open_socket(struct gensio_os_funcs *o,
+			   struct gensio_addr *addr,
+			   void (*readhndlr)(int, void *),
+			   void (*writehndlr)(int, void *),
+			   void (*fd_handler_cleared)(int, void *),
+			   int (*setup_socket)(int fd, void *data),
+			   void *data,
+			   struct opensocks **rfds, unsigned int *rnr_fds)
+{
+    struct addrinfo *ai;
+    unsigned int i;
+    int family = AF_INET6;
+    int rv = 0;
+    struct gensio_listen_scan_info scaninfo;
+    struct opensocks *fds = NULL, *tfds;
+    int nr_fds = 0;
+
+    memset(&scaninfo, 0, sizeof(scaninfo));
+
+ retry:
+    for (ai = addr->a; ai; ai = ai->ai_next) {
+	unsigned int port;
+
+	if (family != ai->ai_family)
+	    continue;
+
+	rv = sockaddr_get_port(ai->ai_addr, &port);
+	if (rv)
+	    goto out_err;
+
+	for (i = 0; i < nr_fds; i++) {
+	    if (port == fds[i].port &&
+		((fds[i].flags & AI_V4MAPPED) || fds[i].family == family)) {
+		if (sctp_bindx(fds[i].fd, ai->ai_addr, 1,
+			       SCTP_BINDX_ADD_ADDR)) {
+		    rv = gensio_os_err_to_err(o, errno);
+		    goto out_err;
+		}
+		break;
+	    }
+	}
+	if (i < nr_fds)
+	    continue; /* Port matched, already did bind. */
+
+	/* Increment the fds array and open a new socket. */
+	tfds = o->zalloc(o, sizeof(*tfds) * (i + 1));
+	if (!tfds) {
+	    rv = GE_NOMEM;
+	    goto out_err;
+	}
+	if (fds)
+	    memcpy(tfds, fds, sizeof(*tfds) * i);
+
+	rv = gensio_setup_listen_socket(o, true, ai->ai_family,
+					SOCK_STREAM, IPPROTO_SCTP, ai->ai_flags,
+					ai->ai_addr, ai->ai_addrlen,
+					readhndlr, NULL, data,
+					fd_handler_cleared,
+					setup_socket,
+					&tfds[i].fd, &tfds[i].port, &scaninfo);
+	if (rv) {
+	    o->free(o, tfds);
+	    goto out_err;
+	}
+	tfds[i].family = ai->ai_family;
+	tfds[i].flags = ai->ai_flags;
+	if (fds)
+	    o->free(o, fds);
+	fds = tfds;
+	nr_fds++;
+    }
+    if (family == AF_INET6) {
+	family = AF_INET;
+	goto retry;
+    }
+
+    if (nr_fds == 0) {
+	rv = GE_INVAL;
+	goto out;
+    }
+
+    *rfds = fds;
+    *rnr_fds = nr_fds;
+
+ out:
+    return rv;
+
+ out_err:
+    sctp_shutdown_fds(o, fds, nr_fds);
+
+    if (rv == GE_ADDRINUSE && scaninfo.start != 0 &&
+		scaninfo.curr != scaninfo.start) {
+	/* We need to keep scanning. */
+	scaninfo.reqport = 0;
+	family = AF_INET6;
+	goto retry;
+    }
+    goto out;
+}
+
 int
 gensio_os_sctp_recvmsg(struct gensio_os_funcs *o,
 		       int fd, void *msg, gensiods len, gensiods *rcount,
@@ -251,16 +513,195 @@ gensio_os_sctp_send(struct gensio_os_funcs *o,
     return err;
 }
 
+static int
+gensio_addr_to_sockarray(struct gensio_os_funcs *o, struct gensio_addr *addrs,
+			 struct sockaddr **rsaddrs, unsigned int *rslen)
+{
+    struct addrinfo *ai;
+    char *saddrs, *s;
+    unsigned int slen = 0, i, memlen = 0;
+
+    for (ai = addrs->a; ai; ai = ai->ai_next) {
+	if (ai->ai_addr->sa_family == AF_INET6)
+	    memlen += sizeof(struct sockaddr_in6);
+	else if (ai->ai_addr->sa_family == AF_INET)
+	    memlen += sizeof(struct sockaddr_in);
+	else
+	    return GE_INVAL;
+	slen++;
+    }
+
+    saddrs = o->zalloc(o, memlen);
+    if (!saddrs)
+	return GE_NOMEM;
+
+    s = saddrs;
+    for (ai = addrs->a, i = 0; i < slen; ai = ai->ai_next, i++) {
+	if (ai->ai_addr->sa_family == AF_INET6) {
+	    memcpy(s, ai->ai_addr, sizeof(struct sockaddr_in6));
+	    s += sizeof(struct sockaddr_in6);
+	} else if (ai->ai_addr->sa_family == AF_INET) {
+	    memcpy(s, ai->ai_addr, sizeof(struct sockaddr_in));
+	    s += sizeof(struct sockaddr_in);
+	}
+    }
+
+    *rsaddrs = (struct sockaddr *) saddrs;
+    *rslen = slen;
+    return 0;
+}
+
 int
 gensio_os_sctp_connectx(struct gensio_os_funcs *o,
-			int fd, struct sockaddr *addrs, unsigned int naddrs)
+			int fd, struct gensio_addr *addrs)
 {
-    int err = sctp_connectx(fd, addrs, naddrs, NULL);
+    struct sockaddr *saddrs;
+    unsigned int naddrs;
+    int err;
 
+    err = gensio_addr_to_sockarray(o, addrs, &saddrs, &naddrs);
+    if (err)
+	return err;
+
+    err = sctp_connectx(fd, saddrs, naddrs, NULL);
+    o->free(o, saddrs);
     if (err == -1)
 	return gensio_os_err_to_err(o, errno);
     return 0;
 }
+
+static int
+sctp_getraddr(struct gensio_os_funcs *o,
+	      int fd, struct sockaddr **addr, gensiods *addrlen)
+{
+    int rv;
+
+    rv = sctp_getpaddrs(fd, 0, addr);
+    if (rv < 0) {
+	return gensio_os_err_to_err(o, errno);
+    } if (rv == 0) {
+	return GE_NOTFOUND;
+    }
+    return 0;
+}
+
+int
+gensio_os_sctp_getraddr(struct gensio_os_funcs *o, int fd,
+			void *addr, gensiods *addrlen)
+{
+    struct sockaddr *saddr;
+    gensiods len, clen = *addrlen;
+    int rv = sctp_getraddr(o, fd, &saddr, &len);
+
+    if (rv)
+	return rv;
+
+    if (len > clen)
+	len = clen;
+
+    memcpy(addr, saddr, clen);
+    *addrlen = len;
+
+    sctp_freepaddrs(saddr);
+
+    return 0;
+}
+
+static int
+sctp_addr_to_addr(struct gensio_os_funcs *o,
+		  struct sockaddr *saddr, gensiods len,
+		  struct gensio_addr **raddr)
+{
+    struct sockaddr *s;
+    gensiods i, size;
+    struct addrinfo *ai = NULL, *aip = NULL;
+    struct gensio_addr *addr;
+    char *d;
+    int rv;
+
+    addr = o->zalloc(o, sizeof(*addr));
+    if (!addr)
+	return GE_NOMEM;
+    addr->o = o;
+
+    rv = GE_NOMEM;
+    d = (char *) saddr;
+    for (i = 0; i < len; i++) {
+	s = (struct sockaddr *) d;
+
+	ai = o->zalloc(o, sizeof(*ai));
+	if (!ai)
+	    goto out;
+	if (!aip)
+	    addr->a = ai;
+	else
+	    aip->ai_next = ai;
+	aip = ai;
+
+	switch (s->sa_family) {
+	case AF_INET6:
+	    size = sizeof(struct sockaddr_in6);
+	    break;
+	case AF_INET:
+	    size = sizeof(struct sockaddr_in);
+	    break;
+	default:
+	    rv = GE_INVAL;
+	    goto out;
+	}
+
+	ai->ai_addr = o->zalloc(o, size);
+	if (!ai->ai_addr)
+	    goto out;
+	memcpy(ai->ai_addr, d, size);
+	ai->ai_family = s->sa_family;
+	d += size;
+    }
+    rv = 0;
+    addr->curr = addr->a;
+    *raddr = addr;
+
+ out:
+    if (rv && addr)
+	gensio_addr_free(addr);
+    return rv;
+}
+
+int
+gensio_os_sctp_getpaddrs(struct gensio_os_funcs *o, int fd,
+			 struct gensio_addr **raddr)
+{
+    struct sockaddr *saddr;
+    gensiods len;
+    int rv = sctp_getraddr(o, fd, &saddr, &len);
+
+    if (rv)
+	return rv;
+
+    rv = sctp_addr_to_addr(o, saddr, len, raddr);
+    sctp_freepaddrs(saddr);
+    return rv;
+}
+
+int
+gensio_os_sctp_getladdrs(struct gensio_os_funcs *o, int fd,
+			 struct gensio_addr **raddr)
+{
+    int rv;
+    struct sockaddr *saddr;
+
+    rv = sctp_getladdrs(fd, 0, &saddr);
+    if (rv < 0) {
+	return gensio_os_err_to_err(o, errno);
+    } if (rv == 0) {
+	return GE_NOTFOUND;
+    }
+
+    rv = sctp_addr_to_addr(o, saddr, rv, raddr);
+    sctp_freeladdrs(saddr);
+    return rv;
+}
+
 #endif
 
 int gensio_os_close(struct gensio_os_funcs *o, int fd)
@@ -293,7 +734,7 @@ gensio_os_set_non_blocking(struct gensio_os_funcs *o, int fd)
 
 int
 gensio_os_socket_open(struct gensio_os_funcs *o,
-		      int family, int protocol,
+		      struct gensio_addr *addr, int protocol,
 		      int *fd)
 {
     int sockproto, socktype;
@@ -322,7 +763,7 @@ gensio_os_socket_open(struct gensio_os_funcs *o,
 	return GE_INVAL;
     }
 
-    newfd = socket(family, socktype, sockproto);
+    newfd = socket(addr->a->ai_family, socktype, sockproto);
     if (newfd == -1)
 	return gensio_os_err_to_err(o, errno);
     *fd = newfd;
@@ -394,10 +835,9 @@ gensio_os_socket_setup(struct gensio_os_funcs *o, int fd,
 }
 
 int
-gensio_os_connect(struct gensio_os_funcs *o,
-		  int fd, struct sockaddr *addr, socklen_t addrlen)
+gensio_os_connect(struct gensio_os_funcs *o, int fd, struct gensio_addr *addr)
 {
-    int err = connect(fd, addr, addrlen);
+    int err = connect(fd, addr->curr->ai_addr, addr->curr->ai_addrlen);
 
     if (err == -1)
 	return gensio_os_err_to_err(o, errno);
@@ -445,12 +885,22 @@ gensio_os_set_nodelay(struct gensio_os_funcs *o, int fd, int protocol, int val)
 
 int
 gensio_os_getsockname(struct gensio_os_funcs *o, int fd,
-		      struct sockaddr *addr, socklen_t *len)
+		      struct gensio_addr **raddr)
 {
-    int err = getsockname(fd, addr, len);
+    struct gensio_addr *addr;
+    int err;
 
+    addr = gensio_addr_make(o, sizeof(struct sockaddr_storage));
+    if (!addr)
+	return GE_NOMEM;
+
+    err = getsockname(fd, addr->curr->ai_addr, &addr->curr->ai_addrlen);
     if (err)
 	return gensio_os_err_to_err(o, errno);
+
+    addr->curr->ai_family = addr->curr->ai_addr->sa_family;
+    *raddr = addr;
+
     return 0;
 }
 
@@ -647,14 +1097,14 @@ gensio_socket_get_port(struct gensio_os_funcs *o, int fd, unsigned int *port)
     if (rv)
 	return gensio_os_err_to_err(o, errno);
 
-    rv = gensio_sockaddr_get_port((struct sockaddr *) &sa, port);
+    rv = sockaddr_get_port((struct sockaddr *) &sa, port);
     if (rv)
 	return rv;
 
     return 0;
 }
 
-int
+static int
 gensio_setup_listen_socket(struct gensio_os_funcs *o, bool do_listen,
 			   int family, int socktype, int protocol, int flags,
 			   struct sockaddr *addr, socklen_t addrlen,
@@ -670,7 +1120,7 @@ gensio_setup_listen_socket(struct gensio_os_funcs *o, bool do_listen,
     unsigned int port;
     struct sockaddr_storage sa;
 
-    rv = gensio_sockaddr_get_port(addr, &port);
+    rv = sockaddr_get_port(addr, &port);
     if (rv == -1)
 	return GE_INVAL;
 
@@ -680,7 +1130,7 @@ gensio_setup_listen_socket(struct gensio_os_funcs *o, bool do_listen,
     addr = (struct sockaddr *) &sa;
 
     if (rsi && rsi->reqport != 0 && port == 0) {
-	rv = gensio_sockaddr_set_port(addr, rsi->reqport);
+	rv = sockaddr_set_port(addr, rsi->reqport);
 	if (rv)
 	    return rv;
 	port = rsi->reqport;
@@ -718,7 +1168,7 @@ gensio_setup_listen_socket(struct gensio_os_funcs *o, bool do_listen,
 	}
 
 	do {
-	    rv = gensio_sockaddr_set_port(addr, si->curr);
+	    rv = sockaddr_set_port(addr, si->curr);
 	    if (rv)
 		goto out;
 	    if (bind(fd, addr, addrlen) == 0) {
@@ -883,8 +1333,8 @@ gensio_i_os_err_to_err(struct gensio_os_funcs *o,
     return err;
 }
 
-bool
-gensio_sockaddr_equal(const struct sockaddr *a1, socklen_t l1,
+static bool
+sockaddr_equal(const struct sockaddr *a1, socklen_t l1,
 		      const struct sockaddr *a2, socklen_t l2,
 		      bool compare_ports)
 {
@@ -935,70 +1385,44 @@ gensio_sockaddr_equal(const struct sockaddr *a1, socklen_t l1,
     return true;
 }
 
-int
-gensio_sockaddr_get_port(const struct sockaddr *s, unsigned int *port)
+bool
+gensio_addr_equal(const struct gensio_addr *a1,
+		  const struct gensio_addr *a2,
+		  bool compare_ports)
 {
-    switch (s->sa_family) {
-    case AF_INET:
-	*port = ntohs(((struct sockaddr_in *) s)->sin_port);
-	break;
+    struct addrinfo *ai1 = a1->a, *ai2 = a2->a;
 
-    case AF_INET6:
-	*port = ntohs(((struct sockaddr_in6 *) s)->sin6_port);
-	break;
-
-    default:
-	return GE_INVAL;
+    while (ai1 && ai2) {
+	if (!sockaddr_equal(ai1->ai_addr, ai1->ai_addrlen,
+			    ai2->ai_addr, ai2->ai_addrlen,
+			    compare_ports))
+	    return false;
+	ai1 = ai1->ai_next;
+	ai2 = ai2->ai_next;
     }
-
-    return 0;
+    if (ai1 != NULL || ai2 != NULL)
+	return false;
+    return true;
 }
 
-int
-gensio_sockaddr_set_port(const struct sockaddr *s, unsigned int port)
-{
-    switch (s->sa_family) {
-    case AF_INET:
-	((struct sockaddr_in *) s)->sin_port = htons(port);
-	break;
-
-    case AF_INET6:
-	((struct sockaddr_in6 *) s)->sin6_port = htons(port);
-	break;
-
-    default:
-	return GE_INVAL;
-    }
-
-    return 0;
-}
-
-int
-gensio_sockaddr_to_str(const struct sockaddr *addr, socklen_t *addrlen,
+static int
+gensio_sockaddr_to_str(const struct sockaddr *addr,
 		       char *buf, gensiods *pos, gensiods buflen)
 {
     if (addr->sa_family == AF_INET) {
 	struct sockaddr_in *a4 = (struct sockaddr_in *) addr;
 	char ibuf[INET_ADDRSTRLEN];
 
-	if (addrlen && *addrlen && *addrlen != sizeof(struct sockaddr_in))
-	    goto out_err;
 	gensio_pos_snprintf(buf, buflen, pos, "ipv4,%s,%d",
 			inet_ntop(AF_INET, &a4->sin_addr, ibuf, sizeof(ibuf)),
 			ntohs(a4->sin_port));
-	if (addrlen)
-	    *addrlen = sizeof(struct sockaddr_in);
     } else if (addr->sa_family == AF_INET6) {
 	struct sockaddr_in6 *a6 = (struct sockaddr_in6 *) addr;
 	char ibuf[INET6_ADDRSTRLEN];
 
-	if (addrlen && *addrlen && *addrlen != sizeof(struct sockaddr_in6))
-	    goto out_err;
 	gensio_pos_snprintf(buf, buflen, pos, "ipv6,%s,%d",
 			inet_ntop(AF_INET6, &a6->sin6_addr, ibuf, sizeof(ibuf)),
 			ntohs(a6->sin6_port));
-	if (addrlen)
-	    *addrlen = sizeof(struct sockaddr_in6);
 #if HAVE_UNIX
     } else if (addr->sa_family == AF_UNIX) {
 	struct sockaddr_un *au = (struct sockaddr_un *) addr;
@@ -1006,7 +1430,6 @@ gensio_sockaddr_to_str(const struct sockaddr *addr, socklen_t *addrlen,
 	gensio_pos_snprintf(buf, buflen, pos, "unix,%s", au->sun_path);
 #endif
     } else {
-    out_err:
 	if (*pos < buflen)
 	    buf[*pos] = '\0';
 	return GE_INVAL;
@@ -1015,14 +1438,43 @@ gensio_sockaddr_to_str(const struct sockaddr *addr, socklen_t *addrlen,
     return 0;
 }
 
+int
+gensio_addr_to_str(const struct gensio_addr *addr,
+		   char *buf, gensiods *pos, gensiods buflen)
+{
+    return gensio_sockaddr_to_str(addr->curr->ai_addr, buf, pos, buflen);
+}
+
+int
+gensio_addr_to_str_all(const struct gensio_addr *addr,
+		       char *buf, gensiods *pos, gensiods buflen)
+{
+    struct gensio_addr a = *addr;
+    bool first = true;
+    int rv;
+
+    for (a.curr = a.a; a.curr; a.curr = a.curr->ai_next) {
+	if (!first)
+	    /* Add the semicolons between the addresses. */
+	    gensio_pos_snprintf(buf, buflen, pos, ";");
+	first = false;
+
+	rv = gensio_addr_to_str(&a, buf, pos, buflen);
+	if (rv)
+	    return rv;
+    }
+
+    return 0;
+}
+
 static int
 scan_ips(struct gensio_os_funcs *o, const char *str, bool listen, int ifamily,
 	 int socktype, int protocol, bool *is_port_set,
-	 struct gensio_addr **rai)
+	 struct gensio_addr **raddr)
 {
     char *strtok_data, *strtok_buffer;
-    struct gensio_addr ai = { NULL }, *ai2 = NULL, *ai3;
-    struct addrinfo hints, *ai4;
+    struct gensio_addr addr = { .o = o }, *addr2 = NULL, *addr3, *addr4;
+    struct addrinfo hints, *ai;
     char *ip;
     char *port;
     unsigned int portnum;
@@ -1072,7 +1524,7 @@ scan_ips(struct gensio_os_funcs *o, const char *str, bool listen, int ifamily,
 	hints.ai_family = family;
 	hints.ai_socktype = socktype;
 	hints.ai_protocol = protocol;
-	if (getaddrinfo(ip, port, &hints, &ai.a)) {
+	if (getaddrinfo(ip, port, &hints, &addr.a)) {
 	    rv = GE_INVAL;
 	    goto out_err;
 	}
@@ -1081,7 +1533,7 @@ scan_ips(struct gensio_os_funcs *o, const char *str, bool listen, int ifamily,
 	 * If a port was/was not set, this must be consistent for all
 	 * addresses.
 	 */
-	rv = gensio_sockaddr_get_port(ai.a->ai_addr, &portnum);
+	rv = sockaddr_get_port(addr.a->ai_addr, &portnum);
 	if (rv)
 	    goto out_err;
 	if (first) {
@@ -1094,24 +1546,29 @@ scan_ips(struct gensio_os_funcs *o, const char *str, bool listen, int ifamily,
 	    }
 	}
 
-	ai3 = gensio_dup_addr(o, &ai);
-	if (!ai3) {
+	addr3 = gensio_addr_dup(&addr);
+	if (!addr3) {
 	    rv = GE_NOMEM;
 	    goto out_err;
 	}
+	addr3->curr = addr3->a;
 
-	for (ai4 = ai3->a; ai4; ai4 = ai4->ai_next)
-	    ai4->ai_flags = rflags;
+	for (ai = addr3->a; ai; ai = ai->ai_next)
+	    ai->ai_flags = rflags;
 
-	if (ai2)
-	    ai2 = gensio_cat_addr(o, ai2, ai3);
-	else
-	    ai2 = ai3;
+	if (addr2) {
+	    addr4 = gensio_addr_cat(addr2, addr3);
+	    gensio_addr_free(addr2);
+	    gensio_addr_free(addr3);
+	    addr2 = addr4;
+	} else {
+	    addr2 = addr3;
+	}
 	ip = strtok_r(NULL, ",", &strtok_data);
 	first = false;
     }
 
-    if (!ai2) {
+    if (!addr2) {
 	rv = GE_NOTFOUND;
 	goto out_err;
     }
@@ -1119,14 +1576,14 @@ scan_ips(struct gensio_os_funcs *o, const char *str, bool listen, int ifamily,
     if (is_port_set)
 	*is_port_set = portset;
 
-    *rai = ai2;
+    *raddr = addr2;
 
  out_err:
-    if (ai.a)
-	freeaddrinfo(ai.a);
+    if (addr.a)
+	freeaddrinfo(addr.a);
     o->free(o, strtok_buffer);
-    if (rv && ai2)
-	gensio_free_addr(o, ai2);
+    if (rv && addr2)
+	gensio_addr_free(addr2);
 
     return rv;
 }
@@ -1166,6 +1623,7 @@ gensio_scan_unixaddr(struct gensio_os_funcs *o, const char *str, bool doargs,
     ai->a = o->zalloc(0, sizeof(*ai->a));
     if (!ai->a)
 	goto out_nomem;
+    ai->o = o;
 
     saddr = o->zalloc(o, sizeof(socklen_t) + len + 1);
     if (!saddr)
@@ -1177,6 +1635,7 @@ gensio_scan_unixaddr(struct gensio_os_funcs *o, const char *str, bool doargs,
     ai->a->ai_socktype = SOCK_STREAM;
     ai->a->ai_addrlen = sizeof(socklen_t) + len + 1;
     ai->a->ai_addr = (struct sockaddr *) saddr;
+    ai->curr = ai->a;
 
     if (rargc)
 	*rargc = argc;
@@ -1338,83 +1797,141 @@ gensio_scan_netaddr(struct gensio_os_funcs *o, const char *str, bool listen,
     return rv;
 }
 
-struct gensio_addr *
-gensio_dup_addr(struct gensio_os_funcs *o, struct gensio_addr *igai)
+static struct addrinfo *
+addrinfo_dup(struct gensio_os_funcs *o, struct addrinfo *iai)
 {
-    struct addrinfo *iai, *aic, *aip = NULL;
-    struct gensio_addr *ai = NULL;
+    struct addrinfo *aic;
 
-    if (!igai)
+    aic = o->zalloc(o, sizeof(*aic));
+    if (!aic)
 	return NULL;
-
-    iai = igai->a;
-
-    ai = o->zalloc(o, sizeof(*ai));
-    if (!ai)
+    memcpy(aic, iai, sizeof(*aic));
+    aic->ai_next = NULL;
+    aic->ai_addr = o->zalloc(o, iai->ai_addrlen);
+    if (!aic->ai_addr) {
+	o->free(o, aic);
 	return NULL;
-
-    while (iai) {
-	aic = o->zalloc(o, sizeof(*aic));
-	if (!aic)
-	    goto out_nomem;
-	memcpy(aic, iai, sizeof(*aic));
-	aic->ai_next = NULL;
-	aic->ai_addr = o->zalloc(o, iai->ai_addrlen);
-	if (!aic->ai_addr) {
+    }
+    memcpy(aic->ai_addr, iai->ai_addr, iai->ai_addrlen);
+    if (iai->ai_canonname) {
+	aic->ai_canonname = gensio_strdup(o, iai->ai_canonname);
+	if (!aic->ai_canonname) {
+	    o->free(o, aic->ai_addr);
 	    o->free(o, aic);
-	    goto out_nomem;
+	    return NULL;
 	}
-	memcpy(aic->ai_addr, iai->ai_addr, iai->ai_addrlen);
-	if (iai->ai_canonname) {
-	    aic->ai_canonname = gensio_strdup(o, iai->ai_canonname);
-	    if (!aic->ai_canonname) {
-		o->free(o, aic->ai_addr);
-		o->free(o, aic);
-		goto out_nomem;
-	    }
-	}
-	if (aip) {
-	    aip->ai_next = aic;
-	    aip = aic;
-	} else {
-	    aip = aic;
-	    ai->a = aic;
-	}
-	iai = iai->ai_next;
     }
 
-    return ai;
+    return aic;
+}
 
- out_nomem:
-    gensio_free_addr(o, ai);
-    return NULL;
+static void
+addrinfo_list_free(struct gensio_os_funcs *o, struct addrinfo *ai)
+{
+    struct addrinfo *tai;
+
+    while (ai) {
+	tai = ai->ai_next;
+	if (ai->ai_addr)
+	    o->free(o, ai->ai_addr);
+	if (ai->ai_canonname)
+	    o->free(o, ai->ai_canonname);
+	o->free(o, ai);
+	ai = tai;
+    }
+}
+
+static int
+addrinfo_list_dup(struct gensio_os_funcs *o,
+		  struct addrinfo *ai, struct addrinfo **rai,
+		  struct addrinfo **pai)
+{
+    struct addrinfo *cai;
+
+    while (ai) {
+	cai = addrinfo_dup(o, ai);
+	if (!cai)
+	    return GE_NOMEM;
+	if (*pai)
+	    (*pai)->ai_next = cai;
+	else
+	    *rai = cai;
+	*pai = cai;
+	ai = ai->ai_next;
+    }
+
+    return 0;
 }
 
 struct gensio_addr *
-gensio_cat_addr(struct gensio_os_funcs *o,
-		struct gensio_addr *ai1,
-		struct gensio_addr *ai2)
+gensio_addr_dup(struct gensio_addr *iaddr)
 {
-    struct addrinfo *ai = ai1->a;
+    struct gensio_os_funcs *o = iaddr->o;
+    struct addrinfo *aip = NULL;
+    struct gensio_addr *addr;
+    int rv;
 
-    while (ai->ai_next)
-	ai = ai->ai_next;
-    ai->ai_next = ai2->a;
-    o->free(o, ai2);
+    if (!iaddr)
+	return NULL;
 
-    return ai1;
+    addr = o->zalloc(o, sizeof(*addr));
+    if (!addr)
+	return NULL;
+    addr->o = o;
+
+    rv = addrinfo_list_dup(o, iaddr->a, &addr->a, &aip);
+    if (rv) {
+	addrinfo_list_free(o, addr->a);
+	o->free(o, addr);
+	return NULL;
+    }
+    addr->curr = addr->a;
+
+    return addr;
+}
+
+struct gensio_addr *
+gensio_addr_cat(const struct gensio_addr *addr1,
+		const struct gensio_addr *addr2)
+{
+    struct gensio_os_funcs *o = addr1->o;
+    struct gensio_addr *addr;
+    struct addrinfo *aip = NULL;
+    int rv;
+
+    addr = o->zalloc(o, sizeof(*addr));
+    if (!addr)
+	return NULL;
+    addr->o = o;
+
+    rv = addrinfo_list_dup(o, addr1->a, &addr->a, &aip);
+    if (rv)
+	goto out_err;
+
+    rv = addrinfo_list_dup(o, addr2->a, &addr->a, &aip);
+    if (rv)
+	goto out_err;
+
+    addr->curr = addr->a;
+
+    return addr;
+
+ out_err:
+    addrinfo_list_free(o, addr->a);
+    o->free(o, addr);
+    return NULL;
 }
 
 bool
 gensio_addr_addr_present(const struct gensio_addr *gai,
-			 const void *addr, int addrlen,
+			 const void *addr, gensiods addrlen,
 			 bool compare_ports)
 {
     struct addrinfo *ai = gai->a;
 
     while (ai) {
-	if (gensio_sockaddr_equal(addr, addrlen, ai->ai_addr, ai->ai_addrlen,
-				  compare_ports))
+	if (sockaddr_equal(addr, addrlen, ai->ai_addr, ai->ai_addrlen,
+			   compare_ports))
 	    return true;
 	ai = ai->ai_next;
     }
@@ -1422,22 +1939,47 @@ gensio_addr_addr_present(const struct gensio_addr *gai,
 }
 
 void
-gensio_free_addr(struct gensio_os_funcs *o, struct gensio_addr *gai)
+gensio_addr_free(struct gensio_addr *addr)
 {
-    struct addrinfo *ai;
+    struct gensio_os_funcs *o = addr->o;
 
-    if (!gai)
+    if (!addr)
 	return;
 
-    ai = gai->a;
-    o->free(o, gai);
-    while (ai) {
-	struct addrinfo *aic = ai;
+    addrinfo_list_free(o, addr->a);
+    o->free(o, addr);
+}
 
-	ai = ai->ai_next;
-	o->free(o, aic->ai_addr);
-	if (aic->ai_canonname)
-	    o->free(o, aic->ai_canonname);
-	o->free(o, aic);
-    }
+bool
+gensio_addr_next(struct gensio_addr *addr)
+{
+    if (!addr->curr->ai_next)
+	return false;
+    addr->curr = addr->curr->ai_next;
+    return true;
+}
+
+void
+gensio_addr_rewind(struct gensio_addr *addr)
+{
+    addr->curr = addr->a;
+}
+
+int
+gensio_addr_get_nettype(const struct gensio_addr *addr)
+{
+    return addr->curr->ai_addr->sa_family;
+}
+
+void
+gensio_addr_getaddr(const struct gensio_addr *addr,
+		    void *oaddr, gensiods *rlen)
+{
+    gensiods len;
+
+    len = *rlen;
+    if (len > addr->curr->ai_addrlen)
+	len = addr->curr->ai_addrlen;
+    memcpy(oaddr, addr->curr->ai_addr, len);
+    *rlen = addr->curr->ai_addrlen;
 }
