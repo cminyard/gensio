@@ -62,6 +62,7 @@ struct stdion_channel {
 
     /* For the client only. */
     bool in_close; /* A close is pending the running running. */
+    bool deferred_close;
     bool closed;
     gensio_done close_done;
     void *close_data;
@@ -339,6 +340,16 @@ check_waitpid_timeout(struct gensio_timer *t, void *cb_data)
 }
 
 static void
+stdion_start_close(struct stdion_channel *schan)
+{
+    struct stdiona_data *nadata = schan->nadata;
+
+    nadata->o->clear_fd_handlers(nadata->o, schan->outfd);
+    if (schan->infd != -1)
+	nadata->o->clear_fd_handlers(nadata->o, schan->infd);
+}
+
+static void
 stdion_deferred_op(struct gensio_runner *runner, void *cbdata)
 {
     struct stdion_channel *schan = cbdata;
@@ -369,6 +380,11 @@ stdion_deferred_op(struct gensio_runner *runner, void *cbdata)
 	stdiona_unlock(nadata);
 	stdion_finish_read(schan, 0);
 	stdiona_lock(nadata);
+    }
+
+    if (schan->deferred_close) {
+	schan->deferred_close = false;
+	stdion_start_close(schan);
     }
 
     if (schan->deferred_read || schan->in_open)
@@ -833,19 +849,20 @@ stdion_alloc_channel(struct gensio *io, const char * const args[],
 }
 
 static void
-__stdion_close(struct stdion_channel *schan,
+i_stdion_close(struct stdion_channel *schan,
 	       gensio_done close_done, void *close_data)
 {
-    struct stdiona_data *nadata = schan->nadata;
-
     schan->closed = true;
     schan->in_close = true;
-    schan->in_open = false; /* In case we get closed before the open is done. */
     schan->close_done = close_done;
     schan->close_data = close_data;
-    nadata->o->clear_fd_handlers(nadata->o, schan->outfd);
-    if (schan->infd != -1)
-	nadata->o->clear_fd_handlers(nadata->o, schan->infd);
+    if (schan->in_open) {
+	/* Let the open happen first. */
+	schan->deferred_close = true;
+	stdion_start_deferred_op(schan);
+    } else {
+	stdion_start_close(schan);
+    }
 }
 
 static int
@@ -859,7 +876,7 @@ stdion_close(struct gensio *io, gensio_done close_done, void *close_data)
     if (schan->closed || schan->in_close)
 	err = GE_NOTREADY;
     else
-	__stdion_close(schan, close_done, close_data);
+	i_stdion_close(schan, close_done, close_data);
     stdiona_unlock(nadata);
 
     return err;
@@ -886,7 +903,7 @@ stdion_free(struct gensio *io)
 	schan->io = NULL;
 	stdiona_deref_and_unlock(nadata);
     } else {
-	__stdion_close(schan, NULL, NULL);
+	i_stdion_close(schan, NULL, NULL);
 	stdiona_unlock(nadata);
     }
 }
