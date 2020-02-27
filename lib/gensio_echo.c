@@ -18,6 +18,7 @@ enum echon_state {
     ECHON_CLOSED,
     ECHON_IN_OPEN,
     ECHON_OPEN,
+    ECHON_IN_OPEN_CLOSE,
     ECHON_IN_CLOSE,
 };
 
@@ -161,11 +162,18 @@ echon_deferred_op(struct gensio_runner *runner, void *cb_data)
     struct echon_data *ndata = cb_data;
 
     echon_lock(ndata);
-    if (ndata->state == ECHON_IN_OPEN) {
-	ndata->state = ECHON_OPEN;
+    if (ndata->state == ECHON_IN_OPEN || ndata->state == ECHON_IN_OPEN_CLOSE) {
+	int err = 0;
+
+	if (ndata->state == ECHON_IN_OPEN_CLOSE) {
+	    ndata->state = ECHON_IN_CLOSE;
+	    err = GE_LOCALCLOSED;
+	} else {
+	    ndata->state = ECHON_OPEN;
+	}
 	if (ndata->open_done) {
 	    echon_unlock(ndata);
-	    ndata->open_done(ndata->io, 0, ndata->open_data);
+	    ndata->open_done(ndata->io, err, ndata->open_data);
 	    echon_lock(ndata);
 	}
     }
@@ -281,11 +289,14 @@ echon_close(struct gensio *io, gensio_done close_done, void *close_data)
     int err = 0;
 
     echon_lock(ndata);
-    if (ndata->state != ECHON_OPEN) {
+    if (ndata->state != ECHON_OPEN && ndata->state != ECHON_IN_OPEN) {
 	err = GE_NOTREADY;
 	goto out_unlock;
     }
-    ndata->state = ECHON_IN_CLOSE;
+    if (ndata->state == ECHON_IN_OPEN)
+	ndata->state = ECHON_IN_OPEN_CLOSE;
+    else
+	ndata->state = ECHON_IN_CLOSE;
     ndata->close_done = close_done;
     ndata->close_data = close_data;
     echon_start_deferred_op(ndata);
