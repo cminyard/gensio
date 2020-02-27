@@ -145,34 +145,6 @@ handle_sigusr1(int sig)
 {
 }
 
-char *
-alloc_vsprintf(struct gensio_os_funcs *f, const char *fmt, va_list va)
-{
-    va_list va2;
-    int len;
-    char c[1], *str;
-
-    va_copy(va2, va);
-    len = vsnprintf(c, 0, fmt, va);
-    str = o->zalloc(o, len + 1);
-    if (str)
-	vsnprintf(str, len + 1, fmt, va2);
-    va_end(va2);
-    return str;
-}
-
-char *
-alloc_sprintf(struct gensio_os_funcs *f, const char *fmt, ...)
-{
-    va_list va;
-    char *s;
-
-    va_start(va, fmt);
-    s = alloc_vsprintf(f, fmt, va);
-    va_end(va);
-    return s;
-}
-
 #ifdef USE_PTHREADS
 static void *
 gensio_loop(void *info)
@@ -868,11 +840,11 @@ run_oom_test(struct oom_tests *test, long count, int *exitcode, bool close_acc)
 	if (rv)
 	    goto out_err;
 
-	constr = alloc_sprintf(o, "stdio, %s -i 'stdio(self)' '%s%s'",
-			       gensiot, test->connecter, intstr);
+	constr = gensio_alloc_sprintf(o, "stdio, %s -i 'stdio(self)' '%s%s'",
+				      gensiot, test->connecter, intstr);
     } else {
-	constr = alloc_sprintf(o, "stdio, %s -i 'stdio(self)' '%s'",
-			       gensiot, test->connecter);
+	constr = gensio_alloc_sprintf(o, "stdio, %s -i 'stdio(self)' '%s'",
+				      gensiot, test->connecter);
     }
     if (!constr) {
 	rv = GE_NOMEM;
@@ -975,8 +947,8 @@ run_oom_acc_test(struct oom_tests *test, long count, int *exitcode,
 	return gensio_os_err_to_err(o, errno);
     }
 
-    constr = alloc_sprintf(o, "stdio, %s -v -a -p -i 'stdio(self)' '%s'",
-			   gensiot, test->accepter);
+    constr = gensio_alloc_sprintf(o, "stdio, %s -v -a -p -i 'stdio(self)' '%s'",
+				  gensiot, test->accepter);
     if (!constr) {
 	err = GE_NOMEM;
 	goto out_err;
@@ -1029,7 +1001,7 @@ run_oom_acc_test(struct oom_tests *test, long count, int *exitcode,
 	goto out_err;
     }
 
-    locstr = alloc_sprintf(o, "%s%d", test->connecter, od->port);
+    locstr = gensio_alloc_sprintf(o, "%s%d", test->connecter, od->port);
     if (!locstr) {
 	err = GE_NOMEM;
 	goto out_err;
