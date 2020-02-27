@@ -239,13 +239,27 @@ struct oom_test_data {
 static char *iodata = "Hello There";
 static gensiods iodata_size = 11;
 
+struct ref_trace {
+    enum {
+	ref_inc,
+	ref_dec
+    } op;
+    unsigned int refcount;
+    int line;
+} ref_trace[512];
+unsigned int ref_trace_pos;
+
 static void
-od_deref_and_unlock(struct oom_test_data *od)
+i_od_deref_and_unlock(struct oom_test_data *od, int line)
 {
     unsigned int tcount;
 
     assert(od->refcount > 0);
     tcount = --od->refcount;
+    ref_trace[ref_trace_pos].op = ref_dec;
+    ref_trace[ref_trace_pos].refcount = tcount;
+    ref_trace[ref_trace_pos].line = line;
+    ref_trace_pos = ref_trace_pos == 511 ? 0 : ref_trace_pos + 1;
     UNLOCK(&od->lock);
     if (tcount == 0) {
 	LOCK_DESTROY(&od->lock);
@@ -259,13 +273,19 @@ od_deref_and_unlock(struct oom_test_data *od)
 	o->free(o, od);
     }
 }
+#define od_deref_and_unlock(od) i_od_deref_and_unlock(od, __LINE__)
 
 static void
-od_ref(struct oom_test_data *od)
+i_od_ref(struct oom_test_data *od, int line)
 {
     assert(od->refcount > 0);
     od->refcount++;
+    ref_trace[ref_trace_pos].op = ref_inc;
+    ref_trace[ref_trace_pos].refcount = od->refcount;
+    ref_trace[ref_trace_pos].line = line;
+    ref_trace_pos = ref_trace_pos == 511 ? 0 : ref_trace_pos + 1;
 }
+#define od_ref(od) i_od_ref(od, __LINE__)
 
 static void
 ccon_stderr_closed(struct gensio *io, void *close_data)
