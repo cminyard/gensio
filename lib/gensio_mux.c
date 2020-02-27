@@ -623,11 +623,11 @@ static bool i_mux_deref_and_unlock(struct mux_data *mux)
 {
     assert(mux->refcount > 0);
     if (--mux->refcount == 0) {
-	mux_unlock(mux);
+	i_mux_unlock(mux);
 	muxdata_free(mux);
 	return true;
     }
-    mux_unlock(mux);
+    i_mux_unlock(mux);
     return false;
 }
 
@@ -681,7 +681,7 @@ static bool i_chan_deref(struct mux_inst *chan)
 
 	gensio_list_rm(&mux->chans, &chan->link);
 	chan_free(chan);
-	mux_deref(mux);
+	i_mux_deref(mux);
 	return true;
     }
     return false;
