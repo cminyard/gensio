@@ -492,12 +492,15 @@ main(int argc, char *argv[])
 					str, &size);
 		if (rv == GE_NOTFOUND)
 		    break;
-		if (rv)
+		if (rv) {
 		    fprintf(stderr,
 			    "Unable to fetch accept address %d: %s\n", i,
 			    gensio_err_to_str(rv));
-		else
+		    userdata2.err = rv;
+		    goto out_err;
+		} else {
 		    fprintf(stderr, "Address %d: %s\n", i, str);
+		}
 	    }
 	    fprintf(stderr, "Done\n");
 	}
