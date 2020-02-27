@@ -37,8 +37,8 @@ struct sctp_data {
     int fd;
 
     int family;
-    struct gensio_addrinfo *ai;
-    struct gensio_addrinfo *lai; /* Local address, NULL if not set. */
+    struct gensio_addr *ai;
+    struct gensio_addr *lai; /* Local address, NULL if not set. */
 
     struct sctp_initmsg initmsg;
 
@@ -298,9 +298,9 @@ sctp_free(void *handler_data)
     struct sctp_data *tdata = handler_data;
 
     if (tdata->ai)
-	gensio_free_addrinfo(tdata->o, tdata->ai);
+	gensio_free_addr(tdata->o, tdata->ai);
     if (tdata->lai)
-	gensio_free_addrinfo(tdata->o, tdata->lai);
+	gensio_free_addr(tdata->o, tdata->lai);
     if (tdata->strind) {
 	unsigned int i;
 
@@ -436,7 +436,7 @@ static const struct gensio_fd_ll_ops sctp_fd_ll_ops = {
 };
 
 int
-sctp_gensio_alloc(struct gensio_addrinfo *iai, const char * const args[],
+sctp_gensio_alloc(struct gensio_addr *iai, const char * const args[],
 		  struct gensio_os_funcs *o,
 		  gensio_event cb, void *user_data,
 		  struct gensio **new_gensio)
@@ -447,7 +447,7 @@ sctp_gensio_alloc(struct gensio_addrinfo *iai, const char * const args[],
     gensiods max_read_size = GENSIO_DEFAULT_BUF_SIZE;
     unsigned int instreams = 1, ostreams = 1;
     int i, family = AF_INET, err, ival;
-    struct gensio_addrinfo *ai, *lai = NULL;
+    struct gensio_addr *ai, *lai = NULL;
     bool nodelay = false;
 
     err = gensio_get_default(o, "sctp", "nodelay", false,
@@ -508,7 +508,7 @@ sctp_gensio_alloc(struct gensio_addrinfo *iai, const char * const args[],
 	goto out_err;
     }
 
-    ai = gensio_dup_addrinfo(o, iai);
+    ai = gensio_dup_addr(o, iai);
     if (!ai)
 	goto out_nomem;
 
@@ -547,14 +547,14 @@ sctp_gensio_alloc(struct gensio_addrinfo *iai, const char * const args[],
 	    gensio_ll_free(tdata->ll);
 	} else {
 	    if (tdata->ai)
-		gensio_free_addrinfo(o, tdata->ai);
+		gensio_free_addr(o, tdata->ai);
 	    o->free(o, tdata);
 	}
     }
     err = GE_NOMEM;
  out_err:
     if (lai)
-	gensio_free_addrinfo(o, lai);
+	gensio_free_addr(o, lai);
     return err;
 }
 
@@ -564,7 +564,7 @@ str_to_sctp_gensio(const char *str, const char * const args[],
 		  gensio_event cb, void *user_data,
 		  struct gensio **new_gensio)
 {
-    struct gensio_addrinfo *ai;
+    struct gensio_addr *ai;
     int err;
 
     err = gensio_scan_netaddr(o, str, false, GENSIO_NET_PROTOCOL_SCTP, &ai);
@@ -572,7 +572,7 @@ str_to_sctp_gensio(const char *str, const char * const args[],
 	return err;
 
     err = sctp_gensio_alloc(ai, args, o, cb, user_data, new_gensio);
-    gensio_free_addrinfo(o, ai);
+    gensio_free_addr(o, ai);
 
     return err;
 }
@@ -599,7 +599,7 @@ struct sctpna_data {
     gensio_acc_done shutdown_done;
     gensio_acc_done cb_en_done;
 
-    struct gensio_addrinfo *ai;
+    struct gensio_addr *ai;
     struct sctpna_acceptfds *acceptfds;
     unsigned int nr_acceptfds;
 
@@ -913,7 +913,7 @@ sctpna_free(struct gensio_accepter *accepter, struct sctpna_data *nadata)
     if (nadata->cb_en_done_runner)
 	nadata->o->free_runner(nadata->cb_en_done_runner);
     if (nadata->ai)
-	gensio_free_addrinfo(nadata->o, nadata->ai);
+	gensio_free_addr(nadata->o, nadata->ai);
     nadata->o->free(nadata->o, nadata);
 }
 
@@ -931,7 +931,7 @@ sctpna_str_to_gensio(struct gensio_accepter *accepter,
     unsigned int i;
     const char **iargs;
     int iargc;
-    struct gensio_addrinfo *ai;
+    struct gensio_addr *ai;
     const char *laddr = NULL, *dummy;
     bool is_port_set;
     int protocol;
@@ -985,7 +985,7 @@ sctpna_str_to_gensio(struct gensio_accepter *accepter,
  out_err:
     if (iargs)
 	gensio_argv_free(nadata->o, iargs);
-    gensio_free_addrinfo(nadata->o, ai);
+    gensio_free_addr(nadata->o, ai);
 
     return err;
 }
@@ -1109,7 +1109,7 @@ sctpna_base_acc_op(struct gensio_accepter *acc, int op,
 }
 
 int
-sctp_gensio_accepter_alloc(struct gensio_addrinfo *iai,
+sctp_gensio_accepter_alloc(struct gensio_addr *iai,
 			   const char * const args[],
 			   struct gensio_os_funcs *o,
 			   gensio_accepter_event cb, void *user_data,
@@ -1142,7 +1142,7 @@ sctp_gensio_accepter_alloc(struct gensio_addrinfo *iai,
     nadata->initmsg.sinit_num_ostreams = ostreams;
 
     err = GE_NOMEM;
-    nadata->ai = gensio_dup_addrinfo(o, iai);
+    nadata->ai = gensio_dup_addr(o, iai);
     if (!nadata->ai)
 	goto out_err;
 
@@ -1182,14 +1182,14 @@ str_to_sctp_gensio_accepter(const char *str, const char * const args[],
 			    struct gensio_accepter **acc)
 {
     int err;
-    struct gensio_addrinfo *ai;
+    struct gensio_addr *ai;
 
     err = gensio_scan_netaddr(o, str, true, GENSIO_NET_PROTOCOL_SCTP, &ai);
     if (err)
 	return err;
 
     err = sctp_gensio_accepter_alloc(ai, args, o, cb, user_data, acc);
-    gensio_free_addrinfo(o, ai);
+    gensio_free_addr(o, ai);
 
     return err;
 }
@@ -1197,7 +1197,7 @@ str_to_sctp_gensio_accepter(const char *str, const char * const args[],
 #else
 
 int
-sctp_gensio_alloc(struct gensio_addrinfo *iai, const char * const args[],
+sctp_gensio_alloc(struct gensio_addr *iai, const char * const args[],
 		  struct gensio_os_funcs *o,
 		  gensio_event cb, void *user_data,
 		  struct gensio **new_gensio)
@@ -1215,7 +1215,7 @@ str_to_sctp_gensio(const char *str, const char * const args[],
 }
 
 int
-sctp_gensio_accepter_alloc(struct gensio_addrinfo *iai,
+sctp_gensio_accepter_alloc(struct gensio_addr *iai,
 			   const char * const args[],
 			   struct gensio_os_funcs *o,
 			   gensio_accepter_event cb, void *user_data,

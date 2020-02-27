@@ -130,7 +130,7 @@ struct udpna_data {
     gensio_acc_done shutdown_done;
     void *shutdown_data;
 
-    struct gensio_addrinfo *ai;		/* The address list for the portname. */
+    struct gensio_addr *ai;		/* The address list for the portname. */
     struct opensocks   *fds;		/* The file descriptor used for
 					   the UDP ports. */
     unsigned int   nr_fds;
@@ -318,7 +318,7 @@ udpna_do_free(struct udpna_data *nadata)
     if (nadata->deferred_op_runner)
 	nadata->o->free_runner(nadata->deferred_op_runner);
     if (nadata->ai)
-	gensio_free_addrinfo(nadata->o, nadata->ai);
+	gensio_free_addr(nadata->o, nadata->ai);
     if (nadata->fds)
 	nadata->o->free(nadata->o, nadata->fds);
     if (nadata->read_data)
@@ -1190,7 +1190,7 @@ udpna_str_to_gensio(struct gensio_accepter *accepter, const char *addr,
 {
     struct udpna_data *nadata = gensio_acc_get_gensio_data(accepter);
     struct udpn_data *ndata = NULL;
-    struct gensio_addrinfo *ai = NULL;
+    struct gensio_addr *ai = NULL;
     struct addrinfo *tai;
     unsigned int fdi;
     int err;
@@ -1254,7 +1254,7 @@ udpna_str_to_gensio(struct gensio_accepter *accepter, const char *addr,
 
  out_err:
     if (ai)
-	gensio_free_addrinfo(nadata->o, ai);
+	gensio_free_addr(nadata->o, ai);
     if (iargs)
 	gensio_argv_free(nadata->o, iargs);
 
@@ -1369,7 +1369,7 @@ gensio_acc_udp_func(struct gensio_accepter *acc, int func, int val,
 }
 
 static int
-i_udp_gensio_accepter_alloc(struct gensio_addrinfo *iai, gensiods max_read_size,
+i_udp_gensio_accepter_alloc(struct gensio_addr *iai, gensiods max_read_size,
 			    struct gensio_os_funcs *o,
 			    gensio_accepter_event cb, void *user_data,
 			    struct gensio_accepter **accepter)
@@ -1384,7 +1384,7 @@ i_udp_gensio_accepter_alloc(struct gensio_addrinfo *iai, gensiods max_read_size,
     gensio_list_init(&nadata->closed_udpns);
     nadata->refcount = 1;
 
-    nadata->ai = gensio_dup_addrinfo(o, iai);
+    nadata->ai = gensio_dup_addr(o, iai);
     if (!nadata->ai && iai) /* Allow a null ai if it was passed in. */
 	goto out_nomem;
 
@@ -1417,7 +1417,7 @@ i_udp_gensio_accepter_alloc(struct gensio_addrinfo *iai, gensiods max_read_size,
 }
 
 int
-udp_gensio_accepter_alloc(struct gensio_addrinfo *iai,
+udp_gensio_accepter_alloc(struct gensio_addr *iai,
 			  const char * const args[],
 			  struct gensio_os_funcs *o,
 			  gensio_accepter_event cb, void *user_data,
@@ -1444,20 +1444,20 @@ str_to_udp_gensio_accepter(const char *str, const char * const args[],
 			   struct gensio_accepter **acc)
 {
     int err;
-    struct gensio_addrinfo *ai;
+    struct gensio_addr *ai;
 
     err = gensio_scan_netaddr(o, str, true, GENSIO_NET_PROTOCOL_UDP, &ai);
     if (err)
 	return err;
 
     err = udp_gensio_accepter_alloc(ai, args, o, cb, user_data, acc);
-    gensio_free_addrinfo(o, ai);
+    gensio_free_addr(o, ai);
 
     return err;
 }
 
 int
-udp_gensio_alloc(struct gensio_addrinfo *ai, const char * const args[],
+udp_gensio_alloc(struct gensio_addr *ai, const char * const args[],
 		struct gensio_os_funcs *o,
 		gensio_event cb, void *user_data,
 		struct gensio **new_gensio)
@@ -1465,7 +1465,7 @@ udp_gensio_alloc(struct gensio_addrinfo *ai, const char * const args[],
     struct udpn_data *ndata = NULL;
     struct gensio_accepter *accepter;
     struct udpna_data *nadata = NULL;
-    struct gensio_addrinfo *lai = NULL;
+    struct gensio_addr *lai = NULL;
     int err, new_fd;
     gensiods max_read_size = GENSIO_DEFAULT_UDP_BUF_SIZE;
     unsigned int i;
@@ -1494,7 +1494,7 @@ udp_gensio_alloc(struct gensio_addrinfo *ai, const char * const args[],
 				GENSIO_NET_PROTOCOL_UDP, &new_fd);
     if (err) {
 	if (lai)
-	    gensio_free_addrinfo(o, lai);
+	    gensio_free_addr(o, lai);
 	return err;
     }
 
@@ -1503,12 +1503,12 @@ udp_gensio_alloc(struct gensio_addrinfo *ai, const char * const args[],
     if (err) {
 	gensio_os_close(o, new_fd);
 	if (lai)
-	    gensio_free_addrinfo(o, lai);
+	    gensio_free_addr(o, lai);
 	return err;
     }
 
     if (lai) {
-	gensio_free_addrinfo(o, lai);
+	gensio_free_addr(o, lai);
 	lai = NULL;
     }
 
@@ -1564,7 +1564,7 @@ str_to_udp_gensio(const char *str, const char * const args[],
 		  gensio_event cb, void *user_data,
 		  struct gensio **new_gensio)
 {
-    struct gensio_addrinfo *ai;
+    struct gensio_addr *ai;
     int err;
 
     err = gensio_scan_netaddr(o, str, false, GENSIO_NET_PROTOCOL_UDP, &ai);
@@ -1572,6 +1572,6 @@ str_to_udp_gensio(const char *str, const char * const args[],
 	return err;
 
     err = udp_gensio_alloc(ai, args, o, cb, user_data, new_gensio);
-    gensio_free_addrinfo(o, ai);
+    gensio_free_addr(o, ai);
     return err;
 }

@@ -27,7 +27,7 @@ extern "C" {
 #include <gensio/gensio_version.h>
 
 struct gensio;
-struct gensio_addrinfo;
+struct gensio_addr;
 
 typedef size_t gensiods; /* Data size */
 
@@ -318,7 +318,7 @@ int gensio_get_default(struct gensio_os_funcs *o,
 int gensio_get_defaultaddr(struct gensio_os_funcs *o,
 			   const char *class, const char *name, bool classonly,
 			   int iprotocol, bool listen, bool require_port,
-			   struct gensio_addrinfo **rai);
+			   struct gensio_addr **rai);
 
 int gensio_del_default(struct gensio_os_funcs *o,
 		       const char *class, const char *name, bool delclasses);
@@ -340,9 +340,9 @@ void gensio_cleanup_mem(struct gensio_os_funcs *o);
  * See if addr is present in ai.  Ports are not compared unless
  * compare_ports is true.
  */
-bool gensio_addrinfo_addr_present(const struct gensio_addrinfo *ai,
-				  const void *addr, int addrlen,
-				  bool compare_ports);
+bool gensio_addr_addr_present(const struct gensio_addr *ai,
+			      const void *addr, int addrlen,
+			      bool compare_ports);
 
 /*
  * Scan for a network port in the form:
@@ -383,12 +383,12 @@ bool gensio_addrinfo_addr_present(const struct gensio_addrinfo *ai,
  * The protocol type is returned, either TCP, UDP, or SCTP.  Protocol
  * may be NULL.
  *
- * ai should be freed with gensio_free_addrinfo().
+ * ai should be freed with gensio_free_addr().
  *
  * args should be freed with str_to_argv_free().
  */
 int gensio_scan_network_port(struct gensio_os_funcs *o, const char *str,
-			     bool listen, struct gensio_addrinfo **ai,
+			     bool listen, struct gensio_addr **ai,
 			     int *protocol, bool *is_port_set,
 			     int *argc, const char ***args);
 /* Values for protocol above. */
@@ -403,20 +403,20 @@ int gensio_scan_network_port(struct gensio_os_funcs *o, const char *str,
 extern bool gensio_uucp_locking_enabled;
 
 /*
- * There are no provided routines to duplicate addrinfo structures,
+ * There are no provided routines to duplicate addr structures,
  * so we really need to do it ourselves.
  */
-struct gensio_addrinfo *gensio_dup_addrinfo(struct gensio_os_funcs *o,
-					    struct gensio_addrinfo *ai);
+struct gensio_addr *gensio_dup_addr(struct gensio_os_funcs *o,
+				    struct gensio_addr *ai);
 /*
- * Concatenate to addrinfo functions.  If successful (non-NULL return),
+ * Concatenate to addr functions.  If successful (non-NULL return),
  * ai1 and ai2 are not usable any more.  They will have been freed.
  */
-struct gensio_addrinfo *gensio_cat_addrinfo(struct gensio_os_funcs *o,
-					    struct gensio_addrinfo *ai1,
-					    struct gensio_addrinfo *ai2);
-void gensio_free_addrinfo(struct gensio_os_funcs *o,
-			  struct gensio_addrinfo *ai);
+struct gensio_addr *gensio_cat_addr(struct gensio_os_funcs *o,
+				    struct gensio_addr *ai1,
+				    struct gensio_addr *ai2);
+void gensio_free_addr(struct gensio_os_funcs *o,
+		      struct gensio_addr *ai);
 
 /*
  * This allows a global to disable uucp locking for everything.
@@ -442,7 +442,7 @@ int gensio_check_keyenum(const char *str, const char *key,
 int gensio_check_keyaddrs(struct gensio_os_funcs *o,
 			  const char *str, const char *key, int protocol,
 			  bool listen, bool require_port,
-			  struct gensio_addrinfo **ai);
+			  struct gensio_addr **ai);
 
 /*
  * Helper functions that don't fit anywhere else.

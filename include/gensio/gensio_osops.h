@@ -76,7 +76,7 @@ int gensio_os_socket_open(struct gensio_os_funcs *o,
 
 int gensio_os_socket_setup(struct gensio_os_funcs *o, int fd,
 			   int protocol, bool keepalive, bool nodelay,
-			   struct gensio_addrinfo *bindaddr);
+			   struct gensio_addr *bindaddr);
 
 int gensio_os_connect(struct gensio_os_funcs *o,
 		      int fd, struct sockaddr *addr, socklen_t addrlen);
@@ -112,7 +112,7 @@ struct opensocks
  * namespaces (like IPV4 and IPV6 on INADDR6_ANY) will work properly
  */
 int gensio_open_socket(struct gensio_os_funcs *o,
-		       struct gensio_addrinfo *ai,
+		       struct gensio_addr *ai,
 		       void (*readhndlr)(int, void *),
 		       void (*writehndlr)(int, void *),
 		       void (*fd_handler_cleared)(int, void *),

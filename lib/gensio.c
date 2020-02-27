@@ -1153,7 +1153,7 @@ str_to_gensio_accepter(const char *str,
 		       struct gensio_accepter **accepter)
 {
     int err;
-    struct gensio_addrinfo *ai = NULL;
+    struct gensio_addr *ai = NULL;
     int protocol;
     const char **args = NULL;
     struct registered_gensio_accepter *r;
@@ -1201,7 +1201,7 @@ str_to_gensio_accepter(const char *str,
 		err = GE_INVAL;
 	    }
 
-	    gensio_free_addrinfo(o, ai);
+	    gensio_free_addr(o, ai);
 	}
     }
 
@@ -1355,7 +1355,7 @@ str_to_gensio(const char *str,
 	      struct gensio **gensio)
 {
     int err = 0;
-    struct gensio_addrinfo *ai = NULL;
+    struct gensio_addr *ai = NULL;
     bool is_port_set;
     int protocol;
     const char **args = NULL;
@@ -1404,7 +1404,7 @@ str_to_gensio(const char *str,
 	    err = GE_INVAL;
 	}
 
-	gensio_free_addrinfo(o, ai);
+	gensio_free_addr(o, ai);
     }
 
  out:
@@ -1589,11 +1589,11 @@ int
 gensio_check_keyaddrs(struct gensio_os_funcs *o,
 		      const char *str, const char *key, int iprotocol,
 		      bool listen, bool require_port,
-		      struct gensio_addrinfo **rai)
+		      struct gensio_addr **rai)
 {
     const char *sval;
     int rv;
-    struct gensio_addrinfo *ai;
+    struct gensio_addr *ai;
     int protocol;
     bool is_port_set;
 
@@ -1610,12 +1610,12 @@ gensio_check_keyaddrs(struct gensio_os_funcs *o,
 	return -1;
 
     if ((require_port && !is_port_set) || protocol != iprotocol) {
-	gensio_free_addrinfo(o, ai);
+	gensio_free_addr(o, ai);
 	return -1;
     }
 
     if (*rai)
-	gensio_free_addrinfo(o, *rai);
+	gensio_free_addr(o, *rai);
 
     *rai = ai;
 
@@ -2252,11 +2252,11 @@ int
 gensio_get_defaultaddr(struct gensio_os_funcs *o,
 		       const char *class, const char *name, bool classonly,
 		       int iprotocol, bool listen, bool require_port,
-		       struct gensio_addrinfo **rai)
+		       struct gensio_addr **rai)
 {
     int err;
     int protocol;
-    struct gensio_addrinfo *ai;
+    struct gensio_addr *ai;
     bool is_port_set;
     char *str;
 
@@ -2275,12 +2275,12 @@ gensio_get_defaultaddr(struct gensio_os_funcs *o,
 	return err;
 
     if ((require_port && !is_port_set) || protocol != iprotocol) {
-	gensio_free_addrinfo(o, ai);
+	gensio_free_addr(o, ai);
 	return GE_INCONSISTENT;
     }
 
     if (*rai)
-	gensio_free_addrinfo(o, *rai);
+	gensio_free_addr(o, *rai);
 
     *rai = ai;
 

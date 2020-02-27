@@ -1,7 +1,7 @@
 
 #include <netdb.h>
 
-struct gensio_addrinfo {
+struct gensio_addr {
     struct addrinfo *a;
 };
 
