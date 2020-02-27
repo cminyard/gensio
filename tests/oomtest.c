@@ -39,6 +39,7 @@ struct oom_tests {
     bool (*check_if_present)(struct gensio_os_funcs *o, struct oom_tests *test);
     bool check_done;
     bool check_value;
+    bool allow_pass_on_oom;
 };
 
 bool
@@ -115,7 +116,8 @@ struct oom_tests oom_tests[] = {
     { "tcp,localhost,", "tcp,0" },
     { "sctp,localhost,", "sctp,0",
       .check_done = 1, .check_value = HAVE_LIBSCTP },
-    { "udp,localhost,", "udp,0" },
+    { "udp,localhost,", "udp,0",
+      .allow_pass_on_oom = true },
     { "mux,sctp,localhost,", "mux,sctp,0",
       .check_done = 1, .check_value = HAVE_LIBSCTP },
     { "telnet(rfc2217),tcp,localhost,", "telnet(rfc2217),tcp,0" },
@@ -1140,6 +1142,8 @@ run_oom_tests(struct oom_tests *test, char *tstr,
 		exit_code = 1;
 	    }
 	} else if (exit_code == 2) {
+	    if (test->allow_pass_on_oom)
+		goto next;
 	    errcount++;
 	    if (!verbose)
 		print_test(test, tstr, close_acc, count);
