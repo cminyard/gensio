@@ -1641,7 +1641,6 @@ muxc_open(struct mux_inst *chan, gensio_done_err open_done, void *open_data,
 	if (do_child) {
 	    err = gensio_open(muxdata->child, mux_child_open_done, muxdata);
 	    if (!err) {
-		gensio_set_write_callback_enable(muxdata->child, true);
 		muxdata->nr_not_closed = 1;
 		mux_set_state(muxdata, MUX_WAITING_CHILD_OPEN);
 	    } else {
