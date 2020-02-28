@@ -276,6 +276,8 @@ gensio_acc_data_free(struct gensio_accepter *acc)
 	acc->classes = c->next;
 	acc->o->free(acc->o, c);
     }
+    if (acc->lock)
+	acc->o->free_lock(acc->lock);
     acc->o->free(acc->o, acc);
 }
 
