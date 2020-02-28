@@ -231,10 +231,12 @@ sctp_control(void *handler_data, int fd, bool get, unsigned int option,
 	    *datalen = snprintf(data, *datalen, "%d", val);
 	} else {
 	    val = strtoul(data, NULL, 0);
-	    rv = gensio_os_set_nodelay(tdata->o, fd,
-				       GENSIO_NET_PROTOCOL_TCP, val);
-	    if (rv)
-		return rv;
+	    if (fd != -1) {
+		rv = gensio_os_set_nodelay(tdata->o, fd,
+					   GENSIO_NET_PROTOCOL_SCTP, val);
+		if (rv)
+		    return rv;
+	    }
 	    tdata->nodelay = val;
 	}
 	return 0;
