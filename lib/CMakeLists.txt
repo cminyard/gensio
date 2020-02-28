@@ -31,9 +31,7 @@ set(BASE_LIBFILES
   utils.c
   gensio_filter_relpkt.c
   gensio_sctp.c
-  gensio_filter_ssl.c
-  gensio_selector.c
-  gensio_osops.c)
+  gensio_filter_ssl.c)
 
 set(UNIX_LIBFILES
   gensio_stdio.c
@@ -41,7 +39,9 @@ set(UNIX_LIBFILES
   sergensio_serialdev.c
   uucplock.c
   gensio_pty.c
-  waiter.c)
+  waiter.c
+  gensio_osops.c
+  gensio_selector.c)
 
 if(UNIX)
   set(LIBFILES ${BASE_LIBFILES} ${UNIX_LIBFILES})

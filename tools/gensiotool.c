@@ -26,7 +26,8 @@
 #endif
 
 #include <gensio/gensio.h>
-#include <gensio/gensio_selector.h>
+/* Defined in gensio_selector.h, but we don't want to include there here. */
+void gensio_sel_exit(int rv);
 
 #include "ioinfo.h"
 #include "ser_ioinfo.h"
@@ -34,7 +35,7 @@
 
 unsigned int debug;
 
-#ifdef HAVE_OPENSSL
+#if HAVE_OPENSSL
 /*
  * Set a dummy random input file, for reproducable openssl usage for
  * fuzz testing.
@@ -291,6 +292,7 @@ main(int argc, char *argv[])
     sigset_t sigs;
     struct timeval zerotime = { 0, 0 };
 
+#ifndef _WIN32
     /*
      * Make sure that SIGPIPE doesn't kill is if the user is doing
      * something involving a pipe.
@@ -303,6 +305,7 @@ main(int argc, char *argv[])
 	perror("Could not set up signal mask");
 	exit(1);
     }
+#endif
 
     memset(&userdata1, 0, sizeof(userdata1));
     memset(&userdata2, 0, sizeof(userdata2));
@@ -345,7 +348,7 @@ main(int argc, char *argv[])
 	    help(0);
 	else if ((rv = cmparg(argc, argv, &arg, NULL, "--dummyrand",
 			      &filename))) {
-#ifdef HAVE_OPENSSL
+#if HAVE_OPENSSL
 	    /*
 	     * This option is undocumented and only for testing.  Do not
 	     * use it!

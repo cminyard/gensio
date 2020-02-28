@@ -7,5 +7,7 @@ target_link_libraries(basic_server gensio)
 add_executable(basic_server_sync basic_server_sync.c)
 target_link_libraries(basic_server_sync gensio)
 
+if(UNIX)
 add_executable(basic_server_sync_fork basic_server_sync_fork.c)
 target_link_libraries(basic_server_sync_fork gensio)
+endif()
