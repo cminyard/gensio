@@ -2950,7 +2950,7 @@ static const char *gensio_errs[] = {
     /*  32 */    "Address already in use",
     /*  33 */    "Operation was interrupted by a signal",
     /*  34 */    "Operation on shutdown fd",
-    /*  35 */    "Local end closed connection"
+    /*  35 */    "Local end closed connection",
     /*  36 */    "Permission denied"
 };
 const unsigned int errno_len = sizeof(gensio_errs) / sizeof(char *);
