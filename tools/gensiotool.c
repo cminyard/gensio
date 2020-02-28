@@ -17,16 +17,16 @@
  *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
  */
 
+#include "config.h"
 #include <stdio.h>
-#include <unistd.h>
 #include <stdlib.h>
 #include <string.h>
-#include <errno.h>
+#ifdef HAVE_ISATTY
+#include <unistd.h>
+#endif
+
 #include <gensio/gensio.h>
 #include <gensio/gensio_selector.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <fcntl.h>
 
 #include "ioinfo.h"
 #include "ser_ioinfo.h"
@@ -41,7 +41,7 @@ unsigned int debug;
  */
 #include <openssl/rand.h>
 
-static int dummyrnd_file = -1;
+static FILE *dummyrnd_file;
 
 int
 dummyrnd_seed(const void *buf, int num)
@@ -52,28 +52,17 @@ dummyrnd_seed(const void *buf, int num)
 int
 dummyrnd_bytes(unsigned char *buf, int num)
 {
-    int rc;
+    size_t rc;
     int count = 0;
 
     while (num > 0) {
-	rc = read(dummyrnd_file, buf, num);
-	if (rc < 0) {
-	    fprintf(stderr, "Error reading from dummyrnd file: %s\n",
-		    strerror(errno));
-	    return 0;
-	}
+	rc = fread(buf, 1, num, dummyrnd_file);
 	if (rc == 0) {
-	    off_t pos = lseek(dummyrnd_file, 0, SEEK_SET);
+	    rewind(dummyrnd_file);
 
-	    if (pos == -1) {
-		fprintf(stderr, "Error seeking dummyrnd file: %s\n",
-			strerror(errno));
-		return 0;
-	    }
-	    rc = read(dummyrnd_file, buf, num);
-	    if (rc <= 0) {
-		fprintf(stderr, "Error reading from dummyrnd file: %s\n",
-			strerror(errno));
+	    rc = fread(buf, 1, num, dummyrnd_file);
+	    if (rc == 0) {
+		fprintf(stderr, "Error reading from dummyrnd file\n");
 		return 0;
 	    }
 	}
@@ -320,10 +309,12 @@ main(int argc, char *argv[])
 
     progname = argv[0];
 
+#ifdef HAVE_ISATTY
     if (isatty(0)) {
 	escape_char = 0x1c; /* ^\ */
 	deftty = io1_default_tty;
     }
+#endif
 
     for (arg = 1; arg < argc; arg++) {
 	if (argv[arg][0] != '-')
@@ -359,12 +350,11 @@ main(int argc, char *argv[])
 	     * This option is undocumented and only for testing.  Do not
 	     * use it!
 	     */
-	    if (dummyrnd_file != -1)
-		close(dummyrnd_file);
-	    dummyrnd_file = open(filename, O_RDONLY);
-	    if (dummyrnd_file == -1) {
-		fprintf(stderr, "Could not open rand file: %s\n",
-			strerror(errno));
+	    if (dummyrnd_file)
+		fclose(dummyrnd_file);
+	    dummyrnd_file = fopen(filename, "r");
+	    if (!dummyrnd_file) {
+		fprintf(stderr, "Could not open rand file\n");
 		goto out_err;
 	    }
 

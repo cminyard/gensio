@@ -116,6 +116,7 @@ check_c_source_compiles("int main()
 	return val;
 }" HAVE_GCC_ATOMICS)
 
+check_symbol_exists(isatty unistd.h HAVE_ISATTY)
 
 configure_file(config.h.cmake config.h)
 

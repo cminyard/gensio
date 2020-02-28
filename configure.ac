@@ -343,6 +343,8 @@ AC_LINK_IFELSE([AC_LANG_PROGRAM([], [
 AC_DEFINE_UNQUOTED([HAVE_GCC_ATOMICS], [$HAVE_GCC_ATOMICS],
 	           [Are GCC atomic operations available])
 
+AC_CHECK_FUNCS(isatty)
+
 CPPFLAGS="$CPPFLAGS -I\$(top_srcdir)/include -I\$(top_builddir)/include"
 
 AC_OUTPUT([Makefile
