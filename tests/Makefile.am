@@ -53,7 +53,7 @@ test_fuzz_certauth:
 		'certauth(cert=ca/clientcert.pem,key=ca/clientkey.pem,allow-unencrypted)'\
 		'certauth(CA=ca/clientcert.pem,allow-unencrypted)' \
 		fuzz-test-certauth/tracefile
-	afl-fuzz -i fuzz-test-certauth -o fuzz-results-certauth \
+	afl-fuzz -T certauth -i fuzz-test-certauth -o fuzz-results-certauth \
 		-f certauth-infile \
 		$(top_builddir)/tools/gensiot --dummyrand certauth-randfile \
 		-i echo \
@@ -75,7 +75,7 @@ test_fuzz_mux:
 	$(LOG_COMPILER) $(top_srcdir)/tests/test_fuzz_setup.py \
 		$(top_builddir)/tools/gensiot mux-randfile \
 		'mux' 'mux' fuzz-test-mux/tracefile
-	afl-fuzz -i fuzz-test-mux -o fuzz-results-mux -f mux-infile \
+	afl-fuzz -T mux -i fuzz-test-mux -o fuzz-results-mux -f mux-infile \
 		$(top_builddir)/tools/gensiot --dummyrand mux-randfile \
 		-i echo \
 		"mux(writebuf=10000,mode=server),file(infile=mux-infile)"
@@ -98,7 +98,7 @@ test_fuzz_ssl:
 		'ssl(CA=ca/CA.pem)'\
 		'ssl(key=ca/key.pem,cert=ca/cert.pem)' \
 		fuzz-test-ssl/tracefile
-	afl-fuzz -i fuzz-test-ssl -o fuzz-results-ssl -f ssl-infile \
+	afl-fuzz -T ssl -i fuzz-test-ssl -o fuzz-results-ssl -f ssl-infile \
 		$(top_builddir)/tools/gensiot --dummyrand ssl-randfile \
 		-i echo \
 		"ssl(key=ca/key.pem,cert=ca/cert.pem,mode=server),file(infile=ssl-infile)"
@@ -119,7 +119,8 @@ test_fuzz_telnet:
 	$(LOG_COMPILER) $(top_srcdir)/tests/test_fuzz_setup.py \
 		$(top_builddir)/tools/gensiot telnet-randfile \
 		'telnet' 'telnet' fuzz-test-telnet/tracefile
-	afl-fuzz -i fuzz-test-telnet -o fuzz-results-telnet -f telnet-infile \
+	afl-fuzz -T telnet \
+		-i fuzz-test-telnet -o fuzz-results-telnet -f telnet-infile \
 		$(top_builddir)/tools/gensiot --dummyrand telnet-randfile \
 		-i echo "telnet(mode=server),file(infile=telnet-infile)"
 
@@ -139,7 +140,8 @@ test_fuzz_relpkt:
 	$(LOG_COMPILER) $(top_srcdir)/tests/test_fuzz_setup.py \
 		$(top_builddir)/tools/gensiot relpkt-randfile \
 		'relpkt,msgdelim(crc=off)' 'relpkt,msgdelim(crc=off)' fuzz-test-relpkt/tracefile
-	afl-fuzz -i fuzz-test-relpkt -o fuzz-results-relpkt -f relpkt-infile \
+	afl-fuzz -T relpkt \
+		-i fuzz-test-relpkt -o fuzz-results-relpkt -f relpkt-infile \
 		$(top_builddir)/tools/gensiot --dummyrand relpkt-randfile \
 		-i echo "relpkt(mode=server),msgdelim(crc=off),file(infile=relpkt-infile)"
 
