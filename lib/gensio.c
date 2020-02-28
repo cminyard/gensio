@@ -1387,11 +1387,13 @@ str_to_gensio(const char *str,
 	return err;
     }
 
+#if HAVE_SERIALDEV
     if (*str == '/') {
 	err = str_to_serialdev_gensio(str, NULL, o, cb, user_data,
 				      gensio);
 	goto out;
     }
+#endif
 
     err = gensio_scan_network_port(o, str, false, &ai, &protocol,
 				   &is_port_set, NULL, &args);
