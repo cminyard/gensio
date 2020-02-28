@@ -9,6 +9,7 @@ include_directories("${PROJECT_BINARY_DIR}" "${PROJECT_SOURCE_DIR}/include"
 include(CheckLibraryExists)
 include(CheckIncludeFile)
 include(CheckSymbolExists)
+include(CheckCSourceCompiles)
 include(GNUInstallDirs)
 
 set (CMAKE_C_FLAGS "-Wall")
@@ -105,6 +106,16 @@ set (exec_prefix "${CMAKE_INSTALL_PREFIX}")
 set (libdir "${CMAKE_INSTALL_FULL_LIBDIR}")
 set (includedir "${CMAKE_INSTALL_FULL_INCLUDEDIR}")
 set (VERSION "${PROJECT_VERSION}")
+
+check_c_source_compiles("int main()
+{
+	static int counter = 0;
+	int val;
+
+	__atomic_load(&counter, &val, __ATOMIC_SEQ_CST);
+	return val;
+}" HAVE_GCC_ATOMICS)
+
 
 configure_file(config.h.cmake config.h)
 

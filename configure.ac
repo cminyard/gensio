@@ -331,6 +331,18 @@ AC_ARG_WITH(file-stdio,
 AC_DEFINE_UNQUOTED([USE_FILE_STDIO], [$USE_FILE_STDIO],
 	           [Use stdio for the file gensio])
 
+AC_LANG(C)
+AC_LINK_IFELSE([AC_LANG_PROGRAM([], [
+	static int counter = 0;
+	int val;
+
+	__atomic_load(&counter, &val, __ATOMIC_SEQ_CST);
+	return val;])],
+	[HAVE_GCC_ATOMICS=1],
+	[HAVE_GCC_ATOMICS=0])
+AC_DEFINE_UNQUOTED([HAVE_GCC_ATOMICS], [$HAVE_GCC_ATOMICS],
+	           [Are GCC atomic operations available])
+
 CPPFLAGS="$CPPFLAGS -I\$(top_srcdir)/include -I\$(top_builddir)/include"
 
 AC_OUTPUT([Makefile
