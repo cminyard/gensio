@@ -604,18 +604,23 @@ In addition to readbuf, a connecting file takes the following options:
 .TP
 .B infile=filename
 Set the input filename.
+.TP
 .B outfile=filename
 Set the output filename.
+.TP
 .B create[=true|false]
 Create the output file if it does not exist.
+.TP
 .B umode=[0-7|[rwx]*]
 Set the user file mode for the file if the file is created.  This is
 the usual read(4)/write(2)/execute(2) bitmask per chmod, but only for
 the user portion.  If not specified, it is "6" (rw) and is modified by
 the umode per standard *nix semantics.
+.TP
 .B gmode=[0-7|[rwx]*]
 Set the group file mode for the file if the file is created, see umode
 for details.
+.TP
 .B omode=[0-7|[rwx]*]
 Set the other file mode for the file if the file is created, see umode
 for details.
