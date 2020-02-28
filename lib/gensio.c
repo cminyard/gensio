@@ -1184,8 +1184,12 @@ str_to_gensio_accepter(const char *str,
     }
 
     if (strisallzero(str)) {
+#if HAVE_STDIO
 	err = stdio_gensio_accepter_alloc(NULL, o, cb, user_data,
 					  accepter);
+#else
+	err = GE_NOTSUP;
+#endif
     } else {
 	err = gensio_scan_network_port(o, str, true, &ai, &protocol,
 				       NULL, NULL, &args);
