@@ -337,7 +337,7 @@ gio_get_random(os_handler_t  *handler,
 {
     struct igensio_info *info = handler->internal_data;
 
-    return gensio_get_random(info->o, data, len);
+    return gensio_os_get_random(info->o, data, len);
 }
 
 static void

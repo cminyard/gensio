@@ -927,7 +927,7 @@ gensio_os_getsockname(struct gensio_os_funcs *o, int fd,
 }
 
 int
-gensio_setupnewprog(void)
+gensio_os_setupnewprog(void)
 {
     struct passwd *pw;
     int err;
@@ -979,8 +979,8 @@ gensio_setupnewprog(void)
 }
 
 int
-gensio_get_random(struct gensio_os_funcs *o,
-		  void *data, unsigned int len)
+gensio_os_get_random(struct gensio_os_funcs *o,
+		     void *data, unsigned int len)
 {
     int fd = open("/dev/urandom", O_RDONLY);
     int rv;
@@ -1020,13 +1020,13 @@ unsigned int gensio_dyn_scan_next(unsigned int port)
 }
 
 int
-gensio_open_socket(struct gensio_os_funcs *o,
-		   struct gensio_addr *ai,
-		   void (*readhndlr)(int, void *),
-		   void (*writehndlr)(int, void *),
-		   void (*fd_handler_cleared)(int, void *),
-		   void *data,
-		   struct opensocks **rfds, unsigned int *nr_fds)
+gensio_os_open_socket(struct gensio_os_funcs *o,
+		      struct gensio_addr *ai,
+		      void (*readhndlr)(int, void *),
+		      void (*writehndlr)(int, void *),
+		      void (*fd_handler_cleared)(int, void *),
+		      void *data,
+		      struct opensocks **rfds, unsigned int *nr_fds)
 {
     struct addrinfo *rp;
     int family = AF_INET6; /* Try IPV6 first, then IPV4. */
@@ -1184,7 +1184,7 @@ gensio_setup_listen_socket(struct gensio_os_funcs *o, bool do_listen,
 
 	if (si->start == 0) {
 	    /* Get a random port in the dynamic range. */
-	    gensio_get_random(o, &si->start, sizeof(si->start));
+	    gensio_os_get_random(o, &si->start, sizeof(si->start));
 	    si->start %= IP_DYNRANGE_END - IP_DYNRANGE_START + 1;
 	    si->start += IP_DYNRANGE_START;
 	    si->curr = si->start;
@@ -1250,7 +1250,7 @@ gensio_setup_listen_socket(struct gensio_os_funcs *o, bool do_listen,
 }
 
 const char *
-gensio_check_tcpd_ok(int new_fd)
+gensio_os_check_tcpd_ok(int new_fd)
 {
 #ifdef HAVE_TCPD_H
     struct request_info req;

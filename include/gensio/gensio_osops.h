@@ -108,10 +108,10 @@ int gensio_os_set_nodelay(struct gensio_os_funcs *o, int fd, int protocol,
 int gensio_os_getsockname(struct gensio_os_funcs *o, int fd,
 			  struct gensio_addr **addr);
 
-int gensio_setupnewprog(void);
+int gensio_os_setupnewprog(void);
 
-int gensio_get_random(struct gensio_os_funcs *o,
-		      void *data, unsigned int len);
+int gensio_os_get_random(struct gensio_os_funcs *o,
+			 void *data, unsigned int len);
 
 /*
  * Open a set of sockets given the addriner list, one per address.
@@ -123,15 +123,15 @@ int gensio_get_random(struct gensio_os_funcs *o,
  * Also, open IPV6 addresses first.  This way, addresses in shared
  * namespaces (like IPV4 and IPV6 on INADDR6_ANY) will work properly
  */
-int gensio_open_socket(struct gensio_os_funcs *o,
-		       struct gensio_addr *addr,
-		       void (*readhndlr)(int, void *),
-		       void (*writehndlr)(int, void *),
-		       void (*fd_handler_cleared)(int, void *),
-		       void *data,
-		       struct opensocks **socks, unsigned int *nr_fds);
+int gensio_os_open_socket(struct gensio_os_funcs *o,
+			  struct gensio_addr *addr,
+			  void (*readhndlr)(int, void *),
+			  void (*writehndlr)(int, void *),
+			  void (*fd_handler_cleared)(int, void *),
+			  void *data,
+			  struct opensocks **socks, unsigned int *nr_fds);
 
 /* Returns a NULL if the fd is ok, a non-NULL error string if not */
-const char *gensio_check_tcpd_ok(int new_fd);
+const char *gensio_os_check_tcpd_ok(int new_fd);
 
 #endif /* GENSIO_OSOPS_H */

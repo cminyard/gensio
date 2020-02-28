@@ -493,7 +493,7 @@ netna_readhandler(int fd, void *cbdata)
     }
 
     if (nadata->istcp) {
-	if (gensio_check_tcpd_ok(new_fd)) {
+	if (gensio_os_check_tcpd_ok(new_fd)) {
 	    gensio_acc_log(nadata->acc, GENSIO_LOG_INFO,
 			   "Error accepting net gensio: tcpd check failed");
 	    err = GE_INVAL;
@@ -583,9 +583,9 @@ netna_startup(struct gensio_accepter *accepter, struct netna_data *nadata)
     if (!nadata->istcp && nadata->delsock)
 	netna_rm_unix_socket(nadata->ai);
 
-    rv = gensio_open_socket(nadata->o, nadata->ai,
-			    netna_readhandler, NULL, netna_fd_cleared, nadata,
-			    &nadata->acceptfds, &nadata->nr_acceptfds);
+    rv = gensio_os_open_socket(nadata->o, nadata->ai, netna_readhandler,
+			       NULL, netna_fd_cleared, nadata,
+			       &nadata->acceptfds, &nadata->nr_acceptfds);
     if (!rv)
 	netna_set_fd_enables(nadata, true);
     return rv;

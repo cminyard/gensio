@@ -159,7 +159,7 @@ gensio_setup_child_on_pty(struct gensio_os_funcs *o,
 	for (i = 3; i < openfiles; i++)
 		close(i);
 
-	err = gensio_setupnewprog();
+	err = gensio_os_setupnewprog();
 	if (err) {
 	    fprintf(stderr, "Unable to set groups or user: %s\r\n",
 		    strerror(err));

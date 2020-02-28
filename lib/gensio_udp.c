@@ -1044,10 +1044,10 @@ udpna_startup(struct gensio_accepter *accepter)
 
     udpna_lock(nadata);
     if (!nadata->fds) {
-	rv = gensio_open_socket(nadata->o, nadata->ai,
-				udpna_readhandler, udpna_writehandler,
-				udpna_fd_cleared, nadata,
-				&nadata->fds, &nadata->nr_fds);
+	rv = gensio_os_open_socket(nadata->o, nadata->ai,
+				   udpna_readhandler, udpna_writehandler,
+				   udpna_fd_cleared, nadata,
+				   &nadata->fds, &nadata->nr_fds);
 	if (rv)
 	    goto out_unlock;
     }
