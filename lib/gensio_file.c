@@ -11,15 +11,17 @@
 #include <assert.h>
 #include <string.h>
 #include <errno.h>
-#include <unistd.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <sys/uio.h>
-#include <fcntl.h>
 #include <stdio.h>
 #include <gensio/gensio.h>
 #include <gensio/gensio_class.h>
 #include <gensio/argvutils.h>
+#if !USE_FILE_STDIO
+#include <sys/types.h>
+#include <unistd.h>
+#include <sys/uio.h>
+#include <fcntl.h>
+#include <sys/stat.h>
+#endif
 
 enum filen_state {
     FILEN_CLOSED,
