@@ -27,7 +27,8 @@ gtlsshd_SOURCES = gtlsshd.c
 
 noinst_HEADERS = ioinfo.h ser_ioinfo.h utils.h localports.h
 
-gensiot_LDADD = libgensiotool.a $(top_builddir)/lib/libgensio.la
+gensiot_LDADD = libgensiotool.a $(top_builddir)/lib/libgensio.la \
+	@OPENSSL_LIBS@
 
 gtlssh_LDADD = libgtlssh.a libgensiotool.a $(top_builddir)/lib/libgensio.la \
 	@OPENSSL_LIBS@
