@@ -502,6 +502,8 @@ scon_open_done(struct gensio *io, int err, void *open_data)
 	assert(!debug || err == GE_REMCLOSE || err == GE_INVAL ||
 	       err == GE_SHUTDOWN || err == GE_LOCALCLOSED ||
 	       err == GE_NOTREADY);
+	if (err == GE_INVAL)
+	    err = GE_REMCLOSE; /* Just translate this special case. */
 	id->err = err;
 	o->wake(od->waiter);
 	goto out_unlock;
