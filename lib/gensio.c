@@ -2901,3 +2901,52 @@ gensio_alloc_sprintf(struct gensio_os_funcs *o, const char *fmt, ...)
 
     return s;
 }
+
+static const char *gensio_errs[] = {
+    /*   0 */    "No error",
+    /*   1 */    "Out of memory",
+    /*   2 */    "Operation not supported",
+    /*   3 */    "Invalid data to parameter",
+    /*   4 */    "Value or file not found",
+    /*   5 */    "Value already exists",
+    /*   6 */    "Value out of range",
+    /*   7 */    "Parameters inconsistent in call",
+    /*   8 */    "No data was available for the function",
+    /*   9 */	 "OS error, see logs",
+    /*  10 */    "Object was already in use",
+    /*  11 */    "Operation is in progress",
+    /*  12 */    "Object was not ready for operation",
+    /*  13 */    "Value was too large for data",
+    /*  14 */    "Operation timed out",
+    /*  15 */    "Retry operation later",
+    /*  16 */    "Invalid error number 1",
+    /*  17 */    "Unable to find the given key",
+    /*  18 */    "Key was revoked",
+    /*  19 */    "Key was expired",
+    /*  20 */    "Key is not valid",
+    /*  21 */    "Certificate not provided",
+    /*  22 */    "Certificate is not valid",
+    /*  23 */    "Protocol error",
+    /*  24 */    "Communication error",
+    /*  25 */    "Internal I/O error",
+    /*  26 */    "Remote end closed connection",
+    /*  27 */    "Host could not be reached",
+    /*  28 */    "Connection refused",
+    /*  29 */    "Data was missing",
+    /*  30 */    "Unable to find given certificate",
+    /*  31 */    "Authentication tokens rejected",
+    /*  32 */    "Address already in use",
+    /*  33 */    "Operation was interrupted by a signal",
+    /*  34 */    "Operation on shutdown fd",
+    /*  35 */    "Local end closed connection"
+    /*  36 */    "Permission denied"
+};
+const unsigned int errno_len = sizeof(gensio_errs) / sizeof(char *);
+
+const char *
+gensio_err_to_str(int err)
+{
+    if (err < 0 || err >= errno_len)
+	return "Unknown error";
+    return gensio_errs[err];
+}
