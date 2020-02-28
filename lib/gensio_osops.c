@@ -1362,15 +1362,25 @@ sockaddr_equal(const struct sockaddr *a1, socklen_t l1,
 bool
 gensio_addr_equal(const struct gensio_addr *a1,
 		  const struct gensio_addr *a2,
-		  bool compare_ports)
+		  bool compare_ports, bool compare_all)
 {
     struct addrinfo *ai1 = a1->a, *ai2 = a2->a;
+
+    if (compare_all) {
+	ai1 = a1->a;
+	ai2 = a2->a;
+    } else {
+	ai1 = a1->curr;
+	ai2 = a2->curr;
+    }
 
     while (ai1 && ai2) {
 	if (!sockaddr_equal(ai1->ai_addr, ai1->ai_addrlen,
 			    ai2->ai_addr, ai2->ai_addrlen,
 			    compare_ports))
 	    return false;
+	if (!compare_all)
+	    return true;
 	ai1 = ai1->ai_next;
 	ai2 = ai2->ai_next;
     }

@@ -212,7 +212,7 @@ udpn_find(struct gensio_list *list, struct gensio_addr *addr)
     gensio_list_for_each(list, l) {
 	struct udpn_data *ndata = gensio_link_to_ndata(l);
 
-	if (gensio_addr_equal(ndata->raddr, addr, true))
+	if (gensio_addr_equal(ndata->raddr, addr, true, false))
 	    return ndata;
     }
 

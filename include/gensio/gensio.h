@@ -353,10 +353,13 @@ int gensio_addr_to_str_all(const struct gensio_addr *addr,
  * Compare two addresses and return TRUE if they are equal and FALSE
  * if not.  If compare_ports is false, then the port comparison is
  * ignored.
+ *
+ * If compare_all is true, verify that all the addresses are the same.
+ * If it is false, only compare the current address.
  */
 bool gensio_addr_equal(const struct gensio_addr *a1,
 		       const struct gensio_addr *a2,
-		       bool compare_ports);
+		       bool compare_ports, bool compare_all);
 
 /*
  * Create a new address stucture with the same addresses.
