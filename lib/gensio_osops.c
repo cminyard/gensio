@@ -605,6 +605,7 @@ sctp_getraddr(struct gensio_os_funcs *o,
     } if (rv == 0) {
 	return GE_NOTFOUND;
     }
+    *addrlen = rv;
     return 0;
 }
 
