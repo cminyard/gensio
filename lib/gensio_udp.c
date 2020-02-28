@@ -1437,7 +1437,7 @@ str_to_udp_gensio_accepter(const char *str, const char * const args[],
     int err;
     struct gensio_addr *ai;
 
-    err = gensio_scan_netaddr(o, str, true, GENSIO_NET_PROTOCOL_UDP, &ai);
+    err = gensio_os_scan_netaddr(o, str, true, GENSIO_NET_PROTOCOL_UDP, &ai);
     if (err)
 	return err;
 
@@ -1555,7 +1555,7 @@ str_to_udp_gensio(const char *str, const char * const args[],
     struct gensio_addr *addr;
     int err;
 
-    err = gensio_scan_netaddr(o, str, false, GENSIO_NET_PROTOCOL_UDP, &addr);
+    err = gensio_os_scan_netaddr(o, str, false, GENSIO_NET_PROTOCOL_UDP, &addr);
     if (err)
 	return err;
 

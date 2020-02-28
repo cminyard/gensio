@@ -1723,8 +1723,8 @@ gensio_scan_network_port(struct gensio_os_funcs *o, const char *str,
 }
 
 int
-gensio_scan_netaddr(struct gensio_os_funcs *o, const char *str, bool listen,
-		    int gprotocol, struct gensio_addr **raddr)
+gensio_os_scan_netaddr(struct gensio_os_funcs *o, const char *str, bool listen,
+		       int gprotocol, struct gensio_addr **raddr)
 {
     int family = AF_UNSPEC, protocol, socktype;
     bool is_port_set;

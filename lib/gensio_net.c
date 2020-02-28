@@ -333,7 +333,7 @@ str_to_net_gensio(const char *str, const char * const args[],
     struct gensio_addr *addr;
     int err;
 
-    err = gensio_scan_netaddr(o, str, false, protocol, &addr);
+    err = gensio_os_scan_netaddr(o, str, false, protocol, &addr);
     if (err)
 	return err;
 
@@ -918,7 +918,7 @@ str_to_net_gensio_accepter(const char *str, const char * const args[],
     int err;
     struct gensio_addr *ai;
 
-    err = gensio_scan_netaddr(o, str, true, protocol, &ai);
+    err = gensio_os_scan_netaddr(o, str, true, protocol, &ai);
     if (err)
 	return err;
 

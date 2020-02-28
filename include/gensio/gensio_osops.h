@@ -82,6 +82,15 @@ int gensio_os_sctp_open_socket(struct gensio_os_funcs *o,
 			       void *data,
 			       struct opensocks **socks, unsigned int *nr_fds);
 
+/*
+ * Take a string in the form [ipv4|ipv6,][hostname,]port and convert
+ * it to an addr structure.  If this returns success, the user
+ * must free rai with gensio_free_addr().  If protocol is
+ * non-zero, allocate for the given protocol only.  The value of
+ * protocol is the same as for gensio_scan_network_port().
+ */
+int gensio_os_scan_netaddr(struct gensio_os_funcs *o, const char *str,
+			   bool listen, int protocol, struct gensio_addr **rai);
 
 int gensio_os_close(struct gensio_os_funcs *o, int fd);
 

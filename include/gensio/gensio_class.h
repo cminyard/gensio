@@ -285,14 +285,4 @@ int register_filter_gensio(struct gensio_os_funcs *o,
 			   str_to_gensio_child_handler chandler);
 
 
-/*
- * Take a string in the form [ipv4|ipv6,][hostname,]port and convert
- * it to an addr structure.  If this returns success, the user
- * must free rai with gensio_free_addr().  If protocol is
- * non-zero, allocate for the given protocol only.  The value of
- * protocol is the same as for gensio_scan_network_port().
- */
-int gensio_scan_netaddr(struct gensio_os_funcs *o, const char *str, bool listen,
-			int protocol, struct gensio_addr **rai);
-
 #endif /* GENSIO_CLASS_H */
