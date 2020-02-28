@@ -21,17 +21,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <signal.h>
-#include <errno.h>
 #include <assert.h>
-#include <sys/wait.h>
+#include <errno.h>
 #include <gensio/gensio.h>
 #include <gensio/gensio_selector.h>
 #include "pthread_handler.h"
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <unistd.h>
-#include <fcntl.h>
 
 struct oom_tests {
     const char *connecter;
@@ -42,6 +36,10 @@ struct oom_tests {
     bool allow_pass_on_oom;
 };
 
+#if HAVE_SERIALDEV
+#include <sys/type.h>
+#include <sys/stat.h>
+#include <unistd.h>
 bool
 file_is_accessible_dev(const char *filename)
 {
@@ -63,10 +61,12 @@ file_is_accessible_dev(const char *filename)
 	return false;
     }
 }
+#endif
 
 static bool
 check_serialdev_present(struct gensio_os_funcs *o, struct oom_tests *test)
 {
+#if HAVE_SERIALDEV
     const char *e = getenv("GENSIO_TEST_ECHO_DEV");
 
     if (e) {
@@ -89,6 +89,9 @@ check_serialdev_present(struct gensio_os_funcs *o, struct oom_tests *test)
 	return false;
     }
     return true;
+#else
+    return false;
+#endif
 }
 
 static bool
