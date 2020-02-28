@@ -37,9 +37,10 @@ struct oom_tests {
 };
 
 #if HAVE_SERIALDEV
-#include <sys/type.h>
+#include <sys/types.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <fcntl.h>
 bool
 file_is_accessible_dev(const char *filename)
 {

@@ -13,6 +13,10 @@
 
 #include <gensio/argvutils.h>
 
+#ifndef HAVE_STRCASECMP
+int strcasecmp(const char *s1, const char *s2);
+#endif
+
 /*
  * Returns true if the first strlen(prefix) characters of s are the
  * same as prefix.  If true is returned, val is set to the character

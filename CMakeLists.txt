@@ -119,6 +119,17 @@ check_c_source_compiles("int main()
 }" HAVE_GCC_ATOMICS)
 
 check_symbol_exists(isatty unistd.h HAVE_ISATTY)
+check_symbol_exists(strcasecmp string.h HAVE_STRCASECMP)
+
+if(UNIX)
+  set(HAVE_STDIO 1)
+  set(HAVE_SERIALDEV 1)
+  set(HAVE_PTY 1)
+else()
+  set(HAVE_STDIO 0)
+  set(HAVE_SERIALDEV 0)
+  set(HAVE_PTY 0)
+endif()
 
 configure_file(config.h.cmake config.h)
 
