@@ -1997,7 +1997,8 @@ mux_child_write_ready(struct mux_data *muxdata)
 		assert(chan->sgpos <= 3);
 	    } else {
 		chan->sg[chan->sgpos].buflen -= rcount;
-		chan->sg[chan->sgpos].buf += rcount;
+		chan->sg[chan->sgpos].buf =
+		    ((char *) chan->sg[chan->sgpos].buf) + rcount;
 		rcount = 0;
 	    }
 	}
