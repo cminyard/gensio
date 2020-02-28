@@ -53,7 +53,7 @@ else
 fi
 
 if ${PYTHON_MODE}; then
-    export PYTHONPATH=${BUILDDIR}/swig/python:${TEST_BUILDDIR}
+    export PYTHONPATH=${BUILDDIR}/swig/python:${BUILDDIR}/swig/python/.libs:${TEST_BUILDDIR}
     export LD_LIBRARY_PATH=${BUILDDIR}/lib:${BUILDDIR}/lib/.libs
     TEST="${PYTHON} ${TEST}"
 else
