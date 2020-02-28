@@ -345,6 +345,7 @@ AC_DEFINE_UNQUOTED([HAVE_GCC_ATOMICS], [$HAVE_GCC_ATOMICS],
 
 AC_CHECK_FUNCS(isatty)
 AC_CHECK_FUNCS(strcasecmp)
+AC_CHECK_FUNCS(strncasecmp)
 
 CPPFLAGS="$CPPFLAGS -I\$(top_srcdir)/include -I\$(top_builddir)/include"
 

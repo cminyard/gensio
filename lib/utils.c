@@ -366,3 +366,27 @@ strcasecmp(const char *s1, const char *s2)
     return 0;
 }
 #endif
+
+#ifndef HAVE_STRNCASECMP
+int
+strncasecmp(const char *s1, const char *s2, int n)
+{
+    while (s1 && s2 && n) {
+	char c1 = tolower(*s1);
+	char c2 = tolower(*s2);
+
+	if (c1 < c2)
+	    return -1;
+	if (c1 > c2)
+	    return 1;
+
+	if (!c1 || !c2)
+	    break;
+
+	s1++;
+	s2++;
+	n--;
+    }
+    return 0;
+}
+#endif

@@ -16,6 +16,9 @@
 #ifndef HAVE_STRCASECMP
 int strcasecmp(const char *s1, const char *s2);
 #endif
+#ifndef HAVE_STRNCASECMP
+int strncasecmp(const char *s1, const char *s2, int n);
+#endif
 
 /*
  * Returns true if the first strlen(prefix) characters of s are the
