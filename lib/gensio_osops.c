@@ -1458,7 +1458,7 @@ scan_ips(struct gensio_os_funcs *o, const char *str, bool listen, int ifamily,
 {
     char *strtok_data, *strtok_buffer;
     struct gensio_addr *addr;
-    struct addrinfo hints, *ai, *ai2, *pai = NULL;
+    struct addrinfo hints, *ai = NULL, *ai2, *pai = NULL;
     char *ip;
     char *port;
     unsigned int portnum;
@@ -1541,6 +1541,7 @@ scan_ips(struct gensio_os_funcs *o, const char *str, bool listen, int ifamily,
 
 	if (!addr->a) {
 	    addr->a = ai;
+	    ai = NULL;
 	    addr->is_getaddrinfo = true;
 	} else {
 	    if (!pai) {
@@ -1552,10 +1553,10 @@ scan_ips(struct gensio_os_funcs *o, const char *str, bool listen, int ifamily,
 		addr->a = ai2;
 	    }
 	    rv = addrinfo_list_dup(o, ai, NULL, &pai);
-	    if (rv) {
-		freeaddrinfo(ai);
+	    freeaddrinfo(ai);
+	    ai = NULL;
+	    if (rv)
 		goto out_err;
-	    }
 	}
 
 	ip = strtok_r(NULL, ",", &strtok_data);
@@ -1575,6 +1576,8 @@ scan_ips(struct gensio_os_funcs *o, const char *str, bool listen, int ifamily,
     *raddr = addr;
 
  out_err:
+    if (ai)
+	freeaddrinfo(ai);
     if (rv)
 	gensio_addr_free(addr);
     o->free(o, strtok_buffer);
@@ -1635,11 +1638,6 @@ gensio_scan_unixaddr(struct gensio_os_funcs *o, const char *str, bool doargs,
  out_nomem:
     if (args)
 	gensio_argv_free(o, args);
-    if (addr) {
-	if (addr->a)
-	    o->free(o, addr->a);
-	o->free(o, addr);
-    }
     return GE_NOMEM;
 #else
     return GE_NOTSUP;
@@ -1858,12 +1856,13 @@ addrinfo_list_dup(struct gensio_os_funcs *o,
 struct gensio_addr *
 gensio_addr_dup(struct gensio_addr *iaddr)
 {
-    struct gensio_os_funcs *o = iaddr->o;
+    struct gensio_os_funcs *o;
     struct gensio_addr *addr;
 
     if (!iaddr)
 	return NULL;
 
+    o = iaddr->o;
     addr = o->zalloc(o, sizeof(*addr));
     if (!addr)
 	return NULL;
@@ -1941,11 +1940,12 @@ gensio_addr_addr_present(const struct gensio_addr *gai,
 void
 gensio_addr_free(struct gensio_addr *addr)
 {
-    struct gensio_os_funcs *o = addr->o;
+    struct gensio_os_funcs *o;
 
     if (!addr)
 	return;
 
+    o = addr->o;
 #if HAVE_GCC_ATOMICS
     if (__atomic_sub_fetch(addr->refcount, 1, __ATOMIC_SEQ_CST) != 0) {
 	o->free(o, addr);
