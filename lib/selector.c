@@ -1164,7 +1164,7 @@ process_fds_epoll(struct selector_s *sel, struct timeval *tvtimeout,
 int
 sel_setup_forked_process(struct selector_s *sel)
 {
-    unsigned int i;
+    int i;
 
     /*
      * More epoll stupidity.  In a forked process we must create a new
