@@ -39,7 +39,6 @@ set(UNIX_LIBFILES
   sergensio_serialdev.c
   uucplock.c
   gensio_pty.c
-  waiter.c
   gensio_osops.c
   gensio_selector.c)
 
