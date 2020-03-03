@@ -15,7 +15,19 @@ gensio_set_sync, gensio_clear_sync, gensio_read_s, gensio_write_s
 .br
 .B                   struct timeval *timeout);
 .TP 20
+.B int gensio_read_s_intr(struct gensio *io, gensiods *count,
+.br
+.B                   void *data, gensiods datalen,
+.br
+.B                   struct timeval *timeout);
+.TP 20
 .B int gensio_write_s(struct gensio *io, gensiods *count,
+.br
+.B                    const void *data, gensiods datalen,
+.br
+.B                    struct timeval *timeout);
+.TP 20
+.B int gensio_write_s_intr(struct gensio *io, gensiods *count,
 .br
 .B                    const void *data, gensiods datalen,
 .br
@@ -92,6 +104,20 @@ This function waits for the amount of time in
 is updated to the amount of time left to wait.  If
 .I timeout
 is NULL, wait forever.
+
+.B gensio_read_s_intr
+and
+.B gensio_write_s_intr
+are like
+.B gensio_read_s
+and
+.B gensio_write_s,
+but they return immediately if an signal interrupt occurs.  On systems
+without signals, these are the same as
+.B gensio_read_s
+and
+.B gensio_write_s.
+
 .SH "RETURN VALUES"
 Zero is returned on success, or a gensio error on failure.
 .SH "SEE ALSO"

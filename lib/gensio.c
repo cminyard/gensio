@@ -2607,9 +2607,9 @@ gensio_clear_sync(struct gensio *io)
     return 0;
 }
 
-int
-gensio_read_s(struct gensio *io, gensiods *count, void *data, gensiods datalen,
-	      struct timeval *timeout)
+static int
+i_gensio_read_s(struct gensio *io, gensiods *count, void *data, gensiods datalen,
+		struct timeval *timeout, bool return_on_intr)
 {
     struct gensio_os_funcs *o = io->o;
     struct gensio_sync_io *sync_io = io->sync_io;
@@ -2642,7 +2642,12 @@ gensio_read_s(struct gensio *io, gensiods *count, void *data, gensiods datalen,
     gensio_list_add_tail(&sync_io->readops, &op.link);
 
     o->unlock(sync_io->lock);
-    o->wait_intr(op.waiter, 1, timeout);
+ retry:
+    rv = o->wait_intr(op.waiter, 1, timeout);
+    if (!return_on_intr && rv == GE_INTERRUPTED)
+	goto retry;
+    if (rv == GE_TIMEDOUT)
+	rv = 0;
     o->lock(sync_io->lock);
     if (op.err) {
 	rv = op.err;
@@ -2663,9 +2668,23 @@ gensio_read_s(struct gensio *io, gensiods *count, void *data, gensiods datalen,
 }
 
 int
-gensio_write_s(struct gensio *io, gensiods *count,
-	       const void *data, gensiods datalen,
-	       struct timeval *timeout)
+gensio_read_s(struct gensio *io, gensiods *count, void *data, gensiods datalen,
+	      struct timeval *timeout)
+{
+    return i_gensio_read_s(io, count, data, datalen, timeout, false);
+}
+
+int
+gensio_read_s_intr(struct gensio *io, gensiods *count, void *data,
+		   gensiods datalen, struct timeval *timeout)
+{
+    return i_gensio_read_s(io, count, data, datalen, timeout, true);
+}
+
+static int
+i_gensio_write_s(struct gensio *io, gensiods *count,
+		 const void *data, gensiods datalen,
+		 struct timeval *timeout, bool return_on_intr)
 {
     struct gensio_os_funcs *o = io->o;
     struct gensio_sync_io *sync_io = io->sync_io;
@@ -2700,7 +2719,12 @@ gensio_write_s(struct gensio *io, gensiods *count,
     gensio_list_add_tail(&sync_io->writeops, &op.link);
 
     o->unlock(sync_io->lock);
-    o->wait_intr(op.waiter, 1, timeout);
+ retry:
+    rv = o->wait_intr(op.waiter, 1, timeout);
+    if (!return_on_intr && rv == GE_INTERRUPTED)
+	goto retry;
+    if (rv == GE_TIMEDOUT)
+	rv = 0;
     o->lock(sync_io->lock);
     if (op.queued)
 	gensio_list_rm(&sync_io->writeops, &op.link);
@@ -2718,6 +2742,22 @@ gensio_write_s(struct gensio *io, gensiods *count,
 }
 
 int
+gensio_write_s(struct gensio *io, gensiods *count,
+	       const void *data, gensiods datalen,
+	       struct timeval *timeout)
+{
+    return i_gensio_write_s(io, count, data, datalen, timeout, false);
+}
+
+int
+gensio_write_s_intr(struct gensio *io, gensiods *count,
+		    const void *data, gensiods datalen,
+		    struct timeval *timeout)
+{
+    return i_gensio_write_s(io, count, data, datalen, timeout, true);
+}
+
+int
 gensio_acc_set_sync(struct gensio_accepter *acc)
 {
     if (acc->enabled)
@@ -2726,9 +2766,9 @@ gensio_acc_set_sync(struct gensio_accepter *acc)
     return 0;
 }
 
-int
-gensio_acc_accept_s(struct gensio_accepter *acc, struct timeval *timeout,
-		    struct gensio **new_io)
+static int
+i_gensio_acc_accept_s(struct gensio_accepter *acc, struct timeval *timeout,
+		      struct gensio **new_io, bool return_on_intr)
 {
     struct gensio_os_funcs *o = acc->o;
     struct gensio_waiting_accept wa;
@@ -2746,7 +2786,12 @@ gensio_acc_accept_s(struct gensio_accepter *acc, struct timeval *timeout,
 	goto got_one;
     gensio_list_add_tail(&acc->waiting_accepts, &wa.link);
     o->unlock(acc->lock);
-    o->wait_intr(wa.waiter, 1, timeout);
+ retry:
+    rv = o->wait_intr(wa.waiter, 1, timeout);
+    if (!return_on_intr && rv == GE_INTERRUPTED)
+	goto retry;
+    if (rv == GE_TIMEDOUT)
+	rv = 0;
     o->lock(acc->lock);
     if (wa.queued) {
 	rv = GE_TIMEDOUT;
@@ -2765,6 +2810,20 @@ gensio_acc_accept_s(struct gensio_accepter *acc, struct timeval *timeout,
     o->free_waiter(wa.waiter);
 
     return rv;
+}
+
+int
+gensio_acc_accept_s(struct gensio_accepter *acc, struct timeval *timeout,
+		    struct gensio **new_io)
+{
+    return i_gensio_acc_accept_s(acc, timeout, new_io, false);
+}
+
+int
+gensio_acc_accept_s_intr(struct gensio_accepter *acc, struct timeval *timeout,
+			 struct gensio **new_io)
+{
+    return i_gensio_acc_accept_s(acc, timeout, new_io, true);
 }
 
 bool

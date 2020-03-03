@@ -1,6 +1,6 @@
 .TH gensio_acc_accept_s 3 "27 Jan 2020"
 .SH NAME
-gensio_acc_set_sync, gensio_acc_accept_s
+gensio_acc_set_sync, gensio_acc_accept_s, gensio_acc_accept_s_intr
 \- Synchronous I/O operations on a gensio accepter
 .SH SYNOPSIS
 .B #include <gensio/gensio.h>
@@ -8,6 +8,12 @@ gensio_acc_set_sync, gensio_acc_accept_s
 .B int gensio_acc_set_sync(struct gensio_accepter *acc);
 .TP 20
 .B int gensio_acc_accept_s(struct gensio_accepter *acc,
+.br
+.B                         struct timeval *timeout,
+.br
+.B                         struct gensio **new_io);
+.TP 20
+.B int gensio_acc_accept_s_intr(struct gensio_accepter *acc,
 .br
 .B                         struct timeval *timeout,
 .br
@@ -39,6 +45,12 @@ is NULL, wait forever.  If no error is returned, the new incoming
 connection is returned in
 .I new_io.
 
+.B gensio_accept_s_intr
+is like
+.B gensio_accept_s,
+but it return immediately if an signal interrupt occurs.  On systems
+without signals, this is the same as
+.B gensio_accept_s.
 .SH "RETURN VALUES"
 Zero is returned on success, or a gensio error on failure.
 .SH "SEE ALSO"

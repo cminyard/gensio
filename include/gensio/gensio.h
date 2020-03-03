@@ -173,9 +173,15 @@ int gensio_clear_sync(struct gensio *io);
 int gensio_read_s(struct gensio *io, gensiods *count,
 		  void *data, gensiods datalen,
 		  struct timeval *timeout);
+int gensio_read_s_intr(struct gensio *io, gensiods *count,
+		       void *data, gensiods datalen,
+		       struct timeval *timeout);
 int gensio_write_s(struct gensio *io, gensiods *count,
 		   const void *data, gensiods datalen,
 		   struct timeval *timeout);
+int gensio_write_s_intr(struct gensio *io, gensiods *count,
+			const void *data, gensiods datalen,
+			struct timeval *timeout);
 
 
 struct gensio_accepter;
@@ -264,6 +270,9 @@ int gensio_acc_set_sync(struct gensio_accepter *acc);
 
 int gensio_acc_accept_s(struct gensio_accepter *acc, struct timeval *timeout,
 			struct gensio **new_io);
+int gensio_acc_accept_s_intr(struct gensio_accepter *acc,
+			     struct timeval *timeout,
+			     struct gensio **new_io);
 
 int gensio_acc_str_to_gensio(struct gensio_accepter *accepter,
 			     const char *str,

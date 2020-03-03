@@ -539,6 +539,12 @@ class gensio:
         """
         return { bytes(""), 0 }
 
+    def read_s_intr(self, reqlen, timeout):
+        """Like read_s, but raises an exception for GE_INTERRUPTED if a
+        signal comes in while waiting.
+        """
+        return { bytes(""), 0 }
+
     def write_s(self, bytestr, timeout):
         """Attempt to write the given byte string to the gensio.  This
         will wait up to timeout milliseconds for the write to complete.
@@ -550,6 +556,12 @@ class gensio:
         Returns a sequence with two items: the number of bytes
         actually written and the number of milliseconds left on the
         timeout.
+        """
+        return { 0, 0 }
+
+    def write_s_intr(self, bytestr, timeout):
+        """Like write_s, but raises an exception for GE_INTERRUPTED if a
+        signal comes in while waiting.
         """
         return { 0, 0 }
 
@@ -958,6 +970,18 @@ class gensio_accepter:
 
         def accept_s_timeout(self, o, handler, timeout):
             """Like accept_s, but takes a timeout in milliseconds.  Returns
+            a tuple with the new gensio as the first item (or None if timed out)
+            and the remaining time as the second item."""
+            return
+
+        def accept_s_intr(self, o, handler):
+            """Wait for an incoming connection on the accepter.  Returns the
+            new gensio.  If a signal comes in while waiting, raise an
+            exception for GE_INTERRUPTED."""
+            return
+
+        def accept_s_intr_timeout(self, o, handler, timeout):
+            """Like accept_s_intr, but takes a timeout in milliseconds.  Returns
             a tuple with the new gensio as the first item (or None if timed out)
             and the remaining time as the second item."""
             return

@@ -514,6 +514,36 @@ struct waiter { };
 	err_handle("read_s", rv);
     }
 
+    %rename(read_s_intr) read_s_intrt;
+    void read_s_intrt(char **rbuffer, size_t *rbuffer_len, long *r_int,
+		      unsigned int reqlen, long timeout) {
+	int rv;
+	struct timeval tv = { timeout / 1000, timeout % 1000 * 1000 };
+	struct timeval *rtv = &tv;
+	char *buf = malloc(reqlen);
+	gensiods count = 0;
+
+	if (!buf) {
+	    rv = GE_NOMEM;
+	    goto out;
+	}
+	if (timeout < 0)
+	    rtv = NULL;
+	rv = gensio_read_s_intr(self, &count, buf, reqlen, rtv);
+	if (rv) {
+	    free(buf);
+	} else {
+	    *rbuffer = buf;
+	    *rbuffer_len = count;
+	}
+	if (rtv)
+	    *r_int = rtv->tv_sec * 1000 + ((rtv->tv_usec + 500) / 1000);
+	else
+	    *r_int = 0;
+    out:
+	err_handle("read_s_intr", rv);
+    }
+
     %rename(write_s) write_st;
     long write_st(long *r_int, char *bytestr, my_ssize_t len, long timeout) {
 	int rv;
@@ -525,6 +555,25 @@ struct waiter { };
 	    rtv = NULL;
 	rv = gensio_write_s(self, &count, bytestr, len, rtv);
 	err_handle("write_s", rv);
+	if (rtv)
+	    *r_int = rtv->tv_sec * 1000 + ((rtv->tv_usec + 500) / 1000);
+	else
+	    *r_int = 0;
+	return count;
+    }
+
+    %rename(write_s_intr) write_s_intrt;
+    long write_s_intrt(long *r_int, char *bytestr, my_ssize_t len,
+		       long timeout) {
+	int rv;
+	struct timeval tv = { timeout / 1000, timeout % 1000 * 1000 };
+	struct timeval *rtv = &tv;
+	gensiods count = 0;
+
+	if (timeout < 0)
+	    rtv = NULL;
+	rv = gensio_write_s_intr(self, &count, bytestr, len, rtv);
+	err_handle("write_s_intr", rv);
 	if (rtv)
 	    *r_int = rtv->tv_sec * 1000 + ((rtv->tv_usec + 500) / 1000);
 	else
@@ -940,6 +989,52 @@ struct waiter { };
 	if (rv) {
 	    free_gensio_data(data);
 	    err_handle("accept_s", rv);
+	} else {
+	    gensio_set_callback(io, gensio_child_event, data);
+	}
+
+	return io;
+    }
+
+    void accept_s_intr_timeout(struct gensio **io, long *r_int,
+			       struct gensio_os_funcs *o,
+			       swig_cb *handler, int timeout) {
+	struct timeval tv = { timeout / 1000, timeout % 1000 * 1000 };
+	int rv;
+	struct gensio_data *data = alloc_gensio_data(o, handler);
+
+	*io = NULL;
+	*r_int = 0;
+	if (!data) {
+	    rv = GE_NOMEM;
+	    goto out_err;
+	}
+	rv = gensio_acc_accept_s_intr(self, &tv, io);
+	if (rv) {
+	    free_gensio_data(data);
+	    if (rv == GE_TIMEDOUT)
+		return;
+	    goto out_err;
+	}
+
+	*r_int = tv.tv_sec * 1000 + ((tv.tv_usec + 500) / 1000);
+	gensio_set_callback(*io, gensio_child_event, data);
+	return;
+
+    out_err:
+	err_handle("accept_s_intr_timeout", rv);
+    }
+
+    %newobject accept_s_intr;
+    struct gensio *accept_s_intr(struct gensio_os_funcs *o, swig_cb *handler) {
+	struct gensio *io = NULL;
+	struct gensio_data *data = alloc_gensio_data(o, handler);
+	int rv;
+
+	rv = gensio_acc_accept_s_intr(self, NULL, &io);
+	if (rv) {
+	    free_gensio_data(data);
+	    err_handle("accept_s_intr", rv);
 	} else {
 	    gensio_set_callback(io, gensio_child_event, data);
 	}
