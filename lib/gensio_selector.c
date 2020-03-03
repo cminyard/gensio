@@ -13,6 +13,7 @@
 #include "pthread_handler.h"
 
 #include <gensio/gensio_selector.h>
+#include <gensio/selector.h>
 
 #include "utils.h"
 #include <stdlib.h>

@@ -9,7 +9,8 @@
 #define GENSIO_SELECTOR_H
 
 #include <gensio/gensio.h>
-#include <gensio/selector.h>
+
+struct selector_s; /* Don't include selector.h to reduce namespace pollution. */
 
 /*
  * Allocate a selector-based os funcs.  Noe that the selector will
