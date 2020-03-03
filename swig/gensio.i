@@ -488,7 +488,7 @@ struct waiter { };
     void read_st(char **rbuffer, size_t *rbuffer_len, long *r_int,
 		 unsigned int reqlen, long timeout) {
 	int rv;
-	struct timeval tv = { timeout / 1000, timeout % 1000 };
+	struct timeval tv = { timeout / 1000, timeout % 1000 * 1000 };
 	struct timeval *rtv = &tv;
 	char *buf = malloc(reqlen);
 	gensiods count = 0;
@@ -517,7 +517,7 @@ struct waiter { };
     %rename(write_s) write_st;
     long write_st(long *r_int, char *bytestr, my_ssize_t len, long timeout) {
 	int rv;
-	struct timeval tv = { timeout / 1000, timeout % 1000 };
+	struct timeval tv = { timeout / 1000, timeout % 1000 * 1000 };
 	struct timeval *rtv = &tv;
 	gensiods count = 0;
 
@@ -904,7 +904,7 @@ struct waiter { };
     void accept_s_timeout(struct gensio **io, long *r_int,
 			  struct gensio_os_funcs *o,
 			  swig_cb *handler, int timeout) {
-	struct timeval tv = { timeout / 1000, timeout % 1000 };
+	struct timeval tv = { timeout / 1000, timeout % 1000 * 1000 };
 	int rv;
 	struct gensio_data *data = alloc_gensio_data(o, handler);
 
@@ -1023,7 +1023,7 @@ struct waiter { };
     }
 
     long wait_timeout(unsigned int count, int timeout) {
-	struct timeval tv = { timeout / 1000, timeout % 1000 };
+	struct timeval tv = { timeout / 1000, timeout % 1000 * 1000 };
 
 	gensio_do_wait(self, count, &tv);
 	return tv.tv_sec * 1000 + ((tv.tv_usec + 500) / 1000);
