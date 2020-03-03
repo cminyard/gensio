@@ -214,7 +214,6 @@ struct os_funcs_data {
     pthread_mutex_t lock;
 #endif
     unsigned int refcount;
-    struct selector_s *sel;
     swig_cb_val *log_handler;
 };
 
@@ -256,7 +255,6 @@ check_os_funcs_free(struct gensio_os_funcs *o)
 	os_funcs_unlock(odata);
 	if (odata->log_handler)
 	    deref_swig_cb_val(odata->log_handler);
-	sel_free_selector(odata->sel);
 	free(odata);
 	o->free_funcs(o);
     } else {

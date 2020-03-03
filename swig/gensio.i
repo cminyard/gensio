@@ -137,40 +137,6 @@ gensio_do_wait(struct waiter *waiter, unsigned int count,
 }
 
 #ifdef USE_POSIX_THREADS
-struct sel_lock_s {
-    pthread_mutex_t lock;
-};
-
-static sel_lock_t *
-gensio_alloc_lock(void *cb_data)
-{
-    struct sel_lock_s *lock;
-
-    lock = malloc(sizeof(*lock));
-    if (!lock)
-	return NULL;
-    pthread_mutex_init(&lock->lock, NULL);
-    return lock;
-}
-
-static void
-gensio_free_lock(sel_lock_t *lock)
-{
-    free(lock);
-}
-
-static void
-gensio_lock(sel_lock_t *lock)
-{
-    pthread_mutex_lock(&lock->lock);
-}
-
-static void
-gensio_unlock(sel_lock_t *lock)
-{
-    pthread_mutex_unlock(&lock->lock);
-}
-
 static void
 gensio_thread_sighandler(int sig)
 {
@@ -180,7 +146,6 @@ gensio_thread_sighandler(int sig)
 
 struct gensio_os_funcs *alloc_gensio_selector(swig_cb *log_handler)
 {
-    struct selector_s *sel;
     struct gensio_os_funcs *o;
     struct os_funcs_data *odata;
     int err;
@@ -198,13 +163,8 @@ struct gensio_os_funcs *alloc_gensio_selector(swig_cb *log_handler)
 		strerror(errno));
 	exit(1);
     }
-
-    err = sel_alloc_selector_thread(&sel, SIGUSR1,
-				    gensio_alloc_lock, gensio_free_lock,
-				    gensio_lock, gensio_unlock, NULL);
 #else
     wake_sig = 0;
-    err = sel_alloc_selector_nothread(&sel);
 #endif
     if (err) {
 	fprintf(stderr, "Unable to allocate selector: %s, giving up\n",
@@ -218,12 +178,11 @@ struct gensio_os_funcs *alloc_gensio_selector(swig_cb *log_handler)
     pthread_mutex_init(&odata->lock, NULL);
 #endif
 
-    o = gensio_selector_alloc(sel, wake_sig);
+    o = gensio_selector_alloc(wake_sig);
     if (!o) {
 	fprintf(stderr, "Unable to allocate gensio os funcs, giving up\n");
 	exit(1);
     }
-    odata->sel = sel;
     o->other_data = odata;
     if (log_handler)
 	odata->log_handler = ref_swig_cb(log_handler, gensio_log);

@@ -20,6 +20,7 @@
 
 struct gensio_data {
     struct selector_s *sel;
+    bool freesel;
     int wake_sig;
 };
 
@@ -405,23 +406,11 @@ wait_for_waiter_timeout(waiter_t *waiter, unsigned int count,
     return i_wait_for_waiter_timeout(waiter, count, timeout, false, NULL);
 }
 
-static void
-wait_for_waiter(waiter_t *waiter, unsigned int count)
-{
-    wait_for_waiter_timeout(waiter, count, NULL);
-}
-
 static int
 wait_for_waiter_timeout_intr(waiter_t *waiter, unsigned int count,
 			     gensio_time *timeout)
 {
     return i_wait_for_waiter_timeout(waiter, count, timeout, true, NULL);
-}
-
-static int
-wait_for_waiter_intr(waiter_t *waiter, unsigned int count)
-{
-    return wait_for_waiter_timeout_intr(waiter, count, NULL);
 }
 
 static int
@@ -858,6 +847,10 @@ gensio_sel_service(struct gensio_os_funcs *f, gensio_time *timeout)
 static void
 gensio_sel_free_funcs(struct gensio_os_funcs *f)
 {
+    struct gensio_data *d = f->user_data;
+
+    if (d->freesel)
+	sel_free_selector(d->sel);
     free(f->user_data);
     free(f);
 }
@@ -898,7 +891,7 @@ gensio_handle_fork(struct gensio_os_funcs *f)
 }
 
 struct gensio_os_funcs *
-gensio_selector_alloc(struct selector_s *sel, int wake_sig)
+gensio_selector_alloc_sel(struct selector_s *sel, int wake_sig)
 {
     struct gensio_data *d;
     struct gensio_os_funcs *o;
@@ -994,9 +987,11 @@ void defsel_unlock(sel_lock_t *l)
 static pthread_once_t defos_once = PTHREAD_ONCE_INIT;
 #endif
 
-void defoshnd_init(void)
+struct gensio_os_funcs *
+gensio_selector_alloc(int wake_sig)
 {
     struct selector_s *sel;
+    struct gensio_os_funcs *o;
     int rv;
 
 #ifdef USE_PTHREADS
@@ -1007,11 +1002,24 @@ void defoshnd_init(void)
     rv = sel_alloc_selector_nothread(&sel);
 #endif
     if (rv)
-	return;
+	return NULL;
 
-    defoshnd = gensio_selector_alloc(sel, defoshnd_wake_sig);
-    if (!defoshnd)
+    o = gensio_selector_alloc_sel(sel, wake_sig);
+    if (o) {
+	struct gensio_data *d = o->user_data;
+
+	d->freesel = true;
+    } else {
 	sel_free_selector(sel);
+    }
+
+    return o;
+}
+
+static void
+defoshnd_init(void)
+{
+    defoshnd = gensio_selector_alloc(defoshnd_wake_sig);
 }
 
 int
