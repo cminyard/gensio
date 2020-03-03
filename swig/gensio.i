@@ -178,7 +178,7 @@ struct gensio_os_funcs *alloc_gensio_selector(swig_cb *log_handler)
     pthread_mutex_init(&odata->lock, NULL);
 #endif
 
-    o = gensio_selector_alloc(wake_sig);
+    o = gensio_selector_alloc(NULL, wake_sig);
     if (!o) {
 	fprintf(stderr, "Unable to allocate gensio os funcs, giving up\n");
 	exit(1);

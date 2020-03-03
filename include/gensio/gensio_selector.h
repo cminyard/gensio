@@ -8,25 +8,23 @@
 #ifndef GENSIO_SELECTOR_H
 #define GENSIO_SELECTOR_H
 
-#include <gensio/gensio.h>
+#include <gensio/gensio_os_funcs.h>
 
 struct selector_s; /* Don't include selector.h to reduce namespace pollution. */
 
 /*
- * Allocate a selector-based os funcs.  Noe that the selector will
- * *not* be freed when the os funcs are freed, you must do that if
- * necessary.
- */
-struct gensio_os_funcs *gensio_selector_alloc_sel(struct selector_s *sel,
-						  int wake_sig);
-
-/*
- * Allcoate a selector-based os funcs, allocating a selector along
+ * Allocate a selector-based os funcs.
+ *
+ * If you pass in NULL for sel, this will allocate a selector along
  * with it.  The default thread model is chosen.  The selector
  * allocated is freed when the os funcs are freed, since you can't get
  * to it :-).
+ *
+ * If you pass in a selector, it will not be freed when the return
+ * structure is freed.
  */
-struct gensio_os_funcs *gensio_selector_alloc(int wake_sig);
+struct gensio_os_funcs *gensio_selector_alloc(struct selector_s *sel,
+					      int wake_sig);
 
 /* For testing, do not use in normal code. */
 void gensio_sel_exit(int rv);

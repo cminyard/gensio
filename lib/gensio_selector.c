@@ -14,6 +14,7 @@
 
 #include <gensio/gensio_selector.h>
 #include <gensio/selector.h>
+#include <gensio/gensio.h>
 
 #include "utils.h"
 #include <stdlib.h>
@@ -891,7 +892,7 @@ gensio_handle_fork(struct gensio_os_funcs *f)
     return sel_setup_forked_process(d->sel);
 }
 
-struct gensio_os_funcs *
+static struct gensio_os_funcs *
 gensio_selector_alloc_sel(struct selector_s *sel, int wake_sig)
 {
     struct gensio_data *d;
@@ -989,28 +990,32 @@ static pthread_once_t defos_once = PTHREAD_ONCE_INIT;
 #endif
 
 struct gensio_os_funcs *
-gensio_selector_alloc(int wake_sig)
+gensio_selector_alloc(struct selector_s *sel, int wake_sig)
 {
-    struct selector_s *sel;
     struct gensio_os_funcs *o;
+    bool freesel = false;
     int rv;
 
+    if (!sel) {
 #ifdef USE_PTHREADS
-    rv = sel_alloc_selector_thread(&sel, defoshnd_wake_sig, defsel_lock_alloc,
-				   defsel_lock_free, defsel_lock,
-				   defsel_unlock, NULL);
+	rv = sel_alloc_selector_thread(&sel, defoshnd_wake_sig,
+				       defsel_lock_alloc,
+				       defsel_lock_free, defsel_lock,
+				       defsel_unlock, NULL);
 #else
-    rv = sel_alloc_selector_nothread(&sel);
+	rv = sel_alloc_selector_nothread(&sel);
 #endif
-    if (rv)
-	return NULL;
+	if (rv)
+	    return NULL;
+	freesel = true;
+    }
 
     o = gensio_selector_alloc_sel(sel, wake_sig);
     if (o) {
 	struct gensio_data *d = o->user_data;
 
-	d->freesel = true;
-    } else {
+	d->freesel = freesel;
+    } else if (freesel) {
 	sel_free_selector(sel);
     }
 
@@ -1020,7 +1025,7 @@ gensio_selector_alloc(int wake_sig)
 static void
 defoshnd_init(void)
 {
-    defoshnd = gensio_selector_alloc(defoshnd_wake_sig);
+    defoshnd = gensio_selector_alloc(NULL, defoshnd_wake_sig);
 }
 
 int
