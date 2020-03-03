@@ -6,7 +6,10 @@
  */
 
 /*
- * This include file defines OS abstractions that gensio requires.
+ * This include file defines event loop abstractions that gensio requires.
+ *
+ * This is misnamed to some extent, it's not really os funcs, it's
+ * event loop handling, but there are some OS things in here.
  */
 
 #ifndef GENSIO_OS_FUNCS
