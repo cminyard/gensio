@@ -543,7 +543,7 @@ gensio_pam_cb(int num_msg, const struct pam_message **msg,
     struct gdata *ginfo = appdata_ptr;
     struct gensio *io = ginfo->rem_io;
     char buf[100];
-    struct timeval timeout = { 60, 0 };
+    gensio_time timeout = { 60, 0 };
 
     if (num_msg <= 0 || num_msg > PAM_MAX_NUM_MSG)
 	return PAM_CONV_ERR;
@@ -635,7 +635,7 @@ new_rem_io(struct gensio *io, struct gdata *ginfo)
     err = gensio_control(io, 0, true, GENSIO_CONTROL_SERVICE,
 			 NULL, &len);
     if (err) {
-	struct timeval timeout = {10, 0};
+	gensio_time timeout = {10, 0};
 
 	write_str_to_gensio("No service set on this connection\n",
 			    io, &timeout, true);
@@ -661,7 +661,7 @@ new_rem_io(struct gensio *io, struct gdata *ginfo)
 	err = get_vals_from_service(&progv, NULL, str, len);
     out_bad_vals:
 	if (err) {
-	    struct timeval timeout = {10, 0};
+	    gensio_time timeout = {10, 0};
 
 	    write_str_to_gensio("Could not get vals from service",
 				io, &timeout, true);
@@ -692,7 +692,7 @@ new_rem_io(struct gensio *io, struct gdata *ginfo)
 	*host++ = '\0';
 	portstr = strchr(host, ',');
 	if (!portstr) {
-	    struct timeval timeout = {1, 0};
+	    gensio_time timeout = {1, 0};
 
 	    write_str_to_gensio("Invalid port in tcp service",
 				io, &timeout, true);
@@ -704,7 +704,7 @@ new_rem_io(struct gensio *io, struct gdata *ginfo)
 	    *end = '\0';
 	port = strtoul(portstr, &end, 0);
 	if (*portstr == '\0' || *end != '\0' || port > 65535) {
-	    struct timeval timeout = {1, 0};
+	    gensio_time timeout = {1, 0};
 
 	    write_str_to_gensio("Invalid port number in tcp service",
 				io, &timeout, true);
@@ -717,7 +717,7 @@ new_rem_io(struct gensio *io, struct gdata *ginfo)
 
 	s = alloc_sprintf("unix,%s", service, path);
     } else {
-	struct timeval timeout = {10, 0};
+	gensio_time timeout = {10, 0};
 
 	write_str_to_gensio("Unknown service", io, &timeout, true);
 	goto out_free;
@@ -975,7 +975,7 @@ handle_new(struct gensio_runner *r, void *cb_data)
 	int tries = 3;
 
 	do {
-	    struct timeval timeout = {10, 0};
+	    gensio_time timeout = {10, 0};
 
 	    write_str_to_gensio("Permission denied, please try again\n",
 				certauth_io, &timeout, true);
@@ -984,7 +984,7 @@ handle_new(struct gensio_runner *r, void *cb_data)
 	} while (pam_err != PAM_SUCCESS && tries > 0);
 
 	if (pam_err != PAM_SUCCESS) {
-	    struct timeval timeout = {10, 0};
+	    gensio_time timeout = {10, 0};
 
 	    write_str_to_gensio("Too many tries, giving up\n", certauth_io,
 				&timeout, true);
@@ -999,7 +999,7 @@ handle_new(struct gensio_runner *r, void *cb_data)
     err = gensio_control(certauth_io, 0, true, GENSIO_CONTROL_SERVICE,
 			 tmpservice, &len);
     if (err) {
-	struct timeval timeout = {10, 0};
+	gensio_time timeout = {10, 0};
 	write_str_to_gensio("Could not get service\n", certauth_io,
 			    &timeout, true);
 	exit(1);
@@ -1008,7 +1008,7 @@ handle_new(struct gensio_runner *r, void *cb_data)
 	interactive = true;
 
     if (file_is_readable("/etc/nologin") && uid != 0) {
-	struct timeval timeout = {10, 0};
+	gensio_time timeout = {10, 0};
 	if (interactive)
 	    /* Don't send this to non-interactive logins. */
 	    write_file_to_gensio("/etc/nologin", certauth_io, o, &timeout, true);

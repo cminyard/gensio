@@ -15,7 +15,7 @@
 
 static int
 write_s_nl_addc(struct gensio *io, char *obuf, char c,
-		gensiods *pos, gensiods len, struct timeval *timeout)
+		gensiods *pos, gensiods len, gensio_time *timeout)
 {
     int err = 0;
 
@@ -29,7 +29,7 @@ write_s_nl_addc(struct gensio *io, char *obuf, char c,
 
 static int
 write_s_nl(struct gensio *io, const char *buf, gensiods len,
-	   struct timeval *timeout)
+	   gensio_time *timeout)
 {
     char buf2[100];
     gensiods i, j;
@@ -118,7 +118,7 @@ file_is_readable(char *filename)
 
 int
 write_file_to_gensio(const char *filename, struct gensio *io,
-		     struct gensio_os_funcs *o, struct timeval *timeout,
+		     struct gensio_os_funcs *o, gensio_time *timeout,
 		     bool xlatnl)
 {
     int err;
@@ -162,7 +162,7 @@ write_file_to_gensio(const char *filename, struct gensio *io,
 
 int
 write_buf_to_gensio(const char *buf, gensiods len, struct gensio *io,
-		    struct timeval *timeout, bool xlatnl)
+		    gensio_time *timeout, bool xlatnl)
 {
     int err;
 
@@ -182,14 +182,14 @@ write_buf_to_gensio(const char *buf, gensiods len, struct gensio *io,
 
 int
 write_str_to_gensio(const char *str, struct gensio *io,
-		    struct timeval *timeout, bool xlatnl)
+		    gensio_time *timeout, bool xlatnl)
 {
     return write_buf_to_gensio(str, strlen(str), io, timeout, xlatnl);
 }
 
 int
 read_rsp_from_gensio(char *buf, gensiods *len, struct gensio *io,
-		     struct timeval *timeout, bool echo)
+		     gensio_time *timeout, bool echo)
 {
     int err;
     gensiods pos = 0, count;

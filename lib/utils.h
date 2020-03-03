@@ -9,7 +9,7 @@
 #define UTILS
 
 #include <stdbool.h>
-#include <gensio/gensio_os_funcs.h> /* struct timeval */
+#include <gensio/gensio_os_funcs.h>
 
 #include <gensio/argvutils.h>
 
@@ -19,6 +19,8 @@ int strcasecmp(const char *s1, const char *s2);
 #ifndef HAVE_STRNCASECMP
 int strncasecmp(const char *s1, const char *s2, int n);
 #endif
+
+int gensio_time_cmp(gensio_time *t1, gensio_time *t2);
 
 /*
  * Returns true if the first strlen(prefix) characters of s are the
@@ -39,12 +41,6 @@ struct enum_val
  * compare the first "len" chars of str.
  */
 int lookup_enum(struct enum_val *enums, const char *str, size_t len);
-
-/* Return -1 if tv1 < tv2, 0 if tv1 == tv2, and 1 if tv1 > tv2 */
-int cmp_timeval(struct timeval *tv1, struct timeval *tv2);
-
-/* Add tv2 to tv1 */
-void add_to_timeval(struct timeval *tv1, struct timeval *tv2);
 
 #if ENABLE_PRBUF
 #include <stdio.h>

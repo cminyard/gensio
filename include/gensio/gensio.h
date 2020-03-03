@@ -18,17 +18,13 @@
 extern "C" {
 #endif
 
-#include <stdbool.h>
-#include <stdarg.h>
-#include <stdint.h>
-
 #include <gensio/gensio_os_funcs.h>
 #include <gensio/gensio_err.h>
 #include <gensio/gensio_version.h>
 
 struct gensio;
 
-typedef size_t gensiods; /* Data size */
+typedef unsigned long gensiods; /* Data size */
 
 /*
  * The following are documented in gensio_event.3
@@ -172,16 +168,16 @@ int gensio_set_sync(struct gensio *io);
 int gensio_clear_sync(struct gensio *io);
 int gensio_read_s(struct gensio *io, gensiods *count,
 		  void *data, gensiods datalen,
-		  struct timeval *timeout);
+		  gensio_time *timeout);
 int gensio_read_s_intr(struct gensio *io, gensiods *count,
 		       void *data, gensiods datalen,
-		       struct timeval *timeout);
+		       gensio_time *timeout);
 int gensio_write_s(struct gensio *io, gensiods *count,
 		   const void *data, gensiods datalen,
-		   struct timeval *timeout);
+		   gensio_time *timeout);
 int gensio_write_s_intr(struct gensio *io, gensiods *count,
 			const void *data, gensiods datalen,
-			struct timeval *timeout);
+			gensio_time *timeout);
 
 
 struct gensio_accepter;
@@ -268,10 +264,10 @@ int gensio_acc_control(struct gensio_accepter *accepter, int depth, bool get,
 
 int gensio_acc_set_sync(struct gensio_accepter *acc);
 
-int gensio_acc_accept_s(struct gensio_accepter *acc, struct timeval *timeout,
+int gensio_acc_accept_s(struct gensio_accepter *acc, gensio_time *timeout,
 			struct gensio **new_io);
 int gensio_acc_accept_s_intr(struct gensio_accepter *acc,
-			     struct timeval *timeout,
+			     gensio_time *timeout,
 			     struct gensio **new_io);
 
 int gensio_acc_str_to_gensio(struct gensio_accepter *accepter,

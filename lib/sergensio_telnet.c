@@ -126,7 +126,7 @@ stel_queue(struct stel_data *sdata, int option,
 	   void *cb_data)
 {
     struct stel_req *curr, *req;
-    struct timeval timeout;
+    gensio_time timeout;
 
     if (!sdata->do_2217)
 	return GE_NOTSUP;
@@ -157,8 +157,8 @@ stel_queue(struct stel_data *sdata, int option,
     }
     stel_unlock(sdata);
 
-    timeout.tv_sec = 1;
-    timeout.tv_usec = 0;
+    timeout.secs = 1;
+    timeout.nsecs = 0;
     sdata->rops->start_timer(sdata->filter, &timeout);
     return 0;
 }
@@ -599,7 +599,7 @@ static void
 stelc_timeout(void *handler_data)
 {
     struct stel_data *sdata = handler_data;
-    struct timeval timeout;
+    gensio_time timeout;
     struct stel_req *req, *curr, *prev = NULL, *to_complete = NULL;
 
     stel_lock(sdata);
@@ -626,8 +626,8 @@ stelc_timeout(void *handler_data)
     }
 
     if (sdata->reqs) {
-	timeout.tv_sec = 1;
-	timeout.tv_usec = 0;
+	timeout.secs = 1;
+	timeout.nsecs = 0;
 	sdata->rops->start_timer(sdata->filter, &timeout);
     }
     stel_unlock(sdata);
@@ -702,11 +702,11 @@ stels_cb_com_port_will_do(void *handler_data, unsigned char cmd)
 	    gensio_cb(io, GENSIO_EVENT_SER_MODEMSTATE, 0,
 		      (unsigned char *) &val, &vlen, NULL);
 	} else {
-	    struct timeval timeout;
+	    gensio_time timeout;
 
 	    /* Schedule a modemstate report once the callbacks are set. */
-	    timeout.tv_sec = 0;
-	    timeout.tv_usec = 1000;
+	    timeout.secs = 0;
+	    timeout.nsecs = 1000000;
 	    sdata->rops->start_timer(sdata->filter, &timeout);
 	}
     }
@@ -883,10 +883,10 @@ stels_timeout(void *handler_data)
 	    gensio_cb(io, GENSIO_EVENT_SER_MODEMSTATE, 0,
 		      (unsigned char *) &val, &vlen, NULL);
 	} else {
-	    struct timeval timeout;
+	    gensio_time timeout;
 
-	    timeout.tv_sec = 0;
-	    timeout.tv_usec = 1000;
+	    timeout.secs = 0;
+	    timeout.nsecs = 1000000;
 	    sdata->rops->start_timer(sdata->filter, &timeout);
 	}
     }

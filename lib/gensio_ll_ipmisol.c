@@ -226,6 +226,7 @@ gio_start_timer(os_handler_t      *handler,
 {
     struct igensio_info *info = handler->internal_data;
     struct gensio_os_funcs *o = info->o;
+    gensio_time gtime;
     int rv = 0;
 
     o->lock(timer->lock);
@@ -238,7 +239,10 @@ gio_start_timer(os_handler_t      *handler,
     timer->cb_data = cb_data;
     timer->timed_out = timed_out;
 
-    rv = o->start_timer(timer->timer, timeout);
+    gtime.secs = timeout->tv_sec;
+    gtime.nsecs = timeout->tv_usec * 1000;
+
+    rv = o->start_timer(timer->timer, &gtime);
     if (rv)
 	timer->running = false;
     
@@ -436,8 +440,11 @@ gio_get_monotonic_time(os_handler_t *handler, struct timeval *tv)
 {
     struct igensio_info *info = handler->internal_data;
     struct gensio_os_funcs *o = info->o;
+    gensio_time gtime;
 
-    o->get_monotonic_time(o, tv);
+    o->get_monotonic_time(o, &gtime);
+    tv->tv_sec = gtime.secs;
+    tv->tv_usec = (gtime.nsecs + 500) / 1000;
     return 0;
 }
 

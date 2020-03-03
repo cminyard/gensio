@@ -1012,7 +1012,7 @@ serialdev_timeout(struct gensio_timer *t, void *cb_data)
     }
 
     if (sdata->modemstate_mask) {
-	struct timeval timeout = {1, 0};
+	gensio_time timeout = {1, 0};
 
 	sdata->o->start_timer(sdata->timer, &timeout);
     }
@@ -1031,7 +1031,7 @@ sterm_modemstate(struct sergensio *sio, unsigned int val)
     sdata->modemstate_mask = val;
     sterm_unlock(sdata);
     if (sdata->modemstate_mask) {
-	struct timeval timeout = {0, 1};
+	gensio_time timeout = {0, 1000};
 
 	sdata->o->start_timer(sdata->timer, &timeout);
     } else {
@@ -1147,7 +1147,7 @@ sterm_timer_stopped(struct gensio_timer *timer, void *cb_data)
 
 static int
 sterm_check_close_drain(void *handler_data, enum gensio_ll_close_state state,
-			struct timeval *next_timeout)
+			gensio_time *next_timeout)
 {
     struct sterm_data *sdata = handler_data;
     int rv, count = 0, err = 0;
@@ -1183,8 +1183,8 @@ sterm_check_close_drain(void *handler_data, enum gensio_ll_close_state state,
 
  out_einprogress:
     err = GE_INPROGRESS;
-    next_timeout->tv_sec = 0;
-    next_timeout->tv_usec = 10000;
+    next_timeout->secs = 0;
+    next_timeout->nsecs = 10000000;
  out_rm_uucp:
     if (!err) {
 	set_termios(sdata->fd, &sdata->orig_termios);

@@ -23,6 +23,7 @@
 #include <string.h>
 #include <assert.h>
 #include <errno.h>
+#include <signal.h>
 #include <gensio/gensio.h>
 #include <gensio/gensio_selector.h>
 #include "pthread_handler.h"
@@ -671,7 +672,7 @@ alloc_od(struct oom_tests *test)
 }
 
 static int
-wait_for_data(struct oom_test_data *od, struct timeval *timeout)
+wait_for_data(struct oom_test_data *od, gensio_time *timeout)
 {
     int err = 0, rv;
 
@@ -710,7 +711,7 @@ wait_for_data(struct oom_test_data *od, struct timeval *timeout)
 }
 
 static int
-close_con(struct io_test_data *id, struct timeval *timeout)
+close_con(struct io_test_data *id, gensio_time *timeout)
 {
     struct oom_test_data *od = id->od;
     int rv = 0;
@@ -762,7 +763,7 @@ close_con(struct io_test_data *id, struct timeval *timeout)
 }
 
 static int
-close_cons(struct oom_test_data *od, bool close_acc, struct timeval *timeout)
+close_cons(struct oom_test_data *od, bool close_acc, gensio_time *timeout)
 {
     int rv, err = 0;
 
@@ -788,7 +789,7 @@ close_cons(struct oom_test_data *od, bool close_acc, struct timeval *timeout)
 }
 
 static int
-close_stderr(struct oom_test_data *od, struct timeval *timeout)
+close_stderr(struct oom_test_data *od, gensio_time *timeout)
 {
     int rv, err = 0;
 
@@ -830,7 +831,7 @@ run_oom_test(struct oom_tests *test, long count, int *exitcode, bool close_acc)
     int rv, err = 0;
     char intstr[30], *constr;
     gensiods size;
-    struct timeval timeout = { 5, 0 };
+    gensio_time timeout = { 5, 0 };
 
     od = alloc_od(test);
     if (!od)
@@ -956,7 +957,7 @@ run_oom_acc_test(struct oom_tests *test, long count, int *exitcode,
     struct oom_test_data *od;
     int rv, err = 0;
     char intstr[30], *constr, *locstr;
-    struct timeval timeout = { 5, 0 };
+    gensio_time timeout = { 5, 0 };
 
     od = alloc_od(test);
     if (!od)
@@ -1194,7 +1195,7 @@ main(int argc, char *argv[])
     struct sigaction sigdo;
     sigset_t sigs;
     int testnr = -1, numtests = 0, testnrstart = -1, testnrend = MAX_LOOPS;
-    struct timeval zerotime = { 0, 0 };
+    gensio_time zerotime = { 0, 0 };
     unsigned int num_extra_threads = 3;
 
 #ifndef ENABLE_INTERNAL_TRACE

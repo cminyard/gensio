@@ -78,7 +78,7 @@ trace_check_open_done(struct gensio_filter *filter, struct gensio *io)
 }
 
 static int
-trace_try_connect(struct gensio_filter *filter, struct timeval *timeout)
+trace_try_connect(struct gensio_filter *filter, gensio_time *timeout)
 {
     struct trace_filter *tfilter = filter_to_trace(filter);
 
@@ -95,7 +95,7 @@ trace_try_connect(struct gensio_filter *filter, struct timeval *timeout)
 }
 
 static int
-trace_try_disconnect(struct gensio_filter *filter, struct timeval *timeout)
+trace_try_disconnect(struct gensio_filter *filter, gensio_time *timeout)
 {
     struct trace_filter *tfilter = filter_to_trace(filter);
 
@@ -162,13 +162,13 @@ trace_data(const char *op, struct gensio_os_funcs *o,
 	   const struct gensio_sg *sg, gensiods sglen)
 {
     struct dump_history h;
-    struct timeval time;
+    gensio_time time;
 
     o->get_monotonic_time(o, &time);
     if (err) {
 	if (!raw) {
-	    fprintf(f, "%ld:%6.6ld %s error: %d %s\n",
-		    time.tv_sec, time.tv_usec, op,
+	    fprintf(f, "%ld:%6.6d %s error: %d %s\n",
+		    time.secs, (time.nsecs + 500) / 1000, op,
 		    err, gensio_err_to_str(err));
 	    fflush(f);
 	}
@@ -177,8 +177,8 @@ trace_data(const char *op, struct gensio_os_funcs *o,
 
 	memset(&h, 0, sizeof(h));
 	if (!raw)
-	    fprintf(f, "%ld:%6.6ld %s (%lu):\n",
-		    time.tv_sec, time.tv_usec,
+	    fprintf(f, "%ld:%6.6d %s (%lu):\n",
+		    time.secs, (time.nsecs + 500) / 1000,
 		    op, (unsigned long) written);
 	for (i = 0; i < sglen && written > 0; i++, written -= len) {
 	    if (sg[i].buflen > written)

@@ -13,15 +13,12 @@
 #define GENSIO_OS_FUNCS
 #include <stdbool.h>
 #include <stdarg.h>
+#include <stdint.h>
 
-#ifdef _WIN32
-#include <Winsock2.h> /* For timeval */
-typedef int sigset_t;
-#else
-#include <sys/time.h> /* For timeval */
-#include <signal.h> /* For sigset_t */
-#endif
-
+typedef struct gensio_time {
+    int64_t secs;
+    int32_t nsecs;
+} gensio_time;
 
 /*
  * Function pointers to provide OS functions.
@@ -145,14 +142,14 @@ struct gensio_os_funcs {
      * Start the timer running.  Returns EBUSY if the timer is already
      * running.  This is a relative timeout.
      */
-    int (*start_timer)(struct gensio_timer *timer, struct timeval *timeout);
+    int (*start_timer)(struct gensio_timer *timer, gensio_time *timeout);
 
     /*
      * Start the timer running.  Returns EBUSY if the timer is already
      * running.  This is an absolute timeout based on the monotonic
      * time returned by get_monotonic_time.
      */
-    int (*start_timer_abs)(struct gensio_timer *timer, struct timeval *timeout);
+    int (*start_timer_abs)(struct gensio_timer *timer, gensio_time *timeout);
 
     /*
      * Stop the timer.  Returns ETIMEDOUT if the timer is not running.
@@ -219,7 +216,7 @@ struct gensio_os_funcs {
      * "used" by this call.
      */
     int (*wait)(struct gensio_waiter *waiter, unsigned int count,
-		struct timeval *timeout);
+		gensio_time *timeout);
 
     /*
      * Like wait, but return if a signal is received by the thread.
@@ -227,7 +224,7 @@ struct gensio_os_funcs {
      * that.
      */
     int (*wait_intr)(struct gensio_waiter *waiter, unsigned int count,
-		     struct timeval *timeout);
+		     gensio_time *timeout);
 
     /* Wake the given waiter. */
     void (*wake)(struct gensio_waiter *waiter);
@@ -239,7 +236,7 @@ struct gensio_os_funcs {
      * happens before the relative time given it will return.
      * The timeout is updated to the remaining time.
      */
-    int (*service)(struct gensio_os_funcs *f, struct timeval *timeout);
+    int (*service)(struct gensio_os_funcs *f, gensio_time *timeout);
 
     /* Free this structure. */
     void (*free_funcs)(struct gensio_os_funcs *f);
@@ -251,7 +248,7 @@ struct gensio_os_funcs {
     void (*call_once)(struct gensio_os_funcs *f, struct gensio_once *once,
 		      void (*func)(void *cb_data), void *cb_data);
 
-    void (*get_monotonic_time)(struct gensio_os_funcs *f, struct timeval *time);
+    void (*get_monotonic_time)(struct gensio_os_funcs *f, gensio_time *time);
 
     /*
      * Called from the gensio library when it logs something.  This must
@@ -273,10 +270,11 @@ struct gensio_os_funcs {
     /****** Waiters ******/
     /*
      * Like wait_intr, but allows the user to install their own sigmask
-     * atomically while waiting.
+     * atomically while waiting.  On *nix systems, sigmask is sigset_t,
+     * void here to avoid type issues.
      */
     int (*wait_intr_sigmask)(struct gensio_waiter *waiter, unsigned int count,
-			     struct timeval *timeout, sigset_t *sigmask);
+			     gensio_time *timeout, void *sigmask);
 
 };
 

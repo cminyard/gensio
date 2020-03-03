@@ -39,7 +39,7 @@ struct telnet_filter {
 
     bool allow_2217;
     bool rfc2217_set;
-    struct timeval rfc2217_end_wait;
+    gensio_time rfc2217_end_wait;
 
     const struct gensio_telnet_filter_callbacks *telnet_cbs;
     void *handler_data;
@@ -138,27 +138,27 @@ telnet_check_open_done(struct gensio_filter *filter, struct gensio *io)
 }
 
 static int
-telnet_try_connect(struct gensio_filter *filter, struct timeval *timeout)
+telnet_try_connect(struct gensio_filter *filter, gensio_time *timeout)
 {
     struct telnet_filter *tfilter = filter_to_telnet(filter);
-    struct timeval now;
+    gensio_time now;
 
     if (tfilter->rfc2217_set)
 	return 0;
 
     tfilter->o->get_monotonic_time(tfilter->o, &now);
-    if (cmp_timeval(&now, &tfilter->rfc2217_end_wait) > 0) {
+    if (gensio_time_cmp(&now, &tfilter->rfc2217_end_wait) > 0) {
 	tfilter->rfc2217_set = true;
 	return 0;
     }
 
-    timeout->tv_sec = 0;
-    timeout->tv_usec = 500000;
+    timeout->secs = 0;
+    timeout->nsecs = 500000000;
     return GE_RETRY;
 }
 
 static int
-telnet_try_disconnect(struct gensio_filter *filter, struct timeval *timeout)
+telnet_try_disconnect(struct gensio_filter *filter, gensio_time *timeout)
 {
     return 0;
 }
@@ -434,7 +434,7 @@ telnet_setup(struct gensio_filter *filter)
     if (!tfilter->rfc2217_set) {
 	tfilter->o->get_monotonic_time(tfilter->o,
 				       &tfilter->rfc2217_end_wait);
-	tfilter->rfc2217_end_wait.tv_sec += 4; /* FIXME - magic number */
+	tfilter->rfc2217_end_wait.secs += 4; /* FIXME - magic number */
 	tfilter->setup_done = true;
 	if (buffer_cursize(&tfilter->tn_data.out_telnet_cmd))
 	    tfilter->write_state = TELNET_IN_TN_WRITE;
@@ -594,7 +594,7 @@ static void telnet_filter_send_cmd(struct gensio_filter *filter,
 }
 
 static void telnet_filter_start_timer(struct gensio_filter *filter,
-				      struct timeval *timeout)
+				      gensio_time *timeout)
 {
     struct telnet_filter *tfilter = filter_to_telnet(filter);
 

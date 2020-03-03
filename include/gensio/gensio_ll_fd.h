@@ -36,7 +36,7 @@ struct gensio_fd_ll_ops {
      * after next_timeout microseconds, zero to continue the close.
      */
     int (*check_close)(void *handler_data, enum gensio_ll_close_state state,
-		       struct timeval *next_timeout);
+		       gensio_time *next_timeout);
 
     void (*free)(void *handler_data);
 

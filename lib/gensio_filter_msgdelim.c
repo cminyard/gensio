@@ -132,13 +132,13 @@ msgdelim_check_open_done(struct gensio_filter *filter, struct gensio *io)
 }
 
 static int
-msgdelim_try_connect(struct gensio_filter *filter, struct timeval *timeout)
+msgdelim_try_connect(struct gensio_filter *filter, gensio_time *timeout)
 {
     return 0;
 }
 
 static int
-msgdelim_try_disconnect(struct gensio_filter *filter, struct timeval *timeout)
+msgdelim_try_disconnect(struct gensio_filter *filter, gensio_time *timeout)
 {
     return 0;
 }

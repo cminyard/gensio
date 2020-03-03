@@ -542,7 +542,7 @@ fd_finish_cleared(struct fd_ll *fdll)
 static void
 fd_check_close(struct fd_ll *fdll)
 {
-    struct timeval timeout;
+    gensio_time timeout;
     int err = 0;
 
     if (fdll->ops->check_close)

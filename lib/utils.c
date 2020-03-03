@@ -315,33 +315,21 @@ lookup_enum(struct enum_val *enums, const char *str, size_t len)
 }
 
 int
-cmp_timeval(struct timeval *tv1, struct timeval *tv2)
+gensio_time_cmp(gensio_time *t1, gensio_time *t2)
 {
-    if (tv1->tv_sec > tv2->tv_sec)
-	return 1;
-    else if (tv1->tv_sec < tv2->tv_sec)
+    if (t1->secs < t2->secs)
 	return -1;
-    else if (tv1->tv_usec > tv2->tv_usec)
-	return 1;
-    else if (tv1->tv_usec < tv2->tv_usec)
-	return -1;
-    else
-	return 0;
-}
 
-void
-add_to_timeval(struct timeval *tv1, struct timeval *tv2)
-{
-    tv1->tv_sec += tv2->tv_sec;
-    tv1->tv_usec += tv2->tv_usec;
-    while (tv1->tv_usec > 1000000) {
-	tv1->tv_usec -= 1000000;
-	tv1->tv_sec += 1;
-    }
-    while (tv1->tv_usec < 0) {
-	tv1->tv_usec += 1000000;
-	tv1->tv_sec -= 1;
-    }
+    if (t1->secs > t2->secs)
+	return 1;
+
+    if (t1->nsecs < t2->nsecs)
+	return -1;
+
+    if (t1->nsecs > t2->nsecs)
+	return 1;
+
+    return 0;
 }
 
 #ifndef HAVE_STRCASECMP

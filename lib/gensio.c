@@ -2385,7 +2385,7 @@ gensio_log_level_to_str(enum gensio_log_levels level)
 
 static int
 gensio_wait_no_cb(struct gensio *io, struct gensio_waiter *waiter,
-		  struct timeval *timeout)
+		  gensio_time *timeout)
 {
     struct gensio_os_funcs *o = io->o;
     struct gensio_nocbwait wait;
@@ -2609,7 +2609,7 @@ gensio_clear_sync(struct gensio *io)
 
 static int
 i_gensio_read_s(struct gensio *io, gensiods *count, void *data, gensiods datalen,
-		struct timeval *timeout, bool return_on_intr)
+		gensio_time *timeout, bool return_on_intr)
 {
     struct gensio_os_funcs *o = io->o;
     struct gensio_sync_io *sync_io = io->sync_io;
@@ -2669,14 +2669,14 @@ i_gensio_read_s(struct gensio *io, gensiods *count, void *data, gensiods datalen
 
 int
 gensio_read_s(struct gensio *io, gensiods *count, void *data, gensiods datalen,
-	      struct timeval *timeout)
+	      gensio_time *timeout)
 {
     return i_gensio_read_s(io, count, data, datalen, timeout, false);
 }
 
 int
 gensio_read_s_intr(struct gensio *io, gensiods *count, void *data,
-		   gensiods datalen, struct timeval *timeout)
+		   gensiods datalen, gensio_time *timeout)
 {
     return i_gensio_read_s(io, count, data, datalen, timeout, true);
 }
@@ -2684,7 +2684,7 @@ gensio_read_s_intr(struct gensio *io, gensiods *count, void *data,
 static int
 i_gensio_write_s(struct gensio *io, gensiods *count,
 		 const void *data, gensiods datalen,
-		 struct timeval *timeout, bool return_on_intr)
+		 gensio_time *timeout, bool return_on_intr)
 {
     struct gensio_os_funcs *o = io->o;
     struct gensio_sync_io *sync_io = io->sync_io;
@@ -2744,7 +2744,7 @@ i_gensio_write_s(struct gensio *io, gensiods *count,
 int
 gensio_write_s(struct gensio *io, gensiods *count,
 	       const void *data, gensiods datalen,
-	       struct timeval *timeout)
+	       gensio_time *timeout)
 {
     return i_gensio_write_s(io, count, data, datalen, timeout, false);
 }
@@ -2752,7 +2752,7 @@ gensio_write_s(struct gensio *io, gensiods *count,
 int
 gensio_write_s_intr(struct gensio *io, gensiods *count,
 		    const void *data, gensiods datalen,
-		    struct timeval *timeout)
+		    gensio_time *timeout)
 {
     return i_gensio_write_s(io, count, data, datalen, timeout, true);
 }
@@ -2767,7 +2767,7 @@ gensio_acc_set_sync(struct gensio_accepter *acc)
 }
 
 static int
-i_gensio_acc_accept_s(struct gensio_accepter *acc, struct timeval *timeout,
+i_gensio_acc_accept_s(struct gensio_accepter *acc, gensio_time *timeout,
 		      struct gensio **new_io, bool return_on_intr)
 {
     struct gensio_os_funcs *o = acc->o;
@@ -2813,14 +2813,14 @@ i_gensio_acc_accept_s(struct gensio_accepter *acc, struct timeval *timeout,
 }
 
 int
-gensio_acc_accept_s(struct gensio_accepter *acc, struct timeval *timeout,
+gensio_acc_accept_s(struct gensio_accepter *acc, gensio_time *timeout,
 		    struct gensio **new_io)
 {
     return i_gensio_acc_accept_s(acc, timeout, new_io, false);
 }
 
 int
-gensio_acc_accept_s_intr(struct gensio_accepter *acc, struct timeval *timeout,
+gensio_acc_accept_s_intr(struct gensio_accepter *acc, gensio_time *timeout,
 			 struct gensio **new_io)
 {
     return i_gensio_acc_accept_s(acc, timeout, new_io, true);

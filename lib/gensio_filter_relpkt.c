@@ -464,7 +464,7 @@ handle_ack(struct relpkt_filter *rfilter, uint8_t seq)
 static void
 relpkt_filter_start_timer(struct relpkt_filter *rfilter)
 {
-    struct timeval timeout = { 1, 0 };
+    gensio_time timeout = { 1, 0 };
 
     rfilter->filter_cb(rfilter->filter_cb_data,
 		       GENSIO_FILTER_CB_START_TIMER, &timeout);
@@ -511,7 +511,7 @@ relpkt_check_open_done(struct relpkt_filter *rfilter, struct gensio *io)
 }
 
 static int
-relpkt_try_connect(struct relpkt_filter *rfilter, struct timeval *timeout,
+relpkt_try_connect(struct relpkt_filter *rfilter, gensio_time *timeout,
 		   bool was_timeout)
 {
     int rv = 0;
@@ -525,8 +525,8 @@ relpkt_try_connect(struct relpkt_filter *rfilter, struct timeval *timeout,
 		rv = GE_TIMEDOUT;
 	    } else {
 		send_init(rfilter, false);
-		timeout->tv_sec = 1;
-		timeout->tv_usec = 0;
+		timeout->secs = 1;
+		timeout->nsecs = 0;
 		rv = GE_RETRY;
 	    }
 	} else {
@@ -541,8 +541,8 @@ relpkt_try_connect(struct relpkt_filter *rfilter, struct timeval *timeout,
 	} else {
 	    rfilter->state = RELPKT_WAITING_INIT_RSP;
 	    send_init(rfilter, false);
-	    timeout->tv_sec = 1;
-	    timeout->tv_usec = 0;
+	    timeout->secs = 1;
+	    timeout->nsecs = 0;
 	    rv = GE_RETRY;
 	}
 	break;
@@ -572,7 +572,7 @@ relpkt_try_connect(struct relpkt_filter *rfilter, struct timeval *timeout,
 }
 
 static int
-relpkt_try_disconnect(struct relpkt_filter *rfilter, struct timeval *timeout,
+relpkt_try_disconnect(struct relpkt_filter *rfilter, gensio_time *timeout,
 		      bool was_timeout)
 {
     int rv = 0;
@@ -595,8 +595,8 @@ relpkt_try_disconnect(struct relpkt_filter *rfilter, struct timeval *timeout,
 	    /* Wait for output to clear. */
 	    rfilter->state = RELPKT_WAITING_CLOSE_CLEAR;
 	}
-	timeout->tv_sec = 1;
-	timeout->tv_usec = 0;
+	timeout->secs = 1;
+	timeout->nsecs = 0;
 	rv = GE_RETRY;
 	break;
 
@@ -609,8 +609,8 @@ relpkt_try_disconnect(struct relpkt_filter *rfilter, struct timeval *timeout,
 	    rv = rfilter->err;
 	} else if (was_timeout) {
 	    i_relpkt_filter_timeout(rfilter);
-	    timeout->tv_sec = 1;
-	    timeout->tv_usec = 0;
+	    timeout->secs = 1;
+	    timeout->nsecs = 0;
 	    rv = GE_RETRY;
 	} else {
 	    rv = GE_INPROGRESS;
@@ -623,8 +623,8 @@ relpkt_try_disconnect(struct relpkt_filter *rfilter, struct timeval *timeout,
 	    if (rfilter->close_retry_count > 5) {
 		rv = GE_TIMEDOUT;
 	    } else {
-		timeout->tv_sec = 1;
-		timeout->tv_usec = 0;
+		timeout->secs = 1;
+		timeout->nsecs = 0;
 		rv = GE_RETRY;
 	    }
 	} else {

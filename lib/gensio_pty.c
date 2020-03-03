@@ -231,7 +231,7 @@ pty_remote_id(void *handler_data, int *id)
 
 static int
 pty_check_close(void *handler_data, enum gensio_ll_close_state state,
-		struct timeval *timeout)
+		gensio_time *timeout)
 {
     struct pty_data *tdata = handler_data;
     pid_t rv;
@@ -249,8 +249,8 @@ pty_check_close(void *handler_data, enum gensio_ll_close_state state,
 	if (rv < 0)
 	    return gensio_os_err_to_err(tdata->o, errno);
 	if (rv == 0) {
-	    timeout->tv_sec = 0;
-	    timeout->tv_usec = 10000;
+	    timeout->secs = 0;
+	    timeout->nsecs = 10000000;
 	    return GE_INPROGRESS;
 	}
 	tdata->exit_code_set = true;

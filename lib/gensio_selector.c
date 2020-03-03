@@ -14,7 +14,6 @@
 
 #include <gensio/gensio_selector.h>
 
-#include <gensio/waiter.h>
 #include "utils.h"
 #include <stdlib.h>
 #include <assert.h>
@@ -179,6 +178,255 @@ gensio_sel_free(struct gensio_os_funcs *f, void *data)
     } else
 #endif
     free(data);
+}
+
+static void
+add_to_timeval(struct timeval *tv1, gensio_time *t2)
+{
+    tv1->tv_sec += t2->secs;
+    tv1->tv_usec += (t2->nsecs + 500) / 1000;
+    while (tv1->tv_usec > 1000000) {
+	tv1->tv_usec -= 1000000;
+	tv1->tv_sec += 1;
+    }
+    while (tv1->tv_usec < 0) {
+	tv1->tv_usec += 1000000;
+	tv1->tv_sec -= 1;
+    }
+}
+
+static struct timeval *
+gensio_time_to_timeval(struct timeval *tv, gensio_time *t)
+{
+    if (!t)
+	return NULL;
+    tv->tv_sec = t->secs;
+    tv->tv_usec = (t->nsecs + 500) / 1000;
+    return tv;
+}
+
+static void
+timeval_to_gensio_time(gensio_time *t, struct timeval *tv)
+{
+    if (tv) {
+	t->secs = tv->tv_sec;
+	t->nsecs = tv->tv_usec * 1000;
+    }
+}
+
+#ifdef USE_PTHREADS
+
+#include <pthread.h>
+#include <signal.h>
+#include <stdbool.h>
+
+struct waiter_data {
+    pthread_t tid;
+    int wake_sig;
+    struct waiter_data *prev;
+    struct waiter_data *next;
+};
+
+typedef struct waiter_s {
+    struct selector_s *sel;
+    int wake_sig;
+    unsigned int count;
+    pthread_mutex_t lock;
+    struct waiter_data wts;
+} waiter_t;
+
+static waiter_t *
+alloc_waiter(struct selector_s *sel, int wake_sig)
+{
+    waiter_t *waiter;
+
+    waiter = malloc(sizeof(waiter_t));
+    if (waiter) {
+	memset(waiter, 0, sizeof(*waiter));
+	waiter->wake_sig = wake_sig;
+	waiter->sel = sel;
+	pthread_mutex_init(&waiter->lock, NULL);
+	waiter->wts.next = &waiter->wts;
+	waiter->wts.prev = &waiter->wts;
+    }
+    return waiter;
+}
+
+static void
+free_waiter(waiter_t *waiter)
+{
+    assert(waiter);
+    assert(waiter->wts.next == waiter->wts.prev);
+    pthread_mutex_destroy(&waiter->lock);
+    free(waiter);
+}
+
+static void
+wake_thread_send_sig_waiter(long thread_id, void *cb_data)
+{
+    struct waiter_data *w = cb_data;
+
+    pthread_kill(w->tid, w->wake_sig);
+}
+
+static int
+i_wait_for_waiter_timeout(waiter_t *waiter, unsigned int count,
+			  gensio_time *timeout, bool intr,
+			  sigset_t *sigmask)
+{
+    struct waiter_data w;
+    struct timeval tv, *rtv;
+    int err = 0;
+
+    w.tid = pthread_self();
+    w.wake_sig = waiter->wake_sig;
+    w.next = NULL;
+    w.prev = NULL;
+
+    pthread_mutex_lock(&waiter->lock);
+    waiter->wts.next->prev = &w;
+    w.next = waiter->wts.next;
+    waiter->wts.next = &w;
+    w.prev = &waiter->wts;
+
+    rtv = gensio_time_to_timeval(&tv, timeout);
+    while (waiter->count < count) {
+	pthread_mutex_unlock(&waiter->lock);
+	if (intr)
+	    err = sel_select_intr_sigmask(waiter->sel,
+					  wake_thread_send_sig_waiter,
+					  w.tid, &w, rtv, sigmask);
+	else
+	    err = sel_select(waiter->sel, wake_thread_send_sig_waiter, w.tid, &w,
+			     rtv);
+	if (err < 0)
+	    err = errno;
+	else if (err == 0)
+	    err = ETIMEDOUT;
+	else
+	    err = 0;
+	/* lock may affect errno, delay it until here. */
+	pthread_mutex_lock(&waiter->lock);
+	if (err)
+	    break;
+    }
+    timeval_to_gensio_time(timeout, rtv);
+    if (!err)
+	waiter->count -= count;
+    w.next->prev = w.prev;
+    w.prev->next = w.next;
+    pthread_mutex_unlock(&waiter->lock);
+
+    return err;
+}
+
+static void
+wake_waiter(waiter_t *waiter)
+{
+    struct waiter_data *w;
+
+    pthread_mutex_lock(&waiter->lock);
+    waiter->count++;
+    w = waiter->wts.next;
+    while (w != &waiter->wts) {
+	pthread_kill(w->tid, w->wake_sig);
+	w = w->next;
+    }
+    pthread_mutex_unlock(&waiter->lock);
+}
+
+#else /* USE_PTHREADS */
+
+struct waiter_s {
+    unsigned int count;
+    struct selector_s *sel;
+};
+
+static waiter_t *
+alloc_waiter(struct selector_s *sel, int wake_sig)
+{
+    waiter_t *waiter;
+
+    waiter = malloc(sizeof(waiter_t));
+    if (waiter)
+	memset(waiter, 0, sizeof(*waiter));
+    waiter->sel = sel;
+    return waiter;
+}
+
+static void
+free_waiter(waiter_t *waiter)
+{
+    assert(waiter);
+    free(waiter);
+}
+
+static int
+i_wait_for_waiter_timeout(waiter_t *waiter, unsigned int count,
+			  gensio_time *timeout, bool intr, sigset_t *sigmask)
+{
+    int err = 0;
+
+    while (waiter->count < count) {
+	if (intr)
+	    err = sel_select_intr_sigmask(waiter->sel, 0, 0, NULL, timeout,
+					  sigmask);
+	else
+	    err = sel_select(waiter->sel, 0, 0, NULL, timeout);
+	if (err < 0) {
+	    err = errno;
+	    break;
+	} else if (err == 0) {
+	    err = ETIMEDOUT;
+	    break;
+	}
+	timeval_to_gensio(timeout, &tv);
+	err = 0;
+    }
+    if (!err)
+	waiter->count -= count;
+    return err;
+}
+
+static void
+wake_waiter(waiter_t *waiter)
+{
+    waiter->count++;
+}
+
+#endif /* USE_PTHREADS */
+
+static int
+wait_for_waiter_timeout(waiter_t *waiter, unsigned int count,
+			gensio_time *timeout)
+{
+    return i_wait_for_waiter_timeout(waiter, count, timeout, false, NULL);
+}
+
+static void
+wait_for_waiter(waiter_t *waiter, unsigned int count)
+{
+    wait_for_waiter_timeout(waiter, count, NULL);
+}
+
+static int
+wait_for_waiter_timeout_intr(waiter_t *waiter, unsigned int count,
+			     gensio_time *timeout)
+{
+    return i_wait_for_waiter_timeout(waiter, count, timeout, true, NULL);
+}
+
+static int
+wait_for_waiter_intr(waiter_t *waiter, unsigned int count)
+{
+    return wait_for_waiter_timeout_intr(waiter, count, NULL);
+}
+
+static int
+wait_for_waiter_timeout_intr_sigmask(waiter_t *waiter, unsigned int count,
+				     gensio_time *timeout, sigset_t *sigmask)
+{
+    return i_wait_for_waiter_timeout(waiter, count, timeout, true, sigmask);
 }
 
 struct gensio_lock {
@@ -350,7 +598,7 @@ gensio_sel_free_timer(struct gensio_timer *timer)
 }
 
 static int
-gensio_sel_start_timer(struct gensio_timer *timer, struct timeval *timeout)
+gensio_sel_start_timer(struct gensio_timer *timer, gensio_time *timeout)
 {
     struct timeval tv;
     int rv;
@@ -362,11 +610,13 @@ gensio_sel_start_timer(struct gensio_timer *timer, struct timeval *timeout)
 }
 
 static int
-gensio_sel_start_timer_abs(struct gensio_timer *timer, struct timeval *timeout)
+gensio_sel_start_timer_abs(struct gensio_timer *timer, gensio_time *timeout)
 {
     int rv;
+    struct timeval tv, *rtv;
 
-    rv = sel_start_timer(timer->sel_timer, timeout);
+    rtv = gensio_time_to_timeval(&tv, timeout);
+    rv = sel_start_timer(timer->sel_timer, rtv);
     return gensio_os_err_to_err(timer->f, rv);
 }
 
@@ -506,7 +756,7 @@ gensio_sel_free_waiter(struct gensio_waiter *waiter)
 
 static int
 gensio_sel_wait(struct gensio_waiter *waiter, unsigned int count,
-		struct timeval *timeout)
+		gensio_time *timeout)
 {
     int err;
 
@@ -517,7 +767,7 @@ gensio_sel_wait(struct gensio_waiter *waiter, unsigned int count,
 
 static int
 gensio_sel_wait_intr(struct gensio_waiter *waiter, unsigned int count,
-		     struct timeval *timeout)
+		     gensio_time *timeout)
 {
     int err;
 
@@ -527,7 +777,7 @@ gensio_sel_wait_intr(struct gensio_waiter *waiter, unsigned int count,
 
 static int
 gensio_sel_wait_intr_sigmask(struct gensio_waiter *waiter, unsigned int count,
-			     struct timeval *timeout, sigset_t *sigmask)
+			     gensio_time *timeout, void *sigmask)
 {
     int err;
 
@@ -560,21 +810,24 @@ wake_thread_send_sig(long thread_id, void *cb_data)
 }
 
 static int
-gensio_sel_service(struct gensio_os_funcs *f, struct timeval *timeout)
+gensio_sel_service(struct gensio_os_funcs *f, gensio_time *timeout)
 {
     struct gensio_data *d = f->user_data;
     struct wait_data w;
+    struct timeval tv, *rtv;
     int err;
 
     w.id = pthread_self();
     w.wake_sig = d->wake_sig;
-    err = sel_select_intr(d->sel, wake_thread_send_sig, w.id, &w, timeout);
+    rtv = gensio_time_to_timeval(&tv, timeout);
+    err = sel_select_intr(d->sel, wake_thread_send_sig, w.id, &w, rtv);
     if (err < 0)
 	err = gensio_os_err_to_err(f, errno);
     else if (err == 0)
 	err = GE_TIMEDOUT;
     else
 	err = 0;
+    timeval_to_gensio_time(timeout, rtv);
 
     return err;
 }
@@ -583,15 +836,18 @@ static int
 gensio_sel_service(struct gensio_os_funcs *f, struct timeval *timeout)
 {
     struct gensio_data *d = f->user_data;
+    struct timeval tv, *rtv;
     int err;
 
-    err = sel_select_intr(d->sel, NULL, 0, NULL, timeout);
+    rtv = gensio_time_to_timeval(&tv, timeout);
+    err = sel_select_intr(d->sel, NULL, 0, NULL, rtv);
     if (err < 0)
 	err = gensio_os_err_to_err(f, errno);
     else if (err == 0)
 	err = GE_TIMEDOUT;
     else
 	err = 0;
+    timeval_to_gensio_time(timeout, rtv);
 
     return err;
 }
@@ -623,9 +879,12 @@ gensio_sel_call_once(struct gensio_os_funcs *f, struct gensio_once *once,
 }
 
 static void
-gensio_sel_get_monotonic_time(struct gensio_os_funcs *f, struct timeval *time)
+gensio_sel_get_monotonic_time(struct gensio_os_funcs *f, gensio_time *time)
 {
-    sel_get_monotonic_time(time);
+    struct timeval tv;
+
+    sel_get_monotonic_time(&tv);
+    timeval_to_gensio_time(time, &tv);
 }
 
 static int

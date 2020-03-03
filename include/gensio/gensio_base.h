@@ -86,12 +86,12 @@ int gensio_filter_check_open_done(struct gensio_filter *filter,
  * attempt should be retried after any I/O or when the timeout occurs.
  * If the is called due to a timeout occurring, was_timeout will be true.
  *
- * struct timeval *timeout => data
+ * gensio_time *timeout => data
  * bool was_timeout => buflen
  */
 #define GENSIO_FILTER_FUNC_TRY_CONNECT		6
 int gensio_filter_try_connect(struct gensio_filter *filter,
-			      struct timeval *timeout,
+			      gensio_time *timeout,
 			      bool was_timeout);
 
 /*
@@ -101,12 +101,12 @@ int gensio_filter_try_connect(struct gensio_filter *filter,
  * after any I/O or when the timeout occurs.
  * If the is called due to a timeout occurring, was_timeout will be true.
  *
- * struct timeval *timeout => data
+ * gensio_time *timeout => data
  * bool was_timeout => buflen
  */
 #define GENSIO_FILTER_FUNC_TRY_DISCONNECT	7
 int gensio_filter_try_disconnect(struct gensio_filter *filter,
-				 struct timeval *timeout,
+				 gensio_time *timeout,
 				 bool was_timeout);
 
 /*

@@ -151,7 +151,7 @@ struct basen_data {
     struct gensio_lock *lock;
     struct gensio_timer *timer;
     bool timer_start_pending;
-    struct timeval pending_timer;
+    gensio_time pending_timer;
 
     unsigned int refcount;
 
@@ -286,7 +286,7 @@ basen_deref_and_unlock(struct basen_data *ndata)
 }
 
 static void
-basen_start_timer(struct basen_data *ndata, struct timeval *timeout)
+basen_start_timer(struct basen_data *ndata, gensio_time *timeout)
 {
     if (ndata->o->start_timer(ndata->timer, timeout) == 0)
 	basen_ref(ndata);
@@ -357,7 +357,7 @@ filter_check_open_done(struct basen_data *ndata)
 }
 
 static int
-filter_try_connect(struct basen_data *ndata, struct timeval *timeout,
+filter_try_connect(struct basen_data *ndata, gensio_time *timeout,
 		   bool was_timeout)
 {
     if (ndata->filter)
@@ -366,7 +366,7 @@ filter_try_connect(struct basen_data *ndata, struct timeval *timeout,
 }
 
 static int
-filter_try_disconnect(struct basen_data *ndata, struct timeval *timeout,
+filter_try_disconnect(struct basen_data *ndata, gensio_time *timeout,
 		      bool was_timeout)
 {
     if (ndata->filter)
@@ -813,7 +813,7 @@ static int
 basen_filter_try_connect(struct basen_data *ndata, bool was_timeout)
 {
     int err;
-    struct timeval timeout = {0, 0};
+    gensio_time timeout = {0, 0};
 
     err = filter_try_connect(ndata, &timeout, was_timeout);
     if (!err || err == GE_INPROGRESS || err == GE_RETRY)
@@ -981,7 +981,7 @@ static void
 basen_filter_try_close(struct basen_data *ndata, bool was_timeout)
 {
     int err;
-    struct timeval timeout = {0, 0};
+    gensio_time timeout = {0, 0};
 
 
     err = filter_try_disconnect(ndata, &timeout, was_timeout);
@@ -1429,7 +1429,7 @@ basen_output_ready(void *cb_data)
 }
 
 static void
-basen_start_timer_op(void *cb_data, struct timeval *timeout)
+basen_start_timer_op(void *cb_data, gensio_time *timeout)
 {
     struct basen_data *ndata = cb_data;
 
@@ -1631,7 +1631,7 @@ gensio_filter_check_open_done(struct gensio_filter *filter,
 
 int
 gensio_filter_try_connect(struct gensio_filter *filter,
-			  struct timeval *timeout,
+			  gensio_time *timeout,
 			  bool was_timeout)
 {
     return filter->func(filter, GENSIO_FILTER_FUNC_TRY_CONNECT,
@@ -1640,7 +1640,7 @@ gensio_filter_try_connect(struct gensio_filter *filter,
 
 int
 gensio_filter_try_disconnect(struct gensio_filter *filter,
-			     struct timeval *timeout,
+			     gensio_time *timeout,
 			     bool was_timeout)
 {
     return filter->func(filter, GENSIO_FILTER_FUNC_TRY_DISCONNECT,

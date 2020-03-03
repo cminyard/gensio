@@ -24,6 +24,9 @@
 #ifdef HAVE_ISATTY
 #include <unistd.h>
 #endif
+#ifndef _WIN32
+#include <signal.h>
+#endif
 
 #include <gensio/gensio.h>
 /* Defined in gensio_selector.h, but we don't want to include there here. */
@@ -289,8 +292,12 @@ main(int argc, char *argv[])
     struct ioinfo *ioinfo1 = NULL, *ioinfo2 = NULL;
     struct gdata userdata1, userdata2;
     char *filename;
+#ifdef _WIN32
+    int sigs;
+#else
     sigset_t sigs;
-    struct timeval zerotime = { 0, 0 };
+#endif
+    gensio_time zerotime = { 0, 0 };
 
 #ifndef _WIN32
     /*

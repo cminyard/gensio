@@ -295,12 +295,10 @@ check_waitpid(struct stdion_channel *schan)
 	    ;
 
 	if (rv == 0) {
-	    struct timeval timeout;
+	    gensio_time timeout = { 0, 10000000 };
 
 	    /* The sub-process has not died, wait a bit and try again. */
 	    stdiona_ref(nadata);
-	    timeout.tv_sec = 0;
-	    timeout.tv_usec = 10000;
 	    nadata->o->start_timer(nadata->waitpid_timer, &timeout);
 	    nadata->closing_chan = schan;
 	    return;
