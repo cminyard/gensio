@@ -237,13 +237,19 @@ AC_CHECK_LIB(pam, pam_start, [HAVE_PAM=true], [HAVE_PAM=false])
 if $HAVE_PAM; then
    AC_DEFINE([HAVE_LIBPAM], [1], [PAM libraries are present])
    PAMLIB=-lpam
-   GTLSSHD=gtlsshd
-else
-   PAMLIB=
-   GTLSSHD=
 fi
 AC_SUBST(PAMLIB)
+
+GTLSSH=
+GTLSSHD=
+if [ $HAVE_OPENSSL = 1]; then
+   if [ $HAVE_PAM = 1 ]; then
+      GTLSSHD=gtlsshd
+   fi
+   GTLSSH=gtlssh
+fi
 AC_SUBST(GTLSSHD)
+AC_SUBST(GTLSSH)
 
 AC_CHECK_MEMBER([struct termios2.c_ispeed],
 	[AC_DEFINE([HAVE_TERMIOS2], [1], [termios2 is present])],
