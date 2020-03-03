@@ -1,4 +1,4 @@
-AC_INIT([gensio], [1.5.3], [minyard@acm.org])
+AC_INIT([gensio], [1.5.4], [minyard@acm.org])
 AM_INIT_AUTOMAKE([-Wall])
 AC_CONFIG_HEADERS([config.h])
 AC_PROG_CC
