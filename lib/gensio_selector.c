@@ -337,10 +337,10 @@ wake_waiter(waiter_t *waiter)
 
 #else /* USE_PTHREADS */
 
-struct waiter_s {
+typedef struct waiter_s {
     unsigned int count;
     struct selector_s *sel;
-};
+} waiter_t;
 
 static waiter_t *
 alloc_waiter(struct selector_s *sel, int wake_sig)
@@ -365,14 +365,16 @@ static int
 i_wait_for_waiter_timeout(waiter_t *waiter, unsigned int count,
 			  gensio_time *timeout, bool intr, sigset_t *sigmask)
 {
+    struct timeval tv, *rtv;
     int err = 0;
 
+    rtv = gensio_time_to_timeval(&tv, timeout);
     while (waiter->count < count) {
 	if (intr)
-	    err = sel_select_intr_sigmask(waiter->sel, 0, 0, NULL, timeout,
+	    err = sel_select_intr_sigmask(waiter->sel, 0, 0, NULL, rtv,
 					  sigmask);
 	else
-	    err = sel_select(waiter->sel, 0, 0, NULL, timeout);
+	    err = sel_select(waiter->sel, 0, 0, NULL, rtv);
 	if (err < 0) {
 	    err = errno;
 	    break;
@@ -380,9 +382,9 @@ i_wait_for_waiter_timeout(waiter_t *waiter, unsigned int count,
 	    err = ETIMEDOUT;
 	    break;
 	}
-	timeval_to_gensio(timeout, &tv);
 	err = 0;
     }
+    timeval_to_gensio_time(timeout, rtv);
     if (!err)
 	waiter->count -= count;
     return err;
@@ -833,7 +835,7 @@ gensio_sel_service(struct gensio_os_funcs *f, gensio_time *timeout)
 }
 #else
 static int
-gensio_sel_service(struct gensio_os_funcs *f, struct timeval *timeout)
+gensio_sel_service(struct gensio_os_funcs *f, gensio_time *timeout)
 {
     struct gensio_data *d = f->user_data;
     struct timeval tv, *rtv;
