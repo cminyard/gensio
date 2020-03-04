@@ -1192,7 +1192,7 @@ udpna_str_to_gensio(struct gensio_accepter *accepter, const char *addrstr,
     int err;
     const char **iargs;
     bool is_port_set;
-    int protocol;
+    int protocol = 0;
 
     err = gensio_scan_network_port(nadata->o, addrstr, false, &addr,
 				   &protocol, &is_port_set, NULL, &iargs);

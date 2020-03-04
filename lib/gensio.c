@@ -1165,7 +1165,7 @@ str_to_gensio_accepter(const char *str,
 {
     int err;
     struct gensio_addr *ai = NULL;
-    int protocol;
+    int protocol = 0;
     const char **args = NULL;
     struct registered_gensio_accepter *r;
     size_t len;
@@ -1374,7 +1374,7 @@ str_to_gensio(const char *str,
     int err = 0;
     struct gensio_addr *ai = NULL;
     bool is_port_set;
-    int protocol;
+    int protocol = 0;
     const char **args = NULL;
     struct registered_gensio *r;
     size_t len;
@@ -1613,7 +1613,7 @@ gensio_check_keyaddrs(struct gensio_os_funcs *o,
     const char *sval;
     int rv;
     struct gensio_addr *ai;
-    int protocol;
+    int protocol = iprotocol;
     bool is_port_set;
 
     rv = gensio_check_keyvalue(str, key, &sval);
@@ -2274,7 +2274,7 @@ gensio_get_defaultaddr(struct gensio_os_funcs *o,
 		       struct gensio_addr **rai)
 {
     int err;
-    int protocol;
+    int protocol = iprotocol;
     struct gensio_addr *ai;
     bool is_port_set;
     char *str;

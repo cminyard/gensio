@@ -1586,29 +1586,13 @@ scan_ips(struct gensio_os_funcs *o, const char *str, bool listen, int ifamily,
 }
 
 static int
-gensio_scan_unixaddr(struct gensio_os_funcs *o, const char *str, bool doargs,
-		     struct gensio_addr **raddr,
-		     int *rargc, const char ***rargs)
+gensio_scan_unixaddr(struct gensio_os_funcs *o, const char *str,
+		     struct gensio_addr **raddr)
 {
 #if HAVE_UNIX
     struct sockaddr_un *saddr;
     struct gensio_addr *addr = NULL;
     size_t len;
-    int argc = 0, err;
-    const char **args = NULL;
-
-    if (doargs) {
-	if (strncmp(str, "unix,", 5) == 0) {
-	    str += 5;
-	} else if (strncmp(str, "unix(", 5) == 0) {
-	    if (!rargs)
-		return GE_INVAL;
-	    str += 4;
-	    err = gensio_scan_args(o, &str, &argc, &args);
-	    if (err)
-		return err;
-	}
-    }
 
     len = strlen(str);
     if (len >= sizeof(saddr->sun_path) - 1)
@@ -1616,7 +1600,7 @@ gensio_scan_unixaddr(struct gensio_os_funcs *o, const char *str, bool doargs,
 
     addr = gensio_addr_make(o, sizeof(socklen_t) + len + 1);
     if (!addr)
-	goto out_nomem;
+	return GE_NOMEM;
 
     saddr = (struct sockaddr_un *) addr->a->ai_addr;
     saddr->sun_family = AF_UNIX;
@@ -1626,19 +1610,9 @@ gensio_scan_unixaddr(struct gensio_os_funcs *o, const char *str, bool doargs,
     addr->a->ai_addrlen = sizeof(socklen_t) + len + 1;
     addr->a->ai_addr = (struct sockaddr *) saddr;
 
-    if (rargc)
-	*rargc = argc;
-    if (rargs)
-	*rargs = args;
-
     *raddr = addr;
 
     return 0;
-
- out_nomem:
-    if (args)
-	gensio_argv_free(o, args);
-    return GE_NOMEM;
 #else
     return GE_NOTSUP;
 #endif
@@ -1658,12 +1632,24 @@ gensio_scan_network_port(struct gensio_os_funcs *o, const char *str,
 
     if (strncmp(str, "unix,", 4) == 0 ||
 		(rargs && strncmp(str, "unix(", 4) == 0)) {
-	err = gensio_scan_unixaddr(o, str, true, raddr, rargc, rargs);
+	if (str[4] == '(') {
+	    if (!rargs)
+		return GE_INVAL;
+	    str += 4;
+	    err = gensio_scan_args(o, &str, &argc, &args);
+	    if (err)
+		return err;
+	} else {
+	    str += 5;
+	}
+
+    handle_unix:
+	err = gensio_scan_unixaddr(o, str, raddr);
 	if (!err) {
-	    *rprotocol = GENSIO_NET_PROTOCOL_UNIX;
+	    irprotocol = GENSIO_NET_PROTOCOL_UNIX;
 	    *is_port_set = false;
 	}
-	return err;
+	goto out;
     }
 
     if (strncmp(str, "ipv4,", 5) == 0) {
@@ -1677,24 +1663,44 @@ gensio_scan_network_port(struct gensio_os_funcs *o, const char *str,
     if (strncmp(str, "tcp,", 4) == 0 ||
 		(rargs && strncmp(str, "tcp(", 4) == 0)) {
 	str += 3;
+    handle_tcp:
 	socktype = SOCK_STREAM;
 	protocol = IPPROTO_TCP;
 	irprotocol = GENSIO_NET_PROTOCOL_TCP;
     } else if (strncmp(str, "udp,", 4) == 0 ||
 	       (rargs && strncmp(str, "udp(", 4) == 0)) {
 	str += 3;
+    handle_udp:
 	socktype = SOCK_DGRAM;
 	protocol = IPPROTO_UDP;
 	irprotocol = GENSIO_NET_PROTOCOL_UDP;
-#if HAVE_LIBSCTP
     } else if (strncmp(str, "sctp,", 5) == 0 ||
 	       (rargs && strncmp(str, "sctp(", 5) == 0)) {
 	str += 4;
+    handle_sctp:
+#if HAVE_LIBSCTP
 	socktype = SOCK_SEQPACKET;
 	protocol = IPPROTO_SCTP;
 	irprotocol = GENSIO_NET_PROTOCOL_SCTP;
+#else
+	return GE_NOTSUP;
 #endif
+    } else if (*rprotocol && *rprotocol != 0) {
+	doskip = false;
+	switch (*rprotocol) {
+	case GENSIO_NET_PROTOCOL_UNIX:
+	    goto handle_unix;
+	case GENSIO_NET_PROTOCOL_TCP:
+	    goto handle_tcp;
+	case GENSIO_NET_PROTOCOL_UDP:
+	    goto handle_udp;
+	case GENSIO_NET_PROTOCOL_SCTP:
+	    goto handle_sctp;
+	default:
+	    goto default_protocol;
+	}
     } else {
+    default_protocol:
 	doskip = false;
 	socktype = SOCK_STREAM;
 	protocol = IPPROTO_TCP;
@@ -1708,6 +1714,8 @@ gensio_scan_network_port(struct gensio_os_funcs *o, const char *str,
 	    err = gensio_scan_args(o, &str, &argc, &args);
 	    if (err)
 		return err;
+	} else if (*str != ',') {
+	    return GE_INVAL;
 	} else {
 	    str++; /* Skip the ',' */
 	}
@@ -1715,6 +1723,7 @@ gensio_scan_network_port(struct gensio_os_funcs *o, const char *str,
 
     err = scan_ips(o, str, listen, family, socktype, protocol,
 		   is_port_set, raddr);
+ out:
     if (err) {
 	if (args)
 	    gensio_argv_free(o, args);
@@ -1758,17 +1767,19 @@ gensio_os_scan_netaddr(struct gensio_os_funcs *o, const char *str, bool listen,
 	protocol = IPPROTO_UDP;
 	break;
 
-#if HAVE_LIBSCTP
     case GENSIO_NET_PROTOCOL_SCTP:
+#if HAVE_LIBSCTP
 	socktype = SOCK_SEQPACKET;
 	protocol = IPPROTO_SCTP;
 	break;
+#else
+	return GE_NOTSUP;
 #endif
 
     case GENSIO_NET_PROTOCOL_UNIX:
 	if (family != AF_UNSPEC)
 	    return GE_INVAL;
-	return gensio_scan_unixaddr(o, str, false, raddr, NULL, NULL);
+	return gensio_scan_unixaddr(o, str, raddr);
 
     default:
 	return GE_INVAL;

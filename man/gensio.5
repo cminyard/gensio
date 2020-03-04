@@ -38,12 +38,12 @@ in options and such.  They may also be escaped with a "\\".  For instance,
 if you are specifying a laddr in an sctp address, you need to do this.
 The following address:
 .IP
-sctp(laddr=sctp,localhost,4001),localhost,3023
+sctp(laddr=localhost,4001),localhost,3023
 .PP
 will result in a failure because the option splitting code will split
 at the commas.  Instead, do:
 .IP
-sctp(laddr="sctp,localhost,4001"),localhost,3023
+sctp(laddr="localhost,4001"),localhost,3023
 .PP
 and it will work.
 

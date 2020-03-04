@@ -289,7 +289,7 @@ bool gensio_acc_is_message(struct gensio_accepter *accepter);
 
 /*
  * These are the low-level network protocol that gensio support.  Used
- * mostly in interacting with addresses.
+ * mostly in interacting with addresses.  zero is reserved.
  */
 #define GENSIO_NET_PROTOCOL_TCP 1
 #define GENSIO_NET_PROTOCOL_UDP 2

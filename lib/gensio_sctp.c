@@ -719,7 +719,7 @@ sctpna_str_to_gensio(struct gensio_accepter *accepter,
     struct gensio_addr *ai;
     const char *laddr = NULL, *dummy;
     bool is_port_set;
-    int protocol;
+    int protocol = GENSIO_NET_PROTOCOL_SCTP;
     bool nodelay = false;
 
     err = gensio_scan_network_port(nadata->o, addr, false, &ai,
