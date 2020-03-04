@@ -284,11 +284,8 @@ gensio_str_to_argv_endchar(struct gensio_os_funcs *o,
 	if (r_argc)
 	    *r_argc = argc;
 	*r_argv = argv;
-	if (nextptr) {
-	    if (*ins)
-		ins++;
+	if (nextptr)
 	    *nextptr = ins;
-	}
     }
     return err;
 }

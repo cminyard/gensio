@@ -370,10 +370,17 @@ gensio_scan_args(struct gensio_os_funcs *o,
     if (*str == '(') {
 	err = gensio_str_to_argv_endchar(o, str + 1, argc, args,
 					 " \f\n\r\t\v,", ")", &str);
-	if (!err && (!str || (*str != ',' && *str)))
-	    err = GE_INVAL; /* Not a ',' or end of string after */
-	else
-	    str++;
+	if (!err) {
+	    if (*str != ')') {
+		err = GE_INVAL; /* Didn't end in ')'. */
+	    } else {
+		str++;
+		if (*str != ',' && *str)
+		    err = GE_INVAL; /* Not a ',' or end of string after */
+		else
+		    str++;
+	    }
+	}
     } else {
 	if (*str)
 	    str += 1; /* skip the comma */
