@@ -1933,6 +1933,31 @@ gensio_addr_cat(const struct gensio_addr *addr1,
 }
 
 bool
+gensio_addr_cmp(const struct gensio_addr *addr1,
+		const struct gensio_addr *addr2,
+		bool compare_ports, bool all_addr)
+{
+    if (all_addr) {
+	struct addrinfo *ai1 = addr1->a;
+	struct addrinfo *ai2 = addr2->a;
+
+	while (ai1 && ai2) {
+	    if (!sockaddr_equal(ai1->ai_addr, ai1->ai_addrlen,
+				ai2->ai_addr, ai2->ai_addrlen,
+				compare_ports))
+		return false;
+	    ai1 = ai1->ai_next;
+	    ai2 = ai2->ai_next;
+	}
+	return ai1 == ai2; /* Same if they are both NULL. */
+    }
+
+    return sockaddr_equal(addr1->curr->ai_addr, addr1->curr->ai_addrlen,
+			  addr2->curr->ai_addr, addr2->curr->ai_addrlen,
+			  compare_ports);
+}
+
+bool
 gensio_addr_addr_present(const struct gensio_addr *gai,
 			 const void *addr, gensiods addrlen,
 			 bool compare_ports)

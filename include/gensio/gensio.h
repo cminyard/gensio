@@ -383,6 +383,16 @@ struct gensio_addr *gensio_addr_cat(const struct gensio_addr *ai1,
 void gensio_addr_free(struct gensio_addr *ai);
 
 /*
+ * Compare two addresses.  If compare_ports is false, ignore ports in
+ * the comparison, otherwise compare the ports.  If all_addr is true,
+ * compare all the sub-addresses in the addresses.  Otherwise only
+ * compare the current address.
+ */
+bool gensio_addr_cmp(const struct gensio_addr *addr1,
+		     const struct gensio_addr *addr2,
+		     bool compare_ports, bool all_addr);
+
+/*
  * See if addr is present in ai.  Ports are not compared unless
  * compare_ports is true.
  */
