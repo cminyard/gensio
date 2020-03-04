@@ -133,6 +133,9 @@ struct udpna_data {
 					   the UDP ports. */
     unsigned int   nr_fds;
 
+    bool nocon;		/* Disable connection-oriented handling. */
+    struct gensio_addr *curr_recvaddr;	/* Address of current received packet */
+
     bool in_write;
     unsigned int read_disable_count;
     bool read_disabled;
@@ -318,6 +321,8 @@ udpna_do_free(struct udpna_data *nadata)
 	gensio_addr_free(nadata->ai);
     if (nadata->fds)
 	nadata->o->free(nadata->o, nadata->fds);
+    if (nadata->curr_recvaddr)
+	gensio_addr_free(nadata->curr_recvaddr);
     if (nadata->read_data)
 	nadata->o->free(nadata->o, nadata->read_data);
     if (nadata->lock)
@@ -454,6 +459,10 @@ udpn_finish_close(struct udpna_data *nadata, struct udpn_data *ndata)
     }
 
     if (nadata->pending_data_owner == ndata) {
+	if (nadata->curr_recvaddr) {
+	    gensio_addr_free(nadata->curr_recvaddr);
+	    nadata->curr_recvaddr = NULL;
+	}
 	nadata->pending_data_owner = NULL;
 	nadata->data_pending_len = 0;
     }
@@ -468,11 +477,27 @@ udpn_finish_read(struct udpn_data *ndata)
     struct udpna_data *nadata = ndata->nadata;
     struct gensio *io = ndata->io;
     gensiods count;
+    char raddrdata[200];
+    const char *auxmem[2] = { NULL, NULL };
+    const char *const *auxdata;
 
  retry:
     udpna_unlock(nadata);
     count = nadata->data_pending_len;
-    gensio_cb(io, GENSIO_EVENT_READ, 0, nadata->read_data, &count, NULL);
+    auxdata = NULL;
+    if (nadata->curr_recvaddr) {
+	int err;
+	gensiods addrlen = sizeof(raddrdata), pos = 5;
+
+	auxdata = auxmem;
+	auxmem[0] = raddrdata;
+	strcpy(raddrdata, "addr:");
+	err = gensio_addr_to_str(nadata->curr_recvaddr, raddrdata, &pos,
+				 addrlen);
+	if (err)
+	    strncpy(raddrdata, gensio_err_to_str(err), sizeof(raddrdata));
+    }
+    gensio_cb(io, GENSIO_EVENT_READ, 0, nadata->read_data, &count, auxdata);
     udpna_lock(nadata);
 
     if (ndata->state == UDPN_IN_CLOSE) {
@@ -487,6 +512,10 @@ udpn_finish_read(struct udpn_data *ndata)
 	if (ndata->state == UDPN_OPEN && ndata->read_enabled)
 	    goto retry;
     } else {
+	if (nadata->curr_recvaddr) {
+	    gensio_addr_free(nadata->curr_recvaddr);
+	    nadata->curr_recvaddr = NULL;
+	}
 	nadata->pending_data_owner = NULL;
 	nadata->data_pending_len = 0;
     }
@@ -953,11 +982,20 @@ udpna_readhandler(int fd, void *cbdata)
     nadata->data_pending_len = datalen;
     nadata->data_pos = 0;
 
-    ndata = udpn_find(&nadata->udpns, addr);
-    if (ndata) {
+    if (nadata->nocon) {
+	if (gensio_list_empty(&nadata->udpns)) {
+	    ndata = NULL;
+	} else {
+	    ndata = gensio_link_to_ndata(gensio_list_first(&nadata->udpns));
+	    nadata->curr_recvaddr = addr;
+	    addr = NULL;
+	}
+    } else {
+	ndata = udpn_find(&nadata->udpns, addr);
+    }
+    if (ndata)
 	/* Data belongs to an existing connection. */
 	goto got_ndata;
-    }
 
     if (nadata->closed || !nadata->enabled) {
 	nadata->data_pending_len = 0;
@@ -1460,6 +1498,7 @@ udp_gensio_alloc(struct gensio_addr *addr, const char * const args[],
     int err, new_fd;
     gensiods max_read_size = GENSIO_DEFAULT_UDP_BUF_SIZE;
     unsigned int i;
+    bool nocon = false;
 
     err = gensio_get_defaultaddr(o, "udp", "laddr", false,
 				 GENSIO_NET_PROTOCOL_UDP, true, false, &laddr);
@@ -1475,6 +1514,10 @@ udp_gensio_alloc(struct gensio_addr *addr, const char * const args[],
 	if (gensio_check_keyaddrs(o, args[i], "laddr", GENSIO_NET_PROTOCOL_UDP,
 				  true, false, &laddr) > 0)
 	    continue;
+	if (gensio_check_keybool(args[i], "nocon", &nocon) > 0)
+	    continue;
+	if (laddr)
+	    gensio_addr_free(laddr);
 	return GE_INVAL;
     }
 
@@ -1508,6 +1551,7 @@ udp_gensio_alloc(struct gensio_addr *addr, const char * const args[],
     }
     nadata = gensio_acc_get_gensio_data(accepter);
     nadata->is_dummy = true;
+    nadata->nocon = nocon;
 
     nadata->fds = o->zalloc(o, sizeof(*nadata->fds));
     if (!nadata->fds) {

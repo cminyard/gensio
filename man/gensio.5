@@ -336,6 +336,12 @@ In addition to readbuf, the udp gensio takes the following options:
 .B laddr=<addr>
 An address specification to bind to on the local socket to set the
 local address.
+.TP
+.B nocon[=true|false]
+Don't be connection oriented, just receive all packets and deliver
+them without establishing connections.  Only valid for the client
+gensio.  The receive address is passed into the auxdata prefixed by
+"addr:", this is the address formatted by gensio_addr_to_str().
 .SS "Remote Address String"
 The remote address will be in the format "[ipv4|ipv6],<addr>,<port>" where the
 address is in numeric format, IPv4, or IPv6.
