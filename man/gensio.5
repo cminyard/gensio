@@ -326,10 +326,19 @@ new remote host.  If you disable read on any of the accepted gensio or
 disable accepts on the accepting gensio, it will stop all reads on all
 gensios associated with that accepting gensio.
 
+Note that UDP accepter gensios are not really required for using UDP,
+the are primarily there for handling ser2net accepter semantics.  You
+can create two connecting UDP gensios and communicate between them.
+
 UDP gensios are not reliable, but are obviously packet-oriented.
 
 Port 0 is supported just like TCP for accepters, see Dynamic Ports in
 the TCP section above for details.
+
+The destination address defaults to the one specified on the gensio
+specifier (for connecting gensios) or the remote address that
+initiated the connection (for accepting gensios), but may be
+overridden using "addr:<addr>" in the write auxdata.
 
 In addition to readbuf, the udp gensio takes the following options:
 .TP
