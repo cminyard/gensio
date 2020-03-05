@@ -1905,17 +1905,9 @@ int
 gensio_os_scan_netaddr(struct gensio_os_funcs *o, const char *str, bool listen,
 		       int gprotocol, struct gensio_addr **raddr)
 {
-    int family = AF_UNSPEC, protocol, socktype;
+    int protocol, socktype;
     bool is_port_set;
     int rv;
-
-    if (strncmp(str, "ipv4,", 5) == 0) {
-	family = AF_INET;
-	str += 5;
-    } else if (strncmp(str, "ipv6,", 5) == 0) {
-	family = AF_INET6;
-	str += 5;
-    }
 
     switch (gprotocol) {
     case GENSIO_NET_PROTOCOL_TCP:
@@ -1938,15 +1930,13 @@ gensio_os_scan_netaddr(struct gensio_os_funcs *o, const char *str, bool listen,
 #endif
 
     case GENSIO_NET_PROTOCOL_UNIX:
-	if (family != AF_UNSPEC)
-	    return GE_INVAL;
 	return gensio_scan_unixaddr(o, str, raddr);
 
     default:
 	return GE_INVAL;
     }
 
-    rv = scan_ips(o, str, listen, family, socktype, protocol,
+    rv = scan_ips(o, str, listen, AF_UNSPEC, socktype, protocol,
 		  &is_port_set, true, raddr);
     if (!rv && !listen && !is_port_set)
 	rv = GE_INVAL;

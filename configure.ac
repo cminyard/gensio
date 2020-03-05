@@ -53,8 +53,10 @@ AC_ARG_WITH(sctp,
 )
 
 use_pthreads=yes
+use_pthreads_set=false
 AC_ARG_WITH(pthreads,
 [  --with-pthreads=yes|no      Use pthreads or not.],
+    use_pthreads_set=true
     if test "x$withval" = "xyes"; then
       use_pthreads=yes
     elif test "x$withval" = "xno"; then
@@ -63,11 +65,14 @@ AC_ARG_WITH(pthreads,
 )
 
 if test "x$use_pthreads" != "xno"; then
-   AX_PTHREAD
-   if test "x$use_pthreads$ax_pthread_ok" = "xyesno"; then
-      AC_MSG_FAILURE([--with-pthreads was given, but no working pthread library was found])
-   fi
-   AM_CONDITIONAL([USE_PTHREADS], [test "x$ax_pthread_ok" = "xyes"])
+   AX_PTHREAD(
+      [LIBS="$LIBS $PTHREAD_LIBS"
+       CFLAGS="$CFLAGS $PTHREAD_CFLAGS"
+       CC="$PTHREAD_CC"
+       AC_DEFINE([USE_PTHREADS], [], [Enable multithreaded support])],
+      [if $use_pthreads_set; then
+          AC_MSG_FAILURE([--with-pthreads was given, but no working pthread library was found])
+       fi])
 fi
 
 AC_ARG_WITH(openipmiflags,

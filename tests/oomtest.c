@@ -1188,6 +1188,7 @@ main(int argc, char *argv[])
 #ifdef USE_PTHREADS
     pthread_t loopth[3];
     struct gensio_waiter *loopwaiter[3];
+    unsigned int num_extra_threads = 3;
 #endif
     unsigned int i, j;
     unsigned long errcount = 0;
@@ -1196,7 +1197,6 @@ main(int argc, char *argv[])
     sigset_t sigs;
     int testnr = -1, numtests = 0, testnrstart = -1, testnrend = MAX_LOOPS;
     gensio_time zerotime = { 0, 0 };
-    unsigned int num_extra_threads = 3;
 
 #ifndef ENABLE_INTERNAL_TRACE
     fprintf(stderr, "Internal tracing disabled, cannot run oomtest\n");
@@ -1252,6 +1252,7 @@ main(int argc, char *argv[])
 		exit(1);
 	    }
 	    testnrstart = strtol(argv[i], NULL, 0);
+#ifdef USE_PTHREADS
 	} else if (strcmp(argv[i], "-n") == 0) {
 	    i++;
 	    if (i >= argc) {
@@ -1259,6 +1260,7 @@ main(int argc, char *argv[])
 		exit(1);
 	    }
 	    num_extra_threads = strtol(argv[i], NULL, 0);
+#endif
 	} else if (strcmp(argv[i], "-e") == 0) {
 	    i++;
 	    if (i >= argc) {
