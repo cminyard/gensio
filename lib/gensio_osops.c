@@ -1786,7 +1786,8 @@ gensio_scan_network_port(struct gensio_os_funcs *o, const char *str,
 	err = gensio_scan_unixaddr(o, str, raddr);
 	if (!err) {
 	    irprotocol = GENSIO_NET_PROTOCOL_UNIX;
-	    *is_port_set = false;
+	    if (is_port_set)
+		*is_port_set = false;
 	}
 	goto out;
     }
