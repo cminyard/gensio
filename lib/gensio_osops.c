@@ -858,6 +858,145 @@ gensio_os_socket_setup(struct gensio_os_funcs *o, int fd,
 }
 
 int
+gensio_os_mcast_add(struct gensio_os_funcs *o, int fd,
+		    struct gensio_addr *mcast_addrs, int interface,
+		    bool curr_only)
+{
+    struct addrinfo *ai;
+    int rv;
+
+    if (curr_only)
+	ai = mcast_addrs->curr;
+    else
+	ai = mcast_addrs->a;
+
+    while (ai) {
+	switch (ai->ai_addr->sa_family) {
+	case AF_INET:
+	    {
+		struct sockaddr_in *a = (struct sockaddr_in *) ai->ai_addr;
+		struct ip_mreqn m;
+
+		m.imr_multiaddr = a->sin_addr;
+		m.imr_address.s_addr = INADDR_ANY;
+		m.imr_ifindex = interface;
+		rv = setsockopt(fd, IPPROTO_IP, IP_ADD_MEMBERSHIP,
+				&m, sizeof(m));
+		if (rv == -1)
+		    return gensio_os_err_to_err(o, errno);
+	    }
+	    break;
+
+	case AF_INET6:
+	    {
+		struct sockaddr_in6 *a = (struct sockaddr_in6 *) ai->ai_addr;
+		struct ipv6_mreq m;
+
+		m.ipv6mr_multiaddr = a->sin6_addr;
+		m.ipv6mr_interface = interface;
+		rv = setsockopt(fd, IPPROTO_IPV6, IPV6_ADD_MEMBERSHIP,
+				&m, sizeof(m));
+		if (rv == -1)
+		    return gensio_os_err_to_err(o, errno);
+	    }
+	    break;
+
+	default:
+	    return GE_INVAL;
+	}
+
+	if (curr_only)
+	    break;
+	ai = ai->ai_next;
+    }
+
+    return 0;
+}
+
+int
+gensio_os_mcast_del(struct gensio_os_funcs *o, int fd,
+		    struct gensio_addr *mcast_addrs, int interface,
+		    bool curr_only)
+{
+    struct addrinfo *ai;
+    int rv;
+
+    if (curr_only)
+	ai = mcast_addrs->curr;
+    else
+	ai = mcast_addrs->a;
+
+    while (ai) {
+	switch (ai->ai_addr->sa_family) {
+	case AF_INET:
+	    {
+		struct sockaddr_in *a = (struct sockaddr_in *) ai->ai_addr;
+		struct ip_mreqn m;
+
+		m.imr_multiaddr = a->sin_addr;
+		m.imr_address.s_addr = INADDR_ANY;
+		m.imr_ifindex = interface;
+		rv = setsockopt(fd, IPPROTO_IP, IP_ADD_MEMBERSHIP,
+				&m, sizeof(m));
+		if (rv == -1)
+		    return gensio_os_err_to_err(o, errno);
+	    }
+	    break;
+
+	case AF_INET6:
+	    {
+		struct sockaddr_in6 *a = (struct sockaddr_in6 *) ai->ai_addr;
+		struct ipv6_mreq m;
+
+		m.ipv6mr_multiaddr = a->sin6_addr;
+		m.ipv6mr_interface = interface;
+		rv = setsockopt(fd, IPPROTO_IPV6, IPV6_ADD_MEMBERSHIP,
+				&m, sizeof(m));
+		if (rv == -1)
+		    return gensio_os_err_to_err(o, errno);
+	    }
+	    break;
+
+	default:
+	    return GE_INVAL;
+	}
+
+	if (curr_only)
+	    break;
+	ai = ai->ai_next;
+    }
+
+    return 0;
+}
+
+int
+gensio_os_set_mcast_loop(struct gensio_os_funcs *o, int fd,
+			 struct gensio_addr *addr, bool ival)
+{
+    int rv, val = ival;
+
+    switch (addr->curr->ai_addr->sa_family) {
+    case AF_INET:
+	rv = setsockopt(fd, IPPROTO_IP, IP_MULTICAST_LOOP, &val, sizeof(val));
+	if (rv == -1)
+	    return gensio_os_err_to_err(o, errno);
+	break;
+
+    case AF_INET6:
+	rv = setsockopt(fd, IPPROTO_IPV6, IPV6_MULTICAST_LOOP,
+			&val, sizeof(val));
+	if (rv == -1)
+	    return gensio_os_err_to_err(o, errno);
+	break;
+
+    default:
+	return GE_INVAL;
+    }
+
+    return 0;
+}
+
+int
 gensio_os_connect(struct gensio_os_funcs *o, int fd, struct gensio_addr *addr)
 {
     int err = connect(fd, addr->curr->ai_addr, addr->curr->ai_addrlen);

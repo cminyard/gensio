@@ -835,19 +835,51 @@ udpna_writehandler(int fd, void *cbdata)
 }
 
 int
-udpn_control(bool get, int option, char *data, gensiods *datalen)
+udpn_control(struct gensio *io, bool get, int option,
+	     char *data, gensiods *datalen)
 {
-    if (!get)
-	return GE_NOTSUP;
-    if (option != GENSIO_CONTROL_MAX_WRITE_PACKET)
-	return GE_NOTSUP;
+    struct udpn_data *ndata = gensio_get_gensio_data(io);
+    struct udpna_data *nadata = ndata->nadata;
+    int err, protocol;
+    struct gensio_addr *addr;
 
-    /*
-     * This is the maximum size for a normal IPv4 UDP packet (per
-     * wikipedia).  IPv6 jumbo packets can go larger, but this should
-     * be safe to advertise.
-     */
-    *datalen = snprintf(data, *datalen, "%d", 65507);
+    switch(option) {
+    case GENSIO_CONTROL_MAX_WRITE_PACKET:
+	if (!get)
+	    return GE_NOTSUP;
+	/*
+	 * This is the maximum size for a normal IPv4 UDP packet (per
+	 * wikipedia).  IPv6 jumbo packets can go larger, but this should
+	 * be safe to advertise.
+	 */
+	*datalen = snprintf(data, *datalen, "%d", 65507);
+	break;
+
+    case GENSIO_CONTROL_ADD_MCAST:
+    case GENSIO_CONTROL_DEL_MCAST:
+	protocol = GENSIO_NET_PROTOCOL_UDP;
+	err = gensio_scan_network_port(nadata->o, data, false, &addr,
+				       &protocol, NULL, NULL, NULL);
+	if (err)
+	    return err;
+	if (protocol != GENSIO_NET_PROTOCOL_UDP) {
+	    gensio_addr_free(addr);
+	    return GE_INVAL;
+	}
+	if (option == GENSIO_CONTROL_ADD_MCAST)
+	    err = gensio_os_mcast_add(nadata->o, nadata->fds->fd, addr,
+				      0, false);
+	else
+	    err = gensio_os_mcast_del(nadata->o, nadata->fds->fd, addr,
+				      0, false);
+	gensio_addr_free(addr);
+	if (err)
+	    return err;
+	break;
+
+    default:
+	return GE_NOTSUP;
+    }
     return 0;
 }
 
@@ -893,7 +925,7 @@ gensio_udp_func(struct gensio *io, int func, gensiods *count,
 	return 0;
 
     case GENSIO_FUNC_CONTROL:
-	return udpn_control(*((bool *) cbuf), buflen, buf, count);
+	return udpn_control(io, *((bool *) cbuf), buflen, buf, count);
 
     case GENSIO_FUNC_REMOTE_ID:
     default:
@@ -1494,11 +1526,11 @@ udp_gensio_alloc(struct gensio_addr *addr, const char * const args[],
     struct udpn_data *ndata = NULL;
     struct gensio_accepter *accepter;
     struct udpna_data *nadata = NULL;
-    struct gensio_addr *laddr = NULL;
+    struct gensio_addr *laddr = NULL, *mcast = NULL, *tmpaddr, *tmpaddr2;
     int err, new_fd;
     gensiods max_read_size = GENSIO_DEFAULT_UDP_BUF_SIZE;
     unsigned int i;
-    bool nocon = false;
+    bool nocon = false, mcast_loop_set = false, mcast_loop = true;
 
     err = gensio_get_defaultaddr(o, "udp", "laddr", false,
 				 GENSIO_NET_PROTOCOL_UDP, true, false, &laddr);
@@ -1508,23 +1540,54 @@ udp_gensio_alloc(struct gensio_addr *addr, const char * const args[],
 	return err;
     }
 
+    err = GE_INVAL;
     for (i = 0; args && args[i]; i++) {
 	if (gensio_check_keyds(args[i], "readbuf", &max_read_size) > 0)
 	    continue;
+	tmpaddr = NULL;
 	if (gensio_check_keyaddrs(o, args[i], "laddr", GENSIO_NET_PROTOCOL_UDP,
-				  true, false, &laddr) > 0)
+				  true, false, &tmpaddr) > 0) {
+	    if (laddr)
+		gensio_addr_free(laddr);
+	    laddr = tmpaddr;
 	    continue;
+	}
+	if (gensio_check_keyaddrs(o, args[i], "mcast", GENSIO_NET_PROTOCOL_UDP,
+				  true, false, &tmpaddr) > 0) {
+	    if (mcast) {
+		tmpaddr2 = gensio_addr_cat(mcast, tmpaddr);
+		if (!tmpaddr2) {
+		    err = GE_NOMEM;
+		    goto parm_err;
+		}
+		gensio_addr_free(mcast);
+		gensio_addr_free(tmpaddr);
+		mcast = tmpaddr2;
+	    } else {
+		mcast = tmpaddr;
+	    }
+	    continue;
+	}
 	if (gensio_check_keybool(args[i], "nocon", &nocon) > 0)
 	    continue;
+	if (gensio_check_keybool(args[i], "mloop", &mcast_loop) > 0) {
+	    mcast_loop_set = true;
+	    continue;
+	}
+    parm_err:
 	if (laddr)
 	    gensio_addr_free(laddr);
-	return GE_INVAL;
+	if (mcast)
+	    gensio_addr_free(mcast);
+	return err;
     }
 
     err = gensio_os_socket_open(o, addr, GENSIO_NET_PROTOCOL_UDP, &new_fd);
     if (err) {
 	if (laddr)
 	    gensio_addr_free(laddr);
+	if (mcast)
+	    gensio_addr_free(mcast);
 	return err;
     }
 
@@ -1534,12 +1597,32 @@ udp_gensio_alloc(struct gensio_addr *addr, const char * const args[],
 	gensio_os_close(o, new_fd);
 	if (laddr)
 	    gensio_addr_free(laddr);
+	if (mcast)
+	    gensio_addr_free(mcast);
 	return err;
     }
 
     if (laddr) {
 	gensio_addr_free(laddr);
 	laddr = NULL;
+    }
+
+    if (mcast) {
+	err = gensio_os_mcast_add(o, new_fd, mcast, 0, false);
+	gensio_addr_free(mcast);
+	if (err) {
+	    gensio_os_close(o, new_fd);
+	    return err;
+	}
+	mcast = NULL;
+    }
+
+    if (mcast_loop_set) {
+	err = gensio_os_set_mcast_loop(o, new_fd, addr, mcast_loop);
+	if (err) {
+	    gensio_os_close(o, new_fd);
+	    return err;
+	}
     }
 
     /* Allocate a dummy network accepter. */

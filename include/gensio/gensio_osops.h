@@ -106,6 +106,17 @@ int gensio_os_socket_setup(struct gensio_os_funcs *o, int fd,
 			   int protocol, bool keepalive, bool nodelay,
 			   struct gensio_addr *bindaddr);
 
+int gensio_os_mcast_add(struct gensio_os_funcs *o, int fd,
+			struct gensio_addr *mcast_addrs, int interface,
+			bool curr_only);
+
+int gensio_os_mcast_del(struct gensio_os_funcs *o, int fd,
+			struct gensio_addr *mcast_addrs, int interface,
+			bool curr_only);
+
+int gensio_os_set_mcast_loop(struct gensio_os_funcs *o, int fd,
+			     struct gensio_addr *addr, bool val);
+
 int gensio_os_connect(struct gensio_os_funcs *o,
 		      int fd, struct gensio_addr *addr);
 

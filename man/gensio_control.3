@@ -186,6 +186,12 @@ string is returned.
 On a stdio connectors and pty gensios, do a waitpid on the process.
 If it has closed, this will return success and the exit code in the
 string.  Otherwise it will return GE_NOTREADY.
+.SS "GENSIO_CONTROL_ADD_MCAST"
+On UDP connections, add a multicast address that the socket will
+receive packets on.
+.SS "GENSIO_CONTROL_DEL_MCAST"
+On UDP connections, delete a multicast address that the socket will
+receive packets on.
 .SH "RETURN VALUES"
 Zero is returned on success, or a gensio error on failure.
 .SH "SEE ALSO"
