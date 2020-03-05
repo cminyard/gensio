@@ -411,12 +411,36 @@ udpn_finish_free(struct udpn_data *ndata)
 
 static int
 udpn_write(struct gensio *io, gensiods *count,
-	   const struct gensio_sg *sg, gensiods sglen)
+	   const struct gensio_sg *sg, gensiods sglen,
+	   const char *const *auxdata)
 {
     struct udpn_data *ndata = gensio_get_gensio_data(io);
+    struct gensio_addr *addr = NULL;
+    unsigned int i;
+    bool free_addr = false;
+    int err;
 
-    return gensio_os_sendto(ndata->o, ndata->myfd, sg, sglen, count, 0,
-			    ndata->raddr);
+    for (i = 0; auxdata && auxdata[i]; i++) {
+	if (strncmp(auxdata[i], "addr:", 5) == 0) {
+	    if (addr)
+		gensio_addr_free(addr);
+	    err = gensio_os_scan_netaddr(ndata->o, auxdata[i] + 5, false,
+					 GENSIO_NET_PROTOCOL_UDP, &addr);
+	    if (err)
+		return err;
+	    free_addr = true;
+	} else {
+	    return GE_INVAL;
+	}
+    }
+
+    if (!addr)
+	addr = ndata->raddr;
+
+    err = gensio_os_sendto(ndata->o, ndata->myfd, sg, sglen, count, 0, addr);
+    if (free_addr)
+	gensio_addr_free(addr);
+    return err;
 }
 
 static int
@@ -890,7 +914,7 @@ gensio_udp_func(struct gensio *io, int func, gensiods *count,
 {
     switch (func) {
     case GENSIO_FUNC_WRITE_SG:
-	return udpn_write(io, count, cbuf, buflen);
+	return udpn_write(io, count, cbuf, buflen, auxdata);
 
     case GENSIO_FUNC_RADDR_TO_STR:
 	return udpn_raddr_to_str(io, count, buf, buflen);
