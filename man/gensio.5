@@ -348,9 +348,9 @@ If false, multicast packets transmitted will not be received on the
 local host.  If true, they will.
 .TP
 .B mcast=<addr>
-Add an address to receive multicast packets on.  The port number is
-ignored and should be set to zero.  You can specify multiple addresses
-in a single multicast option and/or the multicast option can be used
+Add an address to receive multicast packets on.  There is no port
+number, this is just addresses.  You can specify multiple addresses in
+a single multicast option and/or the multicast option can be used
 multiple times to add multiple multicast addresses.
 .SS "Remote Address String"
 The remote address will be in the format "[ipv4|ipv6],<addr>,<port>" where the
@@ -368,7 +368,7 @@ options.  To set up a multicast, create a client UDP gensio and set
 the laddr for the receive port and the destination address to the
 multicast and enable nocon, like:
 .IP
-"udp(mcast='ff02::1,0',laddr='::,3000',nocon),ff02::1,3000"
+"udp(mcast='ff02::1',laddr='ipv6,3000',nocon),ff02::1,3000"
 .PP
 and you will receive and send data on the multicast address.  The
 .B laddr

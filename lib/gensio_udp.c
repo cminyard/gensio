@@ -858,8 +858,8 @@ udpn_control(struct gensio *io, bool get, int option,
     case GENSIO_CONTROL_ADD_MCAST:
     case GENSIO_CONTROL_DEL_MCAST:
 	protocol = GENSIO_NET_PROTOCOL_UDP;
-	err = gensio_scan_network_port(nadata->o, data, false, &addr,
-				       &protocol, NULL, NULL, NULL);
+	err = gensio_scan_network_addr(nadata->o, data,
+				       GENSIO_NET_PROTOCOL_UDP, &addr);
 	if (err)
 	    return err;
 	if (protocol != GENSIO_NET_PROTOCOL_UDP) {
@@ -1552,8 +1552,9 @@ udp_gensio_alloc(struct gensio_addr *addr, const char * const args[],
 	    laddr = tmpaddr;
 	    continue;
 	}
-	if (gensio_check_keyaddrs(o, args[i], "mcast", GENSIO_NET_PROTOCOL_UDP,
-				  true, false, &tmpaddr) > 0) {
+	if (gensio_check_keyaddrs_noport(o, args[i], "mcast",
+					 GENSIO_NET_PROTOCOL_UDP,
+					 &tmpaddr) > 0) {
 	    if (mcast) {
 		tmpaddr2 = gensio_addr_cat(mcast, tmpaddr);
 		if (!tmpaddr2) {

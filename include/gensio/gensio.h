@@ -451,6 +451,14 @@ int gensio_scan_network_port(struct gensio_os_funcs *o, const char *str,
 			     int *argc, const char ***args);
 
 /*
+ * Like the above, but only scan for addresses in a list, no ports, no
+ * protocol, like: "::1,ipv4,10.0.2.3".  This only works on IP
+ * addresses.
+ */
+int gensio_scan_network_addr(struct gensio_os_funcs *o, const char *str,
+			     int protocol, struct gensio_addr **ai);
+
+/*
  * Handling for gensio parameters.
  */
 enum gensio_default_type {
@@ -535,6 +543,9 @@ int gensio_check_keyaddrs(struct gensio_os_funcs *o,
 			  const char *str, const char *key, int protocol,
 			  bool listen, bool require_port,
 			  struct gensio_addr **ai);
+int gensio_check_keyaddrs_noport(struct gensio_os_funcs *o,
+				 const char *str, const char *key,
+				 int protocol, struct gensio_addr **ai);
 
 /*
  * Helper functions that don't fit anywhere else.

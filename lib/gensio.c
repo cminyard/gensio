@@ -1641,6 +1641,34 @@ gensio_check_keyaddrs(struct gensio_os_funcs *o,
     return 1;
 }
 
+int
+gensio_check_keyaddrs_noport(struct gensio_os_funcs *o,
+			     const char *str, const char *key, int protocol,
+			     struct gensio_addr **rai)
+{
+    const char *sval;
+    int rv;
+    struct gensio_addr *ai;
+
+    rv = gensio_check_keyvalue(str, key, &sval);
+    if (!rv)
+	return 0;
+
+    if (!*sval)
+	return -1;
+
+    rv = gensio_scan_network_addr(o, sval, protocol, &ai);
+    if (rv)
+	return -1;
+
+    if (*rai)
+	gensio_addr_free(*rai);
+
+    *rai = ai;
+
+    return 1;
+}
+
 void
 gensio_set_log_mask(unsigned int mask)
 {

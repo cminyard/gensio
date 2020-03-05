@@ -1592,7 +1592,7 @@ gensio_addr_to_str_all(const struct gensio_addr *addr,
 
 static int
 scan_ips(struct gensio_os_funcs *o, const char *str, bool listen, int ifamily,
-	 int socktype, int protocol, bool *is_port_set,
+	 int socktype, int protocol, bool *is_port_set, bool scan_port,
 	 struct gensio_addr **raddr)
 {
     char *strtok_data, *strtok_buffer;
@@ -1639,14 +1639,18 @@ scan_ips(struct gensio_os_funcs *o, const char *str, bool listen, int ifamily,
 	    goto out_err;
 	}
 
-	port = strtok_r(NULL, ",", &strtok_data);
-	if (port == NULL) {
-	    port = ip;
-	    ip = NULL;
-	}
+	if (scan_port) {
+	    port = strtok_r(NULL, ",", &strtok_data);
+	    if (port == NULL) {
+		port = ip;
+		ip = NULL;
+	    }
 
-	if (ip && *ip == '\0')
-	    ip = NULL;
+	    if (ip && *ip == '\0')
+		ip = NULL;
+	} else {
+	    port = "0";
+	}
 
 	memset(&hints, 0, sizeof(hints));
 	hints.ai_flags = bflags | rflags;
@@ -1862,7 +1866,7 @@ gensio_scan_network_port(struct gensio_os_funcs *o, const char *str,
     }
 
     err = scan_ips(o, str, listen, family, socktype, protocol,
-		   is_port_set, raddr);
+		   is_port_set, true, raddr);
  out:
     if (err) {
 	if (args)
@@ -1878,6 +1882,23 @@ gensio_scan_network_port(struct gensio_os_funcs *o, const char *str,
 	*rprotocol = irprotocol;
 
     return 0;
+}
+
+int
+gensio_scan_network_addr(struct gensio_os_funcs *o, const char *str,
+			 int iprotocol, struct gensio_addr **raddr)
+{
+    int protocol;
+
+    switch (iprotocol) {
+    case GENSIO_NET_PROTOCOL_TCP: protocol = IPPROTO_TCP; break;
+    case GENSIO_NET_PROTOCOL_UDP: protocol = IPPROTO_UDP; break;
+    case GENSIO_NET_PROTOCOL_SCTP: protocol = IPPROTO_SCTP; break;
+    default:
+	return GE_INVAL;
+    }
+
+    return scan_ips(o, str, false, 0, 0, protocol, NULL, false, raddr);
 }
 
 int
@@ -1926,7 +1947,7 @@ gensio_os_scan_netaddr(struct gensio_os_funcs *o, const char *str, bool listen,
     }
 
     rv = scan_ips(o, str, listen, family, socktype, protocol,
-		  &is_port_set, raddr);
+		  &is_port_set, true, raddr);
     if (!rv && !listen && !is_port_set)
 	rv = GE_INVAL;
     return rv;
