@@ -250,8 +250,8 @@ AC_SUBST(PAMLIB)
 
 GTLSSH=
 GTLSSHD=
-if [ $HAVE_OPENSSL = 1]; then
-   if [ $HAVE_PAM = 1 ]; then
+if test "x$HAVE_OPENSSL" = x1; then
+   if test "x$HAVE_PAM" = "x1"; then
       GTLSSHD=gtlsshd
    fi
    GTLSSH=gtlssh
