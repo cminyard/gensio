@@ -9,7 +9,6 @@ from utils import *
 import gensio
 
 print("Test mux tcp large")
-io1 = alloc_io(o, "mux,tcp,localhost,3023", do_open = False,
-               chunksize = 64)
-ta = TestAccept(o, io1, "mux,tcp,3023", do_large_test)
+ta = TestAccept(o, "mux,tcp,localhost,", "mux,tcp,0", do_large_test,
+                chunksize = 64)
 

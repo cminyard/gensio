@@ -9,8 +9,7 @@ from utils import *
 import gensio
 
 print("Test accept certauth-ssl-tcp")
-io1 = alloc_io(o, "certauth(cert=%s/clientcert.pem,key=%s/clientkey.pem,username=testuser,service=myservice),ssl(CA=%s/CA.pem),tcp,localhost,3023" % (keydir, keydir, keydir), do_open = False)
-ta = TestAccept(o, io1, "certauth(CA=%s/clientcert.pem),ssl(key=%s/key.pem,cert=%s/cert.pem),tcp,3023" % (keydir, keydir, keydir), do_test, do_close = False)
+ta = TestAccept(o, "certauth(cert=%s/clientcert.pem,key=%s/clientkey.pem,username=testuser,service=myservice),ssl(CA=%s/CA.pem),tcp,localhost," % (keydir, keydir, keydir), "certauth(CA=%s/clientcert.pem),ssl(key=%s/key.pem,cert=%s/cert.pem),tcp,0" % (keydir, keydir, keydir), do_test, do_close = False)
 cn = ta.io2.control(0, True, gensio.GENSIO_CONTROL_GET_PEER_CERT_NAME,
                     "-1,CN");
 i = cn.index(',')

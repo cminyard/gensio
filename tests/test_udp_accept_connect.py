@@ -9,6 +9,6 @@ from utils import *
 import gensio
 
 print("Test udp accepter connect")
-TestAcceptConnect(o, "udp,3023", "udp,3024", "udp,localhost,3023",
+TestAcceptConnect(o, "udp,0", "udp,0", "udp,localhost,",
                   do_small_test, io1_dummy_write = "A")
 

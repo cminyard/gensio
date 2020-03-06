@@ -663,25 +663,34 @@ def check_port(acc, testname, expected):
                         (testname, expected, r));
 
 class TestAccept:
-    def __init__(self, o, io1, iostr, tester, name = None,
+    def __init__(self, o, io1str, accstr, tester, name = None,
                  io1_dummy_write = None, do_close = True,
                  expected_raddr = None, expected_acc_laddr = None,
-                 expected_acc_port = None):
+                 chunksize = 10240):
         self.o = o
         if (name):
             self.name = name
         else:
-            self.name = iostr
-        self.io1 = io1
+            self.name = accstr
         self.io2 = None
         self.waiter = gensio.waiter(o)
-        gensios_enabled.check_iostr_gensios(iostr)
-        self.acc = gensio.gensio_accepter(o, iostr, self);
+        gensios_enabled.check_iostr_gensios(accstr)
+        self.acc = gensio.gensio_accepter(o, accstr, self);
         self.acc.startup()
+
+        port = self.acc.control(gensio.GENSIO_CONTROL_DEPTH_FIRST, True,
+                                gensio.GENSIO_ACC_CONTROL_LPORT, "0")
+        io1str = io1str + port
+        io1 = alloc_io(o, io1str, do_open = False,
+                       chunksize = chunksize)
+        self.io1 = io1
+        if expected_acc_laddr:
+            expected_acc_laddr = expected_acc_laddr + port
+        if expected_raddr:
+            expected_raddr = expected_raddr + port
+
         if expected_acc_laddr:
             check_laddr(self.acc, self.name, expected_acc_laddr)
-        if expected_acc_port:
-            check_port(self.acc, self.name, expected_acc_port)
         io1.open_s()
         if expected_raddr:
             check_raddr(io1, self.name, expected_raddr)
@@ -772,7 +781,7 @@ class TestAcceptConnect:
                  io1_dummy_write = None, CA=None, do_close = True,
                  auth_begin_rv = gensio.GE_NOTSUP, expect_pw = None,
                  expect_pw_rv = gensio.GE_NOTSUP, password = None,
-                 expect_remclose = True):
+                 expect_remclose = True, use_port = True):
         self.o = o
         if (name):
             self.name = name
@@ -785,6 +794,10 @@ class TestAcceptConnect:
         self.acc.startup()
         self.acc2 = gensio.gensio_accepter(o, io2str, self);
         self.acc2.startup()
+        if (use_port):
+            port = self.acc.control(gensio.GENSIO_CONTROL_DEPTH_FIRST, True,
+                                    gensio.GENSIO_ACC_CONTROL_LPORT, "0")
+            io3str = io3str + port
         self.io1 = self.acc2.str_to_gensio(io3str, None);
         self.io2 = None
         self.CA = CA

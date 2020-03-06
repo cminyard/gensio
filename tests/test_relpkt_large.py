@@ -9,5 +9,5 @@ from utils import *
 import gensio
 
 print("Test large relpkt over udp")
-io1 = alloc_io(o, "mux,relpkt,udp,localhost,3023", do_open = False)
-TestAccept(o, io1, "mux,relpkt,udp,localhost,3023", do_large_test)
+TestAccept(o, "mux,relpkt,udp,localhost,",
+           "mux,relpkt,udp,localhost,0", do_large_test)

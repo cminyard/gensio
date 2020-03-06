@@ -12,11 +12,11 @@ print("Test ssl over sctp accepter connect")
 goterr = False
 try:
     TestAcceptConnect(o,
-            "ssl(key=%s/key.pem,cert=%s/cert.pem,clientauth),sctp,3023"
+            "ssl(key=%s/key.pem,cert=%s/cert.pem,clientauth),sctp,0"
                            % (keydir, keydir),
-            "ssl(key=%s/key.pem,cert=%s/cert.pem),sctp,3024"
+            "ssl(key=%s/key.pem,cert=%s/cert.pem),sctp,0"
                        % (keydir, keydir),
-            "ssl(CA=%s/CA.pem),sctp,localhost,3023" % keydir,
+            "ssl(CA=%s/CA.pem),sctp,localhost," % keydir,
                        do_small_test,
                       expect_remclose = False)
 except Exception as E:
@@ -33,12 +33,12 @@ if not goterr:
 goterr = False
 try:
     TestAcceptConnect(o,
-            "ssl(key=%s/key.pem,cert=%s/cert.pem,clientauth),sctp,3023"
+            "ssl(key=%s/key.pem,cert=%s/cert.pem,clientauth),sctp,0"
                            % (keydir, keydir),
-            "ssl(key=%s/key.pem,cert=%s/cert.pem),sctp,3024"
+            "ssl(key=%s/key.pem,cert=%s/cert.pem),sctp,0"
                            % (keydir, keydir),
             "ssl(CA=%s/CA.pem,key=%s/clientkey.pem,cert=%s/clientcert.pem)"
-            ",sctp,localhost,3023"
+            ",sctp,localhost,"
                            % (keydir, keydir, keydir),
                        do_small_test, expect_remclose = False)
 except Exception as E:
@@ -53,12 +53,12 @@ if not goterr:
     raise Exception("Did not get error on invalid client certificate.")
 
 TestAcceptConnect(o,
-            "ssl(key=%s/key.pem,cert=%s/cert.pem,clientauth),sctp,3023"
+            "ssl(key=%s/key.pem,cert=%s/cert.pem,clientauth),sctp,0"
                            % (keydir, keydir),
-            "ssl(key=%s/key.pem,cert=%s/cert.pem),sctp,3024"
+            "ssl(key=%s/key.pem,cert=%s/cert.pem),sctp,0"
                            % (keydir, keydir),
             "ssl(CA=%s/CA.pem,key=%s/clientkey.pem,cert=%s/clientcert.pem)"
-            ",sctp,localhost,3023"
+            ",sctp,localhost,"
                            % (keydir, keydir, keydir),
                        do_small_test, CA="%s/clientcert.pem" % keydir)
 

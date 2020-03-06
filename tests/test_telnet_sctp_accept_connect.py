@@ -9,6 +9,6 @@ from utils import *
 import gensio
 
 print("Test telnet over sctp accepter connect")
-TestAcceptConnect(o, "telnet,sctp,3023", "telnet,sctp,3024",
-                  "telnet,sctp,localhost,3023", do_small_test)
+TestAcceptConnect(o, "telnet,sctp,0", "telnet,sctp,0",
+                  "telnet,sctp,localhost,", do_small_test)
 

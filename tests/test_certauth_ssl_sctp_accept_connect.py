@@ -12,30 +12,30 @@ print("Test certauth over ssl over tcp")
 
 # First test bypassing authentication from the auth_begin callback;
 TestAcceptConnect(o,
-       ("certauth(),ssl(key=%s/key.pem,cert=%s/cert.pem),tcp,3023" %
+       ("certauth(),ssl(key=%s/key.pem,cert=%s/cert.pem),tcp,0" %
         (keydir, keydir)),
-       ("certauth(),ssl(key=%s/key.pem,cert=%s/cert.pem),tcp,3024" %
+       ("certauth(),ssl(key=%s/key.pem,cert=%s/cert.pem),tcp,0" %
         (keydir, keydir)),
-       "certauth(),ssl(CA=%s/CA.pem),tcp,localhost,3023" % keydir,
+       "certauth(),ssl(CA=%s/CA.pem),tcp,localhost," % keydir,
                   do_small_test, auth_begin_rv=0)
 
 # Now try password authentication.
 TestAcceptConnect(o,
-       ("certauth(enable-password),ssl(key=%s/key.pem,cert=%s/cert.pem),tcp,3023" %
+       ("certauth(enable-password),ssl(key=%s/key.pem,cert=%s/cert.pem),tcp,0" %
         (keydir, keydir)),
-       ("certauth(enable-password),ssl(key=%s/key.pem,cert=%s/cert.pem),tcp,3024" %
+       ("certauth(enable-password),ssl(key=%s/key.pem,cert=%s/cert.pem),tcp,0" %
         (keydir, keydir)),
-       ("certauth(enable-password,password=asdfasdf),ssl(CA=%s/CA.pem),tcp,localhost,3023" %
+       ("certauth(enable-password,password=asdfasdf),ssl(CA=%s/CA.pem),tcp,localhost," %
         keydir),
                   do_small_test, expect_pw = "asdfasdf", expect_pw_rv = 0)
 
 # Test the password request
 TestAcceptConnect(o,
-       ("certauth(enable-password),ssl(key=%s/key.pem,cert=%s/cert.pem),tcp,3023" %
+       ("certauth(enable-password),ssl(key=%s/key.pem,cert=%s/cert.pem),tcp,0" %
         (keydir, keydir)),
-       ("certauth(enable-password),ssl(key=%s/key.pem,cert=%s/cert.pem),tcp,3024" %
+       ("certauth(enable-password),ssl(key=%s/key.pem,cert=%s/cert.pem),tcp,0" %
         (keydir, keydir)),
-       ("certauth(enable-password),ssl(CA=%s/CA.pem),tcp,localhost,3023" %
+       ("certauth(enable-password),ssl(CA=%s/CA.pem),tcp,localhost," %
         keydir),
                   do_small_test, expect_pw = "jkl;", expect_pw_rv = 0,
                   password = "jkl;")

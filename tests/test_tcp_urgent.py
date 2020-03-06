@@ -17,7 +17,6 @@ def do_urgent_test(io1, io2):
     print("  Success!")
 
 print("Test tcp urgent")
-io1 = alloc_io(o, "tcp,localhost,3023", do_open = False,
-               chunksize = 64)
-ta = TestAccept(o, io1, "tcp,3023", do_urgent_test)
+ta = TestAccept(o, "tcp,localhost,", "tcp,0", do_urgent_test,
+                chunksize = 64)
 

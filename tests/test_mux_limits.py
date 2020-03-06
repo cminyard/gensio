@@ -96,13 +96,15 @@ class MuxHandler:
 print("Testing mux limits")
 handlemuxacc = MuxHandler(o, num_channels = 10)
 gensios_enabled.check_iostr_gensios("mux,tcp")
-muxacc = gensio.gensio_accepter(o, "mux(max_channels=10),tcp,3023",
+muxacc = gensio.gensio_accepter(o, "mux(max_channels=10),tcp,0",
                                 handlemuxacc)
 muxacc.startup()
+port = muxacc.control(gensio.GENSIO_CONTROL_DEPTH_FIRST, True,
+                      gensio.GENSIO_ACC_CONTROL_LPORT, "0")
 
 handlemuxcl = MuxHandler(o, num_channels = 10)
 muxcl = gensio.gensio(o,
-                      "mux(service=0,max_channels=10),tcp,localhost,3023",
+                      "mux(service=0,max_channels=10),tcp,localhost," + port,
                       handlemuxcl)
 handlemuxcl.channels[0] = muxcl
 handlemuxacc.set_op_count(1)

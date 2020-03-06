@@ -9,6 +9,4 @@ from utils import *
 import gensio
 
 print("Test sctp small")
-io1 = alloc_io(o, "sctp,localhost,3023", do_open = False,
-                     chunksize = 64)
-ta = TestAccept(o, io1, "sctp,3023", do_small_test)
+ta = TestAccept(o, "sctp,localhost,", "sctp,0", do_small_test, chunksize = 64)

@@ -77,9 +77,11 @@ def test_sync_gensio_accepter(o):
     print("Testing sync accept")
 
     gensios_enabled.check_iostr_gensios("tcp")
-    a = gensio.gensio_accepter(o, "tcp,3023", None)
+    a = gensio.gensio_accepter(o, "tcp,0", None)
     a.set_sync()
     a.startup()
+    port = a.control(gensio.GENSIO_CONTROL_DEPTH_FIRST, True,
+                     gensio.GENSIO_ACC_CONTROL_LPORT, "0")
 
     sa = SyncEvent()
     (io, time) = a.accept_s_timeout(o, sa, 1)
@@ -88,7 +90,7 @@ def test_sync_gensio_accepter(o):
 
     sg = SyncEvent()
     gensios_enabled.check_iostr_gensios("tcp")
-    g = gensio.gensio(o, "tcp,localhost,3023", sg)
+    g = gensio.gensio(o, "tcp,localhost," + port, sg)
     g.open(sg)
 
     (io, time) = a.accept_s_timeout(o, sa, 1000)

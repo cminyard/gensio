@@ -9,9 +9,8 @@ from utils import *
 import gensio
 
 print("Test accept mux-tcp")
-io1 = alloc_io(o, "mux(service=myservice),sctp,localhost,3023",
-                     do_open = False)
-ta = TestAccept(o, io1, "mux,sctp,3023", do_test, do_close = False)
+ta = TestAccept(o, "mux(service=myservice),sctp,localhost,",
+                "mux,sctp,0", do_test, do_close = False)
 service = ta.io2.control(0, True, gensio.GENSIO_CONTROL_SERVICE, None)
 if service != "myservice":
     raise Exception(

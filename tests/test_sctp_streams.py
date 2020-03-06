@@ -17,6 +17,6 @@ def do_stream_test(io1, io2):
     print("  Success!")
 
 print("Test sctp streams")
-io1 = alloc_io(o, "sctp(instreams=2,ostreams=3),localhost,3023",
-                     do_open = False, chunksize = 64)
-ta = TestAccept(o, io1, "sctp(instreams=3,ostreams=2),3023", do_stream_test)
+ta = TestAccept(o, "sctp(instreams=2,ostreams=3),localhost,",
+                "sctp(instreams=3,ostreams=2),0", do_stream_test,
+                chunksize = 64)

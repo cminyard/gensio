@@ -11,4 +11,4 @@ import gensio
 print("Test unix accepter connect")
 TestAcceptConnect(o, "unix,/tmp/gensiotest", "unix,/tmp/gensiotest2",
                   "unix,/tmp/gensiotest",
-                  do_small_test)
+                  do_small_test, use_port = False)

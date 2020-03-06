@@ -9,7 +9,6 @@ from utils import *
 import gensio
 
 print("Test mux sctp oob")
-io1 = alloc_io(o, "mux,sctp,localhost,3023",
-               do_open = False, chunksize = 64)
-ta = TestAccept(o, io1, "mux,sctp,3023", do_oob_test)
+ta = TestAccept(o, "mux,sctp,localhost,", "mux,sctp,0", do_oob_test,
+                chunksize = 64)
 
