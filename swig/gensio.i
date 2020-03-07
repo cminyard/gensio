@@ -257,6 +257,8 @@ struct waiter { };
 %constant int GENSIO_CONTROL_WAIT_TASK = GENSIO_CONTROL_WAIT_TASK;
 %constant int GENSIO_CONTROL_ADD_MCAST = GENSIO_CONTROL_ADD_MCAST;
 %constant int GENSIO_CONTROL_DEL_MCAST = GENSIO_CONTROL_DEL_MCAST;
+%constant int GENSIO_CONTROL_LADDR = GENSIO_CONTROL_LADDR;
+%constant int GENSIO_CONTROL_LPORT = GENSIO_CONTROL_LPORT;
 
 %extend gensio {
     gensio(struct gensio_os_funcs *o, char *str, swig_cb *handler) {

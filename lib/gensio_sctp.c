@@ -216,6 +216,9 @@ sctp_control(void *handler_data, int fd, bool get, unsigned int option,
 {
     struct sctp_data *tdata = handler_data;
     int rv, val;
+    unsigned int i;
+    gensiods pos;
+    struct gensio_addr *addr;
 
     switch (option) {
     case GENSIO_CONTROL_NODELAY:
@@ -247,6 +250,32 @@ sctp_control(void *handler_data, int fd, bool get, unsigned int option,
 	*datalen = snprintf(data, *datalen,
 			    "instreams=%u,ostreams=%u", tdata->instreams,
 			    tdata->ostreams);
+	return 0;
+
+    case GENSIO_CONTROL_LADDR:
+	if (!get)
+	    return GE_NOTSUP;
+
+	i = strtoul(data, NULL, 0);
+	if (i >= 0)
+	    return GE_NOTFOUND;
+	rv = gensio_os_sctp_getladdrs(tdata->o, fd, &addr);
+	if (rv)
+	    return rv;
+
+	rv = gensio_addr_to_str_all(addr, data, &pos, *datalen);
+	gensio_addr_free(addr);
+	if (rv)
+	    return rv;
+
+	*datalen = pos;
+	return 0;
+
+    case GENSIO_CONTROL_LPORT:
+	rv = gensio_os_socket_get_port(tdata->o, fd, &i);
+	if (rv)
+	    return rv;
+	*datalen = snprintf(data, *datalen, "%d", i);
 	return 0;
 
     default:

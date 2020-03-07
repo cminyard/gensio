@@ -73,6 +73,9 @@ int gensio_os_sctp_getladdrs(struct gensio_os_funcs *o, int fd,
 int gensio_os_sctp_getraddr(struct gensio_os_funcs *o, int fd,
 			    void *addr, gensiods *addrlen);
 
+int gensio_os_socket_get_port(struct gensio_os_funcs *o, int fd,
+			      unsigned int *port);
+
 int gensio_os_sctp_open_socket(struct gensio_os_funcs *o,
 			       struct gensio_addr *addr,
 			       void (*readhndlr)(int, void *),

@@ -858,6 +858,62 @@ udpna_writehandler(int fd, void *cbdata)
     udpna_deref_and_unlock(nadata);
 }
 
+static int
+udpna_control_laddr(struct udpna_data *nadata, bool get,
+		    char *data, gensiods *datalen)
+{
+    unsigned int i;
+    struct gensio_addr *addr;
+    gensiods pos = 0;
+    int rv;
+
+    if (!get)
+	return GE_NOTSUP;
+
+    if (!nadata->fds)
+	return GE_NOTREADY;
+
+    i = strtoul(data, NULL, 0);
+    if (i >= nadata->nr_fds)
+	return GE_NOTFOUND;
+
+    rv = gensio_os_getsockname(nadata->o, nadata->fds[i].fd, &addr);
+    if (rv)
+	return rv;
+
+    rv = gensio_addr_to_str(addr, data, &pos, *datalen);
+    gensio_addr_free(addr);
+    if (rv)
+	return rv;
+
+    *datalen = pos;
+    return 0;
+}
+
+static int
+udpna_control_lport(struct udpna_data *nadata, bool get,
+		    char *data, gensiods *datalen)
+{
+    int rv;
+    unsigned int i;
+
+    if (!get)
+	return GE_NOTSUP;
+
+    if (!nadata->fds)
+	return GE_NOTREADY;
+
+    i = strtoul(data, NULL, 0);
+    if (i >= nadata->nr_fds)
+	return GE_NOTFOUND;
+
+    rv = gensio_os_socket_get_port(nadata->o, nadata->fds[i].fd, &i);
+    if (rv)
+	return rv;
+    *datalen = snprintf(data, *datalen, "%d", i);
+    return 0;
+}
+
 int
 udpn_control(struct gensio *io, bool get, int option,
 	     char *data, gensiods *datalen)
@@ -878,6 +934,12 @@ udpn_control(struct gensio *io, bool get, int option,
 	 */
 	*datalen = snprintf(data, *datalen, "%d", 65507);
 	break;
+
+    case GENSIO_CONTROL_LADDR:
+	return udpna_control_laddr(nadata, get, data, datalen);
+
+    case GENSIO_CONTROL_LPORT:
+	return udpna_control_lport(nadata, get, data, datalen);
 
     case GENSIO_CONTROL_ADD_MCAST:
     case GENSIO_CONTROL_DEL_MCAST:
@@ -1345,58 +1407,6 @@ udpna_str_to_gensio(struct gensio_accepter *accepter, const char *addrstr,
 	gensio_argv_free(nadata->o, iargs);
 
     return err;
-}
-
-static int
-udpna_control_laddr(struct udpna_data *nadata, bool get,
-		    char *data, gensiods *datalen)
-{
-    unsigned int i;
-    struct gensio_addr *addr;
-    gensiods pos = 0;
-    int rv;
-
-    if (!get)
-	return GE_NOTSUP;
-
-    if (!nadata->enabled)
-	return GE_NOTREADY;
-
-    i = strtoul(data, NULL, 0);
-    if (i >= nadata->nr_fds)
-	return GE_NOTFOUND;
-
-    rv = gensio_os_getsockname(nadata->o, nadata->fds[i].fd, &addr);
-    if (rv)
-	return rv;
-
-    rv = gensio_addr_to_str(addr, data, &pos, *datalen);
-    gensio_addr_free(addr);
-    if (rv)
-	return rv;
-
-    *datalen = pos;
-    return 0;
-}
-
-static int
-udpna_control_lport(struct udpna_data *nadata, bool get,
-		    char *data, gensiods *datalen)
-{
-    unsigned int i;
-
-    if (!get)
-	return GE_NOTSUP;
-
-    if (!nadata->enabled)
-	return GE_NOTREADY;
-
-    i = strtoul(data, NULL, 0);
-    if (i >= nadata->nr_fds)
-	return GE_NOTFOUND;
-
-    *datalen = snprintf(data, *datalen, "%d", nadata->fds[i].port);
-    return 0;
 }
 
 static int

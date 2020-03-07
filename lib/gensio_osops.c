@@ -1249,8 +1249,8 @@ gensio_os_open_socket(struct gensio_os_funcs *o,
     return rv;
 }
 
-static int
-gensio_socket_get_port(struct gensio_os_funcs *o, int fd, unsigned int *port)
+int
+gensio_os_socket_get_port(struct gensio_os_funcs *o, int fd, unsigned int *port)
 {
     struct sockaddr_storage sa;
     socklen_t len = sizeof(sa);
@@ -1355,7 +1355,7 @@ gensio_setup_listen_socket(struct gensio_os_funcs *o, bool do_listen,
     }
  got_it:
     if (family == AF_INET || family == AF_INET6) {
-	rv = gensio_socket_get_port(o, fd, &port);
+	rv = gensio_os_socket_get_port(o, fd, &port);
 	if (rv)
 	    goto out;
 	if (rsi && rsi->reqport == 0)
