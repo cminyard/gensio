@@ -1829,7 +1829,7 @@ gensio_scan_network_port(struct gensio_os_funcs *o, const char *str,
 #else
 	return GE_NOTSUP;
 #endif
-    } else if (*rprotocol && *rprotocol != 0) {
+    } else if (rprotocol && *rprotocol != 0) {
 	doskip = false;
 	switch (*rprotocol) {
 	case GENSIO_NET_PROTOCOL_UNIX:
