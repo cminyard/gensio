@@ -1733,14 +1733,14 @@ static struct gensio_once gensio_default_initialized;
 
 static struct gensio_lock *deflock;
 
-union gensio_def_val {
-	char *strval;
-	int intval;
+struct gensio_def_val {
+    char *strval;
+    int intval; /* data length, not including terminating \0, when data */
 };
 
 struct gensio_class_def {
     char *class;
-    union gensio_def_val val;
+    struct gensio_def_val val;
     struct gensio_class_def *next;
 };
 
@@ -1749,9 +1749,9 @@ struct gensio_def_entry {
     enum gensio_default_type type;
     int min;
     int max;
-    union gensio_def_val val;
+    struct gensio_def_val val;
     bool val_set;
-    union gensio_def_val def;
+    struct gensio_def_val def;
     const struct gensio_enum_val *enums;
     struct gensio_class_def *classvals;
     struct gensio_def_entry *next;
@@ -1987,7 +1987,7 @@ gensio_add_default(struct gensio_os_funcs *o,
 	goto out_unlock;
     }
 
-    d->name = strdup(name);
+    d->name = gensio_strdup(o, name);
     if (!d->name) {
 	o->free(o, d);
 	err = GE_NOMEM;
@@ -1999,7 +1999,15 @@ gensio_add_default(struct gensio_os_funcs *o,
     d->enums = enums;
     d->def.intval = intval;
     if (strval) {
-	d->def.strval = strdup(strval);
+	if (type == GENSIO_DEFAULT_DATA) {
+	    d->def.strval = o->zalloc(o, intval + 1);
+	    if (d->def.strval) {
+		memcpy(d->def.strval, strval, intval);
+		d->def.strval[intval] = '\0';
+	    }
+	} else {
+	    d->def.strval = gensio_strdup(o, strval);
+	}
 	if (!d->def.strval) {
 	    o->free(o, d->name);
 	    o->free(o, d);
@@ -2098,6 +2106,20 @@ gensio_set_default(struct gensio_os_funcs *o,
 	}
 	break;
 
+    case GENSIO_DEFAULT_DATA:
+	if (intval < 0) {
+	    err = GE_INVAL;
+	    goto out_unlock;
+	}
+	new_strval = o->zalloc(o, intval + 1);
+	if (!new_strval) {
+	    err = GE_NOMEM;
+	    goto out_unlock;
+	}
+	memcpy(new_strval, strval, intval);
+	new_strval[intval] = '\0';
+	break;
+
     default:
 	err = GE_INVAL;
 	goto out_unlock;
@@ -2122,22 +2144,20 @@ gensio_set_default(struct gensio_os_funcs *o,
 	    c->next = d->classvals;
 	    d->classvals = c;
 	}
-	if (d->type == GENSIO_DEFAULT_STR) {
+	c->val.intval = intval;
+	if (d->type == GENSIO_DEFAULT_STR || d->type == GENSIO_DEFAULT_DATA) {
 	    if (c->val.strval)
 		o->free(o, c->val.strval);
 	    c->val.strval = new_strval;
 	    new_strval = NULL;
-	} else {
-	    c->val.intval = intval;
 	}
     } else {
-	if (d->type == GENSIO_DEFAULT_STR) {
+	d->val.intval = intval;
+	if (d->type == GENSIO_DEFAULT_STR || d->type == GENSIO_DEFAULT_DATA) {
 	    if (d->val.strval)
 		o->free(o, d->val.strval);
 	    d->val.strval = new_strval;
 	    new_strval = NULL;
-	} else {
-	    d->val.intval = intval;
 	}
 	d->val_set = true;
     }
@@ -2157,7 +2177,7 @@ gensio_get_default(struct gensio_os_funcs *o,
 {
     struct gensio_def_entry *d;
     struct gensio_class_def *c = NULL;
-    union gensio_def_val *val;
+    struct gensio_def_val *val;
     int err = 0;
     char *str;
 
@@ -2212,6 +2232,22 @@ gensio_get_default(struct gensio_os_funcs *o,
 	}
 	break;
 
+    case GENSIO_DEFAULT_DATA:
+	if (val->strval) {
+	    str = o->zalloc(o, val->intval);
+	    if (!str) {
+		err = GE_NOMEM;
+		goto out_unlock;
+	    }
+	    memcpy(str, val->strval, val->intval + 1); /* copy terminating \0 */
+	    *strval = str;
+	    *intval = val->intval;
+	} else {
+	    *strval = NULL;
+	    *intval = 0;
+	}
+	break;
+
     default:
 	abort(); /* Shouldn't happen. */
     }
@@ -2253,7 +2289,7 @@ gensio_del_default(struct gensio_os_funcs *o,
 	else
 	    d->classvals = c->next;
 	
-	if (d->type == GENSIO_DEFAULT_STR && c->val.strval)
+	if (c->val.strval)
 	    o->free(o, c->val.strval);
 	o->free(o, c->class);
 	o->free(o, c);
@@ -2278,13 +2314,13 @@ gensio_del_default(struct gensio_os_funcs *o,
     while (d->classvals) {
 	c = d->classvals;
 	d->classvals = c->next;
-	if (d->type == GENSIO_DEFAULT_STR && c->val.strval)
+	if (c->val.strval)
 	    o->free(o, c->val.strval);
 	o->free(o, c->class);
 	o->free(o, c);
     }
 
-    if (d->type == GENSIO_DEFAULT_STR && d->val.strval)
+    if (d->val.strval)
 	o->free(o, d->val.strval);
     o->free(o, d->name);
     o->free(o, d);

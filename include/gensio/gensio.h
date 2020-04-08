@@ -467,7 +467,8 @@ enum gensio_default_type {
     GENSIO_DEFAULT_INT,
     GENSIO_DEFAULT_BOOL,
     GENSIO_DEFAULT_ENUM,
-    GENSIO_DEFAULT_STR
+    GENSIO_DEFAULT_STR,
+    GENSIO_DEFAULT_DATA
 };
 
 struct gensio_enum_val {

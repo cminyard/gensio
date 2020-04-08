@@ -94,7 +94,8 @@ Defaults come in one of four formats defined by
 .I GENSIO_DEFAULT_INT,
 .I GENSIO_DEFAULT_BOOL,
 .I GENSIO_DEFAULT_ENUM,
-.I GENSIO_DEFAULT_STR.
+.I GENSIO_DEFAULT_STR,
+.I GENSIO_DEFAULT_DATA.
 int and bool are pretty self-explanatory.  Except that if you pass in
 a non-NULL strval when setting one, the code will attempt to get the
 value from the strval and will return NULL if the value is not valid.
@@ -112,6 +113,12 @@ copy around for yourself.
 When getting a string value, the value is duplicated with
 .B gensio_strdup,
 you should free it with
+.B o->free().
+
+Data is like strings, except the length is passed in
+.I intval
+and it is returned the same way.  This will hold arbitrary raw data.
+Like strings, when you get a data value you should free it with
 .B o->free().
 
 If it's a enum, setting the value you will pass in a string and a
