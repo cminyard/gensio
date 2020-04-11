@@ -263,6 +263,14 @@ AC_SUBST(PYTHON_SWIG_FLAGS)
 PYTHON_EXECUTABLE="${PYTHON}"
 AC_SUBST(PYTHON_EXECUTABLE)
 
+AC_ARG_ENABLE([doc],
+  [AS_HELP_STRING([--disable-doc],
+    [disable building docs])],
+  [],
+  [enable_doc="yes"])
+
+AM_CONDITIONAL([HAVE_DOC], [test "x$enable_doc" != "xno"])
+
 HAVE_LIBSCTP=0
 if test "x$trysctp" != "xno"; then
    AC_CHECK_LIB(sctp, sctp_bindx,
