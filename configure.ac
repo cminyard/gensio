@@ -15,6 +15,7 @@ AC_ARG_WITH(uucp-locking,
 if test "$uucp_locking_flag" = yes; then
   AC_DEFINE([USE_UUCP_LOCKING], [], [Enable device locking])
 fi
+
 AC_ARG_WITH(tcp-wrappers,
  [  --with-tcp-wrappers        Enable tcpwrappers support],
  tcp_wrappers="$withval",
@@ -24,6 +25,13 @@ then
   AC_HAVE_HEADERS(tcpd.h)
   AC_CHECK_LIB(wrap,main)
 fi
+
+AC_ARG_ENABLE([doc],
+ [AS_HELP_STRING([--disable=doc], [disable building and installing docs])],
+ [],
+ [enable_doc="yes"])
+
+AM_CONDITIONAL([INSTALL_DOC], [test "x$enable_doc" != "xno"])
 
 AX_HAVE_EPOLL_PWAIT(
    [AX_CONFIG_FEATURE_ENABLE(epoll_pwait)],
