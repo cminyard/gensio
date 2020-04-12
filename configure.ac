@@ -9,7 +9,7 @@ AC_PROG_CC
 AM_PROG_AR
 AM_PROG_LIBTOOL
 AC_ARG_WITH(uucp-locking,
- [  --with-uucp-locking        Enable UUCP-style locking],
+ [AS_HELP_STRING([--with-uucp-locking], [Enable UUCP-style locking])],
  uucp_locking_flag="$withval",
  uucp_locking_flag=yes)
 if test "$uucp_locking_flag" = yes; then
@@ -17,7 +17,7 @@ if test "$uucp_locking_flag" = yes; then
 fi
 
 AC_ARG_WITH(tcp-wrappers,
- [  --with-tcp-wrappers        Enable tcpwrappers support],
+ [AS_HELP_STRING([--with-tcp-wrappers], [Enable tcpwrappers support])],
  tcp_wrappers="$withval",
  tcp_wrappers="no")
 if test "$tcp_wrappers" != "no"
@@ -42,7 +42,7 @@ AX_CONFIG_FEATURE(
 
 tryopenipmi=yes
 AC_ARG_WITH(openipmi,
-[  --with-openipmi=yes|no      Look for openipmi.],
+ [AS_HELP_STRING([--with-openipmi=yes|no], [Look for openipmi])],
     if test "x$withval" = "xyes"; then
       tryopenipmi=yes
     elif test "x$withval" = "xno"; then
@@ -52,7 +52,7 @@ AC_ARG_WITH(openipmi,
 
 trysctp=yes
 AC_ARG_WITH(sctp,
-[  --with-sctp=yes|no      Look for sctp.],
+ [AS_HELP_STRING([--with-sctp=yes|no], [Look for sctp])],
     if test "x$withval" = "xyes"; then
       trysctp=yes
     elif test "x$withval" = "xno"; then
@@ -63,7 +63,7 @@ AC_ARG_WITH(sctp,
 use_pthreads=yes
 use_pthreads_set=false
 AC_ARG_WITH(pthreads,
-[  --with-pthreads=yes|no      Use pthreads or not.],
+ [AS_HELP_STRING([--with-pthreads=yes|no], [Use pthreads or not])],
     use_pthreads_set=true
     if test "x$withval" = "xyes"; then
       use_pthreads=yes
@@ -84,12 +84,14 @@ if test "x$use_pthreads" != "xno"; then
 fi
 
 AC_ARG_WITH(openipmiflags,
-[  --with-openipmiflags=flags  Set the flags to compile with OpenIPMI.],
+ [AS_HELP_STRING([--with-openipmiflags=flags],
+		 [Set the flags to compile with OpenIPMI.])],
     CPPFLAGS="$CPPFLAGS $withval"
 )
 
 AC_ARG_WITH(openipmilibs,
-[  --with-openipmilibs=libs    Set the libraries to link with OpenIPMI.],
+ [AS_HELP_STRING([--with-openipmilibs=libs],
+		 [Set the libraries to link with OpenIPMI.])],
     LIBS="$LIBS $withval"
 )
 
@@ -128,7 +130,8 @@ AC_SUBST(HAVE_OPENSSL)
 tryswig=yes
 swigprog=
 AC_ARG_WITH(swig,
-[  --with-swig[[=yes|no|PATH]]       Look for swig, with the optional path.],
+ [AS_HELP_STRING([--with-swig[[=yes|no|PATH]]],
+		 [Look for swig, with the optional path.])],
     if test "x$withval" = "x"; then
       tryswig=yes
     elif test "x$withval" = "xyes"; then
@@ -143,7 +146,8 @@ AC_ARG_WITH(swig,
 pythonprog=
 trypython=yes
 AC_ARG_WITH(python,
-[  --with-python[[=yes|no|PATH]]     Look for python, with the optional path.],
+ [AS_HELP_STRING([--with-python[[=yes|no|PATH]]],
+		 [Look for python, with the optional path.])],
     if test "x$withval" = "x"; then
       trypython=yes
     elif test "x$withval" = "xyes"; then
@@ -158,25 +162,29 @@ AC_ARG_WITH(python,
 
 pythoninstalldir=
 AC_ARG_WITH(pythoninstall,
-[  --with-pythoninstall=PATH       Install python modules in the given location.],
+ [AS_HELP_STRING([--with-pythoninstall=PATH],
+		 [Install python modules in the given location.])],
     pythoninstalldir="$withval",
 )
 
 pythoninstalllibdir=
 AC_ARG_WITH(pythoninstalllib,
-[  --with-pythoninstalllib=PATH       Install python libraries in the given location.],
+ [AS_HELP_STRING([--with-pythoninstalllib=PATH],
+		 [Install python libraries in the given location.])],
     pythoninstalllibdir="$withval",
 )
 
 pythoncflags=
 AC_ARG_WITH(pythoncflags,
-[  --with-pythoncflags=PATH        Use the given flags when compiling python parts.],
+ [AS_HELP_STRING([--with-pythoncflags=PATH],
+		 [Use the given flags when compiling python parts.])],
     pythoncflags="$withval",
 )
 
 pythonusepthreads=
 AC_ARG_WITH(pythonusepthreads,
-[  --with-pythonusepthreads[[=yes|no]] Use threads with python.],
+ [AS_HELP_STRING([--with-pythonusepthreads[[=yes|no]]],
+		 [Use threads with python.])],
    if test "x$withval" = "xyes"; then
       pythonusepthreads="yes"
    elif test "x$withval" = "xno"; then
@@ -334,8 +342,8 @@ AC_DEFINE_UNQUOTED([HAVE_PTY], [1], [Enable PTY gensio])
 
 USE_FILE_STDIO=0
 AC_ARG_WITH(file-stdio,
-            [  --with-file-stdio[[=yes|no]]
-	       Use stdio instead of unix files for the file gensio.],
+ [AS_HELP_STRING([--with-file-stdio[[=yes|no]]],
+		 [Use stdio instead of unix files for the file gensio.])],
    if test "x$withval" = "xyes"; then
       USE_FILE_STDIO=1
    elif test "x$withval" = "xno"; then
