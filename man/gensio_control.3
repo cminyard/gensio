@@ -192,6 +192,17 @@ receive packets on.
 .SS "GENSIO_CONTROL_DEL_MCAST"
 On UDP connections, delete a multicast address that the socket will
 receive packets on.
+.SS "GENSIO_CONTROL_LADDR"
+Return the local address for the connection.  Only for network
+connections.
+.SS "GENSIO_CONTROL_LPORT"
+Return the local port for the connection.  Only for network
+connections.  This is useful if you pass in "0" for the port to let
+the OS chose; you can get the actual port chosen.
+.SS "GENSIO_CONTROL_CLOSE_OUTPUT"
+Close writing to the gensio, but leave reading along.  This is only
+for stdio gensios; it lets you close stdin to the subprogram without
+affecting the subprogram's stdout.
 .SH "RETURN VALUES"
 Zero is returned on success, or a gensio error on failure.
 .SH "SEE ALSO"

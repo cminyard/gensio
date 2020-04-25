@@ -158,6 +158,7 @@ int gensio_control(struct gensio *io, int depth, bool get,
 #define GENSIO_CONTROL_DEL_MCAST		16
 #define GENSIO_CONTROL_LADDR			17
 #define GENSIO_CONTROL_LPORT			18
+#define GENSIO_CONTROL_CLOSE_OUTPUT		19
 
 const char *gensio_get_type(struct gensio *io, unsigned int depth);
 struct gensio *gensio_get_child(struct gensio *io, unsigned int depth);

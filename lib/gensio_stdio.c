@@ -999,6 +999,18 @@ stdion_control(struct gensio *io, bool get, unsigned int option,
 	    return GE_NOTREADY;
 	*datalen = snprintf(data, *datalen, "%d", status);
 	return 0;
+
+    case GENSIO_CONTROL_CLOSE_OUTPUT:
+	err = 0;
+	stdiona_lock(nadata);
+	if (schan->infd == -1) {
+	    err = GE_NOTREADY;
+	} else {
+	    nadata->o->clear_fd_handlers(nadata->o, schan->infd);
+	    schan->infd = -1;
+	}
+	stdiona_unlock(nadata);
+	return err;
     }
 
     return GE_NOTSUP;
