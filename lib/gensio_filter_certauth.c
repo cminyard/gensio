@@ -2212,7 +2212,7 @@ gensio_certauth_filter_alloc(struct gensio_certauth_filter_data *data,
 	goto err;
     }
 
-    if (data->CAfilepath) {
+    if (data->CAfilepath && data->CAfilepath[0]) {
 	char *CAfile = NULL, *CApath = NULL;
 
 	if (data->CAfilepath[strlen(data->CAfilepath) - 1] == '/')
@@ -2225,7 +2225,7 @@ gensio_certauth_filter_alloc(struct gensio_certauth_filter_data *data,
 	}
     }
 
-    if (data->certfile) {
+    if (data->certfile && data->certfile[0]) {
 	rv = read_certificate_chain(data->certfile, &cert, &sk_ca);
 	if (rv)
 	    goto err;
