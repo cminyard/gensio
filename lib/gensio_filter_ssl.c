@@ -1217,7 +1217,7 @@ gensio_ssl_filter_alloc(struct gensio_ssl_filter_data *data,
 	 */
 	SSL_CTX_set_verify(ctx, SSL_VERIFY_PEER, ssl_verify_cb);
 
-    if (data->CAfilepath) {
+    if (data->CAfilepath && data->CAfilepath[0]) {
 	char *CAfile = NULL, *CApath = NULL;
 
 	if (data->CAfilepath[strlen(data->CAfilepath) - 1] == '/')
@@ -1230,7 +1230,7 @@ gensio_ssl_filter_alloc(struct gensio_ssl_filter_data *data,
 	}
     }
 
-    if (data->certfile) {
+    if (data->certfile && data->certfile[0]) {
 	if (!SSL_CTX_use_certificate_chain_file(ctx, data->certfile)) {
 	    rv = GE_CERTNOTFOUND;
 	    goto err;
