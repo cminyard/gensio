@@ -780,7 +780,8 @@ in a "/", then this is expected to be a directory that contains files
 with certificates that must be hashed per OpenSSL (see the "openssl
 rehash" command for details.  Otherwise it is a single file that
 contains one or more certificates.  The default CA path is used
-if not specified.
+if not specified.  Note that setting this to an empty string disables
+it, so you can override a default value if necessary.
 .TP
 .B key=<filename>
 Specify the file to get the private key for the server.  This is
@@ -790,7 +791,8 @@ for the client if the server requires a certificate (it has CA set).
 .B cert=<filename>
 Specify the file that contains the certificate used for the
 connection.  If this is not specified, the certificate is expected to
-be in the key file.
+be in the key file.  Note that setting this to an empty string disables
+it, so you can override a default value if necessary.
 .TP
 .B mode=client|server
 Normally an accepter gensio is in server mode and a connecting gensio
@@ -847,7 +849,8 @@ with certificates that must be hashed per OpenSSL, see the gensio-keygen(1)
 in the rehash section for details.  Otherwise it is a single file that
 contains one or more certificates.  The default CA path for openssl is used
 if not specified.  This is used on the server only, it is ignored
-on clients.
+on clients.  Note that setting this to an empty string disables
+it, so you can override a default value if necessary.
 .TP
 .B key=<filename>
 Specify the file to get the private key for the client.  This is
@@ -856,7 +859,9 @@ required for clients.  It is ignored on server.
 .B cert=<filename>
 Specify the file to get the private key for the client.  This is
 required for clients.  It is ignored on server.  If this is not
-specified, the certificate is expected to be in the key file.
+specified, the certificate is expected to be in the key file.  Note
+that setting this to an empty string disables it, so you can override
+a default value if necessary.
 .TP
 .B username=<name>
 Specify a username to authenticate with on the remote end.  This is
