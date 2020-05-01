@@ -924,6 +924,13 @@ class gensio_accepter:
             """
             return
 
+        def set_cbs(self, handler):
+            """Set the handler object for the gensio_accepter.
+
+            handler -- An AccEventHandler object to receive events.
+            """
+            return
+            
         def str_to_gensio(self, gensiostr, handler):
             """Allocate a new gensio, coming from the address/port of the
             gensio_accepter, if possible.  This makes it possible to

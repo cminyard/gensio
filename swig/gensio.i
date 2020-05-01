@@ -866,6 +866,14 @@ struct waiter { };
 	deref_gensio_accepter_data(data, self);
     }
 
+    void set_cbs(swig_cb *handler) {
+	struct gensio_data *data = gensio_acc_get_user_data(self);
+
+	if (data->handler_val)
+	    deref_swig_cb_val(data->handler_val);
+	data->handler_val = ref_swig_cb(handler, read_callback);
+    }
+
     %newobject str_to_gensio;
     struct gensio *str_to_gensio(char *str, swig_cb *handler) {
 	struct gensio_data *olddata = gensio_acc_get_user_data(self);
