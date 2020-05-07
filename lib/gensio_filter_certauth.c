@@ -783,7 +783,7 @@ certauth_send_server_done(struct certauth_filter *sfilter)
 }
 
 static int
-certauth_try_connect(struct gensio_filter *filter, struct timeval *timeout)
+certauth_try_connect(struct gensio_filter *filter, gensio_time *timeout)
 {
     struct certauth_filter *sfilter = filter_to_certauth(filter);
     struct gensio *io;
@@ -1137,7 +1137,7 @@ certauth_try_connect(struct gensio_filter *filter, struct timeval *timeout)
 }
 
 static int
-certauth_try_disconnect(struct gensio_filter *filter, struct timeval *timeout)
+certauth_try_disconnect(struct gensio_filter *filter, gensio_time *timeout)
 {
     return 0;
 }
@@ -1492,12 +1492,13 @@ certauth_ll_write(struct gensio_filter *filter,
 static int
 certauth_setup(struct gensio_filter *filter)
 {
-    struct timeval tv_rand;
+    struct certauth_filter *sfilter = filter_to_certauth(filter);
+    gensio_time tv_rand;
 
     /* Make sure the random number generator is seeded. */
-    gettimeofday(&tv_rand, NULL);
-    tv_rand.tv_sec += tv_rand.tv_usec;
-    RAND_add(&tv_rand.tv_sec, sizeof(tv_rand.tv_sec), 0);
+    sfilter->o->get_monotonic_time(sfilter->o, &tv_rand);
+    tv_rand.secs += tv_rand.nsecs;
+    RAND_add(&tv_rand.secs, sizeof(tv_rand.secs), 0);
 
     return 0;
 }
