@@ -9,7 +9,6 @@
 
 #include <gensio/gensio_class.h>
 
-#include "gensio_filter_ssl.h"
 #include "gensio_filter_certauth.h"
 
 struct gensio_certauth_filter_data {
@@ -36,7 +35,6 @@ struct gensio_certauth_filter_data {
 
 #include <assert.h>
 #include <string.h>
-#include <sys/time.h>
 
 #include <openssl/x509.h>
 #include <openssl/x509_vfy.h>

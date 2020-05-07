@@ -8,6 +8,8 @@
 #ifndef GENSIO_FILTER_CERTAUTH_H
 #define GENSIO_FILTER_CERTAUTH_H
 
+#include <gensio/gensio_base.h>
+
 struct gensio_certauth_filter_data;
 
 int gensio_certauth_filter_config(struct gensio_os_funcs *o,
