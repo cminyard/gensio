@@ -42,6 +42,11 @@
 #include <gensio/gensio_class.h>
 #include <gensio/argvutils.h>
 
+/* MacOS doesn't have IPV6_ADD_MEMBERSHIP, but has an equivalent. */
+#ifndef IPV6_ADD_MEMBERSHIP
+#define IPV6_ADD_MEMBERSHIP IPV6_JOIN_GROUP
+#endif
+
 static const char *progname = "gensio";
 
 struct gensio_addr {
