@@ -91,6 +91,9 @@ struct gensio_os_funcs {
      *
      * Note that all handlers are disabled when this returns, you must
      * enable them for the callbacks to be called.
+     *
+     * Return GE_NOMEM if it could not allocate memory to do this,
+     * or GE_INVAL if fd is invalid.
      */
     int (*set_fd_handlers)(struct gensio_os_funcs *f,
 			   int fd,
@@ -142,29 +145,32 @@ struct gensio_os_funcs {
     void (*free_timer)(struct gensio_timer *timer);
 
     /*
-     * Start the timer running.  Returns EBUSY if the timer is already
+     * Start the timer running.  Returns GE_INUSE if the timer is already
      * running.  This is a relative timeout.
      */
     int (*start_timer)(struct gensio_timer *timer, gensio_time *timeout);
 
     /*
-     * Start the timer running.  Returns EBUSY if the timer is already
+     * Start the timer running.  Returns GE_INUSE if the timer is already
      * running.  This is an absolute timeout based on the monotonic
      * time returned by get_monotonic_time.
      */
     int (*start_timer_abs)(struct gensio_timer *timer, gensio_time *timeout);
 
     /*
-     * Stop the timer.  Returns ETIMEDOUT if the timer is not running.
-     * Note that the timer may still be running in a timeout handler
-     * when this returns.
+     * Stop the timer.  Returns GE_TIMEDOUT if the timer is not
+     * running.  Note that the timer may still be running in a timeout
+     * handler when this returns.
      */
     int (*stop_timer)(struct gensio_timer *timer);
 
     /*
-     * Like the above, but the done_handler is called when the timer is
-     * completely stopped and no handler is running.  If ETIMEDOUT is
-     * returned, the done_handler is not called.
+     * Like the above, but the done_handler is called when the timer
+     * is completely stopped and no handler is running.  If
+     * GE_TIMEDOUT is returned, the done_handler is not called.  If
+     * GE_INUSE is returned, that means the timer has already been
+     * stopped and the done handler for the previous call has not been
+     * called.
      */
     int (*stop_timer_with_done)(struct gensio_timer *timer,
 				void (*done_handler)(struct gensio_timer *t,
@@ -187,7 +193,7 @@ struct gensio_os_funcs {
     void (*free_runner)(struct gensio_runner *runner);
 
     /*
-     * Run a runner.  Return EBUSY if the runner is already scheduled
+     * Run a runner.  Return GE_INUSE if the runner is already scheduled
      * to run.
      */
     int (*run)(struct gensio_runner *runner);
@@ -224,7 +230,8 @@ struct gensio_os_funcs {
     /*
      * Like wait, but return if a signal is received by the thread.
      * This is useful if you want to handle SIGINT or something like
-     * that.
+     * that.  This will return GE_INTERRUPTED if interrupted by a
+     * signal, GE_TIMEDOUT if it times out.
      */
     int (*wait_intr)(struct gensio_waiter *waiter, unsigned int count,
 		     gensio_time *timeout);
@@ -236,8 +243,10 @@ struct gensio_os_funcs {
     /*
      * Run the timers, fd handling, runners, etc.  This does one
      * operation and returns.  If timeout is non-NULL, if nothing
-     * happens before the relative time given it will return.
-     * The timeout is updated to the remaining time.
+     * happens before the relative time given it will return.  The
+     * timeout is updated to the remaining time.  Returns
+     * GE_INTERRUPTED if interrupted by a signal or GE_TIMEDOUT if the
+     * timeout expired.
      */
     int (*service)(struct gensio_os_funcs *f, gensio_time *timeout);
 
@@ -265,7 +274,7 @@ struct gensio_os_funcs {
      * Must be called after a fork() in the child if the gensio will
      * continue to be used in both the parent and the child.  If you
      * don't do this you may get undefined results.  If this returns
-     * an error, the child is likely to be unusable.
+     * an error (gensio err), the child is likely to be unusable.
      */
     int (*handle_fork)(struct gensio_os_funcs *f);
 
@@ -288,7 +297,7 @@ void gensio_log(struct gensio_os_funcs *o, enum gensio_log_levels level,
 
 /*
  * Allocate the OS handler for the platform.  This will return the
- * same OS handler each time.
+ * same OS handler each time.  Can return GE_NOMEM if out of memory.
  */
 int gensio_default_os_hnd(int wake_sig, struct gensio_os_funcs **o);
 
