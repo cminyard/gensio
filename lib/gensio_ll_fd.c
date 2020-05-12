@@ -258,9 +258,10 @@ fd_finish_open(struct fd_ll *fdll, int err)
 {
     gensio_ll_open_done open_done = fdll->open_done;
 
-    if (!err) {
+    if (err)
+	fd_set_state(fdll, FD_CLOSED);
+    else
 	fd_set_state(fdll, FD_OPEN);
-    }
 
 
     fdll->open_done = NULL;
