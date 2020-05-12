@@ -256,9 +256,6 @@ sctp_control(void *handler_data, int fd, bool get, unsigned int option,
 	if (!get)
 	    return GE_NOTSUP;
 
-	i = strtoul(data, NULL, 0);
-	if (i >= 0)
-	    return GE_NOTFOUND;
 	rv = gensio_os_sctp_getladdrs(tdata->o, fd, &addr);
 	if (rv)
 	    return rv;
