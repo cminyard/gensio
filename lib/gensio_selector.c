@@ -633,6 +633,7 @@ gensio_stop_timer_done(struct selector_s *sel,
     LOCK(&timer->lock);
     done_handler = timer->done_handler;
     done_cb_data = timer->done_cb_data;
+    timer->done_handler = NULL;
     UNLOCK(&timer->lock);
     done_handler(timer, done_cb_data);
 }
