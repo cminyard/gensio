@@ -920,7 +920,7 @@ udpn_control(struct gensio *io, bool get, int option,
 {
     struct udpn_data *ndata = gensio_get_gensio_data(io);
     struct udpna_data *nadata = ndata->nadata;
-    int err, protocol;
+    int err;
     struct gensio_addr *addr;
 
     switch(option) {
@@ -943,15 +943,10 @@ udpn_control(struct gensio *io, bool get, int option,
 
     case GENSIO_CONTROL_ADD_MCAST:
     case GENSIO_CONTROL_DEL_MCAST:
-	protocol = GENSIO_NET_PROTOCOL_UDP;
 	err = gensio_scan_network_addr(nadata->o, data,
 				       GENSIO_NET_PROTOCOL_UDP, &addr);
 	if (err)
 	    return err;
-	if (protocol != GENSIO_NET_PROTOCOL_UDP) {
-	    gensio_addr_free(addr);
-	    return GE_INVAL;
-	}
 	if (option == GENSIO_CONTROL_ADD_MCAST)
 	    err = gensio_os_mcast_add(nadata->o, nadata->fds->fd, addr,
 				      0, false);
