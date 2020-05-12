@@ -311,7 +311,10 @@ struct waiter { };
 
 	if (data->handler_val)
 	    deref_swig_cb_val(data->handler_val);
-	data->handler_val = ref_swig_cb(handler, read_callback);
+	if (handler)
+	    data->handler_val = ref_swig_cb(handler, read_callback);
+	else
+	    data->handler_val = NULL;
     }
 
     %rename (remote_id) remote_idt;
@@ -871,7 +874,10 @@ struct waiter { };
 
 	if (data->handler_val)
 	    deref_swig_cb_val(data->handler_val);
-	data->handler_val = ref_swig_cb(handler, read_callback);
+	if (handler)
+	    data->handler_val = ref_swig_cb(handler, read_callback);
+	else
+	    data->handler_val = NULL;
     }
 
     %newobject str_to_gensio;
