@@ -2,7 +2,7 @@
  *  gensiotools - General tools using gensio
  *  Copyright (C) 2019  Corey Minyard <minyard@acm.org>
  *
- *  SPDX-License-Identifier: GPL-2.1-only
+ *  SPDX-License-Identifier: GPL-2.0-only
  */
 
 #include <stdio.h>
