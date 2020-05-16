@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.10)
 
-project(gensio VERSION 2.0.4)
+project(gensio VERSION 2.0.5)
 set (gensio_VERSION_STRING "${gensio_VERSION_MAJOR}.${gensio_VERSION_MINOR}.${gensio_VERSION_PATCH}")
 
 include_directories("${PROJECT_BINARY_DIR}" "${PROJECT_SOURCE_DIR}/include"
