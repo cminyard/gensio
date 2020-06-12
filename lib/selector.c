@@ -420,6 +420,14 @@ finish_oldstate(sel_runner_t *runner, void *cbdata)
     free(oldstate);
 }
 
+static int
+valid_fd(struct selector_s *sel, int fd)
+{
+    if (fd >= FD_SETSIZE)
+	return 0;
+    return 1;
+}
+
 /* Set the handlers for a file descriptor. */
 int
 sel_set_fd_handlers(struct selector_s *sel,
@@ -434,6 +442,9 @@ sel_set_fd_handlers(struct selector_s *sel,
     fd_state_t   *state, *oldstate = NULL;
     void         *olddata = NULL;
     int          added = 1;
+
+    if (!valid_fd(sel, fd))
+	return EMFILE;
 
     state = sel_alloc(sizeof(*state));
     if (!state)
@@ -491,6 +502,8 @@ i_sel_clear_fd_handler(struct selector_s *sel, int fd, int rpt)
     fd_control_t *fdc;
     fd_state_t   *oldstate = NULL;
     void         *olddata = NULL;
+
+    assert(valid_fd(sel, fd));
 
     sel_fd_lock(sel);
     fdc = (fd_control_t *) &(sel->fds[fd]);
@@ -554,7 +567,11 @@ sel_clear_fd_handlers_norpt(struct selector_s *sel, int fd)
 void
 sel_set_fd_read_handler(struct selector_s *sel, int fd, int state)
 {
-    fd_control_t *fdc = (fd_control_t *) &(sel->fds[fd]);
+    fd_control_t *fdc;
+
+    assert(valid_fd(sel, fd));
+
+    fdc = (fd_control_t *) &(sel->fds[fd]);
 
     sel_fd_lock(sel);
     if (!fdc->state)
@@ -581,7 +598,11 @@ sel_set_fd_read_handler(struct selector_s *sel, int fd, int state)
 void
 sel_set_fd_write_handler(struct selector_s *sel, int fd, int state)
 {
-    fd_control_t *fdc = (fd_control_t *) &(sel->fds[fd]);
+    fd_control_t *fdc;
+
+    assert(valid_fd(sel, fd));
+
+    fdc = (fd_control_t *) &(sel->fds[fd]);
 
     sel_fd_lock(sel);
     if (!fdc->state)
@@ -608,7 +629,11 @@ sel_set_fd_write_handler(struct selector_s *sel, int fd, int state)
 void
 sel_set_fd_except_handler(struct selector_s *sel, int fd, int state)
 {
-    fd_control_t *fdc = (fd_control_t *) &(sel->fds[fd]);
+    fd_control_t *fdc;
+
+    assert(valid_fd(sel, fd));
+
+    fdc = (fd_control_t *) &(sel->fds[fd]);
 
     sel_fd_lock(sel);
     if (!fdc->state)
