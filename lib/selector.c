@@ -121,11 +121,25 @@ typedef struct fd_control_s
        whether the FD has been deleted and information to handle the
        deletion. */
     fd_state_t       *state;
-    void             *data;		/* Operation-specific data */
+
+    /* Link in the hash list. */
+    struct fd_control_s *next;
+
+    /* Handlers for various events on an fd. */
+    void             *data; /* Passed to the handlers */
     sel_fd_handler_t handle_read;
     sel_fd_handler_t handle_write;
     sel_fd_handler_t handle_except;
+
+    int fd;
+
+    /* Keep track of whether the event is enabled here. */
+    char read_enabled;
+    char write_enabled;
+    char except_enabled;
+
 #ifdef HAVE_EPOLL_PWAIT
+    /* See the comment in process_fds_epoll() on the use of this. */
     uint32_t saved_events;
 #endif
 } fd_control_t;
@@ -212,19 +226,8 @@ typedef struct sel_wait_list_s
 
 struct selector_s
 {
-    /* This is an array of all the file descriptors possible.  This is
-       moderately wasteful of space, but easy to do.  Hey, memory is
-       cheap. */
-    volatile fd_control_t fds[FD_SETSIZE];
-
-    /* These are the offical fd_sets used to track what file descriptors
-       need to be monitored. */
-    volatile fd_set read_set;
-    volatile fd_set write_set;
-    volatile fd_set except_set;
-
-    volatile int maxfd; /* The largest file descriptor registered with
-			   this code. */
+    /* This is an hash table of file descriptors. */
+    fd_control_t *fds[FD_SETSIZE];
 
     /* If something is deleted, we increment this count.  This way when
        a select/epoll returns a non-timeout, we know that we need to ignore
@@ -254,6 +257,17 @@ struct selector_s
     void (*sel_lock_free)(sel_lock_t *);
     void (*sel_lock)(sel_lock_t *);
     void (*sel_unlock)(sel_lock_t *);
+
+    /* Everything below is only used for select() and ignore for epoll. */
+
+    /* These are the offical fd_sets used to track what file descriptors
+       need to be monitored. */
+    volatile fd_set read_set;
+    volatile fd_set write_set;
+    volatile fd_set except_set;
+
+    volatile int maxfd; /* The largest file descriptor registered with
+			   this code. */
 };
 
 static void
@@ -358,13 +372,15 @@ init_fd(fd_control_t *fd)
     fd->handle_read = NULL;
     fd->handle_write = NULL;
     fd->handle_except = NULL;
+    fd->read_enabled = 0;
+    fd->write_enabled = 0;
+    fd->except_enabled = 0;
 }
 
 #ifdef HAVE_EPOLL_PWAIT
 static int
-sel_update_fd(struct selector_s *sel, int fd, int op)
+sel_update_fd(struct selector_s *sel, fd_control_t *fdc, int op)
 {
-    fd_control_t *fdc = (fd_control_t *) &sel->fds[fd];
     struct epoll_event event;
     int rv;
 
@@ -373,29 +389,29 @@ sel_update_fd(struct selector_s *sel, int fd, int op)
 
     memset(&event, 0, sizeof(event));
     event.events = EPOLLONESHOT;
-    event.data.fd = fd;
+    event.data.fd = fdc->fd;
     if (fdc->saved_events) {
 	if (op == EPOLL_CTL_DEL)
 	    return 0;
-	if (!FD_ISSET(fd, &sel->read_set) && !FD_ISSET(fd, &sel->except_set))
+	if (!fdc->read_enabled && !fdc->except_enabled)
 	    return 0;
 	fdc->saved_events = 0;
 	op = EPOLL_CTL_ADD;
-	if (FD_ISSET(fd, &sel->read_set))
+	if (fdc->read_enabled)
 	    event.events |= EPOLLIN | EPOLLHUP;
-	if (FD_ISSET(fd, &sel->except_set))
+	if (fdc->except_enabled)
 	    event.events |= EPOLLERR | EPOLLPRI;
     } else if (op != EPOLL_CTL_DEL) {
-	if (FD_ISSET(fd, &sel->read_set))
+	if (fdc->read_enabled)
 	    event.events |= EPOLLIN | EPOLLHUP;
-	if (FD_ISSET(fd, &sel->write_set))
+	if (fdc->write_enabled)
 	    event.events |= EPOLLOUT;
-	if (FD_ISSET(fd, &sel->except_set))
+	if (fdc->except_enabled)
 	    event.events |= EPOLLERR | EPOLLPRI;
     }
     /* This should only fail due to system problems, and if that's the case,
        well, we should probably terminate. */
-    rv = epoll_ctl(sel->epollfd, op, fd, &event);
+    rv = epoll_ctl(sel->epollfd, op, fdc->fd, &event);
     if (rv) {
 	perror("epoll_ctl");
 	assert(0);
@@ -404,7 +420,7 @@ sel_update_fd(struct selector_s *sel, int fd, int op)
 }
 #else
 static int
-sel_update_fd(struct selector_s *sel, int fd, int op)
+sel_update_fd(struct selector_s *sel, fd_control_t *fdc, int op)
 {
     return 1;
 }
@@ -420,12 +436,24 @@ finish_oldstate(sel_runner_t *runner, void *cbdata)
     free(oldstate);
 }
 
-static int
-valid_fd(struct selector_s *sel, int fd)
+/* Must be called with sel fd lock held. */
+static fd_control_t *
+get_fd(struct selector_s *sel, int fd)
 {
-    if (fd >= FD_SETSIZE)
-	return 0;
-    return 1;
+    fd_control_t *fdc = sel->fds[fd % FD_SETSIZE];
+
+    while (fdc && fdc->fd != fd)
+	fdc = fdc->next;
+    return fdc;
+}
+
+static void
+valid_fd(struct selector_s *sel, int fd, fd_control_t **rfdc)
+{
+    fd_control_t *fdc = get_fd(sel, fd);
+
+    assert(fdc != NULL);
+    *rfdc = fdc;
 }
 
 /* Set the handlers for a file descriptor. */
@@ -443,8 +471,10 @@ sel_set_fd_handlers(struct selector_s *sel,
     void         *olddata = NULL;
     int          added = 1;
 
-    if (!valid_fd(sel, fd))
+#ifdef HAVE_EPOLL_PWAIT
+    if (sel->epollfd < 0 && fd >= FD_SETSIZE)
 	return EMFILE;
+#endif
 
     state = sel_alloc(sizeof(*state));
     if (!state)
@@ -455,7 +485,20 @@ sel_set_fd_handlers(struct selector_s *sel,
     state->done_runner.sel = sel;
 
     sel_fd_lock(sel);
-    fdc = (fd_control_t *) &(sel->fds[fd]);
+    fdc = get_fd(sel, fd);
+    if (!fdc) {
+	fdc = sel_alloc(sizeof(*fdc));
+	if (!fdc) {
+	    sel_fd_unlock(sel);
+	    free(state);
+	    return ENOMEM;
+	}
+	fdc->fd = fd;
+	/* Add it to the list. */
+	fdc->next = sel->fds[fd % FD_SETSIZE];
+	sel->fds[fd % FD_SETSIZE] = fdc;
+    }
+
     if (fdc->state) {
 	oldstate = fdc->state;
 	olddata = fdc->data;
@@ -473,14 +516,13 @@ sel_set_fd_handlers(struct selector_s *sel,
 
     if (added) {
 	/* Move maxfd up if necessary. */
-	if (fd > sel->maxfd) {
+	if (fd > sel->maxfd)
 	    sel->maxfd = fd;
-	}
 
-	if (sel_update_fd(sel, fd, EPOLL_CTL_ADD))
+	if (sel_update_fd(sel, fdc, EPOLL_CTL_ADD))
 	    sel_wake_all(sel);
     } else {
-	if (sel_update_fd(sel, fd, EPOLL_CTL_MOD))
+	if (sel_update_fd(sel, fdc, EPOLL_CTL_MOD))
 	    sel_wake_all(sel);
     }
     sel_fd_unlock(sel);
@@ -503,17 +545,15 @@ i_sel_clear_fd_handler(struct selector_s *sel, int fd, int rpt)
     fd_state_t   *oldstate = NULL;
     void         *olddata = NULL;
 
-    assert(valid_fd(sel, fd));
-
     sel_fd_lock(sel);
-    fdc = (fd_control_t *) &(sel->fds[fd]);
+    valid_fd(sel, fd, &fdc);
 
     if (fdc->state) {
 	oldstate = fdc->state;
 	olddata = fdc->data;
 	fdc->state = NULL;
 
-	sel_update_fd(sel, fd, EPOLL_CTL_DEL);
+	sel_update_fd(sel, fdc, EPOLL_CTL_DEL);
 #ifdef HAVE_EPOLL_PWAIT
 	fdc->saved_events = 0;
 #endif
@@ -521,15 +561,17 @@ i_sel_clear_fd_handler(struct selector_s *sel, int fd, int rpt)
     }
 
     init_fd(fdc);
-    FD_CLR(fd, &sel->read_set);
-    FD_CLR(fd, &sel->write_set);
-    FD_CLR(fd, &sel->except_set);
+    if (sel->epollfd < 0) {
+	FD_CLR(fd, &sel->read_set);
+	FD_CLR(fd, &sel->write_set);
+	FD_CLR(fd, &sel->except_set);
+    }
 
     /* Move maxfd down if necessary. */
     if (fd == sel->maxfd) {
-	while ((sel->maxfd >= 0) && (! sel->fds[sel->maxfd].state)) {
+	while (sel->maxfd >= 0 && (!sel->fds[sel->maxfd] ||
+				   !sel->fds[sel->maxfd]->state))
 	    sel->maxfd--;
-	}
     }
 
     if (oldstate) {
@@ -569,24 +611,26 @@ sel_set_fd_read_handler(struct selector_s *sel, int fd, int state)
 {
     fd_control_t *fdc;
 
-    assert(valid_fd(sel, fd));
-
-    fdc = (fd_control_t *) &(sel->fds[fd]);
-
     sel_fd_lock(sel);
+    valid_fd(sel, fd, &fdc);
+
     if (!fdc->state)
 	goto out;
 
     if (state == SEL_FD_HANDLER_ENABLED) {
-	if (FD_ISSET(fd, &sel->read_set))
+	if (fdc->read_enabled)
 	    goto out;
-	FD_SET(fd, &sel->read_set);
+	fdc->read_enabled = 1;
+	if (sel->epollfd < 0)
+	    FD_SET(fd, &sel->read_set);
     } else if (state == SEL_FD_HANDLER_DISABLED) {
-	if (!FD_ISSET(fd, &sel->read_set))
+	if (!fdc->read_enabled)
 	    goto out;
-	FD_CLR(fd, &sel->read_set);
+	fdc->read_enabled = 0;
+	if (sel->epollfd < 0)
+	    FD_CLR(fd, &sel->read_set);
     }
-    if (sel_update_fd(sel, fd, EPOLL_CTL_MOD))
+    if (sel_update_fd(sel, fdc, EPOLL_CTL_MOD))
 	sel_wake_all(sel);
 
  out:
@@ -600,24 +644,26 @@ sel_set_fd_write_handler(struct selector_s *sel, int fd, int state)
 {
     fd_control_t *fdc;
 
-    assert(valid_fd(sel, fd));
-
-    fdc = (fd_control_t *) &(sel->fds[fd]);
-
     sel_fd_lock(sel);
+    valid_fd(sel, fd, &fdc);
+
     if (!fdc->state)
 	goto out;
 
     if (state == SEL_FD_HANDLER_ENABLED) {
-	if (FD_ISSET(fd, &sel->write_set))
+	if (fdc->write_enabled)
 	    goto out;
-	FD_SET(fd, &sel->write_set);
+	fdc->write_enabled = 1;
+	if (sel->epollfd < 0)
+	    FD_SET(fd, &sel->write_set);
     } else if (state == SEL_FD_HANDLER_DISABLED) {
-	if (!FD_ISSET(fd, &sel->write_set))
+	if (!fdc->write_enabled)
 	    goto out;
-	FD_CLR(fd, &sel->write_set);
+	fdc->write_enabled = 0;
+	if (sel->epollfd < 0)
+	    FD_CLR(fd, &sel->write_set);
     }
-    if (sel_update_fd(sel, fd, EPOLL_CTL_MOD))
+    if (sel_update_fd(sel, fdc, EPOLL_CTL_MOD))
 	sel_wake_all(sel);
 
  out:
@@ -631,24 +677,26 @@ sel_set_fd_except_handler(struct selector_s *sel, int fd, int state)
 {
     fd_control_t *fdc;
 
-    assert(valid_fd(sel, fd));
-
-    fdc = (fd_control_t *) &(sel->fds[fd]);
-
     sel_fd_lock(sel);
+    valid_fd(sel, fd, &fdc);
+
     if (!fdc->state)
 	goto out;
 
     if (state == SEL_FD_HANDLER_ENABLED) {
-	if (FD_ISSET(fd, &sel->except_set))
+	if (fdc->except_enabled)
 	    goto out;
-	FD_SET(fd, &sel->except_set);
+	fdc->except_enabled = 1;
+	if (sel->epollfd < 0)
+	    FD_SET(fd, &sel->except_set);
     } else if (state == SEL_FD_HANDLER_DISABLED) {
-	if (!FD_ISSET(fd, &sel->except_set))
+	if (!fdc->except_enabled)
 	    goto out;
-	FD_CLR(fd, &sel->except_set);
+	fdc->except_enabled = 0;
+	if (sel->epollfd < 0)
+	    FD_CLR(fd, &sel->except_set);
     }
-    if (sel_update_fd(sel, fd, EPOLL_CTL_MOD))
+    if (sel_update_fd(sel, fdc, EPOLL_CTL_MOD))
 	sel_wake_all(sel);
 
  out:
@@ -1002,7 +1050,8 @@ process_runners(struct selector_s *sel)
 }
 
 static void
-handle_selector_call(struct selector_s *sel, int i, volatile fd_set *fdset,
+handle_selector_call(struct selector_s *sel, fd_control_t *fdc,
+		     volatile fd_set *fdset, int enabled,
 		     sel_fd_handler_t handler)
 {
     void             *data;
@@ -1011,25 +1060,26 @@ handle_selector_call(struct selector_s *sel, int i, volatile fd_set *fdset,
     if (handler == NULL) {
 	/* Somehow we don't have a handler for this.
 	   Just shut it down. */
-	FD_CLR(i, fdset);
+	if (fdset)
+	    FD_CLR(fdc->fd, fdset);
 	return;
     }
 
-    if (!FD_ISSET(i, fdset))
+    if (!enabled)
 	/* The value was cleared, ignore it. */
 	return;
 
-    data = sel->fds[i].data;
-    state = sel->fds[i].state;
+    data = fdc->data;
+    state = fdc->state;
     state->use_count++;
     sel_fd_unlock(sel);
-    handler(i, data);
+    handler(fdc->fd, data);
     sel_fd_lock(sel);
     state->use_count--;
     if (state->deleted && state->use_count == 0) {
 	if (state->done) {
 	    sel_fd_unlock(sel);
-	    state->done(i, data);
+	    state->done(fdc->fd, data);
 	    sel_fd_lock(sel);
 	}
 	free(state);
@@ -1070,6 +1120,7 @@ process_fds(struct selector_s	    *sel,
     struct timespec ts = { .tv_sec = timeout->tv_sec,
 			   .tv_nsec = timeout->tv_usec * 1000 };
     unsigned long entry_fd_del_count = sel->fd_del_count;
+    fd_control_t *fdc;
 
     setup_my_sigmask(&sigmask, isigmask);
  retry:
@@ -1100,15 +1151,21 @@ process_fds(struct selector_s	    *sel,
 	   may be from the old fd wakeup. */
 	goto out_unlock;
     for (i = 0; i <= sel->maxfd; i++) {
-	if (FD_ISSET(i, &tmp_read_set))
-	    handle_selector_call(sel, i, &sel->read_set,
-				 sel->fds[i].handle_read);
-	if (FD_ISSET(i, &tmp_write_set))
-	    handle_selector_call(sel, i, &sel->write_set,
-				 sel->fds[i].handle_write);
-	if (FD_ISSET(i, &tmp_except_set))
-	    handle_selector_call(sel, i, &sel->except_set,
-				 sel->fds[i].handle_except);
+	if (FD_ISSET(i, &tmp_read_set)) {
+	    valid_fd(sel, i, &fdc);
+	    handle_selector_call(sel, fdc, &sel->read_set, fdc->read_enabled,
+				 fdc->handle_read);
+	}
+	if (FD_ISSET(i, &tmp_write_set)) {
+	    valid_fd(sel, i, &fdc);
+	    handle_selector_call(sel, fdc, &sel->write_set, fdc->write_enabled,
+				 fdc->handle_write);
+	}
+	if (FD_ISSET(i, &tmp_except_set)) {
+	    valid_fd(sel, i, &fdc);
+	    handle_selector_call(sel, fdc, &sel->except_set,
+				 fdc->except_enabled, fdc->handle_except);
+	}
     }
  out_unlock:
     sel_fd_unlock(sel);
@@ -1121,7 +1178,7 @@ static int
 process_fds_epoll(struct selector_s *sel, struct timeval *tvtimeout,
 		  sigset_t *isigmask)
 {
-    int rv, fd;
+    int rv;
     struct epoll_event event;
     int timeout;
     sigset_t sigmask;
@@ -1145,8 +1202,7 @@ process_fds_epoll(struct selector_s *sel, struct timeval *tvtimeout,
 	return rv;
 
     sel_fd_lock(sel);
-    fd = event.data.fd;
-    fdc = (fd_control_t *) &sel->fds[fd];
+    valid_fd(sel, event.data.fd, &fdc);
     if (entry_fd_del_count != sel->fd_del_count)
 	/* Something was deleted from the FD set, don't process this as it
 	   may be from the old fd wakeup. */
@@ -1162,7 +1218,7 @@ process_fds_epoll(struct selector_s *sel, struct timeval *tvtimeout,
 	 * EPOLLHUP or EPOLLERR, anyway, and then doing the callback
 	 * by hand.
 	 */
-	sel_update_fd(sel, fd, EPOLL_CTL_DEL);
+	sel_update_fd(sel, fdc, EPOLL_CTL_DEL);
 	fdc->saved_events = event.events & (EPOLLHUP | EPOLLERR);
 	/*
 	 * Have it handle read data, too, so if there is a pending
@@ -1171,16 +1227,19 @@ process_fds_epoll(struct selector_s *sel, struct timeval *tvtimeout,
 	event.events |= EPOLLIN;
     }
     if (event.events & (EPOLLIN | EPOLLHUP))
-	handle_selector_call(sel, fd, &sel->read_set, fdc->handle_read);
+	handle_selector_call(sel, fdc, NULL, fdc->read_enabled,
+			     fdc->handle_read);
     if (event.events & EPOLLOUT)
-	handle_selector_call(sel, fd, &sel->write_set, fdc->handle_write);
+	handle_selector_call(sel, fdc, NULL, fdc->write_enabled,
+			     fdc->handle_write);
     if (event.events & (EPOLLPRI | EPOLLERR))
-	handle_selector_call(sel, fd, &sel->except_set, fdc->handle_except);
+	handle_selector_call(sel, fdc, NULL, fdc->except_enabled,
+			     fdc->handle_except);
 
  rearm:
     /* Rearm the event.  Remember it could have been deleted in the handler. */
     if (fdc->state)
-	sel_update_fd(sel, fd, EPOLL_CTL_MOD);
+	sel_update_fd(sel, fdc, EPOLL_CTL_MOD);
     sel_fd_unlock(sel);
 
     return rv;
@@ -1205,9 +1264,9 @@ sel_setup_forked_process(struct selector_s *sel)
     }
 
     for (i = 0; i <= sel->maxfd; i++) {
-	volatile fd_control_t *fdc = &sel->fds[i];
-	if (fdc->state)
-	    sel_update_fd(sel, i, EPOLL_CTL_ADD);
+	fd_control_t *fdc = sel->fds[i];
+	if (fdc && fdc->state)
+	    sel_update_fd(sel, fdc, EPOLL_CTL_ADD);
     }
     return 0;
 }
@@ -1349,7 +1408,6 @@ sel_alloc_selector_thread(struct selector_s **new_selector, int wake_sig,
 			  void *cb_data)
 {
     struct selector_s *sel;
-    unsigned int i;
     int rv;
     sigset_t sigset;
 
@@ -1373,9 +1431,7 @@ sel_alloc_selector_thread(struct selector_s **new_selector, int wake_sig,
     FD_ZERO((fd_set *) &sel->write_set);
     FD_ZERO((fd_set *) &sel->except_set);
 
-    for (i = 0; i < FD_SETSIZE; i++) {
-	init_fd((fd_control_t *) &(sel->fds[i]));
-    }
+    memset(sel->fds, 0, sizeof(sel->fds));
 
     theap_init(&sel->timer_heap);
 
