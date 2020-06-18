@@ -521,7 +521,16 @@ auth_event(struct gensio *io, void *user_data, int event, int ierr,
 	    return GE_NOMEM;
 	}
 
-	gensio_raddr_to_str(ssl_io, NULL, raddr, sizeof(raddr));
+	len = sizeof(raddr);
+	err = gensio_control(ssl_io, GENSIO_CONTROL_DEPTH_FIRST, true,
+			     GENSIO_CONTROL_CONNECT_ADDR_STR, raddr, &len);
+	if (err)
+	    err = gensio_raddr_to_str(ssl_io, NULL, raddr, sizeof(raddr));
+	if (err) {
+	    fprintf(stderr, "Could not get connections remote address: %s\n",
+		    gensio_err_to_str(err));
+	    return err;
+	}
 
 	if (!ierr) {
 	    /* Found a certificate, make sure it's the right one. */
