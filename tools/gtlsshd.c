@@ -1178,6 +1178,8 @@ help(int err)
     printf("  --nodaemon - Do not daemonize.\n");
     printf("  --nosctp - Disable SCTP support.\n");
     printf("  --notcp - Disable TCP support.\n");
+    printf("  -4 - Do IPv4 only.\n");
+    printf("  -6 - Do IPv6 only.\n");
     printf("  -P, --pidfile <file> - Create the given pidfile.\n");
     printf("  -h, --help - This help\n");
     exit(err);
@@ -1225,6 +1227,7 @@ main(int argc, char *argv[])
     char *s;
     bool notcp = false, nosctp = false;
     bool daemonize = true;
+    const char *iptype = ""; /* Try both IPv4 and IPv6 by default. */
 
     localport_err = pr_localport;
 
@@ -1266,6 +1269,10 @@ main(int argc, char *argv[])
 	    daemonize = false;
 	else if ((rv = cmparg(argc, argv, &arg, "-P", "--pidfile", &pid_file)))
 	    ;
+	else if ((rv = cmparg(argc, argv, &arg, "-4", NULL, NULL)))
+	    iptype = "ipv4,0.0.0.0,";
+	else if ((rv = cmparg(argc, argv, &arg, "-6", NULL, NULL)))
+	    iptype = "ipv6,::,";
 	else if ((rv = cmparg(argc, argv, &arg, "-d", "--debug", NULL))) {
 	    debug++;
 	    if (debug > 1)
@@ -1321,7 +1328,7 @@ main(int argc, char *argv[])
     }
 
     if (!notcp) {
-	s = alloc_sprintf("tcp,%d", port);
+	s = alloc_sprintf("tcp,%s%d", iptype, port);
 	if (!s) {
 	    fprintf(stderr, "Could not allocate tcp descriptor\n");
 	    return 1;
@@ -1345,7 +1352,7 @@ main(int argc, char *argv[])
     }
 
     if (!nosctp) {
-	s = alloc_sprintf("sctp,%d", port);
+	s = alloc_sprintf("sctp,%s%d", iptype, port);
 	if (!s) {
 	    fprintf(stderr, "Could not allocate sctp descriptor\n");
 	    return 1;
