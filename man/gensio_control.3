@@ -203,6 +203,11 @@ the OS chose; you can get the actual port chosen.
 Close writing to the gensio, but leave reading along.  This is only
 for stdio gensios; it lets you close stdin to the subprogram without
 affecting the subprogram's stdout.
+.SS "GENSIO_CONTROL_CONNECT_ADDRESS_STR"
+Return the address the connection was made to.  For SCTP.
+.B gensio_raddr_to_str()
+returns all the remote addresses in SCTP's current state.  This will
+return the addresses that the original connectx was done to.
 .SH "RETURN VALUES"
 Zero is returned on success, or a gensio error on failure.
 .SH "SEE ALSO"

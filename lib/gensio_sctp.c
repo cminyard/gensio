@@ -260,6 +260,7 @@ sctp_control(void *handler_data, int fd, bool get, unsigned int option,
 	if (rv)
 	    return rv;
 
+	pos = 0;
 	rv = gensio_addr_to_str_all(addr, data, &pos, *datalen);
 	gensio_addr_free(addr);
 	if (rv)
@@ -273,6 +274,16 @@ sctp_control(void *handler_data, int fd, bool get, unsigned int option,
 	if (rv)
 	    return rv;
 	*datalen = snprintf(data, *datalen, "%d", i);
+	return 0;
+
+    case GENSIO_CONTROL_CONNECT_ADDR_STR:
+	if (!get)
+	    return GE_INVAL;
+	pos = 0;
+	rv = gensio_addr_to_str_all(tdata->addr, data, &pos, *datalen);
+	if (rv)
+	    return rv;
+	*datalen = pos;
 	return 0;
 
     default:
