@@ -209,6 +209,8 @@ help(int err)
     printf("  -R <accept addr>:<connect addr> - Like -L, except the\n"
 	   "    <accept addr> is on the remote machine and <connect addr> is\n"
 	   "    done from the local machine\n");
+    printf("  -4 - Do IPv4 only.\n");
+    printf("  -6 - Do IPv6 only.\n");
     printf("  -h, --help - This help\n");
     exit(err);
 }
@@ -1021,6 +1023,7 @@ main(int argc, char *argv[])
     bool use_mux = true;
     struct sigaction sigact;
     char *addr;
+    const char *iptype = ""; /* Try both IPv4 and IPv6 by default. */
 
     localport_err = pr_localport;
 
@@ -1109,6 +1112,10 @@ main(int argc, char *argv[])
 	    rv = handle_port(o, false, addr);
 	} else if ((rv = cmparg(argc, argv, &arg, "-R", NULL, &addr))) {
 	    rv = handle_port(o, true, addr);
+	} else if ((rv = cmparg(argc, argv, &arg, "-4", NULL, NULL))) {
+	    iptype = "ipv4,";
+	} else if ((rv = cmparg(argc, argv, &arg, "-6", NULL, NULL))) {
+	    iptype = "ipv6,";
 	} else if ((rv = cmparg(argc, argv, &arg, "-d", "--debug", NULL))) {
 	    debug++;
 	    if (debug > 1)
@@ -1294,9 +1301,9 @@ main(int argc, char *argv[])
 
  retry:
     s = alloc_sprintf("%s%scertauth(enable-password,username=%s%s%s),"
-		      "ssl(%s),%s,%s,%d",
+		      "ssl(%s),%s,%s%s,%d",
 		      do_telnet, muxstr, username, certfilespec, keyfilespec,
-		      CAdirspec, transport, hostname, port);
+		      CAdirspec, transport, iptype, hostname, port);
     if (!s) {
 	fprintf(stderr, "out of memory allocating IO string\n");
 	return 1;
