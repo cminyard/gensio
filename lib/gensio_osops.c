@@ -543,34 +543,50 @@ gensio_os_sctp_send(struct gensio_os_funcs *o,
 
 static int
 gensio_addr_to_sockarray(struct gensio_os_funcs *o, struct gensio_addr *addrs,
-			 struct sockaddr **rsaddrs, unsigned int *rslen)
+			 struct sockaddr **rsaddrs, unsigned int *rslen,
+			 int family)
 {
     struct addrinfo *ai;
     char *saddrs, *s;
     unsigned int slen = 0, i, memlen = 0;
 
     for (ai = addrs->a; ai; ai = ai->ai_next) {
+	unsigned int len;
+
 	if (ai->ai_addr->sa_family == AF_INET6)
-	    memlen += sizeof(struct sockaddr_in6);
+	    len = sizeof(struct sockaddr_in6);
 	else if (ai->ai_addr->sa_family == AF_INET)
-	    memlen += sizeof(struct sockaddr_in);
+	    len = sizeof(struct sockaddr_in);
 	else
 	    return GE_INVAL;
-	slen++;
+	if (family == ai->ai_addr->sa_family) {
+	    memlen += len;
+	    slen++;
+	}
     }
+
+    if (memlen == 0)
+	return GE_NOTFOUND;
 
     saddrs = o->zalloc(o, memlen);
     if (!saddrs)
 	return GE_NOMEM;
 
     s = saddrs;
-    for (ai = addrs->a, i = 0; i < slen; ai = ai->ai_next, i++) {
-	if (ai->ai_addr->sa_family == AF_INET6) {
-	    memcpy(s, ai->ai_addr, sizeof(struct sockaddr_in6));
-	    s += sizeof(struct sockaddr_in6);
-	} else if (ai->ai_addr->sa_family == AF_INET) {
-	    memcpy(s, ai->ai_addr, sizeof(struct sockaddr_in));
-	    s += sizeof(struct sockaddr_in);
+    for (ai = addrs->a, i = 0; i < slen; ai = ai->ai_next) {
+	unsigned int len;
+
+	if (ai->ai_addr->sa_family == AF_INET6)
+	    len = sizeof(struct sockaddr_in6);
+	else if (ai->ai_addr->sa_family == AF_INET)
+	    len = sizeof(struct sockaddr_in);
+	else
+	    assert(0);
+
+	if (family == ai->ai_addr->sa_family) {
+	    memcpy(s, ai->ai_addr, len);
+	    s += len;
+	    i++;
 	}
     }
 
@@ -586,15 +602,27 @@ gensio_os_sctp_connectx(struct gensio_os_funcs *o,
     struct sockaddr *saddrs;
     unsigned int naddrs;
     int err;
+    int family = AF_INET6;
 
-    err = gensio_addr_to_sockarray(o, addrs, &saddrs, &naddrs);
-    if (err)
+    /* Try IPv6 first, then IPv4. */
+ retry:
+    err = gensio_addr_to_sockarray(o, addrs, &saddrs, &naddrs, family);
+    if (err == GE_NOTFOUND && family == AF_INET6) {
+	family = AF_INET;
+	goto retry;
+    } else if (err) {
 	return err;
+    }
 
     err = sctp_connectx(fd, saddrs, naddrs, NULL);
     o->free(o, saddrs);
-    if (err == -1)
+    if (err == -1) {
+	if (errno != EINPROGRESS && family == AF_INET6) {
+	    family = AF_INET;
+	    goto retry;
+	}
 	return gensio_os_err_to_err(o, errno);
+    }
     return 0;
 }
 
