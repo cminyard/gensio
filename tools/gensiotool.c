@@ -558,7 +558,7 @@ main(int argc, char *argv[])
 	userdata2.err = gensio_acc_startup(io2_acc);
 	if (userdata2.err)
 	    fprintf(stderr, "Could not start %s: %s\n", userdata2.ios,
-		    gensio_err_to_str(rv));
+		    gensio_err_to_str(userdata2.err));
 	else if (io2_acc_print)
 	    userdata2.err = print_local_acc_addr(io2_acc);
 	if (userdata2.err)
