@@ -429,8 +429,7 @@ gensio_os_sctp_open_socket(struct gensio_os_funcs *o,
 	    goto out_err;
 
 	for (i = 0; i < nr_fds; i++) {
-	    if (port == fds[i].port &&
-		((fds[i].flags & AI_V4MAPPED) || fds[i].family == family)) {
+	    if (port == fds[i].port && (fds[i].family == family)) {
 		if (sctp_bindx(fds[i].fd, ai->ai_addr, 1,
 			       SCTP_BINDX_ADD_ADDR)) {
 		    rv = gensio_os_err_to_err(o, errno);
