@@ -147,6 +147,23 @@ static struct ioinfo_user_handlers guh = {
     .out = gout
 };
 
+static void
+print_address_list(const char *header, unsigned int anum, char *alist)
+{
+    unsigned int i = 0;
+    char *semipos;
+
+    do {
+	semipos = strchr(alist, ';');
+	if (semipos)
+	    *semipos = '\0';
+	fprintf(stderr, "%s %d(%d): %s\n", header, anum, i, alist);
+	if (semipos)
+	    alist = semipos + 1;
+	i++;
+    } while (semipos);
+}
+
 static int
 print_local_acc_addr(struct gensio_accepter *acc)
 {
@@ -169,7 +186,7 @@ print_local_acc_addr(struct gensio_accepter *acc)
 		    gensio_err_to_str(rv));
 	    return rv;
 	} else {
-	    fprintf(stderr, "Address %d: %s\n", i, str);
+	    print_address_list("Address", i, str);
 	}
     }
     fprintf(stderr, "Done\n");
@@ -183,6 +200,7 @@ print_io_addr(struct gensio *io, bool local)
     gensiods size;
     int rv;
     unsigned int i;
+    char *header = local ? "Local Address" : "Remote Address";
 
     for (i = 0; ; i++) {
 	size = sizeof(str);
@@ -199,8 +217,7 @@ print_io_addr(struct gensio *io, bool local)
 		    gensio_err_to_str(rv));
 	    return rv;
 	} else {
-	    fprintf(stderr, "%s Address: %s\n",
-		    local ? "Local" : "Remote", str);
+	    print_address_list(header, i, str);
 	}
     }
  done:
