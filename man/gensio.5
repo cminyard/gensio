@@ -260,6 +260,26 @@ divulge private keys or use the wrong keys is a lot easier.
 
 For more on cryptography in general, and cryptography and trust, Bruce
 Schneier has some excellent books on the subject.
+.SH "IPv6, IPV4, and host names"
+Note that a single hostname may result in more than one address.  For
+instance, it may have both an IPv4 and IPv6 address.  These are
+treated just like multiple hostnames.  The hostname may be prefixed
+with ipv4 or ipv6, which will force the connections to those
+protocols.  Specifying ipv6n4 will create a socket that is IPv6 but
+will handle IPv4 connections.  This is the default.
+
+In general IPv6 addresses are preferred if both are available.
+
+If you do not specify a hostname on an accepting gensio (like
+sctp,1234) it will only create an IPv6 socket that is IPv4 mapped.
+Even though getaddrinfo would normally return two addresses, only the
+IPv6 one is used unless there are no IPv6 addresses configured where it
+will return an IPv4 address.
+
+In general, for connecting gensios only the first address that is
+found will be used.  SCTP is the exception, it will do multi-homing on
+all the addresses that come up.  Do you may need to be fairly specific
+with addresses.
 .SH "TCP"
 .B tcp[(<options>)][,<hostname>],<port>[[,<hostname>],<port>[...]]
 .br
@@ -270,15 +290,6 @@ hostname/port pairs may be specified.  For a connecting TCP gensio,
 each one will be tried in sequence until a connection is established.
 For acceptor gensios, every specified hostname/port pair will be
 listened to.
-
-Note that a single hostname may result in more than one address.  For
-instance, it may have both an IPv4 and IPv6 address.  These are
-treated just like multiple hostnames.  IPv6 is generally tried first
-and it falls back to IPv4 if that fails.  The hostname may be prefixed
-with ipv4 or ipv6, which will force the connections to those
-protocols.  Specifying ipv6n4 will create a socket that is IPv6 but
-will accept IPv4 connections.
-
 .SS Dynamic Ports
 For accepters, if the port is specified as zero, a random port in the
 dynamic port range specified by IANA will be chosen.  If more than one
@@ -401,6 +412,21 @@ SCTP gensios are reliable.  They are not, at the moment, packet
 oriented.  There is currently no support of SCTP_EXPLICIT_EOR in the
 Linux implementation of SCTP, and without that it would be hard to
 make it packet oriented.
+
+When specifying IPv6 addresses that might map to IPv4, you must be
+careful.  If one side can do IPv4 and the other side can only do IPv6,
+the connection may come up, but will disconnect quickly because it
+cannot communicate on the IPv4 side.  For instance, the following
+accepter:
+.IP
+tools/gensiot -a "sctp,ipv6,::,1234"
+.PP
+and the following connector:
+.IP
+tools/gensiot "sctp,::1,1234"
+.PP
+will fail this way because the connector will support IPv4 add but the
+accepter will not.
 
 In addition to readbuf, the sctp gensio takes the following options:
 .TP
