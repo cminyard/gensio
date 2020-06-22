@@ -1360,7 +1360,8 @@ udpna_str_to_gensio(struct gensio_accepter *accepter, const char *addrstr,
 
     /* Use the first address with the same family. */
     for (fdi = 0; fdi < nadata->nr_fds; fdi++) {
-	if (gensio_addr_get_nettype(addr) == nadata->fds[fdi].family)
+	if (gensio_addr_family_supports(addr, nadata->fds[fdi].family,
+					nadata->fds[fdi].flags))
 	    goto found;
     }
 

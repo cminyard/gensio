@@ -342,6 +342,15 @@ void gensio_addr_getaddr(const struct gensio_addr *addr,
 int gensio_addr_get_nettype(const struct gensio_addr *addr);
 
 /*
+ * If the address can be supported by a socket with the given
+ * family/flags combo, return true.  This will return true if the
+ * families match or if address ipv4, family is IPv6, and flags has
+ * AI_V4MAPPED.
+ */
+bool gensio_addr_family_supports(const struct gensio_addr *addr, int family,
+				 int flags);
+
+/*
  * A routine for converting a current address to a string representation
  *
  * The output is put into buf starting at *epos (or zero if epos is NULL)

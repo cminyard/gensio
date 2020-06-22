@@ -390,8 +390,10 @@ sctp_shutdown_fds(struct gensio_os_funcs *o,
     if (!fds)
 	return;
 
-    for (i = 0; i < nrfds; i++)
+    for (i = 0; i < nrfds; i++) {
+	o->clear_fd_handlers_norpt(o, fds[i].fd);
 	close(fds[i].fd);
+    }
     o->free(o, fds);
 }
 
@@ -485,6 +487,8 @@ gensio_os_sctp_open_socket(struct gensio_os_funcs *o,
 
  out_err:
     sctp_shutdown_fds(o, fds, nr_fds);
+    fds = NULL;
+    nr_fds = 0;
 
     if (rv == GE_ADDRINUSE && scaninfo.start != 0 &&
 		scaninfo.curr != scaninfo.start) {
@@ -544,25 +548,40 @@ gensio_os_sctp_send(struct gensio_os_funcs *o,
 static int
 gensio_addr_to_sockarray(struct gensio_os_funcs *o, struct gensio_addr *addrs,
 			 struct sockaddr **rsaddrs, unsigned int *rslen,
-			 int family)
+			 bool *ripv6_only)
 {
     struct addrinfo *ai;
     char *saddrs, *s;
     unsigned int slen = 0, i, memlen = 0;
+    int ipv6_only = -1;
 
     for (ai = addrs->a; ai; ai = ai->ai_next) {
 	unsigned int len;
 
-	if (ai->ai_addr->sa_family == AF_INET6)
+	if (ai->ai_addr->sa_family == AF_INET6) {
 	    len = sizeof(struct sockaddr_in6);
-	else if (ai->ai_addr->sa_family == AF_INET)
+	    if (ai->ai_flags & AI_V4MAPPED) {
+		if (ipv6_only == 1)
+		    /* Can't mix IPV6-only with IPV4 mapped. */
+		    return GE_INVAL;
+		ipv6_only = 0;
+	    } else if (ipv6_only == 0) {
+		/* Can't mix IPV6-only with IPV4 mapped. */
+		return GE_INVAL;
+	    } else {
+		ipv6_only = 1;
+	    }
+	} else if (ai->ai_addr->sa_family == AF_INET) {
 	    len = sizeof(struct sockaddr_in);
-	else
+	    if (ipv6_only == 1)
+		/* Can't mix IPV6-only with IPV4. */
+		return GE_INVAL;
+	    ipv6_only = 0;
+	} else {
 	    return GE_INVAL;
-	if (family == ai->ai_addr->sa_family) {
-	    memlen += len;
-	    slen++;
 	}
+	memlen += len;
+	slen++;
     }
 
     if (memlen == 0)
@@ -583,15 +602,14 @@ gensio_addr_to_sockarray(struct gensio_os_funcs *o, struct gensio_addr *addrs,
 	else
 	    assert(0);
 
-	if (family == ai->ai_addr->sa_family) {
-	    memcpy(s, ai->ai_addr, len);
-	    s += len;
-	    i++;
-	}
+	memcpy(s, ai->ai_addr, len);
+	s += len;
+	i++;
     }
 
     *rsaddrs = (struct sockaddr *) saddrs;
     *rslen = slen;
+    *ripv6_only = ipv6_only;
     return 0;
 }
 
@@ -602,27 +620,29 @@ gensio_os_sctp_connectx(struct gensio_os_funcs *o,
     struct sockaddr *saddrs;
     unsigned int naddrs;
     int err;
-    int family = AF_INET6;
+    bool ipv6_only;
 
-    /* Try IPv6 first, then IPv4. */
- retry:
-    err = gensio_addr_to_sockarray(o, addrs, &saddrs, &naddrs, family);
-    if (err == GE_NOTFOUND && family == AF_INET6) {
-	family = AF_INET;
-	goto retry;
-    } else if (err) {
+    err = gensio_addr_to_sockarray(o, addrs, &saddrs, &naddrs, &ipv6_only);
+    if (err)
 	return err;
-    }
 
-    err = sctp_connectx(fd, saddrs, naddrs, NULL);
-    o->free(o, saddrs);
-    if (err == -1) {
-	if (errno != EINPROGRESS && family == AF_INET6) {
-	    family = AF_INET;
-	    goto retry;
-	}
-	return gensio_os_err_to_err(o, errno);
+    if (ipv6_only) {
+	int val = 1;
+
+	err = setsockopt(fd, IPPROTO_IPV6, IPV6_V6ONLY, &val, sizeof(val));
+	if (err)
+	    goto out_err;
+	val = !val;
+	err = setsockopt(fd, SOL_SCTP, SCTP_I_WANT_MAPPED_V4_ADDR, &val,
+			 sizeof(val));
+	if (err)
+	    goto out_err;
     }
+    err = sctp_connectx(fd, saddrs, naddrs, NULL);
+ out_err:
+    o->free(o, saddrs);
+    if (err == -1)
+	return gensio_os_err_to_err(o, errno);
     return 0;
 }
 
@@ -1032,8 +1052,14 @@ gensio_os_set_mcast_loop(struct gensio_os_funcs *o, int fd,
 int
 gensio_os_connect(struct gensio_os_funcs *o, int fd, struct gensio_addr *addr)
 {
-    int err = connect(fd, addr->curr->ai_addr, addr->curr->ai_addrlen);
+    int err;
 
+    err = check_ipv6_only(addr->curr->ai_family,
+			  addr->curr->ai_protocol,
+			  addr->curr->ai_flags,
+			  fd);
+    if (err == 0)
+	err = connect(fd, addr->curr->ai_addr, addr->curr->ai_addrlen);
     if (err == -1)
 	return gensio_os_err_to_err(o, errno);
     return 0;
@@ -1237,6 +1263,7 @@ gensio_os_open_socket(struct gensio_os_funcs *o,
 	if (rv)
 	    goto out_close;
 	fds[curr_fd].family = rp->ai_family;
+	fds[curr_fd].flags = rp->ai_flags;
 	curr_fd++;
     }
     if (family == AF_INET6) {
@@ -1480,13 +1507,40 @@ gensio_i_os_err_to_err(struct gensio_os_funcs *o,
 }
 
 static bool
-sockaddr_equal(const struct sockaddr *a1, socklen_t l1,
-		      const struct sockaddr *a2, socklen_t l2,
-		      bool compare_ports)
+sockaddr_inet6_inet4_equal(const struct sockaddr *a1, socklen_t l1,
+			   const struct sockaddr *a2, socklen_t l2,
+			   bool compare_ports)
 {
-    if (l1 != l2)
+    struct sockaddr_in6 *s1 = (struct sockaddr_in6 *) a1;
+    struct sockaddr_in *s2 = (struct sockaddr_in *) a2;
+
+    /* a1 is an IF_NET6 address. */
+
+    if (a2->sa_family != AF_INET)
 	return false;
-    if (a1->sa_family != a2->sa_family)
+
+    if (!IN6_IS_ADDR_V4MAPPED(&s1->sin6_addr))
+	return false;
+
+    if (compare_ports && s1->sin6_port != s2->sin_port)
+	return false;
+
+    return ((const uint32_t *) &s1->sin6_addr)[3] == s2->sin_addr.s_addr;
+}
+
+static bool
+sockaddr_equal(const struct sockaddr *a1, socklen_t l1,
+	       const struct sockaddr *a2, socklen_t l2,
+	       bool compare_ports)
+{
+    if (a1->sa_family != a2->sa_family) {
+	if (a1->sa_family == AF_INET6)
+	    return sockaddr_inet6_inet4_equal(a1, l1, a2, l2, compare_ports);
+	else if (a2->sa_family == AF_INET6)
+	    return sockaddr_inet6_inet4_equal(a2, l2, a1, l1, compare_ports);
+	return false;
+    }
+    if (l1 != l2)
 	return false;
     switch (a1->sa_family) {
     case AF_INET:
@@ -1598,6 +1652,10 @@ int
 gensio_addr_to_str(const struct gensio_addr *addr,
 		   char *buf, gensiods *pos, gensiods buflen)
 {
+    gensiods tmppos = 0;
+
+    if (!pos)
+	pos = &tmppos;
     return gensio_sockaddr_to_str(addr->curr->ai_addr, buf, pos, buflen);
 }
 
@@ -1608,6 +1666,10 @@ gensio_addr_to_str_all(const struct gensio_addr *addr,
     struct gensio_addr a = *addr;
     bool first = true;
     int rv;
+    gensiods tmppos = 0;
+
+    if (!pos)
+	pos = &tmppos;
 
     for (a.curr = a.a; a.curr; a.curr = a.curr->ai_next) {
 	if (!first)
@@ -1654,6 +1716,7 @@ scan_ips(struct gensio_os_funcs *o, const char *str, bool listen, int ifamily,
     ip = strtok_r(strtok_buffer, ",", &strtok_data);
     while (ip) {
 	int family = ifamily, rflags = 0;
+	bool notype = false;
 
 	if (strcmp(ip, "ipv4") == 0) {
 	    family = AF_INET;
@@ -1665,6 +1728,10 @@ scan_ips(struct gensio_os_funcs *o, const char *str, bool listen, int ifamily,
 	    family = AF_INET6;
 	    rflags |= AI_V4MAPPED;
 	    ip = strtok_r(NULL, ",", &strtok_data);
+	} else {
+	    /* Default to V4 mapped. */
+	    rflags |= AI_V4MAPPED;
+	    notype = true;
 	}
 
 	if (ip == NULL) {
@@ -1685,12 +1752,32 @@ scan_ips(struct gensio_os_funcs *o, const char *str, bool listen, int ifamily,
 	    port = "0";
 	}
 
+	/*
+	 * If the user specified something like "tcp,0", ip will be
+	 * NULL and getaddrinfo will return IPv4 and IPv6 addresses if
+	 * the are available.  AF_V4MAPPED will be set, so we really
+	 * only want IPv6 addresses (if any are available) as once you
+	 * open the IPv6 address you can't open the IPv4 address.
+	 *
+	 * To fix this, in this special case we try IPv6 addresses
+	 * first, as they will be mapped and work for IPv4 addresses.
+	 * If we get no network addresses in IPv4, then try IPv4.
+	 */
+	if (!ip && notype)
+	    family = AF_INET6;
+
+    redo_getaddrinfo:
 	memset(&hints, 0, sizeof(hints));
 	hints.ai_flags = bflags | rflags;
 	hints.ai_family = family;
 	hints.ai_socktype = socktype;
 	hints.ai_protocol = protocol;
-	if (getaddrinfo(ip, port, &hints, &ai)) {
+	rv = getaddrinfo(ip, port, &hints, &ai);
+	if (rv) {
+	    if (notype && family == AF_INET6) {
+		family = AF_INET;
+		goto redo_getaddrinfo;
+	    }
 	    rv = GE_INVAL;
 	    goto out_err;
 	}
@@ -2201,6 +2288,18 @@ int
 gensio_addr_get_nettype(const struct gensio_addr *addr)
 {
     return addr->curr->ai_addr->sa_family;
+}
+
+bool
+gensio_addr_family_supports(const struct gensio_addr *addr, int family,
+			    int flags)
+{
+    if (addr->curr->ai_addr->sa_family == family)
+	return true;
+    if (addr->curr->ai_addr->sa_family == AF_INET && family == AF_INET6 &&
+		flags & AI_V4MAPPED)
+	return true;
+    return false;
 }
 
 void
