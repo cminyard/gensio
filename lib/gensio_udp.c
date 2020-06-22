@@ -891,6 +891,29 @@ udpna_control_laddr(struct udpna_data *nadata, bool get,
 }
 
 static int
+udpna_control_raddr(struct udpn_data *ndata, bool get,
+		    char *data, gensiods *datalen)
+{
+    unsigned int i;
+    gensiods pos = 0;
+    int rv;
+
+    if (!get)
+	return GE_NOTSUP;
+
+    i = strtoul(data, NULL, 0);
+    if (i > 0)
+	return GE_NOTFOUND;
+
+    rv = gensio_addr_to_str(ndata->raddr, data, &pos, *datalen);
+    if (rv)
+	return rv;
+
+    *datalen = pos;
+    return 0;
+}
+
+static int
 udpna_control_lport(struct udpna_data *nadata, bool get,
 		    char *data, gensiods *datalen)
 {
@@ -937,6 +960,9 @@ udpn_control(struct gensio *io, bool get, int option,
 
     case GENSIO_CONTROL_LADDR:
 	return udpna_control_laddr(nadata, get, data, datalen);
+
+    case GENSIO_CONTROL_RADDR:
+	return udpna_control_raddr(ndata, get, data, datalen);
 
     case GENSIO_CONTROL_LPORT:
 	return udpna_control_lport(nadata, get, data, datalen);

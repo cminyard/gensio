@@ -194,7 +194,23 @@ On UDP connections, delete a multicast address that the socket will
 receive packets on.
 .SS "GENSIO_CONTROL_LADDR"
 Return the local address for the connection.  Only for network
-connections.
+connections.  Since a single gensio may have more than one local
+address, this control provides a means to tell which one.  The
+.I data
+string passed in should be the string representation of a the number (like
+created with snprintf()) for the particular index you want to fetch.  If
+you specify a number larger than the number of open listen sockets,
+.I GE_NOTFOUND
+is returned.  The return data is a string holding the address.
+
+Note that a single fetched string may contain more than one address.
+These will be separated by semicolons.  In some cases addresses may
+change dynamically (like with SCTP), so you get a single set of
+addresses.
+.SS "GENSIO_CONTROL_RADDR"
+Like
+.B GENSIO_CONTROL_LADDR
+but gets the remote addresses on a gensio.  The gensio must be open.
 .SS "GENSIO_CONTROL_LPORT"
 Return the local port for the connection.  Only for network
 connections.  This is useful if you pass in "0" for the port to let

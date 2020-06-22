@@ -30,6 +30,11 @@ created with snprintf()) for the particular index you want to fetch.  If
 you specify a number larger than the number of open listen sockets,
 .I GE_NOTFOUND
 is returned.  The return data is a string holding the address.
+
+Note that a single fetched string may contain more than one address.
+These will be separated by semicolons.  In some cases addresses may
+change dynamically (like with SCTP), so you get a single set of
+addresses.
 .SS "GENSIO_ACC_CONTROL_LPORT"
 Return the port for the given local address for the given gensio.
 Since a single gensio may have more than one local address, this

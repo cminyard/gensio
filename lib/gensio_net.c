@@ -177,12 +177,31 @@ net_control(void *handler_data, int fd, bool get, unsigned int option,
 	if (!get)
 	    return GE_NOTSUP;
 
+	i = strtoul(data, NULL, 0);
+	if (i > 0)
+	    return GE_NOTFOUND;
+
 	rv = gensio_os_getsockname(tdata->o, fd, &addr);
 	if (rv)
 	    return rv;
 
 	rv = gensio_addr_to_str(addr, data, &pos, *datalen);
 	gensio_addr_free(addr);
+	if (rv)
+	    return rv;
+
+	*datalen = pos;
+	return 0;
+
+    case GENSIO_CONTROL_RADDR:
+	if (!get)
+	    return GE_NOTSUP;
+
+	i = strtoul(data, NULL, 0);
+	if (i > 0)
+	    return GE_NOTFOUND;
+
+	rv = gensio_addr_to_str(tdata->ai, data, &pos, *datalen);
 	if (rv)
 	    return rv;
 

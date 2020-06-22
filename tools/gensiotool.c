@@ -25,6 +25,8 @@ void gensio_sel_exit(int rv);
 #include "utils.h"
 
 unsigned int debug;
+bool print_laddr;
+bool print_raddr;
 
 #if HAVE_OPENSSL
 /*
@@ -145,6 +147,67 @@ static struct ioinfo_user_handlers guh = {
     .out = gout
 };
 
+static int
+print_local_acc_addr(struct gensio_accepter *acc)
+{
+    char str[2048];
+    gensiods size;
+    unsigned int i;
+    int rv;
+
+    for (i = 0; ; i++) {
+	snprintf(str, sizeof(str), "%u", i);
+	size = sizeof(str);
+	rv = gensio_acc_control(acc, GENSIO_CONTROL_DEPTH_FIRST,
+				true, GENSIO_ACC_CONTROL_LADDR,
+				str, &size);
+	if (rv == GE_NOTFOUND)
+	    break;
+	if (rv) {
+	    fprintf(stderr,
+		    "Unable to fetch accept address %d: %s\n", i,
+		    gensio_err_to_str(rv));
+	    return rv;
+	} else {
+	    fprintf(stderr, "Address %d: %s\n", i, str);
+	}
+    }
+    fprintf(stderr, "Done\n");
+    return 0;
+}
+
+static int
+print_io_addr(struct gensio *io, bool local)
+{
+    char str[2048];
+    gensiods size;
+    int rv;
+    unsigned int i;
+
+    for (i = 0; ; i++) {
+	size = sizeof(str);
+	snprintf(str, sizeof(str), "%u", i);
+	rv = gensio_control(io, GENSIO_CONTROL_DEPTH_FIRST, true,
+			    local ? GENSIO_CONTROL_LADDR : GENSIO_CONTROL_RADDR,
+			    str, &size);
+	if (rv == GE_NOTFOUND)
+	    goto done;
+	if (rv) {
+	    fprintf(stderr,
+		    "Unable to fetch %s address: %s\n",
+		    local ? "local" : "remote",
+		    gensio_err_to_str(rv));
+	    return rv;
+	} else {
+	    fprintf(stderr, "%s Address: %s\n",
+		    local ? "Local" : "Remote", str);
+	}
+    }
+ done:
+    fprintf(stderr, "Done\n");
+    return 0;
+}
+
 static void
 io_open(struct gensio *io, int err, void *open_data)
 {
@@ -157,6 +220,26 @@ io_open(struct gensio *io, int err, void *open_data)
 		gensio_err_to_str(err));
 	gshutdown(ioinfo, false);
     } else {
+	ioinfo_set_ready(ioinfo, io);
+    }
+}
+
+static void
+io_open_paddr(struct gensio *io, int err, void *open_data)
+{
+    struct ioinfo *ioinfo = gensio_get_user_data(io);
+    struct gdata *ginfo = ioinfo_userdata(ioinfo);
+
+    if (err) {
+	ginfo->can_close = false;
+	fprintf(stderr, "open error on %s: %s\n", ginfo->ios,
+		gensio_err_to_str(err));
+	gshutdown(ioinfo, false);
+    } else {
+	if (print_laddr)
+	    print_io_addr(io, true);
+	if (print_raddr)
+	    print_io_addr(io, false);
 	ioinfo_set_ready(ioinfo, io);
     }
 }
@@ -204,6 +287,10 @@ io_acc_event(struct gensio_accepter *accepter, void *user_data,
     ginfo->can_close = true;
     ioinfo_set_ready(ioinfo, ginfo->io);
     gensio_acc_free(accepter);
+    if (print_laddr)
+	print_io_addr(ginfo->io, true);
+    if (print_raddr)
+	print_io_addr(ginfo->io, false);
     if (debug)
 	printf("Connected\r\n");
 
@@ -241,6 +328,10 @@ help(int err)
 	   " initiating a connection\n");
     printf("  -p, --printacc - When the accepter is started, print out all"
 	   " the addresses being listened on.\n");
+    printf("  -l, --printlocaddr - When the connection opens, print out all"
+	   " the local addresses.\n");
+    printf("  -r, --printremaddr - When the connection opens, print out all"
+	   " the remote addresses.\n");
     printf("  -v, --verbose - Print all gensio logs\n");
     printf("  --signature <sig> - Set the RFC2217 server signature to <sig>\n");
     printf("  -e, --escchar - Set the local terminal escape character.\n"
@@ -327,6 +418,10 @@ main(int argc, char *argv[])
 	    io2_do_acc = true;
 	else if ((rv = cmparg(argc, argv, &arg, "-p", "--printacc", NULL)))
 	    io2_acc_print = true;
+	else if ((rv = cmparg(argc, argv, &arg, "-l", "--printlocaddr", NULL)))
+	    print_laddr = true;
+	else if ((rv = cmparg(argc, argv, &arg, "-r", "--printremaddr", NULL)))
+	    print_raddr = true;
 	else if ((rv = cmparg(argc, argv, &arg, "-v", "--verbose", NULL)))
 	    gensio_set_log_mask(GENSIO_LOG_MASK_ALL);
 	else if ((rv = cmparg_int(argc, argv, &arg, "-e", "--escchar",
@@ -460,41 +555,17 @@ main(int argc, char *argv[])
     }
 
     if (io2_do_acc) {
-	rv = gensio_acc_startup(io2_acc);
-	if (rv) {
+	userdata2.err = gensio_acc_startup(io2_acc);
+	if (userdata2.err)
 	    fprintf(stderr, "Could not start %s: %s\n", userdata2.ios,
 		    gensio_err_to_str(rv));
-	    userdata2.err = rv;
+	else if (io2_acc_print)
+	    userdata2.err = print_local_acc_addr(io2_acc);
+	if (userdata2.err)
 	    goto out_err;
-	}
-	if (io2_acc_print) {
-	    char str[2048];
-	    gensiods size;
-	    unsigned int i;
-
-	    for (i = 0; ; i++) {
-		snprintf(str, sizeof(str), "%u", i);
-		size = sizeof(str);
-		rv = gensio_acc_control(io2_acc, GENSIO_CONTROL_DEPTH_FIRST,
-					true, GENSIO_ACC_CONTROL_LADDR,
-					str, &size);
-		if (rv == GE_NOTFOUND)
-		    break;
-		if (rv) {
-		    fprintf(stderr,
-			    "Unable to fetch accept address %d: %s\n", i,
-			    gensio_err_to_str(rv));
-		    userdata2.err = rv;
-		    goto out_err;
-		} else {
-		    fprintf(stderr, "Address %d: %s\n", i, str);
-		}
-	    }
-	    fprintf(stderr, "Done\n");
-	}
     } else {
 	userdata2.can_close = true;
-	rv = gensio_open(userdata2.io, io_open, NULL);
+	rv = gensio_open(userdata2.io, io_open_paddr, NULL);
 	if (rv) {
 	    userdata2.err = rv;
 	    userdata2.can_close = false;

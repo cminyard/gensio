@@ -256,7 +256,32 @@ sctp_control(void *handler_data, int fd, bool get, unsigned int option,
 	if (!get)
 	    return GE_NOTSUP;
 
+	i = strtoul(data, NULL, 0);
+	if (i > 0)
+	    return GE_NOTFOUND;
+
 	rv = gensio_os_sctp_getladdrs(tdata->o, fd, &addr);
+	if (rv)
+	    return rv;
+
+	pos = 0;
+	rv = gensio_addr_to_str_all(addr, data, &pos, *datalen);
+	gensio_addr_free(addr);
+	if (rv)
+	    return rv;
+
+	*datalen = pos;
+	return 0;
+
+    case GENSIO_CONTROL_RADDR:
+	if (!get)
+	    return GE_NOTSUP;
+
+	i = strtoul(data, NULL, 0);
+	if (i > 0)
+	    return GE_NOTFOUND;
+
+	rv = gensio_os_sctp_getpaddrs(tdata->o, fd, &addr);
 	if (rv)
 	    return rv;
 
