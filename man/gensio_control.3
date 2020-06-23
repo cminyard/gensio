@@ -25,8 +25,13 @@ GENSIO_CONTROL_DEPTH_FIRST, it will return on the first gensio that
 doesn't return
 .I GE_NOTSUP.
 It returns
-.I GE_NOTSUP
-is nothing handled it.
+.I GE_NOTFOUND
+if nothing handled it.
+
+If you specify a depth >= 0, and depth is greater than the number of
+gensios in the stack, this will return
+.I GE_NOTFOUND.
+This way you can know if you reached the bottom of the stack.
 
 Most controls use normal strings for configuration, a control will be
 this way unless othersise specified.  Some controls allow binary
@@ -210,7 +215,9 @@ addresses.
 .SS "GENSIO_CONTROL_RADDR"
 Like
 .B GENSIO_CONTROL_LADDR
-but gets the remote addresses on a gensio.  The gensio must be open.
+but gets the remote addresses on a gensio.  The gensio may need to be
+open.  This is only implemented on bottom-level gensios, like
+serialdev, network interfaces, echo, file, ipmisol, etc.
 .SS "GENSIO_CONTROL_LPORT"
 Return the local port for the connection.  Only for network
 connections.  This is useful if you pass in "0" for the port to let

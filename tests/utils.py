@@ -641,9 +641,6 @@ o = gensio.alloc_gensio_selector(Logger());
 def check_raddr(io, testname, expected):
     r = io.raddr()
     if r != expected:
-        expected = expected.replace("127.0.0.1", "::1")
-        expected = expected.replace("ipv4", "ipv6")
-    if r != expected:
         raise Exception("%s raddr was not '%s', it was '%s'" %
                         (testname, expected, r));
 

@@ -444,15 +444,6 @@ udpn_write(struct gensio *io, gensiods *count,
 }
 
 static int
-udpn_raddr_to_str(struct gensio *io, gensiods *epos,
-		  char *buf, gensiods buflen)
-{
-    struct udpn_data *ndata = gensio_get_gensio_data(io);
-
-    return gensio_addr_to_str(ndata->raddr, buf, epos, buflen);
-}
-
-static int
 udpn_get_raddr(struct gensio *io, void *addr, gensiods *addrlen)
 {
     struct udpn_data *ndata = gensio_get_gensio_data(io);
@@ -998,9 +989,6 @@ gensio_udp_func(struct gensio *io, int func, gensiods *count,
     switch (func) {
     case GENSIO_FUNC_WRITE_SG:
 	return udpn_write(io, count, cbuf, buflen, auxdata);
-
-    case GENSIO_FUNC_RADDR_TO_STR:
-	return udpn_raddr_to_str(io, count, buf, buflen);
 
     case GENSIO_FUNC_GET_RADDR:
 	return udpn_get_raddr(io, buf, count);

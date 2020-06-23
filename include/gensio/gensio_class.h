@@ -30,11 +30,9 @@
 #define GENSIO_FUNC_WRITE_SG		1
 
 /*
- * pos => count
- * buf => buf
- * buflen => buflen
+ * Was RADDR_TO_STR
  */
-#define GENSIO_FUNC_RADDR_TO_STR	2
+#define GENSIO_FUNC_unused1		2
 
 /*
  * addr => buf

@@ -1290,18 +1290,45 @@ sterm_sub_open(void *handler_data, int *fd)
 }
 
 static int
-sterm_raddr_to_str(void *handler_data, gensiods *pos,
-		   char *buf, gensiods buflen)
+sterm_remote_id(void *handler_data, int *id)
 {
     struct sterm_data *sdata = handler_data;
+
+    *id = sdata->fd;
+    return 0;
+}
+
+static void
+sterm_free(void *handler_data)
+{
+    struct sterm_data *sdata = handler_data;
+
+    termios_clear_q(sdata);
+    if (sdata->lock)
+	sdata->o->free_lock(sdata->lock);
+    if (sdata->timer)
+	sdata->o->free_timer(sdata->timer);
+    if (sdata->devname)
+	sdata->o->free(sdata->o, sdata->devname);
+    if (sdata->deferred_op_runner)
+	sdata->o->free_runner(sdata->deferred_op_runner);
+    if (sdata->sio)
+	sergensio_data_free(sdata->sio);
+    sdata->o->free(sdata->o, sdata);
+}
+
+static int
+sterm_control_raddr(struct sterm_data *sdata, char *buf, gensiods *datalen)
+{
     int status = 0;
+    gensiods pos = 0, buflen = *datalen;
 
     if (!sdata->write_only && sdata->fd != -1) {
 	if (ioctl(sdata->fd, TIOCMGET, &status) == -1)
 	    return gensio_os_err_to_err(sdata->o, errno);
     }
 
-    gensio_pos_snprintf(buf, buflen, pos, "%s", sdata->devname);
+    gensio_pos_snprintf(buf, buflen, &pos, "%s", sdata->devname);
 
     if (!sdata->write_only) {
 	g_termios itermio, *termio;
@@ -1357,81 +1384,69 @@ sterm_raddr_to_str(void *handler_data, gensiods *pos,
 	else
 	    str[2] = '1';
 
-	gensio_pos_snprintf(buf, buflen, pos, ",%d%s",
+	gensio_pos_snprintf(buf, buflen, &pos, ",%d%s",
 			    get_baud_rate_val(termio), str);
 
 	if (xon && xoff && xany)
-	    gensio_pos_snprintf(buf, buflen, pos, ",XONXOFF");
+	    gensio_pos_snprintf(buf, buflen, &pos, ",XONXOFF");
 
 	if (flow_rtscts)
-	    gensio_pos_snprintf(buf, buflen, pos, ",RTSCTS");
+	    gensio_pos_snprintf(buf, buflen, &pos, ",RTSCTS");
 
 	if (clocal)
-	    gensio_pos_snprintf(buf, buflen, pos, ",CLOCAL");
+	    gensio_pos_snprintf(buf, buflen, &pos, ",CLOCAL");
 
 	if (hangup_when_done)
-	    gensio_pos_snprintf(buf, buflen, pos, ",HANGUP_WHEN_DONE");
+	    gensio_pos_snprintf(buf, buflen, &pos, ",HANGUP_WHEN_DONE");
 
     }
     if (!sdata->write_only && sdata->fd != -1) {
 	if (status & TIOCM_RTS)
-	    gensio_pos_snprintf(buf, buflen, pos, " RTSHI");
+	    gensio_pos_snprintf(buf, buflen, &pos, " RTSHI");
 	else
-	    gensio_pos_snprintf(buf, buflen, pos, " RTSLO");
+	    gensio_pos_snprintf(buf, buflen, &pos, " RTSLO");
 
 	if (status & TIOCM_DTR)
-	    gensio_pos_snprintf(buf, buflen, pos, " DTRHI");
+	    gensio_pos_snprintf(buf, buflen, &pos, " DTRHI");
 	else
-	    gensio_pos_snprintf(buf, buflen, pos, " DTRLO");
+	    gensio_pos_snprintf(buf, buflen, &pos, " DTRLO");
     } else {
-	gensio_pos_snprintf(buf, buflen, pos, " offline");
+	gensio_pos_snprintf(buf, buflen, &pos, " offline");
     }
 
+    *datalen = pos;
     return 0;
-}
-
-static int
-sterm_remote_id(void *handler_data, int *id)
-{
-    struct sterm_data *sdata = handler_data;
-
-    *id = sdata->fd;
-    return 0;
-}
-
-static void
-sterm_free(void *handler_data)
-{
-    struct sterm_data *sdata = handler_data;
-
-    termios_clear_q(sdata);
-    if (sdata->lock)
-	sdata->o->free_lock(sdata->lock);
-    if (sdata->timer)
-	sdata->o->free_timer(sdata->timer);
-    if (sdata->devname)
-	sdata->o->free(sdata->o, sdata->devname);
-    if (sdata->deferred_op_runner)
-	sdata->o->free_runner(sdata->deferred_op_runner);
-    if (sdata->sio)
-	sergensio_data_free(sdata->sio);
-    sdata->o->free(sdata->o, sdata);
 }
 
 static int
 sterm_control(void *handler_data, int fd, bool get, unsigned int option,
 	      char *data, gensiods *datalen)
 {
-    if (get || option != GENSIO_CONTROL_SEND_BREAK)
-	return GE_NOTSUP;
+    struct sterm_data *sdata = handler_data;
 
-    do_break(fd);
-    return 0;
+    switch (option) {
+    case GENSIO_CONTROL_SEND_BREAK:
+	if (get)
+	    break;
+	do_break(fd);
+	return 0;
+
+    case GENSIO_CONTROL_RADDR:
+	if (!get)
+	    break;
+	if (strtoul(data, NULL, 0) > 0)
+	    return GE_NOTFOUND;
+	return sterm_control_raddr(sdata, data, datalen);
+
+    default:
+	break;
+    }
+
+    return GE_NOTSUP;
 }
 
 static const struct gensio_fd_ll_ops sterm_fd_ll_ops = {
     .sub_open = sterm_sub_open,
-    .raddr_to_str = sterm_raddr_to_str,
     .remote_id = sterm_remote_id,
     .check_close = sterm_check_close_drain,
     .free = sterm_free,

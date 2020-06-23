@@ -202,15 +202,6 @@ fd_write(struct gensio_ll *ll, gensiods *rcount,
 }
 
 static int
-fd_raddr_to_str(struct gensio_ll *ll, gensiods *pos,
-		char *buf, gensiods buflen)
-{
-    struct fd_ll *fdll = ll_to_fd(ll);
-
-    return fdll->ops->raddr_to_str(fdll->handler_data, pos, buf, buflen);
-}
-
-static int
 fd_get_raddr(struct gensio_ll *ll, void *addr, gensiods *addrlen)
 {
     struct fd_ll *fdll = ll_to_fd(ll);
@@ -774,9 +765,6 @@ gensio_ll_fd_func(struct gensio_ll *ll, int op, gensiods *count,
 
     case GENSIO_LL_FUNC_WRITE_SG:
 	return fd_write(ll, count, cbuf, buflen, auxdata);
-
-    case GENSIO_LL_FUNC_RADDR_TO_STR:
-	return fd_raddr_to_str(ll, count, buf, buflen);
 
     case GENSIO_LL_FUNC_GET_RADDR:
 	return fd_get_raddr(ll, buf, count);

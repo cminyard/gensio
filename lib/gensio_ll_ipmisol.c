@@ -885,14 +885,6 @@ sol_write(struct gensio_ll *ll, gensiods *rcount,
 }
 
 static int
-sol_raddr_to_str(struct gensio_ll *ll, gensiods *pos,
-		char *buf, gensiods buflen)
-{
-    /* FIXME - do something here. */
-    return GE_NOTSUP;
-}
-
-static int
 sol_get_raddr(struct gensio_ll *ll, void *addr, gensiods *addrlen)
 {
     return GE_NOTSUP;
@@ -1249,6 +1241,20 @@ static void sol_disable(struct gensio_ll *ll)
     }
 }
 
+static int sol_control(struct gensio_ll *ll, bool get, unsigned int option,
+		       char *data, gensiods *datalen)
+{
+    if (option != GENSIO_CONTROL_RADDR)
+	return GE_NOTSUP;
+    if (!get)
+	return GE_NOTSUP;
+    if (strtoul(data, NULL, 0) > 0)
+	return GE_NOTFOUND;
+
+    *datalen = gensio_pos_snprintf(data, *datalen, NULL, "ipmisol");
+    return 0;
+}
+
 static int
 gensio_ll_sol_func(struct gensio_ll *ll, int op, gensiods *count,
 		   void *buf, const void *cbuf, gensiods buflen,
@@ -1261,9 +1267,6 @@ gensio_ll_sol_func(struct gensio_ll *ll, int op, gensiods *count,
 
     case GENSIO_LL_FUNC_WRITE_SG:
 	return sol_write(ll, count, cbuf, buflen);
-
-    case GENSIO_LL_FUNC_RADDR_TO_STR:
-	return sol_raddr_to_str(ll, count, buf, buflen);
 
     case GENSIO_LL_FUNC_GET_RADDR:
 	return sol_get_raddr(ll, buf, count);
@@ -1292,6 +1295,9 @@ gensio_ll_sol_func(struct gensio_ll *ll, int op, gensiods *count,
     case GENSIO_LL_FUNC_DISABLE:
 	sol_disable(ll);
 	return 0;
+
+    case GENSIO_LL_FUNC_CONTROL:
+	return sol_control(ll, *((bool *) cbuf), buflen, buf, count);
 
     default:
 	return GE_NOTSUP;

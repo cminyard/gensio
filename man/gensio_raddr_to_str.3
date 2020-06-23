@@ -8,6 +8,12 @@ gensio_raddr_to_str \- Return the remote address for the gensio as a string
 .br
 .B                         char *buf, gensiods buflen);
 .SH "DESCRIPTION"
+This function is deprecated  Please use the
+.B GENSIO_CONTROL_RADDR
+option to
+.B gensio_control()
+instead.
+
 Convert the remote address for this gensio to a string.  The string
 starts at
 .I buf + *pos
@@ -48,4 +54,4 @@ address is.
 .SH "RETURN VALUES"
 Zero is returned on success, or a gensio error on failure.
 .SH "SEE ALSO"
-gensio_err(3), gensio(5)
+gensio_err(3), gensio(5), gensio_control(3)

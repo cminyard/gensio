@@ -108,15 +108,6 @@ net_sub_open(void *handler_data, int *fd)
 }
 
 static int
-net_raddr_to_str(void *handler_data, gensiods *epos,
-		 char *buf, gensiods buflen)
-{
-    struct net_data *tdata = handler_data;
-
-    return gensio_addr_to_str(tdata->ai, buf, epos, buflen);
-}
-
-static int
 net_get_raddr(void *handler_data, void *addr, gensiods *addrlen)
 {
     struct net_data *tdata = handler_data;
@@ -177,14 +168,14 @@ net_control(void *handler_data, int fd, bool get, unsigned int option,
 	if (!get)
 	    return GE_NOTSUP;
 
-	i = strtoul(data, NULL, 0);
-	if (i > 0)
+	if (strtoul(data, NULL, 0) > 0)
 	    return GE_NOTFOUND;
 
 	rv = gensio_os_getsockname(tdata->o, fd, &addr);
 	if (rv)
 	    return rv;
 
+	pos = 0;
 	rv = gensio_addr_to_str(addr, data, &pos, *datalen);
 	gensio_addr_free(addr);
 	if (rv)
@@ -197,10 +188,10 @@ net_control(void *handler_data, int fd, bool get, unsigned int option,
 	if (!get)
 	    return GE_NOTSUP;
 
-	i = strtoul(data, NULL, 0);
-	if (i > 0)
+	if (strtoul(data, NULL, 0) > 0)
 	    return GE_NOTFOUND;
 
+	pos = 0;
 	rv = gensio_addr_to_str(tdata->ai, data, &pos, *datalen);
 	if (rv)
 	    return rv;
@@ -270,7 +261,6 @@ static const struct gensio_fd_ll_ops net_fd_ll_ops = {
     .sub_open = net_sub_open,
     .check_open = net_check_open,
     .retry_open = net_retry_open,
-    .raddr_to_str = net_raddr_to_str,
     .get_raddr = net_get_raddr,
     .free = net_free,
     .control = net_control,
@@ -463,7 +453,6 @@ struct netna_data {
 };
 
 static const struct gensio_fd_ll_ops net_server_fd_ll_ops = {
-    .raddr_to_str = net_raddr_to_str,
     .get_raddr = net_get_raddr,
     .free = net_free,
     .control = net_control,

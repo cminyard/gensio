@@ -9,6 +9,7 @@
 
 #include <assert.h>
 #include <string.h>
+#include <stdlib.h>
 #include "config.h"
 #include <gensio/gensio.h>
 #include <gensio/gensio_class.h>
@@ -139,14 +140,6 @@ echon_write(struct gensio *io, gensiods *count,
     echon_unlock(ndata);
     if (count)
 	*count = total_write;
-    return 0;
-}
-
-static int
-echon_raddr_to_str(struct gensio *io, gensiods *pos,
-		    char *buf, gensiods buflen)
-{
-    gensio_pos_snprintf(buf, buflen, pos, "echo");
     return 0;
 }
 
@@ -341,6 +334,20 @@ echon_disable(struct gensio *io)
 }
 
 static int
+echon_control(struct gensio *io, bool get, int option, char *data,
+	      gensiods *datalen)
+{
+    if (option != GENSIO_CONTROL_RADDR)
+	return GE_NOTSUP;
+    if (!get)
+	return GE_NOTSUP;
+    if (strtoul(data, NULL, 0) > 0)
+	return GE_NOTFOUND;
+    *datalen = gensio_pos_snprintf(data, *datalen, NULL, "echo");
+    return 0;
+}
+
+static int
 gensio_echo_func(struct gensio *io, int func, gensiods *count,
 		  const void *cbuf, gensiods buflen, void *buf,
 		  const char *const *auxdata)
@@ -348,9 +355,6 @@ gensio_echo_func(struct gensio *io, int func, gensiods *count,
     switch (func) {
     case GENSIO_FUNC_WRITE_SG:
 	return echon_write(io, count, cbuf, buflen);
-
-    case GENSIO_FUNC_RADDR_TO_STR:
-	return echon_raddr_to_str(io, count, buf, buflen);
 
     case GENSIO_FUNC_OPEN:
 	return echon_open(io, cbuf, buf);
@@ -379,6 +383,9 @@ gensio_echo_func(struct gensio *io, int func, gensiods *count,
 
     case GENSIO_FUNC_DISABLE:
 	return echon_disable(io);
+
+    case GENSIO_FUNC_CONTROL:
+	return echon_control(io, *((bool *) cbuf), buflen, buf, count);
 
     default:
 	return GE_NOTSUP;

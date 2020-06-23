@@ -1126,13 +1126,6 @@ muxc_write(struct mux_inst *chan, gensiods *count,
 }
 
 static int
-muxc_raddr_to_str(struct mux_inst *chan, gensiods *epos,
-		  char *buf, gensiods buflen)
-{
-    return GE_NOTSUP;
-}
-
-static int
 muxc_remote_id(struct mux_inst *chan, int *id)
 {
     return GE_NOTSUP;
@@ -1748,9 +1741,6 @@ muxc_gensio_handler(struct gensio *io, int func, gensiods *count,
     switch (func) {
     case GENSIO_FUNC_WRITE_SG:
 	return muxc_write(chan, count, cbuf, buflen, auxdata);
-
-    case GENSIO_FUNC_RADDR_TO_STR:
-	return muxc_raddr_to_str(chan, count, buf, buflen);
 
     case GENSIO_FUNC_CLOSE:
 	return muxc_close(chan, cbuf, buf);

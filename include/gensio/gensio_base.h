@@ -238,13 +238,9 @@ int gensio_ll_write(struct gensio_ll *ll, gensiods *rcount,
 		    const char *const *auxdata);
 
 /*
- * pos => count
- * buf => buf
- * buflen => buflen
+ * Was FUNC_RADDR_TO_STR
  */
-#define GENSIO_LL_FUNC_RADDR_TO_STR		3
-int gensio_ll_raddr_to_str(struct gensio_ll *ll, gensiods *pos,
-			   char *buf, gensiods buflen);
+#define GENSIO_LL_unused1			3
 
 /*
  * addr => buf

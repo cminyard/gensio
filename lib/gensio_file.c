@@ -11,6 +11,7 @@
 #include <assert.h>
 #include <string.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <gensio/gensio.h>
 #include <gensio/gensio_class.h>
 #include <gensio/argvutils.h>
@@ -286,23 +287,6 @@ filen_write(struct gensio *io, gensiods *count,
 }
 
 static int
-filen_raddr_to_str(struct gensio *io, gensiods *pos,
-		    char *buf, gensiods buflen)
-{
-    struct filen_data *ndata = gensio_get_gensio_data(io);
-
-    gensio_pos_snprintf(buf, buflen, pos,
-		    "file(%s%s%s%s%s)",
-		    ndata->infile ? "infile=" : "",
-		    ndata->infile ? ndata->infile : "",
-		    (ndata->infile && ndata->outfile) ? "," : "",
-		    ndata->outfile ? "outfile=" : "",
-		    ndata->outfile ? ndata->outfile : "");
-
-    return 0;
-}
-
-static int
 filen_remote_id(struct gensio *io, int *id)
 {
     return GE_NOTSUP;
@@ -524,6 +508,30 @@ filen_disable(struct gensio *io)
 }
 
 static int
+filen_control(struct gensio *io, bool get, int op,
+	      char *data, gensiods *datalen)
+{
+    struct filen_data *ndata = gensio_get_gensio_data(io);
+
+    if (op != GENSIO_CONTROL_RADDR)
+	return GE_NOTSUP;
+    if (!get)
+	return GE_NOTSUP;
+    if (strtoul(data, NULL, 0) > 0)
+	return GE_NOTFOUND;
+
+    *datalen = snprintf(data, *datalen,
+			"file(%s%s%s%s%s)",
+			ndata->infile ? "infile=" : "",
+			ndata->infile ? ndata->infile : "",
+			(ndata->infile && ndata->outfile) ? "," : "",
+			ndata->outfile ? "outfile=" : "",
+			ndata->outfile ? ndata->outfile : "");
+
+    return 0;
+}
+
+static int
 gensio_file_func(struct gensio *io, int func, gensiods *count,
 		  const void *cbuf, gensiods buflen, void *buf,
 		  const char *const *auxdata)
@@ -531,9 +539,6 @@ gensio_file_func(struct gensio *io, int func, gensiods *count,
     switch (func) {
     case GENSIO_FUNC_WRITE_SG:
 	return filen_write(io, count, cbuf, buflen);
-
-    case GENSIO_FUNC_RADDR_TO_STR:
-	return filen_raddr_to_str(io, count, buf, buflen);
 
     case GENSIO_FUNC_OPEN:
 	return filen_open(io, cbuf, buf);
@@ -562,6 +567,9 @@ gensio_file_func(struct gensio *io, int func, gensiods *count,
 
     case GENSIO_FUNC_DISABLE:
 	return filen_disable(io);
+
+    case GENSIO_FUNC_CONTROL:
+	return filen_control(io, *((bool *) cbuf), buflen, buf, count);
 
     default:
 	return GE_NOTSUP;

@@ -165,23 +165,6 @@ sctp_sub_open(void *handler_data, int *fd)
 }
 
 static int
-sctp_raddr_to_str(void *handler_data, gensiods *pos,
-		  char *buf, gensiods buflen)
-{
-    struct sctp_data *tdata = handler_data;
-    struct gensio_addr *addrs;
-    int rv;
-
-    rv = gensio_os_sctp_getpaddrs(tdata->o, tdata->fd, &addrs);
-    if (rv)
-	return rv;
-
-    rv = gensio_addr_to_str_all(addrs, buf, pos, buflen);
-    gensio_addr_free(addrs);
-    return rv;
-}
-
-static int
 sctp_get_raddr(void *handler_data, void *addr, gensiods *addrlen)
 {
     struct sctp_data *tdata = handler_data;
@@ -388,7 +371,6 @@ sctp_read_ready(void *handler_data, int fd)
 static const struct gensio_fd_ll_ops sctp_fd_ll_ops = {
     .sub_open = sctp_sub_open,
     .check_open = sctp_check_open,
-    .raddr_to_str = sctp_raddr_to_str,
     .get_raddr = sctp_get_raddr,
     .free = sctp_free,
     .control = sctp_control,
@@ -553,7 +535,6 @@ struct sctpna_data {
 };
 
 static const struct gensio_fd_ll_ops sctp_server_fd_ll_ops = {
-    .raddr_to_str = sctp_raddr_to_str,
     .get_raddr = sctp_get_raddr,
     .free = sctp_free,
     .control = sctp_control,

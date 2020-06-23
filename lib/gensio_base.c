@@ -1209,9 +1209,6 @@ gensio_base_func(struct gensio *io, int func, gensiods *count,
     case GENSIO_FUNC_WRITE_SG:
 	return basen_write(ndata, count, cbuf, buflen, auxdata);
 
-    case GENSIO_FUNC_RADDR_TO_STR:
-	return gensio_ll_raddr_to_str(ndata->ll, count, buf, buflen);
-
     case GENSIO_FUNC_GET_RADDR:
 	return gensio_ll_get_raddr(ndata->ll, buf, count);
 
@@ -1762,14 +1759,6 @@ gensio_ll_write(struct gensio_ll *ll, gensiods *rcount,
 {
     return ll->func(ll, GENSIO_LL_FUNC_WRITE_SG, rcount, NULL, sg, sglen,
 		    auxdata);
-}
-
-int
-gensio_ll_raddr_to_str(struct gensio_ll *ll, gensiods *pos,
-		       char *buf, gensiods buflen)
-{
-    return ll->func(ll, GENSIO_LL_FUNC_RADDR_TO_STR, pos, buf, NULL, buflen,
-		    NULL);
 }
 
 int

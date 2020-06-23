@@ -455,20 +455,25 @@ int
 gensio_raddr_to_str(struct gensio *io, gensiods *pos,
 		    char *buf, gensiods buflen)
 {
-    struct gensio *c = io;
-    gensiods dummypos = 0;
+    gensiods dummypos = 0, curlen;
+    char *data;
+    int rv;
 
     if (!pos)
 	pos = &dummypos;
 
-    while (c) {
-	int rv = c->func(c, GENSIO_FUNC_RADDR_TO_STR, pos, NULL, buflen,
-			 buf, NULL);
-	if (rv != GE_NOTSUP)
-	    return rv;
-	c = c->child;
+    if (buflen > *pos) {
+	curlen = buflen - *pos;
+	data = buf + *pos;
+    } else {
+	curlen = 0;
+	data = buf;
     }
-    return GE_NOTSUP;
+    rv = gensio_control(io, GENSIO_CONTROL_DEPTH_FIRST, true,
+			GENSIO_CONTROL_RADDR, data, &curlen);
+    if (!rv)
+	*pos += curlen;
+    return rv;
 }
 
 int
@@ -594,7 +599,7 @@ gensio_control(struct gensio *io, int depth, bool get,
 		return rv;
 	    c = c->child;
 	}
-	return GE_NOTSUP;
+	return GE_NOTFOUND;
     }
 
     if (depth < 0)

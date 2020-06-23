@@ -207,27 +207,6 @@ stdion_write(struct gensio *io, gensiods *count,
 }
 
 static int
-stdion_raddr_to_str(struct gensio *io, gensiods *pos,
-		    char *buf, gensiods buflen)
-{
-    struct stdion_channel *schan = gensio_get_gensio_data(io);
-    struct stdiona_data *nadata = schan->nadata;
-
-    if (io == nadata->io.io)
-	gensio_pos_snprintf(buf, buflen, pos, "stdio");
-    else
-	gensio_pos_snprintf(buf, buflen, pos, "stderr");
-    if (nadata->argv) {
-	gensio_pos_snprintf(buf, buflen, pos, ",");
-	gensio_argv_snprintf(buf, buflen, pos, nadata->argv);
-    } else {
-	gensio_pos_snprintf(buf, buflen, pos, "(self)");
-    }
-
-    return 0;
-}
-
-static int
 stdion_remote_id(struct gensio *io, int *id)
 {
     struct stdion_channel *schan = gensio_get_gensio_data(io);
@@ -961,6 +940,7 @@ stdion_control(struct gensio *io, bool get, unsigned int option,
     struct stdiona_data *nadata = schan->nadata;
     const char **env, **argv;
     int err, status;
+    gensiods pos;
 
     switch (option) {
     case GENSIO_CONTROL_ENVIRONMENT:
@@ -986,12 +966,16 @@ stdion_control(struct gensio *io, bool get, unsigned int option,
 	return 0;
 
     case GENSIO_CONTROL_EXIT_CODE:
+	if (!get)
+	    return GE_NOTSUP;
 	if (!nadata->exit_code_set)
 	    return GE_NOTREADY;
 	*datalen = snprintf(data, *datalen, "%d", nadata->exit_code);
 	return 0;
 
     case GENSIO_CONTROL_WAIT_TASK:
+	if (!get)
+	    return GE_NOTSUP;
 	if (nadata->opid == -1)
 	    return GE_NOTREADY;
 	err = waitpid(nadata->opid, &status, WNOHANG | WNOWAIT);
@@ -1001,6 +985,8 @@ stdion_control(struct gensio *io, bool get, unsigned int option,
 	return 0;
 
     case GENSIO_CONTROL_CLOSE_OUTPUT:
+	if (get)
+	    return GE_NOTSUP;
 	err = 0;
 	stdiona_lock(nadata);
 	if (schan->infd == -1) {
@@ -1011,6 +997,23 @@ stdion_control(struct gensio *io, bool get, unsigned int option,
 	}
 	stdiona_unlock(nadata);
 	return err;
+
+    case GENSIO_CONTROL_RADDR:
+	if (!get)
+	    return GE_NOTSUP;
+	pos = 0;
+	if (io == nadata->io.io)
+	    gensio_pos_snprintf(data, *datalen, &pos, "stdio");
+	else
+	    gensio_pos_snprintf(data, *datalen, &pos, "stderr");
+	if (nadata->argv) {
+	    gensio_pos_snprintf(data, *datalen, &pos, ",");
+	    gensio_argv_snprintf(data, *datalen, &pos, nadata->argv);
+	} else {
+	    gensio_pos_snprintf(data, *datalen, &pos, "(self)");
+	}
+	*datalen = pos;
+	return 0;
     }
 
     return GE_NOTSUP;
@@ -1024,9 +1027,6 @@ gensio_stdio_func(struct gensio *io, int func, gensiods *count,
     switch (func) {
     case GENSIO_FUNC_WRITE_SG:
 	return stdion_write(io, count, cbuf, buflen);
-
-    case GENSIO_FUNC_RADDR_TO_STR:
-	return stdion_raddr_to_str(io, count, buf, buflen);
 
     case GENSIO_FUNC_OPEN:
 	return stdion_open(io, cbuf, buf);

@@ -1170,9 +1170,6 @@ static int gensio_relpkt_filter_func(struct gensio_filter *filter, int op,
 	relpkt_filter_timeout(rfilter);
 	return 0;
 
-    case GENSIO_FILTER_FUNC_CONTROL:
-	return GE_NOTSUP;
-
     default:
 	return GE_NOTSUP;
     }

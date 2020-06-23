@@ -198,16 +198,6 @@ pty_sub_open(void *handler_data, int *fd)
 }
 
 static int
-pty_raddr_to_str(void *handler_data, gensiods *pos,
-		 char *buf, gensiods buflen)
-{
-    struct pty_data *tdata = handler_data;
-
-    gensio_argv_snprintf(buf, buflen, pos, tdata->argv);
-    return 0;
-}
-
-static int
 pty_get_raddr(void *handler_data, void *addr, gensiods *addrlen)
 {
     struct pty_data *tdata = handler_data;
@@ -336,18 +326,30 @@ pty_control(void *handler_data, int fd, bool get, unsigned int option,
 	return 0;
 
     case GENSIO_CONTROL_EXIT_CODE:
+	if (!get)
+	    return GE_NOTSUP;
 	if (!tdata->exit_code_set)
 	    return GE_NOTREADY;
 	*datalen = snprintf(data, *datalen, "%d", tdata->exit_code);
 	return 0;
 
     case GENSIO_CONTROL_WAIT_TASK:
+	if (!get)
+	    return GE_NOTSUP;
 	if (tdata->pid == -1)
 	    return GE_NOTREADY;
 	err = waitpid(tdata->pid, &status, WNOHANG | WNOWAIT);
 	if (err <= 0)
 	    return GE_NOTREADY;
 	*datalen = snprintf(data, *datalen, "%d", status);
+	return 0;
+
+    case GENSIO_CONTROL_RADDR:
+	if (!get)
+	    return GE_NOTSUP;
+	if (strtoul(data, NULL, 0) > 0)
+	    return GE_NOTFOUND;
+	*datalen = gensio_argv_snprintf(data, *datalen, NULL, tdata->argv);
 	return 0;
     }
 
@@ -358,7 +360,6 @@ static const struct gensio_fd_ll_ops pty_fd_ll_ops = {
     .sub_open = pty_sub_open,
     .check_open = pty_check_open,
     .read_ready = pty_read_ready,
-    .raddr_to_str = pty_raddr_to_str,
     .get_raddr = pty_get_raddr,
     .remote_id = pty_remote_id,
     .check_close = pty_check_close,
