@@ -224,7 +224,8 @@ handle_winch(struct per_con_info *pcinfo,
     if (msglen < 8)
 	return;
 
-    err = gensio_get_raddr(pcinfo->io2, &ptym, &len);
+    err = gensio_control(pcinfo->io2, 0, true, GENSIO_CONTROL_RADDR_BIN,
+			 (char *) &ptym, &len);
     if (err)
 	return;
 
