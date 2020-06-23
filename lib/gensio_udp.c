@@ -1016,7 +1016,6 @@ gensio_udp_func(struct gensio *io, int func, gensiods *count,
     case GENSIO_FUNC_CONTROL:
 	return udpn_control(io, *((bool *) cbuf), buflen, buf, count);
 
-    case GENSIO_FUNC_REMOTE_ID:
     default:
 	return GE_NOTSUP;
     }

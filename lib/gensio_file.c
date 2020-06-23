@@ -286,12 +286,6 @@ filen_write(struct gensio *io, gensiods *count,
     return err;
 }
 
-static int
-filen_remote_id(struct gensio *io, int *id)
-{
-    return GE_NOTSUP;
-}
-
 static void
 filen_deferred_op(struct gensio_runner *runner, void *cb_data)
 {
@@ -561,9 +555,6 @@ gensio_file_func(struct gensio *io, int func, gensiods *count,
     case GENSIO_FUNC_SET_WRITE_CALLBACK:
 	filen_set_write_callback_enable(io, buflen);
 	return 0;
-
-    case GENSIO_FUNC_REMOTE_ID:
-	return filen_remote_id(io, buf);
 
     case GENSIO_FUNC_DISABLE:
 	return filen_disable(io);

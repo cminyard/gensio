@@ -1125,12 +1125,6 @@ muxc_write(struct mux_inst *chan, gensiods *count,
     return 0;
 }
 
-static int
-muxc_remote_id(struct mux_inst *chan, int *id)
-{
-    return GE_NOTSUP;
-}
-
 static void
 muxc_set_read_callback_enable(struct mux_inst *chan, bool enabled)
 {
@@ -1760,9 +1754,6 @@ muxc_gensio_handler(struct gensio *io, int func, gensiods *count,
     case GENSIO_FUNC_SET_WRITE_CALLBACK:
 	muxc_set_write_callback_enable(chan, buflen);
 	return 0;
-
-    case GENSIO_FUNC_REMOTE_ID:
-	return muxc_remote_id(chan, buf);
 
     case GENSIO_FUNC_DISABLE:
 	return muxc_disable(chan);
