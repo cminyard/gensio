@@ -1615,7 +1615,7 @@ gensio_addr_equal(const struct gensio_addr *a1,
 }
 
 static int
-gensio_sockaddr_to_str(const struct sockaddr *addr,
+gensio_sockaddr_to_str(const struct sockaddr *addr, int flags,
 		       char *buf, gensiods *pos, gensiods buflen)
 {
     if (addr->sa_family == AF_INET) {
@@ -1629,7 +1629,8 @@ gensio_sockaddr_to_str(const struct sockaddr *addr,
 	struct sockaddr_in6 *a6 = (struct sockaddr_in6 *) addr;
 	char ibuf[INET6_ADDRSTRLEN];
 
-	gensio_pos_snprintf(buf, buflen, pos, "ipv6,%s,%d",
+	gensio_pos_snprintf(buf, buflen, pos, "%s,%s,%d",
+			flags & AI_V4MAPPED ? "ipv6n4" : "ipv6",
 			inet_ntop(AF_INET6, &a6->sin6_addr, ibuf, sizeof(ibuf)),
 			ntohs(a6->sin6_port));
 #if HAVE_UNIX
@@ -1655,7 +1656,8 @@ gensio_addr_to_str(const struct gensio_addr *addr,
 
     if (!pos)
 	pos = &tmppos;
-    return gensio_sockaddr_to_str(addr->curr->ai_addr, buf, pos, buflen);
+    return gensio_sockaddr_to_str(addr->curr->ai_addr, addr->curr->ai_flags,
+				  buf, pos, buflen);
 }
 
 int
