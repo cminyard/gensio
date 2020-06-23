@@ -2942,13 +2942,16 @@ gensio_u16_to_buf(unsigned char *data, uint16_t v)
     data[1] = v;
 }
 
-int
+gensiods
 gensio_pos_snprintf(char *buf, gensiods len, gensiods *pos, char *format, ...)
 {
     va_list ap;
     int rv;
     gensiods size = len;
+    gensiods lpos = 0;
 
+    if (!pos)
+	pos = &lpos;
     if (*pos > len) {
 	/*
 	 * If we are past the end of buffer, go to the end and don't
@@ -2968,10 +2971,10 @@ gensio_pos_snprintf(char *buf, gensiods len, gensiods *pos, char *format, ...)
     return rv;
 }
 
-int
+static gensiods
 gensio_quote_str(char *buf, gensiods len, gensiods *pos, const char *arg)
 {
-    int olen = 0;
+    gensiods olen = 0;
 
     olen = gensio_pos_snprintf(buf, len, pos, "\"");
     while (*arg) {
@@ -2991,12 +2994,15 @@ gensio_quote_str(char *buf, gensiods len, gensiods *pos, const char *arg)
     return olen;
 }
 
-int
+gensiods
 gensio_argv_snprintf(char *buf, gensiods len, gensiods *pos, const char **argv)
 {
-    int olen = 0;
+    gensiods olen = 0;
     bool first = true;
+    gensiods lpos = 0;
 
+    if (!pos)
+	pos = &lpos;
     while (argv && *argv) {
 	if (!first) {
 	    olen += gensio_pos_snprintf(buf, len, pos, " ");

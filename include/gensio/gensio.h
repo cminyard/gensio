@@ -597,15 +597,15 @@ void gensio_u16_to_buf(unsigned char *data, uint16_t v);
  * that would have been output if there was enough room.  Pos is updated
  * to the new location it would have been if there was enough room.
  */
-int gensio_pos_snprintf(char *buf, gensiods len, gensiods *pos,
-			char *format, ...);
+gensiods gensio_pos_snprintf(char *buf, gensiods len, gensiods *pos,
+			     char *format, ...);
 
 /*
  * Like the above, but it handles converting an argv to a string, properly
  * quoting everything.
  */
-int gensio_argv_snprintf(char *buf, gensiods len, gensiods *pos,
-			 const char **argv);
+gensiods gensio_argv_snprintf(char *buf, gensiods len, gensiods *pos,
+			      const char **argv);
 
 /*
  * An sprintf that allocates the memory
