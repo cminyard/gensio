@@ -48,14 +48,6 @@ child_write(struct gensio_ll *ll, gensiods *rcount,
 }
 
 static int
-child_get_raddr(struct gensio_ll *ll, void *addr, gensiods *addrlen)
-{
-    struct gensio_ll_child *cdata = ll_to_child(ll);
-
-    return gensio_get_raddr(cdata->child, addr, addrlen);
-}
-
-static int
 child_remote_id(struct gensio_ll *ll, int *id)
 {
     struct gensio_ll_child *cdata = ll_to_child(ll);
@@ -138,9 +130,6 @@ gensio_ll_child_func(struct gensio_ll *ll, int op, gensiods *count,
 
     case GENSIO_LL_FUNC_WRITE_SG:
 	return child_write(ll, count, cbuf, buflen, buf);
-
-    case GENSIO_LL_FUNC_GET_RADDR:
-	return child_get_raddr(ll, buf, count);
 
     case GENSIO_LL_FUNC_REMOTE_ID:
 	return child_remote_id(ll, buf);

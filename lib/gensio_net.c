@@ -107,15 +107,6 @@ net_sub_open(void *handler_data, int *fd)
     return net_try_open(tdata, fd);
 }
 
-static int
-net_get_raddr(void *handler_data, void *addr, gensiods *addrlen)
-{
-    struct net_data *tdata = handler_data;
-
-    gensio_addr_getaddr(tdata->ai, addr, addrlen);
-    return 0;
-}
-
 static void
 net_free(void *handler_data)
 {
@@ -199,6 +190,12 @@ net_control(void *handler_data, int fd, bool get, unsigned int option,
 	*datalen = pos;
 	return 0;
 
+    case GENSIO_CONTROL_RADDR_BIN:
+	if (!get)
+	    return GE_NOTSUP;
+	gensio_addr_getaddr(tdata->ai, data, datalen);
+	return 0;
+
     case GENSIO_CONTROL_LPORT:
 	rv = gensio_os_socket_get_port(tdata->o, fd, &i);
 	if (rv)
@@ -261,7 +258,6 @@ static const struct gensio_fd_ll_ops net_fd_ll_ops = {
     .sub_open = net_sub_open,
     .check_open = net_check_open,
     .retry_open = net_retry_open,
-    .get_raddr = net_get_raddr,
     .free = net_free,
     .control = net_control,
     .except_ready = net_except_ready,
@@ -453,7 +449,6 @@ struct netna_data {
 };
 
 static const struct gensio_fd_ll_ops net_server_fd_ll_ops = {
-    .get_raddr = net_get_raddr,
     .free = net_free,
     .control = net_control,
     .except_ready = net_except_ready,

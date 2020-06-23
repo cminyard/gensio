@@ -100,6 +100,7 @@ int gensio_write_sg(struct gensio *io, gensiods *count,
 int gensio_raddr_to_str(struct gensio *io, gensiods *pos,
 			char *buf, gensiods buflen);
 
+/* DEPRECATED - Do not use this function. */
 int gensio_get_raddr(struct gensio *io, void *addr, gensiods *addrlen);
 
 int gensio_remote_id(struct gensio *io, int *id);
@@ -162,6 +163,7 @@ int gensio_control(struct gensio *io, int depth, bool get,
 #define GENSIO_CONTROL_CLOSE_OUTPUT		19
 #define GENSIO_CONTROL_CONNECT_ADDR_STR		20
 #define GENSIO_CONTROL_RADDR			21
+#define GENSIO_CONTROL_RADDR_BIN		22
 
 const char *gensio_get_type(struct gensio *io, unsigned int depth);
 struct gensio *gensio_get_child(struct gensio *io, unsigned int depth);

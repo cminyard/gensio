@@ -164,14 +164,6 @@ sctp_sub_open(void *handler_data, int *fd)
     return sctp_try_open(tdata, fd);
 }
 
-static int
-sctp_get_raddr(void *handler_data, void *addr, gensiods *addrlen)
-{
-    struct sctp_data *tdata = handler_data;
-
-    return gensio_os_sctp_getraddr(tdata->o, tdata->fd, addr, addrlen);
-}
-
 static void
 sctp_free(void *handler_data)
 {
@@ -277,6 +269,11 @@ sctp_control(void *handler_data, int fd, bool get, unsigned int option,
 	*datalen = pos;
 	return 0;
 
+    case GENSIO_CONTROL_RADDR_BIN:
+	if (!get)
+	    return GE_NOTSUP;
+	return gensio_os_sctp_getraddr(tdata->o, tdata->fd, data, datalen);
+
     case GENSIO_CONTROL_LPORT:
 	rv = gensio_os_socket_get_port(tdata->o, fd, &i);
 	if (rv)
@@ -371,7 +368,6 @@ sctp_read_ready(void *handler_data, int fd)
 static const struct gensio_fd_ll_ops sctp_fd_ll_ops = {
     .sub_open = sctp_sub_open,
     .check_open = sctp_check_open,
-    .get_raddr = sctp_get_raddr,
     .free = sctp_free,
     .control = sctp_control,
     .write = sctp_write,
@@ -535,7 +531,6 @@ struct sctpna_data {
 };
 
 static const struct gensio_fd_ll_ops sctp_server_fd_ll_ops = {
-    .get_raddr = sctp_get_raddr,
     .free = sctp_free,
     .control = sctp_control,
     .write = sctp_write,

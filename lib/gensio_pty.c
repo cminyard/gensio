@@ -198,19 +198,6 @@ pty_sub_open(void *handler_data, int *fd)
 }
 
 static int
-pty_get_raddr(void *handler_data, void *addr, gensiods *addrlen)
-{
-    struct pty_data *tdata = handler_data;
-
-    if (*addrlen < sizeof(int))
-	return GE_TOOBIG;
-
-    *((int *) addr) = tdata->ptym;
-    *addrlen = sizeof(int);
-    return 0;
-}
-
-static int
 pty_remote_id(void *handler_data, int *id)
 {
     struct pty_data *tdata = handler_data;
@@ -351,6 +338,14 @@ pty_control(void *handler_data, int fd, bool get, unsigned int option,
 	    return GE_NOTFOUND;
 	*datalen = gensio_argv_snprintf(data, *datalen, NULL, tdata->argv);
 	return 0;
+
+    case GENSIO_CONTROL_RADDR_BIN:
+	if (!get)
+	    return GE_NOTSUP;
+	if (*datalen >= sizeof(int))
+	    *((int *) data) = tdata->ptym;
+	*datalen = 4;
+	return 0;
     }
 
     return GE_NOTSUP;
@@ -360,7 +355,6 @@ static const struct gensio_fd_ll_ops pty_fd_ll_ops = {
     .sub_open = pty_sub_open,
     .check_open = pty_check_open,
     .read_ready = pty_read_ready,
-    .get_raddr = pty_get_raddr,
     .remote_id = pty_remote_id,
     .check_close = pty_check_close,
     .free = pty_free,

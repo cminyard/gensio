@@ -218,6 +218,9 @@ Like
 but gets the remote addresses on a gensio.  The gensio may need to be
 open.  This is only implemented on bottom-level gensios, like
 serialdev, network interfaces, echo, file, ipmisol, etc.
+.SS "GENSIO_CONTROL_RADDR_BIN"
+Return the binary remote address for the given gensio.  Only
+implemented for network gensios and pty.
 .SS "GENSIO_CONTROL_LPORT"
 Return the local port for the connection.  Only for network
 connections.  This is useful if you pass in "0" for the port to let

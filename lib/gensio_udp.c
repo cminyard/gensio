@@ -443,15 +443,6 @@ udpn_write(struct gensio *io, gensiods *count,
     return err;
 }
 
-static int
-udpn_get_raddr(struct gensio *io, void *addr, gensiods *addrlen)
-{
-    struct udpn_data *ndata = gensio_get_gensio_data(io);
-
-    gensio_addr_getaddr(ndata->raddr, addr, addrlen);
-    return 0;
-}
-
 static void
 udpn_finish_close(struct udpna_data *nadata, struct udpn_data *ndata)
 {
@@ -955,6 +946,12 @@ udpn_control(struct gensio *io, bool get, int option,
     case GENSIO_CONTROL_RADDR:
 	return udpna_control_raddr(ndata, get, data, datalen);
 
+    case GENSIO_CONTROL_RADDR_BIN:
+	if (!get)
+	    return GE_NOTSUP;
+	gensio_addr_getaddr(ndata->raddr, data, datalen);
+	return 0;
+
     case GENSIO_CONTROL_LPORT:
 	return udpna_control_lport(nadata, get, data, datalen);
 
@@ -989,9 +986,6 @@ gensio_udp_func(struct gensio *io, int func, gensiods *count,
     switch (func) {
     case GENSIO_FUNC_WRITE_SG:
 	return udpn_write(io, count, cbuf, buflen, auxdata);
-
-    case GENSIO_FUNC_GET_RADDR:
-	return udpn_get_raddr(io, buf, count);
 
     case GENSIO_FUNC_OPEN:
 	return udpn_open(io, cbuf, buf);

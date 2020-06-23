@@ -315,7 +315,8 @@ local address.
 The remote address will be in the format "[ipv4|ipv6],<addr>,<port>" where the
 address is in numeric format, IPv4, or IPv6.
 .SS Remote Address
-TCP returns a standard struct sockaddr for gensio_get_raddr(3).
+TCP returns a standard struct sockaddr for GENSIO_CONTROL_RADDR_BIN
+control.
 .SS Remote ID
 Remote is not supported.
 .SH "UDP"
@@ -376,7 +377,8 @@ multiple times to add multiple multicast addresses.
 The remote address will be in the format "[ipv4|ipv6],<addr>,<port>" where the
 address is in numeric format, IPv4, or IPv6.
 .SS "Remote Address"
-UDP returns a standard struct sockaddr for gensio_get_raddr(3).
+UDP returns a standard struct sockaddr for GENSIO_CONTROL_RADDR_BIN
+control.
 .SS "Remote ID"
 Remote is not supported.
 .SS "UDP Multicast"
@@ -457,8 +459,8 @@ where the address is in numeric
 format, IPv4, or IPv6.  Each remote address for the SCTP connection is
 listed.
 .SS "Remote Address"
-SCTP returns a packed struct sockaddr for gensio_get_raddr(3), per
-SCTP semantics.
+SCTP returns a packed struct sockaddr for GENSIO_CONTROL_RADDR_BIN
+control, per SCTP semantics.
 .SS "Remote ID"
 Remote is not supported.
 .SH "UNIX"
@@ -485,7 +487,8 @@ If the socket path already exists, delete it before opening the socket.
 .SS Remote Address String
 The remote address will be: "unix,<socket path>".
 .SS Remote Address
-UNIX returns a standard struct sockaddr_un for gensio_get_raddr(3).
+UNIX returns a standard struct sockaddr_un for GENSIO_CONTROL_RADDR_BIN
+control.
 .SS Remote ID
 Remote is not supported.
 .SH "serialdev"

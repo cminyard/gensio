@@ -10,6 +10,12 @@ address
 .B                         void *addrlen);
 .PP
 .SH "DESCRIPTION"
+This function is deprecated  Please use the
+.B GENSIO_CONTROL_RADDR_BIN
+option to
+.B gensio_control()
+instead.
+
 Return the remote address for the connection.
 .I addrlen
 must be set to the size of

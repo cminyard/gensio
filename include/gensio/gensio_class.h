@@ -35,10 +35,9 @@
 #define GENSIO_FUNC_unused1		2
 
 /*
- * addr => buf
- * addrlen => count
+ * Was GET_RADDR
  */
-#define GENSIO_FUNC_GET_RADDR		3
+#define GENSIO_FUNC_unused2		3
 
 /*
  * id => buf

@@ -22,8 +22,6 @@ struct gensio_fd_ll_ops {
 
     int (*retry_open)(void *handler_data, int *fd);
 
-    int (*get_raddr)(void *handler_data, void *addr, gensiods *addrlen);
-
     int (*remote_id)(void *handler_data, int *id);
 
     /*

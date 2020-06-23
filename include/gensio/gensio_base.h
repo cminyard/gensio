@@ -243,12 +243,9 @@ int gensio_ll_write(struct gensio_ll *ll, gensiods *rcount,
 #define GENSIO_LL_unused1			3
 
 /*
- * addr => buf
- * addrlen => count
+ * Was FUNC_GET_RADDR
  */
-#define GENSIO_LL_FUNC_GET_RADDR		4
-int gensio_ll_get_raddr(struct gensio_ll *ll,
-			void *addr, gensiods *addrlen);
+#define GENSIO_LL_unused2			4
 
 /*
  * id => buf

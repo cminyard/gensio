@@ -479,7 +479,8 @@ gensio_raddr_to_str(struct gensio *io, gensiods *pos,
 int
 gensio_get_raddr(struct gensio *io, void *addr, gensiods *addrlen)
 {
-    return io->func(io, GENSIO_FUNC_GET_RADDR, addrlen, NULL, 0, addr, NULL);
+    return gensio_control(io, GENSIO_CONTROL_DEPTH_FIRST, true,
+			  GENSIO_CONTROL_RADDR_BIN, addr, addrlen);
 }
 
 int

@@ -1066,7 +1066,6 @@ gensio_stdio_func(struct gensio *io, int func, gensiods *count,
     case GENSIO_FUNC_CONTROL:
 	return stdion_control(io, *((bool *) cbuf), buflen, buf, count);
 
-    case GENSIO_FUNC_GET_RADDR:
     default:
 	return GE_NOTSUP;
     }
