@@ -561,7 +561,10 @@ i_sel_clear_fd_handler(struct selector_s *sel, int fd, int rpt)
     }
 
     init_fd(fdc);
-    if (sel->epollfd < 0) {
+#ifdef HAVE_EPOLL_PWAIT
+    if (sel->epollfd < 0)
+#endif
+    {
 	FD_CLR(fd, &sel->read_set);
 	FD_CLR(fd, &sel->write_set);
 	FD_CLR(fd, &sel->except_set);
@@ -621,13 +624,17 @@ sel_set_fd_read_handler(struct selector_s *sel, int fd, int state)
 	if (fdc->read_enabled)
 	    goto out;
 	fdc->read_enabled = 1;
+#ifdef HAVE_EPOLL_PWAIT
 	if (sel->epollfd < 0)
+#endif
 	    FD_SET(fd, &sel->read_set);
     } else if (state == SEL_FD_HANDLER_DISABLED) {
 	if (!fdc->read_enabled)
 	    goto out;
 	fdc->read_enabled = 0;
+#ifdef HAVE_EPOLL_PWAIT
 	if (sel->epollfd < 0)
+#endif
 	    FD_CLR(fd, &sel->read_set);
     }
     if (sel_update_fd(sel, fdc, EPOLL_CTL_MOD))
@@ -654,13 +661,17 @@ sel_set_fd_write_handler(struct selector_s *sel, int fd, int state)
 	if (fdc->write_enabled)
 	    goto out;
 	fdc->write_enabled = 1;
+#ifdef HAVE_EPOLL_PWAIT
 	if (sel->epollfd < 0)
+#endif
 	    FD_SET(fd, &sel->write_set);
     } else if (state == SEL_FD_HANDLER_DISABLED) {
 	if (!fdc->write_enabled)
 	    goto out;
 	fdc->write_enabled = 0;
+#ifdef HAVE_EPOLL_PWAIT
 	if (sel->epollfd < 0)
+#endif
 	    FD_CLR(fd, &sel->write_set);
     }
     if (sel_update_fd(sel, fdc, EPOLL_CTL_MOD))
@@ -687,13 +698,17 @@ sel_set_fd_except_handler(struct selector_s *sel, int fd, int state)
 	if (fdc->except_enabled)
 	    goto out;
 	fdc->except_enabled = 1;
+#ifdef HAVE_EPOLL_PWAIT
 	if (sel->epollfd < 0)
+#endif
 	    FD_SET(fd, &sel->except_set);
     } else if (state == SEL_FD_HANDLER_DISABLED) {
 	if (!fdc->except_enabled)
 	    goto out;
 	fdc->except_enabled = 0;
+#ifdef HAVE_EPOLL_PWAIT
 	if (sel->epollfd < 0)
+#endif
 	    FD_CLR(fd, &sel->except_set);
     }
     if (sel_update_fd(sel, fdc, EPOLL_CTL_MOD))
