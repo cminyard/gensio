@@ -450,8 +450,10 @@ get_fd(struct selector_s *sel, int fd)
 static void
 valid_fd(struct selector_s *sel, int fd, fd_control_t **rfdc)
 {
-    fd_control_t *fdc = get_fd(sel, fd);
+    fd_control_t *fdc;
 
+    assert(fd >= 0);
+    fdc = get_fd(sel, fd);
     assert(fdc != NULL);
     *rfdc = fdc;
 }
