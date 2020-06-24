@@ -201,16 +201,6 @@ fd_write(struct gensio_ll *ll, gensiods *rcount,
     return gensio_os_write(fdll->o, fdll->fd, sg, sglen, rcount);
 }
 
-static int
-fd_remote_id(struct gensio_ll *ll, int *id)
-{
-    struct fd_ll *fdll = ll_to_fd(ll);
-
-    if (fdll->ops->remote_id)
-	return fdll->ops->remote_id(fdll->handler_data, id);
-    return GE_NOTSUP;
-}
-
 static void
 fd_deliver_read_data(struct fd_ll *fdll, int err)
 {
@@ -755,9 +745,6 @@ gensio_ll_fd_func(struct gensio_ll *ll, int op, gensiods *count,
 
     case GENSIO_LL_FUNC_WRITE_SG:
 	return fd_write(ll, count, cbuf, buflen, auxdata);
-
-    case GENSIO_LL_FUNC_REMOTE_ID:
-	return fd_remote_id(ll, buf);
 
     case GENSIO_LL_FUNC_OPEN:
 	return fd_open(ll, cbuf, buf);

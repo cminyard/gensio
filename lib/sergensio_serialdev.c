@@ -1289,15 +1289,6 @@ sterm_sub_open(void *handler_data, int *fd)
     return err;
 }
 
-static int
-sterm_remote_id(void *handler_data, int *id)
-{
-    struct sterm_data *sdata = handler_data;
-
-    *id = sdata->fd;
-    return 0;
-}
-
 static void
 sterm_free(void *handler_data)
 {
@@ -1438,6 +1429,12 @@ sterm_control(void *handler_data, int fd, bool get, unsigned int option,
 	    return GE_NOTFOUND;
 	return sterm_control_raddr(sdata, data, datalen);
 
+    case GENSIO_CONTROL_REMOTE_ID:
+	if (!get)
+	    return GE_NOTSUP;
+	*datalen = snprintf(data, *datalen, "%d", sdata->fd);
+	return 0;
+
     default:
 	break;
     }
@@ -1447,7 +1444,6 @@ sterm_control(void *handler_data, int fd, bool get, unsigned int option,
 
 static const struct gensio_fd_ll_ops sterm_fd_ll_ops = {
     .sub_open = sterm_sub_open,
-    .remote_id = sterm_remote_id,
     .check_close = sterm_check_close_drain,
     .free = sterm_free,
     .control = sterm_control

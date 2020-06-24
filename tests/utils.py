@@ -971,3 +971,6 @@ def check_pipe_dev(is_serialsim = False):
     elif is_serialsim and not is_serialsim_pipe():
         print("Test requires a serialsim device")
         sys.exit(77)
+
+def remote_id_int(io):
+    return int(io.control(0, True, gensio.GENSIO_CONTROL_REMOTE_ID, None))

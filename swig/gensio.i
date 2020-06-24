@@ -263,6 +263,7 @@ struct waiter { };
 %constant int GENSIO_CONTROL_CONNECT_ADDR_STR = GENSIO_CONTROL_CONNECT_ADDR_STR;
 %constant int GENSIO_CONTROL_RADDR = GENSIO_CONTROL_RADDR;
 %constant int GENSIO_CONTROL_RADDR_BIN = GENSIO_CONTROL_RADDR_BIN;
+%constant int GENSIO_CONTROL_REMOTE_ID = GENSIO_CONTROL_REMOTE_ID;
 
 %extend gensio {
     gensio(struct gensio_os_funcs *o, char *str, swig_cb *handler) {
@@ -319,14 +320,6 @@ struct waiter { };
 	    data->handler_val = ref_swig_cb(handler, read_callback);
 	else
 	    data->handler_val = NULL;
-    }
-
-    %rename (remote_id) remote_idt;
-    int remote_idt() {
-	int remid;
-
-	err_handle("remote_id", gensio_remote_id(self, &remid));
-	return remid;
     }
 
     %rename(open) opent;

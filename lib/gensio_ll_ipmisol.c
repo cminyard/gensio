@@ -885,12 +885,6 @@ sol_write(struct gensio_ll *ll, gensiods *rcount,
 }
 
 static int
-sol_remote_id(struct gensio_ll *ll, int *id)
-{
-    return GE_NOTSUP;
-}
-
-static int
 sol_data_received(ipmi_sol_conn_t *conn,
 		  const void *idata, size_t count, void *user_data)
 {
@@ -1261,9 +1255,6 @@ gensio_ll_sol_func(struct gensio_ll *ll, int op, gensiods *count,
 
     case GENSIO_LL_FUNC_WRITE_SG:
 	return sol_write(ll, count, cbuf, buflen);
-
-    case GENSIO_LL_FUNC_REMOTE_ID:
-	return sol_remote_id(ll, buf);
 
     case GENSIO_LL_FUNC_OPEN:
 	return sol_open(ll, cbuf, buf);

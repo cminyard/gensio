@@ -248,10 +248,9 @@ int gensio_ll_write(struct gensio_ll *ll, gensiods *rcount,
 #define GENSIO_LL_unused2			4
 
 /*
- * id => buf
+ * Was FUNC_REMOTE_ID
  */
-#define GENSIO_LL_FUNC_REMOTE_ID		5
-int gensio_ll_remote_id(struct gensio_ll *ll, int *id);
+#define GENSIO_LL_unused3			5
 
 /*
  * Returns 0 if the open was immediate, EINPROGRESS if it was deferred,

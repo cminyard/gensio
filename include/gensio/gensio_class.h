@@ -40,9 +40,9 @@
 #define GENSIO_FUNC_unused2		3
 
 /*
- * id => buf
+ * Was REMOTE_ID
  */
-#define GENSIO_FUNC_REMOTE_ID		4
+#define GENSIO_FUNC_unused3		4
 
 /*
  * open_done => cbuf

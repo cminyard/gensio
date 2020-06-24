@@ -198,15 +198,6 @@ pty_sub_open(void *handler_data, int *fd)
 }
 
 static int
-pty_remote_id(void *handler_data, int *id)
-{
-    struct pty_data *tdata = handler_data;
-
-    *id = tdata->pid;
-    return 0;
-}
-
-static int
 pty_check_close(void *handler_data, enum gensio_ll_close_state state,
 		gensio_time *timeout)
 {
@@ -346,6 +337,12 @@ pty_control(void *handler_data, int fd, bool get, unsigned int option,
 	    *((int *) data) = tdata->ptym;
 	*datalen = 4;
 	return 0;
+
+    case GENSIO_CONTROL_REMOTE_ID:
+	if (!get)
+	    return GE_NOTSUP;
+	*datalen = snprintf(data, *datalen, "%d", tdata->pid);
+	return 0;
     }
 
     return GE_NOTSUP;
@@ -355,7 +352,6 @@ static const struct gensio_fd_ll_ops pty_fd_ll_ops = {
     .sub_open = pty_sub_open,
     .check_open = pty_check_open,
     .read_ready = pty_read_ready,
-    .remote_id = pty_remote_id,
     .check_close = pty_check_close,
     .free = pty_free,
     .write = pty_write,

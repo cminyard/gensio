@@ -484,12 +484,6 @@ gensio_get_raddr(struct gensio *io, void *addr, gensiods *addrlen)
 }
 
 int
-gensio_remote_id(struct gensio *io, int *id)
-{
-    return io->func(io, GENSIO_FUNC_REMOTE_ID, NULL, NULL, 0, id, NULL);
-}
-
-int
 gensio_open(struct gensio *io, gensio_done_err open_done, void *open_data)
 {
     return io->func(io, GENSIO_FUNC_OPEN, NULL, open_done, 0, open_data, NULL);

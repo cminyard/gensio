@@ -23,8 +23,8 @@ sio2 = io2.cast_to_sergensio();
 
 sio2.sg_dtr_s(gensio.SERGENSIO_DTR_OFF);
 sio2.sg_rts_s(gensio.SERGENSIO_RTS_OFF);
-set_remote_null_modem(io2.remote_id(), False);
-set_remote_modem_ctl(io2.remote_id(), (SERIALSIM_TIOCM_CAR |
+set_remote_null_modem(remote_id_int(io2), False);
+set_remote_modem_ctl(remote_id_int(io2), (SERIALSIM_TIOCM_CAR |
                                        SERIALSIM_TIOCM_CTS |
                                        SERIALSIM_TIOCM_DSR |
                                        SERIALSIM_TIOCM_RNG) << 16)
@@ -40,7 +40,7 @@ io2.read_cb_enable(True);
 
 io1.handler.set_expected_modemstate(gensio.SERGENSIO_MODEMSTATE_CD_CHANGED |
                                     gensio.SERGENSIO_MODEMSTATE_CD)
-set_remote_modem_ctl(io2.remote_id(), ((SERIALSIM_TIOCM_CAR << 16) |
+set_remote_modem_ctl(remote_id_int(io2), ((SERIALSIM_TIOCM_CAR << 16) |
                                        SERIALSIM_TIOCM_CAR))
 if (io1.handler.wait_timeout(2000) == 0):
     raise Exception("%s: %s: Timed out waiting for modemstate 2" %
@@ -49,7 +49,7 @@ if (io1.handler.wait_timeout(2000) == 0):
 io1.handler.set_expected_modemstate(gensio.SERGENSIO_MODEMSTATE_DSR_CHANGED |
                                     gensio.SERGENSIO_MODEMSTATE_CD |
                                     gensio.SERGENSIO_MODEMSTATE_DSR)
-set_remote_modem_ctl(io2.remote_id(), ((SERIALSIM_TIOCM_DSR << 16) |
+set_remote_modem_ctl(remote_id_int(io2), ((SERIALSIM_TIOCM_DSR << 16) |
                                        SERIALSIM_TIOCM_DSR))
 if (io1.handler.wait_timeout(2000) == 0):
     raise Exception("%s: %s: Timed out waiting for modemstate 3" %
@@ -59,7 +59,7 @@ io1.handler.set_expected_modemstate(gensio.SERGENSIO_MODEMSTATE_CTS_CHANGED |
                                     gensio.SERGENSIO_MODEMSTATE_CD |
                                     gensio.SERGENSIO_MODEMSTATE_DSR |
                                     gensio.SERGENSIO_MODEMSTATE_CTS)
-set_remote_modem_ctl(io2.remote_id(), ((SERIALSIM_TIOCM_CTS << 16) |
+set_remote_modem_ctl(remote_id_int(io2), ((SERIALSIM_TIOCM_CTS << 16) |
                                        SERIALSIM_TIOCM_CTS))
 if (io1.handler.wait_timeout(2000) == 0):
     raise Exception("%s: %s: Timed out waiting for modemstate 4" %
@@ -70,7 +70,7 @@ io1.handler.set_expected_modemstate(gensio.SERGENSIO_MODEMSTATE_RI_CHANGED |
                                     gensio.SERGENSIO_MODEMSTATE_DSR |
                                     gensio.SERGENSIO_MODEMSTATE_CTS |
                                     gensio.SERGENSIO_MODEMSTATE_RI)
-set_remote_modem_ctl(io2.remote_id(), ((SERIALSIM_TIOCM_RNG << 16) |
+set_remote_modem_ctl(remote_id_int(io2), ((SERIALSIM_TIOCM_RNG << 16) |
                                        SERIALSIM_TIOCM_RNG))
 if (io1.handler.wait_timeout(2000) == 0):
     raise Exception("%s: %s: Timed out waiting for modemstate 5" %
@@ -80,7 +80,7 @@ io1.handler.set_expected_modemstate(gensio.SERGENSIO_MODEMSTATE_RI_CHANGED |
                                     gensio.SERGENSIO_MODEMSTATE_CD_CHANGED |
                                     gensio.SERGENSIO_MODEMSTATE_DSR_CHANGED |
                                     gensio.SERGENSIO_MODEMSTATE_CTS_CHANGED)
-set_remote_modem_ctl(io2.remote_id(), (SERIALSIM_TIOCM_CAR |
+set_remote_modem_ctl(remote_id_int(io2), (SERIALSIM_TIOCM_CAR |
                                        SERIALSIM_TIOCM_CTS |
                                        SERIALSIM_TIOCM_DSR |
                                        SERIALSIM_TIOCM_RNG) << 16)
@@ -96,7 +96,7 @@ io1.handler.set_expected_modemstate(gensio.SERGENSIO_MODEMSTATE_CD_CHANGED |
                                     gensio.SERGENSIO_MODEMSTATE_CTS)
 sio2.sg_dtr_s(gensio.SERGENSIO_DTR_ON);
 sio2.sg_rts_s(gensio.SERGENSIO_RTS_ON);
-set_remote_null_modem(io2.remote_id(), True);
+set_remote_null_modem(remote_id_int(io2), True);
 if (io1.handler.wait_timeout(2000) == 0):
     raise Exception("%s: %s: Timed out waiting for modemstate 7" %
                     ("test dtr", io1.handler.name))

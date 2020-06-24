@@ -234,6 +234,10 @@ Return the address the connection was made to.  For SCTP.
 .B gensio_raddr_to_str()
 returns all the remote addresses in SCTP's current state.  This will
 return the addresses that the original connectx was done to.
+.SS "GENSIO_CONTROL_REMOTE_ID"
+Return some sort of remote id for what is on the other end of the
+connection.  Not implemented for most gensios, only for getting the
+pid on a pty and stdio and the file descriptor on serialdev.
 .SH "RETURN VALUES"
 Zero is returned on success, or a gensio error on failure.
 .SH "SEE ALSO"

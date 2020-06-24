@@ -1234,9 +1234,6 @@ gensio_base_func(struct gensio *io, int func, gensiods *count,
 	basen_set_write_callback_enable(ndata, buflen);
 	return 0;
 
-    case GENSIO_FUNC_REMOTE_ID:
-	return gensio_ll_remote_id(ndata->ll, buf);
-
     case GENSIO_FUNC_CONTROL:
 	rv = GE_NOTSUP;
 	if (ndata->filter) {
@@ -1756,13 +1753,6 @@ gensio_ll_write(struct gensio_ll *ll, gensiods *rcount,
 {
     return ll->func(ll, GENSIO_LL_FUNC_WRITE_SG, rcount, NULL, sg, sglen,
 		    auxdata);
-}
-
-int
-gensio_ll_remote_id(struct gensio_ll *ll, int *id)
-{
-    return ll->func(ll, GENSIO_LL_FUNC_REMOTE_ID, NULL, id, NULL, 0,
-		    NULL);
 }
 
 int

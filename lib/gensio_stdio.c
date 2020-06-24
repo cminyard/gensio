@@ -206,18 +206,6 @@ stdion_write(struct gensio *io, gensiods *count,
     return gensio_os_write(nadata->o, schan->infd, sg, sglen, count);
 }
 
-static int
-stdion_remote_id(struct gensio *io, int *id)
-{
-    struct stdion_channel *schan = gensio_get_gensio_data(io);
-    struct stdiona_data *nadata = schan->nadata;
-
-    if (!nadata->argv)
-	return GE_NOTSUP;
-    *id = nadata->opid;
-    return 0;
-}
-
 /* Must be called with nadata->lock held */
 static void
 stdion_finish_read(struct stdion_channel *schan, int err)
@@ -1014,6 +1002,12 @@ stdion_control(struct gensio *io, bool get, unsigned int option,
 	}
 	*datalen = pos;
 	return 0;
+
+    case GENSIO_CONTROL_REMOTE_ID:
+	if (!get)
+	    return GE_NOTSUP;
+	*datalen = snprintf(data, *datalen, "%d", nadata->opid);
+	return 0;
     }
 
     return GE_NOTSUP;
@@ -1049,9 +1043,6 @@ gensio_stdio_func(struct gensio *io, int func, gensiods *count,
     case GENSIO_FUNC_SET_WRITE_CALLBACK:
 	stdion_set_write_callback_enable(io, buflen);
 	return 0;
-
-    case GENSIO_FUNC_REMOTE_ID:
-	return stdion_remote_id(io, buf);
 
     case GENSIO_FUNC_ALLOC_CHANNEL:
     {

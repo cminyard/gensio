@@ -22,8 +22,6 @@ struct gensio_fd_ll_ops {
 
     int (*retry_open)(void *handler_data, int *fd);
 
-    int (*remote_id)(void *handler_data, int *id);
-
     /*
      * When GENSIO_LL_CLOSE_STATE_START, timeout will be NULL and the
      * return value is ignored.  Return 0.  When

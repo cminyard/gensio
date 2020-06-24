@@ -47,14 +47,6 @@ child_write(struct gensio_ll *ll, gensiods *rcount,
     return gensio_write_sg(cdata->child, rcount, sg, sglen, auxdata);
 }
 
-static int
-child_remote_id(struct gensio_ll *ll, int *id)
-{
-    struct gensio_ll_child *cdata = ll_to_child(ll);
-
-    return gensio_remote_id(cdata->child, id);
-}
-
 static void
 child_open_handler(struct gensio *io, int err, void *open_data)
 {
@@ -130,9 +122,6 @@ gensio_ll_child_func(struct gensio_ll *ll, int op, gensiods *count,
 
     case GENSIO_LL_FUNC_WRITE_SG:
 	return child_write(ll, count, cbuf, buflen, buf);
-
-    case GENSIO_LL_FUNC_REMOTE_ID:
-	return child_remote_id(ll, buf);
 
     case GENSIO_LL_FUNC_OPEN:
 	return child_open(ll, cbuf, buf);

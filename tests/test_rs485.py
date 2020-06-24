@@ -20,7 +20,7 @@ print("serialdev rs485:\n  io1=%s\n  io2=%s" % (io1str, io2str))
 io1 = alloc_io(o, io1str)
 io2 = alloc_io(o, io2str)
 
-rs485 = get_remote_rs485(io2.remote_id())
+rs485 = get_remote_rs485(remote_id_int(io2))
 check_rs485 = "103 495 enabled"
 if rs485 != check_rs485:
     raise Exception("%s: %s: RS485 was not '%s', it was '%s'" %
