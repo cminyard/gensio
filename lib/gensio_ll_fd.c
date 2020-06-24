@@ -31,6 +31,17 @@ enum fd_state {
     FD_IN_OPEN,
 
     /*
+     * An open has been requested, but is not yet complete.  We got an
+     * open failure and we cleared the old handlers but the clear is
+     * not finish yet.  When the clear is done, we will retry.
+     *
+     * fd opened -> FD_OPEN
+     * close -> FD_IN_CLOSE
+     * err -> FD_ERR_WAIT (report open err)
+     */
+    FD_IN_OPEN_RETRY,
+
+    /*
      * The fd is operational
      *
      * close -> FD_IN_CLOSE
@@ -321,9 +332,10 @@ fd_start_close(struct fd_ll *fdll)
     if (fdll->fd == -1) {
 	fdll->deferred_close = true;
 	fd_sched_deferred_op(fdll);
-    } else {
+    } else if (fdll->state != FD_IN_OPEN_RETRY) {
 	fdll->o->clear_fd_handlers(fdll->o, fdll->fd);
     }
+    fd_set_state(fdll, FD_IN_CLOSE);
 }
 
 static void
@@ -359,6 +371,7 @@ fd_handle_incoming(struct fd_ll *fdll,
     if (err) {
 	switch(fdll->state) {
 	case FD_IN_OPEN:
+	case FD_IN_OPEN_RETRY:
 	case FD_CLOSED:
 	    assert(0); /* Should not be possible. */
 	    break;
@@ -434,23 +447,9 @@ fd_handle_write_ready(struct fd_ll *fdll)
 	fdll->o->set_except_handler(fdll->o, fdll->fd, false);
 	err = fdll->ops->check_open(fdll->handler_data, fdll->fd);
 	if (err && fdll->ops->retry_open) {
-	    fdll->o->clear_fd_handlers_norpt(fdll->o, fdll->fd);
-	    gensio_os_close(fdll->o, fdll->fd);
-	    fdll->fd = -1;
-	    err = fdll->ops->retry_open(fdll->handler_data, &fdll->fd);
-	    if (err != GE_INPROGRESS) {
-		goto opened;
-	    } else {
-		err = fd_setup_handlers(fdll);
-		if (err) {
-		    goto opened;
-		} else {
-		    fdll->o->set_write_handler(fdll->o, fdll->fd, true);
-		    fdll->o->set_except_handler(fdll->o, fdll->fd, true);
-		}
-	    }
+	    fd_set_state(fdll, FD_IN_OPEN_RETRY);
+	    fdll->o->clear_fd_handlers(fdll->o, fdll->fd);
 	} else {
-	opened:
 	    if (err)
 		fd_set_state(fdll, FD_ERR_WAIT);
 	    fd_finish_open(fdll, err);
@@ -490,7 +489,7 @@ fd_except_ready(int fd, void *cbdata)
      * In some cases, if a connect() call fails, we get an exception,
      * not a write ready.  So in the open case, call write ready.
      */
-    if (fdll->state == FD_IN_OPEN) {
+    if (fdll->state == FD_IN_OPEN || fdll->state == FD_IN_OPEN_RETRY) {
 	fd_ref(fdll);
 	fd_handle_write_ready(fdll);
 	fd_deref_and_unlock(fdll);
@@ -543,9 +542,23 @@ static void
 fd_cleared(int fd, void *cb_data)
 {
     struct fd_ll *fdll = cb_data;
+    int err;
 
     fd_lock(fdll);
-    if (fdll->ops->check_close) {
+    if (fdll->state == FD_IN_OPEN_RETRY) {
+	gensio_os_close(fdll->o, fdll->fd);
+	fdll->fd = -1;
+	err = fdll->ops->retry_open(fdll->handler_data, &fdll->fd);
+	if (err == GE_INPROGRESS)
+	    err = fd_setup_handlers(fdll);
+	if (err) {
+	    fd_set_state(fdll, FD_ERR_WAIT);
+	    fd_finish_open(fdll, err);
+	} else {
+	    fdll->o->set_write_handler(fdll->o, fdll->fd, true);
+	    fdll->o->set_except_handler(fdll->o, fdll->fd, true);
+	}
+    } else if (fdll->ops->check_close) {
 	fd_check_close(fdll);
     } else {
 	fd_finish_cleared(fdll);
@@ -621,6 +634,7 @@ static int fd_close(struct gensio_ll *ll, gensio_ll_close_done done,
 	goto out_unlock;
     switch(fdll->state) {
     case FD_IN_OPEN:
+    case FD_IN_OPEN_RETRY:
 	fdll->open_err = GE_LOCALCLOSED;
 	fdll->deferred_open = true;
 	fd_sched_deferred_op(fdll);
@@ -629,7 +643,6 @@ static int fd_close(struct gensio_ll *ll, gensio_ll_close_done done,
     case FD_ERR_WAIT:
 	fdll->close_done = done;
 	fdll->close_data = close_data;
-	fd_set_state(fdll, FD_IN_CLOSE);
 	fd_start_close(fdll);
 	err = 0;
 	break;
@@ -679,7 +692,8 @@ fd_set_write_callback_enable(struct gensio_ll *ll, bool enabled)
 
     fd_lock(fdll);
     fdll->write_enabled = enabled;
-    if (fdll->state == FD_OPEN || fdll->state == FD_IN_OPEN)
+    if (fdll->state == FD_OPEN || fdll->state == FD_IN_OPEN ||
+		fdll->state == FD_IN_OPEN_RETRY)
 	fdll->o->set_write_handler(fdll->o, fdll->fd, enabled);
     fd_unlock(fdll);
 }
@@ -699,7 +713,6 @@ static void fd_free(struct gensio_ll *ll)
     case FD_OPEN:
     case FD_ERR_WAIT:
 	fdll->close_done = NULL;
-	fd_set_state(fdll, FD_IN_CLOSE);
 	fd_start_close(fdll);
 	break;
 
