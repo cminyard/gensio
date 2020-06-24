@@ -639,7 +639,8 @@ gensio.gensio_set_log_mask(gensio.GENSIO_LOG_MASK_ALL)
 o = gensio.alloc_gensio_selector(Logger());
 
 def check_raddr(io, testname, expected):
-    r = io.raddr()
+    r = io.control(gensio.GENSIO_CONTROL_DEPTH_FIRST, True,
+                   gensio.GENSIO_CONTROL_RADDR, "0")
     if r != expected:
         raise Exception("%s raddr was not '%s', it was '%s'" %
                         (testname, expected, r));
