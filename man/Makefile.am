@@ -1,7 +1,6 @@
 man_MANS = gensio.5 gensio_event.3 str_to_gensio.3 gensio_set_callback.3 \
 	gensio_set_log_mask.3 gensio_os_funcs.3 gensio_err.3 gensio_write.3 \
-	gensio_get_raddr.3 gensio_raddr_to_str.3 gensio_open.3 \
-	gensio_alloc_channel.3 gensio_close.3 gensio_control.3 \
+	gensio_open.3 gensio_alloc_channel.3 gensio_close.3 gensio_control.3 \
 	gensio_set_read_callback_enable.3 gensio_get_type.3 gensio_set_sync.3 \
 	gensio_accepter_event.3 gensio_acc_set_callback.3 \
 	gensio_acc_shutdown.3 gensio_acc_set_accept_callback_enable.3 \
