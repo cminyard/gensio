@@ -716,6 +716,7 @@ relpkt_ul_write(struct relpkt_filter *rfilter,
 	}
     }
 
+    p = NULL;
     if (rfilter->send_init_pkt) {
 	rsg.buf = rfilter->init_pkt;
 	rsg.buflen = 5;
