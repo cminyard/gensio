@@ -173,7 +173,7 @@ void gensio_filter_cleanup(struct gensio_filter *filter);
 void gensio_filter_free(struct gensio_filter *filter);
 
 /*
- * Do a control function on the filter.  Return ENOTSUP if not supported.
+ * Do a control function on the filter.  Return GE_NOTSUP if not supported.
  *
  * get => cbuf
  * option => buflen
@@ -183,6 +183,17 @@ void gensio_filter_free(struct gensio_filter *filter);
 #define GENSIO_FILTER_FUNC_CONTROL		15
 int gensio_filter_control(struct gensio_filter *filter, bool get,
 			  unsigned int option, char *data, gensiods *datalen);
+
+/*
+ * Can the filter current handle a write?  If not implemented (returns
+ * GE_NOSUP), assumes true.  This can be used if the upper layer
+ * enables write but there's no way for the filter to write data
+ * because it's blocked on flow control.
+ *
+ * data => data
+ */
+#define GENSIO_FILTER_FUNC_LL_CAN_WRITE		16
+bool gensio_filter_ll_can_write(struct gensio_filter *filter);
 
 typedef int (*gensio_filter_func)(struct gensio_filter *filter, int op,
 				  const void *func, void *data,

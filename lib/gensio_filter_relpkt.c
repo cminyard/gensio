@@ -495,6 +495,15 @@ relpkt_ll_write_pending(struct relpkt_filter *rfilter)
 }
 
 static bool
+relpkt_ll_can_write(struct relpkt_filter *rfilter, bool *rv)
+{
+    unsigned int nrqueued = rfilter->next_send_seq - rfilter->next_acked_seq;
+
+    *rv = nrqueued < rfilter->max_xmitpkt;
+    return 0;
+}
+
+static bool
 relpkt_ll_read_needed(struct relpkt_filter *rfilter)
 {
     /* We can always take data.  Flow control should keep us from overrunning */
@@ -1134,6 +1143,9 @@ static int gensio_relpkt_filter_func(struct gensio_filter *filter, int op,
 
     case GENSIO_FILTER_FUNC_LL_WRITE_PENDING:
 	return relpkt_ll_write_pending(rfilter);
+
+    case GENSIO_FILTER_FUNC_LL_CAN_WRITE:
+	return relpkt_ll_can_write(rfilter, data);
 
     case GENSIO_FILTER_FUNC_LL_READ_NEEDED:
 	return relpkt_ll_read_needed(rfilter);

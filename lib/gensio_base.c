@@ -344,6 +344,14 @@ filter_ll_write_pending(struct basen_data *ndata)
 }
 
 static bool
+filter_ll_can_write(struct basen_data *ndata)
+{
+    if (ndata->filter)
+	return gensio_filter_ll_can_write(ndata->filter);
+    return true;
+}
+
+static bool
 filter_ll_read_needed(struct basen_data *ndata)
 {
     if (ndata->filter)
@@ -498,7 +506,8 @@ basen_set_ll_enables(struct basen_data *ndata)
 	return;
     }
 
-    if (filter_ll_write_pending(ndata) || ndata->xmit_enabled)
+    if (filter_ll_write_pending(ndata) ||
+	(filter_ll_can_write(ndata) && ndata->xmit_enabled))
 	ll_set_write_callback_enable(ndata, true);
     else
 	ll_set_write_callback_enable(ndata, false);
@@ -1607,6 +1616,17 @@ gensio_filter_ll_write_pending(struct gensio_filter *filter)
 {
     return filter->func(filter, GENSIO_FILTER_FUNC_LL_WRITE_PENDING,
 			NULL, NULL, NULL, NULL, NULL, 0, NULL);
+}
+
+bool
+gensio_filter_ll_can_write(struct gensio_filter *filter)
+{
+    bool val = true;
+
+    /* If not implemented, this will just be ignored. */
+    filter->func(filter, GENSIO_FILTER_FUNC_LL_CAN_WRITE,
+		 NULL, &val, NULL, NULL, NULL, 0, NULL);
+    return val;
 }
 
 bool
