@@ -625,13 +625,19 @@ relpkt_try_disconnect(struct relpkt_filter *rfilter, gensio_time *timeout,
 	 */
 	if (rfilter->err) {
 	    rv = rfilter->err;
-	} else if (was_timeout) {
-	    i_relpkt_filter_timeout(rfilter);
-	    timeout->secs = 1;
-	    timeout->nsecs = 0;
-	    rv = GE_RETRY;
 	} else {
-	    rv = GE_INPROGRESS;
+	    if (rfilter->next_acked_seq == rfilter->next_send_seq) {
+		rfilter->state = RELPKT_WAITING_CLOSE_RSP;
+		send_close(rfilter);
+	    }
+	    if (was_timeout) {
+		i_relpkt_filter_timeout(rfilter);
+		timeout->secs = 1;
+		timeout->nsecs = 0;
+		rv = GE_RETRY;
+	    } else {
+		rv = GE_INPROGRESS;
+	    }
 	}
 	break;
 
