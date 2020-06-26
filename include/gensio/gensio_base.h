@@ -190,10 +190,23 @@ int gensio_filter_control(struct gensio_filter *filter, bool get,
  * enables write but there's no way for the filter to write data
  * because it's blocked on flow control.
  *
- * data => data
+ * &val => data
  */
 #define GENSIO_FILTER_FUNC_LL_CAN_WRITE		16
 bool gensio_filter_ll_can_write(struct gensio_filter *filter);
+
+/*
+ * Does the filter have write data queued?  This is different from
+ * can_write and write_pending; this means that it has data that is in
+ * queue but it is not ready for write.  Basically, this is for data
+ * that is queued waiting for the remote end to ack it.  This is
+ * optional, if it return GE_NOSUP then it calls
+ * gensio_filter_ll_write_pending() for the value.
+ *
+ * &val => data
+ */
+#define GENSIO_FILTER_FUNC_LL_WRITE_QUEUED	17
+bool gensio_filter_ll_write_queued(struct gensio_filter *filter);
 
 typedef int (*gensio_filter_func)(struct gensio_filter *filter, int op,
 				  const void *func, void *data,

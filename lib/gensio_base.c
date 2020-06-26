@@ -344,6 +344,14 @@ filter_ll_write_pending(struct basen_data *ndata)
 }
 
 static bool
+filter_ll_write_queued(struct basen_data *ndata)
+{
+    if (ndata->filter)
+	return gensio_filter_ll_write_queued(ndata->filter);
+    return false;
+}
+
+static bool
 filter_ll_can_write(struct basen_data *ndata)
 {
     if (ndata->filter)
@@ -530,6 +538,8 @@ basen_set_ll_enables(struct basen_data *ndata)
 	} else {
 	    enabled = ndata->read_enabled;
 	}
+	/* Fallthrough */
+    case BASEN_CLOSE_WAIT_DRAIN:
 	enabled = enabled || filter_ll_read_needed(ndata);
 	break;
 
@@ -1041,7 +1051,7 @@ basen_i_close(struct basen_data *ndata,
 	    ndata->deferred_close = true;
 	    basen_sched_deferred_op(ndata);
 	}
-    } else if (filter_ll_write_pending(ndata)) {
+    } else if (filter_ll_write_queued(ndata)) {
 	basen_set_state(ndata, BASEN_CLOSE_WAIT_DRAIN);
     } else {
 	basen_set_state(ndata, BASEN_IN_FILTER_CLOSE);
@@ -1152,6 +1162,7 @@ basen_timeout(struct gensio_timer *timer, void *cb_data)
 	break;
 
     case BASEN_OPEN:
+    case BASEN_CLOSE_WAIT_DRAIN:
 	basen_unlock(ndata);
 	gensio_filter_timeout(ndata->filter);
 	basen_lock(ndata);
@@ -1381,7 +1392,7 @@ basen_ll_write_ready(void *cb_data)
     if (ndata->state == BASEN_IN_FILTER_CLOSE)
 	basen_filter_try_close(ndata, false);
     if (ndata->state == BASEN_CLOSE_WAIT_DRAIN &&
-		!filter_ll_write_pending(ndata)) {
+		!filter_ll_write_queued(ndata)) {
 	basen_set_state(ndata, BASEN_IN_FILTER_CLOSE);
 	basen_filter_try_close(ndata, false);
     }
@@ -1437,7 +1448,7 @@ basen_start_timer_op(void *cb_data, gensio_time *timeout)
 {
     struct basen_data *ndata = cb_data;
 
-    if (ndata->state == BASEN_OPEN) {
+    if (ndata->state == BASEN_OPEN || ndata->state == BASEN_CLOSE_WAIT_DRAIN) {
 	basen_start_timer(ndata, timeout);
     } else {
 	ndata->timer_start_pending = true;
@@ -1626,6 +1637,20 @@ gensio_filter_ll_can_write(struct gensio_filter *filter)
     /* If not implemented, this will just be ignored. */
     filter->func(filter, GENSIO_FILTER_FUNC_LL_CAN_WRITE,
 		 NULL, &val, NULL, NULL, NULL, 0, NULL);
+    return val;
+}
+
+bool
+gensio_filter_ll_write_queued(struct gensio_filter *filter)
+{
+    bool val = true;
+    int rv;
+
+    /* If not implemented, this will just be ignored. */
+    rv = filter->func(filter, GENSIO_FILTER_FUNC_LL_WRITE_QUEUED,
+		      NULL, &val, NULL, NULL, NULL, 0, NULL);
+    if (rv)
+	return gensio_filter_ll_write_pending(filter);
     return val;
 }
 
