@@ -209,8 +209,9 @@ trace_ul_write(struct gensio_filter *filter,
     err = handler(cb_data, &count, sg, sglen, auxdata);
     if (tfilter->dir == TRACE_WRITE || tfilter->dir == TRACE_BOTH) {
 	trace_lock(tfilter);
-	trace_data("Write", tfilter->o, tfilter->tr, tfilter->raw, err,
-		   count, sg, sglen);
+	if (tfilter->tr)
+	    trace_data("Write", tfilter->o, tfilter->tr, tfilter->raw, err,
+		       count, sg, sglen);
 	trace_unlock(tfilter);
     }
     if (!err && rcount)
@@ -235,8 +236,9 @@ trace_ll_write(struct gensio_filter *filter,
 	struct gensio_sg sg = {buf, buflen};
 
 	trace_lock(tfilter);
-	trace_data("Read", tfilter->o, tfilter->tr, tfilter->raw, err,
-		   count, &sg, 1);
+	if (tfilter->tr)
+	    trace_data("Read", tfilter->o, tfilter->tr, tfilter->raw, err,
+		       count, &sg, 1);
 	trace_unlock(tfilter);
     }
     if (!err && rcount)
