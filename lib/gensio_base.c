@@ -1289,6 +1289,21 @@ gensio_base_func(struct gensio *io, int func, gensiods *count,
     }
 }
 
+static void
+basen_check_open_close_ops(struct basen_data *ndata)
+{
+    if (ndata->state == BASEN_IN_FILTER_OPEN)
+	basen_filter_try_connect_finish(ndata, false);
+    if (ndata->state == BASEN_IN_FILTER_CLOSE)
+	basen_filter_try_close(ndata, false);
+    if (ndata->state == BASEN_CLOSE_WAIT_DRAIN) {
+	if (!filter_ll_write_queued(ndata)) {
+	    basen_set_state(ndata, BASEN_IN_FILTER_CLOSE);
+	    basen_filter_try_close(ndata, false);
+	}
+    }
+}
+
 static gensiods
 basen_ll_read(void *cb_data, int readerr,
 	      unsigned char *ibuf, gensiods buflen,
@@ -1338,10 +1353,7 @@ basen_ll_read(void *cb_data, int readerr,
 	} while (ndata->read_enabled && buflen > 0);
 	ndata->in_read = false;
 
-	if (ndata->state == BASEN_IN_FILTER_OPEN)
-	    basen_filter_try_connect_finish(ndata, false);
-	if (ndata->state == BASEN_IN_FILTER_CLOSE)
-	    basen_filter_try_close(ndata, false);
+	basen_check_open_close_ops(ndata);
     }
 
  out_finish:
@@ -1387,15 +1399,8 @@ basen_ll_write_ready(void *cb_data)
 	}
     }
 
-    if (ndata->state == BASEN_IN_FILTER_OPEN)
-	basen_filter_try_connect_finish(ndata, false);
-    if (ndata->state == BASEN_IN_FILTER_CLOSE)
-	basen_filter_try_close(ndata, false);
-    if (ndata->state == BASEN_CLOSE_WAIT_DRAIN &&
-		!filter_ll_write_queued(ndata)) {
-	basen_set_state(ndata, BASEN_IN_FILTER_CLOSE);
-	basen_filter_try_close(ndata, false);
-    }
+    basen_check_open_close_ops(ndata);
+
     if (ndata->state == BASEN_OPEN && !filter_ll_write_pending(ndata)
 		&& ndata->xmit_enabled) {
 	basen_unlock(ndata);
