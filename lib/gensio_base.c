@@ -246,44 +246,48 @@ basen_finish_free(struct basen_data *ndata)
 }
 
 static void
-basen_ref(struct basen_data *ndata)
+i_basen_ref(struct basen_data *ndata, int line)
 {
     assert(ndata->refcount > 0);
     ndata->refcount++;
-    i_basen_add_trace(ndata, 1000 + ndata->refcount, __LINE__);
+    i_basen_add_trace(ndata, 1000 + ndata->refcount, line);
 }
+#define basen_ref(ndata) i_basen_ref((ndata), __LINE__)
 
 static void
-basen_lock_and_ref(struct basen_data *ndata)
+i_basen_lock_and_ref(struct basen_data *ndata, int line)
 {
     basen_lock(ndata);
-    basen_ref(ndata);
+    i_basen_ref(ndata, line);
 }
+#define basen_lock_and_ref(ndata) i_basen_lock_and_ref((ndata), __LINE__)
 
 /*
  * This can *only* be called if the refcount is guaranteed not to reach
  * zero.
  */
 static void
-basen_deref(struct basen_data *ndata)
+i_basen_deref(struct basen_data *ndata, int line)
 {
     assert(ndata->refcount > 1);
-    i_basen_add_trace(ndata, 1000 + ndata->refcount, __LINE__);
+    i_basen_add_trace(ndata, 1000 + ndata->refcount, line);
     ndata->refcount--;
 }
+#define basen_deref(ndata) i_basen_deref((ndata), __LINE__)
 
 static void
-basen_deref_and_unlock(struct basen_data *ndata)
+i_basen_deref_and_unlock(struct basen_data *ndata, int line)
 {
     unsigned int count;
 
     assert(ndata->refcount > 0);
-    i_basen_add_trace(ndata, 1000 + ndata->refcount, __LINE__);
+    i_basen_add_trace(ndata, 1000 + ndata->refcount, line);
     count = --ndata->refcount;
     basen_unlock(ndata);
     if (count == 0)
 	basen_finish_free(ndata);
 }
+#define basen_deref_and_unlock(ndata) i_basen_deref_and_unlock((ndata), __LINE__)
 
 static void
 basen_start_timer(struct basen_data *ndata, gensio_time *timeout)
