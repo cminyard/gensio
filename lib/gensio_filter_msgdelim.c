@@ -208,11 +208,13 @@ msgdelim_ul_write(struct gensio_filter *filter,
 
 	sg[0].buflen = len;
 	sg[0].buf = mfilter->write_data + mfilter->write_data_pos;
-	
+
 	msgdelim_unlock(mfilter);
 	err = handler(cb_data, &count, sg, 1, NULL);
 	msgdelim_lock(mfilter);
-	if (!err) {
+	if (err) {
+	    mfilter->out_msg_complete = false;
+	} else {
 	    if (count >= len) {
 		mfilter->write_data_len = 0;
 		mfilter->write_data_pos = 0;
