@@ -43,7 +43,12 @@ trace_gensio_alloc(struct gensio *child, const char *const args[],
 	return GE_NOMEM;
     }
 
-    gensio_set_is_packet(io, true);
+    gensio_set_is_reliable(io, gensio_is_reliable(child));
+    gensio_set_is_packet(io, gensio_is_packet(child));
+    gensio_set_is_authenticated(io, gensio_is_authenticated(child));
+    gensio_set_is_encrypted(io, gensio_is_encrypted(child));
+    gensio_set_is_message(io, gensio_is_message(child));
+
     gensio_free(child); /* Lose the ref we acquired. */
 
     *net = io;
@@ -161,6 +166,9 @@ trace_gensio_accepter_alloc(struct gensio_accepter *child,
 				       &nadata->acc);
     if (err)
 	goto out_err;
+    gensio_acc_set_is_reliable(nadata->acc, gensio_acc_is_reliable(child));
+    gensio_acc_set_is_packet(nadata->acc, gensio_acc_is_packet(child));
+    gensio_acc_set_is_message(nadata->acc, gensio_acc_is_message(child));
     *accepter = nadata->acc;
 
     return 0;
