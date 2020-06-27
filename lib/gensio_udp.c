@@ -1113,9 +1113,11 @@ udpna_readhandler(int fd, void *cbdata)
     } else {
 	ndata = udpn_find(&nadata->udpns, addr);
     }
-    if (ndata)
+    if (ndata) {
 	/* Data belongs to an existing connection. */
+	nadata->pending_data_owner = ndata;
 	goto got_ndata;
+    }
 
     if (nadata->closed || !nadata->enabled) {
 	nadata->data_pending_len = 0;
