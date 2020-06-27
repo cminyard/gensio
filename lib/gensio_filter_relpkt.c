@@ -935,7 +935,6 @@ relpkt_ll_write(struct relpkt_filter *rfilter,
 		p->ready = true;
 		p->eom = buf[0] & 1;
 	    }
-	    send_ack(rfilter);
 	    break;
 
 	default:
@@ -1020,6 +1019,7 @@ relpkt_ll_write(struct relpkt_filter *rfilter,
 		p->ready = false;
 		rfilter->deliver_recvpkt = recvpkt_pos(rfilter, 1);
 		rfilter->next_deliver_seq++;
+		send_ack(rfilter);
 	    } else {
 		p->start += count;
 	    }
