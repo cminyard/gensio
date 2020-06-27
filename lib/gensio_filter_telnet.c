@@ -123,6 +123,13 @@ telnet_ll_write_pending(struct gensio_filter *filter)
     return rv;
 }
 
+static void
+telnet_clear_write(struct telnet_filter *tfilter)
+{
+    tfilter->write_data_len = 0;
+    buffer_reset(&tfilter->tn_data.out_telnet_cmd);
+}
+
 static bool
 telnet_ll_read_needed(struct gensio_filter *filter)
 {
@@ -223,7 +230,9 @@ telnet_ul_write(struct gensio_filter *filter,
 
 	err = buffer_write(telnet_buffer_do_write, &data,
 			   &tfilter->tn_data.out_telnet_cmd);
-	if (!err) {
+	if (err) {
+	    telnet_clear_write(tfilter);
+	} else {
 	    if (buffer_cursize(&tfilter->tn_data.out_telnet_cmd))
 		tfilter->write_state = TELNET_IN_TN_WRITE;
 	    else
@@ -238,7 +247,9 @@ telnet_ul_write(struct gensio_filter *filter,
 				tfilter->write_data_len };
 
 	err = handler(cb_data, &count, &sg, 1, auxdata);
-	if (!err) {
+	if (err) {
+	    telnet_clear_write(tfilter);
+	} else {
 	    if (count >= tfilter->write_data_len) {
 		tfilter->write_state = TELNET_NOT_WRITING;
 		tfilter->write_data_len = 0;
