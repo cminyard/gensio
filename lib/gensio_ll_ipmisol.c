@@ -455,15 +455,6 @@ gio_get_real_time(os_handler_t *handler, struct timeval *tv)
     return 0;
 }
 
-static void
-gio_free(os_handler_t *gio)
-{
-    struct igensio_info *info = gio->internal_data;
-
-    free(info);
-    free(gio);
-}
-
 void ipmi_malloc_init(os_handler_t *oshandler);
 void ipmi_malloc_shutdown(void);
 
