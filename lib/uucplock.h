@@ -7,6 +7,8 @@
 
 #include <stdbool.h>
 
+#include <gensio/gensio.h>
+
 extern bool gensio_uucp_locking_enabled;
 
 void uucp_rm_lock(char *devname);
