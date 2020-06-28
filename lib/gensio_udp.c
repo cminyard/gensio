@@ -500,8 +500,10 @@ udpn_finish_read(struct udpn_data *ndata)
 	strcpy(raddrdata, "addr:");
 	err = gensio_addr_to_str(nadata->curr_recvaddr, raddrdata, &pos,
 				 addrlen);
-	if (err)
+	if (err) {
 	    strncpy(raddrdata, gensio_err_to_str(err), sizeof(raddrdata));
+	    raddrdata[sizeof(raddrdata) - 1] = '\0';
+	}
     }
     gensio_cb(io, GENSIO_EVENT_READ, 0, nadata->read_data, &count, auxdata);
     udpna_lock(nadata);
