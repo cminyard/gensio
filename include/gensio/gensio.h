@@ -19,6 +19,7 @@ extern "C" {
 #endif
 
 #include <gensio/gensio_dllvisibility.h>
+#include <gensio/gensio_deprecated.h>
 #include <gensio/gensio_os_funcs.h>
 #include <gensio/gensio_err.h>
 #include <gensio/gensio_version.h>
@@ -107,11 +108,13 @@ int gensio_write_sg(struct gensio *io, gensiods *count,
 /* DEPRECATED - Do not use this function. */
 GENSIO_DLL_PUBLIC
 int gensio_raddr_to_str(struct gensio *io, gensiods *pos,
-			char *buf, gensiods buflen);
+			char *buf, gensiods buflen)
+    GENSIO_FUNC_DEPRECATED;
 
 /* DEPRECATED - Do not use this function. */
 GENSIO_DLL_PUBLIC
-int gensio_get_raddr(struct gensio *io, void *addr, gensiods *addrlen);
+int gensio_get_raddr(struct gensio *io, void *addr, gensiods *addrlen)
+    GENSIO_FUNC_DEPRECATED;
 
 GENSIO_DLL_PUBLIC
 int gensio_open(struct gensio *io, gensio_done_err open_done, void *open_data);
