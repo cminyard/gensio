@@ -7,6 +7,7 @@
 
 #ifndef GENSIO_ERR_H
 #define GENSIO_ERR_H
+#include <gensio/gensio_dllvisibility.h>
 #include <gensio/gensio_os_funcs.h>
 
 #define GE_NOERR		0
@@ -65,8 +66,10 @@
 #define gensio_os_err_to_err(o, oserr)					\
     gensio_i_os_err_to_err(o, oserr, __FUNCTION__, __FILE__, __LINE__)
 
+GENSIO_DLL_PUBLIC
 const char *gensio_err_to_str(int err);
 
+GENSIO_DLL_PUBLIC
 int gensio_i_os_err_to_err(struct gensio_os_funcs *o,
 			   int oserr, const char *caller,
 			   const char *file, unsigned int lineno);

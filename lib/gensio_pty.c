@@ -26,6 +26,7 @@
 #include <gensio/gensio_ll_fd.h>
 #include <gensio/argvutils.h>
 #include <gensio/gensio_osops.h>
+#include <gensio/gensio_builtins.h>
 
 struct pty_data {
     struct gensio_os_funcs *o;

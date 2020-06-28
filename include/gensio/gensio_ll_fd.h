@@ -8,6 +8,7 @@
 #ifndef GENSIO_LL_FD_H
 #define GENSIO_LL_FD_H
 
+#include <gensio/gensio_dllvisibility.h>
 #include <gensio/gensio_base.h>
 
 enum gensio_ll_close_state {
@@ -47,9 +48,11 @@ struct gensio_fd_ll_ops {
 		 const char *const *auxdata);
 };
 
+GENSIO_DLL_PUBLIC
 gensiods gensio_fd_ll_callback(struct gensio_ll *ll, int op, int val,
 			       void *buf, gensiods buflen, void *data);
 
+GENSIO_DLL_PUBLIC
 void gensio_fd_ll_handle_incoming(struct gensio_ll *ll,
 				  int (*doread)(int fd, void *buf,
 						gensiods count,
@@ -59,6 +62,7 @@ void gensio_fd_ll_handle_incoming(struct gensio_ll *ll,
 				  const char **auxdata,
 				  void *cb_data);
 
+GENSIO_DLL_PUBLIC
 struct gensio_ll *fd_gensio_ll_alloc(struct gensio_os_funcs *o,
 				     int fd,
 				     const struct gensio_fd_ll_ops *ops,

@@ -106,6 +106,7 @@ do_break(int fd)
 
 #include <gensio/sergensio_class.h>
 #include <gensio/gensio_ll_fd.h>
+#include <gensio/gensio_builtins.h>
 
 #include "uucplock.h"
 #include "utils.h"

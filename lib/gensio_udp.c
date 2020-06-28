@@ -919,7 +919,7 @@ udpna_control_lport(struct udpna_data *nadata, bool get,
     return 0;
 }
 
-int
+static int
 udpn_control(struct gensio *io, bool get, int option,
 	     char *data, gensiods *datalen)
 {
@@ -1341,7 +1341,7 @@ udpna_disable(struct gensio_accepter *accepter)
     nadata->disabled = true;
 }
 
-int
+static int
 udpna_str_to_gensio(struct gensio_accepter *accepter, const char *addrstr,
 		    gensio_event cb, void *user_data, struct gensio **new_net)
 {

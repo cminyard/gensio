@@ -264,7 +264,7 @@ static const struct gensio_fd_ll_ops net_fd_ll_ops = {
     .write = net_write
 };
 
-int
+static int
 net_gensio_alloc(struct gensio_addr *iai, const char * const args[],
 		 struct gensio_os_funcs *o,
 		 gensio_event cb, void *user_data, const char *type,
@@ -938,7 +938,7 @@ net_gensio_accepter_alloc(struct gensio_addr *iai,
     return err;
 }
 
-int
+static int
 str_to_net_gensio_accepter(const char *str, const char * const args[],
 			   int protocol, const char *typestr,
 			   struct gensio_os_funcs *o,

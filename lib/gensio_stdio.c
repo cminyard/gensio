@@ -21,6 +21,7 @@
 #include <gensio/gensio.h>
 #include <gensio/gensio_class.h>
 #include <gensio/gensio_osops.h>
+#include <gensio/gensio_builtins.h>
 
 #include "utils.h"
 

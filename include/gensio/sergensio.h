@@ -17,6 +17,7 @@
 extern "C" {
 #endif
 
+#include <gensio/gensio_dllvisibility.h>
 #include <gensio/gensio.h>
 
 struct sergensio;
@@ -24,7 +25,9 @@ struct sergensio;
 /*
  * Cast between sergensio and gensio types.  If
  */
+GENSIO_DLL_PUBLIC
 struct gensio *sergensio_to_gensio(struct sergensio *sio);
+GENSIO_DLL_PUBLIC
 struct sergensio *gensio_to_sergensio(struct gensio *io);
 
 typedef void (*sergensio_done)(struct sergensio *sio, int err,
@@ -49,9 +52,11 @@ typedef void (*sergensio_done_sig)(struct sergensio *sio, int err,
  * ignored.
  */
 
+GENSIO_DLL_PUBLIC
 int sergensio_baud(struct sergensio *sio, unsigned int baud,
 		   sergensio_done done, void *cb_data);
 
+GENSIO_DLL_PUBLIC
 int sergensio_datasize(struct sergensio *sio, unsigned int datasize,
 		       sergensio_done done, void *cb_data);
 
@@ -60,39 +65,47 @@ int sergensio_datasize(struct sergensio *sio, unsigned int datasize,
 #define SERGENSIO_PARITY_EVEN	3
 #define SERGENSIO_PARITY_MARK	4
 #define SERGENSIO_PARITY_SPACE	5
+GENSIO_DLL_PUBLIC
 int sergensio_parity(struct sergensio *sio, unsigned int parity,
 		     sergensio_done done, void *cb_data);
 
+GENSIO_DLL_PUBLIC
 int sergensio_stopbits(struct sergensio *sio, unsigned int stopbits,
 		       sergensio_done done, void *cb_data);
 
 #define SERGENSIO_FLOWCONTROL_NONE	1
 #define SERGENSIO_FLOWCONTROL_XON_XOFF	2
 #define SERGENSIO_FLOWCONTROL_RTS_CTS	3
+GENSIO_DLL_PUBLIC
 int sergensio_flowcontrol(struct sergensio *sio, unsigned int flowcontrol,
 			  sergensio_done done, void *cb_data);
 
 #define SERGENSIO_FLOWCONTROL_DCD	4
 #define SERGENSIO_FLOWCONTROL_DTR	5
 #define SERGENSIO_FLOWCONTROL_DSR	6
+GENSIO_DLL_PUBLIC
 int sergensio_iflowcontrol(struct sergensio *sio, unsigned int iflowcontrol,
 			   sergensio_done done, void *cb_data);
 
 #define SERGENSIO_BREAK_ON	1
 #define SERGENSIO_BREAK_OFF	2
+GENSIO_DLL_PUBLIC
 int sergensio_sbreak(struct sergensio *sio, unsigned int breakv,
 		     sergensio_done done, void *cb_data);
 
 #define SERGENSIO_DTR_ON	1
 #define SERGENSIO_DTR_OFF	2
+GENSIO_DLL_PUBLIC
 int sergensio_dtr(struct sergensio *sio, unsigned int dtr,
 		  sergensio_done done, void *cb_data);
 
 #define SERGENSIO_RTS_ON	1
 #define SERGENSIO_RTS_OFF	2
+GENSIO_DLL_PUBLIC
 int sergensio_rts(struct sergensio *sio, unsigned int rts,
 		  sergensio_done done, void *cb_data);
 
+GENSIO_DLL_PUBLIC
 int sergensio_signature(struct sergensio *sio,
 			const char *sig, unsigned int len,
 			sergensio_done_sig done, void *cb_data);
@@ -109,6 +122,7 @@ int sergensio_signature(struct sergensio *sio,
 #define SERGENSIO_LINESTATE_XMIT_HOLD_EMPTY	(1 << 5)
 #define SERGENSIO_LINESTATE_XMIT_SHIFT_EMPTY	(1 << 6)
 #define SERGENSIO_LINESTATE_TIMEOUT_ERR		(1 << 7)
+GENSIO_DLL_PUBLIC
 int sergensio_linestate(struct sergensio *sio, unsigned int linestate);
 
 /* Note that for modemstate you should use the low 4 bits. */
@@ -120,6 +134,7 @@ int sergensio_linestate(struct sergensio *sio, unsigned int linestate);
 #define SERGENSIO_MODEMSTATE_DSR		(1 << 5)
 #define SERGENSIO_MODEMSTATE_RI			(1 << 6)
 #define SERGENSIO_MODEMSTATE_CD			(1 << 7)
+GENSIO_DLL_PUBLIC
 int sergensio_modemstate(struct sergensio *sio, unsigned int modemstate);
 
 /*
@@ -127,6 +142,7 @@ int sergensio_modemstate(struct sergensio *sio, unsigned int modemstate);
  * remote end should disable transmission, false if it should enable
  * transmission.
  */
+GENSIO_DLL_PUBLIC
 int sergensio_flowcontrol_state(struct sergensio *sio, bool val);
 
 /*
@@ -135,16 +151,19 @@ int sergensio_flowcontrol_state(struct sergensio *sio, bool val);
 #define SERGIO_FLUSH_RCV_BUFFER		1
 #define SERGIO_FLUSH_XMIT_BUFFER	2
 #define SERGIO_FLUSH_RCV_XMIT_BUFFERS	3
+GENSIO_DLL_PUBLIC
 int sergensio_flush(struct sergensio *sio, unsigned int val);
 
 /*
  * Tell the remote end to send a break.
  */
+GENSIO_DLL_PUBLIC
 int sergensio_send_break(struct sergensio *sio);
 
 /*
  * Return the user data supplied in the alloc function.
  */
+GENSIO_DLL_PUBLIC
 void *sergensio_get_user_data(struct sergensio *io);
 
 /*
@@ -164,17 +183,28 @@ void *sergensio_get_user_data(struct sergensio *io);
  */
 struct sergensio_b;
 
+GENSIO_DLL_PUBLIC
 int sergensio_b_alloc(struct sergensio *sio, struct gensio_os_funcs *o,
 		      struct sergensio_b **new_sbio);
+GENSIO_DLL_PUBLIC
 void sergensio_b_free(struct sergensio_b *sbio);
+GENSIO_DLL_PUBLIC
 int sergensio_baud_b(struct sergensio_b *sbio, int *baud);
+GENSIO_DLL_PUBLIC
 int sergensio_datasize_b(struct sergensio_b *sbio, int *datasize);
+GENSIO_DLL_PUBLIC
 int sergensio_parity_b(struct sergensio_b *sbio, int *parity);
+GENSIO_DLL_PUBLIC
 int sergensio_stopbits_b(struct sergensio_b *sbio, int *stopbits);
+GENSIO_DLL_PUBLIC
 int sergensio_flowcontrol_b(struct sergensio_b *sbio, int *flowcontrol);
+GENSIO_DLL_PUBLIC
 int sergensio_iflowcontrol_b(struct sergensio_b *sbio, int *iflowcontrol);
+GENSIO_DLL_PUBLIC
 int sergensio_sbreak_b(struct sergensio_b *sbio, int *breakv);
+GENSIO_DLL_PUBLIC
 int sergensio_dtr_b(struct sergensio_b *sbio, int *dtr);
+GENSIO_DLL_PUBLIC
 int sergensio_rts_b(struct sergensio_b *sbio, int *rts);
 
 /*
@@ -223,6 +253,7 @@ int sergensio_rts_b(struct sergensio_b *sbio, int *rts);
 #define GENSIO_EVENT_SER_DTR		(SERGENIO_EVENT_BASE + 14)
 #define GENSIO_EVENT_SER_RTS		(SERGENIO_EVENT_BASE + 15)
 
+GENSIO_DLL_PUBLIC
 bool sergensio_is_client(struct sergensio *sio);
 
 #ifdef __cplusplus

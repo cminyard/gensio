@@ -10,6 +10,7 @@
 #include <gensio/gensio_class.h>
 
 #include "gensio_filter_certauth.h"
+#include "gensio_filter_ssl.h"
 
 struct gensio_certauth_filter_data {
     struct gensio_os_funcs *o;
@@ -42,6 +43,11 @@ struct gensio_certauth_filter_data {
 #include <openssl/pem.h>
 #include <openssl/rand.h>
 #include <openssl/err.h>
+
+/* In gensio_filter_ssl.c, semi-private. */
+int gensio_cert_get_name(X509 *cert, char *data, gensiods *datalen);
+int gensio_cert_to_buf(X509 *cert, char *buf, gensiods *datalen);
+int gensio_cert_fingerprint(X509 *cert, char *buf, gensiods *buflen);
 
 #if OPENSSL_VERSION_NUMBER < 0x10100000L
 #define X509_up_ref(x) CRYPTO_add(&x->references, 1, CRYPTO_LOCK_X509)
@@ -1589,11 +1595,6 @@ certauth_free(struct gensio_filter *filter)
 
     sfilter_free(sfilter);
 }
-
-/* In gensio_filter_ssl.c, semi-private. */
-int gensio_cert_get_name(X509 *cert, char *data, gensiods *datalen);
-int gensio_cert_to_buf(X509 *cert, char *buf, gensiods *datalen);
-int gensio_cert_fingerprint(X509 *cert, char *buf, gensiods *buflen);
 
 static int
 certauth_filter_control(struct gensio_filter *filter, bool get, int op,

@@ -10,6 +10,7 @@
 #include "config.h"
 #include <gensio/gensio.h>
 #include <gensio/gensio_class.h>
+#include <gensio/gensio_builtins.h>
 
 struct dummyna_data;
 

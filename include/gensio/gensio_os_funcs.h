@@ -18,6 +18,8 @@
 #include <stdarg.h>
 #include <stdint.h>
 
+#include <gensio/gensio_dllvisibility.h>
+
 typedef struct gensio_time {
     int64_t secs;
     int32_t nsecs;
@@ -49,8 +51,11 @@ enum gensio_log_levels {
  * A bitmask of log levels to tell what to log.  Defaults to fatal and err
  * only.
  */
+GENSIO_DLL_PUBLIC
 void gensio_set_log_mask(unsigned int mask);
+GENSIO_DLL_PUBLIC
 unsigned int gensio_get_log_mask(void);
+GENSIO_DLL_PUBLIC
 const char *gensio_log_level_to_str(enum gensio_log_levels level);
 
 struct gensio_os_funcs {
@@ -290,8 +295,10 @@ struct gensio_os_funcs {
 
 };
 
+GENSIO_DLL_PUBLIC
 void gensio_vlog(struct gensio_os_funcs *o, enum gensio_log_levels level,
 		 const char *str, va_list args);
+GENSIO_DLL_PUBLIC
 void gensio_log(struct gensio_os_funcs *o, enum gensio_log_levels level,
 		const char *str, ...);
 
@@ -299,6 +306,7 @@ void gensio_log(struct gensio_os_funcs *o, enum gensio_log_levels level,
  * Allocate the OS handler for the platform.  This will return the
  * same OS handler each time.  Can return GE_NOMEM if out of memory.
  */
+GENSIO_DLL_PUBLIC
 int gensio_default_os_hnd(int wake_sig, struct gensio_os_funcs **o);
 
 #endif /* GENSIO_OS_FUNCS */

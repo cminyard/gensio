@@ -37,13 +37,13 @@ bool print_raddr;
 
 static FILE *dummyrnd_file;
 
-int
+static int
 dummyrnd_seed(const void *buf, int num)
 {
     return 1;
 }
 
-int
+static int
 dummyrnd_bytes(unsigned char *buf, int num)
 {
     size_t rc;
@@ -68,24 +68,24 @@ dummyrnd_bytes(unsigned char *buf, int num)
     return count;
 }
 
-void
+static void
 dummyrnd_cleanup(void)
 {
 }
 
-int
+static int
 dummyrnd_add(const void *buf, int num, double randomness)
 {
     return 1;
 }
 
-int
+static int
 dummyrnd_pseudorand(unsigned char *buf, int num)
 {
     return dummyrnd_bytes(buf, num);
 }
 
-int
+static int
 dummyrnd_status(void)
 {
     return 1;

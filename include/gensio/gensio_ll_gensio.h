@@ -8,8 +8,10 @@
 #ifndef GENSIO_LL_GENSIO_H
 #define GENSIO_LL_GENSIO_H
 
+#include <gensio/gensio_dllvisibility.h>
 #include <gensio/gensio_base.h>
 
+GENSIO_DLL_PUBLIC
 struct gensio_ll *gensio_gensio_ll_alloc(struct gensio_os_funcs *o,
 					 struct gensio *child);
 

@@ -8,6 +8,7 @@
 #ifndef GENSIO_ACC_GENSIO_H
 #define GENSIO_ACC_GENSIO_H
 
+#include <gensio/gensio_dllvisibility.h>
 #include <gensio/gensio_base.h>
 
 /*
@@ -79,6 +80,7 @@ typedef int (*gensio_gensio_acc_cb)(void *acc_data, int op,
 				    void *data1, void *data2, void *data3,
 				    const void *data4);
 
+GENSIO_DLL_PUBLIC
 int gensio_gensio_accepter_alloc(struct gensio_accepter *child,
 				 struct gensio_os_funcs *o,
 				 const char *typename,

@@ -8,6 +8,7 @@
 #ifndef GENSIO_CLASS_H
 #define GENSIO_CLASS_H
 
+#include <gensio/gensio_dllvisibility.h>
 #include <gensio/gensio.h>
 #include <gensio/gensio_list.h>
 
@@ -109,23 +110,36 @@ typedef int (*gensio_func)(struct gensio *io, int func, gensiods *count,
  * the upper layer gets the error and wants to free it, too.  This
  * keeps it around for that situation.
  */
+GENSIO_DLL_PUBLIC
 void gensio_ref(struct gensio *io);
 
+GENSIO_DLL_PUBLIC
 struct gensio *gensio_data_alloc(struct gensio_os_funcs *o,
 				 gensio_event cb, void *user_data,
 				 gensio_func func, struct gensio *child,
 				 const char *typename, void *gensio_data);
+GENSIO_DLL_PUBLIC
 void gensio_data_free(struct gensio *io);
+GENSIO_DLL_PUBLIC
 void *gensio_get_gensio_data(struct gensio *io);
 
+GENSIO_DLL_PUBLIC
 void gensio_set_is_client(struct gensio *io, bool is_client);
+GENSIO_DLL_PUBLIC
 void gensio_set_is_packet(struct gensio *io, bool is_packet);
+GENSIO_DLL_PUBLIC
 void gensio_set_is_reliable(struct gensio *io, bool is_reliable);
+GENSIO_DLL_PUBLIC
 void gensio_set_is_authenticated(struct gensio *io, bool is_authenticate);
+GENSIO_DLL_PUBLIC
 void gensio_set_is_encrypted(struct gensio *io, bool is_encrypted);
+GENSIO_DLL_PUBLIC
 void gensio_set_is_message(struct gensio *io, bool is_message);
+GENSIO_DLL_PUBLIC
 gensio_event gensio_get_cb(struct gensio *io);
+GENSIO_DLL_PUBLIC
 void gensio_set_cb(struct gensio *io, gensio_event cb, void *user_data);
+GENSIO_DLL_PUBLIC
 int gensio_cb(struct gensio *io, int event, int err,
 	      unsigned char *buf, gensiods *buflen,
 	      const char *const *auxdata);
@@ -133,7 +147,9 @@ int gensio_cb(struct gensio *io, int event, int err,
 /*
  * Add and get the classdata for a gensio.
  */
+GENSIO_DLL_PUBLIC
 int gensio_addclass(struct gensio *io, const char *name, void *classdata);
+GENSIO_DLL_PUBLIC
 void *gensio_getclass(struct gensio *io, const char *name);
 
 /*
@@ -186,32 +202,45 @@ typedef int (*gensio_acc_func)(struct gensio_accepter *acc, int func, int val,
 			       const char *addr, void *done, void *data,
 			       const void *data2, void *ret);
 
+GENSIO_DLL_PUBLIC
 struct gensio_accepter *gensio_acc_data_alloc(struct gensio_os_funcs *o,
 		      gensio_accepter_event cb, void *user_data,
 		      gensio_acc_func func, struct gensio_accepter *child,
 		      const char *typename, void *gensio_acc_data);
+GENSIO_DLL_PUBLIC
 void gensio_acc_data_free(struct gensio_accepter *acc);
+GENSIO_DLL_PUBLIC
 void *gensio_acc_get_gensio_data(struct gensio_accepter *acc);
+GENSIO_DLL_PUBLIC
 int gensio_acc_cb(struct gensio_accepter *acc, int event, void *data);
+GENSIO_DLL_PUBLIC
 int gensio_acc_addclass(struct gensio_accepter *acc,
 			const char *name, void *classdata);
+GENSIO_DLL_PUBLIC
 void *gensio_acc_getclass(struct gensio_accepter *acc, const char *name);
 
 /*
  * Keep track of the gensios pending on an accepter.  Primarily so that
  * disable can handle them.
  */
+GENSIO_DLL_PUBLIC
 void gensio_acc_add_pending_gensio(struct gensio_accepter *acc,
 				   struct gensio *io);
+GENSIO_DLL_PUBLIC
 void gensio_acc_remove_pending_gensio(struct gensio_accepter *acc,
 				      struct gensio *io);
 
+GENSIO_DLL_PUBLIC
 void gensio_acc_set_is_packet(struct gensio_accepter *io, bool is_packet);
+GENSIO_DLL_PUBLIC
 void gensio_acc_set_is_reliable(struct gensio_accepter *io, bool is_reliable);
+GENSIO_DLL_PUBLIC
 void gensio_acc_set_is_message(struct gensio_accepter *io, bool is_message);
 
+GENSIO_DLL_PUBLIC
 void gensio_acc_vlog(struct gensio_accepter *acc, enum gensio_log_levels level,
 		     char *str, va_list args);
+GENSIO_DLL_PUBLIC
 void gensio_acc_log(struct gensio_accepter *acc, enum gensio_log_levels level,
 		    char *str, ...);
 
@@ -235,6 +264,7 @@ typedef int (*str_to_gensio_acc_child_handler)(struct gensio_accepter *child,
 /*
  * Add a gensio accepter to the set of registered gensio accepters.
  */
+GENSIO_DLL_PUBLIC
 int register_gensio_accepter(struct gensio_os_funcs *o,
 			     const char *name,
 			     str_to_gensio_acc_handler handler);
@@ -243,6 +273,7 @@ int register_gensio_accepter(struct gensio_os_funcs *o,
  * Like above, but use for filter gensios so str_to_gensio_accepter_child()
  * will work.
  */
+GENSIO_DLL_PUBLIC
 int register_filter_gensio_accepter(struct gensio_os_funcs *o,
 				    const char *name,
 				    str_to_gensio_acc_handler handler,
@@ -260,6 +291,7 @@ typedef int (*str_to_gensio_handler)(const char *str, const char * const args[],
 /*
  * Add a gensio to the set of registered gensios.
  */
+GENSIO_DLL_PUBLIC
 int register_gensio(struct gensio_os_funcs *o,
 		    const char *name, str_to_gensio_handler handler);
 
@@ -277,6 +309,7 @@ typedef int (*str_to_gensio_child_handler)(struct gensio *child,
 /*
  * Add a filter gensio to the set of gensios.
  */
+GENSIO_DLL_PUBLIC
 int register_filter_gensio(struct gensio_os_funcs *o,
 			   const char *name, str_to_gensio_handler handler,
 			   str_to_gensio_child_handler chandler);

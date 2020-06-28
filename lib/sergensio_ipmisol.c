@@ -8,6 +8,7 @@
 #include "config.h"
 
 #include <gensio/sergensio_class.h>
+#include <gensio/gensio_builtins.h>
 
 #include "utils.h"
 #include "gensio_ll_ipmisol.h"

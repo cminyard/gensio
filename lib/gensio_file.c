@@ -15,6 +15,7 @@
 #include <gensio/gensio.h>
 #include <gensio/gensio_class.h>
 #include <gensio/argvutils.h>
+#include <gensio/gensio_builtins.h>
 
 #if !USE_FILE_STDIO
 #include <errno.h>
@@ -620,7 +621,7 @@ file_ndata_setup(struct gensio_os_funcs *o, gensiods max_read_size,
     return GE_NOMEM;
 }
 
-int
+static int
 gensio_check_keymode(const char *str, const char *key, unsigned int *rmode)
 {
     const char *sval;

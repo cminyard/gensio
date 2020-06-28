@@ -8,6 +8,7 @@
 #ifndef GENSIO_BASE_H
 #define GENSIO_BASE_H
 
+#include <gensio/gensio_dllvisibility.h>
 #include <gensio/gensio.h>
 
 struct gensio_filter;
@@ -47,6 +48,7 @@ typedef int (*gensio_filter_cb)(void *cb_data, int func, void *data);
  *  void *cb_data => data
  */
 #define GENSIO_FILTER_FUNC_SET_CALLBACK		1
+GENSIO_DLL_PUBLIC
 void gensio_filter_set_callback(struct gensio_filter *filter,
 				gensio_filter_cb cb, void *cb_data);
 
@@ -54,18 +56,21 @@ void gensio_filter_set_callback(struct gensio_filter *filter,
  * Is there data ready to be read from the top of the filter? 
  */
 #define GENSIO_FILTER_FUNC_UL_READ_PENDING	2
+GENSIO_DLL_PUBLIC
 bool gensio_filter_ul_read_pending(struct gensio_filter *filter);
 
 /*
  * Is there data ready to be written out of the bottom of the filter?
  */
 #define GENSIO_FILTER_FUNC_LL_WRITE_PENDING	3
+GENSIO_DLL_PUBLIC
 bool gensio_filter_ll_write_pending(struct gensio_filter *filter);
 
 /*
  * Is the filter expecting that data should come in the bottom?
  */
 #define GENSIO_FILTER_FUNC_LL_READ_NEEDED	4
+GENSIO_DLL_PUBLIC
 bool gensio_filter_ll_read_needed(struct gensio_filter *filter);
 
 /*
@@ -76,6 +81,7 @@ bool gensio_filter_ll_read_needed(struct gensio_filter *filter);
  * io => data
  */
 #define GENSIO_FILTER_FUNC_CHECK_OPEN_DONE	5
+GENSIO_DLL_PUBLIC
 int gensio_filter_check_open_done(struct gensio_filter *filter,
 				  struct gensio *io);
 
@@ -90,6 +96,7 @@ int gensio_filter_check_open_done(struct gensio_filter *filter,
  * bool was_timeout => buflen
  */
 #define GENSIO_FILTER_FUNC_TRY_CONNECT		6
+GENSIO_DLL_PUBLIC
 int gensio_filter_try_connect(struct gensio_filter *filter,
 			      gensio_time *timeout,
 			      bool was_timeout);
@@ -105,6 +112,7 @@ int gensio_filter_try_connect(struct gensio_filter *filter,
  * bool was_timeout => buflen
  */
 #define GENSIO_FILTER_FUNC_TRY_DISCONNECT	7
+GENSIO_DLL_PUBLIC
 int gensio_filter_try_disconnect(struct gensio_filter *filter,
 				 gensio_time *timeout,
 				 bool was_timeout);
@@ -122,6 +130,7 @@ int gensio_filter_try_disconnect(struct gensio_filter *filter,
  * auxdata => buf
  */
 #define GENSIO_FILTER_FUNC_UL_WRITE_SG		8
+GENSIO_DLL_PUBLIC
 int gensio_filter_ul_write(struct gensio_filter *filter,
 			   gensio_ul_filter_data_handler handler, void *cb_data,
 			   gensiods *rcount,
@@ -140,6 +149,7 @@ int gensio_filter_ul_write(struct gensio_filter *filter,
  * buflen => buflen
  */
 #define GENSIO_FILTER_FUNC_LL_WRITE		9
+GENSIO_DLL_PUBLIC
 int gensio_filter_ll_write(struct gensio_filter *filter,
 			   gensio_ll_filter_data_handler handler, void *cb_data,
 			   gensiods *rcount,
@@ -150,6 +160,7 @@ int gensio_filter_ll_write(struct gensio_filter *filter,
  * Report a timeout for a timer the base started.
  */
 #define GENSIO_FILTER_FUNC_TIMEOUT		11
+GENSIO_DLL_PUBLIC
 void gensio_filter_timeout(struct gensio_filter *filter);
 
 /*
@@ -158,18 +169,21 @@ void gensio_filter_timeout(struct gensio_filter *filter);
  * io => data
  */
 #define GENSIO_FILTER_FUNC_SETUP		12
+GENSIO_DLL_PUBLIC
 int gensio_filter_setup(struct gensio_filter *filter, struct gensio *io);
 
 /*
  * Reset all internal data.
  */
 #define GENSIO_FILTER_FUNC_CLEANUP		13
+GENSIO_DLL_PUBLIC
 void gensio_filter_cleanup(struct gensio_filter *filter);
 
 /*
  * Free the filter.
  */
 #define GENSIO_FILTER_FUNC_FREE			14
+GENSIO_DLL_PUBLIC
 void gensio_filter_free(struct gensio_filter *filter);
 
 /*
@@ -181,6 +195,7 @@ void gensio_filter_free(struct gensio_filter *filter);
  * datalen => count
  */
 #define GENSIO_FILTER_FUNC_CONTROL		15
+GENSIO_DLL_PUBLIC
 int gensio_filter_control(struct gensio_filter *filter, bool get,
 			  unsigned int option, char *data, gensiods *datalen);
 
@@ -193,6 +208,7 @@ int gensio_filter_control(struct gensio_filter *filter, bool get,
  * &val => data
  */
 #define GENSIO_FILTER_FUNC_LL_CAN_WRITE		16
+GENSIO_DLL_PUBLIC
 bool gensio_filter_ll_can_write(struct gensio_filter *filter);
 
 /*
@@ -206,6 +222,7 @@ bool gensio_filter_ll_can_write(struct gensio_filter *filter);
  * &val => data
  */
 #define GENSIO_FILTER_FUNC_LL_WRITE_QUEUED	17
+GENSIO_DLL_PUBLIC
 bool gensio_filter_ll_write_queued(struct gensio_filter *filter);
 
 typedef int (*gensio_filter_func)(struct gensio_filter *filter, int op,
@@ -214,16 +231,20 @@ typedef int (*gensio_filter_func)(struct gensio_filter *filter, int op,
 				  const void *cbuf, gensiods buflen,
 				  const char *const *auxdata);
 
+GENSIO_DLL_PUBLIC
 int gensio_filter_do_event(struct gensio_filter *filter, int event, int err,
 			   unsigned char *buf, gensiods *buflen,
 			   const char *const *auxdata);
 
+GENSIO_DLL_PUBLIC
 struct gensio_filter *gensio_filter_alloc_data(struct gensio_os_funcs *o,
 					       gensio_filter_func func,
 					       void *user_data);
 
+GENSIO_DLL_PUBLIC
 void gensio_filter_free_data(struct gensio_filter *filter);
 
+GENSIO_DLL_PUBLIC
 void *gensio_filter_get_user_data(struct gensio_filter *filter);
 
 struct gensio_ll;
@@ -245,6 +266,7 @@ typedef gensiods (*gensio_ll_cb)(void *cb_data, int op, int val,
  * cb_data => buf
  */
 #define GENSIO_LL_FUNC_SET_CALLBACK		1
+GENSIO_DLL_PUBLIC
 void gensio_ll_set_callback(struct gensio_ll *ll,
 			    gensio_ll_cb cb, void *cb_data);
 
@@ -257,6 +279,7 @@ void gensio_ll_set_callback(struct gensio_ll *ll,
  * auxdata => buf
  */
 #define GENSIO_LL_FUNC_WRITE_SG			2
+GENSIO_DLL_PUBLIC
 int gensio_ll_write(struct gensio_ll *ll, gensiods *rcount,
 		    const struct gensio_sg *sg, gensiods sglen,
 		    const char *const *auxdata);
@@ -284,6 +307,7 @@ int gensio_ll_write(struct gensio_ll *ll, gensiods *rcount,
  * open_data => buf
  */
 #define GENSIO_LL_FUNC_OPEN			6
+GENSIO_DLL_PUBLIC
 int gensio_ll_open(struct gensio_ll *ll,
 		   gensio_ll_open_done done, void *open_data);
 
@@ -294,6 +318,7 @@ int gensio_ll_open(struct gensio_ll *ll,
  * close_data => buf
  */
 #define GENSIO_LL_FUNC_CLOSE			7
+GENSIO_DLL_PUBLIC
 int gensio_ll_close(struct gensio_ll *ll,
 		    gensio_ll_close_done done, void *close_data);
 
@@ -301,15 +326,18 @@ int gensio_ll_close(struct gensio_ll *ll,
  * enabled => buflen
  */
 #define GENSIO_LL_FUNC_SET_READ_CALLBACK	8
+GENSIO_DLL_PUBLIC
 void gensio_ll_set_read_callback(struct gensio_ll *ll, bool enabled);
 
 /*
  * enabled => buflen
  */
 #define GENSIO_LL_FUNC_SET_WRITE_CALLBACK	9
+GENSIO_DLL_PUBLIC
 void gensio_ll_set_write_callback(struct gensio_ll *ll, bool enabled);
 
 #define GENSIO_LL_FUNC_FREE			10
+GENSIO_DLL_PUBLIC
 void gensio_ll_free(struct gensio_ll *ll);
 
 /*
@@ -319,10 +347,12 @@ void gensio_ll_free(struct gensio_ll *ll);
  * datalen => count
  */
 #define GENSIO_LL_FUNC_CONTROL			11
+GENSIO_DLL_PUBLIC
 int gensio_ll_control(struct gensio_ll *ll, bool get, int option, char *data,
 		      gensiods *datalen);
 
 #define GENSIO_LL_FUNC_DISABLE			12
+GENSIO_DLL_PUBLIC
 void gensio_ll_disable(struct gensio_ll *ll);
 
 typedef int (*gensio_ll_func)(struct gensio_ll *ll, int op,
@@ -334,20 +364,26 @@ typedef int (*gensio_ll_func)(struct gensio_ll *ll, int op,
 /*
  * Get the gensio associated with the filter.
  */
+GENSIO_DLL_PUBLIC
 struct gensio *gensio_filter_get_gensio(struct gensio_filter *filter);
 
 /*
  * Call the event interface of the upper layer.
  */
+GENSIO_DLL_PUBLIC
 int gensio_ll_do_event(struct gensio_ll *ll, int event, int err,
 		       unsigned char *buf, gensiods *buflen,
 		       const char *const *auxdata);
 
+GENSIO_DLL_PUBLIC
 struct gensio_ll *gensio_ll_alloc_data(struct gensio_os_funcs *o,
 				       gensio_ll_func func, void *user_data);
+GENSIO_DLL_PUBLIC
 void gensio_ll_free_data(struct gensio_ll *ll);
+GENSIO_DLL_PUBLIC
 void *gensio_ll_get_user_data(struct gensio_ll *ll);
 
+GENSIO_DLL_PUBLIC
 struct gensio *base_gensio_alloc(struct gensio_os_funcs *o,
 				 struct gensio_ll *ll,
 				 struct gensio_filter *filter,
@@ -355,6 +391,7 @@ struct gensio *base_gensio_alloc(struct gensio_os_funcs *o,
 				 const char *typename,
 				 gensio_event cb, void *user_data);
 
+GENSIO_DLL_PUBLIC
 struct gensio *base_gensio_server_alloc(struct gensio_os_funcs *o,
 					struct gensio_ll *ll,
 					struct gensio_filter *filter,
@@ -368,6 +405,7 @@ struct gensio *base_gensio_server_alloc(struct gensio_os_funcs *o,
  * call this.  This lets you do some gensio configuration and handle
  * errors more easily.
  */
+GENSIO_DLL_PUBLIC
 int base_gensio_server_start(struct gensio *io);
 
 /*
@@ -450,7 +488,9 @@ typedef int (*gensio_base_acc_op)(struct gensio_accepter *acc, int op,
  * gensio error if you get one, zero othersize.  Note that this claims
  * and releases a lock.
  */
+GENSIO_DLL_PUBLIC
 int base_gensio_accepter_new_child_start(struct gensio_accepter *accepter);
+GENSIO_DLL_PUBLIC
 void base_gensio_accepter_new_child_end(struct gensio_accepter *accepter,
 					struct gensio *io, int err);
 
@@ -459,6 +499,7 @@ void base_gensio_accepter_new_child_end(struct gensio_accepter *accepter,
  * function to report the new event on the gensio and handle any
  * internal cleanup.  Pass in the error if there is a failure.
  */
+GENSIO_DLL_PUBLIC
 void base_gensio_server_open_done(struct gensio_accepter *accepter,
 				  struct gensio *net, int err);
 
@@ -467,6 +508,7 @@ void base_gensio_server_open_done(struct gensio_accepter *accepter,
  * isn't one, this is just passed to the main gensio accepter
  * allocation.
  */
+GENSIO_DLL_PUBLIC
 int base_gensio_accepter_alloc(struct gensio_accepter *child,
 			       gensio_base_acc_op ops,
 			       void *acc_op_data,

@@ -218,11 +218,11 @@ struct os_funcs_data {
 };
 
 #ifdef USE_POSIX_THREADS
-void os_funcs_lock(struct os_funcs_data *odata)
+static void os_funcs_lock(struct os_funcs_data *odata)
 {
     pthread_mutex_lock(&odata->lock);
 }
-void os_funcs_unlock(struct os_funcs_data *odata)
+static void os_funcs_unlock(struct os_funcs_data *odata)
 {
     pthread_mutex_unlock(&odata->lock);
 }

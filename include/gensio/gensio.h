@@ -18,6 +18,7 @@
 extern "C" {
 #endif
 
+#include <gensio/gensio_dllvisibility.h>
 #include <gensio/gensio_os_funcs.h>
 #include <gensio/gensio_err.h>
 #include <gensio/gensio_version.h>
@@ -66,22 +67,28 @@ typedef void (*gensio_done)(struct gensio *io, void *open_data);
  */
 typedef void (*gensio_done_err)(struct gensio *io, int err, void *open_data);
 
+GENSIO_DLL_PUBLIC
 int str_to_gensio(const char *str,
 		  struct gensio_os_funcs *o,
 		  gensio_event cb, void *user_data,
 		  struct gensio **gensio);
 
+GENSIO_DLL_PUBLIC
 int str_to_gensio_child(struct gensio *child, const char *str,
 			struct gensio_os_funcs *o,
 			gensio_event cb, void *user_data,
 			struct gensio **gensio);
 
+GENSIO_DLL_PUBLIC
 void gensio_set_callback(struct gensio *io, gensio_event cb, void *user_data);
 
+GENSIO_DLL_PUBLIC
 void *gensio_get_user_data(struct gensio *io);
 
+GENSIO_DLL_PUBLIC
 void gensio_set_user_data(struct gensio *io, void *user_data);
 
+GENSIO_DLL_PUBLIC
 int gensio_write(struct gensio *io, gensiods *count,
 		 const void *buf, gensiods buflen,
 		 const char *const *auxdata);
@@ -92,49 +99,64 @@ struct gensio_sg {
     gensiods buflen;
 };
 
+GENSIO_DLL_PUBLIC
 int gensio_write_sg(struct gensio *io, gensiods *count,
 		    const struct gensio_sg *sg, gensiods sglen,
 		    const char *const *auxdata);
 
 /* DEPRECATED - Do not use this function. */
+GENSIO_DLL_PUBLIC
 int gensio_raddr_to_str(struct gensio *io, gensiods *pos,
 			char *buf, gensiods buflen);
 
 /* DEPRECATED - Do not use this function. */
+GENSIO_DLL_PUBLIC
 int gensio_get_raddr(struct gensio *io, void *addr, gensiods *addrlen);
 
+GENSIO_DLL_PUBLIC
 int gensio_open(struct gensio *io, gensio_done_err open_done, void *open_data);
 
+GENSIO_DLL_PUBLIC
 int gensio_open_s(struct gensio *io);
 
+GENSIO_DLL_PUBLIC
 int gensio_open_nochild(struct gensio *io, gensio_done_err open_done,
 			void *open_data);
 
+GENSIO_DLL_PUBLIC
 int gensio_open_nochild_s(struct gensio *io);
 
+GENSIO_DLL_PUBLIC
 int gensio_alloc_channel(struct gensio *io, const char * const args[],
 			 gensio_event cb, void *user_data,
 			 struct gensio **new_io);
 
+GENSIO_DLL_PUBLIC
 int gensio_close(struct gensio *io, gensio_done close_done, void *close_data);
 
+GENSIO_DLL_PUBLIC
 int gensio_close_s(struct gensio *io);
 
+GENSIO_DLL_PUBLIC
 void gensio_disable(struct gensio *io);
 
+GENSIO_DLL_PUBLIC
 void gensio_free(struct gensio *io);
 
 /*
  * Enable or disable data to be read from the network connection.
  */
+GENSIO_DLL_PUBLIC
 void gensio_set_read_callback_enable(struct gensio *io, bool enabled);
 
 /*
  * Enable the write_callback when data can be written on the
  * network connection.
  */
+GENSIO_DLL_PUBLIC
 void gensio_set_write_callback_enable(struct gensio *io, bool enabled);
 
+GENSIO_DLL_PUBLIC
 int gensio_control(struct gensio *io, int depth, bool get,
 		   unsigned int option, char *data, gensiods *datalen);
 #define GENSIO_CONTROL_DEPTH_ALL	-1
@@ -164,26 +186,40 @@ int gensio_control(struct gensio *io, int depth, bool get,
 #define GENSIO_CONTROL_RADDR_BIN		22
 #define GENSIO_CONTROL_REMOTE_ID		23
 
+GENSIO_DLL_PUBLIC
 const char *gensio_get_type(struct gensio *io, unsigned int depth);
+GENSIO_DLL_PUBLIC
 struct gensio *gensio_get_child(struct gensio *io, unsigned int depth);
+GENSIO_DLL_PUBLIC
 bool gensio_is_client(struct gensio *io);
+GENSIO_DLL_PUBLIC
 bool gensio_is_reliable(struct gensio *io);
+GENSIO_DLL_PUBLIC
 bool gensio_is_packet(struct gensio *io);
+GENSIO_DLL_PUBLIC
 bool gensio_is_authenticated(struct gensio *io);
+GENSIO_DLL_PUBLIC
 bool gensio_is_encrypted(struct gensio *io);
+GENSIO_DLL_PUBLIC
 bool gensio_is_message(struct gensio *io);
 
+GENSIO_DLL_PUBLIC
 int gensio_set_sync(struct gensio *io);
+GENSIO_DLL_PUBLIC
 int gensio_clear_sync(struct gensio *io);
+GENSIO_DLL_PUBLIC
 int gensio_read_s(struct gensio *io, gensiods *count,
 		  void *data, gensiods datalen,
 		  gensio_time *timeout);
+GENSIO_DLL_PUBLIC
 int gensio_read_s_intr(struct gensio *io, gensiods *count,
 		       void *data, gensiods datalen,
 		       gensio_time *timeout);
+GENSIO_DLL_PUBLIC
 int gensio_write_s(struct gensio *io, gensiods *count,
 		   const void *data, gensiods datalen,
 		   gensio_time *timeout);
+GENSIO_DLL_PUBLIC
 int gensio_write_s_intr(struct gensio *io, gensiods *count,
 			const void *data, gensiods datalen,
 			gensio_time *timeout);
@@ -225,60 +261,78 @@ typedef int (*gensio_accepter_event)(struct gensio_accepter *accepter,
  */
 typedef void (*gensio_acc_done)(struct gensio_accepter *acc, void *cb_data);
 
+GENSIO_DLL_PUBLIC
 int str_to_gensio_accepter(const char *str, struct gensio_os_funcs *o,
 			   gensio_accepter_event cb, void *user_data,
 			   struct gensio_accepter **accepter);
 
+GENSIO_DLL_PUBLIC
 int str_to_gensio_accepter_child(struct gensio_accepter *child,
 				 const char *str,
 				 struct gensio_os_funcs *o,
 				 gensio_accepter_event cb, void *user_data,
 				 struct gensio_accepter **accepter);
 
+GENSIO_DLL_PUBLIC
 void *gensio_acc_get_user_data(struct gensio_accepter *accepter);
 
+GENSIO_DLL_PUBLIC
 void gensio_acc_set_user_data(struct gensio_accepter *accepter,
 			      void *user_data);
 
+GENSIO_DLL_PUBLIC
 void gensio_acc_set_callback(struct gensio_accepter *accepter,
 			     gensio_accepter_event cb, void *user_data);
 
+GENSIO_DLL_PUBLIC
 int gensio_acc_startup(struct gensio_accepter *accepter);
 
+GENSIO_DLL_PUBLIC
 int gensio_acc_shutdown(struct gensio_accepter *accepter,
 			gensio_acc_done shutdown_done, void *shutdown_data);
 
+GENSIO_DLL_PUBLIC
 int gensio_acc_shutdown_s(struct gensio_accepter *accepter);
 
+GENSIO_DLL_PUBLIC
 void gensio_acc_disable(struct gensio_accepter *accepter);
 
+GENSIO_DLL_PUBLIC
 void gensio_acc_free(struct gensio_accepter *accepter);
 
+GENSIO_DLL_PUBLIC
 void gensio_acc_set_accept_callback_enable(struct gensio_accepter *accepter,
 					   bool enabled);
 
+GENSIO_DLL_PUBLIC
 int gensio_acc_set_accept_callback_enable_cb(struct gensio_accepter *accepter,
 					     bool enabled,
 					     gensio_acc_done done,
 					     void *done_data);
 
+GENSIO_DLL_PUBLIC
 int gensio_acc_set_accept_callback_enable_s(struct gensio_accepter *accepter,
 					    bool enabled);
 
+GENSIO_DLL_PUBLIC
 int gensio_acc_control(struct gensio_accepter *accepter, int depth, bool get,
 		       unsigned int option, char *data, gensiods *datalen);
 /* Uses GENSIO_CONTROL_DEPTH_xxx options above. */
 #define GENSIO_ACC_CONTROL_LADDR	1
 #define GENSIO_ACC_CONTROL_LPORT	2
 
+GENSIO_DLL_PUBLIC
 int gensio_acc_set_sync(struct gensio_accepter *acc);
 
+GENSIO_DLL_PUBLIC
 int gensio_acc_accept_s(struct gensio_accepter *acc, gensio_time *timeout,
 			struct gensio **new_io);
+GENSIO_DLL_PUBLIC
 int gensio_acc_accept_s_intr(struct gensio_accepter *acc,
 			     gensio_time *timeout,
 			     struct gensio **new_io);
 
+GENSIO_DLL_PUBLIC
 int gensio_acc_str_to_gensio(struct gensio_accepter *accepter,
 			     const char *str,
 			     gensio_event cb, void *user_data,
@@ -287,13 +341,18 @@ int gensio_acc_str_to_gensio(struct gensio_accepter *accepter,
  * Returns if the accepter requests exit on close.  A hack for stdio.
  * Do not use.
  */
+GENSIO_DLL_PUBLIC
 bool gensio_acc_exit_on_close(struct gensio_accepter *accepter);
 
+GENSIO_DLL_PUBLIC
 const char *gensio_acc_get_type(struct gensio_accepter *acc,
 				unsigned int depth);
     
+GENSIO_DLL_PUBLIC
 bool gensio_acc_is_reliable(struct gensio_accepter *accepter);
+GENSIO_DLL_PUBLIC
 bool gensio_acc_is_packet(struct gensio_accepter *accepter);
+GENSIO_DLL_PUBLIC
 bool gensio_acc_is_message(struct gensio_accepter *accepter);
 
 /*
@@ -325,15 +384,19 @@ struct gensio_addr;
 /*
  * Dealing with iterators.
  */
+GENSIO_DLL_PUBLIC
 void gensio_addr_rewind(struct gensio_addr *addr);
 /* Return false if no more addresses exist. */
+GENSIO_DLL_PUBLIC
 bool gensio_addr_next(struct gensio_addr *addr);
+GENSIO_DLL_PUBLIC
 bool gensio_addr_at_end(struct gensio_addr *addr);
 /*
  * Gets the current address.  len must be provided, it is the size of
  * the buffer and is updated to the actual size (which may be larger
  * than len).  The copy may be partial if len is not enough.
  */
+GENSIO_DLL_PUBLIC
 void gensio_addr_getaddr(const struct gensio_addr *addr,
 			 void *oaddr, gensiods *len);
 
@@ -342,6 +405,7 @@ void gensio_addr_getaddr(const struct gensio_addr *addr,
  * current address.  These numbers are currently internal, but can be
  * used for comparison.
  */
+GENSIO_DLL_PUBLIC
 int gensio_addr_get_nettype(const struct gensio_addr *addr);
 
 /*
@@ -350,6 +414,7 @@ int gensio_addr_get_nettype(const struct gensio_addr *addr);
  * families match or if address ipv4, family is IPv6, and flags has
  * AI_V4MAPPED.
  */
+GENSIO_DLL_PUBLIC
 bool gensio_addr_family_supports(const struct gensio_addr *addr, int family,
 				 int flags);
 
@@ -362,6 +427,7 @@ bool gensio_addr_family_supports(const struct gensio_addr *addr, int family,
  * byte position where the ending NIL character would have been, one less
  * than the buflen that would have been required to hold the entire buffer.
  */
+GENSIO_DLL_PUBLIC
 int gensio_addr_to_str(const struct gensio_addr *addr,
 		       char *buf, gensiods *epos, gensiods buflen);
 
@@ -369,6 +435,7 @@ int gensio_addr_to_str(const struct gensio_addr *addr,
  * Like the above, but does all the addresses, not just the current
  * one, separated by ';'.
  */
+GENSIO_DLL_PUBLIC
 int gensio_addr_to_str_all(const struct gensio_addr *addr,
 			   char *buf, gensiods *epos, gensiods buflen);
 
@@ -380,6 +447,7 @@ int gensio_addr_to_str_all(const struct gensio_addr *addr,
  * If compare_all is true, verify that all the addresses are the same.
  * If it is false, only compare the current address.
  */
+GENSIO_DLL_PUBLIC
 bool gensio_addr_equal(const struct gensio_addr *a1,
 		       const struct gensio_addr *a2,
 		       bool compare_ports, bool compare_all);
@@ -387,17 +455,20 @@ bool gensio_addr_equal(const struct gensio_addr *a1,
 /*
  * Create a new address stucture with the same addresses.
  */
+GENSIO_DLL_PUBLIC
 struct gensio_addr *gensio_addr_dup(struct gensio_addr *ai);
 
 /*
  * Concatenate two addr structures and return a new one.
  */
+GENSIO_DLL_PUBLIC
 struct gensio_addr *gensio_addr_cat(const struct gensio_addr *ai1,
 				    const struct gensio_addr *ai2);
 
 /*
  * Decrement the refcount on the structure and free if not in use.
  */
+GENSIO_DLL_PUBLIC
 void gensio_addr_free(struct gensio_addr *ai);
 
 /*
@@ -406,6 +477,7 @@ void gensio_addr_free(struct gensio_addr *ai);
  * compare all the sub-addresses in the addresses.  Otherwise only
  * compare the current address.
  */
+GENSIO_DLL_PUBLIC
 bool gensio_addr_cmp(const struct gensio_addr *addr1,
 		     const struct gensio_addr *addr2,
 		     bool compare_ports, bool all_addr);
@@ -414,6 +486,7 @@ bool gensio_addr_cmp(const struct gensio_addr *addr1,
  * See if addr is present in ai.  Ports are not compared unless
  * compare_ports is true.
  */
+GENSIO_DLL_PUBLIC
 bool gensio_addr_addr_present(const struct gensio_addr *ai,
 			      const void *addr, gensiods addrlen,
 			      bool compare_ports);
@@ -461,6 +534,7 @@ bool gensio_addr_addr_present(const struct gensio_addr *ai,
  *
  * args should be freed with str_to_argv_free().
  */
+GENSIO_DLL_PUBLIC
 int gensio_scan_network_port(struct gensio_os_funcs *o, const char *str,
 			     bool listen, struct gensio_addr **ai,
 			     int *protocol, bool *is_port_set,
@@ -471,6 +545,7 @@ int gensio_scan_network_port(struct gensio_os_funcs *o, const char *str,
  * protocol, like: "::1,ipv4,10.0.2.3".  This only works on IP
  * addresses.
  */
+GENSIO_DLL_PUBLIC
 int gensio_scan_network_addr(struct gensio_os_funcs *o, const char *str,
 			     int protocol, struct gensio_addr **ai);
 
@@ -490,6 +565,7 @@ struct gensio_enum_val {
     int val;
 };
 
+GENSIO_DLL_PUBLIC
 int gensio_add_default(struct gensio_os_funcs *o,
 		       const char *name,
 		       enum gensio_default_type type,
@@ -497,23 +573,28 @@ int gensio_add_default(struct gensio_os_funcs *o,
 		       int minval, int maxval,
 		       const struct gensio_enum_val *enums);
 
+GENSIO_DLL_PUBLIC
 int gensio_reset_defaults(struct gensio_os_funcs *o);
 
+GENSIO_DLL_PUBLIC
 int gensio_set_default(struct gensio_os_funcs *o,
 		       const char *class, const char *name,
 		       const char *strval, int intval);
 
 
+GENSIO_DLL_PUBLIC
 int gensio_get_default(struct gensio_os_funcs *o,
 		       const char *class, const char *name, bool classonly,
 		       enum gensio_default_type type,
 		       char **strval, int *intval);
 
+GENSIO_DLL_PUBLIC
 int gensio_get_defaultaddr(struct gensio_os_funcs *o,
 			   const char *class, const char *name, bool classonly,
 			   int iprotocol, bool listen, bool require_port,
 			   struct gensio_addr **rai);
 
+GENSIO_DLL_PUBLIC
 int gensio_del_default(struct gensio_os_funcs *o,
 		       const char *class, const char *name, bool delclasses);
 
@@ -521,6 +602,7 @@ int gensio_del_default(struct gensio_os_funcs *o,
  * Clean up all the internal gensio memory.  Not really necessary, but
  * useful for memory leak testing.
  */
+GENSIO_DLL_PUBLIC
 void gensio_cleanup_mem(struct gensio_os_funcs *o);
 
 /********************************************************************
@@ -533,11 +615,7 @@ void gensio_cleanup_mem(struct gensio_os_funcs *o);
 /*
  * This allows a global to disable uucp locking for everything.
  */
-extern bool gensio_uucp_locking_enabled;
-
-/*
- * This allows a global to disable uucp locking for everything.
- */
+GENSIO_DLL_PUBLIC
 extern bool gensio_uucp_locking_enabled;
 
 /*
@@ -546,20 +624,28 @@ extern bool gensio_uucp_locking_enabled;
  * data, 0, on no match, and 1 a successful match.  Any string value
  * returned is from the passed in string, it is not allocated.
  */
+GENSIO_DLL_PUBLIC
 int gensio_check_keyvalue(const char *str, const char *key, const char **value);
+GENSIO_DLL_PUBLIC
 int gensio_check_keyds(const char *str, const char *key, gensiods *value);
+GENSIO_DLL_PUBLIC
 int gensio_check_keyuint(const char *str, const char *key, unsigned int *value);
+GENSIO_DLL_PUBLIC
 int gensio_check_keybool(const char *str, const char *key, bool *rvalue);
+GENSIO_DLL_PUBLIC
 int gensio_check_keyboolv(const char *str, const char *key,
 			  const char *trueval, const char *falseval,
 			  bool *rvalue);
+GENSIO_DLL_PUBLIC
 int gensio_check_keyenum(const char *str, const char *key,
 			 struct gensio_enum_val *enums, int *rval);
 /* The value of protocol is the same as for gensio_scan_network_port(). */
+GENSIO_DLL_PUBLIC
 int gensio_check_keyaddrs(struct gensio_os_funcs *o,
 			  const char *str, const char *key, int protocol,
 			  bool listen, bool require_port,
 			  struct gensio_addr **ai);
+GENSIO_DLL_PUBLIC
 int gensio_check_keyaddrs_noport(struct gensio_os_funcs *o,
 				 const char *str, const char *key,
 				 int protocol, struct gensio_addr **ai);
@@ -571,6 +657,7 @@ int gensio_check_keyaddrs_noport(struct gensio_os_funcs *o,
 /*
  * Returns true of str is in one of auxdata, false if not.
  */
+GENSIO_DLL_PUBLIC
 bool gensio_str_in_auxdata(const char *const *auxdata, const char *str);
 
 /*
@@ -582,14 +669,19 @@ bool gensio_str_in_auxdata(const char *const *auxdata, const char *str);
  * Generally you are passing in a constant string or part of argv[0],
  * so it's not a problem
  */
+GENSIO_DLL_PUBLIC
 bool gensio_set_progname(const char *progname);
 
 /*
  * Various conversion helpers.  These may become inline someday...
  */
+GENSIO_DLL_PUBLIC
 uint32_t gensio_buf_to_u32(unsigned char *data);
+GENSIO_DLL_PUBLIC
 void gensio_u32_to_buf(unsigned char *data, uint32_t v);
+GENSIO_DLL_PUBLIC
 uint16_t gensio_buf_to_u16(unsigned char *data);
+GENSIO_DLL_PUBLIC
 void gensio_u16_to_buf(unsigned char *data, uint16_t v);
 
 /*
@@ -599,6 +691,7 @@ void gensio_u16_to_buf(unsigned char *data, uint16_t v);
  * that would have been output if there was enough room.  Pos is updated
  * to the new location it would have been if there was enough room.
  */
+GENSIO_DLL_PUBLIC
 gensiods gensio_pos_snprintf(char *buf, gensiods len, gensiods *pos,
 			     char *format, ...);
 
@@ -606,17 +699,21 @@ gensiods gensio_pos_snprintf(char *buf, gensiods len, gensiods *pos,
  * Like the above, but it handles converting an argv to a string, properly
  * quoting everything.
  */
+GENSIO_DLL_PUBLIC
 gensiods gensio_argv_snprintf(char *buf, gensiods len, gensiods *pos,
 			      const char **argv);
 
 /*
  * An sprintf that allocates the memory
  */
+GENSIO_DLL_PUBLIC
 char *gensio_alloc_vsprintf(struct gensio_os_funcs *o,
 			    const char *fmt, va_list va);
+GENSIO_DLL_PUBLIC
 char *gensio_alloc_sprintf(struct gensio_os_funcs *o,
 			   const char *fmt, ...);
     
+GENSIO_DLL_PUBLIC
 char *gensio_strdup(struct gensio_os_funcs *o, const char *str);
 
 #ifdef __cplusplus

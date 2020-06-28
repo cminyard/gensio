@@ -8,6 +8,7 @@
 #ifndef GENSIO_LIST_H
 #define GENSIO_LIST_H
 
+#include <gensio/gensio_dllvisibility.h>
 #include <stddef.h>
 
 #define gensio_container_of(ptr, type, member)		\
@@ -27,14 +28,21 @@ struct gensio_list {
     struct gensio_link link;
 };
 
+GENSIO_DLL_PUBLIC
 void gensio_list_rm(struct gensio_list *list, struct gensio_link *link);
+GENSIO_DLL_PUBLIC
 void gensio_list_add_head(struct gensio_list *list, struct gensio_link *link);
+GENSIO_DLL_PUBLIC
 void gensio_list_add_tail(struct gensio_list *list, struct gensio_link *link);
+GENSIO_DLL_PUBLIC
 void gensio_list_add_next(struct gensio_list *list, struct gensio_link *curr,
 			  struct gensio_link *link);
+GENSIO_DLL_PUBLIC
 void gensio_list_add_prev(struct gensio_list *list, struct gensio_link *curr,
 			  struct gensio_link *link);
+GENSIO_DLL_PUBLIC
 void gensio_list_init(struct gensio_list *list);
+GENSIO_DLL_PUBLIC
 bool gensio_list_empty(struct gensio_list *list);
 
 #define gensio_list_first(list) ((list)->link.next)

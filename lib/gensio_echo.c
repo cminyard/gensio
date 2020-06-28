@@ -14,6 +14,7 @@
 #include <gensio/gensio.h>
 #include <gensio/gensio_class.h>
 #include <gensio/argvutils.h>
+#include <gensio/gensio_builtins.h>
 
 enum echon_state {
     ECHON_CLOSED,

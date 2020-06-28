@@ -9,6 +9,7 @@
 #define SERGENSIO_CLASS_H
 
 #include <stddef.h>
+#include <gensio/gensio_dllvisibility.h>
 #include <gensio/gensio_class.h>
 #include <gensio/sergensio.h>
 
@@ -32,12 +33,15 @@ typedef int (*sergensio_func)(struct sergensio *sio, int op, int val, char *buf,
 			      void *done, void *cb_data);
 
 
+GENSIO_DLL_PUBLIC
 struct sergensio *sergensio_data_alloc(struct gensio_os_funcs *o,
 				       struct gensio *io,
 				       sergensio_func func,
 				       void *gensio_data);
+GENSIO_DLL_PUBLIC
 void sergensio_data_free(struct sergensio *sio);
 
+GENSIO_DLL_PUBLIC
 void *sergensio_get_gensio_data(struct sergensio *sio);
 
 #endif /* SERGENSIO_CLASS_H */

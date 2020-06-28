@@ -435,7 +435,7 @@ gio_set_fd_enables(os_handler_t *handler, os_hnd_fd_id_t *id,
     return 0;
 }
 
-int
+static int
 gio_get_monotonic_time(os_handler_t *handler, struct timeval *tv)
 {
     struct igensio_info *info = handler->internal_data;
@@ -448,14 +448,14 @@ gio_get_monotonic_time(os_handler_t *handler, struct timeval *tv)
     return 0;
 }
 
-int
+static int
 gio_get_real_time(os_handler_t *handler, struct timeval *tv)
 {
     gettimeofday(tv, NULL);
     return 0;
 }
 
-void
+static void
 gio_free(os_handler_t *gio)
 {
     struct igensio_info *info = gio->internal_data;
@@ -467,7 +467,7 @@ gio_free(os_handler_t *gio)
 void ipmi_malloc_init(os_handler_t *oshandler);
 void ipmi_malloc_shutdown(void);
 
-os_handler_t *
+static os_handler_t *
 gio_alloc(struct gensio_os_funcs *o)
 {
     struct igensio_info *info;

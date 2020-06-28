@@ -17,6 +17,7 @@
 extern "C" {
 #endif
 
+#include <gensio/gensio_dllvisibility.h>
 #include <gensio/gensio_os_funcs.h>
 
 /*
@@ -35,6 +36,7 @@ extern "C" {
  * const array or the values in the strings, but the compiler
  * complains if you pass a "char **" into that.
  */
+GENSIO_DLL_PUBLIC
 int gensio_str_to_argv(struct gensio_os_funcs *o,
 		       const char *s, int *argc, const char ***argv,
 		       const char *seps);
@@ -47,6 +49,7 @@ int gensio_str_to_argv(struct gensio_os_funcs *o,
  * the end character if the end character was encountered, or sets it
  * to NULL if the end character was not encountered.
  */
+GENSIO_DLL_PUBLIC
 int gensio_str_to_argv_endchar(struct gensio_os_funcs *o,
 			       const char *ins,
 			       int *r_argc, const char ***r_argv,
@@ -57,11 +60,13 @@ int gensio_str_to_argv_endchar(struct gensio_os_funcs *o,
  * Copy an argv array.  The source does not have to be from str_to_argv
  * and must be NULL terminated.
  */
+GENSIO_DLL_PUBLIC
 int gensio_argv_copy(struct gensio_os_funcs *o,
 	      const char * const oargv[],
 	      int *r_argc, const char ***r_argv);
 
 /* Free the return of str_to_argv */
+GENSIO_DLL_PUBLIC
 void gensio_argv_free(struct gensio_os_funcs *o, const char **argv);
 
 /*
@@ -70,6 +75,7 @@ void gensio_argv_free(struct gensio_os_funcs *o, const char **argv);
  * end after the matching ')'.  Otherwise it scans to the end of the
  * string.  *rstr is updated to the end of the scan.
  */
+GENSIO_DLL_PUBLIC
 int gensio_scan_args(struct gensio_os_funcs *o,
 		     const char **rstr, int *argc, const char ***args);
 

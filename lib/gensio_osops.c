@@ -234,7 +234,7 @@ gensio_os_sendto(struct gensio_os_funcs *o,
     ERRHANDLE();
 }
 
-struct gensio_addr *
+static struct gensio_addr *
 gensio_addr_make(struct gensio_os_funcs *o, socklen_t size)
 {
     struct gensio_addr *addr = o->zalloc(o, sizeof(*addr));
@@ -1209,7 +1209,8 @@ gensio_os_get_random(struct gensio_os_funcs *o,
 #define IP_DYNRANGE_START	49152
 #define IP_DYNRANGE_END		65535
 
-unsigned int gensio_dyn_scan_next(unsigned int port)
+static unsigned int
+gensio_dyn_scan_next(unsigned int port)
 {
     if (port == IP_DYNRANGE_END)
 	return IP_DYNRANGE_START;

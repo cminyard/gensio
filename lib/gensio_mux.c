@@ -7,12 +7,13 @@
 
 #include "config.h"
 
-#include <gensio/gensio_class.h>
-#include <gensio/gensio_acc_gensio.h>
-
 #include <string.h>
 #include <stdlib.h>
 #include <assert.h>
+
+#include <gensio/gensio_class.h>
+#include <gensio/gensio_acc_gensio.h>
+#include <gensio/gensio_builtins.h>
 
 /*
  * The protocol consists of messages.  The first byte of a message
@@ -2699,7 +2700,7 @@ muxna_free(struct muxna_data *nadata)
     nadata->o->free(nadata->o, nadata);
 }
 
-int
+static int
 muxna_alloc_gensio(struct muxna_data *nadata, const char * const *iargs,
 		   struct gensio *child, struct gensio **rio)
 {

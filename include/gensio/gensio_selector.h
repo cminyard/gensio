@@ -8,6 +8,7 @@
 #ifndef GENSIO_SELECTOR_H
 #define GENSIO_SELECTOR_H
 
+#include <gensio/gensio_dllvisibility.h>
 #include <gensio/gensio_os_funcs.h>
 
 struct selector_s; /* Don't include selector.h to reduce namespace pollution. */
@@ -23,10 +24,12 @@ struct selector_s; /* Don't include selector.h to reduce namespace pollution. */
  * If you pass in a selector, it will not be freed when the return
  * structure is freed.
  */
+GENSIO_DLL_PUBLIC
 struct gensio_os_funcs *gensio_selector_alloc(struct selector_s *sel,
 					      int wake_sig);
 
 /* For testing, do not use in normal code. */
+GENSIO_DLL_PUBLIC
 void gensio_sel_exit(int rv);
 
 #endif /* GENSIO_SELECTOR_H */

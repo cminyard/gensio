@@ -20,6 +20,11 @@
 #include <openssl/bio.h>
 #include <openssl/err.h>
 
+/* In gensio_filter_ssl.c, semi-private. */
+int gensio_cert_get_name(X509 *cert, char *data, gensiods *datalen);
+int gensio_cert_to_buf(X509 *cert, char *buf, gensiods *datalen);
+int gensio_cert_fingerprint(X509 *cert, char *buf, gensiods *buflen);
+
 struct gensio_ssl_filter_data {
     struct gensio_os_funcs *o;
     bool is_client;

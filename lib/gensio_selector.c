@@ -960,7 +960,8 @@ struct sel_lock_s
     lock_type lock;
 };
 
-sel_lock_t *defsel_lock_alloc(void *cb_data)
+static sel_lock_t *
+defsel_lock_alloc(void *cb_data)
 {
     sel_lock_t *l;
 
@@ -971,18 +972,21 @@ sel_lock_t *defsel_lock_alloc(void *cb_data)
     return l;
 }
 
-void defsel_lock_free(sel_lock_t *l)
+static void
+defsel_lock_free(sel_lock_t *l)
 {
     LOCK_DESTROY(&l->lock);
     free(l);
 }
 
-void defsel_lock(sel_lock_t *l)
+static void
+defsel_lock(sel_lock_t *l)
 {
     LOCK(&l->lock);
 }
 
-void defsel_unlock(sel_lock_t *l)
+static void
+defsel_unlock(sel_lock_t *l)
 {
     UNLOCK(&l->lock);
 }

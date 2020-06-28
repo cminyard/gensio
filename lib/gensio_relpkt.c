@@ -11,6 +11,7 @@
 #include <gensio/gensio_ll_gensio.h>
 #include <gensio/gensio_acc_gensio.h>
 #include <gensio/argvutils.h>
+#include <gensio/gensio_builtins.h>
 
 #include "gensio_filter_relpkt.h"
 
@@ -88,7 +89,7 @@ relpktna_free(void *acc_data)
     nadata->o->free(nadata->o, nadata);
 }
 
-int
+static int
 relpktna_alloc_gensio(void *acc_data, const char * const *iargs,
 		      struct gensio *child, struct gensio **rio)
 {

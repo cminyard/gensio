@@ -14,6 +14,7 @@
 #include <gensio/sergensio_class.h>
 #include <gensio/gensio_ll_gensio.h>
 #include <gensio/gensio_acc_gensio.h>
+#include <gensio/gensio_builtins.h>
 
 #include "utils.h"
 #include "telnet.h"
@@ -1063,7 +1064,7 @@ stela_free(void *acc_data)
     stela->o->free(stela->o, stela);
 }
 
-int
+static int
 stela_alloc_gensio(void *acc_data, const char * const *iargs,
 		   struct gensio *child, struct gensio **rio)
 {

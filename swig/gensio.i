@@ -144,6 +144,8 @@ gensio_thread_sighandler(int sig)
 }
 #endif
 
+struct gensio_os_funcs *alloc_gensio_selector(swig_cb *log_handler);
+
 struct gensio_os_funcs *alloc_gensio_selector(swig_cb *log_handler)
 {
     struct gensio_os_funcs *o;
