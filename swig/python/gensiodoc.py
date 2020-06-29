@@ -51,7 +51,7 @@ class EventHandler:
                "Remote end closed connection" just means the other end
                did a close.
         data -- A byte string holding the read data.
-        auxdata -- Auxilliary data describing the read.  This is a sequence
+        auxdata -- Auxiliary data describing the read.  This is a sequence
                of strings. Some interfaces will have an "oob" string for
                out-of-bounds data (TCP and SCTP).  SCTP can have a
                channel number.  See the gensio description for details.
@@ -380,8 +380,8 @@ class gensio:
 
         Returns a new gensio
         """
-        return gensio() 
-    
+        return gensio()
+
     def set_cbs(self, handler):
         """Change the callback handler for the gensio.  This should
         only be done when all I/O is disabled.
@@ -475,7 +475,7 @@ class gensio:
         """Write the given byte string.
 
         bytestr -- The data to write.
-        auxdata -- A sequence of strings holding gensio-specific auxilliary
+        auxdata -- A sequence of strings holding gensio-specific auxiliary
             data.  May be None if it's not applicable.
 
         Returns the actual number of bytes written.  This may be less
@@ -500,7 +500,7 @@ class gensio:
     def write_cb_enable(self, enable):
         """Allow write ready events from the gensio.  When the gensio is
         opened write callbacks are enabled.  You should generally leave
-        them disabled until you have data to write, then enable it 
+        them disabled until you have data to write, then enable it
         and write to the gensio in the write_callback() events.
 
         enable -- A boolean, whether to enable or disable callback events
@@ -832,7 +832,7 @@ class AccEventHandler:
         io -- The gensio doing the authentication.  Note that this gensio
             has not been reported via new_connection and is not functional.
             You can do some control operations on it, but that's about it.
-        
+
         See auth_begin() in EventHandler for more details and return
         values, this is functionally the same, it just occurs on the
         accepter before the gensio has been reported as operational.
@@ -930,7 +930,7 @@ class gensio_accepter:
             handler -- An AccEventHandler object to receive events.
             """
             return
-            
+
         def str_to_gensio(self, gensiostr, handler):
             """Allocate a new gensio, coming from the address/port of the
             gensio_accepter, if possible.  This makes it possible to

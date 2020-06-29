@@ -11,7 +11,7 @@
 # accepter gensio filter is saved in tracefile.
 #
 # This is for support of fuzz testing.  The random data can be used to
-# create a completely reproducable testcase with the ssl library.  The
+# create a completely reproducible testcase with the ssl library.  The
 # tracefile is used for fuzzing the program.
 #
 
