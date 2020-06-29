@@ -542,6 +542,7 @@ netna_readhandler(int fd, void *cbdata)
 
     tdata->o = nadata->o;
     tdata->ai = raddr;
+    raddr = NULL;
     
     err = gensio_os_socket_setup(tdata->o, new_fd, protocol, tdata->istcp,
 				 tdata->nodelay, tdata->lai);
@@ -589,6 +590,8 @@ netna_readhandler(int fd, void *cbdata)
 	    if (new_fd != -1)
 		gensio_os_close(nadata->o, new_fd);
 	}
+    } else if (raddr) {
+	gensio_addr_free(raddr);
     }
 }
 
