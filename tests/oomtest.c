@@ -1264,7 +1264,7 @@ main(int argc, char *argv[])
 	} else if (strcmp(argv[i], "-e") == 0) {
 	    i++;
 	    if (i >= argc) {
-		fprintf(stderr, "No end number given with -s\n");
+		fprintf(stderr, "No end number given with -e\n");
 		exit(1);
 	    }
 	    testnrend = strtol(argv[i], NULL, 0) + 1;
