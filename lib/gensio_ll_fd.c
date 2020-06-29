@@ -450,8 +450,10 @@ fd_handle_write_ready(struct fd_ll *fdll)
 	    fd_set_state(fdll, FD_IN_OPEN_RETRY);
 	    fdll->o->clear_fd_handlers(fdll->o, fdll->fd);
 	} else {
-	    if (err)
+	    if (err) {
 		fd_set_state(fdll, FD_ERR_WAIT);
+		fd_deref(fdll);
+	    }
 	    fd_finish_open(fdll, err);
 	}
     } else if (fdll->state == FD_OPEN && fdll->write_enabled) {
@@ -554,6 +556,7 @@ fd_cleared(int fd, void *cb_data)
 	if (err) {
 	    fd_set_state(fdll, FD_ERR_WAIT);
 	    fd_finish_open(fdll, err);
+	    fd_deref(fdll);
 	} else {
 	    fdll->o->set_write_handler(fdll->o, fdll->fd, true);
 	    fdll->o->set_except_handler(fdll->o, fdll->fd, true);
