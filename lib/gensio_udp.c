@@ -394,6 +394,8 @@ udpn_do_free(struct udpn_data *ndata)
 	ndata->o->free_runner(ndata->deferred_op_runner);
     if (ndata->io)
 	gensio_data_free(ndata->io);
+    if (ndata->raddr)
+	gensio_addr_free(ndata->raddr);
     ndata->o->free(ndata->o, ndata);
 }
 
@@ -1131,7 +1133,6 @@ udpna_readhandler(int fd, void *cbdata)
     if (!ndata)
 	goto out_nomem;
 
-    addr = NULL;
     ndata->state = UDPN_OPEN;
     nadata->read_disable_count++;
 
@@ -1560,9 +1561,9 @@ str_to_udp_gensio_accepter(const char *str, const char * const args[],
 
 int
 udp_gensio_alloc(struct gensio_addr *addr, const char * const args[],
-		struct gensio_os_funcs *o,
-		gensio_event cb, void *user_data,
-		struct gensio **new_gensio)
+		 struct gensio_os_funcs *o,
+		 gensio_event cb, void *user_data,
+		 struct gensio **new_gensio)
 {
     struct udpn_data *ndata = NULL;
     struct gensio_accepter *accepter;
