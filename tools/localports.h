@@ -20,6 +20,6 @@ int add_local_port(struct gensio_os_funcs *o,
 void remote_port_new_con(struct gensio_os_funcs *o, struct gensio *io,
 			 const char *connecter_str, char *id_str);
 
-void (*localport_err)(const char *format, va_list ap);
+extern void (*localport_err)(const char *format, va_list ap);
 
 #endif /* LOCALPORTS_H */
