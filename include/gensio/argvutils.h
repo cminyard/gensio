@@ -24,7 +24,7 @@ extern "C" {
  * Separate out a string into an argv array, returning the argc/argv
  * values given.  Returns GE_NOMEM when out of memory or GE_INVAL if
  * there is something wrong with the string.  seps is a list of
- * separators, parameters will be separated by that vlaue.  If seps is
+ * separators, parameters will be separated by that value.  If seps is
  * NULL it will default to the equivalent of isspace().  The argv
  * array must be freed with gensio_argv_free().
  *

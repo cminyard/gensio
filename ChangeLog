@@ -27,7 +27,7 @@
 	* utils.c, utils.h, controller.h, controller.c: Fix some const
 	correctness issues
 
-	* conroller.c, controller.h: Add printf-style output.
+	* controller.c, controller.h: Add printf-style output.
 
 	* dataxfer.h, dataxfer.c, devcfg.h, devcfg.c, io.h, readconfig:
 	Rework the error and output handling to make it more flexible, so
@@ -98,7 +98,7 @@
 
 	* dataxfer.c: The baudrate, that will be sent to the client,
 	was converted twice: first with htonl() and then via copying
-	to the buffer. As result 38400 was transfered as 6500960000
+	to the buffer. As result 38400 was transferred as 6500960000
 	instead of 6500009600.
 
 2013-05-07  Corey Minyard <minyard@acm.org>
@@ -161,7 +161,7 @@
 	clean shutdown handling so locks are properly removed when the
 	program is killed with SIGINT.
 
-	* dataxfer.c: Modify the lock files to be Linux FHS compiliant.
+	* dataxfer.c: Modify the lock files to be Linux FHS compliant.
 
 2012-09-10  Corey Minyard <minyard@acm.org>
 
@@ -276,7 +276,7 @@
 	Corey Minyard <minyard@acm.org>
 
 	* controller.c, dataxfer.c, utils.c, utils.h: Add IPV6 address
-	compatability.
+	compatibility.
 
 2009-11-12  Corey Minyard <minyard@acm.org>
 
@@ -347,9 +347,9 @@
           Jun 30 10:26:39 consrv3 ser2net[3073]: The tcp write for
 		controller had error: Bad file descriptor
 
-          The first error is "legal" because the destitnation decided to
+          The first error is "legal" because the destination decided to
 	  close its socket a little to early than expected. The second
-	  error is allready bad because it tries to use allready
+	  error is already bad because it tries to use already
 	  deallocated fd. Later we segfault.
 
 2007-11-16  Corey Minyard <minyard@acm.org>
@@ -428,7 +428,7 @@
 
 2005-08-25  Corey Minyard <minyard@acm.org>
 
-	* dataxfer.c: Fix a problem wih EAGAIN just returning and not
+	* dataxfer.c: Fix a problem with EAGAIN just returning and not
 	retrying the operation on writing data that has just been read.
 	Thanks to Shinlun Hsieh <yngwie_x@yahoo.com> for pointing this out.
 

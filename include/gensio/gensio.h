@@ -375,7 +375,7 @@ bool gensio_acc_is_message(struct gensio_accepter *accepter);
  * list is immutable after allocation.
  *
  * The address has the concept of a current address in it that can be
- * iterated.  You get an address, and you can use the iterater
+ * iterated.  You get an address, and you can use the iterator
  * function to iterate over it and extract information from the
  * individual addresses.
  *
@@ -456,7 +456,7 @@ bool gensio_addr_equal(const struct gensio_addr *a1,
 		       bool compare_ports, bool compare_all);
 
 /*
- * Create a new address stucture with the same addresses.
+ * Create a new address structure with the same addresses.
  */
 GENSIO_DLL_PUBLIC
 struct gensio_addr *gensio_addr_dup(struct gensio_addr *ai);
@@ -690,8 +690,8 @@ void gensio_u16_to_buf(unsigned char *data, uint16_t v);
 /*
  * A helper function, very useful for raddr handling.  Do an
  * snprintf() at buf + *pos, writing to up to buf + len.  If *pos > len,
- * then don't do anything, but alway return the number of characters
- * that would have been output if there was enough room.  Pos is updated
+ * then don't do anything, but always return the number of characters
+ * that would have been output if there was enough room. Pos is updated
  * to the new location it would have been if there was enough room.
  */
 GENSIO_DLL_PUBLIC
