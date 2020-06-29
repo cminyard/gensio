@@ -969,6 +969,8 @@ run_oom_acc_test(struct oom_tests *test, long count, int *exitcode,
     } else {
 	snprintf(intstr, sizeof(intstr), "%ld ", count);
 	rv = setenv("GENSIO_OOM_TEST", intstr, 1);
+	if (!rv)
+	    rv = setenv("GENSIO_MEMTRACK", "abort", 1);
     }
     if (rv) {
 	fprintf(stderr, "Unable to set environment properly\n");
@@ -1084,8 +1086,8 @@ run_oom_acc_test(struct oom_tests *test, long count, int *exitcode,
 static void
 print_test(struct oom_tests *test, char *tstr, bool close_acc, long count)
 {
-    printf("testing(%s %s) GENSIO_OOM_TEST=%ld '%s' '%s'\n", tstr,
-	   close_acc ? "sc" : "cc", count,
+    printf("testing(%s %s) GENSIO_OOM_TEST=%ld GENSIO_MEMTRACK=abort '%s' '%s'\n",
+	   tstr, close_acc ? "sc" : "cc", count,
 	   test->accepter, test->connecter);
 }
 
