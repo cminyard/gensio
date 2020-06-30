@@ -6,11 +6,12 @@
 #
 
 from utils import *
+check_pipe_dev(is_serialsim = True)
+
 import gensio
 from serialsim import *
 
 print("Test RS485")
-check_pipe_dev(is_serialsim = True)
 
 io1str = "serialdev," + ttypipe[0] + ",9600N81,LOCAL,rs485=103:495"
 io2str = "serialdev," + ttypipe[1] + ",9600N81"
