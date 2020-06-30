@@ -572,5 +572,23 @@ are at https://github.com/cminyard/serialsim and allow the tests to
 use a simulated serial port to read modem control line, inject errors,
 etc.
 
+You can get by without serialsim if you have three serial devices: one
+hooked in echo mode (RX and TX tied together) and two serial devices
+hooked together do I/O on one device goes to/comes from the other.
+Then set the following environment variables:
+
+  export GENSIO_TEST_PIPE_DEVS="/dev/ttyxxx:/dev/ttywww"
+  export GENSIO_TEST_ECHO_DEV="/dev/ttyzzz"
+
+It will not be able to test modemstate or rs485.
+
 They also require the ipmi_sim program from the OpenIPMI library at
 https://github.com/cminyard/openipmi to run the ipmisol tests.
+
+To run the tests, you need to enable some internal debugging to get
+the full effect.  You generally want to run something like:
+
+  ./configure --enable-internal-trace CFLAGS='-g -Wall'
+
+You can turn on -O3 in the CFLAGS, too, if you like, but it make
+debugging harder.
