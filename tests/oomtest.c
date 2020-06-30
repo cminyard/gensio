@@ -29,12 +29,13 @@
 #include "pthread_handler.h"
 
 struct oom_tests {
-    const char *connecter;
+    char *connecter;
     const char *accepter;
     bool (*check_if_present)(struct gensio_os_funcs *o, struct oom_tests *test);
     bool check_done;
     bool check_value;
     bool allow_pass_on_oom;
+    bool free_connecter;
 };
 
 #if HAVE_SERIALDEV
@@ -90,6 +91,7 @@ check_serialdev_present(struct gensio_os_funcs *o, struct oom_tests *test)
 	       "skipping serialdev test\n", e);
 	return false;
     }
+    test->free_connecter = true;
     return true;
 #else
     return false;
@@ -969,8 +971,6 @@ run_oom_acc_test(struct oom_tests *test, long count, int *exitcode,
     } else {
 	snprintf(intstr, sizeof(intstr), "%ld ", count);
 	rv = setenv("GENSIO_OOM_TEST", intstr, 1);
-	if (!rv)
-	    rv = setenv("GENSIO_MEMTRACK", "abort", 1);
     }
     if (rv) {
 	fprintf(stderr, "Unable to set environment properly\n");
@@ -1200,6 +1200,13 @@ main(int argc, char *argv[])
     int testnr = -1, numtests = 0, testnrstart = -1, testnrend = MAX_LOOPS;
     gensio_time zerotime = { 0, 0 };
 
+    /* This must be first so it gets picked up before any allocations. */
+    rv = setenv("GENSIO_MEMTRACK", "abort", 1);
+    if (rv) {
+	fprintf(stderr, "Unable to set GENSIO_MEMTRACK");
+	exit(1);
+    }
+
 #ifndef ENABLE_INTERNAL_TRACE
     fprintf(stderr, "Internal tracing disabled, cannot run oomtest\n");
     fprintf(stderr, "Configure with --enable-internal-trace to enable internal"
@@ -1365,6 +1372,11 @@ main(int argc, char *argv[])
 	o->free_waiter(loopwaiter[i]);
     }
 #endif
+
+    for (i = 0; oom_tests[i].connecter; i++) {
+	if (oom_tests[i].free_connecter)
+	    o->free(o, oom_tests[i].connecter);
+    }
 
     printf("Got %ld errors, skipped %ld tests\n", errcount, skipcount);
     while (o && o->service(o, &zerotime) == 0)
