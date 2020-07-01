@@ -483,7 +483,7 @@ main(int argc, char *argv[])
     }
 
     if (io1_set && !esc_set)
-	escape_char = 0; /* disable */
+	escape_char = -1; /* disable */
 
     if (arg >= argc) {
 	fprintf(stderr, "No gensio string given to connect to\n");
