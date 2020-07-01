@@ -215,6 +215,8 @@ struct gensio_filter {
     void *user_data;
 };
 
+static void handle_ioerr(struct basen_data *ndata, int err);
+
 static void
 basen_lock(struct basen_data *ndata)
 {
@@ -580,7 +582,8 @@ basen_write(struct basen_data *ndata, gensiods *rcount,
 
     err = filter_ul_write(ndata, basen_write_data_handler, rcount, sg, sglen,
 			  auxdata);
-
+    if (err)
+	handle_ioerr(ndata, err);
  out_unlock:
     basen_set_ll_enables(ndata);
     basen_unlock(ndata);
