@@ -70,6 +70,12 @@ Called when data can be written to the I/O device.
 Note that only one write callback is allowed to run at a time on a
 gensio.
 
+Unlike Unix-like systems, a write handler will be called (if enabled)
+if the lower layer has an exception.  This is necessary because we
+don't have a separate exception handler coming from the lower layer.
+But this lets the write operation return a failure if something has
+gone wrong.
+
 Return value is ignored.
 .SS "GENSIO_EVENT_NEW_CHANNEL"
 A new channel has been created by the remote end of the connection.
