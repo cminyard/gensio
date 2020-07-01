@@ -221,13 +221,14 @@ net_oob_read(int fd, void *data, gensiods count, gensiods *rcount,
     return 0;
 }
 
-static void
+static int
 net_except_ready(void *handler_data, int fd)
 {
     struct net_data *tdata = handler_data;
     static const char *argv[3] = { "oob", "oobtcp", NULL };
 
     gensio_fd_ll_handle_incoming(tdata->ll, net_oob_read, argv, tdata);
+    return 0;
 }
 
 static int

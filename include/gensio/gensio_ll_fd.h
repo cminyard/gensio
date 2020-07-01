@@ -41,7 +41,7 @@ struct gensio_fd_ll_ops {
 
     void (*write_ready)(void *handler_data, int fd);
 
-    void (*except_ready)(void *handler_data, int fd);
+    int (*except_ready)(void *handler_data, int fd);
 
     int (*write)(void *handler_data, int fd, gensiods *count,
 		 const struct gensio_sg *sg, gensiods sglen,
