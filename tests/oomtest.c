@@ -24,6 +24,7 @@
 #include <assert.h>
 #include <errno.h>
 #include <signal.h>
+#include <sys/random.h>
 #include <gensio/gensio.h>
 #include <gensio/gensio_selector.h>
 #include "pthread_handler.h"
@@ -245,8 +246,10 @@ struct oom_test_data {
     unsigned int refcount;
 };
 
-static char *iodata = "Hello There";
-static gensiods iodata_size = 11;
+/* I would like this to be larger, but there are SCTP and UDP limitations. */
+#define MAX_IODATA_SIZE 65535
+static unsigned char *iodata;
+static gensiods iodata_size;
 
 struct ref_trace {
     enum {
@@ -350,6 +353,22 @@ acc_closed(struct gensio_accepter *acc, void *close_data)
     od_deref_and_unlock(od);
 }
 
+int
+cmp_mem(unsigned char *buf, unsigned char *buf2, gensiods *len)
+{
+    gensiods i;
+    int rv = 0;
+
+    for (i = 0; i < *len; i++) {
+	if (buf[i] != buf2[i]) {
+	    rv = -1;
+	    break;
+	}
+    }
+    *len = i;
+    return rv;
+}
+
 static int
 con_cb(struct gensio *io, void *user_data,
        int event, int err,
@@ -393,7 +412,8 @@ con_cb(struct gensio *io, void *user_data,
 	    goto out_leave_read;
 	}
 
-	if (memcmp(iodata + id->read_pos, buf, *buflen) != 0) {
+	count = *buflen;
+	if (cmp_mem(iodata + id->read_pos, buf, &count) != 0) {
 	    gensio_set_write_callback_enable(io, false);
 	    gensio_set_read_callback_enable(io, false);
 	    id->err = OOME_DATA_MISMATCH;
@@ -411,8 +431,8 @@ con_cb(struct gensio *io, void *user_data,
 	assert(!id->in_write);
 	id->in_write = true;
 	if (id->write_pos < iodata_size) {
-	    rv = gensio_write(io, &count, iodata, iodata_size - id->write_pos,
-			      NULL);
+	    rv = gensio_write(io, &count, iodata + id->write_pos,
+			      iodata_size - id->write_pos, NULL);
 	    if (rv) {
 		gensio_set_write_callback_enable(io, false);
 		gensio_set_read_callback_enable(io, false);
@@ -765,32 +785,6 @@ close_con(struct io_test_data *id, gensio_time *timeout)
 }
 
 static int
-close_cons(struct oom_test_data *od, bool close_acc, gensio_time *timeout)
-{
-    int rv, err = 0;
-
-    if (close_acc && od->scon.io) {
-	od->ccon.expect_close = true;
-	rv = close_con(&od->scon, timeout);
-	if (rv && !err)
-	    err = rv;
-	rv = close_con(&od->ccon, timeout);
-	if (rv && !err)
-	    err = rv;
-    } else {
-	od->scon.expect_close = true;
-	rv = close_con(&od->ccon, timeout);
-	if (rv && !err)
-	    err = rv;
-	rv = close_con(&od->scon, timeout);
-	if (rv && !err)
-	    err = rv;
-    }
-
-    return err;
-}
-
-static int
 close_stderr(struct oom_test_data *od, gensio_time *timeout)
 {
     int rv, err = 0;
@@ -827,13 +821,45 @@ close_stderr(struct oom_test_data *od, gensio_time *timeout)
 }
 
 static int
+close_cons(struct oom_test_data *od, bool close_acc, gensio_time *timeout)
+{
+    int rv, err = 0;
+
+    if (close_acc && od->scon.io) {
+	od->scon.expect_close = true;
+	rv = close_con(&od->ccon, timeout);
+	if (rv && !err)
+	    err = rv;
+	rv = close_stderr(od, timeout);
+	if (rv && !err)
+	    err = rv;
+	rv = close_con(&od->scon, timeout);
+	if (rv && !err)
+	    err = rv;
+    } else {
+	od->scon.expect_close = true;
+	rv = close_con(&od->ccon, timeout);
+	if (rv && !err)
+	    err = rv;
+	rv = close_stderr(od, timeout);
+	if (rv && !err)
+	    err = rv;
+	rv = close_con(&od->scon, timeout);
+	if (rv && !err)
+	    err = rv;
+    }
+
+    return err;
+}
+
+static int
 run_oom_test(struct oom_tests *test, long count, int *exitcode, bool close_acc)
 {
     struct oom_test_data *od;
     int rv, err = 0;
     char intstr[30], *constr;
     gensiods size;
-    gensio_time timeout = { 5, 0 };
+    gensio_time timeout = { 20, 0 };
 
     od = alloc_od(test);
     if (!od)
@@ -931,10 +957,6 @@ run_oom_test(struct oom_tests *test, long count, int *exitcode, bool close_acc)
     if (rv && !err)
 	err = rv;
 
-    rv = close_stderr(od, &timeout);
-    if (rv && !err)
-	err = rv;
-
     if (od->ccon_exit_code_set)
 	*exitcode = od->ccon_exit_code;
     else if (!err)
@@ -959,7 +981,7 @@ run_oom_acc_test(struct oom_tests *test, long count, int *exitcode,
     struct oom_test_data *od;
     int rv, err = 0;
     char intstr[30], *constr, *locstr;
-    gensio_time timeout = { 5, 0 };
+    gensio_time timeout = { 20, 0 };
 
     od = alloc_od(test);
     if (!od)
@@ -1056,10 +1078,6 @@ run_oom_acc_test(struct oom_tests *test, long count, int *exitcode,
     od->stderr_expect_close = true;
 
     rv = close_cons(od, close_acc, &timeout);
-    if (rv && !err)
-	err = rv;
-
-    rv = close_stderr(od, &timeout);
     if (rv && !err)
 	err = rv;
 
@@ -1183,6 +1201,23 @@ run_oom_tests(struct oom_tests *test, char *tstr,
     return errcount;
 }
 
+static int
+fill_random(void *buf, size_t buflen)
+{
+    ssize_t randsize = 0, randrv;
+
+    while (randsize < buflen) {
+	randrv = getrandom(((char *) buf) + randsize, buflen - randsize, 0);
+	if (randrv < 0) {
+	    perror("getrandom");
+	    return -1;
+	}
+	randsize += randrv;
+    }
+
+    return 0;
+}
+
 int
 main(int argc, char *argv[])
 {
@@ -1199,6 +1234,10 @@ main(int argc, char *argv[])
     sigset_t sigs;
     int testnr = -1, numtests = 0, testnrstart = -1, testnrend = MAX_LOOPS;
     gensio_time zerotime = { 0, 0 };
+
+    if (fill_random(&iodata_size, sizeof(iodata_size)))
+	return 1;
+    iodata_size %= MAX_IODATA_SIZE;
 
     /* This must be first so it gets picked up before any allocations. */
     rv = setenv("GENSIO_MEMTRACK", "abort", 1);
@@ -1277,11 +1316,28 @@ main(int argc, char *argv[])
 		exit(1);
 	    }
 	    testnrend = strtol(argv[i], NULL, 0) + 1;
+	} else if (strcmp(argv[i], "-i") == 0) {
+	    i++;
+	    if (i >= argc) {
+		fprintf(stderr, "No size given with -i\n");
+		exit(1);
+	    }
+	    iodata_size = strtoul(argv[i], NULL, 0);
 	} else {
 	    fprintf(stderr, "Unknown argument: '%s'\n", argv[i]);
 	    exit(1);
 	}
     }
+
+    printf("iodata_size is %lu\n", (unsigned long) iodata_size);
+
+    iodata = malloc(iodata_size);
+    if (!iodata) {
+	fprintf(stderr, "Out of memory allocation I/O data\n");
+	return 1;
+    }
+    if (fill_random(iodata, iodata_size))
+	return 1;
 
     if (i >= argc) {
 	gensiot = getenv("GENSIOT");
