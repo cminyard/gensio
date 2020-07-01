@@ -574,6 +574,7 @@ netna_readhandler(int fd, void *cbdata)
     tdata->o = nadata->o;
     tdata->oob_char = -1;
     tdata->ai = raddr;
+    tdata->istcp = nadata->istcp;
     raddr = NULL;
     
     err = gensio_os_socket_setup(tdata->o, new_fd, protocol, tdata->istcp,
