@@ -326,7 +326,7 @@ sctp_write(void *handler_data, int fd, gensiods *rcount,
 
 static int
 sctp_do_read(int fd, void *data, gensiods count, gensiods *rcount,
-	     const char **auxdata, void *cb_data)
+	     const char ***auxdata, void *cb_data)
 {
     struct sctp_data *tdata = cb_data;
     int rv;
@@ -346,12 +346,12 @@ sctp_do_read(int fd, void *data, gensiods count, gensiods *rcount,
     assert(stream < tdata->instreams);
 
     if (tdata->strind[stream])
-	auxdata[i++] = tdata->strind[stream];
+	(*auxdata)[i++] = tdata->strind[stream];
 
     if (sinfo.sinfo_flags && SCTP_UNORDERED)
-	auxdata[i++] = "oob";
+	(*auxdata)[i++] = "oob";
 
-    auxdata[i] = NULL;
+    (*auxdata)[i] = NULL;
 
     return rv;
 }

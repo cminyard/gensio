@@ -57,7 +57,7 @@ void gensio_fd_ll_handle_incoming(struct gensio_ll *ll,
 				  int (*doread)(int fd, void *buf,
 						gensiods count,
 						gensiods *rcount,
-						const char **auxdata,
+						const char ***auxdata,
 						void *cb_data),
 				  const char **auxdata,
 				  void *cb_data);

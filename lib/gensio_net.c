@@ -39,6 +39,8 @@ struct net_data {
     bool istcp;
 
     int last_err;
+
+    int oob_char;
 };
 
 static int net_check_open(void *handler_data, int fd)
@@ -209,25 +211,52 @@ net_control(void *handler_data, int fd, bool get, unsigned int option,
 }
 
 static int
-net_oob_read(int fd, void *data, gensiods count, gensiods *rcount,
-	     const char **auxdata, void *cb_data)
+net_read(int fd, void *data, gensiods count, gensiods *rcount,
+	 const char ***auxdata, void *cb_data)
 {
     struct net_data *tdata = cb_data;
-    int rv;
+    static const char *argv[3] = { "oob", "oobtcp", NULL };
 
-    rv = gensio_os_recv(tdata->o, fd, data, count, rcount, GENSIO_MSG_OOB);
-    if (rv)
-	*rcount = 0;
-    return 0;
+    if (tdata->oob_char >= 0) {
+	*auxdata = argv;
+	if (count == 0) {
+	    *rcount = 0;
+	    return 0;
+	}
+	*((unsigned char *) data) = tdata->oob_char;
+	tdata->oob_char = -1;
+	*rcount = 1;
+	return 0;
+    }
+
+    return gensio_os_recv(tdata->o, fd, data, count, rcount, 0);
+}
+
+static void
+net_read_ready(void *handler_data, int fd)
+{
+    struct net_data *tdata = handler_data;
+
+    gensio_fd_ll_handle_incoming(tdata->ll, net_read, NULL, tdata);
 }
 
 static int
 net_except_ready(void *handler_data, int fd)
 {
     struct net_data *tdata = handler_data;
-    static const char *argv[3] = { "oob", "oobtcp", NULL };
+    unsigned char urgdata;
+    gensiods rcount = 0;
+    int rv;
 
-    gensio_fd_ll_handle_incoming(tdata->ll, net_oob_read, argv, tdata);
+    if (!tdata->istcp)
+	return GE_NOTSUP;
+
+    rv = gensio_os_recv(tdata->o, fd, &urgdata, 1, &rcount, GENSIO_MSG_OOB);
+    if (rv || rcount == 0)
+	return GE_NOTSUP;
+
+    tdata->oob_char = urgdata;
+    net_read_ready(tdata, fd);
     return 0;
 }
 
@@ -316,6 +345,7 @@ net_gensio_alloc(struct gensio_addr *iai, const char * const args[],
 	goto out_nomem;
 
     tdata->istcp = istcp;
+    tdata->oob_char = -1;
 
     addr = gensio_addr_dup(iai);
     if (!addr)
@@ -542,6 +572,7 @@ netna_readhandler(int fd, void *cbdata)
     }
 
     tdata->o = nadata->o;
+    tdata->oob_char = -1;
     tdata->ai = raddr;
     raddr = NULL;
     
