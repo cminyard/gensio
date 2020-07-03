@@ -388,9 +388,7 @@ main(int argc, char *argv[])
     struct ioinfo *ioinfo1 = NULL, *ioinfo2 = NULL;
     struct gdata userdata1, userdata2;
     char *filename;
-#ifdef _WIN32
-    int sigs;
-#else
+#ifndef _WIN32
     sigset_t sigs;
 #endif
     gensio_time zerotime = { 0, 0 };
