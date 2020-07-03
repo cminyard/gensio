@@ -192,6 +192,7 @@ struct basen_data {
     struct gensio_runner *deferred_op_runner;
 
     bool deferred_read;
+    bool deferred_write;
     bool deferred_open;
     bool deferred_close;
 
@@ -516,7 +517,10 @@ basen_set_ll_enables(struct basen_data *ndata)
 	return;
     }
 
-    if (filter_ll_write_pending(ndata) ||
+    if (ndata->xmit_enabled && ndata->ll_err) {
+	ndata->deferred_write = true;
+	basen_sched_deferred_op(ndata);
+    } else if (filter_ll_write_pending(ndata) ||
 	(filter_ll_can_write(ndata) && ndata->xmit_enabled))
 	ll_set_write_callback_enable(ndata, true);
     else
@@ -668,6 +672,7 @@ handle_ioerr(struct basen_data *ndata, int err)
 
     case BASEN_OPEN:
 	ndata->deferred_read = true;
+	ndata->deferred_write = true;
 	basen_sched_deferred_op(ndata);
 	basen_set_state(ndata, BASEN_IN_LL_IO_ERR_CLOSE);
 	rv = ll_close(ndata);
@@ -766,6 +771,20 @@ basen_finish_open(struct basen_data *ndata, int err)
     basen_lock(ndata);
 }
 
+/*
+ * Returns true if the open callback has been called but a close has
+ * not been requested.
+ */
+static bool
+basen_in_callbackable_state(struct basen_data *ndata)
+{
+    return (ndata->state == BASEN_OPEN ||
+	    ndata->state == BASEN_CLOSE_WAIT_DRAIN ||
+	    ndata->state == BASEN_IN_LL_IO_ERR_CLOSE ||
+	    ndata->state == BASEN_IN_LL_CLOSE ||
+	    ndata->state == BASEN_IO_ERR_CLOSE);
+}
+
 static void
 basen_deferred_op(struct gensio_runner *runner, void *cbdata)
 {
@@ -808,6 +827,20 @@ basen_deferred_op(struct gensio_runner *runner, void *cbdata)
     }
 
  skip_read:
+    /* The write side is primarily for delivery when an error occurs. */
+    while (ndata->deferred_write) {
+	ndata->deferred_write = false;
+	if (ndata->in_xmit_ready)
+	    goto skip_write;
+	while (basen_in_callbackable_state(ndata) && ndata->ll_err
+	       && ndata->xmit_enabled) {
+	    basen_unlock(ndata);
+	    gensio_cb(ndata->io, GENSIO_EVENT_WRITE_READY, 0, NULL, 0, NULL);
+	    basen_lock(ndata);
+	}
+    }
+
+ skip_write:
     /*
      * Close callback may call open, if open defers make sure we
      * run the runner.
@@ -920,6 +953,7 @@ basen_open(struct basen_data *ndata, gensio_done_err open_done, void *open_data)
 	ndata->open_err = 0;
 	ndata->in_read = false;
 	ndata->deferred_read = false;
+	ndata->deferred_write = false;
 	ndata->deferred_open = false;
 	ndata->deferred_close = false;
 	ndata->read_enabled = false;
@@ -972,6 +1006,7 @@ basen_open_nochild(struct basen_data *ndata,
 	ndata->open_err = 0;
 	ndata->in_read = false;
 	ndata->deferred_read = false;
+	ndata->deferred_write = false;
 	ndata->deferred_open = false;
 	ndata->deferred_close = false;
 	ndata->read_enabled = false;
@@ -1185,14 +1220,11 @@ basen_set_read_callback_enable(struct basen_data *ndata, bool enabled)
     bool read_pending;
 
     basen_lock(ndata);
-    i_basen_add_trace(ndata, 1100 + enabled, __LINE__);
+    i_basen_add_trace(ndata, 1100 + ndata->read_enabled * 10 + enabled,
+		      __LINE__);
     if (ndata->read_enabled == enabled)
 	goto out_unlock;
-    if (ndata->state != BASEN_OPEN &&
-		ndata->state != BASEN_CLOSE_WAIT_DRAIN &&
-		ndata->state != BASEN_IN_LL_IO_ERR_CLOSE &&
-		ndata->state != BASEN_IN_LL_CLOSE &&
-		ndata->state != BASEN_IO_ERR_CLOSE)
+    if (!basen_in_callbackable_state(ndata))
 	goto out_unlock;
     ndata->read_enabled = enabled;
     read_pending = filter_ul_read_pending(ndata);
@@ -1218,10 +1250,21 @@ static void
 basen_set_write_callback_enable(struct basen_data *ndata, bool enabled)
 {
     basen_lock(ndata);
-    if (ndata->state == BASEN_OPEN && ndata->xmit_enabled != enabled) {
-	ndata->xmit_enabled = enabled;
+    i_basen_add_trace(ndata, 1100 + ndata->xmit_enabled * 10 + enabled,
+		      __LINE__);
+    if (ndata->xmit_enabled == enabled)
+	goto out_unlock;
+    if (!basen_in_callbackable_state(ndata))
+	goto out_unlock;
+    ndata->xmit_enabled = enabled;
+    if (enabled && ndata->ll_err && ndata->state != BASEN_OPEN) {
+	/* We got an error from the lower layer, just deliver it. */
+	ndata->deferred_write = true;
+	basen_sched_deferred_op(ndata);
+    } else {
 	basen_set_ll_enables(ndata);
     }
+ out_unlock:
     basen_unlock(ndata);
 }
 
@@ -1405,8 +1448,9 @@ basen_ll_write_ready(void *cb_data)
 
     basen_check_open_close_ops(ndata);
 
-    if (ndata->state == BASEN_OPEN && !filter_ll_write_pending(ndata)
-		&& ndata->xmit_enabled) {
+    if (basen_in_callbackable_state(ndata) &&
+	   (!filter_ll_write_pending(ndata) || ndata->ll_err)
+	   && ndata->xmit_enabled) {
 	basen_unlock(ndata);
 	gensio_cb(ndata->io, GENSIO_EVENT_WRITE_READY, 0, NULL, 0, NULL);
 	basen_lock(ndata);
