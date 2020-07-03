@@ -573,7 +573,7 @@ fd_cleared(int fd, void *cb_data)
     struct fd_ll *fdll = cb_data;
     int err;
 
-    fd_lock(fdll);
+    fd_lock_and_ref(fdll);
     if (fdll->state == FD_IN_OPEN_RETRY) {
 	gensio_os_close(fdll->o, fdll->fd);
 	fdll->fd = -1;
@@ -582,8 +582,8 @@ fd_cleared(int fd, void *cb_data)
 	    err = fd_setup_handlers(fdll);
 	if (err) {
 	    fd_set_state(fdll, FD_ERR_WAIT);
-	    fd_finish_open(fdll, err);
 	    fd_deref(fdll);
+	    fd_finish_open(fdll, err);
 	} else {
 	    fdll->o->set_write_handler(fdll->o, fdll->fd, true);
 	    fdll->o->set_except_handler(fdll->o, fdll->fd, true);
@@ -593,7 +593,7 @@ fd_cleared(int fd, void *cb_data)
     } else {
 	fd_finish_cleared(fdll);
     }
-    fd_unlock(fdll);
+    fd_deref_and_unlock(fdll);
 }
 
 static int
