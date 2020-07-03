@@ -1073,6 +1073,7 @@ basen_close(struct basen_data *ndata, gensio_done close_done, void *close_data)
 	err = GE_NOTREADY;
 	goto out_unlock;
     }
+    ndata->close_requested = true;
     i_basen_add_trace(ndata, 103, __LINE__);
     if (ndata->state == BASEN_OPEN || ndata->state == BASEN_IN_FILTER_OPEN ||
 		ndata->state == BASEN_IN_LL_OPEN) {
