@@ -2168,6 +2168,7 @@ mux_child_read(struct mux_data *muxdata, int ierr,
 	    if (buflen + muxdata->hdr_pos < muxdata->hdr_size) {
 		/* The header is not completely received, partial copy. */
 		memcpy(muxdata->hdr + muxdata->hdr_pos, buf, buflen);
+		muxdata->hdr_pos += buflen;
 		processed += buflen;
 		goto out_unlock;
 	    }
