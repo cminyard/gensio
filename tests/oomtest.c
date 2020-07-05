@@ -251,15 +251,39 @@ struct oom_test_data {
 static unsigned char *iodata;
 static gensiods iodata_size;
 
+enum ref_trace_op { ref_inc, ref_dec, do_lock, do_unlock };
 struct ref_trace {
-    enum {
-	ref_inc,
-	ref_dec
-    } op;
+    struct gensio_time time;
+    enum ref_trace_op op;
     unsigned int refcount;
     int line;
+    unsigned int data;
 } ref_trace[512];
 unsigned int ref_trace_pos;
+
+static void
+add_ref_trace(enum ref_trace_op op, unsigned int count, int line,
+	      unsigned int data)
+{
+    o->get_monotonic_time(o, &ref_trace[ref_trace_pos].time);
+    ref_trace[ref_trace_pos].op = op;
+    ref_trace[ref_trace_pos].refcount = count;
+    ref_trace[ref_trace_pos].line = line;
+    ref_trace[ref_trace_pos].data = data;
+    ref_trace_pos = ref_trace_pos == 511 ? 0 : ref_trace_pos + 1;
+}
+
+#define OOMLOCK(lock) \
+    do {						\
+	LOCK(lock);					\
+	add_ref_trace(do_lock, 0, __LINE__, 0);		\
+    } while(0)
+
+#define OOMUNLOCK(lock) \
+    do {						\
+	add_ref_trace(do_unlock, 0, __LINE__, 0);	\
+	UNLOCK(lock);					\
+    } while(0)
 
 static void
 i_od_deref_and_unlock(struct oom_test_data *od, int line)
@@ -268,11 +292,8 @@ i_od_deref_and_unlock(struct oom_test_data *od, int line)
 
     assert(od->refcount > 0);
     tcount = --od->refcount;
-    ref_trace[ref_trace_pos].op = ref_dec;
-    ref_trace[ref_trace_pos].refcount = tcount;
-    ref_trace[ref_trace_pos].line = line;
-    ref_trace_pos = ref_trace_pos == 511 ? 0 : ref_trace_pos + 1;
-    UNLOCK(&od->lock);
+    add_ref_trace(ref_dec, tcount, line, 0);
+    OOMUNLOCK(&od->lock);
     if (tcount == 0) {
 	LOCK_DESTROY(&od->lock);
 	if (od->ccon.io)
@@ -292,10 +313,7 @@ i_od_ref(struct oom_test_data *od, int line)
 {
     assert(od->refcount > 0);
     od->refcount++;
-    ref_trace[ref_trace_pos].op = ref_inc;
-    ref_trace[ref_trace_pos].refcount = od->refcount;
-    ref_trace[ref_trace_pos].line = line;
-    ref_trace_pos = ref_trace_pos == 511 ? 0 : ref_trace_pos + 1;
+    add_ref_trace(ref_inc, od->refcount, line, 0);
 }
 #define od_ref(od) i_od_ref(od, __LINE__)
 
@@ -311,7 +329,7 @@ ccon_stderr_closed(struct gensio *io, void *close_data)
     rv = gensio_control(io, GENSIO_CONTROL_DEPTH_FIRST, true,
 			GENSIO_CONTROL_EXIT_CODE, intstr, &size);
     assert(!debug || !rv);
-    LOCK(&od->lock);
+    OOMLOCK(&od->lock);
     if (rv) {
 	if (debug)
 	    assert(0);
@@ -332,7 +350,7 @@ con_closed(struct gensio *io, void *close_data)
     struct io_test_data *id = close_data;
     struct oom_test_data *od = id->od;
 
-    LOCK(&od->lock);
+    OOMLOCK(&od->lock);
     id->closed = true;
     gensio_free(io);
     id->io = NULL;
@@ -380,7 +398,8 @@ con_cb(struct gensio *io, void *user_data,
     gensiods count;
     int rv = 0;
 
-    LOCK(&od->lock);
+    OOMLOCK(&od->lock);
+    add_ref_trace(ref_inc, err, __LINE__, event);
     assert(id->io == io);
     if (err) {
 	assert(!debug || err == GE_REMCLOSE || err == GE_NOTREADY || err == GE_LOCALCLOSED);
@@ -461,7 +480,8 @@ con_cb(struct gensio *io, void *user_data,
 	rv = GE_NOTSUP;
     }
  out:
-    UNLOCK(&od->lock);
+    add_ref_trace(ref_dec, rv, __LINE__, 0);
+    OOMUNLOCK(&od->lock);
     return rv;
 }
 
@@ -475,13 +495,13 @@ acc_cb(struct gensio_accepter *accepter,
 
     switch(event) {
     case GENSIO_ACC_EVENT_NEW_CONNECTION:
-	LOCK(&od->lock);
+	OOMLOCK(&od->lock);
 	od->scon.io = data;
 	od->scon.open_done = true;
 	gensio_set_callback(od->scon.io, con_cb, &od->scon);
 	gensio_set_read_callback_enable(od->scon.io, true);
 	gensio_set_write_callback_enable(od->scon.io, true);
-	UNLOCK(&od->lock);
+	OOMUNLOCK(&od->lock);
 	break;
 
     case GENSIO_ACC_EVENT_LOG:
@@ -505,13 +525,13 @@ ccon_stderr_cb(struct gensio *io, void *user_data,
     gensiods size;
 
     if (err) {
-	LOCK(&od->lock);
+	OOMLOCK(&od->lock);
 	assert(!debug || err == GE_REMCLOSE);
 	gensio_set_read_callback_enable(io, false);
 	if (!od->stderr_expect_close || err != GE_REMCLOSE)
 	    od->ccon.err = err;
 	o->wake(od->waiter);
-	UNLOCK(&od->lock);
+	OOMUNLOCK(&od->lock);
 	return 0;
     }
 
@@ -572,7 +592,7 @@ ccon_stderr_open_done(struct gensio *io, int err, void *open_data)
 {
     struct oom_test_data *od = open_data;
 
-    LOCK(&od->lock);
+    OOMLOCK(&od->lock);
     if (od->stderr_closed)
 	goto out_unlock;
 
@@ -594,7 +614,7 @@ scon_open_done(struct gensio *io, int err, void *open_data)
     struct oom_test_data *od = open_data;
     struct io_test_data *id = &od->scon;
 
-    LOCK(&od->lock);
+    OOMLOCK(&od->lock);
     assert(!id->open_done);
     o->wake(od->waiter);
     if (id->closed)
@@ -627,7 +647,7 @@ ccon_open_done(struct gensio *io, int err, void *open_data)
     struct io_test_data *id = &od->ccon;
     int rv;
 
-    LOCK(&od->lock);
+    OOMLOCK(&od->lock);
     assert(!id->open_done);
     o->wake(od->waiter);
     if (id->closed)
@@ -700,9 +720,9 @@ wait_for_data(struct oom_test_data *od, gensio_time *timeout)
     int err = 0, rv;
 
     for (;;) {
-	UNLOCK(&od->lock);
+	OOMUNLOCK(&od->lock);
 	rv = o->wait_intr_sigmask(od->waiter, 1, timeout, &waitsigs);
-	LOCK(&od->lock);
+	OOMLOCK(&od->lock);
 	if (debug && (rv == GE_TIMEDOUT || od->scon.err == OOME_READ_OVERFLOW ||
 		      od->ccon.err == OOME_READ_OVERFLOW)) {
 	    printf("Waiting on err A\n");
@@ -745,9 +765,9 @@ close_con(struct io_test_data *id, gensio_time *timeout)
     id->close_done = true;
     /* Make sure the open completes. */
     while (!id->open_done) {
-	UNLOCK(&od->lock);
+	OOMUNLOCK(&od->lock);
 	rv = o->wait_intr_sigmask(id->od->waiter, 1, timeout, &waitsigs);
-	LOCK(&od->lock);
+	OOMLOCK(&od->lock);
 	if (rv == GE_TIMEDOUT) {
 	    printf("Waiting on timeout err A\n");
 	    assert(0);
@@ -791,9 +811,9 @@ close_stderr(struct oom_test_data *od, gensio_time *timeout)
     }
     od_ref(od); /* Ref for the close */
     while (od->ccon_stderr_io) {
-	UNLOCK(&od->lock);
+	OOMUNLOCK(&od->lock);
 	rv = o->wait_intr_sigmask(od->waiter, 1, timeout, &waitsigs);
-	LOCK(&od->lock);
+	OOMLOCK(&od->lock);
 	if (rv == GE_TIMEDOUT) {
 	    printf("Waiting on timeout err G\n");
 	    assert(0);
@@ -825,9 +845,9 @@ close_cons(struct oom_test_data *od, bool close_acc, gensio_time *timeout)
 	err = rv;
 
     while (!err && (od->ccon.io || od->scon.io)) {
-	UNLOCK(&od->lock);
+	OOMUNLOCK(&od->lock);
 	rv = o->wait_intr_sigmask(od->waiter, 1, timeout, &waitsigs);
-	LOCK(&od->lock);
+	OOMLOCK(&od->lock);
 	if (rv == GE_TIMEDOUT) {
 	    printf("Waiting on timeout err B\n");
 	    assert(0);
@@ -861,7 +881,7 @@ run_oom_test(struct oom_tests *test, long count, int *exitcode, bool close_acc)
     if (!od)
 	return GE_NOMEM;
 
-    LOCK(&od->lock);
+    OOMLOCK(&od->lock);
     if (count < 0) {
 	rv = unsetenv("GENSIO_OOM_TEST");
     } else {
@@ -931,9 +951,9 @@ run_oom_test(struct oom_tests *test, long count, int *exitcode, bool close_acc)
 	} else {
 	    od_ref(od); /* Ref for the close */
 	    while (od->acc) {
-		UNLOCK(&od->lock);
+		OOMUNLOCK(&od->lock);
 		rv = o->wait_intr_sigmask(od->waiter, 1, &timeout, &waitsigs);
-		LOCK(&od->lock);
+		OOMLOCK(&od->lock);
 		if (rv == GE_TIMEDOUT) {
 		    printf("Waiting on timeout err C\n");
 		    assert(0);
@@ -985,7 +1005,7 @@ run_oom_acc_test(struct oom_tests *test, long count, int *exitcode,
     if (!od)
 	return GE_NOMEM;
 
-    LOCK(&od->lock);
+    OOMLOCK(&od->lock);
     if (count < 0) {
 	rv = unsetenv("GENSIO_OOM_TEST");
     } else {
@@ -1021,9 +1041,9 @@ run_oom_acc_test(struct oom_tests *test, long count, int *exitcode,
     od_ref(od); /* Ref for the open */
 
     for (;;) {
-	UNLOCK(&od->lock);
+	OOMUNLOCK(&od->lock);
 	rv = o->wait_intr_sigmask(od->waiter, 1, &timeout, &waitsigs);
-	LOCK(&od->lock);
+	OOMLOCK(&od->lock);
 	if (debug && rv == GE_TIMEDOUT) {
 	    printf("Waiting on err E\n");
 	    assert(0);
