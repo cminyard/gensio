@@ -17,7 +17,7 @@ enum fd_state {
     /*
      * fd is not operational
      *
-     * open -> FD_IN_OPEN
+     * open -> FD_IN_OPEN (set fds)
      */
     FD_CLOSED,
 
@@ -26,7 +26,11 @@ enum fd_state {
      *
      * fd opened -> FD_OPEN
      * close -> FD_IN_CLOSE
-     * err -> FD_ERR_WAIT (report open err)
+     * err
+     *   if retry_open() = do retry
+     *    -> FD_IN_OPEN_RETRY (clear fds)
+     *   else
+     *    -> FD_OPEN_ERR_WAIT (clear fds)
      */
     FD_IN_OPEN,
 
@@ -35,9 +39,13 @@ enum fd_state {
      * open failure and we cleared the old handlers but the clear is
      * not finish yet.  When the clear is done, we will retry.
      *
-     * fd opened -> FD_OPEN
+     * fd cleared
+     *   if open success
+     *     -> FD_IN_OPEN (set fds)
+     *   else
+     *     -> FD_CLOSED (report open err)
      * close -> FD_IN_CLOSE
-     * err -> FD_ERR_WAIT (report open err)
+     * err -> FD_OPEN_ERR_WAIT
      */
     FD_IN_OPEN_RETRY,
 
@@ -52,10 +60,18 @@ enum fd_state {
     /*
      * The fd is waiting close
      *
-     * fd closed -> FD_CLOSED
+     * fd cleared -> FD_CLOSED
      * err -> ignore
      */
     FD_IN_CLOSE,
+
+    /*
+     * An error occurred during open.
+     *
+     * fd cleared -> FD_CLOSED (report open err)
+     * close -> FD_IN_CLOSE (report open err)
+     */
+    FD_OPEN_ERR_WAIT,
 
     /*
      * An error occurred.
@@ -291,7 +307,8 @@ fd_deferred_op(struct gensio_runner *runner, void *cbdata)
 
     if (fdll->deferred_except && fdll->write_enabled) {
 	fdll->deferred_except = false;
-	fd_handle_write_ready(fdll, -1);
+	if (fdll->fd >= 0)
+	    fd_handle_write_ready(fdll, fdll->fd);
     }
 
     while (fdll->deferred_read) {
@@ -341,7 +358,8 @@ fd_start_close(struct fd_ll *fdll)
     if (fdll->fd == -1) {
 	fdll->deferred_close = true;
 	fd_sched_deferred_op(fdll);
-    } else if (fdll->state != FD_IN_OPEN_RETRY) {
+    } else if (fdll->state != FD_OPEN_ERR_WAIT &&
+	       fdll->state != FD_IN_OPEN_RETRY) {
 	fdll->o->clear_fd_handlers(fdll->o, fdll->fd);
     }
     fd_set_state(fdll, FD_IN_CLOSE);
@@ -360,7 +378,8 @@ fd_handle_incoming(struct fd_ll *fdll,
     fd_lock_and_ref(fdll);
     fdll->o->set_read_handler(fdll->o, fdll->fd, false);
     fdll->o->set_except_handler(fdll->o, fdll->fd, fdll->write_enabled);
-    if (fdll->in_read || fdll->state == FD_ERR_WAIT)
+    if (fdll->in_read || fdll->state == FD_ERR_WAIT ||
+		fdll->state == FD_OPEN_ERR_WAIT)
 	goto out;
     fdll->in_read = true;
     fd_unlock(fdll);
@@ -381,6 +400,7 @@ fd_handle_incoming(struct fd_ll *fdll,
 	switch(fdll->state) {
 	case FD_IN_OPEN:
 	case FD_IN_OPEN_RETRY:
+	case FD_OPEN_ERR_WAIT:
 	case FD_CLOSED:
 	    assert(0); /* Should not be possible. */
 	    break;
@@ -450,10 +470,8 @@ static int fd_setup_handlers(struct fd_ll *fdll);
 static void
 fd_handle_write_ready(struct fd_ll *fdll, int fd)
 {
-    if (fd >= 0) {
-	fdll->o->set_write_handler(fdll->o, fd, false);
-	fdll->o->set_except_handler(fdll->o, fd, fdll->read_enabled);
-    }
+    fdll->o->set_write_handler(fdll->o, fd, false);
+    fdll->o->set_except_handler(fdll->o, fd, fdll->read_enabled);
     if (fdll->state == FD_IN_OPEN) {
 	int err;
 
@@ -463,10 +481,12 @@ fd_handle_write_ready(struct fd_ll *fdll, int fd)
 	    fdll->o->clear_fd_handlers(fdll->o, fdll->fd);
 	} else {
 	    if (err) {
-		fd_set_state(fdll, FD_ERR_WAIT);
-		fd_deref(fdll);
+		fdll->open_err = err;
+		fd_set_state(fdll, FD_OPEN_ERR_WAIT);
+		fdll->o->clear_fd_handlers(fdll->o, fdll->fd);
+	    } else {
+		fd_finish_open(fdll, 0);
 	    }
-	    fd_finish_open(fdll, err);
 	}
     } else if (fdll->state == FD_OPEN && fdll->write_enabled) {
 	fd_unlock(fdll);
@@ -537,6 +557,8 @@ fd_finish_cleared(struct fd_ll *fdll)
 {
     gensio_os_close(fdll->o, fdll->fd);
     fdll->fd = -1;
+    if (fdll->state == FD_OPEN_ERR_WAIT)
+	fdll->deferred_open = true;
     fdll->deferred_close = true;
     fd_sched_deferred_op(fdll);
 }
@@ -583,17 +605,14 @@ fd_cleared(int fd, void *cb_data)
 	if (err == GE_INPROGRESS)
 	    err = fd_setup_handlers(fdll);
 	if (err) {
-	    fd_set_state(fdll, FD_ERR_WAIT);
 	    fd_deref(fdll);
 	    fd_finish_open(fdll, err);
 	} else {
 	    fdll->o->set_write_handler(fdll->o, fdll->fd, true);
 	    fdll->o->set_except_handler(fdll->o, fdll->fd, true);
 	}
-    } else if (fdll->ops->check_close) {
-	fd_check_close(fdll);
     } else {
-	fd_finish_cleared(fdll);
+	fd_check_close(fdll);
     }
     fd_deref_and_unlock(fdll);
 }
@@ -668,6 +687,8 @@ static int fd_close(struct gensio_ll *ll, gensio_ll_close_done done,
     case FD_IN_OPEN:
     case FD_IN_OPEN_RETRY:
 	fdll->open_err = GE_LOCALCLOSED;
+	/* Fallthrough */
+    case FD_OPEN_ERR_WAIT:
 	fdll->deferred_open = true;
 	fd_sched_deferred_op(fdll);
 	/* Fallthrough */
@@ -750,6 +771,7 @@ static void fd_free(struct gensio_ll *ll)
 
     case FD_OPEN:
     case FD_ERR_WAIT:
+    case FD_OPEN_ERR_WAIT:
 	fdll->close_done = NULL;
 	fd_start_close(fdll);
 	break;
