@@ -82,6 +82,19 @@ enum fd_state {
     FD_ERR_WAIT
 };
 
+#ifdef ENABLE_INTERNAL_TRACE
+#define DEBUG_STATE
+#endif
+
+#ifdef DEBUG_STATE
+struct fd_state_trace {
+    enum fd_state old_state;
+    enum fd_state new_state;
+    int line;
+};
+#define STATE_TRACE_LEN 256
+#endif
+
 struct fd_ll {
     struct gensio_ll *ll;
     struct gensio_os_funcs *o;
@@ -133,11 +146,116 @@ struct fd_ll {
     bool deferred_read;
     bool deferred_close;
     bool deferred_except;
+
+#ifdef DEBUG_STATE
+    struct fd_state_trace trace[STATE_TRACE_LEN];
+    unsigned int trace_pos;
+#endif
 };
 
 #define ll_to_fd(v) ((struct fd_ll *) gensio_ll_get_user_data(v))
 
 static void fd_handle_write_ready(struct fd_ll *fdll, int fd);
+
+static void fd_finish_free(struct fd_ll *fdll)
+{
+    if (fdll->ll)
+	gensio_ll_free_data(fdll->ll);
+    if (fdll->lock)
+	fdll->o->free_lock(fdll->lock);
+    if (fdll->close_timer)
+	fdll->o->free_timer(fdll->close_timer);
+    if (fdll->deferred_op_runner)
+	fdll->o->free_runner(fdll->deferred_op_runner);
+    if (fdll->read_data)
+	fdll->o->free(fdll->o, fdll->read_data);
+    if (fdll->ops)
+	fdll->ops->free(fdll->handler_data);
+    fdll->o->free(fdll->o, fdll);
+}
+
+#ifdef DEBUG_STATE
+static void
+i_fd_add_trace(struct fd_ll *fdll, enum fd_state new_state, int line)
+{
+    fdll->trace[fdll->trace_pos].old_state = fdll->state;
+    fdll->trace[fdll->trace_pos].new_state = new_state;
+    fdll->trace[fdll->trace_pos].line = line;
+    if (fdll->trace_pos == STATE_TRACE_LEN - 1)
+	fdll->trace_pos = 0;
+    else
+	fdll->trace_pos++;
+}
+#define fd_add_trace(fdll, new_state) \
+    i_fd_add_trace(fdll, new_state, __LINE__)
+
+static void
+i_fd_lock(struct fd_ll *fdll, int line)
+{
+    fdll->o->lock(fdll->lock);
+    i_fd_add_trace(fdll, 1000 + fdll->refcount, line);
+}
+#define fd_lock(fdll) i_fd_lock(fdll, __LINE__)
+
+static void
+i_fd_unlock(struct fd_ll *fdll, int line)
+{
+    i_fd_add_trace(fdll, 1000 + fdll->refcount, line);
+    fdll->o->unlock(fdll->lock);
+}
+#define fd_unlock(fdll) i_fd_unlock(fdll, __LINE__)
+
+static void
+i_fd_ref(struct fd_ll *fdll, int line)
+{
+    assert(fdll->refcount > 0);
+    fdll->refcount++;
+    i_fd_add_trace(fdll, 1000 + fdll->refcount, line);
+}
+#define fd_ref(fdll) i_fd_ref(fdll, __LINE__)
+
+static void
+i_fd_deref(struct fd_ll *fdll, int line)
+{
+    assert(fdll->refcount > 1);
+    fdll->refcount--;
+    i_fd_add_trace(fdll, 1000 + fdll->refcount, line);
+}
+#define fd_deref(fdll) i_fd_deref(fdll, __LINE__)
+
+static void
+i_fd_lock_and_ref(struct fd_ll *fdll, int line)
+{
+    i_fd_lock(fdll, line);
+    assert(fdll->refcount > 0);
+    fdll->refcount++;
+}
+#define fd_lock_and_ref(fdll) i_fd_lock_and_ref(fdll, __LINE__)
+
+static void
+i_fd_set_state(struct fd_ll *fdll, enum fd_state state, int line)
+{
+    i_fd_add_trace(fdll, state, line);
+    fdll->state = state;
+}
+#define fd_set_state(fdll, state) i_fd_set_state(fdll, state, __LINE__)
+
+static void
+i_fd_deref_and_unlock(struct fd_ll *fdll, int line)
+{
+    unsigned int count;
+
+    assert(fdll->refcount > 0);
+    count = --fdll->refcount;
+    i_fd_unlock(fdll, line);
+    if (count == 0)
+	fd_finish_free(fdll);
+}
+#define fd_deref_and_unlock(fdll) i_fd_deref_and_unlock(fdll, __LINE__)
+
+#else /* DEBUG_STATE */
+
+#define fd_add_trace(fdll, new_state)
 
 static void
 fd_lock(struct fd_ll *fdll)
@@ -179,23 +297,6 @@ fd_set_state(struct fd_ll *fdll, enum fd_state state)
     fdll->state = state;
 }
 
-static void fd_finish_free(struct fd_ll *fdll)
-{
-    if (fdll->ll)
-	gensio_ll_free_data(fdll->ll);
-    if (fdll->lock)
-	fdll->o->free_lock(fdll->lock);
-    if (fdll->close_timer)
-	fdll->o->free_timer(fdll->close_timer);
-    if (fdll->deferred_op_runner)
-	fdll->o->free_runner(fdll->deferred_op_runner);
-    if (fdll->read_data)
-	fdll->o->free(fdll->o, fdll->read_data);
-    if (fdll->ops)
-	fdll->ops->free(fdll->handler_data);
-    fdll->o->free(fdll->o, fdll);
-}
-
 static void
 fd_deref_and_unlock(struct fd_ll *fdll)
 {
@@ -207,6 +308,7 @@ fd_deref_and_unlock(struct fd_ll *fdll)
     if (count == 0)
 	fd_finish_free(fdll);
 }
+#endif /* DEBUG_STATE */
 
 static void
 fd_set_callbacks(struct gensio_ll *ll, gensio_ll_cb cb, void *cb_data)
