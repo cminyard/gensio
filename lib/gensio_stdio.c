@@ -113,6 +113,7 @@ struct stdiona_data {
     /* exit code from the sub-program, after close. */
     int exit_code;
     bool exit_code_set;
+    unsigned int waitpid_retries;
 
     /*
      * If non-zero, this is the PID of the other process and we are
@@ -265,6 +266,7 @@ check_waitpid(struct stdion_channel *schan)
 	if (rv == 0) {
 	    gensio_time timeout = { 0, 10000000 };
 
+	    nadata->waitpid_retries++;
 	    /* The sub-process has not died, wait a bit and try again. */
 	    stdiona_ref(nadata);
 	    nadata->o->start_timer(nadata->waitpid_timer, &timeout);
@@ -310,6 +312,8 @@ stdion_start_close(struct stdion_channel *schan)
 {
     struct stdiona_data *nadata = schan->nadata;
 
+    schan->read_enabled = false;
+    schan->xmit_enabled = false;
     nadata->o->clear_fd_handlers(nadata->o, schan->outfd);
     if (schan->infd != -1)
 	nadata->o->clear_fd_handlers(nadata->o, schan->infd);
