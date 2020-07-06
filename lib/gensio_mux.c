@@ -199,7 +199,6 @@ struct mux_inst {
     bool send_new_channel;
     bool send_close;
     bool is_client;
-    bool ack_pending;
 
     /*
      * The service, either the local one or the remote one.
@@ -970,11 +969,6 @@ chan_check_read(struct mux_inst *chan)
     after_read_done:
 	chan->in_read_report = false;
 
-	/* Schedule an ack send if we need it. */
-	if (chan->received_unacked) {
-	    chan->ack_pending = true;
-	    muxc_add_to_wrlist(chan);
-	}
 	if (len > 0) {
 	    /* Partial send, create a new 3-byte header over the data left. */
 	    chan->read_data_pos = chan_next_read_pos(chan, olen);
@@ -987,6 +981,9 @@ chan_check_read(struct mux_inst *chan)
 	    chan->read_data_len -= olen + 3;
 	    chan->received_unacked += 3;
 	}
+	/* Schedule an ack send if we need it. */
+	if (chan->received_unacked)
+	    muxc_add_to_wrlist(chan);
     }
 }
 
@@ -1030,6 +1027,7 @@ muxc_add_to_wrlist(struct mux_inst *chan)
     struct mux_data *muxdata = chan->mux;
 
     if (!chan->wr_ready && !muxdata->err_shutdown) {
+	assert(!chan->in_wrlist);
 	gensio_list_add_tail(&muxdata->wrchans, &chan->wrlink);
 	chan->wr_ready = true;
 	chan->in_wrlist = true;
@@ -1580,7 +1578,6 @@ muxc_reinit(struct mux_inst *chan)
 {
     muxc_set_state(chan, MUX_INST_CLOSED);
     chan->send_close = false;
-    chan->ack_pending = false;
     chan->read_enabled = false;
     chan->read_data_pos = 0;
     chan->read_data_len = 0;
@@ -1887,7 +1884,6 @@ chan_setup_send_data(struct mux_inst *chan)
     chan->hdr[1] = 0;
     gensio_u16_to_buf(chan->hdr + 2, chan->remote_id);
     gensio_u32_to_buf(chan->hdr + 4, chan->received_unacked);
-    chan->ack_pending = false;
 
     chan->sg[0].buf = chan->hdr;
     chan->sg[0].buflen = 8;
@@ -2040,7 +2036,7 @@ mux_child_write_ready(struct mux_data *muxdata)
 	    chan_setup_send_new_channel(chan);
 	    chan->send_new_channel = false;
 	    muxdata->sending_chan = chan;
-	} else if (chan->write_data_len || chan->ack_pending) {
+	} else if (chan->write_data_len || chan->received_unacked) {
 	    if (!chan_setup_send_data(chan)) {
 		chan->wr_ready = false;
 		goto check_next_channel;
@@ -2473,7 +2469,6 @@ mux_child_read(struct mux_data *muxdata, int ierr,
 		    if (chan->service_len) {
 			/* Ack the service data. */
 			chan->received_unacked = chan->service_len;
-			chan->ack_pending = true;
 			muxc_add_to_wrlist(chan);
 		    }
 		    if (chan->service)
