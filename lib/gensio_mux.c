@@ -2330,6 +2330,8 @@ mux_child_read(struct mux_data *muxdata, int ierr,
 		    muxc_add_to_wrlist(chan);
 		    chan_sched_deferred_op(chan);
 		}
+		/* If we receive a close, don't send any more data. */
+		chan->write_data_len = 0;
 		break;
 
 	    case MUX_DATA:
