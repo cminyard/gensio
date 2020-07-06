@@ -1917,6 +1917,7 @@ chan_setup_send_data(struct mux_inst *chan)
     flags = chan->write_data[chan->write_data_pos];
     chan_incr_write_pos(chan, 1);
     chan->hdr[1] = flags;
+    chan->sent_unacked++; /* Flags is stored as delivered data on remote end. */
 
     if (chan->write_data_pos + chan->cur_msg_len > chan->max_write_size) {
 	/* Buffer wraps, need three parts for scatter/gatter. */
@@ -1930,7 +1931,7 @@ chan_setup_send_data(struct mux_inst *chan)
 	chan->sg[1].buf = chan->write_data + chan->write_data_pos;
 	chan->sg[1].buflen = chan->cur_msg_len;
     }
-    chan->sent_unacked += chan->cur_msg_len + 1;
+    chan->sent_unacked += chan->cur_msg_len;
 
     return true;
 }
