@@ -1911,7 +1911,8 @@ chan_setup_send_data(struct mux_inst *chan)
     assert(chan->cur_msg_len > 0);
     chan->cur_msg_len += 2;
 
-    if (chan->cur_msg_len > window_left) {
+    /* Make sure to add 1 for the flags */
+    if (chan->cur_msg_len + 1 > window_left) {
 	chan->cur_msg_len = 0;
 	goto check_send_ack;
     }
