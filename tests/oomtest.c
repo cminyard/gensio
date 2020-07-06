@@ -29,6 +29,12 @@
 #include <gensio/gensio_selector.h>
 #include "pthread_handler.h"
 
+#if 1
+#define handle_timeout_err() assert(0)
+#else
+#define handle_timeout_err() do { sleep(100); } while(true)
+#endif
+
 struct oom_tests {
     char *connecter;
     const char *accepter;
@@ -723,13 +729,13 @@ wait_for_data(struct oom_test_data *od, gensio_time *timeout)
 	OOMUNLOCK(&od->lock);
 	rv = o->wait_intr_sigmask(od->waiter, 1, timeout, &waitsigs);
 	OOMLOCK(&od->lock);
-	if (debug && (rv == GE_TIMEDOUT || od->scon.err == OOME_READ_OVERFLOW ||
-		      od->ccon.err == OOME_READ_OVERFLOW)) {
-	    printf("Waiting on err A\n");
-	    assert(0);
-	}
 	if (rv == GE_INTERRUPTED)
 	    continue;
+	if (rv || od->scon.err == OOME_READ_OVERFLOW ||
+		      od->ccon.err == OOME_READ_OVERFLOW) {
+	    printf("Waiting on err A: %s\n", gensio_err_to_str(rv));
+	    handle_timeout_err();
+	}
 	if (rv) {
 	    err = rv;
 	    break;
@@ -770,7 +776,7 @@ close_con(struct io_test_data *id, gensio_time *timeout)
 	OOMLOCK(&od->lock);
 	if (rv == GE_TIMEDOUT) {
 	    printf("Waiting on timeout err A\n");
-	    assert(0);
+	    handle_timeout_err();
 	}
 	if (rv == GE_INTERRUPTED) {
 	    rv = 0;
@@ -816,7 +822,7 @@ close_stderr(struct oom_test_data *od, gensio_time *timeout)
 	OOMLOCK(&od->lock);
 	if (rv == GE_TIMEDOUT) {
 	    printf("Waiting on timeout err G\n");
-	    assert(0);
+	    handle_timeout_err();
 	}
 	if (rv == GE_INTERRUPTED)
 	    continue;
@@ -850,7 +856,7 @@ close_cons(struct oom_test_data *od, bool close_acc, gensio_time *timeout)
 	OOMLOCK(&od->lock);
 	if (rv == GE_TIMEDOUT) {
 	    printf("Waiting on timeout err B\n");
-	    assert(0);
+	    handle_timeout_err();
 	}
 	if (rv == GE_INTERRUPTED)
 	    continue;
@@ -956,7 +962,7 @@ run_oom_test(struct oom_tests *test, long count, int *exitcode, bool close_acc)
 		OOMLOCK(&od->lock);
 		if (rv == GE_TIMEDOUT) {
 		    printf("Waiting on timeout err C\n");
-		    assert(0);
+		    handle_timeout_err();
 		}
 		if (rv == GE_INTERRUPTED)
 		    continue;
