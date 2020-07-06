@@ -1151,6 +1151,7 @@ muxc_set_write_callback_enable(struct mux_inst *chan, bool enabled)
 static void
 chan_send_close(struct mux_inst *chan)
 {
+    assert(chan->sglen == 0);
     chan->hdr[0] = (MUX_CLOSE_CHANNEL << 4) | 0x2;
     chan->hdr[1] = 0;
     gensio_u16_to_buf(&chan->hdr[2], chan->remote_id);
@@ -1856,6 +1857,7 @@ mux_shutdown_channels(struct mux_data *muxdata, int err)
 static void
 chan_setup_send_new_channel(struct mux_inst *chan)
 {
+    assert(chan->sglen == 0);
     chan->hdr[0] = (MUX_NEW_CHANNEL << 4) | 0x2;
     chan->hdr[1] = 0;
     gensio_u16_to_buf(&chan->hdr[2], chan->id);
@@ -1880,6 +1882,7 @@ chan_setup_send_data(struct mux_inst *chan)
     gensiods pos;
     gensiods window_left = chan->send_window_size - chan->sent_unacked;
 
+    assert(chan->sglen == 0);
     chan->hdr[0] = (MUX_DATA << 4) | 0x2;
     chan->hdr[1] = 0;
     gensio_u16_to_buf(chan->hdr + 2, chan->remote_id);
@@ -1905,6 +1908,7 @@ chan_setup_send_data(struct mux_inst *chan)
     chan->cur_msg_len = chan->write_data[pos] << 8;
     pos = chan_next_write_pos(chan, 2);
     chan->cur_msg_len |= chan->write_data[pos];
+    assert(chan->cur_msg_len > 0);
     chan->cur_msg_len += 2;
 
     if (chan->cur_msg_len > window_left) {
@@ -1965,11 +1969,12 @@ mux_child_write_ready(struct mux_data *muxdata)
     if (muxdata->sending_chan) {
 	chan = muxdata->sending_chan;
     next_channel:
+	assert(chan->sglen > 0 && chan->sgpos < chan->sglen);
 	err = gensio_write_sg(muxdata->child, &rcount, chan->sg + chan->sgpos,
 			      chan->sglen - chan->sgpos, NULL);
 	if (err)
 	    goto out_write_err;
-	while (rcount > 0) {
+	while (rcount > 0 && chan->sgpos < chan->sglen) {
 	    if (chan->sg[chan->sgpos].buflen <= rcount) {
 		rcount -= chan->sg[chan->sgpos].buflen;
 		chan->sgpos++;
@@ -1986,6 +1991,8 @@ mux_child_write_ready(struct mux_data *muxdata)
 	    chan->write_data_pos = chan_next_write_pos(chan, chan->cur_msg_len);
 	    chan->write_data_len -= chan->cur_msg_len;
 	    chan->cur_msg_len = 0;
+	    chan->sgpos = 0;
+	    chan->sglen = 0;
 	    muxdata->sending_chan = NULL;
 	    if (chan->write_data_len > 0 || chan->send_new_channel ||
 			chan->send_close) {
@@ -1997,7 +2004,7 @@ mux_child_write_ready(struct mux_data *muxdata)
 	    }
 	    /*
 	     * Maybe the user can write.  Also, if a close is pending,
-	     * handle it there, too.s
+	     * handle it there, too.
 	     */
 	    chan_sched_deferred_op(chan);
 	} else {
@@ -2015,11 +2022,12 @@ mux_child_write_ready(struct mux_data *muxdata)
 	err = gensio_write_sg(muxdata->child, &rcount, sg, 1, NULL);
 	if (err)
 	    goto out_write_err;
-	muxdata->xmit_data_len -= rcount;
-	if (muxdata->xmit_data_len == 0) {
+	if (rcount >= muxdata->xmit_data_len) {
+	    muxdata->xmit_data_len = 0;
 	    muxdata->xmit_data_pos = 0;
 	} else {
 	    /* Partial write, can't write anything else. */
+	    muxdata->xmit_data_len -= rcount;
 	    muxdata->xmit_data_pos += rcount;
 	    goto out;
 	}
@@ -2028,11 +2036,11 @@ mux_child_write_ready(struct mux_data *muxdata)
     /* Now look for a new channel to send. */
  check_next_channel:
     if (!gensio_list_empty(&muxdata->wrchans)) {
+	assert(muxdata->sending_chan == NULL);
 	chan = gensio_container_of(gensio_list_first(&muxdata->wrchans),
 				   struct mux_inst, wrlink);
 	gensio_list_rm(&muxdata->wrchans, &chan->wrlink);
 	chan->in_wrlist = false;
-	chan->sgpos = 0;
 
 	if (chan->send_new_channel) {
 	    chan_setup_send_new_channel(chan);
@@ -2050,7 +2058,6 @@ mux_child_write_ready(struct mux_data *muxdata)
 	    chan->send_close = false;
 	    muxdata->sending_chan = chan;
 	} else {
-	    muxdata->sending_chan = NULL;
 	    chan->wr_ready = false;
 	    goto check_next_channel;
 	}
