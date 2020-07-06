@@ -8,6 +8,10 @@
 #ifndef SELECTOR
 #define SELECTOR
 #include <sys/time.h> /* For timeval */
+#ifdef __APPLE__
+#include <signal.h>
+#define EBADFD 77
+#endif
 
 #if defined _WIN32 || defined __CYGWIN__
   #ifdef BUILDING_DLL

@@ -8,7 +8,9 @@
 #include <stdarg.h>
 #include <stdio.h>
 #include <ctype.h>
+#ifndef __APPLE__
 #include <malloc.h>
+#endif
 #include <string.h>
 #include <stdlib.h>
 
