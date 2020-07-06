@@ -29,12 +29,6 @@
 #include <gensio/gensio_selector.h>
 #include "pthread_handler.h"
 
-#if 1
-#define handle_timeout_err() assert(0)
-#else
-#define handle_timeout_err() do { sleep(100); } while(true)
-#endif
-
 struct oom_tests {
     char *connecter;
     const char *accepter;
@@ -72,6 +66,16 @@ file_is_accessible_dev(const char *filename)
     }
 }
 #endif
+
+bool sleep_on_timeout_err;
+
+static void
+handle_timeout_err(void)
+{
+    while (sleep_on_timeout_err)
+	sleep(100);
+    assert(0);
+}
 
 static bool
 check_serialdev_present(struct gensio_os_funcs *o, struct oom_tests *test)
@@ -1309,6 +1313,8 @@ main(int argc, char *argv[])
 	} else if (strcmp(argv[i], "-d") == 0) {
 	    debug = true;
 	    gensio_set_log_mask(GENSIO_LOG_MASK_ALL);
+	} else if (strcmp(argv[i], "-b") == 0) {
+	    sleep_on_timeout_err = true;
 	} else if (strcmp(argv[i], "-l") == 0) {
 	    for (j = 0; oom_tests[j].connecter; j++) {
 		if (!check_oom_test_present(o, oom_tests + j))
