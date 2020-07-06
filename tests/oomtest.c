@@ -977,6 +977,10 @@ run_oom_test(struct oom_tests *test, long count, int *exitcode, bool close_acc)
 
     od->stderr_expect_close = true;
 
+    if (err) {
+	timeout.secs = 10;
+	timeout.nsecs = 0;
+    }
     rv = close_cons(od, close_acc, &timeout);
     if (rv && !err)
 	err = rv;
@@ -1105,6 +1109,10 @@ run_oom_acc_test(struct oom_tests *test, long count, int *exitcode,
  finish_run:
     od->stderr_expect_close = true;
 
+    if (err) {
+	timeout.secs = 10;
+	timeout.nsecs = 0;
+    }
     rv = close_cons(od, close_acc, &timeout);
     if (rv && !err)
 	err = rv;
