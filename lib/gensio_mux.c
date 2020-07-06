@@ -1994,11 +1994,12 @@ mux_child_write_ready(struct mux_data *muxdata)
 		chan->in_wrlist = true;
 	    } else {
 		chan->wr_ready = false;
-		if (chan->state == MUX_INST_IN_CLOSE_FINAL &&
-		       !full_msg_ready(chan, NULL))
-		    /* Run the close in the deferred op handling. */
-		    chan_sched_deferred_op(chan);
 	    }
+	    /*
+	     * Maybe the user can write.  Also, if a close is pending,
+	     * handle it there, too.s
+	     */
+	    chan_sched_deferred_op(chan);
 	} else {
 	    /* Couldn't send all the data. */
 	    goto out;
