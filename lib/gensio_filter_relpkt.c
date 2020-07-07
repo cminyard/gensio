@@ -597,11 +597,22 @@ relpkt_try_disconnect(struct relpkt_filter *rfilter, gensio_time *timeout,
 
     relpkt_lock(rfilter);
     switch (rfilter->state) {
-    case RELPKT_CLOSED:
+    case RELPKT_WAITING_INIT:
 	break;
 
-    case RELPKT_WAITING_INIT:
+    case RELPKT_CLOSED:
     case RELPKT_REMCLOSED:
+	if (!rfilter->send_close_pkt)
+	    /* Close packet has been sent. */
+	    break;
+	if (was_timeout) {
+	    i_relpkt_filter_timeout(rfilter);
+	    timeout->secs = 1;
+	    timeout->nsecs = 0;
+	    rv = GE_RETRY;
+	} else {
+	    rv = GE_INPROGRESS;
+	}
 	break;
 
     case RELPKT_OPEN:
