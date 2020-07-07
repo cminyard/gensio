@@ -810,6 +810,7 @@ relpkt_ll_write(struct relpkt_filter *rfilter,
     uint8_t seq, endseq, pos, ppos;
     unsigned int i;
     struct pkt *p;
+    const char *proto_err_str = NULL;
 
 #ifdef DEBUG_MSG
     if (buflen) {
@@ -828,15 +829,19 @@ relpkt_ll_write(struct relpkt_filter *rfilter,
 	    *rcount = 0;
 	goto deliver_recv;
     }
-    if (buflen < 3)
+    if (buflen < 3) {
+	proto_err_str = "buflen < 3";
 	goto protocol_err;
+    }
 
     *rcount = buflen;
 
     switch (buf[0] >> 4) {
     case RELPKT_MSG_INIT:
-	if (buflen < 5)
+	if (buflen < 5) {
+	    proto_err_str = "buflen < 5";
 	    goto protocol_err;
+	}
 	response = buf[0] & 1;
 	switch (rfilter->state) {
 	case RELPKT_CLOSED:
@@ -848,8 +853,10 @@ relpkt_ll_write(struct relpkt_filter *rfilter,
 	case RELPKT_WAITING_INIT:
 	    if (!response) {
 		rfilter->max_xmitpkt = buf[2];
-		if (rfilter->max_xmitpkt == 0)
+		if (rfilter->max_xmitpkt == 0) {
+		    proto_err_str = "rfilter->max_xmitpkt == 0";
 		    goto protocol_err;
+		}
 		if (rfilter->max_xmitpkt > rfilter->max_pkt)
 		    rfilter->max_xmitpkt = rfilter->max_pkt;
 		rfilter->max_xmit_pktsize = buf[3] << 8 | buf[4];
@@ -899,10 +906,14 @@ relpkt_ll_write(struct relpkt_filter *rfilter,
 
 	case RELPKT_OPEN:
 	case RELPKT_WAITING_CLOSE_CLEAR:
-	    if (buflen > rfilter->max_pktsize + 3)
+	    if (buflen > rfilter->max_pktsize + 3) {
+		proto_err_str = "buflen > rfilter->max_pktsize + 3";
 		goto protocol_err;
-	    if (handle_ack(rfilter, buf[1]))
+	    }
+	    if (handle_ack(rfilter, buf[1])) {
+		proto_err_str = "handle_ack(rfilter, buf[1])";
 		goto protocol_err;
+	    }
 	    if (rfilter->state != RELPKT_OPEN) {
 		/* Only deliver data in open state */
 
@@ -955,17 +966,23 @@ relpkt_ll_write(struct relpkt_filter *rfilter,
 	case RELPKT_WAITING_CLOSE_RSP:
 	    buf++;
 	    buflen--;
-	    if (buflen % 2 != 0) /* Should be pairs of sequence numbers. */
+	    if (buflen % 2 != 0) { /* Should be pairs of sequence numbers. */
+		proto_err_str = "buflen % 2 != 0";
 		goto protocol_err;
+	    }
 	    for (i = 0; i < buflen; i += 2) {
 		seq = buf[i];
 		endseq = buf[i + 1];
 		if (!seq_inside(seq, rfilter->next_acked_seq,
-				rfilter->next_send_seq))
+				rfilter->next_send_seq)) {
+		    proto_err_str = "seq_inside A";
 		    goto protocol_err;
+		}
 		if (!seq_inside(endseq, rfilter->next_acked_seq,
-				rfilter->next_send_seq))
+				rfilter->next_send_seq)) {
+		    proto_err_str = "seq_inside B";
 		    goto protocol_err;
+		}
 		resend_packets(rfilter, seq, endseq + 1);
 	    }
 	    break;
@@ -1002,6 +1019,7 @@ relpkt_ll_write(struct relpkt_filter *rfilter,
 	break;
 
     default:
+	proto_err_str = "pkttype";
 	goto protocol_err;
     }
 
@@ -1030,6 +1048,9 @@ relpkt_ll_write(struct relpkt_filter *rfilter,
     return err;
 
  protocol_err:
+    gensio_log(rfilter->o, GENSIO_LOG_ERR,
+	       "relpkt: protocol error: %s", proto_err_str);
+    assert(0);
     relpkt_unlock(rfilter);
     return GE_PROTOERR;
 }
