@@ -123,7 +123,7 @@ check_oom_test_present(struct gensio_os_funcs *o, struct oom_tests *test)
 }
 
 struct oom_tests oom_tests[] = {
-    { "relpkt,msgdelim,tcp,localhost,", "relpkt,msgdelim,tcp,0" },
+    { "relpkt,msgdelim,udp,localhost,", "relpkt,msgdelim,udp,0" },
     { "certauth(cert=ca/cert.pem,key=ca/key.pem,username=test1),ssl(CA=ca/CA.pem),tcp,localhost,",
       "certauth(CA=ca/CA.pem),ssl(key=ca/key.pem,cert=ca/cert.pem),tcp,0",
       .check_done = 1, .check_value = HAVE_OPENSSL },
@@ -997,7 +997,7 @@ run_oom_test(struct oom_tests *test, long count, int *exitcode, bool close_acc)
  out_err:
     if (od->ccon_stderr_pos && verbose) {
 	od->ccon_stderr[od->ccon_stderr_pos] = '\0';
-	printf("ERR out: %s", od->ccon_stderr);
+	printf("ERR out: %s\nERR done\n", od->ccon_stderr);
     }
 
     assert(od->refcount == 1); /* No callbacks should be pending. */
@@ -1129,7 +1129,7 @@ run_oom_acc_test(struct oom_tests *test, long count, int *exitcode,
  out_err:
     if (od->ccon_stderr_pos && verbose) {
 	od->ccon_stderr[od->ccon_stderr_pos] = '\0';
-	printf("ERR out: %s", od->ccon_stderr);
+	printf("ERR out: %s\nERR done\n", od->ccon_stderr);
     }
 
     assert(od->refcount == 1); /* No callbacks should be pending. */
