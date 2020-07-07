@@ -548,12 +548,12 @@ udpna_deferred_op(struct gensio_runner *runner, void *cbdata)
     if (nadata->in_shutdown && !nadata->in_new_connection) {
 	struct gensio_accepter *accepter = nadata->acc;
 
+	nadata->in_shutdown = false;
 	if (nadata->shutdown_done) {
 	    udpna_unlock(nadata);
 	    nadata->shutdown_done(accepter, nadata->shutdown_data);
 	    udpna_lock(nadata);
 	}
-	nadata->in_shutdown = false;
 	udpna_check_finish_free(nadata);
     }
 
@@ -1167,13 +1167,13 @@ udpna_readhandler(int fd, void *cbdata)
     if (nadata->in_shutdown) {
 	struct gensio_accepter *accepter = nadata->acc;
 
+	nadata->in_shutdown = false;
 	ndata->in_read = true;
 	udpna_unlock(nadata);
 	if (nadata->shutdown_done)
 	    nadata->shutdown_done(accepter, nadata->shutdown_data);
 	udpna_lock(nadata);
 	ndata->in_read = false;
-	nadata->in_shutdown = false;
     }
     udpna_check_finish_free(nadata);
     goto out_unlock_enable;
