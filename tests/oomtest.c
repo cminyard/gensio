@@ -136,7 +136,7 @@ struct oom_tests oom_tests[] = {
       .check_done = 1, .check_value = HAVE_LIBSCTP },
     { "udp,localhost,", "udp,0",
       .allow_pass_on_oom = true },
-    { "mux,sctp,localhost,", "mux,sctp,0",
+    { "mux,tcp,localhost,", "mux,tcp,0",
       .check_done = 1, .check_value = HAVE_LIBSCTP },
     { "telnet(rfc2217),tcp,localhost,", "telnet(rfc2217),tcp,0" },
     { "serialdev,%s,115200", NULL,
