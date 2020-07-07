@@ -907,7 +907,7 @@ chan_check_read(struct mux_inst *chan)
 {
     struct mux_data *muxdata = chan->mux;
     unsigned char flags;
-    gensiods len = 0, olen, rcount, orcount, pos;
+    gensiods len = 0, olen, rcount, orcount, pos, to_ack;
     const char *flstr[3];
     unsigned int i;
     bool fullmsg;
@@ -928,23 +928,28 @@ chan_check_read(struct mux_inst *chan)
 
 	flags = chan->read_data[chan->read_data_pos];
 	pos = chan_next_read_pos(chan, 3);
+	to_ack = 0;
 	olen = 0;
 
 	chan->in_read_report = true;
-	if (len > chan->max_read_size - pos) {
+	i = 0;
+	if (flags & MUX_FLAG_OUT_OF_BOUND)
+	    flstr[i++] = "oob";
+	flstr[i] = NULL;
+	if (pos + len > chan->max_read_size) {
 	    /* Buffer wraps, deliver in two parts. */
 	    rcount = chan->max_read_size - pos;
 	    orcount = rcount;
 	    mux_unlock(muxdata);
 	    gensio_cb(chan->io, GENSIO_EVENT_READ,
-		      0, chan->read_data + pos, &rcount, NULL);
+		      0, chan->read_data + pos, &rcount, flstr);
 	    mux_lock(muxdata);
 	    if (rcount > orcount)
 		rcount = orcount;
 	    len -= rcount;
-	    chan->received_unacked += rcount;
+	    to_ack += rcount;
 	    olen += rcount;
-	    if (rcount < orcount)
+	    if (rcount < orcount || !chan->read_enabled)
 		/* User didn't consume all data. */
 		goto after_read_done;
 	    pos = 0;
@@ -952,11 +957,8 @@ chan_check_read(struct mux_inst *chan)
 	rcount = len;
 	orcount = rcount;
 	mux_unlock(muxdata);
-	i = 0;
 	if (flags & MUX_FLAG_END_OF_MESSAGE)
 	    flstr[i++] = "eom";
-	if (flags & MUX_FLAG_OUT_OF_BOUND)
-	    flstr[i++] = "oob";
 	flstr[i] = NULL;
 	gensio_cb(chan->io, GENSIO_EVENT_READ,
 		  0, chan->read_data + pos, &rcount, flstr);
@@ -964,13 +966,13 @@ chan_check_read(struct mux_inst *chan)
 	if (rcount > orcount)
 	    rcount = orcount;
 	len -= rcount;
-	chan->received_unacked += rcount;
+	to_ack += rcount;
 	olen += rcount;
     after_read_done:
 	chan->in_read_report = false;
 
 	if (len > 0) {
-	    /* Partial send, create a new 3-byte header over the data left. */
+	    /* Partial read, create a new 3-byte header over the data left. */
 	    chan->read_data_pos = chan_next_read_pos(chan, olen);
 	    chan->read_data_len -= olen;
 	    chan->read_data[chan->read_data_pos] = flags;
@@ -979,12 +981,19 @@ chan_check_read(struct mux_inst *chan)
 	} else {
 	    chan->read_data_pos = chan_next_read_pos(chan, olen + 3);
 	    chan->read_data_len -= olen + 3;
-	    chan->received_unacked += 3;
+	    to_ack += 3;
 	}
-	/* Schedule an ack send if we need it. */
-	if (chan->received_unacked)
-	    muxc_add_to_wrlist(chan);
+	chan->received_unacked += to_ack;
     }
+    /*
+     * Schedule an ack send if we need it.  The send_close thing may
+     * look strange, but we delay finishing the close until all read
+     * data is delivered, so if all the data is processed and a close
+     * is pending, we send it.
+     */
+    if (chan->received_unacked ||
+		(chan->send_close && chan->read_data_len == 0))
+	muxc_add_to_wrlist(chan);
 }
 
 static void
@@ -2053,7 +2062,7 @@ mux_child_write_ready(struct mux_data *muxdata)
 		goto check_next_channel;
 	    }
 	    muxdata->sending_chan = chan;
-	} else if (chan->send_close) {
+	} else if (chan->send_close && chan->read_data_len == 0) {
 	    /* Do the close last so all data is sent. */
 	    chan_send_close(chan);
 	    chan->send_close = false;
