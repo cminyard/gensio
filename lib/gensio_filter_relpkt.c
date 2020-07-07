@@ -910,10 +910,8 @@ relpkt_ll_write(struct relpkt_filter *rfilter,
 		proto_err_str = "buflen > rfilter->max_pktsize + 3";
 		goto protocol_err;
 	    }
-	    if (handle_ack(rfilter, buf[1])) {
-		proto_err_str = "handle_ack(rfilter, buf[1])";
-		goto protocol_err;
-	    }
+	    if (handle_ack(rfilter, buf[1]))
+		goto out_unlock;
 	    if (rfilter->state != RELPKT_OPEN) {
 		/* Only deliver data in open state */
 
