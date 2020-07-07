@@ -199,6 +199,7 @@ struct mux_inst {
     bool send_new_channel;
     bool send_close;
     bool is_client;
+    bool close_sent;
 
     /*
      * The service, either the local one or the remote one.
@@ -1588,6 +1589,7 @@ muxc_reinit(struct mux_inst *chan)
 {
     muxc_set_state(chan, MUX_INST_CLOSED);
     chan->send_close = false;
+    chan->close_sent = false;
     chan->read_enabled = false;
     chan->read_data_pos = 0;
     chan->read_data_len = 0;
@@ -2056,16 +2058,33 @@ mux_child_write_ready(struct mux_data *muxdata)
 	    chan_setup_send_new_channel(chan);
 	    chan->send_new_channel = false;
 	    muxdata->sending_chan = chan;
-	} else if (chan->write_data_len || chan->received_unacked) {
+	} else if ((chan->write_data_len || chan->received_unacked) &&
+		   !chan->close_sent) {
+	    /*
+	     * Send a data packet, either for data delivery or an ack.
+	     * Once we send a close, we cannot send any more data,
+	     * thus the check in the if statement above.
+	     */
 	    if (!chan_setup_send_data(chan)) {
 		chan->wr_ready = false;
 		goto check_next_channel;
 	    }
 	    muxdata->sending_chan = chan;
-	} else if (chan->send_close && chan->read_data_len == 0) {
-	    /* Do the close last so all data is sent. */
+	} else if (chan->send_close &&
+		   (chan->read_data_len == 0 ||
+		    chan->state == MUX_INST_IN_CLOSE ||
+		    chan->state == MUX_INST_IN_CLOSE_FINAL)) {
+	    /*
+	     * Do the close last so all data is sent.  The state
+	     * checks above are there because we want to delay the
+	     * send close if we are in MUX_INST_IN_REM_CLOSE to
+	     * deliver all the data the remote end sent before
+	     * reporting the close, but if our end requested the
+	     * close, send it after all local data has been sent.
+	     */
 	    chan_send_close(chan);
 	    chan->send_close = false;
+	    chan->close_sent = true;
 	    muxdata->sending_chan = chan;
 	} else {
 	    chan->wr_ready = false;
