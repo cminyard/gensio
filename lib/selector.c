@@ -866,27 +866,23 @@ sel_stop_timer_with_done(sel_timer_t *timer,
 			 void *cb_data)
 {
     struct selector_s *sel = timer->val.sel;
+    int rv = EBUSY;
 
     sel_timer_lock(sel);
-    if (timer->val.done_handler) {
-	sel_timer_unlock(sel);
-	return EBUSY;
-    }
-    if (timer->val.stopped) {
-	sel_timer_unlock(sel);
-	return ETIMEDOUT;
-    }
+    if (timer->val.done_handler)
+	goto out_unlock;
+    rv = ETIMEDOUT;
+    if (timer->val.stopped || timer->val.in_handler)
+	goto out_unlock;
 
+    rv = 0;
     timer->val.stopped = 1;
 
     timer->val.done_handler = done_handler;
     timer->val.done_cb_data = cb_data;
 
-    if (timer->val.in_handler)
-	goto out_unlock;
-
     /*
-     * We don't want to run the done handler here do avoid locking
+     * We don't want to run the done handler here to avoid locking
      * issues.  So set it in_handler and stick it on the top of the
      * heap with an immediate timeout so it will be processed now.
      */
@@ -901,7 +897,7 @@ sel_stop_timer_with_done(sel_timer_t *timer,
 
  out_unlock:
     sel_timer_unlock(sel);
-    return 0;
+    return rv;
 }
 
 void
