@@ -1278,6 +1278,7 @@ main(int argc, char *argv[])
     unsigned int i, j;
     unsigned long errcount = 0;
     unsigned long skipcount = 0;
+    unsigned int repeat_count = 1;
     struct sigaction sigdo;
     sigset_t sigs;
     int testnr = -1, numtests = 0, testnrstart = -1, testnrend = MAX_LOOPS;
@@ -1343,6 +1344,13 @@ main(int argc, char *argv[])
 			numtests);
 		exit(1);
 	    }
+	} else if (strcmp(argv[i], "-r") == 0) {
+	    i++;
+	    if (i >= argc) {
+		fprintf(stderr, "No repeat count given with -r\n");
+		exit(1);
+	    }
+	    repeat_count = strtol(argv[i], NULL, 0);
 	} else if (strcmp(argv[i], "-s") == 0) {
 	    i++;
 	    if (i >= argc) {
@@ -1447,20 +1455,21 @@ main(int argc, char *argv[])
     }
 #endif
 
-    if (testnr < 0) {
-	for (i = 0; oom_tests[i].connecter; i++) {
-	    if (!check_oom_test_present(o, oom_tests + i)) {
-		skipcount++;
-		continue;
-	    }
-	    errcount += run_oom_tests(oom_tests + i, "oom", run_oom_test,
-				      testnrstart, testnrend);
-	    if (oom_tests[i].accepter)
-		errcount += run_oom_tests(oom_tests + i, "oom acc",
-					  run_oom_acc_test,
+    for (j = 0; j < repeat_count; j++) {
+	if (testnr < 0) {
+	    for (i = 0; oom_tests[i].connecter; i++) {
+		if (!check_oom_test_present(o, oom_tests + i)) {
+		    skipcount++;
+		    continue;
+		}
+		errcount += run_oom_tests(oom_tests + i, "oom", run_oom_test,
 					  testnrstart, testnrend);
-	}
-    } else {
+		if (oom_tests[i].accepter)
+		    errcount += run_oom_tests(oom_tests + i, "oom acc",
+					      run_oom_acc_test,
+					      testnrstart, testnrend);
+	    }
+	} else {
 	    if (!check_oom_test_present(o, oom_tests + testnr))
 		exit(77);
 	    errcount += run_oom_tests(oom_tests + testnr, "oom", run_oom_test,
@@ -1469,6 +1478,7 @@ main(int argc, char *argv[])
 		errcount += run_oom_tests(oom_tests + testnr, "oom acc",
 					  run_oom_acc_test,
 					  testnrstart, testnrend);
+	}
     }
 
 #ifdef USE_PTHREADS
