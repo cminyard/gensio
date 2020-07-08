@@ -1278,6 +1278,22 @@ fill_random(void *buf, size_t buflen)
     return 0;
 }
 
+static void
+run_tests(struct oom_tests *test, int testnrstart, int testnrend,
+	  unsigned long *skipcount, unsigned long *errcount)
+{
+    if (!check_oom_test_present(o, test)) {
+	(*skipcount)++;
+	return;
+    }
+    *errcount += run_oom_tests(test, "oom", run_oom_test,
+			       testnrstart, testnrend);
+    if (test->accepter)
+	*errcount += run_oom_tests(test, "oom acc",
+				   run_oom_acc_test,
+				   testnrstart, testnrend);
+}
+
 int
 main(int argc, char *argv[])
 {
@@ -1295,6 +1311,9 @@ main(int argc, char *argv[])
     sigset_t sigs;
     int testnr = -1, numtests = 0, testnrstart = -1, testnrend = MAX_LOOPS;
     gensio_time zerotime = { 0, 0 };
+    struct oom_tests user_test;
+
+    memset(&user_test, 0, sizeof(user_test));
 
     if (fill_random(&iodata_size, sizeof(iodata_size)))
 	return 1;
@@ -1393,6 +1412,20 @@ main(int argc, char *argv[])
 		exit(1);
 	    }
 	    iodata_size = strtoul(argv[i], NULL, 0);
+	} else if (strcmp(argv[i], "-a") == 0) {
+	    i++;
+	    if (i >= argc) {
+		fprintf(stderr, "No accepter given with -a\n");
+		exit(1);
+	    }
+	    user_test.accepter = argv[i];
+	} else if (strcmp(argv[i], "-c") == 0) {
+	    i++;
+	    if (i >= argc) {
+		fprintf(stderr, "No connector given with -c\n");
+		exit(1);
+	    }
+	    user_test.connecter = argv[i];
 	} else {
 	    fprintf(stderr, "Unknown argument: '%s'\n", argv[i]);
 	    exit(1);
@@ -1468,28 +1501,16 @@ main(int argc, char *argv[])
 #endif
 
     for (j = 0; j < repeat_count; j++) {
-	if (testnr < 0) {
-	    for (i = 0; oom_tests[i].connecter; i++) {
-		if (!check_oom_test_present(o, oom_tests + i)) {
-		    skipcount++;
-		    continue;
-		}
-		errcount += run_oom_tests(oom_tests + i, "oom", run_oom_test,
-					  testnrstart, testnrend);
-		if (oom_tests[i].accepter)
-		    errcount += run_oom_tests(oom_tests + i, "oom acc",
-					      run_oom_acc_test,
-					      testnrstart, testnrend);
-	    }
+	if (user_test.connecter) {
+	    run_tests(&user_test, testnrstart, testnrend,
+		      &skipcount, &errcount);
+	} else if (testnr < 0) {
+	    for (i = 0; oom_tests[i].connecter; i++)
+		run_tests(oom_tests + i, testnrstart, testnrend,
+			  &skipcount, &errcount);
 	} else {
-	    if (!check_oom_test_present(o, oom_tests + testnr))
-		exit(77);
-	    errcount += run_oom_tests(oom_tests + testnr, "oom", run_oom_test,
-				      testnrstart, testnrend);
-	    if (oom_tests[testnr].accepter)
-		errcount += run_oom_tests(oom_tests + testnr, "oom acc",
-					  run_oom_acc_test,
-					  testnrstart, testnrend);
+	    run_tests(oom_tests + testnr, testnrstart, testnrend,
+		      &skipcount, &errcount);
 	}
     }
 
