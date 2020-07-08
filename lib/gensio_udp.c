@@ -20,8 +20,7 @@
 #include <gensio/gensio_builtins.h>
 
 #ifdef ENABLE_INTERNAL_TRACE
-#define LOCK_TRACING
-#define LOCK_TRACE_SIZE 64
+#define DEBUG_STATE
 #endif
 
 /*
@@ -88,6 +87,18 @@ struct udpna_waiters {
     struct udpna_waiters *next;
 };
 
+#ifdef DEBUG_STATE
+struct udp_state_trace {
+    enum udpn_state old_state;
+    enum udpn_state new_state;
+    int line;
+    bool readdisable;
+};
+#define STATE_TRACE_LEN 256
+#else
+#define i_udp_add_trace(nadata, ndata, new_state, line)
+#endif
+
 struct udpna_data {
     struct gensio_accepter *acc;
     struct gensio_list udpns;
@@ -141,14 +152,13 @@ struct udpna_data {
     bool read_disabled;
     unsigned int write_enable_count;
 
-#ifdef LOCK_TRACING
-    struct {
-	bool lock;
-	unsigned int line;
-    } locktrace[LOCK_TRACE_SIZE];
-    unsigned int locktrace_pos;
+#ifdef DEBUG_STATE
+    struct udp_state_trace state_trace[STATE_TRACE_LEN];
+    unsigned int state_trace_pos;
 #endif
 };
+
+static void udpna_do_free(struct udpna_data *nadata);
 
 static void
 i_udpna_lock(struct udpna_data *nadata)
@@ -162,35 +172,112 @@ i_udpna_unlock(struct udpna_data *nadata)
     nadata->o->unlock(nadata->lock);
 }
 
-#ifdef LOCK_TRACING
-static void
-i_udpna_locktrace_add(struct udpna_data *nadata, bool locked, unsigned int line)
+static void i_udpna_ref(struct udpna_data *nadata)
 {
-    nadata->locktrace[nadata->locktrace_pos].line = line;
-    nadata->locktrace[nadata->locktrace_pos].lock = locked;
-    if (nadata->locktrace_pos == LOCK_TRACE_SIZE - 1)
-	nadata->locktrace_pos = 0;
-    else
-	nadata->locktrace_pos++;
+    assert(nadata->refcount > 0);
+    nadata->refcount++;
 }
 
-#define udpna_lock(n) \
-    do {						\
-	i_udpna_lock(n);				\
-	i_udpna_locktrace_add(n, true, __LINE__);	\
+static void i_udpna_deref(struct udpna_data *nadata)
+{
+    assert(nadata->refcount > 1);
+    nadata->refcount--;
+}
+
+static void i_udpna_lock_and_ref(struct udpna_data *nadata)
+{
+    i_udpna_lock(nadata);
+    i_udpna_ref(nadata);
+}
+
+static void i_udpna_deref_and_unlock(struct udpna_data *nadata)
+{
+    assert(nadata->refcount > 0);
+    nadata->refcount--;
+    if (nadata->refcount == 0) {
+	i_udpna_unlock(nadata);
+	udpna_do_free(nadata);
+    } else {
+	i_udpna_unlock(nadata);
+    }
+}
+
+#ifdef DEBUG_STATE
+static void
+i_udp_add_trace(struct udpna_data *nadata, struct udpn_data *ndata,
+		enum udpn_state new_state, int line)
+{
+    if (ndata)
+	nadata->state_trace[nadata->state_trace_pos].old_state = ndata->state;
+    else
+	nadata->state_trace[nadata->state_trace_pos].old_state = 99;
+    nadata->state_trace[nadata->state_trace_pos].new_state = new_state;
+    nadata->state_trace[nadata->state_trace_pos].line = line;
+    nadata->state_trace[nadata->state_trace_pos].readdisable =
+	nadata->read_disabled;
+    if (nadata->state_trace_pos == STATE_TRACE_LEN - 1)
+	nadata->state_trace_pos = 0;
+    else
+	nadata->state_trace_pos++;
+}
+
+#define udpna_lock(nadata) do { \
+	i_udpna_lock(nadata);				\
+	i_udp_add_trace(nadata, NULL, 1001, __LINE__);	\
     } while(0)
 
-#define udpna_unlock(n) \
-    do {						\
-	i_udpna_locktrace_add(n, false, __LINE__);	\
-	i_udpna_unlock(n);				\
+#define udpna_unlock(nadata) do { \
+	i_udp_add_trace(nadata, NULL, 1002, __LINE__);	\
+	i_udpna_unlock(nadata);				\
     } while(0)
+
+#define udpna_ref(nadata) do { \
+	i_udpna_ref(nadata);				\
+	i_udp_add_trace(nadata, NULL, 2000 + nadata->refcount, __LINE__); \
+    } while(0)
+
+#define udpna_deref(nadata) do { \
+	i_udp_add_trace(nadata, NULL, 3000 + nadata->refcount, __LINE__); \
+	i_udpna_deref(nadata);				\
+    } while(0)
+
+#define udpna_lock_and_ref(nadata) do { \
+	i_udpna_lock_and_ref(nadata);			\
+	i_udp_add_trace(nadata, NULL, 2000 + nadata->refcount, __LINE__); \
+    } while(0)
+
+#define udpna_deref_and_unlock(nadata) do { \
+	i_udp_add_trace(nadata, NULL, 3000 + nadata->refcount, __LINE__); \
+	i_udpna_deref_and_unlock(nadata);		\
+    } while(0)
+
+static void
+i_udpn_set_state(struct udpn_data *ndata, enum udpn_state state, int line)
+{
+    i_udp_add_trace(ndata->nadata, ndata, state, line);
+    ndata->state = state;
+}
+
+#define udpn_set_state(ndata, state) \
+    i_udpn_set_state(ndata, state, __LINE__)
+
 #else
+
 #define udpna_lock i_udpna_lock
 #define udpna_unlock i_udpna_unlock
-#endif
+#define udpna_ref i_udpna_ref
+#define udpna_deref i_udpna_deref
+#define udpna_lock_and_ref i_udpna_lock_and_ref
+#define udpna_deref_and_unlock i_udpna_deref_and_unlock
 
-static void udpna_ref(struct udpna_data *nadata);
+static void
+udpn_set_state(struct udpn_data *ndata, enum udpn_state state)
+{
+    ndata->state = state;
+}
+
+
+#endif
 
 static void udpna_start_deferred_op(struct udpna_data *nadata)
 {
@@ -256,19 +343,23 @@ static void udpna_check_read_state(struct udpna_data *nadata)
 }
 
 static void
-udpna_fd_read_enable(struct udpna_data *nadata)
+i_udpna_fd_read_enable(struct udpna_data *nadata, int line)
 {
     assert(nadata->read_disable_count > 0);
     nadata->read_disable_count--;
+    i_udp_add_trace(nadata, NULL, 5100 + nadata->read_disable_count, line);
     udpna_check_read_state(nadata);
 }
+#define udpna_fd_read_enable(nadata) i_udpna_fd_read_enable(nadata, __LINE__)
 
 static void
-udpna_fd_read_disable(struct udpna_data *nadata)
+i_udpna_fd_read_disable(struct udpna_data *nadata, int line)
 {
     nadata->read_disable_count++;
+    i_udp_add_trace(nadata, NULL, 5200 + nadata->read_disable_count, line);
     udpna_check_read_state(nadata);
 }
+#define udpna_fd_read_disable(nadata) i_udpna_fd_read_disable(nadata, __LINE__)
 
 static void
 udpna_disable_write(struct udpna_data *nadata)
@@ -330,36 +421,6 @@ udpna_do_free(struct udpna_data *nadata)
     if (nadata->acc)
 	gensio_acc_data_free(nadata->acc);
     nadata->o->free(nadata->o, nadata);
-}
-
-static void udpna_ref(struct udpna_data *nadata)
-{
-    assert(nadata->refcount > 0);
-    nadata->refcount++;
-}
-
-static void udpna_deref(struct udpna_data *nadata)
-{
-    assert(nadata->refcount > 1);
-    nadata->refcount--;
-}
-
-static void udpna_lock_and_ref(struct udpna_data *nadata)
-{
-    udpna_lock(nadata);
-    udpna_ref(nadata);
-}
-
-static void udpna_deref_and_unlock(struct udpna_data *nadata)
-{
-    assert(nadata->refcount > 0);
-    nadata->refcount--;
-    if (nadata->refcount == 0) {
-	udpna_unlock(nadata);
-	udpna_do_free(nadata);
-    } else {
-	udpna_unlock(nadata);
-    }
 }
 
 static void
@@ -451,7 +512,7 @@ udpn_finish_close(struct udpna_data *nadata, struct udpn_data *ndata)
     if (ndata->in_read || ndata->in_write || ndata->in_open_cb)
 	return;
 
-    ndata->state = UDPN_CLOSED;
+    udpn_set_state(ndata, UDPN_CLOSED);
 
     if (ndata->close_done) {
 	void (*close_done)(struct gensio *io, void *close_data) =
@@ -542,7 +603,7 @@ udpna_deferred_op(struct gensio_runner *runner, void *cbdata)
     udpna_lock(nadata);
     nadata->deferred_op_pending = false;
     while (nadata->pending_data_owner &&
-			nadata->pending_data_owner->read_enabled)
+	   nadata->pending_data_owner->read_enabled)
 	udpn_finish_read(nadata->pending_data_owner);
 
     if (nadata->in_shutdown && !nadata->in_new_connection) {
@@ -571,7 +632,7 @@ udpn_deferred_op(struct gensio_runner *runner, void *cbdata)
     udpna_lock(nadata);
     ndata->deferred_op_pending = false;
     if (ndata->state == UDPN_IN_OPEN) {
-	ndata->state = UDPN_OPEN;
+	udpn_set_state(ndata, UDPN_OPEN);
 	if (ndata->open_done) {
 	    ndata->in_open_cb = true;
 	    udpna_unlock(nadata);
@@ -612,7 +673,7 @@ udpn_open(struct gensio *io, gensio_done_err open_done, void *open_data)
 	udpn_remove_from_list(&nadata->closed_udpns, ndata);
 	udpn_add_to_list(&nadata->udpns, ndata);
 	udpna_fd_read_disable(nadata);
-	ndata->state = UDPN_IN_OPEN;
+	udpn_set_state(ndata, UDPN_IN_OPEN);
 	ndata->open_done = open_done;
 	ndata->open_data = open_data;
 	udpn_start_deferred_op(ndata);
@@ -648,7 +709,7 @@ udpn_start_close(struct udpn_data *ndata,
 
     udpn_remove_from_list(&nadata->udpns, ndata);
     udpn_add_to_list(&nadata->closed_udpns, ndata);
-    ndata->state = UDPN_IN_CLOSE;
+    udpn_set_state(ndata, UDPN_IN_CLOSE);
 
     udpn_start_deferred_op(ndata);
 }
@@ -723,8 +784,12 @@ udpn_set_read_callback_enable(struct gensio *io, bool enabled)
     if (enabled) {
 	assert(nadata->read_disable_count > 0);
 	nadata->read_disable_count--;
+	i_udp_add_trace(nadata, NULL, 5300 + nadata->read_disable_count,
+			__LINE__);
     } else {
 	nadata->read_disable_count++;
+	i_udp_add_trace(nadata, NULL, 5400 + nadata->read_disable_count,
+			__LINE__);
     }
     ndata->read_enabled = enabled;
     my_data_pending = (nadata->data_pending_len &&
@@ -784,7 +849,7 @@ udpn_disable(struct gensio *io)
     ndata->close_done = NULL;
     udpn_remove_from_list(&nadata->udpns, ndata);
     udpn_add_to_list(&nadata->closed_udpns, ndata);
-    ndata->state = UDPN_CLOSED;
+    udpn_set_state(ndata, UDPN_CLOSED);
     nadata->disabled = true;
 }
 
@@ -1133,8 +1198,9 @@ udpna_readhandler(int fd, void *cbdata)
     if (!ndata)
 	goto out_nomem;
 
-    ndata->state = UDPN_OPEN;
+    udpn_set_state(ndata, UDPN_OPEN);
     nadata->read_disable_count++;
+    i_udp_add_trace(nadata, NULL, 5500 + nadata->read_disable_count, __LINE__);
 
     nadata->pending_data_owner = ndata;
     nadata->in_new_connection = true;
