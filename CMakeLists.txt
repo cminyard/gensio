@@ -89,6 +89,9 @@ if(ENABLE_SCTP)
     list(APPEND EXTRA_LIBS sctp)
   endif()
 endif()
+if(HAVE_LIBSCTP)
+  CHECK_LIBRARY_EXISTS(sctp "sctp_sendv" "" HAVE_SCTP_SENDV)
+endif()
 
 CHECK_LIBRARY_EXISTS(pam "pam_start" "" HAVE_PAM)
 

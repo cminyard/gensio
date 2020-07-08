@@ -288,6 +288,14 @@ AC_DEFINE_UNQUOTED([HAVE_LIBSCTP], [$HAVE_LIBSCTP],
 	      [Set to 1 to enable SCTP, 0 to disable])
 AC_SUBST(HAVE_LIBSCTP)
 
+HAVE_SCTP_SENDV=0
+if test "$HAVE_LIBSCTP" = "1"; then
+   AC_CHECK_LIB(sctp, sctp_sendv, [HAVE_SCTP_SENDV=1])
+fi
+AC_DEFINE_UNQUOTED([HAVE_SCTP_SENDV], [$HAVE_SCTP_SENDV],
+	      [Set to 1 if sctp_sendv() is available, 0 if not])
+AC_SUBST(HAVE_SCTP_SENDV)
+
 AC_CHECK_LIB(pam, pam_start, [HAVE_PAM=1], [HAVE_PAM=0])
 if test $HAVE_PAM -eq 1; then
    AC_DEFINE([HAVE_LIBPAM], [1], [PAM libraries are present])

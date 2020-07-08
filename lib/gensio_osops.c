@@ -523,6 +523,10 @@ l_sctp_send(struct gensio_os_funcs *o,
     ERRHANDLE();
 }
 
+#if HAVE_SCTP_SENDV
+#define gensio_os_sctp_send l_gensio_os_sctp_send
+#endif
+
 int
 gensio_os_sctp_send(struct gensio_os_funcs *o,
 		    int fd, const struct gensio_sg *sg, gensiods sglen,
@@ -543,6 +547,42 @@ gensio_os_sctp_send(struct gensio_os_funcs *o,
 	*rcount = total_write;
     return err;
 }
+
+#if HAVE_SCTP_SENDV
+#undef gensio_os_sctp_send
+static bool sctp_sendv_broken;
+int
+gensio_os_sctp_send(struct gensio_os_funcs *o,
+		    int fd, const struct gensio_sg *sg, gensiods sglen,
+		    gensiods *rcount,
+		    const struct sctp_sndrcvinfo *sinfo, uint32_t flags)
+{
+    size_t rv = 0;
+    struct sctp_sndinfo *sndinfo = NULL, sdata;
+
+    if (sctp_sendv_broken) {
+    broken:
+	return l_gensio_os_sctp_send(o, fd, sg, sglen, rcount, sinfo, flags);
+    }
+    if (sinfo) {
+	sdata.snd_sid = sinfo->sinfo_stream;
+	sdata.snd_flags = sinfo->sinfo_flags;
+	sdata.snd_ppid = sinfo->sinfo_ppid;
+	sdata.snd_context = sinfo->sinfo_context;
+	sdata.snd_assoc_id = sinfo->sinfo_assoc_id;
+	sndinfo = &sdata;
+    }
+ retry:
+    rv = sctp_sendv(fd, (struct iovec *) sg, sglen, NULL, 0,
+		    sndinfo, sizeof(*sndinfo), SCTP_SENDV_SNDINFO, flags);
+    if (rv == -1 && errno == EINVAL) {
+	/* No sendv support, fall back. */
+	sctp_sendv_broken = true;
+	goto broken;
+    }
+    ERRHANDLE();
+}
+#endif
 
 static int
 gensio_addr_to_sockarray(struct gensio_os_funcs *o, struct gensio_addr *addrs,

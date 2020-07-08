@@ -5,6 +5,7 @@
 #cmakedefine01 HAVE_OPENIPMI
 #cmakedefine01 HAVE_OPENSSL
 #cmakedefine01 HAVE_LIBSCTP
+#cmakedefine01 HAVE_SCTP_SENDV
 #cmakedefine01 HAVE_UNIX
 #cmakedefine01 PYTHON_HAS_POSIX_THREADS
 #cmakedefine01 HAVE_GCC_ATOMICS
