@@ -136,6 +136,7 @@ struct udpna_data {
     bool in_shutdown;
     bool disabled;
     bool freed;
+    bool finished_free;
     gensio_acc_done shutdown_done;
     void *shutdown_data;
 
@@ -440,7 +441,10 @@ udpna_check_finish_free(struct udpna_data *nadata)
     if (!nadata->closed || nadata->in_new_connection || nadata->udpn_count ||
 		nadata->in_shutdown || !nadata->freed)
 	return;
+    if (nadata->finished_free)
+	return;
 
+    nadata->finished_free = true;
     udpna_deref(nadata);
     for (i = 0; i < nadata->nr_fds; i++) {
 	udpna_ref(nadata);
