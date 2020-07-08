@@ -131,7 +131,12 @@ check_oom_test_present(struct gensio_os_funcs *o, struct oom_tests *test)
 }
 
 struct oom_tests oom_tests[] = {
-    { "relpkt,msgdelim,udp,localhost,", "relpkt,msgdelim,udp,0" },
+    /*
+     * I would like this to run on UDP, but there appears to be a bug
+     * in UDP on Linux where the packets are sent but don't seem to be
+     * received on the other end.  It's pretty rare.
+     */
+    { "relpkt,msgdelim,tcp,localhost,", "relpkt,msgdelim,tcp,0" },
     { "certauth(cert=ca/cert.pem,key=ca/key.pem,username=test1),ssl(CA=ca/CA.pem),tcp,localhost,",
       "certauth(CA=ca/CA.pem),ssl(key=ca/key.pem,cert=ca/cert.pem),tcp,0",
       .check_done = 1, .check_value = HAVE_OPENSSL },
@@ -144,6 +149,13 @@ struct oom_tests oom_tests[] = {
       .check_done = 1, .check_value = HAVE_LIBSCTP },
     { "udp,localhost,", "udp,0",
       .allow_pass_on_oom = true },
+    /*
+     * I would like this to run over SCTP, but there appears to be a
+     * bug in the Linux SCTP stack where I'm getting a 200ms delay
+     * every once in a while, enough to make it take a long time.
+     * This doesn't happen on the straight SCTP test, so it's some way
+     * the mux code is interacting with SCTP.  No problem with TCP.
+     */
     { "mux,tcp,localhost,", "mux,tcp,0",
       .check_done = 1, .check_value = HAVE_LIBSCTP },
     { "telnet(rfc2217),tcp,localhost,", "telnet(rfc2217),tcp,0" },
