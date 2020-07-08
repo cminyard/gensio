@@ -77,6 +77,14 @@ handle_timeout_err(void)
     assert(0);
 }
 
+static void
+assert_or_stop(bool val)
+{
+    if (val)
+	return;
+    handle_timeout_err();
+}
+
 static bool
 check_serialdev_present(struct gensio_os_funcs *o, struct oom_tests *test)
 {
@@ -634,9 +642,9 @@ scon_open_done(struct gensio *io, int err, void *open_data)
 	if (debug)
 	    printf("scon_open_done: %s for %s\n", gensio_err_to_str(err),
 		   id->iostr);
-	assert(!debug || err == GE_REMCLOSE || err == GE_INVAL ||
-	       err == GE_SHUTDOWN || err == GE_LOCALCLOSED ||
-	       err == GE_NOTREADY);
+	assert_or_stop(!debug || err == GE_REMCLOSE || err == GE_INVAL ||
+		       err == GE_SHUTDOWN || err == GE_LOCALCLOSED ||
+		       err == GE_NOTREADY);
 	if (err == GE_INVAL)
 	    err = GE_REMCLOSE; /* Just translate this special case. */
 	id->err = err;
