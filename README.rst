@@ -334,7 +334,9 @@ Using a gensio
 ==============
 
 Once you have created a gensio, it's not yet open or operational.  To
-use it, you have to open it.  To open it, do::
+use it, you have to open it.  To open it, do:
+
+.. code:: c
 
   struct gensio *io;
   int rv;
@@ -385,12 +387,16 @@ Synchronous I/O
 ---------------
 
 You can do basic synchronous I/O with gensios.  This is useful in some
-situations where you need to read something inline.  To do this, call::
+situations where you need to read something inline.  To do this, call:
+
+.. code:: c
 
   err = gensio_set_sync(io);
 
 The given gensio will cease to deliver read and write events.  Other
-events *are* delivered.  Then you can do::
+events *are* delivered.  Then you can do:
+
+.. code:: c
 
   err = gensio_read_s(io, &count, data, datalen, &timeout);
   err = gensio_write_s(io, &count, data, datalen, &timeout);
@@ -414,7 +420,9 @@ Writes block until the whole buffer is written or a timeout occurs.
 Again, the timeout is not an error, the total bytes actually written
 is returned in count.
 
-Once you are done doing synchronous I/O with a gensio, call::
+Once you are done doing synchronous I/O with a gensio, call:
+
+.. code:: c
 
   err = gensio_clear_sync(io);
 
@@ -434,7 +442,9 @@ Using a gensio accepter
 =======================
 
 Like a gensio, a gensio accepter is not operational when you create
-it.  You must call ``gensio_acc_startup()`` to enable it::
+it.  You must call ``gensio_acc_startup()`` to enable it:
+
+.. code:: c
 
   struct gensio_accepter *acc;
   int rv;
@@ -500,7 +510,9 @@ Since python is fully object oriented, gensios and gensio accepters
 are first-class objects, along with gensio_os_funcs, sergensios, and
 waiters.
 
-Here's a small program::
+Here's a small program:
+
+.. code:: python
 
   import gensio
 
@@ -577,6 +589,8 @@ hooked in echo mode (RX and TX tied together) and two serial devices
 hooked together do I/O on one device goes to/comes from the other.
 Then set the following environment variables:
 
+.. code:: bash
+
   export GENSIO_TEST_PIPE_DEVS="/dev/ttyxxx:/dev/ttywww"
   export GENSIO_TEST_ECHO_DEV="/dev/ttyzzz"
 
@@ -587,6 +601,8 @@ https://github.com/cminyard/openipmi to run the ipmisol tests.
 
 To run the tests, you need to enable some internal debugging to get
 the full effect.  You generally want to run something like:
+
+.. code:: bash
 
   ./configure --enable-internal-trace CFLAGS='-g -Wall'
 
