@@ -161,7 +161,7 @@ int gensio_filter_ll_write(struct gensio_filter *filter,
  */
 #define GENSIO_FILTER_FUNC_TIMEOUT		11
 GENSIO_DLL_PUBLIC
-void gensio_filter_timeout(struct gensio_filter *filter);
+int gensio_filter_timeout(struct gensio_filter *filter);
 
 /*
  * Allocate data and configure the filter.

@@ -1191,6 +1191,7 @@ static void
 basen_timeout(struct gensio_timer *timer, void *cb_data)
 {
     struct basen_data *ndata = cb_data;
+    int err;
 
     basen_lock(ndata);
     switch (ndata->state) {
@@ -1205,8 +1206,10 @@ basen_timeout(struct gensio_timer *timer, void *cb_data)
     case BASEN_OPEN:
     case BASEN_CLOSE_WAIT_DRAIN:
 	basen_unlock(ndata);
-	gensio_filter_timeout(ndata->filter);
+	err = gensio_filter_timeout(ndata->filter);
 	basen_lock(ndata);
+	if (err)
+	    handle_ioerr(ndata, err);
 	break;
 
     default:
@@ -1772,11 +1775,11 @@ gensio_filter_ll_write(struct gensio_filter *filter,
 			handler, cb_data, rcount, buf, NULL, buflen, auxdata);
 }
 
-void
+int
 gensio_filter_timeout(struct gensio_filter *filter)
 {
-    filter->func(filter, GENSIO_FILTER_FUNC_TIMEOUT,
-		 NULL, NULL, NULL, NULL, NULL, 0, NULL);
+    return filter->func(filter, GENSIO_FILTER_FUNC_TIMEOUT,
+			NULL, NULL, NULL, NULL, NULL, 0, NULL);
 }
 
 int

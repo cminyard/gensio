@@ -313,7 +313,7 @@ struct relpkt_filter {
 			     gensio_filter_get_user_data(v))
 #define link_to_pkt(v) gensio_container_of(v, struct pkt, link);
 
-static void i_relpkt_filter_timeout(struct relpkt_filter *rfilter);
+static int i_relpkt_filter_timeout(struct relpkt_filter *rfilter);
 
 static void
 relpkt_lock(struct relpkt_filter *rfilter)
@@ -1126,13 +1126,13 @@ relpkt_free(struct relpkt_filter *rfilter)
     rfilter->o->free(rfilter->o, rfilter);
 }
 
-static void
+static int
 i_relpkt_filter_timeout(struct relpkt_filter *rfilter)
 {
     rfilter->timeouts_since_ack++;
     if (rfilter->timeouts_since_ack > 5) {
 	rfilter->err = GE_TIMEDOUT;
-	goto out;
+	return GE_TIMEDOUT;
     }
 
     if (rfilter->send_since_timeout)
@@ -1158,16 +1158,19 @@ i_relpkt_filter_timeout(struct relpkt_filter *rfilter)
 	}
 	
     }
- out:
     relpkt_filter_start_timer(rfilter);
+    return 0;
 }
 
-static void
+static int
 relpkt_filter_timeout(struct relpkt_filter *rfilter)
 {
+    int err;
+
     relpkt_lock(rfilter);
-    i_relpkt_filter_timeout(rfilter);
+    err = i_relpkt_filter_timeout(rfilter);
     relpkt_unlock(rfilter);
+    return err;
 }
 
 static int gensio_relpkt_filter_func(struct gensio_filter *filter, int op,
@@ -1228,8 +1231,7 @@ static int gensio_relpkt_filter_func(struct gensio_filter *filter, int op,
 	return 0;
 
     case GENSIO_FILTER_FUNC_TIMEOUT:
-	relpkt_filter_timeout(rfilter);
-	return 0;
+	return relpkt_filter_timeout(rfilter);
 
     default:
 	return GE_NOTSUP;
