@@ -528,12 +528,20 @@ acc_cb(struct gensio_accepter *accepter,
     switch(event) {
     case GENSIO_ACC_EVENT_NEW_CONNECTION:
 	OOMLOCK(&od->lock);
-	od->scon.io = data;
-	od->scon.open_done = true;
-	gensio_set_callback(od->scon.io, con_cb, &od->scon);
-	gensio_set_read_callback_enable(od->scon.io, true);
-	gensio_set_write_callback_enable(od->scon.io, true);
-	OOMUNLOCK(&od->lock);
+	if (od->scon.io) {
+	    /*
+	     * Another connection snuck in before we shut down the
+	     * accepter, just shut it down.
+	     */
+	    gensio_free(data);
+	} else {
+	    od->scon.io = data;
+	    od->scon.open_done = true;
+	    gensio_set_callback(od->scon.io, con_cb, &od->scon);
+	    gensio_set_read_callback_enable(od->scon.io, true);
+	    gensio_set_write_callback_enable(od->scon.io, true);
+	    OOMUNLOCK(&od->lock);
+	}
 	break;
 
     case GENSIO_ACC_EVENT_LOG:
