@@ -848,9 +848,11 @@ basen_deferred_op(struct gensio_runner *runner, void *cbdata)
     ndata->deferred_op_pending = false;
 
     if (ndata->deferred_close) {
-	ndata->deferred_close = false;
-	i_basen_add_trace(ndata, 101, __LINE__);
-	basen_finish_close(ndata);
+	if (!(ndata->in_xmit_ready || ndata->in_read)) {
+	    ndata->deferred_close = false;
+	    i_basen_add_trace(ndata, 101, __LINE__);
+	    basen_finish_close(ndata);
+	}
     }
 
     if (ndata->state != BASEN_CLOSED)
@@ -1339,6 +1341,14 @@ gensio_base_func(struct gensio *io, int func, gensiods *count,
 static void
 basen_check_open_close_ops(struct basen_data *ndata)
 {
+    if (ndata->deferred_close) {
+	if (!(ndata->in_xmit_ready || ndata->in_read)) {
+	    ndata->deferred_close = false;
+	    i_basen_add_trace(ndata, 101, __LINE__);
+	    basen_finish_close(ndata);
+	}
+	return;
+    }
     if (ndata->state == BASEN_IN_FILTER_OPEN)
 	basen_filter_try_connect_finish(ndata, false);
     if (ndata->state == BASEN_IN_FILTER_CLOSE)
