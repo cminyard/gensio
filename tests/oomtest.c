@@ -78,12 +78,14 @@ handle_timeout_err(void)
 }
 
 static void
-assert_or_stop(bool val)
+l_assert_or_stop(bool val, char *expr, int line)
 {
     if (val)
 	return;
+    fprintf(stderr, "Assert '%s' failed on line %d\n", expr, line);
     handle_timeout_err();
 }
+#define assert_or_stop(val) l_assert_or_stop(val, #val, __LINE__)
 
 static bool
 check_serialdev_present(struct gensio_os_funcs *o, struct oom_tests *test)
@@ -432,7 +434,7 @@ con_cb(struct gensio *io, void *user_data,
     add_ref_trace(ref_inc, err, __LINE__, event);
     assert(id->io == io);
     if (err) {
-	assert(!debug || err == GE_REMCLOSE || err == GE_NOTREADY || err == GE_LOCALCLOSED);
+	assert_or_stop(!debug || err == GE_REMCLOSE || err == GE_NOTREADY || err == GE_LOCALCLOSED);
 	gensio_set_write_callback_enable(io, false);
 	gensio_set_read_callback_enable(io, false);
 	if (!id->expect_close || err != GE_REMCLOSE) {
