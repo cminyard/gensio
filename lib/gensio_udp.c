@@ -606,9 +606,15 @@ udpna_deferred_op(struct gensio_runner *runner, void *cbdata)
 
     udpna_lock(nadata);
     nadata->deferred_op_pending = false;
-    while (nadata->pending_data_owner &&
-	   nadata->pending_data_owner->read_enabled)
-	udpn_finish_read(nadata->pending_data_owner);
+    while (nadata->pending_data_owner) {
+	if (nadata->pending_data_owner->read_enabled) {
+	    udpn_finish_read(nadata->pending_data_owner);
+	} else {
+	    /* We started to read, but didn't get to do it. */
+	    nadata->pending_data_owner->in_read = false;
+	    break;
+	}
+    }
 
     if (nadata->in_shutdown && !nadata->in_new_connection) {
 	struct gensio_accepter *accepter = nadata->acc;
