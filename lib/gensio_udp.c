@@ -51,6 +51,7 @@ struct udpn_data {
     bool read_enabled;	/* Read callbacks are enabled. */
     bool write_enabled;	/* Write callbacks are enabled. */
     bool in_read;	/* Currently in a read callback. */
+    bool deferred_read;
     bool in_write;	/* Currently in a write callback. */
     bool write_pending; /* Need to redo the write callback. */
     bool in_open_cb;	/* Currently in an open callback. */
@@ -606,13 +607,16 @@ udpna_deferred_op(struct gensio_runner *runner, void *cbdata)
 
     udpna_lock(nadata);
     nadata->deferred_op_pending = false;
-    while (nadata->pending_data_owner) {
-	if (nadata->pending_data_owner->read_enabled) {
-	    udpn_finish_read(nadata->pending_data_owner);
-	} else {
-	    /* We started to read, but didn't get to do it. */
-	    nadata->pending_data_owner->in_read = false;
-	    break;
+    if (nadata->pending_data_owner) {
+	struct udpn_data *ndata = nadata->pending_data_owner;
+	if (ndata->deferred_read) {
+	    ndata->deferred_read = false;
+	    if (ndata->read_enabled) {
+		udpn_finish_read(ndata);
+	    } else {
+		/* We started to read, but didn't get to do it. */
+		ndata->in_read = false;
+	    }
 	}
     }
 
@@ -653,9 +657,8 @@ udpn_deferred_op(struct gensio_runner *runner, void *cbdata)
 	udpna_check_read_state(nadata);
     }
 
-    if (ndata->state == UDPN_IN_CLOSE) {
+    if (ndata->state == UDPN_IN_CLOSE)
 	udpn_finish_close(nadata, ndata);
-    }
 
     udpna_deref_and_unlock(nadata);
 }
@@ -809,6 +812,7 @@ udpn_set_read_callback_enable(struct gensio *io, bool enabled)
 	/* Nothing to do. */
     } else if (enabled && my_data_pending) {
 	ndata->in_read = true;
+	ndata->deferred_read = true;
 	/* Call the read from the selector to avoid lock nesting issues. */
 	udpna_start_deferred_op(nadata);
     } else {
