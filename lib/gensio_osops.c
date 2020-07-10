@@ -718,7 +718,7 @@ gensio_os_sctp_getraddr(struct gensio_os_funcs *o, int fd,
 			void *addr, gensiods *addrlen)
 {
     struct sockaddr *saddr;
-    gensiods len, clen = *addrlen;
+    gensiods len = 0, clen = *addrlen;
     int rv = sctp_getraddr(o, fd, &saddr, &len);
 
     if (rv)
@@ -799,7 +799,7 @@ gensio_os_sctp_getpaddrs(struct gensio_os_funcs *o, int fd,
 			 struct gensio_addr **raddr)
 {
     struct sockaddr *saddr;
-    gensiods len;
+    gensiods len = 0;
     int rv = sctp_getraddr(o, fd, &saddr, &len);
 
     if (rv)

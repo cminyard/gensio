@@ -266,7 +266,7 @@ filen_write(struct gensio *io, gensiods *count,
 {
     struct filen_data *ndata = gensio_get_gensio_data(io);
     gensiods total_write = 0, i;
-    gensiods wcount;
+    gensiods wcount = 0;
     int err = 0;
 
     filen_lock(ndata);
