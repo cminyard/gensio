@@ -1831,6 +1831,7 @@ static int gensio_def_init_rv;
 static int l_gensio_set_default(struct gensio_os_funcs *o,
 				const char *class, const char *name,
 				const char *strval, int intval);
+static void l_gensio_reset_defaults(struct gensio_os_funcs *o);
 
 static void
 gensio_default_init(void *cb_data)
@@ -1852,7 +1853,7 @@ gensio_cleanup_mem(struct gensio_os_funcs *o)
     struct registered_gensio_accepter *n, *n2;
     struct registered_gensio *g, *g2;
 
-    gensio_reset_defaults(o);
+    l_gensio_reset_defaults(o);
 
     if (deflock)
 	o->free_lock(deflock);
@@ -1881,6 +1882,8 @@ gensio_cleanup_mem(struct gensio_os_funcs *o)
 	g = g2;
     }
     reg_gensios = NULL;
+
+    memset(&gensio_default_initialized, 0, sizeof(gensio_default_initialized));
 }
 
 static void
@@ -1904,22 +1907,30 @@ gensio_reset_default(struct gensio_os_funcs *o, struct gensio_def_entry *d)
     d->val_set = false;
 }
 
-int
-gensio_reset_defaults(struct gensio_os_funcs *o)
+static void
+l_gensio_reset_defaults(struct gensio_os_funcs *o)
 {
     struct gensio_def_entry *d;
     unsigned int i;
 
+    if (deflock) {
+	o->lock(deflock);
+	for (i = 0; builtin_defaults[i].name; i++)
+	    gensio_reset_default(o, &builtin_defaults[i]);
+	for (d = defaults; d; d = d->next)
+	    gensio_reset_default(o, d);
+	o->unlock(deflock);
+    }
+}
+
+int
+gensio_reset_defaults(struct gensio_os_funcs *o)
+{
     o->call_once(o, &gensio_default_initialized, gensio_default_init, o);
     if (gensio_def_init_rv)
 	return gensio_def_init_rv;
 
-    o->lock(deflock);
-    for (i = 0; builtin_defaults[i].name; i++)
-	gensio_reset_default(o, &builtin_defaults[i]);
-    for (d = defaults; d; d = d->next)
-	gensio_reset_default(o, d);
-    o->unlock(deflock);
+    l_gensio_reset_defaults(o);
     return 0;
 }
 
