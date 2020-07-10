@@ -101,7 +101,8 @@ sctp_socket_setup(struct sctp_data *tdata, int fd)
     int err;
 
     err = gensio_os_socket_setup(tdata->o, fd, GENSIO_NET_PROTOCOL_SCTP,
-				 true, tdata->nodelay, tdata->laddr);
+				 true, tdata->nodelay,
+				 GENSIO_OPENSOCK_REUSEADDR, tdata->laddr);
     if (err)
 	return err;
 
@@ -517,6 +518,7 @@ struct sctpna_data {
 
     gensiods max_read_size;
     bool nodelay;
+    unsigned int opensock_flags;
 
     gensio_acc_done shutdown_done;
     gensio_acc_done cb_en_done;
@@ -682,6 +684,7 @@ sctpna_startup(struct gensio_accepter *accepter, struct sctpna_data *nadata)
     rv = gensio_os_sctp_open_socket(nadata->o, nadata->ai,
 				    sctpna_readhandler, NULL, sctpna_fd_cleared,
 				    sctpna_setup_socket, nadata,
+				    nadata->opensock_flags,
 				    &nadata->acceptfds, &nadata->nr_acceptfds);
     if (!rv)
 	sctpna_set_fd_enables(nadata, true);
@@ -940,9 +943,15 @@ sctp_gensio_accepter_alloc(struct gensio_addr *iai,
     struct sctpna_data *nadata;
     gensiods max_read_size = GENSIO_DEFAULT_BUF_SIZE;
     unsigned int instreams = 1, ostreams = 1;
-    bool nodelay = false;
+    bool nodelay = false, reuseaddr = true;
     unsigned int i;
-    int err;
+    int err, ival;
+
+    err = gensio_get_default(o, "sctp", "reuseaddr", false,
+			     GENSIO_DEFAULT_BOOL, NULL, &ival);
+    if (err)
+	return err;
+    reuseaddr = ival;
 
     for (i = 0; args && args[i]; i++) {
 	if (gensio_check_keyds(args[i], "readbuf", &max_read_size) > 0)
@@ -953,6 +962,8 @@ sctp_gensio_accepter_alloc(struct gensio_addr *iai,
 	    continue;
 	if (gensio_check_keyuint(args[i], "ostreams", &ostreams) > 0)
 	    continue;
+	if (gensio_check_keybool(args[i], "reuseaddr", &reuseaddr) > 0)
+	    continue;
 	return GE_INVAL;
     }
 
@@ -962,6 +973,8 @@ sctp_gensio_accepter_alloc(struct gensio_addr *iai,
     nadata->o = o;
     nadata->initmsg.sinit_max_instreams = instreams;
     nadata->initmsg.sinit_num_ostreams = ostreams;
+    if (reuseaddr)
+	nadata->opensock_flags |= GENSIO_OPENSOCK_REUSEADDR;
 
     err = GE_NOMEM;
     nadata->ai = gensio_addr_dup(iai);

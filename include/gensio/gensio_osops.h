@@ -23,6 +23,9 @@ struct opensocks
     int flags;
 };
 
+/* Flags for opensock_flags. */
+#define GENSIO_OPENSOCK_REUSEADDR	(1 << 0)
+
 GENSIO_DLL_PUBLIC
 int gensio_os_write(struct gensio_os_funcs *o,
 		    int fd, const struct gensio_sg *sg, gensiods sglen,
@@ -98,7 +101,7 @@ int gensio_os_sctp_open_socket(struct gensio_os_funcs *o,
 			       void (*writehndlr)(int, void *),
 			       void (*fd_handler_cleared)(int, void *),
 			       int (*setup_socket)(int fd, void *data),
-			       void *data,
+			       void *data, unsigned int opensock_flags,
 			       struct opensocks **socks, unsigned int *nr_fds);
 
 /*
@@ -129,6 +132,7 @@ int gensio_os_socket_open(struct gensio_os_funcs *o,
 GENSIO_DLL_PUBLIC
 int gensio_os_socket_setup(struct gensio_os_funcs *o, int fd,
 			   int protocol, bool keepalive, bool nodelay,
+			   unsigned int opensock_flags,
 			   struct gensio_addr *bindaddr);
 
 GENSIO_DLL_PUBLIC
@@ -183,7 +187,7 @@ int gensio_os_open_socket(struct gensio_os_funcs *o,
 			  void (*readhndlr)(int, void *),
 			  void (*writehndlr)(int, void *),
 			  void (*fd_handler_cleared)(int, void *),
-			  void *data,
+			  void *data, unsigned int opensock_flags,
 			  struct opensocks **socks, unsigned int *nr_fds);
 
 /* Returns a NULL if the fd is ok, a non-NULL error string if not */

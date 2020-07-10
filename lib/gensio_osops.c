@@ -94,6 +94,7 @@ static int gensio_setup_listen_socket(struct gensio_os_funcs *o, bool do_listen,
 			       void (*writehndlr)(int, void *), void *data,
 			       void (*fd_handler_cleared)(int, void *),
 			       int (*call_b4_listen)(int, void *),
+			       unsigned int opensock_flags,
 			       int *rfd, unsigned int *port,
 			       struct gensio_listen_scan_info *rsi);
 
@@ -404,7 +405,7 @@ gensio_os_sctp_open_socket(struct gensio_os_funcs *o,
 			   void (*writehndlr)(int, void *),
 			   void (*fd_handler_cleared)(int, void *),
 			   int (*setup_socket)(int fd, void *data),
-			   void *data,
+			   void *data, unsigned int opensock_flags,
 			   struct opensocks **rfds, unsigned int *rnr_fds)
 {
     struct addrinfo *ai;
@@ -455,7 +456,7 @@ gensio_os_sctp_open_socket(struct gensio_os_funcs *o,
 					ai->ai_addr, ai->ai_addrlen,
 					readhndlr, NULL, data,
 					fd_handler_cleared,
-					setup_socket,
+					setup_socket, opensock_flags,
 					&tfds[i].fd, &tfds[i].port, &scaninfo);
 	if (rv) {
 	    o->free(o, tfds);
@@ -888,6 +889,7 @@ gensio_os_socket_open(struct gensio_os_funcs *o,
 int
 gensio_os_socket_setup(struct gensio_os_funcs *o, int fd,
 		       int protocol, bool keepalive, bool nodelay,
+		       unsigned int opensock_flags,
 		       struct gensio_addr *bindaddr)
 {
     int err;
@@ -903,9 +905,11 @@ gensio_os_socket_setup(struct gensio_os_funcs *o, int fd,
 	    return gensio_os_err_to_err(o, errno);
     }
 
-    if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR,
-		   (void *)&val, sizeof(val)) == -1)
+    if (opensock_flags & GENSIO_OPENSOCK_REUSEADDR) {
+	if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR,
+		       (void *)&val, sizeof(val)) == -1)
 	    return gensio_os_err_to_err(o, errno);
+    }
 
     if (nodelay) {
 	if (protocol == GENSIO_NET_PROTOCOL_TCP)
@@ -1264,7 +1268,7 @@ gensio_os_open_socket(struct gensio_os_funcs *o,
 		      void (*readhndlr)(int, void *),
 		      void (*writehndlr)(int, void *),
 		      void (*fd_handler_cleared)(int, void *),
-		      void *data,
+		      void *data, unsigned int opensock_flags,
 		      struct opensocks **rfds, unsigned int *nr_fds)
 {
     struct addrinfo *rp;
@@ -1298,6 +1302,7 @@ gensio_os_open_socket(struct gensio_os_funcs *o,
 					rp->ai_addr, rp->ai_addrlen,
 					readhndlr, writehndlr, data,
 					fd_handler_cleared, NULL,
+					opensock_flags,
 					&fds[curr_fd].fd, &fds[curr_fd].port,
 					&scaninfo);
 	if (rv)
@@ -1375,6 +1380,7 @@ gensio_setup_listen_socket(struct gensio_os_funcs *o, bool do_listen,
 			   void (*writehndlr)(int, void *), void *data,
 			   void (*fd_handler_cleared)(int, void *),
 			   int (*call_b4_listen)(int, void *),
+			   unsigned int opensock_flags,
 			   int *rfd, unsigned int *rport,
 			   struct gensio_listen_scan_info *rsi)
 {
@@ -1406,9 +1412,11 @@ gensio_setup_listen_socket(struct gensio_os_funcs *o, bool do_listen,
     if (fcntl(fd, F_SETFL, O_NONBLOCK) == -1)
 	goto out_err;
 
-    if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR,
-		   (void *)&optval, sizeof(optval)) == -1)
-	goto out_err;
+    if (opensock_flags & GENSIO_OPENSOCK_REUSEADDR) {
+	if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR,
+		       (void *)&optval, sizeof(optval)) == -1)
+	    goto out_err;
+    }
 
     if (check_ipv6_only(family, protocol, flags, fd) == -1)
 	goto out_err;

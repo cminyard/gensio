@@ -311,6 +311,10 @@ In addition to readbuf, the tcp gensio takes the following options:
 .B laddr=<addr>
 An address specification to bind to on the local socket to set the
 local address.
+.TP
+.B reuseaddr[=true|false]
+Set SO_REUSEADDR on the socket, good for accepting gensios only.
+Defaults to true.
 .SS Remote Address String
 The remote address will be in the format "[ipv4|ipv6],<addr>,<port>" where the
 address is in numeric format, IPv4, or IPv6.
@@ -371,6 +375,10 @@ Add an address to receive multicast packets on.  There is no port
 number, this is just addresses.  You can specify multiple addresses in
 a single multicast option and/or the multicast option can be used
 multiple times to add multiple multicast addresses.
+.TP
+.B reuseaddr[=true|false]
+Set SO_REUSEADDR on the socket, good for connecting and accepting
+gensios.  Defaults to false.
 .SS "Remote Address String"
 The remote address will be in the format "[ipv4|ipv6],<addr>,<port>" where the
 address is in numeric format, IPv4, or IPv6.
@@ -438,6 +446,10 @@ for read and write in the format "stream=<n>".
 .B laddr=<addr>
 An address specification to bind to on the local socket to set the
 local address.
+.TP
+.B reuseaddr[=true|false]
+Set SO_REUSEADDR on the socket, good for accepting gensios only.
+Defaults to true.
 
 Port 0 is supported just like TCP for accepters, see Dynamic Ports in
 the TCP section above for details.

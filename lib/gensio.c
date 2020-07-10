@@ -1777,6 +1777,8 @@ struct gensio_def_entry builtin_defaults[] = {
 						.def.intval = 1 },
     { "ostreams",	GENSIO_DEFAULT_INT,	.min = 1, .max = INT_MAX,
 						.def.intval = 1 },
+    /* TCP and SCTP, UDP get added in init as false. */
+    { "reuseaddr",	GENSIO_DEFAULT_BOOL,	.def.intval = 1 },
     /* serialdev */
     { "xonxoff",	GENSIO_DEFAULT_BOOL,	.def.intval = 0 },
     { "rtscts",		GENSIO_DEFAULT_BOOL,	.def.intval = 0 },
@@ -1826,6 +1828,9 @@ struct gensio_def_entry builtin_defaults[] = {
 
 static struct gensio_def_entry *defaults;
 static int gensio_def_init_rv;
+static int l_gensio_set_default(struct gensio_os_funcs *o,
+				const char *class, const char *name,
+				const char *strval, int intval);
 
 static void
 gensio_default_init(void *cb_data)
@@ -1835,6 +1840,10 @@ gensio_default_init(void *cb_data)
     deflock = o->alloc_lock(o);
     if (!deflock)
 	gensio_def_init_rv = GE_NOMEM;
+    else
+	/* Default reuseaddr to false for UDP. */
+	gensio_def_init_rv = l_gensio_set_default(o, "udp", "reuseaddr",
+						  NULL, 0);
 }
 
 void
@@ -1842,6 +1851,8 @@ gensio_cleanup_mem(struct gensio_os_funcs *o)
 {
     struct registered_gensio_accepter *n, *n2;
     struct registered_gensio *g, *g2;
+
+    gensio_reset_defaults(o);
 
     if (deflock)
 	o->free_lock(deflock);
@@ -2024,19 +2035,15 @@ gensio_add_default(struct gensio_os_funcs *o,
     return err;
 }
 
-int
-gensio_set_default(struct gensio_os_funcs *o,
-		   const char *class, const char *name,
-		   const char *strval, int intval)
+static int
+l_gensio_set_default(struct gensio_os_funcs *o,
+		     const char *class, const char *name,
+		     const char *strval, int intval)
 {
     int err = 0;
     struct gensio_def_entry *d;
     char *new_strval = NULL, *end;
     unsigned int i;
-
-    o->call_once(o, &gensio_default_initialized, gensio_default_init, o);
-    if (gensio_def_init_rv)
-	return gensio_def_init_rv;
 
     o->lock(deflock);
     d = gensio_lookup_default(name, NULL, NULL);
@@ -2167,6 +2174,18 @@ gensio_set_default(struct gensio_os_funcs *o,
 	o->free(o, new_strval);
     o->unlock(deflock);
     return err;
+}
+
+int
+gensio_set_default(struct gensio_os_funcs *o,
+		   const char *class, const char *name,
+		   const char *strval, int intval)
+{
+    o->call_once(o, &gensio_default_initialized, gensio_default_init, o);
+    if (gensio_def_init_rv)
+	return gensio_def_init_rv;
+
+    return l_gensio_set_default(o, class, name, strval, intval);
 }
 
 int

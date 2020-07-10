@@ -145,6 +145,7 @@ struct udpna_data {
     struct opensocks   *fds;		/* The file descriptor used for
 					   the UDP ports. */
     unsigned int   nr_fds;
+    unsigned int opensock_flags;
 
     bool nocon;		/* Disable connection-oriented handling. */
     struct gensio_addr *curr_recvaddr;	/* Address of current received packet */
@@ -1290,6 +1291,7 @@ udpna_startup(struct gensio_accepter *accepter)
 	rv = gensio_os_open_socket(nadata->o, nadata->ai,
 				   udpna_readhandler, udpna_writehandler,
 				   udpna_fd_cleared, nadata,
+				   nadata->opensock_flags,
 				   &nadata->fds, &nadata->nr_fds);
 	if (rv)
 	    goto out_unlock;
@@ -1552,7 +1554,7 @@ gensio_acc_udp_func(struct gensio_accepter *acc, int func, int val,
 
 static int
 i_udp_gensio_accepter_alloc(struct gensio_addr *iai, gensiods max_read_size,
-			    struct gensio_os_funcs *o,
+			    bool reuseaddr, struct gensio_os_funcs *o,
 			    gensio_accepter_event cb, void *user_data,
 			    struct gensio_accepter **accepter)
 {
@@ -1565,6 +1567,8 @@ i_udp_gensio_accepter_alloc(struct gensio_addr *iai, gensiods max_read_size,
     gensio_list_init(&nadata->udpns);
     gensio_list_init(&nadata->closed_udpns);
     nadata->refcount = 1;
+    if (reuseaddr)
+	nadata->opensock_flags |= GENSIO_OPENSOCK_REUSEADDR;
 
     if (iai)
 	nadata->ai = gensio_addr_dup(iai);
@@ -1608,15 +1612,22 @@ udp_gensio_accepter_alloc(struct gensio_addr *iai,
 {
     gensiods max_read_size = GENSIO_DEFAULT_UDP_BUF_SIZE;
     unsigned int i;
+    bool reuseaddr = false;
+    int err, ival;
 
     for (i = 0; args && args[i]; i++) {
 	if (gensio_check_keyds(args[i], "readbuf", &max_read_size) > 0)
 	    continue;
 	return GE_INVAL;
     }
+    err = gensio_get_default(o, "udp", "reuseaddr", false,
+			     GENSIO_DEFAULT_BOOL, NULL, &ival);
+    if (err)
+	return err;
+    reuseaddr = ival;
 
-    return i_udp_gensio_accepter_alloc(iai, max_read_size, o, cb, user_data,
-				       accepter);
+    return i_udp_gensio_accepter_alloc(iai, max_read_size, reuseaddr,
+				       o, cb, user_data, accepter);
 }
 
 int
@@ -1649,10 +1660,11 @@ udp_gensio_alloc(struct gensio_addr *addr, const char * const args[],
     struct gensio_accepter *accepter;
     struct udpna_data *nadata = NULL;
     struct gensio_addr *laddr = NULL, *mcast = NULL, *tmpaddr, *tmpaddr2;
-    int err, new_fd;
+    int err, new_fd, ival;
     gensiods max_read_size = GENSIO_DEFAULT_UDP_BUF_SIZE;
     unsigned int i;
     bool nocon = false, mcast_loop_set = false, mcast_loop = true;
+    bool reuseaddr = false;
 
     err = gensio_get_defaultaddr(o, "udp", "laddr", false,
 				 GENSIO_NET_PROTOCOL_UDP, true, false, &laddr);
@@ -1661,6 +1673,11 @@ udp_gensio_alloc(struct gensio_addr *addr, const char * const args[],
 		   gensio_err_to_str(err));
 	return err;
     }
+    err = gensio_get_default(o, "udp", "reuseaddr", false,
+			     GENSIO_DEFAULT_BOOL, NULL, &ival);
+    if (err)
+	return err;
+    reuseaddr = ival;
 
     err = GE_INVAL;
     for (i = 0; args && args[i]; i++) {
@@ -1697,6 +1714,8 @@ udp_gensio_alloc(struct gensio_addr *addr, const char * const args[],
 	    mcast_loop_set = true;
 	    continue;
 	}
+	if (gensio_check_keybool(args[i], "reuseaddr", &reuseaddr) > 0)
+	    continue;
     parm_err:
 	if (laddr)
 	    gensio_addr_free(laddr);
@@ -1715,7 +1734,9 @@ udp_gensio_alloc(struct gensio_addr *addr, const char * const args[],
     }
 
     err = gensio_os_socket_setup(o, new_fd, GENSIO_NET_PROTOCOL_UDP,
-				 false, false, laddr);
+				 false, false,
+				 reuseaddr ? GENSIO_OPENSOCK_REUSEADDR : 0,
+				 laddr);
     if (err) {
 	gensio_os_close(o, new_fd);
 	if (laddr)
@@ -1749,7 +1770,7 @@ udp_gensio_alloc(struct gensio_addr *addr, const char * const args[],
     }
 
     /* Allocate a dummy network accepter. */
-    err = i_udp_gensio_accepter_alloc(NULL, max_read_size, o,
+    err = i_udp_gensio_accepter_alloc(NULL, max_read_size, reuseaddr, o,
 				      NULL, NULL, &accepter);
     if (err) {
 	gensio_os_close(o, new_fd);

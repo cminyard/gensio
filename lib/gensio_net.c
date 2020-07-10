@@ -63,7 +63,8 @@ net_try_open(struct net_data *tdata, int *fd)
 	goto out;
 
     err = gensio_os_socket_setup(tdata->o, new_fd, protocol, tdata->istcp,
-				 tdata->nodelay, tdata->lai);
+				 tdata->nodelay, GENSIO_OPENSOCK_REUSEADDR,
+				 tdata->lai);
     if (err)
 	goto out;
 
@@ -449,8 +450,6 @@ str_to_unix_gensio(const char *str, const char * const args[],
 			     o, cb, user_data, new_gensio);
 }
 
-struct netna_data;
-
 struct netna_data {
     struct gensio_accepter *acc;
 
@@ -472,6 +471,8 @@ struct netna_data {
 					   NET port. */
     unsigned int   nr_acceptfds;
     unsigned int   nr_accept_close_waiting;
+
+    unsigned int opensock_flags;
 
     bool istcp;
 
@@ -578,7 +579,8 @@ netna_readhandler(int fd, void *cbdata)
     raddr = NULL;
     
     err = gensio_os_socket_setup(tdata->o, new_fd, protocol, tdata->istcp,
-				 tdata->nodelay, tdata->lai);
+				 tdata->nodelay, GENSIO_OPENSOCK_REUSEADDR,
+				 tdata->lai);
     if (err) {
 	gensio_acc_log(nadata->acc, GENSIO_LOG_ERR,
 		       "Error setting up net port: %s", gensio_err_to_str(err));
@@ -652,6 +654,7 @@ netna_startup(struct gensio_accepter *accepter, struct netna_data *nadata)
 
     rv = gensio_os_open_socket(nadata->o, nadata->ai, netna_readhandler,
 			       NULL, netna_fd_cleared, nadata,
+			       nadata->opensock_flags,
 			       &nadata->acceptfds, &nadata->nr_acceptfds);
     if (!rv)
 	netna_set_fd_enables(nadata, true);
@@ -916,14 +919,20 @@ net_gensio_accepter_alloc(struct gensio_addr *iai,
     bool nodelay = false;
     bool istcp = strcmp(type, "tcp") == 0;
     bool delsock = false;
+    bool reuseaddr = true;
     unsigned int i;
     int err, ival;
 
     err = gensio_get_default(o, type, "delsock", false,
-			    GENSIO_DEFAULT_BOOL, NULL, &ival);
+			     GENSIO_DEFAULT_BOOL, NULL, &ival);
     if (err)
 	return err;
     delsock = ival;
+    err = gensio_get_default(o, type, "reuseaddr", false,
+			     GENSIO_DEFAULT_BOOL, NULL, &ival);
+    if (err)
+	return err;
+    reuseaddr = ival;
 
     for (i = 0; args && args[i]; i++) {
 	if (gensio_check_keyds(args[i], "readbuf", &max_read_size) > 0)
@@ -933,6 +942,9 @@ net_gensio_accepter_alloc(struct gensio_addr *iai,
 	if (!istcp &&
 		gensio_check_keybool(args[i], "delsock", &delsock) > 0)
 	    continue;
+	if (istcp &&
+		gensio_check_keybool(args[i], "reuseaddr", &reuseaddr) > 0)
+	    continue;
 	return GE_INVAL;
     }
 
@@ -940,6 +952,8 @@ net_gensio_accepter_alloc(struct gensio_addr *iai,
     if (!nadata)
 	return GE_NOMEM;
     nadata->o = o;
+    if (reuseaddr)
+	nadata->opensock_flags |= GENSIO_OPENSOCK_REUSEADDR;
 
     err = GE_NOMEM;
     nadata->ai = gensio_addr_dup(iai);

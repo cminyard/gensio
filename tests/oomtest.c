@@ -134,9 +134,10 @@ check_oom_test_present(struct gensio_os_funcs *o, struct oom_tests *test)
 
 struct oom_tests oom_tests[] = {
     /*
-     * I would like this to run on UDP, but there appears to be a bug
-     * in UDP on Linux where the packets are sent but don't seem to be
-     * received on the other end.  It's pretty rare.
+     * I would like this to run on UDP, and it works, but the relpkt
+     * code has to go through it's timeout operation when gensiot
+     * fails, and that takes about 5 seconds per failure.  That makes
+     * the test take a long time.  So just use TCP.
      */
     { "relpkt,msgdelim,tcp,localhost,", "relpkt,msgdelim,tcp,0" },
     { "certauth(cert=ca/cert.pem,key=ca/key.pem,username=test1),ssl(CA=ca/CA.pem),tcp,localhost,",
