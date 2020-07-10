@@ -303,6 +303,14 @@ if test $HAVE_PAM -eq 1; then
 fi
 AC_SUBST(PAMLIB)
 
+case $host_os in
+linux*) HAVE_WORKING_PORT0=1 ;;
+*) HAVE_WORKING_PORT0=0 ;;
+esac
+AC_DEFINE_UNQUOTED([HAVE_WORKING_PORT0], [$HAVE_WORKING_PORT0],
+	      [Set to 1 if binding with port 0 picks an ephemeral address])
+AC_SUBST(HAVE_WORKING_PORT0)
+
 GTLSSH=
 GTLSSHD=
 if test $HAVE_OPENSSL -eq 1; then

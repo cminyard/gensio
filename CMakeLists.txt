@@ -93,6 +93,8 @@ if(HAVE_LIBSCTP)
   CHECK_LIBRARY_EXISTS(sctp "sctp_sendv" "" HAVE_SCTP_SENDV)
 endif()
 
+string(COMPARE EQUAL "${CMAKE_HOST_SYSTEM_NAME}" "Linux" HAVE_WORKING_PORT0)
+
 CHECK_LIBRARY_EXISTS(pam "pam_start" "" HAVE_PAM)
 
 check_symbol_exists(TIOCSRS485 sys/ioctl.h HAVE_DECL_TIOCSRS485)

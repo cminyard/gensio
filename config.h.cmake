@@ -9,6 +9,7 @@
 #cmakedefine01 HAVE_UNIX
 #cmakedefine01 PYTHON_HAS_POSIX_THREADS
 #cmakedefine01 HAVE_GCC_ATOMICS
+#cmakedefine01 HAVE_WORKING_PORT0
 #cmakedefine HAVE_ISATTY
 #cmakedefine HAVE_STRCASECMP
 #cmakedefine HAVE_STRNCASECMP

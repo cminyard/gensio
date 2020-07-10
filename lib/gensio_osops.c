@@ -500,7 +500,7 @@ gensio_os_sctp_open_socket(struct gensio_os_funcs *o,
     sctp_shutdown_fds(o, fds, nr_fds);
     fds = NULL;
     nr_fds = 0;
-
+#if !HAVE_WORKING_PORT0
     if (rv == GE_ADDRINUSE && scaninfo.start != 0 &&
 		scaninfo.curr != scaninfo.start) {
 	/* We need to keep scanning. */
@@ -508,6 +508,7 @@ gensio_os_sctp_open_socket(struct gensio_os_funcs *o,
 	family = AF_INET6;
 	goto retry;
     }
+#endif
     goto out;
 }
 
@@ -1351,7 +1352,7 @@ gensio_os_open_socket(struct gensio_os_funcs *o,
 	o->clear_fd_handlers_norpt(o, fds[i].fd);
 	close(fds[i].fd);
     }
-
+#if !HAVE_WORKING_PORT0
     if (rv == GE_ADDRINUSE && scaninfo.start != 0 &&
 		scaninfo.curr != scaninfo.start) {
 	/* We need to keep scanning. */
@@ -1360,7 +1361,7 @@ gensio_os_open_socket(struct gensio_os_funcs *o,
 	family = AF_INET6;
 	goto restart;
     }
-
+#endif
     o->free(o, fds);
     return rv;
 }
@@ -1431,7 +1432,7 @@ gensio_setup_listen_socket(struct gensio_os_funcs *o, bool do_listen,
 
     if (check_ipv6_only(family, protocol, flags, fd) == -1)
 	goto out_err;
-
+#if !HAVE_WORKING_PORT0
     if (port == 0 && (family == AF_INET || family == AF_INET6)) {
 	struct gensio_listen_scan_info lsi;
 	struct gensio_listen_scan_info *si = rsi;
@@ -1465,14 +1466,16 @@ gensio_setup_listen_socket(struct gensio_os_funcs *o, bool do_listen,
 	/* Unable to find an open port, give up. */
 	rv = GE_ADDRINUSE;
 	goto out;
-    } else {
-	if (bind(fd, addr, addrlen) != 0) {
-	    if (rsi)
-		rsi->curr = gensio_dyn_scan_next(rsi->curr);
-	    goto out_err;
-	}
     }
+#endif
+    if (bind(fd, addr, addrlen) != 0) {
+	if (rsi)
+	    rsi->curr = gensio_dyn_scan_next(rsi->curr);
+	goto out_err;
+    }
+#if !HAVE_WORKING_PORT0
  got_it:
+#endif
     if (family == AF_INET || family == AF_INET6) {
 	rv = gensio_os_socket_get_port(o, fd, &port);
 	if (rv)
