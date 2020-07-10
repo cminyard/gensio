@@ -288,6 +288,7 @@ gensio_os_recvfrom(struct gensio_os_funcs *o,
 {
     ssize_t rv;
     struct gensio_addr *addr;
+    int err = 0;
 
     addr = gensio_addr_make(o, sizeof(struct sockaddr_storage));
     if (!addr)
@@ -296,13 +297,23 @@ gensio_os_recvfrom(struct gensio_os_funcs *o,
  retry:
     rv = recvfrom(fd, buf, buflen, flags,
 		  addr->curr->ai_addr, &addr->curr->ai_addrlen);
-    if (rv > 0) {
+    if (rv >= 0) {
 	addr->curr->ai_family = addr->curr->ai_addr->sa_family;
 	*raddr = addr;
     } else {
 	gensio_addr_free(addr);
     }
-    ERRHANDLE();
+    if (rv < 0) {
+	if (errno == EINTR)
+	    goto retry;
+	if (errno == EWOULDBLOCK || errno == EAGAIN)
+	    rv = 0; /* Handle like a zero-byte write. */
+	else
+	    err = errno;
+    }
+    if (!err && rcount)
+	*rcount = rv;
+    return gensio_os_err_to_err(o, err);
 }
 
 int
