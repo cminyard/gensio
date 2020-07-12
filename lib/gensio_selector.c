@@ -6,7 +6,6 @@
  */
 
 #include "config.h"
-#include <malloc.h>
 #include <string.h>
 #include <errno.h>
 
@@ -19,6 +18,8 @@
 #include "utils.h"
 #include <stdlib.h>
 #include <assert.h>
+#include <stdio.h>
+#include <stdbool.h>
 
 struct gensio_data {
     struct selector_s *sel;
@@ -220,8 +221,6 @@ timeval_to_gensio_time(gensio_time *t, struct timeval *tv)
 #ifdef USE_PTHREADS
 
 #include <pthread.h>
-#include <signal.h>
-#include <stdbool.h>
 
 struct waiter_data {
     pthread_t tid;

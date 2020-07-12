@@ -23,7 +23,6 @@
 #include <errno.h>
 #include <stdio.h>
 #include <syslog.h>
-#include <signal.h>
 #include <string.h>
 #include <assert.h>
 #ifdef HAVE_EPOLL_PWAIT
@@ -36,6 +35,11 @@
 
 #ifdef ENABLE_INTERNAL_TRACE
 #define OUT_OF_MEMORY_TEST
+#endif
+
+#ifndef EBADFD
+/* At least MacOS doesn't have EBADFD. */
+#define EBADFD EBADF
 #endif
 
 #ifdef OUT_OF_MEMORY_TEST

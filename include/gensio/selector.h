@@ -8,6 +8,7 @@
 #ifndef SELECTOR
 #define SELECTOR
 #include <sys/time.h> /* For timeval */
+#include <signal.h>
 
 #if defined _WIN32 || defined __CYGWIN__
   #ifdef BUILDING_DLL
