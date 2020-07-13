@@ -13,6 +13,7 @@
 #cmakedefine HAVE_ISATTY
 #cmakedefine HAVE_STRCASECMP
 #cmakedefine HAVE_STRNCASECMP
+#cmakedefine01 HAVE_GETRANDOM
 #cmakedefine01 USE_FILE_STDIO
 #cmakedefine ENABLE_INTERNAL_TRACE
 #cmakedefine01 HAVE_DECL_TIOCSRS485

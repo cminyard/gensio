@@ -303,6 +303,8 @@ if test $HAVE_PAM -eq 1; then
 fi
 AC_SUBST(PAMLIB)
 
+AC_CHECK_FUNCS(getrandom)
+
 case $host_os in
 linux*) HAVE_WORKING_PORT0=1 ;;
 *) HAVE_WORKING_PORT0=0 ;;

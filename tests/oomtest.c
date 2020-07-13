@@ -24,7 +24,6 @@
 #include <assert.h>
 #include <errno.h>
 #include <signal.h>
-#include <sys/random.h>
 #include <gensio/gensio.h>
 #include <gensio/gensio_selector.h>
 #include "pthread_handler.h"
@@ -1271,6 +1270,21 @@ run_oom_tests(struct oom_tests *test, char *tstr,
 
     return errcount;
 }
+
+#if HAVE_GETRANDOM
+#include <sys/random.h>
+#else
+static size_t
+getrandom(void *ibuf, size_t buflen, unsigned int flags)
+{
+    size_t i;
+    unsigned char *buf = ibuf;
+
+    for (i = 0; i < buflen; i++)
+	buf[i] = rand();
+    return i;
+}
+#endif
 
 static int
 fill_random(void *buf, size_t buflen)
