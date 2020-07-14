@@ -305,7 +305,7 @@ read, but with "oob" in the auxdata.  You can send oob data by adding
 writing any more than this results in undefined behavior.  Note that
 "oobtcp" is also delivered and accepted in auxdata, so you can tell
 TCP oob data from other oob data.
-
+.SS Options
 In addition to readbuf, the tcp gensio takes the following options:
 .TP
 .B laddr=<addr>
@@ -353,7 +353,7 @@ The destination address defaults to the one specified on the gensio
 specifier (for connecting gensios) or the remote address that
 initiated the connection (for accepting gensios), but may be
 overridden using "addr:<addr>" in the write auxdata.
-
+.SS Options
 In addition to readbuf, the udp gensio takes the following options:
 .TP
 .B laddr=<addr>
@@ -433,7 +433,25 @@ tools/gensiot "sctp,::1,1234"
 .PP
 will fail this way because the connector will support IPv4 add but the
 accepter will not.
+.SS Nagle and SCTP
+SCTP implements the Nagle algorithm by default, which can interact
+badly if
+.B sack_freq
+is set to more than one.  At least Linux defaults
+.B sack_freq
+to 2, but the gensio overrides this to avoid surprising behaviour.
+What happens is in some situations you can get an outstanding packet
+that is unacked, since
+.B sack_freq
+is greater than one.  The Nagle algorithm will not send any new data
+until any already sent data is acked.  So one end is waiting for a new
+packet to send a sack, and the other end is holding data until it gets
+a sack.  So you get stuck waiting for the
+.B sack_delay
+where the sack will go out and kick things back off again.
 
+You need to be aware of this if you modify sack_freq.
+.SS Options
 In addition to readbuf, the sctp gensio takes the following options:
 .TP
 .B instreams=<n>
@@ -499,7 +517,7 @@ which will cause the file to be deleted.
 You should read the unix(7) man page for details on the semantics of
 these sockets, especially permissions.  Also note that remote
 credentials are not currently implemented.
-
+.SS Options
 In addition to readbuf, the unix gensio takes the following options:
 .TP
 .B delsock[=true|false]
@@ -523,7 +541,7 @@ One problem with serialdev and UUCP locking is that if you fork() a
 process while one is open, the forked process will have the serialdev
 but the value in the UUCP lockfile will be incorrect.  There's not
 much that can be done about this, so be careful.
-
+.SS Options
 In addition to readbuf, the serialdev gensio takes the following options:
 .TP
 .B nouucplock[=true|false]
@@ -584,7 +602,7 @@ offline.
 The remote ID for the serial dev is the file descriptor returned as an
 integer.
 .SH "stdio"
-accepter = 
+accepter =
 .B stdio[(options)]
 .br
 connecting =
@@ -621,7 +639,7 @@ to allow the environment to be set for the new process.
 
 An accepting gensio immediately does a connection when started and
 connection stdin and stdout of the running program to the gensio.
-
+.SS Options
 In addition to readbuf, a connecting stdio takes the following options:
 .TP
 .B self[=true|false]
@@ -656,8 +674,8 @@ connecting =
 
 The echo gensio just echos back all the data written to it.  Useful
 for testing.
-
-In addition to readbuf, a connecting stdio takes the following options:
+.SS Options
+In addition to readbuf, a connecting echo takes the following options:
 .TP
 .B noecho[=true|false]
 Instead of echoing the data, just become a data sink.
@@ -678,7 +696,7 @@ when the GE_REMCLOSE error will be returned.
 
 If an output file is specified, data will be written to the output
 file on writes.  The output file is always ready to receive data.
-
+.SS Options
 In addition to readbuf, a connecting file takes the following options:
 .TP
 .B infile=filename
@@ -706,7 +724,7 @@ for details.
 .SS "Remote Address String"
 The remote address string is "file([infile=<filename][,][outfile=<filename>])".
 .SH "dummy"
-accepter = 
+accepter =
 .B dummy
 
 The dummy gensio accepter is useful for place holding, where you don't
@@ -721,7 +739,7 @@ IPMI server.  See the OpenIPMI documentation for information on the
 arguments.
 
 This is a serial gensio, but the baud rate settings are fairly limited.
-
+.SS Options
 In addition to readbuf, the ipmisol gensio takes the following options:
 .TP
 .B writebuf=<n>
@@ -756,9 +774,15 @@ The time (in microseconds) when an ack times out.  1000000 by default.
 The number of times (ack-timeouts) an ack is re-sent before giving up.
 10 by default.
 .SH "telnet"
+accepter =
+.B telnet[(options)]
+.br
+connecting =
+.B telnet[(options)]
+
 A telnet gensio is a filter that sits on top of another gensio.  It
 runs the standard telnet protocol andn support RFC2217.
-
+.SS Options
 In addition to readbuf, the telnet gensio takes the following options:
 .TP
 .B writebuf=<n>
@@ -778,6 +802,12 @@ gensio.
 telnet passes remote id, remote address, and remote string to the child
 gensio.
 .SH "ssl"
+accepter =
+.B ssl[(options)]
+.br
+connecting =
+.B ssl[(options)]
+
 An SSL gensio runs the SSL/TLS protocol on top of another gensio.
 That gensio must be reliable.
 
@@ -791,7 +821,7 @@ The gensio has options to have the server request the certificate from
 the client and validate it.
 
 SSL gensios are reliable.  They are also packet-oriented.
-
+.SS Options
 In addition to readbuf, the SSL gensio takes the following options:
 .TP
 .B writebuf=<n>
@@ -853,6 +883,12 @@ certificate authority for the validation with GENSIO_CONTROL_CERT_AUTH.
 ssl passes remote id, remote address, and remote string to the child
 gensio.
 .SH "certauth"
+accepter =
+.B certauth[(options)]
+.br
+connecting =
+.B certauth[(options)]
+
 A certauth gensio runs an authentication protocol to on top of
 another gensio.  That gensio must be reliable and encrypted.
 
@@ -862,7 +898,7 @@ authentication.
 
 Once authentication occurs, this gensio acts as a passthrough.  The
 readbuf option is not available in the gensio.
-
+.SS Options
 The certauth gensio takes the following options:
 .TP
 .B CA=<filepath>
@@ -970,13 +1006,19 @@ the server.
 certauth passes remote id, remote address, and remote string to the child
 gensio.
 .SH "mux"
+accepter =
+.B mux[(options)]
+.br
+connecting =
+.B mux[(options)]
+
 A mux gensio is a gensio filter that allows one or more channels to be
 created on top of a single gensio, multiplexing the connection.  Each
 channel has full individual flow-control.  The channels are message
 oriented as described above, and use can use a mux without additional
 channels to just do message demarcation.  They also support out-of-bounds
 messages.
-
+.SS Options
 A mux gensio takes the following options:
 .TP
 .B max_channels=<n>
@@ -1014,7 +1056,7 @@ before it can be used.
 As you might imaging, the other end of a mux needs to know about the
 new channel.  If one end (either end, doesn't matter) calls
 .B gensio_alloc_channel()
-and then opens the new channel, the other end will get a 
+and then opens the new channel, the other end will get a
 .I GENSIO\_EVENT\_NEW\_CHANNEL
 event as described in the
 .B Streams and Channels
@@ -1057,6 +1099,7 @@ You cannot re-open individual channels.
 
 To free a mux gensio, you must free all the channels on it.
 .SH "pty"
+connecting =
 .B pty[(options)],<program>
 
 Create a pty and run a program on the other end of it.  This is sort
@@ -1091,6 +1134,12 @@ converted to '\\\\'.
 The address is a pointer to an integer, the ptym file descriptor is
 returned.  addrlen must be set to sizeof(int) when passed in.
 .SH "msgdelim"
+accepter =
+.B msgdelim[(options)]
+.br
+connecting =
+.B msgdelim[(options)]
+
 A message delimiter converts an unreliable stream (like a serial port)
 into an unreliable packet interface.  This is primarily to allow a
 reliable packet interface like relpkt to run on top of a serial port.
@@ -1104,7 +1153,7 @@ munge up the data.  Use the mux gensio for TCP and such.
 
 THe default buffer size is 128 bytes, which is ok for a reasonable
 fast serial prot interface.
-
+.SS Options
 In addition to readbuf, the msgdelim gensio takes the following options:
 .TP
 .B writebuf=<n>
@@ -1115,6 +1164,12 @@ Enable/disable the CRC at the end of the packet.  Useful if you are
 running over a reliable protocol, and especially for testing relpkt so
 you can fuzz it and bypass the crc errors.
 .SH "relpkt"
+accepter =
+.B relpkt[(options)]
+.br
+connecting =
+.B relpkt[(options)]
+
 Converts an unreliable packet interface (currently only UDP and
 msgdelim) into a reliable packet interface.  This lets you have a
 reliable connection over a serial port (with msgdelim) or UDP.
@@ -1145,10 +1200,22 @@ by the remote end, but will never be exceeded.
 By default a relpkt is a server on an accepter and a client on a
 connecter.  See the discussion above on clients and servers.
 .SH "trace"
+accepter =
+.B trace[(options)]
+.br
+connecting =
+.B trace[(options)]
+
 A transparent gensio that allows the data passing through it to be
 sent to a file.  Useful for debugging.
 
-trace does not support readbuf.  It supports the following:
+Note that the trace gensio only prints data that is accepted by the
+other end.  So, for instance, if the trace gensio receives 100 bytes
+of read data, it will deliver it immediately to the gensio above it.
+If that only accepts 40 bytes, trace will only print 40 bytes and will
+only accept 40 bytes from the gensio below it.  Same for sent data.
+.SS Options
+trace does not support readbuf.  It supports the following options:
 .TP
 .B dir=none|read|write|both
 Sets what data is traced.  "none" means no data, "read" means data
