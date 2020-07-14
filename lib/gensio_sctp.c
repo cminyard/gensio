@@ -38,6 +38,7 @@ struct sctp_data {
     struct gensio_addr *laddr; /* Local address, NULL if not set. */
 
     struct sctp_initmsg initmsg;
+    struct sctp_sack_info sackinfo;
 
     bool nodelay;
     unsigned int instreams;
@@ -108,6 +109,10 @@ sctp_socket_setup(struct sctp_data *tdata, int fd)
 
     if (setsockopt(fd, IPPROTO_SCTP, SCTP_INITMSG, &tdata->initmsg,
 		   sizeof(tdata->initmsg)) == -1)
+	return gensio_os_err_to_err(tdata->o, errno);
+
+    if (setsockopt(fd, IPPROTO_SCTP, SCTP_DELAYED_SACK, &tdata->sackinfo,
+		   sizeof(tdata->sackinfo)) == -1)
 	return gensio_os_err_to_err(tdata->o, errno);
 
     memset(&event_sub, 0, sizeof(event_sub));
@@ -385,6 +390,7 @@ sctp_gensio_alloc(struct gensio_addr *iai, const char * const args[],
     struct gensio *io;
     gensiods max_read_size = GENSIO_DEFAULT_BUF_SIZE;
     unsigned int instreams = 1, ostreams = 1;
+    unsigned int sack_freq = 1, sack_delay = 10;
     int i, err, ival;
     struct gensio_addr *addr, *laddr = NULL;
     bool nodelay = false;
@@ -407,6 +413,18 @@ sctp_gensio_alloc(struct gensio_addr *iai, const char * const args[],
 	return err;
     ostreams = ival;
 
+    err = gensio_get_default(o, "sctp", "sack_freq", false,
+			     GENSIO_DEFAULT_INT, NULL, &ival);
+    if (err)
+	return err;
+    sack_freq = ival;
+
+    err = gensio_get_default(o, "sctp", "sack_delay", false,
+			     GENSIO_DEFAULT_INT, NULL, &ival);
+    if (err)
+	return err;
+    sack_delay = ival;
+
     err = gensio_get_defaultaddr(o, "sctp", "laddr", false,
 				 GENSIO_NET_PROTOCOL_SCTP, true, false, &laddr);
     if (err && err != GE_NOTSUP) {
@@ -428,6 +446,10 @@ sctp_gensio_alloc(struct gensio_addr *iai, const char * const args[],
 	    continue;
 	if (gensio_check_keyuint(args[i], "ostreams", &ostreams) > 0)
 	    continue;
+	if (gensio_check_keyuint(args[i], "sack_freq", &sack_freq) > 0)
+	    continue;
+	if (gensio_check_keyuint(args[i], "sack_delay", &sack_delay) > 0)
+	    continue;
 	err = GE_INVAL;
 	goto out_err;
     }
@@ -447,6 +469,8 @@ sctp_gensio_alloc(struct gensio_addr *iai, const char * const args[],
     tdata->laddr = laddr;
     tdata->initmsg.sinit_max_instreams = instreams;
     tdata->initmsg.sinit_num_ostreams = ostreams;
+    tdata->sackinfo.sack_freq = sack_freq;
+    tdata->sackinfo.sack_delay = sack_delay;
     tdata->fd = -1;
     tdata->nodelay = nodelay;
 
@@ -530,6 +554,7 @@ struct sctpna_data {
     unsigned int nr_accept_close_waiting;
 
     struct sctp_initmsg initmsg;
+    struct sctp_sack_info sackinfo;
 };
 
 static const struct gensio_fd_ll_ops sctp_server_fd_ll_ops = {
@@ -673,6 +698,10 @@ sctpna_setup_socket(int fd, void *data)
 		   sizeof(nadata->initmsg)) == -1)
 	return gensio_os_err_to_err(nadata->o, errno);
 
+    if (setsockopt(fd, IPPROTO_SCTP, SCTP_DELAYED_SACK, &nadata->sackinfo,
+		   sizeof(nadata->sackinfo)) == -1)
+	return gensio_os_err_to_err(nadata->o, errno);
+
     return 0;
 }
 
@@ -749,11 +778,13 @@ sctpna_str_to_gensio(struct gensio_accepter *accepter,
 		     gensio_event cb, void *user_data, struct gensio **new_io)
 {
     int err;
-    const char *args[6] = { NULL, NULL, NULL, NULL, NULL, NULL };
-    char buf[100], buf2[100], buf3[100];
+    const char *args[8] = { NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL };
+    char buf[100], buf2[100], buf3[100], buf4[100], buf5[100];
     gensiods max_read_size = nadata->max_read_size;
     unsigned int instreams = nadata->initmsg.sinit_max_instreams;
     unsigned int ostreams = nadata->initmsg.sinit_num_ostreams;
+    unsigned int sack_freq = nadata->sackinfo.sack_freq;
+    unsigned int sack_delay = nadata->sackinfo.sack_delay;
     unsigned int i;
     const char **iargs;
     int iargc;
@@ -785,6 +816,10 @@ sctpna_str_to_gensio(struct gensio_accepter *accepter,
 	    continue;
 	if (gensio_check_keyuint(iargs[i], "ostreams", &ostreams) > 0)
 	    continue;
+	if (gensio_check_keyuint(args[i], "sack_freq", &sack_freq) > 0)
+	    continue;
+	if (gensio_check_keyuint(args[i], "sack_delay", &sack_delay) > 0)
+	    continue;
 	goto out_err;
     }
 
@@ -803,6 +838,10 @@ sctpna_str_to_gensio(struct gensio_accepter *accepter,
 	snprintf(buf3, 100, "ostreams=%u", ostreams);
 	args[i++] = buf3;
     }
+    snprintf(buf4, 100, "sack_freq=%u", sack_freq);
+    args[i++] = buf4;
+    snprintf(buf5, 100, "sack_delay=%u", sack_delay);
+    args[i++] = buf5;
     if (nodelay)
 	args[i++] = "nodelay";
 
@@ -943,6 +982,7 @@ sctp_gensio_accepter_alloc(struct gensio_addr *iai,
     struct sctpna_data *nadata;
     gensiods max_read_size = GENSIO_DEFAULT_BUF_SIZE;
     unsigned int instreams = 1, ostreams = 1;
+    unsigned int sack_freq = 1, sack_delay = 10;
     bool nodelay = false, reuseaddr = true;
     unsigned int i;
     int err, ival;
@@ -953,6 +993,18 @@ sctp_gensio_accepter_alloc(struct gensio_addr *iai,
 	return err;
     reuseaddr = ival;
 
+    err = gensio_get_default(o, "sctp", "sack_freq", false,
+			     GENSIO_DEFAULT_INT, NULL, &ival);
+    if (err)
+	return err;
+    sack_freq = ival;
+
+    err = gensio_get_default(o, "sctp", "sack_delay", false,
+			     GENSIO_DEFAULT_INT, NULL, &ival);
+    if (err)
+	return err;
+    sack_delay = ival;
+
     for (i = 0; args && args[i]; i++) {
 	if (gensio_check_keyds(args[i], "readbuf", &max_read_size) > 0)
 	    continue;
@@ -961,6 +1013,10 @@ sctp_gensio_accepter_alloc(struct gensio_addr *iai,
 	if (gensio_check_keyuint(args[i], "instreams", &instreams) > 0)
 	    continue;
 	if (gensio_check_keyuint(args[i], "ostreams", &ostreams) > 0)
+	    continue;
+	if (gensio_check_keyuint(args[i], "sack_freq", &sack_freq) > 0)
+	    continue;
+	if (gensio_check_keyuint(args[i], "sack_delay", &sack_delay) > 0)
 	    continue;
 	if (gensio_check_keybool(args[i], "reuseaddr", &reuseaddr) > 0)
 	    continue;
@@ -973,6 +1029,8 @@ sctp_gensio_accepter_alloc(struct gensio_addr *iai,
     nadata->o = o;
     nadata->initmsg.sinit_max_instreams = instreams;
     nadata->initmsg.sinit_num_ostreams = ostreams;
+    nadata->sackinfo.sack_freq = sack_freq;
+    nadata->sackinfo.sack_delay = sack_delay;
     if (reuseaddr)
 	nadata->opensock_flags |= GENSIO_OPENSOCK_REUSEADDR;
 

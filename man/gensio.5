@@ -443,6 +443,20 @@ These specify the number of incoming and outgoing streams for the
 connection.  The default is one.  The stream is given in the auxdata
 for read and write in the format "stream=<n>".
 .TP
+.B sack_freq=<n>
+.TP
+.B sack_delay=<n>
+These specify the handling of selective acknowledgements (sacks).
+.B sack_freq
+sets the number of outstanding packets that must be received before
+sending a sack.  The default is 1, meaning it doesn't wait at all.
+.B sack_delay
+sets the maximum time before a sack is sent if outstanding packets are
+present, in milliseconds.  The default is 10, but this is disabled if
+.B sack_freq
+is set to 1.  Setting either of these to 0 enables the system
+defaults.
+.TP
 .B laddr=<addr>
 An address specification to bind to on the local socket to set the
 local address.

@@ -1777,6 +1777,10 @@ struct gensio_def_entry builtin_defaults[] = {
 						.def.intval = 1 },
     { "ostreams",	GENSIO_DEFAULT_INT,	.min = 1, .max = INT_MAX,
 						.def.intval = 1 },
+    { "sack_freq",	GENSIO_DEFAULT_INT,	.min = 0, .max = INT_MAX,
+						.def.intval = 1 },
+    { "sack_delay",	GENSIO_DEFAULT_INT,	.min = 0, .max = INT_MAX,
+						.def.intval = 10 },
     /* TCP and SCTP, UDP get added in init as false. */
     { "reuseaddr",	GENSIO_DEFAULT_BOOL,	.def.intval = 1 },
     /* serialdev */
