@@ -1252,21 +1252,30 @@ important, and you must do it
 .B before
 you fork.
 
-Then you should call:
+Then after you fork, you should call:
 .IP
 gensio_disable(io)
 .PP
-on all the gensios that the fork is not using, then free the gensios.
-Don't use close, use free.
-Then you should call:
+on all the gensios that fork is not using, then free the gensios.
+Don't use close, use free.  Then you should call:
 .IP
 gensio_acc_disable(acc)
 .PP
-on every gensio accepter you are not using, then free them.  If a
+on every gensio accepter that fork is not using, then free them.  If a
 connection is in progress and has not been reported to the user, it
 will be disabled then closed.
 
-You cannot share a gensio between two different processes.
+You cannot share a gensio between two different processes.  If a
+gensio is used in one fork, it must be disabled and closed in the
+other fork.
+
+Another issue with forking on Linux is epoll.  An epoll fd is not
+duplicated on a fork, both forks get the same epoll fd.  If you close
+the epoll fd in one for, it will close it for the other.  To avoid
+this issue, the os handler has a handle_fork() function that you must
+call after a fork in the new for (not the old one).  It will handle
+any cleanup required after the fork.  Other systems may require other
+cleanups after a fork, so you should always call this after a fork.
 .SH "SEE ALSO"
 gensiot(1), sctp(7), udp(7), tcp(7), unix(7)
 .SH "KNOWN PROBLEMS"
