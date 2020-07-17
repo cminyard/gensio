@@ -568,10 +568,17 @@ gensio_file_func(struct gensio *io, int func, gensiods *count,
     }
 }
 
+struct file_ndata_data {
+    gensiods max_read_size;
+    const char *infile;
+    const char *outfile;
+    bool create;
+    mode_type mode;
+};
+
 static int
-file_ndata_setup(struct gensio_os_funcs *o, gensiods max_read_size,
-		 const char *infile, const char *outfile, bool create,
-		 mode_type mode, struct filen_data **new_ndata)
+file_ndata_setup(struct gensio_os_funcs *o, struct file_ndata_data *data,
+		 struct filen_data **new_ndata)
 {
     struct filen_data *ndata;
 
@@ -580,17 +587,17 @@ file_ndata_setup(struct gensio_os_funcs *o, gensiods max_read_size,
 	return GE_NOMEM;
     ndata->o = o;
     ndata->refcount = 1;
-    ndata->create = create;
-    ndata->mode = mode;
+    ndata->create = data->create;
+    ndata->mode = data->mode;
 
-    if (infile) {
-	ndata->infile = gensio_strdup(o, infile);
+    if (data->infile) {
+	ndata->infile = gensio_strdup(o, data->infile);
 	if (!ndata->infile)
 	    goto out_nomem;
     }
 
-    if (outfile) {
-	ndata->outfile = gensio_strdup(o, outfile);
+    if (data->outfile) {
+	ndata->outfile = gensio_strdup(o, data->outfile);
 	if (!ndata->outfile)
 	    goto out_nomem;
     }
@@ -598,8 +605,8 @@ file_ndata_setup(struct gensio_os_funcs *o, gensiods max_read_size,
     f_set_not_ready(ndata->inf);
     f_set_not_ready(ndata->outf);
 
-    ndata->max_read_size = max_read_size;
-    ndata->read_data = o->zalloc(o, max_read_size);
+    ndata->max_read_size = data->max_read_size;
+    ndata->read_data = o->zalloc(o, data->max_read_size);
     if (!ndata->read_data)
 	goto out_nomem;
 
@@ -621,6 +628,7 @@ file_ndata_setup(struct gensio_os_funcs *o, gensiods max_read_size,
     return GE_NOMEM;
 }
 
+#if !USE_FILE_STDIO
 static int
 gensio_check_keymode(const char *str, const char *key, unsigned int *rmode)
 {
@@ -653,29 +661,24 @@ gensio_check_keymode(const char *str, const char *key, unsigned int *rmode)
     *rmode = mode;
     return 1;
 }
+#endif
 
-int
-file_gensio_alloc(const char * const argv[], const char * const args[],
-		  struct gensio_os_funcs *o,
-		  gensio_event cb, void *user_data,
-		  struct gensio **new_gensio)
+static int
+process_file_args(const char * const args[], struct file_ndata_data *data)
 {
-    int err;
-    struct filen_data *ndata = NULL;
-    int i;
-    gensiods max_read_size = GENSIO_DEFAULT_BUF_SIZE;
-    const char *infile = NULL, *outfile = NULL;
-    unsigned int umode = 6, gmode = 6, omode = 6;
-    bool create = false;
+    unsigned int umode = 6, gmode = 6, omode = 6, i;
+
+    memset(data, 0, sizeof(*data));
+    data->max_read_size = GENSIO_DEFAULT_BUF_SIZE;
 
     for (i = 0; args && args[i]; i++) {
-	if (gensio_check_keyds(args[i], "readbuf", &max_read_size) > 0)
+	if (gensio_check_keyds(args[i], "readbuf", &data->max_read_size) > 0)
 	    continue;
-	if (gensio_check_keyvalue(args[i], "infile", &infile) > 0)
+	if (gensio_check_keyvalue(args[i], "infile", &data->infile) > 0)
 	    continue;
-	if (gensio_check_keyvalue(args[i], "outfile", &outfile) > 0)
+	if (gensio_check_keyvalue(args[i], "outfile", &data->outfile) > 0)
 	    continue;
-	if (gensio_check_keybool(args[i], "create", &create) > 0)
+	if (gensio_check_keybool(args[i], "create", &data->create) > 0)
 	    continue;
 #if !USE_FILE_STDIO
 	if (gensio_check_keymode(args[i], "umode", &umode) > 0)
@@ -687,9 +690,25 @@ file_gensio_alloc(const char * const argv[], const char * const args[],
 #endif
 	return GE_INVAL;
     }
+    data->mode = umode << 6 | gmode << 3 | omode;
+    return 0;
+}
 
-    err = file_ndata_setup(o, max_read_size, infile, outfile, create,
-			   umode << 6 | gmode << 3 | omode, &ndata);
+int
+file_gensio_alloc(const char * const argv[], const char * const args[],
+		  struct gensio_os_funcs *o,
+		  gensio_event cb, void *user_data,
+		  struct gensio **new_gensio)
+{
+    int err;
+    struct filen_data *ndata = NULL;
+    struct file_ndata_data data;
+
+    err = process_file_args(args, &data);
+    if (err)
+	return err;
+
+    err = file_ndata_setup(o, &data, &ndata);
     if (err)
 	return err;
 
@@ -723,6 +742,6 @@ str_to_file_gensio(const char *str, const char * const args[],
 	err = file_gensio_alloc(argv, args, o, cb, user_data, new_gensio);
 	gensio_argv_free(o, argv);
     }
-    return err;
 
+    return err;
 }
