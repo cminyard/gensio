@@ -1237,6 +1237,43 @@ Send the output to standard error.  Overrides file.
 .TP
 .B stdout[=yes|no]
 Send the output to standard output.  Overrides file and stderr.
+.SH "perf"
+accepter =
+.B perf[(options)]
+.br
+connecting =
+.B perf[(options)]
+
+A gensio for measuring throughput for a connection.  This allows the
+performance of a connection to be measured.  It does not pass any data
+through.  Instead, it writes raw data to the lower layer (if
+.B write_len
+is set) and reads data from the lower layer, counting the bytes and
+measuring the time.
+
+To the upper layer, perf prints out statistics about the data
+transfer.  It prints out the number of bytes written and read each
+second, and at the end it prints a total.
+
+If
+.B write_len
+and/or
+.B expect_len
+is non-zero, then the filter will return GE_REMCLOSE when it runs out
+of write data and has received all expected data.  If both are zero,
+the connection will not be closed by the gensio.
+.SS Options
+perf does not support readbuf.  It supports the following options:
+.TP
+.B writebuf=<n>
+Sets the size of the buffer to write to the child gensio.  Each write
+will be this size.  This defaults to zero.
+.TP
+.B write_len=<n>
+The number of bytes to write.
+.TP
+.B expect_len=<n>
+The number of bytes to expect from the other end.
 .SH "Forking and gensios"
 Unlike normal file descriptors, when you fork with a gensio, you now
 have two unassociated copies of the gensios.  So if you do operations

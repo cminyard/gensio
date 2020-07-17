@@ -1120,6 +1120,8 @@ add_default_gensio_accepters(void *cb_data)
 			relpkt_gensio_accepter_alloc);
     REG_FILT_GENSIO_ACC(o, "trace", str_to_trace_gensio_accepter,
 			trace_gensio_accepter_alloc);
+    REG_FILT_GENSIO_ACC(o, "perf", str_to_perf_gensio_accepter,
+			perf_gensio_accepter_alloc);
 }
 
 int
@@ -1331,6 +1333,8 @@ add_default_gensios(void *cb_data)
 		    relpkt_gensio_alloc);
     REG_FILT_GENSIO(o, "trace", str_to_trace_gensio,
 		    trace_gensio_alloc);
+    REG_FILT_GENSIO(o, "perf", str_to_perf_gensio,
+		    perf_gensio_alloc);
 }
 
 int
