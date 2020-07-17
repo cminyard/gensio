@@ -1273,7 +1273,7 @@ Another issue with forking on Linux is epoll.  An epoll fd is not
 duplicated on a fork, both forks get the same epoll fd.  If you close
 the epoll fd in one for, it will close it for the other.  To avoid
 this issue, the os handler has a handle_fork() function that you must
-call after a fork in the new for (not the old one).  It will handle
+call after a fork in the new fork (not the old one).  It will handle
 any cleanup required after the fork.  Other systems may require other
 cleanups after a fork, so you should always call this after a fork.
 .SH "SEE ALSO"
