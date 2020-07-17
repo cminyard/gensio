@@ -28,49 +28,49 @@ int str_to_tcp_gensio_accepter(const char *str, const char * const args[],
 			       struct gensio_os_funcs *o,
 			       gensio_accepter_event cb,
 			       void *user_data,
-			       struct gensio_accepter **new_acc);
+			       struct gensio_accepter **new_accepter);
 GENSIO_DLL_PUBLIC
 int str_to_udp_gensio_accepter(const char *str, const char * const args[],
 			       struct gensio_os_funcs *o,
 			       gensio_accepter_event cb,
 			       void *user_data,
-			       struct gensio_accepter **new_acc);
+			       struct gensio_accepter **new_accepter);
 GENSIO_DLL_PUBLIC
 int str_to_sctp_gensio_accepter(const char *str, const char * const args[],
 				struct gensio_os_funcs *o,
 				gensio_accepter_event cb,
 				void *user_data,
-				struct gensio_accepter **new_acc);
+				struct gensio_accepter **new_accepter);
 GENSIO_DLL_PUBLIC
 int str_to_unix_gensio_accepter(const char *str, const char * const args[],
 				struct gensio_os_funcs *o,
 				gensio_accepter_event cb,
 				void *user_data,
-				struct gensio_accepter **new_acc);
+				struct gensio_accepter **new_accepter);
 GENSIO_DLL_PUBLIC
 int str_to_stdio_gensio_accepter(const char *str, const char * const args[],
 				 struct gensio_os_funcs *o,
 				 gensio_accepter_event cb,
 				 void *user_data,
-				 struct gensio_accepter **new_acc);
+				 struct gensio_accepter **new_accepter);
 GENSIO_DLL_PUBLIC
 int str_to_dummy_gensio_accepter(const char *str, const char * const args[],
 				 struct gensio_os_funcs *o,
 				 gensio_accepter_event cb,
 				 void *user_data,
-				 struct gensio_accepter **acc_gensio);
+				 struct gensio_accepter **new_accepter);
 GENSIO_DLL_PUBLIC
 int str_to_ssl_gensio_accepter(const char *str, const char * const args[],
 			       struct gensio_os_funcs *o,
 			       gensio_accepter_event cb,
 			       void *user_data,
-			       struct gensio_accepter **new_acc);
+			       struct gensio_accepter **new_accepter);
 GENSIO_DLL_PUBLIC
 int str_to_mux_gensio_accepter(const char *str, const char * const args[],
 			       struct gensio_os_funcs *o,
 			       gensio_accepter_event cb,
 			       void *user_data,
-			       struct gensio_accepter **new_acc);
+			       struct gensio_accepter **new_accepter);
 GENSIO_DLL_PUBLIC
 int str_to_certauth_gensio_accepter(const char *str, const char * const args[],
 				    struct gensio_os_funcs *o,
@@ -82,25 +82,25 @@ int str_to_telnet_gensio_accepter(const char *str, const char * const args[],
 				  struct gensio_os_funcs *o,
 				  gensio_accepter_event cb,
 				  void *user_data,
-				  struct gensio_accepter **acc_gensio);
+				  struct gensio_accepter **new_accepter);
 GENSIO_DLL_PUBLIC
 int str_to_msgdelim_gensio_accepter(const char *str, const char * const args[],
 				    struct gensio_os_funcs *o,
 				    gensio_accepter_event cb,
 				    void *user_data,
-				    struct gensio_accepter **new_acc);
+				    struct gensio_accepter **new_accepter);
 GENSIO_DLL_PUBLIC
 int str_to_relpkt_gensio_accepter(const char *str, const char * const args[],
 				  struct gensio_os_funcs *o,
 				  gensio_accepter_event cb,
 				  void *user_data,
-				  struct gensio_accepter **new_acc);
+				  struct gensio_accepter **new_accepter);
 GENSIO_DLL_PUBLIC
 int str_to_trace_gensio_accepter(const char *str, const char * const args[],
 				 struct gensio_os_funcs *o,
 				 gensio_accepter_event cb,
 				 void *user_data,
-				 struct gensio_accepter **new_acc);
+				 struct gensio_accepter **new_accepter);
 
 /*
  * Allocators for the various gensio types, compatible with
@@ -202,7 +202,7 @@ int tcp_gensio_accepter_alloc(struct gensio_addr *ai,
 			      struct gensio_os_funcs *o,
 			      gensio_accepter_event cb,
 			      void *user_data,
-			      struct gensio_accepter **accepter);
+			      struct gensio_accepter **new_accepter);
 
 GENSIO_DLL_PUBLIC
 int unix_gensio_accepter_alloc(struct gensio_addr *ai,
@@ -210,7 +210,7 @@ int unix_gensio_accepter_alloc(struct gensio_addr *ai,
 			       struct gensio_os_funcs *o,
 			       gensio_accepter_event cb,
 			       void *user_data,
-			       struct gensio_accepter **accepter);
+			       struct gensio_accepter **new_accepter);
 
 GENSIO_DLL_PUBLIC
 int udp_gensio_accepter_alloc(struct gensio_addr *ai,
@@ -218,7 +218,7 @@ int udp_gensio_accepter_alloc(struct gensio_addr *ai,
 			      struct gensio_os_funcs *o,
 			      gensio_accepter_event cb,
 			      void *user_data,
-			      struct gensio_accepter **accepter);
+			      struct gensio_accepter **new_accepter);
 
 GENSIO_DLL_PUBLIC
 int sctp_gensio_accepter_alloc(struct gensio_addr *ai,
@@ -226,21 +226,21 @@ int sctp_gensio_accepter_alloc(struct gensio_addr *ai,
 			       struct gensio_os_funcs *o,
 			       gensio_accepter_event cb,
 			       void *user_data,
-			       struct gensio_accepter **accepter);
+			       struct gensio_accepter **new_accepter);
 
 GENSIO_DLL_PUBLIC
 int stdio_gensio_accepter_alloc(const char * const args[],
 				struct gensio_os_funcs *o,
 				gensio_accepter_event cb,
 				void *user_data,
-				struct gensio_accepter **accepter);
+				struct gensio_accepter **new_accepter);
 
 GENSIO_DLL_PUBLIC
 int dummy_gensio_accepter_alloc(const char * const args[],
 				struct gensio_os_funcs *o,
 				gensio_accepter_event cb,
 				void *user_data,
-				struct gensio_accepter **accepter);
+				struct gensio_accepter **new_accepter);
 
 GENSIO_DLL_PUBLIC
 int ssl_gensio_accepter_alloc(struct gensio_accepter *child,
@@ -248,7 +248,7 @@ int ssl_gensio_accepter_alloc(struct gensio_accepter *child,
 			      struct gensio_os_funcs *o,
 			      gensio_accepter_event cb,
 			      void *user_data,
-			      struct gensio_accepter **accepter);
+			      struct gensio_accepter **new_accepter);
 
 GENSIO_DLL_PUBLIC
 int mux_gensio_accepter_alloc(struct gensio_accepter *child,
@@ -256,14 +256,14 @@ int mux_gensio_accepter_alloc(struct gensio_accepter *child,
 			      struct gensio_os_funcs *o,
 			      gensio_accepter_event cb,
 			      void *user_data,
-			      struct gensio_accepter **accepter);
+			      struct gensio_accepter **new_accepter);
 
 GENSIO_DLL_PUBLIC
 int certauth_gensio_accepter_alloc(struct gensio_accepter *child,
 				   const char * const args[],
 				   struct gensio_os_funcs *o,
 				   gensio_accepter_event cb, void *user_data,
-				   struct gensio_accepter **accepter);
+				   struct gensio_accepter **new_accepter);
 
 GENSIO_DLL_PUBLIC
 int telnet_gensio_accepter_alloc(struct gensio_accepter *child,
@@ -271,7 +271,7 @@ int telnet_gensio_accepter_alloc(struct gensio_accepter *child,
 				 struct gensio_os_funcs *o,
 				 gensio_accepter_event cb,
 				 void *user_data,
-				 struct gensio_accepter **accepter);
+				 struct gensio_accepter **new_accepter);
 
 GENSIO_DLL_PUBLIC
 int msgdelim_gensio_accepter_alloc(struct gensio_accepter *child,
@@ -279,7 +279,7 @@ int msgdelim_gensio_accepter_alloc(struct gensio_accepter *child,
 				   struct gensio_os_funcs *o,
 				   gensio_accepter_event cb,
 				   void *user_data,
-				   struct gensio_accepter **accepter);
+				   struct gensio_accepter **new_accepter);
 
 GENSIO_DLL_PUBLIC
 int relpkt_gensio_accepter_alloc(struct gensio_accepter *child,
@@ -287,7 +287,7 @@ int relpkt_gensio_accepter_alloc(struct gensio_accepter *child,
 				 struct gensio_os_funcs *o,
 				 gensio_accepter_event cb,
 				 void *user_data,
-				 struct gensio_accepter **accepter);
+				 struct gensio_accepter **new_accepter);
 
 GENSIO_DLL_PUBLIC
 int trace_gensio_accepter_alloc(struct gensio_accepter *child,
@@ -295,7 +295,7 @@ int trace_gensio_accepter_alloc(struct gensio_accepter *child,
 				struct gensio_os_funcs *o,
 				gensio_accepter_event cb,
 				void *user_data,
-				struct gensio_accepter **accepter);
+				struct gensio_accepter **new_accepter);
 
 /* Client allocators. */
 
@@ -354,16 +354,22 @@ GENSIO_DLL_PUBLIC
 int serialdev_gensio_alloc(const char *devname, const char * const args[],
 			   struct gensio_os_funcs *o,
 			   gensio_event cb, void *user_data,
-			   struct gensio **io);
+			   struct gensio **new_gensio);
 
 GENSIO_DLL_PUBLIC
 int ipmisol_gensio_alloc(const char *devname, const char * const args[],
 			 struct gensio_os_funcs *o,
 			 gensio_event cb, void *user_data,
-			 struct gensio **io);
+			 struct gensio **new_gensio);
 
 GENSIO_DLL_PUBLIC
 int echo_gensio_alloc(const char * const argv[], const char * const args[],
+		      struct gensio_os_funcs *o,
+		      gensio_event cb, void *user_data,
+		      struct gensio **new_gensio);
+
+GENSIO_DLL_PUBLIC
+int file_gensio_alloc(const char * const argv[], const char * const args[],
 		      struct gensio_os_funcs *o,
 		      gensio_event cb, void *user_data,
 		      struct gensio **new_gensio);
@@ -375,49 +381,43 @@ GENSIO_DLL_PUBLIC
 int ssl_gensio_alloc(struct gensio *child, const char * const args[],
 		     struct gensio_os_funcs *o,
 		     gensio_event cb, void *user_data,
-		     struct gensio **io);
+		     struct gensio **new_gensio);
 
 GENSIO_DLL_PUBLIC
 int mux_gensio_alloc(struct gensio *child, const char * const args[],
 		     struct gensio_os_funcs *o,
 		     gensio_event cb, void *user_data,
-		     struct gensio **io);
+		     struct gensio **new_gensio);
 
 GENSIO_DLL_PUBLIC
 int certauth_gensio_alloc(struct gensio *child, const char * const args[],
 			  struct gensio_os_funcs *o,
 			  gensio_event cb, void *user_data,
-			  struct gensio **net);
+			  struct gensio **new_gensio);
 
 GENSIO_DLL_PUBLIC
 int telnet_gensio_alloc(struct gensio *child, const char * const args[],
 			struct gensio_os_funcs *o,
 			gensio_event cb, void *user_data,
-			struct gensio **io);
+			struct gensio **new_gensio);
 
 GENSIO_DLL_PUBLIC
 int msgdelim_gensio_alloc(struct gensio *child, const char * const args[],
 			  struct gensio_os_funcs *o,
 			  gensio_event cb, void *user_data,
-			  struct gensio **io);
+			  struct gensio **new_gensio);
 
 GENSIO_DLL_PUBLIC
 int relpkt_gensio_alloc(struct gensio *child, const char * const args[],
 			struct gensio_os_funcs *o,
 			gensio_event cb, void *user_data,
-			struct gensio **io);
+			struct gensio **new_gensio);
 
 GENSIO_DLL_PUBLIC
 int trace_gensio_alloc(struct gensio *child, const char * const args[],
 		       struct gensio_os_funcs *o,
 		       gensio_event cb, void *user_data,
-		       struct gensio **io);
-
-GENSIO_DLL_PUBLIC
-int file_gensio_alloc(const char * const argv[], const char * const args[],
-		      struct gensio_os_funcs *o,
-		      gensio_event cb, void *user_data,
-		      struct gensio **new_gensio);
+		       struct gensio **new_gensio);
 
 #ifdef __cplusplus
 }
