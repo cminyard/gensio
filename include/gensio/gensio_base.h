@@ -225,6 +225,15 @@ bool gensio_filter_ll_can_write(struct gensio_filter *filter);
 GENSIO_DLL_PUBLIC
 bool gensio_filter_ll_write_queued(struct gensio_filter *filter);
 
+/*
+ * Called when an I/O error occurs from the ll.
+ *
+ * &err => data
+ */
+#define GENSIO_FILTER_FUNC_IO_ERR		18
+GENSIO_DLL_PUBLIC
+void gensio_filter_io_err(struct gensio_filter *filter, int err);
+
 typedef int (*gensio_filter_func)(struct gensio_filter *filter, int op,
 				  const void *func, void *data,
 				  gensiods *count, void *buf,

@@ -354,6 +354,13 @@ filter_ll_write_queued(struct basen_data *ndata)
     return false;
 }
 
+static void
+filter_io_err(struct basen_data *ndata, int err)
+{
+    if (ndata->filter)
+	return gensio_filter_io_err(ndata->filter, err);
+}
+
 static bool
 filter_ll_can_write(struct basen_data *ndata)
 {
@@ -595,6 +602,14 @@ basen_write(struct basen_data *ndata, gensiods *rcount,
     return err;
 }
 
+static bool
+basen_can_deliver_ul_data(struct basen_data *ndata)
+{
+    return ndata->state == BASEN_OPEN ||
+	ndata->state == BASEN_IN_LL_IO_ERR_CLOSE ||
+	ndata->state == BASEN_IO_ERR_CLOSE;
+}
+
 static int
 basen_read_data_handler(void *cb_data,
 			gensiods *rcount,
@@ -606,7 +621,7 @@ basen_read_data_handler(void *cb_data,
     gensiods count = 0, rval;
 
     basen_lock(ndata);
-    if (ndata->state != BASEN_OPEN) {
+    if (!basen_can_deliver_ul_data(ndata)) {
 	if (ndata->state != BASEN_IN_LL_OPEN &&
 		ndata->state != BASEN_IN_FILTER_OPEN) {
 	    /*
@@ -617,7 +632,7 @@ basen_read_data_handler(void *cb_data,
 	}
 	goto out_unlock;
     }
-    while (ndata->state == BASEN_OPEN && ndata->read_enabled &&
+    while (basen_can_deliver_ul_data(ndata) && ndata->read_enabled &&
 	   count < buflen) {
 	rval = buflen - count;
 	basen_unlock(ndata);
@@ -662,6 +677,7 @@ handle_ioerr(struct basen_data *ndata, int err)
 	break;
 
     case BASEN_IN_FILTER_OPEN:
+	filter_io_err(ndata, err);
 	ndata->deferred_open = true;
 	basen_sched_deferred_op(ndata);
 	basen_set_state(ndata, BASEN_IN_LL_IO_ERR_CLOSE);
@@ -671,6 +687,7 @@ handle_ioerr(struct basen_data *ndata, int err)
 	break;
 
     case BASEN_OPEN:
+	filter_io_err(ndata, err);
 	ndata->deferred_read = true;
 	ndata->deferred_write = true;
 	basen_sched_deferred_op(ndata);
@@ -681,6 +698,7 @@ handle_ioerr(struct basen_data *ndata, int err)
 	break;
 
     case BASEN_CLOSE_WAIT_DRAIN:
+	filter_io_err(ndata, err);
 	basen_set_state(ndata, BASEN_IN_LL_CLOSE);
 	rv = ll_close(ndata);
 	if (rv) {
@@ -690,6 +708,7 @@ handle_ioerr(struct basen_data *ndata, int err)
 	break;
 
     case BASEN_IN_FILTER_CLOSE:
+	filter_io_err(ndata, err);
 	basen_set_state(ndata, BASEN_IN_LL_CLOSE);
 	rv = ll_close(ndata);
 	if (rv) {
@@ -804,7 +823,7 @@ basen_deferred_op(struct gensio_runner *runner, void *cbdata)
 	    goto skip_read;
 	ndata->in_read = true;
 	do {
-	    if (ndata->ll_err) {
+	    if (ndata->ll_err && !filter_ul_read_pending(ndata)) {
 		/* Automatically disable read on an error. */
 		ndata->read_enabled = false;
 		basen_unlock(ndata);
@@ -1718,6 +1737,13 @@ gensio_filter_ll_write_queued(struct gensio_filter *filter)
     if (rv)
 	return gensio_filter_ll_write_pending(filter);
     return val;
+}
+
+void
+gensio_filter_io_err(struct gensio_filter *filter, int err)
+{
+    filter->func(filter, GENSIO_FILTER_FUNC_IO_ERR,
+		 NULL, &err, NULL, NULL, NULL, 0, NULL);
 }
 
 bool
