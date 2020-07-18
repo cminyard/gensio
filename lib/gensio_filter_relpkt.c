@@ -483,7 +483,7 @@ relpkt_ul_read_pending(struct relpkt_filter *rfilter)
 {
     struct pkt *p = &(rfilter->recvpkts[rfilter->deliver_recvpkt]);
 
-    return p->ready || rfilter->err;
+    return p->ready;
 }
 
 static bool
