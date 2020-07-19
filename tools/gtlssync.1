@@ -1,0 +1,28 @@
+.TH gtlssync 1 01/02/19  "Run rsync over gtlssh"
+
+.SH NAME
+gtlssync \- A wrapper for running rsync over gtlssh
+
+.SH SYNOPSIS
+.B gtlssync [rsync options]
+
+.SH DESCRIPTION
+The
+.B gtlssync
+program simple wraps
+.B rsync
+to use
+.B gtlssh
+as the transport.
+.B rsync
+is not described here, see rsync(1) for the options.
+
+.SH "SEE ALSO"
+rsync(1) gtlssh(1)
+
+.SH "KNOWN PROBLEMS"
+None.
+
+.SH AUTHOR
+.PP
+Corey Minyard <minyard@acm.org>

@@ -23,8 +23,10 @@ if(UNIX)
 
   install(TARGETS gtlssh DESTINATION bin)
   install(PROGRAMS ${CMAKE_CURRENT_BINARY_DIR}/gtlssh-keygen DESTINATION bin)
+  install(PROGRAMS gtlssync DESTINATION bin)
 
   install(FILES gtlssh.1 DESTINATION ${CMAKE_INSTALL_FULL_MANDIR}/man1)
+  install(FILES gtlssync.1 DESTINATION ${CMAKE_INSTALL_FULL_MANDIR}/man1)
   install(FILES gtlssh-keygen.1 DESTINATION ${CMAKE_INSTALL_FULL_MANDIR}/man1)
 
   if(HAVE_PAM)
