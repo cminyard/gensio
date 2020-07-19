@@ -316,16 +316,19 @@ AC_SUBST(HAVE_WORKING_PORT0)
 GTLSSH=
 GTLSSYNC=
 GTLSSHD=
+GTLSSH_KEYGEN=
 if test $HAVE_OPENSSL -eq 1; then
    if test $HAVE_PAM -eq 1; then
       GTLSSHD=gtlsshd
    fi
    GTLSSH=gtlssh
    GTLSSYNC=gtlssync
+   GTLSSH_KEYGEN=gtlssh-keygen
 fi
 AC_SUBST(GTLSSHD)
 AC_SUBST(GTLSSH)
 AC_SUBST(GTLSSYNC)
+AC_SUBST(GTLSSH_KEYGEN)
 
 AC_CHECK_MEMBER([struct termios2.c_ispeed],
 	[AC_DEFINE([HAVE_TERMIOS2], [1], [termios2 is present])],

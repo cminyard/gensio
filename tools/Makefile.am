@@ -6,9 +6,9 @@ noinst_LIBRARIES = libgensiotool.a libgtlssh.a
 bin_PROGRAMS = gensiot @GTLSSH@
 sbin_PROGRAMS = @GTLSSHD@
 EXTRA_PROGRAMS = gtlsshd gtlssh
-dist_bin_SCRIPTS = @GTLSSYNC@
 
-bin_SCRIPTS = gtlssh-keygen
+bin_SCRIPTS = @GTLSSH_KEYGEN@ @GTLSSYNC@
+EXTRA_SCRIPTS = gtlssync gtlssh-keygen
 
 do_subst = sed -e 's,[@]SYSCONFDIR[@],$(sysconfdir),g'
 
