@@ -90,7 +90,7 @@ checkout_file(const char *filename, bool expect_dir, bool check_private)
 }
 
 bool
-file_is_readable(char *filename)
+file_is_readable(const char *filename)
 {
     struct stat sb;
     int rv;

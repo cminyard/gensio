@@ -380,14 +380,14 @@ main(int argc, char *argv[])
     bool esc_set = false;
     bool io1_set = false;
     int escape_char = -1;
-    char *signature = "gensiotool";
-    char *deftty = io1_default_notty;
+    const char *signature = "gensiotool";
+    const char *deftty = io1_default_notty;
     struct gensio_os_funcs *o = NULL;
     struct ioinfo_sub_handlers *sh1 = NULL, *sh2 = NULL;
     void *subdata1 = NULL, *subdata2 = NULL;
     struct ioinfo *ioinfo1 = NULL, *ioinfo2 = NULL;
     struct gdata userdata1, userdata2;
-    char *filename;
+    const char *filename;
 #ifndef _WIN32
     sigset_t sigs;
 #endif

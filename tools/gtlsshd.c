@@ -70,11 +70,11 @@ struct per_con_info {
     unsigned int oobpos;
 };
 
-static char *default_keyfile = SYSCONFDIR "/gtlssh/gtlsshd.key";
-static char *default_certfile = SYSCONFDIR "/gtlssh/gtlsshd.crt";
-static char *default_configfile = SYSCONFDIR "/gtlssh/gtlsshd.conf";
+static const char *default_keyfile = SYSCONFDIR "/gtlssh/gtlsshd.key";
+static const char *default_certfile = SYSCONFDIR "/gtlssh/gtlsshd.crt";
+static const char *default_configfile = SYSCONFDIR "/gtlssh/gtlsshd.conf";
 
-static char *pid_file = NULL;
+static const char *pid_file = NULL;
 
 static void
 make_pidfile(void)
@@ -1221,9 +1221,9 @@ main(int argc, char *argv[])
     int arg, rv;
     struct gensio_os_funcs *o;
     struct gdata ginfo;
-    char *keyfile = default_keyfile;
-    char *certfile = default_certfile;
-    char *configfile = default_configfile;
+    const char *keyfile = default_keyfile;
+    const char *certfile = default_certfile;
+    const char *configfile = default_configfile;
     int port = 852;
     char *s;
     bool notcp = false, nosctp = false;

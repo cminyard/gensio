@@ -85,9 +85,9 @@ static struct ioinfo_user_handlers guh = {
     .out = gout
 };
 
-char *username, *hostname, *keyfile, *certfile, *CAdir;
-char *tlssh_dir = NULL;
-int port = 852;
+static const char *username, *hostname, *keyfile, *certfile, *CAdir;
+static char *tlssh_dir = NULL;
+static int port = 852;
 
 static int
 getpassword(char *pw, gensiods *len)
@@ -289,6 +289,7 @@ lookup_certfiles(const char *tlssh_dir, const char *username,
 		 char **rCAdir, char **rcertfile, char **rkeyfile)
 {
     int err = GE_NOMEM;
+    char *tcertfile, *tkeyfile;
 
     if (!CAdir) {
 	CAdir = alloc_sprintf("%s/server_certs", tlssh_dir);
@@ -299,39 +300,41 @@ lookup_certfiles(const char *tlssh_dir, const char *username,
     }
 
     if (!certfile) {
-	certfile = alloc_sprintf("%s/keycerts/%s,%d.crt", tlssh_dir,
-				 hostname, port);
-	if (!certfile)
+	tcertfile = alloc_sprintf("%s/keycerts/%s,%d.crt", tlssh_dir,
+				  hostname, port);
+	if (!tcertfile)
 	    goto cert_nomem;
-	if (file_is_readable(certfile)) {
-	    keyfile = alloc_sprintf("%s/keycerts/%s,%d.key", tlssh_dir,
-				    hostname, port);
+	if (file_is_readable(tcertfile)) {
+	    tkeyfile = alloc_sprintf("%s/keycerts/%s,%d.key", tlssh_dir,
+				     hostname, port);
 	    goto found_cert;
 	}
-	free(certfile);
-	certfile = alloc_sprintf("%s/keycerts/%s.crt", tlssh_dir, hostname);
-	if (!certfile)
+	free(tcertfile);
+	tcertfile = alloc_sprintf("%s/keycerts/%s.crt", tlssh_dir, hostname);
+	if (!tcertfile)
 	    goto cert_nomem;
-	if (file_is_readable(certfile)) {
-	    keyfile = alloc_sprintf("%s/keycerts/%s.key", tlssh_dir, hostname);
+	if (file_is_readable(tcertfile)) {
+	    tkeyfile = alloc_sprintf("%s/keycerts/%s.key", tlssh_dir, hostname);
 	    goto found_cert;
 	}
-	free(certfile);
+	free(tcertfile);
 
-	certfile = alloc_sprintf("%s/default.crt", tlssh_dir);
-	if (!certfile) {
+	tcertfile = alloc_sprintf("%s/default.crt", tlssh_dir);
+	if (!tcertfile) {
 	cert_nomem:
 	    fprintf(stderr, "Error allocating memory for certificate file\n");
 	    goto out_err;
 	}
-	keyfile = alloc_sprintf("%s/default.key", tlssh_dir);
+	tkeyfile = alloc_sprintf("%s/default.key", tlssh_dir);
     found_cert:
-	if (!keyfile) {
+	if (!tkeyfile) {
 	    fprintf(stderr, "Error allocating memory for private key file\n");
-	    free(certfile);
-	    certfile = NULL;
+	    free(tcertfile);
+	    tcertfile = NULL;
 	    goto out_err;
 	}
+	certfile = tcertfile;
+	keyfile = tkeyfile;
     }
 
     err = checkout_file(CAdir, true, false);
@@ -915,7 +918,7 @@ validate_port(const char *host, const char *port, const char **rtype,
 }
 
 static int
-handle_port(struct gensio_os_funcs *o, bool remote, char *iaddr)
+handle_port(struct gensio_os_funcs *o, bool remote, const char *iaddr)
 {
     char *s[4];
     const char *type = NULL;
@@ -1034,7 +1037,7 @@ main(int argc, char *argv[])
     const char *muxstr = "mux,";
     bool use_mux = true;
     struct sigaction sigact;
-    char *addr;
+    const char *addr;
     const char *iptype = ""; /* Try both IPv4 and IPv6 by default. */
 
     localport_err = pr_localport;

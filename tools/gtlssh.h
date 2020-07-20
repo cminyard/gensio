@@ -10,7 +10,7 @@
 #include <gensio/gensio.h>
 
 int checkout_file(const char *filename, bool expect_dir, bool check_private);
-bool file_is_readable(char *filename);
+bool file_is_readable(const char *filename);
 int write_file_to_gensio(const char *filename, struct gensio *io,
 			 struct gensio_os_funcs *o, gensio_time *timeout,
 			 bool xlatnl);
