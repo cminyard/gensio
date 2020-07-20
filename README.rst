@@ -141,6 +141,11 @@ trace
     be sent to a file, either as raw data or as human-readable hex
     data.
 
+perf
+    A gensio that can send/receive data on top of a stack of gensios
+    and measure the throughput on the channel.  The received data from
+    perf is information about the channel throughput.
+
 These are all documented in detail in gensio(5).  Unless otherwise
 stated, these all are available as accepters or connecting gensios.
 
