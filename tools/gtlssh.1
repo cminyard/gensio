@@ -46,6 +46,13 @@ Disable SCTP support.
 .I \-\-notcp
 Disable TCP support
 .TP
+.I \-\-transport <connecter>
+Instead of using SCTP or TCP, use the given gensio connecter for
+transport.  In this case, the
+.B host
+is required but the hostname part is ignored.  This is so the username
+can be set, if required.
+.TP
 .I \-\-nomux
 Don't use a mux gensio.  This may cause issues with gtlsshd, but is
 useful in some cases for talking with ser2net with no mux support.

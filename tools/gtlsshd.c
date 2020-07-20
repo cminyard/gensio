@@ -1053,7 +1053,7 @@ handle_new(struct gensio_runner *r, void *cb_data)
     return;
 }
 
-static struct gensio_accepter *tcp_acc, *sctp_acc;
+static struct gensio_accepter *tcp_acc, *sctp_acc, *other_acc;
 
 static int
 acc_event(struct gensio_accepter *accepter, void *user_data,
@@ -1081,7 +1081,7 @@ acc_event(struct gensio_accepter *accepter, void *user_data,
     }
 
     if (event != GENSIO_ACC_EVENT_NEW_CONNECTION)
-	return ENOTSUP;
+	return GE_NOTSUP;
 
     io = data;
 
@@ -1133,6 +1133,11 @@ acc_event(struct gensio_accepter *accepter, void *user_data,
 	    gensio_acc_free(sctp_acc);
 	    sctp_acc = NULL;
 	}
+	if (other_acc) {
+	    gensio_acc_disable(other_acc);
+	    gensio_acc_free(other_acc);
+	    other_acc = NULL;
+	}
 
 	/* Since handle_new does blocking calls, can't do it here. */
 	gensio_set_user_data(io, ginfo); /* Just temporarily. */
@@ -1179,6 +1184,8 @@ help(int err)
     printf("  --nodaemon - Do not daemonize.\n");
     printf("  --nosctp - Disable SCTP support.\n");
     printf("  --notcp - Disable TCP support.\n");
+    printf("  --other_acc <accepter> - Allows the user to specify the\n");
+    printf("     accepter used by gtlsshd, in addition to sctp and tcp.\n");
     printf("  -4 - Do IPv4 only.\n");
     printf("  -6 - Do IPv6 only.\n");
     printf("  -P, --pidfile <file> - Create the given pidfile.\n");
@@ -1229,6 +1236,7 @@ main(int argc, char *argv[])
     bool notcp = false, nosctp = false;
     bool daemonize = true;
     const char *iptype = ""; /* Try both IPv4 and IPv6 by default. */
+    const char *other_acc_str = NULL;
 
     localport_err = pr_localport;
 
@@ -1260,6 +1268,9 @@ main(int argc, char *argv[])
 	    notcp = true;
 	else if ((rv = cmparg(argc, argv, &arg, NULL, "--nosctp", NULL)))
 	    nosctp = true;
+	else if ((rv = cmparg(argc, argv, &arg, NULL, "--other_acc",
+			      &other_acc_str)))
+	    ;
 	else if ((rv = cmparg(argc, argv, &arg, NULL, "--permit-root", NULL)))
 	    permit_root = true;
 	else if ((rv = cmparg(argc, argv, &arg, NULL, "--allow-password", NULL)))
@@ -1382,6 +1393,31 @@ main(int argc, char *argv[])
 	}
     }
 
+    if (other_acc_str) {
+	s = alloc_sprintf(other_acc_str, iptype, port);
+	if (!s) {
+	    fprintf(stderr, "Could not allocate '%s' descriptor\n",
+		    other_acc_str);
+	    return 1;
+	}
+
+	rv = str_to_gensio_accepter(s, o, acc_event, &ginfo, &other_acc);
+	if (rv) {
+	    fprintf(stderr, "Could not allocate %s: %s\n", s,
+		    gensio_err_to_str(rv));
+	    free(s);
+	    return 1;
+	}
+	free(s);
+
+	rv = gensio_acc_startup(other_acc);
+	if (rv) {
+	    fprintf(stderr, "Could not start '%s' accepter: %s\n",
+		    other_acc_str, gensio_err_to_str(rv));
+	    return 1;
+	}
+    }
+
  start_io:
     if (!oneshot)
 	openlog(progname, 0, LOG_AUTH);
@@ -1444,6 +1480,16 @@ main(int argc, char *argv[])
 	}
     }
 
+    if (other_acc) {
+	ginfo.closecount++;
+	rv = gensio_acc_shutdown(other_acc, acc_shutdown, &ginfo);
+	if (rv) {
+	    syslog(LOG_ERR, "Unable to close '%s' accepter: %s",
+		   other_acc_str, gensio_err_to_str(rv));
+	    ginfo.closecount--;
+	}
+    }
+
     close_cons(&ginfo);
 
     if (ginfo.closecount > 0)
@@ -1453,6 +1499,8 @@ main(int argc, char *argv[])
 	gensio_acc_free(tcp_acc);
     if (sctp_acc)
 	gensio_acc_free(sctp_acc);
+    if (other_acc)
+	gensio_acc_free(other_acc);
 
     free(ginfo.key);
     free(ginfo.cert);

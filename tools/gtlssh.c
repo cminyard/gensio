@@ -191,6 +191,9 @@ help(int err)
 	   "    Default is ^\\ for tty stdin and disabled for non-tty stdin\n");
     printf("  --nosctp - Disable SCTP support.\n");
     printf("  --notcp - Disable TCP support.\n");
+    printf("  --transport - Use the given gensio instead of TCP or SCTP.\n");
+    printf("    hostname is ignored in this case, except for the username\n");
+    printf("    part, but is required.\n");
     printf("  -d, --debug - Enable debug.  Specify more than once to increase\n"
 	   "    the debug level\n");
     printf("  -L <accept addr>:<connect addr> - Listen at the <accept addr>\n"
@@ -482,6 +485,16 @@ verify_certfile(struct gensio_os_funcs *o,
     return rv;
 }
 
+static void
+translate_raddr(char *raddr)
+{
+    while (*raddr) {
+	if (*raddr == '/')
+	    *raddr = '-';
+	raddr++;
+    }
+}
+
 static int
 auth_event(struct gensio *io, void *user_data, int event, int ierr,
 	   unsigned char *ibuf, gensiods *buflen,
@@ -537,6 +550,7 @@ auth_event(struct gensio *io, void *user_data, int event, int ierr,
 		    gensio_err_to_str(err));
 	    return err;
 	}
+	translate_raddr(raddr);
 
 	if (!ierr) {
 	    /* Found a certificate, make sure it's the right one. */
@@ -1033,6 +1047,7 @@ main(int argc, char *argv[])
     gensiods service_len, len;
     bool interactive = true;
     const char *transport = "sctp";
+    bool user_transport = false;
     bool notcp = false, nosctp = false;
     const char *muxstr = "mux,";
     bool use_mux = true;
@@ -1123,6 +1138,11 @@ main(int argc, char *argv[])
 	} else if ((rv = cmparg(argc, argv, &arg, "-r", "--telnet", NULL))) {
 	    do_telnet = "telnet(rfc2217),";
 	    use_telnet = 1;
+	} else if ((rv = cmparg(argc, argv, &arg, "", "--transport",
+				&transport))) {
+	    user_transport = true;
+	    nosctp = true;
+	    notcp = true;
 	} else if ((rv = cmparg(argc, argv, &arg, "-L", NULL, &addr))) {
 	    rv = handle_port(o, false, addr);
 	} else if ((rv = cmparg(argc, argv, &arg, "-R", NULL, &addr))) {
@@ -1145,12 +1165,12 @@ main(int argc, char *argv[])
 	    return 1;
     }
 
-    if (nosctp && notcp) {
+    if (nosctp && notcp && !user_transport) {
 	fprintf(stderr, "You cannot disable both TCP and SCTP\n");
 	exit(1);
     }
 
-    if (nosctp)
+    if (nosctp && !user_transport)
 	transport = "tcp";
 
     if (!!certfile != !!keyfile) {
@@ -1315,10 +1335,17 @@ main(int argc, char *argv[])
 	return 1;
 
  retry:
-    s = alloc_sprintf("%s%scertauth(enable-password,username=%s%s%s),"
-		      "ssl(%s),%s,%s%s,%d",
-		      do_telnet, muxstr, username, certfilespec, keyfilespec,
-		      CAdirspec, transport, iptype, hostname, port);
+    if (user_transport)
+	s = alloc_sprintf("%s%scertauth(enable-password,username=%s%s%s),"
+			  "ssl(%s),%s",
+			  do_telnet, muxstr, username, certfilespec,
+			  keyfilespec, CAdirspec, transport);
+    else
+	s = alloc_sprintf("%s%scertauth(enable-password,username=%s%s%s),"
+			  "ssl(%s),%s,%s%s,%d",
+			  do_telnet, muxstr, username, certfilespec,
+			  keyfilespec, CAdirspec,
+			  transport, iptype, hostname, port);
     if (!s) {
 	fprintf(stderr, "out of memory allocating IO string\n");
 	return 1;
@@ -1367,7 +1394,7 @@ main(int argc, char *argv[])
 	userdata2.can_close = false;
 	fprintf(stderr, "Could not open %s: %s\n", userdata2.ios,
 		gensio_err_to_str(rv));
-	if (strcmp(transport, "sctp") == 0 && !notcp) {
+	if (strcmp(transport, "sctp") == 0 && !notcp && !user_transport) {
 	    fprintf(stderr, "Falling back to tcp\n");
 	    free(userdata2.ios);
 	    userdata2.ios = NULL;
