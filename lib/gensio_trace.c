@@ -44,11 +44,7 @@ trace_gensio_alloc(struct gensio *child, const char *const args[],
 	return GE_NOMEM;
     }
 
-    gensio_set_is_reliable(io, gensio_is_reliable(child));
-    gensio_set_is_packet(io, gensio_is_packet(child));
-    gensio_set_is_authenticated(io, gensio_is_authenticated(child));
-    gensio_set_is_encrypted(io, gensio_is_encrypted(child));
-    gensio_set_is_message(io, gensio_is_message(child));
+    gensio_set_attr_from_child(io, child);
 
     gensio_free(child); /* Lose the ref we acquired. */
 

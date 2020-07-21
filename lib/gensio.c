@@ -785,6 +785,16 @@ gensio_set_is_encrypted(struct gensio *io, bool is_encrypted)
     io->is_encrypted = is_encrypted;
 }
 
+void
+gensio_set_attr_from_child(struct gensio *io, struct gensio *child)
+{
+    gensio_set_is_reliable(io, gensio_is_reliable(child));
+    gensio_set_is_packet(io, gensio_is_packet(child));
+    gensio_set_is_authenticated(io, gensio_is_authenticated(child));
+    gensio_set_is_encrypted(io, gensio_is_encrypted(child));
+    gensio_set_is_message(io, gensio_is_message(child));
+}
+
 void *
 gensio_acc_get_user_data(struct gensio_accepter *accepter)
 {

@@ -136,6 +136,8 @@ void gensio_set_is_encrypted(struct gensio *io, bool is_encrypted);
 GENSIO_DLL_PUBLIC
 void gensio_set_is_message(struct gensio *io, bool is_message);
 GENSIO_DLL_PUBLIC
+void gensio_set_attr_from_child(struct gensio *io, struct gensio *child);
+GENSIO_DLL_PUBLIC
 gensio_event gensio_get_cb(struct gensio *io);
 GENSIO_DLL_PUBLIC
 void gensio_set_cb(struct gensio *io, gensio_event cb, void *user_data);
