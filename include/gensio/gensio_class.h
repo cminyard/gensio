@@ -124,6 +124,11 @@ GENSIO_DLL_PUBLIC
 void *gensio_get_gensio_data(struct gensio *io);
 
 GENSIO_DLL_PUBLIC
+int gensio_call_func(struct gensio *io, int func, gensiods *count,
+		     const void *cbuf, gensiods buflen, void *buf,
+		     const char *const *auxdata);
+
+GENSIO_DLL_PUBLIC
 void gensio_set_is_client(struct gensio *io, bool is_client);
 GENSIO_DLL_PUBLIC
 void gensio_set_is_packet(struct gensio *io, bool is_packet);

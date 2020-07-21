@@ -424,6 +424,14 @@ gensio_set_user_data(struct gensio *io, void *user_data)
 }
 
 int
+gensio_call_func(struct gensio *io, int func, gensiods *count,
+		 const void *cbuf, gensiods buflen, void *buf,
+		 const char *const *auxdata)
+{
+    return io->func(io, func, count, cbuf, buflen, buf, auxdata);
+}
+
+int
 gensio_write(struct gensio *io, gensiods *count,
 	     const void *buf, gensiods buflen,
 	     const char *const *auxdata)
