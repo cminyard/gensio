@@ -23,11 +23,17 @@ enum dummyna_state {
 struct dummyna_data {
     struct gensio_os_funcs *o;
     struct gensio_lock *lock;
-    struct gensio_runner *shutdown_runner;
+    struct gensio_accepter *acc;
+    enum dummyna_state state;
+
+    bool deferred_pending;
+    struct gensio_runner *deferred_runner;
+
     gensio_acc_done shutdown_done;
     void *shutdown_data;
-    enum dummyna_state state;
-    struct gensio_accepter *acc;
+
+    gensio_acc_done enabled_done;
+    void *enabled_data;
 };
 
 static void
@@ -57,19 +63,44 @@ dummyna_startup(struct gensio_accepter *accepter)
 }
 
 static void
-dummyna_do_shutdown(struct gensio_runner *runner, void *cb_data)
+dummyna_do_deferred(struct gensio_runner *runner, void *cb_data)
 {
     struct dummyna_data *nadata = cb_data;
-    gensio_acc_done shutdown_done;
-    void *shutdown_data;
 
     dummyna_lock(nadata);
-    nadata->state = DUMMY_DISABLED;
-    shutdown_done = nadata->shutdown_done;
-    shutdown_data = nadata->shutdown_data;
-    dummyna_unlock(nadata);
+    nadata->deferred_pending = false;
 
-    shutdown_done(nadata->acc, shutdown_data);
+    if (nadata->enabled_done) {
+	gensio_acc_done enabled_done = nadata->enabled_done;;
+	void *enabled_data = nadata->enabled_data;;
+
+	nadata->enabled_done = NULL;
+	dummyna_unlock(nadata);
+	enabled_done(nadata->acc, enabled_data);
+	dummyna_lock(nadata);
+    }
+
+    if (nadata->state == DUMMY_IN_SHUTDOWN) {
+	gensio_acc_done shutdown_done = nadata->shutdown_done;
+	void *shutdown_data = nadata->shutdown_data;
+
+	nadata->state = DUMMY_DISABLED;
+	if (shutdown_done) {
+	    dummyna_unlock(nadata);
+	    shutdown_done(nadata->acc, shutdown_data);
+	    dummyna_lock(nadata);
+	}
+    }
+    dummyna_unlock(nadata);
+}
+
+void
+dummyna_deferred_op(struct dummyna_data *nadata)
+{
+    if (!nadata->deferred_pending) {
+	nadata->o->run(nadata->deferred_runner);
+	nadata->deferred_pending = true;
+    }
 }
 
 static int
@@ -87,7 +118,7 @@ dummyna_shutdown(struct gensio_accepter *accepter,
 	/* Run the shutdown response in a runner to avoid deadlocks. */
 	nadata->shutdown_done = shutdown_data;
 	nadata->shutdown_data = shutdown_data;
-	nadata->o->run(nadata->shutdown_runner);
+	nadata->o->run(nadata->deferred_runner);
 	dummyna_unlock(nadata);
     }
 
@@ -99,7 +130,21 @@ dummyna_set_accept_callback_enable(struct gensio_accepter *accepter,
 				   bool enabled,
 				   gensio_acc_done done, void *done_data)
 {
-    return 0;
+    struct dummyna_data *nadata = gensio_acc_get_gensio_data(accepter);
+    int rv = 0;
+
+    dummyna_lock(nadata);
+    if (nadata->enabled_done) {
+	rv = GE_INUSE;
+    } else if (done) {
+	/* Run the response in a runner to avoid deadlocks. */
+	nadata->enabled_done = done;
+	nadata->enabled_data = done_data;
+	nadata->o->run(nadata->deferred_runner);
+	dummyna_unlock(nadata);
+    }
+
+    return rv;
 }
 
 static void
@@ -107,7 +152,7 @@ dummyna_finish_free(struct dummyna_data *nadata)
 {
     struct gensio_os_funcs *o = nadata->o;
 
-    o->free_runner(nadata->shutdown_runner);
+    o->free_runner(nadata->deferred_runner);
     o->free_lock(nadata->lock);
     o->free(o, nadata);
 }
@@ -163,8 +208,8 @@ dummy_gensio_accepter_alloc(const char * const args[],
 	return GE_NOMEM;
     }
 
-    nadata->shutdown_runner = o->alloc_runner(o, dummyna_do_shutdown, nadata);
-    if (!nadata->shutdown_runner) {
+    nadata->deferred_runner = o->alloc_runner(o, dummyna_do_deferred, nadata);
+    if (!nadata->deferred_runner) {
 	dummyna_finish_free(nadata);
 	return GE_NOMEM;
     }
