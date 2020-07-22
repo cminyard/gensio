@@ -208,9 +208,10 @@ pty_check_close(void *handler_data, enum gensio_ll_close_state state,
     if (state != GENSIO_LL_CLOSE_STATE_DONE)
 	return 0;
 
+    /* The ptym will be closed in the fd ll, it owns the fd. */
     if (tdata->ptym != -1) {
-	close(tdata->ptym);
 	tdata->ptym = -1;
+	gensio_fd_ll_close_now(tdata->ll);
     }
 
     if (tdata->pid != -1) {

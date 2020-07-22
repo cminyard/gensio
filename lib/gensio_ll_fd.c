@@ -657,12 +657,25 @@ fd_except_ready(int fd, void *cbdata)
 static void
 fd_finish_cleared(struct fd_ll *fdll)
 {
-    gensio_os_close(fdll->o, fdll->fd);
-    fdll->fd = -1;
+    if (fdll->fd != -1) {
+	gensio_os_close(fdll->o, fdll->fd);
+	fdll->fd = -1;
+    }
     if (fdll->state == FD_OPEN_ERR_WAIT)
 	fdll->deferred_open = true;
     fdll->deferred_close = true;
     fd_sched_deferred_op(fdll);
+}
+
+void
+gensio_fd_ll_close_now(struct gensio_ll *ll)
+{
+    struct fd_ll *fdll = ll_to_fd(ll);
+
+    if (fdll->fd != -1) {
+	gensio_os_close(fdll->o, fdll->fd);
+	fdll->fd = -1;
+    }
 }
 
 static void

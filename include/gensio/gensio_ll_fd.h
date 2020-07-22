@@ -52,6 +52,16 @@ GENSIO_DLL_PUBLIC
 gensiods gensio_fd_ll_callback(struct gensio_ll *ll, int op, int val,
 			       void *buf, gensiods buflen, void *data);
 
+/*
+ * For calling from the check_close() callback only, and only when
+ * GENSIO_LL_CLOSE_STATE_DONE is the state.  This will immediately
+ * close the file descriptor.  Some gensios (like pty) require that
+ * the fd gets closed before they can finish the close operation
+ * (waiting for the process to exit when stdin closes).
+ */
+GENSIO_DLL_PUBLIC
+void gensio_fd_ll_close_now(struct gensio_ll *ll);
+
 GENSIO_DLL_PUBLIC
 void gensio_fd_ll_handle_incoming(struct gensio_ll *ll,
 				  int (*doread)(int fd, void *buf,
