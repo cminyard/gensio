@@ -690,7 +690,7 @@ gensio_disable(struct gensio *io)
     struct gensio *c = io;
 
     while (c) {
-	io->func(c, GENSIO_FUNC_DISABLE, NULL, NULL, 0, NULL, NULL);
+	c->func(c, GENSIO_FUNC_DISABLE, NULL, NULL, 0, NULL, NULL);
 	c = c->child;
     }
 }
