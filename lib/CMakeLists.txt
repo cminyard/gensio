@@ -31,7 +31,10 @@ set(BASE_LIBFILES
   utils.c
   gensio_filter_relpkt.c
   gensio_sctp.c
-  gensio_filter_ssl.c)
+  gensio_filter_ssl.c
+  gensio_perf.c
+  gensio_filter_perf.c
+  gensio_conacc.c)
 
 set(UNIX_LIBFILES
   gensio_stdio.c

@@ -146,6 +146,14 @@ perf
     and measure the throughput on the channel.  The received data from
     perf is information about the channel throughput.
 
+conacc
+    A gensio accepter that takes a gensio stack string as a parameter.
+    This lets you use a gensio as an accepter.  When conacc is started,
+    it opens the gensio, and when the gensio opens it reports a new
+    child for the accepter.  When the child closes it attempts to open
+    the child again and go through the process again (unless accepts
+    have been disabled on conacc).
+
 These are all documented in detail in gensio(5).  Unless otherwise
 stated, these all are available as accepters or connecting gensios.
 

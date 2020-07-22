@@ -1140,6 +1140,7 @@ add_default_gensio_accepters(void *cb_data)
 			trace_gensio_accepter_alloc);
     REG_FILT_GENSIO_ACC(o, "perf", str_to_perf_gensio_accepter,
 			perf_gensio_accepter_alloc);
+    REG_GENSIO_ACC(o, "conacc", str_to_conacc_gensio_accepter);
 }
 
 int

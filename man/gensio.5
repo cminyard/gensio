@@ -1274,6 +1274,18 @@ The number of bytes to write.
 .TP
 .B expect_len=<n>
 The number of bytes to expect from the other end.
+.SH "conacc"
+accepter =
+.B conacc,<gensio string>
+
+.B conacc
+is a gensio accepter that takes a gensio as a child.  When the
+accepter is started, it opens the child gensio.  When the child gensio
+finishes the open, it reports a new child for the accepter.  The
+reported gensio can be used normally.
+
+When the gensio is closed, when the close completes the accepter will
+attempt to re-open the gensio.
 .SH "Forking and gensios"
 Unlike normal file descriptors, when you fork with a gensio, you now
 have two unassociated copies of the gensios.  So if you do operations
