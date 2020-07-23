@@ -953,7 +953,8 @@ class gensio_accepter:
         def shutdown(self, shutdown_done):
             """Stop accepting connection on the gensio accepter.  The
             accepter will be stopped when the shutdown_done() method
-            is called in the shutdown_done object.
+            is called in the shutdown_done object.  This closes any
+            underlying connections.
 
             shutdown_done - The object containing the shutdown_done()
                 method to be called when the shutdown is complete.
@@ -962,6 +963,41 @@ class gensio_accepter:
 
         def shutdown_s(self):
             """Like shutdown, but blocks until the shutdown is complete."""
+            return
+
+        def set_accept_cb_enable(self, enable):
+            """Enable or disabling reporting new connections on the gensio
+            accepter.  This does not close the underlying connection,
+            it just disables reporting any accepts.
+
+            enable - If true, enable callbacks.  If false, disabled them.
+            enable_done - The object containing the
+                set_accept_callback_done() method to be called when
+                the enable is complete.
+
+            """
+            return
+
+        def set_accept_cb_enable_cb(self, enable, enable_done):
+            """Like set_accept_cb_enable(), but the accepter reporting is
+            guaranteed to be stopped when the
+            set_accept_callback_done() method is called in the
+            enabled_done object.
+
+            enable - If true, enable callbacks.  If false, disabled them.
+            enable_done - The object containing the
+                set_accept_callback_done() method to be called when
+                the enable is complete.
+
+            """
+            return
+
+        def set_accept_cb_enable_s(self, enable):
+            """Like set_accept_cb_enable(), but the accepter reporting is
+            guaranteed to be stopped when the function returns.
+
+            enable - If true, enable callbacks.  If false, disabled them.
+            """
             return
 
         def set_sync(self):

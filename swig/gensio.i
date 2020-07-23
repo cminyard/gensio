@@ -903,6 +903,30 @@ struct waiter { };
 	err_handle("set_sync", rv);
     }
 
+    void set_accept_callback_enable(bool enabled) {
+	gensio_acc_set_accept_callback_enable(self, enabled);
+    }
+
+    void set_accept_callback_enable_cb(bool enabled, swig_cb *done) {
+	swig_cb_val *done_val = NULL;
+	int rv;
+
+	if (!nil_swig_cb(done))
+	    done_val = ref_swig_cb(done, acc_cb_enabled);
+	rv = gensio_acc_set_accept_callback_enable_cb(self, enabled,
+			      gensio_acc_set_acc_cb_done, done_val);
+	if (rv && done_val)
+	    deref_swig_cb_val(done_val);
+
+	err_handle("set_accept_callback_enable_cb", rv);
+    }
+
+    void set_accept_callback_enable_s(bool enabled) {
+	int rv = gensio_acc_set_accept_callback_enable_s(self, enabled);
+
+	err_handle("set_accept_callback_enable_s", rv);
+    }
+
     void accept_s_timeout(struct gensio **io, long *r_int,
 			  struct gensio_os_funcs *o,
 			  swig_cb *handler, int timeout) {

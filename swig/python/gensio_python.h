@@ -904,6 +904,27 @@ gensio_acc_shutdown_done(struct gensio_accepter *accepter, void *cb_data)
     OI_PY_STATE_PUT(gstate);
 }
 
+static void
+gensio_acc_set_acc_cb_done(struct gensio_accepter *accepter, void *cb_data)
+{
+    swig_cb_val *cb = cb_data;
+    swig_ref acc_ref;
+    PyObject *args;
+    OI_PY_STATE gstate;
+
+    gstate = OI_PY_STATE_GET();
+
+    acc_ref = swig_make_ref(accepter, gensio_accepter);
+    args = PyTuple_New(1);
+    gensio_accepter_ref(accepter);
+    PyTuple_SET_ITEM(args, 0, acc_ref.val);
+
+    swig_finish_call(cb, "set_accept_callback_done", args, false);
+
+    deref_swig_cb_val(cb);
+    OI_PY_STATE_PUT(gstate);
+}
+
 static int
 gensio_acc_io_call_cb(struct gensio_accepter *accepter, struct gensio *io,
 		      const char *func, int opterr, const char *optstr,
