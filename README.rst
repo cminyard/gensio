@@ -525,10 +525,13 @@ The gensio and gensio accepter classes each have subclasses for
 handling serial I/O and setting all the parameters associated with a
 serial port.
 
-You can discover if a gensio is a serial port by calling
-``gensio_to_sergensio()``.  If that returns NULL, it is not a
-sergensio.  If it returns non-NULL, it returns the sergensio object
-for you to use.
+You can discover if a gensio (or any of its children) is a serial port
+by calling ``gensio_to_sergensio()``.  If that returns NULL, it is not
+a sergensio and none of it's children are sergensios.  If it returns
+non-NULL, it returns the sergensio object for you to use.  Note that
+the gensio returned by ``sergensio_to_gensio()`` will be the one
+passed in to ``gensio_to_sergensio()``, not necessarily the gensio
+that sergensio is directly associated with.
 
 A sergensio may be a client, meaning that it can set serial settings,
 or it may be a server, meaning that it will receive serial settings

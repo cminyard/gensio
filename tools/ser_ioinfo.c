@@ -172,9 +172,10 @@ sergensio_val_set(struct sergensio *sio, int err,
 }
 
 static void
-s2n_modemstate(struct sergensio *sio, unsigned int modemstate)
+s2n_modemstate(struct gensio *io, struct sergensio *sio,
+	       unsigned int modemstate)
 {
-    struct ioinfo *ioinfo = sergensio_get_user_data(sio);
+    struct ioinfo *ioinfo = gensio_get_user_data(io);
     struct ser_info *serinfo = ioinfo_subdata(ioinfo);
     struct ser_info *oserinfo = ioinfo_othersubdata(ioinfo);
 
@@ -184,9 +185,10 @@ s2n_modemstate(struct sergensio *sio, unsigned int modemstate)
 }
 
 static void
-s2n_linestate(struct sergensio *sio, unsigned int linestate)
+s2n_linestate(struct gensio *io, struct sergensio *sio,
+	      unsigned int linestate)
 {
-    struct ioinfo *ioinfo = sergensio_get_user_data(sio);
+    struct ioinfo *ioinfo = gensio_get_user_data(io);
     struct ser_info *serinfo = ioinfo_subdata(ioinfo);
     struct ser_info *oserinfo = ioinfo_othersubdata(ioinfo);
 
@@ -256,11 +258,11 @@ handle_sio_event(struct gensio *io, int event,
 
     switch (event) {
     case GENSIO_EVENT_SER_MODEMSTATE:
-	s2n_modemstate(rsio, *((unsigned int *) buf));
+	s2n_modemstate(rio, rsio, *((unsigned int *) buf));
 	return 0;
 
     case GENSIO_EVENT_SER_LINESTATE:
-	s2n_linestate(rsio, *((unsigned int *) buf));
+	s2n_linestate(rio, rsio, *((unsigned int *) buf));
 	return 0;
 
     case GENSIO_EVENT_SER_FLOW_STATE:

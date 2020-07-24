@@ -44,4 +44,7 @@ void sergensio_data_free(struct sergensio *sio);
 GENSIO_DLL_PUBLIC
 void *sergensio_get_gensio_data(struct sergensio *sio);
 
+GENSIO_DLL_PUBLIC
+struct gensio *sergensio_get_my_gensio(struct sergensio *sio);
+
 #endif /* SERGENSIO_CLASS_H */

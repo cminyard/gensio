@@ -1005,7 +1005,7 @@ serialdev_timeout(struct gensio_timer *t, void *cb_data)
      * report this if someing changed that was in the mask.
      */
     if ((force_send || modemstate & 0xf)) {
-	struct gensio *io = sergensio_to_gensio(sdata->sio);
+	struct gensio *io = sergensio_get_my_gensio(sdata->sio);
 	gensiods vlen = sizeof(modemstate);
 
 	gensio_cb(io, GENSIO_EVENT_SER_MODEMSTATE, 0,

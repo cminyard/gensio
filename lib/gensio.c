@@ -199,7 +199,17 @@ gensio_addclass(struct gensio *io, const char *name, void *classdata)
 void *
 gensio_getclass(struct gensio *io, const char *name)
 {
-    return gen_getclass(io->classes, name);
+    struct gensio *c = io;
+    void *rv = NULL;
+
+    while (c) {
+	rv = gen_getclass(c->classes, name);
+	if (rv)
+	    return rv;
+	c = c->child;
+    }
+
+    return rv;
 }
 
 struct gensio_accepter {

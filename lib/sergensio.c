@@ -8,6 +8,7 @@
 #include "config.h"
 #include <stdlib.h>
 #include <string.h>
+#include <assert.h>
 
 #include <gensio/sergensio_class.h>
 
@@ -21,18 +22,33 @@ struct sergensio {
     sergensio_func func;
 
     void *gensio_data;
+
+    struct gensio_lock *lock;
+
+    struct gensio *assoc_io;
 };
 
 struct gensio *
 sergensio_to_gensio(struct sergensio *sio)
 {
-    return sio->io;
+    return sio->assoc_io;
 }
 
 struct sergensio *
 gensio_to_sergensio(struct gensio *io)
 {
-    return gensio_getclass(io, "sergensio");
+    struct sergensio *rv;
+
+    rv = gensio_getclass(io, "sergensio");
+    if (rv) {
+	rv->o->lock(rv->lock);
+	if (!rv->assoc_io)
+	    rv->assoc_io = io;
+	else
+	    assert(rv->assoc_io == io);
+	rv->o->unlock(rv->lock);
+    }
+    return rv;
 }
 
 struct sergensio *
@@ -44,6 +60,11 @@ sergensio_data_alloc(struct gensio_os_funcs *o, struct gensio *io,
     if (!sio)
 	return NULL;
 
+    sio->lock = o->alloc_lock(o);
+    if (!sio->lock) {
+	o->free(o, sio);
+	return NULL;
+    }
     sio->o = o;
     sio->io = io;
     sio->func = func;
@@ -54,6 +75,7 @@ sergensio_data_alloc(struct gensio_os_funcs *o, struct gensio *io,
 void
 sergensio_data_free(struct sergensio *sio)
 {
+    sio->o->free_lock(sio->lock);
     sio->o->free(sio->o, sio);
 }
 
@@ -61,6 +83,12 @@ void *
 sergensio_get_gensio_data(struct sergensio *sio)
 {
     return sio->gensio_data;
+}
+
+struct gensio *
+sergensio_get_my_gensio(struct sergensio *sio)
+{
+    return sio->io;
 }
 
 int
@@ -173,7 +201,7 @@ sergensio_send_break(struct sergensio *sio)
 bool
 sergensio_is_client(struct sergensio *sio)
 {
-    struct gensio *io = sergensio_to_gensio(sio);
+    struct gensio *io = sergensio_get_my_gensio(sio);
 
     return gensio_is_client(io);
 }
@@ -181,7 +209,7 @@ sergensio_is_client(struct sergensio *sio)
 void *
 sergensio_get_user_data(struct sergensio *sio)
 {
-    return gensio_get_user_data(sio->io);
+    return gensio_get_user_data(sio->assoc_io);
 }
 
 struct sergensio_b {

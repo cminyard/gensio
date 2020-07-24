@@ -666,8 +666,7 @@ struct waiter { };
     }
 
     int sg_##name##_s(int name) {
-	struct gensio *io = sergensio_to_gensio(self);
-	struct gensio_data *data = gensio_get_user_data(io);
+	struct gensio_data *data = sergensio_get_user_data(self);
 	struct sergensio_b *b = NULL;
 	int rv;
 

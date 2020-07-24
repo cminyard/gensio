@@ -171,7 +171,7 @@ stel_baud(struct sergensio *sio, int baud,
 	  void *cb_data)
 {
     struct stel_data *sdata = sergensio_get_gensio_data(sio);
-    bool is_client = gensio_is_client(sergensio_to_gensio(sio));
+    bool is_client = sergensio_is_client(sio);
     unsigned char buf[6];
     int err;
 
@@ -497,7 +497,7 @@ stelc_com_port_cmd(void *handler_data, const unsigned char *option,
     char *sig = NULL;
     unsigned int sig_len;
     gensiods vlen = sizeof(int);
-    struct gensio *io = sergensio_to_gensio(sdata->sio);
+    struct gensio *io = sergensio_get_my_gensio(sdata->sio);
 
     if (len < 2)
 	return;
@@ -693,7 +693,7 @@ stels_cb_com_port_will_do(void *handler_data, unsigned char cmd)
 	sdata->do_2217 = sdata->allow_2217;
 
     if (!sdata->reported_modemstate && sdata->do_2217) {
-	struct gensio *io = sergensio_to_gensio(sdata->sio);
+	struct gensio *io = sergensio_get_my_gensio(sdata->sio);
 
 	if (gensio_get_cb(io)) {
 	    int val = 255;
@@ -723,7 +723,7 @@ stels_cb_com_port_cmd(void *handler_data, const unsigned char *option,
     struct stel_data *sdata = handler_data;
     int val = 0;
     gensiods vlen = sizeof(int);
-    struct gensio *io = sergensio_to_gensio(sdata->sio);
+    struct gensio *io = sergensio_get_my_gensio(sdata->sio);
 
     if (len < 2)
 	return;
@@ -853,7 +853,7 @@ static void
 stels_got_cmd(void *handler_data, unsigned char cmd)
 {
     struct stel_data *sdata = handler_data;
-    struct gensio *io = sergensio_to_gensio(sdata->sio);
+    struct gensio *io = sergensio_get_my_gensio(sdata->sio);
 
     if (cmd == TN_BREAK)
 	gensio_cb(io, GENSIO_EVENT_SEND_BREAK, 0, NULL, NULL, NULL);
@@ -863,7 +863,7 @@ static void
 stels_cb_got_sync(void *handler_data)
 {
     struct stel_data *sdata = handler_data;
-    struct gensio *io = sergensio_to_gensio(sdata->sio);
+    struct gensio *io = sergensio_get_my_gensio(sdata->sio);
 
     gensio_cb(io, GENSIO_EVENT_SER_SYNC, 0, NULL, NULL, NULL);
 }
@@ -875,7 +875,7 @@ stels_timeout(void *handler_data)
 
     stel_lock(sdata);
     if (!sdata->reported_modemstate && sdata->do_2217) {
-	struct gensio *io = sergensio_to_gensio(sdata->sio);
+	struct gensio *io = sergensio_get_my_gensio(sdata->sio);
 	int val = 255;
 	gensiods vlen = sizeof(val);
 
