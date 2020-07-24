@@ -154,6 +154,32 @@ conacc
     the child again and go through the process again (unless accepts
     have been disabled on conacc).
 
+    Why would you want to use this?  Say in ser2net you wanted to
+    connect one serial port to another.  You could have a connection like:
+
+      connection: &con0
+        accepter: conacc,serialdev,/dev/ttyS1,115200
+        connector: serialdev,/dev/ttyS2,115200
+
+    And it would connect /dev/ttyS1 to /dev/ttyS2.  Without conacc,
+    you could not use serialdev as an accepter.  It would also let you
+    use gtlsshd on a serial port if you wanted encrypted authenticated
+    logins over a serial port.  If you ran gtlsshd with the following:
+
+      gtlsshd --notcp --nosctp --oneshot --nodaemon --other_acc \
+         'conacc,relpkt(mode=server),msgdelim,/dev/ttyUSB1,115200n81'
+
+    You could connect with:
+
+      gtlssh --transport 'relpkt,msgdelim,/dev/ttyUSB2,115200n81' USB2
+
+    This creates a reliable packet transport over a serial port.  The
+    mode=server is required to make relpkt run as the server, since it
+    would normally run as a client since it is not being started as an
+    accepter.  The ssl gensio (which runs over the transport) requires
+    reliable communication, so it won't run directly over a serial
+    port.
+
 These are all documented in detail in gensio(5).  Unless otherwise
 stated, these all are available as accepters or connecting gensios.
 
