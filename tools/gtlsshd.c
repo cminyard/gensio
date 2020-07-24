@@ -1419,7 +1419,7 @@ main(int argc, char *argv[])
     }
 
  start_io:
-    if (!oneshot)
+    if (!debug)
 	openlog(progname, 0, LOG_AUTH);
     else
 	openlog(progname, LOG_PID | LOG_CONS | LOG_PERROR, LOG_DAEMON);
