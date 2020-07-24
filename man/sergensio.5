@@ -1,0 +1,47 @@
+.TH sergensio 5 07/24/20  "Handling a serial gensio"
+.SH NAME
+sergensio \- How to use a serial gensio
+.SH DESCRIPTION
+A
+.BR sergensio
+object is a type of gensio that provides serial port functions.  It
+cannot be directly created, instead you create a gensio that has serial port capabilities and cast it using the
+.B gensio_to_sergensio()
+function.
+
+A
+.BR sergensio
+object may be a client, meaning that you can set serial port
+parameters for that gensio.  This is what you would normally expect,
+and works for all serial port types.
+
+A
+.BR sergensio
+object may also be a server, meaning that it can receive requests from
+the remote end to set serial port parameters.  Currently only the
+.B telnet
+gensio has server capability, so a remote end may request that serial
+port parameters be set.
+.SH "USING A CLIENT SERGENSIO"
+.SS "ASYNCHRONOUS EVENTS"
+.SH "USING A SERVER SERGENSIO"
+.SS "ASYNCHRONOUS EVENTS"
+.SH "SEE ALSO"
+gensio(5), sergensio_to_gensio(3), gensio_to_sergensio(3),
+sergensio_get_user_data(3), sergensio_is_client(3), sergensio_baud(3),
+sergensio_datasize(3), sergensio_parity(3), sergensio_stopbits(3),
+sergensio_flowcontrol(3), sergensio_iflowonctrol(3),
+sergensio_sbreak(3), sergensio_dtr(3), sergensio_rts(3),
+sergensio_signature(3), sergensio_linestate(3),
+sergensio_modemstate(3), sergensio_flowcontrol_state(3),
+sergensio_flush(3), sergensio_send_break(3),
+sergensio_b_alloc(3), sergensio_b_free(3), sergensio_baud_b(3),
+sergensio_datasize_b(3) sergensio_parity_b(3), sergensio_stopbits_b(3),
+sergensio_flowcontrol_b(3), sergensio_iflowonctrol_b(3),
+sergensio_sbreak_b(3), sergensio_dtr_b(3), sergensio_rts_b(3),
+gensio_event(3), sergensio_event(3)
+.SH "KNOWN PROBLEMS"
+None.
+.SH AUTHOR
+.PP
+Corey Minyard <minyard@acm.org>

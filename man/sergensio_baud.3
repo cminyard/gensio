@@ -1,0 +1,236 @@
+.TH sergensio_baud.3 3 "20 Jul 2020"
+.SH NAME
+sergensio_baud, sergensio_datasize, sergensio_parity, sergensio_stopbits,
+sergensio_flowcontrol, sergensio_iflowcontrol, sergensio_sbreak,
+sergensio_dtr, sergensio_rts, sergensio_signature, sergensio_linestate,
+sergensio_modemstate, sergensio_flowcontrol_state, sergensio_flush,
+sergensio_send_break \- Control serial parameters on a sergensio
+.SH SYNOPSIS
+.B #include <gensio/sergensio.h>
+.TP 20
+.B typedef void (*sergensio_done)(struct sergensio *sio, int err,
+.br
+.B                                unsigned int val, void *cb_data);
+.TP 20
+typedef void (*sergensio_done_sig)(struct sergensio *sio, int err,
+.br
+.B                                 const char *sig, unsigned int len,
+.br
+.B                                 void *cb_data);
+.TP 20
+.B int sergensio_baud(struct sergensio *sio, unsigned int baud,
+.br
+.B                    sergensio_done done, void *cb_data);
+.TP 20
+int sergensio_datasize(struct sergensio *sio, unsigned int datasize,
+.br
+.B                     sergensio_done done, void *cb_data);
+.TP 0
+#define SERGENSIO_PARITY_NONE
+.br
+#define SERGENSIO_PARITY_ODD
+.br
+#define SERGENSIO_PARITY_EVEN
+.br
+#define SERGENSIO_PARITY_MARK
+.br
+#define SERGENSIO_PARITY_SPACE
+.TP 20
+.B int sergensio_parity(struct sergensio *sio, unsigned int parity,
+.br
+.B                      sergensio_done done, void *cb_data);
+.TP 20
+.B int sergensio_stopbits(struct sergensio *sio, unsigned int stopbits,
+.br
+.B                       sergensio_done done, void *cb_data);
+.TP 0
+#define SERGENSIO_FLOWCONTROL_NONE
+.br
+#define SERGENSIO_FLOWCONTROL_XON_XOFF
+.br
+#define SERGENSIO_FLOWCONTROL_RTS_CTS
+.TP 20
+.B int sergensio_flowcontrol(struct sergensio *sio,
+.br
+.B                          unsigned int flowcontrol,
+.br
+.B                          sergensio_done done, void *cb_data);
+.TP 0
+#define SERGENSIO_FLOWCONTROL_DCD
+.br
+#define SERGENSIO_FLOWCONTROL_DTR
+.br
+#define SERGENSIO_FLOWCONTROL_DSR
+.TP 20
+.B int sergensio_iflowcontrol(struct sergensio *sio,
+.br
+.B                           unsigned int iflowcontrol,
+.br
+.B                           sergensio_done done, void *cb_data);
+.BR
+.TP 0
+#define SERGENSIO_BREAK_ON
+.br
+#define SERGENSIO_BREAK_OFF
+.TP 20
+.B int sergensio_sbreak(struct sergensio *sio, unsigned int breakv,
+.br
+.B                     sergensio_done done, void *cb_data);
+.TP 0
+#define SERGENSIO_DTR_ON
+.br
+#define SERGENSIO_DTR_OFF
+.TP 20
+.B int sergensio_dtr(struct sergensio *sio, unsigned int dtr,
+.br
+.B                  sergensio_done done, void *cb_data);
+.TP 0
+#define SERGENSIO_RTS_ON
+.br
+#define SERGENSIO_RTS_OFF
+.TP 20
+.B int sergensio_rts(struct sergensio *sio, unsigned int rts,
+.br
+.B                  sergensio_done done, void *cb_data);
+.TP 20
+.B int sergensio_signature(struct sergensio *sio,
+.br
+.B                        const char *sig, unsigned int len,
+.br
+.B                        sergensio_done_sig done, void *cb_data);
+.TP 0
+#define SERGENSIO_LINESTATE_DATA_READY
+.br
+#define SERGENSIO_LINESTATE_OVERRUN_ERR
+.br
+#define SERGENSIO_LINESTATE_PARITY_ERR
+.br
+#define SERGENSIO_LINESTATE_FRAMING_ERR
+.br
+#define SERGENSIO_LINESTATE_BREAK
+.br
+#define SERGENSIO_LINESTATE_XMIT_HOLD_EMPTY
+.br
+#define SERGENSIO_LINESTATE_XMIT_SHIFT_EMPTY
+.br
+#define SERGENSIO_LINESTATE_TIMEOUT_ERR
+.TP 20
+int sergensio_linestate(struct sergensio *sio, unsigned int linestate);
+.TP 0
+#define SERGENSIO_MODEMSTATE_CTS_CHANGED
+.br
+#define SERGENSIO_MODEMSTATE_DSR_CHANGED
+.br
+#define SERGENSIO_MODEMSTATE_RI_CHANGED
+.br
+#define SERGENSIO_MODEMSTATE_CD_CHANGED
+.br
+#define SERGENSIO_MODEMSTATE_CTS
+.br
+#define SERGENSIO_MODEMSTATE_DSR
+.br
+#define SERGENSIO_MODEMSTATE_RI
+.br
+#define SERGENSIO_MODEMSTATE_CD
+.TP 20
+int sergensio_modemstate(struct sergensio *sio,
+.br
+.B                       unsigned int modemstate);
+.TP 20
+int sergensio_flowcontrol_state(struct sergensio *sio, bool val);
+.TP 0
+#define SERGIO_FLUSH_RCV_BUFFER
+.br
+#define SERGIO_FLUSH_XMIT_BUFFER
+.br
+#define SERGIO_FLUSH_RCV_XMIT_BUFFERS
+.TP 20
+int sergensio_flush(struct sergensio *sio, unsigned int val);
+.TP 20
+int sergensio_send_break(struct sergensio *sio);
+.SH "DESCRIPTION"
+Handle various serial port functions.
+
+.SS "SERIAL PORT CONTROLS"
+On a client sergensio, these function set various settings on the
+serial port.  The setting is not necessariy done immediately as it may
+have to be sent as a message.  If you supply a done function, it is
+called when the set operation is known to be complete.  The set
+operation may not work (the hardware may not support it, etc.), the
+done function will report the current value of the setting.
+
+If you just want the current value of the setting, you can pass in a
+zero to all the functions below and it will just report the value in
+the done function.
+
+There are blocking function for all of these, see sergensio_b_alloc(3)
+for detais on those.  These are all non-blocking.
+.TP 20
+sergensio_baud - Set the baud rate to the integer value.  Not all
+system and hardware support all baud rates, check the done function to
+see what the baud rate was actually set to.
+.TP 20
+sergensio_datasize - Set the data size, 5, 6, 7, 8 are supported.
+.TP 20
+sergensio_parity - Set the parity value
+.TP 20
+sergensio_stopbits - Set the number of stop bits, either 1 or 2.
+.TP 20
+sergensio_flowcontrol - Set the outgoing flow-control type.
+.TP 20
+sergensio_iflowcontrol - Set the incoming flow control type.
+.TP 20
+sergensio_sbreak - Turn on or off the break signal.
+.TP 20
+sergensio_dtr - Set the DTR value.
+.TP 20
+sergensio_rts - Set the RTS value.
+.PP
+On a server gensio, the above functions are used to respond to an
+event setting the value.  Pass in the actual value.  The done value is
+ignored on the server.
+
+.SS "SIGNATURE"
+Though not really part of serial port control, the telnet RFC2217 spec
+has a signature that can be used to identify the server.  The
+.B sergensio_signature
+function fetches the signature (on the client side) or reponsed to a
+request for the signature (on the server side).
+
+.SS "STATE FUNCTIONS"
+On the client side, the serial port state functions set the state
+information the user is interested in receiving.  For instance, if the
+user wants to know about parity errors, they could set
+SERGENSIO_LINESTATE_OVERRUN_ERR in the linestate and they would
+receive linestate events with parity errors.
+
+On the server side, these are used to report state information.  The
+gensio itself doesn't track what the client has requested, that is up
+to the server code itself.
+.TP 20
+sergensio_linestate - Various information (mostly error) about what
+has happened on the serial line.  Not all sergensios support
+requesting this information.
+.TP 20
+sergensio_modemstate - CTS, DSR, RI, and CD line on the serial port.
+On the client side, the user should set what values they want to
+received with that _CHANGED values.  The other values are ignored on
+the client side.  On the server side, this is used to report current
+values and which values have changed to cause the report.
+.SS "OTHER SERIAL PORT CONTROLS"
+These function do other miscellaneous functions on a serial port.
+.TP 20
+sergensio_flowcontrol_state - Tell the remote end of the serial port to
+stop sending using flow control.
+.TP 20
+sergensio_flush - Flush all data from buffers to the serial port.
+.TP 20
+sergensio_send_break - Send a short break signal on the serial port.
+The length is implementation dependent.
+.SH "RETURN VALUES"
+Zero is returned on success, or a gensio error on failure.
+.SH "SEE ALSO"
+sergensio(5), sergensio_b_alloc(3)
+.SH AUTHOR
+.PP
+Corey Minyard <minyard@acm.org>

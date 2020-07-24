@@ -1,0 +1,83 @@
+.TH sergensio_event 3 "2o July 2020"
+.SH NAME
+sergensio_event \- Event handler for events from a sergensio
+.SH SYNOPSIS
+.B #include <gensio/sergensio.h>
+.SH "DESCRIPTION"
+When an event happens on a sergensio that is reported to the user, the
+gensio library calls the
+.I gensio_event
+type handler that was registered with the gensio, just like any other
+event on a gensio.  See gensio_event(3) for details on how this
+happens.
+
+This document the sergensio-specific events.  These report an unsigned
+integer value unless otherwise specified in the description, the
+.B buf
+parameter to the gensio_event handler is a pointer to the unsigned
+integer value.
+.SS "SERIAL PORT CONTROLS"
+These are controls for serial port settings.  These are received on
+the server side only.  It should respond by setting the value (if
+possible and the value isn't zero) and responding with the current
+value with sergensio_xxx().
+
+GENSIO_EVENT_SER_BAUD
+.br
+GENSIO_EVENT_SER_DATASIZE
+.br
+GENSIO_EVENT_SER_PARITY
+.br
+GENSIO_EVENT_SER_STOPBITS
+.br
+GENSIO_EVENT_SER_FLOWCONTROL
+.br
+GENSIO_EVENT_SER_IFLOWCONTROL
+.br
+GENSIO_EVENT_SER_SBREAK
+.br
+GENSIO_EVENT_SER_DTR
+.br
+GENSIO_EVENT_SER_RTS
+.SS "SIGNATURE"
+.B GENSIO_EVENT_SER_SIGNATURE
+is received on the server side only and is a request for the
+signature.  The server should respond by send the signature
+with sergensio_signature().  No value is passed in this case.
+.SS "STATE FUNCTIONS"
+These are received on the server side to request updating the mask of
+reported values.  The server should respond by returning the current
+mask with the
+.B sergensio_modemstate
+or
+.B sergensio_linestate
+functions.  The server need not handle all the bits requested by the
+user.
+
+On the client side, these are reporting current modemstate and
+linestate changes as an unsigned integer.  See sergensio_modemstate(3)
+and sergensio_linestate(3) for a meaning of the bits in the interger.
+
+GENSIO_EVENT_SER_MODEMSTATE
+.br
+GENSIO_EVENT_SER_LINESTATE
+.SS "OTHER SERIAL PORT CONTROLS"
+These are server-only, these are received requesting the various
+operations.  The server should do them, but no response is required.
+You may notice that break is not here, break is handled through
+the GENSIO_EVENT_SEND_BREAK event.
+
+GENSIO_EVENT_SER_FLOW_STATE
+.br
+GENSIO_EVENT_SER_FLUSH
+.SS "SYNC"
+GENSIO_EVENT_SER_SYNC is a special operation that comes in when a TCP
+sync event is received.  It may be received on both sides.  A server
+should send a break.  The client can do whatever it wants with the
+information, that is not defined by the RFC2217 specification.
+.SH "RETURN VALUES"
+Return value are currently ignored for all these events, but you
+should return 0 on success, GE_NOTSUP if the function isn't supported,
+or other gensio errors as necessary.
+.SH "SEE ALSO"
+sergensio(5), gensio_event(3), gensio_err(3)

@@ -1,0 +1,75 @@
+.TH sergensio_b_alloc.3 3 "20 Jul 2020"
+.SH NAME
+sergensio_b_alloc, sergensio_b_free, sergensio_baud_b,
+sergensio_datasize_b, sergensio_parity_b, sergensio_stopbits_b,
+sergensio_flowcontrol_b, sergensio_iflowcontrol_b, sergensio_sbreak_b,
+sergensio_dtr_b, sergensio_rts_b \- Blocking control for serial
+parameters on a sergensio
+.SH SYNOPSIS
+.B #include <gensio/sergensio.h>
+.TP 20
+.B int sergensio_b_alloc(struct sergensio *sio, struct gensio_os_funcs *o,
+.br
+.B                       struct sergensio_b **new_sbio);
+.TP 20
+.B void sergensio_b_free(struct sergensio_b *sbio);
+.TP 20
+.B int sergensio_baud_b(struct sergensio_b *sbio, unsigned int *baud);
+.TP 20
+int sergensio_datasize_b(struct sergensio_b *sbio,
+.br
+.B                       unsigned int *datasize);
+.TP 20
+.B int sergensio_parity_b(struct sergensio_b *sbio, unsigned int *parity);
+.TP 20
+.B int sergensio_stopbits_b(struct sergensio_b *sbio,
+.br
+.B                          unsigned int *stopbits);
+.TP 20
+.B int sergensio_flowcontrol_b(struct sergensio_b *sbio,
+.br
+.B                          unsigned int *flowcontrol);
+.TP 20
+.B int sergensio_iflowcontrol_b(struct sergensio_b *sbio,
+.br
+.B                           unsigned int *iflowcontrol);
+.TP 20
+.B int sergensio_sbreak_b(struct sergensio_b *sbio, unsigned int *breakv);
+.TP 20
+.B int sergensio_dtr_b(struct sergensio_b *sbio, unsigned int *dtr);
+.TP 20
+.B int sergensio_rts_b(struct sergensio_b *sbio, unsigned int *rts);
+.SH "DESCRIPTION"
+These are equvalent to the non-blocking functions (without the _b),
+but block waiting for the results.  Like all synchronous I/O, this can
+come with deadlock potential, so these should be used carefully.
+
+To use these, you must first allocate a sergensio blocking data
+structure using
+.B sergensio_b_alloc
+for use in the other functions.  This allocated value can only be used
+for one operation at a time.  When you are done with it, you must free
+it with
+.B sergensio_b_free.
+
+With these function, you pass a pointer to the value you want to set.
+If the pointed to value is zero, the value is not set, just fetched.
+If the function returns without an error, the actual current value is
+returned in the passed-in pointer's destination.
+
+Note that these do not require
+.B gensio_set_sync
+to work, and may be intermixed with non-blocking operations.
+
+See the various non-blocking functions for detail on the values and
+what they mean.
+.SH "RETURN VALUES"
+Zero is returned on success, or a gensio error on failure.
+.SH "SEE ALSO"
+sergensio(5), sergensio_baud(3), sergensio_datasize(3),
+sergensio_parity(3), sergensio_stopbits(3), sergensio_flowcontrol(3),
+sergensio_iflowonctrol(3), sergensio_sbreak(3), sergensio_dtr(3),
+sergensio_rts(3)
+.SH AUTHOR
+.PP
+Corey Minyard <minyard@acm.org>

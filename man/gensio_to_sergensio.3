@@ -1,0 +1,44 @@
+.TH gensio_to_sergensio.3 3 "20 Jul 2020"
+.SH NAME
+gensio_to_sergensio, sergensio_to_gensio, sergensio_get_user_data,
+sergensio_is_client
+\- General information and conversion routines for a sergensio
+.SH SYNOPSIS
+.B #include <gensio/sergensio.h>
+.TP 20
+.B struct sergensio *gensio_to_sergensio(struct gensio *io);
+.TP 20
+.B struct gensio *sergensio_to_gensio(struct sergensio *serio);
+.TP 20
+.B void *sergensio_get_user_data(struct sergensio *serio);
+.TP 20
+.B bool sergensio_is_client(struct sergensio *serio);
+.SH "DESCRIPTION"
+.B gensio_to_sergensio
+return the sergensio object for a gensio.  It returns NULL if there is
+no sergensio for the gensio.  Note that this may be a sergensio object
+for a child of the passed in gensio.  If the passed in gensio is not a
+sergensio, it will search through the children for a gensio that is
+also a sergensio.  This way, say, if you have an conacc gensio running
+over a serialdev, and you receive an serial event, you can just call
+.B gensio_to_sergensio
+for the passed in object and it will give you the sergensio you should
+be working with.  The first time this is called on a gensio it
+associates the sergensio with the passed in gensio.
+
+.B sergensio_to_gensio
+returns the gensio for a given sergensio.  It cannot fail.  Note that
+this returns the gensio passed in to
+.B gensio_to_sergensio
+not the gensio directly associated with the passed in sergensio.
+
+.B sergensio_get_user_data
+returns the gensio user data for the associated gensio.
+
+.B sergensio_is_client
+returns true if the sergensio a client or false if it is a server.
+.SH "SEE ALSO"
+sergensio(5)
+.SH AUTHOR
+.PP
+Corey Minyard <minyard@acm.org>
