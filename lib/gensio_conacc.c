@@ -94,6 +94,8 @@ conaccn_finish_free(struct conaccn_data *ndata)
 {
     struct gensio_os_funcs *o = ndata->o;
 
+    if (ndata->io)
+	gensio_data_free(ndata->io);
     if (ndata->child)
 	gensio_free(ndata->child);
     if (ndata->lock)
@@ -414,8 +416,7 @@ conaccn_open_done(struct gensio *io, int err, void *open_data)
 
  out_err:
     conaccn_unlock(ndata);
-    gensio_free(ndata->child);
-    ndata->o->free(ndata->o, ndata);
+    conaccn_finish_free(ndata);
     nadata->con_err = err;
     conaccna_deferred_op(nadata);
     conaccna_deref_and_unlock(nadata);
