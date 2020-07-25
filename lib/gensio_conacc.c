@@ -432,7 +432,7 @@ conacc_start(struct conaccna_data *nadata)
 
     ndata = nadata->o->zalloc(nadata->o, sizeof(*ndata));
     if (!ndata)
-	goto out_err;
+	goto out_err_nofree;
     ndata->o = nadata->o;
     ndata->nadata = nadata;
     ndata->freeref = 1;
@@ -461,6 +461,7 @@ conacc_start(struct conaccna_data *nadata)
     conaccn_unlock(ndata);
  out_err:
     conaccn_finish_free(ndata);
+ out_err_nofree:
     nadata->con_err = err;
     conaccna_deferred_op(nadata);
 }
