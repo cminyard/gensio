@@ -388,19 +388,19 @@ conaccn_open_done(struct gensio *io, int err, void *open_data)
     if (err)
 	goto out_err;
 
-    err = base_gensio_accepter_new_child_start(nadata->acc);
-    if (err)
-	goto out_err;
-
     ndata->io = gensio_data_alloc(nadata->o, NULL, NULL,
 				  conaccn_func, ndata->child,
 				  "conacc", ndata);
     if (!ndata->io) {
 	err = GE_NOMEM;
-    } else {
-	gensio_set_attr_from_child(ndata->io, ndata->child);
-	ndata->child_state = CONACCN_OPEN;
+	goto out_err;
     }
+
+    err = base_gensio_accepter_new_child_start(nadata->acc);
+    if (err)
+	goto out_err;
+    gensio_set_attr_from_child(ndata->io, ndata->child);
+    ndata->child_state = CONACCN_OPEN;
     base_gensio_accepter_new_child_end(nadata->acc, ndata->io, err);
 
     conaccna_unlock(nadata);
