@@ -36,6 +36,7 @@ struct oom_tests {
     bool check_value;
     bool allow_pass_on_oom;
     bool free_connecter;
+    bool conacc;
 };
 
 #if HAVE_SERIALDEV
@@ -158,6 +159,7 @@ struct oom_tests oom_tests[] = {
       .check_if_present = check_serialdev_present },
     { "telnet,tcp,localhost,", "telnet,tcp,0" },
     { "stdio,cat", NULL },
+    { "conacc,tcp,localhost,", "tcp,0", .conacc=true },
     { NULL }
 };
 
@@ -946,8 +948,9 @@ run_oom_test(struct oom_tests *test, long count, int *exitcode, bool close_acc)
 	if (rv)
 	    goto out_err;
 
-	constr = gensio_alloc_sprintf(o, "stdio, %s -i 'stdio(self)' '%s%s'",
-				      gensiot, test->connecter, intstr);
+	constr = gensio_alloc_sprintf(o, "stdio, %s%s -i 'stdio(self)' '%s%s'",
+				      gensiot, test->conacc ? " -a" : "",
+				      test->connecter, intstr);
     } else {
 	constr = gensio_alloc_sprintf(o, "stdio, %s -i 'stdio(self)' '%s'",
 				      gensiot, test->connecter);
@@ -1306,7 +1309,7 @@ run_tests(struct oom_tests *test, int testnrstart, int testnrend,
     }
     *errcount += run_oom_tests(test, "oom", run_oom_test,
 			       testnrstart, testnrend);
-    if (test->accepter)
+    if (test->accepter && !test->conacc)
 	*errcount += run_oom_tests(test, "oom acc",
 				   run_oom_acc_test,
 				   testnrstart, testnrend);
