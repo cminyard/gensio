@@ -73,6 +73,9 @@ void gensio_fd_ll_handle_incoming(struct gensio_ll *ll,
 				  void *cb_data);
 
 GENSIO_DLL_PUBLIC
+void *gensio_fd_ll_get_handler_data(struct gensio_ll *ll);
+
+GENSIO_DLL_PUBLIC
 struct gensio_ll *fd_gensio_ll_alloc(struct gensio_os_funcs *o,
 				     int fd,
 				     const struct gensio_fd_ll_ops *ops,

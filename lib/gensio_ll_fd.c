@@ -973,6 +973,14 @@ gensio_fd_ll_callback(struct gensio_ll *ll, int op, int val, void *buf,
     return fdll->cb(fdll->cb_data, op, val, buf, buflen, data);
 }
 
+void *
+gensio_fd_ll_get_handler_data(struct gensio_ll *ll)
+{
+    struct fd_ll *fdll = ll_to_fd(ll);
+
+    return fdll->handler_data;
+}
+
 struct gensio_ll *
 fd_gensio_ll_alloc(struct gensio_os_funcs *o,
 		   int fd,
