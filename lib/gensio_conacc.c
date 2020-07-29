@@ -82,12 +82,11 @@ conaccn_unlock(struct conaccn_data *ndata)
 }
 
 static void
-i_conaccn_ref(struct conaccn_data *ndata, int line)
+conaccn_ref(struct conaccn_data *ndata)
 {
     assert(ndata->refcount > 0);
     ndata->refcount++;
 }
-#define conaccn_ref(ndata) i_conaccn_ref(ndata, __LINE__)
 
 static void
 conaccn_finish_free(struct conaccn_data *ndata)
@@ -104,7 +103,7 @@ conaccn_finish_free(struct conaccn_data *ndata)
 }
 
 static void
-i_conaccn_deref_and_unlock(struct conaccn_data *ndata, int line)
+conaccn_deref_and_unlock(struct conaccn_data *ndata)
 {
     assert(ndata->refcount > 0);
     ndata->refcount--;
@@ -115,7 +114,6 @@ i_conaccn_deref_and_unlock(struct conaccn_data *ndata, int line)
 	conaccn_unlock(ndata);
     }
 }
-#define conaccn_deref_and_unlock(ndata) i_conaccn_deref_and_unlock(ndata, __LINE__)
 
 static void
 conaccna_lock(struct conaccna_data *nadata)
@@ -130,12 +128,11 @@ conaccna_unlock(struct conaccna_data *nadata)
 }
 
 static void
-i_conaccna_ref(struct conaccna_data *nadata, int line)
+conaccna_ref(struct conaccna_data *nadata)
 {
     assert(nadata->refcount > 0);
     nadata->refcount++;
 }
-#define conaccna_ref(nadata) i_conaccna_ref(nadata, __LINE__)
 
 static void
 conaccna_finish_free(struct conaccna_data *nadata)
@@ -152,7 +149,7 @@ conaccna_finish_free(struct conaccna_data *nadata)
 }
 
 static void
-i_conaccna_deref_and_unlock(struct conaccna_data *nadata, int line)
+conaccna_deref_and_unlock(struct conaccna_data *nadata)
 {
     assert(nadata->refcount > 0);
     nadata->refcount--;
@@ -163,7 +160,6 @@ i_conaccna_deref_and_unlock(struct conaccna_data *nadata, int line)
 	conaccna_unlock(nadata);
     }
 }
-#define conaccna_deref_and_unlock(nadata) i_conaccna_deref_and_unlock(nadata, __LINE__)
 
 static void
 conaccna_do_deferred(struct gensio_runner *runner, void *cb_data)
