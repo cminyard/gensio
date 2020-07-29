@@ -304,6 +304,7 @@ fi
 AC_SUBST(PAMLIB)
 
 AC_CHECK_FUNCS(getrandom)
+AC_CHECK_FUNCS(ptsname_r)
 
 case $host_os in
 linux*) HAVE_WORKING_PORT0=1 ;;

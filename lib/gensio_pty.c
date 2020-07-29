@@ -9,6 +9,7 @@
 
 #include "config.h"
 #define _XOPEN_SOURCE 600 /* Get posix_openpt() and friends. */
+#define _GNU_SOURCE /* Get ptsname_r(). */
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -20,6 +21,7 @@
 #include <pwd.h>
 #include <sys/wait.h>
 #include <sys/ioctl.h>
+#include <limits.h>
 
 #include <gensio/gensio.h>
 #include <gensio/gensio_class.h>
@@ -60,7 +62,7 @@ gensio_setup_child_on_pty(struct gensio_os_funcs *o,
 			  char *const argv[], const char **env,
 			  int *rptym, pid_t *rpid)
 {
-    pid_t pid;
+    pid_t pid = -1;
     int ptym, err = 0;
     const char *pgm;
 
@@ -79,6 +81,9 @@ gensio_setup_child_on_pty(struct gensio_os_funcs *o,
 	close(ptym);
 	return gensio_os_err_to_err(o, err);
     }
+
+    if (!argv)
+	goto skip_child;
 
     pid = fork();
     if (pid < 0) {
@@ -177,7 +182,7 @@ gensio_setup_child_on_pty(struct gensio_os_funcs *o,
 	fprintf(stderr, "Unable to exec %s: %s\r\n", argv[0], strerror(errno));
 	exit(1); /* Only reached on error. */
     }
-
+ skip_child:
     *rpid = pid;
     *rptym = ptym;
     return 0;
@@ -280,12 +285,13 @@ pty_control(void *handler_data, int fd, bool get, unsigned int option,
 {
     struct pty_data *tdata = handler_data;
     const char **env, **argv;
-    char ptsstr[PATH_MAX];
     int err, status;
 
     switch (option) {
     case GENSIO_CONTROL_ENVIRONMENT:
 	if (get)
+	    return GE_NOTSUP;
+	if (!tdata->argv)
 	    return GE_NOTSUP;
 	err = gensio_argv_copy(tdata->o, (const char **) data, NULL, &env);
 	if (err)
@@ -298,6 +304,8 @@ pty_control(void *handler_data, int fd, bool get, unsigned int option,
     case GENSIO_CONTROL_ARGS:
 	if (get)
 	    return GE_NOTSUP;
+	if (tdata->ptym != -1)
+	    return GE_NOTREADY; /* Have to do this while closed. */
 	err = gensio_argv_copy(tdata->o, (const char **) data, NULL, &argv);
 	if (err)
 	    return err;
@@ -325,8 +333,12 @@ pty_control(void *handler_data, int fd, bool get, unsigned int option,
 	*datalen = snprintf(data, *datalen, "%d", status);
 	return 0;
 
+#if HAVE_PTSNAME_R
     case GENSIO_CONTROL_LADDR:
     case GENSIO_CONTROL_LPORT:
+    {
+	char ptsstr[PATH_MAX];
+
 	if (!get)
 	    return GE_NOTSUP;
 	if (strtoul(data, NULL, 0) > 0)
@@ -339,12 +351,16 @@ pty_control(void *handler_data, int fd, bool get, unsigned int option,
 	else
 	    *datalen = snprintf(data, *datalen, "%s", ptsstr);
 	return 0;
+    }
+#endif
 
     case GENSIO_CONTROL_RADDR:
 	if (!get)
 	    return GE_NOTSUP;
 	if (strtoul(data, NULL, 0) > 0)
 	    return GE_NOTFOUND;
+	if (!tdata->argv)
+	    return GE_NODATA;
 	*datalen = gensio_argv_snprintf(data, *datalen, NULL, tdata->argv);
 	return 0;
 
@@ -401,9 +417,11 @@ pty_gensio_alloc(const char * const argv[], const char * const args[],
     tdata->o = o;
     tdata->ptym = -1;
 
-    err = gensio_argv_copy(o, argv, NULL, &tdata->argv);
-    if (err)
-	goto out_nomem;
+    if (argv && argv[0]) {
+	err = gensio_argv_copy(o, argv, NULL, &tdata->argv);
+	if (err)
+	    goto out_nomem;
+    }
 
     tdata->ll = fd_gensio_ll_alloc(o, -1, &pty_fd_ll_ops, tdata, max_read_size,
 				   false);
