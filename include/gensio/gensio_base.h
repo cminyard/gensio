@@ -391,6 +391,8 @@ GENSIO_DLL_PUBLIC
 void gensio_ll_free_data(struct gensio_ll *ll);
 GENSIO_DLL_PUBLIC
 void *gensio_ll_get_user_data(struct gensio_ll *ll);
+GENSIO_DLL_PUBLIC
+struct gensio_ll *base_gensio_get_ll(struct gensio *io);
 
 GENSIO_DLL_PUBLIC
 struct gensio *base_gensio_alloc(struct gensio_os_funcs *o,

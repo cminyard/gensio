@@ -1982,3 +1982,11 @@ gensio_ll_get_user_data(struct gensio_ll *ll)
 {
     return ll->user_data;
 }
+
+struct gensio_ll *
+base_gensio_get_ll(struct gensio *io)
+{
+    struct basen_data *ndata = gensio_get_gensio_data(io);
+
+    return ndata->ll;
+}
