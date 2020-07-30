@@ -522,17 +522,19 @@ pty_gensio_alloc(const char * const argv[], const char * const args[],
 	goto out_nomem;
 
     io = base_gensio_alloc(o, tdata->ll, NULL, NULL, "pty", cb, user_data);
-    if (!io) {
-	gensio_ll_free(tdata->ll);
+    if (!io)
 	goto out_nomem;
-    }
+
     gensio_set_is_reliable(io, true);
 
     *new_gensio = io;
     return 0;
 
  out_nomem:
-    pty_free(tdata);
+    if (tdata->ll)
+	gensio_ll_free(tdata->ll);
+    else
+	pty_free(tdata);
     return GE_NOMEM;
 }
 
