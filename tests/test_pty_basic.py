@@ -13,4 +13,8 @@ io = alloc_io(o, "pty,cat", chunksize = 64)
 check_raddr(io, "pty basic", '"cat"')
 test_dataxfer(io, io, "This is a test string!")
 io_close(io)
+
+print("Test pty accepter")
+ta = TestAccept(o, "serialdev,", "conacc,pty", do_small_test)
+
 print("  Success!")
