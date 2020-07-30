@@ -266,7 +266,7 @@ struct oom_test_data {
 
     lock_type lock;
 
-    unsigned int port;
+    char *port;
     bool look_for_port;
     bool invalid_port_data;
 
@@ -406,6 +406,7 @@ cmp_mem(unsigned char *buf, unsigned char *buf2, gensiods *len)
 
     for (i = 0; i < *len; i++) {
 	if (buf[i] != buf2[i]) {
+	    printf("Mismatch on byte %lu\n", i);
 	    rv = -1;
 	    break;
 	}
@@ -583,7 +584,7 @@ ccon_stderr_cb(struct gensio *io, void *user_data,
     more_data:
 	if (od->look_for_port) {
 	    bool done = false;
-	    char *nl, *c;
+	    char *nl, *c, *s;
 
 	    od->ccon_stderr[od->ccon_stderr_pos] = '\0';
 	    nl = strchr(od->ccon_stderr, '\n');
@@ -591,18 +592,26 @@ ccon_stderr_cb(struct gensio *io, void *user_data,
 		*nl = '\0';
 		if (strcmp(od->ccon_stderr, "Done") == 0) {
 		    done = true;
-		} else if (od->port == 0) {
-		    c = strrchr(od->ccon_stderr, ',');
-		    if (!c || strncmp(od->ccon_stderr, "Address", 7) != 0) {
+		} else if (!od->port) {
+		    if (strncmp(od->ccon_stderr, "Address", 7) != 0) {
+		    bad_stderr:
 			if (debug)
 			    printf("Bad gensio port output: %s\n",
 				   od->ccon_stderr);
 			od->invalid_port_data = true;
 			o->wake(od->waiter);
 			return 0;
-		    } else {
-			od->port = strtoul(c + 1, NULL, 0);
 		    }
+		    s = strchr(od->ccon_stderr, ':');
+		    if (!s || s[1] != ' ')
+			goto bad_stderr;
+		    c = strrchr(od->ccon_stderr, ',');
+		    if (c)
+			s = c + 1;
+		    else
+			s += 2;
+		    od->port = strdup(s);
+		    assert(od->port);
 		}
 		size = strlen(nl + 1);
 		memmove(od->ccon_stderr, nl + 1, size);
@@ -1114,7 +1123,7 @@ run_oom_acc_test(struct oom_tests *test, long count, int *exitcode,
 	goto out_err;
     }
 
-    locstr = gensio_alloc_sprintf(o, "%s%d", test->connecter, od->port);
+    locstr = gensio_alloc_sprintf(o, "%s%s", test->connecter, od->port);
     if (!locstr) {
 	err = GE_NOMEM;
 	goto out_err;
@@ -1159,6 +1168,9 @@ run_oom_acc_test(struct oom_tests *test, long count, int *exitcode,
     }
 
     assert(od->refcount == 1); /* No callbacks should be pending. */
+    if (od->port)
+	free(od->port);
+    od->port = NULL;
     od_deref_and_unlock(od);
 
     return err;
