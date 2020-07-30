@@ -40,6 +40,10 @@ struct pty_data {
     const char **argv;
     const char **env;
 
+    /* Symbolic link to create (if not NULL). */
+    char *link;
+    bool forcelink;
+
     int last_err;
 
     /* exit code from the sub-program, after close. */
@@ -60,11 +64,13 @@ extern char **environ;
 static int
 gensio_setup_child_on_pty(struct gensio_os_funcs *o,
 			  char *const argv[], const char **env,
+			  const char *link, bool forcelink,
 			  int *rptym, pid_t *rpid)
 {
     pid_t pid = -1;
     int ptym, err = 0;
     const char *pgm;
+    bool link_created = false;
 
     ptym = posix_openpt(O_RDWR | O_NOCTTY);
     if (ptym == -1)
@@ -72,15 +78,42 @@ gensio_setup_child_on_pty(struct gensio_os_funcs *o,
 
     if (fcntl(ptym, F_SETFL, O_NONBLOCK) == -1) {
 	err = errno;
-	close(ptym);
-	return gensio_os_err_to_err(o, err);
+	goto out_err;
     }
 
     if (unlockpt(ptym) < 0) {
 	err = errno;
-	close(ptym);
-	return gensio_os_err_to_err(o, err);
+	goto out_err;
     }
+
+#if HAVE_PTSNAME_R
+    if (link) {
+	char ptsstr[PATH_MAX];
+	bool delretry = false;
+
+	err = ptsname_r(ptym, ptsstr, sizeof(ptsstr));
+	if (err) {
+	    err = errno;
+	    goto out_err;
+	}
+
+    retry:
+	err = symlink(ptsstr, link);
+	if (err) {
+	    if (errno == EEXIST && forcelink && !delretry) {
+		err = unlink(link);
+		if (!err) {
+		    delretry = true;
+		    goto retry;
+		}
+	    }
+	    err = errno;
+	    goto out_err;
+	}
+
+	link_created = true;
+    }
+#endif
 
     if (!argv)
 	goto skip_child;
@@ -88,8 +121,7 @@ gensio_setup_child_on_pty(struct gensio_os_funcs *o,
     pid = fork();
     if (pid < 0) {
 	err = errno;
-	close(ptym);
-	return gensio_os_err_to_err(o, err);
+	goto out_err;
     }
 
     if (pid == 0) {
@@ -186,6 +218,11 @@ gensio_setup_child_on_pty(struct gensio_os_funcs *o,
     *rpid = pid;
     *rptym = ptym;
     return 0;
+ out_err:
+    if (link_created)
+	unlink(link);
+    close(ptym);
+    return gensio_os_err_to_err(o, err);
 }
 
 static int
@@ -196,6 +233,7 @@ pty_sub_open(void *handler_data, int *fd)
 
     err = gensio_setup_child_on_pty(tdata->o,
 				    (char * const *) tdata->argv, tdata->env,
+				    tdata->link, tdata->forcelink,
 				    &tdata->ptym, &tdata->pid);
     if (!err)
 	*fd = tdata->ptym;
@@ -217,6 +255,8 @@ pty_check_close(void *handler_data, enum gensio_ll_close_state state,
     if (tdata->ptym != -1) {
 	tdata->ptym = -1;
 	gensio_fd_ll_close_now(tdata->ll);
+	if (tdata->link)
+	    unlink(tdata->link);
     }
 
     if (tdata->pid != -1) {
@@ -239,6 +279,8 @@ pty_free(void *handler_data)
 {
     struct pty_data *tdata = handler_data;
 
+    if (tdata->link)
+	tdata->o->free(tdata->o, tdata->link);
     if (tdata->argv)
 	gensio_argv_free(tdata->o, tdata->argv);
     if (tdata->env)
@@ -403,10 +445,18 @@ pty_gensio_alloc(const char * const argv[], const char * const args[],
     gensiods max_read_size = GENSIO_DEFAULT_BUF_SIZE;
     unsigned int i;
     int err;
+    const char *link = NULL;
+    bool forcelink = false;
 
     for (i = 0; args && args[i]; i++) {
 	if (gensio_check_keyds(args[i], "readbuf", &max_read_size) > 0)
 	    continue;
+#if HAVE_PTSNAME_R
+	if (gensio_check_keyvalue(args[i], "link", &link))
+	    continue;
+	if (gensio_check_keybool(args[i], "forcelink", &forcelink) > 0)
+	    continue;
+#endif
 	return GE_INVAL;
     }
 
@@ -416,6 +466,12 @@ pty_gensio_alloc(const char * const argv[], const char * const args[],
 
     tdata->o = o;
     tdata->ptym = -1;
+    if (link) {
+	tdata->link = gensio_strdup(o, link);
+	if (!tdata->link)
+	    goto out_nomem;
+    }
+    tdata->forcelink = forcelink;
 
     if (argv && argv[0]) {
 	err = gensio_argv_copy(o, argv, NULL, &tdata->argv);

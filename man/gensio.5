@@ -1129,6 +1129,19 @@ If no program is specified, when the pty gensio is opened it will just
 create the pty but won't attach anything to it.  Another program can
 open the pty.  You can get the pty device by getting the local address
 string.
+.SS Options
+In addition to readbuf, the pty gensio takes the following options:
+.TP
+.B link=<filename>
+create a symbolic link from filename to the pty name.  This way you
+can have a fixed reference to refer to the pty.  Standard permissions
+apply.  Without forcelink the open will file if filename already
+exists.
+.TP
+.B forcelink[=true|false]
+if link is specified, if a file already exists where the symbolic link
+is, replace it.  Be careful, it deletes whatever is there
+indiscriminately.
 .SS "Remote Address String"
 The remote address string the program and arguments run on the pty.
 The argiuments will be a set of quoted strings with a space between each
