@@ -529,6 +529,37 @@ conaccna_disable(struct gensio_accepter *accepter,
 }
 
 static int
+conaccna_control(struct gensio_accepter *accepter, struct conaccna_data *nadata,
+		 bool get, unsigned int option, char *data, gensiods *datalen)
+{
+    int err;
+    int iooption;
+
+    switch (option) {
+    case GENSIO_ACC_CONTROL_LADDR:
+	iooption = GENSIO_CONTROL_LADDR;
+	break;
+
+    case GENSIO_ACC_CONTROL_LPORT:
+	iooption = GENSIO_CONTROL_LPORT;
+	break;
+
+    default:
+	return GE_NOTSUP;
+    }
+
+    conaccna_lock(nadata);
+    if (!nadata->ndata || !nadata->ndata->child) {
+	err = GE_NOTREADY;
+    } else {
+	err = gensio_control(nadata->ndata->child, GENSIO_CONTROL_DEPTH_FIRST,
+			     get, iooption, data, datalen);
+    }
+    conaccna_unlock(nadata);
+    return err;
+}
+
+static int
 conacc_base_acc_op(struct gensio_accepter *acc, int func,
 		   void *acc_op_data, void *done, int val1,
 		   void *data, void *data2, void *ret)
@@ -551,6 +582,10 @@ conacc_base_acc_op(struct gensio_accepter *acc, int func,
     case GENSIO_BASE_ACC_DISABLE:
 	conaccna_disable(acc, acc_op_data);
 	return 0;
+
+    case GENSIO_BASE_ACC_CONTROL:
+	return conaccna_control(acc, acc_op_data,
+				val1, *((unsigned int *) done), data, ret);
 
     default:
 	return GE_NOTSUP;
