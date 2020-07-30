@@ -1097,6 +1097,13 @@ class waiter:
         """Do a wakeup on this object."""
         return
 
+    def service(self, timeout):
+        """Run the gensio service routine for timeout milliseconds.
+
+        timeout -- The time to wait, in milliseconds
+        """
+        return
+
 def gensio_set_log_mask(mask):
     """Set the logs that are delivered by the gensio system.
 

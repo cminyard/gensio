@@ -136,6 +136,28 @@ gensio_do_wait(struct waiter *waiter, unsigned int count,
     restore_waiter(prev_waiter);
 }
 
+static void
+gensio_do_service(struct waiter *waiter, gensio_time *timeout)
+{
+    int err;
+    struct waiter *prev_waiter = save_waiter(waiter);
+
+    do {
+	GENSIO_SWIG_C_BLOCK_ENTRY
+	err = waiter->o->service(waiter->o, timeout);
+	GENSIO_SWIG_C_BLOCK_EXIT
+	if (check_for_err(err)) {
+	    if (prev_waiter)
+		prev_waiter->o->wake(prev_waiter->waiter);
+	    break;
+	}
+	if (err == GE_INTERRUPTED)
+	    continue;
+	break;
+    } while (1);
+    restore_waiter(prev_waiter);
+}
+
 #ifdef USE_POSIX_THREADS
 static void
 gensio_thread_sighandler(int sig)
@@ -1106,6 +1128,13 @@ struct waiter { };
 
     void wake() {
 	self->o->wake(self->waiter);
+    }
+
+    long service(int timeout) {
+	gensio_time tv = { timeout / 1000, timeout % 1000 * 1000000 };
+
+	gensio_do_service(self, &tv);
+	return tv.secs * 1000 + ((tv.nsecs + 500000) / 1000000);
     }
 }
 
