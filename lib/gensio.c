@@ -387,7 +387,7 @@ gensio_scan_args(struct gensio_os_funcs *o,
 		str++;
 		if (*str != ',' && *str)
 		    err = GE_INVAL; /* Not a ',' or end of string after */
-		else
+		else if (*str)
 		    str++;
 	    }
 	}
