@@ -19,7 +19,8 @@ gensios_enabled = {
     "dummy": 1,
     "msgdelim": 1,
     "relpkt": 1,
-    "trace": 1
+    "trace": 1,
+    "conacc": 1
 }
 
 # Gensios that are always last in the list.
@@ -34,7 +35,8 @@ final_gensios = [
     "echo",
     "file",
     "ipmisol",
-    "dummy"
+    "dummy",
+    "conacc"
 ]
 
 def check_gensio_enabled(g):
