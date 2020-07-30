@@ -232,7 +232,9 @@ io_event(struct gensio *io, void *user_data, int event, int err,
 		if (rv != GE_REMCLOSE)
 		    fprintf(stderr, "Error writing to io: %s\n",
 			    gensio_err_to_str(rv));
+		gensio_set_write_callback_enable(ii->io, false);
 		start_close(ii);
+		return 0;
 	    }
 	    if (i >= ii->outbuf_len) {
 		ii->outbuf_len = 0;
