@@ -1142,6 +1142,11 @@ exists.
 if link is specified, if a file already exists where the symbolic link
 is, replace it.  Be careful, it deletes whatever is there
 indiscriminately.
+.TP
+.B raw[=true|false]
+causes the pty to be set in raw mode at startup.  This is mostly for
+testing, to avoid writing data to the pty before the other end has set
+it up, but it might be useful in some situations.
 .SS "Remote Address String"
 The remote address string the program and arguments run on the pty.
 The argiuments will be a set of quoted strings with a space between each

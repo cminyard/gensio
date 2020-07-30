@@ -21,6 +21,7 @@
 #include <pwd.h>
 #include <sys/wait.h>
 #include <sys/ioctl.h>
+#include <termios.h>
 #include <limits.h>
 
 #include <gensio/gensio.h>
@@ -43,6 +44,7 @@ struct pty_data {
     /* Symbolic link to create (if not NULL). */
     char *link;
     bool forcelink;
+    bool raw;
 
     int last_err;
 
@@ -225,6 +227,17 @@ gensio_setup_child_on_pty(struct gensio_os_funcs *o,
     return gensio_os_err_to_err(o, err);
 }
 
+#if defined(__CYGWIN__)
+static void cfmakeraw(struct termios *termios_p) {
+    termios_p->c_iflag &= ~(IGNBRK|BRKINT|PARMRK|ISTRIP|INLCR|IGNCR|ICRNL|IXON);
+    termios_p->c_oflag &= ~OPOST;
+    termios_p->c_lflag &= ~(ECHO|ECHONL|ICANON|ISIG|IEXTEN);
+    termios_p->c_cflag &= ~(CSIZE|PARENB);
+    termios_p->c_cflag |= CS8;
+    termios_p->c_cc[VMIN] = 1;
+}
+#endif
+
 static int
 pty_sub_open(void *handler_data, int *fd)
 {
@@ -235,6 +248,26 @@ pty_sub_open(void *handler_data, int *fd)
 				    (char * const *) tdata->argv, tdata->env,
 				    tdata->link, tdata->forcelink,
 				    &tdata->ptym, &tdata->pid);
+
+    if (!err && tdata->raw) {
+	struct termios t;
+
+	err = tcgetattr(tdata->ptym, &t);
+	if (err) {
+	    err = gensio_os_err_to_err(tdata->o, errno);
+	} else {
+	    cfmakeraw(&t);
+	    err = tcsetattr(tdata->ptym, TCSANOW, &t);
+	    if (err)
+		err = gensio_os_err_to_err(tdata->o, errno);
+	}
+
+	if (err) {
+	    close(tdata->ptym);
+	    tdata->ptym = -1;
+	}
+    }
+
     if (!err)
 	*fd = tdata->ptym;
 
@@ -447,6 +480,7 @@ pty_gensio_alloc(const char * const argv[], const char * const args[],
     int err;
     const char *link = NULL;
     bool forcelink = false;
+    bool raw = false;
 
     for (i = 0; args && args[i]; i++) {
 	if (gensio_check_keyds(args[i], "readbuf", &max_read_size) > 0)
@@ -457,6 +491,8 @@ pty_gensio_alloc(const char * const argv[], const char * const args[],
 	if (gensio_check_keybool(args[i], "forcelink", &forcelink) > 0)
 	    continue;
 #endif
+	if (gensio_check_keybool(args[i], "raw", &raw) > 0)
+	    continue;
 	return GE_INVAL;
     }
 
@@ -472,6 +508,7 @@ pty_gensio_alloc(const char * const argv[], const char * const args[],
 	    goto out_nomem;
     }
     tdata->forcelink = forcelink;
+    tdata->raw = raw;
 
     if (argv && argv[0]) {
 	err = gensio_argv_copy(o, argv, NULL, &tdata->argv);
