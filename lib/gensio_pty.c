@@ -280,6 +280,7 @@ pty_control(void *handler_data, int fd, bool get, unsigned int option,
 {
     struct pty_data *tdata = handler_data;
     const char **env, **argv;
+    char ptsstr[PATH_MAX];
     int err, status;
 
     switch (option) {
@@ -322,6 +323,21 @@ pty_control(void *handler_data, int fd, bool get, unsigned int option,
 	if (err <= 0)
 	    return GE_NOTREADY;
 	*datalen = snprintf(data, *datalen, "%d", status);
+	return 0;
+
+    case GENSIO_CONTROL_LADDR:
+    case GENSIO_CONTROL_LPORT:
+	if (!get)
+	    return GE_NOTSUP;
+	if (strtoul(data, NULL, 0) > 0)
+	    return GE_NOTFOUND;
+	if (tdata->ptym == -1)
+	    return GE_NOTREADY;
+	err = ptsname_r(tdata->ptym, ptsstr, sizeof(ptsstr));
+	if (err)
+	    err = gensio_os_err_to_err(tdata->o, errno);
+	else
+	    *datalen = snprintf(data, *datalen, "%s", ptsstr);
 	return 0;
 
     case GENSIO_CONTROL_RADDR:
