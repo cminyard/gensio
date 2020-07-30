@@ -664,8 +664,9 @@ class TestAccept:
     def __init__(self, o, io1str, accstr, tester, name = None,
                  io1_dummy_write = None, do_close = True,
                  expected_raddr = None, expected_acc_laddr = None,
-                 chunksize = 10240):
+                 chunksize = 10240, get_port = True, except_on_log = False):
         self.o = o
+        self.except_on_log = except_on_log
         if (name):
             self.name = name
         else:
@@ -675,9 +676,13 @@ class TestAccept:
         gensios_enabled.check_iostr_gensios(accstr)
         self.acc = gensio.gensio_accepter(o, accstr, self);
         self.acc.startup()
+        self.waiter.service(1) # Wait a bit for the accepter to start up.
 
-        port = self.acc.control(gensio.GENSIO_CONTROL_DEPTH_FIRST, True,
-                                gensio.GENSIO_ACC_CONTROL_LPORT, "0")
+        if get_port:
+            port = self.acc.control(gensio.GENSIO_CONTROL_DEPTH_FIRST, True,
+                                    gensio.GENSIO_ACC_CONTROL_LPORT, "0")
+        else:
+            port = ""
         io1str = io1str + port
         io1 = alloc_io(o, io1str, do_open = False,
                        chunksize = chunksize)
@@ -711,6 +716,9 @@ class TestAccept:
         self.io1.read_cb_enable(False)
         if self.io2:
             self.io2.read_cb_enable(False)
+        # Close the accepter first.  Some accepters (like conacc) will
+        # re-open when the child closes.
+        self.acc.shutdown_s()
         io_close(self.io1)
         if self.io2:
             io_close(self.io2)
@@ -718,7 +726,6 @@ class TestAccept:
         # Break all the possible circular references.
         del self.io1
         del self.io2
-        self.acc.shutdown_s()
         del self.acc
 
     def new_connection(self, acc, io):
@@ -727,7 +734,11 @@ class TestAccept:
         self.waiter.wake()
 
     def accepter_log(self, acc, level, logstr):
-        print("***%s LOG: %s: %s" % (level, self.name, logstr))
+        prstr = "***%s LOG: %s: %s" % (level, self.name, logstr)
+        if self.except_on_log:
+            raise Exception(prstr)
+        else:
+            print(prstr)
 
     def wait(self):
         self.waiter.wait(1)
