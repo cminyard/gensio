@@ -1100,11 +1100,11 @@ You cannot re-open individual channels.
 To free a mux gensio, you must free all the channels on it.
 .SH "pty"
 connecting =
-.B pty[(options)],<program>
+.B pty[(options)][,<program>]
 
-Create a pty and run a program on the other end of it.  This is sort
-of like stdio, but the program is running on a terminal.  Only
-connection gensios are supported.
+Create a pty and optionally run a program on the other end of it.
+With a program specified, this is sort of like stdio, but the program
+is running on a terminal.  Only connection gensios are supported.
 
 pty has some unusual handling to allow execution of login shells of
 users from root.
@@ -1122,8 +1122,13 @@ opening the pty.  The group list is also set to the groups the
 effective userid is in.  Note that nothing is done if the effective
 and real userids are the same.
 
-The pty gensio support the GENSIO_CONTROL_ENVIRONMENT control to allow
+The pty gensio supports the GENSIO_CONTROL_ENVIRONMENT control to allow
 the environment to be set for the new process.
+
+If no program is specified, when the pty gensio is opened it will just
+create the pty but won't attach anything to it.  Another program can
+open the pty.  You can get the pty device by getting the local address
+string.
 .SS "Remote Address String"
 The remote address string the program and arguments run on the pty.
 The argiuments will be a set of quoted strings with a space between each
@@ -1133,6 +1138,11 @@ converted to '\\\\'.
 .SS "Remote Address"
 The address is a pointer to an integer, the ptym file descriptor is
 returned.  addrlen must be set to sizeof(int) when passed in.
+.SS "Local Address String"
+This returns the device of the pty, generally /dev/pts/<n>.  This is
+useful for pty gensios with no program, it allows you to get the value
+for the other end to connect to.  Note that if you close and re-open a
+pty gensio, you may be a different local address string.
 .SH "msgdelim"
 accepter =
 .B msgdelim[(options)]
@@ -1285,7 +1295,10 @@ finishes the open, it reports a new child for the accepter.  The
 reported gensio can be used normally.
 
 When the gensio is closed, when the close completes the accepter will
-attempt to re-open the gensio.
+attempt to re-open the gensio.  This means that if the gensio has some
+sort of random address (like a pty or a tcp address with the port set
+to zero) you can get a different address for the re-opened gensio.  So
+you must refetch the local address or local port in this case.
 .SH "Forking and gensios"
 Unlike normal file descriptors, when you fork with a gensio, you now
 have two unassociated copies of the gensios.  So if you do operations
