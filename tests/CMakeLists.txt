@@ -172,6 +172,12 @@ set_tests_properties(oomtest10 PROPERTIES SKIP_RETURN_CODE 77)
 add_test(NAME oomtest11
          COMMAND runtest oomtest -t 11 ${PROJECT_BINARY_DIR}/tools/gensiot)
 set_tests_properties(oomtest11 PROPERTIES SKIP_RETURN_CODE 77)
+add_test(NAME oomtest12
+         COMMAND runtest oomtest -t 12 ${PROJECT_BINARY_DIR}/tools/gensiot)
+set_tests_properties(oomtest12 PROPERTIES SKIP_RETURN_CODE 77)
+add_test(NAME oomtest13
+         COMMAND runtest oomtest -t 13 ${PROJECT_BINARY_DIR}/tools/gensiot)
+set_tests_properties(oomtest13 PROPERTIES SKIP_RETURN_CODE 77)
 
 #
 # If you get certauth fuzz failures, they will be in the

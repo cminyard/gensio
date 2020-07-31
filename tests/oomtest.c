@@ -160,6 +160,7 @@ struct oom_tests oom_tests[] = {
     { "telnet,tcp,localhost,", "telnet,tcp,0" },
     { "stdio,cat", NULL },
     { "conacc,tcp,localhost,", "tcp,0", .conacc=true },
+    { "serialdev,", "conacc,pty(raw)", .check_value = HAVE_PTY },
     { NULL }
 };
 
@@ -1136,10 +1137,19 @@ run_oom_acc_test(struct oom_tests *test, long count, int *exitcode,
 	goto out_err;
 
     err = gensio_open(od->scon.io, scon_open_done, od);
+    if (err == GE_NOTFOUND) {
+	/* This can happen on ptys when the other end fails. */
+	od->scon.open_done = true;
+	gensio_free(od->scon.io);
+	od->scon.io = NULL;
+	goto finish_run;
+    }
     assert(!debug || !err);
     if (err) {
 	od->scon.open_done = true;
-	goto out_err;
+	gensio_free(od->scon.io);
+	od->scon.io = NULL;
+	goto finish_run;
     }
     od_ref(od); /* Ref for the open */
 
@@ -1203,7 +1213,7 @@ run_oom_tests(struct oom_tests *test, char *tstr,
 	    print_test(test, tstr, close_acc, count);
 	rv = tester(test, count, &exit_code, close_acc);
 	if (rv && rv != GE_REMCLOSE && rv != GE_NOTREADY && rv != GE_SHUTDOWN
-		&& rv != GE_LOCALCLOSED) {
+		&& rv != GE_LOCALCLOSED && rv != GE_NOTFOUND) {
 	    if (!verbose)
 		print_test(test, tstr, close_acc, count);
 	    printf("  ***Error running %s test (%s): %s\n", tstr,
