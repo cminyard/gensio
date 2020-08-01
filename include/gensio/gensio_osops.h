@@ -54,10 +54,16 @@ int gensio_os_sendto(struct gensio_os_funcs *o,
 		     gensiods *rcount, int flags,
 		     const struct gensio_addr *addr);
 
+/*
+ * Allocate one of these to pass to gensio_os_recvfrom()'s addr field.
+ */
+GENSIO_DLL_PUBLIC
+struct gensio_addr *gensio_addr_alloc_recvfrom(struct gensio_os_funcs *o);
+
 GENSIO_DLL_PUBLIC
 int gensio_os_recvfrom(struct gensio_os_funcs *o,
 		       int fd, void *buf, gensiods buflen, gensiods *rcount,
-		       int flags, struct gensio_addr **addr);
+		       int flags, struct gensio_addr *addr);
 
 GENSIO_DLL_PUBLIC
 int gensio_os_accept(struct gensio_os_funcs *o, int fd,

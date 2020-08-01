@@ -281,29 +281,26 @@ gensio_addr_make(struct gensio_os_funcs *o, socklen_t size)
     return addr;
 }
 
+struct gensio_addr *
+gensio_addr_alloc_recvfrom(struct gensio_os_funcs *o)
+{
+    return gensio_addr_make(o, sizeof(struct sockaddr_storage));
+}
+
 int
 gensio_os_recvfrom(struct gensio_os_funcs *o,
 		   int fd, void *buf, gensiods buflen, gensiods *rcount,
-		   int flags, struct gensio_addr **raddr)
+		   int flags, struct gensio_addr *addr)
 {
     ssize_t rv;
-    struct gensio_addr *addr;
     int err = 0;
-
-    addr = gensio_addr_make(o, sizeof(struct sockaddr_storage));
-    if (!addr)
-	return GE_NOMEM;
 
  retry:
     rv = recvfrom(fd, buf, buflen, flags,
 		  addr->curr->ai_addr, &addr->curr->ai_addrlen);
     if (rv >= 0) {
 	addr->curr->ai_family = addr->curr->ai_addr->sa_family;
-	*raddr = addr;
     } else {
-	gensio_addr_free(addr);
-    }
-    if (rv < 0) {
 	if (errno == EINTR)
 	    goto retry;
 	if (errno == EWOULDBLOCK || errno == EAGAIN)
