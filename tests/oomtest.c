@@ -154,12 +154,13 @@ struct oom_tests oom_tests[] = {
       .check_done = 1, .check_value = HAVE_LIBSCTP },
     { "telnet(rfc2217),tcp,localhost,", "telnet(rfc2217),tcp,0" },
     { "serialdev,%s,115200", NULL,
-      .check_if_present = check_serialdev_present },
+      .check_if_present = check_serialdev_present,
+      .check_value = HAVE_SERIALDEV },
     { "telnet,tcp,localhost,", "telnet,tcp,0" },
     { "stdio,cat", NULL },
     { "conacc,tcp,localhost,", "tcp,0", .conacc=true },
-    { "serialdev,", "conacc,pty(raw)", .check_value = HAVE_PTY },
-    { "pty(raw),cat", NULL, .check_value = HAVE_PTY },
+    { "serialdev,", "conacc,pty(raw)",
+      .check_value = HAVE_PTY && HAVE_SERIALDEV },
     { NULL }
 };
 
