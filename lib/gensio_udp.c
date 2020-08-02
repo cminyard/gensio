@@ -565,7 +565,8 @@ udpn_finish_read(struct udpn_data *ndata)
     err = gensio_addr_to_str(nadata->curr_recvaddr, raddrdata, &pos,
 			     addrlen);
     if (err) {
-	strncpy(raddrdata, gensio_err_to_str(err), sizeof(raddrdata));
+	strcpy(raddrdata, "err:addr:");
+	strncpy(raddrdata + 9, gensio_err_to_str(err), sizeof(raddrdata) - 9);
 	raddrdata[sizeof(raddrdata) - 1] = '\0';
     }
 
