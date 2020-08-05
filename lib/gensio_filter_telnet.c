@@ -677,8 +677,8 @@ gensio_telnet_filter_raw_alloc(struct gensio_os_funcs *o,
 static struct telnet_cmd telnet_server_cmds_2217[] =
 {
     /*                        I will,  I do,  sent will, sent do */
-    { TN_OPT_SUPPRESS_GO_AHEAD,	   0,     1,          1,       0, },
-    { TN_OPT_ECHO,		   0,     1,          1,       1, },
+    { TN_OPT_SUPPRESS_GO_AHEAD,	   1,     1,          1,       0, },
+    { TN_OPT_ECHO,		   1,     0,          1,       1, },
     { TN_OPT_BINARY_TRANSMISSION,  1,     1,          1,       1, },
     { TN_OPT_COM_PORT,		   1,     0,          0,       1,
       .option_handler = com_port_handler, .will_do_handler = com_port_will_do },
@@ -688,8 +688,8 @@ static struct telnet_cmd telnet_server_cmds_2217[] =
 static struct telnet_cmd telnet_server_cmds[] =
 {
     /*                        I will,  I do,  sent will, sent do */
-    { TN_OPT_SUPPRESS_GO_AHEAD,	   0,     1,          1,       0, },
-    { TN_OPT_ECHO,		   0,     1,          1,       1, },
+    { TN_OPT_SUPPRESS_GO_AHEAD,	   1,     1,          1,       1, },
+    { TN_OPT_ECHO,		   1,     0,          1,       1, },
     { TN_OPT_BINARY_TRANSMISSION,  1,     1,          1,       1, },
     { TN_OPT_COM_PORT,		   0,     0,          0,       0,
       .option_handler = com_port_handler, .will_do_handler = com_port_will_do },
@@ -698,6 +698,7 @@ static struct telnet_cmd telnet_server_cmds[] =
 
 static unsigned char telnet_server_init_seq_2217[] = {
     TN_IAC, TN_WILL, TN_OPT_SUPPRESS_GO_AHEAD,
+    TN_IAC, TN_DO,   TN_OPT_SUPPRESS_GO_AHEAD,
     TN_IAC, TN_WILL, TN_OPT_ECHO,
     TN_IAC, TN_DONT, TN_OPT_ECHO,
     TN_IAC, TN_DO,   TN_OPT_BINARY_TRANSMISSION,
@@ -707,6 +708,7 @@ static unsigned char telnet_server_init_seq_2217[] = {
 
 static unsigned char telnet_server_init_seq[] = {
     TN_IAC, TN_WILL, TN_OPT_SUPPRESS_GO_AHEAD,
+    TN_IAC, TN_DO,   TN_OPT_SUPPRESS_GO_AHEAD,
     TN_IAC, TN_WILL, TN_OPT_ECHO,
     TN_IAC, TN_DONT, TN_OPT_ECHO,
     TN_IAC, TN_DO,   TN_OPT_BINARY_TRANSMISSION,
