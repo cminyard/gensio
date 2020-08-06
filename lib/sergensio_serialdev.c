@@ -599,7 +599,7 @@ termios_set_get(struct sterm_data *sdata, int val, enum termio_op op,
 	    if (ioctl(sdata->fd, TIOCMGET, &mctl) == -1) {
 		err = errno;
 	    } else {
-		err = qe->getset(NULL, &mctl, &val, sdata);
+		err = getset(NULL, &mctl, &val, sdata);
 		if (!err) {
 		    if (ioctl(sdata->fd, TIOCMSET, &mctl) == -1)
 			err = errno;
