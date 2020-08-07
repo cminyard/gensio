@@ -1287,7 +1287,7 @@ run_oom_tests(struct oom_tests *test, char *tstr,
     return errcount;
 }
 
-#if HAVE_GETRANDOM
+#ifdef HAVE_GETRANDOM_FUNC
 #include <sys/random.h>
 #else
 static size_t

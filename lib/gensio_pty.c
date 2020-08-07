@@ -80,7 +80,7 @@ gensio_setup_child_on_pty(struct pty_data *tdata)
     uid_t groupid = -1;
     const char *pgm;
     bool link_created = false;
-#if HAVE_PTSNAME_R
+#ifdef HAVE_PTSNAME_R
     char ptsstr[PATH_MAX];
     char pwbuf[16384];
 #endif
@@ -94,7 +94,7 @@ gensio_setup_child_on_pty(struct pty_data *tdata)
 	goto out_err;
     }
 
-#if HAVE_PTSNAME_R
+#ifdef HAVE_PTSNAME_R
     err = ptsname_r(ptym, ptsstr, sizeof(ptsstr));
     if (err) {
 	err = errno;
@@ -465,7 +465,7 @@ pty_control(void *handler_data, int fd, bool get, unsigned int option,
 	*datalen = snprintf(data, *datalen, "%d", status);
 	return 0;
 
-#if HAVE_PTSNAME_R
+#ifdef HAVE_PTSNAME_R
     case GENSIO_CONTROL_LADDR:
     case GENSIO_CONTROL_LPORT:
     {
@@ -543,7 +543,7 @@ pty_gensio_alloc(const char * const argv[], const char * const args[],
     for (i = 0; args && args[i]; i++) {
 	if (gensio_check_keyds(args[i], "readbuf", &max_read_size) > 0)
 	    continue;
-#if HAVE_PTSNAME_R
+#ifdef HAVE_PTSNAME_R
 	if (gensio_check_keyvalue(args[i], "link", &link))
 	    continue;
 	if (gensio_check_keybool(args[i], "forcelink", &forcelink) > 0)

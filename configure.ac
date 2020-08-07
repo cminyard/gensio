@@ -294,7 +294,6 @@ if test "$HAVE_LIBSCTP" = "1"; then
 fi
 AC_DEFINE_UNQUOTED([HAVE_SCTP_SENDV], [$HAVE_SCTP_SENDV],
 	      [Set to 1 if sctp_sendv() is available, 0 if not])
-AC_SUBST(HAVE_SCTP_SENDV)
 
 AC_CHECK_LIB(pam, pam_start, [HAVE_PAM=1], [HAVE_PAM=0])
 if test $HAVE_PAM -eq 1; then
@@ -303,7 +302,9 @@ if test $HAVE_PAM -eq 1; then
 fi
 AC_SUBST(PAMLIB)
 
-AC_CHECK_FUNCS(getrandom)
+# python annoyingly defined HAVE_GETRANDOM
+AC_CHECK_FUNC(getrandom, [AC_DEFINE([HAVE_GETRANDOM_FUNC], [1],
+				    [Define if getrandom is available.])])
 AC_CHECK_FUNCS(ptsname_r)
 
 case $host_os in

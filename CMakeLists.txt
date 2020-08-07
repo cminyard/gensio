@@ -126,7 +126,7 @@ check_c_source_compiles("int main()
 check_symbol_exists(isatty unistd.h HAVE_ISATTY)
 check_symbol_exists(strcasecmp string.h HAVE_STRCASECMP)
 check_symbol_exists(strncasecmp string.h HAVE_STRNCASECMP)
-check_symbol_exists(getrandom sys/random.h HAVE_GETRANDOM)
+check_symbol_exists(getrandom sys/random.h HAVE_GETRANDOM_FUNC)
 set (CMAKE_REQUIRED_DEFINITIONS "-D_GNU_SOURCE")
 check_symbol_exists(ptsname_r "stdlib.h" HAVE_PTSNAME_R)
 
