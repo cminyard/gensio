@@ -107,6 +107,7 @@ do_break(int fd)
 #include <gensio/sergensio_class.h>
 #include <gensio/gensio_ll_fd.h>
 #include <gensio/gensio_builtins.h>
+#include <gensio/gensio_osops.h>
 
 #include "uucplock.h"
 #include "utils.h"
@@ -437,6 +438,16 @@ struct sterm_data {
     char *parms;
 
     int fd;
+    struct gensio_ll *ll;
+
+    /*
+     * Unfortunately, at least on Linux, ptys return EIO errors when
+     * the remote end closes, instead of something sensible like
+     * EPIPE, like all other IPC does.  So we have to have special
+     * handling to detect ptys.  We still want to return GE_IOERR
+     * on IO errors for real devices.
+     */
+    bool is_pty;
 
     bool write_only;		/* No termios, no read. */
 
@@ -1210,6 +1221,31 @@ static void s_cfmakeraw(g_termios *termios_p) {
 #define s_cfmakeraw cfmakeraw
 #endif
 
+static bool
+is_a_pty(const char *ttyname)
+{
+    char buf[PATH_MAX];
+
+    while (readlink(ttyname, buf, sizeof(buf)) > 0)
+	ttyname = buf;
+
+    if (strncmp(ttyname, "/dev/pts/", 9) == 0)
+	return true;
+
+    /*
+     * According to the Linux man page, BSD slave devices are named:
+     *  /dev/tty[p-za-e][0-9a-f]
+     * so we have this check for them.
+     */
+    if (strncmp(ttyname, "/dev/tty", 8) != 0)
+	return false;
+
+    return (((ttyname[8] >= 'a' && ttyname[8] <= 'e') ||
+	     (ttyname[8] >= 'p' && ttyname[8] <= 'z')) &&
+	    ((ttyname[9] >= '0' && ttyname[9] <= '9') ||
+	     (ttyname[9] >= 'a' && ttyname[9] <= 'f')));
+}
+
 static int
 sterm_sub_open(void *handler_data, int *fd)
 {
@@ -1230,6 +1266,8 @@ sterm_sub_open(void *handler_data, int *fd)
     }
 
     sdata->timer_stopped = false;
+
+    sdata->is_pty = is_a_pty(sdata->devname);
 
     options = O_NONBLOCK | O_NOCTTY;
     if (sdata->write_only)
@@ -1283,7 +1321,12 @@ sterm_sub_open(void *handler_data, int *fd)
  out_uucp:
     if (!sdata->no_uucp_lock)
 	uucp_rm_lock(sdata->devname);
-    err = gensio_os_err_to_err(sdata->o, err);
+
+    /* pty's for some reason return EIO if the remote end closes. */
+    if (sdata->is_pty && err == EIO)
+	err = GE_REMCLOSE;
+    else
+	err = gensio_os_err_to_err(sdata->o, err);
  out:
     if (sdata->fd != -1) {
 	close(sdata->fd);
@@ -1445,10 +1488,45 @@ sterm_control(void *handler_data, int fd, bool get, unsigned int option,
     return GE_NOTSUP;
 }
 
+static int
+sterm_write(void *handler_data, int fd, gensiods *rcount,
+	    const struct gensio_sg *sg, gensiods sglen,
+	    const char *const *auxdata)
+{
+    struct sterm_data *sdata = handler_data;
+    int rv = gensio_os_write(sdata->o, fd, sg, sglen, rcount);
+
+    if (rv && sdata->is_pty && rv == GE_IOERR)
+	return GE_REMCLOSE; /* We don't seem to get EPIPE from ptys */
+    return rv;
+}
+
+static int
+sterm_do_read(int fd, void *data, gensiods count, gensiods *rcount,
+	      const char ***auxdata, void *cb_data)
+{
+    struct sterm_data *sdata = cb_data;
+    int rv = gensio_os_read(sdata->o, fd, data, count, rcount);
+
+    if (rv && sdata->is_pty && rv == GE_IOERR)
+	return GE_REMCLOSE; /* We don't seem to get EPIPE from ptys */
+    return rv;
+}
+
+static void
+sterm_read_ready(void *handler_data, int fd)
+{
+    struct sterm_data *sdata = handler_data;
+
+    gensio_fd_ll_handle_incoming(sdata->ll, sterm_do_read, NULL, sdata);
+}
+
 static const struct gensio_fd_ll_ops sterm_fd_ll_ops = {
     .sub_open = sterm_sub_open,
     .check_close = sterm_check_close_drain,
     .free = sterm_free,
+    .write = sterm_write,
+    .read_ready = sterm_read_ready,
     .control = sterm_control
 };
 
@@ -1711,7 +1789,6 @@ serialdev_gensio_alloc(const char *devname, const char * const args[],
 		       struct gensio **rio)
 {
     struct sterm_data *sdata = o->zalloc(o, sizeof(*sdata));
-    struct gensio_ll *ll;
     struct gensio *io;
     int err;
     char *comma;
@@ -1795,9 +1872,9 @@ serialdev_gensio_alloc(const char *devname, const char * const args[],
     if (!sdata->lock)
 	goto out_nomem;
 
-    ll = fd_gensio_ll_alloc(o, -1, &sterm_fd_ll_ops, sdata, max_read_size,
-			    sdata->write_only);
-    if (!ll)
+    sdata->ll = fd_gensio_ll_alloc(o, -1, &sterm_fd_ll_ops, sdata,
+				   max_read_size, sdata->write_only);
+    if (!sdata->ll)
 	goto out_nomem;
 
     /*
@@ -1805,9 +1882,10 @@ serialdev_gensio_alloc(const char *devname, const char * const args[],
      * the free callbacks.
      */
 
-    io = base_gensio_alloc(o, ll, NULL, NULL, "serialdev", cb, user_data);
+    io = base_gensio_alloc(o, sdata->ll, NULL, NULL, "serialdev",
+			   cb, user_data);
     if (!io) {
-	gensio_ll_free(ll);
+	gensio_ll_free(sdata->ll);
 	return GE_NOMEM;
     }
 
