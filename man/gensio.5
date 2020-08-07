@@ -1150,9 +1150,11 @@ is, replace it.  Be careful, it deletes whatever is there
 indiscriminately.
 .TP
 .B raw[=true|false]
-causes the pty to be set in raw mode at startup.  This is mostly for
-testing, to avoid writing data to the pty before the other end has set
-it up, but it might be useful in some situations.
+causes the pty to be set in raw mode at startup.  This is important for
+anything that will start writing immediately to the pty.  If you don't
+set this, echo will be on and writes on the master will be echoed back.
+In general, this is useful for unattached ptys.  It was added for testing,
+but will be usedful in many situations.
 .TP
 .B umode=[0-7|[rwx]*]
 Set the user file mode for the pty slave.  This is the usual
