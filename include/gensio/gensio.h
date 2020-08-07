@@ -652,6 +652,10 @@ GENSIO_DLL_PUBLIC
 int gensio_check_keyaddrs_noport(struct gensio_os_funcs *o,
 				 const char *str, const char *key,
 				 int protocol, struct gensio_addr **ai);
+GENSIO_DLL_PUBLIC
+int gensio_check_keymode(const char *str, const char *key, unsigned int *rmode);
+GENSIO_DLL_PUBLIC
+int gensio_check_keyperm(const char *str, const char *key, unsigned int *rmode);
 
 /*
  * Helper functions that don't fit anywhere else.

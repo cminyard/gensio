@@ -628,60 +628,6 @@ file_ndata_setup(struct gensio_os_funcs *o, struct file_ndata_data *data,
     return GE_NOMEM;
 }
 
-#if !USE_FILE_STDIO
-static int
-gensio_check_keymode(const char *str, const char *key, unsigned int *rmode)
-{
-    const char *sval;
-    int rv = gensio_check_keyvalue(str, key, &sval);
-    unsigned int mode;
-
-    if (!rv)
-	return 0;
-
-    if (*sval >= '0' && *sval <= '7') {
-	if (sval[1])
-	    return -1;
-	*rmode = *sval - '0';
-	return 1;
-    }
-
-    mode = 0;
-    while (*sval) {
-	if (*sval == 'r')
-	    mode |= 4;
-	else if (*sval == 'w')
-	    mode |= 2;
-	else if (*sval == 'x')
-	    mode |= 1;
-	else
-	    return -1;
-	sval++;
-    }
-    *rmode = mode;
-    return 1;
-}
-
-static int
-gensio_check_keyperm(const char *str, const char *key, unsigned int *rmode)
-{
-    const char *sval;
-    char *end;
-    int rv = gensio_check_keyvalue(str, key, &sval);
-    unsigned int mode;
-
-    if (!rv)
-	return 0;
-
-    mode = strtoul(sval, &end, 8);
-    if (end == sval || *end != '\0')
-	return -1;
-
-    *rmode = mode;
-    return 1;
-}
-#endif
-
 static int
 process_file_args(const char * const args[], struct file_ndata_data *data)
 {
