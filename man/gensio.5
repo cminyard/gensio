@@ -1131,10 +1131,12 @@ the environment to be set for the new process.
 
 If no program is specified, when the pty gensio is opened it will just
 create the pty but won't attach anything to it.  Another program can
-open the pty.  You can get the pty device by getting the local address
-string.
+open the pty.  You can get the slave pty device by getting the local
+address string.
 .SS Options
-In addition to readbuf, the pty gensio takes the following options:
+In addition to readbuf, the pty gensio takes the following options.
+These options are only allowed if the pty is unattached.  ptys with
+programs run on them need to follow the standard semantics.
 .TP
 .B link=<filename>
 create a symbolic link from filename to the pty name.  This way you
@@ -1151,6 +1153,29 @@ indiscriminately.
 causes the pty to be set in raw mode at startup.  This is mostly for
 testing, to avoid writing data to the pty before the other end has set
 it up, but it might be useful in some situations.
+.TP
+.B umode=[0-7|[rwx]*]
+Set the user file mode for the pty slave.  This is the usual
+read(4)/write(2)/execute(2) bitmask per chmod, but only for the user
+portion.  If any mode is specified, all modes are "6" (rw) and is
+modified by the umask per standard *nix semantics.  If no mode is
+specified, it is set to the default and not modified.
+.TP
+.B gmode=[0-7|[rwx]*]
+Set the group file mode for the pty slave, see umode for details.
+.TP
+.B omode=[0-7|[rwx]*]
+Set the other file mode for the pty slave, see umode for details.
+.TP
+.B perm=[0-7][0-7][0-7]
+Set the full mode for the pty per standard *nix semantics, modified
+by umask as the above mode operations are.
+.TP
+.B owner=<name>
+Set the owner of the slave pty to the given user.
+.TP
+.B group=<name>
+Set the group of the slave pty to the given user.
 .SS "Remote Address String"
 The remote address string the program and arguments run on the pty.
 The argiuments will be a set of quoted strings with a space between each

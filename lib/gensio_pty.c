@@ -19,8 +19,10 @@
 #include <strings.h>
 #include <assert.h>
 #include <pwd.h>
+#include <grp.h>
 #include <sys/wait.h>
 #include <sys/ioctl.h>
+#include <sys/stat.h>
 #include <termios.h>
 #include <limits.h>
 
@@ -40,6 +42,11 @@ struct pty_data {
     int ptym;
     const char **argv;
     const char **env;
+
+    mode_t mode;
+    bool mode_set;
+    char *owner;
+    char *group;
 
     /* Symbolic link to create (if not NULL). */
     char *link;
@@ -64,15 +71,19 @@ static int pty_check_open(void *handler_data, int fd)
 extern char **environ;
 
 static int
-gensio_setup_child_on_pty(struct gensio_os_funcs *o,
-			  char *const argv[], const char **env,
-			  const char *link, bool forcelink,
-			  int *rptym, pid_t *rpid)
+gensio_setup_child_on_pty(struct pty_data *tdata)
 {
+    struct gensio_os_funcs *o = tdata->o;
     pid_t pid = -1;
     int ptym, err = 0;
+    uid_t ownerid = -1;
+    uid_t groupid = -1;
     const char *pgm;
     bool link_created = false;
+#if HAVE_PTSNAME_R
+    char ptsstr[PATH_MAX];
+    char pwbuf[16384];
+#endif
 
     ptym = posix_openpt(O_RDWR | O_NOCTTY);
     if (ptym == -1)
@@ -83,27 +94,67 @@ gensio_setup_child_on_pty(struct gensio_os_funcs *o,
 	goto out_err;
     }
 
-    if (unlockpt(ptym) < 0) {
+#if HAVE_PTSNAME_R
+    err = ptsname_r(ptym, ptsstr, sizeof(ptsstr));
+    if (err) {
 	err = errno;
 	goto out_err;
     }
 
-#if HAVE_PTSNAME_R
-    if (link) {
-	char ptsstr[PATH_MAX];
-	bool delretry = false;
-
-	err = ptsname_r(ptym, ptsstr, sizeof(ptsstr));
+    if (tdata->mode_set) {
+	err = chmod(ptsstr, tdata->mode);
 	if (err) {
 	    err = errno;
 	    goto out_err;
 	}
+    }
+
+    if (tdata->owner) {
+	struct passwd pwdbuf, *pwd;
+
+	err = getpwnam_r(tdata->owner, &pwdbuf, pwbuf, sizeof(pwbuf), &pwd);
+	if (err) {
+	    err = errno;
+	    goto out_err;
+	}
+	if (!pwd) {
+	    err = ENOENT;
+	    goto out_err;
+	}
+	ownerid = pwd->pw_uid;
+    }
+
+    if (tdata->group) {
+	struct group grpbuf, *grp;
+
+	err = getgrnam_r(tdata->group, &grpbuf, pwbuf, sizeof(pwbuf), &grp);
+	if (err) {
+	    err = errno;
+	    goto out_err;
+	}
+	if (!grp) {
+	    err = ENOENT;
+	    goto out_err;
+	}
+	groupid = grp->gr_gid;
+    }
+
+    if (ownerid != -1 || groupid != -1) {
+	err = chown(ptsstr, ownerid, groupid);
+	if (err) {
+	    err = errno;
+	    goto out_err;
+	}
+    }
+
+    if (tdata->link) {
+	bool delretry = false;
 
     retry:
-	err = symlink(ptsstr, link);
+	err = symlink(ptsstr, tdata->link);
 	if (err) {
-	    if (errno == EEXIST && forcelink && !delretry) {
-		err = unlink(link);
+	    if (errno == EEXIST && tdata->forcelink && !delretry) {
+		err = unlink(tdata->link);
 		if (!err) {
 		    delretry = true;
 		    goto retry;
@@ -117,7 +168,12 @@ gensio_setup_child_on_pty(struct gensio_os_funcs *o,
     }
 #endif
 
-    if (!argv)
+    if (unlockpt(ptym) < 0) {
+	err = errno;
+	goto out_err;
+    }
+
+    if (!tdata->argv)
 	goto skip_child;
 
     pid = fork();
@@ -206,23 +262,24 @@ gensio_setup_child_on_pty(struct gensio_os_funcs *o,
 	    exit(1);
 	}
 
-	if (env)
-	    environ = (char **) env;
+	if (tdata->env)
+	    environ = (char **) tdata->env;
 
-	pgm = argv[0];
+	pgm = tdata->argv[0];
 	if (*pgm == '-')
 	    pgm++;
-	execvp(pgm, argv);
-	fprintf(stderr, "Unable to exec %s: %s\r\n", argv[0], strerror(errno));
+	execvp(pgm, (char **) tdata->argv);
+	fprintf(stderr, "Unable to exec %s: %s\r\n", tdata->argv[0],
+		strerror(errno));
 	exit(1); /* Only reached on error. */
     }
  skip_child:
-    *rpid = pid;
-    *rptym = ptym;
+    tdata->pid = pid;
+    tdata->ptym = ptym;
     return 0;
  out_err:
     if (link_created)
-	unlink(link);
+	unlink(tdata->link);
     close(ptym);
     return gensio_os_err_to_err(o, err);
 }
@@ -244,11 +301,7 @@ pty_sub_open(void *handler_data, int *fd)
     struct pty_data *tdata = handler_data;
     int err;
 
-    err = gensio_setup_child_on_pty(tdata->o,
-				    (char * const *) tdata->argv, tdata->env,
-				    tdata->link, tdata->forcelink,
-				    &tdata->ptym, &tdata->pid);
-
+    err = gensio_setup_child_on_pty(tdata);
     if (!err && tdata->raw) {
 	struct termios t;
 
@@ -314,6 +367,10 @@ pty_free(void *handler_data)
 
     if (tdata->link)
 	tdata->o->free(tdata->o, tdata->link);
+    if (tdata->owner)
+	tdata->o->free(tdata->o, tdata->owner);
+    if (tdata->group)
+	tdata->o->free(tdata->o, tdata->group);
     if (tdata->argv)
 	gensio_argv_free(tdata->o, tdata->argv);
     if (tdata->env)
@@ -476,9 +533,10 @@ pty_gensio_alloc(const char * const argv[], const char * const args[],
     struct pty_data *tdata = NULL;
     struct gensio *io;
     gensiods max_read_size = GENSIO_DEFAULT_BUF_SIZE;
-    unsigned int i;
+    unsigned int umode = 6, gmode = 6, omode = 6, i, mode;
+    bool mode_set = false;
+    const char *owner = NULL, *group = NULL, *link = NULL;
     int err;
-    const char *link = NULL;
     bool forcelink = false;
     bool raw = false;
 
@@ -489,6 +547,29 @@ pty_gensio_alloc(const char * const argv[], const char * const args[],
 	if (gensio_check_keyvalue(args[i], "link", &link))
 	    continue;
 	if (gensio_check_keybool(args[i], "forcelink", &forcelink) > 0)
+	    continue;
+	if (gensio_check_keymode(args[i], "umode", &umode) > 0) {
+	    mode_set = true;
+	    continue;
+	}
+	if (gensio_check_keymode(args[i], "gmode", &gmode) > 0) {
+	    mode_set = true;
+	    continue;
+	}
+	if (gensio_check_keymode(args[i], "omode", &omode) > 0) {
+	    mode_set = true;
+	    continue;
+	}
+	if (gensio_check_keyperm(args[i], "perm", &mode) > 0) {
+	    mode_set = true;
+	    umode = mode >> 6 & 7;
+	    gmode = mode >> 3 & 7;
+	    omode = mode & 7;
+	    continue;
+	}
+	if (gensio_check_keyvalue(args[i], "owner", &owner))
+	    continue;
+	if (gensio_check_keyvalue(args[i], "group", &group))
 	    continue;
 #endif
 	if (gensio_check_keybool(args[i], "raw", &raw) > 0)
@@ -507,12 +588,30 @@ pty_gensio_alloc(const char * const argv[], const char * const args[],
 	if (!tdata->link)
 	    goto out_nomem;
     }
-    tdata->forcelink = forcelink;
-    tdata->raw = raw;
 
     if (argv && argv[0]) {
+	if (raw || mode_set || owner || group) {
+	    /* These are only for non-subprogram ptys. */
+	    err = GE_INCONSISTENT;
+	    goto out_err;
+	}
 	err = gensio_argv_copy(o, argv, NULL, &tdata->argv);
 	if (err)
+	    goto out_nomem;
+    }
+
+    tdata->forcelink = forcelink;
+    tdata->raw = raw;
+    tdata->mode = umode << 6 | gmode << 3 | omode;
+    tdata->mode_set = mode_set;
+    if (owner) {
+	tdata->owner = gensio_strdup(o, owner);
+	if (!tdata->owner)
+	    goto out_nomem;
+    }
+    if (group) {
+	tdata->group = gensio_strdup(o, group);
+	if (!tdata->group)
 	    goto out_nomem;
     }
 
@@ -531,11 +630,13 @@ pty_gensio_alloc(const char * const argv[], const char * const args[],
     return 0;
 
  out_nomem:
+    err = GE_NOMEM;
+ out_err:
     if (tdata->ll)
 	gensio_ll_free(tdata->ll);
     else
 	pty_free(tdata);
-    return GE_NOMEM;
+    return err;
 }
 
 int
