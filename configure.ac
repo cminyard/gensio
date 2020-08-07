@@ -306,6 +306,7 @@ AC_SUBST(PAMLIB)
 AC_CHECK_FUNC(getrandom, [AC_DEFINE([HAVE_GETRANDOM_FUNC], [1],
 				    [Define if getrandom is available.])])
 AC_CHECK_FUNCS(ptsname_r)
+AC_CHECK_FUNCS(cfmakeraw)
 
 case $host_os in
 linux*) HAVE_WORKING_PORT0=1 ;;

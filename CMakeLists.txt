@@ -129,6 +129,7 @@ check_symbol_exists(strncasecmp string.h HAVE_STRNCASECMP)
 check_symbol_exists(getrandom sys/random.h HAVE_GETRANDOM_FUNC)
 set (CMAKE_REQUIRED_DEFINITIONS "-D_GNU_SOURCE")
 check_symbol_exists(ptsname_r "stdlib.h" HAVE_PTSNAME_R)
+check_symbol_exists(cfmakeraw "termios.h" HAVE_CFMAKERAW)
 
 if(UNIX)
   set(HAVE_STDIO 1)

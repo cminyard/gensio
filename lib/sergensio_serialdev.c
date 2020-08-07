@@ -1197,8 +1197,8 @@ sterm_check_close_drain(void *handler_data, enum gensio_ll_close_state state,
     return err;
 }
 
-#if defined(__CYGWIN__) || defined(HAVE_TERMIOS2)
-static void cfmakeraw(g_termios *termios_p) {
+#if !defined(HAVE_CFMAKERAW) || defined(HAVE_TERMIOS2)
+static void s_cfmakeraw(g_termios *termios_p) {
     termios_p->c_iflag &= ~(IGNBRK|BRKINT|PARMRK|ISTRIP|INLCR|IGNCR|ICRNL|IXON);
     termios_p->c_oflag &= ~OPOST;
     termios_p->c_lflag &= ~(ECHO|ECHONL|ICANON|ISIG|IEXTEN);
@@ -1206,6 +1206,8 @@ static void cfmakeraw(g_termios *termios_p) {
     termios_p->c_cflag |= CS8;
     termios_p->c_cc[VMIN] = 1;
 }
+#else
+#define s_cfmakeraw cfmakeraw
 #endif
 
 static int
@@ -1627,7 +1629,7 @@ sergensio_setup_defaults(struct gensio_os_funcs *o, struct sterm_data *sdata)
     g_termios *termctl = &sdata->default_termios;
     char *str;
 
-    cfmakeraw(termctl);
+    s_cfmakeraw(termctl);
 
     err = gensio_get_default(o, "serialdev", "speed", false,
 			     GENSIO_DEFAULT_STR, &str, NULL);

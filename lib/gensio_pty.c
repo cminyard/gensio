@@ -284,7 +284,7 @@ gensio_setup_child_on_pty(struct pty_data *tdata)
     return gensio_os_err_to_err(o, err);
 }
 
-#if defined(__CYGWIN__)
+#ifndef HAVE_CFMAKERAW
 static void cfmakeraw(struct termios *termios_p) {
     termios_p->c_iflag &= ~(IGNBRK|BRKINT|PARMRK|ISTRIP|INLCR|IGNCR|ICRNL|IXON);
     termios_p->c_oflag &= ~OPOST;
