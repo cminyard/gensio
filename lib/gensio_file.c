@@ -661,12 +661,31 @@ gensio_check_keymode(const char *str, const char *key, unsigned int *rmode)
     *rmode = mode;
     return 1;
 }
+
+static int
+gensio_check_keyperm(const char *str, const char *key, unsigned int *rmode)
+{
+    const char *sval;
+    char *end;
+    int rv = gensio_check_keyvalue(str, key, &sval);
+    unsigned int mode;
+
+    if (!rv)
+	return 0;
+
+    mode = strtoul(sval, &end, 8);
+    if (end == sval || *end != '\0')
+	return -1;
+
+    *rmode = mode;
+    return 1;
+}
 #endif
 
 static int
 process_file_args(const char * const args[], struct file_ndata_data *data)
 {
-    unsigned int umode = 6, gmode = 6, omode = 6, i;
+    unsigned int umode = 6, gmode = 6, omode = 6, i, mode;
 
     memset(data, 0, sizeof(*data));
     data->max_read_size = GENSIO_DEFAULT_BUF_SIZE;
@@ -687,6 +706,12 @@ process_file_args(const char * const args[], struct file_ndata_data *data)
 	    continue;
 	if (gensio_check_keymode(args[i], "omode", &omode) > 0)
 	    continue;
+	if (gensio_check_keyperm(args[i], "perm", &mode) > 0) {
+	    umode = mode >> 6 & 7;
+	    gmode = mode >> 3 & 7;
+	    omode = mode & 7;
+	    continue;
+	}
 #endif
 	return GE_INVAL;
     }

@@ -712,7 +712,7 @@ Create the output file if it does not exist.
 Set the user file mode for the file if the file is created.  This is
 the usual read(4)/write(2)/execute(2) bitmask per chmod, but only for
 the user portion.  If not specified, it is "6" (rw) and is modified by
-the umode per standard *nix semantics.
+the umask per standard *nix semantics.
 .TP
 .B gmode=[0-7|[rwx]*]
 Set the group file mode for the file if the file is created, see umode
@@ -721,6 +721,10 @@ for details.
 .B omode=[0-7|[rwx]*]
 Set the other file mode for the file if the file is created, see umode
 for details.
+.TP
+.B perm=[0-7][0-7][0-7]
+Set the full mode for the file per standard *nix semantics, modified
+by umask as the above mode operations are.
 .SS "Remote Address String"
 The remote address string is "file([infile=<filename][,][outfile=<filename>])".
 .SH "dummy"
