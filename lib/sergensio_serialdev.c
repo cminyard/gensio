@@ -433,6 +433,7 @@ struct sterm_data {
 
     bool open;
     unsigned int close_timeouts_left;
+    int last_close_outq_count;
 
     char *devname;
     char *parms;
@@ -1167,12 +1168,12 @@ sterm_check_close_drain(void *handler_data, enum gensio_ll_close_state state,
     sterm_lock(sdata);
     if (state == GENSIO_LL_CLOSE_STATE_START) {
 	sdata->open = false;
-	/* FIXME - this should be calculated. */
-	sdata->close_timeouts_left = 200;
 	rv = sdata->o->stop_timer_with_done(sdata->timer,
 					    sterm_timer_stopped, sdata);
 	if (rv)
 	    sdata->timer_stopped = true;
+
+	sdata->last_close_outq_count = 0;
     }
 
     if (state != GENSIO_LL_CLOSE_STATE_DONE)
@@ -1186,8 +1187,18 @@ sterm_check_close_drain(void *handler_data, enum gensio_ll_close_state state,
 	goto out_einprogress;
 
     rv = ioctl(sdata->fd, TIOCOUTQ, &count);
-    if (rv || count == 0)
+    if (rv || count <= 0)
 	goto out_rm_uucp;
+    if (sdata->last_close_outq_count == 0 ||
+		count < sdata->last_close_outq_count) {
+	/* First time through or some data was written, restart the timer. */
+	sdata->last_close_outq_count = count;
+	/*
+	 * FIXME - this should be calculated, but 50 baud is 4-5 chars
+	 * per second, so 1/2 a second should be plenty.
+	 */
+	sdata->close_timeouts_left = 50;
+    }
 
     sdata->close_timeouts_left--;
     if (sdata->close_timeouts_left == 0)
