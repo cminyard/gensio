@@ -65,6 +65,17 @@ static int pty_check_open(void *handler_data, int fd)
     return 0;
 }
 
+#ifndef HAVE_CFMAKERAW
+static void cfmakeraw(struct termios *termios_p) {
+    termios_p->c_iflag &= ~(IGNBRK|BRKINT|PARMRK|ISTRIP|INLCR|IGNCR|ICRNL|IXON);
+    termios_p->c_oflag &= ~OPOST;
+    termios_p->c_lflag &= ~(ECHO|ECHONL|ICANON|ISIG|IEXTEN);
+    termios_p->c_cflag &= ~(CSIZE|PARENB);
+    termios_p->c_cflag |= CS8;
+    termios_p->c_cc[VMIN] = 1;
+}
+#endif
+
 /*
  * This is ugly, but it's by far the simplest way.
  */
@@ -89,34 +100,26 @@ gensio_setup_child_on_pty(struct pty_data *tdata)
     if (ptym == -1)
 	return gensio_os_err_to_err(o, errno);
 
-    if (fcntl(ptym, F_SETFL, O_NONBLOCK) == -1) {
-	err = errno;
-	goto out_err;
-    }
+    if (fcntl(ptym, F_SETFL, O_NONBLOCK) == -1)
+	goto out_errno;
 
 #ifdef HAVE_PTSNAME_R
     err = ptsname_r(ptym, ptsstr, sizeof(ptsstr));
-    if (err) {
-	err = errno;
-	goto out_err;
-    }
+    if (err)
+	goto out_errno;
 
     if (tdata->mode_set) {
 	err = chmod(ptsstr, tdata->mode);
-	if (err) {
-	    err = errno;
-	    goto out_err;
-	}
+	if (err)
+	    goto out_errno;
     }
 
     if (tdata->owner) {
 	struct passwd pwdbuf, *pwd;
 
 	err = getpwnam_r(tdata->owner, &pwdbuf, pwbuf, sizeof(pwbuf), &pwd);
-	if (err) {
-	    err = errno;
-	    goto out_err;
-	}
+	if (err)
+	    goto out_errno;
 	if (!pwd) {
 	    err = ENOENT;
 	    goto out_err;
@@ -128,10 +131,8 @@ gensio_setup_child_on_pty(struct pty_data *tdata)
 	struct group grpbuf, *grp;
 
 	err = getgrnam_r(tdata->group, &grpbuf, pwbuf, sizeof(pwbuf), &grp);
-	if (err) {
-	    err = errno;
-	    goto out_err;
-	}
+	if (err)
+	    goto out_errno;
 	if (!grp) {
 	    err = ENOENT;
 	    goto out_err;
@@ -141,10 +142,8 @@ gensio_setup_child_on_pty(struct pty_data *tdata)
 
     if (ownerid != -1 || groupid != -1) {
 	err = chown(ptsstr, ownerid, groupid);
-	if (err) {
-	    err = errno;
-	    goto out_err;
-	}
+	if (err)
+	    goto out_errno;
     }
 
     if (tdata->link) {
@@ -160,27 +159,35 @@ gensio_setup_child_on_pty(struct pty_data *tdata)
 		    goto retry;
 		}
 	    }
-	    err = errno;
-	    goto out_err;
+	    goto out_errno;
 	}
 
 	link_created = true;
     }
 #endif
 
-    if (unlockpt(ptym) < 0) {
-	err = errno;
-	goto out_err;
+    if (tdata->raw) {
+	struct termios t;
+
+	err = tcgetattr(ptym, &t);
+	if (err)
+	    goto out_errno;
+
+	cfmakeraw(&t);
+	err = tcsetattr(ptym, TCSANOW, &t);
+	if (err)
+	    goto out_errno;
     }
+
+    if (unlockpt(ptym) < 0)
+	goto out_errno;
 
     if (!tdata->argv)
 	goto skip_child;
 
     pid = fork();
-    if (pid < 0) {
-	err = errno;
-	goto out_err;
-    }
+    if (pid < 0)
+	goto out_errno;
 
     if (pid == 0) {
 	/*
@@ -277,23 +284,14 @@ gensio_setup_child_on_pty(struct pty_data *tdata)
     tdata->pid = pid;
     tdata->ptym = ptym;
     return 0;
+ out_errno:
+    err = errno;
  out_err:
     if (link_created)
 	unlink(tdata->link);
     close(ptym);
     return gensio_os_err_to_err(o, err);
 }
-
-#ifndef HAVE_CFMAKERAW
-static void cfmakeraw(struct termios *termios_p) {
-    termios_p->c_iflag &= ~(IGNBRK|BRKINT|PARMRK|ISTRIP|INLCR|IGNCR|ICRNL|IXON);
-    termios_p->c_oflag &= ~OPOST;
-    termios_p->c_lflag &= ~(ECHO|ECHONL|ICANON|ISIG|IEXTEN);
-    termios_p->c_cflag &= ~(CSIZE|PARENB);
-    termios_p->c_cflag |= CS8;
-    termios_p->c_cc[VMIN] = 1;
-}
-#endif
 
 static int
 pty_sub_open(void *handler_data, int *fd)
@@ -302,25 +300,6 @@ pty_sub_open(void *handler_data, int *fd)
     int err;
 
     err = gensio_setup_child_on_pty(tdata);
-    if (!err && tdata->raw) {
-	struct termios t;
-
-	err = tcgetattr(tdata->ptym, &t);
-	if (err) {
-	    err = gensio_os_err_to_err(tdata->o, errno);
-	} else {
-	    cfmakeraw(&t);
-	    err = tcsetattr(tdata->ptym, TCSANOW, &t);
-	    if (err)
-		err = gensio_os_err_to_err(tdata->o, errno);
-	}
-
-	if (err) {
-	    close(tdata->ptym);
-	    tdata->ptym = -1;
-	}
-    }
-
     if (!err)
 	*fd = tdata->ptym;
 
