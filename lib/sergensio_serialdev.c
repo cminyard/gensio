@@ -1199,6 +1199,7 @@ sterm_check_close_drain(void *handler_data, enum gensio_ll_close_state state,
     next_timeout->nsecs = 10000000;
  out_rm_uucp:
     if (!err) {
+	do_flush(sdata->fd, TCOFLUSH);
 	set_termios(sdata->fd, &sdata->orig_termios);
 	if (!sdata->no_uucp_lock)
 	    uucp_rm_lock(sdata->devname);
