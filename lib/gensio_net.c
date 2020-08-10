@@ -16,7 +16,13 @@
 #if HAVE_UNIX
 #include <sys/un.h>
 #include <sys/socket.h>
-int unlink(const char *pathname);
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <pwd.h>
+#include <grp.h>
+#include <errno.h>
+#include <unistd.h>
 #endif
 
 #include <gensio/gensio.h>
@@ -469,15 +475,19 @@ struct netna_data {
     struct opensocks   *acceptfds;	/* The file descriptor used to
 					   accept connections on the
 					   NET port. */
+#if HAVE_UNIX
+    mode_t mode;
+    bool mode_set;
+    char *owner;
+    char *group;
+#endif
+
     unsigned int   nr_acceptfds;
     unsigned int   nr_accept_close_waiting;
 
     unsigned int opensock_flags;
 
     bool istcp;
-
-    /* Remove the socket file if it exists. */
-    bool delsock;
 };
 
 static const struct gensio_fd_ll_ops net_server_fd_ll_ops = {
@@ -630,18 +640,99 @@ netna_readhandler(int fd, void *cbdata)
     }
 }
 
-static void
-netna_rm_unix_socket(struct gensio_addr *addr)
-{
 #if HAVE_UNIX
+#define MAX_UNIX_ADDR_PATH (sizeof(((struct sockaddr_un *) 0)->sun_path) + 1)
+static void
+get_unix_addr_path(struct gensio_addr *addr, char *path)
+{
     struct sockaddr_storage taddr;
     struct sockaddr_un *sun = (struct sockaddr_un *) &taddr;
     gensiods len = sizeof(taddr);
 
     /* Remove the socket if it already exists. */
     gensio_addr_getaddr(addr, sun, &len);
-    unlink(sun->sun_path);
+
+    /*
+     * Make sure the path is nil terminated.  See discussions
+     * in the unix(7) man page on Linux for details.
+     */
+    memcpy(path, sun->sun_path, len - sizeof(sa_family_t));
+    path[len - sizeof(sa_family_t)] = '\0';
+}
 #endif
+
+static void
+netna_rm_unix_socket(struct gensio_addr *addr)
+{
+#if HAVE_UNIX
+    char path[MAX_UNIX_ADDR_PATH];
+
+    /* Remove the socket if it already exists. */
+    get_unix_addr_path(addr, path);
+    unlink(path);
+#endif
+}
+
+static int
+netna_b4_listen(int fd, void *data)
+{
+    struct netna_data *nadata = data;
+    char pwbuf[16384];
+    uid_t ownerid = -1;
+    uid_t groupid = -1;
+    int err;
+    char unpath[MAX_UNIX_ADDR_PATH];
+
+    if (nadata->istcp)
+	return 0;
+
+    get_unix_addr_path(nadata->ai, unpath);
+
+    /* Set up perms for Unix domain sockets. */
+    if (nadata->mode_set) {
+	err = chmod(unpath, nadata->mode);
+	if (err)
+	    goto out_errno;
+    }
+
+    if (nadata->owner) {
+	struct passwd pwdbuf, *pwd;
+
+	err = getpwnam_r(nadata->owner, &pwdbuf, pwbuf, sizeof(pwbuf), &pwd);
+	if (err)
+	    goto out_errno;
+	if (!pwd) {
+	    err = ENOENT;
+	    goto out_err;
+	}
+	ownerid = pwd->pw_uid;
+    }
+
+    if (nadata->group) {
+	struct group grpbuf, *grp;
+
+
+	err = getgrnam_r(nadata->group, &grpbuf, pwbuf, sizeof(pwbuf), &grp);
+	if (err)
+	    goto out_errno;
+	if (!grp) {
+	    err = ENOENT;
+	    goto out_err;
+	}
+	groupid = grp->gr_gid;
+    }
+
+    if (ownerid != -1 || groupid != -1) {
+	err = chown(unpath, ownerid, groupid);
+	if (err)
+	    goto out_errno;
+    }
+    return 0;
+
+ out_errno:
+    err = errno;
+ out_err:
+    return gensio_os_err_to_err(nadata->o, err);
 }
 
 static int
@@ -649,11 +740,8 @@ netna_startup(struct gensio_accepter *accepter, struct netna_data *nadata)
 {
     int rv;
 
-    if (!nadata->istcp && nadata->delsock)
-	netna_rm_unix_socket(nadata->ai);
-
     rv = gensio_os_open_socket(nadata->o, nadata->ai, netna_readhandler,
-			       NULL, netna_fd_cleared, nadata,
+			       NULL, netna_fd_cleared, netna_b4_listen, nadata,
 			       nadata->opensock_flags,
 			       &nadata->acceptfds, &nadata->nr_acceptfds);
     if (!rv)
@@ -715,6 +803,12 @@ netna_free(struct gensio_accepter *accepter, struct netna_data *nadata)
 	nadata->o->free_runner(nadata->cb_en_done_runner);
     if (nadata->ai)
 	gensio_addr_free(nadata->ai);
+#if HAVE_UNIX
+    if (nadata->owner)
+	nadata->o->free(nadata->o, nadata->owner);
+    if (nadata->group)
+	nadata->o->free(nadata->o, nadata->group);
+#endif
     nadata->o->free(nadata->o, nadata);
 }
 
@@ -918,20 +1012,26 @@ net_gensio_accepter_alloc(struct gensio_addr *iai,
     gensiods max_read_size = GENSIO_DEFAULT_BUF_SIZE;
     bool nodelay = false;
     bool istcp = strcmp(type, "tcp") == 0;
-    bool delsock = false;
-    bool reuseaddr = true;
+    bool reuseaddr = istcp ? true : false;
+#if HAVE_UNIX
+    unsigned int umode = 6, gmode = 6, omode = 6, mode;
+    bool mode_set = false;
+    const char *owner = NULL, *group = NULL;
+#endif
     unsigned int i;
     int err, ival;
 
-    err = gensio_get_default(o, type, "delsock", false,
-			     GENSIO_DEFAULT_BOOL, NULL, &ival);
-    if (err)
-	return err;
-    delsock = ival;
-    err = gensio_get_default(o, type, "reuseaddr", false,
-			     GENSIO_DEFAULT_BOOL, NULL, &ival);
-    if (err)
-	return err;
+    if (istcp) {
+	err = gensio_get_default(o, type, "reuseaddr", false,
+				 GENSIO_DEFAULT_BOOL, NULL, &ival);
+	if (err)
+	    return err;
+    } else {
+	err = gensio_get_default(o, type, "delsock", false,
+				 GENSIO_DEFAULT_BOOL, NULL, &ival);
+	if (err)
+	    return err;
+    }
     reuseaddr = ival;
 
     for (i = 0; args && args[i]; i++) {
@@ -940,11 +1040,36 @@ net_gensio_accepter_alloc(struct gensio_addr *iai,
 	if (istcp && gensio_check_keybool(args[i], "nodelay", &nodelay) > 0)
 	    continue;
 	if (!istcp &&
-		gensio_check_keybool(args[i], "delsock", &delsock) > 0)
+		gensio_check_keybool(args[i], "delsock", &reuseaddr) > 0)
 	    continue;
 	if (istcp &&
 		gensio_check_keybool(args[i], "reuseaddr", &reuseaddr) > 0)
 	    continue;
+#if HAVE_UNIX
+	if (!istcp && gensio_check_keymode(args[i], "umode", &umode) > 0) {
+	    mode_set = true;
+	    continue;
+	}
+	if (!istcp && gensio_check_keymode(args[i], "gmode", &gmode) > 0) {
+	    mode_set = true;
+	    continue;
+	}
+	if (!istcp && gensio_check_keymode(args[i], "omode", &omode) > 0) {
+	    mode_set = true;
+	    continue;
+	}
+	if (!istcp && gensio_check_keyperm(args[i], "perm", &mode) > 0) {
+	    mode_set = true;
+	    umode = mode >> 6 & 7;
+	    gmode = mode >> 3 & 7;
+	    omode = mode & 7;
+	    continue;
+	}
+	if (!istcp && gensio_check_keyvalue(args[i], "owner", &owner))
+	    continue;
+	if (!istcp && gensio_check_keyvalue(args[i], "group", &group))
+	    continue;
+#endif
 	return GE_INVAL;
     }
 
@@ -952,10 +1077,25 @@ net_gensio_accepter_alloc(struct gensio_addr *iai,
     if (!nadata)
 	return GE_NOMEM;
     nadata->o = o;
-    if (reuseaddr)
-	nadata->opensock_flags |= GENSIO_OPENSOCK_REUSEADDR;
 
     err = GE_NOMEM;
+    if (reuseaddr)
+	nadata->opensock_flags |= GENSIO_OPENSOCK_REUSEADDR;
+#if HAVE_UNIX
+    nadata->mode_set = mode_set;
+    nadata->mode = umode << 6 | gmode << 3 | omode;
+    if (owner) {
+	nadata->owner = gensio_strdup(o, owner);
+	if (!nadata->owner)
+	    goto out_err;
+    }
+    if (group) {
+	nadata->group = gensio_strdup(o, group);
+	if (!nadata->group)
+	    goto out_err;
+    }
+#endif
+
     nadata->ai = gensio_addr_dup(iai);
     if (!nadata->ai)
 	goto out_err;
@@ -969,7 +1109,6 @@ net_gensio_accepter_alloc(struct gensio_addr *iai,
 	goto out_err;
 
     nadata->istcp = istcp;
-    nadata->delsock = delsock;
 
     err = base_gensio_accepter_alloc(NULL, netna_base_acc_op, nadata,
 				    o, type, cb, user_data, accepter);

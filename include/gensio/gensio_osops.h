@@ -193,6 +193,7 @@ int gensio_os_open_socket(struct gensio_os_funcs *o,
 			  void (*readhndlr)(int, void *),
 			  void (*writehndlr)(int, void *),
 			  void (*fd_handler_cleared)(int, void *),
+			  int (*call_b4_listen)(int, void *),
 			  void *data, unsigned int opensock_flags,
 			  struct opensocks **socks, unsigned int *nr_fds);
 

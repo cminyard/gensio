@@ -1278,7 +1278,7 @@ udpna_startup(struct gensio_accepter *accepter)
     if (!nadata->fds) {
 	rv = gensio_os_open_socket(nadata->o, nadata->ai,
 				   udpna_readhandler, udpna_writehandler,
-				   udpna_fd_cleared, nadata,
+				   udpna_fd_cleared, NULL, nadata,
 				   nadata->opensock_flags,
 				   &nadata->fds, &nadata->nr_fds);
 	if (rv)

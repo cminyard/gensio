@@ -1277,6 +1277,7 @@ gensio_os_open_socket(struct gensio_os_funcs *o,
 		      void (*readhndlr)(int, void *),
 		      void (*writehndlr)(int, void *),
 		      void (*fd_handler_cleared)(int, void *),
+		      int (*call_b4_listen)(int, void *),
 		      void *data, unsigned int opensock_flags,
 		      struct opensocks **rfds, unsigned int *nr_fds)
 {
@@ -1310,7 +1311,7 @@ gensio_os_open_socket(struct gensio_os_funcs *o,
 					rp->ai_protocol, rp->ai_flags,
 					rp->ai_addr, rp->ai_addrlen,
 					readhndlr, writehndlr, data,
-					fd_handler_cleared, NULL,
+					fd_handler_cleared, call_b4_listen,
 					opensock_flags,
 					&fds[curr_fd].fd, &fds[curr_fd].port,
 					&scaninfo);
@@ -1422,9 +1423,29 @@ gensio_setup_listen_socket(struct gensio_os_funcs *o, bool do_listen,
 	goto out_err;
 
     if (opensock_flags & GENSIO_OPENSOCK_REUSEADDR) {
-	if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR,
-		       (void *)&optval, sizeof(optval)) == -1)
-	    goto out_err;
+	if (family == AF_UNIX) {
+	    /* We remove an existing socket with reuseaddr and AF_UNIX. */
+	    struct sockaddr_un *unaddr = (struct sockaddr_un *) addr;
+	    char unpath[sizeof(unaddr->sun_path) + 1];
+
+	    /*
+	     * Make sure the path is nil terminated.  See discussions
+	     * in the unix(7) man page on Linux for details.
+	     */
+	    assert(addrlen <= sizeof(*unaddr));
+	    memcpy(unpath, unaddr->sun_path, addrlen - sizeof(sa_family_t));
+	    unpath[addrlen - sizeof(sa_family_t)] = '\0';
+
+	    unlink(unpath);
+	    /*
+	     * Ignore errors, it may not exist, and we'll get errors
+	     * later on problems.
+	     */
+	} else {
+	    if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR,
+			   (void *)&optval, sizeof(optval)) == -1)
+		goto out_err;
+	}
     }
 
     if (check_ipv6_only(family, protocol, flags, fd) == -1)

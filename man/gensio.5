@@ -515,13 +515,41 @@ you specify
 which will cause the file to be deleted.
 
 You should read the unix(7) man page for details on the semantics of
-these sockets, especially permissions.  Also note that remote
-credentials are not currently implemented.
+these sockets, especially permissions.  The options below allow
+setting various permission and ownership of the file, but this may not
+have any effect on who can open socket depending on the particular
+operating system.
+.B Portable programs should not rely on these permissions for security.
+Also note that Linux remote credentials are not
+currently implemented.
 .SS Options
 In addition to readbuf, the unix gensio takes the following options:
 .TP
 .B delsock[=true|false]
 If the socket path already exists, delete it before opening the socket.
+.TP
+.B umode=[0-7|[rwx]*]
+Set the user file mode for the unix socket file.  This is the usual
+read(4)/write(2)/execute(2) bitmask per chmod, but only for the user
+portion.  If any mode is specified, all modes are "6" (rw) and is
+modified by the umask per standard *nix semantics.  If no mode is
+specified, it is set to the default and not modified.
+.TP
+.B gmode=[0-7|[rwx]*]
+Set the group file mode for the unix socket file, see umode for details.
+.TP
+.B omode=[0-7|[rwx]*]
+Set the other file mode for the uix socket file, see umode for details.
+.TP
+.B perm=[0-7][0-7][0-7]
+Set the full mode for the unix socket file per standard *nix
+semantics, modified by umask as the above mode operations are.
+.TP
+.B owner=<name>
+Set the owner of the unix socket file to the given user.
+.TP
+.B group=<name>
+Set the group of the unix socket file to the given group.
 .SS Remote Address String
 The remote address will be: "unix,<socket path>".
 .SS Remote Address
@@ -1177,7 +1205,7 @@ by umask as the above mode operations are.
 Set the owner of the slave pty to the given user.
 .TP
 .B group=<name>
-Set the group of the slave pty to the given user.
+Set the group of the slave pty to the given group.
 .SS "Remote Address String"
 The remote address string the program and arguments run on the pty.
 The argiuments will be a set of quoted strings with a space between each
