@@ -209,7 +209,7 @@ telnet_ul_write(struct gensio_filter *filter,
 	gensiods i, writelen = 0;
 
 	for (i = 0; i < sglen; i++) {
-	    gensiods inlen = sg[i].buflen;
+	    size_t inlen = sg[i].buflen;
 	    const unsigned char *buf = sg[i].buf;
 
 	    tfilter->write_data_len =
