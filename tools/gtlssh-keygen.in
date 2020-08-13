@@ -299,7 +299,7 @@ pushcert_one() {
     NAME="$3"
 
     if [ -n "$PORT" ]; then
-	PPORT="-p '$PORT'"
+	PPORT="-p $PORT"
     else
 	PPORT=""
     fi
@@ -313,11 +313,11 @@ pushcert_one() {
 
     # Now find the old credentials
     if [ -e "$KEYDIR/${HOST}${PORT}.crt.1" ]; then
-	CERT="--certfile '$KEYDIR/${HOST}${PORT}.crt.1'"
-	KEY="-i '$KEYDIR/${HOST}${PORT}.key.1'"
+	CERT="--certfile $KEYDIR/${HOST}${PORT}.crt.1"
+	KEY="-i $KEYDIR/${HOST}${PORT}.key.1"
     elif [ -e "$GTLSSHDIR/default.crt.1" ]; then
-	CERT="--certfile '$GTLSSHDIR/default.crt.1'"
-	KEY="-i '$GTLSSHDIR/default.key.1'"
+	CERT="--certfile $GTLSSHDIR/default.crt.1"
+	KEY="-i $GTLSSHDIR/default.key.1"
     else
 	CERT=""
 	KEY=""
