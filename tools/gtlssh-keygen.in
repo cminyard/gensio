@@ -18,6 +18,8 @@ CONFDIR="@SYSCONFDIR@/gtlssh"
 COMMONNAME=
 COMMONNAME_SET=false
 
+FORCE=false
+
 help() {
     echo "Key handling tool for gtlssh.  Format is:"
     echo "$1 [<option> [<option> [...]]] command <command options>"
@@ -35,9 +37,15 @@ help() {
     echo "  --commonname <name> - Set the common name in the certificate."
     echo "        The default is your username for normal certificates and"
     echo "        the fully qualified domain name for server certificates."
+    echo "  --force, -f - Don't ask questions, just do the operation.  This"
+    echo "        may overwrite data without asking."
     echo ""
     echo "Commands are:"
-    echo "  keygen [-p <port>] <hostname>"
+    echo "  setup"
+    echo "    Create the directory structure for gtlssh and create the"
+    echo "    default keys."
+    echo ""
+    echo "  keygen [-p <port>] [<hostname>]"
     echo "    Generate a key for the given hostname, optionally at the given"
     echo "    port.  If no hostname is given, the default key/cert is generated"
     echo "    in $GTLSSHDIR/default.key and $GTLSSHDIR/default.crt.  Otherwise"
@@ -53,10 +61,6 @@ help() {
     echo "    If you don't enter any directories, it will rehash the following:"
     echo "      $GTLSSHDIR/allowed_certs"
     echo "      $GTLSSHDIR/server_certs"
-    echo ""
-    echo "  setup"
-    echo "    Create the directory structure for gtlssh and create the"
-    echo "    default keys."
     echo ""
     echo "  serverkey [name]"
     echo "    Create keys for the gtlsshd server.  Probably requires root."
@@ -87,7 +91,7 @@ check_dir() {
 	if $1; then
 	    mkdir -m 700 "$2"
 	else
-	    if promptyn "$2 does not exist.  Create it?"; then
+	    if $FORCE || promptyn "$2 does not exist.  Create it?"; then
 		rm -f "$2"
 		mkdir -m 700 "$2"
 	    else
@@ -101,11 +105,11 @@ check_dir() {
 check_dirstruct() {
     created=false
     if [ ! -d "$GTLSSHDIR" ]; then
-	if promptyn "$GTLSSHDIR does not exist or is not a directory.  Do you want to correct that?"; then
+	if $FORCE || promptyn "$GTLSSHDIR does not exist or is not a directory.  Do you want to correct that?"; then
 	    rm -f "$GTLSSHDIR"
 	else
 	    echo "Not modifying $GTLSSHDIR, giving up"
-	    exit 1
+	    return 1
 	fi
 	mkdir -m 700 "$GTLSSHDIR"
 	created=true
@@ -151,11 +155,12 @@ rehash() {
 	    shift
 	done
     fi
+    return 0
 }
 
 keygen_one() {
     if [ -e "$2" -o -e "$3" ]; then
-	if promptyn "Files $2 or $3 already exist, do you want to overwrite them?"; then
+	if $FORCE || promptyn "Files $2 or $3 already exist, do you want to overwrite them?"; then
 	    rm -f $2 $3
 	else
 	    echo "Not generating key for $1"
@@ -174,29 +179,33 @@ keygen_one() {
 keygen() {
     if [ $# -eq 0 ]; then
 	keygen_one default "$GTLSSHDIR/default.key" "$GTLSSHDIR/default.crt"
-    else
-	PORT=""
-	while [ $# -gt 0 ]; do
-	    case "$1" in
-		-p)
-		    shift
-		    if [ $# -eq 0 ]; then
-			echo "No port given with -p" 1>&2
-			exit 1
-		    fi
-		    if [ "X$1" == "X" ]; then
-			PORT=""
-		    else
-			PORT=",$1"
-		    fi
-		    ;;
-
-		*)
-		    keygen_one $1 "$KEYDIR/$1$PORT.key" "$KEYDIR/$1$PORT.crt"
-	    esac
-	    shift
-	done
+	return $?
     fi
+
+    PORT=""
+    while [ $# -gt 0 ]; do
+	case "$1" in
+	    -p)
+		shift
+		if [ $# -eq 0 ]; then
+		    echo "No port given with -p" 1>&2
+		    return 1
+		fi
+		if [ "X$1" == "X" ]; then
+		    PORT=""
+		else
+		    PORT=",$1"
+		fi
+		;;
+
+	    *)
+		if ! keygen_one $1 "$KEYDIR/$1$PORT.key" "$KEYDIR/$1$PORT.crt"; then
+		    return 1
+		fi
+	esac
+	shift
+    done
+    return 0
 }
 
 serverkey() {
@@ -208,7 +217,7 @@ serverkey() {
     SERVERCERT="$CONFDIR/$keyname.crt"
 
     if [ -e "$SERVERKEY" -o -e "$SERVERCERT" ]; then
-	if promptyn "Files $SERVERKEY or $SERVERCERT already exist, do you want to overwrite them?"; then
+	if $FORCE || promptyn "Files $SERVERKEY or $SERVERCERT already exist, do you want to overwrite them?"; then
 	    rm -f "$SERVERKEY" "$SERVERCERT"
 	else
 	    echo "Not generating server keys"
@@ -216,10 +225,14 @@ serverkey() {
 	fi
     fi
     mkdir -p "$CONFDIR"
-    openssl req -newkey rsa:"$KEYSIZE" -nodes -keyout "$SERVERKEY" -x509 \
-	    -days "$KEYDAYS" -out "$SERVERCERT" -subj "/CN=$COMMONNAME"
+    if ! openssl req -newkey rsa:"$KEYSIZE" -nodes -keyout "$SERVERKEY" -x509 \
+	 -days "$KEYDAYS" -out "$SERVERCERT" -subj "/CN=$COMMONNAME"; then
+	echo "Unable to create server key" 1>&2
+	return 1
+    fi
     # Just to be sure.
     chmod 600 "$SERVERKEY"
+    return 0
 }
 
 while [ $# -gt 0 ]; do
@@ -262,6 +275,10 @@ while [ $# -gt 0 ]; do
 	    COMMONNAME_SET=true
 	    ;;
 
+	--force | -f)
+	    FORCE=true
+	    ;;
+
 	--help | -h | -\?)
 	    help "$0"
 	    exit 0
@@ -279,10 +296,12 @@ while [ $# -gt 0 ]; do
     shift
 done
 
+RV=0
 case "$1" in
     rehash)
 	shift
 	rehash $@
+	RV=$?
 	;;
 
     keygen)
@@ -294,6 +313,7 @@ case "$1" in
 	    COMMONNAME=`whoami`
 	fi
 	keygen $@
+	RV=$?
 	;;
 
     setup)
@@ -302,6 +322,7 @@ case "$1" in
 	fi
 	check_dirstruct
 	keygen
+	RV=$?
 	;;
 
     serverkey)
@@ -313,12 +334,13 @@ case "$1" in
 	    COMMONNAME=`hostname -f`
 	fi
 	serverkey $@
+	RV=$?
 	;;
 
     *)
 	echo "Unknown command '$1'" 1>&2
 	help
-	exit 1
+	RV=1
 	;;
 esac
-exit 0
+exit ${RV}

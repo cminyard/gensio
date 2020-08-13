@@ -1,16 +1,12 @@
 .TH gtlssh-keygen 1 01/02/19  "Key handling for gtlssh"
-
 .SH NAME
 gtlssh-keygen \- Key handling for gtlssh
-
 .SH SYNOPSIS
 .B gtlssh-keygen [options] <command> [command options]
-
 .SH DESCRIPTION
 The
 .BR gtlssh-keygen
 program is used for making key handling for gtlssh easier.
-
 .SH OPTIONS
 .TP
 .I \-\-keysize size
@@ -33,11 +29,13 @@ Set the common name in the certificate.  The default is your username
 for normal certificates and the fully qualified domain name for server
 certificates.
 .TP
+.I \-\-force | \-f
+Don't ask any questions, just force the operations.  Be careful, this
+will overwrite data without asking.
+.TP
 .I \-h|\-\-help
 Help output
-
 .SH "COMMAND"
-
 Commands are:
 .TP
 .I keygen [-p <port>] [hostname]
@@ -46,12 +44,10 @@ If nothing is specified, create the default key in
 <basedir>/default.key and <basedir>/default.crt.  Otherwise create
 keys in the form <keydir>/<host>[,<port>].key and
 <keydir>/<host>[,<port>].crt.
-
 .TP
 .I setup
 Like keygen, but take no options and create the default certificate
 only.
-
 .TP
 .I rehash [directory [directory [...]]]
 The openssl library used by gtlssh requires that certificates in a
@@ -61,19 +57,15 @@ in the given directories.  If no directory is specified, it rehashes
 
 Note that if you add keys to these directories, you must rehash them
 or they will not work.
-
 .TP
 .I serverkey
 Create keys for the server, generally in /etc/gtlssh/gtlsshd.key and
 /etc/gtlssh/gtlsshd.crt.  You generally must be root to do this.  Use
 for initial setup of gtlsshd.
-
 .SH "SEE ALSO"
 gtlssh(1), gtlsshd(8)
-
 .SH "KNOWN PROBLEMS"
 None.
-
 .SH AUTHOR
 .PP
 Corey Minyard <minyard@acm.org>
