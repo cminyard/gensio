@@ -58,6 +58,15 @@ in the given directories.  If no directory is specified, it rehashes
 Note that if you add keys to these directories, you must rehash them
 or they will not work.
 .TP
+.I addallow [-i] <hostname> <file>
+Add the given file as an allowed public certificate for the given
+hostname.  It will install this file in the directory in
+<basedir>/allowed_certs with the given hostname as the name.  It will
+also rehash the directory.  If
+.I -i
+is specified, input comes from stdin and the file is not required or
+used.
+.TP
 .I serverkey
 Create keys for the server, generally in /etc/gtlssh/gtlsshd.key and
 /etc/gtlssh/gtlsshd.crt.  You generally must be root to do this.  Use

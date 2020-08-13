@@ -62,6 +62,14 @@ help() {
     echo "      $GTLSSHDIR/allowed_certs"
     echo "      $GTLSSHDIR/server_certs"
     echo ""
+    echo "  addallow [-i] <hostname> <file>"
+    echo "    Add the given file as an allowed public certificate for the given"
+    echo "    hostname.  It will install this file in the directory:"
+    echo "      $GTLSSHDIR/allowed_certs"
+    echo "    with the given hostname as the name.  It will also rehash the"
+    echo "    directory.  If -i is specified, input comes from stdin and the"
+    echo "    file is not required or used."
+    echo ""
     echo "  serverkey [name]"
     echo "    Create keys for the gtlsshd server.  Probably requires root."
     echo "    The name is a prefix for they filenames generated which will"
@@ -155,6 +163,60 @@ rehash() {
 	    shift
 	done
     fi
+    return 0
+}
+
+addallow() {
+    stdin=false
+    while [ $# -gt 0 ]; do
+	case "$1" in
+	    -i)
+		shift
+		stdin=true
+		;;
+	    --)
+		shift
+		break
+		;;
+	    -*)
+		echo "Unknown parameter: $1" 1>&2
+		return 1
+		;;
+	    *)
+		break;
+		;;
+	esac
+    done
+    if [ $# -lt 1 ]; then
+	echo "Missing hostname for addallow, see help" 1>&2
+	return 1
+    fi
+    DEST="$GTLSSHDIR/allowed_certs/$1"
+    shift
+    if ! $stdin && [ $# -lt 1 ]; then
+	echo "Missing certificate file for addallow, see help" 1>&2
+	return 1
+    fi
+    if [ -e "$DEST" ]; then
+	if $FORCE || promptyn "File $DEST already exists, do you want to overwrite it?"; then
+	    rm -f $DEST
+	else
+	    echo "Not installing certificate at $DEST"
+	    return 1
+	fi
+    fi
+    if $stdin; then
+	if ! cat >${DEST}; then
+	    echo "Unable to copy stdin into ${DEST}" 1>&2
+	    return 1
+	fi
+    else
+	if ! cp $2 ${DEST}; then
+	    echo "Unable to install $2 into ${DEST}" 1>&2
+	    return 1
+	fi
+    fi
+    hash_dir "$GTLSSHDIR/allowed_certs"
     return 0
 }
 
@@ -301,6 +363,12 @@ case "$1" in
     rehash)
 	shift
 	rehash $@
+	RV=$?
+	;;
+
+    addallow)
+	shift
+	addallow $@
 	RV=$?
 	;;
 
