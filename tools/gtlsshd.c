@@ -31,6 +31,9 @@
 #include "utils.h"
 #include "gtlssh.h"
 
+/* Default the program to this path. */
+#define STANDARD_PATH "/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+
 unsigned int debug;
 bool oneshot;
 static const char *progname;
@@ -716,15 +719,38 @@ new_rem_io(struct gensio *io, struct gdata *ginfo)
 	goto out_free;
     }
 
-    if (login || service) {
+    if (login || progv) {
 	for (i = 0; pam_env[i]; i++)
 	    ;
+	i += 4; /* Add a slot for minimal environment */
 	penv2 = malloc((i + env_len + 1) * sizeof(char *));
 	if (!penv2) {
 	    syslog(LOG_ERR, "Failure to reallocate env for %s", username);
 	    exit(1);
 	}
-	for (i = 0; pam_env[i]; i++)
+
+	penv2[0] = alloc_sprintf("HOME=%s", homedir);
+	if (!penv2[0]) {
+	    syslog(LOG_ERR, "Failure to alloc HOME env space for %s", username);
+	    exit(1);
+	}
+	penv2[1] = alloc_sprintf("USER=%s", username);
+	if (!penv2[1]) {
+	    syslog(LOG_ERR, "Failure to alloc USER env space for %s", username);
+	    exit(1);
+	}
+	penv2[2] = alloc_sprintf("LOGNAME=%s", username);
+	if (!penv2[2]) {
+	    syslog(LOG_ERR, "Failure to alloc LOGNAME env space for %s",
+		   username);
+	    exit(1);
+	}
+	penv2[3] = alloc_sprintf("PATH=%s", STANDARD_PATH);
+	if (!penv2[3]) {
+	    syslog(LOG_ERR, "Failure to alloc PATH env space for %s", username);
+	    exit(1);
+	}
+	for (i = 4, j = 0; pam_env[j]; i++, j++)
 	    penv2[i] = pam_env[i];
 	if (env) {
 	    for (j = 0; j < env_len; i++, j++)
