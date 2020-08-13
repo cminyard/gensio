@@ -645,9 +645,12 @@ with it.  If you want to get stderr from the gensio, open a channel on
 the main channel gensio, see below.
 
 .B NOTE:
-Do not use this for file I/O, only for pipes or ttys.  The epoll
-semantics to not work properly with file I/O.  Instead, use the file
-gensio.
+Though epoll() doesn't work with normal files, the stdio gensio has
+special handling for normal files so they mostly work.  This can have
+surprising side effects if you use stdin as a normal file.  When you
+hit the end of stdin, the stdio gensio will return GE_REMCLOSE and you
+may shut down the gensio and possibly lose any output going to
+stdout.  Use the file gensio if you can.
 
 For connecting gensios, in the forked process, the code will set the
 uid and guid to the current set effective uid and guid if the
