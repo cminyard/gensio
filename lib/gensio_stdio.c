@@ -413,10 +413,11 @@ stdion_deferred_op(struct gensio_runner *runner, void *cbdata)
     }
 
     if (schan->deferred_read) {
-	int err = 0;
+	int err;
 
 	schan->deferred_read = false;
     redo_read:
+	err = 0;
 	if (schan->outfd_regfile && !schan->data_pending_len)
 	    err = stdion_do_read(nadata, schan);
 	stdiona_unlock(nadata);
@@ -505,6 +506,8 @@ stdion_set_read_callback_enable(struct gensio *io, bool enabled)
 	schan->deferred_read = true;
 	schan->in_read = true;
 	stdion_start_deferred_op(schan);
+    } else if (schan->outfd_regfile) {
+	/* Nothing to do here. */
     } else {
 	nadata->o->set_read_handler(nadata->o, schan->outfd, enabled);
     }
