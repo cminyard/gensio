@@ -45,14 +45,20 @@ help() {
     echo "    Create the directory structure for gtlssh and create the"
     echo "    default keys."
     echo ""
-    echo "  keygen [-p <port>] [<hostname>]"
-    echo "    Generate a key for the given hostname, optionally at the given"
+    echo "  keygen [-p <port>] [<hostname>] [[-p <port>] <hostname> [...]]"
+    echo "    Generate a keys for the given hostnames, optionally at the given"
     echo "    port.  If no hostname is given, the default key/cert is generated"
-    echo "    in $GTLSSHDIR/default.key and $GTLSSHDIR/default.crt.  Otherwise"
-    echo "    The key is generated in $KEYDIR/<hostname>[,<port>].key/crt."
+    echo "    in"
+    echo "      $GTLSSHDIR/default.key"
+    echo "    and"
+    echo "      $GTLSSHDIR/default.crt"
+    echo "    Otherwise the key is generated in"
+    echo "      $KEYDIR/<hostname>[,<port>].key/crt."
     echo "    When gtlssh makes a connection, it will look for the hostname"
     echo "    with the port, then just the hostname, then the default key in"
     echo "    that order for the key to use for the connection."
+    echo "    If there are any old keys, they will be renamed with a '.1'"
+    echo "    appended to the name."
     echo ""
     echo "  rehash [<dir> [<dir> [...]]]"
     echo "    Redo the hash entries in the given directories.  If you put"
@@ -69,6 +75,21 @@ help() {
     echo "    with the given hostname as the name.  It will also rehash the"
     echo "    directory.  If -i is specified, input comes from stdin and the"
     echo "    file is not required or used."
+    echo ""
+    echo "  pushcert [-p <port>] <hostname> [[-p <port>] <hostname> [...]]"
+    echo "    Put the local certificate for the given host onto the remote"
+    echo "    host so it can be used for login.  It uses old credentials"
+    echo "    (credentials with .1 appended to the name, per keygen) if"
+    echo "    they are there.  This is useful if you have upated your"
+    echo "    certificate and need to send a new one to some remote hosts."
+    echo "    It finds the certificate name as described in the keygen"
+    echo "    command.  If old credentials exist, it will use those to"
+    echo "    connect with gtlssh and send the certificate.  Otherwise it"
+    echo "    will use default credentials and hope for the best, probably"
+    echo "    only useful if passwords are accepcted.  This only works"
+    echo "    one keygen back, if you have run the keygen command twice"
+    echo "    for the host, you will need to transfer the certificate"
+    echo "    manually."
     echo ""
     echo "  serverkey [name]"
     echo "    Create keys for the gtlsshd server.  Probably requires root."
@@ -211,8 +232,8 @@ addallow() {
 	    return 1
 	fi
     else
-	if ! cp $2 ${DEST}; then
-	    echo "Unable to install $2 into ${DEST}" 1>&2
+	if ! cp $1 ${DEST}; then
+	    echo "Unable to install $1 into ${DEST}" 1>&2
 	    return 1
 	fi
     fi
@@ -223,7 +244,8 @@ addallow() {
 keygen_one() {
     if [ -e "$2" -o -e "$3" ]; then
 	if $FORCE || promptyn "Files $2 or $3 already exist, do you want to overwrite them?"; then
-	    rm -f $2 $3
+	    mv -f $2 $2.1
+	    mv -f $3 $3.1
 	else
 	    echo "Not generating key for $1"
 	    return 1
@@ -270,6 +292,73 @@ keygen() {
     return 0
 }
 
+pushcert_one() {
+    HOST="$1"
+    PORT="$2"
+
+    if [ -n "$PORT" ]; then
+	PPORT="-p '$PORT'"
+    else
+	PPORT=""
+    fi
+
+    # Find the certificate we want to send.
+    if [ -e "$KEYDIR/${HOST}${PORT}.crt" ]; then
+	UPCERT="$KEYDIR/${HOST}${PORT}.crt"
+    else
+	UPCERT="$GTLSSHDIR/default.crt"
+    fi
+
+    # Now find the old credentials
+    if [ -e "$KEYDIR/${HOST}${PORT}.crt.1" ]; then
+	CERT="--certfile '$KEYDIR/${HOST}${PORT}.crt.1'"
+	KEY="-i '$KEYDIR/${HOST}${PORT}.key.1'"
+    elif [ -e "$GTLSSHDIR/default.crt.1" ]; then
+	CERT="--certfile '$GTLSSHDIR/default.crt.1'"
+	KEY="-i '$GTLSSHDIR/default.key.1'"
+    else
+	CERT=""
+	KEY=""
+	echo "Could not find an old certificate for ${HOST}${PORT}."
+	echo "Just trying to send it without old credentials."
+    fi
+
+    gtlssh $KEY $CERT $PPORT "$HOST" \
+	   sh -c "gtlssh-keygen -f addallow -i `hostname -f`" <"$UPCERT"
+}
+
+pushcert() {
+    if [ $# -eq 0 ]; then
+	echo "No remote system given to update" 1>&2
+	return 1
+    fi
+
+    PORT=""
+    while [ $# -gt 0 ]; do
+	case "$1" in
+	    -p)
+		shift
+		if [ $# -eq 0 ]; then
+		    echo "No port given with -p" 1>&2
+		    return 1
+		fi
+		if [ "X$1" == "X" ]; then
+		    PORT=""
+		else
+		    PORT=",$1"
+		fi
+		;;
+
+	    *)
+		if ! pushcert_one "$1" "$PORT"; then
+		    return 1
+		fi
+	esac
+	shift
+    done
+    return 0
+}
+
 serverkey() {
     keyname="gtlsshd"
     if [ $# -gt 0 ]; then
@@ -280,7 +369,8 @@ serverkey() {
 
     if [ -e "$SERVERKEY" -o -e "$SERVERCERT" ]; then
 	if $FORCE || promptyn "Files $SERVERKEY or $SERVERCERT already exist, do you want to overwrite them?"; then
-	    rm -f "$SERVERKEY" "$SERVERCERT"
+	    mv -f "$SERVERKEY" "$SERVERKEY".1
+	    mv -f "$SERVERCERT" "$SERVERCERT".1
 	else
 	    echo "Not generating server keys"
 	    return 1
@@ -369,6 +459,12 @@ case "$1" in
     addallow)
 	shift
 	addallow $@
+	RV=$?
+	;;
+
+    pushcert)
+	shift
+	pushcert $@
 	RV=$?
 	;;
 

@@ -67,6 +67,19 @@ also rehash the directory.  If
 is specified, input comes from stdin and the file is not required or
 used.
 .TP
+.I pushcert [-p <port>] <hostname> [[-p <port>] <hostname> [...]]
+Put the local certificate for the given host onto the remote host so
+it can be used for login.  It uses old credentials (credentials
+with .1 appended to the name, per keygen) if they are there.  This is
+useful if you have upated your certificate and need to send a new one
+to some remote hosts.  It finds the certificate name as described in
+the keygen command.  If old credentials exist, it will use those to
+connect with gtlssh and send the certificate.  Otherwise it will use
+default credentials and hope for the best, probably only useful if
+passwords are accepcted.  This only works one keygen back, if you have
+run the keygen command twice for the host, you will need to transfer
+the certificate manually.
+.TP
 .I serverkey
 Create keys for the server, generally in /etc/gtlssh/gtlsshd.key and
 /etc/gtlssh/gtlsshd.crt.  You generally must be root to do this.  Use
