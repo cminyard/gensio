@@ -76,7 +76,7 @@ help() {
     echo "    directory.  If -i is specified, input comes from stdin and the"
     echo "    file is not required or used."
     echo ""
-    echo "  pushcert [-p <port>] <hostname> [[-p <port>] <hostname> [...]]"
+    echo "  pushcert [-n <name>] [-p <port>] <hostname> [[-p <port>] <hostname> [...]]"
     echo "    Put the local certificate for the given host onto the remote"
     echo "    host so it can be used for login.  It uses old credentials"
     echo "    (credentials with .1 appended to the name, per keygen) if"
@@ -89,7 +89,8 @@ help() {
     echo "    only useful if passwords are accepcted.  This only works"
     echo "    one keygen back, if you have run the keygen command twice"
     echo "    for the host, you will need to transfer the certificate"
-    echo "    manually."
+    echo "    manually.  By default the credential on the remote host is"
+    echo "    named the output of 'hostname -f', -n overrides this."
     echo ""
     echo "  serverkey [name]"
     echo "    Create keys for the gtlsshd server.  Probably requires root."
@@ -295,6 +296,7 @@ keygen() {
 pushcert_one() {
     HOST="$1"
     PORT="$2"
+    NAME="$3"
 
     if [ -n "$PORT" ]; then
 	PPORT="-p '$PORT'"
@@ -324,7 +326,7 @@ pushcert_one() {
     fi
 
     gtlssh $KEY $CERT $PPORT "$HOST" \
-	   sh -c "gtlssh-keygen -f addallow -i `hostname -f`" <"$UPCERT"
+	   gtlssh-keygen -f addallow -i $NAME <"$UPCERT"
 }
 
 pushcert() {
@@ -334,6 +336,7 @@ pushcert() {
     fi
 
     PORT=""
+    NAME=`hostname -f`
     while [ $# -gt 0 ]; do
 	case "$1" in
 	    -p)
@@ -349,8 +352,21 @@ pushcert() {
 		fi
 		;;
 
+	    -n)
+		shift
+		if [ $# -eq 0 ]; then
+		    echo "No name given with -n" 1>&2
+		    return 1
+		fi
+		if [ "X$1" == "X" ]; then
+		    NAME=`hostname -f`
+		else
+		    NAME="$1"
+		fi
+		;;
+
 	    *)
-		if ! pushcert_one "$1" "$PORT"; then
+		if ! pushcert_one "$1" "$PORT" "$NAME"; then
 		    return 1
 		fi
 	esac
