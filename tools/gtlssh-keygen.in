@@ -213,7 +213,7 @@ addallow() {
 	echo "Missing hostname for addallow, see help" 1>&2
 	return 1
     fi
-    DEST="$GTLSSHDIR/allowed_certs/$1"
+    DEST="$GTLSSHDIR/allowed_certs/$1.crt"
     shift
     if ! $stdin && [ $# -lt 1 ]; then
 	echo "Missing certificate file for addallow, see help" 1>&2
