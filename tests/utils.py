@@ -985,3 +985,10 @@ def check_pipe_dev(is_serialsim = False):
 
 def remote_id_int(io):
     return int(io.control(0, True, gensio.GENSIO_CONTROL_REMOTE_ID, None))
+
+def check_sctp():
+    try:
+        import socket
+        socket.socket(socket.AF_INET, socket.SOCK_STREAM, socket.IPPROTO_SCTP)
+    except:
+        sys.exit(77)

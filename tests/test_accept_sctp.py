@@ -8,10 +8,11 @@
 from utils import *
 import gensio
 
+check_sctp()
 print("Test accept sctp")
 # FIXME - the raddr and laddr areq not tested here, it's hard to
 # know what it would be because of sctp multihoming.
-a = TestAccept(o, "sctp,localhost,", "sctp,0", do_test, do_close = False)
+a = TestAccept(o, "sctp,ipv4,localhost,", "sctp,0", do_test, do_close = False)
 c = a.io1.control(0, True, gensio.GENSIO_CONTROL_STREAMS, None)
 if c != "instreams=1,ostreams=1":
     raise Exception("Invalid stream settings: %s" % c)

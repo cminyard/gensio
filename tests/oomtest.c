@@ -86,6 +86,27 @@ l_assert_or_stop(bool val, char *expr, int line)
 }
 #define assert_or_stop(val) l_assert_or_stop(val, #val, __LINE__)
 
+#if HAVE_LIBSCTP
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <netinet/sctp.h>
+#endif
+static bool
+check_sctp_present(struct gensio_os_funcs *o, struct oom_tests *test)
+{
+#if HAVE_LIBSCTP
+    int s;
+
+    s = socket(AF_INET, SOCK_STREAM, IPPROTO_SCTP);
+    if (s == -1)
+	return false;
+    close(s);
+    return true;
+#else
+    return false;
+#endif
+}
+
 static bool
 check_serialdev_present(struct gensio_os_funcs *o, struct oom_tests *test)
 {
@@ -148,10 +169,10 @@ struct oom_tests oom_tests[] = {
     { "echo", NULL },
     { "tcp,localhost,", "tcp,0" },
     { "sctp,localhost,", "sctp,0",
-      .check_done = 1, .check_value = HAVE_LIBSCTP },
+      .check_if_present = check_sctp_present, .check_value = HAVE_LIBSCTP },
     { "udp,localhost,", "udp,0" },
     { "mux,sctp,localhost,", "mux,sctp,0",
-      .check_done = 1, .check_value = HAVE_LIBSCTP },
+      .check_if_present = check_sctp_present, .check_value = HAVE_LIBSCTP },
     { "telnet(rfc2217),tcp,localhost,", "telnet(rfc2217),tcp,0" },
     { "serialdev,%s,115200", NULL,
       .check_if_present = check_serialdev_present,

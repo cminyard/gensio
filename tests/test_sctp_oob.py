@@ -8,5 +8,6 @@
 from utils import *
 import gensio
 
+check_sctp()
 print("Test sctp oob")
 ta = TestAccept(o, "sctp,localhost,", "sctp,0", do_oob_test, chunksize = 64)

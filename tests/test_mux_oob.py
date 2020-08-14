@@ -8,6 +8,8 @@
 from utils import *
 import gensio
 
+check_sctp()
+
 print("Test mux sctp oob")
 ta = TestAccept(o, "mux,sctp,localhost,", "mux,sctp,0", do_oob_test,
                 chunksize = 64)

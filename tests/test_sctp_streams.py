@@ -8,6 +8,8 @@
 from utils import *
 import gensio
 
+check_sctp()
+
 def do_stream_test(io1, io2):
     rb = os.urandom(10)
     print("  testing io1 to io2")

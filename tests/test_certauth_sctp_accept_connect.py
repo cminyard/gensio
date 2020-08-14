@@ -8,6 +8,8 @@
 from utils import *
 import gensio
 
+check_sctp()
+
 print("Test certauth over ssl over sctp accepter connect")
 goterr = False
 try:
