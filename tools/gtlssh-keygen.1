@@ -114,11 +114,12 @@ will automatically remove any certificates that have expired.
 .I addallow [-i] <hostname> <file>
 Add the given file as an allowed public certificate for the given
 hostname.  It will install this file in the directory in
-<basedir>/allowed_certs with the given hostname as the name.  It will
+<basedir>/allowed_certs with the name "hostname.crt".  It will
 also rehash the directory.  If
 .I -i
 is specified, input comes from stdin and the file is not required or
-used.
+used.  If the destination file already exists, it will rename it
+"hostname.crt.1.crt".
 .TP
 .I pushcert [-n <name> ] [-p <port>] <hostname> [[-p <port>] <hostname> [...]]
 Put the local certificate for the given host onto the remote host so
@@ -132,7 +133,7 @@ default credentials and hope for the best, probably only useful if
 passwords are accepcted.  This only works one keygen back, if you have
 run the keygen command twice for the host, you will need to transfer
 the certificate manually.  By default the credential on the remote
-host is named the output of 'hostname -f',
+host is named the output of 'hostname -f' on the local machine,
 .I -n
 overrides this.
 .TP

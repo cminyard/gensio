@@ -73,9 +73,10 @@ help() {
     echo "    Add the given file as an allowed public certificate for the given"
     echo "    hostname.  It will install this file in the directory:"
     echo "      $GTLSSHDIR/allowed_certs"
-    echo "    with the given hostname as the name.  It will also rehash the"
+    echo "    with the name 'hostname.crt'.  It will also rehash the"
     echo "    directory.  If -i is specified, input comes from stdin and the"
-    echo "    file is not required or used."
+    echo "    file is not required or used.  If the destination file already"
+    echo "    exists, it will rename it 'hostname.crt.1.crt'."
     echo ""
     echo "  pushcert [-n <name>] [-p <port>] <hostname> [[-p <port>] <hostname> [...]]"
     echo "    Put the local certificate for the given host onto the remote"
@@ -91,7 +92,8 @@ help() {
     echo "    one keygen back, if you have run the keygen command twice"
     echo "    for the host, you will need to transfer the certificate"
     echo "    manually.  By default the credential on the remote host is"
-    echo "    named the output of 'hostname -f', -n overrides this."
+    echo "    named the output of 'hostname -f' on the local machine,"
+    echo "    -n overrides this."
     echo ""
     echo "  serverkey [name]"
     echo "    Create keys for the gtlsshd server.  Probably requires root."
@@ -231,7 +233,7 @@ addallow() {
     fi
     if [ -e "$DEST" ]; then
 	if $FORCE || promptyn "File $DEST already exists, do you want to overwrite it?"; then
-	    rm -f $DEST
+	    mv -f "$DEST" "${DEST}.1.crt"
 	else
 	    echo "Not installing certificate at $DEST"
 	    return 1
