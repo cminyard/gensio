@@ -469,7 +469,8 @@ i_stdion_fd_cleared(int fd, struct stdiona_data *nadata,
 	assert(false);
     }
 
-    close(fd);
+    if (fd > 2) /* Don't close stdin, stdout, or stderr. */
+	close(fd);
 
     if (schan->in_close && !schan->in_handler_set && !schan->out_handler_set) {
 	if (schan == &nadata->io && !nadata->err.out_handler_set &&
