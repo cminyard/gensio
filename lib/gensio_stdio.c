@@ -228,9 +228,6 @@ stdion_finish_read(struct stdion_channel *schan, int err)
     struct gensio *io = schan->io;
     gensiods count;
 
-    if (!err && !schan->data_pending_len)
-	return;
-
     if (err) {
 	/* Do this here so the user can modify it. */
 	stdiona_lock(nadata);
@@ -238,23 +235,24 @@ stdion_finish_read(struct stdion_channel *schan, int err)
 	if (!schan->outfd_regfile)
 	    nadata->o->set_read_handler(nadata->o, schan->outfd, false);
 	stdiona_unlock(nadata);
-    }
-
- retry:
-    count = schan->data_pending_len;
-    gensio_cb(io, GENSIO_EVENT_READ, err,
-	      schan->read_data + schan->data_pos, &count, NULL);
-    stdiona_lock(nadata);
-    if (!err && count < schan->data_pending_len) {
-	/* The user didn't consume all the data. */
-	schan->data_pending_len -= count;
-	schan->data_pos += count;
-	if (!schan->closed && schan->read_enabled) {
-	    stdiona_unlock(nadata);
-	    goto retry;
+	gensio_cb(io, GENSIO_EVENT_READ, err, NULL, NULL, NULL);
+    } else if (schan->data_pending_len) {
+    retry:
+	count = schan->data_pending_len;
+	gensio_cb(io, GENSIO_EVENT_READ, err,
+		  schan->read_data + schan->data_pos, &count, NULL);
+	stdiona_lock(nadata);
+	if (!err && count < schan->data_pending_len) {
+	    /* The user didn't consume all the data. */
+	    schan->data_pending_len -= count;
+	    schan->data_pos += count;
+	    if (!schan->closed && schan->read_enabled) {
+		stdiona_unlock(nadata);
+		goto retry;
+	    }
+	} else {
+	    schan->data_pending_len = 0;
 	}
-    } else {
-	schan->data_pending_len = 0;
     }
 
     schan->in_read = false;
