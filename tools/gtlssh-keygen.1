@@ -7,6 +7,56 @@ gtlssh-keygen \- Key handling for gtlssh
 The
 .BR gtlssh-keygen
 program is used for making key handling for gtlssh easier.
+
+Generally, when you start using gtlssh on a system, you would run
+
+  gtlssh-keygen keygen
+
+and it would create keys for you.  You should do the same thing on any
+target system you want to log into with gtlssh.  Then copy the
+default.crt file in your $HOME/.gtlssh directory to the target's
+$HOME/.gtlssh/allowed_certs directory.  After that you should be able
+to log in without a password.
+
+When you need to regenerate your keys, you run
+
+  gtlssh-keygen keygen
+
+again.  It will prompt you for replacement.  If you replace the keys,
+the old keys will be saved with a ".1" appended to the filename.  Once
+you replace they keys, you need to push up new keys to all your
+target.  You can run
+
+  gtlssh-keygen pushcert target1 [target2 [....]]
+
+to update they keys on all those targets.  It will use the old
+credentials (with the ".1" appended) to do this, so it should work
+easily.
+.SH DIFFERENCES FROM SSH
+Unlike ssh, ssl keys have lifetimes.  By default gtlssh creates 1 year
+lifetimes on keys, though you can override this.  Although this is a
+little annoying, it is a good idea to replace your keys periodically,
+so you could call this a good thing.
+
+gtlssh lets you create keys for specific targets and use them
+automatically.  Suppose, for instance, that you want to use a
+different key for logging into target abc.my.domain.  You would do:
+
+  gtlssh-keygen keygen abc.my.domain
+
+and it would create a key and certificate in the
+directory .gtlssh/keycerts with the names abc.my.domain.crt and
+abc.my.domain.key.  You would need to copy that certificate (not the
+default.crt) to your remote target.
+.B gtlssh
+would see that those keys were there and use them automatically when
+you logged in to abc.my.domain.  The pushcert command understands
+this, too, and will handle pushing the proper keys when you push to
+abc.my.domain.
+
+You can also add ports to the key generation, and it will only use it
+if you connect to the specific target on the specific port.  This
+could be useful for ser2net.
 .SH OPTIONS
 .TP
 .I \-\-keysize size
