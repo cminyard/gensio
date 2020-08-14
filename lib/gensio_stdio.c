@@ -228,10 +228,15 @@ stdion_finish_read(struct stdion_channel *schan, int err)
     struct gensio *io = schan->io;
     gensiods count;
 
+    if (!err && !schan->data_pending_len)
+	return;
+
     if (err) {
 	/* Do this here so the user can modify it. */
 	stdiona_lock(nadata);
 	schan->read_enabled = false;
+	if (!schan->outfd_regfile)
+	    nadata->o->set_read_handler(nadata->o, schan->outfd, false);
 	stdiona_unlock(nadata);
     }
 
@@ -361,6 +366,7 @@ stdion_do_read(struct stdiona_data *nadata, struct stdion_channel *schan)
 	rv = GE_REMCLOSE;
     } else {
 	schan->data_pending_len = rv;
+	schan->data_pos = 0;
 	rv = 0;
     }
 
@@ -432,7 +438,7 @@ stdion_deferred_op(struct gensio_runner *runner, void *cbdata)
 	stdion_start_close(schan);
     }
 
-    if (schan->deferred_read || schan->in_open)
+    if (schan->deferred_read || schan->in_open || schan->deferred_write)
 	goto restart;
 
     schan->deferred_op_pending = false;
@@ -558,7 +564,6 @@ stdion_read_ready(int fd, void *cbdata)
     if (!schan->outfd_regfile)
 	nadata->o->set_read_handler(nadata->o, schan->outfd, false);
     schan->in_read = true;
-    schan->data_pos = 0;
     stdiona_unlock(nadata);
 
     stdion_finish_read(schan, stdion_do_read(nadata, schan));
