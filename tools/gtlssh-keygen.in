@@ -67,6 +67,7 @@ help() {
     echo "    If you don't enter any directories, it will rehash the following:"
     echo "      $GTLSSHDIR/allowed_certs"
     echo "      $GTLSSHDIR/server_certs"
+    echo "    Certificates that have expired are automatically removed."
     echo ""
     echo "  addallow [-i] <hostname> <file>"
     echo "    Add the given file as an allowed public certificate for the given"
@@ -156,7 +157,16 @@ hash_dir() {
 	rm "$i"
     done
     declare -A fingerprints
-    for i in `ls *.crt 2>/dev/null`; do
+    now=`date +'%s'`
+    for i in `ls -- *.crt 2>/dev/null`; do
+	# First make sure the certificate hasn't expired.
+	datestr=`openssl x509 -noout -enddate -in "$i" | sed 's/^notAfter=//'`
+	expiry=`date -d "$datestr" +'%s'`
+	if [ $now -ge $expiry ]; then
+	    # It's expired, remove it and go on.
+	    rm -f "$i"
+	    continue
+	fi
 	fingerprint=`openssl x509 -fingerprint -noout -in "$i"`
 	if [ "x${fingerprints[${fingerprint}]}" == 'x' ]; then
 	    fingerprints[${fingerprint}]=1
