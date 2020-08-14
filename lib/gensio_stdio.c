@@ -230,28 +230,29 @@ stdion_finish_read(struct stdion_channel *schan, int err)
 
     if (err) {
 	/* Do this here so the user can modify it. */
-	stdiona_lock(nadata);
 	schan->read_enabled = false;
 	if (!schan->outfd_regfile)
 	    nadata->o->set_read_handler(nadata->o, schan->outfd, false);
-	stdiona_unlock(nadata);
-	gensio_cb(io, GENSIO_EVENT_READ, err, NULL, NULL, NULL);
-    } else if (schan->data_pending_len) {
-    retry:
-	count = schan->data_pending_len;
-	gensio_cb(io, GENSIO_EVENT_READ, err,
-		  schan->read_data + schan->data_pos, &count, NULL);
-	stdiona_lock(nadata);
-	if (!err && count < schan->data_pending_len) {
-	    /* The user didn't consume all the data. */
-	    schan->data_pending_len -= count;
-	    schan->data_pos += count;
-	    if (!schan->closed && schan->read_enabled) {
-		stdiona_unlock(nadata);
-		goto retry;
+	do {
+	    stdiona_unlock(nadata);
+	    gensio_cb(io, GENSIO_EVENT_READ, err, NULL, NULL, NULL);
+	    stdiona_lock(nadata);
+	} while (!schan->closed && schan->read_enabled);
+    } else {
+	while (schan->data_pending_len && !schan->closed &&
+	       schan->read_enabled) {
+	    count = schan->data_pending_len;
+	    stdiona_unlock(nadata);
+	    gensio_cb(io, GENSIO_EVENT_READ, err,
+		      schan->read_data + schan->data_pos, &count, NULL);
+	    stdiona_lock(nadata);
+	    if (!err && count < schan->data_pending_len) {
+		/* The user didn't consume all the data. */
+		schan->data_pending_len -= count;
+		schan->data_pos += count;
+	    } else {
+		schan->data_pending_len = 0;
 	    }
-	} else {
-	    schan->data_pending_len = 0;
 	}
     }
 
@@ -259,7 +260,6 @@ stdion_finish_read(struct stdion_channel *schan, int err)
 
     if (schan->read_enabled && !schan->outfd_regfile)
 	nadata->o->set_read_handler(nadata->o, schan->outfd, true);
-    stdiona_unlock(nadata);
 }
 
 static void
@@ -424,9 +424,7 @@ stdion_deferred_op(struct gensio_runner *runner, void *cbdata)
 	err = 0;
 	if (schan->outfd_regfile && !schan->data_pending_len)
 	    err = stdion_do_read(nadata, schan);
-	stdiona_unlock(nadata);
 	stdion_finish_read(schan, err);
-	stdiona_lock(nadata);
 	if (schan->outfd_regfile && schan->read_enabled)
 	    goto redo_read;
     }
@@ -563,9 +561,9 @@ stdion_read_ready(int fd, void *cbdata)
     if (!schan->outfd_regfile)
 	nadata->o->set_read_handler(nadata->o, schan->outfd, false);
     schan->in_read = true;
-    stdiona_unlock(nadata);
 
     stdion_finish_read(schan, stdion_do_read(nadata, schan));
+    stdiona_unlock(nadata);
 }
 
 static void
