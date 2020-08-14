@@ -160,7 +160,7 @@ hash_dir() {
     done
     declare -A fingerprints
     now=`date +'%s'`
-    for i in `ls -- *.crt 2>/dev/null`; do
+    for i in *.crt; do
 	# First make sure the certificate hasn't expired.
 	datestr=`openssl x509 -noout -enddate -in "$i" | sed 's/^notAfter=//'`
 	expiry=`date -d "$datestr" +'%s'`
