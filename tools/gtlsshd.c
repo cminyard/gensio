@@ -866,7 +866,18 @@ new_rem_io(struct gensio *io, struct gdata *ginfo)
 
     ioinfo_set_ready(pcinfo->ioinfo1, io);
     ioinfo_set_ready(pcinfo->ioinfo2, pty_io);
+
+    {
+	/* Send a single oob "r" to the other end to say we are ready. */
+	static const char *oobaux[2] = { "oob", NULL };
+	char cmd = 'r';
+
+	/* Tell the other end we are ready. */
+	gensio_write(io, NULL, &cmd, 1, oobaux);
+    }
+
     io = NULL;
+
     goto out_free;
 
  out_err:
@@ -904,7 +915,7 @@ mux_event(struct gensio *io, void *user_data, int event, int ierr,
     return GE_NOTSUP;
 }
 
-static void
+static struct gensio *
 open_mux(struct gensio *io, struct gdata *ginfo, const char *service)
 {
     struct gensio_os_funcs *o = ginfo->o;
@@ -925,8 +936,7 @@ open_mux(struct gensio *io, struct gdata *ginfo, const char *service)
 	exit(1);
     }
 
-    start_local_ports(mux_io);
-    new_rem_io(mux_io, ginfo);
+    return mux_io;
 }
 
 static void
@@ -939,7 +949,7 @@ handle_new(struct gensio_runner *r, void *cb_data)
     const char *ssl_args[] = { ginfo->key, ginfo->cert, "mode=server", NULL };
     const char *certauth_args[] = { "mode=server", "allow-authfail", NULL,
 				    NULL };
-    struct gensio *ssl_io, *certauth_io;
+    struct gensio *ssl_io, *certauth_io, *top_io;
     gensiods len;
     char tmpservice[20];
     bool interactive = false;
@@ -977,39 +987,6 @@ handle_new(struct gensio_runner *r, void *cb_data)
 
     /* FIXME - figure out a way to unstack certauth_io after authentication */
 
-    ginfo->rem_io = certauth_io;
-
-    gensio_conv.appdata_ptr = ginfo;
-    pam_err = pam_set_item(pamh, PAM_CONV, &gensio_conv);
-    if (pam_err) {
-	syslog(LOG_ERR, "Unable to set PAM_CONV");
-	exit(1);
-    }
-
-    if (!gensio_is_authenticated(certauth_io)) {
-	int tries = 3;
-
-	do {
-	    gensio_time timeout = {10, 0};
-
-	    write_str_to_gensio("Permission denied, please try again\n",
-				certauth_io, &timeout, true);
-	    pam_err = pam_authenticate(pamh, 0);
-	    tries--;
-	} while (pam_err != PAM_SUCCESS && tries > 0);
-
-	if (pam_err != PAM_SUCCESS) {
-	    gensio_time timeout = {10, 0};
-
-	    write_str_to_gensio("Too many tries, giving up\n", certauth_io,
-				&timeout, true);
-	    syslog(LOG_ERR, "Too many login tries for %s\n", username);
-	    exit(1);
-	}
-	syslog(LOG_INFO, "Accepted password for %s\n", username);
-	/* FIXME - gensio_set_is_authenticated(certauth_io, true); */
-    }
-
     len = sizeof(tmpservice);
     err = gensio_control(certauth_io, 0, true, GENSIO_CONTROL_SERVICE,
 			 tmpservice, &len);
@@ -1019,6 +996,54 @@ handle_new(struct gensio_runner *r, void *cb_data)
 			    &timeout, true);
 	exit(1);
     }
+
+    if (strstartswith(tmpservice, "mux"))
+	top_io = open_mux(certauth_io, ginfo, tmpservice);
+    else
+	top_io = certauth_io;
+
+    ginfo->rem_io = top_io;
+    gensio_conv.appdata_ptr = ginfo;
+    pam_err = pam_set_item(pamh, PAM_CONV, &gensio_conv);
+    if (pam_err) {
+	syslog(LOG_ERR, "Unable to set PAM_CONV");
+	exit(1);
+    }
+
+    if (!gensio_is_authenticated(top_io)) {
+	int tries = 3;
+
+	do {
+	    gensio_time timeout = {10, 0};
+
+	    err = write_str_to_gensio("Permission denied, please try again\n",
+				      top_io, &timeout, true);
+	    if (err) {
+		syslog(LOG_INFO, "Error getting password: %s\n",
+		       gensio_err_to_str(err));
+		exit(1);
+	    }
+	    pam_err = pam_authenticate(pamh, 0);
+	    tries--;
+	} while (pam_err != PAM_SUCCESS && tries > 0);
+
+	if (pam_err != PAM_SUCCESS) {
+	    gensio_time timeout = {10, 0};
+
+	    err = write_str_to_gensio("Too many tries, giving up\n",
+				      top_io, &timeout, true);
+	    if (err) {
+		syslog(LOG_INFO, "Error getting password: %s\n",
+		       gensio_err_to_str(err));
+		exit(1);
+	    }
+	    syslog(LOG_ERR, "Too many login tries for %s\n", username);
+	    exit(1);
+	}
+	syslog(LOG_INFO, "Accepted password for %s\n", username);
+	/* FIXME - gensio_set_is_authenticated(certauth_io, true); */
+    }
+
     if (strstartswith(tmpservice, "login:"))
 	interactive = true;
 
@@ -1026,7 +1051,7 @@ handle_new(struct gensio_runner *r, void *cb_data)
 	gensio_time timeout = {10, 0};
 	if (interactive)
 	    /* Don't send this to non-interactive logins. */
-	    write_file_to_gensio("/etc/nologin", certauth_io, o, &timeout, true);
+	    write_file_to_gensio("/etc/nologin", top_io, o, &timeout, true);
 	exit(1);
     }
 
@@ -1070,12 +1095,8 @@ handle_new(struct gensio_runner *r, void *cb_data)
 
     /* At this point we are fully authenticated and have all global info. */
 
-    if (strstartswith(tmpservice, "mux")) {
-	open_mux(certauth_io, ginfo, tmpservice);
-    } else {
-	start_local_ports(certauth_io);
-	new_rem_io(certauth_io, ginfo);
-    }
+    start_local_ports(top_io);
+    new_rem_io(top_io, ginfo);
     return;
 }
 

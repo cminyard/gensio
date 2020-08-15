@@ -36,7 +36,20 @@ struct gdata {
     struct gensio *io;
     char *ios;
     bool can_close;
+
+    /* The following are only used on ioinfo2. */
+    bool interactive;
+    bool got_oob;
 };
+
+static void winch_ready(int fd, void *cb_data);
+static void winch_sent(void *cb_data);
+
+static int winch_pipe[2];
+static unsigned char winch_buf[11];
+static struct ioinfo_oob winch_oob = { .buf = winch_buf };
+static bool winch_oob_sending;
+static bool winch_oob_pending;
 
 static void
 gshutdown(struct ioinfo *ioinfo, bool user_req)
@@ -78,11 +91,30 @@ static int gevent(struct ioinfo *ioinfo, struct gensio *io, int event,
     return 0;
 }
 
+/*
+ * We wait until the other end has signalled us to say that it is
+ * ready before sending the winch.  Otherwise the winch will mess up
+ * the password login process.
+ */
+static void
+goobdata(struct ioinfo *ioinfo, unsigned char *buf, gensiods *buflen)
+{
+    struct gdata *ginfo = ioinfo_userdata(ioinfo);
+
+    if (ginfo->got_oob)
+	return;
+
+    ginfo->got_oob = true;
+    if (ginfo->interactive)
+	winch_ready(winch_pipe[0], ioinfo);
+}
+
 static struct ioinfo_user_handlers guh = {
     .shutdown = gshutdown,
     .err = gerr,
     .event = gevent,
-    .out = gout
+    .out = gout,
+    .oobdata = goobdata
 };
 
 static const char *username, *hostname, *keyfile, *certfile, *CAdir;
@@ -713,14 +745,6 @@ auth_event(struct gensio *io, void *user_data, int event, int ierr,
     }
 }
 
-static int winch_pipe[2];
-static unsigned char winch_buf[11];
-static struct ioinfo_oob winch_oob = { .buf = winch_buf };
-bool winch_oob_sending;
-bool winch_oob_pending;
-
-static void winch_sent(void *cb_data);
-
 static void
 send_winch(struct ioinfo *ioinfo)
 {
@@ -1045,7 +1069,6 @@ main(int argc, char *argv[])
     char *CAdirspec = NULL, *certfilespec = NULL, *keyfilespec = NULL;
     char *service;
     gensiods service_len, len;
-    bool interactive = true;
     const char *transport = "sctp";
     bool user_transport = false;
     bool notcp = false, nosctp = false;
@@ -1059,6 +1082,7 @@ main(int argc, char *argv[])
 
     memset(&userdata1, 0, sizeof(userdata1));
     memset(&userdata2, 0, sizeof(userdata2));
+    userdata2.interactive = true;
     memset(&sigact, 0, sizeof(sigact));
 
     rv = gensio_default_os_hnd(0, &o);
@@ -1095,7 +1119,7 @@ main(int argc, char *argv[])
 	userdata1.ios = io1_default_tty;
     } else {
 	userdata1.ios = io1_default_notty;
-	interactive = false;
+	userdata2.interactive = false;
     }
 
     for (arg = 1; arg < argc; arg++) {
@@ -1229,7 +1253,7 @@ main(int argc, char *argv[])
 	service[len++] = '\0';
 
 	userdata1.ios = io1_default_notty;
-	interactive = false;
+	userdata2.interactive = false;
 	service_len = len;
     } else {
 	char *termvar = getenv("TERM");
@@ -1378,7 +1402,7 @@ main(int argc, char *argv[])
 	return 1;
     }
 
-    if (interactive) {
+    if (userdata2.interactive) {
 	rv = gensio_control(userdata2.io, GENSIO_CONTROL_DEPTH_ALL, false,
 			    GENSIO_CONTROL_NODELAY, "1", NULL);
 	if (rv) {
@@ -1424,9 +1448,6 @@ main(int argc, char *argv[])
 	return 1;
     }
     o->set_read_handler(o, winch_pipe[0], true);
-
-    if (interactive)
-	winch_ready(winch_pipe[0], ioinfo2);
 
     start_local_ports(userdata2.io);
     start_remote_ports(ioinfo2);

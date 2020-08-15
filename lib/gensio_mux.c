@@ -1085,7 +1085,8 @@ muxc_write(struct mux_inst *chan, gensiods *count,
     if (chan->max_write_size - chan->write_data_len < 4) {
     out_unlock_nosend:
 	mux_unlock(muxdata);
-	*count = 0;
+	if (count)
+	    *count = 0;
 	return 0;
     }
 
@@ -1130,7 +1131,8 @@ muxc_write(struct mux_inst *chan, gensiods *count,
     muxc_add_to_wrlist(chan);
     mux_unlock(muxdata);
 
-    *count = rcount;
+    if (count)
+	*count = rcount;
     return 0;
 }
 
