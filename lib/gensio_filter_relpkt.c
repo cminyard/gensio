@@ -845,7 +845,8 @@ relpkt_ll_write(struct relpkt_filter *rfilter,
 	goto protocol_err;
     }
 
-    *rcount = buflen;
+    if (rcount)
+	*rcount = buflen;
 
     switch (buf[0] >> 4) {
     case RELPKT_MSG_INIT:

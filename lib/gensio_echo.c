@@ -124,7 +124,8 @@ echon_write(struct gensio *io, gensiods *count,
 
 	for (i = 0; i < sglen; i++)
 	    total += sg[i].buflen;
-	*count = total;
+	if (count)
+	    *count = total;
 	echon_unlock(ndata);
 	return 0;
     }
