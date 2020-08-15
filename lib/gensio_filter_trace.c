@@ -167,8 +167,8 @@ trace_data(const char *op, struct gensio_os_funcs *o,
     o->get_monotonic_time(o, &time);
     if (err) {
 	if (!raw) {
-	    fprintf(f, "%ld:%6.6d %s error: %d %s\n",
-		    time.secs, (time.nsecs + 500) / 1000, op,
+	    fprintf(f, "%lld:%6.6d %s error: %d %s\n",
+		    (long long) time.secs, (time.nsecs + 500) / 1000, op,
 		    err, gensio_err_to_str(err));
 	    fflush(f);
 	}
@@ -177,8 +177,8 @@ trace_data(const char *op, struct gensio_os_funcs *o,
 
 	memset(&h, 0, sizeof(h));
 	if (!raw)
-	    fprintf(f, "%ld:%6.6d %s (%lu):\n",
-		    time.secs, (time.nsecs + 500) / 1000,
+	    fprintf(f, "%lld:%6.6d %s (%lu):\n",
+		    (long long) time.secs, (time.nsecs + 500) / 1000,
 		    op, (unsigned long) written);
 	for (i = 0; i < sglen && written > 0; i++, written -= len) {
 	    if (sg[i].buflen > written)
