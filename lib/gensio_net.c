@@ -811,8 +811,10 @@ netna_free(struct gensio_accepter *accepter, struct netna_data *nadata)
     if (nadata->group)
 	nadata->o->free(nadata->o, nadata->group);
 #endif
+#ifdef HAVE_TCPD_H
     if (nadata->tcpd_progname)
 	nadata->o->free(nadata->o, nadata->tcpd_progname);
+#endif
     nadata->o->free(nadata->o, nadata);
 }
 
@@ -951,6 +953,7 @@ netna_control(struct gensio_accepter *accepter, struct netna_data *nadata,
     case GENSIO_ACC_CONTROL_LPORT:
 	return netna_control_lport(nadata, get, data, datalen);
 
+#ifdef HAVE_TCPD_H
     case GENSIO_ACC_CONTROL_TCPDNAME:
 	if (get) {
 	    if (!nadata->tcpd_progname)
@@ -966,6 +969,7 @@ netna_control(struct gensio_accepter *accepter, struct netna_data *nadata,
 	    nadata->tcpd_progname = newval;
 	}
 	return 0;
+#endif
 
     default:
 	return GE_NOTSUP;
@@ -1038,7 +1042,9 @@ net_gensio_accepter_alloc(struct gensio_addr *iai,
     bool mode_set = false;
     const char *owner = NULL, *group = NULL;
 #endif
+#ifdef HAVE_TCPD_H
     const char *tcpdname = NULL;
+#endif
     unsigned int i;
     int err, ival;
 
@@ -1066,8 +1072,10 @@ net_gensio_accepter_alloc(struct gensio_addr *iai,
 	if (istcp &&
 		gensio_check_keybool(args[i], "reuseaddr", &reuseaddr) > 0)
 	    continue;
+#ifdef HAVE_TCPD_H
 	if (istcp && gensio_check_keyvalue(args[i], "tcpdname", &tcpdname))
 	    continue;
+#endif
 #if HAVE_UNIX
 	if (!istcp && gensio_check_keymode(args[i], "umode", &umode) > 0) {
 	    mode_set = true;
@@ -1119,8 +1127,10 @@ net_gensio_accepter_alloc(struct gensio_addr *iai,
     }
 #endif
 
+#ifdef HAVE_TCPD_H
     if (tcpdname)
 	nadata->tcpd_progname = strdup(tcpdname);
+#endif
 
     nadata->ai = gensio_addr_dup(iai);
     if (!nadata->ai)
