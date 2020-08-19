@@ -951,6 +951,22 @@ netna_control(struct gensio_accepter *accepter, struct netna_data *nadata,
     case GENSIO_ACC_CONTROL_LPORT:
 	return netna_control_lport(nadata, get, data, datalen);
 
+    case GENSIO_ACC_CONTROL_TCPDNAME:
+	if (get) {
+	    if (!nadata->tcpd_progname)
+		return GE_NODATA;
+	    *datalen = snprintf(data, *datalen, "%s", nadata->tcpd_progname);
+	} else {
+	    char *newval = strdup(data);
+
+	    if (!newval)
+		return GE_NOMEM;
+	    if (nadata->tcpd_progname)
+		nadata->o->free(nadata->o, nadata->tcpd_progname);
+	    nadata->tcpd_progname = newval;
+	}
+	return 0;
+
     default:
 	return GE_NOTSUP;
     }

@@ -52,13 +52,13 @@ not including the terminating nil) or binary data in
 
 An operation with
 .I get
-false is a put operation, it will set values or controls in the gensio.
-For string gensios,
+false is a set operation, it will set values or controls in the gensio.
+For string values,
 .I datalen
 is not used in a put operation or for determining the length
 of the input string in
 .I data,
-it must be a nil terminated string.  For binary gensios,
+it must be a nil terminated string.  For binary values,
 .I datalen
 must be provided.
 

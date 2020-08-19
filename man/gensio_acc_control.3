@@ -45,6 +45,8 @@ created with snprintf()) for the particular index you want to fetch.  If
 you specify a number larger than the number of open listen sockets,
 .I GE_NOTFOUND
 is returned.  The return data is a string holding the port number.
+.SS "GENSIO_ACC_CONTROL_TCPDNAME"
+Get or set the TCPD name for the gensio, only for TCP gensios.
 
 .SH "RETURN VALUES"
 Zero is returned on success, or a gensio error on failure.

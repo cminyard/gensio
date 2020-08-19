@@ -324,6 +324,11 @@ int gensio_acc_control(struct gensio_accepter *accepter, int depth, bool get,
 #define GENSIO_ACC_CONTROL_LADDR	1
 #define GENSIO_ACC_CONTROL_LPORT	2
 
+/*
+ * Get/set the tcpdname option for the gensio dynamically.
+ */
+#define GENSIO_ACC_CONTROL_TCPDNAME	3
+
 GENSIO_DLL_PUBLIC
 int gensio_acc_set_sync(struct gensio_accepter *acc);
 
