@@ -197,8 +197,12 @@ int gensio_os_open_socket(struct gensio_os_funcs *o,
 			  void *data, unsigned int opensock_flags,
 			  struct opensocks **socks, unsigned int *nr_fds);
 
-/* Returns a NULL if the fd is ok, a non-NULL error string if not */
+/*
+ * Returns a NULL if the fd is ok, a non-NULL error string if not.
+ * Uses the default progname ("gensio", or set with
+ * gensio_set_progname() if progname is NULL.
+ */
 GENSIO_DLL_PUBLIC
-const char *gensio_os_check_tcpd_ok(int new_fd);
+const char *gensio_os_check_tcpd_ok(int new_fd, const char *progname);
 
 #endif /* GENSIO_OSOPS_H */

@@ -566,7 +566,7 @@ netna_readhandler(int fd, void *cbdata)
     }
 
     if (nadata->istcp) {
-	if (gensio_os_check_tcpd_ok(new_fd)) {
+	if (gensio_os_check_tcpd_ok(new_fd, NULL)) {
 	    gensio_acc_log(nadata->acc, GENSIO_LOG_INFO,
 			   "Error accepting net gensio: tcpd check failed");
 	    err = GE_INVAL;

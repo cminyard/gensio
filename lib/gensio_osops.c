@@ -1530,12 +1530,14 @@ gensio_setup_listen_socket(struct gensio_os_funcs *o, bool do_listen,
 }
 
 const char *
-gensio_os_check_tcpd_ok(int new_fd)
+gensio_os_check_tcpd_ok(int new_fd, const char *iprogname)
 {
 #ifdef HAVE_TCPD_H
     struct request_info req;
 
-    request_init(&req, RQ_DAEMON, progname, RQ_FILE, new_fd, NULL);
+    if (!iprogname)
+	iprogname = progname;
+    request_init(&req, RQ_DAEMON, iprogname, RQ_FILE, new_fd, NULL);
     fromhost(&req);
 
     if (!hosts_access(&req))
