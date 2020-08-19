@@ -315,6 +315,12 @@ local address.
 .B reuseaddr[=true|false]
 Set SO_REUSEADDR on the socket, good for accepting gensios only.
 Defaults to true.
+.TP
+.B tcpdname=<name>
+Accepter only, sets the name to use for tcpd access control.  This
+defaults to "gensio", and the default can be overriden with
+gensio_set_progname().  This option allows you to override it on a
+per-gensio accepter basis.
 .SS Remote Address String
 The remote address will be in the format "[ipv4|ipv6],<addr>,<port>" where the
 address is in numeric format, IPv4, or IPv6.

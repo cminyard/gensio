@@ -482,6 +482,8 @@ struct netna_data {
     char *group;
 #endif
 
+    char *tcpd_progname;
+
     unsigned int   nr_acceptfds;
     unsigned int   nr_accept_close_waiting;
 
@@ -566,7 +568,7 @@ netna_readhandler(int fd, void *cbdata)
     }
 
     if (nadata->istcp) {
-	if (gensio_os_check_tcpd_ok(new_fd, NULL)) {
+	if (gensio_os_check_tcpd_ok(new_fd, nadata->tcpd_progname)) {
 	    gensio_acc_log(nadata->acc, GENSIO_LOG_INFO,
 			   "Error accepting net gensio: tcpd check failed");
 	    err = GE_INVAL;
@@ -809,6 +811,8 @@ netna_free(struct gensio_accepter *accepter, struct netna_data *nadata)
     if (nadata->group)
 	nadata->o->free(nadata->o, nadata->group);
 #endif
+    if (nadata->tcpd_progname)
+	nadata->o->free(nadata->o, nadata->tcpd_progname);
     nadata->o->free(nadata->o, nadata);
 }
 
@@ -1018,6 +1022,7 @@ net_gensio_accepter_alloc(struct gensio_addr *iai,
     bool mode_set = false;
     const char *owner = NULL, *group = NULL;
 #endif
+    const char *tcpdname = NULL;
     unsigned int i;
     int err, ival;
 
@@ -1044,6 +1049,8 @@ net_gensio_accepter_alloc(struct gensio_addr *iai,
 	    continue;
 	if (istcp &&
 		gensio_check_keybool(args[i], "reuseaddr", &reuseaddr) > 0)
+	    continue;
+	if (istcp && gensio_check_keyvalue(args[i], "tcpdname", &tcpdname))
 	    continue;
 #if HAVE_UNIX
 	if (!istcp && gensio_check_keymode(args[i], "umode", &umode) > 0) {
@@ -1095,6 +1102,9 @@ net_gensio_accepter_alloc(struct gensio_addr *iai,
 	    goto out_err;
     }
 #endif
+
+    if (tcpdname)
+	nadata->tcpd_progname = strdup(tcpdname);
 
     nadata->ai = gensio_addr_dup(iai);
     if (!nadata->ai)
