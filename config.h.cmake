@@ -13,6 +13,7 @@
 #cmakedefine HAVE_ISATTY
 #cmakedefine HAVE_STRCASECMP
 #cmakedefine HAVE_STRNCASECMP
+#cmakedefine HAVE_PRCTL
 #cmakedefine HAVE_GETRANDOM_FUNC
 #cmakedefine HAVE_PTSNAME_R
 #cmakedefine HAVE_CFMAKERAW

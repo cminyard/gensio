@@ -5,6 +5,7 @@
  *  SPDX-License-Identifier: GPL-2.0-only
  */
 
+#include "config.h"
 #include <stdio.h>
 #include <unistd.h>
 #include <stdlib.h>
@@ -17,6 +18,9 @@
 #include <pwd.h>
 #include <signal.h>
 #include <sys/ioctl.h>
+#ifdef HAVE_PRCTL
+#include <sys/prctl.h>
+#endif
 
 #include <openssl/x509.h>
 #include <openssl/pem.h>
@@ -1207,6 +1211,16 @@ main(int argc, char *argv[])
 	fprintf(stderr, "No string given to connect to\n");
 	help(1);
     }
+
+#if defined(HAVE_PRCTL) && defined(PR_SET_DUMPABLE)
+    if (!debug) {
+	if (prctl(PR_SET_DUMPABLE, 0) != 0) {
+	    fprintf(stderr,
+		    "Unable to disable ptrace attach, giving up.\n");
+	    exit(1);
+	}
+    }
+#endif
 
     s = strrchr(argv[arg], '@');
     if (s) {
