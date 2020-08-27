@@ -1231,7 +1231,7 @@ main(int argc, char *argv[])
 	struct passwd *pw = getpwuid(getuid());
 
 	if (!pw) {
-	    fprintf(stderr, "no usename given, and can't look up UID\n");
+	    fprintf(stderr, "no username given, and can't look up UID\n");
 	    return 1;
 	}
 	username = strdup(pw->pw_name);
