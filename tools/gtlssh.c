@@ -1442,8 +1442,6 @@ main(int argc, char *argv[])
 	goto closeit;
     }
 
-    ioinfo_set_ready(ioinfo2, userdata2.io);
-
     userdata1.can_close = true;
     rv = gensio_open_s(userdata1.io);
     if (rv) {
@@ -1452,7 +1450,9 @@ main(int argc, char *argv[])
 		userdata1.ios, gensio_err_to_str(rv));
 	goto closeit;
     }
+
     ioinfo_set_ready(ioinfo1, userdata1.io);
+    ioinfo_set_ready(ioinfo2, userdata2.io);
 
     rv = o->set_fd_handlers(o, winch_pipe[0], ioinfo2, winch_ready,
 			    NULL, NULL, NULL);
