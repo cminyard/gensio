@@ -537,9 +537,11 @@ If the socket path already exists, delete it before opening the socket.
 .B umode=[0-7|[rwx]*]
 Set the user file mode for the unix socket file.  This is the usual
 read(4)/write(2)/execute(2) bitmask per chmod, but only for the user
-portion.  If any mode is specified, all modes are "6" (rw) and is
-modified by the umask per standard *nix semantics.  If no mode is
-specified, it is set to the default and not modified.
+portion.  If a mode is specified, all other modes default to "6" (rw)
++unless they are specified, and the final mode is modified by the umask
++per standard *nix semantics.  If no mode is specified, it is set to
++the default and not modified.  Note that the perm option below is
++probably a better way to set this.
 .TP
 .B gmode=[0-7|[rwx]*]
 Set the group file mode for the unix socket file, see umode for details.
@@ -748,8 +750,11 @@ Create the output file if it does not exist.
 .B umode=[0-7|[rwx]*]
 Set the user file mode for the file if the file is created.  This is
 the usual read(4)/write(2)/execute(2) bitmask per chmod, but only for
-the user portion.  If not specified, it is "6" (rw) and is modified by
-the umask per standard *nix semantics.
+the user portion.  If a mode is specified, all other modes default to "6" (rw)
++unless they are specified, and the final mode is modified by the umask
++per standard *nix semantics.  If no mode is specified, it is set to
++the default and not modified.  Note that the perm option below is
++probably a better way to set this.
 .TP
 .B gmode=[0-7|[rwx]*]
 Set the group file mode for the file if the file is created, see umode
@@ -1196,9 +1201,11 @@ but will be usedful in many situations.
 .B umode=[0-7|[rwx]*]
 Set the user file mode for the pty slave.  This is the usual
 read(4)/write(2)/execute(2) bitmask per chmod, but only for the user
-portion.  If any mode is specified, all modes are "6" (rw) and is
-modified by the umask per standard *nix semantics.  If no mode is
-specified, it is set to the default and not modified.
+portion.  If a mode is specified, all other modes default to "6" (rw)
++unless they are specified, and the final mode is modified by the umask
++per standard *nix semantics.  If no mode is specified, it is set to
++the default and not modified.  Note that the perm option below is
++probably a better way to set this.
 .TP
 .B gmode=[0-7|[rwx]*]
 Set the group file mode for the pty slave, see umode for details.
