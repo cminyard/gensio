@@ -64,6 +64,8 @@ else
 fi
 	
 if ${PRINT_MODE}; then
+    echo export PYTHONPATH="${PYTHONPATH}"
+    echo export LD_LIBRARY_PATH="${LD_LIBRARY_PATH}"
     echo ${RUNPREFIX} ${TEST} $*
 else
     exec ${RUNPREFIX} ${TEST} $*

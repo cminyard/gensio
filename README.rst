@@ -650,3 +650,49 @@ the full effect.  You generally want to run something like:
 
 You can turn on -O3 in the CFLAGS, too, if you like, but it make
 debugging harder.
+
+Fuzzing
+=======
+
+To set up for fuzzing, install afl, then configure with the following:
+
+.. code:: bash
+
+  mkdir Zfuzz; cd Zfuzz
+  ../configure --enable-internal-trace=yes --disable-shared CC=afl-gcc
+
+Then build.  Then "cd tests" and run "make test_fuzz_xxx" where xxx is
+one of: certauth, mux, ssl, telnet, or relpkt.  You will probably need
+to adjust some things, afl will tell you.  Note that it will run
+forever, you will need to ^C it when you are done.
+
+The makefile in tests/Makefile.am has instructions on how to handle a
+failure to reproduce for debuggig.
+
+Code Coverage
+=============
+
+Running code coverage on the library is pretty easy.  First you need
+to configure the code to enable coverage:
+
+.. code:: bash
+
+  mkdir Ocov; cd Ocov
+  ../configure --enable-internal-trace=yes CC='gcc -fprofile-arcs -ftest-coverage'
+
+The compile and run "make check".  To generate the report, run:
+
+.. code:: bash
+
+  cd lib
+  gcov -o .libs/ *.o
+
+You can look in the individual .gcov files created for information
+about what is covered.  See the gcov docs for detail.
+
+At the time of writing, I was getting over 71% code coverage,
+including some things (like file, trace, and perf gensios) that don't
+get tested in the normal testing.  So that's really pretty good.
+
+It would be nice to be able to combine this with fuzzing, but I'm not
+sure how to do that.
