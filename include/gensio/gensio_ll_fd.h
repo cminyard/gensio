@@ -50,7 +50,7 @@ struct gensio_fd_ll_ops {
 
 GENSIO_DLL_PUBLIC
 gensiods gensio_fd_ll_callback(struct gensio_ll *ll, int op, int val,
-			       void *buf, gensiods buflen, void *data);
+			       void *buf, gensiods buflen, const void *data);
 
 /*
  * For calling from the check_close() callback only, and only when

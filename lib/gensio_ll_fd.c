@@ -319,6 +319,15 @@ fd_set_callbacks(struct gensio_ll *ll, gensio_ll_cb cb, void *cb_data)
     fdll->cb_data = cb_data;
 }
 
+gensiods
+gensio_fd_ll_callback(struct gensio_ll *ll, int op, int val, void *buf,
+		      gensiods buflen, const void *data)
+{
+    struct fd_ll *fdll = ll_to_fd(ll);
+
+    return fdll->cb(fdll->cb_data, op, val, buf, buflen, data);
+}
+
 static int
 fd_write(struct gensio_ll *ll, gensiods *rcount,
 	 const struct gensio_sg *sg, gensiods sglen,
@@ -340,9 +349,9 @@ fd_deliver_read_data(struct fd_ll *fdll, int err)
 	gensiods count;
 
     retry:
-	count = fdll->cb(fdll->cb_data, GENSIO_LL_CB_READ, err,
-			 fdll->read_data + fdll->read_data_pos,
-			 fdll->read_data_len, fdll->auxdata);
+	count = gensio_fd_ll_callback(fdll->ll, GENSIO_LL_CB_READ, err,
+				      fdll->read_data + fdll->read_data_pos,
+				      fdll->read_data_len, fdll->auxdata);
 	if (err || count >= fdll->read_data_len) {
 	    fdll->read_data_pos = 0;
 	    fdll->read_data_len = 0;
@@ -597,7 +606,8 @@ fd_handle_write_ready(struct fd_ll *fdll, int fd)
 	    fdll->ops->write_ready(fdll->handler_data, fdll->fd);
 	    fd_lock(fdll);
 	} else {
-	    fdll->cb(fdll->cb_data, GENSIO_LL_CB_WRITE_READY, 0, NULL, 0, NULL);
+	    gensio_fd_ll_callback(fdll->ll, GENSIO_LL_CB_WRITE_READY, 0,
+				  NULL, 0, NULL);
 	    fd_lock(fdll);
 	    if (fdll->state == FD_OPEN && fdll->write_enabled) {
 		fdll->o->set_write_handler(fdll->o, fdll->fd, true);
@@ -962,15 +972,6 @@ gensio_ll_fd_func(struct gensio_ll *ll, int op, gensiods *count,
     default:
 	return GE_NOTSUP;
     }
-}
-
-gensiods
-gensio_fd_ll_callback(struct gensio_ll *ll, int op, int val, void *buf,
-		      gensiods buflen, void *data)
-{
-    struct fd_ll *fdll = ll_to_fd(ll);
-
-    return fdll->cb(fdll->cb_data, op, val, buf, buflen, data);
 }
 
 void *
