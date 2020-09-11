@@ -508,14 +508,13 @@ con_cb(struct gensio *io, void *user_data,
 		if (rv == GE_SHUTDOWN || rv == GE_NOTREADY) {
 		    if (debug)
 			printf("Write on shutdown or not ready socket\n");
-		    /* System should error out elsewhere. */
 		} else {
 		    assert(!debug || !rv || rv == GE_REMCLOSE);
 		    if (debug)
 			printf("con_cb error 2: %s\n", gensio_err_to_str(rv));
-		    id->err = rv;
-		    o->wake(od->waiter);
 		}
+		id->err = rv;
+		o->wake(od->waiter);
 	    } else {
 		id->write_pos += count;
 	    }
