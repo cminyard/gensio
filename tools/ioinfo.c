@@ -24,6 +24,8 @@ struct ioinfo {
     char escape_data[11];
     unsigned int escape_pos;
 
+    gensiods max_write;
+
     struct ioinfo_sub_handlers *sh;
     void *subdata;
 
@@ -208,7 +210,12 @@ io_event(struct gensio *io, void *user_data, int event, int err,
 	    }
 	}
 	if (rioinfo->ready) {
-	    rv = gensio_write(rioinfo->io, &count, buf, *buflen, NULL);
+	    gensiods wrsize = *buflen;
+
+	    if (rioinfo->max_write && wrsize > rioinfo->max_write)
+		wrsize = rioinfo->max_write;
+
+	    rv = gensio_write(rioinfo->io, &count, buf, wrsize, NULL);
 	    if (rv) {
 		if (rv != GE_REMCLOSE)
 		    ioinfo_err(rioinfo, "write error: %s",
@@ -243,9 +250,12 @@ io_event(struct gensio *io, void *user_data, int event, int err,
     case GENSIO_EVENT_WRITE_READY:
 	if (ioinfo->oob_head) {
 	    struct ioinfo_oob *oob = ioinfo->oob_head;
-	    gensiods count;
+	    gensiods count, wrsize = oob->len;
 
-	    rv = gensio_write(ioinfo->io, &count, oob->buf, oob->len, oobaux);
+	    if (ioinfo->max_write && wrsize > ioinfo->max_write)
+		wrsize = ioinfo->max_write;
+
+	    rv = gensio_write(ioinfo->io, &count, oob->buf, wrsize, oobaux);
 	    if (rv) {
 		ioinfo_err(rioinfo, "write error: %s", gensio_err_to_str(rv));
 		ioinfo->uh->shutdown(ioinfo, false);
@@ -256,7 +266,7 @@ io_event(struct gensio *io, void *user_data, int event, int err,
 		    oob->send_done(oob->cb_data);
 		ioinfo->oob_head = oob->next;
 		if (ioinfo->oob_head == NULL)
-		    /* No more OOB data. */
+	    /* No more OOB data. */
 		    ioinfo->oob_tail = NULL;
 	    } else {
 		oob->buf += count;
@@ -286,12 +296,26 @@ io_event(struct gensio *io, void *user_data, int event, int err,
     return rv;
 }
 
+static void
+set_max_write(struct ioinfo *ioinfo)
+{
+    int rv;
+    char databuf[20];
+    gensiods dbsize = sizeof(databuf);
+
+    rv = gensio_control(ioinfo->io, 0, true, GENSIO_CONTROL_MAX_WRITE_PACKET,
+			databuf, &dbsize);
+    if (!rv)
+	ioinfo->max_write = strtoul(databuf, NULL, 0);
+}
+
 void
 ioinfo_set_ready(struct ioinfo *ioinfo, struct gensio *io)
 {
     struct ioinfo *rioinfo = ioinfo->otherio;
 
     ioinfo->io = io;
+    set_max_write(ioinfo);
     gensio_set_callback(io, io_event, ioinfo);
     gensio_set_read_callback_enable(ioinfo->io, true);
     ioinfo->ready = true;
