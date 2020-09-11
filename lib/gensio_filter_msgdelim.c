@@ -7,6 +7,7 @@
 
 #include "config.h"
 #include <string.h>
+#include <stdio.h>
 
 #include <gensio/gensio_class.h>
 #include <gensio/gensio_builtins.h>
@@ -369,6 +370,25 @@ msgdelim_free(struct gensio_filter *filter)
     mfilter_free(mfilter);
 }
 
+static int
+msgdelim_control(struct gensio_filter *filter, bool get, int op, char *data,
+		 gensiods *datalen)
+{
+    struct msgdelim_filter *mfilter = filter_to_msgdelim(filter);
+
+    switch (op) {
+    case GENSIO_CONTROL_MAX_WRITE_PACKET:
+	if (!get)
+	    return GE_NOTSUP;
+	*datalen = snprintf(data, *datalen, "%lu",
+			    (unsigned long) mfilter->max_write_size);
+	return 0;
+
+    default:
+	return GE_NOTSUP;
+    }
+}
+
 static int gensio_msgdelim_filter_func(struct gensio_filter *filter, int op,
 				     const void *func, void *data,
 				     gensiods *count,
@@ -413,6 +433,9 @@ static int gensio_msgdelim_filter_func(struct gensio_filter *filter, int op,
     case GENSIO_FILTER_FUNC_FREE:
 	msgdelim_free(filter);
 	return 0;
+
+    case GENSIO_FILTER_FUNC_CONTROL:
+	return msgdelim_control(filter, *((bool *) cbuf), buflen, data, count);
 
     default:
 	return GE_NOTSUP;
