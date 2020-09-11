@@ -949,10 +949,10 @@ run_oom_test(struct oom_tests *test, long count, int *exitcode, bool close_acc)
 
     OOMLOCK(&od->lock);
     if (count < 0) {
-	rv = unsetenv("GENSIO_OOM_TEST");
+	rv = unsetenv("GENSIO_ERRTRIG_TEST");
     } else {
 	snprintf(intstr, sizeof(intstr), "%ld ", count);
-	rv = setenv("GENSIO_OOM_TEST", intstr, 1);
+	rv = setenv("GENSIO_ERRTRIG_TEST", intstr, 1);
     }
     if (rv) {
 	fprintf(stderr, "Unable to set environment properly\n");
@@ -1078,10 +1078,10 @@ run_oom_acc_test(struct oom_tests *test, long count, int *exitcode,
 
     OOMLOCK(&od->lock);
     if (count < 0) {
-	rv = unsetenv("GENSIO_OOM_TEST");
+	rv = unsetenv("GENSIO_ERRTRIG_TEST");
     } else {
 	snprintf(intstr, sizeof(intstr), "%ld ", count);
-	rv = setenv("GENSIO_OOM_TEST", intstr, 1);
+	rv = setenv("GENSIO_ERRTRIG_TEST", intstr, 1);
     }
     if (rv) {
 	fprintf(stderr, "Unable to set environment properly\n");
@@ -1213,7 +1213,7 @@ run_oom_acc_test(struct oom_tests *test, long count, int *exitcode,
 static void
 print_test(struct oom_tests *test, char *tstr, bool close_acc, long count)
 {
-    printf("testing(%s %s) GENSIO_OOM_TEST=%ld GENSIO_MEMTRACK=abort '%s' '%s'\n",
+    printf("testing(%s %s) GENSIO_ERRTRIG_TEST=%ld GENSIO_MEMTRACK=abort '%s' '%s'\n",
 	   tstr, close_acc ? "sc" : "cc", count,
 	   test->accepter, test->connecter);
 }
@@ -1271,7 +1271,7 @@ run_oom_tests(struct oom_tests *test, char *tstr,
 		if (!verbose)
 		    print_test(test, tstr, close_acc, count);
 		fprintf(stderr,
-			"  ***Error with no memory allocation failure: %d.\n",
+			"  ***Error with no failure trigger: %d.\n",
 			exit_code);
 		/* Leave it 0 to terminate the loop, testing is pointless. */
 	    } else {
@@ -1281,13 +1281,13 @@ run_oom_tests(struct oom_tests *test, char *tstr,
 	    errcount++;
 	    if (!verbose)
 		print_test(test, tstr, close_acc, count);
-	    printf("  ***No error on memory allocation failure.\n");
+	    printf("  ***No error on failure trigger.\n");
 	    exit_code = 1;
 	} else if (exit_code == 3) {
 	    errcount++;
 	    if (!verbose)
 		print_test(test, tstr, close_acc, count);
-	    printf("  ***Error but no memory allocation failure.\n");
+	    printf("  ***Error but no failure trigger.\n");
 	    exit_code = 0; /* No point in going on. */
 	}
 

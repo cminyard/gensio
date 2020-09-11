@@ -32,66 +32,20 @@
 #define EPOLL_CTL_DEL 0
 #define EPOLL_CTL_MOD 0
 #endif
-
-#ifdef ENABLE_INTERNAL_TRACE
-#define OUT_OF_MEMORY_TEST
-#endif
+#include "errtrig.h"
 
 #ifndef EBADFD
 /* At least MacOS doesn't have EBADFD. */
 #define EBADFD EBADF
 #endif
 
-#ifdef OUT_OF_MEMORY_TEST
-#include "pthread_handler.h"
-#include <assert.h>
-/*
- * Some memory allocation failure testing.  If the GENSIO_OOM_TEST
- * environment variable is set to number N, the Nth memory allocation
- * will fail (return NULL).  The program should call gensio_sel_exit
- * (below); it will cause specific values to be returned on an exit
- * failure.
- */
-lock_type oom_mutex = LOCK_INITIALIZER;
-int oom_initialized;
-int oom_ready;
-int triggered;
-unsigned int oom_count;
-unsigned int oom_curr;
-#endif
-
 static void *
 sel_alloc(unsigned int size)
 {
     void *d;
-#ifdef OUT_OF_MEMORY_TEST
-    unsigned int curr;
 
-    {
-	int triggerit = 0;
-
-	LOCK(&oom_mutex);
-	if (!oom_initialized) {
-	    char *s = getenv("GENSIO_OOM_TEST");
-
-	    oom_initialized = 1;
-	    if (s) {
-		oom_count = strtoul(s, NULL, 0);
-		oom_ready = 1;
-	    }
-	}
-	if (oom_ready) {
-	    curr = oom_curr++;
-	    if (curr == oom_count) {
-		triggered = 1;
-		triggerit = 1;
-	    }
-	}
-	UNLOCK(&oom_mutex);
-	if (triggerit)
-	    return NULL;
-    }
-#endif
+    if (do_errtrig())
+	return NULL;
 
     d = malloc(size);
     if (d)

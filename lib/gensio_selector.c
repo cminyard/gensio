@@ -20,6 +20,7 @@
 #include <assert.h>
 #include <stdio.h>
 #include <stdbool.h>
+#include "errtrig.h"
 
 struct gensio_data {
     struct selector_s *sel;
@@ -28,19 +29,9 @@ struct gensio_data {
 };
 
 #ifdef ENABLE_INTERNAL_TRACE
-#define OUT_OF_MEMORY_TEST
 #define TRACK_ALLOCED_MEMORY
 #endif
 
-#ifdef OUT_OF_MEMORY_TEST
-/* Declared in selector.c */
-extern lock_type oom_mutex;
-extern bool oom_initialized;
-extern bool oom_ready;
-extern bool triggered;
-extern unsigned int oom_count;
-extern unsigned int oom_curr;
-#endif
 #ifdef TRACK_ALLOCED_MEMORY
 lock_type memtrk_mutex = LOCK_INITIALIZER;
 struct memory_link {
@@ -65,34 +56,9 @@ static void *
 gensio_sel_zalloc(struct gensio_os_funcs *f, unsigned int size)
 {
     void *d;
-#ifdef OUT_OF_MEMORY_TEST
-    unsigned int curr;
 
-    {
-	bool triggerit = false;
-
-	LOCK(&oom_mutex);
-	if (!oom_initialized) {
-	    char *s = getenv("GENSIO_OOM_TEST");
-
-	    oom_initialized = true;
-	    if (s) {
-		oom_count = strtoul(s, NULL, 0);
-		oom_ready = true;
-	    }
-	}
-	if (oom_ready) {
-	    curr = oom_curr++;
-	    if (curr == oom_count) {
-		triggered = true;
-		triggerit = true;
-	    }
-	}
-	UNLOCK(&oom_mutex);
-	if (triggerit)
-	    return NULL;
-    }
-#endif
+    if (do_errtrig())
+	return NULL;
 #ifdef TRACK_ALLOCED_MEMORY
     if (!memtracking_initialized) {
 	LOCK(&memtrk_mutex);
@@ -1076,27 +1042,5 @@ gensio_sel_exit(int rv)
 	}
     }
 #endif
-#ifdef OUT_OF_MEMORY_TEST
-    if (oom_ready) {
-	assert (rv == 1 || rv == 0); /* Only these values are allowed. */
-
-	/*
-	 * Return an error.  The values mean:
-	 *
-	 * 0 - No error occurred and the memory allocation failure didn't happen
-	 * 1 - An error occurred and the memory allocation failure happenned
-	 * 2 - No error occurred and the memory allocation failure happenned
-	 * 3 - An error occurred and the memory allocation failure didn't happen
-	 */
-	if (rv == 0 && triggered)
-	    rv = 2;
-	if (rv == 0 && !triggered)
-	    rv = 0;
-	if (rv == 1 && triggered)
-	    rv = 1;
-	if (rv == 1 && !triggered)
-	    rv = 3;
-    }
-#endif
-    exit(rv);
+    errtrig_exit(rv);
 }
