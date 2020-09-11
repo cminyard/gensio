@@ -258,6 +258,7 @@ struct io_test_data {
     struct gensio *io;
     gensiods write_pos;
     gensiods read_pos;
+    gensiods max_write;
     struct oom_test_data *od;
     bool expect_close;
     bool got_end;
@@ -428,7 +429,8 @@ cmp_mem(unsigned char *buf, unsigned char *buf2, gensiods *len)
 
     for (i = 0; i < *len; i++) {
 	if (buf[i] != buf2[i]) {
-	    printf("Mismatch on byte %lu\n", i);
+	    printf("Mismatch on byte %lu, expected 0x%2.2x, got 0x%2.2x\n",
+		   i, buf[i], buf2[i]);
 	    rv = -1;
 	    break;
 	}
@@ -500,8 +502,12 @@ con_cb(struct gensio *io, void *user_data,
 	assert(!id->in_write);
 	id->in_write = true;
 	if (id->write_pos < iodata_size) {
-	    rv = gensio_write(io, &count, iodata + id->write_pos,
-			      iodata_size - id->write_pos, NULL);
+	    gensiods wrsize = iodata_size - id->write_pos;
+
+	    if (id->max_write && wrsize > id->max_write)
+		wrsize = id->max_write;
+
+	    rv = gensio_write(io, &count, iodata + id->write_pos, wrsize, NULL);
 	    if (rv) {
 		gensio_set_write_callback_enable(io, false);
 		gensio_set_read_callback_enable(io, false);
@@ -534,6 +540,19 @@ con_cb(struct gensio *io, void *user_data,
     return rv;
 }
 
+static void
+set_max_write(struct io_test_data *id, struct gensio *io)
+{
+    int rv;
+    char databuf[20];
+    gensiods dbsize = sizeof(databuf);
+
+    rv = gensio_control(io, 0, true, GENSIO_CONTROL_MAX_WRITE_PACKET,
+			databuf, &dbsize);
+    if (!rv)
+	id->max_write = strtoul(databuf, NULL, 0);
+}
+
 static int
 acc_cb(struct gensio_accepter *accepter,
        void *user_data, int event, void *data)
@@ -555,6 +574,7 @@ acc_cb(struct gensio_accepter *accepter,
 	    od->scon.io = data;
 	    od->scon.open_done = true;
 	    gensio_set_callback(od->scon.io, con_cb, &od->scon);
+	    set_max_write(&od->scon, od->scon.io);
 	    gensio_set_read_callback_enable(od->scon.io, true);
 	    gensio_set_write_callback_enable(od->scon.io, true);
 	    OOMUNLOCK(&od->lock);
@@ -697,6 +717,8 @@ scon_open_done(struct gensio *io, int err, void *open_data)
 	id->err = err;
 	goto out_unlock;
     }
+
+    set_max_write(id, io);
 
     gensio_set_read_callback_enable(io, true);
     gensio_set_write_callback_enable(io, true);
