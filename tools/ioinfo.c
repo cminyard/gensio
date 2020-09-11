@@ -218,8 +218,9 @@ io_event(struct gensio *io, void *user_data, int event, int err,
 	    rv = gensio_write(rioinfo->io, &count, buf, wrsize, NULL);
 	    if (rv) {
 		if (rv != GE_REMCLOSE)
-		    ioinfo_err(rioinfo, "write error: %s",
+		    ioinfo_err(rioinfo, "write error(1): %s",
 			       gensio_err_to_str(rv));
+		gensio_set_read_callback_enable(ioinfo->io, false);
 		ioinfo->uh->shutdown(ioinfo, rv == GE_REMCLOSE);
 		return 0;
 	    }
@@ -257,7 +258,10 @@ io_event(struct gensio *io, void *user_data, int event, int err,
 
 	    rv = gensio_write(ioinfo->io, &count, oob->buf, wrsize, oobaux);
 	    if (rv) {
-		ioinfo_err(rioinfo, "write error: %s", gensio_err_to_str(rv));
+		ioinfo_err(rioinfo, "write error(2): %s",
+			   gensio_err_to_str(rv));
+		gensio_set_write_callback_enable(ioinfo->io, false);
+		gensio_set_read_callback_enable(ioinfo->io, false);
 		ioinfo->uh->shutdown(ioinfo, false);
 		return 0;
 	    }
