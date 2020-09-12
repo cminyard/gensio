@@ -219,16 +219,24 @@ struct gensio_filter {
 static void handle_ioerr(struct basen_data *ndata, int err);
 
 static void
-basen_lock(struct basen_data *ndata)
+i_basen_lock(struct basen_data *ndata)
 {
     ndata->o->lock(ndata->lock);
 }
+#define basen_lock(ndata) do { \
+	i_basen_lock((ndata));						\
+	i_basen_add_trace(ndata, 1800 + ndata->refcount, __LINE__);	\
+    } while(false)
 
 static void
-basen_unlock(struct basen_data *ndata)
+i_basen_unlock(struct basen_data *ndata)
 {
     ndata->o->unlock(ndata->lock);
 }
+#define basen_unlock(ndata) do { \
+	i_basen_add_trace(ndata, 1900 + ndata->refcount, __LINE__);	\
+	i_basen_unlock((ndata));					\
+    } while(false)
 
 static void
 basen_finish_free(struct basen_data *ndata)
@@ -260,7 +268,7 @@ i_basen_ref(struct basen_data *ndata, int line)
 static void
 i_basen_lock_and_ref(struct basen_data *ndata, int line)
 {
-    basen_lock(ndata);
+    i_basen_lock(ndata);
     i_basen_ref(ndata, line);
 }
 #define basen_lock_and_ref(ndata) i_basen_lock_and_ref((ndata), __LINE__)
@@ -286,7 +294,7 @@ i_basen_deref_and_unlock(struct basen_data *ndata, int line)
     assert(ndata->refcount > 0);
     i_basen_add_trace(ndata, 1000 + ndata->refcount, line);
     count = --ndata->refcount;
-    basen_unlock(ndata);
+    i_basen_unlock(ndata);
     if (count == 0)
 	basen_finish_free(ndata);
 }
