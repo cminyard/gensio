@@ -629,6 +629,11 @@ basen_read_data_handler(void *cb_data,
     gensiods count = 0, rval;
 
     basen_lock(ndata);
+    if (ndata->ll_err) {
+	basen_unlock(ndata);
+	return ndata->ll_err;
+    }
+
     if (!basen_can_deliver_ul_data(ndata)) {
 	if (ndata->state != BASEN_IN_LL_OPEN &&
 		ndata->state != BASEN_IN_FILTER_OPEN) {
@@ -1407,7 +1412,12 @@ basen_ll_read(void *cb_data, int readerr,
     ll_set_read_callback_enable(ndata, false);
     if (readerr) {
 	handle_ioerr(ndata, readerr);
-	goto out_unlock;
+	goto out_finish;
+    }
+    if (ndata->ll_err) {
+	/* If we are handling an error, throw the data away. */
+	buf += buflen;
+	goto out_finish;
     }
 
     if (ndata->deferred_read || ndata->in_read)
@@ -1427,15 +1437,17 @@ basen_ll_read(void *cb_data, int readerr,
 				      &wrlen, buf, buflen, auxdata);
 	    basen_lock(ndata);
 
-	    if (!readerr) {
+	    if (ndata->ll_err || readerr) {
+		ndata->in_read = false;
+		buf += buflen;
+		if (readerr)
+		    handle_ioerr(ndata, readerr);
+		goto out_finish;
+	    } else {
 		if (wrlen > buflen)
 		    wrlen = buflen;
 		buf += wrlen;
 		buflen -= wrlen;
-	    } else {
-		ndata->in_read = false;
-		handle_ioerr(ndata, readerr);
-		goto out_finish;
 	    }
 	} while (ndata->read_enabled && buflen > 0);
 	ndata->in_read = false;
@@ -1503,8 +1515,8 @@ basen_ll_write_ready(void *cb_data)
 	    goto retry;
     }
 
-    basen_set_ll_enables(ndata);
  out_setnotready:
+    basen_set_ll_enables(ndata);
     ndata->in_xmit_ready = false;
  out:
     basen_deref_and_unlock(ndata);
