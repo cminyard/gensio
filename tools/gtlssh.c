@@ -31,6 +31,10 @@
 #include "utils.h"
 #include "gtlssh.h"
 
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
+#define X509_get0_notAfter(x) X509_get_notAfter(x)
+#endif
+
 unsigned int debug;
 
 struct gdata {

@@ -37,11 +37,18 @@ bool print_raddr;
 
 static FILE *dummyrnd_file;
 
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
+static void
+dummyrnd_seed(const void *buf, int num)
+{
+}
+#else
 static int
 dummyrnd_seed(const void *buf, int num)
 {
     return 1;
 }
+#endif
 
 static int
 dummyrnd_bytes(unsigned char *buf, int num)
@@ -73,11 +80,18 @@ dummyrnd_cleanup(void)
 {
 }
 
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
+static void
+dummyrnd_add(const void *buf, int num, double randomness)
+{
+}
+#else
 static int
 dummyrnd_add(const void *buf, int num, double randomness)
 {
     return 1;
 }
+#endif
 
 static int
 dummyrnd_pseudorand(unsigned char *buf, int num)
