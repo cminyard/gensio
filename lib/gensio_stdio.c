@@ -36,6 +36,8 @@ struct stdiona_data;
 struct stdion_channel {
     struct stdiona_data *nadata;
 
+    int ll_err; /* Set if an error occurs reading or writing. */
+
     int infd;
     int outfd;
 
@@ -216,8 +218,19 @@ stdion_write(struct gensio *io, gensiods *count,
 {
     struct stdion_channel *schan = gensio_get_gensio_data(io);
     struct stdiona_data *nadata = schan->nadata;
+    int rv;
 
-    return gensio_os_write(nadata->o, schan->infd, sg, sglen, count);
+    stdiona_lock(nadata);
+    if (schan->ll_err) {
+	rv = schan->ll_err;
+    } else {
+	rv = gensio_os_write(nadata->o, schan->infd, sg, sglen, count);
+	if (rv)
+	    schan->ll_err = rv;
+    }
+    stdiona_unlock(nadata);
+
+    return rv;
 }
 
 /* Must be called with nadata->lock held */
@@ -232,6 +245,7 @@ stdion_finish_read(struct stdion_channel *schan, int err)
 	/* Do this here so the user can modify it. */
 	schan->read_enabled = false;
 	schan->data_pending_len = 0;
+	schan->ll_err = err;
 	if (!schan->outfd_regfile)
 	    nadata->o->set_read_handler(nadata->o, schan->outfd, false);
 	do {
@@ -413,8 +427,8 @@ stdion_deferred_op(struct gensio_runner *runner, void *cbdata)
 
 	schan->deferred_read = false;
     redo_read:
-	err = 0;
-	if (schan->outfd_regfile && !schan->data_pending_len)
+	err = schan->ll_err;
+	if (!err && schan->outfd_regfile && !schan->data_pending_len)
 	    err = stdion_do_read(nadata, schan);
 	stdion_finish_read(schan, err);
 	if (!err && schan->outfd_regfile && schan->read_enabled)
@@ -552,9 +566,10 @@ stdion_read_ready(int fd, void *cbdata)
     }
     if (!schan->outfd_regfile)
 	nadata->o->set_read_handler(nadata->o, schan->outfd, false);
-    schan->in_read = true;
-
-    stdion_finish_read(schan, stdion_do_read(nadata, schan));
+    if (!schan->ll_err) {
+	schan->in_read = true;
+	stdion_finish_read(schan, stdion_do_read(nadata, schan));
+    }
     stdiona_unlock(nadata);
 }
 
