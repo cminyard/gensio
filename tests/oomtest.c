@@ -976,9 +976,10 @@ run_oom_test(struct oom_tests *test, long count, int *exitcode, bool close_acc)
 	rv = setenv("GENSIO_ERRTRIG_TEST", intstr, 1);
     }
     if (rv) {
+	rv = errno;
 	fprintf(stderr, "Unable to set environment properly\n");
 	od_deref_and_unlock(od);
-	return gensio_os_err_to_err(o, errno);
+	return gensio_os_err_to_err(o, rv);
     }
 
     if (test->accepter) {
