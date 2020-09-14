@@ -42,6 +42,8 @@
 #include <gensio/gensio_class.h>
 #include <gensio/argvutils.h>
 
+#include "errtrig.h"
+
 /* MacOS doesn't have IPV6_ADD_MEMBERSHIP, but has an equivalent. */
 #ifndef IPV6_ADD_MEMBERSHIP
 #define IPV6_ADD_MEMBERSHIP IPV6_JOIN_GROUP
@@ -160,6 +162,9 @@ gensio_os_write(struct gensio_os_funcs *o,
 {
     ssize_t rv;
 
+    if (do_errtrig())
+	return GE_NOMEM;
+
     if (sglen == 0) {
 	if (rcount)
 	    *rcount = 0;
@@ -175,6 +180,9 @@ gensio_os_read(struct gensio_os_funcs *o,
 	       int fd, void *buf, gensiods buflen, gensiods *rcount)
 {
     ssize_t rv;
+
+    if (do_errtrig())
+	return GE_NOMEM;
 
     if (buflen == 0) {
 	if (rcount)
@@ -193,6 +201,9 @@ gensio_os_recv(struct gensio_os_funcs *o,
     ssize_t rv;
     int flags = (gflags & GENSIO_MSG_OOB) ? MSG_OOB : 0;
 
+    if (do_errtrig())
+	return GE_NOMEM;
+
  retry:
     rv = recv(fd, buf, buflen, flags);
     ERRHANDLE();
@@ -206,6 +217,9 @@ gensio_os_send(struct gensio_os_funcs *o,
     ssize_t rv;
     struct msghdr hdr;
     int flags = (gflags & GENSIO_MSG_OOB) ? MSG_OOB : 0;
+
+    if (do_errtrig())
+	return GE_NOMEM;
 
     memset(&hdr, 0, sizeof(hdr));
     hdr.msg_iov = (struct iovec *) sg;
@@ -224,6 +238,9 @@ gensio_os_sendto(struct gensio_os_funcs *o,
 {
     ssize_t rv;
     struct msghdr hdr;
+
+    if (do_errtrig())
+	return GE_NOMEM;
 
     memset(&hdr, 0, sizeof(hdr));
     hdr.msg_name = (void *) raddr->curr->ai_addr;
@@ -295,6 +312,9 @@ gensio_os_recvfrom(struct gensio_os_funcs *o,
     ssize_t rv;
     int err = 0;
 
+    if (do_errtrig())
+	return GE_NOMEM;
+
  retry:
     rv = recvfrom(fd, buf, buflen, flags,
 		  addr->curr->ai_addr, &addr->curr->ai_addrlen);
@@ -322,6 +342,9 @@ gensio_os_accept(struct gensio_os_funcs *o, int fd,
     struct sockaddr *sa;
     struct sockaddr_storage sadata;
     socklen_t len;
+
+    if (do_errtrig())
+	return GE_NOMEM;
 
     if (raddr) {
 	addr = gensio_addr_make(o, sizeof(struct sockaddr_storage));
@@ -516,6 +539,9 @@ gensio_os_sctp_recvmsg(struct gensio_os_funcs *o,
 {
     int rv;
 
+    if (do_errtrig())
+	return GE_NOMEM;
+
  retry:
     rv = sctp_recvmsg(fd, msg, len, NULL, NULL, sinfo, flags);
     ERRHANDLE();
@@ -546,6 +572,9 @@ gensio_os_sctp_send(struct gensio_os_funcs *o,
     int err = 0;
     gensiods i, count = 0, total_write = 0;
 
+    if (do_errtrig())
+	return GE_NOMEM;
+
     /* Without sctp_sendv, this is really hard to do. */
     for (i = 0; i < sglen; i++) {
 	err = l_sctp_send(o, fd, sg[i].buf, sg[i].buflen, &count, sinfo, flags);
@@ -569,6 +598,9 @@ gensio_os_sctp_send(struct gensio_os_funcs *o,
 {
     size_t rv = 0;
     struct sctp_sndinfo *sndinfo = NULL, sdata;
+
+    if (do_errtrig())
+	return GE_NOMEM;
 
     if (sctp_sendv_broken) {
     broken:
@@ -671,6 +703,9 @@ gensio_os_sctp_connectx(struct gensio_os_funcs *o,
     int err;
     bool ipv6_only;
 
+    if (do_errtrig())
+	return GE_NOMEM;
+
     err = gensio_addr_to_sockarray(o, addrs, &saddrs, &naddrs, &ipv6_only);
     if (err)
 	return err;
@@ -700,6 +735,9 @@ sctp_getraddr(struct gensio_os_funcs *o,
 	      int fd, struct sockaddr **addr, gensiods *addrlen)
 {
     int rv;
+
+    if (do_errtrig())
+	return GE_NOMEM;
 
     rv = sctp_getpaddrs(fd, 0, addr);
     if (rv < 0) {
@@ -815,6 +853,9 @@ gensio_os_sctp_getladdrs(struct gensio_os_funcs *o, int fd,
     int rv;
     struct sockaddr *saddr;
 
+    if (do_errtrig())
+	return GE_NOMEM;
+
     rv = sctp_getladdrs(fd, 0, &saddr);
     if (rv < 0) {
 	return gensio_os_err_to_err(o, errno);
@@ -833,6 +874,8 @@ int gensio_os_close(struct gensio_os_funcs *o, int fd)
 {
     int err = close(fd);
 
+    /* Don't do errtrig on close, it can fail and not cause any issues. */
+
     if (err == -1)
 	return gensio_os_err_to_err(o, errno);
     return 0;
@@ -843,6 +886,9 @@ int gensio_os_check_socket_open(struct gensio_os_funcs *o, int fd)
     int err, optval;
     socklen_t len = sizeof(optval);
 
+    if (do_errtrig())
+	return GE_NOMEM;
+
     err = getsockopt(fd, SOL_SOCKET, SO_ERROR, &optval, &len);
     if (err)
 	return gensio_os_err_to_err(o, errno);
@@ -852,6 +898,9 @@ int gensio_os_check_socket_open(struct gensio_os_funcs *o, int fd)
 int
 gensio_os_set_non_blocking(struct gensio_os_funcs *o, int fd)
 {
+    if (do_errtrig())
+	return GE_NOMEM;
+
     if (fcntl(fd, F_SETFL, O_NONBLOCK) == -1)
 	return gensio_os_err_to_err(o, errno);
     return 0;
@@ -864,6 +913,9 @@ gensio_os_socket_open(struct gensio_os_funcs *o,
 {
     int sockproto, socktype;
     int newfd;
+
+    if (do_errtrig())
+	return GE_NOMEM;
 
     switch (protocol) {
     case GENSIO_NET_PROTOCOL_TCP:
@@ -970,6 +1022,9 @@ gensio_os_mcast_add(struct gensio_os_funcs *o, int fd,
     struct addrinfo *ai;
     int rv;
 
+    if (do_errtrig())
+	return GE_NOMEM;
+
     if (curr_only)
 	ai = mcast_addrs->curr;
     else
@@ -1026,6 +1081,9 @@ gensio_os_mcast_del(struct gensio_os_funcs *o, int fd,
     struct addrinfo *ai;
     int rv;
 
+    if (do_errtrig())
+	return GE_NOMEM;
+
     if (curr_only)
 	ai = mcast_addrs->curr;
     else
@@ -1080,6 +1138,9 @@ gensio_os_set_mcast_loop(struct gensio_os_funcs *o, int fd,
 {
     int rv, val = ival;
 
+    if (do_errtrig())
+	return GE_NOMEM;
+
     switch (addr->curr->ai_addr->sa_family) {
     case AF_INET:
 	rv = setsockopt(fd, IPPROTO_IP, IP_MULTICAST_LOOP, &val, sizeof(val));
@@ -1106,6 +1167,9 @@ gensio_os_connect(struct gensio_os_funcs *o, int fd, struct gensio_addr *addr)
 {
     int err;
 
+    if (do_errtrig())
+	return GE_NOMEM;
+
     err = check_ipv6_only(addr->curr->ai_family,
 			  addr->curr->ai_protocol,
 			  addr->curr->ai_flags,
@@ -1122,6 +1186,9 @@ gensio_os_get_nodelay(struct gensio_os_funcs *o, int fd, int protocol, int *val)
 {
     socklen_t vallen = sizeof(*val);
     int rv;
+
+    if (do_errtrig())
+	return GE_NOMEM;
 
     if (protocol == GENSIO_NET_PROTOCOL_TCP)
 	rv = getsockopt(fd, IPPROTO_TCP, TCP_NODELAY, val, &vallen);
@@ -1141,6 +1208,9 @@ int
 gensio_os_set_nodelay(struct gensio_os_funcs *o, int fd, int protocol, int val)
 {
     int rv;
+
+    if (do_errtrig())
+	return GE_NOMEM;
 
     if (protocol == GENSIO_NET_PROTOCOL_TCP)
 	rv = setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &val, sizeof(val));
@@ -1162,6 +1232,9 @@ gensio_os_getsockname(struct gensio_os_funcs *o, int fd,
 {
     struct gensio_addr *addr;
     int err;
+
+    if (do_errtrig())
+	return GE_NOMEM;
 
     addr = gensio_addr_make(o, sizeof(struct sockaddr_storage));
     if (!addr)
@@ -1185,6 +1258,9 @@ gensio_os_setupnewprog(void)
     uid_t uid = geteuid();
     gid_t *groups = NULL;
     int ngroup = 0;
+
+    if (do_errtrig())
+	return GE_NOMEM;
 
     if (uid == getuid())
 	return 0;
@@ -1235,6 +1311,9 @@ gensio_os_get_random(struct gensio_os_funcs *o,
 {
     int fd = open("/dev/urandom", O_RDONLY);
     int rv;
+
+    if (do_errtrig())
+	return GE_NOMEM;
 
     if (fd == -1)
 	return gensio_os_err_to_err(o, errno);
@@ -1288,6 +1367,9 @@ gensio_os_open_socket(struct gensio_os_funcs *o,
     unsigned int max_fds = 0;
     int rv = 0;
     struct gensio_listen_scan_info scaninfo;
+
+    if (do_errtrig())
+	return GE_NOMEM;
 
     for (rp = ai->a; rp != NULL; rp = rp->ai_next)
 	max_fds++;
@@ -1370,6 +1452,9 @@ gensio_os_socket_get_port(struct gensio_os_funcs *o, int fd, unsigned int *port)
     struct sockaddr_storage sa;
     socklen_t len = sizeof(sa);
     int rv;
+
+    if (do_errtrig())
+	return GE_NOMEM;
 
     rv = getsockname(fd, (struct sockaddr *) &sa, &len);
     if (rv)
