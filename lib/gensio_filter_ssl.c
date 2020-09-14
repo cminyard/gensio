@@ -56,6 +56,7 @@ struct ssl_filter {
     struct gensio_os_funcs *o;
     bool is_client;
     bool connected;
+    int err;
     bool finish_close_on_write;
     struct gensio_lock *lock;
 
@@ -356,6 +357,8 @@ ssl_try_disconnect(struct gensio_filter *filter, gensio_time *timeout)
 		rv = 0;
 	}
     }
+    if (!rv)
+	sfilter->err = GE_LOCALCLOSED;
     ssl_unlock(sfilter);
 
     return rv;
@@ -373,7 +376,25 @@ ssl_ul_write(struct gensio_filter *filter,
     gensiods i;
 
     ssl_lock(sfilter);
-    if (sfilter->write_data_len) {
+    if (sfilter->err) {
+	if (rcount) {
+	    *rcount = 0;
+	    for (i = 0; i < sglen; i++)
+		*rcount += sg[i].buflen;
+	}
+	err = sfilter->err;
+	goto out_unlock;
+    }
+
+    if (!sfilter->connected) {
+	/* No new data after a close. */
+	if (rcount) {
+	    *rcount = 0;
+	    for (i = 0; i < sglen; i++)
+		*rcount += sg[i].buflen;
+	}
+    } else if (sfilter->write_data_len) {
+	/* Ignore any incoming data if we already have some. */
 	if (rcount)
 	    *rcount = 0;
     } else {
@@ -399,6 +420,7 @@ ssl_ul_write(struct gensio_filter *filter,
 	err = handler(cb_data, &written, &sg, 1, NULL);
 	if (err) {
 	    sfilter->xmit_buf_len = 0;
+	    sfilter->write_data_len = 0;
 	} else {
 	    sfilter->xmit_buf_pos += written;
 	    if (sfilter->xmit_buf_pos >= sfilter->xmit_buf_len)
@@ -463,6 +485,9 @@ ssl_ul_write(struct gensio_filter *filter,
 	    goto restart;
 	}
     }
+    if (err)
+	sfilter->err = err;
+ out_unlock:
     ssl_unlock(sfilter);
 
     return err;
@@ -486,6 +511,13 @@ ssl_ll_write(struct gensio_filter *filter,
     }
 
     ssl_lock(sfilter);
+    if (sfilter->err) {
+	if (rcount)
+	    *rcount = buflen;
+	err = sfilter->err;
+	goto out_unlock;
+    }
+
     if (buflen > 0) {
 	int wrlen = BIO_write(sfilter->io_bio, buf, buflen);
 
@@ -542,7 +574,7 @@ ssl_ll_write(struct gensio_filter *filter,
 	sfilter->read_data_pos = 0;
     }
 
-    if (sfilter->read_data_len) {
+    if (!err && sfilter->read_data_len) {
 	gensiods count = 0;
 
 	ssl_unlock(sfilter);
@@ -554,13 +586,17 @@ ssl_ll_write(struct gensio_filter *filter,
 	    if (count >= sfilter->read_data_len) {
 		sfilter->read_data_len = 0;
 		sfilter->read_data_pos = 0;
-		goto process_more;
+		if (!sfilter->err && sfilter->connected)
+		    goto process_more;
 	    } else {
 		sfilter->read_data_len -= count;
 		sfilter->read_data_pos += count;
 	    }
 	}
     }
+    if (err && !sfilter->err)
+	sfilter->err = err;
+ out_unlock:
     ssl_unlock(sfilter);
 
     return err;
@@ -617,6 +653,7 @@ ssl_cleanup(struct gensio_filter *filter)
 	BIO_free(sfilter->io_bio);
     sfilter->ssl_bio = NULL;
     sfilter->io_bio = NULL;
+    sfilter->err = 0;
     sfilter->read_data_len = 0;
     sfilter->read_data_pos = 0;
     sfilter->xmit_buf_len = 0;
