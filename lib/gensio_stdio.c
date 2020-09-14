@@ -845,6 +845,7 @@ stdion_open(struct gensio *io, gensio_done_err open_done, void *open_data)
 	stdiona_ref(nadata);
     }
 
+    schan->ll_err = 0;
     schan->closed = false;
     schan->in_open = true;
     schan->open_done = open_done;
