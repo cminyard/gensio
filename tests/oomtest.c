@@ -36,6 +36,12 @@ struct oom_tests {
     bool check_value;
     bool free_connecter;
     bool conacc;
+
+    /* Some tests can keep going on a failure under certain circumstances. */
+    bool allow_no_err_on_trig;
+
+    /* Put a limit on the I/O size that can be used. */
+    gensiods max_io_size;
 };
 
 #if HAVE_SERIALDEV
@@ -159,9 +165,18 @@ struct oom_tests oom_tests[] = {
      * fails, and that takes about 5 seconds per failure.  That makes
      * the test take a long time.  So just use TCP.
      */
-    { "relpkt,msgdelim,tcp,localhost,", "relpkt,msgdelim,tcp,0" },
+    { "relpkt,msgdelim,tcp,localhost,", "relpkt,msgdelim,tcp,0",
+      /* In this tests some errors will not result in a failure. */
+      .allow_no_err_on_trig = true,
+      /*
+       * The error injections cause this to take way to long with
+       * large I/O sizes.  So limit it to a reasonable value.
+       */
+      .max_io_size = 2000 },
     { "certauth(cert=ca/cert.pem,key=ca/key.pem,username=test1),ssl(CA=ca/CA.pem),tcp,localhost,",
       "certauth(CA=ca/CA.pem),ssl(key=ca/key.pem,cert=ca/cert.pem),tcp,0",
+      /* In this tests some errors will not result in a failure. */
+      .allow_no_err_on_trig = true,
       .check_done = 1, .check_value = HAVE_OPENSSL },
     { "ssl(CA=ca/CA.pem),tcp,localhost,",
       "ssl(key=ca/key.pem,cert=ca/cert.pem),tcp,0",
@@ -172,11 +187,23 @@ struct oom_tests oom_tests[] = {
       .check_if_present = check_sctp_present, .check_value = HAVE_LIBSCTP },
     { "udp,localhost,", "udp,0" },
     { "mux,sctp,localhost,", "mux,sctp,0",
-      .check_if_present = check_sctp_present, .check_value = HAVE_LIBSCTP },
+      .check_if_present = check_sctp_present, .check_value = HAVE_LIBSCTP,
+      /* In this tests some errors will not result in a failure. */
+      .allow_no_err_on_trig = true,
+      /*
+       * The error injections cause this to take way to long with
+       * large I/O sizes.  So limit it to a reasonable value.
+       */
+      .max_io_size = 10000 },
     { "telnet(rfc2217),tcp,localhost,", "telnet(rfc2217),tcp,0" },
     { "serialdev,%s,115200", NULL,
       .check_if_present = check_serialdev_present,
-      .check_value = HAVE_SERIALDEV },
+      .check_value = HAVE_SERIALDEV,
+      /*
+       * The error injections cause this to take way to long with
+       * large I/O sizes.  So limit it to a reasonable value.
+       */
+      .max_io_size = 1000 },
     { "telnet,tcp,localhost,", "telnet,tcp,0" },
     { "stdio,cat", NULL },
     { "conacc,tcp,localhost,", "tcp,0", .conacc=true },
@@ -276,6 +303,8 @@ struct oom_test_data {
     struct io_test_data ccon;
     struct io_test_data scon;
     struct gensio_waiter *waiter;
+
+    gensiods io_size;
 
     bool ccon_exit_code_set;
     int ccon_exit_code;
@@ -472,7 +501,7 @@ con_cb(struct gensio *io, void *user_data,
     case GENSIO_EVENT_READ:
 	assert(!id->in_read);
 	id->in_read = true;
-	if (id->read_pos + *buflen > iodata_size) {
+	if (id->read_pos + *buflen > od->io_size) {
 	    gensio_set_write_callback_enable(io, false);
 	    gensio_set_read_callback_enable(io, false);
 	    id->err = OOME_READ_OVERFLOW;
@@ -492,7 +521,7 @@ con_cb(struct gensio *io, void *user_data,
 	}
 
 	id->read_pos += *buflen;
-	if (id->read_pos >= iodata_size)
+	if (id->read_pos >= od->io_size)
 	    o->wake(od->waiter);
     out_leave_read:
 	id->in_read = false;
@@ -501,8 +530,8 @@ con_cb(struct gensio *io, void *user_data,
     case GENSIO_EVENT_WRITE_READY:
 	assert(!id->in_write);
 	id->in_write = true;
-	if (id->write_pos < iodata_size) {
-	    gensiods wrsize = iodata_size - id->write_pos;
+	if (id->write_pos < od->io_size) {
+	    gensiods wrsize = od->io_size - id->write_pos;
 
 	    if (id->max_write && wrsize > id->max_write)
 		wrsize = id->max_write;
@@ -798,6 +827,12 @@ alloc_od(struct oom_tests *test)
     od->ccon.iostr = test->connecter;
     od->scon.iostr = test->accepter;
     LOCK_INIT(&od->lock);
+
+    if (test->max_io_size)
+	od->io_size = iodata_size % test->max_io_size;
+    else
+	od->io_size = iodata_size;
+
     return od;
 }
 
@@ -829,11 +864,11 @@ wait_for_data(struct oom_test_data *od, gensio_time *timeout)
 	    err = od->scon.err;
 	    break;
 	}
-	if (od->ccon.write_pos >= iodata_size &&
-		od->ccon.read_pos >= iodata_size &&
+	if (od->ccon.write_pos >= od->io_size &&
+		od->ccon.read_pos >= od->io_size &&
 		(!od->scon.io ||
-		 (od->scon.write_pos >= iodata_size &&
-		  od->scon.read_pos >= iodata_size)))
+		 (od->scon.write_pos >= od->io_size &&
+		  od->scon.read_pos >= od->io_size)))
 	    break;
     }
 
@@ -1300,11 +1335,13 @@ run_oom_tests(struct oom_tests *test, char *tstr,
 		exit_code = 1;
 	    }
 	} else if (exit_code == 2) {
-	    errcount++;
-	    if (!verbose)
-		print_test(test, tstr, close_acc, count);
-	    printf("  ***No error on failure trigger.\n");
-	    exit_code = 1;
+	    if (!test->allow_no_err_on_trig) {
+		errcount++;
+		if (!verbose)
+		    print_test(test, tstr, close_acc, count);
+		printf("  ***No error on failure trigger.\n");
+		exit_code = 1;
+	    }
 	} else if (exit_code == 3) {
 	    errcount++;
 	    if (!verbose)
