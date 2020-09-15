@@ -66,7 +66,8 @@ static int pty_check_open(void *handler_data, int fd)
 }
 
 #ifndef HAVE_CFMAKERAW
-static void cfmakeraw(struct termios *termios_p) {
+static void
+cfmakeraw(struct termios *termios_p) {
     termios_p->c_iflag &= ~(IGNBRK|BRKINT|PARMRK|ISTRIP|INLCR|IGNCR|ICRNL|IXON);
     termios_p->c_oflag &= ~OPOST;
     termios_p->c_lflag &= ~(ECHO|ECHONL|ICANON|ISIG|IEXTEN);
@@ -75,6 +76,20 @@ static void cfmakeraw(struct termios *termios_p) {
     termios_p->c_cc[VMIN] = 1;
 }
 #endif
+
+static int
+pty_make_raw(int ptym)
+{
+    struct termios t;
+    int err;
+
+    err = tcgetattr(ptym, &t);
+    if (err)
+	return err;
+
+    cfmakeraw(&t);
+    return tcsetattr(ptym, TCSANOW, &t);
+}
 
 /*
  * This is ugly, but it's by far the simplest way.
@@ -167,14 +182,7 @@ gensio_setup_child_on_pty(struct pty_data *tdata)
 #endif
 
     if (tdata->raw) {
-	struct termios t;
-
-	err = tcgetattr(ptym, &t);
-	if (err)
-	    goto out_errno;
-
-	cfmakeraw(&t);
-	err = tcsetattr(ptym, TCSANOW, &t);
+	err = pty_make_raw(ptym);
 	if (err)
 	    goto out_errno;
     }
@@ -260,7 +268,7 @@ gensio_setup_child_on_pty(struct pty_data *tdata)
 
 	/* Close everything. */
 	for (i = 3; i < openfiles; i++)
-		close(i);
+	    close(i);
 
 	err = gensio_os_setupnewprog();
 	if (err) {
@@ -569,7 +577,7 @@ pty_gensio_alloc(const char * const argv[], const char * const args[],
     }
 
     if (argv && argv[0]) {
-	if (raw || mode_set || owner || group) {
+	if (mode_set || owner || group) {
 	    /* These are only for non-subprogram ptys. */
 	    err = GE_INCONSISTENT;
 	    goto out_err;
