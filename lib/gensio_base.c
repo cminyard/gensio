@@ -627,12 +627,8 @@ basen_read_data_handler(void *cb_data,
 {
     struct basen_data *ndata = cb_data;
     gensiods count = 0, rval;
-    int err = 0;
 
     basen_lock(ndata);
-    if (ndata->ll_err)
-	goto out_unlock;
-
     if (!basen_can_deliver_ul_data(ndata)) {
 	if (ndata->state != BASEN_IN_LL_OPEN &&
 		ndata->state != BASEN_IN_FILTER_OPEN) {
@@ -644,8 +640,7 @@ basen_read_data_handler(void *cb_data,
 	}
 	goto out_unlock;
     }
-    while (!ndata->ll_err &&
-	   basen_can_deliver_ul_data(ndata) && ndata->read_enabled &&
+    while (basen_can_deliver_ul_data(ndata) && ndata->read_enabled &&
 	   count < buflen) {
 	rval = buflen - count;
 	basen_unlock(ndata);
@@ -658,12 +653,11 @@ basen_read_data_handler(void *cb_data,
 	basen_lock(ndata);
     }
  out_unlock:
-    err = ndata->ll_err;
     basen_unlock(ndata);
 
  out:
     *rcount = count;
-    return err;
+    return 0;
 }
 
 static void
@@ -676,7 +670,6 @@ handle_ioerr(struct basen_data *ndata, int err)
     if (ndata->ll_err)
 	return; /* Already handled. */
 
-    ndata->xmit_enabled = false;
     ll_set_write_callback_enable(ndata, false);
     ll_set_read_callback_enable(ndata, false);
 
