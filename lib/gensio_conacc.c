@@ -226,12 +226,19 @@ conaccn_finish_close(struct conaccn_data *ndata)
 }
 
 static void
-conaccn_close_done(struct gensio *child_io, void *close_data)
+conaccn_close_done(struct gensio *child_io, void *close_cb_data)
 {
-    struct conaccn_data *ndata = close_data;
+    struct conaccn_data *ndata = close_cb_data;
+    gensio_done close_done;
+    void *close_data;
 
-    if (ndata->close_done)
-	ndata->close_done(ndata->io, ndata->close_data);
+    conaccn_lock(ndata);
+    close_done = ndata->close_done;
+    close_data = ndata->close_data;
+    ndata->close_done = NULL;
+    conaccn_unlock(ndata);
+    if (close_done)
+	close_done(ndata->io, close_data);
     conaccn_lock(ndata);
     conaccn_finish_close(ndata);
     conaccn_deref_and_unlock(ndata);
