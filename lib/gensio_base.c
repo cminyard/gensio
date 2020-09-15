@@ -1700,7 +1700,6 @@ base_gensio_server_start(struct gensio *io)
 	err = 0;
     } else {
 	basen_set_state(ndata, BASEN_CLOSED);
-	basen_unlock(ndata);
 	err = GE_NOMEM;
 	goto out_unlock;
     }
