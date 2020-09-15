@@ -325,7 +325,12 @@ struct oom_test_data {
     bool invalid_port_data;
 
     unsigned int refcount;
+
+    bool finished;
+    struct oom_test_data *next;
 };
+
+struct oom_test_data *old_ods;
 
 /* I would like this to be larger, but there are SCTP and UDP limitations. */
 #define MAX_IODATA_SIZE 65535
@@ -384,10 +389,24 @@ i_od_deref_and_unlock(struct oom_test_data *od, int line)
 	if (od->ccon_stderr_io)
 	    gensio_free(od->ccon_stderr_io);
 	o->free_waiter(od->waiter);
-	o->free(o, od);
+	od->finished = true;
+	od->next = old_ods;
+	old_ods = od;
     }
 }
 #define od_deref_and_unlock(od) i_od_deref_and_unlock(od, __LINE__)
+
+static void
+cleanup_ods(void)
+{
+    struct oom_test_data *od = old_ods, *next;
+
+    while (od) {
+	next = od->next;
+	o->free(o, od);
+	od = next;
+    }
+}
 
 static void
 i_od_ref(struct oom_test_data *od, int line)
@@ -406,6 +425,7 @@ ccon_stderr_closed(struct gensio *io, void *close_data)
     char intstr[10];
     gensiods size = sizeof(intstr);
 
+    assert(!od->finished);
     od->stderr_closed = true;
     rv = gensio_control(io, GENSIO_CONTROL_DEPTH_FIRST, true,
 			GENSIO_CONTROL_EXIT_CODE, intstr, &size);
@@ -431,6 +451,8 @@ con_closed(struct gensio *io, void *close_data)
     struct io_test_data *id = close_data;
     struct oom_test_data *od = id->od;
 
+    assert(!od->finished);
+
     OOMLOCK(&od->lock);
     id->closed = true;
     gensio_free(io);
@@ -444,6 +466,7 @@ acc_closed(struct gensio_accepter *acc, void *close_data)
 {
     struct oom_test_data *od = close_data;
 
+    assert(!od->finished);
     assert(acc == od->acc);
     LOCK(&od->lock);
     od->acc = NULL;
@@ -481,6 +504,7 @@ con_cb(struct gensio *io, void *user_data,
     gensiods count;
     int rv = 0;
 
+    assert(!od->finished);
     OOMLOCK(&od->lock);
     add_ref_trace(ref_inc, err, __LINE__, event);
     assert(id->io == io);
@@ -592,6 +616,7 @@ acc_cb(struct gensio_accepter *accepter,
     struct oom_test_data *od = user_data;
     int rv = 0;
 
+    assert(!od->finished);
     switch(event) {
     case GENSIO_ACC_EVENT_NEW_CONNECTION:
 	OOMLOCK(&od->lock);
@@ -632,6 +657,7 @@ ccon_stderr_cb(struct gensio *io, void *user_data,
     struct oom_test_data *od = user_data;
     gensiods size;
 
+    assert(!od->finished);
     if (err) {
 	OOMLOCK(&od->lock);
 	assert(!debug || err == GE_REMCLOSE);
@@ -708,6 +734,7 @@ ccon_stderr_open_done(struct gensio *io, int err, void *open_data)
 {
     struct oom_test_data *od = open_data;
 
+    assert(!od->finished);
     OOMLOCK(&od->lock);
     if (od->stderr_closed)
 	goto out_unlock;
@@ -730,6 +757,7 @@ scon_open_done(struct gensio *io, int err, void *open_data)
     struct oom_test_data *od = open_data;
     struct io_test_data *id = &od->scon;
 
+    assert(!od->finished);
     OOMLOCK(&od->lock);
     assert(!id->open_done);
     o->wake(od->waiter);
@@ -765,6 +793,7 @@ ccon_open_done(struct gensio *io, int err, void *open_data)
     struct io_test_data *id = &od->ccon;
     int rv;
 
+    assert(!od->finished);
     OOMLOCK(&od->lock);
     assert(!id->open_done);
     o->wake(od->waiter);
@@ -1653,10 +1682,12 @@ main(int argc, char *argv[])
     printf("Got %ld errors, skipped %ld tests\n", errcount, skipcount);
     while (o && o->service(o, &zerotime) == 0)
 	;
+    cleanup_ods();
     gensio_cleanup_mem(o);
     gensio_sel_exit(!!errcount);
 
  out_err:
+    cleanup_ods();
     gensio_cleanup_mem(o);
     gensio_sel_exit(1);
     return 1;
