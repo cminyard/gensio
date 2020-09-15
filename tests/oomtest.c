@@ -180,6 +180,8 @@ struct oom_tests oom_tests[] = {
       .check_done = 1, .check_value = HAVE_OPENSSL },
     { "ssl(CA=ca/CA.pem),tcp,localhost,",
       "ssl(key=ca/key.pem,cert=ca/cert.pem),tcp,0",
+      /* In this tests some errors will not result in a failure. */
+      .allow_no_err_on_trig = true,
       .check_done = 1, .check_value = HAVE_OPENSSL },
     { "echo", NULL },
     { "tcp,localhost,", "tcp,0" },
