@@ -1309,12 +1309,13 @@ int
 gensio_os_get_random(struct gensio_os_funcs *o,
 		     void *data, unsigned int len)
 {
-    int fd = open("/dev/urandom", O_RDONLY);
+    int fd;
     int rv;
 
     if (do_errtrig())
 	return GE_NOMEM;
 
+    fd = open("/dev/urandom", O_RDONLY);
     if (fd == -1)
 	return gensio_os_err_to_err(o, errno);
 
