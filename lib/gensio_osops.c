@@ -878,6 +878,13 @@ int gensio_os_close(struct gensio_os_funcs *o, int *fd)
 
     assert(*fd != -1);
     err = close(*fd);
+#ifdef ENABLE_INTERNAL_TRACE
+    /* Close should never fail, but don't crash in production builds. */
+    if (err) {
+	err = errno;
+	assert(0);
+    }
+#endif
     *fd = -1;
 
     if (err == -1)
