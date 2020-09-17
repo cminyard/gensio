@@ -107,32 +107,25 @@ struct ssl_filter {
 #define filter_to_ssl(v) ((struct ssl_filter *) gensio_filter_get_user_data(v))
 
 static void
-gssl_vlog_w_err(struct ssl_filter *f, enum gensio_log_levels l,
-		unsigned long ssl_err, char *fmt, va_list ap)
-{
-    char buf[256], buf2[200];
-
-    ERR_error_string_n(ssl_err, buf2, sizeof(buf2));
-    snprintf(buf, sizeof(buf), "ssl: %s: %s", fmt, buf2);
-    gensio_vlog(f->o, l, buf, ap);
-}
-
-static void
 gssl_vlog(struct ssl_filter *f, enum gensio_log_levels l,
 	  bool do_ssl_err, char *fmt, va_list ap)
 {
     if (do_ssl_err) {
+	char buf[256], buf2[200];
 	unsigned long ssl_err = ERR_get_error();
 
 	if (!ssl_err)
 	    goto no_ssl_err;
 
-	gssl_vlog_w_err(f, l, ssl_err, fmt, ap);
+	ERR_error_string_n(ssl_err, buf2, sizeof(buf2));
+	snprintf(buf, sizeof(buf), "ssl: %s: %s", fmt, buf2);
+	gensio_vlog(f->o, l, buf, ap);
     } else {
     no_ssl_err:
 	gensio_vlog(f->o, l, fmt, ap);
     }
 }
+
 
 static void
 gssl_log_info(struct ssl_filter *f, char *fmt, ...)
@@ -149,16 +142,6 @@ gssl_log_err(struct ssl_filter *f, char *fmt, ...)
     va_list ap;
     va_start(ap, fmt);
     gssl_vlog(f, GENSIO_LOG_ERR, false, fmt, ap);
-    va_end(ap);
-}
-
-static void
-gssl_logs_err_w_err(struct ssl_filter *f, unsigned long ssl_err,
-		    char *fmt, ...)
-{
-    va_list ap;
-    va_start(ap, fmt);
-    gssl_vlog_w_err(f, GENSIO_LOG_ERR, ssl_err, fmt, ap);
     va_end(ap);
 }
 
@@ -572,31 +555,10 @@ ssl_ll_write(struct gensio_filter *filter,
 		err = 0;
 		break;
 
-	    case SSL_ERROR_SSL: {
-		unsigned long ssl_err = ERR_get_error();
-
-		if (ERR_GET_LIB(ssl_err) == ERR_LIB_SSL &&
-		    ((ERR_GET_REASON(ssl_err) ==
-		     SSL_R_APPLICATION_DATA_AFTER_CLOSE_NOTIFY) ||
-		     (ERR_GET_REASON(ssl_err) ==
-		      SSL_R_DECRYPTION_FAILED) ||
-		     (ERR_GET_REASON(ssl_err) ==
-		      SSL_R_DECRYPTION_FAILED_OR_BAD_RECORD_MAC))) {
-		    /*
-		     * This is annoying, but in some circumstances in
-		     * a multi-threaded program you can get some data
-		     * after a close has been sent.  I'm not sure this
-		     * is a bug, per se, but it reports a protocol
-		     * error in this case, even though it's not really
-		     * an error.  So just ignore it in this case.
-		     */
-		    err = GE_REMCLOSE;
-		} else {
-		    gssl_logs_err_w_err(sfilter, ssl_err, "Failed SSL read");
-		    err = GE_PROTOERR;
-		}
+	    case SSL_ERROR_SSL:
+		gssl_logs_err(sfilter, "Failed SSL read");
+		err = GE_PROTOERR;
 		break;
-	    }
 
 	    case SSL_ERROR_ZERO_RETURN:
 		err = GE_REMCLOSE;
