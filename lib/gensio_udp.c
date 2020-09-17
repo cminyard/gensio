@@ -538,7 +538,7 @@ udpn_finish_close(struct udpna_data *nadata, struct udpn_data *ndata)
 	nadata->data_pending_len = 0;
     }
 
-    if (ndata->freed)
+    if (ndata->freed && !ndata->deferred_op_pending)
 	udpn_finish_free(ndata);
 }
 
@@ -652,6 +652,9 @@ udpn_deferred_op(struct gensio_runner *runner, void *cbdata)
 
     if (ndata->state == UDPN_IN_CLOSE)
 	udpn_finish_close(nadata, ndata);
+    else if (ndata->freed && !ndata->in_close_cb &&
+	     !nadata->deferred_op_pending)
+	udpn_finish_free(ndata);
 
     udpna_deref_and_unlock(nadata);
 }
@@ -759,7 +762,7 @@ udpn_free(struct gensio *io)
 	ndata->close_done = NULL;
     else if (ndata->state != UDPN_CLOSED)
 	udpn_start_close(ndata, NULL, NULL);
-    else if (!ndata->in_close_cb)
+    else if (!ndata->in_close_cb && !ndata->deferred_op_pending)
 	udpn_finish_free(ndata);
  out_unlock:
     udpna_deref_and_unlock(nadata);
