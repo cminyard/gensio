@@ -60,7 +60,7 @@ static int net_check_open(void *handler_data, int fd)
 static int
 net_try_open(struct net_data *tdata, int *fd)
 {
-    int new_fd, err = GE_INUSE;
+    int new_fd = -1, err = GE_INUSE;
     int protocol = tdata->istcp ? GENSIO_NET_PROTOCOL_TCP
 				: GENSIO_NET_PROTOCOL_UNIX;
 
