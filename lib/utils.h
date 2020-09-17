@@ -22,13 +22,6 @@ int strncasecmp(const char *s1, const char *s2, int n);
 
 int gensio_time_cmp(gensio_time *t1, gensio_time *t2);
 
-/*
- * Returns true if the first strlen(prefix) characters of s are the
- * same as prefix.  If true is returned, val is set to the character
- * after the last byte that compares.
- */
-int cmpstrval(const char *s, const char *prefix, const char **val);
-
 struct enum_val
 {
     char *str;

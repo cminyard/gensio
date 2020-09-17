@@ -30,18 +30,6 @@ gensio_strdup(struct gensio_os_funcs *o, const char *str)
 }
 
 int
-cmpstrval(const char *s, const char *prefix, const char **val)
-{
-    size_t len = strlen(prefix);
-
-    if (strncmp(s, prefix, len))
-	return 0;
-    *val = s + len;
-
-    return 1;
-}
-
-int
 gensio_argv_copy(struct gensio_os_funcs *o,
 		 const char * const oargv[],
 		 int *r_argc, const char ***r_argv)
