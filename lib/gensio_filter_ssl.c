@@ -56,8 +56,8 @@ struct ssl_filter {
     struct gensio_os_funcs *o;
     bool is_client;
     bool connected;
+    bool shutdown_success;
     int err;
-    bool finish_close_on_write;
     struct gensio_lock *lock;
 
     SSL_CTX *ctx;
@@ -340,23 +340,57 @@ static int
 ssl_try_disconnect(struct gensio_filter *filter, gensio_time *timeout)
 {
     struct ssl_filter *sfilter = filter_to_ssl(filter);
-    int success;
-    int rv = GE_INPROGRESS;
+    int success, rv = GE_INPROGRESS, shutdown, err;
 
     ssl_lock(sfilter);
-    if (sfilter->finish_close_on_write) {
-	sfilter->finish_close_on_write = false;
+    sfilter->connected = false;
+
+    shutdown = SSL_get_shutdown(sfilter->ssl);
+    shutdown &= SSL_SENT_SHUTDOWN | SSL_RECEIVED_SHUTDOWN;
+    if (shutdown == (SSL_SENT_SHUTDOWN | SSL_RECEIVED_SHUTDOWN)) {
+	/* Shutdown is complete. */
 	rv = 0;
-    } else {
-	sfilter->connected = false;
-	success = SSL_shutdown(sfilter->ssl);
-	if (success == 1 || success < 0) {
-	    if (BIO_pending(sfilter->io_bio))
-		sfilter->finish_close_on_write = true;
-	    else
-		rv = 0;
-	}
+	goto out_unlock;
     }
+
+    sfilter->want_read = false;
+    sfilter->want_write = false;
+
+    if (!sfilter->shutdown_success) {
+	success = SSL_shutdown(sfilter->ssl);
+	if (success >= 0) {
+	    sfilter->shutdown_success = true;
+	    if (success == 1)
+		rv = 0;
+	    else
+		sfilter->want_read = true;
+	    goto out_unlock;
+	}
+
+	err = SSL_get_error(sfilter->ssl, success);
+	switch (err) {
+	case SSL_ERROR_WANT_READ:
+	    sfilter->want_read = true;
+	    break;
+
+	case SSL_ERROR_WANT_WRITE:
+	    sfilter->want_write = true;
+	    break;
+
+	case SSL_ERROR_SSL:
+	    gssl_logs_err(sfilter, "Failed SSL shutdown");
+	    rv = GE_PROTOERR;
+	    break;
+
+	default:
+	    gssl_log_err(sfilter, "Failed SSL shutdown");
+	    rv = GE_COMMERR;
+	}
+    } else {
+	/* Waiting to receive the shutdown from the other end. */
+	sfilter->want_read = true;
+    }
+ out_unlock:
     if (!rv)
 	sfilter->err = GE_LOCALCLOSED;
     ssl_unlock(sfilter);
@@ -535,7 +569,7 @@ ssl_ll_write(struct gensio_filter *filter,
     }
 
  process_more:
-    if (!sfilter->read_data_len && sfilter->connected) {
+    if (!sfilter->read_data_len) {
 	int rlen;
 
 	sfilter->want_read = false;
@@ -659,6 +693,8 @@ ssl_cleanup(struct gensio_filter *filter)
     sfilter->xmit_buf_len = 0;
     sfilter->xmit_buf_pos = 0;
     sfilter->write_data_len = 0;
+    sfilter->connected = false;
+    sfilter->shutdown_success = false;
 }
 
 static void
