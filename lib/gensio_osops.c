@@ -870,11 +870,15 @@ gensio_os_sctp_getladdrs(struct gensio_os_funcs *o, int fd,
 
 #endif
 
-int gensio_os_close(struct gensio_os_funcs *o, int fd)
+int gensio_os_close(struct gensio_os_funcs *o, int *fd)
 {
-    int err = close(fd);
+    int err;
 
     /* Don't do errtrig on close, it can fail and not cause any issues. */
+
+    assert(*fd != -1);
+    err = close(*fd);
+    *fd = -1;
 
     if (err == -1)
 	return gensio_os_err_to_err(o, errno);

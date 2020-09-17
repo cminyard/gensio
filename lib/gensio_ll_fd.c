@@ -667,10 +667,8 @@ fd_except_ready(int fd, void *cbdata)
 static void
 fd_finish_cleared(struct fd_ll *fdll)
 {
-    if (fdll->fd != -1) {
-	gensio_os_close(fdll->o, fdll->fd);
-	fdll->fd = -1;
-    }
+    if (fdll->fd != -1)
+	gensio_os_close(fdll->o, &fdll->fd);
     if (fdll->state == FD_OPEN_ERR_WAIT)
 	fdll->deferred_open = true;
     fdll->deferred_close = true;
@@ -682,10 +680,8 @@ gensio_fd_ll_close_now(struct gensio_ll *ll)
 {
     struct fd_ll *fdll = ll_to_fd(ll);
 
-    if (fdll->fd != -1) {
-	gensio_os_close(fdll->o, fdll->fd);
-	fdll->fd = -1;
-    }
+    if (fdll->fd != -1)
+	gensio_os_close(fdll->o, &fdll->fd);
 }
 
 static void
@@ -724,8 +720,7 @@ fd_cleared(int fd, void *cb_data)
 
     fd_lock_and_ref(fdll);
     if (fdll->state == FD_IN_OPEN_RETRY) {
-	gensio_os_close(fdll->o, fdll->fd);
-	fdll->fd = -1;
+	gensio_os_close(fdll->o, &fdll->fd);
 	err = fdll->ops->retry_open(fdll->handler_data, &fdll->fd);
 	if (err == GE_INPROGRESS)
 	    err = fd_setup_handlers(fdll);
@@ -767,8 +762,7 @@ fd_open(struct gensio_ll *ll, gensio_ll_open_done done, void *open_data)
 	int err2 = fd_setup_handlers(fdll);
 	if (err2) {
 	    err = err2;
-	    gensio_os_close(fdll->o, fdll->fd);
-	    fdll->fd = -1;
+	    gensio_os_close(fdll->o, &fdll->fd);
 	    goto out;
 	}
 
@@ -927,8 +921,7 @@ static void fd_disable(struct gensio_ll *ll)
     fd_set_state(fdll, FD_CLOSED);
     fd_deref(fdll);
     fdll->o->clear_fd_handlers_norpt(fdll->o, fdll->fd);
-    gensio_os_close(fdll->o, fdll->fd);
-    fdll->fd = -1;
+    gensio_os_close(fdll->o, &fdll->fd);
 }
 
 static int

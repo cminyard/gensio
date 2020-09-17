@@ -122,7 +122,7 @@ int gensio_os_scan_netaddr(struct gensio_os_funcs *o, const char *str,
 			   bool listen, int protocol, struct gensio_addr **rai);
 
 GENSIO_DLL_PUBLIC
-int gensio_os_close(struct gensio_os_funcs *o, int fd);
+int gensio_os_close(struct gensio_os_funcs *o, int *fd);
 
 GENSIO_DLL_PUBLIC
 int gensio_os_check_socket_open(struct gensio_os_funcs *o, int fd);
