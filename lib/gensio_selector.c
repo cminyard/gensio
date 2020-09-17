@@ -40,10 +40,13 @@ struct memory_link {
 };
 struct memory_header {
     struct memory_link link;
+    unsigned long long magic;
     void *callers[4];
     void *freers[4];
+    unsigned int size;
     bool inuse;
 };
+#define MEMORY_MAGIC 0x547a075c3733e437ULL
 struct memory_link memhead = { &memhead, &memhead };
 struct memory_link memfree = { &memfree, &memfree };
 unsigned long freecount;
@@ -75,11 +78,12 @@ gensio_sel_zalloc(struct gensio_os_funcs *f, unsigned int size)
 	UNLOCK(&memtrk_mutex);
     }
     if (memtracking_ready) {
-	d = malloc(size + sizeof(struct memory_header));
+	d = malloc(size + sizeof(struct memory_header) + 1024);
 	if (d) {
 	    struct memory_header *h = d;
 
 	    d = ((char *) d) + sizeof(struct memory_header);
+	    h->magic = MEMORY_MAGIC;
 	    memset(h->callers, 0, sizeof(void *) * 4);
 	    h->callers[0] = __builtin_return_address(0);
 #if 0
@@ -89,6 +93,8 @@ gensio_sel_zalloc(struct gensio_os_funcs *f, unsigned int size)
 #endif
 	    memset(h->freers, 0, sizeof(void *) * 4);
 	    h->inuse = true;
+	    h->size = size;
+	    memset(((unsigned char *) d) + size, 0xaf, 1024);
 	    LOCK(&memtrk_mutex);
 	    h->link.next = &memhead;
 	    h->link.prev = memhead.prev;
@@ -114,7 +120,27 @@ gensio_sel_free(struct gensio_os_funcs *f, void *data)
     if (memtracking_ready) {
 	struct memory_header *h = ((struct memory_header *)
 				   (((char *) data) - sizeof(*h)));
+	unsigned int i;
+	unsigned char *c;
 
+	h->freers[0] = __builtin_return_address(0);
+#if 0
+	h->freers[1] = __builtin_return_address(1);
+	h->freers[2] = __builtin_return_address(2);
+	h->freers[3] = __builtin_return_address(3);
+#endif
+	if (h->magic != MEMORY_MAGIC) {
+	    fprintf(stderr, "Free of unallocated data at %p.\n", data);
+	    fprintf(stderr, "  allocated at %p %p %p %p.\n",
+		    h->callers[0], h->callers[1],
+		    h->callers[2], h->callers[3]);
+	    fprintf(stderr, "  freed at %p %p %p %p.\n",
+		    h->freers[0], h->freers[1],
+		    h->freers[2], h->freers[3]);
+	    *((volatile char *) 0) = 1;
+	    assert(h->inuse);
+	    return;
+	}
 	if (!h->inuse) {
 	    fprintf(stderr, "Free of already freed data at %p.\n", data);
 	    fprintf(stderr, "  allocated at %p %p %p %p.\n",
@@ -127,13 +153,22 @@ gensio_sel_free(struct gensio_os_funcs *f, void *data)
 	    assert(h->inuse);
 	    return;
 	}
-	data = h;
-	h->freers[0] = __builtin_return_address(0);
-#if 0
-	h->freers[1] = __builtin_return_address(1);
-	h->freers[2] = __builtin_return_address(2);
-	h->freers[3] = __builtin_return_address(3);
-#endif
+	for (i = 0, c = ((unsigned char *) data) + h->size;
+	     i < 1024; i++, c++) {
+	    if (*c != 0xaf) {
+		fprintf(stderr, "Memory overrun at %p.\n", data);
+		fprintf(stderr, "  allocated at %p %p %p %p.\n",
+			h->callers[0], h->callers[1],
+			h->callers[2], h->callers[3]);
+		fprintf(stderr, "  freed at %p %p %p %p.\n",
+			h->freers[0], h->freers[1],
+			h->freers[2], h->freers[3]);
+		*((volatile char *) 0) = 1;
+		assert(h->inuse);
+		return;
+	    }
+	}
+	memset(data, 0xde, h->size);
 	LOCK(&memtrk_mutex);
 	h->link.next->prev = h->link.prev;
 	h->link.prev->next = h->link.next;
@@ -147,8 +182,86 @@ gensio_sel_free(struct gensio_os_funcs *f, void *data)
 	UNLOCK(&memtrk_mutex);
     } else
 #endif
-    free(data);
+	free(data);
 }
+
+static void
+gensio_exit_check_memory(void)
+{
+#ifdef TRACK_ALLOCED_MEMORY
+    struct memory_link *l;
+    unsigned char *d, *c;
+    unsigned int i;
+
+    l = memfree.next;
+    while (l != &memfree) {
+	/* link is first element */
+	struct memory_header *h = (struct memory_header *) l;
+
+	d = ((unsigned char *) h) + sizeof(*h);
+
+	if (h->magic != MEMORY_MAGIC) {
+	    fprintf(stderr, "Unallocated data in free list at %p.\n", d);
+	    fprintf(stderr, "  allocated at %p %p %p %p.\n",
+		    h->callers[0], h->callers[1],
+		    h->callers[2], h->callers[3]);
+	    fprintf(stderr, "  freed at %p %p %p %p.\n",
+		    h->freers[0], h->freers[1],
+		    h->freers[2], h->freers[3]);
+	    *((volatile char *) 0) = 1;
+	    assert(h->inuse);
+	    return;
+	}
+
+	for (i = 0, c = d; i < h->size; i++, c++) {
+	    if (*c != 0xde) {
+		fprintf(stderr, "Use after free at %p.\n", d);
+		fprintf(stderr, "  allocated at %p %p %p %p.\n",
+			h->callers[0], h->callers[1],
+			h->callers[2], h->callers[3]);
+		fprintf(stderr, "  freed at %p %p %p %p.\n",
+			h->freers[0], h->freers[1],
+			h->freers[2], h->freers[3]);
+		*((volatile char *) 0) = 1;
+		assert(h->inuse);
+		return;
+	    }
+	}
+
+	for (i = 0, c = d + h->size; i < 1024; i++, c++) {
+	    if (*c != 0xaf) {
+		fprintf(stderr, "Memory overrun after free at %p.\n", d);
+		fprintf(stderr, "  allocated at %p %p %p %p.\n",
+			h->callers[0], h->callers[1],
+			h->callers[2], h->callers[3]);
+		fprintf(stderr, "  freed at %p %p %p %p.\n",
+			h->freers[0], h->freers[1],
+			h->freers[2], h->freers[3]);
+		*((volatile char *) 0) = 1;
+		assert(h->inuse);
+		return;
+	    }
+	}
+
+	l = l->next;
+    }
+
+    l = memhead.next;
+    while (l != &memhead) {
+	/* link is first element */
+	struct memory_header *h = (struct memory_header *) l;
+
+	fprintf(stderr, "Lost memory at %p allocated at %p %p %p %p\n",
+		((char *) h) + sizeof(*h), h->callers[0], h->callers[1],
+		h->callers[2], h->callers[3]);
+	l = l->next;
+    }
+    if (freecount) {
+	fprintf(stderr, "Memory tracking done with %lu items\n", freecount);
+	assert(!memtracking_abort_on_lost);
+    }
+}
+#endif
 
 static void
 add_to_timeval(struct timeval *tv1, gensio_time *t2)
@@ -1023,24 +1136,6 @@ gensio_default_os_hnd(int wake_sig, struct gensio_os_funcs **o)
 void
 gensio_sel_exit(int rv)
 {
-#ifdef TRACK_ALLOCED_MEMORY
-    {
-	struct memory_link *l = memhead.next;
-
-	while (l != &memhead) {
-	    /* link is first element */
-	    struct memory_header *h = (struct memory_header *) l;
-
-	    fprintf(stderr, "Lost memory at %p allocated at %p %p %p %p\n",
-		    ((char *) h) + sizeof(*h), h->callers[0], h->callers[1],
-		    h->callers[2], h->callers[3]);
-	    l = l->next;
-	}
-	if (freecount) {
-	    fprintf(stderr, "Memory tracking done with %lu items\n", freecount);
-	    assert(!memtracking_abort_on_lost);
-	}
-    }
-#endif
+    gensio_exit_check_memory();
     errtrig_exit(rv);
 }
