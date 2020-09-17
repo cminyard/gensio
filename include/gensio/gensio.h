@@ -732,4 +732,11 @@ char *gensio_strdup(struct gensio_os_funcs *o, const char *str);
 }
 #endif
 
+/*
+ * Return the number of allocated gensios.  This is primarily for
+ * testing and may change, use at your own risk.
+ */
+GENSIO_DLL_PUBLIC
+gensiods gensio_num_alloced(void);
+
 #endif /* GENSIO_H */

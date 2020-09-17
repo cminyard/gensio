@@ -93,7 +93,41 @@ struct gensio {
     struct gensio_sync_io *sync_io;
 
     struct gensio_link link;
+
+    struct gensio_link glink;
 };
+
+static struct gensio_os_funcs *o_base;
+static struct gensio_once gensio_base_initialized;
+static struct gensio_lock *gensio_base_lock;
+static int gensio_base_init_rv;
+static gensiods num_alloced_gensios;
+
+gensiods
+gensio_num_alloced(void)
+{
+    gensiods rv;
+
+    if (!o_base)
+	return 0;
+
+    o_base->lock(gensio_base_lock);
+    rv = num_alloced_gensios;
+    o_base->unlock(gensio_base_lock);
+    return rv;
+}
+
+static void
+gensio_base_init(void *cb_data)
+{
+    struct gensio_os_funcs *o = cb_data;
+
+    gensio_base_lock = o->alloc_lock(o);
+    if (!gensio_base_lock)
+	gensio_base_init_rv = GE_NOMEM;
+    else
+	o_base = o;
+}
 
 struct gensio *
 gensio_data_alloc(struct gensio_os_funcs *o,
@@ -101,8 +135,13 @@ gensio_data_alloc(struct gensio_os_funcs *o,
 		  gensio_func func, struct gensio *child,
 		  const char *typename, void *gensio_data)
 {
-    struct gensio *io = o->zalloc(o, sizeof(*io));
+    struct gensio *io;
 
+    o->call_once(o, &gensio_base_initialized, gensio_base_init, o);
+    if (gensio_base_init_rv)
+	return NULL;
+
+    io = o->zalloc(o, sizeof(*io));
     if (!io)
 	return NULL;
 
@@ -120,6 +159,10 @@ gensio_data_alloc(struct gensio_os_funcs *o,
     io->gensio_data = gensio_data;
     io->child = child;
 
+    o_base->lock(gensio_base_lock);
+    num_alloced_gensios++;
+    o_base->unlock(gensio_base_lock);
+
     return io;
 }
 
@@ -136,6 +179,10 @@ gensio_data_free(struct gensio *io)
     }
     io->o->free_lock(io->lock);
     io->o->free(io->o, io);
+
+    o_base->lock(gensio_base_lock);
+    num_alloced_gensios--;
+    o_base->unlock(gensio_base_lock);
 }
 
 void *
@@ -1942,6 +1989,10 @@ gensio_cleanup_mem(struct gensio_os_funcs *o)
     struct registered_gensio_accepter *n, *n2;
     struct registered_gensio *g, *g2;
 
+    if (gensio_base_lock)
+	o->free_lock(gensio_base_lock);
+    gensio_base_lock = NULL;
+
     l_gensio_reset_defaults(o);
 
     if (deflock)
@@ -1973,6 +2024,7 @@ gensio_cleanup_mem(struct gensio_os_funcs *o)
     reg_gensios = NULL;
 
     memset(&gensio_default_initialized, 0, sizeof(gensio_default_initialized));
+    memset(&gensio_base_initialized, 0, sizeof(gensio_base_initialized));
 }
 
 static void
