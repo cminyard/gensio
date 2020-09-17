@@ -414,7 +414,7 @@ main(int argc, char *argv[])
 #ifndef _WIN32
     sigset_t sigs;
 #endif
-    gensio_time zerotime = { 0, 0 };
+    gensio_time endwait = { 5, 0 };
 
 #ifndef _WIN32
     /*
@@ -669,8 +669,22 @@ main(int argc, char *argv[])
     if (!rv && userdata2.err)
 	rv = userdata2.err;
 
-    while (o && o->service(o, &zerotime) == 0)
-	;
+    /*
+     * We wait until there are no gensios left pending.  You can get
+     * into situations where there is an incoming gensio accept that
+     * fails and does not complete, but it's still not freed and is
+     * pending close.  Wait for all gensios to finish freeing to avoid
+     * memory errors.
+     */
+    if (gensio_num_alloced() == 0)
+	endwait.secs = 0; /* Just run events until we are out. */
+    while (o && o->service(o, &endwait) != GE_TIMEDOUT) {
+	if (gensio_num_alloced() == 0) {
+	    /* Waiting for no gensios left, then run events til we are out. */
+	    endwait.secs = 0;
+	    endwait.nsecs = 0;
+	}
+    }
     if (userdata1.waiter)
 	o->free_waiter(userdata1.waiter);
     if (closewaiter)
