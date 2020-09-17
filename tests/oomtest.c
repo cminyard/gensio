@@ -88,6 +88,7 @@ l_assert_or_stop(bool val, char *expr, int line)
     if (val)
 	return;
     fprintf(stderr, "Assert '%s' failed on line %d\n", expr, line);
+    fflush(stderr);
     handle_timeout_err();
 }
 #define assert_or_stop(val) l_assert_or_stop(val, #val, __LINE__)
@@ -253,6 +254,7 @@ do_vlog(struct gensio_os_funcs *f, enum gensio_log_levels level,
     printf("gensio %s log: ", gensio_log_level_to_str(level));
     vprintf(log, args);
     printf("\n");
+    fflush(stdout);
 }
 
 #define OOME_CLIENT_DIDNT_TERMINATE	GE_USER_ERR_START + 0
@@ -485,6 +487,7 @@ cmp_mem(unsigned char *buf, unsigned char *buf2, gensiods *len)
 	if (buf[i] != buf2[i]) {
 	    printf("Mismatch on byte %lu, expected 0x%2.2x, got 0x%2.2x\n",
 		   i, buf[i], buf2[i]);
+	    fflush(stdout);
 	    rv = -1;
 	    break;
 	}
@@ -513,8 +516,10 @@ con_cb(struct gensio *io, void *user_data,
 	gensio_set_write_callback_enable(io, false);
 	gensio_set_read_callback_enable(io, false);
 	if (!id->expect_close || err != GE_REMCLOSE) {
-	    if (debug)
+	    if (debug) {
 		printf("con_cb error 1: %s\n", gensio_err_to_str(err));
+		fflush(stdout);
+	    }
 	    id->err = err;
 	} else {
 	    id->got_end = true;
@@ -533,6 +538,7 @@ con_cb(struct gensio *io, void *user_data,
 	    id->err = OOME_READ_OVERFLOW;
 	    printf("  readpos = %ld, buflen = %ld, read '%s'\n",
 		   (long) id->read_pos, (long) *buflen, buf);
+	    fflush(stdout);
 	    assert(!debug);
 	    o->wake(od->waiter);
 	    goto out_leave_read;
@@ -567,12 +573,16 @@ con_cb(struct gensio *io, void *user_data,
 		gensio_set_write_callback_enable(io, false);
 		gensio_set_read_callback_enable(io, false);
 		if (rv == GE_SHUTDOWN || rv == GE_NOTREADY) {
-		    if (debug)
+		    if (debug) {
 			printf("Write on shutdown or not ready socket\n");
+			fflush(stdout);
+		    }
 		} else {
 		    assert(!debug || !rv || rv == GE_REMCLOSE);
-		    if (debug)
+		    if (debug) {
 			printf("con_cb error 2: %s\n", gensio_err_to_str(rv));
+			fflush(stdout);
+		    }
 		}
 		id->err = rv;
 		o->wake(od->waiter);
@@ -693,9 +703,11 @@ ccon_stderr_cb(struct gensio *io, void *user_data,
 		} else if (!od->port) {
 		    if (strncmp(od->ccon_stderr, "Address", 7) != 0) {
 		    bad_stderr:
-			if (debug)
+			if (debug) {
 			    printf("Bad gensio port output: %s\n",
 				   od->ccon_stderr);
+			    fflush(stdout);
+			}
 			od->invalid_port_data = true;
 			o->wake(od->waiter);
 			return 0;
@@ -765,9 +777,11 @@ scon_open_done(struct gensio *io, int err, void *open_data)
 	goto out_unlock;
 
     if (err) {
-	if (debug)
+	if (debug) {
 	    printf("scon_open_done: %s for %s\n", gensio_err_to_str(err),
 		   id->iostr);
+	    fflush(stdout);
+	}
 	assert_or_stop(!debug || err == GE_REMCLOSE || err == GE_INVAL ||
 		       err == GE_SHUTDOWN || err == GE_LOCALCLOSED ||
 		       err == GE_NOTREADY);
@@ -802,8 +816,10 @@ ccon_open_done(struct gensio *io, int err, void *open_data)
 
     if (err) {
 	assert(!debug || !err || err == GE_REMCLOSE || err == GE_LOCALCLOSED);
-	if (debug)
+	if (debug) {
 	    printf("ccon_open_done error 1: %s\n", gensio_err_to_str(err));
+	    fflush(stdout);
+	}
 	id->err = err;
 	gensio_free(io);
 	id->io = NULL;
@@ -814,8 +830,10 @@ ccon_open_done(struct gensio *io, int err, void *open_data)
 			      &od->ccon_stderr_io);
     assert(!debug || !rv || rv == GE_REMCLOSE);
     if (rv) {
-	if (debug)
+	if (debug) {
 	    printf("ccon_open_done error 2: %s\n", gensio_err_to_str(rv));
+	    fflush(stdout);
+	}
 	id->err = rv;
 	goto out_unlock;
     }
@@ -825,8 +843,10 @@ ccon_open_done(struct gensio *io, int err, void *open_data)
     if (rv) {
 	gensio_free(od->ccon_stderr_io);
 	od->ccon_stderr_io = NULL;
-	if (debug)
+	if (debug) {
 	    printf("ccon_open_done error 3: %s\n", gensio_err_to_str(rv));
+	    fflush(stdout);
+	}
 	id->err = rv;
 	goto out_unlock;
     }
@@ -881,6 +901,7 @@ wait_for_data(struct oom_test_data *od, gensio_time *timeout)
 	if (rv || od->scon.err == OOME_READ_OVERFLOW ||
 		      od->ccon.err == OOME_READ_OVERFLOW) {
 	    printf("Waiting on err A: %s\n", gensio_err_to_str(rv));
+	    fflush(stdout);
 	    handle_timeout_err();
 	}
 	if (rv) {
@@ -923,6 +944,7 @@ close_con(struct io_test_data *id, gensio_time *timeout)
 	OOMLOCK(&od->lock);
 	if (rv == GE_TIMEDOUT) {
 	    printf("Waiting on timeout err A\n");
+	    fflush(stdout);
 	    handle_timeout_err();
 	}
 	if (rv == GE_INTERRUPTED) {
@@ -969,6 +991,7 @@ close_stderr(struct oom_test_data *od, gensio_time *timeout)
 	OOMLOCK(&od->lock);
 	if (rv == GE_TIMEDOUT) {
 	    printf("Waiting on timeout err G\n");
+	    fflush(stdout);
 	    handle_timeout_err();
 	}
 	if (rv == GE_INTERRUPTED)
@@ -1003,6 +1026,7 @@ close_cons(struct oom_test_data *od, bool close_acc, gensio_time *timeout)
 	OOMLOCK(&od->lock);
 	if (rv == GE_TIMEDOUT) {
 	    printf("Waiting on timeout err B\n");
+	    fflush(stdout);
 	    handle_timeout_err();
 	}
 	if (rv == GE_INTERRUPTED)
@@ -1101,6 +1125,7 @@ run_oom_test(struct oom_tests *test, long count, int *exitcode, bool close_acc)
 	if (rv) {
 	    printf("Unable to shutdown accepter: %s\n",
 		    gensio_err_to_str(rv));
+	    fflush(stdout);
 	    if (!err)
 		err = rv;
 	} else {
@@ -1111,6 +1136,7 @@ run_oom_test(struct oom_tests *test, long count, int *exitcode, bool close_acc)
 		OOMLOCK(&od->lock);
 		if (rv == GE_TIMEDOUT) {
 		    printf("Waiting on timeout err C\n");
+		    fflush(stdout);
 		    handle_timeout_err();
 		}
 		if (rv == GE_INTERRUPTED)
@@ -1143,6 +1169,7 @@ run_oom_test(struct oom_tests *test, long count, int *exitcode, bool close_acc)
     if (od->ccon_stderr_pos && verbose) {
 	od->ccon_stderr[od->ccon_stderr_pos] = '\0';
 	printf("ERR out: %s\nERR done\n", od->ccon_stderr);
+	fflush(stdout);
     }
 
     assert(od->refcount == 1); /* No callbacks should be pending. */
@@ -1205,6 +1232,7 @@ run_oom_acc_test(struct oom_tests *test, long count, int *exitcode,
 	OOMLOCK(&od->lock);
 	if (debug && rv == GE_TIMEDOUT) {
 	    printf("Waiting on err E\n");
+	    fflush(stdout);
 	    assert(0);
 	}
 	if (rv == GE_INTERRUPTED)
@@ -1284,6 +1312,7 @@ run_oom_acc_test(struct oom_tests *test, long count, int *exitcode,
     if (od->ccon_stderr_pos && verbose) {
 	od->ccon_stderr[od->ccon_stderr_pos] = '\0';
 	printf("ERR out: %s\nERR done\n", od->ccon_stderr);
+	fflush(stdout);
     }
 
     assert(od->refcount == 1); /* No callbacks should be pending. */
@@ -1304,6 +1333,7 @@ print_test(struct oom_tests *test, char *tstr, bool close_acc, long count)
     printf("testing(%s %s) GENSIO_ERRTRIG_TEST=%ld GENSIO_MEMTRACK=abort '%s' '%s'\n",
 	   tstr, close_acc ? "sc" : "cc", count,
 	   test->accepter, test->connecter);
+    fflush(stdout);
 }
 
 static unsigned long
@@ -1327,6 +1357,7 @@ run_oom_tests(struct oom_tests *test, char *tstr,
 		print_test(test, tstr, close_acc, count);
 	    printf("  ***Error running %s test (%s): %s\n", tstr,
 		   close_acc ? "sc" : "cc", oom_err_to_str(rv));
+	    fflush(stdout);
 	    errcount++;
 	    if (count < 0) /* No point in going on if the first test fails. */
 		break;
@@ -1340,9 +1371,11 @@ run_oom_tests(struct oom_tests *test, char *tstr,
 	    if (WIFSIGNALED(exit_code)) {
 		printf("  ***Died with signal %s\n",
 			strsignal(WTERMSIG(exit_code)));
+		fflush(stdout);
 	    } else {
 		printf("  ***Died for unknown reason %d\n",
 			exit_code);
+		fflush(stdout);
 	    }
 	    exit_code = 1;
 	    if (count < 0) /* No point in going on if the first test fails. */
@@ -1361,6 +1394,7 @@ run_oom_tests(struct oom_tests *test, char *tstr,
 		fprintf(stderr,
 			"  ***Error with no failure trigger: %d.\n",
 			exit_code);
+		fflush(stderr);
 		/* Leave it 0 to terminate the loop, testing is pointless. */
 	    } else {
 		exit_code = 1;
@@ -1371,6 +1405,7 @@ run_oom_tests(struct oom_tests *test, char *tstr,
 		if (!verbose)
 		    print_test(test, tstr, close_acc, count);
 		printf("  ***No error on failure trigger.\n");
+		fflush(stdout);
 		exit_code = 1;
 	    }
 	} else if (exit_code == 3) {
@@ -1378,6 +1413,7 @@ run_oom_tests(struct oom_tests *test, char *tstr,
 	    if (!verbose)
 		print_test(test, tstr, close_acc, count);
 	    printf("  ***Error but no failure trigger.\n");
+	    fflush(stdout);
 	    exit_code = 0; /* No point in going on. */
 	}
 
@@ -1393,6 +1429,7 @@ run_oom_tests(struct oom_tests *test, char *tstr,
 	if (!verbose)
 	    print_test(test, tstr, close_acc, count);
 	printf("  ***Didn't fail in %ld loops.\n", count);
+	fflush(stdout);
     }
 
     return errcount;
