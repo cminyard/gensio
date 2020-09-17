@@ -188,7 +188,10 @@ struct oom_tests oom_tests[] = {
     { "tcp,localhost,", "tcp,0" },
     { "sctp,localhost,", "sctp,0",
       .check_if_present = check_sctp_present, .check_value = HAVE_LIBSCTP },
-    { "udp,localhost,", "udp,0" },
+    { "udp,localhost,", "udp,0",
+      /* In this tests some errors will not result in a failure. */
+      .allow_no_err_on_trig = true
+    },
     { "mux,sctp,localhost,", "mux,sctp,0",
       .check_if_present = check_sctp_present, .check_value = HAVE_LIBSCTP,
       /* In this tests some errors will not result in a failure. */
