@@ -1332,14 +1332,19 @@ written in human-readable form.
 .TP
 .B file=<filename>
 The filename to write to.  If not supplied, tracing is disabled.  Note
-that the file is opened append, so it will add new trace data onto the
-end of an existing file.
+that unless
+.B delold
+is specified, the file is opened append, so it will add new trace data
+onto the end of an existing file.
 .TP
 .B stderr[=yes|no]
 Send the output to standard error.  Overrides file.
 .TP
 .B stdout[=yes|no]
 Send the output to standard output.  Overrides file and stderr.
+.TP
+.B delold[=yes|no]
+Delete the old data in the file instead of appending to the file.
 .SH "perf"
 accepter =
 .B perf[(options)]

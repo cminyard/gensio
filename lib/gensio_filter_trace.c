@@ -34,6 +34,7 @@ struct trace_filter {
     char *filename;
     bool tr_stdout;
     bool tr_stderr;
+    const char *modeflag;
 
     FILE *tr;
 };
@@ -87,7 +88,7 @@ trace_try_connect(struct gensio_filter *filter, gensio_time *timeout)
     } else if (tfilter->tr_stderr) {
 	tfilter->tr = stderr;
     } else if (tfilter->filename) {
-	tfilter->tr = fopen(tfilter->filename, "a+");
+	tfilter->tr = fopen(tfilter->filename, tfilter->modeflag);
 	if (!tfilter->tr)
 	    return GE_PERM;
     }
@@ -334,7 +335,7 @@ static int gensio_trace_filter_func(struct gensio_filter *filter, int op,
 static struct gensio_filter *
 gensio_trace_filter_raw_alloc(struct gensio_os_funcs *o, enum trace_dir dir,
 			      bool raw, const char *filename, bool tr_stdout,
-			      bool tr_stderr)
+			      bool tr_stderr, const char *modeflag)
 {
     struct trace_filter *tfilter;
 
@@ -355,6 +356,7 @@ gensio_trace_filter_raw_alloc(struct gensio_os_funcs *o, enum trace_dir dir,
     }
     tfilter->tr_stdout = tr_stdout;
     tfilter->tr_stderr = tr_stderr;
+    tfilter->modeflag = modeflag;
 
     tfilter->lock = o->alloc_lock(o);
     if (!tfilter->lock)
@@ -387,9 +389,10 @@ gensio_trace_filter_alloc(struct gensio_os_funcs *o,
 {
     struct gensio_filter *filter;
     int dir = TRACE_NONE;
-    bool raw = false, tr_stdout = false, tr_stderr = false;
+    bool raw = false, tr_stdout = false, tr_stderr = false, tbool;
     const char *filename = NULL;
     unsigned int i;
+    const char *modeflag = "a";
 
     for (i = 0; args && args[i]; i++) {
 	if (gensio_check_keyenum(args[i], "dir", trace_dir_enum, &dir) > 0)
@@ -402,11 +405,16 @@ gensio_trace_filter_alloc(struct gensio_os_funcs *o,
 	    continue;
 	if (gensio_check_keybool(args[i], "stderr", &tr_stderr) > 0)
 	    continue;
+	if (gensio_check_keybool(args[i], "delold", &tbool) > 0) {
+	    if (tbool)
+		modeflag = "w";
+	    continue;
+	}
 	return GE_INVAL;
     }
 
     filter = gensio_trace_filter_raw_alloc(o, dir, raw, filename,
-					   tr_stdout, tr_stderr);
+					   tr_stdout, tr_stderr, modeflag);
     if (!filter)
 	return GE_NOMEM;
 
