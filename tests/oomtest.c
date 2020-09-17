@@ -633,8 +633,8 @@ acc_cb(struct gensio_accepter *accepter,
 	    set_max_write(&od->scon, od->scon.io);
 	    gensio_set_read_callback_enable(od->scon.io, true);
 	    gensio_set_write_callback_enable(od->scon.io, true);
-	    OOMUNLOCK(&od->lock);
 	}
+	OOMUNLOCK(&od->lock);
 	break;
 
     case GENSIO_ACC_EVENT_LOG:
