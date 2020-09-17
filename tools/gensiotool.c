@@ -143,6 +143,7 @@ gerr(struct ioinfo *ioinfo, char *fmt, va_list ap)
     fprintf(stderr, "Error on %s: ", ginfo->ios);
     vfprintf(stderr, fmt, ap);
     fprintf(stderr, "\r\n");
+    fflush(stderr);
 }
 
 static void
@@ -176,6 +177,7 @@ print_address_list(const char *header, unsigned int anum, char *alist)
 	    alist = semipos + 1;
 	i++;
     } while (semipos);
+    fflush(stderr);
 }
 
 static int
@@ -204,6 +206,7 @@ print_local_acc_addr(struct gensio_accepter *acc)
 	}
     }
     fprintf(stderr, "Done\n");
+    fflush(stderr);
     return 0;
 }
 
@@ -236,6 +239,7 @@ print_io_addr(struct gensio *io, bool local)
     }
  done:
     fprintf(stderr, "Done\n");
+    fflush(stderr);
     return 0;
 }
 
@@ -249,6 +253,7 @@ io_open(struct gensio *io, int err, void *open_data)
 	ginfo->can_close = false;
 	fprintf(stderr, "open error on %s: %s\n", ginfo->ios,
 		gensio_err_to_str(err));
+	fflush(stderr);
 	gshutdown(ioinfo, false);
     } else {
 	ioinfo_set_ready(ioinfo, io);
@@ -265,6 +270,7 @@ io_open_paddr(struct gensio *io, int err, void *open_data)
 	ginfo->can_close = false;
 	fprintf(stderr, "open error on %s: %s\n", ginfo->ios,
 		gensio_err_to_str(err));
+	fflush(stderr);
 	gshutdown(ioinfo, false);
     } else {
 	if (print_laddr)
@@ -300,6 +306,7 @@ io_acc_event(struct gensio_accepter *accepter, void *user_data,
 
 	vfprintf(stderr, li->str, li->args);
 	fprintf(stderr, "\n");
+	fflush(stderr);
 
 	ginfo->err = 1;
 	ginfo->o->wake(ginfo->waiter);
@@ -331,6 +338,7 @@ io_acc_event(struct gensio_accepter *accepter, void *user_data,
 	oginfo->can_close = false;
 	fprintf(stderr, "Could not open %s: %s\n", oginfo->ios,
 		gensio_err_to_str(rv));
+	fflush(stderr);
 
 	ginfo->err = rv;
 	ginfo->o->wake(ginfo->waiter);
@@ -381,6 +389,7 @@ do_vlog(struct gensio_os_funcs *f, enum gensio_log_levels level,
     fprintf(stderr, "gensio %s log: ", gensio_log_level_to_str(level));
     vfprintf(stderr, log, args);
     fprintf(stderr, "\n");
+    fflush(stderr);
 }
 
 int

@@ -137,6 +137,7 @@ gensio_sel_free(struct gensio_os_funcs *f, void *data)
 	    fprintf(stderr, "  freed at %p %p %p %p.\n",
 		    h->freers[0], h->freers[1],
 		    h->freers[2], h->freers[3]);
+	    fflush(stderr);
 	    *((volatile char *) 0) = 1;
 	    assert(h->inuse);
 	    return;
@@ -149,6 +150,7 @@ gensio_sel_free(struct gensio_os_funcs *f, void *data)
 	    fprintf(stderr, "  freed at %p %p %p %p.\n",
 		    h->freers[0], h->freers[1],
 		    h->freers[2], h->freers[3]);
+	    fflush(stderr);
 	    *((volatile char *) 0) = 1;
 	    assert(h->inuse);
 	    return;
@@ -163,6 +165,7 @@ gensio_sel_free(struct gensio_os_funcs *f, void *data)
 		fprintf(stderr, "  freed at %p %p %p %p.\n",
 			h->freers[0], h->freers[1],
 			h->freers[2], h->freers[3]);
+		fflush(stderr);
 		*((volatile char *) 0) = 1;
 		assert(h->inuse);
 		return;
@@ -222,6 +225,7 @@ gensio_exit_check_memory(void)
 		fprintf(stderr, "  freed at %p %p %p %p.\n",
 			h->freers[0], h->freers[1],
 			h->freers[2], h->freers[3]);
+		fflush(stderr);
 		*((volatile char *) 0) = 1;
 		assert(h->inuse);
 		return;
@@ -237,6 +241,7 @@ gensio_exit_check_memory(void)
 		fprintf(stderr, "  freed at %p %p %p %p.\n",
 			h->freers[0], h->freers[1],
 			h->freers[2], h->freers[3]);
+		fflush(stderr);
 		*((volatile char *) 0) = 1;
 		assert(h->inuse);
 		return;
@@ -258,6 +263,7 @@ gensio_exit_check_memory(void)
     }
     if (freecount) {
 	fprintf(stderr, "Memory tracking done with %lu items\n", freecount);
+	fflush(stderr);
 	assert(!memtracking_abort_on_lost);
     }
 }
