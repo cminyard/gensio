@@ -287,19 +287,6 @@ gensio_str_to_argv(struct gensio_os_funcs *o,
 }
 
 int
-lookup_enum(struct enum_val *enums, const char *str, size_t len)
-{
-    while (enums->str != NULL) {
-	if (len == -1 && strcmp(enums->str, str) == 0)
-	    return enums->val;
-	if (strlen(enums->str) == len && strncmp(enums->str, str, len) == 0)
-	    return enums->val;
-	enums++;
-    }
-    return -1;
-}
-
-int
 gensio_time_cmp(gensio_time *t1, gensio_time *t2)
 {
     if (t1->secs < t2->secs)

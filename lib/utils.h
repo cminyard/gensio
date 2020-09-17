@@ -28,13 +28,6 @@ struct enum_val
     int val;
 };
 
-/*
- * Given an enum table (terminated by a NULL str entry), find the
- * given string in the table.  If "len" is not -1, use it to only
- * compare the first "len" chars of str.
- */
-int lookup_enum(struct enum_val *enums, const char *str, size_t len);
-
 #if ENABLE_PRBUF
 #include <stdio.h>
 static void prbuf(const unsigned char *buf, unsigned int len)
