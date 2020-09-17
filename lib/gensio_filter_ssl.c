@@ -591,7 +591,18 @@ ssl_ll_write(struct gensio_filter *filter,
 
 	    case SSL_ERROR_SSL:
 		gssl_logs_err(sfilter, "Failed SSL read");
+#ifdef ENABLE_INTERNAL_TRACE
+		/*
+		 * Report these as REMCLOSE when testing.  These can
+		 * happen, I think, when data gets cut off to the SSL
+		 * code.  It's a protocol error, but that can fail
+		 * some tests, and we want protocol errors elsewhere
+		 * to actually fail the tests.
+		 */
+		err = GE_REMCLOSE;
+#else
 		err = GE_PROTOERR;
+#endif
 		break;
 
 	    case SSL_ERROR_ZERO_RETURN:
