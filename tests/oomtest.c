@@ -1279,7 +1279,7 @@ run_oom_acc_test(struct oom_tests *test, long count, int *exitcode,
 	goto out_err;
 
     err = gensio_open(od->scon.io, scon_open_done, od);
-    if (err == GE_NOTFOUND) {
+    if (err == GE_NOTFOUND || err == GE_REMCLOSE) {
 	/* This can happen on ptys when the other end fails. */
 	od->scon.open_done = true;
 	gensio_free(od->scon.io);
