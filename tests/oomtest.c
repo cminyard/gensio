@@ -640,6 +640,8 @@ acc_cb(struct gensio_accepter *accepter,
 	     */
 	    gensio_free(data);
 	} else {
+	    /* Stop any more callbacks, avoid an infinite loop with conacc. */
+	    gensio_acc_set_accept_callback_enable(od->acc, false);
 	    od->scon.io = data;
 	    od->scon.open_done = true;
 	    gensio_set_callback(od->scon.io, con_cb, &od->scon);

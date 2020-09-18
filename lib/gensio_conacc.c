@@ -53,6 +53,7 @@ struct conaccna_data {
     bool deferred_op_pending;
     struct gensio_runner *deferred_runner;
 
+    bool in_open;
     bool enabled;
     gensio_acc_done enabled_done;
 
@@ -149,6 +150,14 @@ conaccna_finish_free(struct conaccna_data *nadata)
 }
 
 static void
+conaccna_deref(struct conaccna_data *nadata)
+{
+    /* Can only be called if this is not the final deref.  Must hold lock. */
+    assert(nadata->refcount > 1);
+    nadata->refcount--;
+}
+
+static void
 conaccna_deref_and_unlock(struct conaccna_data *nadata)
 {
     assert(nadata->refcount > 0);
@@ -188,7 +197,7 @@ conaccna_do_deferred(struct gensio_runner *runner, void *cb_data)
 	conaccna_lock(nadata);
     }
 
-    if (nadata->shutdown_done) {
+    if (nadata->shutdown_done && !nadata->in_open) {
 	gensio_acc_done shutdown_done = nadata->shutdown_done;
 
 	nadata->shutdown_done = NULL;
@@ -381,15 +390,13 @@ conaccn_event(struct gensio *io, void *user_data,
     return gensio_cb(ndata->io, event, err, buf, buflen, auxdata);
 }
 
-
+#include <stdio.h>
 static void
 conaccn_open_done(struct gensio *io, int err, void *open_data)
 {
     struct conaccn_data *ndata = open_data;
     struct conaccna_data *nadata = ndata->nadata;
 
-    conaccn_lock(ndata);
-    conaccna_lock(nadata);
     if (err)
 	goto out_err;
 
@@ -408,19 +415,23 @@ conaccn_open_done(struct gensio *io, int err, void *open_data)
     ndata->child_state = CONACCN_OPEN;
     base_gensio_accepter_new_child_end(nadata->acc, ndata->io, err);
 
-    conaccna_unlock(nadata);
-
-    /* Keep the ref for the open child. */
-    conaccn_unlock(ndata);
+    /* Keep the nadata ref for the open child. */
 
     base_gensio_server_open_done(nadata->acc, ndata->io, err);
+
+    conaccna_lock(nadata);
+    nadata->in_open = false;
+    if (nadata->shutdown_done)
+	conaccna_deferred_op(nadata);
+    conaccna_unlock(nadata);
 
     return;
 
  out_err:
-    conaccn_unlock(ndata);
     conaccn_finish_free(ndata);
+    conaccna_lock(nadata);
     nadata->con_err = err;
+    nadata->in_open = false;
     conaccna_deferred_op(nadata);
     conaccna_deref_and_unlock(nadata);
 }
@@ -445,24 +456,23 @@ conacc_start(struct conaccna_data *nadata)
     if (!ndata->lock)
 	goto out_err;
 
-    conaccn_lock(ndata);
     err = str_to_gensio(nadata->gensio_str, ndata->o, conaccn_event, ndata,
 			&ndata->child);
     if (err)
-	goto out_err_unlock;
-    err = gensio_open(ndata->child, conaccn_open_done, ndata);
-    if (err)
-	goto out_err_unlock;
+	goto out_err;
 
     nadata->ndata = ndata;
+    nadata->in_open = true;
     conaccna_ref(nadata);
     ndata->child_state = CONACCN_IN_OPEN;
-    conaccn_unlock(ndata);
-
+    err = gensio_open(ndata->child, conaccn_open_done, ndata);
+    if (err) {
+	nadata->in_open = false;
+	conaccna_deref(nadata);
+	goto out_err;
+    }
     return;
 
- out_err_unlock:
-    conaccn_unlock(ndata);
  out_err:
     conaccn_finish_free(ndata);
  out_err_nofree:
