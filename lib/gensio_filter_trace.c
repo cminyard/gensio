@@ -98,11 +98,6 @@ trace_try_connect(struct gensio_filter *filter, gensio_time *timeout)
 static int
 trace_try_disconnect(struct gensio_filter *filter, gensio_time *timeout)
 {
-    struct trace_filter *tfilter = filter_to_trace(filter);
-
-    if (!tfilter->tr_stdout && !tfilter->tr_stderr && tfilter->tr)
-	fclose(tfilter->tr);
-    tfilter->tr = NULL;
     return 0;
 }
 
@@ -257,6 +252,11 @@ trace_setup(struct gensio_filter *filter)
 static void
 trace_filter_cleanup(struct gensio_filter *filter)
 {
+    struct trace_filter *tfilter = filter_to_trace(filter);
+
+    if (!tfilter->tr_stdout && !tfilter->tr_stderr && tfilter->tr)
+	fclose(tfilter->tr);
+    tfilter->tr = NULL;
 }
 
 static void
