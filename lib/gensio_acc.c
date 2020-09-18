@@ -356,6 +356,7 @@ basena_disable(struct gensio_accepter *accepter)
 {
     struct basena_data *nadata = gensio_acc_get_gensio_data(accepter);
 
+    basena_set_state(nadata, BASENA_CLOSED);
     return base_gensio_acc_disable(nadata);
 }
 
