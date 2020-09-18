@@ -1304,7 +1304,7 @@ udpna_shutdown(struct gensio_accepter *accepter,
     int rv = 0;
 
     udpna_lock(nadata);
-    if (nadata->enabled) {
+    if (!nadata->in_shutdown && !nadata->closed) {
 	nadata->enabled = false;
 	nadata->in_shutdown = true;
 	nadata->closed = true;
