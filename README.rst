@@ -656,7 +656,7 @@ tests testing both the python interface and the gensio library.
 Currently they are ok, but there is plenty of room for improvement.
 If you want to help, you can write tests.
 
-The oomtest used to be an out of memory tested, but has morphed into
+The oomtest used to be an out of memory tester, but has morphed into
 something more extensive.  It spawns a gensiot program with specific
 environment variables to cause it to fail at certain points, and to do
 memory leak and other memory checks.  It writes data to the gensiot
