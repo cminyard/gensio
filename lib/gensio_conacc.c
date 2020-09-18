@@ -467,6 +467,7 @@ conacc_start(struct conaccna_data *nadata)
     ndata->child_state = CONACCN_IN_OPEN;
     err = gensio_open(ndata->child, conaccn_open_done, ndata);
     if (err) {
+	nadata->ndata = NULL;
 	nadata->in_open = false;
 	conaccna_deref(nadata);
 	goto out_err;
