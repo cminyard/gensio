@@ -651,6 +651,24 @@ the full effect.  You generally want to run something like:
 You can turn on -O3 in the CFLAGS, too, if you like, but it make
 debugging harder.
 
+There are two basic types of tests.  The python tests are functional
+tests testing both the python interface and the gensio library.
+Currently they are ok, but there is plenty of room for improvement.
+If you want to help, you can write tests.
+
+The oomtest used to be an out of memory tested, but has morphed into
+something more extensive.  It spawns a gensiot program with specific
+environment variables to cause it to fail at certain points, and to do
+memory leak and other memory checks.  It writes data to the gensiot
+through its stdin and receives data on stdout.  Some tests (like
+serialdev) use an echo.  Other tests make a separate connection over
+the network and data flows both into stdin and comes back over the
+separate connection, and flows into the separate connection and comes
+back via stdout.  oomtest is multi-threaded and the number of threads
+can be controlled.  oomtest has found a lot of bugs.  It has a lot of
+knobs, but you have to look at the source code for the options.  It
+needs to be documented, if someone would like to volunteer...
+
 Fuzzing
 =======
 
@@ -690,9 +708,34 @@ The compile and run "make check".  To generate the report, run:
 You can look in the individual .gcov files created for information
 about what is covered.  See the gcov docs for detail.
 
-At the time of writing, I was getting over 71% code coverage,
+At the time of writing, I was getting about 72% code coverage,
 including some things (like file, trace, and perf gensios) that don't
 get tested in the normal testing.  So that's really pretty good.
 
+If you want to add some tests for perf, trace, and file, you can do
+the following, each a pair where you run each command in separate
+windows:
+
+.. code:: bash
+
+  tools/gensiot -a 'perf(write_len=1000000,expect_len=1000000),tcp,1234'
+  tools/gensiot 'perf(write_len=1000000,expect_len=1000000),tcp,localhost,1234'
+
+  tools/gensiot -a 'trace(file=adsf,dir=both),tcp,1234'
+  tools/gensiot 'trace(file=adsf2,dir=both),tcp,localhost,1234'
+  (Type in some data on each side, then do ^\q to exit.)
+
+Then for file do:
+
+.. code:: bash
+
+  ./tools/gensiot 'file(outfile=asdf,create)'
+  (Type in some data then do ^\q to exit.  If you want to see the data,
+   use ^J^M to do a new line.)
+  ./tools/gensiot 'file(infile=asdf)'
+
+That gets you to about 77% code coverage.  I'll be working to improve
+that, mostly through improved functional testing.
+  
 It would be nice to be able to combine this with fuzzing, but I'm not
 sure how to do that.
