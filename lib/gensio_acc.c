@@ -284,7 +284,7 @@ basena_set_accept_callback_enable(struct gensio_accepter *accepter,
     int rv = 0;
 
     basena_lock(nadata);
-    if (done && nadata->set_cb_enable_done) {
+    if (nadata->state != BASENA_OPEN || (done && nadata->set_cb_enable_done)) {
 	rv = GE_NOTREADY;
     } else if (done) {
 	nadata->set_cb_enable_done = done;
