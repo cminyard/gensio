@@ -1364,6 +1364,7 @@ run_oom_tests(struct oom_tests *test, char *tstr,
 		   close_acc ? "sc" : "cc", oom_err_to_str(rv));
 	    fflush(stdout);
 	    errcount++;
+	    exit(1);
 	    if (count < 0) /* No point in going on if the first test fails. */
 		break;
 	    goto next;

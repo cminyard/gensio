@@ -1466,7 +1466,6 @@ basen_ll_write_ready(void *cb_data)
     basen_lock_and_ref(ndata);
     if (ndata->ll_err) {
 	/* Just ignore it if we have an error. */
-	ndata->xmit_enabled = false;
 	ll_set_write_callback_enable(ndata, false);
 	goto out;
     }
