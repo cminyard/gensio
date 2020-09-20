@@ -598,7 +598,7 @@ gensio_os_sctp_send(struct gensio_os_funcs *o,
 		    gensiods *rcount,
 		    const struct sctp_sndrcvinfo *sinfo, uint32_t flags)
 {
-    size_t rv = 0;
+    int rv = 0;
     struct sctp_sndinfo *sndinfo = NULL, sdata;
 
     if (do_errtrig())
