@@ -1279,8 +1279,6 @@ sterm_sub_open(void *handler_data, int *fd)
 
     sdata->timer_stopped = false;
 
-    sdata->is_pty = is_a_pty(sdata->devname);
-
     options = O_NONBLOCK | O_NOCTTY;
     if (sdata->write_only)
 	options |= O_WRONLY;
@@ -1845,6 +1843,8 @@ serialdev_gensio_alloc(const char *devname, const char * const args[],
     if (!sdata->devname)
 	goto out_nomem;
 
+    sdata->is_pty = is_a_pty(sdata->devname);
+
     comma = strchr(sdata->devname, ',');
     if (comma)
 	*comma++ = '\0';
@@ -1862,8 +1862,8 @@ serialdev_gensio_alloc(const char *devname, const char * const args[],
 	else
 	    slash = devname;
 
-	/* Don't do uucp locking on /dev/tty */
-	sdata->no_uucp_lock = strcmp(slash, "tty") == 0;
+	/* Don't do uucp locking on /dev/tty or ptys */
+	sdata->no_uucp_lock = strcmp(slash, "tty") == 0 || sdata->is_pty;
     }
 
     err = sergensio_setup_defaults(o, sdata);
