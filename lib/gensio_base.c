@@ -860,9 +860,9 @@ basen_deferred_op(struct gensio_runner *runner, void *cbdata)
  skip_read:
     /* The write side is primarily for delivery when an error occurs. */
     while (ndata->deferred_write) {
-	ndata->deferred_write = false;
 	if (ndata->in_xmit_ready)
 	    goto skip_write;
+	ndata->deferred_write = false;
 	while (basen_in_callbackable_state(ndata) && ndata->ll_err
 	       && ndata->xmit_enabled) {
 	    basen_unlock(ndata);
@@ -1521,6 +1521,9 @@ basen_ll_write_ready(void *cb_data)
  out_setnotready:
     basen_set_ll_enables(ndata);
     ndata->in_xmit_ready = false;
+    if (ndata->deferred_write)
+	/* Could have gotten a deferred write while we were unlocked. */
+	basen_sched_deferred_op(ndata);
  out:
     basen_deref_and_unlock(ndata);
 }
