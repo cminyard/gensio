@@ -641,21 +641,29 @@ basen_read_data_handler(void *cb_data,
 	goto out_unlock;
     }
     while (basen_can_deliver_ul_data(ndata) && ndata->read_enabled &&
-	   count < buflen) {
-	rval = buflen - count;
-	basen_unlock(ndata);
-	gensio_cb(ndata->io, GENSIO_EVENT_READ, 0, buf + count, &rval, auxdata);
-#ifdef ENABLE_INTERNAL_TRACE
-	/* Only for testing. */
-	assert(rval <= buflen - count);
-#else
-	if (rval > buflen - count)
+	   (count < buflen || ndata->ll_err)) {
+	if (ndata->ll_err) {
+	    basen_unlock(ndata);
+	    gensio_cb(ndata->io, GENSIO_EVENT_READ, ndata->ll_err,
+		      NULL, NULL, NULL);
+	    basen_lock(ndata);
+	} else {
+	    basen_unlock(ndata);
 	    rval = buflen - count;
+	    gensio_cb(ndata->io, GENSIO_EVENT_READ, 0,
+		      buf + count, &rval, auxdata);
+#ifdef ENABLE_INTERNAL_TRACE
+	    /* Only for testing. */
+	    assert(rval <= buflen - count);
+#else
+	    if (rval > buflen - count)
+		rval = buflen - count;
 #endif
-	count += rval;
-	if (count >= buflen)
-	    goto out; /* Don't claim the lock if I don't have to. */
-	basen_lock(ndata);
+	    count += rval;
+	    if (count >= buflen)
+		goto out; /* Don't claim the lock if I don't have to. */
+	    basen_lock(ndata);
+	}
     }
  out_unlock:
     basen_unlock(ndata);
