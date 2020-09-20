@@ -145,8 +145,10 @@ do {								\
 	    goto retry;						\
 	if (errno == EWOULDBLOCK || errno == EAGAIN)		\
 	    rv = 0; /* Handle like a zero-byte write. */	\
-	else							\
+	else {							\
 	    err = errno;					\
+	    assert(err);					\
+	}							\
     } else if (rv == 0) {					\
 	err = EPIPE;						\
     }								\
