@@ -645,8 +645,13 @@ basen_read_data_handler(void *cb_data,
 	rval = buflen - count;
 	basen_unlock(ndata);
 	gensio_cb(ndata->io, GENSIO_EVENT_READ, 0, buf + count, &rval, auxdata);
+#ifdef ENABLE_INTERNAL_TRACE
+	/* Only for testing. */
+	assert(rval <= buflen - count);
+#else
 	if (rval > buflen - count)
 	    rval = buflen - count;
+#endif
 	count += rval;
 	if (count >= buflen)
 	    goto out; /* Don't claim the lock if I don't have to. */
@@ -1438,8 +1443,13 @@ basen_ll_read(void *cb_data, int readerr,
 		    handle_ioerr(ndata, readerr);
 		goto out_finish;
 	    } else {
+#ifdef ENABLE_INTERNAL_TRACE
+		/* Only for testing. */
+		assert(wrlen <= buflen);
+#else
 		if (wrlen > buflen)
 		    wrlen = buflen;
+#endif
 		buf += wrlen;
 		buflen -= wrlen;
 	    }
