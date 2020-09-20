@@ -830,9 +830,9 @@ basen_deferred_op(struct gensio_runner *runner, void *cbdata)
     }
 
     while (ndata->deferred_read) {
-	ndata->deferred_read = false;
 	if (ndata->in_read || !ndata->read_enabled)
 	    goto skip_read;
+	ndata->deferred_read = false;
 	ndata->in_read = true;
 	do {
 	    if (ndata->ll_err && !filter_ul_read_pending(ndata)) {
@@ -1419,7 +1419,7 @@ basen_ll_read(void *cb_data, int readerr,
 	goto out_finish;
     }
 
-    if (ndata->deferred_read || ndata->in_read)
+    if (ndata->in_read)
 	/* Currently in a deferred read, just let that handle it. */
 	goto out_unlock;
 
@@ -1439,8 +1439,15 @@ basen_ll_read(void *cb_data, int readerr,
 	    if (ndata->ll_err || readerr) {
 		ndata->in_read = false;
 		buf += buflen;
-		if (readerr)
+		if (readerr && !ndata->ll_err)
 		    handle_ioerr(ndata, readerr);
+		else if (ndata->deferred_read)
+		    /*
+		     * Deferred op can happen while we are
+		     * unlocked. ll_err will be set, so this is the
+		     * right place to do it.
+		     */
+		    basen_sched_deferred_op(ndata);
 		goto out_finish;
 	    } else {
 #ifdef ENABLE_INTERNAL_TRACE
