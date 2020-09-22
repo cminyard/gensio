@@ -810,6 +810,7 @@ ccon_open_done(struct gensio *io, int err, void *open_data)
 {
     struct oom_test_data *od = open_data;
     struct io_test_data *id = &od->ccon;
+    struct gensio *sio;
     int rv;
 
     assert(!od->finished);
@@ -831,8 +832,14 @@ ccon_open_done(struct gensio *io, int err, void *open_data)
 	goto out_unlock;
     }
 
-    rv = gensio_alloc_channel(io, NULL, ccon_stderr_cb, od,
-			      &od->ccon_stderr_io);
+    sio = io;
+    while (sio) {
+	rv = gensio_alloc_channel(sio, NULL, ccon_stderr_cb, od,
+				  &od->ccon_stderr_io);
+	if (rv != GE_NOTSUP)
+	    break;
+	sio = gensio_get_child(sio, 1);
+    }
     assert(!debug || !rv || rv == GE_REMCLOSE);
     if (rv) {
 	if (debug) {
