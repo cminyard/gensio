@@ -1628,6 +1628,8 @@ main(int argc, char *argv[])
 		exit(1);
 	    }
 	    user_test.connecter = argv[i];
+	} else if (strcmp(argv[i], "-w") == 0) {
+	    user_test.allow_no_err_on_trig = true;
 	} else {
 	    fprintf(stderr, "Unknown argument: '%s'\n", argv[i]);
 	    exit(1);
