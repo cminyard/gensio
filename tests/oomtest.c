@@ -214,6 +214,8 @@ struct oom_tests oom_tests[] = {
     { "stdio,cat", NULL },
     { "conacc,tcp,localhost,", "tcp,0", .conacc=true },
     { "serialdev,", "conacc,pty(raw)",
+      /* In this tests some errors will not result in a failure. */
+      .allow_no_err_on_trig = true,
       .check_value = HAVE_PTY && HAVE_SERIALDEV },
     { NULL }
 };
