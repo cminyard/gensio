@@ -99,7 +99,8 @@ enum basen_state {
      * A close has been requested and the filter is closed.  The ll
      * close has been requested but it has not yet reported closed.
      *
-     * ll close done -> BASEN_CLOSE
+     * ll close done && all writes finished -> BASEN_CLOSE
+     * finish all writes -> BASEN_CLOSE
      * io err -> ignore
      */
     BASEN_IN_LL_CLOSE,
@@ -108,7 +109,8 @@ enum basen_state {
      * An I/O error happened on BASEN_OPEN, waiting for the LL to close.
      *
      * close -> BASEN_IN_LL_CLOSE
-     * ll close done -> BASEN_IO_ERR_CLOSE
+     * ll close done && all writes finished -> BASEN_IO_ERR_CLOSE
+     * finish all writes -> BASEN_IO_ERR_CLOSE
      * io err -> ignore
      */
     BASEN_IN_LL_IO_ERR_CLOSE,
@@ -165,6 +167,8 @@ struct basen_data {
     gensio_done close_done;
     void *close_data;
     bool close_requested;
+    bool ll_want_close;
+    unsigned int in_write_count;
 
     bool read_enabled;
     bool in_read;
@@ -217,6 +221,7 @@ struct gensio_filter {
 };
 
 static void handle_ioerr(struct basen_data *ndata, int err);
+static void basen_filter_try_close(struct basen_data *ndata, bool was_timeout);
 
 static void
 i_basen_lock(struct basen_data *ndata)
@@ -582,6 +587,12 @@ basen_write_data_handler(void *cb_data, gensiods *rcount,
     return ll_write(ndata, rcount, sg, sglen, auxdata);
 }
 
+static bool
+write_data_pending(struct basen_data *ndata)
+{
+    return filter_ll_write_queued(ndata) || ndata->in_write_count > 0;
+}
+
 static int
 basen_write(struct basen_data *ndata, gensiods *rcount,
 	    const struct gensio_sg *sg, gensiods sglen,
@@ -598,11 +609,37 @@ basen_write(struct basen_data *ndata, gensiods *rcount,
 	err = ndata->ll_err;
 	goto out_unlock;
     }
+    ndata->in_write_count++;
 
     err = filter_ul_write(ndata, basen_write_data_handler, rcount, sg, sglen,
 			  auxdata);
+
+    ndata->in_write_count--;
     if (err)
 	handle_ioerr(ndata, err);
+
+    /*
+     * We make sure that nothing is in a write call before starting a
+     * close.  So if anything wants to call ll_close() and
+     * in_write_count is non-zero, it must set ll_want_close to defer
+     * to here.
+     */
+    if (ndata->in_write_count == 0 && ndata->ll_want_close) {
+	int rv = ll_close(ndata);
+	if (rv) {
+	    if (ndata->state == BASEN_CLOSE_WAIT_DRAIN) {
+		basen_set_state(ndata, BASEN_IN_FILTER_CLOSE);
+		basen_filter_try_close(ndata, false);
+	    } else if (ndata->state == BASEN_IN_LL_IO_ERR_CLOSE) {
+		basen_set_state(ndata, BASEN_IO_ERR_CLOSE);
+	    } else if (ndata->state == BASEN_IN_LL_CLOSE) {
+		ndata->deferred_close = true;
+		basen_sched_deferred_op(ndata);
+	    } else {
+		assert(0);
+	    }
+	}
+    }
  out_unlock:
     basen_set_ll_enables(ndata);
     basen_unlock(ndata);
@@ -701,6 +738,10 @@ handle_ioerr(struct basen_data *ndata, int err)
 	ndata->deferred_open = true;
 	basen_sched_deferred_op(ndata);
 	basen_set_state(ndata, BASEN_IN_LL_IO_ERR_CLOSE);
+	/*
+	 * No need to check for in_write_count here, it can't be
+	 * pending because we can't have started a write yet.
+	 */
 	rv = ll_close(ndata);
 	if (rv)
 	    basen_set_state(ndata, BASEN_IO_ERR_CLOSE);
@@ -712,28 +753,40 @@ handle_ioerr(struct basen_data *ndata, int err)
 	ndata->deferred_write = true;
 	basen_sched_deferred_op(ndata);
 	basen_set_state(ndata, BASEN_IN_LL_IO_ERR_CLOSE);
-	rv = ll_close(ndata);
-	if (rv)
-	    basen_set_state(ndata, BASEN_IO_ERR_CLOSE);
+	if (ndata->in_write_count == 0) {
+	    rv = ll_close(ndata);
+	    if (rv)
+		basen_set_state(ndata, BASEN_IO_ERR_CLOSE);
+	} else {
+	    ndata->ll_want_close = true;
+	}
 	break;
 
     case BASEN_CLOSE_WAIT_DRAIN:
 	filter_io_err(ndata, err);
 	basen_set_state(ndata, BASEN_IN_LL_CLOSE);
-	rv = ll_close(ndata);
-	if (rv) {
-	    ndata->deferred_close = true;
-	    basen_sched_deferred_op(ndata);
+	if (ndata->in_write_count == 0) {
+	    rv = ll_close(ndata);
+	    if (rv) {
+		ndata->deferred_close = true;
+		basen_sched_deferred_op(ndata);
+	    }
+	} else {
+	    ndata->ll_want_close = true;
 	}
 	break;
 
     case BASEN_IN_FILTER_CLOSE:
 	filter_io_err(ndata, err);
 	basen_set_state(ndata, BASEN_IN_LL_CLOSE);
-	rv = ll_close(ndata);
-	if (rv) {
-	    ndata->deferred_close = true;
-	    basen_sched_deferred_op(ndata);
+	if (ndata->in_write_count == 0) {
+	    rv = ll_close(ndata);
+	    if (rv) {
+		ndata->deferred_close = true;
+		basen_sched_deferred_op(ndata);
+	    }
+	} else {
+	    ndata->ll_want_close = true;
 	}
 	break;
 
@@ -1001,6 +1054,7 @@ basen_open(struct basen_data *ndata, gensio_done_err open_done, void *open_data)
 	ndata->xmit_enabled = false;
 	ndata->timer_start_pending = false;
 	ndata->close_requested = false;
+	ndata->ll_want_close = false;
 
 	ndata->open_done = open_done;
 	ndata->open_data = open_data;
@@ -1098,10 +1152,14 @@ basen_filter_try_close(struct basen_data *ndata, bool was_timeout)
 
     /* Ignore errors here, just go on. */
     basen_set_state(ndata, BASEN_IN_LL_CLOSE);
-    err = ll_close(ndata);
-    if (err) {
-	ndata->deferred_close = true;
-	basen_sched_deferred_op(ndata);
+    if (ndata->in_write_count == 0) {
+	err = ll_close(ndata);
+	if (err) {
+	    ndata->deferred_close = true;
+	    basen_sched_deferred_op(ndata);
+	}
+    } else {
+	ndata->ll_want_close = true;
     }
 }
 
@@ -1125,12 +1183,16 @@ basen_i_close(struct basen_data *ndata,
 	basen_set_state(ndata, BASEN_IN_LL_CLOSE);
 	ndata->deferred_open = true;
 	basen_sched_deferred_op(ndata);
+	/*
+	 * No need to check for in_write_count here, it can't be
+	 * pending because we can't have started a write yet.
+	 */
 	rv = ll_close(ndata);
 	if (rv) {
 	    ndata->deferred_close = true;
 	    basen_sched_deferred_op(ndata);
 	}
-    } else if (filter_ll_write_queued(ndata)) {
+    } else if (write_data_pending(ndata)) {
 	basen_set_state(ndata, BASEN_CLOSE_WAIT_DRAIN);
     } else {
 	basen_set_state(ndata, BASEN_IN_FILTER_CLOSE);
@@ -1396,7 +1458,7 @@ basen_check_open_close_ops(struct basen_data *ndata)
     if (ndata->state == BASEN_IN_FILTER_CLOSE)
 	basen_filter_try_close(ndata, false);
     if (ndata->state == BASEN_CLOSE_WAIT_DRAIN) {
-	if (!filter_ll_write_queued(ndata)) {
+	if (!write_data_pending(ndata)) {
 	    basen_set_state(ndata, BASEN_IN_FILTER_CLOSE);
 	    basen_filter_try_close(ndata, false);
 	}
