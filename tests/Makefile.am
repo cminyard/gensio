@@ -21,7 +21,7 @@ PYTESTS = test_syncio.py \
 	test_relpkt_large.py test_udp_nocon.py test_conacc.py
 
 OOMTESTS = oomtest0 oomtest1 oomtest2 oomtest3 oomtest4 oomtest5 oomtest6 \
-	oomtest7 oomtest8 oomtest9 oomtest10 oomtest11 oomtest12 oomtest13
+	oomtest7 oomtest8 oomtest9 oomtest10 oomtest11 oomtest12
 
 TESTS = $(PYTESTS) $(OOMTESTS)
 

@@ -40,6 +40,9 @@ struct oom_tests {
     /* Some tests can keep going on a failure under certain circumstances. */
     bool allow_no_err_on_trig;
 
+    /* We don't want to run some tests by default. */
+    bool no_default_run;
+
     /* Put a limit on the I/O size that can be used. */
     gensiods max_io_size;
 };
@@ -216,6 +219,22 @@ struct oom_tests oom_tests[] = {
     { "serialdev,", "conacc,pty(raw)",
       /* In this tests some errors will not result in a failure. */
       .allow_no_err_on_trig = true,
+      /*
+       * This test has a few problematic things about it:
+       *  * There is a Linux bug in PTYs that causes data to be dropped
+       *    from the stream on a close, so you lose a chunk of data.
+       *    This causes data mismatches sometimes.  Hopefully that will
+       *    eventually be fixed.
+       *  * If you run this tests when something else is creating PTYs
+       *    (like running another of the same test at the same time, or
+       *    just creating an X window or ssh login), it is possible that
+       *    this gensiot program crashes, the pty is closed, the same
+       *    pty number is picked up for something else creating a pty,
+       *    and this test connects to the new pty.  There's nothing that
+       *    can be done about this, so we don't run this test by default.
+       *    It can still be run directly with the -t option.
+       */
+      .no_default_run = true,
       .check_value = HAVE_PTY && HAVE_SERIALDEV },
     { NULL }
 };
@@ -1710,9 +1729,12 @@ main(int argc, char *argv[])
 	    run_tests(&user_test, testnrstart, testnrend,
 		      &skipcount, &errcount);
 	} else if (testnr < 0) {
-	    for (i = 0; oom_tests[i].connecter; i++)
+	    for (i = 0; oom_tests[i].connecter; i++) {
+		if (oom_tests[i].no_default_run)
+		    continue;
 		run_tests(oom_tests + i, testnrstart, testnrend,
 			  &skipcount, &errcount);
+	    }
 	} else {
 	    run_tests(oom_tests + testnr, testnrstart, testnrend,
 		      &skipcount, &errcount);
