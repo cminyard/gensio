@@ -266,8 +266,8 @@ gensio_exit_check_memory(void)
 	fflush(stderr);
 	assert(!memtracking_abort_on_lost);
     }
-}
 #endif
+}
 
 static void
 add_to_timeval(struct timeval *tv1, gensio_time *t2)
