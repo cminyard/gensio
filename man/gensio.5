@@ -123,7 +123,7 @@ Some gensio types support serial port setting options.  Standard
 serial ports, IPMI Serial Over LAN, and telnet with RFC2217 enabled.
 
 A client serial gensio can set and get serial port options using the
-.Bsergensio_xxx()
+.B sergensio_xxx()
 functions.  Server serial gensios receive requests from the client via
 .I GENSIO_EVENT_SER_xxx
 events in the callback.
@@ -517,7 +517,7 @@ A file will be created with the given socket path, you must have
 permissions to create a writeable file in that location.  If the file
 already exists, an error will be returned on an accepter socket unless
 you specify
-.i delsock
+.I delsock
 which will cause the file to be deleted.
 
 You should read the unix(7) man page for details on the semantics of
