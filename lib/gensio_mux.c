@@ -870,7 +870,7 @@ chan_check_send_more(struct mux_inst *chan)
 
     /* Need at least 3 bytes to write a message. */
     while (chan->write_data_len + 3 < chan->max_write_size &&
-	   chan->write_ready_enabled) {
+	   chan->write_ready_enabled && chan->state == MUX_INST_OPEN) {
 	chan_ref(chan);
 	mux_unlock(chan->mux);
 	gensio_cb(chan->io, GENSIO_EVENT_WRITE_READY, 0, NULL, NULL, NULL);
