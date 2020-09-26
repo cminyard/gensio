@@ -516,8 +516,7 @@ netna_fd_cleared(int fd, void *cbdata)
     assert(nadata->nr_accept_close_waiting > 0);
     num_left = --nadata->nr_accept_close_waiting;
     if (num_left == 0) {
-	if (nadata->acceptfds)
-	    nadata->o->free(nadata->o, nadata->acceptfds);
+	nadata->o->free(nadata->o, nadata->acceptfds);
 	nadata->acceptfds = NULL;
     }
     nadata->o->unlock(nadata->lock);
