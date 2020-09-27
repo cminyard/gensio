@@ -37,6 +37,19 @@ that will create it for you.
 If you don't know about autoconf, the INSTALL file has some info,
 or google it.
 
+To fully build gensio, you need the following:
+
+* swig - For python bindings
+
+* python dev libraries - For python bindings
+
+* openssl dev libraries and executable - For all the crypto
+
+* openipmi dev libraries - For IPMI serial over lan, if you want that.
+
+* libsctp dev library - For sctp support
+
+
 gensio tools
 ============
 
