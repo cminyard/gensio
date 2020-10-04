@@ -37,7 +37,7 @@ gtlssh_LDADD = libgtlssh.a libgensiotool.a $(top_builddir)/lib/libgensio.la \
 gtlsshd_LDADD = libgtlssh.a libgensiotool.a $(top_builddir)/lib/libgensio.la \
 	@PAMLIB@ @OPENSSL_LIBS@
 
-manpages = gensiot.1 gtlsshd.8 gtlssh.1 gtlssh-keygen.1 gtlssync.1
+manpages = gensiot.1 @GTLSSHDMAN@ @GTLSSHMAN@ @GTLSSH_KEYGENMAN@ @GTLSSSYNCMAN@
 
 if INSTALL_DOC
 man_MANS = gensiot.1 gtlsshd.8 gtlssh.1 gtlssh-keygen.1 gtlssync.1
