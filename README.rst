@@ -275,6 +275,7 @@ argvutils.h
 gensio_selector.h
     A definition for a default OS handler.
 
+These are for the most part documented in the man pages.
 
 For creating your own gensios, the following include files are
 available for you:
@@ -347,7 +348,7 @@ To create a gensio, the general way to do this is to call
 ``str_to_gensio()`` with a properly formatted string.  The string is
 formatted like so::
 
-  <type>[([<option>[,<option[...]]])][,<type>...][,<end option>[,<end option]]
+  <type>[([<option>[,<option[...]]])][,<type>...][,<end option>[,<end option>]]
 
 The ``end option`` is for terminal gensios, or ones that are at the
 bottom of the stack.  For instance, ``tcp,localhost,3001`` will create
@@ -711,7 +712,16 @@ to configure the code to enable coverage:
   mkdir Ocov; cd Ocov
   ../configure --enable-internal-trace=yes CC='gcc -fprofile-arcs -ftest-coverage'
 
-The compile and run "make check".  To generate the report, run:
+The compile and run "make check".  Then run:
+
+..code:: bash
+
+  (cd tests; ./oomtest -t 13 ../tools/gensiot)
+
+to run the pty test, which is not run by default since there are
+issues in the kernel and around running it.
+
+To generate the report, run:
 
 .. code:: bash
 
@@ -749,6 +759,13 @@ Then for file do:
 
 That gets you to about 77% code coverage.  I'll be working to improve
 that, mostly through improved functional testing.
-  
+
+ser2net is used for testing some things, primarily the serial port
+configuration (termios and rfc2217).  You can build ser2net against
+the gcov version of the gensio library and run "make check" in ser2net
+to get coverage on those parts.
+
 It would be nice to be able to combine this with fuzzing, but I'm not
-sure how to do that.
+sure how to do that.  afl does it's own thing with code coverage.
+There appears to be a afl-cov package that somehow integrated gcov,
+but I haven't looked into it.
