@@ -49,6 +49,8 @@ To fully build gensio, you need the following:
 
 * libsctp dev library - For sctp support
 
+* pkgconfig - If you want gensio to install its pkgconfig files.
+
 
 gensio tools
 ============
