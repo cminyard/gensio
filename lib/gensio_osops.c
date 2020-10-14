@@ -300,6 +300,61 @@ gensio_addr_make(struct gensio_os_funcs *o, socklen_t size)
     return addr;
 }
 
+int
+gensio_addr_create(struct gensio_os_funcs *o,
+		   int nettype, const void *iaddr, gensiods len,
+		   unsigned int port, struct gensio_addr **newaddr)
+{
+    struct sockaddr_in s4;
+    struct sockaddr_in6 s6;
+    struct sockaddr_un su;
+    struct sockaddr *s;
+    unsigned int slen;
+    struct gensio_addr *a;
+
+    switch (nettype) {
+    case GENSIO_NETTYPE_IPV4:
+	if (len != sizeof(struct in_addr))
+	    return GE_INVAL;
+	s4.sin_family = AF_INET;
+	s4.sin_port = htons(port);
+	memcpy(&s4.sin_addr, iaddr, len);
+	s = (struct sockaddr *) &s4;
+	slen = sizeof(s4);
+	break;
+
+    case GENSIO_NETTYPE_IPV6:
+	if (len != sizeof(struct in6_addr))
+	    return GE_INVAL;
+	s6.sin6_family = AF_INET6;
+	s6.sin6_port = htons(port);
+	memcpy(&s6.sin6_addr, iaddr, len);
+	s = (struct sockaddr *) &s6;
+	slen = sizeof(s6);
+	break;
+
+    case GENSIO_NETTYPE_UNIX:
+	if (len > sizeof(su.sun_path) - 1)
+	    return GE_TOOBIG;
+	su.sun_family = AF_UNIX;
+	memcpy(su.sun_path, iaddr, len);
+	s = (struct sockaddr *) &su;
+	slen = sizeof(su);
+	break;
+
+    default:
+	return GE_INVAL;
+    }
+
+    a = gensio_addr_make(o, slen);
+    if (!a)
+	return GE_NOMEM;
+
+    memcpy(a->a->ai_addr, s, slen);
+    *newaddr = a;
+    return 0;
+}
+
 struct gensio_addr *
 gensio_addr_alloc_recvfrom(struct gensio_os_funcs *o)
 {

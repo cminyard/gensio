@@ -408,10 +408,24 @@ GENSIO_DLL_PUBLIC
 void gensio_addr_getaddr(const struct gensio_addr *addr,
 			 void *oaddr, gensiods *len);
 
+#define GENSIO_NETTYPE_UNSPEC	0
+#define GENSIO_NETTYPE_IPV4	1
+#define GENSIO_NETTYPE_IPV6	2
+#define GENSIO_NETTYPE_UNIX	3
+
+/*
+ * Create a gensio address from raw address data.  Note that the iaddr
+ * data is type in_addr for ipv4, in6_addr for ipv6, and the patch for
+ * unix.
+ */
+GENSIO_DLL_PUBLIC
+int gensio_addr_create(struct gensio_os_funcs *o,
+		       int nettype, const void *iaddr, gensiods len,
+		       unsigned int port, struct gensio_addr **newaddr);
+
 /*
  * Return the network type (ipv4, ipv6, unix socket, etc.) for the
- * current address.  These numbers are currently internal, but can be
- * used for comparison.
+ * current address.
  */
 GENSIO_DLL_PUBLIC
 int gensio_addr_get_nettype(const struct gensio_addr *addr);
