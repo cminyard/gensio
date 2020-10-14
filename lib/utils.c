@@ -62,6 +62,44 @@ gensio_argv_copy(struct gensio_os_funcs *o,
     return GE_NOMEM;
 }
 
+int
+gensio_argv_append(struct gensio_os_funcs *o, const char ***argv,
+		   const char *str, gensiods *args, gensiods *argc,
+		   bool allocstr)
+{
+    if (!*argv) {
+	*args = 10;
+	*argc = 0;
+	*argv = o->zalloc(o, *args * sizeof(char *));
+	if (!*argv)
+	    return GE_NOMEM;
+    }
+    if (argc >= args) {
+	const char **nargv;
+
+	nargv = o->zalloc(o, sizeof(char *) * (*args + 10));
+	if (!nargv)
+	    return GE_NOMEM;
+	memcpy(nargv, *argv, sizeof(char *) * *args);
+	o->free(o, *argv);
+	*argv = nargv;
+	*args += 10;
+    }
+    if (str) {
+	if (allocstr) {
+	    (*argv)[*argc] = gensio_strdup(o, str);
+	    if (!(*argv)[*argc])
+		return GE_NOMEM;
+	} else {
+	    (*argv)[*argc] = str;
+	}
+	(*argc)++;
+    } else {
+	(*argv)[*argc] = NULL;
+    }
+    return 0;
+}
+
 void
 gensio_argv_free(struct gensio_os_funcs *o,
 		 const char **argv)
@@ -225,8 +263,8 @@ gensio_str_to_argv_endchar(struct gensio_os_funcs *o,
 {
     const char **argv = NULL;
     char *tok = NULL;
-    unsigned int argc = 0;
-    unsigned int args = 0;
+    gensiods argc = 0;
+    gensiods args = 0;
     int err;
 
     if (!seps)
@@ -235,39 +273,30 @@ gensio_str_to_argv_endchar(struct gensio_os_funcs *o,
     if (!endchars)
 	endchars = "";
 
-    args = 10;
-    argv = o->zalloc(o, sizeof(*argv) * args);
-    if (!argv)
-	return GE_NOMEM;
-
     err = gettok(o, &ins, &tok, seps, endchars);
     while (tok && !err) {
-	/* - 1 leaves a space for the NULL terminator. */
-	if (argc >= args - 1) {
-	    const char **nargv;
-
-	    args += 10;
-	    nargv = realloc(argv, sizeof(*argv) * args);
-	    if (!nargv) {
-		err = GE_NOMEM;
-		goto out;
-	    }
-	    argv = nargv;
-	}
-	argv[argc++] = tok;
-
+	err = gensio_argv_append(o, &argv, tok, &args, &argc, false);
+	if (err)
+	    goto out;
+	tok = NULL;
 	err = gettok(o, &ins, &tok, seps, endchars);
     }
 
-    argv[argc] = NULL; /* NULL terminate the array. */
+    /* NULL terminate the array. */
+    if (!err)
+	err = gensio_argv_append(o, &argv, NULL, &args, &argc, false);
 
  out:
     if (err) {
-	while (argc > 0) {
-	    argc--;
-	    o->free(o, (void *) argv[argc]);
+	if (tok)
+	    o->free(o, tok);
+	if (argv) {
+	    while (argc > 0) {
+		argc--;
+		o->free(o, (void *) argv[argc]);
+	    }
+	    o->free(o, argv);
 	}
-	o->free(o, argv);
     } else {
 	if (r_argc)
 	    *r_argc = argc;

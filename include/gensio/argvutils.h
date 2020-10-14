@@ -65,6 +65,25 @@ int gensio_argv_copy(struct gensio_os_funcs *o,
 	      const char * const oargv[],
 	      int *r_argc, const char ***r_argv);
 
+/*
+ * For creating and modifying argv structures.  Pass in a pointer to
+ * a NULL argv, the function will allocate the argv and add the string.
+ * You can continue to call this and add more arguments.  args and argc
+ * are used to track the position and size of the array.
+ *
+ * Call this at the end with a NULL str to terminate the array. Note
+ * that if you terminate the array like this, *argc will not be
+ * incremented by the NULL addition.  So you can use *argc as the
+ * number of elements in the array.
+ *
+ * If allocstr is true, copy the string to new allocated memory.  If
+ * it is false, str must have been allocated with o->zalloc() and it
+ * will be directly put into the argv.
+ */
+int gensio_argv_append(struct gensio_os_funcs *o, const char ***argv,
+		       const char *str, gensiods *args, gensiods *argc,
+		       bool allocstr);
+
 /* Free the return of str_to_argv */
 GENSIO_DLL_PUBLIC
 void gensio_argv_free(struct gensio_os_funcs *o, const char **argv);
