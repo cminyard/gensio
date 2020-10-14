@@ -10,6 +10,12 @@ install(TARGETS gensiot DESTINATION bin)
 
 install(FILES gensiot.1 DESTINATION ${CMAKE_INSTALL_FULL_MANDIR}/man1)
 
+if(HAVE_AVAHI)
+  add_executable(gmdns gensiomdns.c)
+  target_link_libraries(gmdns gensio gensiotool)
+  install(TARGETS gmdns DESTINATION bin)
+endif()
+
 if(UNIX)
   add_library(gtlssh-shared STATIC gtlssh-shared.c)
   set_target_properties(gensiotool PROPERTIES

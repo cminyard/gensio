@@ -205,9 +205,16 @@ m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES([yes])])
 AC_CONFIG_MACRO_DIR([m4])
 AC_STDC_HEADERS
 AC_CHECK_LIB(nsl,main)
+HAVE_AVAHI=
 AC_CHECK_LIB(avahi-client, avahi_client_new,
 	     [AC_DEFINE([HAVE_AVAHI], [1], [Have avahi installed])
+	     HAVE_AVAHI=1
 	     LIBS="-lavahi-client -lavahi-common $LIBS"])
+GMDNS=
+if test "x$HAVE_AVAHI" = "x1"; then
+   GMDNS=gmdns
+fi
+AC_SUBST(GMDNS)
 
 # Now check for swig
 SWIG_DIR=
@@ -310,6 +317,7 @@ AC_CHECK_FUNC(getrandom, [AC_DEFINE([HAVE_GETRANDOM_FUNC], [1],
 				    [Define if getrandom is available.])])
 AC_CHECK_FUNCS(ptsname_r)
 AC_CHECK_FUNCS(cfmakeraw)
+AC_CHECK_FUNCS(signalfd)
 
 case $host_os in
 linux*) HAVE_WORKING_PORT0=1 ;;
