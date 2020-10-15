@@ -26,6 +26,7 @@
 #ifndef MDNS_H
 #define MDNS_H
 
+#include <gensio/gensio_dllvisibility.h>
 #include <gensio/gensio_os_funcs.h>
 #include <gensio/gensio.h>
 
@@ -34,12 +35,15 @@ struct gensio_mdns_service;
 
 typedef void (*gensio_mdns_done)(struct gensio_mdns *m, void *userdata);
 
+GENSIO_DLL_PUBLIC
 int gensio_alloc_mdns(struct gensio_os_funcs *o, struct gensio_mdns **m);
 
+GENSIO_DLL_PUBLIC
 int gensio_free_mdns(struct gensio_mdns *m,
 		     gensio_mdns_done done, void *userdata);
 
 
+GENSIO_DLL_PUBLIC
 int gensio_mdns_add_service(struct gensio_mdns *m,
 			    int interface, int ipdomain,
 			    const char *name, const char *type,
@@ -47,6 +51,7 @@ int gensio_mdns_add_service(struct gensio_mdns *m,
 			    int port, const char *txt[],
 			    struct gensio_mdns_service **rservice);
 
+GENSIO_DLL_PUBLIC
 int gensio_mdns_remove_service(struct gensio_mdns_service *s);
 
 
@@ -62,6 +67,7 @@ typedef void (*gensio_mdns_watch_cb)(struct gensio_mdns_watch *w,
 				     struct gensio_addr *addr,
 				     const char *txt[], void *userdata);
 
+GENSIO_DLL_PUBLIC
 int gensio_mdns_add_watch(struct gensio_mdns *m,
 			  int interface, int ipdomain,
 			  const char *name, const char *type,
@@ -72,6 +78,7 @@ int gensio_mdns_add_watch(struct gensio_mdns *m,
 typedef void (*gensio_mdns_watch_done)(struct gensio_mdns_watch *w,
 				       void *userdata);
 
+GENSIO_DLL_PUBLIC
 int gensio_mdns_remove_watch(struct gensio_mdns_watch *w,
 			     gensio_mdns_watch_done done, void *userdata);
 
