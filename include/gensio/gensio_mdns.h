@@ -64,7 +64,7 @@ typedef void (*gensio_mdns_watch_cb)(struct gensio_mdns_watch *w,
 				     int interface, int ipdomain,
 				     const char *name, const char *type,
 				     const char *domain, const char *host,
-				     struct gensio_addr *addr,
+				     const struct gensio_addr *addr,
 				     const char *txt[], void *userdata);
 
 GENSIO_DLL_PUBLIC

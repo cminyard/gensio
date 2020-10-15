@@ -97,7 +97,7 @@ mdns_info_found(struct gensio_mdns_watch *w,
 		int interface, int ipdomain,
 		const char *name, const char *type,
 		const char *domain, const char *host,
-		struct gensio_addr *addr,
+		const struct gensio_addr *addr,
 		const char *txt[], void *userdata)
 {
     char strbuf[250];
