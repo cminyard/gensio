@@ -1102,7 +1102,7 @@ gensio_udp_func(struct gensio *io, int func, gensiods *count,
 
 static struct udpn_data *
 udp_alloc_gensio(struct udpna_data *nadata, int fd,
-		 struct gensio_addr *addr,
+		 const struct gensio_addr *addr,
 		 gensio_event cb, void *user_data,
 		 struct gensio_list *starting_list)
 {
@@ -1644,7 +1644,7 @@ str_to_udp_gensio_accepter(const char *str, const char * const args[],
 }
 
 int
-udp_gensio_alloc(struct gensio_addr *addr, const char * const args[],
+udp_gensio_alloc(const struct gensio_addr *addr, const char * const args[],
 		 struct gensio_os_funcs *o,
 		 gensio_event cb, void *user_data,
 		 struct gensio **new_gensio)

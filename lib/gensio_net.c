@@ -302,7 +302,7 @@ static const struct gensio_fd_ll_ops net_fd_ll_ops = {
 };
 
 static int
-net_gensio_alloc(struct gensio_addr *iai, const char * const args[],
+net_gensio_alloc(const struct gensio_addr *iai, const char * const args[],
 		 struct gensio_os_funcs *o,
 		 gensio_event cb, void *user_data, const char *type,
 		 struct gensio **new_gensio)
@@ -418,7 +418,7 @@ str_to_net_gensio(const char *str, const char * const args[],
 }
 
 int
-tcp_gensio_alloc(struct gensio_addr *iai, const char * const args[],
+tcp_gensio_alloc(const struct gensio_addr *iai, const char * const args[],
 		 struct gensio_os_funcs *o,
 		 gensio_event cb, void *user_data,
 		 struct gensio **new_gensio)
@@ -437,7 +437,7 @@ str_to_tcp_gensio(const char *str, const char * const args[],
 }
 
 int
-unix_gensio_alloc(struct gensio_addr *iai, const char * const args[],
+unix_gensio_alloc(const struct gensio_addr *iai, const char * const args[],
 		 struct gensio_os_funcs *o,
 		 gensio_event cb, void *user_data,
 		 struct gensio **new_gensio)

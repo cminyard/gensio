@@ -478,7 +478,7 @@ bool gensio_addr_equal(const struct gensio_addr *a1,
  * Create a new address structure with the same addresses.
  */
 GENSIO_DLL_PUBLIC
-struct gensio_addr *gensio_addr_dup(struct gensio_addr *ai);
+struct gensio_addr *gensio_addr_dup(const struct gensio_addr *ai);
 
 /*
  * Concatenate two addr structures and return a new one.

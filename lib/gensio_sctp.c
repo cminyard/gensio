@@ -379,7 +379,7 @@ static const struct gensio_fd_ll_ops sctp_fd_ll_ops = {
 };
 
 int
-sctp_gensio_alloc(struct gensio_addr *iai, const char * const args[],
+sctp_gensio_alloc(const struct gensio_addr *iai, const char * const args[],
 		  struct gensio_os_funcs *o,
 		  gensio_event cb, void *user_data,
 		  struct gensio **new_gensio)

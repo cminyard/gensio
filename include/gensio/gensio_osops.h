@@ -132,7 +132,7 @@ int gensio_os_set_non_blocking(struct gensio_os_funcs *o, int fd);
 
 GENSIO_DLL_PUBLIC
 int gensio_os_socket_open(struct gensio_os_funcs *o,
-			  struct gensio_addr *addr, int protocol,
+			  const struct gensio_addr *addr, int protocol,
 			  int *fd);
 
 GENSIO_DLL_PUBLIC
@@ -153,11 +153,11 @@ int gensio_os_mcast_del(struct gensio_os_funcs *o, int fd,
 
 GENSIO_DLL_PUBLIC
 int gensio_os_set_mcast_loop(struct gensio_os_funcs *o, int fd,
-			     struct gensio_addr *addr, bool val);
+			     const struct gensio_addr *addr, bool val);
 
 GENSIO_DLL_PUBLIC
 int gensio_os_connect(struct gensio_os_funcs *o,
-		      int fd, struct gensio_addr *addr);
+		      int fd, const struct gensio_addr *addr);
 
 GENSIO_DLL_PUBLIC
 int gensio_os_get_nodelay(struct gensio_os_funcs *o, int fd, int protocol,

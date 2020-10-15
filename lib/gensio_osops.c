@@ -976,7 +976,7 @@ gensio_os_set_non_blocking(struct gensio_os_funcs *o, int fd)
 
 int
 gensio_os_socket_open(struct gensio_os_funcs *o,
-		      struct gensio_addr *addr, int protocol,
+		      const struct gensio_addr *addr, int protocol,
 		      int *fd)
 {
     int sockproto, socktype;
@@ -1202,7 +1202,7 @@ gensio_os_mcast_del(struct gensio_os_funcs *o, int fd,
 
 int
 gensio_os_set_mcast_loop(struct gensio_os_funcs *o, int fd,
-			 struct gensio_addr *addr, bool ival)
+			 const struct gensio_addr *addr, bool ival)
 {
     int rv, val = ival;
 
@@ -1231,7 +1231,8 @@ gensio_os_set_mcast_loop(struct gensio_os_funcs *o, int fd,
 }
 
 int
-gensio_os_connect(struct gensio_os_funcs *o, int fd, struct gensio_addr *addr)
+gensio_os_connect(struct gensio_os_funcs *o, int fd,
+		  const struct gensio_addr *addr)
 {
     int err;
 
@@ -2374,7 +2375,7 @@ addrinfo_list_dup(struct gensio_os_funcs *o,
 }
 
 struct gensio_addr *
-gensio_addr_dup(struct gensio_addr *iaddr)
+gensio_addr_dup(const struct gensio_addr *iaddr)
 {
     struct gensio_os_funcs *o;
     struct gensio_addr *addr;

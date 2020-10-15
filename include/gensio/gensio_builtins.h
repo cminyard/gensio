@@ -211,7 +211,6 @@ int str_to_perf_gensio(const char *str, const char * const args[],
 		       gensio_event cb, void *user_data,
 		       struct gensio **new_gensio);
 
-
 /*
  * Allocators for accepters for different I/O types.
  */
@@ -337,7 +336,7 @@ int conacc_gensio_accepter_alloc(const char *gensio_str,
  * Create a TCP gensio for the given ai.
  */
 GENSIO_DLL_PUBLIC
-int tcp_gensio_alloc(struct gensio_addr *ai, const char * const args[],
+int tcp_gensio_alloc(const struct gensio_addr *ai, const char * const args[],
 		     struct gensio_os_funcs *o,
 		     gensio_event cb, void *user_data,
 		     struct gensio **new_gensio);
@@ -346,7 +345,7 @@ int tcp_gensio_alloc(struct gensio_addr *ai, const char * const args[],
  * Create a TCP gensio for the given ai.
  */
 GENSIO_DLL_PUBLIC
-int unix_gensio_alloc(struct gensio_addr *ai, const char * const args[],
+int unix_gensio_alloc(const struct gensio_addr *ai, const char * const args[],
 		      struct gensio_os_funcs *o,
 		      gensio_event cb, void *user_data,
 		      struct gensio **new_gensio);
@@ -356,7 +355,7 @@ int unix_gensio_alloc(struct gensio_addr *ai, const char * const args[],
  * ai.
  */
 GENSIO_DLL_PUBLIC
-int udp_gensio_alloc(struct gensio_addr *ai, const char * const args[],
+int udp_gensio_alloc(const struct gensio_addr *ai, const char * const args[],
 		     struct gensio_os_funcs *o,
 		     gensio_event cb, void *user_data,
 		     struct gensio **new_gensio);
@@ -365,7 +364,7 @@ int udp_gensio_alloc(struct gensio_addr *ai, const char * const args[],
  * Create a SCTP gensio for the given ai.
  */
 GENSIO_DLL_PUBLIC
-int sctp_gensio_alloc(struct gensio_addr *ai, const char * const args[],
+int sctp_gensio_alloc(const struct gensio_addr *ai, const char * const args[],
 		      struct gensio_os_funcs *o,
 		      gensio_event cb, void *user_data,
 		      struct gensio **new_gensio);
