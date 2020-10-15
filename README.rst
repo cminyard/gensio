@@ -51,6 +51,8 @@ To fully build gensio, you need the following:
 
 * pkgconfig - If you want gensio to install its pkgconfig files.
 
+* avahi - If you want gensio to have mdns support.
+
 
 gensio tools
 ============
