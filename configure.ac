@@ -100,13 +100,13 @@ HAVE_OPENIPMI=no
 if test "x$tryopenipmi" != "xno"; then
    found_ipmiif=no
    AC_CHECK_HEADER(OpenIPMI/ipmiif.h, found_ipmiif=yes; )
-   if test "x$found_ipmiif" == "xyes"; then
+   if test "x$found_ipmiif" = "xyes"; then
       AC_CHECK_LIB(OpenIPMI, ipmi_alloc_os_handler, HAVE_OPENIPMI=yes)
    fi
 fi
 
 if test "x$HAVE_OPENIPMI" != "xno"; then
-   if test "x$ax_pthread_ok" == "xyes"; then
+   if test "x$ax_pthread_ok" = "xyes"; then
       LIBS="$LIBS -lOpenIPMI -lOpenIPMIpthread -lOpenIPMIutils"
    else
       LIBS="$LIBS -lOpenIPMI -lOpenIPMIposix -lOpenIPMIutils"

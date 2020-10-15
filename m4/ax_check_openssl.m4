@@ -55,7 +55,7 @@ AC_DEFUN([AX_CHECK_OPENSSL], [
         ], [])
 
     if $tryopenssl; then
-        if test x"$ssldirs" == x""; then 
+        if test x"$ssldirs" = x""; then
             # if pkg-config is installed and openssl has installed a .pc file,
             # then use that information and don't search ssldirs
             AC_PATH_PROG([PKG_CONFIG], [pkg-config])
