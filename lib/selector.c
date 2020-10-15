@@ -1455,6 +1455,7 @@ int
 sel_free_selector(struct selector_s *sel)
 {
     sel_timer_t *elem;
+    unsigned int i;
 
     elem = theap_get_top(&(sel->timer_heap));
     while (elem) {
@@ -1466,6 +1467,16 @@ sel_free_selector(struct selector_s *sel)
     if (sel->epollfd >= 0)
 	close(sel->epollfd);
 #endif
+    for (i = 0; i < FD_SETSIZE; i++) {
+	while (sel->fds[i]) {
+	    fd_control_t *fdc = sel->fds[i];
+
+	    sel->fds[i] = fdc->next;
+	    if (fdc->state)
+		free(fdc->state);
+	    free(fdc);
+	}
+    }
     if (sel->fd_lock)
 	sel->sel_lock_free(sel->fd_lock);
     if (sel->timer_lock)
