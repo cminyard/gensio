@@ -84,6 +84,16 @@ int gensio_argv_append(struct gensio_os_funcs *o, const char ***argv,
 		       const char *str, gensiods *args, gensiods *argc,
 		       bool allocstr);
 
+/*
+ * Standard utilities using sprintf-type things to append arguments to
+ * an argv.  The string data is always allocated.
+ */
+int gensio_argv_vappend(struct gensio_os_funcs *o, const char ***argv,
+			gensiods *args, gensiods *argc,
+			const char *fmt, va_list ap);
+int gensio_argv_sappend(struct gensio_os_funcs *o, const char ***argv,
+			gensiods *args, gensiods *argc, const char *fmt, ...);
+
 /* Free the return of str_to_argv */
 GENSIO_DLL_PUBLIC
 void gensio_argv_free(struct gensio_os_funcs *o, const char **argv);

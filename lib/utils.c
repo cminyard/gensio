@@ -100,6 +100,38 @@ gensio_argv_append(struct gensio_os_funcs *o, const char ***argv,
     return 0;
 }
 
+int
+gensio_argv_vappend(struct gensio_os_funcs *o, const char ***argv,
+		    gensiods *args, gensiods *argc, const char *fmt,
+		    va_list ap)
+{
+    int err;
+    char *s;
+
+    s = gensio_alloc_vsprintf(o, fmt, ap);
+    if (!s)
+	return GE_NOMEM;
+    err = gensio_argv_append(o, argv, s, args, argc, false);
+    if (err)
+	o->free(o, s);
+
+    return err;
+}
+
+int
+gensio_argv_sappend(struct gensio_os_funcs *o, const char ***argv,
+		    gensiods *args, gensiods *argc, const char *fmt, ...)
+{
+    va_list ap;
+    int err;
+
+    va_start(ap, fmt);
+    err = gensio_argv_vappend(o, argv, args, argc, fmt, ap);
+    va_end(ap);
+
+    return err;
+}
+
 void
 gensio_argv_free(struct gensio_os_funcs *o,
 		 const char **argv)
