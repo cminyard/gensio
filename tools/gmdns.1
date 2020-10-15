@@ -1,0 +1,89 @@
+.TH gmdns 1 15 Oct 2020  "Tool for doing mDNS operations"
+
+.SH NAME
+gmdns \- Tool for doing mDNS operations
+
+.SH SYNOPSIS
+.B gmdns
+[\-n|\-\-name str] [\-t|\-\-type str] [\-m|\-\-domain str]
+[\-o|\-\-host str] [\-i|\-\-interface num]
+[\-y|\-\-nettype unspec|ipv4|ipv6] [\-s|\-\-service] [\-x|\-\-txt str]
+[\-p|\-\-port num] [\-c|\-\-close-on-done]
+[\-d|\-\-debug] [\-h|\-\-help]
+
+.SH DESCRIPTION
+The
+.BR gmdns
+program allows you to advertise an mDNS service or query for mDNS
+services on the local network.
+
+.SH OPTIONS
+.TP
+.I "\-n|\-\-name str"
+The name field for the service/query.
+.TP
+.I "\-t|\-\-type str"
+The type field for the service/query.
+.TP
+.I "\-m|\-\-domain str"
+The domain field for the service/query.
+.TP
+.I "\-o|\-\-host str"
+The host field for the service/query.
+.TP
+.I "\-i|\-\-interface num"
+The interface number for the service/query.  If -1, service/query all
+the interfaces on the system.  Defaults to -1.
+.TP
+.I "\-y|\-\-nettype unspec|ipv4|ipv6"
+The network type for the service/query.  If unspec, the service/query
+is for IPv4 and IPv6.  Otherwise it's only for the specified protocol.
+Defaults to unspec.
+.TP
+.I "\-s|\-\-service"
+Advertise a network service instead of doing a query.  In this case,
+the name, type, and port options must be provided.  The others are
+optional and should not be provided unless you need them.
+.TP
+.I "\-x|\-\-txt str"
+Add the string to the set of text strings advertised for a service.
+Only makes sense with -s.
+.TP
+.I "\-p|\-\-port str"
+Use the given port for the advertised service.  Only make sense with -s.
+.TP
+.I "\-c|\-\-close-on-done"
+For a query, after all currently known services are reported, exit.
+.TP
+.I \-d|\-\-debug
+Generate debugging output.  Specifying more than once increases the output.
+.TP
+.I \-h|\-\-help
+Help output
+
+.SH "STRING VALUES FOR QUERIES"
+The string values for queries may use regular expressions or globs.
+If the string starts with '%', then the data after it is treated as a
+regular expression and fields are matched against that.  If the string
+starts with '@', the the data after it is treated as a standard glob.
+See the regex(7) and glob(7) man pages for details.
+
+If the string starts with '=', an exact comparison is done with the
+data after it.
+
+If the string starts with a-z0-9_ or a space, then an exact string
+comparison is done, including the first character.
+
+The behavior of matching for any other starting character is
+undefined.  In general, you should always use '@', '%', or '=' as the
+starting character of all your query strings to be sure.
+
+.SH "SEE ALSO"
+gensio_mdns(3), regex(7), glob(7)
+
+.SH "KNOWN PROBLEMS"
+None.
+
+.SH AUTHOR
+.PP
+Corey Minyard <minyard@acm.org>

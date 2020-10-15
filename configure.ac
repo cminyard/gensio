@@ -211,10 +211,13 @@ AC_CHECK_LIB(avahi-client, avahi_client_new,
 	     HAVE_AVAHI=1
 	     LIBS="-lavahi-client -lavahi-common $LIBS"])
 GMDNS=
+GMDNSMAN=
 if test "x$HAVE_AVAHI" = "x1"; then
    GMDNS=gmdns
+   GMDNSMAN=gmdns.1
 fi
 AC_SUBST(GMDNS)
+AC_SUBST(GMDNSMAN)
 
 # Now check for swig
 SWIG_DIR=

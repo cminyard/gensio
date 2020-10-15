@@ -14,6 +14,7 @@ if(HAVE_AVAHI)
   add_executable(gmdns gensiomdns.c)
   target_link_libraries(gmdns gensio gensiotool)
   install(TARGETS gmdns DESTINATION bin)
+  install(FILES gmdns.1 DESTINATION ${CMAKE_INSTALL_FULL_MANDIR}/man1)
 endif()
 
 if(UNIX)
