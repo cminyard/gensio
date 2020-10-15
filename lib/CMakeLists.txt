@@ -36,7 +36,7 @@ set(BASE_LIBFILES
   gensio_filter_perf.c
   gensio_conacc.c
   errtrig.c
-  gensio_mdns.c
+  mdns.c
   avahi_watcher.c)
 
 set(UNIX_LIBFILES

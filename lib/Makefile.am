@@ -22,7 +22,7 @@ libgensio_la_SOURCES = \
 	gensio_filter_relpkt.c gensio_relpkt.c \
 	gensio_filter_trace.c gensio_trace.c \
 	gensio_filter_perf.c gensio_perf.c gensio_conacc.c errtrig.c \
-	gensio_mdns.c avahi_watcher.c
+	mdns.c avahi_watcher.c
 
 libgensio_la_LDFLAGS = $(OPENSSL_LIBS)
 
