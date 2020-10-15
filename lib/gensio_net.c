@@ -344,6 +344,9 @@ net_gensio_alloc(struct gensio_addr *iai, const char * const args[],
 	}
 	if (istcp && gensio_check_keybool(args[i], "nodelay", &nodelay) > 0)
 	    continue;
+
+	if (laddr)
+	    gensio_addr_free(laddr);
 	return GE_INVAL;
     }
 
