@@ -1,0 +1,167 @@
+.TH gensio_mdns 3 "15 Oct 2020"
+.SH NAME
+gensio_alloc_mdns, gensio_free_mdns, gensio_mdns_add_service,
+gensio_mdns_remove_service, gensio_mdns_add_watch, gensio_mdns_remove_watch
+\- Functions for doing mDNS operations
+.SH SYNOPSIS
+.B #include <gensio/gensio_mdns.h>
+.TP 20
+.B typedef void (*gensio_mdns_done)(struct gensio_mdns *m,
+.br
+.B                         void *userdata);
+.TP 20
+.B int gensio_alloc_mdns(struct gensio_os_funcs *o,
+.br
+.B                         struct gensio_mdns **m);
+.TP 20
+.B int gensio_free_mdns(struct gensio_mdns *m, gensio_mdns_done done,
+.br
+.B                         void *userdata);
+.TP 20
+.B int gensio_mdns_add_service(struct gensio_mdns *m, int interface,
+.br
+.B                         int ipdomain, const char *name, const char *type,
+.br
+.B                         const char *domain, const char *host,
+.br
+.B                         int port, const char *txt[],
+.br
+.B                         struct gensio_mdns_service **s);
+.TP 20
+.B int gensio_mdns_remove_service(struct gensio_mdns_service *s);
+.TP 20
+.B typedef void gensio_mdns_watch_cb(struct gensio_mdns_watch *w,
+.br
+.B                         enum gensio_mdns_data_state state,
+.br
+.B                         int interface, int ipdomain,
+.br
+.B                         const char *name, const char *type,
+.br
+.B                         const char *domain, const char *host,
+.br
+.B                         const struct gensio_addr *addr, const char *txt[],
+.br
+.B                         void *userdata);
+.TP 20
+.B int gensio_mdns_add_watch(struct gensio_mdns *m, int interface,
+.br
+.B                         int ipdomain, const char *name, const char *type,
+.br
+.B                         const char *domain, const char *host,
+.br
+.B                         gensio_mdns_watch_cb callback, void *userdata,
+.br
+.B                         struct gensio_mdns_watch **w);
+.TP 20
+.B int gensio_mdns_remove_watch(struct gensio_mdns_watch *w);
+.SH "DESCRIPTION"
+These functions and type deal with mDNS (Multicast DNS) discovery of
+services on a local network.  They can be used to advertise services
+or find services.  These provide a powerful and easy to use interface
+to mDNS capabilities.
+
+To do these things, you must first use
+.B gensio_alloc_mdns
+to allocate an mdns structure with the standard gensio OS functions
+structure.  You must, of course, do the standard OS functions wait
+loops and such.  When you are finished, you should free the mdns
+structure with
+.B gensio_free_mdns.
+Note that code may still be in mdns callbacks when the free returns,
+you have to make sure to wait until the done callback is called to
+know the code is out of all callbacks.  The done callback is optional
+if you don't care.
+
+For the remaining functions, the
+.I interface
+parameter is the system interface number of the network device, and
+may be -1 to specify all interfaces.  The
+.I ipdomain
+parameter is one of:
+.TP
+.I GENSIO_NETTYPE_UNSPEC
+Do both IPV4 and IPV4
+.TP
+.I GENSIO_NETTYPE_IPV4
+IPV4 only
+.TP
+.I GENSIO_NETTYPE_IPV6
+IPV6 only
+.br
+.PP
+The
+.I name, type, domain, and host
+parameters are the standard mDNS fields, see documentation on mDNS for
+details.  The
+.I txt
+parameter is for mDNS text fields, and is a standard argv-like array.
+
+Once you have an mdns structure, you can advertise a service on the
+net with it using
+.B gensio_mdns_add_service.
+That service will continue to be advertised until you call
+.B gensio_mdns_remove_service
+on it or your program terminates.  The
+.I domain
+and
+.I host
+parameters should generally be NULL to take the system defaults.  The
+.I txt
+parameter may be NULL if you don't have any.
+
+To find services on the network, you add a watch with
+.B gensio_mdns_add_watch.
+Any service that matches your query will be reported with the callback
+functions and all fields will be provided in the callback.  Once you
+are done with a watch, you may call
+.B gensio_mdns_remove_watch
+Note that code may still be in mdns callbacks when the remove returns,
+you have to make sure to wait until the done callback is called to
+know the code is out of all callbacks.  The done callback is optional
+if you don't care.
+
+The watch callback state has three possible values:
+.TP
+.I GENSIO_MDNS_NEW_DATA
+This is a new entry being reported.
+.TP
+.I GENSIO_MDNS_DATA_GONE
+An entry that was previously reported as gone away.
+.TP
+.I GENSIO_MDNS_ALL_FOR_NOW
+This is called one time after the watch is created, it reports that
+all currently known entries have been reported.  New ones may be
+reported in the future, but those will have been dynamically added
+later.
+.PP
+In the watch callback, you must make copies of all the strings and
+addresses passed to you to keep them.  Their continued existance is
+not guaranteed.
+
+In watches, all of the string fields may be NULL, meaning you want to
+take anything in that field.  So if all the strings are NULL and the
+interface is -1 and the ipdomain is
+.I GENSIO_NETTYPE_UNSPEC
+you will get all of the fields.
+.SH "STRING VALUES FOR WATCHES"
+The string values to the watch add function may use regular
+expressions or globs.  If the string starts with '%', then the data
+after it is treated as a regular expression and fields are matched
+against that.  If the string starts with '@', the the data after it is
+treated as a standard glob.  See the regex(7) and glob(7) man pages
+for details.
+
+If the string starts with '=', an exact comparison is done with the
+data after it.
+
+If the string starts with a-z0-9_ or a space, then an exact string
+comparison is done, including the first character.
+
+The behavior of matching for any other starting character is
+undefined.  In general, you should always use '@', '%', or '=' as the
+starting character of all your query strings to be sure.
+.SH "RETURN VALUES"
+Zero is returned on success, or a gensio error on failure.
+.SH "SEE ALSO"
+gensio_err(3), gensio_os_funcs(3), regex(7), glob(7)
