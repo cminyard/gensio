@@ -52,17 +52,6 @@ dupstr(struct gensio_os_funcs *o, const char *src, char **dest)
     return false;
 }
 
-/* Returns true if str1 is NULL or if the strings compare. */
-/* FIXME - extend this to add regexp handling. */
-static bool
-mdns_str_cmp(const char *str1, const char *str2)
-{
-    if (!str1)
-	return true;
-
-    return strcmp(str1, str2) == 0;
-}
-
 struct gensio_mdns_service;
 
 struct gensio_mdns {
@@ -99,6 +88,165 @@ gensio_mdns_log(struct gensio_mdns *m, enum gensio_log_levels l, char *fmt, ...)
     va_start(ap, fmt);
     gensio_mdns_vlog(m, l, fmt, ap);
     va_end(ap);
+}
+
+struct mdns_str_data {
+    void (*cleanup)(struct gensio_os_funcs *, struct mdns_str_data *);
+    bool (*cmp)(struct mdns_str_data *, const char *str);
+    void *extdata;
+};
+
+/* Returns true if compare string is NULL or if the strings compare. */
+static bool
+mdns_rawstr_cmp(struct mdns_str_data *sdata, const char *str)
+{
+    if (!sdata->extdata)
+	return true;
+
+    return strcmp(str, sdata->extdata) == 0;
+}
+
+static void
+mdns_rawstr_cleanup(struct gensio_os_funcs *o, struct mdns_str_data *sdata)
+{
+    if (sdata->extdata)
+	o->free(o, sdata->extdata);
+}
+
+#ifdef HAVE_REGEXEC
+#include <sys/types.h>
+#include <regex.h>
+
+static void
+regex_str_cleanup(struct gensio_os_funcs *o, struct mdns_str_data *sdata)
+{
+    regfree(sdata->extdata);
+    o->free(o, sdata->extdata);
+}
+
+static bool
+regex_str_cmp(struct mdns_str_data *sdata, const char *str)
+{
+    return regexec(sdata->extdata, str, 0, NULL, 0) == 0;
+}
+
+static int
+regex_str_setup(struct gensio_mdns *m, const char *str1,
+		struct mdns_str_data *sdata)
+{
+    struct gensio_os_funcs *o = m->o;
+    int rv;
+
+    sdata->extdata = o->zalloc(o, sizeof(regex_t));
+    if (!sdata->extdata)
+	return GE_NOMEM;
+
+    rv = regcomp(sdata->extdata, str1 + 1, REG_NOSUB);
+    if (rv) {
+	char errbuf[200];
+
+	regerror(rv, sdata->extdata, errbuf, sizeof(errbuf));
+	gensio_mdns_log(m, GENSIO_LOG_ERR, "mdns: regex error: %s\n",
+			errbuf);
+	regfree(sdata->extdata);
+	o->free(o, sdata->extdata);
+	sdata->extdata = NULL;
+	if (rv == REG_ESPACE)
+	    return GE_NOMEM;
+	return GE_INVAL;
+    }
+
+    sdata->cmp = regex_str_cmp;
+    sdata->cleanup = regex_str_cleanup;
+    return 0;
+}
+#else
+static int
+regex_str_setup(struct gensio_mdns *m, const char *str1,
+		struct mdns_str_data *sdata)
+{
+    gensio_mdns_log(m, GENSIO_LOG_ERR, "mdns: regex not supported\n");
+    return GE_NOTSUP;
+}
+#endif
+
+#ifdef HAVE_FNMATCH
+#include <fnmatch.h>
+
+static void
+glob_str_cleanup(struct gensio_os_funcs *o, struct mdns_str_data *sdata)
+{
+    o->free(o, sdata->extdata);
+}
+
+static bool
+glob_str_cmp(struct mdns_str_data *sdata, const char *str)
+{
+    return fnmatch(sdata->extdata, str, 0) == 0;
+}
+
+static int
+glob_str_setup(struct gensio_mdns *m, const char *str1,
+		struct mdns_str_data *sdata)
+{
+    struct gensio_os_funcs *o = m->o;
+
+    sdata->extdata = gensio_strdup(o, str1 + 1);
+    if (!sdata->extdata)
+	return GE_NOMEM;
+    sdata->cmp = glob_str_cmp;
+    sdata->cleanup = glob_str_cleanup;
+
+    return 0;
+}
+#else
+static int
+glob_str_setup(struct gensio_mdns *m, const char *str1,
+		struct mdns_str_data *sdata)
+{
+    gensio_mdns_log(m, GENSIO_LOG_ERR, "mdns: glob not supported\n");
+    return GE_NOTSUP;
+}
+#endif
+
+static int
+mdns_str_setup(struct gensio_mdns *m, const char *str1,
+	       struct mdns_str_data *sdata)
+{
+    struct gensio_os_funcs *o = m->o;
+
+    if (str1 && str1[0] == '%')
+	return regex_str_setup(m, str1, sdata);
+
+    if (str1 && str1[0] == '@')
+	return glob_str_setup(m, str1, sdata);
+
+    if (str1 && str1[0] == '=')
+	str1++;
+
+    if (str1) {
+	sdata->extdata = gensio_strdup(o, str1);
+	if (!sdata->extdata)
+	    return GE_NOMEM;
+    } else {
+	sdata->extdata = NULL;
+    }
+    sdata->cmp = mdns_rawstr_cmp;
+    sdata->cleanup = mdns_rawstr_cleanup;
+    return 0;
+}
+
+static bool
+mdns_str_cmp(struct mdns_str_data *sdata, const char *str)
+{
+    return sdata->cmp(sdata, str);
+}
+
+static void
+mdns_str_cleanup(struct gensio_os_funcs *o, struct mdns_str_data *sdata)
+{
+    if (sdata->cleanup)
+	sdata->cleanup(o, sdata);
 }
 
 static void
@@ -439,10 +587,11 @@ struct gensio_mdns_watch {
     AvahiServiceTypeBrowser *browser;
     AvahiIfIndex interface;
     AvahiProtocol protocol;
-    char *name;
-    char *type;
-    char *domain;
-    char *host;
+    struct mdns_str_data name;
+    struct mdns_str_data type;
+    struct mdns_str_data domain;
+    char *domainstr; /* Need this to kick things off. */
+    struct mdns_str_data host;
 
     bool removed;
 
@@ -543,7 +692,7 @@ mdns_service_resolver_callback(AvahiServiceResolver *ar,
 	return;
     }
 
-    if (!mdns_str_cmp(w->host, host))
+    if (!mdns_str_cmp(&w->host, host))
 	return;
 
     e = o->zalloc(o, sizeof(*e));
@@ -720,11 +869,7 @@ mdns_service_browser_callback(AvahiServiceBrowser *ab,
 	return;
     if (w->protocol != AVAHI_PROTO_UNSPEC && protocol != w->protocol)
 	return;
-    if (!mdns_str_cmp(w->name, name))
-	return;
-    if (!mdns_str_cmp(w->type, type))
-	return;
-    if (!mdns_str_cmp(w->domain, domain))
+    if (!mdns_str_cmp(&w->name, name))
 	return;
 
     r = o->zalloc(o, sizeof(*r));
@@ -834,9 +979,9 @@ mdns_service_type_callback(AvahiServiceTypeBrowser *ab,
 	return;
     if (w->protocol != AVAHI_PROTO_UNSPEC && protocol != w->protocol)
 	return;
-    if (!mdns_str_cmp(w->type, type))
+    if (!mdns_str_cmp(&w->type, type))
 	return;
-    if (!mdns_str_cmp(w->domain, domain))
+    if (!mdns_str_cmp(&w->domain, domain))
 	return;
 
     b = o->zalloc(o, sizeof(*b));
@@ -877,14 +1022,12 @@ mdns_service_type_callback(AvahiServiceTypeBrowser *ab,
 static void
 watch_free(struct gensio_os_funcs *o, struct gensio_mdns_watch *w)
 {
-    if (w->host)
-	o->free(o, w->host);
-    if (w->domain)
-	o->free(o, w->domain);
-    if (w->type)
-	o->free(o, w->type);
-    if (w->name)
-	o->free(o, w->name);
+    if (w->domainstr)
+	o->free(o, w->domainstr);
+    mdns_str_cleanup(o, &w->host);
+    mdns_str_cleanup(o, &w->domain);
+    mdns_str_cleanup(o, &w->type);
+    mdns_str_cleanup(o, &w->name);
     o->free(o, w);
 }
 
@@ -894,7 +1037,7 @@ avahi_add_watch(struct gensio_mdns_watch *w)
     struct gensio_mdns *m = w->m;
 
     w->browser = avahi_service_type_browser_new(m->ac, w->interface,
-						w->protocol, w->domain, 0,
+						w->protocol, w->domainstr, 0,
 						mdns_service_type_callback, w);
     if (w->browser)
 	w->service_calls_pending++;
@@ -911,6 +1054,7 @@ gensio_mdns_add_watch(struct gensio_mdns *m,
     struct gensio_mdns_watch *w;
     struct gensio_os_funcs *o = m->o;
     AvahiProtocol protocol;
+    int err = GE_NOMEM;
 
     switch(ipdomain) {
     case GENSIO_NETTYPE_IPV4: protocol = AVAHI_PROTO_INET; break;
@@ -935,14 +1079,22 @@ gensio_mdns_add_watch(struct gensio_mdns *m,
     w->protocol = protocol;
     gensio_list_init(&w->browsers);
 
-    if (dupstr(o, name, &w->name))
+    if (dupstr(o, domain, &w->domainstr))
 	goto out_err;
-    if (dupstr(o, type, &w->type))
+    err = mdns_str_setup(m, name, &w->name);
+    if (err)
 	goto out_err;
-    if (dupstr(o, domain, &w->domain))
+    err = mdns_str_setup(m, type, &w->type);
+    if (err)
 	goto out_err;
-    if (dupstr(o, host, &w->host))
+    err = mdns_str_setup(m, domain, &w->domain);
+    if (err)
 	goto out_err;
+    err = mdns_str_setup(m, host, &w->host);
+    if (err)
+	goto out_err;
+
+    err = GE_NOMEM;
 
     gensio_avahi_lock(m->ap);
     if (m->state == AVAHI_CLIENT_S_RUNNING) {

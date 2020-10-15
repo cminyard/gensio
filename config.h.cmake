@@ -17,6 +17,9 @@
 #cmakedefine HAVE_GETRANDOM_FUNC
 #cmakedefine HAVE_PTSNAME_R
 #cmakedefine HAVE_CFMAKERAW
+#cmakedefine HAVE_SIGNALFD
+#cmakedefine HAVE_REGEXEC
+#cmakedefine HAVE_FNMATCH
 #cmakedefine HAVE_AVAHI
 #cmakedefine01 USE_FILE_STDIO
 #cmakedefine ENABLE_INTERNAL_TRACE
