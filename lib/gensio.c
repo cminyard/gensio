@@ -2010,6 +2010,7 @@ struct gensio_def_entry builtin_defaults[] = {
     { "interface",	GENSIO_DEFAULT_INT,	.min = -1, .max = INT_MAX,
 						.def.intval = -1 },
     { "nettype",	GENSIO_DEFAULT_STR,	.def.strval = "unspec" },
+    { "nostack",	GENSIO_DEFAULT_BOOL,	.def.intval = 0 },
     { NULL }
 };
 

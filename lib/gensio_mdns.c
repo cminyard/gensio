@@ -13,6 +13,7 @@
 #ifdef HAVE_AVAHI
 #include <assert.h>
 #include <string.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include "config.h"
 #include <gensio/gensio.h>
@@ -40,6 +41,7 @@ struct mdnsn_data {
     struct gensio *io;
     struct gensio *child;
 
+    bool nostack;
     int interface;
     int nettype;
     char *name;
@@ -52,7 +54,9 @@ struct mdnsn_data {
 
     char *laddr;
     gensiods max_read_size;
+    bool readbuf_set;
     bool nodelay;
+    bool nodelay_set;
 
     int open_err;
     gensio_done_err open_done;
@@ -228,6 +232,155 @@ mdns_freed(struct gensio_mdns *m, void *userdata)
     mdnsn_deref_and_unlock(ndata);
 }
 
+/* Validate that the gensio stack contains only safe gensios. */
+static bool
+gensiostack_ok(const char *s)
+{
+    unsigned int i;
+    static char *ok_gensios[] = { "telnet", "tcp", "udp", "sctp" };
+
+    while (*s) {
+	unsigned int len;
+
+	for (i = 0; ok_gensios[i]; i++) {
+	    len = strlen(ok_gensios[i]);
+	    if (strncmp(s, ok_gensios[i], len) == 0)
+		break;
+	}
+	if (!ok_gensios[i])
+	    return false;
+	s += len;
+	if (*s != ',' && *s != '(' && *s != '\0')
+	    return false;
+	while (*s && *s != ',')
+	    s++;
+	if (*s == ',')
+	    s++;
+    }
+    return true;
+}
+
+static int
+addarg(char **args, gensiods *len, struct gensio_os_funcs *o,
+       const char *fmt, ...)
+{
+    char *s, *s2;
+    va_list ap;
+    int err = 0;
+
+    va_start(ap, fmt);
+    if (*args) {
+	int extra;
+
+	s2 = *args;
+	extra = vsnprintf(s2 + *len, 0, fmt, ap);
+	/* No -1, we are deleting the ')' from the incoming string. */
+	s = o->zalloc(o, *len + extra);
+	if (!s) {
+	    err = GE_NOMEM;
+	    goto out_err;
+	}
+	va_end(ap);
+	memcpy(s, s2, *len - 1);
+	free(s2);
+	va_start(ap, fmt);
+	vsnprintf(s + *len - 1, extra + 1, fmt, ap);
+	*args = s;
+	*len += extra - 1;
+    } else {
+	s = gensio_alloc_vsprintf(o, fmt, ap);
+	if (!s) {
+	    err = GE_NOMEM;
+	} else {
+	    *s = '(';
+	    *args = s;
+	    *len = strlen(s);
+	}
+    }
+ out_err:
+    va_end(ap);
+
+    return err;
+}
+
+static int
+get_mdns_gensiostack(struct mdnsn_data *ndata, const char *txt[],
+		     const struct gensio_addr *addr, char **rstack)
+{
+    struct gensio_os_funcs *o = ndata->o;
+    unsigned int i;
+    const char *stackstr = "gensiostack=";
+    unsigned int stackstrlen = strlen(stackstr);
+    const char *stack, *s;
+    char *addrstr = NULL;
+    gensiods addrstrlen, totallen, argslen = 0, pos;
+    unsigned int err;
+    bool udp = false;
+    char *args = NULL;
+
+    for (i = 0; txt[i]; i++) {
+	if (strncmp(txt[i], stackstr, stackstrlen) == 0)
+	    break;
+    }
+    if (!txt[i] || !gensiostack_ok(txt[i] + stackstrlen)) {
+	*rstack = NULL;
+	return 0;
+    }
+
+    stack = txt[i] + stackstrlen;
+
+    s = strrchr(stack, ',');
+    if (!s)
+	s = stack;
+    udp = strcmp(s, "udp") == 0;
+
+    if (ndata->readbuf_set) {
+	err = addarg(&args, &argslen, o, ",readbuf=%d)", ndata->max_read_size);
+	if (err)
+	    goto out_err;
+    }
+
+    if (ndata->nodelay_set && !udp) {
+	err = addarg(&args, &argslen, o, ",nodelay=%d)", ndata->nodelay);
+	if (err)
+	    goto out_err;
+    }
+
+    if (ndata->laddr) {
+	err = addarg(&args, &argslen, o, ",laddr=%s)", ndata->laddr);
+	if (err)
+	    goto out_err;
+    }
+
+    addrstrlen = 0;
+    err = gensio_addr_to_str(addr, NULL, &addrstrlen, 0);
+    if (err)
+	goto out_err;
+
+    totallen = strlen(stack) + addrstrlen + argslen + 2;
+    addrstr = o->zalloc(o, totallen);
+    if (!addrstr) {
+	err = GE_NOMEM;
+	goto out_err;
+    }
+
+    pos = snprintf(addrstr, totallen, "%s%s,", stack, args ? args : "");
+    err = gensio_addr_to_str(addr, addrstr, &pos, totallen);
+    if (err)
+	goto out_err;
+
+    *rstack = addrstr;
+ out:
+    if (args)
+	o->free(o, args);
+    return err;
+
+ out_err:
+    if (addrstr)
+	o->free(o, addrstr);
+    goto out;
+}
+
 static void
 mdns_cb(struct gensio_mdns_watch *w,
 	enum gensio_mdns_data_state state,
@@ -239,7 +392,7 @@ mdns_cb(struct gensio_mdns_watch *w,
 {
     struct mdnsn_data *ndata = userdata;
     const char **argv = NULL;
-    char *s;
+    char *s, *stack = NULL;
     int err;
 
     mdnsn_lock(ndata);
@@ -255,47 +408,67 @@ mdns_cb(struct gensio_mdns_watch *w,
     if (state == GENSIO_MDNS_NEW_DATA) {
 	gensiods args = 0, argc = 0;
 
-	ndata->open_err = gensio_argv_sappend(ndata->o, &argv, &args, &argc,
-					"readbuf=%lu",
-					(unsigned long) ndata->max_read_size);
-	if (ndata->open_err)
-	    goto out_err;
-
-	ndata->open_err = gensio_argv_sappend(ndata->o, &argv, &args, &argc,
-					      "nodelay=%d", ndata->nodelay);
-	if (ndata->open_err)
-	    goto out_err;
-
-	if (ndata->laddr) {
-	    ndata->open_err = gensio_argv_sappend(ndata->o, &argv, &args, &argc,
-						  "laddr=%s", ndata->laddr);
+	if (!ndata->nostack) {
+	    ndata->open_err = get_mdns_gensiostack(ndata, txt, addr, &stack);
 	    if (ndata->open_err)
 		goto out_err;
 	}
 
-	ndata->open_err = gensio_argv_append(ndata->o, &argv, NULL,
-					     &args, &argc, false);
-	if (ndata->open_err)
-	    goto out_err;
+	if (stack) {
+	    ndata->open_err = str_to_gensio(stack, ndata->o,
+					    child_cb, ndata, &ndata->child);
+	} else  {
+	    /* Look for the trailing protocol type. */
+	    s = strrchr(type, '.');
+	    if (!s)
+		goto out_unlock;
+	    s++;
 
+	    if (ndata->readbuf_set) {
+		ndata->open_err = gensio_argv_sappend(ndata->o, &argv, &args,
+					&argc, "readbuf=%lu",
+					(unsigned long) ndata->max_read_size);
+		if (ndata->open_err)
+		    goto out_err;
+	    }
 
-	/* Look for the trailing protocol type. */
-	s = strrchr(type, '.');
-	if (!s)
-	    goto out_unlock;
-	s++;
+	    if (ndata->nodelay_set && strcmp(s, "_udp") != 0) {
+		/* Don't add nodelay for udp. */
+		ndata->open_err = gensio_argv_sappend(ndata->o, &argv, &args,
+						      &argc, "nodelay=%d",
+						      ndata->nodelay);
+		if (ndata->open_err)
+		    goto out_err;
+	    }
 
-	if (strcmp(s, "_tcp") == 0) {
-	    ndata->open_err = tcp_gensio_alloc(addr, argv, ndata->o,
-					       child_cb, ndata, &ndata->child);
-	} else if (strcmp(s, "_udp") == 0) {
-	    ndata->open_err = udp_gensio_alloc(addr, argv, ndata->o,
-					       child_cb, ndata, &ndata->child);
-	} else if (strcmp(s, "_sctp") == 0) {
-	    ndata->open_err = sctp_gensio_alloc(addr, argv, ndata->o,
-						child_cb, ndata, &ndata->child);
-	} else {
-	    goto out_unlock;
+	    if (ndata->laddr) {
+		ndata->open_err = gensio_argv_sappend(ndata->o, &argv, &args,
+						      &argc, "laddr=%s",
+						      ndata->laddr);
+		if (ndata->open_err)
+		    goto out_err;
+	    }
+
+	    ndata->open_err = gensio_argv_append(ndata->o, &argv, NULL,
+						 &args, &argc, false);
+	    if (ndata->open_err)
+		goto out_err;
+
+	    if (strcmp(s, "_tcp") == 0) {
+		ndata->open_err = tcp_gensio_alloc(addr, argv, ndata->o,
+						   child_cb, ndata,
+						   &ndata->child);
+	    } else if (strcmp(s, "_udp") == 0) {
+		ndata->open_err = udp_gensio_alloc(addr, argv, ndata->o,
+						   child_cb, ndata,
+						   &ndata->child);
+	    } else if (strcmp(s, "_sctp") == 0) {
+		ndata->open_err = sctp_gensio_alloc(addr, argv, ndata->o,
+						    child_cb, ndata,
+						    &ndata->child);
+	    } else {
+		goto out_unlock;
+	    }
 	}
 	if (ndata->open_err)
 	    goto out_err;
@@ -518,7 +691,7 @@ gensio_mdns_func(struct gensio *io, int func, gensiods *count,
 
 static int
 mdns_ndata_setup(struct gensio_os_funcs *o, gensiods max_read_size,
-		 bool nodelay, int interface, int nettype,
+		 bool nodelay, int interface, int nettype, bool nostack,
 		 struct mdnsn_data **new_ndata)
 {
     struct mdnsn_data *ndata;
@@ -534,6 +707,7 @@ mdns_ndata_setup(struct gensio_os_funcs *o, gensiods max_read_size,
     ndata->nodelay = nodelay;
     ndata->interface = interface;
     ndata->nettype = nettype;
+    ndata->nostack = nostack;
 
     ndata->deferred_op_runner = o->alloc_runner(o, mdnsn_deferred_op, ndata);
     if (!ndata->deferred_op_runner)
@@ -562,17 +736,18 @@ mdns_gensio_alloc(const char * const argv[], const char * const args[],
     int err;
     struct mdnsn_data *ndata = NULL;
     int i, interface = -1, nettype = GENSIO_NETTYPE_UNSPEC;
+    bool nostack = false;
     gensiods max_read_size = GENSIO_DEFAULT_BUF_SIZE;
     char *laddr = NULL, *name = NULL, *type = NULL;
     char *domain = NULL, *host = NULL, *nettype_str = NULL;
-    bool nodelay = true;
+    bool nodelay = false, readbuf_set = false, nodelay_set = false;
     const char *str;
 
-    err = gensio_get_default(o, type, "nodelay", false,
+    err = gensio_get_default(o, type, "nostack", false,
 			     GENSIO_DEFAULT_BOOL, NULL, &i);
     if (err)
 	goto out_base_free;
-    nodelay = i;
+    nostack = i;
 
     err = gensio_get_default(o, type, "interface", false,
 			     GENSIO_DEFAULT_INT, NULL, &interface);
@@ -610,9 +785,15 @@ mdns_gensio_alloc(const char * const argv[], const char * const args[],
 	goto out_base_free;
 
     for (i = 0; args && args[i]; i++) {
-	if (gensio_check_keyds(args[i], "readbuf", &max_read_size) > 0)
+	if (gensio_check_keyds(args[i], "readbuf", &max_read_size) > 0) {
+	    readbuf_set = true;
 	    continue;
-	if (gensio_check_keybool(args[i], "nodelay", &nodelay) > 0)
+	}
+	if (gensio_check_keybool(args[i], "nodelay", &nodelay) > 0) {
+	    nodelay_set = true;
+	    continue;
+	}
+	if (gensio_check_keybool(args[i], "nostack", &nostack) > 0)
 	    continue;
 	if (gensio_check_keyvalue(args[i], "laddr", &str) > 0) {
 	    if (laddr)
@@ -694,10 +875,12 @@ mdns_gensio_alloc(const char * const argv[], const char * const args[],
     nettype_str = NULL;
 
     err = mdns_ndata_setup(o, max_read_size, nodelay, interface, nettype,
-			   &ndata);
+			   nostack, &ndata);
     if (err)
 	goto out_base_free;
 
+    ndata->readbuf_set = readbuf_set;
+    ndata->nodelay_set = nodelay_set;
     ndata->laddr = laddr;
     ndata->name = name;
     ndata->type = type;
