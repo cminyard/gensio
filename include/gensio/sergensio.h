@@ -21,6 +21,7 @@ extern "C" {
 #include <gensio/gensio.h>
 
 struct sergensio;
+struct sergensio_accepter;
 
 /*
  * Cast between sergensio and gensio types.  If
@@ -29,6 +30,13 @@ GENSIO_DLL_PUBLIC
 struct gensio *sergensio_to_gensio(struct sergensio *sio);
 GENSIO_DLL_PUBLIC
 struct sergensio *gensio_to_sergensio(struct gensio *io);
+
+GENSIO_DLL_PUBLIC
+struct gensio_accepter *sergensio_acc_to_gensio_acc(
+		struct sergensio_accepter *sacc);
+GENSIO_DLL_PUBLIC
+struct sergensio_accepter *gensio_acc_to_sergensio_acc(
+		struct gensio_accepter *acc);
 
 typedef void (*sergensio_done)(struct sergensio *sio, int err,
 			       unsigned int val, void *cb_data);

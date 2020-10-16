@@ -472,3 +472,69 @@ sergensio_rts_b(struct sergensio_b *sbio, int *rts)
 
     return err;
 }
+
+struct sergensio_accepter {
+    struct gensio_os_funcs *o;
+
+    struct gensio_accepter *acc;
+
+    sergensio_acc_func func;
+
+    void *gensio_data;
+
+    struct gensio_lock *lock;
+
+    struct gensio_accepter *assoc_acc;
+};
+
+struct gensio_accepter *
+sergensio_acc_to_gensio_acc(struct sergensio_accepter *sacc)
+{
+    return sacc->assoc_acc;
+}
+
+struct sergensio_accepter *
+gensio_acc_to_sergensio_acc(struct gensio_accepter *acc)
+{
+    struct sergensio_accepter *rv;
+
+    rv = gensio_acc_getclass(acc, "sergensio");
+    if (rv) {
+	rv->o->lock(rv->lock);
+	if (!rv->assoc_acc)
+	    rv->assoc_acc = acc;
+	else
+	    assert(rv->assoc_acc == acc);
+	rv->o->unlock(rv->lock);
+    }
+    return rv;
+}
+
+struct sergensio_accepter *
+sergensio_acc_data_alloc(struct gensio_os_funcs *o, struct gensio_accepter *acc,
+			 sergensio_acc_func func, void *gensio_data)
+{
+    struct sergensio_accepter *sacc = o->zalloc(o, sizeof(*sacc));
+
+    if (!sacc)
+	return NULL;
+
+    sacc->lock = o->alloc_lock(o);
+    if (!sacc->lock) {
+	o->free(o, sacc);
+	return NULL;
+    }
+    sacc->o = o;
+    sacc->acc = acc;
+    sacc->func = func;
+    sacc->gensio_data = gensio_data;
+
+    return sacc;
+}
+
+void
+sergensio_acc_data_free(struct sergensio_accepter *sacc)
+{
+    sacc->o->free_lock(sacc->lock);
+    sacc->o->free(sacc->o, sacc);
+}

@@ -47,4 +47,16 @@ void *sergensio_get_gensio_data(struct sergensio *sio);
 GENSIO_DLL_PUBLIC
 struct gensio *sergensio_get_my_gensio(struct sergensio *sio);
 
+typedef int (*sergensio_acc_func)(struct sergensio_accepter *sio,
+				  int op, int val,
+				  char *buf, void *done, void *cb_data);
+
+GENSIO_DLL_PUBLIC
+struct sergensio_accepter *sergensio_acc_data_alloc(struct gensio_os_funcs *o,
+						    struct gensio_accepter *acc,
+						    sergensio_acc_func func,
+						    void *gensio_acc_data);
+GENSIO_DLL_PUBLIC
+void sergensio_acc_data_free(struct sergensio_accepter *sio);
+
 #endif /* SERGENSIO_CLASS_H */
