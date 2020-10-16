@@ -33,6 +33,7 @@
 #include <fcntl.h>
 #include <termios.h>
 #include <gensio/gensio.h>
+#include <gensio/gensio_mdns.h>
 #include <pwd.h>
 #include <signal.h>
 #include <sys/ioctl.h>
@@ -1076,6 +1077,140 @@ handle_port(struct gensio_os_funcs *o, bool remote, const char *iaddr)
     return err;
 }
 
+struct mdns_cb_data {
+    bool done;
+    int err;
+    bool telnet;
+    char *transport;
+    struct gensio_os_funcs *o;
+    struct gensio_waiter *wait;
+};
+
+static void
+mdns_cb(struct gensio_mdns_watch *w,
+	enum gensio_mdns_data_state state,
+	int interface, int ipdomain,
+	const char *name, const char *type,
+	const char *domain, const char *host,
+	const struct gensio_addr *addr, const char *txt[],
+	void *userdata)
+{
+    struct mdns_cb_data *cb_data = userdata;
+    struct gensio_os_funcs *o = cb_data->o;
+    char *addrstr = NULL, *s;
+    gensiods addrstrlen = 0, pos = 0;
+    const char *protocol;
+
+    if (cb_data->done)
+	return;
+
+    if (state == GENSIO_MDNS_ALL_FOR_NOW)
+	goto out_wake;
+
+    if (state != GENSIO_MDNS_NEW_DATA)
+	return;
+
+    /* Look for the trailing protocol type. */
+    s = strrchr(type, '.');
+    if (!s)
+	goto out_wake;
+    s++;
+    if (strcmp(s, "_tcp") == 0) {
+	protocol = "tcp";
+    } else if (strcmp(s, "_udp") == 0) {
+	protocol = "udp";
+    } else if (strcmp(s, "_sctp") == 0) {
+	protocol = "sctp";
+    } else {
+	goto out_wake;
+    }
+
+    /* Found it. */
+    cb_data->err = gensio_addr_to_str(addr, NULL, &addrstrlen, 0);
+    if (cb_data->err)
+	goto out_wake;
+    addrstr = o->zalloc(o, addrstrlen + 1);
+    cb_data->err = gensio_addr_to_str(addr, addrstr, &pos, addrstrlen);
+    if (cb_data->err) {
+	o->free(o, addrstr);
+	goto out_wake;
+    }
+
+    cb_data->transport = gensio_alloc_sprintf(o, "%s,%s", protocol, addrstr);
+    if (!cb_data->transport)
+	cb_data->err = GE_NOMEM;
+
+ out_wake:
+    if (addrstr)
+	o->free(o, addrstr);
+    cb_data->done = true;
+    o->wake(cb_data->wait);
+}
+
+static void
+mdns_freed(struct gensio_mdns *m, void *userdata)
+{
+    struct mdns_cb_data *cb_data = userdata;
+
+    cb_data->o->wake(cb_data->wait);
+}
+
+static int
+lookup_mdns_transport(struct gensio_os_funcs *o, const char *name,
+		      const char *type, const char *iptypestr,
+		      const char **transport)
+{
+    struct gensio_mdns *mdns;
+    int nettype = GENSIO_NETTYPE_UNSPEC;
+    int err;
+    struct mdns_cb_data cb_data;
+    struct gensio_time timeout = { 30, 0 };
+
+    memset(&cb_data, 0, sizeof(cb_data));
+    cb_data.err = GE_NOTFOUND;
+    cb_data.o = o;
+    cb_data.wait = o->alloc_waiter(o);
+    if (!cb_data.wait) {
+	fprintf(stderr, "Unable to allocate wait: out of memory\n");
+	return 1;
+    }
+
+    if (strcmp(iptypestr, "ipv4,") == 0)
+	nettype = GENSIO_NETTYPE_IPV4;
+    else if (strcmp(iptypestr, "ipv6,") == 0)
+	nettype = GENSIO_NETTYPE_IPV6;
+
+    err = gensio_alloc_mdns(o, &mdns);
+    if (err) {
+	o->free_waiter(cb_data.wait);
+	fprintf(stderr, "Unable to allocate mdns data: %s\n",
+		gensio_err_to_str(err));
+	return 1;
+    }
+
+    err = gensio_mdns_add_watch(mdns, -1, nettype, name, type, NULL, NULL,
+				mdns_cb, &cb_data, NULL);
+    if (err) {
+	o->free_waiter(cb_data.wait);
+	gensio_free_mdns(mdns, NULL, NULL);
+	fprintf(stderr, "Unable to add mdns watch: %s\n",
+		gensio_err_to_str(err));
+	return 1;
+    }
+
+    o->wait(cb_data.wait, 1, &timeout);
+
+    gensio_free_mdns(mdns, mdns_freed, &cb_data);
+
+    o->wait(cb_data.wait, 1, NULL);
+
+    if (cb_data.err)
+	return cb_data.err;
+
+    *transport = cb_data.transport;
+    return 0;
+}
+
 int
 main(int argc, char *argv[])
 {
@@ -1096,13 +1231,14 @@ main(int argc, char *argv[])
     char *service;
     gensiods service_len, len;
     const char *transport = "sctp";
-    bool user_transport = false;
+    bool user_transport = false, mdns_transport = false;
     bool notcp = false, nosctp = false;
     const char *muxstr = "mux,";
     bool use_mux = true;
     struct sigaction sigact;
     const char *addr;
     const char *iptype = ""; /* Try both IPv4 and IPv6 by default. */
+    const char *mdns_type = NULL;
 
     localport_err = pr_localport;
 
@@ -1193,6 +1329,14 @@ main(int argc, char *argv[])
 	    user_transport = true;
 	    nosctp = true;
 	    notcp = true;
+	} else if ((rv = cmparg(argc, argv, &arg, "-m", "--mdns", NULL))) {
+	    mdns_transport = true;
+	    user_transport = true;
+	    nosctp = true;
+	    notcp = true;
+	} else if ((rv = cmparg(argc, argv, &arg, NULL, "--mdns-type",
+				&mdns_type))) {
+	    ;
 	} else if ((rv = cmparg(argc, argv, &arg, "-L", NULL, &addr))) {
 	    rv = handle_port(o, false, addr);
 	} else if ((rv = cmparg(argc, argv, &arg, "-R", NULL, &addr))) {
@@ -1394,6 +1538,13 @@ main(int argc, char *argv[])
     if (err)
 	return 1;
 
+    if (mdns_transport) {
+	err = lookup_mdns_transport(o, hostname, mdns_type, iptype,
+				    &transport);
+	if (err)
+	    return 1;
+    }
+
  retry:
     if (user_transport)
 	s = alloc_sprintf("%s%scertauth(enable-password,username=%s%s%s),"
@@ -1454,7 +1605,7 @@ main(int argc, char *argv[])
 	userdata2.can_close = false;
 	fprintf(stderr, "Could not open %s: %s\n", userdata2.ios,
 		gensio_err_to_str(rv));
-	if (strcmp(transport, "sctp") == 0 && !notcp && !user_transport) {
+	if (!notcp && !user_transport && strcmp(transport, "sctp") == 0) {
 	    fprintf(stderr, "Falling back to tcp\n");
 	    free(userdata2.ios);
 	    userdata2.ios = NULL;
@@ -1463,6 +1614,9 @@ main(int argc, char *argv[])
 	}
 	goto closeit;
     }
+
+    if (mdns_transport)
+	o->free(o, (char *) transport);
 
     userdata1.can_close = true;
     rv = gensio_open_s(userdata1.io);
