@@ -316,6 +316,7 @@ gensio_addr_create(struct gensio_os_funcs *o,
     case GENSIO_NETTYPE_IPV4:
 	if (len != sizeof(struct in_addr))
 	    return GE_INVAL;
+	memset(&s4, 0, sizeof(s4));
 	s4.sin_family = AF_INET;
 	s4.sin_port = htons(port);
 	memcpy(&s4.sin_addr, iaddr, len);
@@ -326,6 +327,7 @@ gensio_addr_create(struct gensio_os_funcs *o,
     case GENSIO_NETTYPE_IPV6:
 	if (len != sizeof(struct in6_addr))
 	    return GE_INVAL;
+	memset(&s6, 0, sizeof(s6));
 	s6.sin6_family = AF_INET6;
 	s6.sin6_port = htons(port);
 	memcpy(&s6.sin6_addr, iaddr, len);
@@ -334,6 +336,7 @@ gensio_addr_create(struct gensio_os_funcs *o,
 	break;
 
     case GENSIO_NETTYPE_UNIX:
+	memset(&su, 0, sizeof(su));
 	if (len > sizeof(su.sun_path) - 1)
 	    return GE_TOOBIG;
 	su.sun_family = AF_UNIX;
