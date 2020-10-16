@@ -106,6 +106,7 @@ mdns_info_found(struct gensio_mdns_watch *w,
     struct freed_data *f = userdata;
 
     if (state == GENSIO_MDNS_ALL_FOR_NOW) {
+	printf("All-for-now:\n");
 	if (close_on_done)
 	    f->o->wake(f->closewaiter);
 	return;
