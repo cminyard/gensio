@@ -994,11 +994,11 @@ telnet_gensio_alloc(struct gensio *child, const char * const args[],
 
     gensio_set_is_reliable(io, gensio_is_reliable(child));
 
-    sdata->sio = sergensio_data_alloc(o, io, sergensio_stel_func, sdata);
-    if (!sdata->sio)
-	goto out_nomem;
-
     if (sdata->allow_2217) {
+	sdata->sio = sergensio_data_alloc(o, io, sergensio_stel_func, sdata);
+	if (!sdata->sio)
+	    goto out_nomem;
+
 	err = gensio_addclass(io, "sergensio", sdata->sio);
 	if (err)
 	    goto out_err;
@@ -1146,12 +1146,13 @@ stela_finish_parent(void *acc_data, void *finish_data, struct gensio *io,
     struct stel_data *sdata = finish_data;
     int err;
 
-    sdata->sio = sergensio_data_alloc(sdata->o, io, sergensio_stel_func, sdata);
-    if (!sdata->sio)
-	return GE_NOMEM;
-
     gensio_set_is_reliable(io, gensio_is_reliable(child));
     if (sdata->allow_2217) {
+	sdata->sio = sergensio_data_alloc(sdata->o, io, sergensio_stel_func,
+					  sdata);
+	if (!sdata->sio)
+	    return GE_NOMEM;
+
 	err = gensio_addclass(io, "sergensio", sdata->sio);
 	if (err)
 	    return err;
