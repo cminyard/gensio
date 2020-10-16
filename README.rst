@@ -197,11 +197,26 @@ conacc
     reliable communication, so it won't run directly over a serial
     port.
 
+mdns
+    This gensio uses mDNS to lookup a service (protocol type, network
+    type, port, address) and then connect to that service.  If you
+    have a program like ser2net that advertise mDNS service, you don't
+    have to worry about finding port numbers and such, it's all
+    handled for you.
+
 These are all documented in detail in gensio(5).  Unless otherwise
 stated, these all are available as accepters or connecting gensios.
 
 You can create your own gensios and register them with the library and
 stack them along with the other gensios.
+
+mDNS support
+============
+
+The mdns gensio has already been discussed, but the gensio library
+provides an easy to use mDNS interface.  The include file for it is in
+gensio_mdns.h, and you can use the gensio_mdns(3) man page to get more
+information on it.
 
 General Concepts
 ================

@@ -308,6 +308,9 @@ TCP oob data from other oob data.
 .SS Options
 In addition to readbuf, the tcp gensio takes the following options:
 .TP
+.B nodelay[=true|false]
+Sets nodelay on the socket.
+.TP
 .B laddr=<addr>
 An address specification to bind to on the local socket to set the
 local address.
@@ -480,6 +483,9 @@ present, in milliseconds.  The default is 10, but this is disabled if
 .B sack_freq
 is set to 1.  Setting either of these to 0 enables the system
 defaults.
+.TP
+.B nodelay[=true|false]
+Sets nodelay on the socket.
 .TP
 .B laddr=<addr>
 An address specification to bind to on the local socket to set the
@@ -1397,6 +1403,52 @@ attempt to re-open the gensio.  This means that if the gensio has some
 sort of random address (like a pty or a tcp address with the port set
 to zero) you can get a different address for the re-opened gensio.  So
 you must refetch the local address or local port in this case.
+.SH "mdns"
+connecting =
+.B mdns[(options)]
+
+This gensio uses mDNS to find a service and then attempts to connect
+to it.  This can be convenient, it finds the connection type andport
+for you, automatically adds telnet and rfc2217 if it's available.
+.SS Options
+The readbuf option is accepted, but if it is not specified the default
+value for readbuf will be taken for the sub-gensio is taken.  In
+addition to readbuf, the mdns gensio takes the following options:
+.TP
+.B nostack[=true|false]
+By default the mdns gensio will attempt to use the "gensiostack" text
+string from the mDNS service.  If you don't want it to do this,
+setting this option will turn it off.
+.TP
+.B name=<mdnsstr>
+Set the mdns name to search for.  You generally want to set this,
+otherwise you will get the first thing that comes up from the search.
+.TP
+.B type=<mdnsstr>
+Set the mdns type to search for.
+.TP
+.B domain=<mdnsstr>
+Set the mdns domain to search for.  You generally don't use this.
+.TP
+.B host=<mdnsstr>
+Set the mdns host to search for.  You generally don't use this.
+.TP
+.B interface=<num>
+Set the network interface number to search on.  The default is -1,
+which means all interfaces.
+.TP
+.B nettype=unspec|ipv4|ipv6
+The network type to search for.  unspec means any type, otherwise you
+can choose to limit it to ipv4 and ipv6.
+.TP
+.B nodelay[=true|false]
+Sets nodelay on the socket.  This will be ignored for udp.  Note that
+the default value for mdns is ignored, if you don't set it here it will
+take the default value for the sub-gensio that gets chosen.
+.B laddr=<addr>
+An address specification to bind to on the local socket to set the
+local address.
+.TP
 .SH "Forking and gensios"
 Unlike normal file descriptors, when you fork with a gensio, you now
 have two unassociated copies of the gensios.  So if you do operations
