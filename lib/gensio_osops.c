@@ -349,6 +349,7 @@ gensio_addr_create(struct gensio_os_funcs *o,
     a = gensio_addr_make(o, slen);
     if (!a)
 	return GE_NOMEM;
+    a->a->ai_family = s->sa_family;
 
     memcpy(a->a->ai_addr, s, slen);
     *newaddr = a;
