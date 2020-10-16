@@ -489,7 +489,7 @@ stelc_com_port_will_do(void *handler_data, unsigned char cmd)
 
 static void
 stelc_com_port_cmd(void *handler_data, const unsigned char *option,
-		  unsigned int len)
+		   unsigned int len)
 {
     struct stel_data *sdata = handler_data;
     int val = 0, cmd;
@@ -1047,6 +1047,8 @@ str_to_telnet_gensio(const char *str, const char * const args[],
 }
 
 struct stela_data {
+    struct sergensio_accepter *sacc;
+
     gensiods max_read_size;
     gensiods max_write_size;
 
@@ -1061,6 +1063,8 @@ stela_free(void *acc_data)
 {
     struct stela_data *stela = acc_data;
 
+    if (stela->sacc)
+	sergensio_acc_data_free(stela->sacc);
     stela->o->free(stela->o, stela);
 }
 
@@ -1186,12 +1190,20 @@ gensio_gensio_acc_telnet_cb(void *acc_data, int op, void *data1, void *data2,
     }
 }
 
+static int
+sergensio_stela_func(struct sergensio_accepter *sacc,
+		     int op, int val, char *buf,
+		     void *done, void *cb_data)
+{
+    return GE_NOTSUP;
+}
+
 int
 telnet_gensio_accepter_alloc(struct gensio_accepter *child,
 			     const char * const args[],
 			     struct gensio_os_funcs *o,
 			     gensio_accepter_event cb, void *user_data,
-			     struct gensio_accepter **accepter)
+			     struct gensio_accepter **raccepter)
 {
     struct stela_data *stela;
     int err;
@@ -1200,6 +1212,7 @@ telnet_gensio_accepter_alloc(struct gensio_accepter *child,
     gensiods max_write_size = GENSIO_DEFAULT_BUF_SIZE;
     bool allow_2217 = false;
     bool is_client = false;
+    struct gensio_accepter *accepter = NULL;
     int rv, ival;
 
     rv = gensio_get_default(o, "telnet", "rfc2217", false,
@@ -1234,15 +1247,33 @@ telnet_gensio_accepter_alloc(struct gensio_accepter *child,
     err = gensio_gensio_accepter_alloc(child, o, "telnet",
 				       cb, user_data,
 				       gensio_gensio_acc_telnet_cb, stela,
-				       accepter);
+				       &accepter);
     if (err)
 	goto out_err;
-    gensio_acc_set_is_reliable(*accepter, gensio_acc_is_reliable(child));
+
+    if (allow_2217) {
+	stela->sacc = sergensio_acc_data_alloc(o, accepter,
+					       sergensio_stela_func, stela);
+	if (!stela->sacc) {
+	    err = GE_NOMEM;
+	    goto out_err;
+	}
+
+	err = gensio_acc_addclass(accepter, "sergensio", stela->sacc);
+	if (err)
+	    goto out_err;
+    }
+    gensio_acc_set_is_reliable(accepter, gensio_acc_is_reliable(child));
+
+    *raccepter = accepter;
 
     return 0;
 
  out_err:
-    stela_free(stela);
+    if (accepter)
+	gensio_gensio_acc_free_nochild(accepter);
+    else
+	stela_free(stela);
     return err;
 }
 
