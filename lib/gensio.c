@@ -1610,6 +1610,33 @@ gensio_check_keyuint(const char *str, const char *key, unsigned int *rvalue)
 }
 
 int
+gensio_check_keyint(const char *str, const char *key, int *rvalue)
+{
+    const char *sval;
+    char *end;
+    int rv = gensio_check_keyvalue(str, key, &sval);
+    long value;
+
+    if (!rv)
+	return 0;
+
+    if (!*sval)
+	return -1;
+
+    value = strtol(sval, &end, 0);
+    if (*end != '\0')
+	return -1;
+
+    if (value > INT_MAX)
+	return -1;
+    if (value < INT_MIN)
+	return -1;
+
+    *rvalue = value;
+    return 1;
+}
+
+int
 gensio_check_keybool(const char *str, const char *key, bool *rvalue)
 {
     const char *sval;

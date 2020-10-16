@@ -653,6 +653,8 @@ int gensio_check_keyds(const char *str, const char *key, gensiods *value);
 GENSIO_DLL_PUBLIC
 int gensio_check_keyuint(const char *str, const char *key, unsigned int *value);
 GENSIO_DLL_PUBLIC
+int gensio_check_keyint(const char *str, const char *key, int *value);
+GENSIO_DLL_PUBLIC
 int gensio_check_keybool(const char *str, const char *key, bool *rvalue);
 GENSIO_DLL_PUBLIC
 int gensio_check_keyboolv(const char *str, const char *key,
