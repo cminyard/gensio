@@ -316,6 +316,8 @@ echon_free(struct gensio *io)
     if (--ndata->freeref == 0) {
 	ndata->state = ECHON_CLOSED;
 	echon_unlock_and_deref(ndata);
+    } else {
+	echon_unlock(ndata);
     }
 }
 
