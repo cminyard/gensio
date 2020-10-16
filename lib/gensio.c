@@ -860,6 +860,20 @@ gensio_set_attr_from_child(struct gensio *io, struct gensio *child)
     gensio_set_is_message(io, gensio_is_message(child));
 }
 
+struct gensio_accepter *
+gensio_acc_get_child(struct gensio_accepter *acc, unsigned int depth)
+{
+    struct gensio_accepter *c = acc;
+
+    while (depth > 0) {
+	if (!c->child)
+	    return NULL;
+	depth--;
+	c = c->child;
+    }
+    return c;
+}
+
 void *
 gensio_acc_get_user_data(struct gensio_accepter *accepter)
 {

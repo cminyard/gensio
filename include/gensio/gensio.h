@@ -230,6 +230,9 @@ int gensio_write_s_intr(struct gensio *io, gensiods *count,
 
 struct gensio_accepter;
 
+struct gensio_accepter *gensio_acc_get_child(struct gensio_accepter *acc,
+					     unsigned int depth);
+
 #define GENSIO_ACC_EVENT_NEW_CONNECTION	1
 #define GENSIO_ACC_EVENT_LOG		2
 struct gensio_loginfo {
