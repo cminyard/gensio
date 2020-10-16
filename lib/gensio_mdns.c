@@ -462,10 +462,6 @@ mdns_cb(struct gensio_mdns_watch *w,
 		ndata->open_err = udp_gensio_alloc(addr, argv, ndata->o,
 						   child_cb, ndata,
 						   &ndata->child);
-	    } else if (strcmp(s, "_sctp") == 0) {
-		ndata->open_err = sctp_gensio_alloc(addr, argv, ndata->o,
-						    child_cb, ndata,
-						    &ndata->child);
 	    } else {
 		goto out_unlock;
 	    }
