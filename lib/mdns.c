@@ -662,7 +662,8 @@ mdns_service_resolver_callback(AvahiServiceResolver *ar,
     struct gensio_mdns_result *e;
     enum gensio_mdns_data_state state;
     AvahiStringList *str;
-    int nettype, netsize, rv;
+    int nettype, addrsize, rv;
+    const void *addrdata = NULL;
 
     switch (event) {
     case AVAHI_RESOLVER_FOUND:
@@ -680,12 +681,14 @@ mdns_service_resolver_callback(AvahiServiceResolver *ar,
     switch(a->proto) {
     case AVAHI_PROTO_INET:
 	nettype = GENSIO_NETTYPE_IPV4;
-	netsize = sizeof(a->data.ipv4);
+	addrsize = sizeof(a->data.ipv4);
+	addrdata = &a->data.ipv4;
 	break;
 	
     case AVAHI_PROTO_INET6:
 	nettype = GENSIO_NETTYPE_IPV6;
-	netsize = sizeof(a->data.ipv6);
+	addrsize = sizeof(a->data.ipv6);
+	addrdata = &a->data.ipv6;
 	break;
 	
     default:
@@ -719,7 +722,8 @@ mdns_service_resolver_callback(AvahiServiceResolver *ar,
     if (dupstr(o, host, &c->data->host))
 	goto out_nomem;
 
-    if (gensio_addr_create(o, nettype, &a->data, netsize, port, &c->data->addr))
+    if (gensio_addr_create(o, nettype, addrdata, addrsize, port,
+			   &c->data->addr))
 	goto out_nomem;
 
     if (txt) {
@@ -1106,7 +1110,8 @@ gensio_mdns_add_watch(struct gensio_mdns *m,
     if (m->state == AVAHI_CLIENT_S_RUNNING && !w->browser)
 	goto out_err;
 
-    *rwatch = w;
+    if (rwatch)
+	*rwatch = w;
     return 0;
 
  out_err:
@@ -1229,6 +1234,11 @@ static void mdns_runner(struct gensio_runner *runner, void *userdata)
 	} else {
 	    if (c->data) {
 		struct gensio_mdns_watch_data *d = c->data;
+		/*
+		 * Store this, as d may be freed if it's not
+		 * GENSIO_MDNS_DATA_GONE.
+		 */
+		enum gensio_mdns_data_state state = d->state;
 
 		if (!m->freed && !w->removed) {
 		    gensio_avahi_unlock(m->ap);
@@ -1237,7 +1247,7 @@ static void mdns_runner(struct gensio_runner *runner, void *userdata)
 			  w->userdata);
 		    gensio_avahi_lock(m->ap);
 		}
-		if (d->state == GENSIO_MDNS_DATA_GONE)
+		if (state == GENSIO_MDNS_DATA_GONE)
 		    result_free(o, d->result);
 	    } else if (c->all_for_now) {
 		c->all_for_now = false;
