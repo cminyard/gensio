@@ -528,4 +528,11 @@ int base_gensio_accepter_alloc(struct gensio_accepter *child,
 			       gensio_accepter_event cb, void *user_data,
 			       struct gensio_accepter **accepter);
 
+/*
+ * Return the acc_op_data passed in to an accepter allocated from the
+ * above function.
+ */
+GENSIO_DLL_PUBLIC
+void *base_gensio_accepter_get_op_data(struct gensio_accepter *accepter);
+
 #endif /* GENSIO_BASE_H */

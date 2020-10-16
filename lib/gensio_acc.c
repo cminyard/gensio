@@ -393,6 +393,14 @@ gensio_acc_base_func(struct gensio_accepter *acc, int func, int val,
     }
 }
 
+void *
+base_gensio_accepter_get_op_data(struct gensio_accepter *accepter)
+{
+    struct basena_data *nadata = gensio_acc_get_gensio_data(accepter);
+
+    return nadata->acc_op_data;
+}
+
 int
 base_gensio_accepter_new_child_start(struct gensio_accepter *accepter)
 {

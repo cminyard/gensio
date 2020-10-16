@@ -89,4 +89,11 @@ int gensio_gensio_accepter_alloc(struct gensio_accepter *child,
 				 void *acc_data,
 				 struct gensio_accepter **accepter);
 
+/*
+ * This is a special-case free if there is a failure after allocating
+ * the accepter above.  It does *not* free the child accepter.
+ */
+GENSIO_DLL_PUBLIC
+void gensio_gensio_acc_free_nochild(struct gensio_accepter *accepter);
+
 #endif /* GENSIO_ACC_GENSIO_H */

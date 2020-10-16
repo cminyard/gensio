@@ -88,6 +88,15 @@ gensna_free(struct gensio_accepter *accepter, struct gensna_data *nadata)
     nadata->o->free(nadata->o, nadata);
 }
 
+void
+gensio_gensio_acc_free_nochild(struct gensio_accepter *accepter)
+{
+    struct gensna_data *nadata = base_gensio_accepter_get_op_data(accepter);
+
+    nadata->child = NULL;
+    gensio_acc_free(accepter);
+}
+
 static int
 gensna_str_to_gensio(struct gensio_accepter *accepter,
 		     struct gensna_data *nadata, const char *addr,
