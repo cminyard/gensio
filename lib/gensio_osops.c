@@ -2270,6 +2270,7 @@ gensio_os_scan_netaddr(struct gensio_os_funcs *o, const char *str, bool listen,
 {
     int protocol, socktype;
     bool is_port_set;
+    struct gensio_addr *addr;
     int rv;
 
     switch (gprotocol) {
@@ -2300,9 +2301,13 @@ gensio_os_scan_netaddr(struct gensio_os_funcs *o, const char *str, bool listen,
     }
 
     rv = scan_ips(o, str, listen, AF_UNSPEC, socktype, protocol,
-		  &is_port_set, true, raddr);
-    if (!rv && !listen && !is_port_set)
+		  &is_port_set, true, &addr);
+    if (!rv && !listen && !is_port_set) {
+	gensio_addr_free(addr);
 	rv = GE_INVAL;
+    } else {
+	*raddr = addr;
+    }
     return rv;
 }
 
