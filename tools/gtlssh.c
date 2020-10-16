@@ -1100,6 +1100,8 @@ mdns_cb(struct gensio_mdns_watch *w,
     char *addrstr = NULL, *s;
     gensiods addrstrlen = 0, pos = 0;
     const char *protocol;
+    static const char *stackstr = "gensiostack=";
+    unsigned int i;
 
     if (cb_data->done)
 	return;
@@ -1130,15 +1132,25 @@ mdns_cb(struct gensio_mdns_watch *w,
     if (cb_data->err)
 	goto out_wake;
     addrstr = o->zalloc(o, addrstrlen + 1);
-    cb_data->err = gensio_addr_to_str(addr, addrstr, &pos, addrstrlen);
+    cb_data->err = gensio_addr_to_str(addr, addrstr, &pos, addrstrlen + 1);
     if (cb_data->err) {
 	o->free(o, addrstr);
 	goto out_wake;
     }
 
     cb_data->transport = gensio_alloc_sprintf(o, "%s,%s", protocol, addrstr);
-    if (!cb_data->transport)
+    if (!cb_data->transport) {
 	cb_data->err = GE_NOMEM;
+	goto out_wake;
+    }
+
+    for (i = 0; txt && txt[i]; i++) {
+	if (strncmp(txt[i], stackstr, strlen(stackstr)) == 0) {
+	    if (strstr(txt[i], "telnet"))
+		cb_data->telnet = true;
+	    break;
+	}
+    }
 
  out_wake:
     if (addrstr)
@@ -1158,7 +1170,7 @@ mdns_freed(struct gensio_mdns *m, void *userdata)
 static int
 lookup_mdns_transport(struct gensio_os_funcs *o, const char *name,
 		      const char *type, const char *iptypestr,
-		      const char **transport)
+		      const char **transport, bool *telnet)
 {
     struct gensio_mdns *mdns;
     int nettype = GENSIO_NETTYPE_UNSPEC;
@@ -1204,10 +1216,14 @@ lookup_mdns_transport(struct gensio_os_funcs *o, const char *name,
 
     o->wait(cb_data.wait, 1, NULL);
 
-    if (cb_data.err)
+    if (cb_data.err) {
+	fprintf(stderr, "Error looking up %s with mdns: %s\n",
+		name, gensio_err_to_str(cb_data.err));
 	return cb_data.err;
+    }
 
     *transport = cb_data.transport;
+    *telnet = cb_data.telnet;
     return 0;
 }
 
@@ -1539,10 +1555,15 @@ main(int argc, char *argv[])
 	return 1;
 
     if (mdns_transport) {
+	bool ltelnet;
 	err = lookup_mdns_transport(o, hostname, mdns_type, iptype,
-				    &transport);
+				    &transport, &ltelnet);
 	if (err)
 	    return 1;
+	if (ltelnet) {
+	    do_telnet = "telnet(rfc2217),";
+	    use_telnet = 1;
+	}
     }
 
  retry:
