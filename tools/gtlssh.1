@@ -41,7 +41,10 @@ on io1.
 Do telnet processing with RFC2217 handling.
 .TP
 .I \-\-nosctp
-Disable SCTP support.
+Disable SCTP support.  It is disabled by default.
+.TP
+.I \-\-sctp
+Enable SCTP support.
 .TP
 .I \-\-notcp
 Disable TCP support
@@ -52,6 +55,16 @@ transport.  In this case, the
 .B host
 is required but the hostname part is ignored.  This is so the username
 can be set, if required.
+.TP
+.I \m|\-\-mdns
+Look up the name using mDNS.  This will fetch then IP address, IPv4 or
+IPv6, the port number and whether telnet is required and make the
+connection
+.TP
+.I \-\-mdns\-type
+Set the type used for the lookup.  See the gmdns(1) man page
+under 'STRING VALUES FOR QUERIES' for detail on how to do regex, glob,
+etc.
 .TP
 .I \-\-nomux
 Don't use a mux gensio.  This may cause issues with gtlsshd, but is
@@ -175,7 +188,7 @@ Set the number of stop bits to 1 or 2 on io2 bits.  Ignored if io2 is
 not RFC2217 capable.
 
 .SH "SEE ALSO"
-gensio(5), gtlsshd(1), gtlssh-keygen(1)
+gensio(5), gtlsshd(1), gtlssh-keygen(1), gmdns(1)
 
 .SH "KNOWN PROBLEMS"
 None.

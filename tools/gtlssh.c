@@ -254,6 +254,12 @@ help(int err)
     printf("  --transport - Use the given gensio instead of TCP or SCTP.\n");
     printf("    hostname is ignored in this case, except for the username\n");
     printf("    part, but is required.\n");
+    printf("  -m, --mdns - Look up the name using mDNS.  This will fetch\n");
+    printf("    then IP address, IPv4 or IPv6, the port number and whether\n");
+    printf("    telnet is required and make the connection.\n");
+    printf("  --mdns-type - Set the type used for the lookup.  See\n");
+    printf("    the gmdns(1) man page under 'STRING VALUES FOR QUERIES'\n");
+    printf("    for detail on how to do regex, glob, etc.\n");
     printf("  -d, --debug - Enable debug.  Specify more than once to increase\n"
 	   "    the debug level\n");
     printf("  -L <accept addr>:<connect addr> - Listen at the <accept addr>\n"
