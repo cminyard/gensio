@@ -596,10 +596,12 @@ auth_event(struct gensio *io, void *user_data, int event, int ierr,
 	    return GE_NOMEM;
 	}
 
+	strcpy(raddr, "0");
 	len = sizeof(raddr);
 	err = gensio_control(ssl_io, GENSIO_CONTROL_DEPTH_FIRST, true,
 			     GENSIO_CONTROL_CONNECT_ADDR_STR, raddr, &len);
 	if (err) {
+	    strcpy(raddr, "0");
 	    len = sizeof(raddr);
 	    err = gensio_control(ssl_io, GENSIO_CONTROL_DEPTH_FIRST, true,
 				 GENSIO_CONTROL_RADDR, raddr, &len);
@@ -1112,6 +1114,8 @@ mdns_cb(struct gensio_mdns_watch *w,
     if (state != GENSIO_MDNS_NEW_DATA)
 	return;
 
+    /* Found it. */
+
     /* Look for the trailing protocol type. */
     s = strrchr(type, '.');
     if (!s)
@@ -1127,7 +1131,6 @@ mdns_cb(struct gensio_mdns_watch *w,
 	goto out_wake;
     }
 
-    /* Found it. */
     cb_data->err = gensio_addr_to_str(addr, NULL, &addrstrlen, 0);
     if (cb_data->err)
 	goto out_wake;
