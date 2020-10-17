@@ -1145,8 +1145,10 @@ i_gensio_mdns_remove_watch(struct gensio_mdns_watch *w,
 				    link);
 	    gensio_list_for_each_safe(&r->results, lj, lj2) {
 		e = gensio_container_of(lj, struct gensio_mdns_result, link);
-		if (e->cbdata.in_queue)
+		if (e->cbdata.in_queue) {
 		    gensio_list_rm(&m->callbacks, &e->cbdata.link);
+		    gensio_mdns_deref(m);
+		}
 		gensio_list_rm(&r->results, &e->link);
 		result_free(o, e);
 	    }
@@ -1329,6 +1331,8 @@ gensio_free_mdns(struct gensio_mdns *m, gensio_mdns_done done, void *userdata)
 	    gensio_container_of(l, struct gensio_mdns_callback, link);
 
 	gensio_list_rm(&m->callbacks, &c->link);
+	c->in_queue = false;
+	gensio_mdns_deref(m);
 	if (c->data && c->data->state == GENSIO_MDNS_DATA_GONE)
 	    result_free(o, c->data->result);
     }
@@ -1342,8 +1346,10 @@ gensio_free_mdns(struct gensio_mdns *m, gensio_mdns_done done, void *userdata)
 	w = gensio_container_of(l, struct gensio_mdns_watch, link);
 	i_gensio_mdns_remove_watch(w, NULL, NULL);
     }
+
     if (m->refcount == 1) {
 	if (!m->runner_pending) {
+	    /* Don't add a reference here, we want the runner to delete it. */
 	    m->runner_pending = true;
 	    o->run(m->runner);
 	}
