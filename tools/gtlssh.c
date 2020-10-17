@@ -248,7 +248,8 @@ help(int err)
     printf("  -e, --escchar - Set the local terminal escape character.\n"
 	   "    Set to -1 to disable the escape character\n"
 	   "    Default is ^\\ for tty stdin and disabled for non-tty stdin\n");
-    printf("  --nosctp - Disable SCTP support.\n");
+    printf("  --nosctp - Disable SCTP support (default).\n");
+    printf("  --sctp - Disable SCTP support.\n");
     printf("  --notcp - Disable TCP support.\n");
     printf("  --transport - Use the given gensio instead of TCP or SCTP.\n");
     printf("    hostname is ignored in this case, except for the username\n");
@@ -1251,7 +1252,7 @@ main(int argc, char *argv[])
     gensiods service_len, len;
     const char *transport = "sctp";
     bool user_transport = false, mdns_transport = false;
-    bool notcp = false, nosctp = false;
+    bool notcp = false, nosctp = true;
     const char *muxstr = "mux,";
     bool use_mux = true;
     struct sigaction sigact;
@@ -1340,6 +1341,8 @@ main(int argc, char *argv[])
 	    notcp = true;
 	} else if ((rv = cmparg(argc, argv, &arg, NULL, "--nosctp", NULL))) {
 	    nosctp = true;
+	} else if ((rv = cmparg(argc, argv, &arg, NULL, "--sctp", NULL))) {
+	    nosctp = false;
 	} else if ((rv = cmparg(argc, argv, &arg, "-r", "--telnet", NULL))) {
 	    do_telnet = "telnet(rfc2217),";
 	    use_telnet = 1;
