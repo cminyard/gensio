@@ -128,13 +128,14 @@ mdns_info_found(struct gensio_mdns_watch *w,
 }
 
 #ifdef HAVE_SIGNALFD
+static ssize_t dummy; /* Eliminate warnings. */
 static void
 sigfd_read(int fd, void *cb_data)
 {
     struct freed_data *f = cb_data;
     struct signalfd_siginfo i;
 
-    read(fd, &i, sizeof(i));
+    dummy = read(fd, &i, sizeof(i));
     f->o->wake(f->closewaiter);
 }
 
