@@ -780,6 +780,16 @@ mdns_gensio_alloc(const char * const argv[], const char * const args[],
     if (err)
 	goto out_base_free;
 
+    if (argv && argv[0]) {
+	if (name)
+	    free(name);
+	name = gensio_strdup(o, argv[0]);
+	if (!name) {
+	    err = GE_NOMEM;
+	    goto out_base_free;
+	}
+    }
+
     for (i = 0; args && args[i]; i++) {
 	if (gensio_check_keyds(args[i], "readbuf", &max_read_size) > 0) {
 	    readbuf_set = true;

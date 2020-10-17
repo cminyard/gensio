@@ -1405,11 +1405,13 @@ to zero) you can get a different address for the re-opened gensio.  So
 you must refetch the local address or local port in this case.
 .SH "mdns"
 connecting =
-.B mdns[(options)]
+.B mdns[(options)][,<name>]
 
 This gensio uses mDNS to find a service and then attempts to connect
 to it.  This can be convenient, it finds the connection type andport
 for you, automatically adds telnet and rfc2217 if it's available.
+The mDNS name can be set as an option or as the string after the comma
+show above.
 .SS Options
 The readbuf option is accepted, but if it is not specified the default
 value for readbuf will be taken for the sub-gensio is taken.  In
