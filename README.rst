@@ -218,6 +218,39 @@ provides an easy to use mDNS interface.  The include file for it is in
 gensio_mdns.h, and you can use the gensio_mdns(3) man page to get more
 information on it.
 
+To make an mdns connection using gensiot, say you have ser2net set up
+with mdns enabled like::
+
+  connection: &my-port
+    accepter: telnet(rfc2217),tcp,3001
+    connector: serialdev,/dev/ttyUSB1,115200N81
+    options:
+      mdns: true
+
+then you can connection to it with gensiot::
+
+  gensiot 'mdns,my-port'
+
+In addition, there is an gmdns tool that lets you do queries and
+advertising, and gtlssh can do mDNS queries to find services.  If you
+have secure authenticated logins for ser2net, and you enable mdns on
+ser2net, like::
+
+  connection: &access-console
+    accepter: telnet(rfc2217),mux,certauth(),ssl,tcp,3001
+    connector: serialdev,/dev/ttyUSBaccess,115200N81
+    options:
+      mdns: true
+
+it makes the setup very convenient, as you can just do::
+
+  gtlssh -m access-console
+
+That's right, you can just directly use the connection name, no need
+to know the host, whether telnet or rfc2217 is enabled, or what the
+port is.  You still have to set up the keys and such on the ser2net
+server, of course, per those instructions.
+
 General Concepts
 ================
 
