@@ -335,7 +335,8 @@ get_mdns_gensiostack(struct mdnsn_data *ndata, const char *txt[],
     udp = strcmp(s, "udp") == 0;
 
     if (ndata->readbuf_set) {
-	err = addarg(&args, &argslen, o, ",readbuf=%d)", ndata->max_read_size);
+	err = addarg(&args, &argslen, o, ",readbuf=%lu)",
+		     (unsigned long) ndata->max_read_size);
 	if (err)
 	    goto out_err;
     }
