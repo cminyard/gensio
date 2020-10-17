@@ -231,6 +231,9 @@ then you can connection to it with gensiot::
 
   gensiot 'mdns,my-port'
 
+gensiot will find the server, port, and whether telnet and rfc2217 are
+enabled and make the connection.
+
 In addition, there is an gmdns tool that lets you do queries and
 advertising, and gtlssh can do mDNS queries to find services.  If you
 have secure authenticated logins for ser2net, and you enable mdns on
