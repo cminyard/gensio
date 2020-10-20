@@ -241,10 +241,12 @@ struct gensio_os_funcs *alloc_gensio_selector(swig_cb *log_handler)
 %include "gensio_python.i"
 
 %nodefaultctor sergensio;
+%nodefaultctor sergensio_accepter;
 %nodefaultctor gensio_os_funcs;
 struct gensio { };
 struct sergensio { };
 struct gensio_accepter { };
+struct sergensio_accepter { };
 struct gensio_os_funcs { };
 struct waiter { };
 
@@ -1086,6 +1088,35 @@ struct waiter { };
 	return gensio_acc_is_reliable(self);
     }
 
+    %newobject cast_to_sergensio_accepter;
+    struct sergensio_accepter *cast_to_sergensio_accepter() {
+	struct gensio_data *data = gensio_acc_get_user_data(self);
+	struct sergensio_accepter *sacc = gensio_acc_to_sergensio_acc(self);
+
+	if (!sacc)
+	    cast_error("sergensio_accepter", "gensio_accepter");
+	ref_gensio_data(data);
+	return sacc;
+    }
+}
+
+%extend sergensio_accepter {
+    ~sergensio_accepter()
+    {
+	struct gensio_accepter *acc = sergensio_acc_to_gensio_acc(self);
+	struct gensio_data *data = gensio_acc_get_user_data(acc);
+
+	deref_gensio_accepter_data(data, acc);
+    }
+
+    %newobject cast_to_gensio_acc;
+    struct gensio_accepter *cast_to_gensio_acc() {
+	struct gensio_accepter *acc = sergensio_acc_to_gensio_acc(self);
+	struct gensio_data *data = gensio_acc_get_user_data(acc);
+
+	ref_gensio_data(data);
+	return acc;
+    }
 }
 
 %extend waiter {
