@@ -51,6 +51,7 @@ struct mdnsn_data {
 
     bool mdns_in_free;
     struct gensio_mdns *mdns;
+    struct gensio_mdns_watch *watch;
 
     char *laddr;
     gensiods max_read_size;
@@ -418,6 +419,7 @@ mdns_cb(struct gensio_mdns_watch *w,
 	if (stack) {
 	    ndata->open_err = str_to_gensio(stack, ndata->o,
 					    child_cb, ndata, &ndata->child);
+	    ndata->o->free(ndata->o, stack);
 	} else  {
 	    /* Look for the trailing protocol type. */
 	    s = strrchr(type, '.');
@@ -478,6 +480,8 @@ mdns_cb(struct gensio_mdns_watch *w,
 	}
 
 	ndata->state = MDNSN_IN_CHILD_OPEN;
+	if (ndata->watch)
+	    gensio_mdns_remove_watch(ndata->watch, NULL, NULL);
 	err = gensio_free_mdns(ndata->mdns, mdns_freed, ndata);
 	if (!err) {
 	    mdnsn_ref(ndata);
@@ -496,6 +500,8 @@ mdns_cb(struct gensio_mdns_watch *w,
 
  out_err:
     ndata->state = MDNSN_IN_OPEN_ERR;
+    if (ndata->watch)
+	gensio_mdns_remove_watch(ndata->watch, NULL, NULL);
     err = gensio_free_mdns(ndata->mdns, mdns_freed, ndata);
     if (!err) {
 	ndata->mdns_in_free = true;
@@ -526,7 +532,7 @@ mdnsn_open(struct gensio *io, gensio_done_err open_done, void *open_data)
 				ndata->nettype,
 				ndata->name, ndata->type, ndata->domain,
 				ndata->host,
-				mdns_cb, ndata, NULL);
+				mdns_cb, ndata, &ndata->watch);
     if (err) {
 	gensio_free_mdns(ndata->mdns, NULL, NULL);
 	ndata->mdns = NULL;
@@ -562,6 +568,8 @@ mdnsn_start_close(struct mdnsn_data *ndata)
 	break;
 
     case MDNSN_IN_OPEN_QUERY:
+	if (ndata->watch)
+	    gensio_mdns_remove_watch(ndata->watch, NULL, NULL);
 	err = gensio_free_mdns(ndata->mdns, mdns_freed, ndata);
 	if (err)
 	    ndata->mdns = NULL;

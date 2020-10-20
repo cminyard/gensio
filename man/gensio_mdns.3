@@ -71,7 +71,8 @@ structure with
 Note that code may still be in mdns callbacks when the free returns,
 you have to make sure to wait until the done callback is called to
 know the code is out of all callbacks.  The done callback is optional
-if you don't care.
+if you don't care.  Also note that the mdns will not be freed (and
+done not called) until all the services and watches are freed for it.
 
 For the remaining functions, the
 .I interface

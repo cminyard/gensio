@@ -1313,8 +1313,6 @@ gensio_free_mdns(struct gensio_mdns *m, gensio_mdns_done done, void *userdata)
 {
     struct gensio_os_funcs *o = m->o;
     struct gensio_link *l, *l2;
-    struct gensio_mdns_service *s;
-    struct gensio_mdns_watch *w;
     int err = 0;
 
     gensio_avahi_lock(m->ap);
@@ -1330,21 +1328,15 @@ gensio_free_mdns(struct gensio_mdns *m, gensio_mdns_done done, void *userdata)
 	struct gensio_mdns_callback *c =
 	    gensio_container_of(l, struct gensio_mdns_callback, link);
 
+	if (c->remove)
+	    /* Have to do the remove in the runner to avoid locking issues. */
+	    continue;
+
 	gensio_list_rm(&m->callbacks, &c->link);
 	c->in_queue = false;
 	gensio_mdns_deref(m);
 	if (c->data && c->data->state == GENSIO_MDNS_DATA_GONE)
 	    result_free(o, c->data->result);
-    }
-
-    gensio_list_for_each_safe(&m->services, l, l2) {
-	s = gensio_container_of(l, struct gensio_mdns_service, link);
-	i_gensio_mdns_remove_service(s);
-    }
-
-    gensio_list_for_each_safe(&m->watches, l, l2) {
-	w = gensio_container_of(l, struct gensio_mdns_watch, link);
-	i_gensio_mdns_remove_watch(w, NULL, NULL);
     }
 
     if (m->refcount == 1) {
