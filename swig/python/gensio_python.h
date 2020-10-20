@@ -55,11 +55,12 @@ static int
 OI_PI_AsBytesAndSize(PyObject *o, char **buf, my_ssize_t *len)
 {
     if (PyUnicode_Check(o)) {
-	*buf = PyUnicode_AsUTF8AndSize(o, len);
+	*buf = (char *) PyUnicode_AsUTF8AndSize(o, len);
 	return 0;
     }
     return PyBytes_AsStringAndSize(o, buf, len);
 }
+
 #define OI_PI_StringCheck PyUnicode_Check
 #define OI_PI_FromString PyUnicode_FromString
 #define OI_PI_FromStringAndSize PyUnicode_FromStringAndSize
@@ -133,7 +134,7 @@ swig_finish_call_rv(swig_cb_val *cb, const char *method_name, PyObject *args,
     } else if (!optional) {
 	PyObject *t = PyObject_GetAttrString(cb, "__class__");
 	PyObject *c = PyObject_GetAttrString(t, "__name__");
-	char *class = OI_PI_AsString(c);
+	const char *class = OI_PI_AsString(c);
 
 	PyErr_Format(PyExc_RuntimeError,
 		     "gensio callback: Class '%s' has no method '%s'\n",
@@ -159,7 +160,7 @@ swig_finish_call_rv_gensiods(swig_cb_val *cb, const char *method_name,
 	if (PyErr_Occurred()) {
 	    PyObject *t = PyObject_GetAttrString(cb, "__class__");
 	    PyObject *c = PyObject_GetAttrString(t, "__name__");
-	    char *class = OI_PI_AsString(c);
+	    const char *class = OI_PI_AsString(c);
 
 	    PyErr_Format(PyExc_RuntimeError, "gensio callback: "
 			 "Class '%s' method '%s' did not return "
@@ -185,7 +186,7 @@ swig_finish_call_rv_int(swig_cb_val *cb, const char *method_name,
 	if (PyErr_Occurred()) {
 	    PyObject *t = PyObject_GetAttrString(cb, "__class__");
 	    PyObject *c = PyObject_GetAttrString(t, "__name__");
-	    char *class = OI_PI_AsString(c);
+	    const char *class = OI_PI_AsString(c);
 
 	    PyErr_Format(PyExc_RuntimeError, "gensio callback: "
 			 "Class '%s' method '%s' did not return "
@@ -798,7 +799,7 @@ gensio_child_event(struct gensio *io, void *user_data, int event, int readerr,
 	rv = GE_NOTSUP;
 	if (o) {
 	    if (OI_PI_StringCheck(o)) {
-		char *p = OI_PI_AsString(o);
+		const char *p = OI_PI_AsString(o);
 		unsigned int len = strlen(p);
 
 		if (len < *buflen)
@@ -1084,7 +1085,7 @@ gensio_acc_child_event(struct gensio_accepter *accepter, void *user_data,
 	rv = GE_NOTSUP;
 	if (o) {
 	    if (OI_PI_StringCheck(o)) {
-		char *p = OI_PI_AsString(o);
+		const char *p = OI_PI_AsString(o);
 		unsigned int len = strlen(p);
 
 		if (len < pwvfy->password_len)

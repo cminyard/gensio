@@ -108,7 +108,7 @@
 %typemap(in) const char *const *auxdata {
     unsigned int i;
     unsigned int len;
-    char **temp = NULL;
+    const char **temp = NULL;
 
     if ($input == Py_None)
 	goto null_auxdata;

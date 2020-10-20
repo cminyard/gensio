@@ -398,7 +398,7 @@ struct waiter { };
      * Note that auxdata is really args, but we are reusing the typemap
      * for auxdata for it.
      */
-    struct gensio *alloc_channelt(const char * const *auxdata,
+    struct gensio *alloc_channelt(const char **auxdata,
 				  swig_cb *handler) {
 	struct gensio_data *olddata = gensio_get_user_data(self);
 	int rv = 0;
@@ -449,7 +449,7 @@ struct waiter { };
 
     %rename(write) writet;
     unsigned int writet(char *bytestr, my_ssize_t len,
-			const char *const *auxdata) {
+			const char **auxdata) {
 	gensiods wr = 0;
 	int rv;
 
