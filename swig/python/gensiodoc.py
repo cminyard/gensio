@@ -1063,6 +1063,23 @@ class gensio_accepter:
         """
         return True
 
+    def cast_to_sergensio(self):
+        """Convert the gensio_accepter to a sergensio_accepter.
+
+        Returns the sergensio_accepter object if the accepter is a
+        sergensio_accepter, or None if it is not.
+
+        """
+        return None
+
+class sergensio_accepter:
+    """An accepter that will create a sergensio on accept.
+    """
+    def cast_to_gensio_accepter(self):
+        """Returns the gensio_accepter object for this sergensio_accepter.
+        This cannot fail."""
+        return None;
+
 class waiter:
     """An object that can be used to wait for wakeups in gensios.  You
     should use this interface to wait for operations to finish, it
