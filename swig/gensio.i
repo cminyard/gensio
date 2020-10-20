@@ -1089,7 +1089,7 @@ struct waiter { };
     }
 
     %newobject cast_to_sergensio_accepter;
-    struct sergensio_accepter *cast_to_sergensio_accepter() {
+    struct sergensio_accepter *cast_to_sergensio_acc() {
 	struct gensio_data *data = gensio_acc_get_user_data(self);
 	struct sergensio_accepter *sacc = gensio_acc_to_sergensio_acc(self);
 

@@ -664,7 +664,8 @@ class TestAccept:
     def __init__(self, o, io1str, accstr, tester, name = None,
                  io1_dummy_write = None, do_close = True,
                  expected_raddr = None, expected_acc_laddr = None,
-                 chunksize = 10240, get_port = True, except_on_log = False):
+                 chunksize = 10240, get_port = True, except_on_log = False,
+                 is_sergensio = False):
         self.o = o
         self.except_on_log = except_on_log
         if (name):
@@ -675,6 +676,21 @@ class TestAccept:
         self.waiter = gensio.waiter(o)
         gensios_enabled.check_iostr_gensios(accstr)
         self.acc = gensio.gensio_accepter(o, accstr, self);
+        if is_sergensio:
+            sga = self.acc.cast_to_sergensio_acc()
+            if not sga:
+                raise Exception("Cast to sergensio_accepter failed");
+            ga = sga.cast_to_gensio_acc()
+            del sga
+            del ga
+        else:
+            sga = None
+            try:
+                sga = self.acc.cast_to_sergensio_acc()
+            except:
+                pass
+            if sga:
+                raise Exception("Cast to sergensio_accepter succeeded");
         self.acc.startup()
         self.waiter.service(1) # Wait a bit for the accepter to start up.
 
