@@ -14,6 +14,7 @@
 #include <gensio/gensio.h>
 #include <gensio/sergensio.h>
 #include <gensio/gensio_selector.h>
+#include <gensio/gensio_mdns.h>
 #include "config.h"
 
 #if PYTHON_HAS_POSIX_THREADS
@@ -290,6 +291,11 @@ struct waiter { };
 %constant int GENSIO_CONTROL_RADDR = GENSIO_CONTROL_RADDR;
 %constant int GENSIO_CONTROL_RADDR_BIN = GENSIO_CONTROL_RADDR_BIN;
 %constant int GENSIO_CONTROL_REMOTE_ID = GENSIO_CONTROL_REMOTE_ID;
+
+%constant int GENSIO_NETTYPE_UNSPEC = GENSIO_NETTYPE_UNSPEC;
+%constant int GENSIO_NETTYPE_IPV4 = GENSIO_NETTYPE_IPV4;
+%constant int GENSIO_NETTYPE_IPV6 = GENSIO_NETTYPE_IPV6;
+%constant int GENSIO_NETTYPE_UNIX = GENSIO_NETTYPE_UNIX;
 
 %extend gensio {
     gensio(struct gensio_os_funcs *o, char *str, swig_cb *handler) {
@@ -1166,6 +1172,198 @@ struct waiter { };
 
 	gensio_do_service(self, &tv);
 	return tv.secs * 1000 + ((tv.nsecs + 500000) / 1000000);
+    }
+}
+
+%nodefaultctor mdns_watch;
+%nodefaultctor mdns_service;
+struct mdns { };
+struct mdns_watch { };
+struct mdns_service { };
+
+%extend mdns_watch {
+    ~mdns_watch() {
+	struct gensio_os_funcs *o = self->o;
+	int rv = 0;
+
+	o->lock(self->lock);
+	self->free_on_close = true;
+	if (!self->closed)
+	    rv = gensio_mdns_remove_watch(self->watch,
+					  gensio_mdns_remove_watch_done,
+					  self);
+	o->unlock(self->lock);
+	if (rv) {
+	    o->free_lock(self->lock);
+	    o->free(o, self);
+	    check_os_funcs_free(o);
+	}
+    }
+
+    void close(swig_cb *done) {
+	struct gensio_os_funcs *o = self->o;
+	int rv;
+
+	o->lock(self->lock);
+	if (self->closed) {
+	    rv = GE_INUSE;
+	} else {
+	    if (!nil_swig_cb(done))
+		self->done_val = ref_swig_cb(done,
+					     gensio_mdns_remove_watch_done);
+	    rv = gensio_mdns_remove_watch(self->watch,
+					  gensio_mdns_remove_watch_done,
+					  self);
+	    if (rv) {
+		if (self->done_val)
+		    deref_swig_cb_val(self->done_val);
+	    } else {
+		self->closed = true;
+	    }
+	}
+	o->unlock(self->lock);
+	if (rv)
+	    err_handle("close", rv);
+    }
+}
+
+%extend mdns_service {
+    ~mdns_service() {
+	gensio_mdns_remove_service(self->service);
+	free(self);
+    }
+}
+
+%extend mdns {
+    mdns(struct gensio_os_funcs *o) {
+	struct mdns *m = o->zalloc(o, sizeof(*m));
+	int rv = GE_NOMEM;
+
+	if (m) {
+	    m->o = o;
+	    m->lock = o->alloc_lock(o);
+	    if (!o->lock) {
+		o->free(o, m);
+		m = NULL;
+	    }
+	}
+	if (m) {
+	    o->lock(m->lock); /* Assure m->mdns is set for other users. */
+	    rv = gensio_alloc_mdns(o, &m->mdns);
+	    o->unlock(m->lock);
+	    if (rv) {
+		o->free_lock(m->lock);
+		o->free(o, m);
+		m = NULL;
+	    }
+	}
+	if (m)
+	    os_funcs_ref(o);
+	else
+	    err_handle("mdns", rv);
+
+	return m;
+    }
+
+    ~mdns() {
+	struct gensio_os_funcs *o = self->o;
+
+	o->lock(self->lock);
+	if (self->closed) {
+	    /* Free in the close function. */
+	    self->free_on_close = true;
+	    o->unlock(self->lock);
+	} else {
+	    if (self->mdns)
+		gensio_free_mdns(self->mdns, NULL, NULL);
+	    o->unlock(self->lock);
+	    o->free_lock(self->lock);
+	    o->free(o, self);
+	    check_os_funcs_free(o);
+	}
+    }
+
+    void close(swig_cb *done) {
+	int rv;
+	struct gensio_os_funcs *o = self->o;
+
+	o->lock(self->lock);
+	if (self->closed) {
+	    rv = GE_INUSE;
+	} else {
+	    if (!nil_swig_cb(done))
+		self->done_val = ref_swig_cb(done, gensio_mdns_free_done);
+	    rv = gensio_free_mdns(self->mdns, gensio_mdns_free_done, self);
+	    if (rv) {
+		if (self->done_val)
+		    deref_swig_cb_val(self->done_val);
+	    } else {
+		self->closed = true;
+	    }
+	}
+	o->unlock(self->lock);
+
+	err_handle("close", rv);
+    }
+
+    struct mdns_service *add_service(int interface, int ipdomain,
+				     const char *name, const char *type,
+				     const char *domain, const char *host,
+				     int port, const char **txt)
+    {
+	struct mdns_service *s = malloc(sizeof(*s));
+	int rv = GE_NOMEM;
+
+	if (s) {
+	    rv = gensio_mdns_add_service(self->mdns,
+					 interface, ipdomain, name, type,
+					 domain, host, port, txt, &s->service);
+	    if (rv) {
+		free(s);
+		s = NULL;
+	    }
+	}
+	if (!s)
+	    err_handle("add_service", rv);
+	return s;
+    }
+
+    struct mdns_watch *add_watch(int interface, int ipdomain,
+				 const char *name, const char *type,
+				 const char *domain, const char *host,
+				 swig_cb *cb)
+    {
+	struct gensio_os_funcs *o = self->o;
+	struct mdns_watch *w = o->zalloc(o, sizeof(*w));
+	int rv = GE_NOMEM;
+
+	if (w) {
+	    w->o = o;
+	    w->lock = o->alloc_lock(o);
+	    if (!o->lock) {
+		o->free(o, w);
+		w = NULL;
+	    }
+	}
+	if (w) {
+	    w->cb_val = ref_swig_cb(cb, gensio_mdns_cb);
+	    o->lock(w->lock); /* Assure w->watch is set for other users. */
+	    rv = gensio_mdns_add_watch(self->mdns,
+				       interface, ipdomain, name, type,
+				       domain, host,
+				       gensio_mdns_cb, w, &w->watch);
+	    o->unlock(w->lock);
+	    if (rv) {
+		deref_swig_cb_val(w->cb_val);
+		o->free_lock(w->lock);
+		o->free(o, w);
+		w = NULL;
+	    }
+	}
+	if (!w)
+	    err_handle("add_watch", rv);
+
+	return w;
     }
 }
 

@@ -1080,6 +1080,126 @@ class sergensio_accepter:
         This cannot fail."""
         return None;
 
+class MdnsCloseDone:
+    """A template for a class handling the finish of an mdns close."""
+
+    def mdns_close_done(self):
+        """Called when the close operation completes. """
+        return
+
+class MdnsCloseWatchDone:
+    """A template for a class handling the finish of an mdns watch close."""
+
+    def mdns_close_watch_done(self):
+        """Called when the close operation completes. """
+        return
+
+class MdnsEvent:
+    """A template for a class handling MDNS events."""
+
+    def mdns_all_for_now(self):
+        """Called when all the services currently known have been reported.
+        This method is optional."""
+        return
+
+    def mdns_cb(self, is_add, interface, ipdomain, name, types, domain,
+                host, addr, txt):
+        """Called when a matching services is found or removed.
+
+        is_add -- True if an add, False if removed.
+        interface -- The interface the service was found on.
+        ipdomain -- One of GENSIO_NETTYPE_UNSPEC, GENSIO_NETTYPE_IPV4,
+            or GENSIO_NETTYPE_IPV6.  Unspec means IPv4 or IPv6.
+        name -- The name of the service.
+        types -- The type of the service.
+        domain -- The domain of the service.
+        host -- The host of the service.
+        addr -- An address string in the form of "ipxx,hostname,port".
+        txt -- An array of text values for the service.
+        """
+        return
+
+class mdns:
+    """An object used for interacting with the mDNS subsystem.  Add a
+    service to advertise an mDNS service, and use a watch to find
+    service(s). """
+
+    def __init__(o):
+        """Allocate an mdns.
+
+        o -- The gensio_os_funcs object to use for this mdns."""
+
+    def close(self, cb):
+        """Close the watch.
+
+        cb -- An object matching the MdnsCloseWatchDone template, the
+              mdns_close_watch_done() method is called the the close
+              finishes."""
+        return
+
+    def add_service(interface, ipdomain,
+		    name, types, domain, host, port, txt):
+        """Add an mDNS service based on the information given.
+
+        interface - The network interface number to use, -1 mean all.
+        ipdomain - One of GENSIO_NETTYPE_UNSPEC, GENSIO_NETTYPE_IPV4,
+            or GENSIO_NETTYPE_IPV6.  Unspec means IPv4 or IPv6.
+        name - The name for the service.
+        types - The type for the service.
+        domain - The domain for the service.  Use None, generally.
+        host - The host for the service.  Use None, generally.
+        port - The port number for the service.
+        txt - An array of strings for the mDNS txt field.
+        """
+        return
+
+    def add_watch(interface, ipdomain,
+		  name, types, domain, host, cb):
+        """Watch for mDNS service information matching the data given.
+
+        interface - The network interface number to use, -1 mean all.
+        ipdomain - One of GENSIO_NETTYPE_UNSPEC, GENSIO_NETTYPE_IPV4,
+            or GENSIO_NETTYPE_IPV6.  Unspec means IPv4 or IPv6.
+        name - Match the given name.
+        types - Match the given type.
+        domain - Match the given domain.
+        host - Match the given host.
+        cb - An object matching MdnsEvent.
+
+        The name, types, domain, and host strings may use regular
+        expressions or globs.  If the string starts with '%', then the
+        data after it is treated as a regular expression and fields
+        are matched against that.  If the string starts with '@', the
+        the data after it is treated as a standard glob.  See the
+        regex(7) and glob(7) man pages for details.
+
+        If the string starts with '=', an exact comparison is done
+        with the data after it.
+
+        If the string starts with a-z0-9_ or a space, then an exact
+        string comparison is done, including the first character.
+
+        The behavior of matching for any other starting character is
+        undefined.  In general, you should always use '@', '%', or '='
+        as the starting character of all your query strings to be
+        sure.
+        """
+        return
+
+class mdns_service:
+    def close(self):
+        """Close the service."""
+        return
+
+class mdns_watch:
+    def close(self, cb):
+        """Close the watch.
+
+        cb -- An object matching the MdnsCloseWatchDone template, the
+              mdns_close_watch_done() method is called the the close
+              finishes."""
+        return
+
 class waiter:
     """An object that can be used to wait for wakeups in gensios.  You
     should use this interface to wait for operations to finish, it

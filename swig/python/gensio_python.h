@@ -74,6 +74,20 @@ OI_PI_AsBytesAndSize(PyObject *o, char **buf, my_ssize_t *len)
 #define OI_PI_AsString PyString_AsString
 #endif
 
+static PyObject *
+OI_PI_FromStringN(const char *s)
+{
+    PyObject *o;
+
+    if (s) {
+	o = OI_PI_FromString(s);
+    } else {
+	o = Py_None;
+	Py_INCREF(o);
+    }
+    return o;
+}
+
 static swig_cb_val *
 ref_swig_cb_i(swig_cb *cb)
 {
@@ -1187,6 +1201,136 @@ sergensio_sig_cb(struct sergensio *sio, int err,
     swig_finish_call(h_val, "signature", args, true);
     deref_swig_cb_val(h_val);
 
+    OI_PY_STATE_PUT(gstate);
+}
+
+struct mdns {
+    struct gensio_os_funcs *o;
+    bool closed;
+    bool free_on_close;
+    struct gensio_lock *lock;
+    struct gensio_mdns *mdns;
+    swig_cb_val *done_val;
+};
+
+struct mdns_service {
+    struct gensio_mdns_service *service;
+};
+
+struct mdns_watch {
+    struct gensio_os_funcs *o;
+    bool closed;
+    bool free_on_close;
+    struct gensio_lock *lock;
+    struct gensio_mdns_watch *watch;
+    swig_cb_val *done_val;
+    swig_cb_val *cb_val;
+};
+
+static void gensio_mdns_free_done(struct gensio_mdns *mdns, void *userdata)
+{
+    struct mdns *m = userdata;
+    struct gensio_os_funcs *o = m->o;
+    OI_PY_STATE gstate;
+
+    gstate = OI_PY_STATE_GET();
+
+    swig_finish_call(m->done_val, "mdns_close_done", NULL, false);
+
+    deref_swig_cb_val(m->done_val);
+    OI_PY_STATE_PUT(gstate);
+
+    o->lock(m->lock);
+    if (m->free_on_close) {
+	o->unlock(m->lock);
+	o->free_lock(m->lock);
+	o->free(o, m);
+	check_os_funcs_free(o);
+    } else {
+	m->mdns = NULL;
+	o->unlock(m->lock);
+    }
+}
+
+static void gensio_mdns_remove_watch_done(struct gensio_mdns_watch *watch,
+					  void *userdata)
+{
+    struct mdns_watch *w = userdata;
+    struct gensio_os_funcs *o = w->o;
+    OI_PY_STATE gstate;
+
+    gstate = OI_PY_STATE_GET();
+
+    swig_finish_call(w->done_val, "mdns_close_watch_done", NULL, false);
+
+    deref_swig_cb_val(w->done_val);
+    OI_PY_STATE_PUT(gstate);
+
+    o->lock(w->lock);
+    if (w->free_on_close) {
+	o->unlock(w->lock);
+	o->free_lock(w->lock);
+	o->free(o, w);
+    } else {
+	w->watch = NULL;
+	o->unlock(w->lock);
+    }
+}
+
+static void gensio_mdns_cb(struct gensio_mdns_watch *watch,
+			   enum gensio_mdns_data_state state,
+			   int interface, int ipdomain,
+			   const char *name, const char *type,
+			   const char *domain, const char *host,
+			   const struct gensio_addr *addr,
+			   const char *txt[], void *userdata)
+{
+    struct mdns_watch *w = userdata;
+    PyObject *args, *a;
+    OI_PY_STATE gstate;
+    char *s = NULL;
+    gensiods len = 0, pos = 0;
+    int rv;
+
+    gstate = OI_PY_STATE_GET();
+
+    if (state == GENSIO_MDNS_ALL_FOR_NOW) {
+	swig_finish_call(w->cb_val, "mdns_all_for_now", NULL, true);
+	goto out;
+    }
+
+    args = PyTuple_New(9);
+    PyTuple_SET_ITEM(args, 0, PyBool_FromLong(state == GENSIO_MDNS_NEW_DATA));
+    PyTuple_SET_ITEM(args, 1, PyInt_FromLong(interface));
+    PyTuple_SET_ITEM(args, 2, PyInt_FromLong(ipdomain));
+    PyTuple_SET_ITEM(args, 3, OI_PI_FromStringN(name));
+    PyTuple_SET_ITEM(args, 4, OI_PI_FromStringN(type));
+    PyTuple_SET_ITEM(args, 5, OI_PI_FromStringN(domain));
+    PyTuple_SET_ITEM(args, 6, OI_PI_FromStringN(host));
+
+    rv = gensio_addr_to_str(addr, NULL, &len, 0);
+    if (!rv) {
+	s = malloc(len + 1);
+	rv = gensio_addr_to_str(addr, s, &pos, len + 1);
+    }
+    if (rv)
+	PyTuple_SET_ITEM(args, 7, OI_PI_FromStringN("unknown"));
+    else
+	PyTuple_SET_ITEM(args, 7, OI_PI_FromStringN(s));
+    if (s)
+	free(s);
+
+    for (len = 0; txt && txt[len]; len++)
+	;
+
+    a = PyTuple_New(len);
+    for (len = 0; txt && txt[len]; len++)
+	PyTuple_SET_ITEM(a, len, OI_PI_FromString(txt[len]));
+    PyTuple_SET_ITEM(args, 8, a);
+
+    swig_finish_call(w->cb_val, "mdns_cb", args, false);
+
+ out:
     OI_PY_STATE_PUT(gstate);
 }
 
