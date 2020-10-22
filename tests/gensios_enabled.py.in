@@ -20,7 +20,8 @@ gensios_enabled = {
     "msgdelim": 1,
     "relpkt": 1,
     "trace": 1,
-    "conacc": 1
+    "conacc": 1,
+    "mdns": @HAVE_AVAHI@
 }
 
 # Gensios that are always last in the list.

@@ -210,6 +210,7 @@ AC_CHECK_LIB(avahi-client, avahi_client_new,
 	     [AC_DEFINE([HAVE_AVAHI], [1], [Have avahi installed])
 	     HAVE_AVAHI=1
 	     LIBS="-lavahi-client -lavahi-common $LIBS"])
+AC_SUBST(HAVE_AVAHI)
 GMDNS=
 GMDNSMAN=
 if test "x$HAVE_AVAHI" = "x1"; then
