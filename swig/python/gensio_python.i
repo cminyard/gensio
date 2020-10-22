@@ -105,10 +105,10 @@
     }
 }
 
-%typemap(in) const char *const *auxdata {
+%typemap(in) const char ** {
     unsigned int i;
     unsigned int len;
-    const char **temp = NULL;
+    char **temp = NULL;
 
     if ($input == Py_None)
 	goto null_auxdata;
@@ -135,14 +135,14 @@
 			    "Expecting a sequence of strings");
 	    SWIG_fail;
 	}
-	temp[i] = OI_PI_AsString(o);
+	temp[i] = (char *) OI_PI_AsString(o);
 	Py_DECREF(o);
     }
  null_auxdata:
     $1 = temp;
 }
 
-%typemap(freearg) const char *const *auxdata {
+%typemap(freearg) const char ** {
     if ($1) {
 	free($1);
     }
