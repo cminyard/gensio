@@ -1183,6 +1183,7 @@ lookup_mdns_transport(struct gensio_os_funcs *o, const char *name,
 		      const char **transport, bool *telnet)
 {
     struct gensio_mdns *mdns;
+    struct gensio_mdns_watch *mdns_watch;
     int nettype = GENSIO_NETTYPE_UNSPEC;
     int err;
     struct mdns_cb_data cb_data;
@@ -1211,7 +1212,7 @@ lookup_mdns_transport(struct gensio_os_funcs *o, const char *name,
     }
 
     err = gensio_mdns_add_watch(mdns, -1, nettype, name, type, NULL, NULL,
-				mdns_cb, &cb_data, NULL);
+				mdns_cb, &cb_data, &mdns_watch);
     if (err) {
 	o->free_waiter(cb_data.wait);
 	gensio_free_mdns(mdns, NULL, NULL);
@@ -1222,6 +1223,7 @@ lookup_mdns_transport(struct gensio_os_funcs *o, const char *name,
 
     o->wait(cb_data.wait, 1, &timeout);
 
+    gensio_mdns_remove_watch(mdns_watch, NULL, NULL);
     gensio_free_mdns(mdns, mdns_freed, &cb_data);
 
     o->wait(cb_data.wait, 1, NULL);
