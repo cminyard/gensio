@@ -146,7 +146,7 @@ regex_str_setup(struct gensio_mdns *m, const char *str1,
 	char errbuf[200];
 
 	regerror(rv, sdata->extdata, errbuf, sizeof(errbuf));
-	gensio_mdns_log(m, GENSIO_LOG_ERR, "mdns: regex error: %s\n",
+	gensio_mdns_log(m, GENSIO_LOG_ERR, "mdns: regex error: %s",
 			errbuf);
 	regfree(sdata->extdata);
 	o->free(o, sdata->extdata);
@@ -165,7 +165,7 @@ static int
 regex_str_setup(struct gensio_mdns *m, const char *str1,
 		struct mdns_str_data *sdata)
 {
-    gensio_mdns_log(m, GENSIO_LOG_ERR, "mdns: regex not supported\n");
+    gensio_mdns_log(m, GENSIO_LOG_ERR, "mdns: regex not supported");
     return GE_NOTSUP;
 }
 #endif
@@ -204,7 +204,7 @@ static int
 glob_str_setup(struct gensio_mdns *m, const char *str1,
 		struct mdns_str_data *sdata)
 {
-    gensio_mdns_log(m, GENSIO_LOG_ERR, "mdns: glob not supported\n");
+    gensio_mdns_log(m, GENSIO_LOG_ERR, "mdns: glob not supported");
     return GE_NOTSUP;
 }
 #endif
@@ -1268,6 +1268,7 @@ int
 gensio_alloc_mdns(struct gensio_os_funcs *o, struct gensio_mdns **new_m)
 {
     struct gensio_mdns *m;
+    int aerr;
 
     m = o->zalloc(o, sizeof(*m));
     if (!m)
@@ -1295,9 +1296,11 @@ gensio_alloc_mdns(struct gensio_os_funcs *o, struct gensio_mdns **new_m)
 
     gensio_avahi_lock(m->ap);
     m->ac = avahi_client_new(m->ap, AVAHI_CLIENT_NO_FAIL,
-			     mdns_client_callback, m, NULL);
+			     mdns_client_callback, m, &aerr);
     gensio_avahi_unlock(m->ap);
     if (!m->ac) {
+	gensio_log(o, GENSIO_LOG_ERR, "mdns: Can't allocate avahi client: %s",
+		   avahi_strerror(aerr));
 	gensio_avahi_poll_free(m->ap, NULL, NULL);
 	o->free_runner(m->runner);
 	o->free(o, m);
