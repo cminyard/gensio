@@ -865,15 +865,25 @@ basen_finish_open(struct basen_data *ndata, int err)
 
 /*
  * Returns true if the open callback has been called but a close has
- * not been requested.
+ * not been requested.  We also call in ll_close, to flush out any
+ * data we have.
  */
 static bool
-basen_in_callbackable_state(struct basen_data *ndata)
+basen_in_read_callbackable_state(struct basen_data *ndata)
 {
     return (ndata->state == BASEN_OPEN ||
 	    ndata->state == BASEN_CLOSE_WAIT_DRAIN ||
 	    ndata->state == BASEN_IN_LL_IO_ERR_CLOSE ||
 	    ndata->state == BASEN_IN_LL_CLOSE ||
+	    ndata->state == BASEN_IO_ERR_CLOSE);
+}
+
+/* Returns true if the open callback has been called but close has not. */
+static bool
+basen_in_write_callbackable_state(struct basen_data *ndata)
+{
+    return (ndata->state == BASEN_OPEN ||
+	    ndata->state == BASEN_IN_LL_IO_ERR_CLOSE ||
 	    ndata->state == BASEN_IO_ERR_CLOSE);
 }
 
@@ -924,7 +934,7 @@ basen_deferred_op(struct gensio_runner *runner, void *cbdata)
 	if (ndata->in_xmit_ready)
 	    goto skip_write;
 	ndata->deferred_write = false;
-	while (basen_in_callbackable_state(ndata) && ndata->ll_err
+	while (basen_in_write_callbackable_state(ndata) && ndata->ll_err
 	       && ndata->xmit_enabled) {
 	    basen_unlock(ndata);
 	    gensio_cb(ndata->io, GENSIO_EVENT_WRITE_READY, 0, NULL, 0, NULL);
@@ -1330,7 +1340,7 @@ basen_set_read_callback_enable(struct basen_data *ndata, bool enabled)
 		      __LINE__);
     if (ndata->read_enabled == enabled)
 	goto out_unlock;
-    if (!basen_in_callbackable_state(ndata))
+    if (!basen_in_read_callbackable_state(ndata))
 	goto out_unlock;
     ndata->read_enabled = enabled;
     read_pending = filter_ul_read_pending(ndata);
@@ -1360,7 +1370,7 @@ basen_set_write_callback_enable(struct basen_data *ndata, bool enabled)
 		      __LINE__);
     if (ndata->xmit_enabled == enabled)
 	goto out_unlock;
-    if (!basen_in_callbackable_state(ndata))
+    if (!basen_in_write_callbackable_state(ndata))
 	goto out_unlock;
     ndata->xmit_enabled = enabled;
     if (enabled && ndata->ll_err && ndata->state != BASEN_OPEN) {
@@ -1580,7 +1590,7 @@ basen_ll_write_ready(void *cb_data)
 
     basen_check_open_close_ops(ndata);
 
-    if (basen_in_callbackable_state(ndata) &&
+    if (basen_in_read_callbackable_state(ndata) &&
 	   (!filter_ll_write_pending(ndata) || ndata->ll_err)
 	   && ndata->xmit_enabled) {
 	basen_unlock(ndata);
