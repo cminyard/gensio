@@ -133,6 +133,9 @@
 	    Py_XDECREF(o);
 	    PyErr_SetString(PyExc_ValueError,
 			    "Expecting a sequence of strings");
+	    for (; i > 0; i--)
+		Py_XDECREF(temp[i - 1]);
+	    free(temp);
 	    SWIG_fail;
 	}
 	temp[i] = (char *) OI_PI_AsString(o);
