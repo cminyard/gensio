@@ -1334,9 +1334,12 @@ struct mdns_service { };
 				 swig_cb *cb)
     {
 	struct gensio_os_funcs *o = self->o;
-	struct mdns_watch *w = o->zalloc(o, sizeof(*w));
+	struct mdns_watch *w;
 	int rv = GE_NOMEM;
 
+	if (nil_swig_cb(cb))
+	    return NULL;
+	w = o->zalloc(o, sizeof(*w));
 	if (w) {
 	    w->o = o;
 	    w->lock = o->alloc_lock(o);
