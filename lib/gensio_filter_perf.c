@@ -208,9 +208,7 @@ perf_handle_end_check(struct perf_filter *pfilter)
 static int
 perf_try_disconnect(struct gensio_filter *filter, gensio_time *timeout)
 {
-    struct perf_filter *pfilter = filter_to_perf(filter);
-
-    return perf_handle_end_check(pfilter);
+    return 0;
 }
 
 static int
