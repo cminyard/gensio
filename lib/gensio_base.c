@@ -679,7 +679,7 @@ basen_read_data_handler(void *cb_data,
     }
     while (basen_can_deliver_ul_data(ndata) && ndata->read_enabled &&
 	   (count < buflen || ndata->ll_err)) {
-	if (ndata->ll_err) {
+	if (ndata->ll_err && !filter_ul_read_pending(ndata)) {
 	    basen_unlock(ndata);
 	    gensio_cb(ndata->io, GENSIO_EVENT_READ, ndata->ll_err,
 		      NULL, NULL, NULL);
