@@ -744,11 +744,8 @@ sel_stop_timer_i(struct selector_s *sel, sel_timer_t *timer)
 	return ETIMEDOUT;
 
     if (timer->val.in_heap) {
-	volatile sel_timer_t *old_top = theap_get_top(&sel->timer_heap);
-
 	theap_remove(&sel->timer_heap, timer);
 	timer->val.in_heap = 0;
-	wake_timer_sel_thread(sel, old_top);
     }
     timer->val.stopped = 1;
 
@@ -851,7 +848,6 @@ sel_stop_timer_with_done(sel_timer_t *timer,
     }
     sel_get_monotonic_time(&timer->val.timeout);
     theap_add(&sel->timer_heap, timer);
-    wake_timer_sel_thread(sel, NULL);
 
  out_unlock:
     sel_timer_unlock(sel);
