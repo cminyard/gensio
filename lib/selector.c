@@ -179,6 +179,9 @@ typedef struct sel_wait_list_s
     sel_send_sig_cb send_sig;
     void            *send_sig_cb_data;
 
+    /* The time when the thread is set to wake up. */
+    struct timeval wake_time;
+
     struct sel_wait_list_s *next, *prev;
 } sel_wait_list_t;
 
@@ -269,13 +272,14 @@ sel_fd_unlock(struct selector_s *sel)
    this after we have calculated the timeout, but before we have
    called select, thus only things in the wait list matter. */
 static void
-i_wake_sel_thread(struct selector_s *sel)
+i_wake_sel_thread(struct selector_s *sel, struct timeval *new_timeout)
 {
     sel_wait_list_t *item;
 
     item = sel->wait_list.next;
     while (item != &sel->wait_list) {
-	if (item->send_sig)
+	if (item->send_sig && (!new_timeout ||
+			       cmp_timeval(new_timeout, &item->wake_time) < 0))
 	    item->send_sig(item->thread_id, item->send_sig_cb_data);
 	item = item->next;
     }
@@ -285,16 +289,17 @@ void
 sel_wake_all(struct selector_s *sel)
 {
     sel_timer_lock(sel);
-    i_wake_sel_thread(sel);
+    i_wake_sel_thread(sel, NULL);
     sel_timer_unlock(sel);
 }
 
 static void
-wake_timer_sel_thread(struct selector_s *sel, volatile sel_timer_t *old_top)
+wake_timer_sel_thread(struct selector_s *sel, volatile sel_timer_t *old_top,
+		      struct timeval *new_timeout)
 {
     if (old_top != theap_get_top(&sel->timer_heap))
-	/* If the top value changed, restart the waiting thread. */
-	i_wake_sel_thread(sel);
+	/* If the top value changed, restart the waiting threads if required. */
+	i_wake_sel_thread(sel, new_timeout);
 }
 
 /* Wait list management.  These *must* be called with the timer list
@@ -304,11 +309,13 @@ static void
 add_sel_wait_list(struct selector_s *sel, sel_wait_list_t *item,
 		  sel_send_sig_cb send_sig,
 		  void            *cb_data,
-		  long thread_id)
+		  long thread_id,
+		  struct timeval *wake_time)
 {
     item->thread_id = thread_id;
     item->send_sig = send_sig;
     item->send_sig_cb_data = cb_data;
+    item->wake_time = *wake_time;
     item->next = sel->wait_list.next;
     item->prev = &sel->wait_list;
     sel->wait_list.next->prev = item;
@@ -795,7 +802,7 @@ sel_start_timer(sel_timer_t    *timer,
     }
     timer->val.stopped = 0;
 
-    wake_timer_sel_thread(sel, old_top);
+    wake_timer_sel_thread(sel, old_top, timeout);
 
     sel_timer_unlock(sel);
 
@@ -873,7 +880,8 @@ sel_get_monotonic_time(struct timeval *tv)
 static void
 process_timers(struct selector_s       *sel,
 	       unsigned int            *count,
-	       volatile struct timeval *timeout)
+	       volatile struct timeval *timeout,
+	       struct timeval          *abstime)
 {
     struct timeval now;
     sel_timer_t    *timer;
@@ -923,15 +931,18 @@ process_timers(struct selector_s       *sel,
 	/* If called, set the timeout to zero. */
 	timeout->tv_sec = 0;
 	timeout->tv_usec = 0;
+	*abstime = now;
     } else if (timer) {
-	sel_get_monotonic_time(&now);
 	diff_timeval((struct timeval *) timeout,
 		     (struct timeval *) &timer->val.timeout,
 		     &now);
+	*abstime = timer->val.timeout;
     } else {
 	/* No timers, just set a long time. */
 	timeout->tv_sec = 100000;
 	timeout->tv_usec = 0;
+	now.tv_sec +=timeout->tv_sec;
+	*abstime = now;
     }
 }
 
@@ -1255,7 +1266,7 @@ sel_select_intr_sigmask(struct selector_s *sel,
 			sigset_t        *sigmask)
 {
     int             err, old_errno;
-    struct timeval  loc_timeout;
+    struct timeval  loc_timeout, wake_time;
     sel_wait_list_t wait_entry;
     unsigned int    count;
     struct timeval  end = { 0, 0 }, now;
@@ -1268,14 +1279,15 @@ sel_select_intr_sigmask(struct selector_s *sel,
 
     sel_timer_lock(sel);
     count = process_runners(sel);
-    process_timers(sel, &count, &loc_timeout);
+    process_timers(sel, &count, &loc_timeout, &wake_time);
     if (timeout) {
 	if (cmp_timeval(&loc_timeout, timeout) >= 0) {
 	    loc_timeout = *timeout;
 	    user_timeout = 1;
 	}
     }
-    add_sel_wait_list(sel, &wait_entry, send_sig, cb_data, thread_id);
+    add_sel_wait_list(sel, &wait_entry, send_sig, cb_data, thread_id,
+		      &wake_time);
     sel_timer_unlock(sel);
 
 #ifdef HAVE_EPOLL_PWAIT
