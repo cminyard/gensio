@@ -1,6 +1,6 @@
 #
 #  gensio - A library for abstracting stream I/O
-#  Copyright (C) 2018  Corey Minyard <minyard@acm.org>
+#  Copyright (C) 2020  Corey Minyard <minyard@acm.org>
 #
 #  SPDX-License-Identifier: GPL-2.0-only
 #
