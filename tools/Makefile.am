@@ -51,3 +51,5 @@ endif
 
 EXTRA_DIST = $(manpages) gtlssh-keygen.in CMakeLists.txt gtlssync
 
+clean-local:
+	rm -f gtlssh-keygen
