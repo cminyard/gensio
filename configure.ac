@@ -143,7 +143,6 @@ AC_ARG_WITH(swig,
     fi,
 )
 
-pythonprog=
 trypython=yes
 AC_ARG_WITH(python,
  [AS_HELP_STRING([--with-python[[=yes|no|PATH]]],
@@ -160,28 +159,24 @@ AC_ARG_WITH(python,
     fi,
 )
 
-pythoninstalldir=
 AC_ARG_WITH(pythoninstall,
  [AS_HELP_STRING([--with-pythoninstall=PATH],
 		 [Install python modules in the given location.])],
     pythoninstalldir="$withval",
 )
 
-pythoninstalllibdir=
 AC_ARG_WITH(pythoninstalllib,
  [AS_HELP_STRING([--with-pythoninstalllib=PATH],
 		 [Install python libraries in the given location.])],
     pythoninstalllibdir="$withval",
 )
 
-pythoncflags=
 AC_ARG_WITH(pythoncflags,
  [AS_HELP_STRING([--with-pythoncflags=PATH],
 		 [Use the given flags when compiling python parts.])],
     pythoncflags="$withval",
 )
 
-pythonusepthreads=
 AC_ARG_WITH(pythonusepthreads,
  [AS_HELP_STRING([--with-pythonusepthreads[[=yes|no]]],
 		 [Use threads with python.])],
