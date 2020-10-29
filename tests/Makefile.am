@@ -157,4 +157,4 @@ clean-local:
 		ssl-randfile fuzz-test-ssl fuzz-results-ssl \
 		ssl-infile \
 		telnet-randfile fuzz-test-telnet fuzz-results-telnet \
-		telnet-infile
+		telnet-infile __pycache__
