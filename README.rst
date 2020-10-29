@@ -53,6 +53,15 @@ To fully build gensio, you need the following:
 
 * avahi - If you want gensio to have mdns support.
 
+Handling python installation configuration is a bit of a pain.  By
+default the build scripts will put it wherever the python program
+expects installed python programs to be.  A normal user generally
+doesn't have write access to that directory.
+
+To override this, you can use the --with-pythoninstall
+and --with-pythoninstalllib configure options or you can set the
+pythoninstalldir and pythoninstalllibdir environment variables to
+where you want the libraries and modules to go.
 
 gensio tools
 ============
