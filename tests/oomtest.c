@@ -32,6 +32,9 @@ struct oom_tests {
     char *connecter;
     const char *accepter;
     bool (*check_if_present)(struct gensio_os_funcs *o, struct oom_tests *test);
+    void (*end_test_suite)(struct gensio_os_funcs *o, struct oom_tests *test);
+    int (*start_test)(struct gensio_os_funcs *o, struct oom_tests *test);
+    void (*end_test)(struct gensio_os_funcs *o, struct oom_tests *test);
     bool check_done;
     bool check_value;
     bool free_connecter;
@@ -45,7 +48,23 @@ struct oom_tests {
 
     /* Put a limit on the I/O size that can be used. */
     gensiods max_io_size;
+
+    /* Used for holding temporary filenames. */
+    char configname[100];
+    char emuname[100];
+    struct gensio *io;
+    struct gensio *io2;
+    char *args;
+    bool str_found;
+    unsigned int wait_pos;
+    int err;
+    struct gensio_waiter *waiter;
+    struct gensio_os_funcs *o;
 };
+
+static sigset_t waitsigs;
+bool verbose;
+bool debug;
 
 #if HAVE_SERIALDEV
 #include <sys/types.h>
@@ -118,9 +137,9 @@ check_sctp_present(struct gensio_os_funcs *o, struct oom_tests *test)
 }
 
 static bool
-check_serialdev_present(struct gensio_os_funcs *o, struct oom_tests *test)
+get_echo_dev(struct gensio_os_funcs *o, const char *testname,
+	     const char *str, char **newstr)
 {
-#if HAVE_SERIALDEV
     const char *e = getenv("GENSIO_TEST_ECHO_DEV");
 
     if (e) {
@@ -133,15 +152,337 @@ check_serialdev_present(struct gensio_os_funcs *o, struct oom_tests *test)
     }
     if (!file_is_accessible_dev(e)) {
 	printf("Serial echo device '%s' doesn't exist or is not accessible,\n"
-	       "skipping serialdev test\n", e);
+	       "skipping %s test\n", e, testname);
 	return false;
     }
-    test->connecter = gensio_alloc_sprintf(o, test->connecter, e);
-    if (!test->connecter) {
+    *newstr = gensio_alloc_sprintf(o, str, e);
+    if (!*newstr) {
 	printf("Unable to allocate memory for echo device '%s',\n"
-	       "skipping serialdev test\n", e);
+	       "skipping %s test\n", e, testname);
 	return false;
     }
+    return true;
+}
+
+static char *ipmisim_emu =
+    "mc_setbmc 0x20\n"
+    "\n"
+    "mc_add 0x20 0 no-device-sdrs 0x23 9 8 0x9f 0x1291 0xf02 persist_sdr\n"
+    "sel_enable 0x20 1000 0x0a\n"
+    "\n"
+    "mc_enable 0x20\n";
+
+static char *ipmisim_config =
+    "name \"gensio_sim\"\n"
+    "\n"
+    "set_working_mc 0x20\n"
+    "\n"
+    "  startlan 1\n"
+    "    addr localhost 9001\n"
+    "\n"
+    "    priv_limit admin\n"
+    "\n"
+    "    # Allowed IPMI 1.5 authorization types\n"
+    "    allowed_auths_callback none md2 md5 straight\n"
+    "    allowed_auths_user none md2 md5 straight\n"
+    "    allowed_auths_operator none md2 md5 straight\n"
+    "    allowed_auths_admin none md2 md5 straight\n"
+    "\n"
+    "    guid a123456789abcdefa123456789abcdef\n"
+    "\n"
+    "  endlan\n"
+    "\n"
+    "  sol \"%s\" 115200\n"
+    "\n"
+    "  startnow false\n"
+    "\n"
+    "  user 1 true  \"\"        \"test\" user     10 none md2 md5 straight\n"
+    "  user 2 true  \"ipmiusr\" \"test\" admin    10 none md2 md5 straight\n";
+
+static int
+ipmisim_cb(struct gensio *io, void *user_data, int event, int err,
+	   unsigned char *buf, gensiods *buflen, const char *const *auxdata)
+{
+    struct oom_tests *test = user_data;
+    static const char waitstr[4] = "\x0a\x0d> ";
+    gensiods pos;
+
+    if (event != GENSIO_EVENT_READ)
+	return GE_NOTSUP;
+
+    if (err) {
+	test->err = err;
+	gensio_set_read_callback_enable(io, false);
+
+	if (verbose)
+	    printf("IPMISIM err: %s\n", gensio_err_to_str(err));
+	return 0;
+    }
+
+    if (verbose) {
+	char *buf2;
+
+	buf2 = malloc(*buflen + 1);
+	if (buf2) {
+	    memcpy(buf2, buf, *buflen);
+	    buf2[*buflen] = '\0';
+	    printf("IPMISIM out: %s\nIPMISIM done\n", buf2);
+	    free(buf2);
+	}
+    }
+
+    if (test->str_found)
+	return 0;
+
+    for (pos = 0; pos < *buflen; pos++) {
+	if (buf[pos] == (unsigned char) waitstr[test->wait_pos]) {
+	    test->wait_pos++;
+	    if (test->wait_pos >= sizeof(waitstr)) {
+		test->wait_pos = 0;
+		test->str_found = true;
+		test->o->wake(test->waiter);
+		break;
+	    }
+	} else {
+	    test->wait_pos = 0;
+	}
+    }
+
+    return 0;
+}
+
+static int
+ipmisim_err_cb(struct gensio *io, void *user_data, int event, int err,
+	   unsigned char *buf, gensiods *buflen, const char *const *auxdata)
+{
+    /* FIXME - Add debug I/O. */
+    if (err) {
+	gensio_set_read_callback_enable(io, false);
+	if (verbose)
+	    printf("IPMISIM err err: %s\n", gensio_err_to_str(err));
+	return 0;
+    }
+
+    if (verbose) {
+	char *buf2;
+
+	buf2 = malloc(*buflen + 1);
+	if (buf2) {
+	    memcpy(buf2, buf, *buflen);
+	    buf2[*buflen] = '\0';
+	    printf("IPMISIM err: %s\nIPMISIM err done\n", buf2);
+	    free(buf2);
+	}
+    }
+
+    return 0;
+}
+
+static int
+ipmisim_start(struct gensio_os_funcs *o, struct oom_tests *test)
+{
+    int err;
+    gensio_time timeout = { 5, 0 };
+
+    if (test->io)
+	/* Started from the check present code. */
+	return 0;
+
+    test->err = 0;
+    test->str_found = false;
+    test->wait_pos = 0;
+
+    err = str_to_gensio(test->args, o, ipmisim_cb, test, &test->io);
+    if (err) {
+	printf("Unable to alloc gensio %s: %s,\n"
+	       "skipping ipmisol test\n", test->args, gensio_err_to_str(err));
+	goto out_err;
+    }
+
+    err = gensio_open_s(test->io);
+    if (err) {
+	printf("Unable to open gensio %s: %s,\n"
+	       "skipping ipmisol test\n", test->args, gensio_err_to_str(err));
+	goto out_err;
+    }
+
+    err = gensio_alloc_channel(test->io, NULL, ipmisim_err_cb, test,
+			       &test->io2);
+    if (err) {
+	printf("Unable to alloc gensio stderr channel for %s: %s,\n"
+	       "skipping ipmisol test\n", test->args, gensio_err_to_str(err));
+	goto out_err;
+    }
+
+    err = gensio_open_s(test->io2);
+    if (err) {
+	printf("Unable to open gensio stderr channel for %s: %s,\n"
+	       "skipping ipmisol test\n", test->args, gensio_err_to_str(err));
+	goto out_err;
+    }
+
+    gensio_set_read_callback_enable(test->io, true);
+    gensio_set_read_callback_enable(test->io2, true);
+
+ retry:
+    err = o->wait_intr_sigmask(test->waiter, 1, &timeout, &waitsigs);
+    if (err == GE_INTERRUPTED)
+	goto retry;
+    if (err) {
+	printf("Error waiting for ipmi_sim started for %s: %s,\n"
+	       "skipping ipmisol test\n", test->args, gensio_err_to_str(err));
+	goto out_err;
+    }
+
+    return 0;
+
+ out_err:
+    if (test->io) {
+	gensio_free(test->io);
+	test->io = NULL;
+    }
+    if (test->io2) {
+	gensio_free(test->io2);
+	test->io2 = NULL;
+    }
+    return err;
+}
+
+static void
+ipmisim_end(struct gensio_os_funcs *o, struct oom_tests *test)
+{
+    int err;
+
+    if (test->io) {
+	err = gensio_close_s(test->io);
+	if (err)
+	    printf("ipmisim: Unable to close stdio channel for %s",
+		   test->args);
+	gensio_free(test->io);
+	test->io = NULL;
+    }
+    if (test->io2) {
+	err = gensio_close_s(test->io2);
+	if (err)
+	    printf("ipmisim: Unable to close stderr channel for %s",
+		   test->args);
+	gensio_free(test->io2);
+	test->io2 = NULL;
+    }
+}
+
+static void
+ipmisim_finish(struct gensio_os_funcs *o, struct oom_tests *test)
+{
+    ipmisim_end(o, test);
+    if (test->emuname[0]) {
+	unlink(test->emuname);
+	test->emuname[0] = '\0';
+    }
+    if (test->configname[0]) {
+	unlink(test->configname);
+	test->configname[0] = '\0';
+    }
+    if (test->args) {
+	o->free(o, test->args);
+	test->args = NULL;
+    }
+    if (test->waiter) {
+	o->free_waiter(test->waiter);
+	test->waiter = NULL;
+    }
+    test->o = NULL;
+}
+
+/* This function starts ipmi_sim for use by the ipmi tests. */
+static bool
+check_ipmisim_present(struct gensio_os_funcs *o, struct oom_tests *test)
+{
+    char *config = NULL;
+    const char *prog = getenv("IPMISIM_EXEC");
+    int fd;
+    ssize_t rv, len;
+
+    if (!prog)
+	prog = "ipmi_sim";
+
+    if (!get_echo_dev(o, "ipmisol", ipmisim_config, &config))
+	return false;
+
+    strncpy(test->configname, "/tmp/gensio_oomtest_conf_XXXXXX",
+	    sizeof(test->configname));
+    fd = mkstemp(test->configname);
+    if (fd == -1) {
+	printf("Unable to open ipmisim config file '%s',\n"
+	       "skipping ipmisol test\n", test->configname);
+	test->configname[0] = '\0';
+	goto out_err;
+    }
+    len = strlen(config);
+    rv = write(fd, config, len);
+    o->free(o, config);
+    config = NULL;
+    close(fd);
+    if (rv != len) {
+	unlink(test->configname);
+	printf("Unable to write ipmisim config file '%s',\n"
+	       "skipping ipmisol test\n", test->configname);
+	goto out_err;
+    }
+
+    strncpy(test->emuname, "/tmp/gensio_oomtest_emu_XXXXXX",
+	    sizeof(test->emuname));
+    fd = mkstemp(test->emuname);
+    if (fd == -1) {
+	printf("Unable to open ipmisim emu file '%s',\n"
+	       "skipping ipmisol test\n", test->emuname);
+	test->emuname[0] = '\0';
+	goto out_err;
+    }
+    rv = write(fd, ipmisim_emu, strlen(ipmisim_emu));
+    close(fd);
+    if (rv != strlen(ipmisim_emu)) {
+	printf("Unable to write ipmisim emu file '%s',\n"
+	       "skipping ipmisol test\n", test->emuname);
+	goto out_err;
+    }
+
+    test->args = gensio_alloc_sprintf(o, "stdio,%s -p -c %s -f %s",
+				prog, test->configname, test->emuname);
+    if (!test->args) {
+	printf("Unable to allocate ipmi_sim arguments,\n"
+	       "skipping ipmisol test\n");
+	goto out_err;
+    }
+
+    test->waiter = o->alloc_waiter(o);
+    if (!test->waiter) {
+	printf("Unable to allocate ipmi_sim ewaiter,\n"
+	       "skipping ipmisol test\n");
+	goto out_err;
+    }
+
+    test->o = o;
+
+    if (ipmisim_start(o, test))
+	goto out_err;
+
+    return true;
+
+ out_err:
+    if (config)
+	o->free(o, config);
+    ipmisim_finish(o, test);
+
+    return false;
+}
+
+static bool
+check_serialdev_present(struct gensio_os_funcs *o, struct oom_tests *test)
+{
+#if HAVE_SERIALDEV
+    if (!get_echo_dev(o, "serialdev", test->connecter, &test->connecter))
+	return false;
     test->free_connecter = true;
     return true;
 #else
@@ -163,6 +504,13 @@ check_oom_test_present(struct gensio_os_funcs *o, struct oom_tests *test)
 }
 
 struct oom_tests oom_tests[] = {
+    { "ipmisol,lan -U ipmiusr -P test -p 9001 localhost,115200", NULL,
+      .check_value = HAVE_OPENIPMI,
+      .check_if_present = check_ipmisim_present,
+      .end_test_suite = ipmisim_finish,
+      .start_test = ipmisim_start,
+      .end_test = ipmisim_end
+    },
     /*
      * I would like this to run on UDP, and it works, but the relpkt
      * code has to go through it's timeout operation when gensiot
@@ -239,13 +587,9 @@ struct oom_tests oom_tests[] = {
     { NULL }
 };
 
-bool verbose;
-bool debug;
-
 static struct gensio_os_funcs *o;
 static char *gensiot;
 static bool got_sigchild;
-static sigset_t waitsigs;
 
 static void
 handle_sigchld(int sig)
@@ -1383,7 +1727,14 @@ run_oom_tests(struct oom_tests *test, char *tstr,
     for (count = start; exit_code == 1 && count < end; ) {
 	if (verbose)
 	    print_test(test, tstr, close_acc, count);
+	if (test->start_test) {
+	    rv = test->start_test(o, test);
+	    if (rv)
+		goto next;
+	}
 	rv = tester(test, count, &exit_code, close_acc);
+	if (test->end_test)
+	    test->end_test(o, test);
 	if (rv && rv != GE_REMCLOSE && rv != GE_NOTREADY && rv != GE_SHUTDOWN
 		&& rv != GE_LOCALCLOSED && rv != GE_NOTFOUND) {
 	    if (!verbose)
@@ -1514,6 +1865,8 @@ run_tests(struct oom_tests *test, int testnrstart, int testnrend,
 	*errcount += run_oom_tests(test, "oom acc",
 				   run_oom_acc_test,
 				   testnrstart, testnrend);
+    if (test->end_test_suite)
+	test->end_test_suite(o, test);
 }
 
 int
@@ -1566,6 +1919,38 @@ main(int argc, char *argv[])
     for (j = 0; oom_tests[j].connecter; j++)
 	numtests++;
 
+    sigemptyset(&sigs);
+    sigaddset(&sigs, SIGCHLD);
+    sigaddset(&sigs, SIGPIPE); /* Ignore broken pipes. */
+    rv = sigprocmask(SIG_BLOCK, &sigs, NULL);
+    if (rv) {
+	perror("Could not set up signal mask");
+	exit(1);
+    }
+    rv = sigprocmask(SIG_BLOCK, NULL, &waitsigs);
+    if (rv) {
+	perror("Could not get signal mask");
+	exit(1);
+    }
+    sigdelset(&waitsigs, SIGCHLD);
+
+    memset(&sigdo, 0, sizeof(sigdo));
+    sigdo.sa_handler = handle_sigchld;
+    sigdo.sa_flags = SA_NOCLDSTOP;
+    rv = sigaction(SIGCHLD, &sigdo, NULL);
+    if (rv) {
+	perror("Could not set up sigchld handler");
+	exit(1);
+    }
+
+    sigdo.sa_handler = handle_sigusr1;
+    sigdo.sa_flags = 0;
+    rv = sigaction(SIGUSR1, &sigdo, NULL);
+    if (rv) {
+	perror("Could not set up siguser1 handler");
+	exit(1);
+    }
+
     for (i = 1; i < argc; i++) {
 	if (argv[i][0] != '-')
 	    break;
@@ -1583,6 +1968,8 @@ main(int argc, char *argv[])
 		    continue;
 		printf("%d : %s %s\n", j, oom_tests[j].connecter,
 		       oom_tests[j].accepter ? oom_tests[j].accepter : "");
+		if (oom_tests[j].end_test_suite)
+		    oom_tests[j].end_test_suite(o, oom_tests + j);
 	    }
 	    exit(0);
 	} else if (strcmp(argv[i], "-t") == 0) {
@@ -1674,38 +2061,6 @@ main(int argc, char *argv[])
 	}
     } else {
 	gensiot = argv[i];
-    }
-
-    sigemptyset(&sigs);
-    sigaddset(&sigs, SIGCHLD);
-    sigaddset(&sigs, SIGPIPE); /* Ignore broken pipes. */
-    rv = sigprocmask(SIG_BLOCK, &sigs, NULL);
-    if (rv) {
-	perror("Could not set up signal mask");
-	exit(1);
-    }
-    rv = sigprocmask(SIG_BLOCK, NULL, &waitsigs);
-    if (rv) {
-	perror("Could not get signal mask");
-	exit(1);
-    }
-    sigdelset(&waitsigs, SIGCHLD);
-
-    memset(&sigdo, 0, sizeof(sigdo));
-    sigdo.sa_handler = handle_sigchld;
-    sigdo.sa_flags = SA_NOCLDSTOP;
-    rv = sigaction(SIGCHLD, &sigdo, NULL);
-    if (rv) {
-	perror("Could not set up sigchld handler");
-	exit(1);
-    }
-
-    sigdo.sa_handler = handle_sigusr1;
-    sigdo.sa_flags = 0;
-    rv = sigaction(SIGUSR1, &sigdo, NULL);
-    if (rv) {
-	perror("Could not set up siguser1 handler");
-	exit(1);
     }
 
 #ifdef USE_PTHREADS
