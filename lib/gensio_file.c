@@ -64,6 +64,8 @@ struct filen_data {
     bool read_enabled;
     bool xmit_enabled;
 
+    bool read_close;
+
     gensio_done_err open_done;
     void *open_data;
 
@@ -327,10 +329,15 @@ filen_deferred_op(struct gensio_runner *runner, void *cb_data)
 	    }
 	}
 	count = ndata->data_pending_len;
-	filen_unlock(ndata);
-	gensio_cb(ndata->io, GENSIO_EVENT_READ, ndata->read_err,
-		  ndata->read_data, &count, NULL);
-	filen_lock(ndata);
+	if (!ndata->read_close && ndata->read_err == GE_REMCLOSE) {
+	    /* Just don't report anything at the end of data. */
+	    ndata->read_enabled = false;
+	} else {
+	    filen_unlock(ndata);
+	    gensio_cb(ndata->io, GENSIO_EVENT_READ, ndata->read_err,
+		      ndata->read_data, &count, NULL);
+	    filen_lock(ndata);
+	}
 	if (count > 0) {
 	    if (count >= ndata->data_pending_len) {
 		ndata->data_pending_len = 0;
@@ -573,6 +580,7 @@ struct file_ndata_data {
     const char *infile;
     const char *outfile;
     bool create;
+    bool read_close;
     mode_type mode;
 };
 
@@ -589,6 +597,7 @@ file_ndata_setup(struct gensio_os_funcs *o, struct file_ndata_data *data,
     ndata->refcount = 1;
     ndata->create = data->create;
     ndata->mode = data->mode;
+    ndata->read_close = data->read_close;
 
     if (data->infile) {
 	ndata->infile = gensio_strdup(o, data->infile);
@@ -634,6 +643,7 @@ process_file_args(const char * const args[], struct file_ndata_data *data)
     unsigned int umode = 6, gmode = 6, omode = 6, i, mode;
 
     memset(data, 0, sizeof(*data));
+    data->read_close = true;
     data->max_read_size = GENSIO_DEFAULT_BUF_SIZE;
 
     for (i = 0; args && args[i]; i++) {
@@ -659,6 +669,8 @@ process_file_args(const char * const args[], struct file_ndata_data *data)
 	    continue;
 	}
 #endif
+	if (gensio_check_keybool(args[i], "read_close", &data->read_close) > 0)
+	    continue;
 	return GE_INVAL;
     }
     data->mode = umode << 6 | gmode << 3 | omode;

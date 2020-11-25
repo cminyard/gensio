@@ -750,6 +750,12 @@ Set the input filename.
 .B outfile=filename
 Set the output filename.
 .TP
+.B read_close[=true|false]
+If this is true (the default), cause a GE_REMCLOSE error on read when
+all the file data is ready.  If false, just stop returning data and
+don't do the GE_REMCLOSE.  This is useful if you just want to inject a
+bunch of data then do nothing.
+.TP
 .B create[=true|false]
 Create the output file if it does not exist.
 .TP
