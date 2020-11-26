@@ -2035,6 +2035,8 @@ gensio_default_init(void *cb_data)
 						  NULL, 0);
 }
 
+extern void gensio_sol_cleanup_mem(void);
+
 void
 gensio_cleanup_mem(struct gensio_os_funcs *o)
 {
@@ -2077,6 +2079,7 @@ gensio_cleanup_mem(struct gensio_os_funcs *o)
 
     memset(&gensio_default_initialized, 0, sizeof(gensio_default_initialized));
     memset(&gensio_base_initialized, 0, sizeof(gensio_base_initialized));
+    gensio_sol_cleanup_mem();
 }
 
 static void

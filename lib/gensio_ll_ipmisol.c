@@ -1658,6 +1658,12 @@ ipmisol_gensio_ll_alloc(struct gensio_os_funcs *o,
     return err;
 }
 
+void
+gensio_sol_cleanup_mem(void)
+{
+    ipmi_shutdown();
+}
+
 #else
 
 int
@@ -1671,6 +1677,11 @@ ipmisol_gensio_ll_alloc(struct gensio_os_funcs *o,
 			struct gensio_ll **rll)
 {
     return GE_NOTSUP;
+}
+
+void
+gensio_sol_cleanup_mem(void)
+{
 }
 
 #endif
