@@ -584,6 +584,20 @@ struct sol_ll {
     unsigned int ack_retries;
     bool deassert_CTS_DCD_DSR_on_connect;
     bool shared_serial_alert_behavior;
+
+    /* Pending transmit done handling. */
+    bool xmit_dones_pending;
+    struct gensio_list xmit_dones;
+    struct gensio_lock *xmit_done_lock;
+    struct gensio_runner *xmit_done_runner;
+};
+
+/* Used to hold information about pending transmits. */
+struct sol_tc {
+    unsigned int size;
+    struct sol_ll *solll;
+    int err;
+    struct gensio_link link;
 };
 
 os_handler_t *gensio_os_handler;
@@ -614,6 +628,10 @@ static void sol_finish_free(struct sol_ll *solll)
 	gensio_ll_free_data(solll->ll);
     if (solll->lock)
 	solll->o->free_lock(solll->lock);
+    if (solll->xmit_done_lock)
+	solll->o->free_lock(solll->xmit_done_lock);
+    if (solll->xmit_done_runner)
+	solll->o->free_runner(solll->xmit_done_runner);
     if (solll->read_data.buf)
 	solll->o->free(solll->o, solll->read_data.buf);
     if (solll->deferred_op_runner)
@@ -651,6 +669,8 @@ static int sol_xlat_ipmi_err(struct gensio_os_funcs *o, int err)
 	    err = GE_COMMERR;
 	else if (err == IPMI_SOL_DEACTIVATED)
 	    err = GE_HOSTDOWN;
+	else
+	    err = GE_COMMERR;
     } else if (IPMI_IS_RMCPP_ERR(err)) {
 	err = IPMI_GET_RMCPP_ERR(err);
 	if (err == IPMI_RMCPP_INVALID_PAYLOAD_TYPE)
@@ -761,12 +781,64 @@ sol_set_callbacks(struct gensio_ll *ll, gensio_ll_cb cb, void *cb_data)
     solll->cb_data = cb_data;
 }
 
-struct sol_tc {
-    unsigned int size;
-    struct sol_ll *solll;
-};
-
 static void connection_closed(ipmi_con_t *ipmi, void *cb_data);
+
+static void
+handle_xmit_dones(struct gensio_runner *runner, void *cbdata)
+{
+    struct sol_ll *solll = cbdata;
+    struct gensio_os_funcs *o = solll->o;
+    unsigned int deref_count = 0;
+
+    sol_lock(solll);
+    o->lock(solll->xmit_done_lock);
+    solll->xmit_dones_pending = false;
+    while (!gensio_list_empty(&solll->xmit_dones)) {
+	struct gensio_link *l = gensio_list_first(&solll->xmit_dones);
+	struct sol_tc *tc = gensio_container_of(l, struct sol_tc, link);
+
+	gensio_list_rm(&solll->xmit_dones, l);
+	o->unlock(solll->xmit_done_lock);
+
+	if (tc->err && solll->state != SOL_IN_CLOSE) {
+	    solll->read_err = tc->err;
+	    check_for_read_delivery(solll);
+	} else {
+	    solll->write_outstanding -= tc->size;
+	    if (solll->state == SOL_IN_CLOSE) {
+		if (solll->write_outstanding == 0) {
+		    tc->err = ipmi_sol_close(solll->sol);
+		    if (tc->err)
+			tc->err = solll->ipmi->close_connection_done(
+					     solll->ipmi,
+					     connection_closed,
+					     solll);
+		    if (tc->err) {
+			solll->state = SOL_CLOSED;
+			solll->ipmi = NULL;
+			if (solll->close_done)
+			    solll->close_done(solll->cb_data, solll->open_data);
+		    }
+		}
+	    } else {
+		check_for_write_ready(solll);
+	    }
+	}
+	o->free(o, tc);
+	deref_count++;
+
+	o->lock(solll->xmit_done_lock);
+    }
+    o->unlock(solll->xmit_done_lock);
+
+    if (deref_count >= 1) {
+	assert(solll->refcount >= deref_count);
+	solll->refcount -= deref_count - 1;
+	sol_deref_and_unlock(solll);
+    } else {
+	sol_unlock(solll);
+    }
+}
 
 static void
 transmit_complete(ipmi_sol_conn_t *conn,
@@ -775,36 +847,24 @@ transmit_complete(ipmi_sol_conn_t *conn,
 {
     struct sol_tc *tc = cb_data;
     struct sol_ll *solll = tc->solll;
+    struct gensio_os_funcs *o = solll->o;
 
     if (err)
-	err = sol_xlat_ipmi_err(solll->o, err);
+	err = sol_xlat_ipmi_err(o, err);
+    tc->err = err;
 
-    sol_lock(solll);
-    if (err && solll->state != SOL_IN_CLOSE) {
-	solll->read_err = err;
-	check_for_read_delivery(solll);
-    } else {
-	solll->write_outstanding -= tc->size;
-	if (solll->state == SOL_IN_CLOSE) {
-	    if (solll->write_outstanding == 0) {
-		err = ipmi_sol_close(solll->sol);
-		if (err)
-		    err = solll->ipmi->close_connection_done(solll->ipmi,
-							     connection_closed,
-							     solll);
-		if (err) {
-		    solll->state = SOL_CLOSED;
-		    solll->ipmi = NULL;
-		    if (solll->close_done)
-			solll->close_done(solll->cb_data, solll->open_data);
-		}
-	    }
-	} else {
-	    check_for_write_ready(solll);
-	}
+    /*
+     * Unfortunately, OpenIPMI isn't quite as nice as gensio, you can
+     * get callbacks from user function calls.  So we need to run the
+     * transmit complete handling in a runner.
+     */
+    o->lock(solll->xmit_done_lock);
+    gensio_list_add_tail(&solll->xmit_dones, &tc->link);
+    if (!solll->xmit_dones_pending) {
+	solll->xmit_dones_pending = true;
+	o->run(solll->xmit_done_runner);
     }
-    solll->o->free(solll->o, tc);
-    sol_deref_and_unlock(solll);
+    o->unlock(solll->xmit_done_lock);
 }
 
 static int
@@ -829,16 +889,13 @@ sol_write(struct gensio_ll *ll, gensiods *rcount,
 	total_write += sg[i].buflen;
     if (total_write > left)
 	total_write = left;
-    if (total_write == 0)
+    if (total_write == 0) {
+	pos = 0;
 	goto out_finish;
+    }
 
     buf = solll->o->zalloc(solll->o, total_write);
     if (!buf) {
-	err = GE_NOMEM;
-	goto out_unlock;
-    }
-    tc = solll->o->zalloc(solll->o, sizeof(*tc));
-    if (!tc) {
 	err = GE_NOMEM;
 	goto out_unlock;
     }
@@ -852,21 +909,41 @@ sol_write(struct gensio_ll *ll, gensiods *rcount,
 	}
     }
 
-    tc->size = total_write;
-    tc->solll = solll;
-    err = ipmi_sol_write(solll->sol, buf, total_write, transmit_complete, tc);
-    if (err) {
-	err = sol_xlat_ipmi_err(solll->o, err);
-	free(tc);
-	goto out_unlock;
-    } else {
-	solll->write_outstanding += total_write;
-	sol_ref(solll);
+    pos = 0;
+    while (pos < total_write) {
+	tc = solll->o->zalloc(solll->o, sizeof(*tc));
+	if (!tc) {
+	    if (pos == 0) {
+		/* Nothing transmitted, return an error. */
+		err = GE_NOMEM;
+		goto out_unlock;
+	    }
+	    goto out_finish;
+	}
+	if (total_write - pos > 255)
+	    tc->size = 255;
+	else
+	    tc->size = total_write - pos;
+	tc->solll = solll;
+	err = ipmi_sol_write(solll->sol, buf + pos, tc->size,
+			     transmit_complete, tc);
+	if (err) {
+	    free(tc);
+	    if (pos == 0) {
+		/* Nothing transmitted, return an error. */
+		err = sol_xlat_ipmi_err(solll->o, err);
+		goto out_unlock;
+	    }
+	    goto out_finish;
+	} else {
+	    solll->write_outstanding += tc->size;
+	    sol_ref(solll);
+	    pos += tc->size;
+	}
     }
-    
  out_finish:
     if (rcount)
-	*rcount = total_write;
+	*rcount = pos;
  out_unlock:
     if (buf)
 	solll->o->free(solll->o, buf);
@@ -1544,6 +1621,15 @@ ipmisol_gensio_ll_alloc(struct gensio_os_funcs *o,
 
     solll->lock = o->alloc_lock(o);
     if (!solll->lock)
+	goto out_nomem;
+
+    solll->xmit_done_lock = o->alloc_lock(o);
+    if (!solll->xmit_done_lock)
+	goto out_nomem;
+    gensio_list_init(&solll->xmit_dones);
+
+    solll->xmit_done_runner = o->alloc_runner(o, handle_xmit_dones, solll);
+    if (!solll->xmit_done_runner)
 	goto out_nomem;
 
     solll->read_data.maxsize = max_read_size;
