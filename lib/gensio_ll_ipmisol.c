@@ -1545,7 +1545,8 @@ sol_process_parms(struct sol_ll *solll)
     return 0;
 }
 
-struct gensio_once gensio_ipmi_initialized;
+static struct gensio_once gensio_ipmi_initialized;
+static int ipmi_init_err;
 
 static void
 gensio_ipmi_init(void *cb_data)
@@ -1555,7 +1556,7 @@ gensio_ipmi_init(void *cb_data)
     gensio_os_handler = gio_alloc(o);
     if (!gensio_os_handler)
 	abort();
-    ipmi_init(gensio_os_handler);
+    ipmi_init_err = ipmi_init(gensio_os_handler);
 }
 
 int
@@ -1573,6 +1574,9 @@ ipmisol_gensio_ll_alloc(struct gensio_os_funcs *o,
     const char **argv;
 
     o->call_once(o, &gensio_ipmi_initialized, gensio_ipmi_init, o);
+
+    if (ipmi_init_err)
+	return sol_xlat_ipmi_err(o, ipmi_init_err);
 
     solll = o->zalloc(o, sizeof(*solll));
     if (!solll)
