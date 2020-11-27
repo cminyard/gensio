@@ -110,7 +110,7 @@ gio_add_fd_to_wait_for(os_handler_t       *handler,
 
     fd_data = malloc(sizeof(*fd_data));
     if (!fd_data)
-	return GE_NOMEM;
+	return ENOMEM;
 
     fd_data->fd = fd;
     fd_data->cb_data = cb_data;
@@ -181,12 +181,12 @@ gio_alloc_timer(os_handler_t      *handler,
 
     timer = malloc(sizeof(*timer));
     if (!timer)
-	return GE_NOMEM;
+	return ENOMEM;
 
     timer->lock = o->alloc_lock(o);
     if (!timer->lock) {
 	free(timer);
-	return GE_NOMEM;
+	return ENOMEM;
     }
 
     timer->running = false;
@@ -197,7 +197,7 @@ gio_alloc_timer(os_handler_t      *handler,
     if (!timer->timer) {
 	o->free_lock(timer->lock);
 	free(timer);
-	return GE_NOMEM;
+	return ENOMEM;
     }
 
     *rtimer = timer;
@@ -231,7 +231,7 @@ gio_start_timer(os_handler_t      *handler,
 
     o->lock(timer->lock);
     if (timer->running) {
-	rv = GE_NOTREADY;
+	rv = EAGAIN;
 	goto out_unlock;
     }
 
@@ -265,7 +265,7 @@ gio_stop_timer(os_handler_t *handler,
 	timer->running = 0;
 	o->stop_timer(timer->timer);
     } else {
-	rv = GE_TIMEDOUT;
+	rv = ETIMEDOUT;
     }
     o->unlock(timer->lock);
 
@@ -287,12 +287,12 @@ gio_create_lock(os_handler_t  *handler,
 
     lock = malloc(sizeof(*lock));
     if (!lock)
-	return GE_NOMEM;
+	return ENOMEM;
 
     lock->lock = o->alloc_lock(o);
     if (!lock->lock) {
 	free(lock);
-	return GE_NOMEM;
+	return ENOMEM;
     }
 
     *rlock = lock;
