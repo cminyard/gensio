@@ -1641,15 +1641,15 @@ ipmisol_gensio_ll_alloc(struct gensio_os_funcs *o,
     if (!solll->read_data.buf)
 	goto out_nomem;
 
-    /* Don't set these until here lest a failure call the free operation. */
-    solll->ser_cbs = ser_cbs;
-    solll->ser_cbs_data = ser_cbs_data;
-
     solll->max_write_size = max_write_size;
 
     solll->ll = gensio_ll_alloc_data(o, gensio_ll_sol_func, solll);
     if (!solll->ll)
 	goto out_nomem;
+
+    /* Don't set these until here lest a failure call the free operation. */
+    solll->ser_cbs = ser_cbs;
+    solll->ser_cbs_data = ser_cbs_data;
 
     *rops = ipmisol_ser_ops;
     *rll = solll->ll;
