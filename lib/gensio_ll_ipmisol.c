@@ -1079,7 +1079,7 @@ conn_changed(ipmi_con_t   *ipmi,
 	err = sol_xlat_ipmi_err(solll->o, err);
 
     sol_lock(solll);
-    if (any_port_up == solll->last_any_port_up)
+    if (!err && any_port_up == solll->last_any_port_up)
 	goto out_unlock;
 
     solll->last_any_port_up = any_port_up;
@@ -1094,6 +1094,15 @@ conn_changed(ipmi_con_t   *ipmi,
 	    solll->state = SOL_CLOSED;
 	    if (solll->read_err)
 		err = solll->read_err; /* Prefer the first error we got. */
+	    if (solll->sol) {
+		ipmi_sol_close(solll->sol);
+		ipmi_sol_free(solll->sol);
+		solll->sol = NULL;
+	    }
+	    if (solll->ipmi) {
+		solll->ipmi->close_connection(solll->ipmi);
+		solll->ipmi = NULL;
+	    }
 	    sol_unlock(solll);
 	    solll->open_done(solll->cb_data, err, solll->open_data);
 	    return;
@@ -1186,7 +1195,9 @@ sol_open(struct gensio_ll *ll, gensio_ll_open_done done, void *open_data)
     solll->open_done = done;
     solll->open_data = open_data;
 
-    solll->ipmi->start_con(solll->ipmi);
+    err = solll->ipmi->start_con(solll->ipmi);
+    if (err)
+	goto out_err;
 
     sol_unlock(solll);
     return GE_INPROGRESS;
