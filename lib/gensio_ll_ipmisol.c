@@ -1126,8 +1126,10 @@ conn_changed(ipmi_con_t   *ipmi,
 	}
     } else if (err) {
 	solll->read_err = err;
+	check_for_read_delivery(solll);
     } else if (!any_port_up) {
 	solll->read_err = GE_NOTREADY;
+	check_for_read_delivery(solll);
     }
 	
  out_unlock:
