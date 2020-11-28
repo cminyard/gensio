@@ -1138,7 +1138,7 @@ sol_open(struct gensio_ll *ll, gensio_ll_open_done done, void *open_data)
     err = ipmi_args_setup_con(solll->args, gensio_os_handler, NULL,
 			      &solll->ipmi);
     if (err)
-	return err;
+	goto out_unlock;
 
     err = ipmi_sol_create(solll->ipmi, &solll->sol);
     if (err)
@@ -1203,6 +1203,8 @@ sol_open(struct gensio_ll *ll, gensio_ll_open_done done, void *open_data)
     }
  out_unlock:
     sol_unlock(solll);
+    if (err)
+	err = sol_xlat_ipmi_err(solll->o, err);
     return err;
 }
 
