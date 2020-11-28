@@ -624,6 +624,12 @@ sol_ref(struct sol_ll *solll)
 
 static void sol_finish_free(struct sol_ll *solll)
 {
+    if (solll->sol) {
+	ipmi_sol_close(solll->sol);
+	ipmi_sol_free(solll->sol);
+    }
+    if (solll->ipmi)
+	solll->ipmi->close_connection(solll->ipmi);
     if (solll->ll)
 	gensio_ll_free_data(solll->ll);
     if (solll->lock)
@@ -1079,7 +1085,7 @@ conn_changed(ipmi_con_t   *ipmi,
 	err = sol_xlat_ipmi_err(solll->o, err);
 
     sol_lock(solll);
-    if (!err && any_port_up == solll->last_any_port_up)
+    if (any_port_up == solll->last_any_port_up)
 	goto out_unlock;
 
     solll->last_any_port_up = any_port_up;
@@ -1088,9 +1094,13 @@ conn_changed(ipmi_con_t   *ipmi,
 	if (any_port_up && solll->state == SOL_IN_OPEN) {
 	    solll->state = SOL_IN_SOL_OPEN;
 	    sol_unlock(solll);
-	    ipmi_sol_open(solll->sol);
-	    return;
-	} else if (!any_port_up && (err || solll->read_err)) {
+	    err = ipmi_sol_open(solll->sol);
+	    if (!err)
+		return;
+	    any_port_up = 0;
+	    err = sol_xlat_ipmi_err(solll->o, err);
+	}
+	if (!any_port_up && (err || solll->read_err)) {
 	    solll->state = SOL_CLOSED;
 	    if (solll->read_err)
 		err = solll->read_err; /* Prefer the first error we got. */
@@ -1598,6 +1608,7 @@ ipmisol_gensio_ll_alloc(struct gensio_os_funcs *o,
     solll->o = o;
     solll->refcount = 1;
     solll->state = SOL_CLOSED;
+    solll->last_any_port_up = -1;
 
     solll->devname = gensio_strdup(o, devname);
     if (!solll->devname)
