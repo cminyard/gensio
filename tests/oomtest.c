@@ -505,6 +505,8 @@ check_oom_test_present(struct gensio_os_funcs *o, struct oom_tests *test)
 
 struct oom_tests oom_tests[] = {
     { "ipmisol,lan -U ipmiusr -P test -p 9001 localhost,115200", NULL,
+      /* In this test some errors will not result in a failure. */
+      .allow_no_err_on_trig = true,
       .check_value = HAVE_OPENIPMI,
       .check_if_present = check_ipmisim_present,
       .end_test_suite = ipmisim_finish,
