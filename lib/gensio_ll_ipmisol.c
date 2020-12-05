@@ -934,7 +934,7 @@ sol_write(struct gensio_ll *ll, gensiods *rcount,
 	err = ipmi_sol_write(solll->sol, buf + pos, tc->size,
 			     transmit_complete, tc);
 	if (err) {
-	    free(tc);
+	    solll->o->free(solll->o, tc);
 	    if (pos == 0) {
 		/* Nothing transmitted, return an error. */
 		err = sol_xlat_ipmi_err(solll->o, err);
