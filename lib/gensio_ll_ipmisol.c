@@ -935,11 +935,15 @@ sol_write(struct gensio_ll *ll, gensiods *rcount,
 			     transmit_complete, tc);
 	if (err) {
 	    solll->o->free(solll->o, tc);
-	    if (pos == 0) {
-		/* Nothing transmitted, return an error. */
+	    if (pos == 0 && err != EAGAIN) {
+		/*
+		 * Nothing transmitted and it's not full buffers,
+		 * return an error.
+		 */
 		err = sol_xlat_ipmi_err(solll->o, err);
 		goto out_unlock;
 	    }
+	    err = 0;
 	    goto out_finish;
 	} else {
 	    solll->write_outstanding += tc->size;
