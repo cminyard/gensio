@@ -200,7 +200,7 @@ m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES([yes])])
 AC_CONFIG_MACRO_DIR([m4])
 AC_STDC_HEADERS
 AC_CHECK_LIB(nsl,main)
-HAVE_AVAHI=
+HAVE_AVAHI=0
 AC_CHECK_LIB(avahi-client, avahi_client_new,
 	     [AC_DEFINE([HAVE_AVAHI], [1], [Have avahi installed])
 	     HAVE_AVAHI=1
