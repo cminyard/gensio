@@ -184,7 +184,7 @@ class HandleData:
                     else:
                         s = s + str(buf[i:i+1])
                 else:
-                    s = s + "\\x%2.2x" % i
+                    s = s + "\\x%2.2x" % ord(buf[i:i+1])
             print("%s: Got data: (err %s %d bytes) %s" % (self.name, str(err),
                                                           len(buf), s))
         if self.expecting_remclose and err == "Remote end closed connection":
@@ -257,8 +257,8 @@ class HandleData:
                 raise HandlerException("%s: %scompare failure on byte %d, "
                                        "expected %x, got %x" %
                                        (self.name, oob, compared,
-                                        ord(compare_with[compared]),
-                                        ord(buf[i])))
+                                        compare_with[compared],
+                                        buf[i]))
             compared += 1
 
         if oob == "oob ":
@@ -763,34 +763,34 @@ def do_test(io1, io2):
     test_dataxfer(io1, io2, "This is a test string!")
     print("  Success!")
 
-def do_small_test(io1, io2):
+def do_small_test(io1, io2, timeout=2000):
     rb = os.urandom(512)
     print("  testing io1 to io2")
-    test_dataxfer(io1, io2, rb, timeout = 2000)
+    test_dataxfer(io1, io2, rb, timeout = timeout)
     print("  testing io2 to io1")
-    test_dataxfer(io2, io1, rb, timeout = 2000)
+    test_dataxfer(io2, io1, rb, timeout = timeout)
     print("  testing bidirection between io1 and io2")
-    test_dataxfer_simul(io1, io2, rb, timeout = 2000)
+    test_dataxfer_simul(io1, io2, rb, timeout = timeout)
     print("  Success!")
 
 def do_medium_test(io1, io2, timeout = 10000):
     rb = os.urandom(131071)
     print("  testing io1 to io2")
-    test_dataxfer(io1, io2, rb, timeout=timeout)
+    test_dataxfer(io1, io2, rb, timeout = timeout)
     print("  testing io2 to io1")
-    test_dataxfer(io2, io1, rb, timeout=timeout)
+    test_dataxfer(io2, io1, rb, timeout = timeout)
     print("  testing bidirection between io1 and io2")
-    test_dataxfer_simul(io1, io2, rb, timeout=timeout)
+    test_dataxfer_simul(io1, io2, rb, timeout = timeout)
     print("  Success!")
 
-def do_large_test(io1, io2):
+def do_large_test(io1, io2, timeout = 30000):
     rb = os.urandom(1048570)
     print("  testing io1 to io2")
-    test_dataxfer(io1, io2, rb, timeout=30000)
+    test_dataxfer(io1, io2, rb, timeout = timeout)
     print("  testing io2 to io1")
-    test_dataxfer(io2, io1, rb, timeout=30000)
+    test_dataxfer(io2, io1, rb, timeout = timeout)
     print("  testing bidirection between io1 and io2")
-    test_dataxfer_simul(io1, io2, rb, timeout=30000)
+    test_dataxfer_simul(io1, io2, rb, timeout = timeout)
     print("  Success!")
 
 def do_oob_test(io1, io2):
