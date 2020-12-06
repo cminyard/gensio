@@ -590,6 +590,13 @@ struct sol_ll {
     struct gensio_list xmit_dones;
     struct gensio_lock *xmit_done_lock;
     struct gensio_runner *xmit_done_runner;
+
+    /*
+     * We got a flush/break while one was still pending, do these when
+     * it finishes.
+     */
+    int pending_flush;
+    int pending_break;
 };
 
 /* Used to hold information about pending transmits. */
@@ -1097,10 +1104,11 @@ conn_changed(ipmi_con_t   *ipmi,
     if (solll->state == SOL_IN_OPEN || solll->state == SOL_IN_SOL_OPEN) {
 	if (any_port_up && solll->state == SOL_IN_OPEN) {
 	    solll->state = SOL_IN_SOL_OPEN;
-	    sol_unlock(solll);
 	    err = ipmi_sol_open(solll->sol);
-	    if (!err)
+	    if (!err) {
+		sol_unlock(solll);
 		return;
+	    }
 	    any_port_up = 0;
 	    err = sol_xlat_ipmi_err(solll->o, err);
 	}
@@ -1109,7 +1117,6 @@ conn_changed(ipmi_con_t   *ipmi,
 	    if (solll->read_err)
 		err = solll->read_err; /* Prefer the first error we got. */
 	    if (solll->sol) {
-		ipmi_sol_close(solll->sol);
 		ipmi_sol_free(solll->sol);
 		solll->sol = NULL;
 	    }
@@ -1383,6 +1390,98 @@ gensio_ll_sol_func(struct gensio_ll *ll, int op, gensiods *count,
     }
 }
 
+static void
+ipmisol_flush_done(ipmi_sol_conn_t *conn, int error,
+		   int queue_selectors_flushed, void *cb_data)
+{
+    struct sol_ll *solll = cb_data;
+    int rv;
+
+    sol_lock(solll);
+    if (solll->state == SOL_OPEN && solll->pending_break) {
+	/* A flush came in while one was pending, do it. */
+	rv = ipmi_sol_flush(solll->sol, solll->pending_break,
+			    ipmisol_flush_done, solll);
+	if (!rv) {
+	    solll->pending_flush = 0;
+	    sol_ref(solll);
+	}
+    }
+    sol_deref_and_unlock(solll);
+}
+
+static int ipmisol_do_flush(struct gensio_ll *ll, int val)
+{
+    struct sol_ll *solll = ll_to_sol(ll);
+    int rv;
+
+    switch(val) {
+    case SERGIO_FLUSH_RCV_BUFFER:
+	val = IPMI_SOL_BMC_RECEIVE_QUEUE;
+	break;
+
+    case SERGIO_FLUSH_XMIT_BUFFER:
+	val = IPMI_SOL_BMC_TRANSMIT_QUEUE;
+	break;
+
+    case SERGIO_FLUSH_RCV_XMIT_BUFFERS:
+	return GE_NOTSUP;
+
+    default:
+	return GE_INVAL;
+    }
+
+    sol_lock(solll);
+    rv = ipmi_sol_flush(solll->sol, val, ipmisol_flush_done, solll);
+    if (!rv) {
+	sol_ref(solll);
+    } else if (rv == EAGAIN) {
+	solll->pending_flush |= val;
+    } else {
+	rv = sol_xlat_ipmi_err(solll->o, rv);
+    }
+    sol_unlock(solll);
+
+    return rv;
+}
+
+static void
+ipmisol_break_done(ipmi_sol_conn_t *conn, int err, void *cb_data)
+{
+    struct sol_ll *solll = cb_data;
+    int rv;
+
+    sol_lock(solll);
+    if (solll->state == SOL_OPEN && solll->pending_break) {
+	/* A flush came in while one was pending, do it. */
+	rv = ipmi_sol_send_break(solll->sol, ipmisol_break_done, solll);
+	if (!rv) {
+	    solll->pending_break = 0;
+	    sol_ref(solll);
+	}
+    }
+    sol_deref_and_unlock(solll);
+}
+
+static int ipmisol_do_break(struct gensio_ll *ll)
+{
+    struct sol_ll *solll = ll_to_sol(ll);
+    int rv;
+
+    sol_lock(solll);
+    rv = ipmi_sol_send_break(solll->sol, ipmisol_break_done, solll);
+    if (!rv) {
+	sol_ref(solll);
+    } else if (rv == EAGAIN) {
+	solll->pending_break = 1;
+    } else {
+	rv = sol_xlat_ipmi_err(solll->o, rv);
+    }
+    sol_unlock(solll);
+
+    return rv;
+}
+
 static int
 ipmisol_ser_ops(struct gensio_ll *ll, int op,
 		int val, char *buf,
@@ -1390,10 +1489,10 @@ ipmisol_ser_ops(struct gensio_ll *ll, int op,
 {
     switch (op) {
     case SERGENSIO_FUNC_FLUSH:
-    break;
+	return ipmisol_do_flush(ll, val);
 
     case SERGENSIO_FUNC_SEND_BREAK:
-    break;
+	return ipmisol_do_break(ll);
 
     /* You really can't set much on a SOL connection once it's up. */
     case SERGENSIO_FUNC_BAUD:
@@ -1412,8 +1511,6 @@ ipmisol_ser_ops(struct gensio_ll *ll, int op,
     default:
 	return GE_NOTSUP;
     }
-
-    return 0;
 }
 
 static int
