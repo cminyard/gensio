@@ -1437,6 +1437,8 @@ static int ipmisol_do_flush(struct gensio_ll *ll, int val)
 	sol_ref(solll);
     } else if (rv == EAGAIN) {
 	solll->pending_flush |= val;
+    } else if (rv == IPMI_SOL_ERR_VAL(IPMI_SOL_UNCONFIRMABLE_OPERATION)) {
+	rv = 0; /* Operation done, but won't get a callback. */
     } else {
 	rv = sol_xlat_ipmi_err(solll->o, rv);
     }
@@ -1474,6 +1476,8 @@ static int ipmisol_do_break(struct gensio_ll *ll)
 	sol_ref(solll);
     } else if (rv == EAGAIN) {
 	solll->pending_break = 1;
+    } else if (rv == IPMI_SOL_ERR_VAL(IPMI_SOL_UNCONFIRMABLE_OPERATION)) {
+	rv = 0; /* Operation done, but won't get a callback. */
     } else {
 	rv = sol_xlat_ipmi_err(solll->o, rv);
     }
