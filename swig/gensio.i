@@ -838,6 +838,10 @@ struct waiter { };
 	    deref_swig_cb_val(h_val);
 	ser_err_handle("sg_signature", rv);
     }
+
+    void sg_send_break() {
+	ser_err_handle("sg_send_break", sergensio_send_break(self));
+    }
 }
 
 %constant int GENSIO_ACC_CONTROL_LADDR = GENSIO_ACC_CONTROL_LADDR;
