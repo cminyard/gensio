@@ -59,4 +59,4 @@ def compare_termios(tio1, tio2):
     for i in range(0, len(tio2[6])):
         if tio1[6][i] != tio2[6][i]:
             return i + 6;
-    return 0
+    return -1
