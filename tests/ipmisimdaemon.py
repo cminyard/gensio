@@ -122,7 +122,7 @@ class IPMISimDaemon:
         return
 
     def __del__(self):
-        if (self.handler):
+        if self.handler:
             self.terminate()
         del self.io
         return
@@ -146,16 +146,23 @@ class IPMISimDaemon:
             utils.io_close(self.io)
         count = 10
         while (count > 0):
-            if (count < 6):
-                self.signal(signal.SIGTERM)
-            else:
-                self.signal(signal.SIGKILL)
+            try:
+                if (count < 6):
+                    self.signal(signal.SIGTERM)
+                else:
+                    self.signal(signal.SIGKILL)
+            except:
+                None
             # It would be really nice if waitpid had a timeout options,
             # in absense of that simulate it, sort of.
             subcount = 500
             while (subcount > 0):
                 time.sleep(.01)
-                pid, rv = os.waitpid(self.pid, os.WNOHANG)
+                try:
+                    pid, rv = os.waitpid(self.pid, os.WNOHANG)
+                except:
+                    # Call failed, probably process has died.
+                    pid = self.pid
                 if (pid > 0):
                     self.handler = None
                     return
