@@ -113,6 +113,37 @@ GENSIO_DLL_PUBLIC
 int sergensio_rts(struct sergensio *sio, unsigned int rts,
 		  sergensio_done done, void *cb_data);
 
+/*
+ * Turning CTS off should stop the sender, setting it to auto puts it
+ * under control of the remote system.  This is for a modem-side
+ * connection, like ipmisol.
+ */
+#define SERGENSIO_CTS_AUTO	1
+#define SERGENSIO_CTS_OFF	2
+GENSIO_DLL_PUBLIC
+int sergensio_cts(struct sergensio *sio, unsigned int cts,
+		  sergensio_done done, void *cb_data);
+
+/*
+ * Controls the DCD/DSR lines to the remote side.  This is for a modem-side
+ * connection, like ipmisol.
+ */
+#define SERGENSIO_DCD_DSR_ON	1
+#define SERGENSIO_DCD_DSR_OFF	2
+GENSIO_DLL_PUBLIC
+int sergensio_dcd_dsr(struct sergensio *sio, unsigned int dcd_dsr,
+		      sergensio_done done, void *cb_data);
+
+/*
+ * Controls the RI (Ring Indicator) line to the remote side.  This is
+ * for a modem-side connection, like ipmisol.
+ */
+#define SERGENSIO_RI_ON		1
+#define SERGENSIO_RI_OFF	2
+GENSIO_DLL_PUBLIC
+int sergensio_ri(struct sergensio *sio, unsigned int ri,
+		 sergensio_done done, void *cb_data);
+
 GENSIO_DLL_PUBLIC
 int sergensio_signature(struct sergensio *sio,
 			const char *sig, unsigned int len,
@@ -214,6 +245,12 @@ GENSIO_DLL_PUBLIC
 int sergensio_dtr_b(struct sergensio_b *sbio, int *dtr);
 GENSIO_DLL_PUBLIC
 int sergensio_rts_b(struct sergensio_b *sbio, int *rts);
+GENSIO_DLL_PUBLIC
+int sergensio_cts_b(struct sergensio_b *sbio, int *cts);
+GENSIO_DLL_PUBLIC
+int sergensio_dcd_dsr_b(struct sergensio_b *sbio, int *dcd_dsr);
+GENSIO_DLL_PUBLIC
+int sergensio_ri_b(struct sergensio_b *sbio, int *ri);
 
 /*
  * Events for dynamic changes to the serial port.  Users can ignore these

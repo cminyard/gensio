@@ -160,6 +160,27 @@ sergensio_rts(struct sergensio *sio, unsigned int rts,
 }
 
 int
+sergensio_cts(struct sergensio *sio, unsigned int cts,
+	      sergensio_done done, void *cb_data)
+{
+    return sio->func(sio, SERGENSIO_FUNC_CTS, cts, NULL, done, cb_data);
+}
+
+int
+sergensio_dcd_dsr(struct sergensio *sio, unsigned int dcd_dsr,
+	      sergensio_done done, void *cb_data)
+{
+    return sio->func(sio, SERGENSIO_FUNC_DCD_DSR, dcd_dsr, NULL, done, cb_data);
+}
+
+int
+sergensio_ri(struct sergensio *sio, unsigned int ri,
+	      sergensio_done done, void *cb_data)
+{
+    return sio->func(sio, SERGENSIO_FUNC_RI, ri, NULL, done, cb_data);
+}
+
+int
 sergensio_signature(struct sergensio *sio, const char *sig, unsigned int len,
 		    sergensio_done_sig done, void *cb_data)
 {
@@ -469,6 +490,78 @@ sergensio_rts_b(struct sergensio_b *sbio, int *rts)
 	err = data.err;
     if (!err)
 	*rts = data.val;
+
+    return err;
+}
+
+int
+sergensio_cts_b(struct sergensio_b *sbio, int *cts)
+{
+    struct sergensio_b_data data;
+    int err;
+
+    data.waiter = sbio->o->alloc_waiter(sbio->o);
+    if (!data.waiter)
+	return GE_NOMEM;
+
+    data.err = 0;
+    data.o = sbio->o;
+    err = sergensio_cts(sbio->sio, *cts, sergensio_op_done, &data);
+    if (!err)
+	sbio->o->wait(data.waiter, 1, NULL);
+    sbio->o->free_waiter(data.waiter);
+    if (!err)
+	err = data.err;
+    if (!err)
+	*cts = data.val;
+
+    return err;
+}
+
+int
+sergensio_dcd_dsr_b(struct sergensio_b *sbio, int *dcd_dsr)
+{
+    struct sergensio_b_data data;
+    int err;
+
+    data.waiter = sbio->o->alloc_waiter(sbio->o);
+    if (!data.waiter)
+	return GE_NOMEM;
+
+    data.err = 0;
+    data.o = sbio->o;
+    err = sergensio_dcd_dsr(sbio->sio, *dcd_dsr, sergensio_op_done, &data);
+    if (!err)
+	sbio->o->wait(data.waiter, 1, NULL);
+    sbio->o->free_waiter(data.waiter);
+    if (!err)
+	err = data.err;
+    if (!err)
+	*dcd_dsr = data.val;
+
+    return err;
+}
+
+int
+sergensio_ri_b(struct sergensio_b *sbio, int *ri)
+{
+    struct sergensio_b_data data;
+    int err;
+
+    data.waiter = sbio->o->alloc_waiter(sbio->o);
+    if (!data.waiter)
+	return GE_NOMEM;
+
+    data.err = 0;
+    data.o = sbio->o;
+    err = sergensio_ri(sbio->sio, *ri, sergensio_op_done, &data);
+    if (!err)
+	sbio->o->wait(data.waiter, 1, NULL);
+    sbio->o->free_waiter(data.waiter);
+    if (!err)
+	err = data.err;
+    if (!err)
+	*ri = data.val;
 
     return err;
 }
