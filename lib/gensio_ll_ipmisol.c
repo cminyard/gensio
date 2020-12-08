@@ -521,10 +521,14 @@ struct sol_ll;
 
 struct sol_op_done {
     struct sol_ll *solll;
+    bool started;
+    bool use_runner;
     sergensio_done cb;
     int done_val;
-    bool waiting_cb;
+    int val;
     void *cb_data;
+    int (*func)(ipmi_sol_conn_t *, int, ipmi_sol_transmit_complete_cb, void *);
+    struct sol_op_done *next;
 };
 
 struct sol_ll {
@@ -609,9 +613,9 @@ struct sol_ll {
     int pending_flush;
     int pending_break;
 
-    struct sol_op_done cts_done;
-    struct sol_op_done dcd_dsr_done;
-    struct sol_op_done ri_done;
+    struct sol_op_done *cts_done;
+    struct sol_op_done *dcd_dsr_done;
+    struct sol_op_done *ri_done;
 };
 
 /* Used to hold information about pending transmits. */
@@ -766,6 +770,9 @@ check_for_write_ready(struct sol_ll *solll)
     }
 }
 
+static void sol_op_done(struct sol_ll *solll, int err,
+			struct sol_op_done **op_done);
+
 static void
 sol_deferred_op(struct gensio_runner *runner, void *cbdata)
 {
@@ -774,6 +781,13 @@ sol_deferred_op(struct gensio_runner *runner, void *cbdata)
     sol_lock(solll);
     while (solll->deferred_op_pending) {
 	solll->deferred_op_pending = false;
+
+	if (solll->cts_done && solll->cts_done->use_runner)
+	    sol_op_done(solll, 0, &solll->cts_done);
+	if (solll->dcd_dsr_done && solll->dcd_dsr_done->use_runner)
+	    sol_op_done(solll, 0, &solll->dcd_dsr_done);
+	if (solll->ri_done && solll->ri_done->use_runner)
+	    sol_op_done(solll, 0, &solll->ri_done);
 
 	while (solll->deferred_read) {
 	    solll->deferred_read = false;
@@ -1515,56 +1529,118 @@ static int ipmisol_do_break(struct gensio_ll *ll)
 static void
 ipmisol_op_done(ipmi_sol_conn_t *conn, int err, void *icb_data)
 {
-    struct sol_op_done *op_done = icb_data;
-    struct sol_ll *solll = op_done->solll;
-    sergensio_done cb;
-    void *cb_data;
-    int val;
+    struct sol_op_done **op_done = icb_data;
+    struct sol_ll *solll = (*op_done)->solll;
 
-    if (err)
-	err = sol_xlat_ipmi_err(solll->o, err);
-
-    sol_lock(solll);
-    cb = op_done->cb;
-    cb_data = op_done->cb_data;
-    val = op_done->done_val;
-    op_done->waiting_cb = false;
-    op_done->cb = NULL;
-    if (cb) {
-	sol_unlock(solll);
-	cb(solll->sio, err, val, cb_data);
-	sol_lock(solll);
-    }
-    sol_deref_and_unlock(solll);
+    sol_op_done(solll, err, op_done);
 }
 
 static int
-sol_finish_op(struct sol_ll *solll, struct sol_op_done *op_done, int rv,
-	      int ival, sergensio_done done, void *cb_data)
+sol_start_op(struct sol_ll *solll, struct sol_op_done *op,
+	     struct sol_op_done **op_done)
 {
-    op_done->waiting_cb = false;
+    int rv;
+
+    rv = op->func(solll->sol, op->val, ipmisol_op_done, op_done);
     switch (rv) {
     case 0:
+	op->started = true;
 	sol_ref(solll);
-	op_done->waiting_cb = true;
-	/* Fallthrough */
+	break;
+
     case IPMI_SOL_ERR_VAL(IPMI_SOL_UNCONFIRMABLE_OPERATION):
+	op->started = true;
+	op->use_runner = true;
+	sol_ref(solll);
 	rv = 0; /* Operation done, but won't get a callback. */
-	op_done->solll = solll;
-	op_done->cb = done;
-	op_done->cb_data = cb_data;
-	op_done->done_val = ival;
-	if (!op_done->waiting_cb)
+	if (op->use_runner)
+	    /* Schedule the callback in the runner. */
 	    sol_sched_deferred_op(solll);
 	break;
 
     case EAGAIN:
+	/* Should not happen. */
 	rv = GE_INUSE;
 	break;
 
     default:
 	rv = sol_xlat_ipmi_err(solll->o, rv);
+	break;
     }
+
+    return rv;
+}
+
+static void
+sol_op_done(struct sol_ll *solll, int err, struct sol_op_done **op_done)
+{
+    struct gensio_os_funcs *o = solll->o;
+    struct sol_op_done *op = *op_done;
+    sergensio_done cb;
+    void *cb_data;
+    int val;
+
+    sol_lock(solll);
+ restart:
+    if (err)
+	err = sol_xlat_ipmi_err(solll->o, err);
+
+    cb = op->cb;
+    cb_data = op->cb_data;
+    val = op->done_val;
+    *op_done = op->next;
+    o->free(o, op);
+    if (cb) {
+	sol_unlock(solll);
+	cb(solll->sio, err, val, cb_data);
+	sol_lock(solll);
+    }
+    op = *op_done;
+    if (op && !op->started) {
+	err = sol_start_op(solll, op, op_done);
+	if (err)
+	    goto restart;
+    }
+    sol_deref_and_unlock(solll);
+}
+
+static int
+sol_do_op(struct sol_ll *solll, struct sol_op_done **op_done,
+	  int (*func)(ipmi_sol_conn_t *, int, ipmi_sol_transmit_complete_cb,
+		      void *),
+	  int val, int done_val, sergensio_done done, void *cb_data)
+{
+    struct gensio_os_funcs *o = solll->o;
+    struct sol_op_done *op, *op2;
+    int rv = 0;
+
+    op = o->zalloc(o, sizeof(*op));
+    if (!op)
+	return GE_NOMEM;
+
+    op->use_runner = false;
+    op->solll = solll;
+    op->cb = done;
+    op->cb_data = cb_data;
+    op->val = val;
+    op->done_val = done_val;
+    op->func = func;
+    op->next = NULL;
+
+    if (*op_done) {
+	/* Something already in progress, just queue it. */
+	op2 = *op_done;
+	while (op2->next)
+	    op2 = op2->next;
+	op2->next = op;
+    } else {
+	rv = sol_start_op(solll, op, op_done);
+	if (rv)
+	    o->free(o, op);
+	else
+	    *op_done = op;
+    }
+
     return rv;
 }
 
@@ -1575,10 +1651,6 @@ static int ipmisol_do_cts(struct gensio_ll *ll, int ival,
     int rv, val;
 
     sol_lock(solll);
-    if (solll->cts_done.cb) {
-	rv = GE_INUSE;
-	goto out_unlock;
-    }
     switch (ival) {
     case SERGENSIO_CTS_AUTO:
 	val = 1;
@@ -1590,9 +1662,8 @@ static int ipmisol_do_cts(struct gensio_ll *ll, int ival,
 	rv = GE_INVAL;
 	goto out_unlock;
     }
-    rv = ipmi_sol_set_CTS_assertable(solll->sol, val, ipmisol_op_done,
-				     &solll->cts_done);
-    rv = sol_finish_op(solll, &solll->cts_done, rv, ival, done, cb_data);
+    rv = sol_do_op(solll, &solll->cts_done, ipmi_sol_set_CTS_assertable,
+		   val, ival, done, cb_data);
  out_unlock:
     sol_unlock(solll);
 
@@ -1606,10 +1677,6 @@ static int ipmisol_do_dcd_dsr(struct gensio_ll *ll, int ival,
     int rv, val;
 
     sol_lock(solll);
-    if (solll->dcd_dsr_done.cb) {
-	rv = GE_INUSE;
-	goto out_unlock;
-    }
     switch (ival) {
     case SERGENSIO_DCD_DSR_ON:
 	val = 1;
@@ -1621,9 +1688,8 @@ static int ipmisol_do_dcd_dsr(struct gensio_ll *ll, int ival,
 	rv = GE_INVAL;
 	goto out_unlock;
     }
-    rv = ipmi_sol_set_DCD_DSR_asserted(solll->sol, val, ipmisol_op_done,
-				       &solll->dcd_dsr_done);
-    rv = sol_finish_op(solll, &solll->dcd_dsr_done, rv, ival, done, cb_data);
+    rv = sol_do_op(solll, &solll->cts_done, ipmi_sol_set_DCD_DSR_asserted,
+		   val, ival, done, cb_data);
  out_unlock:
     sol_unlock(solll);
 
@@ -1637,10 +1703,6 @@ static int ipmisol_do_ri(struct gensio_ll *ll, int ival,
     int rv, val;
 
     sol_lock(solll);
-    if (solll->ri_done.cb) {
-	rv = GE_INUSE;
-	goto out_unlock;
-    }
     switch (ival) {
     case SERGENSIO_RI_ON:
 	val = 1;
@@ -1652,10 +1714,8 @@ static int ipmisol_do_ri(struct gensio_ll *ll, int ival,
 	rv = GE_INVAL;
 	goto out_unlock;
     }
-    solll->cts_done.waiting_cb = false;
-    rv = ipmi_sol_set_RI_asserted(solll->sol, val, ipmisol_op_done,
-				  &solll->ri_done);
-    rv = sol_finish_op(solll, &solll->ri_done, rv, ival, done, cb_data);
+    rv = sol_do_op(solll, &solll->cts_done, ipmi_sol_set_RI_asserted,
+		   val, ival, done, cb_data);
  out_unlock:
     sol_unlock(solll);
 
