@@ -1791,16 +1791,12 @@ sol_process_parm(struct sol_ll *solll, char *arg)
     } else if (strncmp(arg, "115200", 6) == 0) {
 	solll->speed = IPMI_SOL_BIT_RATE_115200;
     } else if (gensio_check_keybool(arg, "nobreak", &solll->disablebreak) > 0) {
-	;
     } else if (gensio_check_keybool(arg, "authenticated",
-				    &solll->authenticated) == 0) {
-	 ;
+				    &solll->authenticated) > 0) {
     } else if (gensio_check_keybool(arg, "encrypted", &solll->encrypted) > 0) {
-	 ;
     } else if (gensio_check_keybool(arg, "deassert-CTS-DCD-DSR-on-connect",
 				    &solll->deassert_CTS_DCD_DSR_on_connect)
 	       > 0) {
-	 ;
     } else if (strcasecmp(arg, "shared-serial-alert-fail") == 0) {
 	solll->shared_serial_alert_behavior = ipmi_sol_serial_alerts_fail;
     } else if (strcmp(arg, "shared-serial-alert-deferred") == 0) {
@@ -1810,10 +1806,8 @@ sol_process_parm(struct sol_ll *solll, char *arg)
     } else if (gensio_check_keyuint(arg, "ack-timeout",
 				    &solll->ack_timeout) > 0) {
 
-	;
     } else if (gensio_check_keyuint(arg, "ack-retries",
 				    &solll->ack_retries) > 0) {
-	;
 
     /* The rest of the ones below are deprecated. */
     } else if (strcmp(arg, "-NOBREAK") == 0) {
