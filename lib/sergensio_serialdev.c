@@ -979,7 +979,7 @@ static void
 serialdev_timeout(struct gensio_timer *t, void *cb_data)
 {
     struct sterm_data *sdata = cb_data;
-    int val;
+    int val, rv;
     unsigned int modemstate = 0;
     bool force_send;
 
@@ -991,8 +991,9 @@ serialdev_timeout(struct gensio_timer *t, void *cb_data)
     sdata->handling_modemstate = true;
     sterm_unlock(sdata);
 
-    if (ioctl(sdata->fd, TIOCMGET, &val) != 0)
-	return;
+    rv = ioctl(sdata->fd, TIOCMGET, &val);
+    if (rv)
+	goto out_restart;
 
     if (val & TIOCM_CD)
 	modemstate |= SERGENSIO_MODEMSTATE_CD;
@@ -1024,6 +1025,7 @@ serialdev_timeout(struct gensio_timer *t, void *cb_data)
 		  (unsigned char *) &modemstate, &vlen, NULL);
     }
 
+ out_restart:
     if (sdata->modemstate_mask) {
 	gensio_time timeout = {1, 0};
 
