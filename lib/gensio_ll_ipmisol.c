@@ -1688,7 +1688,7 @@ static int ipmisol_do_dcd_dsr(struct gensio_ll *ll, int ival,
 	rv = GE_INVAL;
 	goto out_unlock;
     }
-    rv = sol_do_op(solll, &solll->cts_done, ipmi_sol_set_DCD_DSR_asserted,
+    rv = sol_do_op(solll, &solll->dcd_dsr_done, ipmi_sol_set_DCD_DSR_asserted,
 		   val, ival, done, cb_data);
  out_unlock:
     sol_unlock(solll);
@@ -1714,7 +1714,7 @@ static int ipmisol_do_ri(struct gensio_ll *ll, int ival,
 	rv = GE_INVAL;
 	goto out_unlock;
     }
-    rv = sol_do_op(solll, &solll->cts_done, ipmi_sol_set_RI_asserted,
+    rv = sol_do_op(solll, &solll->ri_done, ipmi_sol_set_RI_asserted,
 		   val, ival, done, cb_data);
  out_unlock:
     sol_unlock(solll);
