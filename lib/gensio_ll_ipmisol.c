@@ -517,9 +517,20 @@ enum sol_state {
     SOL_IN_CLOSE
 };
 
+struct sol_ll;
+
+struct sol_op_done {
+    struct sol_ll *solll;
+    sergensio_done cb;
+    int done_val;
+    bool waiting_cb;
+    void *cb_data;
+};
+
 struct sol_ll {
     struct gensio_ll *ll;
     struct gensio_os_funcs *o;
+    struct sergensio *sio;
 
     struct gensio_lock *lock;
 
@@ -597,6 +608,10 @@ struct sol_ll {
      */
     int pending_flush;
     int pending_break;
+
+    struct sol_op_done cts_done;
+    struct sol_op_done dcd_dsr_done;
+    struct sol_op_done ri_done;
 };
 
 /* Used to hold information about pending transmits. */
@@ -1333,18 +1348,29 @@ static void sol_disable(struct gensio_ll *ll)
     }
 }
 
-static int sol_control(struct gensio_ll *ll, bool get, unsigned int option,
-		       char *data, gensiods *datalen)
-{
-    if (option != GENSIO_CONTROL_RADDR)
-	return GE_NOTSUP;
-    if (!get)
-	return GE_NOTSUP;
-    if (strtoul(data, NULL, 0) > 0)
-	return GE_NOTFOUND;
+static int ipmisol_do_break(struct gensio_ll *ll);
 
-    *datalen = gensio_pos_snprintf(data, *datalen, NULL, "ipmisol");
-    return 0;
+static int
+sol_control(struct gensio_ll *ll, bool get, unsigned int option,
+	    char *data, gensiods *datalen)
+{
+    switch(option) {
+    case GENSIO_CONTROL_RADDR:
+	if (!get)
+	    return GE_NOTSUP;
+	if (strtoul(data, NULL, 0) > 0)
+	    return GE_NOTFOUND;
+	*datalen = gensio_pos_snprintf(data, *datalen, NULL, "ipmisol");
+	return 0;
+
+    case GENSIO_CONTROL_SEND_BREAK:
+	if (get)
+	    return GE_NOTSUP;
+	return ipmisol_do_break(ll);
+
+    default:
+	return GE_NOTSUP;
+    }
 }
 
 static int
@@ -1486,6 +1512,156 @@ static int ipmisol_do_break(struct gensio_ll *ll)
     return rv;
 }
 
+static void
+ipmisol_op_done(ipmi_sol_conn_t *conn, int err, void *icb_data)
+{
+    struct sol_op_done *op_done = icb_data;
+    struct sol_ll *solll = op_done->solll;
+    sergensio_done cb;
+    void *cb_data;
+    int val;
+
+    if (err)
+	err = sol_xlat_ipmi_err(solll->o, err);
+
+    sol_lock(solll);
+    cb = op_done->cb;
+    cb_data = op_done->cb_data;
+    val = op_done->done_val;
+    op_done->waiting_cb = false;
+    op_done->cb = NULL;
+    if (cb) {
+	sol_unlock(solll);
+	cb(solll->sio, err, val, cb_data);
+	sol_lock(solll);
+    }
+    sol_deref_and_unlock(solll);
+}
+
+static int
+sol_finish_op(struct sol_ll *solll, struct sol_op_done *op_done, int rv,
+	      int ival, sergensio_done done, void *cb_data)
+{
+    op_done->waiting_cb = false;
+    switch (rv) {
+    case 0:
+	sol_ref(solll);
+	op_done->waiting_cb = true;
+	/* Fallthrough */
+    case IPMI_SOL_ERR_VAL(IPMI_SOL_UNCONFIRMABLE_OPERATION):
+	rv = 0; /* Operation done, but won't get a callback. */
+	op_done->solll = solll;
+	op_done->cb = done;
+	op_done->cb_data = cb_data;
+	op_done->done_val = ival;
+	if (!op_done->waiting_cb)
+	    sol_sched_deferred_op(solll);
+	break;
+
+    case EAGAIN:
+	rv = GE_INUSE;
+	break;
+
+    default:
+	rv = sol_xlat_ipmi_err(solll->o, rv);
+    }
+    return rv;
+}
+
+static int ipmisol_do_cts(struct gensio_ll *ll, int ival,
+			  sergensio_done done, void *cb_data)
+{
+    struct sol_ll *solll = ll_to_sol(ll);
+    int rv, val;
+
+    sol_lock(solll);
+    if (solll->cts_done.cb) {
+	rv = GE_INUSE;
+	goto out_unlock;
+    }
+    switch (ival) {
+    case SERGENSIO_CTS_AUTO:
+	val = 1;
+	break;
+    case SERGENSIO_CTS_OFF:
+	val = 0;
+	break;
+    default:
+	rv = GE_INVAL;
+	goto out_unlock;
+    }
+    rv = ipmi_sol_set_CTS_assertable(solll->sol, val, ipmisol_op_done,
+				     &solll->cts_done);
+    rv = sol_finish_op(solll, &solll->cts_done, rv, ival, done, cb_data);
+ out_unlock:
+    sol_unlock(solll);
+
+    return rv;
+}
+
+static int ipmisol_do_dcd_dsr(struct gensio_ll *ll, int ival,
+			      sergensio_done done, void *cb_data)
+{
+    struct sol_ll *solll = ll_to_sol(ll);
+    int rv, val;
+
+    sol_lock(solll);
+    if (solll->dcd_dsr_done.cb) {
+	rv = GE_INUSE;
+	goto out_unlock;
+    }
+    switch (ival) {
+    case SERGENSIO_DCD_DSR_ON:
+	val = 1;
+	break;
+    case SERGENSIO_DCD_DSR_OFF:
+	val = 0;
+	break;
+    default:
+	rv = GE_INVAL;
+	goto out_unlock;
+    }
+    rv = ipmi_sol_set_DCD_DSR_asserted(solll->sol, val, ipmisol_op_done,
+				       &solll->dcd_dsr_done);
+    rv = sol_finish_op(solll, &solll->dcd_dsr_done, rv, ival, done, cb_data);
+ out_unlock:
+    sol_unlock(solll);
+
+    return rv;
+}
+
+static int ipmisol_do_ri(struct gensio_ll *ll, int ival,
+			  sergensio_done done, void *cb_data)
+{
+    struct sol_ll *solll = ll_to_sol(ll);
+    int rv, val;
+
+    sol_lock(solll);
+    if (solll->ri_done.cb) {
+	rv = GE_INUSE;
+	goto out_unlock;
+    }
+    switch (ival) {
+    case SERGENSIO_RI_ON:
+	val = 1;
+	break;
+    case SERGENSIO_RI_OFF:
+	val = 0;
+	break;
+    default:
+	rv = GE_INVAL;
+	goto out_unlock;
+    }
+    solll->cts_done.waiting_cb = false;
+    rv = ipmi_sol_set_RI_asserted(solll->sol, val, ipmisol_op_done,
+				  &solll->ri_done);
+    rv = sol_finish_op(solll, &solll->ri_done, rv, ival, done, cb_data);
+ out_unlock:
+    sol_unlock(solll);
+
+    return rv;
+}
+
 static int
 ipmisol_ser_ops(struct gensio_ll *ll, int op,
 		int val, char *buf,
@@ -1497,6 +1673,15 @@ ipmisol_ser_ops(struct gensio_ll *ll, int op,
 
     case SERGENSIO_FUNC_SEND_BREAK:
 	return ipmisol_do_break(ll);
+
+    case SERGENSIO_FUNC_CTS:
+	return ipmisol_do_cts(ll, val, done, cb_data);
+
+    case SERGENSIO_FUNC_DCD_DSR:
+	return ipmisol_do_dcd_dsr(ll, val, done, cb_data);
+
+    case SERGENSIO_FUNC_RI:
+	return ipmisol_do_ri(ll, val, done, cb_data);
 
     /* You really can't set much on a SOL connection once it's up. */
     case SERGENSIO_FUNC_BAUD:
@@ -1791,6 +1976,14 @@ ipmisol_gensio_ll_alloc(struct gensio_os_funcs *o,
  out_err:
     sol_finish_free(solll);
     return err;
+}
+
+void
+ipmisol_gensio_ll_set_sio(struct gensio_ll *ll, struct sergensio *sio)
+{
+    struct sol_ll *solll = ll_to_sol(ll);
+
+    solll->sio = sio;
 }
 
 void

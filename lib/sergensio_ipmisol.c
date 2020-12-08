@@ -99,6 +99,8 @@ ipmisol_gensio_alloc(const char *devname, const char * const args[],
 	return GE_NOMEM;
     }
 
+    ipmisol_gensio_ll_set_sio(idata->ll, idata->sio);
+
     err = gensio_addclass(idata->io, "sergensio", idata->sio);
     if (err) {
 	gensio_free(idata->io);

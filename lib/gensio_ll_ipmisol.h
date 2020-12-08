@@ -31,4 +31,6 @@ int ipmisol_gensio_ll_alloc(struct gensio_os_funcs *o,
 			    gensio_ll_ipmisol_ops *rops,
 			    struct gensio_ll **rll);
 
+void ipmisol_gensio_ll_set_sio(struct gensio_ll *ll, struct sergensio *sio);
+
 #endif /* GENSIO_LL_IPMISOL_H */
