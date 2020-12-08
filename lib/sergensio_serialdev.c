@@ -1041,17 +1041,16 @@ static int
 sterm_modemstate(struct sergensio *sio, unsigned int val)
 {
     struct sterm_data *sdata = sergensio_get_gensio_data(sio);
+    gensio_time timeout = {0, 0};
 
     sterm_lock(sdata);
     sdata->modemstate_mask = val;
+    sdata->sent_first_modemstate = false;
     sterm_unlock(sdata);
-    if (sdata->modemstate_mask) {
-	gensio_time timeout = {0, 1000};
 
-	sdata->o->start_timer(sdata->timer, &timeout);
-    } else {
-	sdata->o->stop_timer(sdata->timer);
-    }
+    /* Cause an immediate send of the modemstate. */
+    sdata->o->stop_timer(sdata->timer);
+    sdata->o->start_timer(sdata->timer, &timeout);
     return 0;
 }
 
