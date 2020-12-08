@@ -39,6 +39,12 @@ int sergensio_datasize_b(struct sergensio_b *sbio,
 .B int sergensio_dtr_b(struct sergensio_b *sbio, unsigned int *dtr);
 .TP 20
 .B int sergensio_rts_b(struct sergensio_b *sbio, unsigned int *rts);
+.TP 20
+.B int sergensio_cts_b(struct sergensio_b *sbio, unsigned int *cts);
+.TP 20
+.B int sergensio_dcd_dsr_b(struct sergensio_b *sbio, unsigned int *dcd_dsr);
+.TP 20
+.B int sergensio_ri_b(struct sergensio_b *sbio, unsigned int *ri);
 .SH "DESCRIPTION"
 These are equvalent to the non-blocking functions (without the _b),
 but block waiting for the results.  Like all synchronous I/O, this can

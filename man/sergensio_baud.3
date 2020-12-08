@@ -76,6 +76,8 @@ int sergensio_datasize(struct sergensio *sio, unsigned int datasize,
 .B int sergensio_sbreak(struct sergensio *sio, unsigned int breakv,
 .br
 .B                     sergensio_done done, void *cb_data);
+.TP 20
+.B int sergensio_send_break(struct sergensio *sio);
 .TP 0
 #define SERGENSIO_DTR_ON
 .br
@@ -90,6 +92,30 @@ int sergensio_datasize(struct sergensio *sio, unsigned int datasize,
 #define SERGENSIO_RTS_OFF
 .TP 20
 .B int sergensio_rts(struct sergensio *sio, unsigned int rts,
+.br
+.B                  sergensio_done done, void *cb_data);
+.TP 0
+#define SERGENSIO_CTS_AUTO
+.br
+#define SERGENSIO_CTS_OFF
+.TP 20
+.B int sergensio_cts(struct sergensio *sio, unsigned int cts,
+.br
+.B                  sergensio_done done, void *cb_data);
+.TP 0
+#define SERGENSIO_DCD_DSR_ON
+.br
+#define SERGENSIO_DCD_DSR_OFF
+.TP 20
+.B int sergensio_dcd_dsr(struct sergensio *sio, unsigned int dcd_dsr,
+.br
+.B                  sergensio_done done, void *cb_data);
+.TP 0
+#define SERGENSIO_RI_ON
+.br
+#define SERGENSIO_RI_OFF
+.TP 20
+.B int sergensio_ri(struct sergensio *sio, unsigned int ri,
 .br
 .B                  sergensio_done done, void *cb_data);
 .TP 20
@@ -186,9 +212,26 @@ sergensio_dtr - Set the DTR value.
 .TP 20
 sergensio_rts - Set the RTS value.
 .PP
+sergensio_send_break - Send a break signal (on for a bit then off) on
+the line.
+.PP
 On a server gensio, the above functions are used to respond to an
 event setting the value.  Pass in the actual value.  The done value is
 ignored on the server.
+
+On a connection that is on the modem side of the serial port (like
+ipmisol), there are a different set of control commands, the above
+may or may not work.
+
+Instead, use the following.  Note that passing 0 to these may or may
+not return the current value, they may return an error.
+.TP 20
+sergensio_cts - Set the CTS value to auto (managed by the hardware) or
+off (tell the other end not to send d<ata).
+.TP 20
+sergensio_dcd_rts - Set the DCD and RTS value to be enabled or disabled.
+.TP 20
+sergensio_ri - Set the ring indicator value to be enabled or disabled.
 
 .SS "SIGNATURE"
 Though not really part of serial port control, the telnet RFC2217 spec

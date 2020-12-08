@@ -74,6 +74,9 @@ install-data-hook:
 	$(LN_SF) sergensio_baud.3 $(DESTDIR)$(man3dir)/sergensio_flowcontrol_state.3
 	$(LN_SF) sergensio_baud.3 $(DESTDIR)$(man3dir)/sergensio_flush.3
 	$(LN_SF) sergensio_baud.3 $(DESTDIR)$(man3dir)/sergensio_send_break.3
+	$(LN_SF) sergensio_baud.3 $(DESTDIR)$(man3dir)/sergensio_cts.3
+	$(LN_SF) sergensio_baud.3 $(DESTDIR)$(man3dir)/sergensio_dcd_dsr.3
+	$(LN_SF) sergensio_baud.3 $(DESTDIR)$(man3dir)/sergensio_ri.3
 	$(LN_SF) sergensio_b_alloc.3 $(DESTDIR)$(man3dir)/sergensio_b_free.3
 	$(LN_SF) sergensio_b_alloc.3 $(DESTDIR)$(man3dir)/sergensio_baud_b.3
 	$(LN_SF) sergensio_b_alloc.3 $(DESTDIR)$(man3dir)/sergensio_datasize_b.3
@@ -84,6 +87,9 @@ install-data-hook:
 	$(LN_SF) sergensio_b_alloc.3 $(DESTDIR)$(man3dir)/sergensio_sbreak_b.3
 	$(LN_SF) sergensio_b_alloc.3 $(DESTDIR)$(man3dir)/sergensio_dtr_b.3
 	$(LN_SF) sergensio_b_alloc.3 $(DESTDIR)$(man3dir)/sergensio_rts_b.3
+	$(LN_SF) sergensio_b_alloc.3 $(DESTDIR)$(man3dir)/sergensio_cts_b.3
+	$(LN_SF) sergensio_b_alloc.3 $(DESTDIR)$(man3dir)/sergensio_dcd_dsr_b.3
+	$(LN_SF) sergensio_b_alloc.3 $(DESTDIR)$(man3dir)/sergensio_ri_b.3
 	$(LN_SF) gensio_mdns.3 $(DESTDIR)$(man3dir)/gensio_alloc_mdns.3
 	$(LN_SF) gensio_mdns.3 $(DESTDIR)$(man3dir)/gensio_free_mdns.3
 	$(LN_SF) gensio_mdns.3 $(DESTDIR)$(man3dir)/gensio_mdns_add_service.3
@@ -150,6 +156,9 @@ uninstall-hook:
 	$(RM_F) $(DESTDIR)$(man3dir)/sergensio_sbreak.3
 	$(RM_F) $(DESTDIR)$(man3dir)/sergensio_dtr.3
 	$(RM_F) $(DESTDIR)$(man3dir)/sergensio_rts.3
+	$(RM_F) $(DESTDIR)$(man3dir)/sergensio_cts.3
+	$(RM_F) $(DESTDIR)$(man3dir)/sergensio_dcd_dsr.3
+	$(RM_F) $(DESTDIR)$(man3dir)/sergensio_ri.3
 	$(RM_F) $(DESTDIR)$(man3dir)/sergensio_signature.3
 	$(RM_F) $(DESTDIR)$(man3dir)/sergensio_linestate.3
 	$(RM_F) $(DESTDIR)$(man3dir)/sergensio_modemstate.3
@@ -166,6 +175,9 @@ uninstall-hook:
 	$(RM_F) $(DESTDIR)$(man3dir)/sergensio_sbreak_b.3
 	$(RM_F) $(DESTDIR)$(man3dir)/sergensio_dtr_b.3
 	$(RM_F) $(DESTDIR)$(man3dir)/sergensio_rts_b.3
+	$(RM_F) $(DESTDIR)$(man3dir)/sergensio_cts_b.3
+	$(RM_F) $(DESTDIR)$(man3dir)/sergensio_dcd_dsr_b.3
+	$(RM_F) $(DESTDIR)$(man3dir)/sergensio_ri_b.3
 	$(RM_F) $(DESTDIR)$(man3dir)/gensio_alloc_mdns.3
 	$(RM_F) $(DESTDIR)$(man3dir)/gensio_free_mdns.3
 	$(RM_F) $(DESTDIR)$(man3dir)/gensio_mdns_add_service.3
