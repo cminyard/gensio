@@ -733,6 +733,15 @@ struct waiter { };
 %constant int SERGENSIO_RTS_ON = SERGENSIO_RTS_ON;
 %constant int SERGENSIO_RTS_OFF = SERGENSIO_RTS_OFF;
 
+%constant int SERGENSIO_CTS_AUTO = SERGENSIO_CTS_AUTO;
+%constant int SERGENSIO_CTS_OFF = SERGENSIO_CTS_OFF;
+
+%constant int SERGENSIO_DCD_DSR_ON = SERGENSIO_DCD_DSR_ON;
+%constant int SERGENSIO_DCD_DSR_OFF = SERGENSIO_DCD_DSR_OFF;
+
+%constant int SERGENSIO_RI_ON = SERGENSIO_RI_ON;
+%constant int SERGENSIO_RI_OFF = SERGENSIO_RI_OFF;
+
 %constant int SERGENSIO_LINESTATE_DATA_READY = SERGENSIO_LINESTATE_DATA_READY;
 %constant int SERGENSIO_LINESTATE_OVERRUN_ERR = SERGENSIO_LINESTATE_OVERRUN_ERR;
 %constant int SERGENSIO_LINESTATE_PARITY_ERR = SERGENSIO_LINESTATE_PARITY_ERR;
@@ -803,6 +812,15 @@ struct waiter { };
 
     /* SERGENSIO_RTS_ entries */
     sgensio_entry(rts);
+
+    /* SERGENSIO_CTS_ entries */
+    sgensio_entry(cts);
+
+    /* SERGENSIO_DCD_DSR_ entries */
+    sgensio_entry(dcd_dsr);
+
+    /* SERGENSIO_RI_ entries */
+    sgensio_entry(ri);
 
     int sg_modemstate(unsigned int modemstate) {
 	return sergensio_modemstate(self, modemstate);
