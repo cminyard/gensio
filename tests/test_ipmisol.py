@@ -135,12 +135,66 @@ sio1 = io1.cast_to_sergensio()
 io1.handler.set_expected_modemstate(0)
 isim = ipmisimdaemon.IPMISimDaemon(o, ttypipe[1])
 io2 = alloc_io(o, "ipmisol(),lan -U ipmiusr -P test -p 9001 localhost,9600,deassert-CTS-DCD-DSR-on-connect")
+sio2 = io2.cast_to_sergensio()
 sio1.sg_modemstate(gensio.SERGENSIO_MODEMSTATE_CTS |
                    gensio.SERGENSIO_MODEMSTATE_CD |
                    gensio.SERGENSIO_MODEMSTATE_DSR |
                    gensio.SERGENSIO_MODEMSTATE_RI)
 if (io1.handler.wait_timeout(3000) == 0):
     raise Exception("Timed out waiting for DCD/DSR/CTS off")
+
+io1.handler.set_expected_modemstate(gensio.SERGENSIO_MODEMSTATE_CTS |
+                                    gensio.SERGENSIO_MODEMSTATE_CTS_CHANGED |
+                                    gensio.SERGENSIO_MODEMSTATE_CD_CHANGED |
+                                    gensio.SERGENSIO_MODEMSTATE_DSR_CHANGED |
+                                    gensio.SERGENSIO_MODEMSTATE_CD |
+                                    gensio.SERGENSIO_MODEMSTATE_DSR)
+sio2.sg_dcd_dsr(gensio.SERGENSIO_DCD_DSR_ON, None)
+sio2.sg_cts(gensio.SERGENSIO_CTS_AUTO, None)
+if (io1.handler.wait_timeout(3000) == 0):
+    raise Exception("Timed out waiting for DCD/DSR/CTS on")
+
+print("Testing modemstate callbacks");
+class sg_cb_handler:
+    def __init__(self, o):
+        self.waiter = gensio.waiter(o)
+
+    def wait_timeout(self, timeout):
+        return self.waiter.wait_timeout(1, timeout)
+
+    def dcd_dsr(self, sg, err, val):
+        self.waiter.wake()
+
+h = sg_cb_handler(o)
+io1.handler.set_expected_modemstate(gensio.SERGENSIO_MODEMSTATE_CTS |
+                                    gensio.SERGENSIO_MODEMSTATE_CD_CHANGED |
+                                    gensio.SERGENSIO_MODEMSTATE_DSR_CHANGED)
+sio2.sg_dcd_dsr(gensio.SERGENSIO_DCD_DSR_OFF, h)
+if h.wait_timeout(1000) == 0:
+    raise Exception("Timed out waiting 1")
+if (io1.handler.wait_timeout(3000) == 0):
+    raise Exception("Timed out waiting for DCD/DSR off")
+
+print("Testing multiple pending operations");
+io1.handler.set_expected_modemstate(gensio.SERGENSIO_MODEMSTATE_CTS)
+sio2.sg_dcd_dsr(gensio.SERGENSIO_DCD_DSR_ON, h)
+sio2.sg_dcd_dsr(gensio.SERGENSIO_DCD_DSR_OFF, h)
+sio2.sg_dcd_dsr(gensio.SERGENSIO_DCD_DSR_ON, h)
+sio2.sg_dcd_dsr(gensio.SERGENSIO_DCD_DSR_OFF, h)
+if h.wait_timeout(1000) == 0:
+    raise Exception("Timed out waiting 1")
+if h.wait_timeout(1000) == 0:
+    raise Exception("Timed out waiting 2")
+if h.wait_timeout(1000) == 0:
+    raise Exception("Timed out waiting 3")
+if h.wait_timeout(1000) == 0:
+    raise Exception("Timed out waiting 4")
+sio1.sg_modemstate(gensio.SERGENSIO_MODEMSTATE_CTS |
+                   gensio.SERGENSIO_MODEMSTATE_CD |
+                   gensio.SERGENSIO_MODEMSTATE_DSR |
+                   gensio.SERGENSIO_MODEMSTATE_RI)
+if (io1.handler.wait_timeout(3000) == 0):
+    raise Exception("Timed out waiting for DCD/DSR on")
 
 io_close(io1)
 io_close(io2)
