@@ -1008,7 +1008,6 @@ serialdev_timeout(struct gensio_timer *t, void *cb_data)
     /* Bits for things that changed. */
     modemstate |= (modemstate ^ sdata->last_modemstate) >> 4;
     sdata->last_modemstate = modemstate & sdata->modemstate_mask;
-    modemstate &= sdata->last_modemstate;
     force_send = !sdata->sent_first_modemstate;
     sdata->sent_first_modemstate = true;
     sterm_unlock(sdata);
