@@ -216,6 +216,7 @@ ipmisim_cb(struct gensio *io, void *user_data, int event, int err,
 
 	if (verbose)
 	    printf("IPMISIM err: %s\n", gensio_err_to_str(err));
+	test->o->wake(test->waiter);
 	return 0;
     }
 
@@ -257,9 +258,13 @@ ipmisim_err_cb(struct gensio *io, void *user_data, int event, int err,
 {
     /* FIXME - Add debug I/O. */
     if (err) {
+	struct oom_tests *test = user_data;
+
+	test->err = err;
 	gensio_set_read_callback_enable(io, false);
 	if (verbose)
 	    printf("IPMISIM err err: %s\n", gensio_err_to_str(err));
+	test->o->wake(test->waiter);
 	return 0;
     }
 
@@ -328,6 +333,8 @@ ipmisim_start(struct gensio_os_funcs *o, struct oom_tests *test)
     err = o->wait_intr_sigmask(test->waiter, 1, &timeout, &waitsigs);
     if (err == GE_INTERRUPTED)
 	goto retry;
+    if (test->err)
+	err = test->err;
     if (err) {
 	printf("Error waiting for ipmi_sim started for %s: %s,\n"
 	       "skipping ipmisol test\n", test->args, gensio_err_to_str(err));
@@ -338,10 +345,12 @@ ipmisim_start(struct gensio_os_funcs *o, struct oom_tests *test)
 
  out_err:
     if (test->io) {
+	gensio_close_s(test->io);
 	gensio_free(test->io);
 	test->io = NULL;
     }
     if (test->io2) {
+	gensio_close_s(test->io2);
 	gensio_free(test->io2);
 	test->io2 = NULL;
     }
@@ -472,6 +481,7 @@ check_ipmisim_present(struct gensio_os_funcs *o, struct oom_tests *test)
  out_err:
     if (config)
 	o->free(o, config);
+    ipmisim_end(o, test);
     ipmisim_finish(o, test);
 
     return false;
