@@ -2066,4 +2066,9 @@ gensio_sol_cleanup_mem(void)
 {
 }
 
+void
+ipmisol_gensio_ll_set_sio(struct gensio_ll *ll, struct sergensio *sio)
+{
+}
+
 #endif
