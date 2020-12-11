@@ -507,6 +507,7 @@ def alloc_io(o, iostr, do_open = True, chunksize = 10240):
 
     If do_open is True (default), open it, too.
     """
+    gensios_enabled.check_iostr_gensios(iostr)
     h = HandleData(o, iostr, chunksize = chunksize)
     if (do_open):
         h.io.open_s()
