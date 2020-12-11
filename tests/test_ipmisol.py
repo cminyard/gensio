@@ -16,6 +16,8 @@ try:
 except:
     sys.exit(77)
 
+gensios_enabled.check_iostr_gensios("ipmisol")
+
 s2n_termios_base = dup_termios(base_termios,
                                cflags = termios.CLOCAL | termios.CRTSCTS,
                                cflags_mask = termios.CLOCAL | termios.CRTSCTS)

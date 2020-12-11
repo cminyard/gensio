@@ -11,6 +11,7 @@ import ipmisimdaemon
 
 print("Test ipmisol large")
 check_pipe_dev()
+gensios_enabled.check_iostr_gensios("ipmisol")
 isim = ipmisimdaemon.IPMISimDaemon(o, ttypipe[1])
 io1 = alloc_io(o, "serialdev," + ttypipe[0] + ",115200")
 io2 = alloc_io(o, "ipmisol,lan -U ipmiusr -P test -p 9001 localhost,115200")
