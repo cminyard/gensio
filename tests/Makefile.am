@@ -15,7 +15,7 @@ PYTESTS = test_syncio.py \
 	test_rs485.py test_tcp_accept_connect.py test_udp_accept_connect.py \
 	test_sctp_accept_connect.py test_telnet_sctp_accept_connect.py \
 	test_ssl_sctp_accept_connect.py test_certauth_sctp_accept_connect.py \
-	test_certauth_ssl_sctp_accept_connect.py test_mux_sctp_small.py \
+	test_certauth_ssl_tcp_accept_connect.py test_mux_sctp_small.py \
 	test_mux_tcp_large.py test_mux_limits.py test_mux_oob.py \
 	test_relpkt_basic.py test_relpkt_small.py test_relpkt_medium.py \
 	test_relpkt_large.py test_udp_nocon.py test_conacc.py test_mdns.py \
