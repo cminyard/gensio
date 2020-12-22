@@ -25,6 +25,7 @@
 
 #include <string.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <errno.h>
 
 #include <gensio/sergensio.h>
@@ -143,7 +144,7 @@ sergensio_val_set(struct sergensio *sio, int err,
 		  unsigned int val, void *cb_data)
 {
     struct ioinfo *ioinfo = sergensio_get_user_data(sio);
-    enum s2n_ser_ops op = (long) cb_data;
+    enum s2n_ser_ops op = (intptr_t) cb_data;
     struct sergensio *rsio;
 
     rsio = gensio_to_sergensio(ioinfo_otherio(ioinfo));
