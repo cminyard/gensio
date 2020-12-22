@@ -1,4 +1,6 @@
 
+AM_CFLAGS = -DBUILDING_DLL
+
 lib_LTLIBRARIES = libgensio.la
 
 noinst_HEADERS = telnet.h heap.h utils.h uucplock.h buffer.h \
@@ -24,7 +26,7 @@ libgensio_la_SOURCES = \
 	gensio_filter_perf.c gensio_perf.c gensio_conacc.c errtrig.c \
 	mdns.c avahi_watcher.c gensio_mdns.c
 
-libgensio_la_LDFLAGS = $(OPENSSL_LIBS)
+libgensio_la_LDFLAGS = $(OPENSSL_LIBS) -no-undefined
 
 EXTRA_DIST = README.rst libgensio.pc.in CMakeLists.txt
 
