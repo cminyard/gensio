@@ -88,7 +88,9 @@ signature_done(struct sergensio *sio, int err,
     if (sig) {
 	if (ddata->signature)
 	    free(ddata->signature);
-	ddata->signature = strndup(sig, len);
+	ddata->signature = malloc(len + 1);
+	memcpy(ddata->signature, sig, len);
+	ddata->signature[len] = '\0';
     }
     deref(ddata);
 }
