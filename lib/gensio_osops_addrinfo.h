@@ -80,7 +80,7 @@ gensio_addr_create(struct gensio_os_funcs *o,
 #ifdef AF_INET6
     struct sockaddr_in6 s6;
 #endif
-#ifdef HAVE_UNIX
+#if HAVE_UNIX
     struct sockaddr_un su;
 #endif
     struct sockaddr *s;
@@ -115,7 +115,7 @@ gensio_addr_create(struct gensio_os_funcs *o,
 #endif
 
     case GENSIO_NETTYPE_UNIX:
-#ifdef HAVE_UNIX
+#if HAVE_UNIX
 	memset(&su, 0, sizeof(su));
 	if (len > sizeof(su.sun_path) - 1)
 	    return GE_TOOBIG;

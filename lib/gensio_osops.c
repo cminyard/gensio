@@ -676,7 +676,7 @@ gensio_os_open_socket(struct gensio_os_funcs *o,
     family = AF_INET;
 #endif
     
-#if defined(AF_INET6) || defined(HAVE_UNIX)
+#if defined(AF_INET6) || HAVE_UNIX
  restart:
 #endif
     for (rp = ai->a; rp != NULL; rp = rp->ai_next) {
