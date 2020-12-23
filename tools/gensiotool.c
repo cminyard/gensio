@@ -35,8 +35,7 @@
 #endif
 
 #include <gensio/gensio.h>
-/* Defined in gensio_selector.h, but we don't want to include there here. */
-void gensio_sel_exit(int rv);
+#include <gensio/gensio_selector.h>
 
 #include "ioinfo.h"
 #include "ser_ioinfo.h"
