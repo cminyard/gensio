@@ -79,6 +79,7 @@ static int gensio_setup_listen_socket(struct gensio_os_funcs *o, bool do_listen,
 			       struct gensio_listen_scan_info *rsi);
 
 #ifdef _WIN32
+#include "gensio_osops_win.h"
 #else
 #include "gensio_osops_unix.h"
 #endif
