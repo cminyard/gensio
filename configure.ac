@@ -216,6 +216,7 @@ if test "x$HAVE_AVAHI" = "x1"; then
    GMDNS=gmdns
    GMDNSMAN=gmdns.1
 fi
+AM_CONDITIONAL([HAVE_AVAHI], [test "x$HAVE_AVAHI" = "x1"])
 AC_SUBST(GMDNS)
 AC_SUBST(GMDNSMAN)
 
@@ -395,6 +396,9 @@ HAVE_PTY=0
 AC_CHECK_HEADER(pty.h, [HAVE_PTY=1] )
 AC_SUBST(HAVE_PTY)
 AC_DEFINE_UNQUOTED([HAVE_PTY], [$HAVE_PTY], [Enable PTY gensio])
+
+AM_CONDITIONAL([HAVE_UNIX_OS], [test ${version_type} != windows])
+AM_CONDITIONAL([HAVE_WINDOWS_OS], [test ${version_type} = windows])
 
 if test ${version_type} = windows; then
  HAVE_STDIO=0
