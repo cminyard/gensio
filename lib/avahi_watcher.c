@@ -11,8 +11,6 @@
  */
 
 #include "config.h"
-#ifdef HAVE_AVAHI
-
 #include <stdlib.h>
 #include <assert.h>
 #include <gensio/gensio_err.h>
@@ -437,4 +435,3 @@ gensio_avahi_poll_free(AvahiPoll *ap,
     u->stop_userdata = userdata;
     gensio_avahi_poll_deref(ap);
 }
-#endif
