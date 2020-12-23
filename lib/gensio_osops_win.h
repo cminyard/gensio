@@ -109,3 +109,24 @@ gensio_i_os_err_to_err(struct gensio_os_funcs *o,
 
     return err;
 }
+
+int
+gensio_os_close(struct gensio_os_funcs *o, int *fd)
+{
+    return gensio_os_close_socket(o, fd);
+}
+
+int
+gensio_os_write(struct gensio_os_funcs *o,
+		int fd, const struct gensio_sg *sg, gensiods sglen,
+		gensiods *rcount)
+{
+    return GE_NOTSUP;
+}
+
+int
+gensio_os_read(struct gensio_os_funcs *o,
+	       int fd, void *buf, gensiods buflen, gensiods *rcount)
+{
+    return GE_NOTSUP;
+}
