@@ -474,11 +474,12 @@ gensio_os_mcast_add(struct gensio_os_funcs *o, int fd,
 		struct ip_mreqn m;
 #endif
 
+		memset(&m, 0, sizeof(m));
 		m.imr_multiaddr = a->sin_addr;
 #ifndef _WIN32
 		m.imr_address.s_addr = INADDR_ANY;
-#endif
 		m.imr_ifindex = iface;
+#endif
 		rv = setsockopt(fd, IPPROTO_IP, IP_ADD_MEMBERSHIP,
 				(void *) &m, sizeof(m));
 		if (rv == -1)
@@ -541,11 +542,12 @@ gensio_os_mcast_del(struct gensio_os_funcs *o, int fd,
 		struct ip_mreqn m;
 #endif
 
+		memset(&m, 0, sizeof(m));
 		m.imr_multiaddr = a->sin_addr;
 #ifndef _WIN32
 		m.imr_address.s_addr = INADDR_ANY;
-#endif
 		m.imr_ifindex = iface;
+#endif
 		rv = setsockopt(fd, IPPROTO_IP, IP_ADD_MEMBERSHIP,
 				(void *) &m, sizeof(m));
 		if (rv == -1)
