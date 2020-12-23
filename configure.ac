@@ -8,11 +8,30 @@ AC_CONFIG_HEADERS([config.h])
 AC_PROG_CC
 AM_PROG_AR
 AM_PROG_LIBTOOL
-if test ${version_type} = windows; then
- uucp_locking_flag=no
-else
- uucp_locking_flag=yes
-fi
+uucp_locking_flag=yes
+case $target_os in
+	mingw*)
+		LIBS="$LIBS -lws2_32 -liphlpapi -lgdi32 -lbcrypt"
+		uucp_locking_flag=no
+		system_type=windows
+		HAVE_STDIO=0
+		HAVE_SERIALDEV=0
+		USE_FILE_STDIO=1
+		;;
+	cygwin*)
+		uucp_locking_flag=no
+		system_type=unix
+		HAVE_STDIO=1
+		HAVE_SERIALDEV=0
+		USE_FILE_STDIO=0
+		;;
+	*)
+		HAVE_STDIO=1
+		HAVE_SERIALDEV=1
+		USE_FILE_STDIO=0
+		system_type=unix
+		;;
+esac
 AC_ARG_WITH(uucp-locking,
  [AS_HELP_STRING([--with-uucp-locking], [Enable UUCP-style locking])],
  uucp_locking_flag="$withval")
@@ -398,29 +417,17 @@ AC_SUBST(HAVE_PTY)
 AC_DEFINE_UNQUOTED([HAVE_PTY], [$HAVE_PTY], [Enable PTY gensio])
 AM_CONDITIONAL([HAVE_PTY], [test ${HAVE_PTY} = 1])
 
-AM_CONDITIONAL([HAVE_UNIX_OS], [test ${version_type} != windows])
-AM_CONDITIONAL([HAVE_WINDOWS_OS], [test ${version_type} = windows])
-AM_CONDITIONAL([HAVE_STDIO], [test ${version_type} != windows])
-AM_CONDITIONAL([HAVE_SERIALDEV], [test ${version_type} != windows])
+AM_CONDITIONAL([HAVE_UNIX_OS], [test ${system_type} != windows])
+AM_CONDITIONAL([HAVE_WINDOWS_OS], [test ${system_type} = windows])
+AM_CONDITIONAL([HAVE_STDIO], [test ${HAVE_STDIO} = 1])
+AM_CONDITIONAL([HAVE_SERIALDEV], [test ${HAVE_SERIALDEV} = 1])
 
-if test ${version_type} = windows; then
- HAVE_STDIO=0
- HAVE_SERIALDEV=0
-else
- HAVE_STDIO=1
- HAVE_SERIALDEV=1
-fi
 AC_SUBST(HAVE_STDIO)
 AC_DEFINE_UNQUOTED([HAVE_STDIO], [$HAVE_STDIO], [Enable stdio gensio])
 
 AC_SUBST(HAVE_SERIALDEV)
 AC_DEFINE_UNQUOTED([HAVE_SERIALDEV], [$HAVE_SERIALDEV], [Enable serialdev gensio])
 
-if test ${version_type} = windows; then
- USE_FILE_STDIO=1
-else
- USE_FILE_STDIO=0
-fi
 AC_ARG_WITH(file-stdio,
  [AS_HELP_STRING([--with-file-stdio[[=yes|no]]],
 		 [Use stdio instead of unix files for the file gensio.])],
