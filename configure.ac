@@ -392,10 +392,24 @@ AC_CHECK_HEADER(pty.h, [HAVE_PTY=1] )
 AC_SUBST(HAVE_PTY)
 AC_DEFINE_UNQUOTED([HAVE_PTY], [$HAVE_PTY], [Enable PTY gensio])
 
-AC_DEFINE_UNQUOTED([HAVE_STDIO], [1], [Enable stdio gensio])
-AC_DEFINE_UNQUOTED([HAVE_SERIALDEV], [1], [Enable serialdev gensio])
+if test ${version_type} = windows; then
+ HAVE_STDIO=0
+ HAVE_SERIALDEV=0
+else
+ HAVE_STDIO=1
+ HAVE_SERIALDEV=1
+fi
+AC_SUBST(HAVE_STDIO)
+AC_DEFINE_UNQUOTED([HAVE_STDIO], [$HAVE_STDIO], [Enable stdio gensio])
 
-USE_FILE_STDIO=0
+AC_SUBST(HAVE_SERIALDEV)
+AC_DEFINE_UNQUOTED([HAVE_SERIALDEV], [$HAVE_SERIALDEV], [Enable serialdev gensio])
+
+if test ${version_type} = windows; then
+ USE_FILE_STDIO=1
+else
+ USE_FILE_STDIO=0
+fi
 AC_ARG_WITH(file-stdio,
  [AS_HELP_STRING([--with-file-stdio[[=yes|no]]],
 		 [Use stdio instead of unix files for the file gensio.])],
