@@ -15,9 +15,11 @@
 #ifdef _WIN32
 #include <winsock2.h>
 #include <ws2tcpip.h>
+typedef int taddrlen;
 #else
 #include <arpa/inet.h>
 #include <netinet/tcp.h>
+typedef socklen_t taddrlen;
 #endif
 #if HAVE_UNIX
 #include <sys/un.h>
@@ -192,14 +194,15 @@ gensio_os_recvfrom(struct gensio_os_funcs *o,
 {
     ssize_t rv;
     int err = 0;
+    taddrlen len;
 
     if (do_errtrig())
 	return GE_NOMEM;
 
  retry:
-    rv = recvfrom(fd, buf, buflen, flags,
-		  addr->curr->ai_addr, &addr->curr->ai_addrlen);
+    rv = recvfrom(fd, buf, buflen, flags, addr->curr->ai_addr, &len);
     if (rv >= 0) {
+	addr->curr->ai_addrlen = len;
 	addr->curr->ai_family = addr->curr->ai_addr->sa_family;
     } else {
 	if (errno == EINTR)
@@ -222,7 +225,7 @@ gensio_os_accept(struct gensio_os_funcs *o, int fd,
     int rv;
     struct sockaddr *sa;
     struct sockaddr_storage sadata;
-    socklen_t len;
+    taddrlen len;
 
     if (do_errtrig())
 	return GE_NOMEM;
@@ -243,6 +246,7 @@ gensio_os_accept(struct gensio_os_funcs *o, int fd,
     if (rv >= 0) {
 	if (addr) {
 	    addr->curr->ai_family = addr->curr->ai_addr->sa_family;
+	    addr->curr->ai_addrlen = len;
 	    *raddr = addr;
 	}
 	*newsock = rv;
