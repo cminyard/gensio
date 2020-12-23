@@ -1187,12 +1187,8 @@ add_default_gensio_accepters(void *cb_data)
     REG_GENSIO_ACC(o, "tcp", str_to_tcp_gensio_accepter);
     REG_GENSIO_ACC(o, "udp", str_to_udp_gensio_accepter);
     REG_GENSIO_ACC(o, "sctp", str_to_sctp_gensio_accepter);
-#if HAVE_STDIO
     REG_GENSIO_ACC(o, "stdio", str_to_stdio_gensio_accepter);
-#endif
-#if HAVE_UNIX
     REG_GENSIO_ACC(o, "unix", str_to_unix_gensio_accepter);
-#endif
     REG_FILT_GENSIO_ACC(o, "ssl", str_to_ssl_gensio_accepter,
 			ssl_gensio_accepter_alloc);
     REG_FILT_GENSIO_ACC(o, "mux", str_to_mux_gensio_accepter,
@@ -1397,23 +1393,15 @@ add_default_gensios(void *cb_data)
     REG_GENSIO(o, "tcp", str_to_tcp_gensio);
     REG_GENSIO(o, "udp", str_to_udp_gensio);
     REG_GENSIO(o, "sctp", str_to_sctp_gensio);
-#if HAVE_UNIX
     REG_GENSIO(o, "unix", str_to_unix_gensio);
-#endif
-#if HAVE_STDIO
     REG_GENSIO(o, "stdio", str_to_stdio_gensio);
-#endif
-#if HAVE_PTY
     REG_GENSIO(o, "pty", str_to_pty_gensio);
-#endif
     REG_FILT_GENSIO(o, "ssl", str_to_ssl_gensio, ssl_gensio_alloc);
     REG_FILT_GENSIO(o, "mux", str_to_mux_gensio, mux_gensio_alloc);
     REG_FILT_GENSIO(o, "certauth", str_to_certauth_gensio,
 		    certauth_gensio_alloc);
     REG_FILT_GENSIO(o, "telnet", str_to_telnet_gensio, telnet_gensio_alloc);
-#if HAVE_SERIALDEV
     REG_GENSIO(o, "serialdev", str_to_serialdev_gensio);
-#endif
     REG_GENSIO(o, "echo", str_to_echo_gensio);
     REG_GENSIO(o, "file", str_to_file_gensio);
     REG_GENSIO(o, "ipmisol", str_to_ipmisol_gensio);
