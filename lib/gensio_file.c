@@ -131,7 +131,7 @@ f_open(struct gensio_os_funcs *o,
        const char *fn, int flags, int mode, FILE **rf)
 {
     char *fmode;
-    struct FILE *f;
+    FILE *f;
 
     if (flags & F_O_RDONLY) {
 	fmode = "r";
@@ -141,7 +141,7 @@ f_open(struct gensio_os_funcs *o,
 	else
 	    fmode = "r+";
     } else {
-	return NULL;
+	return GE_INVAL;
     }
     f = fopen(fn, fmode);
     if (!f)
