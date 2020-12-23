@@ -14,6 +14,7 @@
 
 #ifdef _WIN32
 #include <winsock.h>
+typedef size_t socklen_t;
 #else
 #include <arpa/inet.h>
 #include <netinet/tcp.h>
