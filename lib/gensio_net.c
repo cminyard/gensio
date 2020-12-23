@@ -686,15 +686,18 @@ static int
 netna_b4_listen(int fd, void *data)
 {
     struct netna_data *nadata = data;
+#if HAVE_UNIX
     char pwbuf[16384];
     uid_t ownerid = -1;
     uid_t groupid = -1;
     int err;
     char unpath[MAX_UNIX_ADDR_PATH];
+#endif
 
     if (nadata->istcp)
 	return 0;
 
+#if HAVE_UNIX
     get_unix_addr_path(nadata->ai, unpath);
 
     /* Set up perms for Unix domain sockets. */
@@ -742,6 +745,9 @@ netna_b4_listen(int fd, void *data)
     err = errno;
  out_err:
     return gensio_os_err_to_err(nadata->o, err);
+#else
+    return GE_NOTSUP;
+#endif
 }
 
 static int
