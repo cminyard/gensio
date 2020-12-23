@@ -369,7 +369,7 @@ gensio_os_socket_setup(struct gensio_os_funcs *o, int fd,
 
 int
 gensio_os_mcast_add(struct gensio_os_funcs *o, int fd,
-		    struct gensio_addr *mcast_addrs, int interface,
+		    struct gensio_addr *mcast_addrs, int iface,
 		    bool curr_only)
 {
     struct addrinfo *ai;
@@ -392,7 +392,7 @@ gensio_os_mcast_add(struct gensio_os_funcs *o, int fd,
 
 		m.imr_multiaddr = a->sin_addr;
 		m.imr_address.s_addr = INADDR_ANY;
-		m.imr_ifindex = interface;
+		m.imr_ifindex = iface;
 		rv = setsockopt(fd, IPPROTO_IP, IP_ADD_MEMBERSHIP,
 				&m, sizeof(m));
 		if (rv == -1)
@@ -406,7 +406,7 @@ gensio_os_mcast_add(struct gensio_os_funcs *o, int fd,
 		struct ipv6_mreq m;
 
 		m.ipv6mr_multiaddr = a->sin6_addr;
-		m.ipv6mr_interface = interface;
+		m.ipv6mr_interface = iface;
 		rv = setsockopt(fd, IPPROTO_IPV6, IPV6_ADD_MEMBERSHIP,
 				&m, sizeof(m));
 		if (rv == -1)
@@ -428,7 +428,7 @@ gensio_os_mcast_add(struct gensio_os_funcs *o, int fd,
 
 int
 gensio_os_mcast_del(struct gensio_os_funcs *o, int fd,
-		    struct gensio_addr *mcast_addrs, int interface,
+		    struct gensio_addr *mcast_addrs, int iface,
 		    bool curr_only)
 {
     struct addrinfo *ai;
@@ -451,7 +451,7 @@ gensio_os_mcast_del(struct gensio_os_funcs *o, int fd,
 
 		m.imr_multiaddr = a->sin_addr;
 		m.imr_address.s_addr = INADDR_ANY;
-		m.imr_ifindex = interface;
+		m.imr_ifindex = iface;
 		rv = setsockopt(fd, IPPROTO_IP, IP_ADD_MEMBERSHIP,
 				&m, sizeof(m));
 		if (rv == -1)
@@ -465,7 +465,7 @@ gensio_os_mcast_del(struct gensio_os_funcs *o, int fd,
 		struct ipv6_mreq m;
 
 		m.ipv6mr_multiaddr = a->sin6_addr;
-		m.ipv6mr_interface = interface;
+		m.ipv6mr_interface = iface;
 		rv = setsockopt(fd, IPPROTO_IPV6, IPV6_ADD_MEMBERSHIP,
 				&m, sizeof(m));
 		if (rv == -1)

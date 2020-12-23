@@ -94,12 +94,12 @@ int gensio_os_socket_setup(struct gensio_os_funcs *o, int fd,
 
 GENSIO_DLL_PUBLIC
 int gensio_os_mcast_add(struct gensio_os_funcs *o, int fd,
-			struct gensio_addr *mcast_addrs, int interface,
+			struct gensio_addr *mcast_addrs, int iface,
 			bool curr_only);
 
 GENSIO_DLL_PUBLIC
 int gensio_os_mcast_del(struct gensio_os_funcs *o, int fd,
-			struct gensio_addr *mcast_addrs, int interface,
+			struct gensio_addr *mcast_addrs, int iface,
 			bool curr_only);
 
 GENSIO_DLL_PUBLIC
