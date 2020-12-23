@@ -11,25 +11,25 @@ noinst_HEADERS = telnet.h heap.h utils.h uucplock.h buffer.h \
 	gensio_osops_sctp.h
 
 libgensio_la_SOURCES = \
-	gensio.c gensio_osops.c gensio_net.c gensio_udp.c \
-	sergensio.c sergensio_telnet.c uucplock.c \
-	gensio_ssl.c gensio_base.c gensio_filter_ssl.c \
-	gensio_filter_telnet.c telnet.c buffer.c \
+	gensio.c gensio_osops.c gensio_base.c sergensio.c utils.c buffer.c \
 	gensio_ll_fd.c gensio_ll_gensio.c gensio_acc.c gensio_acc_gensio.c \
+	errtrig.c \
+	gensio_net.c gensio_udp.c gensio_sctp.c \
+	sergensio_telnet.c gensio_filter_telnet.c telnet.c \
+	gensio_ssl.c gensio_filter_ssl.c \
 	gensio_ll_ipmisol.c sergensio_ipmisol.c \
-	utils.c gensio_sctp.c \
 	gensio_filter_certauth.c gensio_certauth.c \
 	gensio_dummy.c gensio_echo.c gensio_mux.c gensio_file.c \
 	gensio_filter_msgdelim.c gensio_msgdelim.c \
 	gensio_filter_relpkt.c gensio_relpkt.c \
 	gensio_filter_trace.c gensio_trace.c \
-	gensio_filter_perf.c gensio_perf.c gensio_conacc.c errtrig.c
+	gensio_filter_perf.c gensio_perf.c gensio_conacc.c
 
 if HAVE_STDIO
 libgensio_la_SOURCES += gensio_stdio.c
 endif
 if HAVE_PTY
-libgensio_la_SOURCES += sergensio_serialdev.c
+libgensio_la_SOURCES += sergensio_serialdev.c uucplock.c
 endif
 if HAVE_SERIALDEV
 libgensio_la_SOURCES += gensio_pty.c
