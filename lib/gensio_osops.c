@@ -12,8 +12,12 @@
 #include <stdlib.h>
 #include <assert.h>
 
+#ifdef _WIN32
+#include <winsock.h>
+#else
 #include <arpa/inet.h>
 #include <netinet/tcp.h>
+#endif
 #if HAVE_UNIX
 #include <sys/un.h>
 #endif
@@ -71,7 +75,10 @@ static int gensio_setup_listen_socket(struct gensio_os_funcs *o, bool do_listen,
 			       int *rfd, unsigned int *port,
 			       struct gensio_listen_scan_info *rsi);
 
+#ifdef _WIN32
+#else
 #include "gensio_osops_unix.h"
+#endif
 #include "gensio_osops_addrinfo.h"
 #if HAVE_LIBSCTP
 #include "gensio_osops_sctp.h"

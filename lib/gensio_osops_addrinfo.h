@@ -5,9 +5,11 @@
  *  SPDX-License-Identifier: LGPL-2.1-only
  */
 
+#ifndef _WIN32
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netdb.h>
+#endif
 
 struct gensio_addr {
     struct gensio_os_funcs *o;
