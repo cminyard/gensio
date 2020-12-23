@@ -13,8 +13,8 @@
 #include <assert.h>
 
 #ifdef _WIN32
-#include <winsock.h>
-typedef size_t socklen_t;
+#include <winsock2.h>
+#include <ws2tcpip.h>
 #else
 #include <arpa/inet.h>
 #include <netinet/tcp.h>
@@ -106,13 +106,14 @@ check_ipv6_only(int family, int protocol, int flags, int fd)
     else
 	val = 1;
 
-    if (setsockopt(fd, IPPROTO_IPV6, IPV6_V6ONLY, &val, sizeof(val)) == -1)
+    if (setsockopt(fd, IPPROTO_IPV6, IPV6_V6ONLY, (void *) &val,
+		   sizeof(val)) == -1)
 	return -1;
 
 #if HAVE_LIBSCTP
     if (protocol == IPPROTO_SCTP) {
 	val = !val;
-	if (setsockopt(fd, SOL_SCTP, SCTP_I_WANT_MAPPED_V4_ADDR, &val,
+	if (setsockopt(fd, SOL_SCTP, SCTP_I_WANT_MAPPED_V4_ADDR, (void *) &val,
 		       sizeof(val)) == -1)
 	    return -1;
     }
@@ -337,10 +338,12 @@ gensio_os_socket_setup(struct gensio_os_funcs *o, int fd,
 
     if (nodelay) {
 	if (protocol == GENSIO_NET_PROTOCOL_TCP)
-	    err = setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &val, sizeof(val));
+	    err = setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, (void *) &val,
+			     sizeof(val));
 #if HAVE_LIBSCTP
 	else if (protocol == GENSIO_NET_PROTOCOL_SCTP)
-	    err = setsockopt(fd, IPPROTO_SCTP, SCTP_NODELAY, &val, sizeof(val));
+	    err = setsockopt(fd, IPPROTO_SCTP, SCTP_NODELAY, (void *) &val,
+			     sizeof(val));
 #endif
 	else
 	    err = 0;
@@ -404,7 +407,7 @@ gensio_os_mcast_add(struct gensio_os_funcs *o, int fd,
 		m.imr_address.s_addr = INADDR_ANY;
 		m.imr_ifindex = iface;
 		rv = setsockopt(fd, IPPROTO_IP, IP_ADD_MEMBERSHIP,
-				&m, sizeof(m));
+				(void *) &m, sizeof(m));
 		if (rv == -1)
 		    return gensio_os_err_to_err(o, errno);
 	    }
@@ -419,7 +422,7 @@ gensio_os_mcast_add(struct gensio_os_funcs *o, int fd,
 		m.ipv6mr_multiaddr = a->sin6_addr;
 		m.ipv6mr_interface = iface;
 		rv = setsockopt(fd, IPPROTO_IPV6, IPV6_ADD_MEMBERSHIP,
-				&m, sizeof(m));
+				(void *) &m, sizeof(m));
 		if (rv == -1)
 		    return gensio_os_err_to_err(o, errno);
 	    }
@@ -465,7 +468,7 @@ gensio_os_mcast_del(struct gensio_os_funcs *o, int fd,
 		m.imr_address.s_addr = INADDR_ANY;
 		m.imr_ifindex = iface;
 		rv = setsockopt(fd, IPPROTO_IP, IP_ADD_MEMBERSHIP,
-				&m, sizeof(m));
+				(void *) &m, sizeof(m));
 		if (rv == -1)
 		    return gensio_os_err_to_err(o, errno);
 	    }
@@ -480,7 +483,7 @@ gensio_os_mcast_del(struct gensio_os_funcs *o, int fd,
 		m.ipv6mr_multiaddr = a->sin6_addr;
 		m.ipv6mr_interface = iface;
 		rv = setsockopt(fd, IPPROTO_IPV6, IPV6_ADD_MEMBERSHIP,
-				&m, sizeof(m));
+				(void *) &m, sizeof(m));
 		if (rv == -1)
 		    return gensio_os_err_to_err(o, errno);
 	    }
@@ -510,7 +513,8 @@ gensio_os_set_mcast_loop(struct gensio_os_funcs *o, int fd,
 
     switch (addr->curr->ai_addr->sa_family) {
     case AF_INET:
-	rv = setsockopt(fd, IPPROTO_IP, IP_MULTICAST_LOOP, &val, sizeof(val));
+	rv = setsockopt(fd, IPPROTO_IP, IP_MULTICAST_LOOP, (void *) &val,
+			sizeof(val));
 	if (rv == -1)
 	    return gensio_os_err_to_err(o, errno);
 	break;
@@ -518,7 +522,7 @@ gensio_os_set_mcast_loop(struct gensio_os_funcs *o, int fd,
 #ifdef AF_INET6
     case AF_INET6:
 	rv = setsockopt(fd, IPPROTO_IPV6, IPV6_MULTICAST_LOOP,
-			&val, sizeof(val));
+			(void *) &val, sizeof(val));
 	if (rv == -1)
 	    return gensio_os_err_to_err(o, errno);
 	break;
@@ -583,10 +587,12 @@ gensio_os_set_nodelay(struct gensio_os_funcs *o, int fd, int protocol, int val)
 	return GE_NOMEM;
 
     if (protocol == GENSIO_NET_PROTOCOL_TCP)
-	rv = setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &val, sizeof(val));
+	rv = setsockopt(fd, IPPROTO_TCP, TCP_NODELAY,
+			(void *) &val, sizeof(val));
 #if HAVE_LIBSCTP
     else if (protocol == GENSIO_NET_PROTOCOL_SCTP)
-	rv = setsockopt(fd, IPPROTO_SCTP, SCTP_NODELAY, &val, sizeof(val));
+	rv = setsockopt(fd, IPPROTO_SCTP, SCTP_NODELAY,
+			(void *) &val, sizeof(val));
 #endif
     else
 	return GE_INVAL;
@@ -838,7 +844,7 @@ gensio_setup_listen_socket(struct gensio_os_funcs *o, bool do_listen,
 	     */
 	} else {
 	    if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR,
-			   (void *)&optval, sizeof(optval)) == -1)
+			   (void *) &optval, sizeof(optval)) == -1)
 		goto out_err;
 	}
     }
