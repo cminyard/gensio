@@ -8,10 +8,14 @@ AC_CONFIG_HEADERS([config.h])
 AC_PROG_CC
 AM_PROG_AR
 AM_PROG_LIBTOOL
+if test ${version_type} = windows; then
+ uucp_locking_flag=no
+else
+ uucp_locking_flag=yes
+fi
 AC_ARG_WITH(uucp-locking,
  [AS_HELP_STRING([--with-uucp-locking], [Enable UUCP-style locking])],
- uucp_locking_flag="$withval",
- uucp_locking_flag=yes)
+ uucp_locking_flag="$withval")
 if test "$uucp_locking_flag" = yes; then
   AC_DEFINE([USE_UUCP_LOCKING], [], [Enable device locking])
 fi
