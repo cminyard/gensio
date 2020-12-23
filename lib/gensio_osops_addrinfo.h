@@ -125,7 +125,7 @@ gensio_addr_create(struct gensio_os_funcs *o,
 	slen = sizeof(su);
 	break;
 #else
-	return GE_NOSUP;
+	return GE_NOTSUP;
 #endif
 
     default:
