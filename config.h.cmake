@@ -10,6 +10,7 @@
 #cmakedefine01 PYTHON_HAS_POSIX_THREADS
 #cmakedefine01 HAVE_GCC_ATOMICS
 #cmakedefine01 HAVE_WORKING_PORT0
+#cmakedefine HAVE_SENDMSG
 #cmakedefine HAVE_ISATTY
 #cmakedefine HAVE_STRCASECMP
 #cmakedefine HAVE_STRNCASECMP
@@ -23,6 +24,7 @@
 #cmakedefine HAVE_AVAHI
 #cmakedefine01 USE_FILE_STDIO
 #cmakedefine ENABLE_INTERNAL_TRACE
+#cmakedefine HAVE_MCAST
 #cmakedefine01 HAVE_DECL_TIOCSRS485
 #cmakedefine01 HAVE_STDIO
 #cmakedefine01 HAVE_SERIALDEV

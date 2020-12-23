@@ -112,6 +112,8 @@ CHECK_LIBRARY_EXISTS(pam "pam_start" "" HAVE_PAM)
 
 check_symbol_exists(TIOCSRS485 sys/ioctl.h HAVE_DECL_TIOCSRS485)
 
+check_symbol_exists(IP_ADD_MEMBERSHIP netinet/in.h HAVE_MCAST)
+
 CHECK_INCLUDE_FILE(sys/un.h HAVE_UNIX)
 
 option(USE_FILE_STDIO "Use stdio instead of unix files for the file gensio"
@@ -136,6 +138,7 @@ check_c_source_compiles("int main()
 	return val;
 }" HAVE_GCC_ATOMICS)
 
+check_symbol_exists(sendmsg sys/socket.h HAVE_SENDMSG)
 check_symbol_exists(isatty unistd.h HAVE_ISATTY)
 check_symbol_exists(strcasecmp string.h HAVE_STRCASECMP)
 check_symbol_exists(strncasecmp string.h HAVE_STRNCASECMP)
