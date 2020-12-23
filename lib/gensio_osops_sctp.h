@@ -139,6 +139,7 @@ gensio_os_sctp_recvmsg(struct gensio_os_funcs *o,
  retry:
     rv = sctp_recvmsg(fd, msg, len, NULL, NULL, sinfo, flags);
     ERRHANDLE();
+    return rv;
 }
 
 static int
@@ -151,6 +152,7 @@ l_sctp_send(struct gensio_os_funcs *o,
  retry:
     rv = sctp_send(fd, msg, len, sinfo, flags);
     ERRHANDLE();
+    return rv;
 }
 
 #if HAVE_SCTP_SENDV
@@ -217,6 +219,7 @@ gensio_os_sctp_send(struct gensio_os_funcs *o,
 	goto broken;
     }
     ERRHANDLE();
+    return rv;
 }
 #endif
 

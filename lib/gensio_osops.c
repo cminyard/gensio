@@ -136,7 +136,29 @@ gensio_os_recv(struct gensio_os_funcs *o,
  retry:
     rv = recv(fd, buf, buflen, flags);
     ERRHANDLE();
+    return rv;
 }
+
+#ifndef HAVE_SENDMSG
+unsigned char *
+gensio_sg_to_buf(const struct gensio_sg *sg, gensiods sglen, gensiods *rlen)
+{
+    gensiods len = 0, pos = 0, i;
+    unsigned char *buf;
+
+    for (i = 0; i < sglen; i++)
+	len += sg[i].buflen;
+    buf = malloc(len);
+    if (!buf)
+	return NULL;
+    for (i = 0; i < sglen; i++) {
+	memcpy(buf + pos, sg[i].buf, sg[i].buflen);
+	pos += sg[i].buflen;
+    }
+    *rlen = len;
+    return buf;
+}
+#endif
 
 int
 gensio_os_send(struct gensio_os_funcs *o,
@@ -144,41 +166,77 @@ gensio_os_send(struct gensio_os_funcs *o,
 	       gensiods *rcount, int gflags)
 {
     ssize_t rv;
-    struct msghdr hdr;
     int flags = (gflags & GENSIO_MSG_OOB) ? MSG_OOB : 0;
 
     if (do_errtrig())
 	return GE_NOMEM;
 
-    memset(&hdr, 0, sizeof(hdr));
-    hdr.msg_iov = (struct iovec *) sg;
-    hdr.msg_iovlen = sglen;
+    {
+#ifdef HAVE_SENDMSG
+	struct msghdr hdr;
 
- retry:
-    rv = sendmsg(fd, &hdr, flags);
-    ERRHANDLE();
+	memset(&hdr, 0, sizeof(hdr));
+	hdr.msg_iov = (struct iovec *) sg;
+	hdr.msg_iovlen = sglen;
+
+    retry:
+	rv = sendmsg(fd, &hdr, flags);
+	ERRHANDLE();
+#else
+	gensiods len;
+	unsigned char *buf;
+
+	buf = gensio_sg_to_buf(sg, sglen, &len);
+	if (!buf)
+	    return GE_NOMEM;
+    retry:
+	rv = send(fd, buf, len, flags);
+	ERRHANDLE();
+	free(buf);
+#endif
+    }
+    return rv;
 }
 
 int
 gensio_os_sendto(struct gensio_os_funcs *o,
 		 int fd, const struct gensio_sg *sg, gensiods sglen,
 		 gensiods *rcount,
-		 int flags, const struct gensio_addr *raddr)
+		 int gflags, const struct gensio_addr *raddr)
 {
     ssize_t rv;
-    struct msghdr hdr;
+    int flags = (gflags & GENSIO_MSG_OOB) ? MSG_OOB : 0;
 
     if (do_errtrig())
 	return GE_NOMEM;
 
-    memset(&hdr, 0, sizeof(hdr));
-    hdr.msg_name = (void *) raddr->curr->ai_addr;
-    hdr.msg_namelen = raddr->curr->ai_addrlen;
-    hdr.msg_iov = (struct iovec *) sg;
-    hdr.msg_iovlen = sglen;
- retry:
-    rv = sendmsg(fd, &hdr, flags);
-    ERRHANDLE();
+    {
+#ifdef HAVE_SENDMSG
+	struct msghdr hdr;
+
+	memset(&hdr, 0, sizeof(hdr));
+	hdr.msg_name = (void *) raddr->curr->ai_addr;
+	hdr.msg_namelen = raddr->curr->ai_addrlen;
+	hdr.msg_iov = (struct iovec *) sg;
+	hdr.msg_iovlen = sglen;
+    retry:
+	rv = sendmsg(fd, &hdr, flags);
+	ERRHANDLE();
+#else
+	gensiods len;
+	unsigned char *buf;
+
+	buf = gensio_sg_to_buf(sg, sglen, &len);
+	if (!buf)
+	    return GE_NOMEM;
+    retry:
+	rv = sendto(fd, buf, len, flags, (void *) raddr->curr->ai_addr,
+		    raddr->curr->ai_addrlen);
+	ERRHANDLE();
+	free(buf);
+#endif
+    }
+    return rv;
 }
 
 struct gensio_addr *

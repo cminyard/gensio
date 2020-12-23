@@ -32,7 +32,7 @@ do {								\
     }								\
     if (!err && rcount)						\
 	*rcount = rv;						\
-    return gensio_os_err_to_err(o, err);			\
+    rv = gensio_os_err_to_err(o, err);				\
 } while(0)
 
 int
@@ -53,6 +53,7 @@ gensio_os_write(struct gensio_os_funcs *o,
  retry:
     rv = writev(fd, (struct iovec *) sg, sglen);
     ERRHANDLE();
+    return rv;
 }
 
 int
@@ -72,6 +73,7 @@ gensio_os_read(struct gensio_os_funcs *o,
  retry:
     rv = read(fd, buf, buflen);
     ERRHANDLE();
+    return rv;
 }
 
 int
