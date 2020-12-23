@@ -6,6 +6,9 @@
  */
 
 #include "config.h"
+#include <gensio/gensio_mdns.h>
+
+#ifdef HAVE_AVAHI
 #include <string.h>
 #include <assert.h>
 #include <sys/socket.h>
@@ -16,7 +19,6 @@
 #include <gensio/gensio.h>
 #include <gensio/gensio_list.h>
 #include <gensio/argvutils.h>
-#include <gensio/gensio_mdns.h>
 #include "avahi_watcher.h"
 
 /* Returns true on failure (error) */
@@ -1335,3 +1337,56 @@ gensio_free_mdns(struct gensio_mdns *m, gensio_mdns_done done, void *userdata)
     gensio_avahi_unlock(m->ap);
     return err;
 }
+
+#else
+
+int
+gensio_alloc_mdns(struct gensio_os_funcs *o, struct gensio_mdns **m)
+{
+    return GE_NOTSUP;
+}
+
+int
+gensio_free_mdns(struct gensio_mdns *m,
+		 gensio_mdns_done done, void *userdata)
+{
+    return GE_NOTSUP;
+}
+
+
+int
+gensio_mdns_add_service(struct gensio_mdns *m,
+			int interface, int ipdomain,
+			const char *name, const char *type,
+			const char *domain, const char *host,
+			int port, const char *txt[],
+			struct gensio_mdns_service **rservice)
+{
+    return GE_NOTSUP;
+}
+
+int
+gensio_mdns_remove_service(struct gensio_mdns_service *s)
+{
+    return GE_NOTSUP;
+}
+
+int
+gensio_mdns_add_watch(struct gensio_mdns *m,
+		      int interface, int ipdomain,
+		      const char *name, const char *type,
+		      const char *domain, const char *host,
+		      gensio_mdns_watch_cb callback, void *userdata,
+		      struct gensio_mdns_watch **rwatch)
+{
+    return GE_NOTSUP;
+}
+
+int
+gensio_mdns_remove_watch(struct gensio_mdns_watch *w,
+			 gensio_mdns_watch_done done, void *userdata)
+{
+    return GE_NOTSUP;
+}
+
+#endif

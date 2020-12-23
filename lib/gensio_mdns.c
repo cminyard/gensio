@@ -8,6 +8,9 @@
 /* This code is for a gensio that echos all writes back to read. */
 
 #include "config.h"
+#include <gensio/gensio_builtins.h>
+
+#ifdef HAVE_AVAHI
 #include <assert.h>
 #include <string.h>
 #include <stdio.h>
@@ -17,7 +20,6 @@
 #include <gensio/gensio_class.h>
 #include <gensio/gensio_mdns.h>
 #include <gensio/argvutils.h>
-#include <gensio/gensio_builtins.h>
 
 enum mdnsn_state {
     MDNSN_CLOSED,
@@ -946,3 +948,25 @@ str_to_mdns_gensio(const char *str, const char * const args[],
     }
     return err;
 }
+
+#else
+
+int
+mdns_gensio_alloc(const char * const argv[], const char * const args[],
+		  struct gensio_os_funcs *o,
+		  gensio_event cb, void *user_data,
+		  struct gensio **new_gensio)
+{
+    return GE_NOTSUP;
+}
+
+int
+str_to_mdns_gensio(const char *str, const char * const args[],
+		   struct gensio_os_funcs *o,
+		   gensio_event cb, void *user_data,
+		   struct gensio **new_gensio)
+{
+    return GE_NOTSUP;
+}
+
+#endif
