@@ -235,7 +235,6 @@ if test "x$HAVE_AVAHI" = "x1"; then
    GMDNS=gmdns
    GMDNSMAN=gmdns.1
 fi
-AM_CONDITIONAL([HAVE_AVAHI], [test "x$HAVE_AVAHI" = "x1"])
 AC_SUBST(GMDNS)
 AC_SUBST(GMDNSMAN)
 

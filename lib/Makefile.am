@@ -26,11 +26,9 @@ libgensio_la_SOURCES = \
 	gensio_filter_perf.c gensio_perf.c gensio_conacc.c \
 	gensio_stdio.c \
 	sergensio_serialdev.c uucplock.c \
-	gensio_pty.c
+	gensio_pty.c \
+	mdns.c avahi_watcher.c gensio_mdns.c
 
-if HAVE_AVAHI
-libgensio_la_SOURCES += mdns.c avahi_watcher.c gensio_mdns.c
-endif
 if HAVE_UNIX_OS
 libgensio_la_SOURCES += gensio_selector.c selector.c
 endif
