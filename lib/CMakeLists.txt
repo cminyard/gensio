@@ -38,7 +38,8 @@ set(BASE_LIBFILES
   errtrig.c
   mdns.c
   avahi_watcher.c
-  gensio_mdns.c)
+  gensio_mdns.c
+  gensio_osops.c)
 
 set(UNIX_LIBFILES
   gensio_stdio.c
@@ -46,7 +47,6 @@ set(UNIX_LIBFILES
   sergensio_serialdev.c
   uucplock.c
   gensio_pty.c
-  gensio_osops.c
   gensio_selector.c)
 
 if(UNIX)

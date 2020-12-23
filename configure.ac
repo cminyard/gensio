@@ -396,9 +396,12 @@ HAVE_PTY=0
 AC_CHECK_HEADER(pty.h, [HAVE_PTY=1] )
 AC_SUBST(HAVE_PTY)
 AC_DEFINE_UNQUOTED([HAVE_PTY], [$HAVE_PTY], [Enable PTY gensio])
+AM_CONDITIONAL([HAVE_PTY], [test ${HAVE_PTY} = 1])
 
 AM_CONDITIONAL([HAVE_UNIX_OS], [test ${version_type} != windows])
 AM_CONDITIONAL([HAVE_WINDOWS_OS], [test ${version_type} = windows])
+AM_CONDITIONAL([HAVE_STDIO], [test ${version_type} != windows])
+AM_CONDITIONAL([HAVE_SERIALDEV], [test ${version_type} != windows])
 
 if test ${version_type} = windows; then
  HAVE_STDIO=0

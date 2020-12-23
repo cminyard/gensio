@@ -8,9 +8,6 @@
 /* This code handles running a child process using a pty. */
 
 #include "config.h"
-
-#if HAVE_PTY
-
 #define _XOPEN_SOURCE 600 /* Get posix_openpt() and friends. */
 #define _GNU_SOURCE /* Get ptsname_r(). */
 #include <stdio.h>
@@ -649,27 +646,3 @@ str_to_pty_gensio(const char *str, const char * const args[],
 
     return err;
 }
-
-#else
-
-#include <gensio/gensio_class.h>
-
-int
-pty_gensio_alloc(const char * const argv[], const char * const args[],
-		 struct gensio_os_funcs *o,
-		 gensio_event cb, void *user_data,
-		 struct gensio **new_gensio)
-{
-    return GE_NOTSUP;
-}
-
-int
-str_to_pty_gensio(const char *str, const char * const args[],
-		  struct gensio_os_funcs *o,
-		  gensio_event cb, void *user_data,
-		  struct gensio **new_gensio)
-{
-    return GE_NOTSUP;
-}
-
-#endif

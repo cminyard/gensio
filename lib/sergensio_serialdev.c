@@ -7,10 +7,6 @@
 
 #include "config.h"
 
-#include <gensio/sergensio_class.h>
-
-#if HAVE_SERIALDEV
-
 #include <stdlib.h>
 #include <errno.h>
 #include <limits.h>
@@ -109,6 +105,7 @@ do_break(int fd)
 
 #endif
 
+#include <gensio/sergensio_class.h>
 #include <gensio/gensio_ll_fd.h>
 #include <gensio/gensio_builtins.h>
 #include <gensio/gensio_osops.h>
@@ -1935,25 +1932,3 @@ str_to_serialdev_gensio(const char *str, const char * const args[],
 {
     return serialdev_gensio_alloc(str, args, o, cb, user_data, new_gensio);
 }
-
-#else
-
-int
-serialdev_gensio_alloc(const char *devname, const char * const args[],
-		       struct gensio_os_funcs *o,
-		       gensio_event cb, void *user_data,
-		       struct gensio **rio)
-{
-    return GE_NOTSUP;
-}
-
-int
-str_to_serialdev_gensio(const char *str, const char * const args[],
-		      struct gensio_os_funcs *o,
-		      gensio_event cb, void *user_data,
-		      struct gensio **new_gensio)
-{
-    return GE_NOTSUP;
-}
-
-#endif
