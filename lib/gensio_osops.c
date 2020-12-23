@@ -16,6 +16,9 @@
 #include <winsock2.h>
 #include <ws2tcpip.h>
 typedef int taddrlen;
+#define EINTR WSAEINTR
+#define EWOULDBLOCK WSAEWOULDBLOCK
+#define EAGAIN WSAEWOULDBLOCK
 #else
 #include <arpa/inet.h>
 #include <netinet/tcp.h>

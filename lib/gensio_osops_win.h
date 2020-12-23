@@ -9,16 +9,16 @@
 do {								\
     int err = 0;						\
     if (rv < 0) {						\
-	if (errno == EINTR)					\
+	if (errno == WSAEINTR)					\
 	    goto retry;						\
-	if (errno == EWOULDBLOCK || errno == EAGAIN)		\
+	if (errno == WSAEWOULDBLOCK)				\
 	    rv = 0; /* Handle like a zero-byte write. */	\
 	else {							\
 	    err = errno;					\
 	    assert(err);					\
 	}							\
     } else if (rv == 0) {					\
-	err = EPIPE;						\
+	err = WSAECONNRESET;					\
     }								\
     if (!err && rcount)						\
 	*rcount = rv;						\
@@ -57,7 +57,7 @@ gensio_os_set_non_blocking(struct gensio_os_funcs *o, int fd)
     if (do_errtrig())
 	return GE_NOMEM;
 
-    rv = ioctlsocket(sock, FIONBIO, &flags);
+    rv = ioctlsocket(fd, FIONBIO, &flags);
     if (rv)
 	return gensio_os_err_to_err(o, errno);
     return 0;
@@ -73,31 +73,7 @@ int
 gensio_os_get_random(struct gensio_os_funcs *o,
 		     void *data, unsigned int len)
 {
-    int fd;
-    int rv;
-
-    if (do_errtrig())
-	return GE_NOMEM;
-
-    fd = open("/dev/urandom", O_RDONLY);
-    if (fd == -1)
-	return gensio_os_err_to_err(o, errno);
-
-    while (len > 0) {
-	rv = read(fd, data, len);
-	if (rv < 0) {
-	    rv = errno;
-	    goto out;
-	}
-	len -= rv;
-	data += rv;
-    }
-
-    rv = 0;
-
- out:
-    close(fd);
-    return gensio_os_err_to_err(o, rv);
+    return 0; /* FIXME */
 }
 
 int
@@ -111,25 +87,18 @@ gensio_i_os_err_to_err(struct gensio_os_funcs *o,
 	return 0;
 
     switch(oserr) {
-    case ENOMEM:	err = GE_NOMEM; break;
-    case EINVAL:	err = GE_INVAL; break;
-    case ENOENT:	err = GE_NOTFOUND; break;
-    case EEXIST:	err = GE_EXISTS; break;
-    case EBUSY:		err = GE_INUSE; break;
-    case EINPROGRESS:	err = GE_INPROGRESS; break;
-    case ETIMEDOUT:	err = GE_TIMEDOUT; break;
-    case EPIPE:		err = GE_REMCLOSE; break;
-    case ECONNRESET:	err = GE_REMCLOSE; break;
-    case EHOSTUNREACH:	err = GE_HOSTDOWN; break;
-    case ECONNREFUSED:	err = GE_CONNREFUSE; break;
-    case EIO:		err = GE_IOERR; break;
-    case EADDRINUSE:	err = GE_ADDRINUSE; break;
-    case EINTR:		err = GE_INTERRUPTED; break;
-    case ESHUTDOWN:     err = GE_SHUTDOWN; break;
-    case EMSGSIZE:      err = GE_TOOBIG; break;
-    case EPERM:         err = GE_PERM; break;
-    case EACCES:        err = GE_PERM; break;
-    default:		err = GE_OSERR;
+    case WSAEINVAL:		err = GE_INVAL; break;
+    case WSAEINPROGRESS:	err = GE_INPROGRESS; break;
+    case WSAETIMEDOUT:		err = GE_TIMEDOUT; break;
+    case WSAECONNRESET:		err = GE_REMCLOSE; break;
+    case WSAEHOSTUNREACH:	err = GE_HOSTDOWN; break;
+    case WSAECONNREFUSED:	err = GE_CONNREFUSE; break;
+    case WSAEADDRINUSE:		err = GE_ADDRINUSE; break;
+    case WSAEINTR:		err = GE_INTERRUPTED; break;
+    case WSAESHUTDOWN:		err = GE_SHUTDOWN; break;
+    case WSAEMSGSIZE:		err = GE_TOOBIG; break;
+    case WSAEACCES:		err = GE_PERM; break;
+    default:			err = GE_OSERR;
     }
 
     if (err == GE_OSERR) {
