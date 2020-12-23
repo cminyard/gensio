@@ -452,7 +452,6 @@ gensio_os_mcast_add(struct gensio_os_funcs *o, int fd,
 		    struct gensio_addr *mcast_addrs, int iface,
 		    bool curr_only)
 {
-#ifdef HAVE_MCAST
     struct addrinfo *ai;
     int rv;
 
@@ -469,10 +468,16 @@ gensio_os_mcast_add(struct gensio_os_funcs *o, int fd,
 	case AF_INET:
 	    {
 		struct sockaddr_in *a = (struct sockaddr_in *) ai->ai_addr;
+#ifdef _WIN32
+		struct ip_mreq m;
+#else
 		struct ip_mreqn m;
+#endif
 
 		m.imr_multiaddr = a->sin_addr;
+#ifndef _WIN32
 		m.imr_address.s_addr = INADDR_ANY;
+#endif
 		m.imr_ifindex = iface;
 		rv = setsockopt(fd, IPPROTO_IP, IP_ADD_MEMBERSHIP,
 				(void *) &m, sizeof(m));
@@ -507,9 +512,6 @@ gensio_os_mcast_add(struct gensio_os_funcs *o, int fd,
     }
 
     return 0;
-#else
-    return GE_NOTSUP;
-#endif
 }
 
 int
@@ -517,7 +519,6 @@ gensio_os_mcast_del(struct gensio_os_funcs *o, int fd,
 		    struct gensio_addr *mcast_addrs, int iface,
 		    bool curr_only)
 {
-#ifdef HAVE_MCAST
     struct addrinfo *ai;
     int rv;
 
@@ -534,10 +535,16 @@ gensio_os_mcast_del(struct gensio_os_funcs *o, int fd,
 	case AF_INET:
 	    {
 		struct sockaddr_in *a = (struct sockaddr_in *) ai->ai_addr;
+#ifdef _WIN32
+		struct ip_mreq m;
+#else
 		struct ip_mreqn m;
+#endif
 
 		m.imr_multiaddr = a->sin_addr;
+#ifndef _WIN32
 		m.imr_address.s_addr = INADDR_ANY;
+#endif
 		m.imr_ifindex = iface;
 		rv = setsockopt(fd, IPPROTO_IP, IP_ADD_MEMBERSHIP,
 				(void *) &m, sizeof(m));
@@ -572,16 +579,12 @@ gensio_os_mcast_del(struct gensio_os_funcs *o, int fd,
     }
 
     return 0;
-#else
-    return GE_NOTSUP;
-#endif
 }
 
 int
 gensio_os_set_mcast_loop(struct gensio_os_funcs *o, int fd,
 			 const struct gensio_addr *addr, bool ival)
 {
-#ifdef HAVE_MCAST
     int rv, val = ival;
 
     if (do_errtrig())
@@ -609,9 +612,6 @@ gensio_os_set_mcast_loop(struct gensio_os_funcs *o, int fd,
     }
 
     return 0;
-#else
-    return GE_NOTSUP;
-#endif
 }
 
 int
