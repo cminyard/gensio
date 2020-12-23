@@ -95,8 +95,10 @@ check_ipv6_only(int family, int protocol, int flags, int fd)
 {
     int val;
 
+#ifdef AF_INET6
     if (family != AF_INET6)
 	return 0;
+#endif
 
     if (flags & AI_V4MAPPED)
 	val = 0;
@@ -407,6 +409,7 @@ gensio_os_mcast_add(struct gensio_os_funcs *o, int fd,
 	    }
 	    break;
 
+#ifdef AF_INET6
 	case AF_INET6:
 	    {
 		struct sockaddr_in6 *a = (struct sockaddr_in6 *) ai->ai_addr;
@@ -420,6 +423,7 @@ gensio_os_mcast_add(struct gensio_os_funcs *o, int fd,
 		    return gensio_os_err_to_err(o, errno);
 	    }
 	    break;
+#endif
 
 	default:
 	    return GE_INVAL;
@@ -466,6 +470,7 @@ gensio_os_mcast_del(struct gensio_os_funcs *o, int fd,
 	    }
 	    break;
 
+#ifdef AF_INET6
 	case AF_INET6:
 	    {
 		struct sockaddr_in6 *a = (struct sockaddr_in6 *) ai->ai_addr;
@@ -479,6 +484,7 @@ gensio_os_mcast_del(struct gensio_os_funcs *o, int fd,
 		    return gensio_os_err_to_err(o, errno);
 	    }
 	    break;
+#endif
 
 	default:
 	    return GE_INVAL;
@@ -508,12 +514,14 @@ gensio_os_set_mcast_loop(struct gensio_os_funcs *o, int fd,
 	    return gensio_os_err_to_err(o, errno);
 	break;
 
+#ifdef AF_INET6
     case AF_INET6:
 	rv = setsockopt(fd, IPPROTO_IPV6, IPV6_MULTICAST_LOOP,
 			&val, sizeof(val));
 	if (rv == -1)
 	    return gensio_os_err_to_err(o, errno);
 	break;
+#endif
 
     default:
 	return GE_INVAL;
@@ -637,7 +645,7 @@ gensio_os_open_socket(struct gensio_os_funcs *o,
 		      struct opensocks **rfds, unsigned int *nr_fds)
 {
     struct addrinfo *rp;
-    int family = AF_INET6; /* Try IPV6 first, then IPV4. */
+    int family;
     struct opensocks *fds;
     unsigned int curr_fd = 0, i;
     unsigned int max_fds = 0;
@@ -659,7 +667,18 @@ gensio_os_open_socket(struct gensio_os_funcs *o,
 
     memset(&scaninfo, 0, sizeof(scaninfo));
 
+#if !HAVE_WORKING_PORT0
+ restart_family:
+#endif
+#ifdef AF_INET6
+    family = AF_INET6; /* Try IPV6 first, then IPV4. */
+#else
+    family = AF_INET;
+#endif
+    
+#if defined(AF_INET6) || defined(HAVE_UNIX)
  restart:
+#endif
     for (rp = ai->a; rp != NULL; rp = rp->ai_next) {
 	if (family != rp->ai_family)
 	    continue;
@@ -679,10 +698,12 @@ gensio_os_open_socket(struct gensio_os_funcs *o,
 	fds[curr_fd].flags = rp->ai_flags;
 	curr_fd++;
     }
+#ifdef AF_INET6
     if (family == AF_INET6) {
 	family = AF_INET;
 	goto restart;
     }
+#endif
 #if HAVE_UNIX
     if (family == AF_INET) {
 	family = AF_UNIX;
@@ -714,8 +735,7 @@ gensio_os_open_socket(struct gensio_os_funcs *o,
 	/* We need to keep scanning. */
 	curr_fd = 0;
 	scaninfo.reqport = 0;
-	family = AF_INET6;
-	goto restart;
+	goto restart_family;
     }
 #endif
     o->free(o, fds);
@@ -741,6 +761,18 @@ gensio_os_socket_get_port(struct gensio_os_funcs *o, int fd, unsigned int *port)
 	return rv;
 
     return 0;
+}
+
+static bool
+family_is_inet(int family)
+{
+    if (family == AF_INET)
+	return true;
+#ifdef AF_INET6
+    if (family == AF_INET6)
+	return true;
+#endif
+    return false;
 }
 
 static int
@@ -813,7 +845,7 @@ gensio_setup_listen_socket(struct gensio_os_funcs *o, bool do_listen,
     if (check_ipv6_only(family, protocol, flags, fd) == -1)
 	goto out_err;
 #if !HAVE_WORKING_PORT0
-    if (port == 0 && (family == AF_INET || family == AF_INET6)) {
+    if (port == 0 && family_is_inet(family)) {
 	struct gensio_listen_scan_info lsi;
 	struct gensio_listen_scan_info *si = rsi;
 
@@ -856,7 +888,7 @@ gensio_setup_listen_socket(struct gensio_os_funcs *o, bool do_listen,
 #if !HAVE_WORKING_PORT0
  got_it:
 #endif
-    if (family == AF_INET || family == AF_INET6) {
+    if (family_is_inet(family)) {
 	rv = gensio_os_socket_get_port(o, fd, &port);
 	if (rv)
 	    goto out;
@@ -964,8 +996,12 @@ gensio_scan_network_port(struct gensio_os_funcs *o, const char *str,
 	family = AF_INET;
 	str += 5;
     } else if (strncmp(str, "ipv6,", 5) == 0) {
+#ifdef AF_INET6
 	family = AF_INET6;
 	str += 5;
+#else
+	return GE_NOTSUP;
+#endif
     }
 
     if (strncmp(str, "tcp,", 4) == 0 ||

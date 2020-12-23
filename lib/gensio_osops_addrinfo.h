@@ -77,8 +77,12 @@ gensio_addr_create(struct gensio_os_funcs *o,
 		   unsigned int port, struct gensio_addr **newaddr)
 {
     struct sockaddr_in s4;
+#ifdef AF_INET6
     struct sockaddr_in6 s6;
+#endif
+#ifdef HAVE_UNIX
     struct sockaddr_un su;
+#endif
     struct sockaddr *s;
     unsigned int slen;
     struct gensio_addr *a;
@@ -96,6 +100,7 @@ gensio_addr_create(struct gensio_os_funcs *o,
 	break;
 
     case GENSIO_NETTYPE_IPV6:
+#ifdef AF_INET6
 	if (len != sizeof(struct in6_addr))
 	    return GE_INVAL;
 	memset(&s6, 0, sizeof(s6));
@@ -105,8 +110,12 @@ gensio_addr_create(struct gensio_os_funcs *o,
 	s = (struct sockaddr *) &s6;
 	slen = sizeof(s6);
 	break;
+#else
+	return GE_NOTSUP;
+#endif
 
     case GENSIO_NETTYPE_UNIX:
+#ifdef HAVE_UNIX
 	memset(&su, 0, sizeof(su));
 	if (len > sizeof(su.sun_path) - 1)
 	    return GE_TOOBIG;
@@ -115,6 +124,9 @@ gensio_addr_create(struct gensio_os_funcs *o,
 	s = (struct sockaddr *) &su;
 	slen = sizeof(su);
 	break;
+#else
+	return GE_NOSUP;
+#endif
 
     default:
 	return GE_INVAL;
@@ -138,9 +150,11 @@ sockaddr_get_port(const struct sockaddr *s, unsigned int *port)
 	*port = ntohs(((struct sockaddr_in *) s)->sin_port);
 	break;
 
+#ifdef AF_INET6
     case AF_INET6:
 	*port = ntohs(((struct sockaddr_in6 *) s)->sin6_port);
 	break;
+#endif
 
     default:
 	return GE_INVAL;
@@ -157,9 +171,11 @@ sockaddr_set_port(const struct sockaddr *s, unsigned int port)
 	((struct sockaddr_in *) s)->sin_port = htons(port);
 	break;
 
+#ifdef AF_INET6
     case AF_INET6:
 	((struct sockaddr_in6 *) s)->sin6_port = htons(port);
 	break;
+#endif
 
     default:
 	return GE_INVAL;
@@ -168,6 +184,7 @@ sockaddr_set_port(const struct sockaddr *s, unsigned int port)
     return 0;
 }
 
+#ifdef AF_INET6
 static bool
 sockaddr_inet6_inet4_equal(const struct sockaddr *a1, socklen_t l1,
 			   const struct sockaddr *a2, socklen_t l2,
@@ -189,6 +206,7 @@ sockaddr_inet6_inet4_equal(const struct sockaddr *a1, socklen_t l1,
 
     return ((const uint32_t *) &s1->sin6_addr)[3] == s2->sin_addr.s_addr;
 }
+#endif
 
 static bool
 sockaddr_equal(const struct sockaddr *a1, socklen_t l1,
@@ -196,10 +214,12 @@ sockaddr_equal(const struct sockaddr *a1, socklen_t l1,
 	       bool compare_ports)
 {
     if (a1->sa_family != a2->sa_family) {
+#ifdef AF_INET6
 	if (a1->sa_family == AF_INET6)
 	    return sockaddr_inet6_inet4_equal(a1, l1, a2, l2, compare_ports);
 	else if (a2->sa_family == AF_INET6)
 	    return sockaddr_inet6_inet4_equal(a2, l2, a1, l1, compare_ports);
+#endif
 	return false;
     }
     if (l1 != l2)
@@ -216,6 +236,7 @@ sockaddr_equal(const struct sockaddr *a1, socklen_t l1,
 	}
 	break;
 
+#ifdef AF_INET6
     case AF_INET6:
 	{
 	    struct sockaddr_in6 *s1 = (struct sockaddr_in6 *) a1;
@@ -227,6 +248,7 @@ sockaddr_equal(const struct sockaddr *a1, socklen_t l1,
 		return false;
 	}
 	break;
+#endif
 
 #if HAVE_UNIX
     case AF_UNIX:
@@ -288,6 +310,7 @@ gensio_sockaddr_to_str(const struct sockaddr *addr, int flags,
 	gensio_pos_snprintf(buf, buflen, pos, "ipv4,%s,%d",
 			inet_ntop(AF_INET, &a4->sin_addr, ibuf, sizeof(ibuf)),
 			ntohs(a4->sin_port));
+#ifdef AF_INET6
     } else if (addr->sa_family == AF_INET6) {
 	struct sockaddr_in6 *a6 = (struct sockaddr_in6 *) addr;
 	char ibuf[INET6_ADDRSTRLEN];
@@ -296,6 +319,7 @@ gensio_sockaddr_to_str(const struct sockaddr *addr, int flags,
 			flags & AI_V4MAPPED ? "ipv6n4" : "ipv6",
 			inet_ntop(AF_INET6, &a6->sin6_addr, ibuf, sizeof(ibuf)),
 			ntohs(a6->sin6_port));
+#endif
 #if HAVE_UNIX
     } else if (addr->sa_family == AF_UNIX) {
 	struct sockaddr_un *au = (struct sockaddr_un *) addr;
@@ -386,12 +410,22 @@ scan_ips(struct gensio_os_funcs *o, const char *str, bool listen, int ifamily,
 	    family = AF_INET;
 	    ip = strtok_r(NULL, ",", &strtok_data);
 	} else if (strcmp(ip, "ipv6") == 0) {
+#ifdef AF_INET6
 	    family = AF_INET6;
 	    ip = strtok_r(NULL, ",", &strtok_data);
+#else
+	    rv = GE_NOTSUP;
+	    goto out_err;
+#endif
 	} else if (strcmp(ip, "ipv6n4") == 0) {
+#ifdef AF_INET6
 	    family = AF_INET6;
 	    rflags |= AI_V4MAPPED;
 	    ip = strtok_r(NULL, ",", &strtok_data);
+#else
+	    rv = GE_NOTSUP;
+	    goto out_err;
+#endif
 	} else {
 	    /* Default to V4 mapped. */
 	    rflags |= AI_V4MAPPED;
@@ -428,9 +462,15 @@ scan_ips(struct gensio_os_funcs *o, const char *str, bool listen, int ifamily,
 	 * If we get no network addresses in IPv4, then try IPv4.
 	 */
 	if (!ip && notype)
+#ifdef AF_INET6
 	    family = AF_INET6;
+#else
+	    family = AF_INET;
+#endif
 
+#ifdef AF_INET6
     redo_getaddrinfo:
+#endif
 	memset(&hints, 0, sizeof(hints));
 	hints.ai_flags = bflags | rflags;
 	hints.ai_family = family;
@@ -438,10 +478,12 @@ scan_ips(struct gensio_os_funcs *o, const char *str, bool listen, int ifamily,
 	hints.ai_protocol = protocol;
 	rv = getaddrinfo(ip, port, &hints, &ai);
 	if (rv) {
+#ifdef AF_INET6
 	    if (notype && family == AF_INET6) {
 		family = AF_INET;
 		goto redo_getaddrinfo;
 	    }
+#endif
 	    rv = GE_INVAL;
 	    goto out_err;
 	}
@@ -745,9 +787,11 @@ gensio_addr_family_supports(const struct gensio_addr *addr, int family,
 {
     if (addr->curr->ai_addr->sa_family == family)
 	return true;
+#ifdef AF_INET6
     if (addr->curr->ai_addr->sa_family == AF_INET && family == AF_INET6 &&
 		flags & AI_V4MAPPED)
 	return true;
+#endif
     return false;
 }
 
