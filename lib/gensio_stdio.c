@@ -629,14 +629,12 @@ setup_child_proc(struct stdiona_data *nadata)
 
     nadata->io.infd = stdinpipe[1];
     nadata->io.outfd = stdoutpipe[0];
-    if (fcntl(nadata->io.infd, F_SETFL, O_NONBLOCK) == -1) {
-	err = errno;
-	goto out_err;
-    }
-    if (fcntl(nadata->io.outfd, F_SETFL, O_NONBLOCK) == -1) {
-	err = errno;
-	goto out_err;
-    }
+    err = gensio_os_set_non_blocking(nadata->o, nadata->io.infd);
+    if (err)
+	goto out_err_noconv;
+    err = gensio_os_set_non_blocking(nadata->o, nadata->io.outfd);
+    if (err)
+	goto out_err_noconv;
 
     nadata->err.infd = -1;
 
@@ -653,10 +651,9 @@ setup_child_proc(struct stdiona_data *nadata)
 	    goto out_err;
 	}
 	nadata->err.outfd = stderrpipe[0];
-	if (fcntl(nadata->err.outfd, F_SETFL, O_NONBLOCK) == -1) {
-	    err = errno;
-	    goto out_err;
-	}
+	err = gensio_os_set_non_blocking(nadata->o, nadata->err.outfd);
+	if (err)
+	    goto out_err_noconv;
     }
 
     nadata->opid = fork();
@@ -698,6 +695,11 @@ setup_child_proc(struct stdiona_data *nadata)
     return 0;
 
  out_err:
+    err = gensio_os_err_to_err(nadata->o, err);
+ out_err_noconv:
+    nadata->io.infd = -1;
+    nadata->io.outfd = -1;
+    nadata->err.outfd = -1;
     if (stdinpipe[0] != -1)
 	close(stdinpipe[0]);
     if (stdinpipe[1] != -1)
@@ -711,7 +713,7 @@ setup_child_proc(struct stdiona_data *nadata)
     if (stderrpipe[1] != -1 && stderrpipe[1] != stdoutpipe[1])
 	close(stderrpipe[1]);
 
-    return gensio_os_err_to_err(nadata->o, err);
+    return err;
 }
 
 static int
@@ -749,10 +751,9 @@ setup_io_self(struct stdiona_data *nadata)
 	    goto out_err;
 	}
 	nadata->old_flags_ostdin = rv;
-	if (fcntl(nadata->io.infd, F_SETFL, O_NONBLOCK) == -1) {
-	    rv = gensio_os_err_to_err(nadata->o, errno);
+	rv = gensio_os_set_non_blocking(nadata->o, nadata->io.infd);
+	if (rv)
 	    goto out_err;
-	}
 	nadata->old_flags_ostdin_set = true;
     }
 
@@ -764,10 +765,9 @@ setup_io_self(struct stdiona_data *nadata)
 	}
 	nadata->old_flags_ostdout = rv;
 
-	if (fcntl(nadata->io.outfd, F_SETFL, O_NONBLOCK) == -1) {
-	    rv = gensio_os_err_to_err(nadata->o, errno);
+	rv = gensio_os_set_non_blocking(nadata->o, nadata->io.outfd);
+	if (rv)
 	    goto out_err;
-	}
 	nadata->old_flags_ostdout_set = true;
     }
     rv = 0;

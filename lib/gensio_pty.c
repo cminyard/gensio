@@ -115,8 +115,9 @@ gensio_setup_child_on_pty(struct pty_data *tdata)
     if (ptym == -1)
 	return gensio_os_err_to_err(o, errno);
 
-    if (fcntl(ptym, F_SETFL, O_NONBLOCK) == -1)
-	goto out_errno;
+    err = gensio_os_set_non_blocking(o, ptym);
+    if (err)
+	goto out_err_noconv;
 
 #ifdef HAVE_PTSNAME_R
     err = ptsname_r(ptym, ptsstr, sizeof(ptsstr));
@@ -295,10 +296,12 @@ gensio_setup_child_on_pty(struct pty_data *tdata)
  out_errno:
     err = errno;
  out_err:
+    err = gensio_os_err_to_err(o, err);
+ out_err_noconv:
     if (link_created)
 	unlink(tdata->link);
     close(ptym);
-    return gensio_os_err_to_err(o, err);
+    return err;
 }
 
 static int
