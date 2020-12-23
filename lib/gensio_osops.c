@@ -19,6 +19,7 @@ typedef int taddrlen;
 #define EINTR WSAEINTR
 #define EWOULDBLOCK WSAEWOULDBLOCK
 #define EAGAIN WSAEWOULDBLOCK
+#define EADDRINUSE WSAEADDRINUSE
 #else
 #include <arpa/inet.h>
 #include <netinet/tcp.h>
@@ -643,7 +644,7 @@ gensio_os_get_nodelay(struct gensio_os_funcs *o, int fd, int protocol, int *val)
 	return GE_NOMEM;
 
     if (protocol == GENSIO_NET_PROTOCOL_TCP)
-	rv = getsockopt(fd, IPPROTO_TCP, TCP_NODELAY, val, &vallen);
+	rv = getsockopt(fd, IPPROTO_TCP, TCP_NODELAY, (void *) val, &vallen);
 #if HAVE_LIBSCTP
     else if (protocol == GENSIO_NET_PROTOCOL_SCTP)
 	rv = getsockopt(fd, IPPROTO_SCTP, SCTP_NODELAY, &val, &vallen);
@@ -686,6 +687,7 @@ gensio_os_getsockname(struct gensio_os_funcs *o, int fd,
 {
     struct gensio_addr *addr;
     int err;
+    taddrlen len;
 
     if (do_errtrig())
 	return GE_NOMEM;
@@ -694,11 +696,12 @@ gensio_os_getsockname(struct gensio_os_funcs *o, int fd,
     if (!addr)
 	return GE_NOMEM;
 
-    err = getsockname(fd, addr->curr->ai_addr, &addr->curr->ai_addrlen);
+    err = getsockname(fd, addr->curr->ai_addr, &len);
     if (err)
 	return gensio_os_err_to_err(o, errno);
 
     addr->curr->ai_family = addr->curr->ai_addr->sa_family;
+    addr->curr->ai_addrlen = len;
     *raddr = addr;
 
     return 0;
@@ -812,7 +815,7 @@ gensio_os_open_socket(struct gensio_os_funcs *o,
  out_close:
     for (i = 0; i < curr_fd; i++) {
 	o->clear_fd_handlers_norpt(o, fds[i].fd);
-	close(fds[i].fd);
+	gensio_os_close_socket(o, &fds[i].fd);
     }
 #if !HAVE_WORKING_PORT0
     if (rv == GE_ADDRINUSE && scaninfo.start != 0 &&
@@ -902,7 +905,9 @@ gensio_setup_listen_socket(struct gensio_os_funcs *o, bool do_listen,
 	goto out_err_noconv;
 
     if (opensock_flags & GENSIO_OPENSOCK_REUSEADDR) {
-	if (family == AF_UNIX) {
+	switch (family) {
+#if HAVE_UNIX
+	case AF_UNIX: {
 	    /* We remove an existing socket with reuseaddr and AF_UNIX. */
 	    struct sockaddr_un *unaddr = (struct sockaddr_un *) addr;
 	    char unpath[sizeof(unaddr->sun_path) + 1];
@@ -920,7 +925,10 @@ gensio_setup_listen_socket(struct gensio_os_funcs *o, bool do_listen,
 	     * Ignore errors, it may not exist, and we'll get errors
 	     * later on problems.
 	     */
-	} else {
+	    break;
+	}
+#endif
+	default:
 	    if (setsockopt(fd, SOL_SOCKET, SO_REUSEADDR,
 			   (void *) &optval, sizeof(optval)) == -1)
 		goto out_err;
@@ -998,7 +1006,7 @@ gensio_setup_listen_socket(struct gensio_os_funcs *o, bool do_listen,
 			    fd_handler_cleared);
  out:
     if (rv)
-	close(fd);
+	gensio_os_close_socket(o, &fd);
     else
 	*rfd = fd;
     return rv;
