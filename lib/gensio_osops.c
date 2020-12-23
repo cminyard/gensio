@@ -330,7 +330,7 @@ gensio_os_check_socket_open(struct gensio_os_funcs *o, int fd)
     if (do_errtrig())
 	return GE_NOMEM;
 
-    err = getsockopt(fd, SOL_SOCKET, SO_ERROR, &optval, &len);
+    err = getsockopt(fd, SOL_SOCKET, SO_ERROR, (void *) &optval, &len);
     if (err)
 	return gensio_os_err_to_err(o, errno);
     return gensio_os_err_to_err(o, optval);
@@ -451,6 +451,7 @@ gensio_os_mcast_add(struct gensio_os_funcs *o, int fd,
 		    struct gensio_addr *mcast_addrs, int iface,
 		    bool curr_only)
 {
+#ifdef HAVE_MCAST
     struct addrinfo *ai;
     int rv;
 
@@ -505,6 +506,9 @@ gensio_os_mcast_add(struct gensio_os_funcs *o, int fd,
     }
 
     return 0;
+#else
+    return GE_NOTSUP;
+#endif
 }
 
 int
@@ -512,6 +516,7 @@ gensio_os_mcast_del(struct gensio_os_funcs *o, int fd,
 		    struct gensio_addr *mcast_addrs, int iface,
 		    bool curr_only)
 {
+#ifdef HAVE_MCAST
     struct addrinfo *ai;
     int rv;
 
@@ -566,12 +571,16 @@ gensio_os_mcast_del(struct gensio_os_funcs *o, int fd,
     }
 
     return 0;
+#else
+    return GE_NOTSUP;
+#endif
 }
 
 int
 gensio_os_set_mcast_loop(struct gensio_os_funcs *o, int fd,
 			 const struct gensio_addr *addr, bool ival)
 {
+#ifdef HAVE_MCAST
     int rv, val = ival;
 
     if (do_errtrig())
@@ -599,6 +608,9 @@ gensio_os_set_mcast_loop(struct gensio_os_funcs *o, int fd,
     }
 
     return 0;
+#else
+    return GE_NOTSUP;
+#endif
 }
 
 int
