@@ -69,11 +69,46 @@ gensio_os_check_tcpd_ok(int new_fd, const char *iprogname)
     return NULL;
 }
 
+#include <bcrypt.h>
+#include <ntstatus.h>
+
+static int
+gensio_i_win_err_to_err(struct gensio_os_funcs *o, NTSTATUS rv,
+			const char *caller, const char *file,
+			unsigned int lineno)
+{
+    switch(rv) {
+    case STATUS_SUCCESS: return 0;
+    case STATUS_NOT_FOUND: return GE_NOTFOUND;
+    case STATUS_INVALID_PARAMETER: return GE_INVAL;
+    case STATUS_NO_MEMORY: return GE_NOMEM;
+    }
+    
+    gensio_log(o, GENSIO_LOG_INFO,
+	       "Unhandled Windows OS error in %s:%d: %d", caller, lineno, rv);
+    return GE_OSERR;
+}
+
+#define gensio_win_err_to_err(o, err)					\
+    gensio_i_win_err_to_err(o, err, __FUNCTION__, __FILE__, __LINE__)
+
 int
 gensio_os_get_random(struct gensio_os_funcs *o,
 		     void *data, unsigned int len)
 {
-    return 0; /* FIXME */
+    NTSTATUS rv;
+    BCRYPT_ALG_HANDLE alg;
+    int err = 0;
+
+    rv = BCryptOpenAlgorithmProvider(&alg, BCRYPT_RSA_ALGORITHM,
+				     MS_PRIMITIVE_PROVIDER, 0);
+    if (rv != STATUS_SUCCESS)
+	return gensio_win_err_to_err(o, rv);
+    rv = BCryptGenRandom(alg, data, len, 0);
+    if (rv)
+	err = gensio_win_err_to_err(o, rv);
+    BCryptCloseAlgorithmProvider(alg, 0);
+    return err;
 }
 
 int
