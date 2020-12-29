@@ -3,7 +3,7 @@ AM_CFLAGS = $(PYTHON_CPPFLAGS) \
 	    -I $(top_srcdir)/include \
 	    -I$(top_builddir)/include \
 	    -I $(top_srcdir) \
-	    -DPYTHON_HAS_POSIX_THREADS=@PYTHON_HAS_POSIX_THREADS@
+	    -DPYTHON_HAS_THREADS=@PYTHON_HAS_THREADS@
 
 pythonlibdir=$(PYTHON_INSTALL_LIB_DIR)
 PYPATH=$(top_builddir)/swig/python:$(top_builddir)/swig/python/.libs

@@ -17,7 +17,7 @@
 #include <gensio/gensio_mdns.h>
 #include "config.h"
 
-#if PYTHON_HAS_POSIX_THREADS
+#if PYTHON_HAS_THREADS
 #include <pthread.h>
 #define USE_POSIX_THREADS
 #endif

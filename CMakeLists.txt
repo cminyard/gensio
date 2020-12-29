@@ -92,7 +92,7 @@ if(ENABLE_PYTHON)
   find_package(PythonInterp)
   find_package(PythonLibs)
   # FIXME - we are assuming this for now.
-  option(PYTHON_HAS_POSIX_THREADS "Support threading in python" ON)
+  option(PYTHON_HAS_THREADS "Support threading in python" ON)
 endif()
 
 option(ENABLE_SCTP "Enable SCTP support" ON)
