@@ -20,8 +20,9 @@ gensio_wrap.c gensio.py: $(top_srcdir)/swig/gensio.i \
 EXTRA_DIST = gensio_python.i CMakeLists.txt
 
 nodist__gensio_la_SOURCES = gensio_wrap.c
-_gensio_la_LIBADD = $(top_builddir)/lib/libgensio.la $(OPENSSL_LIBS)
-_gensio_la_LDFLAGS = -module -avoid-version $(OPENSSL_LDFLAGS)
+_gensio_la_LIBADD = $(top_builddir)/lib/libgensio.la $(OPENSSL_LIBS) \
+		$(PYTHON_LIBS)
+_gensio_la_LDFLAGS = -module -avoid-version $(OPENSSL_LDFLAGS) -no-undefined
 
 clean-local:
 	rm -rf __pycache__ gensio_wrap.c gensio.py
