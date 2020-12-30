@@ -18,8 +18,13 @@
 #include "config.h"
 
 #if PYTHON_HAS_THREADS
+#ifdef _WIN32
+#include <processthreadsapi.h>
+#define USE_WIN32_THREADS
+#else
 #include <pthread.h>
 #define USE_POSIX_THREADS
+#endif
 #endif
 
 struct waiter {
@@ -27,12 +32,13 @@ struct waiter {
     struct gensio_waiter *waiter;
 };
 
+static void oom_err(void);
+
 /*
  * If an exception occurs inside a waiter, we want to stop the wait
  * operation and propagate back.  So we wake it up
  */
 #ifdef USE_POSIX_THREADS
-static void oom_err(void);
 struct gensio_wait_block {
     struct waiter *curr_waiter;
 };
@@ -79,6 +85,81 @@ static void
 wake_curr_waiter(void)
 {
     struct gensio_wait_block *data = pthread_getspecific(gensio_thread_key);
+
+    if (!data)
+	return;
+    if (data->curr_waiter)
+	data->curr_waiter->o->wake(data->curr_waiter->waiter);
+}
+
+#elif defined(USE_WIN32_THREADS)
+struct gensio_wait_block {
+    struct waiter *curr_waiter;
+};
+
+static DWORD gensio_threadkey_idx;
+
+BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
+{
+    struct gensio_wait_block *b;
+
+    switch (fdwReason)
+    {
+    case DLL_PROCESS_DETACH:
+	b = TlsGetValue(gensio_threadkey_idx);
+	if (b)
+	    free(b);
+
+	TlsFree(gensio_threadkey_idx);
+	break;
+
+    case DLL_THREAD_DETACH:
+	b = TlsGetValue(gensio_threadkey_idx);
+	if (b)
+	    free(b);
+	break;
+
+    default:
+	break;
+    }
+
+    return TRUE;
+}
+
+static struct waiter *
+save_waiter(struct waiter *waiter)
+{
+    struct gensio_wait_block *data = TlsGetValue(gensio_threadkey_idx);
+    struct waiter *prev_waiter;
+
+    if (!data) {
+	data = malloc(sizeof(*data));
+	if (!data) {
+	    oom_err();
+	    return NULL;
+	}
+	memset(data, 0, sizeof(*data));
+	TlsSetValue(gensio_threadkey_idx, data);
+    }
+
+    prev_waiter = data->curr_waiter;
+    data->curr_waiter = waiter;
+
+    return prev_waiter;
+}
+
+static void
+restore_waiter(struct waiter *prev_waiter)
+{
+    struct gensio_wait_block *data = TlsGetValue(gensio_threadkey_idx);
+
+    data->curr_waiter = prev_waiter;
+}
+
+static void
+wake_curr_waiter(void)
+{
+    struct gensio_wait_block *data = TlsGetValue(gensio_threadkey_idx);
 
     if (!data)
 	return;
@@ -191,11 +272,6 @@ struct gensio_os_funcs *alloc_gensio_selector(swig_cb *log_handler)
 #else
     wake_sig = 0;
 #endif
-    if (err) {
-	fprintf(stderr, "Unable to allocate selector: %s, giving up\n",
-		strerror(err));
-	exit(1);
-    }
 
     odata = malloc(sizeof(*odata));
     odata->refcount = 1;
@@ -203,9 +279,10 @@ struct gensio_os_funcs *alloc_gensio_selector(swig_cb *log_handler)
     pthread_mutex_init(&odata->lock, NULL);
 #endif
 
-    o = gensio_selector_alloc(NULL, wake_sig);
-    if (!o) {
-	fprintf(stderr, "Unable to allocate gensio os funcs, giving up\n");
+    err = gensio_default_os_hnd(wake_sig, &o);
+    if (err) {
+	fprintf(stderr, "Unable to allocate gensio os funcs: %s, giving up\n",
+		gensio_err_to_str(err));
 	exit(1);
     }
     o->other_data = odata;
@@ -231,6 +308,12 @@ struct gensio_os_funcs *alloc_gensio_selector(swig_cb *log_handler)
 		    strerror(err));
 	    exit(1);
 	}
+    }
+#elif defined(USE_WIN32_THREADS)
+    gensio_threadkey_idx = TlsAlloc();
+    if (gensio_threadkey_idx == TLS_OUT_OF_INDEXES) {
+	fprintf(stderr, "Error creating gensio thread key index\n");
+	exit(1);
     }
 #endif
     gensio_swig_init_lang();
