@@ -318,4 +318,8 @@ void gensio_log(struct gensio_os_funcs *o, enum gensio_log_levels level,
 GENSIO_DLL_PUBLIC
 int gensio_default_os_hnd(int wake_sig, struct gensio_os_funcs **o);
 
+/* For testing, do not use in normal code. */
+GENSIO_DLL_PUBLIC
+void gensio_osfunc_exit(int rv);
+
 #endif /* GENSIO_OS_FUNCS */

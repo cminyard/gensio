@@ -28,8 +28,4 @@ GENSIO_DLL_PUBLIC
 struct gensio_os_funcs *gensio_selector_alloc(struct selector_s *sel,
 					      int wake_sig);
 
-/* For testing, do not use in normal code. */
-GENSIO_DLL_PUBLIC
-void gensio_sel_exit(int rv);
-
 #endif /* GENSIO_SELECTOR_H */

@@ -394,7 +394,7 @@ help(int err)
 	   "    Set to -1 to disable the escape character\n"
 	   "    Default is ^\\ for tty stdin and disabled for non-tty stdin\n");
     printf("  -h, --help - This help\n");
-    gensio_sel_exit(err);
+    gensio_osfunc_exit(err);
 }
 
 static void
@@ -708,5 +708,5 @@ main(int argc, char *argv[])
 	o->free_waiter(closewaiter);
     if (o)
 	gensio_cleanup_mem(o);
-    gensio_sel_exit(!!rv);
+    gensio_osfunc_exit(!!rv);
 }

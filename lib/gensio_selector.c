@@ -1234,7 +1234,7 @@ gensio_default_os_hnd(int wake_sig, struct gensio_os_funcs **o)
 }
 
 void
-gensio_sel_exit(int rv)
+gensio_osfunc_exit(int rv)
 {
     gensio_exit_check_memory();
     errtrig_exit(rv);

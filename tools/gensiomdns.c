@@ -175,7 +175,7 @@ help(int err)
     printf("  -c, --close-on-done - Shut down after the first scan of data\n");
     printf("  -d, --debug - Increment debug level\n");
     printf("  -h, --help - This help\n");
-    gensio_sel_exit(err);
+    gensio_osfunc_exit(err);
 }
 
 int
@@ -401,5 +401,5 @@ main(int argc, char *argv[])
 	gensio_cleanup_mem(o);
 	o->free_funcs(o);
     }
-    gensio_sel_exit(!!rv);
+    gensio_osfunc_exit(!!rv);
 }

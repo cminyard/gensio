@@ -15,7 +15,7 @@
  * Some memory allocation and other failure testing.  If the
  * GENSIO_ERRTRIG_TEST environment variable is set to number N, the
  * Nth call to do_errtrig will return true.  The program should call
- * gensio_sel_exit (below); it will cause specific values to be
+ * gensio_osfunc_exit (below); it will cause specific values to be
  * returned on an exit failure.
  */
 

@@ -2126,11 +2126,11 @@ main(int argc, char *argv[])
 	;
     cleanup_ods();
     gensio_cleanup_mem(o);
-    gensio_sel_exit(!!errcount);
+    gensio_osfunc_exit(!!errcount);
 
  out_err:
     cleanup_ods();
     gensio_cleanup_mem(o);
-    gensio_sel_exit(1);
+    gensio_osfunc_exit(1);
     return 1;
 }
