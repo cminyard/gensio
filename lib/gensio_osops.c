@@ -189,7 +189,7 @@ gensio_os_send(struct gensio_os_funcs *o,
 	ERRHANDLE();
 #else
 	gensiods len;
-	unsigned char *buf;
+	void *buf;
 
 	buf = gensio_sg_to_buf(sg, sglen, &len);
 	if (!buf)
@@ -229,7 +229,7 @@ gensio_os_sendto(struct gensio_os_funcs *o,
 	ERRHANDLE();
 #else
 	gensiods len;
-	unsigned char *buf;
+	void *buf;
 
 	buf = gensio_sg_to_buf(sg, sglen, &len);
 	if (!buf)

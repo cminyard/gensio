@@ -382,6 +382,7 @@ first_xmitpkt_to_send(struct relpkt_filter *rfilter)
 	    return &(rfilter->xmitpkts[pos]);
     }
     assert(0);
+    return NULL;
 }
 
 static void

@@ -640,7 +640,10 @@ file_ndata_setup(struct gensio_os_funcs *o, struct file_ndata_data *data,
 static int
 process_file_args(const char * const args[], struct file_ndata_data *data)
 {
-    unsigned int umode = 6, gmode = 6, omode = 6, i, mode;
+#if !USE_FILE_STDIO
+    unsigned int mode;
+#endif
+    unsigned int umode = 6, gmode = 6, omode = 6, i;
 
     memset(data, 0, sizeof(*data));
     data->read_close = true;

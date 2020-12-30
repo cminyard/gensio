@@ -1509,7 +1509,9 @@ str_to_gensio(const char *str,
 	gensio_addr_free(ai);
     }
 
+#if HAVE_SERIALDEV
  out:
+#endif
     if (args)
 	gensio_argv_free(o, args);
 
