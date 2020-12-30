@@ -14,20 +14,12 @@
 
 #ifndef GENSIO_OS_FUNCS
 #define GENSIO_OS_FUNCS
-#include <stdbool.h>
+
 #include <stdarg.h>
 #include <stdint.h>
+#include <stdbool.h>
 
-#include <gensio/gensio_dllvisibility.h>
-
-typedef struct gensio_time {
-    int64_t secs;
-    int32_t nsecs;
-} gensio_time;
-
-/*
- * Function pointers to provide OS functions.
- */
+#include <gensio/gensio_types.h>
 
 struct gensio_lock;
 struct gensio_timer;
@@ -35,14 +27,6 @@ struct gensio_runner;
 
 struct gensio_once {
     bool called;
-};
-
-enum gensio_log_levels {
-    GENSIO_LOG_FATAL,
-    GENSIO_LOG_ERR,
-    GENSIO_LOG_WARNING,
-    GENSIO_LOG_INFO,
-    GENSIO_LOG_DEBUG
 };
 
 #define GENSIO_LOG_MASK_ALL (1 << GENSIO_LOG_FATAL | 1 << GENSIO_LOG_ERR | \

@@ -7,8 +7,8 @@
 
 #ifndef GENSIO_ERR_H
 #define GENSIO_ERR_H
+struct gensio_os_funcs;
 #include <gensio/gensio_dllvisibility.h>
-#include <gensio/gensio_os_funcs.h>
 
 #define GE_NOERR		0
 #define GE_NOMEM		1

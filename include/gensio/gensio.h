@@ -14,19 +14,21 @@
 #ifndef GENSIO_H
 #define GENSIO_H
 
+#include <stdarg.h>
+#include <stdint.h>
+#include <stdbool.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 #include <gensio/gensio_dllvisibility.h>
+#include <gensio/gensio_types.h>
 #include <gensio/gensio_deprecated.h>
-#include <gensio/gensio_os_funcs.h>
 #include <gensio/gensio_err.h>
 #include <gensio/gensio_version.h>
+#include <gensio/gensio_os_funcs.h>
 
-struct gensio;
-
-typedef unsigned long gensiods; /* Data size */
 
 /*
  * The following are documented in gensio_event.3
@@ -93,12 +95,6 @@ GENSIO_DLL_PUBLIC
 int gensio_write(struct gensio *io, gensiods *count,
 		 const void *buf, gensiods buflen,
 		 const char *const *auxdata);
-
-/* Purposefully exactly the same as iovev (see writev(2)) */
-struct gensio_sg {
-    const void *buf;
-    gensiods buflen;
-};
 
 GENSIO_DLL_PUBLIC
 int gensio_write_sg(struct gensio *io, gensiods *count,
