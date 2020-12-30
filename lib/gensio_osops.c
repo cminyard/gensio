@@ -698,9 +698,12 @@ gensio_os_getsockname(struct gensio_os_funcs *o, int fd,
     if (!addr)
 	return GE_NOMEM;
 
+    len = addr->curr->ai_addrlen;
     err = getsockname(fd, addr->curr->ai_addr, &len);
-    if (err)
+    if (err) {
+	gensio_addr_free(addr);
 	return gensio_os_err_to_err(o, errno);
+    }
 
     addr->curr->ai_family = addr->curr->ai_addr->sa_family;
     addr->curr->ai_addrlen = len;
