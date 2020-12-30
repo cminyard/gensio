@@ -32,6 +32,9 @@ libgensio_la_SOURCES = \
 if HAVE_UNIX_OS
 libgensio_la_SOURCES += gensio_selector.c selector.c
 endif
+if HAVE_WINDOWS_OS
+libgensio_la_SOURCES += gensio_win.c
+endif
 
 libgensio_la_LDFLAGS = $(OPENSSL_LIBS) -no-undefined
 

@@ -52,6 +52,13 @@
  */
 
 #include <stdio.h>
+#ifdef _WIN32
+int main(int argc, char *argv[])
+{
+    fprintf(stderr, "Not supported on Windows\n");
+    return 1;
+}
+#else
 #include <string.h>
 #include <gensio/gensio.h>
 #include <gensio/gensio_list.h>
@@ -297,3 +304,4 @@ main(int argc, char *argv[])
 
     return !!rv;
 }
+#endif

@@ -66,7 +66,13 @@ static sigset_t waitsigs;
 bool verbose;
 bool debug;
 
-#if HAVE_SERIALDEV
+#ifdef _WIN32
+bool
+file_is_accessible_dev(const char *filename)
+{
+    return true; /* FIXME - what to do here? */
+}
+#else
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -490,14 +496,10 @@ check_ipmisim_present(struct gensio_os_funcs *o, struct oom_tests *test)
 static bool
 check_serialdev_present(struct gensio_os_funcs *o, struct oom_tests *test)
 {
-#if HAVE_SERIALDEV
     if (!get_echo_dev(o, "serialdev", test->connecter, &test->connecter))
 	return false;
     test->free_connecter = true;
     return true;
-#else
-    return false;
-#endif
 }
 
 static bool
@@ -567,7 +569,6 @@ struct oom_tests oom_tests[] = {
     { "telnet(rfc2217),tcp,localhost,", "telnet(rfc2217),tcp,0" },
     { "serialdev,%s,115200", NULL,
       .check_if_present = check_serialdev_present,
-      .check_value = HAVE_SERIALDEV,
       /*
        * The error injections cause this to take way to long with
        * large I/O sizes.  So limit it to a reasonable value.
@@ -595,7 +596,7 @@ struct oom_tests oom_tests[] = {
        *    It can still be run directly with the -t option.
        */
       .no_default_run = true,
-      .check_value = HAVE_PTY && HAVE_SERIALDEV },
+      .check_value = HAVE_PTY },
     { NULL }
 };
 

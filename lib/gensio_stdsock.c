@@ -16,6 +16,7 @@
 #include <winsock2.h>
 #include <ws2tcpip.h>
 typedef int taddrlen;
+typedef int sockret;
 #define sock_errno WSAGetLastError()
 #define SOCK_EINTR WSAEINTR
 #define SOCK_EWOULDBLOCK WSAEWOULDBLOCK
@@ -31,6 +32,7 @@ typedef int taddrlen;
 #include <errno.h>
 #include <unistd.h>
 typedef socklen_t taddrlen;
+typedef ssize_t sockret;
 #define sock_errno errno
 #define SOCK_EINTR EINTR
 #define SOCK_EWOULDBLOCK EWOULDBLOCK
@@ -688,7 +690,7 @@ gensio_stdsock_recv(struct gensio_iod *iod, void *buf, gensiods buflen,
 		    gensiods *rcount, int gflags)
 {
     struct gensio_os_funcs *o = iod->f;
-    ssize_t rv;
+    sockret rv;
     int flags = (gflags & GENSIO_MSG_OOB) ? MSG_OOB : 0;
 
     if (do_errtrig())
@@ -727,7 +729,7 @@ gensio_stdsock_send(struct gensio_iod *iod,
 		    gensiods *rcount, int gflags)
 {
     struct gensio_os_funcs *o = iod->f;
-    ssize_t rv;
+    sockret rv;
     int flags = (gflags & GENSIO_MSG_OOB) ? MSG_OOB : 0;
 
     if (do_errtrig())
@@ -767,7 +769,7 @@ gensio_stdsock_sendto(struct gensio_iod *iod,
 		      int gflags, const struct gensio_addr *raddr)
 {
     struct gensio_os_funcs *o = iod->f;
-    ssize_t rv;
+    sockret rv;
     int flags = (gflags & GENSIO_MSG_OOB) ? MSG_OOB : 0;
 
     if (do_errtrig())
@@ -818,7 +820,7 @@ gensio_stdsock_recvfrom(struct gensio_iod *iod,
 			int flags, struct gensio_addr *addr)
 {
     struct gensio_os_funcs *o = iod->f;
-    ssize_t rv;
+    sockret rv;
     int err = 0;
     taddrlen len;
     struct addrinfo *ai;

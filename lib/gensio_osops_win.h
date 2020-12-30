@@ -8,49 +8,6 @@
 #include <winsock2.h>
 #include <windows.h>
 
-static int
-gensio_os_close(struct gensio_iod **iodp)
-{
-    struct gensio_iod *iod = *iodp;
-    struct gensio_os_funcs *o = iod->f;
-    int err;
-
-    /* Don't do errtrig on close, it can fail and not cause any issues. */
-
-    assert(iod);
-    if (o->iod_get_type(iod) == GENSIO_IOD_SOCKET)
-	err = o->close_socket(&iod);
-    else
-	assert(0); /* FIXME */
-    if (!err) {
-	*iodp = NULL;
-    }
-    return err;
-}
-
-static int
-set_non_blocking(struct gensio_os_funcs *o, int fd)
-{
-    unsigned long flags = 1;
-    int rv;
-
-    if (do_errtrig())
-	return GE_NOMEM;
-
-    rv = ioctlsocket(fd, FIONBIO, &flags);
-    if (rv)
-	return gensio_os_err_to_err(o, errno);
-    return 0;
-}
-
-static int
-gensio_os_set_non_blocking(struct gensio_iod *iod)
-{
-    struct gensio_os_funcs *o = iod->f;
-
-    return set_non_blocking(o, o->iod_get_fd(iod));
-}
-
 const char *
 gensio_os_check_tcpd_ok(struct gensio_iod *iod, const char *iprogname)
 {
@@ -59,26 +16,6 @@ gensio_os_check_tcpd_ok(struct gensio_iod *iod, const char *iprogname)
 
 #include <bcrypt.h>
 #include <ntstatus.h>
-
-static int
-gensio_i_win_err_to_err(struct gensio_os_funcs *o, NTSTATUS rv,
-			const char *caller, const char *file,
-			unsigned int lineno)
-{
-    switch(rv) {
-    case STATUS_SUCCESS: return 0;
-    case STATUS_NOT_FOUND: return GE_NOTFOUND;
-    case STATUS_INVALID_PARAMETER: return GE_INVAL;
-    case STATUS_NO_MEMORY: return GE_NOMEM;
-    }
-    
-    gensio_log(o, GENSIO_LOG_INFO,
-	       "Unhandled Windows OS error in %s:%d: %d", caller, lineno, rv);
-    return GE_OSERR;
-}
-
-#define gensio_win_err_to_err(o, err)					\
-    gensio_i_win_err_to_err(o, err, __FUNCTION__, __FILE__, __LINE__)
 
 int
 gensio_os_get_random(struct gensio_os_funcs *o,
@@ -91,10 +28,10 @@ gensio_os_get_random(struct gensio_os_funcs *o,
     rv = BCryptOpenAlgorithmProvider(&alg, BCRYPT_RSA_ALGORITHM,
 				     MS_PRIMITIVE_PROVIDER, 0);
     if (rv != STATUS_SUCCESS)
-	return gensio_win_err_to_err(o, rv);
+	return gensio_os_err_to_err(o, rv);
     rv = BCryptGenRandom(alg, data, len, 0);
     if (rv)
-	err = gensio_win_err_to_err(o, rv);
+	err = gensio_os_err_to_err(o, rv);
     BCryptCloseAlgorithmProvider(alg, 0);
     return err;
 }
@@ -122,6 +59,15 @@ gensio_i_os_err_to_err(struct gensio_os_funcs *o,
     case WSAEMSGSIZE:		err = GE_TOOBIG; break;
     case WSAEACCES:		err = GE_PERM; break;
     case WSAEWOULDBLOCK:	err = GE_INPROGRESS; break;
+
+    case STATUS_NOT_FOUND:	err = GE_NOTFOUND; break;
+    case STATUS_INVALID_PARAMETER: err = GE_INVAL; break;
+    case STATUS_NO_MEMORY:	err = GE_NOMEM; break;
+
+    case ERROR_NOT_ENOUGH_MEMORY: err = GE_NOMEM; break;
+    case ERROR_BROKEN_PIPE:	err = GE_REMCLOSE; break;
+    case ERROR_FILE_NOT_FOUND:	err = GE_NOTFOUND; break;
+    case ERROR_NOT_FOUND:	err = GE_NOTFOUND; break;
     default:			err = GE_OSERR;
     }
 
@@ -136,27 +82,4 @@ gensio_i_os_err_to_err(struct gensio_os_funcs *o,
     }
 
     return err;
-}
-
-static int
-gensio_os_write(struct gensio_iod *iod,
-		const struct gensio_sg *sg, gensiods sglen,
-		gensiods *rcount)
-{
-    return GE_NOTSUP;
-}
-
-static int
-gensio_os_read(struct gensio_iod *iod,
-	       void *buf, gensiods buflen, gensiods *rcount)
-{
-    return GE_NOTSUP;
-}
-
-static int
-gensio_os_is_regfile(struct gensio_iod *iod, bool *isfile)
-{
-    /* No special handling for normal files. */
-    *isfile = false;
-    return 0;
 }

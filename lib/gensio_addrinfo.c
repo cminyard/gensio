@@ -468,6 +468,15 @@ gensio_scan_unixaddr(struct gensio_os_funcs *o, const char *str,
 #endif
 }
 
+#ifdef _WIN32
+/* On Windows, strtok is thread-safe. */
+static char *
+strtok_r(char *str, const char *delim, char **saveptr)
+{
+    return strtok(str, delim);
+}
+#endif
+
 static int
 gensio_addr_addrinfo_scan_ips(struct gensio_os_funcs *o, const char *str,
 			      bool listen, int ifamily,

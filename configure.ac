@@ -15,17 +15,14 @@ case $target_os in
 		LIBS="$LIBS -lws2_32 -liphlpapi -lgdi32 -lbcrypt"
 		uucp_locking_flag=no
 		system_type=windows
-		HAVE_SERIALDEV=0
 		USE_FILE_STDIO=1
 		;;
 	cygwin*)
 		uucp_locking_flag=no
 		system_type=unix
-		HAVE_SERIALDEV=0
 		USE_FILE_STDIO=0
 		;;
 	*)
-		HAVE_SERIALDEV=1
 		USE_FILE_STDIO=0
 		system_type=unix
 		;;
@@ -357,7 +354,7 @@ GTLSSHMAN=
 GTLSSYNCMAN=
 GTLSSHDMAN=
 GTLSSH_KEYGENMAN=
-if test $HAVE_OPENSSL -eq 1; then
+if test $HAVE_OPENSSL -eq 1 -a ${system_type} = unix; then
    if test $HAVE_PAM -eq 1; then
       GTLSSHD=gtlsshd
       GTLSSHDMAN=gtlsshd.8
@@ -415,9 +412,6 @@ AC_DEFINE_UNQUOTED([HAVE_PTY], [$HAVE_PTY], [Enable PTY gensio])
 
 AM_CONDITIONAL([HAVE_UNIX_OS], [test ${system_type} != windows])
 AM_CONDITIONAL([HAVE_WINDOWS_OS], [test ${system_type} = windows])
-
-AC_SUBST(HAVE_SERIALDEV)
-AC_DEFINE_UNQUOTED([HAVE_SERIALDEV], [$HAVE_SERIALDEV], [Enable serialdev gensio])
 
 AC_ARG_WITH(file-stdio,
  [AS_HELP_STRING([--with-file-stdio[[=yes|no]]],

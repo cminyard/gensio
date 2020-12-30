@@ -15,8 +15,6 @@ include(GNUInstallDirs)
 set (CMAKE_C_FLAGS "-Wall")
 option(BUILD_SHARED_LIBS "Build using shared libraries" ON)
 
-option(USE_UUCP_LOCKING "Enable UUCP lock file handling for devices" ON)
-
 option(ENABLE_TCP_WRAPPERS "Enable tcpwrappers support" ON)
 if(ENABLE_TCP_WRAPPERS)
   CHECK_INCLUDE_FILE(tcpd.h HAVE_TCPD_H)
@@ -149,12 +147,13 @@ check_symbol_exists(signalfd "signalfd.h" HAVE_SIGNALFD)
 check_symbol_exists(regexec "regex.h" HAVE_REGEXEC)
 check_symbol_exists(fnmatch "fnmatch.h" HAVE_FNMATCH)
 
+option(USE_UUCP_LOCKING "Enable UUCP lock file handling for devices" ${UNIX})
+
 if(UNIX)
-  set(HAVE_SERIALDEV 1)
   set(HAVE_PTY 1)
 else()
-  set(HAVE_SERIALDEV 0)
   set(HAVE_PTY 0)
+  list(APPEND EXTRA_LIBS ws2_32 bcrypt)
 endif()
 
 configure_file(config.h.cmake config.h)

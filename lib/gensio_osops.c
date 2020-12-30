@@ -33,11 +33,6 @@ bool gensio_set_progname(const char *iprogname)
 void
 gensio_osops_set_os_funcs(struct gensio_os_funcs *o)
 {
-    o->set_non_blocking = gensio_os_set_non_blocking;
-    o->close = gensio_os_close;
-    o->write = gensio_os_write;
-    o->read = gensio_os_read;
-    o->is_regfile = gensio_os_is_regfile;
 }
 
 #else

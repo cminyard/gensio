@@ -1483,7 +1483,13 @@ str_to_gensio(const char *str,
 	return err;
     }
 
-#if HAVE_SERIALDEV
+#if _WIN32
+    if (strncmp(str, "COM", 3) == 0) {
+	err = str_to_serialdev_gensio(str, NULL, o, cb, user_data,
+				      gensio);
+	goto out;
+    }
+#else
     if (*str == '/') {
 	err = str_to_serialdev_gensio(str, NULL, o, cb, user_data,
 				      gensio);
@@ -1509,9 +1515,7 @@ str_to_gensio(const char *str,
 	gensio_addr_free(ai);
     }
 
-#if HAVE_SERIALDEV
  out:
-#endif
     if (args)
 	gensio_argv_free(o, args);
 

@@ -39,20 +39,25 @@ set(BASE_LIBFILES
   mdns.c
   avahi_watcher.c
   gensio_mdns.c
+  gensio_stdio.c
+  sergensio_serialdev.c
+  gensio_addrinfo.c
+  gensio_stdsock.c
+  uucplock.c
+  gensio_pty.c
   gensio_osops.c)
 
 set(UNIX_LIBFILES
-  gensio_stdio.c
   selector.c
-  sergensio_serialdev.c
-  uucplock.c
-  gensio_pty.c
   gensio_selector.c)
+
+set(WINDOWS_LIBFILES
+  gensio_win.c)
 
 if(UNIX)
   set(LIBFILES ${BASE_LIBFILES} ${UNIX_LIBFILES})
 else()
-  set(LIBFILES ${BASE_LIBFILES})
+  set(LIBFILES ${BASE_LIBFILES} ${WINDOWS_LIBFILES})
 endif()
 
 add_library(gensio ${LIBFILES})
