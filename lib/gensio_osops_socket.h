@@ -100,7 +100,7 @@ gensio_os_recv(struct gensio_os_funcs *o,
 }
 
 #ifndef HAVE_SENDMSG
-unsigned char *
+static unsigned char *
 gensio_sg_to_buf(const struct gensio_sg *sg, gensiods sglen, gensiods *rlen)
 {
     gensiods len = 0, pos = 0, i;
@@ -1196,7 +1196,7 @@ gensio_os_scan_netaddr(struct gensio_os_funcs *o, const char *str, bool listen,
     if (!rv && !listen && !is_port_set) {
 	gensio_addr_free(addr);
 	rv = GE_INVAL;
-    } else {
+    } else if (!rv) {
 	*raddr = addr;
     }
     return rv;
