@@ -16,10 +16,18 @@
 #include <winsock2.h>
 #include <ws2tcpip.h>
 typedef int taddrlen;
+#ifndef EINTR
 #define EINTR WSAEINTR
+#endif
+#ifndef EWOULDBLOCK
 #define EWOULDBLOCK WSAEWOULDBLOCK
+#endif
+#ifndef EAGAIN
 #define EAGAIN WSAEWOULDBLOCK
+#endif
+#ifndef EADDRINUSE
 #define EADDRINUSE WSAEADDRINUSE
+#endif
 #else
 #include <arpa/inet.h>
 #include <netinet/tcp.h>
