@@ -263,6 +263,7 @@ gensio_os_recvfrom(struct gensio_os_funcs *o,
 	return GE_NOMEM;
 
  retry:
+    len = sizeof(struct sockaddr_storage);
     rv = recvfrom(fd, buf, buflen, flags, addr->curr->ai_addr, &len);
     if (rv >= 0) {
 	addr->curr->ai_addrlen = len;
