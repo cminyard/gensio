@@ -36,11 +36,11 @@ do {								\
 } while(0)
 
 int
-gensio_os_write(struct gensio_os_funcs *o,
-		struct gensio_iod *iod,
+gensio_os_write(struct gensio_iod *iod,
 		const struct gensio_sg *sg, gensiods sglen,
 		gensiods *rcount)
 {
+    struct gensio_os_funcs *o = iod->f;
     ssize_t rv;
 
     if (do_errtrig())
@@ -58,10 +58,10 @@ gensio_os_write(struct gensio_os_funcs *o,
 }
 
 int
-gensio_os_read(struct gensio_os_funcs *o,
-	       struct gensio_iod *iod,
+gensio_os_read(struct gensio_iod *iod,
 	       void *buf, gensiods buflen, gensiods *rcount)
 {
+    struct gensio_os_funcs *o = iod->f;
     ssize_t rv;
 
     if (do_errtrig())
@@ -79,9 +79,10 @@ gensio_os_read(struct gensio_os_funcs *o,
 }
 
 int
-gensio_os_close(struct gensio_os_funcs *o, struct gensio_iod **iodp)
+gensio_os_close(struct gensio_iod **iodp)
 {
     struct gensio_iod *iod = *iodp;
+    struct gensio_os_funcs *o = iod->f;
     int err;
 
     /* Don't do errtrig on close, it can fail and not cause any issues. */
@@ -182,9 +183,10 @@ close_socket(struct gensio_os_funcs *o, int fd)
 }
 
 int
-gensio_os_close_socket(struct gensio_os_funcs *o, struct gensio_iod **iodp)
+gensio_os_close_socket(struct gensio_iod **iodp)
 {
     struct gensio_iod *iod = *iodp;
+    struct gensio_os_funcs *o = iod->f;
     int rv;
 
     assert(iodp);
@@ -208,9 +210,9 @@ set_non_blocking(struct gensio_os_funcs *o, int fd)
 }
 
 int
-gensio_os_set_non_blocking(struct gensio_os_funcs *o, struct gensio_iod *iod)
+gensio_os_set_non_blocking(struct gensio_iod *iod)
 {
-    return set_non_blocking(o, iod->fd);
+    return set_non_blocking(iod->f, iod->fd);
 }
 
 const char *

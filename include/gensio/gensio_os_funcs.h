@@ -32,7 +32,8 @@ enum gensio_iod_type {
     GENSIO_IOD_SOCKET,
     GENSIO_IOD_PIPE,
     GENSIO_IOD_DEV,
-    GENSIO_IOD_FILE
+    GENSIO_IOD_FILE,
+    GENSIO_IOD_SIGNAL
 };
 
 struct gensio_once {

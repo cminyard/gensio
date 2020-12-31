@@ -27,19 +27,16 @@ struct opensocks
 #define GENSIO_MSG_OOB 1
 
 GENSIO_DLL_PUBLIC
-int gensio_os_recv(struct gensio_os_funcs *o,
-		   struct gensio_iod *iod, void *buf, gensiods buflen, gensiods *rcount,
-		   int flags);
-
-GENSIO_DLL_PUBLIC
-int gensio_os_send(struct gensio_os_funcs *o,
-		   struct gensio_iod *iod, const struct gensio_sg *sg, gensiods sglen,
+int gensio_os_recv(struct gensio_iod *iod, void *buf, gensiods buflen,
 		   gensiods *rcount, int flags);
 
 GENSIO_DLL_PUBLIC
-int gensio_os_sendto(struct gensio_os_funcs *o,
-		     struct gensio_iod *iod, const struct gensio_sg *sg, gensiods sglen,
-		     gensiods *rcount, int flags,
+int gensio_os_send(struct gensio_iod *iod, const struct gensio_sg *sg,
+		   gensiods sglen, gensiods *rcount, int flags);
+
+GENSIO_DLL_PUBLIC
+int gensio_os_sendto(struct gensio_iod *iod, const struct gensio_sg *sg,
+		     gensiods sglen, gensiods *rcount, int flags,
 		     const struct gensio_addr *addr);
 
 /*
@@ -49,17 +46,15 @@ GENSIO_DLL_PUBLIC
 struct gensio_addr *gensio_addr_alloc_recvfrom(struct gensio_os_funcs *o);
 
 GENSIO_DLL_PUBLIC
-int gensio_os_recvfrom(struct gensio_os_funcs *o,
-		       struct gensio_iod *iod, void *buf, gensiods buflen, gensiods *rcount,
-		       int flags, struct gensio_addr *addr);
+int gensio_os_recvfrom(struct gensio_iod *iod, void *buf, gensiods buflen,
+		       gensiods *rcount, int flags, struct gensio_addr *addr);
 
 GENSIO_DLL_PUBLIC
-int gensio_os_accept(struct gensio_os_funcs *o, struct gensio_iod *iod,
+int gensio_os_accept(struct gensio_iod *iod,
 		     struct gensio_addr **addr, struct gensio_iod **newiod);
 
 GENSIO_DLL_PUBLIC
-int gensio_os_socket_get_port(struct gensio_os_funcs *o, struct gensio_iod *iod,
-			      unsigned int *port);
+int gensio_os_socket_get_port(struct gensio_iod *iod, unsigned int *port);
 
 /*
  * Take a string in the form [ipv4|ipv6,][hostname,]port and convert
@@ -73,13 +68,13 @@ int gensio_os_scan_netaddr(struct gensio_os_funcs *o, const char *str,
 			   bool listen, int protocol, struct gensio_addr **rai);
 
 GENSIO_DLL_PUBLIC
-int gensio_os_close_socket(struct gensio_os_funcs *o, struct gensio_iod **iod);
+int gensio_os_close_socket(struct gensio_iod **iod);
 
 GENSIO_DLL_PUBLIC
-int gensio_os_check_socket_open(struct gensio_os_funcs *o, struct gensio_iod *iod);
+int gensio_os_check_socket_open(struct gensio_iod *iod);
 
 GENSIO_DLL_PUBLIC
-int gensio_os_set_non_blocking(struct gensio_os_funcs *o, struct gensio_iod *iod);
+int gensio_os_set_non_blocking(struct gensio_iod *iod);
 
 GENSIO_DLL_PUBLIC
 int gensio_os_socket_open(struct gensio_os_funcs *o,
@@ -87,49 +82,43 @@ int gensio_os_socket_open(struct gensio_os_funcs *o,
 			  struct gensio_iod **iod);
 
 GENSIO_DLL_PUBLIC
-int gensio_os_socket_setup(struct gensio_os_funcs *o, struct gensio_iod *iod,
+int gensio_os_socket_setup(struct gensio_iod *iod,
 			   int protocol, bool keepalive, bool nodelay,
 			   unsigned int opensock_flags,
 			   struct gensio_addr *bindaddr);
 
 GENSIO_DLL_PUBLIC
-int gensio_os_mcast_add(struct gensio_os_funcs *o, struct gensio_iod *iod,
+int gensio_os_mcast_add(struct gensio_iod *iod,
 			struct gensio_addr *mcast_addrs, int iface,
 			bool curr_only);
 
 GENSIO_DLL_PUBLIC
-int gensio_os_mcast_del(struct gensio_os_funcs *o, struct gensio_iod *iod,
+int gensio_os_mcast_del(struct gensio_iod *iod,
 			struct gensio_addr *mcast_addrs, int iface,
 			bool curr_only);
 
 GENSIO_DLL_PUBLIC
-int gensio_os_set_mcast_loop(struct gensio_os_funcs *o, struct gensio_iod *iod,
+int gensio_os_set_mcast_loop(struct gensio_iod *iod,
 			     const struct gensio_addr *addr, bool val);
 
 GENSIO_DLL_PUBLIC
-int gensio_os_setsockopt(struct gensio_os_funcs *o, struct gensio_iod *iod,
-			 int level, int optname,
+int gensio_os_setsockopt(struct gensio_iod *iod, int level, int optname,
 			 const void *optval, int optlen);
 
 GENSIO_DLL_PUBLIC
-int gensio_os_getsockopt(struct gensio_os_funcs *o, struct gensio_iod *iod,
-			 int level, int optname,
+int gensio_os_getsockopt(struct gensio_iod *iod, int level, int optname,
 			 void *optval, int *optlen);
 
 GENSIO_DLL_PUBLIC
-int gensio_os_connect(struct gensio_os_funcs *o,
-		      struct gensio_iod *iod, const struct gensio_addr *addr);
+int gensio_os_connect(struct gensio_iod *iod, const struct gensio_addr *addr);
 
 GENSIO_DLL_PUBLIC
-int gensio_os_get_nodelay(struct gensio_os_funcs *o, struct gensio_iod *iod, int protocol,
-			  int *val);
+int gensio_os_get_nodelay(struct gensio_iod *iod, int protocol, int *val);
 GENSIO_DLL_PUBLIC
-int gensio_os_set_nodelay(struct gensio_os_funcs *o, struct gensio_iod *iod, int protocol,
-			  int val);
+int gensio_os_set_nodelay(struct gensio_iod *iod, int protocol, int val);
 
 GENSIO_DLL_PUBLIC
-int gensio_os_getsockname(struct gensio_os_funcs *o, struct gensio_iod *iod,
-			  struct gensio_addr **addr);
+int gensio_os_getsockname(struct gensio_iod *iod, struct gensio_addr **addr);
 
 GENSIO_DLL_PUBLIC
 int gensio_os_get_random(struct gensio_os_funcs *o,
@@ -160,16 +149,15 @@ int gensio_os_open_socket(struct gensio_os_funcs *o,
  * Unix only APIs.
  */
 GENSIO_DLL_PUBLIC
-int gensio_os_close(struct gensio_os_funcs *o, struct gensio_iod **iod);
+int gensio_os_close(struct gensio_iod **iod);
 
 GENSIO_DLL_PUBLIC
-int gensio_os_write(struct gensio_os_funcs *o,
-		    struct gensio_iod *iod, const struct gensio_sg *sg, gensiods sglen,
-		    gensiods *rcount);
+int gensio_os_write(struct gensio_iod *iod, const struct gensio_sg *sg,
+		    gensiods sglen, gensiods *rcount);
 
 GENSIO_DLL_PUBLIC
-int gensio_os_read(struct gensio_os_funcs *o,
-		   struct gensio_iod *iod, void *buf, gensiods buflen, gensiods *rcount);
+int gensio_os_read(struct gensio_iod *iod, void *buf, gensiods buflen,
+		   gensiods *rcount);
 
 GENSIO_DLL_PUBLIC
 int gensio_os_setupnewprog(void);
@@ -191,30 +179,26 @@ const char *gensio_os_check_tcpd_ok(struct gensio_iod *iod,
 struct sctp_sndrcvinfo;
 
 GENSIO_DLL_PUBLIC
-int gensio_os_sctp_recvmsg(struct gensio_os_funcs *o,
-			   struct gensio_iod *iod, void *msg, gensiods len, gensiods *rcount,
+int gensio_os_sctp_recvmsg(struct gensio_iod *iod, void *msg, gensiods len,
+			   gensiods *rcount,
 			   struct sctp_sndrcvinfo *sinfo, int *msg_flags);
 
 GENSIO_DLL_PUBLIC
-int gensio_os_sctp_send(struct gensio_os_funcs *o,
-			struct gensio_iod *iod, const struct gensio_sg *sg, gensiods sglen,
-			gensiods *rcount,
+int gensio_os_sctp_send(struct gensio_iod *iod, const struct gensio_sg *sg,
+			gensiods sglen, gensiods *rcount,
                         const struct sctp_sndrcvinfo *sinfo, uint32_t flags);
 
 GENSIO_DLL_PUBLIC
-int gensio_os_sctp_connectx(struct gensio_os_funcs *o,
-			    struct gensio_iod *iod, struct gensio_addr *addrs);
+int gensio_os_sctp_connectx(struct gensio_iod *iod, struct gensio_addr *addrs);
 
 GENSIO_DLL_PUBLIC
-int gensio_os_sctp_getpaddrs(struct gensio_os_funcs *o, struct gensio_iod *iod,
-			     struct gensio_addr **addr);
+int gensio_os_sctp_getpaddrs(struct gensio_iod *iod, struct gensio_addr **addr);
 
 GENSIO_DLL_PUBLIC
-int gensio_os_sctp_getladdrs(struct gensio_os_funcs *o, struct gensio_iod *iod,
-			     struct gensio_addr **addr);
+int gensio_os_sctp_getladdrs(struct gensio_iod *iod, struct gensio_addr **addr);
 
 GENSIO_DLL_PUBLIC
-int gensio_os_sctp_getraddr(struct gensio_os_funcs *o, struct gensio_iod *iod,
+int gensio_os_sctp_getraddr(struct gensio_iod *iod,
 			    void *addr, gensiods *addrlen);
 
 GENSIO_DLL_PUBLIC

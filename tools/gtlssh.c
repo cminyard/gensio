@@ -69,10 +69,11 @@ struct gdata {
     bool got_oob;
 };
 
-static void winch_ready(int fd, void *cb_data);
+static void winch_ready(struct gensio_iod *iod, void *cb_data);
 static void winch_sent(void *cb_data);
 
 static int winch_pipe[2];
+static struct gensio_iod *winch_iod;
 static unsigned char winch_buf[11];
 static struct ioinfo_oob winch_oob = { .buf = winch_buf };
 static bool winch_oob_sending;
@@ -133,7 +134,7 @@ goobdata(struct ioinfo *ioinfo, unsigned char *buf, gensiods *buflen)
 
     ginfo->got_oob = true;
     if (ginfo->interactive)
-	winch_ready(winch_pipe[0], ioinfo);
+	winch_ready(winch_iod, ioinfo);
 }
 
 static struct ioinfo_user_handlers guh = {
@@ -818,7 +819,7 @@ winch_sent(void *cb_data)
 }
 
 static void
-winch_ready(int fd, void *cb_data)
+winch_ready(struct gensio_iod *iod, void *cb_data)
 {
     struct ioinfo *ioinfo = cb_data;
     char dummy;
@@ -1665,14 +1666,21 @@ main(int argc, char *argv[])
     ioinfo_set_ready(ioinfo1, userdata1.io);
     ioinfo_set_ready(ioinfo2, userdata2.io);
 
-    rv = o->set_fd_handlers(o, winch_pipe[0], ioinfo2, winch_ready,
+    rv = o->add_iod(o, GENSIO_IOD_PIPE, winch_pipe[0], &winch_iod);
+    if (rv) {
+	fprintf(stderr, "Could not add SIGWINCH fd iod: %s\n",
+		gensio_err_to_str(rv));
+	return 1;
+    }
+
+    rv = o->set_fd_handlers(o, winch_iod, ioinfo2, winch_ready,
 			    NULL, NULL, NULL);
     if (rv) {
 	fprintf(stderr, "Could not set SIGWINCH fd handler: %s\n",
 		gensio_err_to_str(rv));
 	return 1;
     }
-    o->set_read_handler(o, winch_pipe[0], true);
+    o->set_read_handler(o, winch_iod, true);
 
     start_local_ports(userdata2.io);
     start_remote_ports(ioinfo2);

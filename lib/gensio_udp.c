@@ -407,7 +407,7 @@ udpna_do_free(struct udpna_data *nadata)
 
     for (i = 0; i < nadata->nr_fds; i++) {
 	if (nadata->fds[i].iod)
-	    gensio_os_close_socket(nadata->o, &nadata->fds[i].iod);
+	    gensio_os_close_socket(&nadata->fds[i].iod);
     }
 
     if (nadata->deferred_op_runner)
@@ -507,7 +507,7 @@ udpn_write(struct gensio *io, gensiods *count,
     if (!addr)
 	addr = ndata->raddr;
 
-    err = gensio_os_sendto(ndata->o, ndata->myiod, sg, sglen, count, 0, addr);
+    err = gensio_os_sendto(ndata->myiod, sg, sglen, count, 0, addr);
     if (free_addr)
 	gensio_addr_free(addr);
     return err;
@@ -939,7 +939,7 @@ udpna_control_laddr(struct udpna_data *nadata, bool get,
     if (i >= nadata->nr_fds)
 	return GE_NOTFOUND;
 
-    rv = gensio_os_getsockname(nadata->o, nadata->fds[i].iod, &addr);
+    rv = gensio_os_getsockname(nadata->fds[i].iod, &addr);
     if (rv)
 	return rv;
 
@@ -992,7 +992,7 @@ udpna_control_lport(struct udpna_data *nadata, bool get,
     if (i >= nadata->nr_fds)
 	return GE_NOTFOUND;
 
-    rv = gensio_os_socket_get_port(nadata->o, nadata->fds[i].iod, &i);
+    rv = gensio_os_socket_get_port(nadata->fds[i].iod, &i);
     if (rv)
 	return rv;
     *datalen = snprintf(data, *datalen, "%d", i);
@@ -1042,11 +1042,9 @@ udpn_control(struct gensio *io, bool get, int option,
 	if (err)
 	    return err;
 	if (option == GENSIO_CONTROL_ADD_MCAST)
-	    err = gensio_os_mcast_add(nadata->o, nadata->fds->iod, addr,
-				      0, false);
+	    err = gensio_os_mcast_add(nadata->fds->iod, addr, 0, false);
 	else
-	    err = gensio_os_mcast_del(nadata->o, nadata->fds->iod, addr,
-				      0, false);
+	    err = gensio_os_mcast_del(nadata->fds->iod, addr, 0, false);
 	gensio_addr_free(addr);
 	if (err)
 	    return err;
@@ -1162,8 +1160,7 @@ udpna_readhandler(struct gensio_iod *iod, void *cbdata)
     if (nadata->data_pending_len)
 	goto out_unlock;
 
-    err = gensio_os_recvfrom(nadata->o,
-			     iod, nadata->read_data, nadata->max_read_size,
+    err = gensio_os_recvfrom(iod, nadata->read_data, nadata->max_read_size,
 			     &datalen, 0, nadata->curr_recvaddr);
     if (err) {
 	if (!nadata->is_dummy)
@@ -1400,7 +1397,7 @@ udpna_free(struct gensio_accepter *accepter)
 	    }
 	    for (i = 0; i < nadata->nr_fds; i++) {
 		if (nadata->fds[i].iod)
-		    gensio_os_close_socket(nadata->o, &nadata->fds[i].iod);
+		    gensio_os_close_socket(&nadata->fds[i].iod);
 	    }
 	}
     }
@@ -1730,12 +1727,12 @@ udp_gensio_alloc(const struct gensio_addr *addr, const char * const args[],
 	return err;
     }
 
-    err = gensio_os_socket_setup(o, new_iod, GENSIO_NET_PROTOCOL_UDP,
+    err = gensio_os_socket_setup(new_iod, GENSIO_NET_PROTOCOL_UDP,
 				 false, false,
 				 reuseaddr ? GENSIO_OPENSOCK_REUSEADDR : 0,
 				 laddr);
     if (err) {
-	gensio_os_close_socket(o, &new_iod);
+	gensio_os_close_socket(&new_iod);
 	if (laddr)
 	    gensio_addr_free(laddr);
 	if (mcast)
@@ -1749,19 +1746,19 @@ udp_gensio_alloc(const struct gensio_addr *addr, const char * const args[],
     }
 
     if (mcast) {
-	err = gensio_os_mcast_add(o, new_iod, mcast, 0, false);
+	err = gensio_os_mcast_add(new_iod, mcast, 0, false);
 	gensio_addr_free(mcast);
 	if (err) {
-	    gensio_os_close_socket(o, &new_iod);
+	    gensio_os_close_socket(&new_iod);
 	    return err;
 	}
 	mcast = NULL;
     }
 
     if (mcast_loop_set) {
-	err = gensio_os_set_mcast_loop(o, new_iod, addr, mcast_loop);
+	err = gensio_os_set_mcast_loop(new_iod, addr, mcast_loop);
 	if (err) {
-	    gensio_os_close_socket(o, &new_iod);
+	    gensio_os_close_socket(&new_iod);
 	    return err;
 	}
     }
@@ -1770,7 +1767,7 @@ udp_gensio_alloc(const struct gensio_addr *addr, const char * const args[],
     err = i_udp_gensio_accepter_alloc(NULL, max_read_size, reuseaddr, o,
 				      NULL, NULL, &accepter);
     if (err) {
-	gensio_os_close_socket(o, &new_iod);
+	gensio_os_close_socket(&new_iod);
 	return err;
     }
     nadata = gensio_acc_get_gensio_data(accepter);
@@ -1779,7 +1776,7 @@ udp_gensio_alloc(const struct gensio_addr *addr, const char * const args[],
 
     nadata->fds = o->zalloc(o, sizeof(*nadata->fds));
     if (!nadata->fds) {
-	gensio_os_close_socket(o, &new_iod);
+	gensio_os_close_socket(&new_iod);
 	udpna_do_free(nadata);
 	return GE_NOMEM;
     }

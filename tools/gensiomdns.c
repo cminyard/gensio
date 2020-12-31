@@ -31,6 +31,7 @@
 #include <gensio/gensio_os_funcs.h>
 #include <gensio/gensio_mdns.h>
 #include <gensio/gensio_selector.h>
+#include <gensio/gensio_osops.h>
 #include <gensio/argvutils.h>
 #include "utils.h"
 #ifdef HAVE_SIGNALFD
@@ -130,17 +131,17 @@ mdns_info_found(struct gensio_mdns_watch *w,
 #ifdef HAVE_SIGNALFD
 static ssize_t dummy; /* Eliminate warnings. */
 static void
-sigfd_read(int fd, void *cb_data)
+sigfd_read(struct gensio_iod *iod, void *cb_data)
 {
     struct freed_data *f = cb_data;
     struct signalfd_siginfo i;
 
-    dummy = read(fd, &i, sizeof(i));
+    dummy = gensio_os_read(iod, &i, sizeof(i), NULL);
     f->o->wake(f->closewaiter);
 }
 
 static void
-sigfd_cleared(int fd, void *cb_data)
+sigfd_cleared(struct gensio_iod *iod, void *cb_data)
 {
     struct freed_data *f = cb_data;
 
@@ -189,6 +190,7 @@ main(int argc, char *argv[])
     int rv, arg, err;
 #ifdef HAVE_SIGNALFD
     int  sigfd = -1;
+    struct gensio_iod *sig_iod;
     sigset_t sigmask;
     bool sigfd_set = false;
 #endif
@@ -284,7 +286,13 @@ main(int argc, char *argv[])
 	    goto out_err;
 	}
 	sigfd = rv;
-	rv = o->set_fd_handlers(o, sigfd, &fdata, sigfd_read, NULL, NULL,
+	rv = o->add_iod(o, GENSIO_IOD_SIGNAL, sigfd, &sig_iod);
+	if (rv) {
+	    fprintf(stderr, "Can't add signalfd iod: %s\n",
+		    gensio_err_to_str(rv));
+	    goto out_err;
+	}
+	rv = o->set_fd_handlers(o, sig_iod, &fdata, sigfd_read, NULL, NULL,
 				sigfd_cleared);
 	if (rv) {
 	    fprintf(stderr, "Can't set sigfd handler: %s\n",
@@ -292,7 +300,7 @@ main(int argc, char *argv[])
 	    goto out_err;
 	}
 	sigfd_set = true;
-	o->set_read_handler(o, sigfd, true);
+	o->set_read_handler(o, sig_iod, true);
     }
 #endif
 
@@ -371,9 +379,11 @@ main(int argc, char *argv[])
 
 #ifdef HAVE_SIGNALFD
     if (sigfd_set) {
-	o->clear_fd_handlers(o, sigfd);
+	o->clear_fd_handlers(o, sig_iod);
 	o->wait(closewaiter, 1, NULL);
     }
+    if (sig_iod)
+	o->release_iod(sig_iod);
     if (sigfd != -1)
 	close(sigfd);
 #endif

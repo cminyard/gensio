@@ -237,7 +237,7 @@ stdion_write(struct gensio *io, gensiods *count,
     if (schan->ll_err) {
 	rv = schan->ll_err;
     } else {
-	rv = gensio_os_write(nadata->o, schan->in_iod, sg, sglen, count);
+	rv = gensio_os_write(schan->in_iod, sg, sglen, count);
 	if (rv)
 	    schan->ll_err = rv;
     }
@@ -380,7 +380,7 @@ stdion_do_read(struct stdiona_data *nadata, struct stdion_channel *schan)
     int rv;
     gensiods count;
 
-    rv = gensio_os_read(nadata->o, schan->out_iod, schan->read_data,
+    rv = gensio_os_read(schan->out_iod, schan->read_data,
 			schan->max_read_size, &count);
     if (!rv) {
 	schan->data_pending_len = count;
@@ -494,13 +494,13 @@ i_stdion_fd_cleared(struct gensio_iod *iod, struct stdiona_data *nadata,
     }
 
     if (fd > 2) /* Don't close stdin, stdout, or stderr. */
-	gensio_os_close(nadata->o, piod);
+	gensio_os_close(piod);
 
     if (schan->in_close && !schan->in_handler_set && !schan->out_handler_set) {
 	if (schan == &nadata->io && !nadata->err.out_handler_set &&
 		nadata->err.out_iod) {
 	    /* The stderr channel is not open, so close the fd. */
-	    gensio_os_close(nadata->o, &nadata->err.out_iod);
+	    gensio_os_close(&nadata->err.out_iod);
 	    nadata->err.outfd = -1;
 	}
 	check_waitpid(schan);
@@ -656,10 +656,10 @@ setup_child_proc(struct stdiona_data *nadata)
     err = o->add_iod(o, GENSIO_IOD_PIPE, nadata->io.outfd, &nadata->io.out_iod);
     if (err)
 	goto out_err_noconv;
-    err = gensio_os_set_non_blocking(nadata->o, nadata->io.in_iod);
+    err = gensio_os_set_non_blocking(nadata->io.in_iod);
     if (err)
 	goto out_err_noconv;
-    err = gensio_os_set_non_blocking(nadata->o, nadata->io.out_iod);
+    err = gensio_os_set_non_blocking(nadata->io.out_iod);
     if (err)
 	goto out_err_noconv;
 
@@ -684,7 +684,7 @@ setup_child_proc(struct stdiona_data *nadata)
 			 &nadata->err.out_iod);
 	if (err)
 	    goto out_err_noconv;
-	err = gensio_os_set_non_blocking(nadata->o, nadata->err.out_iod);
+	err = gensio_os_set_non_blocking(nadata->err.out_iod);
 	if (err)
 	    goto out_err_noconv;
     }
@@ -778,7 +778,7 @@ setup_io_self(struct stdiona_data *nadata)
 	    goto out_err;
 	}
 	nadata->old_flags_ostdin = rv;
-	rv = gensio_os_set_non_blocking(nadata->o, nadata->io.in_iod);
+	rv = gensio_os_set_non_blocking(nadata->io.in_iod);
 	if (rv)
 	    goto out_err;
 	nadata->old_flags_ostdin_set = true;
@@ -792,7 +792,7 @@ setup_io_self(struct stdiona_data *nadata)
 	}
 	nadata->old_flags_ostdout = rv;
 
-	rv = gensio_os_set_non_blocking(nadata->o, nadata->io.out_iod);
+	rv = gensio_os_set_non_blocking(nadata->io.out_iod);
 	if (rv)
 	    goto out_err;
 	nadata->old_flags_ostdout_set = true;
@@ -887,16 +887,16 @@ stdion_open(struct gensio *io, gensio_done_err open_done, void *open_data)
  out_err:
     cleanup_io_self(nadata);
     if (nadata->io.infd != -1 && nadata->io.infd != 1)
-	gensio_os_close(nadata->o, &nadata->io.in_iod);
+	gensio_os_close(&nadata->io.in_iod);
     nadata->io.infd = -1;
     if (nadata->err.outfd != -1 && nadata->err.outfd != 2) {
 	if (nadata->err.outfd != nadata->io.outfd)
-	    gensio_os_close(nadata->o, &nadata->err.out_iod);
+	    gensio_os_close(&nadata->err.out_iod);
 	nadata->err.out_iod = NULL;
     }
     nadata->err.outfd = -1;
     if (nadata->io.outfd != -1 && nadata->io.outfd != 0)
-	gensio_os_close(nadata->o, &nadata->io.out_iod);
+	gensio_os_close(&nadata->io.out_iod);
     nadata->io.outfd = -1;
  out_unlock:
     stdiona_unlock(nadata);
@@ -1057,19 +1057,19 @@ stdion_disable(struct gensio *io)
     if (nadata->io.out_handler_set) {
 	nadata->o->clear_fd_handlers_norpt(nadata->o, nadata->io.out_iod);
 	if (nadata->io.outfd != 0)
-	    gensio_os_close(nadata->o, &nadata->io.out_iod);
+	    gensio_os_close(&nadata->io.out_iod);
 	nadata->io.outfd = -1;
     }
     if (nadata->io.in_handler_set) {
 	nadata->o->clear_fd_handlers_norpt(nadata->o, nadata->io.in_iod);
 	if (nadata->io.infd != 1)
-	    gensio_os_close(nadata->o, &nadata->io.in_iod);
+	    gensio_os_close(&nadata->io.in_iod);
 	nadata->io.infd = -1;
     }
     if (nadata->err.out_handler_set) {
 	nadata->o->clear_fd_handlers_norpt(nadata->o, nadata->err.out_iod);
 	if (nadata->err.outfd != 2)
-	    gensio_os_close(nadata->o, &nadata->err.out_iod);
+	    gensio_os_close(&nadata->err.out_iod);
 	nadata->err.outfd = -1;
     }
     stdiona_deref_and_unlock(nadata); /* unlocks */

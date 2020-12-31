@@ -87,10 +87,10 @@ check_ipv6_only(int family, int protocol, int flags, int fd)
 }
 
 int
-gensio_os_recv(struct gensio_os_funcs *o,
-	       struct gensio_iod *iod, void *buf, gensiods buflen,
+gensio_os_recv(struct gensio_iod *iod, void *buf, gensiods buflen,
 	       gensiods *rcount, int gflags)
 {
+    struct gensio_os_funcs *o = iod->f;
     ssize_t rv;
     int flags = (gflags & GENSIO_MSG_OOB) ? MSG_OOB : 0;
 
@@ -125,11 +125,11 @@ gensio_sg_to_buf(const struct gensio_sg *sg, gensiods sglen, gensiods *rlen)
 #endif
 
 int
-gensio_os_send(struct gensio_os_funcs *o,
-	       struct gensio_iod *iod,
+gensio_os_send(struct gensio_iod *iod,
 	       const struct gensio_sg *sg, gensiods sglen,
 	       gensiods *rcount, int gflags)
 {
+    struct gensio_os_funcs *o = iod->f;
     ssize_t rv;
     int flags = (gflags & GENSIO_MSG_OOB) ? MSG_OOB : 0;
 
@@ -164,12 +164,12 @@ gensio_os_send(struct gensio_os_funcs *o,
 }
 
 int
-gensio_os_sendto(struct gensio_os_funcs *o,
-		 struct gensio_iod *iod,
+gensio_os_sendto(struct gensio_iod *iod,
 		 const struct gensio_sg *sg, gensiods sglen,
 		 gensiods *rcount,
 		 int gflags, const struct gensio_addr *raddr)
 {
+    struct gensio_os_funcs *o = iod->f;
     ssize_t rv;
     int flags = (gflags & GENSIO_MSG_OOB) ? MSG_OOB : 0;
 
@@ -212,11 +212,11 @@ gensio_addr_alloc_recvfrom(struct gensio_os_funcs *o)
 }
 
 int
-gensio_os_recvfrom(struct gensio_os_funcs *o,
-		   struct gensio_iod *iod,
+gensio_os_recvfrom(struct gensio_iod *iod,
 		   void *buf, gensiods buflen, gensiods *rcount,
 		   int flags, struct gensio_addr *addr)
 {
+    struct gensio_os_funcs *o = iod->f;
     ssize_t rv;
     int err = 0;
     taddrlen len;
@@ -244,9 +244,10 @@ gensio_os_recvfrom(struct gensio_os_funcs *o,
 }
 
 int
-gensio_os_accept(struct gensio_os_funcs *o, struct gensio_iod *iod,
+gensio_os_accept(struct gensio_iod *iod,
 		 struct gensio_addr **raddr, struct gensio_iod **newiod)
 {
+    struct gensio_os_funcs *o = iod->f;
     struct gensio_addr *addr = NULL;
     int rv, err;
     struct sockaddr *sa;
@@ -294,8 +295,9 @@ gensio_os_accept(struct gensio_os_funcs *o, struct gensio_iod *iod,
 }
 
 int
-gensio_os_check_socket_open(struct gensio_os_funcs *o, struct gensio_iod *iod)
+gensio_os_check_socket_open(struct gensio_iod *iod)
 {
+    struct gensio_os_funcs *o = iod->f;
     int err, optval;
     socklen_t len = sizeof(optval);
 
@@ -352,15 +354,16 @@ gensio_os_socket_open(struct gensio_os_funcs *o,
 }
 
 int
-gensio_os_socket_setup(struct gensio_os_funcs *o, struct gensio_iod *iod,
+gensio_os_socket_setup(struct gensio_iod *iod,
 		       int protocol, bool keepalive, bool nodelay,
 		       unsigned int opensock_flags,
 		       struct gensio_addr *bindaddr)
 {
+    struct gensio_os_funcs *o = iod->f;
     int err;
     int val = 1;
 
-    err = gensio_os_set_non_blocking(o, iod);
+    err = gensio_os_set_non_blocking(iod);
     if (err)
 	return err;
 
@@ -422,10 +425,11 @@ gensio_os_socket_setup(struct gensio_os_funcs *o, struct gensio_iod *iod,
 }
 
 int
-gensio_os_mcast_add(struct gensio_os_funcs *o, struct gensio_iod *iod,
+gensio_os_mcast_add(struct gensio_iod *iod,
 		    struct gensio_addr *mcast_addrs, int iface,
 		    bool curr_only)
 {
+    struct gensio_os_funcs *o = iod->f;
     struct addrinfo *ai;
     int rv;
 
@@ -490,10 +494,11 @@ gensio_os_mcast_add(struct gensio_os_funcs *o, struct gensio_iod *iod,
 }
 
 int
-gensio_os_mcast_del(struct gensio_os_funcs *o, struct gensio_iod *iod,
+gensio_os_mcast_del(struct gensio_iod *iod,
 		    struct gensio_addr *mcast_addrs, int iface,
 		    bool curr_only)
 {
+    struct gensio_os_funcs *o = iod->f;
     struct addrinfo *ai;
     int rv;
 
@@ -558,9 +563,10 @@ gensio_os_mcast_del(struct gensio_os_funcs *o, struct gensio_iod *iod,
 }
 
 int
-gensio_os_set_mcast_loop(struct gensio_os_funcs *o, struct gensio_iod *iod,
+gensio_os_set_mcast_loop(struct gensio_iod *iod,
 			 const struct gensio_addr *addr, bool ival)
 {
+    struct gensio_os_funcs *o = iod->f;
     int rv, val = ival;
 
     if (do_errtrig())
@@ -591,20 +597,22 @@ gensio_os_set_mcast_loop(struct gensio_os_funcs *o, struct gensio_iod *iod,
 }
 
 int
-gensio_os_setsockopt(struct gensio_os_funcs *o, struct gensio_iod *iod,
+gensio_os_setsockopt(struct gensio_iod *iod,
 		     int level, int optname,
 		     const void *optval, int optlen)
 {
+    struct gensio_os_funcs *o = iod->f;
+
     if (setsockopt(iod->fd, level, optname, optval, optlen) == -1)
 	return gensio_os_err_to_err(o, errno);
     return 0;
 }
 
 int
-gensio_os_getsockopt(struct gensio_os_funcs *o, struct gensio_iod *iod,
-		     int level, int optname,
+gensio_os_getsockopt(struct gensio_iod *iod, int level, int optname,
 		     void *optval, int *optlen)
 {
+    struct gensio_os_funcs *o = iod->f;
     socklen_t slen = *optlen;
 
     if (getsockopt(iod->fd, level, optname, optval, &slen) == -1)
@@ -614,9 +622,9 @@ gensio_os_getsockopt(struct gensio_os_funcs *o, struct gensio_iod *iod,
 }
 
 int
-gensio_os_connect(struct gensio_os_funcs *o, struct gensio_iod *iod,
-		  const struct gensio_addr *addr)
+gensio_os_connect(struct gensio_iod *iod, const struct gensio_addr *addr)
 {
+    struct gensio_os_funcs *o = iod->f;
     int err;
 
     if (do_errtrig())
@@ -634,9 +642,9 @@ gensio_os_connect(struct gensio_os_funcs *o, struct gensio_iod *iod,
 }
 
 int
-gensio_os_get_nodelay(struct gensio_os_funcs *o, struct gensio_iod *iod,
-		      int protocol, int *val)
+gensio_os_get_nodelay(struct gensio_iod *iod, int protocol, int *val)
 {
+    struct gensio_os_funcs *o = iod->f;
     socklen_t vallen = sizeof(*val);
     int rv;
 
@@ -659,9 +667,9 @@ gensio_os_get_nodelay(struct gensio_os_funcs *o, struct gensio_iod *iod,
 }
 
 int
-gensio_os_set_nodelay(struct gensio_os_funcs *o, struct gensio_iod *iod,
-		      int protocol, int val)
+gensio_os_set_nodelay(struct gensio_iod *iod, int protocol, int val)
 {
+    struct gensio_os_funcs *o = iod->f;
     int rv;
 
     if (do_errtrig())
@@ -684,9 +692,9 @@ gensio_os_set_nodelay(struct gensio_os_funcs *o, struct gensio_iod *iod,
 }
 
 int
-gensio_os_getsockname(struct gensio_os_funcs *o, struct gensio_iod *iod,
-		      struct gensio_addr **raddr)
+gensio_os_getsockname(struct gensio_iod *iod, struct gensio_addr **raddr)
 {
+    struct gensio_os_funcs *o = iod->f;
     struct gensio_addr *addr;
     int err;
     taddrlen len;
@@ -820,7 +828,7 @@ gensio_os_open_socket(struct gensio_os_funcs *o,
  out_close:
     for (i = 0; i < curr_fd; i++) {
 	o->clear_fd_handlers_norpt(o, fds[i].iod);
-	gensio_os_close_socket(o, &fds[i].iod);
+	gensio_os_close_socket(&fds[i].iod);
     }
 #if !HAVE_WORKING_PORT0
     if (rv == GE_ADDRINUSE && scaninfo.start != 0 &&
@@ -857,10 +865,9 @@ socket_get_port(struct gensio_os_funcs *o, int fd, unsigned int *port)
 }
 
 int
-gensio_os_socket_get_port(struct gensio_os_funcs *o, struct gensio_iod *iod,
-			  unsigned int *port)
+gensio_os_socket_get_port(struct gensio_iod *iod, unsigned int *port)
 {
-    return socket_get_port(o, iod->fd, port);
+    return socket_get_port(iod->f, iod->fd, port);
 }
 
 static bool
