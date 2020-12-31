@@ -32,7 +32,7 @@ struct sctp_data {
 
     struct gensio_ll *ll;
 
-    int fd;
+    struct gensio_iod *iod;
 
     struct gensio_addr *addr;
     struct gensio_addr *laddr; /* Local address, NULL if not set. */
@@ -54,17 +54,18 @@ sctp_setup(struct sctp_data *tdata)
 {
     struct gensio_os_funcs *o = tdata->o;
     struct sctp_status status;
-    socklen_t stat_size = sizeof(status);
+    int stat_size = sizeof(status);
     unsigned int i;
+    int err;
 
-    if (getsockopt(tdata->fd, IPPROTO_SCTP, SCTP_STATUS, &status,
-		   &stat_size) == -1) {
+    err = gensio_os_getsockopt(tdata->o, tdata->iod, IPPROTO_SCTP, SCTP_STATUS,
+			       &status, &stat_size);
+    if (err)
 	/*
 	 * If the remote end closes, this fails with EINVAL.  Just
 	 * assume the remote end closed on error.
 	 */
 	return GE_REMCLOSE;
-    }
 
     tdata->instreams = status.sstat_instrms;
     tdata->ostreams = status.sstat_outstrms;
@@ -83,12 +84,12 @@ sctp_setup(struct sctp_data *tdata)
     return 0;
 }
 
-static int sctp_check_open(void *handler_data, int fd)
+static int sctp_check_open(void *handler_data, struct gensio_iod *iod)
 {
     struct sctp_data *tdata = handler_data;
     int err;
 
-    err = gensio_os_check_socket_open(tdata->o, fd);
+    err = gensio_os_check_socket_open(tdata->o, iod);
     if (!err)
 	err = sctp_setup(tdata);
 
@@ -96,51 +97,51 @@ static int sctp_check_open(void *handler_data, int fd)
 }
 
 static int
-sctp_socket_setup(struct sctp_data *tdata, int fd)
+sctp_socket_setup(struct sctp_data *tdata, struct gensio_iod *iod)
 {
     struct sctp_event_subscribe event_sub;
     int err;
 
-    err = gensio_os_socket_setup(tdata->o, fd, GENSIO_NET_PROTOCOL_SCTP,
+    err = gensio_os_socket_setup(tdata->o, iod, GENSIO_NET_PROTOCOL_SCTP,
 				 true, tdata->nodelay,
 				 GENSIO_OPENSOCK_REUSEADDR, tdata->laddr);
     if (err)
 	return err;
 
-    if (setsockopt(fd, IPPROTO_SCTP, SCTP_INITMSG, &tdata->initmsg,
-		   sizeof(tdata->initmsg)) == -1)
-	return gensio_os_err_to_err(tdata->o, errno);
+    err = gensio_os_setsockopt(tdata->o, iod, IPPROTO_SCTP, SCTP_INITMSG,
+			       &tdata->initmsg, sizeof(tdata->initmsg));
+    if (err)
+	return err;
 
-    if (setsockopt(fd, IPPROTO_SCTP, SCTP_DELAYED_SACK, &tdata->sackinfo,
-		   sizeof(tdata->sackinfo)) == -1)
-	return gensio_os_err_to_err(tdata->o, errno);
+    err = gensio_os_setsockopt(tdata->o, iod, IPPROTO_SCTP, SCTP_DELAYED_SACK,
+			       &tdata->sackinfo, sizeof(tdata->sackinfo));
+    if (err)
+	return err;
 
     memset(&event_sub, 0, sizeof(event_sub));
     event_sub.sctp_data_io_event = 1;
-    if (setsockopt(fd, IPPROTO_SCTP, SCTP_EVENTS, &event_sub,
-		   sizeof(event_sub)) == -1)
-	return gensio_os_err_to_err(tdata->o, errno);
-
-    return 0;
+    err = gensio_os_setsockopt(tdata->o, iod, IPPROTO_SCTP, SCTP_EVENTS,
+			       &event_sub, sizeof(event_sub));
+    return err;
 }
 
 static int
-sctp_try_open(struct sctp_data *tdata, int *fd)
+sctp_try_open(struct sctp_data *tdata, struct gensio_iod **iod)
 {
     int err = GE_INUSE;
 
     err = gensio_os_socket_open(tdata->o, tdata->addr,
-				GENSIO_NET_PROTOCOL_SCTP, &tdata->fd);
+				GENSIO_NET_PROTOCOL_SCTP, &tdata->iod);
     if (err)
 	goto out;
 
-    err = sctp_socket_setup(tdata, tdata->fd);
+    err = sctp_socket_setup(tdata, tdata->iod);
     if (err)
 	goto out;
 
-    err = gensio_os_sctp_connectx(tdata->o, tdata->fd, tdata->addr);
+    err = gensio_os_sctp_connectx(tdata->o, tdata->iod, tdata->addr);
     if (err == GE_INPROGRESS) {
-	*fd = tdata->fd;
+	*iod = tdata->iod;
 	goto out_return;
     } else if (err) {
 	goto out;
@@ -150,10 +151,10 @@ sctp_try_open(struct sctp_data *tdata, int *fd)
 
  out:
     if (err) {
-	if (tdata->fd != -1)
-	    gensio_os_close_socket(tdata->o, &tdata->fd);
+	if (tdata->iod)
+	    gensio_os_close_socket(tdata->o, &tdata->iod);
     } else {
-	*fd = tdata->fd;
+	*iod = tdata->iod;
     }
 
  out_return:
@@ -161,11 +162,11 @@ sctp_try_open(struct sctp_data *tdata, int *fd)
 }
 
 static int
-sctp_sub_open(void *handler_data, int *fd)
+sctp_sub_open(void *handler_data, struct gensio_iod **iod)
 {
     struct sctp_data *tdata = handler_data;
 
-    return sctp_try_open(tdata, fd);
+    return sctp_try_open(tdata, iod);
 }
 
 static void
@@ -190,7 +191,7 @@ sctp_free(void *handler_data)
 }
 
 static int
-sctp_control(void *handler_data, int fd, bool get, unsigned int option,
+sctp_control(void *handler_data, struct gensio_iod *iod, bool get, unsigned int option,
 	     char *data, gensiods *datalen)
 {
     struct sctp_data *tdata = handler_data;
@@ -202,8 +203,8 @@ sctp_control(void *handler_data, int fd, bool get, unsigned int option,
     switch (option) {
     case GENSIO_CONTROL_NODELAY:
 	if (get) {
-	    if (fd != -1) {
-		rv = gensio_os_get_nodelay(tdata->o, fd,
+	    if (iod) {
+		rv = gensio_os_get_nodelay(tdata->o, iod,
 					   GENSIO_NET_PROTOCOL_SCTP, &val);
 		if (rv)
 		    return rv;
@@ -213,8 +214,8 @@ sctp_control(void *handler_data, int fd, bool get, unsigned int option,
 	    *datalen = snprintf(data, *datalen, "%d", val);
 	} else {
 	    val = strtoul(data, NULL, 0);
-	    if (fd != -1) {
-		rv = gensio_os_set_nodelay(tdata->o, fd,
+	    if (iod) {
+		rv = gensio_os_set_nodelay(tdata->o, iod,
 					   GENSIO_NET_PROTOCOL_SCTP, val);
 		if (rv)
 		    return rv;
@@ -239,7 +240,7 @@ sctp_control(void *handler_data, int fd, bool get, unsigned int option,
 	if (i > 0)
 	    return GE_NOTFOUND;
 
-	rv = gensio_os_sctp_getladdrs(tdata->o, fd, &addr);
+	rv = gensio_os_sctp_getladdrs(tdata->o, iod, &addr);
 	if (rv)
 	    return rv;
 
@@ -260,7 +261,7 @@ sctp_control(void *handler_data, int fd, bool get, unsigned int option,
 	if (i > 0)
 	    return GE_NOTFOUND;
 
-	rv = gensio_os_sctp_getpaddrs(tdata->o, fd, &addr);
+	rv = gensio_os_sctp_getpaddrs(tdata->o, iod, &addr);
 	if (rv)
 	    return rv;
 
@@ -276,10 +277,10 @@ sctp_control(void *handler_data, int fd, bool get, unsigned int option,
     case GENSIO_CONTROL_RADDR_BIN:
 	if (!get)
 	    return GE_NOTSUP;
-	return gensio_os_sctp_getraddr(tdata->o, tdata->fd, data, datalen);
+	return gensio_os_sctp_getraddr(tdata->o, tdata->iod, data, datalen);
 
     case GENSIO_CONTROL_LPORT:
-	rv = gensio_os_socket_get_port(tdata->o, fd, &i);
+	rv = gensio_os_socket_get_port(tdata->o, iod, &i);
 	if (rv)
 	    return rv;
 	*datalen = snprintf(data, *datalen, "%d", i);
@@ -301,7 +302,7 @@ sctp_control(void *handler_data, int fd, bool get, unsigned int option,
 }
 
 static int
-sctp_write(void *handler_data, int fd, gensiods *rcount,
+sctp_write(void *handler_data, struct gensio_iod *iod, gensiods *rcount,
 	  const struct gensio_sg *sg, gensiods sglen,
 	  const char *const *auxdata)
 {
@@ -325,11 +326,11 @@ sctp_write(void *handler_data, int fd, gensiods *rcount,
 
     sinfo.sinfo_stream = stream;
     return gensio_os_sctp_send(tdata->o,
-			       tdata->fd, sg, sglen, rcount, &sinfo, 0);
+			       tdata->iod, sg, sglen, rcount, &sinfo, 0);
 }
 
 static int
-sctp_do_read(int fd, void *data, gensiods count, gensiods *rcount,
+sctp_do_read(struct gensio_iod *iod, void *data, gensiods count, gensiods *rcount,
 	     const char ***auxdata, void *cb_data)
 {
     struct sctp_data *tdata = cb_data;
@@ -340,7 +341,7 @@ sctp_do_read(int fd, void *data, gensiods count, gensiods *rcount,
     unsigned int i = 0;
 
     rv = gensio_os_sctp_recvmsg(tdata->o,
-				fd, data, count, rcount, &sinfo, &flags);
+				iod, data, count, rcount, &sinfo, &flags);
     /* If the data length is zero, we won't have any info. */
     if (rv || *rcount == 0)
 	return rv;
@@ -361,7 +362,7 @@ sctp_do_read(int fd, void *data, gensiods count, gensiods *rcount,
 }
 
 static void
-sctp_read_ready(void *handler_data, int fd)
+sctp_read_ready(void *handler_data, struct gensio_iod *iod)
 {
     struct sctp_data *tdata = handler_data;
 
@@ -469,10 +470,9 @@ sctp_gensio_alloc(const struct gensio_addr *iai, const char * const args[],
     tdata->initmsg.sinit_num_ostreams = ostreams;
     tdata->sackinfo.sack_freq = sack_freq;
     tdata->sackinfo.sack_delay = sack_delay;
-    tdata->fd = -1;
     tdata->nodelay = nodelay;
 
-    tdata->ll = fd_gensio_ll_alloc(o, -1, &sctp_fd_ll_ops, tdata,
+    tdata->ll = fd_gensio_ll_alloc(o, NULL, &sctp_fd_ll_ops, tdata,
 				   max_read_size, false);
     if (!tdata->ll)
 	goto out_nomem;
@@ -563,17 +563,17 @@ static const struct gensio_fd_ll_ops sctp_server_fd_ll_ops = {
 };
 
 static void
-sctpna_fd_cleared(int fd, void *cbdata)
+sctpna_fd_cleared(struct gensio_iod *iod, void *cbdata)
 {
     struct sctpna_data *nadata = cbdata;
     unsigned int num_left, i;
 
     for (i = 0; i < nadata->nr_acceptfds; i++) {
-	if (fd == nadata->acceptfds[i].fd)
+	if (iod == nadata->acceptfds[i].iod)
 	    break;
     }
     assert(i < nadata->nr_acceptfds);
-    gensio_os_close_socket(nadata->o, &nadata->acceptfds[i].fd);
+    gensio_os_close_socket(nadata->o, &nadata->acceptfds[i].iod);
 
     nadata->o->lock(nadata->lock);
     assert(nadata->nr_accept_close_waiting > 0);
@@ -594,7 +594,8 @@ sctpna_set_fd_enables(struct sctpna_data *nadata, bool enable)
     unsigned int i;
 
     for (i = 0; i < nadata->nr_acceptfds; i++)
-	nadata->o->set_read_handler(nadata->o, nadata->acceptfds[i].fd, enable);
+	nadata->o->set_read_handler(nadata->o, nadata->acceptfds[i].iod,
+				    enable);
 }
 
 static void
@@ -606,15 +607,15 @@ sctpna_finish_server_open(struct gensio *net, int err, void *cb_data)
 }
 
 static void
-sctpna_readhandler(int fd, void *cbdata)
+sctpna_readhandler(struct gensio_iod *iod, void *cbdata)
 {
     struct sctpna_data *nadata = cbdata;
-    int new_fd = -1;
+    struct gensio_iod *new_iod = NULL;
     struct sctp_data *tdata = NULL;
     struct gensio *io = NULL;
     int err;
 
-    err = gensio_os_accept(nadata->o, fd, NULL, &new_fd);
+    err = gensio_os_accept(nadata->o, iod, NULL, &new_iod);
     if (err) {
 	if (err != GE_NODATA)
 	    /* FIXME - maybe shut down the socket I/O? */
@@ -626,7 +627,7 @@ sctpna_readhandler(int fd, void *cbdata)
 
     err = base_gensio_accepter_new_child_start(nadata->acc);
     if (err) {
-	gensio_os_close_socket(nadata->o, &new_fd);
+	gensio_os_close_socket(nadata->o, &new_iod);
 	return;
     }
 
@@ -639,10 +640,10 @@ sctpna_readhandler(int fd, void *cbdata)
     }
 
     tdata->o = nadata->o;
-    tdata->fd = new_fd;
+    tdata->iod = new_iod;
     tdata->nodelay = nadata->nodelay;
 
-    err = sctp_socket_setup(tdata, new_fd);
+    err = sctp_socket_setup(tdata, new_iod);
     if (!err)
 	err = sctp_setup(tdata);
     if (err) {
@@ -652,7 +653,7 @@ sctpna_readhandler(int fd, void *cbdata)
 	goto out_err;
     }
 
-    tdata->ll = fd_gensio_ll_alloc(nadata->o, new_fd, &sctp_server_fd_ll_ops,
+    tdata->ll = fd_gensio_ll_alloc(nadata->o, new_iod, &sctp_server_fd_ll_ops,
 				   tdata, nadata->max_read_size, false);
     if (!tdata->ll) {
 	gensio_acc_log(nadata->acc, GENSIO_LOG_ERR,
@@ -680,31 +681,33 @@ sctpna_readhandler(int fd, void *cbdata)
     base_gensio_accepter_new_child_end(nadata->acc, NULL, err);
     if (io) {
 	gensio_free(io);
-    } else if (tdata) {
-	if (tdata->ll)
-	    gensio_ll_free(tdata->ll);
-	else {
-	    sctp_free(tdata);
-	    if (new_fd != -1)
-		gensio_os_close_socket(nadata->o, &new_fd);
-	}
+	return;
     }
+    if (tdata) {
+	if (tdata->ll) {
+	    gensio_ll_free(tdata->ll);
+	    return;
+	}
+	sctp_free(tdata);
+    }
+    if (new_iod)
+	gensio_os_close_socket(nadata->o, &new_iod);
 }
 
 static int
-sctpna_setup_socket(int fd, void *data)
+sctpna_setup_socket(struct gensio_iod *iod, void *data)
 {
     struct sctpna_data *nadata = data;
+    int err;
 
-    if (setsockopt(fd, IPPROTO_SCTP, SCTP_INITMSG, &nadata->initmsg,
-		   sizeof(nadata->initmsg)) == -1)
-	return gensio_os_err_to_err(nadata->o, errno);
+    err = gensio_os_setsockopt(nadata->o, iod, IPPROTO_SCTP, SCTP_INITMSG,
+			       &nadata->initmsg, sizeof(nadata->initmsg));
+    if (err)
+	return err;
 
-    if (setsockopt(fd, IPPROTO_SCTP, SCTP_DELAYED_SACK, &nadata->sackinfo,
-		   sizeof(nadata->sackinfo)) == -1)
-	return gensio_os_err_to_err(nadata->o, errno);
-
-    return 0;
+    err = gensio_os_setsockopt(nadata->o, iod, IPPROTO_SCTP, SCTP_DELAYED_SACK,
+			       &nadata->sackinfo, sizeof(nadata->sackinfo));
+    return err;
 }
 
 static int
@@ -733,7 +736,7 @@ sctpna_shutdown(struct gensio_accepter *accepter,
     nadata->shutdown_done = shutdown_done;
     nadata->nr_accept_close_waiting = nadata->nr_acceptfds;
     for (i = 0; i < nadata->nr_acceptfds; i++)
-	nadata->o->clear_fd_handlers(nadata->o, nadata->acceptfds[i].fd);
+	nadata->o->clear_fd_handlers(nadata->o, nadata->acceptfds[i].iod);
     return 0;
 }
 
@@ -876,7 +879,7 @@ sctpna_control_laddr(struct sctpna_data *nadata, bool get,
     if (i >= nadata->nr_acceptfds)
 	return GE_NOTFOUND;
 
-    rv = gensio_os_sctp_getladdrs(nadata->o, nadata->acceptfds[i].fd, &addrs);
+    rv = gensio_os_sctp_getladdrs(nadata->o, nadata->acceptfds[i].iod, &addrs);
     if (rv)
 	return rv;
 
@@ -933,9 +936,9 @@ sctpna_disable(struct gensio_accepter *accepter, struct sctpna_data *nadata)
 
     for (i = 0; i < nadata->nr_acceptfds; i++)
 	nadata->o->clear_fd_handlers_norpt(nadata->o,
-					   nadata->acceptfds[i].fd);
+					   nadata->acceptfds[i].iod);
     for (i = 0; i < nadata->nr_acceptfds; i++)
-	gensio_os_close_socket(nadata->o, &nadata->acceptfds[i].fd);
+	gensio_os_close_socket(nadata->o, &nadata->acceptfds[i].iod);
 }
 
 static int

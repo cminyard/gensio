@@ -68,6 +68,7 @@ gensio_avahi_unlock(AvahiPoll *ap)
 struct AvahiWatch {
     struct gensio_avahi_userdata *u;
     int fd;
+    struct gensio_iod *iod;
     AvahiWatchEvent events;
     AvahiWatchEvent revents;
     bool freed;
@@ -76,7 +77,7 @@ struct AvahiWatch {
 };
 
 static void
-gensio_avahi_read_handler(int fd, void *cb_data)
+gensio_avahi_read_handler(struct gensio_iod *iod, void *cb_data)
 {
     AvahiWatch *w = cb_data;
     struct gensio_avahi_userdata *u = w->u;
@@ -92,7 +93,7 @@ gensio_avahi_read_handler(int fd, void *cb_data)
 }
 
 static void
-gensio_avahi_write_handler(int fd, void *cb_data)
+gensio_avahi_write_handler(struct gensio_iod *iod, void *cb_data)
 {
     AvahiWatch *w = cb_data;
     struct gensio_avahi_userdata *u = w->u;
@@ -108,7 +109,7 @@ gensio_avahi_write_handler(int fd, void *cb_data)
 }
 
 static void
-gensio_avahi_except_handler(int fd, void *cb_data)
+gensio_avahi_except_handler(struct gensio_iod *iod, void *cb_data)
 {
     AvahiWatch *w = cb_data;
     struct gensio_avahi_userdata *u = w->u;
@@ -124,12 +125,13 @@ gensio_avahi_except_handler(int fd, void *cb_data)
 }
 
 static void
-gensio_avahi_cleared_handler(int fd, void *cb_data)
+gensio_avahi_cleared_handler(struct gensio_iod *iod, void *cb_data)
 {
     AvahiWatch *w = cb_data;
     struct gensio_avahi_userdata *u = w->u;
     struct gensio_os_funcs *o = u->o;
 
+    o->release_iod(w->iod);
     o->free(o, w);
     o->lock(u->lock);
     gensio_avahi_poll_deref(u->ap);
@@ -142,9 +144,9 @@ gensio_avahi_watch_update(AvahiWatch *w, AvahiWatchEvent event)
     struct gensio_avahi_userdata *u = w->u;
     struct gensio_os_funcs *o = u->o;
 
-    o->set_read_handler(o, w->fd, !!(event & AVAHI_WATCH_IN));
-    o->set_write_handler(o, w->fd, !!(event & AVAHI_WATCH_OUT));
-    o->set_except_handler(o, w->fd, !!(event & AVAHI_WATCH_ERR));
+    o->set_read_handler(o, w->iod, !!(event & AVAHI_WATCH_IN));
+    o->set_write_handler(o, w->iod, !!(event & AVAHI_WATCH_OUT));
+    o->set_except_handler(o, w->iod, !!(event & AVAHI_WATCH_ERR));
 }
 
 static AvahiWatch *
@@ -160,18 +162,25 @@ gensio_avahi_watch_new(const AvahiPoll *ap, int fd,
     aw = o->zalloc(o, sizeof(*aw));
     if (!aw)
 	return NULL;
-    
+
+    err = o->add_iod(o, GENSIO_IOD_SOCKET, fd, &aw->iod);
+    if (err) {
+	free(aw);
+	return NULL;
+    }
+
     aw->u = u;
     aw->fd = fd;
     aw->events = event;
     aw->callback = callback;
     aw->userdata = userdata;
 
-    err = o->set_fd_handlers(o, fd, aw, gensio_avahi_read_handler,
+    err = o->set_fd_handlers(o, aw->iod, aw, gensio_avahi_read_handler,
 			     gensio_avahi_write_handler,
 			     gensio_avahi_except_handler,
 			     gensio_avahi_cleared_handler);
     if (err) {
+	o->release_iod(aw->iod);
 	o->free(o, aw);
 	return NULL;
     }
@@ -196,7 +205,7 @@ gensio_avahi_watch_free(AvahiWatch *w)
 
     assert(!w->freed);
     w->freed = true;
-    o->clear_fd_handlers(o, w->fd);
+    o->clear_fd_handlers(o, w->iod);
 }
 
 struct AvahiTimeout {

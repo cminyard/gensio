@@ -17,11 +17,11 @@ enum gensio_ll_close_state {
 };
 
 struct gensio_fd_ll_ops {
-    int (*sub_open)(void *handler_data, int *fd);
+    int (*sub_open)(void *handler_data, struct gensio_iod **iod);
 
-    int (*check_open)(void *handler_data, int fd);
+    int (*check_open)(void *handler_data, struct gensio_iod *iod);
 
-    int (*retry_open)(void *handler_data, int *fd);
+    int (*retry_open)(void *handler_data, struct gensio_iod **iod);
 
     /*
      * When GENSIO_LL_CLOSE_STATE_START, timeout will be NULL and the
@@ -34,16 +34,16 @@ struct gensio_fd_ll_ops {
 
     void (*free)(void *handler_data);
 
-    int (*control)(void *handler_data, int fd, bool get, unsigned int option,
-		   char *data, gensiods *datalen);
+    int (*control)(void *handler_data, struct gensio_iod *iod, bool get,
+		   unsigned int option, char *data, gensiods *datalen);
 
-    void (*read_ready)(void *handler_data, int fd);
+    void (*read_ready)(void *handler_data, struct gensio_iod *iod);
 
-    void (*write_ready)(void *handler_data, int fd);
+    void (*write_ready)(void *handler_data, struct gensio_iod *iod);
 
-    int (*except_ready)(void *handler_data, int fd);
+    int (*except_ready)(void *handler_data, struct gensio_iod *iod);
 
-    int (*write)(void *handler_data, int fd, gensiods *count,
+    int (*write)(void *handler_data, struct gensio_iod *iod, gensiods *count,
 		 const struct gensio_sg *sg, gensiods sglen,
 		 const char *const *auxdata);
 };
@@ -64,7 +64,8 @@ void gensio_fd_ll_close_now(struct gensio_ll *ll);
 
 GENSIO_DLL_PUBLIC
 void gensio_fd_ll_handle_incoming(struct gensio_ll *ll,
-				  int (*doread)(int fd, void *buf,
+				  int (*doread)(struct gensio_iod *iod,
+						void *buf,
 						gensiods count,
 						gensiods *rcount,
 						const char ***auxdata,
@@ -77,7 +78,7 @@ void *gensio_fd_ll_get_handler_data(struct gensio_ll *ll);
 
 GENSIO_DLL_PUBLIC
 struct gensio_ll *fd_gensio_ll_alloc(struct gensio_os_funcs *o,
-				     int fd,
+				     struct gensio_iod *iod,
 				     const struct gensio_fd_ll_ops *ops,
 				     void *handler_data,
 				     gensiods max_read_size,

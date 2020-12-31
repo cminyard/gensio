@@ -17,8 +17,8 @@ sctp_shutdown_fds(struct gensio_os_funcs *o,
 	return;
 
     for (i = 0; i < nrfds; i++) {
-	o->clear_fd_handlers_norpt(o, fds[i].fd);
-	close(fds[i].fd);
+	o->clear_fd_handlers_norpt(o, fds[i].iod);
+	gensio_os_close_socket(o, &fds[i].iod);
     }
     o->free(o, fds);
 }
@@ -26,10 +26,12 @@ sctp_shutdown_fds(struct gensio_os_funcs *o,
 int
 gensio_os_sctp_open_socket(struct gensio_os_funcs *o,
 			   struct gensio_addr *addr,
-			   void (*readhndlr)(int, void *),
-			   void (*writehndlr)(int, void *),
-			   void (*fd_handler_cleared)(int, void *),
-			   int (*setup_socket)(int fd, void *data),
+			   void (*readhndlr)(struct gensio_iod *, void *),
+			   void (*writehndlr)(struct gensio_iod *, void *),
+			   void (*fd_handler_cleared)(struct gensio_iod *,
+						      void *),
+			   int (*setup_socket)(struct gensio_iod *iod,
+					       void *data),
 			   void *data, unsigned int opensock_flags,
 			   struct opensocks **rfds, unsigned int *rnr_fds)
 {
@@ -56,7 +58,7 @@ gensio_os_sctp_open_socket(struct gensio_os_funcs *o,
 
 	for (i = 0; i < nr_fds; i++) {
 	    if (port == fds[i].port && (fds[i].family == family)) {
-		if (sctp_bindx(fds[i].fd, ai->ai_addr, 1,
+		if (sctp_bindx(fds[i].iod->fd, ai->ai_addr, 1,
 			       SCTP_BINDX_ADD_ADDR)) {
 		    rv = gensio_os_err_to_err(o, errno);
 		    goto out_err;
@@ -82,7 +84,7 @@ gensio_os_sctp_open_socket(struct gensio_os_funcs *o,
 					readhndlr, NULL, data,
 					fd_handler_cleared,
 					setup_socket, opensock_flags,
-					&tfds[i].fd, &tfds[i].port, &scaninfo);
+					&tfds[i].iod, &tfds[i].port, &scaninfo);
 	if (rv) {
 	    o->free(o, tfds);
 	    goto out_err;
@@ -128,7 +130,8 @@ gensio_os_sctp_open_socket(struct gensio_os_funcs *o,
 
 int
 gensio_os_sctp_recvmsg(struct gensio_os_funcs *o,
-		       int fd, void *msg, gensiods len, gensiods *rcount,
+		       struct gensio_iod *iod, void *msg, gensiods len,
+		       gensiods *rcount,
 		       struct sctp_sndrcvinfo *sinfo, int *flags)
 {
     int rv;
@@ -137,7 +140,7 @@ gensio_os_sctp_recvmsg(struct gensio_os_funcs *o,
 	return GE_NOMEM;
 
  retry:
-    rv = sctp_recvmsg(fd, msg, len, NULL, NULL, sinfo, flags);
+    rv = sctp_recvmsg(iod->fd, msg, len, NULL, NULL, sinfo, flags);
     ERRHANDLE();
     return rv;
 }
@@ -161,7 +164,8 @@ l_sctp_send(struct gensio_os_funcs *o,
 
 int
 gensio_os_sctp_send(struct gensio_os_funcs *o,
-		    int fd, const struct gensio_sg *sg, gensiods sglen,
+		    struct gensio_iod *iod,
+		    const struct gensio_sg *sg, gensiods sglen,
 		    gensiods *rcount,
 		    const struct sctp_sndrcvinfo *sinfo, uint32_t flags)
 {
@@ -173,7 +177,8 @@ gensio_os_sctp_send(struct gensio_os_funcs *o,
 
     /* Without sctp_sendv, this is really hard to do. */
     for (i = 0; i < sglen; i++) {
-	err = l_sctp_send(o, fd, sg[i].buf, sg[i].buflen, &count, sinfo, flags);
+	err = l_sctp_send(o, iod->fd,
+			  sg[i].buf, sg[i].buflen, &count, sinfo, flags);
 	if (err || count == 0)
 	    break;
 	total_write += count;
@@ -188,7 +193,8 @@ gensio_os_sctp_send(struct gensio_os_funcs *o,
 static bool sctp_sendv_broken;
 int
 gensio_os_sctp_send(struct gensio_os_funcs *o,
-		    int fd, const struct gensio_sg *sg, gensiods sglen,
+		    struct gensio_iod *iod,
+		    const struct gensio_sg *sg, gensiods sglen,
 		    gensiods *rcount,
 		    const struct sctp_sndrcvinfo *sinfo, uint32_t flags)
 {
@@ -200,7 +206,8 @@ gensio_os_sctp_send(struct gensio_os_funcs *o,
 
     if (sctp_sendv_broken) {
     broken:
-	return l_gensio_os_sctp_send(o, fd, sg, sglen, rcount, sinfo, flags);
+	return l_gensio_os_sctp_send(o, iod->fd,
+				     sg, sglen, rcount, sinfo, flags);
     }
     if (sinfo) {
 	sdata.snd_sid = sinfo->sinfo_stream;
@@ -211,7 +218,7 @@ gensio_os_sctp_send(struct gensio_os_funcs *o,
 	sndinfo = &sdata;
     }
  retry:
-    rv = sctp_sendv(fd, (struct iovec *) sg, sglen, NULL, 0,
+    rv = sctp_sendv(iod->fd, (struct iovec *) sg, sglen, NULL, 0,
 		    sndinfo, sizeof(*sndinfo), SCTP_SENDV_SNDINFO, flags);
     if (rv == -1 && errno == EINVAL) {
 	/* No sendv support, fall back. */
@@ -293,7 +300,7 @@ gensio_addr_to_sockarray(struct gensio_os_funcs *o, struct gensio_addr *addrs,
 
 int
 gensio_os_sctp_connectx(struct gensio_os_funcs *o,
-			int fd, struct gensio_addr *addrs)
+			struct gensio_iod *iod, struct gensio_addr *addrs)
 {
     struct sockaddr *saddrs;
     unsigned int naddrs;
@@ -310,16 +317,16 @@ gensio_os_sctp_connectx(struct gensio_os_funcs *o,
     if (ipv6_only) {
 	int val = 1;
 
-	err = setsockopt(fd, IPPROTO_IPV6, IPV6_V6ONLY, &val, sizeof(val));
+	err = setsockopt(iod->fd, IPPROTO_IPV6, IPV6_V6ONLY, &val, sizeof(val));
 	if (err)
 	    goto out_err;
 	val = !val;
-	err = setsockopt(fd, SOL_SCTP, SCTP_I_WANT_MAPPED_V4_ADDR, &val,
+	err = setsockopt(iod->fd, SOL_SCTP, SCTP_I_WANT_MAPPED_V4_ADDR, &val,
 			 sizeof(val));
 	if (err)
 	    goto out_err;
     }
-    err = sctp_connectx(fd, saddrs, naddrs, NULL);
+    err = sctp_connectx(iod->fd, saddrs, naddrs, NULL);
  out_err:
     o->free(o, saddrs);
     if (err == -1)
@@ -347,12 +354,12 @@ sctp_getraddr(struct gensio_os_funcs *o,
 }
 
 int
-gensio_os_sctp_getraddr(struct gensio_os_funcs *o, int fd,
+gensio_os_sctp_getraddr(struct gensio_os_funcs *o, struct gensio_iod *iod,
 			void *addr, gensiods *addrlen)
 {
     struct sockaddr *saddr;
     gensiods len = 0, clen = *addrlen;
-    int rv = sctp_getraddr(o, fd, &saddr, &len);
+    int rv = sctp_getraddr(o, iod->fd, &saddr, &len);
 
     if (rv)
 	return rv;
@@ -428,12 +435,12 @@ sctp_addr_to_addr(struct gensio_os_funcs *o,
 }
 
 int
-gensio_os_sctp_getpaddrs(struct gensio_os_funcs *o, int fd,
+gensio_os_sctp_getpaddrs(struct gensio_os_funcs *o, struct gensio_iod *iod,
 			 struct gensio_addr **raddr)
 {
     struct sockaddr *saddr;
     gensiods len = 0;
-    int rv = sctp_getraddr(o, fd, &saddr, &len);
+    int rv = sctp_getraddr(o, iod->fd, &saddr, &len);
 
     if (rv)
 	return rv;
@@ -444,7 +451,7 @@ gensio_os_sctp_getpaddrs(struct gensio_os_funcs *o, int fd,
 }
 
 int
-gensio_os_sctp_getladdrs(struct gensio_os_funcs *o, int fd,
+gensio_os_sctp_getladdrs(struct gensio_os_funcs *o, struct gensio_iod *iod,
 			 struct gensio_addr **raddr)
 {
     int rv;
@@ -453,7 +460,7 @@ gensio_os_sctp_getladdrs(struct gensio_os_funcs *o, int fd,
     if (do_errtrig())
 	return GE_NOMEM;
 
-    rv = sctp_getladdrs(fd, 0, &saddr);
+    rv = sctp_getladdrs(iod->fd, 0, &saddr);
     if (rv < 0) {
 	return gensio_os_err_to_err(o, errno);
     } if (rv == 0) {

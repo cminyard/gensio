@@ -37,7 +37,8 @@ do {								\
 
 int
 gensio_os_write(struct gensio_os_funcs *o,
-		int fd, const struct gensio_sg *sg, gensiods sglen,
+		struct gensio_iod *iod,
+		const struct gensio_sg *sg, gensiods sglen,
 		gensiods *rcount)
 {
     ssize_t rv;
@@ -51,14 +52,15 @@ gensio_os_write(struct gensio_os_funcs *o,
 	return 0;
     }
  retry:
-    rv = writev(fd, (struct iovec *) sg, sglen);
+    rv = writev(iod->fd, (struct iovec *) sg, sglen);
     ERRHANDLE();
     return rv;
 }
 
 int
 gensio_os_read(struct gensio_os_funcs *o,
-	       int fd, void *buf, gensiods buflen, gensiods *rcount)
+	       struct gensio_iod *iod,
+	       void *buf, gensiods buflen, gensiods *rcount)
 {
     ssize_t rv;
 
@@ -71,20 +73,22 @@ gensio_os_read(struct gensio_os_funcs *o,
 	return 0;
     }
  retry:
-    rv = read(fd, buf, buflen);
+    rv = read(iod->fd, buf, buflen);
     ERRHANDLE();
     return rv;
 }
 
 int
-gensio_os_close(struct gensio_os_funcs *o, int *fd)
+gensio_os_close(struct gensio_os_funcs *o, struct gensio_iod **iodp)
 {
+    struct gensio_iod *iod = *iodp;
     int err;
 
     /* Don't do errtrig on close, it can fail and not cause any issues. */
 
-    assert(*fd != -1);
-    err = close(*fd);
+    assert(iodp);
+    assert(!iod->handlers_set);
+    err = close(iod->fd);
 #ifdef ENABLE_INTERNAL_TRACE
     /* Close should never fail, but don't crash in production builds. */
     if (err) {
@@ -92,7 +96,8 @@ gensio_os_close(struct gensio_os_funcs *o, int *fd)
 	assert(0);
     }
 #endif
-    *fd = -1;
+    o->release_iod(iod);
+    *iodp = NULL;
 
     if (err == -1)
 	return gensio_os_err_to_err(o, errno);
@@ -154,15 +159,15 @@ gensio_os_setupnewprog(void)
     return 0;
 }
 
-int
-gensio_os_close_socket(struct gensio_os_funcs *o, int *fd)
+static int
+close_socket(struct gensio_os_funcs *o, int fd)
 {
     int err;
 
     /* Don't do errtrig on close, it can fail and not cause any issues. */
 
-    assert(*fd != -1);
-    err = close(*fd);
+    assert(fd != -1);
+    err = close(fd);
 #ifdef ENABLE_INTERNAL_TRACE
     /* Close should never fail, but don't crash in production builds. */
     if (err) {
@@ -170,7 +175,6 @@ gensio_os_close_socket(struct gensio_os_funcs *o, int *fd)
 	assert(0);
     }
 #endif
-    *fd = -1;
 
     if (err == -1)
 	return gensio_os_err_to_err(o, errno);
@@ -178,7 +182,22 @@ gensio_os_close_socket(struct gensio_os_funcs *o, int *fd)
 }
 
 int
-gensio_os_set_non_blocking(struct gensio_os_funcs *o, int fd)
+gensio_os_close_socket(struct gensio_os_funcs *o, struct gensio_iod **iodp)
+{
+    struct gensio_iod *iod = *iodp;
+    int rv;
+
+    assert(iodp);
+    assert(!iod->handlers_set);
+    rv = close_socket(o, iod->fd);
+    if (!rv)
+	*iodp = NULL;
+    o->release_iod(iod);
+    return rv;
+}
+
+static int
+set_non_blocking(struct gensio_os_funcs *o, int fd)
 {
     if (do_errtrig())
 	return GE_NOMEM;
@@ -188,15 +207,21 @@ gensio_os_set_non_blocking(struct gensio_os_funcs *o, int fd)
     return 0;
 }
 
+int
+gensio_os_set_non_blocking(struct gensio_os_funcs *o, struct gensio_iod *iod)
+{
+    return set_non_blocking(o, iod->fd);
+}
+
 const char *
-gensio_os_check_tcpd_ok(int new_fd, const char *iprogname)
+gensio_os_check_tcpd_ok(struct gensio_iod *iod, const char *iprogname)
 {
 #ifdef HAVE_TCPD_H
     struct request_info req;
 
     if (!iprogname)
 	iprogname = progname;
-    request_init(&req, RQ_DAEMON, iprogname, RQ_FILE, new_fd, NULL);
+    request_init(&req, RQ_DAEMON, iprogname, RQ_FILE, iod->fd, NULL);
     fromhost(&req);
 
     if (!hosts_access(&req))

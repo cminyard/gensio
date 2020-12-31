@@ -44,6 +44,18 @@ bool gensio_set_progname(const char *iprogname)
     return true;
 }
 
+struct gensio_iod {
+    struct gensio_os_funcs *f;
+    int fd;
+    enum gensio_iod_type type;
+    bool handlers_set;
+    void *cb_data;
+    void (*read_handler)(struct gensio_iod *iod, void *cb_data);
+    void (*write_handler)(struct gensio_iod *iod, void *cb_data);
+    void (*except_handler)(struct gensio_iod *iod, void *cb_data);
+    void (*cleared_handler)(struct gensio_iod *iod, void *cb_data);
+};
+
 #ifdef _WIN32
 #include "gensio_osops_win.h"
 #else

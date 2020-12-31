@@ -28,6 +28,18 @@ struct gensio_data {
     int wake_sig;
 };
 
+struct gensio_iod {
+    struct gensio_os_funcs *f;
+    int fd;
+    enum gensio_iod_type type;
+    bool handlers_set;
+    void *cb_data;
+    void (*read_handler)(struct gensio_iod *iod, void *cb_data);
+    void (*write_handler)(struct gensio_iod *iod, void *cb_data);
+    void (*except_handler)(struct gensio_iod *iod, void *cb_data);
+    void (*cleared_handler)(struct gensio_iod *iod, void *cb_data);
+};
+
 #ifdef ENABLE_INTERNAL_TRACE
 #define TRACK_ALLOCED_MEMORY
 #endif
@@ -543,42 +555,95 @@ gensio_sel_unlock(struct gensio_lock *lock)
     UNLOCK(&lock->lock);
 }
 
+static void iod_read_handler(int fd, void *cb_data)
+{
+    struct gensio_iod *iod = cb_data;
+
+    iod->read_handler(iod, iod->cb_data);
+}
+
+static void iod_write_handler(int fd, void *cb_data)
+{
+    struct gensio_iod *iod = cb_data;
+
+    iod->write_handler(iod, iod->cb_data);
+}
+
+static void iod_except_handler(int fd, void *cb_data)
+{
+    struct gensio_iod *iod = cb_data;
+
+    iod->except_handler(iod, iod->cb_data);
+}
+
+static void iod_cleared_handler(int fd, void *cb_data)
+{
+    struct gensio_iod *iod = cb_data;
+
+    iod->handlers_set = false;
+    iod->cleared_handler(iod, iod->cb_data);
+}
+
 static int
 gensio_sel_set_fd_handlers(struct gensio_os_funcs *f,
-			   int fd,
+			   struct gensio_iod *iod,
 			   void *cb_data,
-			   void (*read_handler)(int fd, void *cb_data),
-			   void (*write_handler)(int fd, void *cb_data),
-			   void (*except_handler)(int fd, void *cb_data),
-			   void (*cleared_handler)(int fd, void *cb_data))
+			   void (*read_handler)(struct gensio_iod *iod,
+						void *cb_data),
+			   void (*write_handler)(struct gensio_iod *iod,
+						 void *cb_data),
+			   void (*except_handler)(struct gensio_iod *iod,
+						  void *cb_data),
+			   void (*cleared_handler)(struct gensio_iod *iod,
+						   void *cb_data))
 {
     struct gensio_data *d = f->user_data;
     int rv;
 
-    rv = sel_set_fd_handlers(d->sel, fd, cb_data, read_handler, write_handler,
-			     except_handler, cleared_handler);
+    if (iod->handlers_set)
+	return GE_INUSE;
+
+    iod->cb_data = cb_data;
+    iod->read_handler = read_handler;
+    iod->write_handler = write_handler;
+    iod->except_handler = except_handler;
+    iod->cleared_handler = cleared_handler;
+
+    rv = sel_set_fd_handlers(d->sel, iod->fd, iod,
+			     read_handler ? iod_read_handler : NULL,
+			     write_handler ? iod_write_handler : NULL,
+			     except_handler ? iod_except_handler : NULL,
+			     cleared_handler ? iod_cleared_handler : NULL);
+    if (!rv)
+	iod->handlers_set = true;
     return gensio_os_err_to_err(f, rv);
 }
 
 
 static void
-gensio_sel_clear_fd_handlers(struct gensio_os_funcs *f, int fd)
+gensio_sel_clear_fd_handlers(struct gensio_os_funcs *f, struct gensio_iod *iod)
 {
     struct gensio_data *d = f->user_data;
 
-    sel_clear_fd_handlers(d->sel, fd);
+    if (iod->handlers_set)
+	sel_clear_fd_handlers(d->sel, iod->fd);
 }
 
 static void
-gensio_sel_clear_fd_handlers_norpt(struct gensio_os_funcs *f, int fd)
+gensio_sel_clear_fd_handlers_norpt(struct gensio_os_funcs *f,
+				   struct gensio_iod *iod)
 {
     struct gensio_data *d = f->user_data;
 
-    sel_clear_fd_handlers_norpt(d->sel, fd);
+    if (iod->handlers_set) {
+	iod->handlers_set = false;
+	sel_clear_fd_handlers_norpt(d->sel, iod->fd);
+    }
 }
 
 static void
-gensio_sel_set_read_handler(struct gensio_os_funcs *f, int fd, bool enable)
+gensio_sel_set_read_handler(struct gensio_os_funcs *f, struct gensio_iod *iod,
+			    bool enable)
 {
     struct gensio_data *d = f->user_data;
     int op;
@@ -588,11 +653,12 @@ gensio_sel_set_read_handler(struct gensio_os_funcs *f, int fd, bool enable)
     else
 	op = SEL_FD_HANDLER_DISABLED;
 
-    sel_set_fd_read_handler(d->sel, fd, op);
+    sel_set_fd_read_handler(d->sel, iod->fd, op);
 }
 
 static void
-gensio_sel_set_write_handler(struct gensio_os_funcs *f, int fd, bool enable)
+gensio_sel_set_write_handler(struct gensio_os_funcs *f, struct gensio_iod *iod,
+			     bool enable)
 {
     struct gensio_data *d = f->user_data;
     int op;
@@ -602,11 +668,12 @@ gensio_sel_set_write_handler(struct gensio_os_funcs *f, int fd, bool enable)
     else
 	op = SEL_FD_HANDLER_DISABLED;
 
-    sel_set_fd_write_handler(d->sel, fd, op);
+    sel_set_fd_write_handler(d->sel, iod->fd, op);
 }
 
 static void
-gensio_sel_set_except_handler(struct gensio_os_funcs *f, int fd, bool enable)
+gensio_sel_set_except_handler(struct gensio_os_funcs *f,
+			      struct gensio_iod *iod, bool enable)
 {
     struct gensio_data *d = f->user_data;
     int op;
@@ -616,7 +683,7 @@ gensio_sel_set_except_handler(struct gensio_os_funcs *f, int fd, bool enable)
     else
 	op = SEL_FD_HANDLER_DISABLED;
 
-    sel_set_fd_except_handler(d->sel, fd, op);
+    sel_set_fd_except_handler(d->sel, iod->fd, op);
 }
 
 struct gensio_timer {
@@ -977,6 +1044,30 @@ gensio_handle_fork(struct gensio_os_funcs *f)
     return sel_setup_forked_process(d->sel);
 }
 
+static int
+gensio_sel_add_iod(struct gensio_os_funcs *o, enum gensio_iod_type type,
+		   int fd, struct gensio_iod **riod)
+{
+    struct gensio_iod *iod;
+
+    iod = o->zalloc(o, sizeof(*iod));
+    if (!iod)
+	return GE_NOMEM;
+    iod->f = o;
+    iod->type = type;
+    iod->fd = fd;
+
+    *riod = iod;
+    return 0;
+}
+
+static void
+gensio_sel_release_iod(struct gensio_iod *iod)
+{
+    assert(!iod->handlers_set);
+    iod->f->free(iod->f, iod);
+}
+
 static struct gensio_os_funcs *
 gensio_selector_alloc_sel(struct selector_s *sel, int wake_sig)
 {
@@ -1031,6 +1122,8 @@ gensio_selector_alloc_sel(struct selector_s *sel, int wake_sig)
     o->get_monotonic_time = gensio_sel_get_monotonic_time;
     o->handle_fork = gensio_handle_fork;
     o->wait_intr_sigmask = gensio_sel_wait_intr_sigmask;
+    o->add_iod = gensio_sel_add_iod;
+    o->release_iod = gensio_sel_release_iod;
 
     return o;
 }

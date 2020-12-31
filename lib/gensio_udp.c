@@ -46,7 +46,8 @@ struct udpn_data {
 
     unsigned int refcount;
 
-    int myfd; /* fd the original request came in on, for sending. */
+    /* iod the original request came in on, for sending. */
+    struct gensio_iod *myiod;
 
     bool read_enabled;	/* Read callbacks are enabled. */
     bool write_enabled;	/* Write callbacks are enabled. */
@@ -324,7 +325,7 @@ udpna_enable_read(struct udpna_data *nadata)
 
     nadata->read_disabled = false;
     for (i = 0; i < nadata->nr_fds; i++)
-	nadata->o->set_read_handler(nadata->o, nadata->fds[i].fd, true);
+	nadata->o->set_read_handler(nadata->o, nadata->fds[i].iod, true);
 }
 
 static void
@@ -334,7 +335,7 @@ udpna_disable_read(struct udpna_data *nadata)
 
     nadata->read_disabled = true;
     for (i = 0; i < nadata->nr_fds; i++)
-	nadata->o->set_read_handler(nadata->o, nadata->fds[i].fd, false);
+	nadata->o->set_read_handler(nadata->o, nadata->fds[i].iod, false);
 }
 
 static void udpna_check_read_state(struct udpna_data *nadata)
@@ -370,7 +371,7 @@ udpna_disable_write(struct udpna_data *nadata)
     unsigned int i;
 
     for (i = 0; i < nadata->nr_fds; i++)
-	nadata->o->set_write_handler(nadata->o, nadata->fds[i].fd, false);
+	nadata->o->set_write_handler(nadata->o, nadata->fds[i].iod, false);
 }
 
 static void
@@ -388,7 +389,7 @@ udpna_enable_write(struct udpna_data *nadata)
     unsigned int i;
 
     for (i = 0; i < nadata->nr_fds; i++)
-	nadata->o->set_write_handler(nadata->o, nadata->fds[i].fd, true);
+	nadata->o->set_write_handler(nadata->o, nadata->fds[i].iod, true);
 }
 
 static void
@@ -405,8 +406,8 @@ udpna_do_free(struct udpna_data *nadata)
     unsigned int i;
 
     for (i = 0; i < nadata->nr_fds; i++) {
-	if (nadata->fds[i].fd != -1)
-	    gensio_os_close_socket(nadata->o, &nadata->fds[i].fd);
+	if (nadata->fds[i].iod)
+	    gensio_os_close_socket(nadata->o, &nadata->fds[i].iod);
     }
 
     if (nadata->deferred_op_runner)
@@ -427,7 +428,7 @@ udpna_do_free(struct udpna_data *nadata)
 }
 
 static void
-udpna_fd_cleared(int fd, void *cbdata)
+udpna_fd_cleared(struct gensio_iod *iod, void *cbdata)
 {
     struct udpna_data *nadata = cbdata;
 
@@ -450,7 +451,7 @@ udpna_check_finish_free(struct udpna_data *nadata)
     udpna_deref(nadata);
     for (i = 0; i < nadata->nr_fds; i++) {
 	udpna_ref(nadata);
-	nadata->o->clear_fd_handlers(nadata->o, nadata->fds[i].fd);
+	nadata->o->clear_fd_handlers(nadata->o, nadata->fds[i].iod);
     }
 }
 
@@ -506,7 +507,7 @@ udpn_write(struct gensio *io, gensiods *count,
     if (!addr)
 	addr = ndata->raddr;
 
-    err = gensio_os_sendto(ndata->o, ndata->myfd, sg, sglen, count, 0, addr);
+    err = gensio_os_sendto(ndata->o, ndata->myiod, sg, sglen, count, 0, addr);
     if (free_addr)
 	gensio_addr_free(addr);
     return err;
@@ -891,7 +892,7 @@ udpn_handle_write_incoming(struct udpna_data *nadata, struct udpn_data *ndata)
 }
 
 static void
-udpna_writehandler(int fd, void *cbdata)
+udpna_writehandler(struct gensio_iod *iod, void *cbdata)
 {
     struct udpna_data *nadata = cbdata;
     struct gensio_link *l;
@@ -938,7 +939,7 @@ udpna_control_laddr(struct udpna_data *nadata, bool get,
     if (i >= nadata->nr_fds)
 	return GE_NOTFOUND;
 
-    rv = gensio_os_getsockname(nadata->o, nadata->fds[i].fd, &addr);
+    rv = gensio_os_getsockname(nadata->o, nadata->fds[i].iod, &addr);
     if (rv)
 	return rv;
 
@@ -991,7 +992,7 @@ udpna_control_lport(struct udpna_data *nadata, bool get,
     if (i >= nadata->nr_fds)
 	return GE_NOTFOUND;
 
-    rv = gensio_os_socket_get_port(nadata->o, nadata->fds[i].fd, &i);
+    rv = gensio_os_socket_get_port(nadata->o, nadata->fds[i].iod, &i);
     if (rv)
 	return rv;
     *datalen = snprintf(data, *datalen, "%d", i);
@@ -1041,10 +1042,10 @@ udpn_control(struct gensio *io, bool get, int option,
 	if (err)
 	    return err;
 	if (option == GENSIO_CONTROL_ADD_MCAST)
-	    err = gensio_os_mcast_add(nadata->o, nadata->fds->fd, addr,
+	    err = gensio_os_mcast_add(nadata->o, nadata->fds->iod, addr,
 				      0, false);
 	else
-	    err = gensio_os_mcast_del(nadata->o, nadata->fds->fd, addr,
+	    err = gensio_os_mcast_del(nadata->o, nadata->fds->iod, addr,
 				      0, false);
 	gensio_addr_free(addr);
 	if (err)
@@ -1101,7 +1102,7 @@ gensio_udp_func(struct gensio *io, int func, gensiods *count,
 }
 
 static struct udpn_data *
-udp_alloc_gensio(struct udpna_data *nadata, int fd,
+udp_alloc_gensio(struct udpna_data *nadata, struct gensio_iod *iod,
 		 const struct gensio_addr *addr,
 		 gensio_event cb, void *user_data,
 		 struct gensio_list *starting_list)
@@ -1139,7 +1140,7 @@ udp_alloc_gensio(struct udpna_data *nadata, int fd,
     }
     gensio_set_is_packet(ndata->io, true);
 
-    ndata->myfd = fd;
+    ndata->myiod = iod;
 
     /* Stick it on the end of the list. */
     udpn_add_to_list(starting_list, ndata);
@@ -1149,7 +1150,7 @@ udp_alloc_gensio(struct udpna_data *nadata, int fd,
 }
 
 static void
-udpna_readhandler(int fd, void *cbdata)
+udpna_readhandler(struct gensio_iod *iod, void *cbdata)
 {
     struct udpna_data *nadata = cbdata;
     struct udpn_data *ndata;
@@ -1162,7 +1163,7 @@ udpna_readhandler(int fd, void *cbdata)
 	goto out_unlock;
 
     err = gensio_os_recvfrom(nadata->o,
-			     fd, nadata->read_data, nadata->max_read_size,
+			     iod, nadata->read_data, nadata->max_read_size,
 			     &datalen, 0, nadata->curr_recvaddr);
     if (err) {
 	if (!nadata->is_dummy)
@@ -1201,7 +1202,7 @@ udpna_readhandler(int fd, void *cbdata)
     }
 
     /* New connection. */
-    ndata = udp_alloc_gensio(nadata, fd, nadata->curr_recvaddr,
+    ndata = udp_alloc_gensio(nadata, iod, nadata->curr_recvaddr,
 			     NULL, NULL, &nadata->udpns);
     if (!ndata)
 	goto out_nomem;
@@ -1392,12 +1393,14 @@ udpna_free(struct gensio_accepter *accepter)
 	if (nadata->udpn_count == 0) {
 	    unsigned int i;
 
-	    for (i = 0; i < nadata->nr_fds; i++)
-		nadata->o->clear_fd_handlers_norpt(nadata->o,
-						   nadata->fds[i].fd);
 	    for (i = 0; i < nadata->nr_fds; i++) {
-		if (nadata->fds[i].fd != -1)
-		    gensio_os_close_socket(nadata->o, &nadata->fds[i].fd);
+		if (nadata->fds[i].iod)
+		    nadata->o->clear_fd_handlers_norpt(nadata->o,
+						       nadata->fds[i].iod);
+	    }
+	    for (i = 0; i < nadata->nr_fds; i++) {
+		if (nadata->fds[i].iod)
+		    gensio_os_close_socket(nadata->o, &nadata->fds[i].iod);
 	    }
 	}
     }
@@ -1462,7 +1465,7 @@ udpna_str_to_gensio(struct gensio_accepter *accepter, const char *addrstr,
 	goto out_err;
     }
 
-    ndata = udp_alloc_gensio(nadata, nadata->fds[fdi].fd, addr,
+    ndata = udp_alloc_gensio(nadata, nadata->fds[fdi].iod, addr,
 			     cb, user_data, &nadata->closed_udpns);
     if (!ndata) {
 	udpna_unlock(nadata);
@@ -1653,7 +1656,8 @@ udp_gensio_alloc(const struct gensio_addr *addr, const char * const args[],
     struct gensio_accepter *accepter;
     struct udpna_data *nadata = NULL;
     struct gensio_addr *laddr = NULL, *mcast = NULL, *tmpaddr, *tmpaddr2;
-    int err, new_fd, ival;
+    int err, ival;
+    struct gensio_iod *new_iod;
     gensiods max_read_size = GENSIO_DEFAULT_UDP_BUF_SIZE;
     unsigned int i;
     bool nocon = false, mcast_loop_set = false, mcast_loop = true;
@@ -1717,7 +1721,7 @@ udp_gensio_alloc(const struct gensio_addr *addr, const char * const args[],
 	return err;
     }
 
-    err = gensio_os_socket_open(o, addr, GENSIO_NET_PROTOCOL_UDP, &new_fd);
+    err = gensio_os_socket_open(o, addr, GENSIO_NET_PROTOCOL_UDP, &new_iod);
     if (err) {
 	if (laddr)
 	    gensio_addr_free(laddr);
@@ -1726,12 +1730,12 @@ udp_gensio_alloc(const struct gensio_addr *addr, const char * const args[],
 	return err;
     }
 
-    err = gensio_os_socket_setup(o, new_fd, GENSIO_NET_PROTOCOL_UDP,
+    err = gensio_os_socket_setup(o, new_iod, GENSIO_NET_PROTOCOL_UDP,
 				 false, false,
 				 reuseaddr ? GENSIO_OPENSOCK_REUSEADDR : 0,
 				 laddr);
     if (err) {
-	gensio_os_close_socket(o, &new_fd);
+	gensio_os_close_socket(o, &new_iod);
 	if (laddr)
 	    gensio_addr_free(laddr);
 	if (mcast)
@@ -1745,19 +1749,19 @@ udp_gensio_alloc(const struct gensio_addr *addr, const char * const args[],
     }
 
     if (mcast) {
-	err = gensio_os_mcast_add(o, new_fd, mcast, 0, false);
+	err = gensio_os_mcast_add(o, new_iod, mcast, 0, false);
 	gensio_addr_free(mcast);
 	if (err) {
-	    gensio_os_close_socket(o, &new_fd);
+	    gensio_os_close_socket(o, &new_iod);
 	    return err;
 	}
 	mcast = NULL;
     }
 
     if (mcast_loop_set) {
-	err = gensio_os_set_mcast_loop(o, new_fd, addr, mcast_loop);
+	err = gensio_os_set_mcast_loop(o, new_iod, addr, mcast_loop);
 	if (err) {
-	    gensio_os_close_socket(o, &new_fd);
+	    gensio_os_close_socket(o, &new_iod);
 	    return err;
 	}
     }
@@ -1766,7 +1770,7 @@ udp_gensio_alloc(const struct gensio_addr *addr, const char * const args[],
     err = i_udp_gensio_accepter_alloc(NULL, max_read_size, reuseaddr, o,
 				      NULL, NULL, &accepter);
     if (err) {
-	gensio_os_close_socket(o, &new_fd);
+	gensio_os_close_socket(o, &new_iod);
 	return err;
     }
     nadata = gensio_acc_get_gensio_data(accepter);
@@ -1775,26 +1779,26 @@ udp_gensio_alloc(const struct gensio_addr *addr, const char * const args[],
 
     nadata->fds = o->zalloc(o, sizeof(*nadata->fds));
     if (!nadata->fds) {
-	gensio_os_close_socket(o, &new_fd);
+	gensio_os_close_socket(o, &new_iod);
 	udpna_do_free(nadata);
 	return GE_NOMEM;
     }
     nadata->fds->family = gensio_addr_get_nettype(addr);
-    nadata->fds->fd = new_fd;
+    nadata->fds->iod = new_iod;
     nadata->nr_fds = 1;
     /* fd belongs to udpn now, updn_do_free() will close it. */
 
     nadata->closed = true; /* Free nadata when ndata is freed. */
     nadata->freed = true;
 
-    ndata = udp_alloc_gensio(nadata, new_fd, addr,
+    ndata = udp_alloc_gensio(nadata, new_iod, addr,
 			     cb, user_data, &nadata->closed_udpns);
     if (!ndata) {
 	err = GE_NOMEM;
     } else {
 	gensio_set_is_client(ndata->io, true);
 	nadata->udpn_count = 1;
-	err = o->set_fd_handlers(o, new_fd, nadata,
+	err = o->set_fd_handlers(o, new_iod, nadata,
 				 udpna_readhandler, udpna_writehandler, NULL,
 				 udpna_fd_cleared);
     }

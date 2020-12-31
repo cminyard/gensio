@@ -51,7 +51,9 @@ gio_mem_free(void *data)
 
 struct os_hnd_fd_id_s
 {
+    struct gensio_os_funcs *o;
     int             fd;
+    struct gensio_iod *iod;
     void            *cb_data;
     os_data_ready_t data_ready;
     os_data_ready_t write_ready;
@@ -61,36 +63,37 @@ struct os_hnd_fd_id_s
 };
 
 static void
-fd_read_handler(int fd, void *data)
+fd_read_handler(struct gensio_iod *iod, void *data)
 {
     os_hnd_fd_id_t *fd_data = (os_hnd_fd_id_t *) data;
 
-    fd_data->data_ready(fd, fd_data->cb_data, fd_data);
+    fd_data->data_ready(fd_data->fd, fd_data->cb_data, fd_data);
 }
 
 static void
-fd_write_handler(int fd, void *data)
+fd_write_handler(struct gensio_iod *iod, void *data)
 {
     os_hnd_fd_id_t *fd_data = (os_hnd_fd_id_t *) data;
 
-    fd_data->write_ready(fd, fd_data->cb_data, fd_data);
+    fd_data->write_ready(fd_data->fd, fd_data->cb_data, fd_data);
 }
 
 static void
-fd_except_handler(int fd, void *data)
+fd_except_handler(struct gensio_iod *iod, void *data)
 {
     os_hnd_fd_id_t *fd_data = (os_hnd_fd_id_t *) data;
 
-    fd_data->except_ready(fd, fd_data->cb_data, fd_data);
+    fd_data->except_ready(fd_data->fd, fd_data->cb_data, fd_data);
 }
 
 static void
-free_fd_data(int fd, void *data)
+free_fd_data(struct gensio_iod *iod, void *data)
 {
     os_hnd_fd_id_t *fd_data = data;
 
+    fd_data->o->release_iod(fd_data->iod);
     if (fd_data->freed)
-        fd_data->freed(fd, fd_data->cb_data);
+        fd_data->freed(fd_data->fd, fd_data->cb_data);
     free(data);
 }
 
@@ -111,21 +114,29 @@ gio_add_fd_to_wait_for(os_handler_t       *handler,
     fd_data = malloc(sizeof(*fd_data));
     if (!fd_data)
 	return ENOMEM;
+    fd_data->o = o;
 
+    rv = o->add_iod(o, GENSIO_IOD_SOCKET, fd, &fd_data->iod);
+    if (rv) {
+	free(fd_data);
+	return rv;
+    }
     fd_data->fd = fd;
     fd_data->cb_data = cb_data;
     fd_data->data_ready = data_ready;
     fd_data->handler = handler;
     fd_data->freed = freed;
-    rv = o->set_fd_handlers(o, fd, fd_data, fd_read_handler, fd_write_handler,
+    rv = o->set_fd_handlers(o, fd_data->iod, fd_data,
+			    fd_read_handler, fd_write_handler,
 			    fd_except_handler, free_fd_data);
     if (rv) {
+	o->release_iod(fd_data->iod);
 	free(fd_data);
 	return rv;
     }
-    o->set_write_handler(o, fd, false);
-    o->set_except_handler(o, fd, false);
-    o->set_read_handler(o, fd, true);
+    o->set_write_handler(o, fd_data->iod, false);
+    o->set_except_handler(o, fd_data->iod, false);
+    o->set_read_handler(o, fd_data->iod, true);
 
     *id = fd_data;
     return 0;
@@ -138,8 +149,8 @@ gio_remove_fd_to_wait_for(os_handler_t   *handler,
     struct igensio_info *info = handler->internal_data;
     struct gensio_os_funcs *o = info->o;
 
-    o->set_read_handler(o, id->fd, false);
-    o->clear_fd_handlers(o, id->fd);
+    o->set_read_handler(o, id->iod, false);
+    o->clear_fd_handlers(o, id->iod);
     return 0;
 }
 
@@ -429,9 +440,9 @@ gio_set_fd_enables(os_handler_t *handler, os_hnd_fd_id_t *id,
     struct igensio_info *info = handler->internal_data;
     struct gensio_os_funcs *o = info->o;
 
-    o->set_read_handler(o, id->fd, read);
-    o->set_write_handler(o, id->fd, write);
-    o->set_except_handler(o, id->fd, except);
+    o->set_read_handler(o, id->iod, read);
+    o->set_write_handler(o, id->iod, write);
+    o->set_except_handler(o, id->iod, except);
     return 0;
 }
 

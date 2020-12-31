@@ -25,6 +25,16 @@ struct gensio_lock;
 struct gensio_timer;
 struct gensio_runner;
 
+/* I/O descriptor. */
+struct gensio_iod;
+
+enum gensio_iod_type {
+    GENSIO_IOD_SOCKET,
+    GENSIO_IOD_PIPE,
+    GENSIO_IOD_DEV,
+    GENSIO_IOD_FILE
+};
+
 struct gensio_once {
     bool called;
 };
@@ -85,12 +95,16 @@ struct gensio_os_funcs {
      * or GE_INVAL if fd is invalid.
      */
     int (*set_fd_handlers)(struct gensio_os_funcs *f,
-			   int fd,
+			   struct gensio_iod *iod,
 			   void *cb_data,
-			   void (*read_handler)(int fd, void *cb_data),
-			   void (*write_handler)(int fd, void *cb_data),
-			   void (*except_handler)(int fd, void *cb_data),
-			   void (*cleared_handler)(int fd, void *cb_data));
+			   void (*read_handler)(struct gensio_iod *iod,
+						void *cb_data),
+			   void (*write_handler)(struct gensio_iod *iod,
+						 void *cb_data),
+			   void (*except_handler)(struct gensio_iod *iod,
+						  void *cb_data),
+			   void (*cleared_handler)(struct gensio_iod *iod,
+						   void *cb_data));
 
     /*
      * Clear the handlers for an fd.  Note that the operation is not
@@ -99,23 +113,28 @@ struct gensio_os_funcs {
      * cleared_handler is called when the operation completes, you
      * need to wait for that.
      */
-    void (*clear_fd_handlers)(struct gensio_os_funcs *f, int fd);
+    void (*clear_fd_handlers)(struct gensio_os_funcs *f,
+			      struct gensio_iod *iod);
 
     /*
      * Like the above, but does not call the cleared_handler function
      * when done.  This can only be called if you never enabled the
      * handlers, it is only for shutdown when an error occurs at startup.
      */
-    void (*clear_fd_handlers_norpt)(struct gensio_os_funcs *f, int fd);
+    void (*clear_fd_handlers_norpt)(struct gensio_os_funcs *f,
+				    struct gensio_iod *iod);
 
     /*
      * Enable/disable the various handlers.  Note that if you disable
      * a handler, it may still be running in a callback, this does not
      * wait.
      */
-    void (*set_read_handler)(struct gensio_os_funcs *f, int fd, bool enable);
-    void (*set_write_handler)(struct gensio_os_funcs *f, int fd, bool enable);
-    void (*set_except_handler)(struct gensio_os_funcs *f, int fd, bool enable);
+    void (*set_read_handler)(struct gensio_os_funcs *f,
+			     struct gensio_iod *iod, bool enable);
+    void (*set_write_handler)(struct gensio_os_funcs *f,
+			      struct gensio_iod *iod, bool enable);
+    void (*set_except_handler)(struct gensio_os_funcs *f,
+			       struct gensio_iod *iod, bool enable);
 
     /****** Timers ******/
     /*
@@ -277,6 +296,17 @@ struct gensio_os_funcs {
     int (*wait_intr_sigmask)(struct gensio_waiter *waiter, unsigned int count,
 			     gensio_time *timeout, void *sigmask);
 
+    /****** I/O Descriptors ******/
+    /*
+     * Allocate an I/O descriptor for an fd.
+     */
+    int (*add_iod)(struct gensio_os_funcs *o, enum gensio_iod_type type,
+		   int fd, struct gensio_iod **iod);
+
+    /*
+     * Release an allocated I/O descriptor.
+     */
+    void (*release_iod)(struct gensio_iod *iod);
 };
 
 GENSIO_DLL_PUBLIC

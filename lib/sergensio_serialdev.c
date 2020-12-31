@@ -443,6 +443,7 @@ struct sterm_data {
     char *parms;
 
     int fd;
+    struct gensio_iod *iod;
     struct gensio_ll *ll;
 
     /*
@@ -1263,9 +1264,10 @@ is_a_pty(const char *ttyname)
 }
 
 static int
-sterm_sub_open(void *handler_data, int *fd)
+sterm_sub_open(void *handler_data, struct gensio_iod **riod)
 {
     struct sterm_data *sdata = handler_data;
+    struct gensio_os_funcs *o = sdata->o;
     int err;
     int options;
 
@@ -1293,6 +1295,9 @@ sterm_sub_open(void *handler_data, int *fd)
 	err = errno;
 	goto out_uucp;
     }
+    err = o->add_iod(o, GENSIO_IOD_DEV, sdata->fd, &sdata->iod);
+    if (err)
+	goto out_uucp;
 
     get_termios(sdata->fd, &sdata->orig_termios);
 
@@ -1326,7 +1331,7 @@ sterm_sub_open(void *handler_data, int *fd)
     if (!sdata->write_only)
 	sterm_modemstate(sdata->sio, 255);
 
-    *fd = sdata->fd;
+    *riod = sdata->iod;
 
     return 0;
 
@@ -1342,6 +1347,10 @@ sterm_sub_open(void *handler_data, int *fd)
     else
 	err = gensio_os_err_to_err(sdata->o, err);
  out:
+    if (sdata->iod) {
+	o->release_iod(sdata->iod);
+	sdata->iod = NULL;
+    }
     if (sdata->fd != -1) {
 	close(sdata->fd);
 	sdata->fd = -1;
@@ -1470,8 +1479,8 @@ sterm_control_raddr(struct sterm_data *sdata, char *buf, gensiods *datalen)
 }
 
 static int
-sterm_control(void *handler_data, int fd, bool get, unsigned int option,
-	      char *data, gensiods *datalen)
+sterm_control(void *handler_data, struct gensio_iod *iod,
+	      bool get, unsigned int option, char *data, gensiods *datalen)
 {
     struct sterm_data *sdata = handler_data;
 
@@ -1479,7 +1488,7 @@ sterm_control(void *handler_data, int fd, bool get, unsigned int option,
     case GENSIO_CONTROL_SEND_BREAK:
 	if (get)
 	    break;
-	do_break(fd);
+	do_break(sdata->fd);
 	return 0;
 
     case GENSIO_CONTROL_RADDR:
@@ -1503,12 +1512,12 @@ sterm_control(void *handler_data, int fd, bool get, unsigned int option,
 }
 
 static int
-sterm_write(void *handler_data, int fd, gensiods *rcount,
+sterm_write(void *handler_data, struct gensio_iod *iod, gensiods *rcount,
 	    const struct gensio_sg *sg, gensiods sglen,
 	    const char *const *auxdata)
 {
     struct sterm_data *sdata = handler_data;
-    int rv = gensio_os_write(sdata->o, fd, sg, sglen, rcount);
+    int rv = gensio_os_write(sdata->o, iod, sg, sglen, rcount);
 
     if (rv && sdata->is_pty && rv == GE_IOERR)
 	return GE_REMCLOSE; /* We don't seem to get EPIPE from ptys */
@@ -1516,11 +1525,11 @@ sterm_write(void *handler_data, int fd, gensiods *rcount,
 }
 
 static int
-sterm_do_read(int fd, void *data, gensiods count, gensiods *rcount,
+sterm_do_read(struct gensio_iod *iod, void *data, gensiods count, gensiods *rcount,
 	      const char ***auxdata, void *cb_data)
 {
     struct sterm_data *sdata = cb_data;
-    int rv = gensio_os_read(sdata->o, fd, data, count, rcount);
+    int rv = gensio_os_read(sdata->o, iod, data, count, rcount);
 
     if (rv && sdata->is_pty && rv == GE_IOERR)
 	return GE_REMCLOSE; /* We don't seem to get EPIPE from ptys */
@@ -1528,7 +1537,7 @@ sterm_do_read(int fd, void *data, gensiods count, gensiods *rcount,
 }
 
 static void
-sterm_read_ready(void *handler_data, int fd)
+sterm_read_ready(void *handler_data, struct gensio_iod *iod)
 {
     struct sterm_data *sdata = handler_data;
 
@@ -1888,7 +1897,7 @@ serialdev_gensio_alloc(const char *devname, const char * const args[],
     if (!sdata->lock)
 	goto out_nomem;
 
-    sdata->ll = fd_gensio_ll_alloc(o, -1, &sterm_fd_ll_ops, sdata,
+    sdata->ll = fd_gensio_ll_alloc(o, NULL, &sterm_fd_ll_ops, sdata,
 				   max_read_size, sdata->write_only);
     if (!sdata->ll)
 	goto out_nomem;
