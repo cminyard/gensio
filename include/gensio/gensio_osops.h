@@ -68,9 +68,6 @@ int gensio_os_scan_netaddr(struct gensio_os_funcs *o, const char *str,
 			   bool listen, int protocol, struct gensio_addr **rai);
 
 GENSIO_DLL_PUBLIC
-int gensio_os_close_socket(struct gensio_iod **iod);
-
-GENSIO_DLL_PUBLIC
 int gensio_os_check_socket_open(struct gensio_iod *iod);
 
 GENSIO_DLL_PUBLIC
@@ -145,9 +142,6 @@ int gensio_os_open_socket(struct gensio_os_funcs *o,
 			  void *data, unsigned int opensock_flags,
 			  struct opensocks **socks, unsigned int *nr_fds);
 
-/*
- * Unix only APIs.
- */
 GENSIO_DLL_PUBLIC
 int gensio_os_close(struct gensio_iod **iod);
 
@@ -159,6 +153,9 @@ GENSIO_DLL_PUBLIC
 int gensio_os_read(struct gensio_iod *iod, void *buf, gensiods buflen,
 		   gensiods *rcount);
 
+/*
+ * Unix only APIs.
+ */
 GENSIO_DLL_PUBLIC
 int gensio_os_setupnewprog(void);
 

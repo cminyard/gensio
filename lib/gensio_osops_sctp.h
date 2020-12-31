@@ -18,7 +18,7 @@ sctp_shutdown_fds(struct gensio_os_funcs *o,
 
     for (i = 0; i < nrfds; i++) {
 	o->clear_fd_handlers_norpt(fds[i].iod);
-	gensio_os_close_socket(&fds[i].iod);
+	gensio_os_close(&fds[i].iod);
     }
     o->free(o, fds);
 }

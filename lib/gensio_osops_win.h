@@ -45,7 +45,7 @@ close_socket(struct gensio_os_funcs *o, int fd)
 }
 
 int
-gensio_os_close_socket(struct gensio_iod **iodp)
+gensio_os_close(struct gensio_iod **iodp)
 {
     struct gensio_iod *iod = *iodp;
     struct gensio_os_funcs *o = iod->f;
@@ -54,7 +54,10 @@ gensio_os_close_socket(struct gensio_iod **iodp)
     /* Don't do errtrig on close, it can fail and not cause any issues. */
 
     assert(iod);
-    err = close_socket(o, iod->fd);
+    if (iod->type == GENSIO_IOD_SOCKET)
+	err = close_socket(o, iod->fd);
+    else
+	assert(0); /* FIXME */
     if (!err)
 	*iodp = NULL;
     return err;
@@ -161,12 +164,6 @@ gensio_i_os_err_to_err(struct gensio_os_funcs *o,
     }
 
     return err;
-}
-
-int
-gensio_os_close(struct gensio_iod **iod)
-{
-    return gensio_os_close_socket(iod);
 }
 
 int

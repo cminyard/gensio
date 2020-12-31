@@ -828,7 +828,7 @@ gensio_os_open_socket(struct gensio_os_funcs *o,
  out_close:
     for (i = 0; i < curr_fd; i++) {
 	o->clear_fd_handlers_norpt(fds[i].iod);
-	gensio_os_close_socket(&fds[i].iod);
+	gensio_os_close(&fds[i].iod);
     }
 #if !HAVE_WORKING_PORT0
     if (rv == GE_ADDRINUSE && scaninfo.start != 0 &&

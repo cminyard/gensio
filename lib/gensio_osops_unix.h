@@ -78,6 +78,28 @@ gensio_os_read(struct gensio_iod *iod,
     return rv;
 }
 
+static int
+close_socket(struct gensio_os_funcs *o, int fd)
+{
+    int err;
+
+    /* Don't do errtrig on close, it can fail and not cause any issues. */
+
+    assert(fd != -1);
+    err = close(fd);
+#ifdef ENABLE_INTERNAL_TRACE
+    /* Close should never fail, but don't crash in production builds. */
+    if (err) {
+	err = errno;
+	assert(0);
+    }
+#endif
+
+    if (err == -1)
+	return gensio_os_err_to_err(o, errno);
+    return 0;
+}
+
 int
 gensio_os_close(struct gensio_iod **iodp)
 {
@@ -158,44 +180,6 @@ gensio_os_setupnewprog(void)
     if (err)
 	return errno;
     return 0;
-}
-
-static int
-close_socket(struct gensio_os_funcs *o, int fd)
-{
-    int err;
-
-    /* Don't do errtrig on close, it can fail and not cause any issues. */
-
-    assert(fd != -1);
-    err = close(fd);
-#ifdef ENABLE_INTERNAL_TRACE
-    /* Close should never fail, but don't crash in production builds. */
-    if (err) {
-	err = errno;
-	assert(0);
-    }
-#endif
-
-    if (err == -1)
-	return gensio_os_err_to_err(o, errno);
-    return 0;
-}
-
-int
-gensio_os_close_socket(struct gensio_iod **iodp)
-{
-    struct gensio_iod *iod = *iodp;
-    struct gensio_os_funcs *o = iod->f;
-    int rv;
-
-    assert(iodp);
-    assert(!iod->handlers_set);
-    rv = close_socket(o, iod->fd);
-    if (!rv)
-	*iodp = NULL;
-    o->release_iod(iod);
-    return rv;
 }
 
 static int
