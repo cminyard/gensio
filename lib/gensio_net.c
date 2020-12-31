@@ -532,8 +532,7 @@ netna_set_fd_enables(struct netna_data *nadata, bool enable)
     unsigned int i;
 
     for (i = 0; i < nadata->nr_acceptfds; i++)
-	nadata->o->set_read_handler(nadata->o, nadata->acceptfds[i].iod,
-				    enable);
+	nadata->o->set_read_handler(nadata->acceptfds[i].iod, enable);
 }
 
 static void
@@ -776,7 +775,7 @@ netna_shutdown(struct gensio_accepter *accepter,
     nadata->shutdown_done = shutdown_done;
     nadata->nr_accept_close_waiting = nadata->nr_acceptfds;
     for (i = 0; i < nadata->nr_acceptfds; i++)
-	nadata->o->clear_fd_handlers(nadata->o, nadata->acceptfds[i].iod);
+	nadata->o->clear_fd_handlers(nadata->acceptfds[i].iod);
 
     if (!nadata->istcp)
 	/* Remove the socket. */
@@ -803,8 +802,7 @@ netna_set_accept_callback_enable(struct gensio_accepter *accepter,
 
     nadata->cb_en_done = done;
     for (i = 0; i < nadata->nr_acceptfds; i++)
-	nadata->o->set_read_handler(nadata->o, nadata->acceptfds[i].iod,
-				    enabled);
+	nadata->o->set_read_handler(nadata->acceptfds[i].iod, enabled);
 
     if (done)
 	nadata->o->run(nadata->cb_en_done_runner);
@@ -997,8 +995,7 @@ netna_disable(struct gensio_accepter *accepter, struct netna_data *nadata)
     unsigned int i;
 
     for (i = 0; i < nadata->nr_acceptfds; i++)
-	nadata->o->clear_fd_handlers_norpt(nadata->o,
-					   nadata->acceptfds[i].iod);
+	nadata->o->clear_fd_handlers_norpt(nadata->acceptfds[i].iod);
     for (i = 0; i < nadata->nr_acceptfds; i++)
 	gensio_os_close_socket(&nadata->acceptfds[i].iod);
 }

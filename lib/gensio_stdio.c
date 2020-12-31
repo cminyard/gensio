@@ -260,7 +260,7 @@ stdion_finish_read(struct stdion_channel *schan, int err)
 	schan->data_pending_len = 0;
 	schan->ll_err = err;
 	if (!schan->outfd_regfile)
-	    nadata->o->set_read_handler(nadata->o, schan->out_iod, false);
+	    nadata->o->set_read_handler(schan->out_iod, false);
 	do {
 	    stdiona_unlock(nadata);
 	    gensio_cb(io, GENSIO_EVENT_READ, err, NULL, NULL, NULL);
@@ -287,7 +287,7 @@ stdion_finish_read(struct stdion_channel *schan, int err)
     schan->in_read = false;
 
     if (schan->read_enabled && !schan->outfd_regfile)
-	nadata->o->set_read_handler(nadata->o, schan->out_iod, true);
+	nadata->o->set_read_handler(schan->out_iod, true);
 }
 
 static void
@@ -364,13 +364,13 @@ stdion_start_close(struct stdion_channel *schan)
     if (schan->outfd_regfile)
 	i_stdion_fd_cleared(schan->out_iod, nadata, schan);
     else
-	nadata->o->clear_fd_handlers(nadata->o, schan->out_iod);
+	nadata->o->clear_fd_handlers(schan->out_iod);
 
     if (schan->in_iod) {
 	if (schan->infd_regfile)
 	    i_stdion_fd_cleared(schan->in_iod, nadata, schan);
 	else
-	    nadata->o->clear_fd_handlers(nadata->o, schan->in_iod);
+	    nadata->o->clear_fd_handlers(schan->in_iod);
     }
 }
 
@@ -412,16 +412,13 @@ stdion_deferred_op(struct gensio_runner *runner, void *cbdata)
 		schan->deferred_read = true;
 	    }
 	} else {
-	    nadata->o->set_read_handler(nadata->o, schan->out_iod,
-					schan->read_enabled);
+	    nadata->o->set_read_handler(schan->out_iod, schan->read_enabled);
 	}
 	if (schan->infd_regfile) {
 	    schan->deferred_write = schan->xmit_enabled;
 	} else if (schan->in_iod) {
-	    nadata->o->set_write_handler(nadata->o, schan->in_iod,
-					 schan->xmit_enabled);
-	    nadata->o->set_except_handler(nadata->o, schan->in_iod,
-					  schan->xmit_enabled);
+	    nadata->o->set_write_handler(schan->in_iod, schan->xmit_enabled);
+	    nadata->o->set_except_handler(schan->in_iod, schan->xmit_enabled);
 	}
     }
 
@@ -538,7 +535,7 @@ stdion_set_read_callback_enable(struct gensio *io, bool enabled)
     } else if (schan->outfd_regfile) {
 	/* Nothing to do here. */
     } else {
-	nadata->o->set_read_handler(nadata->o, schan->out_iod, enabled);
+	nadata->o->set_read_handler(schan->out_iod, enabled);
     }
  out_unlock:
     stdiona_unlock(nadata);
@@ -566,8 +563,8 @@ stdion_set_write_callback_enable(struct gensio *io, bool enabled)
 	    schan->deferred_write = false;
 	}
     } else {
-	    nadata->o->set_write_handler(nadata->o, schan->in_iod, enabled);
-	    nadata->o->set_except_handler(nadata->o, schan->in_iod, enabled);
+	    nadata->o->set_write_handler(schan->in_iod, enabled);
+	    nadata->o->set_except_handler(schan->in_iod, enabled);
     }
  out_unlock:
     stdiona_unlock(nadata);
@@ -585,7 +582,7 @@ stdion_read_ready(struct gensio_iod *iod, void *cbdata)
 	return;
     }
     if (!schan->outfd_regfile)
-	nadata->o->set_read_handler(nadata->o, schan->out_iod, false);
+	nadata->o->set_read_handler(schan->out_iod, false);
     if (!schan->ll_err) {
 	schan->in_read = true;
 	stdion_finish_read(schan, stdion_do_read(nadata, schan));
@@ -817,10 +814,10 @@ cleanup_io_self(struct stdiona_data *nadata)
 	fcntl(nadata->io.outfd, F_SETFL, nadata->old_flags_ostdout);
     nadata->old_flags_ostdout_set = false;
     if (nadata->io.out_handler_set)
-	nadata->o->clear_fd_handlers_norpt(nadata->o, nadata->io.out_iod);
+	nadata->o->clear_fd_handlers_norpt(nadata->io.out_iod);
     nadata->io.out_handler_set = false;
     if (nadata->io.in_handler_set)
-	nadata->o->clear_fd_handlers_norpt(nadata->o, nadata->io.in_iod);
+	nadata->o->clear_fd_handlers_norpt(nadata->io.in_iod);
     nadata->io.in_handler_set = false;
 }
 
@@ -848,7 +845,7 @@ stdion_open(struct gensio *io, gensio_done_err open_done, void *open_data)
     }
 
     if (!schan->outfd_regfile) {
-	err = nadata->o->set_fd_handlers(nadata->o, schan->out_iod, schan,
+	err = nadata->o->set_fd_handlers(schan->out_iod, schan,
 					 stdion_read_ready, NULL, NULL,
 					 stdion_fd_cleared);
 	if (err)
@@ -862,7 +859,7 @@ stdion_open(struct gensio *io, gensio_done_err open_done, void *open_data)
 	 * On the write side we send an exception to the write ready
 	 * operation.
 	 */
-	err = nadata->o->set_fd_handlers(nadata->o, schan->in_iod, schan,
+	err = nadata->o->set_fd_handlers(schan->in_iod, schan,
 					 NULL, stdion_write_ready,
 					 stdion_write_except_ready,
 					 stdion_fd_cleared);
@@ -1055,19 +1052,19 @@ stdion_disable(struct gensio *io)
     schan->in_open = false;
     schan->close_done = NULL;
     if (nadata->io.out_handler_set) {
-	nadata->o->clear_fd_handlers_norpt(nadata->o, nadata->io.out_iod);
+	nadata->o->clear_fd_handlers_norpt(nadata->io.out_iod);
 	if (nadata->io.outfd != 0)
 	    gensio_os_close(&nadata->io.out_iod);
 	nadata->io.outfd = -1;
     }
     if (nadata->io.in_handler_set) {
-	nadata->o->clear_fd_handlers_norpt(nadata->o, nadata->io.in_iod);
+	nadata->o->clear_fd_handlers_norpt(nadata->io.in_iod);
 	if (nadata->io.infd != 1)
 	    gensio_os_close(&nadata->io.in_iod);
 	nadata->io.infd = -1;
     }
     if (nadata->err.out_handler_set) {
-	nadata->o->clear_fd_handlers_norpt(nadata->o, nadata->err.out_iod);
+	nadata->o->clear_fd_handlers_norpt(nadata->err.out_iod);
 	if (nadata->err.outfd != 2)
 	    gensio_os_close(&nadata->err.out_iod);
 	nadata->err.outfd = -1;
@@ -1136,7 +1133,7 @@ stdion_control(struct gensio *io, bool get, unsigned int option,
 	if (schan->infd == -1) {
 	    err = GE_NOTREADY;
 	} else {
-	    nadata->o->clear_fd_handlers(nadata->o, schan->in_iod);
+	    nadata->o->clear_fd_handlers(schan->in_iod);
 	    schan->infd = -1;
 	}
 	stdiona_unlock(nadata);
@@ -1484,7 +1481,7 @@ stdiona_startup(struct gensio_accepter *accepter)
     if (rv)
 	goto out_unlock;
 
-    rv = nadata->o->set_fd_handlers(nadata->o, nadata->io.in_iod,
+    rv = nadata->o->set_fd_handlers(nadata->io.in_iod,
 				    &nadata->io, NULL, stdion_write_ready, NULL,
 				    stdiona_fd_cleared);
     if (rv)
@@ -1492,7 +1489,7 @@ stdiona_startup(struct gensio_accepter *accepter)
     nadata->io.in_handler_set = true;
     stdiona_ref(nadata);
 
-    rv = nadata->o->set_fd_handlers(nadata->o, nadata->io.out_iod,
+    rv = nadata->o->set_fd_handlers(nadata->io.out_iod,
 				    &nadata->io, stdion_read_ready, NULL, NULL,
 				    stdiona_fd_cleared);
     if (rv)

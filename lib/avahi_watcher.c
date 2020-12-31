@@ -144,9 +144,9 @@ gensio_avahi_watch_update(AvahiWatch *w, AvahiWatchEvent event)
     struct gensio_avahi_userdata *u = w->u;
     struct gensio_os_funcs *o = u->o;
 
-    o->set_read_handler(o, w->iod, !!(event & AVAHI_WATCH_IN));
-    o->set_write_handler(o, w->iod, !!(event & AVAHI_WATCH_OUT));
-    o->set_except_handler(o, w->iod, !!(event & AVAHI_WATCH_ERR));
+    o->set_read_handler(w->iod, !!(event & AVAHI_WATCH_IN));
+    o->set_write_handler(w->iod, !!(event & AVAHI_WATCH_OUT));
+    o->set_except_handler(w->iod, !!(event & AVAHI_WATCH_ERR));
 }
 
 static AvahiWatch *
@@ -175,7 +175,7 @@ gensio_avahi_watch_new(const AvahiPoll *ap, int fd,
     aw->callback = callback;
     aw->userdata = userdata;
 
-    err = o->set_fd_handlers(o, aw->iod, aw, gensio_avahi_read_handler,
+    err = o->set_fd_handlers(aw->iod, aw, gensio_avahi_read_handler,
 			     gensio_avahi_write_handler,
 			     gensio_avahi_except_handler,
 			     gensio_avahi_cleared_handler);
@@ -205,7 +205,7 @@ gensio_avahi_watch_free(AvahiWatch *w)
 
     assert(!w->freed);
     w->freed = true;
-    o->clear_fd_handlers(o, w->iod);
+    o->clear_fd_handlers(w->iod);
 }
 
 struct AvahiTimeout {

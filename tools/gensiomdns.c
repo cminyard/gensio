@@ -292,7 +292,7 @@ main(int argc, char *argv[])
 		    gensio_err_to_str(rv));
 	    goto out_err;
 	}
-	rv = o->set_fd_handlers(o, sig_iod, &fdata, sigfd_read, NULL, NULL,
+	rv = o->set_fd_handlers(sig_iod, &fdata, sigfd_read, NULL, NULL,
 				sigfd_cleared);
 	if (rv) {
 	    fprintf(stderr, "Can't set sigfd handler: %s\n",
@@ -300,7 +300,7 @@ main(int argc, char *argv[])
 	    goto out_err;
 	}
 	sigfd_set = true;
-	o->set_read_handler(o, sig_iod, true);
+	o->set_read_handler(sig_iod, true);
     }
 #endif
 
@@ -379,7 +379,7 @@ main(int argc, char *argv[])
 
 #ifdef HAVE_SIGNALFD
     if (sigfd_set) {
-	o->clear_fd_handlers(o, sig_iod);
+	o->clear_fd_handlers(sig_iod);
 	o->wait(closewaiter, 1, NULL);
     }
     if (sig_iod)

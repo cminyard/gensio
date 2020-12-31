@@ -590,8 +590,7 @@ sctpna_set_fd_enables(struct sctpna_data *nadata, bool enable)
     unsigned int i;
 
     for (i = 0; i < nadata->nr_acceptfds; i++)
-	nadata->o->set_read_handler(nadata->o, nadata->acceptfds[i].iod,
-				    enable);
+	nadata->o->set_read_handler(nadata->acceptfds[i].iod, enable);
 }
 
 static void
@@ -732,7 +731,7 @@ sctpna_shutdown(struct gensio_accepter *accepter,
     nadata->shutdown_done = shutdown_done;
     nadata->nr_accept_close_waiting = nadata->nr_acceptfds;
     for (i = 0; i < nadata->nr_acceptfds; i++)
-	nadata->o->clear_fd_handlers(nadata->o, nadata->acceptfds[i].iod);
+	nadata->o->clear_fd_handlers(nadata->acceptfds[i].iod);
     return 0;
 }
 
@@ -931,8 +930,7 @@ sctpna_disable(struct gensio_accepter *accepter, struct sctpna_data *nadata)
     unsigned int i;
 
     for (i = 0; i < nadata->nr_acceptfds; i++)
-	nadata->o->clear_fd_handlers_norpt(nadata->o,
-					   nadata->acceptfds[i].iod);
+	nadata->o->clear_fd_handlers_norpt(nadata->acceptfds[i].iod);
     for (i = 0; i < nadata->nr_acceptfds; i++)
 	gensio_os_close_socket(&nadata->acceptfds[i].iod);
 }

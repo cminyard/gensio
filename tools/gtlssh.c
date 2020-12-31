@@ -1673,14 +1673,14 @@ main(int argc, char *argv[])
 	return 1;
     }
 
-    rv = o->set_fd_handlers(o, winch_iod, ioinfo2, winch_ready,
+    rv = o->set_fd_handlers(winch_iod, ioinfo2, winch_ready,
 			    NULL, NULL, NULL);
     if (rv) {
 	fprintf(stderr, "Could not set SIGWINCH fd handler: %s\n",
 		gensio_err_to_str(rv));
 	return 1;
     }
-    o->set_read_handler(o, winch_iod, true);
+    o->set_read_handler(winch_iod, true);
 
     start_local_ports(userdata2.io);
     start_remote_ports(ioinfo2);

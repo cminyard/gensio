@@ -827,7 +827,7 @@ gensio_os_open_socket(struct gensio_os_funcs *o,
 
  out_close:
     for (i = 0; i < curr_fd; i++) {
-	o->clear_fd_handlers_norpt(o, fds[i].iod);
+	o->clear_fd_handlers_norpt(fds[i].iod);
 	gensio_os_close_socket(&fds[i].iod);
     }
 #if !HAVE_WORKING_PORT0
@@ -1027,7 +1027,7 @@ gensio_setup_listen_socket(struct gensio_os_funcs *o, bool do_listen,
     if (do_listen && listen(fd, 5) != 0)
 	goto out_err;
 
-    rv = o->set_fd_handlers(o, iod, data,
+    rv = o->set_fd_handlers(iod, data,
 			    readhndlr, writehndlr, NULL,
 			    fd_handler_cleared);
  out:

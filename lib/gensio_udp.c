@@ -325,7 +325,7 @@ udpna_enable_read(struct udpna_data *nadata)
 
     nadata->read_disabled = false;
     for (i = 0; i < nadata->nr_fds; i++)
-	nadata->o->set_read_handler(nadata->o, nadata->fds[i].iod, true);
+	nadata->o->set_read_handler(nadata->fds[i].iod, true);
 }
 
 static void
@@ -335,7 +335,7 @@ udpna_disable_read(struct udpna_data *nadata)
 
     nadata->read_disabled = true;
     for (i = 0; i < nadata->nr_fds; i++)
-	nadata->o->set_read_handler(nadata->o, nadata->fds[i].iod, false);
+	nadata->o->set_read_handler(nadata->fds[i].iod, false);
 }
 
 static void udpna_check_read_state(struct udpna_data *nadata)
@@ -371,7 +371,7 @@ udpna_disable_write(struct udpna_data *nadata)
     unsigned int i;
 
     for (i = 0; i < nadata->nr_fds; i++)
-	nadata->o->set_write_handler(nadata->o, nadata->fds[i].iod, false);
+	nadata->o->set_write_handler(nadata->fds[i].iod, false);
 }
 
 static void
@@ -389,7 +389,7 @@ udpna_enable_write(struct udpna_data *nadata)
     unsigned int i;
 
     for (i = 0; i < nadata->nr_fds; i++)
-	nadata->o->set_write_handler(nadata->o, nadata->fds[i].iod, true);
+	nadata->o->set_write_handler(nadata->fds[i].iod, true);
 }
 
 static void
@@ -451,7 +451,7 @@ udpna_check_finish_free(struct udpna_data *nadata)
     udpna_deref(nadata);
     for (i = 0; i < nadata->nr_fds; i++) {
 	udpna_ref(nadata);
-	nadata->o->clear_fd_handlers(nadata->o, nadata->fds[i].iod);
+	nadata->o->clear_fd_handlers(nadata->fds[i].iod);
     }
 }
 
@@ -1392,8 +1392,7 @@ udpna_free(struct gensio_accepter *accepter)
 
 	    for (i = 0; i < nadata->nr_fds; i++) {
 		if (nadata->fds[i].iod)
-		    nadata->o->clear_fd_handlers_norpt(nadata->o,
-						       nadata->fds[i].iod);
+		    nadata->o->clear_fd_handlers_norpt(nadata->fds[i].iod);
 	    }
 	    for (i = 0; i < nadata->nr_fds; i++) {
 		if (nadata->fds[i].iod)
@@ -1795,7 +1794,7 @@ udp_gensio_alloc(const struct gensio_addr *addr, const char * const args[],
     } else {
 	gensio_set_is_client(ndata->io, true);
 	nadata->udpn_count = 1;
-	err = o->set_fd_handlers(o, new_iod, nadata,
+	err = o->set_fd_handlers(new_iod, nadata,
 				 udpna_readhandler, udpna_writehandler, NULL,
 				 udpna_fd_cleared);
     }

@@ -585,8 +585,7 @@ static void iod_cleared_handler(int fd, void *cb_data)
 }
 
 static int
-gensio_sel_set_fd_handlers(struct gensio_os_funcs *f,
-			   struct gensio_iod *iod,
+gensio_sel_set_fd_handlers(struct gensio_iod *iod,
 			   void *cb_data,
 			   void (*read_handler)(struct gensio_iod *iod,
 						void *cb_data),
@@ -597,6 +596,7 @@ gensio_sel_set_fd_handlers(struct gensio_os_funcs *f,
 			   void (*cleared_handler)(struct gensio_iod *iod,
 						   void *cb_data))
 {
+    struct gensio_os_funcs *f = iod->f;
     struct gensio_data *d = f->user_data;
     int rv;
 
@@ -621,8 +621,9 @@ gensio_sel_set_fd_handlers(struct gensio_os_funcs *f,
 
 
 static void
-gensio_sel_clear_fd_handlers(struct gensio_os_funcs *f, struct gensio_iod *iod)
+gensio_sel_clear_fd_handlers(struct gensio_iod *iod)
 {
+    struct gensio_os_funcs *f = iod->f;
     struct gensio_data *d = f->user_data;
 
     if (iod->handlers_set)
@@ -630,9 +631,9 @@ gensio_sel_clear_fd_handlers(struct gensio_os_funcs *f, struct gensio_iod *iod)
 }
 
 static void
-gensio_sel_clear_fd_handlers_norpt(struct gensio_os_funcs *f,
-				   struct gensio_iod *iod)
+gensio_sel_clear_fd_handlers_norpt(struct gensio_iod *iod)
 {
+    struct gensio_os_funcs *f = iod->f;
     struct gensio_data *d = f->user_data;
 
     if (iod->handlers_set) {
@@ -642,9 +643,9 @@ gensio_sel_clear_fd_handlers_norpt(struct gensio_os_funcs *f,
 }
 
 static void
-gensio_sel_set_read_handler(struct gensio_os_funcs *f, struct gensio_iod *iod,
-			    bool enable)
+gensio_sel_set_read_handler(struct gensio_iod *iod, bool enable)
 {
+    struct gensio_os_funcs *f = iod->f;
     struct gensio_data *d = f->user_data;
     int op;
 
@@ -657,9 +658,9 @@ gensio_sel_set_read_handler(struct gensio_os_funcs *f, struct gensio_iod *iod,
 }
 
 static void
-gensio_sel_set_write_handler(struct gensio_os_funcs *f, struct gensio_iod *iod,
-			     bool enable)
+gensio_sel_set_write_handler(struct gensio_iod *iod, bool enable)
 {
+    struct gensio_os_funcs *f = iod->f;
     struct gensio_data *d = f->user_data;
     int op;
 
@@ -672,9 +673,9 @@ gensio_sel_set_write_handler(struct gensio_os_funcs *f, struct gensio_iod *iod,
 }
 
 static void
-gensio_sel_set_except_handler(struct gensio_os_funcs *f,
-			      struct gensio_iod *iod, bool enable)
+gensio_sel_set_except_handler(struct gensio_iod *iod, bool enable)
 {
+    struct gensio_os_funcs *f = iod->f;
     struct gensio_data *d = f->user_data;
     int op;
 

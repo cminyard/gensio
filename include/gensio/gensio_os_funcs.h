@@ -95,8 +95,7 @@ struct gensio_os_funcs {
      * Return GE_NOMEM if it could not allocate memory to do this,
      * or GE_INVAL if fd is invalid.
      */
-    int (*set_fd_handlers)(struct gensio_os_funcs *f,
-			   struct gensio_iod *iod,
+    int (*set_fd_handlers)(struct gensio_iod *iod,
 			   void *cb_data,
 			   void (*read_handler)(struct gensio_iod *iod,
 						void *cb_data),
@@ -114,28 +113,23 @@ struct gensio_os_funcs {
      * cleared_handler is called when the operation completes, you
      * need to wait for that.
      */
-    void (*clear_fd_handlers)(struct gensio_os_funcs *f,
-			      struct gensio_iod *iod);
+    void (*clear_fd_handlers)(struct gensio_iod *iod);
 
     /*
      * Like the above, but does not call the cleared_handler function
      * when done.  This can only be called if you never enabled the
      * handlers, it is only for shutdown when an error occurs at startup.
      */
-    void (*clear_fd_handlers_norpt)(struct gensio_os_funcs *f,
-				    struct gensio_iod *iod);
+    void (*clear_fd_handlers_norpt)(struct gensio_iod *iod);
 
     /*
      * Enable/disable the various handlers.  Note that if you disable
      * a handler, it may still be running in a callback, this does not
      * wait.
      */
-    void (*set_read_handler)(struct gensio_os_funcs *f,
-			     struct gensio_iod *iod, bool enable);
-    void (*set_write_handler)(struct gensio_os_funcs *f,
-			      struct gensio_iod *iod, bool enable);
-    void (*set_except_handler)(struct gensio_os_funcs *f,
-			       struct gensio_iod *iod, bool enable);
+    void (*set_read_handler)(struct gensio_iod *iod, bool enable);
+    void (*set_write_handler)(struct gensio_iod *iod, bool enable);
+    void (*set_except_handler)(struct gensio_iod *iod, bool enable);
 
     /****** Timers ******/
     /*
