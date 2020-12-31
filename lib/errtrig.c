@@ -26,6 +26,8 @@ static bool triggered;
 static unsigned int errtrig_count;
 static unsigned int errtrig_curr;
 
+static void *trig_caller[4];
+
 bool do_errtrig(void)
 {
     unsigned int curr;
@@ -46,6 +48,12 @@ bool do_errtrig(void)
 	if (curr == errtrig_count) {
 	    triggered = true;
 	    triggerit = true;
+	    trig_caller[0] = __builtin_return_address(0);
+#if 0
+	    trig_caller[1] = __builtin_return_address(1);
+	    trig_caller[2] = __builtin_return_address(2);
+	    trig_caller[3] = __builtin_return_address(3);
+#endif
 	}
     }
     UNLOCK(&errtrig_mutex);
