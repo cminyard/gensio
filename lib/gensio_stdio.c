@@ -21,7 +21,6 @@
 #include <stdio.h>
 #include <assert.h>
 #include <sys/types.h>
-#include <sys/stat.h>
 #include <unistd.h>
 #include <sys/wait.h>
 
@@ -1276,37 +1275,32 @@ static int
 setup_self(struct stdiona_data *nadata)
 {
     struct gensio_os_funcs *o = nadata->o;
-    struct stat statb;
     int err;
 
     /*
      * Figure out if the files are regular files.  If they are, they
      * are handled differently.
      */
-    err = fstat(1, &statb);
-    if (err == -1) {
-	err = gensio_os_err_to_err(nadata->o, errno);
-	return err;
-    }
     nadata->io.infd = 1;
-    nadata->io.infd_regfile = (statb.st_mode & S_IFMT) == S_IFREG;
-    err = fstat(0, &statb);
-    if (err == -1) {
-	err = gensio_os_err_to_err(nadata->o, errno);
-	return err;
-    }
     nadata->io.outfd = 0;
-    nadata->io.outfd_regfile = (statb.st_mode & S_IFMT) == S_IFREG;
 
     err = o->add_iod(o,
-		     nadata->io.infd_regfile ? GENSIO_IOD_FILE : GENSIO_IOD_DEV,
-		     1, &nadata->io.in_iod);
+		  nadata->io.infd_regfile ? GENSIO_IOD_FILE : GENSIO_IOD_STDIO,
+		  1, &nadata->io.in_iod);
+    if (err)
+	return err;
+    err = gensio_os_is_regfile(nadata->io.in_iod, &nadata->io.infd_regfile);
     if (err)
 	return err;
 
     err = o->add_iod(o,
-		     nadata->io.outfd_regfile ? GENSIO_IOD_FILE: GENSIO_IOD_DEV,
-		     0, &nadata->io.out_iod);
+		  nadata->io.outfd_regfile ? GENSIO_IOD_FILE: GENSIO_IOD_STDIO,
+		  0, &nadata->io.out_iod);
+    if (err)
+	return err;
+
+    err = gensio_os_is_regfile(nadata->io.out_iod, &nadata->io.outfd_regfile);
+
     return err;
 }
 
@@ -1668,8 +1662,8 @@ stdio_gensio_accepter_alloc(const char * const args[],
     }
 
     err = o->add_iod(o,
-		     nadata->io.infd_regfile ? GENSIO_IOD_FILE : GENSIO_IOD_DEV,
-		     0, &nadata->io.out_iod);
+		  nadata->io.infd_regfile ? GENSIO_IOD_FILE : GENSIO_IOD_STDIO,
+		  0, &nadata->io.out_iod);
     if (err) {
 	stdiona_finish_free(nadata);
 	return err;

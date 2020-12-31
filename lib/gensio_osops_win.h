@@ -180,3 +180,11 @@ gensio_os_read(struct gensio_iod *iod,
 {
     return GE_NOTSUP;
 }
+
+int
+gensio_os_is_regfile(struct gensio_iod *iod, bool *isfile)
+{
+    /* No special handling for normal files. */
+    *isfile = false;
+    return 0;
+}

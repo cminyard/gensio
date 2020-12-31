@@ -153,6 +153,9 @@ GENSIO_DLL_PUBLIC
 int gensio_os_read(struct gensio_iod *iod, void *buf, gensiods buflen,
 		   gensiods *rcount);
 
+GENSIO_DLL_PUBLIC
+int gensio_os_is_regfile(struct gensio_iod *iod, bool *isfile);
+
 /*
  * Unix only APIs.
  */

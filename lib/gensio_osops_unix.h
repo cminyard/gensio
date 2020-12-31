@@ -14,6 +14,7 @@
 #include <pwd.h>
 #include <fcntl.h>
 #include <errno.h>
+#include <sys/stat.h>
 
 #define ERRHANDLE()			\
 do {								\
@@ -246,6 +247,21 @@ gensio_os_get_random(struct gensio_os_funcs *o,
  out:
     close(fd);
     return gensio_os_err_to_err(o, rv);
+}
+
+int
+gensio_os_is_regfile(struct gensio_iod *iod, bool *isfile)
+{
+    int err;
+    struct stat statb;
+
+    err = fstat(iod->fd, &statb);
+    if (err == -1) {
+	err = gensio_os_err_to_err(iod->f, errno);
+	return err;
+    }
+    *isfile = (statb.st_mode & S_IFMT) == S_IFREG;
+    return 0;
 }
 
 int
