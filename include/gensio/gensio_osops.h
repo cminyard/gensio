@@ -9,13 +9,7 @@
 #define GENSIO_OSOPS_H
 
 #include <gensio/gensio_dllvisibility.h>
-#include <gensio/gensio.h>
-
-/* Flags for opensock_flags. */
-#define GENSIO_OPENSOCK_REUSEADDR	(1 << 0)
-
-/* For recv and send */
-#define GENSIO_MSG_OOB 1
+#include <gensio/gensio_os_funcs.h>
 
 /*
  * Take a string in the form [ipv4|ipv6,][hostname,]port and convert
@@ -27,6 +21,16 @@
 GENSIO_DLL_PUBLIC
 int gensio_os_scan_netaddr(struct gensio_os_funcs *o, const char *str,
 			   bool listen, int protocol, struct gensio_addr **rai);
+
+GENSIO_DLL_PUBLIC
+int gensio_os_open_listen_sockets(struct gensio_os_funcs *o,
+		      struct gensio_addr *addr,
+		      void (*readhndlr)(struct gensio_iod *, void *),
+		      void (*writehndlr)(struct gensio_iod *, void *),
+		      void (*fd_handler_cleared)(struct gensio_iod *, void *),
+		      int (*call_b4_listen)(struct gensio_iod *, void *),
+		      void *data, unsigned int opensock_flags,
+		      struct gensio_opensocks **rfds, unsigned int *rnr_fds);
 
 GENSIO_DLL_PUBLIC
 int gensio_os_set_non_blocking(struct gensio_iod *iod);
@@ -63,15 +67,5 @@ int gensio_os_setupnewprog(void);
 GENSIO_DLL_PUBLIC
 const char *gensio_os_check_tcpd_ok(struct gensio_iod *iod,
 				    const char *progname);
-
-GENSIO_DLL_PUBLIC
-int gensio_os_open_listen_sockets(struct gensio_os_funcs *o,
-		      struct gensio_addr *addr,
-		      void (*readhndlr)(struct gensio_iod *, void *),
-		      void (*writehndlr)(struct gensio_iod *, void *),
-		      void (*fd_handler_cleared)(struct gensio_iod *, void *),
-		      int (*call_b4_listen)(struct gensio_iod *, void *),
-		      void *data, unsigned int opensock_flags,
-		      struct gensio_opensocks **rfds, unsigned int *rnr_fds);
 
 #endif /* GENSIO_OSOPS_H */

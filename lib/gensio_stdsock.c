@@ -28,6 +28,9 @@ typedef int taddrlen;
 #ifndef EADDRINUSE
 #define EADDRINUSE WSAEADDRINUSE
 #endif
+#ifndef EPIPE
+#define EPIPE WSAECONNRESET
+#endif
 #else
 #include <arpa/inet.h>
 #include <netinet/tcp.h>

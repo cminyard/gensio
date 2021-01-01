@@ -68,6 +68,12 @@ unsigned int gensio_get_log_mask(void);
 GENSIO_DLL_PUBLIC
 const char *gensio_log_level_to_str(enum gensio_log_levels level);
 
+/* Flags for opensock_flags. */
+#define GENSIO_OPENSOCK_REUSEADDR	(1 << 0)
+
+/* For recv and send */
+#define GENSIO_MSG_OOB 1
+
 struct gensio_os_funcs {
     /* For use by the code doing the os function translation. */
     void *user_data;
