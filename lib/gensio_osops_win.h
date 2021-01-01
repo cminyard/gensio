@@ -5,26 +5,6 @@
  *  SPDX-License-Identifier: LGPL-2.1-only
  */
 
-#define ERRHANDLE()			\
-do {								\
-    int err = 0;						\
-    if (rv < 0) {						\
-	if (errno == WSAEINTR)					\
-	    goto retry;						\
-	if (errno == WSAEWOULDBLOCK)				\
-	    rv = 0; /* Handle like a zero-byte write. */	\
-	else {							\
-	    err = errno;					\
-	    assert(err);					\
-	}							\
-    } else if (rv == 0) {					\
-	err = WSAECONNRESET;					\
-    }								\
-    if (!err && rcount)						\
-	*rcount = rv;						\
-    rv = gensio_os_err_to_err(o, err);				\
-} while(0)
-
 static int
 close_socket(struct gensio_os_funcs *o, int fd)
 {

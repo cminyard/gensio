@@ -7,8 +7,7 @@ noinst_HEADERS = telnet.h heap.h utils.h uucplock.h buffer.h \
 	gensio_filter_ssl.h gensio_filter_telnet.h gensio_ll_ipmisol.h \
 	gensio_filter_certauth.h gensio_filter_msgdelim.h \
 	gensio_filter_relpkt.h gensio_filter_trace.h gensio_filter_perf.h \
-	errtrig.h avahi_watcher.h gensio_osops_unix.h \
-	gensio_osops_sctp.h
+	errtrig.h avahi_watcher.h gensio_osops_unix.h gensio_osops_win.h
 
 libgensio_la_SOURCES = \
 	gensio.c gensio_osops.c gensio_base.c sergensio.c utils.c buffer.c \
