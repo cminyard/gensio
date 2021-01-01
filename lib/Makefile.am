@@ -28,7 +28,7 @@ libgensio_la_SOURCES = \
 	sergensio_serialdev.c uucplock.c \
 	gensio_pty.c \
 	mdns.c avahi_watcher.c gensio_mdns.c \
-	gensio_addrinfo.c
+	gensio_addrinfo.c gensio_stdsock.c
 
 if HAVE_UNIX_OS
 libgensio_la_SOURCES += gensio_selector.c selector.c

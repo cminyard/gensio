@@ -53,7 +53,7 @@ gensio_os_write(struct gensio_iod *iod,
 	return 0;
     }
  retry:
-    rv = writev(iod->fd, (struct iovec *) sg, sglen);
+    rv = writev(o->iod_get_fd(iod), (struct iovec *) sg, sglen);
     ERRHANDLE();
     return rv;
 }
@@ -74,31 +74,9 @@ gensio_os_read(struct gensio_iod *iod,
 	return 0;
     }
  retry:
-    rv = read(iod->fd, buf, buflen);
+    rv = read(o->iod_get_fd(iod), buf, buflen);
     ERRHANDLE();
     return rv;
-}
-
-static int
-close_socket(struct gensio_os_funcs *o, int fd)
-{
-    int err;
-
-    /* Don't do errtrig on close, it can fail and not cause any issues. */
-
-    assert(fd != -1);
-    err = close(fd);
-#ifdef ENABLE_INTERNAL_TRACE
-    /* Close should never fail, but don't crash in production builds. */
-    if (err) {
-	err = errno;
-	assert(0);
-    }
-#endif
-
-    if (err == -1)
-	return gensio_os_err_to_err(o, errno);
-    return 0;
 }
 
 int
@@ -111,8 +89,8 @@ gensio_os_close(struct gensio_iod **iodp)
     /* Don't do errtrig on close, it can fail and not cause any issues. */
 
     assert(iodp);
-    assert(!iod->handlers_set);
-    err = close(iod->fd);
+    //assert(!iod->handlers_set); FIXME
+    err = close(o->iod_get_fd(iod));
 #ifdef ENABLE_INTERNAL_TRACE
     /* Close should never fail, but don't crash in production builds. */
     if (err) {
@@ -197,7 +175,7 @@ set_non_blocking(struct gensio_os_funcs *o, int fd)
 int
 gensio_os_set_non_blocking(struct gensio_iod *iod)
 {
-    return set_non_blocking(iod->f, iod->fd);
+    return set_non_blocking(iod->f, iod->f->iod_get_fd(iod));
 }
 
 const char *
@@ -208,7 +186,8 @@ gensio_os_check_tcpd_ok(struct gensio_iod *iod, const char *iprogname)
 
     if (!iprogname)
 	iprogname = progname;
-    request_init(&req, RQ_DAEMON, iprogname, RQ_FILE, iod->fd, NULL);
+    request_init(&req, RQ_DAEMON, iprogname, RQ_FILE,
+		 iod->f->iod_get_fd(iod), NULL);
     fromhost(&req);
 
     if (!hosts_access(&req))
@@ -252,12 +231,13 @@ gensio_os_get_random(struct gensio_os_funcs *o,
 int
 gensio_os_is_regfile(struct gensio_iod *iod, bool *isfile)
 {
+    struct gensio_os_funcs *o = iod->f;
     int err;
     struct stat statb;
 
-    err = fstat(iod->fd, &statb);
+    err = fstat(o->iod_get_fd(iod), &statb);
     if (err == -1) {
-	err = gensio_os_err_to_err(iod->f, errno);
+	err = gensio_os_err_to_err(o, errno);
 	return err;
     }
     *isfile = (statb.st_mode & S_IFMT) == S_IFREG;

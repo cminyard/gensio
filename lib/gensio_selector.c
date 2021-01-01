@@ -15,6 +15,7 @@
 #include <gensio/selector.h>
 #include <gensio/gensio.h>
 #include <gensio/gensio_osops_addrinfo.h>
+#include <gensio/gensio_osops_stdsock.h>
 
 #include "utils.h"
 #include <stdlib.h>
@@ -27,19 +28,6 @@ struct gensio_data {
     struct selector_s *sel;
     bool freesel;
     int wake_sig;
-};
-
-struct gensio_iod {
-    struct gensio_os_funcs *f;
-    int fd;
-    enum gensio_iod_type type;
-    int protocol; /* GENSIO_NET_PROTOCOL_xxx */
-    bool handlers_set;
-    void *cb_data;
-    void (*read_handler)(struct gensio_iod *iod, void *cb_data);
-    void (*write_handler)(struct gensio_iod *iod, void *cb_data);
-    void (*except_handler)(struct gensio_iod *iod, void *cb_data);
-    void (*cleared_handler)(struct gensio_iod *iod, void *cb_data);
 };
 
 #ifdef ENABLE_INTERNAL_TRACE
@@ -557,37 +545,52 @@ gensio_sel_unlock(struct gensio_lock *lock)
     UNLOCK(&lock->lock);
 }
 
+struct gensio_iod_selector {
+    struct gensio_iod r;
+    int fd;
+    enum gensio_iod_type type;
+    int protocol; /* GENSIO_NET_PROTOCOL_xxx */
+    bool handlers_set;
+    void *cb_data;
+    void (*read_handler)(struct gensio_iod *iod, void *cb_data);
+    void (*write_handler)(struct gensio_iod *iod, void *cb_data);
+    void (*except_handler)(struct gensio_iod *iod, void *cb_data);
+    void (*cleared_handler)(struct gensio_iod *iod, void *cb_data);
+};
+
+#define i_to_sel(i) gensio_container_of(i, struct gensio_iod_selector, r);
+
 static void iod_read_handler(int fd, void *cb_data)
 {
-    struct gensio_iod *iod = cb_data;
+    struct gensio_iod_selector *iod = cb_data;
 
-    iod->read_handler(iod, iod->cb_data);
+    iod->read_handler(&iod->r, iod->cb_data);
 }
 
 static void iod_write_handler(int fd, void *cb_data)
 {
-    struct gensio_iod *iod = cb_data;
+    struct gensio_iod_selector *iod = cb_data;
 
-    iod->write_handler(iod, iod->cb_data);
+    iod->write_handler(&iod->r, iod->cb_data);
 }
 
 static void iod_except_handler(int fd, void *cb_data)
 {
-    struct gensio_iod *iod = cb_data;
+    struct gensio_iod_selector *iod = cb_data;
 
-    iod->except_handler(iod, iod->cb_data);
+    iod->except_handler(&iod->r, iod->cb_data);
 }
 
 static void iod_cleared_handler(int fd, void *cb_data)
 {
-    struct gensio_iod *iod = cb_data;
+    struct gensio_iod_selector *iod = cb_data;
 
     iod->handlers_set = false;
-    iod->cleared_handler(iod, iod->cb_data);
+    iod->cleared_handler(&iod->r, iod->cb_data);
 }
 
 static int
-gensio_sel_set_fd_handlers(struct gensio_iod *iod,
+gensio_sel_set_fd_handlers(struct gensio_iod *iiod,
 			   void *cb_data,
 			   void (*read_handler)(struct gensio_iod *iod,
 						void *cb_data),
@@ -598,7 +601,8 @@ gensio_sel_set_fd_handlers(struct gensio_iod *iod,
 			   void (*cleared_handler)(struct gensio_iod *iod,
 						   void *cb_data))
 {
-    struct gensio_os_funcs *f = iod->f;
+    struct gensio_iod_selector *iod = i_to_sel(iiod);
+    struct gensio_os_funcs *f = iiod->f;
     struct gensio_data *d = f->user_data;
     int rv;
 
@@ -623,9 +627,10 @@ gensio_sel_set_fd_handlers(struct gensio_iod *iod,
 
 
 static void
-gensio_sel_clear_fd_handlers(struct gensio_iod *iod)
+gensio_sel_clear_fd_handlers(struct gensio_iod *iiod)
 {
-    struct gensio_os_funcs *f = iod->f;
+    struct gensio_iod_selector *iod = i_to_sel(iiod);
+    struct gensio_os_funcs *f = iiod->f;
     struct gensio_data *d = f->user_data;
 
     if (iod->handlers_set)
@@ -633,9 +638,10 @@ gensio_sel_clear_fd_handlers(struct gensio_iod *iod)
 }
 
 static void
-gensio_sel_clear_fd_handlers_norpt(struct gensio_iod *iod)
+gensio_sel_clear_fd_handlers_norpt(struct gensio_iod *iiod)
 {
-    struct gensio_os_funcs *f = iod->f;
+    struct gensio_iod_selector *iod = i_to_sel(iiod);
+    struct gensio_os_funcs *f = iiod->f;
     struct gensio_data *d = f->user_data;
 
     if (iod->handlers_set) {
@@ -645,9 +651,10 @@ gensio_sel_clear_fd_handlers_norpt(struct gensio_iod *iod)
 }
 
 static void
-gensio_sel_set_read_handler(struct gensio_iod *iod, bool enable)
+gensio_sel_set_read_handler(struct gensio_iod *iiod, bool enable)
 {
-    struct gensio_os_funcs *f = iod->f;
+    struct gensio_iod_selector *iod = i_to_sel(iiod);
+    struct gensio_os_funcs *f = iiod->f;
     struct gensio_data *d = f->user_data;
     int op;
 
@@ -660,9 +667,10 @@ gensio_sel_set_read_handler(struct gensio_iod *iod, bool enable)
 }
 
 static void
-gensio_sel_set_write_handler(struct gensio_iod *iod, bool enable)
+gensio_sel_set_write_handler(struct gensio_iod *iiod, bool enable)
 {
-    struct gensio_os_funcs *f = iod->f;
+    struct gensio_iod_selector *iod = i_to_sel(iiod);
+    struct gensio_os_funcs *f = iiod->f;
     struct gensio_data *d = f->user_data;
     int op;
 
@@ -675,9 +683,10 @@ gensio_sel_set_write_handler(struct gensio_iod *iod, bool enable)
 }
 
 static void
-gensio_sel_set_except_handler(struct gensio_iod *iod, bool enable)
+gensio_sel_set_except_handler(struct gensio_iod *iiod, bool enable)
 {
-    struct gensio_os_funcs *f = iod->f;
+    struct gensio_iod_selector *iod = i_to_sel(iiod);
+    struct gensio_os_funcs *f = iiod->f;
     struct gensio_data *d = f->user_data;
     int op;
 
@@ -1051,24 +1060,58 @@ static int
 gensio_sel_add_iod(struct gensio_os_funcs *o, enum gensio_iod_type type,
 		   int fd, struct gensio_iod **riod)
 {
-    struct gensio_iod *iod;
+    struct gensio_iod_selector *iod;
 
     iod = o->zalloc(o, sizeof(*iod));
     if (!iod)
 	return GE_NOMEM;
-    iod->f = o;
+    iod->r.f = o;
     iod->type = type;
     iod->fd = fd;
 
-    *riod = iod;
+    *riod = &iod->r;
     return 0;
 }
 
 static void
-gensio_sel_release_iod(struct gensio_iod *iod)
+gensio_sel_release_iod(struct gensio_iod *iiod)
 {
+    struct gensio_iod_selector *iod = i_to_sel(iiod);
+
     assert(!iod->handlers_set);
-    iod->f->free(iod->f, iod);
+    iod->r.f->free(iiod->f, iod);
+}
+
+static int
+gensio_sel_iod_get_type(struct gensio_iod *iiod)
+{
+    struct gensio_iod_selector *iod = i_to_sel(iiod);
+
+    return iod->type;
+}
+
+static int
+gensio_sel_iod_get_fd(struct gensio_iod *iiod)
+{
+    struct gensio_iod_selector *iod = i_to_sel(iiod);
+
+    return iod->fd;
+}
+
+static int
+gensio_sel_iod_get_protocol(struct gensio_iod *iiod)
+{
+    struct gensio_iod_selector *iod = i_to_sel(iiod);
+
+    return iod->protocol;
+}
+
+static void
+gensio_sel_iod_set_protocol(struct gensio_iod *iiod, int protocol)
+{
+    struct gensio_iod_selector *iod = i_to_sel(iiod);
+
+    iod->protocol = protocol;
 }
 
 static struct gensio_os_funcs *
@@ -1127,8 +1170,13 @@ gensio_selector_alloc_sel(struct selector_s *sel, int wake_sig)
     o->wait_intr_sigmask = gensio_sel_wait_intr_sigmask;
     o->add_iod = gensio_sel_add_iod;
     o->release_iod = gensio_sel_release_iod;
+    o->iod_get_type = gensio_sel_iod_get_type;
+    o->iod_get_fd = gensio_sel_iod_get_fd;
+    o->iod_get_protocol = gensio_sel_iod_get_protocol;
+    o->iod_set_protocol = gensio_sel_iod_set_protocol;
 
     gensio_addr_addrinfo_set_os_funcs(o);
+    gensio_stdsock_set_os_funcs(o);
 
     return o;
 }
