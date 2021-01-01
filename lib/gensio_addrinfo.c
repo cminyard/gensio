@@ -10,6 +10,7 @@
 
 #ifdef _WIN32
 #include <winsock2.h>
+#include <ws2tcpip.h>
 #else
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -70,7 +71,7 @@ static int addrinfo_list_dup(struct gensio_os_funcs *o,
 			     struct addrinfo **rpai);
 
 static struct gensio_addr_addrinfo *
-gensio_addrinfo_make(struct gensio_os_funcs *o, socklen_t size)
+gensio_addrinfo_make(struct gensio_os_funcs *o, unsigned int size)
 {
     struct gensio_addr_addrinfo *addr = o->zalloc(o, sizeof(*addr));
     struct addrinfo *ai = NULL;
@@ -116,7 +117,7 @@ gensio_addrinfo_make(struct gensio_os_funcs *o, socklen_t size)
 }
 
 struct gensio_addr *
-gensio_addr_addrinfo_make(struct gensio_os_funcs *o, socklen_t size)
+gensio_addr_addrinfo_make(struct gensio_os_funcs *o, unsigned int size)
 {
     struct gensio_addr_addrinfo *addr = gensio_addrinfo_make(o, size);
 

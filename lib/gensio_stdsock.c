@@ -738,13 +738,15 @@ gensio_stdsock_sendto(struct gensio_iod *iod,
 #else
 	gensiods len;
 	void *buf;
+	struct addrinfo *ai;
 
+	ai = gensio_addr_addrinfo_get_curr(raddr);
 	buf = gensio_sg_to_buf(sg, sglen, &len);
 	if (!buf)
 	    return GE_NOMEM;
     retry:
 	rv = sendto(o->iod_get_fd(iod), buf, len, flags,
-		    (void *) raddr->curr->ai_addr, raddr->curr->ai_addrlen);
+		    (void *) ai->ai_addr, ai->ai_addrlen);
 	ERRHANDLE();
 	free(buf);
 #endif
@@ -1632,7 +1634,7 @@ gensio_setup_listen_socket(struct gensio_os_funcs *o, bool do_listen,
 	}
 
 	do {
-	    rv = sockaddr_set_port(addr, si->curr);
+	    rv = gensio_sockaddr_set_port(addr, si->curr);
 	    if (rv)
 		goto out;
 	    if (bind(fd, addr, addrlen) == 0) {

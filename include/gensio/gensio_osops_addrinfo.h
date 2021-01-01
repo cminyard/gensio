@@ -43,7 +43,7 @@ struct addrinfo *gensio_addr_addrinfo_get_curr(const struct gensio_addr *addr);
  */
 GENSIO_DLL_PUBLIC
 struct gensio_addr *gensio_addr_addrinfo_make(struct gensio_os_funcs *o,
-					      socklen_t size);
+					      unsigned int size);
 
 /*
  * Set the addrinfo list.  The current list must be NULL.  All the

@@ -5,24 +5,7 @@
  *  SPDX-License-Identifier: LGPL-2.1-only
  */
 
-static int
-close_socket(struct gensio_os_funcs *o, int fd)
-{
-    int err;
-
-    err = closesocket(fd);
-#ifdef ENABLE_INTERNAL_TRACE
-    /* Close should never fail, but don't crash in production builds. */
-    if (err) {
-	err = errno;
-	assert(0);
-    }
-#endif
-
-    if (err == -1)
-	return gensio_os_err_to_err(o, errno);
-    return 0;
-}
+#include <winsock2.h>
 
 int
 gensio_os_close(struct gensio_iod **iodp)
@@ -34,12 +17,13 @@ gensio_os_close(struct gensio_iod **iodp)
     /* Don't do errtrig on close, it can fail and not cause any issues. */
 
     assert(iod);
-    if (iod->type == GENSIO_IOD_SOCKET)
-	err = close_socket(o, iod->fd);
+    if (o->iod_get_type(iod) == GENSIO_IOD_SOCKET)
+	err = o->close_socket(&iod);
     else
 	assert(0); /* FIXME */
-    if (!err)
+    if (!err) {
 	*iodp = NULL;
+    }
     return err;
 }
 
@@ -61,7 +45,9 @@ set_non_blocking(struct gensio_os_funcs *o, int fd)
 int
 gensio_os_set_non_blocking(struct gensio_iod *iod)
 {
-    return set_non_blocking(iod->f, iod->fd);
+    struct gensio_os_funcs *o = iod->f;
+
+    return set_non_blocking(o, o->iod_get_fd(iod));
 }
 
 const char *
