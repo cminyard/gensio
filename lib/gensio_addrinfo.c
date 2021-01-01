@@ -5,6 +5,7 @@
  *  SPDX-License-Identifier: LGPL-2.1-only
  */
 
+#include "config.h"
 #include <stdbool.h>
 
 #ifdef _WIN32
@@ -18,6 +19,10 @@
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
+
+#if HAVE_UNIX
+#include <sys/un.h>
+#endif
 
 #include <gensio/gensio.h>
 #include <gensio/gensio_osops_addrinfo.h>
@@ -427,10 +432,45 @@ gensio_addr_addrinfo_to_str_all(const struct gensio_addr *aaddr,
     return 0;
 }
 
-int
+static int
+gensio_scan_unixaddr(struct gensio_os_funcs *o, const char *str,
+		     struct gensio_addr **raddr)
+{
+#if HAVE_UNIX
+    struct sockaddr_un *saddr;
+    struct gensio_addr *addr = NULL;
+    struct addrinfo *ai;
+    size_t len;
+
+    len = strlen(str);
+    if (len >= sizeof(saddr->sun_path) - 1)
+	return GE_TOOBIG;
+
+    addr = gensio_addr_addrinfo_make(o, sizeof(socklen_t) + len + 1);
+    if (!addr)
+	return GE_NOMEM;
+
+    ai = gensio_addr_addrinfo_get(addr);
+    saddr = (struct sockaddr_un *) ai->ai_addr;
+    saddr->sun_family = AF_UNIX;
+    memcpy(saddr->sun_path, str, len);
+    ai->ai_family = AF_UNIX;
+    ai->ai_socktype = SOCK_STREAM;
+    ai->ai_addrlen = sizeof(socklen_t) + len + 1;
+    ai->ai_addr = (struct sockaddr *) saddr;
+
+    *raddr = addr;
+
+    return 0;
+#else
+    return GE_NOTSUP;
+#endif
+}
+
+static int
 gensio_addr_addrinfo_scan_ips(struct gensio_os_funcs *o, const char *str,
-			      bool listen, int ifamily, int socktype,
-			      int protocol, bool *is_port_set, bool scan_port,
+			      bool listen, int ifamily,
+			      int gprotocol, bool *is_port_set, bool scan_port,
 			      struct gensio_addr **raddr)
 {
     char *strtok_data, *strtok_buffer;
@@ -440,8 +480,38 @@ gensio_addr_addrinfo_scan_ips(struct gensio_os_funcs *o, const char *str,
     char *port;
     unsigned int portnum;
     bool first = true, portset = false;
-    int rv = 0;
+    int rv = 0, socktype, protocol;
     int bflags = AI_ADDRCONFIG;
+
+    switch (gprotocol) {
+    case GENSIO_NET_PROTOCOL_TCP:
+	socktype = SOCK_STREAM;
+	protocol = IPPROTO_TCP;
+	break;
+
+    case GENSIO_NET_PROTOCOL_UDP:
+	socktype = SOCK_DGRAM;
+	protocol = IPPROTO_UDP;
+	break;
+
+    case GENSIO_NET_PROTOCOL_SCTP:
+#if HAVE_LIBSCTP
+	socktype = SOCK_SEQPACKET;
+	protocol = IPPROTO_SCTP;
+	break;
+#else
+	return GE_NOTSUP;
+#endif
+
+    case GENSIO_NET_PROTOCOL_UNIX:
+	rv = gensio_scan_unixaddr(o, str, raddr);
+	if (!rv && is_port_set)
+	    *is_port_set = false;
+	return rv;
+
+    default:
+	return GE_INVAL;
+    }
 
     if (listen)
 	bflags |= AI_PASSIVE;
@@ -863,4 +933,5 @@ gensio_addr_addrinfo_set_os_funcs(struct gensio_os_funcs *o)
     o->addr_get_nettype = gensio_addr_addrinfo_get_nettype;
     o->addr_family_supports = gensio_addr_addrinfo_family_supports;
     o->addr_getaddr = gensio_addr_addrinfo_getaddr;
+    o->addr_scan_ips = gensio_addr_addrinfo_scan_ips;
 }

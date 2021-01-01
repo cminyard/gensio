@@ -59,18 +59,6 @@ int gensio_sockaddr_get_port(const struct sockaddr *s, unsigned int *port);
 GENSIO_DLL_PUBLIC
 int gensio_sockaddr_set_port(const struct sockaddr *s, unsigned int port);
 
-/*
- * Scan the str for IP addresses and create an address structure from
- * the found IPs.
- */
-GENSIO_DLL_PUBLIC
-int gensio_addr_addrinfo_scan_ips(struct gensio_os_funcs *o,
-				  const char *str,
-				  bool listen, int ifamily, int socktype,
-				  int protocol, bool *is_port_set,
-				  bool scan_port,
-				  struct gensio_addr **raddr);
-
 /* Set up the osops with addrinfo based address handling. */
 GENSIO_DLL_PUBLIC
 void gensio_addr_addrinfo_set_os_funcs(struct gensio_os_funcs *o);

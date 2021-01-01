@@ -329,6 +329,15 @@ struct gensio_os_funcs {
 				 int family, int flags);
     void (*addr_getaddr)(const struct gensio_addr *addr,
 			 void *oaddr, gensiods *rlen);
+
+    /*
+     * Scan the str for IP addresses and create an address structure
+     * from the found IPs.
+     */
+    int (*addr_scan_ips)(struct gensio_os_funcs *o, const char *str,
+			 bool listen, int ifamily,
+			 int gprotocol, bool *is_port_set, bool scan_port,
+			 struct gensio_addr **raddr);
 };
 
 GENSIO_DLL_PUBLIC

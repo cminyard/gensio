@@ -33,9 +33,6 @@ typedef int taddrlen;
 #include <netinet/tcp.h>
 typedef socklen_t taddrlen;
 #endif
-#if HAVE_UNIX
-#include <sys/un.h>
-#endif
 
 #include <gensio/gensio_osops.h>
 #include <gensio/gensio.h>
