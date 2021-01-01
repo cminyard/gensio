@@ -122,7 +122,7 @@ int gensio_os_get_random(struct gensio_os_funcs *o,
 			 void *data, unsigned int len);
 
 /*
- * Open a set of sockets given the addriner list, one per address.
+ * Open a set of sockets given in the addr list, one per address.
  * Return the actual number of sockets opened in nr_fds.  Set the
  * I/O handler to readhndlr, with the given data.
  *
@@ -132,7 +132,7 @@ int gensio_os_get_random(struct gensio_os_funcs *o,
  * namespaces (like IPV4 and IPV6 on INADDR6_ANY) will work properly
  */
 GENSIO_DLL_PUBLIC
-int gensio_os_open_socket(struct gensio_os_funcs *o,
+int gensio_os_open_listen_sockets(struct gensio_os_funcs *o,
 			  struct gensio_addr *addr,
 			  void (*readhndlr)(struct gensio_iod *, void *),
 			  void (*writehndlr)(struct gensio_iod *, void *),
@@ -200,17 +200,5 @@ int gensio_os_sctp_getladdrs(struct gensio_iod *iod, struct gensio_addr **addr);
 GENSIO_DLL_PUBLIC
 int gensio_os_sctp_getraddr(struct gensio_iod *iod,
 			    void *addr, gensiods *addrlen);
-
-GENSIO_DLL_PUBLIC
-int gensio_os_sctp_open_socket(struct gensio_os_funcs *o,
-			       struct gensio_addr *addr,
-			       void (*readhndlr)(struct gensio_iod *, void *),
-			       void (*writehndlr)(struct gensio_iod *, void *),
-			       void (*fd_handler_cleared)(struct gensio_iod *,
-							  void *),
-			       int (*setup_socket)(struct gensio_iod *iod,
-						   void *data),
-			       void *data, unsigned int opensock_flags,
-			       struct opensocks **socks, unsigned int *nr_fds);
 
 #endif /* GENSIO_OSOPS_H */

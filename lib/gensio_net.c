@@ -755,7 +755,7 @@ netna_startup(struct gensio_accepter *accepter, struct netna_data *nadata)
 {
     int rv;
 
-    rv = gensio_os_open_socket(nadata->o, nadata->ai, netna_readhandler,
+    rv = gensio_os_open_listen_sockets(nadata->o, nadata->ai, netna_readhandler,
 			       NULL, netna_fd_cleared, netna_b4_listen, nadata,
 			       nadata->opensock_flags,
 			       &nadata->acceptfds, &nadata->nr_acceptfds);

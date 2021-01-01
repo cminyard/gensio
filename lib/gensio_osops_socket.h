@@ -41,13 +41,9 @@ static int gensio_setup_listen_socket(struct gensio_os_funcs *o, bool do_listen,
 			       int family, int socktype, int protocol,
 			       int flags,
 			       struct sockaddr *addr, socklen_t addrlen,
-			       void (*readhndlr)(struct gensio_iod *, void *),
-			       void (*writehndlr)(struct gensio_iod *, void *),
-			       void *data,
-			       void (*fd_handler_cleared)(struct gensio_iod *,
-							  void *),
 			       int (*call_b4_listen)(struct gensio_iod *,
 						     void *),
+			       void *data,
 			       unsigned int opensock_flags,
 			       struct gensio_iod **iod, unsigned int *port,
 			       struct gensio_listen_scan_info *rsi);
@@ -752,15 +748,12 @@ gensio_dyn_scan_next(unsigned int port)
 	return port + 1;
 }
 
-int
-gensio_os_open_socket(struct gensio_os_funcs *o,
-		      struct gensio_addr *addr,
-		      void (*readhndlr)(struct gensio_iod *, void *),
-		      void (*writehndlr)(struct gensio_iod *, void *),
-		      void (*fd_handler_cleared)(struct gensio_iod *, void *),
-		      int (*call_b4_listen)(struct gensio_iod *, void *),
-		      void *data, unsigned int opensock_flags,
-		      struct opensocks **rfds, unsigned int *nr_fds)
+static int
+gensio_os_open_sockets(struct gensio_os_funcs *o,
+		       struct gensio_addr *addr,
+		       int (*call_b4_listen)(struct gensio_iod *, void *),
+		       void *data, unsigned int opensock_flags,
+		       struct opensocks **rfds, unsigned int *nr_fds)
 {
     struct addrinfo *rp;
     int family;
@@ -775,7 +768,11 @@ gensio_os_open_socket(struct gensio_os_funcs *o,
 	return GE_NOMEM;
 
     ai = gensio_addr_addrinfo_get(addr);
-
+#if HAVE_LIBSCTP
+    if (ai->ai_protocol == IPPROTO_SCTP)
+	return gensio_os_sctp_open_sockets(o, addr, call_b4_listen, data,
+					   opensock_flags, rfds, nr_fds);
+#endif
     for (rp = ai; rp != NULL; rp = rp->ai_next)
 	max_fds++;
 
@@ -808,8 +805,7 @@ gensio_os_open_socket(struct gensio_os_funcs *o,
 					rp->ai_family, rp->ai_socktype,
 					rp->ai_protocol, rp->ai_flags,
 					rp->ai_addr, rp->ai_addrlen,
-					readhndlr, writehndlr, data,
-					fd_handler_cleared, call_b4_listen,
+					call_b4_listen, data,
 					opensock_flags,
 					&fds[curr_fd].iod, &fds[curr_fd].port,
 					&scaninfo);
@@ -863,6 +859,48 @@ gensio_os_open_socket(struct gensio_os_funcs *o,
     return rv;
 }
 
+int
+gensio_os_open_listen_sockets(struct gensio_os_funcs *o,
+		      struct gensio_addr *addr,
+		      void (*readhndlr)(struct gensio_iod *, void *),
+		      void (*writehndlr)(struct gensio_iod *, void *),
+		      void (*fd_handler_cleared)(struct gensio_iod *, void *),
+		      int (*call_b4_listen)(struct gensio_iod *, void *),
+		      void *data, unsigned int opensock_flags,
+		      struct opensocks **rfds, unsigned int *rnr_fds)
+{
+    struct opensocks *fds;
+    unsigned int nr_fds, i;
+    int rv;
+
+    rv = gensio_os_open_sockets(o, addr, call_b4_listen, data,
+				opensock_flags, &fds, &nr_fds);
+    if (rv)
+	return rv;
+
+    for (i = 0; i < nr_fds; i++) {
+	rv = o->set_fd_handlers(fds[i].iod, data,
+				readhndlr, writehndlr, NULL,
+				fd_handler_cleared);
+	if (rv)
+	    break;
+    }
+
+    if (!rv) {
+	*rfds = fds;
+	*rnr_fds = nr_fds;
+	return 0;
+    }
+
+    for (i = 0; i < nr_fds; i++) {
+	o->clear_fd_handlers_norpt(fds[i].iod);
+	gensio_os_close(&fds[i].iod);
+    }
+    o->free(o, fds);
+
+    return rv;
+}
+
 static int
 socket_get_port(struct gensio_os_funcs *o, int fd, unsigned int *port)
 {
@@ -906,12 +944,8 @@ static int
 gensio_setup_listen_socket(struct gensio_os_funcs *o, bool do_listen,
 			   int family, int socktype, int sockproto, int flags,
 			   struct sockaddr *addr, socklen_t addrlen,
-			   void (*readhndlr)(struct gensio_iod *, void *),
-			   void (*writehndlr)(struct gensio_iod *, void *),
-			   void *data,
-			   void (*fd_handler_cleared)(struct gensio_iod *,
-						      void *),
 			   int (*call_b4_listen)(struct gensio_iod *, void *),
+			   void *data,
 			   unsigned int opensock_flags,
 			   struct gensio_iod **riod, unsigned int *rport,
 			   struct gensio_listen_scan_info *rsi)
@@ -920,7 +954,7 @@ gensio_setup_listen_socket(struct gensio_os_funcs *o, bool do_listen,
     int fd, rv = 0;
     unsigned int port;
     struct sockaddr_storage sa;
-    struct gensio_iod *iod;
+    struct gensio_iod *iod = NULL;
     int protocol;
 
     if (family == AF_UNIX)
@@ -1065,9 +1099,6 @@ gensio_setup_listen_socket(struct gensio_os_funcs *o, bool do_listen,
     if (do_listen && listen(fd, 5) != 0)
 	goto out_err;
 
-    rv = o->set_fd_handlers(iod, data,
-			    readhndlr, writehndlr, NULL,
-			    fd_handler_cleared);
  out:
     if (rv) {
 	if (iod)

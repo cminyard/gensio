@@ -23,17 +23,13 @@ sctp_shutdown_fds(struct gensio_os_funcs *o,
     o->free(o, fds);
 }
 
-int
-gensio_os_sctp_open_socket(struct gensio_os_funcs *o,
-			   struct gensio_addr *addr,
-			   void (*readhndlr)(struct gensio_iod *, void *),
-			   void (*writehndlr)(struct gensio_iod *, void *),
-			   void (*fd_handler_cleared)(struct gensio_iod *,
-						      void *),
-			   int (*setup_socket)(struct gensio_iod *iod,
-					       void *data),
-			   void *data, unsigned int opensock_flags,
-			   struct opensocks **rfds, unsigned int *rnr_fds)
+static int
+gensio_os_sctp_open_sockets(struct gensio_os_funcs *o,
+			    struct gensio_addr *addr,
+			    int (*call_b4_listen)(struct gensio_iod *iod,
+						  void *data),
+			    void *data, unsigned int opensock_flags,
+			    struct opensocks **rfds, unsigned int *rnr_fds)
 {
     struct addrinfo *ai;
     unsigned int i;
@@ -81,9 +77,7 @@ gensio_os_sctp_open_socket(struct gensio_os_funcs *o,
 	rv = gensio_setup_listen_socket(o, true, ai->ai_family,
 					SOCK_STREAM, IPPROTO_SCTP, ai->ai_flags,
 					ai->ai_addr, ai->ai_addrlen,
-					readhndlr, NULL, data,
-					fd_handler_cleared,
-					setup_socket, opensock_flags,
+					call_b4_listen, data, opensock_flags,
 					&tfds[i].iod, &tfds[i].port, &scaninfo);
 	if (rv) {
 	    o->free(o, tfds);

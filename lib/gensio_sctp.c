@@ -711,7 +711,7 @@ sctpna_startup(struct gensio_accepter *accepter, struct sctpna_data *nadata)
 {
     int rv;
 
-    rv = gensio_os_sctp_open_socket(nadata->o, nadata->ai,
+    rv = gensio_os_open_listen_sockets(nadata->o, nadata->ai,
 				    sctpna_readhandler, NULL, sctpna_fd_cleared,
 				    sctpna_setup_socket, nadata,
 				    nadata->opensock_flags,
