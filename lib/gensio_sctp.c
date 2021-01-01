@@ -94,9 +94,15 @@ static int
 sctp_socket_setup(struct sctp_data *tdata, struct gensio_iod *iod)
 {
     int err;
+    unsigned int setup = (GENSIO_SET_OPENSOCK_REUSEADDR |
+			  GENSIO_OPENSOCK_REUSEADDR |
+			  GENSIO_SET_OPENSOCK_KEEPALIVE |
+			  GENSIO_OPENSOCK_KEEPALIVE |
+			  GENSIO_SET_OPENSOCK_NODELAY);
 
-    err = tdata->o->socket_setup(iod, true, tdata->nodelay,
-				 GENSIO_OPENSOCK_REUSEADDR, tdata->laddr);
+    if (tdata->nodelay)
+	setup |= GENSIO_SET_OPENSOCK_NODELAY;
+    err = tdata->o->socket_set_setup(iod, setup, tdata->laddr);
     if (err)
 	return err;
 
@@ -175,7 +181,7 @@ sctp_control(void *handler_data, struct gensio_iod *iod, bool get, unsigned int 
 {
     struct sctp_data *tdata = handler_data;
     int rv, val;
-    unsigned int i;
+    unsigned int i, setup;
     gensiods pos;
     struct gensio_addr *addr;
 
@@ -183,7 +189,8 @@ sctp_control(void *handler_data, struct gensio_iod *iod, bool get, unsigned int 
     case GENSIO_CONTROL_NODELAY:
 	if (get) {
 	    if (iod) {
-		rv = tdata->o->get_nodelay(iod, GENSIO_NET_PROTOCOL_SCTP, &val);
+		setup = GENSIO_SET_OPENSOCK_NODELAY;
+		rv = tdata->o->socket_get_setup(iod, &setup);
 		if (rv)
 		    return rv;
 	    } else {
@@ -193,7 +200,10 @@ sctp_control(void *handler_data, struct gensio_iod *iod, bool get, unsigned int 
 	} else {
 	    val = strtoul(data, NULL, 0);
 	    if (iod) {
-		rv = tdata->o->set_nodelay(iod, GENSIO_NET_PROTOCOL_SCTP, val);
+		setup = GENSIO_SET_OPENSOCK_NODELAY;
+		if (val)
+		    setup |= GENSIO_SET_OPENSOCK_NODELAY;
+		rv = tdata->o->socket_set_setup(iod, val, NULL);
 		if (rv)
 		    return rv;
 	    }

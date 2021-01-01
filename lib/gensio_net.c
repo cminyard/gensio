@@ -64,14 +64,20 @@ net_try_open(struct net_data *tdata, struct gensio_iod **iod)
     int err = GE_INUSE;
     int protocol = tdata->istcp ? GENSIO_NET_PROTOCOL_TCP
 				: GENSIO_NET_PROTOCOL_UNIX;
+    unsigned int setup = (GENSIO_SET_OPENSOCK_REUSEADDR |
+			  GENSIO_OPENSOCK_REUSEADDR |
+			  GENSIO_SET_OPENSOCK_KEEPALIVE |
+			  GENSIO_SET_OPENSOCK_NODELAY);
 
     err = tdata->o->socket_open(tdata->o, tdata->ai, protocol, &new_iod);
     if (err)
 	goto out;
 
-    err = tdata->o->socket_setup(new_iod, tdata->istcp,
-				 tdata->nodelay, GENSIO_OPENSOCK_REUSEADDR,
-				 tdata->lai);
+    if (tdata->istcp)
+	setup |= GENSIO_OPENSOCK_KEEPALIVE;
+    if (tdata->nodelay)
+	setup |= GENSIO_OPENSOCK_NODELAY;
+    err = tdata->o->socket_set_setup(new_iod, setup, tdata->lai);
     if (err)
 	goto out;
 
@@ -135,7 +141,7 @@ net_control(void *handler_data, struct gensio_iod *iod, bool get,
 {
     struct net_data *tdata = handler_data;
     int rv, val;
-    unsigned int i;
+    unsigned int i, setup;
     gensiods pos;
     struct gensio_addr *addr;
 
@@ -145,9 +151,11 @@ net_control(void *handler_data, struct gensio_iod *iod, bool get,
 	    return GE_NOTSUP;
 	if (get) {
 	    if (iod) {
-		rv = tdata->o->get_nodelay(iod, GENSIO_NET_PROTOCOL_TCP, &val);
+		setup = GENSIO_SET_OPENSOCK_NODELAY;
+		rv = tdata->o->socket_get_setup(iod, &setup);
 		if (rv)
 		    return rv;
+		val = !!(setup & GENSIO_SET_OPENSOCK_NODELAY);
 	    } else {
 		val = tdata->nodelay;
 	    }
@@ -155,7 +163,10 @@ net_control(void *handler_data, struct gensio_iod *iod, bool get,
 	} else {
 	    val = strtoul(data, NULL, 0);
 	    if (iod) {
-		rv = tdata->o->set_nodelay(iod, GENSIO_NET_PROTOCOL_TCP, val);
+		setup = GENSIO_SET_OPENSOCK_NODELAY;
+		if (val)
+		    setup |= GENSIO_SET_OPENSOCK_NODELAY;
+		rv = tdata->o->socket_set_setup(iod, val, NULL);
 		if (rv)
 		    return rv;
 	    }
@@ -552,6 +563,10 @@ netna_readhandler(struct gensio_iod *iod, void *cbdata)
     struct gensio_addr *raddr;
     struct net_data *tdata = NULL;
     struct gensio *io = NULL;
+    unsigned int setup = (GENSIO_SET_OPENSOCK_REUSEADDR |
+			  GENSIO_OPENSOCK_REUSEADDR |
+			  GENSIO_SET_OPENSOCK_KEEPALIVE |
+			  GENSIO_SET_OPENSOCK_NODELAY);
     int err;
 
     err = nadata->o->accept(iod, &raddr, &new_iod);
@@ -595,9 +610,11 @@ netna_readhandler(struct gensio_iod *iod, void *cbdata)
     tdata->nodelay = nadata->nodelay;
     raddr = NULL;
     
-    err = tdata->o->socket_setup(new_iod, tdata->istcp,
-				 tdata->nodelay, GENSIO_OPENSOCK_REUSEADDR,
-				 NULL);
+    if (tdata->istcp)
+	setup |= GENSIO_OPENSOCK_KEEPALIVE;
+    if (tdata->nodelay)
+	setup |= GENSIO_OPENSOCK_NODELAY;
+    err = tdata->o->socket_set_setup(new_iod, setup, NULL);
     if (err) {
 	gensio_acc_log(nadata->acc, GENSIO_LOG_ERR,
 		       "Error setting up net port: %s", gensio_err_to_str(err));

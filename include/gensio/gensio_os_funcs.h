@@ -71,8 +71,18 @@ unsigned int gensio_get_log_mask(void);
 GENSIO_DLL_PUBLIC
 const char *gensio_log_level_to_str(enum gensio_log_levels level);
 
-/* Flags for opensock_flags. */
-#define GENSIO_OPENSOCK_REUSEADDR	(1 << 0)
+/*
+ * Flags for opensock_flags.  For the set function, add the _SET_
+ * flags for the options you want to set, and set the option bits for
+ * the options' values.  For get, add the _SET_ flag and the values
+ * will be set upon return.
+ */
+#define GENSIO_SET_OPENSOCK_REUSEADDR	(1 << 0)
+#define GENSIO_OPENSOCK_REUSEADDR	(1 << 1)
+#define GENSIO_SET_OPENSOCK_KEEPALIVE	(1 << 2)
+#define GENSIO_OPENSOCK_KEEPALIVE	(1 << 3)
+#define GENSIO_SET_OPENSOCK_NODELAY	(1 << 4)
+#define GENSIO_OPENSOCK_NODELAY		(1 << 5)
 
 /* For recv and send */
 #define GENSIO_MSG_OOB 1
@@ -437,14 +447,16 @@ struct gensio_os_funcs {
 		       struct gensio_iod **iod);
     int (*check_socket_open)(struct gensio_iod *iod);
 
-    int (*socket_setup)(struct gensio_iod *iod,
-			bool keepalive, bool nodelay,
-			unsigned int opensock_flags,
-			struct gensio_addr *bindaddr);
-    int (*get_nodelay)(struct gensio_iod *iod, int protocol,
-		       int *val);
-    int (*set_nodelay)(struct gensio_iod *iod, int protocol,
-		       int val);
+    /*
+     * Set/get options on sockets.  See GENSIO_SET_OPENSOCK_xxx for
+     * details.  If bindaaddr is set in the set_setup function, bind
+     * the socket to the given address.
+     */
+    int (*socket_set_setup)(struct gensio_iod *iod,
+			    unsigned int opensock_flags,
+			    struct gensio_addr *bindaddr);
+    int (*socket_get_setup)(struct gensio_iod *iod,
+			    unsigned int *opensock_flags);
 
     /* For UDP sockets, modify the multicast addresses for the socket. */
     int (*mcast_add)(struct gensio_iod *iod,
