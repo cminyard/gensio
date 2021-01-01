@@ -56,6 +56,7 @@ struct gensio_iod {
     struct gensio_os_funcs *f;
     int fd;
     enum gensio_iod_type type;
+    int protocol; /* GENSIO_NET_PROTOCOL_xxx */
     bool handlers_set;
     void *cb_data;
     void (*read_handler)(struct gensio_iod *iod, void *cb_data);

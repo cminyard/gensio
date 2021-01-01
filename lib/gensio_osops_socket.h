@@ -279,6 +279,8 @@ gensio_os_accept(struct gensio_iod *iod,
 	    return err;
 	}
 
+	riod->protocol = iod->protocol;
+
 	if (addr) {
 	    addr->curr->ai_family = addr->curr->ai_addr->sa_family;
 	    addr->curr->ai_addrlen = len;
@@ -350,12 +352,14 @@ gensio_os_socket_open(struct gensio_os_funcs *o,
     err = o->add_iod(o, GENSIO_IOD_SOCKET, newfd, iod);
     if (err)
 	close_socket(o, newfd);
+    else
+	(*iod)->protocol = protocol;
     return err;
 }
 
 int
 gensio_os_socket_setup(struct gensio_iod *iod,
-		       int protocol, bool keepalive, bool nodelay,
+		       bool keepalive, bool nodelay,
 		       unsigned int opensock_flags,
 		       struct gensio_addr *bindaddr)
 {
@@ -380,11 +384,11 @@ gensio_os_socket_setup(struct gensio_iod *iod,
     }
 
     if (nodelay) {
-	if (protocol == GENSIO_NET_PROTOCOL_TCP)
+	if (iod->protocol == GENSIO_NET_PROTOCOL_TCP)
 	    err = setsockopt(iod->fd, IPPROTO_TCP, TCP_NODELAY, (void *) &val,
 			     sizeof(val));
 #if HAVE_LIBSCTP
-	else if (protocol == GENSIO_NET_PROTOCOL_SCTP)
+	else if (iod->protocol == GENSIO_NET_PROTOCOL_SCTP)
 	    err = setsockopt(iod->fd, IPPROTO_SCTP, SCTP_NODELAY, (void *) &val,
 			     sizeof(val));
 #endif
@@ -397,7 +401,7 @@ gensio_os_socket_setup(struct gensio_iod *iod,
     if (bindaddr) {
 	struct addrinfo *ai = bindaddr->a;
 
-	switch (protocol) {
+	switch (iod->protocol) {
 #if HAVE_LIBSCTP
 	case GENSIO_NET_PROTOCOL_SCTP:
 	    while (ai) {
@@ -884,7 +888,7 @@ family_is_inet(int family)
 
 static int
 gensio_setup_listen_socket(struct gensio_os_funcs *o, bool do_listen,
-			   int family, int socktype, int protocol, int flags,
+			   int family, int socktype, int sockproto, int flags,
 			   struct sockaddr *addr, socklen_t addrlen,
 			   void (*readhndlr)(struct gensio_iod *, void *),
 			   void (*writehndlr)(struct gensio_iod *, void *),
@@ -901,6 +905,22 @@ gensio_setup_listen_socket(struct gensio_os_funcs *o, bool do_listen,
     unsigned int port;
     struct sockaddr_storage sa;
     struct gensio_iod *iod;
+    int protocol;
+
+    if (family == AF_UNIX)
+	protocol = GENSIO_NET_PROTOCOL_UNIX;
+    else if (sockproto == IPPROTO_SCTP)
+	protocol = GENSIO_NET_PROTOCOL_SCTP;
+    else if (sockproto == 0 && socktype == SOCK_DGRAM)
+	protocol = GENSIO_NET_PROTOCOL_UDP;
+    else if (sockproto == 0 && socktype == SOCK_STREAM)
+	protocol = GENSIO_NET_PROTOCOL_TCP;
+    else if (sockproto == IPPROTO_TCP)
+	protocol = GENSIO_NET_PROTOCOL_TCP;
+    else if (sockproto == IPPROTO_UDP)
+	protocol = GENSIO_NET_PROTOCOL_UDP;
+    else
+	return GE_INVAL;
 
     rv = sockaddr_get_port(addr, &port);
     if (rv == -1)
@@ -918,7 +938,7 @@ gensio_setup_listen_socket(struct gensio_os_funcs *o, bool do_listen,
 	port = rsi->reqport;
     }
 
-    fd = socket(family, socktype, protocol);
+    fd = socket(family, socktype, sockproto);
     if (fd == -1)
 	return gensio_os_err_to_err(o, errno);
 
@@ -957,7 +977,7 @@ gensio_setup_listen_socket(struct gensio_os_funcs *o, bool do_listen,
 	}
     }
 
-    if (check_ipv6_only(family, protocol, flags, fd) == -1)
+    if (check_ipv6_only(family, sockproto, flags, fd) == -1)
 	goto out_err;
 #if !HAVE_WORKING_PORT0
     if (port == 0 && family_is_inet(family)) {
@@ -1017,6 +1037,8 @@ gensio_setup_listen_socket(struct gensio_os_funcs *o, bool do_listen,
     rv = o->add_iod(o, GENSIO_IOD_SOCKET, fd, &iod);
     if (rv)
 	goto out;
+
+    iod->protocol = protocol;
 
     if (call_b4_listen) {
 	rv = call_b4_listen(iod, data);

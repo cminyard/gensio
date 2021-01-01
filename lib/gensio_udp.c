@@ -1726,8 +1726,7 @@ udp_gensio_alloc(const struct gensio_addr *addr, const char * const args[],
 	return err;
     }
 
-    err = gensio_os_socket_setup(new_iod, GENSIO_NET_PROTOCOL_UDP,
-				 false, false,
+    err = gensio_os_socket_setup(new_iod, false, false,
 				 reuseaddr ? GENSIO_OPENSOCK_REUSEADDR : 0,
 				 laddr);
     if (err) {

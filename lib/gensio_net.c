@@ -69,7 +69,7 @@ net_try_open(struct net_data *tdata, struct gensio_iod **iod)
     if (err)
 	goto out;
 
-    err = gensio_os_socket_setup(new_iod, protocol, tdata->istcp,
+    err = gensio_os_socket_setup(new_iod, tdata->istcp,
 				 tdata->nodelay, GENSIO_OPENSOCK_REUSEADDR,
 				 tdata->lai);
     if (err)
@@ -551,8 +551,6 @@ netna_readhandler(struct gensio_iod *iod, void *cbdata)
     struct gensio_addr *raddr;
     struct net_data *tdata = NULL;
     struct gensio *io = NULL;
-    int protocol = nadata->istcp ? GENSIO_NET_PROTOCOL_TCP
-				 : GENSIO_NET_PROTOCOL_UNIX;
     int err;
 
     err = gensio_os_accept(iod, &raddr, &new_iod);
@@ -596,7 +594,7 @@ netna_readhandler(struct gensio_iod *iod, void *cbdata)
     tdata->nodelay = nadata->nodelay;
     raddr = NULL;
     
-    err = gensio_os_socket_setup(new_iod, protocol, tdata->istcp,
+    err = gensio_os_socket_setup(new_iod, tdata->istcp,
 				 tdata->nodelay, GENSIO_OPENSOCK_REUSEADDR,
 				 NULL);
     if (err) {

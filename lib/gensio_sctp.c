@@ -102,8 +102,7 @@ sctp_socket_setup(struct sctp_data *tdata, struct gensio_iod *iod)
     struct sctp_event_subscribe event_sub;
     int err;
 
-    err = gensio_os_socket_setup(iod, GENSIO_NET_PROTOCOL_SCTP,
-				 true, tdata->nodelay,
+    err = gensio_os_socket_setup(iod, true, tdata->nodelay,
 				 GENSIO_OPENSOCK_REUSEADDR, tdata->laddr);
     if (err)
 	return err;

@@ -80,7 +80,7 @@ int gensio_os_socket_open(struct gensio_os_funcs *o,
 
 GENSIO_DLL_PUBLIC
 int gensio_os_socket_setup(struct gensio_iod *iod,
-			   int protocol, bool keepalive, bool nodelay,
+			   bool keepalive, bool nodelay,
 			   unsigned int opensock_flags,
 			   struct gensio_addr *bindaddr);
 
