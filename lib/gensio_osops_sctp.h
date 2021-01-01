@@ -9,7 +9,7 @@
 
 static void
 sctp_shutdown_fds(struct gensio_os_funcs *o,
-		  struct opensocks *fds, unsigned int nrfds)
+		  struct gensio_opensocks *fds, unsigned int nrfds)
 {
     unsigned int i;
 
@@ -29,14 +29,15 @@ gensio_os_sctp_open_sockets(struct gensio_os_funcs *o,
 			    int (*call_b4_listen)(struct gensio_iod *iod,
 						  void *data),
 			    void *data, unsigned int opensock_flags,
-			    struct opensocks **rfds, unsigned int *rnr_fds)
+			    struct gensio_opensocks **rfds,
+			    unsigned int *rnr_fds)
 {
     struct addrinfo *ai;
     unsigned int i;
     int family = AF_INET6;
     int rv = 0;
     struct gensio_listen_scan_info scaninfo;
-    struct opensocks *fds = NULL, *tfds;
+    struct gensio_opensocks *fds = NULL, *tfds;
     int nr_fds = 0;
 
     memset(&scaninfo, 0, sizeof(scaninfo));

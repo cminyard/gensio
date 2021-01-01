@@ -473,7 +473,7 @@ struct netna_data {
     gensio_acc_done cb_en_done;
 
     struct gensio_addr *ai;		/* The address list for the portname. */
-    struct opensocks   *acceptfds;	/* The file descriptor used to
+    struct gensio_opensocks *acceptfds;	/* The file descriptor used to
 					   accept connections on the
 					   NET port. */
 #if HAVE_UNIX

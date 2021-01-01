@@ -12,7 +12,7 @@
 #include <gensio/gensio.h>
 
 /* For the open_socket calls */
-struct opensocks
+struct gensio_opensocks
 {
     struct gensio_iod *iod;
     int family;
@@ -146,7 +146,8 @@ int gensio_os_open_listen_sockets(struct gensio_os_funcs *o,
 						     void *),
 			  int (*call_b4_listen)(struct gensio_iod *, void *),
 			  void *data, unsigned int opensock_flags,
-			  struct opensocks **socks, unsigned int *nr_fds);
+			  struct gensio_opensocks **socks,
+			  unsigned int *nr_fds);
 
 GENSIO_DLL_PUBLIC
 int gensio_os_close(struct gensio_iod **iod);

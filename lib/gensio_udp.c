@@ -143,7 +143,7 @@ struct udpna_data {
     void *shutdown_data;
 
     struct gensio_addr *ai;		/* The address list for the portname. */
-    struct opensocks   *fds;		/* The file descriptor used for
+    struct gensio_opensocks *fds;	/* The file descriptor used for
 					   the UDP ports. */
     unsigned int   nr_fds;
     unsigned int opensock_flags;

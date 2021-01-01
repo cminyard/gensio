@@ -541,7 +541,7 @@ struct sctpna_data {
     gensio_acc_done cb_en_done;
 
     struct gensio_addr *ai;
-    struct opensocks *acceptfds;
+    struct gensio_opensocks *acceptfds;
     unsigned int nr_acceptfds;
 
     unsigned int nr_accept_close_waiting;

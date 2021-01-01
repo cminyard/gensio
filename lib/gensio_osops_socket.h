@@ -813,11 +813,11 @@ gensio_os_open_sockets(struct gensio_os_funcs *o,
 		       struct gensio_addr *addr,
 		       int (*call_b4_listen)(struct gensio_iod *, void *),
 		       void *data, unsigned int opensock_flags,
-		       struct opensocks **rfds, unsigned int *nr_fds)
+		       struct gensio_opensocks **rfds, unsigned int *nr_fds)
 {
     struct addrinfo *rp;
     int family;
-    struct opensocks *fds;
+    struct gensio_opensocks *fds;
     unsigned int curr_fd = 0, i;
     unsigned int max_fds = 0;
     struct addrinfo *ai;
@@ -927,9 +927,9 @@ gensio_os_open_listen_sockets(struct gensio_os_funcs *o,
 		      void (*fd_handler_cleared)(struct gensio_iod *, void *),
 		      int (*call_b4_listen)(struct gensio_iod *, void *),
 		      void *data, unsigned int opensock_flags,
-		      struct opensocks **rfds, unsigned int *rnr_fds)
+		      struct gensio_opensocks **rfds, unsigned int *rnr_fds)
 {
-    struct opensocks *fds;
+    struct gensio_opensocks *fds;
     unsigned int nr_fds, i;
     int rv;
 
