@@ -637,6 +637,8 @@ sctpna_readhandler(struct gensio_iod *iod, void *cbdata)
     tdata->o = nadata->o;
     tdata->iod = new_iod;
     tdata->nodelay = nadata->nodelay;
+    tdata->initmsg = nadata->initmsg;
+    tdata->sackinfo = nadata->sackinfo;
 
     err = sctp_socket_setup(tdata, new_iod);
     if (!err)

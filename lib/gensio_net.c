@@ -593,11 +593,12 @@ netna_readhandler(struct gensio_iod *iod, void *cbdata)
     tdata->oob_char = -1;
     tdata->ai = raddr;
     tdata->istcp = nadata->istcp;
+    tdata->nodelay = nadata->nodelay;
     raddr = NULL;
     
     err = gensio_os_socket_setup(new_iod, protocol, tdata->istcp,
 				 tdata->nodelay, GENSIO_OPENSOCK_REUSEADDR,
-				 tdata->lai);
+				 NULL);
     if (err) {
 	gensio_acc_log(nadata->acc, GENSIO_LOG_ERR,
 		       "Error setting up net port: %s", gensio_err_to_str(err));
