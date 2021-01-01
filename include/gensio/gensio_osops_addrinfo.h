@@ -16,13 +16,9 @@
 #ifndef GENSIO_OSOPS_ADDRINFO_H
 #define GENSIO_OSOPS_ADDRINFO_H
 
-#ifdef _WIN32
-#include <winsock2.h>
-#else
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netdb.h>
-#endif
+/* Avoid including net headers. */
+struct addrinfo;
+struct sockaddr;
 
 #include <gensio/gensio_dllvisibility.h>
 #include <gensio/gensio_types.h>

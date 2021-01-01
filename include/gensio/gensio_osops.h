@@ -22,6 +22,10 @@ GENSIO_DLL_PUBLIC
 int gensio_os_scan_netaddr(struct gensio_os_funcs *o, const char *str,
 			   bool listen, int protocol, struct gensio_addr **rai);
 
+/*
+ * Call o->open_listen_sockets() then set the I/O handlers with the
+ * given data.
+ */
 GENSIO_DLL_PUBLIC
 int gensio_os_open_listen_sockets(struct gensio_os_funcs *o,
 		      struct gensio_addr *addr,
@@ -32,10 +36,17 @@ int gensio_os_open_listen_sockets(struct gensio_os_funcs *o,
 		      void *data, unsigned int opensock_flags,
 		      struct gensio_opensocks **rfds, unsigned int *rnr_fds);
 
+/*
+ * Return some random data.  May not be cryptographically secure.
+ */
 GENSIO_DLL_PUBLIC
 int gensio_os_get_random(struct gensio_os_funcs *o,
 			 void *data, unsigned int len);
 
+/*
+ * Set the generic OS functions for the OS handler to the default ones
+ * for this platform.
+ */
 GENSIO_DLL_PUBLIC
 void gensio_osops_set_os_funcs(struct gensio_os_funcs *o);
 

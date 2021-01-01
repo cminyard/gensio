@@ -23,6 +23,9 @@
 
 /* Avoid having to include SCTP headers. */
 struct sctp_sndrcvinfo;
+struct sctp_initmsg;
+struct sctp_sack_info;
+struct sctp_status;
 
 struct gensio_lock;
 struct gensio_timer;
@@ -324,17 +327,29 @@ struct gensio_os_funcs {
      */
     void (*release_iod)(struct gensio_iod *iod);
 
+    /*
+     * Get/set some iod internals.  Setting is only for OS handlers.
+     */
     int (*iod_get_type)(struct gensio_iod *iod);
     int (*iod_get_fd)(struct gensio_iod *iod);
     int (*iod_get_protocol)(struct gensio_iod *iod);
     void (*iod_set_protocol)(struct gensio_iod *iod, int protocol);
 
+    /****** Generic OS functions ******/
+    /*Set the I/O descriptor non-blocking. */
     int (*set_non_blocking)(struct gensio_iod *iod);
+    /* Close the I/O descriptor.  Sets what iod point to to NULL. */
     int (*close)(struct gensio_iod **iod);
+    /* Write some data to the I/O descriptor. */
     int (*write)(struct gensio_iod *iod, const struct gensio_sg *sg,
 		 gensiods sglen, gensiods *rcount);
+    /* Read some data from the I/O descriptor. */
     int (*read)(struct gensio_iod *iod, void *buf, gensiods buflen,
 		gensiods *rcount);
+    /*
+     * Set isfile to true if the I/O descriptor points to a nornal
+     * file, or false if not.
+     */
     int (*is_regfile)(struct gensio_iod *iod, bool *isfile);
 
     /****** Net Address Handling.  See gensio_addr_xxx functions for info *****/
@@ -366,13 +381,28 @@ struct gensio_os_funcs {
     /*
      * Scan the str for IP addresses and create an address structure
      * from the found IPs.
+     *
+     * If listen is set, then addresses suitable for listen sockets
+     * are created.
+     *
+     * protocol is one of GENSIO_NET_PROTOCOL_xxx.
+
+     * If scan_port is true, scan for port numbers after the
+     * addresses, seperated by a ','.  If the port is not there then
+     * is_port_set will be set to false.  If the port is there, it
+     * will be set to true.  The ports must all be the same or
+     * GE_INCONSISTENT is returned.
      */
     int (*addr_scan_ips)(struct gensio_os_funcs *o, const char *str,
 			 bool listen, int ifamily,
-			 int gprotocol, bool *is_port_set, bool scan_port,
+			 int protocol, bool *is_port_set, bool scan_port,
 			 struct gensio_addr **raddr);
 
     /****** Socket Handling ******/
+    /* Allocate an address suitable for using with recvfrom. */
+    struct gensio_addr *(*addr_alloc_recvfrom)(struct gensio_os_funcs *o);
+
+    /* Standard socket functions. */
     int (*recv)(struct gensio_iod *iod, void *buf, gensiods buflen,
 		gensiods *rcount, int gflags);
     int (*send)(struct gensio_iod *iod,
@@ -382,22 +412,41 @@ struct gensio_os_funcs {
 		  const struct gensio_sg *sg, gensiods sglen,
 		  gensiods *rcount, int gflags,
 		  const struct gensio_addr *raddr);
-    struct gensio_addr *(*addr_alloc_recvfrom)(struct gensio_os_funcs *o);
     int (*recvfrom)(struct gensio_iod *iod, void *buf, gensiods buflen,
 		    gensiods *rcount, int flags, struct gensio_addr *addr);
     int (*accept)(struct gensio_iod *iod,
 		  struct gensio_addr **raddr, struct gensio_iod **newiod);
-    int (*check_socket_open)(struct gensio_iod *iod);
+    int (*connect)(struct gensio_iod *iod,
+		   const struct gensio_addr *addr);
+
+    /*
+     * Note that close_socket can only be used on sockets.  The normal
+     * close can be used on sockets, too, but it will generally just
+     * call this functions.
+     */
+    int (*close_socket)(struct gensio_iod **iod);
+
+    /*
+     * Open a socket, non-blocking.  The iod can be added with
+     * set_fd_handlers and the write handler will be called then the
+     * open completes.  Then check_socket_open can be called to check
+     * for open status.
+     */
     int (*socket_open)(struct gensio_os_funcs *o,
 		       const struct gensio_addr *addr, int protocol,
 		       struct gensio_iod **iod);
+    int (*check_socket_open)(struct gensio_iod *iod);
+
     int (*socket_setup)(struct gensio_iod *iod,
 			bool keepalive, bool nodelay,
 			unsigned int opensock_flags,
 			struct gensio_addr *bindaddr);
-    int (*connect)(struct gensio_iod *iod,
-		   const struct gensio_addr *addr);
-    int (*close_socket)(struct gensio_iod **iod);
+    int (*get_nodelay)(struct gensio_iod *iod, int protocol,
+		       int *val);
+    int (*set_nodelay)(struct gensio_iod *iod, int protocol,
+		       int val);
+
+    /* For UDP sockets, modify the multicast addresses for the socket. */
     int (*mcast_add)(struct gensio_iod *iod,
 		     struct gensio_addr *mcast_addrs, int iface,
 		     bool curr_only);
@@ -406,41 +455,56 @@ struct gensio_os_funcs {
 		     bool curr_only);
     int (*set_mcast_loop)(struct gensio_iod *iod,
 			  const struct gensio_addr *addr, bool ival);
-    int (*get_nodelay)(struct gensio_iod *iod, int protocol,
-		       int *val);
-    int (*set_nodelay)(struct gensio_iod *iod, int protocol,
-		       int val);
-    int (*getsockname)(struct gensio_iod *iod,
-		       struct gensio_addr **raddr);
-    int (*getpeername)(struct gensio_iod *iod,
-		       struct gensio_addr **raddr);
-    int (*getpeerraw)(struct gensio_iod *iod, void *addr, gensiods *addrlen);
-    int (*socket_get_port)(struct gensio_iod *iod,
-			   unsigned int *port);
-    int (*setsockopt)(struct gensio_iod *iod, int level, int optname,
-		      const void *optval, int optlen);
-    int (*getsockopt)(struct gensio_iod *iod, int level, int optname,
-		      void *optval, int *optlen);
 
     /*
-     * Open a set of sockets given in the addr list, one per address.
-     * Return the actual number of sockets opened in nr_fds.  Set the
-     * I/O handler to readhndlr, with the given data.
+     * Get the address info for the local socket connection.  This can
+     * be called on all types of sockets.
+     */
+    int (*getsockname)(struct gensio_iod *iod,
+		       struct gensio_addr **raddr);
+
+    /*
+     * Get the address info for the remote end of the socket
+     * connection.  Only valid on connected sockets.
+     */
+    int (*getpeername)(struct gensio_iod *iod,
+		       struct gensio_addr **raddr);
+
+    /*
+     * Get the address info for the remote end of the socket in it's raw
+     * form.
+     */
+    int (*getpeerraw)(struct gensio_iod *iod, void *addr, gensiods *addrlen);
+
+    /* Get the port for the socket. */
+    int (*socket_get_port)(struct gensio_iod *iod, unsigned int *port);
+
+    /*
+     * Open a set of sockets given in the addr list, binding them and
+     * enabling listen, one per address.  Returns the sockets and info
+     * in fds and the actual number of sockets opened in nr_fds.  The
+     * sockets are set non-blocking.
+     *
+     * After the socket is set up but before listen is called,
+     * call_b4_listen is called.
      *
      * Note that if the function is unable to open an address, it just
-     * goes on.  It returns NULL if it is unable to open any addresses.
-     * Also, open IPV6 addresses first.  This way, addresses in shared
-     * namespaces (like IPV4 and IPV6 on INADDR6_ANY) will work properly
+     * goes on.  It returns GE_NOTFOUND if it is unable to open any
+     * addresses.
+     *
+     * Opens IPV6 addresses first.  This way, addresses in shared
+     * namespaces (like IPV4 and IPV6 on INADDR6_ANY) will work
+     * properly
      */
     int (*open_listen_sockets)(struct gensio_os_funcs *o,
 			       struct gensio_addr *addr,
 			       int (*call_b4_listen)(struct gensio_iod *,
 						     void *),
 			       void *data, unsigned int opensock_flags,
-			       struct gensio_opensocks **rfds,
+			       struct gensio_opensocks **fds,
 			       unsigned int *nr_fds);
 
-    /****** SCTP-specific ******/
+    /* SCTP-specific socket functions.  May be NULL if SCTP not supported. */
     int (*sctp_connectx)(struct gensio_iod *iod, struct gensio_addr *addrs);
     int (*sctp_recvmsg)(struct gensio_iod *iod, void *msg, gensiods len,
 			gensiods *rcount,
@@ -449,6 +513,11 @@ struct gensio_os_funcs {
 		     const struct gensio_sg *sg, gensiods sglen,
 		     gensiods *rcount,
 		     const struct sctp_sndrcvinfo *sinfo, uint32_t flags);
+    int (*sctp_socket_setup)(struct gensio_iod *iod, bool events,
+			     struct sctp_initmsg *initmsg,
+			     struct sctp_sack_info *sackinfo);
+    int (*sctp_get_socket_status)(struct gensio_iod *iod,
+				  struct sctp_status *status);
 };
 
 GENSIO_DLL_PUBLIC

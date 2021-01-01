@@ -32,6 +32,9 @@ typedef int taddrlen;
 #define EPIPE WSAECONNRESET
 #endif
 #else
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netdb.h>
 #include <arpa/inet.h>
 #include <netinet/tcp.h>
 #include <errno.h>
@@ -599,6 +602,58 @@ gensio_os_sctp_getladdrs(struct gensio_iod *iod, struct gensio_addr **raddr)
     sctp_freeladdrs(saddr);
     return rv;
 }
+
+static int
+gensio_stdsock_sctp_socket_setup(struct gensio_iod *iod, bool events,
+				 struct sctp_initmsg *initmsg,
+				 struct sctp_sack_info *sackinfo)
+{
+    int err = 0, fd = iod->f->iod_get_fd(iod);
+
+    if (initmsg) {
+	err = setsockopt(fd, IPPROTO_SCTP, SCTP_INITMSG,
+			 initmsg, sizeof(*initmsg));
+	if (err)
+	    return err;
+    }
+
+    if (sackinfo) {
+	err = setsockopt(fd, IPPROTO_SCTP, SCTP_DELAYED_SACK,
+			 sackinfo, sizeof(*sackinfo));
+	if (err)
+	return err;
+    }
+
+    if (events) {
+	struct sctp_event_subscribe event_sub;
+
+	memset(&event_sub, 0, sizeof(event_sub));
+	event_sub.sctp_data_io_event = 1;
+	err = setsockopt(fd, IPPROTO_SCTP, SCTP_EVENTS,
+			 &event_sub, sizeof(event_sub));
+    }
+
+    return err;
+}
+
+static int
+gensio_stdsock_sctp_get_socket_status(struct gensio_iod *iod,
+				      struct sctp_status *status)
+{
+    int err, fd = iod->f->iod_get_fd(iod);
+    taddrlen stat_size = sizeof(*status);
+
+    err = getsockopt(fd, IPPROTO_SCTP, SCTP_STATUS, status, &stat_size);
+    if (err)
+	/*
+	 * If the remote end closes, this fails with EINVAL.  Just
+	 * assume the remote end closed on error.
+	 */
+	return GE_REMCLOSE;
+
+    return 0;
+}
+
 #endif
 
 static int
@@ -1367,31 +1422,6 @@ gensio_stdsock_socket_get_port(struct gensio_iod *iod, unsigned int *port)
     return socket_get_port(iod->f, iod->f->iod_get_fd(iod), port);
 }
 
-static int
-gensio_stdsock_setsockopt(struct gensio_iod *iod,
-			  int level, int optname,
-			  const void *optval, int optlen)
-{
-    struct gensio_os_funcs *o = iod->f;
-
-    if (setsockopt(o->iod_get_fd(iod), level, optname, optval, optlen) == -1)
-	return gensio_os_err_to_err(o, errno);
-    return 0;
-}
-
-static int
-gensio_stdsock_getsockopt(struct gensio_iod *iod, int level, int optname,
-			  void *optval, int *optlen)
-{
-    struct gensio_os_funcs *o = iod->f;
-    socklen_t slen = *optlen;
-
-    if (getsockopt(o->iod_get_fd(iod), level, optname, optval, &slen) == -1)
-	return gensio_os_err_to_err(o, errno);
-    *optlen = slen;
-    return 0;
-}
-
 /*
  * For assigning zero ports.
  */
@@ -1727,12 +1757,12 @@ gensio_stdsock_set_os_funcs(struct gensio_os_funcs *o)
     o->getpeername = gensio_stdsock_getpeername;
     o->getpeerraw = gensio_stdsock_getpeerraw;
     o->socket_get_port = gensio_stdsock_socket_get_port;
-    o->setsockopt = gensio_stdsock_setsockopt;
-    o->getsockopt = gensio_stdsock_getsockopt;
     o->open_listen_sockets = gensio_stdsock_open_listen_sockets;
 #if HAVE_LIBSCTP
     o->sctp_connectx = gensio_stdsock_sctp_connectx;
     o->sctp_recvmsg = gensio_stdsock_sctp_recvmsg;
     o->sctp_send = gensio_stdsock_sctp_send;
+    o->sctp_socket_setup = gensio_stdsock_sctp_socket_setup;
+    o->sctp_get_socket_status = gensio_stdsock_sctp_get_socket_status;
 #endif
 }

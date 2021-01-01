@@ -54,18 +54,12 @@ sctp_setup(struct sctp_data *tdata)
 {
     struct gensio_os_funcs *o = tdata->o;
     struct sctp_status status;
-    int stat_size = sizeof(status);
     unsigned int i;
     int err;
 
-    err = o->getsockopt(tdata->iod, IPPROTO_SCTP, SCTP_STATUS,
-			&status, &stat_size);
+    err = o->sctp_get_socket_status(tdata->iod, &status);
     if (err)
-	/*
-	 * If the remote end closes, this fails with EINVAL.  Just
-	 * assume the remote end closed on error.
-	 */
-	return GE_REMCLOSE;
+	return err;
 
     tdata->instreams = status.sstat_instrms;
     tdata->ostreams = status.sstat_outstrms;
@@ -99,7 +93,6 @@ static int sctp_check_open(void *handler_data, struct gensio_iod *iod)
 static int
 sctp_socket_setup(struct sctp_data *tdata, struct gensio_iod *iod)
 {
-    struct sctp_event_subscribe event_sub;
     int err;
 
     err = tdata->o->socket_setup(iod, true, tdata->nodelay,
@@ -107,21 +100,8 @@ sctp_socket_setup(struct sctp_data *tdata, struct gensio_iod *iod)
     if (err)
 	return err;
 
-    err = tdata->o->setsockopt(iod, IPPROTO_SCTP, SCTP_INITMSG,
-			       &tdata->initmsg, sizeof(tdata->initmsg));
-    if (err)
-	return err;
-
-    err = tdata->o->setsockopt(iod, IPPROTO_SCTP, SCTP_DELAYED_SACK,
-			       &tdata->sackinfo, sizeof(tdata->sackinfo));
-    if (err)
-	return err;
-
-    memset(&event_sub, 0, sizeof(event_sub));
-    event_sub.sctp_data_io_event = 1;
-    err = tdata->o->setsockopt(iod, IPPROTO_SCTP, SCTP_EVENTS,
-			       &event_sub, sizeof(event_sub));
-    return err;
+    return tdata->o->sctp_socket_setup(iod, true, &tdata->initmsg,
+				       &tdata->sackinfo);
 }
 
 static int
@@ -694,16 +674,9 @@ static int
 sctpna_setup_socket(struct gensio_iod *iod, void *data)
 {
     struct sctpna_data *nadata = data;
-    int err;
 
-    err = nadata->o->setsockopt(iod, IPPROTO_SCTP, SCTP_INITMSG,
-				&nadata->initmsg, sizeof(nadata->initmsg));
-    if (err)
-	return err;
-
-    err = nadata->o->setsockopt(iod, IPPROTO_SCTP, SCTP_DELAYED_SACK,
-				&nadata->sackinfo, sizeof(nadata->sackinfo));
-    return err;
+    return iod->f->sctp_socket_setup(iod, false,
+				     &nadata->initmsg, &nadata->sackinfo);
 }
 
 static int
