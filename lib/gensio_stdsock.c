@@ -155,7 +155,7 @@ sctp_shutdown_fds(struct gensio_os_funcs *o,
 
     for (i = 0; i < nrfds; i++) {
 	o->clear_fd_handlers_norpt(fds[i].iod);
-	gensio_os_close(&fds[i].iod);
+	o->close(&fds[i].iod);
     }
     o->free(o, fds);
 }
@@ -924,7 +924,7 @@ gensio_stdsock_socket_setup(struct gensio_iod *iod,
     int err;
     int val = 1;
 
-    err = gensio_os_set_non_blocking(iod);
+    err = o->set_non_blocking(iod);
     if (err)
 	return err;
 
@@ -1503,7 +1503,7 @@ gensio_stdsock_open_listen_sockets(struct gensio_os_funcs *o,
  out_close:
     for (i = 0; i < curr_fd; i++) {
 	o->clear_fd_handlers_norpt(fds[i].iod);
-	gensio_os_close(&fds[i].iod);
+	o->close(&fds[i].iod);
     }
 #if !HAVE_WORKING_PORT0
     if (rv == GE_ADDRINUSE && scaninfo.start != 0 &&
@@ -1676,7 +1676,7 @@ gensio_setup_listen_socket(struct gensio_os_funcs *o, bool do_listen,
 
     o->iod_set_protocol(iod,  protocol);
 
-    rv = gensio_os_set_non_blocking(iod);
+    rv = o->set_non_blocking(iod);
     if (rv)
 	goto out;
 

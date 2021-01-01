@@ -124,7 +124,7 @@ gensio_setup_child_on_pty(struct pty_data *tdata)
     if (err)
 	goto out_err_noconv;
 
-    err = gensio_os_set_non_blocking(iod);
+    err = o->set_non_blocking(iod);
     if (err)
 	goto out_err_noconv;
 
@@ -385,7 +385,7 @@ pty_write(void *handler_data, struct gensio_iod *iod, gensiods *rcount,
 	  const struct gensio_sg *sg, gensiods sglen,
 	  const char *const *auxdata)
 {
-    int rv = gensio_os_write(iod, sg, sglen, rcount);
+    int rv = iod->f->write(iod, sg, sglen, rcount);
 
     if (rv && rv == GE_IOERR)
 	return GE_REMCLOSE; /* We don't seem to get EPIPE from ptys */
@@ -396,7 +396,7 @@ static int
 pty_do_read(struct gensio_iod *iod, void *data, gensiods count,
 	    gensiods *rcount, const char ***auxdata, void *cb_data)
 {
-    int rv = gensio_os_read(iod, data, count, rcount);
+    int rv = iod->f->read(iod, data, count, rcount);
 
     if (rv && rv == GE_IOERR)
 	return GE_REMCLOSE; /* We don't seem to get EPIPE from ptys */

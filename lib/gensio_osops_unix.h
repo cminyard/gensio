@@ -36,7 +36,7 @@ do {								\
     rv = gensio_os_err_to_err(o, err);				\
 } while(0)
 
-int
+static int
 gensio_os_write(struct gensio_iod *iod,
 		const struct gensio_sg *sg, gensiods sglen,
 		gensiods *rcount)
@@ -58,7 +58,7 @@ gensio_os_write(struct gensio_iod *iod,
     return rv;
 }
 
-int
+static int
 gensio_os_read(struct gensio_iod *iod,
 	       void *buf, gensiods buflen, gensiods *rcount)
 {
@@ -79,7 +79,7 @@ gensio_os_read(struct gensio_iod *iod,
     return rv;
 }
 
-int
+static int
 gensio_os_close(struct gensio_iod **iodp)
 {
     struct gensio_iod *iod = *iodp;
@@ -172,7 +172,7 @@ set_non_blocking(struct gensio_os_funcs *o, int fd)
     return 0;
 }
 
-int
+static int
 gensio_os_set_non_blocking(struct gensio_iod *iod)
 {
     return set_non_blocking(iod->f, iod->f->iod_get_fd(iod));

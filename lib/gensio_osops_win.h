@@ -7,7 +7,7 @@
 
 #include <winsock2.h>
 
-int
+static int
 gensio_os_close(struct gensio_iod **iodp)
 {
     struct gensio_iod *iod = *iodp;
@@ -42,7 +42,7 @@ set_non_blocking(struct gensio_os_funcs *o, int fd)
     return 0;
 }
 
-int
+static int
 gensio_os_set_non_blocking(struct gensio_iod *iod)
 {
     struct gensio_os_funcs *o = iod->f;
@@ -132,7 +132,7 @@ gensio_i_os_err_to_err(struct gensio_os_funcs *o,
     return err;
 }
 
-int
+static int
 gensio_os_write(struct gensio_iod *iod,
 		const struct gensio_sg *sg, gensiods sglen,
 		gensiods *rcount)
@@ -140,14 +140,14 @@ gensio_os_write(struct gensio_iod *iod,
     return GE_NOTSUP;
 }
 
-int
+static int
 gensio_os_read(struct gensio_iod *iod,
 	       void *buf, gensiods buflen, gensiods *rcount)
 {
     return GE_NOTSUP;
 }
 
-int
+static int
 gensio_os_is_regfile(struct gensio_iod *iod, bool *isfile)
 {
     /* No special handling for normal files. */

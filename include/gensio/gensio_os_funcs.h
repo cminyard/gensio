@@ -329,6 +329,14 @@ struct gensio_os_funcs {
     int (*iod_get_protocol)(struct gensio_iod *iod);
     void (*iod_set_protocol)(struct gensio_iod *iod, int protocol);
 
+    int (*set_non_blocking)(struct gensio_iod *iod);
+    int (*close)(struct gensio_iod **iod);
+    int (*write)(struct gensio_iod *iod, const struct gensio_sg *sg,
+		 gensiods sglen, gensiods *rcount);
+    int (*read)(struct gensio_iod *iod, void *buf, gensiods buflen,
+		gensiods *rcount);
+    int (*is_regfile)(struct gensio_iod *iod, bool *isfile);
+
     /****** Net Address Handling.  See gensio_addr_xxx functions for info *****/
     int (*addr_create)(struct gensio_os_funcs *o,
 		       int nettype, const void *iaddr, gensiods len,

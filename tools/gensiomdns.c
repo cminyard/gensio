@@ -136,7 +136,7 @@ sigfd_read(struct gensio_iod *iod, void *cb_data)
     struct freed_data *f = cb_data;
     struct signalfd_siginfo i;
 
-    dummy = gensio_os_read(iod, &i, sizeof(i), NULL);
+    dummy = iod->f->read(iod, &i, sizeof(i), NULL);
     f->o->wake(f->closewaiter);
 }
 

@@ -16,6 +16,7 @@
 #include <gensio/gensio.h>
 #include <gensio/gensio_osops_addrinfo.h>
 #include <gensio/gensio_osops_stdsock.h>
+#include <gensio/gensio_osops.h>
 
 #include "utils.h"
 #include <stdlib.h>
@@ -1177,6 +1178,7 @@ gensio_selector_alloc_sel(struct selector_s *sel, int wake_sig)
 
     gensio_addr_addrinfo_set_os_funcs(o);
     gensio_stdsock_set_os_funcs(o);
+    gensio_osops_set_os_funcs(o);
 
     return o;
 }

@@ -1517,7 +1517,7 @@ sterm_write(void *handler_data, struct gensio_iod *iod, gensiods *rcount,
 	    const char *const *auxdata)
 {
     struct sterm_data *sdata = handler_data;
-    int rv = gensio_os_write(iod, sg, sglen, rcount);
+    int rv = sdata->o->write(iod, sg, sglen, rcount);
 
     if (rv && sdata->is_pty && rv == GE_IOERR)
 	return GE_REMCLOSE; /* We don't seem to get EPIPE from ptys */
@@ -1529,7 +1529,7 @@ sterm_do_read(struct gensio_iod *iod, void *data, gensiods count, gensiods *rcou
 	      const char ***auxdata, void *cb_data)
 {
     struct sterm_data *sdata = cb_data;
-    int rv = gensio_os_read(iod, data, count, rcount);
+    int rv = sdata->o->read(iod, data, count, rcount);
 
     if (rv && sdata->is_pty && rv == GE_IOERR)
 	return GE_REMCLOSE; /* We don't seem to get EPIPE from ptys */

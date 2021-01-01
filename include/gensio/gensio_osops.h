@@ -33,25 +33,11 @@ int gensio_os_open_listen_sockets(struct gensio_os_funcs *o,
 		      struct gensio_opensocks **rfds, unsigned int *rnr_fds);
 
 GENSIO_DLL_PUBLIC
-int gensio_os_set_non_blocking(struct gensio_iod *iod);
-
-GENSIO_DLL_PUBLIC
 int gensio_os_get_random(struct gensio_os_funcs *o,
 			 void *data, unsigned int len);
 
 GENSIO_DLL_PUBLIC
-int gensio_os_close(struct gensio_iod **iod);
-
-GENSIO_DLL_PUBLIC
-int gensio_os_write(struct gensio_iod *iod, const struct gensio_sg *sg,
-		    gensiods sglen, gensiods *rcount);
-
-GENSIO_DLL_PUBLIC
-int gensio_os_read(struct gensio_iod *iod, void *buf, gensiods buflen,
-		   gensiods *rcount);
-
-GENSIO_DLL_PUBLIC
-int gensio_os_is_regfile(struct gensio_iod *iod, bool *isfile);
+void gensio_osops_set_os_funcs(struct gensio_os_funcs *o);
 
 /*
  * Unix only APIs.
