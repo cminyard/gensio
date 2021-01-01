@@ -888,6 +888,14 @@ gensio_stdsock_accept(struct gensio_iod *iod,
 	    return err;
 	}
 
+	err = o->set_non_blocking(riod);
+	if (err) {
+	    o->close_socket(&riod);
+	    if (addr)
+		gensio_addr_free(addr);
+	    return err;
+	}
+
 	o->iod_set_protocol(riod, o->iod_get_protocol(iod));
 
 	if (ai) {
@@ -925,11 +933,12 @@ gensio_stdsock_check_socket_open(struct gensio_iod *iod)
 static int
 gensio_stdsock_socket_open(struct gensio_os_funcs *o,
 			   const struct gensio_addr *addr, int protocol,
-			   struct gensio_iod **iod)
+			   struct gensio_iod **riod)
 {
     int sockproto, socktype;
     int newfd, err;
     struct addrinfo *ai;
+    struct gensio_iod *iod;
 
     if (do_errtrig())
 	return GE_NOMEM;
@@ -961,12 +970,19 @@ gensio_stdsock_socket_open(struct gensio_os_funcs *o,
     newfd = socket(ai->ai_family, socktype, sockproto);
     if (newfd == -1)
 	return gensio_os_err_to_err(o, errno);
-    err = o->add_iod(o, GENSIO_IOD_SOCKET, newfd, iod);
-    if (err)
+    err = o->add_iod(o, GENSIO_IOD_SOCKET, newfd, &iod);
+    if (err) {
 	close_socket(o, newfd);
-    else
-	o->iod_set_protocol(*iod, protocol);
-    return err;
+	return err;
+    }
+    o->iod_set_protocol(iod, protocol);
+    err = o->set_non_blocking(iod);
+    if (err) {
+	o->close_socket(&iod);
+	return err;
+    }
+    *riod = iod;
+    return 0;
 }
 
 static int
@@ -977,10 +993,6 @@ gensio_stdsock_socket_set_setup(struct gensio_iod *iod,
     struct gensio_os_funcs *o = iod->f;
     int err;
     int val;
-
-    err = o->set_non_blocking(iod);
-    if (err)
-	return err;
 
     if (opensock_flags & GENSIO_SET_OPENSOCK_KEEPALIVE) {
 	val = !!(opensock_flags & GENSIO_OPENSOCK_KEEPALIVE);
