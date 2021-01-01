@@ -216,24 +216,6 @@ int sel_select_loop(struct selector_s *sel,
 SEL_DLL_PUBLIC
 void sel_wake_all(struct selector_s *sel);
 
-typedef void (*ipmi_sel_add_read_fds_cb)(struct selector_s *sel,
-					 int            *num_fds,
-					 fd_set         *fdset,
-					 struct timeval *timeout,
-					 int            *timeout_invalid,
-					 void           *cb_data);
-typedef void (*ipmi_sel_check_read_fds_cb)(struct selector_s *sel,
-					   fd_set     *fds,
-					   void       *cb_data);
-typedef void (*ipmi_sel_check_timeout_cb)(struct selector_s *sel,
-					  void       *cb_data);
-SEL_DLL_PUBLIC
-void ipmi_sel_set_read_fds_handler(struct selector_s          *sel,
-				   ipmi_sel_add_read_fds_cb   add,
-				   ipmi_sel_check_read_fds_cb handle,
-				   ipmi_sel_check_timeout_cb  timeout,
-				   void                       *cb_data);
-
 /*
  * If you fork and expect to use the selector in the forked process,
  * you *must* call this function in the forked process or you may
