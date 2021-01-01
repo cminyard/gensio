@@ -335,9 +335,6 @@ sctp_getraddr(struct gensio_os_funcs *o,
 {
     int rv;
 
-    if (do_errtrig())
-	return GE_NOMEM;
-
     rv = sctp_getpaddrs(fd, 0, addr);
     if (rv < 0) {
 	return gensio_os_err_to_err(o, errno);
@@ -348,7 +345,7 @@ sctp_getraddr(struct gensio_os_funcs *o,
     return 0;
 }
 
-int
+static int
 gensio_os_sctp_getraddr(struct gensio_iod *iod, void *addr, gensiods *addrlen)
 {
     struct gensio_os_funcs *o = iod->f;
@@ -429,7 +426,7 @@ sctp_addr_to_addr(struct gensio_os_funcs *o,
     return rv;
 }
 
-int
+static int
 gensio_os_sctp_getpaddrs(struct gensio_iod *iod, struct gensio_addr **raddr)
 {
     struct gensio_os_funcs *o = iod->f;
@@ -445,15 +442,12 @@ gensio_os_sctp_getpaddrs(struct gensio_iod *iod, struct gensio_addr **raddr)
     return rv;
 }
 
-int
+static int
 gensio_os_sctp_getladdrs(struct gensio_iod *iod, struct gensio_addr **raddr)
 {
     struct gensio_os_funcs *o = iod->f;
     int rv;
     struct sockaddr *saddr;
-
-    if (do_errtrig())
-	return GE_NOMEM;
 
     rv = sctp_getladdrs(iod->fd, 0, &saddr);
     if (rv < 0) {

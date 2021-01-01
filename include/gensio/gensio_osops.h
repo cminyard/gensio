@@ -118,6 +118,12 @@ GENSIO_DLL_PUBLIC
 int gensio_os_getsockname(struct gensio_iod *iod, struct gensio_addr **addr);
 
 GENSIO_DLL_PUBLIC
+int gensio_os_getpeername(struct gensio_iod *iod, struct gensio_addr **addr);
+
+GENSIO_DLL_PUBLIC
+int gensio_os_getpeerraw(struct gensio_iod *iod, void *addr, gensiods *addrlen);
+
+GENSIO_DLL_PUBLIC
 int gensio_os_get_random(struct gensio_os_funcs *o,
 			 void *data, unsigned int len);
 
@@ -190,15 +196,5 @@ int gensio_os_sctp_send(struct gensio_iod *iod, const struct gensio_sg *sg,
 
 GENSIO_DLL_PUBLIC
 int gensio_os_sctp_connectx(struct gensio_iod *iod, struct gensio_addr *addrs);
-
-GENSIO_DLL_PUBLIC
-int gensio_os_sctp_getpaddrs(struct gensio_iod *iod, struct gensio_addr **addr);
-
-GENSIO_DLL_PUBLIC
-int gensio_os_sctp_getladdrs(struct gensio_iod *iod, struct gensio_addr **addr);
-
-GENSIO_DLL_PUBLIC
-int gensio_os_sctp_getraddr(struct gensio_iod *iod,
-			    void *addr, gensiods *addrlen);
 
 #endif /* GENSIO_OSOPS_H */

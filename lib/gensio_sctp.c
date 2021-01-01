@@ -237,7 +237,7 @@ sctp_control(void *handler_data, struct gensio_iod *iod, bool get, unsigned int 
 	if (i > 0)
 	    return GE_NOTFOUND;
 
-	rv = gensio_os_sctp_getladdrs(iod, &addr);
+	rv = gensio_os_getsockname(iod, &addr);
 	if (rv)
 	    return rv;
 
@@ -258,7 +258,7 @@ sctp_control(void *handler_data, struct gensio_iod *iod, bool get, unsigned int 
 	if (i > 0)
 	    return GE_NOTFOUND;
 
-	rv = gensio_os_sctp_getpaddrs(iod, &addr);
+	rv = gensio_os_getpeername(iod, &addr);
 	if (rv)
 	    return rv;
 
@@ -274,7 +274,7 @@ sctp_control(void *handler_data, struct gensio_iod *iod, bool get, unsigned int 
     case GENSIO_CONTROL_RADDR_BIN:
 	if (!get)
 	    return GE_NOTSUP;
-	return gensio_os_sctp_getraddr(tdata->iod, data, datalen);
+	return gensio_os_getpeerraw(tdata->iod, data, datalen);
 
     case GENSIO_CONTROL_LPORT:
 	rv = gensio_os_socket_get_port(iod, &i);
@@ -875,7 +875,7 @@ sctpna_control_laddr(struct sctpna_data *nadata, bool get,
     if (i >= nadata->nr_acceptfds)
 	return GE_NOTFOUND;
 
-    rv = gensio_os_sctp_getladdrs(nadata->acceptfds[i].iod, &addrs);
+    rv = gensio_os_getsockname(nadata->acceptfds[i].iod, &addrs);
     if (rv)
 	return rv;
 

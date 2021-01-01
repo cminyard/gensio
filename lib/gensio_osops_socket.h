@@ -714,6 +714,10 @@ gensio_os_getsockname(struct gensio_iod *iod, struct gensio_addr **raddr)
     if (do_errtrig())
 	return GE_NOMEM;
 
+#if HAVE_LIBSCTP
+    if (iod->protocol == GENSIO_NET_PROTOCOL_SCTP)
+	return gensio_os_sctp_getladdrs(iod, raddr);
+#endif
     addr = gensio_addr_addrinfo_make(o, sizeof(struct sockaddr_storage));
     if (!addr)
 	return GE_NOMEM;
@@ -730,6 +734,62 @@ gensio_os_getsockname(struct gensio_iod *iod, struct gensio_addr **raddr)
     ai->ai_addrlen = len;
     *raddr = addr;
 
+    return 0;
+}
+
+int
+gensio_os_getpeername(struct gensio_iod *iod, struct gensio_addr **raddr)
+{
+    struct gensio_os_funcs *o = iod->f;
+    struct gensio_addr *addr;
+    struct addrinfo *ai;
+    int err;
+    taddrlen len;
+
+    if (do_errtrig())
+	return GE_NOMEM;
+#if HAVE_LIBSCTP
+    if (iod->protocol == GENSIO_NET_PROTOCOL_SCTP)
+	return gensio_os_sctp_getpaddrs(iod, raddr);
+#endif
+    addr = gensio_addr_addrinfo_make(o, sizeof(struct sockaddr_storage));
+    if (!addr)
+	return GE_NOMEM;
+
+    ai = gensio_addr_addrinfo_get_curr(addr);
+    len = ai->ai_addrlen;
+    err = getpeername(iod->fd, ai->ai_addr, &len);
+    if (err) {
+	gensio_addr_free(addr);
+	return gensio_os_err_to_err(o, errno);
+    }
+
+    ai->ai_family = ai->ai_addr->sa_family;
+    ai->ai_addrlen = len;
+    *raddr = addr;
+
+    return 0;
+}
+
+int
+gensio_os_getpeerraw(struct gensio_iod *iod, void *addr, gensiods *addrlen)
+{
+    struct gensio_os_funcs *o = iod->f;
+    int err;
+    taddrlen len;
+
+    if (do_errtrig())
+	return GE_NOMEM;
+#if HAVE_LIBSCTP
+    if (iod->protocol == GENSIO_NET_PROTOCOL_SCTP)
+	return gensio_os_sctp_getraddr(iod, addr, addrlen);
+#endif
+    len = *addrlen;
+    err = getpeername(iod->fd, addr, &len);
+    if (err)
+	return gensio_os_err_to_err(o, errno);
+    else
+	*addrlen = len;
     return 0;
 }
 
