@@ -5,14 +5,25 @@
  *  SPDX-License-Identifier: LGPL-2.1-only
  */
 
-#ifndef _WIN32
+#include <stdbool.h>
+
+#ifdef _WIN32
+#include <winsock2.h>
+#else
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netdb.h>
+#include <arpa/inet.h>
 #endif
+#include <assert.h>
+#include <stdlib.h>
+#include <string.h>
 
-struct gensio_addr {
-    struct gensio_os_funcs *o;
+#include <gensio/gensio.h>
+#include <gensio/gensio_osops_addrinfo.h>
+
+struct gensio_addr_addrinfo {
+    struct gensio_addr r;
     struct addrinfo *a;
     struct addrinfo *curr;
 #if HAVE_GCC_ATOMICS
@@ -21,14 +32,42 @@ struct gensio_addr {
     bool is_getaddrinfo; /* Allocated with getaddrinfo()? */
 };
 
+static void gensio_addr_addrinfo_free(struct gensio_addr *addr);
+
+#define a_to_info(a) gensio_container_of(a, struct gensio_addr_addrinfo, r);
+
+struct addrinfo *
+gensio_addr_addrinfo_get(const struct gensio_addr *aaddr)
+{
+    struct gensio_addr_addrinfo *addr = a_to_info(aaddr);
+    return addr->a;
+}
+
+struct addrinfo *
+gensio_addr_addrinfo_get_curr(const struct gensio_addr *aaddr)
+{
+    struct gensio_addr_addrinfo *addr = a_to_info(aaddr);
+    return addr->curr;
+}
+
+void
+gensio_addr_addrinfo_set(struct gensio_addr *aaddr,
+			 struct addrinfo *ai)
+{
+    struct gensio_addr_addrinfo *addr = a_to_info(aaddr);
+    assert(addr->a == NULL);
+    addr->a = ai;
+    addr->curr = ai;
+}
+
 static int addrinfo_list_dup(struct gensio_os_funcs *o,
 			     struct addrinfo *ai, struct addrinfo **rai,
 			     struct addrinfo **rpai);
 
-static struct gensio_addr *
-gensio_addr_make(struct gensio_os_funcs *o, socklen_t size)
+static struct gensio_addr_addrinfo *
+gensio_addrinfo_make(struct gensio_os_funcs *o, socklen_t size)
 {
-    struct gensio_addr *addr = o->zalloc(o, sizeof(*addr));
+    struct gensio_addr_addrinfo *addr = o->zalloc(o, sizeof(*addr));
     struct addrinfo *ai = NULL;
 
     if (!addr)
@@ -64,17 +103,28 @@ gensio_addr_make(struct gensio_os_funcs *o, socklen_t size)
 	}
 	ai->ai_addrlen = size;
     }
-    addr->o = o;
+    addr->r.o = o;
     addr->a = ai;
     addr->curr = ai;
 
     return addr;
 }
 
-int
-gensio_addr_create(struct gensio_os_funcs *o,
-		   int nettype, const void *iaddr, gensiods len,
-		   unsigned int port, struct gensio_addr **newaddr)
+struct gensio_addr *
+gensio_addr_addrinfo_make(struct gensio_os_funcs *o, socklen_t size)
+{
+    struct gensio_addr_addrinfo *addr = gensio_addrinfo_make(o, size);
+
+    if (addr)
+	return &addr->r;
+    else
+	return NULL;
+}
+
+static int
+gensio_addr_addrinfo_create(struct gensio_os_funcs *o,
+			    int nettype, const void *iaddr, gensiods len,
+			    unsigned int port, struct gensio_addr **newaddr)
 {
     struct sockaddr_in s4;
 #ifdef AF_INET6
@@ -85,7 +135,7 @@ gensio_addr_create(struct gensio_os_funcs *o,
 #endif
     struct sockaddr *s;
     unsigned int slen;
-    struct gensio_addr *a;
+    struct gensio_addr_addrinfo *a;
 
     switch (nettype) {
     case GENSIO_NETTYPE_IPV4:
@@ -132,18 +182,18 @@ gensio_addr_create(struct gensio_os_funcs *o,
 	return GE_INVAL;
     }
 
-    a = gensio_addr_make(o, slen);
+    a = gensio_addrinfo_make(o, slen);
     if (!a)
 	return GE_NOMEM;
     a->a->ai_family = s->sa_family;
 
     memcpy(a->a->ai_addr, s, slen);
-    *newaddr = a;
+    *newaddr = &a->r;
     return 0;
 }
 
-static int
-sockaddr_get_port(const struct sockaddr *s, unsigned int *port)
+int
+gensio_sockaddr_get_port(const struct sockaddr *s, unsigned int *port)
 {
     switch (s->sa_family) {
     case AF_INET:
@@ -163,8 +213,8 @@ sockaddr_get_port(const struct sockaddr *s, unsigned int *port)
     return 0;
 }
 
-static int
-sockaddr_set_port(const struct sockaddr *s, unsigned int port)
+int
+gensio_sockaddr_set_port(const struct sockaddr *s, unsigned int port)
 {
     switch (s->sa_family) {
     case AF_INET:
@@ -269,11 +319,13 @@ sockaddr_equal(const struct sockaddr *a1, socklen_t l1,
     return true;
 }
 
-bool
-gensio_addr_equal(const struct gensio_addr *a1,
-		  const struct gensio_addr *a2,
-		  bool compare_ports, bool compare_all)
+static bool
+gensio_addr_addrinfo_equal(const struct gensio_addr *aa1,
+			   const struct gensio_addr *aa2,
+			   bool compare_ports, bool compare_all)
 {
+    struct gensio_addr_addrinfo *a1 = a_to_info(aa1);
+    struct gensio_addr_addrinfo *a2 = a_to_info(aa2);
     struct addrinfo *ai1 = a1->a, *ai2 = a2->a;
 
     if (compare_all) {
@@ -335,10 +387,11 @@ gensio_sockaddr_to_str(const struct sockaddr *addr, int flags,
     return 0;
 }
 
-int
-gensio_addr_to_str(const struct gensio_addr *addr,
-		   char *buf, gensiods *pos, gensiods buflen)
+static int
+gensio_addr_addrinfo_to_str(const struct gensio_addr *aaddr,
+			    char *buf, gensiods *pos, gensiods buflen)
 {
+    struct gensio_addr_addrinfo *addr = a_to_info(aaddr);
     gensiods tmppos = 0;
 
     if (!pos)
@@ -347,11 +400,12 @@ gensio_addr_to_str(const struct gensio_addr *addr,
 				  buf, pos, buflen);
 }
 
-int
-gensio_addr_to_str_all(const struct gensio_addr *addr,
-		       char *buf, gensiods *pos, gensiods buflen)
+static int
+gensio_addr_addrinfo_to_str_all(const struct gensio_addr *aaddr,
+				char *buf, gensiods *pos, gensiods buflen)
 {
-    struct gensio_addr a = *addr;
+    struct gensio_addr_addrinfo *addr = a_to_info(aaddr);
+    struct gensio_addr_addrinfo a = *addr;
     bool first = true;
     int rv;
     gensiods tmppos = 0;
@@ -365,7 +419,7 @@ gensio_addr_to_str_all(const struct gensio_addr *addr,
 	    gensio_pos_snprintf(buf, buflen, pos, ";");
 	first = false;
 
-	rv = gensio_addr_to_str(&a, buf, pos, buflen);
+	rv = gensio_addr_to_str(&a.r, buf, pos, buflen);
 	if (rv)
 	    return rv;
     }
@@ -373,13 +427,14 @@ gensio_addr_to_str_all(const struct gensio_addr *addr,
     return 0;
 }
 
-static int
-scan_ips(struct gensio_os_funcs *o, const char *str, bool listen, int ifamily,
-	 int socktype, int protocol, bool *is_port_set, bool scan_port,
-	 struct gensio_addr **raddr)
+int
+gensio_addr_addrinfo_scan_ips(struct gensio_os_funcs *o, const char *str,
+			      bool listen, int ifamily, int socktype,
+			      int protocol, bool *is_port_set, bool scan_port,
+			      struct gensio_addr **raddr)
 {
     char *strtok_data, *strtok_buffer;
-    struct gensio_addr *addr;
+    struct gensio_addr_addrinfo *addr;
     struct addrinfo hints, *ai = NULL, *ai2, *pai = NULL;
     char *ip;
     char *port;
@@ -395,7 +450,7 @@ scan_ips(struct gensio_os_funcs *o, const char *str, bool listen, int ifamily,
     if (!strtok_buffer)
 	return GE_NOMEM;
 
-    addr = gensio_addr_make(o, 0);
+    addr = gensio_addrinfo_make(o, 0);
     if (!addr) {
 	o->free(o, strtok_buffer);
 	return GE_NOMEM;
@@ -492,7 +547,7 @@ scan_ips(struct gensio_os_funcs *o, const char *str, bool listen, int ifamily,
 	 * If a port was/was not set, this must be consistent for all
 	 * addresses.
 	 */
-	rv = sockaddr_get_port(ai->ai_addr, &portnum);
+	rv = gensio_sockaddr_get_port(ai->ai_addr, &portnum);
 	if (rv)
 	    goto out_err;
 	if (first) {
@@ -542,13 +597,13 @@ scan_ips(struct gensio_os_funcs *o, const char *str, bool listen, int ifamily,
     if (is_port_set)
 	*is_port_set = portset;
 
-    *raddr = addr;
+    *raddr = &addr->r;
 
  out_err:
     if (ai)
 	freeaddrinfo(ai);
     if (rv)
-	gensio_addr_free(addr);
+	gensio_addr_addrinfo_free(&addr->r);
     o->free(o, strtok_buffer);
 
     return rv;
@@ -626,20 +681,20 @@ addrinfo_list_dup(struct gensio_os_funcs *o,
     return 0;
 }
 
-struct gensio_addr *
-gensio_addr_dup(const struct gensio_addr *iaddr)
+static struct gensio_addr *
+gensio_addr_addrinfo_dup(const struct gensio_addr *iaaddr)
 {
-    struct gensio_os_funcs *o;
-    struct gensio_addr *addr;
+    struct gensio_addr_addrinfo *iaddr = a_to_info(iaaddr);
+    struct gensio_os_funcs *o = iaddr->r.o;
+    struct gensio_addr_addrinfo *addr;
 
     if (!iaddr)
 	return NULL;
 
-    o = iaddr->o;
     addr = o->zalloc(o, sizeof(*addr));
     if (!addr)
 	return NULL;
-    addr->o = o;
+    addr->r.o = o;
 
 #if HAVE_GCC_ATOMICS
     addr->refcount = iaddr->refcount;
@@ -660,19 +715,21 @@ gensio_addr_dup(const struct gensio_addr *iaddr)
 #endif
     addr->curr = addr->a;
 
-    return addr;
+    return &addr->r;
 }
 
-struct gensio_addr *
-gensio_addr_cat(const struct gensio_addr *addr1,
-		const struct gensio_addr *addr2)
+static struct gensio_addr *
+gensio_addr_addrinfo_cat(const struct gensio_addr *aaddr1,
+			 const struct gensio_addr *aaddr2)
 {
-    struct gensio_os_funcs *o = addr1->o;
-    struct gensio_addr *addr;
+    struct gensio_addr_addrinfo *addr1 = a_to_info(aaddr1);
+    struct gensio_addr_addrinfo *addr2 = a_to_info(aaddr2);
+    struct gensio_os_funcs *o = addr1->r.o;
+    struct gensio_addr_addrinfo *addr;
     struct addrinfo *aip = NULL;
     int rv;
 
-    addr = gensio_addr_make(o, 0);
+    addr = gensio_addrinfo_make(o, 0);
     if (!addr)
 	return NULL;
 
@@ -686,7 +743,7 @@ gensio_addr_cat(const struct gensio_addr *addr1,
 
     addr->curr = addr->a;
 
-    return addr;
+    return &addr->r;
 
  out_err:
     addrinfo_list_free(o, addr->a);
@@ -694,36 +751,12 @@ gensio_addr_cat(const struct gensio_addr *addr1,
     return NULL;
 }
 
-bool
-gensio_addr_cmp(const struct gensio_addr *addr1,
-		const struct gensio_addr *addr2,
-		bool compare_ports, bool all_addr)
+static bool
+gensio_addr_addrinfo_addr_present(const struct gensio_addr *agai,
+				  const void *addr, gensiods addrlen,
+				  bool compare_ports)
 {
-    if (all_addr) {
-	struct addrinfo *ai1 = addr1->a;
-	struct addrinfo *ai2 = addr2->a;
-
-	while (ai1 && ai2) {
-	    if (!sockaddr_equal(ai1->ai_addr, ai1->ai_addrlen,
-				ai2->ai_addr, ai2->ai_addrlen,
-				compare_ports))
-		return false;
-	    ai1 = ai1->ai_next;
-	    ai2 = ai2->ai_next;
-	}
-	return ai1 == ai2; /* Same if they are both NULL. */
-    }
-
-    return sockaddr_equal(addr1->curr->ai_addr, addr1->curr->ai_addrlen,
-			  addr2->curr->ai_addr, addr2->curr->ai_addrlen,
-			  compare_ports);
-}
-
-bool
-gensio_addr_addr_present(const struct gensio_addr *gai,
-			 const void *addr, gensiods addrlen,
-			 bool compare_ports)
-{
+    struct gensio_addr_addrinfo *gai = a_to_info(agai);
     struct addrinfo *ai = gai->a;
 
     while (ai) {
@@ -735,15 +768,12 @@ gensio_addr_addr_present(const struct gensio_addr *gai,
     return false;
 }
 
-void
-gensio_addr_free(struct gensio_addr *addr)
+static void
+gensio_addr_addrinfo_free(struct gensio_addr *aaddr)
 {
-    struct gensio_os_funcs *o;
+    struct gensio_addr_addrinfo *addr = a_to_info(aaddr);
+    struct gensio_os_funcs *o = addr->r.o;
 
-    if (!addr)
-	return;
-
-    o = addr->o;
 #if HAVE_GCC_ATOMICS
     if (__atomic_sub_fetch(addr->refcount, 1, __ATOMIC_SEQ_CST) != 0) {
 	o->free(o, addr);
@@ -761,8 +791,10 @@ gensio_addr_free(struct gensio_addr *addr)
 }
 
 bool
-gensio_addr_next(struct gensio_addr *addr)
+gensio_addr_addrinfo_next(struct gensio_addr *aaddr)
 {
+    struct gensio_addr_addrinfo *addr = a_to_info(aaddr);
+
     if (!addr->curr->ai_next)
 	return false;
     addr->curr = addr->curr->ai_next;
@@ -770,21 +802,27 @@ gensio_addr_next(struct gensio_addr *addr)
 }
 
 void
-gensio_addr_rewind(struct gensio_addr *addr)
+gensio_addr_addrinfo_rewind(struct gensio_addr *aaddr)
 {
+    struct gensio_addr_addrinfo *addr = a_to_info(aaddr);
+
     addr->curr = addr->a;
 }
 
-int
-gensio_addr_get_nettype(const struct gensio_addr *addr)
+static int
+gensio_addr_addrinfo_get_nettype(const struct gensio_addr *aaddr)
 {
+    struct gensio_addr_addrinfo *addr = a_to_info(aaddr);
+
     return addr->curr->ai_addr->sa_family;
 }
 
-bool
-gensio_addr_family_supports(const struct gensio_addr *addr, int family,
-			    int flags)
+static bool
+gensio_addr_addrinfo_family_supports(const struct gensio_addr *aaddr,
+				     int family, int flags)
 {
+    struct gensio_addr_addrinfo *addr = a_to_info(aaddr);
+
     if (addr->curr->ai_addr->sa_family == family)
 	return true;
 #ifdef AF_INET6
@@ -795,10 +833,11 @@ gensio_addr_family_supports(const struct gensio_addr *addr, int family,
     return false;
 }
 
-void
-gensio_addr_getaddr(const struct gensio_addr *addr,
-		    void *oaddr, gensiods *rlen)
+static void
+gensio_addr_addrinfo_getaddr(const struct gensio_addr *aaddr,
+			     void *oaddr, gensiods *rlen)
 {
+    struct gensio_addr_addrinfo *addr = a_to_info(aaddr);
     gensiods len;
 
     len = *rlen;
@@ -806,4 +845,22 @@ gensio_addr_getaddr(const struct gensio_addr *addr,
 	len = addr->curr->ai_addrlen;
     memcpy(oaddr, addr->curr->ai_addr, len);
     *rlen = addr->curr->ai_addrlen;
+}
+
+void
+gensio_addr_addrinfo_set_os_funcs(struct gensio_os_funcs *o)
+{
+    o->addr_create = gensio_addr_addrinfo_create;
+    o->addr_equal = gensio_addr_addrinfo_equal;
+    o->addr_to_str = gensio_addr_addrinfo_to_str;
+    o->addr_to_str_all = gensio_addr_addrinfo_to_str_all;
+    o->addr_dup = gensio_addr_addrinfo_dup;
+    o->addr_cat = gensio_addr_addrinfo_cat;
+    o->addr_addr_present = gensio_addr_addrinfo_addr_present;
+    o->addr_free = gensio_addr_addrinfo_free;
+    o->addr_next = gensio_addr_addrinfo_next;
+    o->addr_rewind = gensio_addr_addrinfo_rewind;
+    o->addr_get_nettype = gensio_addr_addrinfo_get_nettype;
+    o->addr_family_supports = gensio_addr_addrinfo_family_supports;
+    o->addr_getaddr = gensio_addr_addrinfo_getaddr;
 }

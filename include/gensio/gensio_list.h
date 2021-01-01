@@ -9,10 +9,8 @@
 #define GENSIO_LIST_H
 
 #include <gensio/gensio_dllvisibility.h>
+#include <gensio/gensio_types.h>
 #include <stddef.h>
-
-#define gensio_container_of(ptr, type, member)		\
-    ((type *)(((char *) ptr) - offsetof(type, member)))
 
 /*
  * Generic doubly-linked list operations.

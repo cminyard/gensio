@@ -303,6 +303,32 @@ struct gensio_os_funcs {
      * Release an allocated I/O descriptor.
      */
     void (*release_iod)(struct gensio_iod *iod);
+
+    /****** Net Address Handling.  See gensio_addr_xxx functions for info *****/
+    int (*addr_create)(struct gensio_os_funcs *o,
+		       int nettype, const void *iaddr, gensiods len,
+		       unsigned int port, struct gensio_addr **newaddr);
+    bool (*addr_equal)(const struct gensio_addr *a1,
+		       const struct gensio_addr *a2,
+		       bool compare_ports, bool compare_all);
+    int (*addr_to_str)(const struct gensio_addr *addr,
+		       char *buf, gensiods *pos, gensiods buflen);
+    int (*addr_to_str_all)(const struct gensio_addr *addr,
+			   char *buf, gensiods *pos, gensiods buflen);
+    struct gensio_addr *(*addr_dup)(const struct gensio_addr *iaddr);
+    struct gensio_addr *(*addr_cat)(const struct gensio_addr *addr1,
+				    const struct gensio_addr *addr2);
+    bool (*addr_addr_present)(const struct gensio_addr *gai,
+			      const void *addr, gensiods addrlen,
+			      bool compare_ports);
+    void (*addr_free)(struct gensio_addr *addr);
+    bool (*addr_next)(struct gensio_addr *addr);
+    void (*addr_rewind)(struct gensio_addr *addr);
+    int (*addr_get_nettype)(const struct gensio_addr *addr);
+    bool (*addr_family_supports)(const struct gensio_addr *addr,
+				 int family, int flags);
+    void (*addr_getaddr)(const struct gensio_addr *addr,
+			 void *oaddr, gensiods *rlen);
 };
 
 GENSIO_DLL_PUBLIC

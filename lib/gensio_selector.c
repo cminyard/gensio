@@ -14,6 +14,7 @@
 #include <gensio/gensio_selector.h>
 #include <gensio/selector.h>
 #include <gensio/gensio.h>
+#include <gensio/gensio_osops_addrinfo.h>
 
 #include "utils.h"
 #include <stdlib.h>
@@ -1126,6 +1127,8 @@ gensio_selector_alloc_sel(struct selector_s *sel, int wake_sig)
     o->wait_intr_sigmask = gensio_sel_wait_intr_sigmask;
     o->add_iod = gensio_sel_add_iod;
     o->release_iod = gensio_sel_release_iod;
+
+    gensio_addr_addrinfo_set_os_funcs(o);
 
     return o;
 }

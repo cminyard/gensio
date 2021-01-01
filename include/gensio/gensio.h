@@ -386,7 +386,9 @@ bool gensio_acc_is_message(struct gensio_accepter *accepter);
  * Note that some function use the current address, and some use all
  * the addresses.
  */
-struct gensio_addr;
+struct gensio_addr {
+    struct gensio_os_funcs *o;
+};
 
 /*
  * Dealing with iterators.

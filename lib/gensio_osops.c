@@ -65,10 +65,11 @@ struct gensio_iod {
     void (*cleared_handler)(struct gensio_iod *iod, void *cb_data);
 };
 
+#include <gensio/gensio_osops_addrinfo.h>
+
 #ifdef _WIN32
 #include "gensio_osops_win.h"
 #else
 #include "gensio_osops_unix.h"
 #endif
-#include "gensio_osops_addrinfo.h"
 #include "gensio_osops_socket.h"

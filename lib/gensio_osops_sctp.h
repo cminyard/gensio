@@ -46,13 +46,13 @@ gensio_os_sctp_open_socket(struct gensio_os_funcs *o,
     memset(&scaninfo, 0, sizeof(scaninfo));
 
  retry:
-    for (ai = addr->a; ai; ai = ai->ai_next) {
+    for (ai = gensio_addr_addrinfo_get(addr); ai; ai = ai->ai_next) {
 	unsigned int port;
 
 	if (family != ai->ai_family)
 	    continue;
 
-	rv = sockaddr_get_port(ai->ai_addr, &port);
+	rv = gensio_sockaddr_get_port(ai->ai_addr, &port);
 	if (rv)
 	    goto out_err;
 
@@ -240,7 +240,7 @@ gensio_addr_to_sockarray(struct gensio_os_funcs *o, struct gensio_addr *addrs,
     unsigned int slen = 0, i, memlen = 0;
     int ipv6_only = -1;
 
-    for (ai = addrs->a; ai; ai = ai->ai_next) {
+    for (ai = gensio_addr_addrinfo_get(addrs); ai; ai = ai->ai_next) {
 	unsigned int len;
 
 	if (ai->ai_addr->sa_family == AF_INET6) {
@@ -277,7 +277,8 @@ gensio_addr_to_sockarray(struct gensio_os_funcs *o, struct gensio_addr *addrs,
 	return GE_NOMEM;
 
     s = saddrs;
-    for (ai = addrs->a, i = 0; i < slen; ai = ai->ai_next) {
+    for (ai = gensio_addr_addrinfo_get(addrs), i = 0;
+	 i < slen; ai = ai->ai_next) {
 	unsigned int len;
 
 	if (ai->ai_addr->sa_family == AF_INET6)
@@ -387,7 +388,7 @@ sctp_addr_to_addr(struct gensio_os_funcs *o,
     char *d;
     int rv;
 
-    addr = gensio_addr_make(o, 0);
+    addr = gensio_addr_addrinfo_make(o, 0);
     if (!addr)
 	return GE_NOMEM;
 
@@ -399,10 +400,11 @@ sctp_addr_to_addr(struct gensio_os_funcs *o,
 	ai = o->zalloc(o, sizeof(*ai));
 	if (!ai)
 	    goto out;
-	if (!aip)
-	    addr->a = ai;
-	else
+	if (!aip) {
+	    gensio_addr_addrinfo_set(addr, ai);
+	} else {
 	    aip->ai_next = ai;
+	}
 	aip = ai;
 
 	switch (s->sa_family) {
@@ -425,7 +427,6 @@ sctp_addr_to_addr(struct gensio_os_funcs *o,
 	d += size;
     }
     rv = 0;
-    addr->curr = addr->a;
     *raddr = addr;
 
  out:

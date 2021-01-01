@@ -8,6 +8,8 @@
 #ifndef GENSIO_TYPES_H
 #define GENSIO_TYPES_H
 
+#include <stddef.h>
+
 struct gensio;
 
 struct gensio_addr;
@@ -32,5 +34,8 @@ struct gensio_sg {
     const void *buf;
     gensiods buflen;
 };
+
+#define gensio_container_of(ptr, type, member)		\
+    ((type *)(((char *) ptr) - offsetof(type, member)))
 
 #endif /* GENSIO_TYPES_H */
