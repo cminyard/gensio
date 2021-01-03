@@ -16,21 +16,12 @@
 #include <winsock2.h>
 #include <ws2tcpip.h>
 typedef int taddrlen;
-#ifndef EINTR
-#define EINTR WSAEINTR
-#endif
-#ifndef EWOULDBLOCK
-#define EWOULDBLOCK WSAEWOULDBLOCK
-#endif
-#ifndef EAGAIN
-#define EAGAIN WSAEWOULDBLOCK
-#endif
-#ifndef EADDRINUSE
-#define EADDRINUSE WSAEADDRINUSE
-#endif
-#ifndef EPIPE
-#define EPIPE WSAECONNRESET
-#endif
+#define sock_errno WSAGetLastError()
+#define SOCK_EINTR WSAEINTR
+#define SOCK_EWOULDBLOCK WSAEWOULDBLOCK
+#define SOCK_EAGAIN WSAEWOULDBLOCK
+#define SOCK_EADDRINUSE WSAEADDRINUSE
+#define SOCK_EPIPE WSAECONNRESET
 #else
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -40,6 +31,12 @@ typedef int taddrlen;
 #include <errno.h>
 #include <unistd.h>
 typedef socklen_t taddrlen;
+#define sock_errno errno
+#define SOCK_EINTR EINTR
+#define SOCK_EWOULDBLOCK EWOULDBLOCK
+#define SOCK_EAGAIN EWOULDBLOCK
+#define SOCK_EADDRINUSE EADDRINUSE
+#define SOCK_EPIPE EPIPE
 #endif
 #if HAVE_UNIX
 #include <sys/un.h>
@@ -102,16 +99,16 @@ static int gensio_setup_listen_socket(struct gensio_os_funcs *o, bool do_listen,
 do {								\
     int err = 0;						\
     if (rv < 0) {						\
-	if (errno == EINTR)					\
+	if (sock_errno == SOCK_EINTR)				\
 	    goto retry;						\
-	if (errno == EWOULDBLOCK || errno == EAGAIN)		\
+	if (sock_errno == SOCK_EWOULDBLOCK || sock_errno == SOCK_EAGAIN) \
 	    rv = 0; /* Handle like a zero-byte write. */	\
 	else {							\
-	    err = errno;					\
+	    err = sock_errno;					\
 	    assert(err);					\
 	}							\
     } else if (rv == 0) {					\
-	err = EPIPE;						\
+	err = SOCK_EPIPE;					\
     }								\
     if (!err && rcount)						\
 	*rcount = rv;						\
@@ -134,13 +131,13 @@ close_socket(struct gensio_os_funcs *o, int fd)
 #ifdef ENABLE_INTERNAL_TRACE
     /* Close should never fail, but don't crash in production builds. */
     if (err) {
-	err = errno;
+	err = sock_errno;
 	assert(0);
     }
 #endif
 
     if (err == -1)
-	return gensio_os_err_to_err(o, errno);
+	return gensio_os_err_to_err(o, sock_errno);
     return 0;
 }
 
@@ -197,7 +194,7 @@ gensio_os_sctp_open_sockets(struct gensio_os_funcs *o,
 	    if (port == fds[i].port && (fds[i].family == family)) {
 		if (sctp_bindx(o->iod_get_fd(fds[i].iod), ai->ai_addr, 1,
 			       SCTP_BINDX_ADD_ADDR)) {
-		    rv = gensio_os_err_to_err(o, errno);
+		    rv = gensio_os_err_to_err(o, sock_errno);
 		    goto out_err;
 		}
 		break;
@@ -355,7 +352,7 @@ gensio_stdsock_sctp_send(struct gensio_iod *iod,
  retry:
     rv = sctp_sendv(o->iod_get_fd(iod), (struct iovec *) sg, sglen, NULL, 0,
 		    sndinfo, sizeof(*sndinfo), SCTP_SENDV_SNDINFO, flags);
-    if (rv == -1 && errno == EINVAL) {
+    if (rv == -1 && sock_errno == SOCK_EINVAL) {
 	/* No sendv support, fall back. */
 	sctp_sendv_broken = true;
 	goto broken;
@@ -467,7 +464,7 @@ gensio_stdsock_sctp_connectx(struct gensio_iod *iod, struct gensio_addr *addrs)
  out_err:
     o->free(o, saddrs);
     if (err == -1)
-	return gensio_os_err_to_err(o, errno);
+	return gensio_os_err_to_err(o, sock_errno);
     return 0;
 }
 
@@ -479,7 +476,7 @@ sctp_getraddr(struct gensio_os_funcs *o,
 
     rv = sctp_getpaddrs(fd, 0, addr);
     if (rv < 0) {
-	return gensio_os_err_to_err(o, errno);
+	return gensio_os_err_to_err(o, sock_errno);
     } if (rv == 0) {
 	return GE_NOTFOUND;
     }
@@ -593,7 +590,7 @@ gensio_os_sctp_getladdrs(struct gensio_iod *iod, struct gensio_addr **raddr)
 
     rv = sctp_getladdrs(o->iod_get_fd(iod), 0, &saddr);
     if (rv < 0) {
-	return gensio_os_err_to_err(o, errno);
+	return gensio_os_err_to_err(o, sock_errno);
     } if (rv == 0) {
 	return GE_NOTFOUND;
     }
@@ -837,12 +834,12 @@ gensio_stdsock_recvfrom(struct gensio_iod *iod,
 	ai->ai_addrlen = len;
 	ai->ai_family = ai->ai_addr->sa_family;
     } else {
-	if (errno == EINTR)
+	if (sock_errno == SOCK_EINTR)
 	    goto retry;
-	if (errno == EWOULDBLOCK || errno == EAGAIN)
+	if (sock_errno == SOCK_EWOULDBLOCK || sock_errno == SOCK_EAGAIN)
 	    rv = 0; /* Handle like a zero-byte write. */
 	else
-	    err = errno;
+	    err = sock_errno;
     }
     if (!err && rcount)
 	*rcount = rv;
@@ -905,12 +902,14 @@ gensio_stdsock_accept(struct gensio_iod *iod,
 	}
 	*newiod = riod;
 	return 0;
-    } else if (addr) {
-	gensio_addr_free(addr);
+    } else {
+	rv = sock_errno;
+	if (addr)
+	    gensio_addr_free(addr);
     }
-    if (errno == EAGAIN && errno == EWOULDBLOCK)
+    if (rv == SOCK_EAGAIN && rv == SOCK_EWOULDBLOCK)
 	return GE_NODATA;
-    return gensio_os_err_to_err(o, errno);
+    return gensio_os_err_to_err(o, rv);
 }
 
 static int
@@ -926,7 +925,7 @@ gensio_stdsock_check_socket_open(struct gensio_iod *iod)
     err = getsockopt(o->iod_get_fd(iod), SOL_SOCKET, SO_ERROR,
 		     (void *) &optval, &len);
     if (err)
-	return gensio_os_err_to_err(o, errno);
+	return gensio_os_err_to_err(o, sock_errno);
     return gensio_os_err_to_err(o, optval);
 }
 
@@ -969,7 +968,7 @@ gensio_stdsock_socket_open(struct gensio_os_funcs *o,
     ai = gensio_addr_addrinfo_get(addr);
     newfd = socket(ai->ai_family, socktype, sockproto);
     if (newfd == -1)
-	return gensio_os_err_to_err(o, errno);
+	return gensio_os_err_to_err(o, sock_errno);
     err = o->add_iod(o, GENSIO_IOD_SOCKET, newfd, &iod);
     if (err) {
 	close_socket(o, newfd);
@@ -998,7 +997,7 @@ gensio_stdsock_socket_set_setup(struct gensio_iod *iod,
 	val = !!(opensock_flags & GENSIO_OPENSOCK_KEEPALIVE);
 	if (setsockopt(o->iod_get_fd(iod), SOL_SOCKET, SO_KEEPALIVE,
 		       (void *)&val, sizeof(val)) == -1)
-	    return gensio_os_err_to_err(o, errno);
+	    return gensio_os_err_to_err(o, sock_errno);
     }
 
     if (opensock_flags & GENSIO_SET_OPENSOCK_NODELAY) {
@@ -1015,14 +1014,14 @@ gensio_stdsock_socket_set_setup(struct gensio_iod *iod,
 	else
 	    err = 0;
 	if (err)
-	    return gensio_os_err_to_err(o, errno);
+	    return gensio_os_err_to_err(o, sock_errno);
     }
 
     if (opensock_flags & GENSIO_SET_OPENSOCK_REUSEADDR) {
 	val = !!(opensock_flags & GENSIO_OPENSOCK_REUSEADDR);
 	if (setsockopt(o->iod_get_fd(iod), SOL_SOCKET, SO_REUSEADDR,
 		       (void *)&val, sizeof(val)) == -1)
-	    return gensio_os_err_to_err(o, errno);
+	    return gensio_os_err_to_err(o, sock_errno);
     }
 
     if (bindaddr) {
@@ -1034,7 +1033,7 @@ gensio_stdsock_socket_set_setup(struct gensio_iod *iod,
 	    while (ai) {
 		if (sctp_bindx(o->iod_get_fd(iod), ai->ai_addr, 1,
 			       SCTP_BINDX_ADD_ADDR) == -1)
-		    return gensio_os_err_to_err(o, errno);
+		    return gensio_os_err_to_err(o, sock_errno);
 		ai = ai->ai_next;
 	    }
 	    break;
@@ -1044,7 +1043,7 @@ gensio_stdsock_socket_set_setup(struct gensio_iod *iod,
 	case GENSIO_NET_PROTOCOL_UDP:
 	case GENSIO_NET_PROTOCOL_UNIX:
 	    if (bind(o->iod_get_fd(iod), ai->ai_addr, ai->ai_addrlen) == -1)
-		return gensio_os_err_to_err(o, errno);
+		return gensio_os_err_to_err(o, sock_errno);
 	    break;
 
 	default:
@@ -1069,7 +1068,7 @@ gensio_stdsock_socket_get_setup(struct gensio_iod *iod,
 	len = sizeof(val);
 	if (getsockopt(o->iod_get_fd(iod), SOL_SOCKET, SO_KEEPALIVE,
 		       (void *)&val, &len) == -1)
-	    return gensio_os_err_to_err(o, errno);
+	    return gensio_os_err_to_err(o, sock_errno);
 	opensock_flags |= GENSIO_SET_OPENSOCK_KEEPALIVE;
 	if (val)
 	    opensock_flags |= GENSIO_OPENSOCK_KEEPALIVE;
@@ -1089,7 +1088,7 @@ gensio_stdsock_socket_get_setup(struct gensio_iod *iod,
 	else
 	    err = 0;
 	if (err)
-	    return gensio_os_err_to_err(o, errno);
+	    return gensio_os_err_to_err(o, sock_errno);
 	opensock_flags |= GENSIO_SET_OPENSOCK_NODELAY;
 	if (val)
 	    opensock_flags |= GENSIO_OPENSOCK_NODELAY;
@@ -1099,7 +1098,7 @@ gensio_stdsock_socket_get_setup(struct gensio_iod *iod,
 	len = sizeof(val);
 	if (getsockopt(o->iod_get_fd(iod), SOL_SOCKET, SO_REUSEADDR,
 		       (void *)&val, &len) == -1)
-	    return gensio_os_err_to_err(o, errno);
+	    return gensio_os_err_to_err(o, sock_errno);
 	opensock_flags |= GENSIO_SET_OPENSOCK_REUSEADDR;
 	if (val)
 	    opensock_flags |= GENSIO_OPENSOCK_REUSEADDR;
@@ -1127,7 +1126,7 @@ gensio_stdsock_connect(struct gensio_iod *iod, const struct gensio_addr *addr)
     if (err == 0)
 	err = connect(o->iod_get_fd(iod), ai->ai_addr, ai->ai_addrlen);
     if (err == -1)
-	return gensio_os_err_to_err(o, errno);
+	return gensio_os_err_to_err(o, sock_errno);
     return 0;
 }
 
@@ -1184,7 +1183,7 @@ gensio_stdsock_mcast_add(struct gensio_iod *iod,
 				IP_ADD_MEMBERSHIP,
 				(void *) &m, sizeof(m));
 		if (rv == -1)
-		    return gensio_os_err_to_err(o, errno);
+		    return gensio_os_err_to_err(o, sock_errno);
 	    }
 	    break;
 
@@ -1200,7 +1199,7 @@ gensio_stdsock_mcast_add(struct gensio_iod *iod,
 				IPV6_ADD_MEMBERSHIP,
 				(void *) &m, sizeof(m));
 		if (rv == -1)
-		    return gensio_os_err_to_err(o, errno);
+		    return gensio_os_err_to_err(o, sock_errno);
 	    }
 	    break;
 #endif
@@ -1255,7 +1254,7 @@ gensio_stdsock_mcast_del(struct gensio_iod *iod,
 				IP_ADD_MEMBERSHIP,
 				(void *) &m, sizeof(m));
 		if (rv == -1)
-		    return gensio_os_err_to_err(o, errno);
+		    return gensio_os_err_to_err(o, sock_errno);
 	    }
 	    break;
 
@@ -1271,7 +1270,7 @@ gensio_stdsock_mcast_del(struct gensio_iod *iod,
 				IPV6_ADD_MEMBERSHIP,
 				(void *) &m, sizeof(m));
 		if (rv == -1)
-		    return gensio_os_err_to_err(o, errno);
+		    return gensio_os_err_to_err(o, sock_errno);
 	    }
 	    break;
 #endif
@@ -1303,7 +1302,7 @@ gensio_stdsock_set_mcast_loop(struct gensio_iod *iod,
 	rv = setsockopt(o->iod_get_fd(iod), IPPROTO_IP, IP_MULTICAST_LOOP,
 			(void *) &val, sizeof(val));
 	if (rv == -1)
-	    return gensio_os_err_to_err(o, errno);
+	    return gensio_os_err_to_err(o, sock_errno);
 	break;
 
 #ifdef AF_INET6
@@ -1311,7 +1310,7 @@ gensio_stdsock_set_mcast_loop(struct gensio_iod *iod,
 	rv = setsockopt(o->iod_get_fd(iod), IPPROTO_IPV6, IPV6_MULTICAST_LOOP,
 			(void *) &val, sizeof(val));
 	if (rv == -1)
-	    return gensio_os_err_to_err(o, errno);
+	    return gensio_os_err_to_err(o, sock_errno);
 	break;
 #endif
 
@@ -1347,7 +1346,7 @@ gensio_stdsock_getsockname(struct gensio_iod *iod, struct gensio_addr **raddr)
     err = getsockname(o->iod_get_fd(iod), ai->ai_addr, &len);
     if (err) {
 	gensio_addr_free(addr);
-	return gensio_os_err_to_err(o, errno);
+	return gensio_os_err_to_err(o, sock_errno);
     }
 
     ai->ai_family = ai->ai_addr->sa_family;
@@ -1381,7 +1380,7 @@ gensio_stdsock_getpeername(struct gensio_iod *iod, struct gensio_addr **raddr)
     err = getpeername(o->iod_get_fd(iod), ai->ai_addr, &len);
     if (err) {
 	gensio_addr_free(addr);
-	return gensio_os_err_to_err(o, errno);
+	return gensio_os_err_to_err(o, sock_errno);
     }
 
     ai->ai_family = ai->ai_addr->sa_family;
@@ -1407,7 +1406,7 @@ gensio_stdsock_getpeerraw(struct gensio_iod *iod, void *addr, gensiods *addrlen)
     len = *addrlen;
     err = getpeername(o->iod_get_fd(iod), addr, &len);
     if (err)
-	return gensio_os_err_to_err(o, errno);
+	return gensio_os_err_to_err(o, sock_errno);
     else
 	*addrlen = len;
     return 0;
@@ -1425,7 +1424,7 @@ socket_get_port(struct gensio_os_funcs *o, int fd, unsigned int *port)
 
     rv = getsockname(fd, (struct sockaddr *) &sa, &len);
     if (rv)
-	return gensio_os_err_to_err(o, errno);
+	return gensio_os_err_to_err(o, sock_errno);
 
     rv = gensio_sockaddr_get_port((struct sockaddr *) &sa, port);
     if (rv)
@@ -1628,7 +1627,7 @@ gensio_setup_listen_socket(struct gensio_os_funcs *o, bool do_listen,
 
     fd = socket(family, socktype, sockproto);
     if (fd == -1)
-	return gensio_os_err_to_err(o, errno);
+	return gensio_os_err_to_err(o, sock_errno);
 
     if (opensock_flags & GENSIO_OPENSOCK_REUSEADDR) {
 	switch (family) {
@@ -1688,7 +1687,7 @@ gensio_setup_listen_socket(struct gensio_os_funcs *o, bool do_listen,
 	    if (bind(fd, addr, addrlen) == 0) {
 		goto got_it;
 	    } else {
-		if (errno != EADDRINUSE)
+		if (sock_errno != SOCK_EADDRINUSE)
 		    goto out_err;
 	    }
 
@@ -1748,7 +1747,7 @@ gensio_setup_listen_socket(struct gensio_os_funcs *o, bool do_listen,
     return rv;
 
  out_err:
-    rv = gensio_os_err_to_err(o, errno);
+    rv = gensio_os_err_to_err(o, sock_errno);
     goto out;
 }
 
