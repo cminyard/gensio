@@ -120,6 +120,7 @@ gensio_i_os_err_to_err(struct gensio_os_funcs *o,
     case WSAESHUTDOWN:		err = GE_SHUTDOWN; break;
     case WSAEMSGSIZE:		err = GE_TOOBIG; break;
     case WSAEACCES:		err = GE_PERM; break;
+    case WSAEWOULDBLOCK:	err = GE_INPROGRESS; break;
     default:			err = GE_OSERR;
     }
 
