@@ -260,7 +260,10 @@ gensio_i_os_err_to_err(struct gensio_os_funcs *o,
     case ENOENT:	err = GE_NOTFOUND; break;
     case EEXIST:	err = GE_EXISTS; break;
     case EBUSY:		err = GE_INUSE; break;
+    case EAGAIN:	err = GE_INPROGRESS; break;
+#if EAGAIN != EINPROGRESS
     case EINPROGRESS:	err = GE_INPROGRESS; break;
+#endif
     case ETIMEDOUT:	err = GE_TIMEDOUT; break;
     case EPIPE:		err = GE_REMCLOSE; break;
     case ECONNRESET:	err = GE_REMCLOSE; break;
