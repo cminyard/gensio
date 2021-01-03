@@ -11,6 +11,7 @@
 #include <gensio/gensio_dllvisibility.h>
 #include <gensio/gensio_types.h>
 #include <stddef.h>
+#include <stdbool.h>
 
 /*
  * Generic doubly-linked list operations.
@@ -58,5 +59,8 @@ bool gensio_list_empty(struct gensio_list *list);
 #define gensio_list_for_each_safe(list, l, l2) \
     for ((l) = (list)->link.next, (l2) = (l)->next; \
 	 (l) != &(list)->link; (l) = (l2), (l2) = (l)->next )
+
+/* Is the given list link in a list? */
+#define gensio_list_link_inlist(l) ((l)->list != NULL)
 
 #endif /* GENSIO_LIST_H */
