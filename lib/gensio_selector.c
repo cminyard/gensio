@@ -27,6 +27,7 @@
 #include <sys/uio.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/wait.h>
 #include <fcntl.h>
 #include "errtrig.h"
 
@@ -1146,9 +1147,9 @@ do {								\
 } while(0)
 
 static int
-gensio_os_write(struct gensio_iod *iod,
-		const struct gensio_sg *sg, gensiods sglen,
-		gensiods *rcount)
+gensio_selector_write(struct gensio_iod *iod,
+		      const struct gensio_sg *sg, gensiods sglen,
+		      gensiods *rcount)
 {
     struct gensio_os_funcs *o = iod->f;
     ssize_t rv;
@@ -1168,8 +1169,8 @@ gensio_os_write(struct gensio_iod *iod,
 }
 
 static int
-gensio_os_read(struct gensio_iod *iod,
-	       void *buf, gensiods buflen, gensiods *rcount)
+gensio_selector_read(struct gensio_iod *iod,
+		     void *buf, gensiods buflen, gensiods *rcount)
 {
     struct gensio_os_funcs *o = iod->f;
     ssize_t rv;
@@ -1189,7 +1190,7 @@ gensio_os_read(struct gensio_iod *iod,
 }
 
 static int
-gensio_os_close(struct gensio_iod **iodp)
+gensio_selector_close(struct gensio_iod **iodp)
 {
     struct gensio_iod *iiod = *iodp;
     struct gensio_iod_selector *iod = i_to_sel(iiod);
@@ -1219,7 +1220,7 @@ gensio_os_close(struct gensio_iod **iodp)
 }
 
 static int
-gensio_os_set_non_blocking(struct gensio_iod *iiod)
+gensio_selector_set_non_blocking(struct gensio_iod *iiod)
 {
     struct gensio_iod_selector *iod = i_to_sel(iiod);
     struct gensio_os_funcs *o = iiod->f;
@@ -1242,7 +1243,7 @@ gensio_os_set_non_blocking(struct gensio_iod *iiod)
 }
 
 int
-gensio_os_is_regfile(struct gensio_iod *iiod, bool *isfile)
+gensio_selector_is_regfile(struct gensio_iod *iiod, bool *isfile)
 {
     struct gensio_iod_selector *iod = i_to_sel(iiod);
     struct gensio_os_funcs *o = iiod->f;
@@ -1255,6 +1256,159 @@ gensio_os_is_regfile(struct gensio_iod *iiod, bool *isfile)
 	return err;
     }
     *isfile = (statb.st_mode & S_IFMT) == S_IFREG;
+    return 0;
+}
+
+extern char **environ;
+
+static int
+gensio_selector_exec_subprog(struct gensio_os_funcs *o,
+			     const char *argv[], const char **env,
+			     bool stderr_to_stdout,
+			     intptr_t *rpid,
+			     struct gensio_iod **rstdin,
+			     struct gensio_iod **rstdout,
+			     struct gensio_iod **rstderr)
+{
+    int err;
+    int stdinpipe[2] = {-1, -1};
+    int stdoutpipe[2] = {-1, -1};
+    int stderrpipe[2] = {-1, -1};
+    struct gensio_iod *stdiniod = NULL, *stdoutiod = NULL, *stderriod = NULL;
+    int pid = -1;
+
+    if (stderr_to_stdout && rstderr)
+	return GE_INVAL;
+
+    err = pipe(stdinpipe);
+    if (err) {
+	err = errno;
+	goto out_err;
+    }
+
+    err = pipe(stdoutpipe);
+    if (err) {
+	err = errno;
+	goto out_err;
+    }
+
+    err = o->add_iod(o, GENSIO_IOD_PIPE, stdinpipe[1], &stdiniod);
+    if (err)
+	goto out_err_noconv;
+    err = o->add_iod(o, GENSIO_IOD_PIPE, stdoutpipe[0], &stdoutiod);
+    if (err)
+	goto out_err_noconv;
+    err = o->set_non_blocking(stdiniod);
+    if (err)
+	goto out_err_noconv;
+    err = o->set_non_blocking(stdoutiod);
+    if (err)
+	goto out_err_noconv;
+
+    if (rstderr) {
+	err = pipe(stderrpipe);
+	if (err) {
+	    err = errno;
+	    goto out_err;
+	}
+	err = o->add_iod(o, GENSIO_IOD_PIPE, stderrpipe[0], &stderriod);
+	if (err)
+	    goto out_err_noconv;
+	err = o->set_non_blocking(stderriod);
+	if (err)
+	    goto out_err_noconv;
+    }
+
+    pid = fork();
+    if (pid < 0) {
+	err = errno;
+	goto out_err;
+    }
+    if (pid == 0) {
+	int i, openfiles = sysconf(_SC_OPEN_MAX);
+
+	dup2(stdinpipe[0], 0);
+	dup2(stdoutpipe[1], 1);
+	if (stderr_to_stdout)
+	    dup2(stdoutpipe[1], 2);
+	else if (stderr)
+	    dup2(stderrpipe[1], 2);
+
+	/* Close everything but stdio. */
+	for (i = 3; i < openfiles; i++)
+	    close(i);
+
+	err = gensio_os_setupnewprog();
+	if (err) {
+	    fprintf(stderr, "Unable to set groups or user: %s\r\n",
+		    strerror(err));
+	    exit(1);
+	}
+
+	if (env)
+	    environ = (char **) env;
+
+	execvp(argv[0], (char * const *) argv);
+	fprintf(stderr, "Err: %s %s\r\n", argv[0], strerror(errno));
+	exit(1); /* Only reached on error. */
+    }
+
+    close(stdinpipe[0]);
+    close(stdoutpipe[1]);
+    if (stderriod)
+	close(stderrpipe[1]);
+
+    *rpid = pid;
+    *rstdin = stdiniod;
+    *rstdout = stdoutiod;
+    if (rstderr)
+	*rstderr = stderriod;
+    return 0;
+
+ out_err:
+    err = gensio_os_err_to_err(o, err);
+ out_err_noconv:
+    if (stderriod) {
+	o->close(&stderriod);
+	stderrpipe[0] = -1;
+    }
+    if (stdiniod) {
+	o->close(&stdiniod);
+	stdinpipe[1] = -1;
+    }
+    if (stdoutiod) {
+	o->close(&stdoutiod);
+	stdoutpipe[0] = -1;
+    }
+    if (stdinpipe[0] != -1)
+	close(stdinpipe[0]);
+    if (stdinpipe[1] != -1)
+	close(stdinpipe[1]);
+    if (stdoutpipe[0] != -1)
+	close(stdoutpipe[0]);
+    if (stdoutpipe[1] != -1)
+	close(stdoutpipe[1]);
+    if (stderrpipe[0] != -1)
+	close(stderrpipe[0]);
+    if (stderrpipe[1] != -1)
+	close(stderrpipe[1]);
+
+    return err;
+}
+
+static int
+gensio_selector_wait_subprog(struct gensio_os_funcs *o, intptr_t pid,
+			     int *retcode)
+{
+    pid_t rv;
+
+    rv = waitpid(pid, retcode, WNOHANG);
+    if (rv < 0)
+	return gensio_os_err_to_err(o, errno);
+
+    if (rv == 0)
+	return GE_INPROGRESS;
+
     return 0;
 }
 
@@ -1319,11 +1473,13 @@ gensio_selector_alloc_sel(struct selector_s *sel, int wake_sig)
     o->iod_get_protocol = gensio_sel_iod_get_protocol;
     o->iod_set_protocol = gensio_sel_iod_set_protocol;
 
-    o->set_non_blocking = gensio_os_set_non_blocking;
-    o->close = gensio_os_close;
-    o->write = gensio_os_write;
-    o->read = gensio_os_read;
-    o->is_regfile = gensio_os_is_regfile;
+    o->set_non_blocking = gensio_selector_set_non_blocking;
+    o->close = gensio_selector_close;
+    o->write = gensio_selector_write;
+    o->read = gensio_selector_read;
+    o->is_regfile = gensio_selector_is_regfile;
+    o->exec_subprog = gensio_selector_exec_subprog;
+    o->wait_subprog = gensio_selector_wait_subprog;
 
     gensio_addr_addrinfo_set_os_funcs(o);
     gensio_stdsock_set_os_funcs(o);

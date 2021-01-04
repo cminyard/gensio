@@ -14,15 +14,10 @@
 #if HAVE_STDIO
 
 #include <stdlib.h>
-#include <unistd.h>
 #include <string.h>
 #include <errno.h>
-#include <fcntl.h>
 #include <stdio.h>
 #include <assert.h>
-#include <sys/types.h>
-#include <unistd.h>
-#include <sys/wait.h>
 
 #include <gensio/gensio.h>
 #include <gensio/gensio_osops.h>
@@ -41,9 +36,7 @@ struct stdion_channel {
 
     int ll_err; /* Set if an error occurs reading or writing. */
 
-    int infd;
     struct gensio_iod *in_iod;
-    int outfd;
     struct gensio_iod *out_iod;
 
     /* Are the above fds registered with set_fd_handlers()? */
@@ -130,7 +123,7 @@ struct stdiona_data {
      * If non-zero, this is the PID of the other process and we are
      * in client mode.
      */
-    pid_t opid;
+    intptr_t opid;
 
     struct stdion_channel io; /* stdin, stdout */
     struct stdion_channel err; /* stderr */
@@ -288,28 +281,29 @@ static void
 check_waitpid(struct stdion_channel *schan)
 {
     struct stdiona_data *nadata = schan->nadata;
+    struct gensio_os_funcs *o = nadata->o;
 
     if (nadata->closing_chan)
 	schan = nadata->closing_chan;
     if (nadata->opid != -1 && !nadata->io.out_handler_set &&
 		!nadata->io.in_handler_set && !nadata->err.out_handler_set) {
-	pid_t rv;
+	int rv;
 
-	rv = waitpid(nadata->opid, &nadata->exit_code, WNOHANG);
-	if (rv < 0)
-	    /* FIXME = no real way to report this. */
-	    ;
-
-	if (rv == 0) {
+	rv = o->wait_subprog(o, nadata->opid, &nadata->exit_code);
+	if (rv == GE_INPROGRESS) {
 	    gensio_time timeout = { 0, 10000000 };
 
 	    nadata->waitpid_retries++;
 	    /* The sub-process has not died, wait a bit and try again. */
 	    stdiona_ref(nadata);
-	    nadata->o->start_timer(nadata->waitpid_timer, &timeout);
+	    o->start_timer(nadata->waitpid_timer, &timeout);
 	    nadata->closing_chan = schan;
 	    return;
 	}
+
+	if (rv)
+	    /* FIXME = no real way to report this. */
+	    ;
 
 	nadata->exit_code_set = true;
 	nadata->opid = -1;
@@ -467,32 +461,21 @@ static void
 i_stdion_fd_cleared(struct gensio_iod *iod, struct stdiona_data *nadata,
 		    struct stdion_channel *schan)
 {
-    int fd;
-    struct gensio_iod **piod;
-
     if (iod == schan->in_iod) {
-	fd = schan->infd;
 	schan->in_handler_set = false;
-	piod = &schan->in_iod;
-	schan->infd = -1;
+	nadata->o->close(&schan->in_iod);
     } else if (iod == schan->out_iod) {
-	fd = schan->outfd;
 	schan->out_handler_set = false;
-	piod = &schan->out_iod;
-	schan->outfd = -1;
+	nadata->o->close(&schan->out_iod);
     } else {
 	assert(false);
     }
-
-    if (fd > 2) /* Don't close stdin, stdout, or stderr. */
-	nadata->o->close(piod);
 
     if (schan->in_close && !schan->in_handler_set && !schan->out_handler_set) {
 	if (schan == &nadata->io && !nadata->err.out_handler_set &&
 		nadata->err.out_iod) {
 	    /* The stderr channel is not open, so close the fd. */
 	    nadata->o->close(&nadata->err.out_iod);
-	    nadata->err.outfd = -1;
 	}
 	check_waitpid(schan);
     }
@@ -616,141 +599,16 @@ stdion_write_except_ready(struct gensio_iod *iod, void *cbdata)
     stdion_write_ready(iod, cbdata);
 }
 
-extern char **environ;
-
 static int
 setup_child_proc(struct stdiona_data *nadata)
 {
     struct gensio_os_funcs *o = nadata->o;
-    int err;
-    int stdinpipe[2] = {-1, -1};
-    int stdoutpipe[2] = {-1, -1};
-    int stderrpipe[2] = {-1, -1};
+    int rv;
 
-    err = pipe(stdinpipe);
-    if (err) {
-	err = errno;
-	goto out_err;
-    }
-
-    err = pipe(stdoutpipe);
-    if (err) {
-	err = errno;
-	goto out_err;
-    }
-
-    nadata->io.infd = stdinpipe[1];
-    err = o->add_iod(o, GENSIO_IOD_PIPE, nadata->io.infd, &nadata->io.in_iod);
-    if (err)
-	goto out_err_noconv;
-    nadata->io.outfd = stdoutpipe[0];
-    err = o->add_iod(o, GENSIO_IOD_PIPE, nadata->io.outfd, &nadata->io.out_iod);
-    if (err)
-	goto out_err_noconv;
-    err = nadata->o->set_non_blocking(nadata->io.in_iod);
-    if (err)
-	goto out_err_noconv;
-    err = nadata->o->set_non_blocking(nadata->io.out_iod);
-    if (err)
-	goto out_err_noconv;
-
-    nadata->err.infd = -1;
-
-    if (nadata->stderr_to_stdout) {
-	nadata->err.outfd = nadata->io.outfd;
-	nadata->err.out_iod = nadata->io.out_iod;
-	stderrpipe[0] = stdoutpipe[0];
-	stderrpipe[1] = stdoutpipe[1];
-    } else if (nadata->noredir_stderr) {
-	nadata->err.outfd = -1;
-	nadata->err.out_iod = NULL;
-    } else {
-	err = pipe(stderrpipe);
-	if (err) {
-	    err = errno;
-	    goto out_err;
-	}
-	nadata->err.outfd = stderrpipe[0];
-	err = o->add_iod(o, GENSIO_IOD_PIPE, nadata->err.outfd,
-			 &nadata->err.out_iod);
-	if (err)
-	    goto out_err_noconv;
-	err = nadata->o->set_non_blocking(nadata->err.out_iod);
-	if (err)
-	    goto out_err_noconv;
-    }
-
-    nadata->opid = fork();
-    if (nadata->opid < 0) {
-	err = errno;
-	goto out_err;
-    }
-    if (nadata->opid == 0) {
-	int i, openfiles = sysconf(_SC_OPEN_MAX);
-
-	dup2(stdinpipe[0], 0);
-	dup2(stdoutpipe[1], 1);
-	if (!nadata->noredir_stderr)
-	    dup2(stderrpipe[1], 2);
-
-	/* Close everything but stdio. */
-	for (i = 3; i < openfiles; i++)
-	    close(i);
-
-	err = gensio_os_setupnewprog();
-	if (err) {
-	    fprintf(stderr, "Unable to set groups or user: %s\r\n",
-		    strerror(err));
-	    exit(1);
-	}
-
-	if (nadata->env)
-	    environ = (char **) nadata->env;
-
-	execvp(nadata->argv[0], (char * const *) nadata->argv);
-	fprintf(stderr, "Err: %s %s\r\n", nadata->argv[0], strerror(errno));
-	exit(1); /* Only reached on error. */
-    }
-
-    close(stdinpipe[0]);
-    close(stdoutpipe[1]);
-    if (stdoutpipe[1] != stderrpipe[1])
-	close(stderrpipe[1]);
-    return 0;
-
- out_err:
-    err = gensio_os_err_to_err(nadata->o, err);
- out_err_noconv:
-    nadata->io.infd = -1;
-    nadata->io.outfd = -1;
-    nadata->err.outfd = -1;
-    if (nadata->err.out_iod) {
-	if (nadata->err.out_iod != nadata->io.out_iod)
-	    o->release_iod(nadata->err.out_iod);
-	nadata->err.out_iod = NULL;
-    }
-    if (nadata->io.in_iod) {
-	o->release_iod(nadata->io.in_iod);
-	nadata->io.in_iod = NULL;
-    }
-    if (nadata->io.out_iod) {
-	o->release_iod(nadata->io.out_iod);
-	nadata->io.out_iod = NULL;
-    }
-    if (stdinpipe[0] != -1)
-	close(stdinpipe[0]);
-    if (stdinpipe[1] != -1)
-	close(stdinpipe[1]);
-    if (stdoutpipe[0] != -1)
-	close(stdoutpipe[0]);
-    if (stdoutpipe[1] != -1)
-	close(stdoutpipe[1]);
-    if (stderrpipe[0] != -1 && stderrpipe[0] != stdoutpipe[0])
-	close(stderrpipe[0]);
-    if (stderrpipe[1] != -1 && stderrpipe[1] != stdoutpipe[1])
-	close(stderrpipe[1]);
-
-    return err;
+    rv = o->exec_subprog(o, nadata->argv, nadata->env, nadata->stderr_to_stdout,
+			 &nadata->opid, &nadata->io.in_iod, &nadata->io.out_iod,
+			 nadata->noredir_stderr ? NULL : &nadata->err.out_iod);
+    return rv;
 }
 
 static int
@@ -850,18 +708,12 @@ stdion_open(struct gensio *io, gensio_done_err open_done, void *open_data)
     stdiona_deref(nadata);
  out_err:
     cleanup_io_self(nadata);
-    if (nadata->io.infd != -1 && nadata->io.infd != 1)
+    if (nadata->io.in_iod)
 	nadata->o->close(&nadata->io.in_iod);
-    nadata->io.infd = -1;
-    if (nadata->err.outfd != -1 && nadata->err.outfd != 2) {
-	if (nadata->err.outfd != nadata->io.outfd)
-	    nadata->o->close(&nadata->err.out_iod);
-	nadata->err.out_iod = NULL;
-    }
-    nadata->err.outfd = -1;
-    if (nadata->io.outfd != -1 && nadata->io.outfd != 0)
+    if (nadata->err.out_iod)
+	nadata->o->close(&nadata->err.out_iod);
+    if (nadata->io.out_iod)
 	nadata->o->close(&nadata->io.out_iod);
-    nadata->io.outfd = -1;
  out_unlock:
     stdiona_unlock(nadata);
 
@@ -870,8 +722,8 @@ stdion_open(struct gensio *io, gensio_done_err open_done, void *open_data)
 
 static int
 stdion_alloc_channel(struct gensio *io, const char * const args[],
-		    gensio_event cb, void *user_data,
-		    struct gensio **new_io)
+		     gensio_event cb, void *user_data,
+		     struct gensio **new_io)
 {
     struct stdion_channel *schan = gensio_get_gensio_data(io);
     struct stdiona_data *nadata = schan->nadata;
@@ -879,7 +731,7 @@ stdion_alloc_channel(struct gensio *io, const char * const args[],
     unsigned int i;
     gensiods max_read_size = nadata->io.max_read_size;
 
-    if (nadata->stderr_to_stdout || nadata->noredir_stderr)
+    if (!nadata->err.out_iod || io != nadata->io.io)
 	return GE_INVAL;
 
     for (i = 0; args && args[i]; i++) {
@@ -889,14 +741,6 @@ stdion_alloc_channel(struct gensio *io, const char * const args[],
     }
 
     stdiona_lock(nadata);
-    if (io != nadata->io.io) {
-	rv = GE_INVAL;
-	goto out_err;
-    }
-    if (nadata->err.outfd == -1) {
-	rv = GE_NOTFOUND;
-	goto out_err;
-    }
     if (nadata->err.io) {
 	rv = GE_INUSE;
 	goto out_err;
@@ -1018,25 +862,19 @@ stdion_disable(struct gensio *io)
     schan->in_close = false;
     schan->in_open = false;
     schan->close_done = NULL;
-    if (nadata->io.out_handler_set) {
+    if (nadata->io.out_handler_set)
 	nadata->o->clear_fd_handlers_norpt(nadata->io.out_iod);
-	if (nadata->io.outfd != 0)
-	    nadata->o->close(&nadata->io.out_iod);
-	nadata->io.outfd = -1;
-    }
-    if (nadata->io.in_handler_set) {
+    if (nadata->io.out_iod)
+	nadata->o->close(&nadata->io.out_iod);
+    if (nadata->io.in_handler_set)
 	nadata->o->clear_fd_handlers_norpt(nadata->io.in_iod);
-	if (nadata->io.infd != 1)
-	    nadata->o->close(&nadata->io.in_iod);
-	nadata->io.infd = -1;
-    }
-    if (nadata->err.out_handler_set) {
+    if (nadata->io.in_iod)
+	nadata->o->close(&nadata->io.in_iod);
+    if (nadata->err.out_handler_set)
 	nadata->o->clear_fd_handlers_norpt(nadata->err.out_iod);
-	if (nadata->err.outfd != 2)
-	    nadata->o->close(&nadata->err.out_iod);
-	nadata->err.outfd = -1;
-    }
-    stdiona_deref_and_unlock(nadata); /* unlocks */
+    if (nadata->err.out_iod)
+	nadata->o->close(&nadata->err.out_iod);
+    stdiona_deref_and_unlock(nadata);
     return 0;
 }
 
@@ -1046,6 +884,7 @@ stdion_control(struct gensio *io, bool get, unsigned int option,
 {
     struct stdion_channel *schan = gensio_get_gensio_data(io);
     struct stdiona_data *nadata = schan->nadata;
+    struct gensio_os_funcs *o = nadata->o;
     const char **env, **argv;
     int err, status;
     gensiods pos;
@@ -1054,22 +893,22 @@ stdion_control(struct gensio *io, bool get, unsigned int option,
     case GENSIO_CONTROL_ENVIRONMENT:
 	if (get)
 	    return GE_NOTSUP;
-	err = gensio_argv_copy(nadata->o, (const char **) data, NULL, &env);
+	err = gensio_argv_copy(o, (const char **) data, NULL, &env);
 	if (err)
 	    return err;
 	if (nadata->env)
-	    gensio_argv_free(nadata->o, nadata->env);
+	    gensio_argv_free(o, nadata->env);
 	nadata->env = env;
 	return 0;
 
     case GENSIO_CONTROL_ARGS:
 	if (get)
 	    return GE_NOTSUP;
-	err = gensio_argv_copy(nadata->o, (const char **) data, NULL, &argv);
+	err = gensio_argv_copy(o, (const char **) data, NULL, &argv);
 	if (err)
 	    return err;
 	if (nadata->argv)
-	    gensio_argv_free(nadata->o, nadata->argv);
+	    gensio_argv_free(o, nadata->argv);
 	nadata->argv = argv;
 	return 0;
 
@@ -1086,9 +925,10 @@ stdion_control(struct gensio *io, bool get, unsigned int option,
 	    return GE_NOTSUP;
 	if (nadata->opid == -1)
 	    return GE_NOTREADY;
-	err = waitpid(nadata->opid, &status, WNOHANG | WNOWAIT);
-	if (err <= 0)
-	    return GE_NOTREADY;
+	err = o->wait_subprog(o, nadata->opid, &status);
+	if (err)
+	    return err;
+	nadata->opid = -1;
 	*datalen = snprintf(data, *datalen, "%d", status);
 	return 0;
 
@@ -1097,12 +937,10 @@ stdion_control(struct gensio *io, bool get, unsigned int option,
 	    return GE_NOTSUP;
 	err = 0;
 	stdiona_lock(nadata);
-	if (schan->infd == -1) {
+	if (!schan->in_iod)
 	    err = GE_NOTREADY;
-	} else {
-	    nadata->o->clear_fd_handlers(schan->in_iod);
-	    schan->infd = -1;
-	}
+	else
+	    o->clear_fd_handlers(schan->in_iod);
 	stdiona_unlock(nadata);
 	return err;
 
@@ -1126,7 +964,8 @@ stdion_control(struct gensio *io, bool get, unsigned int option,
     case GENSIO_CONTROL_REMOTE_ID:
 	if (!get)
 	    return GE_NOTSUP;
-	*datalen = snprintf(data, *datalen, "%d", nadata->opid);
+	*datalen = snprintf(data, *datalen, "%llu",
+			    (unsigned long long) nadata->opid);
 	return 0;
     }
 
@@ -1199,10 +1038,6 @@ stdio_nadata_setup(struct gensio_os_funcs *o, gensiods max_read_size,
     nadata->err.closed = true;
     nadata->io.nadata = nadata;
     nadata->err.nadata = nadata;
-    nadata->io.infd = -1;
-    nadata->io.outfd = -1;
-    nadata->err.infd = -1;
-    nadata->err.outfd = -1;
     nadata->opid = -1;
 
     nadata->waitpid_timer = o->alloc_timer(o, check_waitpid_timeout,
@@ -1244,13 +1079,6 @@ setup_self(struct stdiona_data *nadata)
 {
     struct gensio_os_funcs *o = nadata->o;
     int err;
-
-    /*
-     * Figure out if the files are regular files.  If they are, they
-     * are handled differently.
-     */
-    nadata->io.infd = 1;
-    nadata->io.outfd = 0;
 
     err = o->add_iod(o,
 		  nadata->io.infd_regfile ? GENSIO_IOD_FILE : GENSIO_IOD_STDIO,

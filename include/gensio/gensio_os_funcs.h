@@ -365,6 +365,22 @@ struct gensio_os_funcs {
      */
     int (*is_regfile)(struct gensio_iod *iod, bool *isfile);
 
+    /*
+     * Execute a sub-program and return the pid, stdin, stdout,
+     * stderr.  If you set stderr_to_stdout, then stderr will be sent
+     * to stdout and rstderr should be NULL.  Otherwise if you want to
+     * leave stderr to the caller's stderr, then set rstderr to NULL.
+     */
+    int (*exec_subprog)(struct gensio_os_funcs *o,
+			const char *argv[], const char **env,
+			bool stderr_to_stdout,
+			intptr_t *rpid,
+			struct gensio_iod **rstdin,
+			struct gensio_iod **rstdout,
+			struct gensio_iod **rstderr);
+    /* Wait for a program to terminate. */
+    int (*wait_subprog)(struct gensio_os_funcs *o, intptr_t pid, int *retcode);
+
     /****** Net Address Handling.  See gensio_addr_xxx functions for info *****/
     int (*addr_create)(struct gensio_os_funcs *o,
 		       int nettype, const void *iaddr, gensiods len,
