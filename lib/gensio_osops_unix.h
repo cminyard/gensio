@@ -5,106 +5,17 @@
  *  SPDX-License-Identifier: LGPL-2.1-only
  */
 
-#include <sys/uio.h>
 #ifdef HAVE_TCPD_H
 #include <tcpd.h>
 #endif /* HAVE_TCPD_H */
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 #include <unistd.h>
 #include <grp.h>
 #include <pwd.h>
-#include <fcntl.h>
 #include <errno.h>
 #include <sys/stat.h>
-
-#define ERRHANDLE()			\
-do {								\
-    int err = 0;						\
-    if (rv < 0) {						\
-	if (errno == EINTR)					\
-	    goto retry;						\
-	if (errno == EWOULDBLOCK || errno == EAGAIN)		\
-	    rv = 0; /* Handle like a zero-byte write. */	\
-	else {							\
-	    err = errno;					\
-	    assert(err);					\
-	}							\
-    } else if (rv == 0) {					\
-	err = EPIPE;						\
-    }								\
-    if (!err && rcount)						\
-	*rcount = rv;						\
-    rv = gensio_os_err_to_err(o, err);				\
-} while(0)
-
-static int
-gensio_os_write(struct gensio_iod *iod,
-		const struct gensio_sg *sg, gensiods sglen,
-		gensiods *rcount)
-{
-    struct gensio_os_funcs *o = iod->f;
-    ssize_t rv;
-
-    if (do_errtrig())
-	return GE_NOMEM;
-
-    if (sglen == 0) {
-	if (rcount)
-	    *rcount = 0;
-	return 0;
-    }
- retry:
-    rv = writev(o->iod_get_fd(iod), (struct iovec *) sg, sglen);
-    ERRHANDLE();
-    return rv;
-}
-
-static int
-gensio_os_read(struct gensio_iod *iod,
-	       void *buf, gensiods buflen, gensiods *rcount)
-{
-    struct gensio_os_funcs *o = iod->f;
-    ssize_t rv;
-
-    if (do_errtrig())
-	return GE_NOMEM;
-
-    if (buflen == 0) {
-	if (rcount)
-	    *rcount = 0;
-	return 0;
-    }
- retry:
-    rv = read(o->iod_get_fd(iod), buf, buflen);
-    ERRHANDLE();
-    return rv;
-}
-
-static int
-gensio_os_close(struct gensio_iod **iodp)
-{
-    struct gensio_iod *iod = *iodp;
-    struct gensio_os_funcs *o = iod->f;
-    int err;
-
-    /* Don't do errtrig on close, it can fail and not cause any issues. */
-
-    assert(iodp);
-    //assert(!iod->handlers_set); FIXME
-    err = close(o->iod_get_fd(iod));
-#ifdef ENABLE_INTERNAL_TRACE
-    /* Close should never fail, but don't crash in production builds. */
-    if (err) {
-	err = errno;
-	assert(0);
-    }
-#endif
-    o->release_iod(iod);
-    *iodp = NULL;
-
-    if (err == -1)
-	return gensio_os_err_to_err(o, errno);
-    return 0;
-}
 
 int
 gensio_os_setupnewprog(void)
@@ -161,23 +72,6 @@ gensio_os_setupnewprog(void)
     return 0;
 }
 
-static int
-set_non_blocking(struct gensio_os_funcs *o, int fd)
-{
-    if (do_errtrig())
-	return GE_NOMEM;
-
-    if (fcntl(fd, F_SETFL, O_NONBLOCK) == -1)
-	return gensio_os_err_to_err(o, errno);
-    return 0;
-}
-
-static int
-gensio_os_set_non_blocking(struct gensio_iod *iod)
-{
-    return set_non_blocking(iod->f, iod->f->iod_get_fd(iod));
-}
-
 const char *
 gensio_os_check_tcpd_ok(struct gensio_iod *iod, const char *iprogname)
 {
@@ -226,22 +120,6 @@ gensio_os_get_random(struct gensio_os_funcs *o,
  out:
     close(fd);
     return gensio_os_err_to_err(o, rv);
-}
-
-int
-gensio_os_is_regfile(struct gensio_iod *iod, bool *isfile)
-{
-    struct gensio_os_funcs *o = iod->f;
-    int err;
-    struct stat statb;
-
-    err = fstat(o->iod_get_fd(iod), &statb);
-    if (err == -1) {
-	err = gensio_os_err_to_err(o, errno);
-	return err;
-    }
-    *isfile = (statb.st_mode & S_IFMT) == S_IFREG;
-    return 0;
 }
 
 int

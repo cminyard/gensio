@@ -30,10 +30,6 @@ bool gensio_set_progname(const char *iprogname)
 
 #ifdef _WIN32
 #include "gensio_osops_win.h"
-#else
-#include "gensio_osops_unix.h"
-#endif
-
 void
 gensio_osops_set_os_funcs(struct gensio_os_funcs *o)
 {
@@ -43,6 +39,14 @@ gensio_osops_set_os_funcs(struct gensio_os_funcs *o)
     o->read = gensio_os_read;
     o->is_regfile = gensio_os_is_regfile;
 }
+
+#else
+#include "gensio_osops_unix.h"
+void
+gensio_osops_set_os_funcs(struct gensio_os_funcs *o)
+{
+}
+#endif
 
 int
 gensio_os_open_listen_sockets(struct gensio_os_funcs *o,
@@ -79,7 +83,7 @@ gensio_os_open_listen_sockets(struct gensio_os_funcs *o,
 
     for (i = 0; i < nr_fds; i++) {
 	o->clear_fd_handlers_norpt(fds[i].iod);
-	gensio_os_close(&fds[i].iod);
+	o->close_socket(&fds[i].iod);
     }
     o->free(o, fds);
 

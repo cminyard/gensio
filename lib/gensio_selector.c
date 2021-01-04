@@ -23,6 +23,11 @@
 #include <assert.h>
 #include <stdio.h>
 #include <stdbool.h>
+#include <unistd.h>
+#include <sys/uio.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 #include "errtrig.h"
 
 struct gensio_data {
@@ -557,6 +562,9 @@ struct gensio_iod_selector {
     void (*write_handler)(struct gensio_iod *iod, void *cb_data);
     void (*except_handler)(struct gensio_iod *iod, void *cb_data);
     void (*cleared_handler)(struct gensio_iod *iod, void *cb_data);
+
+    bool orig_file_flags_set;
+    int orig_file_flags;
 };
 
 #define i_to_sel(i) gensio_container_of(i, struct gensio_iod_selector, r);
@@ -1080,6 +1088,8 @@ gensio_sel_release_iod(struct gensio_iod *iiod)
     struct gensio_iod_selector *iod = i_to_sel(iiod);
 
     assert(!iod->handlers_set);
+    if (iod->type == GENSIO_IOD_STDIO && iod->orig_file_flags_set)
+	fcntl(iod->fd, F_SETFL, iod->orig_file_flags);
     iod->r.f->free(iiod->f, iod);
 }
 
@@ -1113,6 +1123,139 @@ gensio_sel_iod_set_protocol(struct gensio_iod *iiod, int protocol)
     struct gensio_iod_selector *iod = i_to_sel(iiod);
 
     iod->protocol = protocol;
+}
+
+#define ERRHANDLE()			\
+do {								\
+    int err = 0;						\
+    if (rv < 0) {						\
+	if (errno == EINTR)					\
+	    goto retry;						\
+	if (errno == EWOULDBLOCK || errno == EAGAIN)		\
+	    rv = 0; /* Handle like a zero-byte write. */	\
+	else {							\
+	    err = errno;					\
+	    assert(err);					\
+	}							\
+    } else if (rv == 0) {					\
+	err = EPIPE;						\
+    }								\
+    if (!err && rcount)						\
+	*rcount = rv;						\
+    rv = gensio_os_err_to_err(o, err);				\
+} while(0)
+
+static int
+gensio_os_write(struct gensio_iod *iod,
+		const struct gensio_sg *sg, gensiods sglen,
+		gensiods *rcount)
+{
+    struct gensio_os_funcs *o = iod->f;
+    ssize_t rv;
+
+    if (do_errtrig())
+	return GE_NOMEM;
+
+    if (sglen == 0) {
+	if (rcount)
+	    *rcount = 0;
+	return 0;
+    }
+ retry:
+    rv = writev(o->iod_get_fd(iod), (struct iovec *) sg, sglen);
+    ERRHANDLE();
+    return rv;
+}
+
+static int
+gensio_os_read(struct gensio_iod *iod,
+	       void *buf, gensiods buflen, gensiods *rcount)
+{
+    struct gensio_os_funcs *o = iod->f;
+    ssize_t rv;
+
+    if (do_errtrig())
+	return GE_NOMEM;
+
+    if (buflen == 0) {
+	if (rcount)
+	    *rcount = 0;
+	return 0;
+    }
+ retry:
+    rv = read(o->iod_get_fd(iod), buf, buflen);
+    ERRHANDLE();
+    return rv;
+}
+
+static int
+gensio_os_close(struct gensio_iod **iodp)
+{
+    struct gensio_iod *iiod = *iodp;
+    struct gensio_iod_selector *iod = i_to_sel(iiod);
+    struct gensio_os_funcs *o = iiod->f;
+    int err;
+
+    /* Don't do errtrig on close, it can fail and not cause any issues. */
+
+    assert(iodp);
+    assert(!iod->handlers_set);
+    if (iod->type != GENSIO_IOD_STDIO) {
+	err = close(iod->fd);
+#ifdef ENABLE_INTERNAL_TRACE
+	/* Close should never fail, but don't crash in production builds. */
+	if (err) {
+	    err = errno;
+	    assert(0);
+	}
+#endif
+    }
+    o->release_iod(iiod);
+    *iodp = NULL;
+
+    if (err == -1)
+	return gensio_os_err_to_err(o, errno);
+    return 0;
+}
+
+static int
+gensio_os_set_non_blocking(struct gensio_iod *iiod)
+{
+    struct gensio_iod_selector *iod = i_to_sel(iiod);
+    struct gensio_os_funcs *o = iiod->f;
+    int rv;
+
+    if (do_errtrig())
+	return GE_NOMEM;
+
+    rv = fcntl(iod->fd, F_GETFL, 0);
+    if (rv == -1)
+	return gensio_os_err_to_err(o, errno);
+    if (iod->type == GENSIO_IOD_STDIO && !iod->orig_file_flags_set) {
+	iod->orig_file_flags = rv;
+	iod->orig_file_flags_set = true;
+    }
+    rv |= O_NONBLOCK;
+    if (fcntl(iod->fd, F_SETFL, rv) == -1)
+	return gensio_os_err_to_err(o, errno);
+    return 0;
+}
+
+int
+gensio_os_is_regfile(struct gensio_iod *iiod, bool *isfile)
+{
+    struct gensio_iod_selector *iod = i_to_sel(iiod);
+    struct gensio_os_funcs *o = iiod->f;
+    int err;
+    struct stat statb;
+
+    err = fstat(iod->fd, &statb);
+    if (err == -1) {
+	err = gensio_os_err_to_err(o, errno);
+	return err;
+    }
+    *isfile = (statb.st_mode & S_IFMT) == S_IFREG;
+    return 0;
 }
 
 static struct gensio_os_funcs *
@@ -1176,9 +1319,14 @@ gensio_selector_alloc_sel(struct selector_s *sel, int wake_sig)
     o->iod_get_protocol = gensio_sel_iod_get_protocol;
     o->iod_set_protocol = gensio_sel_iod_set_protocol;
 
+    o->set_non_blocking = gensio_os_set_non_blocking;
+    o->close = gensio_os_close;
+    o->write = gensio_os_write;
+    o->read = gensio_os_read;
+    o->is_regfile = gensio_os_is_regfile;
+
     gensio_addr_addrinfo_set_os_funcs(o);
     gensio_stdsock_set_os_funcs(o);
-    gensio_osops_set_os_funcs(o);
 
     return o;
 }

@@ -346,7 +346,10 @@ struct gensio_os_funcs {
     void (*iod_set_protocol)(struct gensio_iod *iod, int protocol);
 
     /****** Generic OS functions ******/
-    /*Set the I/O descriptor non-blocking. */
+    /*
+     * Set the I/O descriptor non-blocking.  Note that release_iod
+     * will restore the original value if necessary.
+     */
     int (*set_non_blocking)(struct gensio_iod *iod);
     /* Close the I/O descriptor.  Sets what iod point to to NULL. */
     int (*close)(struct gensio_iod **iod);
