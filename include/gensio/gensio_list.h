@@ -63,4 +63,11 @@ bool gensio_list_empty(struct gensio_list *list);
 /* Is the given list link in a list? */
 #define gensio_list_link_inlist(l) ((l)->list != NULL)
 
+#define gensio_list_link_init(l) \
+    do {					 \
+	(l)->list = NULL;			 \
+	(l)->prev = NULL;			 \
+	(l)->next = NULL;			 \
+    } while(0)
+
 #endif /* GENSIO_LIST_H */
