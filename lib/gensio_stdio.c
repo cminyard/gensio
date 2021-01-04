@@ -113,11 +113,6 @@ struct stdiona_data {
 
     struct gensio_timer *waitpid_timer;
 
-    int old_flags_ostdin;
-    int old_flags_ostdout;
-    bool old_flags_ostdin_set;
-    bool old_flags_ostdout_set;
-
     /* For the accepter only. */
     bool in_free;
     bool in_shutdown;
@@ -768,50 +763,23 @@ setup_io_self(struct stdiona_data *nadata)
      * on non-blocking.
      */
     if (!nadata->io.infd_regfile) {
-	rv = fcntl(nadata->io.infd, F_GETFL, 0);
-	if (rv == -1) {
-	    rv = gensio_os_err_to_err(nadata->o, errno);
-	    goto out_err;
-	}
-	nadata->old_flags_ostdin = rv;
 	rv = nadata->o->set_non_blocking(nadata->io.in_iod);
 	if (rv)
-	    goto out_err;
-	nadata->old_flags_ostdin_set = true;
+	    return rv;
     }
 
     if (!nadata->io.outfd_regfile) {
-	rv = fcntl(nadata->io.outfd, F_GETFL, 0);
-	if (rv == -1) {
-	    rv = gensio_os_err_to_err(nadata->o, errno);
-	    goto out_err;
-	}
-	nadata->old_flags_ostdout = rv;
-
 	rv = nadata->o->set_non_blocking(nadata->io.out_iod);
 	if (rv)
-	    goto out_err;
-	nadata->old_flags_ostdout_set = true;
+	    return rv;
     }
-    rv = 0;
 
- out_err:
-    if (rv && nadata->old_flags_ostdin_set) {
-	fcntl(nadata->io.infd, F_SETFL, nadata->old_flags_ostdin);
-	nadata->old_flags_ostdin_set = false;
-    }
-    return rv;
+    return 0;
 }
 
 static void
 cleanup_io_self(struct stdiona_data *nadata)
 {
-    if (nadata->old_flags_ostdin_set)
-	fcntl(nadata->io.infd, F_SETFL, nadata->old_flags_ostdin);
-    nadata->old_flags_ostdin_set = false;
-    if (nadata->old_flags_ostdout_set)
-	fcntl(nadata->io.outfd, F_SETFL, nadata->old_flags_ostdout);
-    nadata->old_flags_ostdout_set = false;
     if (nadata->io.out_handler_set)
 	nadata->o->clear_fd_handlers_norpt(nadata->io.out_iod);
     nadata->io.out_handler_set = false;
@@ -1429,12 +1397,6 @@ stdiona_fd_cleared(struct gensio_iod *iod, void *cbdata)
 	schan->in_handler_set = false;
     else
 	schan->out_handler_set = false;
-
-    if (!nadata->io.in_handler_set && !nadata->io.out_handler_set) {
-	/* We came from an acceptor, set stdio back to original values. */
-	fcntl(nadata->io.infd, F_SETFL, nadata->old_flags_ostdin);
-	fcntl(nadata->io.outfd, F_SETFL, nadata->old_flags_ostdout);
-    }
 
     if (!schan->in_handler_set && !schan->out_handler_set && schan->in_close) {
 	schan->in_close = false;
