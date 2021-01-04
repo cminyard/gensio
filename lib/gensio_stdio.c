@@ -9,10 +9,6 @@
 
 #include "config.h"
 
-#include <gensio/gensio_class.h>
-
-#if HAVE_STDIO
-
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
@@ -22,6 +18,7 @@
 #include <gensio/gensio.h>
 #include <gensio/gensio_osops.h>
 #include <gensio/gensio_builtins.h>
+#include <gensio/gensio_class.h>
 
 #include "utils.h"
 
@@ -1487,44 +1484,3 @@ str_to_stdio_gensio_accepter(const char *str, const char * const args[],
 {
     return stdio_gensio_accepter_alloc(args, o, cb, user_data, acc);
 }
-
-#else
-
-int
-stdio_gensio_alloc(const char * const argv[], const char * const args[],
-		   struct gensio_os_funcs *o,
-		   gensio_event cb, void *user_data,
-		   struct gensio **new_gensio)
-{
-    return GE_NOTSUP;
-}
-
-int
-str_to_stdio_gensio(const char *str, const char * const args[],
-		    struct gensio_os_funcs *o,
-		    gensio_event cb, void *user_data,
-		    struct gensio **new_gensio)
-{
-    return GE_NOTSUP;
-}
-
-int
-stdio_gensio_accepter_alloc(const char * const args[],
-			    struct gensio_os_funcs *o,
-			    gensio_accepter_event cb, void *user_data,
-			    struct gensio_accepter **accepter)
-{
-    return GE_NOTSUP;
-}
-
-int
-str_to_stdio_gensio_accepter(const char *str, const char * const args[],
-			     struct gensio_os_funcs *o,
-			     gensio_accepter_event cb,
-			     void *user_data,
-			     struct gensio_accepter **acc)
-{
-    return GE_NOTSUP;
-}
-
-#endif

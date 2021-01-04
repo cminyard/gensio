@@ -15,19 +15,16 @@ case $target_os in
 		LIBS="$LIBS -lws2_32 -liphlpapi -lgdi32 -lbcrypt"
 		uucp_locking_flag=no
 		system_type=windows
-		HAVE_STDIO=0
 		HAVE_SERIALDEV=0
 		USE_FILE_STDIO=1
 		;;
 	cygwin*)
 		uucp_locking_flag=no
 		system_type=unix
-		HAVE_STDIO=1
 		HAVE_SERIALDEV=0
 		USE_FILE_STDIO=0
 		;;
 	*)
-		HAVE_STDIO=1
 		HAVE_SERIALDEV=1
 		USE_FILE_STDIO=0
 		system_type=unix
@@ -418,9 +415,6 @@ AC_DEFINE_UNQUOTED([HAVE_PTY], [$HAVE_PTY], [Enable PTY gensio])
 
 AM_CONDITIONAL([HAVE_UNIX_OS], [test ${system_type} != windows])
 AM_CONDITIONAL([HAVE_WINDOWS_OS], [test ${system_type} = windows])
-
-AC_SUBST(HAVE_STDIO)
-AC_DEFINE_UNQUOTED([HAVE_STDIO], [$HAVE_STDIO], [Enable stdio gensio])
 
 AC_SUBST(HAVE_SERIALDEV)
 AC_DEFINE_UNQUOTED([HAVE_SERIALDEV], [$HAVE_SERIALDEV], [Enable serialdev gensio])
