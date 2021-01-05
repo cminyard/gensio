@@ -365,6 +365,21 @@ struct gensio_os_funcs {
      */
     int (*is_regfile)(struct gensio_iod *iod, bool *isfile);
 
+#define GENSIO_IN_BUF	(1 << 0)
+#define GENSIO_OUT_BUF	(1 << 1)
+    /*
+     * Return the number of pending bytes on a buffer.  It only works
+     * on a few iods, and returns GE_NOSUP if it's not supported.
+     * whichbuf only takes one value, not a bitmask.
+     */
+    int (*bufcount)(struct gensio_iod *iod, int whichbuf, gensiods *count);
+
+    /*
+     * Remove all the data from the I/O's buffer without sending it.
+     * whichbuf is a bitmask.
+     */
+    void (*flush)(struct gensio_iod *iod, int whichbuf);
+
     /*
      * Execute a sub-program and return the pid, stdin, stdout,
      * stderr.  If you set stderr_to_stdout, then stderr will be sent

@@ -58,12 +58,6 @@ set_flowcontrol(int fd, bool val)
     return ioctl(fd, TCXONC, val ? TCOOFF : TCOON);
 }
 
-static int
-do_flush(int fd, int val)
-{
-    return ioctl(fd, TCFLSH, val);
-}
-
 static void
 do_break(int fd)
 {
@@ -93,12 +87,6 @@ static int
 set_flowcontrol(int fd, bool val)
 {
     return tcflow(fd, val ? TCOOFF : TCOON);
-}
-
-static int
-do_flush(int fd, int val)
-{
-    return tcflush(fd, val);
 }
 
 static void
@@ -1062,11 +1050,9 @@ static int
 sterm_flowcontrol_state(struct sergensio *sio, bool val)
 {
     struct sterm_data *sdata = sergensio_get_gensio_data(sio);
-    int err;
 
-    err = set_flowcontrol(sdata->fd, val);
-    if (err)
-	return errno;
+    if (set_flowcontrol(sdata->fd, val))
+	return gensio_os_err_to_err(sdata->o, errno);
     return 0;
 }
 
@@ -1074,19 +1060,20 @@ static int
 sterm_flush(struct sergensio *sio, unsigned int val)
 {
     struct sterm_data *sdata = sergensio_get_gensio_data(sio);
-    int err;
+    struct gensio_os_funcs *o = sdata->o;
     int tval;
 
     switch(val) {
-    case SERGIO_FLUSH_RCV_BUFFER:	tval = TCIFLUSH; break;
-    case SERGIO_FLUSH_XMIT_BUFFER:	tval = TCOFLUSH; break;
-    case SERGIO_FLUSH_RCV_XMIT_BUFFERS:	tval = TCIOFLUSH; break;
-    default: return GE_INVAL;
+    case SERGIO_FLUSH_RCV_BUFFER:	tval = GENSIO_IN_BUF; break;
+    case SERGIO_FLUSH_XMIT_BUFFER:	tval = GENSIO_OUT_BUF; break;
+    case SERGIO_FLUSH_RCV_XMIT_BUFFERS:
+	tval = GENSIO_IN_BUF | GENSIO_OUT_BUF;
+	break;
+    default:
+	return GE_INVAL;
     }
 
-    err = do_flush(sdata->fd, tval);
-    if (err)
-	return errno;
+    o->flush(sdata->iod, tval);
     return 0;
 }
 
@@ -1168,7 +1155,9 @@ sterm_check_close_drain(void *handler_data, enum gensio_ll_close_state state,
 			gensio_time *next_timeout)
 {
     struct sterm_data *sdata = handler_data;
-    int rv, count = 0, err = 0;
+    struct gensio_os_funcs *o = sdata->o;
+    int rv, err = 0;
+    gensiods count = 0;
 
     sterm_lock(sdata);
     if (state == GENSIO_LL_CLOSE_STATE_START) {
@@ -1191,7 +1180,7 @@ sterm_check_close_drain(void *handler_data, enum gensio_ll_close_state state,
     if (!sdata->timer_stopped)
 	goto out_einprogress;
 
-    rv = ioctl(sdata->fd, TIOCOUTQ, &count);
+    rv = o->bufcount(sdata->iod, GENSIO_OUT_BUF, &count);
     if (rv || count <= 0)
 	goto out_rm_uucp;
     if (sdata->last_close_outq_count == 0 ||
@@ -1215,7 +1204,7 @@ sterm_check_close_drain(void *handler_data, enum gensio_ll_close_state state,
     next_timeout->nsecs = 10000000;
  out_rm_uucp:
     if (!err) {
-	do_flush(sdata->fd, TCOFLUSH);
+	o->flush(sdata->iod, GENSIO_OUT_BUF);
 	set_termios(sdata->fd, &sdata->orig_termios);
 	if (!sdata->no_uucp_lock)
 	    uucp_rm_lock(sdata->devname);

@@ -31,6 +31,14 @@
 #include <fcntl.h>
 #include "errtrig.h"
 
+#ifdef HAVE_TERMIOS2
+#include <asm/termios.h>
+int ioctl(int fd, int op, ...);
+#else
+#include <sys/ioctl.h>
+#include <termios.h>
+#endif
+
 struct gensio_data {
     struct selector_s *sel;
     bool freesel;
@@ -1259,6 +1267,46 @@ gensio_selector_is_regfile(struct gensio_iod *iiod, bool *isfile)
     return 0;
 }
 
+static int
+gensio_selector_bufcount(struct gensio_iod *iiod, int whichbuf,
+			 gensiods *rcount)
+{
+    struct gensio_iod_selector *iod = i_to_sel(iiod);
+    int rv, count;
+
+    switch (whichbuf) {
+    case GENSIO_IN_BUF:
+	rv = ioctl(iod->fd, TIOCINQ, &count);
+	break;
+    case GENSIO_OUT_BUF:
+	rv = ioctl(iod->fd, TIOCOUTQ, &count);
+	break;
+    }
+    if (rv)
+	return GE_NOTSUP;
+    return 0;
+}
+
+static void
+gensio_selector_flush(struct gensio_iod *iiod, int whichbuf)
+{
+    struct gensio_iod_selector *iod = i_to_sel(iiod);
+    int arg;
+
+    if ((whichbuf & (GENSIO_IN_BUF | GENSIO_OUT_BUF)) ==
+			(GENSIO_IN_BUF | GENSIO_OUT_BUF))
+	arg = TCIOFLUSH;
+    else if (whichbuf & GENSIO_IN_BUF)
+	arg = TCIFLUSH;
+    else if (whichbuf & GENSIO_OUT_BUF)
+	arg = TCIOFLUSH;
+#ifdef HAVE_TERMIOS2
+    ioctl(iod->fd, TCFLSH, arg);
+#else
+    tcflush(fd, arg);
+#endif
+}
+
 extern char **environ;
 
 static int
@@ -1478,6 +1526,8 @@ gensio_selector_alloc_sel(struct selector_s *sel, int wake_sig)
     o->write = gensio_selector_write;
     o->read = gensio_selector_read;
     o->is_regfile = gensio_selector_is_regfile;
+    o->bufcount = gensio_selector_bufcount;
+    o->flush = gensio_selector_flush;
     o->exec_subprog = gensio_selector_exec_subprog;
     o->wait_subprog = gensio_selector_wait_subprog;
 
