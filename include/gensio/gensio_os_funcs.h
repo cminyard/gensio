@@ -333,7 +333,10 @@ struct gensio_os_funcs {
 		   int fd, struct gensio_iod **iod);
 
     /*
-     * Release an allocated I/O descriptor.
+     * Release an allocated I/O descriptor.  Note that close() will
+     * also call this, so if you call close you shouldn't call this.
+     * And you should generally use close unless you have already
+     * closed the I/O device and just need to release the memory.
      */
     void (*release_iod)(struct gensio_iod *iod);
 
