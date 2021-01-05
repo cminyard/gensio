@@ -279,32 +279,43 @@ check_waitpid(struct stdion_channel *schan)
 {
     struct stdiona_data *nadata = schan->nadata;
     struct gensio_os_funcs *o = nadata->o;
+    int rv;
+    gensiods count = 0;
+    gensio_time timeout = { 0, 10000000 };
 
     if (nadata->closing_chan)
 	schan = nadata->closing_chan;
+
+    /* Wait for the output buffer to clear. */
+    if (schan->out_iod) {
+	rv = o->bufcount(schan->out_iod, GENSIO_OUT_BUF, &count);
+	if (rv == 0 && count > 0)
+	    goto try_again;
+    }
+
+    if (schan->in_iod)
+	o->close(&schan->in_iod);
+    if (schan->out_iod)
+	o->close(&schan->out_iod);
+
     if (nadata->opid != -1 && !nadata->io.out_handler_set &&
 		!nadata->io.in_handler_set && !nadata->err.out_handler_set) {
-	int rv;
-
 	rv = o->wait_subprog(o, nadata->opid, &nadata->exit_code);
 	if (rv == GE_INPROGRESS) {
-	    gensio_time timeout = { 0, 10000000 };
+	    goto try_again;
+	} else {
+	    if (rv)
+		/* FIXME = no real way to report this. */
+		;
 
-	    nadata->waitpid_retries++;
-	    /* The sub-process has not died, wait a bit and try again. */
-	    stdiona_ref(nadata);
-	    o->start_timer(nadata->waitpid_timer, &timeout);
-	    nadata->closing_chan = schan;
-	    return;
+	    nadata->exit_code_set = true;
+	    nadata->opid = -1;
 	}
-
-	if (rv)
-	    /* FIXME = no real way to report this. */
-	    ;
-
-	nadata->exit_code_set = true;
-	nadata->opid = -1;
     }
+
+ close_anyway:
+    if (count > 0)
+	o->flush(schan->out_iod, GENSIO_OUT_BUF);
 
     if (schan->close_done) {
 	gensio_done close_done = schan->close_done;
@@ -322,6 +333,18 @@ check_waitpid(struct stdion_channel *schan)
 	    schan->io = NULL;
 	}
     }
+    return;
+
+ try_again:
+    /* The sub-process has not died or buffer is not clear, wait a
+       bit and try again. */
+
+    if (nadata->waitpid_retries >= 1000)
+	goto close_anyway;
+    nadata->waitpid_retries++;
+    stdiona_ref(nadata);
+    o->start_timer(nadata->waitpid_timer, &timeout);
+    nadata->closing_chan = schan;
 }
 
 static void
@@ -458,15 +481,12 @@ static void
 i_stdion_fd_cleared(struct gensio_iod *iod, struct stdiona_data *nadata,
 		    struct stdion_channel *schan)
 {
-    if (iod == schan->in_iod) {
+    if (iod == schan->in_iod)
 	schan->in_handler_set = false;
-	nadata->o->close(&schan->in_iod);
-    } else if (iod == schan->out_iod) {
+    else if (iod == schan->out_iod)
 	schan->out_handler_set = false;
-	nadata->o->close(&schan->out_iod);
-    } else {
+    else
 	assert(false);
-    }
 
     if (schan->in_close && !schan->in_handler_set && !schan->out_handler_set) {
 	if (schan == &nadata->io && !nadata->err.out_handler_set &&
