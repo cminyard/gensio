@@ -363,10 +363,17 @@ struct gensio_os_funcs {
     int (*read)(struct gensio_iod *iod, void *buf, gensiods buflen,
 		gensiods *rcount);
     /*
-     * Set isfile to true if the I/O descriptor points to a nornal
-     * file, or false if not.
+     * Return true if the I/O descriptor points to a nornal file, or
+     * false if not.  If it cannot determine, return false.
      */
-    int (*is_regfile)(struct gensio_iod *iod, bool *isfile);
+
+    bool (*is_regfile)(struct gensio_iod *iod);
+
+    /*
+     * Return true if the I/O descriptor points to a console (tty), or
+     * false if not.  Returns false if it cannot determine.
+     */
+    bool (*is_console)(struct gensio_iod *iod);
 
 #define GENSIO_IN_BUF	(1 << 0)
 #define GENSIO_OUT_BUF	(1 << 1)
@@ -382,6 +389,14 @@ struct gensio_os_funcs {
      * whichbuf is a bitmask.
      */
     void (*flush)(struct gensio_iod *iod, int whichbuf);
+
+    /*
+     * Put the device into "raw" mode.  For most iods you will get
+     * GE_NOTSUP, but for consoles, serial ports (UNIX) and stdio it
+     * will put the device into character-at-a-time.  For stdio you
+     * should set both stdin (0) and stdout (1) to raw.
+     */
+    int (*makeraw)(struct gensio_iod *iod);
 
     /*
      * Execute a sub-program and return the pid, stdin, stdout,

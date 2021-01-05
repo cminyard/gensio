@@ -32,11 +32,90 @@
 #include "errtrig.h"
 
 #ifdef HAVE_TERMIOS2
+/*
+ * termios2 allows the setting of custom serial port speeds.
+ *
+ * There is unfortunate complexity with handling termios2 on Linux.
+ * You cannot include asm/termios.h and termios.h or sys/ioctl.h at
+ * the same time.  So that means a lot of stuff has to be be handled
+ * by hand, not with the tcxxx() functions.  The standard tcxxx()
+ * function do not use the termios2 ioctls when talking to the
+ * kernel (at the current time).  It's kind of a mess.
+ */
 #include <asm/termios.h>
 int ioctl(int fd, int op, ...);
+
+typedef struct termios2 g_termios;
+
+static int
+set_termios(int fd, struct termios2 *t)
+{
+    return ioctl(fd, TCSETS2, t);
+}
+
+static int
+get_termios(int fd, struct termios2 *t)
+{
+    return ioctl(fd, TCGETS2, t);
+}
+
+static int
+do_flush(int fd, int val)
+{
+    return ioctl(fd, TCFLSH, val);
+}
+
+#if 0
+static int
+set_flowcontrol(int fd, bool val)
+{
+    return ioctl(fd, TCXONC, val ? TCOOFF : TCOON);
+}
+
+static void
+do_break(int fd)
+{
+    ioctl(fd, TCSBRK, 0);
+}
+#endif
 #else
+
 #include <sys/ioctl.h>
 #include <termios.h>
+
+typedef struct termios g_termios;
+
+static int
+set_termios(int fd, struct termios *t)
+{
+    return tcsetattr(fd, TCSANOW, t);
+}
+
+static int
+get_termios(int fd, struct termios *t)
+{
+    return tcgetattr(fd, t);
+}
+
+static int
+do_flush(int fd, int val)
+{
+    return tcflush(fd, val);
+}
+
+#if 0
+static int
+set_flowcontrol(int fd, bool val)
+{
+    return tcflow(fd, val ? TCOOFF : TCOON);
+}
+
+static void
+do_break(int fd)
+{
+    tcsendbreak(fd, 0);
+}
+#endif
 #endif
 
 struct gensio_data {
@@ -574,6 +653,9 @@ struct gensio_iod_selector {
 
     bool orig_file_flags_set;
     int orig_file_flags;
+
+    bool orig_termios_set;
+    g_termios orig_termios;
 };
 
 #define i_to_sel(i) gensio_container_of(i, struct gensio_iod_selector, r);
@@ -1097,8 +1179,6 @@ gensio_sel_release_iod(struct gensio_iod *iiod)
     struct gensio_iod_selector *iod = i_to_sel(iiod);
 
     assert(!iod->handlers_set);
-    if (iod->type == GENSIO_IOD_STDIO && iod->orig_file_flags_set)
-	fcntl(iod->fd, F_SETFL, iod->orig_file_flags);
     iod->r.f->free(iiod->f, iod);
 }
 
@@ -1209,6 +1289,11 @@ gensio_selector_close(struct gensio_iod **iodp)
 
     assert(iodp);
     assert(!iod->handlers_set);
+    if (iod->orig_termios_set)
+	set_termios(iod->fd, &iod->orig_termios);
+    if (iod->orig_file_flags_set)
+	fcntl(iod->fd, F_SETFL, iod->orig_file_flags);
+
     if (iod->type != GENSIO_IOD_STDIO) {
 	err = close(iod->fd);
 #ifdef ENABLE_INTERNAL_TRACE
@@ -1250,21 +1335,26 @@ gensio_selector_set_non_blocking(struct gensio_iod *iiod)
     return 0;
 }
 
-int
-gensio_selector_is_regfile(struct gensio_iod *iiod, bool *isfile)
+static bool
+gensio_selector_is_regfile(struct gensio_iod *iiod)
 {
     struct gensio_iod_selector *iod = i_to_sel(iiod);
-    struct gensio_os_funcs *o = iiod->f;
     int err;
     struct stat statb;
 
     err = fstat(iod->fd, &statb);
-    if (err == -1) {
-	err = gensio_os_err_to_err(o, errno);
-	return err;
-    }
-    *isfile = (statb.st_mode & S_IFMT) == S_IFREG;
-    return 0;
+    if (err == -1)
+	return false;
+
+    return (statb.st_mode & S_IFMT) == S_IFREG;
+}
+
+static bool
+gensio_selector_is_console(struct gensio_iod *iiod)
+{
+    struct gensio_iod_selector *iod = i_to_sel(iiod);
+
+    return isatty(iod->fd);
 }
 
 static int
@@ -1300,11 +1390,50 @@ gensio_selector_flush(struct gensio_iod *iiod, int whichbuf)
 	arg = TCIFLUSH;
     else if (whichbuf & GENSIO_OUT_BUF)
 	arg = TCIOFLUSH;
-#ifdef HAVE_TERMIOS2
-    ioctl(iod->fd, TCFLSH, arg);
+    do_flush(iod->fd, arg);
+}
+
+#if !defined(HAVE_CFMAKERAW) || defined(HAVE_TERMIOS2)
+static void s_cfmakeraw(g_termios *termios_p) {
+    termios_p->c_iflag &= ~(IGNBRK|BRKINT|PARMRK|ISTRIP|INLCR|IGNCR|ICRNL|IXON);
+    termios_p->c_oflag &= ~OPOST;
+    termios_p->c_lflag &= ~(ECHO|ECHONL|ICANON|ISIG|IEXTEN);
+    termios_p->c_cflag &= ~(CSIZE|PARENB);
+    termios_p->c_cflag |= CS8;
+    termios_p->c_cc[VMIN] = 1;
+}
 #else
-    tcflush(fd, arg);
+#define s_cfmakeraw cfmakeraw
 #endif
+
+static int
+gensio_selector_makeraw(struct gensio_iod *iiod)
+{
+    struct gensio_iod_selector *iod = i_to_sel(iiod);
+    struct gensio_os_funcs *o = iiod->f;
+    g_termios termios;
+    int rv;
+
+    if (iod->fd == 1 || iod->fd == 2)
+	/* Only set this for stdin or other files. */
+	return 0;
+
+    rv = get_termios(iod->fd, &termios);
+    if (rv)
+	return gensio_os_err_to_err(o, errno);
+
+    if (!iod->orig_termios_set)
+	iod->orig_termios = termios;
+
+    s_cfmakeraw(&termios);
+    rv = set_termios(iod->fd, &termios);
+    if (rv)
+	return gensio_os_err_to_err(o, errno);
+
+    if (!iod->orig_termios_set)
+	iod->orig_termios_set = true;
+
+    return 0;
 }
 
 extern char **environ;
@@ -1526,8 +1655,10 @@ gensio_selector_alloc_sel(struct selector_s *sel, int wake_sig)
     o->write = gensio_selector_write;
     o->read = gensio_selector_read;
     o->is_regfile = gensio_selector_is_regfile;
+    o->is_console = gensio_selector_is_console;
     o->bufcount = gensio_selector_bufcount;
     o->flush = gensio_selector_flush;
+    o->makeraw = gensio_selector_makeraw;
     o->exec_subprog = gensio_selector_exec_subprog;
     o->wait_subprog = gensio_selector_wait_subprog;
 
