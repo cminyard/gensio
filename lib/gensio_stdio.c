@@ -89,6 +89,7 @@ struct stdiona_data {
 
     struct gensio_os_funcs *o;
 
+    bool raw;
     bool stderr_to_stdout;
     bool noredir_stderr;
 
@@ -1042,7 +1043,7 @@ gensio_stdio_func(struct gensio *io, int func, gensiods *count,
 
 static int
 stdio_nadata_setup(struct gensio_os_funcs *o, gensiods max_read_size,
-		   struct stdiona_data **new_nadata)
+		   bool raw, struct stdiona_data **new_nadata)
 {
     struct stdiona_data *nadata;
 
@@ -1064,6 +1065,7 @@ stdio_nadata_setup(struct gensio_os_funcs *o, gensiods max_read_size,
     if (!nadata->waitpid_timer)
 	goto out_nomem;
 
+    nadata->raw = raw;
     nadata->io.max_read_size = max_read_size;
     nadata->io.read_data = o->zalloc(o, max_read_size);
     if (!nadata->io.read_data)
@@ -1114,6 +1116,15 @@ setup_self(struct stdiona_data *nadata)
 
     nadata->io.outfd_regfile = nadata->o->is_regfile(nadata->io.out_iod);
 
+    if (nadata->raw) {
+	err = o->makeraw(nadata->io.in_iod);
+	if (err)
+	    return err;
+	err = o->makeraw(nadata->io.out_iod);
+	if (err)
+	    return err;
+    }
+
     return 0;
 }
 
@@ -1130,11 +1141,14 @@ stdio_gensio_alloc(const char * const argv[], const char * const args[],
     bool self= false;
     bool stderr_to_stdout = false;
     bool noredir_stderr = false;
+    bool raw = false;
 
     for (i = 0; args && args[i]; i++) {
 	if (gensio_check_keyds(args[i], "readbuf", &max_read_size) > 0)
 	    continue;
 	if (gensio_check_keybool(args[i], "self", &self) > 0)
+	    continue;
+	if (gensio_check_keybool(args[i], "raw", &raw) > 0)
 	    continue;
 	if (gensio_check_keybool(args[i], "stderr-to-stdout",
 				 &stderr_to_stdout) > 0)
@@ -1145,7 +1159,10 @@ stdio_gensio_alloc(const char * const argv[], const char * const args[],
 	return GE_INVAL;
     }
 
-    err = stdio_nadata_setup(o, max_read_size, &nadata);
+    if (raw && !self)
+	return GE_INVAL;
+
+    err = stdio_nadata_setup(o, max_read_size, raw, &nadata);
     if (err)
 	return err;
 
@@ -1444,15 +1461,18 @@ stdio_gensio_accepter_alloc(const char * const args[],
     int err;
     struct stdiona_data *nadata = NULL;
     gensiods max_read_size = GENSIO_DEFAULT_BUF_SIZE;
+    bool raw = false;
     int i;
 
     for (i = 0; args && args[i]; i++) {
 	if (gensio_check_keyds(args[i], "readbuf", &max_read_size) > 0)
 	    continue;
+	if (gensio_check_keybool(args[i], "raw", &raw) > 0)
+	    continue;
 	return GE_INVAL;
     }
 
-    err = stdio_nadata_setup(o, max_read_size, &nadata);
+    err = stdio_nadata_setup(o, max_read_size, raw, &nadata);
     if (err)
 	return err;
 
