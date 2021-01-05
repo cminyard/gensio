@@ -274,6 +274,8 @@ stdion_finish_read(struct stdion_channel *schan, int err)
 	nadata->o->set_read_handler(schan->out_iod, true);
 }
 
+/* FIXME - This should probably be configurable. */
+#define NUM_WAIT_RETRIES 1000
 static void
 check_waitpid(struct stdion_channel *schan)
 {
@@ -286,10 +288,10 @@ check_waitpid(struct stdion_channel *schan)
     if (nadata->closing_chan)
 	schan = nadata->closing_chan;
 
-    /* Wait for the output buffer to clear. */
+    /* Wait for the output buffer to clear for half our allotted time. */
     if (schan->out_iod) {
-	rv = o->bufcount(schan->out_iod, GENSIO_OUT_BUF, &count);
-	if (rv == 0 && count > 0)
+	o->bufcount(schan->out_iod, GENSIO_OUT_BUF, &count);
+	if (count > 0 && nadata->waitpid_retries < NUM_WAIT_RETRIES / 2)
 	    goto try_again;
     }
 
@@ -339,7 +341,7 @@ check_waitpid(struct stdion_channel *schan)
     /* The sub-process has not died or buffer is not clear, wait a
        bit and try again. */
 
-    if (nadata->waitpid_retries >= 1000)
+    if (nadata->waitpid_retries >= NUM_WAIT_RETRIES)
 	goto close_anyway;
     nadata->waitpid_retries++;
     stdiona_ref(nadata);
