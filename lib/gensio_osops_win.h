@@ -6,6 +6,7 @@
  */
 
 #include <winsock2.h>
+#include <windows.h>
 
 static int
 gensio_os_close(struct gensio_iod **iodp)
@@ -125,9 +126,13 @@ gensio_i_os_err_to_err(struct gensio_os_funcs *o,
     }
 
     if (err == GE_OSERR) {
+	char errbuf[128];
+
+	FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM, NULL,
+		      oserr, 0, errbuf, sizeof(errbuf), NULL);
 	gensio_log(o, GENSIO_LOG_INFO,
 		   "Unhandled OS error in %s:%d: %s (%d)", caller, lineno,
-		   strerror(oserr), oserr);
+		   errbuf, oserr);
     }
 
     return err;
