@@ -42,7 +42,10 @@ enum gensio_iod_type {
     GENSIO_IOD_DEV,
     GENSIO_IOD_FILE,
     GENSIO_IOD_SIGNAL,
-    GENSIO_IOD_STDIO
+    GENSIO_IOD_STDIO,
+
+    /* Must be last */
+    NR_GENSIO_IOD_TYPES
 };
 
 struct gensio_once {
@@ -287,6 +290,9 @@ struct gensio_os_funcs {
      * GE_INUSE is returned, that means the timer has already been
      * stopped and the done handler for the previous call has not been
      * called.
+     *
+     * Note that if you stop a timer with a done handler, you cannot
+     * start the timer until the done handler is called.
      */
     int (*stop_timer_with_done)(struct gensio_timer *timer,
 				void (*done_handler)(struct gensio_timer *t,
@@ -362,7 +368,8 @@ struct gensio_os_funcs {
      * happens before the relative time given it will return.  The
      * timeout is updated to the remaining time.  Returns
      * GE_INTERRUPTED if interrupted by a signal or GE_TIMEDOUT if the
-     * timeout expired.
+     * timeout expired.  Note that really long timeouts (days) may be
+     * shortened to some value.
      */
     int (*service)(struct gensio_os_funcs *f, gensio_time *timeout);
 
