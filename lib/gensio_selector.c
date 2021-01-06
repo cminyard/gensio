@@ -2034,14 +2034,14 @@ gensio_selector_iod_control(struct gensio_iod *iiod, int op, bool get,
     case GENSIO_IOD_CONTROL_APPLY:
 	rv = set_termios(iod->fd, &iod->curr_termios);
 	if (rv) {
-	    rv = gensio_os_err_to_err(o, rv);
+	    rv = gensio_os_err_to_err(o, errno);
 #if HAVE_DECL_TIOCSRS485
 	} else {
 	    bool enabled = !!(iod->rs485.flags & SER_RS485_ENABLED);
 
 	    if (enabled != iod->rs485_applied) {
 		if (ioctl(iod->fd, TIOCSRS485, &iod->rs485) < 0) {
-		    rv = gensio_os_err_to_err(o, rv);
+		    rv = gensio_os_err_to_err(o, errno);
 		    if (!rv)
 			enabled = iod->rs485_applied;
 		}
