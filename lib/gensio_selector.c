@@ -1241,11 +1241,12 @@ do {								\
 } while(0)
 
 static int
-gensio_selector_write(struct gensio_iod *iod,
+gensio_selector_write(struct gensio_iod *iiod,
 		      const struct gensio_sg *sg, gensiods sglen,
 		      gensiods *rcount)
 {
-    struct gensio_os_funcs *o = iod->f;
+    struct gensio_iod_selector *iod = i_to_sel(iiod);
+    struct gensio_os_funcs *o = iiod->f;
     ssize_t rv;
 
     if (do_errtrig())
@@ -1257,16 +1258,17 @@ gensio_selector_write(struct gensio_iod *iod,
 	return 0;
     }
  retry:
-    rv = writev(o->iod_get_fd(iod), (struct iovec *) sg, sglen);
+    rv = writev(iod->fd, (struct iovec *) sg, sglen);
     ERRHANDLE();
     return rv;
 }
 
 static int
-gensio_selector_read(struct gensio_iod *iod,
+gensio_selector_read(struct gensio_iod *iiod,
 		     void *buf, gensiods buflen, gensiods *rcount)
 {
-    struct gensio_os_funcs *o = iod->f;
+    struct gensio_iod_selector *iod = i_to_sel(iiod);
+    struct gensio_os_funcs *o = iiod->f;
     ssize_t rv;
 
     if (do_errtrig())
@@ -1278,7 +1280,7 @@ gensio_selector_read(struct gensio_iod *iod,
 	return 0;
     }
  retry:
-    rv = read(o->iod_get_fd(iod), buf, buflen);
+    rv = read(iod->fd, buf, buflen);
     ERRHANDLE();
     return rv;
 }
