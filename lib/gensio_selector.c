@@ -17,6 +17,7 @@
 #include <gensio/gensio_osops_addrinfo.h>
 #include <gensio/gensio_osops_stdsock.h>
 #include <gensio/gensio_osops.h>
+#include <gensio/sergensio.h>
 
 #include "utils.h"
 #include <stdlib.h>
@@ -30,6 +31,9 @@
 #include <sys/wait.h>
 #include <fcntl.h>
 #include "errtrig.h"
+#if HAVE_DECL_TIOCSRS485
+#include <linux/serial.h>
+#endif
 
 #ifdef HAVE_TERMIOS2
 /*
@@ -65,7 +69,6 @@ do_flush(int fd, int val)
     return ioctl(fd, TCFLSH, val);
 }
 
-#if 0
 static int
 set_flowcontrol(int fd, bool val)
 {
@@ -77,7 +80,6 @@ do_break(int fd)
 {
     ioctl(fd, TCSBRK, 0);
 }
-#endif
 #else
 
 #include <sys/ioctl.h>
@@ -103,7 +105,6 @@ do_flush(int fd, int val)
     return tcflush(fd, val);
 }
 
-#if 0
 static int
 set_flowcontrol(int fd, bool val)
 {
@@ -115,7 +116,6 @@ do_break(int fd)
 {
     tcsendbreak(fd, 0);
 }
-#endif
 #endif
 
 struct gensio_data {
@@ -656,6 +656,12 @@ struct gensio_iod_selector {
 
     bool orig_termios_set;
     g_termios orig_termios;
+    g_termios curr_termios;
+    bool break_set;
+#if HAVE_DECL_TIOCSRS485
+    bool rs485_applied;
+    struct serial_rs485 rs485;
+#endif
 };
 
 #define i_to_sel(i) gensio_container_of(i, struct gensio_iod_selector, r);
@@ -1407,33 +1413,72 @@ static void s_cfmakeraw(g_termios *termios_p) {
 #endif
 
 static int
-gensio_selector_makeraw(struct gensio_iod *iiod)
+setup_termios(struct gensio_iod_selector *iod)
 {
-    struct gensio_iod_selector *iod = i_to_sel(iiod);
-    struct gensio_os_funcs *o = iiod->f;
+    struct gensio_os_funcs *o = iod->r.f;
     g_termios termios;
     int rv;
 
-    if (iod->fd == 1 || iod->fd == 2)
-	/* Only set this for stdin or other files. */
+    if (iod->orig_termios_set)
 	return 0;
 
     rv = get_termios(iod->fd, &termios);
     if (rv)
 	return gensio_os_err_to_err(o, errno);
 
-    if (!iod->orig_termios_set)
-	iod->orig_termios = termios;
+    iod->orig_termios = termios;
 
     s_cfmakeraw(&termios);
+    termios.c_cflag &= ~(CRTSCTS | PARODD);
+    termios.c_cflag |= CREAD;
+    termios.c_cc[VSTART] = 17;
+    termios.c_cc[VSTOP] = 19;
+    termios.c_iflag &= ~(IXOFF | IXANY);
+    termios.c_iflag |= IGNBRK;
+
     rv = set_termios(iod->fd, &termios);
     if (rv)
 	return gensio_os_err_to_err(o, errno);
 
-    if (!iod->orig_termios_set)
-	iod->orig_termios_set = true;
+    iod->orig_termios_set = true;
+    iod->curr_termios = termios;
 
     return 0;
+}
+
+static int
+gensio_selector_makeraw(struct gensio_iod *iiod)
+{
+    struct gensio_iod_selector *iod = i_to_sel(iiod);
+
+    if (iod->fd == 1 || iod->fd == 2)
+	/* Only set this for stdin or other files. */
+	return 0;
+
+    return setup_termios(iod);
+}
+
+static int
+gensio_selector_open_dev(struct gensio_os_funcs *o, const char *name,
+			 int options, struct gensio_iod **riod)
+{
+    int flags, fd, err;
+
+    flags = O_NONBLOCK | O_NOCTTY;
+    if (options & (GENSIO_OPEN_OPTION_READABLE | GENSIO_OPEN_OPTION_WRITEABLE))
+	flags |= O_RDWR;
+    else if (options & GENSIO_OPEN_OPTION_READABLE)
+	flags |= O_RDONLY;
+    else if (options & GENSIO_OPEN_OPTION_WRITEABLE)
+	flags |= O_WRONLY;
+
+    fd = open(name, flags);
+    if (fd == -1)
+	return gensio_os_err_to_err(o, errno);
+    err = o->add_iod(o, GENSIO_IOD_DEV, fd, riod);
+    if (err)
+	close(fd);
+    return err;
 }
 
 extern char **environ;
@@ -1573,6 +1618,516 @@ gensio_selector_exec_subprog(struct gensio_os_funcs *o,
     return err;
 }
 
+static struct baud_rates_s {
+    int real_rate;
+    int val;
+} baud_rates[] =
+{
+    { 50, B50 },
+    { 75, B75 },
+    { 110, B110 },
+    { 134, B134 },
+    { 150, B150 },
+    { 200, B200 },
+    { 300, B300 },
+    { 600, B600 },
+    { 1200, B1200 },
+    { 1800, B1800 },
+    { 2400, B2400 },
+    { 4800, B4800 },
+    { 9600, B9600 },
+    /* We don't support 14400 baud */
+    { 19200, B19200 },
+    /* We don't support 28800 baud */
+    { 38400, B38400 },
+    { 57600, B57600 },
+    { 115200, B115200 },
+#ifdef B230400
+    { 230400, B230400 },
+#endif
+#ifdef B460800
+    { 460800, B460800 },
+#endif
+#ifdef B500000
+    { 500000, B500000 },
+#endif
+#ifdef B576000
+    { 576000, B576000 },
+#endif
+#ifdef B921600
+    { 921600, B921600 },
+#endif
+#ifdef B1000000
+    { 1000000, B1000000 },
+#endif
+#ifdef B1152000
+    { 1152000, B1152000 },
+#endif
+#ifdef B1500000
+    { 1500000, B1500000 },
+#endif
+#ifdef B2000000
+    { 2000000, B2000000 },
+#endif
+#ifdef B2500000
+    { 2500000, B2500000 },
+#endif
+#ifdef B3000000
+    { 3000000, B3000000 },
+#endif
+#ifdef B3500000
+    { 3500000, B3500000 },
+#endif
+#ifdef B4000000
+    { 4000000, B4000000 },
+#endif
+};
+#define BAUD_RATES_LEN ((sizeof(baud_rates) / sizeof(struct baud_rates_s)))
+
+static int
+set_baud_rate(g_termios *t, int rate)
+{
+    unsigned int i;
+
+    for (i = 0; i < BAUD_RATES_LEN; i++) {
+	if (rate == baud_rates[i].real_rate) {
+#ifdef HAVE_TERMIOS2
+	    t->c_cflag &= ~CBAUD;
+	    t->c_cflag |= baud_rates[i].val;
+	    t->c_ispeed = rate;
+	    t->c_ospeed = rate;
+#else
+	    cfsetispeed(t, baud_rates[i].val);
+	    cfsetospeed(t, baud_rates[i].val);
+#endif
+	    return 0;
+	}
+    }
+
+#ifdef HAVE_TERMIOS2
+    t->c_cflag &= ~CBAUD;
+    t->c_cflag |= CBAUDEX;
+    t->c_ispeed = rate;
+    t->c_ospeed = rate;
+    return 0;
+#endif
+
+    return GE_INVAL;
+}
+
+static int
+get_baud_rate(g_termios *t)
+{
+    unsigned int i;
+    int baud_rate;
+
+#ifdef HAVE_TERMIOS2
+    if ((t->c_cflag & CBAUD) == CBAUDEX)
+	return t->c_ospeed;
+    baud_rate = t->c_cflag & CBAUD;
+#else
+    baud_rate = cfgetospeed(t);
+#endif
+
+    for (i = 0; i < BAUD_RATES_LEN; i++) {
+	if (baud_rate == baud_rates[i].val)
+	    return baud_rates[i].real_rate;
+    }
+
+    return 0;
+}
+
+static int
+process_rs485(struct gensio_iod_selector *iod, const char *str)
+{
+#if HAVE_DECL_TIOCSRS485
+    struct gensio_os_funcs *o = iod->r.f;
+    int argc, i;
+    const char **argv;
+    char *end;
+    int err;
+
+    if (!str || strcasecmp(str, "off") == 0) {
+	iod->rs485.flags &= ~SER_RS485_ENABLED;
+	return 0;
+    }
+
+    err = gensio_str_to_argv(o, str, &argc, &argv, ":");
+
+    if (err)
+	return err;
+    if (argc < 2)
+	return GE_INVAL;
+
+    iod->rs485.delay_rts_before_send = strtoul(argv[0], &end, 10);
+    if (end == argv[0] || *end != '\0')
+	goto out_inval;
+
+    iod->rs485.delay_rts_after_send = strtoul(argv[1], &end, 10);
+    if (end == argv[1] || *end != '\0')
+	goto out_inval;
+
+    for (i = 2; i < argc; i++) {
+	if (strcmp(argv[i], "rts_on_send") == 0) {
+	    iod->rs485.flags |= SER_RS485_RTS_ON_SEND;
+	} else if (strcmp(argv[i], "rts_after_send") == 0) {
+	    iod->rs485.flags |= SER_RS485_RTS_AFTER_SEND;
+	} else if (strcmp(argv[i], "rx_during_tx") == 0) {
+	    iod->rs485.flags |= SER_RS485_RX_DURING_TX;
+#ifdef SER_RS485_TERMINATE_BUS
+	} else if (strcmp(argv[i], "terminate_bus") == 0) {
+	    iod->rs485.flags |= SER_RS485_TERMINATE_BUS;
+#endif
+	} else {
+	    goto out_inval;
+	}
+    }
+
+    iod->rs485.flags |= SER_RS485_ENABLED;
+
+ out:
+    gensio_argv_free(o, argv);
+    return err;
+
+ out_inval:
+    err = GE_INVAL;
+    goto out;
+#else
+    return GE_NOTSUP;
+#endif
+}
+
+static int
+gensio_selector_iod_control(struct gensio_iod *iiod, int op, bool get,
+			    intptr_t val)
+{
+    struct gensio_iod_selector *iod = i_to_sel(iiod);
+    struct gensio_os_funcs *o = iiod->f;
+    int rv = 0, nval, modemstate;
+
+
+    if (iod->type != GENSIO_IOD_DEV)
+	return GE_NOTSUP;
+
+    switch (op) {
+    case GENSIO_IOD_CONTROL_SERDATA:
+    case GENSIO_IOD_CONTROL_BAUD:
+    case GENSIO_IOD_CONTROL_PARITY:
+    case GENSIO_IOD_CONTROL_XONXOFF:
+    case GENSIO_IOD_CONTROL_RTSCTS:
+    case GENSIO_IOD_CONTROL_DATASIZE:
+    case GENSIO_IOD_CONTROL_STOPBITS:
+    case GENSIO_IOD_CONTROL_LOCAL:
+    case GENSIO_IOD_CONTROL_HANGUP_ON_DONE:
+    case GENSIO_IOD_CONTROL_IXONXOFF:
+    case GENSIO_IOD_CONTROL_RS485:
+    case GENSIO_IOD_CONTROL_APPLY:
+	rv = setup_termios(iod);
+	if (rv)
+	    return rv;
+
+    case GENSIO_IOD_CONTROL_SET_BREAK:
+    case GENSIO_IOD_CONTROL_SEND_BREAK:
+    case GENSIO_IOD_CONTROL_DTR:
+    case GENSIO_IOD_CONTROL_RTS:
+    case GENSIO_IOD_CONTROL_MODEMSTATE:
+	break;
+
+    case GENSIO_IOD_CONTROL_FREE_SERDATA:
+	o->free(o, (void *) val);
+	return 0;
+
+    default:
+	return GE_NOTSUP;
+    }
+
+    switch (op) {
+    case GENSIO_IOD_CONTROL_SERDATA:
+	if (get) {
+	    g_termios *t;
+
+	    t = o->zalloc(o, sizeof(*t));
+	    if (!t)
+		return GE_NOMEM;
+	    *t = iod->curr_termios;
+	    *((void **) val) = t;
+	} else {
+	    iod->curr_termios = *((g_termios *) val);
+	    return 0;
+	}
+	break;
+
+    case GENSIO_IOD_CONTROL_BAUD:
+	if (get) {
+	    rv = get_baud_rate(&iod->curr_termios);
+	    if (rv == 0)
+		return GE_IOERR;
+	    *((int *) val) = rv;
+	    rv = 0;
+	} else {
+	    rv = set_baud_rate(&iod->curr_termios, val);
+	}
+	break;
+
+    case GENSIO_IOD_CONTROL_PARITY:
+	if (get) {
+	    if (iod->curr_termios.c_cflag & PARENB) {
+#ifdef CMSPAR
+		if (iod->curr_termios.c_cflag & CMSPAR) {
+		    if (iod->curr_termios.c_cflag & PARODD)
+			*((int *) val) = SERGENSIO_PARITY_MARK;
+		    else
+			*((int *) val) = SERGENSIO_PARITY_SPACE;
+		    break;
+		}
+#endif
+		if (iod->curr_termios.c_cflag & PARODD)
+		    *((int *) val) = SERGENSIO_PARITY_ODD;
+		else
+		    *((int *) val) = SERGENSIO_PARITY_EVEN;
+	    } else {
+		*((int *) val) = SERGENSIO_PARITY_NONE;
+	    }
+	} else {
+	    switch (val) {
+	    case SERGENSIO_PARITY_NONE:
+		iod->curr_termios.c_cflag &= ~PARENB;
+		break;
+
+	    case SERGENSIO_PARITY_ODD:
+		iod->curr_termios.c_cflag |= PARENB | PARODD;
+		break;
+
+	    case SERGENSIO_PARITY_EVEN:
+		iod->curr_termios.c_cflag |= PARENB;
+		iod->curr_termios.c_cflag &= ~PARODD;
+		break;
+
+#ifdef CMSPAR
+	    case SERGENSIO_PARITY_MARK:
+		iod->curr_termios.c_cflag |= PARENB | PARODD | CMSPAR;
+		break;
+
+	    case SERGENSIO_PARITY_SPACE:
+		iod->curr_termios.c_cflag |= PARENB | CMSPAR;
+		iod->curr_termios.c_cflag &= ~PARODD;
+		break;
+#endif
+	    default:
+		return GE_NOTSUP;
+	    }
+	}
+	break;
+
+    case GENSIO_IOD_CONTROL_XONXOFF:
+	if (get) {
+	    if (iod->curr_termios.c_iflag & IXON)
+		*((int *) val) = 1;
+	    else
+		*((int *) val) = 0;
+	} else {
+	    if (val) {
+		iod->curr_termios.c_iflag |= IXON;
+		iod->curr_termios.c_cc[VSTART] = 17;
+		iod->curr_termios.c_cc[VSTOP] = 19;
+	    } else {
+		iod->curr_termios.c_iflag &= ~IXON;
+	    }
+	}
+	break;
+
+    case GENSIO_IOD_CONTROL_RTSCTS:
+	if (get) {
+	    if (iod->curr_termios.c_cflag & CRTSCTS)
+		*((int *) val) = 1;
+	    else
+		*((int *) val) = 0;
+	} else {
+	    if (val)
+		iod->curr_termios.c_cflag |= CRTSCTS;
+	    else
+		iod->curr_termios.c_cflag &= ~CRTSCTS;
+	}
+	break;
+
+    case GENSIO_IOD_CONTROL_DATASIZE:
+	if (get) {
+	    switch (iod->curr_termios.c_cflag & CSIZE) {
+	    case CS5: *((int *) val) = 5; break;
+	    case CS6: *((int *) val) = 6; break;
+	    case CS7: *((int *) val) = 7; break;
+	    case CS8: *((int *) val) = 8; break;
+	    }
+	} else {
+	    switch (val) {
+	    case 5: nval = CS5; break;
+	    case 6: nval = CS6; break;
+	    case 7: nval = CS7; break;
+	    case 8: nval = CS8; break;
+	    default:
+		return GE_INVAL;
+	    }
+	    iod->curr_termios.c_cflag &= ~CSIZE;
+	    iod->curr_termios.c_cflag |= nval;
+	}
+	break;
+
+    case GENSIO_IOD_CONTROL_STOPBITS:
+	if (get) {
+	    if (iod->curr_termios.c_cflag & CSTOPB)
+		*((int *) val) = 2;
+	    else
+		*((int *) val) = 1;
+	} else {
+	    if (val == 1)
+		iod->curr_termios.c_cflag &= ~CSTOPB;
+	    else if (val == 2)
+		iod->curr_termios.c_cflag |= CSTOPB;
+	    else
+		return GE_INVAL;
+	}
+	break;
+
+    case GENSIO_IOD_CONTROL_LOCAL:
+	if (get) {
+	    *((int *) val) = !!(iod->curr_termios.c_cflag & CLOCAL);
+	} else {
+	    if (val)
+		iod->curr_termios.c_cflag |= CLOCAL;
+	    else
+		iod->curr_termios.c_cflag &= ~CLOCAL;
+	}
+	break;
+
+    case GENSIO_IOD_CONTROL_HANGUP_ON_DONE:
+	if (get) {
+	    *((int *) val) = !!(iod->curr_termios.c_cflag & HUPCL);
+	} else {
+	    if (val)
+		iod->curr_termios.c_cflag |= HUPCL;
+	    else
+		iod->curr_termios.c_cflag &= ~HUPCL;
+	}
+	break;
+
+    case GENSIO_IOD_CONTROL_IXONXOFF:
+	if (get) {
+	    if (iod->curr_termios.c_iflag & IXOFF)
+		*((int *) val) = 1;
+	    else
+		*((int *) val) = 0;
+	} else {
+	    if (val) {
+		iod->curr_termios.c_iflag |= IXOFF;
+		iod->curr_termios.c_cc[VSTART] = 17;
+		iod->curr_termios.c_cc[VSTOP] = 19;
+	    } else {
+		iod->curr_termios.c_iflag &= ~IXOFF;
+	    }
+	}
+	break;
+
+    case GENSIO_IOD_CONTROL_RS485:
+	rv = process_rs485(iod, (const char *) val);
+	break;
+
+    case GENSIO_IOD_CONTROL_APPLY:
+	rv = set_termios(iod->fd, &iod->curr_termios);
+	if (rv) {
+	    rv = gensio_os_err_to_err(o, rv);
+#if HAVE_DECL_TIOCSRS485
+	} else {
+	    bool enabled = !!(iod->rs485.flags & SER_RS485_ENABLED);
+
+	    if (enabled != iod->rs485_applied) {
+		if (ioctl(iod->fd, TIOCSRS485, &iod->rs485) < 0) {
+		    rv = gensio_os_err_to_err(o, rv);
+		    if (!rv)
+			enabled = iod->rs485_applied;
+		}
+	    }
+#endif
+	}
+	break;
+
+    case GENSIO_IOD_CONTROL_SET_BREAK:
+	if (get) {
+	    *((int *) val) = iod->break_set;
+	} else {
+	    if (val)
+		nval = TIOCSBRK;
+	    else
+		nval = TIOCCBRK;
+	    if (ioctl(iod->fd, nval) == -1)
+		return gensio_os_err_to_err(o, errno);
+	    iod->break_set = nval;
+	}
+	break;
+
+    case GENSIO_IOD_CONTROL_SEND_BREAK:
+	if (get)
+	    *((int *) val) = 0;
+	else
+	    do_break(iod->fd);
+	break;
+
+    case GENSIO_IOD_CONTROL_DTR:
+	if (ioctl(iod->fd, TIOCMGET, &nval) == -1)
+	    return gensio_os_err_to_err(o, errno);
+	if (get) {
+	    *((int *) val) = !!(nval & TIOCM_DTR);
+	} else {
+	    if (val)
+		nval |= TIOCM_DTR;
+	    else
+		nval &= ~TIOCM_DTR;
+	    if (ioctl(iod->fd, TIOCMSET, &nval) == -1)
+		return gensio_os_err_to_err(o, errno);
+	}
+	break;
+
+    case GENSIO_IOD_CONTROL_RTS:
+	if (ioctl(iod->fd, TIOCMGET, &nval) == -1)
+	    return gensio_os_err_to_err(o, errno);
+	if (get) {
+	    *((int *) val) = !!(nval & TIOCM_RTS);
+	} else {
+	    if (val)
+		nval |= TIOCM_RTS;
+	    else
+		nval &= ~TIOCM_RTS;
+	    if (ioctl(iod->fd, TIOCMSET, &nval) == -1)
+		return gensio_os_err_to_err(o, errno);
+	}
+	break;
+
+    case GENSIO_IOD_CONTROL_MODEMSTATE:
+	if (!get)
+	    return GE_NOTSUP;
+	if (ioctl(iod->fd, TIOCMGET, &nval) == -1)
+	    return gensio_os_err_to_err(o, errno);
+	modemstate = 0;
+	if (nval & TIOCM_CD)
+	    modemstate |= SERGENSIO_MODEMSTATE_CD;
+	if (nval & TIOCM_RI)
+	    modemstate |= SERGENSIO_MODEMSTATE_RI;
+	if (nval & TIOCM_DSR)
+	    modemstate |= SERGENSIO_MODEMSTATE_DSR;
+	if (nval & TIOCM_CTS)
+	    modemstate |= SERGENSIO_MODEMSTATE_CTS;
+	*((int *) val) = modemstate;
+	break;
+
+    case GENSIO_IOD_CONTROL_FLOWCTL_STATE:
+	if (get)
+	    return GE_NOTSUP;
+	set_flowcontrol(iod->fd, val);
+	break;
+    }
+
+    return rv;
+}
+
 static int
 gensio_selector_wait_subprog(struct gensio_os_funcs *o, intptr_t pid,
 			     int *retcode)
@@ -1659,8 +2214,10 @@ gensio_selector_alloc_sel(struct selector_s *sel, int wake_sig)
     o->bufcount = gensio_selector_bufcount;
     o->flush = gensio_selector_flush;
     o->makeraw = gensio_selector_makeraw;
+    o->open_dev = gensio_selector_open_dev;
     o->exec_subprog = gensio_selector_exec_subprog;
     o->wait_subprog = gensio_selector_wait_subprog;
+    o->iod_control = gensio_selector_iod_control;
 
     gensio_addr_addrinfo_set_os_funcs(o);
     gensio_stdsock_set_os_funcs(o);

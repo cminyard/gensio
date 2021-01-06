@@ -91,7 +91,7 @@ write_full(int fd, char *data, size_t count)
 }
 
 int
-uucp_mk_lock(char *devname)
+uucp_mk_lock(struct gensio_os_funcs *o, char *devname)
 {
     struct stat stt;
     int pid = -1;
@@ -109,7 +109,7 @@ uucp_mk_lock(char *devname)
 
 	lck_file = malloc(uucp_fname_lock_size(devname));
 	if (lck_file == NULL)
-	    return -1;
+	    return gensio_os_err_to_err(o, errno);
 
 	uucp_fname_lock(lck_file, devname);
 
@@ -160,7 +160,9 @@ uucp_mk_lock(char *devname)
 	free(lck_file);
     }
 
-    return pid;
+    if (pid != 0)
+	return GE_INUSE;
+    return 0;
 }
 
 #else

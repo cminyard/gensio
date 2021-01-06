@@ -87,6 +87,85 @@ const char *gensio_log_level_to_str(enum gensio_log_levels level);
 /* For recv and send */
 #define GENSIO_MSG_OOB 1
 
+/******************************************************************
+ * For iod_control()
+ */
+
+/*
+ * Serial port settings.  SERDATA get gets the current serial port
+ * data info in a form that can be re-applied with a set operation.
+ * The individual controls (BAUD, PARITY, etc) can be changed, but
+ * this only changes the internal data, not the actual settings on the
+ * port.  To copy the internal data to the port, use APPLY set
+ * operation.
+ */
+/*
+ * Get returns an allocated block of data with serial data.  Set sets
+ * the current settings from the block of data, but does not apply it.
+ */
+#define GENSIO_IOD_CONTROL_SERDATA	1
+
+/* Free an allocated block of serial data. */
+#define GENSIO_IOD_CONTROL_FREE_SERDATA	2
+
+/* The baud, as an int */
+#define GENSIO_IOD_CONTROL_BAUD		3
+
+/* Parity as an int, SERGENSIO_PARITY_xxx */
+#define GENSIO_IOD_CONTROL_PARITY	4
+
+/* xonxoff output flow-control as an int, bool */
+#define GENSIO_IOD_CONTROL_XONXOFF	5
+
+/* rtscts flow-control as an int, bool */
+#define GENSIO_IOD_CONTROL_RTSCTS	6
+
+/* datasize as an int (5, 6, 7, 8) */
+#define GENSIO_IOD_CONTROL_DATASIZE	7
+
+/* stopbits as an int (1, 2) */
+#define GENSIO_IOD_CONTROL_STOPBITS	8
+
+/* local as an int, bool */
+#define GENSIO_IOD_CONTROL_LOCAL	9
+
+/* HUPCL as an int, bool */
+#define GENSIO_IOD_CONTROL_HANGUP_ON_DONE 10
+
+/* RS485 as an string */
+#define GENSIO_IOD_CONTROL_RS485	11
+
+/* xonxoff input flow-control as an int, bool */
+#define GENSIO_IOD_CONTROL_IXONXOFF	12
+
+/* Apply the set values to the serial port. */
+#define GENSIO_IOD_CONTROL_APPLY	19
+
+/*
+ * These are modem line operations, they occur immediately.  Send
+ * break sends a break for a period of time.  MODEMSTATE returns the
+ * current modem lines in the form specified in sergensio.h.
+ */
+
+/* get/set the break as an int, bool */
+#define GENSIO_IOD_CONTROL_SET_BREAK	20
+
+/* get/et the break, val is ignored */
+#define GENSIO_IOD_CONTROL_SEND_BREAK	21
+
+/* get/set the DTR line as an int, bool */
+#define GENSIO_IOD_CONTROL_DTR		22
+
+/* get/set the RTS line as an int, bool */
+#define GENSIO_IOD_CONTROL_RTS		23
+
+/* Get the modem control lines, SERGENSIO_MODEMSTATE_[CTS|DSR|RI|CD] bitmask */
+#define GENSIO_IOD_CONTROL_MODEMSTATE   24
+
+/* Set the flow control state, int as a bool. */
+#define GENSIO_IOD_CONTROL_FLOWCTL_STATE 25
+
+
 struct gensio_os_funcs {
     /* For use by the code doing the os function translation. */
     void *user_data;
@@ -348,6 +427,11 @@ struct gensio_os_funcs {
     int (*iod_get_protocol)(struct gensio_iod *iod);
     void (*iod_set_protocol)(struct gensio_iod *iod, int protocol);
 
+    /*
+     * iod-specific control operations.
+     */
+    int (*iod_control)(struct gensio_iod *iod, int op, bool get, intptr_t val);
+
     /****** Generic OS functions ******/
     /*
      * Set the I/O descriptor non-blocking.  Note that release_iod
@@ -397,6 +481,11 @@ struct gensio_os_funcs {
      * should set both stdin (0) and stdout (1) to raw.
      */
     int (*makeraw)(struct gensio_iod *iod);
+
+#define GENSIO_OPEN_OPTION_READABLE	(1 << 0)
+#define GENSIO_OPEN_OPTION_WRITEABLE	(1 << 1)
+    int (*open_dev)(struct gensio_os_funcs *o, const char *name, int options,
+		    struct gensio_iod **iod);
 
     /*
      * Execute a sub-program and return the pid, stdin, stdout,

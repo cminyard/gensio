@@ -12,90 +12,11 @@
 #if HAVE_SERIALDEV
 
 #include <stdlib.h>
-#include <errno.h>
 #include <limits.h>
-#include <unistd.h>
-#include <fcntl.h>
 #include <string.h>
 #include <stdio.h>
 #include <ctype.h>
 #include <stdbool.h>
-#if HAVE_DECL_TIOCSRS485
-#include <linux/serial.h>
-#endif
-
-#ifdef HAVE_TERMIOS2
-/*
- * termios2 allows the setting of custom serial port speeds.
- *
- * There is unfortunate complexity with handling termios2 on Linux.
- * You cannot include asm/termios.h and termios.h or sys/ioctl.h at
- * the same time.  So that means a lot of stuff has to be be handled
- * by hand, not with the tcxxx() functions.  The standard tcxxx()
- * function do not use the termios2 ioctls when talking to the
- * kernel (at the current time).  It's kind of a mess.
- */
-#include <asm/termios.h>
-int ioctl(int fd, int op, ...);
-
-typedef struct termios2 g_termios;
-
-static int
-set_termios(int fd, struct termios2 *t)
-{
-    return ioctl(fd, TCSETS2, t);
-}
-
-static int
-get_termios(int fd, struct termios2 *t)
-{
-    return ioctl(fd, TCGETS2, t);
-}
-
-static int
-set_flowcontrol(int fd, bool val)
-{
-    return ioctl(fd, TCXONC, val ? TCOOFF : TCOON);
-}
-
-static void
-do_break(int fd)
-{
-    ioctl(fd, TCSBRK, 0);
-}
-
-#else
-
-#include <sys/ioctl.h>
-#include <termios.h>
-
-typedef struct termios g_termios;
-
-static int
-set_termios(int fd, struct termios *t)
-{
-    return tcsetattr(fd, TCSANOW, t);
-}
-
-static int
-get_termios(int fd, struct termios *t)
-{
-    return tcgetattr(fd, t);
-}
-
-static int
-set_flowcontrol(int fd, bool val)
-{
-    return tcflow(fd, val ? TCOOFF : TCOON);
-}
-
-static void
-do_break(int fd)
-{
-    tcsendbreak(fd, 0);
-}
-
-#endif
 
 #include <gensio/gensio_ll_fd.h>
 #include <gensio/gensio_builtins.h>
@@ -103,133 +24,6 @@ do_break(int fd)
 
 #include "uucplock.h"
 #include "utils.h"
-
-static struct baud_rates_s {
-    int real_rate;
-    int val;
-} baud_rates[] =
-{
-    { 50, B50 },
-    { 75, B75 },
-    { 110, B110 },
-    { 134, B134 },
-    { 150, B150 },
-    { 200, B200 },
-    { 300, B300 },
-    { 600, B600 },
-    { 1200, B1200 },
-    { 1800, B1800 },
-    { 2400, B2400 },
-    { 4800, B4800 },
-    { 9600, B9600 },
-    /* We don't support 14400 baud */
-    { 19200, B19200 },
-    /* We don't support 28800 baud */
-    { 38400, B38400 },
-    { 57600, B57600 },
-    { 115200, B115200 },
-#ifdef B230400
-    { 230400, B230400 },
-#endif
-#ifdef B460800
-    { 460800, B460800 },
-#endif
-#ifdef B500000
-    { 500000, B500000 },
-#endif
-#ifdef B576000
-    { 576000, B576000 },
-#endif
-#ifdef B921600
-    { 921600, B921600 },
-#endif
-#ifdef B1000000
-    { 1000000, B1000000 },
-#endif
-#ifdef B1152000
-    { 1152000, B1152000 },
-#endif
-#ifdef B1500000
-    { 1500000, B1500000 },
-#endif
-#ifdef B2000000
-    { 2000000, B2000000 },
-#endif
-#ifdef B2500000
-    { 2500000, B2500000 },
-#endif
-#ifdef B3000000
-    { 3000000, B3000000 },
-#endif
-#ifdef B3500000
-    { 3500000, B3500000 },
-#endif
-#ifdef B4000000
-    { 4000000, B4000000 },
-#endif
-};
-#define BAUD_RATES_LEN ((sizeof(baud_rates) / sizeof(struct baud_rates_s)))
-
-static int
-set_baud_rate(g_termios *t, int rate, bool custspeed)
-{
-    unsigned int i;
-
-    for (i = 0; i < BAUD_RATES_LEN; i++) {
-	if (rate == baud_rates[i].real_rate) {
-#ifdef HAVE_TERMIOS2
-	    t->c_cflag &= ~CBAUD;
-	    t->c_cflag |= baud_rates[i].val;
-	    t->c_ispeed = rate;
-	    t->c_ospeed = rate;
-#else
-	    cfsetispeed(t, baud_rates[i].val);
-	    cfsetospeed(t, baud_rates[i].val);
-#endif
-	    return 1;
-	}
-    }
-
-#ifdef HAVE_TERMIOS2
-    if (custspeed) {
-	t->c_cflag &= ~CBAUD;
-	t->c_cflag |= CBAUDEX;
-	t->c_ispeed = rate;
-	t->c_ospeed = rate;
-	return 1;
-    }
-#endif
-
-    return 0;
-}
-
-static int
-get_baud_rate_val(g_termios *t)
-{
-    unsigned int i;
-    int baud_rate;
-
-#ifdef HAVE_TERMIOS2
-    if ((t->c_cflag & CBAUD) == CBAUDEX)
-	return t->c_ospeed;
-    baud_rate = t->c_cflag & CBAUD;
-#else
-    baud_rate = cfgetospeed(t);
-#endif
-
-    for (i = 0; i < BAUD_RATES_LEN; i++) {
-	if (baud_rate == baud_rates[i].val)
-	    return baud_rates[i].real_rate;
-    }
-
-    return 0;
-}
-
-static void
-get_rate_from_baud_rate(g_termios *t, int *val)
-{
-    *val = get_baud_rate_val(t);
-}
 
 static int
 speedstr_to_speed(const char *speed, const char **rest)
@@ -250,47 +44,13 @@ speedstr_to_speed(const char *speed, const char **rest)
     return rv;
 }
 
-static void
-set_termios_parity(g_termios *termctl, int val)
-{
-    switch (val) {
-    default:
-    case 'N': case 'n':
-	termctl->c_cflag &= ~(PARENB);
-	break;
-    case 'E': case 'e':
-    case 'S': case 's':
-	termctl->c_cflag |= PARENB;
-	termctl->c_cflag &= ~(PARODD);
-#ifdef CMSPAR
-	if (val == 'S' || val == 's')
-	    termctl->c_cflag |= CMSPAR;
-#endif
-	break;
-    case 'O': case 'o':
-    case 'M': case 'm':
-	termctl->c_cflag |= PARENB | PARODD;
-#ifdef CMSPAR
-	if (val == 'M' || val == 'm')
-	    termctl->c_cflag |= CMSPAR;
-#endif
-	break;
-    }
-}
-
-
 struct penum_val { char *str; int val; };
 static struct penum_val parity_enums[] = {
-    { "NONE", 'N' },
-    { "EVEN", 'E' },
-    { "ODD", 'O' },
-    { "none", 'N' },
-    { "even", 'E' },
-    { "odd", 'O' },
-    { "MARK", 'M' },
-    { "SPACE", 'S' },
-    { "mark", 'M' },
-    { "space", 'S' },
+    { "NONE", SERGENSIO_PARITY_NONE },
+    { "EVEN", SERGENSIO_PARITY_EVEN },
+    { "ODD", SERGENSIO_PARITY_ODD },
+    { "MARK", SERGENSIO_PARITY_MARK },
+    { "SPACE", SERGENSIO_PARITY_SPACE },
     { NULL }
 };
 
@@ -306,109 +66,23 @@ lookup_parity_str(const char *str)
     return -1;
 }
 
-static void
-set_termios_xonxoff(g_termios *termctl, int enabled)
+static const char *
+parity_to_str(int val)
 {
-    if (enabled) {
-	termctl->c_iflag |= (IXON | IXOFF | IXANY);
-	termctl->c_cc[VSTART] = 17;
-	termctl->c_cc[VSTOP] = 19;
-    } else {
-	termctl->c_iflag &= ~(IXON | IXOFF | IXANY);
+    unsigned int i;
+
+    for (i = 0; parity_enums[i].str; i++) {
+	if (parity_enums[i].val == val)
+	    return parity_enums[i].str;
     }
+    return "?";
 }
-
-static void
-set_termios_rtscts(g_termios *termctl, int enabled)
-{
-    if (enabled)
-	termctl->c_cflag |= CRTSCTS;
-    else
-	termctl->c_cflag &= ~CRTSCTS;
-}
-
-static void
-set_termios_datasize(g_termios *termctl, int size)
-{
-    termctl->c_cflag &= ~CSIZE;
-    switch (size) {
-    case 5: termctl->c_cflag |= CS5; break;
-    case 6: termctl->c_cflag |= CS6; break;
-    case 7: termctl->c_cflag |= CS7; break;
-    default: case 8: termctl->c_cflag |= CS8; break;
-    }
-}
-
-static int
-set_termios_from_speed(g_termios *termctl, int speed, const char *others,
-		       bool custspeed)
-{
-    if (!set_baud_rate(termctl, speed, custspeed))
-	return -1;
-
-    if (*others) {
-	switch (*others) {
-	case 'N': case 'n':
-	case 'E': case 'e':
-	case 'O': case 'o':
-	case 'M': case 'm':
-	case 'S': case 's':
-	    break;
-	default:
-	    return -1;
-	}
-	set_termios_parity(termctl, *others);
-	others++;
-    }
-
-    if (*others) {
-	int val;
-
-	switch (*others) {
-	case '5': val = 5; break;
-	case '6': val = 6; break;
-	case '7': val = 7; break;
-	case '8': val = 8; break;
-	default:
-	    return -1;
-	}
-	set_termios_datasize(termctl, val);
-	others++;
-    }
-
-    if (*others) {
-	switch (*others) {
-	case '1':
-	    termctl->c_cflag &= ~(CSTOPB);
-	    break;
-
-	case '2':
-	    termctl->c_cflag |= CSTOPB;
-	    break;
-
-	default:
-	    return -1;
-	}
-	others++;
-    }
-
-    if (*others)
-	return -1;
-
-    return 0;
-}
-
-enum termio_op {
-    TERMIO_OP_TERMIO,
-    TERMIO_OP_MCTL,
-    TERMIO_OP_BRK
-};
 
 struct sterm_data;
 
 struct termio_op_q {
-    enum termio_op op;
-    int (*getset)(g_termios *termio, int *mctl, int *val, struct sterm_data *);
+    int op;
+    int (*xlat)(struct sterm_data *, bool get, int *oval, int val);
     void (*done)(struct sergensio *sio, int err, int val, void *cb_data);
     void *cb_data;
     struct termio_op_q *next;
@@ -430,7 +104,6 @@ struct sterm_data {
     char *devname;
     char *parms;
 
-    int fd;
     struct gensio_iod *iod;
     struct gensio_ll *ll;
 
@@ -443,14 +116,20 @@ struct sterm_data {
      */
     bool is_pty;
 
-    bool write_only;		/* No termios, no read. */
+    bool write_only;		/* No serial settings, no read. */
 
     bool no_uucp_lock;
 
-    bool allow_custspeed;
-
-    g_termios default_termios;
-    g_termios orig_termios;
+    void *default_sercfg;
+    int def_baud;
+    int def_parity;
+    int def_datasize;
+    int def_stopbits;
+    int def_xonxoff;
+    int def_rtscts;
+    int def_local;
+    int def_hupcl;
+    char *rs485;
 
     bool deferred_op_pending;
     struct gensio_runner *deferred_op_runner;
@@ -461,13 +140,56 @@ struct sterm_data {
     unsigned int modemstate_mask;
     bool handling_modemstate;
     bool sent_first_modemstate;
-
-#if HAVE_DECL_TIOCSRS485
-    struct serial_rs485 rs485;
-#endif
 };
 
-static void termios_process(struct sterm_data *sdata);
+static int
+set_serdef_from_speed(struct sterm_data *sdata, int speed, const char *others)
+{
+    sdata->def_baud = speed;
+
+    if (*others) {
+	switch (*others) {
+	case 'N': case 'n': sdata->def_parity = SERGENSIO_PARITY_NONE; break;
+	case 'E': case 'e': sdata->def_parity = SERGENSIO_PARITY_EVEN; break;
+	case 'O': case 'o': sdata->def_parity = SERGENSIO_PARITY_ODD; break;
+	case 'M': case 'm': sdata->def_parity = SERGENSIO_PARITY_MARK; break;
+	case 'S': case 's': sdata->def_parity = SERGENSIO_PARITY_SPACE; break;
+	    break;
+	default:
+	    return GE_INVAL;
+	}
+	others++;
+    }
+
+    if (*others) {
+	switch (*others) {
+	case '5': sdata->def_datasize = 5; break;
+	case '6': sdata->def_datasize = 6; break;
+	case '7': sdata->def_datasize = 7; break;
+	case '8': sdata->def_datasize = 8; break;
+	default:
+	    return GE_INVAL;
+	}
+	others++;
+    }
+
+    if (*others) {
+	switch (*others) {
+	case '1': sdata->def_stopbits = 1; break;
+	case '2': sdata->def_stopbits = 2; break;
+	default:
+	    return GE_INVAL;
+	}
+	others++;
+    }
+
+    if (*others)
+	return GE_INVAL;
+
+    return 0;
+}
+
+static void serconf_process(struct sterm_data *sdata);
 
 static void
 sterm_lock(struct sterm_data *sdata)
@@ -488,7 +210,7 @@ sterm_deferred_op(struct gensio_runner *runner, void *cbdata)
 
     sterm_lock(sdata);
  restart:
-    termios_process(sdata);
+    serconf_process(sdata);
 
     if (sdata->termio_q)
 	/* Something was added, process it. */
@@ -508,35 +230,17 @@ sterm_start_deferred_op(struct sterm_data *sdata)
 }
 
 static void
-termios_process(struct sterm_data *sdata)
+serconf_process(struct sterm_data *sdata)
 {
     while (sdata->termio_q) {
 	struct termio_op_q *qe = sdata->termio_q;
-	int val = 0, err = 0;
+	int val = 0, err;
 
 	sdata->termio_q = qe->next;
 
-	if (qe->op == TERMIO_OP_TERMIO) {
-	    g_termios termio;
-
-	    if (get_termios(sdata->fd, &termio) == -1)
-		err = gensio_os_err_to_err(sdata->o, errno);
-	    else
-		err = qe->getset(&termio, NULL, &val, sdata);
-	} else if (qe->op == TERMIO_OP_MCTL) {
-	    int mctl = 0;
-
-	    if (ioctl(sdata->fd, TIOCMGET, &mctl) == -1)
-		err = gensio_os_err_to_err(sdata->o, errno);
-	    else
-		err = qe->getset(NULL, &mctl, &val, sdata);
-	} else if (qe->op == TERMIO_OP_BRK) {
-	    if (sdata->break_set)
-		val = SERGENSIO_BREAK_ON;
-	    else
-		val = SERGENSIO_BREAK_OFF;
-	}
-
+	err = sdata->o->iod_control(sdata->iod, qe->op, true, (intptr_t) &val);
+	if (!err && qe->xlat)
+	    err = qe->xlat(sdata, true, &val, val);
 	sterm_unlock(sdata);
 	qe->done(sdata->sio, err, val, qe->cb_data);
 	sdata->o->free(sdata->o, qe);
@@ -545,7 +249,7 @@ termios_process(struct sterm_data *sdata)
 }
 
 static void
-termios_clear_q(struct sterm_data *sdata)
+serconf_clear_q(struct sterm_data *sdata)
 {
     while (sdata->termio_q) {
 	struct termio_op_q *qe = sdata->termio_q;
@@ -556,14 +260,13 @@ termios_clear_q(struct sterm_data *sdata)
 }
 
 static int
-termios_set_get(struct sterm_data *sdata, int val, enum termio_op op,
-		int (*getset)(g_termios *termio, int *mctl, int *val,
-			      struct sterm_data *sdata),
+serconf_set_get(struct sterm_data *sdata, int op, int val,
+		int (*xlat)(struct sterm_data *sdata, bool get,
+			    int *oval, int val),
 		void (*done)(struct sergensio *sio, int err,
 			     int val, void *cb_data),
 		void *cb_data)
 {
-    g_termios termio;
     struct termio_op_q *qe = NULL;
     int err = 0;
 
@@ -574,7 +277,7 @@ termios_set_get(struct sterm_data *sdata, int val, enum termio_op op,
 	qe = sdata->o->zalloc(sdata->o, sizeof(*qe));
 	if (!qe)
 	    return GE_NOMEM;
-	qe->getset = getset;
+	qe->xlat = xlat;
 	qe->done = done;
 	qe->cb_data = cb_data;
 	qe->op = op;
@@ -588,53 +291,17 @@ termios_set_get(struct sterm_data *sdata, int val, enum termio_op op,
     }
 
     if (val) {
-	if (op == TERMIO_OP_TERMIO) {
-	    if (get_termios(sdata->fd, &termio) == -1) {
-		err = errno;
-		goto out_unlock;
-	    }
-
-	    err = getset(&termio, NULL, &val, sdata);
-	    if (err)
-		goto out_unlock;
-	    set_termios(sdata->fd, &termio);
-	} else if (op == TERMIO_OP_MCTL) {
-	    int mctl = 0;
-
-	    if (ioctl(sdata->fd, TIOCMGET, &mctl) == -1) {
-		err = errno;
-	    } else {
-		err = getset(NULL, &mctl, &val, sdata);
-		if (!err) {
-		    if (ioctl(sdata->fd, TIOCMSET, &mctl) == -1)
-			err = errno;
-		}
-	    }
-	    if (err)
-		goto out_unlock;
-	} else if (op == TERMIO_OP_BRK) {
-	    int iocval;
-	    bool bval;
-
-	    if (val == SERGENSIO_BREAK_ON) {
-		iocval = TIOCSBRK;
-		bval = true;
-	    } else if (val == SERGENSIO_BREAK_OFF) {
-		iocval = TIOCCBRK;
-		bval = false;
-	    } else {
-		err = GE_INVAL;
-		goto out_unlock;
-	    }
-	    if (ioctl(sdata->fd, iocval) == -1) {
-		err = errno;
-		goto out_unlock;
-	    }
-	    sdata->break_set = bval;
-	} else {
-	    err = GE_INVAL;
+	if (xlat)
+	    err = xlat(sdata, false, &val, val);
+	if (err)
 	    goto out_unlock;
-	}
+	err = sdata->o->iod_control(sdata->iod, op, false, val);
+	if (err)
+	    goto out_unlock;
+	err = sdata->o->iod_control(sdata->iod, GENSIO_IOD_CONTROL_APPLY,
+				    false, 0);
+	if (err)
+	    goto out_unlock;
     }
 
     if (qe) {
@@ -657,60 +324,14 @@ termios_set_get(struct sterm_data *sdata, int val, enum termio_op op,
 }
 
 static int
-termios_get_set_baud(g_termios *termio, int *mctl, int *ival,
-		     struct sterm_data *sdata)
-{
-    int val = *ival;
-
-    if (val) {
-	if (!set_baud_rate(termio, val, sdata->allow_custspeed))
-	    return GE_INVAL;
-    } else {
-	get_rate_from_baud_rate(termio, ival);
-    }
-
-    return 0;
-}
-
-static int
 sterm_baud(struct sergensio *sio, int baud,
 	   void (*done)(struct sergensio *sio, int err,
 			int baud, void *cb_data),
 	   void *cb_data)
 {
-    return termios_set_get(sergensio_get_gensio_data(sio), baud,
-			   TERMIO_OP_TERMIO,
-			   termios_get_set_baud, done, cb_data);
-}
-
-static int
-termios_get_set_datasize(g_termios *termio, int *mctl, int *ival,
-			 struct sterm_data *sdata)
-{
-    if (*ival) {
-	int val;
-
-	switch (*ival) {
-	case 5: val = CS5; break;
-	case 6: val = CS6; break;
-	case 7: val = CS7; break;
-	case 8: val = CS8; break;
-	default:
-	    return GE_INVAL;
-	}
-	termio->c_cflag &= ~CSIZE;
-	termio->c_cflag |= val;
-    } else {
-	switch (termio->c_cflag & CSIZE) {
-	case CS5: *ival = 5; break;
-	case CS6: *ival = 6; break;
-	case CS7: *ival = 7; break;
-	case CS8: *ival = 8; break;
-	default:
-	    return GE_INVAL;
-	}
-    }
-    return 0;
+    return serconf_set_get(sergensio_get_gensio_data(sio),
+			   GENSIO_IOD_CONTROL_BAUD, baud,
+			   NULL, done, cb_data);
 }
 
 static int
@@ -719,55 +340,9 @@ sterm_datasize(struct sergensio *sio, int datasize,
 			    void *cb_data),
 	       void *cb_data)
 {
-    return termios_set_get(sergensio_get_gensio_data(sio), datasize,
-			   TERMIO_OP_TERMIO,
-			   termios_get_set_datasize, done, cb_data);
-}
-
-static int
-termios_get_set_parity(g_termios *termio, int *mctl, int *ival,
-		       struct sterm_data *sdata)
-{
-    if (*ival) {
-	int val;
-
-	switch(*ival) {
-	case SERGENSIO_PARITY_NONE: val = 0; break;
-	case SERGENSIO_PARITY_ODD: val = PARENB | PARODD; break;
-	case SERGENSIO_PARITY_EVEN: val = PARENB; break;
-#ifdef CMSPAR
-	case SERGENSIO_PARITY_MARK: val = PARENB | PARODD | CMSPAR; break;
-	case SERGENSIO_PARITY_SPACE: val = PARENB | CMSPAR; break;
-#endif
-	default:
-	    return GE_INVAL;
-	}
-	termio->c_cflag &= ~(PARENB | PARODD);
-#ifdef CMSPAR
-	termio->c_cflag &= ~CMSPAR;
-#endif
-	termio->c_cflag |= val;
-    } else {
-	if (!(termio->c_cflag & PARENB)) {
-	    *ival = SERGENSIO_PARITY_NONE;
-	} else if (termio->c_cflag & PARODD) {
-#ifdef CMSPAR
-	    if (termio->c_cflag & CMSPAR)
-		*ival = SERGENSIO_PARITY_MARK;
-	    else
-#endif
-		*ival = SERGENSIO_PARITY_ODD;
-	} else {
-#ifdef CMSPAR
-	    if (termio->c_cflag & CMSPAR)
-		*ival = SERGENSIO_PARITY_SPACE;
-	    else
-#endif
-		*ival = SERGENSIO_PARITY_EVEN;
-	}
-    }
-
-    return 0;
+    return serconf_set_get(sergensio_get_gensio_data(sio),
+			   GENSIO_IOD_CONTROL_DATASIZE, datasize,
+			   NULL, done, cb_data);
 }
 
 static int
@@ -776,30 +351,9 @@ sterm_parity(struct sergensio *sio, int parity,
 			  void *cb_data),
 	     void *cb_data)
 {
-    return termios_set_get(sergensio_get_gensio_data(sio), parity,
-			   TERMIO_OP_TERMIO,
-			   termios_get_set_parity, done, cb_data);
-}
-
-static int
-termios_get_set_stopbits(g_termios *termio, int *mctl, int *ival,
-			 struct sterm_data *sdata)
-{
-    if (*ival) {
-	if (*ival == 1)
-	    termio->c_cflag &= ~CSTOPB;
-	else if (*ival == 2)
-	    termio->c_cflag |= CSTOPB;
-	else
-	    return GE_INVAL;
-    } else {
-	if (termio->c_cflag & CSTOPB)
-	    *ival = 2;
-	else
-	    *ival = 1;
-    }
-
-    return 0;
+    return serconf_set_get(sergensio_get_gensio_data(sio),
+			   GENSIO_IOD_CONTROL_PARITY, parity,
+			   NULL, done, cb_data);
 }
 
 static int
@@ -808,66 +362,43 @@ sterm_stopbits(struct sergensio *sio, int stopbits,
 			    void *cb_data),
 	       void *cb_data)
 {
-    return termios_set_get(sergensio_get_gensio_data(sio), stopbits,
-			   TERMIO_OP_TERMIO,
-			   termios_get_set_stopbits, done, cb_data);
+    return serconf_set_get(sergensio_get_gensio_data(sio),
+			   GENSIO_IOD_CONTROL_STOPBITS, stopbits,
+			   NULL, done, cb_data);
 }
 
 static int
-termios_get_set_flowcontrol(g_termios *termio, int *mctl, int *ival,
-			    struct sterm_data *sdata)
+serconf_xlat_flowcontrol(struct sterm_data *sdata, bool get,
+			 int *oval, int val)
 {
-    if (*ival) {
-        switch (*ival) {
-        case SERGENSIO_FLOWCONTROL_NONE:
-                termio->c_iflag &= ~(IXON | IXOFF);
-                termio->c_cflag &= ~(CRTSCTS);
-                break;
-        case SERGENSIO_FLOWCONTROL_XON_XOFF:
-                termio->c_iflag |= (IXON | IXOFF);
-                termio->c_cflag &= ~(CRTSCTS);
-                break;
-        case SERGENSIO_FLOWCONTROL_RTS_CTS:
-                termio->c_iflag &= ~(IXON | IXOFF);
-                termio->c_cflag |= (CRTSCTS);
-                break;
-        default:
-            return GE_INVAL;
-        }
+    if (get) {
+	int err;
 
+	if (val) {
+	    *oval = SERGENSIO_FLOWCONTROL_RTS_CTS;
+	} else {
+	    err = sdata->o->iod_control(sdata->iod, GENSIO_IOD_CONTROL_XONXOFF,
+					true, (intptr_t) &val);
+	    if (err)
+		return err;
+	    if (val)
+		*oval = SERGENSIO_FLOWCONTROL_XON_XOFF;
+	    else
+		*oval = SERGENSIO_FLOWCONTROL_NONE;
+	}
     } else {
-	if (termio->c_cflag & CRTSCTS)
-	    *ival = SERGENSIO_FLOWCONTROL_RTS_CTS;
-	else if (termio->c_iflag & (IXON | IXOFF))
-	    *ival = SERGENSIO_FLOWCONTROL_XON_XOFF;
-	else
-	    *ival = SERGENSIO_FLOWCONTROL_NONE;
-    }
-
-    return 0;
-}
-
-static int
-termios_get_set_iflowcontrol(g_termios *termio, int *mctl, int *ival,
-			     struct sterm_data *sdata)
-{
-    if (*ival) {
-	int val;
-
-	/* We can only independently set XON/XOFF. */
-	switch (*ival) {
-	case SERGENSIO_FLOWCONTROL_NONE: val = 0; break;
-	case SERGENSIO_FLOWCONTROL_XON_XOFF: val = IXOFF; break;
+	switch (val) {
+	case SERGENSIO_FLOWCONTROL_NONE:
+	case SERGENSIO_FLOWCONTROL_XON_XOFF:
+	case 0:
+	    *oval = 0;
+	    break;
+	case SERGENSIO_FLOWCONTROL_RTS_CTS:
+	    *oval = 1;
+	    break;
 	default:
 	    return GE_INVAL;
 	}
-	termio->c_iflag &= ~IXOFF;
-	termio->c_iflag |= val;
-    } else {
-	if (termio->c_iflag & IXOFF)
-	    *ival = SERGENSIO_FLOWCONTROL_XON_XOFF;
-	else
-	    *ival = SERGENSIO_FLOWCONTROL_NONE;
     }
 
     return 0;
@@ -879,9 +410,50 @@ sterm_flowcontrol(struct sergensio *sio, int flowcontrol,
 			       int flowcontrol, void *cb_data),
 		  void *cb_data)
 {
-    return termios_set_get(sergensio_get_gensio_data(sio), flowcontrol,
-			   TERMIO_OP_TERMIO,
-			   termios_get_set_flowcontrol, done, cb_data);
+    struct sterm_data *sdata = sergensio_get_gensio_data(sio);
+    int xonxoff = 0, err;
+
+    switch (flowcontrol) {
+    case SERGENSIO_FLOWCONTROL_NONE:
+    case SERGENSIO_FLOWCONTROL_RTS_CTS:
+    case 0:
+	break;
+    case SERGENSIO_FLOWCONTROL_XON_XOFF:
+	xonxoff = 1;
+	break;
+    default:
+	return GE_INVAL;
+    }
+
+    if (flowcontrol) {
+	err = sdata->o->iod_control(sdata->iod, GENSIO_IOD_CONTROL_XONXOFF,
+				    false, xonxoff);
+	if (err)
+	    return err;
+    }
+    return serconf_set_get(sdata, GENSIO_IOD_CONTROL_RTSCTS, flowcontrol,
+			   serconf_xlat_flowcontrol, done, cb_data);
+}
+
+static int
+serconf_xlat_iflowcontrol(struct sterm_data *sdata, bool get,
+			  int *oval, int val)
+{
+    if (get) {
+	switch (val) {
+	case SERGENSIO_FLOWCONTROL_NONE: *oval = 0; break;
+	case SERGENSIO_FLOWCONTROL_XON_XOFF: *oval = 1; break;
+	default:
+	    return GE_INVAL;
+	}
+    } else {
+	if (val)
+	    *oval = SERGENSIO_FLOWCONTROL_XON_XOFF;
+	else
+	    *oval = SERGENSIO_FLOWCONTROL_NONE;
+    }
+
+    return 0;
 }
 
 static int
@@ -890,9 +462,29 @@ sterm_iflowcontrol(struct sergensio *sio, int iflowcontrol,
 				int iflowcontrol, void *cb_data),
 		   void *cb_data)
 {
-    return termios_set_get(sergensio_get_gensio_data(sio), iflowcontrol,
-			   TERMIO_OP_TERMIO,
-			   termios_get_set_iflowcontrol, done, cb_data);
+    return serconf_set_get(sergensio_get_gensio_data(sio),
+			   GENSIO_IOD_CONTROL_IXONXOFF, iflowcontrol,
+			   serconf_xlat_iflowcontrol, done, cb_data);
+}
+
+static int
+sterm_xlat_sbreak(struct sterm_data *sdata, bool get, int *oval, int val)
+{
+    if (get) {
+	if (val)
+	    *oval = SERGENSIO_BREAK_ON;
+	else
+	    *oval = SERGENSIO_BREAK_OFF;
+    } else {
+	switch (val) {
+	case SERGENSIO_BREAK_OFF: *oval = 0; break;
+	case SERGENSIO_BREAK_ON: *oval = 1; break;
+	default:
+	    return GE_INVAL;
+	}
+    }
+
+    return 0;
 }
 
 static int
@@ -901,27 +493,26 @@ sterm_sbreak(struct sergensio *sio, int breakv,
 			  void *cb_data),
 	     void *cb_data)
 {
-    return termios_set_get(sergensio_get_gensio_data(sio), breakv,
-			   TERMIO_OP_BRK,
-			   NULL, done, cb_data);
+    return serconf_set_get(sergensio_get_gensio_data(sio),
+			   GENSIO_IOD_CONTROL_SEND_BREAK, breakv,
+			   sterm_xlat_sbreak, done, cb_data);
 }
 
 static int
-termios_get_set_dtr(g_termios *termio, int *mctl, int *ival,
-		    struct sterm_data *sdata)
+serconf_xlat_dtr(struct sterm_data *sdata, bool get, int *oval, int val)
 {
-    if (*ival) {
-	if (*ival == SERGENSIO_DTR_ON)
-	    *mctl |= TIOCM_DTR;
-	else if (*ival == SERGENSIO_DTR_OFF)
-	    *mctl &= ~TIOCM_DTR;
+    if (get) {
+	if (val)
+	    *oval = SERGENSIO_DTR_ON;
 	else
-	    return GE_INVAL;
+	    *oval = SERGENSIO_DTR_OFF;
     } else {
-	if (*mctl & TIOCM_DTR)
-	    *ival = SERGENSIO_DTR_ON;
-	else
-	    *ival = SERGENSIO_DTR_OFF;
+	switch (val) {
+	case SERGENSIO_DTR_OFF: *oval = 0; break;
+	case SERGENSIO_DTR_ON: *oval = 1; break;
+	default:
+	    return GE_INVAL;
+	}
     }
 
     return 0;
@@ -933,26 +524,26 @@ sterm_dtr(struct sergensio *sio, int dtr,
 		       void *cb_data),
 	  void *cb_data)
 {
-    return termios_set_get(sergensio_get_gensio_data(sio), dtr, TERMIO_OP_MCTL,
-			   termios_get_set_dtr, done, cb_data);
+    return serconf_set_get(sergensio_get_gensio_data(sio),
+			   GENSIO_IOD_CONTROL_DTR, dtr,
+			   serconf_xlat_dtr, done, cb_data);
 }
 
 static int
-termios_get_set_rts(g_termios *termio, int *mctl, int *ival,
-		    struct sterm_data *sdata)
+serconf_xlat_rts(struct sterm_data *sdata, bool get, int *oval, int val)
 {
-    if (*ival) {
-	if (*ival == SERGENSIO_RTS_ON)
-	    *mctl |= TIOCM_RTS;
-	else if (*ival == SERGENSIO_RTS_OFF)
-	    *mctl &= ~TIOCM_RTS;
+    if (get) {
+	if (val)
+	    *oval = SERGENSIO_RTS_ON;
+	else
+	    *oval = SERGENSIO_RTS_OFF;
+    } else {
+	if (val == SERGENSIO_RTS_ON)
+	    *oval = 1;
+	else if (val == SERGENSIO_RTS_OFF)
+	    *oval = 0;
 	else
 	    return GE_INVAL;
-    } else {
-	if (*mctl & TIOCM_RTS)
-	    *ival = SERGENSIO_RTS_ON;
-	else
-	    *ival = SERGENSIO_RTS_OFF;
     }
 
     return 0;
@@ -964,16 +555,16 @@ sterm_rts(struct sergensio *sio, int rts,
 		       void *cb_data),
 	  void *cb_data)
 {
-    return termios_set_get(sergensio_get_gensio_data(sio), rts, TERMIO_OP_MCTL,
-			   termios_get_set_rts, done, cb_data);
+    return serconf_set_get(sergensio_get_gensio_data(sio),
+			   GENSIO_IOD_CONTROL_RTS, rts,
+			   serconf_xlat_rts, done, cb_data);
 }
 
 static void
 serialdev_timeout(struct gensio_timer *t, void *cb_data)
 {
     struct sterm_data *sdata = cb_data;
-    int val, rv;
-    unsigned int modemstate = 0;
+    int modemstate = 0, rv;
     bool force_send;
 
     sterm_lock(sdata);
@@ -984,18 +575,10 @@ serialdev_timeout(struct gensio_timer *t, void *cb_data)
     sdata->handling_modemstate = true;
     sterm_unlock(sdata);
 
-    rv = ioctl(sdata->fd, TIOCMGET, &val);
+    rv = sdata->o->iod_control(sdata->iod, GENSIO_IOD_CONTROL_MODEMSTATE,
+			       true, (intptr_t) &modemstate);
     if (rv)
 	goto out_restart;
-
-    if (val & TIOCM_CD)
-	modemstate |= SERGENSIO_MODEMSTATE_CD;
-    if (val & TIOCM_RI)
-	modemstate |= SERGENSIO_MODEMSTATE_RI;
-    if (val & TIOCM_DSR)
-	modemstate |= SERGENSIO_MODEMSTATE_DSR;
-    if (val & TIOCM_CTS)
-	modemstate |= SERGENSIO_MODEMSTATE_CTS;
 
     sterm_lock(sdata);
     /* Bits for things that changed. */
@@ -1051,9 +634,8 @@ sterm_flowcontrol_state(struct sergensio *sio, bool val)
 {
     struct sterm_data *sdata = sergensio_get_gensio_data(sio);
 
-    if (set_flowcontrol(sdata->fd, val))
-	return gensio_os_err_to_err(sdata->o, errno);
-    return 0;
+    return sdata->o->iod_control(sdata->iod, GENSIO_IOD_CONTROL_FLOWCTL_STATE,
+				 false, val);
 }
 
 static int
@@ -1082,8 +664,8 @@ sterm_send_break(struct sergensio *sio)
 {
     struct sterm_data *sdata = sergensio_get_gensio_data(sio);
 
-    do_break(sdata->fd);
-    return 0;
+    return sdata->o->iod_control(sdata->iod, GENSIO_IOD_CONTROL_SEND_BREAK,
+				 false, 0);
 }
 
 static int
@@ -1205,7 +787,6 @@ sterm_check_close_drain(void *handler_data, enum gensio_ll_close_state state,
  out_rm_uucp:
     if (!err) {
 	o->flush(sdata->iod, GENSIO_OUT_BUF);
-	set_termios(sdata->fd, &sdata->orig_termios);
 	if (!sdata->no_uucp_lock)
 	    uucp_rm_lock(sdata->devname);
     }
@@ -1214,22 +795,16 @@ sterm_check_close_drain(void *handler_data, enum gensio_ll_close_state state,
     return err;
 }
 
-#if !defined(HAVE_CFMAKERAW) || defined(HAVE_TERMIOS2)
-static void s_cfmakeraw(g_termios *termios_p) {
-    termios_p->c_iflag &= ~(IGNBRK|BRKINT|PARMRK|ISTRIP|INLCR|IGNCR|ICRNL|IXON);
-    termios_p->c_oflag &= ~OPOST;
-    termios_p->c_lflag &= ~(ECHO|ECHONL|ICANON|ISIG|IEXTEN);
-    termios_p->c_cflag &= ~(CSIZE|PARENB);
-    termios_p->c_cflag |= CS8;
-    termios_p->c_cc[VMIN] = 1;
-}
-#else
-#define s_cfmakeraw cfmakeraw
+#ifndef _WIN32
+#include <unistd.h>
 #endif
 
 static bool
 is_a_pty(const char *ttyname)
 {
+#ifdef _WIN32
+    return false;
+#else
     char buf[PATH_MAX];
 
     while (readlink(ttyname, buf, sizeof(buf)) > 0)
@@ -1250,6 +825,7 @@ is_a_pty(const char *ttyname)
 	     (ttyname[8] >= 'p' && ttyname[8] <= 'z')) &&
 	    ((ttyname[9] >= '0' && ttyname[9] <= '9') ||
 	     (ttyname[9] >= 'a' && ttyname[9] <= 'f')));
+#endif
 }
 
 static int
@@ -1261,56 +837,70 @@ sterm_sub_open(void *handler_data, struct gensio_iod **riod)
     int options;
 
     if (!sdata->no_uucp_lock) {
-	err = uucp_mk_lock(sdata->devname);
-	if (err > 0) {
-	    err = GE_INUSE;
+	err = uucp_mk_lock(o, sdata->devname);
+	if (err)
 	    goto out;
-	}
-	if (err < 0) {
-	    err = gensio_os_err_to_err(sdata->o, errno);
-	    goto out;
-	}
     }
 
     sdata->timer_stopped = false;
 
-    options = O_NONBLOCK | O_NOCTTY;
-    if (sdata->write_only)
-	options |= O_WRONLY;
-    else
-	options |= O_RDWR;
-    sdata->fd = open(sdata->devname, options);
-    if (sdata->fd == -1) {
-	err = errno;
-	goto out_uucp;
-    }
-    err = o->add_iod(o, GENSIO_IOD_DEV, sdata->fd, &sdata->iod);
+    options = GENSIO_OPEN_OPTION_WRITEABLE;
+    if (!sdata->write_only)
+	options |= GENSIO_OPEN_OPTION_READABLE;
+    err = o->open_dev(o, sdata->devname, options, &sdata->iod);
     if (err)
 	goto out_uucp;
 
-    get_termios(sdata->fd, &sdata->orig_termios);
-
-    if (!sdata->write_only &&
-		set_termios(sdata->fd, &sdata->default_termios) == -1) {
-	err = errno;
-	goto out_restore;
+    if (!sdata->write_only) {
+	err = o->iod_control(sdata->iod, GENSIO_IOD_CONTROL_BAUD, false,
+			     sdata->def_baud);
+	if (err)
+	    goto out_uucp;
+	err = o->iod_control(sdata->iod, GENSIO_IOD_CONTROL_PARITY, false,
+			     sdata->def_parity);
+	if (err)
+	    goto out_uucp;
+	err = o->iod_control(sdata->iod, GENSIO_IOD_CONTROL_XONXOFF, false,
+			     sdata->def_xonxoff);
+	if (err)
+	    goto out_uucp;
+	err = o->iod_control(sdata->iod, GENSIO_IOD_CONTROL_RTSCTS, false,
+			     sdata->def_rtscts);
+	if (err)
+	    goto out_uucp;
+	err = o->iod_control(sdata->iod, GENSIO_IOD_CONTROL_DATASIZE, false,
+			     sdata->def_datasize);
+	if (err)
+	    goto out_uucp;
+	err = o->iod_control(sdata->iod, GENSIO_IOD_CONTROL_STOPBITS, false,
+			     sdata->def_stopbits);
+	if (err)
+	    goto out_uucp;
+	err = o->iod_control(sdata->iod, GENSIO_IOD_CONTROL_LOCAL, false,
+			     sdata->def_local);
+	if (err)
+	    goto out_uucp;
+	err = o->iod_control(sdata->iod, GENSIO_IOD_CONTROL_HANGUP_ON_DONE,
+			     false, sdata->def_hupcl);
+	if (err)
+	    goto out_uucp;
+	if (sdata->rs485) {
+	    err = o->iod_control(sdata->iod, GENSIO_IOD_CONTROL_RS485, false,
+				 (intptr_t) sdata->rs485);
+	    if (err)
+		goto out_uucp;
+	}
+	err = o->iod_control(sdata->iod, GENSIO_IOD_CONTROL_APPLY, false, 0);
+	if (err)
+	    goto out_uucp;
     }
 
     if (!sdata->write_only && !sdata->disablebreak) {
-	if (ioctl(sdata->fd, TIOCCBRK) == -1) {
-	    err = errno;
-	    goto out_restore;
-	}
+	err = o->iod_control(sdata->iod, GENSIO_IOD_CONTROL_SET_BREAK,
+			     false, sdata->disablebreak);
+	if (err)
+	    goto out_uucp;
     }
-
-#if HAVE_DECL_TIOCSRS485
-    if (sdata->rs485.flags & SER_RS485_ENABLED) {
-	if (ioctl(sdata->fd, TIOCSRS485, &sdata->rs485) < 0) {
-	    err = errno;
-	    goto out_restore;
-	}
-    }
-#endif
 
     sterm_lock(sdata);
     sdata->open = true;
@@ -1324,25 +914,17 @@ sterm_sub_open(void *handler_data, struct gensio_iod **riod)
 
     return 0;
 
- out_restore:
-    set_termios(sdata->fd, &sdata->orig_termios);
  out_uucp:
     if (!sdata->no_uucp_lock)
 	uucp_rm_lock(sdata->devname);
 
     /* pty's for some reason return EIO if the remote end closes. */
-    if (sdata->is_pty && err == EIO)
+    if (sdata->is_pty && err == GE_IOERR)
 	err = GE_REMCLOSE;
-    else
-	err = gensio_os_err_to_err(sdata->o, err);
  out:
     if (sdata->iod) {
-	o->release_iod(sdata->iod);
+	o->close(&sdata->iod);
 	sdata->iod = NULL;
-    }
-    if (sdata->fd != -1) {
-	close(sdata->fd);
-	sdata->fd = -1;
     }
     return err;
 }
@@ -1352,7 +934,9 @@ sterm_free(void *handler_data)
 {
     struct sterm_data *sdata = handler_data;
 
-    termios_clear_q(sdata);
+    serconf_clear_q(sdata);
+    if (sdata->rs485)
+	sdata->o->free(sdata->o, sdata->rs485);
     if (sdata->lock)
 	sdata->o->free_lock(sdata->lock);
     if (sdata->timer)
@@ -1369,77 +953,80 @@ sterm_free(void *handler_data)
 static int
 sterm_control_raddr(struct sterm_data *sdata, char *buf, gensiods *datalen)
 {
-    int status = 0;
+    struct gensio_os_funcs *o = sdata->o;
+    int tval, rv;
     gensiods pos = 0, buflen = *datalen;
-
-    if (!sdata->write_only && sdata->fd != -1) {
-	if (ioctl(sdata->fd, TIOCMGET, &status) == -1)
-	    return gensio_os_err_to_err(sdata->o, errno);
-    }
 
     gensio_pos_snprintf(buf, buflen, &pos, "%s", sdata->devname);
 
     if (!sdata->write_only) {
-	g_termios itermio, *termio;
+	int baud;
 	int stopbits;
-	int databits;
-	int parity_enabled;
-	int parity;
-	int xon;
-	int xoff;
-	int xany;
-	int flow_rtscts;
+	int datasize;
+	const char *parity;
+	int xonxoff;
+	int rtscts;
 	int clocal;
 	int hangup_when_done;
 	char str[4];
 
-	if (sdata->fd == -1) {
-	    termio = &sdata->default_termios;
+	if (!sdata->iod) {
+	    baud = sdata->def_baud;
+	    stopbits = sdata->def_stopbits;
+	    datasize = sdata->def_datasize;
+	    parity = parity_to_str(sdata->def_parity);
+	    xonxoff = sdata->def_xonxoff;
+	    rtscts = sdata->def_rtscts;
+	    clocal = sdata->def_local;
+	    hangup_when_done = sdata->def_hupcl;
 	} else {
-	    if (get_termios(sdata->fd, &itermio) == -1)
-		return gensio_os_err_to_err(sdata->o, errno);
-	    termio = &itermio;
+	    rv = o->iod_control(sdata->iod, GENSIO_IOD_CONTROL_BAUD, true,
+				(intptr_t) &baud);
+	    if (rv)
+		return rv;
+	    rv = o->iod_control(sdata->iod, GENSIO_IOD_CONTROL_STOPBITS, true,
+				(intptr_t) &stopbits);
+	    if (rv)
+		return rv;
+	    rv = o->iod_control(sdata->iod, GENSIO_IOD_CONTROL_DATASIZE, true,
+				(intptr_t) &datasize);
+	    if (rv)
+		return rv;
+	    rv = o->iod_control(sdata->iod, GENSIO_IOD_CONTROL_PARITY, true,
+				(intptr_t) &tval);
+	    if (rv)
+		return rv;
+	    parity = parity_to_str(tval);
+
+	    rv = o->iod_control(sdata->iod, GENSIO_IOD_CONTROL_XONXOFF, true,
+				(intptr_t) &xonxoff);
+	    if (rv)
+		return rv;
+	    rv = o->iod_control(sdata->iod, GENSIO_IOD_CONTROL_RTSCTS, true,
+				(intptr_t) &rtscts);
+	    if (rv)
+		return rv;
+	    rv = o->iod_control(sdata->iod, GENSIO_IOD_CONTROL_LOCAL, true,
+				(intptr_t) &clocal);
+	    if (rv)
+		return rv;
+	    rv = o->iod_control(sdata->iod, GENSIO_IOD_CONTROL_HANGUP_ON_DONE,
+				true, (intptr_t) &hangup_when_done);
+	    if (rv)
+		return rv;
 	}
 
-	stopbits = termio->c_cflag & CSTOPB;
-	databits = termio->c_cflag & CSIZE;
-	parity_enabled = termio->c_cflag & PARENB;
-	parity = termio->c_cflag & PARODD;
-	xon = termio->c_iflag & IXON;
-	xoff = termio->c_iflag & IXOFF;
-	xany = termio->c_iflag & IXANY;
-	flow_rtscts = termio->c_cflag & CRTSCTS;
-	clocal = termio->c_cflag & CLOCAL;
-	hangup_when_done = termio->c_cflag & HUPCL;
+	str[0] = parity[0];
+	str[1] = '0' + datasize;
+	str[2] = '0' + stopbits;
+	str[3] = '\0';
 
-	memset(str, 0, sizeof(str));
-	if (parity_enabled && parity)
-	    str[0] = 'O';
-	else if (parity_enabled)
-	    str[0] = 'E';
-	else
-	    str[0] = 'N';
+	gensio_pos_snprintf(buf, buflen, &pos, ",%d%s", baud, str);
 
-	switch (databits) {
-	case CS5: str[1] = '5'; break;
-	case CS6: str[1] = '6'; break;
-	case CS7: str[1] = '7'; break;
-	case CS8: str[1] = '8'; break;
-	default: str[1] = '?';
-	}
-
-	if (stopbits)
-	    str[2] = '2';
-	else
-	    str[2] = '1';
-
-	gensio_pos_snprintf(buf, buflen, &pos, ",%d%s",
-			    get_baud_rate_val(termio), str);
-
-	if (xon && xoff && xany)
+	if (xonxoff)
 	    gensio_pos_snprintf(buf, buflen, &pos, ",XONXOFF");
 
-	if (flow_rtscts)
+	if (rtscts)
 	    gensio_pos_snprintf(buf, buflen, &pos, ",RTSCTS");
 
 	if (clocal)
@@ -1449,13 +1036,19 @@ sterm_control_raddr(struct sterm_data *sdata, char *buf, gensiods *datalen)
 	    gensio_pos_snprintf(buf, buflen, &pos, ",HANGUP_WHEN_DONE");
 
     }
-    if (!sdata->write_only && sdata->fd != -1) {
-	if (status & TIOCM_RTS)
+    if (!sdata->write_only && sdata->iod) {
+	rv = o->iod_control(sdata->iod, GENSIO_IOD_CONTROL_RTS,
+			    true, (intptr_t) &tval);
+	if (rv)
+	    return rv;
+	if (tval)
 	    gensio_pos_snprintf(buf, buflen, &pos, " RTSHI");
 	else
 	    gensio_pos_snprintf(buf, buflen, &pos, " RTSLO");
 
-	if (status & TIOCM_DTR)
+	rv = o->iod_control(sdata->iod, GENSIO_IOD_CONTROL_DTR,
+			    true, (intptr_t) &tval);
+	if (tval)
 	    gensio_pos_snprintf(buf, buflen, &pos, " DTRHI");
 	else
 	    gensio_pos_snprintf(buf, buflen, &pos, " DTRLO");
@@ -1477,7 +1070,8 @@ sterm_control(void *handler_data, struct gensio_iod *iod,
     case GENSIO_CONTROL_SEND_BREAK:
 	if (get)
 	    break;
-	do_break(sdata->fd);
+	return sdata->o->iod_control(sdata->iod, GENSIO_IOD_CONTROL_SEND_BREAK,
+				     false, 0);
 	return 0;
 
     case GENSIO_CONTROL_RADDR:
@@ -1490,7 +1084,8 @@ sterm_control(void *handler_data, struct gensio_iod *iod,
     case GENSIO_CONTROL_REMOTE_ID:
 	if (!get)
 	    return GE_NOTSUP;
-	*datalen = snprintf(data, *datalen, "%d", sdata->fd);
+	*datalen = snprintf(data, *datalen, "%d",
+			    sdata->o->iod_get_fd(sdata->iod));
 	return 0;
 
     default:
@@ -1543,134 +1138,70 @@ static const struct gensio_fd_ll_ops sterm_fd_ll_ops = {
 };
 
 static int
-handle_speedstr(g_termios *termio, const char *str, bool custspeed)
+handle_speedstr(struct sterm_data *sdata, const char *str)
 {
-    int val;
+    int val, rv;
     const char *rest = "";
 
     val = speedstr_to_speed(str, &rest);
     if (val == -1)
 	return GE_INVAL;
-    if (set_termios_from_speed(termio, val, rest, custspeed) == -1)
-	return GE_INVAL;
+    rv = set_serdef_from_speed(sdata, val, rest);
+    if (rv)
+	return rv;
     return 0;
 }
 
 static int
-process_termios_parm(g_termios *termio, const char *parm, bool custspeed)
+process_defserial_parm(struct sterm_data *sdata, const char *parm)
 {
     int rv = 0, val;
     const char *str;
     bool bval;
 
     if (gensio_check_keyvalue(parm, "speed", &str) > 0) {
-	rv = handle_speedstr(termio, str, custspeed);
-    } else if (handle_speedstr(termio, parm, custspeed) == 0) {
+	rv = handle_speedstr(sdata, str);
+    } else if (handle_speedstr(sdata, parm) == 0) {
 	;
     } else if (gensio_check_keybool(parm, "xonxoff", &bval) > 0) {
-	set_termios_xonxoff(termio, bval);
+	sdata->def_xonxoff = bval;
     } else if (gensio_check_keybool(parm, "rtscts", &bval) > 0) {
-	set_termios_rtscts(termio, bval);
+	sdata->def_rtscts = bval;
     } else if (gensio_check_keybool(parm, "local", &bval) > 0) {
-	if (bval)
-	    termio->c_cflag |= CLOCAL;
-	else
-	    termio->c_cflag &= ~CLOCAL;
+	sdata->def_local = bval;
     } else if (gensio_check_keybool(parm, "hangup-when-done", &bval) > 0) {
-	if (bval)
-	    termio->c_cflag |= HUPCL;
-	else
-	    termio->c_cflag &= ~HUPCL;
+	sdata->def_hupcl = bval;
 
     /* Everything below is deprecated. */
     } else if (strcasecmp(parm, "1STOPBIT") == 0) {
-	termio->c_cflag &= ~(CSTOPB);
+	sdata->def_stopbits = 1;
     } else if (strcasecmp(parm, "2STOPBITS") == 0) {
-	termio->c_cflag |= CSTOPB;
+	sdata->def_stopbits = 2;
     } else if (strcasecmp(parm, "5DATABITS") == 0) {
-	set_termios_datasize(termio, 5);
+	sdata->def_datasize = 5;
     } else if (strcasecmp(parm, "6DATABITS") == 0) {
-	set_termios_datasize(termio, 6);
+	sdata->def_datasize = 6;
     } else if (strcasecmp(parm, "7DATABITS") == 0) {
-	set_termios_datasize(termio, 7);
+	sdata->def_datasize = 7;
     } else if (strcasecmp(parm, "8DATABITS") == 0) {
-	set_termios_datasize(termio, 8);
+	sdata->def_datasize = 8;
     } else if ((val = lookup_parity_str(parm)) != -1) {
-	set_termios_parity(termio, val);
+	sdata->def_parity = val;
     } else if (strcasecmp(parm, "-XONXOFF") == 0) {
-	set_termios_xonxoff(termio, 0);
+	sdata->def_xonxoff = 0;
     } else if (strcasecmp(parm, "-RTSCTS") == 0) {
-	set_termios_rtscts(termio, 0);
+	sdata->def_rtscts = 0;
     } else if (strcasecmp(parm, "-LOCAL") == 0) {
-	termio->c_cflag &= ~CLOCAL;
+	sdata->def_local = 0;
     } else if (strcasecmp(parm, "HANGUP_WHEN_DONE") == 0) {
-	termio->c_cflag |= HUPCL;
+	sdata->def_hupcl = 1;
     } else if (strcasecmp(parm, "-HANGUP_WHEN_DONE") == 0) {
-	termio->c_cflag &= ~HUPCL;
+	sdata->def_hupcl = 0;
     } else {
 	rv = GE_INVAL;
     }
 
     return rv;
-}
-
-static int
-process_rs485(struct sterm_data *sdata, const char *str)
-{
-#if HAVE_DECL_TIOCSRS485
-    int argc, i;
-    const char **argv;
-    char *end;
-    int err;
-
-    if (!str || strcasecmp(str, "off") == 0) {
-	sdata->rs485.flags &= ~SER_RS485_ENABLED;
-	return 0;
-    }
-
-    err = gensio_str_to_argv(sdata->o, str, &argc, &argv, ":");
-
-    if (err)
-	return err;
-    if (argc < 2)
-	return GE_INVAL;
-
-    sdata->rs485.delay_rts_before_send = strtoul(argv[0], &end, 10);
-    if (end == argv[0] || *end != '\0')
-	goto out_inval;
-
-    sdata->rs485.delay_rts_after_send = strtoul(argv[1], &end, 10);
-    if (end == argv[1] || *end != '\0')
-	goto out_inval;
-
-    for (i = 2; i < argc; i++) {
-	if (strcmp(argv[i], "rts_on_send") == 0) {
-	    sdata->rs485.flags |= SER_RS485_RTS_ON_SEND;
-	} else if (strcmp(argv[i], "rts_after_send") == 0) {
-	    sdata->rs485.flags |= SER_RS485_RTS_AFTER_SEND;
-	} else if (strcmp(argv[i], "rx_during_tx") == 0) {
-	    sdata->rs485.flags |= SER_RS485_RX_DURING_TX;
-#ifdef SER_RS485_TERMINATE_BUS
-	} else if (strcmp(argv[i], "terminate_bus") == 0) {
-	    sdata->rs485.flags |= SER_RS485_TERMINATE_BUS;
-#endif
-	} else {
-	    goto out_inval;
-	}
-    }
-
-    sdata->rs485.flags |= SER_RS485_ENABLED;
-
- out:
-    gensio_argv_free(sdata->o, argv);
-    return err;
-
- out_inval:
-    err = GE_INVAL;
-    goto out;
-#else
-    return GE_NOTSUP;
-#endif
 }
 
 static int
@@ -1692,9 +1223,13 @@ sergensio_process_parms(struct sterm_data *sdata)
 					&sdata->disablebreak) > 0) {
 	    continue;
 	} else if (gensio_check_keyvalue(argv[i], "rs485", &str) > 0) {
-	    err = process_rs485(sdata, str);
-	    if (err)
+	    if (sdata->rs485)
+		sdata->o->free(sdata->o, sdata->rs485);
+	    sdata->rs485 = gensio_strdup(sdata->o, str);
+	    if (!sdata->rs485) {
+		err = GE_NOMEM;
 		break;
+	    }
 	    continue;
 
 	/* The following is deprecated. */
@@ -1702,8 +1237,7 @@ sergensio_process_parms(struct sterm_data *sdata)
 	    sdata->disablebreak = false;
 	    continue;
 	}
-	err = process_termios_parm(&sdata->default_termios, argv[i],
-				   sdata->allow_custspeed);
+	err = process_defserial_parm(sdata, argv[i]);
 	if (err)
 	    break;
     }
@@ -1713,13 +1247,11 @@ sergensio_process_parms(struct sterm_data *sdata)
 }
 
 static int
-sergensio_setup_defaults(struct gensio_os_funcs *o, struct sterm_data *sdata)
+sergensio_setup_defaults(struct sterm_data *sdata)
 {
+    struct gensio_os_funcs *o = sdata->o;
     int val, err;
-    g_termios *termctl = &sdata->default_termios;
     char *str;
-
-    s_cfmakeraw(termctl);
 
     err = gensio_get_default(o, "serialdev", "speed", false,
 			     GENSIO_DEFAULT_STR, &str, NULL);
@@ -1729,52 +1261,45 @@ sergensio_setup_defaults(struct gensio_os_funcs *o, struct sterm_data *sdata)
 	return err;
     }
     if (str) {
-	if (handle_speedstr(termctl, str, sdata->allow_custspeed)) {
+	if (handle_speedstr(sdata, str)) {
 	    gensio_log(o, GENSIO_LOG_ERR,
 		       "Default speed settings (%s) are invalid,"
 		       " defaulting to 9600N81", str);
-	    set_baud_rate(termctl, 9600, false);
-	    set_termios_parity(termctl, 'N');
-	    set_termios_datasize(termctl, 8);
-	    termctl->c_cflag &= ~(CSTOPB); /* 1 stopbit */
+	    sdata->def_baud = 9600;
+	    sdata->def_parity = SERGENSIO_PARITY_NONE;
+	    sdata->def_datasize = 8;
+	    sdata->def_stopbits = 1;
 	}
 	o->free(o, str);
     }
-
-    sdata->default_termios.c_cflag |= CREAD;
-    sdata->default_termios.c_cc[VSTART] = 17;
-    sdata->default_termios.c_cc[VSTOP] = 19;
-    sdata->default_termios.c_iflag |= IGNBRK;
 
     val = 0;
     err = gensio_get_default(o, "serialdev", "xonxoff", false,
 			     GENSIO_DEFAULT_BOOL, NULL, &val);
     if (err)
 	return err;
-    set_termios_xonxoff(termctl, val);
+    sdata->def_xonxoff = val;
 
     val = 0;
     err = gensio_get_default(o, "serialdev", "rtscts", false,
 			     GENSIO_DEFAULT_BOOL, NULL, &val);
     if (err)
 	return err;
-    set_termios_rtscts(termctl, val);
+    sdata->def_rtscts = val;
 
     val = 0;
     err = gensio_get_default(o, "serialdev", "local", false,
 			     GENSIO_DEFAULT_BOOL, NULL, &val);
     if (err)
 	return err;
-    if (val)
-	termctl->c_cflag |= CLOCAL;
+    sdata->def_local = val;
 
     val = 0;
     err = gensio_get_default(o, "serialdev", "hangup_when_done", false,
 			     GENSIO_DEFAULT_BOOL, NULL, &val);
     if (err)
 	return err;
-    if (val)
-	termctl->c_cflag |= HUPCL;
+    sdata->def_hupcl = val;
 
     err = gensio_get_default(o, "serialdev", "rs485", false, GENSIO_DEFAULT_STR,
 			     &str, NULL);
@@ -1783,13 +1308,7 @@ sergensio_setup_defaults(struct gensio_os_funcs *o, struct sterm_data *sdata)
 		   " %s\n", gensio_err_to_str(err));
 	return err;
     }
-    if (str) {
-	if (process_rs485(sdata, str))
-	    gensio_log(o, GENSIO_LOG_ERR,
-		       "Default rs485 settings (%s) are invalid, ignoring",
-		       str);
-	o->free(0, str);
-    }
+    sdata->rs485 = str;
 
     return 0;
 }
@@ -1806,19 +1325,12 @@ serialdev_gensio_alloc(const char *devname, const char * const args[],
     char *comma;
     gensiods max_read_size = GENSIO_DEFAULT_BUF_SIZE;
     int i;
-    bool nouucplock_set = false;
+    bool nouucplock_set = false, dummy = false;
 
     if (!sdata)
 	return GE_NOMEM;
 
     sdata->o = o;
-
-    i = 0;
-    err = gensio_get_default(o, "serialdev", "custspeed", false,
-			     GENSIO_DEFAULT_BOOL, NULL, &i);
-    if (err)
-	goto out_err;
-    sdata->allow_custspeed = i;
 
     for (i = 0; args && args[i]; i++) {
 	if (gensio_check_keyds(args[i], "readbuf", &max_read_size) > 0)
@@ -1828,14 +1340,12 @@ serialdev_gensio_alloc(const char *devname, const char * const args[],
 	    nouucplock_set = true;
 	    continue;
 	}
-	if (gensio_check_keybool(args[i], "custspeed",
-				 &sdata->allow_custspeed) > 0)
+	/* custspeed is ignored now */
+	if (gensio_check_keybool(args[i], "custspeed", &dummy) > 0)
 	    continue;
 	err = GE_INVAL;
 	goto out_err;
     }
-
-    sdata->fd = -1;
 
     sdata->timer = o->alloc_timer(o, serialdev_timeout, sdata);
     if (!sdata->timer)
@@ -1868,7 +1378,7 @@ serialdev_gensio_alloc(const char *devname, const char * const args[],
 	sdata->no_uucp_lock = strcmp(slash, "tty") == 0 || sdata->is_pty;
     }
 
-    err = sergensio_setup_defaults(o, sdata);
+    err = sergensio_setup_defaults(sdata);
     if (err)
 	goto out_err;
 
