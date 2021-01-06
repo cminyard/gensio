@@ -77,12 +77,12 @@ const char *gensio_log_level_to_str(enum gensio_log_levels level);
  * the options' values.  For get, add the _SET_ flag and the values
  * will be set upon return.
  */
-#define GENSIO_SET_OPENSOCK_REUSEADDR	(1 << 0)
-#define GENSIO_OPENSOCK_REUSEADDR	(1 << 1)
-#define GENSIO_SET_OPENSOCK_KEEPALIVE	(1 << 2)
-#define GENSIO_OPENSOCK_KEEPALIVE	(1 << 3)
-#define GENSIO_SET_OPENSOCK_NODELAY	(1 << 4)
-#define GENSIO_OPENSOCK_NODELAY		(1 << 5)
+#define GENSIO_OPENSOCK_REUSEADDR	(1 << 0)
+#define GENSIO_SET_OPENSOCK_REUSEADDR	(1 << 1)
+#define GENSIO_OPENSOCK_KEEPALIVE	(1 << 2)
+#define GENSIO_SET_OPENSOCK_KEEPALIVE	(1 << 3)
+#define GENSIO_OPENSOCK_NODELAY		(1 << 4)
+#define GENSIO_SET_OPENSOCK_NODELAY	(1 << 5)
 
 /* For recv and send */
 #define GENSIO_MSG_OOB 1
