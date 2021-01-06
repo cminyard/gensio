@@ -155,7 +155,7 @@ net_control(void *handler_data, struct gensio_iod *iod, bool get,
 		rv = tdata->o->socket_get_setup(iod, &setup);
 		if (rv)
 		    return rv;
-		val = !!(setup & GENSIO_SET_OPENSOCK_NODELAY);
+		val = !!(setup & GENSIO_OPENSOCK_NODELAY);
 	    } else {
 		val = tdata->nodelay;
 	    }
@@ -165,7 +165,7 @@ net_control(void *handler_data, struct gensio_iod *iod, bool get,
 	    if (iod) {
 		setup = GENSIO_SET_OPENSOCK_NODELAY;
 		if (val)
-		    setup |= GENSIO_SET_OPENSOCK_NODELAY;
+		    setup |= GENSIO_OPENSOCK_NODELAY;
 		rv = tdata->o->socket_set_setup(iod, val, NULL);
 		if (rv)
 		    return rv;

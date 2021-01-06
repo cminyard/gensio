@@ -101,7 +101,7 @@ sctp_socket_setup(struct sctp_data *tdata, struct gensio_iod *iod)
 			  GENSIO_SET_OPENSOCK_NODELAY);
 
     if (tdata->nodelay)
-	setup |= GENSIO_SET_OPENSOCK_NODELAY;
+	setup |= GENSIO_OPENSOCK_NODELAY;
     err = tdata->o->socket_set_setup(iod, setup, tdata->laddr);
     if (err)
 	return err;
@@ -193,6 +193,7 @@ sctp_control(void *handler_data, struct gensio_iod *iod, bool get, unsigned int 
 		rv = tdata->o->socket_get_setup(iod, &setup);
 		if (rv)
 		    return rv;
+		val = !!(setup & GENSIO_OPENSOCK_NODELAY);
 	    } else {
 		val = tdata->nodelay;
 	    }
@@ -202,7 +203,7 @@ sctp_control(void *handler_data, struct gensio_iod *iod, bool get, unsigned int 
 	    if (iod) {
 		setup = GENSIO_SET_OPENSOCK_NODELAY;
 		if (val)
-		    setup |= GENSIO_SET_OPENSOCK_NODELAY;
+		    setup |= GENSIO_OPENSOCK_NODELAY;
 		rv = tdata->o->socket_set_setup(iod, val, NULL);
 		if (rv)
 		    return rv;
