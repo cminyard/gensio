@@ -93,13 +93,16 @@ know if you set it right.
 Set the parity on io2 to none, odd, or even.  Ignored if io2 is not a
 serial gensio.
 .TP
-.B 7, 8
-Set the data size on io2 to 7 or 8 bits.  Ignored if io2 is not a
+.B 5, 6, 7, 8
+Set the data size on io2 to the number of bits.  Ignored if io2 is not a
 serial gensio.
 .TP
 .B 1, 2
 Set the number of stop bits to 1 or 2 on io2 bits.  Ignored if io2 is
 not a serial gensio.
+.TP
+.B x, r, f
+Sets flow control to xonxoff, rtscts, or none.
 
 .SH "SEE ALSO"
 gensio(5)

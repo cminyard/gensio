@@ -398,6 +398,12 @@ handle_sio_escape(struct ioinfo *ioinfo, char c)
     case 'e': /* Even parity */
 	sergensio_parity(sio, SERGENSIO_PARITY_EVEN, NULL, NULL);
 	break;
+    case '5': /* 5 bit data */
+	sergensio_datasize(sio, 5, NULL, NULL);
+	break;
+    case '6': /* 6 bit data */
+	sergensio_datasize(sio, 6, NULL, NULL);
+	break;
     case '7': /* 7 bit data */
 	sergensio_datasize(sio, 7, NULL, NULL);
 	break;
@@ -409,6 +415,15 @@ handle_sio_escape(struct ioinfo *ioinfo, char c)
 	break;
     case '2': /* 2 stop bits */
 	sergensio_stopbits(sio, 2, NULL, NULL);
+	break;
+    case 'x':
+	sergensio_flowcontrol(sio, SERGENSIO_FLOWCONTROL_XON_XOFF, NULL, NULL);
+	break;
+    case 'r':
+	sergensio_flowcontrol(sio, SERGENSIO_FLOWCONTROL_RTS_CTS, NULL, NULL);
+	break;
+    case 'f':
+	sergensio_flowcontrol(sio, SERGENSIO_FLOWCONTROL_NONE, NULL, NULL);
 	break;
     }
 
