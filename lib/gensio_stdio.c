@@ -1162,8 +1162,11 @@ stdio_gensio_alloc(const char * const argv[], const char * const args[],
 	if (gensio_check_keybool(args[i], "raw", &raw) > 0)
 	    continue;
 	if (gensio_check_keybool(args[i], "stderr-to-stdout",
-				 &stderr_to_stdout) > 0)
+				 &stderr_to_stdout) > 0) {
+	    /* We don't want to setup stderr here. */
+	    noredir_stderr = true;
 	    continue;
+	}
 	if (gensio_check_keybool(args[i], "noredir-stderr",
 				 &noredir_stderr) > 0)
 	    continue;
