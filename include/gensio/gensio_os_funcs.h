@@ -499,6 +499,10 @@ struct gensio_os_funcs {
      * stderr.  If you set stderr_to_stdout, then stderr will be sent
      * to stdout and rstderr should be NULL.  Otherwise if you want to
      * leave stderr to the caller's stderr, then set rstderr to NULL.
+     *
+     * Note that you must wait for the subprogram after you think it
+     * has terminated, and the wait must return without error, to
+     * avoid leaking resources.
      */
     int (*exec_subprog)(struct gensio_os_funcs *o,
 			const char *argv[], const char **env,
@@ -507,6 +511,12 @@ struct gensio_os_funcs {
 			struct gensio_iod **rstdin,
 			struct gensio_iod **rstdout,
 			struct gensio_iod **rstderr);
+    /*
+     * Attempt to stop a subprogram.  If force is given, don't get the
+     * subprogram an option (kill -1).  You still must wait on the
+     * subprogramm.
+     */
+    int (*kill_subprog)(struct gensio_os_funcs *o, intptr_t pid, bool force);
     /* Wait for a program to terminate. */
     int (*wait_subprog)(struct gensio_os_funcs *o, intptr_t pid, int *retcode);
 

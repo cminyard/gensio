@@ -187,6 +187,10 @@ not be sent at all (zero-byte send count).
 On a stdio connectors and pty gensios, the exit code of the process
 that ran.  This is only valid after close has completed.  An integer
 string is returned.
+.SS "GENSIO_CONTROL_KILL_TASK"
+Attempt to terminate the task.  The passed in string is converted
+(strtol) to an integer, if if it non-zero, a forced kill (kill -9) is
+done, otherwise a normal terminate is done.
 .SS "GENSIO_CONTROL_WAIT_TASK"
 On a stdio connectors and pty gensios, do a waitpid on the process.
 If it has closed, this will return success and the exit code in the

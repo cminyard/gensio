@@ -184,6 +184,7 @@ int gensio_control(struct gensio *io, int depth, bool get,
 #define GENSIO_CONTROL_RADDR			21
 #define GENSIO_CONTROL_RADDR_BIN		22
 #define GENSIO_CONTROL_REMOTE_ID		23
+#define GENSIO_CONTROL_KILL_TASK		24
 
 GENSIO_DLL_PUBLIC
 const char *gensio_get_type(struct gensio *io, unsigned int depth);

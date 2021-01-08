@@ -906,7 +906,7 @@ stdion_control(struct gensio *io, bool get, unsigned int option,
     struct stdiona_data *nadata = schan->nadata;
     struct gensio_os_funcs *o = nadata->o;
     const char **env, **argv;
-    int err, status;
+    int err, status, val;
     gensiods pos;
 
     switch (option) {
@@ -950,6 +950,17 @@ stdion_control(struct gensio *io, bool get, unsigned int option,
 	    return err;
 	nadata->opid = -1;
 	*datalen = snprintf(data, *datalen, "%d", status);
+	return 0;
+
+    case GENSIO_CONTROL_KILL_TASK:
+	if (get)
+	    return GE_NOTSUP;
+	if (nadata->opid == -1)
+	    return GE_NOTREADY;
+	val = strtoul(data, NULL, 0);
+	err = o->kill_subprog(o, nadata->opid, val);
+	if (err)
+	    return err;
 	return 0;
 
     case GENSIO_CONTROL_CLOSE_OUTPUT:

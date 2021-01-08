@@ -416,8 +416,9 @@ pty_control(void *handler_data, struct gensio_iod *iod, bool get,
 	    unsigned int option, char *data, gensiods *datalen)
 {
     struct pty_data *tdata = handler_data;
+    struct gensio_os_funcs *o = tdata->o;
     const char **env, **argv;
-    int err, status;
+    int err, status, val;
 
     switch (option) {
     case GENSIO_CONTROL_ENVIRONMENT:
@@ -454,14 +455,27 @@ pty_control(void *handler_data, struct gensio_iod *iod, bool get,
 	*datalen = snprintf(data, *datalen, "%d", tdata->exit_code);
 	return 0;
 
+    case GENSIO_CONTROL_KILL_TASK:
+	if (get)
+	    return GE_NOTSUP;
+	if (tdata->pid == -1)
+	    return GE_NOTREADY;
+	val = strtoul(data, NULL, 0);
+	err = kill(tdata->pid, val ? SIGKILL : SIGTERM);
+	if (err)
+	    return gensio_os_err_to_err(o, errno);
+	return 0;
+
     case GENSIO_CONTROL_WAIT_TASK:
 	if (!get)
 	    return GE_NOTSUP;
 	if (tdata->pid == -1)
 	    return GE_NOTREADY;
 	err = waitpid(tdata->pid, &status, WNOHANG | WNOWAIT);
-	if (err <= 0)
+	if (err == 0)
 	    return GE_NOTREADY;
+	else if (err < 0)
+	    return gensio_os_err_to_err(o, errno);
 	*datalen = snprintf(data, *datalen, "%d", status);
 	return 0;
 

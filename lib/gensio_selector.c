@@ -2131,6 +2131,18 @@ gensio_selector_iod_control(struct gensio_iod *iiod, int op, bool get,
 }
 
 static int
+gensio_selector_kill_subprog(struct gensio_os_funcs *o, intptr_t pid,
+			     bool force)
+{
+    int rv;
+
+    rv = kill(pid, force ? SIGKILL : SIGTERM);
+    if (rv < 0)
+	return gensio_os_err_to_err(o, errno);
+    return 0;
+}
+
+static int
 gensio_selector_wait_subprog(struct gensio_os_funcs *o, intptr_t pid,
 			     int *retcode)
 {
@@ -2218,6 +2230,7 @@ gensio_selector_alloc_sel(struct selector_s *sel, int wake_sig)
     o->makeraw = gensio_selector_makeraw;
     o->open_dev = gensio_selector_open_dev;
     o->exec_subprog = gensio_selector_exec_subprog;
+    o->kill_subprog = gensio_selector_kill_subprog;
     o->wait_subprog = gensio_selector_wait_subprog;
     o->iod_control = gensio_selector_iod_control;
 
