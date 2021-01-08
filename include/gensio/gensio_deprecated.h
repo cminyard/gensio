@@ -8,7 +8,7 @@
 #ifndef GENSIO_DEPRECATED
 #define GENSIO_DEPRECATED
 
-#if (__GNUC__ > 3) || ((__GNUC__ == 3) && (__GNUC_MINOR__ >= 2))
+#if defined(__GNUC__) && (__GNUC__ > 3) || ((__GNUC__ == 3) && (__GNUC_MINOR__ >= 2))
 # define GENSIO_FUNC_DEPRECATED __attribute__ ((deprecated))
 # define GENSIO_TYPE_DEPRECATED __attribute__ ((deprecated))
 # define GENSIO_VAR_DEPRECATED __attribute__ ((deprecated))
