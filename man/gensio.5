@@ -700,6 +700,11 @@ on pipes or files.
 .B stderr-to-stdout
 Send standard error output to standard out instead of having a separate
 channel for it.
+.TP
+.B noredir-stderr
+Do not modify the stderr for the program, use the calling program's
+stderr.  This can be useful if you want to see stderr output from a
+program.
 .SS "Channels"
 The stdio connecting gensio that start another program does not
 provide stderr as part of the main gensio. You must create a channel
