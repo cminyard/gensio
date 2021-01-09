@@ -16,6 +16,7 @@
 #include <pwd.h>
 #include <errno.h>
 #include <sys/stat.h>
+#include <arpa/inet.h>
 
 int
 gensio_os_setupnewprog(void)
