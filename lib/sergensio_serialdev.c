@@ -1321,13 +1321,25 @@ serialdev_gensio_alloc(const char *devname, const char * const args[],
     int err;
     char *comma;
     gensiods max_read_size = GENSIO_DEFAULT_BUF_SIZE;
-    int i;
+    int i, ival;
     bool nouucplock_set = false, dummy = false;
 
     if (!sdata)
 	return GE_NOMEM;
 
     sdata->o = o;
+
+    err = gensio_get_default(o, "sergensio", "nouucplock", false,
+			     GENSIO_DEFAULT_BOOL, NULL, &ival);
+    if (err)
+	goto out_err;
+    sdata->no_uucp_lock = ival;
+
+    err = gensio_get_default(o, "sergensio", "nouucplock", false,
+			     GENSIO_DEFAULT_BOOL, NULL, &ival);
+    if (err)
+	goto out_err;
+    sdata->no_uucp_lock = ival;
 
     for (i = 0; args && args[i]; i++) {
 	if (gensio_check_keyds(args[i], "readbuf", &max_read_size) > 0)

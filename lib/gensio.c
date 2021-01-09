@@ -1958,6 +1958,7 @@ struct gensio_def_entry builtin_defaults[] = {
     { "hangup_when_done", GENSIO_DEFAULT_BOOL,	.def.intval = 0 },
     { "custspeed",	GENSIO_DEFAULT_BOOL,	.def.intval = 0 },
     { "rs485",		GENSIO_DEFAULT_STR,	.def.strval = NULL },
+    { "nouucplock",	GENSIO_DEFAULT_BOOL,	.def.intval = 0 },
     /* serialdev and SOL */
     { "speed",		GENSIO_DEFAULT_STR,	.def.strval = "9600N81" },
     { "nobreak",	GENSIO_DEFAULT_BOOL,	.def.intval = 0 },
