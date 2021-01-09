@@ -190,7 +190,7 @@ main(int argc, char *argv[])
     int rv, arg, err;
 #ifdef HAVE_SIGNALFD
     int  sigfd = -1;
-    struct gensio_iod *sig_iod;
+    struct gensio_iod *sig_iod = NULL;
     sigset_t sigmask;
     bool sigfd_set = false;
 #endif

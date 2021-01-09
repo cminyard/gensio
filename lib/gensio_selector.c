@@ -1291,7 +1291,7 @@ gensio_selector_close(struct gensio_iod **iodp)
     struct gensio_iod *iiod = *iodp;
     struct gensio_iod_selector *iod = i_to_sel(iiod);
     struct gensio_os_funcs *o = iiod->f;
-    int err;
+    int err = 0;
 
     /* Don't do errtrig on close, it can fail and not cause any issues. */
 
@@ -1370,7 +1370,7 @@ gensio_selector_bufcount(struct gensio_iod *iiod, int whichbuf,
 			 gensiods *rcount)
 {
     struct gensio_iod_selector *iod = i_to_sel(iiod);
-    int rv, count;
+    int rv = GE_NOTSUP, count;
 
     switch (whichbuf) {
     case GENSIO_IN_BUF:
@@ -1380,9 +1380,7 @@ gensio_selector_bufcount(struct gensio_iod *iiod, int whichbuf,
 	rv = ioctl(iod->fd, TIOCOUTQ, &count);
 	break;
     }
-    if (rv)
-	return GE_NOTSUP;
-    return 0;
+    return rv;
 }
 
 static void
@@ -1398,6 +1396,8 @@ gensio_selector_flush(struct gensio_iod *iiod, int whichbuf)
 	arg = TCIFLUSH;
     else if (whichbuf & GENSIO_OUT_BUF)
 	arg = TCIOFLUSH;
+    else
+	return;
     do_flush(iod->fd, arg);
 }
 
@@ -1555,7 +1555,7 @@ gensio_selector_exec_subprog(struct gensio_os_funcs *o,
 	dup2(stdoutpipe[1], 1);
 	if (stderr_to_stdout)
 	    dup2(stdoutpipe[1], 2);
-	else if (stderr)
+	else if (rstderr)
 	    dup2(stderrpipe[1], 2);
 
 	/* Close everything but stdio. */
@@ -1827,12 +1827,6 @@ gensio_selector_iod_control(struct gensio_iod *iiod, int op, bool get,
 	rv = setup_termios(iod);
 	if (rv)
 	    return rv;
-
-    case GENSIO_IOD_CONTROL_SET_BREAK:
-    case GENSIO_IOD_CONTROL_SEND_BREAK:
-    case GENSIO_IOD_CONTROL_DTR:
-    case GENSIO_IOD_CONTROL_RTS:
-    case GENSIO_IOD_CONTROL_MODEMSTATE:
 	break;
 
     case GENSIO_IOD_CONTROL_FREE_SERDATA:
@@ -1840,7 +1834,7 @@ gensio_selector_iod_control(struct gensio_iod *iiod, int op, bool get,
 	return 0;
 
     default:
-	return GE_NOTSUP;
+	break;
     }
 
     switch (op) {

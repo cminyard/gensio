@@ -764,13 +764,14 @@ addrinfo_list_dup(struct gensio_os_funcs *o,
 static struct gensio_addr *
 gensio_addr_addrinfo_dup(const struct gensio_addr *iaaddr)
 {
-    struct gensio_addr_addrinfo *iaddr = a_to_info(iaaddr);
-    struct gensio_os_funcs *o = iaddr->r.o;
+    struct gensio_addr_addrinfo *iaddr;
+    struct gensio_os_funcs *o;
     struct gensio_addr_addrinfo *addr;
 
-    if (!iaddr)
+    if (!iaaddr)
 	return NULL;
-
+    iaddr = a_to_info(iaaddr);
+    o = iaddr->r.o;
     addr = o->zalloc(o, sizeof(*addr));
     if (!addr)
 	return NULL;
