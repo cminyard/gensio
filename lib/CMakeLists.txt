@@ -73,6 +73,11 @@ set_property(TARGET gensio PROPERTY SOVERSION 0)
 
 install(TARGETS gensio DESTINATION lib EXPORT gensio)
 install(EXPORT gensio FILE gensio.cmake DESTINATION lib/cmake/gensio)
+if (WIN32)
+  # Stick this in the bin directory so Windows can find it.
+  # Probably not right, but works for now.
+  install(TARGETS gensio DESTINATION bin)
+endif()
 target_include_directories(gensio
                            INTERFACE
                             $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
