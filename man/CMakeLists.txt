@@ -3,14 +3,14 @@ install(FILES gensio.5 DESTINATION ${CMAKE_INSTALL_FULL_MANDIR}/man5)
 
 install(FILES gensio_event.3 str_to_gensio.3 gensio_set_callback.3
 	gensio_set_log_mask.3 gensio_os_funcs.3 gensio_err.3 gensio_write.3
-	gensio_get_raddr.3 gensio_raddr_to_str.3 gensio_open.3
-	gensio_alloc_channel.3 gensio_close.3 gensio_control.3
+	gensio_open.3 gensio_alloc_channel.3 gensio_close.3 gensio_control.3
 	gensio_set_read_callback_enable.3 gensio_get_type.3 gensio_set_sync.3
 	gensio_accepter_event.3 gensio_acc_set_callback.3
 	gensio_acc_shutdown.3 gensio_acc_set_accept_callback_enable.3
 	gensio_acc_control.3 gensio_acc_get_type.3 gensio_add_default.3
 	str_to_gensio_accepter.3 gensio_acc_accept_s.3 gensio_acc_startup.3
-	gensio_mdns.3
+	gensio_mdns.3 sergensio.5 gensio_to_sergensio.3 sergensio_baud.3
+	sergensio_b_alloc.3 sergensio_event.3 gensio_mdns.3
 	DESTINATION ${CMAKE_INSTALL_FULL_MANDIR}/man3)
 
 macro(install_man3_symlink filepath sympath)
@@ -66,6 +66,45 @@ install_man3_symlink(gensio_add_default.3 gensio_get_defaultaddr.3)
 install_man3_symlink(gensio_add_default.3 gensio_del_default.3)
 install_man3_symlink(gensio_add_default.3 gensio_reset_defaults.3)
 install_man3_symlink(gensio_acc_accept_s.3 gensio_acc_set_sync.3)
+install_man3_symlink(gensio_mdns.3 gensio_alloc_mdns.3)
+install_man3_symlink(gensio_mdns.3 gensio_free_mdns.3)
+install_man3_symlink(gensio_mdns.3 gensio_mdns_add_service.3)
+install_man3_symlink(gensio_mdns.3 gensio_mdns_remove_service.3)
+install_man3_symlink(gensio_mdns.3 gensio_mdns_add_watch.3)
+install_man3_symlink(gensio_mdns.3 gensio_mdns_remove_watch.3)
+install_man3_symlink(gensio_to_sergensio.3 sergensio_to_gensio.3)
+install_man3_symlink(gensio_to_sergensio.3 sergensio_get_user_data.3)
+install_man3_symlink(gensio_to_sergensio.3 sergensio_is_client.3)
+install_man3_symlink(sergensio_baud.3 sergensio_datasize.3)
+install_man3_symlink(sergensio_baud.3 sergensio_parity.3)
+install_man3_symlink(sergensio_baud.3 sergensio_stopbits.3)
+install_man3_symlink(sergensio_baud.3 sergensio_flowcontrol.3)
+install_man3_symlink(sergensio_baud.3 sergensio_iflowcontrol.3)
+install_man3_symlink(sergensio_baud.3 sergensio_sbreak.3)
+install_man3_symlink(sergensio_baud.3 sergensio_dtr.3)
+install_man3_symlink(sergensio_baud.3 sergensio_rts.3)
+install_man3_symlink(sergensio_baud.3 sergensio_signature.3)
+install_man3_symlink(sergensio_baud.3 sergensio_linestate.3)
+install_man3_symlink(sergensio_baud.3 sergensio_modemstate.3)
+install_man3_symlink(sergensio_baud.3 sergensio_flowcontrol_state.3)
+install_man3_symlink(sergensio_baud.3 sergensio_flush.3)
+install_man3_symlink(sergensio_baud.3 sergensio_send_break.3)
+install_man3_symlink(sergensio_baud.3 sergensio_cts.3)
+install_man3_symlink(sergensio_baud.3 sergensio_dcd_dsr.3)
+install_man3_symlink(sergensio_baud.3 sergensio_ri.3)
+install_man3_symlink(sergensio_b_alloc.3 sergensio_b_free.3)
+install_man3_symlink(sergensio_b_alloc.3 sergensio_baud_b.3)
+install_man3_symlink(sergensio_b_alloc.3 sergensio_datasize_b.3)
+install_man3_symlink(sergensio_b_alloc.3 sergensio_parity_b.3)
+install_man3_symlink(sergensio_b_alloc.3 sergensio_stopbits_b.3)
+install_man3_symlink(sergensio_b_alloc.3 sergensio_flowcontrol_b.3)
+install_man3_symlink(sergensio_b_alloc.3 sergensio_iflowcontrol_b.3)
+install_man3_symlink(sergensio_b_alloc.3 sergensio_sbreak_b.3)
+install_man3_symlink(sergensio_b_alloc.3 sergensio_dtr_b.3)
+install_man3_symlink(sergensio_b_alloc.3 sergensio_rts_b.3)
+install_man3_symlink(sergensio_b_alloc.3 sergensio_cts_b.3)
+install_man3_symlink(sergensio_b_alloc.3 sergensio_dcd_dsr_b.3)
+install_man3_symlink(sergensio_b_alloc.3 sergensio_ri_b.3)
 install_man3_symlink(gensio_mdns.3 gensio_alloc_mdns.3)
 install_man3_symlink(gensio_mdns.3 gensio_free_mdns.3)
 install_man3_symlink(gensio_mdns.3 gensio_mdns_add_service.3)
