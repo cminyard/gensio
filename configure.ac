@@ -31,8 +31,12 @@ AC_ARG_WITH(uucp-locking,
  [AS_HELP_STRING([--with-uucp-locking], [Enable UUCP-style locking])],
  uucp_locking_flag="$withval")
 if test "$uucp_locking_flag" = yes; then
-  AC_DEFINE([USE_UUCP_LOCKING], [], [Enable device locking])
+  USE_UUCP_LOCKING=1
+else
+  USE_UUCP_LOCKING=0
 fi
+AC_DEFINE_UNQUOTED([USE_UUCP_LOCKING], [$USE_UUCP_LOCKING],
+		   [Enable device locking])
 
 AC_ARG_WITH(tcp-wrappers,
  [AS_HELP_STRING([--with-tcp-wrappers], [Enable tcpwrappers support])],
