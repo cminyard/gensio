@@ -419,7 +419,7 @@ win_zalloc(struct gensio_os_funcs *o, unsigned int size)
     struct gensio_data *d = o->user_data;
 
     b = malloc(size + sizeof(*m) + MEM_BUFFER);
-    if (!d)
+    if (!b)
 	return NULL;
     m = (struct mem_header *) b;
     gensio_list_link_init(&m->link);
@@ -734,7 +734,7 @@ win_add_timer(struct gensio_timer *timer, ULONGLONG end_time)
 {
     struct gensio_os_funcs *o = timer->val.i.r.f;
     struct gensio_data *d = o->user_data;
-    int rv;
+    int rv = 0;
 
     EnterCriticalSection(&d->timer_lock);
     if (timer->val.freed) {
@@ -1104,7 +1104,7 @@ static int win_service(struct gensio_os_funcs *o, gensio_time *timeout)
     struct gensio_data *d = o->user_data;
     ULONGLONG entry_time;
     DWORD mtimeout, rvw;
-    int rv;
+    int rv = 0;
 
     entry_time = GetTickCount64();
     mtimeout = gensio_time_to_ms(timeout);
@@ -2713,7 +2713,7 @@ win_add_iod(struct gensio_os_funcs *o, enum gensio_iod_type type,
     int rv;
     struct gensio_iod_win *iod;
 
-    if (type >= NR_GENSIO_IOD_TYPES || win_iod_sizes[type] == 0)
+    if (type >= NR_GENSIO_IOD_TYPES || type < 0 || win_iod_sizes[type] == 0)
 	return GE_NOTSUP;
 
     rv = win_alloc_iod(o, win_iod_sizes[type], fd, type,

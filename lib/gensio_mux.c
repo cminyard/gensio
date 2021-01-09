@@ -2189,7 +2189,7 @@ mux_child_read(struct mux_data *muxdata, int ierr,
 		    goto protocol_err;
 		}
 		muxdata->msgid = *buf >> 4;
-		if (muxdata->msgid == 0 || muxdata->msgid > MUX_MAX_MSG_NUM) {
+		if (muxdata->msgid <= 0 || muxdata->msgid > MUX_MAX_MSG_NUM) {
 		    proto_err_str = "msgid out of range";
 		    goto protocol_err;
 		}

@@ -2459,7 +2459,7 @@ gensio_get_default(struct gensio_os_funcs *o,
 		err = GE_NOMEM;
 		goto out_unlock;
 	    }
-	    memcpy(str, val->strval, val->intval + 1); /* copy terminating \0 */
+	    memcpy(str, val->strval, val->intval + 1L); /* copy emding \0 */
 	    *strval = str;
 	    *intval = val->intval;
 	} else {
@@ -3248,7 +3248,7 @@ gensio_alloc_vsprintf(struct gensio_os_funcs *o, const char *fmt, va_list va)
     char c[1], *str;
 
     va_copy(va2, va);
-    len = vsnprintf(c, 0, fmt, va) + 1;
+    len = vsnprintf(c, 0, fmt, va) + 1L;
     str = o->zalloc(o, len);
     if (str)
 	vsnprintf(str, len, fmt, va2);

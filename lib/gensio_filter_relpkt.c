@@ -795,7 +795,8 @@ relpkt_ul_write(struct relpkt_filter *rfilter,
 		    rfilter->nr_waiting_xmitpkt--;
 		    rfilter->send_since_timeout = true;
 		} else {
-		    *endbool = false;
+		    if (endbool)
+			*endbool = false;
 		    if (finish_close) {
 			rfilter->err = GE_REMCLOSE;
 			err = GE_REMCLOSE;

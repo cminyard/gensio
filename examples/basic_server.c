@@ -104,7 +104,7 @@ add_output_buf_len(struct ioinfo *ii, char *str, gensiods ilen)
 	len++;
     }
 
-    if (len + ii->outbuf_len >= sizeof(ii->outbuf))
+    if (len + (gensiods) ii->outbuf_len >= sizeof(ii->outbuf))
 	return;
 
     for (i = 0, j = ii->outbuf_len; i < ilen; i++) {
