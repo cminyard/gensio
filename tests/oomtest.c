@@ -106,8 +106,20 @@ getenvvar(const char *name) {
     return NULL;
 }
 
-#define setenvvar(n, v, o) SetEnvironmentVariable(n, v)
-#define unsetenvvar(n) SetEnvironmentVariable(n, NULL)
+static int
+setenvvar(const char* name, const char* value, int override)
+{
+    if (SetEnvironmentVariable(name, value))
+	return 0;
+    return ENOMEM;
+}
+static int
+unsetenvvar(const char* name)
+{
+    if (SetEnvironmentVariable(name, NULL))
+	return 0;
+    return ENOMEM;
+}
 
 #define WIFEXITED(n) ((n) < 128)
 #define WEXITSTATUS(n) (n)
