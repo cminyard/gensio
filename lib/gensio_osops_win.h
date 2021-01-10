@@ -5,7 +5,6 @@
  *  SPDX-License-Identifier: LGPL-2.1-only
  */
 
-#define _WIN32_WINNT 0x0600
 #include <winsock2.h>
 #include <windows.h>
 
