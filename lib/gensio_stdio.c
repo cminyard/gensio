@@ -1013,10 +1013,10 @@ gensio_stdio_func(struct gensio *io, int func, gensiods *count,
 	return stdion_write(io, count, cbuf, buflen);
 
     case GENSIO_FUNC_OPEN:
-	return stdion_open(io, cbuf, buf);
+	return stdion_open(io, (void *) cbuf, buf);
 
     case GENSIO_FUNC_CLOSE:
-	return stdion_close(io, cbuf, buf);
+	return stdion_close(io, (void *) cbuf, buf);
 
     case GENSIO_FUNC_FREE:
 	stdion_free(io);

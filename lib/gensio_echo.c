@@ -357,10 +357,10 @@ gensio_echo_func(struct gensio *io, int func, gensiods *count,
 	return echon_write(io, count, cbuf, buflen);
 
     case GENSIO_FUNC_OPEN:
-	return echon_open(io, cbuf, buf);
+	return echon_open(io, (void *) cbuf, buf);
 
     case GENSIO_FUNC_CLOSE:
-	return echon_close(io, cbuf, buf);
+	return echon_close(io, (void *) cbuf, buf);
 
     case GENSIO_FUNC_FREE:
 	echon_free(io);

@@ -543,10 +543,10 @@ gensio_file_func(struct gensio *io, int func, gensiods *count,
 	return filen_write(io, count, cbuf, buflen);
 
     case GENSIO_FUNC_OPEN:
-	return filen_open(io, cbuf, buf);
+	return filen_open(io, (void *) cbuf, buf);
 
     case GENSIO_FUNC_CLOSE:
-	return filen_close(io, cbuf, buf);
+	return filen_close(io, (void *) cbuf, buf);
 
     case GENSIO_FUNC_FREE:
 	filen_free(io);

@@ -5,8 +5,21 @@
  *  SPDX-License-Identifier: LGPL-2.1-only
  */
 
+#define _WIN32_WINNT 0x0600
 #include <winsock2.h>
 #include <windows.h>
+
+/*
+ * It's impossible to include ntstatus.h without getting a ton of warnings,
+ * and these are not definied in winnt.h, so define these here.  Add safety
+ * guards just in case.
+ */
+#ifndef STATUS_SUCCESS
+#define STATUS_SUCCESS                   ((NTSTATUS)0x00000000L)
+#endif
+#ifndef STATUS_NOT_FOUND
+#define STATUS_NOT_FOUND                 ((NTSTATUS)0xC0000225L)
+#endif
 
 const char *
 gensio_os_check_tcpd_ok(struct gensio_iod *iod, const char *iprogname)
@@ -15,7 +28,6 @@ gensio_os_check_tcpd_ok(struct gensio_iod *iod, const char *iprogname)
 }
 
 #include <bcrypt.h>
-#include <ntstatus.h>
 
 int
 gensio_os_get_random(struct gensio_os_funcs *o,

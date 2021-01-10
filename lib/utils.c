@@ -58,7 +58,7 @@ gensio_argv_copy(struct gensio_os_funcs *o,
 	len--;
 	o->free(o, (void *) argv[len]);
     }
-    o->free(o, argv);
+    o->free(o, (void *) argv);
     return GE_NOMEM;
 }
 
@@ -80,8 +80,8 @@ gensio_argv_append(struct gensio_os_funcs *o, const char ***argv,
 	nargv = o->zalloc(o, sizeof(char *) * (*args + 10));
 	if (!nargv)
 	    return GE_NOMEM;
-	memcpy(nargv, *argv, sizeof(char *) * *args);
-	o->free(o, *argv);
+	memcpy((void *) nargv, *argv, sizeof(char *) * *args);
+	o->free(o, (void *) *argv);
 	*argv = nargv;
 	*args += 10;
     }
@@ -142,7 +142,7 @@ gensio_argv_free(struct gensio_os_funcs *o,
 	return;
     for (i = 0; argv[i]; i++)
 	o->free(o, (void *) argv[i]);
-    o->free(o, argv);
+    o->free(o, (void *) argv);
 }
 
 static bool
@@ -327,7 +327,7 @@ gensio_str_to_argv_endchar(struct gensio_os_funcs *o,
 		argc--;
 		o->free(o, (void *) argv[argc]);
 	    }
-	    o->free(o, argv);
+	    o->free(o, (void *) argv);
 	}
     } else {
 	if (r_argc)

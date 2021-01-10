@@ -371,7 +371,7 @@ static void
 filter_io_err(struct basen_data *ndata, int err)
 {
     if (ndata->filter)
-	return gensio_filter_io_err(ndata->filter, err);
+	gensio_filter_io_err(ndata->filter, err);
 }
 
 static bool
@@ -1397,13 +1397,13 @@ gensio_base_func(struct gensio *io, int func, gensiods *count,
 	return basen_write(ndata, count, cbuf, buflen, auxdata);
 
     case GENSIO_FUNC_OPEN:
-	return basen_open(ndata, cbuf, buf);
+	return basen_open(ndata, (void *) cbuf, buf);
 
     case GENSIO_FUNC_OPEN_NOCHILD:
-	return basen_open_nochild(ndata, cbuf, buf);
+	return basen_open_nochild(ndata, (void *) cbuf, buf);
 
     case GENSIO_FUNC_CLOSE:
-	return basen_close(ndata, cbuf, buf);
+	return basen_close(ndata, (void *) cbuf, buf);
 
     case GENSIO_FUNC_FREE:
 	basen_free(ndata);

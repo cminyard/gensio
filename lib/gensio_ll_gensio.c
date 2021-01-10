@@ -117,17 +117,17 @@ gensio_ll_child_func(struct gensio_ll *ll, int op, gensiods *count,
 {
     switch (op) {
     case GENSIO_LL_FUNC_SET_CALLBACK:
-	child_set_callbacks(ll, cbuf, buf);
+	child_set_callbacks(ll, (void *) cbuf, buf);
 	return 0;
 
     case GENSIO_LL_FUNC_WRITE_SG:
 	return child_write(ll, count, cbuf, buflen, buf);
 
     case GENSIO_LL_FUNC_OPEN:
-	return child_open(ll, cbuf, buf);
+	return child_open(ll, (void *) cbuf, buf);
 
     case GENSIO_LL_FUNC_CLOSE:
-	return child_close(ll, cbuf, buf);
+	return child_close(ll, (void *) cbuf, buf);
 
     case GENSIO_LL_FUNC_SET_READ_CALLBACK:
 	child_set_read_callback_enable(ll, buflen);

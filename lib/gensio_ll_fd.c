@@ -927,17 +927,17 @@ gensio_ll_fd_func(struct gensio_ll *ll, int op, gensiods *count,
 {
     switch (op) {
     case GENSIO_LL_FUNC_SET_CALLBACK:
-	fd_set_callbacks(ll, cbuf, buf);
+	fd_set_callbacks(ll, (void *) cbuf, buf);
 	return 0;
 
     case GENSIO_LL_FUNC_WRITE_SG:
 	return fd_write(ll, count, cbuf, buflen, auxdata);
 
     case GENSIO_LL_FUNC_OPEN:
-	return fd_open(ll, cbuf, buf);
+	return fd_open(ll, (void *) cbuf, buf);
 
     case GENSIO_LL_FUNC_CLOSE:
-	return fd_close(ll, cbuf, buf);
+	return fd_close(ll, (void *) cbuf, buf);
 
     case GENSIO_LL_FUNC_SET_READ_CALLBACK:
 	fd_set_read_callback_enable(ll, buflen);

@@ -354,7 +354,7 @@ conaccn_func(struct gensio *io, int func, gensiods *count,
 	return GE_NOTSUP;
 
     case GENSIO_FUNC_CLOSE:
-	return conaccn_close(ndata, cbuf, buf);
+	return conaccn_close(ndata, (void *) cbuf, buf);
 
     case GENSIO_FUNC_FREE:
 	conaccn_free(ndata);

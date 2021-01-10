@@ -1749,7 +1749,7 @@ muxc_gensio_handler(struct gensio *io, int func, gensiods *count,
 	return muxc_write(chan, count, cbuf, buflen, auxdata);
 
     case GENSIO_FUNC_CLOSE:
-	return muxc_close(chan, cbuf, buf);
+	return muxc_close(chan, (void *) cbuf, buf);
 
     case GENSIO_FUNC_FREE:
 	muxc_free(chan);
@@ -1774,10 +1774,10 @@ muxc_gensio_handler(struct gensio *io, int func, gensiods *count,
 	return muxc_alloc_channel(chan->mux, buf);
 
     case GENSIO_FUNC_OPEN:
-	return muxc_open(chan, cbuf, buf, true);
+	return muxc_open(chan, (void *) cbuf, buf, true);
 
     case GENSIO_FUNC_OPEN_NOCHILD:
-	return muxc_open(chan, cbuf, buf, false);
+	return muxc_open(chan, (void *) cbuf, buf, false);
 
     case GENSIO_FUNC_CONTROL:
 	return muxc_control(chan, *((bool *) cbuf), buflen, buf, count);

@@ -3374,7 +3374,7 @@ gensio_addr_addr_present(const struct gensio_addr *gai,
 void
 gensio_addr_free(struct gensio_addr *addr)
 {
-    return addr->o->addr_free(addr);
+    addr->o->addr_free(addr);
 }
 
 bool
@@ -3406,5 +3406,5 @@ void
 gensio_addr_getaddr(const struct gensio_addr *addr,
 		    void *oaddr, gensiods *rlen)
 {
-    return addr->o->addr_getaddr(addr, oaddr, rlen);
+    addr->o->addr_getaddr(addr, oaddr, rlen);
 }

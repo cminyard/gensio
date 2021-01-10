@@ -1066,10 +1066,10 @@ gensio_udp_func(struct gensio *io, int func, gensiods *count,
 	return udpn_write(io, count, cbuf, buflen, auxdata);
 
     case GENSIO_FUNC_OPEN:
-	return udpn_open(io, cbuf, buf);
+	return udpn_open(io, (void *) cbuf, buf);
 
     case GENSIO_FUNC_CLOSE:
-	return udpn_close(io, cbuf, buf);
+	return udpn_close(io, (void *) cbuf, buf);
 
     case GENSIO_FUNC_FREE:
 	udpn_free(io);
