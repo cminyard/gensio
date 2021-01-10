@@ -415,6 +415,8 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
 	{
 	    char *s = getenv("GENSIO_MEMTRACK");
 
+	    gensio_list_init(&alloced_mem);
+	    gensio_list_init(&freed_mem);
 	    if (s) {
 		memtracking_ready = true;
 		if (strstr(s, "abort"))
