@@ -1177,7 +1177,7 @@ relpkt_filter_timeout(struct relpkt_filter *rfilter)
 }
 
 static int gensio_relpkt_filter_func(struct gensio_filter *filter, int op,
-				     const void *func, void *data,
+				     void *func, void *data,
 				     gensiods *count,
 				     void *buf, const void *cbuf,
 				     gensiods buflen,

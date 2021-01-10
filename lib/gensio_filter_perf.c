@@ -388,11 +388,11 @@ perf_free(struct gensio_filter *filter)
 }
 
 static int gensio_perf_filter_func(struct gensio_filter *filter, int op,
-				     const void *func, void *data,
-				     gensiods *count,
-				     void *buf, const void *cbuf,
-				     gensiods buflen,
-				     const char *const *auxdata)
+				   void *func, void *data,
+				   gensiods *count,
+				   void *buf, const void *cbuf,
+				   gensiods buflen,
+				   const char *const *auxdata)
 {
     switch (op) {
     case GENSIO_FILTER_FUNC_SET_CALLBACK:

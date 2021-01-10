@@ -235,7 +235,7 @@ GENSIO_DLL_PUBLIC
 void gensio_filter_io_err(struct gensio_filter *filter, int err);
 
 typedef int (*gensio_filter_func)(struct gensio_filter *filter, int op,
-				  const void *func, void *data,
+				  void *func, void *data,
 				  gensiods *count, void *buf,
 				  const void *cbuf, gensiods buflen,
 				  const char *const *auxdata);

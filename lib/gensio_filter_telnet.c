@@ -381,8 +381,8 @@ com_port_handler(void *cb_data, unsigned char *option, int len)
     struct telnet_filter *tfilter = cb_data;
 
     if (tfilter->telnet_cbs)
-	return tfilter->telnet_cbs->com_port_cmd(tfilter->handler_data,
-						 option, len);
+	tfilter->telnet_cbs->com_port_cmd(tfilter->handler_data,
+					  option, len);
 }
 
 static void
@@ -523,7 +523,7 @@ telnet_filter_control(struct gensio_filter *filter, bool get, int op,
 }
 
 static int gensio_telnet_filter_func(struct gensio_filter *filter, int op,
-				     const void *func, void *data,
+				     void *func, void *data,
 				     gensiods *count,
 				     void *buf, const void *cbuf,
 				     gensiods buflen,
