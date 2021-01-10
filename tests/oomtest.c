@@ -69,6 +69,10 @@ bool debug;
 #include <windows.h>
 #define waitsigp NULL
 
+#ifdef _MSC_VER
+typedef int ssize_t;
+#endif
+
 bool
 file_is_accessible_dev(const char *filename)
 {
