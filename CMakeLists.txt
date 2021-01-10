@@ -171,9 +171,7 @@ if(SWIG_FOUND)
   add_subdirectory(swig)
 endif()
 add_subdirectory(man)
-if(UNIX)
 add_subdirectory(tests)
-endif()
 
 set(CPACK_SOURCE_GENERATOR "TGZ")
 set(CPACK_SOURCE_PACKAGE_FILE_NAME
