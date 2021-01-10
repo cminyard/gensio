@@ -3200,6 +3200,10 @@ argv_to_win_cmdline(struct gensio_os_funcs *o, const char *argv[],
     return 0;;
 }
 
+/*
+ * FIXME - This currently doesn't handle running the subprogram as a
+ * different user like it should (and the selector code does).
+ */
 static int
 win_exec_subprog(struct gensio_os_funcs *o,
 		 const char *argv[], const char **env,
