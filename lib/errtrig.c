@@ -6,6 +6,9 @@
  */
 
 #include "errtrig.h"
+#ifdef _MSC_VER
+#include <intrin.h>
+#endif
 
 #ifdef ENABLE_ERRTRIG_TEST
 
@@ -48,11 +51,15 @@ bool do_errtrig(void)
 	if (curr == errtrig_count) {
 	    triggered = true;
 	    triggerit = true;
+#if _MSC_VER
+	    trig_caller[0] = _ReturnAddress();
+#else
 	    trig_caller[0] = __builtin_return_address(0);
 #if 0
 	    trig_caller[1] = __builtin_return_address(1);
 	    trig_caller[2] = __builtin_return_address(2);
 	    trig_caller[3] = __builtin_return_address(3);
+#endif
 #endif
 	}
     }

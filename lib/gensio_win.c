@@ -22,7 +22,9 @@
 #include <gensio/gensio_osops.h>
 #include "errtrig.h"
 
-#define DO_MEM_DEBUG
+#if defined(_MSC_VER) && defined(ENABLE_INTERNAL_TRACE)
+#include <intrin.h>
+#endif
 
 static DWORD
 gensio_time_to_ms(struct gensio_time *time)
@@ -162,12 +164,6 @@ struct gensio_data {
     CRITICAL_SECTION lock;
     struct gensio_list waiting_iods;
     struct gensio_list all_iods;
-
-#ifdef DO_MEM_DEBUG
-    CRITICAL_SECTION mem_lock;
-    struct gensio_list alloced_mem;
-    struct gensio_list freed_mem;
-#endif
 
     CRITICAL_SECTION once_lock;
 
@@ -320,7 +316,7 @@ win_alloc_iod(struct gensio_os_funcs *o, unsigned int size, int fd,
     return rv;
 }
 
-#ifdef DO_MEM_DEBUG
+#ifdef ENABLE_INTERNAL_TRACE
 #define MEM_MAGIC 0xddf0983aec9320b0
 #define MEM_BUFFER 32
 struct mem_header {
@@ -328,6 +324,8 @@ struct mem_header {
     struct gensio_link link;
     int32_t freed;
     int32_t size;
+    void *alloc_bt[4];
+    void* free_bt[4];
     unsigned char filler[MEM_BUFFER];
 };
 
@@ -355,15 +353,11 @@ mem_check(unsigned char *d)
 static void
 mem_debug_init(struct gensio_data *d)
 {
-    InitializeCriticalSection(&d->mem_lock);
-    gensio_list_init(&d->alloced_mem);
-    gensio_list_init(&d->freed_mem);
 }
 
 static void
 mem_debug_cleanup(struct gensio_data *d)
 {
-    DeleteCriticalSection(&d->mem_lock);
 }
 
 static void
@@ -405,66 +399,147 @@ win_finish_free(struct gensio_os_funcs *o)
     WSACleanup();
 }
 
+#ifdef ENABLE_INTERNAL_TRACE
+static bool memtracking_ready;
+static bool memtracking_abort_on_lost;
+CRITICAL_SECTION mem_lock;
+static struct gensio_list alloced_mem;
+static struct gensio_list freed_mem;
+
+
+BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
+{
+    struct gensio_wait_block* b;
+
+    switch (fdwReason)
+    {
+    case DLL_PROCESS_ATTACH:
+	char *s = getenv("GENSIO_MEMTRACK");
+
+	if (s) {
+	    memtracking_ready = true;
+	    if (strstr(s, "abort"))
+		memtracking_abort_on_lost = true;
+	}
+	InitializeCriticalSection(&mem_lock);
+	break;
+
+    case DLL_PROCESS_DETACH:
+	DeleteCriticalSection(&mem_lock);
+	break;
+
+    default:
+	break;
+    }
+
+    return TRUE;
+}
+#endif
+
 static void *
 win_zalloc(struct gensio_os_funcs *o, unsigned int size)
 {
     unsigned char *b;
-#ifndef DO_MEM_DEBUG
-    b = malloc(size);
-    if (!b)
-	return NULL;
-#else
-    struct mem_header *m;
-    struct gensio_data *d = o->user_data;
+#ifdef ENABLE_INTERNAL_TRACE
+    if (memtracking_ready) {
+	struct mem_header *m;
+	struct gensio_data* d = o->user_data;
 
-    b = malloc(size + sizeof(*m) + MEM_BUFFER);
-    if (!b)
-	return NULL;
-    m = (struct mem_header *) b;
-    gensio_list_link_init(&m->link);
-    m->magic = MEM_MAGIC;
-    m->freed = 0;
-    m->size = size;
-    b += sizeof(struct mem_header);
-    mem_fill(m->filler);
-    mem_fill(b + size);
-    EnterCriticalSection(&d->mem_lock);
-    gensio_list_add_tail(&d->alloced_mem, &m->link);
-    LeaveCriticalSection(&d->mem_lock);
+	b = malloc(size + sizeof(*m) + MEM_BUFFER);
+	if (!b)
+	    return NULL;
+	m = (struct mem_header*)b;
+	memset(m, 0, sizeof(*m));
+	gensio_list_link_init(&m->link);
+	m->magic = MEM_MAGIC;
+	m->freed = 0;
+	m->size = size;
+#if _MSC_VER
+	m->alloc_bt[0] = _ReturnAddress();
+#else
+	m->alloc_bt[0] = __builtin_return_address(0);
+#if 0
+	m->alloc_bt[1] = __builtin_return_address(1);
+	m->alloc_bt[2] = __builtin_return_address(2);
+	m->alloc_bt[3] = __builtin_return_address(3);
 #endif
-    memset(b, 0, size);
+#endif
+	b += sizeof(struct mem_header);
+	mem_fill(m->filler);
+	mem_fill(b + size);
+	EnterCriticalSection(&mem_lock);
+	gensio_list_add_tail(&alloced_mem, &m->link);
+	LeaveCriticalSection(&mem_lock);
+    } else
+#else
+    b = malloc(size);
+#endif
+    if (b)
+	memset(b, 0, size);
     return b;
 }
 
 static void
 win_free(struct gensio_os_funcs *o, void *data)
 {
-#ifndef DO_MEM_DEBUG
-    free(data);
+#ifdef ENABLE_INTERNAL_TRACE
+    if (memtracking_ready) {
+	struct gensio_data* d = o->user_data;
+	unsigned char* b = data;
+	struct mem_header* m = (struct mem_header*)(b - sizeof(*m));
+	struct gensio_link* l;
+
+#if _MSC_VER
+	m->free_bt[0] = _ReturnAddress();
 #else
-    struct gensio_data *d = o->user_data;
-    unsigned char *b = data;
-    struct mem_header *m = (struct mem_header *) (b - sizeof(*m));
-    struct gensio_link *l;
+	m->free_bt[0] = __builtin_return_address(0);
+#if 0
+	m->free_bt[1] = __builtin_return_address(1);
+	m->free_bt[2] = __builtin_return_address(2);
+	m->free_bt[3] = __builtin_return_address(3);
+#endif
+#endif
+	check_mem(m, 0);
+	EnterCriticalSection(&mem_lock);
+	gensio_list_rm(&alloced_mem, &m->link);
+#if 0 /* The following does more serious but costly memory checking*/
+	gensio_list_for_each(&alloced_mem, l) {
+	    struct mem_header* m2 = gensio_container_of(l, struct mem_header,
+		link);
 
-    check_mem(m, 0);
-    EnterCriticalSection(&d->mem_lock);
-    gensio_list_rm(&d->alloced_mem, &m->link);
-    gensio_list_for_each(&d->alloced_mem, l) {
-	struct mem_header *m2 = gensio_container_of(l, struct mem_header,
-						    link);
+	    check_mem(m2, 0);
+	}
+	gensio_list_for_each(&freed_mem, l) {
+	    struct mem_header* m2 = gensio_container_of(l, struct mem_header,
+		link);
 
-	check_mem(m2, 0);
+	    check_mem(m2, 1);
+	}
+#endif
+	gensio_list_add_tail(&freed_mem, &m->link);
+	m->freed = 1;
+	LeaveCriticalSection(&mem_lock);
+    } else
+#endif
+    free(data);
+}
+
+static void
+check_memory(void)
+{
+#ifdef ENABLE_INTERNAL_TRACE
+    struct gensio_link* l;
+
+    gensio_list_for_each(&alloced_mem, l) {
+	struct mem_header* m = gensio_container_of(l, struct mem_header,
+	    link);
+
+	fprintf(stderr, "Lost memory at %p allocated at %p %p %p %p\n",
+	    ((char*)m) + sizeof(*m), m->alloc_bt[0], m->alloc_bt[1],
+	    m->alloc_bt[2], m->alloc_bt[3]);
     }
-    gensio_list_for_each(&d->freed_mem, l) {
-	struct mem_header *m2 = gensio_container_of(l, struct mem_header,
-						    link);
-
-	check_mem(m2, 1);
-    }
-    gensio_list_add_tail(&d->freed_mem, &m->link);
-    m->freed = 1;
-    LeaveCriticalSection(&d->mem_lock);
+    if (memtracking_abort_on_lost && !gensio_list_empty(&alloced_mem))
+	assert(0);
 #endif
 }
 
@@ -3531,5 +3606,6 @@ gensio_default_os_hnd(int wake_sig, struct gensio_os_funcs **o)
 void
 gensio_osfunc_exit(int rv)
 {
+    check_memory();
     exit(rv);
 }
