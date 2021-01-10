@@ -62,17 +62,88 @@ struct oom_tests {
     struct gensio_os_funcs *o;
 };
 
-static sigset_t waitsigs;
 bool verbose;
 bool debug;
 
 #ifdef _WIN32
+#include <windows.h>
+#define waitsigp NULL
+
 bool
 file_is_accessible_dev(const char *filename)
 {
     return true; /* FIXME - what to do here? */
 }
-#else
+
+#define sleep(n) Sleep(n * 1000)
+
+static char env_gensiot[200];
+static char env_test_echo_dev[200];
+static char env_ipmisim_exec[200];
+
+static const char *
+envvar(const char *name, char *buf, unsigned int len)
+{
+    if (*buf)
+	return buf;
+    if (GetEnvironmentVariable(name, buf, len) == 0)
+	return NULL;
+    return buf;
+}
+
+static const char *
+getenvvar(const char *name) {
+    if (strcmp(name, "GENSIOT") == 0)
+	return envvar(name, env_gensiot, sizeof(env_gensiot));
+    else if (strcmp(name, "GENSIO_TEST_ECHO_DEV") == 0)
+	return envvar(name, env_test_echo_dev, sizeof(env_test_echo_dev));
+    else if (strcmp(name, "IPMISIM_EXEC") == 0)
+	return envvar(name, env_ipmisim_exec, sizeof(env_ipmisim_exec));
+    return NULL;
+}
+
+#define setenvvar(n, v, o) SetEnvironmentVariable(n, v)
+#define unsetenvvar(n) SetEnvironmentVariable(n, NULL)
+
+#define WIFEXITED(n) ((n) < 128)
+#define WEXITSTATUS(n) (n)
+#define WIFSIGNALED(n) ((n) >= 128)
+#define WTERMSIG(n) (n)
+#define SIGUSR1 0
+const char *
+strsignal(int n)
+{
+    if (n == STATUS_ACCESS_VIOLATION)
+	return "access violation";
+    if (n == STATUS_ASSERTION_FAILURE)
+	return "assertion failure";
+    if (n == STATUS_CONTROL_C_EXIT)
+	return "control-C";
+    return "unknown";
+}
+
+
+static FILE *
+open_tempfile(char *name, unsigned int len, const char *pattern)
+{
+    DWORD pos;
+
+    pos = GetTempPathA(len, name);
+    if (pos == 0)
+	return NULL;
+
+    if (pos + strlen(pattern) + 7 >= len)
+	return NULL;
+
+    sprintf(name + pos, "%s%6.6ld", pattern, GetTickCount() % 1000000);
+    return fopen(name, "w");
+}
+
+#else /* _WIN32 */
+
+static sigset_t waitsigs;
+#define waitsigp &waitsigs
+
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -97,6 +168,39 @@ file_is_accessible_dev(const char *filename)
     } else {
 	return false;
     }
+}
+
+#define getenvvar(n) getenv(n)
+#define setenvvar(n, v, o) setenv(n, v, 1)
+#define unsetenvvar(n) unsetenv(n)
+
+static FILE *
+open_tempfile(char *name, unsigned int len, const char *pattern)
+{
+    int fd;
+    FILE *f;
+
+    snprintf(name, len, "/tmp/%sXXXXXX", pattern);
+    fd = mkstemp(name);
+    if (fd == -1)
+	return NULL;
+    f = fdopen(fd, "w");
+    if (!f)
+	close(fd);
+    return f;
+}
+
+static bool got_sigchild;
+
+static void
+handle_sigchld(int sig)
+{
+    got_sigchild = true;
+}
+
+static void
+handle_sigusr1(int sig)
+{
 }
 #endif
 
@@ -146,7 +250,7 @@ static bool
 get_echo_dev(struct gensio_os_funcs *o, const char *testname,
 	     const char *str, char **newstr)
 {
-    const char *e = getenv("GENSIO_TEST_ECHO_DEV");
+    const char *e = getenvvar("GENSIO_TEST_ECHO_DEV");
 
     if (e) {
 	if (strlen(e) == 0) {
@@ -336,7 +440,7 @@ ipmisim_start(struct gensio_os_funcs *o, struct oom_tests *test)
     gensio_set_read_callback_enable(test->io2, true);
 
  retry:
-    err = o->wait_intr_sigmask(test->waiter, 1, &timeout, &waitsigs);
+    err = o->wait_intr_sigmask(test->waiter, 1, &timeout, waitsigp);
     if (err == GE_INTERRUPTED)
 	goto retry;
     if (test->err)
@@ -414,8 +518,8 @@ static bool
 check_ipmisim_present(struct gensio_os_funcs *o, struct oom_tests *test)
 {
     char *config = NULL;
-    const char *prog = getenv("IPMISIM_EXEC");
-    int fd;
+    const char *prog = getenvvar("IPMISIM_EXEC");
+    FILE *f;
     ssize_t rv, len;
 
     if (!prog)
@@ -424,20 +528,19 @@ check_ipmisim_present(struct gensio_os_funcs *o, struct oom_tests *test)
     if (!get_echo_dev(o, "ipmisol", ipmisim_config, &config))
 	return false;
 
-    strncpy(test->configname, "/tmp/gensio_oomtest_conf_XXXXXX",
-	    sizeof(test->configname));
-    fd = mkstemp(test->configname);
-    if (fd == -1) {
+    f = open_tempfile(test->configname, sizeof(test->configname),
+		      "gensio_oomtest_conf_");
+    if (!f) {
 	printf("Unable to open ipmisim config file '%s',\n"
 	       "skipping ipmisol test\n", test->configname);
 	test->configname[0] = '\0';
 	goto out_err;
     }
     len = strlen(config);
-    rv = write(fd, config, len);
+    rv = fwrite(config, 1, len, f);
     o->free(o, config);
     config = NULL;
-    close(fd);
+    fclose(f);
     if (rv != len) {
 	unlink(test->configname);
 	printf("Unable to write ipmisim config file '%s',\n"
@@ -447,15 +550,16 @@ check_ipmisim_present(struct gensio_os_funcs *o, struct oom_tests *test)
 
     strncpy(test->emuname, "/tmp/gensio_oomtest_emu_XXXXXX",
 	    sizeof(test->emuname));
-    fd = mkstemp(test->emuname);
-    if (fd == -1) {
+    f = open_tempfile(test->emuname, sizeof(test->emuname),
+		      "gensio_oomtest_emu_");
+    if (!f) {
 	printf("Unable to open ipmisim emu file '%s',\n"
 	       "skipping ipmisol test\n", test->emuname);
 	test->emuname[0] = '\0';
 	goto out_err;
     }
-    rv = write(fd, ipmisim_emu, strlen(ipmisim_emu));
-    close(fd);
+    rv = fwrite(ipmisim_emu, 1, strlen(ipmisim_emu), f);
+    fclose(f);
     if (rv != strlen(ipmisim_emu)) {
 	printf("Unable to write ipmisim emu file '%s',\n"
 	       "skipping ipmisol test\n", test->emuname);
@@ -601,19 +705,7 @@ struct oom_tests oom_tests[] = {
 };
 
 static struct gensio_os_funcs *o;
-static char *gensiot;
-static bool got_sigchild;
-
-static void
-handle_sigchld(int sig)
-{
-    got_sigchild = true;
-}
-
-static void
-handle_sigusr1(int sig)
-{
-}
+static const char *gensiot;
 
 #ifdef USE_PTHREADS
 static void *
@@ -1284,7 +1376,7 @@ wait_for_data(struct oom_test_data *od, gensio_time *timeout)
 
     for (;;) {
 	OOMUNLOCK(&od->lock);
-	rv = o->wait_intr_sigmask(od->waiter, 1, timeout, &waitsigs);
+	rv = o->wait_intr_sigmask(od->waiter, 1, timeout, waitsigp);
 	OOMLOCK(&od->lock);
 	if (rv == GE_INTERRUPTED)
 	    continue;
@@ -1330,7 +1422,7 @@ close_con(struct io_test_data *id, gensio_time *timeout)
     /* Make sure the open completes. */
     while (!id->open_done) {
 	OOMUNLOCK(&od->lock);
-	rv = o->wait_intr_sigmask(id->od->waiter, 1, timeout, &waitsigs);
+	rv = o->wait_intr_sigmask(id->od->waiter, 1, timeout, waitsigp);
 	OOMLOCK(&od->lock);
 	if (rv == GE_TIMEDOUT) {
 	    printf("Waiting on timeout err A\n");
@@ -1377,7 +1469,7 @@ close_stderr(struct oom_test_data *od, gensio_time *timeout)
     od_ref(od); /* Ref for the close */
     while (od->ccon_stderr_io) {
 	OOMUNLOCK(&od->lock);
-	rv = o->wait_intr_sigmask(od->waiter, 1, timeout, &waitsigs);
+	rv = o->wait_intr_sigmask(od->waiter, 1, timeout, waitsigp);
 	OOMLOCK(&od->lock);
 	if (rv == GE_TIMEDOUT) {
 	    printf("Waiting on timeout err G\n");
@@ -1412,7 +1504,7 @@ close_cons(struct oom_test_data *od, bool close_acc, gensio_time *timeout)
 
     while (!err && (od->ccon.io || od->scon.io)) {
 	OOMUNLOCK(&od->lock);
-	rv = o->wait_intr_sigmask(od->waiter, 1, timeout, &waitsigs);
+	rv = o->wait_intr_sigmask(od->waiter, 1, timeout, waitsigp);
 	OOMLOCK(&od->lock);
 	if (rv == GE_TIMEDOUT) {
 	    printf("Waiting on timeout err B\n");
@@ -1450,10 +1542,10 @@ run_oom_test(struct oom_tests *test, long count, int *exitcode, bool close_acc)
 
     OOMLOCK(&od->lock);
     if (count < 0) {
-	rv = unsetenv("GENSIO_ERRTRIG_TEST");
+	rv = unsetenvvar("GENSIO_ERRTRIG_TEST");
     } else {
 	snprintf(intstr, sizeof(intstr), "%ld ", count);
-	rv = setenv("GENSIO_ERRTRIG_TEST", intstr, 1);
+	rv = setenvvar("GENSIO_ERRTRIG_TEST", intstr, 1);
     }
     if (rv) {
 	rv = errno;
@@ -1522,7 +1614,7 @@ run_oom_test(struct oom_tests *test, long count, int *exitcode, bool close_acc)
 	    od_ref(od); /* Ref for the close */
 	    while (od->acc) {
 		OOMUNLOCK(&od->lock);
-		rv = o->wait_intr_sigmask(od->waiter, 1, &timeout, &waitsigs);
+		rv = o->wait_intr_sigmask(od->waiter, 1, &timeout, waitsigp);
 		OOMLOCK(&od->lock);
 		if (rv == GE_TIMEDOUT) {
 		    printf("Waiting on timeout err C\n");
@@ -1583,10 +1675,10 @@ run_oom_acc_test(struct oom_tests *test, long count, int *exitcode,
 
     OOMLOCK(&od->lock);
     if (count < 0) {
-	rv = unsetenv("GENSIO_ERRTRIG_TEST");
+	rv = unsetenvvar("GENSIO_ERRTRIG_TEST");
     } else {
 	snprintf(intstr, sizeof(intstr), "%ld ", count);
-	rv = setenv("GENSIO_ERRTRIG_TEST", intstr, 1);
+	rv = setenvvar("GENSIO_ERRTRIG_TEST", intstr, 1);
     }
     if (rv) {
 	fprintf(stderr, "Unable to set environment properly\n");
@@ -1618,7 +1710,7 @@ run_oom_acc_test(struct oom_tests *test, long count, int *exitcode,
 
     for (;;) {
 	OOMUNLOCK(&od->lock);
-	rv = o->wait_intr_sigmask(od->waiter, 1, &timeout, &waitsigs);
+	rv = o->wait_intr_sigmask(od->waiter, 1, &timeout, waitsigp);
 	OOMLOCK(&od->lock);
 	if (debug && rv == GE_TIMEDOUT) {
 	    printf("Waiting on err E\n");
@@ -1895,8 +1987,10 @@ main(int argc, char *argv[])
     unsigned long errcount = 0;
     unsigned long skipcount = 0;
     unsigned int repeat_count = 1;
+#ifndef _WIN32
     struct sigaction sigdo;
     sigset_t sigs;
+#endif
     int testnr = -1, numtests = 0, testnrstart = -1, testnrend = MAX_LOOPS;
     gensio_time zerotime = { 0, 0 };
     struct oom_tests user_test;
@@ -1908,7 +2002,7 @@ main(int argc, char *argv[])
     iodata_size %= MAX_IODATA_SIZE;
 
     /* This must be first so it gets picked up before any allocations. */
-    rv = setenv("GENSIO_MEMTRACK", "abort", 1);
+    rv = setenvvar("GENSIO_MEMTRACK", "abort", 1);
     if (rv) {
 	fprintf(stderr, "Unable to set GENSIO_MEMTRACK");
 	exit(1);
@@ -1932,6 +2026,7 @@ main(int argc, char *argv[])
     for (j = 0; oom_tests[j].connecter; j++)
 	numtests++;
 
+#ifndef _WIN32
     sigemptyset(&sigs);
     sigaddset(&sigs, SIGCHLD);
     sigaddset(&sigs, SIGPIPE); /* Ignore broken pipes. */
@@ -1963,6 +2058,7 @@ main(int argc, char *argv[])
 	perror("Could not set up siguser1 handler");
 	exit(1);
     }
+#endif /* !_WIN32 */
 
     for (i = 1; i < argc; i++) {
 	if (argv[i][0] != '-')
@@ -2067,7 +2163,7 @@ main(int argc, char *argv[])
 	return 1;
 
     if (i >= argc) {
-	gensiot = getenv("GENSIOT");
+	gensiot = getenvvar("GENSIOT");
 	if (!gensiot) {
 	    fprintf(stderr, "No gensiot given\n");
 	    exit(1);
