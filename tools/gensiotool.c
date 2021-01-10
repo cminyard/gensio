@@ -27,9 +27,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#ifdef HAVE_ISATTY
-#include <unistd.h>
-#endif
 #ifndef _WIN32
 #include <signal.h>
 #endif
@@ -40,6 +37,22 @@
 #include "ioinfo.h"
 #include "ser_ioinfo.h"
 #include "utils.h"
+
+#ifdef HAVE_ISATTY
+# include <unistd.h>
+# define can_do_raw() isatty(0)
+#elif defined(_WIN32)
+#include <windows.h>
+static bool
+can_do_raw(void)
+{
+    DWORD mode;
+
+    return GetConsoleMode(GetStdHandle(STD_INPUT_HANDLE), &mode);
+}
+#else
+# define can_do_raw() false
+#endif
 
 unsigned int debug;
 bool print_laddr;
@@ -453,12 +466,10 @@ main(int argc, char *argv[])
 
     progname = argv[0];
 
-#ifdef HAVE_ISATTY
-    if (isatty(0)) {
+    if (can_do_raw()) {
 	escape_char = 0x1c; /* ^\ */
 	deftty = io1_default_tty;
     }
-#endif
 
     for (arg = 1; arg < argc; arg++) {
 	if (argv[arg][0] != '-')
