@@ -75,9 +75,11 @@ install(TARGETS gensio DESTINATION lib EXPORT gensio)
 install(EXPORT gensio FILE gensio.cmake DESTINATION lib/cmake/gensio)
 set_target_properties(gensio PROPERTIES COMPILE_FLAGS "-DBUILDING_DLL")
 if (WIN32)
-  # Stick this in the bin directory so Windows can find it.
-  # Probably not right, but works for now.
+  # Stick this in the directories so Windows can find it when running
+  # gensiot and oomtest.  Probably not right, but works for now.
   install(TARGETS gensio DESTINATION bin)
+  install(TARGETS gensio DESTINATION ${PROJECT_BINARY_DIR}/tools)
+  install(TARGETS gensio DESTINATION ${PROJECT_BINARY_DIR}/tests)
 endif()
 target_include_directories(gensio
                            INTERFACE
