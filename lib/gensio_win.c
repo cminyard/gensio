@@ -409,27 +409,27 @@ static struct gensio_list freed_mem;
 
 BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
 {
-    struct gensio_wait_block* b;
-
     switch (fdwReason)
     {
     case DLL_PROCESS_ATTACH:
-	char *s = getenv("GENSIO_MEMTRACK");
+	{
+	    char *s = getenv("GENSIO_MEMTRACK");
 
-	if (s) {
-	    memtracking_ready = true;
-	    if (strstr(s, "abort"))
-		memtracking_abort_on_lost = true;
+	    if (s) {
+		memtracking_ready = true;
+		if (strstr(s, "abort"))
+		    memtracking_abort_on_lost = true;
+	    }
+	    InitializeCriticalSection(&mem_lock);
+	    break;
+
+	    case DLL_PROCESS_DETACH:
+		DeleteCriticalSection(&mem_lock);
+		break;
+
+		default:
+		    break;
 	}
-	InitializeCriticalSection(&mem_lock);
-	break;
-
-    case DLL_PROCESS_DETACH:
-	DeleteCriticalSection(&mem_lock);
-	break;
-
-    default:
-	break;
     }
 
     return TRUE;
@@ -443,7 +443,6 @@ win_zalloc(struct gensio_os_funcs *o, unsigned int size)
 #ifdef ENABLE_INTERNAL_TRACE
     if (memtracking_ready) {
 	struct mem_header *m;
-	struct gensio_data* d = o->user_data;
 
 	b = malloc(size + sizeof(*m) + MEM_BUFFER);
 	if (!b)
@@ -471,9 +470,8 @@ win_zalloc(struct gensio_os_funcs *o, unsigned int size)
 	gensio_list_add_tail(&alloced_mem, &m->link);
 	LeaveCriticalSection(&mem_lock);
     } else
-#else
-    b = malloc(size);
 #endif
+    b = malloc(size);
     if (b)
 	memset(b, 0, size);
     return b;
@@ -484,10 +482,11 @@ win_free(struct gensio_os_funcs *o, void *data)
 {
 #ifdef ENABLE_INTERNAL_TRACE
     if (memtracking_ready) {
-	struct gensio_data* d = o->user_data;
 	unsigned char* b = data;
 	struct mem_header* m = (struct mem_header*)(b - sizeof(*m));
+#if 0
 	struct gensio_link* l;
+#endif
 
 #if _MSC_VER
 	m->free_bt[0] = _ReturnAddress();

@@ -36,12 +36,12 @@ gensio_os_get_random(struct gensio_os_funcs *o,
     BCRYPT_ALG_HANDLE alg;
     int err = 0;
 
-    rv = BCryptOpenAlgorithmProvider(&alg, BCRYPT_RSA_ALGORITHM,
+    rv = BCryptOpenAlgorithmProvider(&alg, BCRYPT_RNG_ALGORITHM,
 				     MS_PRIMITIVE_PROVIDER, 0);
     if (rv != STATUS_SUCCESS)
 	return gensio_os_err_to_err(o, rv);
     rv = BCryptGenRandom(alg, data, len, 0);
-    if (rv)
+    if (rv != STATUS_SUCCESS)
 	err = gensio_os_err_to_err(o, rv);
     BCryptCloseAlgorithmProvider(alg, 0);
     return err;
@@ -85,6 +85,7 @@ gensio_i_os_err_to_err(struct gensio_os_funcs *o,
     if (err == GE_OSERR) {
 	char errbuf[128];
 
+	errbuf[0] = '\0';
 	FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM, NULL,
 		      oserr, 0, errbuf, sizeof(errbuf), NULL);
 	gensio_log(o, GENSIO_LOG_INFO,
