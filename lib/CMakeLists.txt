@@ -73,6 +73,7 @@ set_property(TARGET gensio PROPERTY SOVERSION 0)
 
 install(TARGETS gensio DESTINATION lib EXPORT gensio)
 install(EXPORT gensio FILE gensio.cmake DESTINATION lib/cmake/gensio)
+set_target_properties(gensio PROPERTIES COMPILE_FLAGS "-DBUILDING_DLL")
 if (WIN32)
   # Stick this in the bin directory so Windows can find it.
   # Probably not right, but works for now.

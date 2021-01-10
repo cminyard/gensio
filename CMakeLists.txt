@@ -12,7 +12,11 @@ include(CheckSymbolExists)
 include(CheckCSourceCompiles)
 include(GNUInstallDirs)
 
-set (CMAKE_C_FLAGS "-Wall")
+if (WIN32)
+  set (CMAKE_C_FLAGS "/wd4820")
+else()
+  set (CMAKE_C_FLAGS "-Wall")
+endif()
 option(BUILD_SHARED_LIBS "Build using shared libraries" ON)
 
 option(ENABLE_TCP_WRAPPERS "Enable tcpwrappers support" ON)
