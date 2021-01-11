@@ -5,9 +5,6 @@
  *  SPDX-License-Identifier: LGPL-2.1-only
  */
 
-#ifdef HAVE_TCPD_H
-#include <tcpd.h>
-#endif /* HAVE_TCPD_H */
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
@@ -71,56 +68,6 @@ gensio_os_setupnewprog(void)
     if (err)
 	return errno;
     return 0;
-}
-
-const char *
-gensio_os_check_tcpd_ok(struct gensio_iod *iod, const char *iprogname)
-{
-#ifdef HAVE_TCPD_H
-    struct request_info req;
-
-    if (!iprogname)
-	iprogname = progname;
-    request_init(&req, RQ_DAEMON, iprogname, RQ_FILE,
-		 iod->f->iod_get_fd(iod), NULL);
-    fromhost(&req);
-
-    if (!hosts_access(&req))
-	return "Access denied\r\n";
-#endif
-
-    return NULL;
-}
-
-int
-gensio_os_get_random(struct gensio_os_funcs *o,
-		     void *data, unsigned int len)
-{
-    int fd;
-    int rv;
-
-    if (do_errtrig())
-	return GE_NOMEM;
-
-    fd = open("/dev/urandom", O_RDONLY);
-    if (fd == -1)
-	return gensio_os_err_to_err(o, errno);
-
-    while (len > 0) {
-	rv = read(fd, data, len);
-	if (rv < 0) {
-	    rv = errno;
-	    goto out;
-	}
-	len -= rv;
-	data += rv;
-    }
-
-    rv = 0;
-
- out:
-    close(fd);
-    return gensio_os_err_to_err(o, rv);
 }
 
 int

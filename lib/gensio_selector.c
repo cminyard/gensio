@@ -2152,6 +2152,37 @@ gensio_selector_wait_subprog(struct gensio_os_funcs *o, intptr_t pid,
     return 0;
 }
 
+static int
+gensio_selector_get_random(struct gensio_os_funcs *o,
+			   void *data, unsigned int len)
+{
+    int fd;
+    int rv;
+
+    if (do_errtrig())
+	return GE_NOMEM;
+
+    fd = open("/dev/urandom", O_RDONLY);
+    if (fd == -1)
+	return gensio_os_err_to_err(o, errno);
+
+    while (len > 0) {
+	rv = read(fd, data, len);
+	if (rv < 0) {
+	    rv = errno;
+	    goto out;
+	}
+	len -= rv;
+	data += rv;
+    }
+
+    rv = 0;
+
+ out:
+    close(fd);
+    return gensio_os_err_to_err(o, rv);
+}
+
 static struct gensio_os_funcs *
 gensio_selector_alloc_sel(struct selector_s *sel, int wake_sig)
 {
@@ -2226,6 +2257,7 @@ gensio_selector_alloc_sel(struct selector_s *sel, int wake_sig)
     o->exec_subprog = gensio_selector_exec_subprog;
     o->kill_subprog = gensio_selector_kill_subprog;
     o->wait_subprog = gensio_selector_wait_subprog;
+    o->get_random = gensio_selector_get_random;
     o->iod_control = gensio_selector_iod_control;
 
     gensio_addr_addrinfo_set_os_funcs(o);

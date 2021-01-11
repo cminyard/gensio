@@ -11,6 +11,9 @@
 #include <string.h>
 #include <stdlib.h>
 #include <assert.h>
+#ifdef HAVE_TCPD_H
+#include <tcpd.h>
+#endif /* HAVE_TCPD_H */
 
 #include <gensio/gensio_osops.h>
 #include <gensio/gensio.h>
@@ -213,4 +216,23 @@ gensio_os_scan_netaddr(struct gensio_os_funcs *o, const char *str, bool listen,
 	*raddr = addr;
     }
     return rv;
+}
+
+const char *
+gensio_os_check_tcpd_ok(struct gensio_iod *iod, const char *iprogname)
+{
+#ifdef HAVE_TCPD_H
+    struct request_info req;
+
+    if (!iprogname)
+	iprogname = progname;
+    request_init(&req, RQ_DAEMON, iprogname, RQ_FILE,
+		 iod->f->iod_get_fd(iod), NULL);
+    fromhost(&req);
+
+    if (!hosts_access(&req))
+	return "Access denied\r\n";
+#endif
+
+    return NULL;
 }

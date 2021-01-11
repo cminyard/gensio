@@ -37,13 +37,6 @@ int gensio_os_open_listen_sockets(struct gensio_os_funcs *o,
 		      struct gensio_opensocks **rfds, unsigned int *rnr_fds);
 
 /*
- * Return some random data.  May not be cryptographically secure.
- */
-GENSIO_DLL_PUBLIC
-int gensio_os_get_random(struct gensio_os_funcs *o,
-			 void *data, unsigned int len);
-
-/*
  * Set the generic OS functions for the OS handler to the default ones
  * for this platform.
  */

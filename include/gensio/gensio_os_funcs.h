@@ -401,6 +401,11 @@ struct gensio_os_funcs {
      */
     int (*handle_fork)(struct gensio_os_funcs *f);
 
+    /*
+     * Return some random data.  May not be cryptographically secure.
+     */
+    int (*get_random)(struct gensio_os_funcs *f,
+		      void *data, unsigned int len);
 
     /****** Waiters ******/
     /*

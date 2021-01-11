@@ -1676,7 +1676,7 @@ gensio_setup_listen_socket(struct gensio_os_funcs *o, bool do_listen,
 
 	if (si->start == 0) {
 	    /* Get a random port in the dynamic range. */
-	    gensio_os_get_random(o, &si->start, sizeof(si->start));
+	    o->get_random(o, &si->start, sizeof(si->start));
 	    si->start %= IP_DYNRANGE_END - IP_DYNRANGE_START + 1;
 	    si->start += IP_DYNRANGE_START;
 	    si->curr = si->start;

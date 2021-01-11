@@ -8,44 +8,9 @@
 #include <winsock2.h>
 #include <windows.h>
 
-/*
- * It's impossible to include ntstatus.h without getting a ton of warnings,
- * and these are not definied in winnt.h, so define these here.  Add safety
- * guards just in case.
- */
-#ifndef STATUS_SUCCESS
-#define STATUS_SUCCESS                   ((NTSTATUS)0x00000000L)
-#endif
 #ifndef STATUS_NOT_FOUND
 #define STATUS_NOT_FOUND                 ((NTSTATUS)0xC0000225L)
 #endif
-
-const char *
-gensio_os_check_tcpd_ok(struct gensio_iod *iod, const char *iprogname)
-{
-    return NULL;
-}
-
-#include <bcrypt.h>
-
-int
-gensio_os_get_random(struct gensio_os_funcs *o,
-		     void *data, unsigned int len)
-{
-    NTSTATUS rv;
-    BCRYPT_ALG_HANDLE alg;
-    int err = 0;
-
-    rv = BCryptOpenAlgorithmProvider(&alg, BCRYPT_RNG_ALGORITHM,
-				     MS_PRIMITIVE_PROVIDER, 0);
-    if (rv != STATUS_SUCCESS)
-	return gensio_os_err_to_err(o, rv);
-    rv = BCryptGenRandom(alg, data, len, 0);
-    if (rv != STATUS_SUCCESS)
-	err = gensio_os_err_to_err(o, rv);
-    BCryptCloseAlgorithmProvider(alg, 0);
-    return err;
-}
 
 int
 gensio_i_os_err_to_err(struct gensio_os_funcs *o,

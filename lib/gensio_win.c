@@ -12,6 +12,17 @@
 #include <assert.h>
 #include <stdio.h>
 
+/*
+ * It's impossible to include ntstatus.h without getting a ton of warnings,
+ * and these are not definied in winnt.h, so define these here.  Add safety
+ * guards just in case.
+ */
+#ifndef STATUS_SUCCESS
+#define STATUS_SUCCESS                   ((NTSTATUS)0x00000000L)
+#endif
+
+#include <bcrypt.h>
+
 #include <gensio/gensio.h>
 #include <gensio/sergensio.h>
 #include <gensio/gensio_list.h>
@@ -3458,6 +3469,25 @@ win_kill_subprog(struct gensio_os_funcs *o, intptr_t pid, bool force)
     return 0;
 }
 
+static int
+win_get_random(struct gensio_os_funcs *o,
+	       void *data, unsigned int len)
+{
+    NTSTATUS rv;
+    BCRYPT_ALG_HANDLE alg;
+    int err = 0;
+
+    rv = BCryptOpenAlgorithmProvider(&alg, BCRYPT_RNG_ALGORITHM,
+				     MS_PRIMITIVE_PROVIDER, 0);
+    if (rv != STATUS_SUCCESS)
+	return gensio_os_err_to_err(o, rv);
+    rv = BCryptGenRandom(alg, data, len, 0);
+    if (rv != STATUS_SUCCESS)
+	err = gensio_os_err_to_err(o, rv);
+    BCryptCloseAlgorithmProvider(alg, 0);
+    return err;
+}
+
 static struct gensio_os_funcs *
 gensio_win_alloc_sel(void)
 {
@@ -3550,6 +3580,7 @@ gensio_win_alloc_sel(void)
     o->exec_subprog = win_exec_subprog;
     o->kill_subprog = win_kill_subprog;
     o->wait_subprog = win_wait_subprog;
+    o->get_random = win_get_random;
 
     gensio_addr_addrinfo_set_os_funcs(o);
     gensio_stdsock_set_os_funcs(o);
