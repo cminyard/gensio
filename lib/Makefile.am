@@ -30,7 +30,7 @@ libgensio_la_SOURCES = \
 	gensio_addrinfo.c gensio_stdsock.c
 
 if HAVE_UNIX_OS
-libgensio_la_SOURCES += gensio_selector.c selector.c
+libgensio_la_SOURCES += gensio_unix.c selector.c
 endif
 if HAVE_WINDOWS_OS
 libgensio_la_SOURCES += gensio_win.c
