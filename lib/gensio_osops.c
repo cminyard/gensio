@@ -31,18 +31,66 @@ bool gensio_set_progname(const char *iprogname)
 }
 
 
-#ifdef _WIN32
-#include "gensio_osops_win.h"
-void
-gensio_osops_set_os_funcs(struct gensio_os_funcs *o)
-{
-}
+#ifndef _WIN32
+#include <sys/types.h>
+#include <unistd.h>
+#include <grp.h>
+#include <pwd.h>
+#include <errno.h>
 
-#else
-#include "gensio_osops_unix.h"
-void
-gensio_osops_set_os_funcs(struct gensio_os_funcs *o)
+int
+gensio_os_setupnewprog(void)
 {
+    struct passwd *pw;
+    int err;
+    uid_t uid = geteuid();
+    gid_t *groups = NULL;
+    int ngroup = 0;
+
+    if (do_errtrig())
+	return GE_NOMEM;
+
+    if (uid == getuid())
+	return 0;
+
+    err = seteuid(getuid());
+    if (err)
+	return errno;
+
+    pw = getpwuid(uid);
+    if (!pw)
+	return errno;
+
+    getgrouplist(pw->pw_name, pw->pw_gid, groups, &ngroup);
+    if (ngroup > 0) {
+	groups = malloc(sizeof(gid_t) * ngroup);
+	if (!groups)
+	    return ENOMEM;
+
+	err = getgrouplist(pw->pw_name, pw->pw_gid, groups, &ngroup);
+	if (err == -1) {
+	    err = errno;
+	    free(groups);
+	    return err;
+	}
+
+	err = setgroups(err, groups);
+	if (err) {
+	    err = errno;
+	    free(groups);
+	    return err;
+	}
+	free(groups);
+    }
+
+    err = setgid(getegid());
+    if (err)
+	return errno;
+
+    err = setuid(uid);
+    if (err)
+	return errno;
+    return 0;
 }
 #endif
 

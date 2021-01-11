@@ -14,11 +14,14 @@
 
 /*
  * It's impossible to include ntstatus.h without getting a ton of warnings,
- * and these are not definied in winnt.h, so define these here.  Add safety
+ * and these are not defined in winnt.h, so define these here.  Add safety
  * guards just in case.
  */
 #ifndef STATUS_SUCCESS
 #define STATUS_SUCCESS                   ((NTSTATUS)0x00000000L)
+#endif
+#ifndef STATUS_NOT_FOUND
+#define STATUS_NOT_FOUND                 ((NTSTATUS)0xC0000225L)
 #endif
 
 #include <bcrypt.h>
@@ -3607,6 +3610,55 @@ gensio_win_alloc_sel(void)
  out_err:
     win_finish_free(o);
     return NULL;
+}
+
+int
+gensio_i_os_err_to_err(struct gensio_os_funcs *o,
+		       int oserr, const char *caller, const char *file,
+		       unsigned int lineno)
+{
+    int err;
+
+    if (oserr == 0)
+	return 0;
+
+    switch(oserr) {
+    case WSAEINVAL:		err = GE_INVAL; break;
+    case WSAEINPROGRESS:	err = GE_INPROGRESS; break;
+    case WSAETIMEDOUT:		err = GE_TIMEDOUT; break;
+    case WSAECONNRESET:		err = GE_REMCLOSE; break;
+    case WSAEHOSTUNREACH:	err = GE_HOSTDOWN; break;
+    case WSAECONNREFUSED:	err = GE_CONNREFUSE; break;
+    case WSAEADDRINUSE:		err = GE_ADDRINUSE; break;
+    case WSAEINTR:		err = GE_INTERRUPTED; break;
+    case WSAESHUTDOWN:		err = GE_SHUTDOWN; break;
+    case WSAEMSGSIZE:		err = GE_TOOBIG; break;
+    case WSAEACCES:		err = GE_PERM; break;
+    case WSAEWOULDBLOCK:	err = GE_INPROGRESS; break;
+
+    case STATUS_NOT_FOUND:	err = GE_NOTFOUND; break;
+    case STATUS_INVALID_PARAMETER: err = GE_INVAL; break;
+    case STATUS_NO_MEMORY:	err = GE_NOMEM; break;
+
+    case ERROR_NOT_ENOUGH_MEMORY: err = GE_NOMEM; break;
+    case ERROR_BROKEN_PIPE:	err = GE_REMCLOSE; break;
+    case ERROR_FILE_NOT_FOUND:	err = GE_NOTFOUND; break;
+    case ERROR_NOT_FOUND:	err = GE_NOTFOUND; break;
+    default:			err = GE_OSERR;
+    }
+
+    if (err == GE_OSERR) {
+	char errbuf[128];
+
+	errbuf[0] = '\0';
+	FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM, NULL,
+		      oserr, 0, errbuf, sizeof(errbuf), NULL);
+	gensio_log(o, GENSIO_LOG_INFO,
+		   "Unhandled OS error in %s:%d: %s (%d)", caller, lineno,
+		   errbuf, oserr);
+    }
+
+    return err;
 }
 
 static INIT_ONCE win_oshnd_once = INIT_ONCE_STATIC_INIT;
