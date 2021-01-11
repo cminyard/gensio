@@ -31,7 +31,10 @@ bool gensio_set_progname(const char *iprogname)
 }
 
 
-#ifndef _WIN32
+#ifdef _WIN32
+#include <winsock2.h> /* For AF_UNSPEC */
+#else
+#include <arpa/inet.h> /* For AF_UNSPEC */
 #include <sys/types.h>
 #include <unistd.h>
 #include <grp.h>
