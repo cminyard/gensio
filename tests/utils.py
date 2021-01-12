@@ -717,7 +717,9 @@ class TestAccept:
         if (io1_dummy_write):
             # For UDP, kick start things.
             io1.write(io1_dummy_write, None)
-        self.wait()
+        if (self.wait_timeout(1000) == 0):
+            raise Exception(("%s: %s: " % ("test_accept", self.name)) +
+                    ("Timed out waiting for initial connection"))
         if (io1_dummy_write):
             self.io2.handler.set_compare(io1_dummy_write)
             if (self.io2.handler.wait_timeout(1000) == 0):
@@ -759,6 +761,9 @@ class TestAccept:
 
     def wait(self):
         self.waiter.wait(1)
+
+    def wait_timeout(self, timeout):
+        return self.waiter.wait_timeout(1, timeout)
 
 def do_test(io1, io2):
     test_dataxfer(io1, io2, "This is a test string!")
