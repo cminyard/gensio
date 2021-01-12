@@ -54,7 +54,12 @@ fi
 
 if ${PYTHON_MODE}; then
     export PYTHONPATH=${BUILDDIR}/swig/python:${BUILDDIR}/swig/python/.libs:${TEST_BUILDDIR}
-    export LD_LIBRARY_PATH=${BUILDDIR}/lib:${BUILDDIR}/lib/.libs
+    # We need to put the DLL in PATH for MSYS on Windows
+    if [ ! -z "$MSYSTEM" ]; then
+	export PATH=${BUILDDIR}/lib:${BUILDDIR}/lib/.libs:$PATH
+    else
+	export LD_LIBRARY_PATH=${BUILDDIR}/lib:${BUILDDIR}/lib/.libs
+    fi
     TEST="${PYTHON} ${TEST}"
 else
     if [ ! -x ${TEST} ]; then
@@ -65,7 +70,11 @@ fi
 	
 if ${PRINT_MODE}; then
     echo export PYTHONPATH="${PYTHONPATH}"
-    echo export LD_LIBRARY_PATH="${LD_LIBRARY_PATH}"
+    if [ ! -z "$MSYSTEM" ]; then
+	echo export PATH=${BUILDDIR}/lib:${BUILDDIR}/lib/.libs:\$PATH
+    else
+	echo export LD_LIBRARY_PATH="${LD_LIBRARY_PATH}"
+    fi
     echo ${RUNPREFIX} ${TEST} $*
 else
     exec ${RUNPREFIX} ${TEST} $*

@@ -6,6 +6,10 @@ cd ca
 
 # NOTE: CN for CA certificate and other certificates must be different.
 
+# For msys, the leading / in the openssl commands gets translated, turn
+# that off.
+export MSYS2_ARG_CONV_EXCL="*"
+
 openssl req -newkey rsa:2048 -nodes -x509 -days 10000 -keyout CA.key \
 	-subj "/C=US/ST=Texas/O=ser2net/OU=test/CN=ser2net.admin/emailAddress=ser2net@ser2net.org" \
 	-out CA.pem
