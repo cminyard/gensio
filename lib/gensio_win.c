@@ -105,6 +105,8 @@ struct gensio_iod_win {
     BOOL closed;
 
     DWORD (*threadfunc)(LPVOID data);
+    DWORD werr; /* For reporting errors from the sub-thread, windows error. */
+    int err; /* Current error condition, gensio error */
 
     HANDLE threadh;
     DWORD threadid;
@@ -1325,7 +1327,13 @@ winsock_func(LPVOID data)
 	if (events) {
 	    /* FIXME - check if events changed? */
 	    rv = WSAEventSelect(wiod->fd, iod->sockev, events);
-	    assert(rv != SOCKET_ERROR);
+	    if (rv == SOCKET_ERROR) {
+		if (!wiod->werr)
+		    wiod->werr = WSAGetLastError();
+		wiod->closed = TRUE;
+		queueit = TRUE;
+		goto do_queue;
+	    }
 	    i++;
 	}
 	rv = WSAWaitForMultipleEvents(i, waiters, FALSE, INFINITE, FALSE);
@@ -1340,6 +1348,8 @@ winsock_func(LPVOID data)
 	} else if (rv == WSA_WAIT_EVENT_0 + 1) {
 	    rv = WSAEnumNetworkEvents(wiod->fd, iod->sockev, &revents);
 	    if (rv == SOCKET_ERROR) {
+		if (!wiod->werr)
+		    wiod->werr = WSAGetLastError();
 		wiod->closed = TRUE;
 		queueit = TRUE;
 	    } else {
@@ -1364,6 +1374,7 @@ winsock_func(LPVOID data)
 		}
 	    }
 	}
+    do_queue:
 	if (queueit)
 	    queue_iod(wiod);
     }
@@ -1538,9 +1549,6 @@ struct gensio_iod_win_oneway {
     HANDLE wakeh;
     HANDLE ioh;
 
-    int werr; /* For reporting errors from the sub-thread, windows error. */
-    int err; /* Current error condition, gensio error */
-
     struct circbuf buf;
 
     BOOL readable;
@@ -1563,7 +1571,7 @@ win_oneway_in_thread(LPVOID data)
     for(;;) {
 	BOOL rvb;
 
-	if (circbuf_room_left(&iod->buf) && !iod->werr) {
+	if (circbuf_room_left(&iod->buf) && !wiod->werr) {
 	    unsigned int readsize;
 	    void *readpos;
 	    DWORD nread;
@@ -1603,9 +1611,9 @@ win_oneway_in_thread(LPVOID data)
  out_err:
     rvw = GetLastError();
  out_err_noconv:
-    if (!iod->werr) {
+    if (!wiod->werr) {
 	wiod->read.ready = TRUE;
-	iod->werr = rvw;
+	wiod->werr = rvw;
 	queue_iod(wiod);
     }
     LeaveCriticalSection(&wiod->lock);
@@ -1663,9 +1671,9 @@ win_oneway_out_thread(LPVOID data)
 
  out_err:
     rvw = GetLastError();
-    if (!iod->werr) {
+    if (!wiod->werr) {
 	wiod->write.ready = TRUE;
-	iod->werr = rvw;
+	wiod->werr = rvw;
 	queue_iod(wiod);
     }
     LeaveCriticalSection(&wiod->lock);
@@ -1675,12 +1683,10 @@ win_oneway_out_thread(LPVOID data)
 static int
 win_oneway_close(struct gensio_iod_win *wiod)
 {
-    struct gensio_iod_win_oneway *iod = i_to_win_oneway(wiod);
-
     EnterCriticalSection(&wiod->lock);
     wiod->closed = TRUE;
-    if (!iod->err)
-	iod->err = GE_LOCALCLOSED;
+    if (!wiod->err)
+	wiod->err = GE_LOCALCLOSED;
     LeaveCriticalSection(&wiod->lock);
 
     return 0;
@@ -1711,7 +1717,7 @@ win_oneway_bufcount(struct gensio_iod_win *wiod, int whichbuf, gensiods *count)
     struct gensio_iod_win_oneway *iod = i_to_win_oneway(wiod);
 
     EnterCriticalSection(&wiod->lock);
-    if (iod->err || iod->werr)
+    if (wiod->err || wiod->werr)
 	*count = 0;
     else if ((wiod->fd == 0 && whichbuf == GENSIO_IN_BUF) ||
 	     (wiod->fd == 1 && whichbuf == GENSIO_OUT_BUF))
@@ -1730,7 +1736,7 @@ win_oneway_flush(struct gensio_iod_win *wiod)
     if (iod->readable) /* output only */
 	return;
     EnterCriticalSection(&wiod->lock);
-    if (!iod->err && !iod->werr) {
+    if (!wiod->err && !wiod->werr) {
 	iod->do_flush = TRUE;
 	assert(SetEvent(iod->wakeh));
 	CancelSynchronousIo(wiod->threadh);
@@ -1752,10 +1758,10 @@ win_oneway_write(struct gensio_iod_win *wiod,
 	rv = GE_NOTSUP;
 	goto out_err;
     }
-    if (iod->err || iod->werr) {
-	if (!iod->err)
-	    iod->err = gensio_os_err_to_err(iod->i.r.f, iod->werr);
-	rv = iod->err;
+    if (wiod->err || wiod->werr) {
+	if (!wiod->err)
+	    wiod->err = gensio_os_err_to_err(wiod->r.f, wiod->werr);
+	rv = wiod->err;
 	goto out_err;
     }
     if (iod->do_flush)
@@ -1803,10 +1809,10 @@ win_oneway_read(struct gensio_iod_win *wiod,
 	rv = GE_NOTSUP;
 	goto out_err;
     }
-    if (iod->err || iod->werr) {
-	if (!iod->err)
-	    iod->err = gensio_os_err_to_err(iod->i.r.f, iod->werr);
-	rv = iod->err;
+    if (wiod->err || wiod->werr) {
+	if (!wiod->err)
+	    wiod->err = gensio_os_err_to_err(wiod->r.f, wiod->werr);
+	rv = wiod->err;
 	goto out_err;
     }
 
@@ -2016,9 +2022,6 @@ struct gensio_iod_win_twoway {
     HANDLE extrah;
     DWORD (*extrah_func)(struct gensio_iod_win_twoway *);
 
-    int werr; /* For reporting errors from the sub-thread, windows error. */
-    int err; /* Current error condition, gensio error */
-
     BOOL readable;
     BOOL writeable;
 
@@ -2063,7 +2066,7 @@ win_twoway_thread(LPVOID data)
     for(;;) {
 	BOOL rvb;
 
-	if (!reading && circbuf_room_left(&iod->inbuf) && !iod->werr
+	if (!reading && circbuf_room_left(&iod->inbuf) && !wiod->werr
 			&& iod->readable) {
 	    unsigned int readsize;
 	    void *readpos;
@@ -2079,7 +2082,7 @@ win_twoway_thread(LPVOID data)
 		    goto out_err_noget;
 	    }
 	} else if (!writing && circbuf_datalen(&iod->outbuf) > 0 &&
-		   !iod->werr && iod->writeable) {
+		   !wiod->werr && iod->writeable) {
 	    unsigned int writelen;
 	    void *writepos;
 
@@ -2176,10 +2179,10 @@ win_twoway_thread(LPVOID data)
  out_err:
     rvw = GetLastError();
  out_err_noget:
-    if (!iod->werr) {
+    if (!wiod->werr) {
 	wiod->read.ready = TRUE;
 	wiod->write.ready = TRUE;
-	iod->werr = rvw;
+	wiod->werr = rvw;
 	queue_iod(wiod);
     }
     goto exitth;
@@ -2187,12 +2190,10 @@ win_twoway_thread(LPVOID data)
 
 static int
 win_twoway_close(struct gensio_iod_win *wiod) {
-    struct gensio_iod_win_twoway *iod = i_to_win_twoway(wiod);
-
     EnterCriticalSection(&wiod->lock);
     wiod->closed = TRUE;
-    if (!iod->err)
-	iod->err = GE_LOCALCLOSED;
+    if (!wiod->err)
+	wiod->err = GE_LOCALCLOSED;
     LeaveCriticalSection(&wiod->lock);
 
     return 0;
@@ -2204,7 +2205,7 @@ win_twoway_bufcount(struct gensio_iod_win *wiod, int whichbuf, gensiods *count)
     struct gensio_iod_win_twoway *iod = i_to_win_twoway(wiod);
 
     EnterCriticalSection(&wiod->lock);
-    if (iod->err || iod->werr)
+    if (wiod->err || wiod->werr)
 	*count = 0;
     else if (iod->readable && whichbuf == GENSIO_IN_BUF)
 	*count = circbuf_datalen(&iod->inbuf);
@@ -2224,7 +2225,7 @@ win_twoway_flush(struct gensio_iod_win *wiod)
     if (wiod->fd != 1) /* stdout only */
 	return;
     EnterCriticalSection(&wiod->lock);
-    if (!iod->err && !iod->werr) {
+    if (!wiod->err && !wiod->werr) {
 	iod->do_flush = TRUE;
 	assert(SetEvent(iod->wakeh));
     }
@@ -2242,13 +2243,13 @@ win_twoway_write(struct gensio_iod_win *wiod,
 
     EnterCriticalSection(&wiod->lock);
     if (!iod->writeable) {
-	iod->err = GE_NOTSUP;
+	wiod->err = GE_NOTSUP;
 	goto out;
     }
-    if (iod->err || iod->werr) {
-	if (!iod->err)
-	    iod->err = gensio_os_err_to_err(iod->i.r.f, iod->werr);
-	rv = iod->err;
+    if (wiod->err || wiod->werr) {
+	if (!wiod->err)
+	    wiod->err = gensio_os_err_to_err(wiod->r.f, wiod->werr);
+	rv = wiod->err;
 	goto out_err;
     }
     if (iod->do_flush)
@@ -2293,13 +2294,13 @@ win_twoway_read(struct gensio_iod_win *wiod,
 
     EnterCriticalSection(&wiod->lock);
     if (!iod->readable) {
-	iod->err = GE_NOTSUP;
+	wiod->err = GE_NOTSUP;
 	goto out;
     }
-    if (iod->err || iod->werr) {
-	if (!iod->err)
-	    iod->err = gensio_os_err_to_err(iod->i.r.f, iod->werr);
-	rv = iod->err;
+    if (wiod->err || wiod->werr) {
+	if (!wiod->err)
+	    wiod->err = gensio_os_err_to_err(wiod->r.f, wiod->werr);
+	rv = wiod->err;
 	goto out;
     }
 
@@ -2892,18 +2893,25 @@ win_recv(struct gensio_iod *iiod, void *buf, gensiods buflen,
 	 gensiods *rcount, int gflags)
 {
     struct gensio_os_funcs *o = iiod->f;
-    struct gensio_iod_win *iod = i_to_win(iiod);
+    struct gensio_iod_win *wiod = i_to_win(iiod);
     struct gensio_data *d = o->user_data;
     int rv;
 
-    if (iod->type != GENSIO_IOD_SOCKET)
+    if (wiod->type != GENSIO_IOD_SOCKET)
 	return GE_INVAL;
 
-    EnterCriticalSection(&iod->lock);
-    iod->read.ready = FALSE;
-    iod->except.ready = FALSE;
+    EnterCriticalSection(&wiod->lock);
+    if (wiod->err || wiod->werr) {
+	if (!wiod->err)
+	    wiod->err = gensio_os_err_to_err(wiod->r.f, wiod->werr);
+	rv = wiod->err;
+	goto out;
+    }
+    wiod->read.ready = FALSE;
+    wiod->except.ready = FALSE;
     rv = d->orig_recv(iiod, buf, buflen, rcount, gflags);
-    LeaveCriticalSection(&iod->lock);
+ out:
+    LeaveCriticalSection(&wiod->lock);
 
     return rv;
 }
@@ -2914,17 +2922,24 @@ win_send(struct gensio_iod *iiod,
 	 gensiods *rcount, int gflags)
 {
     struct gensio_os_funcs *o = iiod->f;
-    struct gensio_iod_win *iod = i_to_win(iiod);
+    struct gensio_iod_win *wiod = i_to_win(iiod);
     struct gensio_data *d = o->user_data;
     int rv;
 
-    if (iod->type != GENSIO_IOD_SOCKET)
+    if (wiod->type != GENSIO_IOD_SOCKET)
 	return GE_INVAL;
 
-    EnterCriticalSection(&iod->lock);
-    iod->write.ready = FALSE;
+    EnterCriticalSection(&wiod->lock);
+    if (wiod->err || wiod->werr) {
+	if (!wiod->err)
+	    wiod->err = gensio_os_err_to_err(wiod->r.f, wiod->werr);
+	rv = wiod->err;
+	goto out;
+    }
+    wiod->write.ready = FALSE;
     rv = d->orig_send(iiod, sg, sglen, rcount, gflags);
-    LeaveCriticalSection(&iod->lock);
+ out:
+    LeaveCriticalSection(&wiod->lock);
 
     return rv;
 }
@@ -2936,17 +2951,24 @@ win_sendto(struct gensio_iod *iiod,
 	   const struct gensio_addr *raddr)
 {
     struct gensio_os_funcs *o = iiod->f;
-    struct gensio_iod_win *iod = i_to_win(iiod);
+    struct gensio_iod_win *wiod = i_to_win(iiod);
     struct gensio_data *d = o->user_data;
     int rv;
 
-    if (iod->type != GENSIO_IOD_SOCKET)
+    if (wiod->type != GENSIO_IOD_SOCKET)
 	return GE_INVAL;
 
-    EnterCriticalSection(&iod->lock);
-    iod->write.ready = FALSE;
+    EnterCriticalSection(&wiod->lock);
+    if (wiod->err || wiod->werr) {
+	if (!wiod->err)
+	    wiod->err = gensio_os_err_to_err(wiod->r.f, wiod->werr);
+	rv = wiod->err;
+	goto out;
+    }
+    wiod->write.ready = FALSE;
     rv = d->orig_sendto(iiod, sg, sglen, rcount, gflags, raddr);
-    LeaveCriticalSection(&iod->lock);
+ out:
+    LeaveCriticalSection(&wiod->lock);
 
     return rv;
 }
@@ -2956,18 +2978,25 @@ win_recvfrom(struct gensio_iod *iiod, void *buf, gensiods buflen,
 	     gensiods *rcount, int flags, struct gensio_addr *addr)
 {
     struct gensio_os_funcs *o = iiod->f;
-    struct gensio_iod_win *iod = i_to_win(iiod);
+    struct gensio_iod_win *wiod = i_to_win(iiod);
     struct gensio_data *d = o->user_data;
     int rv;
 
-    if (iod->type != GENSIO_IOD_SOCKET)
+    if (wiod->type != GENSIO_IOD_SOCKET)
 	return GE_INVAL;
 
-    EnterCriticalSection(&iod->lock);
-    iod->read.ready = FALSE;
-    iod->except.ready = FALSE;
+    EnterCriticalSection(&wiod->lock);
+    if (wiod->err || wiod->werr) {
+	if (!wiod->err)
+	    wiod->err = gensio_os_err_to_err(wiod->r.f, wiod->werr);
+	rv = wiod->err;
+	goto out;
+    }
+    wiod->read.ready = FALSE;
+    wiod->except.ready = FALSE;
     rv = d->orig_recvfrom(iiod, buf, buflen, rcount, flags, addr);
-    LeaveCriticalSection(&iod->lock);
+ out:
+    LeaveCriticalSection(&wiod->lock);
 
     return rv;
 }
@@ -2977,18 +3006,25 @@ win_accept(struct gensio_iod *iiod,
 	   struct gensio_addr **raddr, struct gensio_iod **newiod)
 {
     struct gensio_os_funcs *o = iiod->f;
-    struct gensio_iod_win *iod = i_to_win(iiod);
+    struct gensio_iod_win *wiod = i_to_win(iiod);
     struct gensio_data *d = o->user_data;
     int rv;
 
-    if (iod->type != GENSIO_IOD_SOCKET)
+    if (wiod->type != GENSIO_IOD_SOCKET)
 	return GE_INVAL;
 
-    EnterCriticalSection(&iod->lock);
+    EnterCriticalSection(&wiod->lock);
+    if (wiod->err || wiod->werr) {
+	if (!wiod->err)
+	    wiod->err = gensio_os_err_to_err(wiod->r.f, wiod->werr);
+	rv = wiod->err;
+	goto out;
+    }
     rv = d->orig_accept(iiod, raddr, newiod);
     if (rv && WSAGetLastError() != WSAEWOULDBLOCK)
-	iod->read.ready = FALSE;
-    LeaveCriticalSection(&iod->lock);
+	wiod->read.ready = FALSE;
+ out:
+    LeaveCriticalSection(&wiod->lock);
 
     return rv;
 }
@@ -2997,19 +3033,26 @@ static int
 win_connect(struct gensio_iod *iiod, const struct gensio_addr *addr)
 {
     struct gensio_os_funcs *o = iiod->f;
-    struct gensio_iod_win *iod = i_to_win(iiod);
-    struct gensio_iod_win_sock *siod = i_to_winsock(iod);
+    struct gensio_iod_win *wiod = i_to_win(iiod);
+    struct gensio_iod_win_sock *siod = i_to_winsock(wiod);
     struct gensio_data *d = o->user_data;
     int rv;
 
-    if (iod->type != GENSIO_IOD_SOCKET)
+    if (wiod->type != GENSIO_IOD_SOCKET)
 	return GE_INVAL;
 
-    EnterCriticalSection(&iod->lock);
+    EnterCriticalSection(&wiod->lock);
+    if (wiod->err || wiod->werr) {
+	if (!wiod->err)
+	    wiod->err = gensio_os_err_to_err(wiod->r.f, wiod->werr);
+	rv = wiod->err;
+	goto out;
+    }
     rv = d->orig_connect(iiod, addr);
     if (rv == 0)
 	siod->connected = TRUE;
-    LeaveCriticalSection(&iod->lock);
+ out:
+    LeaveCriticalSection(&wiod->lock);
 
     return rv;
 }
