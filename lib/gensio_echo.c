@@ -15,6 +15,7 @@
 #include <gensio/gensio_class.h>
 #include <gensio/argvutils.h>
 #include <gensio/gensio_builtins.h>
+#include <gensio/gensio_circbuf.h>
 
 enum echon_state {
     ECHON_CLOSED,
@@ -36,9 +37,7 @@ struct echon_data {
 
     bool noecho;
 
-    gensiods max_read_size;
-    unsigned char *read_data;
-    gensiods data_pending_len;
+    struct gensio_circbuf *buf;
 
     bool read_enabled;
     bool xmit_enabled;
@@ -66,8 +65,8 @@ echon_finish_free(struct echon_data *ndata)
 
     if (ndata->io)
 	gensio_data_free(ndata->io);
-    if (ndata->read_data)
-	o->free(o, ndata->read_data);
+    if (ndata->buf)
+	gensio_circbuf_free(ndata->buf);
     if (ndata->deferred_op_runner)
 	o->free_runner(ndata->deferred_op_runner);
     if (ndata->lock)
@@ -108,11 +107,11 @@ echon_unlock_and_deref(struct echon_data *ndata)
 }
 
 static int
-echon_write(struct gensio *io, gensiods *count,
+echon_write(struct gensio *io, gensiods *rcount,
 	    const struct gensio_sg *sg, gensiods sglen)
 {
     struct echon_data *ndata = gensio_get_gensio_data(io);
-    gensiods total_write = 0, to_write, i;
+    gensiods i, count = 0;
 
     echon_lock(ndata);
     if (ndata->state != ECHON_OPEN) {
@@ -120,29 +119,19 @@ echon_write(struct gensio *io, gensiods *count,
 	return GE_NOTREADY;
     }
     if (ndata->noecho) {
-	gensiods i, total = 0;
-
 	for (i = 0; i < sglen; i++)
-	    total += sg[i].buflen;
-	if (count)
-	    *count = total;
+	    count += sg[i].buflen;
+	if (rcount)
+	    *rcount = count;
 	echon_unlock(ndata);
 	return 0;
     }
-    for (i = 0; i < sglen; i++) {
-	to_write = ndata->max_read_size - ndata->data_pending_len;
-	if (to_write > sg[i].buflen)
-	    to_write = sg[i].buflen;
-	memcpy(ndata->read_data + ndata->data_pending_len,
-	       sg[i].buf, to_write);
-	ndata->data_pending_len += to_write;
-	total_write += to_write;
-    }
-    if (total_write)
+    gensio_circbuf_sg_write(ndata->buf, sg, sglen, &count);
+    if (count)
 	echon_start_deferred_op(ndata);
     echon_unlock(ndata);
-    if (count)
-	*count = total_write;
+    if (rcount)
+	*rcount = count;
     return 0;
 }
 
@@ -170,27 +159,19 @@ echon_deferred_op(struct gensio_runner *runner, void *cb_data)
 
  more_read:
     while (ndata->state == ECHON_OPEN &&
-	   ndata->data_pending_len && ndata->read_enabled) {
+	   gensio_circbuf_datalen(ndata->buf) > 0 && ndata->read_enabled) {
+	void *data;
 	gensiods count;
 
-	count = ndata->data_pending_len;
+	gensio_circbuf_next_read_area(ndata->buf, &data, &count);
 	echon_unlock(ndata);
-	gensio_cb(ndata->io, GENSIO_EVENT_READ, 0,
-		  ndata->read_data, &count, NULL);
+	gensio_cb(ndata->io, GENSIO_EVENT_READ, 0, data, &count, NULL);
 	echon_lock(ndata);
-	if (count > 0) {
-	    if (count >= ndata->data_pending_len) {
-		ndata->data_pending_len = 0;
-	    } else {
-		memcpy(ndata->read_data, ndata->read_data + count,
-		       ndata->data_pending_len - count);
-		ndata->data_pending_len -= count;
-	    }
-	}
+	gensio_circbuf_data_removed(ndata->buf, count);
     }
 
     while (ndata->state == ECHON_OPEN &&
-	   ndata->data_pending_len < ndata->max_read_size &&
+	   gensio_circbuf_room_left(ndata->buf) > 0 &&
 	   ndata->xmit_enabled) {
 	echon_unlock(ndata);
 	gensio_cb(ndata->io, GENSIO_EVENT_WRITE_READY, 0,
@@ -198,7 +179,7 @@ echon_deferred_op(struct gensio_runner *runner, void *cb_data)
 	echon_lock(ndata);
     }
     if (ndata->state == ECHON_OPEN &&
-		ndata->data_pending_len && ndata->read_enabled)
+		gensio_circbuf_datalen(ndata->buf) > 0 && ndata->read_enabled)
 	goto more_read;
 
     if (ndata->state == ECHON_IN_CLOSE) {
@@ -233,7 +214,8 @@ echon_set_read_callback_enable(struct gensio *io, bool enabled)
 
     echon_lock(ndata);
     ndata->read_enabled = enabled;
-    if (enabled && ndata->state == ECHON_OPEN && ndata->data_pending_len)
+    if (enabled && ndata->state == ECHON_OPEN &&
+		gensio_circbuf_datalen(ndata->buf) > 0)
 	echon_start_deferred_op(ndata);
     echon_unlock(ndata);
 }
@@ -246,7 +228,7 @@ echon_set_write_callback_enable(struct gensio *io, bool enabled)
     echon_lock(ndata);
     ndata->xmit_enabled = enabled;
     if (enabled && ndata->state == ECHON_OPEN &&
-		ndata->data_pending_len < ndata->max_read_size)
+		gensio_circbuf_room_left(ndata->buf) > 0)
 	echon_start_deferred_op(ndata);
     echon_unlock(ndata);
 }
@@ -402,9 +384,8 @@ echo_ndata_setup(struct gensio_os_funcs *o, gensiods max_read_size,
     ndata->refcount = 1;
     ndata->freeref = 1;
 
-    ndata->max_read_size = max_read_size;
-    ndata->read_data = o->zalloc(o, max_read_size);
-    if (!ndata->read_data)
+    ndata->buf = gensio_circbuf_alloc(o, max_read_size);
+    if (!ndata->buf)
 	goto out_nomem;
 
     ndata->deferred_op_runner = o->alloc_runner(o, echon_deferred_op, ndata);
