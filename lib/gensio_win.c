@@ -34,6 +34,7 @@
 #include <gensio/gensio_osops_addrinfo.h>
 #include <gensio/gensio_osops_stdsock.h>
 #include <gensio/gensio_osops.h>
+#include <gensio/gensio_circbuf.h>
 #include "errtrig.h"
 
 #if defined(_MSC_VER) && defined(ENABLE_INTERNAL_TRACE)
@@ -1430,77 +1431,6 @@ win_iod_socket_init(struct gensio_iod_win *wiod, void *cb_data)
     return GE_NOMEM;
 }
 
-/*
- * Some circular buffer handling.
- */
-struct circbuf {
-    unsigned int pos;
-    unsigned int size;
-    unsigned char buf[2048];
-};
-
-static unsigned int
-circbuf_room_left(struct circbuf *c)
-{
-    return sizeof(c->buf) - c->size;
-}
-
-static void
-circbuf_next_write_area(struct circbuf *c, void **pos, unsigned int *size)
-{
-    unsigned int end;
-
-    end = (c->pos + c->size) % sizeof(c->buf);
-    if (end >= c->pos)
-	/* Unwrapped or empty buffer, write to the end. */
-	*size = sizeof(c->buf) - end;
-    else
-	/* Wrapped or full buffer, write between end and iopos. */
-	*size = c->pos - end;
-    *pos = c->buf + end;
-}
-
-static void
-circbuf_data_added(struct circbuf *c, unsigned int len)
-{
-    c->size += len;
-}
-
-static void
-circbuf_next_read_area(struct circbuf *c, void **pos, unsigned int *size)
-{
-    unsigned int end;
-
-    end = (c->pos + c->size) % sizeof(c->buf);
-    if (end > c->pos)
-	/* Unwrapped buffer, read the whole thing. */
-	*size = c->size;
-    else
-	/* Wrapped buffer, read to end. */
-	*size = sizeof(c->buf) - c->pos;
-    *pos = c->buf + c->pos;
-}
-
-static void
-circbuf_data_removed(struct circbuf *c, unsigned int len)
-{
-    c->size -= len;
-    c->pos = (c->pos + len) % sizeof(c->buf);
-}
-
-static unsigned int
-circbuf_datalen(struct circbuf *c)
-{
-    return c->size;
-}
-
-static void
-circbuf_reset(struct circbuf *c)
-{
-    c->pos = 0;
-    c->size = 0;
-}
-
 /* Used to pass data into the intitialization routines. */
 struct win_init_info {
     HANDLE ioh;
@@ -1549,7 +1479,7 @@ struct gensio_iod_win_oneway {
     HANDLE wakeh;
     HANDLE ioh;
 
-    struct circbuf buf;
+    struct gensio_circbuf *buf;
 
     BOOL readable;
 
@@ -1571,12 +1501,12 @@ win_oneway_in_thread(LPVOID data)
     for(;;) {
 	BOOL rvb;
 
-	if (circbuf_room_left(&iod->buf) && !wiod->werr) {
-	    unsigned int readsize;
+	if (gensio_circbuf_room_left(iod->buf) && !wiod->werr) {
+	    gensiods readsize;
 	    void *readpos;
 	    DWORD nread;
 
-	    circbuf_next_write_area(&iod->buf, &readpos, &readsize);
+	    gensio_circbuf_next_write_area(iod->buf, &readpos, &readsize);
 	    LeaveCriticalSection(&wiod->lock);
 	    rvb = ReadFile(iod->ioh, readpos, readsize, &nread, NULL);
 	    EnterCriticalSection(&wiod->lock);
@@ -1588,7 +1518,7 @@ win_oneway_in_thread(LPVOID data)
 		rvw = ERROR_BROKEN_PIPE;
 		goto out_err_noconv;
 	    } else {
-		circbuf_data_added(&iod->buf, nread);
+		gensio_circbuf_data_added(iod->buf, nread);
 		if (!wiod->read.ready) {
 		    wiod->read.ready = TRUE;
 		    queue_iod(wiod);
@@ -1631,12 +1561,12 @@ win_oneway_out_thread(LPVOID data)
     for(;;) {
 	BOOL rvb;
 
-	if (circbuf_datalen(&iod->buf) > 0) {
-	    unsigned int writelen;
+	if (gensio_circbuf_datalen(iod->buf) > 0) {
+	    gensiods writelen;
 	    void *writepos;
 	    DWORD nwrite;
 
-	    circbuf_next_read_area(&iod->buf, &writepos, &writelen);
+	    gensio_circbuf_next_read_area(iod->buf, &writepos, &writelen);
 	    LeaveCriticalSection(&wiod->lock);
 	    rvb = WriteFile(iod->ioh, writepos, writelen, &nwrite, NULL);
 	    EnterCriticalSection(&wiod->lock);
@@ -1644,7 +1574,7 @@ win_oneway_out_thread(LPVOID data)
 		goto out_err;
 
 	    if (!iod->do_flush) {
-		circbuf_data_removed(&iod->buf, nwrite);
+		gensio_circbuf_data_removed(iod->buf, nwrite);
 
 		if (!wiod->write.ready) {
 		    wiod->write.ready = TRUE;
@@ -1661,7 +1591,7 @@ win_oneway_out_thread(LPVOID data)
 	if (wiod->done)
 	    break;
 	if (iod->do_flush) {
-	    circbuf_reset(&iod->buf);
+	    gensio_circbuf_reset(iod->buf);
 	    iod->do_flush = FALSE;
 	}
     }
@@ -1721,7 +1651,7 @@ win_oneway_bufcount(struct gensio_iod_win *wiod, int whichbuf, gensiods *count)
 	*count = 0;
     else if ((wiod->fd == 0 && whichbuf == GENSIO_IN_BUF) ||
 	     (wiod->fd == 1 && whichbuf == GENSIO_OUT_BUF))
-	*count = circbuf_datalen(&iod->buf);
+	*count = gensio_circbuf_datalen(iod->buf);
     else
 	*count = 0;
     LeaveCriticalSection(&wiod->lock);
@@ -1750,7 +1680,7 @@ win_oneway_write(struct gensio_iod_win *wiod,
 		gensiods *rcount)
 {
     struct gensio_iod_win_oneway *iod = i_to_win_oneway(wiod);
-    gensiods count = 0, i;
+    gensiods count = 0;
     int rv = 0;
 
     EnterCriticalSection(&wiod->lock);
@@ -1766,24 +1696,8 @@ win_oneway_write(struct gensio_iod_win *wiod,
     }
     if (iod->do_flush)
 	goto out;
-    for (i = 0; i < sglen && circbuf_room_left(&iod->buf) > 0; i++) {
-	gensiods buflen = sg[i].buflen;
-	const unsigned char *buf = sg[i].buf;
-
-	while (circbuf_room_left(&iod->buf) && buflen > 0) {
-	    unsigned int size;
-	    void *pos;
-
-	    circbuf_next_write_area(&iod->buf, &pos, &size);
-	    if (size > buflen)
-		size = buflen;
-	    memcpy(pos, buf, size);
-	    circbuf_data_added(&iod->buf, size);
-	    buflen -= size;
-	    count += size;
-	}
-    }
-    wiod->write.ready = circbuf_room_left(&iod->buf) > 0;
+    gensio_circbuf_sg_write(iod->buf, sg, sglen, &count);
+    wiod->write.ready = gensio_circbuf_room_left(iod->buf) > 0;
     if (count)
 	assert(SetEvent(iod->wakeh));
  out:
@@ -1800,7 +1714,6 @@ win_oneway_read(struct gensio_iod_win *wiod,
 {
     struct gensio_iod_win_oneway *iod = i_to_win_oneway(wiod);
     gensiods count = 0;
-    unsigned char *buf = ibuf;
     BOOL was_full;
     int rv = 0;
 
@@ -1816,20 +1729,9 @@ win_oneway_read(struct gensio_iod_win *wiod,
 	goto out_err;
     }
 
-    was_full = circbuf_room_left(&iod->buf) == 0;
-    while (buflen > 0 && circbuf_datalen(&iod->buf)) {
-	void *pos;
-	unsigned int size;
-
-	circbuf_next_read_area(&iod->buf, &pos, &size);
-	if (size > buflen)
-	    size = buflen;
-	memcpy(buf, pos, size);
-	buflen += size;
-	count += size;
-	circbuf_data_removed(&iod->buf, size);
-    }
-    wiod->read.ready = circbuf_datalen(&iod->buf) > 0;
+    was_full = gensio_circbuf_room_left(iod->buf) == 0;
+    gensio_circbuf_read(iod->buf, ibuf, buflen, &count);
+    wiod->read.ready = gensio_circbuf_datalen(iod->buf) > 0;
     if (was_full && count)
 	assert(SetEvent(iod->wakeh));
     if (rcount)
@@ -1860,16 +1762,28 @@ win_iod_oneway_clean(struct gensio_iod_win *wiod)
 	CloseHandle(iod->wakeh);
 	iod->wakeh = NULL;
     }
+    if (iod->buf) {
+	gensio_circbuf_free(iod->buf);
+	iod->buf = NULL;
+    }
 }
 
 static int
 win_iod_oneway_init(struct gensio_iod_win *wiod, void *cb_data)
 {
     struct gensio_iod_win_oneway *iod = i_to_win_oneway(wiod);
+    struct gensio_os_funcs *o = wiod->r.f;
+
+    iod->buf = gensio_circbuf_alloc(o, 2048);
+    if (!iod->buf)
+	return GE_NOMEM;
 
     iod->wakeh = CreateEventA(NULL, FALSE, FALSE, NULL);
-    if (!iod->wakeh)
+    if (!iod->wakeh) {
+	gensio_circbuf_free(iod->buf);
+	iod->buf = NULL;
 	return GE_NOMEM;
+    }
 
     if (iod->readable)
 	wiod->threadfunc = win_oneway_in_thread;
@@ -2025,8 +1939,8 @@ struct gensio_iod_win_twoway {
     BOOL readable;
     BOOL writeable;
 
-    struct circbuf inbuf;
-    struct circbuf outbuf;
+    struct gensio_circbuf *inbuf;
+    struct gensio_circbuf *outbuf;
 
     BOOL do_flush; /* Tell thread to flush output data. */
 };
@@ -2066,12 +1980,12 @@ win_twoway_thread(LPVOID data)
     for(;;) {
 	BOOL rvb;
 
-	if (!reading && circbuf_room_left(&iod->inbuf) && !wiod->werr
+	if (!reading && gensio_circbuf_room_left(iod->inbuf) && !wiod->werr
 			&& iod->readable) {
-	    unsigned int readsize;
+	    gensiods readsize;
 	    void *readpos;
 
-	    circbuf_next_write_area(&iod->inbuf, &readpos, &readsize);
+	    gensio_circbuf_next_write_area(iod->inbuf, &readpos, &readsize);
 	    reading = TRUE;
 	    LeaveCriticalSection(&wiod->lock);
 	    rvb = ReadFile(iod->ioh, readpos, readsize, NULL, &reado);
@@ -2081,12 +1995,12 @@ win_twoway_thread(LPVOID data)
 		if (rvw != ERROR_IO_PENDING)
 		    goto out_err_noget;
 	    }
-	} else if (!writing && circbuf_datalen(&iod->outbuf) > 0 &&
+	} else if (!writing && gensio_circbuf_datalen(iod->outbuf) > 0 &&
 		   !wiod->werr && iod->writeable) {
-	    unsigned int writelen;
+	    gensiods writelen;
 	    void *writepos;
 
-	    circbuf_next_read_area(&iod->outbuf, &writepos, &writelen);
+	    gensio_circbuf_next_read_area(iod->outbuf, &writepos, &writelen);
 	    writing = TRUE;
 	    LeaveCriticalSection(&wiod->lock);
 	    rvb = WriteFile(iod->ioh, writepos, writelen, NULL, &writeo);
@@ -2111,7 +2025,7 @@ win_twoway_thread(LPVOID data)
 		    goto out_err;
 
 		if (nread > 0) {
-		    circbuf_data_added(&iod->inbuf, nread);
+		    gensio_circbuf_data_added(iod->inbuf, nread);
 		    if (!wiod->read.ready) {
 			wiod->read.ready = TRUE;
 			queue_iod(wiod);
@@ -2128,10 +2042,10 @@ win_twoway_thread(LPVOID data)
 
 		if (iod->do_flush || nwrite > 0) {
 		    if (iod->do_flush) {
-			circbuf_reset(&iod->outbuf);
+			gensio_circbuf_reset(iod->outbuf);
 			iod->do_flush = FALSE;
 		    } else {
-			circbuf_data_removed(&iod->outbuf, nwrite);
+			gensio_circbuf_data_removed(iod->outbuf, nwrite);
 		    }
 
 		    if (!wiod->write.ready) {
@@ -2152,7 +2066,7 @@ win_twoway_thread(LPVOID data)
 	    if (writing) {
 		CancelIoEx(iod->ioh, &writeo);
 	    } else {
-		circbuf_reset(&iod->outbuf);
+		gensio_circbuf_reset(iod->outbuf);
 		iod->do_flush = FALSE;
 	    }
 	}
@@ -2208,9 +2122,9 @@ win_twoway_bufcount(struct gensio_iod_win *wiod, int whichbuf, gensiods *count)
     if (wiod->err || wiod->werr)
 	*count = 0;
     else if (iod->readable && whichbuf == GENSIO_IN_BUF)
-	*count = circbuf_datalen(&iod->inbuf);
+	*count = gensio_circbuf_datalen(iod->inbuf);
     else if (iod->writeable && whichbuf == GENSIO_OUT_BUF)
-	*count = circbuf_datalen(&iod->outbuf);
+	*count = gensio_circbuf_datalen(iod->outbuf);
     else
 	*count = 0;
     LeaveCriticalSection(&wiod->lock);
@@ -2238,7 +2152,7 @@ win_twoway_write(struct gensio_iod_win *wiod,
 		 gensiods *rcount)
 {
     struct gensio_iod_win_twoway *iod = i_to_win_twoway(wiod);
-    gensiods count = 0, i;
+    gensiods count = 0;
     int rv = 0;
 
     EnterCriticalSection(&wiod->lock);
@@ -2254,24 +2168,8 @@ win_twoway_write(struct gensio_iod_win *wiod,
     }
     if (iod->do_flush)
 	goto out;
-    for (i = 0; i < sglen && circbuf_room_left(&iod->outbuf) > 0; i++) {
-	gensiods buflen = sg[i].buflen;
-	const unsigned char *buf = sg[i].buf;
-
-	while (circbuf_room_left(&iod->outbuf) && buflen > 0) {
-	    unsigned int size;
-	    void *pos;
-
-	    circbuf_next_write_area(&iod->outbuf, &pos, &size);
-	    if (size > buflen)
-		size = buflen;
-	    memcpy(pos, buf, size);
-	    circbuf_data_added(&iod->outbuf, size);
-	    buflen -= size;
-	    count += size;
-	}
-    }
-    wiod->write.ready = circbuf_room_left(&iod->outbuf) > 0;
+    gensio_circbuf_sg_write(iod->outbuf, sg, sglen, &count);
+    wiod->write.ready = gensio_circbuf_room_left(iod->outbuf) > 0;
     LeaveCriticalSection(&wiod->lock);
     if (count)
 	assert(SetEvent(iod->wakeh));
@@ -2288,7 +2186,6 @@ win_twoway_read(struct gensio_iod_win *wiod,
 {
     struct gensio_iod_win_twoway *iod = i_to_win_twoway(wiod);
     gensiods count = 0;
-    unsigned char *buf = ibuf;
     BOOL was_full;
     int rv = 0;
 
@@ -2304,20 +2201,9 @@ win_twoway_read(struct gensio_iod_win *wiod,
 	goto out;
     }
 
-    was_full = circbuf_room_left(&iod->inbuf) == 0;
-    while (buflen > 0 && circbuf_datalen(&iod->inbuf)) {
-	void *pos;
-	unsigned int size;
-
-	circbuf_next_read_area(&iod->inbuf, &pos, &size);
-	if (size > buflen)
-	    size = buflen;
-	memcpy(buf, pos, size);
-	buflen += size;
-	count += size;
-	circbuf_data_removed(&iod->inbuf, size);
-    }
-    wiod->read.ready = circbuf_datalen(&iod->inbuf) > 0;
+    was_full = gensio_circbuf_room_left(iod->inbuf) == 0;
+    gensio_circbuf_read(iod->inbuf, ibuf, buflen, &count);
+    wiod->read.ready = gensio_circbuf_datalen(iod->inbuf) > 0;
     if (was_full && count)
 	assert(SetEvent(iod->wakeh));
  out:
@@ -2342,6 +2228,44 @@ win_iod_twoway_clean(struct gensio_iod_win *wiod)
 
     if (iod->wakeh)
 	CloseHandle(iod->wakeh);
+    if (iod->inbuf) {
+	gensio_circbuf_free(iod->inbuf);
+	iod->inbuf = NULL;
+    }
+
+    if (iod->outbuf) {
+	gensio_circbuf_free(iod->outbuf);
+	iod->outbuf = NULL;
+    }
+}
+
+static int
+win_iod_twoway_init(struct gensio_iod_win *wiod)
+{
+    struct gensio_iod_win_twoway *iod = i_to_win_twoway(wiod);
+    struct gensio_os_funcs *o = wiod->r.f;
+
+    iod->inbuf = gensio_circbuf_alloc(o, 2048);
+    if (!iod->inbuf)
+	return GE_NOMEM;
+
+    iod->outbuf = gensio_circbuf_alloc(o, 2048);
+    if (!iod->outbuf) {
+	gensio_circbuf_free(iod->inbuf);
+	iod->inbuf = NULL;
+	return GE_NOMEM;
+    }
+
+    iod->wakeh = CreateEventA(NULL, FALSE, FALSE, NULL);
+    if (!iod->wakeh) {
+	gensio_circbuf_free(iod->outbuf);
+	iod->outbuf = NULL;
+	gensio_circbuf_free(iod->inbuf);
+	iod->inbuf = NULL;
+	return GE_NOMEM;
+    }
+
+    return 0;
 }
 
 struct gensio_iod_win_dev
@@ -2670,11 +2594,16 @@ win_iod_dev_init(struct gensio_iod_win *wiod, void *cb_data)
     struct gensio_iod_win_twoway *biod = i_to_win_twoway(wiod);
     struct gensio_iod_win_dev *iod = i_to_windev(biod);
     struct gensio_os_funcs *o = wiod->r.f;
-    int rv = GE_NOMEM;
+    int rv;
     COMMTIMEOUTS timeouts;
     COMMPROP props;
     struct win_init_info *info = cb_data;
 
+    rv = win_iod_twoway_init(wiod);
+    if (rv)
+	return rv;
+
+    rv = GE_NOMEM;
     iod->name = gensio_alloc_sprintf(o, "\\\\.\\%s", info->name);
     if (!iod->name)
 	goto out_err;
@@ -2769,9 +2698,6 @@ win_iod_dev_init(struct gensio_iod_win *wiod, void *cb_data)
     }
 
     wiod->threadfunc = win_twoway_thread;
-    biod->wakeh = CreateEventA(NULL, FALSE, FALSE, NULL);
-    if (!biod->wakeh)
-	goto out_err_conv;
 
     wiod->clean = win_iod_dev_clean;
     wiod->wake = win_iod_twoway_wake;

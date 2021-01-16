@@ -20,6 +20,7 @@
 #include <stdbool.h>
 
 #include <gensio/gensio_types.h>
+#include <gensio/gensio_dllvisibility.h>
 
 /* Avoid having to include SCTP headers. */
 struct sctp_sndrcvinfo;
