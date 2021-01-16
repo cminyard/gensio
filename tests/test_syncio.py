@@ -41,10 +41,14 @@ def test_sync_gensio(o):
         raise Exception("Invalid write timeout return: %d %d\n" % (count, time))
 
     # Read out what should have been written
-    (buf, time) = g.read_s(10, 1000)
-    buf = buf.decode(encoding='utf8')
+    time = 1000
+    buf = ""
+    while len(buf) < 10 and time >= 500:
+        (tbuf, time) = g.read_s(10, time)
+        buf = buf + tbuf.decode(encoding='utf8')
+
     if buf != "HelloHello" or time < 500:
-        raise Exception("Invalid read return: '%s' %d\n" % (buf, time))
+        raise Exception("Invalid read return(2): '%s' %d\n" % (buf, time))
 
     # This should time out, no data
     (buf, time) = g.read_s(10, 250)
