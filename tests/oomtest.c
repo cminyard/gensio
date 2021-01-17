@@ -1589,11 +1589,11 @@ run_oom_test(struct oom_tests *test, long count, int *exitcode, bool close_acc)
 	if (rv)
 	    goto out_err;
 
-	constr = gensio_alloc_sprintf(o, "stdio, %s%s -i 'stdio(self)' '%s%s'",
+	constr = gensio_alloc_sprintf(o, "stdio,%s%s -i 'stdio(self)' '%s%s'",
 				      gensiot, test->conacc ? " -a" : "",
 				      test->connecter, intstr);
     } else {
-	constr = gensio_alloc_sprintf(o, "stdio, %s -i 'stdio(self)' '%s'",
+	constr = gensio_alloc_sprintf(o, "stdio,%s -i 'stdio(self)' '%s'",
 				      gensiot, test->connecter);
     }
     if (!constr) {
