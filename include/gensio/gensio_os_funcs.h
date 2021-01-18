@@ -364,6 +364,14 @@ struct gensio_os_funcs {
     int (*wait_intr)(struct gensio_waiter *waiter, unsigned int count,
 		     gensio_time *timeout);
 
+    /*
+     * Like wait_intr, but allows the user to install their own sigmask
+     * atomically while waiting.  On *nix systems, sigmask is sigset_t,
+     * void here to avoid type issues.
+     */
+    int (*wait_intr_sigmask)(struct gensio_waiter *waiter, unsigned int count,
+			     gensio_time *timeout, void *sigmask);
+
     /* Wake the given waiter. */
     void (*wake)(struct gensio_waiter *waiter);
 
@@ -412,15 +420,6 @@ struct gensio_os_funcs {
      */
     int (*get_random)(struct gensio_os_funcs *f,
 		      void *data, unsigned int len);
-
-    /****** Waiters ******/
-    /*
-     * Like wait_intr, but allows the user to install their own sigmask
-     * atomically while waiting.  On *nix systems, sigmask is sigset_t,
-     * void here to avoid type issues.
-     */
-    int (*wait_intr_sigmask)(struct gensio_waiter *waiter, unsigned int count,
-			     gensio_time *timeout, void *sigmask);
 
     /****** I/O Descriptors ******/
     /*
