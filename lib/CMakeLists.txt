@@ -50,7 +50,7 @@ set(BASE_LIBFILES
 
 set(UNIX_LIBFILES
   selector.c
-  gensio_selector.c)
+  gensio_unix.c)
 
 set(WINDOWS_LIBFILES
   gensio_win.c)
