@@ -11,7 +11,7 @@
 
 #include "pthread_handler.h"
 
-#include <gensio/gensio_selector.h>
+#include <gensio/gensio_unix.h>
 #include <gensio/selector.h>
 #include <gensio/gensio.h>
 #include <gensio/gensio_osops_addrinfo.h>
@@ -152,7 +152,7 @@ bool memtracking_abort_on_lost;
 #endif
 
 static void *
-gensio_sel_zalloc(struct gensio_os_funcs *f, unsigned int size)
+gensio_unix_zalloc(struct gensio_os_funcs *f, unsigned int size)
 {
     void *d;
 
@@ -209,7 +209,7 @@ gensio_sel_zalloc(struct gensio_os_funcs *f, unsigned int size)
 }
 
 static void
-gensio_sel_free(struct gensio_os_funcs *f, void *data)
+gensio_unix_free(struct gensio_os_funcs *f, void *data)
 {
     assert(data);
 #ifdef TRACK_ALLOCED_MEMORY
@@ -608,7 +608,7 @@ struct gensio_lock {
 };
 
 static struct gensio_lock *
-gensio_sel_alloc_lock(struct gensio_os_funcs *f)
+gensio_unix_alloc_lock(struct gensio_os_funcs *f)
 {
     struct gensio_lock *lock = f->zalloc(f, sizeof(*lock));
 
@@ -621,25 +621,25 @@ gensio_sel_alloc_lock(struct gensio_os_funcs *f)
 }
 
 static void
-gensio_sel_free_lock(struct gensio_lock *lock)
+gensio_unix_free_lock(struct gensio_lock *lock)
 {
     LOCK_DESTROY(&lock->lock);
     lock->f->free(lock->f, lock);
 }
 
 static void
-gensio_sel_lock(struct gensio_lock *lock)
+gensio_unix_lock(struct gensio_lock *lock)
 {
     LOCK(&lock->lock);
 }
 
 static void
-gensio_sel_unlock(struct gensio_lock *lock)
+gensio_unix_unlock(struct gensio_lock *lock)
 {
     UNLOCK(&lock->lock);
 }
 
-struct gensio_iod_selector {
+struct gensio_iod_unix {
     struct gensio_iod r;
     int fd;
     enum gensio_iod_type type;
@@ -664,50 +664,50 @@ struct gensio_iod_selector {
 #endif
 };
 
-#define i_to_sel(i) gensio_container_of(i, struct gensio_iod_selector, r);
+#define i_to_sel(i) gensio_container_of(i, struct gensio_iod_unix, r);
 
 static void iod_read_handler(int fd, void *cb_data)
 {
-    struct gensio_iod_selector *iod = cb_data;
+    struct gensio_iod_unix *iod = cb_data;
 
     iod->read_handler(&iod->r, iod->cb_data);
 }
 
 static void iod_write_handler(int fd, void *cb_data)
 {
-    struct gensio_iod_selector *iod = cb_data;
+    struct gensio_iod_unix *iod = cb_data;
 
     iod->write_handler(&iod->r, iod->cb_data);
 }
 
 static void iod_except_handler(int fd, void *cb_data)
 {
-    struct gensio_iod_selector *iod = cb_data;
+    struct gensio_iod_unix *iod = cb_data;
 
     iod->except_handler(&iod->r, iod->cb_data);
 }
 
 static void iod_cleared_handler(int fd, void *cb_data)
 {
-    struct gensio_iod_selector *iod = cb_data;
+    struct gensio_iod_unix *iod = cb_data;
 
     iod->handlers_set = false;
     iod->cleared_handler(&iod->r, iod->cb_data);
 }
 
 static int
-gensio_sel_set_fd_handlers(struct gensio_iod *iiod,
-			   void *cb_data,
-			   void (*read_handler)(struct gensio_iod *iod,
-						void *cb_data),
-			   void (*write_handler)(struct gensio_iod *iod,
+gensio_unix_set_fd_handlers(struct gensio_iod *iiod,
+			    void *cb_data,
+			    void (*read_handler)(struct gensio_iod *iod,
 						 void *cb_data),
-			   void (*except_handler)(struct gensio_iod *iod,
+			    void (*write_handler)(struct gensio_iod *iod,
 						  void *cb_data),
-			   void (*cleared_handler)(struct gensio_iod *iod,
-						   void *cb_data))
+			    void (*except_handler)(struct gensio_iod *iod,
+						   void *cb_data),
+			    void (*cleared_handler)(struct gensio_iod *iod,
+						    void *cb_data))
 {
-    struct gensio_iod_selector *iod = i_to_sel(iiod);
+    struct gensio_iod_unix *iod = i_to_sel(iiod);
     struct gensio_os_funcs *f = iiod->f;
     struct gensio_data *d = f->user_data;
     int rv;
@@ -733,9 +733,9 @@ gensio_sel_set_fd_handlers(struct gensio_iod *iiod,
 
 
 static void
-gensio_sel_clear_fd_handlers(struct gensio_iod *iiod)
+gensio_unix_clear_fd_handlers(struct gensio_iod *iiod)
 {
-    struct gensio_iod_selector *iod = i_to_sel(iiod);
+    struct gensio_iod_unix *iod = i_to_sel(iiod);
     struct gensio_os_funcs *f = iiod->f;
     struct gensio_data *d = f->user_data;
 
@@ -744,9 +744,9 @@ gensio_sel_clear_fd_handlers(struct gensio_iod *iiod)
 }
 
 static void
-gensio_sel_clear_fd_handlers_norpt(struct gensio_iod *iiod)
+gensio_unix_clear_fd_handlers_norpt(struct gensio_iod *iiod)
 {
-    struct gensio_iod_selector *iod = i_to_sel(iiod);
+    struct gensio_iod_unix *iod = i_to_sel(iiod);
     struct gensio_os_funcs *f = iiod->f;
     struct gensio_data *d = f->user_data;
 
@@ -757,9 +757,9 @@ gensio_sel_clear_fd_handlers_norpt(struct gensio_iod *iiod)
 }
 
 static void
-gensio_sel_set_read_handler(struct gensio_iod *iiod, bool enable)
+gensio_unix_set_read_handler(struct gensio_iod *iiod, bool enable)
 {
-    struct gensio_iod_selector *iod = i_to_sel(iiod);
+    struct gensio_iod_unix *iod = i_to_sel(iiod);
     struct gensio_os_funcs *f = iiod->f;
     struct gensio_data *d = f->user_data;
     int op;
@@ -773,9 +773,9 @@ gensio_sel_set_read_handler(struct gensio_iod *iiod, bool enable)
 }
 
 static void
-gensio_sel_set_write_handler(struct gensio_iod *iiod, bool enable)
+gensio_unix_set_write_handler(struct gensio_iod *iiod, bool enable)
 {
-    struct gensio_iod_selector *iod = i_to_sel(iiod);
+    struct gensio_iod_unix *iod = i_to_sel(iiod);
     struct gensio_os_funcs *f = iiod->f;
     struct gensio_data *d = f->user_data;
     int op;
@@ -789,9 +789,9 @@ gensio_sel_set_write_handler(struct gensio_iod *iiod, bool enable)
 }
 
 static void
-gensio_sel_set_except_handler(struct gensio_iod *iiod, bool enable)
+gensio_unix_set_except_handler(struct gensio_iod *iiod, bool enable)
 {
-    struct gensio_iod_selector *iod = i_to_sel(iiod);
+    struct gensio_iod_unix *iod = i_to_sel(iiod);
     struct gensio_os_funcs *f = iiod->f;
     struct gensio_data *d = f->user_data;
     int op;
@@ -825,9 +825,9 @@ gensio_timeout_handler(struct selector_s *sel,
 }
 
 static struct gensio_timer *
-gensio_sel_alloc_timer(struct gensio_os_funcs *f,
-		       void (*handler)(struct gensio_timer *t, void *cb_data),
-		       void *cb_data)
+gensio_unix_alloc_timer(struct gensio_os_funcs *f,
+			void (*handler)(struct gensio_timer *t, void *cb_data),
+			void *cb_data)
 {
     struct gensio_data *d = f->user_data;
     struct gensio_timer *timer;
@@ -853,14 +853,14 @@ gensio_sel_alloc_timer(struct gensio_os_funcs *f,
 }
 
 static void
-gensio_sel_free_timer(struct gensio_timer *timer)
+gensio_unix_free_timer(struct gensio_timer *timer)
 {
     sel_free_timer(timer->sel_timer);
     timer->f->free(timer->f, timer);
 }
 
 static int
-gensio_sel_start_timer(struct gensio_timer *timer, gensio_time *timeout)
+gensio_unix_start_timer(struct gensio_timer *timer, gensio_time *timeout)
 {
     struct timeval tv;
     int rv;
@@ -872,7 +872,7 @@ gensio_sel_start_timer(struct gensio_timer *timer, gensio_time *timeout)
 }
 
 static int
-gensio_sel_start_timer_abs(struct gensio_timer *timer, gensio_time *timeout)
+gensio_unix_start_timer_abs(struct gensio_timer *timer, gensio_time *timeout)
 {
     int rv;
     struct timeval tv, *rtv;
@@ -883,7 +883,7 @@ gensio_sel_start_timer_abs(struct gensio_timer *timer, gensio_time *timeout)
 }
 
 static int
-gensio_sel_stop_timer(struct gensio_timer *timer)
+gensio_unix_stop_timer(struct gensio_timer *timer)
 {
     int rv;
 
@@ -908,10 +908,10 @@ gensio_stop_timer_done(struct selector_s *sel,
 }
 
 static int
-gensio_sel_stop_timer_with_done(struct gensio_timer *timer,
-				void (*done_handler)(struct gensio_timer *t,
-						     void *cb_data),
-				void *cb_data)
+gensio_unix_stop_timer_with_done(struct gensio_timer *timer,
+				 void (*done_handler)(struct gensio_timer *t,
+						      void *cb_data),
+				 void *cb_data)
 {
     int rv;
 
@@ -938,10 +938,10 @@ struct gensio_runner {
 };
 
 static struct gensio_runner *
-gensio_sel_alloc_runner(struct gensio_os_funcs *f,
-			void (*handler)(struct gensio_runner *r,
-					void *cb_data),
-			void *cb_data)
+gensio_unix_alloc_runner(struct gensio_os_funcs *f,
+			 void (*handler)(struct gensio_runner *r,
+					 void *cb_data),
+			 void *cb_data)
 {
     struct gensio_data *d = f->user_data;
     struct gensio_runner *runner;
@@ -965,7 +965,7 @@ gensio_sel_alloc_runner(struct gensio_os_funcs *f,
 }
 
 static void
-gensio_sel_free_runner(struct gensio_runner *runner)
+gensio_unix_free_runner(struct gensio_runner *runner)
 {
     sel_free_runner(runner->sel_runner);
     runner->f->free(runner->f, runner);
@@ -980,7 +980,7 @@ gensio_runner_handler(sel_runner_t *sel_runner, void *cb_data)
 }
 
 static int
-gensio_sel_run(struct gensio_runner *runner)
+gensio_unix_run(struct gensio_runner *runner)
 {
     return sel_run(runner->sel_runner, gensio_runner_handler, runner);
 }
@@ -991,7 +991,7 @@ struct gensio_waiter {
 };
 
 static struct gensio_waiter *
-gensio_sel_alloc_waiter(struct gensio_os_funcs *f)
+gensio_unix_alloc_waiter(struct gensio_os_funcs *f)
 {
     struct gensio_data *d = f->user_data;
     struct gensio_waiter *waiter = f->zalloc(f, sizeof(*waiter));
@@ -1011,15 +1011,15 @@ gensio_sel_alloc_waiter(struct gensio_os_funcs *f)
 }
 
 static void
-gensio_sel_free_waiter(struct gensio_waiter *waiter)
+gensio_unix_free_waiter(struct gensio_waiter *waiter)
 {
     free_waiter(waiter->sel_waiter);
     waiter->f->free(waiter->f, waiter);
 }
 
 static int
-gensio_sel_wait(struct gensio_waiter *waiter, unsigned int count,
-		gensio_time *timeout)
+gensio_unix_wait(struct gensio_waiter *waiter, unsigned int count,
+		 gensio_time *timeout)
 {
     int err;
 
@@ -1029,8 +1029,8 @@ gensio_sel_wait(struct gensio_waiter *waiter, unsigned int count,
 
 
 static int
-gensio_sel_wait_intr(struct gensio_waiter *waiter, unsigned int count,
-		     gensio_time *timeout)
+gensio_unix_wait_intr(struct gensio_waiter *waiter, unsigned int count,
+		      gensio_time *timeout)
 {
     int err;
 
@@ -1039,8 +1039,8 @@ gensio_sel_wait_intr(struct gensio_waiter *waiter, unsigned int count,
 }
 
 static int
-gensio_sel_wait_intr_sigmask(struct gensio_waiter *waiter, unsigned int count,
-			     gensio_time *timeout, void *sigmask)
+gensio_unix_wait_intr_sigmask(struct gensio_waiter *waiter, unsigned int count,
+			      gensio_time *timeout, void *sigmask)
 {
     int err;
 
@@ -1050,7 +1050,7 @@ gensio_sel_wait_intr_sigmask(struct gensio_waiter *waiter, unsigned int count,
 }
 
 static void
-gensio_sel_wake(struct gensio_waiter *waiter)
+gensio_unix_wake(struct gensio_waiter *waiter)
 {
     wake_waiter(waiter->sel_waiter);
 }
@@ -1073,7 +1073,7 @@ wake_thread_send_sig(long thread_id, void *cb_data)
 }
 
 static int
-gensio_sel_service(struct gensio_os_funcs *f, gensio_time *timeout)
+gensio_unix_service(struct gensio_os_funcs *f, gensio_time *timeout)
 {
     struct gensio_data *d = f->user_data;
     struct wait_data w;
@@ -1096,7 +1096,7 @@ gensio_sel_service(struct gensio_os_funcs *f, gensio_time *timeout)
 }
 #else
 static int
-gensio_sel_service(struct gensio_os_funcs *f, gensio_time *timeout)
+gensio_unix_service(struct gensio_os_funcs *f, gensio_time *timeout)
 {
     struct gensio_data *d = f->user_data;
     struct timeval tv, *rtv;
@@ -1117,7 +1117,7 @@ gensio_sel_service(struct gensio_os_funcs *f, gensio_time *timeout)
 #endif
 
 static void
-gensio_sel_free_funcs(struct gensio_os_funcs *f)
+gensio_unix_free_funcs(struct gensio_os_funcs *f)
 {
     struct gensio_data *d = f->user_data;
 
@@ -1130,8 +1130,8 @@ gensio_sel_free_funcs(struct gensio_os_funcs *f)
 static lock_type once_lock = LOCK_INITIALIZER;
 
 static void
-gensio_sel_call_once(struct gensio_os_funcs *f, struct gensio_once *once,
-		     void (*func)(void *cb_data), void *cb_data)
+gensio_unix_call_once(struct gensio_os_funcs *f, struct gensio_once *once,
+		      void (*func)(void *cb_data), void *cb_data)
 {
     if (once->called)
 	return;
@@ -1146,7 +1146,7 @@ gensio_sel_call_once(struct gensio_os_funcs *f, struct gensio_once *once,
 }
 
 static void
-gensio_sel_get_monotonic_time(struct gensio_os_funcs *f, gensio_time *time)
+gensio_unix_get_monotonic_time(struct gensio_os_funcs *f, gensio_time *time)
 {
     struct timeval tv;
 
@@ -1163,10 +1163,10 @@ gensio_handle_fork(struct gensio_os_funcs *f)
 }
 
 static int
-gensio_sel_add_iod(struct gensio_os_funcs *o, enum gensio_iod_type type,
-		   int fd, struct gensio_iod **riod)
+gensio_unix_add_iod(struct gensio_os_funcs *o, enum gensio_iod_type type,
+		    int fd, struct gensio_iod **riod)
 {
-    struct gensio_iod_selector *iod;
+    struct gensio_iod_unix *iod;
 
     iod = o->zalloc(o, sizeof(*iod));
     if (!iod)
@@ -1180,42 +1180,42 @@ gensio_sel_add_iod(struct gensio_os_funcs *o, enum gensio_iod_type type,
 }
 
 static void
-gensio_sel_release_iod(struct gensio_iod *iiod)
+gensio_unix_release_iod(struct gensio_iod *iiod)
 {
-    struct gensio_iod_selector *iod = i_to_sel(iiod);
+    struct gensio_iod_unix *iod = i_to_sel(iiod);
 
     assert(!iod->handlers_set);
     iod->r.f->free(iiod->f, iod);
 }
 
 static int
-gensio_sel_iod_get_type(struct gensio_iod *iiod)
+gensio_unix_iod_get_type(struct gensio_iod *iiod)
 {
-    struct gensio_iod_selector *iod = i_to_sel(iiod);
+    struct gensio_iod_unix *iod = i_to_sel(iiod);
 
     return iod->type;
 }
 
 static int
-gensio_sel_iod_get_fd(struct gensio_iod *iiod)
+gensio_unix_iod_get_fd(struct gensio_iod *iiod)
 {
-    struct gensio_iod_selector *iod = i_to_sel(iiod);
+    struct gensio_iod_unix *iod = i_to_sel(iiod);
 
     return iod->fd;
 }
 
 static int
-gensio_sel_iod_get_protocol(struct gensio_iod *iiod)
+gensio_unix_iod_get_protocol(struct gensio_iod *iiod)
 {
-    struct gensio_iod_selector *iod = i_to_sel(iiod);
+    struct gensio_iod_unix *iod = i_to_sel(iiod);
 
     return iod->protocol;
 }
 
 static void
-gensio_sel_iod_set_protocol(struct gensio_iod *iiod, int protocol)
+gensio_unix_iod_set_protocol(struct gensio_iod *iiod, int protocol)
 {
-    struct gensio_iod_selector *iod = i_to_sel(iiod);
+    struct gensio_iod_unix *iod = i_to_sel(iiod);
 
     iod->protocol = protocol;
 }
@@ -1241,11 +1241,11 @@ do {								\
 } while(0)
 
 static int
-gensio_selector_write(struct gensio_iod *iiod,
-		      const struct gensio_sg *sg, gensiods sglen,
-		      gensiods *rcount)
+gensio_unix_write(struct gensio_iod *iiod,
+		       const struct gensio_sg *sg, gensiods sglen,
+		       gensiods *rcount)
 {
-    struct gensio_iod_selector *iod = i_to_sel(iiod);
+    struct gensio_iod_unix *iod = i_to_sel(iiod);
     struct gensio_os_funcs *o = iiod->f;
     ssize_t rv;
 
@@ -1264,10 +1264,10 @@ gensio_selector_write(struct gensio_iod *iiod,
 }
 
 static int
-gensio_selector_read(struct gensio_iod *iiod,
-		     void *buf, gensiods buflen, gensiods *rcount)
+gensio_unix_read(struct gensio_iod *iiod,
+		      void *buf, gensiods buflen, gensiods *rcount)
 {
-    struct gensio_iod_selector *iod = i_to_sel(iiod);
+    struct gensio_iod_unix *iod = i_to_sel(iiod);
     struct gensio_os_funcs *o = iiod->f;
     ssize_t rv;
 
@@ -1286,10 +1286,10 @@ gensio_selector_read(struct gensio_iod *iiod,
 }
 
 static int
-gensio_selector_close(struct gensio_iod **iodp)
+gensio_unix_close(struct gensio_iod **iodp)
 {
     struct gensio_iod *iiod = *iodp;
-    struct gensio_iod_selector *iod = i_to_sel(iiod);
+    struct gensio_iod_unix *iod = i_to_sel(iiod);
     struct gensio_os_funcs *o = iiod->f;
     int err = 0;
 
@@ -1321,9 +1321,9 @@ gensio_selector_close(struct gensio_iod **iodp)
 }
 
 static int
-gensio_selector_set_non_blocking(struct gensio_iod *iiod)
+gensio_unix_set_non_blocking(struct gensio_iod *iiod)
 {
-    struct gensio_iod_selector *iod = i_to_sel(iiod);
+    struct gensio_iod_unix *iod = i_to_sel(iiod);
     struct gensio_os_funcs *o = iiod->f;
     int rv;
 
@@ -1344,9 +1344,9 @@ gensio_selector_set_non_blocking(struct gensio_iod *iiod)
 }
 
 static bool
-gensio_selector_is_regfile(struct gensio_iod *iiod)
+gensio_unix_is_regfile(struct gensio_iod *iiod)
 {
-    struct gensio_iod_selector *iod = i_to_sel(iiod);
+    struct gensio_iod_unix *iod = i_to_sel(iiod);
     int err;
     struct stat statb;
 
@@ -1358,18 +1358,18 @@ gensio_selector_is_regfile(struct gensio_iod *iiod)
 }
 
 static bool
-gensio_selector_is_console(struct gensio_iod *iiod)
+gensio_unix_is_console(struct gensio_iod *iiod)
 {
-    struct gensio_iod_selector *iod = i_to_sel(iiod);
+    struct gensio_iod_unix *iod = i_to_sel(iiod);
 
     return isatty(iod->fd);
 }
 
 static int
-gensio_selector_bufcount(struct gensio_iod *iiod, int whichbuf,
-			 gensiods *rcount)
+gensio_unix_bufcount(struct gensio_iod *iiod, int whichbuf,
+			  gensiods *rcount)
 {
-    struct gensio_iod_selector *iod = i_to_sel(iiod);
+    struct gensio_iod_unix *iod = i_to_sel(iiod);
     int rv = GE_NOTSUP, count;
 
     switch (whichbuf) {
@@ -1384,9 +1384,9 @@ gensio_selector_bufcount(struct gensio_iod *iiod, int whichbuf,
 }
 
 static void
-gensio_selector_flush(struct gensio_iod *iiod, int whichbuf)
+gensio_unix_flush(struct gensio_iod *iiod, int whichbuf)
 {
-    struct gensio_iod_selector *iod = i_to_sel(iiod);
+    struct gensio_iod_unix *iod = i_to_sel(iiod);
     int arg;
 
     if ((whichbuf & (GENSIO_IN_BUF | GENSIO_OUT_BUF)) ==
@@ -1415,7 +1415,7 @@ static void s_cfmakeraw(g_termios *termios_p) {
 #endif
 
 static int
-setup_termios(struct gensio_iod_selector *iod)
+setup_termios(struct gensio_iod_unix *iod)
 {
     struct gensio_os_funcs *o = iod->r.f;
     g_termios termios;
@@ -1449,9 +1449,9 @@ setup_termios(struct gensio_iod_selector *iod)
 }
 
 static int
-gensio_selector_makeraw(struct gensio_iod *iiod)
+gensio_unix_makeraw(struct gensio_iod *iiod)
 {
-    struct gensio_iod_selector *iod = i_to_sel(iiod);
+    struct gensio_iod_unix *iod = i_to_sel(iiod);
 
     if (iod->fd == 1 || iod->fd == 2)
 	/* Only set this for stdin or other files. */
@@ -1461,8 +1461,8 @@ gensio_selector_makeraw(struct gensio_iod *iiod)
 }
 
 static int
-gensio_selector_open_dev(struct gensio_os_funcs *o, const char *name,
-			 int options, struct gensio_iod **riod)
+gensio_unix_open_dev(struct gensio_os_funcs *o, const char *name,
+			  int options, struct gensio_iod **riod)
 {
     int flags, fd, err;
 
@@ -1486,13 +1486,13 @@ gensio_selector_open_dev(struct gensio_os_funcs *o, const char *name,
 extern char **environ;
 
 static int
-gensio_selector_exec_subprog(struct gensio_os_funcs *o,
-			     const char *argv[], const char **env,
-			     bool stderr_to_stdout,
-			     intptr_t *rpid,
-			     struct gensio_iod **rstdin,
-			     struct gensio_iod **rstdout,
-			     struct gensio_iod **rstderr)
+gensio_unix_exec_subprog(struct gensio_os_funcs *o,
+			      const char *argv[], const char **env,
+			      bool stderr_to_stdout,
+			      intptr_t *rpid,
+			      struct gensio_iod **rstdin,
+			      struct gensio_iod **rstdout,
+			      struct gensio_iod **rstderr)
 {
     int err;
     int stdinpipe[2] = {-1, -1};
@@ -1740,7 +1740,7 @@ get_baud_rate(g_termios *t)
 }
 
 static int
-process_rs485(struct gensio_iod_selector *iod, const char *str)
+process_rs485(struct gensio_iod_unix *iod, const char *str)
 {
 #if HAVE_DECL_TIOCSRS485
     struct gensio_os_funcs *o = iod->r.f;
@@ -1800,10 +1800,10 @@ process_rs485(struct gensio_iod_selector *iod, const char *str)
 }
 
 static int
-gensio_selector_iod_control(struct gensio_iod *iiod, int op, bool get,
-			    intptr_t val)
+gensio_unix_iod_control(struct gensio_iod *iiod, int op, bool get,
+			     intptr_t val)
 {
-    struct gensio_iod_selector *iod = i_to_sel(iiod);
+    struct gensio_iod_unix *iod = i_to_sel(iiod);
     struct gensio_os_funcs *o = iiod->f;
     int rv = 0, nval, modemstate;
 
@@ -2125,8 +2125,8 @@ gensio_selector_iod_control(struct gensio_iod *iiod, int op, bool get,
 }
 
 static int
-gensio_selector_kill_subprog(struct gensio_os_funcs *o, intptr_t pid,
-			     bool force)
+gensio_unix_kill_subprog(struct gensio_os_funcs *o, intptr_t pid,
+			      bool force)
 {
     int rv;
 
@@ -2137,8 +2137,8 @@ gensio_selector_kill_subprog(struct gensio_os_funcs *o, intptr_t pid,
 }
 
 static int
-gensio_selector_wait_subprog(struct gensio_os_funcs *o, intptr_t pid,
-			     int *retcode)
+gensio_unix_wait_subprog(struct gensio_os_funcs *o, intptr_t pid,
+			      int *retcode)
 {
     pid_t rv;
 
@@ -2153,8 +2153,8 @@ gensio_selector_wait_subprog(struct gensio_os_funcs *o, intptr_t pid,
 }
 
 static int
-gensio_selector_get_random(struct gensio_os_funcs *o,
-			   void *data, unsigned int len)
+gensio_unix_get_random(struct gensio_os_funcs *o,
+			    void *data, unsigned int len)
 {
     int fd;
     int rv;
@@ -2184,7 +2184,7 @@ gensio_selector_get_random(struct gensio_os_funcs *o,
 }
 
 static struct gensio_os_funcs *
-gensio_selector_alloc_sel(struct selector_s *sel, int wake_sig)
+gensio_unix_alloc_sel(struct selector_s *sel, int wake_sig)
 {
     struct gensio_data *d;
     struct gensio_os_funcs *o;
@@ -2205,60 +2205,60 @@ gensio_selector_alloc_sel(struct selector_s *sel, int wake_sig)
     d->sel = sel;
     d->wake_sig = wake_sig;
 
-    o->zalloc = gensio_sel_zalloc;
-    o->free = gensio_sel_free;
-    o->alloc_lock = gensio_sel_alloc_lock;
-    o->free_lock = gensio_sel_free_lock;
-    o->lock = gensio_sel_lock;
-    o->unlock = gensio_sel_unlock;
-    o->set_fd_handlers = gensio_sel_set_fd_handlers;
-    o->clear_fd_handlers = gensio_sel_clear_fd_handlers;
-    o->clear_fd_handlers_norpt = gensio_sel_clear_fd_handlers_norpt;
-    o->set_read_handler = gensio_sel_set_read_handler;
-    o->set_write_handler = gensio_sel_set_write_handler;
-    o->set_except_handler = gensio_sel_set_except_handler;
-    o->alloc_timer = gensio_sel_alloc_timer;
-    o->free_timer = gensio_sel_free_timer;
-    o->start_timer = gensio_sel_start_timer;
-    o->start_timer_abs = gensio_sel_start_timer_abs;
-    o->stop_timer = gensio_sel_stop_timer;
-    o->stop_timer_with_done = gensio_sel_stop_timer_with_done;
-    o->alloc_runner = gensio_sel_alloc_runner;
-    o->free_runner = gensio_sel_free_runner;
-    o->run = gensio_sel_run;
-    o->alloc_waiter = gensio_sel_alloc_waiter;
-    o->free_waiter = gensio_sel_free_waiter;
-    o->wait = gensio_sel_wait;
-    o->wait_intr = gensio_sel_wait_intr;
-    o->wake = gensio_sel_wake;
-    o->service = gensio_sel_service;
-    o->free_funcs = gensio_sel_free_funcs;
-    o->call_once = gensio_sel_call_once;
-    o->get_monotonic_time = gensio_sel_get_monotonic_time;
+    o->zalloc = gensio_unix_zalloc;
+    o->free = gensio_unix_free;
+    o->alloc_lock = gensio_unix_alloc_lock;
+    o->free_lock = gensio_unix_free_lock;
+    o->lock = gensio_unix_lock;
+    o->unlock = gensio_unix_unlock;
+    o->set_fd_handlers = gensio_unix_set_fd_handlers;
+    o->clear_fd_handlers = gensio_unix_clear_fd_handlers;
+    o->clear_fd_handlers_norpt = gensio_unix_clear_fd_handlers_norpt;
+    o->set_read_handler = gensio_unix_set_read_handler;
+    o->set_write_handler = gensio_unix_set_write_handler;
+    o->set_except_handler = gensio_unix_set_except_handler;
+    o->alloc_timer = gensio_unix_alloc_timer;
+    o->free_timer = gensio_unix_free_timer;
+    o->start_timer = gensio_unix_start_timer;
+    o->start_timer_abs = gensio_unix_start_timer_abs;
+    o->stop_timer = gensio_unix_stop_timer;
+    o->stop_timer_with_done = gensio_unix_stop_timer_with_done;
+    o->alloc_runner = gensio_unix_alloc_runner;
+    o->free_runner = gensio_unix_free_runner;
+    o->run = gensio_unix_run;
+    o->alloc_waiter = gensio_unix_alloc_waiter;
+    o->free_waiter = gensio_unix_free_waiter;
+    o->wait = gensio_unix_wait;
+    o->wait_intr = gensio_unix_wait_intr;
+    o->wake = gensio_unix_wake;
+    o->service = gensio_unix_service;
+    o->free_funcs = gensio_unix_free_funcs;
+    o->call_once = gensio_unix_call_once;
+    o->get_monotonic_time = gensio_unix_get_monotonic_time;
     o->handle_fork = gensio_handle_fork;
-    o->wait_intr_sigmask = gensio_sel_wait_intr_sigmask;
-    o->add_iod = gensio_sel_add_iod;
-    o->release_iod = gensio_sel_release_iod;
-    o->iod_get_type = gensio_sel_iod_get_type;
-    o->iod_get_fd = gensio_sel_iod_get_fd;
-    o->iod_get_protocol = gensio_sel_iod_get_protocol;
-    o->iod_set_protocol = gensio_sel_iod_set_protocol;
+    o->wait_intr_sigmask = gensio_unix_wait_intr_sigmask;
+    o->add_iod = gensio_unix_add_iod;
+    o->release_iod = gensio_unix_release_iod;
+    o->iod_get_type = gensio_unix_iod_get_type;
+    o->iod_get_fd = gensio_unix_iod_get_fd;
+    o->iod_get_protocol = gensio_unix_iod_get_protocol;
+    o->iod_set_protocol = gensio_unix_iod_set_protocol;
 
-    o->set_non_blocking = gensio_selector_set_non_blocking;
-    o->close = gensio_selector_close;
-    o->write = gensio_selector_write;
-    o->read = gensio_selector_read;
-    o->is_regfile = gensio_selector_is_regfile;
-    o->is_console = gensio_selector_is_console;
-    o->bufcount = gensio_selector_bufcount;
-    o->flush = gensio_selector_flush;
-    o->makeraw = gensio_selector_makeraw;
-    o->open_dev = gensio_selector_open_dev;
-    o->exec_subprog = gensio_selector_exec_subprog;
-    o->kill_subprog = gensio_selector_kill_subprog;
-    o->wait_subprog = gensio_selector_wait_subprog;
-    o->get_random = gensio_selector_get_random;
-    o->iod_control = gensio_selector_iod_control;
+    o->set_non_blocking = gensio_unix_set_non_blocking;
+    o->close = gensio_unix_close;
+    o->write = gensio_unix_write;
+    o->read = gensio_unix_read;
+    o->is_regfile = gensio_unix_is_regfile;
+    o->is_console = gensio_unix_is_console;
+    o->bufcount = gensio_unix_bufcount;
+    o->flush = gensio_unix_flush;
+    o->makeraw = gensio_unix_makeraw;
+    o->open_dev = gensio_unix_open_dev;
+    o->exec_subprog = gensio_unix_exec_subprog;
+    o->kill_subprog = gensio_unix_kill_subprog;
+    o->wait_subprog = gensio_unix_wait_subprog;
+    o->get_random = gensio_unix_get_random;
+    o->iod_control = gensio_unix_iod_control;
 
     gensio_addr_addrinfo_set_os_funcs(o);
     gensio_stdsock_set_os_funcs(o);
@@ -2354,7 +2354,7 @@ static pthread_once_t defos_once = PTHREAD_ONCE_INIT;
 #endif
 
 struct gensio_os_funcs *
-gensio_selector_alloc(struct selector_s *sel, int wake_sig)
+gensio_unix_funcs_alloc(struct selector_s *sel, int wake_sig)
 {
     struct gensio_os_funcs *o;
     bool freesel = false;
@@ -2374,7 +2374,7 @@ gensio_selector_alloc(struct selector_s *sel, int wake_sig)
 	freesel = true;
     }
 
-    o = gensio_selector_alloc_sel(sel, wake_sig);
+    o = gensio_unix_alloc_sel(sel, wake_sig);
     if (o) {
 	struct gensio_data *d = o->user_data;
 
@@ -2389,7 +2389,7 @@ gensio_selector_alloc(struct selector_s *sel, int wake_sig)
 static void
 defoshnd_init(void)
 {
-    defoshnd = gensio_selector_alloc(NULL, defoshnd_wake_sig);
+    defoshnd = gensio_unix_funcs_alloc(NULL, defoshnd_wake_sig);
 }
 
 int
