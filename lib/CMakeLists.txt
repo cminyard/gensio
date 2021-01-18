@@ -41,6 +41,7 @@ set(BASE_LIBFILES
   gensio_mdns.c
   gensio_stdio.c
   sergensio_serialdev.c
+  gensio_circbuf.c
   gensio_addrinfo.c
   gensio_stdsock.c
   uucplock.c
