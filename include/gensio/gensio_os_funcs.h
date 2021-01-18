@@ -31,9 +31,14 @@ struct sctp_status;
 struct gensio_lock;
 struct gensio_timer;
 struct gensio_runner;
+struct gensio_waiter;
 
 /* I/O descriptor. */
 struct gensio_iod {
+    /*
+     * All iods have a gensio_os_funcs in them, make it available to aovid
+     * having to pass it around.
+     */
     struct gensio_os_funcs *f;
 };
 
