@@ -1265,7 +1265,7 @@ sel_select_intr_sigmask(struct selector_s *sel,
 			struct timeval  *timeout,
 			sigset_t        *sigmask)
 {
-    int             err, old_errno;
+    int             err = 0, old_errno;
     struct timeval  loc_timeout, wake_time;
     sel_wait_list_t wait_entry;
     unsigned int    count;
@@ -1280,37 +1280,49 @@ sel_select_intr_sigmask(struct selector_s *sel,
     sel_timer_lock(sel);
     count = process_runners(sel);
     process_timers(sel, &count, &loc_timeout, &wake_time);
-    if (timeout) {
-	if (cmp_timeval(&loc_timeout, timeout) >= 0) {
-	    loc_timeout = *timeout;
-	    user_timeout = 1;
+
+    if (count == 0) {
+	/* Didn't do anything, wait for something. */
+	if (timeout) {
+	    if (cmp_timeval(&loc_timeout, timeout) >= 0) {
+		loc_timeout = *timeout;
+		user_timeout = 1;
+	    }
 	}
-    }
-    add_sel_wait_list(sel, &wait_entry, send_sig, cb_data, thread_id,
-		      &wake_time);
-    sel_timer_unlock(sel);
+
+	add_sel_wait_list(sel, &wait_entry, send_sig, cb_data, thread_id,
+			  &wake_time);
+	sel_timer_unlock(sel);
 
 #ifdef HAVE_EPOLL_PWAIT
-    if (sel->epollfd >= 0)
-	err = process_fds_epoll(sel, &loc_timeout, sigmask);
-    else
+	if (sel->epollfd >= 0)
+	    err = process_fds_epoll(sel, &loc_timeout, sigmask);
+	else
 #endif
-	err = process_fds(sel, &loc_timeout, sigmask);
+	    err = process_fds(sel, &loc_timeout, sigmask);
 
-    old_errno = errno;
-    if (!user_timeout && !err) {
+	old_errno = errno;
+	if (!user_timeout && !err) {
+	    /*
+	     * Only return a timeout if we waited on the user's timeout
+	     * Otherwise there is a timer to process.
+	     */
+	    count++;
+	}
+
+	sel_timer_lock(sel);
+	remove_sel_wait_list(sel, &wait_entry);
+
 	/*
-	 * Only return a timeout if we waited on the user's timeout
-	 * Otherwise there is a timer to process.
+	 * Process runners before and after the wait.  This way any
+	 * runners added while waiting will get processed.  Otherwise
+	 * we would have to wake up other threads so the runners get
+	 * handled immediately.  Do not add to the count, though, if
+	 * we timed out we want to alert the user of that.
 	 */
-	count++;
-	err = 0;
+	process_runners(sel);
     }
-
-    sel_timer_lock(sel);
-    remove_sel_wait_list(sel, &wait_entry);
     sel_timer_unlock(sel);
-
     if (timeout) {
 	sel_get_monotonic_time(&now);
 	diff_timeval(timeout, &end, &now);
