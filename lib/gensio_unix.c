@@ -2230,13 +2230,13 @@ gensio_unix_alloc_sel(struct selector_s *sel, int wake_sig)
     o->free_waiter = gensio_unix_free_waiter;
     o->wait = gensio_unix_wait;
     o->wait_intr = gensio_unix_wait_intr;
+    o->wait_intr_sigmask = gensio_unix_wait_intr_sigmask;
     o->wake = gensio_unix_wake;
     o->service = gensio_unix_service;
     o->free_funcs = gensio_unix_free_funcs;
     o->call_once = gensio_unix_call_once;
     o->get_monotonic_time = gensio_unix_get_monotonic_time;
     o->handle_fork = gensio_handle_fork;
-    o->wait_intr_sigmask = gensio_unix_wait_intr_sigmask;
     o->add_iod = gensio_unix_add_iod;
     o->release_iod = gensio_unix_release_iod;
     o->iod_get_type = gensio_unix_iod_get_type;
