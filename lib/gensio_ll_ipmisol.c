@@ -1543,7 +1543,9 @@ ipmisol_op_done(ipmi_sol_conn_t *conn, int err, void *icb_data)
     struct sol_op_done **op_done = icb_data;
     struct sol_ll *solll = (*op_done)->solll;
 
+    sol_lock(solll);
     sol_op_done(solll, err, op_done);
+    sol_deref_and_unlock(solll);
 }
 
 static int
@@ -1562,7 +1564,6 @@ sol_start_op(struct sol_ll *solll, struct sol_op_done *op,
     case IPMI_SOL_ERR_VAL(IPMI_SOL_UNCONFIRMABLE_OPERATION):
 	op->started = true;
 	op->use_runner = true;
-	sol_ref(solll);
 	rv = 0; /* Operation done, but won't get a callback. */
 	if (op->use_runner)
 	    /* Schedule the callback in the runner. */
@@ -1591,7 +1592,6 @@ sol_op_done(struct sol_ll *solll, int err, struct sol_op_done **op_done)
     void *cb_data;
     int val;
 
-    sol_lock(solll);
  restart:
     if (err)
 	err = sol_xlat_ipmi_err(solll->o, err);
@@ -1612,7 +1612,6 @@ sol_op_done(struct sol_ll *solll, int err, struct sol_op_done **op_done)
 	if (err)
 	    goto restart;
     }
-    sol_deref_and_unlock(solll);
 }
 
 static int
