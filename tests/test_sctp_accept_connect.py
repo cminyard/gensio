@@ -10,6 +10,6 @@ import gensio
 
 check_sctp()
 print("Test sctp accepter connect")
-TestAcceptConnect(o, "sctp,0", "sctp,0", "sctp,localhost,0",
+TestAcceptConnect(o, "sctp,0", "sctp,0", "sctp,localhost,",
                   do_small_test)
 
