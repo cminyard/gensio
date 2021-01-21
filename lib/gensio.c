@@ -1273,8 +1273,11 @@ str_to_gensio_accepter(const char *str,
 
 	str += len;
 	err = gensio_scan_args(o, &str, NULL, &args);
-	if (!err)
+	if (!err) {
+	    while (isspace(*str))
+		str++;
 	    err = r->handler(str, args, o, cb, user_data, accepter);
+	}
 	if (args)
 	    gensio_argv_free(o, args);
 	return err;
@@ -1476,8 +1479,11 @@ str_to_gensio(const char *str,
 
 	str += len;
 	err = gensio_scan_args(o, &str, NULL, &args);
-	if (!err)
+	if (!err) {
+	    while (isspace(*str))
+		str++;
 	    err = r->handler(str, args, o, cb, user_data, gensio);
+	}
 	if (args)
 	    gensio_argv_free(o, args);
 	return err;
