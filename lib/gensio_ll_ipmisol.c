@@ -1554,9 +1554,8 @@ sol_start_op(struct sol_ll *solll, struct sol_op_done *op,
 	op->started = true;
 	op->use_runner = true;
 	rv = 0; /* Operation done, but won't get a callback. */
-	if (op->use_runner)
-	    /* Schedule the callback in the runner. */
-	    sol_sched_deferred_op(solll);
+	/* Schedule the callback in the runner. */
+	sol_sched_deferred_op(solll);
 	break;
 
     case EAGAIN:
