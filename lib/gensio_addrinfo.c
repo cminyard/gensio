@@ -542,10 +542,18 @@ gensio_addr_addrinfo_scan_ips(struct gensio_os_funcs *o, const char *str,
 	bool notype = false;
 
 	if (strcmp(ip, "ipv4") == 0) {
+	    if (family != AF_UNSPEC && family != AF_INET) {
+		rv = GE_INVAL;
+		goto out_err;
+	    }
 	    family = AF_INET;
 	    ip = strtok_r(NULL, ",", &strtok_data);
 	} else if (strcmp(ip, "ipv6") == 0) {
 #ifdef AF_INET6
+	    if (family != AF_UNSPEC && family != AF_INET6) {
+		rv = GE_INVAL;
+		goto out_err;
+	    }
 	    family = AF_INET6;
 	    ip = strtok_r(NULL, ",", &strtok_data);
 #else
@@ -554,6 +562,10 @@ gensio_addr_addrinfo_scan_ips(struct gensio_os_funcs *o, const char *str,
 #endif
 	} else if (strcmp(ip, "ipv6n4") == 0) {
 #ifdef AF_INET6
+	    if (family != AF_UNSPEC && family != AF_INET6) {
+		rv = GE_INVAL;
+		goto out_err;
+	    }
 	    family = AF_INET6;
 	    rflags |= AI_V4MAPPED;
 	    ip = strtok_r(NULL, ",", &strtok_data);
@@ -562,9 +574,31 @@ gensio_addr_addrinfo_scan_ips(struct gensio_os_funcs *o, const char *str,
 	    goto out_err;
 #endif
 	} else {
-	    /* Default to V4 mapped. */
-	    rflags |= AI_V4MAPPED;
-	    notype = true;
+#ifdef AF_INET6
+	    /*
+	     * If IPV6 is present, we will try both IPV6 and IPV4
+	     * addresses if an address is specified, or use
+	     * AI_V4MAPPED if no ip is specified.
+	     *
+	     * This is a bit strange.  My reading of the getaddrinfo()
+	     * man page says that if family == AF_UNSPEC, it's
+	     * supposed to return IPV4 and IPV6 addresses.  It's not,
+	     * even if AI_V4MAPPED is not set or AI_ALL is set, at
+	     * least for localhost.
+	     *
+	     * It only matters if the user specifies an IP address (or
+	     * host).  If the user does not specify an IP address, use
+	     * AF_INET6 and AI_V4MAPPED and it works fine.  If the
+	     * user specifies an IP address, pull the V6 addresses
+	     * then the V4 addresses.  But only for listen sockets,
+	     * connect sockets can only connect to one address (or one
+	     * address type for SCTP).
+	     */
+	    if (family == AF_UNSPEC) {
+		notype = true;
+		family = AF_INET6;
+	    }
+#endif
 	}
 
 	if (ip == NULL) {
@@ -585,25 +619,17 @@ gensio_addr_addrinfo_scan_ips(struct gensio_os_funcs *o, const char *str,
 	    port = "0";
 	}
 
+#ifdef AF_INET6
 	/*
 	 * If the user specified something like "tcp,0", ip will be
 	 * NULL and getaddrinfo will return IPv4 and IPv6 addresses if
-	 * the are available.  AF_V4MAPPED will be set, so we really
+	 * they are available.  AF_V4MAPPED will be set, so we really
 	 * only want IPv6 addresses (if any are available) as once you
 	 * open the IPv6 address you can't open the IPv4 address.
-	 *
-	 * To fix this, in this special case we try IPv6 addresses
-	 * first, as they will be mapped and work for IPv4 addresses.
-	 * If we get no network addresses in IPv4, then try IPv4.
 	 */
 	if (!ip && notype)
-#ifdef AF_INET6
-	    family = AF_INET6;
-#else
-	    family = AF_INET;
-#endif
+	    rflags |= AI_V4MAPPED;
 
-#ifdef AF_INET6
     redo_getaddrinfo:
 #endif
 	memset(&hints, 0, sizeof(hints));
@@ -615,6 +641,7 @@ gensio_addr_addrinfo_scan_ips(struct gensio_os_funcs *o, const char *str,
 	if (rv) {
 #ifdef AF_INET6
 	    if (notype && family == AF_INET6) {
+		/* No IPV6, try just IPV4. */
 		family = AF_INET;
 		goto redo_getaddrinfo;
 	    }
@@ -662,6 +689,14 @@ gensio_addr_addrinfo_scan_ips(struct gensio_os_funcs *o, const char *str,
 	    if (rv)
 		goto out_err;
 	}
+#ifdef AF_INET6
+	if (listen && ip && notype && ifamily == AF_UNSPEC &&
+		family == AF_INET6) {
+	    /* See comments above on why this is done.  Yes, it's strange. */
+	    family = AF_INET;
+	    goto redo_getaddrinfo;
+	}
+#endif
 
 	ip = strtok_r(NULL, ",", &strtok_data);
 	first = false;
