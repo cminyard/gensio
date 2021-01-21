@@ -2386,6 +2386,12 @@ gensio_unix_funcs_alloc(struct selector_s *sel, int wake_sig)
     return o;
 }
 
+struct gensio_os_funcs *
+gensio_selector_alloc(struct selector_s *sel, int wake_sig)
+{
+    return gensio_unix_funcs_alloc(sel, wake_sig);
+}
+
 static void
 defoshnd_init(void)
 {
