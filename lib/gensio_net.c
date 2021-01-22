@@ -32,6 +32,8 @@
 #include <gensio/gensio_osops.h>
 #include <gensio/gensio_builtins.h>
 
+#include "gensio_net.h"
+
 struct net_data {
     struct gensio_os_funcs *o;
 
@@ -341,6 +343,12 @@ net_gensio_alloc(const struct gensio_addr *iai, const char * const args[],
 	return err;
     }
 
+    err = gensio_get_default(o, type, "nodelay", false,
+			     GENSIO_DEFAULT_BOOL, NULL, &ival);
+    if (err)
+	return err;
+    nodelay = ival;
+
     for (i = 0; args && args[i]; i++) {
 	if (gensio_check_keyds(args[i], "readbuf", &max_read_size) > 0)
 	    continue;
@@ -495,7 +503,10 @@ struct netna_data {
     char *group;
 #endif
 
+#ifdef HAVE_TCPD_H
+    enum gensio_tcpd_options tcpd;
     char *tcpd_progname;
+#endif
 
     unsigned int   nr_acceptfds;
     unsigned int   nr_accept_close_waiting;
@@ -586,8 +597,15 @@ netna_readhandler(struct gensio_iod *iod, void *cbdata)
 	return;
     }
 
-    if (nadata->istcp) {
-	if (gensio_os_check_tcpd_ok(new_iod, nadata->tcpd_progname)) {
+    if (nadata->istcp && nadata->tcpd != GENSIO_TCPD_OFF) {
+	const char *msg = gensio_os_check_tcpd_ok(new_iod,
+						  nadata->tcpd_progname);
+
+	if (msg) {
+	    if (nadata->tcpd == GENSIO_TCPD_PRINT) {
+		struct gensio_sg sg[1] = { { msg, strlen(msg) } };
+		nadata->o->send(new_iod, sg, 1, NULL, 0);
+	    }
 	    gensio_acc_log(nadata->acc, GENSIO_LOG_INFO,
 			   "Error accepting net gensio: tcpd check failed");
 	    err = GE_INVAL;
@@ -1054,6 +1072,15 @@ netna_base_acc_op(struct gensio_accepter *acc, int op,
     }
 }
 
+#ifdef HAVE_TCPD_H
+struct gensio_enum_val tcpd_enums[] = {
+    { "on",	GENSIO_TCPD_ON },
+    { "print",	GENSIO_TCPD_PRINT },
+    { "off", 	GENSIO_TCPD_OFF },
+    { NULL }
+};
+#endif
+
 static int
 net_gensio_accepter_alloc(struct gensio_addr *iai,
 			  const char * const args[],
@@ -1074,6 +1101,7 @@ net_gensio_accepter_alloc(struct gensio_addr *iai,
 #endif
 #ifdef HAVE_TCPD_H
     const char *tcpdname = NULL;
+    enum gensio_tcpd_options tcpd = GENSIO_TCPD_ON;
 #endif
     unsigned int i;
     int err, ival;
@@ -1091,6 +1119,12 @@ net_gensio_accepter_alloc(struct gensio_addr *iai,
     }
     reuseaddr = ival;
 
+    err = gensio_get_default(o, type, "tcpd", false,
+			     GENSIO_DEFAULT_INT, NULL, &ival);
+    if (err)
+	return err;
+    tcpd = ival;
+
     for (i = 0; args && args[i]; i++) {
 	if (gensio_check_keyds(args[i], "readbuf", &max_read_size) > 0)
 	    continue;
@@ -1105,6 +1139,11 @@ net_gensio_accepter_alloc(struct gensio_addr *iai,
 #ifdef HAVE_TCPD_H
 	if (istcp && gensio_check_keyvalue(args[i], "tcpdname", &tcpdname))
 	    continue;
+	if (istcp && gensio_check_keyenum(args[i], "tcpd",
+					  tcpd_enums, &ival) > 0) {
+	    tcpd = ival;
+	    continue;
+	}
 #endif
 #if HAVE_UNIX
 	if (!istcp && gensio_check_keymode(args[i], "umode", &umode) > 0) {
@@ -1138,6 +1177,7 @@ net_gensio_accepter_alloc(struct gensio_addr *iai,
     if (!nadata)
 	return GE_NOMEM;
     nadata->o = o;
+    nadata->tcpd = tcpd;
 
     err = GE_NOMEM;
     if (reuseaddr)
