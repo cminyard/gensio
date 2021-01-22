@@ -17,8 +17,8 @@ except:
     sys.exit(77)
 
 s2n_termios_base = dup_termios(base_termios,
-                               cflags = termios.CLOCAL | termios.CRTSCTS,
-                               cflags_mask = termios.CLOCAL | termios.CRTSCTS)
+                               cflags = termios.CLOCAL,
+                               cflags_mask = termios.CLOCAL)
 s2n_termios_base[6][termios.VSTART] = '\0'
 s2n_termios_base[6][termios.VSTOP] = '\0'
 

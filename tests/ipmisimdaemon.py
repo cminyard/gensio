@@ -49,7 +49,7 @@ set_working_mc 0x20\n
 \n
   endlan\n
 \n
-  sol "%s" 115200\n
+  sol "%s" 115200 nortscts\n
 \n
   # Start startcmd at startup?  Default is false.\n
   startnow false\n
