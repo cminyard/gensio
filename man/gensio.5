@@ -319,11 +319,19 @@ local address.
 Set SO_REUSEADDR on the socket, good for accepting gensios only.
 Defaults to true.
 .TP
+.B tcpd=on|print|off
+Accepter only, sets tcpd handling on the socket.  If "on", tcpd is
+enforced and the connection is just closed on a tcpd denial.  "print"
+is like on, except it writes "Access Denied" on the socket before
+closing it.  "off" disabled tcpd handling on the socket.  Defaults to
+on.  Not available if tcpd is disabled at compile time.
+.TP
 .B tcpdname=<name>
 Accepter only, sets the name to use for tcpd access control.  This
 defaults to "gensio", and the default can be overriden with
 gensio_set_progname().  This option allows you to override it on a
-per-gensio accepter basis.
+per-gensio accepter basis.  Not available if tcpd is disabled at
+compile time.
 .SS Remote Address String
 The remote address will be in the format "[ipv4|ipv6],<addr>,<port>" where the
 address is in numeric format, IPv4, or IPv6.

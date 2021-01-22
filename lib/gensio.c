@@ -19,6 +19,7 @@
 #include <gensio/gensio_class.h>
 
 #include "utils.h"
+#include "gensio_net.h"
 
 static unsigned int gensio_log_mask =
     (1 << GENSIO_LOG_FATAL) | (1 << GENSIO_LOG_ERR);
@@ -1952,7 +1953,12 @@ struct gensio_def_entry builtin_defaults[] = {
     /* Defaults for TCP, UDP, and SCTP. */
     { "nodelay",	GENSIO_DEFAULT_BOOL,	.def.intval = 0 },
     { "laddr",		GENSIO_DEFAULT_STR,	.def.strval = NULL },
-    /* sctp */
+    /* TCP only */
+#ifdef HAVE_TCPD_H
+    { "tcpd",		GENSIO_DEFAULT_ENUM,	.enums = tcpd_enums,
+						.def.intval = GENSIO_TCPD_ON },
+#endif
+    /* SCTP only */
     { "instreams",	GENSIO_DEFAULT_INT,	.min = 1, .max = INT_MAX,
 						.def.intval = 1 },
     { "ostreams",	GENSIO_DEFAULT_INT,	.min = 1, .max = INT_MAX,
