@@ -1836,7 +1836,7 @@ sol_get_defaults(struct sol_ll *solll)
 			     GENSIO_DEFAULT_INT, NULL, &ival);
     if (err)
 	return err;
-    ival = solll->shared_serial_alert_behavior;
+    solll->shared_serial_alert_behavior = ival;
     err = gensio_get_default(o, "sol", "deassert-CTS-DCD-DSR-on-connect", false,
 			     GENSIO_DEFAULT_BOOL, NULL, &ival);
     if (err)
