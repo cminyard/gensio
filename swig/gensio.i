@@ -381,6 +381,8 @@ struct waiter { };
 %constant int GENSIO_NETTYPE_IPV6 = GENSIO_NETTYPE_IPV6;
 %constant int GENSIO_NETTYPE_UNIX = GENSIO_NETTYPE_UNIX;
 
+%constant char *version = gensio_version_string;
+
 %extend gensio {
     gensio(struct gensio_os_funcs *o, char *str, swig_cb *handler) {
 	int rv;
