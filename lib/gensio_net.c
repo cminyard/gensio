@@ -585,6 +585,7 @@ netna_readhandler(int fd, void *cbdata)
 	return;
     }
 
+#ifdef HAVE_TCPD_H
     if (nadata->istcp && nadata->tcpd != GENSIO_TCPD_OFF) {
 	const char *msg = gensio_os_check_tcpd_ok(new_fd,
 						  nadata->tcpd_progname);
@@ -600,6 +601,7 @@ netna_readhandler(int fd, void *cbdata)
 	    goto out_err;
 	}
     }
+#endif
 
     tdata = nadata->o->zalloc(nadata->o, sizeof(*tdata));
     if (!tdata) {
@@ -1099,11 +1101,13 @@ net_gensio_accepter_alloc(struct gensio_addr *iai,
     }
     reuseaddr = ival;
 
+#ifdef HAVE_TCPD_H
     err = gensio_get_default(o, type, "tcpd", false,
 			     GENSIO_DEFAULT_INT, NULL, &ival);
     if (err)
 	return err;
     tcpd = ival;
+#endif
 
     for (i = 0; args && args[i]; i++) {
 	if (gensio_check_keyds(args[i], "readbuf", &max_read_size) > 0)
@@ -1157,7 +1161,6 @@ net_gensio_accepter_alloc(struct gensio_addr *iai,
     if (!nadata)
 	return GE_NOMEM;
     nadata->o = o;
-    nadata->tcpd = tcpd;
 
     err = GE_NOMEM;
     if (reuseaddr)
@@ -1178,6 +1181,7 @@ net_gensio_accepter_alloc(struct gensio_addr *iai,
 #endif
 
 #ifdef HAVE_TCPD_H
+    nadata->tcpd = tcpd;
     if (tcpdname)
 	nadata->tcpd_progname = strdup(tcpdname);
 #endif
