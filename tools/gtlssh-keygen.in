@@ -33,7 +33,7 @@ help() {
     echo "        $DEFAULT_GTLSSHDIR. Default keys also go here."
     echo "  --keydir <dir> - Location to put the non-default generated keys."
     echo "        Default is $DEFAULT_KEYDIR for normal certificates and"
-    echo "        $CONFDIF for server certificates."
+    echo "        $CONFDIR for server certificates."
     echo "  --commonname <name> - Set the common name in the certificate."
     echo "        The default is your username for normal certificates and"
     echo "        the fully qualified domain name for server certificates."
@@ -185,8 +185,12 @@ hash_dir() {
 
 rehash() {
     if [ $# -eq 0 ]; then
-	hash_dir "$GTLSSHDIR/allowed_certs"
-	hash_dir "$GTLSSHDIR/server_certs"
+	if ls "$GTLSSHDIR/allowed_certs"/*.crt >/dev/null 2>&1; then
+	    hash_dir "$GTLSSHDIR/allowed_certs"
+	fi
+	if ls "$GTLSSHDIR/server_certs"/*.crt >/dev/null 2>&1; then
+	    hash_dir "$GTLSSHDIR/server_certs"
+	fi
     else
 	while [ $# -gt 0 ]; do
 	    if [ ! -d "$1" ]; then
