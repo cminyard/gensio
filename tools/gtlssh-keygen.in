@@ -154,6 +154,11 @@ check_dirstruct() {
 }
 
 hash_dir() {
+    if ! ls "$1"/*.crt >/dev/null 2>&1; then
+	echo "No certificates in $1, not rehashing"
+	return
+    fi
+
     pushd "$1" >/dev/null
     for i in `ls | grep '[0-9a-f]\{8\}\.r\?[0-9]\+'`; do
 	rm "$i"
@@ -185,12 +190,8 @@ hash_dir() {
 
 rehash() {
     if [ $# -eq 0 ]; then
-	if ls "$GTLSSHDIR/allowed_certs"/*.crt >/dev/null 2>&1; then
-	    hash_dir "$GTLSSHDIR/allowed_certs"
-	fi
-	if ls "$GTLSSHDIR/server_certs"/*.crt >/dev/null 2>&1; then
-	    hash_dir "$GTLSSHDIR/server_certs"
-	fi
+	hash_dir "$GTLSSHDIR/allowed_certs"
+	hash_dir "$GTLSSHDIR/server_certs"
     else
 	while [ $# -gt 0 ]; do
 	    if [ ! -d "$1" ]; then
