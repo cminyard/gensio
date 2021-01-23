@@ -15,8 +15,12 @@ Generally, when you start using gtlssh on a system, you would run
 and it would create keys for you.  You should do the same thing on any
 target system you want to log into with gtlssh.  Then copy the
 default.crt file in your $HOME/.gtlssh directory to the target's
-$HOME/.gtlssh/allowed_certs directory.  After that you should be able
-to log in without a password.
+$HOME/.gtlssh/allowed_certs directory.  Then run
+
+  gtlssh rehash
+
+on the target system to generate the hashes   After that you should be
+able to log in without a password.
 
 When you need to regenerate your keys, you run
 
