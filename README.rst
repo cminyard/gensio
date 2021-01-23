@@ -51,7 +51,17 @@ To fully build gensio, you need the following:
 
 * pkgconfig - If you want gensio to install its pkgconfig files.
 
-* avahi - If you want gensio to have mdns support.
+* avahi dev - If you want gensio to have mdns support.
+
+* pam dev - For support of logins with gtlsshd
+
+* libwrap - for tcpd
+
+The following sets everything except openipmi up on ubuntu 20.04:
+
+  sudo apt install gcc git swig python3-dev libssl-dev pkg-config	\
+    libavahi-client-dev avahi-daemon libtool autoconf automake make	\
+    libsctp-dev libpam-dev libwrap0-dev
 
 Handling python installation configuration is a bit of a pain.  By
 default the build scripts will put it wherever the python program
