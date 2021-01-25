@@ -8,6 +8,10 @@
 #ifndef GENSIO_TYPES_H
 #define GENSIO_TYPES_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <stddef.h>
 #include <stdint.h>
 
@@ -38,5 +42,9 @@ struct gensio_sg {
 
 #define gensio_container_of(ptr, type, member)		\
     ((type *)(((char *) ptr) - offsetof(type, member)))
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* GENSIO_TYPES_H */

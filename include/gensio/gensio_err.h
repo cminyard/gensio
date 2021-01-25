@@ -7,6 +7,11 @@
 
 #ifndef GENSIO_ERR_H
 #define GENSIO_ERR_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 struct gensio_os_funcs;
 #include <gensio/gensio_dllvisibility.h>
 
@@ -73,5 +78,9 @@ GENSIO_DLL_PUBLIC
 int gensio_i_os_err_to_err(struct gensio_os_funcs *o,
 			   int oserr, const char *caller,
 			   const char *file, unsigned int lineno);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* GENSIO_ERR_H */

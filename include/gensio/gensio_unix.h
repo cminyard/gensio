@@ -8,6 +8,10 @@
 #ifndef GENSIO_UNIX_H
 #define GENSIO_UNIX_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <gensio/gensio_dllvisibility.h>
 #include <gensio/gensio_os_funcs.h>
 
@@ -27,5 +31,9 @@ struct selector_s; /* Don't include selector.h to reduce namespace pollution. */
 GENSIO_DLL_PUBLIC
 struct gensio_os_funcs *gensio_unix_funcs_alloc(struct selector_s *sel,
 						int wake_sig);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* GENSIO_UNIX_H */

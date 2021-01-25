@@ -15,6 +15,10 @@
 #ifndef GENSIO_OS_FUNCS
 #define GENSIO_OS_FUNCS
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <stdarg.h>
 #include <stdint.h>
 #include <stdbool.h>
@@ -717,5 +721,9 @@ int gensio_default_os_hnd(int wake_sig, struct gensio_os_funcs **o);
 /* For testing, do not use in normal code. */
 GENSIO_DLL_PUBLIC
 void gensio_osfunc_exit(int rv);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* GENSIO_OS_FUNCS */

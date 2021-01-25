@@ -8,6 +8,10 @@
 #ifndef MDNS_H
 #define MDNS_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <gensio/gensio_dllvisibility.h>
 #include <gensio/gensio_os_funcs.h>
 #include <gensio/gensio.h>
@@ -63,5 +67,9 @@ typedef void (*gensio_mdns_watch_done)(struct gensio_mdns_watch *w,
 GENSIO_DLL_PUBLIC
 int gensio_mdns_remove_watch(struct gensio_mdns_watch *w,
 			     gensio_mdns_watch_done done, void *userdata);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* MDNS_H */

@@ -746,15 +746,15 @@ char *gensio_alloc_sprintf(struct gensio_os_funcs *o,
 GENSIO_DLL_PUBLIC
 char *gensio_strdup(struct gensio_os_funcs *o, const char *str);
 
-#ifdef __cplusplus
-}
-#endif
-
 /*
  * Return the number of allocated gensios.  This is primarily for
  * testing and may change, use at your own risk.
  */
 GENSIO_DLL_PUBLIC
 gensiods gensio_num_alloced(void);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* GENSIO_H */
