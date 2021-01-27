@@ -58,4 +58,30 @@ GENSIO_DLL_PUBLIC
 const char *gensio_os_check_tcpd_ok(struct gensio_iod *iod,
 				    const char *progname);
 
+#ifndef _WIN32
+
+struct gensio_unix_termios;
+
+GENSIO_DLL_PUBLIC
+int gensio_unix_setup_termios(struct gensio_os_funcs *o, int fd,
+			      struct gensio_unix_termios **t);
+
+GENSIO_DLL_PUBLIC
+void gensio_unix_cleanup_termios(struct gensio_os_funcs *o,
+				 struct gensio_unix_termios **t, int fd);
+
+GENSIO_DLL_PUBLIC
+int gensio_unix_termios_control(struct gensio_os_funcs *o, int op, bool get,
+				intptr_t val,
+				struct gensio_unix_termios **t, int fd);
+
+GENSIO_DLL_PUBLIC
+void gensio_unix_do_flush(struct gensio_os_funcs *o, int fd, int whichbuf);
+
+GENSIO_DLL_PUBLIC
+int gensio_unix_get_bufcount(struct gensio_os_funcs *o,
+			     int fd, int whichbuf, gensiods *rcount);
+
+#endif
+
 #endif /* GENSIO_OSOPS_H */
