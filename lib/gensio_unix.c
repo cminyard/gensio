@@ -406,6 +406,7 @@ timeval_to_gensio_time(gensio_time *t, struct timeval *tv)
 struct waiter_data {
     pthread_t tid;
     int wake_sig;
+    unsigned int count;
     struct waiter_data *prev;
     struct waiter_data *next;
 };
@@ -452,6 +453,29 @@ wake_thread_send_sig_waiter(long thread_id, void *cb_data)
     pthread_kill(w->tid, w->wake_sig);
 }
 
+static void
+i_wake_waiter(waiter_t *waiter, unsigned int count)
+{
+    struct waiter_data *w;
+
+    w = waiter->wts.next;
+    while (w != &waiter->wts && count > 0) {
+	if (w->count > 0) {
+	    if (w->count >= count) {
+		w->count -= count;
+		count = 0;
+	    } else {
+		count -= w->count;
+		w->count = 0;
+	    }
+	    if (w->count == 0)
+		pthread_kill(w->tid, w->wake_sig);
+	}
+	w = w->next;
+    }
+    waiter->count += count;
+}
+
 static int
 i_wait_for_waiter_timeout(waiter_t *waiter, unsigned int count,
 			  gensio_time *timeout, bool intr,
@@ -465,6 +489,7 @@ i_wait_for_waiter_timeout(waiter_t *waiter, unsigned int count,
     w.wake_sig = waiter->wake_sig;
     w.next = NULL;
     w.prev = NULL;
+    w.count = count;
 
     pthread_mutex_lock(&waiter->lock);
     waiter->wts.next->prev = &w;
@@ -473,7 +498,17 @@ i_wait_for_waiter_timeout(waiter_t *waiter, unsigned int count,
     w.prev = &waiter->wts;
 
     rtv = gensio_time_to_timeval(&tv, timeout);
-    while (waiter->count < count) {
+
+    if (waiter->count > 0) {
+	if (waiter->count >= w.count) {
+	    waiter->count -= w.count;
+	    w.count = 0;
+	} else {
+	    w.count -= waiter->count;
+	    waiter->count = 0;
+	}
+    }
+    while (w.count > 0) {
 	pthread_mutex_unlock(&waiter->lock);
 	if (intr)
 	    err = sel_select_intr_sigmask(waiter->sel,
@@ -494,8 +529,15 @@ i_wait_for_waiter_timeout(waiter_t *waiter, unsigned int count,
 	    break;
     }
     timeval_to_gensio_time(timeout, rtv);
-    if (!err)
-	waiter->count -= count;
+    if (w.count == 0) {
+	err = 0; /* If our count was decremented to zero, ignore errors. */
+    } else if (err) {
+	/*
+	 * If there was an error, re-add whatever was decremented to the
+	 * waiter.
+	 */
+	i_wake_waiter(waiter, count - w.count);
+    }
     w.next->prev = w.prev;
     w.prev->next = w.next;
     pthread_mutex_unlock(&waiter->lock);
@@ -506,15 +548,8 @@ i_wait_for_waiter_timeout(waiter_t *waiter, unsigned int count,
 static void
 wake_waiter(waiter_t *waiter)
 {
-    struct waiter_data *w;
-
     pthread_mutex_lock(&waiter->lock);
-    waiter->count++;
-    w = waiter->wts.next;
-    while (w != &waiter->wts) {
-	pthread_kill(w->tid, w->wake_sig);
-	w = w->next;
-    }
+    i_wake_waiter(waiter, 1);
     pthread_mutex_unlock(&waiter->lock);
 }
 
