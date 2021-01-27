@@ -430,7 +430,7 @@ struct gensio_os_funcs {
      * Allocate an I/O descriptor for an fd.
      */
     int (*add_iod)(struct gensio_os_funcs *o, enum gensio_iod_type type,
-		   int fd, struct gensio_iod **iod);
+		   intptr_t fd, struct gensio_iod **iod);
 
     /*
      * Release an allocated I/O descriptor.  Note that close() will

@@ -2294,8 +2294,7 @@ struct gensio_iod_win_dev
 					     struct gensio_iod_win_dev, \
 					     b);
 static int
-win_dev_control(struct gensio_iod_win *wiod, int op, bool get,
-		     intptr_t val)
+win_dev_control(struct gensio_iod_win *wiod, int op, bool get, intptr_t val)
 {
     struct gensio_iod_win_twoway *biod = i_to_win_twoway(wiod);
     struct gensio_iod_win_dev *iod = i_to_windev(biod);
@@ -2724,7 +2723,7 @@ static win_iod_initfunc win_iod_init[NR_GENSIO_IOD_TYPES] = {
 
 static int
 win_add_iod(struct gensio_os_funcs *o, enum gensio_iod_type type,
-	    int fd, struct gensio_iod **riod)
+	    intptr_t fd, struct gensio_iod **riod)
 {
     int rv;
     struct gensio_iod_win *iod;
