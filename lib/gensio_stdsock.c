@@ -889,7 +889,7 @@ gensio_stdsock_accept(struct gensio_iod *iod,
 
 	err = o->set_non_blocking(riod);
 	if (err) {
-	    o->close_socket(&riod);
+	    o->close(&riod);
 	    if (addr)
 		gensio_addr_free(addr);
 	    return err;
@@ -979,7 +979,7 @@ gensio_stdsock_socket_open(struct gensio_os_funcs *o,
     o->iod_set_protocol(iod, protocol);
     err = o->set_non_blocking(iod);
     if (err) {
-	o->close_socket(&iod);
+	o->close(&iod);
 	return err;
     }
     *riod = iod;
@@ -1133,18 +1133,11 @@ gensio_stdsock_connect(struct gensio_iod *iod, const struct gensio_addr *addr)
 }
 
 static int
-gensio_stdsock_close_socket(struct gensio_iod **iiod)
+gensio_stdsock_close_socket(struct gensio_iod *iod)
 {
-    struct gensio_iod *iod = *iiod;
     struct gensio_os_funcs *o = iod->f;
-    int rv;
 
-    rv = close_socket(o, o->iod_get_fd(iod));
-    if (!rv) {
-	o->release_iod(iod);
-	*iiod = NULL;
-    }
-    return rv;
+    return close_socket(o, o->iod_get_fd(iod));
 }
 
 static int

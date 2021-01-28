@@ -137,7 +137,7 @@ sctp_try_open(struct sctp_data *tdata, struct gensio_iod **iod)
  out:
     if (err) {
 	if (tdata->iod)
-	    tdata->o->close_socket(&tdata->iod);
+	    tdata->o->close(&tdata->iod);
     } else {
 	*iod = tdata->iod;
     }
@@ -559,7 +559,7 @@ sctpna_fd_cleared(struct gensio_iod *iod, void *cbdata)
 	    break;
     }
     assert(i < nadata->nr_acceptfds);
-    nadata->o->close_socket(&nadata->acceptfds[i].iod);
+    nadata->o->close(&nadata->acceptfds[i].iod);
 
     nadata->o->lock(nadata->lock);
     assert(nadata->nr_accept_close_waiting > 0);
@@ -612,7 +612,7 @@ sctpna_readhandler(struct gensio_iod *iod, void *cbdata)
 
     err = base_gensio_accepter_new_child_start(nadata->acc);
     if (err) {
-	nadata->o->close_socket(&new_iod);
+	nadata->o->close(&new_iod);
 	return;
     }
 
@@ -678,7 +678,7 @@ sctpna_readhandler(struct gensio_iod *iod, void *cbdata)
 	sctp_free(tdata);
     }
     if (new_iod)
-	nadata->o->close_socket(&new_iod);
+	nadata->o->close(&new_iod);
 }
 
 static int
@@ -917,7 +917,7 @@ sctpna_disable(struct gensio_accepter *accepter, struct sctpna_data *nadata)
     for (i = 0; i < nadata->nr_acceptfds; i++)
 	nadata->o->clear_fd_handlers_norpt(nadata->acceptfds[i].iod);
     for (i = 0; i < nadata->nr_acceptfds; i++)
-	nadata->o->close_socket(&nadata->acceptfds[i].iod);
+	nadata->o->close(&nadata->acceptfds[i].iod);
 }
 
 static int

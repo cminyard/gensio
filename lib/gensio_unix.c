@@ -1241,7 +1241,9 @@ gensio_unix_close(struct gensio_iod **iodp)
     gensio_unix_cleanup_termios(o, &iod->termios, iod->fd);
     gensio_unix_do_cleanup_nonblock(o, iod->fd, &iod->mode);
 
-    if (iod->type != GENSIO_IOD_STDIO) {
+    if (iod->type == GENSIO_IOD_SOCKET) {
+	err = o->close_socket(iiod);
+    } else if (iod->type != GENSIO_IOD_STDIO) {
 	err = close(iod->fd);
 #ifdef ENABLE_INTERNAL_TRACE
 	/* Close should never fail, but don't crash in production builds. */

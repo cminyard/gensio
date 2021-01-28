@@ -603,10 +603,10 @@ struct gensio_os_funcs {
 
     /*
      * Note that close_socket can only be used on sockets.  The normal
-     * close can be used on sockets, too, but it will generally just
-     * call this functions.
+     * close should be used on sockets, this is only for internal use
+     * for OS handlers to do special socket handling on close.
      */
-    int (*close_socket)(struct gensio_iod **iod);
+    int (*close_socket)(struct gensio_iod *iod);
 
     /*
      * Open a socket, non-blocking.  The iod can be added with

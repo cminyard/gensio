@@ -132,7 +132,7 @@ gensio_os_open_listen_sockets(struct gensio_os_funcs *o,
 
     for (i = 0; i < nr_fds; i++) {
 	o->clear_fd_handlers_norpt(fds[i].iod);
-	o->close_socket(&fds[i].iod);
+	o->close(&fds[i].iod);
     }
     o->free(o, fds);
 

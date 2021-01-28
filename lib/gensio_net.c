@@ -97,7 +97,7 @@ net_try_open(struct net_data *tdata, struct gensio_iod **iod)
  out:
     if (err) {
 	if (new_iod)
-	    tdata->o->close_socket(&new_iod);
+	    tdata->o->close(&new_iod);
     } else {
 	*iod = new_iod;
     }
@@ -534,7 +534,7 @@ netna_fd_cleared(struct gensio_iod *iod, void *cbdata)
 	    break;
     }
     assert(i < nadata->nr_acceptfds);
-    nadata->o->close_socket(&nadata->acceptfds[i].iod);
+    nadata->o->close(&nadata->acceptfds[i].iod);
 
     nadata->o->lock(nadata->lock);
     assert(nadata->nr_accept_close_waiting > 0);
@@ -593,7 +593,7 @@ netna_readhandler(struct gensio_iod *iod, void *cbdata)
     err = base_gensio_accepter_new_child_start(nadata->acc);
     if (err) {
 	gensio_addr_free(raddr);
-	nadata->o->close_socket(&new_iod);
+	nadata->o->close(&new_iod);
 	return;
     }
 
@@ -684,7 +684,7 @@ netna_readhandler(struct gensio_iod *iod, void *cbdata)
     if (raddr)
 	gensio_addr_free(raddr);
     if (new_iod)
-	nadata->o->close_socket(&new_iod);
+	nadata->o->close(&new_iod);
 }
 
 #if HAVE_UNIX
@@ -1035,7 +1035,7 @@ netna_disable(struct gensio_accepter *accepter, struct netna_data *nadata)
     for (i = 0; i < nadata->nr_acceptfds; i++)
 	nadata->o->clear_fd_handlers_norpt(nadata->acceptfds[i].iod);
     for (i = 0; i < nadata->nr_acceptfds; i++)
-	nadata->o->close_socket(&nadata->acceptfds[i].iod);
+	nadata->o->close(&nadata->acceptfds[i].iod);
 }
 
 static int

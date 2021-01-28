@@ -2688,10 +2688,7 @@ win_close(struct gensio_iod **iodp)
 
     assert(iod);
     if (iod->type == GENSIO_IOD_SOCKET) {
-	err = o->close_socket(&iiod);
-	if (!err)
-	    *iodp = NULL;
-	return err;
+	err = o->close_socket(iiod);
     } else if (iod->type == GENSIO_IOD_STDIO) {
 	err = win_stdio_close(iod);
     } else if (iod->type == GENSIO_IOD_PIPE) {
