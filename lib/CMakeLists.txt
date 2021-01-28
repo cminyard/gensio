@@ -79,8 +79,6 @@ if (WIN32)
   # Stick this in the directories so Windows can find it when running
   # gensiot and oomtest.  Probably not right, but works for now.
   install(TARGETS gensio DESTINATION bin)
-  install(TARGETS gensio DESTINATION ${PROJECT_BINARY_DIR}/tools)
-  install(TARGETS gensio DESTINATION ${PROJECT_BINARY_DIR}/tests)
 endif()
 target_include_directories(gensio
                            INTERFACE

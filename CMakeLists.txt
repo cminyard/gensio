@@ -15,6 +15,7 @@ include(GNUInstallDirs)
 if (WIN32)
   # Suppress packing error warnings, as they are ubiquitous and don't matter.
   set (CMAKE_C_FLAGS "/wd4820")
+  set (CMAKE_RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/output")
 else()
   set (CMAKE_C_FLAGS "-Wall")
 endif()
