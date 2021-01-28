@@ -704,6 +704,55 @@ gensio_win_commport_control(struct gensio_os_funcs *o, int op, bool get,
 }
 
 #else /* _WIN32 */
+
+#include <fcntl.h>
+
+struct stdio_mode {
+    int orig_file_flags;
+};
+
+int
+gensio_unix_do_nonblock(struct gensio_os_funcs *o, int fd,
+			struct stdio_mode **rm)
+{
+    int rv;
+    struct stdio_mode *r;
+
+    rv = fcntl(fd, F_GETFL, 0);
+    if (rv == -1)
+	return gensio_os_err_to_err(o, errno);
+
+    if (!*rm) {
+	r = o->zalloc(o, sizeof(*r));
+	if (!r)
+	    return GE_NOMEM;
+	r->orig_file_flags = rv;
+    }
+
+    rv |= O_NONBLOCK;
+    if (fcntl(fd, F_SETFL, rv) == -1) {
+	if (r)
+	    o->free(o, r);
+	return gensio_os_err_to_err(o, errno);
+    }
+
+    if (r)
+	*rm = r;
+
+    return 0;
+}
+
+void
+gensio_unix_do_cleanup_nonblock(struct gensio_os_funcs *o, int fd,
+				struct stdio_mode **m)
+{
+    if (!*m)
+	return;
+    fcntl(fd, F_SETFL, (*m)->orig_file_flags);
+    o->free(o, *m);
+    *m = NULL;
+}
+
 #if HAVE_DECL_TIOCSRS485
 #include <linux/serial.h>
 #endif

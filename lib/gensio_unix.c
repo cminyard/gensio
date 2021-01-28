@@ -600,8 +600,7 @@ struct gensio_iod_unix {
     void (*except_handler)(struct gensio_iod *iod, void *cb_data);
     void (*cleared_handler)(struct gensio_iod *iod, void *cb_data);
 
-    bool orig_file_flags_set;
-    int orig_file_flags;
+    struct stdio_mode *mode;
 
     struct gensio_unix_termios *termios;
 };
@@ -1239,9 +1238,8 @@ gensio_unix_close(struct gensio_iod **iodp)
 
     assert(iodp);
     assert(!iod->handlers_set);
-    gensio_unix_cleanup_termios(iiod->f, &iod->termios, iod->fd);
-    if (iod->orig_file_flags_set)
-	fcntl(iod->fd, F_SETFL, iod->orig_file_flags);
+    gensio_unix_cleanup_termios(o, &iod->termios, iod->fd);
+    gensio_unix_do_cleanup_nonblock(o, iod->fd, &iod->mode);
 
     if (iod->type != GENSIO_IOD_STDIO) {
 	err = close(iod->fd);
@@ -1265,23 +1263,11 @@ static int
 gensio_unix_set_non_blocking(struct gensio_iod *iiod)
 {
     struct gensio_iod_unix *iod = i_to_sel(iiod);
-    struct gensio_os_funcs *o = iiod->f;
-    int rv;
 
     if (do_errtrig())
 	return GE_NOMEM;
 
-    rv = fcntl(iod->fd, F_GETFL, 0);
-    if (rv == -1)
-	return gensio_os_err_to_err(o, errno);
-    if (iod->type == GENSIO_IOD_STDIO && !iod->orig_file_flags_set) {
-	iod->orig_file_flags = rv;
-	iod->orig_file_flags_set = true;
-    }
-    rv |= O_NONBLOCK;
-    if (fcntl(iod->fd, F_SETFL, rv) == -1)
-	return gensio_os_err_to_err(o, errno);
-    return 0;
+    return gensio_unix_do_nonblock(iiod->f, iod->fd, &iod->mode);
 }
 
 int
@@ -1498,13 +1484,12 @@ static int
 gensio_unix_iod_control(struct gensio_iod *iiod, int op, bool get, intptr_t val)
 {
     struct gensio_iod_unix *iod = i_to_sel(iiod);
-    struct gensio_os_funcs *o = iiod->f;
-
 
     if (iod->type != GENSIO_IOD_DEV)
 	return GE_NOTSUP;
 
-    return gensio_unix_termios_control(o, op, get, val, &iod->termios, iod->fd);
+    return gensio_unix_termios_control(iiod->f, op, get, val, &iod->termios,
+				       iod->fd);
 }
 
 static int

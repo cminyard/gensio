@@ -58,11 +58,11 @@ GENSIO_DLL_PUBLIC
 const char *gensio_os_check_tcpd_ok(struct gensio_iod *iod,
 				    const char *progname);
 
+struct stdio_mode;
+
 #ifdef _WIN32
 #include <winsock2.h>
 #include <windows.h>
-
-struct stdio_mode;
 
 GENSIO_DLL_PUBLIC
 int gensio_win_stdio_makeraw(struct gensio_os_funcs *o, HANDLE h,
@@ -93,6 +93,14 @@ DWORD gensio_win_commport_break_done(struct gensio_os_funcs *o, HANDLE h,
 				     struct gensio_win_commport **c);
 
 #else
+
+GENSIO_DLL_PUBLIC
+int gensio_unix_do_nonblock(struct gensio_os_funcs *o, int fd,
+			    struct stdio_mode **m);
+
+GENSIO_DLL_PUBLIC
+void gensio_unix_do_cleanup_nonblock(struct gensio_os_funcs *o, int fd,
+				     struct stdio_mode **m);
 
 struct gensio_unix_termios;
 
