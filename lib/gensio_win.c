@@ -442,14 +442,14 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
 	    }
 	    InitializeCriticalSection(&mem_lock);
 	    break;
-
-	    case DLL_PROCESS_DETACH:
-		DeleteCriticalSection(&mem_lock);
-		break;
-
-		default:
-		    break;
 	}
+
+    case DLL_PROCESS_DETACH:
+	DeleteCriticalSection(&mem_lock);
+	break;
+
+    default:
+	break;
     }
 
     return TRUE;
