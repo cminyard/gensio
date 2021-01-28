@@ -363,13 +363,13 @@ struct gensio_win_commport
 };
 
 int
-gensio_win_setup_commport(struct gensio_os_funcs *o, HANDLE h,
-			  struct gensio_win_commport **rc, HANDLE *break_timer)
+gensio_win_setup_commport(struct gensio_os_funcs* o, HANDLE h,
+    struct gensio_win_commport** rc, HANDLE* break_timer)
 {
-    DCB *t;
+    DCB* t;
     COMMTIMEOUTS timeouts;
     int rv = 0;
-    struct gensio_win_commport *c;
+    struct gensio_win_commport* c;
 
     if (*rc)
 	return GE_INUSE;
@@ -427,10 +427,12 @@ gensio_win_setup_commport(struct gensio_os_funcs *o, HANDLE h,
 
     /* Break timer */
     c->break_timer = CreateWaitableTimer(NULL, FALSE, NULL);
-    if (!c->break_timer)
+    if (!c->break_timer) {
 	rv = GE_NOMEM;
-    else
+    } else {
 	*break_timer = c->break_timer;
+	*rc = c;
+    }
 
     return rv;
 
