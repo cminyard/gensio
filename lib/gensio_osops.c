@@ -293,8 +293,59 @@ gensio_os_check_tcpd_ok(struct gensio_iod *iod, const char *iprogname)
  */
 #include <gensio/sergensio.h>
 
-#ifndef _WIN32
+#ifdef _WIN32
 
+struct stdio_mode {
+    DWORD old_mode_flags;
+};
+
+int
+gensio_win_stdio_makeraw(struct gensio_os_funcs *o, HANDLE h,
+			 struct stdio_mode **rm)
+{
+    DWORD mode, omode;
+    struct stdio_mode *m = NULL;
+
+    if (!GetConsoleMode(h, &omode))
+	return GE_NOTSUP;
+
+    if (!*rm) {
+	m = o->zalloc(o, sizeof(*m));
+	if (!m)
+	    return GE_NOMEM;
+	m->old_mode_flags = omode;
+    }
+
+    mode = omode & ~(ENABLE_LINE_INPUT |
+		     ENABLE_INSERT_MODE |
+		     ENABLE_ECHO_INPUT |
+		     ENABLE_PROCESSED_INPUT);
+
+    if (!SetConsoleMode(h, mode)) {
+	if (m)
+	    o->free(o, m);
+	return gensio_os_err_to_err(o, GetLastError());
+    }
+
+    if (m)
+	*rm = m;
+
+    return 0;
+}
+
+void
+gensio_win_stdio_cleanup(struct gensio_os_funcs *o, HANDLE h,
+			 struct stdio_mode **m)
+{
+    if (!*m)
+	return;
+    SetConsoleMode(h, (*m)->old_mode_flags);
+    o->free(o, *m);
+    *m = NULL;
+}
+
+
+#else /* _WIN32 */
 #if HAVE_DECL_TIOCSRS485
 #include <linux/serial.h>
 #endif
@@ -1005,4 +1056,4 @@ gensio_unix_get_bufcount(struct gensio_os_funcs *o,
     return rv;
 }
 
-#endif
+#endif /* _WIN32 */

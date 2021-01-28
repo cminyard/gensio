@@ -58,7 +58,21 @@ GENSIO_DLL_PUBLIC
 const char *gensio_os_check_tcpd_ok(struct gensio_iod *iod,
 				    const char *progname);
 
-#ifndef _WIN32
+#ifdef _WIN32
+#include <winsock2.h>
+#include <windows.h>
+
+struct stdio_mode;
+
+GENSIO_DLL_PUBLIC
+int gensio_win_stdio_makeraw(struct gensio_os_funcs *o, HANDLE h,
+			     struct stdio_mode **m);
+
+GENSIO_DLL_PUBLIC
+void gensio_win_stdio_cleanup(struct gensio_os_funcs *o, HANDLE h,
+			      struct stdio_mode **m);
+
+#else
 
 struct gensio_unix_termios;
 
@@ -82,6 +96,6 @@ GENSIO_DLL_PUBLIC
 int gensio_unix_get_bufcount(struct gensio_os_funcs *o,
 			     int fd, int whichbuf, gensiods *rcount);
 
-#endif
+#endif /* _WIN32 */
 
 #endif /* GENSIO_OSOPS_H */

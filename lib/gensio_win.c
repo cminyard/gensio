@@ -1801,8 +1801,7 @@ win_iod_oneway_init(struct gensio_iod_win *wiod, void *cb_data)
 struct gensio_iod_win_stdio {
     struct gensio_iod_win_oneway w;
 
-    BOOL old_mode_flags_set;
-    DWORD old_mode_flags;
+    struct stdio_mode *mode;
 };
 
 #define i_to_winstdio(iod) gensio_container_of(iod,			    \
@@ -1814,10 +1813,6 @@ win_stdio_makeraw(struct gensio_iod_win *wiod)
 {
     struct gensio_iod_win_oneway *oiod = i_to_win_oneway(wiod);
     struct gensio_iod_win_stdio *iod = i_to_winstdio(oiod);
-    DWORD mode, omode;
-
-    if (!GetConsoleMode(oiod->ioh, &omode))
-	return GE_NOTSUP;
 
     if (wiod->fd != 0)
 	/*
@@ -1826,21 +1821,7 @@ win_stdio_makeraw(struct gensio_iod_win *wiod)
 	 */
 	return 0;
 
-    if (!iod->old_mode_flags_set)
-	iod->old_mode_flags = omode;
-
-    mode = omode & ~(ENABLE_LINE_INPUT |
-		     ENABLE_INSERT_MODE |
-		     ENABLE_ECHO_INPUT |
-		     ENABLE_PROCESSED_INPUT);
-
-    if (!SetConsoleMode(oiod->ioh, mode))
-	return gensio_os_err_to_err(wiod->r.f, GetLastError());
-
-    if (!iod->old_mode_flags_set)
-	iod->old_mode_flags_set = TRUE;
-
-    return 0;
+    return gensio_win_stdio_makeraw(wiod->r.f, oiod->ioh, &iod->mode);
 }
 
 static bool
@@ -1858,6 +1839,16 @@ win_stdio_is_console(struct gensio_iod_win *wiod)
     DWORD mode;
 
     return GetConsoleMode(oiod->ioh, &mode);
+}
+
+static int
+win_stdio_close(struct gensio_iod_win *wiod)
+{
+    struct gensio_iod_win_oneway *oiod = i_to_win_oneway(wiod);
+    struct gensio_iod_win_stdio *iod = i_to_winstdio(oiod);
+
+    gensio_win_stdio_cleanup(wiod->r.f, oiod->ioh, &iod->mode);
+    return win_oneway_close(wiod);
 }
 
 static int
@@ -2999,8 +2990,9 @@ win_close(struct gensio_iod **iodp)
 	if (!err)
 	    *iodp = NULL;
 	return err;
-    } else if (iod->type == GENSIO_IOD_STDIO ||
-	       iod->type == GENSIO_IOD_PIPE) {
+    } else if (iod->type == GENSIO_IOD_STDIO) {
+	err = win_stdio_close(iod);
+    } else if (iod->type == GENSIO_IOD_PIPE) {
 	err = win_oneway_close(iod);
     } else if (iod->type == GENSIO_IOD_DEV) {
 	err = win_dev_close(iod);
