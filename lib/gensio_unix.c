@@ -1297,14 +1297,6 @@ gensio_unix_is_regfile(struct gensio_iod *iiod)
     return (statb.st_mode & S_IFMT) == S_IFREG;
 }
 
-static bool
-gensio_unix_is_console(struct gensio_iod *iiod)
-{
-    struct gensio_iod_unix *iod = i_to_sel(iiod);
-
-    return isatty(iod->fd);
-}
-
 static void
 gensio_unix_flush(struct gensio_iod *iiod, int whichbuf)
 {
@@ -1622,7 +1614,6 @@ gensio_unix_alloc_sel(struct selector_s *sel, int wake_sig)
     o->write = gensio_unix_write;
     o->read = gensio_unix_read;
     o->is_regfile = gensio_unix_is_regfile;
-    o->is_console = gensio_unix_is_console;
     o->bufcount = gensio_unix_bufcount;
     o->flush = gensio_unix_flush;
     o->makeraw = gensio_unix_makeraw;

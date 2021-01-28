@@ -1832,15 +1832,6 @@ win_stdio_is_regfile(struct gensio_iod_win *wiod)
     return GetFileType(oiod->ioh) == FILE_TYPE_DISK;
 }
 
-static bool
-win_stdio_is_console(struct gensio_iod_win *wiod)
-{
-    struct gensio_iod_win_oneway *oiod = i_to_win_oneway(wiod);
-    DWORD mode;
-
-    return GetConsoleMode(oiod->ioh, &mode);
-}
-
 static int
 win_stdio_close(struct gensio_iod_win *wiod)
 {
@@ -2781,17 +2772,6 @@ win_is_regfile(struct gensio_iod *iiod)
     return false;
 }
 
-static bool
-win_is_console(struct gensio_iod *iiod)
-{
-    struct gensio_iod_win *iod = i_to_win(iiod);
-
-    if (iod->type == GENSIO_IOD_STDIO)
-	return win_stdio_is_console(iod);
-
-    return false;
-}
-
 static int
 win_bufcount(struct gensio_iod *iiod, int whichbuf, gensiods *count)
 {
@@ -3235,7 +3215,6 @@ gensio_win_funcs_alloc(void)
     o->write = win_write;
     o->read = win_read;
     o->is_regfile = win_is_regfile;
-    o->is_console = win_is_console;
     o->bufcount = win_bufcount;
     o->flush = win_flush;
     o->makeraw = win_makeraw;

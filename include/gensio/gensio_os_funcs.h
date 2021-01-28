@@ -474,12 +474,6 @@ struct gensio_os_funcs {
 
     bool (*is_regfile)(struct gensio_iod *iod);
 
-    /*
-     * Return true if the I/O descriptor points to a console (tty), or
-     * false if not.  Returns false if it cannot determine.
-     */
-    bool (*is_console)(struct gensio_iod *iod);
-
 #define GENSIO_IN_BUF	(1 << 0)
 #define GENSIO_OUT_BUF	(1 << 1)
     /*
