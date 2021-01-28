@@ -634,20 +634,30 @@ setup_child_proc(struct stdiona_data *nadata)
 static int
 setup_io_self(struct stdiona_data *nadata)
 {
+    struct gensio_os_funcs *o = nadata->o;
     int rv;
+
+    if (nadata->raw) {
+	rv = o->makeraw(nadata->io.in_iod);
+	if (rv)
+	    return rv;
+	rv = o->makeraw(nadata->io.out_iod);
+	if (rv)
+	    return rv;
+    }
 
     /*
      * If these are not regular files, save off the old flags and turn
      * on non-blocking.
      */
     if (!nadata->io.infd_regfile) {
-	rv = nadata->o->set_non_blocking(nadata->io.in_iod);
+	rv = o->set_non_blocking(nadata->io.in_iod);
 	if (rv)
 	    return rv;
     }
 
     if (!nadata->io.outfd_regfile) {
-	rv = nadata->o->set_non_blocking(nadata->io.out_iod);
+	rv = o->set_non_blocking(nadata->io.out_iod);
 	if (rv)
 	    return rv;
     }
@@ -1126,15 +1136,6 @@ setup_self(struct stdiona_data *nadata)
 	return err;
 
     nadata->io.outfd_regfile = nadata->o->is_regfile(nadata->io.out_iod);
-
-    if (nadata->raw) {
-	err = o->makeraw(nadata->io.in_iod);
-	if (err)
-	    return err;
-	err = o->makeraw(nadata->io.out_iod);
-	if (err)
-	    return err;
-    }
 
     return 0;
 }
