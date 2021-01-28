@@ -467,12 +467,13 @@ struct gensio_os_funcs {
     /* Read some data from the I/O descriptor. */
     int (*read)(struct gensio_iod *iod, void *buf, gensiods buflen,
 		gensiods *rcount);
+
     /*
-     * Return true if the I/O descriptor points to a nornal file, or
-     * false if not.  If it cannot determine, return false.
+     * Return true if the if is a nornal file, or false if not.  If it
+     * cannot determine, return false.
      */
 
-    bool (*is_regfile)(struct gensio_iod *iod);
+    bool (*is_regfile)(struct gensio_os_funcs *f, intptr_t fd);
 
 #define GENSIO_IN_BUF	(1 << 0)
 #define GENSIO_OUT_BUF	(1 << 1)

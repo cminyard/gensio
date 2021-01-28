@@ -1079,11 +1079,9 @@ gensio_unix_call_once(struct gensio_os_funcs *f, struct gensio_once *once,
     LOCK(&once_lock);
     if (!once->called) {
 	once->called = true;
-	UNLOCK(&once_lock);
 	func(cb_data);
-    } else {
-	UNLOCK(&once_lock);
     }
+    UNLOCK(&once_lock);
 }
 
 static void
@@ -1281,16 +1279,12 @@ gensio_unix_bufcount(struct gensio_iod *iiod, int whichbuf, gensiods *rcount)
 }
 
 static bool
-gensio_unix_is_regfile(struct gensio_iod *iiod)
+gensio_unix_is_regfile(struct gensio_os_funcs *o, intptr_t fd)
 {
-    struct gensio_iod_unix *iod = i_to_sel(iiod);
     int err;
     struct stat statb;
 
-    if (iod->type != GENSIO_IOD_FILE && iod->type != GENSIO_IOD_STDIO)
-	return false;
-
-    err = fstat(iod->fd, &statb);
+    err = fstat(fd, &statb);
     if (err == -1)
 	return false;
 

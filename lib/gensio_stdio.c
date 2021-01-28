@@ -1122,20 +1122,20 @@ setup_self(struct stdiona_data *nadata)
     struct gensio_os_funcs *o = nadata->o;
     int err;
 
+    nadata->io.infd_regfile = o->is_regfile(o, 1);
     err = o->add_iod(o,
 		  nadata->io.infd_regfile ? GENSIO_IOD_FILE : GENSIO_IOD_STDIO,
 		  1, &nadata->io.in_iod);
     if (err)
 	return err;
-    nadata->io.infd_regfile = nadata->o->is_regfile(nadata->io.in_iod);
 
+    nadata->io.outfd_regfile = o->is_regfile(o, 0);
     err = o->add_iod(o,
 		  nadata->io.outfd_regfile ? GENSIO_IOD_FILE: GENSIO_IOD_STDIO,
 		  0, &nadata->io.out_iod);
     if (err)
 	return err;
 
-    nadata->io.outfd_regfile = nadata->o->is_regfile(nadata->io.out_iod);
 
     return 0;
 }

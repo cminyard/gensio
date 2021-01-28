@@ -1824,14 +1824,6 @@ win_stdio_makeraw(struct gensio_iod_win *wiod)
     return gensio_win_stdio_makeraw(wiod->r.f, oiod->ioh, &iod->mode);
 }
 
-static bool
-win_stdio_is_regfile(struct gensio_iod_win *wiod)
-{
-    struct gensio_iod_win_oneway *oiod = i_to_win_oneway(wiod);
-
-    return GetFileType(oiod->ioh) == FILE_TYPE_DISK;
-}
-
 static int
 win_stdio_close(struct gensio_iod_win *wiod)
 {
@@ -2763,13 +2755,18 @@ win_read(struct gensio_iod *iiod,
 }
 
 static bool
-win_is_regfile(struct gensio_iod *iiod)
+win_is_regfile(struct gensio_os_funcs *o, intptr_t fd)
 {
-    struct gensio_iod_win *iod = i_to_win(iiod);
+    switch (fd) {
+    case 0:
+	return GetFileType(GetStdHandler(STD_INPUT_HANDLE)) == FILE_TYPE_DISK;
+    case 1:
+	return GetFileType(GetStdHandler(STD_OUTPUT_HANDLE)) == FILE_TYPE_DISK;
+    case 1:
+	return GetFileType(GetStdHandler(STD_ERROR_HANDLE)) == FILE_TYPE_DISK;
+    }
 
-    if (iod->type == GENSIO_IOD_STDIO)
-	return win_stdio_is_regfile(iod);
-    return false;
+    return GetFileType((HANDLE) fd) == FILE_TYPE_DISK;
 }
 
 static int
