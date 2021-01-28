@@ -35,6 +35,7 @@
 #include <gensio/gensio_osops_stdsock.h>
 #include <gensio/gensio_osops.h>
 #include <gensio/gensio_circbuf.h>
+#include <gensio/gensio_win.h>
 #include "errtrig.h"
 
 #if defined(_MSC_VER) && defined(ENABLE_INTERNAL_TRACE)
@@ -3459,8 +3460,8 @@ win_get_random(struct gensio_os_funcs *o,
     return err;
 }
 
-static struct gensio_os_funcs *
-gensio_win_alloc_sel(void)
+struct gensio_os_funcs *
+gensio_win_funcs_alloc(void)
 {
     struct gensio_data *d;
     struct gensio_os_funcs *o;
@@ -3636,7 +3637,7 @@ static BOOL CALLBACK win_oshnd_init(PINIT_ONCE InitOnce,
 				    PVOID Parameter,
 				    PVOID *lpContext)
 {
-    def_win_os_funcs = gensio_win_alloc_sel();
+    def_win_os_funcs = gensio_win_funcs_alloc();
     *lpContext = def_win_os_funcs;
     return !!def_win_os_funcs;
 }
