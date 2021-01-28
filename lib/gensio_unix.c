@@ -1340,8 +1340,6 @@ gensio_unix_open_dev(struct gensio_os_funcs *o, const char *name,
     return err;
 }
 
-extern char **environ;
-
 static int
 gensio_unix_exec_subprog(struct gensio_os_funcs *o,
 			 const char *argv[], const char **env,
@@ -1352,92 +1350,39 @@ gensio_unix_exec_subprog(struct gensio_os_funcs *o,
 			 struct gensio_iod **rstderr)
 {
     int err;
-    int stdinpipe[2] = {-1, -1};
-    int stdoutpipe[2] = {-1, -1};
-    int stderrpipe[2] = {-1, -1};
+    int infd = -1, outfd = -1, errfd = -1;
     struct gensio_iod *stdiniod = NULL, *stdoutiod = NULL, *stderriod = NULL;
     int pid = -1;
 
-    if (stderr_to_stdout && rstderr)
-	return GE_INVAL;
-
-    err = pipe(stdinpipe);
-    if (err) {
-	err = errno;
-	goto out_err;
-    }
-
-    err = pipe(stdoutpipe);
-    if (err) {
-	err = errno;
-	goto out_err;
-    }
-
-    err = o->add_iod(o, GENSIO_IOD_PIPE, stdinpipe[1], &stdiniod);
+    err = gensio_unix_do_exec(o, argv, env, stderr_to_stdout, &pid, &infd,
+			      &outfd, rstderr ? &errfd : NULL);
     if (err)
-	goto out_err_noconv;
-    err = o->add_iod(o, GENSIO_IOD_PIPE, stdoutpipe[0], &stdoutiod);
+	return err;
+
+    err = o->add_iod(o, GENSIO_IOD_PIPE, infd, &stdiniod);
     if (err)
-	goto out_err_noconv;
+	goto out_err;
+    infd = -1;
+    err = o->add_iod(o, GENSIO_IOD_PIPE, outfd, &stdoutiod);
+    if (err)
+	goto out_err;
+    outfd = -1;
     err = o->set_non_blocking(stdiniod);
     if (err)
-	goto out_err_noconv;
+	goto out_err;
     err = o->set_non_blocking(stdoutiod);
     if (err)
-	goto out_err_noconv;
+	goto out_err;
 
     if (rstderr) {
-	err = pipe(stderrpipe);
-	if (err) {
-	    err = errno;
-	    goto out_err;
-	}
-	err = o->add_iod(o, GENSIO_IOD_PIPE, stderrpipe[0], &stderriod);
+	err = o->add_iod(o, GENSIO_IOD_PIPE, errfd, &stderriod);
 	if (err)
-	    goto out_err_noconv;
+	    goto out_err;
+	errfd = -1;
 	err = o->set_non_blocking(stderriod);
 	if (err)
-	    goto out_err_noconv;
+	    goto out_err;
     }
-
-    pid = fork();
-    if (pid < 0) {
-	err = errno;
-	goto out_err;
-    }
-    if (pid == 0) {
-	int i, openfiles = sysconf(_SC_OPEN_MAX);
-
-	dup2(stdinpipe[0], 0);
-	dup2(stdoutpipe[1], 1);
-	if (stderr_to_stdout)
-	    dup2(stdoutpipe[1], 2);
-	else if (rstderr)
-	    dup2(stderrpipe[1], 2);
-
-	/* Close everything but stdio. */
-	for (i = 3; i < openfiles; i++)
-	    close(i);
-
-	err = gensio_os_setupnewprog();
-	if (err) {
-	    fprintf(stderr, "Unable to set groups or user: %s\r\n",
-		    strerror(err));
-	    exit(1);
-	}
-
-	if (env)
-	    environ = (char **) env;
-
-	execvp(argv[0], (char * const *) argv);
-	fprintf(stderr, "Err: %s %s\r\n", argv[0], strerror(errno));
-	exit(1); /* Only reached on error. */
-    }
-
-    close(stdinpipe[0]);
-    close(stdoutpipe[1]);
-    if (stderriod)
-	close(stderrpipe[1]);
 
     *rpid = pid;
     *rstdin = stdiniod;
@@ -1447,33 +1392,18 @@ gensio_unix_exec_subprog(struct gensio_os_funcs *o,
     return 0;
 
  out_err:
-    err = gensio_os_err_to_err(o, err);
- out_err_noconv:
-    if (stderriod) {
+    if (stderriod)
 	o->close(&stderriod);
-	stderrpipe[0] = -1;
-    }
-    if (stdiniod) {
+    else if (errfd != -1)
+	close(errfd);
+    if (stdiniod)
 	o->close(&stdiniod);
-	stdinpipe[1] = -1;
-    }
-    if (stdoutiod) {
+    else if (infd != -1)
+	close(infd);
+    if (stdoutiod)
 	o->close(&stdoutiod);
-	stdoutpipe[0] = -1;
-    }
-    if (stdinpipe[0] != -1)
-	close(stdinpipe[0]);
-    if (stdinpipe[1] != -1)
-	close(stdinpipe[1]);
-    if (stdoutpipe[0] != -1)
-	close(stdoutpipe[0]);
-    if (stdoutpipe[1] != -1)
-	close(stdoutpipe[1]);
-    if (stderrpipe[0] != -1)
-	close(stderrpipe[0]);
-    if (stderrpipe[1] != -1)
-	close(stderrpipe[1]);
-
+    else if (outfd != -1)
+	close(outfd);
     return err;
 }
 

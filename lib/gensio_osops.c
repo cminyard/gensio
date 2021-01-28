@@ -1463,4 +1463,106 @@ gensio_unix_get_bufcount(struct gensio_os_funcs *o,
     return rv;
 }
 
+extern char **environ;
+
+int
+gensio_unix_do_exec(struct gensio_os_funcs *o,
+		    const char *argv[], const char **env,
+		    bool stderr_to_stdout,
+		    int *rpid,
+		    int *rin, int *rout, int *rerr)
+{
+    int err;
+    int stdinpipe[2] = {-1, -1};
+    int stdoutpipe[2] = {-1, -1};
+    int stderrpipe[2] = {-1, -1};
+    int pid = -1;
+
+    if (stderr_to_stdout && rerr)
+	return GE_INVAL;
+
+    err = pipe(stdinpipe);
+    if (err) {
+	err = errno;
+	goto out_err;
+    }
+
+    err = pipe(stdoutpipe);
+    if (err) {
+	err = errno;
+	goto out_err;
+    }
+
+    if (rerr) {
+	err = pipe(stderrpipe);
+	if (err) {
+	    err = errno;
+	    goto out_err;
+	}
+    }
+
+    pid = fork();
+    if (pid < 0) {
+	err = errno;
+	goto out_err;
+    }
+    if (pid == 0) {
+	int i, openfiles = sysconf(_SC_OPEN_MAX);
+
+	dup2(stdinpipe[0], 0);
+	dup2(stdoutpipe[1], 1);
+	if (stderr_to_stdout)
+	    dup2(stdoutpipe[1], 2);
+	else if (rerr)
+	    dup2(stderrpipe[1], 2);
+
+	/* Close everything but stdio. */
+	for (i = 3; i < openfiles; i++)
+	    close(i);
+
+	err = gensio_os_setupnewprog();
+	if (err) {
+	    fprintf(stderr, "Unable to set groups or user: %s\r\n",
+		    strerror(err));
+	    exit(1);
+	}
+
+	if (env)
+	    environ = (char **) env;
+
+	execvp(argv[0], (char * const *) argv);
+	fprintf(stderr, "Err: %s %s\r\n", argv[0], strerror(errno));
+	exit(1); /* Only reached on error. */
+    }
+
+    close(stdinpipe[0]);
+    close(stdoutpipe[1]);
+    if (rerr)
+	close(stderrpipe[1]);
+
+    *rpid = pid;
+    *rin = stdinpipe[1];
+    *rout = stdoutpipe[0];
+    if (rerr)
+	*rerr = stderrpipe[0];
+    return 0;
+
+ out_err:
+    err = gensio_os_err_to_err(o, err);
+    if (stdinpipe[0] != -1)
+	close(stdinpipe[0]);
+    if (stdinpipe[1] != -1)
+	close(stdinpipe[1]);
+    if (stdoutpipe[0] != -1)
+	close(stdoutpipe[0]);
+    if (stdoutpipe[1] != -1)
+	close(stdoutpipe[1]);
+    if (stderrpipe[0] != -1)
+	close(stderrpipe[0]);
+    if (stderrpipe[1] != -1)
+	close(stderrpipe[1]);
+
+    return err;
+}
+
 #endif /* _WIN32 */

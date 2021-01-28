@@ -124,6 +124,13 @@ GENSIO_DLL_PUBLIC
 int gensio_unix_get_bufcount(struct gensio_os_funcs *o,
 			     int fd, int whichbuf, gensiods *rcount);
 
+GENSIO_DLL_PUBLIC
+int gensio_unix_do_exec(struct gensio_os_funcs *o,
+			const char *argv[], const char **env,
+			bool stderr_to_stdout,
+			int *rpid,
+			int *rin, int *rout, int *rerr);
+
 #endif /* _WIN32 */
 
 #endif /* GENSIO_OSOPS_H */
