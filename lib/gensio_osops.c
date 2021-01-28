@@ -364,23 +364,24 @@ struct gensio_win_commport
 
 int
 gensio_win_setup_commport(struct gensio_os_funcs *o, HANDLE h,
-			  struct gensio_win_commport **c, HANDLE *break_timer)
+			  struct gensio_win_commport **rc, HANDLE *break_timer)
 {
     DCB *t;
     COMMTIMEOUTS timeouts;
     int rv = 0;
+    struct gensio_win_commport *c;
 
-    if (*c)
+    if (*rc)
 	return GE_INUSE;
-    *c = o->zalloc(o, sizeof(*c));
-    if (!*c)
+    c = o->zalloc(o, sizeof(*c));
+    if (!c)
 	return GE_NOMEM;
 
-    t = &(*c)->curr_dcb;
-    if (!GetCommTimeouts(h, &(*c)->orig_timeouts))
+    t = &c->curr_dcb;
+    if (!GetCommTimeouts(h, &c->orig_timeouts))
 	goto out_err;
 
-    (*c)->orig_timeouts_set = TRUE;
+    c->orig_timeouts_set = TRUE;
 
     timeouts.ReadIntervalTimeout = 1;
     timeouts.ReadTotalTimeoutMultiplier = 0;
@@ -390,10 +391,10 @@ gensio_win_setup_commport(struct gensio_os_funcs *o, HANDLE h,
     if (!SetCommTimeouts(h, &timeouts))
 	goto out_err;
 
-    if (!GetCommState(h, &(*c)->orig_dcb))
+    if (!GetCommState(h, &c->orig_dcb))
 	goto out_err;
-    (*c)->orig_dcb_set = TRUE;
-    *t = (*c)->orig_dcb;
+    c->orig_dcb_set = TRUE;
+    *t = c->orig_dcb;
     t->fBinary = TRUE;
     t->BaudRate = 9600;
     t->fParity = NOPARITY;
@@ -411,25 +412,25 @@ gensio_win_setup_commport(struct gensio_os_funcs *o, HANDLE h,
     t->XoffLim = 50;
     t->ByteSize = 8;
     t->StopBits = ONESTOPBIT;
-    if (!SetCommState(h, &(*c)->curr_dcb))
+    if (!SetCommState(h, &c->curr_dcb))
 	goto out_err;
     /* FIXME - Can the following be restored? */
     if (!EscapeCommFunction(h, CLRBREAK))
 	goto out_err;
-    (*c)->break_set = FALSE;
+    c->break_set = FALSE;
     if (!EscapeCommFunction(h, CLRRTS))
 	goto out_err;
-    (*c)->rts_set = FALSE;
+    c->rts_set = FALSE;
     if (!EscapeCommFunction(h, CLRDTR))
 	goto out_err;
-    (*c)->dtr_set = FALSE;
+    c->dtr_set = FALSE;
 
     /* Break timer */
-    (*c)->break_timer = CreateWaitableTimer(NULL, FALSE, NULL);
-    if (!(*c)->break_timer)
+    c->break_timer = CreateWaitableTimer(NULL, FALSE, NULL);
+    if (!c->break_timer)
 	rv = GE_NOMEM;
     else
-	*break_timer = (*c)->break_timer;
+	*break_timer = c->break_timer;
 
     return rv;
 
