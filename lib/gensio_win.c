@@ -2266,20 +2266,9 @@ struct gensio_iod_win_dev
 
     char *name;
 
-    BOOL orig_dcb_set;
-    DCB orig_dcb;
-    DCB curr_dcb;
-
     BOOL is_serial_port;
-    BOOL orig_timeouts_set;
-    COMMTIMEOUTS orig_timeouts;
 
-    BOOL hupcl; /* FIXME - implement this. */
-    BOOL break_set;
-    BOOL dtr_set;
-    BOOL rts_set;
-
-    BOOL break_timer_running;
+    struct gensio_win_commport *cominfo;
 };
 
 #define i_to_windev(iod) gensio_container_of(iod,			\
@@ -2291,259 +2280,26 @@ win_dev_control(struct gensio_iod_win *wiod, int op, bool get, intptr_t val)
     struct gensio_iod_win_twoway *biod = i_to_win_twoway(wiod);
     struct gensio_iod_win_dev *iod = i_to_windev(biod);
     struct gensio_os_funcs *o = wiod->r.f;
-    DCB *t = &iod->curr_dcb;
     int rv = 0;
 
     if (!iod->is_serial_port)
 	return GE_NOTSUP;
 
     EnterCriticalSection(&wiod->lock);
-    switch (op) {
-    case GENSIO_IOD_CONTROL_SERDATA:
-	if (get) {
-	    t = o->zalloc(o, sizeof(*t));
-	    if (!t) {
-		rv = GE_NOMEM;
-	    } else {
-		*t = iod->curr_dcb;
-		*((void **) val) = t;
-	    }
-	} else {
-	    iod->curr_dcb = *((DCB *) val);
-	}
-	break;
-
-    case GENSIO_IOD_CONTROL_FREE_SERDATA:
-	o->free(o, (void *) val);
-	goto out;
-
-    case GENSIO_IOD_CONTROL_BAUD:
-	if (get)
-	    *((int *) val) = t->BaudRate;
-	else
-	    t->BaudRate = val;
-	break;
-
-    case GENSIO_IOD_CONTROL_PARITY:
-	if (get) {
-	    if (t->fParity) {
-		switch (t->Parity) {
-		case NOPARITY: *((int *) val) = SERGENSIO_PARITY_NONE; break;
-		case EVENPARITY: *((int *) val) = SERGENSIO_PARITY_EVEN; break;
-		case ODDPARITY: *((int *) val) = SERGENSIO_PARITY_ODD; break;
-		case MARKPARITY: *((int *) val) = SERGENSIO_PARITY_MARK; break;
-		case SPACEPARITY:
-		    *((int *) val) = SERGENSIO_PARITY_SPACE;
-		    break;
-		default:
-		    rv = GE_IOERR;
-		}
-	    } else {
-		*((int *) val) = SERGENSIO_PARITY_NONE;
-	    }
-	} else {
-	    t->fParity = 1;
-	    switch (val) {
-	    case SERGENSIO_PARITY_NONE:
-		t->fParity = 0;
-		t->Parity = NOPARITY;
-		break;
-	    case SERGENSIO_PARITY_EVEN: t->Parity = EVENPARITY; break;
-	    case SERGENSIO_PARITY_ODD: t->Parity = ODDPARITY; break;
-	    case SERGENSIO_PARITY_MARK: t->Parity = MARKPARITY; break;
-	    case SERGENSIO_PARITY_SPACE: t->Parity = SPACEPARITY; break;
-	    default:
-		rv = GE_INVAL;
-	    }
-	}
-	break;
-
-    case GENSIO_IOD_CONTROL_XONXOFF:
-	if (get)
-	    *((int *) val) = t->fOutX;
-	else {
-	    t->XonChar = 17;
-	    t->XoffChar = 19;
-	    t->fOutX = !!val;
-	}
-	break;
-
-    case GENSIO_IOD_CONTROL_RTSCTS:
-	if (get) {
-	    *((int *) val) = t->fOutxCtsFlow;
-	} else {
-	    t->fOutxCtsFlow = !!val;
-	    if (val)
-		t->fRtsControl = RTS_CONTROL_HANDSHAKE;
-	}
-	break;
-
-    case GENSIO_IOD_CONTROL_DATASIZE:
-	if (get)
-	    *((int *) val) = t->ByteSize;
-	else
-	    t->ByteSize = val;
-	break;
-
-    case GENSIO_IOD_CONTROL_STOPBITS:
-	if (get) {
-	    switch (t->StopBits) {
-	    case ONESTOPBIT: *((int *) val) = 1; break;
-	    case TWOSTOPBITS: *((int *) val) = 2; break;
-	    default:
-		rv = GE_INVAL;
-	    }
-	} else {
-	    switch (val) {
-	    case 1: t->StopBits = ONESTOPBIT; break;
-	    case 2: t->StopBits = TWOSTOPBITS; break;
-	    default:
-		rv = GE_INVAL;
-	    }
-	}
-	break;
-
-    case GENSIO_IOD_CONTROL_LOCAL:
-	if (get)
-	    *((int *) val) = t->fDsrSensitivity;
-	else
-	    t->fDsrSensitivity = val;
-	break;
-
-    case GENSIO_IOD_CONTROL_HANGUP_ON_DONE:
-	if (get) {
-	    *((int *) val) = iod->hupcl;
-	} else {
-	    iod->hupcl = val;
-	}
-	break;
-
-    case GENSIO_IOD_CONTROL_RS485:
-	rv = GE_NOTSUP;
-	break;
-
-    case GENSIO_IOD_CONTROL_IXONXOFF:
-	if (get) {
-	    *((int *) val) = t->fInX;
-	} else {
-	    t->fInX = !!val;
-	    t->XonChar = 17;
-	    t->XoffChar = 19;
-	}
-	break;
-
-    case GENSIO_IOD_CONTROL_APPLY:
-	if (!SetCommState(biod->ioh, &iod->curr_dcb))
-	    goto out_err;
-	break;
-
-    case GENSIO_IOD_CONTROL_SET_BREAK:
-	if (get) {
-	    *((int *) val) = iod->break_set;
-	} else {
-	    if (val) {
-		if (!EscapeCommFunction(biod->ioh, SETBREAK))
-		    goto out_err;
-	    } else {
-		if (!EscapeCommFunction(biod->ioh, CLRBREAK))
-		    goto out_err;
-	    }
-	    iod->break_set = val;
-	}
-	break;
-
-    case GENSIO_IOD_CONTROL_SEND_BREAK:
-	if (!(iod->break_set || iod->break_timer_running)) {
-	    LARGE_INTEGER timeout;
-
-	    /* .25 seconds. */
-	    timeout.QuadPart = 2500000LL;
-	    if (!EscapeCommFunction(biod->ioh, SETBREAK))
-		goto out_err;
-	    if (!SetWaitableTimer(biod->extrah, &timeout,
-				  0, NULL, NULL, 0)) {
-		EscapeCommFunction(biod->ioh, CLRBREAK);
-		goto out_err;
-	    }
-	    iod->break_timer_running = true;
-	}
-	break;
-
-    case GENSIO_IOD_CONTROL_DTR:
-	if (get) {
-	    *((int *) val) = iod->dtr_set;
-	} else {
-	    if (val) {
-		if (!EscapeCommFunction(biod->ioh, SETDTR))
-		    goto out_err;
-	    } else {
-		if (!EscapeCommFunction(biod->ioh, CLRDTR))
-		    goto out_err;
-	    }
-	    iod->dtr_set = val;
-	}
-	break;
-
-    case GENSIO_IOD_CONTROL_RTS:
-	if (get) {
-	    *((int *) val) = iod->rts_set;
-	} else {
-	    if (val) {
-		if (!EscapeCommFunction(biod->ioh, SETRTS))
-		    goto out_err;
-	    } else {
-		if (!EscapeCommFunction(biod->ioh, CLRRTS))
-		    goto out_err;
-	    }
-	    iod->rts_set = val;
-	}
-	break;
-
-    case GENSIO_IOD_CONTROL_MODEMSTATE: {
-	DWORD dval;
-	int rval = 0;
-
-	if (!GetCommModemStatus(biod->ioh, &dval))
-	    goto out_err;
-	if (dval & MS_CTS_ON)
-	    rval |= SERGENSIO_MODEMSTATE_CTS;
-	if (dval & MS_DSR_ON)
-	    rval |= SERGENSIO_MODEMSTATE_DSR;
-	if (dval & MS_RING_ON)
-	    rval |= SERGENSIO_MODEMSTATE_RI;
-	if (dval & MS_RLSD_ON)
-	    rval |= SERGENSIO_MODEMSTATE_CD;
-	*((int *) val) = rval;
-	break;
-    }
-
-    case GENSIO_IOD_CONTROL_FLOWCTL_STATE:
-	rv = GE_NOTSUP;
-
-    default:
-	rv = GE_NOTSUP;
-    }
- out:
+    rv = gensio_win_commport_control(o, op, get, val, &iod->cominfo,
+				     biod->ioh);
     LeaveCriticalSection(&wiod->lock);
 
-    return rv;
-
- out_err:
-    rv = gensio_os_err_to_err(o, GetLastError());
-    LeaveCriticalSection(&wiod->lock);
     return rv;
 }
 
 static DWORD
-win_dev_break_handler(struct gensio_iod_win_twoway *wiod)
+win_dev_break_handler(struct gensio_iod_win_twoway *biod)
 {
-    struct gensio_iod_win_dev *iod = i_to_windev(wiod);
+    struct gensio_iod_win_dev *iod = i_to_windev(biod);
 
-    if (!iod->break_set)
-	if (!EscapeCommFunction(wiod->ioh, CLRBREAK))
-	    return GetLastError();
-    iod->break_timer_running = FALSE;
-    return 0;
+    return gensio_win_commport_break_done(biod->i.r.f, biod->ioh,
+					  &iod->cominfo);
 }
 
 static void
@@ -2553,8 +2309,6 @@ win_iod_dev_clean(struct gensio_iod_win *wiod)
     struct gensio_iod_win_dev *iod = i_to_windev(biod);
 
     win_iod_twoway_clean(wiod);
-    if (biod->extrah)
-	CloseHandle(biod->extrah);
     if (iod->name)
 	wiod->r.f->free(wiod->r.f, iod->name);
 }
@@ -2569,10 +2323,8 @@ win_dev_close(struct gensio_iod_win *wiod)
     rv = win_twoway_close(wiod);
     EnterCriticalSection(&wiod->lock);
     if (biod->ioh) {
-	if (iod->orig_dcb_set)
-	    SetCommState(biod->ioh, &iod->orig_dcb);
-	if (iod->orig_timeouts_set)
-	    SetCommTimeouts(biod->ioh, &iod->orig_timeouts);
+	biod->extrah = NULL;
+	gensio_win_cleanup_commport(wiod->r.f, biod->ioh, &iod->cominfo);
 	CloseHandle(biod->ioh);
     }
     LeaveCriticalSection(&wiod->lock);
@@ -2586,7 +2338,6 @@ win_iod_dev_init(struct gensio_iod_win *wiod, void *cb_data)
     struct gensio_iod_win_dev *iod = i_to_windev(biod);
     struct gensio_os_funcs *o = wiod->r.f;
     int rv;
-    COMMTIMEOUTS timeouts;
     COMMPROP props;
     struct win_init_info *info = cb_data;
 
@@ -2632,59 +2383,10 @@ win_iod_dev_init(struct gensio_iod_win *wiod, void *cb_data)
     }
 
     if (iod->is_serial_port) {
-	DCB *t = &iod->curr_dcb;
-
-	if (!GetCommTimeouts(biod->ioh, &iod->orig_timeouts))
-	    goto out_err_conv;
-
-	iod->orig_timeouts_set = TRUE;
-
-	timeouts.ReadIntervalTimeout = 1;
-	timeouts.ReadTotalTimeoutMultiplier = 0;
-	timeouts.ReadTotalTimeoutConstant = 0;
-	timeouts.WriteTotalTimeoutMultiplier = 0;
-	timeouts.WriteTotalTimeoutConstant = 0;
-	if (!SetCommTimeouts(biod->ioh, &timeouts))
-	    goto out_err_conv;
-
-	if (!GetCommState(biod->ioh, &iod->orig_dcb))
+	rv = gensio_win_setup_commport(o, biod->ioh, &iod->cominfo,
+				       &biod->extrah);
+	if (rv)
 	    goto out_err;
-	iod->orig_dcb_set = TRUE;
-	*t = iod->orig_dcb;
-	t->fBinary = TRUE;
-	t->BaudRate = 9600;
-	t->fParity = NOPARITY;
-	t->fDtrControl = DTR_CONTROL_ENABLE;
-	t->fDsrSensitivity = TRUE;
-	t->fTXContinueOnXoff = FALSE;
-	t->fOutX = FALSE;
-	t->fInX = FALSE;
-	t->fErrorChar = FALSE;
-	t->fNull = FALSE;
-	t->fRtsControl = RTS_CONTROL_ENABLE;
-	t->fOutxCtsFlow = FALSE;
-	t->fAbortOnError = FALSE;
-	t->XonLim = 50;
-	t->XoffLim = 50;
-	t->ByteSize = 8;
-	t->StopBits = ONESTOPBIT;
-	if (!SetCommState(biod->ioh, &iod->curr_dcb))
-	    goto out_err;
-	/* FIXME - Can the following be restored? */
-	if (!EscapeCommFunction(biod->ioh, CLRBREAK))
-	    goto out_err;
-	iod->break_set = FALSE;
-	if (!EscapeCommFunction(biod->ioh, CLRRTS))
-	    goto out_err;
-	iod->rts_set = FALSE;
-	if (!EscapeCommFunction(biod->ioh, CLRDTR))
-	    goto out_err;
-	iod->dtr_set = FALSE;
-
-	/* Break timer */
-	biod->extrah = CreateWaitableTimer(NULL, FALSE, NULL);
-	if (!biod->extrah)
-	    goto out_err_conv;
 	biod->extrah_func = win_dev_break_handler;
     }
 

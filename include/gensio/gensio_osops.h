@@ -72,6 +72,26 @@ GENSIO_DLL_PUBLIC
 void gensio_win_stdio_cleanup(struct gensio_os_funcs *o, HANDLE h,
 			      struct stdio_mode **m);
 
+struct gensio_win_commport;
+
+GENSIO_DLL_PUBLIC
+int gensio_win_setup_commport(struct gensio_os_funcs *o, HANDLE h,
+			      struct gensio_win_commport **c,
+			      HANDLE *break_timer);
+
+GENSIO_DLL_PUBLIC
+void gensio_win_cleanup_commport(struct gensio_os_funcs *o, HANDLE h,
+				 struct gensio_win_commport **c);
+
+GENSIO_DLL_PUBLIC
+int gensio_win_commport_control(struct gensio_os_funcs *o, int op, bool get,
+				intptr_t val,
+				struct gensio_win_commport **c, HANDLE h);
+
+GENSIO_DLL_PUBLIC
+DWORD gensio_win_commport_break_done(struct gensio_os_funcs *o, HANDLE h,
+				     struct gensio_win_commport **c);
+
 #else
 
 struct gensio_unix_termios;

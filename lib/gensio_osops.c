@@ -344,6 +344,361 @@ gensio_win_stdio_cleanup(struct gensio_os_funcs *o, HANDLE h,
     *m = NULL;
 }
 
+struct gensio_win_commport
+{
+    BOOL orig_dcb_set;
+    DCB orig_dcb;
+    DCB curr_dcb;
+
+    BOOL orig_timeouts_set;
+    COMMTIMEOUTS orig_timeouts;
+
+    BOOL hupcl; /* FIXME - implement this. */
+    BOOL break_set;
+    BOOL dtr_set;
+    BOOL rts_set;
+
+    BOOL break_timer_running;
+    HANDLE break_timer;
+};
+
+int
+gensio_win_setup_commport(struct gensio_os_funcs *o, HANDLE h,
+			  struct gensio_win_commport **c, HANDLE *break_timer)
+{
+    DCB *t;
+    COMMTIMEOUTS timeouts;
+    int rv = 0;
+
+    if (*c)
+	return GE_INUSE;
+    *c = o->zalloc(o, sizeof(*c));
+    if (!*c)
+	return GE_NOMEM;
+
+    t = &(*c)->curr_dcb;
+    if (!GetCommTimeouts(h, &(*c)->orig_timeouts))
+	goto out_err;
+
+    (*c)->orig_timeouts_set = TRUE;
+
+    timeouts.ReadIntervalTimeout = 1;
+    timeouts.ReadTotalTimeoutMultiplier = 0;
+    timeouts.ReadTotalTimeoutConstant = 0;
+    timeouts.WriteTotalTimeoutMultiplier = 0;
+    timeouts.WriteTotalTimeoutConstant = 0;
+    if (!SetCommTimeouts(h, &timeouts))
+	goto out_err;
+
+    if (!GetCommState(h, &(*c)->orig_dcb))
+	goto out_err;
+    (*c)->orig_dcb_set = TRUE;
+    *t = (*c)->orig_dcb;
+    t->fBinary = TRUE;
+    t->BaudRate = 9600;
+    t->fParity = NOPARITY;
+    t->fDtrControl = DTR_CONTROL_ENABLE;
+    t->fDsrSensitivity = TRUE;
+    t->fTXContinueOnXoff = FALSE;
+    t->fOutX = FALSE;
+    t->fInX = FALSE;
+    t->fErrorChar = FALSE;
+    t->fNull = FALSE;
+    t->fRtsControl = RTS_CONTROL_ENABLE;
+    t->fOutxCtsFlow = FALSE;
+    t->fAbortOnError = FALSE;
+    t->XonLim = 50;
+    t->XoffLim = 50;
+    t->ByteSize = 8;
+    t->StopBits = ONESTOPBIT;
+    if (!SetCommState(h, &(*c)->curr_dcb))
+	goto out_err;
+    /* FIXME - Can the following be restored? */
+    if (!EscapeCommFunction(h, CLRBREAK))
+	goto out_err;
+    (*c)->break_set = FALSE;
+    if (!EscapeCommFunction(h, CLRRTS))
+	goto out_err;
+    (*c)->rts_set = FALSE;
+    if (!EscapeCommFunction(h, CLRDTR))
+	goto out_err;
+    (*c)->dtr_set = FALSE;
+
+    /* Break timer */
+    (*c)->break_timer = CreateWaitableTimer(NULL, FALSE, NULL);
+    if (!(*c)->break_timer)
+	rv = GE_NOMEM;
+    else
+	*break_timer = (*c)->break_timer;
+
+    return rv;
+
+ out_err:
+    return gensio_os_err_to_err(o, GetLastError());
+}
+
+DWORD
+gensio_win_commport_break_done(struct gensio_os_funcs *o, HANDLE h,
+			       struct gensio_win_commport **c)
+{
+    if (!(*c)->break_set)
+	if (!EscapeCommFunction(h, CLRBREAK))
+	    return GetLastError();
+    (*c)->break_timer_running = FALSE;
+    return 0;
+}
+
+void
+gensio_win_cleanup_commport(struct gensio_os_funcs *o, HANDLE h,
+			    struct gensio_win_commport **c)
+{
+    if (!*c)
+	return;
+    CloseHandle((*c)->break_timer);
+    if ((*c)->orig_dcb_set)
+	SetCommState(h, &(*c)->orig_dcb);
+    if ((*c)->orig_timeouts_set)
+	SetCommTimeouts(h, &(*c)->orig_timeouts);
+}
+
+int
+gensio_win_commport_control(struct gensio_os_funcs *o, int op, bool get,
+			    intptr_t val,
+			    struct gensio_win_commport **c, HANDLE h)
+{
+    DCB *t = &(*c)->curr_dcb;
+    int rv = 0;
+
+    switch (op) {
+    case GENSIO_IOD_CONTROL_SERDATA:
+	if (get) {
+	    t = o->zalloc(o, sizeof(*t));
+	    if (!t) {
+		rv = GE_NOMEM;
+	    } else {
+		*t = (*c)->curr_dcb;
+		*((void **) val) = t;
+	    }
+	} else {
+	    (*c)->curr_dcb = *((DCB *) val);
+	}
+	break;
+
+    case GENSIO_IOD_CONTROL_FREE_SERDATA:
+	o->free(o, (void *) val);
+	break;
+
+    case GENSIO_IOD_CONTROL_BAUD:
+	if (get)
+	    *((int *) val) = t->BaudRate;
+	else
+	    t->BaudRate = val;
+	break;
+
+    case GENSIO_IOD_CONTROL_PARITY:
+	if (get) {
+	    if (t->fParity) {
+		switch (t->Parity) {
+		case NOPARITY: *((int *) val) = SERGENSIO_PARITY_NONE; break;
+		case EVENPARITY: *((int *) val) = SERGENSIO_PARITY_EVEN; break;
+		case ODDPARITY: *((int *) val) = SERGENSIO_PARITY_ODD; break;
+		case MARKPARITY: *((int *) val) = SERGENSIO_PARITY_MARK; break;
+		case SPACEPARITY:
+		    *((int *) val) = SERGENSIO_PARITY_SPACE;
+		    break;
+		default:
+		    rv = GE_IOERR;
+		}
+	    } else {
+		*((int *) val) = SERGENSIO_PARITY_NONE;
+	    }
+	} else {
+	    t->fParity = 1;
+	    switch (val) {
+	    case SERGENSIO_PARITY_NONE:
+		t->fParity = 0;
+		t->Parity = NOPARITY;
+		break;
+	    case SERGENSIO_PARITY_EVEN: t->Parity = EVENPARITY; break;
+	    case SERGENSIO_PARITY_ODD: t->Parity = ODDPARITY; break;
+	    case SERGENSIO_PARITY_MARK: t->Parity = MARKPARITY; break;
+	    case SERGENSIO_PARITY_SPACE: t->Parity = SPACEPARITY; break;
+	    default:
+		rv = GE_INVAL;
+	    }
+	}
+	break;
+
+    case GENSIO_IOD_CONTROL_XONXOFF:
+	if (get)
+	    *((int *) val) = t->fOutX;
+	else {
+	    t->XonChar = 17;
+	    t->XoffChar = 19;
+	    t->fOutX = !!val;
+	}
+	break;
+
+    case GENSIO_IOD_CONTROL_RTSCTS:
+	if (get) {
+	    *((int *) val) = t->fOutxCtsFlow;
+	} else {
+	    t->fOutxCtsFlow = !!val;
+	    if (val)
+		t->fRtsControl = RTS_CONTROL_HANDSHAKE;
+	}
+	break;
+
+    case GENSIO_IOD_CONTROL_DATASIZE:
+	if (get)
+	    *((int *) val) = t->ByteSize;
+	else
+	    t->ByteSize = val;
+	break;
+
+    case GENSIO_IOD_CONTROL_STOPBITS:
+	if (get) {
+	    switch (t->StopBits) {
+	    case ONESTOPBIT: *((int *) val) = 1; break;
+	    case TWOSTOPBITS: *((int *) val) = 2; break;
+	    default:
+		rv = GE_INVAL;
+	    }
+	} else {
+	    switch (val) {
+	    case 1: t->StopBits = ONESTOPBIT; break;
+	    case 2: t->StopBits = TWOSTOPBITS; break;
+	    default:
+		rv = GE_INVAL;
+	    }
+	}
+	break;
+
+    case GENSIO_IOD_CONTROL_LOCAL:
+	if (get)
+	    *((int *) val) = t->fDsrSensitivity;
+	else
+	    t->fDsrSensitivity = val;
+	break;
+
+    case GENSIO_IOD_CONTROL_HANGUP_ON_DONE:
+	if (get) {
+	    *((int *) val) = (*c)->hupcl;
+	} else {
+	    (*c)->hupcl = val;
+	}
+	break;
+
+    case GENSIO_IOD_CONTROL_RS485:
+	rv = GE_NOTSUP;
+	break;
+
+    case GENSIO_IOD_CONTROL_IXONXOFF:
+	if (get) {
+	    *((int *) val) = t->fInX;
+	} else {
+	    t->fInX = !!val;
+	    t->XonChar = 17;
+	    t->XoffChar = 19;
+	}
+	break;
+
+    case GENSIO_IOD_CONTROL_APPLY:
+	if (!SetCommState(h, &(*c)->curr_dcb))
+	    goto out_err;
+	break;
+
+    case GENSIO_IOD_CONTROL_SET_BREAK:
+	if (get) {
+	    *((int *) val) = (*c)->break_set;
+	} else {
+	    if (val) {
+		if (!EscapeCommFunction(h, SETBREAK))
+		    goto out_err;
+	    } else {
+		if (!EscapeCommFunction(h, CLRBREAK))
+		    goto out_err;
+	    }
+	    (*c)->break_set = val;
+	}
+	break;
+
+    case GENSIO_IOD_CONTROL_SEND_BREAK:
+	if (!((*c)->break_set || (*c)->break_timer_running)) {
+	    LARGE_INTEGER timeout;
+
+	    /* .25 seconds. */
+	    timeout.QuadPart = 2500000LL;
+	    if (!EscapeCommFunction(h, SETBREAK))
+		goto out_err;
+	    if (!SetWaitableTimer((*c)->break_timer, &timeout,
+				  0, NULL, NULL, 0)) {
+		EscapeCommFunction(h, CLRBREAK);
+		goto out_err;
+	    }
+	    (*c)->break_timer_running = true;
+	}
+	break;
+
+    case GENSIO_IOD_CONTROL_DTR:
+	if (get) {
+	    *((int *) val) = (*c)->dtr_set;
+	} else {
+	    if (val) {
+		if (!EscapeCommFunction(h, SETDTR))
+		    goto out_err;
+	    } else {
+		if (!EscapeCommFunction(h, CLRDTR))
+		    goto out_err;
+	    }
+	    (*c)->dtr_set = val;
+	}
+	break;
+
+    case GENSIO_IOD_CONTROL_RTS:
+	if (get) {
+	    *((int *) val) = (*c)->rts_set;
+	} else {
+	    if (val) {
+		if (!EscapeCommFunction(h, SETRTS))
+		    goto out_err;
+	    } else {
+		if (!EscapeCommFunction(h, CLRRTS))
+		    goto out_err;
+	    }
+	    (*c)->rts_set = val;
+	}
+	break;
+
+    case GENSIO_IOD_CONTROL_MODEMSTATE: {
+	DWORD dval;
+	int rval = 0;
+
+	if (!GetCommModemStatus(h, &dval))
+	    goto out_err;
+	if (dval & MS_CTS_ON)
+	    rval |= SERGENSIO_MODEMSTATE_CTS;
+	if (dval & MS_DSR_ON)
+	    rval |= SERGENSIO_MODEMSTATE_DSR;
+	if (dval & MS_RING_ON)
+	    rval |= SERGENSIO_MODEMSTATE_RI;
+	if (dval & MS_RLSD_ON)
+	    rval |= SERGENSIO_MODEMSTATE_CD;
+	*((int *) val) = rval;
+	break;
+    }
+
+    case GENSIO_IOD_CONTROL_FLOWCTL_STATE:
+	rv = GE_NOTSUP;
+
+    default:
+	rv = GE_NOTSUP;
+    }
+    return rv;
+
+ out_err:
+    return gensio_os_err_to_err(o, GetLastError());
+}
 
 #else /* _WIN32 */
 #if HAVE_DECL_TIOCSRS485
