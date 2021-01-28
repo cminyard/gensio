@@ -1287,6 +1287,9 @@ gensio_unix_is_regfile(struct gensio_iod *iiod)
     int err;
     struct stat statb;
 
+    if (iod->type != GENSIO_IOD_FILE && iod->type != GENSIO_IOD_STDIO)
+	return false;
+
     err = fstat(iod->fd, &statb);
     if (err == -1)
 	return false;
