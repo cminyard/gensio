@@ -9,7 +9,14 @@
  * This allows a lot of pthread calls to be dummied out if pthreads is
  * disabled.
  */
-#ifdef USE_PTHREADS
+#ifdef _WIN32
+#include <windows.h>
+#define lock_type CRITICAL_SECTION
+#define LOCK_INIT(l) InitializeCriticalSection(l)
+#define LOCK_DESTROY(l) DeleteCriticalSection(l)
+#define LOCK(l) EnterCriticalSection(l)
+#define UNLOCK(l) LeaveCriticalSection(l)
+#elif defined(USE_PTHREADS)
 #include <pthread.h>
 #define lock_type pthread_mutex_t
 #define LOCK_INIT(l) pthread_mutex_init(l, NULL)
