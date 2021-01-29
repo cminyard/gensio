@@ -352,7 +352,7 @@ gensio_glib_timeout_handler(gpointer data)
     void *cb_data;
 
     g_mutex_lock(&t->lock);
-    if (!t->timer_id) {
+    if (t->timer_id) {
 	handler = t->handler;
 	cb_data = t->cb_data;
 	t->timer_id = 0;
