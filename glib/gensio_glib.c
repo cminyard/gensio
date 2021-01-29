@@ -409,10 +409,40 @@ gensio_glib_free_timer(struct gensio_timer *t)
     t->o->free(t->o, t);
 }
 
+/*
+ * Various time conversion routines.  Note that we always truncate up
+ * to the next time unit.  These are used for timers, and if you don't
+ * you can end up with an early timeout.
+ */
+static guint
+gensio_time_to_ms(gensio_time *t)
+{
+    return t->secs * 1000 + (t->nsecs + 999999) / 1000000;
+}
+
+static guint
+gensio_time_to_us(gensio_time *t)
+{
+    return t->secs * 1000000 + (t->nsecs + 999) / 1000;
+}
+
+static guint
+us_time_to_ms(gint64 t)
+{
+    return (t + 999) / 1000;
+}
+
+static void
+us_time_to_gensio(gint64 t, gensio_time *gt)
+{
+    gt->secs = t / 1000000;
+    gt->nsecs = t % 1000000 * 1000;
+}
+
 static int
 gensio_glib_start_timer(struct gensio_timer *t, gensio_time *timeout)
 {
-    guint msec = timeout->secs * 1000 | (timeout->nsecs + 999999) / 1000000;
+    guint msec = gensio_time_to_ms(timeout);
     int rv = 0;
 
     g_mutex_lock(&t->lock);
@@ -438,7 +468,7 @@ gensio_glib_start_timer_abs(struct gensio_timer *t, gensio_time *timeout)
     if (t->timer_id) {
 	rv = GE_INUSE;
     } else {
-	msec = timeout->secs * 1000 | (timeout->nsecs + 999999) / 1000000;
+	msec = gensio_time_to_ms(timeout);
 	now = g_get_monotonic_time();
 	msec -= now;
 	if (msec < 0)
@@ -672,8 +702,7 @@ setup_timeout(struct timeout_info *t)
 {
     if (t->timeout) {
 	t->start = t->now = g_get_monotonic_time();
-	t->end = t->now + (t->timeout->secs * 1000000 +
-			   (t->timeout->nsecs + 999) / 1000);
+	t->end = t->now + gensio_time_to_us(t->timeout);
     } else {
 	t->start = 0;
 	t->now = 0;
@@ -693,7 +722,7 @@ timeout_wait(struct timeout_info *t)
     if (t->timeout) {
 	guint timerid;
 
-	timerid = g_timeout_add((t->end - t->now + 999) / 1000,
+	timerid = g_timeout_add(us_time_to_ms(t->end - t->now),
 				dummy_timeout_handler, NULL);
 	g_main_context_iteration(NULL, TRUE);
 	g_source_remove(timerid);
@@ -709,8 +738,7 @@ timeout_end(struct timeout_info *t)
 	gint64 diff = t->end - t->now;
 
 	if (diff > 0) {
-	    t->timeout->secs = diff / 1000000;
-	    t->timeout->nsecs = (diff % 1000000) * 1000;
+	    us_time_to_gensio(diff, t->timeout);
 	} else {
 	    t->timeout->secs = 0;
 	    t->timeout->nsecs = 0;
@@ -1281,10 +1309,7 @@ gensio_glib_call_once(struct gensio_os_funcs *f, struct gensio_once *once,
 static void
 gensio_glib_get_monotonic_time(struct gensio_os_funcs *f, gensio_time *time)
 {
-    gint64 gt = g_get_monotonic_time();
-
-    time->secs = gt / 1000;
-    time->nsecs = gt % 1000 * 1000000;
+    us_time_to_gensio(g_get_monotonic_time(), time);
 }
 
 static int
