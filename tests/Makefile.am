@@ -29,7 +29,8 @@ TESTS = $(PYTESTS) $(OOMTESTS)
 
 oomtest_SOURCES = oomtest.c
 
-oomtest_LDADD = $(top_builddir)/lib/libgensio.la $(OPENSSL_LIBS)
+oomtest_LDADD = $(top_builddir)/lib/libgensio.la $(OPENSSL_LIBS) \
+	@GLIB_LIB@ @GLIB_LIBS@
 
 check_PROGRAMS = oomtest
 

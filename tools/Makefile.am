@@ -34,7 +34,7 @@ gmdns_LDADD = libgensiotool.a $(top_builddir)/lib/libgensio.la \
 	@OPENSSL_LIBS@
 
 gensiot_LDADD = libgensiotool.a $(top_builddir)/lib/libgensio.la \
-	@OPENSSL_LIBS@
+	@OPENSSL_LIBS@ @GLIB_LIB@ @GLIB_LIBS@
 
 gtlssh_LDADD = libgtlssh.a libgensiotool.a $(top_builddir)/lib/libgensio.la \
 	@OPENSSL_LIBS@

@@ -2,7 +2,7 @@
 enable_testing()
 
 add_executable(oomtest oomtest.c)
-target_link_libraries(oomtest gensio)
+target_link_libraries(oomtest gensio ${GLIB_LIB} ${GLIB_LDFLAGS})
 
 set (top_srcdir "${CMAKE_SOURCE_DIR}")
 set (top_builddir "${CMAKE_BINARY_DIR}")

@@ -105,6 +105,82 @@ if test "x$use_pthreads" != "xno"; then
        fi])
 fi
 
+tryglib=yes
+AC_ARG_WITH(glib,
+ [AS_HELP_STRING([--with-glib=yes|no], [Look for glib.])],
+    if test "x$withval" = "xyes"; then
+      tryglib=yes
+    elif test "x$withval" = "xno"; then
+      tryglib=no
+    fi,
+)
+
+glibcflags=
+AC_ARG_WITH(glibcflags,
+ [AS_HELP_STRING([--with-glibcflags=flags],
+                 [Set the flags to compile with glib.])],
+    glibcflags="$withval",
+)
+
+gliblibs=
+AC_ARG_WITH(gliblibs,
+ [AS_HELP_STRING([--with-gliblibs=libs],
+                 [Set the libraries to link with glib.])],
+    gliblibs="$withval",
+)
+
+# Find pkg-config
+pkgprog=
+AC_PATH_PROG(pkgprog, pkg-config)
+
+# Handle GLIB support
+haveglib=no
+if test "x$glibcflags" = "x" -o "x$gliblibs" = "x"; then
+   glibprog=
+   if test "x$tryglib" != "xno"; then
+      if test "x$pkgprog" != "x"; then
+         glibprog=$pkgprog
+      fi
+   fi
+   GLIB_CFLAGS=
+   GLIB_LIBS=
+   if test "x$glibprog" != "x"; then
+      GLIB_CFLAGS=`$glibprog --cflags gthread-2.0 2>/dev/null`
+      if test $? = 0; then
+         haveglib=yes
+         GLIB_LIBS=`$glibprog --libs gthread-2.0 2>/dev/null`
+      fi
+   fi
+else
+   haveglib=yes
+   GLIB_CFLAGS="$glibcflags"
+   GLIB_LIBS="$gliblibs"
+fi
+echo "checking for glib... $haveglib"
+
+AM_CONDITIONAL([HAVE_GLIB], [test "x$haveglib" = "xyes"])
+if test "x$haveglib" = "xyes"; then
+   AC_DEFINE([HAVE_GLIB], [], [Have GLIB libraries])
+   GLIB_LIB='$(top_builddir)/glib/libgensioglib.la'
+   GLIB_SO='$(top_builddir)/glib/.libs/libgensioglib.so'
+   GLIB_PKGCONF=gensioglib.pc
+   GLIB_TARGET=libgensioglib.la
+   GLIB_DIR=glib
+else
+   GLIB_LIB=
+   GLIB_SO=
+   GLIB_PKGCONF=
+   GLIB_TARGET=
+   GLIB_DIR=
+fi
+AC_SUBST(GLIB_CFLAGS)
+AC_SUBST(GLIB_LIBS)
+AC_SUBST(GLIB_LIB)
+AC_SUBST(GLIB_SO)
+AC_SUBST(GLIB_PKGCONF)
+AC_SUBST(GLIB_TARGET)
+AC_SUBST(GLIB_DIR)
+
 AC_ARG_WITH(openipmiflags,
  [AS_HELP_STRING([--with-openipmiflags=flags],
 		 [Set the flags to compile with OpenIPMI.])],
@@ -454,6 +530,8 @@ CPPFLAGS="$CPPFLAGS -I\$(top_srcdir)/include -I\$(top_builddir)/include"
 AC_OUTPUT([Makefile
 	lib/libgensio.pc
 	lib/Makefile
+	glib/libgensioglib.pc
+	glib/Makefile
 	include/Makefile
 	include/gensio/Makefile
 	include/gensio/gensio_version.h

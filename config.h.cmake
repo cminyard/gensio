@@ -22,6 +22,7 @@
 #cmakedefine HAVE_REGEXEC
 #cmakedefine HAVE_FNMATCH
 #cmakedefine HAVE_AVAHI
+#cmakedefine HAVE_GLIB
 #cmakedefine01 USE_FILE_STDIO
 #cmakedefine ENABLE_INTERNAL_TRACE
 #cmakedefine01 HAVE_DECL_TIOCSRS485

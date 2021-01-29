@@ -4,7 +4,7 @@ set_target_properties(gensiotool PROPERTIES
                       POSITION_INDEPENDENT_CODE OFF)
 
 add_executable(gensiot gensiotool.c)
-target_link_libraries(gensiot gensio gensiotool)
+target_link_libraries(gensiot gensio gensiotool ${GLIB_LIB} ${GLIB_LDFLAGS})
 
 install(TARGETS gensiot DESTINATION bin)
 

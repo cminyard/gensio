@@ -25,7 +25,8 @@
 #include <errno.h>
 #include <signal.h>
 #include <gensio/gensio.h>
-#include <gensio/gensio_selector.h>
+#include <gensio/gensio_unix.h>
+#include <gensio/gensio_glib.h>
 #include "pthread_handler.h"
 
 struct oom_tests {
@@ -1067,7 +1068,7 @@ con_cb(struct gensio *io, void *user_data,
 			fflush(stdout);
 		    }
 		} else {
-		    assert(!debug || !rv || rv == GE_REMCLOSE);
+		    assert(debug || !rv || rv == GE_REMCLOSE);
 		    if (debug) {
 			printf("con_cb error 2: %s\n", gensio_err_to_str(rv));
 			fflush(stdout);
@@ -2010,6 +2011,8 @@ main(int argc, char *argv[])
     int testnr = -1, numtests = 0, testnrstart = -1, testnrend = MAX_LOOPS;
     gensio_time zerotime = { 0, 0 };
     struct oom_tests user_test;
+    bool use_glib = false;
+    bool list_tests = false;
 
     memset(&user_test, 0, sizeof(user_test));
 
@@ -2030,14 +2033,6 @@ main(int argc, char *argv[])
 	    "tracing\n");
     exit(77);
 #endif
-
-    rv = gensio_default_os_hnd(SIGUSR1, &o);
-    if (rv) {
-	fprintf(stderr, "Could not allocate OS handler: %s\n",
-		gensio_err_to_str(rv));
-	goto out_err;
-    }
-    o->vlog = do_vlog;
 
     for (j = 0; oom_tests[j].connecter; j++)
 	numtests++;
@@ -2088,15 +2083,7 @@ main(int argc, char *argv[])
 	} else if (strcmp(argv[i], "-b") == 0) {
 	    sleep_on_timeout_err = true;
 	} else if (strcmp(argv[i], "-l") == 0) {
-	    for (j = 0; oom_tests[j].connecter; j++) {
-		if (!check_oom_test_present(o, oom_tests + j))
-		    continue;
-		printf("%d : %s %s\n", j, oom_tests[j].connecter,
-		       oom_tests[j].accepter ? oom_tests[j].accepter : "");
-		if (oom_tests[j].end_test_suite)
-		    oom_tests[j].end_test_suite(o, oom_tests + j);
-	    }
-	    exit(0);
+	    list_tests = true;
 	} else if (strcmp(argv[i], "-t") == 0) {
 	    i++;
 	    if (i >= argc) {
@@ -2162,10 +2149,41 @@ main(int argc, char *argv[])
 	    user_test.connecter = argv[i];
 	} else if (strcmp(argv[i], "-w") == 0) {
 	    user_test.allow_no_err_on_trig = true;
+	} else if (strcmp(argv[i], "-g") == 0) {
+	    use_glib = true;
 	} else {
 	    fprintf(stderr, "Unknown argument: '%s'\n", argv[i]);
 	    exit(1);
 	}
+    }
+
+    if (use_glib) {
+#ifndef HAVE_GLIB
+	fprintf(stderr, "glib specified, but glib OS handler not avaiable.\n");
+	exit(1);
+#else
+	rv = gensio_glib_funcs_alloc(&o);
+#endif
+    } else {
+	rv = gensio_default_os_hnd(SIGUSR1, &o);
+    }
+    if (rv) {
+	fprintf(stderr, "Could not allocate OS handler: %s\n",
+		gensio_err_to_str(rv));
+	goto out_err;
+    }
+    o->vlog = do_vlog;
+
+    if (list_tests) {
+	for (j = 0; oom_tests[j].connecter; j++) {
+	    if (!check_oom_test_present(o, oom_tests + j))
+		continue;
+	    printf("%d : %s %s\n", j, oom_tests[j].connecter,
+		   oom_tests[j].accepter ? oom_tests[j].accepter : "");
+	    if (oom_tests[j].end_test_suite)
+		oom_tests[j].end_test_suite(o, oom_tests + j);
+	}
+	exit(0);
     }
 
     printf("iodata_size is %lu\n", (unsigned long) iodata_size);

@@ -32,7 +32,8 @@
 #endif
 
 #include <gensio/gensio.h>
-#include <gensio/gensio_selector.h>
+#include <gensio/gensio_unix.h>
+#include <gensio/gensio_glib.h>
 
 #include "ioinfo.h"
 #include "ser_ioinfo.h"
@@ -441,6 +442,7 @@ main(int argc, char *argv[])
     struct ioinfo *ioinfo1 = NULL, *ioinfo2 = NULL;
     struct gdata userdata1, userdata2;
     const char *filename;
+    bool use_glib = false;
 #ifndef _WIN32
     sigset_t sigs;
 #endif
@@ -493,6 +495,8 @@ main(int argc, char *argv[])
 	else if ((rv = cmparg_int(argc, argv, &arg, "-e", "--escchar",
 				  &escape_char)))
 	    esc_set = true;
+	else if ((rv = cmparg(argc, argv, &arg, "-g", "--glib", NULL)))
+	    use_glib = true;
 	else if ((rv = cmparg(argc, argv, &arg, "", "--signature",
 			      &signature)))
 	    ;
@@ -542,7 +546,16 @@ main(int argc, char *argv[])
     userdata1.ios = deftty;
     userdata2.ios = argv[arg];
 
-    rv = gensio_default_os_hnd(0, &o);
+    if (use_glib) {
+#ifndef HAVE_GLIB
+	fprintf(stderr, "glib specified, but glib OS handler not avaiable.\n");
+	exit(1);
+#else
+	rv = gensio_glib_funcs_alloc(&o);
+#endif
+    } else {
+	rv = gensio_default_os_hnd(0, &o);
+    }
     if (rv) {
 	fprintf(stderr, "Could not allocate OS handler: %s\n",
 		gensio_err_to_str(rv));
