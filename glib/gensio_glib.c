@@ -27,6 +27,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <sys/wait.h>
+#include <pthread.h>
 
 struct gensio_data
 {
@@ -321,7 +322,8 @@ gensio_glib_set_except_handler(struct gensio_iod *iiod, bool enable)
 	g_source_remove(iod->except_id);
 	iod->except_id = 0;
     } else if (!iod->except_id && enable) {
-	iod->except_id = g_io_add_watch_full(iod->chan, 0, G_IO_PRI | G_IO_ERR,
+	iod->except_id = g_io_add_watch_full(iod->chan, 0,
+					     G_IO_PRI | G_IO_ERR | G_IO_HUP,
 					     glib_except_handler, iod,
 					     glib_cleared_handler);
 	assert(iod->except_id);
@@ -821,7 +823,16 @@ static int
 gensio_glib_wait_intr_sigmask(struct gensio_waiter *w, unsigned int count,
 			      gensio_time *timeout, void *sigmask)
 {
-    return gensio_glib_wait(w, count, timeout);
+    int rv;
+    sigset_t origmask;
+
+    if (sigmask)
+	pthread_sigmask(SIG_SETMASK, sigmask, &origmask);
+    rv = gensio_glib_wait(w, count, timeout);
+    if (sigmask)
+	pthread_sigmask(SIG_SETMASK, &origmask, NULL);
+
+    return rv;
 }
 
 static void
