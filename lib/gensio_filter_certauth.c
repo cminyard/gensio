@@ -1229,7 +1229,7 @@ certauth_handle_new_element(struct certauth_filter *sfilter)
 	    sfilter->pending_err = GE_PROTOERR;
 	    break;
 	}
-	sfilter->username = o->zalloc(0, sfilter->curr_elem_len + 1);
+	sfilter->username = o->zalloc(o, sfilter->curr_elem_len + 1);
 	sfilter->username_len = sfilter->curr_elem_len;
 	if (!sfilter->username) {
 	    gca_log_err(sfilter, "Unable to allocate memory for username");
@@ -1246,7 +1246,7 @@ certauth_handle_new_element(struct certauth_filter *sfilter)
 	    sfilter->pending_err = GE_PROTOERR;
 	    break;
 	}
-	sfilter->service = o->zalloc(0, sfilter->curr_elem_len + 1);
+	sfilter->service = o->zalloc(o, sfilter->curr_elem_len + 1);
 	sfilter->service_len = sfilter->curr_elem_len;
 	if (!sfilter->service) {
 	    gca_log_err(sfilter, "Unable to allocate memory for service");
@@ -1283,7 +1283,7 @@ certauth_handle_new_element(struct certauth_filter *sfilter)
 	}
 	sfilter->password_len = limited_strlen((char *) sfilter->read_buf,
 					       sfilter->curr_elem_len);
-	sfilter->password = o->zalloc(0, sfilter->password_len + 1);
+	sfilter->password = o->zalloc(o, sfilter->password_len + 1);
 	if (!sfilter->password) {
 	    gca_log_err(sfilter, "Unable to allocate memory for password");
 	    sfilter->pending_err = GE_NOMEM;
@@ -1302,7 +1302,7 @@ certauth_handle_new_element(struct certauth_filter *sfilter)
 	    sfilter->pending_err = GE_PROTOERR;
 	    break;
 	}
-	sfilter->challenge_data = o->zalloc(0, sfilter->curr_elem_len);
+	sfilter->challenge_data = o->zalloc(o, sfilter->curr_elem_len);
 	sfilter->challenge_data_size = sfilter->curr_elem_len;
 	if (!sfilter->challenge_data) {
 	    gca_log_err(sfilter, "Unable to allocate memory for challenge");
