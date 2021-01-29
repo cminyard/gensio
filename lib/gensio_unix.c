@@ -36,247 +36,23 @@ struct gensio_data {
     struct selector_s *sel;
     bool freesel;
     int wake_sig;
+    struct gensio_memtrack *mtrack;
 };
-
-#ifdef ENABLE_INTERNAL_TRACE
-#define TRACK_ALLOCED_MEMORY
-#endif
-
-#ifdef TRACK_ALLOCED_MEMORY
-lock_type memtrk_mutex = LOCK_INITIALIZER;
-struct memory_link {
-    struct memory_link *next;
-    struct memory_link *prev;
-};
-struct memory_header {
-    struct memory_link link;
-    unsigned long long magic;
-    void *callers[4];
-    void *freers[4];
-    unsigned int size;
-    bool inuse;
-};
-#define MEMORY_MAGIC 0x547a075c3733e437ULL
-struct memory_link memhead = { &memhead, &memhead };
-struct memory_link memfree = { &memfree, &memfree };
-unsigned long freecount;
-bool memtracking_initialized;
-bool memtracking_ready;
-bool memtracking_abort_on_lost;
-#endif
 
 static void *
-gensio_unix_zalloc(struct gensio_os_funcs *f, unsigned int size)
+gensio_unix_zalloc(struct gensio_os_funcs *o, unsigned int size)
 {
-    void *d;
+    struct gensio_data *d = o->user_data;
 
-    if (do_errtrig())
-	return NULL;
-#ifdef TRACK_ALLOCED_MEMORY
-    if (!memtracking_initialized) {
-	LOCK(&memtrk_mutex);
-	if (!memtracking_initialized) {
-	    char *s = getenv("GENSIO_MEMTRACK");
-
-	    memtracking_initialized = true;
-	    if (s) {
-		memtracking_ready = true;
-		if (strstr(s, "abort"))
-		    memtracking_abort_on_lost = true;
-	    }
-	}
-	UNLOCK(&memtrk_mutex);
-    }
-    if (memtracking_ready) {
-	d = malloc(size + sizeof(struct memory_header) + 1024);
-	if (d) {
-	    struct memory_header *h = d;
-
-	    d = ((char *) d) + sizeof(struct memory_header);
-	    h->magic = MEMORY_MAGIC;
-	    memset(h->callers, 0, sizeof(void *) * 4);
-	    h->callers[0] = __builtin_return_address(0);
-#if 0
-	    h->callers[1] = __builtin_return_address(1);
-	    h->callers[2] = __builtin_return_address(2);
-	    h->callers[3] = __builtin_return_address(3);
-#endif
-	    memset(h->freers, 0, sizeof(void *) * 4);
-	    h->inuse = true;
-	    h->size = size;
-	    memset(((unsigned char *) d) + size, 0xaf, 1024);
-	    LOCK(&memtrk_mutex);
-	    h->link.next = &memhead;
-	    h->link.prev = memhead.prev;
-	    memhead.prev->next = &h->link;
-	    memhead.prev = &h->link;
-	    freecount++;
-	    UNLOCK(&memtrk_mutex);
-	}
-    } else
-#endif
-    d = malloc(size);
-
-    if (d)
-	memset(d, 0, size);
-    return d;
+    return gensio_i_zalloc(d->mtrack, size);
 }
 
 static void
-gensio_unix_free(struct gensio_os_funcs *f, void *data)
+gensio_unix_free(struct gensio_os_funcs *o, void *v)
 {
-    assert(data);
-#ifdef TRACK_ALLOCED_MEMORY
-    if (memtracking_ready) {
-	struct memory_header *h = ((struct memory_header *)
-				   (((char *) data) - sizeof(*h)));
-	unsigned int i;
-	unsigned char *c;
+    struct gensio_data *d = o->user_data;
 
-	h->freers[0] = __builtin_return_address(0);
-#if 0
-	h->freers[1] = __builtin_return_address(1);
-	h->freers[2] = __builtin_return_address(2);
-	h->freers[3] = __builtin_return_address(3);
-#endif
-	if (h->magic != MEMORY_MAGIC) {
-	    fprintf(stderr, "Free of unallocated data at %p.\n", data);
-	    fprintf(stderr, "  allocated at %p %p %p %p.\n",
-		    h->callers[0], h->callers[1],
-		    h->callers[2], h->callers[3]);
-	    fprintf(stderr, "  freed at %p %p %p %p.\n",
-		    h->freers[0], h->freers[1],
-		    h->freers[2], h->freers[3]);
-	    fflush(stderr);
-	    *((volatile char *) 0) = 1;
-	    assert(h->inuse);
-	    return;
-	}
-	if (!h->inuse) {
-	    fprintf(stderr, "Free of already freed data at %p.\n", data);
-	    fprintf(stderr, "  allocated at %p %p %p %p.\n",
-		    h->callers[0], h->callers[1],
-		    h->callers[2], h->callers[3]);
-	    fprintf(stderr, "  freed at %p %p %p %p.\n",
-		    h->freers[0], h->freers[1],
-		    h->freers[2], h->freers[3]);
-	    fflush(stderr);
-	    *((volatile char *) 0) = 1;
-	    assert(h->inuse);
-	    return;
-	}
-	for (i = 0, c = ((unsigned char *) data) + h->size;
-	     i < 1024; i++, c++) {
-	    if (*c != 0xaf) {
-		fprintf(stderr, "Memory overrun at %p.\n", data);
-		fprintf(stderr, "  allocated at %p %p %p %p.\n",
-			h->callers[0], h->callers[1],
-			h->callers[2], h->callers[3]);
-		fprintf(stderr, "  freed at %p %p %p %p.\n",
-			h->freers[0], h->freers[1],
-			h->freers[2], h->freers[3]);
-		fflush(stderr);
-		*((volatile char *) 0) = 1;
-		assert(h->inuse);
-		return;
-	    }
-	}
-	memset(data, 0xde, h->size);
-	LOCK(&memtrk_mutex);
-	h->link.next->prev = h->link.prev;
-	h->link.prev->next = h->link.next;
-	h->inuse = false;
-	freecount--;
-	/* Add it to the free list, don't free it. */
-	h->link.next = &memfree;
-	h->link.prev = memfree.prev;
-	memfree.prev->next = &h->link;
-	memfree.prev = &h->link;
-	UNLOCK(&memtrk_mutex);
-    } else
-#endif
-	free(data);
-}
-
-static void
-gensio_exit_check_memory(void)
-{
-#ifdef TRACK_ALLOCED_MEMORY
-    struct memory_link *l;
-    unsigned char *d, *c;
-    unsigned int i;
-
-    l = memfree.next;
-    while (l != &memfree) {
-	/* link is first element */
-	struct memory_header *h = (struct memory_header *) l;
-
-	d = ((unsigned char *) h) + sizeof(*h);
-
-	if (h->magic != MEMORY_MAGIC) {
-	    fprintf(stderr, "Unallocated data in free list at %p.\n", d);
-	    fprintf(stderr, "  allocated at %p %p %p %p.\n",
-		    h->callers[0], h->callers[1],
-		    h->callers[2], h->callers[3]);
-	    fprintf(stderr, "  freed at %p %p %p %p.\n",
-		    h->freers[0], h->freers[1],
-		    h->freers[2], h->freers[3]);
-	    *((volatile char *) 0) = 1;
-	    assert(h->inuse);
-	    return;
-	}
-
-	for (i = 0, c = d; i < h->size; i++, c++) {
-	    if (*c != 0xde) {
-		fprintf(stderr, "Use after free at %p.\n", d);
-		fprintf(stderr, "  allocated at %p %p %p %p.\n",
-			h->callers[0], h->callers[1],
-			h->callers[2], h->callers[3]);
-		fprintf(stderr, "  freed at %p %p %p %p.\n",
-			h->freers[0], h->freers[1],
-			h->freers[2], h->freers[3]);
-		fflush(stderr);
-		*((volatile char *) 0) = 1;
-		assert(h->inuse);
-		return;
-	    }
-	}
-
-	for (i = 0, c = d + h->size; i < 1024; i++, c++) {
-	    if (*c != 0xaf) {
-		fprintf(stderr, "Memory overrun after free at %p.\n", d);
-		fprintf(stderr, "  allocated at %p %p %p %p.\n",
-			h->callers[0], h->callers[1],
-			h->callers[2], h->callers[3]);
-		fprintf(stderr, "  freed at %p %p %p %p.\n",
-			h->freers[0], h->freers[1],
-			h->freers[2], h->freers[3]);
-		fflush(stderr);
-		*((volatile char *) 0) = 1;
-		assert(h->inuse);
-		return;
-	    }
-	}
-
-	l = l->next;
-    }
-
-    l = memhead.next;
-    while (l != &memhead) {
-	/* link is first element */
-	struct memory_header *h = (struct memory_header *) l;
-
-	fprintf(stderr, "Lost memory at %p allocated at %p %p %p %p\n",
-		((char *) h) + sizeof(*h), h->callers[0], h->callers[1],
-		h->callers[2], h->callers[3]);
-	l = l->next;
-    }
-    if (freecount) {
-	fprintf(stderr, "Memory tracking done with %lu items\n", freecount);
-	fflush(stderr);
-	assert(!memtracking_abort_on_lost);
-    }
-#endif
+    gensio_i_free(d->mtrack, v);
 }
 
 static void
@@ -326,6 +102,7 @@ struct waiter_data {
 };
 
 typedef struct waiter_s {
+    struct gensio_os_funcs *o;
     struct selector_s *sel;
     int wake_sig;
     unsigned int count;
@@ -334,13 +111,13 @@ typedef struct waiter_s {
 } waiter_t;
 
 static waiter_t *
-alloc_waiter(struct selector_s *sel, int wake_sig)
+alloc_waiter(struct gensio_os_funcs *o, struct selector_s *sel, int wake_sig)
 {
     waiter_t *waiter;
 
-    waiter = malloc(sizeof(waiter_t));
+    waiter = o->zalloc(o, sizeof(waiter_t));
     if (waiter) {
-	memset(waiter, 0, sizeof(*waiter));
+	waiter->o = o;
 	waiter->wake_sig = wake_sig;
 	waiter->sel = sel;
 	pthread_mutex_init(&waiter->lock, NULL);
@@ -356,7 +133,7 @@ free_waiter(waiter_t *waiter)
     assert(waiter);
     assert(waiter->wts.next == waiter->wts.prev);
     pthread_mutex_destroy(&waiter->lock);
-    free(waiter);
+    waiter->o->free(waiter->o, waiter);
 }
 
 static void
@@ -470,19 +247,21 @@ wake_waiter(waiter_t *waiter)
 #else /* USE_PTHREADS */
 
 typedef struct waiter_s {
+    struct gensio_os_funcs *o;
     unsigned int count;
     struct selector_s *sel;
 } waiter_t;
 
 static waiter_t *
-alloc_waiter(struct selector_s *sel, int wake_sig)
+alloc_waiter(struct gensio_os_funcs *o, struct selector_s *sel, int wake_sig)
 {
     waiter_t *waiter;
 
-    waiter = malloc(sizeof(waiter_t));
-    if (waiter)
-	memset(waiter, 0, sizeof(*waiter));
-    waiter->sel = sel;
+    waiter = o->zalloc(sizeof(waiter_t));
+    if (waiter) {
+	waiter->o = o;
+	waiter->sel = sel;
+    }
     return waiter;
 }
 
@@ -490,7 +269,7 @@ static void
 free_waiter(waiter_t *waiter)
 {
     assert(waiter);
-    free(waiter);
+    waiter->o->free(waiter->o, waiter);
 }
 
 static int
@@ -942,7 +721,7 @@ gensio_unix_alloc_waiter(struct gensio_os_funcs *f)
 
     waiter->f = f;
 
-    waiter->sel_waiter = alloc_waiter(d->sel, d->wake_sig);
+    waiter->sel_waiter = alloc_waiter(f, d->sel, d->wake_sig);
     if (!waiter->sel_waiter) {
 	f->free(f, waiter);
 	return NULL;
@@ -1062,6 +841,7 @@ gensio_unix_free_funcs(struct gensio_os_funcs *f)
 {
     struct gensio_data *d = f->user_data;
 
+    gensio_memtrack_cleanup(d->mtrack);
     if (d->freesel)
 	sel_free_selector(d->sel);
     free(f->user_data);
@@ -1493,6 +1273,7 @@ gensio_unix_alloc_sel(struct selector_s *sel, int wake_sig)
     o->user_data = d;
     d->sel = sel;
     d->wake_sig = wake_sig;
+    d->mtrack = gensio_memtrack_alloc();
 
     o->zalloc = gensio_unix_zalloc;
     o->free = gensio_unix_free;
@@ -1711,6 +1492,5 @@ gensio_default_os_hnd(int wake_sig, struct gensio_os_funcs **o)
 void
 gensio_osfunc_exit(int rv)
 {
-    gensio_exit_check_memory();
     errtrig_exit(rv);
 }

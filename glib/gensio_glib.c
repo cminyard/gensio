@@ -37,18 +37,24 @@ struct gensio_data
     GCond cond; /* Global waiting threads. */
     struct gensio_list waiting_threads;
     struct gensio_wait_thread *main_context_owner;
+
+    struct gensio_memtrack *mtrack;
 };
 
 static void *
 gensio_glib_zalloc(struct gensio_os_funcs *f, unsigned int size)
 {
-    return g_malloc0(size);
+    struct gensio_data *d = f->user_data;
+
+    return gensio_i_zalloc(d->mtrack, size);
 }
 
 static void
 gensio_glib_free(struct gensio_os_funcs *f, void *data)
 {
-    g_free(data);
+    struct gensio_data *d = f->user_data;
+
+    gensio_i_free(d->mtrack, data);
 }
 
 struct gensio_lock {
@@ -1296,6 +1302,7 @@ gensio_glib_free_funcs(struct gensio_os_funcs *f)
 {
     struct gensio_data *d = f->user_data;
 
+    gensio_memtrack_cleanup(d->mtrack);
     g_cond_clear(&d->cond);
     g_mutex_clear(&d->lock);
     free(d);
@@ -1376,6 +1383,7 @@ gensio_glib_funcs_alloc(struct gensio_os_funcs **ro)
     memset(d, 0, sizeof(*d));
 
     o->user_data = d;
+    d->mtrack = gensio_memtrack_alloc();
     gensio_list_init(&d->waiting_threads);
     g_mutex_init(&d->lock);
     g_cond_init(&d->cond);

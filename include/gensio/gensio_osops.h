@@ -5,6 +5,12 @@
  *  SPDX-License-Identifier: LGPL-2.1-only
  */
 
+/*
+ * This file defines general OS internal handling.  It's not really a
+ * public include file, and is subject to change, but it useful if you
+ * write your own OS handler.
+ */
+
 #ifndef GENSIO_OSOPS_H
 #define GENSIO_OSOPS_H
 
@@ -132,5 +138,30 @@ int gensio_unix_do_exec(struct gensio_os_funcs *o,
 			int *rin, int *rout, int *rerr);
 
 #endif /* _WIN32 */
+
+/*
+ * Memory error testing.  If GENSIO_MEMTRACK is set in the
+ * environment, track all memory allocated and freed and validate it.
+ * To use this, allocate one, and pass it in to the alloc and free
+ * functions.  When done, after freeing all memory (we hope), call
+ * cleanup.  Cleanup will report if any memory wasn't freed.
+ *
+ * If GENSIO_MEMTRACK has "abort" in the string, it will abort on a
+ * memory error.  If it has "checkall" in the string, check all memory
+ * on every free.
+ */
+struct gensio_memtrack;
+
+GENSIO_DLL_PUBLIC
+struct gensio_memtrack *gensio_memtrack_alloc(void);
+
+GENSIO_DLL_PUBLIC
+void gensio_memtrack_cleanup(struct gensio_memtrack *m);
+
+GENSIO_DLL_PUBLIC
+void *gensio_i_zalloc(struct gensio_memtrack *m, unsigned int size);
+
+GENSIO_DLL_PUBLIC
+void gensio_i_free(struct gensio_memtrack *m, void *data);
 
 #endif /* GENSIO_OSOPS_H */

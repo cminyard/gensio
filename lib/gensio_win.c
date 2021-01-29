@@ -191,6 +191,8 @@ struct gensio_data {
     DWORD timerthid;
     WSAEVENT timer_wakeev;
 
+    struct gensio_memtrack *mtrack;
+
     int (*orig_recv)(struct gensio_iod *iod, void *buf, gensiods buflen,
 		     gensiods *rcount, int gflags);
     int (*orig_send)(struct gensio_iod *iod,
@@ -208,6 +210,22 @@ struct gensio_data {
     int (*orig_connect)(struct gensio_iod *iod,
 			const struct gensio_addr *addr);
 };
+
+static void *
+win_zalloc(struct gensio_os_funcs *o, unsigned int size)
+{
+    struct gensio_data *d = o->user_data;
+
+    return gensio_i_zalloc(d->mtrack, size);
+}
+
+static void
+win_free(struct gensio_os_funcs *o, void *v)
+{
+    struct gensio_data *d = o->user_data;
+
+    gensio_i_free(d->mtrack, v);
+}
 
 #if 0
 static void
@@ -332,234 +350,6 @@ win_alloc_iod(struct gensio_os_funcs *o, unsigned int size, int fd,
     DeleteCriticalSection(&iod->lock);
     o->free(o, iod);
     return rv;
-}
-
-#ifdef ENABLE_INTERNAL_TRACE
-#define MEM_MAGIC 0xddf0983aec9320b0
-#define MEM_BUFFER 32
-struct mem_header {
-    uint64_t magic;
-    struct gensio_link link;
-    int32_t freed;
-    int32_t size;
-    void *alloc_bt[4];
-    void* free_bt[4];
-    unsigned char filler[MEM_BUFFER];
-};
-
-static void
-mem_fill(unsigned char *d)
-{
-    unsigned int i;
-
-    for (i = 0; i < MEM_BUFFER; i++)
-	d[i] = 0xfd;
-}
-
-static BOOL
-mem_check(unsigned char *d)
-{
-    unsigned int i;
-
-    for (i = 0; i < MEM_BUFFER; i++) {
-	if (d[i] != 0xfd)
-	    return FALSE;
-    }
-    return TRUE;
-}
-
-static void
-mem_debug_init(struct gensio_data *d)
-{
-}
-
-static void
-mem_debug_cleanup(struct gensio_data *d)
-{
-}
-
-static void
-check_mem(struct mem_header *m, int32_t freed)
-{
-    unsigned char *b = ((unsigned char *) m) + sizeof(*m);
-
-    if (m->magic != MEM_MAGIC)
-	*((int *) 0) = 1;
-    if (m->freed != freed)
-	*((int *) 0) = 2;
-    if (!mem_check(m->filler))
-	*((int *) 0) = 3;
-    if (!mem_check(b + m->size))
-	*((int *) 0) = 4;
-}
-#else
-#define mem_debug_init(d)
-#define mem_debug_cleanup(d)
-#endif
-
-static void
-win_finish_free(struct gensio_os_funcs *o)
-{
-    struct gensio_data *d = o->user_data;
-
-    if (d->timerth) {
-	assert(WSASetEvent(d->timer_wakeev));
-	WaitForSingleObject(d->timerth, INFINITE);
-    }
-    if (d->waiter)
-	CloseHandle(d->waiter);
-    DeleteCriticalSection(&d->lock);
-    DeleteCriticalSection(&d->timer_lock);
-    DeleteCriticalSection(&d->once_lock);
-    mem_debug_cleanup(d);
-    free(d);
-    free(o);
-    WSACleanup();
-}
-
-#ifdef ENABLE_INTERNAL_TRACE
-static bool memtracking_ready;
-static bool memtracking_abort_on_lost;
-CRITICAL_SECTION mem_lock;
-static struct gensio_list alloced_mem;
-static struct gensio_list freed_mem;
-
-
-BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
-{
-    switch (fdwReason)
-    {
-    case DLL_PROCESS_ATTACH:
-	{
-	    char *s = getenv("GENSIO_MEMTRACK");
-
-	    gensio_list_init(&alloced_mem);
-	    gensio_list_init(&freed_mem);
-	    if (s) {
-		memtracking_ready = true;
-		if (strstr(s, "abort"))
-		    memtracking_abort_on_lost = true;
-	    }
-	    InitializeCriticalSection(&mem_lock);
-	    break;
-	}
-
-    case DLL_PROCESS_DETACH:
-	DeleteCriticalSection(&mem_lock);
-	break;
-
-    default:
-	break;
-    }
-
-    return TRUE;
-}
-#endif
-
-static void *
-win_zalloc(struct gensio_os_funcs *o, unsigned int size)
-{
-    unsigned char *b;
-#ifdef ENABLE_INTERNAL_TRACE
-    if (memtracking_ready) {
-	struct mem_header *m;
-
-	b = malloc(size + sizeof(*m) + MEM_BUFFER);
-	if (!b)
-	    return NULL;
-	m = (struct mem_header*)b;
-	memset(m, 0, sizeof(*m));
-	gensio_list_link_init(&m->link);
-	m->magic = MEM_MAGIC;
-	m->freed = 0;
-	m->size = size;
-#if _MSC_VER
-	m->alloc_bt[0] = _ReturnAddress();
-#else
-	m->alloc_bt[0] = __builtin_return_address(0);
-#if 0
-	m->alloc_bt[1] = __builtin_return_address(1);
-	m->alloc_bt[2] = __builtin_return_address(2);
-	m->alloc_bt[3] = __builtin_return_address(3);
-#endif
-#endif
-	b += sizeof(struct mem_header);
-	mem_fill(m->filler);
-	mem_fill(b + size);
-	EnterCriticalSection(&mem_lock);
-	gensio_list_add_tail(&alloced_mem, &m->link);
-	LeaveCriticalSection(&mem_lock);
-    } else
-#endif
-    b = malloc(size);
-    if (b)
-	memset(b, 0, size);
-    return b;
-}
-
-static void
-win_free(struct gensio_os_funcs *o, void *data)
-{
-#ifdef ENABLE_INTERNAL_TRACE
-    if (memtracking_ready) {
-	unsigned char* b = data;
-	struct mem_header* m = (struct mem_header*)(b - sizeof(*m));
-#if 0
-	struct gensio_link* l;
-#endif
-
-#if _MSC_VER
-	m->free_bt[0] = _ReturnAddress();
-#else
-	m->free_bt[0] = __builtin_return_address(0);
-#if 0
-	m->free_bt[1] = __builtin_return_address(1);
-	m->free_bt[2] = __builtin_return_address(2);
-	m->free_bt[3] = __builtin_return_address(3);
-#endif
-#endif
-	check_mem(m, 0);
-	EnterCriticalSection(&mem_lock);
-	gensio_list_rm(&alloced_mem, &m->link);
-#if 0 /* The following does more serious but costly memory checking*/
-	gensio_list_for_each(&alloced_mem, l) {
-	    struct mem_header* m2 = gensio_container_of(l, struct mem_header,
-		link);
-
-	    check_mem(m2, 0);
-	}
-	gensio_list_for_each(&freed_mem, l) {
-	    struct mem_header* m2 = gensio_container_of(l, struct mem_header,
-		link);
-
-	    check_mem(m2, 1);
-	}
-#endif
-	gensio_list_add_tail(&freed_mem, &m->link);
-	m->freed = 1;
-	LeaveCriticalSection(&mem_lock);
-    } else
-#endif
-    free(data);
-}
-
-static void
-check_memory(void)
-{
-#ifdef ENABLE_INTERNAL_TRACE
-    struct gensio_link* l;
-
-    gensio_list_for_each(&alloced_mem, l) {
-	struct mem_header* m = gensio_container_of(l, struct mem_header,
-	    link);
-
-	fprintf(stderr, "Lost memory at %p allocated at %p %p %p %p\n",
-	    ((char*)m) + sizeof(*m), m->alloc_bt[0], m->alloc_bt[1],
-	    m->alloc_bt[2], m->alloc_bt[3]);
-    }
-    if (memtracking_abort_on_lost && !gensio_list_empty(&alloced_mem))
-	assert(0);
-#endif
 }
 
 struct gensio_lock {
@@ -3128,6 +2918,26 @@ win_get_random(struct gensio_os_funcs *o,
     return err;
 }
 
+static void
+win_finish_free(struct gensio_os_funcs *o)
+{
+    struct gensio_data *d = o->user_data;
+
+    gensio_memtrack_cleanup(d->mtrack);
+    if (d->timerth) {
+	assert(WSASetEvent(d->timer_wakeev));
+	WaitForSingleObject(d->timerth, INFINITE);
+    }
+    if (d->waiter)
+	CloseHandle(d->waiter);
+    DeleteCriticalSection(&d->lock);
+    DeleteCriticalSection(&d->timer_lock);
+    DeleteCriticalSection(&d->once_lock);
+    free(d);
+    free(o);
+    WSACleanup();
+}
+
 struct gensio_os_funcs *
 gensio_win_funcs_alloc(void)
 {
@@ -3152,6 +2962,8 @@ gensio_win_funcs_alloc(void)
     gensio_list_init(&d->waiting_iods);
     gensio_list_init(&d->all_iods);
     theap_init(&d->timer_heap);
+
+    d->mtrack = gensio_memtrack_alloc();
 
     o->user_data = d;
 
@@ -3326,6 +3138,5 @@ gensio_default_os_hnd(int wake_sig, struct gensio_os_funcs **o)
 void
 gensio_osfunc_exit(int rv)
 {
-    check_memory();
     exit(rv);
 }

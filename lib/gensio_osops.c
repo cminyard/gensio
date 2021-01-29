@@ -1571,3 +1571,265 @@ gensio_unix_do_exec(struct gensio_os_funcs *o,
 }
 
 #endif /* _WIN32 */
+
+#ifdef ENABLE_INTERNAL_TRACE
+
+#include <pthread_handler.h>
+
+#define TRACEBACK_DEPTH 1
+
+#define MEM_MAGIC 0xddf0983aec9320b0
+#define MEM_BUFFER 32
+struct mem_header {
+    uint64_t magic;
+    struct gensio_link link;
+    int32_t freed;
+    int32_t size;
+    void *alloc_bt[4];
+    void* free_bt[4];
+    unsigned char filler[MEM_BUFFER];
+};
+
+struct gensio_memtrack {
+    bool abort_on_err;
+    bool check_on_all;
+    lock_type lock;
+    struct gensio_list alloced;
+    struct gensio_list freed;
+};
+
+static void
+mem_fill(unsigned char *d)
+{
+    unsigned int i;
+
+    for (i = 0; i < MEM_BUFFER; i++)
+	d[i] = 0xfd;
+}
+
+static bool
+mem_check(unsigned char *d)
+{
+    unsigned int i;
+
+    for (i = 0; i < MEM_BUFFER; i++) {
+	if (d[i] != 0xfd)
+	    return false;
+    }
+    return true;
+}
+
+static void
+print_meminfo(const char *msg, struct mem_header *h)
+{
+    fprintf(stderr, "%s at %p allocated at %p %p %p %p\n", msg,
+	    ((char *) h) + sizeof(*h), h->alloc_bt[0], h->alloc_bt[1],
+	    h->alloc_bt[2], h->alloc_bt[3]);
+    if (h->freed)
+	fprintf(stderr, "  freed at at %p %p %p %p\n",
+		h->free_bt[0], h->free_bt[1],
+		h->free_bt[2], h->free_bt[3]);
+}
+
+static bool
+check_mem(struct gensio_memtrack *m, struct mem_header *h, int32_t freed)
+{
+    unsigned char *b = ((unsigned char *) h) + sizeof(*h);
+    bool err = false;
+
+    if (h->magic != MEM_MAGIC) {
+	fprintf(stderr, "Magic mismatch at %p\n", h);
+	err = true;
+    } else if (h->freed != freed) {
+	if (freed)
+	    print_meminfo("Free in allocated list", h);
+	else
+	    print_meminfo("Double free", h);
+	err = true;
+    } else if (!mem_check(h->filler)) {
+	print_meminfo("Memory underrun", h);
+	err = true;
+    } else if (!mem_check(b + h->size)) {
+	print_meminfo("Memory overrun", h);
+	err = true;
+    }
+
+    assert(!(err && m->abort_on_err));
+
+    return err;
+}
+
+struct gensio_memtrack *
+gensio_memtrack_alloc(void)
+{
+    char *s = getenv("GENSIO_MEMTRACK");
+    struct gensio_memtrack *m;
+
+    if (!s)
+	return NULL;
+
+    m = malloc(sizeof(*m));
+    if (!m)
+	return NULL;
+
+    LOCK_INIT(&m->lock);
+    gensio_list_init(&m->alloced);
+    gensio_list_init(&m->freed);
+
+    if (strstr(s, "abort"))
+	m->abort_on_err = true;
+    if (strstr(s, "checkall"))
+	m->check_on_all = true;
+
+    return m;
+}
+
+void
+gensio_memtrack_cleanup(struct gensio_memtrack *m)
+{
+    struct gensio_link* l;
+
+    if (!m)
+	return;
+
+    gensio_list_for_each(&m->alloced, l) {
+	struct mem_header *h = gensio_container_of(l, struct mem_header,
+						   link);
+
+	print_meminfo("Lost memory", h);
+    }
+    assert(!(m->abort_on_err && !gensio_list_empty(&m->alloced)));
+
+    LOCK_DESTROY(&m->lock);
+    free(m);
+}
+
+void *
+gensio_i_zalloc(struct gensio_memtrack *m, unsigned int size)
+{
+    unsigned char *b;
+
+    if (do_errtrig())
+	return NULL;
+
+    if (m) {
+	struct mem_header *h;
+
+	b = malloc(size + sizeof(*h) + MEM_BUFFER);
+	if (!b)
+	    return NULL;
+	h = (struct mem_header *) b;
+	memset(h, 0, sizeof(*h));
+	gensio_list_link_init(&h->link);
+	h->magic = MEM_MAGIC;
+	h->freed = 0;
+	h->size = size;
+#if _MSC_VER
+	h->alloc_bt[0] = _ReturnAddress();
+#else
+	h->alloc_bt[0] = __builtin_return_address(0);
+#if TRACEBACK_DEPTH > 1
+	h->alloc_bt[1] = __builtin_return_address(1);
+#if TRACEBACK_DEPTH > 2
+	h->alloc_bt[2] = __builtin_return_address(2);
+#if TRACEBACK_DEPTH > 3
+	h->alloc_bt[3] = __builtin_return_address(3);
+#endif
+#endif
+#endif
+#endif
+	b += sizeof(struct mem_header);
+	mem_fill(h->filler);
+	mem_fill(b + size);
+	LOCK(&m->lock);
+	gensio_list_add_tail(&m->alloced, &h->link);
+	UNLOCK(&m->lock);
+    } else {
+	b = malloc(size);
+    }
+    if (b)
+	memset(b, 0, size);
+    return b;
+}
+
+void
+gensio_i_free(struct gensio_memtrack *m, void *data)
+{
+    if (m) {
+	unsigned char *b = data;
+	struct mem_header *h = (struct mem_header*)(b - sizeof(*h));
+	struct gensio_link *l;
+	bool err;
+
+#if _MSC_VER
+	h->free_bt[0] = _ReturnAddress();
+#else
+	h->free_bt[0] = __builtin_return_address(0);
+#if TRACEBACK_DEPTH > 1
+	h->free_bt[1] = __builtin_return_address(1);
+#if TRACEBACK_DEPTH > 2
+	h->free_bt[2] = __builtin_return_address(2);
+#if TRACEBACK_DEPTH > 3
+	h->free_bt[3] = __builtin_return_address(3);
+#endif
+#endif
+#endif
+#endif
+	err = check_mem(m, h, 0);
+	if (!err) {
+	    LOCK(&m->lock);
+	    gensio_list_rm(&m->alloced, &h->link);
+
+	    if (m->check_on_all) {
+		/* The following does more serious but costly memory checking */
+		gensio_list_for_each(&m->alloced, l) {
+		    struct mem_header *h2 = gensio_container_of(l,
+							    struct mem_header,
+							    link);
+
+		    check_mem(m, h2, 0);
+		}
+		gensio_list_for_each(&m->freed, l) {
+		    struct mem_header *h2 = gensio_container_of(l,
+							    struct mem_header,
+							    link);
+
+		    check_mem(m, h2, 1);
+		}
+	    }
+
+	    gensio_list_add_tail(&m->freed, &h->link);
+	    h->freed = 1;
+	    UNLOCK(&m->lock);
+	}
+    } else {
+	free(data);
+    }
+}
+
+#else /* ENABLE_INTERNAL_TRACE */
+
+struct gensio_memtrack *
+gensio_memtrack_alloc(void)
+{
+    return NULL;
+}
+
+void
+gensio_memtrack_cleanup(struct gensio_memtrack *m)
+{
+}
+
+void *
+gensio_i_zalloc(struct gensio_memtrack *m, unsigned int size)
+{
+    return malloc(size);
+}
+
+void
+gensio_i_free(struct gensio_memtrack *m, void *data)
+{
+    free(data);
+}
+
+#endif /* ENABLE_INTERNAL_TRACE */
