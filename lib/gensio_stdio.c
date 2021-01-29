@@ -244,8 +244,10 @@ stdion_finish_read(struct stdion_channel *schan, int err)
 	schan->read_enabled = false;
 	schan->data_pending_len = 0;
 	schan->ll_err = err;
-	if (!schan->outfd_regfile)
+	if (!schan->outfd_regfile) {
 	    nadata->o->set_read_handler(schan->out_iod, false);
+	    nadata->o->set_except_handler(schan->out_iod, false);
+	}
 	do {
 	    stdiona_unlock(nadata);
 	    gensio_cb(io, GENSIO_EVENT_READ, err, NULL, NULL, NULL);
@@ -271,8 +273,10 @@ stdion_finish_read(struct stdion_channel *schan, int err)
 
     schan->in_read = false;
 
-    if (schan->read_enabled && !schan->outfd_regfile)
+    if (schan->read_enabled && !schan->outfd_regfile) {
 	nadata->o->set_read_handler(schan->out_iod, true);
+	nadata->o->set_except_handler(schan->out_iod, true);
+    }
 }
 
 /* FIXME - This should probably be configurable. */
@@ -346,7 +350,8 @@ check_waitpid(struct stdion_channel *schan)
 	goto close_anyway;
     nadata->waitpid_retries++;
     stdiona_ref(nadata);
-    o->start_timer(nadata->waitpid_timer, &timeout);
+    rv = o->start_timer(nadata->waitpid_timer, &timeout);
+    assert(rv == 0);
     nadata->closing_chan = schan;
 }
 
@@ -424,6 +429,7 @@ stdion_deferred_op(struct gensio_runner *runner, void *cbdata)
 	    }
 	} else {
 	    nadata->o->set_read_handler(schan->out_iod, schan->read_enabled);
+	    nadata->o->set_except_handler(schan->out_iod, schan->read_enabled);
 	}
 	if (schan->infd_regfile) {
 	    schan->deferred_write = schan->xmit_enabled;
@@ -533,6 +539,7 @@ stdion_set_read_callback_enable(struct gensio *io, bool enabled)
 	/* Nothing to do here. */
     } else {
 	nadata->o->set_read_handler(schan->out_iod, enabled);
+	nadata->o->set_except_handler(schan->out_iod, enabled);
     }
  out_unlock:
     stdiona_unlock(nadata);
@@ -578,13 +585,21 @@ stdion_read_ready(struct gensio_iod *iod, void *cbdata)
 	stdiona_unlock(nadata);
 	return;
     }
-    if (!schan->outfd_regfile)
+    if (!schan->outfd_regfile) {
 	nadata->o->set_read_handler(schan->out_iod, false);
+	nadata->o->set_except_handler(schan->out_iod, false);
+    }
     if (!schan->ll_err) {
 	schan->in_read = true;
 	stdion_finish_read(schan, stdion_do_read(nadata, schan));
     }
     stdiona_unlock(nadata);
+}
+
+static void
+stdion_read_except_ready(struct gensio_iod *iod, void *cbdata)
+{
+    stdion_read_ready(iod, cbdata);
 }
 
 static void
@@ -701,7 +716,8 @@ stdion_open(struct gensio *io, gensio_done_err open_done, void *open_data)
 
     if (!schan->outfd_regfile) {
 	err = nadata->o->set_fd_handlers(schan->out_iod, schan,
-					 stdion_read_ready, NULL, NULL,
+					 stdion_read_ready, NULL,
+					 stdion_read_except_ready,
 					 stdion_fd_cleared);
 	if (err)
 	    goto out_err;
