@@ -706,6 +706,7 @@ gensio_win_commport_control(struct gensio_os_funcs *o, int op, bool get,
 #else /* _WIN32 */
 
 #include <fcntl.h>
+#include <sys/stat.h>
 
 struct stdio_mode {
     int orig_file_flags;
@@ -1442,19 +1443,23 @@ int
 gensio_unix_get_bufcount(struct gensio_os_funcs *o,
 			 int fd, int whichbuf, gensiods *rcount)
 {
-    int rv, count;
+    int rv = 0, count;
 
-    switch (whichbuf) {
-    case GENSIO_IN_BUF:
-	rv = ioctl(fd, TIOCINQ, &count);
-	break;
+    if (isatty(fd)) {
+	switch (whichbuf) {
+	case GENSIO_IN_BUF:
+	    rv = ioctl(fd, TIOCINQ, &count);
+	    break;
 
-    case GENSIO_OUT_BUF:
-	rv = ioctl(fd, TIOCOUTQ, &count);
-	break;
+	case GENSIO_OUT_BUF:
+	    rv = ioctl(fd, TIOCOUTQ, &count);
+	    break;
 
-    default:
-	return GE_NOTSUP;
+	default:
+	    return GE_NOTSUP;
+	}
+    } else {
+	count = 0; /* Doesn't matter for anything else. */
     }
     if (rv)
 	rv = gensio_os_err_to_err(o, errno);
