@@ -981,11 +981,12 @@ glib_err_to_err(struct gensio_os_funcs *o, GError *ierr)
     case G_IO_CHANNEL_ERROR_IO:		err = GE_IOERR; break;
     case G_IO_CHANNEL_ERROR_NOSPC:	err = GE_NOMEM; break;
     case G_IO_CHANNEL_ERROR_NXIO:	err = GE_NOTFOUND; break;
+
+    case G_IO_CHANNEL_ERROR_FAILED: /* This happens on remote close */
     case G_IO_CHANNEL_ERROR_PIPE:	err = GE_REMCLOSE; break;
 
     case G_IO_CHANNEL_ERROR_ISDIR:
     case G_IO_CHANNEL_ERROR_OVERFLOW:
-    case G_IO_CHANNEL_ERROR_FAILED:
     default:
 	err = GE_OSERR;
     }
