@@ -66,6 +66,8 @@ struct oom_tests {
 bool verbose;
 bool debug;
 
+bool use_glib = false;
+
 #ifdef _WIN32
 #include <windows.h>
 #define waitsigp NULL
@@ -1590,12 +1592,14 @@ run_oom_test(struct oom_tests *test, long count, int *exitcode, bool close_acc)
 	if (rv)
 	    goto out_err;
 
-	constr = gensio_alloc_sprintf(o, "stdio,%s%s -i 'stdio(self)' '%s%s'",
+	constr = gensio_alloc_sprintf(o, "stdio,%s%s%s -i 'stdio(self)' '%s%s'",
 				      gensiot, test->conacc ? " -a" : "",
+				      use_glib ? " -g" : "",
 				      test->connecter, intstr);
     } else {
-	constr = gensio_alloc_sprintf(o, "stdio,%s -i 'stdio(self)' '%s'",
-				      gensiot, test->connecter);
+	constr = gensio_alloc_sprintf(o, "stdio,%s%s -i 'stdio(self)' '%s'",
+				      gensiot, use_glib ? " -g" : "",
+				      test->connecter);
     }
     if (!constr) {
 	rv = GE_NOMEM;
@@ -1703,8 +1707,10 @@ run_oom_acc_test(struct oom_tests *test, long count, int *exitcode,
 	return gensio_os_err_to_err(o, errno);
     }
 
-    constr = gensio_alloc_sprintf(o, "stdio, %s -v -a -p -i 'stdio(self)' '%s'",
-				  gensiot, test->accepter);
+    constr = gensio_alloc_sprintf(o,
+				  "stdio,%s%s -v -a -p -i 'stdio(self)' '%s'",
+				  gensiot, use_glib ? " -g" : "",
+				  test->accepter);
     if (!constr) {
 	err = GE_NOMEM;
 	goto out_err;
@@ -2011,7 +2017,6 @@ main(int argc, char *argv[])
     int testnr = -1, numtests = 0, testnrstart = -1, testnrend = MAX_LOOPS;
     gensio_time zerotime = { 0, 0 };
     struct oom_tests user_test;
-    bool use_glib = false;
     bool list_tests = false;
 
     memset(&user_test, 0, sizeof(user_test));
