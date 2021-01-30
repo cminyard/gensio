@@ -1307,7 +1307,7 @@ gensio_glib_open_dev(struct gensio_os_funcs *o, const char *iname, int options,
     else if (options & GENSIO_OPEN_OPTION_WRITEABLE)
 	flags |= O_WRONLY;
 
-    fd = open(name, flags);
+    fd = open(iname, flags);
     if (fd == -1)
 	return gensio_os_err_to_err(o, errno);
     err = o->add_iod(o, GENSIO_IOD_DEV, fd, riod);
