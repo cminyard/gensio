@@ -46,7 +46,7 @@ if(ENABLE_EPOLL)
   CHECK_INCLUDE_FILE(sys/epoll.h HAVE_EPOLL_PWAIT)
 endif()
 
-option(ENABLE_GLIB "Enable GLIB support" ON)
+option(ENABLE_GLIB "Enable GLIB support" UNIX)
 if(ENABLE_GLIB)
   pkg_check_modules(GLIB glib-2.0)
   if(GLIB_FOUND)

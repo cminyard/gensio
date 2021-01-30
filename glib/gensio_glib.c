@@ -15,12 +15,16 @@
 #include <gensio/gensio_list.h>
 #include <gensio/gensio_glib.h>
 #include <gensio/gensio_err.h>
+#include <gensio/gensio.h>
 #include <gensio/gensio_osops.h>
 #include <gensio/gensio_osops_addrinfo.h>
 #include <gensio/gensio_osops_stdsock.h>
 
 #include <glib.h>
 
+#ifdef _WIN32
+#include <windows.h>
+#else
 #include <unistd.h>
 #include <errno.h>
 #include <sys/types.h>
@@ -28,6 +32,7 @@
 #include <fcntl.h>
 #include <sys/wait.h>
 #include <pthread.h>
+#endif
 
 struct gensio_data
 {
@@ -122,7 +127,12 @@ struct gensio_iod_glib {
 
     struct stdio_mode *mode;
 
+#ifdef _WIN32
+    HANDLE h;
+    struct gensio_win_commport *comm;
+#else
     struct gensio_unix_termios *termios;
+#endif
 };
 
 #define i_to_glib(i) gensio_container_of(i, struct gensio_iod_glib, r);
@@ -830,6 +840,9 @@ static int
 gensio_glib_wait_intr_sigmask(struct gensio_waiter *w, unsigned int count,
 			      gensio_time *timeout, void *sigmask)
 {
+#ifdef _WIN32
+    return gensio_glib_wait(w, count, timeout);
+#else
     int rv;
     sigset_t origmask;
 
@@ -840,6 +853,7 @@ gensio_glib_wait_intr_sigmask(struct gensio_waiter *w, unsigned int count,
 	pthread_sigmask(SIG_SETMASK, &origmask, NULL);
 
     return rv;
+#endif
 }
 
 static void
@@ -866,11 +880,25 @@ gensio_glib_add_iod(struct gensio_os_funcs *o, enum gensio_iod_type type,
     iod->fd = fd;
     iod->type = type;
 
+#ifdef _WIN32
+    /*
+     * Windows doesn't have a way to turn a Handle into a glib io
+     * channel.  We could do it ourselves like gensio_win.c has
+     * separate threads to handle, but it would be a lot of work.  So
+     * just don't do this for now.
+     *
+     * So I have stopped here and in the open_dev function.  I'll
+     * leave in the stuff I've done so far, but disable Windows
+     * support in the config.
+     */
+#error "No Windows support for glib"
+#else
     iod->chan = g_io_channel_unix_new(iod->fd);
     if (!iod->chan) {
 	o->free(o, iod);
 	return GE_NOMEM;
     }
+#endif
     g_io_channel_set_encoding(iod->chan, NULL, NULL);
 
     g_mutex_init(&iod->lock);
@@ -929,16 +957,39 @@ gensio_glib_iod_control(struct gensio_iod *iiod, int op, bool get, intptr_t val)
     if (iod->type != GENSIO_IOD_DEV)
 	return GE_NOTSUP;
 
+#ifdef _WIN32
+    return gensio_win_commport_control(iiod->f, op, get, val, &iod->comm,
+				       iod->h);
+#else
     return gensio_unix_termios_control(iiod->f, op, get, val, &iod->termios,
 				       iod->fd);
+#endif
 }
 
 static int
 gensio_glib_set_non_blocking(struct gensio_iod *iiod)
 {
     struct gensio_iod_glib *iod = i_to_glib(iiod);
+    int rv = 0;
 
-    return gensio_unix_do_nonblock(iiod->f, iod->fd, &iod->mode);
+#ifdef _WIN32
+    if (iod->type == GENSIO_IOD_SOCKET) {
+	unsigned long flags = 1;
+
+	rv = ioctlsocket(iod->fd, FIONBIO, &flags);
+	if (rv)
+	    rv = gensio_os_err_to_err(iiod->f, errno);
+    } else {
+	GIOFlags flags = g_io_channel_get_flags(iod->chan);
+
+	flags |= G_IO_FLAG_NONBLOCK;
+	g_io_channel_set_flags(iod->chan, flags, NULL);
+    }
+#else
+    rv = gensio_unix_do_nonblock(iiod->f, iod->fd, &iod->mode);
+#endif
+
+    return rv;
 }
 
 static int
@@ -951,13 +1002,24 @@ gensio_glib_close(struct gensio_iod **iodp)
 
     assert(iodp);
     assert(!iod->handlers_set);
+#ifdef _WIN32
+    gensio_win_stdio_cleanup(o, iod->h, &iod->mode);
+    gensio_win_cleanup_commport(o, iod->h, &iod->comm);
+#else
     gensio_unix_cleanup_termios(o, &iod->termios, iod->fd);
     gensio_unix_do_cleanup_nonblock(o, iod->fd, &iod->mode);
+#endif
 
     if (iod->type == GENSIO_IOD_SOCKET) {
 	err = o->close_socket(iiod);
     } else if (iod->type != GENSIO_IOD_STDIO) {
+#ifdef _WIN32
+	CloseHandle(iod->h);
+#else
 	err = close(iod->fd);
+	if (err == -1)
+	    err = gensio_os_err_to_err(o, errno);
+#endif
 #ifdef ENABLE_INTERNAL_TRACE
 	/* Close should never fail, but don't crash in production builds. */
 	if (err) {
@@ -965,8 +1027,6 @@ gensio_glib_close(struct gensio_iod **iodp)
 	    assert(0);
 	}
 #endif
-	if (err == -1)
-	    err = gensio_os_err_to_err(o, errno);
     }
     o->release_iod(iiod);
     *iodp = NULL;
@@ -1095,6 +1155,18 @@ gensio_glib_read(struct gensio_iod *iiod, void *buf, gensiods buflen,
 static bool
 gensio_glib_is_regfile(struct gensio_os_funcs *o, intptr_t fd)
 {
+#ifdef _WIN32
+    switch (fd) {
+    case 0:
+	return GetFileType(GetStdHandle(STD_INPUT_HANDLE)) == FILE_TYPE_DISK;
+    case 1:
+	return GetFileType(GetStdHandle(STD_OUTPUT_HANDLE)) == FILE_TYPE_DISK;
+    case 2:
+	return GetFileType(GetStdHandle(STD_ERROR_HANDLE)) == FILE_TYPE_DISK;
+    }
+
+    return GetFileType((HANDLE) fd) == FILE_TYPE_DISK;
+#else
     int err;
     struct stat statb;
 
@@ -1103,14 +1175,21 @@ gensio_glib_is_regfile(struct gensio_os_funcs *o, intptr_t fd)
 	return false;
 
     return (statb.st_mode & S_IFMT) == S_IFREG;
+#endif
 }
 
 static int
 gensio_glib_bufcount(struct gensio_iod *iiod, int whichbuf, gensiods *count)
 {
+#ifdef _WIN32
+    /* FIXME - any way to do this? */
+    *count = 0;
+    return 0;
+#else
     struct gensio_iod_glib *iod = i_to_glib(iiod);
 
     return gensio_unix_get_bufcount(iiod->f, iod->fd, whichbuf, count);
+#endif
 }
 
 static void
@@ -1127,17 +1206,97 @@ gensio_glib_makeraw(struct gensio_iod *iiod)
 {
     struct gensio_iod_glib *iod = i_to_glib(iiod);
 
+#ifdef _WIN32
+    if (iod->type == GENSIO_IOD_STDIO) {
+	if (iod->fd != 0)
+	    /*
+	     * Nothing to do for stdout. Disabling ENABLE_PROCESSED_OUTPUT
+	     * is not a good thing to do.
+	     */
+	    return 0;
+
+	return gensio_win_stdio_makeraw(iiod->f, iod->h, &iod->mode);
+    } else if (iod->type == GENSIO_IOD_DEV) {
+	return 0; /* Nothing to do. */
+    } else if (iod->type == GENSIO_IOD_PIPE) {
+	return 0; /* Nothing to do. */
+    }
+
+    return GE_NOTSUP;
+#else
     if (iod->fd == 1 || iod->fd == 2)
 	/* Only set this for stdin or other files. */
 	return 0;
 
     return gensio_unix_setup_termios(iiod->f, iod->fd, &iod->termios);
+#endif
 }
 
 static int
-gensio_glib_open_dev(struct gensio_os_funcs *o, const char *name, int options,
+gensio_glib_open_dev(struct gensio_os_funcs *o, const char *iname, int options,
 		    struct gensio_iod **riod)
 {
+#ifdef _WIN32
+    int rv;
+    HANDLE h = NULL;
+    COMMPROP props;
+    char *name = gensio_alloc_sprintf(o, "\\\\.\\%s", iname);
+    struct gensio_iod *iiod = NULL;
+    struct gensio_iod_glib *iod;
+
+    if (!name)
+	return GE_NOMEM;
+
+    h = CreateFileA(name, GENERIC_READ | GENERIC_WRITE, 0, NULL,
+		    OPEN_EXISTING, FILE_FLAG_OVERLAPPED, NULL);
+    free(name);
+    if (!h)
+	goto out_err_conv;
+
+    if (GetFileType(h) != FILE_TYPE_CHAR) {
+	rv = GE_NOTSUP;
+	goto out_err;
+    }
+
+    rv = o->add_iod(o, GENSIO_IOD_DEV, (intptr_t) h, &iiod);
+    if (rv)
+	goto out_err;
+    iod = i_to_glib(iiod);
+
+    if (!GetCommProperties(h, &props))
+	goto out_err_conv;
+
+    switch (props.dwProvSubType) {
+    case PST_MODEM:
+    case PST_RS232:
+    case PST_RS422:
+    case PST_RS423:
+    case PST_RS449:
+	rv = gensio_win_setup_commport(o, h, &iod->comminfo,
+				       &biod->extrah);
+	if (rv)
+	    goto out_err;
+	break;
+    case PST_PARALLELPORT:
+	break;
+    default:
+	rv = GE_NOTSUP;
+	goto out_err;
+    }
+
+    *riod = iiod;
+
+    return 0;
+
+ out_err_conv:
+    rv = gensio_os_err_to_err(o, GetLastError());
+ out_err:
+    if (iod)
+	o->close(iod);
+    else if (h)
+	CloseHandle(h);
+    return rv;
+#else
     int flags, fd, err;
 
     flags = O_NONBLOCK | O_NOCTTY;
@@ -1155,6 +1314,17 @@ gensio_glib_open_dev(struct gensio_os_funcs *o, const char *name, int options,
     if (err)
 	close(fd);
     return err;
+#endif
+}
+
+static void
+generic_close(intptr_t fd)
+{
+#ifdef _WIN32
+    CloseHandle((handle) fd);
+#else
+    close(fd);
+#endif
 }
 
 static int
@@ -1167,14 +1337,34 @@ gensio_glib_exec_subprog(struct gensio_os_funcs *o,
 			struct gensio_iod **rstderr)
 {
     int err;
-    int infd = -1, outfd = -1, errfd = -1;
     struct gensio_iod *stdiniod = NULL, *stdoutiod = NULL, *stderriod = NULL;
-    int pid = -1;
+    intptr_t infd = -1, outfd = -1, errfd = -1;
+    intptr_t pid = -1;
 
-    err = gensio_unix_do_exec(o, argv, env, stderr_to_stdout, &pid, &infd,
-			      &outfd, rstderr ? &errfd : NULL);
+#ifdef _WIN32
+    HANDLE winfd, woutfd, werrfd = NULL, wpid;
+
+    err = gensio_win_do_exec(o, argv, env, stderr_to_stdout, &wpid, &winfd,
+			     &woutfd, rstderr ? &werrfd : NULL);
     if (err)
 	return err;
+    infd = (intptr_t) uinfd;
+    outfd = (intptr_t) uoutfd;
+    errfd = (intptr_t) uerrfd;
+    pid = (intptr_t) upid;
+#else
+    int uinfd = -1, uoutfd = -1, uerrfd = -1;
+    int upid = -1;
+
+    err = gensio_unix_do_exec(o, argv, env, stderr_to_stdout, &upid, &uinfd,
+			      &uoutfd, rstderr ? &uerrfd : NULL);
+    if (err)
+	return err;
+    infd = uinfd;
+    outfd = uoutfd;
+    errfd = uerrfd;
+    pid = upid;
+#endif
 
     err = o->add_iod(o, GENSIO_IOD_PIPE, infd, &stdiniod);
     if (err)
@@ -1212,15 +1402,15 @@ gensio_glib_exec_subprog(struct gensio_os_funcs *o,
     if (stderriod)
 	o->close(&stderriod);
     else if (errfd != -1)
-	close(errfd);
+	generic_close(errfd);
     if (stdiniod)
 	o->close(&stdiniod);
     else if (infd != -1)
-	close(infd);
+	generic_close(infd);
     if (stdoutiod)
 	o->close(&stdoutiod);
     else if (outfd != -1)
-	close(outfd);
+	generic_close(outfd);
     return err;
 }
 

@@ -105,11 +105,17 @@ if test "x$use_pthreads" != "xno"; then
        fi])
 fi
 
-tryglib=yes
+if test "x$system_type" == "xunix"; then
+   tryglib=yes
+else
+   tryglib=no
+fi
 AC_ARG_WITH(glib,
  [AS_HELP_STRING([--with-glib=yes|no], [Look for glib.])],
     if test "x$withval" = "xyes"; then
-      tryglib=yes
+      if test "x$tryglib" = "xno"; then
+        AC_MSG_FAILURE([glib only support on Unix systems for now])
+      fi
     elif test "x$withval" = "xno"; then
       tryglib=no
     fi,
