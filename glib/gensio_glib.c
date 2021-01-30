@@ -696,6 +696,7 @@ i_gensio_glib_wake(struct gensio_waiter *w, unsigned int count)
 	if (count == 0)
 	    break;
     }
+    w->count += count;
 }
 
 struct timeout_info {
