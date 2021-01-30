@@ -22,7 +22,7 @@
  * returned on an exit failure.
  */
 
-static lock_type errtrig_mutex;
+static lock_type errtrig_lock = LOCK_INITIALIZER;
 static bool errtrig_initialized;
 static bool errtrig_ready;
 static bool triggered;
@@ -31,30 +31,22 @@ static unsigned int errtrig_curr;
 
 static void *trig_caller[4];
 
-int
-errtrig_init(void)
-{
-    if (!errtrig_initialized) {
-	char *s = getenv("GENSIO_ERRTRIG_TEST");
-
-	LOCK_INIT(&errtrig_mutex);
-	errtrig_initialized = true;
-	if (s) {
-	    errtrig_count = strtoul(s, NULL, 0);
-	    errtrig_ready = true;
-	}
-    }
-
-    return 0;
-}
-
 bool
 do_errtrig(void)
 {
     unsigned int curr;
     bool triggerit = false;
 
-    LOCK(&errtrig_mutex);
+    LOCK(&errtrig_lock);
+    if (!errtrig_initialized) {
+	char *s = getenv("GENSIO_ERRTRIG_TEST");
+
+	errtrig_initialized = true;
+	if (s) {
+	    errtrig_count = strtoul(s, NULL, 0);
+	    errtrig_ready = true;
+	}
+    }
     if (errtrig_ready) {
 	curr = errtrig_curr++;
 	if (curr == errtrig_count) {
@@ -72,7 +64,7 @@ do_errtrig(void)
 #endif
 	}
     }
-    UNLOCK(&errtrig_mutex);
+    UNLOCK(&errtrig_lock);
     return triggerit;
 }
 
@@ -81,8 +73,6 @@ void errtrig_exit(int rv)
 {
     if (!errtrig_ready)
 	exit(rv);
-
-    LOCK_DESTROY(&errtrig_mutex);
 
     assert (rv == 1 || rv == 0); /* Only these values are allowed. */
 
