@@ -356,7 +356,16 @@ struct gensio_timer
     void *cb_data;
 
     GMutex lock;
+
     guint timer_id;
+    unsigned int usecount;
+
+    enum {
+	  GLIB_TIMER_FREE,
+	  GLIB_TIMER_IN_STOP,
+	  GLIB_TIMER_STOPPED,
+	  GLIB_TIMER_RUNNING
+    } state;
 
     void (*done_handler)(struct gensio_timer *t, void *cb_data);
     void *done_cb_data;
@@ -373,6 +382,7 @@ gensio_glib_timeout_handler(gpointer data)
     if (t->timer_id) {
 	handler = t->handler;
 	cb_data = t->cb_data;
+	t->state = GLIB_TIMER_STOPPED;
 	t->timer_id = 0;
     }
     g_mutex_unlock(&t->lock);
@@ -383,21 +393,41 @@ gensio_glib_timeout_handler(gpointer data)
     return G_SOURCE_REMOVE;
 }
 
-static void
-gensio_glib_timeout_destroyed(gpointer data)
+static gint
+glib_real_timeout_destroyed(gpointer data)
 {
     struct gensio_timer *t = (void *) data;
     void (*handler)(struct gensio_timer *t, void *cb_data) = NULL;
     void *cb_data;
+    unsigned int usecount;
 
     g_mutex_lock(&t->lock);
-    handler = t->done_handler;
-    cb_data = t->done_cb_data;
-    t->done_handler = NULL;
+    if (t->state == GLIB_TIMER_IN_STOP) {
+	handler = t->done_handler;
+	cb_data = t->done_cb_data;
+	t->done_handler = NULL;
+    }
+    t->usecount--;
+    usecount = t->usecount;
     g_mutex_unlock(&t->lock);
 
     if (handler)
 	handler(t, cb_data);
+
+    if (usecount == 0) {
+	t->state = GLIB_TIMER_FREE;
+	g_mutex_clear(&t->lock);
+	t->o->free(t->o, t);
+    }
+
+    return G_SOURCE_REMOVE;
+}
+
+static void
+gensio_glib_timeout_destroyed(gpointer data)
+{
+    /* This can run from user context, call it from base context. */
+    g_idle_add(glib_real_timeout_destroyed, data);
 }
 
 static struct gensio_timer *
@@ -415,6 +445,8 @@ gensio_glib_alloc_timer(struct gensio_os_funcs *o,
     t->o = o;
     t->handler = handler;
     t->cb_data = cb_data;
+    t->state = GLIB_TIMER_STOPPED;
+    t->usecount = 1;
     g_mutex_init(&t->lock);
 
     return t;
@@ -423,8 +455,24 @@ gensio_glib_alloc_timer(struct gensio_os_funcs *o,
 static void
 gensio_glib_free_timer(struct gensio_timer *t)
 {
-    g_mutex_clear(&t->lock);
-    t->o->free(t->o, t);
+    unsigned int usecount;
+
+    g_mutex_lock(&t->lock);
+    assert(t->state != GLIB_TIMER_FREE);
+    if (t->timer_id) {
+	g_source_remove(t->timer_id);
+	t->timer_id = 0;
+    }
+    t->state = GLIB_TIMER_FREE;
+    t->usecount--;
+    usecount = t->usecount;
+    g_mutex_unlock(&t->lock);
+
+    if (usecount == 0) {
+	t->state = GLIB_TIMER_FREE;
+	g_mutex_clear(&t->lock);
+	t->o->free(t->o, t);
+    }
 }
 
 /*
@@ -464,13 +512,19 @@ gensio_glib_start_timer(struct gensio_timer *t, gensio_time *timeout)
     int rv = 0;
 
     g_mutex_lock(&t->lock);
-    if (t->timer_id) {
+    assert(t->state != GLIB_TIMER_FREE);
+    if (t->state != GLIB_TIMER_STOPPED) {
 	rv = GE_INUSE;
     } else {
+	t->done_handler = NULL;
 	t->timer_id = g_timeout_add_full(0, msec, gensio_glib_timeout_handler,
 					 t, gensio_glib_timeout_destroyed);
-	if (!t->timer_id)
+	if (!t->timer_id) {
 	    rv = GE_NOMEM;
+	} else {
+	    t->state = GLIB_TIMER_RUNNING;
+	    t->usecount++;
+	}
     }
     g_mutex_unlock(&t->lock);
     return rv;
@@ -483,9 +537,11 @@ gensio_glib_start_timer_abs(struct gensio_timer *t, gensio_time *timeout)
     int rv = 0;
 
     g_mutex_lock(&t->lock);
-    if (t->timer_id) {
+    assert(t->state != GLIB_TIMER_FREE);
+    if (t->state != GLIB_TIMER_STOPPED) {
 	rv = GE_INUSE;
     } else {
+	t->done_handler = NULL;
 	msec = gensio_time_to_ms(timeout);
 	now = g_get_monotonic_time();
 	msec -= now;
@@ -494,8 +550,12 @@ gensio_glib_start_timer_abs(struct gensio_timer *t, gensio_time *timeout)
 
 	t->timer_id = g_timeout_add_full(0, msec, gensio_glib_timeout_handler,
 					 t, gensio_glib_timeout_destroyed);
-	if (!t->timer_id)
+	if (!t->timer_id) {
 	    rv = GE_NOMEM;
+	} else {
+	    t->state = GLIB_TIMER_RUNNING;
+	    t->usecount++;
+	}
     }
     g_mutex_unlock(&t->lock);
     return rv;
@@ -507,9 +567,11 @@ gensio_glib_stop_timer(struct gensio_timer *t)
     int rv = 0;
 
     g_mutex_lock(&t->lock);
-    if (!t->timer_id) {
+    assert(t->state != GLIB_TIMER_FREE);
+    if (t->state != GLIB_TIMER_RUNNING) {
 	rv = GE_TIMEDOUT;
     } else {
+	t->state = GLIB_TIMER_STOPPED;
 	g_source_remove(t->timer_id);
 	t->timer_id = 0;
     }
@@ -526,11 +588,12 @@ gensio_glib_stop_timer_with_done(struct gensio_timer *t,
     int rv = 0;
 
     g_mutex_lock(&t->lock);
-    if (!t->timer_id) {
-	rv = GE_TIMEDOUT;
-    } else if (t->done_handler) {
+    if (t->state == GLIB_TIMER_IN_STOP) {
 	rv = GE_INUSE;
+    } else if (t->state != GLIB_TIMER_RUNNING) {
+	rv = GE_TIMEDOUT;
     } else {
+	t->state = GLIB_TIMER_IN_STOP;
 	t->done_handler = done_handler;
 	t->done_cb_data = cb_data;
 	g_source_remove(t->timer_id);
