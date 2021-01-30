@@ -22,9 +22,11 @@
 
 #ifdef ENABLE_ERRTRIG_TEST
 bool do_errtrig(void);
+int errtrig_init(void);
 void errtrig_exit(int rv);
 #else
 #define do_errtrig() false
+#define errtrig_init() 0
 #define errtrig_exit(rv) do {} while(false)
 #endif
 

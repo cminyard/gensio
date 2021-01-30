@@ -20,6 +20,7 @@
 
 #include "utils.h"
 #include "gensio_net.h"
+#include "errtrig.h"
 
 static unsigned int gensio_log_mask =
     (1 << GENSIO_LOG_FATAL) | (1 << GENSIO_LOG_ERR);
@@ -123,6 +124,9 @@ gensio_base_init(void *cb_data)
 {
     struct gensio_os_funcs *o = cb_data;
 
+    gensio_base_init_rv = errtrig_init();
+    if (gensio_base_init_rv)
+	return;
     gensio_base_lock = o->alloc_lock(o);
     if (!gensio_base_lock)
 	gensio_base_init_rv = GE_NOMEM;

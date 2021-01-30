@@ -31,21 +31,30 @@ static unsigned int errtrig_curr;
 
 static void *trig_caller[4];
 
-bool do_errtrig(void)
+int
+errtrig_init(void)
 {
-    unsigned int curr;
-    bool triggerit = false;
-
-    LOCK(&errtrig_mutex);
     if (!errtrig_initialized) {
 	char *s = getenv("GENSIO_ERRTRIG_TEST");
 
+	LOCK_INIT(&errtrig_mutex);
 	errtrig_initialized = true;
 	if (s) {
 	    errtrig_count = strtoul(s, NULL, 0);
 	    errtrig_ready = true;
 	}
     }
+
+    return 0;
+}
+
+bool
+do_errtrig(void)
+{
+    unsigned int curr;
+    bool triggerit = false;
+
+    LOCK(&errtrig_mutex);
     if (errtrig_ready) {
 	curr = errtrig_curr++;
 	if (curr == errtrig_count) {
@@ -72,6 +81,8 @@ void errtrig_exit(int rv)
 {
     if (!errtrig_ready)
 	exit(rv);
+
+    LOCK_DESTROY(&errtrig_mutex);
 
     assert (rv == 1 || rv == 0); /* Only these values are allowed. */
 
