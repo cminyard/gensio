@@ -42,6 +42,8 @@
 #include <intrin.h>
 #endif
 
+static void win_finish_free(struct gensio_os_funcs *o);
+
 static DWORD
 gensio_time_to_ms(struct gensio_time *time)
 {
@@ -2549,11 +2551,11 @@ win_is_regfile(struct gensio_os_funcs *o, intptr_t fd)
 {
     switch (fd) {
     case 0:
-	return GetFileType(GetStdHandler(STD_INPUT_HANDLE)) == FILE_TYPE_DISK;
+	return GetFileType(GetStdHandle(STD_INPUT_HANDLE)) == FILE_TYPE_DISK;
     case 1:
-	return GetFileType(GetStdHandler(STD_OUTPUT_HANDLE)) == FILE_TYPE_DISK;
-    case 1:
-	return GetFileType(GetStdHandler(STD_ERROR_HANDLE)) == FILE_TYPE_DISK;
+	return GetFileType(GetStdHandle(STD_OUTPUT_HANDLE)) == FILE_TYPE_DISK;
+    case 2:
+	return GetFileType(GetStdHandle(STD_ERROR_HANDLE)) == FILE_TYPE_DISK;
     }
 
     return GetFileType((HANDLE) fd) == FILE_TYPE_DISK;
@@ -2955,7 +2957,6 @@ gensio_win_funcs_alloc(void)
 	return NULL;
     }
     memset(d, 0, sizeof(*d));
-    mem_debug_init(d);
     InitializeCriticalSection(&d->lock);
     InitializeCriticalSection(&d->timer_lock);
     InitializeCriticalSection(&d->once_lock);
