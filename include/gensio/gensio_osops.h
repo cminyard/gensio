@@ -98,6 +98,13 @@ GENSIO_DLL_PUBLIC
 DWORD gensio_win_commport_break_done(struct gensio_os_funcs *o, HANDLE h,
 				     struct gensio_win_commport **c);
 
+GENSIO_DLL_PUBLIC
+int gensio_win_do_exec(struct gensio_os_funcs *o,
+		       const char *argv[], const char **env,
+		       bool stderr_to_stdout,
+		       HANDLE *phandle,
+		       HANDLE *rin, HANDLE *rout, HANDLE *rerr);
+
 #else
 
 GENSIO_DLL_PUBLIC

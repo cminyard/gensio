@@ -2621,104 +2621,6 @@ win_open_dev(struct gensio_os_funcs *o, const char *iname, int options,
     return rv;
 }
 
-static int
-argv_to_win_cmdline(struct gensio_os_funcs *o, const char *argv[],
-		    char **rcmdline)
-{
-    unsigned int cmdlen = 0, i, j, k, l, p = 0;
-    char *cmdline;
-
-    /*
-     * We quote all arguments to be sure, which means we have to
-     * manipulate things inside for quotes.  However, the quoting
-     * rules of Windows are bizarre.  A \" is a quote.  But the \ is
-     * only valid that way before a quote, a \ without a " following
-     * is just a \.  But any number of \ before a " will be converted
-     * from two \ to a single \.  So "\\\" is \", but \\" is \ and the
-     * " terminates the string.
-     */
-    for (i = 0; argv[i]; i++) {
-	const char *s = argv[i];
-
-	cmdlen += 3; /* Room for two quotes and a space. */
-	for (j = 0; s[j]; j++) {
-	    if (s[j] == '"') {
-		cmdlen += 2; /* Add room for the \ */
-		for (k = j; k > 0; ) {
-		    k--;
-		    if (s[k] == '\\')
-			cmdlen++; /* Double every \ before a " */
-		    else
-			break;
-		}
-	    } else {
-		cmdlen++;
-	    }
-	}
-	for (k = j; k > 0; ) {
-	    k--;
-	    if (s[k] == '\\')
-		cmdlen++; /* Double every \ at the end, as we are adding a " */
-	}
-    }
-
-    if (cmdlen >= 32766) /* Maximum size for Windows. */
-	return GE_TOOBIG;
-
-    cmdline = o->zalloc(o, cmdlen + 1);
-    if (!cmdline)
-	return GE_NOMEM;
-
-    for (i = 0; argv[i]; i++) {
-	const char *s = argv[i];
-
-	cmdline[p++] = '"';
-	for (j = 0; s[j]; j++) {
-	    if (s[j] == '"') {
-		l = 0;
-		for (k = j; k > 0; ) {
-		    k--;
-		    if (s[k] == '\\') {
-			l++;
-			p--; /* Back up over the \s */
-		    } else {
-			break;
-		    }
-		}
-		for (; l > 0; l--) {
-		    cmdline[p++] = '\\';
-		    cmdline[p++] = '\\';
-		}
-		cmdline[p++] = '\\';
-		cmdline[p++] = '"';
-	    } else {
-		cmdline[p++] = s[j];
-	    }
-	}
-	l = 0;
-	for (k = j; k > 0; ) {
-	    k--;
-	    if (s[k] == '\\') {
-		l++;
-		p--; /* Back up over the \s */
-	    } else {
-		break;
-	    }
-	}
-	for (; l > 0; l--) {
-	    cmdline[p++] = '\\';
-	    cmdline[p++] = '\\';
-	}
-	cmdline[p++] = '"';
-	if (argv[i + 1])
-	    cmdline[p++] = ' ';
-    }
-    cmdline[p++] = '\0';
-
-    *rcmdline = cmdline;
-    return 0;;
-}
-
 /*
  * FIXME - This currently doesn't handle running the subprogram as a
  * different user like it should (and the selector code does).
@@ -2733,48 +2635,28 @@ win_exec_subprog(struct gensio_os_funcs *o,
 		 struct gensio_iod **rstderr)
 {
     int rv = 0;
-    char *cmdline;
-    SECURITY_ATTRIBUTES sattr;
-    STARTUPINFOA suinfo;
-    PROCESS_INFORMATION procinfo;
-    HANDLE stdin_m = NULL, stdin_s = NULL;
-    HANDLE stdout_m = NULL, stdout_s = NULL;
-    HANDLE stderr_m = NULL, stderr_s = NULL;
+    HANDLE phandle = NULL;
+    HANDLE stdin_m = NULL;
+    HANDLE stdout_m = NULL;
+    HANDLE stderr_m = NULL;
     struct gensio_iod_win *stdin_iod = NULL;
     struct gensio_iod_win *stdout_iod = NULL;
     struct gensio_iod_win *stderr_iod = NULL;
     struct win_init_info info;
 
-    if (rstderr && stderr_to_stdout)
-	return GE_INVAL;
-
-    rv = argv_to_win_cmdline(o, argv, &cmdline);
+    rv = gensio_win_do_exec(o, argv, env, stderr_to_stdout, &phandle,
+			    &stdin_m, &stdout_m,
+			    rstderr ? &stderr_m : NULL);
     if (rv)
 	return rv;
 
-    memset(&sattr, 0, sizeof(sattr));
-    memset(&suinfo, 0, sizeof(suinfo));
-    memset(&procinfo, 0, sizeof(procinfo));
 
-    sattr.nLength = sizeof(sattr);
-    sattr.bInheritHandle = TRUE;
-    sattr.lpSecurityDescriptor = NULL;
-
-    if (!CreatePipe(&stdin_s, &stdin_m, &sattr, 0))
-	goto out_err_conv;
-    if (!SetHandleInformation(stdin_m, HANDLE_FLAG_INHERIT, 0))
-	goto out_err_conv;
     info.ioh = stdin_m;
     rv = win_alloc_iod(o, sizeof(struct gensio_iod_win_pipe), -1,
 		       GENSIO_IOD_PIPE, win_iod_write_pipe_init, &info,
 		       &stdin_iod);
     if (rv)
 	goto out_err;
-
-    if (!CreatePipe(&stdout_m, &stdout_s, &sattr, 0))
-	goto out_err_conv;
-    if (!SetHandleInformation(stdout_m, HANDLE_FLAG_INHERIT, 0))
-	goto out_err_conv;
     info.ioh = stdout_m;
     rv = win_alloc_iod(o, sizeof(struct gensio_iod_win_pipe), -1,
 		       GENSIO_IOD_PIPE, win_iod_read_pipe_init, &info,
@@ -2782,26 +2664,6 @@ win_exec_subprog(struct gensio_os_funcs *o,
     if (rv)
 	goto out_err;
 
-    if (stderr_to_stdout) {
-	if (!DuplicateHandle(GetCurrentProcess(),
-			     stdout_s,
-			     GetCurrentProcess(),
-			     &stderr_s,
-			     0, TRUE, DUPLICATE_SAME_ACCESS))
-	    goto out_err_conv;
-    } else if (rstderr) {
-	if (!CreatePipe(&stderr_m, &stderr_s, &sattr, 0))
-	    goto out_err_conv;
-	if (!SetHandleInformation(stderr_m, HANDLE_FLAG_INHERIT, 0))
-	    goto out_err_conv;
-    } else {
-	if (!DuplicateHandle(GetCurrentProcess(),
-			     GetStdHandle(STD_ERROR_HANDLE),
-			     GetCurrentProcess(),
-			     &stderr_s,
-			     0, TRUE, DUPLICATE_SAME_ACCESS))
-	    goto out_err_conv;
-    }
     if (stderr_m) {
 	info.ioh = stderr_m;
 	rv = win_alloc_iod(o, sizeof(struct gensio_iod_win_pipe), -1,
@@ -2811,39 +2673,13 @@ win_exec_subprog(struct gensio_os_funcs *o,
 	    goto out_err;
     }
 
-    suinfo.cb = sizeof(STARTUPINFO);
-    suinfo.hStdInput = stdin_s;
-    suinfo.hStdOutput = stdout_s;
-    suinfo.hStdError = stderr_s;
-    suinfo.dwFlags |= STARTF_USESTDHANDLES;
-
-    if (!CreateProcess(NULL,
-		       cmdline,
-		       NULL,
-		       NULL,
-		       TRUE,
-		       0,
-		       NULL,
-		       NULL,
-		       &suinfo,
-		       &procinfo))
-	goto out_err_conv;
-
-    /* We have to close these here or we won't see the child process die. */
-    CloseHandle(stdin_s);
-    CloseHandle(stdout_s);
-    CloseHandle(stderr_s);
-
-    *rpid = (intptr_t) procinfo.hProcess;
-    CloseHandle(procinfo.hThread);
+    *rpid = (intptr_t) phandle;
     *rstdin = &stdin_iod->r;
     *rstdout = &stdout_iod->r;
     if (rstderr)
 	*rstderr = &stderr_iod->r;
-    goto out;
+    return 0;
 
- out_err_conv:
-    rv = gensio_os_err_to_err(o, GetLastError());
  out_err:
     if (stdin_iod) {
 	struct gensio_iod *iod = &stdin_iod->r;
@@ -2860,16 +2696,6 @@ win_exec_subprog(struct gensio_os_funcs *o,
 	o->close(&iod);
     } else if (stderr_m)
 	CloseHandle(stderr_m);
-
-    if (stdin_s)
-	CloseHandle(stdin_s);
-    if (stdout_s)
-	CloseHandle(stdout_s);
-    if (stderr_s)
-	CloseHandle(stderr_s);
- out:
-    if (cmdline)
-	o->free(o, cmdline);
     return rv;
 }
 
