@@ -581,13 +581,13 @@ stdion_read_ready(struct gensio_iod *iod, void *cbdata)
     struct stdiona_data *nadata = schan->nadata;
 
     stdiona_lock(nadata);
-    if (!schan->read_enabled || schan->in_read || schan->data_pending_len) {
-	stdiona_unlock(nadata);
-	return;
-    }
     if (!schan->outfd_regfile) {
 	nadata->o->set_read_handler(schan->out_iod, false);
 	nadata->o->set_except_handler(schan->out_iod, false);
+    }
+    if (!schan->read_enabled || schan->in_read || schan->data_pending_len) {
+	stdiona_unlock(nadata);
+	return;
     }
     if (!schan->ll_err) {
 	schan->in_read = true;
