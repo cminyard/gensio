@@ -6,7 +6,6 @@ pkginclude_HEADERS = gensio.h gensio_class.h sergensio.h sergensio_class.h \
 	gensio_list.h gensio_version.h gensio_dllvisibility.h \
 	gensio_deprecated.h gensio_mdns.h gensio_types.h \
 	gensio_osops_addrinfo.h gensio_osops_stdsock.h gensio_circbuf.h \
-	gensio_selector.h gensio_win.h
+	gensio_selector.h gensio_win.h gensio_swig.h gensio_swig.i
 
 EXTRA_DIST = gensio_version.h.in CMakeLists.txt
-

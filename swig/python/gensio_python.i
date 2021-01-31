@@ -5,12 +5,7 @@
  *  SPDX-License-Identifier: LGPL-2.1-only
  */
 
-%typemap(in) swig_cb * {
-    if ($input == Py_None)
-	$1 = NULL;
-    else
-	$1 = $input;
-}
+%include <gensio/gensio_swig.i>
 
 %exception {
     $action

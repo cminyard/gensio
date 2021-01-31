@@ -5,7 +5,8 @@
  *  SPDX-License-Identifier: LGPL-2.1-only
  */
 
-typedef PyObject swig_cb;
+#include <gensio/gensio_swig.h>
+
 typedef PyObject swig_cb_val;
 typedef struct swig_ref {
     PyObject *val;
@@ -260,7 +261,7 @@ os_funcs_ref(struct gensio_os_funcs *o)
     os_funcs_unlock(odata);
 }
 
-static void
+void
 check_os_funcs_free(struct gensio_os_funcs *o)
 {
     struct os_funcs_data *odata = o->other_data;
@@ -270,6 +271,9 @@ check_os_funcs_free(struct gensio_os_funcs *o)
 	os_funcs_unlock(odata);
 	if (odata->log_handler)
 	    deref_swig_cb_val(odata->log_handler);
+#ifdef USE_POSIX_THREADS
+	pthread_mutex_destroy(&odata->lock);
+#endif
 	free(odata);
 	o->free_funcs(o);
     } else {

@@ -248,12 +248,29 @@ gensio_thread_sighandler(int sig)
 }
 #endif
 
-struct gensio_os_funcs *alloc_gensio_selector(swig_cb *log_handler);
+void
+gensio_swig_setup_os_funcs(struct gensio_os_funcs *o,
+			   swig_cb *log_handler)
+{
+    struct os_funcs_data *odata;
 
-struct gensio_os_funcs *alloc_gensio_selector(swig_cb *log_handler)
+    odata = malloc(sizeof(*odata));
+    odata->refcount = 1;
+#ifdef USE_POSIX_THREADS
+    pthread_mutex_init(&odata->lock, NULL);
+#endif
+
+    if (log_handler)
+	odata->log_handler = ref_swig_cb(log_handler, gensio_log);
+    else
+	odata->log_handler = NULL;
+    o->vlog = gensio_do_vlog;
+    o->other_data = odata;
+}
+
+struct gensio_os_funcs *alloc_gensio_os_funcs(swig_cb *log_handler)
 {
     struct gensio_os_funcs *o;
-    struct os_funcs_data *odata;
     int err;
     int wake_sig;
 #ifdef USE_POSIX_THREADS
@@ -273,26 +290,20 @@ struct gensio_os_funcs *alloc_gensio_selector(swig_cb *log_handler)
     wake_sig = 0;
 #endif
 
-    odata = malloc(sizeof(*odata));
-    odata->refcount = 1;
-#ifdef USE_POSIX_THREADS
-    pthread_mutex_init(&odata->lock, NULL);
-#endif
-
     err = gensio_default_os_hnd(wake_sig, &o);
     if (err) {
 	fprintf(stderr, "Unable to allocate gensio os funcs: %s, giving up\n",
 		gensio_err_to_str(err));
 	exit(1);
     }
-    o->other_data = odata;
-    if (log_handler)
-	odata->log_handler = ref_swig_cb(log_handler, gensio_log);
-    else
-	odata->log_handler = NULL;
-    o->vlog = gensio_do_vlog;
+    gensio_swig_setup_os_funcs(o, log_handler);
 
     return o;
+}
+
+struct gensio_os_funcs *alloc_gensio_selector(swig_cb *log_handler)
+{
+    return alloc_gensio_os_funcs(log_handler);
 }
 
 %}
@@ -1480,6 +1491,9 @@ struct mdns_service { };
 
 %newobject alloc_gensio_selector;
 struct gensio_os_funcs *alloc_gensio_selector(swig_cb *log_handler);
+
+%newobject alloc_gensio_os_funcs;
+struct gensio_os_funcs *alloc_gensio_os_funcs(swig_cb *log_handler);
 
 %constant int GENSIO_LOG_FATAL = GENSIO_LOG_FATAL;
 %constant int GENSIO_LOG_ERR = GENSIO_LOG_ERR;
