@@ -637,7 +637,16 @@ class Logger:
         print("***%s log: %s" % (level, log))
 
 gensio.gensio_set_log_mask(gensio.GENSIO_LOG_MASK_ALL)
-o = gensio.alloc_gensio_selector(Logger());
+
+oshndname = os.getenv("GENSIO_TEST_OS_HANDLER")
+if oshndname is None:
+    o = gensio.alloc_gensio_selector(Logger());
+elif oshndname == "glib":
+    import gensioglib
+    o = gensioglib.alloc_glib_os_funcs(Logger());
+else:
+    print("Unknown OS handler name: " + oshndname)
+    sys.exit(1)
 
 def check_raddr(io, testname, expected):
     r = io.control(gensio.GENSIO_CONTROL_DEPTH_FIRST, True,

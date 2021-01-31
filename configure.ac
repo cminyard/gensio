@@ -538,6 +538,8 @@ AC_OUTPUT([Makefile
 	lib/Makefile
 	glib/libgensioglib.pc
 	glib/Makefile
+	glib/swig/Makefile
+	glib/swig/python/Makefile
 	include/Makefile
 	include/gensio/Makefile
 	include/gensio/gensio_version.h

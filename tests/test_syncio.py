@@ -103,7 +103,7 @@ def test_sync_gensio_accepter(o):
 
     return
 
-o = gensio.alloc_gensio_selector(Logger())
+import utils
 
-test_sync_gensio(o)
-test_sync_gensio_accepter(o)
+test_sync_gensio(utils.o)
+test_sync_gensio_accepter(utils.o)
