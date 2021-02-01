@@ -617,7 +617,7 @@ fd_handle_write_ready(struct fd_ll *fdll, struct gensio_iod *iod)
 	    fdll->o->set_except_handler(fdll->iod, true);
 	} else {
 	    fdll->o->set_write_handler(iod, false);
-	    fdll->o->set_except_handler(iod, false);
+	    fdll->o->set_except_handler(iod, fdll->read_enabled);
 	}
     } else {
 	fdll->o->set_write_handler(iod, false);
