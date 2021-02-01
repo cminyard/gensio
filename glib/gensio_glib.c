@@ -1168,7 +1168,8 @@ gensio_glib_write(struct gensio_iod *iiod, const struct gensio_sg *sg,
     }
  out:
     if (count > 0) {
-	g_io_channel_flush(iod->chan, NULL);
+	GError *err = NULL;
+	g_io_channel_flush(iod->chan, &err);
 	rv = 0;
     }
     if (!rv)
@@ -1260,7 +1261,7 @@ static void
 gensio_glib_flush(struct gensio_iod *iiod, int whichbuf)
 {
     struct gensio_iod_glib *iod = i_to_glib(iiod);
-    GError *err;
+    GError *err = NULL;
 
     g_io_channel_flush(iod->chan, &err);
 }
