@@ -134,6 +134,7 @@ struct fd_ll {
     const char *const *auxdata;
 
     bool in_read;
+    bool in_write;
 
     /*
      * Used to run read callbacks from the selector to avoid running
@@ -487,11 +488,9 @@ fd_handle_incoming(struct fd_ll *fdll,
     gensiods count;
 
     fd_lock_and_ref(fdll);
-    fdll->o->set_read_handler(fdll->iod, false);
-    fdll->o->set_except_handler(fdll->iod, fdll->write_enabled);
     if (fdll->in_read || fdll->state == FD_ERR_WAIT ||
 		fdll->state == FD_OPEN_ERR_WAIT)
-	goto out;
+	goto out_disable;
     fdll->in_read = true;
     fd_unlock(fdll);
 
@@ -535,8 +534,11 @@ fd_handle_incoming(struct fd_ll *fdll,
     if (fdll->state == FD_OPEN && fdll->read_enabled) {
 	fdll->o->set_read_handler(fdll->iod, true);
 	fdll->o->set_except_handler(fdll->iod, true);
+    } else {
+    out_disable:
+	fdll->o->set_read_handler(fdll->iod, false);
+	fdll->o->set_except_handler(fdll->iod, fdll->write_enabled);
     }
- out:
     fd_deref_and_unlock(fdll);
 }
 
@@ -579,11 +581,11 @@ static int fd_setup_handlers(struct fd_ll *fdll);
 static void
 fd_handle_write_ready(struct fd_ll *fdll, struct gensio_iod *iod)
 {
-    fdll->o->set_write_handler(iod, false);
-    fdll->o->set_except_handler(iod, fdll->read_enabled);
     if (fdll->state == FD_IN_OPEN) {
 	int err;
 
+	fdll->o->set_write_handler(iod, false);
+	fdll->o->set_except_handler(iod, fdll->read_enabled);
 	err = fdll->ops->check_open(fdll->handler_data, fdll->iod);
 	if (err && fdll->ops->retry_open) {
 	    fd_set_state(fdll, FD_IN_OPEN_RETRY);
@@ -597,21 +599,29 @@ fd_handle_write_ready(struct fd_ll *fdll, struct gensio_iod *iod)
 		fd_finish_open(fdll, 0);
 	    }
 	}
-    } else if (fdll->state == FD_OPEN && fdll->write_enabled) {
+    } else if (fdll->state == FD_OPEN && fdll->write_enabled &&
+	       !fdll->in_write) {
+	fdll->in_write = true;
 	fd_unlock(fdll);
 
-	if (fdll->ops->write_ready) {
+	if (fdll->ops->write_ready)
 	    fdll->ops->write_ready(fdll->handler_data, fdll->iod);
-	    fd_lock(fdll);
-	} else {
+	else
 	    gensio_fd_ll_callback(fdll->ll, GENSIO_LL_CB_WRITE_READY, 0,
 				  NULL, 0, NULL);
-	    fd_lock(fdll);
-	    if (fdll->state == FD_OPEN && fdll->write_enabled) {
-		fdll->o->set_write_handler(fdll->iod, true);
-		fdll->o->set_except_handler(fdll->iod, true);
-	    }
+	fd_lock(fdll);
+	fdll->in_write = false;
+	if ((fdll->state == FD_OPEN || fdll->state == FD_IN_CLOSE) &&
+		fdll->write_enabled) {
+	    fdll->o->set_write_handler(fdll->iod, true);
+	    fdll->o->set_except_handler(fdll->iod, true);
+	} else {
+	    fdll->o->set_write_handler(iod, false);
+	    fdll->o->set_except_handler(iod, false);
 	}
+    } else {
+	fdll->o->set_write_handler(iod, false);
+	fdll->o->set_except_handler(iod, fdll->read_enabled);
     }
 }
 
