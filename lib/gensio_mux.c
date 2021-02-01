@@ -1014,6 +1014,7 @@ chan_deferred_op(struct gensio_runner *runner, void *cbdata)
      * finish the close.
      */
     if (!chan->wr_ready && !chan->in_write_ready &&
+		!chan->deferred_op_pending &&
 		!chan->in_read_report &&
 		chan->state == MUX_INST_IN_CLOSE_FINAL)
 	mux_channel_finish_close(chan);
