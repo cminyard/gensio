@@ -115,6 +115,7 @@ struct udpna_data {
 
     unsigned char *read_data;
 
+    bool readhandler_read_disabled;
     gensiods data_pending_len;
     gensiods data_pos;
     struct udpn_data *pending_data_owner;
@@ -898,10 +899,11 @@ udpna_writehandler(struct gensio_iod *iod, void *cbdata)
     struct gensio_link *l;
 
     udpna_lock_and_ref(nadata);
-    if (nadata->in_write)
+    if (nadata->in_write) {
+	udpna_disable_write(nadata);
 	goto out_unlock;
+    }
 
-    udpna_disable_write(nadata);
     gensio_list_for_each(&nadata->udpns, l) {
 	struct udpn_data *ndata = gensio_link_to_ndata(l);
 
@@ -1157,8 +1159,11 @@ udpna_readhandler(struct gensio_iod *iod, void *cbdata)
     int err;
 
     udpna_lock_and_ref(nadata);
-    if (nadata->data_pending_len)
+    if (nadata->data_pending_len) {
+	nadata->readhandler_read_disabled = true;
+	udpna_fd_read_disable(nadata);
 	goto out_unlock;
+    }
 
     err = nadata->o->recvfrom(iod, nadata->read_data, nadata->max_read_size,
 			      &datalen, 0, nadata->curr_recvaddr);
@@ -1172,8 +1177,6 @@ udpna_readhandler(struct gensio_iod *iod, void *cbdata)
     }
     if (datalen == 0)
 	goto out_unlock;
-
-    udpna_fd_read_disable(nadata);
 
     nadata->data_pending_len = datalen;
     nadata->data_pos = 0;
@@ -1255,7 +1258,10 @@ udpna_readhandler(struct gensio_iod *iod, void *cbdata)
     gensio_acc_log(nadata->acc, GENSIO_LOG_ERR,
 		   "Out of memory allocating for udp port");
  out_unlock_enable:
-    udpna_fd_read_enable(nadata);
+    if (nadata->readhandler_read_disabled) {
+	nadata->readhandler_read_disabled = false;
+	udpna_fd_read_enable(nadata);
+    }
  out_unlock:
     udpna_deref_and_unlock(nadata);
 
