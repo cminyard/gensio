@@ -230,8 +230,8 @@ net_control(void *handler_data, struct gensio_iod *iod, bool get,
 }
 
 static int
-net_read(struct gensio_iod *iod, void *data, gensiods count, gensiods *rcount,
-	 const char ***auxdata, void *cb_data)
+net_except_read(struct gensio_iod *iod, void *data, gensiods count,
+		gensiods *rcount, const char ***auxdata, void *cb_data)
 {
     struct net_data *tdata = cb_data;
     static const char *argv[3] = { "oob", "oobtcp", NULL };
@@ -251,14 +251,6 @@ net_read(struct gensio_iod *iod, void *data, gensiods count, gensiods *rcount,
     return tdata->o->recv(iod, data, count, rcount, 0);
 }
 
-static void
-net_read_ready(void *handler_data, struct gensio_iod *iod)
-{
-    struct net_data *tdata = handler_data;
-
-    gensio_fd_ll_handle_incoming(tdata->ll, net_read, NULL, tdata);
-}
-
 static int
 net_except_ready(void *handler_data, struct gensio_iod *iod)
 {
@@ -275,7 +267,7 @@ net_except_ready(void *handler_data, struct gensio_iod *iod)
 	return GE_NOTSUP;
 
     tdata->oob_char = urgdata;
-    net_read_ready(tdata, iod);
+    gensio_fd_ll_handle_incoming(tdata->ll, net_except_read, NULL, tdata);
     return 0;
 }
 
