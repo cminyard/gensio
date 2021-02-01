@@ -140,10 +140,16 @@ msgdelim_try_connect(struct gensio_filter *filter, gensio_time *timeout)
     return 0;
 }
 
+#include <stdio.h>
 static int
 msgdelim_try_disconnect(struct gensio_filter *filter, gensio_time *timeout)
 {
-    return 0;
+    struct msgdelim_filter *mfilter = filter_to_msgdelim(filter);
+
+    if (mfilter->write_data_len == 0 || !mfilter->out_msg_complete)
+	return 0;
+    else
+	return GE_INPROGRESS;
 }
 
 static void
