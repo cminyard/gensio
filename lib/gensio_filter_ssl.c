@@ -220,6 +220,19 @@ ssl_ll_read_needed(struct gensio_filter *filter)
     return rv;
 }
 
+static bool
+ssl_ll_can_write(struct gensio_filter *filter)
+{
+    struct ssl_filter *sfilter = filter_to_ssl(filter);
+    bool rv;
+
+    ssl_lock(sfilter);
+    rv = sfilter->write_data_len == 0;
+    ssl_unlock(sfilter);
+
+    return rv;
+}
+
 static int
 ssl_verify_cb(int preverify_ok, X509_STORE_CTX *x509_ctx)
 {
@@ -961,6 +974,9 @@ static int gensio_ssl_filter_func(struct gensio_filter *filter, int op,
 
     case GENSIO_FILTER_FUNC_LL_READ_NEEDED:
 	return ssl_ll_read_needed(filter);
+
+    case GENSIO_FILTER_FUNC_LL_CAN_WRITE:
+	return ssl_ll_can_write(filter);
 
     case GENSIO_FILTER_FUNC_CHECK_OPEN_DONE:
 	return ssl_check_open_done(filter, data);
