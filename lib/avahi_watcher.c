@@ -16,6 +16,7 @@
 #include <stdlib.h>
 #include <assert.h>
 #include <gensio/gensio_err.h>
+#include <gensio/gensio_list.h>
 #include "avahi_watcher.h"
 
 struct gensio_avahi_userdata {
@@ -30,7 +31,12 @@ struct gensio_avahi_userdata {
     void *stop_userdata;
     struct gensio_runner *runner;
 
+    bool disabled;
+
     unsigned int refcount;
+
+    struct gensio_list watches;
+    struct gensio_list timers;
 
     bool stopped;
 };
@@ -74,6 +80,7 @@ struct AvahiWatch {
     bool freed;
     AvahiWatchCallback callback;
     void *userdata;
+    struct gensio_link link;
 };
 
 static void
@@ -84,7 +91,9 @@ gensio_avahi_read_handler(struct gensio_iod *iod, void *cb_data)
     struct gensio_os_funcs *o = u->o;
 
     o->lock(u->lock);
-    if (!w->freed) {
+    if (u->disabled || w->freed) {
+	o->set_read_handler(w->iod, false);
+    } else if (w->events & AVAHI_WATCH_IN) {
 	w->revents = AVAHI_WATCH_IN;
 	w->callback(w, w->fd, w->revents, w->userdata);
 	w->revents = 0;
@@ -100,7 +109,9 @@ gensio_avahi_write_handler(struct gensio_iod *iod, void *cb_data)
     struct gensio_os_funcs *o = u->o;
 
     o->lock(u->lock);
-    if (!w->freed) {
+    if (u->disabled || w->freed) {
+	o->set_write_handler(w->iod, false);
+    } else if (w->events & AVAHI_WATCH_OUT) {
 	w->revents = AVAHI_WATCH_OUT;
 	w->callback(w, w->fd, w->revents, w->userdata);
 	w->revents = 0;
@@ -116,7 +127,9 @@ gensio_avahi_except_handler(struct gensio_iod *iod, void *cb_data)
     struct gensio_os_funcs *o = u->o;
 
     o->lock(u->lock);
-    if (!w->freed) {
+    if (u->disabled || w->freed) {
+	o->set_except_handler(w->iod, false);
+    } else if (w->events & AVAHI_WATCH_ERR) {
 	w->revents = AVAHI_WATCH_ERR;
 	w->callback(w, w->fd, w->revents, w->userdata);
 	w->revents = 0;
@@ -131,6 +144,7 @@ gensio_avahi_cleared_handler(struct gensio_iod *iod, void *cb_data)
     struct gensio_avahi_userdata *u = w->u;
     struct gensio_os_funcs *o = u->o;
 
+    gensio_list_rm(&u->watches, &w->link);
     o->release_iod(w->iod);
     o->free(o, w);
     o->lock(u->lock);
@@ -144,6 +158,7 @@ gensio_avahi_watch_update(AvahiWatch *w, AvahiWatchEvent event)
     struct gensio_avahi_userdata *u = w->u;
     struct gensio_os_funcs *o = u->o;
 
+    w->events = event;
     o->set_read_handler(w->iod, !!(event & AVAHI_WATCH_IN));
     o->set_write_handler(w->iod, !!(event & AVAHI_WATCH_OUT));
     o->set_except_handler(w->iod, !!(event & AVAHI_WATCH_ERR));
@@ -185,6 +200,7 @@ gensio_avahi_watch_new(const AvahiPoll *ap, int fd,
 	return NULL;
     }
     u->refcount++;
+    gensio_list_add_tail(&u->watches, &aw->link);
 
     gensio_avahi_watch_update(aw, event);
 
@@ -204,6 +220,7 @@ gensio_avahi_watch_free(AvahiWatch *w)
     struct gensio_os_funcs *o = u->o;
 
     assert(!w->freed);
+    gensio_avahi_watch_update(w, 0);
     w->freed = true;
     o->clear_fd_handlers(w->iod);
 }
@@ -217,6 +234,7 @@ struct AvahiTimeout {
     bool stopped;
     bool in_update;
     bool freed;
+    struct gensio_link link;
 };
 
 static void
@@ -227,7 +245,7 @@ gensio_avahi_timeout(struct gensio_timer *t, void *cb_data)
     struct gensio_os_funcs *o = u->o;
 
     o->lock(u->lock);
-    if (!at->stopped)
+    if (!at->stopped && !u->disabled)
 	at->callback(at, at->userdata);
     o->unlock(u->lock);
 }
@@ -252,7 +270,8 @@ do_timer_start(AvahiTimeout *at)
     struct gensio_avahi_userdata *u = at->u;
     struct gensio_os_funcs *o = u->o;
     struct timeval now, *tv = &at->tv;
-    gensio_time gt = { tv->tv_sec, tv->tv_usec * 1000 };
+    gensio_time gt;
+    int rv;
 
     gettimeofday(&now, NULL);
     if (tv_cmp(tv, &now) <= 0) {
@@ -266,19 +285,27 @@ do_timer_start(AvahiTimeout *at)
 	    gt.secs -= 1;
 	}
     }
-    o->start_timer(at->t, &gt);
+    rv = o->start_timer(at->t, &gt);
+    assert(rv == 0);
+}
+
+static void
+finish_free_timeout(AvahiTimeout *at)
+{
+    struct gensio_avahi_userdata *u = at->u;
+    struct gensio_os_funcs *o = u->o;
+
+    gensio_list_rm(&u->timers, &at->link);
+    o->free_timer(at->t);
+    o->free(o, at);
+    gensio_avahi_poll_deref(u->ap);
 }
 
 static void
 i_gensio_avahi_timer_stopped(AvahiTimeout *at)
 {
-    struct gensio_avahi_userdata *u = at->u;
-    struct gensio_os_funcs *o = u->o;
-
     if (at->freed) {
-	o->free_timer(at->t);
-	o->free(o, at);
-	gensio_avahi_poll_deref(u->ap);
+	finish_free_timeout(at);
     } else if (at->in_update) {
 	at->in_update = false;
 	if (!at->stopped)
@@ -344,6 +371,7 @@ gensio_avahi_timeout_new(const AvahiPoll *ap, const struct timeval *tv,
     at->userdata = userdata;
     u->refcount++;
     at->stopped = true;
+    gensio_list_add_tail(&u->timers, &at->link);
 
     gensio_avahi_timeout_update(at, tv);
 
@@ -362,8 +390,7 @@ gensio_avahi_timeout_free(AvahiTimeout *at)
     at->stopped = true;
     if (o->stop_timer_with_done(at->t, gensio_avahi_timer_stopped, at) ==
 		GE_TIMEDOUT) {
-	o->free_timer(at->t);
-	gensio_avahi_poll_deref(u->ap);
+	finish_free_timeout(at);
     }
 }
 
@@ -421,6 +448,8 @@ alloc_gensio_avahi_poll(struct gensio_os_funcs *o)
 	return NULL;
     }
 
+    gensio_list_init(&u->timers);
+    gensio_list_init(&u->watches);
     ap->userdata = u;
     ap->watch_new = gensio_avahi_watch_new;
     ap->watch_update = gensio_avahi_watch_update;
@@ -434,16 +463,38 @@ alloc_gensio_avahi_poll(struct gensio_os_funcs *o)
 }
 
 void
+gensio_avahi_poll_disable(AvahiPoll *ap)
+{
+    struct gensio_avahi_userdata *u = ap->userdata;
+
+    u->disabled = true;
+}
+
+void
 gensio_avahi_poll_free(AvahiPoll *ap,
 		       gensio_avahi_done done, void *userdata)
 {
     struct gensio_avahi_userdata *u = ap->userdata;
+    struct gensio_link *l, *l2;
 
     if (u->stopped)
 	return;
+    u->disabled = true;
     u->stopped = true;
     u->stop_done = done;
     u->stop_userdata = userdata;
+    gensio_list_for_each_safe(&u->timers, l, l2) {
+	AvahiTimeout *at = gensio_container_of(l, AvahiTimeout, link);
+
+	if (!at->freed)
+	    gensio_avahi_timeout_free(at);
+    }
+    gensio_list_for_each_safe(&u->watches, l, l2) {
+	AvahiWatch *aw = gensio_container_of(l, AvahiWatch, link);
+
+	if (!aw->freed)
+	    gensio_avahi_watch_free(aw);
+    }
     gensio_avahi_poll_deref(ap);
 }
 #endif

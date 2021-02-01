@@ -1305,6 +1305,9 @@ gensio_free_mdns(struct gensio_mdns *m, gensio_mdns_done done, void *userdata)
 	err = GE_INUSE;
 	goto out_unlock;
     }
+
+    gensio_avahi_poll_disable(m->ap);
+
     m->freed = true;
     m->free_done = done;
     m->free_userdata = userdata;

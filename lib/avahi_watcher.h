@@ -23,6 +23,8 @@ struct AvahiPoll *alloc_gensio_avahi_poll(struct gensio_os_funcs *o);
 
 typedef void (*gensio_avahi_done)(AvahiPoll *ap, void *userdata);
 
+void gensio_avahi_poll_disable(AvahiPoll *ap);
+
 void gensio_avahi_poll_free(AvahiPoll *ap,
 			    gensio_avahi_done done, void *userdata);
 
