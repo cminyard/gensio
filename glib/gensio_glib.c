@@ -402,7 +402,8 @@ glib_real_timeout_destroyed(gpointer data)
     unsigned int usecount;
 
     g_mutex_lock(&t->lock);
-    if (t->state == GLIB_TIMER_IN_STOP) {
+    if (t->done_handler) {
+	t->state = GLIB_TIMER_STOPPED;
 	handler = t->done_handler;
 	cb_data = t->done_cb_data;
 	t->done_handler = NULL;
