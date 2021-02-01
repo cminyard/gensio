@@ -541,7 +541,7 @@ basen_set_ll_enables(struct basen_data *ndata)
 	ndata->deferred_write = true;
 	basen_sched_deferred_op(ndata);
     } else if (filter_ll_write_pending(ndata) ||
-	(filter_ll_can_write(ndata) && ndata->xmit_enabled))
+	       (filter_ll_can_write(ndata) && ndata->xmit_enabled))
 	ll_set_write_callback_enable(ndata, true);
     else
 	ll_set_write_callback_enable(ndata, false);
@@ -1488,7 +1488,6 @@ basen_ll_read(void *cb_data, int readerr,
     prbuf(buf, buflen);
 #endif
     basen_lock_and_ref(ndata);
-    ll_set_read_callback_enable(ndata, false);
     if (readerr) {
 	handle_ioerr(ndata, readerr);
 	goto out_finish;
@@ -1499,9 +1498,11 @@ basen_ll_read(void *cb_data, int readerr,
 	goto out_finish;
     }
 
-    if (ndata->in_read)
+    if (ndata->in_read) {
 	/* Currently in a deferred read, just let that handle it. */
+	ll_set_read_callback_enable(ndata, false);
 	goto out_unlock;
+    }
 
     while (buflen > 0 &&
 	   (ndata->read_enabled || filter_ll_read_needed(ndata) ||
@@ -1578,7 +1579,6 @@ basen_ll_write_ready(void *cb_data)
     }
     ndata->in_xmit_ready = true;
  retry:
-    ll_set_write_callback_enable(ndata, false);
     if (filter_ll_write_pending(ndata)) {
 	err = filter_ul_write(ndata, basen_write_data_handler, NULL, NULL, 0,
 			      NULL);
