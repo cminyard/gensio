@@ -175,7 +175,7 @@ class HandleData:
         if (debug or self.debug) and iolen != None and buf is not None:
             print("%s: Got %d bytes at pos %d of %d" % (self.name, len(buf),
                                                         self.compared, iolen))
-        if (debug >= 2 or self.debug >= 2):
+        if ((debug >= 2 or self.debug >= 2) and not err):
             s = ""
             for i in range(0, len(buf)):
                 if curses.ascii.isprint(buf[i]):
@@ -682,6 +682,8 @@ class TestAccept:
             self.name = name
         else:
             self.name = accstr
+        if debug:
+            print("TestAccept " + self.name);
         self.io2 = None
         self.waiter = gensio.waiter(o)
         gensios_enabled.check_iostr_gensios(accstr)
@@ -701,6 +703,8 @@ class TestAccept:
                 pass
             if sga:
                 raise Exception("Cast to sergensio_accepter succeeded");
+        if debug:
+            print("acc startup");
         self.acc.startup()
         self.waiter.service(1) # Wait a bit for the accepter to start up.
 
@@ -720,12 +724,17 @@ class TestAccept:
 
         if expected_acc_laddr:
             check_laddr(self.acc, self.name, expected_acc_laddr)
+        if debug:
+            print("io1 open " + self.name);
         io1.open_s()
         if expected_raddr:
             check_raddr(io1, self.name, expected_raddr)
         if (io1_dummy_write):
             # For UDP, kick start things.
             io1.write(io1_dummy_write, None)
+        if debug:
+            print("wait 1 " + self.name);
+        # Wait for the accept to happen
         if (self.wait_timeout(1000) == 0):
             raise Exception(("%s: %s: " % ("test_accept", self.name)) +
                     ("Timed out waiting for initial connection"))
@@ -758,6 +767,7 @@ class TestAccept:
 
     def new_connection(self, acc, io):
         HandleData(self.o, None, io = io, name = self.name)
+        print("New connection " + self.name);
         self.io2 = io
         self.waiter.wake()
 
