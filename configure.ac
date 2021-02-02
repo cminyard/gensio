@@ -547,6 +547,7 @@ AC_OUTPUT([Makefile
 	tools/Makefile
 	swig/Makefile
 	swig/python/Makefile
+	swig/python/libgensio_python_swig.pc
 	man/Makefile
 	examples/Makefile
 	tests/runtest
