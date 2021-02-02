@@ -1,5 +1,5 @@
 
-AM_CFLAGS = -DBUILDING_IPMI_DLL
+AM_CFLAGS = -DBUILDING_IPMI_DLL -I$(top_srcdir)/glib/include
 
 lib_LTLIBRARIES = @GLIB_TARGET@
 EXTRA_LTLIBRARIES = libgensioglib.la
@@ -12,8 +12,8 @@ libgensioglib_la_LDFLAGS = -no-undefined -rpath $(libdir)
 
 EXTRA_DIST = libgensioglib.pc.in
 
-SUBDIRS = . $(SWIG_DIR)
-DIST_SUBDIRS = swig
+SUBDIRS = . $(SWIG_DIR) include
+DIST_SUBDIRS = swig include
 
 # This variable must have 'exec' in its name, in order to be installed
 # by 'install-exec' target (instead of default 'install-data')

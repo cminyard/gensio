@@ -3,6 +3,8 @@ add_library(gensiotool STATIC ioinfo.c ser_ioinfo.c utils.c localports.c)
 set_target_properties(gensiotool PROPERTIES
                       POSITION_INDEPENDENT_CODE OFF)
 
+include_directories("${PROJECT_SOURCE_DIR}/glib/include")
+
 add_executable(gensiot gensiotool.c)
 target_link_libraries(gensiot gensio gensiotool ${GLIB_LIB} ${GLIB_LDFLAGS})
 

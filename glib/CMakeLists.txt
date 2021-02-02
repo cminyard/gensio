@@ -26,6 +26,7 @@ target_include_directories(gensioglib
                             $<INSTALL_INTERFACE:include>
                            )
 target_include_directories(gensioglib PUBLIC ${GLIB_INCLUDE_DIRS})
+include_directories("include")
 
 if(SWIG_FOUND)
   add_subdirectory(swig)

@@ -1,4 +1,6 @@
 
+AM_CFLAGS = -I$(top_srcdir)/glib/include
+
 AM_TESTS_ENVIRONMENT = GENSIOT=$(top_builddir)/tools/gensiot
 
 LOG_COMPILER = $(SHELL) $(builddir)/runtest

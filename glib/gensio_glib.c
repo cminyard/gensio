@@ -5,6 +5,33 @@
  *  SPDX-License-Identifier: LGPL-2.1-only
  */
 
+/*
+ * This library provides a gensio_os_funcs object for use by gensio.
+ * It can be used if you have a project based on glib that you want to
+ * integrate gensio into.
+ *
+ * Unfortunately, it has some limitations because of weaknesses in the
+ * glib interface.
+ *
+ * If you use this, you really want to use the gensio wait functions,
+ * not g_cont_wait..() yourself.  you don't strictly have have to,
+ * especially if your app is single threaded, but especially in
+ * multithreaded apps you cannot mix calls to the os funcs wait
+ * functions and the glib wait functions.  Which means you can't use
+ * the blocking functions, which all use os func waiters.
+ *
+ * Performance should be ok for a single thread.  For multiple
+ * threads, though, only on thing at a time can be waiting on the main
+ * glib thread.  This is a weakness in glib.  For multiple threads,
+ * one function sits in the main context and the others sit on
+ * condition variables.  when the thead sitting on the main context
+ * wakes up, it wakes another waiting thread to take over.
+ *
+ * If performance is important, it might be better to put glib on top
+ * of gensio os funcs with g_main_context_set_poll_func().  I leave
+ * that as an exercise to the reader.
+ */
+
 #include "config.h"
 
 #include <stdlib.h>
@@ -36,8 +63,6 @@
 
 struct gensio_data
 {
-    gint      priority;
-
     GMutex lock;
     GCond cond; /* Global waiting threads. */
     struct gensio_list waiting_threads;
