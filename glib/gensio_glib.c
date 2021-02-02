@@ -964,6 +964,7 @@ gensio_glib_add_iod(struct gensio_os_funcs *o, enum gensio_iod_type type,
     }
 #endif
     g_io_channel_set_encoding(iod->chan, NULL, NULL);
+    g_io_channel_set_buffered(iod->chan, FALSE);
 
     g_mutex_init(&iod->lock);
     *riod = &iod->r;
@@ -1167,11 +1168,6 @@ gensio_glib_write(struct gensio_iod *iiod, const struct gensio_sg *sg,
 	}
     }
  out:
-    if (count > 0) {
-	GError *err = NULL;
-	g_io_channel_flush(iod->chan, &err);
-	rv = 0;
-    }
     if (!rv)
 	*rcount = count;
 
