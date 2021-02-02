@@ -17,7 +17,8 @@ EXTRA_DIST = CMakeLists.txt
 nodist__gensioglib_la_SOURCES = gensioglib_wrap.c
 _gensioglib_la_LIBADD = $(top_builddir)/glib/libgensioglib.la \
 		$(top_builddir)/lib/libgensio.la $(OPENSSL_LIBS) \
-		$(PYTHON_LIBS) $(top_builddir)/swig/python/_gensio.la
+		$(PYTHON_LIBS) \
+		$(top_builddir)/swig/python/libgensio_python_swig.la
 _gensioglib_la_LDFLAGS = -module -avoid-version $(OPENSSL_LDFLAGS) -no-undefined
 
 clean-local:

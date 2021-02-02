@@ -1,7 +1,7 @@
 
 ACLOCAL_AMFLAGS = -I m4
 
-SUBDIRS = lib include $(GLIB_DIR) $(SWIG_DIR) tests tools examples
+SUBDIRS = lib include $(SWIG_DIR) $(GLIB_DIR) tests tools examples
 if INSTALL_DOC
 SUBDIRS += man
 endif

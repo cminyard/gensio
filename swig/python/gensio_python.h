@@ -6,8 +6,8 @@
  */
 
 #include <gensio/gensio_swig.h>
+#include "python_swig_internals.h"
 
-typedef PyObject swig_cb_val;
 typedef struct swig_ref {
     PyObject *val;
 } swig_ref;
@@ -18,11 +18,9 @@ typedef struct swig_ref {
 #ifdef WITH_THREAD
 static void gensio_swig_init_lang(void)
 {
+    swig_waiter_wake = wake_curr_waiter;
     PyEval_InitThreads();
 }
-#define OI_PY_STATE PyGILState_STATE
-#define OI_PY_STATE_GET() PyGILState_Ensure()
-#define OI_PY_STATE_PUT(s) PyGILState_Release(s)
 
 /* We do need to work about blocking, though. */
 #define GENSIO_SWIG_C_BLOCK_ENTRY Py_BEGIN_ALLOW_THREADS
@@ -30,6 +28,7 @@ static void gensio_swig_init_lang(void)
 #else
 static void gensio_swig_init_lang(void)
 {
+    swig_waiter_wake = wake_curr_waiter;
 }
 #define OI_PY_STATE int
 #define OI_PY_STATE_GET() 0
@@ -63,16 +62,12 @@ OI_PI_AsBytesAndSize(PyObject *o, char **buf, my_ssize_t *len)
 }
 
 #define OI_PI_StringCheck PyUnicode_Check
-#define OI_PI_FromString PyUnicode_FromString
 #define OI_PI_FromStringAndSize PyUnicode_FromStringAndSize
-#define OI_PI_AsString PyUnicode_AsUTF8
 #else
 #define OI_PI_BytesCheck PyString_Check
 #define OI_PI_AsBytesAndSize PyString_AsStringAndSize
 #define OI_PI_StringCheck PyString_Check
-#define OI_PI_FromString PyString_FromString
 #define OI_PI_FromStringAndSize PyString_FromStringAndSize
-#define OI_PI_AsString PyString_AsString
 #endif
 
 static PyObject *
@@ -89,17 +84,7 @@ OI_PI_FromStringN(const char *s)
     return o;
 }
 
-static swig_cb_val *
-ref_swig_cb_i(swig_cb *cb)
-{
-    OI_PY_STATE gstate;
-
-    gstate = OI_PY_STATE_GET();
-    Py_INCREF(cb);
-    OI_PY_STATE_PUT(gstate);
-    return cb;
-}
-#define ref_swig_cb(cb, func) ref_swig_cb_i(cb)
+#define ref_swig_cb(cb, func) gensio_python_ref_swig_cb_i(cb)
 
 static swig_ref
 swig_make_ref_i(void *item, swig_type_info *class)
@@ -115,52 +100,13 @@ swig_make_ref_i(void *item, swig_type_info *class)
 #define swig_make_ref(item, name) \
 	swig_make_ref_i(item, SWIGTYPE_p_ ## name)
 
-static swig_cb_val *
-deref_swig_cb_val(swig_cb_val *cb)
-{
-    OI_PY_STATE gstate;
-
-    if (cb) {
-	gstate = OI_PY_STATE_GET();
-	Py_DECREF(cb);
-	OI_PY_STATE_PUT(gstate);
-    }
-    return cb;
-}
+#define deref_swig_cb_val(v) gensio_python_deref_swig_cb_val(v)
 
 /* No way to check the refcount in Python. */
 #define swig_free_ref_check(r, c) \
 	do {								\
 	    swig_free_ref(r);						\
 	} while(0)
-
-static PyObject *
-swig_finish_call_rv(swig_cb_val *cb, const char *method_name, PyObject *args,
-		    bool optional)
-{
-    PyObject *p, *o = NULL;
-
-    if (PyObject_HasAttrString(cb, method_name)) {
-	p = PyObject_GetAttrString(cb, method_name);
-	o = PyObject_CallObject(p, args);
-	Py_DECREF(p);
-	if (PyErr_Occurred())
-	    wake_curr_waiter();
-    } else if (!optional) {
-	PyObject *t = PyObject_GetAttrString(cb, "__class__");
-	PyObject *c = PyObject_GetAttrString(t, "__name__");
-	const char *class = OI_PI_AsString(c);
-
-	PyErr_Format(PyExc_RuntimeError,
-		     "gensio callback: Class '%s' has no method '%s'\n",
-		     class, method_name);
-	wake_curr_waiter();
-    }
-    if (args)
-	Py_DECREF(args);
-
-    return o;
-}
 
 static gensiods
 swig_finish_call_rv_gensiods(swig_cb_val *cb, const char *method_name,
@@ -225,14 +171,6 @@ swig_finish_call(swig_cb_val *cb, const char *method_name, PyObject *args,
 	Py_DECREF(o);
 }
 
-struct os_funcs_data {
-#ifdef USE_POSIX_THREADS
-    pthread_mutex_t lock;
-#endif
-    unsigned int refcount;
-    swig_cb_val *log_handler;
-};
-
 #ifdef USE_POSIX_THREADS
 static void os_funcs_lock(struct os_funcs_data *odata)
 {
@@ -259,26 +197,6 @@ os_funcs_ref(struct gensio_os_funcs *o)
     os_funcs_lock(odata);
     odata->refcount++;
     os_funcs_unlock(odata);
-}
-
-void
-check_os_funcs_free(struct gensio_os_funcs *o)
-{
-    struct os_funcs_data *odata = o->other_data;
-
-    os_funcs_lock(odata);
-    if (--odata->refcount == 0) {
-	os_funcs_unlock(odata);
-	if (odata->log_handler)
-	    deref_swig_cb_val(odata->log_handler);
-#ifdef USE_POSIX_THREADS
-	pthread_mutex_destroy(&odata->lock);
-#endif
-	free(odata);
-	o->free_funcs(o);
-    } else {
-	os_funcs_unlock(odata);
-    }
 }
 
 struct gensio_data {
@@ -381,42 +299,6 @@ gensio_accepter_ref(struct gensio_accepter *acc)
     struct gensio_data *data = gensio_acc_get_user_data(acc);
 
     ref_gensio_data(data);
-}
-
-static void gensio_do_vlog(struct gensio_os_funcs *o,
-			   enum gensio_log_levels level,
-			   const char *fmt, va_list fmtargs)
-{
-    struct os_funcs_data *odata = o->other_data;
-    char *buf = NULL;
-    unsigned int len;
-    PyObject *args, *po;
-    va_list tmpva;
-    OI_PY_STATE gstate;
-
-    if (!odata->log_handler)
-	return;
-
-    gstate = OI_PY_STATE_GET();
-
-    va_copy(tmpva, fmtargs);
-    len = vsnprintf(buf, 0, fmt, tmpva);
-    va_end(tmpva);
-    buf = o->zalloc(o, len + 1);
-    if (!buf)
-	goto out;
-    vsnprintf(buf, len + 1, fmt, fmtargs);
-
-    args = PyTuple_New(2);
-    po = OI_PI_FromString(gensio_log_level_to_str(level));
-    PyTuple_SET_ITEM(args, 0, po);
-    po = OI_PI_FromString(buf);
-    PyTuple_SET_ITEM(args, 1, po);
-    o->free(o, buf);
-
-    swig_finish_call(odata->log_handler, "gensio_log", args, false);
- out:
-    OI_PY_STATE_PUT(gstate);
 }
 
 static void

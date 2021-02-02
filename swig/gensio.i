@@ -17,15 +17,9 @@
 #include <gensio/gensio_mdns.h>
 #include "config.h"
 
-#if PYTHON_HAS_THREADS
-#ifdef _WIN32
-#include <processthreadsapi.h>
-#define USE_WIN32_THREADS
-#else
-#include <pthread.h>
-#define USE_POSIX_THREADS
-#endif
-#endif
+static void wake_curr_waiter(void);
+
+#include "gensio_python.h"
 
 struct waiter {
     struct gensio_os_funcs *o;
@@ -193,8 +187,6 @@ wake_curr_waiter(void)
 }
 #endif
 
-#include "gensio_python.h"
-
 static void
 gensio_do_wait(struct waiter *waiter, unsigned int count,
 	       gensio_time *timeout)
@@ -247,26 +239,6 @@ gensio_thread_sighandler(int sig)
     /* Nothing to do, signal just wakes things up. */
 }
 #endif
-
-void
-gensio_swig_setup_os_funcs(struct gensio_os_funcs *o,
-			   swig_cb *log_handler)
-{
-    struct os_funcs_data *odata;
-
-    odata = malloc(sizeof(*odata));
-    odata->refcount = 1;
-#ifdef USE_POSIX_THREADS
-    pthread_mutex_init(&odata->lock, NULL);
-#endif
-
-    if (log_handler)
-	odata->log_handler = ref_swig_cb(log_handler, gensio_log);
-    else
-	odata->log_handler = NULL;
-    o->vlog = gensio_do_vlog;
-    o->other_data = odata;
-}
 
 struct gensio_os_funcs *alloc_gensio_os_funcs(swig_cb *log_handler)
 {
