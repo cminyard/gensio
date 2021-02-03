@@ -1,4 +1,4 @@
-%module gensioglib
+%module gensiotcl
 
 %include <gensio/gensio_swig.i>
 
