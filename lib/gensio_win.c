@@ -1667,10 +1667,8 @@ static int
 win_iod_read_pipe_init(struct gensio_iod_win *wiod, void *cb_data)
 {
     struct gensio_iod_win_oneway *oiod = i_to_win_oneway(wiod);
-    struct win_init_info *info = cb_data;
 
     oiod->readable = TRUE;
-    oiod->ioh = info->ioh;
 
     return win_iod_oneway_init(wiod, cb_data);
 }
@@ -1679,12 +1677,24 @@ static int
 win_iod_write_pipe_init(struct gensio_iod_win *wiod, void *cb_data)
 {
     struct gensio_iod_win_oneway *oiod = i_to_win_oneway(wiod);
-    struct win_init_info *info = cb_data;
 
     oiod->readable = FALSE;
-    oiod->ioh = info->ioh;
 
     return win_iod_oneway_init(wiod, cb_data);
+}
+
+static int
+win_iod_pipe_init(struct gensio_iod_win *wiod, void *cb_data)
+{
+    DWORD pflags;
+
+    wiod->iod = (HANDLE) wiod->fd;
+    if (!GetNamedPipeInfo(wiod->ioh, &pflags, NULL, NULL, NULL))
+	return gensio_os_err_to_err(o, GetLastError());
+    if (pflags & PIPE_SERVER_END)
+	return win_iod_read_pipe_init(woid, cb_data);
+    else
+	return win_iod_write_pipe_init(woid, cb_data);
 }
 
 /*
@@ -2183,11 +2193,13 @@ win_iod_dev_init(struct gensio_iod_win *wiod, void *cb_data)
 static unsigned int win_iod_sizes[NR_GENSIO_IOD_TYPES] = {
     [GENSIO_IOD_SOCKET] = sizeof(struct gensio_iod_win_sock),
     [GENSIO_IOD_STDIO] = sizeof(struct gensio_iod_win_stdio),
+    [GENSIO_IOD_PIPE] = sizeof(struct gensio_iod_win_pipe),
 };
 typedef int (*win_iod_initfunc)(struct gensio_iod_win *, void *);
 static win_iod_initfunc win_iod_init[NR_GENSIO_IOD_TYPES] = {
     [GENSIO_IOD_SOCKET] = win_iod_socket_init,
     [GENSIO_IOD_STDIO] = win_iod_stdio_init,
+    [GENSIO_IOD_PIPE] = win_iod_pipe_init,
 };
 
 static int
@@ -2642,7 +2654,6 @@ win_exec_subprog(struct gensio_os_funcs *o,
     struct gensio_iod_win *stdin_iod = NULL;
     struct gensio_iod_win *stdout_iod = NULL;
     struct gensio_iod_win *stderr_iod = NULL;
-    struct win_init_info info;
 
     rv = gensio_win_do_exec(o, argv, env, stderr_to_stdout, &phandle,
 			    &stdin_m, &stdout_m,
@@ -2651,24 +2662,15 @@ win_exec_subprog(struct gensio_os_funcs *o,
 	return rv;
 
 
-    info.ioh = stdin_m;
-    rv = win_alloc_iod(o, sizeof(struct gensio_iod_win_pipe), -1,
-		       GENSIO_IOD_PIPE, win_iod_write_pipe_init, &info,
-		       &stdin_iod);
+    rv = o->add_iod(o, GENSIO_IOD_PIPE, (intptr_t) stdin_m, &stdin_iod);
     if (rv)
 	goto out_err;
-    info.ioh = stdout_m;
-    rv = win_alloc_iod(o, sizeof(struct gensio_iod_win_pipe), -1,
-		       GENSIO_IOD_PIPE, win_iod_read_pipe_init, &info,
-		       &stdout_iod);
+    rv = o->add_iod(o, GENSIO_IOD_PIPE, (intptr_t) stdout_m, &stdout_iod);
     if (rv)
 	goto out_err;
 
     if (stderr_m) {
-	info.ioh = stderr_m;
-	rv = win_alloc_iod(o, sizeof(struct gensio_iod_win_pipe), -1,
-			   GENSIO_IOD_PIPE, win_iod_read_pipe_init, &info,
-			   &stderr_iod);
+	rv = o->add_iod(o, GENSIO_IOD_PIPE, (intptr_t) stderr_m, &stderr_iod);
 	if (rv)
 	    goto out_err;
     }
