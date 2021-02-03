@@ -6,7 +6,7 @@ if INSTALL_DOC
 SUBDIRS += man
 endif
 
-DIST_SUBDIRS = lib swig glib tcl include tests tools man examples
+DIST_SUBDIRS = lib include swig glib tcl tests tools examples man
 
 EXTRA_DIST = README.rst reconf CMakeLists.txt config.h.cmake
 
