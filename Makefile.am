@@ -1,12 +1,12 @@
 
 ACLOCAL_AMFLAGS = -I m4
 
-SUBDIRS = lib include $(SWIG_DIR) $(GLIB_DIR) tests tools examples
+SUBDIRS = lib include $(SWIG_DIR) $(GLIB_DIR) $(TCL_DIR) tests tools examples
 if INSTALL_DOC
 SUBDIRS += man
 endif
 
-DIST_SUBDIRS = lib glib swig include tests tools man examples
+DIST_SUBDIRS = lib swig glib tcl include tests tools man examples
 
 EXTRA_DIST = README.rst reconf CMakeLists.txt config.h.cmake
 

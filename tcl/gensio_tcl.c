@@ -1,0 +1,1529 @@
+/*
+ *  gensio - A library for abstracting stream I/O
+ *  Copyright (C) 2018  Corey Minyard <minyard@acm.org>
+ *
+ *  SPDX-License-Identifier: LGPL-2.1-only
+ */
+
+/*
+ * This library provides a gensio_os_funcs object for use by gensio.
+ * It can be used if you have a project based on tcl that you want to
+ * integrate gensio into.
+ *
+ * Unfortunately, it has some limitations because of weaknesses in the
+ * tcl interface.
+ *
+ * If you use this, you really want to use the gensio wait functions,
+ * not Tcl_DoOneEvent() yourself.  you don't strictly have have to,
+ * especially if your app is single threaded, but especially in
+ * multithreaded apps you cannot mix calls to the os funcs wait
+ * functions and the tcl wait functions.  Which means you can't use
+ * the blocking functions, which all use os func waiters.
+ *
+ * Performance should be ok for a single thread.  For multiple
+ * threads, though, there is no way to wake up a specific thread
+ * waiting on Tcl_DoOneEvent().  This is a weakness in tcl.  For
+ * multiple threads, one function sits in the main context and the
+ * others sit on condition variables.  when the thead sitting on the
+ * main context wakes up, it wakes another waiting thread to take
+ * over.
+ *
+ * Another big issue with tcl is that there is no way to know when you
+ * delete a file handler, timer, etc. to know if any callbacks are
+ * still in progress.  That's pretty important.  Using idle allows us
+ * to simulate that, but only if one thread at a time waits in
+ * Tcl_DoOneEvent().
+ *
+ * If performance is important, it might be better to put tcl on top
+ * of gensio os funcs .  I leave that as an exercise to the reader.
+ */
+
+#include "config.h"
+
+#include <stdlib.h>
+#include <stdio.h>
+#include <assert.h>
+
+#include <gensio/gensio_os_funcs.h>
+#include <gensio/gensio_list.h>
+#include <gensio/gensio_tcl.h>
+#include <gensio/gensio_err.h>
+#include <gensio/gensio.h>
+#include <gensio/gensio_osops.h>
+#include <gensio/gensio_osops_addrinfo.h>
+#include <gensio/gensio_osops_stdsock.h>
+
+#define TCL_THREADS 1
+#include <tcl.h>
+
+#include <unistd.h>
+#include <errno.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <time.h>
+#include <sys/wait.h>
+#include <sys/uio.h>
+#include <string.h>
+
+struct gensio_data
+{
+    Tcl_Mutex lock;
+    Tcl_Condition cond; /* Global waiting threads. */
+    struct gensio_list waiting_threads;
+    struct gensio_wait_thread *main_context_owner;
+
+    struct gensio_memtrack *mtrack;
+};
+
+static void *
+gensio_tcl_zalloc(struct gensio_os_funcs *f, unsigned int size)
+{
+    struct gensio_data *d = f->user_data;
+
+    return gensio_i_zalloc(d->mtrack, size);
+}
+
+static void
+gensio_tcl_free(struct gensio_os_funcs *f, void *data)
+{
+    struct gensio_data *d = f->user_data;
+
+    gensio_i_free(d->mtrack, data);
+}
+
+struct gensio_lock {
+    struct gensio_os_funcs *f;
+    Tcl_Mutex mutex;
+};
+
+static struct gensio_lock *
+gensio_tcl_alloc_lock(struct gensio_os_funcs *f)
+{
+    struct gensio_lock *lock;
+
+    lock = gensio_tcl_zalloc(f, sizeof(*lock));
+    if (!lock)
+	return NULL;
+    lock->f = f;
+
+    return lock;
+}
+
+static void
+gensio_tcl_free_lock(struct gensio_lock *lock)
+{
+    Tcl_MutexFinalize(&lock->mutex);
+    gensio_tcl_free(lock->f, lock);
+}
+
+static void
+gensio_tcl_lock(struct gensio_lock *lock)
+{
+    Tcl_MutexLock(&lock->mutex);
+}
+
+static void
+gensio_tcl_unlock(struct gensio_lock *lock)
+{
+    Tcl_MutexUnlock(&lock->mutex);
+}
+
+struct gensio_iod_tcl {
+    struct gensio_iod r;
+
+    Tcl_Mutex lock;
+
+    int mask;
+
+    bool in_clear;
+
+    int fd;
+    enum gensio_iod_type type;
+    int protocol; /* GENSIO_NET_PROTOCOL_xxx */
+    bool handlers_set;
+    void *cb_data;
+    void (*read_handler)(struct gensio_iod *iod, void *cb_data);
+    void (*write_handler)(struct gensio_iod *iod, void *cb_data);
+    void (*except_handler)(struct gensio_iod *iod, void *cb_data);
+    void (*cleared_handler)(struct gensio_iod *iod, void *cb_data);
+
+    struct stdio_mode *mode;
+
+    struct gensio_unix_termios *termios;
+};
+
+#define i_to_tcl(i) gensio_container_of(i, struct gensio_iod_tcl, r);
+
+static void
+tcl_file_handler(ClientData data, int mask)
+{
+    struct gensio_iod_tcl *iod = data;
+
+    if (mask & TCL_READABLE)
+	iod->read_handler(&iod->r, iod->cb_data);
+    if (mask & TCL_WRITABLE)
+	iod->write_handler(&iod->r, iod->cb_data);
+    if (mask & TCL_EXCEPTION)
+	iod->except_handler(&iod->r, iod->cb_data);
+}
+
+static void
+tcl_cleared_done(ClientData data)
+{
+    struct gensio_iod_tcl *iod = data;
+
+    Tcl_MutexLock(&iod->lock);
+    iod->handlers_set = false;
+    iod->read_handler = NULL;
+    iod->write_handler = NULL;
+    iod->except_handler = NULL;
+    iod->in_clear = false;
+    Tcl_MutexUnlock(&iod->lock);
+    if (iod->cleared_handler)
+	iod->cleared_handler(&iod->r, iod->cb_data);
+}
+
+static int
+gensio_tcl_set_fd_handlers(struct gensio_iod *iiod,
+			    void *cb_data,
+			    void (*read_handler)(struct gensio_iod *iod,
+						 void *cb_data),
+			    void (*write_handler)(struct gensio_iod *iod,
+						  void *cb_data),
+			    void (*except_handler)(struct gensio_iod *iod,
+						   void *cb_data),
+			    void (*cleared_handler)(struct gensio_iod *iod,
+						    void *cb_data))
+{
+    struct gensio_iod_tcl *iod = i_to_tcl(iiod);
+
+    Tcl_MutexLock(&iod->lock);
+    if (iod->handlers_set) {
+	Tcl_MutexUnlock(&iod->lock);
+	return GE_INUSE;
+    }
+
+    iod->handlers_set = true;
+
+    iod->cb_data = cb_data;
+    iod->read_handler = read_handler;
+    iod->write_handler = write_handler;
+    iod->except_handler = except_handler;
+    iod->cleared_handler = cleared_handler;
+
+    Tcl_MutexUnlock(&iod->lock);
+
+    return 0;
+}
+
+static void
+gensio_tcl_clear_fd_handlers(struct gensio_iod *iiod)
+{
+    struct gensio_iod_tcl *iod = i_to_tcl(iiod);
+
+    Tcl_MutexLock(&iod->lock);
+    if (!iod->handlers_set || iod->in_clear)
+	goto out_unlock;
+    if (iod->mask)
+	Tcl_DeleteFileHandler(iod->fd);
+    iod->in_clear = true;
+    Tcl_DoWhenIdle(tcl_cleared_done, iod);
+ out_unlock:
+    Tcl_MutexUnlock(&iod->lock);
+}
+
+static void
+gensio_tcl_clear_fd_handlers_norpt(struct gensio_iod *iiod)
+{
+    struct gensio_iod_tcl *iod = i_to_tcl(iiod);
+
+    Tcl_MutexLock(&iod->lock);
+    assert(iod->mask == 0);
+    iod->handlers_set = false;
+    Tcl_MutexUnlock(&iod->lock);
+}
+
+static void
+gensio_tcl_set_read_handler(struct gensio_iod *iiod, bool enable)
+{
+    struct gensio_iod_tcl *iod = i_to_tcl(iiod);
+    int new_mask;
+
+    Tcl_MutexLock(&iod->lock);
+    new_mask = iod->mask;
+    if (enable)
+	new_mask |= TCL_READABLE;
+    else
+	new_mask &= ~TCL_READABLE;
+
+    if (new_mask == iod->mask)
+	goto out_unlock;
+
+    iod->mask = new_mask;
+    if (new_mask == 0)
+	Tcl_DeleteFileHandler(iod->fd);
+    else
+	Tcl_CreateFileHandler(iod->fd, new_mask, tcl_file_handler, iod);
+ out_unlock:
+    Tcl_MutexUnlock(&iod->lock);
+}
+
+static void
+gensio_tcl_set_write_handler(struct gensio_iod *iiod, bool enable)
+{
+    struct gensio_iod_tcl *iod = i_to_tcl(iiod);
+    int new_mask;
+
+    Tcl_MutexLock(&iod->lock);
+    new_mask = iod->mask;
+    if (enable)
+	new_mask |= TCL_WRITABLE;
+    else
+	new_mask &= ~TCL_WRITABLE;
+
+    if (new_mask == iod->mask)
+	goto out_unlock;
+
+    iod->mask = new_mask;
+    Tcl_CreateFileHandler(iod->fd, new_mask, tcl_file_handler, iod);
+ out_unlock:
+    Tcl_MutexUnlock(&iod->lock);
+}
+
+static void
+gensio_tcl_set_except_handler(struct gensio_iod *iiod, bool enable)
+{
+    struct gensio_iod_tcl *iod = i_to_tcl(iiod);
+    int new_mask;
+
+    Tcl_MutexLock(&iod->lock);
+    new_mask = iod->mask;
+    if (enable)
+	new_mask |= TCL_EXCEPTION;
+    else
+	new_mask &= ~TCL_EXCEPTION;
+
+    if (new_mask == iod->mask)
+	goto out_unlock;
+
+    iod->mask = new_mask;
+    Tcl_CreateFileHandler(iod->fd, new_mask, tcl_file_handler, iod);
+ out_unlock:
+    Tcl_MutexUnlock(&iod->lock);
+}
+
+struct gensio_timer
+{
+    struct gensio_os_funcs *o;
+
+    void (*handler)(struct gensio_timer *t, void *cb_data);
+    void *cb_data;
+
+    Tcl_Mutex lock;
+
+    intptr_t table_id;
+
+    Tcl_TimerToken timer_id;
+
+    enum {
+	  TCL_TIMER_FREE,
+	  TCL_TIMER_IN_STOP,
+	  TCL_TIMER_STOPPED,
+	  TCL_TIMER_RUNNING
+    } state;
+
+    void (*done_handler)(struct gensio_timer *t, void *cb_data);
+    void *done_cb_data;
+
+    struct gensio_timer *next;
+    struct gensio_timer *prev;
+};
+
+#define TIMER_TABLE_SIZE 64
+static Tcl_Mutex timer_table_lock;
+static intptr_t timer_table_id;
+static struct gensio_timer *timer_table[TIMER_TABLE_SIZE];
+
+static void
+add_timer_to_list(struct gensio_timer *t)
+{
+    intptr_t hash = t->table_id % TIMER_TABLE_SIZE;
+
+    t->prev = NULL;
+    t->next = timer_table[hash];
+    if (timer_table[hash])
+	timer_table[hash]->prev = t;
+    timer_table[hash] = t;
+}
+
+static void
+remove_timer_from_list(struct gensio_timer *t)
+{
+    intptr_t hash = t->table_id % TIMER_TABLE_SIZE;
+
+    if (t->prev)
+	t->prev->next = t->next;
+    else
+	timer_table[hash] = t->next;
+    if (t->next)
+	t->next->prev = t->prev;
+}
+
+static void
+gensio_tcl_timeout_handler(ClientData data)
+{
+    struct gensio_timer *t;
+    void (*handler)(struct gensio_timer *t, void *cb_data) = NULL;
+    intptr_t id = (intptr_t) data;
+    void *cb_data;
+
+    Tcl_MutexLock(&timer_table_lock);
+    t = timer_table[id % TIMER_TABLE_SIZE];
+    while (t && t->table_id != id)
+	t = t->next;
+    if (t) {
+	Tcl_MutexLock(&t->lock);
+	remove_timer_from_list(t);
+    }
+    Tcl_MutexUnlock(&timer_table_lock);
+
+    if (!t)
+	return;
+
+    if (t->timer_id) {
+	handler = t->handler;
+	cb_data = t->cb_data;
+	t->state = TCL_TIMER_STOPPED;
+	t->timer_id = 0;
+    }
+    Tcl_MutexUnlock(&t->lock);
+
+    if (handler)
+	handler(t, cb_data);
+}
+
+static void
+gensio_tcl_timeout_done(ClientData data)
+{
+    struct gensio_timer *t = data;
+    void (*done_handler)(struct gensio_timer *t, void *cb_data);
+    void *done_cb_data;
+
+    Tcl_MutexLock(&t->lock);
+    if (t->state == TCL_TIMER_FREE) {
+	Tcl_MutexFinalize(&t->lock);
+	t->o->free(t->o, t);
+    } else {
+	t->state = TCL_TIMER_STOPPED;
+	done_handler = t->done_handler;
+	done_cb_data = t->done_cb_data;
+    }
+    Tcl_MutexUnlock(&t->lock);
+
+    if (done_handler)
+	done_handler(t, done_cb_data);
+}
+
+static struct gensio_timer *
+gensio_tcl_alloc_timer(struct gensio_os_funcs *o,
+			void (*handler)(struct gensio_timer *t,
+					void *cb_data),
+			void *cb_data)
+{
+    struct gensio_timer *t;
+
+    t = o->zalloc(o, sizeof(*t));
+    if (!t)
+	return NULL;
+
+    t->o = o;
+    t->handler = handler;
+    t->cb_data = cb_data;
+    t->state = TCL_TIMER_STOPPED;
+
+    return t;
+}
+
+static void
+gensio_tcl_free_timer(struct gensio_timer *t)
+{
+    int old_state;
+
+    Tcl_MutexLock(&timer_table_lock);
+    Tcl_MutexLock(&t->lock);
+    assert(t->state != TCL_TIMER_FREE);
+    old_state = t->state;
+    if (t->state == TCL_TIMER_RUNNING) {
+	remove_timer_from_list(t);
+	Tcl_DeleteTimerHandler(t->timer_id);
+	t->timer_id = NULL;
+    }
+    Tcl_MutexUnlock(&timer_table_lock);
+    t->state = TCL_TIMER_FREE;
+    Tcl_MutexUnlock(&t->lock);
+
+    if (old_state != TCL_TIMER_IN_STOP) {
+	/* Stop routine will handle it in this case. */
+	Tcl_MutexFinalize(&t->lock);
+	t->o->free(t->o, t);
+    }
+}
+
+/*
+ * Various time conversion routines.  Note that we always truncate up
+ * to the next time unit.  These are used for timers, and if you don't
+ * you can end up with an early timeout.
+ */
+static unsigned int
+gensio_time_to_ms(gensio_time *t)
+{
+    return t->secs * 1000 + (t->nsecs + 999999) / 1000000;
+}
+
+static int64_t
+gensio_time_to_us(gensio_time *t)
+{
+    return t->secs * 1000000ULL + (t->nsecs + 999) / 1000;
+}
+
+static unsigned int
+us_time_to_ms(int64_t t)
+{
+    return (t + 999) / 1000;
+}
+
+static void
+us_time_to_gensio(int64_t t, gensio_time *gt)
+{
+    gt->secs = t / 1000000;
+    gt->nsecs = t % 1000000 * 1000;
+}
+
+static int
+gensio_tcl_start_timer(struct gensio_timer *t, gensio_time *timeout)
+{
+    int msec = gensio_time_to_ms(timeout);
+    int rv = 0;
+    intptr_t id;
+
+    Tcl_MutexLock(&timer_table_lock);
+    id = ++timer_table_id;
+
+    Tcl_MutexLock(&t->lock);
+    assert(t->state != TCL_TIMER_FREE);
+    if (t->state != TCL_TIMER_STOPPED) {
+	rv = GE_INUSE;
+    } else {
+	t->table_id = id;
+	t->done_handler = NULL;
+	t->timer_id = Tcl_CreateTimerHandler(msec, gensio_tcl_timeout_handler,
+					     (void *) id);
+	if (!t->timer_id) {
+	    rv = GE_NOMEM;
+	} else {
+	    t->state = TCL_TIMER_RUNNING;
+	    add_timer_to_list(t);
+	}
+    }
+    Tcl_MutexUnlock(&t->lock);
+    Tcl_MutexUnlock(&timer_table_lock);
+    return rv;
+}
+
+static int
+gensio_tcl_start_timer_abs(struct gensio_timer *t, gensio_time *timeout)
+{
+    struct timespec ts;
+    int64_t tnsecs, nnsecs;
+    int msec;
+    int rv = 0;
+    intptr_t id;
+
+    Tcl_MutexLock(&timer_table_lock);
+    id = ++timer_table_id;
+
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    tnsecs = timeout->secs * 1000000000ULL + timeout->nsecs;
+    nnsecs = ts.tv_sec * 1000000000ULL | ts.tv_nsec;
+    if (tnsecs < nnsecs)
+	tnsecs = 0;
+    else
+	tnsecs -= nnsecs;
+    msec = (tnsecs + 999999ULL) / 1000000;
+
+    Tcl_MutexLock(&t->lock);
+    assert(t->state != TCL_TIMER_FREE);
+    if (t->state != TCL_TIMER_STOPPED) {
+	rv = GE_INUSE;
+    } else {
+	t->table_id = id;
+	t->done_handler = NULL;
+	t->timer_id = Tcl_CreateTimerHandler(msec, gensio_tcl_timeout_handler,
+					     (void *) id);
+	if (!t->timer_id) {
+	    rv = GE_NOMEM;
+	} else {
+	    t->state = TCL_TIMER_RUNNING;
+	    add_timer_to_list(t);
+	}
+    }
+    Tcl_MutexUnlock(&t->lock);
+    Tcl_MutexUnlock(&timer_table_lock);
+    return rv;
+}
+
+static int
+gensio_tcl_stop_timer(struct gensio_timer *t)
+{
+    int rv = 0;
+
+    Tcl_MutexLock(&timer_table_lock);
+    Tcl_MutexLock(&t->lock);
+    assert(t->state != TCL_TIMER_FREE);
+    if (t->state != TCL_TIMER_RUNNING) {
+	rv = GE_TIMEDOUT;
+    } else {
+	remove_timer_from_list(t);
+	t->state = TCL_TIMER_STOPPED;
+	Tcl_DeleteTimerHandler(t->timer_id);
+	t->timer_id = NULL;
+    }
+    Tcl_MutexUnlock(&t->lock);
+    Tcl_MutexUnlock(&timer_table_lock);
+    return rv;
+}
+
+static int
+gensio_tcl_stop_timer_with_done(struct gensio_timer *t,
+				 void (*done_handler)(struct gensio_timer *t,
+						      void *cb_data),
+				 void *cb_data)
+{
+    int rv = 0;
+
+    Tcl_MutexLock(&timer_table_lock);
+    Tcl_MutexLock(&t->lock);
+    if (t->state == TCL_TIMER_IN_STOP) {
+	rv = GE_INUSE;
+    } else if (t->state != TCL_TIMER_RUNNING) {
+	rv = GE_TIMEDOUT;
+    } else {
+	remove_timer_from_list(t);
+	t->state = TCL_TIMER_IN_STOP;
+	t->done_handler = done_handler;
+	t->done_cb_data = cb_data;
+	Tcl_DeleteTimerHandler(t->timer_id);
+	t->timer_id = NULL;
+	Tcl_DoWhenIdle(gensio_tcl_timeout_done, t);
+    }
+    Tcl_MutexUnlock(&t->lock);
+    Tcl_MutexUnlock(&timer_table_lock);
+    return rv;
+}
+
+struct gensio_runner
+{
+    struct gensio_os_funcs *o;
+
+    void (*handler)(struct gensio_runner *r, void *cb_data);
+    void *cb_data;
+    bool freed;
+    bool in_use;
+
+    Tcl_Mutex lock;
+};
+
+static void
+gensio_tcl_idle_handler(ClientData data)
+{
+    struct gensio_runner *r = (void *) data;
+    void (*handler)(struct gensio_runner *r, void *cb_data) = NULL;
+    void *cb_data;
+
+    Tcl_MutexLock(&r->lock);
+    if (r->freed) {
+	Tcl_MutexUnlock(&r->lock);
+	Tcl_MutexFinalize(&r->lock);
+	r->o->free(r->o, r);
+    } else {
+	handler = r->handler;
+	cb_data = r->cb_data;
+	r->in_use = false;
+	Tcl_MutexUnlock(&r->lock);
+    }
+
+    if (handler)
+	handler(r, cb_data);
+}
+
+static struct gensio_runner *
+gensio_tcl_alloc_runner(struct gensio_os_funcs *o,
+			 void (*handler)(struct gensio_runner *r,
+					 void *cb_data),
+			 void *cb_data)
+{
+    struct gensio_runner *r;
+
+    r = o->zalloc(o, sizeof(*r));
+    if (!r)
+	return NULL;
+
+    r->o = o;
+    r->handler = handler;
+    r->cb_data = cb_data;
+
+    return r;
+}
+
+static void
+gensio_tcl_free_runner(struct gensio_runner *r)
+{
+    Tcl_MutexLock(&r->lock);
+    if (r->in_use) {
+	r->freed = true;
+	Tcl_MutexUnlock(&r->lock);
+    } else {
+	Tcl_MutexUnlock(&r->lock);
+	Tcl_MutexFinalize(&r->lock);
+	r->o->free(r->o, r);
+    }
+}
+
+static int
+gensio_tcl_run(struct gensio_runner *r)
+{
+    int rv = 0;
+
+    Tcl_MutexLock(&r->lock);
+    if (r->in_use) {
+	rv = GE_INUSE;
+    } else {
+	Tcl_DoWhenIdle(gensio_tcl_idle_handler, r);
+	r->in_use = true;
+    }
+    Tcl_MutexUnlock(&r->lock);
+    return rv;
+}
+
+struct gensio_waiter
+{
+    struct gensio_os_funcs *o;
+
+    Tcl_Condition cond;
+
+    unsigned int count;
+
+    struct gensio_list waiting_threads;
+};
+
+struct gensio_wait_thread
+{
+    Tcl_Condition *cond;
+
+    unsigned int count;
+
+    /* Link for a specific waiter. */
+    struct gensio_link wait_link;
+
+    /* Link for all threads waiting in the os handler. */
+    struct gensio_link global_link;
+};
+
+static struct gensio_waiter *
+gensio_tcl_alloc_waiter(struct gensio_os_funcs *o)
+{
+    struct gensio_waiter *w;
+
+    w = o->zalloc(o, sizeof(*w));
+    if (!w)
+	return NULL;
+
+    w->o = o;
+    gensio_list_init(&w->waiting_threads);
+
+    return w;
+}
+
+static void
+gensio_tcl_free_waiter(struct gensio_waiter *w)
+{
+    assert(gensio_list_empty(&w->waiting_threads));
+    Tcl_ConditionFinalize(&w->cond);
+    w->o->free(w->o, w);
+}
+
+static void
+dummy_timeout_handler(ClientData data)
+{
+    /* Will be removed in the main loop, avoid races with remove. */
+}
+
+static void
+dummy_idle_handler(ClientData data)
+{
+    /* Use to wake up Tcl_DoOneEvent */
+}
+
+#define gensio_tcl_wake_next_thread(list, link) do {			\
+    if (!gensio_list_empty(list)) {					\
+	struct gensio_link *l = gensio_list_first(list);		\
+	struct gensio_wait_thread *ot;					\
+	ot = gensio_container_of(l, struct gensio_wait_thread, link);	\
+	Tcl_ConditionNotify(ot->cond);					\
+    }									\
+} while(0)
+
+static void
+i_gensio_tcl_wake(struct gensio_waiter *w, unsigned int count)
+{
+    struct gensio_link *l;
+
+    gensio_list_for_each(&w->waiting_threads, l) {
+	struct gensio_wait_thread *ot;
+
+	ot = gensio_container_of(l, struct gensio_wait_thread, wait_link);
+	if (ot->count) {
+	    if (ot->count >= count) {
+		ot->count -= count;
+		count = 0;
+	    } else {
+		count -= ot->count;
+		ot->count = 0;
+	    }
+	    if (ot->count == 0) {
+		if (ot->cond) {
+		    Tcl_ConditionNotify(ot->cond);
+		} else {
+		    Tcl_DoWhenIdle(dummy_idle_handler, NULL);
+		}
+	    }
+	}
+	if (count == 0)
+	    break;
+    }
+    w->count += count;
+}
+
+struct timeout_info {
+    gensio_time *timeout;
+
+    /* Times below are in microseconds. */
+    int64_t start;
+    int64_t now;
+    int64_t end;
+};
+
+static int64_t
+fetch_us_time(void)
+{
+    Tcl_Time now;
+
+    Tcl_GetTime(&now);
+    return (now.sec * 1000000ULL) + now.usec;
+}
+
+static void
+setup_timeout(struct timeout_info *t)
+{
+    if (t->timeout) {
+	t->start = t->now = fetch_us_time();
+	t->end = t->now + gensio_time_to_us(t->timeout);
+    } else {
+	t->start = 0;
+	t->now = 0;
+	t->end = 0;
+    }
+}
+
+static bool
+timed_out(struct timeout_info *t)
+{
+    return t->timeout && t->now >= t->end;
+}
+
+static void
+timeout_wait(struct timeout_info *t)
+{
+    if (t->timeout) {
+	Tcl_TimerToken timerid;
+
+	timerid = Tcl_CreateTimerHandler(us_time_to_ms(t->end - t->now),
+					 dummy_timeout_handler, NULL);
+	Tcl_DoOneEvent(0);
+	Tcl_DeleteTimerHandler(timerid);
+    } else {
+	Tcl_DoOneEvent(0);
+    }
+}
+
+static void
+timeout_end(struct timeout_info *t)
+{
+    if (t->timeout) {
+	int64_t diff = t->end - t->now;
+
+	if (diff > 0) {
+	    us_time_to_gensio(diff, t->timeout);
+	} else {
+	    t->timeout->secs = 0;
+	    t->timeout->nsecs = 0;
+	}
+    }
+}
+
+static int
+gensio_tcl_wait(struct gensio_waiter *w, unsigned int count,
+		 gensio_time *timeout)
+{
+    struct gensio_data *d = w->o->user_data;
+    struct gensio_wait_thread t;
+    struct timeout_info ti = { .timeout = timeout };
+    int rv = 0;
+
+    gensio_list_link_init(&t.wait_link);
+    gensio_list_link_init(&t.global_link);
+    t.count = count;
+    setup_timeout(&ti);
+
+    Tcl_MutexLock(&d->lock);
+    if (w->count > 0) {
+	if (w->count >= t.count) {
+	    w->count -= t.count;
+	    t.count = 0;
+	} else {
+	    t.count -= w->count;
+	    w->count = 0;
+	}
+    }
+    gensio_list_add_tail(&w->waiting_threads, &t.wait_link);
+    gensio_list_add_tail(&d->waiting_threads, &t.global_link);
+    while (t.count > 0 && !timed_out(&ti)) {
+	if (!d->main_context_owner)
+	    d->main_context_owner = &t;
+	if (d->main_context_owner == &t) {
+	    /* This is the thread that will run the main context. */
+	    t.cond = NULL;
+	    Tcl_MutexUnlock(&d->lock);
+	    timeout_wait(&ti);
+	    Tcl_MutexLock(&d->lock);
+	} else {
+	    /* Not running the main context, just wait on a cond. */
+	    t.cond = &w->cond;
+	    if (timeout) {
+		Tcl_Time ttime = { ti.end / 1000000, ti.end % 1000000 };
+		Tcl_ConditionWait(t.cond, &d->lock, &ttime);
+	    } else {
+		Tcl_ConditionWait(t.cond, &d->lock, NULL);
+	    }
+	}
+	ti.now = fetch_us_time();
+    }
+    gensio_list_rm(&w->waiting_threads, &t.wait_link);
+    gensio_list_rm(&d->waiting_threads, &t.global_link);
+    if (d->main_context_owner == &t) {
+	d->main_context_owner = NULL;
+	/* Need to get another main context owner. */
+	gensio_tcl_wake_next_thread(&d->waiting_threads, global_link);
+    }
+    if (t.count > 0) {
+	rv = GE_TIMEDOUT;
+	/* Re-add whatever was decremented to the waiter. */
+	i_gensio_tcl_wake(w, count - t.count);
+    }
+    Tcl_MutexUnlock(&d->lock);
+
+    timeout_end(&ti);
+
+    return rv;
+}
+
+static int
+gensio_tcl_wait_intr(struct gensio_waiter *w, unsigned int count,
+		      gensio_time *timeout)
+{
+    return gensio_tcl_wait(w, count, timeout);
+}
+
+static int
+gensio_tcl_wait_intr_sigmask(struct gensio_waiter *w, unsigned int count,
+			      gensio_time *timeout, void *sigmask)
+{
+    int rv;
+    sigset_t origmask;
+
+    if (sigmask)
+	pthread_sigmask(SIG_SETMASK, sigmask, &origmask);
+    rv = gensio_tcl_wait(w, count, timeout);
+    if (sigmask)
+	pthread_sigmask(SIG_SETMASK, &origmask, NULL);
+
+    return rv;
+}
+
+static void
+gensio_tcl_wake(struct gensio_waiter *w)
+{
+    struct gensio_data *d = w->o->user_data;
+
+    Tcl_MutexLock(&d->lock);
+    i_gensio_tcl_wake(w, 1);
+    Tcl_MutexUnlock(&d->lock);
+}
+
+static int
+gensio_tcl_add_iod(struct gensio_os_funcs *o, enum gensio_iod_type type,
+		    intptr_t fd, struct gensio_iod **riod)
+{
+    struct gensio_iod_tcl *iod;
+
+    iod = o->zalloc(o, sizeof(*iod));
+    if (!iod)
+	return GE_NOMEM;
+
+    iod->r.f = o;
+    iod->fd = fd;
+    iod->type = type;
+
+    *riod = &iod->r;
+
+    return 0;
+}
+
+static void
+gensio_tcl_release_iod(struct gensio_iod *iiod)
+{
+    struct gensio_iod_tcl *iod = i_to_tcl(iiod);
+
+    assert(!iod->handlers_set);
+    Tcl_MutexFinalize(&iod->lock);
+    iiod->f->free(iiod->f, iod);
+}
+
+static int
+gensio_tcl_iod_get_type(struct gensio_iod *iiod)
+{
+    struct gensio_iod_tcl *iod = i_to_tcl(iiod);
+
+    return iod->type;
+}
+
+static int
+gensio_tcl_iod_get_fd(struct gensio_iod *iiod)
+{
+    struct gensio_iod_tcl *iod = i_to_tcl(iiod);
+
+    return iod->fd;
+}
+
+static int
+gensio_tcl_iod_get_protocol(struct gensio_iod *iiod)
+{
+    struct gensio_iod_tcl *iod = i_to_tcl(iiod);
+
+    return iod->protocol;
+}
+
+static void
+gensio_tcl_iod_set_protocol(struct gensio_iod *iiod, int protocol)
+{
+    struct gensio_iod_tcl *iod = i_to_tcl(iiod);
+
+    iod->protocol = protocol;
+}
+
+static int
+gensio_tcl_iod_control(struct gensio_iod *iiod, int op, bool get, intptr_t val)
+{
+    struct gensio_iod_tcl *iod = i_to_tcl(iiod);
+
+    if (iod->type != GENSIO_IOD_DEV)
+	return GE_NOTSUP;
+
+    return gensio_unix_termios_control(iiod->f, op, get, val, &iod->termios,
+				       iod->fd);
+}
+
+static int
+gensio_tcl_set_non_blocking(struct gensio_iod *iiod)
+{
+    struct gensio_iod_tcl *iod = i_to_tcl(iiod);
+    int rv = 0;
+
+    rv = gensio_unix_do_nonblock(iiod->f, iod->fd, &iod->mode);
+
+    return rv;
+}
+
+static int
+gensio_tcl_close(struct gensio_iod **iodp)
+{
+    struct gensio_iod *iiod = *iodp;
+    struct gensio_iod_tcl *iod = i_to_tcl(iiod);
+    struct gensio_os_funcs *o = iiod->f;
+    int err = 0;
+
+    assert(iodp);
+    assert(!iod->handlers_set);
+    gensio_unix_cleanup_termios(o, &iod->termios, iod->fd);
+    gensio_unix_do_cleanup_nonblock(o, iod->fd, &iod->mode);
+
+    if (iod->type == GENSIO_IOD_SOCKET) {
+	err = o->close_socket(iiod);
+    } else if (iod->type != GENSIO_IOD_STDIO) {
+	err = close(iod->fd);
+	if (err == -1)
+	    err = gensio_os_err_to_err(o, errno);
+#ifdef ENABLE_INTERNAL_TRACE
+	/* Close should never fail, but don't crash in production builds. */
+	if (err) {
+	    err = errno;
+	    assert(0);
+	}
+#endif
+    }
+    o->release_iod(iiod);
+    *iodp = NULL;
+
+    return err;
+}
+
+#define ERRHANDLE()			\
+do {								\
+    int err = 0;						\
+    if (rv < 0) {						\
+	if (errno == EINTR)					\
+	    goto retry;						\
+	if (errno == EWOULDBLOCK || errno == EAGAIN)		\
+	    rv = 0; /* Handle like a zero-byte write. */	\
+	else {							\
+	    err = errno;					\
+	    assert(err);					\
+	}							\
+    } else if (rv == 0) {					\
+	err = EPIPE;						\
+    }								\
+    if (!err && rcount)						\
+	*rcount = rv;						\
+    rv = gensio_os_err_to_err(o, err);				\
+} while(0)
+
+static int
+gensio_tcl_write(struct gensio_iod *iiod, const struct gensio_sg *sg,
+		  gensiods sglen, gensiods *rcount)
+{
+    struct gensio_iod_tcl *iod = i_to_tcl(iiod);
+    struct gensio_os_funcs *o = iiod->f;
+    ssize_t rv;
+
+    if (sglen == 0) {
+	if (rcount)
+	    *rcount = 0;
+	return 0;
+    }
+ retry:
+    rv = writev(iod->fd, (struct iovec *) sg, sglen);
+    ERRHANDLE();
+    return rv;
+}
+
+static int
+gensio_tcl_read(struct gensio_iod *iiod, void *buf, gensiods buflen,
+		 gensiods *rcount)
+{
+    struct gensio_iod_tcl *iod = i_to_tcl(iiod);
+    struct gensio_os_funcs *o = iiod->f;
+    ssize_t rv;
+
+    if (buflen == 0) {
+	if (rcount)
+	    *rcount = 0;
+	return 0;
+    }
+ retry:
+    rv = read(iod->fd, buf, buflen);
+    ERRHANDLE();
+    return rv;
+}
+
+static bool
+gensio_tcl_is_regfile(struct gensio_os_funcs *o, intptr_t fd)
+{
+    int err;
+    struct stat statb;
+
+    err = fstat(fd, &statb);
+    if (err == -1)
+	return false;
+
+    return (statb.st_mode & S_IFMT) == S_IFREG;
+}
+
+static int
+gensio_tcl_bufcount(struct gensio_iod *iiod, int whichbuf, gensiods *count)
+{
+    struct gensio_iod_tcl *iod = i_to_tcl(iiod);
+
+    return gensio_unix_get_bufcount(iiod->f, iod->fd, whichbuf, count);
+}
+
+static void
+gensio_tcl_flush(struct gensio_iod *iiod, int whichbuf)
+{
+    struct gensio_iod_tcl *iod = i_to_tcl(iiod);
+
+    gensio_unix_do_flush(iiod->f, iod->fd, whichbuf);
+}
+
+static int
+gensio_tcl_makeraw(struct gensio_iod *iiod)
+{
+    struct gensio_iod_tcl *iod = i_to_tcl(iiod);
+
+    if (iod->fd == 1 || iod->fd == 2)
+	/* Only set this for stdin or other files. */
+	return 0;
+
+    return gensio_unix_setup_termios(iiod->f, iod->fd, &iod->termios);
+}
+
+static int
+gensio_tcl_open_dev(struct gensio_os_funcs *o, const char *iname, int options,
+		    struct gensio_iod **riod)
+{
+    int flags, fd, err;
+
+    flags = O_NONBLOCK | O_NOCTTY;
+    if (options & (GENSIO_OPEN_OPTION_READABLE | GENSIO_OPEN_OPTION_WRITEABLE))
+	flags |= O_RDWR;
+    else if (options & GENSIO_OPEN_OPTION_READABLE)
+	flags |= O_RDONLY;
+    else if (options & GENSIO_OPEN_OPTION_WRITEABLE)
+	flags |= O_WRONLY;
+
+    fd = open(iname, flags);
+    if (fd == -1)
+	return gensio_os_err_to_err(o, errno);
+    err = o->add_iod(o, GENSIO_IOD_DEV, fd, riod);
+    if (err)
+	close(fd);
+    return err;
+}
+
+static void
+generic_close(intptr_t fd)
+{
+    close(fd);
+}
+
+static int
+gensio_tcl_exec_subprog(struct gensio_os_funcs *o,
+			const char *argv[], const char **env,
+			bool stderr_to_stdout,
+			intptr_t *rpid,
+			struct gensio_iod **rstdin,
+			struct gensio_iod **rstdout,
+			struct gensio_iod **rstderr)
+{
+    int err;
+    struct gensio_iod *stdiniod = NULL, *stdoutiod = NULL, *stderriod = NULL;
+    intptr_t infd = -1, outfd = -1, errfd = -1;
+    intptr_t pid = -1;
+
+    int uinfd = -1, uoutfd = -1, uerrfd = -1;
+    int upid = -1;
+
+    err = gensio_unix_do_exec(o, argv, env, stderr_to_stdout, &upid, &uinfd,
+			      &uoutfd, rstderr ? &uerrfd : NULL);
+    if (err)
+	return err;
+    infd = uinfd;
+    outfd = uoutfd;
+    errfd = uerrfd;
+    pid = upid;
+
+    err = o->add_iod(o, GENSIO_IOD_PIPE, infd, &stdiniod);
+    if (err)
+	goto out_err;
+    infd = -1;
+    err = o->add_iod(o, GENSIO_IOD_PIPE, outfd, &stdoutiod);
+    if (err)
+	goto out_err;
+    outfd = -1;
+    err = o->set_non_blocking(stdiniod);
+    if (err)
+	goto out_err;
+    err = o->set_non_blocking(stdoutiod);
+    if (err)
+	goto out_err;
+
+    if (rstderr) {
+	err = o->add_iod(o, GENSIO_IOD_PIPE, errfd, &stderriod);
+	if (err)
+	    goto out_err;
+	errfd = -1;
+	err = o->set_non_blocking(stderriod);
+	if (err)
+	    goto out_err;
+    }
+
+    *rpid = pid;
+    *rstdin = stdiniod;
+    *rstdout = stdoutiod;
+    if (rstderr)
+	*rstderr = stderriod;
+    return 0;
+
+ out_err:
+    if (stderriod)
+	o->close(&stderriod);
+    else if (errfd != -1)
+	generic_close(errfd);
+    if (stdiniod)
+	o->close(&stdiniod);
+    else if (infd != -1)
+	generic_close(infd);
+    if (stdoutiod)
+	o->close(&stdoutiod);
+    else if (outfd != -1)
+	generic_close(outfd);
+    return err;
+}
+
+static int
+gensio_tcl_kill_subprog(struct gensio_os_funcs *o, intptr_t pid, bool force)
+{
+    int rv;
+
+    rv = kill(pid, force ? SIGKILL : SIGTERM);
+    if (rv < 0)
+	return gensio_os_err_to_err(o, errno);
+    return 0;
+}
+
+static int
+gensio_tcl_wait_subprog(struct gensio_os_funcs *o, intptr_t pid, int *retcode)
+{
+    pid_t rv;
+
+    rv = waitpid(pid, retcode, WNOHANG);
+    if (rv < 0)
+	return gensio_os_err_to_err(o, errno);
+
+    if (rv == 0)
+	return GE_INPROGRESS;
+
+    return 0;
+}
+
+static int
+gensio_tcl_service(struct gensio_os_funcs *o, gensio_time *timeout)
+{
+    struct gensio_data *d = o->user_data;
+    struct gensio_wait_thread t;
+    struct timeout_info ti = { .timeout = timeout };
+    int rv = 0;
+
+    gensio_list_link_init(&t.global_link);
+    t.count = 0;
+    setup_timeout(&ti);
+
+    Tcl_MutexLock(&d->lock);
+    gensio_list_add_tail(&d->waiting_threads, &t.global_link);
+    while (!timed_out(&ti)) {
+	if (!d->main_context_owner)
+	    d->main_context_owner = &t;
+	if (d->main_context_owner == &t) {
+	    /* This is the thread that will run the main context. */
+	    t.cond = NULL;
+	    Tcl_MutexUnlock(&d->lock);
+	    timeout_wait(&ti);
+	    Tcl_MutexLock(&d->lock);
+	} else {
+	    /* Not running the main context, just wait on a cond. */
+	    t.cond = &d->cond;
+	    if (timeout) {
+		Tcl_Time ttime = { ti.end / 1000000, ti.end % 1000000 };
+		Tcl_ConditionWait(t.cond, &d->lock, &ttime);
+	    } else {
+		Tcl_ConditionWait(t.cond, &d->lock, NULL);
+	    }
+	}
+	ti.now = fetch_us_time();
+    }
+    gensio_list_rm(&d->waiting_threads, &t.global_link);
+    if (d->main_context_owner == &t) {
+	d->main_context_owner = NULL;
+	/* Need to get another main context owner. */
+	gensio_tcl_wake_next_thread(&d->waiting_threads, global_link);
+    }
+    Tcl_MutexUnlock(&d->lock);
+
+    timeout_end(&ti);
+    if (timeout->secs == 0 && timeout->nsecs == 0)
+	rv = GE_TIMEDOUT;
+
+    return rv;
+}
+
+static void
+gensio_tcl_free_funcs(struct gensio_os_funcs *f)
+{
+    struct gensio_data *d = f->user_data;
+
+    gensio_memtrack_cleanup(d->mtrack);
+    Tcl_ConditionFinalize(&d->cond);
+    Tcl_MutexFinalize(&d->lock);
+    free(d);
+    free(f);
+}
+
+static Tcl_Mutex once_lock;
+
+static void
+gensio_tcl_call_once(struct gensio_os_funcs *f, struct gensio_once *once,
+		      void (*func)(void *cb_data), void *cb_data)
+{
+    if (once->called)
+	return;
+    Tcl_MutexLock(&once_lock);
+    if (!once->called) {
+	once->called = true;
+	func(cb_data);
+    }
+    Tcl_MutexUnlock(&once_lock);
+}
+
+static void
+gensio_tcl_get_monotonic_time(struct gensio_os_funcs *f, gensio_time *time)
+{
+    Tcl_Time ttime;
+
+    Tcl_GetTime(&ttime);
+    time->secs = ttime.sec;
+    time->nsecs = ttime.usec * 1000;
+}
+
+static int
+gensio_tcl_handle_fork(struct gensio_os_funcs *f)
+{
+    return 0;
+}
+
+static int
+gensio_tcl_get_random(struct gensio_os_funcs *o, void *data, unsigned int len)
+{
+    int fd;
+    int rv;
+
+    fd = open("/dev/urandom", O_RDONLY);
+    if (fd == -1)
+	return gensio_os_err_to_err(o, errno);
+
+    while (len > 0) {
+	rv = read(fd, data, len);
+	if (rv < 0) {
+	    rv = errno;
+	    goto out;
+	}
+	len -= rv;
+	data += rv;
+    }
+
+    rv = 0;
+
+ out:
+    close(fd);
+    return gensio_os_err_to_err(o, rv);
+}
+
+int
+gensio_tcl_funcs_alloc(struct gensio_os_funcs **ro)
+{
+    struct gensio_data *d;
+    struct gensio_os_funcs *o;
+    Tcl_Interp *interp;
+
+    /*
+     * TCL won't work until after you create an intepreter.  So do
+     * that here to avoid crashes in the TCL library.
+     */
+    interp = Tcl_CreateInterp();
+    Tcl_DeleteInterp(interp);
+    
+    o = malloc(sizeof(*o));
+    if (!o)
+	return GE_NOMEM;
+    memset(o, 0, sizeof(*o));
+
+    d = malloc(sizeof(*d));
+    if (!d) {
+	free(o);
+	return GE_NOMEM;
+    }
+    memset(d, 0, sizeof(*d));
+
+    o->user_data = d;
+    d->mtrack = gensio_memtrack_alloc();
+    gensio_list_init(&d->waiting_threads);
+
+    o->zalloc = gensio_tcl_zalloc;
+    o->free = gensio_tcl_free;
+    o->alloc_lock = gensio_tcl_alloc_lock;
+    o->free_lock = gensio_tcl_free_lock;
+    o->lock = gensio_tcl_lock;
+    o->unlock = gensio_tcl_unlock;
+    o->set_fd_handlers = gensio_tcl_set_fd_handlers;
+    o->clear_fd_handlers = gensio_tcl_clear_fd_handlers;
+    o->clear_fd_handlers_norpt = gensio_tcl_clear_fd_handlers_norpt;
+    o->set_read_handler = gensio_tcl_set_read_handler;
+    o->set_write_handler = gensio_tcl_set_write_handler;
+    o->set_except_handler = gensio_tcl_set_except_handler;
+    o->alloc_timer = gensio_tcl_alloc_timer;
+    o->free_timer = gensio_tcl_free_timer;
+    o->start_timer = gensio_tcl_start_timer;
+    o->start_timer_abs = gensio_tcl_start_timer_abs;
+    o->stop_timer = gensio_tcl_stop_timer;
+    o->stop_timer_with_done = gensio_tcl_stop_timer_with_done;
+    o->alloc_runner = gensio_tcl_alloc_runner;
+    o->free_runner = gensio_tcl_free_runner;
+    o->run = gensio_tcl_run;
+    o->alloc_waiter = gensio_tcl_alloc_waiter;
+    o->free_waiter = gensio_tcl_free_waiter;
+    o->wait = gensio_tcl_wait;
+    o->wait_intr = gensio_tcl_wait_intr;
+    o->wait_intr_sigmask = gensio_tcl_wait_intr_sigmask;
+    o->wake = gensio_tcl_wake;
+    o->service = gensio_tcl_service;
+    o->free_funcs = gensio_tcl_free_funcs;
+    o->call_once = gensio_tcl_call_once;
+    o->get_monotonic_time = gensio_tcl_get_monotonic_time;
+    o->handle_fork = gensio_tcl_handle_fork;
+    o->add_iod = gensio_tcl_add_iod;
+    o->release_iod = gensio_tcl_release_iod;
+    o->iod_get_type = gensio_tcl_iod_get_type;
+    o->iod_get_fd = gensio_tcl_iod_get_fd;
+    o->iod_get_protocol = gensio_tcl_iod_get_protocol;
+    o->iod_set_protocol = gensio_tcl_iod_set_protocol;
+
+    o->set_non_blocking = gensio_tcl_set_non_blocking;
+    o->close = gensio_tcl_close;
+    o->write = gensio_tcl_write;
+    o->read = gensio_tcl_read;
+    o->is_regfile = gensio_tcl_is_regfile;
+    o->bufcount = gensio_tcl_bufcount;
+    o->flush = gensio_tcl_flush;
+    o->makeraw = gensio_tcl_makeraw;
+    o->open_dev = gensio_tcl_open_dev;
+    o->exec_subprog = gensio_tcl_exec_subprog;
+    o->kill_subprog = gensio_tcl_kill_subprog;
+    o->wait_subprog = gensio_tcl_wait_subprog;
+    o->get_random = gensio_tcl_get_random;
+    o->iod_control = gensio_tcl_iod_control;
+
+    gensio_addr_addrinfo_set_os_funcs(o);
+    gensio_stdsock_set_os_funcs(o);
+
+    *ro = o;
+    return 0;
+}

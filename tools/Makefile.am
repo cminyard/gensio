@@ -1,6 +1,6 @@
 
 AM_CPPFLAGS = -DSYSCONFDIR="\"${sysconfdir}\"" -I$(top_builddir) \
-	      -I$(top_srcdir)/glib/include
+	      -I$(top_srcdir)/glib/include -I$(top_srcdir)/tcl/include
 
 noinst_LIBRARIES = libgensiotool.a libgtlssh.a
 
@@ -35,7 +35,7 @@ gmdns_LDADD = libgensiotool.a $(top_builddir)/lib/libgensio.la \
 	@OPENSSL_LIBS@
 
 gensiot_LDADD = libgensiotool.a $(top_builddir)/lib/libgensio.la \
-	@OPENSSL_LIBS@ @GLIB_LIB@ @GLIB_LIBS@
+	@OPENSSL_LIBS@ @GLIB_LIB@ @GLIB_LIBS@ @TCL_LIB@ @TCL_LIBS@
 
 gtlssh_LDADD = libgtlssh.a libgensiotool.a $(top_builddir)/lib/libgensio.la \
 	@OPENSSL_LIBS@

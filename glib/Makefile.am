@@ -1,8 +1,7 @@
 
 AM_CFLAGS = -DBUILDING_IPMI_DLL -I$(top_srcdir)/glib/include
 
-lib_LTLIBRARIES = @GLIB_TARGET@
-EXTRA_LTLIBRARIES = libgensioglib.la
+lib_LTLIBRARIES = libgensioglib.la
 
 libgensioglib_la_SOURCES = gensio_glib.c
 libgensioglib_la_CFLAGS = $(GLIB_CFLAGS) $(AM_CFLAGS)

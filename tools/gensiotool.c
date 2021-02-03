@@ -33,7 +33,12 @@
 
 #include <gensio/gensio.h>
 #include <gensio/gensio_unix.h>
+#ifdef HAVE_GLIB
 #include <gensio/gensio_glib.h>
+#endif
+#ifdef HAVE_TCL
+#include <gensio/gensio_tcl.h>
+#endif
 
 #include "ioinfo.h"
 #include "ser_ioinfo.h"
@@ -443,6 +448,7 @@ main(int argc, char *argv[])
     struct gdata userdata1, userdata2;
     const char *filename;
     bool use_glib = false;
+    bool use_tcl = false;
 #ifndef _WIN32
     sigset_t sigs;
 #endif
@@ -497,6 +503,8 @@ main(int argc, char *argv[])
 	    esc_set = true;
 	else if ((rv = cmparg(argc, argv, &arg, "-g", "--glib", NULL)))
 	    use_glib = true;
+	else if ((rv = cmparg(argc, argv, &arg, "", "--tcl", NULL)))
+	    use_tcl = true;
 	else if ((rv = cmparg(argc, argv, &arg, "", "--signature",
 			      &signature)))
 	    ;
@@ -552,6 +560,13 @@ main(int argc, char *argv[])
 	exit(1);
 #else
 	rv = gensio_glib_funcs_alloc(&o);
+#endif
+    } else if (use_tcl) {
+#ifndef HAVE_TCL
+	fprintf(stderr, "tcl specified, but tcl OS handler not avaiable.\n");
+	exit(1);
+#else
+	rv = gensio_tcl_funcs_alloc(&o);
 #endif
     } else {
 	rv = gensio_default_os_hnd(0, &o);

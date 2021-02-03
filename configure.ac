@@ -107,9 +107,12 @@ fi
 
 if test "x$system_type" == "xunix"; then
    tryglib=yes
+   trytcl=yes
 else
    tryglib=no
+   trytcl=no
 fi
+
 AC_ARG_WITH(glib,
  [AS_HELP_STRING([--with-glib=yes|no], [Look for glib.])],
     if test "x$withval" = "xyes"; then
@@ -168,24 +171,87 @@ AM_CONDITIONAL([HAVE_GLIB], [test "x$haveglib" = "xyes"])
 if test "x$haveglib" = "xyes"; then
    AC_DEFINE([HAVE_GLIB], [], [Have GLIB libraries])
    GLIB_LIB='$(top_builddir)/glib/libgensioglib.la'
-   GLIB_SO='$(top_builddir)/glib/.libs/libgensioglib.so'
-   GLIB_PKGCONF=gensioglib.pc
-   GLIB_TARGET=libgensioglib.la
    GLIB_DIR=glib
 else
    GLIB_LIB=
-   GLIB_SO=
-   GLIB_PKGCONF=
-   GLIB_TARGET=
    GLIB_DIR=
 fi
 AC_SUBST(GLIB_CFLAGS)
 AC_SUBST(GLIB_LIBS)
 AC_SUBST(GLIB_LIB)
-AC_SUBST(GLIB_SO)
-AC_SUBST(GLIB_PKGCONF)
-AC_SUBST(GLIB_TARGET)
 AC_SUBST(GLIB_DIR)
+
+AC_ARG_WITH(tcl,
+[  --with-tcl=yes|no               Look for tcl.],
+    if test "x$withval" = "xyes"; then
+      trytcl=yes
+    elif test "x$withval" = "xno"; then
+      trytcl=no
+    fi,
+)
+
+tclcflags=
+AC_ARG_WITH(tclcflags,
+[  --with-tclcflags=flags          Set the flags to compile with tcl.],
+    tclcflags="$withval",
+)
+
+tcllibs=
+AC_ARG_WITH(tcllibs,
+[  --with-tcllibs=libs             Set the libraries to link with tcl.],
+    tcllibs="$withval",
+)
+
+# Handle TCL support
+TCL_LIBS=
+TCL_CFLAGS=
+havetcl=no
+if test "x$trytcl" != "xno"; then
+   FOUND_TCL_HEADER=no
+   ver=`echo 'puts \$tcl_version' | tclsh`
+   if test "x$tclcflags" = "x"; then
+      AC_CHECK_HEADER(tcl/tcl.h, FOUND_TCL_HEADER=yes; )
+      if test "x$FOUND_TCL_HEADER" != "xyes"; then
+         AC_CHECK_HEADER(tcl/tcl.h, FOUND_TCL_HEADER=yes; )
+	 if test "x$FOUND_TCL_HEADER" == "xyes"; then
+	    tclcflags="-I /usr/include/tcl$ver"
+            TCL_CFLAGS="$tclcflags"
+	 fi
+      else
+	tclcflags="-I /usr/include/tcl"
+        TCL_CFLAGS="$tclcflags"
+      fi
+   else
+      TCL_CFLAGS="$tclcflags"
+      FOUND_TCL_HEADER=yes
+   fi
+   if test "x$tcllibs" = "x"; then
+      if test "x$FOUND_TCL_HEADER" = "xyes"; then
+         AC_CHECK_LIB(tcl, Tcl_DoOneEvent, TCL_LIBS=-ltcl)
+         if test "x$TCL_LIBS" = "x"; then
+            AC_CHECK_LIB(tcl$ver, Tcl_DoOneEvent, TCL_LIBS=-ltcl$ver)
+	 fi
+      fi
+   else
+      TCL_LIBS="$tcllibs"
+   fi
+   if test "x$FOUND_TCL_HEADER" = "xyes" -a "x$TCL_LIBS" != "x"; then
+      havetcl=yes
+   fi
+fi
+
+if test "x$havetcl" = "xyes"; then
+   AC_DEFINE([HAVE_TCL], [], [Have TCL libraries])
+   TCL_LIB='$(top_builddir)/tcl/libgensiotcl.la'
+   TCL_DIR=tcl
+else
+   TCL_LIB=
+   TCL_DIR=
+fi
+AC_SUBST(TCL_CFLAGS)
+AC_SUBST(TCL_LIBS)
+AC_SUBST(TCL_LIB)
+AC_SUBST(TCL_DIR)
 
 AC_ARG_WITH(openipmiflags,
  [AS_HELP_STRING([--with-openipmiflags=flags],
@@ -542,6 +608,12 @@ AC_OUTPUT([Makefile
 	glib/include/gensio/Makefile
 	glib/swig/Makefile
 	glib/swig/python/Makefile
+	tcl/libgensiotcl.pc
+	tcl/Makefile
+	tcl/include/Makefile
+	tcl/include/gensio/Makefile
+	tcl/swig/Makefile
+	tcl/swig/python/Makefile
 	include/Makefile
 	include/gensio/Makefile
 	include/gensio/gensio_version.h

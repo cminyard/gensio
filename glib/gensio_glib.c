@@ -638,6 +638,7 @@ struct gensio_runner
 
     GMutex lock;
     guint idle_id;
+    bool freed;
 };
 
 static gboolean
@@ -648,10 +649,16 @@ gensio_glib_idle_handler(gpointer data)
     void *cb_data;
 
     g_mutex_lock(&r->lock);
-    handler = r->handler;
-    cb_data = r->cb_data;
-    r->idle_id = 0;
-    g_mutex_unlock(&r->lock);
+    if (r->freed) {
+	g_mutex_unlock(&r->lock);
+	g_mutex_clear(&r->lock);
+	r->o->free(r->o, r);
+    } else {
+	handler = r->handler;
+	cb_data = r->cb_data;
+	r->idle_id = 0;
+	g_mutex_unlock(&r->lock);
+    }
 
     if (handler)
 	handler(r, cb_data);
@@ -682,8 +689,15 @@ gensio_glib_alloc_runner(struct gensio_os_funcs *o,
 static void
 gensio_glib_free_runner(struct gensio_runner *r)
 {
-    g_mutex_clear(&r->lock);
-    r->o->free(r->o, r);
+    g_mutex_lock(&r->lock);
+    if (r->idle_id) {
+	r->freed = true;
+	g_mutex_unlock(&r->lock);
+    } else {
+	g_mutex_unlock(&r->lock);
+	g_mutex_clear(&r->lock);
+	r->o->free(r->o, r);
+    }
 }
 
 static int
@@ -1586,7 +1600,7 @@ gensio_glib_free_funcs(struct gensio_os_funcs *f)
     free(f);
 }
 
-GMutex once_lock;
+static GMutex once_lock;
 
 static void
 gensio_glib_call_once(struct gensio_os_funcs *f, struct gensio_once *once,
