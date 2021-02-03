@@ -1,5 +1,5 @@
 
-AM_CFLAGS = -I$(top_srcdir)/glib/include
+AM_CFLAGS = -I$(top_srcdir)/glib/include -I$(top_srcdir)/tcl/include
 
 AM_TESTS_ENVIRONMENT = GENSIOT=$(top_builddir)/tools/gensiot
 
@@ -32,7 +32,7 @@ TESTS = $(PYTESTS) $(OOMTESTS)
 oomtest_SOURCES = oomtest.c
 
 oomtest_LDADD = $(top_builddir)/lib/libgensio.la $(OPENSSL_LIBS) \
-	@GLIB_LIB@ @GLIB_LIBS@
+	@GLIB_LIB@ @GLIB_LIBS@ @TCL_LIB@ @TCL_LIBS@
 
 check_PROGRAMS = oomtest
 

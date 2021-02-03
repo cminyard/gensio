@@ -2,9 +2,11 @@
 enable_testing()
 
 add_executable(oomtest oomtest.c)
-target_link_libraries(oomtest gensio ${GLIB_LIB} ${GLIB_LDFLAGS})
+target_link_libraries(oomtest gensio ${GLIB_LIB} ${GLIB_LDFLAGS}
+                      ${TCL_LIB} ${TCL_LIBRARY})
 
-include_directories("${PROJECT_SOURCE_DIR}/glib/include")
+include_directories("${PROJECT_SOURCE_DIR}/glib/include"
+		    "${PROJECT_SOURCE_DIR}/tcl/include")
 
 set (top_srcdir "${CMAKE_SOURCE_DIR}")
 set (top_builddir "${CMAKE_BINARY_DIR}")

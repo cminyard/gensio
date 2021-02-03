@@ -26,7 +26,12 @@
 #include <signal.h>
 #include <gensio/gensio.h>
 #include <gensio/gensio_unix.h>
+#ifdef HAVE_GLIB
 #include <gensio/gensio_glib.h>
+#endif
+#ifdef HAVE_TCL
+#include <gensio/gensio_tcl.h>
+#endif
 #include "pthread_handler.h"
 
 struct oom_tests {
@@ -63,10 +68,12 @@ struct oom_tests {
     struct gensio_os_funcs *o;
 };
 
-bool verbose;
-bool debug;
+static bool verbose;
+static bool debug;
 
-bool use_glib = false;
+static bool use_glib = false;
+static bool use_tcl = false;
+static const char *os_func_str = "";
 
 #ifdef _WIN32
 #include <windows.h>
@@ -1594,12 +1601,10 @@ run_oom_test(struct oom_tests *test, long count, int *exitcode, bool close_acc)
 
 	constr = gensio_alloc_sprintf(o, "stdio,%s%s%s -i 'stdio(self)' '%s%s'",
 				      gensiot, test->conacc ? " -a" : "",
-				      use_glib ? " -g" : "",
-				      test->connecter, intstr);
+				      os_func_str, test->connecter, intstr);
     } else {
 	constr = gensio_alloc_sprintf(o, "stdio,%s%s -i 'stdio(self)' '%s'",
-				      gensiot, use_glib ? " -g" : "",
-				      test->connecter);
+				      gensiot, os_func_str, test->connecter);
     }
     if (!constr) {
 	rv = GE_NOMEM;
@@ -1709,8 +1714,7 @@ run_oom_acc_test(struct oom_tests *test, long count, int *exitcode,
 
     constr = gensio_alloc_sprintf(o,
 				  "stdio,%s%s -v -a -p -i 'stdio(self)' '%s'",
-				  gensiot, use_glib ? " -g" : "",
-				  test->accepter);
+				  gensiot, os_func_str, test->accepter);
     if (!constr) {
 	err = GE_NOMEM;
 	goto out_err;
@@ -2018,6 +2022,7 @@ main(int argc, char *argv[])
     gensio_time zerotime = { 0, 0 };
     struct oom_tests user_test;
     bool list_tests = false;
+    char *oshstr;
 
     memset(&user_test, 0, sizeof(user_test));
 
@@ -2032,6 +2037,18 @@ main(int argc, char *argv[])
 	exit(1);
     }
 
+    oshstr = getenv("GENSIO_TEST_OS_HANDLER");
+    if (oshstr) {
+	if (strcmp(oshstr, "glib")) {
+	    use_glib = true;
+	} else if (strcmp(oshstr, "tcl")) {
+	    use_tcl = true;
+	} else {
+	    fprintf(stderr, "Unknown OS handler fron environment: %s\n",
+		    oshstr);
+	    exit(1);
+	}
+    }
 #ifndef ENABLE_INTERNAL_TRACE
     fprintf(stderr, "Internal tracing disabled, cannot run oomtest\n");
     fprintf(stderr, "Configure with --enable-internal-trace to enable internal"
@@ -2156,6 +2173,8 @@ main(int argc, char *argv[])
 	    user_test.allow_no_err_on_trig = true;
 	} else if (strcmp(argv[i], "-g") == 0) {
 	    use_glib = true;
+	} else if (strcmp(argv[i], "--tcl") == 0) {
+	    use_tcl = true;
 	} else {
 	    fprintf(stderr, "Unknown argument: '%s'\n", argv[i]);
 	    exit(1);
@@ -2167,7 +2186,16 @@ main(int argc, char *argv[])
 	fprintf(stderr, "glib specified, but glib OS handler not avaiable.\n");
 	exit(1);
 #else
+	os_func_str = " -g";
 	rv = gensio_glib_funcs_alloc(&o);
+#endif
+    } else if (use_tcl) {
+#ifndef HAVE_TCL
+	fprintf(stderr, "tcl specified, but tcl OS handler not avaiable.\n");
+	exit(1);
+#else
+	os_func_str = " --tcl";
+	rv = gensio_tcl_funcs_alloc(&o);
 #endif
     } else {
 	rv = gensio_default_os_hnd(SIGUSR1, &o);

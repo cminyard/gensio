@@ -53,12 +53,12 @@ else
 fi
 
 if ${PYTHON_MODE}; then
-    export PYTHONPATH=${BUILDDIR}/swig/python:${BUILDDIR}/swig/python/.libs:${BUILDDIR}/glib/swig/python:${BUILDDIR}/glib/swig/python/.libs:${TEST_BUILDDIR}
+    export PYTHONPATH=${BUILDDIR}/swig/python:${BUILDDIR}/swig/python/.libs:${BUILDDIR}/glib/swig/python:${BUILDDIR}/glib/swig/python/.libs:${BUILDDIR}/tcl/swig/python:${BUILDDIR}/tcl/swig/python/.libs:${TEST_BUILDDIR}
     # We need to put the DLL in PATH for MSYS on Windows
     if [ ! -z "$MSYSTEM" ]; then
 	export PATH=${BUILDDIR}/lib:${BUILDDIR}/lib/.libs:$PATH
     else
-	export LD_LIBRARY_PATH=${BUILDDIR}/lib:${BUILDDIR}/lib/.libs
+	export LD_LIBRARY_PATH=${BUILDDIR}/lib:${BUILDDIR}/lib/.libs:${BUILDDIR}/glib/.libs::${BUILDDIR}/tcl/.libs
     fi
     TEST="${PYTHON} ${TEST}"
 else

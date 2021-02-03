@@ -19,7 +19,7 @@ EXTRA_DIST = CMakeLists.txt
 nodist__gensiotcl_la_SOURCES = gensiotcl_wrap.c
 _gensiotcl_la_LIBADD = $(top_builddir)/tcl/libgensiotcl.la \
 		$(top_builddir)/lib/libgensio.la $(OPENSSL_LIBS) \
-		$(PYTHON_LIBS) \
+		$(PYTHON_LIBS) $(TCL_LIBS) \
 		$(top_builddir)/swig/python/libgensio_python_swig.la
 _gensiotcl_la_LDFLAGS = -module -avoid-version $(OPENSSL_LDFLAGS) -no-undefined
 

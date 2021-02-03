@@ -644,6 +644,9 @@ if oshndname is None:
 elif oshndname == "glib":
     import gensioglib
     o = gensioglib.alloc_glib_os_funcs(Logger());
+elif oshndname == "tcl":
+    import gensiotcl
+    o = gensiotcl.alloc_tcl_os_funcs(Logger());
 else:
     print("Unknown OS handler name: " + oshndname)
     sys.exit(1)
