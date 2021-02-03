@@ -1117,7 +1117,7 @@ gensio_tcl_service(struct gensio_os_funcs *o, gensio_time *timeout)
 
     setup_timeout(&ti);
 
-    while (!timed_out(&ti)) {
+    if (!timed_out(&ti)) {
 	timeout_wait(&ti);
 	ti.now = fetch_us_time();
     }

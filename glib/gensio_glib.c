@@ -1554,7 +1554,7 @@ gensio_glib_service(struct gensio_os_funcs *o, gensio_time *timeout)
 
     g_mutex_lock(&d->lock);
     gensio_list_add_tail(&d->waiting_threads, &t.global_link);
-    while (!timed_out(&ti)) {
+    if (!timed_out(&ti)) {
 	if (!d->main_context_owner)
 	    d->main_context_owner = &t;
 	if (d->main_context_owner == &t) {
