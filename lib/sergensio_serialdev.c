@@ -1141,7 +1141,8 @@ handle_speedstr(struct sterm_data *sdata, const char *str)
     const char *rest = "";
 
     val = speedstr_to_speed(str, &rest);
-    if (val == -1)
+    if (val < 10)
+	/* Some parameters start a digit, ignore them. */
 	return GE_INVAL;
     rv = set_serdef_from_speed(sdata, val, rest);
     if (rv)
