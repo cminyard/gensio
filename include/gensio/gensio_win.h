@@ -19,7 +19,7 @@ extern "C" {
  * Allocate a windows os funcs.
  */
 GENSIO_DLL_PUBLIC
-struct gensio_os_funcs *gensio_win_funcs_alloc(void);
+int gensio_win_funcs_alloc(void, struct gensio_os_funcs *ro);
 
 #ifdef __cplusplus
 }

@@ -2766,21 +2766,21 @@ win_finish_free(struct gensio_os_funcs *o)
     WSACleanup();
 }
 
-struct gensio_os_funcs *
-gensio_win_funcs_alloc(void)
+int
+gensio_win_funcs_alloc(struct gensio_os_funcs **ro)
 {
     struct gensio_data *d;
     struct gensio_os_funcs *o;
 
     o = malloc(sizeof(*o));
     if (!o)
-	return NULL;
+	return GE_NOMEM;
     memset(o, 0, sizeof(*o));
 
     d = malloc(sizeof(*d));
     if (!d) {
 	free(o);
-	return NULL;
+	return GE_NOMEM;
     }
     memset(d, 0, sizeof(*d));
     InitializeCriticalSection(&d->lock);
@@ -2880,11 +2880,12 @@ gensio_win_funcs_alloc(void)
     if (WSAStartup(MAKEWORD(2, 2), &d->wsa_data))
 	goto out_err;
 
+    *ro = o;
     return o;
 
  out_err:
     win_finish_free(o);
-    return NULL;
+    return GE_NOMEM;
 }
 
 int
@@ -2943,8 +2944,10 @@ static BOOL CALLBACK win_oshnd_init(PINIT_ONCE InitOnce,
 				    PVOID Parameter,
 				    PVOID *lpContext)
 {
-    def_win_os_funcs = gensio_win_funcs_alloc();
-    *lpContext = def_win_os_funcs;
+    int rv = gensio_win_funcs_alloc(&def_win_os_funcs);
+    
+    if (!rv)
+	*lpContext = def_win_os_funcs;
     return !!def_win_os_funcs;
 }
 

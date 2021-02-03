@@ -18,3 +18,7 @@ DIST_SUBDIRS = swig include
 # by 'install-exec' target (instead of default 'install-data')
 pkgconfigexecdir = $(libdir)/pkgconfig
 pkgconfigexec_DATA = libgensioglib.pc
+
+if INSTALL_DOC
+man3_MANS = gensio_glib_funcs_alloc.3
+endif

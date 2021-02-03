@@ -24,7 +24,7 @@
  * threads, though, only on thing at a time can be waiting on the main
  * glib thread.  This is a weakness in glib.  For multiple threads,
  * one function sits in the main context and the others sit on
- * condition variables.  when the thead sitting on the main context
+ * condition variables.  When the thead sitting on the main context
  * wakes up, it wakes another waiting thread to take over.
  *
  * If performance is important, it might be better to put glib on top

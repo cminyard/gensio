@@ -21,6 +21,8 @@ install-data-hook:
 	$(LN_SF) gensio_set_log_mask.3 $(DESTDIR)$(man3dir)/gensio_vlog.3
 	$(LN_SF) gensio_set_log_mask.3 $(DESTDIR)$(man3dir)/gensio_log.3
 	$(LN_SF) gensio_os_funcs.3 $(DESTDIR)$(man3dir)/gensio_default_os_hnd.3
+	$(LN_SF) gensio_os_funcs.3 $(DESTDIR)$(man3dir)/gensio_unix_funcs_alloc.3
+	$(LN_SF) gensio_os_funcs.3 $(DESTDIR)$(man3dir)/gensio_win_funcs_alloc.3
 	$(LN_SF) gensio_err.3 $(DESTDIR)$(man3dir)/gensio_err_to_str.3
 	$(LN_SF) gensio_write.3 $(DESTDIR)$(man3dir)/gensio_write_sg.3
 	$(LN_SF) gensio_open.3 $(DESTDIR)$(man3dir)/gensio_open_s.3
@@ -109,6 +111,8 @@ uninstall-hook:
 	$(RM_F) $(DESTDIR)$(man3dir)/gensio_vlog.3
 	$(RM_F) $(DESTDIR)$(man3dir)/gensio_log.3
 	$(RM_F) $(DESTDIR)$(man3dir)/gensio_default_os_hnd.3
+	$(RM_F) $(DESTDIR)$(man3dir)/gensio_unix_funcs_alloc.3
+	$(RM_F) $(DESTDIR)$(man3dir)/gensio_win_funcs_alloc.3
 	$(RM_F) $(DESTDIR)$(man3dir)/gensio_write_sg.3
 	$(RM_F) $(DESTDIR)$(man3dir)/gensio_err_to_str.3
 	$(RM_F) $(DESTDIR)$(man3dir)/gensio_open_s.3

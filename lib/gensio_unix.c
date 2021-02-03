@@ -1422,8 +1422,9 @@ defsel_unlock(sel_lock_t *l)
 static pthread_once_t defos_once = PTHREAD_ONCE_INIT;
 #endif
 
-struct gensio_os_funcs *
-gensio_unix_funcs_alloc(struct selector_s *sel, int wake_sig)
+int
+gensio_unix_funcs_alloc(struct selector_s *sel, int wake_sig,
+			struct gensio_os_funcs **ro)
 {
     struct gensio_os_funcs *o;
     bool freesel = false;
@@ -1439,7 +1440,7 @@ gensio_unix_funcs_alloc(struct selector_s *sel, int wake_sig)
 	rv = sel_alloc_selector_nothread(&sel);
 #endif
 	if (rv)
-	    return NULL;
+	    return GE_NOMEM;
 	freesel = true;
     }
 
@@ -1452,19 +1453,23 @@ gensio_unix_funcs_alloc(struct selector_s *sel, int wake_sig)
 	sel_free_selector(sel);
     }
 
-    return o;
+    *ro = o;
+    return 0;
 }
 
 struct gensio_os_funcs *
 gensio_selector_alloc(struct selector_s *sel, int wake_sig)
 {
-    return gensio_unix_funcs_alloc(sel, wake_sig);
+    struct gensio_os_funcs *o = NULL;
+
+    gensio_unix_funcs_alloc(sel, wake_sig, &o);
+    return o;
 }
 
 static void
 defoshnd_init(void)
 {
-    defoshnd = gensio_unix_funcs_alloc(NULL, defoshnd_wake_sig);
+    gensio_unix_funcs_alloc(NULL, defoshnd_wake_sig, &defoshnd);
 }
 
 int

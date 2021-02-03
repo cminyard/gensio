@@ -1991,6 +1991,7 @@ run_tests(struct oom_tests *test, int testnrstart, int testnrend,
 	(*skipcount)++;
 	return;
     }
+    printf("Running test %s\n", test->connecter);
     *errcount += run_oom_tests(test, "oom", run_oom_test,
 			       testnrstart, testnrend);
     if (test->accepter && !test->conacc)
@@ -2039,9 +2040,9 @@ main(int argc, char *argv[])
 
     oshstr = getenv("GENSIO_TEST_OS_HANDLER");
     if (oshstr) {
-	if (strcmp(oshstr, "glib")) {
+	if (strcmp(oshstr, "glib") == 0) {
 	    use_glib = true;
-	} else if (strcmp(oshstr, "tcl")) {
+	} else if (strcmp(oshstr, "tcl") == 0) {
 	    use_tcl = true;
 	} else {
 	    fprintf(stderr, "Unknown OS handler fron environment: %s\n",
@@ -2194,6 +2195,10 @@ main(int argc, char *argv[])
 	fprintf(stderr, "tcl specified, but tcl OS handler not avaiable.\n");
 	exit(1);
 #else
+	if (num_extra_threads > 0)
+	    printf("Number of extra threads is %u, incompatible with TCL,"
+		   " forcing to 0\n", num_extra_threads);
+	num_extra_threads = 0;
 	os_func_str = " --tcl";
 	rv = gensio_tcl_funcs_alloc(&o);
 #endif
@@ -2255,20 +2260,22 @@ main(int argc, char *argv[])
     }
 #endif
 
-    for (j = 0; j < repeat_count; j++) {
-	if (user_test.connecter) {
-	    run_tests(&user_test, testnrstart, testnrend,
-		      &skipcount, &errcount);
-	} else if (testnr < 0) {
-	    for (i = 0; oom_tests[i].connecter; i++) {
-		if (oom_tests[i].no_default_run)
-		    continue;
-		run_tests(oom_tests + i, testnrstart, testnrend,
+    if (user_test.connecter) {
+	run_tests(&user_test, testnrstart, testnrend,
+		  &skipcount, &errcount);
+    } else {
+	for (j = 0; j < repeat_count; j++) {
+	    if (testnr < 0) {
+		for (i = 0; oom_tests[i].connecter; i++) {
+		    if (oom_tests[i].no_default_run)
+			continue;
+		    run_tests(oom_tests + i, testnrstart, testnrend,
+			      &skipcount, &errcount);
+		}
+	    } else {
+		run_tests(oom_tests + testnr, testnrstart, testnrend,
 			  &skipcount, &errcount);
 	    }
-	} else {
-	    run_tests(oom_tests + testnr, testnrstart, testnrend,
-		      &skipcount, &errcount);
 	}
     }
 

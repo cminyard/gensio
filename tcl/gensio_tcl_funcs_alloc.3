@@ -1,0 +1,34 @@
+.TH gensio_tcl_funcs_alloc 3 "03 Feb 2021"
+.SH NAME
+gensio_tcl_funcs_alloc \- Abstraction for some operating system functions
+done with tcl
+.SH SYNOPSIS
+.B #include <gensio/gensio_tcl.h>
+.PP
+.B int gensio_tcl_funcs_alloc(struct gensio_os_funcs **o)
+.SH "DESCRIPTION"
+This structure provides an abstraction for the gensio library that
+lets it work on top of tcl.  See the tcl_os_funcs.3 man page for
+details on what this does.  This can be used if you have a project
+based on tcl that you want to integrate gensio into.
+
+Unfortunately, it has some limitations because of weaknesses in the
+tcl interface.  Basically, no threads.
+
+In tcl, if you start a timer, that timer will only fire in that
+thread's call to Tcl_DoOneEvent.  Same with file handlers.
+Basically, timers, idle calls, and file handlers belong to a thread.
+
+You could, theoretically, have multiple threads as long as you
+allocate an os handler per thread and did everything with an os
+handler only in the thread that created it.  But that's not very
+useful.
+
+If you really want real threading to work, you put tcl on top of
+gensio os funcs using Tcl_NotifierProcs.  I leave that as an
+exercise to the reader.
+.SH "RETURN VALUES"
+.B A gensio_err
+returns a standard gensio error.
+.SH "SEE ALSO"
+gensio_os_funcs(3), gensio(5), gensio_err(3)

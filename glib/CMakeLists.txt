@@ -35,3 +35,6 @@ endif()
 configure_file(libgensioglib.pc.in libgensioglib.pc @ONLY)
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/libgensioglib.pc
         DESTINATION ${CMAKE_INSTALL_LIBDIR}/pkgconfig)
+
+install(FILES gensio_glib_funcs_alloc.3 DESTINATION
+        ${CMAKE_INSTALL_FULL_MANDIR}/man8)

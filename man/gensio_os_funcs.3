@@ -7,7 +7,13 @@ by the gensio library
 .PP
 .B struct gensio_os_funcs {}
 .PP
-.B int gensio_default_os_hnd(int wake_sig, struct gensio_os_funcs *o)
+.B int gensio_default_os_hnd(int wake_sig, struct gensio_os_funcs **o)
+.PP
+.B int gensio_unix_funcs_alloc(struct selector_s *sel, int wake_sig,
+.br
+		struct gensio_os_funcs **o)
+.PP
+.B int gensio_win_funcs_alloc(struct gensio_os_funcs **o)
 .SH "DESCRIPTION"
 This structure provides an abstraction for the gensio library that
 lets it work with various event libraries.  It provides the following
@@ -44,6 +50,18 @@ provides a way to allocate a default OS function handler for the
 platform.  The same value will be returned each time, only one is
 created.  You should generally use this one unless you have a special
 need as documented above.
+
+.B gensio_unix_funcs_alloc
+and
+.B gensio_win_funcs_alloc
+Allocate default os handlers for Unix and Windows based systems,
+respectively.
+
+The
+.I sel
+parameter for Unix allows you to create your own selector object and
+pass it to the OS handler.  Passing in NULL will cause it to allocate
+it's own selector object.  See the selector.h include file for details.
 
 The
 .I wake_sig
