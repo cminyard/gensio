@@ -1547,7 +1547,8 @@ handle_speedstr(g_termios *termio, const char *str, bool custspeed)
     const char *rest = "";
 
     val = speedstr_to_speed(str, &rest);
-    if (val == -1)
+    if (val < 10)
+	/* Some parameters start a digit, ignore them. */
 	return GE_INVAL;
     if (set_termios_from_speed(termio, val, rest, custspeed) == -1)
 	return GE_INVAL;
