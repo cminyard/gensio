@@ -2,7 +2,7 @@
 AM_CFLAGS = $(PYTHON_CPPFLAGS) \
 	    -I $(top_srcdir)/include \
 	    -I$(top_builddir)/include \
-	    -I $(top_srcdir) \
+	    -I $(top_srcdir) -I$(top_srcdir)/swig/include \
 	    -DPYTHON_HAS_THREADS=@PYTHON_HAS_THREADS@
 
 pythonlibdir=$(PYTHON_INSTALL_LIB_DIR)
@@ -11,7 +11,7 @@ pythonlib_LTLIBRARIES = _gensio.la
 lib_LTLIBRARIES = libgensio_python_swig.la
 
 libgensio_python_swig_la_SOURCES = gensio_python_swig.c
-libgensio_python_swig_la_CFLAGS = -DBULDING_DLL $(AM_CFLAGS)
+libgensio_python_swig_la_CFLAGS = -DBUILDING_DLL $(AM_CFLAGS)
 libgensio_python_swig_la_LDFLAGS = -no-undefined
 libgensio_python_swig_la_LIBADD = $(PYTHON_LIBS) \
 		$(top_builddir)/lib/libgensio.la

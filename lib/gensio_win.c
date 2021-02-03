@@ -96,7 +96,7 @@ struct gensio_iod_win {
     void (*wake)(struct gensio_iod_win *);
     void (*check)(struct gensio_iod_win *);
     void (*shutdown)(struct gensio_iod_win *); /* Optional. */
-    int fd;
+    intptr_t fd;
     int protocol;
     struct gensio_link link;
     struct gensio_link all_link;
@@ -1057,15 +1057,15 @@ static void
 win_iod_check_handler(struct gensio_iod_win *iod, struct iostat *stat)
 {
     EnterCriticalSection(&iod->lock);
-    if (stat->wait && stat->handler && (stat->ready || iod->closed)) {
+    while (stat->wait && stat->handler && (stat->ready || iod->closed)) {
 	void (*handler)(struct gensio_iod *iod, void *cb_data) = stat->handler;
 	void *cb_data = iod->cb_data;
 
 	LeaveCriticalSection(&iod->lock);
 	handler(&iod->r, cb_data);
-    } else {
-	LeaveCriticalSection(&iod->lock);
+	EnterCriticalSection(&iod->lock);
     }
+    LeaveCriticalSection(&iod->lock);
 }
 
 static void
@@ -1686,15 +1686,16 @@ win_iod_write_pipe_init(struct gensio_iod_win *wiod, void *cb_data)
 static int
 win_iod_pipe_init(struct gensio_iod_win *wiod, void *cb_data)
 {
+    struct gensio_iod_win_oneway *oiod = i_to_win_oneway(wiod);
     DWORD pflags;
 
-    wiod->iod = (HANDLE) wiod->fd;
-    if (!GetNamedPipeInfo(wiod->ioh, &pflags, NULL, NULL, NULL))
-	return gensio_os_err_to_err(o, GetLastError());
+    oiod->ioh = (HANDLE) wiod->fd;
+    if (!GetNamedPipeInfo(oiod->ioh, &pflags, NULL, NULL, NULL))
+	return gensio_os_err_to_err(wiod->r.f, GetLastError());
     if (pflags & PIPE_SERVER_END)
-	return win_iod_read_pipe_init(woid, cb_data);
+	return win_iod_read_pipe_init(wiod, cb_data);
     else
-	return win_iod_write_pipe_init(woid, cb_data);
+	return win_iod_write_pipe_init(wiod, cb_data);
 }
 
 /*
@@ -1947,6 +1948,8 @@ win_twoway_write(struct gensio_iod_win *wiod,
 	goto out;
     gensio_circbuf_sg_write(iod->outbuf, sg, sglen, &count);
     wiod->write.ready = gensio_circbuf_room_left(iod->outbuf) > 0;
+    if (!wiod->write.ready)
+	wiod->wake(wiod);
     LeaveCriticalSection(&wiod->lock);
     if (count)
 	assert(SetEvent(iod->wakeh));
@@ -1981,6 +1984,8 @@ win_twoway_read(struct gensio_iod_win *wiod,
     was_full = gensio_circbuf_room_left(iod->inbuf) == 0;
     gensio_circbuf_read(iod->inbuf, ibuf, buflen, &count);
     wiod->read.ready = gensio_circbuf_datalen(iod->inbuf) > 0;
+    if (!wiod->read.ready)
+	wiod->wake(wiod);
     if (was_full && count)
 	assert(SetEvent(iod->wakeh));
  out:
@@ -2316,6 +2321,7 @@ win_recv(struct gensio_iod *iiod, void *buf, gensiods buflen,
     wiod->read.ready = FALSE;
     wiod->except.ready = FALSE;
     rv = d->orig_recv(iiod, buf, buflen, rcount, gflags);
+    wiod->wake(wiod);
  out:
     LeaveCriticalSection(&wiod->lock);
 
@@ -2344,6 +2350,7 @@ win_send(struct gensio_iod *iiod,
     }
     wiod->write.ready = FALSE;
     rv = d->orig_send(iiod, sg, sglen, rcount, gflags);
+    wiod->wake(wiod);
  out:
     LeaveCriticalSection(&wiod->lock);
 
@@ -2373,6 +2380,7 @@ win_sendto(struct gensio_iod *iiod,
     }
     wiod->write.ready = FALSE;
     rv = d->orig_sendto(iiod, sg, sglen, rcount, gflags, raddr);
+    wiod->wake(wiod);
  out:
     LeaveCriticalSection(&wiod->lock);
 
@@ -2401,6 +2409,7 @@ win_recvfrom(struct gensio_iod *iiod, void *buf, gensiods buflen,
     wiod->read.ready = FALSE;
     wiod->except.ready = FALSE;
     rv = d->orig_recvfrom(iiod, buf, buflen, rcount, flags, addr);
+    wiod->wake(wiod);
  out:
     LeaveCriticalSection(&wiod->lock);
 
@@ -2427,8 +2436,10 @@ win_accept(struct gensio_iod *iiod,
 	goto out;
     }
     rv = d->orig_accept(iiod, raddr, newiod);
-    if (rv && WSAGetLastError() != WSAEWOULDBLOCK)
+    if (rv && WSAGetLastError() != WSAEWOULDBLOCK) {
 	wiod->read.ready = FALSE;
+	wiod->wake(wiod);
+    }
  out:
     LeaveCriticalSection(&wiod->lock);
 
@@ -2457,6 +2468,7 @@ win_connect(struct gensio_iod *iiod, const struct gensio_addr *addr)
     rv = d->orig_connect(iiod, addr);
     if (rv == 0)
 	siod->connected = TRUE;
+    wiod->wake(wiod);
  out:
     LeaveCriticalSection(&wiod->lock);
 
@@ -2529,7 +2541,7 @@ win_write(struct gensio_iod *iiod,
 
     if (iod->type == GENSIO_IOD_SOCKET) {
 	return o->send(iiod, sg, sglen, rcount, 0);
-    } else if (iod->type == GENSIO_IOD_STDIO || 
+    } else if (iod->type == GENSIO_IOD_STDIO ||
 	       iod->type == GENSIO_IOD_PIPE) {
 	return win_oneway_write(iod, sg, sglen, rcount);
     } else if (iod->type == GENSIO_IOD_DEV) {
@@ -2651,9 +2663,9 @@ win_exec_subprog(struct gensio_os_funcs *o,
     HANDLE stdin_m = NULL;
     HANDLE stdout_m = NULL;
     HANDLE stderr_m = NULL;
-    struct gensio_iod_win *stdin_iod = NULL;
-    struct gensio_iod_win *stdout_iod = NULL;
-    struct gensio_iod_win *stderr_iod = NULL;
+    struct gensio_iod *stdin_iod = NULL;
+    struct gensio_iod *stdout_iod = NULL;
+    struct gensio_iod *stderr_iod = NULL;
 
     rv = gensio_win_do_exec(o, argv, env, stderr_to_stdout, &phandle,
 			    &stdin_m, &stdout_m,
@@ -2676,26 +2688,23 @@ win_exec_subprog(struct gensio_os_funcs *o,
     }
 
     *rpid = (intptr_t) phandle;
-    *rstdin = &stdin_iod->r;
-    *rstdout = &stdout_iod->r;
+    *rstdin = stdin_iod;
+    *rstdout = stdout_iod;
     if (rstderr)
-	*rstderr = &stderr_iod->r;
+	*rstderr = stderr_iod;
     return 0;
 
  out_err:
     if (stdin_iod) {
-	struct gensio_iod *iod = &stdin_iod->r;
-	o->close(&iod);
+	o->close(&stdin_iod);
     } else if (stdin_m)
 	CloseHandle(stdin_m);
     if (stdout_iod) {
-	struct gensio_iod *iod = &stdout_iod->r;
-	o->close(&iod);
+	o->close(&stdout_iod);
     } else if (stdout_m)
 	CloseHandle(stdout_m);
     if (stderr_iod) {
-	struct gensio_iod *iod = &stderr_iod->r;
-	o->close(&iod);
+	o->close(&stderr_iod);
     } else if (stderr_m)
 	CloseHandle(stderr_m);
     return rv;
@@ -2883,7 +2892,7 @@ gensio_win_funcs_alloc(struct gensio_os_funcs **ro)
 	goto out_err;
 
     *ro = o;
-    return o;
+    return 0;
 
  out_err:
     win_finish_free(o);
@@ -2947,7 +2956,7 @@ static BOOL CALLBACK win_oshnd_init(PINIT_ONCE InitOnce,
 				    PVOID *lpContext)
 {
     int rv = gensio_win_funcs_alloc(&def_win_os_funcs);
-    
+
     if (!rv)
 	*lpContext = def_win_os_funcs;
     return !!def_win_os_funcs;
