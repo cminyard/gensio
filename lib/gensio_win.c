@@ -2436,10 +2436,8 @@ win_accept(struct gensio_iod *iiod,
 	goto out;
     }
     rv = d->orig_accept(iiod, raddr, newiod);
-    if (rv && WSAGetLastError() != WSAEWOULDBLOCK) {
-	wiod->read.ready = FALSE;
-	wiod->wake(wiod);
-    }
+    wiod->read.ready = FALSE;
+    wiod->wake(wiod);
  out:
     LeaveCriticalSection(&wiod->lock);
 
