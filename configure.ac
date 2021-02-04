@@ -82,7 +82,11 @@ AC_ARG_WITH(sctp,
     fi,
 )
 
-use_pthreads=yes
+if test "x$system_type" == "xunix"; then
+   use_pthreads=yes
+else
+   use_pthreads=no
+fi
 use_pthreads_set=false
 AC_ARG_WITH(pthreads,
  [AS_HELP_STRING([--with-pthreads=yes|no], [Use pthreads or not])],
