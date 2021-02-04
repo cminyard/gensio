@@ -3,7 +3,7 @@ enable_testing()
 
 add_executable(oomtest oomtest.c)
 target_link_libraries(oomtest gensio ${GLIB_LIB} ${GLIB_LDFLAGS}
-                      ${TCL_LIB} ${TCL_LIBRARY})
+                      ${TCL_LIB} ${TCL_LIBS})
 
 include_directories("${PROJECT_SOURCE_DIR}/glib/include"
 		    "${PROJECT_SOURCE_DIR}/tcl/include")

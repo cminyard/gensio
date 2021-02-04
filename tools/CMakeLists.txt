@@ -8,7 +8,7 @@ include_directories("${PROJECT_SOURCE_DIR}/glib/include"
 
 add_executable(gensiot gensiotool.c)
 target_link_libraries(gensiot gensio gensiotool ${GLIB_LIB} ${GLIB_LDFLAGS}
-		      ${TCL_LIB} ${TCL_LIBRARY})
+		      ${TCL_LIB} ${TCL_LIBS})
 
 install(TARGETS gensiot DESTINATION bin)
 

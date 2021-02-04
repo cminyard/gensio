@@ -58,11 +58,13 @@ if(ENABLE_GLIB)
   endif()
 endif()
 
+set(TCL_LIBS )
 option(ENABLE_TCL "Enable TCL support" UNIX)
 if(ENABLE_TCL)
   if(TCL_FOUND)
     set(HAVE_TCL ON)
     set(TCL_LIB gensiotcl)
+    set(TCL_LIBS ${TCL_LIBRARY})
   endif()
 endif()
 
