@@ -300,7 +300,10 @@ static void
 io_open_paddr(struct gensio *io, int err, void *open_data)
 {
     struct ioinfo *ioinfo = gensio_get_user_data(io);
+    struct ioinfo *oioinfo = ioinfo_otherioinfo(ioinfo);
     struct gdata *ginfo = ioinfo_userdata(ioinfo);
+    struct gdata *oginfo = ioinfo_userdata(oioinfo);
+    int rv;
 
     if (err) {
 	ginfo->can_close = false;
@@ -314,6 +317,17 @@ io_open_paddr(struct gensio *io, int err, void *open_data)
 	if (print_raddr)
 	    print_io_addr(io, false);
 	ioinfo_set_ready(ioinfo, io);
+
+	oginfo->can_close = true;
+	rv = gensio_open(oginfo->io, io_open, NULL);
+	if (rv) {
+	    oginfo->err = rv;
+	    oginfo->can_close = false;
+	    fprintf(stderr, "Could not open %s: %s\n", oginfo->ios,
+		    gensio_err_to_str(rv));
+	    fflush(stderr);
+	    gshutdown(ioinfo, false);
+	}
     }
 }
 
@@ -664,16 +678,6 @@ main(int argc, char *argv[])
 	    userdata2.err = rv;
 	    userdata2.can_close = false;
 	    fprintf(stderr, "Could not open %s: %s\n", userdata2.ios,
-		    gensio_err_to_str(rv));
-	    goto out_err;
-	}
-
-	userdata1.can_close = true;
-	rv = gensio_open(userdata1.io, io_open, NULL);
-	if (rv) {
-	    userdata1.err = rv;
-	    userdata1.can_close = false;
-	    fprintf(stderr, "Could not open %s: %s\n", userdata1.ios,
 		    gensio_err_to_str(rv));
 	    goto out_err;
 	}
