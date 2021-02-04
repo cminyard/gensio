@@ -451,6 +451,12 @@ win_clear_fd_handlers(struct gensio_iod *iiod)
     EnterCriticalSection(&iod->lock);
     if (iod->handlers_set && !iod->in_handlers_clear) {
 	iod->in_handlers_clear = TRUE;
+	iod->read.wait = FALSE;
+	iod->read.ready = FALSE;
+	iod->write.wait = FALSE;
+	iod->write.ready = FALSE;
+	iod->except.wait = FALSE;
+	iod->except.ready = FALSE;
 	if (iod->in_handler_count == 0)
 	    queue_iod(iod);
     }
