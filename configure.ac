@@ -7,6 +7,7 @@ AC_CANONICAL_TARGET
 AM_INIT_AUTOMAKE([-Wall])
 AC_CONFIG_HEADERS([config.h])
 AC_PROG_CC
+AC_PROG_CXX
 AM_PROG_AR
 AM_PROG_LIBTOOL
 uucp_locking_flag=yes
@@ -606,6 +607,9 @@ CPPFLAGS="$CPPFLAGS -I\$(top_srcdir)/include -I\$(top_builddir)/include"
 AC_OUTPUT([Makefile
 	lib/libgensio.pc
 	lib/Makefile
+	c++/Makefile
+	c++/include/Makefile
+	c++/include/gensio/Makefile
 	glib/libgensioglib.pc
 	glib/Makefile
 	glib/include/Makefile

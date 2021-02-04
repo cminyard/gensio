@@ -1,0 +1,626 @@
+//
+//  gensio - A library for abstracting stream I/O
+//  Copyright (C) 2018  Corey Minyard <minyard@acm.org>
+//
+//  SPDX-License-Identifier: LGPL-2.1-only
+
+// This is a C++ wrapper for the gensio library.
+
+#include <stdexcept>
+#include <string>
+#include <memory>
+
+namespace gensio {
+    // Incuding this in the gensio namespace to keep things need, and
+    // so we can have a gensio namespace.  You can't have a "struct
+    // gensio" and "namespace gensio" in the same namespace.
+#include <gensio/gensio.h>
+#include <gensio/sergensio.h>
+
+    // This is an exception that is raised by gensio operations that
+    // get errors.  Most operations raise exceptions, unless otherwise
+    // noted.  Note that the string is set, so what() will return the
+    // string.  You can get the number with get_error().
+    class gensio_error: public std::runtime_error {
+    public:
+	gensio_error(int ierr): std::runtime_error(gensio_err_to_str(ierr))
+	{
+	    err = ierr;
+	};
+	int get_error() { return err; };
+    private:
+	int err;
+    };
+
+    class Gensio;
+    class Serial_Gensio;
+
+    // This is an abstract class to be passed into a gensio class for
+    // delivery of events from the gensio.
+    class Event {
+    public:
+	// Data from the gensio is delivered in this callback.  You
+	// must implement this.
+	virtual int read(Gensio *io, int err, unsigned char *buf,
+			 gensiods *buflen, const char *const *auxdata) = 0;
+
+	// Data can be written to the gensio.  By default this
+	// disables write callbacks.
+	virtual void write_ready(Gensio *io);
+
+	// A new channel is available on the gensio.  By default this
+	// deletes the new channel.
+	virtual void new_channel(Gensio *io, Gensio *new_channel,
+				 const char *const *auxdata);
+
+	// The remote end has requested that the receiver of this do a
+	// break.  This is primarily for a telnet server that is
+	// hooked to a serial port, if it receives this it should send
+	// a break on the serial port.  By default htis does nothing.
+	virtual void send_break(Gensio *io) { };
+
+	// Various authentication operations.  See gensio_event.3 for
+	// details on what these do.
+	virtual int auth_begin(Gensio *io) { return GE_NOTSUP; }
+	virtual int precert_verify(Gensio *io) { return GE_NOTSUP; }
+	virtual int postcert_verify(Gensio *io) { return GE_NOTSUP; }
+	virtual int password_verify(Gensio *io, const unsigned char *password)
+	     { return GE_NOTSUP; }
+	virtual int request_password(Gensio *io, unsigned char *password,
+				     gensiods *pwlen) { return GE_NOTSUP; }
+
+	// A gensio that is non-standard may generate events for its
+	// own purposes; these events have event numbers that fall
+	// into a range defined in gensio.h.  These events will be
+	// delivered here.
+	virtual int user_event(Gensio *io, int event, int err,
+			       unsigned char *buf, gensiods *buflen,
+			       const char *const *auxdata) { return GE_NOTSUP; }
+
+	// The free() operation for gensio this object is assigned to
+	// has finished and the data will immediately be freed.
+	virtual void freed() { };
+
+	virtual ~Event() = default;
+    };
+
+    // These are events from a serial port device, client and server.
+    // These are documented in sergensio_event.3
+    class Serial_Event: public Event {
+    public:
+	// Client-side calls, used to report serial line changes.
+
+	// See sergensio_modemstate.3 for details
+	virtual void modemstate(unsigned int state) { }
+	// See sergensio_linestate.3 for details
+	virtual void linestate(unsigned int state) { }
+
+	// Server side calls, used when the client requests changes.  See sergensio_xxx
+	virtual void signature(const char *sig, gensiods len) { }
+	virtual void flow_state(bool state) { }
+	virtual void flush(unsigned int val) { }
+	virtual void sync() { }
+	virtual void baud(unsigned int speed) { }
+	virtual void datasize(unsigned int size) { }
+	virtual void parity(unsigned int par) { }
+	virtual void stopbits(unsigned int bits) { }
+	virtual void flowcontrol(unsigned int flow) { }
+	virtual void iflowcontrol(unsigned int flow) { }
+	virtual void sbreak(unsigned int sbreak) { }
+	virtual void dtr(unsigned int dtr) { }
+	virtual void rts(unsigned int dsr) { }
+
+	virtual ~Serial_Event() = default;
+    };
+
+    // Used for done handlers for gensio operations that can fail,
+    // failure is returned in the err field.
+    class Gensio_Done_Err {
+    public:
+	virtual void done(Gensio *io, int err) = 0;
+	virtual ~Gensio_Done_Err() = default;
+    };
+
+    // Used for done handlers for gension operations that cannot fail.
+    class Gensio_Done {
+    public:
+	virtual void done(Gensio *io) = 0;
+	virtual ~Gensio_Done() = default;
+    };
+
+    // Allocate a gensio based upon the given string.  The string
+    // format is defiend in gensio.5.  You must provided an os
+    // function handler as described in gensio_os_funcs.3 and an event
+    // handler defined above.
+    //
+    // Note that this may return a subclass of Gensio depending on the
+    // particular string provided.
+    Gensio *gensio_alloc(std::string str, struct gensio_os_funcs *o,
+			 Event *cb);
+
+    // Like the above, but stacks the newly created gensio as defined
+    // by str on top of the given gensio.  This can be used to
+    // dynamically add gensios to a gensio stack.
+    Gensio *gensio_alloc(Gensio *child, std::string str,
+			 struct gensio_os_funcs *o, Event *cb);
+
+    // This is a gensio, the central class in the gensio framework.
+    // This is the thing that you use to send/receive data and control
+    // various operations of the gensio.
+    class Gensio {
+    public:
+	Gensio(const Gensio&) = delete;
+	Gensio &operator=(const Gensio&) = delete;
+
+	// Unfortunately, you can't use the destructor with this class
+	// because of race conditions.  When you call this, there may
+	// be other things pending in callbacks, and there's no way to
+	// delay the free of the object in a destructor without
+	// blocking.  So you call free here, and when the freed
+	// function in the event handler gets called, the free is
+	// complete.
+	void free();
+
+	// Change the event handler for a gensio.  This is provided so
+	// gensios delivered via new_channel() or in an accepter can
+	// get their event handlers set.  It's a bad idea to change
+	// the event handler on a running gensio.
+	inline void set_event_handler(Event *cb) { gcb = cb; }
+
+	// Open a gensio.  When the done handler is called it is ready
+	// (unless it reports an error).
+	void open(Gensio_Done_Err *done);
+
+	// Open a gensio and wait for it's open peration to complete.
+	void open_s();
+
+	// Open a gensio but assume that it's children are already
+	// open.  This is used if you stacked a new gensio on top of a
+	// running stack.
+	void open_nochild(Gensio_Done_Err *done);
+
+	// Like the above, but synchronous.
+	void open_nochild_s();
+
+	// Write buflen bytes of data in buf to the given gensio.  The
+	// actual number of bytes written is returned in count.  The
+	// meaning of auxdata depends on the gensio, see gensio.5 for
+	// detais.
+	void write(gensiods *count, const void *buf, gensiods buflen,
+		   const char *const *auxdata);
+
+	// Like the above, but use a scatter-gather structure to write
+	// the data.
+	void write_sg(gensiods *count,
+		      const struct gensio_sg *sg, gensiods sglen,
+		      const char *const *auxdata);
+
+	// Allocate a new channel for the gensio based upon the given
+	// arguments, and use the given event handler for it.  How
+	// this works depends on the particular gensio, see gensio.5
+	// for details.
+	Gensio *alloc_channel(const char *const args[], Event *cb);
+
+	// Close the given gensio.  When the close completely call the
+	// done handler.
+	void close(Gensio_Done *done);
+
+	// Like the above, but do it synchronosly.
+	void close_s();
+
+	// This is used in specific circumstances to disable a gensio
+	// that cannot function any more.  See gensio_disable.3 for
+	// details.
+	inline void disable() { gensio_disable(io); }
+
+	// A gensio won't deliver any data events until you enable it.
+	// In general, you should run with read enabled unless you
+	// can't handle any more data, and you should run with write
+	// disabled until you write and get an incomplete write.  When
+	// you get an incomplete write, you can enable write callback
+	// to know when you can transmit again.  Note that if you
+	// disable one of these, there may still be callbacks pending
+	// on the gensio.  Don't assume that when this returns there
+	// are no callbacks pending.
+	inline void set_read_callback_enable(bool enabled)
+	{ gensio_set_read_callback_enable(io, enabled); }
+	inline void set_write_callback_enable(bool enabled)
+	{ gensio_set_write_callback_enable(io, enabled); }
+
+	// Various control operations on a gensio, see
+	// gensio_control.3 for details.
+	void control(int depth, bool get, unsigned int option,
+		     char *data, gensiods *datalen);
+
+	// Return the type of the gensio.  If depth is larger than the
+	// stack, returns NULL.
+	inline const char *get_type(unsigned int depth)
+	{
+	    return gensio_get_type(io, depth);
+	}
+
+	// Return a gensio in the stack.  0 return this gensio, 1
+	// returns its child, 2 returns it grandchild, etc.  If the
+	// depth is larger than the stack, returns NULL.
+	Gensio *get_child(unsigned int depth);
+
+	// Return various characterstics about a gensio.  See the
+	// gensio_is_xxx.3 man pages for details.
+	inline bool is_client() { return gensio_is_client(io); }
+	inline bool is_reliable() { return gensio_is_reliable(io); }
+	inline bool is_packet() { return gensio_is_packet(io); }
+	inline bool is_authenticated() { return gensio_is_authenticated(io); }
+	inline bool is_encrypted() { return gensio_is_encrypted(io); }
+	inline bool is_message() { return gensio_is_message(io); }
+
+	// Turn on/off synchronous mode for a gensio.  In synchrohous
+	// mode, the gensio will not deliver data via the read call.
+	// You must call the read_s() functions below to read the data.
+	// See the gensio_set_sync() man page for details.
+	inline void set_sync() { gensio_set_sync(io); }
+	inline void clear_sync() { gensio_clear_sync(io); }
+
+	// Read data from the gensio in synchronous mode and wait up
+	// to timeout time for the data.  The amount of data read is
+	// returned in count.  If a timeout occurs, data may still
+	// have been read.  If timeout is NULL, wait forever.  Note
+	// that this returns if any data is available, even if it is
+	// less than datalen.  This will return GE_TIMEDOUT on a
+	// timeout or 0 on success.  All other errors throw
+	// gensio_error.
+	int read_s(gensiods *count, void *data, gensiods datalen,
+		   gensio_time *timeout);
+
+	// Like the above, but will also return on a signal.  It
+	// returns GE_INTERRUPTED in this case.
+	int read_s_intr(gensiods *count, void *data, gensiods datalen,
+			gensio_time *timeout);
+
+	// Write data and wait for the write to complete.  If the
+	// write does not complete in the time specified by timeout,
+	// returns GE_TIMEDOUT.  Note that some data may still have
+	// been written, the amount written is returned in count.
+	// If timeout is NULL, wait forever.
+	int write_s(gensiods *count, const void *data, gensiods datalen,
+		     gensio_time *timeout);
+
+	// Like the above, but the write may be interrupted by a
+	// signal.  If that happens, this returns GE_INTERRUPTED.
+	int write_s_intr(gensiods *count, const void *data, gensiods datalen,
+			 gensio_time *timeout);
+
+	// Return the os funcs assigned to a gensio.
+	inline struct gensio_os_funcs *get_os_funcs() { return go; }
+
+	// Return the event handler assigned to a gensio.
+	inline Event *get_cb() { return gcb; }
+
+    private:
+	Gensio(struct gensio *io, struct gensio_os_funcs *o, Event *cb);
+	~Gensio() { }
+
+	struct gensio *io;
+	Event *gcb;
+	struct gensio_os_funcs *go;
+
+	friend Gensio *gensio_alloc(struct gensio *io,
+				    struct gensio_os_funcs *o);
+	friend Gensio *gensio_alloc(Gensio *child, std::string str,
+				    struct gensio_os_funcs *o,
+				    Event *cb);
+	friend void gensio_cpp_freed(struct gensio *io,
+				     struct gensio_frdata *frdata);
+	friend class Serial_Gensio;
+    };
+
+    // Done handler for normal serial port operations.
+    class Serial_Op_Done {
+    public:
+	// Serial operation is finished, err non-zero if an error
+	// occurred.  If no error, val is the result.
+	virtual void done(Serial_Gensio *sf, int err, unsigned int val) = 0;
+	virtual ~Serial_Op_Done() = default;
+    };
+
+    // Done handler for signature operations, passes a C string, not a
+    // number.
+    class Serial_Op_Sig_Done {
+    public:
+	virtual void done(Serial_Gensio *sg, int err, const char *sig,
+			  unsigned int siglen) = 0;
+	virtual ~Serial_Op_Sig_Done() = default;
+    };
+
+    // This is a set of operations you can do on a serial port.
+    // sergensio_xxx.3 man pages describe each of these.
+    //
+    // For the methods not ending in _s, the interface is
+    // non-blocking, calling the function will start the process of
+    // setting the value.  The value will be set and the done object
+    // will be called upon completion.  Note that the value may not
+    // match what you set if the remote serial port is not capable,
+    // the current value is always returned.
+    //
+    // You can pass a 0 (or NULL in the signature case) into any of
+    // these and it will not set the value, but wull return the
+    // current value.
+    //
+    // The valid values for the ones that are not a direct integer
+    // (baud, databits, stopbits) are given in the sergensio.h include
+    // file above the C versions of these functions.
+    //
+    // The methods ending in _s a synchronous, they block until the
+    // operation completes.
+    //
+    // For the server side, requests are received in the Serial_Event
+    // class, the reponses are sent here.  The done value should
+    // always be NULL and is ignore on the server side.
+    class Serial_Gensio: public Gensio {
+    public:
+	Serial_Gensio(const Serial_Gensio&) = delete;
+	Serial_Gensio &operator=(const Serial_Gensio&) = delete;
+
+	void baud(unsigned int baud, Serial_Op_Done *done);
+	void datasize(unsigned int size, Serial_Op_Done *done);
+	void parity(unsigned int par, Serial_Op_Done *done);
+	void stopbits(unsigned int bits, Serial_Op_Done *done);
+	void flowcontrol(unsigned int flow, Serial_Op_Done *done);
+	void iflowcontrol(unsigned int flow, Serial_Op_Done *done);
+	void sbreak(unsigned int sbreak, Serial_Op_Done *done);
+	void dtr(unsigned int dtr, Serial_Op_Done *done);
+	void rts(unsigned int rts, Serial_Op_Done *done);
+	void cts(unsigned int cts, Serial_Op_Done *done);
+	void dcd_dsr(unsigned int dcd_dsr, Serial_Op_Done *done);
+	void ri(unsigned int ri, Serial_Op_Done *done);
+	void signature(const char *sig, unsigned int len,
+		       Serial_Op_Sig_Done *done);
+
+	void baud_s(unsigned int *baud);
+	void datasize_s(unsigned int *size);
+	void parity_s(unsigned int *par);
+	void stopbits_s(unsigned int *bits);
+	void flowcontrol_s(unsigned int *flow);
+	void iflowcontrol_s(unsigned int *flow);
+	void sbreak_s(unsigned int *sbreak);
+	void dtr_s(unsigned int *dtr);
+	void rts_s(unsigned int *rts);
+	void cts_s(unsigned int *cts);
+	void dcd_dsr_s(unsigned int *dcd_dsr);
+	void ri_s(unsigned int *ri);
+
+	// Server side only, for reporting changes
+	void flow_state(bool state);
+	void modemstate(unsigned int state);
+	void linestate(unsigned int state);
+    private:
+	Serial_Gensio(struct sergensio *sio, struct gensio_os_funcs *o,
+		      Event *cb);
+	~Serial_Gensio() { }
+	struct sergensio *sio;
+
+	friend Gensio *gensio_alloc(struct gensio *io,
+				    struct gensio_os_funcs *o);
+    };
+
+    class Accepter;
+
+    // An object of this class is given to an Accepter to handle
+    // events from that accepter.
+    class Accepter_Event {
+    public:
+
+	// A new connection has come in, the new gensio is in g.  You
+	// must provide this.
+	virtual void new_connection(Accepter *acc, Gensio *g) = 0;
+
+	// An error has occurred in the accepter that cannot be
+	// reported as a return value.
+	virtual void log(enum gensio_log_levels level, char *str, va_list args)
+	{
+	}
+
+	// When authenticating a new incoming gensio, these are used
+	// to deliver the certification events for the gensio.  Note
+	// that the delivered gensio is not operational, it can only
+	// be used to fetch username, certificate info, etc.  See
+	// gensio_event.3 for details on these.
+	virtual int auth_begin(Accepter *acc, Gensio *g)
+	{ return GE_NOTSUP; }
+	virtual int precert_verify(Accepter *acc, Gensio *g)
+	{ return GE_NOTSUP; }
+	virtual int postcert_verify(Accepter *acc, Gensio *g,
+				    int err, const char *errstr)
+	{ return GE_NOTSUP; }
+	virtual int password_verify(Accepter *acc, Gensio *g,
+				    const char *password,
+				    gensiods password_len)
+	{ return GE_NOTSUP; }
+	virtual int request_password(Accepter *acc, Gensio *g,
+				     char *password, gensiods *password_len)
+	{ return GE_NOTSUP; }
+
+	// The free() operation for accepter this object is assigned to
+	// has finished and the data will immediately be freed.
+	virtual void freed() { };
+
+	virtual ~Accepter_Event() = default;
+    };
+
+    class Accepter_Done {
+    public:
+	virtual void done(Accepter *acc) = 0;
+	virtual ~Accepter_Done() = default;
+    };
+
+    // Allocate a new accepter object based on the given string.  See
+    // gensio.5 for details on the format of this string.  Note that
+    // the returned object may be a subclass of Accepter.
+    Accepter *gensio_acc_alloc(std::string str,
+			       struct gensio_os_funcs *o,
+			       Accepter_Event *cb);
+
+    // Like above, but stack the accepter on top of an existing
+    // accepter stack given in child.
+    Accepter *gensio_acc_alloc(Accepter *child, std::string str,
+			       struct gensio_os_funcs *o,
+			       Accepter_Event *cb);
+
+    class Accepter {
+    public:
+	Accepter(const Accepter&) = delete;
+	Accepter &operator=(const Accepter&) = delete;
+
+	// Unfortunately, you can't use the destructor with this class
+	// because of race conditions.  When you call this, there may
+	// be other things pending in callbacks, and there's no way to
+	// delay the free of the object in a destructor without
+	// blocking.  So you call free here, and when the freed
+	// function in the event handler gets called, the free is
+	// complete.
+	void free();
+
+	// Set the callback object.  Not really very useful, and you
+	// shouldn't do this while the accepter is started.
+	inline void set_callback(Accepter_Event *cb) { gcb = cb; }
+
+	// Start accepting connections.  You still need to set the
+	// enable to actual receive connections, this opens the
+	// accepting sockets or whatever and gets things ready.
+	void startup();
+
+	// Shutdown the accepter, closing the accept socket or
+	// whatever is required for the gensio.  The done will be
+	// called when the shutdown is complete.
+	void shutdown(Accepter_Done *done);
+
+	// Shutdown and block until it completes.
+	void shutdown_s();
+
+	// Disable the accepter, see gensio_acc_disable.3 for details.
+	// This is not for normal use.
+	void disable() { gensio_acc_disable(acc); }
+
+	// Set the enable for receiving accepts.  Note that if you
+	// disable this, there may still be callbacks pending on the
+	// gensio.  Don't assume that when this returns there are no
+	// callbacks pending.
+	inline void set_callback_enable(bool enabled)
+	{ gensio_acc_set_accept_callback_enable(acc, enabled); }
+
+	// Set the enable/disable, but call the done function when the
+	// enable/disable completes.  Not really useful for enable,
+	// but it can let you know that no callbacks are pending on a
+	// disable.
+	void set_callback_enable_cb(bool enabled, Accepter_Done *done);
+
+	// Synchronous enable/disable, won't return until the
+	// enable/disable completes.
+	void set_callback_enable_s(bool enabled);
+
+	// Special control operations on the accepter, see
+	// gensio_acc_control.3 for details.
+	void control(int depth, bool get, unsigned int option,
+		     char *data, gensiods *datalen);
+
+	// Put an accepter in synchronous mode.  With this, all
+	// accepts must be received with accept_s()
+	inline void set_sync() { gensio_acc_set_sync(acc); }
+
+	// Wait for an accept to come in.  You must have called
+	// set_sync() first.  Wait for up to timeout time.  If this
+	// times out, it returns GE_TIMEDOUT, otherwise it returns
+	// zero.  Any other errors get thrown as a gensio_error.
+	// The new gensio is returned in g.
+	int accept_s(gensio_time *timeout, Gensio **g);
+
+	// Like accept_s, but also returns if a signal is recevied.
+	// In that cast it returns GE_INTERRUPTED.
+	int accept_s_intr(gensio_time *timeout, Gensio **g);
+
+	// Create a new gensio as if it came from this accepter.  This
+	// doesn't have much meaning except for UDP.  For UDP, it uses
+	// the socket of the accepter to create the connection, so
+	// packets will come from this accepter's socket and packets
+	// received on this accepters's socket from the given remote
+	// end will be sent to this gensio.
+	Gensio *str_to_gensio(std::string str, Event *cb);
+
+	// Return the type string for the accepter.
+	inline const char *get_type(unsigned int depth)
+	{ return gensio_acc_get_type(acc, depth); }
+
+	// Report capabilities of gensios from this accepter, see
+	// gensio_acc_is_xxx.3 for details.
+	inline bool is_reliable() { return gensio_acc_is_reliable(acc); }
+	inline bool is_packet() { return gensio_acc_is_packet(acc); }
+	inline bool is_message() { return gensio_acc_is_message(acc); }
+
+	// Return a child of this accpeter.  A depth of zero returns
+	// this accepter, 1 returns its child, 2 its grandchild, etc.
+	// Returns NULL if the depth is deeper than the accepter stack.
+	Accepter *get_child(unsigned int depth);
+
+	// Return the local side port for the accepter.  This is
+	// useful if you create a gensio with the port set to zero,
+	// letting the code choose a port.  Then you can fetch the
+	// actual port with this.  Note that some accepter types will
+	// return something besides a number here (ie unix).
+	std::string get_port();
+
+	// Get the os funcs for this accepter.
+	inline struct gensio_os_funcs *get_os_funcs() { return go; }
+
+	// Get the event handler for this accepter.
+	inline struct Accepter_Event *get_cb() { return gcb; }
+
+    private:
+	Accepter(struct gensio_accepter *acc,
+			struct gensio_os_funcs *o,
+			Accepter_Event *cb);
+	~Accepter() { }
+
+	struct gensio_accepter *acc;
+	struct gensio_os_funcs *go;
+	Accepter_Event *gcb;
+
+	friend Accepter *gensio_acc_alloc(struct gensio_accepter *acc,
+					  struct gensio_os_funcs *o);
+	friend Accepter *gensio_acc_alloc(Accepter *child,
+					  std::string str,
+					  struct gensio_os_funcs *o,
+					  Accepter_Event *cb);
+	friend void gensio_acc_cpp_freed(struct gensio_accepter *acc,
+					 struct gensio_acc_frdata *frdata);
+    };
+
+    // This is a waiter class.  You use one of these to wait for
+    // things while running the event-driven code.
+    class Waiter {
+    public:
+	Waiter(struct gensio_os_funcs *o);
+	~Waiter() { o->free_waiter(waiter); }
+
+	// Add one wakeup to the waiter.
+	void wake() { o->wake(waiter); }
+
+	// Wait for count wakeups to be delivered to the waiter, up to
+	// timeout time.  If the timeout occurs before count events
+	// are delivered, none of the wakeups are used.  If timeout is
+	// NULL, wait forever.  This will return either 0 if woken or
+	// GE_TIMEDOUT if not woken before the timeout.  Any other
+	// error will result in a gensio_error being thrown.
+	int wait(unsigned int count, gensio_time *timeout);
+
+	// Like the above but installs the given sigmask (if not NULL)
+	// and will return if a interrupt (signal) occurs while
+	// waiting.  This will also return GE_INTERRUPTED in addition
+	// to 0 and GE_TIMEDOUT, an interrupt will not throw an
+	// exception.
+	int wait_intr(unsigned int count, gensio_time *timeout, void *sigmask);
+
+    private:
+	struct gensio_os_funcs *o;
+	struct gensio_waiter *waiter;
+    };
+
+}
