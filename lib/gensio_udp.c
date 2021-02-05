@@ -700,6 +700,8 @@ udpn_start_close(struct udpn_data *ndata,
     struct udpna_data *nadata = ndata->nadata;
 
     if (nadata->pending_data_owner == ndata) {
+	ndata->in_read = false;
+	ndata->deferred_read = false;
 	nadata->pending_data_owner = NULL;
 	nadata->data_pending_len = 0;
     }
@@ -812,7 +814,7 @@ udpn_set_read_callback_enable(struct gensio *io, bool enabled)
 	/* Call the read from the selector to avoid lock nesting issues. */
 	udpna_start_deferred_op(nadata);
     } else {
-	udpna_check_read_state(ndata->nadata);
+	udpna_check_read_state(nadata);
     }
  out_unlock:
     udpna_unlock(nadata);
