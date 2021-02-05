@@ -101,6 +101,12 @@ struct gensio_iod_win {
     struct gensio_link link;
     struct gensio_link all_link;
 
+    /*
+     * Is the iod in raw mode?  This is only set for stdin stdio iods
+     * so they can properly handle ^Z in raw mode.
+     */
+    BOOL is_raw;
+
     BOOL done;
 
     struct iostat read;
@@ -1296,6 +1302,15 @@ win_oneway_in_thread(LPVOID data)
     struct gensio_iod_win *wiod = &iod->i;
     DWORD rvw;
 
+    /*
+     * This is a hack to avoid an issue with Windows raw setting.  If
+     * we let a read happen before setting the console to raw, the
+     * console won't go into raw mode until after enter is pressed.
+     * So don't start reading input until the user has enabled read to
+     * allow them time to set the input as raw.
+     */
+    goto start_loop;
+
     EnterCriticalSection(&wiod->lock);
     for(;;) {
 	BOOL rvb;
@@ -1309,14 +1324,28 @@ win_oneway_in_thread(LPVOID data)
 	    LeaveCriticalSection(&wiod->lock);
 	    rvb = ReadFile(iod->ioh, readpos, readsize, &nread, NULL);
 	    EnterCriticalSection(&wiod->lock);
-	    if (!rvb)
+	    if (!rvb) {
+		if (GetLastError() == ERROR_OPERATION_ABORTED)
+		     /*
+		      * We got a CancelSynchronousIo().  We are
+		      * probably being shut down, but don't handle it
+		      * as an error.
+		      */
+		    goto continue_loop;
 		goto out_err;
+	    }
 
 	    if (nread == 0) {
 		/* EOF (^Z<cr>) from windows. */
+		if (wiod->is_raw) {
+		    *((char *) readpos) = 0x1a; /* Insert the ^Z */
+		    nread = 1;
+		    goto insert_data;
+		}
 		rvw = ERROR_BROKEN_PIPE;
 		goto out_err_noconv;
 	    } else {
+	    insert_data:
 		gensio_circbuf_data_added(iod->buf, nread);
 		if (!wiod->read.ready) {
 		    wiod->read.ready = TRUE;
@@ -1325,11 +1354,13 @@ win_oneway_in_thread(LPVOID data)
 	    }
 	} else {
 	    LeaveCriticalSection(&wiod->lock);
+	start_loop:
 	    rvw = WaitForSingleObject(iod->wakeh, INFINITE);
 	    EnterCriticalSection(&wiod->lock);
 	    if (rvw == WAIT_FAILED)
 		goto out_err;
 	}
+    continue_loop:
 	if (wiod->done)
 	    break;
     }
@@ -1369,8 +1400,16 @@ win_oneway_out_thread(LPVOID data)
 	    LeaveCriticalSection(&wiod->lock);
 	    rvb = WriteFile(iod->ioh, writepos, writelen, &nwrite, NULL);
 	    EnterCriticalSection(&wiod->lock);
-	    if (!rvb)
+	    if (!rvb) {
+		if (GetLastError() == ERROR_OPERATION_ABORTED)
+		     /*
+		      * We got a CancelSynchronousIo().  We are
+		      * probably being shut down, but don't handle it
+		      * as an error.
+		      */
+		    goto continue_loop;
 		goto out_err;
+	    }
 
 	    if (!iod->do_flush) {
 		gensio_circbuf_data_removed(iod->buf, nwrite);
@@ -1387,6 +1426,7 @@ win_oneway_out_thread(LPVOID data)
 	    if (rvw == WAIT_FAILED)
 		goto out_err;
 	}
+    continue_loop:
 	if (wiod->done)
 	    break;
 	if (iod->do_flush) {
@@ -1611,6 +1651,7 @@ win_stdio_makeraw(struct gensio_iod_win *wiod)
 {
     struct gensio_iod_win_oneway *oiod = i_to_win_oneway(wiod);
     struct gensio_iod_win_stdio *iod = i_to_winstdio(oiod);
+    int rv;
 
     if (wiod->fd != 0)
 	/*
@@ -1619,7 +1660,10 @@ win_stdio_makeraw(struct gensio_iod_win *wiod)
 	 */
 	return 0;
 
-    return gensio_win_stdio_makeraw(wiod->r.f, oiod->ioh, &iod->mode);
+    rv = gensio_win_stdio_makeraw(wiod->r.f, oiod->ioh, &iod->mode);
+    if (!rv)
+	wiod->is_raw = TRUE;
+    return rv;
 }
 
 static int
@@ -2619,18 +2663,19 @@ static int
 win_makeraw(struct gensio_iod *iiod)
 {
     struct gensio_iod_win *iod = i_to_win(iiod);
+    int rv = GE_NOTSUP;
 
     if (do_errtrig())
 	return GE_NOMEM;
 
     if (iod->type == GENSIO_IOD_STDIO)
-	return win_stdio_makeraw(iod);
+	rv = win_stdio_makeraw(iod);
     if (iod->type == GENSIO_IOD_DEV)
-	return 0; /* Nothing to do. */
+	rv = 0; /* Nothing to do. */
     if (iod->type == GENSIO_IOD_PIPE)
-	return 0; /* Nothing to do. */
+	rv = 0; /* Nothing to do. */
 
-    return GE_NOTSUP;
+    return rv;
 }
 
 static int
