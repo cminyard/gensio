@@ -639,7 +639,7 @@ class Logger:
 gensio.gensio_set_log_mask(gensio.GENSIO_LOG_MASK_ALL)
 
 oshndname = os.getenv("GENSIO_TEST_OS_HANDLER")
-if oshndname is None:
+if oshndname is None or oshndname == "default":
     o = gensio.alloc_gensio_selector(Logger());
 elif oshndname == "glib":
     import gensioglib

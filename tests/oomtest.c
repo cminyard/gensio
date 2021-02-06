@@ -2044,6 +2044,8 @@ main(int argc, char *argv[])
 	    use_glib = true;
 	} else if (strcmp(oshstr, "tcl") == 0) {
 	    use_tcl = true;
+	} else if (strcmp(oshstr, "default") == 0) {
+	    /* Nothing to do. */
 	} else {
 	    fprintf(stderr, "Unknown OS handler fron environment: %s\n",
 		    oshstr);
