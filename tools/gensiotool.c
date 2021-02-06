@@ -515,7 +515,7 @@ main(int argc, char *argv[])
 	else if ((rv = cmparg_int(argc, argv, &arg, "-e", "--escchar",
 				  &escape_char)))
 	    esc_set = true;
-	else if ((rv = cmparg(argc, argv, &arg, "-g", "--glib", NULL)))
+	else if ((rv = cmparg(argc, argv, &arg, "", "--glib", NULL)))
 	    use_glib = true;
 	else if ((rv = cmparg(argc, argv, &arg, "", "--tcl", NULL)))
 	    use_tcl = true;

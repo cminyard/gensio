@@ -2172,7 +2172,7 @@ main(int argc, char *argv[])
 	    user_test.connecter = argv[i];
 	} else if (strcmp(argv[i], "-w") == 0) {
 	    user_test.allow_no_err_on_trig = true;
-	} else if (strcmp(argv[i], "-g") == 0) {
+	} else if (strcmp(argv[i], "--glib") == 0) {
 	    use_glib = true;
 	} else if (strcmp(argv[i], "--tcl") == 0) {
 	    use_tcl = true;
@@ -2187,7 +2187,7 @@ main(int argc, char *argv[])
 	fprintf(stderr, "glib specified, but glib OS handler not avaiable.\n");
 	exit(1);
 #else
-	os_func_str = " -g";
+	os_func_str = " --glib";
 	rv = gensio_glib_funcs_alloc(&o);
 #endif
     } else if (use_tcl) {
