@@ -1,5 +1,5 @@
 
-AM_CFLAGS = -DBUILDING_IPMI_DLL -I$(top_srcdir)/tcl/include
+AM_CFLAGS = -DBUILDING_GENSIO_DLL -I$(top_srcdir)/tcl/include
 
 lib_LTLIBRARIES = libgensiotcl.la
 

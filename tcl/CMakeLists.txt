@@ -14,7 +14,8 @@ set_property(TARGET gensiotcl PROPERTY SOVERSION 0)
 
 install(TARGETS gensiotcl DESTINATION lib EXPORT gensiotcl)
 install(EXPORT gensiotcl FILE gensiotcl.cmake DESTINATION lib/cmake/gensio)
-set_target_properties(gensiotcl PROPERTIES COMPILE_FLAGS "-DBUILDING_DLL")
+set_target_properties(gensiotcl PROPERTIES COMPILE_FLAGS
+                      "-DBUILDING_GENSIO_DLL")
 if (WIN32)
   # Stick this in the directories so Windows can find it when running
   # gensiot and oomtest.  Probably not right, but works for now.

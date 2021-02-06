@@ -1,5 +1,5 @@
 
-AM_CFLAGS = -DBUILDING_IPMI_DLL -I$(top_srcdir)/glib/include
+AM_CFLAGS = -DBUILDING_GENSIO_DLL -I$(top_srcdir)/glib/include
 
 lib_LTLIBRARIES = libgensioglib.la
 
