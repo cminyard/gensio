@@ -700,8 +700,15 @@ udpn_start_close(struct udpn_data *ndata,
     struct udpna_data *nadata = ndata->nadata;
 
     if (nadata->pending_data_owner == ndata) {
-	ndata->in_read = false;
-	ndata->deferred_read = false;
+	if (ndata->deferred_read) {
+	    /*
+	     * If there is a read pending on a deferred op, it won't
+	     * get called now that this is closed.  So cancel it so
+	     * the close will finish
+	     */
+	    ndata->deferred_read = false;
+	    ndata->in_read = false;
+	}
 	nadata->pending_data_owner = NULL;
 	nadata->data_pending_len = 0;
     }
