@@ -80,6 +80,8 @@ struct gensio {
     gensio_func func;
     void *gensio_data;
 
+    struct gensio_frdata *frdata;
+
     const char *typename;
 
     struct gensio *child;
@@ -171,6 +173,9 @@ void
 gensio_data_free(struct gensio *io)
 {
     assert(gensio_list_empty(&io->waiters));
+
+    if (io->frdata && io->frdata->freed)
+	io->frdata->freed(io, io->frdata);
 
     while (io->classes) {
 	struct gensio_classobj *c = io->classes;
@@ -273,6 +278,8 @@ struct gensio_accepter {
     gensio_acc_func func;
     void *gensio_acc_data;
 
+    struct gensio_acc_frdata *frdata;
+
     const char *typename;
 
     struct gensio_accepter *child;
@@ -328,6 +335,9 @@ gensio_acc_data_alloc(struct gensio_os_funcs *o,
 void
 gensio_acc_data_free(struct gensio_accepter *acc)
 {
+    if (acc->frdata && acc->frdata->freed)
+	acc->frdata->freed(acc, acc->frdata);
+
     while (acc->classes) {
 	struct gensio_classobj *c = acc->classes;
 
@@ -374,6 +384,7 @@ gensio_acc_cb(struct gensio_accepter *acc, int event, void *data)
     }
     if (!acc->cb)
 	return GE_NOTSUP;
+
     return acc->cb(acc, acc->user_data, event, data);
 }
 
@@ -416,6 +427,19 @@ gensio_acc_remove_pending_gensio(struct gensio_accepter *acc,
 				 struct gensio *io)
 {
     gensio_list_rm(&acc->pending_ios, &io->link);
+}
+
+void
+gensio_acc_set_frdata(struct gensio_accepter *acc,
+		      struct gensio_acc_frdata *frdata)
+{
+    acc->frdata = frdata;
+}
+
+struct gensio_acc_frdata *
+gensio_acc_get_frdata(struct gensio_accepter *acc)
+{
+    return acc->frdata;
 }
 
 int
@@ -849,6 +873,18 @@ void
 gensio_set_is_encrypted(struct gensio *io, bool is_encrypted)
 {
     io->is_encrypted = is_encrypted;
+}
+
+void
+gensio_set_frdata(struct gensio *io, struct gensio_frdata *frdata)
+{
+    io->frdata = frdata;
+}
+
+struct gensio_frdata *
+gensio_get_frdata(struct gensio *io)
+{
+    return io->frdata;
 }
 
 void

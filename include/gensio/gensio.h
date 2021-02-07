@@ -224,6 +224,22 @@ int gensio_write_s_intr(struct gensio *io, gensiods *count,
 			const void *data, gensiods datalen,
 			gensio_time *timeout);
 
+/*
+ * This is data for frameworks that sit on top of gensio, added to do
+ * a clean addition of a C++ framework on top of gensio.  It's data
+ * you can set on a gensio that has a destructor that is called when
+ * the final free is done on the gensio data.
+ */
+struct gensio_frdata {
+    void (*freed)(struct gensio *io, struct gensio_frdata *frdata);
+};
+
+GENSIO_DLL_PUBLIC
+void gensio_set_frdata(struct gensio *io, struct gensio_frdata *frdata);
+GENSIO_DLL_PUBLIC
+struct gensio_frdata *gensio_get_frdata(struct gensio *io);
+
+/****** Accepters ******/
 
 struct gensio_accepter;
 
@@ -362,6 +378,23 @@ GENSIO_DLL_PUBLIC
 bool gensio_acc_is_packet(struct gensio_accepter *accepter);
 GENSIO_DLL_PUBLIC
 bool gensio_acc_is_message(struct gensio_accepter *accepter);
+
+/*
+ * This is data for frameworks that sit on top of gensio, added to do
+ * a clean addition of a C++ framework on top of gensio.  It's data
+ * you can set on a gensio that has a destructor that is called when
+ * the final free is done on the gensio data.
+ */
+struct gensio_acc_frdata {
+    void (*freed)(struct gensio_accepter *acc,
+		  struct gensio_acc_frdata *frdata);
+};
+
+GENSIO_DLL_PUBLIC
+void gensio_acc_set_frdata(struct gensio_accepter *acc,
+			   struct gensio_acc_frdata *frdata);
+GENSIO_DLL_PUBLIC
+struct gensio_acc_frdata *gensio_acc_get_frdata(struct gensio_accepter *acc);
 
 /*
  * These are the low-level network protocol that gensio support.  Used
