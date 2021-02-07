@@ -160,7 +160,7 @@ certauthna_gensio_event(struct gensio *io, void *user_data, int event, int err,
     case GENSIO_EVENT_PASSWORD_VERIFY:
 	pwvfy.io = io;
 	pwvfy.password = (char *) buf;
-	pwvfy.password_len = strlen((const char *) buf);
+	pwvfy.password_len = *buflen;
 	return gensio_acc_cb(nadata->acc, GENSIO_ACC_EVENT_PASSWORD_VERIFY,
 			     &pwvfy);
 

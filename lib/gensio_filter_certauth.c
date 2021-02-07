@@ -791,6 +791,7 @@ certauth_try_connect(struct gensio_filter *filter, gensio_time *timeout)
 {
     struct certauth_filter *sfilter = filter_to_certauth(filter);
     struct gensio *io;
+    gensiods len;
     bool password_requested = false;
     int err, rv;
 
@@ -1071,11 +1072,12 @@ certauth_try_connect(struct gensio_filter *filter, gensio_time *timeout)
 	if (!sfilter->password || !*sfilter->password)
 	    goto finish_result;
 
+	len = sfilter->password_len;
 	certauth_unlock(sfilter);
 	err = gensio_filter_do_event(sfilter->filter,
 				     GENSIO_EVENT_PASSWORD_VERIFY, 0,
 				     (unsigned char *) sfilter->password,
-				     NULL, NULL);
+				     &len, NULL);
 	certauth_lock(sfilter);
 	memset(sfilter->password, 0, sfilter->password_len);
 	if (!err) {
