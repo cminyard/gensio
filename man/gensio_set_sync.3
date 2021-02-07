@@ -13,25 +13,25 @@ gensio_set_sync, gensio_clear_sync, gensio_read_s, gensio_write_s
 .br
 .B                   void *data, gensiods datalen,
 .br
-.B                   struct timeval *timeout);
+.B                   struct gensio_time *timeout);
 .TP 20
 .B int gensio_read_s_intr(struct gensio *io, gensiods *count,
 .br
 .B                   void *data, gensiods datalen,
 .br
-.B                   struct timeval *timeout);
+.B                   struct gensio_time *timeout);
 .TP 20
 .B int gensio_write_s(struct gensio *io, gensiods *count,
 .br
 .B                    const void *data, gensiods datalen,
 .br
-.B                    struct timeval *timeout);
+.B                    struct gensio_time *timeout);
 .TP 20
 .B int gensio_write_s_intr(struct gensio *io, gensiods *count,
 .br
 .B                    const void *data, gensiods datalen,
 .br
-.B                    struct timeval *timeout);
+.B                    struct gensio_time *timeout);
 .SH "DESCRIPTION"
 Normal gensio operation is asynchronous callback based.  This serves
 most programs fairly well, especially if they are listening to
