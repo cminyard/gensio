@@ -172,7 +172,8 @@ ssl and certauth
 A password has been received from the remote end, it is passed
 in
 .B buf.
-The callee should validate it.  Return values are:
+The callee should validate it.  The length is passed in *buflen,
+Return values are:
 .TP
 .B 0
 \- The password verification succeeds.
