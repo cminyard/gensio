@@ -9,13 +9,13 @@ gensio_acc_set_sync, gensio_acc_accept_s, gensio_acc_accept_s_intr
 .TP 20
 .B int gensio_acc_accept_s(struct gensio_accepter *acc,
 .br
-.B                         struct timeval *timeout,
+.B                         struct gensio_time *timeout,
 .br
 .B                         struct gensio **new_io);
 .TP 20
 .B int gensio_acc_accept_s_intr(struct gensio_accepter *acc,
 .br
-.B                         struct timeval *timeout,
+.B                         struct gensio_time *timeout,
 .br
 .B                         struct gensio **new_io);
 .SH "DESCRIPTION"
