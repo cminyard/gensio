@@ -334,11 +334,12 @@ check_waitpid(struct stdion_channel *schan)
 	stdiona_unlock(nadata);
 	close_done(schan->io, close_data);
 	stdiona_lock(nadata);
+    }
 
-	if (schan->in_free && schan->io) {
-	    gensio_data_free(schan->io);
-	    schan->io = NULL;
-	}
+    if (schan->in_free && schan->io) {
+	gensio_data_free(schan->io);
+	schan->io = NULL;
+	stdiona_deref_and_unlock(nadata);
     }
     return;
 
