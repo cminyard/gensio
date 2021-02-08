@@ -7,4 +7,4 @@ libgensiocpp_la_SOURCES = gensio.cc
 libgensiocpp_la_LIBADD = $(top_builddir)/lib/libgensio.la @OPENSSL_LIBS@
 libgensiocpp_la_LDFLAGS = -no-undefined -rpath $(libdir)
 
-SUBDIRS = include
+SUBDIRS = include . tests
