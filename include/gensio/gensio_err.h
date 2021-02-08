@@ -52,6 +52,7 @@ struct gensio_os_funcs;
 #define GE_SHUTDOWN		34
 #define GE_LOCALCLOSED		35
 #define GE_PERM			36
+#define GE_APPERR		37
 
 /*
  * Gensio mux has the ability to return an arbitrary error from the

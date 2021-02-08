@@ -3320,7 +3320,8 @@ static const char *gensio_errs[] = {
     /*  33 */    "Operation was interrupted by a signal",
     /*  34 */    "Operation on shutdown fd",
     /*  35 */    "Local end closed connection",
-    /*  36 */    "Permission denied"
+    /*  36 */    "Permission denied",
+    /*  37 */    "Application error"
 };
 const unsigned int errno_len = sizeof(gensio_errs) / sizeof(char *);
 
