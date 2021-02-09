@@ -44,7 +44,8 @@ typedef unsigned long gensiods; /* Data size */
 /*
  * Serial callbacks start here and run to 2000.
  */
-#define SERGENIO_EVENT_BASE	1000
+#define SERGENSIO_EVENT_BASE	1000
+#define SERGENSIO_EVENT_MAX	1999
 
 /*
  * If a user creates their own gensio with their own events, they should
