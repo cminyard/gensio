@@ -51,10 +51,42 @@ platform.  The same value will be returned each time, only one is
 created.  You should generally use this one unless you have a special
 need as documented above.
 
+The
+.I wait_sig
+parameter usage on Windows is unused.  For Unix systems, this signal
+is used to signal other processes that may be waiting that they need
+to wake up.  This is used to wake up a process waiting on a waiter,
+and it's used to signal all waiting processes if a timer is added that
+is sooner than any other timer so they can adjust their waits.
+
+If you are running your program in a single thread, you can safely
+pass zero into this parameter.
+
+If your app is multi-threaded (or, more accurately, if your app has
+multiple threads that are making gensio calls) you must pass a valid
+signal into this, and you must set up an empty handler for this
+signal, and the signal must be blocked in all threads that call a wait
+function.  You should not use this signal for anything else.  The
+function that allocates a signal handler will block the signal in the
+calling thread, and that sigmask is passed on to other threads it
+creates.  But if you have allocated threads before allocating the os
+funcs, you must make sure those other threads have this signal
+blocked.
+
+Also, if you pass in a different value to
+.B gensio_default_os_hnd
+than the first one you passed in, it will return
+.I GE_INVAL.
+You can pass in different values to
+.B gensio_unix_funcs_alloc
+calls, and it will use them, but there's not much value in this.  The
+os funcs for Unix can share a signal handler.  And there's not much
+value is multiple OS funcs, anyway.
+
 .B gensio_unix_funcs_alloc
 and
 .B gensio_win_funcs_alloc
-Allocate default os handlers for Unix and Windows based systems,
+Allocate the normal os funcs for Unix and Windows based systems,
 respectively.
 
 The

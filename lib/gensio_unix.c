@@ -1419,7 +1419,8 @@ defsel_unlock(sel_lock_t *l)
     UNLOCK(&l->lock);
 }
 
-static pthread_once_t defos_once = PTHREAD_ONCE_INIT;
+
+static pthread_mutex_t defos_lock = PTHREAD_MUTEX_INITIALIZER;
 #endif
 
 int
@@ -1432,7 +1433,7 @@ gensio_unix_funcs_alloc(struct selector_s *sel, int wake_sig,
 
     if (!sel) {
 #ifdef USE_PTHREADS
-	rv = sel_alloc_selector_thread(&sel, defoshnd_wake_sig,
+	rv = sel_alloc_selector_thread(&sel, wake_sig,
 				       defsel_lock_alloc,
 				       defsel_lock_free, defsel_lock,
 				       defsel_unlock, NULL);
@@ -1479,16 +1480,22 @@ gensio_default_os_hnd(int wake_sig, struct gensio_os_funcs **o)
 	return GE_INVAL;
 
     if (!defoshnd) {
-	defoshnd_wake_sig = wake_sig;
 #ifdef USE_PTHREADS
-	pthread_once(&defos_once, defoshnd_init);
-#else
-	defoshnd_init();
+	pthread_mutex_lock(&defos_lock);
+#endif
+	if (!defoshnd) {
+	    defoshnd_wake_sig = wake_sig;
+	    defoshnd_init();
+	}
+#ifdef USE_PTHREADS
+	pthread_mutex_unlock(&defos_lock);
 #endif
 
 	if (!defoshnd)
 	    return GE_NOMEM;
     }
+    if (wake_sig != defoshnd_wake_sig)
+	return GE_INVAL;
 
     *o = defoshnd;
     return 0;
