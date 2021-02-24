@@ -1830,6 +1830,7 @@ mux_shutdown_channels(struct mux_data *muxdata, int err)
 
 	case MUX_INST_CLOSED:
 	case MUX_INST_IN_REM_CLOSE:
+	    chan_deref(chan); /* Will free it. */
 	    break;
 
 	case MUX_INST_PENDING_OPEN:
