@@ -11,7 +11,7 @@
 #include <memory>
 
 namespace gensio {
-    // Incuding this in the gensio namespace to keep things need, and
+    // Incuding this in the gensio namespace to keep things neat, and
     // so we can have a gensio namespace.  You can't have a "struct
     // gensio" and "namespace gensio" in the same namespace.
 #include <gensio/gensio.h>
@@ -82,35 +82,6 @@ namespace gensio {
 	virtual void freed() { };
 
 	virtual ~Event() = default;
-    };
-
-    // These are events from a serial port device, client and server.
-    // These are documented in sergensio_event.3
-    class Serial_Event: public Event {
-    public:
-	// Client-side calls, used to report serial line changes.
-
-	// See sergensio_modemstate.3 for details
-	virtual void modemstate(unsigned int state) { }
-	// See sergensio_linestate.3 for details
-	virtual void linestate(unsigned int state) { }
-
-	// Server side calls, used when the client requests changes.  See sergensio_xxx
-	virtual void signature(const char *sig, gensiods len) { }
-	virtual void flow_state(bool state) { }
-	virtual void flush(unsigned int val) { }
-	virtual void sync() { }
-	virtual void baud(unsigned int speed) { }
-	virtual void datasize(unsigned int size) { }
-	virtual void parity(unsigned int par) { }
-	virtual void stopbits(unsigned int bits) { }
-	virtual void flowcontrol(unsigned int flow) { }
-	virtual void iflowcontrol(unsigned int flow) { }
-	virtual void sbreak(unsigned int sbreak) { }
-	virtual void dtr(unsigned int dtr) { }
-	virtual void rts(unsigned int dsr) { }
-
-	virtual ~Serial_Event() = default;
     };
 
     // Used for done handlers for gensio operations that can fail,
@@ -295,10 +266,13 @@ namespace gensio {
 	// Return the event handler assigned to a gensio.
 	inline Event *get_cb() { return gcb; }
 
-    private:
-	Gensio(struct gensio *io, struct gensio_os_funcs *o, Event *cb);
+    protected:
+	// Subclasses can use this to initialize the gensio object.
+	virtual void set_gensio(struct gensio *io);
+	Gensio(struct gensio_os_funcs *o, Event *cb);
 	~Gensio() { }
 
+    private:
 	struct gensio *io;
 	Event *gcb;
 	struct gensio_os_funcs *go;
@@ -311,6 +285,73 @@ namespace gensio {
 	friend void gensio_cpp_freed(struct gensio *io,
 				     struct gensio_frdata *frdata);
 	friend class Serial_Gensio;
+    };
+
+    class Tcp: public Gensio {
+    public:
+	Tcp(struct gensio_addr *addr, const char * const args[],
+	    struct gensio_os_funcs *o, Event *cb);
+
+	~Tcp() = delete;
+	Tcp &operator=(const Gensio&) = delete;
+    private:
+	Tcp(struct gensio_os_funcs *o) : Gensio(o, NULL) { }
+	friend Gensio *alloc_tcp_class(struct gensio_os_funcs *o);
+    };
+
+    class Unix: public Gensio {
+    public:
+	Unix(struct gensio_addr *addr, const char * const args[],
+	     struct gensio_os_funcs *o, Event *cb);
+
+	~Unix() = delete;
+	Unix &operator=(const Gensio&) = delete;
+    private:
+	Unix(struct gensio_os_funcs *o) : Gensio(o, NULL) { }
+	friend Gensio *alloc_unix_class(struct gensio_os_funcs *o);
+    };
+
+    class Stdio: public Gensio {
+    public:
+	Stdio(const char *const argv[], const char * const args[],
+	      struct gensio_os_funcs *o, Event *cb);
+
+	~Stdio() = delete;
+	Stdio &operator=(const Gensio&) = delete;
+    private:
+	Stdio(struct gensio_os_funcs *o) : Gensio(o, NULL) { }
+	friend Gensio *alloc_stdio_class(struct gensio_os_funcs *o);
+    };
+
+    //*****************************************************************
+
+    // These are events from a serial port device, client and server.
+    // These are documented in sergensio_event.3
+    class Serial_Event: public Event {
+    public:
+	// Client-side calls, used to report serial line changes.
+
+	// See sergensio_modemstate.3 for details
+	virtual void modemstate(unsigned int state) { }
+	// See sergensio_linestate.3 for details
+	virtual void linestate(unsigned int state) { }
+
+	// Server side calls, used when the client requests changes.  See sergensio_xxx
+	virtual void signature(const char *sig, gensiods len) { }
+	virtual void flow_state(bool state) { }
+	virtual void flush(unsigned int val) { }
+	virtual void sync() { }
+	virtual void baud(unsigned int speed) { }
+	virtual void datasize(unsigned int size) { }
+	virtual void parity(unsigned int par) { }
+	virtual void stopbits(unsigned int bits) { }
+	virtual void flowcontrol(unsigned int flow) { }
+	virtual void iflowcontrol(unsigned int flow) { }
+	virtual void sbreak(unsigned int sbreak) { }
+	virtual void dtr(unsigned int dtr) { }
+	virtual void rts(unsigned int dsr) { }
+
+	virtual ~Serial_Event() = default;
     };
 
     // Done handler for normal serial port operations.
@@ -392,14 +433,29 @@ namespace gensio {
 	void flow_state(bool state);
 	void modemstate(unsigned int state);
 	void linestate(unsigned int state);
-    private:
-	Serial_Gensio(struct sergensio *sio, struct gensio_os_funcs *o,
-		      Event *cb);
+
+    protected:
+	virtual void set_gensio(struct gensio *io);
+	Serial_Gensio(struct gensio_os_funcs *o, Event *cb) : Gensio(o, cb) { }
 	~Serial_Gensio() { }
+
+    private:
 	struct sergensio *sio;
 
 	friend Gensio *gensio_alloc(struct gensio *io,
 				    struct gensio_os_funcs *o);
+    };
+
+    class Serialdev: public Serial_Gensio {
+    public:
+	Serialdev(const char *devname, const char * const args[],
+		  struct gensio_os_funcs *o, Event *cb);
+
+	~Serialdev() = delete;
+	Serialdev &operator=(const Gensio&) = delete;
+    private:
+	Serialdev(struct gensio_os_funcs *o) : Serial_Gensio(o, NULL) { }
+	friend Gensio *alloc_serialdev_class(struct gensio_os_funcs *o);
     };
 
     class Accepter;

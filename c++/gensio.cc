@@ -1,7 +1,10 @@
 
+#include <vector>
+#include <cstring>
 #include <gensio/gensio>
 
 namespace gensio {
+#include <gensio/gensio_builtins.h>
 
     void Event::write_ready(Gensio *io)
     {
@@ -168,6 +171,67 @@ namespace gensio {
 	delete d;
     }
 
+    void
+    Gensio::set_gensio(struct gensio *io)
+    {
+	struct gensio_cpp_data *d;
+
+	try {
+	    d = new struct gensio_cpp_data;
+	} catch (...) {
+	    delete this;
+	    throw;
+	}
+	this->io = io;
+	d->g = this;
+	d->frdata.freed = gensio_cpp_freed;
+	gensio_set_frdata(io, &d->frdata);
+	gensio_set_callback(io, gensio_cpp_cb, this);
+    }
+
+    void
+    Serial_Gensio::set_gensio(struct gensio *io)
+    {
+	this->sio = gensio_to_sergensio(io);
+	Gensio::set_gensio(io);
+    }
+
+    Gensio *
+    alloc_tcp_class(struct gensio_os_funcs *o)
+    {
+	return new Tcp(o);
+    }
+
+    Gensio *
+    alloc_unix_class(struct gensio_os_funcs *o)
+    {
+	return new Unix(o);
+    }
+
+    Gensio *
+    alloc_stdio_class(struct gensio_os_funcs *o)
+    {
+	return new Stdio(o);
+    }
+
+    Gensio *
+    alloc_serialdev_class(struct gensio_os_funcs *o)
+    {
+	return new Serialdev(o);
+    }
+
+    struct gensio_class {
+	const char *name;
+	class Gensio *(*allocator)(struct gensio_os_funcs *o);
+    };
+
+    static std::vector<struct gensio_class> classes {
+	{ "tcp", alloc_tcp_class },
+	{ "unix", alloc_unix_class },
+	{ "stdio", alloc_stdio_class },
+	{ "serialdev", alloc_serialdev_class },
+    };
+
     Gensio *
     gensio_alloc(struct gensio *io, struct gensio_os_funcs *o)
     {
@@ -176,27 +240,28 @@ namespace gensio {
 	unsigned int i;
 	struct gensio_frdata *f;
 	struct gensio_cpp_data *d;
-	Gensio *g;
+	Gensio *g = NULL;
 
 	// Set frdata for the gensio and all children.
 	for (i = 0; cio = gensio_get_child(io, i); i++) {
 	    if (gensio_get_frdata(cio))
 		break; // It's already been set.
-	    sio = gensio_to_sergensio(cio);
-	    if (sio) {
-		g = new Serial_Gensio(sio, o, NULL);
-	    } else {
-		g = new Gensio(cio, o, NULL);
+	    const char *type = gensio_get_type(cio, 0);
+	    for (unsigned int i = 0; i < classes.size(); i++) {
+		if (strcmp(type, classes[i].name) == 0) {
+		    g = classes[i].allocator(o);
+		    break;
+		}
 	    }
-	    try {
-		d = new struct gensio_cpp_data;
-	    } catch (...) {
-		delete g;
-		throw;
+	    if (g == NULL) {
+		sio = gensio_to_sergensio(cio);
+		if (sio) {
+		    g = new Serial_Gensio(o, NULL);
+		} else {
+		    g = new Gensio(o, NULL);
+		}
 	    }
-	    d->g = g;
-	    d->frdata.freed = gensio_cpp_freed;
-	    gensio_set_frdata(cio, &d->frdata);
+	    g->set_gensio(cio);
 	}
 	f = gensio_get_frdata(io);
 	d = gensio_container_of(f, struct gensio_cpp_data, frdata);
@@ -210,7 +275,6 @@ namespace gensio {
 
 	g = gensio_alloc(io, o);
 	g->set_event_handler(cb);
-	gensio_set_callback(io, gensio_cpp_cb, g);
 	return g;
     }
 
@@ -230,7 +294,7 @@ namespace gensio {
 
     Gensio *
     gensio_alloc(Gensio *child, std::string str,
-		 struct gensio_os_funcs *o,  Event *cb)
+		 struct gensio_os_funcs *o, Event *cb)
     {
 	struct gensio *io;
 	int err;
@@ -244,9 +308,8 @@ namespace gensio {
 	return g;
     }
 
-    Gensio::Gensio(struct gensio *iio, struct gensio_os_funcs *o, Event *cb)
+    Gensio::Gensio(struct gensio_os_funcs *o, Event *cb)
     {
-	io = iio;
 	go = o;
 	gcb = cb;
     }
@@ -435,12 +498,43 @@ namespace gensio {
 	return 0;
     }
 
-    Serial_Gensio::Serial_Gensio(struct sergensio *sio,
-				 struct gensio_os_funcs *o,
-				 Event *cb)
-	: Gensio(sergensio_to_gensio(sio), o, cb)
+    Tcp::Tcp(struct gensio_addr *addr, const char * const args[],
+	     struct gensio_os_funcs *o, Event *cb)
+	: Gensio(o, cb)
     {
-	this->sio = sio;
+	struct gensio *io;
+	int err;
+
+	err = tcp_gensio_alloc(addr, args, o, NULL, NULL, &io);
+	if (err)
+	    throw gensio_error(err);
+	this->set_gensio(io);
+    }
+
+    Unix::Unix(struct gensio_addr *addr, const char * const args[],
+	       struct gensio_os_funcs *o, Event *cb)
+	: Gensio(o, cb)
+    {
+	struct gensio *io;
+	int err;
+
+	err = unix_gensio_alloc(addr, args, o, NULL, NULL, &io);
+	if (err)
+	    throw gensio_error(err);
+	this->set_gensio(io);
+    }
+
+    Stdio::Stdio(const char *const argv[], const char * const args[],
+		 struct gensio_os_funcs *o, Event *cb)
+	: Gensio(o, cb)
+    {
+	struct gensio *io;
+	int err;
+
+	err = stdio_gensio_alloc(argv, args, o, NULL, NULL, &io);
+	if (err)
+	    throw gensio_error(err);
+	this->set_gensio(io);
     }
 
     static void sergensio_cpp_done(struct sergensio *sio, int err,
@@ -800,6 +894,19 @@ namespace gensio {
 	    throw gensio_error(err);
     }
     
+    Serialdev::Serialdev(const char *devname, const char * const args[],
+			 struct gensio_os_funcs *o, Event *cb)
+	: Serial_Gensio(o, cb)
+    {
+	struct gensio *io;
+	int err;
+
+	err = serialdev_gensio_alloc(devname, args, o, NULL, NULL, &io);
+	if (err)
+	    throw gensio_error(err);
+	this->set_gensio(io);
+    }
+
     struct gensio_acc_cpp_data {
 	struct gensio_acc_frdata frdata;
 	Accepter *a;
