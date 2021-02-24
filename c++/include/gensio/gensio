@@ -270,7 +270,7 @@ namespace gensio {
 	// Subclasses can use this to initialize the gensio object.
 	virtual void set_gensio(struct gensio *io);
 	Gensio(struct gensio_os_funcs *o, Event *cb);
-	~Gensio() { }
+	virtual ~Gensio() { }
 
     private:
 	struct gensio *io;
@@ -292,9 +292,9 @@ namespace gensio {
 	Tcp(struct gensio_addr *addr, const char * const args[],
 	    struct gensio_os_funcs *o, Event *cb);
 
-	~Tcp() = delete;
 	Tcp &operator=(const Gensio&) = delete;
     private:
+	virtual ~Tcp() { }
 	Tcp(struct gensio_os_funcs *o) : Gensio(o, NULL) { }
 	friend Gensio *alloc_tcp_class(struct gensio_os_funcs *o);
     };
@@ -304,9 +304,9 @@ namespace gensio {
 	Unix(struct gensio_addr *addr, const char * const args[],
 	     struct gensio_os_funcs *o, Event *cb);
 
-	~Unix() = delete;
 	Unix &operator=(const Gensio&) = delete;
     private:
+	virtual ~Unix() { }
 	Unix(struct gensio_os_funcs *o) : Gensio(o, NULL) { }
 	friend Gensio *alloc_unix_class(struct gensio_os_funcs *o);
     };
@@ -316,9 +316,9 @@ namespace gensio {
 	Stdio(const char *const argv[], const char * const args[],
 	      struct gensio_os_funcs *o, Event *cb);
 
-	~Stdio() = delete;
 	Stdio &operator=(const Gensio&) = delete;
     private:
+	virtual ~Stdio() { }
 	Stdio(struct gensio_os_funcs *o) : Gensio(o, NULL) { }
 	friend Gensio *alloc_stdio_class(struct gensio_os_funcs *o);
     };
@@ -437,7 +437,7 @@ namespace gensio {
     protected:
 	virtual void set_gensio(struct gensio *io);
 	Serial_Gensio(struct gensio_os_funcs *o, Event *cb) : Gensio(o, cb) { }
-	~Serial_Gensio() { }
+	virtual ~Serial_Gensio() { }
 
     private:
 	struct sergensio *sio;
@@ -451,9 +451,9 @@ namespace gensio {
 	Serialdev(const char *devname, const char * const args[],
 		  struct gensio_os_funcs *o, Event *cb);
 
-	~Serialdev() = delete;
 	Serialdev &operator=(const Gensio&) = delete;
     private:
+	virtual ~Serialdev() { };
 	Serialdev(struct gensio_os_funcs *o) : Serial_Gensio(o, NULL) { }
 	friend Gensio *alloc_serialdev_class(struct gensio_os_funcs *o);
     };
