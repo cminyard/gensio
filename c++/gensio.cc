@@ -171,7 +171,7 @@ namespace gensio {
     }
 
     void
-    Gensio::set_gensio(struct gensio *io)
+    Gensio::set_gensio(struct gensio *io, bool set_cb)
     {
 	struct gensio_cpp_data *d;
 
@@ -185,89 +185,176 @@ namespace gensio {
 	d->g = this;
 	d->frdata.freed = gensio_cpp_freed;
 	gensio_set_frdata(io, &d->frdata);
-	gensio_set_callback(io, gensio_cpp_cb, this);
+	if (set_cb)
+	    gensio_set_callback(io, gensio_cpp_cb, this);
     }
 
     void
-    Serial_Gensio::set_gensio(struct gensio *io)
+    Serial_Gensio::set_gensio(struct gensio *io, bool set_cb)
     {
 	this->sio = gensio_to_sergensio(io);
-	Gensio::set_gensio(io);
+	Gensio::set_gensio(io, set_cb);
     }
 
     Gensio *
-    alloc_tcp_class(struct gensio_os_funcs *o)
+    alloc_tcp_class(struct gensio_os_funcs *o,
+		    struct gensio *io)
     {
 	return new Tcp(o);
     }
 
     Gensio *
-    alloc_udp_class(struct gensio_os_funcs *o)
+    alloc_udp_class(struct gensio_os_funcs *o,
+		    struct gensio *io)
     {
 	return new Udp(o);
     }
 
     Gensio *
-    alloc_unix_class(struct gensio_os_funcs *o)
+    alloc_unix_class(struct gensio_os_funcs *o,
+		     struct gensio *io)
     {
 	return new Unix(o);
     }
 
     Gensio *
-    alloc_sctp_class(struct gensio_os_funcs *o)
+    alloc_sctp_class(struct gensio_os_funcs *o,
+		     struct gensio *io)
     {
 	return new Sctp(o);
     }
 
     Gensio *
-    alloc_stdio_class(struct gensio_os_funcs *o)
+    alloc_stdio_class(struct gensio_os_funcs *o,
+		      struct gensio *io)
     {
 	return new Stdio(o);
     }
 
     Gensio *
-    alloc_pty_class(struct gensio_os_funcs *o)
+    alloc_pty_class(struct gensio_os_funcs *o,
+		    struct gensio *io)
     {
 	return new Pty(o);
     }
 
     Gensio *
-    alloc_echo_class(struct gensio_os_funcs *o)
+    alloc_echo_class(struct gensio_os_funcs *o,
+		     struct gensio *io)
     {
 	return new Echo(o);
     }
 
     Gensio *
-    alloc_file_class(struct gensio_os_funcs *o)
+    alloc_file_class(struct gensio_os_funcs *o,
+		     struct gensio *io)
     {
 	return new File(o);
     }
 
     Gensio *
-    alloc_mdns_class(struct gensio_os_funcs *o)
+    alloc_mdns_class(struct gensio_os_funcs *o,
+		     struct gensio *io)
     {
 	return new Mdns(o);
     }
 
     Gensio *
-    alloc_serialdev_class(struct gensio_os_funcs *o)
+    alloc_serialdev_class(struct gensio_os_funcs *o,
+			  struct gensio *io)
     {
 	return new Serialdev(o);
     }
 
     Gensio *
-    alloc_ipmisol_class(struct gensio_os_funcs *o)
+    alloc_ipmisol_class(struct gensio_os_funcs *o,
+			struct gensio *io)
     {
 	return new Ipmisol(o);
     }
 
-    typedef Gensio *(*gensio_allocator)(struct gensio_os_funcs *o);
+    Gensio *
+    alloc_ssl_class(struct gensio_os_funcs *o,
+		    struct gensio *io)
+    {
+	return new Ssl(o);
+    }
+
+    Gensio *
+    alloc_certauth_class(struct gensio_os_funcs *o,
+			 struct gensio *io)
+    {
+	return new Certauth(o);
+    }
+
+    Gensio *
+    alloc_telnet_class(struct gensio_os_funcs *o,
+		       struct gensio *io)
+    {
+	if (gensio_to_sergensio(io))
+	    return new Serial_Telnet(o);
+	else
+	    return new Telnet(o);
+    }
+
+    Gensio *
+    alloc_msgdelim_class(struct gensio_os_funcs *o,
+			 struct gensio *io)
+    {
+	return new Msgdelim(o);
+    }
+
+    Gensio *
+    alloc_relpkt_class(struct gensio_os_funcs *o,
+		       struct gensio *io)
+    {
+	return new Relpkt(o);
+    }
+
+    Gensio *
+    alloc_trace_class(struct gensio_os_funcs *o,
+		      struct gensio *io)
+    {
+	return new Trace(o);
+    }
+
+    Gensio *
+    alloc_perf_class(struct gensio_os_funcs *o,
+		     struct gensio *io)
+    {
+	return new Perf(o);
+    }
+
+    Gensio *
+    alloc_mux_class(struct gensio_os_funcs *o,
+		    struct gensio *io)
+    {
+	return new Mux(o);
+    }
+
+    typedef Gensio *(*gensio_allocator)(struct gensio_os_funcs *o,
+					struct gensio *io);
 
     static std::map<std::string, gensio_allocator> classes = {
 	{ "tcp", alloc_tcp_class },
+	{ "udp", alloc_udp_class },
 	{ "unix", alloc_unix_class },
+	{ "sctp", alloc_sctp_class },
+	{ "pty", alloc_pty_class },
+	{ "echo", alloc_echo_class },
+	{ "file", alloc_file_class },
+	{ "mdns", alloc_mdns_class },
 	{ "stdio", alloc_stdio_class },
 	{ "serialdev", alloc_serialdev_class },
+	{ "ipmisol", alloc_ipmisol_class },
+	{ "ssl", alloc_ssl_class },
+	{ "mux", alloc_mux_class },
+	{ "certauth", alloc_certauth_class },
+	{ "telnet", alloc_telnet_class },
+	{ "msgdelim", alloc_msgdelim_class },
+	{ "relpkt", alloc_relpkt_class },
+	{ "trace", alloc_trace_class },
+	{ "perf", alloc_perf_class },
     };
 
     Gensio *
@@ -288,7 +375,7 @@ namespace gensio {
 	    auto iter = classes.find(type);
 
 	    if (iter != classes.end()) {
-		g = iter->second(o);
+		g = iter->second(o, cio);
 	    }
 	    if (g == NULL) {
 		sio = gensio_to_sergensio(cio);
@@ -298,7 +385,7 @@ namespace gensio {
 		    g = new Gensio(o, NULL);
 		}
 	    }
-	    g->set_gensio(cio);
+	    g->set_gensio(cio, i == 0);
 	}
 	f = gensio_get_frdata(io);
 	d = gensio_container_of(f, struct gensio_cpp_data, frdata);
@@ -545,7 +632,7 @@ namespace gensio {
 	err = tcp_gensio_alloc(addr, args, o, NULL, NULL, &io);
 	if (err)
 	    throw gensio_error(err);
-	this->set_gensio(io);
+	this->set_gensio(io, true);
     }
 
     Udp::Udp(struct gensio_addr *addr, const char * const args[],
@@ -558,7 +645,7 @@ namespace gensio {
 	err = udp_gensio_alloc(addr, args, o, NULL, NULL, &io);
 	if (err)
 	    throw gensio_error(err);
-	this->set_gensio(io);
+	this->set_gensio(io, true);
     }
 
     Unix::Unix(struct gensio_addr *addr, const char * const args[],
@@ -571,7 +658,7 @@ namespace gensio {
 	err = unix_gensio_alloc(addr, args, o, NULL, NULL, &io);
 	if (err)
 	    throw gensio_error(err);
-	this->set_gensio(io);
+	this->set_gensio(io, true);
     }
 
     Sctp::Sctp(struct gensio_addr *addr, const char * const args[],
@@ -584,7 +671,7 @@ namespace gensio {
 	err = sctp_gensio_alloc(addr, args, o, NULL, NULL, &io);
 	if (err)
 	    throw gensio_error(err);
-	this->set_gensio(io);
+	this->set_gensio(io, true);
     }
 
     Stdio::Stdio(const char *const argv[], const char * const args[],
@@ -597,7 +684,7 @@ namespace gensio {
 	err = stdio_gensio_alloc(argv, args, o, NULL, NULL, &io);
 	if (err)
 	    throw gensio_error(err);
-	this->set_gensio(io);
+	this->set_gensio(io, true);
     }
 
     Pty::Pty(const char *const argv[], const char * const args[],
@@ -610,7 +697,7 @@ namespace gensio {
 	err = pty_gensio_alloc(argv, args, o, NULL, NULL, &io);
 	if (err)
 	    throw gensio_error(err);
-	this->set_gensio(io);
+	this->set_gensio(io, true);
     }
 
     Echo::Echo(const char * const args[],
@@ -623,7 +710,7 @@ namespace gensio {
 	err = echo_gensio_alloc(args, o, NULL, NULL, &io);
 	if (err)
 	    throw gensio_error(err);
-	this->set_gensio(io);
+	this->set_gensio(io, true);
     }
 
     File::File(const char * const args[],
@@ -636,7 +723,7 @@ namespace gensio {
 	err = file_gensio_alloc(args, o, NULL, NULL, &io);
 	if (err)
 	    throw gensio_error(err);
-	this->set_gensio(io);
+	this->set_gensio(io, true);
     }
 
     Mdns::Mdns(const char *str, const char * const args[],
@@ -649,7 +736,114 @@ namespace gensio {
 	err = mdns_gensio_alloc(str, args, o, NULL, NULL, &io);
 	if (err)
 	    throw gensio_error(err);
-	this->set_gensio(io);
+	this->set_gensio(io, true);
+    }
+
+    Ssl::Ssl(Gensio *child, const char * const args[],
+	     struct gensio_os_funcs *o, Event *cb)
+	: Gensio(o, cb)
+    {
+	struct gensio *io;
+	int err;
+
+	err = ssl_gensio_alloc(child->get_gensio(), args, o, NULL, NULL, &io);
+	if (err)
+	    throw gensio_error(err);
+	this->set_gensio(io, true);
+    }
+
+    Mux::Mux(Gensio *child, const char * const args[],
+	     struct gensio_os_funcs *o, Event *cb)
+	: Gensio(o, cb)
+    {
+	struct gensio *io;
+	int err;
+
+	err = mux_gensio_alloc(child->get_gensio(), args, o, NULL, NULL, &io);
+	if (err)
+	    throw gensio_error(err);
+	this->set_gensio(io, true);
+    }
+
+    Certauth::Certauth(Gensio *child, const char * const args[],
+		       struct gensio_os_funcs *o, Event *cb)
+	: Gensio(o, cb)
+    {
+	struct gensio *io;
+	int err;
+
+	err = certauth_gensio_alloc(child->get_gensio(), args, o,
+				    NULL, NULL, &io);
+	if (err)
+	    throw gensio_error(err);
+	this->set_gensio(io, true);
+    }
+
+    Telnet::Telnet(Gensio *child, const char * const args[],
+		   struct gensio_os_funcs *o, Event *cb)
+	: Gensio(o, cb)
+    {
+	struct gensio *io;
+	int err;
+
+	err = telnet_gensio_alloc(child->get_gensio(), args, o, NULL, NULL, &io);
+	if (err)
+	    throw gensio_error(err);
+	this->set_gensio(io, true);
+    }
+
+    Msgdelim::Msgdelim(Gensio *child, const char * const args[],
+		       struct gensio_os_funcs *o, Event *cb)
+	: Gensio(o, cb)
+    {
+	struct gensio *io;
+	int err;
+
+	err = msgdelim_gensio_alloc(child->get_gensio(), args, o,
+				    NULL, NULL, &io);
+	if (err)
+	    throw gensio_error(err);
+	this->set_gensio(io, true);
+    }
+
+    Relpkt::Relpkt(Gensio *child, const char * const args[],
+		   struct gensio_os_funcs *o, Event *cb)
+	: Gensio(o, cb)
+    {
+	struct gensio *io;
+	int err;
+
+	err = relpkt_gensio_alloc(child->get_gensio(), args, o,
+				  NULL, NULL, &io);
+	if (err)
+	    throw gensio_error(err);
+	this->set_gensio(io, true);
+    }
+
+    Trace::Trace(Gensio *child, const char * const args[],
+		 struct gensio_os_funcs *o, Event *cb)
+	: Gensio(o, cb)
+    {
+	struct gensio *io;
+	int err;
+
+	err = trace_gensio_alloc(child->get_gensio(), args, o, NULL, NULL, &io);
+	if (err)
+	    throw gensio_error(err);
+	this->set_gensio(io, true);
+    }
+
+    Perf::Perf(Gensio *child, const char * const args[],
+	       struct gensio_os_funcs *o, Event *cb)
+	: Gensio(o, cb)
+    {
+	struct gensio *io;
+	int err;
+
+	err = perf_gensio_alloc(child->get_gensio(), args, o, NULL, NULL, &io);
+	if (err)
+	    throw gensio_error(err);
+	this->set_gensio(io, true);
     }
 
     static void sergensio_cpp_done(struct sergensio *sio, int err,
@@ -1019,7 +1213,21 @@ namespace gensio {
 	err = serialdev_gensio_alloc(devname, args, o, NULL, NULL, &io);
 	if (err)
 	    throw gensio_error(err);
-	this->set_gensio(io);
+	this->set_gensio(io, true);
+    }
+
+    Serial_Telnet::Serial_Telnet(Gensio *child, const char * const args[],
+				 struct gensio_os_funcs *o, Event *cb)
+	: Serial_Gensio(o, cb)
+    {
+	struct gensio *io;
+	int err;
+
+	err = telnet_gensio_alloc(child->get_gensio(), args, o,
+				  NULL, NULL, &io);
+	if (err)
+	    throw gensio_error(err);
+	this->set_gensio(io, true);
     }
 
     Ipmisol::Ipmisol(const char *devname, const char * const args[],
@@ -1032,7 +1240,7 @@ namespace gensio {
 	err = ipmisol_gensio_alloc(devname, args, o, NULL, NULL, &io);
 	if (err)
 	    throw gensio_error(err);
-	this->set_gensio(io);
+	this->set_gensio(io, true);
     }
 
     struct gensio_acc_cpp_data {

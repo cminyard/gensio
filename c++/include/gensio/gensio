@@ -266,9 +266,13 @@ namespace gensio {
 	// Return the event handler assigned to a gensio.
 	inline Event *get_cb() { return gcb; }
 
+	// Return the raw gensio.  Don't use this, it's for subclasses
+	// to use.
+	struct gensio *get_gensio() { return io; }
+
     protected:
 	// Subclasses can use this to initialize the gensio object.
-	virtual void set_gensio(struct gensio *io);
+	virtual void set_gensio(struct gensio *io, bool set_cb);
 	Gensio(struct gensio_os_funcs *o, Event *cb);
 	virtual ~Gensio() { }
 
@@ -296,7 +300,8 @@ namespace gensio {
     private:
 	virtual ~Tcp() { }
 	Tcp(struct gensio_os_funcs *o) : Gensio(o, NULL) { }
-	friend Gensio *alloc_tcp_class(struct gensio_os_funcs *o);
+	friend Gensio *alloc_tcp_class(struct gensio_os_funcs *o,
+				       struct gensio *io);
     };
 
     class Udp: public Gensio {
@@ -308,7 +313,8 @@ namespace gensio {
     private:
 	virtual ~Udp() { }
 	Udp(struct gensio_os_funcs *o) : Gensio(o, NULL) { }
-	friend Gensio *alloc_udp_class(struct gensio_os_funcs *o);
+	friend Gensio *alloc_udp_class(struct gensio_os_funcs *o,
+				       struct gensio *io);
     };
 
     class Unix: public Gensio {
@@ -320,7 +326,8 @@ namespace gensio {
     private:
 	virtual ~Unix() { }
 	Unix(struct gensio_os_funcs *o) : Gensio(o, NULL) { }
-	friend Gensio *alloc_unix_class(struct gensio_os_funcs *o);
+	friend Gensio *alloc_unix_class(struct gensio_os_funcs *o,
+					struct gensio *io);
     };
 
     class Sctp: public Gensio {
@@ -332,7 +339,8 @@ namespace gensio {
     private:
 	virtual ~Sctp() { }
 	Sctp(struct gensio_os_funcs *o) : Gensio(o, NULL) { }
-	friend Gensio *alloc_sctp_class(struct gensio_os_funcs *o);
+	friend Gensio *alloc_sctp_class(struct gensio_os_funcs *o,
+					struct gensio *io);
     };
 
     class Stdio: public Gensio {
@@ -344,7 +352,8 @@ namespace gensio {
     private:
 	virtual ~Stdio() { }
 	Stdio(struct gensio_os_funcs *o) : Gensio(o, NULL) { }
-	friend Gensio *alloc_stdio_class(struct gensio_os_funcs *o);
+	friend Gensio *alloc_stdio_class(struct gensio_os_funcs *o,
+					 struct gensio *io);
     };
 
     class Pty: public Gensio {
@@ -356,7 +365,8 @@ namespace gensio {
     private:
 	virtual ~Pty() { }
 	Pty(struct gensio_os_funcs *o) : Gensio(o, NULL) { }
-	friend Gensio *alloc_pty_class(struct gensio_os_funcs *o);
+	friend Gensio *alloc_pty_class(struct gensio_os_funcs *o,
+				       struct gensio *io);
     };
 
     class Echo: public Gensio {
@@ -368,7 +378,8 @@ namespace gensio {
     private:
 	virtual ~Echo() { }
 	Echo(struct gensio_os_funcs *o) : Gensio(o, NULL) { }
-	friend Gensio *alloc_echo_class(struct gensio_os_funcs *o);
+	friend Gensio *alloc_echo_class(struct gensio_os_funcs *o,
+					struct gensio *io);
     };
 
     class File: public Gensio {
@@ -380,7 +391,8 @@ namespace gensio {
     private:
 	virtual ~File() { }
 	File(struct gensio_os_funcs *o) : Gensio(o, NULL) { }
-	friend Gensio *alloc_file_class(struct gensio_os_funcs *o);
+	friend Gensio *alloc_file_class(struct gensio_os_funcs *o,
+					struct gensio *io);
     };
 
     class Mdns: public Gensio {
@@ -392,7 +404,112 @@ namespace gensio {
     private:
 	virtual ~Mdns() { }
 	Mdns(struct gensio_os_funcs *o) : Gensio(o, NULL) { }
-	friend Gensio *alloc_mdns_class(struct gensio_os_funcs *o);
+	friend Gensio *alloc_mdns_class(struct gensio_os_funcs *o,
+					struct gensio *io);
+    };
+
+    class Ssl: public Gensio {
+    public:
+	Ssl(Gensio *child, const char * const args[],
+	    struct gensio_os_funcs *o, Event *cb);
+
+	Ssl &operator=(const Gensio&) = delete;
+    private:
+	virtual ~Ssl() { }
+	Ssl(struct gensio_os_funcs *o) : Gensio(o, NULL) { }
+	friend Gensio *alloc_ssl_class(struct gensio_os_funcs *o,
+				       struct gensio *io);
+    };
+
+    class Mux: public Gensio {
+    public:
+	Mux(Gensio *child, const char * const args[],
+	    struct gensio_os_funcs *o, Event *cb);
+
+	Mux &operator=(const Gensio&) = delete;
+    private:
+	virtual ~Mux() { }
+	Mux(struct gensio_os_funcs *o) : Gensio(o, NULL) { }
+	friend Gensio *alloc_mux_class(struct gensio_os_funcs *o,
+				       struct gensio *io);
+    };
+
+    class Certauth: public Gensio {
+    public:
+	Certauth(Gensio *child, const char * const args[],
+	    struct gensio_os_funcs *o, Event *cb);
+
+	Certauth &operator=(const Gensio&) = delete;
+    private:
+	virtual ~Certauth() { }
+	Certauth(struct gensio_os_funcs *o) : Gensio(o, NULL) { }
+	friend Gensio *alloc_certauth_class(struct gensio_os_funcs *o,
+					    struct gensio *io);
+    };
+
+    class Telnet: public Gensio {
+    public:
+	Telnet(Gensio *child, const char * const args[],
+	    struct gensio_os_funcs *o, Event *cb);
+
+	Telnet &operator=(const Gensio&) = delete;
+    private:
+	virtual ~Telnet() { }
+	Telnet(struct gensio_os_funcs *o) : Gensio(o, NULL) { }
+	friend Gensio *alloc_telnet_class(struct gensio_os_funcs *o,
+					  struct gensio *io);
+    };
+
+    class Msgdelim: public Gensio {
+    public:
+	Msgdelim(Gensio *child, const char * const args[],
+	    struct gensio_os_funcs *o, Event *cb);
+
+	Msgdelim &operator=(const Gensio&) = delete;
+    private:
+	virtual ~Msgdelim() { }
+	Msgdelim(struct gensio_os_funcs *o) : Gensio(o, NULL) { }
+	friend Gensio *alloc_msgdelim_class(struct gensio_os_funcs *o,
+					    struct gensio *io);
+    };
+
+    class Relpkt: public Gensio {
+    public:
+	Relpkt(Gensio *child, const char * const args[],
+	    struct gensio_os_funcs *o, Event *cb);
+
+	Relpkt &operator=(const Gensio&) = delete;
+    private:
+	virtual ~Relpkt() { }
+	Relpkt(struct gensio_os_funcs *o) : Gensio(o, NULL) { }
+	friend Gensio *alloc_relpkt_class(struct gensio_os_funcs *o,
+					  struct gensio *io);
+    };
+
+    class Trace: public Gensio {
+    public:
+	Trace(Gensio *child, const char * const args[],
+	    struct gensio_os_funcs *o, Event *cb);
+
+	Trace &operator=(const Gensio&) = delete;
+    private:
+	virtual ~Trace() { }
+	Trace(struct gensio_os_funcs *o) : Gensio(o, NULL) { }
+	friend Gensio *alloc_trace_class(struct gensio_os_funcs *o,
+					 struct gensio *io);
+    };
+
+    class Perf: public Gensio {
+    public:
+	Perf(Gensio *child, const char * const args[],
+	    struct gensio_os_funcs *o, Event *cb);
+
+	Perf &operator=(const Gensio&) = delete;
+    private:
+	virtual ~Perf() { }
+	Perf(struct gensio_os_funcs *o) : Gensio(o, NULL) { }
+	friend Gensio *alloc_perf_class(struct gensio_os_funcs *o,
+					struct gensio *io);
     };
 
     //*****************************************************************
@@ -507,7 +624,7 @@ namespace gensio {
 	void linestate(unsigned int state);
 
     protected:
-	virtual void set_gensio(struct gensio *io);
+	virtual void set_gensio(struct gensio *io, bool set_cb);
 	Serial_Gensio(struct gensio_os_funcs *o, Event *cb) : Gensio(o, cb) { }
 	virtual ~Serial_Gensio() { }
 
@@ -527,7 +644,21 @@ namespace gensio {
     private:
 	virtual ~Serialdev() { };
 	Serialdev(struct gensio_os_funcs *o) : Serial_Gensio(o, NULL) { }
-	friend Gensio *alloc_serialdev_class(struct gensio_os_funcs *o);
+	friend Gensio *alloc_serialdev_class(struct gensio_os_funcs *o,
+					     struct gensio *io);
+    };
+
+    class Serial_Telnet: public Serial_Gensio {
+    public:
+	Serial_Telnet(Gensio *child, const char * const args[],
+		struct gensio_os_funcs *o, Event *cb);
+
+	Serial_Telnet &operator=(const Gensio&) = delete;
+    private:
+	virtual ~Serial_Telnet() { }
+	Serial_Telnet(struct gensio_os_funcs *o) : Serial_Gensio(o, NULL) { }
+	friend Gensio *alloc_telnet_class(struct gensio_os_funcs *o,
+					  struct gensio *io);
     };
 
     class Ipmisol: public Serial_Gensio {
@@ -539,7 +670,8 @@ namespace gensio {
     private:
 	virtual ~Ipmisol() { }
 	Ipmisol(struct gensio_os_funcs *o) : Serial_Gensio(o, NULL) { }
-	friend Gensio *alloc_ipmisol_class(struct gensio_os_funcs *o);
+	friend Gensio *alloc_ipmisol_class(struct gensio_os_funcs *o,
+					   struct gensio *io);
     };
 
     class Accepter;
