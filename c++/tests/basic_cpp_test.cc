@@ -345,7 +345,7 @@ int main(int argc, char *argv[])
 {
     int err;
     struct gensio_os_funcs *o;
-    const char *test = "tcp,localhost,";
+    const char *test = "mux,tcp,localhost,";
     const char *errstr;
 
     err = gensio_default_os_hnd(0, &o);
@@ -358,7 +358,7 @@ int main(int argc, char *argv[])
     if (argc > 1) {
 	do_server_test(o, argv[1]);
     } else {
-	string ios("stdio,");
+	string ios("stdio(noredir-stderr),");
 	string ioc(test);
 	Gensio *sub;
 	Waiter w(o);
