@@ -377,6 +377,9 @@ namespace gensio {
 	    if (iter != classes.end()) {
 		g = iter->second(o, cio);
 	    }
+
+	    // If we don't find an assigned class for the gensio, just
+	    // use the base classes.  FIXME - Should this go away?
 	    if (g == NULL) {
 		sio = gensio_to_sergensio(cio);
 		if (sio) {
