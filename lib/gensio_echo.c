@@ -407,7 +407,7 @@ echo_ndata_setup(struct gensio_os_funcs *o, gensiods max_read_size,
 }
 
 int
-echo_gensio_alloc(const char * const argv[], const char * const args[],
+echo_gensio_alloc(const char * const args[],
 		  struct gensio_os_funcs *o,
 		  gensio_event cb, void *user_data,
 		  struct gensio **new_gensio)
@@ -454,13 +454,5 @@ str_to_echo_gensio(const char *str, const char * const args[],
 		   gensio_event cb, void *user_data,
 		   struct gensio **new_gensio)
 {
-    int err;
-    const char **argv;
-
-    err = gensio_str_to_argv(o, str, NULL, &argv, NULL);
-    if (!err) {
-	err = echo_gensio_alloc(argv, args, o, cb, user_data, new_gensio);
-	gensio_argv_free(o, argv);
-    }
-    return err;
+    return echo_gensio_alloc(args, o, cb, user_data, new_gensio);
 }

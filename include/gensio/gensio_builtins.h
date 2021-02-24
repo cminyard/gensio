@@ -402,19 +402,19 @@ int ipmisol_gensio_alloc(const char *devname, const char * const args[],
 			 struct gensio **new_gensio);
 
 GENSIO_DLL_PUBLIC
-int echo_gensio_alloc(const char * const argv[], const char * const args[],
+int echo_gensio_alloc(const char * const args[],
 		      struct gensio_os_funcs *o,
 		      gensio_event cb, void *user_data,
 		      struct gensio **new_gensio);
 
 GENSIO_DLL_PUBLIC
-int file_gensio_alloc(const char * const argv[], const char * const args[],
+int file_gensio_alloc(const char * const args[],
 		      struct gensio_os_funcs *o,
 		      gensio_event cb, void *user_data,
 		      struct gensio **new_gensio);
 
 GENSIO_DLL_PUBLIC
-int mdns_gensio_alloc(const char * const argv[], const char * const args[],
+int mdns_gensio_alloc(const char *str, const char * const args[],
 		      struct gensio_os_funcs *o,
 		      gensio_event cb, void *user_data,
 		      struct gensio **new_gensio);

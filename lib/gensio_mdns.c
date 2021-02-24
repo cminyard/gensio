@@ -733,7 +733,7 @@ mdns_ndata_setup(struct gensio_os_funcs *o, gensiods max_read_size,
 }
 
 int
-mdns_gensio_alloc(const char * const argv[], const char * const args[],
+mdns_gensio_alloc(const char *mstr, const char * const args[],
 		  struct gensio_os_funcs *o,
 		  gensio_event cb, void *user_data,
 		  struct gensio **new_gensio)
@@ -789,10 +789,10 @@ mdns_gensio_alloc(const char * const argv[], const char * const args[],
     if (err)
 	goto out_base_free;
 
-    if (argv && argv[0]) {
+    if (mstr) {
 	if (name)
 	    free(name);
-	name = gensio_strdup(o, argv[0]);
+	name = gensio_strdup(o, mstr);
 	if (!name) {
 	    err = GE_NOMEM;
 	    goto out_base_free;
@@ -938,21 +938,13 @@ str_to_mdns_gensio(const char *str, const char * const args[],
 		   gensio_event cb, void *user_data,
 		   struct gensio **new_gensio)
 {
-    int err;
-    const char **argv;
-
-    err = gensio_str_to_argv(o, str, NULL, &argv, NULL);
-    if (!err) {
-	err = mdns_gensio_alloc(argv, args, o, cb, user_data, new_gensio);
-	gensio_argv_free(o, argv);
-    }
-    return err;
+    return mdns_gensio_alloc(str, args, o, cb, user_data, new_gensio);
 }
 
 #else
 
 int
-mdns_gensio_alloc(const char * const argv[], const char * const args[],
+mdns_gensio_alloc(const char *str, const char * const args[],
 		  struct gensio_os_funcs *o,
 		  gensio_event cb, void *user_data,
 		  struct gensio **new_gensio)
