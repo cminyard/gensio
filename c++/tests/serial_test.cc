@@ -14,8 +14,9 @@ int main(int argc, char *argv[])
 	return 1;
     }
     Waiter w(o);
-    Serial_Gensio *sg = (Serial_Gensio *)
-	gensio_alloc("serialdev,/dev/ttyEcho0,9600N81", o, NULL);
+    static const char *serial_parms[] = { "nouucplock=false", NULL };
+    Serial_Gensio *sg = new Serialdev("/dev/ttyEcho0,9600N81", serial_parms,
+				      o, NULL);
     gensio_time t;
     unsigned int v;
 
