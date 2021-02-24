@@ -299,6 +299,18 @@ namespace gensio {
 	friend Gensio *alloc_tcp_class(struct gensio_os_funcs *o);
     };
 
+    class Udp: public Gensio {
+    public:
+	Udp(struct gensio_addr *addr, const char * const args[],
+	    struct gensio_os_funcs *o, Event *cb);
+
+	Udp &operator=(const Gensio&) = delete;
+    private:
+	virtual ~Udp() { }
+	Udp(struct gensio_os_funcs *o) : Gensio(o, NULL) { }
+	friend Gensio *alloc_udp_class(struct gensio_os_funcs *o);
+    };
+
     class Unix: public Gensio {
     public:
 	Unix(struct gensio_addr *addr, const char * const args[],
@@ -311,6 +323,18 @@ namespace gensio {
 	friend Gensio *alloc_unix_class(struct gensio_os_funcs *o);
     };
 
+    class Sctp: public Gensio {
+    public:
+	Sctp(struct gensio_addr *addr, const char * const args[],
+	     struct gensio_os_funcs *o, Event *cb);
+
+	Sctp &operator=(const Gensio&) = delete;
+    private:
+	virtual ~Sctp() { }
+	Sctp(struct gensio_os_funcs *o) : Gensio(o, NULL) { }
+	friend Gensio *alloc_sctp_class(struct gensio_os_funcs *o);
+    };
+
     class Stdio: public Gensio {
     public:
 	Stdio(const char *const argv[], const char * const args[],
@@ -321,6 +345,54 @@ namespace gensio {
 	virtual ~Stdio() { }
 	Stdio(struct gensio_os_funcs *o) : Gensio(o, NULL) { }
 	friend Gensio *alloc_stdio_class(struct gensio_os_funcs *o);
+    };
+
+    class Pty: public Gensio {
+    public:
+	Pty(const char *const argv[], const char * const args[],
+	    struct gensio_os_funcs *o, Event *cb);
+
+	Pty &operator=(const Gensio&) = delete;
+    private:
+	virtual ~Pty() { }
+	Pty(struct gensio_os_funcs *o) : Gensio(o, NULL) { }
+	friend Gensio *alloc_pty_class(struct gensio_os_funcs *o);
+    };
+
+    class Echo: public Gensio {
+    public:
+	Echo(const char * const args[],
+	     struct gensio_os_funcs *o, Event *cb);
+
+	Echo &operator=(const Gensio&) = delete;
+    private:
+	virtual ~Echo() { }
+	Echo(struct gensio_os_funcs *o) : Gensio(o, NULL) { }
+	friend Gensio *alloc_echo_class(struct gensio_os_funcs *o);
+    };
+
+    class File: public Gensio {
+    public:
+	File(const char * const args[],
+	     struct gensio_os_funcs *o, Event *cb);
+
+	File &operator=(const Gensio&) = delete;
+    private:
+	virtual ~File() { }
+	File(struct gensio_os_funcs *o) : Gensio(o, NULL) { }
+	friend Gensio *alloc_file_class(struct gensio_os_funcs *o);
+    };
+
+    class Mdns: public Gensio {
+    public:
+	Mdns(const char *str, const char * const args[],
+	     struct gensio_os_funcs *o, Event *cb);
+
+	Mdns &operator=(const Gensio&) = delete;
+    private:
+	virtual ~Mdns() { }
+	Mdns(struct gensio_os_funcs *o) : Gensio(o, NULL) { }
+	friend Gensio *alloc_mdns_class(struct gensio_os_funcs *o);
     };
 
     //*****************************************************************
@@ -456,6 +528,18 @@ namespace gensio {
 	virtual ~Serialdev() { };
 	Serialdev(struct gensio_os_funcs *o) : Serial_Gensio(o, NULL) { }
 	friend Gensio *alloc_serialdev_class(struct gensio_os_funcs *o);
+    };
+
+    class Ipmisol: public Serial_Gensio {
+    public:
+	Ipmisol(const char *devname, const char * const args[],
+		struct gensio_os_funcs *o, Event *cb);
+
+	Ipmisol &operator=(const Gensio&) = delete;
+    private:
+	virtual ~Ipmisol() { }
+	Ipmisol(struct gensio_os_funcs *o) : Serial_Gensio(o, NULL) { }
+	friend Gensio *alloc_ipmisol_class(struct gensio_os_funcs *o);
     };
 
     class Accepter;

@@ -202,9 +202,21 @@ namespace gensio {
     }
 
     Gensio *
+    alloc_udp_class(struct gensio_os_funcs *o)
+    {
+	return new Udp(o);
+    }
+
+    Gensio *
     alloc_unix_class(struct gensio_os_funcs *o)
     {
 	return new Unix(o);
+    }
+
+    Gensio *
+    alloc_sctp_class(struct gensio_os_funcs *o)
+    {
+	return new Sctp(o);
     }
 
     Gensio *
@@ -214,15 +226,41 @@ namespace gensio {
     }
 
     Gensio *
+    alloc_pty_class(struct gensio_os_funcs *o)
+    {
+	return new Pty(o);
+    }
+
+    Gensio *
+    alloc_echo_class(struct gensio_os_funcs *o)
+    {
+	return new Echo(o);
+    }
+
+    Gensio *
+    alloc_file_class(struct gensio_os_funcs *o)
+    {
+	return new File(o);
+    }
+
+    Gensio *
+    alloc_mdns_class(struct gensio_os_funcs *o)
+    {
+	return new Mdns(o);
+    }
+
+    Gensio *
     alloc_serialdev_class(struct gensio_os_funcs *o)
     {
 	return new Serialdev(o);
     }
 
-    struct gensio_class {
-	const char *name;
-	class Gensio *(*allocator)(struct gensio_os_funcs *o);
-    };
+    Gensio *
+    alloc_ipmisol_class(struct gensio_os_funcs *o)
+    {
+	return new Ipmisol(o);
+    }
+
     typedef Gensio *(*gensio_allocator)(struct gensio_os_funcs *o);
 
     static std::map<std::string, gensio_allocator> classes = {
@@ -510,6 +548,19 @@ namespace gensio {
 	this->set_gensio(io);
     }
 
+    Udp::Udp(struct gensio_addr *addr, const char * const args[],
+	     struct gensio_os_funcs *o, Event *cb)
+	: Gensio(o, cb)
+    {
+	struct gensio *io;
+	int err;
+
+	err = udp_gensio_alloc(addr, args, o, NULL, NULL, &io);
+	if (err)
+	    throw gensio_error(err);
+	this->set_gensio(io);
+    }
+
     Unix::Unix(struct gensio_addr *addr, const char * const args[],
 	       struct gensio_os_funcs *o, Event *cb)
 	: Gensio(o, cb)
@@ -523,6 +574,19 @@ namespace gensio {
 	this->set_gensio(io);
     }
 
+    Sctp::Sctp(struct gensio_addr *addr, const char * const args[],
+	       struct gensio_os_funcs *o, Event *cb)
+	: Gensio(o, cb)
+    {
+	struct gensio *io;
+	int err;
+
+	err = sctp_gensio_alloc(addr, args, o, NULL, NULL, &io);
+	if (err)
+	    throw gensio_error(err);
+	this->set_gensio(io);
+    }
+
     Stdio::Stdio(const char *const argv[], const char * const args[],
 		 struct gensio_os_funcs *o, Event *cb)
 	: Gensio(o, cb)
@@ -531,6 +595,58 @@ namespace gensio {
 	int err;
 
 	err = stdio_gensio_alloc(argv, args, o, NULL, NULL, &io);
+	if (err)
+	    throw gensio_error(err);
+	this->set_gensio(io);
+    }
+
+    Pty::Pty(const char *const argv[], const char * const args[],
+	     struct gensio_os_funcs *o, Event *cb)
+	: Gensio(o, cb)
+    {
+	struct gensio *io;
+	int err;
+
+	err = pty_gensio_alloc(argv, args, o, NULL, NULL, &io);
+	if (err)
+	    throw gensio_error(err);
+	this->set_gensio(io);
+    }
+
+    Echo::Echo(const char * const args[],
+	       struct gensio_os_funcs *o, Event *cb)
+	: Gensio(o, cb)
+    {
+	struct gensio *io;
+	int err;
+
+	err = echo_gensio_alloc(args, o, NULL, NULL, &io);
+	if (err)
+	    throw gensio_error(err);
+	this->set_gensio(io);
+    }
+
+    File::File(const char * const args[],
+	       struct gensio_os_funcs *o, Event *cb)
+	: Gensio(o, cb)
+    {
+	struct gensio *io;
+	int err;
+
+	err = file_gensio_alloc(args, o, NULL, NULL, &io);
+	if (err)
+	    throw gensio_error(err);
+	this->set_gensio(io);
+    }
+
+    Mdns::Mdns(const char *str, const char * const args[],
+	       struct gensio_os_funcs *o, Event *cb)
+	: Gensio(o, cb)
+    {
+	struct gensio *io;
+	int err;
+
+	err = mdns_gensio_alloc(str, args, o, NULL, NULL, &io);
 	if (err)
 	    throw gensio_error(err);
 	this->set_gensio(io);
@@ -901,6 +1017,19 @@ namespace gensio {
 	int err;
 
 	err = serialdev_gensio_alloc(devname, args, o, NULL, NULL, &io);
+	if (err)
+	    throw gensio_error(err);
+	this->set_gensio(io);
+    }
+
+    Ipmisol::Ipmisol(const char *devname, const char * const args[],
+		     struct gensio_os_funcs *o, Event *cb)
+	: Serial_Gensio(o, cb)
+    {
+	struct gensio *io;
+	int err;
+
+	err = ipmisol_gensio_alloc(devname, args, o, NULL, NULL, &io);
 	if (err)
 	    throw gensio_error(err);
 	this->set_gensio(io);
