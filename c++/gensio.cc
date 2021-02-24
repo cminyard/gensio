@@ -1,6 +1,5 @@
 
-#include <vector>
-#include <cstring>
+#include <map>
 #include <gensio/gensio>
 
 namespace gensio {
@@ -224,8 +223,9 @@ namespace gensio {
 	const char *name;
 	class Gensio *(*allocator)(struct gensio_os_funcs *o);
     };
+    typedef Gensio *(*gensio_allocator)(struct gensio_os_funcs *o);
 
-    static std::vector<struct gensio_class> classes {
+    static std::map<std::string, gensio_allocator> classes = {
 	{ "tcp", alloc_tcp_class },
 	{ "unix", alloc_unix_class },
 	{ "stdio", alloc_stdio_class },
@@ -247,11 +247,10 @@ namespace gensio {
 	    if (gensio_get_frdata(cio))
 		break; // It's already been set.
 	    const char *type = gensio_get_type(cio, 0);
-	    for (unsigned int i = 0; i < classes.size(); i++) {
-		if (strcmp(type, classes[i].name) == 0) {
-		    g = classes[i].allocator(o);
-		    break;
-		}
+	    auto iter = classes.find(type);
+
+	    if (iter != classes.end()) {
+		g = iter->second(o);
 	    }
 	    if (g == NULL) {
 		sio = gensio_to_sergensio(cio);
