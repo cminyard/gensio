@@ -853,11 +853,16 @@ namespace gensio {
 	// Get the event handler for this accepter.
 	inline struct Accepter_Event *get_cb() { return gcb; }
 
-    private:
-	Accepter(struct gensio_accepter *acc, struct gensio_os_funcs *o,
-		 Accepter_Event *cb);
-	~Accepter() { }
+	// Return the raw accepter.  Don't use this, it's for subclasses
+	// to use.
+	struct gensio_accepter *get_accepter() { return acc; }
 
+    protected:
+	virtual void set_accepter(struct gensio_accepter *acc, bool set_cb);
+	Accepter(struct gensio_os_funcs *o, Accepter_Event *cb);
+	virtual ~Accepter() { }
+
+    private:
 	struct gensio_accepter *acc;
 	struct gensio_os_funcs *go;
 	Accepter_Event *gcb;
@@ -870,6 +875,199 @@ namespace gensio {
 					  Accepter_Event *cb);
 	friend void gensio_acc_cpp_freed(struct gensio_accepter *acc,
 					 struct gensio_acc_frdata *frdata);
+    };
+
+    // Add a new accepter class type.  This is for user-added gensios,
+    // so they can tie in to the C++ frameworks.
+    void gensio_add_accepter_class(
+			  const char *name,
+			  Accepter *(*allocator)(struct gensio_os_funcs *o,
+						 struct gensio_accepter *a));
+
+    class Tcp_Accepter : Accepter {
+    public:
+	Tcp_Accepter(struct gensio_addr *addr, const char * const args[],
+		     struct gensio_os_funcs *o, Accepter_Event *cb);
+	Tcp_Accepter &operator=(const Gensio&) = delete;
+    private:
+	virtual ~Tcp_Accepter() { }
+	Tcp_Accepter(struct gensio_os_funcs *o) : Accepter(o, NULL) { }
+	friend Accepter *alloc_tcp_accepter_class(struct gensio_os_funcs *o,
+						  struct gensio_accepter *a);
+    };
+
+    class Udp_Accepter : Accepter {
+    public:
+	Udp_Accepter(struct gensio_addr *addr, const char * const args[],
+		     struct gensio_os_funcs *o, Accepter_Event *cb);
+	Udp_Accepter &operator=(const Gensio&) = delete;
+    private:
+	virtual ~Udp_Accepter() { }
+	Udp_Accepter(struct gensio_os_funcs *o) : Accepter(o, NULL) { }
+	friend Accepter *alloc_udp_accepter_class(struct gensio_os_funcs *o,
+						  struct gensio_accepter *a);
+    };
+
+    class Unix_Accepter : Accepter {
+    public:
+	Unix_Accepter(struct gensio_addr *addr, const char * const args[],
+		      struct gensio_os_funcs *o, Accepter_Event *cb);
+	Unix_Accepter &operator=(const Gensio&) = delete;
+    private:
+	virtual ~Unix_Accepter() { }
+	Unix_Accepter(struct gensio_os_funcs *o) : Accepter(o, NULL) { }
+	friend Accepter *alloc_unix_accepter_class(struct gensio_os_funcs *o,
+						   struct gensio_accepter *a);
+    };
+
+    class Sctp_Accepter : Accepter {
+    public:
+	Sctp_Accepter(struct gensio_addr *addr, const char * const args[],
+		     struct gensio_os_funcs *o, Accepter_Event *cb);
+	Sctp_Accepter &operator=(const Gensio&) = delete;
+    private:
+	virtual ~Sctp_Accepter() { }
+	Sctp_Accepter(struct gensio_os_funcs *o) : Accepter(o, NULL) { }
+	friend Accepter *alloc_sctp_accepter_class(struct gensio_os_funcs *o,
+						   struct gensio_accepter *a);
+    };
+
+    class Stdio_Accepter : Accepter {
+    public:
+	Stdio_Accepter(const char * const args[],
+		       struct gensio_os_funcs *o, Accepter_Event *cb);
+	Stdio_Accepter &operator=(const Gensio&) = delete;
+    private:
+	virtual ~Stdio_Accepter() { }
+	Stdio_Accepter(struct gensio_os_funcs *o) : Accepter(o, NULL) { }
+	friend Accepter *alloc_stdio_accepter_class(struct gensio_os_funcs *o,
+						    struct gensio_accepter *a);
+    };
+
+    class Dummy_Accepter : Accepter {
+    public:
+	Dummy_Accepter(const char * const args[],
+		       struct gensio_os_funcs *o, Accepter_Event *cb);
+	Dummy_Accepter &operator=(const Gensio&) = delete;
+    private:
+	virtual ~Dummy_Accepter() { }
+	Dummy_Accepter(struct gensio_os_funcs *o) : Accepter(o, NULL) { }
+	friend Accepter *alloc_dummy_accepter_class(struct gensio_os_funcs *o,
+						    struct gensio_accepter *a);
+    };
+
+    class Conacc_Accepter : Accepter {
+    public:
+	Conacc_Accepter(const char *str, const char * const args[],
+		       struct gensio_os_funcs *o, Accepter_Event *cb);
+	Conacc_Accepter &operator=(const Gensio&) = delete;
+    private:
+	virtual ~Conacc_Accepter() { }
+	Conacc_Accepter(struct gensio_os_funcs *o) : Accepter(o, NULL) { }
+	friend Accepter *alloc_conacc_accepter_class(struct gensio_os_funcs *o,
+						     struct gensio_accepter *a);
+    };
+
+    class Ssl_Accepter : Accepter {
+    public:
+	Ssl_Accepter(Accepter *child, const char * const args[],
+		     struct gensio_os_funcs *o, Accepter_Event *cb);
+	Ssl_Accepter &operator=(const Gensio&) = delete;
+    private:
+	virtual ~Ssl_Accepter() { }
+	Ssl_Accepter(struct gensio_os_funcs *o) : Accepter(o, NULL) { }
+	friend Accepter *alloc_ssl_accepter_class(struct gensio_os_funcs *o,
+						  struct gensio_accepter *a);
+    };
+
+    class Mux_Accepter : Accepter {
+    public:
+	Mux_Accepter(Accepter *child, const char * const args[],
+		     struct gensio_os_funcs *o, Accepter_Event *cb);
+	Mux_Accepter &operator=(const Gensio&) = delete;
+    private:
+	virtual ~Mux_Accepter() { }
+	Mux_Accepter(struct gensio_os_funcs *o) : Accepter(o, NULL) { }
+	friend Accepter *alloc_mux_accepter_class(struct gensio_os_funcs *o,
+						  struct gensio_accepter *a);
+    };
+
+    class Certauth_Accepter : Accepter {
+    public:
+	Certauth_Accepter(Accepter *child, const char * const args[],
+			  struct gensio_os_funcs *o, Accepter_Event *cb);
+	Certauth_Accepter &operator=(const Gensio&) = delete;
+    private:
+	virtual ~Certauth_Accepter() { }
+	Certauth_Accepter(struct gensio_os_funcs *o) : Accepter(o, NULL) { }
+	friend Accepter *alloc_certauth_accepter_class(
+				struct gensio_os_funcs *o,
+				struct gensio_accepter *a);
+    };
+
+    class Telnet_Accepter : Accepter {
+    public:
+	Telnet_Accepter(Accepter *child, const char * const args[],
+			struct gensio_os_funcs *o, Accepter_Event *cb);
+	Telnet_Accepter &operator=(const Gensio&) = delete;
+    private:
+	virtual ~Telnet_Accepter() { }
+	Telnet_Accepter(struct gensio_os_funcs *o) : Accepter(o, NULL) { }
+	friend Accepter *alloc_telnet_accepter_class(
+				struct gensio_os_funcs *o,
+				struct gensio_accepter *a);
+    };
+
+    class Msgdelim_Accepter : Accepter {
+    public:
+	Msgdelim_Accepter(Accepter *child, const char * const args[],
+			  struct gensio_os_funcs *o, Accepter_Event *cb);
+	Msgdelim_Accepter &operator=(const Gensio&) = delete;
+    private:
+	virtual ~Msgdelim_Accepter() { }
+	Msgdelim_Accepter(struct gensio_os_funcs *o) : Accepter(o, NULL) { }
+	friend Accepter *alloc_msgdelim_accepter_class(
+				struct gensio_os_funcs *o,
+				struct gensio_accepter *a);
+    };
+
+    class Relpkt_Accepter : Accepter {
+    public:
+	Relpkt_Accepter(Accepter *child, const char * const args[],
+			struct gensio_os_funcs *o, Accepter_Event *cb);
+	Relpkt_Accepter &operator=(const Gensio&) = delete;
+    private:
+	virtual ~Relpkt_Accepter() { }
+	Relpkt_Accepter(struct gensio_os_funcs *o) : Accepter(o, NULL) { }
+	friend Accepter *alloc_relpkt_accepter_class(
+				struct gensio_os_funcs *o,
+				struct gensio_accepter *a);
+    };
+
+    class Trace_Accepter : Accepter {
+    public:
+	Trace_Accepter(Accepter *child, const char * const args[],
+		       struct gensio_os_funcs *o, Accepter_Event *cb);
+	Trace_Accepter &operator=(const Gensio&) = delete;
+    private:
+	virtual ~Trace_Accepter() { }
+	Trace_Accepter(struct gensio_os_funcs *o) : Accepter(o, NULL) { }
+	friend Accepter *alloc_trace_accepter_class(
+				struct gensio_os_funcs *o,
+				struct gensio_accepter *a);
+    };
+
+    class Perf_Accepter : Accepter {
+    public:
+	Perf_Accepter(Accepter *child, const char * const args[],
+		      struct gensio_os_funcs *o, Accepter_Event *cb);
+	Perf_Accepter &operator=(const Gensio&) = delete;
+    private:
+	virtual ~Perf_Accepter() { }
+	Perf_Accepter(struct gensio_os_funcs *o) : Accepter(o, NULL) { }
+	friend Accepter *alloc_perf_accepter_class(
+				struct gensio_os_funcs *o,
+				struct gensio_accepter *a);
     };
 
     //*****************************************************************

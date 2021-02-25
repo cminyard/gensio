@@ -387,7 +387,7 @@ namespace gensio {
 
 	    // If we don't find an assigned class for the gensio, just
 	    // use the base classes.  FIXME - Should this go away?
-	    if (g == NULL) {
+	    if (!g) {
 		sio = gensio_to_sergensio(cio);
 		if (sio) {
 		    g = new Serial_Gensio(o, NULL);
@@ -1344,6 +1344,159 @@ namespace gensio {
 	delete d;
     }
 
+    void
+    Accepter::set_accepter(struct gensio_accepter *acc, bool set_cb)
+    {
+	struct gensio_acc_cpp_data *d;
+	
+	try {
+	    d = new struct gensio_acc_cpp_data;
+	} catch (...) {
+	    delete this;
+	    throw;
+	}
+	this->acc = acc;
+	d->a = this;
+	d->frdata.freed = gensio_acc_cpp_freed;
+	gensio_acc_set_frdata(acc, &d->frdata);
+	if (set_cb)
+	    gensio_acc_set_callback(acc, gensio_acc_cpp_cb, this);
+    }
+
+    Accepter *
+    alloc_tcp_accepter_class(struct gensio_os_funcs *o,
+			     struct gensio_accepter *acc)
+    {
+	return new Tcp_Accepter(o);
+    }
+
+    Accepter *
+    alloc_udp_accepter_class(struct gensio_os_funcs *o,
+			     struct gensio_accepter *acc)
+    {
+	return new Udp_Accepter(o);
+    }
+
+    Accepter *
+    alloc_unix_accepter_class(struct gensio_os_funcs *o,
+			      struct gensio_accepter *acc)
+    {
+	return new Unix_Accepter(o);
+    }
+
+    Accepter *
+    alloc_sctp_accepter_class(struct gensio_os_funcs *o,
+			      struct gensio_accepter *acc)
+    {
+	return new Sctp_Accepter(o);
+    }
+
+    Accepter *
+    alloc_stdio_accepter_class(struct gensio_os_funcs *o,
+			       struct gensio_accepter *acc)
+    {
+	return new Stdio_Accepter(o);
+    }
+
+    Accepter *
+    alloc_dummy_accepter_class(struct gensio_os_funcs *o,
+			       struct gensio_accepter *acc)
+    {
+	return new Dummy_Accepter(o);
+    }
+
+    Accepter *
+    alloc_conacc_accepter_class(struct gensio_os_funcs *o,
+				struct gensio_accepter *acc)
+    {
+	return new Conacc_Accepter(o);
+    }
+
+    Accepter *
+    alloc_ssl_accepter_class(struct gensio_os_funcs *o,
+			     struct gensio_accepter *acc)
+    {
+	return new Ssl_Accepter(o);
+    }
+
+    Accepter *
+    alloc_mux_accepter_class(struct gensio_os_funcs *o,
+			     struct gensio_accepter *acc)
+    {
+	return new Mux_Accepter(o);
+    }
+
+    Accepter *
+    alloc_certauth_accepter_class(struct gensio_os_funcs *o,
+				  struct gensio_accepter *acc)
+    {
+	return new Certauth_Accepter(o);
+    }
+
+    Accepter *
+    alloc_telnet_accepter_class(struct gensio_os_funcs *o,
+				struct gensio_accepter *acc)
+    {
+	return new Telnet_Accepter(o);
+    }
+
+    Accepter *
+    alloc_msgdelim_accepter_class(struct gensio_os_funcs *o,
+				  struct gensio_accepter *acc)
+    {
+	return new Msgdelim_Accepter(o);
+    }
+
+    Accepter *
+    alloc_relpkt_accepter_class(struct gensio_os_funcs *o,
+				struct gensio_accepter *acc)
+    {
+	return new Relpkt_Accepter(o);
+    }
+
+    Accepter *
+    alloc_trace_accepter_class(struct gensio_os_funcs *o,
+			       struct gensio_accepter *acc)
+    {
+	return new Trace_Accepter(o);
+    }
+
+    Accepter *
+    alloc_perf_accepter_class(struct gensio_os_funcs *o,
+			      struct gensio_accepter *acc)
+    {
+	return new Perf_Accepter(o);
+    }
+
+    typedef Accepter *(*gensio_acc_allocator)(struct gensio_os_funcs *o,
+					      struct gensio_accepter *acc);
+
+    static std::map<std::string, gensio_acc_allocator> acc_classes = {
+	{ "tcp", alloc_tcp_accepter_class },
+	{ "udp", alloc_udp_accepter_class },
+	{ "unix", alloc_unix_accepter_class },
+	{ "sctp", alloc_sctp_accepter_class },
+	{ "stdio", alloc_stdio_accepter_class },
+	{ "dummy", alloc_dummy_accepter_class },
+	{ "conacc", alloc_conacc_accepter_class },
+	{ "ssl", alloc_ssl_accepter_class },
+	{ "mux", alloc_mux_accepter_class },
+	{ "certauth", alloc_certauth_accepter_class },
+	{ "telnet", alloc_telnet_accepter_class },
+	{ "msgdelim", alloc_msgdelim_accepter_class },
+	{ "relpkt", alloc_relpkt_accepter_class },
+	{ "trace", alloc_trace_accepter_class },
+	{ "perf", alloc_perf_accepter_class },
+    };
+
+    void gensio_add_accepter_class(
+			  const char *name,
+			  Accepter *(*allocator)(struct gensio_os_funcs *o,
+						 struct gensio_accepter *a))
+    {
+	acc_classes[name] = allocator;
+    }
+
     Accepter *gensio_acc_alloc(struct gensio_accepter *acc,
 			       struct gensio_os_funcs *o)
     {
@@ -1357,20 +1510,21 @@ namespace gensio {
 	for (i = 0; cacc = gensio_acc_get_child(acc, i); i++) {
 	    if (gensio_acc_get_frdata(cacc))
 		break; // It's already been set.
-	    a = new Accepter(acc, o, NULL);
-	    try {
-		d = new struct gensio_acc_cpp_data;
-	    } catch (...) {
-		delete a;
-		throw;
+	    const char *type = gensio_acc_get_type(acc, 0);
+	    auto iter = acc_classes.find(type);
+
+	    if (iter != acc_classes.end()) {
+		a = iter->second(o, acc);
 	    }
-	    d->a = a;
-	    d->frdata.freed = gensio_acc_cpp_freed;
-	    gensio_acc_set_frdata(cacc, &d->frdata);
+
+	    if (!a) {
+		a = new Accepter(o, NULL);
+	    }
+
+	    a->set_accepter(acc, i == 0);
 	}
 	f = gensio_acc_get_frdata(acc);
 	d = gensio_container_of(f, struct gensio_acc_cpp_data, frdata);
-	d->a->acc = acc;
 	return d->a;
     }
 
@@ -1408,10 +1562,8 @@ namespace gensio {
 	return a;
     }
 
-    Accepter::Accepter(struct gensio_accepter *iacc, struct gensio_os_funcs *o,
-		       Accepter_Event *cb)
+    Accepter::Accepter(struct gensio_os_funcs *o, Accepter_Event *cb)
     {
-	acc = iacc;
 	go = o;
 	gcb = cb;
     }
@@ -1551,6 +1703,230 @@ namespace gensio {
 	if (err)
 	    throw gensio_error(err);
 	return std::string(portbuf, len);
+    }
+
+    Tcp_Accepter::Tcp_Accepter(struct gensio_addr *addr,
+			       const char * const args[],
+			       struct gensio_os_funcs *o, Accepter_Event *cb)
+	: Accepter(o, cb)
+    {
+	struct gensio_accepter *acc;
+	int err;
+
+	err = tcp_gensio_accepter_alloc(addr, args, o, NULL, NULL, &acc);
+	if (err)
+	    throw gensio_error(err);
+	this->set_accepter(acc, true);
+    }
+
+    Udp_Accepter::Udp_Accepter(struct gensio_addr *addr,
+			       const char * const args[],
+			       struct gensio_os_funcs *o, Accepter_Event *cb)
+	: Accepter(o, cb)
+    {
+	struct gensio_accepter *acc;
+	int err;
+
+	err = udp_gensio_accepter_alloc(addr, args, o, NULL, NULL, &acc);
+	if (err)
+	    throw gensio_error(err);
+	this->set_accepter(acc, true);
+    }
+
+    Unix_Accepter::Unix_Accepter(struct gensio_addr *addr,
+				 const char * const args[],
+				 struct gensio_os_funcs *o, Accepter_Event *cb)
+	: Accepter(o, cb)
+    {
+	struct gensio_accepter *acc;
+	int err;
+
+	err = unix_gensio_accepter_alloc(addr, args, o, NULL, NULL, &acc);
+	if (err)
+	    throw gensio_error(err);
+	this->set_accepter(acc, true);
+    }
+
+    Sctp_Accepter::Sctp_Accepter(struct gensio_addr *addr,
+				 const char * const args[],
+				 struct gensio_os_funcs *o, Accepter_Event *cb)
+	: Accepter(o, cb)
+    {
+	struct gensio_accepter *acc;
+	int err;
+
+	err = sctp_gensio_accepter_alloc(addr, args, o, NULL, NULL, &acc);
+	if (err)
+	    throw gensio_error(err);
+	this->set_accepter(acc, true);
+    }
+
+    Stdio_Accepter::Stdio_Accepter(const char * const args[],
+				   struct gensio_os_funcs *o,
+				   Accepter_Event *cb)
+	: Accepter(o, cb)
+    {
+	struct gensio_accepter *acc;
+	int err;
+
+	err = stdio_gensio_accepter_alloc(args, o, NULL, NULL, &acc);
+	if (err)
+	    throw gensio_error(err);
+	this->set_accepter(acc, true);
+    }
+
+    Dummy_Accepter::Dummy_Accepter(const char * const args[],
+				   struct gensio_os_funcs *o,
+				   Accepter_Event *cb)
+	: Accepter(o, cb)
+    {
+	struct gensio_accepter *acc;
+	int err;
+
+	err = dummy_gensio_accepter_alloc(args, o, NULL, NULL, &acc);
+	if (err)
+	    throw gensio_error(err);
+	this->set_accepter(acc, true);
+    }
+
+    Conacc_Accepter::Conacc_Accepter(const char *str, const char * const args[],
+				     struct gensio_os_funcs *o,
+				     Accepter_Event *cb)
+	: Accepter(o, cb)
+    {
+	struct gensio_accepter *acc;
+	int err;
+
+	err = conacc_gensio_accepter_alloc(str, args, o, NULL, NULL, &acc);
+	if (err)
+	    throw gensio_error(err);
+	this->set_accepter(acc, true);
+    }
+
+    Ssl_Accepter::Ssl_Accepter(Accepter *child,
+			       const char * const args[],
+			       struct gensio_os_funcs *o, Accepter_Event *cb)
+	: Accepter(o, cb)
+    {
+	struct gensio_accepter *acc;
+	int err;
+
+	err = ssl_gensio_accepter_alloc(child->get_accepter(), args, o,
+					NULL, NULL, &acc);
+	if (err)
+	    throw gensio_error(err);
+	this->set_accepter(acc, true);
+    }
+
+    Mux_Accepter::Mux_Accepter(Accepter *child,
+			       const char * const args[],
+			       struct gensio_os_funcs *o, Accepter_Event *cb)
+	: Accepter(o, cb)
+    {
+	struct gensio_accepter *acc;
+	int err;
+
+	err = mux_gensio_accepter_alloc(child->get_accepter(), args, o,
+					NULL, NULL, &acc);
+	if (err)
+	    throw gensio_error(err);
+	this->set_accepter(acc, true);
+    }
+
+    Certauth_Accepter::Certauth_Accepter(Accepter *child,
+					 const char * const args[],
+					 struct gensio_os_funcs *o,
+					 Accepter_Event *cb)
+	: Accepter(o, cb)
+    {
+	struct gensio_accepter *acc;
+	int err;
+
+	err = certauth_gensio_accepter_alloc(child->get_accepter(), args, o,
+					     NULL, NULL, &acc);
+	if (err)
+	    throw gensio_error(err);
+	this->set_accepter(acc, true);
+    }
+
+    Telnet_Accepter::Telnet_Accepter(Accepter *child,
+				     const char * const args[],
+				     struct gensio_os_funcs *o,
+				     Accepter_Event *cb)
+	: Accepter(o, cb)
+    {
+	struct gensio_accepter *acc;
+	int err;
+
+	err = telnet_gensio_accepter_alloc(child->get_accepter(), args, o,
+					   NULL, NULL, &acc);
+	if (err)
+	    throw gensio_error(err);
+	this->set_accepter(acc, true);
+    }
+
+    Msgdelim_Accepter::Msgdelim_Accepter(Accepter *child,
+					 const char * const args[],
+					 struct gensio_os_funcs *o,
+					 Accepter_Event *cb)
+	: Accepter(o, cb)
+    {
+	struct gensio_accepter *acc;
+	int err;
+
+	err = msgdelim_gensio_accepter_alloc(child->get_accepter(), args, o,
+					     NULL, NULL, &acc);
+	if (err)
+	    throw gensio_error(err);
+	this->set_accepter(acc, true);
+    }
+
+    Relpkt_Accepter::Relpkt_Accepter(Accepter *child,
+				     const char * const args[],
+				     struct gensio_os_funcs *o,
+				     Accepter_Event *cb)
+	: Accepter(o, cb)
+    {
+	struct gensio_accepter *acc;
+	int err;
+
+	err = relpkt_gensio_accepter_alloc(child->get_accepter(), args, o,
+					   NULL, NULL, &acc);
+	if (err)
+	    throw gensio_error(err);
+	this->set_accepter(acc, true);
+    }
+
+    Trace_Accepter::Trace_Accepter(Accepter *child,
+				   const char * const args[],
+				   struct gensio_os_funcs *o,
+				   Accepter_Event *cb)
+	: Accepter(o, cb)
+    {
+	struct gensio_accepter *acc;
+	int err;
+
+	err = trace_gensio_accepter_alloc(child->get_accepter(), args, o,
+					  NULL, NULL, &acc);
+	if (err)
+	    throw gensio_error(err);
+	this->set_accepter(acc, true);
+    }
+
+    Perf_Accepter::Perf_Accepter(Accepter *child,
+				 const char * const args[],
+				 struct gensio_os_funcs *o,
+				 Accepter_Event *cb)
+	: Accepter(o, cb)
+    {
+	struct gensio_accepter *acc;
+	int err;
+
+	err = perf_gensio_accepter_alloc(child->get_accepter(), args, o,
+					 NULL, NULL, &acc);
+	if (err)
+	    throw gensio_error(err);
+	this->set_accepter(acc, true);
     }
 
     Waiter::Waiter(struct gensio_os_funcs *o)
