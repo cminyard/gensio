@@ -372,7 +372,7 @@ namespace gensio {
 	unsigned int i;
 	struct gensio_frdata *f;
 	struct gensio_cpp_data *d;
-	Gensio *g = NULL;
+	Gensio *g;
 
 	// Set frdata for the gensio and all children.
 	for (i = 0; cio = gensio_get_child(io, i); i++) {
@@ -381,6 +381,7 @@ namespace gensio {
 	    const char *type = gensio_get_type(cio, 0);
 	    auto iter = classes.find(type);
 
+	    g = NULL;
 	    if (iter != classes.end()) {
 		g = iter->second(o, cio);
 	    }
@@ -1510,18 +1511,21 @@ namespace gensio {
 	for (i = 0; cacc = gensio_acc_get_child(acc, i); i++) {
 	    if (gensio_acc_get_frdata(cacc))
 		break; // It's already been set.
-	    const char *type = gensio_acc_get_type(acc, 0);
+	    const char *type = gensio_acc_get_type(cacc, 0);
 	    auto iter = acc_classes.find(type);
 
+	    a = NULL;
 	    if (iter != acc_classes.end()) {
-		a = iter->second(o, acc);
+		a = iter->second(o, cacc);
 	    }
 
+	    // Fall back to the general class if the subclass wasn't
+	    // registered.
 	    if (!a) {
 		a = new Accepter(o, NULL);
 	    }
 
-	    a->set_accepter(acc, i == 0);
+	    a->set_accepter(cacc, i == 0);
 	}
 	f = gensio_acc_get_frdata(acc);
 	d = gensio_container_of(f, struct gensio_acc_cpp_data, frdata);
