@@ -357,6 +357,13 @@ namespace gensio {
 	{ "perf", alloc_perf_class },
     };
 
+    void gensio_add_class(const char *name,
+			  Gensio *(*allocator)(struct gensio_os_funcs *o,
+					       struct gensio *io))
+    {
+	classes[name] = allocator;
+    }
+
     Gensio *
     gensio_alloc(struct gensio *io, struct gensio_os_funcs *o)
     {

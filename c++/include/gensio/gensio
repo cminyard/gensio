@@ -104,7 +104,7 @@ namespace gensio {
     // function handler as described in gensio_os_funcs.3 and an event
     // handler defined above.
     //
-    // Note that this may return a subclass of Gensio depending on the
+    // Note that will return a subclass of Gensio depending on the
     // particular string provided.
     Gensio *gensio_alloc(std::string str, struct gensio_os_funcs *o,
 			 Event *cb);
@@ -290,6 +290,12 @@ namespace gensio {
 				     struct gensio_frdata *frdata);
 	friend class Serial_Gensio;
     };
+
+    // Add a new class type.  This is for user-added gensios, so they
+    // can tie in to the C++ frameworks.
+    void gensio_add_class(const char *name,
+			  Gensio *(*allocator)(struct gensio_os_funcs *o,
+					       struct gensio *io));
 
     class Tcp: public Gensio {
     public:
@@ -674,6 +680,8 @@ namespace gensio {
 					   struct gensio *io);
     };
 
+    //*****************************************************************
+
     class Accepter;
 
     // An object of this class is given to an Accepter to handle
@@ -846,9 +854,8 @@ namespace gensio {
 	inline struct Accepter_Event *get_cb() { return gcb; }
 
     private:
-	Accepter(struct gensio_accepter *acc,
-			struct gensio_os_funcs *o,
-			Accepter_Event *cb);
+	Accepter(struct gensio_accepter *acc, struct gensio_os_funcs *o,
+		 Accepter_Event *cb);
 	~Accepter() { }
 
 	struct gensio_accepter *acc;
@@ -864,6 +871,8 @@ namespace gensio {
 	friend void gensio_acc_cpp_freed(struct gensio_accepter *acc,
 					 struct gensio_acc_frdata *frdata);
     };
+
+    //*****************************************************************
 
     // This is a waiter class.  You use one of these to wait for
     // things while running the event-driven code.
