@@ -556,7 +556,7 @@ bool gensio_addr_addr_present(const struct gensio_addr *ai,
  * The protocol type is returned, either TCP, UDP, or SCTP.  Protocol
  * may be NULL.
  *
- * ai should be freed with gensio_free_addr().
+ * ai should be freed with gensio_addr_free().
  *
  * args should be freed with str_to_argv_free().
  */
