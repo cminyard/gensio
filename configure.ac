@@ -611,6 +611,7 @@ AC_OUTPUT([Makefile
 	c++/include/Makefile
 	c++/include/gensio/Makefile
 	c++/tests/Makefile
+	c++/examples/Makefile
 	glib/libgensioglib.pc
 	glib/Makefile
 	glib/include/Makefile

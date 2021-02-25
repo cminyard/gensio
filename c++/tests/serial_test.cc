@@ -1,3 +1,8 @@
+//
+// Copyright 2021 Corey Minyard
+//
+// SPDX-License-Identifier: GPL-2.0-only
+
 
 #include <iostream>
 #include <gensio/gensio>
