@@ -24,7 +24,7 @@ namespace gensio {
     };
 
     Gensio *gensio_alloc(struct gensio *io, struct gensio_os_funcs *o,
-			 struct Event *cb);
+			 class Event *cb);
 
     static int gensio_cpp_cb(struct gensio *io, void *user_data,
 			     int event, int err,
@@ -1297,7 +1297,7 @@ namespace gensio {
 		struct gensio_acc_password_verify_data *p =
 		    (struct gensio_acc_password_verify_data *) data;
 
-		g = gensio_alloc(io, a->get_os_funcs());
+		g = gensio_alloc(p->io, a->get_os_funcs());
 		return cb->password_verify(a, g, p->password, p->password_len);
 	    }
 
@@ -1305,7 +1305,7 @@ namespace gensio {
 		struct gensio_acc_password_verify_data *p =
 		    (struct gensio_acc_password_verify_data *) data;
 
-		g = gensio_alloc(io, a->get_os_funcs());
+		g = gensio_alloc(p->io, a->get_os_funcs());
 		return cb->request_password(a, g,
 						p->password, &p->password_len);
 	    }
@@ -1314,7 +1314,7 @@ namespace gensio {
 		struct gensio_acc_postcert_verify_data *p =
 		    (struct gensio_acc_postcert_verify_data *) data;
 
-		g = gensio_alloc(io, a->get_os_funcs());
+		g = gensio_alloc(p->io, a->get_os_funcs());
 		return cb->postcert_verify(a, g, p->err, p->errstr);
 	    }
 

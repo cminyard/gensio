@@ -22,7 +22,6 @@ int main(int argc, char *argv[])
     static const char *serial_parms[] = { "nouucplock=false", NULL };
     Serial_Gensio *sg = new Serialdev("/dev/ttyEcho0,9600N81", serial_parms,
 				      o, NULL);
-    gensio_time t;
     unsigned int v;
 
     err = 0;

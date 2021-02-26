@@ -857,7 +857,7 @@ namespace gensio {
 	inline struct gensio_os_funcs *get_os_funcs() { return go; }
 
 	// Get the event handler for this accepter.
-	inline struct Accepter_Event *get_cb() { return gcb; }
+	inline class Accepter_Event *get_cb() { return gcb; }
 
 	// Return the raw accepter.  Don't use this, it's for subclasses
 	// to use.

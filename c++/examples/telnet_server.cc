@@ -184,7 +184,6 @@ int main(int argc, char *argv[])
 {
     int err;
     struct gensio_os_funcs *o;
-    const char *errstr;
     struct gensio_addr *addr;
     bool is_port_set;
 
