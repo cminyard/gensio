@@ -136,7 +136,7 @@ do_client_test(struct gensio_os_funcs *o, string ios)
     string s("This is a test!\r\n");
     Open_Done oe(&w);
     Close_Done ce(&w);
-    Client_Event e(&w, (unsigned char *) s.c_str(), s.size(), &ce);
+    Client_Event e(&w, (unsigned char *) s.c_str(), (gensiods) s.size(), &ce);
     const char *errstr;
     gensio_time waittime = { 2, 0 };
     int err;

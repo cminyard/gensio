@@ -4,6 +4,7 @@ include_directories("${PROJECT_SOURCE_DIR}/c++/include")
 set(CPPLIBFILES gensio.cc)
 
 add_library(gensiocpp ${CPPLIBFILES})
+target_link_libraries(gensiocpp gensio)
 if(BUILD_SHARED_LIBS AND ALSOSTATIC)
   add_library(gensiocpp-static STATIC ${CPPLIBFILES})
   SET_TARGET_PROPERTIES(gensiocpp-static PROPERTIES OUTPUT_NAME gensiocpp

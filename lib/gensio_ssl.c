@@ -8,6 +8,7 @@
 #include "config.h"
 
 #include <gensio/gensio_class.h>
+#include <gensio/gensio_builtins.h>
 
 #if HAVE_OPENSSL
 

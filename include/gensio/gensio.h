@@ -244,6 +244,7 @@ struct gensio_frdata *gensio_get_frdata(struct gensio *io);
 
 struct gensio_accepter;
 
+GENSIO_DLL_PUBLIC
 struct gensio_accepter *gensio_acc_get_child(struct gensio_accepter *acc,
 					     unsigned int depth);
 
