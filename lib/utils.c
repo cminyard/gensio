@@ -221,7 +221,7 @@ gettok(struct gensio_os_funcs *o,
 		}
 	    } else if (escape >= 2) {
 		if ((base == 16 && isxdigit(*p)) || isodigit(*p)) {
-		    if (isodigit(*p))
+		    if (isdigit(*p))
 			cval = cval * base + *p - '0';
 		    else if (isupper(*p))
 			cval = cval * base + *p - 'A';
