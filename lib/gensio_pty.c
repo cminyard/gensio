@@ -8,8 +8,6 @@
 /* This code handles running a child process using a pty. */
 
 #include "config.h"
-#include <gensio/gensio_class.h>
-#include <gensio/gensio_builtins.h>
 
 #if HAVE_PTY
 
@@ -674,6 +672,9 @@ str_to_pty_gensio(const char *str, const char * const args[],
 }
 
 #else
+
+#include <gensio/gensio_class.h>
+#include <gensio/gensio_builtins.h>
 
 int
 pty_gensio_alloc(const char * const argv[], const char * const args[],
