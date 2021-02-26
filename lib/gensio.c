@@ -3319,6 +3319,36 @@ gensio_alloc_sprintf(struct gensio_os_funcs *o, const char *fmt, ...)
     return s;
 }
 
+char *
+gensio_quote_string(struct gensio_os_funcs *o, const char *str)
+{
+    const char *ic;
+    char *ostr, *oc;
+    gensiods count = 3; /* Space for two quotes and a \0. */
+
+    /* We need two characters for all \ and ". */
+    for (ic = str; *ic; ic++) {
+	count++;
+	if (*ic == '\\' || *ic == '"')
+	    count++;
+    }
+
+    ostr = o->zalloc(o, count);
+    if (!ostr)
+	return NULL;
+
+    oc = ostr;
+    *oc++ = '"';
+    for (ic = str; *ic; ic++) {
+	if (*ic == '\\' || *ic == '"')
+	    *oc++ = '\\';
+	*oc++ = *ic;
+    }
+    *oc++ = '"';
+
+    return ostr;
+}
+
 static const char *gensio_errs[] = {
     /*   0 */    "No error",
     /*   1 */    "Out of memory",

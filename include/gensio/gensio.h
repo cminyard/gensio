@@ -783,6 +783,15 @@ GENSIO_DLL_PUBLIC
 char *gensio_strdup(struct gensio_os_funcs *o, const char *str);
 
 /*
+ * Take the input string, put " around it, and put a \ infront of
+ * every \ and ".  This allows you to take a string with " and \ in it
+ * and have them pass through the str_to_gensio() and such functions
+ * properly.
+ */
+GENSIO_DLL_PUBLIC
+char *gensio_quote_string(struct gensio_os_funcs *o, const char *str);
+
+/*
  * Return the number of allocated gensios.  This is primarily for
  * testing and may change, use at your own risk.
  */
