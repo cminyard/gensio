@@ -24,6 +24,7 @@ else()
   set (CMAKE_C_FLAGS "-Wall")
 endif()
 option(BUILD_SHARED_LIBS "Build using shared libraries" ON)
+option(ALSOSTATIC "When buiding a shared library, build a static one, too")
 
 option(ENABLE_TCP_WRAPPERS "Enable tcpwrappers support" ON)
 if(ENABLE_TCP_WRAPPERS)

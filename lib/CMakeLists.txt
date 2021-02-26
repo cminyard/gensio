@@ -1,5 +1,3 @@
-option(ALSOSTATIC "When buiding a shared library, build a static one, too")
-
 set(BASE_LIBFILES
   buffer.c
   gensio_net.c
