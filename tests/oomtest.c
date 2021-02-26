@@ -731,7 +731,7 @@ struct oom_tests oom_tests[] = {
 };
 
 static struct gensio_os_funcs *o;
-static const char *gensiot;
+static char *gensiot;
 
 #ifdef USE_PTHREADS
 static void *
@@ -2024,6 +2024,7 @@ main(int argc, char *argv[])
     struct oom_tests user_test;
     bool list_tests = false;
     char *oshstr;
+    const char *s;
 
     memset(&user_test, 0, sizeof(user_test));
 
@@ -2237,13 +2238,18 @@ main(int argc, char *argv[])
 	return 1;
 
     if (i >= argc) {
-	gensiot = getenvvar("GENSIOT");
-	if (!gensiot) {
+	s = getenvvar("GENSIOT");
+	if (!s) {
 	    fprintf(stderr, "No gensiot given\n");
 	    exit(1);
 	}
     } else {
-	gensiot = argv[i];
+	s = argv[i];
+    }
+    gensiot = gensio_quote_string(o, s);
+    if (!gensiot) {
+	fprintf(stderr, "Out of memory copying gensiot string\n");
+	exit(1);
     }
 
 #ifdef USE_PTHREADS
@@ -2302,6 +2308,7 @@ main(int argc, char *argv[])
     gensio_osfunc_exit(!!errcount);
 
  out_err:
+    o->free(o, gensiot);
     cleanup_ods();
     gensio_cleanup_mem(o);
     gensio_osfunc_exit(1);
