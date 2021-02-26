@@ -9,7 +9,8 @@
 // This directly allocates the accepter classes instead of using
 // alloc_accepter() and letting strings drive it.  Generally, using
 // alloc_accepter() is preferred, it's easier and more flexible, but
-// this shows another way it can be done.
+// this shows another way it can be done, if, for instance, you need
+// to dynamically stack new gensios onto an existing stack.
 
 #include <iostream>
 #include <string>
@@ -19,13 +20,19 @@
 using namespace std;
 using namespace gensio;
 
+// This is a Gensio event handler for the server.  It's job is to echo
+// received characters.
 class Server_Event: public Event {
 public:
     Server_Event(Waiter *w) { waiter = w; }
 
+    // This allows the user to determine if the event handler had an
+    // error.
     const char *get_err() { return errstr; }
 
 private:
+    // Handle errors, and if no error wreite the read data back into
+    // the gensio for echoing.
     int read(Gensio *io, int err, unsigned char *buf,
 	     gensiods *buflen, const char *const *auxdata) override
     {
@@ -51,6 +58,9 @@ private:
 	}
 
 	if (count < *buflen) {
+	    // We couldn't write all the data, so the write side is in
+	    // flow control.  Enable the write callback so we know
+	    // when we can write again.
 	    io->set_read_callback_enable(false);
 	    io->set_write_callback_enable(true);
 	}
@@ -60,11 +70,16 @@ private:
 
     void write_ready(Gensio *io) override
     {
+	// We were flow controlled on write and we can write again.
+	// Kick back off the reads.
 	io->set_read_callback_enable(true);
 	io->set_write_callback_enable(false);
     }
 
-    void freed() override {
+    // Called when the free is complete.  We wake up whatever is
+    // waiting on us.
+    void freed() override
+    {
 	waiter->wake();
     }
 
@@ -73,11 +88,17 @@ private:
     Waiter *waiter;
 };
 
+// Handle accept events from the accepter stack.  Basically, just kick
+// off the handling on the new gensio, using the event handler passed
+// in to the constructor.
 class Acc_Event: public Accepter_Event {
 public:
     Acc_Event(Waiter *w, Event *e) { waiter = w; ev = e; }
 
 private:
+    // If errors occur in the accepter stack, they generally can't be
+    // reported through normal mechanisms.  So those types of errors
+    // come in through this mechanism.
     void log(enum gensio_log_levels level, char *str, va_list args)
     {
 	fprintf(stderr, "accepter %s log: ", gensio_log_level_to_str(level));
@@ -86,8 +107,16 @@ private:
 	fflush(stderr);
     }
 
+    // New connection, kick off the new connection's echo handling.
     void new_connection(Accepter *acc, Gensio *g) override
     {
+	if (connected) {
+	    // We got a second connection, this can happen due to a
+	    // race.  Just shut it down.
+	    g->free();
+	    return;
+	}
+	connected = true;
 	g->set_event_handler(ev);
 	ev = NULL;
 	g->set_read_callback_enable(true);
@@ -95,17 +124,23 @@ private:
 	acc->free();
     }
 
+    // The free of the accepter has completed, wake up whatever is
+    // waiting.
     void freed() override
     {
 	waiter->wake();
     }
 
+    bool connected = false;
     Waiter *waiter;
     Event *ev;
 };
 
+// The basic server handling.  Allocate the gensio stack, tcp and
+// telnet, and kick off processing.  Wait until the accepter and new
+// gensio are freed.
 static int
-do_server_test(struct gensio_os_funcs *o, struct gensio_addr *addr)
+do_server(struct gensio_os_funcs *o, struct gensio_addr *addr)
 {
     Waiter w(o);
     Server_Event e(&w);
@@ -134,6 +169,7 @@ do_server_test(struct gensio_os_funcs *o, struct gensio_addr *addr)
     return 0;
 }
 
+// Internal gensio errors come in through this mechanism.
 static void
 gensio_log(struct gensio_os_funcs *f, enum gensio_log_levels level,
 	   const char *log, va_list args)
@@ -164,6 +200,7 @@ int main(int argc, char *argv[])
 	return 1;
     }
 
+    // Convert argv[1] into a gensio address.
     err = gensio_scan_network_port(o, argv[1], true, &addr, NULL,
 				   &is_port_set, NULL, NULL);
     if (err) {
@@ -171,7 +208,7 @@ int main(int argc, char *argv[])
 	return 1;
     }
 
-    err = do_server_test(o, addr);
+    err = do_server(o, addr);
 
     gensio_addr_free(addr);
 
