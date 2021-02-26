@@ -188,6 +188,7 @@ endif()
 configure_file(config.h.cmake config.h)
 
 add_subdirectory(lib)
+add_subdirectory(c++)
 if(HAVE_GLIB)
   add_subdirectory(glib)
 endif()
