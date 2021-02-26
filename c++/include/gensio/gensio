@@ -22,14 +22,13 @@ namespace gensio {
     // get errors.  Most operations raise exceptions, unless otherwise
     // noted.  Note that the string is set, so what() will return the
     // string.  You can get the number with get_error().
-    class gensio_error: public std::runtime_error {
+    class GENSIOCPP_DLL_PUBLIC gensio_error: public std::runtime_error {
     public:
-	GENSIOCPP_DLL_PUBLIC
 	gensio_error(int ierr): std::runtime_error(gensio_err_to_str(ierr))
 	{
 	    err = ierr;
 	};
-	GENSIOCPP_DLL_PUBLIC
+
 	int get_error() { return err; };
     private:
 	int err;
@@ -40,22 +39,19 @@ namespace gensio {
 
     // This is an abstract class to be passed into a gensio class for
     // delivery of events from the gensio.
-    class Event {
+    class GENSIOCPP_DLL_PUBLIC Event {
     public:
 	// Data from the gensio is delivered in this callback.  You
 	// must implement this.
-	GENSIOCPP_DLL_PUBLIC
 	virtual int read(Gensio *io, int err, unsigned char *buf,
 			 gensiods *buflen, const char *const *auxdata) = 0;
 
 	// Data can be written to the gensio.  By default this
 	// disables write callbacks.
-	GENSIOCPP_DLL_PUBLIC
 	virtual void write_ready(Gensio *io);
 
 	// A new channel is available on the gensio.  By default this
 	// deletes the new channel.
-	GENSIOCPP_DLL_PUBLIC
 	virtual void new_channel(Gensio *io, Gensio *new_channel,
 				 const char *const *auxdata);
 
@@ -63,21 +59,15 @@ namespace gensio {
 	// break.  This is primarily for a telnet server that is
 	// hooked to a serial port, if it receives this it should send
 	// a break on the serial port.  By default htis does nothing.
-	GENSIOCPP_DLL_PUBLIC
 	virtual void send_break(Gensio *io) { };
 
 	// Various authentication operations.  See gensio_event.3 for
 	// details on what these do.
-	GENSIOCPP_DLL_PUBLIC
 	virtual int auth_begin(Gensio *io) { return GE_NOTSUP; }
-	GENSIOCPP_DLL_PUBLIC
 	virtual int precert_verify(Gensio *io) { return GE_NOTSUP; }
-	GENSIOCPP_DLL_PUBLIC
 	virtual int postcert_verify(Gensio *io) { return GE_NOTSUP; }
-	GENSIOCPP_DLL_PUBLIC
 	virtual int password_verify(Gensio *io, const unsigned char *password)
 	     { return GE_NOTSUP; }
-	GENSIOCPP_DLL_PUBLIC
 	virtual int request_password(Gensio *io, unsigned char *password,
 				     gensiods *pwlen) { return GE_NOTSUP; }
 
@@ -85,36 +75,29 @@ namespace gensio {
 	// own purposes; these events have event numbers that fall
 	// into a range defined in gensio.h.  These events will be
 	// delivered here.
-	GENSIOCPP_DLL_PUBLIC
 	virtual int user_event(Gensio *io, int event, int err,
 			       unsigned char *buf, gensiods *buflen,
 			       const char *const *auxdata) { return GE_NOTSUP; }
 
 	// The free() operation for gensio this object is assigned to
 	// has finished and the data will immediately be freed.
-	GENSIOCPP_DLL_PUBLIC
 	virtual void freed() { };
 
-	GENSIOCPP_DLL_PUBLIC
 	virtual ~Event() = default;
     };
 
     // Used for done handlers for gensio operations that can fail,
     // failure is returned in the err field.
-    class Gensio_Done_Err {
+    class GENSIOCPP_DLL_PUBLIC Gensio_Done_Err {
     public:
-	GENSIOCPP_DLL_PUBLIC
 	virtual void done(Gensio *io, int err) = 0;
-	GENSIOCPP_DLL_PUBLIC
 	virtual ~Gensio_Done_Err() = default;
     };
 
     // Used for done handlers for gension operations that cannot fail.
-    class Gensio_Done {
+    class GENSIOCPP_DLL_PUBLIC Gensio_Done {
     public:
-	GENSIOCPP_DLL_PUBLIC
 	virtual void done(Gensio *io) = 0;
-	GENSIOCPP_DLL_PUBLIC
 	virtual ~Gensio_Done() = default;
     };
 
@@ -139,7 +122,7 @@ namespace gensio {
     // This is a gensio, the central class in the gensio framework.
     // This is the thing that you use to send/receive data and control
     // various operations of the gensio.
-    class Gensio {
+    class GENSIOCPP_DLL_PUBLIC Gensio {
     public:
 	Gensio(const Gensio&) = delete;
 	Gensio &operator=(const Gensio&) = delete;
@@ -151,7 +134,6 @@ namespace gensio {
 	// blocking.  So you call free here, and when the freed
 	// function in the event handler gets called, the free is
 	// complete.
-	GENSIOCPP_DLL_PUBLIC
 	void free();
 
 	// Change the event handler for a gensio.  This is provided so
@@ -162,34 +144,28 @@ namespace gensio {
 
 	// Open a gensio.  When the done handler is called it is ready
 	// (unless it reports an error).
-	GENSIOCPP_DLL_PUBLIC
 	void open(Gensio_Done_Err *done);
 
 	// Open a gensio and wait for it's open peration to complete.
-	GENSIOCPP_DLL_PUBLIC
 	void open_s();
 
 	// Open a gensio but assume that it's children are already
 	// open.  This is used if you stacked a new gensio on top of a
 	// running stack.
-	GENSIOCPP_DLL_PUBLIC
 	void open_nochild(Gensio_Done_Err *done);
 
 	// Like the above, but synchronous.
-	GENSIOCPP_DLL_PUBLIC
 	void open_nochild_s();
 
 	// Write buflen bytes of data in buf to the given gensio.  The
 	// actual number of bytes written is returned in count.  The
 	// meaning of auxdata depends on the gensio, see gensio.5 for
 	// detais.
-	GENSIOCPP_DLL_PUBLIC
 	void write(gensiods *count, const void *buf, gensiods buflen,
 		   const char *const *auxdata);
 
 	// Like the above, but use a scatter-gather structure to write
 	// the data.
-	GENSIOCPP_DLL_PUBLIC
 	void write_sg(gensiods *count,
 		      const struct gensio_sg *sg, gensiods sglen,
 		      const char *const *auxdata);
@@ -198,16 +174,13 @@ namespace gensio {
 	// arguments, and use the given event handler for it.  How
 	// this works depends on the particular gensio, see gensio.5
 	// for details.
-	GENSIOCPP_DLL_PUBLIC
 	Gensio *alloc_channel(const char *const args[], Event *cb);
 
 	// Close the given gensio.  When the close completely call the
 	// done handler.
-	GENSIOCPP_DLL_PUBLIC
 	void close(Gensio_Done *done);
 
 	// Like the above, but do it synchronosly.
-	GENSIOCPP_DLL_PUBLIC
 	void close_s();
 
 	// This is used in specific circumstances to disable a gensio
@@ -231,7 +204,6 @@ namespace gensio {
 
 	// Various control operations on a gensio, see
 	// gensio_control.3 for details.
-	GENSIOCPP_DLL_PUBLIC
 	void control(int depth, bool get, unsigned int option,
 		     char *data, gensiods *datalen);
 
@@ -245,7 +217,6 @@ namespace gensio {
 	// Return a gensio in the stack.  0 return this gensio, 1
 	// returns its child, 2 returns it grandchild, etc.  If the
 	// depth is larger than the stack, returns NULL.
-	GENSIOCPP_DLL_PUBLIC
 	Gensio *get_child(unsigned int depth);
 
 	// Return various characterstics about a gensio.  See the
@@ -272,13 +243,11 @@ namespace gensio {
 	// less than datalen.  This will return GE_TIMEDOUT on a
 	// timeout or 0 on success.  All other errors throw
 	// gensio_error.
-	GENSIOCPP_DLL_PUBLIC
 	int read_s(gensiods *count, void *data, gensiods datalen,
 		   gensio_time *timeout);
 
 	// Like the above, but will also return on a signal.  It
 	// returns GE_INTERRUPTED in this case.
-	GENSIOCPP_DLL_PUBLIC
 	int read_s_intr(gensiods *count, void *data, gensiods datalen,
 			gensio_time *timeout);
 
@@ -287,13 +256,11 @@ namespace gensio {
 	// returns GE_TIMEDOUT.  Note that some data may still have
 	// been written, the amount written is returned in count.
 	// If timeout is NULL, wait forever.
-	GENSIOCPP_DLL_PUBLIC
 	int write_s(gensiods *count, const void *data, gensiods datalen,
 		     gensio_time *timeout);
 
 	// Like the above, but the write may be interrupted by a
 	// signal.  If that happens, this returns GE_INTERRUPTED.
-	GENSIOCPP_DLL_PUBLIC
 	int write_s_intr(gensiods *count, const void *data, gensiods datalen,
 			 gensio_time *timeout);
 
@@ -305,16 +272,12 @@ namespace gensio {
 
 	// Return the raw gensio.  Don't use this, it's for subclasses
 	// to use.
-	GENSIOCPP_DLL_PUBLIC
 	struct gensio *get_gensio() { return io; }
 
     protected:
 	// Subclasses can use this to initialize the gensio object.
-	GENSIOCPP_DLL_PUBLIC
 	virtual void set_gensio(struct gensio *io, bool set_cb);
-	GENSIOCPP_DLL_PUBLIC
 	Gensio(struct gensio_os_funcs *o, Event *cb);
-	GENSIOCPP_DLL_PUBLIC
 	virtual ~Gensio() { }
 
     private:
@@ -344,9 +307,8 @@ namespace gensio {
     // Subclasses of Gensio.  This allows direct allocation of a
     // gensio.
 
-    class Tcp: public Gensio {
+    class GENSIOCPP_DLL_PUBLIC Tcp: public Gensio {
     public:
-	GENSIOCPP_DLL_PUBLIC
 	Tcp(struct gensio_addr *addr, const char * const args[],
 	    struct gensio_os_funcs *o, Event *cb);
 
@@ -358,9 +320,8 @@ namespace gensio {
 				       struct gensio *io);
     };
 
-    class Udp: public Gensio {
+    class GENSIOCPP_DLL_PUBLIC Udp: public Gensio {
     public:
-	GENSIOCPP_DLL_PUBLIC
 	Udp(struct gensio_addr *addr, const char * const args[],
 	    struct gensio_os_funcs *o, Event *cb);
 
@@ -372,9 +333,8 @@ namespace gensio {
 				       struct gensio *io);
     };
 
-    class Unix: public Gensio {
+    class GENSIOCPP_DLL_PUBLIC Unix: public Gensio {
     public:
-	GENSIOCPP_DLL_PUBLIC
 	Unix(struct gensio_addr *addr, const char * const args[],
 	     struct gensio_os_funcs *o, Event *cb);
 
@@ -386,9 +346,8 @@ namespace gensio {
 					struct gensio *io);
     };
 
-    class Sctp: public Gensio {
+    class GENSIOCPP_DLL_PUBLIC Sctp: public Gensio {
     public:
-	GENSIOCPP_DLL_PUBLIC
 	Sctp(struct gensio_addr *addr, const char * const args[],
 	     struct gensio_os_funcs *o, Event *cb);
 
@@ -400,9 +359,8 @@ namespace gensio {
 					struct gensio *io);
     };
 
-    class Stdio: public Gensio {
+    class GENSIOCPP_DLL_PUBLIC Stdio: public Gensio {
     public:
-	GENSIOCPP_DLL_PUBLIC
 	Stdio(const char *const argv[], const char * const args[],
 	      struct gensio_os_funcs *o, Event *cb);
 
@@ -414,9 +372,8 @@ namespace gensio {
 					 struct gensio *io);
     };
 
-    class Pty: public Gensio {
+    class GENSIOCPP_DLL_PUBLIC Pty: public Gensio {
     public:
-	GENSIOCPP_DLL_PUBLIC
 	Pty(const char *const argv[], const char * const args[],
 	    struct gensio_os_funcs *o, Event *cb);
 
@@ -428,9 +385,8 @@ namespace gensio {
 				       struct gensio *io);
     };
 
-    class Echo: public Gensio {
+    class GENSIOCPP_DLL_PUBLIC Echo: public Gensio {
     public:
-	GENSIOCPP_DLL_PUBLIC
 	Echo(const char * const args[],
 	     struct gensio_os_funcs *o, Event *cb);
 
@@ -442,9 +398,8 @@ namespace gensio {
 					struct gensio *io);
     };
 
-    class File: public Gensio {
+    class GENSIOCPP_DLL_PUBLIC File: public Gensio {
     public:
-	GENSIOCPP_DLL_PUBLIC
 	File(const char * const args[],
 	     struct gensio_os_funcs *o, Event *cb);
 
@@ -456,9 +411,8 @@ namespace gensio {
 					struct gensio *io);
     };
 
-    class Mdns: public Gensio {
+    class GENSIOCPP_DLL_PUBLIC Mdns: public Gensio {
     public:
-	GENSIOCPP_DLL_PUBLIC
 	Mdns(const char *str, const char * const args[],
 	     struct gensio_os_funcs *o, Event *cb);
 
@@ -470,9 +424,8 @@ namespace gensio {
 					struct gensio *io);
     };
 
-    class Ssl: public Gensio {
+    class GENSIOCPP_DLL_PUBLIC Ssl: public Gensio {
     public:
-	GENSIOCPP_DLL_PUBLIC
 	Ssl(Gensio *child, const char * const args[],
 	    struct gensio_os_funcs *o, Event *cb);
 
@@ -484,9 +437,8 @@ namespace gensio {
 				       struct gensio *io);
     };
 
-    class Mux: public Gensio {
+    class GENSIOCPP_DLL_PUBLIC Mux: public Gensio {
     public:
-	GENSIOCPP_DLL_PUBLIC
 	Mux(Gensio *child, const char * const args[],
 	    struct gensio_os_funcs *o, Event *cb);
 
@@ -498,9 +450,8 @@ namespace gensio {
 				       struct gensio *io);
     };
 
-    class Certauth: public Gensio {
+    class GENSIOCPP_DLL_PUBLIC Certauth: public Gensio {
     public:
-	GENSIOCPP_DLL_PUBLIC
 	Certauth(Gensio *child, const char * const args[],
 	    struct gensio_os_funcs *o, Event *cb);
 
@@ -512,9 +463,8 @@ namespace gensio {
 					    struct gensio *io);
     };
 
-    class Telnet: public Gensio {
+    class GENSIOCPP_DLL_PUBLIC Telnet: public Gensio {
     public:
-	GENSIOCPP_DLL_PUBLIC
 	Telnet(Gensio *child, const char * const args[],
 	    struct gensio_os_funcs *o, Event *cb);
 
@@ -526,9 +476,8 @@ namespace gensio {
 					  struct gensio *io);
     };
 
-    class Msgdelim: public Gensio {
+    class GENSIOCPP_DLL_PUBLIC Msgdelim: public Gensio {
     public:
-	GENSIOCPP_DLL_PUBLIC
 	Msgdelim(Gensio *child, const char * const args[],
 	    struct gensio_os_funcs *o, Event *cb);
 
@@ -540,9 +489,8 @@ namespace gensio {
 					    struct gensio *io);
     };
 
-    class Relpkt: public Gensio {
+    class GENSIOCPP_DLL_PUBLIC Relpkt: public Gensio {
     public:
-	GENSIOCPP_DLL_PUBLIC
 	Relpkt(Gensio *child, const char * const args[],
 	    struct gensio_os_funcs *o, Event *cb);
 
@@ -554,9 +502,8 @@ namespace gensio {
 					  struct gensio *io);
     };
 
-    class Trace: public Gensio {
+    class GENSIOCPP_DLL_PUBLIC Trace: public Gensio {
     public:
-	GENSIOCPP_DLL_PUBLIC
 	Trace(Gensio *child, const char * const args[],
 	    struct gensio_os_funcs *o, Event *cb);
 
@@ -568,9 +515,8 @@ namespace gensio {
 					 struct gensio *io);
     };
 
-    class Perf: public Gensio {
+    class GENSIOCPP_DLL_PUBLIC Perf: public Gensio {
     public:
-	GENSIOCPP_DLL_PUBLIC
 	Perf(Gensio *child, const char * const args[],
 	    struct gensio_os_funcs *o, Event *cb);
 
@@ -586,68 +532,48 @@ namespace gensio {
 
     // These are events from a serial port device, client and server.
     // These are documented in sergensio_event.3
-    class Serial_Event: public Event {
+    class GENSIOCPP_DLL_PUBLIC Serial_Event: public Event {
     public:
 	// Client-side calls, used to report serial line changes.
 
 	// See sergensio_modemstate.3 for details
-	GENSIOCPP_DLL_PUBLIC
 	virtual void modemstate(unsigned int state) { }
 	// See sergensio_linestate.3 for details
-	GENSIOCPP_DLL_PUBLIC
 	virtual void linestate(unsigned int state) { }
 
 	// Server side calls, used when the client requests changes.  See sergensio_xxx
-	GENSIOCPP_DLL_PUBLIC
 	virtual void signature(const char *sig, gensiods len) { }
-	GENSIOCPP_DLL_PUBLIC
 	virtual void flow_state(bool state) { }
-	GENSIOCPP_DLL_PUBLIC
 	virtual void flush(unsigned int val) { }
-	GENSIOCPP_DLL_PUBLIC
 	virtual void sync() { }
-	GENSIOCPP_DLL_PUBLIC
 	virtual void baud(unsigned int speed) { }
-	GENSIOCPP_DLL_PUBLIC
 	virtual void datasize(unsigned int size) { }
-	GENSIOCPP_DLL_PUBLIC
 	virtual void parity(unsigned int par) { }
-	GENSIOCPP_DLL_PUBLIC
 	virtual void stopbits(unsigned int bits) { }
-	GENSIOCPP_DLL_PUBLIC
 	virtual void flowcontrol(unsigned int flow) { }
-	GENSIOCPP_DLL_PUBLIC
 	virtual void iflowcontrol(unsigned int flow) { }
-	GENSIOCPP_DLL_PUBLIC
 	virtual void sbreak(unsigned int sbreak) { }
-	GENSIOCPP_DLL_PUBLIC
 	virtual void dtr(unsigned int dtr) { }
-	GENSIOCPP_DLL_PUBLIC
 	virtual void rts(unsigned int dsr) { }
 
-	GENSIOCPP_DLL_PUBLIC
 	virtual ~Serial_Event() = default;
     };
 
     // Done handler for normal serial port operations.
-    class Serial_Op_Done {
+    class GENSIOCPP_DLL_PUBLIC Serial_Op_Done {
     public:
 	// Serial operation is finished, err non-zero if an error
 	// occurred.  If no error, val is the result.
-	GENSIOCPP_DLL_PUBLIC
 	virtual void done(Serial_Gensio *sf, int err, unsigned int val) = 0;
-	GENSIOCPP_DLL_PUBLIC
 	virtual ~Serial_Op_Done() = default;
     };
 
     // Done handler for signature operations, passes a C string, not a
     // number.
-    class Serial_Op_Sig_Done {
+    class GENSIOCPP_DLL_PUBLIC Serial_Op_Sig_Done {
     public:
-	GENSIOCPP_DLL_PUBLIC
 	virtual void done(Serial_Gensio *sg, int err, const char *sig,
 			  unsigned int siglen) = 0;
-	GENSIOCPP_DLL_PUBLIC
 	virtual ~Serial_Op_Sig_Done() = default;
     };
 
@@ -675,78 +601,47 @@ namespace gensio {
     // For the server side, requests are received in the Serial_Event
     // class, the reponses are sent here.  The done value should
     // always be NULL and is ignore on the server side.
-    class Serial_Gensio: public Gensio {
+    class GENSIOCPP_DLL_PUBLIC Serial_Gensio: public Gensio {
     public:
 	Serial_Gensio(const Serial_Gensio&) = delete;
 	Serial_Gensio &operator=(const Serial_Gensio&) = delete;
 
-	GENSIOCPP_DLL_PUBLIC
 	void baud(unsigned int baud, Serial_Op_Done *done);
-	GENSIOCPP_DLL_PUBLIC
 	void datasize(unsigned int size, Serial_Op_Done *done);
-	GENSIOCPP_DLL_PUBLIC
 	void parity(unsigned int par, Serial_Op_Done *done);
-	GENSIOCPP_DLL_PUBLIC
 	void stopbits(unsigned int bits, Serial_Op_Done *done);
-	GENSIOCPP_DLL_PUBLIC
 	void flowcontrol(unsigned int flow, Serial_Op_Done *done);
-	GENSIOCPP_DLL_PUBLIC
 	void iflowcontrol(unsigned int flow, Serial_Op_Done *done);
-	GENSIOCPP_DLL_PUBLIC
 	void sbreak(unsigned int sbreak, Serial_Op_Done *done);
-	GENSIOCPP_DLL_PUBLIC
 	void dtr(unsigned int dtr, Serial_Op_Done *done);
-	GENSIOCPP_DLL_PUBLIC
 	void rts(unsigned int rts, Serial_Op_Done *done);
-	GENSIOCPP_DLL_PUBLIC
 	void cts(unsigned int cts, Serial_Op_Done *done);
-	GENSIOCPP_DLL_PUBLIC
 	void dcd_dsr(unsigned int dcd_dsr, Serial_Op_Done *done);
-	GENSIOCPP_DLL_PUBLIC
 	void ri(unsigned int ri, Serial_Op_Done *done);
-	GENSIOCPP_DLL_PUBLIC
 	void signature(const char *sig, unsigned int len,
 		       Serial_Op_Sig_Done *done);
 
-	GENSIOCPP_DLL_PUBLIC
 	void baud_s(unsigned int *baud);
-	GENSIOCPP_DLL_PUBLIC
 	void datasize_s(unsigned int *size);
-	GENSIOCPP_DLL_PUBLIC
 	void parity_s(unsigned int *par);
-	GENSIOCPP_DLL_PUBLIC
 	void stopbits_s(unsigned int *bits);
-	GENSIOCPP_DLL_PUBLIC
 	void flowcontrol_s(unsigned int *flow);
-	GENSIOCPP_DLL_PUBLIC
 	void iflowcontrol_s(unsigned int *flow);
-	GENSIOCPP_DLL_PUBLIC
 	void sbreak_s(unsigned int *sbreak);
-	GENSIOCPP_DLL_PUBLIC
 	void dtr_s(unsigned int *dtr);
-	GENSIOCPP_DLL_PUBLIC
 	void rts_s(unsigned int *rts);
-	GENSIOCPP_DLL_PUBLIC
 	void cts_s(unsigned int *cts);
-	GENSIOCPP_DLL_PUBLIC
 	void dcd_dsr_s(unsigned int *dcd_dsr);
-	GENSIOCPP_DLL_PUBLIC
 	void ri_s(unsigned int *ri);
 
 	// Server side only, for reporting changes
-	GENSIOCPP_DLL_PUBLIC
 	void flow_state(bool state);
-	GENSIOCPP_DLL_PUBLIC
 	void modemstate(unsigned int state);
-	GENSIOCPP_DLL_PUBLIC
 	void linestate(unsigned int state);
 
     protected:
-	GENSIOCPP_DLL_PUBLIC
 	virtual void set_gensio(struct gensio *io, bool set_cb);
-	GENSIOCPP_DLL_PUBLIC
 	Serial_Gensio(struct gensio_os_funcs *o, Event *cb) : Gensio(o, cb) { }
-	GENSIOCPP_DLL_PUBLIC
 	virtual ~Serial_Gensio() { }
 
     private:
@@ -760,9 +655,8 @@ namespace gensio {
     // Subclasses of Serial_Gensio.  This allows direct allocation of
     // a serial gensio.
 
-    class Serialdev: public Serial_Gensio {
+    class GENSIOCPP_DLL_PUBLIC Serialdev: public Serial_Gensio {
     public:
-	GENSIOCPP_DLL_PUBLIC
 	Serialdev(const char *devname, const char * const args[],
 		  struct gensio_os_funcs *o, Event *cb);
 
@@ -774,9 +668,8 @@ namespace gensio {
 					     struct gensio *io);
     };
 
-    class Serial_Telnet: public Serial_Gensio {
+    class GENSIOCPP_DLL_PUBLIC Serial_Telnet: public Serial_Gensio {
     public:
-	GENSIOCPP_DLL_PUBLIC
 	Serial_Telnet(Gensio *child, const char * const args[],
 		struct gensio_os_funcs *o, Event *cb);
 
@@ -788,9 +681,8 @@ namespace gensio {
 					  struct gensio *io);
     };
 
-    class Ipmisol: public Serial_Gensio {
+    class GENSIOCPP_DLL_PUBLIC Ipmisol: public Serial_Gensio {
     public:
-	GENSIOCPP_DLL_PUBLIC
 	Ipmisol(const char *devname, const char * const args[],
 		struct gensio_os_funcs *o, Event *cb);
 
@@ -808,17 +700,15 @@ namespace gensio {
 
     // An object of this class is given to an Accepter to handle
     // events from that accepter.
-    class Accepter_Event {
+    class GENSIOCPP_DLL_PUBLIC Accepter_Event {
     public:
 
 	// A new connection has come in, the new gensio is in g.  You
 	// must provide this.
-	GENSIOCPP_DLL_PUBLIC
 	virtual void new_connection(Accepter *acc, Gensio *g) = 0;
 
 	// An error has occurred in the accepter that cannot be
 	// reported as a return value.
-	GENSIOCPP_DLL_PUBLIC
 	virtual void log(enum gensio_log_levels level, char *str, va_list args)
 	{
 	}
@@ -828,40 +718,31 @@ namespace gensio {
 	// that the delivered gensio is not operational, it can only
 	// be used to fetch username, certificate info, etc.  See
 	// gensio_event.3 for details on these.
-	GENSIOCPP_DLL_PUBLIC
 	virtual int auth_begin(Accepter *acc, Gensio *g)
 	{ return GE_NOTSUP; }
-	GENSIOCPP_DLL_PUBLIC
 	virtual int precert_verify(Accepter *acc, Gensio *g)
 	{ return GE_NOTSUP; }
-	GENSIOCPP_DLL_PUBLIC
 	virtual int postcert_verify(Accepter *acc, Gensio *g,
 				    int err, const char *errstr)
 	{ return GE_NOTSUP; }
-	GENSIOCPP_DLL_PUBLIC
 	virtual int password_verify(Accepter *acc, Gensio *g,
 				    const char *password,
 				    gensiods password_len)
 	{ return GE_NOTSUP; }
-	GENSIOCPP_DLL_PUBLIC
 	virtual int request_password(Accepter *acc, Gensio *g,
 				     char *password, gensiods *password_len)
 	{ return GE_NOTSUP; }
 
 	// The free() operation for accepter this object is assigned to
 	// has finished and the data will immediately be freed.
-	GENSIOCPP_DLL_PUBLIC
 	virtual void freed() { };
 
-	GENSIOCPP_DLL_PUBLIC
 	virtual ~Accepter_Event() = default;
     };
 
-    class Accepter_Done {
+    class GENSIOCPP_DLL_PUBLIC Accepter_Done {
     public:
-	GENSIOCPP_DLL_PUBLIC
 	virtual void done(Accepter *acc) = 0;
-	GENSIOCPP_DLL_PUBLIC
 	virtual ~Accepter_Done() = default;
     };
 
@@ -880,7 +761,7 @@ namespace gensio {
 			       struct gensio_os_funcs *o,
 			       Accepter_Event *cb);
 
-    class Accepter {
+    class GENSIOCPP_DLL_PUBLIC Accepter {
     public:
 	Accepter(const Accepter&) = delete;
 	Accepter &operator=(const Accepter&) = delete;
@@ -892,7 +773,6 @@ namespace gensio {
 	// blocking.  So you call free here, and when the freed
 	// function in the event handler gets called, the free is
 	// complete.
-	GENSIOCPP_DLL_PUBLIC
 	void free();
 
 	// Set the callback object.  Not really very useful, and you
@@ -902,22 +782,18 @@ namespace gensio {
 	// Start accepting connections.  You still need to set the
 	// enable to actual receive connections, this opens the
 	// accepting sockets or whatever and gets things ready.
-	GENSIOCPP_DLL_PUBLIC
 	void startup();
 
 	// Shutdown the accepter, closing the accept socket or
 	// whatever is required for the gensio.  The done will be
 	// called when the shutdown is complete.
-	GENSIOCPP_DLL_PUBLIC
 	void shutdown(Accepter_Done *done);
 
 	// Shutdown and block until it completes.
-	GENSIOCPP_DLL_PUBLIC
 	void shutdown_s();
 
 	// Disable the accepter, see gensio_acc_disable.3 for details.
 	// This is not for normal use.
-	GENSIOCPP_DLL_PUBLIC
 	void disable() { gensio_acc_disable(acc); }
 
 	// Set the enable for receiving accepts.  Note that if you
@@ -931,17 +807,14 @@ namespace gensio {
 	// enable/disable completes.  Not really useful for enable,
 	// but it can let you know that no callbacks are pending on a
 	// disable.
-	GENSIOCPP_DLL_PUBLIC
 	void set_callback_enable_cb(bool enabled, Accepter_Done *done);
 
 	// Synchronous enable/disable, won't return until the
 	// enable/disable completes.
-	GENSIOCPP_DLL_PUBLIC
 	void set_callback_enable_s(bool enabled);
 
 	// Special control operations on the accepter, see
 	// gensio_acc_control.3 for details.
-	GENSIOCPP_DLL_PUBLIC
 	void control(int depth, bool get, unsigned int option,
 		     char *data, gensiods *datalen);
 
@@ -954,12 +827,10 @@ namespace gensio {
 	// times out, it returns GE_TIMEDOUT, otherwise it returns
 	// zero.  Any other errors get thrown as a gensio_error.
 	// The new gensio is returned in g.
-	GENSIOCPP_DLL_PUBLIC
 	int accept_s(gensio_time *timeout, Gensio **g);
 
 	// Like accept_s, but also returns if a signal is recevied.
 	// In that cast it returns GE_INTERRUPTED.
-	GENSIOCPP_DLL_PUBLIC
 	int accept_s_intr(gensio_time *timeout, Gensio **g);
 
 	// Create a new gensio as if it came from this accepter.  This
@@ -968,7 +839,6 @@ namespace gensio {
 	// packets will come from this accepter's socket and packets
 	// received on this accepters's socket from the given remote
 	// end will be sent to this gensio.
-	GENSIOCPP_DLL_PUBLIC
 	Gensio *str_to_gensio(std::string str, Event *cb);
 
 	// Return the type string for the accepter.
@@ -984,7 +854,6 @@ namespace gensio {
 	// Return a child of this accpeter.  A depth of zero returns
 	// this accepter, 1 returns its child, 2 its grandchild, etc.
 	// Returns NULL if the depth is deeper than the accepter stack.
-	GENSIOCPP_DLL_PUBLIC
 	Accepter *get_child(unsigned int depth);
 
 	// Return the local side port for the accepter.  This is
@@ -992,7 +861,6 @@ namespace gensio {
 	// letting the code choose a port.  Then you can fetch the
 	// actual port with this.  Note that some accepter types will
 	// return something besides a number here (ie unix).
-	GENSIOCPP_DLL_PUBLIC
 	std::string get_port();
 
 	// Get the os funcs for this accepter.
@@ -1003,15 +871,11 @@ namespace gensio {
 
 	// Return the raw accepter.  Don't use this, it's for subclasses
 	// to use.
-	GENSIOCPP_DLL_PUBLIC
 	struct gensio_accepter *get_accepter() { return acc; }
 
     protected:
-	GENSIOCPP_DLL_PUBLIC
 	virtual void set_accepter(struct gensio_accepter *acc, bool set_cb);
-	GENSIOCPP_DLL_PUBLIC
 	Accepter(struct gensio_os_funcs *o, Accepter_Event *cb);
-	GENSIOCPP_DLL_PUBLIC
 	virtual ~Accepter() { }
 
     private:
@@ -1042,9 +906,8 @@ namespace gensio {
     // Subclasses of Accepter.  These allow you to directly allocate
     // an Accepter, stack new accepters on top of old ones, etc.
 
-    class Tcp_Accepter : public Accepter {
+    class GENSIOCPP_DLL_PUBLIC Tcp_Accepter : public Accepter {
     public:
-	GENSIOCPP_DLL_PUBLIC
 	Tcp_Accepter(struct gensio_addr *addr, const char * const args[],
 		     struct gensio_os_funcs *o, Accepter_Event *cb);
 	Tcp_Accepter &operator=(const Gensio&) = delete;
@@ -1055,9 +918,8 @@ namespace gensio {
 						  struct gensio_accepter *a);
     };
 
-    class Udp_Accepter : public Accepter {
+    class GENSIOCPP_DLL_PUBLIC Udp_Accepter : public Accepter {
     public:
-	GENSIOCPP_DLL_PUBLIC
 	Udp_Accepter(struct gensio_addr *addr, const char * const args[],
 		     struct gensio_os_funcs *o, Accepter_Event *cb);
 	Udp_Accepter &operator=(const Gensio&) = delete;
@@ -1068,9 +930,8 @@ namespace gensio {
 						  struct gensio_accepter *a);
     };
 
-    class Unix_Accepter : public Accepter {
+    class GENSIOCPP_DLL_PUBLIC Unix_Accepter : public Accepter {
     public:
-	GENSIOCPP_DLL_PUBLIC
 	Unix_Accepter(struct gensio_addr *addr, const char * const args[],
 		      struct gensio_os_funcs *o, Accepter_Event *cb);
 	Unix_Accepter &operator=(const Gensio&) = delete;
@@ -1081,9 +942,8 @@ namespace gensio {
 						   struct gensio_accepter *a);
     };
 
-    class Sctp_Accepter : public Accepter {
+    class GENSIOCPP_DLL_PUBLIC Sctp_Accepter : public Accepter {
     public:
-	GENSIOCPP_DLL_PUBLIC
 	Sctp_Accepter(struct gensio_addr *addr, const char * const args[],
 		     struct gensio_os_funcs *o, Accepter_Event *cb);
 	Sctp_Accepter &operator=(const Gensio&) = delete;
@@ -1094,9 +954,8 @@ namespace gensio {
 						   struct gensio_accepter *a);
     };
 
-    class Stdio_Accepter : public Accepter {
+    class GENSIOCPP_DLL_PUBLIC Stdio_Accepter : public Accepter {
     public:
-	GENSIOCPP_DLL_PUBLIC
 	Stdio_Accepter(const char * const args[],
 		       struct gensio_os_funcs *o, Accepter_Event *cb);
 	Stdio_Accepter &operator=(const Gensio&) = delete;
@@ -1107,9 +966,8 @@ namespace gensio {
 						    struct gensio_accepter *a);
     };
 
-    class Dummy_Accepter : public Accepter {
+    class GENSIOCPP_DLL_PUBLIC Dummy_Accepter : public Accepter {
     public:
-	GENSIOCPP_DLL_PUBLIC
 	Dummy_Accepter(const char * const args[],
 		       struct gensio_os_funcs *o, Accepter_Event *cb);
 	Dummy_Accepter &operator=(const Gensio&) = delete;
@@ -1120,9 +978,8 @@ namespace gensio {
 						    struct gensio_accepter *a);
     };
 
-    class Conacc_Accepter : public Accepter {
+    class GENSIOCPP_DLL_PUBLIC Conacc_Accepter : public Accepter {
     public:
-	GENSIOCPP_DLL_PUBLIC
 	Conacc_Accepter(const char *str, const char * const args[],
 		       struct gensio_os_funcs *o, Accepter_Event *cb);
 	Conacc_Accepter &operator=(const Gensio&) = delete;
@@ -1133,9 +990,8 @@ namespace gensio {
 						     struct gensio_accepter *a);
     };
 
-    class Ssl_Accepter : public Accepter {
+    class GENSIOCPP_DLL_PUBLIC Ssl_Accepter : public Accepter {
     public:
-	GENSIOCPP_DLL_PUBLIC
 	Ssl_Accepter(Accepter *child, const char * const args[],
 		     struct gensio_os_funcs *o, Accepter_Event *cb);
 	Ssl_Accepter &operator=(const Gensio&) = delete;
@@ -1146,9 +1002,8 @@ namespace gensio {
 						  struct gensio_accepter *a);
     };
 
-    class Mux_Accepter : public Accepter {
+    class GENSIOCPP_DLL_PUBLIC Mux_Accepter : public Accepter {
     public:
-	GENSIOCPP_DLL_PUBLIC
 	Mux_Accepter(Accepter *child, const char * const args[],
 		     struct gensio_os_funcs *o, Accepter_Event *cb);
 	Mux_Accepter &operator=(const Gensio&) = delete;
@@ -1159,9 +1014,8 @@ namespace gensio {
 						  struct gensio_accepter *a);
     };
 
-    class Certauth_Accepter : public Accepter {
+    class GENSIOCPP_DLL_PUBLIC Certauth_Accepter : public Accepter {
     public:
-	GENSIOCPP_DLL_PUBLIC
 	Certauth_Accepter(Accepter *child, const char * const args[],
 			  struct gensio_os_funcs *o, Accepter_Event *cb);
 	Certauth_Accepter &operator=(const Gensio&) = delete;
@@ -1173,9 +1027,8 @@ namespace gensio {
 				struct gensio_accepter *a);
     };
 
-    class Telnet_Accepter : public Accepter {
+    class GENSIOCPP_DLL_PUBLIC Telnet_Accepter : public Accepter {
     public:
-	GENSIOCPP_DLL_PUBLIC
 	Telnet_Accepter(Accepter *child, const char * const args[],
 			struct gensio_os_funcs *o, Accepter_Event *cb);
 	Telnet_Accepter &operator=(const Gensio&) = delete;
@@ -1187,9 +1040,8 @@ namespace gensio {
 				struct gensio_accepter *a);
     };
 
-    class Msgdelim_Accepter : public Accepter {
+    class GENSIOCPP_DLL_PUBLIC Msgdelim_Accepter : public Accepter {
     public:
-	GENSIOCPP_DLL_PUBLIC
 	Msgdelim_Accepter(Accepter *child, const char * const args[],
 			  struct gensio_os_funcs *o, Accepter_Event *cb);
 	Msgdelim_Accepter &operator=(const Gensio&) = delete;
@@ -1201,9 +1053,8 @@ namespace gensio {
 				struct gensio_accepter *a);
     };
 
-    class Relpkt_Accepter : public Accepter {
+    class GENSIOCPP_DLL_PUBLIC Relpkt_Accepter : public Accepter {
     public:
-	GENSIOCPP_DLL_PUBLIC
 	Relpkt_Accepter(Accepter *child, const char * const args[],
 			struct gensio_os_funcs *o, Accepter_Event *cb);
 	Relpkt_Accepter &operator=(const Gensio&) = delete;
@@ -1215,9 +1066,8 @@ namespace gensio {
 				struct gensio_accepter *a);
     };
 
-    class Trace_Accepter : public Accepter {
+    class GENSIOCPP_DLL_PUBLIC Trace_Accepter : public Accepter {
     public:
-	GENSIOCPP_DLL_PUBLIC
 	Trace_Accepter(Accepter *child, const char * const args[],
 		       struct gensio_os_funcs *o, Accepter_Event *cb);
 	Trace_Accepter &operator=(const Gensio&) = delete;
@@ -1229,9 +1079,8 @@ namespace gensio {
 				struct gensio_accepter *a);
     };
 
-    class Perf_Accepter : public Accepter {
+    class GENSIOCPP_DLL_PUBLIC Perf_Accepter : public Accepter {
     public:
-	GENSIOCPP_DLL_PUBLIC
 	Perf_Accepter(Accepter *child, const char * const args[],
 		      struct gensio_os_funcs *o, Accepter_Event *cb);
 	Perf_Accepter &operator=(const Gensio&) = delete;
@@ -1247,15 +1096,12 @@ namespace gensio {
 
     // This is a waiter class.  You use one of these to wait for
     // things while running the event-driven code.
-    class Waiter {
+    class GENSIOCPP_DLL_PUBLIC Waiter {
     public:
-	GENSIOCPP_DLL_PUBLIC
 	Waiter(struct gensio_os_funcs *o);
-	GENSIOCPP_DLL_PUBLIC
 	~Waiter() { o->free_waiter(waiter); }
 
 	// Add one wakeup to the waiter.
-	GENSIOCPP_DLL_PUBLIC
 	void wake() { o->wake(waiter); }
 
 	// Wait for count wakeups to be delivered to the waiter, up to
@@ -1264,7 +1110,6 @@ namespace gensio {
 	// NULL, wait forever.  This will return either 0 if woken or
 	// GE_TIMEDOUT if not woken before the timeout.  Any other
 	// error will result in a gensio_error being thrown.
-	GENSIOCPP_DLL_PUBLIC
 	int wait(unsigned int count, gensio_time *timeout);
 
 	// Like the above but installs the given sigmask (if not NULL)
@@ -1272,7 +1117,6 @@ namespace gensio {
 	// waiting.  This will also return GE_INTERRUPTED in addition
 	// to 0 and GE_TIMEDOUT, an interrupt will not throw an
 	// exception.
-	GENSIOCPP_DLL_PUBLIC
 	int wait_intr(unsigned int count, gensio_time *timeout, void *sigmask);
 
     private:
