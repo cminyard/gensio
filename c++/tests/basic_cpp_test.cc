@@ -317,14 +317,19 @@ private:
     {
 	gensiods i;
 
+	if (portfound)
+	    return 0;
+
 	for (i = 0; i < *buflen; i++) {
-	    if (buf[i] == '\n') {
+	    if (portpos >= sizeof(port)) {
+		errstr = "Port from sub too large";
 		waiter->wake();
 		io->set_read_callback_enable(false);
 		return 0;
 	    }
-	    if (portpos >= sizeof(port)) {
-		errstr = "Port from sub too large";
+	    if (buf[i] == '\n' || buf[i] == '\r') {
+		port[portpos] = '\0';
+		portfound = true;
 		waiter->wake();
 		io->set_read_callback_enable(false);
 		return 0;
@@ -341,6 +346,7 @@ private:
 
     char port[100];
     gensiods portpos = 0;
+    bool portfound = false;
 
     const char *errstr = NULL;
     Waiter *waiter;
