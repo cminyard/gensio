@@ -22,7 +22,7 @@ namespace gensio {
     // get errors.  Most operations raise exceptions, unless otherwise
     // noted.  Note that the string is set, so what() will return the
     // string.  You can get the number with get_error().
-    class GENSIOCPP_DLL_PUBLIC gensio_error: public std::runtime_error {
+    class gensio_error: public std::runtime_error {
     public:
 	gensio_error(int ierr): std::runtime_error(gensio_err_to_str(ierr))
 	{
