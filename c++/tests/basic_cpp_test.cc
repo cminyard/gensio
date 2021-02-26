@@ -363,6 +363,7 @@ int main(int argc, char *argv[])
     if (argc > 1) {
 	do_server_test(o, argv[1]);
     } else {
+	char *s;
 	string ios("stdio(noredir-stderr),");
 	string ioc(test);
 	Gensio *sub;
@@ -372,7 +373,14 @@ int main(int argc, char *argv[])
 	int err, err2;
 
 	cout << "Starting subprogram to act as a server" << endl;
-	ios += argv[0];
+	s = gensio_quote_string(o, argv[0]);
+	if (!s) {
+	    cerr << "Out of memory duplicating argv[0]" << endl;
+	    err = 1;
+	    goto out;
+	}
+	ios += s;
+	o->free(o, s);
 	ios += " ";
 	ios += test;
 	ios += "0";
