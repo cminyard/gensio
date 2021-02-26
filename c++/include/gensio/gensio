@@ -322,8 +322,10 @@ namespace gensio {
 	Event *gcb;
 	struct gensio_os_funcs *go;
 
+	GENSIOCPP_DLL_PUBLIC
 	friend Gensio *gensio_alloc(struct gensio *io,
 				    struct gensio_os_funcs *o);
+	GENSIOCPP_DLL_PUBLIC
 	friend Gensio *gensio_alloc(Gensio *child, std::string str,
 				    struct gensio_os_funcs *o,
 				    Event *cb);
@@ -750,6 +752,7 @@ namespace gensio {
     private:
 	struct sergensio *sio;
 
+	GENSIOCPP_DLL_PUBLIC
 	friend Gensio *gensio_alloc(struct gensio *io,
 				    struct gensio_os_funcs *o);
     };
@@ -1016,8 +1019,10 @@ namespace gensio {
 	struct gensio_os_funcs *go;
 	Accepter_Event *gcb;
 
+	GENSIOCPP_DLL_PUBLIC
 	friend Accepter *gensio_acc_alloc(struct gensio_accepter *acc,
 					  struct gensio_os_funcs *o);
+	GENSIOCPP_DLL_PUBLIC
 	friend Accepter *gensio_acc_alloc(Accepter *child,
 					  std::string str,
 					  struct gensio_os_funcs *o,
