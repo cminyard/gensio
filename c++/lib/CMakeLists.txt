@@ -5,6 +5,7 @@ set(CPPLIBFILES gensio.cc)
 
 add_library(gensiocpp ${CPPLIBFILES})
 target_link_libraries(gensiocpp gensio)
+set_target_properties(gensiocpp PROPERTIES COMPILE_FLAGS "-DBUILDING_GENSIOCPP_DLL")
 if(BUILD_SHARED_LIBS AND ALSOSTATIC)
   add_library(gensiocpp-static STATIC ${CPPLIBFILES})
   SET_TARGET_PROPERTIES(gensiocpp-static PROPERTIES OUTPUT_NAME gensiocpp

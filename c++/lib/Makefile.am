@@ -1,5 +1,5 @@
 
-AM_CPPFLAGS = -DBUILDING_GENSIO_DLL -I$(top_srcdir)/c++/include
+AM_CPPFLAGS = -DBUILDING_GENSIOCPP_DLL -I$(top_srcdir)/c++/include
 
 lib_LTLIBRARIES = libgensiocpp.la
 
