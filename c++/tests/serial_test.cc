@@ -20,8 +20,12 @@ int main(int argc, char *argv[])
     }
     Waiter w(o);
     static const char *serial_parms[] = { "nouucplock=false", NULL };
+#ifdef _WIN32
+    Serial_Gensio *sg = new Serialdev("COM1,9600N81", serial_parms, o, NULL);
+#else
     Serial_Gensio *sg = new Serialdev("/dev/ttyEcho0,9600N81", serial_parms,
 				      o, NULL);
+#endif
     unsigned int v;
 
     err = 0;
