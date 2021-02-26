@@ -610,9 +610,10 @@ AC_OUTPUT([Makefile
 	c++/Makefile
 	c++/include/Makefile
 	c++/include/gensio/Makefile
+	c++/lib/Makefile
+	c++/lib/libgensiocpp.pc
 	c++/tests/Makefile
 	c++/examples/Makefile
-	c++/libgensiocpp.pc
 	glib/libgensioglib.pc
 	glib/Makefile
 	glib/include/Makefile
