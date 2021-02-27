@@ -130,8 +130,11 @@ close_socket(struct gensio_os_funcs *o, int fd)
 #else
     err = close(fd);
 #endif
-#ifdef ENABLE_INTERNAL_TRACE
-    /* Close should never fail, but don't crash in production builds. */
+#if defined(ENABLE_INTERNAL_TRACE) && !defined(_WIN32)
+    /*
+     * Close should never fail (well, except for windows), but don't crash
+     * in production builds.
+     */
     if (err) {
 	err = sock_errno;
 	assert(0);
