@@ -1196,7 +1196,17 @@ ccon_stderr_cb(struct gensio *io, void *user_data,
 	    char *nl, *c, *s;
 
 	    od->ccon_stderr[od->ccon_stderr_pos] = '\0';
+#ifdef _WIN32 /* Stupid Windows newlines. */
+	    nl = strchr(od->ccon_stderr, '\r');
+	    if (nl) {
+		if (*(nl + 1) == '\n')
+		    *nl++ = '\0';
+		else
+		    nl = NULL; /* Haven't received the whole newline yet. */
+	    }
+#else
 	    nl = strchr(od->ccon_stderr, '\n');
+#endif
 	    if (nl) {
 		*nl = '\0';
 		if (strcmp(od->ccon_stderr, "Done") == 0) {
