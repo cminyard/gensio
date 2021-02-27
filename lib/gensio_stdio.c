@@ -506,7 +506,7 @@ stdion_set_read_callback_enable(struct gensio *io, bool enabled)
     struct stdiona_data *nadata = schan->nadata;
 
     stdiona_lock(nadata);
-    if (schan->closed || !schan->io)
+    if ((!schan->in_close && schan->closed) || !schan->io)
 	goto out_unlock;
     schan->read_enabled = enabled;
     if (schan->in_read || schan->in_open ||
@@ -532,7 +532,7 @@ stdion_set_write_callback_enable(struct gensio *io, bool enabled)
     struct stdiona_data *nadata = schan->nadata;
 
     stdiona_lock(nadata);
-    if (schan->closed || schan->infd == -1)
+    if ((!schan->in_close && schan->closed) || schan->infd == -1)
 	goto out_unlock;
     if (schan->xmit_enabled == enabled)
 	goto out_unlock;
