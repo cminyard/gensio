@@ -2966,6 +2966,7 @@ gensio_i_os_err_to_err(struct gensio_os_funcs *o,
     case WSAEINPROGRESS:	err = GE_INPROGRESS; break;
     case WSAETIMEDOUT:		err = GE_TIMEDOUT; break;
     case WSAECONNRESET:		err = GE_REMCLOSE; break;
+    case WSAECONNABORTED:	err = GE_REMCLOSE; break;
     case WSAEHOSTUNREACH:	err = GE_HOSTDOWN; break;
     case WSAECONNREFUSED:	err = GE_CONNREFUSE; break;
     case WSAEADDRINUSE:		err = GE_ADDRINUSE; break;
@@ -2996,6 +2997,9 @@ gensio_i_os_err_to_err(struct gensio_os_funcs *o,
 	gensio_log(o, GENSIO_LOG_INFO,
 		   "Unhandled OS error in %s:%d: %s (%d)", caller, lineno,
 		   errbuf, oserr);
+	fprintf(stderr,
+	    "Unhandled OS error in %s:%d: %s (%d)", caller, lineno,
+	    errbuf, oserr); fflush(stderr);
     }
 
     return err;
