@@ -1608,10 +1608,10 @@ win_iod_oneway_clean(struct gensio_iod_win *wiod)
 }
 
 static int
-win_iod_oneway_init(struct gensio_iod_win *wiod, void *cb_data)
+win_iod_oneway_init(struct gensio_iod_win* wiod, void* cb_data)
 {
-    struct gensio_iod_win_oneway *iod = i_to_win_oneway(wiod);
-    struct gensio_os_funcs *o = wiod->r.f;
+    struct gensio_iod_win_oneway* iod = i_to_win_oneway(wiod);
+    struct gensio_os_funcs* o = wiod->r.f;
 
     iod->buf = gensio_circbuf_alloc(o, 2048);
     if (!iod->buf)
@@ -1624,10 +1624,12 @@ win_iod_oneway_init(struct gensio_iod_win *wiod, void *cb_data)
 	return GE_NOMEM;
     }
 
-    if (iod->readable)
+    if (iod->readable) {
 	wiod->threadfunc = win_oneway_in_thread;
-    else
+    } else {
 	wiod->threadfunc = win_oneway_out_thread;
+	wiod->write.ready = TRUE;
+    }
 
     wiod->clean = win_iod_oneway_clean;
     wiod->wake = win_iod_oneway_wake;
@@ -2087,6 +2089,7 @@ win_iod_twoway_init(struct gensio_iod_win *wiod)
 	iod->inbuf = NULL;
 	return GE_NOMEM;
     }
+    wiod->write.ready = TRUE;
 
     iod->wakeh = CreateEventA(NULL, FALSE, FALSE, NULL);
     if (!iod->wakeh) {
