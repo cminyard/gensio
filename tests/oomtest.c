@@ -1069,20 +1069,20 @@ con_cb(struct gensio *io, void *user_data,
 
 	    rv = gensio_write(io, &count, iodata + id->write_pos, wrsize, NULL);
 	    if (rv) {
-		gensio_set_write_callback_enable(io, false);
-		gensio_set_read_callback_enable(io, false);
 		if (rv == GE_SHUTDOWN || rv == GE_NOTREADY) {
 		    if (debug) {
 			printf("Write on shutdown or not ready socket\n");
 			fflush(stdout);
 		    }
 		} else {
-		    assert(debug || !rv || rv == GE_REMCLOSE);
 		    if (debug) {
 			printf("con_cb error 2: %s\n", gensio_err_to_str(rv));
 			fflush(stdout);
 		    }
+		    assert(debug || !rv || rv == GE_REMCLOSE);
 		}
+		gensio_set_write_callback_enable(io, false);
+		gensio_set_read_callback_enable(io, false);
 		id->err = rv;
 		o->wake(od->waiter);
 	    } else {
