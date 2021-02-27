@@ -2981,6 +2981,7 @@ gensio_i_os_err_to_err(struct gensio_os_funcs *o,
 
     case ERROR_NOT_ENOUGH_MEMORY: err = GE_NOMEM; break;
     case ERROR_BROKEN_PIPE:	err = GE_REMCLOSE; break;
+    case ERROR_NO_DATA:		err = GE_REMCLOSE; break;
     case ERROR_FILE_NOT_FOUND:	err = GE_NOTFOUND; break;
     case ERROR_NOT_FOUND:	err = GE_NOTFOUND; break;
     default:			err = GE_OSERR;
