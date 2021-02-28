@@ -187,7 +187,7 @@ struct gensio_data {
 
     BOOL freed;
 
-    CRITICAL_SECTION lock;
+    CRITICAL_SECTION glock;
     struct gensio_list waiting_iods;
     struct gensio_list all_iods;
 
@@ -268,9 +268,9 @@ queue_iod(struct gensio_iod_win *iod)
 {
     struct gensio_data *d = iod->r.f->user_data;
 
-    EnterCriticalSection(&d->lock);
+    EnterCriticalSection(&d->glock);
     i_queue_iod(iod);
-    LeaveCriticalSection(&d->lock);
+    LeaveCriticalSection(&d->glock);
 }
 
 static DWORD WINAPI
@@ -339,9 +339,9 @@ win_alloc_iod(struct gensio_os_funcs *o, unsigned int size, int fd,
 	    goto out_err;
     }
 
-    EnterCriticalSection(&d->lock);
+    EnterCriticalSection(&d->glock);
     gensio_list_add_tail(&d->all_iods, &iod->all_link);
-    LeaveCriticalSection(&d->lock);
+    LeaveCriticalSection(&d->glock);
     *riod = iod;
     return 0;
 
@@ -601,9 +601,9 @@ win_stop_timer_now(struct gensio_timer *timer)
     struct gensio_data *d = o->user_data;
 
     if (timer->val.state == WIN_TIMER_IN_QUEUE) {
-	EnterCriticalSection(&d->lock);
+	EnterCriticalSection(&d->glock);
 	gensio_list_rm(&d->waiting_iods, &timer->val.i.link);
-	LeaveCriticalSection(&d->lock);
+	LeaveCriticalSection(&d->glock);
     } else if (timer->val.state == WIN_TIMER_IN_HEAP) {
 	theap_remove(&d->timer_heap, timer);
     }
@@ -757,20 +757,20 @@ win_runner_check(struct gensio_iod_win *iod)
     struct gensio_runner *r = i_to_runner(iod);
     BOOL freed;
 
-    EnterCriticalSection(&d->lock);
+    EnterCriticalSection(&d->glock);
     if (r->freed) {
-	LeaveCriticalSection(&d->lock);
+	LeaveCriticalSection(&d->glock);
 	o->release_iod(&r->i.r);
 	return;
     }
     r->running = FALSE;
     r->in_handler = TRUE;
-    LeaveCriticalSection(&d->lock);
+    LeaveCriticalSection(&d->glock);
     r->handler(r, r->cb_data);
-    EnterCriticalSection(&d->lock);
+    EnterCriticalSection(&d->glock);
     r->in_handler = FALSE;
     freed = r->freed;
-    LeaveCriticalSection(&d->lock);
+    LeaveCriticalSection(&d->glock);
     if (freed)
 	o->release_iod(&r->i.r);
 }
@@ -801,7 +801,7 @@ win_free_runner(struct gensio_runner *runner)
     struct gensio_os_funcs *o = runner->i.r.f;
     struct gensio_data *d = o->user_data;
 
-    EnterCriticalSection(&d->lock);
+    EnterCriticalSection(&d->glock);
     if (!runner->freed) {
 	runner->freed = TRUE;
 	if (!runner->in_handler) {
@@ -809,11 +809,13 @@ win_free_runner(struct gensio_runner *runner)
 		gensio_list_rm(&d->waiting_iods, &runner->i.link);
 		runner->running = FALSE;
 	    }
+	    LeaveCriticalSection(&d->glock);
 	    o->release_iod(&runner->i.r);
+	    return;
 	}
 	/* If in the handler, nothing to do, it will catch it on return. */
     }
-    LeaveCriticalSection(&d->lock);
+    LeaveCriticalSection(&d->glock);
 }
 
 static int
@@ -823,7 +825,7 @@ win_run(struct gensio_runner *runner)
     struct gensio_data *d = o->user_data;
     int rv = 0;
 
-    EnterCriticalSection(&d->lock);
+    EnterCriticalSection(&d->glock);
     if (runner->freed) {
 	rv = GE_INVAL;
     } else if (runner->running) {
@@ -832,7 +834,7 @@ win_run(struct gensio_runner *runner)
 	runner->running = TRUE;
 	i_queue_iod(&runner->i);
     }
-    LeaveCriticalSection(&d->lock);
+    LeaveCriticalSection(&d->glock);
 
     return rv;
 }
@@ -897,7 +899,7 @@ win_check_iods(struct gensio_os_funcs *o)
 {
     struct gensio_data *d = o->user_data;
 
-    EnterCriticalSection(&d->lock);
+    EnterCriticalSection(&d->glock);
     while (!gensio_list_empty(&d->waiting_iods)) {
 	struct gensio_link *l = gensio_list_first(&d->waiting_iods);
 	struct gensio_iod_win *iod;
@@ -905,11 +907,11 @@ win_check_iods(struct gensio_os_funcs *o)
 	iod = gensio_container_of(l, struct gensio_iod_win, link);
 	gensio_list_rm(&d->waiting_iods, l);
 
-	LeaveCriticalSection(&d->lock);
+	LeaveCriticalSection(&d->glock);
 	iod->check(iod);
-	EnterCriticalSection(&d->lock);
+	EnterCriticalSection(&d->glock);
     }
-    LeaveCriticalSection(&d->lock);
+    LeaveCriticalSection(&d->glock);
 }
 
 static int
@@ -1021,13 +1023,16 @@ static void win_free_funcs(struct gensio_os_funcs *o)
 {
     struct gensio_data *d = o->user_data;
 
-    EnterCriticalSection(&d->lock);
+    EnterCriticalSection(&d->glock);
     if (!d->freed) {
 	d->freed = TRUE;
-	if (gensio_list_empty(&d->all_iods))
+	if (gensio_list_empty(&d->all_iods)) {
+	    LeaveCriticalSection(&d->glock);
 	    win_finish_free(o);
+	    return;
+	}
     }
-    LeaveCriticalSection(&d->lock);
+    LeaveCriticalSection(&d->glock);
 }
 
 static void win_call_once(struct gensio_os_funcs *o, struct gensio_once *once,
@@ -2284,9 +2289,9 @@ static void win_release_iod(struct gensio_iod *iiod)
     struct gensio_iod_win *iod = i_to_win(iiod);
     BOOL do_free = FALSE;
 
-    EnterCriticalSection(&d->lock);
+    EnterCriticalSection(&d->glock);
     iod->done = TRUE;
-    LeaveCriticalSection(&d->lock);
+    LeaveCriticalSection(&d->glock);
     if (iod->shutdown) {
 	iod->shutdown(iod);
     } else if (iod->threadh) {
@@ -2294,12 +2299,12 @@ static void win_release_iod(struct gensio_iod *iiod)
 	WaitForSingleObject(iod->threadh, INFINITE);
     }
 
-    EnterCriticalSection(&d->lock);
+    EnterCriticalSection(&d->glock);
     if (gensio_list_link_inlist(&iod->link))
 	gensio_list_rm(&d->waiting_iods, &iod->link);
     gensio_list_rm(&d->all_iods, &iod->all_link);
     do_free = d->freed && gensio_list_empty(&d->all_iods);
-    LeaveCriticalSection(&d->lock);
+    LeaveCriticalSection(&d->glock);
 
     if (iod->clean)
 	iod->clean(iod);
@@ -2821,7 +2826,7 @@ win_finish_free(struct gensio_os_funcs *o)
     }
     if (d->waiter)
 	CloseHandle(d->waiter);
-    DeleteCriticalSection(&d->lock);
+    DeleteCriticalSection(&d->glock);
     DeleteCriticalSection(&d->timer_lock);
     DeleteCriticalSection(&d->once_lock);
     free(d);
@@ -2846,7 +2851,7 @@ gensio_win_funcs_alloc(struct gensio_os_funcs **ro)
 	return GE_NOMEM;
     }
     memset(d, 0, sizeof(*d));
-    InitializeCriticalSection(&d->lock);
+    InitializeCriticalSection(&d->glock);
     InitializeCriticalSection(&d->timer_lock);
     InitializeCriticalSection(&d->once_lock);
     gensio_list_init(&d->waiting_iods);
