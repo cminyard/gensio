@@ -552,7 +552,7 @@ win_timer_check(struct gensio_iod_win *iod)
     LeaveCriticalSection(&d->timer_lock);
     t->val.handler(t, t->val.cb_data);
     EnterCriticalSection(&d->timer_lock);
-    if (t->val.done) {
+    if (t->val.done && !t->val.freed) {
 	void (*done)(struct gensio_timer *t, void *cb_data) = t->val.done;
 	void *cb_data = t->val.done_cb_data;
 
