@@ -547,21 +547,25 @@ win_timer_check(struct gensio_iod_win *iod)
     struct gensio_timer *t = i_to_timer(iod);
 
     EnterCriticalSection(&d->timer_lock);
-    t->val.state = WIN_TIMER_STOPPED;
-    t->val.in_handler = TRUE;
-    LeaveCriticalSection(&d->timer_lock);
-    t->val.handler(t, t->val.cb_data);
-    EnterCriticalSection(&d->timer_lock);
+    if (t->val.state != WIN_TIMER_STOPPED) {
+	t->val.state = WIN_TIMER_STOPPED;
+	t->val.in_handler = TRUE;
+	LeaveCriticalSection(&d->timer_lock);
+	t->val.handler(t, t->val.cb_data);
+	EnterCriticalSection(&d->timer_lock);
+	t->val.in_handler = FALSE;
+    }
     if (t->val.done && !t->val.freed) {
 	void (*done)(struct gensio_timer *t, void *cb_data) = t->val.done;
 	void *cb_data = t->val.done_cb_data;
 
 	t->val.done = NULL;
+	t->val.in_handler = TRUE;
 	LeaveCriticalSection(&d->timer_lock);
 	done(t, cb_data);
 	EnterCriticalSection(&d->timer_lock);
+	t->val.in_handler = FALSE;
     }
-    t->val.in_handler = FALSE;
     if (t->val.freed) {
 	LeaveCriticalSection(&d->timer_lock);
 	o->release_iod(&t->val.i.r);
