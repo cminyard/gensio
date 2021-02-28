@@ -248,6 +248,7 @@ private:
 
     void new_connection(Accepter *acc, Gensio *g) override
     {
+	io = g;
 	g->set_event_handler(ev);
 	ev = NULL;
 	g->set_read_callback_enable(true);
@@ -260,6 +261,7 @@ private:
 	waiter->wake();
     }
 
+    Gensio *io;
     Waiter *waiter;
     Event *ev;
 };
