@@ -30,7 +30,9 @@ gensio_circbuf_next_write_area(struct gensio_circbuf *c,
     gensiods end;
 
     end = (c->pos + c->size) % c->bufsize;
-    if (end >= c->pos)
+    if (c->size == c->bufsize)
+	*size = 0;
+    else if (end >= c->pos)
 	/* Unwrapped or empty buffer, write to the end. */
 	*size = c->bufsize - end;
     else
@@ -53,7 +55,9 @@ gensio_circbuf_next_read_area(struct gensio_circbuf *c,
     gensiods end;
 
     end = (c->pos + c->size) % c->bufsize;
-    if (end > c->pos)
+    if (c->size == 0)
+	*size = 0;
+    else if (end > c->pos)
 	/* Unwrapped buffer, read the whole thing. */
 	*size = c->size;
     else
@@ -65,8 +69,7 @@ gensio_circbuf_next_read_area(struct gensio_circbuf *c,
 void
 gensio_circbuf_data_removed(struct gensio_circbuf *c, gensiods len)
 {
-    if (len > c->size)
-	len = c->size;
+    assert(len <= c->size);
     c->size -= len;
     c->pos = (c->pos + len) % c->bufsize;
 }
@@ -104,6 +107,7 @@ gensio_circbuf_sg_write(struct gensio_circbuf *c,
 		size = buflen;
 	    memcpy(pos, buf, size);
 	    gensio_circbuf_data_added(c, size);
+	    buf += size;
 	    buflen -= size;
 	    count += size;
 	}
