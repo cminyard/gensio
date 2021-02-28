@@ -284,7 +284,11 @@ get_echo_dev(struct gensio_os_funcs *o, const char *testname,
 	    return false;
 	}
     } else {
+#ifdef _WIN32
+	e = "COM1";
+#else
 	e = "/dev/ttyEcho0";
+#endif
     }
     if (!file_is_accessible_dev(e)) {
 	printf("Serial echo device '%s' doesn't exist or is not accessible,\n"
