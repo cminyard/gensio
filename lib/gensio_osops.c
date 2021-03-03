@@ -986,6 +986,7 @@ typedef struct termios g_termios;
 
 struct gensio_unix_termios {
     g_termios orig_termios;
+    int orig_mctl;
     g_termios curr_termios;
     bool break_set;
 #if HAVE_DECL_TIOCSRS485
@@ -1104,6 +1105,7 @@ gensio_unix_setup_termios(struct gensio_os_funcs *o, int fd,
     }
 
     t->orig_termios = t->curr_termios;
+    ioctl(fd, TIOCMGET, &t->orig_mctl);
 
     s_cfmakeraw(&t->curr_termios);
     t->curr_termios.c_cflag &= ~(CRTSCTS | PARODD);
@@ -1130,6 +1132,7 @@ gensio_unix_cleanup_termios(struct gensio_os_funcs *o,
 {
     if (!*it)
 	return;
+    ioctl(fd, TIOCMSET, &(*it)->orig_mctl);
     set_termios(fd, &(*it)->orig_termios);
     o->free(o, *it);
     *it = NULL;
