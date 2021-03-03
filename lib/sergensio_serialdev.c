@@ -458,6 +458,12 @@ struct sterm_data {
 
     g_termios default_termios;
     g_termios orig_termios;
+    int orig_mctl;
+
+    bool rts_set;
+    bool rts_val;
+    bool dtr_set;
+    bool dtr_val;
 
     bool deferred_op_pending;
     struct gensio_runner *deferred_op_runner;
@@ -1211,6 +1217,7 @@ sterm_check_close_drain(void *handler_data, enum gensio_ll_close_state state,
  out_rm_uucp:
     if (!err) {
 	do_flush(sdata->fd, TCOFLUSH);
+	ioctl(sdata->fd, TIOCMSET, &sdata->orig_mctl);
 	set_termios(sdata->fd, &sdata->orig_termios);
 	if (!sdata->no_uucp_lock)
 	    uucp_rm_lock(sdata->devname);
@@ -1290,12 +1297,46 @@ sterm_sub_open(void *handler_data, int *fd)
 	goto out_uucp;
     }
 
+    ioctl(sdata->fd, TIOCMGET, &sdata->orig_mctl);
     get_termios(sdata->fd, &sdata->orig_termios);
 
     if (!sdata->write_only &&
 		set_termios(sdata->fd, &sdata->default_termios) == -1) {
 	err = errno;
 	goto out_restore;
+    }
+
+    if (!sdata->write_only) {
+	int nval;
+
+	if (sdata->dtr_set) {
+	    if (ioctl(sdata->fd, TIOCMGET, &nval) == -1) {
+		err = errno;
+		goto out_uucp;
+	    }
+	    if (sdata->rts_val)
+		nval |= TIOCM_DTR;
+	    else
+		nval &= ~TIOCM_DTR;
+	    if (ioctl(sdata->fd, TIOCMSET, &nval) == -1) {
+		err = errno;
+		goto out_uucp;
+	    }
+	}
+	if (sdata->rts_set) {
+	    if (ioctl(sdata->fd, TIOCMGET, &nval) == -1) {
+		err = errno;
+		goto out_uucp;
+	    }
+	    if (sdata->rts_val)
+		nval |= TIOCM_RTS;
+	    else
+		nval &= ~TIOCM_RTS;
+	    if (ioctl(sdata->fd, TIOCMSET, &nval) == -1) {
+		err = errno;
+		goto out_uucp;
+	    }
+	}
     }
 
     if (!sdata->write_only && !sdata->disablebreak) {
@@ -1327,6 +1368,7 @@ sterm_sub_open(void *handler_data, int *fd)
     return 0;
 
  out_restore:
+    ioctl(sdata->fd, TIOCMSET, &sdata->orig_mctl);
     set_termios(sdata->fd, &sdata->orig_termios);
  out_uucp:
     if (!sdata->no_uucp_lock)
@@ -1556,7 +1598,8 @@ handle_speedstr(g_termios *termio, const char *str, bool custspeed)
 }
 
 static int
-process_termios_parm(g_termios *termio, const char *parm, bool custspeed)
+process_termios_parm(struct sterm_data *sdata, g_termios *termio,
+		     const char *parm, bool custspeed)
 {
     int rv = 0, val;
     const char *str;
@@ -1580,6 +1623,12 @@ process_termios_parm(g_termios *termio, const char *parm, bool custspeed)
 	    termio->c_cflag |= HUPCL;
 	else
 	    termio->c_cflag &= ~HUPCL;
+    } else if (gensio_check_keybool(parm, "dtr", &bval) > 0) {
+	sdata->dtr_set = true;
+	sdata->dtr_val = bval;
+    } else if (gensio_check_keybool(parm, "rts", &bval) > 0) {
+	sdata->rts_set = true;
+	sdata->rts_val = bval;
 
     /* Everything below is deprecated. */
     } else if (strcasecmp(parm, "1STOPBIT") == 0) {
@@ -1701,7 +1750,7 @@ sergensio_process_parms(struct sterm_data *sdata)
 	    sdata->disablebreak = false;
 	    continue;
 	}
-	err = process_termios_parm(&sdata->default_termios, argv[i],
+	err = process_termios_parm(sdata, &sdata->default_termios, argv[i],
 				   sdata->allow_custspeed);
 	if (err)
 	    break;
