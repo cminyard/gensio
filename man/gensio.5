@@ -635,6 +635,12 @@ Ignore/don't ignore the modem control lines.  The default it to not
 ignore them (false).  However, if you don't ignore the modem control
 lines, it can result in long shutdown delays.
 .TP
+.B dtr[=on|off]
+Force the DTR line to be on or off when the gensio is opened.
+.TP
+.B rts[=on|off]
+Force the RTS line to be on or off when the gensio is opened.
+.TP
 .B hangup-when-done[=true|false]
 Lower/don't lower the modem control lines when the gensio is closed.
 The default is to not lower the modem control lines on close (false).

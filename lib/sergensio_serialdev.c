@@ -128,6 +128,11 @@ struct sterm_data {
     int def_hupcl;
     char *rs485;
 
+    bool rts_set;
+    bool rts_val;
+    bool dtr_set;
+    bool dtr_val;
+
     bool deferred_op_pending;
     struct gensio_runner *deferred_op_runner;
     struct termio_op_q *termio_q;
@@ -890,6 +895,18 @@ sterm_sub_open(void *handler_data, struct gensio_iod **riod)
 	err = o->iod_control(sdata->iod, GENSIO_IOD_CONTROL_APPLY, false, 0);
 	if (err)
 	    goto out_uucp;
+	if (sdata->rts_set) {
+	    err = o->iod_control(sdata->iod, GENSIO_IOD_CONTROL_RTS, false,
+				 sdata->rts_val);
+	    if (err)
+		goto out_uucp;
+	}
+	if (sdata->dtr_set) {
+	    err = o->iod_control(sdata->iod, GENSIO_IOD_CONTROL_DTR, false,
+				 sdata->dtr_val);
+	    if (err)
+		goto out_uucp;
+	}
     }
 
     if (!sdata->write_only && !sdata->disablebreak) {
@@ -1169,6 +1186,12 @@ process_defserial_parm(struct sterm_data *sdata, const char *parm)
 	sdata->def_local = bval;
     } else if (gensio_check_keybool(parm, "hangup-when-done", &bval) > 0) {
 	sdata->def_hupcl = bval;
+    } else if (gensio_check_keybool(parm, "dtr", &bval) > 0) {
+	sdata->dtr_set = true;
+	sdata->dtr_val = bval;
+    } else if (gensio_check_keybool(parm, "rts", &bval) > 0) {
+	sdata->rts_set = true;
+	sdata->rts_val = bval;
 
     /* Everything below is deprecated. */
     } else if (strcasecmp(parm, "1STOPBIT") == 0) {
