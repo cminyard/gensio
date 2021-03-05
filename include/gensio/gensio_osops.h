@@ -14,6 +14,10 @@
 #ifndef GENSIO_OSOPS_H
 #define GENSIO_OSOPS_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include <gensio/gensio_dllvisibility.h>
 #include <gensio/gensio_os_funcs.h>
 
@@ -171,4 +175,7 @@ void *gensio_i_zalloc(struct gensio_memtrack *m, unsigned int size);
 GENSIO_DLL_PUBLIC
 void gensio_i_free(struct gensio_memtrack *m, void *data);
 
+#ifdef __cplusplus
+}
+#endif
 #endif /* GENSIO_OSOPS_H */
