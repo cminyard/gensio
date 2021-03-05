@@ -12,7 +12,10 @@
 #include <stdexcept>
 #include <string>
 #include <memory>
+#include <atomic>
 #include <gensio/gensio_dllvisibility>
+
+#include <iostream>
 
 namespace gensio {
     // Incuding this in the gensio namespace to keep things neat, and
@@ -35,6 +38,70 @@ namespace gensio {
 	int get_error() { return err; };
     private:
 	int err;
+    };
+
+    // This is a wrapper for gensio_os_funcs that makes using it a lot
+    // cleaner.  The default constructor automatically allocates the
+    // default, destruction takes place automatically.
+    // This is a smart pointer like object.
+    class Os_Funcs {
+    public:
+	// Allocate the default os function handlers for the platform.
+	// See gensio_default_os_hnd.3 for details.
+	Os_Funcs(int wait_sig)
+	{
+	    int err;
+
+	    refcnt = new std::atomic<unsigned int>(1);
+	    err = gensio_default_os_hnd(wait_sig, &osf);
+	    if (err)
+		throw gensio_error(err);
+	}
+
+	// Allocate an os function handler object from an existing os
+	// handler.  Note that this takes over freeing the OS handler.
+	Os_Funcs(struct gensio_os_funcs *o)
+	{
+	    refcnt = new std::atomic<unsigned int>(1);
+	    osf = o;
+	}
+
+	// Assignment contructor
+	Os_Funcs& operator=(const Os_Funcs &o)
+	{
+	    refcnt = o.refcnt;
+	    osf = o.osf;
+	    ++*refcnt;
+	    return *this;
+	}
+
+	// Copy constructor
+	Os_Funcs(const Os_Funcs &o) {
+	    refcnt = o.refcnt;
+	    osf = o.osf;
+	    ++*refcnt;
+	}
+
+	// Instead of defining all our own functions, which would just
+	// be direct wrapper, we just do this so we return the base os
+	// funcs structure for a ->.
+	struct gensio_os_funcs * operator->() { return osf; }
+
+	// Automatically convert this object when a struct
+	// gensio_os_funcs is asked for.
+	operator struct gensio_os_funcs * () const { return osf; }
+
+	~Os_Funcs()
+	{
+	    if (refcnt->fetch_sub(1) == 1) {
+		osf->free_funcs(osf);
+		delete refcnt;
+	    }
+	}
+
+    private:
+	struct gensio_os_funcs *osf;
+	std::atomic<unsigned int> *refcnt;
     };
 
     class Gensio;
@@ -112,7 +179,7 @@ namespace gensio {
     // Note that will return a subclass of Gensio depending on the
     // particular string provided.
     GENSIOCPP_DLL_PUBLIC
-    Gensio *gensio_alloc(std::string str, struct gensio_os_funcs *o,
+    Gensio *gensio_alloc(std::string str, Os_Funcs &o,
 			 Event *cb);
 
     // Like the above, but stacks the newly created gensio as defined
@@ -120,7 +187,7 @@ namespace gensio {
     // dynamically add gensios to a gensio stack.
     GENSIOCPP_DLL_PUBLIC
     Gensio *gensio_alloc(Gensio *child, std::string str,
-			 struct gensio_os_funcs *o, Event *cb);
+			 Os_Funcs &o, Event *cb);
 
     // This is a gensio, the central class in the gensio framework.
     // This is the thing that you use to send/receive data and control
@@ -268,7 +335,7 @@ namespace gensio {
 			 gensio_time *timeout);
 
 	// Return the os funcs assigned to a gensio.
-	inline struct gensio_os_funcs *get_os_funcs() { return go; }
+	inline Os_Funcs &get_os_funcs() { return go; }
 
 	// Return the event handler assigned to a gensio.
 	inline Event *get_cb() { return gcb; }
@@ -280,20 +347,20 @@ namespace gensio {
     protected:
 	// Subclasses can use this to initialize the gensio object.
 	virtual void set_gensio(struct gensio *io, bool set_cb);
-	Gensio(struct gensio_os_funcs *o, Event *cb);
+	Gensio(Os_Funcs &o, Event *cb): go(o), gcb(cb) { }
 	virtual ~Gensio() { }
 
     private:
 	struct gensio *io;
 	Event *gcb;
-	struct gensio_os_funcs *go;
+	Os_Funcs go;
 
 	GENSIOCPP_DLL_PUBLIC
 	friend Gensio *gensio_alloc(struct gensio *io,
-				    struct gensio_os_funcs *o);
+				    Os_Funcs &o);
 	GENSIOCPP_DLL_PUBLIC
 	friend Gensio *gensio_alloc(Gensio *child, std::string str,
-				    struct gensio_os_funcs *o,
+				    Os_Funcs &o,
 				    Event *cb);
 	friend void gensio_cpp_freed(struct gensio *io,
 				     struct gensio_frdata *frdata);
@@ -304,7 +371,7 @@ namespace gensio {
     // can tie in to the C++ frameworks.
     GENSIOCPP_DLL_PUBLIC
     void gensio_add_class(const char *name,
-			  Gensio *(*allocator)(struct gensio_os_funcs *o,
+			  Gensio *(*allocator)(Os_Funcs &o,
 					       struct gensio *io));
 
     // Subclasses of Gensio.  This allows direct allocation of a
@@ -313,221 +380,221 @@ namespace gensio {
     class GENSIOCPP_DLL_PUBLIC Tcp: public Gensio {
     public:
 	Tcp(struct gensio_addr *addr, const char * const args[],
-	    struct gensio_os_funcs *o, Event *cb);
+	    Os_Funcs &o, Event *cb);
 
 	Tcp &operator=(const Gensio&) = delete;
     private:
 	virtual ~Tcp() { }
-	Tcp(struct gensio_os_funcs *o) : Gensio(o, NULL) { }
-	friend Gensio *alloc_tcp_class(struct gensio_os_funcs *o,
+	Tcp(Os_Funcs &o) : Gensio(o, NULL) { }
+	friend Gensio *alloc_tcp_class(Os_Funcs &o,
 				       struct gensio *io);
     };
 
     class GENSIOCPP_DLL_PUBLIC Udp: public Gensio {
     public:
 	Udp(struct gensio_addr *addr, const char * const args[],
-	    struct gensio_os_funcs *o, Event *cb);
+	    Os_Funcs &o, Event *cb);
 
 	Udp &operator=(const Gensio&) = delete;
     private:
 	virtual ~Udp() { }
-	Udp(struct gensio_os_funcs *o) : Gensio(o, NULL) { }
-	friend Gensio *alloc_udp_class(struct gensio_os_funcs *o,
+	Udp(Os_Funcs &o) : Gensio(o, NULL) { }
+	friend Gensio *alloc_udp_class(Os_Funcs &o,
 				       struct gensio *io);
     };
 
     class GENSIOCPP_DLL_PUBLIC Unix: public Gensio {
     public:
 	Unix(struct gensio_addr *addr, const char * const args[],
-	     struct gensio_os_funcs *o, Event *cb);
+	     Os_Funcs &o, Event *cb);
 
 	Unix &operator=(const Gensio&) = delete;
     private:
 	virtual ~Unix() { }
-	Unix(struct gensio_os_funcs *o) : Gensio(o, NULL) { }
-	friend Gensio *alloc_unix_class(struct gensio_os_funcs *o,
+	Unix(Os_Funcs &o) : Gensio(o, NULL) { }
+	friend Gensio *alloc_unix_class(Os_Funcs &o,
 					struct gensio *io);
     };
 
     class GENSIOCPP_DLL_PUBLIC Sctp: public Gensio {
     public:
 	Sctp(struct gensio_addr *addr, const char * const args[],
-	     struct gensio_os_funcs *o, Event *cb);
+	     Os_Funcs &o, Event *cb);
 
 	Sctp &operator=(const Gensio&) = delete;
     private:
 	virtual ~Sctp() { }
-	Sctp(struct gensio_os_funcs *o) : Gensio(o, NULL) { }
-	friend Gensio *alloc_sctp_class(struct gensio_os_funcs *o,
+	Sctp(Os_Funcs &o) : Gensio(o, NULL) { }
+	friend Gensio *alloc_sctp_class(Os_Funcs &o,
 					struct gensio *io);
     };
 
     class GENSIOCPP_DLL_PUBLIC Stdio: public Gensio {
     public:
 	Stdio(const char *const argv[], const char * const args[],
-	      struct gensio_os_funcs *o, Event *cb);
+	      Os_Funcs &o, Event *cb);
 
 	Stdio &operator=(const Gensio&) = delete;
     private:
 	virtual ~Stdio() { }
-	Stdio(struct gensio_os_funcs *o) : Gensio(o, NULL) { }
-	friend Gensio *alloc_stdio_class(struct gensio_os_funcs *o,
+	Stdio(Os_Funcs &o) : Gensio(o, NULL) { }
+	friend Gensio *alloc_stdio_class(Os_Funcs &o,
 					 struct gensio *io);
     };
 
     class GENSIOCPP_DLL_PUBLIC Pty: public Gensio {
     public:
 	Pty(const char *const argv[], const char * const args[],
-	    struct gensio_os_funcs *o, Event *cb);
+	    Os_Funcs &o, Event *cb);
 
 	Pty &operator=(const Gensio&) = delete;
     private:
 	virtual ~Pty() { }
-	Pty(struct gensio_os_funcs *o) : Gensio(o, NULL) { }
-	friend Gensio *alloc_pty_class(struct gensio_os_funcs *o,
+	Pty(Os_Funcs &o) : Gensio(o, NULL) { }
+	friend Gensio *alloc_pty_class(Os_Funcs &o,
 				       struct gensio *io);
     };
 
     class GENSIOCPP_DLL_PUBLIC Echo: public Gensio {
     public:
 	Echo(const char * const args[],
-	     struct gensio_os_funcs *o, Event *cb);
+	     Os_Funcs &o, Event *cb);
 
 	Echo &operator=(const Gensio&) = delete;
     private:
 	virtual ~Echo() { }
-	Echo(struct gensio_os_funcs *o) : Gensio(o, NULL) { }
-	friend Gensio *alloc_echo_class(struct gensio_os_funcs *o,
+	Echo(Os_Funcs &o) : Gensio(o, NULL) { }
+	friend Gensio *alloc_echo_class(Os_Funcs &o,
 					struct gensio *io);
     };
 
     class GENSIOCPP_DLL_PUBLIC File: public Gensio {
     public:
 	File(const char * const args[],
-	     struct gensio_os_funcs *o, Event *cb);
+	     Os_Funcs &o, Event *cb);
 
 	File &operator=(const Gensio&) = delete;
     private:
 	virtual ~File() { }
-	File(struct gensio_os_funcs *o) : Gensio(o, NULL) { }
-	friend Gensio *alloc_file_class(struct gensio_os_funcs *o,
+	File(Os_Funcs &o) : Gensio(o, NULL) { }
+	friend Gensio *alloc_file_class(Os_Funcs &o,
 					struct gensio *io);
     };
 
     class GENSIOCPP_DLL_PUBLIC Mdns: public Gensio {
     public:
 	Mdns(const char *str, const char * const args[],
-	     struct gensio_os_funcs *o, Event *cb);
+	     Os_Funcs &o, Event *cb);
 
 	Mdns &operator=(const Gensio&) = delete;
     private:
 	virtual ~Mdns() { }
-	Mdns(struct gensio_os_funcs *o) : Gensio(o, NULL) { }
-	friend Gensio *alloc_mdns_class(struct gensio_os_funcs *o,
+	Mdns(Os_Funcs &o) : Gensio(o, NULL) { }
+	friend Gensio *alloc_mdns_class(Os_Funcs &o,
 					struct gensio *io);
     };
 
     class GENSIOCPP_DLL_PUBLIC Ssl: public Gensio {
     public:
 	Ssl(Gensio *child, const char * const args[],
-	    struct gensio_os_funcs *o, Event *cb);
+	    Os_Funcs &o, Event *cb);
 
 	Ssl &operator=(const Gensio&) = delete;
     private:
 	virtual ~Ssl() { }
-	Ssl(struct gensio_os_funcs *o) : Gensio(o, NULL) { }
-	friend Gensio *alloc_ssl_class(struct gensio_os_funcs *o,
+	Ssl(Os_Funcs &o) : Gensio(o, NULL) { }
+	friend Gensio *alloc_ssl_class(Os_Funcs &o,
 				       struct gensio *io);
     };
 
     class GENSIOCPP_DLL_PUBLIC Mux: public Gensio {
     public:
 	Mux(Gensio *child, const char * const args[],
-	    struct gensio_os_funcs *o, Event *cb);
+	    Os_Funcs &o, Event *cb);
 
 	Mux &operator=(const Gensio&) = delete;
     private:
 	virtual ~Mux() { }
-	Mux(struct gensio_os_funcs *o) : Gensio(o, NULL) { }
-	friend Gensio *alloc_mux_class(struct gensio_os_funcs *o,
+	Mux(Os_Funcs &o) : Gensio(o, NULL) { }
+	friend Gensio *alloc_mux_class(Os_Funcs &o,
 				       struct gensio *io);
     };
 
     class GENSIOCPP_DLL_PUBLIC Certauth: public Gensio {
     public:
 	Certauth(Gensio *child, const char * const args[],
-	    struct gensio_os_funcs *o, Event *cb);
+	    Os_Funcs &o, Event *cb);
 
 	Certauth &operator=(const Gensio&) = delete;
     private:
 	virtual ~Certauth() { }
-	Certauth(struct gensio_os_funcs *o) : Gensio(o, NULL) { }
-	friend Gensio *alloc_certauth_class(struct gensio_os_funcs *o,
+	Certauth(Os_Funcs &o) : Gensio(o, NULL) { }
+	friend Gensio *alloc_certauth_class(Os_Funcs &o,
 					    struct gensio *io);
     };
 
     class GENSIOCPP_DLL_PUBLIC Telnet: public Gensio {
     public:
 	Telnet(Gensio *child, const char * const args[],
-	    struct gensio_os_funcs *o, Event *cb);
+	    Os_Funcs &o, Event *cb);
 
 	Telnet &operator=(const Gensio&) = delete;
     private:
 	virtual ~Telnet() { }
-	Telnet(struct gensio_os_funcs *o) : Gensio(o, NULL) { }
-	friend Gensio *alloc_telnet_class(struct gensio_os_funcs *o,
+	Telnet(Os_Funcs &o) : Gensio(o, NULL) { }
+	friend Gensio *alloc_telnet_class(Os_Funcs &o,
 					  struct gensio *io);
     };
 
     class GENSIOCPP_DLL_PUBLIC Msgdelim: public Gensio {
     public:
 	Msgdelim(Gensio *child, const char * const args[],
-	    struct gensio_os_funcs *o, Event *cb);
+	    Os_Funcs &o, Event *cb);
 
 	Msgdelim &operator=(const Gensio&) = delete;
     private:
 	virtual ~Msgdelim() { }
-	Msgdelim(struct gensio_os_funcs *o) : Gensio(o, NULL) { }
-	friend Gensio *alloc_msgdelim_class(struct gensio_os_funcs *o,
+	Msgdelim(Os_Funcs &o) : Gensio(o, NULL) { }
+	friend Gensio *alloc_msgdelim_class(Os_Funcs &o,
 					    struct gensio *io);
     };
 
     class GENSIOCPP_DLL_PUBLIC Relpkt: public Gensio {
     public:
 	Relpkt(Gensio *child, const char * const args[],
-	    struct gensio_os_funcs *o, Event *cb);
+	    Os_Funcs &o, Event *cb);
 
 	Relpkt &operator=(const Gensio&) = delete;
     private:
 	virtual ~Relpkt() { }
-	Relpkt(struct gensio_os_funcs *o) : Gensio(o, NULL) { }
-	friend Gensio *alloc_relpkt_class(struct gensio_os_funcs *o,
+	Relpkt(Os_Funcs &o) : Gensio(o, NULL) { }
+	friend Gensio *alloc_relpkt_class(Os_Funcs &o,
 					  struct gensio *io);
     };
 
     class GENSIOCPP_DLL_PUBLIC Trace: public Gensio {
     public:
 	Trace(Gensio *child, const char * const args[],
-	    struct gensio_os_funcs *o, Event *cb);
+	    Os_Funcs &o, Event *cb);
 
 	Trace &operator=(const Gensio&) = delete;
     private:
 	virtual ~Trace() { }
-	Trace(struct gensio_os_funcs *o) : Gensio(o, NULL) { }
-	friend Gensio *alloc_trace_class(struct gensio_os_funcs *o,
+	Trace(Os_Funcs &o) : Gensio(o, NULL) { }
+	friend Gensio *alloc_trace_class(Os_Funcs &o,
 					 struct gensio *io);
     };
 
     class GENSIOCPP_DLL_PUBLIC Perf: public Gensio {
     public:
 	Perf(Gensio *child, const char * const args[],
-	    struct gensio_os_funcs *o, Event *cb);
+	    Os_Funcs &o, Event *cb);
 
 	Perf &operator=(const Gensio&) = delete;
     private:
 	virtual ~Perf() { }
-	Perf(struct gensio_os_funcs *o) : Gensio(o, NULL) { }
-	friend Gensio *alloc_perf_class(struct gensio_os_funcs *o,
+	Perf(Os_Funcs &o) : Gensio(o, NULL) { }
+	friend Gensio *alloc_perf_class(Os_Funcs &o,
 					struct gensio *io);
     };
 
@@ -644,7 +711,7 @@ namespace gensio {
 
     protected:
 	virtual void set_gensio(struct gensio *io, bool set_cb);
-	Serial_Gensio(struct gensio_os_funcs *o, Event *cb) : Gensio(o, cb) { }
+	Serial_Gensio(Os_Funcs &o, Event *cb) : Gensio(o, cb) { }
 	virtual ~Serial_Gensio() { }
 
     private:
@@ -652,7 +719,7 @@ namespace gensio {
 
 	GENSIOCPP_DLL_PUBLIC
 	friend Gensio *gensio_alloc(struct gensio *io,
-				    struct gensio_os_funcs *o);
+				    Os_Funcs &o);
     };
 
     // Subclasses of Serial_Gensio.  This allows direct allocation of
@@ -661,39 +728,39 @@ namespace gensio {
     class GENSIOCPP_DLL_PUBLIC Serialdev: public Serial_Gensio {
     public:
 	Serialdev(const char *devname, const char * const args[],
-		  struct gensio_os_funcs *o, Event *cb);
+		  Os_Funcs &o, Event *cb);
 
 	Serialdev &operator=(const Gensio&) = delete;
     private:
 	virtual ~Serialdev() { };
-	Serialdev(struct gensio_os_funcs *o) : Serial_Gensio(o, NULL) { }
-	friend Gensio *alloc_serialdev_class(struct gensio_os_funcs *o,
+	Serialdev(Os_Funcs &o) : Serial_Gensio(o, NULL) { }
+	friend Gensio *alloc_serialdev_class(Os_Funcs &o,
 					     struct gensio *io);
     };
 
     class GENSIOCPP_DLL_PUBLIC Serial_Telnet: public Serial_Gensio {
     public:
 	Serial_Telnet(Gensio *child, const char * const args[],
-		struct gensio_os_funcs *o, Event *cb);
+		Os_Funcs &o, Event *cb);
 
 	Serial_Telnet &operator=(const Gensio&) = delete;
     private:
 	virtual ~Serial_Telnet() { }
-	Serial_Telnet(struct gensio_os_funcs *o) : Serial_Gensio(o, NULL) { }
-	friend Gensio *alloc_telnet_class(struct gensio_os_funcs *o,
+	Serial_Telnet(Os_Funcs &o) : Serial_Gensio(o, NULL) { }
+	friend Gensio *alloc_telnet_class(Os_Funcs &o,
 					  struct gensio *io);
     };
 
     class GENSIOCPP_DLL_PUBLIC Ipmisol: public Serial_Gensio {
     public:
 	Ipmisol(const char *devname, const char * const args[],
-		struct gensio_os_funcs *o, Event *cb);
+		Os_Funcs &o, Event *cb);
 
 	Ipmisol &operator=(const Gensio&) = delete;
     private:
 	virtual ~Ipmisol() { }
-	Ipmisol(struct gensio_os_funcs *o) : Serial_Gensio(o, NULL) { }
-	friend Gensio *alloc_ipmisol_class(struct gensio_os_funcs *o,
+	Ipmisol(Os_Funcs &o) : Serial_Gensio(o, NULL) { }
+	friend Gensio *alloc_ipmisol_class(Os_Funcs &o,
 					   struct gensio *io);
     };
 
@@ -754,14 +821,14 @@ namespace gensio {
     // the returned object will be a subclass of Accepter.
     GENSIOCPP_DLL_PUBLIC
     Accepter *gensio_acc_alloc(std::string str,
-			       struct gensio_os_funcs *o,
+			       Os_Funcs &o,
 			       Accepter_Event *cb);
 
     // Like above, but stack the accepter on top of an existing
     // accepter stack given in child.
     GENSIOCPP_DLL_PUBLIC
     Accepter *gensio_acc_alloc(Accepter *child, std::string str,
-			       struct gensio_os_funcs *o,
+			       Os_Funcs &o,
 			       Accepter_Event *cb);
 
     class GENSIOCPP_DLL_PUBLIC Accepter {
@@ -867,7 +934,7 @@ namespace gensio {
 	std::string get_port();
 
 	// Get the os funcs for this accepter.
-	inline struct gensio_os_funcs *get_os_funcs() { return go; }
+	inline Os_Funcs &get_os_funcs() { return go; }
 
 	// Get the event handler for this accepter.
 	inline class Accepter_Event *get_cb() { return gcb; }
@@ -878,21 +945,21 @@ namespace gensio {
 
     protected:
 	virtual void set_accepter(struct gensio_accepter *acc, bool set_cb);
-	Accepter(struct gensio_os_funcs *o, Accepter_Event *cb);
+    Accepter(Os_Funcs &o, Accepter_Event *cb) : go(o), gcb(cb) { }
 	virtual ~Accepter() { }
 
     private:
 	struct gensio_accepter *acc;
-	struct gensio_os_funcs *go;
+	Os_Funcs go;
 	Accepter_Event *gcb;
 
 	GENSIOCPP_DLL_PUBLIC
 	friend Accepter *gensio_acc_alloc(struct gensio_accepter *acc,
-					  struct gensio_os_funcs *o);
+					  Os_Funcs &o);
 	GENSIOCPP_DLL_PUBLIC
 	friend Accepter *gensio_acc_alloc(Accepter *child,
 					  std::string str,
-					  struct gensio_os_funcs *o,
+					  Os_Funcs &o,
 					  Accepter_Event *cb);
 	friend void gensio_acc_cpp_freed(struct gensio_accepter *acc,
 					 struct gensio_acc_frdata *frdata);
@@ -903,7 +970,7 @@ namespace gensio {
     GENSIOCPP_DLL_PUBLIC
     void gensio_add_accepter_class(
 			  const char *name,
-			  Accepter *(*allocator)(struct gensio_os_funcs *o,
+			  Accepter *(*allocator)(Os_Funcs &o,
 						 struct gensio_accepter *a));
 
     // Subclasses of Accepter.  These allow you to directly allocate
@@ -912,186 +979,186 @@ namespace gensio {
     class GENSIOCPP_DLL_PUBLIC Tcp_Accepter : public Accepter {
     public:
 	Tcp_Accepter(struct gensio_addr *addr, const char * const args[],
-		     struct gensio_os_funcs *o, Accepter_Event *cb);
+		     Os_Funcs &o, Accepter_Event *cb);
 	Tcp_Accepter &operator=(const Gensio&) = delete;
     private:
 	virtual ~Tcp_Accepter() { }
-	Tcp_Accepter(struct gensio_os_funcs *o) : Accepter(o, NULL) { }
-	friend Accepter *alloc_tcp_accepter_class(struct gensio_os_funcs *o,
+	Tcp_Accepter(Os_Funcs &o) : Accepter(o, NULL) { }
+	friend Accepter *alloc_tcp_accepter_class(Os_Funcs &o,
 						  struct gensio_accepter *a);
     };
 
     class GENSIOCPP_DLL_PUBLIC Udp_Accepter : public Accepter {
     public:
 	Udp_Accepter(struct gensio_addr *addr, const char * const args[],
-		     struct gensio_os_funcs *o, Accepter_Event *cb);
+		     Os_Funcs &o, Accepter_Event *cb);
 	Udp_Accepter &operator=(const Gensio&) = delete;
     private:
 	virtual ~Udp_Accepter() { }
-	Udp_Accepter(struct gensio_os_funcs *o) : Accepter(o, NULL) { }
-	friend Accepter *alloc_udp_accepter_class(struct gensio_os_funcs *o,
+	Udp_Accepter(Os_Funcs &o) : Accepter(o, NULL) { }
+	friend Accepter *alloc_udp_accepter_class(Os_Funcs &o,
 						  struct gensio_accepter *a);
     };
 
     class GENSIOCPP_DLL_PUBLIC Unix_Accepter : public Accepter {
     public:
 	Unix_Accepter(struct gensio_addr *addr, const char * const args[],
-		      struct gensio_os_funcs *o, Accepter_Event *cb);
+		      Os_Funcs &o, Accepter_Event *cb);
 	Unix_Accepter &operator=(const Gensio&) = delete;
     private:
 	virtual ~Unix_Accepter() { }
-	Unix_Accepter(struct gensio_os_funcs *o) : Accepter(o, NULL) { }
-	friend Accepter *alloc_unix_accepter_class(struct gensio_os_funcs *o,
+	Unix_Accepter(Os_Funcs &o) : Accepter(o, NULL) { }
+	friend Accepter *alloc_unix_accepter_class(Os_Funcs &o,
 						   struct gensio_accepter *a);
     };
 
     class GENSIOCPP_DLL_PUBLIC Sctp_Accepter : public Accepter {
     public:
 	Sctp_Accepter(struct gensio_addr *addr, const char * const args[],
-		     struct gensio_os_funcs *o, Accepter_Event *cb);
+		     Os_Funcs &o, Accepter_Event *cb);
 	Sctp_Accepter &operator=(const Gensio&) = delete;
     private:
 	virtual ~Sctp_Accepter() { }
-	Sctp_Accepter(struct gensio_os_funcs *o) : Accepter(o, NULL) { }
-	friend Accepter *alloc_sctp_accepter_class(struct gensio_os_funcs *o,
+	Sctp_Accepter(Os_Funcs &o) : Accepter(o, NULL) { }
+	friend Accepter *alloc_sctp_accepter_class(Os_Funcs &o,
 						   struct gensio_accepter *a);
     };
 
     class GENSIOCPP_DLL_PUBLIC Stdio_Accepter : public Accepter {
     public:
 	Stdio_Accepter(const char * const args[],
-		       struct gensio_os_funcs *o, Accepter_Event *cb);
+		       Os_Funcs &o, Accepter_Event *cb);
 	Stdio_Accepter &operator=(const Gensio&) = delete;
     private:
 	virtual ~Stdio_Accepter() { }
-	Stdio_Accepter(struct gensio_os_funcs *o) : Accepter(o, NULL) { }
-	friend Accepter *alloc_stdio_accepter_class(struct gensio_os_funcs *o,
+	Stdio_Accepter(Os_Funcs &o) : Accepter(o, NULL) { }
+	friend Accepter *alloc_stdio_accepter_class(Os_Funcs &o,
 						    struct gensio_accepter *a);
     };
 
     class GENSIOCPP_DLL_PUBLIC Dummy_Accepter : public Accepter {
     public:
 	Dummy_Accepter(const char * const args[],
-		       struct gensio_os_funcs *o, Accepter_Event *cb);
+		       Os_Funcs &o, Accepter_Event *cb);
 	Dummy_Accepter &operator=(const Gensio&) = delete;
     private:
 	virtual ~Dummy_Accepter() { }
-	Dummy_Accepter(struct gensio_os_funcs *o) : Accepter(o, NULL) { }
-	friend Accepter *alloc_dummy_accepter_class(struct gensio_os_funcs *o,
+	Dummy_Accepter(Os_Funcs &o) : Accepter(o, NULL) { }
+	friend Accepter *alloc_dummy_accepter_class(Os_Funcs &o,
 						    struct gensio_accepter *a);
     };
 
     class GENSIOCPP_DLL_PUBLIC Conacc_Accepter : public Accepter {
     public:
 	Conacc_Accepter(const char *str, const char * const args[],
-		       struct gensio_os_funcs *o, Accepter_Event *cb);
+		       Os_Funcs &o, Accepter_Event *cb);
 	Conacc_Accepter &operator=(const Gensio&) = delete;
     private:
 	virtual ~Conacc_Accepter() { }
-	Conacc_Accepter(struct gensio_os_funcs *o) : Accepter(o, NULL) { }
-	friend Accepter *alloc_conacc_accepter_class(struct gensio_os_funcs *o,
+	Conacc_Accepter(Os_Funcs &o) : Accepter(o, NULL) { }
+	friend Accepter *alloc_conacc_accepter_class(Os_Funcs &o,
 						     struct gensio_accepter *a);
     };
 
     class GENSIOCPP_DLL_PUBLIC Ssl_Accepter : public Accepter {
     public:
 	Ssl_Accepter(Accepter *child, const char * const args[],
-		     struct gensio_os_funcs *o, Accepter_Event *cb);
+		     Os_Funcs &o, Accepter_Event *cb);
 	Ssl_Accepter &operator=(const Gensio&) = delete;
     private:
 	virtual ~Ssl_Accepter() { }
-	Ssl_Accepter(struct gensio_os_funcs *o) : Accepter(o, NULL) { }
-	friend Accepter *alloc_ssl_accepter_class(struct gensio_os_funcs *o,
+	Ssl_Accepter(Os_Funcs &o) : Accepter(o, NULL) { }
+	friend Accepter *alloc_ssl_accepter_class(Os_Funcs &o,
 						  struct gensio_accepter *a);
     };
 
     class GENSIOCPP_DLL_PUBLIC Mux_Accepter : public Accepter {
     public:
 	Mux_Accepter(Accepter *child, const char * const args[],
-		     struct gensio_os_funcs *o, Accepter_Event *cb);
+		     Os_Funcs &o, Accepter_Event *cb);
 	Mux_Accepter &operator=(const Gensio&) = delete;
     private:
 	virtual ~Mux_Accepter() { }
-	Mux_Accepter(struct gensio_os_funcs *o) : Accepter(o, NULL) { }
-	friend Accepter *alloc_mux_accepter_class(struct gensio_os_funcs *o,
+	Mux_Accepter(Os_Funcs &o) : Accepter(o, NULL) { }
+	friend Accepter *alloc_mux_accepter_class(Os_Funcs &o,
 						  struct gensio_accepter *a);
     };
 
     class GENSIOCPP_DLL_PUBLIC Certauth_Accepter : public Accepter {
     public:
 	Certauth_Accepter(Accepter *child, const char * const args[],
-			  struct gensio_os_funcs *o, Accepter_Event *cb);
+			  Os_Funcs &o, Accepter_Event *cb);
 	Certauth_Accepter &operator=(const Gensio&) = delete;
     private:
 	virtual ~Certauth_Accepter() { }
-	Certauth_Accepter(struct gensio_os_funcs *o) : Accepter(o, NULL) { }
+	Certauth_Accepter(Os_Funcs &o) : Accepter(o, NULL) { }
 	friend Accepter *alloc_certauth_accepter_class(
-				struct gensio_os_funcs *o,
+				Os_Funcs &o,
 				struct gensio_accepter *a);
     };
 
     class GENSIOCPP_DLL_PUBLIC Telnet_Accepter : public Accepter {
     public:
 	Telnet_Accepter(Accepter *child, const char * const args[],
-			struct gensio_os_funcs *o, Accepter_Event *cb);
+			Os_Funcs &o, Accepter_Event *cb);
 	Telnet_Accepter &operator=(const Gensio&) = delete;
     private:
 	virtual ~Telnet_Accepter() { }
-	Telnet_Accepter(struct gensio_os_funcs *o) : Accepter(o, NULL) { }
+	Telnet_Accepter(Os_Funcs &o) : Accepter(o, NULL) { }
 	friend Accepter *alloc_telnet_accepter_class(
-				struct gensio_os_funcs *o,
+				Os_Funcs &o,
 				struct gensio_accepter *a);
     };
 
     class GENSIOCPP_DLL_PUBLIC Msgdelim_Accepter : public Accepter {
     public:
 	Msgdelim_Accepter(Accepter *child, const char * const args[],
-			  struct gensio_os_funcs *o, Accepter_Event *cb);
+			  Os_Funcs &o, Accepter_Event *cb);
 	Msgdelim_Accepter &operator=(const Gensio&) = delete;
     private:
 	virtual ~Msgdelim_Accepter() { }
-	Msgdelim_Accepter(struct gensio_os_funcs *o) : Accepter(o, NULL) { }
+	Msgdelim_Accepter(Os_Funcs &o) : Accepter(o, NULL) { }
 	friend Accepter *alloc_msgdelim_accepter_class(
-				struct gensio_os_funcs *o,
+				Os_Funcs &o,
 				struct gensio_accepter *a);
     };
 
     class GENSIOCPP_DLL_PUBLIC Relpkt_Accepter : public Accepter {
     public:
 	Relpkt_Accepter(Accepter *child, const char * const args[],
-			struct gensio_os_funcs *o, Accepter_Event *cb);
+			Os_Funcs &o, Accepter_Event *cb);
 	Relpkt_Accepter &operator=(const Gensio&) = delete;
     private:
 	virtual ~Relpkt_Accepter() { }
-	Relpkt_Accepter(struct gensio_os_funcs *o) : Accepter(o, NULL) { }
+	Relpkt_Accepter(Os_Funcs &o) : Accepter(o, NULL) { }
 	friend Accepter *alloc_relpkt_accepter_class(
-				struct gensio_os_funcs *o,
+				Os_Funcs &o,
 				struct gensio_accepter *a);
     };
 
     class GENSIOCPP_DLL_PUBLIC Trace_Accepter : public Accepter {
     public:
 	Trace_Accepter(Accepter *child, const char * const args[],
-		       struct gensio_os_funcs *o, Accepter_Event *cb);
+		       Os_Funcs &o, Accepter_Event *cb);
 	Trace_Accepter &operator=(const Gensio&) = delete;
     private:
 	virtual ~Trace_Accepter() { }
-	Trace_Accepter(struct gensio_os_funcs *o) : Accepter(o, NULL) { }
+	Trace_Accepter(Os_Funcs &o) : Accepter(o, NULL) { }
 	friend Accepter *alloc_trace_accepter_class(
-				struct gensio_os_funcs *o,
+				Os_Funcs &o,
 				struct gensio_accepter *a);
     };
 
     class GENSIOCPP_DLL_PUBLIC Perf_Accepter : public Accepter {
     public:
 	Perf_Accepter(Accepter *child, const char * const args[],
-		      struct gensio_os_funcs *o, Accepter_Event *cb);
+		      Os_Funcs &o, Accepter_Event *cb);
 	Perf_Accepter &operator=(const Gensio&) = delete;
     private:
 	virtual ~Perf_Accepter() { }
-	Perf_Accepter(struct gensio_os_funcs *o) : Accepter(o, NULL) { }
+	Perf_Accepter(Os_Funcs &o) : Accepter(o, NULL) { }
 	friend Accepter *alloc_perf_accepter_class(
-				struct gensio_os_funcs *o,
+				Os_Funcs &o,
 				struct gensio_accepter *a);
     };
 
@@ -1101,7 +1168,12 @@ namespace gensio {
     // things while running the event-driven code.
     class GENSIOCPP_DLL_PUBLIC Waiter {
     public:
-	Waiter(struct gensio_os_funcs *o);
+	Waiter(Os_Funcs &io) : o(io)
+	{
+	    waiter = o->alloc_waiter(o);
+	    if (!waiter)
+		throw std::bad_alloc();
+	}
 	~Waiter() { o->free_waiter(waiter); }
 
 	// Add one wakeup to the waiter.
@@ -1123,7 +1195,7 @@ namespace gensio {
 	int wait_intr(unsigned int count, gensio_time *timeout, void *sigmask);
 
     private:
-	struct gensio_os_funcs *o;
+	Os_Funcs o;
 	struct gensio_waiter *waiter;
     };
 

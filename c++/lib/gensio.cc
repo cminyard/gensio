@@ -23,7 +23,7 @@ namespace gensio {
 	Gensio *g;
     };
 
-    Gensio *gensio_alloc(struct gensio *io, struct gensio_os_funcs *o,
+    Gensio *gensio_alloc(struct gensio *io, Os_Funcs &o,
 			 class Event *cb);
 
     static int gensio_cpp_cb(struct gensio *io, void *user_data,
@@ -197,98 +197,98 @@ namespace gensio {
     }
 
     Gensio *
-    alloc_tcp_class(struct gensio_os_funcs *o,
+    alloc_tcp_class(Os_Funcs &o,
 		    struct gensio *io)
     {
 	return new Tcp(o);
     }
 
     Gensio *
-    alloc_udp_class(struct gensio_os_funcs *o,
+    alloc_udp_class(Os_Funcs &o,
 		    struct gensio *io)
     {
 	return new Udp(o);
     }
 
     Gensio *
-    alloc_unix_class(struct gensio_os_funcs *o,
+    alloc_unix_class(Os_Funcs &o,
 		     struct gensio *io)
     {
 	return new Unix(o);
     }
 
     Gensio *
-    alloc_sctp_class(struct gensio_os_funcs *o,
+    alloc_sctp_class(Os_Funcs &o,
 		     struct gensio *io)
     {
 	return new Sctp(o);
     }
 
     Gensio *
-    alloc_stdio_class(struct gensio_os_funcs *o,
+    alloc_stdio_class(Os_Funcs &o,
 		      struct gensio *io)
     {
 	return new Stdio(o);
     }
 
     Gensio *
-    alloc_pty_class(struct gensio_os_funcs *o,
+    alloc_pty_class(Os_Funcs &o,
 		    struct gensio *io)
     {
 	return new Pty(o);
     }
 
     Gensio *
-    alloc_echo_class(struct gensio_os_funcs *o,
+    alloc_echo_class(Os_Funcs &o,
 		     struct gensio *io)
     {
 	return new Echo(o);
     }
 
     Gensio *
-    alloc_file_class(struct gensio_os_funcs *o,
+    alloc_file_class(Os_Funcs &o,
 		     struct gensio *io)
     {
 	return new File(o);
     }
 
     Gensio *
-    alloc_mdns_class(struct gensio_os_funcs *o,
+    alloc_mdns_class(Os_Funcs &o,
 		     struct gensio *io)
     {
 	return new Mdns(o);
     }
 
     Gensio *
-    alloc_serialdev_class(struct gensio_os_funcs *o,
+    alloc_serialdev_class(Os_Funcs &o,
 			  struct gensio *io)
     {
 	return new Serialdev(o);
     }
 
     Gensio *
-    alloc_ipmisol_class(struct gensio_os_funcs *o,
+    alloc_ipmisol_class(Os_Funcs &o,
 			struct gensio *io)
     {
 	return new Ipmisol(o);
     }
 
     Gensio *
-    alloc_ssl_class(struct gensio_os_funcs *o,
+    alloc_ssl_class(Os_Funcs &o,
 		    struct gensio *io)
     {
 	return new Ssl(o);
     }
 
     Gensio *
-    alloc_certauth_class(struct gensio_os_funcs *o,
+    alloc_certauth_class(Os_Funcs &o,
 			 struct gensio *io)
     {
 	return new Certauth(o);
     }
 
     Gensio *
-    alloc_telnet_class(struct gensio_os_funcs *o,
+    alloc_telnet_class(Os_Funcs &o,
 		       struct gensio *io)
     {
 	if (gensio_to_sergensio(io))
@@ -298,41 +298,41 @@ namespace gensio {
     }
 
     Gensio *
-    alloc_msgdelim_class(struct gensio_os_funcs *o,
+    alloc_msgdelim_class(Os_Funcs &o,
 			 struct gensio *io)
     {
 	return new Msgdelim(o);
     }
 
     Gensio *
-    alloc_relpkt_class(struct gensio_os_funcs *o,
+    alloc_relpkt_class(Os_Funcs &o,
 		       struct gensio *io)
     {
 	return new Relpkt(o);
     }
 
     Gensio *
-    alloc_trace_class(struct gensio_os_funcs *o,
+    alloc_trace_class(Os_Funcs &o,
 		      struct gensio *io)
     {
 	return new Trace(o);
     }
 
     Gensio *
-    alloc_perf_class(struct gensio_os_funcs *o,
+    alloc_perf_class(Os_Funcs &o,
 		     struct gensio *io)
     {
 	return new Perf(o);
     }
 
     Gensio *
-    alloc_mux_class(struct gensio_os_funcs *o,
+    alloc_mux_class(Os_Funcs &o,
 		    struct gensio *io)
     {
 	return new Mux(o);
     }
 
-    typedef Gensio *(*gensio_allocator)(struct gensio_os_funcs *o,
+    typedef Gensio *(*gensio_allocator)(Os_Funcs &o,
 					struct gensio *io);
 
     static std::map<std::string, gensio_allocator> classes = {
@@ -358,14 +358,14 @@ namespace gensio {
     };
 
     void gensio_add_class(const char *name,
-			  Gensio *(*allocator)(struct gensio_os_funcs *o,
+			  Gensio *(*allocator)(Os_Funcs &o,
 					       struct gensio *io))
     {
 	classes[name] = allocator;
     }
 
     Gensio *
-    gensio_alloc(struct gensio *io, struct gensio_os_funcs *o)
+    gensio_alloc(struct gensio *io, Os_Funcs &o)
     {
 	struct gensio *cio;
 	struct sergensio *sio;
@@ -404,7 +404,7 @@ namespace gensio {
     }
 
     Gensio *
-    gensio_alloc(struct gensio *io, struct gensio_os_funcs *o, Event *cb)
+    gensio_alloc(struct gensio *io, Os_Funcs &o, Event *cb)
     {
 	Gensio *g;
 
@@ -414,7 +414,7 @@ namespace gensio {
     }
 
     Gensio *
-    gensio_alloc(std::string str, struct gensio_os_funcs *o, Event *cb)
+    gensio_alloc(std::string str, Os_Funcs &o, Event *cb)
     {
 	struct gensio *io;
 	int err;
@@ -429,7 +429,7 @@ namespace gensio {
 
     Gensio *
     gensio_alloc(Gensio *child, std::string str,
-		 struct gensio_os_funcs *o, Event *cb)
+		 Os_Funcs &o, Event *cb)
     {
 	struct gensio *io;
 	int err;
@@ -441,12 +441,6 @@ namespace gensio {
 	    throw gensio_error(err);
 	g = gensio_alloc(io, o, cb);
 	return g;
-    }
-
-    Gensio::Gensio(struct gensio_os_funcs *o, Event *cb)
-    {
-	go = o;
-	gcb = cb;
     }
 
     void Gensio::free()
@@ -634,7 +628,7 @@ namespace gensio {
     }
 
     Tcp::Tcp(struct gensio_addr *addr, const char * const args[],
-	     struct gensio_os_funcs *o, Event *cb)
+	     Os_Funcs &o, Event *cb)
 	: Gensio(o, cb)
     {
 	struct gensio *io;
@@ -647,7 +641,7 @@ namespace gensio {
     }
 
     Udp::Udp(struct gensio_addr *addr, const char * const args[],
-	     struct gensio_os_funcs *o, Event *cb)
+	     Os_Funcs &o, Event *cb)
 	: Gensio(o, cb)
     {
 	struct gensio *io;
@@ -660,7 +654,7 @@ namespace gensio {
     }
 
     Unix::Unix(struct gensio_addr *addr, const char * const args[],
-	       struct gensio_os_funcs *o, Event *cb)
+	       Os_Funcs &o, Event *cb)
 	: Gensio(o, cb)
     {
 	struct gensio *io;
@@ -673,7 +667,7 @@ namespace gensio {
     }
 
     Sctp::Sctp(struct gensio_addr *addr, const char * const args[],
-	       struct gensio_os_funcs *o, Event *cb)
+	       Os_Funcs &o, Event *cb)
 	: Gensio(o, cb)
     {
 	struct gensio *io;
@@ -686,7 +680,7 @@ namespace gensio {
     }
 
     Stdio::Stdio(const char *const argv[], const char * const args[],
-		 struct gensio_os_funcs *o, Event *cb)
+		 Os_Funcs &o, Event *cb)
 	: Gensio(o, cb)
     {
 	struct gensio *io;
@@ -699,7 +693,7 @@ namespace gensio {
     }
 
     Pty::Pty(const char *const argv[], const char * const args[],
-	     struct gensio_os_funcs *o, Event *cb)
+	     Os_Funcs &o, Event *cb)
 	: Gensio(o, cb)
     {
 	struct gensio *io;
@@ -712,7 +706,7 @@ namespace gensio {
     }
 
     Echo::Echo(const char * const args[],
-	       struct gensio_os_funcs *o, Event *cb)
+	       Os_Funcs &o, Event *cb)
 	: Gensio(o, cb)
     {
 	struct gensio *io;
@@ -725,7 +719,7 @@ namespace gensio {
     }
 
     File::File(const char * const args[],
-	       struct gensio_os_funcs *o, Event *cb)
+	       Os_Funcs &o, Event *cb)
 	: Gensio(o, cb)
     {
 	struct gensio *io;
@@ -738,7 +732,7 @@ namespace gensio {
     }
 
     Mdns::Mdns(const char *str, const char * const args[],
-	       struct gensio_os_funcs *o, Event *cb)
+	       Os_Funcs &o, Event *cb)
 	: Gensio(o, cb)
     {
 	struct gensio *io;
@@ -751,7 +745,7 @@ namespace gensio {
     }
 
     Ssl::Ssl(Gensio *child, const char * const args[],
-	     struct gensio_os_funcs *o, Event *cb)
+	     Os_Funcs &o, Event *cb)
 	: Gensio(o, cb)
     {
 	struct gensio *io;
@@ -764,7 +758,7 @@ namespace gensio {
     }
 
     Mux::Mux(Gensio *child, const char * const args[],
-	     struct gensio_os_funcs *o, Event *cb)
+	     Os_Funcs &o, Event *cb)
 	: Gensio(o, cb)
     {
 	struct gensio *io;
@@ -777,7 +771,7 @@ namespace gensio {
     }
 
     Certauth::Certauth(Gensio *child, const char * const args[],
-		       struct gensio_os_funcs *o, Event *cb)
+		       Os_Funcs &o, Event *cb)
 	: Gensio(o, cb)
     {
 	struct gensio *io;
@@ -791,7 +785,7 @@ namespace gensio {
     }
 
     Telnet::Telnet(Gensio *child, const char * const args[],
-		   struct gensio_os_funcs *o, Event *cb)
+		   Os_Funcs &o, Event *cb)
 	: Gensio(o, cb)
     {
 	struct gensio *io;
@@ -804,7 +798,7 @@ namespace gensio {
     }
 
     Msgdelim::Msgdelim(Gensio *child, const char * const args[],
-		       struct gensio_os_funcs *o, Event *cb)
+		       Os_Funcs &o, Event *cb)
 	: Gensio(o, cb)
     {
 	struct gensio *io;
@@ -818,7 +812,7 @@ namespace gensio {
     }
 
     Relpkt::Relpkt(Gensio *child, const char * const args[],
-		   struct gensio_os_funcs *o, Event *cb)
+		   Os_Funcs &o, Event *cb)
 	: Gensio(o, cb)
     {
 	struct gensio *io;
@@ -832,7 +826,7 @@ namespace gensio {
     }
 
     Trace::Trace(Gensio *child, const char * const args[],
-		 struct gensio_os_funcs *o, Event *cb)
+		 Os_Funcs &o, Event *cb)
 	: Gensio(o, cb)
     {
 	struct gensio *io;
@@ -845,7 +839,7 @@ namespace gensio {
     }
 
     Perf::Perf(Gensio *child, const char * const args[],
-	       struct gensio_os_funcs *o, Event *cb)
+	       Os_Funcs &o, Event *cb)
 	: Gensio(o, cb)
     {
 	struct gensio *io;
@@ -1044,7 +1038,7 @@ namespace gensio {
 
     class Std_Ser_Op_Done: public Serial_Op_Done {
     public:
-	Std_Ser_Op_Done(struct gensio_os_funcs *o) : waiter(o) { }
+	Std_Ser_Op_Done(Os_Funcs &o) : waiter(o) { }
 
 	void wait() { waiter.wait(1, NULL); }
 
@@ -1215,7 +1209,7 @@ namespace gensio {
     }
     
     Serialdev::Serialdev(const char *devname, const char * const args[],
-			 struct gensio_os_funcs *o, Event *cb)
+			 Os_Funcs &o, Event *cb)
 	: Serial_Gensio(o, cb)
     {
 	struct gensio *io;
@@ -1228,7 +1222,7 @@ namespace gensio {
     }
 
     Serial_Telnet::Serial_Telnet(Gensio *child, const char * const args[],
-				 struct gensio_os_funcs *o, Event *cb)
+				 Os_Funcs &o, Event *cb)
 	: Serial_Gensio(o, cb)
     {
 	struct gensio *io;
@@ -1242,7 +1236,7 @@ namespace gensio {
     }
 
     Ipmisol::Ipmisol(const char *devname, const char * const args[],
-		     struct gensio_os_funcs *o, Event *cb)
+		     Os_Funcs &o, Event *cb)
 	: Serial_Gensio(o, cb)
     {
 	struct gensio *io;
@@ -1365,111 +1359,111 @@ namespace gensio {
     }
 
     Accepter *
-    alloc_tcp_accepter_class(struct gensio_os_funcs *o,
+    alloc_tcp_accepter_class(Os_Funcs &o,
 			     struct gensio_accepter *acc)
     {
 	return new Tcp_Accepter(o);
     }
 
     Accepter *
-    alloc_udp_accepter_class(struct gensio_os_funcs *o,
+    alloc_udp_accepter_class(Os_Funcs &o,
 			     struct gensio_accepter *acc)
     {
 	return new Udp_Accepter(o);
     }
 
     Accepter *
-    alloc_unix_accepter_class(struct gensio_os_funcs *o,
+    alloc_unix_accepter_class(Os_Funcs &o,
 			      struct gensio_accepter *acc)
     {
 	return new Unix_Accepter(o);
     }
 
     Accepter *
-    alloc_sctp_accepter_class(struct gensio_os_funcs *o,
+    alloc_sctp_accepter_class(Os_Funcs &o,
 			      struct gensio_accepter *acc)
     {
 	return new Sctp_Accepter(o);
     }
 
     Accepter *
-    alloc_stdio_accepter_class(struct gensio_os_funcs *o,
+    alloc_stdio_accepter_class(Os_Funcs &o,
 			       struct gensio_accepter *acc)
     {
 	return new Stdio_Accepter(o);
     }
 
     Accepter *
-    alloc_dummy_accepter_class(struct gensio_os_funcs *o,
+    alloc_dummy_accepter_class(Os_Funcs &o,
 			       struct gensio_accepter *acc)
     {
 	return new Dummy_Accepter(o);
     }
 
     Accepter *
-    alloc_conacc_accepter_class(struct gensio_os_funcs *o,
+    alloc_conacc_accepter_class(Os_Funcs &o,
 				struct gensio_accepter *acc)
     {
 	return new Conacc_Accepter(o);
     }
 
     Accepter *
-    alloc_ssl_accepter_class(struct gensio_os_funcs *o,
+    alloc_ssl_accepter_class(Os_Funcs &o,
 			     struct gensio_accepter *acc)
     {
 	return new Ssl_Accepter(o);
     }
 
     Accepter *
-    alloc_mux_accepter_class(struct gensio_os_funcs *o,
+    alloc_mux_accepter_class(Os_Funcs &o,
 			     struct gensio_accepter *acc)
     {
 	return new Mux_Accepter(o);
     }
 
     Accepter *
-    alloc_certauth_accepter_class(struct gensio_os_funcs *o,
+    alloc_certauth_accepter_class(Os_Funcs &o,
 				  struct gensio_accepter *acc)
     {
 	return new Certauth_Accepter(o);
     }
 
     Accepter *
-    alloc_telnet_accepter_class(struct gensio_os_funcs *o,
+    alloc_telnet_accepter_class(Os_Funcs &o,
 				struct gensio_accepter *acc)
     {
 	return new Telnet_Accepter(o);
     }
 
     Accepter *
-    alloc_msgdelim_accepter_class(struct gensio_os_funcs *o,
+    alloc_msgdelim_accepter_class(Os_Funcs &o,
 				  struct gensio_accepter *acc)
     {
 	return new Msgdelim_Accepter(o);
     }
 
     Accepter *
-    alloc_relpkt_accepter_class(struct gensio_os_funcs *o,
+    alloc_relpkt_accepter_class(Os_Funcs &o,
 				struct gensio_accepter *acc)
     {
 	return new Relpkt_Accepter(o);
     }
 
     Accepter *
-    alloc_trace_accepter_class(struct gensio_os_funcs *o,
+    alloc_trace_accepter_class(Os_Funcs &o,
 			       struct gensio_accepter *acc)
     {
 	return new Trace_Accepter(o);
     }
 
     Accepter *
-    alloc_perf_accepter_class(struct gensio_os_funcs *o,
+    alloc_perf_accepter_class(Os_Funcs &o,
 			      struct gensio_accepter *acc)
     {
 	return new Perf_Accepter(o);
     }
 
-    typedef Accepter *(*gensio_acc_allocator)(struct gensio_os_funcs *o,
+    typedef Accepter *(*gensio_acc_allocator)(Os_Funcs &o,
 					      struct gensio_accepter *acc);
 
     static std::map<std::string, gensio_acc_allocator> acc_classes = {
@@ -1492,14 +1486,14 @@ namespace gensio {
 
     void gensio_add_accepter_class(
 			  const char *name,
-			  Accepter *(*allocator)(struct gensio_os_funcs *o,
+			  Accepter *(*allocator)(Os_Funcs &o,
 						 struct gensio_accepter *a))
     {
 	acc_classes[name] = allocator;
     }
 
     Accepter *gensio_acc_alloc(struct gensio_accepter *acc,
-			       struct gensio_os_funcs *o)
+			       Os_Funcs &o)
     {
 	struct gensio_accepter *cacc;
 	unsigned int i;
@@ -1532,7 +1526,7 @@ namespace gensio {
 	return d->a;
     }
 
-    Accepter *gensio_acc_alloc(std::string str, struct gensio_os_funcs *o,
+    Accepter *gensio_acc_alloc(std::string str, Os_Funcs &o,
 			       Accepter_Event *cb)
     {
 	struct gensio_accepter *acc;
@@ -1549,7 +1543,7 @@ namespace gensio {
     }
 
     Accepter *gensio_acc_alloc(Accepter *child, std::string str,
-			       struct gensio_os_funcs *o,
+			       Os_Funcs &o,
 			       Accepter_Event *cb)
     {
 	struct gensio_accepter *acc;
@@ -1564,12 +1558,6 @@ namespace gensio {
 	a->gcb = cb;
 	gensio_acc_set_callback(acc, gensio_acc_cpp_cb, a);
 	return a;
-    }
-
-    Accepter::Accepter(struct gensio_os_funcs *o, Accepter_Event *cb)
-    {
-	go = o;
-	gcb = cb;
     }
 
     void Accepter::free()
@@ -1711,7 +1699,7 @@ namespace gensio {
 
     Tcp_Accepter::Tcp_Accepter(struct gensio_addr *addr,
 			       const char * const args[],
-			       struct gensio_os_funcs *o, Accepter_Event *cb)
+			       Os_Funcs &o, Accepter_Event *cb)
 	: Accepter(o, cb)
     {
 	struct gensio_accepter *acc;
@@ -1725,7 +1713,7 @@ namespace gensio {
 
     Udp_Accepter::Udp_Accepter(struct gensio_addr *addr,
 			       const char * const args[],
-			       struct gensio_os_funcs *o, Accepter_Event *cb)
+			       Os_Funcs &o, Accepter_Event *cb)
 	: Accepter(o, cb)
     {
 	struct gensio_accepter *acc;
@@ -1739,7 +1727,7 @@ namespace gensio {
 
     Unix_Accepter::Unix_Accepter(struct gensio_addr *addr,
 				 const char * const args[],
-				 struct gensio_os_funcs *o, Accepter_Event *cb)
+				 Os_Funcs &o, Accepter_Event *cb)
 	: Accepter(o, cb)
     {
 	struct gensio_accepter *acc;
@@ -1753,7 +1741,7 @@ namespace gensio {
 
     Sctp_Accepter::Sctp_Accepter(struct gensio_addr *addr,
 				 const char * const args[],
-				 struct gensio_os_funcs *o, Accepter_Event *cb)
+				 Os_Funcs &o, Accepter_Event *cb)
 	: Accepter(o, cb)
     {
 	struct gensio_accepter *acc;
@@ -1766,7 +1754,7 @@ namespace gensio {
     }
 
     Stdio_Accepter::Stdio_Accepter(const char * const args[],
-				   struct gensio_os_funcs *o,
+				   Os_Funcs &o,
 				   Accepter_Event *cb)
 	: Accepter(o, cb)
     {
@@ -1780,7 +1768,7 @@ namespace gensio {
     }
 
     Dummy_Accepter::Dummy_Accepter(const char * const args[],
-				   struct gensio_os_funcs *o,
+				   Os_Funcs &o,
 				   Accepter_Event *cb)
 	: Accepter(o, cb)
     {
@@ -1794,7 +1782,7 @@ namespace gensio {
     }
 
     Conacc_Accepter::Conacc_Accepter(const char *str, const char * const args[],
-				     struct gensio_os_funcs *o,
+				     Os_Funcs &o,
 				     Accepter_Event *cb)
 	: Accepter(o, cb)
     {
@@ -1809,7 +1797,7 @@ namespace gensio {
 
     Ssl_Accepter::Ssl_Accepter(Accepter *child,
 			       const char * const args[],
-			       struct gensio_os_funcs *o, Accepter_Event *cb)
+			       Os_Funcs &o, Accepter_Event *cb)
 	: Accepter(o, cb)
     {
 	struct gensio_accepter *acc;
@@ -1824,7 +1812,7 @@ namespace gensio {
 
     Mux_Accepter::Mux_Accepter(Accepter *child,
 			       const char * const args[],
-			       struct gensio_os_funcs *o, Accepter_Event *cb)
+			       Os_Funcs &o, Accepter_Event *cb)
 	: Accepter(o, cb)
     {
 	struct gensio_accepter *acc;
@@ -1839,7 +1827,7 @@ namespace gensio {
 
     Certauth_Accepter::Certauth_Accepter(Accepter *child,
 					 const char * const args[],
-					 struct gensio_os_funcs *o,
+					 Os_Funcs &o,
 					 Accepter_Event *cb)
 	: Accepter(o, cb)
     {
@@ -1855,7 +1843,7 @@ namespace gensio {
 
     Telnet_Accepter::Telnet_Accepter(Accepter *child,
 				     const char * const args[],
-				     struct gensio_os_funcs *o,
+				     Os_Funcs &o,
 				     Accepter_Event *cb)
 	: Accepter(o, cb)
     {
@@ -1871,7 +1859,7 @@ namespace gensio {
 
     Msgdelim_Accepter::Msgdelim_Accepter(Accepter *child,
 					 const char * const args[],
-					 struct gensio_os_funcs *o,
+					 Os_Funcs &o,
 					 Accepter_Event *cb)
 	: Accepter(o, cb)
     {
@@ -1887,7 +1875,7 @@ namespace gensio {
 
     Relpkt_Accepter::Relpkt_Accepter(Accepter *child,
 				     const char * const args[],
-				     struct gensio_os_funcs *o,
+				     Os_Funcs &o,
 				     Accepter_Event *cb)
 	: Accepter(o, cb)
     {
@@ -1903,7 +1891,7 @@ namespace gensio {
 
     Trace_Accepter::Trace_Accepter(Accepter *child,
 				   const char * const args[],
-				   struct gensio_os_funcs *o,
+				   Os_Funcs &o,
 				   Accepter_Event *cb)
 	: Accepter(o, cb)
     {
@@ -1919,7 +1907,7 @@ namespace gensio {
 
     Perf_Accepter::Perf_Accepter(Accepter *child,
 				 const char * const args[],
-				 struct gensio_os_funcs *o,
+				 Os_Funcs &o,
 				 Accepter_Event *cb)
 	: Accepter(o, cb)
     {
@@ -1931,14 +1919,6 @@ namespace gensio {
 	if (err)
 	    throw gensio_error(err);
 	this->set_accepter(acc, true);
-    }
-
-    Waiter::Waiter(struct gensio_os_funcs *o)
-    {
-	this->o = o;
-	waiter = o->alloc_waiter(o);
-	if (!waiter)
-	    throw std::bad_alloc();
     }
 
     int

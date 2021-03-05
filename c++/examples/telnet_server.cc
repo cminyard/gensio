@@ -140,7 +140,7 @@ private:
 // telnet, and kick off processing.  Wait until the accepter and new
 // gensio are freed.
 static int
-do_server(struct gensio_os_funcs *o, struct gensio_addr *addr)
+do_server(Os_Funcs &o, struct gensio_addr *addr)
 {
     Waiter w(o);
     Server_Event e(&w);
@@ -183,15 +183,10 @@ gensio_log(struct gensio_os_funcs *f, enum gensio_log_levels level,
 int main(int argc, char *argv[])
 {
     int err;
-    struct gensio_os_funcs *o;
+    Os_Funcs o(0);
     struct gensio_addr *addr;
     bool is_port_set;
 
-    err = gensio_default_os_hnd(0, &o);
-    if (err) {
-	cerr << "Error getting os handler: " << gensio_err_to_str(err);
-	return 1;
-    }
     o->vlog = gensio_log;
 
     if (argc < 2) {

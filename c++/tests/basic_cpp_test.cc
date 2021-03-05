@@ -129,7 +129,7 @@ private:
 };
 
 static int
-do_client_test(struct gensio_os_funcs *o, string ios)
+do_client_test(Os_Funcs &o, string ios)
 {
     Waiter w(o);
     Gensio *g;
@@ -267,7 +267,7 @@ private:
 };
 
 static void
-do_server_test(struct gensio_os_funcs *o, string ios)
+do_server_test(Os_Funcs &o, string ios)
 {
     Waiter w(o);
     Accepter *a;
@@ -357,15 +357,10 @@ private:
 int main(int argc, char *argv[])
 {
     int err;
-    struct gensio_os_funcs *o;
+    Os_Funcs o(0);
     const char *test = "mux,tcp,localhost,";
     const char *errstr;
 
-    err = gensio_default_os_hnd(0, &o);
-    if (err) {
-	cerr << "Error getting os handler: " << gensio_err_to_str(err);
-	return 1;
-    }
     o->vlog = gensio_log;
 
     if (argc > 1) {
@@ -432,6 +427,5 @@ int main(int argc, char *argv[])
  out:
     if (!err)
 	cout << "Success!" << endl;
-    o->free_funcs(o);
     return err;
 }

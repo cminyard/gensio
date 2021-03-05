@@ -11,13 +11,8 @@ using namespace gensio;
 
 int main(int argc, char *argv[])
 {
-    struct gensio_os_funcs *o;
+    Os_Funcs o(0);
     int err;
-    err = gensio_default_os_hnd(0, &o);
-    if (err) {
-	cerr << "OS handler alloc failed: " << gensio_err_to_str(err) << endl;
-	return 1;
-    }
     Waiter w(o);
     static const char *serial_parms[] = { "nouucplock=false", NULL };
 #ifdef _WIN32
