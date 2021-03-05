@@ -836,10 +836,16 @@ gensio_unix_service(struct gensio_os_funcs *f, gensio_time *timeout)
 }
 #endif
 
+static struct gensio_os_funcs *defoshnd;
+static int defoshnd_wake_sig = -1;
+
 static void
 gensio_unix_free_funcs(struct gensio_os_funcs *f)
 {
     struct gensio_data *d = f->user_data;
+
+    if (f == defoshnd)
+	return;
 
     gensio_memtrack_cleanup(d->mtrack);
     if (d->freesel)
@@ -1378,9 +1384,6 @@ gensio_i_os_err_to_err(struct gensio_os_funcs *o,
 
     return err;
 }
-
-static struct gensio_os_funcs *defoshnd;
-static int defoshnd_wake_sig = -1;
 
 #ifdef USE_PTHREADS
 struct sel_lock_s

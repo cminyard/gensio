@@ -1023,9 +1023,14 @@ static int win_service(struct gensio_os_funcs *o, gensio_time *timeout)
     return rv;
 }
 
+static struct gensio_os_funcs *def_win_os_funcs;
+
 static void win_free_funcs(struct gensio_os_funcs *o)
 {
     struct gensio_data *d = o->user_data;
+
+    if (o == def_win_os_funcs)
+	return;
 
     EnterCriticalSection(&d->glock);
     if (!d->freed) {
@@ -3015,7 +3020,6 @@ gensio_i_os_err_to_err(struct gensio_os_funcs *o,
 }
 
 static INIT_ONCE win_oshnd_once = INIT_ONCE_STATIC_INIT;
-static struct gensio_os_funcs *def_win_os_funcs;
 
 static BOOL CALLBACK win_oshnd_init(PINIT_ONCE InitOnce,
 				    PVOID Parameter,
