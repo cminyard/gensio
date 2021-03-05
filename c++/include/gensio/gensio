@@ -6,6 +6,9 @@
 
 // This is a C++ wrapper for the gensio library.
 
+#ifndef GENSIO_CPP_INCLUDE
+#define GENSIO_CPP_INCLUDE
+
 #include <stdexcept>
 #include <string>
 #include <memory>
@@ -1125,3 +1128,5 @@ namespace gensio {
     };
 
 }
+
+#endif /* GENSIO_CPP_INCLUDE */
