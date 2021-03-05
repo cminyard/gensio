@@ -1,6 +1,6 @@
 //
 //  gensio - A library for abstracting stream I/O
-//  Copyright (C) 2018  Corey Minyard <minyard@acm.org>
+//  Copyright (C) 2021  Corey Minyard <minyard@acm.org>
 //
 //  SPDX-License-Identifier: LGPL-2.1-only
 
@@ -44,7 +44,7 @@ namespace gensio {
     // cleaner.  The default constructor automatically allocates the
     // default, destruction takes place automatically.
     // This is a smart pointer like object.
-    class Os_Funcs {
+    class GENSIOCPP_DLL_PUBLIC Os_Funcs {
     public:
 	// Allocate the default os function handlers for the platform.
 	// See gensio_default_os_hnd.3 for details.
@@ -102,6 +102,78 @@ namespace gensio {
     private:
 	struct gensio_os_funcs *osf;
 	std::atomic<unsigned int> *refcnt;
+    };
+
+    // A wrapper for the gensio_addr structure.
+    class GENSIOCPP_DLL_PUBLIC Addr {
+    public:
+	// Create a new address structure using the passed in string.
+	// This is basically the same as gensio_scan_network_port()
+	// in gensio.h, see that for details.
+	Addr(Os_Funcs &o, std::string str, bool listen, int *protocol,
+	     int *argc, const char ***args);
+
+	// Scan a string and create an address from it.  If the address
+	// is being allocated for an accepter, set listen to true, othersize
+	// set it to false.  Protocol must be one of GENSIO_NET_PROTOCOL_XXX.
+	Addr(Os_Funcs &o, std::string str, bool listen, int protocol);
+
+	// Allocate an address based upon the given passed in address and
+	// port.  See gensio_addr_create() in gensio.h for details.
+	Addr(Os_Funcs &o, int nettype, const void *iaddr, gensiods len,
+	     unsigned int port);
+
+	// For copying and assignment, we duplicate the low-level
+	// address.  Addresses are immutable and refcounted.
+	Addr(Addr &a)
+	{
+	    this->gaddr = gensio_addr_dup(a);
+	    if (!this->gaddr)
+		throw std::bad_alloc();
+	    this->is_port_set = a.is_port_set;
+	}
+	Addr & operator=(const Addr &a)
+	{
+	    this->gaddr = gensio_addr_dup(a);
+	    if (!this->gaddr)
+		throw std::bad_alloc();
+	    this->is_port_set = a.is_port_set;
+	    return *this;
+	}
+
+	// Automatically convert to a low-level address
+	operator struct gensio_addr * () const { return gaddr; }
+
+	~Addr();
+
+	// See gensio_addr_xxx functions in gensio.h for details on these.
+	void rewind() { gensio_addr_rewind(gaddr); }
+	void next() { gensio_addr_next(gaddr); }
+	bool at_end() { return gensio_addr_at_end(gaddr); }
+	void getaddr(void *oaddr, gensiods *len)
+	    { gensio_addr_getaddr(gaddr, oaddr, len); }
+	int get_nettype() { return gensio_addr_get_nettype(gaddr); }
+	bool family_supports(int family, int flags)
+	    { return gensio_addr_family_supports(gaddr, family, flags); }
+	std::string to_string();
+	std::string to_string_all();
+
+	inline bool operator==(const Addr &a2)
+	    { return gensio_addr_equal(*this, a2, true, false); }
+	bool equal(const Addr &a2, bool compare_ports, bool compare_all)
+	    { return gensio_addr_equal(*this, a2, compare_ports, compare_all); }
+	bool addr_present(const void *addr, gensiods addrlen,
+			  bool compare_ports)
+	{
+	    return gensio_addr_addr_present(*this, addr, addrlen,
+					    compare_ports);
+	}
+
+	bool port_set() { return is_port_set; }
+
+    private:
+	struct gensio_addr *gaddr;
+	bool is_port_set;
     };
 
     class Gensio;
@@ -379,7 +451,7 @@ namespace gensio {
 
     class GENSIOCPP_DLL_PUBLIC Tcp: public Gensio {
     public:
-	Tcp(struct gensio_addr *addr, const char * const args[],
+	Tcp(const Addr &addr, const char * const args[],
 	    Os_Funcs &o, Event *cb);
 
 	Tcp &operator=(const Gensio&) = delete;
@@ -392,7 +464,7 @@ namespace gensio {
 
     class GENSIOCPP_DLL_PUBLIC Udp: public Gensio {
     public:
-	Udp(struct gensio_addr *addr, const char * const args[],
+	Udp(const Addr &addr, const char * const args[],
 	    Os_Funcs &o, Event *cb);
 
 	Udp &operator=(const Gensio&) = delete;
@@ -405,7 +477,7 @@ namespace gensio {
 
     class GENSIOCPP_DLL_PUBLIC Unix: public Gensio {
     public:
-	Unix(struct gensio_addr *addr, const char * const args[],
+	Unix(const Addr &addr, const char * const args[],
 	     Os_Funcs &o, Event *cb);
 
 	Unix &operator=(const Gensio&) = delete;
@@ -418,7 +490,7 @@ namespace gensio {
 
     class GENSIOCPP_DLL_PUBLIC Sctp: public Gensio {
     public:
-	Sctp(struct gensio_addr *addr, const char * const args[],
+	Sctp(const Addr &addr, const char * const args[],
 	     Os_Funcs &o, Event *cb);
 
 	Sctp &operator=(const Gensio&) = delete;
@@ -978,7 +1050,7 @@ namespace gensio {
 
     class GENSIOCPP_DLL_PUBLIC Tcp_Accepter : public Accepter {
     public:
-	Tcp_Accepter(struct gensio_addr *addr, const char * const args[],
+	Tcp_Accepter(const Addr &addr, const char * const args[],
 		     Os_Funcs &o, Accepter_Event *cb);
 	Tcp_Accepter &operator=(const Gensio&) = delete;
     private:
@@ -990,7 +1062,7 @@ namespace gensio {
 
     class GENSIOCPP_DLL_PUBLIC Udp_Accepter : public Accepter {
     public:
-	Udp_Accepter(struct gensio_addr *addr, const char * const args[],
+	Udp_Accepter(const Addr &addr, const char * const args[],
 		     Os_Funcs &o, Accepter_Event *cb);
 	Udp_Accepter &operator=(const Gensio&) = delete;
     private:
@@ -1002,7 +1074,7 @@ namespace gensio {
 
     class GENSIOCPP_DLL_PUBLIC Unix_Accepter : public Accepter {
     public:
-	Unix_Accepter(struct gensio_addr *addr, const char * const args[],
+	Unix_Accepter(const Addr &addr, const char * const args[],
 		      Os_Funcs &o, Accepter_Event *cb);
 	Unix_Accepter &operator=(const Gensio&) = delete;
     private:
@@ -1014,7 +1086,7 @@ namespace gensio {
 
     class GENSIOCPP_DLL_PUBLIC Sctp_Accepter : public Accepter {
     public:
-	Sctp_Accepter(struct gensio_addr *addr, const char * const args[],
+	Sctp_Accepter(const Addr &addr, const char * const args[],
 		     Os_Funcs &o, Accepter_Event *cb);
 	Sctp_Accepter &operator=(const Gensio&) = delete;
     private:

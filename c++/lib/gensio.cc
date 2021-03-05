@@ -1,9 +1,97 @@
+//
+//  gensio - A library for abstracting stream I/O
+//  Copyright (C) 2018  Corey Minyard <minyard@acm.org>
+//
+//  SPDX-License-Identifier: LGPL-2.1-only
 
 #include <map>
 #include <gensio/gensio>
 
 namespace gensio {
 #include <gensio/gensio_builtins.h>
+#include <gensio/gensio_osops.h>
+
+    Addr::Addr(Os_Funcs &o, std::string str, bool listen, int *protocol,
+	       int *argc, const char ***args)
+    {
+	int err;
+
+	err = gensio_scan_network_port(o, str.c_str(), listen, &gaddr,
+				       protocol, &is_port_set,
+				       argc, args);
+	if (err)
+	    throw gensio_error(err);
+    }
+
+    Addr::Addr(Os_Funcs &o, std::string str, bool listen, int protocol)
+    {
+	int err;
+
+	is_port_set = true;
+	err = gensio_os_scan_netaddr(o, str.c_str(), listen,
+				     protocol, &gaddr);
+	if (err)
+	    throw gensio_error(err);
+    }
+
+    Addr::Addr(Os_Funcs &o, int nettype, const void *iaddr, gensiods len,
+	       unsigned int port)
+    {
+	int err;
+
+	this->is_port_set = port != 0;
+	err = gensio_addr_create(o, nettype, iaddr, len, port, &gaddr);
+	if (err)
+	    throw gensio_error(err);
+    }
+
+    Addr::~Addr()
+    {
+	gensio_addr_free(gaddr);
+    }
+
+    std::string do_to_string(struct gensio_addr *addr, bool all)
+    {
+	int err;
+	gensiods len = 0;
+	char *buf = NULL;
+	std::string s;
+
+	if (all)
+	    err = gensio_addr_to_str_all(addr, buf, &len, 0);
+	else
+	    err = gensio_addr_to_str(addr, buf, &len, 0);
+	if (err)
+	    throw gensio_error(err);
+	buf = new char[len + 1];
+	if (all)
+	    err = gensio_addr_to_str_all(addr, buf, NULL, len);
+	else
+	    err = gensio_addr_to_str(addr, buf, NULL, len);
+	if (err) {
+	    delete buf;
+	    throw gensio_error(err);
+	}
+
+	try {
+	    s = std::string(buf);
+	} catch (...) {
+	    delete buf;
+	    throw;
+	}
+	delete buf;
+	return s;
+    }
+
+    std::string Addr::to_string()
+    {
+	return do_to_string(gaddr, false);
+    }
+
+    std::string Addr::to_string_all()
+    {
+	return do_to_string(gaddr, true);
+    }
 
     void Event::write_ready(Gensio *io)
     {
@@ -627,7 +715,7 @@ namespace gensio {
 	return 0;
     }
 
-    Tcp::Tcp(struct gensio_addr *addr, const char * const args[],
+    Tcp::Tcp(const Addr &addr, const char * const args[],
 	     Os_Funcs &o, Event *cb)
 	: Gensio(o, cb)
     {
@@ -640,7 +728,7 @@ namespace gensio {
 	this->set_gensio(io, true);
     }
 
-    Udp::Udp(struct gensio_addr *addr, const char * const args[],
+    Udp::Udp(const Addr &addr, const char * const args[],
 	     Os_Funcs &o, Event *cb)
 	: Gensio(o, cb)
     {
@@ -653,7 +741,7 @@ namespace gensio {
 	this->set_gensio(io, true);
     }
 
-    Unix::Unix(struct gensio_addr *addr, const char * const args[],
+    Unix::Unix(const Addr &addr, const char * const args[],
 	       Os_Funcs &o, Event *cb)
 	: Gensio(o, cb)
     {
@@ -666,7 +754,7 @@ namespace gensio {
 	this->set_gensio(io, true);
     }
 
-    Sctp::Sctp(struct gensio_addr *addr, const char * const args[],
+    Sctp::Sctp(const Addr &addr, const char * const args[],
 	       Os_Funcs &o, Event *cb)
 	: Gensio(o, cb)
     {
@@ -1697,7 +1785,7 @@ namespace gensio {
 	return std::string(portbuf, len);
     }
 
-    Tcp_Accepter::Tcp_Accepter(struct gensio_addr *addr,
+    Tcp_Accepter::Tcp_Accepter(const Addr &addr,
 			       const char * const args[],
 			       Os_Funcs &o, Accepter_Event *cb)
 	: Accepter(o, cb)
@@ -1711,7 +1799,7 @@ namespace gensio {
 	this->set_accepter(acc, true);
     }
 
-    Udp_Accepter::Udp_Accepter(struct gensio_addr *addr,
+    Udp_Accepter::Udp_Accepter(const Addr &addr,
 			       const char * const args[],
 			       Os_Funcs &o, Accepter_Event *cb)
 	: Accepter(o, cb)
@@ -1725,7 +1813,7 @@ namespace gensio {
 	this->set_accepter(acc, true);
     }
 
-    Unix_Accepter::Unix_Accepter(struct gensio_addr *addr,
+    Unix_Accepter::Unix_Accepter(const Addr &addr,
 				 const char * const args[],
 				 Os_Funcs &o, Accepter_Event *cb)
 	: Accepter(o, cb)
@@ -1739,7 +1827,7 @@ namespace gensio {
 	this->set_accepter(acc, true);
     }
 
-    Sctp_Accepter::Sctp_Accepter(struct gensio_addr *addr,
+    Sctp_Accepter::Sctp_Accepter(const Addr &addr,
 				 const char * const args[],
 				 Os_Funcs &o, Accepter_Event *cb)
 	: Accepter(o, cb)

@@ -140,7 +140,7 @@ private:
 // telnet, and kick off processing.  Wait until the accepter and new
 // gensio are freed.
 static int
-do_server(Os_Funcs &o, struct gensio_addr *addr)
+do_server(Os_Funcs &o, const Addr &addr)
 {
     Waiter w(o);
     Server_Event e(&w);
@@ -184,28 +184,15 @@ int main(int argc, char *argv[])
 {
     int err;
     Os_Funcs o(0);
-    struct gensio_addr *addr;
-    bool is_port_set;
 
     o->vlog = gensio_log;
+    Addr addr(o, argv[1], true, NULL, NULL, NULL);
 
     if (argc < 2) {
 	cerr << "No listen address argument given" << endl;
 	return 1;
     }
 
-    // Convert argv[1] into a gensio address.
-    err = gensio_scan_network_port(o, argv[1], true, &addr, NULL,
-				   &is_port_set, NULL, NULL);
-    if (err) {
-	cerr << "Invalid network address: " << gensio_err_to_str(err) << endl;
-	return 1;
-    }
-
     err = do_server(o, addr);
-
-    gensio_addr_free(addr);
-
-    o->free_funcs(o);
     return err;
 }
