@@ -91,7 +91,7 @@ write_full(int fd, char *data, size_t count)
 }
 
 int
-uucp_mk_lock(char *devname)
+uucp_mk_lock(struct gensio_os_funcs *o, char *devname)
 {
     struct stat stt;
     int pid = -1;
@@ -130,9 +130,7 @@ uucp_mk_lock(char *devname)
 		/* death lockfile - remove it */
 		unlink(lck_file);
 		pid = 0;
-	    } else
-		pid = 1;
-
+	    }
 	}
 
 	if (pid == 0) {
@@ -160,7 +158,15 @@ uucp_mk_lock(char *devname)
 	free(lck_file);
     }
 
-    return pid;
+    if (pid < 0) {
+	gensio_log(o, GENSIO_LOG_ERR, "Error accessing locks in %s: %s",
+		   uucp_lck_dir, strerror(errno));
+	return GE_NOTFOUND;
+    } else if (pid > 0) {
+	gensio_log(o, GENSIO_LOG_ERR, "Port in use by pid %d", pid);
+	return GE_INUSE;
+    }
+    return 0;
 }
 
 #else

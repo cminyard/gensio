@@ -1273,15 +1273,9 @@ sterm_sub_open(void *handler_data, int *fd)
     int options;
 
     if (!sdata->no_uucp_lock) {
-	err = uucp_mk_lock(sdata->devname);
-	if (err > 0) {
-	    err = GE_INUSE;
+	err = uucp_mk_lock(sdata->o, sdata->devname);
+	if (err)
 	    goto out;
-	}
-	if (err < 0) {
-	    err = gensio_os_err_to_err(sdata->o, errno);
-	    goto out;
-	}
     }
 
     sdata->timer_stopped = false;

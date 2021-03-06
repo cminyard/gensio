@@ -13,5 +13,5 @@ extern bool gensio_uucp_locking_enabled;
 
 void uucp_rm_lock(char *devname);
 
-/* returns 0=OK, -1=error (errno will be set), >0=pid of locking process */
-int uucp_mk_lock(char *devname);
+/* returns gensio error. */
+int uucp_mk_lock(struct gensio_os_funcs *o, char *devname);
