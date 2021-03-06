@@ -434,8 +434,6 @@ void gensio_addr_rewind(struct gensio_addr *addr);
 /* Return false if no more addresses exist. */
 GENSIO_DLL_PUBLIC
 bool gensio_addr_next(struct gensio_addr *addr);
-GENSIO_DLL_PUBLIC
-bool gensio_addr_at_end(struct gensio_addr *addr);
 /*
  * Gets the current address.  len must be provided, it is the size of
  * the buffer and is updated to the actual size (which may be larger

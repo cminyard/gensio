@@ -149,7 +149,6 @@ namespace gensio {
 	// See gensio_addr_xxx functions in gensio.h for details on these.
 	void rewind() { gensio_addr_rewind(gaddr); }
 	void next() { gensio_addr_next(gaddr); }
-	bool at_end() { return gensio_addr_at_end(gaddr); }
 	void getaddr(void *oaddr, gensiods *len)
 	    { gensio_addr_getaddr(gaddr, oaddr, len); }
 	int get_nettype() { return gensio_addr_get_nettype(gaddr); }
