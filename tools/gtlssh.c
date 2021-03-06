@@ -295,13 +295,13 @@ do_vlog(struct gensio_os_funcs *f, enum gensio_log_levels level,
     fprintf(stderr, "\r\n");
 }
 
-static void
+static int
 check_cert_expiry(const char *name, const char *filename,
 		  const char *cert, gensiods certlen)
 {
     X509 *x = NULL;
     const ASN1_TIME *t = NULL;
-    int days, seconds;
+    int days, seconds, err = 0;
 
     if (filename) {
 	FILE *fp = fopen(filename, "r");
@@ -310,7 +310,7 @@ check_cert_expiry(const char *name, const char *filename,
 	    fprintf(stderr,
 		    "Unable to open %s certificate file for "
 		    "expiry verification: %s\n", name, strerror(errno));
-	    return;
+	    return GE_NOTFOUND;
 	}
 	x = PEM_read_X509(fp, NULL, NULL, NULL);
 	fclose(fp);
@@ -319,7 +319,7 @@ check_cert_expiry(const char *name, const char *filename,
 
 	if (!cert_bio) {
 	    fprintf(stderr, "Unable to create %s certificate BIO\n", name);
-	    return;
+	    return GE_IOERR;
 	}
 
 	x = PEM_read_bio_X509(cert_bio, NULL, NULL, NULL);
@@ -329,17 +329,25 @@ check_cert_expiry(const char *name, const char *filename,
 	fprintf(stderr,
 		"Unable to load %s certificate for expiry verification\n",
 		name);
-	return;
+	return GE_IOERR;
     }
 
     t = X509_get0_notAfter(x);
     if (!t) {
 	fprintf(stderr, "Unable to get certificate expiry time\n");
+	err = GE_IOERR;
 	goto out;
     }
 
     if (!ASN1_TIME_diff(&days, &seconds, NULL, t)) {
 	fprintf(stderr, "Unable to compare certificate expiry time\n");
+	err = GE_IOERR;
+	goto out;
+    }
+
+    if (days < 0 || seconds < 0) {
+	fprintf(stderr, "***Error: %s certificate has expired\n", name);
+	err = GE_CERTEXPIRED;
 	goto out;
     }
 
@@ -350,6 +358,8 @@ check_cert_expiry(const char *name, const char *filename,
  out:
     if (x)
 	X509_free(x);
+
+    return err;
 }
 
 static int
@@ -770,7 +780,7 @@ auth_event(struct gensio *io, void *user_data, int event, int ierr,
 
     postcert_done:
 	if (!err)
-	    check_cert_expiry("remote host", NULL, cert, certlen);
+	    err = check_cert_expiry("remote host", NULL, cert, certlen);
 	return err;
 
     case GENSIO_EVENT_REQUEST_PASSWORD:
