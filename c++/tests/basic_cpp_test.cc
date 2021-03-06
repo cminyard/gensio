@@ -356,7 +356,7 @@ private:
 
 int main(int argc, char *argv[])
 {
-    int err;
+    int err = 0;
     Os_Funcs o(0);
     const char *test = "mux,tcp,localhost,";
     const char *errstr;
