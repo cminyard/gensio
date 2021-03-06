@@ -31,7 +31,6 @@
 #include <errno.h>
 #include <sys/types.h>
 #include <fcntl.h>
-#include <termios.h>
 #include <gensio/gensio.h>
 #include <gensio/gensio_mdns.h>
 #include <pwd.h>
@@ -150,52 +149,55 @@ static char *tlssh_dir = NULL;
 static int port = 852;
 
 static int
-getpassword(char *pw, gensiods *len)
+getpassword(struct gdata *ginfo, char *pw, gensiods *len)
 {
-    int fd = open("/dev/tty", O_RDWR);
-    struct termios old_termios, new_termios;
+    struct gensio *tty;
     int err = 0;
     gensiods pos = 0;
     char c = 0;
     static char *prompt = "Password: ";
 
-    if (fd == -1) {
-	err = errno;
-	fprintf(stderr, "Unable to open controlling terminal: %s\n",
-		strerror(err));
+    err = str_to_gensio("serialdev,/dev/tty", ginfo->o, NULL, NULL, &tty);
+    if (err) {
+	fprintf(stderr, "Unable to allocate gensio for /dev/tty: %s\n",
+		gensio_err_to_str(err));
 	return err;
     }
 
-    err = tcgetattr(fd, &old_termios);
-    if (err == -1) {
-	err = errno;
-	fprintf(stderr, "Unable to get terminal information: %s\n",
-		strerror(err));
-	goto out_close;
+    err = gensio_open_s(tty);
+    if (err) {
+	gensio_free(tty);
+	fprintf(stderr, "Unable to open /dev/tty: %s\n",
+		gensio_err_to_str(err));
+	return err;
     }
 
-    new_termios = old_termios;
-    new_termios.c_lflag &= ~ECHO;
-
-    err = tcsetattr(fd, TCSANOW, &new_termios);
-    if (err == -1) {
-	err = errno;
-	fprintf(stderr, "Unable to set terminal information: %s\n",
-		strerror(err));
-	goto out_close;
+    err = gensio_set_sync(tty);
+    if (err) {
+	fprintf(stderr, "Unable to set /dev/tty synchronous: %s\n",
+		gensio_err_to_str(err));
+	goto out;
     }
 
-    err = write(fd, prompt, strlen(prompt));
-    if (err == -1) {
+    err = gensio_write_s(tty, NULL, prompt, strlen(prompt), NULL);
+    if (err) {
 	fprintf(stderr, "Error writing password prompt, giving up: %s\n",
-		strerror(errno));
+		gensio_err_to_str(err));
 	exit(1);
     }
     while (true) {
-	err = read(fd, &c, 1);
-	if (err < 0) {
-	    err = errno;
-	    fprintf(stderr, "Error reading password: %s\n", strerror(err));
+	gensiods count = 0;
+
+	err = gensio_read_s(tty, &count, &c, 1, NULL);
+	if (err) {
+	    fprintf(stderr, "Error reading password: %s\n",
+		    gensio_err_to_str(err));
+	    goto out;
+	}
+	if (count != 0) {
+	    fprintf(stderr,
+		    "Error reading password: read didn't return data\n");
+	    err = GE_IOERR;
 	    goto out;
 	}
 	if (c == '\r' || c == '\n')
@@ -204,15 +206,14 @@ getpassword(char *pw, gensiods *len)
 	    pw[pos++] = c;
     }
     err = 0;
-    printf("\n");
+    gensio_write_s(tty, NULL, "\r\n", 2, NULL);
     if (pos < *len)
 	pw[pos++] = '\0';
     *len = pos;
 
  out:
-    tcsetattr(fd, TCSANOW, &old_termios);
- out_close:
-    close(fd);
+    gensio_close_s(tty);
+    gensio_free(tty);
     return err;
 }
 
@@ -785,7 +786,7 @@ auth_event(struct gensio *io, void *user_data, int event, int ierr,
 	return err;
 
     case GENSIO_EVENT_REQUEST_PASSWORD:
-	return getpassword((char *) ibuf, buflen);
+	return getpassword(ginfo, (char *) ibuf, buflen);
 
     default:
 	return GE_NOTSUP;
