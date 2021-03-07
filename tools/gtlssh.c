@@ -34,6 +34,7 @@
 #endif
 #ifdef _WIN32
 #include <windows.h>
+static struct gensiot *wuser_io;
 #endif
 
 #include "ioinfo.h"
@@ -188,6 +189,9 @@ getpassword(struct gdata *ginfo, char *pw, gensiods *len)
     char c = 0;
     static char *prompt = "Password: ";
 
+#ifdef _WIN32
+    tty = wuser_io;
+#else
     err = str_to_gensio("serialdev,/dev/tty", ginfo->o, NULL, NULL, &tty);
     if (err) {
 	fprintf(stderr, "Unable to allocate gensio for /dev/tty: %s\n",
@@ -202,6 +206,7 @@ getpassword(struct gdata *ginfo, char *pw, gensiods *len)
 		gensio_err_to_str(err));
 	return err;
     }
+#endif
 
     err = gensio_set_sync(tty);
     if (err) {
@@ -243,8 +248,12 @@ getpassword(struct gdata *ginfo, char *pw, gensiods *len)
     *len = pos;
 
  out:
+#ifdef _WIN32
+    gensio_set_sync(tty);
+#else
     gensio_close_s(tty);
     gensio_free(tty);
+#endif
     return err;
 }
 
@@ -259,7 +268,7 @@ io_close(struct gensio *io, void *close_data)
 }
 
 static const char *progname;
-static char *io1_default_tty = "serialdev,/dev/tty";
+static char *io1_default_tty = "stdio(self,raw)";
 static char *io1_default_notty = "stdio(self)";
 
 static void
@@ -1702,6 +1711,10 @@ main(int argc, char *argv[])
 		userdata1.ios, gensio_err_to_str(rv));
 	return 1;
     }
+
+#ifdef _WIN32
+    wuser_io = userdata1.io;
+#endif
 
     userdata1.user_io = userdata1.io;
     userdata2.user_io = userdata1.io;
