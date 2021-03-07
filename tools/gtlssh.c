@@ -33,13 +33,15 @@
 #include <fcntl.h>
 #include <gensio/gensio.h>
 #include <gensio/gensio_mdns.h>
-#include <pwd.h>
 #ifdef HAVE_DECL_SIGWINCH
 #include <signal.h>
 #include <sys/ioctl.h>
 #endif
 #ifdef HAVE_PRCTL
 #include <sys/prctl.h>
+#endif
+#ifdef _WIN32
+#include <windows.h>
 #endif
 
 #include <openssl/x509.h>
@@ -138,10 +140,58 @@ static struct ioinfo_user_handlers guh = {
     .oobdata = goobdata
 };
 
-static const char *username, *hostname;
+static char *username, *hostname;
 static char *certfile, *CAdir, *keyfile;
 static char *tlssh_dir = NULL;
 static int port = 852;
+
+#ifdef _WIN32
+static char *
+get_my_username(void)
+{
+    char *username = malloc(UNLEN + 1);
+
+    if (!username) {
+	fprintf(stderr, "out of memory allocating username\n");
+	return NULL
+    }
+
+    if (!GetUserNameA(username, UNLEN + 1)) {
+	DWORD err = GetLastErr();
+	char errbuf[128];
+
+	FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM, NULL,
+		      err, 0, errbuf, sizeof(errbuf), NULL);
+	fprintf(stderr, "Could not get username: %s\n" errbuf);
+	return NULL;
+    }
+
+    return username;
+}
+
+#else
+
+#include <pwd.h>
+
+static char *
+get_my_username(void)
+{
+    struct passwd *pw = getpwuid(getuid());
+    char *username;
+
+    if (!pw) {
+	fprintf(stderr, "no username given, and can't look up UID\n");
+	return NULL;
+    }
+    username = strdup(pw->pw_name);
+    if (!username) {
+	fprintf(stderr, "out of memory allocating username\n");
+	return NULL;
+    }
+
+    return username;
+}
+#endif
 
 static int
 getpassword(struct gdata *ginfo, char *pw, gensiods *len)
@@ -1475,20 +1525,16 @@ main(int argc, char *argv[])
     s = strrchr(argv[arg], '@');
     if (s) {
 	*s++ = '\0';
-	username = argv[arg];
-	hostname = s;
-    } else {
-	struct passwd *pw = getpwuid(getuid());
-
-	if (!pw) {
-	    fprintf(stderr, "no username given, and can't look up UID\n");
-	    return 1;
-	}
-	username = strdup(pw->pw_name);
+	username = strdup(argv[arg]);
 	if (!username) {
 	    fprintf(stderr, "out of memory allocating username\n");
 	    return 1;
 	}
+	hostname = s;
+    } else {
+	username = get_my_username();
+	if (!username)
+	    return 1;
 	hostname = argv[arg];
     }
 
