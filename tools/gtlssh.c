@@ -144,7 +144,8 @@ static struct ioinfo_user_handlers guh = {
     .oobdata = goobdata
 };
 
-static const char *username, *hostname, *keyfile, *certfile, *CAdir;
+static const char *username, *hostname;
+static char *certfile, *CAdir, *keyfile;
 static char *tlssh_dir = NULL;
 static int port = 852;
 
@@ -246,6 +247,7 @@ help(int err)
 	   "    of the default.  The certificate will default to the same\n"
 	   "    name ending in .crt\n");
     printf("  --certfile <file> - Set the certificate to use.\n");
+    printf("  --cadir <directory> - Set the cert authority directory.\n");
     printf("  -r, --telnet - Do telnet processing with RFC2217 handling.\n");
     printf("  -e, --escchar - Set the local terminal escape character.\n"
 	   "    Set to -1 to disable the escape character\n"
@@ -1276,7 +1278,7 @@ main(int argc, char *argv[])
     const char *muxstr = "mux,";
     bool use_mux = true;
     struct sigaction sigact;
-    const char *addr;
+    const char *addr, *cstr;
     const char *iptype = ""; /* Try both IPv4 and IPv6 by default. */
     const char *mdns_type = NULL;
 
@@ -1331,28 +1333,52 @@ main(int argc, char *argv[])
 	    arg++;
 	    break;
 	}
-	if ((rv = cmparg(argc, argv, &arg, "-i", "--keyfile", &keyfile))) {
+	if ((rv = cmparg(argc, argv, &arg, "-i", "--keyfile", &cstr))) {
+	    if (keyfile)
+		free(keyfile);
+	    keyfile = strdup(cstr);
+	    if (!keyfile) {
+		fprintf(stderr, "Unable to allocate memory for keyfile\n");
+		exit(1);
+	    }
 	    if (!certfile) {
 		char *dotpos = strrchr(keyfile, '.');
 
 		if (dotpos)
 		    *dotpos = '\0';
-		certfile = alloc_sprintf("%s.crt", keyfile);
+		s = alloc_sprintf("%s.crt", keyfile);
 		if (dotpos)
 		    *dotpos = '.';
-		if (!certfile) {
+		if (!s) {
 		    fprintf(stderr, "Unable to allocate memory for certfile\n");
 		    exit(1);
 		}
+		if (certfile)
+		    free(certfile);
+		certfile = s;
 	    }
 	} else if ((rv = cmparg_int(argc, argv, &arg, "-p", "--port",
 				    &port))) {
 	    ;
 	} else if ((rv = cmparg(argc, argv, &arg, NULL, "--certfile",
-				&certfile))) {
-	    ;
+				&cstr))) {
+	    if (certfile)
+		free(certfile);
+	    certfile = strdup(cstr);
+	    if (!certfile) {
+		fprintf(stderr, "Unable to allocate memory for certfile\n");
+		exit(1);
+	    }
+	} else if ((rv = cmparg(argc, argv, &arg, NULL, "--cadir", &cstr))) {
+	    if (CAdir)
+		free(CAdir);
+	    CAdir = strdup(cstr);
+	    if (!CAdir) {
+		fprintf(stderr, "Unable to allocate memory for cadir\n");
+		exit(1);
+	    }
 	} else if ((rv = cmparg_int(argc, argv, &arg, "-e", "--escchar",
-			     &escape_char))) {
+				    &escape_char))) {
 	    ;
 	} else if ((rv = cmparg(argc, argv, &arg, NULL, "--nomux", NULL))) {
 	    muxstr = "";
@@ -1741,6 +1767,13 @@ main(int argc, char *argv[])
     free_ioinfo(ioinfo2);
     free_ser_ioinfo(subdata1);
     free_ser_ioinfo(subdata2);
+
+    if (keyfile)
+	free(keyfile);
+    if (certfile)
+	free(certfile);
+    if (CAdir)
+	free(CAdir);
 
     return 0;
 }
