@@ -602,6 +602,8 @@ AC_CHECK_FUNCS(strcasecmp)
 AC_CHECK_FUNCS(strncasecmp)
 AC_CHECK_FUNCS(prctl)
 
+AC_CHECK_DECLS([SIGWINCH], [], [], [#include <signal.h>])
+
 CPPFLAGS="$CPPFLAGS -I\$(top_srcdir)/include -I\$(top_builddir)/include"
 
 AC_OUTPUT([Makefile

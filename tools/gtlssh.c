@@ -34,8 +34,10 @@
 #include <gensio/gensio.h>
 #include <gensio/gensio_mdns.h>
 #include <pwd.h>
+#ifdef HAVE_DECL_SIGWINCH
 #include <signal.h>
 #include <sys/ioctl.h>
+#endif
 #ifdef HAVE_PRCTL
 #include <sys/prctl.h>
 #endif
@@ -67,16 +69,6 @@ struct gdata {
     bool interactive;
     bool got_oob;
 };
-
-static void winch_ready(struct gensio_iod *iod, void *cb_data);
-static void winch_sent(void *cb_data);
-
-static int winch_pipe[2];
-static struct gensio_iod *winch_iod;
-static unsigned char winch_buf[11];
-static struct ioinfo_oob winch_oob = { .buf = winch_buf };
-static bool winch_oob_sending;
-static bool winch_oob_pending;
 
 static void
 gshutdown(struct ioinfo *ioinfo, bool user_req)
@@ -118,6 +110,8 @@ static int gevent(struct ioinfo *ioinfo, struct gensio *io, int event,
     return 0;
 }
 
+static void winch_ready(struct gensio_iod *iod, void *cb_data);
+
 /*
  * We wait until the other end has signalled us to say that it is
  * ready before sending the winch.  Otherwise the winch will mess up
@@ -133,7 +127,7 @@ goobdata(struct ioinfo *ioinfo, unsigned char *buf, gensiods *buflen)
 
     ginfo->got_oob = true;
     if (ginfo->interactive)
-	winch_ready(winch_iod, ioinfo);
+	winch_ready(NULL, ioinfo);
 }
 
 static struct ioinfo_user_handlers guh = {
@@ -795,6 +789,17 @@ auth_event(struct gensio *io, void *user_data, int event, int ierr,
     }
 }
 
+#if HAVE_DECL_SIGWINCH
+
+static void winch_sent(void *cb_data);
+
+static int winch_pipe[2];
+static struct gensio_iod *winch_iod;
+static unsigned char winch_buf[11];
+static struct ioinfo_oob winch_oob = { .buf = winch_buf };
+static bool winch_oob_sending;
+static bool winch_oob_pending;
+
 static void
 send_winch(struct ioinfo *ioinfo)
 {
@@ -862,6 +867,15 @@ handle_sigwinch(int signum)
 	/* What can be done here? */
     }
 }
+
+#else
+
+static void
+winch_ready(struct gensio_iod *iod, void *cb_data)
+{
+}
+
+#endif /* HAVE_DECL_SIGWINCH */
 
 static void
 pr_localport(const char *fmt, va_list ap)
@@ -1296,6 +1310,7 @@ main(int argc, char *argv[])
 	return 1;
     }
 
+#if HAVE_DECL_SIGWINCH
     if (pipe(winch_pipe) == -1) {
 	perror("Unable to allocate SIGWINCH pipe");
 	return 1;
@@ -1315,6 +1330,7 @@ main(int argc, char *argv[])
 	perror("Unable to setup SIGWINCH");
 	return 1;
     }
+#endif /* HAVE_DECL_SIGWINCH */
 
     progname = argv[0];
 
@@ -1703,6 +1719,7 @@ main(int argc, char *argv[])
     ioinfo_set_ready(ioinfo1, userdata1.io);
     ioinfo_set_ready(ioinfo2, userdata2.io);
 
+#if HAVE_DECL_SIGWINCH
     rv = o->add_iod(o, GENSIO_IOD_PIPE, winch_pipe[0], &winch_iod);
     if (rv) {
 	fprintf(stderr, "Could not add SIGWINCH fd iod: %s\n",
@@ -1718,6 +1735,7 @@ main(int argc, char *argv[])
 	return 1;
     }
     o->set_read_handler(winch_iod, true);
+#endif /* HAVE_DECL_SIGWINCH */
 
     start_local_ports(userdata2.io);
     start_remote_ports(ioinfo2);
