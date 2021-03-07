@@ -20,6 +20,12 @@
 #include <openssl/bio.h>
 #include <openssl/err.h>
 
+#ifdef _WIN32
+#define DIRSEP '\\'
+#else
+#define DIRSEP '/'
+#endif
+
 /* In gensio_filter_ssl.c, semi-private. */
 int gensio_cert_get_name(X509 *cert, char *data, gensiods *datalen);
 int gensio_cert_to_buf(X509 *cert, char *buf, gensiods *datalen);
@@ -883,7 +889,7 @@ ssl_filter_control(struct gensio_filter *filter, bool get, int op, char *data,
 	store = X509_STORE_new();
 	if (!store)
 	    return GE_NOMEM;
-	if (data[strlen(data) - 1] == '/')
+	if (data[strlen(data) - 1] == DIRSEP)
 	    CApath = data;
 	else
 	    CAfile = data;
@@ -1325,7 +1331,7 @@ gensio_ssl_filter_alloc(struct gensio_ssl_filter_data *data,
     if (data->CAfilepath && data->CAfilepath[0]) {
 	char *CAfile = NULL, *CApath = NULL;
 
-	if (data->CAfilepath[strlen(data->CAfilepath) - 1] == '/')
+	if (data->CAfilepath[strlen(data->CAfilepath) - 1] == DIRSEP)
 	    CApath = data->CAfilepath;
 	else
 	    CAfile = data->CAfilepath;

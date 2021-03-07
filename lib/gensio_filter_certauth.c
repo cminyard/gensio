@@ -12,6 +12,12 @@
 #include "gensio_filter_certauth.h"
 #include "gensio_filter_ssl.h"
 
+#ifdef _WIN32
+#define DIRSEP '\\'
+#else
+#define DIRSEP '/'
+#endif
+
 struct gensio_certauth_filter_data {
     struct gensio_os_funcs *o;
     bool is_client;
@@ -1679,7 +1685,7 @@ certauth_filter_control(struct gensio_filter *filter, bool get, int op,
 	store = X509_STORE_new();
 	if (!store)
 	    return GE_NOMEM;
-	if (data[strlen(data) - 1] == '/')
+	if (data[strlen(data) - 1] == DIRSEP)
 	    CApath = data;
 	else
 	    CAfile = data;
@@ -2217,7 +2223,7 @@ gensio_certauth_filter_alloc(struct gensio_certauth_filter_data *data,
     if (data->CAfilepath && data->CAfilepath[0]) {
 	char *CAfile = NULL, *CApath = NULL;
 
-	if (data->CAfilepath[strlen(data->CAfilepath) - 1] == '/')
+	if (data->CAfilepath[strlen(data->CAfilepath) - 1] == DIRSEP)
 	    CApath = data->CAfilepath;
 	else
 	    CAfile = data->CAfilepath;
