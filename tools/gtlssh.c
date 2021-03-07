@@ -25,18 +25,10 @@
 
 #include "config.h"
 #include <stdio.h>
-#include <unistd.h>
 #include <stdlib.h>
 #include <string.h>
-#include <errno.h>
-#include <sys/types.h>
-#include <fcntl.h>
 #include <gensio/gensio.h>
 #include <gensio/gensio_mdns.h>
-#ifdef HAVE_DECL_SIGWINCH
-#include <signal.h>
-#include <sys/ioctl.h>
-#endif
 #ifdef HAVE_PRCTL
 #include <sys/prctl.h>
 #endif
@@ -44,18 +36,11 @@
 #include <windows.h>
 #endif
 
-#include <openssl/x509.h>
-#include <openssl/pem.h>
-
 #include "ioinfo.h"
 #include "localports.h"
 #include "ser_ioinfo.h"
 #include "utils.h"
 #include "gtlssh.h"
-
-#if OPENSSL_VERSION_NUMBER < 0x10100000L
-#define X509_get0_notAfter(x) X509_get_notAfter(x)
-#endif
 
 unsigned int debug;
 
@@ -172,6 +157,7 @@ get_my_username(void)
 #else
 
 #include <pwd.h>
+#include <unistd.h>
 
 static char *
 get_my_username(void)
@@ -343,6 +329,20 @@ do_vlog(struct gensio_os_funcs *f, enum gensio_log_levels level,
     fprintf(stderr, "\r\n");
 }
 
+#if HAVE_OPENSSL
+#include <openssl/x509.h>
+#include <openssl/pem.h>
+
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
+#define X509_get0_notAfter(x) X509_get_notAfter(x)
+#endif
+
+#ifdef _WIN32
+#define DIRSEP '\\'
+#else
+#define DIRSEP '/'
+#endif
+
 static int
 check_cert_expiry(const char *name, const char *filename,
 		  const char *cert, gensiods certlen)
@@ -357,7 +357,7 @@ check_cert_expiry(const char *name, const char *filename,
 	if (!fp) {
 	    fprintf(stderr,
 		    "Unable to open %s certificate file for "
-		    "expiry verification: %s\n", name, strerror(errno));
+		    "expiry verification\n", name);
 	    return GE_NOTFOUND;
 	}
 	x = PEM_read_X509(fp, NULL, NULL, NULL);
@@ -419,7 +419,7 @@ lookup_certfiles(const char *tlssh_dir, const char *username,
     char *tcertfile, *tkeyfile;
 
     if (!CAdir) {
-	CAdir = alloc_sprintf("%s/server_certs", tlssh_dir);
+	CAdir = alloc_sprintf("%s%cserver_certs", tlssh_dir, DIRSEP);
 	if (!CAdir) {
 	    fprintf(stderr, "Error allocating memory for CAdir\n");
 	    return GE_NOMEM;
@@ -427,17 +427,18 @@ lookup_certfiles(const char *tlssh_dir, const char *username,
     }
 
     if (!certfile) {
-	tcertfile = alloc_sprintf("%s/keycerts/%s,%d.crt", tlssh_dir,
-				  hostname, port);
+	tcertfile = alloc_sprintf("%s%ckeycerts%c%s,%d.crt", tlssh_dir, DIRSEP,
+				  DIRSEP, hostname, port);
 	if (!tcertfile)
 	    goto cert_nomem;
 	if (file_is_readable(tcertfile)) {
-	    tkeyfile = alloc_sprintf("%s/keycerts/%s,%d.key", tlssh_dir,
-				     hostname, port);
+	    tkeyfile = alloc_sprintf("%s%ckeycerts%c%s,%d.key", tlssh_dir,
+				     DIRSEP, DIRSEP, hostname, port);
 	    goto found_cert;
 	}
 	free(tcertfile);
-	tcertfile = alloc_sprintf("%s/keycerts/%s.crt", tlssh_dir, hostname);
+	tcertfile = alloc_sprintf("%s%ckeycerts%c%s.crt", tlssh_dir, DIRSEP,
+				  DIRSEP, hostname);
 	if (!tcertfile)
 	    goto cert_nomem;
 	if (file_is_readable(tcertfile)) {
@@ -446,13 +447,13 @@ lookup_certfiles(const char *tlssh_dir, const char *username,
 	}
 	free(tcertfile);
 
-	tcertfile = alloc_sprintf("%s/default.crt", tlssh_dir);
+	tcertfile = alloc_sprintf("%s%cdefault.crt", tlssh_dir, DIRSEP);
 	if (!tcertfile) {
 	cert_nomem:
 	    fprintf(stderr, "Error allocating memory for certificate file\n");
 	    goto out_err;
 	}
-	tkeyfile = alloc_sprintf("%s/default.key", tlssh_dir);
+	tkeyfile = alloc_sprintf("%s%cdefault.key", tlssh_dir, DIRSEP);
     found_cert:
 	if (!tkeyfile) {
 	    fprintf(stderr, "Error allocating memory for private key file\n");
@@ -479,7 +480,7 @@ lookup_certfiles(const char *tlssh_dir, const char *username,
     check_cert_expiry("local", certfile, NULL, 0);
 
     err = GE_NOMEM;
-    *rCAdir = alloc_sprintf("CA=%s/", CAdir);
+    *rCAdir = alloc_sprintf("CA=%s%c", CAdir, DIRSEP);
     if (!*rCAdir)
 	goto out_err;
     *rcertfile = alloc_sprintf(",cert=%s", certfile);
@@ -502,6 +503,62 @@ lookup_certfiles(const char *tlssh_dir, const char *username,
  out_err:
     return err;
 }
+
+static int
+verify_certfile(struct gensio_os_funcs *o,
+		const char *cert, const char *fmt, ...)
+{
+    size_t rv;
+    FILE *f;
+    va_list va;
+    char *filename;
+    char cmpcert[16384];
+
+    va_start(va, fmt);
+    filename = alloc_vsprintf(fmt, va);
+    va_end(va);
+    if (!filename) {
+	fprintf(stderr, "Out of memory allocating filename");
+	return GE_NOMEM;
+    }
+
+    f = fopen(filename, "r");
+    if (!f) {
+	fprintf(stderr,
+		"Unable to open certificate file at %s\n", filename);
+	rv = GE_CERTNOTFOUND;
+    } else {
+	size_t len = strlen(cert);
+
+	rv = fread(cmpcert, 1, sizeof(cmpcert), f);
+	if (rv == 0) {
+	    fprintf(stderr,
+		    "Error reading '%s', could not verify certificate\n",
+		    filename);
+	    rv = GE_IOERR;
+	    goto out;
+	} else if (rv != len) {
+	    fprintf(stderr, "Certificate at '%s': length mismatch\n", filename);
+	    rv = GE_CERTINVALID;
+	    goto out;
+	} else if (memcmp(cert, cmpcert, len) != 0) {
+	    fprintf(stderr, "Certificate at '%s': compare failure\n", filename);
+	    rv = GE_CERTINVALID;
+	    goto out;
+	}
+	rv = 0;
+
+    out:
+	fclose(f);
+    }
+
+    free(filename);
+    return rv;
+}
+
+#include <unistd.h>
+#include <fcntl.h>
+#include <errno.h>
 
 static int
 add_certfile(struct gensio_os_funcs *o, const char *cert, const char *fmt, ...)
@@ -557,57 +614,36 @@ add_certfile(struct gensio_os_funcs *o, const char *cert, const char *fmt, ...)
     return rv;
 }
 
+#else
+
+static int
+check_cert_expiry(const char *name, const char *filename,
+		  const char *cert, gensiods certlen)
+{
+    return GE_NOTFOUND;
+}
+
+static int
+lookup_certfiles(const char *tlssh_dir, const char *username,
+		 const char *hostname, int port,
+		 char **rCAdir, char **rcertfile, char **rkeyfile)
+{
+    return GE_NOTFOUND;
+}
+
+static int
+add_certfile(struct gensio_os_funcs *o, const char *cert, const char *fmt, ...)
+{
+    return GE_NOTFOUND;
+}
+
 static int
 verify_certfile(struct gensio_os_funcs *o,
 		const char *cert, const char *fmt, ...)
 {
-    int rv;
-    va_list va;
-    char *filename;
-    char cmpcert[16384];
-
-    va_start(va, fmt);
-    filename = alloc_vsprintf(fmt, va);
-    va_end(va);
-    if (!filename) {
-	fprintf(stderr, "Out of memory allocating filename");
-	return GE_NOMEM;
-    }
-
-    rv = open(filename, O_RDONLY);
-    if (rv == -1) {
-	fprintf(stderr,
-		"Unable to open certificate file at %s: %s\n", filename,
-		strerror(errno));
-	rv = GE_CERTNOTFOUND;
-    } else {
-	int fd = rv, len = strlen(cert);
-
-	rv = read(fd, cmpcert, sizeof(cmpcert));
-	if (rv == -1) {
-	    rv = errno;
-	    fprintf(stderr, "Error reading '%s', could not verify certificate:"
-		    " %s\n", filename, strerror(rv));
-	    rv = gensio_os_err_to_err(o, rv);
-	    goto out;
-	} else if (rv != len) {
-	    fprintf(stderr, "Certificate at '%s': length mismatch\n", filename);
-	    rv = GE_CERTINVALID;
-	    goto out;
-	} else if (memcmp(cert, cmpcert, len) != 0) {
-	    fprintf(stderr, "Certificate at '%s': compare failure\n", filename);
-	    rv = GE_CERTINVALID;
-	    goto out;
-	}
-	rv = 0;
-
-    out:
-	close(fd);
-    }
-
-    free(filename);
-    return rv;
+    return GE_NOTFOUND;
 }
+#endif
 
 static void
 translate_raddr(char *raddr)
@@ -840,6 +876,10 @@ auth_event(struct gensio *io, void *user_data, int event, int ierr,
 }
 
 #if HAVE_DECL_SIGWINCH
+#include <sys/types.h>
+#include <fcntl.h>
+#include <signal.h>
+#include <sys/ioctl.h>
 
 static void winch_sent(void *cb_data);
 
@@ -1341,7 +1381,6 @@ main(int argc, char *argv[])
     bool notcp = false, nosctp = true;
     const char *muxstr = "mux,";
     bool use_mux = true;
-    struct sigaction sigact;
     const char *addr, *cstr;
     const char *iptype = ""; /* Try both IPv4 and IPv6 by default. */
     const char *mdns_type = NULL;
@@ -1351,7 +1390,6 @@ main(int argc, char *argv[])
     memset(&userdata1, 0, sizeof(userdata1));
     memset(&userdata2, 0, sizeof(userdata2));
     userdata2.interactive = true;
-    memset(&sigact, 0, sizeof(sigact));
 
     rv = gensio_default_os_hnd(0, &o);
     if (rv) {
@@ -1374,12 +1412,17 @@ main(int argc, char *argv[])
 	return 1;
     }
 
-    sigact.sa_handler = handle_sigwinch;
-    err = sigaction(SIGWINCH, &sigact, NULL);
-    if (err) {
-	perror("Unable to setup SIGWINCH");
-	return 1;
-    }
+    do {
+	struct sigaction sigact;
+
+	memset(&sigact, 0, sizeof(sigact));
+	sigact.sa_handler = handle_sigwinch;
+	err = sigaction(SIGWINCH, &sigact, NULL);
+	if (err) {
+	    perror("Unable to setup SIGWINCH");
+	    return 1;
+	}
+    } while(0);
 #endif /* HAVE_DECL_SIGWINCH */
 
     progname = argv[0];
