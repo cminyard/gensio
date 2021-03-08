@@ -483,7 +483,7 @@ static void
 gensio_tcl_timeout_done(ClientData data)
 {
     struct gensio_timer *t = data;
-    void (*done_handler)(struct gensio_timer *t, void *cb_data);
+    void (*done_handler)(struct gensio_timer *t, void *cb_data) = NULL;
     void *done_cb_data;
 
     Tcl_MutexLock(&t->lock);
