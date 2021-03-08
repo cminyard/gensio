@@ -1725,7 +1725,7 @@ main(int argc, char *argv[])
 	return 1;
 
     if (mdns_transport) {
-	bool ltelnet;
+	bool ltelnet = false;
 	err = lookup_mdns_transport(o, hostname, mdns_type, iptype,
 				    &transport, &ltelnet);
 	if (err)
