@@ -2042,7 +2042,10 @@ gensio_memtrack_cleanup(struct gensio_memtrack *m)
 void *
 gensio_i_zalloc(struct gensio_memtrack *m, unsigned int size)
 {
-    return malloc(size);
+    void *d = malloc(size);
+    if (d)
+	memset(d, 0, size);
+    return d;
 }
 
 void
