@@ -1296,7 +1296,7 @@ main(int argc, char *argv[])
     const char *keyfile = default_keyfile;
     const char *certfile = default_certfile;
     const char *configfile = default_configfile;
-    int port = 852;
+    unsigned int port = 852;
     char *s;
     bool notcp = false, nosctp = false;
     bool daemonize = true;
@@ -1317,8 +1317,8 @@ main(int argc, char *argv[])
 	    arg++;
 	    break;
 	}
-	if ((rv = cmparg_int(argc, argv, &arg, "-p", "--port",
-			     &port)))
+	if ((rv = cmparg_uint(argc, argv, &arg, "-p", "--port",
+			      &port)))
 	    ;
 	else if ((rv = cmparg(argc, argv, &arg, "-f", "--configfile",
 			      &configfile)))

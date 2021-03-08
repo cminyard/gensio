@@ -130,6 +130,30 @@ cmparg_int(int argc, char *argv[], int *arg, char *sarg, char *larg, int *rc)
     return 1;
 }
 
+int
+cmparg_uint(int argc, char *argv[], int *arg, char *sarg, char *larg,
+	    unsigned int *rc)
+{
+    const char *str;
+    char *end;
+    int rv = cmparg(argc, argv, arg, sarg, larg, &str);
+    long v;
+
+    if (rv <= 0)
+	return rv;
+    if (!str[0]) {
+	fprintf(stderr, "No string given for character\n");
+	return -1;
+    }
+    v = strtoul(str, &end, 0);
+    if (*end != '\0') {
+	fprintf(stderr, "Invalid string given for character\n");
+	return -1;
+    }
+    *rc = v;
+    return 1;
+}
+
 bool
 strstartswith(const char *str, const char *cmp)
 {

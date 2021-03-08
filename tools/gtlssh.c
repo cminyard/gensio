@@ -127,9 +127,9 @@ static struct ioinfo_user_handlers guh = {
 };
 
 static char *username, *hostname;
-static char *certfile, *CAdir, *keyfile;
+static char *certname, *CAname, *keyname;
 static char *tlssh_dir = NULL;
-static int port = 852;
+static unsigned int port = 852;
 
 #ifdef _WIN32
 static char *
@@ -249,7 +249,7 @@ getpassword(struct gdata *ginfo, char *pw, gensiods *len)
 
  out:
 #ifdef _WIN32
-    gensio_set_sync(tty);
+    gensio_cancel_sync(tty);
 #else
     gensio_close_s(tty);
     gensio_free(tty);
@@ -282,11 +282,11 @@ help(int err)
     printf("\noptions are:\n");
     printf("  -p, --port <port> - Use the given port instead of the\n"
 	   "    default.\n");
-    printf("  -i, --keyfile <file> - Use the given file for the key instead\n"
+    printf("  -i, --keyname <file> - Use the given file for the key instead\n"
 	   "    of the default.  The certificate will default to the same\n"
 	   "    name ending in .crt\n");
-    printf("  --certfile <file> - Set the certificate to use.\n");
-    printf("  --cadir <directory> - Set the cert authority directory.\n");
+    printf("  --certname <file> - Set the certificate to use.\n");
+    printf("  --caname <directory> - Set the cert authority directory.\n");
     printf("  -r, --telnet - Do telnet processing with RFC2217 handling.\n");
     printf("  -e, --escchar - Set the local terminal escape character.\n"
 	   "    Set to -1 to disable the escape character\n"
@@ -420,90 +420,90 @@ check_cert_expiry(const char *name, const char *filename,
 }
 
 static int
-lookup_certfiles(const char *tlssh_dir, const char *username,
-		 const char *hostname, int port,
-		 char **rCAdir, char **rcertfile, char **rkeyfile)
+lookup_certinfo(const char *tlssh_dir, const char *username,
+		const char *hostname, int port,
+		char **rCAspec, char **rcertspec, char **rkeyspec)
 {
     int err = GE_NOMEM;
-    char *tcertfile, *tkeyfile;
+    char *tcertname, *tkeyname;
 
-    if (!CAdir) {
-	CAdir = alloc_sprintf("%s%cserver_certs", tlssh_dir, DIRSEP);
-	if (!CAdir) {
-	    fprintf(stderr, "Error allocating memory for CAdir\n");
+    if (!CAname) {
+	CAname = alloc_sprintf("%s%cserver_certs", tlssh_dir, DIRSEP);
+	if (!CAname) {
+	    fprintf(stderr, "Error allocating memory for CAname\n");
 	    return GE_NOMEM;
 	}
     }
 
-    if (!certfile) {
-	tcertfile = alloc_sprintf("%s%ckeycerts%c%s,%d.crt", tlssh_dir, DIRSEP,
+    if (!certname) {
+	tcertname = alloc_sprintf("%s%ckeycerts%c%s,%d.crt", tlssh_dir, DIRSEP,
 				  DIRSEP, hostname, port);
-	if (!tcertfile)
+	if (!tcertname)
 	    goto cert_nomem;
-	if (file_is_readable(tcertfile)) {
-	    tkeyfile = alloc_sprintf("%s%ckeycerts%c%s,%d.key", tlssh_dir,
+	if (file_is_readable(tcertname)) {
+	    tkeyname = alloc_sprintf("%s%ckeycerts%c%s,%d.key", tlssh_dir,
 				     DIRSEP, DIRSEP, hostname, port);
 	    goto found_cert;
 	}
-	free(tcertfile);
-	tcertfile = alloc_sprintf("%s%ckeycerts%c%s.crt", tlssh_dir, DIRSEP,
+	free(tcertname);
+	tcertname = alloc_sprintf("%s%ckeycerts%c%s.crt", tlssh_dir, DIRSEP,
 				  DIRSEP, hostname);
-	if (!tcertfile)
+	if (!tcertname)
 	    goto cert_nomem;
-	if (file_is_readable(tcertfile)) {
-	    tkeyfile = alloc_sprintf("%s/keycerts/%s.key", tlssh_dir, hostname);
+	if (file_is_readable(tcertname)) {
+	    tkeyname = alloc_sprintf("%s/keycerts/%s.key", tlssh_dir, hostname);
 	    goto found_cert;
 	}
-	free(tcertfile);
+	free(tcertname);
 
-	tcertfile = alloc_sprintf("%s%cdefault.crt", tlssh_dir, DIRSEP);
-	if (!tcertfile) {
+	tcertname = alloc_sprintf("%s%cdefault.crt", tlssh_dir, DIRSEP);
+	if (!tcertname) {
 	cert_nomem:
 	    fprintf(stderr, "Error allocating memory for certificate file\n");
 	    goto out_err;
 	}
-	tkeyfile = alloc_sprintf("%s%cdefault.key", tlssh_dir, DIRSEP);
+	tkeyname = alloc_sprintf("%s%cdefault.key", tlssh_dir, DIRSEP);
     found_cert:
-	if (!tkeyfile) {
+	if (!tkeyname) {
 	    fprintf(stderr, "Error allocating memory for private key file\n");
-	    free(tcertfile);
-	    tcertfile = NULL;
+	    free(tcertname);
+	    tcertname = NULL;
 	    goto out_err;
 	}
-	certfile = tcertfile;
-	keyfile = tkeyfile;
+	certname = tcertname;
+	keyname = tkeyname;
     }
 
-    err = checkout_file(CAdir, true, false);
+    err = checkout_file(CAname, true, false);
     if (err)
 	goto out_err;
 
-    err = checkout_file(certfile, false, false);
+    err = checkout_file(certname, false, false);
     if (err)
 	goto out_err;
 
-    err = checkout_file(keyfile, false, true);
+    err = checkout_file(keyname, false, true);
     if (err)
 	goto out_err;
 
-    check_cert_expiry("local", certfile, NULL, 0);
+    check_cert_expiry("local", certname, NULL, 0);
 
     err = GE_NOMEM;
-    *rCAdir = alloc_sprintf("CA=%s%c", CAdir, DIRSEP);
-    if (!*rCAdir)
+    *rCAspec = alloc_sprintf("CA=%s%c", CAname, DIRSEP);
+    if (!*rCAspec)
 	goto out_err;
-    *rcertfile = alloc_sprintf(",cert=%s", certfile);
-    if (!*rcertfile) {
-	free(*rCAdir);
-	*rCAdir = NULL;
+    *rcertspec = alloc_sprintf(",cert=%s", certname);
+    if (!*rcertspec) {
+	free(*rCAspec);
+	*rCAspec = NULL;
 	goto out_err;
     }
-    *rkeyfile = alloc_sprintf(",key=%s", keyfile);
-    if (!*rkeyfile) {
-	free(*rcertfile);
-	*rcertfile = NULL;
-	free(*rCAdir);
-	*rCAdir = NULL;
+    *rkeyspec = alloc_sprintf(",key=%s", keyname);
+    if (!*rkeyspec) {
+	free(*rcertspec);
+	*rcertspec = NULL;
+	free(*rCAspec);
+	*rCAspec = NULL;
 	goto out_err;
     }
 
@@ -514,18 +514,19 @@ lookup_certfiles(const char *tlssh_dir, const char *username,
 }
 
 static int
-verify_certfile(struct gensio_os_funcs *o,
-		const char *cert, const char *fmt, ...)
+verify_cert(struct gensio_os_funcs *o,
+	    const char *cert, const char *dir,
+	    const char *name, unsigned int port)
 {
     size_t rv;
     FILE *f;
-    va_list va;
     char *filename;
     char cmpcert[16384];
 
-    va_start(va, fmt);
-    filename = alloc_vsprintf(fmt, va);
-    va_end(va);
+    if (port)
+	filename = alloc_sprintf("%s%c%s,%d.crt", dir, DIRSEP, name, port);
+    else
+	filename = alloc_sprintf("%s%c%s.crt", dir, DIRSEP, name);
     if (!filename) {
 	fprintf(stderr, "Out of memory allocating filename");
 	return GE_NOMEM;
@@ -570,15 +571,16 @@ verify_certfile(struct gensio_os_funcs *o,
 #include <errno.h>
 
 static int
-add_certfile(struct gensio_os_funcs *o, const char *cert, const char *fmt, ...)
+add_cert(struct gensio_os_funcs *o, const char *cert, const char *dir,
+	 const char *name, unsigned int port)
 {
     int rv;
-    va_list va;
     char *filename;
 
-    va_start(va, fmt);
-    filename = alloc_vsprintf(fmt, va);
-    va_end(va);
+    if (port)
+	filename = alloc_sprintf("%s%c%s,%d.crt", dir, DIRSEP, name, port);
+    else
+	filename = alloc_sprintf("%s%c%s.crt", dir, DIRSEP, name);
     if (!filename) {
 	fprintf(stderr, "Out of memory allocating filename");
 	return GE_NOMEM;
@@ -633,22 +635,22 @@ check_cert_expiry(const char *name, const char *filename,
 }
 
 static int
-lookup_certfiles(const char *tlssh_dir, const char *username,
-		 const char *hostname, int port,
-		 char **rCAdir, char **rcertfile, char **rkeyfile)
+lookup_certinfo(const char *tlssh_dir, const char *username,
+		const char *hostname, int port,
+		char **rCAspec, char **rcertspec, char **rkeyspec)
 {
     return GE_NOTFOUND;
 }
 
 static int
-add_certfile(struct gensio_os_funcs *o, const char *cert, const char *fmt, ...)
+add_cert(struct gensio_os_funcs *o, const char *cert, const char *fmt, ...)
 {
     return GE_NOTFOUND;
 }
 
 static int
-verify_certfile(struct gensio_os_funcs *o,
-		const char *cert, const char *fmt, ...)
+verify_cert(struct gensio_os_funcs *o,
+	    const char *cert, const char *name, unsigned int port)
 {
     return GE_NOTFOUND;
 }
@@ -725,10 +727,8 @@ auth_event(struct gensio *io, void *user_data, int event, int ierr,
 
 	if (!ierr) {
 	    /* Found a certificate, make sure it's the right one. */
-	    err1 = verify_certfile(ginfo->o,
-				   cert, "%s/%s,%d.crt", CAdir, hostname, port);
-	    err2 = verify_certfile(ginfo->o,
-				   cert, "%s/%s.crt", CAdir, raddr);
+	    err1 = verify_cert(ginfo->o, cert, CAname, hostname, port);
+	    err2 = verify_cert(ginfo->o, cert, CAname, raddr, 0);
 	    if ((err1 == GE_CERTNOTFOUND && err1 == err2) ||
 			(err1 == GE_CERTNOTFOUND && !err2) ||
 			(err2 == GE_CERTNOTFOUND && !err1)) {
@@ -764,12 +764,9 @@ auth_event(struct gensio *io, void *user_data, int event, int ierr,
 		} while (true);
 		if (!err) {
 		    if (err1)
-			err = add_certfile(ginfo->o, cert,
-					   "%s/%s,%d.crt", CAdir, hostname,
-					   port);
+			err = add_cert(ginfo->o, cert, CAname, hostname, port);
 		    if (!err && err2)
-			err = add_certfile(ginfo->o, cert,
-					   "%s/%s.crt", CAdir, raddr);
+			err = add_cert(ginfo->o, cert, CAname, raddr, 0);
 		}
 	    }
 
@@ -794,7 +791,7 @@ auth_event(struct gensio *io, void *user_data, int event, int ierr,
 		    "or\n"
 		    "  %s/%s.crt\n"
 		    "%s\n",
-		    CAdir, hostname, port, CAdir, raddr, errstr);
+		    CAname, hostname, port, CAname, raddr, errstr);
 	    return ierr;
 	}
 
@@ -854,12 +851,11 @@ auth_event(struct gensio *io, void *user_data, int event, int ierr,
 	    return GE_NOMEM;
 	}
 
-	err = add_certfile(ginfo->o,
-			   cert, "%s/%s,%d.crt", CAdir, hostname, port);
+	err = add_cert(ginfo->o, cert, CAname, hostname, port);
 	if (!err)
-	    err = add_certfile(ginfo->o, cert, "%s/%s.crt", CAdir, raddr);
+	    err = add_cert(ginfo->o, cert, CAname, raddr, 0);
 
-	cmd = alloc_sprintf("gtlssh-keygen rehash %s", CAdir);
+	cmd = alloc_sprintf("gtlssh-keygen rehash %s", CAname);
 	if (!cmd) {
 	    fprintf(stderr, "Could not allocate memory for rehash, skipping\n");
 	} else {
@@ -1382,7 +1378,7 @@ main(int argc, char *argv[])
     int err;
     char *do_telnet = "";
     unsigned int use_telnet = 0;
-    char *CAdirspec = NULL, *certfilespec = NULL, *keyfilespec = NULL;
+    char *CAspec = NULL, *certspec = NULL, *keyspec = NULL;
     char *service;
     gensiods service_len, len;
     const char *transport = "sctp";
@@ -1451,47 +1447,51 @@ main(int argc, char *argv[])
 	    arg++;
 	    break;
 	}
-	if ((rv = cmparg(argc, argv, &arg, "-i", "--keyfile", &cstr))) {
-	    if (keyfile)
-		free(keyfile);
-	    keyfile = strdup(cstr);
-	    if (!keyfile) {
-		fprintf(stderr, "Unable to allocate memory for keyfile\n");
+	if (((rv = cmparg(argc, argv, &arg, "-i", "--keyname", &cstr))) ||
+		((rv = cmparg(argc, argv, &arg, "-i", "--keyfile", &cstr)))) {
+	    if (keyname)
+		free(keyname);
+	    keyname = strdup(cstr);
+	    if (!keyname) {
+		fprintf(stderr, "Unable to allocate memory for keyname\n");
 		exit(1);
 	    }
-	    if (!certfile) {
-		char *dotpos = strrchr(keyfile, '.');
+	    if (!certname) {
+		char *dotpos = strrchr(keyname, '.');
 
 		if (dotpos)
 		    *dotpos = '\0';
-		s = alloc_sprintf("%s.crt", keyfile);
+		s = alloc_sprintf("%s.crt", keyname);
 		if (dotpos)
 		    *dotpos = '.';
 		if (!s) {
-		    fprintf(stderr, "Unable to allocate memory for certfile\n");
+		    fprintf(stderr, "Unable to allocate memory for certname\n");
 		    exit(1);
 		}
-		if (certfile)
-		    free(certfile);
-		certfile = s;
+		if (certname)
+		    free(certname);
+		certname = s;
 	    }
-	} else if ((rv = cmparg_int(argc, argv, &arg, "-p", "--port",
+	} else if ((rv = cmparg_uint(argc, argv, &arg, "-p", "--port",
 				    &port))) {
 	    ;
-	} else if ((rv = cmparg(argc, argv, &arg, NULL, "--certfile",
-				&cstr))) {
-	    if (certfile)
-		free(certfile);
-	    certfile = strdup(cstr);
-	    if (!certfile) {
-		fprintf(stderr, "Unable to allocate memory for certfile\n");
+	} else if (((rv = cmparg(argc, argv, &arg, NULL, "--certname",
+				 &cstr))) ||
+		   ((rv = cmparg(argc, argv, &arg, NULL, "--certfile",
+				 &cstr)))) {
+	    if (certname)
+		free(certname);
+	    certname = strdup(cstr);
+	    if (!certname) {
+		fprintf(stderr, "Unable to allocate memory for certname\n");
 		exit(1);
 	    }
-	} else if ((rv = cmparg(argc, argv, &arg, NULL, "--cadir", &cstr))) {
-	    if (CAdir)
-		free(CAdir);
-	    CAdir = strdup(cstr);
-	    if (!CAdir) {
+	} else if (((rv = cmparg(argc, argv, &arg, NULL, "--caname", &cstr))) ||
+		   ((rv = cmparg(argc, argv, &arg, NULL, "--cadir", &cstr)))) {
+	    if (CAname)
+		free(CAname);
+	    CAname = strdup(cstr);
+	    if (!CAname) {
 		fprintf(stderr, "Unable to allocate memory for cadir\n");
 		exit(1);
 	    }
@@ -1553,9 +1553,9 @@ main(int argc, char *argv[])
     if (nosctp && !user_transport)
 	transport = "tcp";
 
-    if (!!certfile != !!keyfile) {
+    if (!!certname != !!keyname) {
 	fprintf(stderr,
-		"If you specify a certfile, you must specify a keyfile\n");
+		"If you specify a certname, you must specify a keyname\n");
 	exit(1);
     }
 
@@ -1719,8 +1719,8 @@ main(int argc, char *argv[])
     userdata1.user_io = userdata1.io;
     userdata2.user_io = userdata1.io;
 
-    err = lookup_certfiles(tlssh_dir, username, hostname, port,
-			   &CAdirspec, &certfilespec, &keyfilespec);
+    err = lookup_certinfo(tlssh_dir, username, hostname, port,
+			  &CAspec, &certspec, &keyspec);
     if (err)
 	return 1;
 
@@ -1740,13 +1740,13 @@ main(int argc, char *argv[])
     if (user_transport)
 	s = alloc_sprintf("%s%scertauth(enable-password,username=%s%s%s),"
 			  "ssl(%s),%s",
-			  do_telnet, muxstr, username, certfilespec,
-			  keyfilespec, CAdirspec, transport);
+			  do_telnet, muxstr, username, certspec,
+			  keyspec, CAspec, transport);
     else
 	s = alloc_sprintf("%s%scertauth(enable-password,username=%s%s%s),"
 			  "ssl(%s),%s,%s%s,%d",
-			  do_telnet, muxstr, username, certfilespec,
-			  keyfilespec, CAdirspec,
+			  do_telnet, muxstr, username, certspec,
+			  keyspec, CAspec,
 			  transport, iptype, hostname, port);
     if (!s) {
 	fprintf(stderr, "out of memory allocating IO string\n");
@@ -1868,12 +1868,12 @@ main(int argc, char *argv[])
     if (closecount > 0)
 	o->wait(closewaiter, closecount, NULL);
 
-    if (CAdirspec)
-	free(CAdirspec);
-    if (certfilespec)
-	free(certfilespec);
-    if (keyfilespec)
-	free(keyfilespec);
+    if (CAspec)
+	free(CAspec);
+    if (certspec)
+	free(certspec);
+    if (keyspec)
+	free(keyspec);
 
     gensio_free(userdata1.io);
     gensio_free(userdata2.io);
@@ -1888,12 +1888,12 @@ main(int argc, char *argv[])
     free_ser_ioinfo(subdata1);
     free_ser_ioinfo(subdata2);
 
-    if (keyfile)
-	free(keyfile);
-    if (certfile)
-	free(certfile);
-    if (CAdir)
-	free(CAdir);
+    if (keyname)
+	free(keyname);
+    if (certname)
+	free(certname);
+    if (CAname)
+	free(CAname);
 
     return 0;
 }
