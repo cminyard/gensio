@@ -230,7 +230,7 @@ getpassword(struct gdata *ginfo, char *pw, gensiods *len)
 		    gensio_err_to_str(err));
 	    goto out;
 	}
-	if (count != 0) {
+	if (count != 1) {
 	    fprintf(stderr,
 		    "Error reading password: read didn't return data\n");
 	    err = GE_IOERR;
