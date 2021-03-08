@@ -933,7 +933,7 @@ gensio_unix_do_nonblock(struct gensio_os_funcs *o, int fd,
 			struct stdio_mode **rm)
 {
     int rv;
-    struct stdio_mode *r;
+    struct stdio_mode *r = NULL;
 
     rv = fcntl(fd, F_GETFL, 0);
     if (rv == -1)
