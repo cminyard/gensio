@@ -1,6 +1,6 @@
 
-AM_CPPFLAGS = -DSYSCONFDIR="\"${sysconfdir}\"" -I$(top_builddir) \
-	      -I$(top_srcdir)/glib/include -I$(top_srcdir)/tcl/include
+AM_CFLAGS = -DSYSCONFDIR="\"${sysconfdir}\"" -I$(top_builddir) \
+	    -I$(top_srcdir)/glib/include -I$(top_srcdir)/tcl/include
 
 noinst_LIBRARIES = libgensiotool.a libgtlssh.a
 

@@ -34,7 +34,7 @@
 #endif
 #ifdef _WIN32
 #include <windows.h>
-static struct gensiot *wuser_io;
+static struct gensio *wuser_io;
 #endif
 
 #include "ioinfo.h"
@@ -132,22 +132,27 @@ static char *tlssh_dir = NULL;
 static unsigned int port = 852;
 
 #ifdef _WIN32
+
+#include <Lmcons.h>
+
 #define DIRSEP '\\'
 
 static char *
 get_my_username(void)
 {
     char *username = malloc(UNLEN + 1);
+    DWORD len = UNLEN + 1;
 
     if (!username) {
 	fprintf(stderr, "out of memory allocating username\n");
-	return NULL
+	return NULL;
     }
 
-    if (!GetUserNameA(username, UNLEN + 1)) {
-	DWORD err = GetLastErr();
+    if (!GetUserNameA(username, &len)) {
+	DWORD err = GetLastError();
 	char errbuf[128];
 
+	free(username);
 	FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM, NULL,
 		      err, 0, errbuf, sizeof(errbuf), NULL);
 	fprintf(stderr, "Could not get username: %s\n", errbuf);
@@ -299,7 +304,7 @@ getpassword(struct gdata *ginfo, char *pw, gensiods *len)
 
  out:
 #ifdef _WIN32
-    gensio_cancel_sync(tty);
+    gensio_clear_sync(tty);
 #else
     gensio_close_s(tty);
     gensio_free(tty);
@@ -464,12 +469,13 @@ check_cert_expiry(const char *name, const char *filename,
 }
 
 static int
-lookup_certinfo(const char *tlssh_dir, const char *username,
+lookup_certinfo(struct gensio_os_funcs *o,
+		const char *tlssh_dir, const char *username,
 		const char *hostname, int port,
 		char **rCAspec, char **rcertspec, char **rkeyspec)
 {
     int err = GE_NOMEM;
-    char *tcertname, *tkeyname;
+    char *tcertname, *tkeyname, *tmp;
 
     if (!CAname) {
 	CAname = alloc_sprintf("%s%cserver_certs", tlssh_dir, DIRSEP);
@@ -495,7 +501,8 @@ lookup_certinfo(const char *tlssh_dir, const char *username,
 	if (!tcertname)
 	    goto cert_nomem;
 	if (file_is_readable(tcertname)) {
-	    tkeyname = alloc_sprintf("%s/keycerts/%s.key", tlssh_dir, hostname);
+	    tkeyname = alloc_sprintf("%s%ckeycerts%c%s.key", tlssh_dir, DIRSEP,
+				     DIRSEP,hostname);
 	    goto found_cert;
 	}
 	free(tcertname);
@@ -533,17 +540,31 @@ lookup_certinfo(const char *tlssh_dir, const char *username,
     check_cert_expiry("local", certname, NULL, 0);
 
     err = GE_NOMEM;
-    *rCAspec = alloc_sprintf("CA=%s%c", CAname, DIRSEP);
+    tmp = alloc_sprintf("CA=%s%c", CAname, DIRSEP);
+    if (!tmp)
+	goto out_err;
+    *rCAspec = gensio_quote_string(o, tmp);
+    free(tmp);
     if (!*rCAspec)
 	goto out_err;
-    *rcertspec = alloc_sprintf(",cert=%s", certname);
+    tmp = alloc_sprintf("cert=%s", certname);
+    if (!tmp)
+	goto out_err1;
+    *rcertspec = gensio_quote_string(o, tmp);
+    free(tmp);
     if (!*rcertspec) {
+    out_err1:
 	free(*rCAspec);
 	*rCAspec = NULL;
 	goto out_err;
     }
-    *rkeyspec = alloc_sprintf(",key=%s", keyname);
+    tmp = alloc_sprintf("key=%s", keyname);
+    if (!tmp)
+	goto out_err2;
+    *rkeyspec = gensio_quote_string(o, tmp);
+    free(tmp);
     if (!*rkeyspec) {
+    out_err2:
 	free(*rcertspec);
 	*rcertspec = NULL;
 	free(*rCAspec);
@@ -617,12 +638,13 @@ add_cert2(struct gensio_os_funcs *o, const char *cert, const char *filename)
 {
     HANDLE h;
     DWORD written;
+    unsigned int len = strlen(cert);
 
     /* Default security attributes is user-only, so we stick with that. */
     h = CreateFileA(filename, GENERIC_WRITE, 0, NULL, CREATE_NEW,
 		    FILE_ATTRIBUTE_NORMAL, NULL);
     if (h == INVALID_HANDLE_VALUE) {
-	DWORD err = GetLastErr();
+	DWORD err = GetLastError();
 
 	if (err == ERROR_FILE_EXISTS) {
 	    fprintf(stderr,
@@ -637,12 +659,12 @@ add_cert2(struct gensio_os_funcs *o, const char *cert, const char *filename)
 	    FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM, NULL,
 			  err, 0, errbuf, sizeof(errbuf), NULL);
 	    fprintf(stderr, "Could not get open new certificate: %s\n", errbuf);
-	    return gensio_os_err_to_str(o, err);
+	    return gensio_os_err_to_err(o, err);
 	}
     }
 
     if (!WriteFile(h, cert, len, &written, NULL)) {
-	DWORD err = GetLastErr();
+	DWORD err = GetLastError();
 	char errbuf[128];
 
 	FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM, NULL,
@@ -650,12 +672,12 @@ add_cert2(struct gensio_os_funcs *o, const char *cert, const char *filename)
 	fprintf(stderr, "Could not write certificate file %s: %s\n",
 		filename, errbuf);
 	CloseHandle(h);
-	return gensio_os_err_to_str(o, err);
+	return gensio_os_err_to_err(o, err);
     }
     CloseHandle(h);
     if (len != written) {
 	fprintf(stderr, "Incomplete write on certificate file %s: wrote %u,"
-		" expected %u\n", filename, written, len);
+		" expected %u\n", filename, (unsigned int) written, len);
 	return GE_IOERR;
     }
 
@@ -743,7 +765,8 @@ check_cert_expiry(const char *name, const char *filename,
 }
 
 static int
-lookup_certinfo(const char *tlssh_dir, const char *username,
+lookup_certinfo(struct gensio_os_funcs *o,
+		const char *tlssh_dir, const char *username,
 		const char *hostname, int port,
 		char **rCAspec, char **rcertspec, char **rkeyspec)
 {
@@ -1393,7 +1416,7 @@ struct mdns_cb_data {
 static void
 mdns_cb(struct gensio_mdns_watch *w,
 	enum gensio_mdns_data_state state,
-	int interface, int ipdomain,
+	int iface, int ipdomain,
 	const char *name, const char *type,
 	const char *domain, const char *host,
 	const struct gensio_addr *addr, const char *txt[],
@@ -1580,7 +1603,7 @@ main(int argc, char *argv[])
 
     progname = argv[0];
 
-    if (isatty(0)) {
+    if (can_do_raw()) {
 	escape_char = 0x1c; /* ^\ */
 	userdata1.ios = io1_default_tty;
     } else {
@@ -1858,7 +1881,7 @@ main(int argc, char *argv[])
     userdata1.user_io = userdata1.io;
     userdata2.user_io = userdata1.io;
 
-    err = lookup_certinfo(tlssh_dir, username, hostname, port,
+    err = lookup_certinfo(o, tlssh_dir, username, hostname, port,
 			  &CAspec, &certspec, &keyspec);
     if (err)
 	return 1;
@@ -1877,12 +1900,12 @@ main(int argc, char *argv[])
 
  retry:
     if (user_transport)
-	s = alloc_sprintf("%s%scertauth(enable-password,username=%s%s%s),"
+	s = alloc_sprintf("%s%scertauth(enable-password,username=%s,%s,%s),"
 			  "ssl(%s),%s",
 			  do_telnet, muxstr, username, certspec,
 			  keyspec, CAspec, transport);
     else
-	s = alloc_sprintf("%s%scertauth(enable-password,username=%s%s%s),"
+	s = alloc_sprintf("%s%scertauth(enable-password,username=%s,%s,%s),"
 			  "ssl(%s),%s,%s%s,%d",
 			  do_telnet, muxstr, username, certspec,
 			  keyspec, CAspec,
@@ -1993,11 +2016,11 @@ main(int argc, char *argv[])
 	o->wait(closewaiter, closecount, NULL);
 
     if (CAspec)
-	free(CAspec);
+	o->free(o, CAspec);
     if (certspec)
-	free(certspec);
+	o->free(o, certspec);
     if (keyspec)
-	free(keyspec);
+	o->free(o, keyspec);
 
     gensio_free(userdata1.io);
     gensio_free(userdata2.io);

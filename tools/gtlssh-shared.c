@@ -27,22 +27,37 @@
 #include <stdio.h>
 
 #ifdef _WIN32
+#include <Windows.h>
+#include <aclapi.h>
+
+static int
+check_sid(const char *filename, const PSID osid, const PSID sid)
+{
+    if (!(EqualSid(sid, osid) ||
+	  IsWellKnownSid(sid, WinBuiltinAdministratorsSid) ||
+	  IsWellKnownSid(sid, WinLocalSystemSid))) {
+	fprintf(stderr, "%s is accessible by others, giving up\n",
+		filename);
+	return 1;
+    }
+    return 0;
+}
 
 int
 checkout_file(const char *filename, bool expect_dir, bool check_private)
 {
     DWORD attr;
     SECURITY_INFORMATION si = OWNER_SECURITY_INFORMATION;
-    SID *osid = NULL, *psid = NULL;
+    PSID osid = NULL, psid = NULL;
     ACL *dacl = NULL;
-    PSECURITY_DESCRIPTOR *sd = NULL, *sd2 = NULL;
+    PSECURITY_DESCRIPTOR sd = NULL, sd2 = NULL;
     DWORD err = 0;
     char errbuf[128];
 
     attr = GetFileAttributesA(filename);
 
     if (attr == INVALID_FILE_ATTRIBUTES) {
-	err = GetLastErr();
+	err = GetLastError();
 	FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM, NULL,
 		      err, 0, errbuf, sizeof(errbuf), NULL);
 	fprintf(stderr, "Unable to examine %s: %s\n",
@@ -51,21 +66,21 @@ checkout_file(const char *filename, bool expect_dir, bool check_private)
     }
 
     if (expect_dir) {
-	if (!(attr && FILE_ATTRIBUTE_DIRECTORY)) {
+	if (!(attr & FILE_ATTRIBUTE_DIRECTORY)) {
 	    fprintf(stderr, "%s is not a directory\n", filename);
 	    goto out_err;
 	}
     } else {
-	if (attr && (FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_DEVICE)) {
+	if (attr & (FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_DEVICE)) {
 	    fprintf(stderr, "%s is not a regular file\n", filename);
 	    goto out_err;
 	}
     }
 
     if (GetSecurityInfo(GetCurrentProcess(), SE_KERNEL_OBJECT,
-			OWNER_SECURITY_INFORMATION, &psid, NULL, NULL, NULL,
-			&sd2)) {
-	err = GetLastErr();
+			OWNER_SECURITY_INFORMATION, &psid,
+			NULL, NULL, NULL, &sd2)) {
+	err = GetLastError();
 	FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM, NULL,
 		      err, 0, errbuf, sizeof(errbuf), NULL);
 	fprintf(stderr, "Unable to get my process security info: %s\n",
@@ -77,7 +92,7 @@ checkout_file(const char *filename, bool expect_dir, bool check_private)
 	si |= DACL_SECURITY_INFORMATION;
     if (GetNamedSecurityInfoA(filename, SE_FILE_OBJECT, si,
 			      &osid, NULL, &dacl, NULL, &sd)) {
-	err = GetLastErr();
+	err = GetLastError();
 	FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM, NULL,
 		      err, 0, errbuf, sizeof(errbuf), NULL);
 	fprintf(stderr, "Unable to get my security info for %s: %s\n",
@@ -90,9 +105,57 @@ checkout_file(const char *filename, bool expect_dir, bool check_private)
 	goto out_err;
     }
 
-    if (check_private && dacl->AceCount > 0) {
-	fprintf(stderr, "%s is accessible by others, giving up\n", filename);
-	goto out_err;
+    if (check_private) {
+	WORD i;
+
+	for (i = 0; i < dacl->AceCount; i++) {
+	    ACE_HEADER *a;
+
+	    if (!GetAce(dacl, i, (void **) &a)) {
+		err = GetLastError();
+		FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM, NULL,
+			      err, 0, errbuf, sizeof(errbuf), NULL);
+		fprintf(stderr, "Unable to get ACE %d for %s: %s\n",
+			i, filename, errbuf);
+		goto out_err;
+	    }
+	    switch (a->AceType) {
+	    case ACCESS_ALLOWED_ACE_TYPE: {
+		ACCESS_ALLOWED_ACE *aa = (void *) a;
+		if (check_sid(filename, psid, (SID *) &aa->SidStart))
+		    goto out_err;
+		break;
+	    }
+	    case ACCESS_ALLOWED_CALLBACK_ACE_TYPE: {
+		ACCESS_ALLOWED_CALLBACK_ACE *aa = (void *) a;
+		if (check_sid(filename, psid, (SID *) &aa->SidStart))
+		    goto out_err;
+		break;
+	    }
+	    case ACCESS_ALLOWED_OBJECT_ACE_TYPE: {
+		ACCESS_ALLOWED_OBJECT_ACE *aa = (void *) a;
+		if (check_sid(filename, psid, (SID *) &aa->SidStart))
+		    goto out_err;
+		break;
+	    }
+	    case ACCESS_ALLOWED_CALLBACK_OBJECT_ACE_TYPE: {
+		ACCESS_ALLOWED_CALLBACK_OBJECT_ACE *aa = (void *) a;
+		if (check_sid(filename, psid, (SID *) &aa->SidStart))
+		    goto out_err;
+		break;
+	    }
+	    case ACCESS_DENIED_ACE_TYPE:
+	    case ACCESS_DENIED_CALLBACK_ACE_TYPE:
+	    case ACCESS_DENIED_OBJECT_ACE_TYPE:
+	    case ACCESS_DENIED_CALLBACK_OBJECT_ACE_TYPE:
+		/* Denies are ok. */
+		break;
+	    default:
+		fprintf(stderr, "%s is accessible by others, giving up\n",
+			filename);
+		goto out_err;
+	    }
+	}
     }
 
  out:
@@ -110,6 +173,30 @@ checkout_file(const char *filename, bool expect_dir, bool check_private)
 bool
 file_is_readable(const char *filename)
 {
+    PSID osid = NULL, psid = NULL;
+    PSECURITY_DESCRIPTOR sd = NULL, sd2 = NULL;
+    bool rv = false;
+
+    /*
+     * From what I can tell, if you are the owner you have read
+     * access.  Nothing else matters.
+     */
+    if (GetSecurityInfo(GetCurrentProcess(), SE_KERNEL_OBJECT,
+			OWNER_SECURITY_INFORMATION, &psid,
+			NULL, NULL, NULL, &sd2))
+	goto out_false;
+
+    if (GetNamedSecurityInfoA(filename, SE_FILE_OBJECT,
+			      OWNER_SECURITY_INFORMATION,
+			      &osid, NULL, NULL, NULL, &sd))
+	goto out_false;
+
+    if (!EqualSid(psid, osid))
+	goto out_false;
+
+    rv = true;
+ out_false:
+    return rv;
 }
 
 #else

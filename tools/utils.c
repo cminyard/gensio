@@ -161,3 +161,15 @@ strstartswith(const char *str, const char *cmp)
 	return true;
     return false;
 }
+
+
+#ifdef _WIN32
+#include <windows.h>
+bool
+can_do_raw(void)
+{
+    DWORD mode;
+
+    return GetConsoleMode(GetStdHandle(STD_INPUT_HANDLE), &mode);
+}
+#endif

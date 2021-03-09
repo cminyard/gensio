@@ -511,17 +511,19 @@ GTLSSHMAN=
 GTLSSYNCMAN=
 GTLSSHDMAN=
 GTLSSH_KEYGENMAN=
-if test $HAVE_OPENSSL -eq 1 -a ${system_type} = unix; then
+if test $HAVE_OPENSSL -eq 1; then
    if test $HAVE_PAM -eq 1; then
-      GTLSSHD=gtlsshd
+      GTLSSHD="gtlsshd\$(EXEEXT)"
       GTLSSHDMAN=gtlsshd.8
    fi
-   GTLSSH=gtlssh
-   GTLSSYNC=gtlssync
-   GTLSSH_KEYGEN=gtlssh-keygen
+   GTLSSH="gtlssh\$(EXEEXT)"
    GTLSSHMAN=gtlssh.1
-   GTLSSYNCMAN=gtlssync.1
-   GTLSSH_KEYGENMAN=gtlssh-keygen.1
+   if test ${system_type} = unix; then
+      GTLSSYNC=gtlssync
+      GTLSSYNCMAN=gtlssync.1
+      GTLSSH_KEYGEN=gtlssh-keygen
+      GTLSSH_KEYGENMAN=gtlssh-keygen.1
+   fi
 fi
 AC_SUBST(GTLSSHD)
 AC_SUBST(GTLSSH)

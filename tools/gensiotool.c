@@ -44,22 +44,6 @@
 #include "ser_ioinfo.h"
 #include "utils.h"
 
-#ifdef HAVE_ISATTY
-# include <unistd.h>
-# define can_do_raw() isatty(0)
-#elif defined(_WIN32)
-#include <windows.h>
-static bool
-can_do_raw(void)
-{
-    DWORD mode;
-
-    return GetConsoleMode(GetStdHandle(STD_INPUT_HANDLE), &mode);
-}
-#else
-# define can_do_raw() false
-#endif
-
 unsigned int debug;
 bool print_laddr;
 bool print_raddr;
