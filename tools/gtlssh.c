@@ -150,7 +150,7 @@ get_my_username(void)
 
 	FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM, NULL,
 		      err, 0, errbuf, sizeof(errbuf), NULL);
-	fprintf(stderr, "Could not get username: %s\n" errbuf);
+	fprintf(stderr, "Could not get username: %s\n", errbuf);
 	return NULL;
     }
 
@@ -610,27 +610,69 @@ verify_cert(struct gensio_os_funcs *o,
     return rv;
 }
 
+#ifdef _WIN32
+
+static int
+add_cert2(struct gensio_os_funcs *o, const char *cert, const char *filename)
+{
+    HANDLE h;
+    DWORD written;
+
+    /* Default security attributes is user-only, so we stick with that. */
+    h = CreateFileA(filename, GENERIC_WRITE, 0, NULL, CREATE_NEW,
+		    FILE_ATTRIBUTE_NORMAL, NULL);
+    if (h == INVALID_HANDLE_VALUE) {
+	DWORD err = GetLastErr();
+
+	if (err == ERROR_FILE_EXISTS) {
+	    fprintf(stderr,
+		    "Certificate file %s already exists, this means the\n"
+		    "certificate has changed.  Someone may be trying to\n"
+		    "intercept your communications.  Giving up, remove the\n"
+		    "file if it is incorrect and try again\n", filename);
+	    return GE_KEYINVALID;
+	} else {
+	    char errbuf[128];
+
+	    FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM, NULL,
+			  err, 0, errbuf, sizeof(errbuf), NULL);
+	    fprintf(stderr, "Could not get open new certificate: %s\n", errbuf);
+	    return gensio_os_err_to_str(o, err);
+	}
+    }
+
+    if (!WriteFile(h, cert, len, &written, NULL)) {
+	DWORD err = GetLastErr();
+	char errbuf[128];
+
+	FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM, NULL,
+		      err, 0, errbuf, sizeof(errbuf), NULL);
+	fprintf(stderr, "Could not write certificate file %s: %s\n",
+		filename, errbuf);
+	CloseHandle(h);
+	return gensio_os_err_to_str(o, err);
+    }
+    CloseHandle(h);
+    if (len != written) {
+	fprintf(stderr, "Incomplete write on certificate file %s: wrote %u,"
+		" expected %u\n", filename, written, len);
+	return GE_IOERR;
+    }
+
+    return 0;
+}
+
+#else
+
 #include <unistd.h>
 #include <fcntl.h>
 #include <errno.h>
 
 static int
-add_cert(struct gensio_os_funcs *o, const char *cert, const char *dir,
-	 const char *name, unsigned int port)
+add_cert2(struct gensio_os_funcs *o, const char *cert, const char *filename)
 {
-    int rv;
-    char *filename;
+    int rv = open(filename, O_CREAT | O_EXCL | O_WRONLY, 0600);
 
-    if (port)
-	filename = alloc_sprintf("%s%c%s,%d.crt", dir, DIRSEP, name, port);
-    else
-	filename = alloc_sprintf("%s%c%s.crt", dir, DIRSEP, name);
-    if (!filename) {
-	fprintf(stderr, "Out of memory allocating filename");
-	return GE_NOMEM;
-    }
-
-    rv = open(filename, O_CREAT | O_EXCL | O_WRONLY, 0600);
     if (rv == -1 && errno == EEXIST) {
 	fprintf(stderr,
 		"Certificate file %s already exists, this means the\n"
@@ -664,6 +706,28 @@ add_cert(struct gensio_os_funcs *o, const char *cert, const char *dir,
     out:
 	close(fd);
     }
+
+    return rv;
+}
+#endif
+
+static int
+add_cert(struct gensio_os_funcs *o, const char *cert, const char *dir,
+	 const char *name, unsigned int port)
+{
+    int rv;
+    char *filename;
+
+    if (port)
+	filename = alloc_sprintf("%s%c%s,%d.crt", dir, DIRSEP, name, port);
+    else
+	filename = alloc_sprintf("%s%c%s.crt", dir, DIRSEP, name);
+    if (!filename) {
+	fprintf(stderr, "Out of memory allocating filename");
+	return GE_NOMEM;
+    }
+
+    rv = add_cert2(o, cert, filename);
 
     free(filename);
     return rv;
