@@ -196,6 +196,10 @@ file_is_readable(const char *filename)
 
     rv = true;
  out_false:
+    if (sd)
+	LocalFree(sd);
+    if (sd2)
+	LocalFree(sd2);
     return rv;
 }
 

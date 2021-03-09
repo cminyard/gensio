@@ -554,7 +554,7 @@ lookup_certinfo(struct gensio_os_funcs *o,
     free(tmp);
     if (!*rcertspec) {
     out_err1:
-	free(*rCAspec);
+	o->free(o, *rCAspec);
 	*rCAspec = NULL;
 	goto out_err;
     }
@@ -565,9 +565,9 @@ lookup_certinfo(struct gensio_os_funcs *o,
     free(tmp);
     if (!*rkeyspec) {
     out_err2:
-	free(*rcertspec);
+	o->free(o, *rcertspec);
 	*rcertspec = NULL;
-	free(*rCAspec);
+	o->free(o, *rCAspec);
 	*rCAspec = NULL;
 	goto out_err;
     }
