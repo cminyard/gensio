@@ -132,6 +132,8 @@ static char *tlssh_dir = NULL;
 static unsigned int port = 852;
 
 #ifdef _WIN32
+#define DIRSEP '\\'
+
 static char *
 get_my_username(void)
 {
@@ -155,7 +157,34 @@ get_my_username(void)
     return username;
 }
 
+static char *
+get_tlsshdir(void)
+{
+    char homedrive[200];
+    char homepath[200];
+    char *dir;
+
+    if (GetEnvironmentVariable("HOMEDRIVE", homedrive, sizeof(homedrive)) == 0)
+    {
+	fprintf(stderr, "No HOMEDRIVE set\n");
+	return NULL;
+    }
+
+    if (GetEnvironmentVariable("HOMEPATH", homepath, sizeof(homepath)) == 0) {
+	fprintf(stderr, "No HOMEPATH set\n");
+	return NULL;
+    }
+
+    dir = alloc_sprintf("%s%s\\.gtlssh", homedrive, homepath);
+    if (!dir) {
+	fprintf(stderr, "Out of memory allocating gtlssh dir\n");
+	return NULL;
+    }
+
+    return dir;
+}
 #else
+#define DIRSEP '/'
 
 #include <pwd.h>
 #include <unistd.h>
@@ -177,6 +206,27 @@ get_my_username(void)
     }
 
     return username;
+}
+
+
+static char *
+get_tlsshdir(void)
+{
+    const char *home = getenv("HOME");
+    char *dir;
+
+    if (!home) {
+	fprintf(stderr, "No home directory set\n");
+	return NULL;
+    }
+
+    dir = alloc_sprintf("%s/.gtlssh", home);
+    if (!dir) {
+	fprintf(stderr, "Out of memory allocating gtlssh dir\n");
+	return NULL;
+    }
+
+    return dir;
 }
 #endif
 
@@ -344,12 +394,6 @@ do_vlog(struct gensio_os_funcs *f, enum gensio_log_levels level,
 
 #if OPENSSL_VERSION_NUMBER < 0x10100000L
 #define X509_get0_notAfter(x) X509_get_notAfter(x)
-#endif
-
-#ifdef _WIN32
-#define DIRSEP '\\'
-#else
-#define DIRSEP '/'
 #endif
 
 static int
@@ -1684,18 +1728,9 @@ main(int argc, char *argv[])
     }
 
     if (!tlssh_dir) {
-	const char *home = getenv("HOME");
-
-	if (!home) {
-	    fprintf(stderr, "No home directory set\n");
+	tlssh_dir = get_tlsshdir();
+	if (!tlssh_dir)
 	    return 1;
-	}
-
-	tlssh_dir = alloc_sprintf("%s/.gtlssh", home);
-	if (!tlssh_dir) {
-	    fprintf(stderr, "Out of memory allocating gtlssh dir\n");
-	    return 1;
-	}
     }
 
     err = checkout_file(tlssh_dir, true, true);
