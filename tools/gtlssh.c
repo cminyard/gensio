@@ -963,11 +963,75 @@ handle_sigwinch(int signum)
     }
 }
 
+static int
+setup_window_change(void)
+{
+    struct sigaction sigact;
+
+    if (pipe(winch_pipe) == -1) {
+	perror("Unable to allocate SIGWINCH pipe");
+	return 1;
+    }
+    if (fcntl(winch_pipe[0], F_SETFL, O_NONBLOCK) == -1) {
+	perror("Unable to set nonblock on SIGWINCH pipe[0]");
+	return 1;
+    }
+    if (fcntl(winch_pipe[1], F_SETFL, O_NONBLOCK) == -1) {
+	perror("Unable to set nonblock on SIGWINCH pipe[1]");
+	return 1;
+    }
+
+    memset(&sigact, 0, sizeof(sigact));
+    sigact.sa_handler = handle_sigwinch;
+    if (sigaction(SIGWINCH, &sigact, NULL)) {
+	perror("Unable to setup SIGWINCH");
+	return 1;
+    }
+
+    return 0;
+}
+
+static int
+setup_window_change2(struct gensio_os_funcs *o, struct ioinfo *ioinfo)
+{
+    int rv;
+
+    rv = o->add_iod(o, GENSIO_IOD_PIPE, winch_pipe[0], &winch_iod);
+    if (rv) {
+	fprintf(stderr, "Could not add SIGWINCH fd iod: %s\n",
+		gensio_err_to_str(rv));
+	return 1;
+    }
+
+    rv = o->set_fd_handlers(winch_iod, ioinfo, winch_ready,
+			    NULL, NULL, NULL);
+    if (rv) {
+	fprintf(stderr, "Could not set SIGWINCH fd handler: %s\n",
+		gensio_err_to_str(rv));
+	return 1;
+    }
+    o->set_read_handler(winch_iod, true);
+
+    return 0;
+}
+
 #else
 
 static void
 winch_ready(struct gensio_iod *iod, void *cb_data)
 {
+}
+
+static int
+setup_window_change(void)
+{
+    return 0;
+}
+
+static int
+setup_window_change2(struct gensio_os_funcs *o, struct ioinfo *ioinfo)
+{
+    return 0;
 }
 
 #endif /* HAVE_DECL_SIGWINCH */
@@ -1403,32 +1467,8 @@ main(int argc, char *argv[])
 	return 1;
     }
 
-#if HAVE_DECL_SIGWINCH
-    if (pipe(winch_pipe) == -1) {
-	perror("Unable to allocate SIGWINCH pipe");
+    if (setup_window_change())
 	return 1;
-    }
-    if (fcntl(winch_pipe[0], F_SETFL, O_NONBLOCK) == -1) {
-	perror("Unable to set nonblock on SIGWINCH pipe[0]");
-	return 1;
-    }
-    if (fcntl(winch_pipe[1], F_SETFL, O_NONBLOCK) == -1) {
-	perror("Unable to set nonblock on SIGWINCH pipe[1]");
-	return 1;
-    }
-
-    do {
-	struct sigaction sigact;
-
-	memset(&sigact, 0, sizeof(sigact));
-	sigact.sa_handler = handle_sigwinch;
-	err = sigaction(SIGWINCH, &sigact, NULL);
-	if (err) {
-	    perror("Unable to setup SIGWINCH");
-	    return 1;
-	}
-    } while(0);
-#endif /* HAVE_DECL_SIGWINCH */
 
     progname = argv[0];
 
@@ -1821,23 +1861,8 @@ main(int argc, char *argv[])
     ioinfo_set_ready(ioinfo1, userdata1.io);
     ioinfo_set_ready(ioinfo2, userdata2.io);
 
-#if HAVE_DECL_SIGWINCH
-    rv = o->add_iod(o, GENSIO_IOD_PIPE, winch_pipe[0], &winch_iod);
-    if (rv) {
-	fprintf(stderr, "Could not add SIGWINCH fd iod: %s\n",
-		gensio_err_to_str(rv));
-	return 1;
-    }
-
-    rv = o->set_fd_handlers(winch_iod, ioinfo2, winch_ready,
-			    NULL, NULL, NULL);
-    if (rv) {
-	fprintf(stderr, "Could not set SIGWINCH fd handler: %s\n",
-		gensio_err_to_str(rv));
-	return 1;
-    }
-    o->set_read_handler(winch_iod, true);
-#endif /* HAVE_DECL_SIGWINCH */
+    if (setup_window_change2(o, ioinfo2))
+	return 0;
 
     start_local_ports(userdata2.io);
     start_remote_ports(ioinfo2);
