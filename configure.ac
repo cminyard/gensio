@@ -27,7 +27,7 @@ case $target_os in
 		uucp_locking_flag=no
 		;;
 	linux*)
-		uucp_locking_flag=/var/lock
+		UUCP_LOCK_DIR=/var/lock
 		;;
 	*macos*)
 		uucp_locking_flag=no
