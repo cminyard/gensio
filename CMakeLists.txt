@@ -177,6 +177,12 @@ check_symbol_exists(signalfd "signalfd.h" HAVE_SIGNALFD)
 check_symbol_exists(regexec "regex.h" HAVE_REGEXEC)
 check_symbol_exists(fnmatch "fnmatch.h" HAVE_FNMATCH)
 
+if (${CMAKE_HOST_SYSTEM_NAME} STREQUAL "Darwin")
+  set(APPLE 1)
+else()
+  set(APPLE 0)
+endif()
+
 if (${UNIX} AND NOT ${APPLE})
   set(DEF_UUCP_LOCKING ON)
 else()
