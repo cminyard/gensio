@@ -297,6 +297,19 @@ do_vlog(struct gensio_os_funcs *f, enum gensio_log_levels level,
 #define X509_get0_notAfter(x) X509_get_notAfter(x)
 #endif
 
+static void
+translate_filename(char *filename)
+{
+#ifdef _WIN32
+    unsigned int i;
+
+    for (i = 0; filename[i]; i++) {
+	if (i > 2 && filename[i] == ':')
+	    filename[i] = '!';
+    }
+#endif
+}
+
 static int
 check_cert_expiry(const char *name, const char *filename,
 		  const char *cert, gensiods certlen)
@@ -492,6 +505,7 @@ verify_cert(struct gensio_os_funcs *o,
 	fprintf(stderr, "Out of memory allocating filename");
 	return GE_NOMEM;
     }
+    translate_filename(filename);
 
     f = fopen(filename, "r");
     if (!f) {
@@ -644,6 +658,7 @@ add_cert(struct gensio_os_funcs *o, const char *cert, const char *dir,
 	fprintf(stderr, "Out of memory allocating filename");
 	return GE_NOMEM;
     }
+    translate_filename(filename);
 
     rv = add_cert2(o, cert, filename);
 
