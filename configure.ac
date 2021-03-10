@@ -10,7 +10,12 @@ AC_PROG_CC
 AC_PROG_CXX
 AM_PROG_AR
 AM_PROG_LIBTOOL
+
+# defaults
 uucp_locking_flag=yes
+UUCP_LOCK_DIR=/var/spool/lock
+USE_FILE_STDIO=0
+system_type=unix
 case $target_os in
 	mingw*)
 		LIBS="$LIBS -lws2_32 -liphlpapi -lgdi32 -lbcrypt"
@@ -20,24 +25,36 @@ case $target_os in
 		;;
 	cygwin*)
 		uucp_locking_flag=no
-		system_type=unix
-		USE_FILE_STDIO=0
+		;;
+	linux*)
+		uucp_locking_flag=/var/lock
+		;;
+	*macos*)
+		uucp_locking_flag=no
 		;;
 	*)
-		USE_FILE_STDIO=0
-		system_type=unix
+		# Defaults should be correct for BSD type systems
 		;;
 esac
 AC_ARG_WITH(uucp-locking,
- [AS_HELP_STRING([--with-uucp-locking], [Enable UUCP-style locking])],
+ [AS_HELP_STRING([--with-uucp-locking], [Enable UUCP-style locking with yes/no, or set the uucp lock directory otherwise])],
  uucp_locking_flag="$withval")
-if test "$uucp_locking_flag" = yes; then
-  USE_UUCP_LOCKING=1
-else
-  USE_UUCP_LOCKING=0
-fi
+case "$uucp_locking_flag" in
+	yes)
+		USE_UUCP_LOCKING=1
+		;;
+	no)
+		USE_UUCP_LOCKING=0
+		;;
+	*)
+		USE_UUCP_LOCKING=1
+		UUCP_LOCK_DIR="$uucp_locking_flag"
+		;;
+esac
 AC_DEFINE_UNQUOTED([USE_UUCP_LOCKING], [$USE_UUCP_LOCKING],
 		   [Enable device locking])
+AC_DEFINE_UNQUOTED([UUCP_LOCK_DIR], ["$UUCP_LOCK_DIR"],
+		   [Directory holding UUCP locks])
 
 AC_ARG_WITH(tcp-wrappers,
  [AS_HELP_STRING([--with-tcp-wrappers], [Enable tcpwrappers support])],
