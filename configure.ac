@@ -3,18 +3,57 @@ AC_SUBST(gensio_VERSION_MAJOR, 2)
 AC_SUBST(gensio_VERSION_MINOR, 2)
 AC_SUBST(gensio_VERSION_PATCH, 4)
 AC_SUBST(gensio_VERSION_STRING, ${PACKAGE_VERSION})
+AC_CANONICAL_TARGET
 AM_INIT_AUTOMAKE([-Wall])
 AC_CONFIG_HEADERS([config.h])
 AC_PROG_CC
 AM_PROG_AR
 AM_PROG_LIBTOOL
+
+# defaults
+uucp_locking_flag=yes
+UUCP_LOCK_DIR=/var/spool/lock
+USE_FILE_STDIO=0
+system_type=unix
+case $target_os in
+	mingw*)
+		LIBS="$LIBS -lws2_32 -liphlpapi -lgdi32 -lbcrypt"
+		uucp_locking_flag=no
+		system_type=windows
+		USE_FILE_STDIO=1
+		;;
+	cygwin*)
+		uucp_locking_flag=no
+		;;
+	linux*)
+		UUCP_LOCK_DIR=/var/lock
+		;;
+	*macos*)
+		uucp_locking_flag=no
+		;;
+	*)
+		# Defaults should be correct for BSD type systems
+		;;
+esac
 AC_ARG_WITH(uucp-locking,
- [AS_HELP_STRING([--with-uucp-locking], [Enable UUCP-style locking])],
- uucp_locking_flag="$withval",
- uucp_locking_flag=yes)
-if test "$uucp_locking_flag" = yes; then
-  AC_DEFINE([USE_UUCP_LOCKING], [], [Enable device locking])
-fi
+ [AS_HELP_STRING([--with-uucp-locking], [Enable UUCP-style locking with yes/no, or set the uucp lock directory otherwise])],
+ uucp_locking_flag="$withval")
+case "$uucp_locking_flag" in
+	yes)
+		USE_UUCP_LOCKING=1
+		;;
+	no)
+		USE_UUCP_LOCKING=0
+		;;
+	*)
+		USE_UUCP_LOCKING=1
+		UUCP_LOCK_DIR="$uucp_locking_flag"
+		;;
+esac
+AC_DEFINE_UNQUOTED([USE_UUCP_LOCKING], [$USE_UUCP_LOCKING],
+		   [Enable device locking])
+AC_DEFINE_UNQUOTED([UUCP_LOCK_DIR], ["$UUCP_LOCK_DIR"],
+		   [Directory holding UUCP locks])
 
 AC_ARG_WITH(tcp-wrappers,
  [AS_HELP_STRING([--with-tcp-wrappers], [Enable tcpwrappers support])],

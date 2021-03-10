@@ -1,5 +1,6 @@
 #cmakedefine USE_PTHREADS
 #cmakedefine USE_UUCP_LOCKING
+#cmakedefine UUCP_LOCK_DIR "@UUCP_LOCK_DIR@"
 #cmakedefine HAVE_TCPD_H
 #cmakedefine HAVE_EPOLL_PWAIT
 #cmakedefine01 HAVE_OPENIPMI

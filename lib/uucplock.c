@@ -23,7 +23,7 @@ bool gensio_uucp_locking_enabled = true;
 #include <sys/stat.h>
 #include <signal.h>
 
-static char *uucp_lck_dir = "/var/lock/";
+static char *uucp_lck_dir = UUCP_LOCK_DIR;
 static char *dev_prefix = "/dev/";
 
 static size_t
@@ -177,7 +177,7 @@ uucp_rm_lock(char *devname)
 }
 
 int
-uucp_mk_lock(char *devname)
+uucp_mk_lock(struct gensio_os_funcs *o, char *devname)
 {
     return 0;
 }
