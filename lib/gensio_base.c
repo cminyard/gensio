@@ -584,13 +584,15 @@ basen_write_data_handler(void *cb_data, gensiods *rcount,
 {
     struct basen_data *ndata = cb_data;
     int rv;
-    gensiods i, total = 0;
+    gensiods i, total = 0, count = 0;
 
     for (i = 0; i < sglen; i++)
 	total += sg[i].buflen;
-    rv = ll_write(ndata, rcount, sg, sglen, auxdata);
-    if (!rv && *rcount < total)
+    rv = ll_write(ndata, &count, sg, sglen, auxdata);
+    if (!rv && count < total)
 	ndata->ll_can_write = false;
+    if (rcount)
+	*rcount = count;
     return rv;
 }
 
