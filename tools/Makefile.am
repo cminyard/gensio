@@ -4,18 +4,19 @@ AM_CFLAGS = -DSYSCONFDIR="\"${sysconfdir}\"" -I$(top_builddir) \
 
 noinst_LIBRARIES = libgensiotool.a libgtlssh.a
 
-bin_PROGRAMS = gensiot @GMDNS@ @GTLSSH@
+bin_PROGRAMS = gensiot @GMDNS@ @GTLSSH@ @GTLSSH_KEYGEN@
 sbin_PROGRAMS = @GTLSSHD@
-EXTRA_PROGRAMS = gtlsshd gtlssh gmdns
+EXTRA_PROGRAMS = gtlsshd gtlssh gmdns gtlssh-keygen
 
-bin_SCRIPTS = @GTLSSH_KEYGEN@ @GTLSSYNC@
-EXTRA_SCRIPTS = gtlssync gtlssh-keygen
+bin_SCRIPTS = @GTLSSYNC@
+EXTRA_SCRIPTS = gtlssync
 
 do_subst = sed -e 's,[@]SYSCONFDIR[@],$(sysconfdir),g'
 
-gtlssh-keygen: gtlssh-keygen.in
-	$(do_subst) <$(srcdir)/gtlssh-keygen.in >gtlssh-keygen
-	chmod +x gtlssh-keygen
+gtlssh_keygen_SOURCES = gtlssh-keygen.c
+
+gtlssh_keygen_LDADD = libgtlssh.a libgensiotool.a @OPENSSL_LIBS@ \
+	$(top_builddir)/lib/libgensio.la
 
 gensiot_SOURCES = gensiotool.c
 
@@ -23,7 +24,7 @@ gmdns_SOURCES = gensiomdns.c
 
 libgensiotool_a_SOURCES = ioinfo.c ser_ioinfo.c utils.c localports.c
 
-libgtlssh_a_SOURCES = gtlssh-shared.c
+libgtlssh_a_SOURCES = gtlssh-shared.c run_get_output.c
 
 gtlssh_SOURCES = gtlssh.c
 
@@ -31,7 +32,7 @@ gtlsshd_SOURCES = gtlsshd.c
 
 noinst_HEADERS = ioinfo.h ser_ioinfo.h utils.h localports.h gtlssh.h
 
-gmdns_LDADD = libgensiotool.a $(top_builddir)/lib/libgensio.la \
+gmdns_LDADD = libgtlssh.a libgensiotool.a $(top_builddir)/lib/libgensio.la \
 	@OPENSSL_LIBS@
 
 gensiot_LDADD = libgensiotool.a $(top_builddir)/lib/libgensio.la \

@@ -24,11 +24,16 @@
  */
 
 #include "gtlssh.h"
+#include "utils.h"
 #include <stdio.h>
 
 #ifdef _WIN32
 #include <Windows.h>
 #include <aclapi.h>
+#include <Lmcons.h>
+#include <winsock2.h>
+
+#define HOST_NAME_MAX 256
 
 static int
 check_sid(const char *filename, const PSID osid, const PSID sid)
@@ -203,6 +208,58 @@ file_is_readable(const char *filename)
     return rv;
 }
 
+char *
+get_tlsshdir(void)
+{
+    char homedrive[200];
+    char homepath[200];
+    char *dir;
+
+    if (GetEnvironmentVariable("HOMEDRIVE", homedrive, sizeof(homedrive)) == 0)
+    {
+	fprintf(stderr, "No HOMEDRIVE set\n");
+	return NULL;
+    }
+
+    if (GetEnvironmentVariable("HOMEPATH", homepath, sizeof(homepath)) == 0) {
+	fprintf(stderr, "No HOMEPATH set\n");
+	return NULL;
+    }
+
+    dir = alloc_sprintf("%s%s\\.gtlssh", homedrive, homepath);
+    if (!dir) {
+	fprintf(stderr, "Out of memory allocating gtlssh dir\n");
+	return NULL;
+    }
+
+    return dir;
+}
+
+char *
+get_my_username(void)
+{
+    char *username = malloc(UNLEN + 1);
+    DWORD len = UNLEN + 1;
+
+    if (!username) {
+	fprintf(stderr, "out of memory allocating username\n");
+	return NULL;
+    }
+
+    if (!GetUserNameA(username, &len)) {
+	DWORD err = GetLastError();
+	char errbuf[128];
+
+	free(username);
+	FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM, NULL,
+		      err, 0, errbuf, sizeof(errbuf), NULL);
+	fprintf(stderr, "Could not get username: %s\n", errbuf);
+	return NULL;
+    }
+
+    return username;
+}
+
 #else
 
 #include <sys/stat.h>
@@ -210,6 +267,10 @@ file_is_readable(const char *filename)
 #include <fcntl.h>
 #include <errno.h>
 #include <string.h>
+#include <stdlib.h>
+#include <pwd.h>
+#include <unistd.h>
+#include <limits.h>
 
 int
 checkout_file(const char *filename, bool expect_dir, bool check_private)
@@ -276,4 +337,54 @@ file_is_readable(const char *filename)
     return false;
 }
 
+char *
+get_tlsshdir(void)
+{
+    const char *home = getenv("HOME");
+    char *dir;
+
+    if (!home) {
+	fprintf(stderr, "No home directory set\n");
+	return NULL;
+    }
+
+    dir = alloc_sprintf("%s/.gtlssh", home);
+    if (!dir) {
+	fprintf(stderr, "Out of memory allocating gtlssh dir\n");
+	return NULL;
+    }
+
+    return dir;
+}
+
+char *
+get_my_username(void)
+{
+    struct passwd *pw = getpwuid(getuid());
+    char *username;
+
+    if (!pw) {
+	fprintf(stderr, "no username given, and can't look up UID\n");
+	return NULL;
+    }
+    username = strdup(pw->pw_name);
+    if (!username) {
+	fprintf(stderr, "out of memory allocating username\n");
+	return NULL;
+    }
+
+    return username;
+}
+
 #endif /* _WIN32 */
+
+char *
+get_my_hostname(void)
+{
+    char hostname[HOST_NAME_MAX + 1];
+
+    if (gethostname(hostname, sizeof(hostname)) != 0)
+	return NULL;
+    return strdup(hostname);
+}
+

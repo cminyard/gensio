@@ -29,5 +29,21 @@
 
 int checkout_file(const char *filename, bool expect_dir, bool check_private);
 bool file_is_readable(const char *filename);
+char *get_tlsshdir(void);
+char *get_my_username(void);
+char *get_my_hostname(void);
+
+int run_get_output(const char *argv[], char *in, unsigned long inlen,
+		   char **out, unsigned int *outlen,
+		   char **errout, unsigned int *erroutlen,
+		   int *rc);
+
+#ifdef _WIN32
+#define DIRSEP '\\'
+#define DIRSEPS "\\"
+#else
+#define DIRSEP '/'
+#define DIRSEPS "/"
+#endif
 
 #endif /* GENSIOTOOL_UTILS_H */

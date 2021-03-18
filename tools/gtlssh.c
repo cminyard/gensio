@@ -131,110 +131,6 @@ static char *certname, *CAname, *keyname;
 static char *tlssh_dir = NULL;
 static unsigned int port = 852;
 
-#ifdef _WIN32
-
-#include <Lmcons.h>
-
-#define DIRSEP '\\'
-
-static char *
-get_my_username(void)
-{
-    char *username = malloc(UNLEN + 1);
-    DWORD len = UNLEN + 1;
-
-    if (!username) {
-	fprintf(stderr, "out of memory allocating username\n");
-	return NULL;
-    }
-
-    if (!GetUserNameA(username, &len)) {
-	DWORD err = GetLastError();
-	char errbuf[128];
-
-	free(username);
-	FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM, NULL,
-		      err, 0, errbuf, sizeof(errbuf), NULL);
-	fprintf(stderr, "Could not get username: %s\n", errbuf);
-	return NULL;
-    }
-
-    return username;
-}
-
-static char *
-get_tlsshdir(void)
-{
-    char homedrive[200];
-    char homepath[200];
-    char *dir;
-
-    if (GetEnvironmentVariable("HOMEDRIVE", homedrive, sizeof(homedrive)) == 0)
-    {
-	fprintf(stderr, "No HOMEDRIVE set\n");
-	return NULL;
-    }
-
-    if (GetEnvironmentVariable("HOMEPATH", homepath, sizeof(homepath)) == 0) {
-	fprintf(stderr, "No HOMEPATH set\n");
-	return NULL;
-    }
-
-    dir = alloc_sprintf("%s%s\\.gtlssh", homedrive, homepath);
-    if (!dir) {
-	fprintf(stderr, "Out of memory allocating gtlssh dir\n");
-	return NULL;
-    }
-
-    return dir;
-}
-#else
-#define DIRSEP '/'
-
-#include <pwd.h>
-#include <unistd.h>
-
-static char *
-get_my_username(void)
-{
-    struct passwd *pw = getpwuid(getuid());
-    char *username;
-
-    if (!pw) {
-	fprintf(stderr, "no username given, and can't look up UID\n");
-	return NULL;
-    }
-    username = strdup(pw->pw_name);
-    if (!username) {
-	fprintf(stderr, "out of memory allocating username\n");
-	return NULL;
-    }
-
-    return username;
-}
-
-
-static char *
-get_tlsshdir(void)
-{
-    const char *home = getenv("HOME");
-    char *dir;
-
-    if (!home) {
-	fprintf(stderr, "No home directory set\n");
-	return NULL;
-    }
-
-    dir = alloc_sprintf("%s/.gtlssh", home);
-    if (!dir) {
-	fprintf(stderr, "Out of memory allocating gtlssh dir\n");
-	return NULL;
-    }
-
-    return dir;
-}
-#endif
-
 static int
 getpassword(struct gdata *ginfo, char *pw, gensiods *len)
 {
@@ -1560,7 +1456,7 @@ lookup_mdns_transport(struct gensio_os_funcs *o, const char *name,
 int
 main(int argc, char *argv[])
 {
-    int arg, rv;
+    int arg, rv = 0;
     struct gensio_waiter *closewaiter;
     unsigned int closecount = 0;
     int escape_char = -1;
@@ -1591,10 +1487,10 @@ main(int argc, char *argv[])
     memset(&userdata2, 0, sizeof(userdata2));
     userdata2.interactive = true;
 
-    rv = gensio_default_os_hnd(0, &o);
-    if (rv) {
+    err= gensio_default_os_hnd(0, &o);
+    if (err) {
 	fprintf(stderr, "Could not allocate OS handler: %s\n",
-		gensio_err_to_str(rv));
+		gensio_err_to_str(err));
 	return 1;
     }
 
@@ -1618,8 +1514,8 @@ main(int argc, char *argv[])
 	    arg++;
 	    break;
 	}
-	if (((rv = cmparg(argc, argv, &arg, "-i", "--keyname", &cstr))) ||
-		((rv = cmparg(argc, argv, &arg, "-i", "--keyfile", &cstr)))) {
+	if (((err = cmparg(argc, argv, &arg, "-i", "--keyname", &cstr))) ||
+		((err = cmparg(argc, argv, &arg, "-i", "--keyfile", &cstr)))) {
 	    if (keyname)
 		free(keyname);
 	    keyname = strdup(cstr);
@@ -1643,13 +1539,13 @@ main(int argc, char *argv[])
 		    free(certname);
 		certname = s;
 	    }
-	} else if ((rv = cmparg_uint(argc, argv, &arg, "-p", "--port",
-				    &port))) {
+	} else if ((err = cmparg_uint(argc, argv, &arg, "-p", "--port",
+				      &port))) {
 	    ;
-	} else if (((rv = cmparg(argc, argv, &arg, NULL, "--certname",
-				 &cstr))) ||
-		   ((rv = cmparg(argc, argv, &arg, NULL, "--certfile",
-				 &cstr)))) {
+	} else if (((err = cmparg(argc, argv, &arg, NULL, "--certname",
+				  &cstr))) ||
+		   ((err = cmparg(argc, argv, &arg, NULL, "--certfile",
+				  &cstr)))) {
 	    if (certname)
 		free(certname);
 	    certname = strdup(cstr);
@@ -1657,8 +1553,10 @@ main(int argc, char *argv[])
 		fprintf(stderr, "Unable to allocate memory for certname\n");
 		exit(1);
 	    }
-	} else if (((rv = cmparg(argc, argv, &arg, NULL, "--caname", &cstr))) ||
-		   ((rv = cmparg(argc, argv, &arg, NULL, "--cadir", &cstr)))) {
+	} else if (((err = cmparg(argc, argv, &arg, NULL, "--caname",
+				  &cstr))) ||
+		   ((err = cmparg(argc, argv, &arg, NULL, "--cadir",
+				  &cstr)))) {
 	    if (CAname)
 		free(CAname);
 	    CAname = strdup(cstr);
@@ -1666,53 +1564,53 @@ main(int argc, char *argv[])
 		fprintf(stderr, "Unable to allocate memory for cadir\n");
 		exit(1);
 	    }
-	} else if ((rv = cmparg_int(argc, argv, &arg, "-e", "--escchar",
-				    &escape_char))) {
+	} else if ((err = cmparg_int(argc, argv, &arg, "-e", "--escchar",
+				     &escape_char))) {
 	    ;
-	} else if ((rv = cmparg(argc, argv, &arg, NULL, "--nomux", NULL))) {
+	} else if ((err = cmparg(argc, argv, &arg, NULL, "--nomux", NULL))) {
 	    muxstr = "";
 	    use_mux = false;
-	} else if ((rv = cmparg(argc, argv, &arg, NULL, "--notcp", NULL))) {
+	} else if ((err = cmparg(argc, argv, &arg, NULL, "--notcp", NULL))) {
 	    notcp = true;
-	} else if ((rv = cmparg(argc, argv, &arg, NULL, "--nosctp", NULL))) {
+	} else if ((err = cmparg(argc, argv, &arg, NULL, "--nosctp", NULL))) {
 	    nosctp = true;
-	} else if ((rv = cmparg(argc, argv, &arg, NULL, "--sctp", NULL))) {
+	} else if ((err = cmparg(argc, argv, &arg, NULL, "--sctp", NULL))) {
 	    nosctp = false;
-	} else if ((rv = cmparg(argc, argv, &arg, "-r", "--telnet", NULL))) {
+	} else if ((err = cmparg(argc, argv, &arg, "-r", "--telnet", NULL))) {
 	    do_telnet = "telnet(rfc2217),";
 	    use_telnet = 1;
-	} else if ((rv = cmparg(argc, argv, &arg, "", "--transport",
-				&transport))) {
+	} else if ((err = cmparg(argc, argv, &arg, "", "--transport",
+				 &transport))) {
 	    user_transport = true;
 	    nosctp = true;
 	    notcp = true;
-	} else if ((rv = cmparg(argc, argv, &arg, "-m", "--mdns", NULL))) {
+	} else if ((err = cmparg(argc, argv, &arg, "-m", "--mdns", NULL))) {
 	    mdns_transport = true;
 	    user_transport = true;
 	    nosctp = true;
 	    notcp = true;
-	} else if ((rv = cmparg(argc, argv, &arg, NULL, "--mdns-type",
-				&mdns_type))) {
+	} else if ((err = cmparg(argc, argv, &arg, NULL, "--mdns-type",
+				 &mdns_type))) {
 	    ;
-	} else if ((rv = cmparg(argc, argv, &arg, "-L", NULL, &addr))) {
-	    rv = handle_port(o, false, addr);
-	} else if ((rv = cmparg(argc, argv, &arg, "-R", NULL, &addr))) {
-	    rv = handle_port(o, true, addr);
-	} else if ((rv = cmparg(argc, argv, &arg, "-4", NULL, NULL))) {
+	} else if ((err = cmparg(argc, argv, &arg, "-L", NULL, &addr))) {
+	    err = handle_port(o, false, addr);
+	} else if ((err = cmparg(argc, argv, &arg, "-R", NULL, &addr))) {
+	    err = handle_port(o, true, addr);
+	} else if ((err = cmparg(argc, argv, &arg, "-4", NULL, NULL))) {
 	    iptype = "ipv4,";
-	} else if ((rv = cmparg(argc, argv, &arg, "-6", NULL, NULL))) {
+	} else if ((err = cmparg(argc, argv, &arg, "-6", NULL, NULL))) {
 	    iptype = "ipv6,";
-	} else if ((rv = cmparg(argc, argv, &arg, "-d", "--debug", NULL))) {
+	} else if ((err = cmparg(argc, argv, &arg, "-d", "--debug", NULL))) {
 	    debug++;
 	    if (debug > 1)
 		gensio_set_log_mask(GENSIO_LOG_MASK_ALL);
-	} else if ((rv = cmparg(argc, argv, &arg, "-h", "--help", NULL))) {
+	} else if ((err = cmparg(argc, argv, &arg, "-h", "--help", NULL))) {
 	    help(0);
 	} else {
 	    fprintf(stderr, "Unknown argument: %s\n", argv[arg]);
 	    help(1);
 	}
-	if (rv < 0)
+	if (err < 0)
 	    return 1;
     }
 
@@ -1867,10 +1765,10 @@ main(int argc, char *argv[])
 
     ioinfo_set_otherioinfo(ioinfo1, ioinfo2);
 
-    rv = str_to_gensio(userdata1.ios, o, NULL, ioinfo1, &userdata1.io);
-    if (rv) {
+    err = str_to_gensio(userdata1.ios, o, NULL, ioinfo1, &userdata1.io);
+    if (err) {
 	fprintf(stderr, "Could not allocate %s: %s\n",
-		userdata1.ios, gensio_err_to_str(rv));
+		userdata1.ios, gensio_err_to_str(err));
 	return 1;
     }
 
@@ -1916,48 +1814,49 @@ main(int argc, char *argv[])
     }
     userdata2.ios = s;
 
-    rv = str_to_gensio(userdata2.ios, o, auth_event, ioinfo2, &userdata2.io);
-    if (rv) {
+    err = str_to_gensio(userdata2.ios, o, auth_event, ioinfo2, &userdata2.io);
+    if (err) {
 	fprintf(stderr, "Could not allocate %s: %s\n", userdata2.ios,
-		gensio_err_to_str(rv));
+		gensio_err_to_str(err));
 	return 1;
     }
 
     if (use_mux) {
 	len = 4;
-	rv = gensio_control(userdata2.io, 1 + use_telnet, false,
-			    GENSIO_CONTROL_SERVICE, "mux", &len);
-	if (rv) {
+	err = gensio_control(userdata2.io, 1 + use_telnet, false,
+			     GENSIO_CONTROL_SERVICE, "mux", &len);
+	if (err) {
 	    fprintf(stderr, "Could not set mux service %s: %s\n",
-		    userdata2.ios, gensio_err_to_str(rv));
+		    userdata2.ios, gensio_err_to_str(err));
 	    return 1;
 	}
     }
 
-    rv = gensio_control(userdata2.io, 0 + use_telnet, false,
-			GENSIO_CONTROL_SERVICE, service, &service_len);
-    if (rv) {
+    err = gensio_control(userdata2.io, 0 + use_telnet, false,
+			 GENSIO_CONTROL_SERVICE, service, &service_len);
+    if (err) {
 	fprintf(stderr, "Could not set service %s: %s\n", userdata2.ios,
-		gensio_err_to_str(rv));
+		gensio_err_to_str(err));
 	return 1;
     }
 
     if (userdata2.interactive) {
-	rv = gensio_control(userdata2.io, GENSIO_CONTROL_DEPTH_ALL, false,
-			    GENSIO_CONTROL_NODELAY, "1", NULL);
-	if (rv) {
+	err = gensio_control(userdata2.io, GENSIO_CONTROL_DEPTH_ALL, false,
+			     GENSIO_CONTROL_NODELAY, "1", NULL);
+	if (err) {
 	    fprintf(stderr, "Could not set nodelay on %s: %s\n", userdata2.ios,
-		    gensio_err_to_str(rv));
+		    gensio_err_to_str(err));
 	    return 1;
 	}
     }
 
     userdata2.can_close = true;
-    rv = gensio_open_s(userdata2.io);
-    if (rv) {
+    err = gensio_open_s(userdata2.io);
+    if (err) {
+	rv = 1;
 	userdata2.can_close = false;
 	fprintf(stderr, "Could not open %s: %s\n", userdata2.ios,
-		gensio_err_to_str(rv));
+		gensio_err_to_str(err));
 	if (!notcp && !user_transport && strcmp(transport, "sctp") == 0) {
 	    fprintf(stderr, "Falling back to tcp\n");
 	    free(userdata2.ios);
@@ -1972,11 +1871,12 @@ main(int argc, char *argv[])
 	o->free(o, (char *) transport);
 
     userdata1.can_close = true;
-    rv = gensio_open_s(userdata1.io);
-    if (rv) {
+    err = gensio_open_s(userdata1.io);
+    if (err) {
+	rv = 1;
 	userdata1.can_close = false;
 	fprintf(stderr, "Could not open %s: %s\n",
-		userdata1.ios, gensio_err_to_str(rv));
+		userdata1.ios, gensio_err_to_str(err));
 	goto closeit;
     }
 
@@ -1984,7 +1884,7 @@ main(int argc, char *argv[])
     ioinfo_set_ready(ioinfo2, userdata2.io);
 
     if (setup_window_change2(o, ioinfo2))
-	return 0;
+	return 1;
 
     start_local_ports(userdata2.io);
     start_remote_ports(ioinfo2);
@@ -1995,19 +1895,19 @@ main(int argc, char *argv[])
     free(service);
 
     if (userdata2.can_close) {
-	rv = gensio_close(userdata2.io, io_close, closewaiter);
-	if (rv)
+	err = gensio_close(userdata2.io, io_close, closewaiter);
+	if (err)
 	    printf("Unable to close %s: %s\n", userdata2.ios,
-		   gensio_err_to_str(rv));
+		   gensio_err_to_str(err));
 	else
 	    closecount++;
     }
 
     if (userdata1.can_close) {
-	rv = gensio_close(userdata1.io, io_close, closewaiter);
-	if (rv)
+	err = gensio_close(userdata1.io, io_close, closewaiter);
+	if (err)
 	    printf("Unable to close %s: %s\n", userdata1.ios,
-		   gensio_err_to_str(rv));
+		   gensio_err_to_str(err));
 	else
 	    closecount++;
     }
@@ -2042,5 +1942,5 @@ main(int argc, char *argv[])
     if (CAname)
 	free(CAname);
 
-    return 0;
+    return rv;
 }
