@@ -9,6 +9,16 @@
 using namespace std;
 using namespace gensio;
 
+static void
+gensio_log(struct gensio_os_funcs *f, enum gensio_log_levels level,
+	   const char *log, va_list args)
+{
+    fprintf(stderr, "gensio %s log: ", gensio_log_level_to_str(level));
+    vfprintf(stderr, log, args);
+    fprintf(stderr, "\n");
+    fflush(stderr);
+}
+
 int main(int argc, char *argv[])
 {
     Os_Funcs o(0);
@@ -22,6 +32,8 @@ int main(int argc, char *argv[])
 				      o, NULL);
 #endif
     unsigned int v;
+
+    o->vlog = gensio_log;
 
     err = 0;
     sg->open_s();
