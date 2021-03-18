@@ -35,10 +35,10 @@ uucp_fname_lock_size(char *devname)
 	devname += dev_prefix_len;
 
     /*
-     * Format is "/var/lock/LCK..<devname>".  The 6 is for
-     * the "LCK.." and the final nil char.
+     * Format is "/var/lock/LCK..<devname>".  The 7 is for
+     * the "/LCK.." and the final nil char.
      */
-    return 6 + strlen(uucp_lck_dir) + strlen(devname);
+    return 7 + strlen(uucp_lck_dir) + strlen(devname);
 }
 
 static void
@@ -49,8 +49,8 @@ uucp_fname_lock(char *buf, char *devname)
     if (strncmp(dev_prefix, devname, dev_prefix_len) == 0)
 	devname += dev_prefix_len;
 
-    sprintf(buf, "%sLCK..%s", uucp_lck_dir, devname);
-    for (i = strlen(uucp_lck_dir); buf[i]; i++) {
+    sprintf(buf, "%s/LCK..%s", uucp_lck_dir, devname);
+    for (i = strlen(uucp_lck_dir) + 1; buf[i]; i++) {
 	if (buf[i] == '/')
 	    buf[i] = '_';
     }
