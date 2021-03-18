@@ -491,12 +491,15 @@ static void
 i_stdion_fd_cleared(struct gensio_iod *iod, struct stdiona_data *nadata,
 		    struct stdion_channel *schan)
 {
-    if (iod == schan->in_iod)
+    if (iod == schan->in_iod) {
 	schan->in_handler_set = false;
-    else if (iod == schan->out_iod)
+	nadata->o->close(&schan->in_iod);
+    } else if (iod == schan->out_iod) {
 	schan->out_handler_set = false;
-    else
+	nadata->o->close(&schan->out_iod);
+    } else {
 	assert(false);
+    }
 
     if (schan->in_close && !schan->in_handler_set && !schan->out_handler_set) {
 	if (schan == &nadata->io && !nadata->err.out_handler_set &&
