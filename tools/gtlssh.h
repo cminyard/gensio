@@ -42,7 +42,10 @@ int make_link(const char *link, const char *file, const char *name);
 int move_file(const char *src, const char *dest);
 int delete_file(const char *filename);
 
-int run_get_output(const char *argv[], char *in, unsigned long inlen,
+int run_get_output(const char *argv[],
+		   bool close_stdin,
+		   char *closestr, unsigned long closestrlen,
+		   char *in, unsigned long inlen,
 		   char **out, unsigned long *outlen,
 		   char **errout, unsigned long *erroutlen,
 		   int *rc);

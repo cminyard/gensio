@@ -33,6 +33,10 @@ struct run_data {
     struct gensio_os_funcs *o;
     int err;
     struct gensio_waiter *w;
+    bool close_stdin;
+    unsigned char *closestr;
+    gensiods closestr_pos;
+    gensiods closestr_len;
     char *indata;
     gensiods indata_pos;
     gensiods indata_len;
@@ -50,6 +54,7 @@ run_io_event(struct gensio *io, void *user_data,
 	     unsigned char *buf, gensiods *buflen,
 	     const char *const *auxdata)
 {
+    gensiods i;
     struct run_data *d = user_data;
 
     if (err) {
@@ -75,16 +80,32 @@ run_io_event(struct gensio *io, void *user_data,
 	}
 	if (d->indata_pos >= d->indata_len) {
 	    gensio_set_write_callback_enable(io, false);
-	    err = gensio_control(io, 0, false, GENSIO_CONTROL_CLOSE_OUTPUT,
-				 NULL, NULL);
-	    if (err)
-		goto out_err;
+	    if (d->close_stdin) {
+		err = gensio_control(io, 0, false, GENSIO_CONTROL_CLOSE_OUTPUT,
+				     NULL, NULL);
+		if (err)
+		    goto out_err;
+	    }
 	}
 	return 0;
     }
 
     if (event != GENSIO_EVENT_READ)
 	return GE_NOTSUP;
+
+    if (d->closestr && d->closestr_len) {
+	for (i = 0; i < *buflen; i++) {
+	    if (buf[i] == d->closestr[d->closestr_pos]) {
+		d->closestr_pos++;
+		if (d->closestr_pos == d->closestr_len) {
+		    d->closestr_len = 0;
+		    d->o->wake(d->w);
+		}
+	    } else {
+		d->closestr_pos = 0;
+	    }
+	}
+    }
 
     if (!d->outdata) {
 	fwrite(buf, 1, *buflen, stdout);
@@ -159,7 +180,10 @@ run_errio_event(struct gensio *io, void *user_data,
 }
 
 int
-run_get_output(const char *argv[], char *in, unsigned long inlen,
+run_get_output(const char *argv[],
+	       bool close_stdin,
+	       char *closestr, unsigned long closestrlen,
+	       char *in, unsigned long inlen,
 	       char **out, unsigned long *outlen,
 	       char **errout, unsigned long *erroutlen,
 	       int *rc)
@@ -169,6 +193,9 @@ run_get_output(const char *argv[], char *in, unsigned long inlen,
     bool io_open = false, errio_open = false;
 
     memset(&d, 0, sizeof(d));
+    d.close_stdin = close_stdin;
+    d.closestr = (unsigned char *) closestr;
+    d.closestr_len = closestrlen;
 
     d.err = gensio_default_os_hnd(0, &d.o);
     if (d.err) {
@@ -249,7 +276,7 @@ run_get_output(const char *argv[], char *in, unsigned long inlen,
 
     if (d.indata) {
 	gensio_set_write_callback_enable(io, true);
-    } else {
+    } else if (close_stdin) {
 	d.err = gensio_control(io, 0, false, GENSIO_CONTROL_CLOSE_OUTPUT,
 			       NULL, NULL);
 	if (d.err) {

@@ -712,7 +712,8 @@ keygen_one(const char *name, const char *key, const char *cert)
     argv[13] = cn;
     argv[14] = NULL;
 
-    err = run_get_output(argv, NULL, 0, &out, NULL, &errout, NULL, &rc);
+    err = run_get_output(argv, true, NULL, 0,
+			 NULL, 0, &out, NULL, &errout, NULL, &rc);
     free(keyval);
     free(days);
     free(cn);
@@ -876,7 +877,8 @@ serverkey(int inargc, char *inargv[])
     argv[13] = cn;
     argv[14] = NULL;
 
-    err = run_get_output(argv, NULL, 0, &out, NULL, &errout, NULL, &rc);
+    err = run_get_output(argv, true, NULL, 0,
+			 NULL, 0, &out, NULL, &errout, NULL, &rc);
 
     if (err) {
 	/* Error has already been printed. */
@@ -991,7 +993,7 @@ pushcert_one(const char *host, const char *port, const char *name)
     argv[i++] = name;
     argv[i++] = NULL;
 
-    err = run_get_output(argv, upcertstr, upcertstr_len,
+    err = run_get_output(argv, true, NULL, 0, upcertstr, upcertstr_len,
 			 &out, NULL, &errout, NULL, &rc);
 
     if (err) {
