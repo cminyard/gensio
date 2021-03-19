@@ -141,7 +141,7 @@ help(const char *progname)
     P("    manually.  By default the credential on the remote host is\n");
     P("    named the output of 'hostname -f' on the local machine,\n");
     P("    -n overrides this.\n");
-#ifdef DEFAULT_SYSCONFDIR
+#ifdef DEFAULT_CONFDIR
     P("\n");
     P("  serverkey [name]\n");
     P("    Create keys for the gtlsshd server.  Probably requires root.\n");
@@ -788,7 +788,7 @@ keygen(int argc, char *argv[])
     return 0;
 }
 
-#if DEFAULT_SYSCONFDIR
+#ifdef DEFAULT_CONFDIR
 static int
 serverkey(int inargc, char *inargv[])
 {
@@ -951,6 +951,9 @@ pushcert_one(const char *host, const char *port, const char *name)
 	if (cert && !check_file_exists(cert)) {
 	    printf("Could not find an old certificate for ${HOST}${PORT}.\n");
 	    printf("Just trying to send it without old credentials.\n");
+	    free(cert);
+	    cert = NULL;
+	    goto no_cert;
 	}
     }
     if (cert) {
@@ -964,6 +967,7 @@ pushcert_one(const char *host, const char *port, const char *name)
 	goto out;
     }
 
+ no_cert:
     argv[i++] = "gtlssh";
     if (key) {
 	argv[i++] = "--keyname";
@@ -1171,7 +1175,7 @@ main(int argc, char **argv)
 	rv = keygen(0, NULL);
 	if (alloc_commonname)
 	    free(alloc_commonname);
-#ifdef DEFAULT_SYSCONFDIR
+#ifdef DEFAULT_CONFDIR
     } else if (strcmp(argv[0], "serverkey") == 0) {
 	if (keydir_set)
 	    confdir = keydir;

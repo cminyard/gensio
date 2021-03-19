@@ -32,7 +32,7 @@
 #include <Windows.h>
 #include <Lmcons.h>
 
-#define HOST_NAME_MAX 256
+#define HOST_NAME_MAX 255
 
 char *
 get_tlsshdir(void)
@@ -95,6 +95,7 @@ get_my_username(void)
 #include <stdlib.h>
 #include <pwd.h>
 #include <limits.h>
+#include <errno.h>
 
 char *
 get_tlsshdir(void)
@@ -142,8 +143,24 @@ get_my_hostname(void)
 {
     char hostname[HOST_NAME_MAX + 1];
 
-    if (gethostname(hostname, sizeof(hostname)) != 0)
+#ifdef _WIN32
+    struct gensio_os_funcs *o;
+    gensio_default_os_hnd(0, &o);
+#endif
+
+    if (gethostname(hostname, sizeof(hostname)) != 0) {
+#ifdef _WIN32
+	int err = WSAGetLastError();
+	char errbuf[128];
+
+	FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM, NULL,
+		      err, 0, errbuf, sizeof(errbuf), NULL);
+	fprintf(stderr, "Could not get hostname: %s\n", errbuf);
+#else
+	fprintf(stderr, "Could not get hostname: %s\n", strerror(errno));
+#endif
 	return NULL;
+    }
     return strdup(hostname);
 }
 
