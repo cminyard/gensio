@@ -1731,16 +1731,18 @@ win_iod_console_init(struct gensio_iod_win *wiod, void *cb_data)
 	return GE_INVAL;
 
     if (wiod->fd == 0) { /* stdin */
-	h = CreateFileA("CONIN$", GENERIC_READ, 0, NULL, OPEN_EXISTING,
-			FILE_ATTRIBUTE_NORMAL);
+	h = CreateFileA("CONIN$", GENERIC_READ | GENERIC_WRITE, 0,
+			NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
 	oiod->readable = TRUE;
     } else {
-	h = CreateFileA("CONOUT$", GENERIC_WRITE, 0, NULL, OPEN_EXISTING,
-			FILE_ATTRIBUTE_NORMAL);
+	h = CreateFileA("CONOUT$", GENERIC_WRITE, 0,
+			NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
 	oiod->readable = FALSE;
     }
     if (h == INVALID_HANDLE_VALUE)
 	return gensio_os_err_to_err(wiod->r.f, GetLastError());
+
+    oiod->ioh = h;
 
     return win_iod_oneway_init(wiod, cb_data);
 }
@@ -3043,9 +3045,6 @@ gensio_i_os_err_to_err(struct gensio_os_funcs *o,
 	gensio_log(o, GENSIO_LOG_INFO,
 		   "Unhandled OS error in %s:%d: %s (%d)", caller, lineno,
 		   errbuf, oserr);
-	fprintf(stderr,
-	    "Unhandled OS error in %s:%d: %s (%d)", caller, lineno,
-	    errbuf, oserr); fflush(stderr);
     }
 
     return err;
