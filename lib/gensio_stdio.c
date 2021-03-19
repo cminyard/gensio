@@ -1137,25 +1137,38 @@ stdio_nadata_setup(struct gensio_os_funcs *o, gensiods max_read_size,
 }
 
 static int
-setup_self(struct stdiona_data *nadata)
+setup_self(struct stdiona_data *nadata, bool console)
 {
     struct gensio_os_funcs *o = nadata->o;
     int err;
+    enum gensio_iod_type type;
 
-    nadata->io.infd_regfile = o->is_regfile(o, 1);
-    err = o->add_iod(o,
-		  nadata->io.infd_regfile ? GENSIO_IOD_FILE : GENSIO_IOD_STDIO,
-		  1, &nadata->io.in_iod);
+    if (console) {
+	type = GENSIO_IOD_CONSOLE;
+    } else {
+	nadata->io.infd_regfile = o->is_regfile(o, 1);
+	if (nadata->io.infd_regfile)
+	    type = GENSIO_IOD_FILE;
+	else
+	    type = GENSIO_IOD_STDIO;
+    }
+    err = o->add_iod(o, type, 1, &nadata->io.in_iod);
     if (err)
 	return err;
 
+    if (console) {
+	type = GENSIO_IOD_CONSOLE;
+    } else {
+	nadata->io.outfd_regfile = o->is_regfile(o, 0);
+	if (nadata->io.outfd_regfile)
+	    type = GENSIO_IOD_FILE;
+	else
+	    type = GENSIO_IOD_STDIO;
+    }
     nadata->io.outfd_regfile = o->is_regfile(o, 0);
-    err = o->add_iod(o,
-		  nadata->io.outfd_regfile ? GENSIO_IOD_FILE: GENSIO_IOD_STDIO,
-		  0, &nadata->io.out_iod);
+    err = o->add_iod(o, type, 0, &nadata->io.out_iod);
     if (err)
 	return err;
-
 
     return 0;
 }
@@ -1170,13 +1183,16 @@ stdio_gensio_alloc(const char * const argv[], const char * const args[],
     struct stdiona_data *nadata = NULL;
     int i;
     gensiods max_read_size = GENSIO_DEFAULT_BUF_SIZE;
-    bool self= false;
+    bool self = false;
+    bool console = false;
     bool stderr_to_stdout = false;
     bool noredir_stderr = false;
     bool raw = false;
 
     for (i = 0; args && args[i]; i++) {
 	if (gensio_check_keyds(args[i], "readbuf", &max_read_size) > 0)
+	    continue;
+	if (gensio_check_keybool(args[i], "console", &console) > 0)
 	    continue;
 	if (gensio_check_keybool(args[i], "self", &self) > 0)
 	    continue;
@@ -1194,7 +1210,7 @@ stdio_gensio_alloc(const char * const argv[], const char * const args[],
 	return GE_INVAL;
     }
 
-    if (raw && !self)
+    if (raw && !(self || console))
 	return GE_INVAL;
 
     err = stdio_nadata_setup(o, max_read_size, raw, &nadata);
@@ -1204,8 +1220,8 @@ stdio_gensio_alloc(const char * const argv[], const char * const args[],
     nadata->stderr_to_stdout = stderr_to_stdout;
     nadata->noredir_stderr = noredir_stderr;
 
-    if (self) {
-	err = setup_self(nadata);
+    if (self || console) {
+	err = setup_self(nadata, console);
 	if (err)
 	    goto out_err;
     } else {
@@ -1517,7 +1533,7 @@ stdio_gensio_accepter_alloc(const char * const args[],
 	return GE_NOMEM;
     }
 
-    err = setup_self(nadata);
+    err = setup_self(nadata, false);
     if (err) {
 	stdiona_finish_free(nadata);
 	return err;

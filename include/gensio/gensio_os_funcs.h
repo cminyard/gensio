@@ -53,6 +53,7 @@ enum gensio_iod_type {
     GENSIO_IOD_FILE,
     GENSIO_IOD_SIGNAL,
     GENSIO_IOD_STDIO,
+    GENSIO_IOD_CONSOLE,
 
     /* Must be last */
     NR_GENSIO_IOD_TYPES

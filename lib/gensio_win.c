@@ -1721,6 +1721,30 @@ win_iod_stdio_init(struct gensio_iod_win *wiod, void *cb_data)
     return win_iod_oneway_init(wiod, cb_data);
 }
 
+static int
+win_iod_console_init(struct gensio_iod_win *wiod, void *cb_data)
+{
+    struct gensio_iod_win_oneway *oiod = i_to_win_oneway(wiod);
+    HANDLE h;
+
+    if (wiod->fd > 1 || wiod->fd < 0)
+	return GE_INVAL;
+
+    if (wiod->fd == 0) { /* stdin */
+	h = CreateFileA("CONIN$", GENERIC_READ, 0, NULL, OPEN_EXISTING,
+			FILE_ATTRIBUTE_NORMAL);
+	oiod->readable = TRUE;
+    } else {
+	h = CreateFileA("CONOUT$", GENERIC_WRITE, 0, NULL, OPEN_EXISTING,
+			FILE_ATTRIBUTE_NORMAL);
+	oiod->readable = FALSE;
+    }
+    if (h == INVALID_HANDLE_VALUE)
+	return gensio_os_err_to_err(wiod->r.f, GetLastError());
+
+    return win_iod_oneway_init(wiod, cb_data);
+}
+
 struct gensio_iod_win_pipe
 {
     struct gensio_iod_win_oneway b;
@@ -2265,12 +2289,14 @@ win_iod_dev_init(struct gensio_iod_win *wiod, void *cb_data)
 static unsigned int win_iod_sizes[NR_GENSIO_IOD_TYPES] = {
     [GENSIO_IOD_SOCKET] = sizeof(struct gensio_iod_win_sock),
     [GENSIO_IOD_STDIO] = sizeof(struct gensio_iod_win_stdio),
+    [GENSIO_IOD_CONSOLE] = sizeof(struct gensio_iod_win_stdio),
     [GENSIO_IOD_PIPE] = sizeof(struct gensio_iod_win_pipe),
 };
 typedef int (*win_iod_initfunc)(struct gensio_iod_win *, void *);
 static win_iod_initfunc win_iod_init[NR_GENSIO_IOD_TYPES] = {
     [GENSIO_IOD_SOCKET] = win_iod_socket_init,
     [GENSIO_IOD_STDIO] = win_iod_stdio_init,
+    [GENSIO_IOD_CONSOLE] = win_iod_console_init,
     [GENSIO_IOD_PIPE] = win_iod_pipe_init,
 };
 
@@ -2553,7 +2579,8 @@ win_close(struct gensio_iod **iodp)
     assert(iod);
     if (iod->type == GENSIO_IOD_SOCKET) {
 	err = o->close_socket(iiod);
-    } else if (iod->type == GENSIO_IOD_STDIO) {
+    } else if (iod->type == GENSIO_IOD_STDIO ||
+	       iod->type == GENSIO_IOD_CONSOLE) {
 	err = win_stdio_close(iod);
     } else if (iod->type == GENSIO_IOD_PIPE) {
 	err = win_oneway_close(iod);
@@ -2582,7 +2609,8 @@ win_set_non_blocking(struct gensio_iod *iiod)
 
     if (iod->type == GENSIO_IOD_SOCKET) {
 	rv = ioctlsocket(iod->fd, FIONBIO, &flags);
-    } else if (iod->type == GENSIO_IOD_STDIO) {
+    } else if (iod->type == GENSIO_IOD_STDIO ||
+	       iod->type == GENSIO_IOD_CONSOLE) {
 	/* Nothing to do, already non-blocking. */
     } else if (iod->type == GENSIO_IOD_DEV) {
 	/* Nothing to do, already non-blocking. */
@@ -2607,6 +2635,7 @@ win_write(struct gensio_iod *iiod,
     if (iod->type == GENSIO_IOD_SOCKET) {
 	return o->send(iiod, sg, sglen, rcount, 0);
     } else if (iod->type == GENSIO_IOD_STDIO ||
+	       iod->type == GENSIO_IOD_CONSOLE ||
 	       iod->type == GENSIO_IOD_PIPE) {
 	return win_oneway_write(iod, sg, sglen, rcount);
     } else if (iod->type == GENSIO_IOD_DEV) {
@@ -2626,6 +2655,7 @@ win_read(struct gensio_iod *iiod,
     if (iod->type == GENSIO_IOD_SOCKET) {
 	return o->recv(iiod, ibuf, buflen, rcount, 0);
     } else if (iod->type == GENSIO_IOD_STDIO ||
+	       iod->type == GENSIO_IOD_CONSOLE ||
 	       iod->type == GENSIO_IOD_PIPE) {
 	return win_oneway_read(iod, ibuf, buflen, rcount);
     } else if (iod->type == GENSIO_IOD_DEV) {
@@ -2656,6 +2686,7 @@ win_bufcount(struct gensio_iod *iiod, int whichbuf, gensiods *count)
     struct gensio_iod_win *iod = i_to_win(iiod);
 
     if (iod->type == GENSIO_IOD_STDIO ||
+	iod->type == GENSIO_IOD_CONSOLE ||
 	iod->type == GENSIO_IOD_PIPE)
 	return win_oneway_bufcount(iod, whichbuf, count);
     if (iod->type == GENSIO_IOD_DEV)
@@ -2670,6 +2701,7 @@ win_flush(struct gensio_iod *iiod, int whichbuf)
     struct gensio_iod_win *iod = i_to_win(iiod);
 
     if (iod->type == GENSIO_IOD_STDIO ||
+	iod->type == GENSIO_IOD_CONSOLE ||
 	iod->type == GENSIO_IOD_PIPE)
 	win_oneway_flush(iod);
     else if (iod->type == GENSIO_IOD_DEV)
@@ -2685,7 +2717,7 @@ win_makeraw(struct gensio_iod *iiod)
     if (do_errtrig())
 	return GE_NOMEM;
 
-    if (iod->type == GENSIO_IOD_STDIO)
+    if (iod->type == GENSIO_IOD_STDIO || iod->type == GENSIO_IOD_CONSOLE)
 	rv = win_stdio_makeraw(iod);
     if (iod->type == GENSIO_IOD_DEV)
 	rv = 0; /* Nothing to do. */

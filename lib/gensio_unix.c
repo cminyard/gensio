@@ -893,6 +893,17 @@ gensio_unix_add_iod(struct gensio_os_funcs *o, enum gensio_iod_type type,
 {
     struct gensio_iod_unix *iod;
 
+    if (type == GENSIO_IOD_CONSOLE) {
+	if (fd == 0)
+	    fd = open("/dev/tty", O_RDONLY);
+	else if (fd == 1)
+	    fd = open("/dev/tty", O_WRONLY);
+	else
+	    return GE_INVAL;
+	if (fd == -1)
+	    return gensio_os_err_to_err(o, errno);
+    }
+
     iod = o->zalloc(o, sizeof(*iod));
     if (!iod)
 	return GE_NOMEM;

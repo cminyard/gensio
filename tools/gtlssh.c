@@ -138,11 +138,7 @@ getpassword(struct gdata *ginfo, char *pw, gensiods *len)
     gensiods pos = 0;
     char c = 0;
     static char *prompt = "Password: ";
-#ifdef _WIN32
-    const char *constr = "stdio(self,raw)";
-#else
-    const char *constr = "serialdev,/dev/tty";
-#endif
+    const char *constr = "stdio(console,raw)";
 
     err = str_to_gensio(constr, ginfo->o, NULL, NULL, &tty);
     if (err) {

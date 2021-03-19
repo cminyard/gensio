@@ -706,10 +706,15 @@ Instead of starting a program, connect to the running program's stdio.
 This is the same as an accepting stdio gensio, except you don't have
 to go through the accept process.
 .TP
+.B console[=true|false]
+Like self, except connect to the running program's console device,
+/dev/tty on Unix and CONIN$/CONOUT$ on Windows.  Useful for reading
+passwords and such.
+.TP
 .B raw[=true|false]
-For a "self" or accepter version of the gensio, put the I/O in "raw"
-mode, meaning character at a time, turn off ^C, etc.  This will fail
-on pipes or files.
+For a "self", console, or accepter version of the gensio, put the I/O
+in "raw" mode, meaning character at a time, turn off ^C, etc.  This
+will fail on pipes or files.
 .TP
 .B stderr-to-stdout
 Send standard error output to standard out instead of having a separate
