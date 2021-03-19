@@ -43,8 +43,8 @@ int move_file(const char *src, const char *dest);
 int delete_file(const char *filename);
 
 int run_get_output(const char *argv[], char *in, unsigned long inlen,
-		   char **out, unsigned int *outlen,
-		   char **errout, unsigned int *erroutlen,
+		   char **out, unsigned long *outlen,
+		   char **errout, unsigned long *erroutlen,
 		   int *rc);
 
 #ifdef _WIN32

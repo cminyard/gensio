@@ -160,8 +160,8 @@ run_errio_event(struct gensio *io, void *user_data,
 
 int
 run_get_output(const char *argv[], char *in, unsigned long inlen,
-	       char **out, unsigned int *outlen,
-	       char **errout, unsigned int *erroutlen,
+	       char **out, unsigned long *outlen,
+	       char **errout, unsigned long *erroutlen,
 	       int *rc)
 {
     struct run_data d;
