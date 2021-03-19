@@ -159,34 +159,23 @@ copy_to_file(FILE *f, const char *dest, char *endstr)
 {
     char buf[1024];
     FILE *out;
-    size_t count;
-    size_t pos = 0;
 
     out = fopen(dest, "w");
     if (!out) {
 	fprintf(stderr, "Unable to open %s\n", dest);
 	return 1;
     }
-    while ((count = fread(buf, 1, sizeof(buf), f))) {
-	if (endstr) {
-	    gensiods i;
+    while (fgets(buf, sizeof(buf), f)) {
+	size_t len = strlen(buf);
 
-	    for (i = 0; i < count; i++) {
-		if (buf[i] == endstr[pos]) {
-		    pos++;
-		    if (!endstr[pos]) {
-			fwrite(buf, 1, i + 1, out);
-			fputc('\n', out);
-			goto done;
-		    }
-		} else {
-		    pos = 0;
-		}
-	    }
-	}
-	fwrite(buf, 1, count, out);
+	while (len > 0 && isspace(buf[len - 1]))
+	    len--;
+	buf[len] = '\0';
+	fwrite(buf, 1, len, out);
+	fputc('\n', out);
+	if (endstr && strcmp(buf, endstr) == 0)
+	    break;
     }
- done:
     fclose(out);
     return 0;
 }
