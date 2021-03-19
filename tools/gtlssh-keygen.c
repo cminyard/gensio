@@ -1148,11 +1148,11 @@ main(int argc, char **argv)
 	    commonname_set = true;
 	    continue;
 	}
-	if (cmparg(argc, argv, &i, NULL, "--force", NULL)) {
+	if (cmparg(argc, argv, &i, "-f", "--force", NULL)) {
 	    force = true;
 	    continue;
 	}
-	if (cmparg(argc, argv, &i, NULL, "--help", NULL)) {
+	if (cmparg(argc, argv, &i, "-h", "--help", NULL)) {
 	    help(argv[0]);
 	    continue;
 	}
