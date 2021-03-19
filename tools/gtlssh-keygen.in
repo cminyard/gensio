@@ -245,7 +245,8 @@ addallow() {
 	fi
     fi
     if $stdin; then
-	if ! cat >${DEST}; then
+	if ! awk -e '/^-----END CERTIFICATE-----$/ { print; exit }' \
+               -e '{print}' >${DEST}; then
 	    echo "Unable to copy stdin into ${DEST}" 1>&2
 	    return 1
 	fi
