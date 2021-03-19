@@ -1428,7 +1428,14 @@ win_oneway_out_thread(LPVOID data)
 	    if (!iod->do_flush) {
 		gensio_circbuf_data_removed(iod->buf, nwrite);
 
-		if (!wiod->write.ready) {
+		if (gensio_circbuf_datalen(iod->buf) == 0) {
+		    /* When we have no data to write, let fd_clear() go on. */
+		    assert(wiod->in_handler_count > 0);
+		    wiod->in_handler_count--;
+		    if (wiod->in_handlers_clear)
+			queue_iod(wiod);
+		}
+		if (!wiod->write.ready && !wiod->in_handlers_clear) {
 		    wiod->write.ready = TRUE;
 		    queue_iod(wiod);
 		}
@@ -1533,7 +1540,7 @@ win_oneway_write(struct gensio_iod_win *wiod,
 		gensiods *rcount)
 {
     struct gensio_iod_win_oneway *iod = i_to_win_oneway(wiod);
-    gensiods count = 0;
+    gensiods count = 0, oldsize;
     int rv = 0;
 
     EnterCriticalSection(&wiod->lock);
@@ -1549,10 +1556,15 @@ win_oneway_write(struct gensio_iod_win *wiod,
     }
     if (iod->do_flush)
 	goto out;
+    oldsize = gensio_circbuf_datalen(iod->buf);
     gensio_circbuf_sg_write(iod->buf, sg, sglen, &count);
     wiod->write.ready = gensio_circbuf_room_left(iod->buf) > 0;
-    if (count)
+    if (count) {
+	/* Data pending for the thread to write blocks fd_clear(). */
+	if (oldsize == 0)
+	    wiod->in_handler_count++;
 	assert(SetEvent(iod->wakeh));
+    }
  out:
     if (rcount)
 	*rcount = count;
@@ -1918,7 +1930,17 @@ win_twoway_thread(LPVOID data)
 			gensio_circbuf_data_removed(iod->outbuf, nwrite);
 		    }
 
-		    if (!wiod->write.ready) {
+		    if (gensio_circbuf_datalen(iod->outbuf) == 0) {
+			/*
+			 * When we have no data to write, let
+			 * fd_clear() go on.
+			 */
+			assert(wiod->in_handler_count > 0);
+			wiod->in_handler_count--;
+			if (wiod->in_handlers_clear)
+			    queue_iod(wiod);
+		    }
+		    if (!wiod->write.ready && !wiod->in_handlers_clear) {
 			wiod->write.ready = TRUE;
 			queue_iod(wiod);
 		    }
@@ -2022,7 +2044,7 @@ win_twoway_write(struct gensio_iod_win *wiod,
 		 gensiods *rcount)
 {
     struct gensio_iod_win_twoway *iod = i_to_win_twoway(wiod);
-    gensiods count = 0;
+    gensiods count = 0, oldsize;
     int rv = 0;
 
     EnterCriticalSection(&wiod->lock);
@@ -2038,7 +2060,11 @@ win_twoway_write(struct gensio_iod_win *wiod,
     }
     if (iod->do_flush)
 	goto out;
+    oldsize = gensio_circbuf_datalen(iod->outbuf);
     gensio_circbuf_sg_write(iod->outbuf, sg, sglen, &count);
+    if (count && oldsize == 0)
+	/* Data pending for the thread to write blocks fd_clear(). */
+	wiod->in_handler_count++;
     wiod->write.ready = gensio_circbuf_room_left(iod->outbuf) > 0;
     if (!wiod->write.ready)
 	wiod->wake(wiod);
