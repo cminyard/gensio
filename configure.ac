@@ -538,9 +538,9 @@ if test $HAVE_OPENSSL -eq 1; then
    if test ${system_type} = unix; then
       GTLSSYNC=gtlssync
       GTLSSYNCMAN=gtlssync.1
-      GTLSSH_KEYGEN=gtlssh-keygen
-      GTLSSH_KEYGENMAN=gtlssh-keygen.1
    fi
+   GTLSSH_KEYGEN="gtlssh-keygen\$(EXEEXT)"
+   GTLSSH_KEYGENMAN=gtlssh-keygen.1
 fi
 AC_SUBST(GTLSSHD)
 AC_SUBST(GTLSSH)

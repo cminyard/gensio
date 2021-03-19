@@ -39,9 +39,6 @@
 #include "utils.h"
 #include "gtlssh.h"
 
-#define DIRSEP '/'
-#define DIRSEPS "/"
-
 #define DEFAULT_KEYSIZE 2048
 static unsigned int keysize = DEFAULT_KEYSIZE;
 
@@ -55,8 +52,10 @@ static bool keydir_set = false;
 #define DEFAULT_KEYDAYS 365
 static unsigned int keydays = DEFAULT_KEYDAYS;
 
+#ifdef SYSCONFDIR
 #define DEFAULT_CONFDIR SYSCONFDIR DIRSEPS "gtlssh"
 static const char *confdir = DEFAULT_CONFDIR;
+#endif
 
 static char *alloc_commonname = NULL;
 static const char *commonname = NULL;
@@ -78,8 +77,10 @@ help(const char *progname)
     P("  --basedir <dir> - Location where keys are stored.\n");
     P("        Default is %s\n", default_gtlsshdir);
     P("  --keydir <dir> - Location to put the non-default generated keys.\n");
-    P("        Default is %s for normal certificates and\n", keydir);
+    P("        Default is %s for normal certificates.\n", keydir);
+#ifdef DEFAULT_CONFDIR
     P("        %s for server certificates.\n", DEFAULT_CONFDIR);
+#endif
     P("  --commonname <name> - Set the common name in the certificate.\n");
     P("        The default is your username for normal certificates and\n");
     P("        the fully qualified domain name for server certificates.\n");
@@ -140,54 +141,15 @@ help(const char *progname)
     P("    manually.  By default the credential on the remote host is\n");
     P("    named the output of 'hostname -f' on the local machine,\n");
     P("    -n overrides this.\n");
+#ifdef DEFAULT_SYSCONFDIR
     P("\n");
     P("  serverkey [name]\n");
     P("    Create keys for the gtlsshd server.  Probably requires root.\n");
     P("    The name is a prefix for they filenames generated which will\n");
     P("    be name.crt and name.key.  The default name is 'default'.\n");
+#endif
 #undef P
     exit(0);
-}
-
-static bool
-check_dir_exists(const char *dir, bool check_private)
-{
-    struct stat sb;
-    int rv;
-
-    rv = stat(dir, &sb);
-    if (rv == -1)
-	return false;
-
-    if (!S_ISDIR(sb.st_mode)) {
-	fprintf(stderr, "%s is not a directory\n", dir);
-	exit(1);
-    }
-
-    if (sb.st_uid != getuid()) {
-	fprintf(stderr, "You do not own %s, giving up\n", dir);
-	exit(1);
-    }
-
-    if (check_private && sb.st_mode & 077) {
-	fprintf(stderr, "%s is accessible by others, giving up\n", dir);
-	exit(1);
-    }
-
-    return true;
-}
-
-static bool
-check_file_exists(const char *file)
-{
-    struct stat sb;
-    int rv;
-
-    rv = stat(file, &sb);
-    if (rv == -1)
-	return false;
-
-    return true;
 }
 
 static int
@@ -230,25 +192,6 @@ promptyn(const char *fmt, ...)
 	    return false;
 
 	printf("Unknown response, please enter y or n: ");
-    }
-}
-
-static void
-make_dir(const char *dir, bool make_private)
-{
-    int rv;
-    mode_t mode;
-
-    if (make_private)
-	mode = 0700;
-    else
-	mode = 0777;
-
-    rv = mkdir(dir, mode);
-    if (rv) {
-	fprintf(stderr, "Unable to create directory %s: %s\n", dir,
-		strerror(errno));
-	exit(1);
     }
 }
 
@@ -299,9 +242,9 @@ check_dirstruct(void)
 	}
     }
 
-    check_dir(created, true, "%s/keycerts", gtlsshdir);
-    check_dir(created, true, "%s/allowed_certs", gtlsshdir);
-    check_dir(created, true, "%s/server_certs", gtlsshdir);
+    check_dir(created, true, "%s%ckeycerts", gtlsshdir, DIRSEP);
+    check_dir(created, true, "%s%callowed_certs", gtlsshdir, DIRSEP);
+    check_dir(created, true, "%s%cserver_certs", gtlsshdir, DIRSEP);
 }
 
 #define ITERATE_DIR_ERR 2
@@ -380,7 +323,7 @@ remove_links(const char *dir, const char *name, void *cbdata)
 		dir, DIRSEP, name);
 	return ITERATE_DIR_ERR;
     }
-    rv = unlink(fname);
+    rv = delete_file(fname);
     free(fname);
     if (rv) {
 	fprintf(stderr, "Unable to remove %s%c%s: %s", dir, DIRSEP, name,
@@ -467,23 +410,6 @@ cmp_certs(Cert *cert1, Cert *cert2)
     return X509_cmp(cert1, cert2) == 0;
 }
 
-#define LINK_ERROR  1
-#define LINK_EXISTS 2
-static int
-make_link(const char *link, const char *file, const char *name)
-{
-    int err;
-
-    err = symlink(name, link);
-    if (!err)
-	return 0;
-    if (errno == EEXIST)
-	return LINK_EXISTS;
-    fprintf(stderr, "Error making link from %s to %s: %s\n", file, link,
-	    strerror(errno));
-    return LINK_ERROR;
-}
-
 static bool
 hash_cert_cmp(void *data1, unsigned int data1len,
 	      void *data2, unsigned int data2len, void *cbdata)
@@ -529,7 +455,7 @@ hash_file(const char *dir, const char *name, void *cbdata)
     notafter = X509_get0_notAfter(cert);
     if (X509_cmp_current_time(notafter) < 0) {
 	printf("Removing expired certificate %s\n", s);
-	unlink(s);
+	delete_file(s);
 	free(s);
 	free_cert(cert);
 	return ITERATE_DIR_CONTINUE;
@@ -692,7 +618,7 @@ addallow(int argc, char **argv)
 
     if (check_file_exists(dest)) {
 	if (force || promptyn("File %s already exists, do you want to overwrite it?", dest)) {
-	    unlink(dest);
+	    delete_file(dest);
 	} else {
 	    printf("Not installing certificate at %s\n", dest);
 	    goto out_err;
@@ -734,18 +660,16 @@ keygen_one(const char *name, const char *key, const char *cert)
 	    /* Move the key and certificate to backup files. */
 	    s = alloc_sprintf("%s.1", key);
 	    if (s) {
-		unlink(s);
-		link(key, s);
+		move_file(key, s);
 		free(s);
 	    }
 	    s = alloc_sprintf("%s.1", cert);
 	    if (s) {
-		unlink(s);
-		link(cert, s);
+		move_file(key, s);
 		free(s);
 	    }
-	    unlink(key);
-	    unlink(cert);
+	    delete_file(key);
+	    delete_file(cert);
 	} else {
 	    printf("Not generating key for %s", name);
 	    return 1;
@@ -864,6 +788,7 @@ keygen(int argc, char *argv[])
     return 0;
 }
 
+#if DEFAULT_SYSCONFDIR
 static int
 serverkey(int inargc, char *inargv[])
 {
@@ -895,18 +820,16 @@ serverkey(int inargc, char *inargv[])
 	    /* Move the key and certificate to backup files. */
 	    s = alloc_sprintf("%s.1", serverkey);
 	    if (s) {
-		unlink(s);
-		link(serverkey, s);
+		move_file(serverkey, s);
 		free(s);
 	    }
 	    s = alloc_sprintf("%s.1", servercert);
 	    if (s) {
-		unlink(s);
-		link(servercert, s);
+		move_file(servercert, s);
 		free(s);
 	    }
-	    unlink(serverkey);
-	    unlink(servercert);
+	    delete_file(serverkey);
+	    delete_file(servercert);
 	} else {
 	    printf("Not generating server keys");
 	    rv = 1;
@@ -978,6 +901,7 @@ serverkey(int inargc, char *inargv[])
 	free(errout);
     return rv;
 }
+#endif
 
 static int
 pushcert_one(const char *host, const char *port, const char *name)
@@ -1247,6 +1171,7 @@ main(int argc, char **argv)
 	rv = keygen(0, NULL);
 	if (alloc_commonname)
 	    free(alloc_commonname);
+#ifdef DEFAULT_SYSCONFDIR
     } else if (strcmp(argv[0], "serverkey") == 0) {
 	if (keydir_set)
 	    confdir = keydir;
@@ -1261,6 +1186,7 @@ main(int argc, char **argv)
 	rv = serverkey(argc - 1, argv + 1);
 	if (alloc_commonname)
 	    free(alloc_commonname);
+#endif
     } else if (strcmp(argv[0], "pushcert") == 0) {
 	rv = pushcert(argc - 1, argv + 1);
     } else {

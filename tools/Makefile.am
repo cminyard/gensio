@@ -15,8 +15,8 @@ do_subst = sed -e 's,[@]SYSCONFDIR[@],$(sysconfdir),g'
 
 gtlssh_keygen_SOURCES = gtlssh-keygen.c
 
-gtlssh_keygen_LDADD = libgtlssh.a libgensiotool.a @OPENSSL_LIBS@ \
-	$(top_builddir)/lib/libgensio.la
+gtlssh_keygen_LDADD = libgtlssh.a libgensiotool.a \
+	$(top_builddir)/lib/libgensio.la @OPENSSL_LIBS@
 
 gensiot_SOURCES = gensiotool.c
 
@@ -24,7 +24,7 @@ gmdns_SOURCES = gensiomdns.c
 
 libgensiotool_a_SOURCES = ioinfo.c ser_ioinfo.c utils.c localports.c
 
-libgtlssh_a_SOURCES = gtlssh-shared.c run_get_output.c
+libgtlssh_a_SOURCES = gtlssh-shared.c run_get_output.c file_utils.c
 
 gtlssh_SOURCES = gtlssh.c
 

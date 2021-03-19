@@ -25,6 +25,7 @@
 
 #ifndef GTLSSH_H
 #define GTLSSH_H
+#include <stdbool.h>
 #include <gensio/gensio.h>
 
 int checkout_file(const char *filename, bool expect_dir, bool check_private);
@@ -32,6 +33,14 @@ bool file_is_readable(const char *filename);
 char *get_tlsshdir(void);
 char *get_my_username(void);
 char *get_my_hostname(void);
+bool check_dir_exists(const char *dir, bool check_private);
+bool check_file_exists(const char *file);
+void make_dir(const char *dir, bool make_private);
+#define LINK_ERROR  1
+#define LINK_EXISTS 2
+int make_link(const char *link, const char *file, const char *name);
+int move_file(const char *src, const char *dest);
+int delete_file(const char *filename);
 
 int run_get_output(const char *argv[], char *in, unsigned long inlen,
 		   char **out, unsigned int *outlen,
