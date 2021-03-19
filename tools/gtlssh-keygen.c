@@ -920,7 +920,6 @@ pushcert_one(const char *host, const char *port, const char *name)
 {
     const char *argv[14];
     char *upcert = NULL, *cert = NULL, *key = NULL;
-    char *out = NULL, *errout = NULL;
     char upcertstr[32768];
     int rv = 0, rc, i = 0, err;
     ssize_t upcertstr_len;
@@ -1002,24 +1001,17 @@ pushcert_one(const char *host, const char *port, const char *name)
     argv[i++] = NULL;
 
     err = run_get_output(argv, false, NULL, 0, upcertstr, upcertstr_len,
-			 &out, NULL, &errout, NULL, &rc);
+			 NULL, NULL, NULL, NULL, &rc);
 
     if (err) {
 	/* Error has already been printed. */
     } else if (rc) {
-	fprintf(stderr, "Error pushing key %s to %s: %s %s\n", upcert, host,
-		out, errout);
+	fprintf(stderr, "Error pushing key %s to %s\n", upcert, host);
     } else {
 	printf("Certificate %s pushed to %s\n", upcert, host);
-	if (debug)
-	    printf("%s%s", out, errout);
     }
 
  out:
-    if (out)
-	free(out);
-    if (errout)
-	free(errout);
     if (upcert)
 	free(upcert);
     if (key)
