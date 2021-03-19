@@ -1012,7 +1012,7 @@ pushcert_one(const char *host, const char *port, const char *name)
     argv[i++] = name;
     argv[i++] = NULL;
 
-    err = run_get_output(argv, true, NULL, 0, upcertstr, upcertstr_len,
+    err = run_get_output(argv, false, NULL, 0, upcertstr, upcertstr_len,
 			 &out, NULL, &errout, NULL, &rc);
 
     if (err) {
