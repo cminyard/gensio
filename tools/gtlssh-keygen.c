@@ -39,6 +39,8 @@
 #include "utils.h"
 #include "gtlssh.h"
 
+int debug;
+
 #define DEFAULT_KEYSIZE 2048
 static unsigned int keysize = DEFAULT_KEYSIZE;
 
@@ -999,6 +1001,8 @@ pushcert_one(const char *host, const char *port, const char *name)
 		out, errout);
     } else {
 	printf("Certificate %s pushed to %s\n", upcert, host);
+	if (debug)
+	    printf("%s%s", out, errout);
     }
 
  out:
@@ -1104,6 +1108,10 @@ main(int argc, char **argv)
 	if (strcmp(argv[i], "--") == 0) {
 	    i++;
 	    break;
+	}
+	if (cmparg(argc, argv, &i, "-d", "--debug", NULL)) {
+	    debug++;
+	    continue;
 	}
 	if (cmparg_uint(argc, argv, &i, NULL, "--keysize", &keysize))
 	    continue;
