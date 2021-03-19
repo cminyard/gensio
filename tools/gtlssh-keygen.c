@@ -155,19 +155,38 @@ help(const char *progname)
 }
 
 static int
-copy_to_file(FILE *f, const char *dest)
+copy_to_file(FILE *f, const char *dest, char *endstr)
 {
     char buf[1024];
     FILE *out;
     size_t count;
+    size_t pos = 0;
 
     out = fopen(dest, "w");
     if (!out) {
 	fprintf(stderr, "Unable to open %s\n", dest);
 	return 1;
     }
-    while ((count = fread(buf, 1, sizeof(buf), f)))
+    while ((count = fread(buf, 1, sizeof(buf), f))) {
+	if (endstr) {
+	    gensiods i;
+
+	    for (i = 0; i < count; i++) {
+		if (buf[i] == endstr[pos]) {
+		    pos++;
+		    if (!endstr[pos]) {
+			fwrite(buf, 1, i + 1, out);
+			fputc('\n', out);
+			goto done;
+		    }
+		} else {
+		    pos = 0;
+		}
+	    }
+	}
 	fwrite(buf, 1, count, out);
+    }
+ done:
     fclose(out);
     return 0;
 }
@@ -627,7 +646,7 @@ addallow(int argc, char **argv)
 	}
     }
     if (do_stdin) {
-	if (copy_to_file(stdin, dest))
+	if (copy_to_file(stdin, dest, "-----END CERTIFICATE-----"))
 	    goto out_err;
     } else {
 	FILE *f = fopen(argv[1], "r");
@@ -636,7 +655,7 @@ addallow(int argc, char **argv)
 	    fprintf(stderr, "Unable to open %s\n", argv[1]);
 	    goto out_err;
 	}
-	if (copy_to_file(f, dest)) {
+	if (copy_to_file(f, dest, NULL)) {
 	    fclose(f);
 	    goto out_err;
 	}
