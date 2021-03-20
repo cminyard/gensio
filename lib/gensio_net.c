@@ -295,6 +295,25 @@ net_write(void *handler_data, struct gensio_iod *iod, gensiods *rcount,
     return tdata->o->send(iod, sg, sglen, rcount, flags);
 }
 
+static int
+net_check_close(void *handler_data, struct gensio_iod *iod,
+		enum gensio_ll_close_state state,
+		gensio_time *timeout)
+{
+    struct net_data *tdata = handler_data;
+    int err;
+
+    if (state == GENSIO_LL_CLOSE_STATE_START)
+	return 0;
+
+    err = tdata->o->close(&iod);
+    if (err == GE_INPROGRESS && timeout) {
+	timeout->secs = 0;
+	timeout->nsecs = 1000000;
+    }
+    return err;
+}
+
 static const struct gensio_fd_ll_ops net_fd_ll_ops = {
     .sub_open = net_sub_open,
     .check_open = net_check_open,
@@ -302,7 +321,8 @@ static const struct gensio_fd_ll_ops net_fd_ll_ops = {
     .free = net_free,
     .control = net_control,
     .except_ready = net_except_ready,
-    .write = net_write
+    .write = net_write,
+    .check_close = net_check_close
 };
 
 static int
