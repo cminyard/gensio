@@ -117,8 +117,12 @@ do {								\
     rv = gensio_os_err_to_err(o, err);				\
 } while(0)
 
+/* Values for op */
+#define GENSIO_CLOSE_SOCKET_START 0
+#define GENSIO_CLOSE_SOCKET_RETRY 1
+#define GENSIO_CLOSE_SOCKET_FORCE 2
 static int
-close_socket(struct gensio_os_funcs *o, int fd)
+close_socket(struct gensio_os_funcs *o, int fd, int op)
 {
     int err;
 
@@ -126,7 +130,20 @@ close_socket(struct gensio_os_funcs *o, int fd)
 
     assert(fd != -1);
 #ifdef _WIN32
-    err = closesocket(fd);
+    if (op == GENSIO_CLOSE_SOCKET_RETRY) {
+	char data[10];
+
+	err = recv(fd, buf, sizeof(buf), 0);
+	if (err == 0)
+	    err = closesocket(fd);
+    } else if (op == GENSIO_CLOSE_SOCKET_START) {
+	err = shutdown(fd, SD_SEND);
+	if (err == 0)
+	    err = WSAEWOULDBLOCK;
+    } else {
+	/* Force case. */
+	err = closesocket(fd);
+    }
 #else
     err = close(fd);
 #endif
@@ -884,7 +901,7 @@ gensio_stdsock_accept(struct gensio_iod *iod,
     if (rv >= 0) {
 	err = o->add_iod(o, GENSIO_IOD_SOCKET, rv, &riod);
 	if (err) {
-	    close_socket(o, rv);
+	    close_socket(o, rv, GENSIO_CLOSE_SOCKET_FORCE);
 	    if (addr)
 		gensio_addr_free(addr);
 	    return err;
@@ -976,7 +993,7 @@ gensio_stdsock_socket_open(struct gensio_os_funcs *o,
 	return gensio_os_err_to_err(o, sock_errno);
     err = o->add_iod(o, GENSIO_IOD_SOCKET, newfd, &iod);
     if (err) {
-	close_socket(o, newfd);
+	close_socket(o, newfd, GENSIO_CLOSE_SOCKET_FORCE);
 	return err;
     }
     o->iod_set_protocol(iod, protocol);
@@ -1140,7 +1157,9 @@ gensio_stdsock_close_socket(struct gensio_iod *iod, bool retry)
 {
     struct gensio_os_funcs *o = iod->f;
 
-    return close_socket(o, o->iod_get_fd(iod));
+    return close_socket(o, o->iod_get_fd(iod),
+			retry ? GENSIO_CLOSE_SOCKET_RETRY :
+				GENSIO_CLOSE_SOCKET_START);
 }
 
 static int
@@ -1738,7 +1757,7 @@ gensio_setup_listen_socket(struct gensio_os_funcs *o, bool do_listen,
     if (rv) {
 	if (iod)
 	    o->release_iod(iod);
-	close_socket(o, fd);
+	close_socket(o, fd, GENSIO_CLOSE_SOCKET_FORCE);
     } else {
 	*riod = iod;
     }
