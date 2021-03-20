@@ -139,6 +139,7 @@ struct gensio_iod_glib {
     guint idle_id;
     bool in_clear;
     unsigned int clear_count;
+    enum { CL_NOT_CALLED, CL_CALLED, CL_DONE } close_state;
 
     int fd;
     enum gensio_iod_type type;
@@ -1115,7 +1116,17 @@ gensio_glib_close(struct gensio_iod **iodp)
 #endif
 
     if (iod->type == GENSIO_IOD_SOCKET) {
-	err = o->close_socket(iiod);
+	g_mutex_lock(&iod->lock);
+	if (iod->close_state == CL_DONE) {
+	    err = 0;
+	} else {
+	    err = o->close_socket(iiod, iod->close_state == CL_NOT_CALLED);
+	    if (err == GE_INPROGRESS)
+		iod->close_state = CL_CALLED;
+	    else
+		iod->close_state = CL_DONE;
+	}
+	g_mutex_unlock(&iod->lock);
     } else if (iod->type != GENSIO_IOD_STDIO) {
 #ifdef _WIN32
 	CloseHandle(iod->h);

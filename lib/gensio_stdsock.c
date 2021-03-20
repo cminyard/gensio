@@ -1136,7 +1136,7 @@ gensio_stdsock_connect(struct gensio_iod *iod, const struct gensio_addr *addr)
 }
 
 static int
-gensio_stdsock_close_socket(struct gensio_iod *iod)
+gensio_stdsock_close_socket(struct gensio_iod *iod, bool retry)
 {
     struct gensio_os_funcs *o = iod->f;
 

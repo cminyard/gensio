@@ -120,6 +120,7 @@ struct gensio_iod_tcl {
     int mask;
 
     bool in_clear;
+    enum { CL_NOT_CALLED, CL_CALLED, CL_DONE } close_state;
 
     int fd;
     enum gensio_iod_type type;
@@ -862,7 +863,15 @@ gensio_tcl_close(struct gensio_iod **iodp)
     gensio_unix_do_cleanup_nonblock(o, iod->fd, &iod->mode);
 
     if (iod->type == GENSIO_IOD_SOCKET) {
-	err = o->close_socket(iiod);
+	if (iod->close_state == CL_DONE) {
+	    err = 0;
+	} else {
+	    err = o->close_socket(iiod, iod->close_state == CL_NOT_CALLED);
+	    if (err == GE_INPROGRESS)
+		iod->close_state = CL_CALLED;
+	    else
+		iod->close_state = CL_DONE;
+	}
     } else if (iod->type != GENSIO_IOD_STDIO) {
 	err = close(iod->fd);
 	if (err == -1)

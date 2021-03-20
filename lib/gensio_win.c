@@ -1111,6 +1111,7 @@ struct gensio_iod_win_sock {
     WSAEVENT wakeev;
     WSAEVENT sockev;
     BOOL connected;
+    enum { CL_NOT_CALLED, CL_CALLED, CL_DONE } close_state;
 };
 
 #define i_to_winsock(iod) gensio_container_of(iod, struct gensio_iod_win_sock,\
@@ -2606,7 +2607,18 @@ win_close(struct gensio_iod **iodp)
 
     assert(iod);
     if (iod->type == GENSIO_IOD_SOCKET) {
-	err = o->close_socket(iiod);
+	struct gensio_iod_win_sock *siod = i_to_winsock(iod);
+	EnterCriticalSection(&iod->lock);
+	if (siod->close_state == CL_DONE) {
+	    err = 0;
+	} else {
+	    err = o->close_socket(iiod, siod->close_state == CL_NOT_CALLED);
+	    if (err == GE_INPROGRESS)
+		siod->close_state = CL_CALLED;
+	    else
+		siod->close_state = CL_DONE;
+	}
+	LeaveCriticalSection(&iod->lock);
     } else if (iod->type == GENSIO_IOD_STDIO ||
 	       iod->type == GENSIO_IOD_CONSOLE) {
 	err = win_stdio_close(iod);

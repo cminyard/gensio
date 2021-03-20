@@ -600,9 +600,11 @@ struct gensio_os_funcs {
     /*
      * Note that close_socket can only be used on sockets.  The normal
      * close should be used on sockets, this is only for internal use
-     * for OS handlers to do special socket handling on close.
+     * for OS handlers to do special socket handling on close.  If this
+     * returns GE_INPROGRESS, it should be retried until it returns zero
+     * or another error.
      */
-    int (*close_socket)(struct gensio_iod *iod);
+    int (*close_socket)(struct gensio_iod *iod, bool retry);
 
     /*
      * Open a socket, non-blocking.  The iod can be added with
