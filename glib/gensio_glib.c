@@ -64,6 +64,7 @@
 struct gensio_data
 {
     GMutex lock;
+    unsigned int refcount;
     GCond cond; /* Global waiting threads. */
     struct gensio_list waiting_threads;
     struct gensio_wait_thread *main_context_owner;
@@ -1599,11 +1600,33 @@ gensio_glib_service(struct gensio_os_funcs *o, gensio_time *timeout)
     return rv;
 }
 
+static struct gensio_os_funcs *
+gensio_glib_get_funcs(struct gensio_os_funcs *f)
+{
+    struct gensio_data *d = f->user_data;
+
+    g_mutex_lock(&d->lock);
+    assert(d->refcount > 0);
+    d->refcount++;
+    g_mutex_unlock(&d->lock);
+    return f;
+}
+
 static void
 gensio_glib_free_funcs(struct gensio_os_funcs *f)
 {
     struct gensio_data *d = f->user_data;
 
+    g_mutex_lock(&d->lock);
+    assert(d->refcount > 0);
+    if (d->refcount > 1) {
+	d->refcount--;
+	g_mutex_unlock(&d->lock);
+	return;
+    }
+    g_mutex_unlock(&d->lock);
+
+    gensio_stdsock_cleanup(f);
     gensio_memtrack_cleanup(d->mtrack);
     g_cond_clear(&d->cond);
     g_mutex_clear(&d->lock);
@@ -1671,6 +1694,7 @@ gensio_glib_funcs_alloc(struct gensio_os_funcs **ro)
 {
     struct gensio_data *d;
     struct gensio_os_funcs *o;
+    int err;
 
     o = malloc(sizeof(*o));
     if (!o)
@@ -1683,6 +1707,7 @@ gensio_glib_funcs_alloc(struct gensio_os_funcs **ro)
 	return GE_NOMEM;
     }
     memset(d, 0, sizeof(*d));
+    d->refcount = 1;
 
     o->user_data = d;
     d->mtrack = gensio_memtrack_alloc();
@@ -1718,6 +1743,7 @@ gensio_glib_funcs_alloc(struct gensio_os_funcs **ro)
     o->wait_intr_sigmask = gensio_glib_wait_intr_sigmask;
     o->wake = gensio_glib_wake;
     o->service = gensio_glib_service;
+    o->get_funcs = gensio_glib_get_funcs;
     o->free_funcs = gensio_glib_free_funcs;
     o->call_once = gensio_glib_call_once;
     o->get_monotonic_time = gensio_glib_get_monotonic_time;
@@ -1745,7 +1771,12 @@ gensio_glib_funcs_alloc(struct gensio_os_funcs **ro)
     o->iod_control = gensio_glib_iod_control;
 
     gensio_addr_addrinfo_set_os_funcs(o);
-    gensio_stdsock_set_os_funcs(o);
+    err = gensio_stdsock_set_os_funcs(o);
+    if (err) {
+	free(o);
+	free(d);
+	return err;
+    }
 
     *ro = o;
     return 0;

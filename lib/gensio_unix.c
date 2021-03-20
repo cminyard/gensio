@@ -34,6 +34,8 @@
 
 struct gensio_data {
     struct selector_s *sel;
+    lock_type reflock;
+    unsigned int refcount;
     bool freesel;
     int wake_sig;
     struct gensio_memtrack *mtrack;
@@ -836,17 +838,44 @@ gensio_unix_service(struct gensio_os_funcs *f, gensio_time *timeout)
 }
 #endif
 
+
+static lock_type defos_lock = LOCK_INITIALIZER;
 static struct gensio_os_funcs *defoshnd;
 static int defoshnd_wake_sig = -1;
+
+static struct gensio_os_funcs *
+gensio_unix_get_funcs(struct gensio_os_funcs *f)
+{
+    struct gensio_data *d = f->user_data;
+
+    LOCK(&d->reflock);
+    assert(d->refcount > 0);
+    d->refcount++;
+    UNLOCK(&d->reflock);
+    return f;
+}
 
 static void
 gensio_unix_free_funcs(struct gensio_os_funcs *f)
 {
     struct gensio_data *d = f->user_data;
 
-    if (f == defoshnd)
+    LOCK(&defos_lock);
+    LOCK(&d->reflock);
+    assert(d->refcount > 0);
+    if (d->refcount > 1) {
+	d->refcount--;
+	UNLOCK(&d->reflock);
+	UNLOCK(&defos_lock);
 	return;
+    }
+    UNLOCK(&d->reflock);
 
+    if (f == defoshnd)
+	defoshnd = NULL;
+    UNLOCK(&defos_lock);
+
+    gensio_stdsock_cleanup(f);
     gensio_memtrack_cleanup(d->mtrack);
     if (d->freesel)
 	sel_free_selector(d->sel);
@@ -1286,6 +1315,8 @@ gensio_unix_alloc_sel(struct selector_s *sel, int wake_sig)
 	return NULL;
     }
     memset(d, 0, sizeof(*d));
+    LOCK_INIT(&d->reflock);
+    d->refcount = 1;
 
     o->user_data = d;
     d->sel = sel;
@@ -1320,6 +1351,7 @@ gensio_unix_alloc_sel(struct selector_s *sel, int wake_sig)
     o->wait_intr_sigmask = gensio_unix_wait_intr_sigmask;
     o->wake = gensio_unix_wake;
     o->service = gensio_unix_service;
+    o->get_funcs = gensio_unix_get_funcs;
     o->free_funcs = gensio_unix_free_funcs;
     o->call_once = gensio_unix_call_once;
     o->get_monotonic_time = gensio_unix_get_monotonic_time;
@@ -1347,7 +1379,11 @@ gensio_unix_alloc_sel(struct selector_s *sel, int wake_sig)
     o->iod_control = gensio_unix_iod_control;
 
     gensio_addr_addrinfo_set_os_funcs(o);
-    gensio_stdsock_set_os_funcs(o);
+    if (gensio_stdsock_set_os_funcs(o)) {
+	free(d);
+	free(o);
+	return NULL;
+    }
 
     return o;
 }
@@ -1433,8 +1469,6 @@ defsel_unlock(sel_lock_t *l)
     UNLOCK(&l->lock);
 }
 
-
-static pthread_mutex_t defos_lock = PTHREAD_MUTEX_INITIALIZER;
 #endif
 
 int
@@ -1490,29 +1524,25 @@ defoshnd_init(void)
 int
 gensio_default_os_hnd(int wake_sig, struct gensio_os_funcs **o)
 {
-    if (defoshnd_wake_sig != -1 && wake_sig != defoshnd_wake_sig)
-	return GE_INVAL;
+    int err = 0;
 
+    LOCK(&defos_lock);
     if (!defoshnd) {
-#ifdef USE_PTHREADS
-	pthread_mutex_lock(&defos_lock);
-#endif
-	if (!defoshnd) {
+	defoshnd_init();
+	if (defoshnd)
 	    defoshnd_wake_sig = wake_sig;
-	    defoshnd_init();
-	}
-#ifdef USE_PTHREADS
-	pthread_mutex_unlock(&defos_lock);
-#endif
-
-	if (!defoshnd)
-	    return GE_NOMEM;
+	else
+	    err = GE_NOMEM;
+    } else if (wake_sig != defoshnd_wake_sig) {
+	err = GE_INVAL;
+    } else {
+	gensio_unix_get_funcs(defoshnd);
     }
-    if (wake_sig != defoshnd_wake_sig)
-	return GE_INVAL;
+    UNLOCK(&defos_lock);
 
-    *o = defoshnd;
-    return 0;
+    if (!err)
+	*o = defoshnd;
+    return err;
 }
 
 void

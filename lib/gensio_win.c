@@ -183,11 +183,10 @@ struct gensio_data {
     /* Used to wake me up when something is in waiting_iods. */
     HANDLE waiter;
 
-    WSADATA wsa_data;
-
     BOOL freed;
 
     CRITICAL_SECTION glock;
+    unsigned int refcount;
     struct gensio_list waiting_iods;
     struct gensio_list all_iods;
 
@@ -1023,16 +1022,40 @@ static int win_service(struct gensio_os_funcs *o, gensio_time *timeout)
     return rv;
 }
 
+static SRWLOCK def_win_os_funcs_lock = SRWLOCK_INIT;
 static struct gensio_os_funcs *def_win_os_funcs;
 
-static void win_free_funcs(struct gensio_os_funcs *o)
+static struct gensio_os_funcs *
+win_get_funcs(struct gensio_os_funcs *o)
 {
     struct gensio_data *d = o->user_data;
 
-    if (o == def_win_os_funcs)
-	return;
-
     EnterCriticalSection(&d->glock);
+    assert(d->refcount > 0);
+    d->refcount++;
+    LeaveCriticalSection(&d->glock);
+    return o;
+}
+
+static void
+win_free_funcs(struct gensio_os_funcs *o)
+{
+    struct gensio_data *d = o->user_data;
+
+    AcquireSRWLockExclusive(&def_win_os_funcs_lock);
+    EnterCriticalSection(&d->glock);
+    assert(d->refcount > 0);
+    if (d->refcount > 1) {
+	d->refcount--;
+	LeaveCriticalSection(&d->glock);
+	ReleaseSRWLockExclusive(&def_win_os_funcs_lock);
+	return;
+    }
+    LeaveCriticalSection(&d->glock);
+    if (o == def_win_os_funcs)
+	def_win_os_funcs = NULL;
+    ReleaseSRWLockExclusive(&def_win_os_funcs_lock);
+
     if (!d->freed) {
 	d->freed = TRUE;
 	if (gensio_list_empty(&d->all_iods)) {
@@ -2916,6 +2939,7 @@ win_finish_free(struct gensio_os_funcs *o)
     }
     if (d->waiter)
 	CloseHandle(d->waiter);
+    gensio_stdsock_cleanup(o);
     DeleteCriticalSection(&d->glock);
     DeleteCriticalSection(&d->timer_lock);
     DeleteCriticalSection(&d->once_lock);
@@ -2929,6 +2953,7 @@ gensio_win_funcs_alloc(struct gensio_os_funcs **ro)
 {
     struct gensio_data *d;
     struct gensio_os_funcs *o;
+    int err = GE_NOMEM;
 
     o = malloc(sizeof(*o));
     if (!o)
@@ -2941,6 +2966,7 @@ gensio_win_funcs_alloc(struct gensio_os_funcs **ro)
 	return GE_NOMEM;
     }
     memset(d, 0, sizeof(*d));
+    d->refcount = 1;
     InitializeCriticalSection(&d->glock);
     InitializeCriticalSection(&d->timer_lock);
     InitializeCriticalSection(&d->once_lock);
@@ -2992,6 +3018,7 @@ gensio_win_funcs_alloc(struct gensio_os_funcs **ro)
     o->wake = win_wake;
     o->service = win_service;
     o->free_funcs = win_free_funcs;
+    o->get_funcs = win_get_funcs;
     o->call_once = win_call_once;
     o->get_monotonic_time = win_get_monotonic_time;
     o->handle_fork = win_handle_fork;
@@ -3019,7 +3046,9 @@ gensio_win_funcs_alloc(struct gensio_os_funcs **ro)
     o->get_random = win_get_random;
 
     gensio_addr_addrinfo_set_os_funcs(o);
-    gensio_stdsock_set_os_funcs(o);
+    err = gensio_stdsock_set_os_funcs(o);
+    if (err)
+	goto out_err;
 
     /* We have to catch these to reset status. */
     d->orig_recv = o->recv;
@@ -3035,15 +3064,12 @@ gensio_win_funcs_alloc(struct gensio_os_funcs **ro)
     o->accept = win_accept;
     o->connect = win_connect;
 
-    if (WSAStartup(MAKEWORD(2, 2), &d->wsa_data))
-	goto out_err;
-
     *ro = o;
     return 0;
 
  out_err:
     win_finish_free(o);
-    return GE_NOMEM;
+    return err;
 }
 
 int
@@ -3097,30 +3123,20 @@ gensio_i_os_err_to_err(struct gensio_os_funcs *o,
     return err;
 }
 
-static INIT_ONCE win_oshnd_once = INIT_ONCE_STATIC_INIT;
-
-static BOOL CALLBACK win_oshnd_init(PINIT_ONCE InitOnce,
-				    PVOID Parameter,
-				    PVOID *lpContext)
-{
-    int rv = gensio_win_funcs_alloc(&def_win_os_funcs);
-
-    if (!rv)
-	*lpContext = def_win_os_funcs;
-    return !!def_win_os_funcs;
-}
-
 int
 gensio_default_os_hnd(int wake_sig, struct gensio_os_funcs **o)
 {
-    BOOL worked;
-    void *r;
+    int err = 0;
 
-    worked = InitOnceExecuteOnce(&win_oshnd_once, win_oshnd_init,
-				 NULL, &r);
-    if (!worked)
-	return GE_NOMEM;
-    *o = r;
+    AcquireSRWLockExclusive(&def_win_os_funcs_lock);
+    if (!def_win_os_funcs)
+	err = gensio_win_funcs_alloc(&def_win_os_funcs);
+    else
+	win_get_funcs(def_win_os_funcs);
+    ReleaseSRWLockExclusive(&def_win_os_funcs_lock);
+
+    if (!err)
+	*o = def_win_os_funcs;
     return 0;
 }
 

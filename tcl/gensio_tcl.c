@@ -57,6 +57,7 @@
 struct gensio_data
 {
     struct gensio_memtrack *mtrack;
+    unsigned int refcount;
 };
 
 static void *
@@ -1138,11 +1139,25 @@ gensio_tcl_service(struct gensio_os_funcs *o, gensio_time *timeout)
     return rv;
 }
 
+static struct gensio_os_funcs *
+gensio_tcl_get_funcs(struct gensio_os_funcs *f)
+{
+    struct gensio_data *d = f->user_data;
+
+    d->refcount++;
+    return f;
+}
+
 static void
 gensio_tcl_free_funcs(struct gensio_os_funcs *f)
 {
     struct gensio_data *d = f->user_data;
 
+    assert(d->refcount > 0);
+    if (d->refcount > 1) {
+	d->refcount--;
+	return;
+    }
     gensio_memtrack_cleanup(d->mtrack);
     free(d);
     free(f);
@@ -1213,6 +1228,7 @@ gensio_tcl_funcs_alloc(struct gensio_os_funcs **ro)
     struct gensio_data *d;
     struct gensio_os_funcs *o;
     Tcl_Interp *interp;
+    int err;
 
     /*
      * TCL won't work until after you create an intepreter.  So do
@@ -1232,6 +1248,7 @@ gensio_tcl_funcs_alloc(struct gensio_os_funcs **ro)
 	return GE_NOMEM;
     }
     memset(d, 0, sizeof(*d));
+    d->refcount = 1;
 
     o->user_data = d;
     d->mtrack = gensio_memtrack_alloc();
@@ -1264,6 +1281,7 @@ gensio_tcl_funcs_alloc(struct gensio_os_funcs **ro)
     o->wait_intr_sigmask = gensio_tcl_wait_intr_sigmask;
     o->wake = gensio_tcl_wake;
     o->service = gensio_tcl_service;
+    o->get_funcs = gensio_tcl_get_funcs;
     o->free_funcs = gensio_tcl_free_funcs;
     o->call_once = gensio_tcl_call_once;
     o->get_monotonic_time = gensio_tcl_get_monotonic_time;
@@ -1291,7 +1309,12 @@ gensio_tcl_funcs_alloc(struct gensio_os_funcs **ro)
     o->iod_control = gensio_tcl_iod_control;
 
     gensio_addr_addrinfo_set_os_funcs(o);
-    gensio_stdsock_set_os_funcs(o);
+    err = gensio_stdsock_set_os_funcs(o);
+    if (err) {
+	free(o);
+	free(d);
+	return err;
+    }
 
     *ro = o;
     return 0;

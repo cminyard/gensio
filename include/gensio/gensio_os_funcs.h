@@ -395,7 +395,12 @@ struct gensio_os_funcs {
      */
     int (*service)(struct gensio_os_funcs *f, gensio_time *timeout);
 
-    /* Free this structure. */
+    /*
+     * get/free this structure.  At allocation the refcount is one,
+     * get increments the refcounta and free decrements it.  If the
+     * refcount reaches zero, free the structure.
+     */
+    struct gensio_os_funcs *(*get_funcs)(struct gensio_os_funcs *f);
     void (*free_funcs)(struct gensio_os_funcs *f);
 
     /*

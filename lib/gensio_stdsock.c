@@ -1771,9 +1771,15 @@ gensio_setup_listen_socket(struct gensio_os_funcs *o, bool do_listen,
     goto out;
 }
 
-void
+int
 gensio_stdsock_set_os_funcs(struct gensio_os_funcs *o)
 {
+#ifdef _WIN32
+    WSADATA wsa_data;
+
+    if (WSAStartup(MAKEWORD(2, 2), &wsa_data))
+	return GE_NOMEM;
+#endif
     o->recv = gensio_stdsock_recv;
     o->send = gensio_stdsock_send;
     o->sendto = gensio_stdsock_sendto;
@@ -1800,5 +1806,14 @@ gensio_stdsock_set_os_funcs(struct gensio_os_funcs *o)
     o->sctp_send = gensio_stdsock_sctp_send;
     o->sctp_socket_setup = gensio_stdsock_sctp_socket_setup;
     o->sctp_get_socket_status = gensio_stdsock_sctp_get_socket_status;
+#endif
+    return 0;
+}
+
+void
+gensio_stdsock_cleanup(struct gensio_os_funcs *o)
+{
+#ifdef _WIN32
+    WSACleanup();
 #endif
 }

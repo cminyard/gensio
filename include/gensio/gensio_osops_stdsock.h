@@ -21,8 +21,10 @@
 #include <gensio/gensio_os_funcs.h>
 
 
-/* Set up the osops with addrinfo based address handling. */
+/* Set up the osops with addrinfo based standard socket handling. */
 GENSIO_DLL_PUBLIC
-void gensio_stdsock_set_os_funcs(struct gensio_os_funcs *o);
+int gensio_stdsock_set_os_funcs(struct gensio_os_funcs *o);
+GENSIO_DLL_PUBLIC
+void gensio_stdsock_cleanup(struct gensio_os_funcs *o);
 
 #endif /* GENSIO_OSOPS_STDSOCK_H */
