@@ -1220,7 +1220,8 @@ win_iod_socket_clean(struct gensio_iod_win *wiod)
 	WSACloseEvent(iod->sockev);
     if (iod->wakeev != WSA_INVALID_EVENT)
 	WSACloseEvent(iod->wakeev);
-    closesocket(wiod->fd);
+    if (wiod->fd != -1)
+	closesocket(wiod->fd);
 }
 
 static int
@@ -1588,7 +1589,7 @@ win_oneway_read(struct gensio_iod_win *wiod,
 	rv = GE_NOTSUP;
 	goto out_err;
     }
-    if (wiod->err || wiod->werr) {
+    if (gensio_circbuf_datalen(iod->buf) == 0 && (wiod->err || wiod->werr)) {
 	if (!wiod->err)
 	    wiod->err = gensio_os_err_to_err(wiod->r.f, wiod->werr);
 	rv = wiod->err;
@@ -2081,7 +2082,7 @@ win_twoway_write(struct gensio_iod_win *wiod,
 
 static int
 win_twoway_read(struct gensio_iod_win *wiod,
-	      void *ibuf, gensiods buflen, gensiods *rcount)
+		void *ibuf, gensiods buflen, gensiods *rcount)
 {
     struct gensio_iod_win_twoway *iod = i_to_win_twoway(wiod);
     gensiods count = 0;
@@ -2093,7 +2094,7 @@ win_twoway_read(struct gensio_iod_win *wiod,
 	wiod->err = GE_NOTSUP;
 	goto out;
     }
-    if (wiod->err || wiod->werr) {
+    if (gensio_circbuf_datalen(iod->inbuf) && (wiod->err || wiod->werr)) {
 	if (!wiod->err)
 	    wiod->err = gensio_os_err_to_err(wiod->r.f, wiod->werr);
 	rv = wiod->err;
@@ -2416,6 +2417,12 @@ win_iod_control(struct gensio_iod *iiod, int op, bool get, intptr_t val)
 {
     struct gensio_iod_win *iod = i_to_win(iiod);
 
+    if (iod->type == GENSIO_IOD_SOCKET && op == GENSIO_IOD_CONTROL_IS_CLOSED) {
+	if (!get)
+	    return GE_NOTSUP;
+	*((bool *) val) = iod->closed;
+	return 0;
+    }
     if (iod->type == GENSIO_IOD_DEV)
 	return win_dev_control(iod, op, get, val);
     return GE_NOTSUP;
@@ -2612,11 +2619,13 @@ win_close(struct gensio_iod **iodp)
 	if (siod->close_state == CL_DONE) {
 	    err = 0;
 	} else {
-	    err = o->close_socket(iiod, siod->close_state == CL_NOT_CALLED);
-	    if (err == GE_INPROGRESS)
+	    err = o->close_socket(iiod, siod->close_state == CL_CALLED);
+	    if (err == GE_INPROGRESS) {
 		siod->close_state = CL_CALLED;
-	    else
+	    } else {
+		iod->fd = -1;
 		siod->close_state = CL_DONE;
+	    }
 	}
 	LeaveCriticalSection(&iod->lock);
     } else if (iod->type == GENSIO_IOD_STDIO ||

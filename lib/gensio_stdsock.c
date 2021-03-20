@@ -117,12 +117,8 @@ do {								\
     rv = gensio_os_err_to_err(o, err);				\
 } while(0)
 
-/* Values for op */
-#define GENSIO_CLOSE_SOCKET_START 0
-#define GENSIO_CLOSE_SOCKET_RETRY 1
-#define GENSIO_CLOSE_SOCKET_FORCE 2
 static int
-close_socket(struct gensio_os_funcs *o, int fd, int op)
+close_socket(struct gensio_os_funcs *o, int fd)
 {
     int err;
 
@@ -130,20 +126,7 @@ close_socket(struct gensio_os_funcs *o, int fd, int op)
 
     assert(fd != -1);
 #ifdef _WIN32
-    if (op == GENSIO_CLOSE_SOCKET_RETRY) {
-	char data[10];
-
-	err = recv(fd, buf, sizeof(buf), 0);
-	if (err == 0)
-	    err = closesocket(fd);
-    } else if (op == GENSIO_CLOSE_SOCKET_START) {
-	err = shutdown(fd, SD_SEND);
-	if (err == 0)
-	    err = WSAEWOULDBLOCK;
-    } else {
-	/* Force case. */
-	err = closesocket(fd);
-    }
+    err = closesocket(fd);
 #else
     err = close(fd);
 #endif
@@ -901,7 +884,7 @@ gensio_stdsock_accept(struct gensio_iod *iod,
     if (rv >= 0) {
 	err = o->add_iod(o, GENSIO_IOD_SOCKET, rv, &riod);
 	if (err) {
-	    close_socket(o, rv, GENSIO_CLOSE_SOCKET_FORCE);
+	    close_socket(o, rv);
 	    if (addr)
 		gensio_addr_free(addr);
 	    return err;
@@ -993,7 +976,7 @@ gensio_stdsock_socket_open(struct gensio_os_funcs *o,
 	return gensio_os_err_to_err(o, sock_errno);
     err = o->add_iod(o, GENSIO_IOD_SOCKET, newfd, &iod);
     if (err) {
-	close_socket(o, newfd, GENSIO_CLOSE_SOCKET_FORCE);
+	close_socket(o, newfd);
 	return err;
     }
     o->iod_set_protocol(iod, protocol);
@@ -1156,10 +1139,30 @@ static int
 gensio_stdsock_close_socket(struct gensio_iod *iod, bool retry)
 {
     struct gensio_os_funcs *o = iod->f;
+#ifdef _WIN32
+    int err;
+    bool closed;
 
-    return close_socket(o, o->iod_get_fd(iod),
-			retry ? GENSIO_CLOSE_SOCKET_RETRY :
-				GENSIO_CLOSE_SOCKET_START);
+    if (!retry) {
+	err = shutdown(o->iod_get_fd(iod), SD_SEND);
+	if (err == 0)
+	    return GE_INPROGRESS;
+	return gensio_os_err_to_err(o, sock_errno);
+    }
+
+    err = o->iod_control(iod, GENSIO_IOD_CONTROL_IS_CLOSED, true,
+			 (intptr_t) &closed);
+    if (err) {
+	close_socket(o, o->iod_get_fd(iod));
+	return err;
+    }
+    if (closed)
+	return close_socket(o, o->iod_get_fd(iod));
+
+    return GE_INPROGRESS;
+#else
+    return close_socket(o, o->iod_get_fd(iod));
+#endif
 }
 
 static int
@@ -1757,7 +1760,7 @@ gensio_setup_listen_socket(struct gensio_os_funcs *o, bool do_listen,
     if (rv) {
 	if (iod)
 	    o->release_iod(iod);
-	close_socket(o, fd, GENSIO_CLOSE_SOCKET_FORCE);
+	close_socket(o, fd);
     } else {
 	*riod = iod;
     }

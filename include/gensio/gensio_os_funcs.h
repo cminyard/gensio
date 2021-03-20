@@ -179,6 +179,9 @@ const char *gensio_log_level_to_str(enum gensio_log_levels level);
 /* Set the flow control state, int as a bool. */
 #define GENSIO_IOD_CONTROL_FLOWCTL_STATE 25
 
+/* Windows sockets only, is the socket closed? */
+#define GENSIO_IOD_CONTROL_IS_CLOSED 26
+
 
 struct gensio_os_funcs {
     /* For use by the code doing the os function translation. */

@@ -866,7 +866,7 @@ gensio_tcl_close(struct gensio_iod **iodp)
 	if (iod->close_state == CL_DONE) {
 	    err = 0;
 	} else {
-	    err = o->close_socket(iiod, iod->close_state == CL_NOT_CALLED);
+	    err = o->close_socket(iiod, iod->close_state == CL_CALLED);
 	    if (err == GE_INPROGRESS)
 		iod->close_state = CL_CALLED;
 	    else
