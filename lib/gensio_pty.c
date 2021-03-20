@@ -330,7 +330,8 @@ pty_sub_open(void *handler_data, struct gensio_iod **riod)
 }
 
 static int
-pty_check_close(void *handler_data, enum gensio_ll_close_state state,
+pty_check_close(void *handler_data, struct gensio_iod *iod,
+		enum gensio_ll_close_state state,
 		gensio_time *timeout)
 {
     struct pty_data *tdata = handler_data;

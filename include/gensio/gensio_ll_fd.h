@@ -29,7 +29,8 @@ struct gensio_fd_ll_ops {
      * GENSIO_LL_CLOSE_STATE_DONE, return EINPROGRESS to get called again
      * after next_timeout microseconds, zero to continue the close.
      */
-    int (*check_close)(void *handler_data, enum gensio_ll_close_state state,
+    int (*check_close)(void *handler_data, struct gensio_iod *iod,
+		       enum gensio_ll_close_state state,
 		       gensio_time *next_timeout);
 
     void (*free)(void *handler_data);

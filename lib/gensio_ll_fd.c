@@ -465,7 +465,7 @@ static void
 fd_start_close(struct fd_ll *fdll)
 {
     if (fdll->ops->check_close)
-	fdll->ops->check_close(fdll->handler_data,
+	fdll->ops->check_close(fdll->handler_data, fdll->iod,
 			       GENSIO_LL_CLOSE_STATE_START, NULL);
     if (!fdll->iod) {
 	fdll->deferred_close = true;
@@ -699,7 +699,7 @@ fd_check_close(struct fd_ll *fdll)
     int err = 0;
 
     if (fdll->ops->check_close)
-	err = fdll->ops->check_close(fdll->handler_data,
+	err = fdll->ops->check_close(fdll->handler_data, fdll->iod,
 				     GENSIO_LL_CLOSE_STATE_DONE, &timeout);
 
     if (err == GE_INPROGRESS) {

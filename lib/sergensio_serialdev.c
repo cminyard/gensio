@@ -735,7 +735,8 @@ sterm_timer_stopped(struct gensio_timer *timer, void *cb_data)
 }
 
 static int
-sterm_check_close_drain(void *handler_data, enum gensio_ll_close_state state,
+sterm_check_close_drain(void *handler_data, struct gensio_iod *iod,
+			enum gensio_ll_close_state state,
 			gensio_time *next_timeout)
 {
     struct sterm_data *sdata = handler_data;
