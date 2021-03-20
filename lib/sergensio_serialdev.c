@@ -792,6 +792,7 @@ sterm_check_close_drain(void *handler_data, struct gensio_iod *iod,
 	o->flush(sdata->iod, GENSIO_OUT_BUF);
 	if (!sdata->no_uucp_lock)
 	    uucp_rm_lock(sdata->devname);
+	gensio_fd_ll_close_now(sdata->ll);
     }
  out_unlock:
     sterm_unlock(sdata);

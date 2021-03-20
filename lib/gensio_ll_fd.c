@@ -698,9 +698,12 @@ fd_check_close(struct fd_ll *fdll)
     gensio_time timeout;
     int err = 0;
 
-    if (fdll->ops->check_close)
+    if (fdll->ops->check_close) {
 	err = fdll->ops->check_close(fdll->handler_data, fdll->iod,
 				     GENSIO_LL_CLOSE_STATE_DONE, &timeout);
+	if (err != GE_INPROGRESS)
+	    fdll->iod = NULL;
+    }
 
     if (err == GE_INPROGRESS) {
 	fd_ref(fdll);
