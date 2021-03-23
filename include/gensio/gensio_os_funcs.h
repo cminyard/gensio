@@ -52,7 +52,20 @@ enum gensio_iod_type {
     GENSIO_IOD_DEV,
     GENSIO_IOD_FILE,
     GENSIO_IOD_SIGNAL,
+
+    /*
+     * The stdio iod works differently than the other ones.  It will
+     * actually not create a stdio iod, instead it will detect the
+     * type of device or file that stdio uses and create one of those
+     * iods.
+     */
     GENSIO_IOD_STDIO,
+
+    /*
+     * Console iods will open /dev/tty on *nix or CONxx$ on Windows.
+     * It takes 0 or 1 for input and output for the fd, but the actual
+     * fd will be different.
+     */
     GENSIO_IOD_CONSOLE,
 
     /* Must be last */

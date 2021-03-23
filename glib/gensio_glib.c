@@ -146,6 +146,7 @@ struct gensio_iod_glib {
     enum gensio_iod_type type;
     int protocol; /* GENSIO_NET_PROTOCOL_xxx */
     bool handlers_set;
+    bool is_stdio;
     void *cb_data;
     void (*read_handler)(struct gensio_iod *iod, void *cb_data);
     void (*write_handler)(struct gensio_iod *iod, void *cb_data);
@@ -160,6 +161,12 @@ struct gensio_iod_glib {
 #else
     struct gensio_unix_termios *termios;
 #endif
+
+    /* For GENSIO_IOD_FILE */
+    struct gensio_runner *runner;
+    bool read_enabled;
+    bool write_enabled;
+    bool in_handler;
 };
 
 #define i_to_glib(i) gensio_container_of(i, struct gensio_iod_glib, r);
@@ -280,6 +287,11 @@ gensio_glib_clear_fd_handlers(struct gensio_iod *iiod)
     g_mutex_lock(&iod->lock);
     if (!iod->handlers_set || iod->in_clear)
 	goto out_unlock;
+    if (iod->type == GENSIO_IOD_FILE) {
+	iod->in_clear = true;
+	iod->r.f->run(iod->runner);
+	goto out_unlock;
+    }
     if (iod->read_id) {
 	g_source_remove(iod->read_id);
 	iod->read_id = 0;
@@ -318,12 +330,50 @@ gensio_glib_clear_fd_handlers_norpt(struct gensio_iod *iiod)
 }
 
 static void
+file_runner(struct gensio_runner *r, void *cb_data)
+{
+    struct gensio_iod_glib *iod = cb_data;
+
+    g_mutex_lock(&iod->lock);
+    while (iod->read_enabled || iod->write_enabled) {
+	if (iod->read_enabled) {
+	    g_mutex_unlock(&iod->lock);
+	    iod->read_handler(&iod->r, iod->cb_data);
+	    g_mutex_lock(&iod->lock);
+	}
+	if (iod->write_enabled) {
+	    g_mutex_unlock(&iod->lock);
+	    iod->write_handler(&iod->r, iod->cb_data);
+	    g_mutex_lock(&iod->lock);
+	}
+    }
+    iod->in_handler = false;
+    if (iod->in_clear) {
+	iod->in_clear = false;
+	iod->handlers_set = false;
+	g_mutex_unlock(&iod->lock);
+	iod->cleared_handler(&iod->r, iod->cb_data);
+	g_mutex_lock(&iod->lock);
+    }
+    g_mutex_unlock(&iod->lock);
+}
+
+static void
 gensio_glib_set_read_handler(struct gensio_iod *iiod, bool enable)
 {
     struct gensio_iod_glib *iod = i_to_glib(iiod);
+    struct gensio_os_funcs *f = iod->r.f;
 
     g_mutex_lock(&iod->lock);
-    if (iod->read_id && !enable) {
+    if (iod->type == GENSIO_IOD_FILE) {
+	if (iod->read_enabled == enable || iod->in_clear)
+	    goto out_unlock;
+	iod->read_enabled = enable;
+	if (enable && !iod->in_handler) {
+	    f->run(iod->runner);
+	    iod->in_handler = true;
+	}
+    } else if (iod->read_id && !enable) {
 	g_source_remove(iod->read_id);
 	iod->read_id = 0;
     } else if (!iod->read_id && enable) {
@@ -333,6 +383,7 @@ gensio_glib_set_read_handler(struct gensio_iod *iiod, bool enable)
 	assert(iod->read_id);
 	iod->clear_count++;
     }
+ out_unlock:
     g_mutex_unlock(&iod->lock);
 }
 
@@ -340,9 +391,18 @@ static void
 gensio_glib_set_write_handler(struct gensio_iod *iiod, bool enable)
 {
     struct gensio_iod_glib *iod = i_to_glib(iiod);
+    struct gensio_os_funcs *f = iod->r.f;
 
     g_mutex_lock(&iod->lock);
-    if (iod->write_id && !enable) {
+    if (iod->type == GENSIO_IOD_FILE) {
+	if (iod->write_enabled == enable || iod->in_clear)
+	    goto out_unlock;
+	iod->write_enabled = enable;
+	if (enable && !iod->in_handler) {
+	    f->run(iod->runner);
+	    iod->in_handler = true;
+	}
+    } else if (iod->write_id && !enable) {
 	g_source_remove(iod->write_id);
 	iod->write_id = 0;
     } else if (!iod->write_id && enable) {
@@ -352,6 +412,7 @@ gensio_glib_set_write_handler(struct gensio_iod *iiod, bool enable)
 	assert(iod->write_id);
 	iod->clear_count++;
     }
+ out_unlock:
     g_mutex_unlock(&iod->lock);
 }
 
@@ -359,6 +420,9 @@ static void
 gensio_glib_set_except_handler(struct gensio_iod *iiod, bool enable)
 {
     struct gensio_iod_glib *iod = i_to_glib(iiod);
+
+    if (iod->type == GENSIO_IOD_FILE)
+	return;
 
     g_mutex_lock(&iod->lock);
     if (iod->except_id && !enable) {
@@ -976,14 +1040,61 @@ gensio_glib_add_iod(struct gensio_os_funcs *o, enum gensio_iod_type type,
 		    intptr_t fd, struct gensio_iod **riod)
 {
     struct gensio_iod_glib *iod;
+    bool closefd = false;
+    int err = GE_NOMEM;
+
+#ifndef _WIN32
+    if (type == GENSIO_IOD_CONSOLE) {
+	if (fd == 0)
+	    fd = open("/dev/tty", O_RDONLY);
+	else if (fd == 1)
+	    fd = open("/dev/tty", O_WRONLY);
+	else
+	    return GE_INVAL;
+	if (fd == -1)
+	    return gensio_os_err_to_err(o, errno);
+	closefd = true;
+    }
+#endif
 
     iod = o->zalloc(o, sizeof(*iod));
-    if (!iod)
+    if (!iod) {
+	if (closefd)
+	    close(fd);
 	return GE_NOMEM;
-
+    }
     iod->r.f = o;
     iod->fd = fd;
+    if (type == GENSIO_IOD_STDIO) {
+#ifndef _WIN32
+	struct stat statb;
+
+	iod->is_stdio = true;
+
+	err = fstat(fd, &statb);
+	if (err == -1) {
+	    err = gensio_os_err_to_err(o, errno);
+	    goto out_err;
+	}
+	switch (statb.st_mode & S_IFMT) {
+	case S_IFREG: type = GENSIO_IOD_FILE; break;
+	case S_IFCHR: type = GENSIO_IOD_DEV; break;
+	case S_IFIFO: type = GENSIO_IOD_PIPE; break;
+	case S_IFSOCK: type = GENSIO_IOD_SOCKET; break;
+	default:
+	    err = GE_INVAL;
+	    goto out_err;
+	}
+#endif
+    }
     iod->type = type;
+
+    if (type == GENSIO_IOD_FILE) {
+	iod->runner = o->alloc_runner(o, file_runner, iod);
+	if (!iod->runner)
+	    goto out_err;
+	goto out;
+    }
 
 #ifdef _WIN32
     /*
@@ -1007,10 +1118,17 @@ gensio_glib_add_iod(struct gensio_os_funcs *o, enum gensio_iod_type type,
     g_io_channel_set_encoding(iod->chan, NULL, NULL);
     g_io_channel_set_buffered(iod->chan, FALSE);
 
+ out:
     g_mutex_init(&iod->lock);
     *riod = &iod->r;
 
     return 0;
+
+ out_err:
+    o->free(o, iod);
+    if (closefd)
+	close(fd);
+    return err;
 }
 
 static void
@@ -1020,6 +1138,8 @@ gensio_glib_release_iod(struct gensio_iod *iiod)
 
     assert(!iod->handlers_set);
     g_mutex_clear(&iod->lock);
+    if (iod->type == GENSIO_IOD_FILE)
+	iod->r.f->free_runner(iod->runner);
     iiod->f->free(iiod->f, iod);
 }
 
@@ -1078,6 +1198,9 @@ gensio_glib_set_non_blocking(struct gensio_iod *iiod)
     struct gensio_iod_glib *iod = i_to_glib(iiod);
     int rv = 0;
 
+    if (iod->type == GENSIO_IOD_FILE)
+	return 0;
+
 #ifdef _WIN32
     if (iod->type == GENSIO_IOD_SOCKET) {
 	unsigned long flags = 1;
@@ -1108,13 +1231,15 @@ gensio_glib_close(struct gensio_iod **iodp)
 
     assert(iodp);
     assert(!iod->handlers_set);
+    if (iod->type != GENSIO_IOD_FILE) {
 #ifdef _WIN32
-    gensio_win_stdio_cleanup(o, iod->h, &iod->mode);
-    gensio_win_cleanup_commport(o, iod->h, &iod->comm);
+	gensio_win_stdio_cleanup(o, iod->h, &iod->mode);
+	gensio_win_cleanup_commport(o, iod->h, &iod->comm);
 #else
-    gensio_unix_cleanup_termios(o, &iod->termios, iod->fd);
-    gensio_unix_do_cleanup_nonblock(o, iod->fd, &iod->mode);
+	gensio_unix_cleanup_termios(o, &iod->termios, iod->fd);
+	gensio_unix_do_cleanup_nonblock(o, iod->fd, &iod->mode);
 #endif
+    }
 
     if (iod->type == GENSIO_IOD_SOCKET) {
 	g_mutex_lock(&iod->lock);
@@ -1128,7 +1253,7 @@ gensio_glib_close(struct gensio_iod **iodp)
 		iod->close_state = CL_DONE;
 	}
 	g_mutex_unlock(&iod->lock);
-    } else if (iod->type != GENSIO_IOD_STDIO) {
+    } else if (!iod->is_stdio) {
 #ifdef _WIN32
 	CloseHandle(iod->h);
 #else
@@ -1336,7 +1461,7 @@ gensio_glib_makeraw(struct gensio_iod *iiod)
 
     return GE_NOTSUP;
 #else
-    if (iod->fd == 1 || iod->fd == 2)
+    if (iod->fd == 1 || iod->fd == 2 || iod->type == GENSIO_IOD_FILE)
 	/* Only set this for stdin or other files. */
 	return 0;
 

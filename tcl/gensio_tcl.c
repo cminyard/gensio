@@ -127,6 +127,7 @@ struct gensio_iod_tcl {
     enum gensio_iod_type type;
     int protocol; /* GENSIO_NET_PROTOCOL_xxx */
     bool handlers_set;
+    bool is_stdio;
     void *cb_data;
     void (*read_handler)(struct gensio_iod *iod, void *cb_data);
     void (*write_handler)(struct gensio_iod *iod, void *cb_data);
@@ -136,6 +137,12 @@ struct gensio_iod_tcl {
     struct stdio_mode *mode;
 
     struct gensio_unix_termios *termios;
+
+    /* For GENSIO_IOD_FILE */
+    struct gensio_runner *runner;
+    bool read_enabled;
+    bool write_enabled;
+    bool in_handler;
 };
 
 #define i_to_tcl(i) gensio_container_of(i, struct gensio_iod_tcl, r);
@@ -230,12 +237,52 @@ gensio_tcl_clear_fd_handlers_norpt(struct gensio_iod *iiod)
 }
 
 static void
+file_runner(struct gensio_runner *r, void *cb_data)
+{
+    struct gensio_iod_tcl *iod = cb_data;
+
+    Tcl_MutexLock(&iod->lock);
+    while (iod->read_enabled || iod->write_enabled) {
+	if (iod->read_enabled) {
+	    Tcl_MutexUnlock(&iod->lock);
+	    iod->read_handler(&iod->r, iod->cb_data);
+	    Tcl_MutexLock(&iod->lock);
+	}
+	if (iod->write_enabled) {
+	    Tcl_MutexUnlock(&iod->lock);
+	    iod->write_handler(&iod->r, iod->cb_data);
+	    Tcl_MutexLock(&iod->lock);
+	}
+    }
+    iod->in_handler = false;
+    if (iod->in_clear) {
+	iod->in_clear = false;
+	iod->handlers_set = false;
+	Tcl_MutexUnlock(&iod->lock);
+	iod->cleared_handler(&iod->r, iod->cb_data);
+	Tcl_MutexLock(&iod->lock);
+    }
+    Tcl_MutexUnlock(&iod->lock);
+}
+
+static void
 gensio_tcl_set_read_handler(struct gensio_iod *iiod, bool enable)
 {
     struct gensio_iod_tcl *iod = i_to_tcl(iiod);
     int new_mask;
 
     Tcl_MutexLock(&iod->lock);
+    if (iod->type == GENSIO_IOD_FILE) {
+	if (iod->read_enabled == enable || iod->in_clear)
+	    goto out_unlock;
+	iod->read_enabled = enable;
+	if (enable && !iod->in_handler) {
+	    iod->r.f->run(iod->runner);
+	    iod->in_handler = true;
+	}
+	goto out_unlock;
+    }
+
     new_mask = iod->mask;
     if (enable)
 	new_mask |= TCL_READABLE;
@@ -261,6 +308,17 @@ gensio_tcl_set_write_handler(struct gensio_iod *iiod, bool enable)
     int new_mask;
 
     Tcl_MutexLock(&iod->lock);
+    if (iod->type == GENSIO_IOD_FILE) {
+	if (iod->write_enabled == enable || iod->in_clear)
+	    goto out_unlock;
+	iod->write_enabled = enable;
+	if (enable && !iod->in_handler) {
+	    iod->r.f->run(iod->runner);
+	    iod->in_handler = true;
+	}
+	goto out_unlock;
+    }
+
     new_mask = iod->mask;
     if (enable)
 	new_mask |= TCL_WRITABLE;
@@ -281,6 +339,9 @@ gensio_tcl_set_except_handler(struct gensio_iod *iiod, bool enable)
 {
     struct gensio_iod_tcl *iod = i_to_tcl(iiod);
     int new_mask;
+
+    if (iod->type == GENSIO_IOD_FILE)
+	return;
 
     Tcl_MutexLock(&iod->lock);
     new_mask = iod->mask;
@@ -771,18 +832,66 @@ gensio_tcl_add_iod(struct gensio_os_funcs *o, enum gensio_iod_type type,
 		    intptr_t fd, struct gensio_iod **riod)
 {
     struct gensio_iod_tcl *iod;
+    bool closefd = false;
+    int err = GE_NOMEM;
+
+    if (type == GENSIO_IOD_CONSOLE) {
+       if (fd == 0)
+           fd = open("/dev/tty", O_RDONLY);
+       else if (fd == 1)
+           fd = open("/dev/tty", O_WRONLY);
+       else
+           return GE_INVAL;
+       if (fd == -1)
+           return gensio_os_err_to_err(o, errno);
+       closefd = true;
+    }
 
     iod = o->zalloc(o, sizeof(*iod));
-    if (!iod)
+    if (!iod) {
+	if (closefd)
+	    close(fd);
 	return GE_NOMEM;
-
+    }
+    
     iod->r.f = o;
     iod->fd = fd;
+    if (type == GENSIO_IOD_STDIO) {
+	struct stat statb;
+
+	iod->is_stdio = true;
+
+	err = fstat(fd, &statb);
+	if (err == -1) {
+	    err = gensio_os_err_to_err(o, errno);
+	    goto out_err;
+	}
+	switch (statb.st_mode & S_IFMT) {
+	case S_IFREG: type = GENSIO_IOD_FILE; break;
+	case S_IFCHR: type = GENSIO_IOD_DEV; break;
+	case S_IFIFO: type = GENSIO_IOD_PIPE; break;
+	case S_IFSOCK: type = GENSIO_IOD_SOCKET; break;
+	default:
+	    err = GE_INVAL;
+	    goto out_err;
+	}
+    }
     iod->type = type;
+
+    if (type == GENSIO_IOD_FILE) {
+	iod->runner = o->alloc_runner(o, file_runner, iod);
+	if (!iod->runner)
+	    goto out_err;
+    }
 
     *riod = &iod->r;
 
     return 0;
+ out_err:
+    o->free(o, iod);
+    if (closefd)
+	close(fd);
+    return err;
 }
 
 static void
@@ -792,6 +901,8 @@ gensio_tcl_release_iod(struct gensio_iod *iiod)
 
     assert(!iod->handlers_set);
     Tcl_MutexFinalize(&iod->lock);
+    if (iod->type == GENSIO_IOD_FILE)
+	iod->r.f->free_runner(iod->runner);
     iiod->f->free(iiod->f, iod);
 }
 
@@ -845,6 +956,9 @@ gensio_tcl_set_non_blocking(struct gensio_iod *iiod)
     struct gensio_iod_tcl *iod = i_to_tcl(iiod);
     int rv = 0;
 
+    if (iod->type == GENSIO_IOD_FILE)
+	return 0;
+
     rv = gensio_unix_do_nonblock(iiod->f, iod->fd, &iod->mode);
 
     return rv;
@@ -860,8 +974,11 @@ gensio_tcl_close(struct gensio_iod **iodp)
 
     assert(iodp);
     assert(!iod->handlers_set);
-    gensio_unix_cleanup_termios(o, &iod->termios, iod->fd);
-    gensio_unix_do_cleanup_nonblock(o, iod->fd, &iod->mode);
+
+    if (iod->type != GENSIO_IOD_FILE) {
+	gensio_unix_cleanup_termios(o, &iod->termios, iod->fd);
+	gensio_unix_do_cleanup_nonblock(o, iod->fd, &iod->mode);
+    }
 
     if (iod->type == GENSIO_IOD_SOCKET) {
 	if (iod->close_state == CL_DONE) {
@@ -873,7 +990,7 @@ gensio_tcl_close(struct gensio_iod **iodp)
 	    else
 		iod->close_state = CL_DONE;
 	}
-    } else if (iod->type != GENSIO_IOD_STDIO) {
+    } else if (!iod->is_stdio) {
 	err = close(iod->fd);
 	if (err == -1)
 	    err = gensio_os_err_to_err(o, errno);
@@ -983,7 +1100,7 @@ gensio_tcl_makeraw(struct gensio_iod *iiod)
 {
     struct gensio_iod_tcl *iod = i_to_tcl(iiod);
 
-    if (iod->fd == 1 || iod->fd == 2)
+    if (iod->fd == 1 || iod->fd == 2 || iod->type == GENSIO_IOD_FILE)
 	/* Only set this for stdin or other files. */
 	return 0;
 
