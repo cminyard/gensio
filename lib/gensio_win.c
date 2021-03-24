@@ -302,7 +302,7 @@ timer_thread(LPVOID data)
 	rv = WSAWaitForMultipleEvents(1, &d->timer_wakeev, FALSE,
 				      (DWORD) delay, FALSE);
 	assert(rv != WSA_WAIT_FAILED);
-	WSAResetEvent(&d->timer_wakeev);
+	assert(WSAResetEvent(d->timer_wakeev));
 	EnterCriticalSection(&d->timer_lock);
     }
     LeaveCriticalSection(&d->timer_lock);
@@ -3087,6 +3087,8 @@ win_finish_free(struct gensio_os_funcs *o)
     }
     if (d->waiter)
 	CloseHandle(d->waiter);
+    if (d->timer_wakeev)
+	WSACloseEvent(d->timer_wakeev);
     gensio_stdsock_cleanup(o);
     DeleteCriticalSection(&d->glock);
     DeleteCriticalSection(&d->timer_lock);
