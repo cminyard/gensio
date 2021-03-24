@@ -1061,12 +1061,10 @@ win_free_funcs(struct gensio_os_funcs *o)
     if (!d->freed) {
 	d->freed = TRUE;
 	if (gensio_list_empty(&d->all_iods)) {
-	    LeaveCriticalSection(&d->glock);
 	    win_finish_free(o);
 	    return;
 	}
     }
-    LeaveCriticalSection(&d->glock);
 }
 
 static void win_call_once(struct gensio_os_funcs *o, struct gensio_once *once,
@@ -2816,13 +2814,13 @@ i_win_close(struct gensio_iod **iodp, bool force)
 static int
 win_close(struct gensio_iod **iodp)
 {
-    i_win_close(iodp, true);
+    return i_win_close(iodp, true);
 }
 
 static int
 win_graceful_close(struct gensio_iod **iodp)
 {
-    i_win_close(iodp, false);
+    return i_win_close(iodp, false);
 }
 
 static int
@@ -3195,6 +3193,7 @@ gensio_win_funcs_alloc(struct gensio_os_funcs **ro)
 
     o->set_non_blocking = win_set_non_blocking;
     o->close = win_close;
+    o->graceful_close = win_graceful_close;
     o->write = win_write;
     o->read = win_read;
     o->is_regfile = win_is_regfile;
