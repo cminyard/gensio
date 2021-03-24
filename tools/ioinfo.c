@@ -185,6 +185,7 @@ io_event(struct gensio *io, void *user_data, int event, int err,
     static const char *oobaux[2] = { "oob", NULL };
 
     if (err) {
+	gensio_set_read_callback_enable(ioinfo->io, false);
 	if (err != GE_REMCLOSE) {
 	    ioinfo_err(ioinfo, "read error: %s", gensio_err_to_str(err));
 	    ioinfo->uh->shutdown(ioinfo, false);
