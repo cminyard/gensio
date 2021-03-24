@@ -47,6 +47,7 @@ struct gensio_iod {
 };
 
 enum gensio_iod_type {
+    GESNIO_IOD_INVALID, /* Not used for anything the user will see. */
     GENSIO_IOD_SOCKET,
     GENSIO_IOD_PIPE,
     GENSIO_IOD_DEV,
