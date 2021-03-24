@@ -235,17 +235,20 @@ stdion_finish_read(struct stdion_channel *schan, int err)
     struct gensio *io = schan->io;
     gensiods count;
 
-    if (err) {
-	/* Do this here so the user can modify it. */
-	schan->read_enabled = false;
-	schan->data_pending_len = 0;
+    if (err && !schan->ll_err) {
 	schan->ll_err = err;
 	nadata->o->set_read_handler(schan->out_iod, false);
 	nadata->o->set_except_handler(schan->out_iod, false);
-    } else {
-	while (schan->data_pending_len && !schan->closed &&
+    }
+
+    while ((schan->data_pending_len || schan->ll_err) && !schan->closed &&
 	       schan->read_enabled) {
-	    count = schan->data_pending_len;
+	count = schan->data_pending_len;
+	if (schan->ll_err && schan->data_pending_len == 0) {
+	    stdiona_unlock(nadata);
+	    gensio_cb(io, GENSIO_EVENT_READ, schan->ll_err, NULL, NULL, NULL);
+	    stdiona_lock(nadata);
+	} else {
 	    stdiona_unlock(nadata);
 	    gensio_cb(io, GENSIO_EVENT_READ, 0,
 		      schan->read_data + schan->data_pos, &count, NULL);
@@ -368,7 +371,8 @@ stdion_start_close(struct stdion_channel *schan)
     schan->read_enabled = false;
     schan->xmit_enabled = false;
     nadata->o->clear_fd_handlers(schan->out_iod);
-    nadata->o->clear_fd_handlers(schan->in_iod);
+    if (schan->in_iod)
+	nadata->o->clear_fd_handlers(schan->in_iod);
 }
 
 static int
@@ -404,22 +408,18 @@ stdion_deferred_op(struct gensio_runner *runner, void *cbdata)
 	}
 	schan->in_open = false;
 	nadata->o->set_read_handler(schan->out_iod, schan->read_enabled);
-	nadata->o->set_write_handler(schan->in_iod, schan->xmit_enabled);
-	nadata->o->set_except_handler(schan->in_iod, (schan->xmit_enabled |
-						      schan->read_enabled));
+	if (schan->in_iod) {
+	    nadata->o->set_write_handler(schan->in_iod, schan->xmit_enabled);
+	    nadata->o->set_except_handler(schan->in_iod, (schan->xmit_enabled |
+							schan->read_enabled));
+	}
     }
 
     if (schan->deferred_read) {
-	int err;
-
 	schan->deferred_read = false;
-    redo_read:
-	err = schan->ll_err;
-	if (!err && !schan->data_pending_len)
-	    err = stdion_do_read(nadata, schan);
-	stdion_finish_read(schan, err);
-	if (!err && schan->read_enabled)
-	    goto redo_read;
+	while (schan->read_enabled &&
+	       (schan->ll_err || schan->data_pending_len))
+	    stdion_finish_read(schan, 0);
     }
 
     if (schan->deferred_close) {
