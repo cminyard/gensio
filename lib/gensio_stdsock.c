@@ -1136,12 +1136,15 @@ gensio_stdsock_connect(struct gensio_iod *iod, const struct gensio_addr *addr)
 }
 
 static int
-gensio_stdsock_close_socket(struct gensio_iod *iod, bool retry)
+gensio_stdsock_close_socket(struct gensio_iod *iod, bool retry, bool force)
 {
     struct gensio_os_funcs *o = iod->f;
 #ifdef _WIN32
     int err;
     bool closed;
+
+    if (force)
+	return close_socket(o, o->iod_get_fd(iod));
 
     if (!retry) {
 	err = shutdown(o->iod_get_fd(iod), SD_SEND);

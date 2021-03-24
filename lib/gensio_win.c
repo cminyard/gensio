@@ -2767,7 +2767,7 @@ win_connect(struct gensio_iod *iiod, const struct gensio_addr *addr)
 }
 
 static int
-win_close(struct gensio_iod **iodp)
+i_win_close(struct gensio_iod **iodp, bool force)
 {
     struct gensio_iod *iiod = *iodp;
     struct gensio_iod_win *iod = i_to_win(iiod);
@@ -2783,7 +2783,7 @@ win_close(struct gensio_iod **iodp)
 	if (siod->close_state == CL_DONE) {
 	    err = 0;
 	} else {
-	    err = o->close_socket(iiod, siod->close_state == CL_CALLED);
+	    err = o->close_socket(iiod, siod->close_state == CL_CALLED, force);
 	    if (err == GE_INPROGRESS) {
 		siod->close_state = CL_CALLED;
 	    } else {
@@ -2811,6 +2811,18 @@ win_close(struct gensio_iod **iodp)
 	*iodp = NULL;
     }
     return err;
+}
+
+static int
+win_close(struct gensio_iod **iodp)
+{
+    i_win_close(iodp, true);
+}
+
+static int
+win_graceful_close(struct gensio_iod **iodp)
+{
+    i_win_close(iodp, false);
 }
 
 static int

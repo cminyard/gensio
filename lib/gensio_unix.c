@@ -1504,6 +1504,7 @@ gensio_unix_alloc_sel(struct selector_s *sel, int wake_sig)
 
     o->set_non_blocking = gensio_unix_set_non_blocking;
     o->close = gensio_unix_close;
+    o->graceful_close = gensio_unix_close;
     o->write = gensio_unix_write;
     o->read = gensio_unix_read;
     o->is_regfile = gensio_unix_is_regfile;

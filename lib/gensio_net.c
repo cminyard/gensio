@@ -306,7 +306,7 @@ net_check_close(void *handler_data, struct gensio_iod *iod,
     if (state == GENSIO_LL_CLOSE_STATE_START)
 	return 0;
 
-    err = tdata->o->close(&iod);
+    err = tdata->o->graceful_close(&iod);
     if (err == GE_INPROGRESS && timeout) {
 	timeout->secs = 0;
 	timeout->nsecs = 1000000;

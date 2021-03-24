@@ -1412,6 +1412,7 @@ gensio_tcl_funcs_alloc(struct gensio_os_funcs **ro)
 
     o->set_non_blocking = gensio_tcl_set_non_blocking;
     o->close = gensio_tcl_close;
+    o->graceful_close = gensio_tcl_close;
     o->write = gensio_tcl_write;
     o->read = gensio_tcl_read;
     o->is_regfile = gensio_tcl_is_regfile;

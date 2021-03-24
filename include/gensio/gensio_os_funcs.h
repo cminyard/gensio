@@ -484,6 +484,11 @@ struct gensio_os_funcs {
     int (*set_non_blocking)(struct gensio_iod *iod);
     /* Close the I/O descriptor.  Sets what iod point to to NULL. */
     int (*close)(struct gensio_iod **iod);
+    /*
+     * Like close, but if the close would result in data being lost,
+     * return GE_INPROGRESS and don't close
+     */
+    int (*graceful_close)(struct gensio_iod **iod);
     /* Write some data to the I/O descriptor. */
     int (*write)(struct gensio_iod *iod, const struct gensio_sg *sg,
 		 gensiods sglen, gensiods *rcount);
@@ -624,9 +629,11 @@ struct gensio_os_funcs {
      * close should be used on sockets, this is only for internal use
      * for OS handlers to do special socket handling on close.  If this
      * returns GE_INPROGRESS, it should be retried until it returns zero
-     * or another error.
+     * or another error.  If force is true, the socket will be closed
+     * and data will be lost.  If force is false, if data is still pending
+     * and the close would lose it, return GE_INPROGRESS.
      */
-    int (*close_socket)(struct gensio_iod *iod, bool retry);
+    int (*close_socket)(struct gensio_iod *iod, bool retry, bool force);
 
     /*
      * Open a socket, non-blocking.  The iod can be added with

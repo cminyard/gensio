@@ -1882,6 +1882,7 @@ gensio_glib_funcs_alloc(struct gensio_os_funcs **ro)
 
     o->set_non_blocking = gensio_glib_set_non_blocking;
     o->close = gensio_glib_close;
+    o->graceful_close = gensio_glib_close;
     o->write = gensio_glib_write;
     o->read = gensio_glib_read;
     o->is_regfile = gensio_glib_is_regfile;
