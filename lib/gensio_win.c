@@ -109,6 +109,8 @@ struct gensio_iod_win {
 
     BOOL done;
 
+    BOOL is_stdio;
+
     struct iostat read;
     struct iostat write;
     struct iostat except;
@@ -1282,6 +1284,86 @@ struct win_init_info {
     const char *name;
 };
 
+struct gensio_iod_win_file {
+    struct gensio_iod_win i;
+    HANDLE ioh;
+    BOOL readable;
+    BOOL writeable;
+};
+
+#define i_to_winfile(iod) gensio_container_of(iod, struct gensio_iod_win_file,\
+					      i);
+
+static void
+win_dummy_wake(struct gensio_iod_win *wiod)
+{
+}
+
+static int
+win_iod_file_init(struct gensio_iod_win *wiod, void *cb_data)
+{
+    struct gensio_iod_win_file *iod = i_to_winfile(wiod);
+
+    if (cb_data) {
+	iod->readable = *((BOOL *) cb_data);
+	iod->writeable = !iod->readable;
+    } else {
+	iod->readable = TRUE;
+	iod->writeable = TRUE;
+    }
+    iod->ioh = (HANDLE) wiod->fd;
+    wiod->read.ready = iod->readable;
+    wiod->write.ready = iod->writeable;
+    wiod->check = win_iod_check;
+    wiod->wake = win_dummy_wake;
+
+    return 0;
+
+ out_err:
+    return GE_NOMEM;
+}
+
+static int
+win_file_write(struct gensio_iod_win *wiod,
+	       const struct gensio_sg *sg, gensiods sglen,
+	       gensiods *rcount)
+{
+    struct gensio_iod_win_file *iod = i_to_winfile(wiod);
+    gensiods i, count = 0;
+    DWORD len;
+
+    if (!iod->writeable)
+	return GE_NOTSUP;
+
+    for (i = 0; i < sglen; i++) {
+	if (!WriteFile(iod->ioh, sg[i].buf, sg[i].buflen, &len, FALSE)) {
+	    if (count > 0)
+		goto out;
+	    return gensio_os_err_to_err(wiod->r.f, GetLastError());
+	}
+	count += len;
+    }
+
+ out:
+    *rcount = count;
+    return 0;
+}
+
+static int
+win_file_read(struct gensio_iod_win *wiod,
+	      void *ibuf, gensiods buflen, gensiods *rcount)
+{
+    struct gensio_iod_win_file *iod = i_to_winfile(wiod);
+    DWORD len;
+
+    if (!ReadFile(iod->ioh, ibuf, buflen, &len, FALSE))
+	return gensio_os_err_to_err(wiod->r.f, GetLastError());
+    if (len == 0)
+	return GE_REMCLOSE;
+    *rcount = len;
+    return 0;
+}
+
 /*
  * Windows stdio/pipe (unidirectional) handling
  *
@@ -1486,6 +1568,9 @@ win_oneway_out_thread(LPVOID data)
 
  out_err:
     rvw = GetLastError();
+    if (gensio_circbuf_datalen(iod->buf) > 0)
+	/* Data is pending, meaning the handler count is incremented. */
+	wiod->in_handler_count--;
     if (!wiod->werr) {
 	wiod->write.ready = TRUE;
 	wiod->werr = rvw;
@@ -1689,24 +1774,24 @@ win_iod_oneway_init(struct gensio_iod_win* wiod, void* cb_data)
     return 0;
 }
 
-struct gensio_iod_win_stdio {
+struct gensio_iod_win_console {
     struct gensio_iod_win_oneway w;
 
     struct stdio_mode *mode;
 };
 
-#define i_to_winstdio(iod) gensio_container_of(iod,			    \
-					       struct gensio_iod_win_stdio, \
+#define i_to_winconsole(iod) gensio_container_of(iod,			    \
+					       struct gensio_iod_win_console, \
 					       w);
 
 static int
-win_stdio_makeraw(struct gensio_iod_win *wiod)
+win_console_makeraw(struct gensio_iod_win *wiod)
 {
     struct gensio_iod_win_oneway *oiod = i_to_win_oneway(wiod);
-    struct gensio_iod_win_stdio *iod = i_to_winstdio(oiod);
+    struct gensio_iod_win_console *iod = i_to_winconsole(oiod);
     int rv;
 
-    if (wiod->fd != 0)
+    if (!oiod->readable)
 	/*
 	 * Nothing to do for stdout. Disabling ENABLE_PROCESSED_OUTPUT
 	 * is not a good thing to do.
@@ -1720,42 +1805,24 @@ win_stdio_makeraw(struct gensio_iod_win *wiod)
 }
 
 static int
-win_stdio_close(struct gensio_iod_win *wiod)
+win_console_close(struct gensio_iod_win *wiod)
 {
     struct gensio_iod_win_oneway *oiod = i_to_win_oneway(wiod);
-    struct gensio_iod_win_stdio *iod = i_to_winstdio(oiod);
+    struct gensio_iod_win_console *iod = i_to_winconsole(oiod);
 
     gensio_win_stdio_cleanup(wiod->r.f, oiod->ioh, &iod->mode);
     return win_oneway_close(wiod);
 }
 
 static int
-win_iod_stdio_init(struct gensio_iod_win *wiod, void *cb_data)
+win_iod_console2_init(struct gensio_iod_win *wiod, void *cb_data)
 {
     struct gensio_iod_win_oneway *oiod = i_to_win_oneway(wiod);
-    HANDLE h;
+    BOOL readable = *((BOOL *) cb_data);
 
-    if (wiod->fd > 1 || wiod->fd < 0)
-	return GE_INVAL;
-
-    if (wiod->fd == 0) { /* stdin */
-	h = GetStdHandle(STD_INPUT_HANDLE);
-	oiod->readable = TRUE;
-    } else {
-	h = GetStdHandle(STD_OUTPUT_HANDLE);
-	oiod->readable = FALSE;
-    }
-    if (h == INVALID_HANDLE_VALUE)
-	return gensio_os_err_to_err(wiod->r.f, GetLastError());
-    /* Per testing, GetStdHandle does not return a duplicate. */
-    if (!DuplicateHandle(GetCurrentProcess(),
-			 h,
-			 GetCurrentProcess(),
-			 &oiod->ioh,
-			 0, FALSE, DUPLICATE_SAME_ACCESS))
-	return gensio_os_err_to_err(wiod->r.f, GetLastError());
-
-    return win_iod_oneway_init(wiod, cb_data);
+    oiod->readable = readable;
+    oiod->ioh = (HANDLE) wiod->fd;
+    return win_iod_oneway_init(wiod, NULL);
 }
 
 static int
@@ -1763,25 +1830,30 @@ win_iod_console_init(struct gensio_iod_win *wiod, void *cb_data)
 {
     struct gensio_iod_win_oneway *oiod = i_to_win_oneway(wiod);
     HANDLE h;
+    BOOL readable;
+    int rv;
 
     if (wiod->fd > 1 || wiod->fd < 0)
 	return GE_INVAL;
 
     if (wiod->fd == 0) { /* stdin */
 	h = CreateFileA("CONIN$", GENERIC_READ | GENERIC_WRITE, 0,
-			NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
-	oiod->readable = TRUE;
+			  NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+	readable = TRUE;
     } else {
 	h = CreateFileA("CONOUT$", GENERIC_WRITE, 0,
-			NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
-	oiod->readable = FALSE;
+			  NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+	readable = FALSE;
     }
     if (h == INVALID_HANDLE_VALUE)
 	return gensio_os_err_to_err(wiod->r.f, GetLastError());
 
-    oiod->ioh = h;
+    wiod->fd = (intptr_t) h;
+    rv = win_iod_console2_init(wiod, &readable);
 
-    return win_iod_oneway_init(wiod, cb_data);
+    if (rv)
+	CloseHandle(h);
+    return rv;
 }
 
 struct gensio_iod_win_pipe
@@ -1817,11 +1889,17 @@ win_iod_pipe_init(struct gensio_iod_win *wiod, void *cb_data)
 {
     struct gensio_iod_win_oneway *oiod = i_to_win_oneway(wiod);
     DWORD pflags;
+    BOOL readable;
 
     oiod->ioh = (HANDLE) wiod->fd;
-    if (!GetNamedPipeInfo(oiod->ioh, &pflags, NULL, NULL, NULL))
-	return gensio_os_err_to_err(wiod->r.f, GetLastError());
-    if (pflags & PIPE_SERVER_END)
+    if (cb_data) {
+	readable = *((BOOL *) cb_data);
+    } else {
+	if (!GetNamedPipeInfo(oiod->ioh, &pflags, NULL, NULL, NULL))
+	    return gensio_os_err_to_err(wiod->r.f, GetLastError());
+	readable = pflags & PIPE_SERVER_END;
+    }
+    if (readable)
 	return win_iod_read_pipe_init(wiod, cb_data);
     else
 	return win_iod_write_pipe_init(wiod, cb_data);
@@ -2341,17 +2419,77 @@ win_iod_dev_init(struct gensio_iod_win *wiod, void *cb_data)
 
 static unsigned int win_iod_sizes[NR_GENSIO_IOD_TYPES] = {
     [GENSIO_IOD_SOCKET] = sizeof(struct gensio_iod_win_sock),
-    [GENSIO_IOD_STDIO] = sizeof(struct gensio_iod_win_stdio),
-    [GENSIO_IOD_CONSOLE] = sizeof(struct gensio_iod_win_stdio),
+    [GENSIO_IOD_CONSOLE] = sizeof(struct gensio_iod_win_console),
     [GENSIO_IOD_PIPE] = sizeof(struct gensio_iod_win_pipe),
+    [GENSIO_IOD_FILE] = sizeof(struct gensio_iod_win_file),
 };
 typedef int (*win_iod_initfunc)(struct gensio_iod_win *, void *);
 static win_iod_initfunc win_iod_init[NR_GENSIO_IOD_TYPES] = {
     [GENSIO_IOD_SOCKET] = win_iod_socket_init,
-    [GENSIO_IOD_STDIO] = win_iod_stdio_init,
     [GENSIO_IOD_CONSOLE] = win_iod_console_init,
     [GENSIO_IOD_PIPE] = win_iod_pipe_init,
+    [GENSIO_IOD_FILE] = win_iod_file_init,
 };
+
+static int
+win_stdio_init(struct gensio_os_funcs *o, intptr_t fd,
+	       struct gensio_iod **riod)
+{
+    int rv;
+    struct gensio_iod_win *iod;
+    HANDLE h;
+    BOOL readable;
+
+    if (fd > 1 || fd < 0)
+	return GE_INVAL;
+
+    if (fd == 0) { /* stdin */
+	h = GetStdHandle(STD_INPUT_HANDLE);
+	readable = TRUE;
+    } else {
+	h = GetStdHandle(STD_OUTPUT_HANDLE);
+	readable = FALSE;
+    }
+    if (h == INVALID_HANDLE_VALUE)
+	return gensio_os_err_to_err(o, GetLastError());
+    /* Per testing, GetStdHandle does not return a duplicate. */
+    if (!DuplicateHandle(GetCurrentProcess(),
+			 h,
+			 GetCurrentProcess(),
+			 &h,
+			 0, FALSE, DUPLICATE_SAME_ACCESS))
+	return gensio_os_err_to_err(o, GetLastError());
+
+    switch (GetFileType(h)) {
+    case FILE_TYPE_CHAR:
+	rv = win_alloc_iod(o, sizeof(struct gensio_iod_win_console),
+			   (intptr_t) h, GENSIO_IOD_CONSOLE,
+			   win_iod_console2_init, &readable, &iod);
+	break;
+
+    case FILE_TYPE_DISK:
+	rv = win_alloc_iod(o, sizeof(struct gensio_iod_win_file), (intptr_t) h,
+			   GENSIO_IOD_FILE, win_iod_file_init,
+			   &readable, &iod);
+	break;
+
+    case FILE_TYPE_PIPE:
+	rv = win_alloc_iod(o, sizeof(struct gensio_iod_win_pipe), (intptr_t) h,
+			   GENSIO_IOD_PIPE, win_iod_pipe_init,
+			   &readable, &iod);
+	break;
+
+    default:
+	rv = GE_INVAL;
+    }
+
+    if (rv)
+	CloseHandle(h);
+    else
+	*riod = &iod->r;
+
+    return rv;
+}
 
 static int
 win_add_iod(struct gensio_os_funcs *o, enum gensio_iod_type type,
@@ -2359,6 +2497,9 @@ win_add_iod(struct gensio_os_funcs *o, enum gensio_iod_type type,
 {
     int rv;
     struct gensio_iod_win *iod;
+
+    if (type == GENSIO_IOD_STDIO)
+	return win_stdio_init(o, fd, riod);
 
     if (type >= NR_GENSIO_IOD_TYPES || type < 0 || win_iod_sizes[type] == 0)
 	return GE_NOTSUP;
@@ -2631,7 +2772,7 @@ win_close(struct gensio_iod **iodp)
     struct gensio_iod *iiod = *iodp;
     struct gensio_iod_win *iod = i_to_win(iiod);
     struct gensio_os_funcs *o = iiod->f;
-    int err;
+    int err = 0;
 
     /* Don't do errtrig on close, it can fail and not cause any issues. */
 
@@ -2651,9 +2792,13 @@ win_close(struct gensio_iod **iodp)
 	    }
 	}
 	LeaveCriticalSection(&iod->lock);
-    } else if (iod->type == GENSIO_IOD_STDIO ||
-	       iod->type == GENSIO_IOD_CONSOLE) {
-	err = win_stdio_close(iod);
+    } else if (iod->type == GENSIO_IOD_CONSOLE) {
+	err = win_console_close(iod);
+    } else if (iod->type == GENSIO_IOD_FILE) {
+	struct gensio_iod_win_file *fiod = i_to_winfile(iod);
+	CloseHandle(fiod->ioh);
+	iod->read.ready = FALSE;
+	iod->write.ready = FALSE;
     } else if (iod->type == GENSIO_IOD_PIPE) {
 	err = win_oneway_close(iod);
     } else if (iod->type == GENSIO_IOD_DEV) {
@@ -2681,12 +2826,13 @@ win_set_non_blocking(struct gensio_iod *iiod)
 
     if (iod->type == GENSIO_IOD_SOCKET) {
 	rv = ioctlsocket(iod->fd, FIONBIO, &flags);
-    } else if (iod->type == GENSIO_IOD_STDIO ||
-	       iod->type == GENSIO_IOD_CONSOLE) {
+    } else if (iod->type == GENSIO_IOD_CONSOLE) {
 	/* Nothing to do, already non-blocking. */
     } else if (iod->type == GENSIO_IOD_DEV) {
 	/* Nothing to do, already non-blocking. */
     } else if (iod->type == GENSIO_IOD_PIPE) {
+	/* Nothing to do, already non-blocking. */
+    } else if (iod->type == GENSIO_IOD_FILE) {
 	/* Nothing to do, already non-blocking. */
     } else {
 	return GE_NOTSUP;
@@ -2706,8 +2852,9 @@ win_write(struct gensio_iod *iiod,
 
     if (iod->type == GENSIO_IOD_SOCKET) {
 	return o->send(iiod, sg, sglen, rcount, 0);
-    } else if (iod->type == GENSIO_IOD_STDIO ||
-	       iod->type == GENSIO_IOD_CONSOLE ||
+    } else if (iod->type == GENSIO_IOD_FILE) {
+	return win_file_write(iod, sg, sglen, rcount);
+    } else if (iod->type == GENSIO_IOD_CONSOLE ||
 	       iod->type == GENSIO_IOD_PIPE) {
 	return win_oneway_write(iod, sg, sglen, rcount);
     } else if (iod->type == GENSIO_IOD_DEV) {
@@ -2726,8 +2873,9 @@ win_read(struct gensio_iod *iiod,
 
     if (iod->type == GENSIO_IOD_SOCKET) {
 	return o->recv(iiod, ibuf, buflen, rcount, 0);
-    } else if (iod->type == GENSIO_IOD_STDIO ||
-	       iod->type == GENSIO_IOD_CONSOLE ||
+    } else if (iod->type == GENSIO_IOD_FILE) {
+	return win_file_read(iod, ibuf, buflen, rcount);
+    } else if (iod->type == GENSIO_IOD_CONSOLE ||
 	       iod->type == GENSIO_IOD_PIPE) {
 	return win_oneway_read(iod, ibuf, buflen, rcount);
     } else if (iod->type == GENSIO_IOD_DEV) {
@@ -2757,8 +2905,7 @@ win_bufcount(struct gensio_iod *iiod, int whichbuf, gensiods *count)
 {
     struct gensio_iod_win *iod = i_to_win(iiod);
 
-    if (iod->type == GENSIO_IOD_STDIO ||
-	iod->type == GENSIO_IOD_CONSOLE ||
+    if (iod->type == GENSIO_IOD_CONSOLE ||
 	iod->type == GENSIO_IOD_PIPE)
 	return win_oneway_bufcount(iod, whichbuf, count);
     if (iod->type == GENSIO_IOD_DEV)
@@ -2772,8 +2919,7 @@ win_flush(struct gensio_iod *iiod, int whichbuf)
 {
     struct gensio_iod_win *iod = i_to_win(iiod);
 
-    if (iod->type == GENSIO_IOD_STDIO ||
-	iod->type == GENSIO_IOD_CONSOLE ||
+    if (iod->type == GENSIO_IOD_CONSOLE ||
 	iod->type == GENSIO_IOD_PIPE)
 	win_oneway_flush(iod);
     else if (iod->type == GENSIO_IOD_DEV)
@@ -2789,11 +2935,13 @@ win_makeraw(struct gensio_iod *iiod)
     if (do_errtrig())
 	return GE_NOMEM;
 
-    if (iod->type == GENSIO_IOD_STDIO || iod->type == GENSIO_IOD_CONSOLE)
-	rv = win_stdio_makeraw(iod);
+    if (iod->type == GENSIO_IOD_CONSOLE)
+	rv = win_console_makeraw(iod);
     if (iod->type == GENSIO_IOD_DEV)
 	rv = 0; /* Nothing to do. */
     if (iod->type == GENSIO_IOD_PIPE)
+	rv = 0; /* Nothing to do. */
+    if (iod->type == GENSIO_IOD_FILE)
 	rv = 0; /* Nothing to do. */
 
     return rv;
