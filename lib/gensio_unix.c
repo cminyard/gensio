@@ -1668,11 +1668,12 @@ gensio_default_os_hnd(int wake_sig, struct gensio_os_funcs **o)
 
     LOCK(&defos_lock);
     if (!defoshnd) {
+	defoshnd_wake_sig = wake_sig;
 	defoshnd_init();
-	if (defoshnd)
-	    defoshnd_wake_sig = wake_sig;
-	else
+	if (!defoshnd) {
+	    defoshnd_wake_sig = -1;
 	    err = GE_NOMEM;
+	}
     } else if (wake_sig != defoshnd_wake_sig) {
 	err = GE_INVAL;
     } else {
