@@ -1890,6 +1890,7 @@ gensio_memtrack_alloc(void)
     m = malloc(sizeof(*m));
     if (!m)
 	return NULL;
+    memset(m, 0, sizeof(*m));
 
     LOCK_INIT(&m->lock);
     gensio_list_init(&m->alloced);
