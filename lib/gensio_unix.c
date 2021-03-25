@@ -1202,7 +1202,7 @@ gensio_unix_close(struct gensio_iod **iodp)
     }
 
     if (iod->type == GENSIO_IOD_SOCKET) {
-	err = o->close_socket(iiod, false);
+	err = o->close_socket(iiod, false, true);
     } else if (!iod->is_stdio) {
 	err = close(iod->fd);
 #ifdef ENABLE_INTERNAL_TRACE
