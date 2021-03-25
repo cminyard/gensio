@@ -408,10 +408,10 @@ stdion_deferred_op(struct gensio_runner *runner, void *cbdata)
 	}
 	schan->in_open = false;
 	nadata->o->set_read_handler(schan->out_iod, schan->read_enabled);
+	nadata->o->set_except_handler(schan->out_iod, schan->read_enabled);
 	if (schan->in_iod) {
 	    nadata->o->set_write_handler(schan->in_iod, schan->xmit_enabled);
-	    nadata->o->set_except_handler(schan->in_iod, (schan->xmit_enabled |
-							schan->read_enabled));
+	    nadata->o->set_except_handler(schan->in_iod, schan->xmit_enabled);
 	}
     }
 
