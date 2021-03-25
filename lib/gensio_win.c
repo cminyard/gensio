@@ -2515,10 +2515,10 @@ win_add_iod(struct gensio_os_funcs *o, enum gensio_iod_type type,
     return rv;
 }
 
-static void win_release_iod(struct gensio_iod* iiod)
+static void win_release_iod(struct gensio_iod *iiod)
 {
-    struct gensio_os_funcs* o = iiod->f;
-    struct gensio_data* d = o->user_data;
+    struct gensio_os_funcs *o = iiod->f;
+    struct gensio_data *d = o->user_data;
     struct gensio_iod_win *iod = i_to_win(iiod);
     BOOL do_free = FALSE;
 
