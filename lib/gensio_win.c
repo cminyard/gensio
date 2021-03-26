@@ -297,16 +297,16 @@ timer_thread(LPVOID data)
 	    t = theap_get_top(&d->timer_heap);
 	    now = GetTickCount64();
 	}
-	LeaveCriticalSection(&d->timer_lock);
 	if (t)
 	    delay = t->val.end_time - now;
 	else
 	    delay = 1000000;
+	LeaveCriticalSection(&d->timer_lock);
 	rv = WSAWaitForMultipleEvents(1, &d->timer_wakeev, FALSE,
 				      (DWORD) delay, FALSE);
 	assert(rv != WSA_WAIT_FAILED);
-	assert(WSAResetEvent(d->timer_wakeev));
 	EnterCriticalSection(&d->timer_lock);
+	assert(WSAResetEvent(d->timer_wakeev));
     }
     LeaveCriticalSection(&d->timer_lock);
     return 0;
@@ -551,13 +551,16 @@ win_timer_check(struct gensio_iod_win *iod)
     struct gensio_timer *t = i_to_timer(iod);
 
     EnterCriticalSection(&d->timer_lock);
-    if (t->val.state != WIN_TIMER_STOPPED) {
+    if (t->val.state == WIN_TIMER_IN_QUEUE) {
 	t->val.state = WIN_TIMER_STOPPED;
 	t->val.in_handler = TRUE;
 	LeaveCriticalSection(&d->timer_lock);
 	t->val.handler(t, t->val.cb_data);
 	EnterCriticalSection(&d->timer_lock);
 	t->val.in_handler = FALSE;
+    }
+    else {
+	assert(t->val.state == WIN_TIMER_STOPPED);
     }
     if (t->val.done && !t->val.freed) {
 	void (*done)(struct gensio_timer *t, void *cb_data) = t->val.done;
@@ -610,7 +613,13 @@ win_stop_timer_now(struct gensio_timer *timer)
 
     if (timer->val.state == WIN_TIMER_IN_QUEUE) {
 	glock_lock(d);
-	gensio_list_rm(&d->waiting_iods, &timer->val.i.link);
+	/*
+	 * We aren't holding glock_lock until just above, so
+	 * it;s possible it was pulled from the list but hasn't
+	 * been run.
+	 */
+	if (gensio_list_link_inlist(&timer->val.i.link))
+	    gensio_list_rm(&d->waiting_iods, &timer->val.i.link);
 	glock_unlock(d);
     } else if (timer->val.state == WIN_TIMER_IN_HEAP) {
 	theap_remove(&d->timer_heap, timer);
@@ -652,9 +661,9 @@ win_add_timer(struct gensio_timer *timer, ULONGLONG end_time)
     }
     timer->val.end_time = end_time;
     if (timer->val.in_handler) {
+	/* We'll add it when the handler returns. */
 	timer->val.state = WIN_TIMER_PENDING;
     } else {
-	/* Otherwise we'll add it when the handler returns. */
 	theap_add(&d->timer_heap, timer);
 	assert(WSASetEvent(d->timer_wakeev));
 	timer->val.state = WIN_TIMER_IN_HEAP;
