@@ -1071,18 +1071,40 @@ do_break(int fd)
 }
 #endif
 
-#if !defined(HAVE_CFMAKERAW) || defined(HAVE_TERMIOS2)
 static void s_cfmakeraw(g_termios *termios_p) {
+    unsigned int i;
+
+    /* Zero out the c_cc array. */
+    for (i = 0; i < sizeof(termios_p->c_cc); i++)
+	termios_p->c_cc[i] = 0;
+
+    /* Standard make raw. */
     termios_p->c_iflag &= ~(IGNBRK|BRKINT|PARMRK|ISTRIP|INLCR|IGNCR|ICRNL|IXON);
     termios_p->c_oflag &= ~OPOST;
     termios_p->c_lflag &= ~(ECHO|ECHONL|ICANON|ISIG|IEXTEN);
     termios_p->c_cflag &= ~(CSIZE|PARENB);
     termios_p->c_cflag |= CS8;
     termios_p->c_cc[VMIN] = 1;
-}
-#else
-#define s_cfmakeraw cfmakeraw
+
+    /* Our additions to makeraw, to make things always consistent. */
+    termios_p->c_iflag &= ~(IXOFF | IXANY);
+    termios_p->c_iflag |= IGNBRK;
+    termios_p->c_oflag &= ~(ONLCR);
+    termios_p->c_lflag &= ~(ECHOK|ECHOE|ECHONL);
+#ifdef ECHOCTL
+    termios_p->c_lflag &= ~ECHOCTL;
 #endif
+#ifdef ECHOPRT
+    termios_p->c_lflag &= ~ECHOPRT;
+#endif
+#ifdef ECHOKE
+    termios_p->c_lflag &= ~ECHOKE;
+#endif
+    termios_p->c_cflag &= ~(CRTSCTS | PARODD);
+    termios_p->c_cflag |= CREAD;
+    termios_p->c_cc[VSTART] = 17;
+    termios_p->c_cc[VSTOP] = 19;
+}
 
 int
 gensio_unix_setup_termios(struct gensio_os_funcs *o, int fd,
@@ -1108,12 +1130,6 @@ gensio_unix_setup_termios(struct gensio_os_funcs *o, int fd,
     ioctl(fd, TIOCMGET, &t->orig_mctl);
 
     s_cfmakeraw(&t->curr_termios);
-    t->curr_termios.c_cflag &= ~(CRTSCTS | PARODD);
-    t->curr_termios.c_cflag |= CREAD;
-    t->curr_termios.c_cc[VSTART] = 17;
-    t->curr_termios.c_cc[VSTOP] = 19;
-    t->curr_termios.c_iflag &= ~(IXOFF | IXANY);
-    t->curr_termios.c_iflag |= IGNBRK;
 
     rv = set_termios(fd, &t->curr_termios);
     if (rv) {
