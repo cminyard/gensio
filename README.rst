@@ -397,9 +397,22 @@ provide an OS handler (struct gensio_os_funcs) to handle OS-type
 functions like memory allocation, mutexes, the ability to handle file
 descriptors, timers and time, and a few other things.
 
-The library does provide gensio_selector_alloc() that creates a POSIX
-based OS handler that should handle what you need for most things.
-But if you are using something like Tk, glib, etc that has it's own
+The library does provide several OS handlers.  The get the default one
+for your system (POSIX or Windows) call gensio_default_os_hnd().  You
+can see that man page for more details.  This will generally be the
+best performing option you have for your system.
+
+For POSIX systems, OS handlers for glib and TCL are available,
+allocated with gensio_glib_funcs_alloc() and gensio_tcl_funcs_alloc().
+These really don't work very well, especially from a performance point
+of view, the APIs for glib and TCL are not well designed for what
+gensio does.  TCL can only support single-threaded operation.  glib
+multithreaded operation only has one thread at a time waiting for I/O.
+But they do work, and the tests are run with them.  These are not
+available on Windows because of poor abstractions on glib and because
+of lack of motivation on TCL.
+
+But if you are using something else like Tk, etc that has it's own
 event loop, you may need to adapt one for your needs.  But the good
 thing is that you can do this, and integrate gensio with pretty much
 anything.
