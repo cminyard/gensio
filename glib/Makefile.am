@@ -9,8 +9,6 @@ libgensioglib_la_LIBADD = $(top_builddir)/lib/libgensio.la @OPENSSL_LIBS@ \
 	@GLIB_LIBS@
 libgensioglib_la_LDFLAGS = -no-undefined -rpath $(libdir)
 
-EXTRA_DIST = libgensioglib.pc.in CMakeLists.txt
-
 SUBDIRS = . $(SWIG_DIR) include
 DIST_SUBDIRS = swig include
 
@@ -22,3 +20,5 @@ pkgconfigexec_DATA = libgensioglib.pc
 if INSTALL_DOC
 man3_MANS = gensio_glib_funcs_alloc.3
 endif
+
+EXTRA_DIST = libgensioglib.pc.in CMakeLists.txt $(man3_MANS)

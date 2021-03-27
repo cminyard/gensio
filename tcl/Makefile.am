@@ -9,8 +9,6 @@ libgensiotcl_la_LIBADD = $(top_builddir)/lib/libgensio.la @OPENSSL_LIBS@ \
 	@GLIB_LIBS@
 libgensiotcl_la_LDFLAGS = -no-undefined -rpath $(libdir)
 
-EXTRA_DIST = libgensiotcl.pc.in CMakeLists.txt
-
 SUBDIRS = . $(SWIG_DIR) include
 DIST_SUBDIRS = swig include
 
@@ -22,3 +20,5 @@ pkgconfigexec_DATA = libgensiotcl.pc
 if INSTALL_DOC
 man3_MANS = gensio_tcl_funcs_alloc.3
 endif
+
+EXTRA_DIST = libgensiotcl.pc.in CMakeLists.txt $(man3_MANS)
