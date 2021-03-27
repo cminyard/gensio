@@ -245,6 +245,7 @@ stdion_finish_read(struct stdion_channel *schan, int err)
 	       schan->read_enabled) {
 	count = schan->data_pending_len;
 	if (schan->ll_err && schan->data_pending_len == 0) {
+	    schan->read_enabled = false;
 	    stdiona_unlock(nadata);
 	    gensio_cb(io, GENSIO_EVENT_READ, schan->ll_err, NULL, NULL, NULL);
 	    stdiona_lock(nadata);
