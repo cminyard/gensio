@@ -51,7 +51,7 @@ man1_MANS = gensiot.1 @GTLSSHMAN@ @GTLSSH_KEYGENMAN@ @GTLSSYNCMAN@ @GMDNSMAN@
 man8_MANS = @GTLSSHDMAN@
 endif
 
-EXTRA_DIST = $(manpages) gtlssh-keygen.in CMakeLists.txt gtlssync
+EXTRA_DIST = $(manpages) CMakeLists.txt gtlssync
 
 clean-local:
 	rm -f gtlssh-keygen
