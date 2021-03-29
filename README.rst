@@ -412,14 +412,15 @@ But they do work, and the tests are run with them.  These are not
 available on Windows because of poor abstractions on glib and because
 of lack of motivation on TCL.
 
-But if you are using something else like Tk, etc that has it's own
-event loop, you may need to adapt one for your needs.  But the good
-thing is that you can do this, and integrate gensio with pretty much
-anything.
+But if you are using something else like X Windows, etc that has it's
+own event loop, you may need to adapt one for your needs.  But the
+good thing is that you can do this, and integrate gensio with pretty
+much anything.
 
 There is also a waiter interface that provides a convenient way to
-wait for things to occur.  Waiting is generally not required, but it
-can be useful in some cases.
+wait for things to occur while running the event loop.  This is how
+you generally enter the event loop, because it provides a convenient
+way to signal when you are done and need to leave the loop.
 
 Documentation for this is in::
 
@@ -507,21 +508,31 @@ again.
 If something goes wrong on a connection, the read handler is called
 with an error set.  ``buf`` and ``buflen`` will be NULL in this case.
 
-For writing, you can call ``gensio_write()`` to write data.  In
-general, you shouldn't arbitrarily call ``gensio_write()``.  You
-should call ``gensio_set_write_callback_enable()`` and the gensio will
-call the write ready callback and you should write from the callback.
-
+For writing, you can call ``gensio_write()`` to write data.  You may
+use ``gensio_write()`` at any time on an open gensio.
 ``gensio_write()`` may not take all the data you write to it.  The
 ``count`` parameter passes back the number of bytes actually taken in
 the write call.
+
+You can design your code to call
+``gensio_set_write_callback_enable()`` when you have data to send and
+the gensio will call the write ready callback and you can write from
+the callback.  This is generally simpler, but enabling and disabling
+the write callback adds some overhead.
+
+A more efficient approach is to write data whenever you need to and
+have the write callback disabled.  If the write operation returns less
+than the full request, the other end has flow-controlled and you
+should enable the write callback and wait until it is called before
+sending more data.
 
 In the callbacks, you can get the user data you passed in to the
 create call with ``gensio_get_user_data()``.
 
 Note that if you open then immediately close a gensio, this is fine,
 even if the open callback hasn't been called.  The open callback may
-or may not be called in that case.
+or may not be called in that case, though, so it can be difficult to
+handle this properly.
 
 Synchronous I/O
 ---------------
