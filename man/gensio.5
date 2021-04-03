@@ -621,8 +621,8 @@ values can be: "rts_on_send" - RTS set when sending, "rts_after_send" -
 RTS set after sending, "rx_during_tx" - can receive and transmit at
 the same time, and "terminate_bus" - enable bus termination.
 
-Using "off" will disable rs485, that is useful for overriding a default.
-default is "off".
+Using "off" will disable rs485; that is useful for overriding a
+user-defined default setting.  Default is "off".
 .TP
 .B xonxoff[=true|false]
 Enable/disable xon/xoff flow control.  Default is false.
@@ -637,9 +637,18 @@ lines, it can result in long shutdown delays.
 .TP
 .B dtr[=on|off]
 Force the DTR line to be on or off when the gensio is opened.
+Note that the order of the
+.B dtr
+and
+.B rts
+options matter.  Whichever comes first in the options will be set
+first.  This can be useful if the lines need to be sequenced in a
+certain order for the piece of hardware involved.
 .TP
 .B rts[=on|off]
-Force the RTS line to be on or off when the gensio is opened.
+Force the RTS line to be on or off when the gensio is opened.  See the
+.B dtr
+section above for notes on ordering of lines.
 .TP
 .B hangup-when-done[=true|false]
 Lower/don't lower the modem control lines when the gensio is closed.
