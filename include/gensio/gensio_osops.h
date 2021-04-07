@@ -47,19 +47,6 @@ int gensio_os_open_listen_sockets(struct gensio_os_funcs *o,
 		      struct gensio_opensocks **rfds, unsigned int *rnr_fds);
 
 /*
- * Set the generic OS functions for the OS handler to the default ones
- * for this platform.
- */
-GENSIO_DLL_PUBLIC
-void gensio_osops_set_os_funcs(struct gensio_os_funcs *o);
-
-/*
- * Unix only APIs.
- */
-GENSIO_DLL_PUBLIC
-int gensio_unix_os_setupnewprog(void);
-
-/*
  * Returns a NULL if the fd is ok, a non-NULL error string if not.
  * Uses the default progname ("gensio", or set with
  * gensio_set_progname() if progname is NULL.
@@ -147,6 +134,9 @@ int gensio_unix_do_exec(struct gensio_os_funcs *o,
 			bool stderr_to_stdout,
 			int *rpid,
 			int *rin, int *rout, int *rerr);
+
+GENSIO_DLL_PUBLIC
+int gensio_unix_os_setupnewprog(void);
 
 #endif /* _WIN32 */
 
