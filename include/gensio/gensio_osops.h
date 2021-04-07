@@ -57,7 +57,7 @@ void gensio_osops_set_os_funcs(struct gensio_os_funcs *o);
  * Unix only APIs.
  */
 GENSIO_DLL_PUBLIC
-int gensio_os_setupnewprog(void);
+int gensio_unix_os_setupnewprog(void);
 
 /*
  * Returns a NULL if the fd is ok, a non-NULL error string if not.
