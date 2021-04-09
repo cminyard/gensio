@@ -26,6 +26,7 @@
 #include <signal.h>
 #include <gensio/gensio.h>
 #include <gensio/gensio_osops_env.h>
+#include <gensio/argvutils.h>
 #include <gensio/gensio_unix.h>
 #ifdef HAVE_GLIB
 #include <gensio/gensio_glib.h>
@@ -1553,8 +1554,15 @@ close_cons(struct oom_test_data *od, bool close_acc, gensio_time *timeout)
     return err;
 }
 
+struct env_info {
+    const char **argv;
+    gensiods args;
+    gensiods argc;
+};
+
 static int
-run_oom_test(struct oom_tests *test, long count, int *exitcode, bool close_acc)
+run_oom_test(struct oom_tests *test, long count, int *exitcode,
+	     bool close_acc, struct env_info *env)
 {
     struct oom_test_data *od;
     int rv, err = 0;
@@ -1568,10 +1576,12 @@ run_oom_test(struct oom_tests *test, long count, int *exitcode, bool close_acc)
 
     OOMLOCK(&od->lock);
     if (count < 0) {
-	rv = gensio_os_env_set("GENSIO_ERRTRIG_TEST", NULL);
+	rv = gensio_os_argvenv_set(o, &env->argv, &env->args, &env->argc,
+				   "GENSIO_ERRTRIG_TEST", NULL);
     } else {
 	snprintf(intstr, sizeof(intstr), "%ld ", count);
-	rv = gensio_os_env_set("GENSIO_ERRTRIG_TEST", intstr);
+	rv = gensio_os_argvenv_set(o, &env->argv, &env->args, &env->argc,
+				   "GENSIO_ERRTRIG_TEST", intstr);
     }
     if (rv) {
 	fprintf(stderr, "Unable to set environment properly: %s\n",
@@ -1614,6 +1624,11 @@ run_oom_test(struct oom_tests *test, long count, int *exitcode, bool close_acc)
     rv = str_to_gensio(constr, o, con_cb, &od->ccon, &od->ccon.io);
     assert(!debug || !rv);
     o->free(o, constr);
+    if (rv)
+	goto out_err;
+
+    rv = gensio_control(od->ccon.io, 0, false, GENSIO_CONTROL_ENVIRONMENT,
+			(char *) env->argv, NULL);
     if (rv)
 	goto out_err;
 
@@ -1688,7 +1703,7 @@ run_oom_test(struct oom_tests *test, long count, int *exitcode, bool close_acc)
 
 static int
 run_oom_acc_test(struct oom_tests *test, long count, int *exitcode,
-		 bool close_acc)
+		 bool close_acc, struct env_info *env)
 {
     struct oom_test_data *od;
     int rv, err = 0;
@@ -1701,10 +1716,12 @@ run_oom_acc_test(struct oom_tests *test, long count, int *exitcode,
 
     OOMLOCK(&od->lock);
     if (count < 0) {
-	rv = gensio_os_env_set("GENSIO_ERRTRIG_TEST", NULL);
+	rv = gensio_os_argvenv_set(o, &env->argv, &env->args, &env->argc,
+				   "GENSIO_ERRTRIG_TEST", NULL);
     } else {
 	snprintf(intstr, sizeof(intstr), "%ld ", count);
-	rv = gensio_os_env_set("GENSIO_ERRTRIG_TEST", intstr);
+	rv = gensio_os_argvenv_set(o, &env->argv, &env->args, &env->argc,
+				   "GENSIO_ERRTRIG_TEST", intstr);
     }
     if (rv) {
 	fprintf(stderr, "Unable to set environment properly: %s\n",
@@ -1849,8 +1866,9 @@ print_test(struct oom_tests *test, char *tstr, bool close_acc, long count)
 static unsigned long
 run_oom_tests(struct oom_tests *test, char *tstr,
 	      int (*tester)(struct oom_tests *test, long count,
-			    int *exitcode, bool close_acc),
-	      int start, int end)
+			    int *exitcode, bool close_acc,
+			    struct env_info *env),
+	      int start, int end, struct env_info *env)
 {
     long count, errcount = 0;
     int rv, exit_code = 1;
@@ -1865,7 +1883,7 @@ run_oom_tests(struct oom_tests *test, char *tstr,
 	    if (rv)
 		goto next;
 	}
-	rv = tester(test, count, &exit_code, close_acc);
+	rv = tester(test, count, &exit_code, close_acc, env);
 	if (test->end_test)
 	    test->end_test(o, test);
 	if (rv && rv != GE_REMCLOSE && rv != GE_NOTREADY && rv != GE_SHUTDOWN
@@ -1986,7 +2004,8 @@ fill_random(void *buf, size_t buflen)
 
 static void
 run_tests(struct oom_tests *test, int testnrstart, int testnrend,
-	  unsigned long *skipcount, unsigned long *errcount)
+	  unsigned long *skipcount, unsigned long *errcount,
+	  struct env_info *env)
 {
     if (!check_oom_test_present(o, test)) {
 	(*skipcount)++;
@@ -1994,11 +2013,11 @@ run_tests(struct oom_tests *test, int testnrstart, int testnrend,
     }
     printf("Running test %s\n", test->connecter);
     *errcount += run_oom_tests(test, "oom", run_oom_test,
-			       testnrstart, testnrend);
+			       testnrstart, testnrend, env);
     if (test->accepter && !test->conacc)
 	*errcount += run_oom_tests(test, "oom acc",
 				   run_oom_acc_test,
-				   testnrstart, testnrend);
+				   testnrstart, testnrend, env);
     if (test->end_test_suite)
 	test->end_test_suite(o, test);
 }
@@ -2026,6 +2045,7 @@ main(int argc, char *argv[])
     bool list_tests = false;
     char *oshstr;
     char *s;
+    struct env_info env;
 
     memset(&user_test, 0, sizeof(user_test));
 
@@ -2276,9 +2296,16 @@ main(int argc, char *argv[])
     }
 #endif
 
+    rv = gensio_os_argvenv_alloc(o, &env.argv, &env.args, &env.argc);
+    if (rv) {
+	fprintf(stderr, "Could not allocate environment array: %s",
+		gensio_err_to_str(rv));
+	goto out_err;
+    }
+
     if (user_test.connecter) {
 	run_tests(&user_test, testnrstart, testnrend,
-		  &skipcount, &errcount);
+		  &skipcount, &errcount, &env);
     } else {
 	for (j = 0; j < repeat_count; j++) {
 	    if (testnr < 0) {
@@ -2286,14 +2313,16 @@ main(int argc, char *argv[])
 		    if (oom_tests[i].no_default_run)
 			continue;
 		    run_tests(oom_tests + i, testnrstart, testnrend,
-			      &skipcount, &errcount);
+			      &skipcount, &errcount, &env);
 		}
 	    } else {
 		run_tests(oom_tests + testnr, testnrstart, testnrend,
-			  &skipcount, &errcount);
+			  &skipcount, &errcount, &env);
 	    }
 	}
     }
+
+    gensio_argv_free(o, env.argv);
 
 #ifdef USE_PTHREADS
     for (i = 0; i < num_extra_threads; i++) {
