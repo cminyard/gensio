@@ -6,7 +6,7 @@
 
 /*
  * A basic server that receives connections and handles certain strings
- * when it sees them.
+ * when it sees them.  It also demonstrates basic thread support.
  *
  * To use this, run:
  *   basic_server telnet,tcp,3023
@@ -52,6 +52,7 @@ struct accinfo {
     struct gensio_waiter *waiter;
     struct gensio_accepter *acc;
     struct gensio_list ios; /* List of ioinfo */
+    struct gensio_waiter *thread2_waiter;
     bool shutting_down;
 };
 
@@ -294,12 +295,21 @@ io_acc_event(struct gensio_accepter *accepter, void *user_data,
     return 0;
 }
 
+static void
+thread2(void *data)
+{
+    struct accinfo *ai = data;
+
+    ai->o->wait(ai->thread2_waiter, 1, NULL);
+}
+
 int
 main(int argc, char *argv[])
 {
     struct accinfo ai;
     int rv;
     struct gensio_os_proc_data *proc_data = NULL;
+    struct gensio_thread *tid2 = NULL;
 
     if (argc < 2) {
 	fprintf(stderr, "No gensio accepter given\n");
@@ -309,7 +319,7 @@ main(int argc, char *argv[])
     memset(&ai, 0, sizeof(ai));
     gensio_list_init(&ai.ios);
 
-    rv = gensio_default_os_hnd(0, &ai.o);
+    rv = gensio_default_os_hnd(SIGUSR1, &ai.o);
     if (rv) {
 	fprintf(stderr, "Could not allocate OS handler: %s\n",
 		gensio_err_to_str(rv));
@@ -331,6 +341,22 @@ main(int argc, char *argv[])
 	goto out_err;
     }
 
+    ai.thread2_waiter = ai.o->alloc_waiter(ai.o);
+    if (!ai.thread2_waiter) {
+	rv = GE_NOMEM;
+	fprintf(stderr, "Could not thread2 waiter, out of memory\n");
+	goto out_err;
+    }
+
+    rv = gensio_os_new_thread(ai.o, thread2, &ai, &tid2);
+    if (rv == GE_NOTSUP) {
+	/* No thread support */
+    } else if (rv) {
+	fprintf(stderr, "Could not allocate thread 2: %s\n",
+		gensio_err_to_str(rv));
+	goto out_err;
+    }
+
     rv = str_to_gensio_accepter(argv[1], ai.o, io_acc_event, &ai, &ai.acc);
     if (rv) {
 	fprintf(stderr, "Could not allocate %s: %s\n", argv[1],
@@ -348,10 +374,16 @@ main(int argc, char *argv[])
     rv = ai.o->wait(ai.waiter, 1, NULL);
 
  out_err:
+    if (tid2) {
+	ai.o->wake(ai.thread2_waiter);
+	gensio_os_wait_thread(tid2);
+    }
     if (ai.acc)
 	gensio_acc_free(ai.acc);
     if (ai.waiter)
 	ai.o->free_waiter(ai.waiter);
+    if (ai.thread2_waiter)
+	ai.o->free_waiter(ai.thread2_waiter);
     gensio_os_proc_cleanup(proc_data);
     ai.o->free_funcs(ai.o);
 
