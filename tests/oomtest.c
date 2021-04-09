@@ -25,6 +25,7 @@
 #include <errno.h>
 #include <signal.h>
 #include <gensio/gensio.h>
+#include <gensio/gensio_osops_env.h>
 #include <gensio/gensio_unix.h>
 #ifdef HAVE_GLIB
 #include <gensio/gensio_glib.h>
@@ -91,46 +92,6 @@ file_is_accessible_dev(const char *filename)
 
 #define sleep(n) Sleep(n * 1000)
 
-static char env_gensiot[200];
-static char env_test_echo_dev[200];
-static char env_ipmisim_exec[200];
-
-static const char *
-envvar(const char *name, char *buf, unsigned int len)
-{
-    if (*buf)
-	return buf;
-    if (GetEnvironmentVariable(name, buf, len) == 0)
-	return NULL;
-    return buf;
-}
-
-static const char *
-getenvvar(const char *name) {
-    if (strcmp(name, "GENSIOT") == 0)
-	return envvar(name, env_gensiot, sizeof(env_gensiot));
-    else if (strcmp(name, "GENSIO_TEST_ECHO_DEV") == 0)
-	return envvar(name, env_test_echo_dev, sizeof(env_test_echo_dev));
-    else if (strcmp(name, "IPMISIM_EXEC") == 0)
-	return envvar(name, env_ipmisim_exec, sizeof(env_ipmisim_exec));
-    return NULL;
-}
-
-static int
-setenvvar(const char* name, const char* value, int override)
-{
-    if (SetEnvironmentVariable(name, value))
-	return 0;
-    return ENOMEM;
-}
-static int
-unsetenvvar(const char* name)
-{
-    if (SetEnvironmentVariable(name, NULL))
-	return 0;
-    return ENOMEM;
-}
-
 #define WIFEXITED(n) ((n) < 128)
 #define WEXITSTATUS(n) (n)
 #define WIFSIGNALED(n) ((n) >= 128)
@@ -195,10 +156,6 @@ file_is_accessible_dev(const char *filename)
 	return false;
     }
 }
-
-#define getenvvar(n) getenv(n)
-#define setenvvar(n, v, o) setenv(n, v, 1)
-#define unsetenvvar(n) unsetenv(n)
 
 static FILE *
 open_tempfile(char *name, unsigned int len, const char *pattern)
@@ -276,26 +233,40 @@ static bool
 get_echo_dev(struct gensio_os_funcs *o, const char *testname,
 	     const char *str, char **newstr)
 {
-    const char *e = getenvvar("GENSIO_TEST_ECHO_DEV");
+    char *e, *te = NULL;
+    int rv;
 
-    if (e) {
-	if (strlen(e) == 0) {
+    rv = gensio_os_env_getalloc(o, "GENSIO_TEST_ECHO_DEV", &te);
+
+    if (rv == 0) {
+	if (strlen(te) == 0) {
 	    printf("Serial echo device disabled, skipping serialdev test\n");
+	    if (te)
+		o->free(o, te);
 	    return false;
 	}
-    } else {
+	e = te;
+    } else if (rv == GE_NOTFOUND) {
 #ifdef _WIN32
 	e = "COM1";
 #else
 	e = "/dev/ttyEcho0";
 #endif
+    } else {
+	fprintf(stderr, "Unable to get GENSIO_TEST_ECHO_DEV: %s",
+		gensio_err_to_str(rv));
+	return false;
     }
     if (!file_is_accessible_dev(e)) {
 	printf("Serial echo device '%s' doesn't exist or is not accessible,\n"
 	       "skipping %s test\n", e, testname);
+	if (te)
+	    o->free(o, te);
 	return false;
     }
     *newstr = gensio_alloc_sprintf(o, str, e);
+    if (te)
+	o->free(o, te);
     if (!*newstr) {
 	printf("Unable to allocate memory for echo device '%s',\n"
 	       "skipping %s test\n", e, testname);
@@ -548,15 +519,25 @@ static bool
 check_ipmisim_present(struct gensio_os_funcs *o, struct oom_tests *test)
 {
     char *config = NULL;
-    const char *prog = getenvvar("IPMISIM_EXEC");
+    char *prog, *tprog = NULL;
     FILE *f;
     ssize_t rv, len;
 
-    if (!prog)
+    rv = gensio_os_env_getalloc(o, "IPMISIM_EXEC", &tprog);
+    if (rv == GE_NOTFOUND) {
 	prog = "ipmi_sim";
-
-    if (!get_echo_dev(o, "ipmisol", ipmisim_config, &config))
+    } else if (rv != 0) {
+	fprintf(stderr, "Unable to get IPMISIM_EXEC: %s\n",
+		gensio_err_to_str(rv));
 	return false;
+    } else {
+	prog = tprog;
+    }
+
+    if (!get_echo_dev(o, "ipmisol", ipmisim_config, &config)) {
+	o->free(o, tprog);
+	return false;
+    }
 
     f = open_tempfile(test->configname, sizeof(test->configname),
 		      "gensio_oomtest_conf_");
@@ -616,9 +597,14 @@ check_ipmisim_present(struct gensio_os_funcs *o, struct oom_tests *test)
     if (ipmisim_start(o, test))
 	goto out_err;
 
+    if (tprog)
+	o->free(o, tprog);
+
     return true;
 
  out_err:
+    if (tprog)
+	o->free(o, tprog);
     if (config)
 	o->free(o, config);
     ipmisim_end(o, test);
@@ -1582,16 +1568,16 @@ run_oom_test(struct oom_tests *test, long count, int *exitcode, bool close_acc)
 
     OOMLOCK(&od->lock);
     if (count < 0) {
-	rv = unsetenvvar("GENSIO_ERRTRIG_TEST");
+	rv = gensio_os_env_set("GENSIO_ERRTRIG_TEST", NULL);
     } else {
 	snprintf(intstr, sizeof(intstr), "%ld ", count);
-	rv = setenvvar("GENSIO_ERRTRIG_TEST", intstr, 1);
+	rv = gensio_os_env_set("GENSIO_ERRTRIG_TEST", intstr);
     }
     if (rv) {
-	rv = errno;
-	fprintf(stderr, "Unable to set environment properly\n");
+	fprintf(stderr, "Unable to set environment properly: %s\n",
+		gensio_err_to_str(rv));
 	od_deref_and_unlock(od);
-	return gensio_os_err_to_err(o, rv);
+	return rv;
     }
 
     if (test->accepter) {
@@ -1715,15 +1701,16 @@ run_oom_acc_test(struct oom_tests *test, long count, int *exitcode,
 
     OOMLOCK(&od->lock);
     if (count < 0) {
-	rv = unsetenvvar("GENSIO_ERRTRIG_TEST");
+	rv = gensio_os_env_set("GENSIO_ERRTRIG_TEST", NULL);
     } else {
 	snprintf(intstr, sizeof(intstr), "%ld ", count);
-	rv = setenvvar("GENSIO_ERRTRIG_TEST", intstr, 1);
+	rv = gensio_os_env_set("GENSIO_ERRTRIG_TEST", intstr);
     }
     if (rv) {
-	fprintf(stderr, "Unable to set environment properly\n");
+	fprintf(stderr, "Unable to set environment properly: %s\n",
+		gensio_err_to_str(rv));
 	od_deref_and_unlock(od);
-	return gensio_os_err_to_err(o, errno);
+	return rv;
     }
 
     constr = gensio_alloc_sprintf(o,
@@ -2038,7 +2025,7 @@ main(int argc, char *argv[])
     struct oom_tests user_test;
     bool list_tests = false;
     char *oshstr;
-    const char *s;
+    char *s;
 
     memset(&user_test, 0, sizeof(user_test));
 
@@ -2047,14 +2034,15 @@ main(int argc, char *argv[])
     iodata_size %= MAX_IODATA_SIZE;
 
     /* This must be first so it gets picked up before any allocations. */
-    rv = setenvvar("GENSIO_MEMTRACK", "abort", 1);
+    rv = gensio_os_env_set("GENSIO_MEMTRACK", "abort");
     if (rv) {
-	fprintf(stderr, "Unable to set GENSIO_MEMTRACK");
+	fprintf(stderr, "Unable to set GENSIO_MEMTRACK: %s",
+		gensio_err_to_str(rv));
 	exit(1);
     }
 
-    oshstr = getenv("GENSIO_TEST_OS_HANDLER");
-    if (oshstr) {
+    rv = gensio_os_env_getalloc(o, "GENSIO_TEST_OS_HANDLER", &oshstr);
+    if (rv == 0) {
 	if (strcmp(oshstr, "glib") == 0) {
 	    use_glib = true;
 	} else if (strcmp(oshstr, "tcl") == 0) {
@@ -2066,6 +2054,10 @@ main(int argc, char *argv[])
 		    oshstr);
 	    exit(1);
 	}
+	o->free(o, oshstr);
+    } else if (rv != GE_NOTFOUND) {
+	fprintf(stderr, "Error getting GENSIO_TEST_OS_HANDLER: %s\n",
+		gensio_err_to_str(rv));
     }
 #ifndef ENABLE_INTERNAL_TRACE
     fprintf(stderr, "Internal tracing disabled, cannot run oomtest\n");
@@ -2252,9 +2244,9 @@ main(int argc, char *argv[])
 	return 1;
 
     if (i >= argc) {
-	s = getenvvar("GENSIOT");
-	if (!s) {
-	    fprintf(stderr, "No gensiot given\n");
+	rv = gensio_os_env_getalloc(o, "GENSIOT", &s);
+	if (rv != 0) {
+	    fprintf(stderr, "Can't get GENSIOT: %s\n", gensio_err_to_str(rv));
 	    exit(1);
 	}
     } else {
@@ -2265,6 +2257,8 @@ main(int argc, char *argv[])
 	fprintf(stderr, "Out of memory copying gensiot string\n");
 	exit(1);
     }
+    if (i >= argc)
+	o->free(o, s);
 
 #ifdef USE_PTHREADS
     for (i = 0; i < num_extra_threads; i++) {
