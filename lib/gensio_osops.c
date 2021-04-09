@@ -801,6 +801,37 @@ argv_to_win_cmdline(struct gensio_os_funcs *o, const char *argv[],
     return 0;;
 }
 
+/*
+ * Convert a normal env array to a Windows environment block, which is
+ * a single block of memory with each entry separated by a \0, and
+ * terminated by two \0.
+ */
+static char *
+win_env_to_block(struct gensio_os_funcs *o,
+		 const char **env)
+{
+    /*
+     * Start with size=2 because this must be terminated with two nil
+     * chars.  If the environment was empty, we would only get one nil
+     * char otherwise.  We waste a byte, but no big deal.
+     */
+    gensiods i, size = 2, len;
+    char *envb, *pos;
+
+    for (i = 0; env[i]; i++)
+	size += strlen(env[i]) + 1;
+
+    envb = o->zalloc(o, size);
+    if (!envb)
+	return NULL;
+    for (i = 0, pos = envb; env[i]; i++) {
+	len = strlen(env[i]);
+	memcpy(pos, env[i], len);
+	pos += len + 1;
+    }
+    return envb;
+}
+
 int
 gensio_win_do_exec(struct gensio_os_funcs *o,
 		   const char *argv[], const char **env,
@@ -809,7 +840,7 @@ gensio_win_do_exec(struct gensio_os_funcs *o,
 		   HANDLE *rin, HANDLE *rout, HANDLE *rerr)
 {
     int rv = 0;
-    char *cmdline;
+    char *cmdline, *envb = NULL;
     SECURITY_ATTRIBUTES sattr;
     STARTUPINFOA suinfo;
     PROCESS_INFORMATION procinfo;
@@ -823,6 +854,14 @@ gensio_win_do_exec(struct gensio_os_funcs *o,
     rv = argv_to_win_cmdline(o, argv, &cmdline);
     if (rv)
 	return rv;
+
+    if (env) {
+	envb = win_env_to_block(o, env);
+	if (!envb) {
+	    rv = GE_NOMEM;
+	    goto out;
+	}
+    }
 
     memset(&sattr, 0, sizeof(sattr));
     memset(&suinfo, 0, sizeof(suinfo));
@@ -875,7 +914,7 @@ gensio_win_do_exec(struct gensio_os_funcs *o,
 		       NULL,
 		       TRUE,
 		       0,
-		       NULL,
+		       envb,
 		       NULL,
 		       &suinfo,
 		       &procinfo))
@@ -914,6 +953,8 @@ gensio_win_do_exec(struct gensio_os_funcs *o,
     return rv;
 
  out:
+    if (envb)
+	o->free(o, envb);
     if (cmdline)
 	o->free(o, cmdline);
     return rv;
