@@ -55,6 +55,12 @@ GENSIO_DLL_PUBLIC
 const char *gensio_os_check_tcpd_ok(struct gensio_iod *iod,
 				    const char *progname);
 
+
+/*
+ * OS-specific functions for various things.  This are primarily for
+ * use by OS handlers inside outside of the main library.
+ */
+
 struct stdio_mode;
 
 #ifdef _WIN32

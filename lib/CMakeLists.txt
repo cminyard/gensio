@@ -44,7 +44,8 @@ set(BASE_LIBFILES
   gensio_stdsock.c
   uucplock.c
   gensio_pty.c
-  gensio_osops.c)
+  gensio_osops.c
+  gensio_osops_env.c)
 
 set(UNIX_LIBFILES
   selector.c
