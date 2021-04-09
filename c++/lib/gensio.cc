@@ -2021,8 +2021,10 @@ namespace gensio {
     }
 
     int
-    Waiter::wait_intr(unsigned int count, gensio_time *timeout, void *sigmask) {
-	int rv = o->wait_intr_sigmask(waiter, count, timeout, sigmask);
+    Waiter::wait_intr(unsigned int count, gensio_time *timeout)
+    {
+	int rv = o->wait_intr_sigmask(waiter, count, timeout,
+				      o.get_proc_data());
 
 	if (rv == GE_TIMEDOUT || rv == GE_INTERRUPTED)
 	    return rv;

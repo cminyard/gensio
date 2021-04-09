@@ -41,6 +41,15 @@ struct gensio_data {
     struct gensio_memtrack *mtrack;
 };
 
+struct gensio_os_proc_data {
+    struct gensio_os_funcs *o;
+    int wake_sig;
+    sigset_t old_sigs;
+    sigset_t wait_sigs;
+    struct sigaction old_sigchld;
+    struct sigaction old_wakesig;
+};
+
 static void *
 gensio_unix_zalloc(struct gensio_os_funcs *o, unsigned int size)
 {
@@ -849,12 +858,16 @@ gensio_unix_wait_intr(struct gensio_waiter *waiter, unsigned int count,
 
 static int
 gensio_unix_wait_intr_sigmask(struct gensio_waiter *waiter, unsigned int count,
-			      gensio_time *timeout, void *sigmask)
+			      gensio_time *timeout,
+			      struct gensio_os_proc_data *proc_data)
 {
     int err;
+    sigset_t *wait_sigs = NULL;
 
+    if (proc_data)
+	wait_sigs = &proc_data->wait_sigs;
     err = wait_for_waiter_timeout_intr_sigmask(waiter->sel_waiter, count,
-					       timeout, sigmask);
+					       timeout, wait_sigs);
     return gensio_os_err_to_err(waiter->f, err);
 }
 
@@ -925,6 +938,13 @@ gensio_unix_service(struct gensio_os_funcs *f, gensio_time *timeout)
 }
 #endif
 
+static int
+gensio_unix_get_wake_sig(struct gensio_os_funcs *f)
+{
+    struct gensio_data *d = f->user_data;
+
+    return d->wake_sig;
+}
 
 static lock_type defos_lock = LOCK_INITIALIZER;
 static struct gensio_os_funcs *defoshnd;
@@ -1490,6 +1510,7 @@ gensio_unix_alloc_sel(struct selector_s *sel, int wake_sig)
     o->wait_intr_sigmask = gensio_unix_wait_intr_sigmask;
     o->wake = gensio_unix_wake;
     o->service = gensio_unix_service;
+    o->get_wake_sig = gensio_unix_get_wake_sig;
     o->get_funcs = gensio_unix_get_funcs;
     o->free_funcs = gensio_unix_free_funcs;
     o->call_once = gensio_unix_call_once;
@@ -1526,6 +1547,94 @@ gensio_unix_alloc_sel(struct selector_s *sel, int wake_sig)
     }
 
     return o;
+}
+
+static void
+handle_sigchld(int sig)
+{
+}
+
+static void
+handle_wakesig(int sig)
+{
+}
+
+int
+gensio_os_proc_setup(struct gensio_os_funcs *o,
+		     struct gensio_os_proc_data **rdata)
+{
+    struct gensio_os_proc_data *data;
+    sigset_t sigs;
+    struct sigaction sigdo;
+    int rv;
+
+    data = o->zalloc(o, sizeof(*data));
+    if (!data)
+	return GE_NOMEM;
+    data->o = o;
+    if (o->get_wake_sig)
+	data->wake_sig = o->get_wake_sig(o);
+
+    sigemptyset(&sigs);
+    if (data->wake_sig)
+	sigaddset(&sigs, data->wake_sig);
+    sigaddset(&sigs, SIGCHLD); /* Ignore SIGCHLD in normal operation. */
+    sigaddset(&sigs, SIGPIPE); /* Ignore broken pipes. */
+    rv = sigprocmask(SIG_BLOCK, &sigs, &data->old_sigs);
+    if (rv) {
+	rv = gensio_os_err_to_err(o, rv);
+	o->free(o, data);
+	return rv;
+    }
+    data->wait_sigs = data->old_sigs;
+    if (data->wake_sig)
+	sigdelset(&data->wait_sigs, data->wake_sig);
+    sigdelset(&data->wait_sigs, SIGCHLD); /* Allow SIGCHLD while waiting. */
+    sigaddset(&data->wait_sigs, SIGPIPE); /* No SIGPIPE ever. */
+
+    sigdo.sa_handler = handle_sigchld;
+    sigdo.sa_flags = SA_NOCLDSTOP;
+    rv = sigaction(SIGCHLD, &sigdo, &data->old_sigchld);
+    if (rv) {
+	rv = gensio_os_err_to_err(o, rv);
+	sigprocmask(SIG_SETMASK, &data->old_sigs, NULL);
+	o->free(o, data);
+	return rv;
+    }
+
+    if (data->wake_sig) {
+	sigdo.sa_handler = handle_wakesig;
+	sigdo.sa_flags = 0;
+	rv = sigaction(data->wake_sig, &sigdo, &data->old_wakesig);
+	if (rv) {
+	    rv = gensio_os_err_to_err(o, rv);
+	    sigaction(SIGCHLD, &data->old_sigchld, NULL);
+	    sigprocmask(SIG_SETMASK, &data->old_sigs, NULL);
+	    o->free(o, data);
+	    return rv;
+	}
+    }
+
+    *rdata = data;
+    return 0;
+}
+
+void
+gensio_os_proc_cleanup(struct gensio_os_proc_data *data)
+{
+    struct gensio_os_funcs *o = data->o;
+
+    if (data->wake_sig)
+	sigaction(data->wake_sig, &data->old_wakesig, NULL);
+    sigaction(SIGCHLD, &data->old_sigchld, NULL);
+    sigprocmask(SIG_SETMASK, &data->old_sigs, NULL);
+    o->free(o, data);
+}
+
+sigset_t *
+gensio_os_proc_unix_get_wait_sigset(struct gensio_os_proc_data *data)
+{
+    return &data->wait_sigs;
 }
 
 int

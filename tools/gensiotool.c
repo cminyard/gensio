@@ -27,9 +27,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#ifndef _WIN32
-#include <signal.h>
-#endif
 
 #include <gensio/gensio.h>
 #include <gensio/gensio_unix.h>
@@ -447,25 +444,8 @@ main(int argc, char *argv[])
     const char *filename;
     bool use_glib = false;
     bool use_tcl = false;
-#ifndef _WIN32
-    sigset_t sigs;
-#endif
     gensio_time endwait = { 5, 0 };
-
-#ifndef _WIN32
-    /*
-     * Make sure that SIGPIPE doesn't kill is if the user is doing
-     * something involving a pipe.
-     */
-    sigemptyset(&sigs);
-    sigaddset(&sigs, SIGPIPE);
-    sigaddset(&sigs, SIGHUP);
-    rv = sigprocmask(SIG_BLOCK, &sigs, NULL);
-    if (rv) {
-	perror("Could not set up signal mask");
-	exit(1);
-    }
-#endif
+    struct gensio_os_proc_data *proc_data = NULL;
 
     memset(&userdata1, 0, sizeof(userdata1));
     memset(&userdata2, 0, sizeof(userdata2));
@@ -575,6 +555,13 @@ main(int argc, char *argv[])
 	goto out_err;
     }
     o->vlog = do_vlog;
+
+    rv = gensio_os_proc_setup(o, &proc_data);
+    if (rv) {
+	fprintf(stderr, "Error setting up process data: %s\n",
+		gensio_err_to_str(rv));
+	goto out_err;
+    }
 
     userdata1.o = o;
     userdata2.o = o;
@@ -733,6 +720,8 @@ main(int argc, char *argv[])
 	o->free_waiter(userdata1.waiter);
     if (closewaiter)
 	o->free_waiter(closewaiter);
+    if (proc_data)
+	gensio_os_proc_cleanup(proc_data);
     if (o)
 	gensio_cleanup_mem(o);
     gensio_osfunc_exit(!!rv);

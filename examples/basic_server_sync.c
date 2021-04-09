@@ -184,6 +184,7 @@ main(int argc, char *argv[])
     struct gensio_accepter *acc = NULL;
     struct gensio *io = NULL;
     int rv;
+    struct gensio_os_proc_data *proc_data;
 
     if (argc < 2) {
 	fprintf(stderr, "No gensio accepter given\n");
@@ -197,6 +198,13 @@ main(int argc, char *argv[])
 	return 1;
     }
     o->vlog = do_vlog;
+
+    rv = gensio_os_proc_setup(o, &proc_data);
+    if (rv) {
+	fprintf(stderr, "Could not setup process data: %s\n",
+		gensio_err_to_str(rv));
+	return 1;
+    }
 
     rv = str_to_gensio_accepter(argv[1], o, io_acc_event, NULL, &acc);
     if (rv) {
@@ -251,6 +259,8 @@ main(int argc, char *argv[])
 	gensio_acc_shutdown_s(acc);
 	gensio_acc_free(acc);
     }
+    gensio_os_proc_cleanup(proc_data);
+    o->free_funcs(o);
 
     return !!rv;
 }

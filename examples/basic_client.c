@@ -137,6 +137,7 @@ main(int argc, char *argv[])
 {
     struct coninfo ci;
     int rv;
+    struct gensio_os_proc_data *proc_data;
 
     if (argc < 2) {
 	fprintf(stderr, "No gensio given\n");
@@ -156,6 +157,13 @@ main(int argc, char *argv[])
 	return 1;
     }
     ci.o->vlog = do_vlog;
+
+    rv = gensio_os_proc_setup(ci.o, &proc_data);
+    if (rv) {
+	fprintf(stderr, "Could not setup process data: %s\n",
+		gensio_err_to_str(rv));
+	return 1;
+    }
 
     ci.outbuf_len = strlen(argv[2]);
     ci.outbuf = ci.o->zalloc(ci.o, ci.outbuf_len + 1);
@@ -198,6 +206,8 @@ main(int argc, char *argv[])
 	gensio_free(ci.io);
     if (ci.waiter)
 	ci.o->free_waiter(ci.waiter);
+    gensio_os_proc_cleanup(proc_data);
+    ci.o->free_funcs(ci.o);
 
     return !!rv;
 }

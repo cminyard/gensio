@@ -77,9 +77,10 @@ static bool use_glib = false;
 static bool use_tcl = false;
 static const char *os_func_str = "";
 
+struct gensio_os_proc_data *proc_data;
+
 #ifdef _WIN32
 #include <windows.h>
-#define waitsigp NULL
 
 #ifdef _MSC_VER
 typedef int ssize_t;
@@ -129,9 +130,6 @@ open_tempfile(char *name, unsigned int len, const char *pattern)
 
 #else /* _WIN32 */
 
-static sigset_t waitsigs;
-#define waitsigp &waitsigs
-
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <unistd.h>
@@ -174,18 +172,6 @@ open_tempfile(char *name, unsigned int len, const char *pattern)
     return f;
 }
 
-static bool got_sigchild;
-
-static void
-handle_sigchld(int sig)
-{
-    got_sigchild = true;
-}
-
-static void
-handle_sigusr1(int sig)
-{
-}
 #endif
 
 bool sleep_on_timeout_err;
@@ -442,7 +428,7 @@ ipmisim_start(struct gensio_os_funcs *o, struct oom_tests *test)
     gensio_set_read_callback_enable(test->io2, true);
 
  retry:
-    err = o->wait_intr_sigmask(test->waiter, 1, &timeout, waitsigp);
+    err = o->wait_intr_sigmask(test->waiter, 1, &timeout, proc_data);
     if (err == GE_INTERRUPTED)
 	goto retry;
     if (test->err)
@@ -1403,7 +1389,7 @@ wait_for_data(struct oom_test_data *od, gensio_time *timeout)
 
     for (;;) {
 	OOMUNLOCK(&od->lock);
-	rv = o->wait_intr_sigmask(od->waiter, 1, timeout, waitsigp);
+	rv = o->wait_intr_sigmask(od->waiter, 1, timeout, proc_data);
 	OOMLOCK(&od->lock);
 	if (rv == GE_INTERRUPTED)
 	    continue;
@@ -1449,7 +1435,7 @@ close_con(struct io_test_data *id, gensio_time *timeout)
     /* Make sure the open completes. */
     while (!id->open_done) {
 	OOMUNLOCK(&od->lock);
-	rv = o->wait_intr_sigmask(id->od->waiter, 1, timeout, waitsigp);
+	rv = o->wait_intr_sigmask(id->od->waiter, 1, timeout, proc_data);
 	OOMLOCK(&od->lock);
 	if (rv == GE_TIMEDOUT) {
 	    printf("Waiting on timeout err A\n");
@@ -1496,7 +1482,7 @@ close_stderr(struct oom_test_data *od, gensio_time *timeout)
     od_ref(od); /* Ref for the close */
     while (od->ccon_stderr_io) {
 	OOMUNLOCK(&od->lock);
-	rv = o->wait_intr_sigmask(od->waiter, 1, timeout, waitsigp);
+	rv = o->wait_intr_sigmask(od->waiter, 1, timeout, proc_data);
 	OOMLOCK(&od->lock);
 	if (rv == GE_TIMEDOUT) {
 	    printf("Waiting on timeout err G\n");
@@ -1531,7 +1517,7 @@ close_cons(struct oom_test_data *od, bool close_acc, gensio_time *timeout)
 
     while (!err && (od->ccon.io || od->scon.io)) {
 	OOMUNLOCK(&od->lock);
-	rv = o->wait_intr_sigmask(od->waiter, 1, timeout, waitsigp);
+	rv = o->wait_intr_sigmask(od->waiter, 1, timeout, proc_data);
 	OOMLOCK(&od->lock);
 	if (rv == GE_TIMEDOUT) {
 	    printf("Waiting on timeout err B\n");
@@ -1655,7 +1641,7 @@ run_oom_test(struct oom_tests *test, long count, int *exitcode,
 	    od_ref(od); /* Ref for the close */
 	    while (od->acc) {
 		OOMUNLOCK(&od->lock);
-		rv = o->wait_intr_sigmask(od->waiter, 1, &timeout, waitsigp);
+		rv = o->wait_intr_sigmask(od->waiter, 1, &timeout, proc_data);
 		OOMLOCK(&od->lock);
 		if (rv == GE_TIMEDOUT) {
 		    printf("Waiting on timeout err C\n");
@@ -1755,7 +1741,7 @@ run_oom_acc_test(struct oom_tests *test, long count, int *exitcode,
 
     for (;;) {
 	OOMUNLOCK(&od->lock);
-	rv = o->wait_intr_sigmask(od->waiter, 1, &timeout, waitsigp);
+	rv = o->wait_intr_sigmask(od->waiter, 1, &timeout, proc_data);
 	OOMLOCK(&od->lock);
 	if (debug && rv == GE_TIMEDOUT) {
 	    printf("Waiting on err E\n");
@@ -2035,10 +2021,6 @@ main(int argc, char *argv[])
     unsigned long errcount = 0;
     unsigned long skipcount = 0;
     unsigned int repeat_count = 1;
-#ifndef _WIN32
-    struct sigaction sigdo;
-    sigset_t sigs;
-#endif
     int testnr = -1, numtests = 0, testnrstart = -1, testnrend = MAX_LOOPS;
     gensio_time zerotime = { 0, 0 };
     struct oom_tests user_test;
@@ -2088,40 +2070,6 @@ main(int argc, char *argv[])
 
     for (j = 0; oom_tests[j].connecter; j++)
 	numtests++;
-
-#ifndef _WIN32
-    sigemptyset(&sigs);
-    sigaddset(&sigs, SIGCHLD);
-    sigaddset(&sigs, SIGPIPE); /* Ignore broken pipes. */
-    rv = sigprocmask(SIG_BLOCK, &sigs, NULL);
-    if (rv) {
-	perror("Could not set up signal mask");
-	exit(1);
-    }
-    rv = sigprocmask(SIG_BLOCK, NULL, &waitsigs);
-    if (rv) {
-	perror("Could not get signal mask");
-	exit(1);
-    }
-    sigdelset(&waitsigs, SIGCHLD);
-
-    memset(&sigdo, 0, sizeof(sigdo));
-    sigdo.sa_handler = handle_sigchld;
-    sigdo.sa_flags = SA_NOCLDSTOP;
-    rv = sigaction(SIGCHLD, &sigdo, NULL);
-    if (rv) {
-	perror("Could not set up sigchld handler");
-	exit(1);
-    }
-
-    sigdo.sa_handler = handle_sigusr1;
-    sigdo.sa_flags = 0;
-    rv = sigaction(SIGUSR1, &sigdo, NULL);
-    if (rv) {
-	perror("Could not set up siguser1 handler");
-	exit(1);
-    }
-#endif /* !_WIN32 */
 
     for (i = 1; i < argc; i++) {
 	if (argv[i][0] != '-')
@@ -2241,6 +2189,13 @@ main(int argc, char *argv[])
     }
     o->vlog = do_vlog;
 
+    rv = gensio_os_proc_setup(o, &proc_data);
+    if (rv) {
+	fprintf(stderr, "Error setting up process data: %s\n",
+		gensio_err_to_str(rv));
+	exit(1);
+    }
+
     if (list_tests) {
 	for (j = 0; oom_tests[j].connecter; j++) {
 	    if (!check_oom_test_present(o, oom_tests + j))
@@ -2345,6 +2300,7 @@ main(int argc, char *argv[])
     gensio_osfunc_exit(!!errcount);
 
  out_err:
+    gensio_os_proc_cleanup(proc_data);
     o->free(o, gensiot);
     cleanup_ods();
     gensio_cleanup_mem(o);

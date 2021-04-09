@@ -1488,6 +1488,7 @@ main(int argc, char *argv[])
     const char *addr, *cstr;
     const char *iptype = ""; /* Try both IPv4 and IPv6 by default. */
     const char *mdns_type = NULL;
+    struct gensio_os_proc_data *proc_data;
 
     localport_err = pr_localport;
 
@@ -1495,10 +1496,19 @@ main(int argc, char *argv[])
     memset(&userdata2, 0, sizeof(userdata2));
     userdata2.interactive = true;
 
-    err= gensio_default_os_hnd(0, &o);
+    err = gensio_default_os_hnd(0, &o);
     if (err) {
 	fprintf(stderr, "Could not allocate OS handler: %s\n",
 		gensio_err_to_str(err));
+	return 1;
+    }
+    o->vlog = do_vlog;
+
+    err = gensio_os_proc_setup(o, &proc_data);
+    if (err) {
+	fprintf(stderr, "Could not setup process data: %s\n",
+		gensio_err_to_str(err));
+	o->free_funcs(o);
 	return 1;
     }
 
@@ -1730,8 +1740,6 @@ main(int argc, char *argv[])
     if (err)
 	return 1;
 
-    o->vlog = do_vlog;
-
     userdata1.o = o;
     userdata2.o = o;
 
@@ -1939,6 +1947,8 @@ main(int argc, char *argv[])
     free_ser_ioinfo(subdata1);
     free_ser_ioinfo(subdata2);
 
+    gensio_os_proc_cleanup(proc_data);
+    o->free_funcs(o);
     if (keyname)
 	free(keyname);
     if (certname)

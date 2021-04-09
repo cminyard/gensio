@@ -56,6 +56,11 @@ namespace gensio {
 	    err = gensio_default_os_hnd(wait_sig, &osf);
 	    if (err)
 		throw gensio_error(err);
+	    err = gensio_os_proc_setup(osf, &proc_data);
+	    if (err) {
+		osf->free_funcs(osf);
+		throw gensio_error(err);
+	    }
 	}
 
 	// Allocate an os function handler object from an existing os
@@ -82,6 +87,8 @@ namespace gensio {
 	    ++*refcnt;
 	}
 
+	struct gensio_os_proc_data *get_proc_data() { return proc_data; }
+
 	// Instead of defining all our own functions, which would just
 	// be direct wrapper, we just do this so we return the base os
 	// funcs structure for a ->.
@@ -94,6 +101,7 @@ namespace gensio {
 	~Os_Funcs()
 	{
 	    if (refcnt->fetch_sub(1) == 1) {
+		gensio_os_proc_cleanup(proc_data);
 		osf->free_funcs(osf);
 		delete refcnt;
 	    }
@@ -101,6 +109,7 @@ namespace gensio {
 
     private:
 	struct gensio_os_funcs *osf;
+	struct gensio_os_proc_data *proc_data;
 	std::atomic<unsigned int> *refcnt;
     };
 
@@ -1263,7 +1272,7 @@ namespace gensio {
 	// waiting.  This will also return GE_INTERRUPTED in addition
 	// to 0 and GE_TIMEDOUT, an interrupt will not throw an
 	// exception.
-	int wait_intr(unsigned int count, gensio_time *timeout, void *sigmask);
+	int wait_intr(unsigned int count, gensio_time *timeout);
 
     private:
 	Os_Funcs o;

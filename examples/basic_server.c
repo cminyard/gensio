@@ -299,6 +299,7 @@ main(int argc, char *argv[])
 {
     struct accinfo ai;
     int rv;
+    struct gensio_os_proc_data *proc_data = NULL;
 
     if (argc < 2) {
 	fprintf(stderr, "No gensio accepter given\n");
@@ -315,6 +316,13 @@ main(int argc, char *argv[])
 	return 1;
     }
     ai.o->vlog = do_vlog;
+
+    rv = gensio_os_proc_setup(ai.o, &proc_data);
+    if (rv) {
+	fprintf(stderr, "Could not setup process data: %s\n",
+		gensio_err_to_str(rv));
+	return 1;
+    }
 
     ai.waiter = ai.o->alloc_waiter(ai.o);
     if (!ai.waiter) {
@@ -344,6 +352,8 @@ main(int argc, char *argv[])
 	gensio_acc_free(ai.acc);
     if (ai.waiter)
 	ai.o->free_waiter(ai.waiter);
+    gensio_os_proc_cleanup(proc_data);
+    ai.o->free_funcs(ai.o);
 
     return !!rv;
 }

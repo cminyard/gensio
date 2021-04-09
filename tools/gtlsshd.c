@@ -1455,6 +1455,7 @@ main(int argc, char *argv[])
     bool daemonize = true;
     const char *iptype = ""; /* Try both IPv4 and IPv6 by default. */
     const char *other_acc_str = NULL;
+    struct gensio_os_proc_data *proc_data;
 
     localport_err = pr_localport;
 
@@ -1537,6 +1538,14 @@ main(int argc, char *argv[])
 	return 1;
     }
     o->vlog = do_vlog;
+
+    rv = gensio_os_proc_setup(o, &proc_data);
+    if (rv) {
+	fprintf(stderr, "Could not setup process data: %s\n",
+		gensio_err_to_str(rv));
+	o->free_funcs(o);
+	return 1;
+    }
 
     ginfo.o = o;
 
@@ -1724,6 +1733,9 @@ main(int argc, char *argv[])
     free(ginfo.cert);
 
     o->free_waiter(ginfo.waiter);
+
+    gensio_os_proc_cleanup(proc_data);
+    o->free_funcs(o);
 
     if (pam_cred_set) {
 	pam_err = pam_setcred(pamh, PAM_DELETE_CRED | PAM_SILENT);

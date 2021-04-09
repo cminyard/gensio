@@ -1112,7 +1112,7 @@ static int win_handle_fork(struct gensio_os_funcs *o)
 
 static int win_wait_intr_sigmask(struct gensio_waiter *waiter,
 				 unsigned int count, gensio_time *timeout,
-				 void *sigmask)
+				 struct gensio_os_proc_data *proc_data)
 {
     return win_wait_intr(waiter, count, timeout);
 }
@@ -3252,6 +3252,19 @@ gensio_win_funcs_alloc(struct gensio_os_funcs **ro)
  out_err:
     win_finish_free(o);
     return err;
+}
+
+int
+gensio_os_proc_setup(struct gensio_os_funcs *o,
+		     struct gensio_os_proc_data **data)
+{
+    *data = NULL;
+    return 0;
+}
+
+void
+gensio_os_proc_cleanup(struct gensio_os_proc_data *data)
+{
 }
 
 int

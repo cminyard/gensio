@@ -196,6 +196,12 @@ const char *gensio_log_level_to_str(enum gensio_log_levels level);
 /* Windows sockets only, is the socket closed? */
 #define GENSIO_IOD_CONTROL_IS_CLOSED 26
 
+/*
+ * Used by wait functions and general handling for process setup and
+ * cleanup.
+ */
+struct gensio_os_proc_data;
+
 
 struct gensio_os_funcs {
     /* For use by the code doing the os function translation. */
@@ -387,12 +393,12 @@ struct gensio_os_funcs {
 		     gensio_time *timeout);
 
     /*
-     * Like wait_intr, but allows the user to install their own sigmask
-     * atomically while waiting.  On *nix systems, sigmask is sigset_t,
-     * void here to avoid type issues.
+     * Like wait_intr, but allows machine-specific handling to be set
+     * up.  See gensio_os_proc_setup() for info.
      */
     int (*wait_intr_sigmask)(struct gensio_waiter *waiter, unsigned int count,
-			     gensio_time *timeout, void *sigmask);
+			     gensio_time *timeout,
+			     struct gensio_os_proc_data *proc_data);
 
     /* Wake the given waiter. */
     void (*wake)(struct gensio_waiter *waiter);
@@ -408,6 +414,12 @@ struct gensio_os_funcs {
      * shortened to some value.
      */
     int (*service)(struct gensio_os_funcs *f, gensio_time *timeout);
+
+    /*
+     * Returns the Unix signal used for waking other threads.  Will be
+     * NULL if not supported.  Returns zero if the single-threaded.
+     */
+    int (*get_wake_sig)(struct gensio_os_funcs *f);
 
     /*
      * get/free this structure.  At allocation the refcount is one,
@@ -748,6 +760,56 @@ int gensio_default_os_hnd(int wake_sig, struct gensio_os_funcs **o);
 /* For testing, do not use in normal code. */
 GENSIO_DLL_PUBLIC
 void gensio_osfunc_exit(int rv);
+
+/*
+ * Process setup for gensio OS handlers.  These are machine-specific.
+ * You should call this after allocating the OS handlers and if you use
+ * wait_intr_sigmask you should pass the process data from this into that
+ * function.
+ *
+ * For Windows this currently just returns NULL data and doesn't do
+ * anything.
+ *
+ * For Unix, this blocks SIGPIPE, SIGCHLD, and the wake signal passed
+ * in to the allocation function (if the wake signal is non-zero).  It
+ * then sets a sigmask to be installed on the wait_intr_sigmask with
+ * the wake signal and SIGCHLD not blocked.
+ *
+ * It also installs signal handlers for SIGCHLD and (if non-zero) the
+ * wake signal.
+ *
+ * For Unix this is generally what you want, you don't want SIGPIPE
+ * doing bad things and having SIGCHLD wake up a wait can speed things
+ * up a bit when waiting for subprograms.
+ *
+ * If you need to modify that signal mask used in wait_intr_signmask,
+ * use gensio_os_proc_unix_get_wait_sigset() defined below to fetch it
+ * and modify it.
+ *
+ * Note that you can override SIGCHLD and SIGPIPE if you like.  Don't
+ * mess with the wake signal.
+ */
+GENSIO_DLL_PUBLIC
+int gensio_os_proc_setup(struct gensio_os_funcs *o,
+			 struct gensio_os_proc_data **data);
+
+/*
+ * Undo the proc setup.
+ *
+ * On Windows this currently does nothing.
+ *
+ * On Unix this restores the signal mask to what it was when
+ * proc_setup was called and it removes the signal handlers it
+ * installed.
+ */
+GENSIO_DLL_PUBLIC
+void gensio_os_proc_cleanup(struct gensio_os_proc_data *data);
+
+#ifndef _WIN32
+#include <signal.h>
+GENSIO_DLL_PUBLIC
+sigset_t *gensio_os_proc_unix_get_wait_sigset(struct gensio_os_proc_data *data);
+#endif
 
 #ifdef __cplusplus
 }
