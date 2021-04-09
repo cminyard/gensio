@@ -811,6 +811,16 @@ GENSIO_DLL_PUBLIC
 sigset_t *gensio_os_proc_unix_get_wait_sigset(struct gensio_os_proc_data *data);
 #endif
 
+struct gensio_thread;
+
+GENSIO_DLL_PUBLIC
+int gensio_os_new_thread(struct gensio_os_funcs *o,
+			 void (*start_func)(void *data), void *data,
+			 struct gensio_thread **thread_id);
+
+GENSIO_DLL_PUBLIC
+int gensio_os_wait_thread(struct gensio_thread *thread_id);
+
 #ifdef __cplusplus
 }
 #endif

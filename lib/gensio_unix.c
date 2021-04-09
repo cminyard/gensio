@@ -1637,6 +1637,67 @@ gensio_os_proc_unix_get_wait_sigset(struct gensio_os_proc_data *data)
     return &data->wait_sigs;
 }
 
+struct gensio_thread {
+#ifdef USE_PTHREADS
+    struct gensio_os_funcs *o;
+    pthread_t id;
+    void (*start_func)(void *data);
+    void *data;
+#endif
+};
+
+static void *
+gensio_os_thread_func(void *info)
+{
+    struct gensio_thread *tid = info;
+
+    tid->start_func(tid->data);
+    return NULL;
+}
+
+int
+gensio_os_new_thread(struct gensio_os_funcs *o,
+		     void (*start_func)(void *data), void *data,
+		     struct gensio_thread **thread_id)
+{
+#ifdef USE_PTHREADS
+    struct gensio_thread *tid;
+    int rv;
+
+    tid = o->zalloc(o, sizeof(*tid));
+    if (!tid)
+	return GE_NOMEM;
+    tid->o = o;
+    tid->start_func = start_func;
+    tid->data = data;
+    rv = pthread_create(&tid->id, NULL, gensio_os_thread_func, tid);
+    if (rv) {
+	o->free(o, tid);
+	return gensio_os_err_to_err(o, rv);
+    }
+    *thread_id = tid;
+    return 0;
+#else
+    return GE_NOTSUP;
+#endif
+}
+
+int gensio_os_wait_thread(struct gensio_thread *tid)
+{
+#ifdef USE_PTHREADS
+    int rv;
+
+    rv = pthread_join(tid->id, NULL);
+    if (rv)
+	return gensio_os_err_to_err(tid->o, rv);
+    tid->o->free(tid->o, tid);
+    return 0;
+#else
+    return GE_NOTSUP;
+#endif
+}
+
+
 int
 gensio_i_os_err_to_err(struct gensio_os_funcs *o,
 		       int oserr, const char *caller, const char *file,

@@ -710,16 +710,13 @@ struct oom_tests oom_tests[] = {
 static struct gensio_os_funcs *o;
 static char *gensiot;
 
-#ifdef USE_PTHREADS
-static void *
+static void
 gensio_loop(void *info)
 {
     struct gensio_waiter *closewaiter = info;
 
     o->wait(closewaiter, 1, NULL);
-    return NULL;
 }
-#endif
 
 static void
 do_vlog(struct gensio_os_funcs *f, enum gensio_log_levels level,
@@ -2012,11 +2009,9 @@ int
 main(int argc, char *argv[])
 {
     int rv;
-#ifdef USE_PTHREADS
-    pthread_t loopth[3];
+    struct gensio_thread *loopth[3];
     struct gensio_waiter *loopwaiter[3];
     unsigned int num_extra_threads = 3;
-#endif
     unsigned int i, j;
     unsigned long errcount = 0;
     unsigned long skipcount = 0;
@@ -2110,7 +2105,6 @@ main(int argc, char *argv[])
 		exit(1);
 	    }
 	    testnrstart = strtol(argv[i], NULL, 0);
-#ifdef USE_PTHREADS
 	} else if (strcmp(argv[i], "-n") == 0) {
 	    i++;
 	    if (i >= argc) {
@@ -2118,7 +2112,6 @@ main(int argc, char *argv[])
 		exit(1);
 	    }
 	    num_extra_threads = strtol(argv[i], NULL, 0);
-#endif
 	} else if (strcmp(argv[i], "-e") == 0) {
 	    i++;
 	    if (i >= argc) {
@@ -2235,7 +2228,6 @@ main(int argc, char *argv[])
     if (i >= argc)
 	o->free(o, s);
 
-#ifdef USE_PTHREADS
     for (i = 0; i < num_extra_threads; i++) {
 	loopwaiter[i] = o->alloc_waiter(o);
 	if (!loopwaiter[i]) {
@@ -2243,13 +2235,13 @@ main(int argc, char *argv[])
 	    goto out_err;
 	}
 
-	rv = pthread_create(&loopth[i], NULL, gensio_loop, loopwaiter[i]);
+	rv = gensio_os_new_thread(o, gensio_loop, loopwaiter[i], &loopth[i]);
 	if (rv) {
-	    perror("Could not allocate loop thread");
+	    fprintf(stderr, "Could not allocate loop thread: %s",
+		    gensio_err_to_str(rv));
 	    goto out_err;
 	}
     }
-#endif
 
     rv = gensio_os_argvenv_alloc(o, &env.argv, &env.args, &env.argc);
     if (rv) {
@@ -2279,13 +2271,11 @@ main(int argc, char *argv[])
 
     gensio_argv_free(o, env.argv);
 
-#ifdef USE_PTHREADS
     for (i = 0; i < num_extra_threads; i++) {
 	o->wake(loopwaiter[i]);
-	pthread_join(loopth[i], NULL);
+	gensio_os_wait_thread(loopth[i]);
 	o->free_waiter(loopwaiter[i]);
     }
-#endif
 
     for (i = 0; oom_tests[i].connecter; i++) {
 	if (oom_tests[i].free_connecter)
