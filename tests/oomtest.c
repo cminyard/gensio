@@ -2019,7 +2019,8 @@ main(int argc, char *argv[])
     gensio_time zerotime = { 0, 0 };
     struct oom_tests user_test;
     bool list_tests = false;
-    char *oshstr;
+    char oshstr[20];
+    gensiods len = sizeof(oshstr);
     char *s;
     struct env_info env;
 
@@ -2037,7 +2038,7 @@ main(int argc, char *argv[])
 	exit(1);
     }
 
-    rv = gensio_os_env_getalloc(o, "GENSIO_TEST_OS_HANDLER", &oshstr);
+    rv = gensio_os_env_get("GENSIO_TEST_OS_HANDLER", oshstr, &len);
     if (rv == 0) {
 	if (strcmp(oshstr, "glib") == 0) {
 	    use_glib = true;
@@ -2050,7 +2051,6 @@ main(int argc, char *argv[])
 		    oshstr);
 	    exit(1);
 	}
-	o->free(o, oshstr);
     } else if (rv != GE_NOTFOUND) {
 	fprintf(stderr, "Error getting GENSIO_TEST_OS_HANDLER: %s\n",
 		gensio_err_to_str(rv));
