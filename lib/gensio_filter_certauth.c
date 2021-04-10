@@ -635,7 +635,6 @@ certauth_get_cert(struct certauth_filter *sfilter)
 	gca_logs_err(sfilter, "Failure reading cert from network");
 	return GE_NOCERT;
     }
-    sfilter->write_buf_len += sfilter->cert_buf_mem.length;
 
     sfilter->sk_ca = sk_X509_new_null();
     if (!sfilter->sk_ca) {
@@ -1418,7 +1417,7 @@ certauth_ll_write(struct gensio_filter *filter,
 	    sfilter->state = CERTAUTH_SERVERDONE;
 	} else if (sfilter->curr_msg_type != sfilter->state) {
 	    gca_log_err(sfilter, "Expected message type %d, got %d",
-			sfilter->curr_msg_type, sfilter->state);
+			sfilter->state, sfilter->curr_msg_type);
 	    sfilter->pending_err = GE_PROTOERR;
 	    goto out_unlock;
 	}
