@@ -3120,7 +3120,6 @@ win_finish_free(struct gensio_os_funcs *o)
     if (d->timer_wakeev)
 	WSACloseEvent(d->timer_wakeev);
     gensio_stdsock_cleanup(o);
-    fprintf(stderr, "C1\n"); fflush(stderr);
     DeleteCriticalSection(&d->glock);
     DeleteCriticalSection(&d->timer_lock);
     DeleteCriticalSection(&d->once_lock);
@@ -3265,6 +3264,53 @@ gensio_os_proc_setup(struct gensio_os_funcs *o,
 void
 gensio_os_proc_cleanup(struct gensio_os_proc_data *data)
 {
+}
+
+struct gensio_thread {
+    struct gensio_os_funcs *o;
+    HANDLE handle;
+    DWORD tid;
+    void (*start_func)(void *data);
+    void *data;
+};
+
+static DWORD WINAPI
+gensio_os_thread_func(LPVOID info)
+{
+    struct gensio_thread *tid = info;
+
+    tid->start_func(tid->data);
+    return 0;
+}
+
+int
+gensio_os_new_thread(struct gensio_os_funcs *o,
+		     void (*start_func)(void *data), void *data,
+		     struct gensio_thread **thread_id)
+{
+    struct gensio_thread *tid;
+    int rv;
+
+    tid = o->zalloc(o, sizeof(*tid));
+    if (!tid)
+	return GE_NOMEM;
+    tid->o = o;
+    tid->start_func = start_func;
+    tid->data = data;
+    d->handle = CreateThread(NULL, 0, gensio_os_thread_func, tid, 0, &d->tid);
+    if (!d->handle) {
+	o->free(o, tid);
+	return gensio_os_err_to_err(o, GetLastError());
+    }
+    *thread_id = tid;
+    return 0;
+}
+
+int gensio_os_wait_thread(struct gensio_thread *tid)
+{
+    WaitForSingleObject(tid->handle, INFINITE);
+    tid->o->free(tid->o, tid);
+    return 0;
 }
 
 int
