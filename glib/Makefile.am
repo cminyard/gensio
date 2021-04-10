@@ -1,5 +1,6 @@
 
-AM_CFLAGS = -DBUILDING_GENSIO_DLL -I$(top_srcdir)/glib/include
+AM_CFLAGS = -DBUILDING_GENSIO_DLL -I$(top_srcdir)/glib/include \
+	 -I$(top_srcdir)/swig/include
 
 lib_LTLIBRARIES = libgensioglib.la
 
