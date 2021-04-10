@@ -14,6 +14,25 @@ by the gensio library
 		struct gensio_os_funcs **o)
 .PP
 .B int gensio_win_funcs_alloc(struct gensio_os_funcs **o)
+.br
+.PP
+.B int gensio_os_proc_setup(struct gensio_os_funcs *o,
+.br
+			 struct gensio_os_proc_data **data)
+.PP
+.B void gensio_os_proc_cleanup(struct gensio_os_proc_data *data);
+.PP
+.B sigset_t *gensio_os_proc_unix_get_wait_sigset(
+.br
+                         struct gensio_os_proc_data *data);
+.PP
+.B int gensio_os_new_thread(struct gensio_os_funcs *o,
+.br
+			 void (*start_func)(void *data), void *data,
+.br
+			 struct gensio_thread **thread_id);
+.PP
+.B int gensio_os_wait_thread(struct gensio_thread *thread_id);
 .SH "DESCRIPTION"
 This structure provides an abstraction for the gensio library that
 lets it work with various event libraries.  It provides the following
@@ -104,6 +123,54 @@ any other purpose, generally
 .B SIGUSR1
 or
 .B SIGUSR2.
+
+The
+.I gensio_os_proc_setup
+function does all the standard setup for a process.  You should almost
+certainly use this function.  On Windows this isn't anything (though
+that may change in the future, so you should still do it), but on Unix
+it does all the signal handling setup, so you don't have
+to do all the things mentioned above.  This will block SIGPIPE
+(because those come in when connections die and most applications
+don't care), SIGCHLD (those come in for stdio and pty gensios), and
+the
+.I wake_sig
+if that is set.  It also install signal handlers for SIGCHLD and the
+.I wake_sig
+(if set) and sets up a signal mask.
+
+If you use the
+.I wait_intr_sigmask
+OS function, you must pass the proc_data value returned by
+.I gensio_os_proc_setup
+into that.  If you want to modify the wait signal mask, you can use
+.I gensio_os_proc_unix_get_wait_sigset
+to fetch it and modify it.
+
+The
+.I gensio_os_proc_cleanup
+function undoes all the changes
+.I gensio_os_proc_setup
+does.  On Unix it restores the signal mask and signal handlers it sets
+to their previous values.
+
+The
+.I gensio_os_new_thread
+function starts a new thread at
+.B start_func
+passing in the given data value.  It returns a
+.B thread_id
+that you must pass into the wait function.  This is just basic generic
+threads, you can use your OS functions if you need more control over
+the threads.  If you use threads, make sure to see the notes above
+about setting up for them properly.
+
+The
+.I gensio_os_wait_thread
+waits for a thread to stop.  Note that it does not cause the thread to
+stop, it waits for it to stop.  You have to cause the thread to stop
+yourself.
+
 .SH "RETURN VALUES"
 .B gensio_default_os_hnd
 returns a standard gensio error.
