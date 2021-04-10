@@ -86,6 +86,8 @@ struct gensio_os_proc_data *proc_data;
 typedef int ssize_t;
 #endif
 
+#define DEFAULT_ECHO_COMMPORT "COM1"
+
 bool
 file_is_accessible_dev(const char *filename)
 {
@@ -171,6 +173,8 @@ open_tempfile(char *name, unsigned int len, const char *pattern)
     return f;
 }
 
+#define DEFAULT_ECHO_COMMPORT "/dev/ttyEcho0"
+
 #endif
 
 bool sleep_on_timeout_err;
@@ -233,11 +237,7 @@ get_echo_dev(struct gensio_os_funcs *o, const char *testname,
 	}
 	e = te;
     } else if (rv == GE_NOTFOUND) {
-#ifdef _WIN32
-	e = "COM1";
-#else
-	e = "/dev/ttyEcho0";
-#endif
+	e = DEFAULT_ECHO_COMMPORT;
     } else {
 	fprintf(stderr, "Unable to get GENSIO_TEST_ECHO_DEV: %s",
 		gensio_err_to_str(rv));
