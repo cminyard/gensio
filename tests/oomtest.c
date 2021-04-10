@@ -98,7 +98,6 @@ file_is_accessible_dev(const char *filename)
 #define WEXITSTATUS(n) (n)
 #define WIFSIGNALED(n) ((n) >= 128)
 #define WTERMSIG(n) (n)
-#define SIGUSR1 0
 const char *
 strsignal(int n)
 {
@@ -2173,7 +2172,7 @@ main(int argc, char *argv[])
 	rv = gensio_tcl_funcs_alloc(&o);
 #endif
     } else {
-	rv = gensio_default_os_hnd(SIGUSR1, &o);
+	rv = gensio_default_os_hnd(GENSIO_DEF_WAKE_SIG, &o);
     }
     if (rv) {
 	fprintf(stderr, "Could not allocate OS handler: %s\n",

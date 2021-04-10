@@ -3297,10 +3297,12 @@ gensio_os_new_thread(struct gensio_os_funcs *o,
     tid->o = o;
     tid->start_func = start_func;
     tid->data = data;
-    d->handle = CreateThread(NULL, 0, gensio_os_thread_func, tid, 0, &d->tid);
-    if (!d->handle) {
+    tid->handle = CreateThread(NULL, 0, gensio_os_thread_func, tid, 0,
+			       &tid->tid);
+    if (!tid->handle) {
+	rv = gensio_os_err_to_err(o, GetLastError());
 	o->free(o, tid);
-	return gensio_os_err_to_err(o, GetLastError());
+	return rv;
     }
     *thread_id = tid;
     return 0;

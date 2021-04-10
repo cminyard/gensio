@@ -805,19 +805,37 @@ int gensio_os_proc_setup(struct gensio_os_funcs *o,
 GENSIO_DLL_PUBLIC
 void gensio_os_proc_cleanup(struct gensio_os_proc_data *data);
 
-#ifndef _WIN32
+#ifdef _WIN32
+#define GENSIO_DEF_WAKE_SIG 0
+#else
 #include <signal.h>
+#define GENSIO_DEF_WAKE_SIG SIGUSR1
 GENSIO_DLL_PUBLIC
 sigset_t *gensio_os_proc_unix_get_wait_sigset(struct gensio_os_proc_data *data);
 #endif
 
+/*
+ * Basic thread handling.  You can use the standard OS functions to do
+ * this, too, this is here for genericity.  It may not cover all your
+ * needs.
+ */
 struct gensio_thread;
 
+/*
+ * Start a new thread running at start_func, passing in the given
+ * data.  The thread_id is returned, use that to wait for the thread
+ * to complete after it should stop.
+ */
 GENSIO_DLL_PUBLIC
 int gensio_os_new_thread(struct gensio_os_funcs *o,
 			 void (*start_func)(void *data), void *data,
 			 struct gensio_thread **thread_id);
 
+/*
+ * Wait for the given thread to stop.  Note that this does not cause
+ * the thread to stop, it waits for the thread to stop after it has
+ * been stopped to avoid race condition.
+ */
 GENSIO_DLL_PUBLIC
 int gensio_os_wait_thread(struct gensio_thread *thread_id);
 
