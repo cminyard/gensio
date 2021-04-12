@@ -34,6 +34,7 @@ int main(int argc, char *argv[])
     unsigned int v;
 
     o->vlog = gensio_log;
+    o.proc_setup();
 
     err = 0;
     sg->open_s();

@@ -362,6 +362,7 @@ int main(int argc, char *argv[])
     const char *errstr;
 
     o->vlog = gensio_log;
+    o.proc_setup();
 
     if (argc > 1) {
 	do_server_test(o, argv[1]);
