@@ -264,7 +264,7 @@ sockaddr_inet6_inet4_equal(const struct sockaddr *a1, socklen_t l1,
 }
 #endif
 
-static bool
+bool
 sockaddr_equal(const struct sockaddr *a1, socklen_t l1,
 	       const struct sockaddr *a2, socklen_t l2,
 	       bool compare_ports)

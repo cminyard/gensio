@@ -97,6 +97,25 @@ static int gensio_setup_listen_socket(struct gensio_os_funcs *o, bool do_listen,
 			       struct gensio_iod **iod, unsigned int *port,
 			       struct gensio_listen_scan_info *rsi);
 
+bool sockaddr_equal(const struct sockaddr *a1, socklen_t l1,
+		    const struct sockaddr *a2, socklen_t l2,
+		    bool compare_ports);
+
+/* Does sa have an equivalent address in the list before this address? */
+static bool
+sockaddr_in_list_b4(struct addrinfo *sa, struct addrinfo *l)
+{
+    for (; l; l = l->ai_next) {
+	if (sa == l)
+	    break;
+	if (sockaddr_equal(sa->ai_addr, sa->ai_addrlen,
+			   l->ai_addr, l->ai_addrlen,
+			   true))
+	    return true;
+    }
+    return false;
+}
+
 #define ERRHANDLE()			\
 do {								\
     int err = 0;						\
@@ -174,7 +193,7 @@ gensio_os_sctp_open_sockets(struct gensio_os_funcs *o,
 			    struct gensio_opensocks **rfds,
 			    unsigned int *rnr_fds)
 {
-    struct addrinfo *ai;
+    struct addrinfo *ai, *rp;
     unsigned int i;
     int family = AF_INET6;
     int rv = 0;
@@ -184,20 +203,30 @@ gensio_os_sctp_open_sockets(struct gensio_os_funcs *o,
 
     memset(&scaninfo, 0, sizeof(scaninfo));
 
+    ai = gensio_addr_addrinfo_get(addr);
  retry:
-    for (ai = gensio_addr_addrinfo_get(addr); ai; ai = ai->ai_next) {
+    for (rp = ai; rp; rp = rp->ai_next) {
 	unsigned int port;
 
-	if (family != ai->ai_family)
+	if (family != rp->ai_family)
+	    continue;
+	/*
+	 * getaddrinfo() will return the same address twice in the
+	 * list if ::1 and 127.0.0.1 are both set for localhost in
+	 * /etc/hosts.  So the second open attempt will fail if we
+	 * don't ignore this.  In general, it's probably better to
+	 * ignore duplicates in this function, anyway.
+	 */
+	if (sockaddr_in_list_b4(rp, ai))
 	    continue;
 
-	rv = gensio_sockaddr_get_port(ai->ai_addr, &port);
+	rv = gensio_sockaddr_get_port(rp->ai_addr, &port);
 	if (rv)
 	    goto out_err;
 
 	for (i = 0; i < nr_fds; i++) {
 	    if (port == fds[i].port && (fds[i].family == family)) {
-		if (sctp_bindx(o->iod_get_fd(fds[i].iod), ai->ai_addr, 1,
+		if (sctp_bindx(o->iod_get_fd(fds[i].iod), rp->ai_addr, 1,
 			       SCTP_BINDX_ADD_ADDR)) {
 		    rv = gensio_os_err_to_err(o, sock_errno);
 		    goto out_err;
@@ -217,17 +246,17 @@ gensio_os_sctp_open_sockets(struct gensio_os_funcs *o,
 	if (fds)
 	    memcpy(tfds, fds, sizeof(*tfds) * i);
 
-	rv = gensio_setup_listen_socket(o, true, ai->ai_family,
-					SOCK_STREAM, IPPROTO_SCTP, ai->ai_flags,
-					ai->ai_addr, ai->ai_addrlen,
+	rv = gensio_setup_listen_socket(o, true, rp->ai_family,
+					SOCK_STREAM, IPPROTO_SCTP, rp->ai_flags,
+					rp->ai_addr, rp->ai_addrlen,
 					call_b4_listen, data, opensock_flags,
 					&tfds[i].iod, &tfds[i].port, &scaninfo);
 	if (rv) {
 	    o->free(o, tfds);
 	    goto out_err;
 	}
-	tfds[i].family = ai->ai_family;
-	tfds[i].flags = ai->ai_flags;
+	tfds[i].family = rp->ai_family;
+	tfds[i].flags = rp->ai_flags;
 	if (fds)
 	    o->free(o, fds);
 	fds = tfds;
@@ -1531,6 +1560,15 @@ gensio_stdsock_open_listen_sockets(struct gensio_os_funcs *o,
 #endif
     for (rp = ai; rp != NULL; rp = rp->ai_next) {
 	if (family != rp->ai_family)
+	    continue;
+	/*
+	 * getaddrinfo() will return the same address twice in the
+	 * list if ::1 and 127.0.0.1 are both set for localhost in
+	 * /etc/hosts.  So the second open attempt will fail if we
+	 * don't ignore this.  In general, it's probably better to
+	 * ignore duplicates in this function, anyway.
+	 */
+	if (sockaddr_in_list_b4(rp, ai))
 	    continue;
 
 	rv = gensio_setup_listen_socket(o, rp->ai_socktype == SOCK_STREAM,
