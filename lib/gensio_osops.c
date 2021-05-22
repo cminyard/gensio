@@ -1041,7 +1041,7 @@ gensio_os_socket_open(struct gensio_os_funcs *o,
 	return GE_INVAL;
     }
 
-    newfd = socket(addr->a->ai_family, socktype, sockproto);
+    newfd = socket(addr->curr->ai_family, socktype, sockproto);
     if (newfd == -1)
 	return gensio_os_err_to_err(o, errno);
     *fd = newfd;
@@ -1087,11 +1087,12 @@ gensio_os_socket_setup(struct gensio_os_funcs *o, int fd,
     }
 
     if (bindaddr) {
-	struct addrinfo *ai = bindaddr->a;
+	struct addrinfo *ai;
 
 	switch (protocol) {
 #if HAVE_LIBSCTP
 	case GENSIO_NET_PROTOCOL_SCTP:
+	    ai = bindaddr->a;
 	    while (ai) {
 		if (sctp_bindx(fd, ai->ai_addr, 1, SCTP_BINDX_ADD_ADDR) == -1)
 		    return gensio_os_err_to_err(o, errno);
@@ -1103,6 +1104,7 @@ gensio_os_socket_setup(struct gensio_os_funcs *o, int fd,
 	case GENSIO_NET_PROTOCOL_TCP:
 	case GENSIO_NET_PROTOCOL_UDP:
 	case GENSIO_NET_PROTOCOL_UNIX:
+	    ai = bindaddr->curr;
 	    if (bind(fd, ai->ai_addr, ai->ai_addrlen) == -1)
 		return gensio_os_err_to_err(o, errno);
 	    break;
@@ -2157,7 +2159,7 @@ scan_ips(struct gensio_os_funcs *o, const char *str, bool listen, int ifamily,
 		goto out_err;
 	}
 #ifdef AF_INET6
-	if (listen && ip && notype && ifamily == AF_UNSPEC &&
+	if (ip && protocol != IPPROTO_SCTP && notype && ifamily == AF_UNSPEC &&
 		family == AF_INET6) {
 	    /* See comments above on why this is done.  Yes, it's strange. */
 	    family = AF_INET;
