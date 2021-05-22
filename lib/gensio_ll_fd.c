@@ -722,8 +722,11 @@ fd_cleared(int fd, void *cb_data)
     if (fdll->state == FD_IN_OPEN_RETRY) {
 	gensio_os_close(fdll->o, &fdll->fd);
 	err = fdll->ops->retry_open(fdll->handler_data, &fdll->fd);
-	if (err == GE_INPROGRESS)
+	if (err == GE_INPROGRESS) {
 	    err = fd_setup_handlers(fdll);
+	    if (!err)
+		fd_set_state(fdll, FD_IN_OPEN);
+	}
 	if (err) {
 	    fd_deref(fdll);
 	    fd_finish_open(fdll, err);
