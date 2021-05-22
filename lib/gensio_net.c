@@ -83,7 +83,14 @@ net_try_open(struct net_data *tdata, int *fd)
 	goto out_return;
     }
 
-    if (err) {
+    /*
+     * The GE_NOMEM check is strange here, but it really has more to
+     * do with testing.  connect() is not going to return GE_NOMEM
+     * unless it's an error trigger failure, and we really want to
+     * fail in that case or we will get a "error triggered but no
+     * failure" in the test.
+     */
+    if (err && err != GE_NOMEM) {
 	if (gensio_addr_next(tdata->ai)) {
 	    gensio_os_close(tdata->o, &new_fd);
 	    goto retry;
