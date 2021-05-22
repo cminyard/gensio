@@ -539,7 +539,7 @@ gensio_addr_addrinfo_scan_ips(struct gensio_os_funcs *o, const char *str,
     ip = strtok_r(strtok_buffer, ",", &strtok_data);
     while (ip) {
 	int family = ifamily, rflags = 0;
-	bool notype = false;
+	bool notype = false, gotaddr = false;
 
 	if (strcmp(ip, "ipv4") == 0) {
 	    if (family != AF_UNSPEC && family != AF_INET) {
@@ -646,9 +646,15 @@ gensio_addr_addrinfo_scan_ips(struct gensio_os_funcs *o, const char *str,
 		goto redo_getaddrinfo;
 	    }
 #endif
+	    if (gotaddr) {
+		/* We got some address earlier, go with it. */
+		rv = 0;
+		goto ignore_getaddr_error;
+	    }
 	    rv = GE_INVAL;
 	    goto out_err;
 	}
+	gotaddr = true;
 
 	/*
 	 * If a port was/was not set, this must be consistent for all
@@ -697,7 +703,7 @@ gensio_addr_addrinfo_scan_ips(struct gensio_os_funcs *o, const char *str,
 	    goto redo_getaddrinfo;
 	}
 #endif
-
+    ignore_getaddr_error:
 	ip = strtok_r(NULL, ",", &strtok_data);
 	first = false;
     }
