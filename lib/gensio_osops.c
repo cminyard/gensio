@@ -1022,7 +1022,7 @@ gensio_os_socket_open(struct gensio_os_funcs *o,
     case GENSIO_NET_PROTOCOL_SCTP:
 	sockproto = IPPROTO_SCTP;
 	socktype = SOCK_STREAM;
-#if AF_INET6
+#ifdef AF_INET6
 	/*
 	 * For SCTP, always use AF_INET6 if available.  sctp_connectx()
 	 * can use ipv4 addresses, too, on an AF_INET6 socket.
