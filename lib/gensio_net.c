@@ -71,19 +71,19 @@ net_try_open(struct net_data *tdata, struct gensio_iod **iod)
 			  GENSIO_SET_OPENSOCK_KEEPALIVE |
 			  GENSIO_SET_OPENSOCK_NODELAY);
 
-    err = tdata->o->socket_open(tdata->o, tdata->ai, protocol, &new_iod);
-    if (err)
-	goto out;
-
     if (tdata->istcp)
 	setup |= GENSIO_OPENSOCK_KEEPALIVE;
     if (tdata->nodelay)
 	setup |= GENSIO_OPENSOCK_NODELAY;
+ retry:
+    err = tdata->o->socket_open(tdata->o, tdata->ai, protocol, &new_iod);
+    if (err)
+	goto out;
+
     err = tdata->o->socket_set_setup(new_iod, setup, tdata->lai);
     if (err)
 	goto out;
 
- retry:
     err = tdata->o->connect(new_iod, tdata->ai);
     if (err == GE_INPROGRESS) {
 	*iod = new_iod;
@@ -91,8 +91,10 @@ net_try_open(struct net_data *tdata, struct gensio_iod **iod)
     }
 
     if (err) {
-	if (gensio_addr_next(tdata->ai))
+	if (gensio_addr_next(tdata->ai)) {
+	    tdata->o->close(&new_iod);
 	    goto retry;
+	}
     }
  out:
     if (err) {
