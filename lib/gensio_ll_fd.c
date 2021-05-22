@@ -733,8 +733,11 @@ fd_cleared(struct gensio_iod *iod, void *cb_data)
     if (fdll->state == FD_IN_OPEN_RETRY) {
 	fdll->o->close(&fdll->iod);
 	err = fdll->ops->retry_open(fdll->handler_data, &fdll->iod);
-	if (err == GE_INPROGRESS)
+	if (err == GE_INPROGRESS) {
 	    err = fd_setup_handlers(fdll);
+	    if (!err)
+		fd_set_state(fdll, FD_IN_OPEN);
+	}
 	if (err) {
 	    fd_deref(fdll);
 	    fd_finish_open(fdll, err);
