@@ -66,6 +66,7 @@ net_try_open(struct net_data *tdata, int *fd)
     int protocol = tdata->istcp ? GENSIO_NET_PROTOCOL_TCP
 				: GENSIO_NET_PROTOCOL_UNIX;
 
+ retry:
     err = gensio_os_socket_open(tdata->o, tdata->ai, protocol, &new_fd);
     if (err)
 	goto out;
@@ -76,7 +77,6 @@ net_try_open(struct net_data *tdata, int *fd)
     if (err)
 	goto out;
 
- retry:
     err = gensio_os_connect(tdata->o, new_fd, tdata->ai);
     if (err == GE_INPROGRESS) {
 	*fd = new_fd;
@@ -84,8 +84,10 @@ net_try_open(struct net_data *tdata, int *fd)
     }
 
     if (err) {
-	if (gensio_addr_next(tdata->ai))
+	if (gensio_addr_next(tdata->ai)) {
+	    gensio_os_close(tdata->o, &new_fd);
 	    goto retry;
+	}
     }
  out:
     if (err) {
