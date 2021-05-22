@@ -404,29 +404,15 @@ gensio_addr_to_sockarray(struct gensio_os_funcs *o, struct gensio_addr *addrs,
     struct addrinfo *ai;
     char *saddrs, *s;
     unsigned int slen = 0, i, memlen = 0;
-    int ipv6_only = -1;
+    int ipv6_only = 1;
 
     for (ai = gensio_addr_addrinfo_get(addrs); ai; ai = ai->ai_next) {
 	unsigned int len;
 
 	if (ai->ai_addr->sa_family == AF_INET6) {
 	    len = sizeof(struct sockaddr_in6);
-	    if (ai->ai_flags & AI_V4MAPPED) {
-		if (ipv6_only == 1)
-		    /* Can't mix IPV6-only with IPV4 mapped. */
-		    return GE_INVAL;
-		ipv6_only = 0;
-	    } else if (ipv6_only == 0) {
-		/* Can't mix IPV6-only with IPV4 mapped. */
-		return GE_INVAL;
-	    } else {
-		ipv6_only = 1;
-	    }
 	} else if (ai->ai_addr->sa_family == AF_INET) {
 	    len = sizeof(struct sockaddr_in);
-	    if (ipv6_only == 1)
-		/* Can't mix IPV6-only with IPV4. */
-		return GE_INVAL;
 	    ipv6_only = 0;
 	} else {
 	    return GE_INVAL;
@@ -968,13 +954,16 @@ gensio_stdsock_socket_open(struct gensio_os_funcs *o,
 			   const struct gensio_addr *addr, int protocol,
 			   struct gensio_iod **riod)
 {
-    int sockproto, socktype;
+    int sockproto, socktype, family;
     int newfd, err;
     struct addrinfo *ai;
     struct gensio_iod *iod;
 
     if (do_errtrig())
 	return GE_NOMEM;
+
+    ai = gensio_addr_addrinfo_get_curr(addr);
+    family = ai->ai_family;
 
     switch (protocol) {
     case GENSIO_NET_PROTOCOL_TCP:
@@ -992,6 +981,13 @@ gensio_stdsock_socket_open(struct gensio_os_funcs *o,
     case GENSIO_NET_PROTOCOL_SCTP:
 	sockproto = IPPROTO_SCTP;
 	socktype = SOCK_STREAM;
+#if AF_INET6
+	/*
+	 * For SCTP, always use AF_INET6 if available.  sctp_connectx()
+	 * can use ipv4 addresses, too, on an AF_INET6 socket.
+	 */
+	family = AF_INET6;
+#endif
 	break;
 #endif
 
@@ -999,8 +995,7 @@ gensio_stdsock_socket_open(struct gensio_os_funcs *o,
 	return GE_INVAL;
     }
 
-    ai = gensio_addr_addrinfo_get_curr(addr);
-    newfd = socket(ai->ai_family, socktype, sockproto);
+    newfd = socket(family, socktype, sockproto);
     if (newfd == -1)
 	return gensio_os_err_to_err(o, sock_errno);
     err = o->add_iod(o, GENSIO_IOD_SOCKET, newfd, &iod);

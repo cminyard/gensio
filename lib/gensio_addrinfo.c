@@ -592,9 +592,7 @@ gensio_addr_addrinfo_scan_ips(struct gensio_os_funcs *o, const char *str,
 	     * user specifies an IP address, pull the V6 addresses
 	     * then the V4 addresses.  Do this for TCP connect
 	     * sockets, too, as the connection will be tried on each
-	     * address.  FIXME - Not on SCTP sockets, though, as some work
-	     * needs to be done to make SCTP retry with different address
-	     * families.
+	     * address.
 	     */
 	    if (family == AF_UNSPEC) {
 		notype = true;
@@ -698,8 +696,7 @@ gensio_addr_addrinfo_scan_ips(struct gensio_os_funcs *o, const char *str,
 		goto out_err;
 	}
 #ifdef AF_INET6
-	if (ip && protocol != IPPROTO_SCTP && notype && ifamily == AF_UNSPEC &&
-		family == AF_INET6) {
+	if (ip && notype && ifamily == AF_UNSPEC && family == AF_INET6) {
 	    /* See comments above on why this is done.  Yes, it's strange. */
 	    family = AF_INET;
 	    goto redo_getaddrinfo;
