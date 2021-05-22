@@ -1054,11 +1054,12 @@ gensio_stdsock_socket_set_setup(struct gensio_iod *iod,
     }
 
     if (bindaddr) {
-	struct addrinfo *ai = gensio_addr_addrinfo_get_curr(bindaddr);
+	struct addrinfo *ai;
 
 	switch (o->iod_get_protocol(iod)) {
 #if HAVE_LIBSCTP
 	case GENSIO_NET_PROTOCOL_SCTP:
+	    ai = gensio_addr_addrinfo_get(bindaddr);
 	    while (ai) {
 		if (sctp_bindx(o->iod_get_fd(iod), ai->ai_addr, 1,
 			       SCTP_BINDX_ADD_ADDR) == -1)
@@ -1071,6 +1072,7 @@ gensio_stdsock_socket_set_setup(struct gensio_iod *iod,
 	case GENSIO_NET_PROTOCOL_TCP:
 	case GENSIO_NET_PROTOCOL_UDP:
 	case GENSIO_NET_PROTOCOL_UNIX:
+	    ai = gensio_addr_addrinfo_get_curr(bindaddr);
 	    if (bind(o->iod_get_fd(iod), ai->ai_addr, ai->ai_addrlen) == -1)
 		return gensio_os_err_to_err(o, sock_errno);
 	    break;
