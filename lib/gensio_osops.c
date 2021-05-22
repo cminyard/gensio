@@ -724,29 +724,15 @@ gensio_addr_to_sockarray(struct gensio_os_funcs *o, struct gensio_addr *addrs,
     struct addrinfo *ai;
     char *saddrs, *s;
     unsigned int slen = 0, i, memlen = 0;
-    int ipv6_only = -1;
+    int ipv6_only = 1;
 
     for (ai = addrs->a; ai; ai = ai->ai_next) {
 	unsigned int len;
 
 	if (ai->ai_addr->sa_family == AF_INET6) {
 	    len = sizeof(struct sockaddr_in6);
-	    if (ai->ai_flags & AI_V4MAPPED) {
-		if (ipv6_only == 1)
-		    /* Can't mix IPV6-only with IPV4 mapped. */
-		    return GE_INVAL;
-		ipv6_only = 0;
-	    } else if (ipv6_only == 0) {
-		/* Can't mix IPV6-only with IPV4 mapped. */
-		return GE_INVAL;
-	    } else {
-		ipv6_only = 1;
-	    }
 	} else if (ai->ai_addr->sa_family == AF_INET) {
 	    len = sizeof(struct sockaddr_in);
-	    if (ipv6_only == 1)
-		/* Can't mix IPV6-only with IPV4. */
-		return GE_INVAL;
 	    ipv6_only = 0;
 	} else {
 	    return GE_INVAL;
@@ -1012,8 +998,10 @@ gensio_os_socket_open(struct gensio_os_funcs *o,
 		      const struct gensio_addr *addr, int protocol,
 		      int *fd)
 {
-    int sockproto, socktype;
+    int sockproto, socktype, family;
     int newfd;
+
+    family = addr->curr->ai_family;
 
     if (do_errtrig())
 	return GE_NOMEM;
@@ -1034,6 +1022,13 @@ gensio_os_socket_open(struct gensio_os_funcs *o,
     case GENSIO_NET_PROTOCOL_SCTP:
 	sockproto = IPPROTO_SCTP;
 	socktype = SOCK_STREAM;
+#if AF_INET6
+	/*
+	 * For SCTP, always use AF_INET6 if available.  sctp_connectx()
+	 * can use ipv4 addresses, too, on an AF_INET6 socket.
+	 */
+	family = AF_INET6;
+#endif
 	break;
 #endif
 
@@ -1041,7 +1036,7 @@ gensio_os_socket_open(struct gensio_os_funcs *o,
 	return GE_INVAL;
     }
 
-    newfd = socket(addr->curr->ai_family, socktype, sockproto);
+    newfd = socket(family, socktype, sockproto);
     if (newfd == -1)
 	return gensio_os_err_to_err(o, errno);
     *fd = newfd;
@@ -2052,9 +2047,7 @@ scan_ips(struct gensio_os_funcs *o, const char *str, bool listen, int ifamily,
 	     * user specifies an IP address, pull the V6 addresses
 	     * then the V4 addresses.  Do this for TCP connect
 	     * sockets, too, as the connection will be tried on each
-	     * address.  FIXME - Not on SCTP sockets, though, as some work
-	     * needs to be done to make SCTP retry with different address
-	     * families.
+	     * address.
 	     */
 	    if (family == AF_UNSPEC) {
 		notype = true;
@@ -2159,8 +2152,7 @@ scan_ips(struct gensio_os_funcs *o, const char *str, bool listen, int ifamily,
 		goto out_err;
 	}
 #ifdef AF_INET6
-	if (ip && protocol != IPPROTO_SCTP && notype && ifamily == AF_UNSPEC &&
-		family == AF_INET6) {
+	if (ip && notype && ifamily == AF_UNSPEC && family == AF_INET6) {
 	    /* See comments above on why this is done.  Yes, it's strange. */
 	    family = AF_INET;
 	    goto redo_getaddrinfo;
