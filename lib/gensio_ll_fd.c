@@ -587,7 +587,14 @@ fd_handle_write_ready(struct fd_ll *fdll, struct gensio_iod *iod)
 	fdll->o->set_write_handler(iod, false);
 	fdll->o->set_except_handler(iod, fdll->read_enabled);
 	err = fdll->ops->check_open(fdll->handler_data, fdll->iod);
-	if (err && fdll->ops->retry_open) {
+	/*
+	 * The GE_NOMEM check is strange here, but it really has more
+	 * to do with testing.  check_open() is not going to return
+	 * GE_NOMEM unless it's an error trigger failure, and we really
+	 * want to fail in that case or we will get a "error triggered
+	 * but no failure" in the test.
+	 */
+	if (err && err != GE_NOMEM && fdll->ops->retry_open) {
 	    fd_set_state(fdll, FD_IN_OPEN_RETRY);
 	    fdll->o->clear_fd_handlers(fdll->iod);
 	} else {
