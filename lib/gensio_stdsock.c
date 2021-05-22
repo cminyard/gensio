@@ -999,7 +999,7 @@ gensio_stdsock_socket_open(struct gensio_os_funcs *o,
 	return GE_INVAL;
     }
 
-    ai = gensio_addr_addrinfo_get(addr);
+    ai = gensio_addr_addrinfo_get_curr(addr);
     newfd = socket(ai->ai_family, socktype, sockproto);
     if (newfd == -1)
 	return gensio_os_err_to_err(o, sock_errno);
@@ -1059,7 +1059,7 @@ gensio_stdsock_socket_set_setup(struct gensio_iod *iod,
     }
 
     if (bindaddr) {
-	struct addrinfo *ai = gensio_addr_addrinfo_get(bindaddr);
+	struct addrinfo *ai = gensio_addr_addrinfo_get_curr(bindaddr);
 
 	switch (o->iod_get_protocol(iod)) {
 #if HAVE_LIBSCTP
