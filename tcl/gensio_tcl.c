@@ -834,7 +834,7 @@ static int
 gensio_tcl_add_iod(struct gensio_os_funcs *o, enum gensio_iod_type type,
 		    intptr_t fd, struct gensio_iod **riod)
 {
-    struct gensio_iod_tcl *iod;
+    struct gensio_iod_tcl *iod = NULL;
     bool closefd = false;
     int err = GE_NOMEM;
 
@@ -852,9 +852,8 @@ gensio_tcl_add_iod(struct gensio_os_funcs *o, enum gensio_iod_type type,
 
     iod = o->zalloc(o, sizeof(*iod));
     if (!iod) {
-	if (closefd)
-	    close(fd);
-	return GE_NOMEM;
+	err = GE_NOMEM;
+	goto out_err;
     }
     
     iod->r.f = o;
@@ -891,8 +890,9 @@ gensio_tcl_add_iod(struct gensio_os_funcs *o, enum gensio_iod_type type,
 
     return 0;
  out_err:
-    o->free(o, iod);
-    if (closefd)
+    if (iod)
+	o->free(o, iod);
+    else if (closefd)
 	close(fd);
     return err;
 }

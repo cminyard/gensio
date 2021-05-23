@@ -76,10 +76,10 @@ namespace gensio {
 	try {
 	    s = std::string(buf);
 	} catch (...) {
-	    delete buf;
+	    delete[] buf;
 	    throw;
 	}
-	delete buf;
+	delete[] buf;
 	return s;
     }
 

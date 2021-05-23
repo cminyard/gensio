@@ -1027,7 +1027,7 @@ static int
 gensio_unix_add_iod(struct gensio_os_funcs *o, enum gensio_iod_type type,
 		    intptr_t fd, struct gensio_iod **riod)
 {
-    struct gensio_iod_unix *iod;
+    struct gensio_iod_unix *iod = NULL;
     bool closefd = false;
     int err = GE_NOMEM;
 
@@ -1045,9 +1045,8 @@ gensio_unix_add_iod(struct gensio_os_funcs *o, enum gensio_iod_type type,
 
     iod = o->zalloc(o, sizeof(*iod));
     if (!iod) {
-	if (closefd)
-	    close(fd);
-	return GE_NOMEM;
+	err = GE_NOMEM;
+	goto out_err;
     }
     iod->r.f = o;
     iod->fd = fd;
@@ -1088,8 +1087,9 @@ gensio_unix_add_iod(struct gensio_os_funcs *o, enum gensio_iod_type type,
     return 0;
 
  out_err:
-    o->free(o, iod);
-    if (closefd)
+    if (iod)
+	o->free(o, iod);
+    else if (closefd)
 	close(fd);
     return err;
 }
@@ -1582,7 +1582,7 @@ gensio_os_proc_setup(struct gensio_os_funcs *o,
     sigaddset(&sigs, SIGPIPE); /* Ignore broken pipes. */
     rv = sigprocmask(SIG_BLOCK, &sigs, &data->old_sigs);
     if (rv) {
-	rv = gensio_os_err_to_err(o, rv);
+	rv = gensio_os_err_to_err(o, errno);
 	o->free(o, data);
 	return rv;
     }
@@ -1592,11 +1592,12 @@ gensio_os_proc_setup(struct gensio_os_funcs *o,
     sigdelset(&data->wait_sigs, SIGCHLD); /* Allow SIGCHLD while waiting. */
     sigaddset(&data->wait_sigs, SIGPIPE); /* No SIGPIPE ever. */
 
+    memset(&sigdo, 0, sizeof(sigdo));
     sigdo.sa_handler = handle_sigchld;
     sigdo.sa_flags = SA_NOCLDSTOP;
     rv = sigaction(SIGCHLD, &sigdo, &data->old_sigchld);
     if (rv) {
-	rv = gensio_os_err_to_err(o, rv);
+	rv = gensio_os_err_to_err(o, errno);
 	sigprocmask(SIG_SETMASK, &data->old_sigs, NULL);
 	o->free(o, data);
 	return rv;
@@ -1607,7 +1608,7 @@ gensio_os_proc_setup(struct gensio_os_funcs *o,
 	sigdo.sa_flags = 0;
 	rv = sigaction(data->wake_sig, &sigdo, &data->old_wakesig);
 	if (rv) {
-	    rv = gensio_os_err_to_err(o, rv);
+	    rv = gensio_os_err_to_err(o, errno);
 	    sigaction(SIGCHLD, &data->old_sigchld, NULL);
 	    sigprocmask(SIG_SETMASK, &data->old_sigs, NULL);
 	    o->free(o, data);

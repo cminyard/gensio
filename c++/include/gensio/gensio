@@ -59,7 +59,7 @@ namespace gensio {
 	}
 
 	// Do the setup for the process.  If you do this, this should be
-	// the last os funcs to destruct, if yo uhave more than one.  See
+	// the last os funcs to destruct, if you have more than one.  See
 	// gensio_os_funcs.3 for details on process setup.
 	void proc_setup() {
 	    int err;
@@ -440,7 +440,7 @@ namespace gensio {
 	virtual ~Gensio() { }
 
     private:
-	struct gensio *io;
+	struct gensio *io = NULL;
 	Event *gcb;
 	Os_Funcs go;
 
@@ -804,7 +804,7 @@ namespace gensio {
 	virtual ~Serial_Gensio() { }
 
     private:
-	struct sergensio *sio;
+	struct sergensio *sio = NULL;
 
 	GENSIOCPP_DLL_PUBLIC
 	friend Gensio *gensio_alloc(struct gensio *io,
@@ -1038,7 +1038,7 @@ namespace gensio {
 	virtual ~Accepter() { }
 
     private:
-	struct gensio_accepter *acc;
+	struct gensio_accepter *acc = NULL;
 	Os_Funcs go;
 	Accepter_Event *gcb;
 

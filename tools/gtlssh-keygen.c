@@ -282,6 +282,7 @@ iterate_dir(const char *dir,
 	if (rv == ITERATE_DIR_STOP)
 	    break;
     }
+    closedir(d);
 
     return 0;
 }
@@ -576,7 +577,7 @@ rehash(int argc, char *argv[])
 	    if (!check_dir_exists(argv[i], false))
 		fprintf(stderr, "%s is not a directory", argv[i]);
 	    else
-		hash_dir(argv[i]);
+		hash_dir("%s", argv[i]);
 	}
     }
 
@@ -651,6 +652,7 @@ addallow(int argc, char **argv)
 	fclose(f);
     }
     hash_dir("%s%callowed_certs", gtlsshdir, DIRSEP);
+    free(dest);
     return 0;
 
  out_err:
@@ -771,7 +773,7 @@ keygen(int argc, char *argv[])
 	    i++;
 	    if (i >= argc) {
 		fprintf(stderr, "No port given with -p");
-		return err;
+		return 1;
 	    }
 	    if (strlen(argv[i]) == 0)
 		port[9] = '\0';

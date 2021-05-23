@@ -185,15 +185,19 @@ int main(int argc, char *argv[])
     int err;
     Os_Funcs o(0);
 
-    o->vlog = gensio_log;
-    o.proc_setup();
-    Addr addr(o, argv[1], true, NULL, NULL, NULL);
+    try {
+	o->vlog = gensio_log;
+	o.proc_setup();
+	Addr addr(o, argv[1], true, NULL, NULL, NULL);
 
-    if (argc < 2) {
-	cerr << "No listen address argument given" << endl;
-	return 1;
+	if (argc < 2) {
+	    cerr << "No listen address argument given" << endl;
+	    return 1;
+	}
+
+	err = do_server(o, addr);
+    } catch (gensio_error e) {
+	cerr << "gensio error: " << e.what() << endl;
     }
-
-    err = do_server(o, addr);
     return err;
 }
