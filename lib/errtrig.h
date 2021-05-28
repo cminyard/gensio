@@ -25,7 +25,7 @@ bool do_errtrig(void);
 void errtrig_exit(int rv);
 #else
 #define do_errtrig() false
-#define errtrig_exit(rv) do {} while(false)
+#define errtrig_exit(rv) exit(rv)
 #endif
 
 #endif /* _GENSIO_ERRTRIG_H */
