@@ -2518,6 +2518,15 @@ gensio_addr_dup(const struct gensio_addr *iaddr)
 		o->free(o, addr);
 		return NULL;
 	    }
+#if HAVE_GCC_ATOMICS
+	    addr->refcount = o->zalloc(o, sizeof(*addr->refcount));
+	    if (!addr->refcount) {
+		addrinfo_list_free(o, addr->a);
+		o->free(o, addr);
+		return NULL;
+	    }
+	    *addr->refcount = 1;
+#endif
 	} while(false);
 #if HAVE_GCC_ATOMICS
     }
