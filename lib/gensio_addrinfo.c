@@ -825,7 +825,7 @@ gensio_addr_addrinfo_dup(const struct gensio_addr *iaaddr)
     addr->r.o = o;
 
 #if HAVE_GCC_ATOMICS
-    if (addr->refcount) {
+    if (iaddr->refcount) {
 	addr->refcount = iaddr->refcount;
 	addr->a = iaddr->a;
 	addr->is_getaddrinfo = iaddr->is_getaddrinfo;
@@ -841,6 +841,15 @@ gensio_addr_addrinfo_dup(const struct gensio_addr *iaaddr)
 		o->free(o, addr);
 		return NULL;
 	    }
+#if HAVE_GCC_ATOMICS
+	    addr->refcount = o->zalloc(o, sizeof(*addr->refcount));
+	    if (!addr->refcount) {
+		addrinfo_list_free(o, addr->a);
+		o->free(o, addr);
+		return NULL;
+	    }
+	    *addr->refcount = 1;
+#endif
 	} while(false);
 #if HAVE_GCC_ATOMICS
     }
