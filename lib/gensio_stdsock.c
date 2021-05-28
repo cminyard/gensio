@@ -538,7 +538,7 @@ sctp_addr_to_addr(struct gensio_os_funcs *o,
     char *d;
     int rv;
 
-    addr = gensio_addr_addrinfo_make(o, 0);
+    addr = gensio_addr_addrinfo_make(o, 0, false);
     if (!addr)
 	return GE_NOMEM;
 
@@ -829,7 +829,13 @@ gensio_stdsock_sendto(struct gensio_iod *iod,
 static struct gensio_addr *
 gensio_addr_addrinfo_alloc_recvfrom(struct gensio_os_funcs *o)
 {
-    return gensio_addr_addrinfo_make(o, sizeof(struct sockaddr_storage));
+    /*
+     * Addresses used for recvfrom cannot be duplicated with refcounts
+     * because the storage is reused.  So allocate them without a
+     * refcount to mark them to always do a full replication.
+     */
+    return gensio_addr_addrinfo_make(o, sizeof(struct sockaddr_storage),
+				     true);
 }
 
 static int
@@ -883,7 +889,8 @@ gensio_stdsock_accept(struct gensio_iod *iod,
 	return GE_NOMEM;
 
     if (raddr) {
-	addr = gensio_addr_addrinfo_make(o, sizeof(struct sockaddr_storage));
+	addr = gensio_addr_addrinfo_make(o, sizeof(struct sockaddr_storage),
+					 false);
 	if (!addr)
 	    return GE_NOMEM;
 	ai = gensio_addr_addrinfo_get_curr(addr);
@@ -1389,7 +1396,8 @@ gensio_stdsock_getsockname(struct gensio_iod *iod, struct gensio_addr **raddr)
     if (o->iod_get_protocol(iod) == GENSIO_NET_PROTOCOL_SCTP)
 	return gensio_os_sctp_getladdrs(iod, raddr);
 #endif
-    addr = gensio_addr_addrinfo_make(o, sizeof(struct sockaddr_storage));
+    addr = gensio_addr_addrinfo_make(o, sizeof(struct sockaddr_storage),
+				     false);
     if (!addr)
 	return GE_NOMEM;
 
@@ -1423,7 +1431,8 @@ gensio_stdsock_getpeername(struct gensio_iod *iod, struct gensio_addr **raddr)
     if (o->iod_get_protocol(iod) == GENSIO_NET_PROTOCOL_SCTP)
 	return gensio_os_sctp_getpaddrs(iod, raddr);
 #endif
-    addr = gensio_addr_addrinfo_make(o, sizeof(struct sockaddr_storage));
+    addr = gensio_addr_addrinfo_make(o, sizeof(struct sockaddr_storage),
+				     false);
     if (!addr)
 	return GE_NOMEM;
 

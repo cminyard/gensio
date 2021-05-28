@@ -71,7 +71,8 @@ static int addrinfo_list_dup(struct gensio_os_funcs *o,
 			     struct addrinfo **rpai);
 
 static struct gensio_addr_addrinfo *
-gensio_addrinfo_make(struct gensio_os_funcs *o, unsigned int size)
+gensio_addrinfo_make(struct gensio_os_funcs *o, unsigned int size,
+		     bool is_recvfrom)
 {
     struct gensio_addr_addrinfo *addr = o->zalloc(o, sizeof(*addr));
     struct addrinfo *ai = NULL;
@@ -80,19 +81,22 @@ gensio_addrinfo_make(struct gensio_os_funcs *o, unsigned int size)
 	return NULL;
 
 #if HAVE_GCC_ATOMICS
-    addr->refcount = o->zalloc(o, sizeof(*addr->refcount));
-    if (!addr->refcount) {
-	o->free(o, addr);
-	return NULL;
+    if (!is_recvfrom) {
+	addr->refcount = o->zalloc(o, sizeof(*addr->refcount));
+	if (!addr->refcount) {
+	    o->free(o, addr);
+	    return NULL;
+	}
+	*addr->refcount = 1;
     }
-    *addr->refcount = 1;
 #endif
 
     if (size > 0) {
 	ai = o->zalloc(o, sizeof(*ai));
 	if (!ai) {
 #if HAVE_GCC_ATOMICS
-	    o->free(o, addr->refcount);
+	    if (addr->refcount)
+		o->free(o, addr->refcount);
 #endif
 	    o->free(o, addr);
 	    return NULL;
@@ -101,7 +105,8 @@ gensio_addrinfo_make(struct gensio_os_funcs *o, unsigned int size)
 	ai->ai_addr = o->zalloc(o, size);
 	if (!ai->ai_addr) {
 #if HAVE_GCC_ATOMICS
-	    o->free(o, addr->refcount);
+	    if (addr->refcount)
+		o->free(o, addr->refcount);
 #endif
 	    o->free(o, addr);
 	    o->free(o, ai);
@@ -117,9 +122,11 @@ gensio_addrinfo_make(struct gensio_os_funcs *o, unsigned int size)
 }
 
 struct gensio_addr *
-gensio_addr_addrinfo_make(struct gensio_os_funcs *o, unsigned int size)
+gensio_addr_addrinfo_make(struct gensio_os_funcs *o, unsigned int size,
+			  bool is_recvfrom)
 {
-    struct gensio_addr_addrinfo *addr = gensio_addrinfo_make(o, size);
+    struct gensio_addr_addrinfo *addr = gensio_addrinfo_make(o, size,
+							     is_recvfrom);
 
     if (addr)
 	return &addr->r;
@@ -188,7 +195,7 @@ gensio_addr_addrinfo_create(struct gensio_os_funcs *o,
 	return GE_INVAL;
     }
 
-    a = gensio_addrinfo_make(o, slen);
+    a = gensio_addrinfo_make(o, slen, false);
     if (!a)
 	return GE_NOMEM;
     a->a->ai_family = s->sa_family;
@@ -447,7 +454,7 @@ gensio_scan_unixaddr(struct gensio_os_funcs *o, const char *str,
     if (len >= sizeof(saddr->sun_path) - 1)
 	return GE_TOOBIG;
 
-    addr = gensio_addr_addrinfo_make(o, sizeof(socklen_t) + len + 1);
+    addr = gensio_addr_addrinfo_make(o, sizeof(socklen_t) + len + 1, false);
     if (!addr)
 	return GE_NOMEM;
 
@@ -530,7 +537,7 @@ gensio_addr_addrinfo_scan_ips(struct gensio_os_funcs *o, const char *str,
     if (!strtok_buffer)
 	return GE_NOMEM;
 
-    addr = gensio_addrinfo_make(o, 0);
+    addr = gensio_addrinfo_make(o, 0, false);
     if (!addr) {
 	o->free(o, strtok_buffer);
 	return GE_NOMEM;
@@ -818,21 +825,25 @@ gensio_addr_addrinfo_dup(const struct gensio_addr *iaaddr)
     addr->r.o = o;
 
 #if HAVE_GCC_ATOMICS
-    addr->refcount = iaddr->refcount;
-    addr->a = iaddr->a;
-    addr->is_getaddrinfo = iaddr->is_getaddrinfo;
-    __atomic_add_fetch(addr->refcount, 1, __ATOMIC_SEQ_CST);
-#else
-    do {
-	int rv;
+    if (addr->refcount) {
+	addr->refcount = iaddr->refcount;
+	addr->a = iaddr->a;
+	addr->is_getaddrinfo = iaddr->is_getaddrinfo;
+	__atomic_add_fetch(addr->refcount, 1, __ATOMIC_SEQ_CST);
+    } else {
+#endif
+	do {
+	    int rv;
 
-	rv = addrinfo_list_dup(o, iaddr->a, &addr->a, NULL);
-	if (rv) {
-	    addrinfo_list_free(o, addr->a);
-	    o->free(o, addr);
-	    return NULL;
-	}
-    } while(false);
+	    rv = addrinfo_list_dup(o, iaddr->a, &addr->a, NULL);
+	    if (rv) {
+		addrinfo_list_free(o, addr->a);
+		o->free(o, addr);
+		return NULL;
+	    }
+	} while(false);
+#if HAVE_GCC_ATOMICS
+    }
 #endif
     addr->curr = addr->a;
 
@@ -850,7 +861,7 @@ gensio_addr_addrinfo_cat(const struct gensio_addr *aaddr1,
     struct addrinfo *aip = NULL;
     int rv;
 
-    addr = gensio_addrinfo_make(o, 0);
+    addr = gensio_addrinfo_make(o, 0, false);
     if (!addr)
 	return NULL;
 
@@ -896,11 +907,13 @@ gensio_addr_addrinfo_free(struct gensio_addr *aaddr)
     struct gensio_os_funcs *o = addr->r.o;
 
 #if HAVE_GCC_ATOMICS
-    if (__atomic_sub_fetch(addr->refcount, 1, __ATOMIC_SEQ_CST) != 0) {
-	o->free(o, addr);
-	return;
+    if (addr->refcount) {
+	if (__atomic_sub_fetch(addr->refcount, 1, __ATOMIC_SEQ_CST) != 0) {
+	    o->free(o, addr);
+	    return;
+	}
+	o->free(o, addr->refcount);
     }
-    o->free(o, addr->refcount);
 #endif
     if (addr->a) {
 	if (addr->is_getaddrinfo)

@@ -36,10 +36,15 @@ struct addrinfo *gensio_addr_addrinfo_get_curr(const struct gensio_addr *addr);
  * Create an address.  If size is zero, the addrinfo list is NULL and
  * must be set with gensio_addr_addrinfo_set().  Othersize an addrinfo
  * with an address of the given size is allocated.
+ *
+ * An address used for recvfrom is special, it cannot be duplicated
+ * with a refcount because the addrinfo memory is reused.  So allow it
+ * to be specially allocated.
  */
 GENSIO_DLL_PUBLIC
 struct gensio_addr *gensio_addr_addrinfo_make(struct gensio_os_funcs *o,
-					      unsigned int size);
+					      unsigned int size,
+					      bool is_recvfrom);
 
 /*
  * Set the addrinfo list.  The current list must be NULL.  All the
