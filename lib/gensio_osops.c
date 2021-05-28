@@ -274,7 +274,7 @@ gensio_os_sendto(struct gensio_os_funcs *o,
 }
 
 static struct gensio_addr *
-gensio_addr_make(struct gensio_os_funcs *o, socklen_t size)
+gensio_addr_make(struct gensio_os_funcs *o, socklen_t size, bool do_refcount)
 {
     struct gensio_addr *addr = o->zalloc(o, sizeof(*addr));
     struct addrinfo *ai = NULL;
@@ -283,19 +283,22 @@ gensio_addr_make(struct gensio_os_funcs *o, socklen_t size)
 	return NULL;
 
 #if HAVE_GCC_ATOMICS
-    addr->refcount = o->zalloc(o, sizeof(*addr->refcount));
-    if (!addr->refcount) {
-	o->free(o, addr);
-	return NULL;
+    if (do_refcount) {
+	addr->refcount = o->zalloc(o, sizeof(*addr->refcount));
+	if (!addr->refcount) {
+	    o->free(o, addr);
+	    return NULL;
+	}
+	*addr->refcount = 1;
     }
-    *addr->refcount = 1;
 #endif
 
     if (size > 0) {
 	ai = o->zalloc(o, sizeof(*ai));
 	if (!ai) {
 #if HAVE_GCC_ATOMICS
-	    o->free(o, addr->refcount);
+	    if (addr->refcount)
+		o->free(o, addr->refcount);
 #endif
 	    o->free(o, addr);
 	    return NULL;
@@ -304,7 +307,8 @@ gensio_addr_make(struct gensio_os_funcs *o, socklen_t size)
 	ai->ai_addr = o->zalloc(o, size);
 	if (!ai->ai_addr) {
 #if HAVE_GCC_ATOMICS
-	    o->free(o, addr->refcount);
+	    if (addr->refcount)
+		o->free(o, addr->refcount);
 #endif
 	    o->free(o, addr);
 	    o->free(o, ai);
@@ -368,7 +372,7 @@ gensio_addr_create(struct gensio_os_funcs *o,
 	return GE_INVAL;
     }
 
-    a = gensio_addr_make(o, slen);
+    a = gensio_addr_make(o, slen, true);
     if (!a)
 	return GE_NOMEM;
     a->a->ai_family = s->sa_family;
@@ -381,7 +385,12 @@ gensio_addr_create(struct gensio_os_funcs *o,
 struct gensio_addr *
 gensio_addr_alloc_recvfrom(struct gensio_os_funcs *o)
 {
-    return gensio_addr_make(o, sizeof(struct sockaddr_storage));
+    /*
+     * Addresses used for recvfrom cannot be duplicated with refcounts
+     * because the storage is reused.  So allocate them without a
+     * refcount to mark them to always do a full replication.
+     */
+    return gensio_addr_make(o, sizeof(struct sockaddr_storage), false);
 }
 
 int
@@ -427,7 +436,7 @@ gensio_os_accept(struct gensio_os_funcs *o, int fd,
 	return GE_NOMEM;
 
     if (raddr) {
-	addr = gensio_addr_make(o, sizeof(struct sockaddr_storage));
+	addr = gensio_addr_make(o, sizeof(struct sockaddr_storage), true);
 	if (!addr)
 	    return GE_NOMEM;
 	sa = addr->curr->ai_addr;
@@ -859,7 +868,7 @@ sctp_addr_to_addr(struct gensio_os_funcs *o,
     char *d;
     int rv;
 
-    addr = gensio_addr_make(o, 0);
+    addr = gensio_addr_make(o, 0, true);
     if (!addr)
 	return GE_NOMEM;
 
@@ -1335,7 +1344,7 @@ gensio_os_getsockname(struct gensio_os_funcs *o, int fd,
     if (do_errtrig())
 	return GE_NOMEM;
 
-    addr = gensio_addr_make(o, sizeof(struct sockaddr_storage));
+    addr = gensio_addr_make(o, sizeof(struct sockaddr_storage), true);
     if (!addr)
 	return GE_NOMEM;
 
@@ -1985,7 +1994,7 @@ scan_ips(struct gensio_os_funcs *o, const char *str, bool listen, int ifamily,
     if (!strtok_buffer)
 	return GE_NOMEM;
 
-    addr = gensio_addr_make(o, 0);
+    addr = gensio_addr_make(o, 0, true);
     if (!addr) {
 	o->free(o, strtok_buffer);
 	return GE_NOMEM;
@@ -2198,7 +2207,7 @@ gensio_scan_unixaddr(struct gensio_os_funcs *o, const char *str,
     if (len >= sizeof(saddr->sun_path) - 1)
 	return GE_TOOBIG;
 
-    addr = gensio_addr_make(o, sizeof(socklen_t) + len + 1);
+    addr = gensio_addr_make(o, sizeof(socklen_t) + len + 1, true);
     if (!addr)
 	return GE_NOMEM;
 
@@ -2493,21 +2502,25 @@ gensio_addr_dup(const struct gensio_addr *iaddr)
     addr->o = o;
 
 #if HAVE_GCC_ATOMICS
-    addr->refcount = iaddr->refcount;
-    addr->a = iaddr->a;
-    addr->is_getaddrinfo = iaddr->is_getaddrinfo;
-    __atomic_add_fetch(addr->refcount, 1, __ATOMIC_SEQ_CST);
-#else
-    do {
-	int rv;
+    if (iaddr->refcount) {
+	addr->refcount = iaddr->refcount;
+	addr->a = iaddr->a;
+	addr->is_getaddrinfo = iaddr->is_getaddrinfo;
+	__atomic_add_fetch(addr->refcount, 1, __ATOMIC_SEQ_CST);
+    } else {
+#endif
+	do {
+	    int rv;
 
-	rv = addrinfo_list_dup(o, iaddr->a, &addr->a, NULL);
-	if (rv) {
-	    addrinfo_list_free(o, addr->a);
-	    o->free(o, addr);
-	    return NULL;
-	}
-    } while(false);
+	    rv = addrinfo_list_dup(o, iaddr->a, &addr->a, NULL);
+	    if (rv) {
+		addrinfo_list_free(o, addr->a);
+		o->free(o, addr);
+		return NULL;
+	    }
+	} while(false);
+#if HAVE_GCC_ATOMICS
+    }
 #endif
     addr->curr = addr->a;
 
@@ -2523,7 +2536,7 @@ gensio_addr_cat(const struct gensio_addr *addr1,
     struct addrinfo *aip = NULL;
     int rv;
 
-    addr = gensio_addr_make(o, 0);
+    addr = gensio_addr_make(o, 0, true);
     if (!addr)
 	return NULL;
 
@@ -2596,11 +2609,13 @@ gensio_addr_free(struct gensio_addr *addr)
 
     o = addr->o;
 #if HAVE_GCC_ATOMICS
-    if (__atomic_sub_fetch(addr->refcount, 1, __ATOMIC_SEQ_CST) != 0) {
-	o->free(o, addr);
-	return;
+    if (addr->refcount) {
+	if (__atomic_sub_fetch(addr->refcount, 1, __ATOMIC_SEQ_CST) != 0) {
+	    o->free(o, addr);
+	    return;
+	}
+	o->free(o, addr->refcount);
     }
-    o->free(o, addr->refcount);
 #endif
     if (addr->a) {
 	if (addr->is_getaddrinfo)
