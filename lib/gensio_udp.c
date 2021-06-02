@@ -1678,6 +1678,7 @@ udp_gensio_alloc(const struct gensio_addr *addr, const char * const args[],
     unsigned int i, setup;
     bool nocon = false, mcast_loop_set = false, mcast_loop = true;
     bool reuseaddr = false;
+    unsigned int mttl;
 
     err = gensio_get_defaultaddr(o, "udp", "laddr", false,
 				 GENSIO_NET_PROTOCOL_UDP, true, false, &laddr);
@@ -1691,6 +1692,11 @@ udp_gensio_alloc(const struct gensio_addr *addr, const char * const args[],
     if (err)
 	return err;
     reuseaddr = ival;
+    err = gensio_get_default(o, "udp", "mttl", false,
+			     GENSIO_DEFAULT_INT, NULL, &ival);
+    if (err)
+	return err;
+    mttl = ival;
 
     err = GE_INVAL;
     for (i = 0; args && args[i]; i++) {
@@ -1723,6 +1729,13 @@ udp_gensio_alloc(const struct gensio_addr *addr, const char * const args[],
 	}
 	if (gensio_check_keybool(args[i], "nocon", &nocon) > 0)
 	    continue;
+	if (gensio_check_keyuint(args[i], "mttl", &mttl) > 0) {
+	    if (mttl < 1) {
+		err = GE_INVAL;
+		goto parm_err;
+	    }
+	    continue;
+	}
 	if (gensio_check_keybool(args[i], "mloop", &mcast_loop) > 0) {
 	    mcast_loop_set = true;
 	    continue;
@@ -1778,6 +1791,16 @@ udp_gensio_alloc(const struct gensio_addr *addr, const char * const args[],
 	size = sizeof(mcast_loop);
 	err = o->sock_control(new_iod, GENSIO_SOCKCTL_SET_MCAST_LOOP,
 			      &mcast_loop, &size);
+	if (err) {
+	    o->close(&new_iod);
+	    return err;
+	}
+    }
+
+    if (mttl > 1) {
+	size = sizeof(mttl);
+	err = o->sock_control(new_iod, GENSIO_SOCKCTL_SET_MCAST_TTL,
+			      &mttl, &size);
 	if (err) {
 	    o->close(&new_iod);
 	    return err;

@@ -1527,6 +1527,42 @@ gensio_stdsock_get_port(struct gensio_iod *iod, unsigned int *port)
 }
 
 static int
+gensio_stdsock_set_mcast_ttl(struct gensio_iod *iod, unsigned int ttl)
+{
+    struct gensio_os_funcs *o = iod->f;
+    int rv, val = ttl, family;
+
+    if (do_errtrig())
+	return GE_NOMEM;
+
+    rv = get_sock_family(iod, &family);
+    if (rv)
+	return rv;
+    switch (family) {
+    case AF_INET:
+	rv = setsockopt(o->iod_get_fd(iod), IPPROTO_IP, IP_MULTICAST_TTL,
+			(void *) &val, sizeof(val));
+	if (rv == -1)
+	    return gensio_os_err_to_err(o, sock_errno);
+	break;
+
+#ifdef AF_INET6
+    case AF_INET6:
+	rv = setsockopt(o->iod_get_fd(iod), IPPROTO_IPV6, IPV6_MULTICAST_HOPS,
+			(void *) &val, sizeof(val));
+	if (rv == -1)
+	    return gensio_os_err_to_err(o, sock_errno);
+	break;
+#endif
+
+    default:
+	return GE_INVAL;
+    }
+
+    return 0;
+}
+
+static int
 gensio_stdsock_control(struct gensio_iod *iod, int func,
 		       void *data, gensiods *datalen)
 {
@@ -1547,6 +1583,10 @@ gensio_stdsock_control(struct gensio_iod *iod, int func,
 	return gensio_stdsock_get_port(iod, ((unsigned int *) data));
     case GENSIO_SOCKCTL_CHECK_OPEN:
 	return gensio_stdsock_check_socket_open(iod);
+    case GENSIO_SOCKCTL_SET_MCAST_TTL:
+	if (*datalen != sizeof(unsigned int))
+	    return GE_INVAL;
+	return gensio_stdsock_set_mcast_ttl(iod, *((unsigned int *) data));
     default:
 	return GE_NOTSUP;
     }
