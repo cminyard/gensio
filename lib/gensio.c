@@ -1988,6 +1988,9 @@ struct gensio_def_entry builtin_defaults[] = {
     { "tcpd",		GENSIO_DEFAULT_ENUM,	.enums = tcpd_enums,
 						.def.intval = GENSIO_TCPD_ON },
 #endif
+    /* UDP only */
+    { "mttl",		GENSIO_DEFAULT_INT,	.min = 1, .max = INT_MAX,
+						.def.intval = 1 },
     /* SCTP only */
     { "instreams",	GENSIO_DEFAULT_INT,	.min = 1, .max = INT_MAX,
 						.def.intval = 1 },

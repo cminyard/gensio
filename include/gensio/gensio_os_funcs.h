@@ -121,7 +121,8 @@ const char *gensio_log_level_to_str(enum gensio_log_levels level);
 
 /*
  * Enable/disable loopback mode on a socket.  Default is disabled.
- * data is the gensio address and datalen is a bool pointer to the value.
+ * data is a bool pointer to the value.  datalen should point to
+ * sizeof(bool).
  */
 #define GENSIO_SOCKCTL_SET_MCAST_LOOP	1
 
@@ -148,7 +149,7 @@ const char *gensio_log_level_to_str(enum gensio_log_levels level);
 
 /*
  * Get the port for the socket.  data points to an unsigned integer,
- * datalen should point to an integer with sizeof(unsigned int) in it.
+ * datalen should point to a gensiods with sizeof(unsigned int) in it.
  */
 #define GENSIO_SOCKCTL_GET_PORT		5
 
@@ -158,6 +159,13 @@ const char *gensio_log_level_to_str(enum gensio_log_levels level);
  * used and should be NULL.
  */
 #define GENSIO_SOCKCTL_CHECK_OPEN	6
+
+/*
+ * Set the multicast time to live value for a UDP socket.  data points
+ * to an unsigned integer, datalen should point to a gensiods with
+ * sizeof(unsigned int) in it.
+ */
+#define GENSIO_SOCKCTL_SET_MCAST_TTL	7
 
 /******************************************************************
  * For iod_control()
