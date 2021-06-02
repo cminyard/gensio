@@ -116,6 +116,50 @@ const char *gensio_log_level_to_str(enum gensio_log_levels level);
 #define GENSIO_MSG_OOB 1
 
 /******************************************************************
+ * For sock_control()
+ */
+
+/*
+ * Enable/disable loopback mode on a socket.  Default is disabled.
+ * data is the gensio address and datalen is a bool pointer to the value.
+ */
+#define GENSIO_SOCKCTL_SET_MCAST_LOOP	1
+
+/*
+ * Get the address info for the local socket connection.  This can be
+ * called on all types of sockets.  data is a pointer to the gensio
+ * address, datalen is not used and should be NULL.
+ */
+#define GENSIO_SOCKCTL_GET_SOCKNAME	2
+
+/*
+ * Get the address info for the remote end of the socket connection.
+ * Only valid on connected sockets.  data is a pointer to the gensio
+ * address, datalen is not used and should be NULL.
+ */
+#define GENSIO_SOCKCTL_GET_PEERNAME	3
+
+/*
+ * Get the address info for the remote end of the socket in it's raw
+ * form.  data points to a block of data and datalen points to the
+ * data size.  datalen will be updated with the actual length used.
+ */
+#define GENSIO_SOCKCTL_GET_PEERRAW	4
+
+/*
+ * Get the port for the socket.  data points to an unsigned integer,
+ * datalen should point to an integer with sizeof(unsigned int) in it.
+ */
+#define GENSIO_SOCKCTL_GET_PORT		5
+
+/*
+ * The check_socket_open can be called to check for open status.
+ * Returns the open status for the socket.  data and datalen are not
+ * used and should be NULL.
+ */
+#define GENSIO_SOCKCTL_CHECK_OPEN	6
+
+/******************************************************************
  * For iod_control()
  */
 
@@ -650,13 +694,11 @@ struct gensio_os_funcs {
     /*
      * Open a socket, non-blocking.  The iod can be added with
      * set_fd_handlers and the write handler will be called then the
-     * open completes.  Then check_socket_open can be called to check
-     * for open status.
+     * open completes.
      */
     int (*socket_open)(struct gensio_os_funcs *o,
 		       const struct gensio_addr *addr, int protocol,
 		       struct gensio_iod **iod);
-    int (*check_socket_open)(struct gensio_iod *iod);
 
     /*
      * Set/get options on sockets.  See GENSIO_SET_OPENSOCK_xxx for
@@ -669,38 +711,22 @@ struct gensio_os_funcs {
     int (*socket_get_setup)(struct gensio_iod *iod,
 			    unsigned int *opensock_flags);
 
-    /* For UDP sockets, modify the multicast addresses for the socket. */
+    /*
+     * For UDP sockets, modify the multicast addresses for the socket.
+     * curr_only says whether to only use the current address os
+     * mcast_addrs, or if all the addresses in mcast_addrs should be
+     * added/deleted.
+     */
     int (*mcast_add)(struct gensio_iod *iod,
 		     struct gensio_addr *mcast_addrs, int iface,
 		     bool curr_only);
     int (*mcast_del)(struct gensio_iod *iod,
 		     struct gensio_addr *mcast_addrs, int iface,
 		     bool curr_only);
-    int (*set_mcast_loop)(struct gensio_iod *iod,
-			  const struct gensio_addr *addr, bool ival);
 
-    /*
-     * Get the address info for the local socket connection.  This can
-     * be called on all types of sockets.
-     */
-    int (*getsockname)(struct gensio_iod *iod,
-		       struct gensio_addr **raddr);
-
-    /*
-     * Get the address info for the remote end of the socket
-     * connection.  Only valid on connected sockets.
-     */
-    int (*getpeername)(struct gensio_iod *iod,
-		       struct gensio_addr **raddr);
-
-    /*
-     * Get the address info for the remote end of the socket in it's raw
-     * form.
-     */
-    int (*getpeerraw)(struct gensio_iod *iod, void *addr, gensiods *addrlen);
-
-    /* Get the port for the socket. */
-    int (*socket_get_port)(struct gensio_iod *iod, unsigned int *port);
+    /* Various control functions, see GENSIO_SOCKCTL_xxx for functions. */
+    int (*sock_control)(struct gensio_iod *iod, int func,
+			void *data, gensiods *datalen);
 
     /*
      * Open a set of sockets given in the addr list, binding them and

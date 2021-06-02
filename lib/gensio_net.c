@@ -55,7 +55,8 @@ static int net_check_open(void *handler_data, struct gensio_iod *iod)
 {
     struct net_data *tdata = handler_data;
 
-    tdata->last_err = tdata->o->check_socket_open(iod);
+    tdata->last_err = tdata->o->sock_control(iod, GENSIO_SOCKCTL_CHECK_OPEN,
+					     NULL, NULL);
     return tdata->last_err;
 }
 
@@ -153,7 +154,7 @@ net_control(void *handler_data, struct gensio_iod *iod, bool get,
     struct net_data *tdata = handler_data;
     int rv, val;
     unsigned int i, setup;
-    gensiods pos;
+    gensiods pos, size;
     struct gensio_addr *addr;
 
     switch (option) {
@@ -192,7 +193,8 @@ net_control(void *handler_data, struct gensio_iod *iod, bool get,
 	if (strtoul(data, NULL, 0) > 0)
 	    return GE_NOTFOUND;
 
-	rv = tdata->o->getsockname(iod, &addr);
+	rv = tdata->o->sock_control(iod, GENSIO_SOCKCTL_GET_SOCKNAME,
+				    &addr, NULL);
 	if (rv)
 	    return rv;
 
@@ -227,7 +229,8 @@ net_control(void *handler_data, struct gensio_iod *iod, bool get,
 	return 0;
 
     case GENSIO_CONTROL_LPORT:
-	rv = tdata->o->socket_get_port(iod, &i);
+	size = sizeof(unsigned int);
+	rv = tdata->o->sock_control(iod, GENSIO_SOCKCTL_GET_PORT, &i, &size);
 	if (rv)
 	    return rv;
 	*datalen = snprintf(data, *datalen, "%d", i);
@@ -978,7 +981,9 @@ netna_control_laddr(struct netna_data *nadata, bool get,
     if (i >= nadata->nr_acceptfds)
 	return GE_NOTFOUND;
 
-    rv = nadata->o->getsockname(nadata->acceptfds[i].iod, &addr);
+    rv = nadata->o->sock_control(nadata->acceptfds[i].iod,
+				 GENSIO_SOCKCTL_GET_SOCKNAME,
+				 &addr, NULL);
     if (rv)
 	return rv;
 
