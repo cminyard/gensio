@@ -1347,16 +1347,42 @@ gensio_stdsock_mcast_del(struct gensio_iod *iod,
 }
 
 static int
-gensio_stdsock_set_mcast_loop(struct gensio_iod *iod,
-			      const struct gensio_addr *addr, bool ival)
+get_sock_family(struct gensio_iod *iod, int *family)
 {
     struct gensio_os_funcs *o = iod->f;
-    int rv, val = ival;
+    int rv;
+#ifdef _WIN32
+    WSAPROTOCOL_INFOA info;
+    int len = sizeof(info);
+
+    rv = getsockopt(o->iod_get_fd(iod), SOL_SOCKET, SO_PROTOCOL_INFO,
+		    (char *) &info, &len);
+    if (rv)
+	return gensio_os_err_to_err(o, sock_errno);
+    *family = info.iAddressFamily;
+#else
+    socklen_t len = sizeof(*family);
+
+    rv = getsockopt(o->iod_get_fd(iod), SOL_SOCKET, SO_DOMAIN, family, &len);
+    if (rv)
+	return gensio_os_err_to_err(o, sock_errno);
+#endif
+    return 0;
+}
+
+static int
+gensio_stdsock_set_mcast_loop(struct gensio_iod *iod, bool ival)
+{
+    struct gensio_os_funcs *o = iod->f;
+    int rv, val = ival, family;
 
     if (do_errtrig())
 	return GE_NOMEM;
 
-    switch (gensio_addr_addrinfo_get_curr(addr)->ai_addr->sa_family) {
+    rv = get_sock_family(iod, &family);
+    if (rv)
+	return rv;
+    switch (family) {
     case AF_INET:
 	rv = setsockopt(o->iod_get_fd(iod), IPPROTO_IP, IP_MULTICAST_LOOP,
 			(void *) &val, sizeof(val));
@@ -1506,7 +1532,9 @@ gensio_stdsock_control(struct gensio_iod *iod, int func,
 {
     switch (func) {
     case GENSIO_SOCKCTL_SET_MCAST_LOOP:
-	return gensio_stdsock_set_mcast_loop(iod, data, *((bool *) datalen));
+	if (*datalen != sizeof(bool))
+	    return GE_INVAL;
+	return gensio_stdsock_set_mcast_loop(iod, *((bool *) data));
     case GENSIO_SOCKCTL_GET_SOCKNAME:
 	return gensio_stdsock_getsockname(iod, data);
     case GENSIO_SOCKCTL_GET_PEERNAME:

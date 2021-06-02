@@ -1674,7 +1674,7 @@ udp_gensio_alloc(const struct gensio_addr *addr, const char * const args[],
     struct gensio_addr *laddr = NULL, *mcast = NULL, *tmpaddr, *tmpaddr2;
     int err, ival;
     struct gensio_iod *new_iod;
-    gensiods max_read_size = GENSIO_DEFAULT_UDP_BUF_SIZE;
+    gensiods max_read_size = GENSIO_DEFAULT_UDP_BUF_SIZE, size;
     unsigned int i, setup;
     bool nocon = false, mcast_loop_set = false, mcast_loop = true;
     bool reuseaddr = false;
@@ -1775,8 +1775,9 @@ udp_gensio_alloc(const struct gensio_addr *addr, const char * const args[],
     }
 
     if (mcast_loop_set) {
+	size = sizeof(mcast_loop);
 	err = o->sock_control(new_iod, GENSIO_SOCKCTL_SET_MCAST_LOOP,
-			      (void *) addr, (gensiods *) &mcast_loop);
+			      &mcast_loop, &size);
 	if (err) {
 	    o->close(&new_iod);
 	    return err;
