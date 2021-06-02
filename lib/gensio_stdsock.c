@@ -1505,19 +1505,19 @@ gensio_stdsock_control(struct gensio_iod *iod, int func,
 		       void *data, gensiods *datalen)
 {
     switch (func) {
-    case  GENSIO_SOCKCTL_SET_MCAST_LOOP:
+    case GENSIO_SOCKCTL_SET_MCAST_LOOP:
 	return gensio_stdsock_set_mcast_loop(iod, data, *((bool *) datalen));
-    case  GENSIO_SOCKCTL_GET_SOCKNAME:
+    case GENSIO_SOCKCTL_GET_SOCKNAME:
 	return gensio_stdsock_getsockname(iod, data);
-    case  GENSIO_SOCKCTL_GET_PEERNAME:
+    case GENSIO_SOCKCTL_GET_PEERNAME:
 	return gensio_stdsock_getpeername(iod, data);
-    case  GENSIO_SOCKCTL_GET_PEERRAW:
+    case GENSIO_SOCKCTL_GET_PEERRAW:
 	return gensio_stdsock_getpeerraw(iod, data, datalen);
-    case  GENSIO_SOCKCTL_GET_PORT:
+    case GENSIO_SOCKCTL_GET_PORT:
 	if (*datalen != sizeof(unsigned int))
 	    return GE_INVAL;
 	return gensio_stdsock_get_port(iod, ((unsigned int *) data));
-    case  GENSIO_SOCKCTL_CHECK_OPEN:
+    case GENSIO_SOCKCTL_CHECK_OPEN:
 	return gensio_stdsock_check_socket_open(iod);
     default:
 	return GE_NOTSUP;
