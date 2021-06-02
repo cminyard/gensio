@@ -83,7 +83,7 @@ static int sctp_check_open(void *handler_data, struct gensio_iod *iod)
     struct sctp_data *tdata = handler_data;
     int err;
 
-    err = tdata->o->check_socket_open(iod);
+    err = tdata->o->sock_control(iod, GENSIO_SOCKCTL_CHECK_OPEN, NULL, NULL);
     if (!err)
 	err = sctp_setup(tdata);
 
@@ -182,7 +182,7 @@ sctp_control(void *handler_data, struct gensio_iod *iod, bool get, unsigned int 
     struct sctp_data *tdata = handler_data;
     int rv, val;
     unsigned int i, setup;
-    gensiods pos;
+    gensiods pos, size;
     struct gensio_addr *addr;
 
     switch (option) {
@@ -228,7 +228,8 @@ sctp_control(void *handler_data, struct gensio_iod *iod, bool get, unsigned int 
 	if (i > 0)
 	    return GE_NOTFOUND;
 
-	rv = tdata->o->getsockname(iod, &addr);
+	rv = tdata->o->sock_control(iod, GENSIO_SOCKCTL_GET_SOCKNAME,
+				    &addr, NULL);
 	if (rv)
 	    return rv;
 
@@ -249,7 +250,8 @@ sctp_control(void *handler_data, struct gensio_iod *iod, bool get, unsigned int 
 	if (i > 0)
 	    return GE_NOTFOUND;
 
-	rv = tdata->o->getpeername(iod, &addr);
+	rv = tdata->o->sock_control(iod, GENSIO_SOCKCTL_GET_PEERNAME,
+				    &addr, NULL);
 	if (rv)
 	    return rv;
 
@@ -265,10 +267,12 @@ sctp_control(void *handler_data, struct gensio_iod *iod, bool get, unsigned int 
     case GENSIO_CONTROL_RADDR_BIN:
 	if (!get)
 	    return GE_NOTSUP;
-	return tdata->o->getpeerraw(tdata->iod, data, datalen);
+	return tdata->o->sock_control(tdata->iod, GENSIO_SOCKCTL_GET_PEERRAW,
+				      data, datalen);
 
     case GENSIO_CONTROL_LPORT:
-	rv = tdata->o->socket_get_port(iod, &i);
+	size = sizeof(unsigned int);
+	rv = tdata->o->sock_control(iod, GENSIO_SOCKCTL_GET_PORT, &i, &size);
 	if (rv)
 	    return rv;
 	*datalen = snprintf(data, *datalen, "%d", i);
@@ -859,7 +863,9 @@ sctpna_control_laddr(struct sctpna_data *nadata, bool get,
     if (i >= nadata->nr_acceptfds)
 	return GE_NOTFOUND;
 
-    rv = nadata->o->getsockname(nadata->acceptfds[i].iod, &addrs);
+    rv = nadata->o->sock_control(nadata->acceptfds[i].iod,
+				 GENSIO_SOCKCTL_GET_SOCKNAME,
+				 &addrs, NULL);
     if (rv)
 	return rv;
 

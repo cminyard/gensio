@@ -950,7 +950,9 @@ udpna_control_laddr(struct udpna_data *nadata, bool get,
     if (i >= nadata->nr_fds)
 	return GE_NOTFOUND;
 
-    rv = nadata->o->getsockname(nadata->fds[i].iod, &addr);
+    rv = nadata->o->sock_control(nadata->fds[i].iod,
+				 GENSIO_SOCKCTL_GET_SOCKNAME,
+				 &addr, NULL);
     if (rv)
 	return rv;
 
@@ -992,6 +994,7 @@ udpna_control_lport(struct udpna_data *nadata, bool get,
 {
     int rv;
     unsigned int i;
+    gensiods size;
 
     if (!get)
 	return GE_NOTSUP;
@@ -1003,7 +1006,9 @@ udpna_control_lport(struct udpna_data *nadata, bool get,
     if (i >= nadata->nr_fds)
 	return GE_NOTFOUND;
 
-    rv = nadata->o->socket_get_port(nadata->fds[i].iod, &i);
+    size = sizeof(unsigned int);
+    rv = nadata->o->sock_control(nadata->fds[i].iod, GENSIO_SOCKCTL_GET_PORT,
+				 &i, &size);
     if (rv)
 	return rv;
     *datalen = snprintf(data, *datalen, "%d", i);
@@ -1770,7 +1775,8 @@ udp_gensio_alloc(const struct gensio_addr *addr, const char * const args[],
     }
 
     if (mcast_loop_set) {
-	err = o->set_mcast_loop(new_iod, addr, mcast_loop);
+	err = o->sock_control(new_iod, GENSIO_SOCKCTL_SET_MCAST_LOOP,
+			      (void *) addr, (gensiods *) &mcast_loop);
 	if (err) {
 	    o->close(&new_iod);
 	    return err;
