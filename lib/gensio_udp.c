@@ -1021,6 +1021,7 @@ udpn_control(struct gensio *io, bool get, int option,
 {
     struct udpn_data *ndata = gensio_get_gensio_data(io);
     struct udpna_data *nadata = ndata->nadata;
+    struct gensio_os_funcs *o = nadata->o;
     int err;
     struct gensio_addr *addr;
 
@@ -1065,6 +1066,54 @@ udpn_control(struct gensio *io, bool get, int option,
 	if (err)
 	    return err;
 	break;
+
+    case GENSIO_CONTROL_MCAST_LOOP: {
+	bool mcast_loop;
+	gensiods size = sizeof(mcast_loop);
+	struct gensio_iod *iod = nadata->fds->iod;
+
+	if (get) {
+	    err = o->sock_control(iod, GENSIO_SOCKCTL_GET_MCAST_LOOP,
+				  &mcast_loop, &size);
+	    if (err)
+		return err;
+	    if (mcast_loop)
+		*datalen = snprintf(data, *datalen, "true");
+	    else
+		*datalen = snprintf(data, *datalen, "false");
+	} else {
+	    if (strncasecmp(data, "true", *datalen))
+		mcast_loop = true;
+	    else if (strncasecmp(data, "false", *datalen))
+		mcast_loop = false;
+	    else
+		return GE_INVAL;
+	    return o->sock_control(iod, GENSIO_SOCKCTL_SET_MCAST_LOOP,
+				   &mcast_loop, &size);
+	}
+	break;
+    }
+
+    case GENSIO_CONTROL_MCAST_TTL: {
+	unsigned int ttl;
+	gensiods size = sizeof(ttl);
+	struct gensio_iod *iod = nadata->fds->iod;
+
+	if (get) {
+	    err = o->sock_control(iod, GENSIO_SOCKCTL_SET_MCAST_TTL,
+				  &ttl, &size);
+	    if (err)
+		return err;
+	    *datalen = snprintf(data, *datalen, "%u", ttl);
+	} else {
+	    unsigned int ttl;
+	    gensiods size = sizeof(ttl);
+
+	    ttl = strtoul(data, NULL, 0);
+	    return o->sock_control(iod, GENSIO_SOCKCTL_SET_MCAST_TTL,
+				   &ttl, &size);
+	}
+    }
 
     default:
 	return GE_NOTSUP;
