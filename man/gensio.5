@@ -387,6 +387,11 @@ gensio.  The receive address is passed into the auxdata prefixed by
 If false, multicast packets transmitted will not be received on the
 local host.  If true, they will.
 .TP
+.B mttl=[1-255]
+Set the multicast time-to-live value.  The default is 1, meaning
+multicast stays in the local network.  Increasing this value increases
+the number of hops over multicast routers a send packet will traverse.
+.TP
 .B mcast=<addr>
 Add an address to receive multicast packets on.  There is no port
 number, this is just addresses.  You can specify multiple addresses in
