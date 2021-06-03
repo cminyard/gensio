@@ -1407,6 +1407,44 @@ gensio_stdsock_set_mcast_loop(struct gensio_iod *iod, bool ival)
 }
 
 static int
+gensio_stdsock_get_mcast_loop(struct gensio_iod *iod, bool *ival)
+{
+    struct gensio_os_funcs *o = iod->f;
+    int rv, val, family;
+    socklen_t size;
+
+    if (do_errtrig())
+	return GE_NOMEM;
+
+    rv = get_sock_family(iod, &family);
+    if (rv)
+	return rv;
+    switch (family) {
+    case AF_INET:
+	rv = getsockopt(o->iod_get_fd(iod), IPPROTO_IP, IP_MULTICAST_LOOP,
+			(void *) &val, &size);
+	if (rv == -1)
+	    return gensio_os_err_to_err(o, sock_errno);
+	break;
+
+#ifdef AF_INET6
+    case AF_INET6:
+	rv = getsockopt(o->iod_get_fd(iod), IPPROTO_IPV6, IPV6_MULTICAST_LOOP,
+			(void *) &val, &size);
+	if (rv == -1)
+	    return gensio_os_err_to_err(o, sock_errno);
+	break;
+#endif
+
+    default:
+	return GE_INVAL;
+    }
+
+    *ival = !!val;
+    return 0;
+}
+
+static int
 gensio_stdsock_getsockname(struct gensio_iod *iod, struct gensio_addr **raddr)
 {
     struct gensio_os_funcs *o = iod->f;
@@ -1563,6 +1601,46 @@ gensio_stdsock_set_mcast_ttl(struct gensio_iod *iod, unsigned int ttl)
 }
 
 static int
+gensio_stdsock_get_mcast_ttl(struct gensio_iod *iod, unsigned int *ttl)
+{
+    struct gensio_os_funcs *o = iod->f;
+    int rv, val, family;
+    socklen_t size;
+
+    if (do_errtrig())
+	return GE_NOMEM;
+
+    rv = get_sock_family(iod, &family);
+    if (rv)
+	return rv;
+    switch (family) {
+    case AF_INET:
+	size = sizeof(val);
+	rv = getsockopt(o->iod_get_fd(iod), IPPROTO_IP, IP_MULTICAST_TTL,
+			(void *) &val, &size);
+	if (rv == -1)
+	    return gensio_os_err_to_err(o, sock_errno);
+	break;
+
+#ifdef AF_INET6
+    case AF_INET6:
+	size = sizeof(val);
+	rv = getsockopt(o->iod_get_fd(iod), IPPROTO_IPV6, IPV6_MULTICAST_HOPS,
+			(void *) &val, &size);
+	if (rv == -1)
+	    return gensio_os_err_to_err(o, sock_errno);
+	break;
+#endif
+
+    default:
+	return GE_INVAL;
+    }
+
+    *ttl = val;
+    return 0;
+}
+
+static int
 gensio_stdsock_control(struct gensio_iod *iod, int func,
 		       void *data, gensiods *datalen)
 {
@@ -1571,6 +1649,10 @@ gensio_stdsock_control(struct gensio_iod *iod, int func,
 	if (*datalen != sizeof(bool))
 	    return GE_INVAL;
 	return gensio_stdsock_set_mcast_loop(iod, *((bool *) data));
+    case GENSIO_SOCKCTL_GET_MCAST_LOOP:
+	if (*datalen != sizeof(bool))
+	    return GE_INVAL;
+	return gensio_stdsock_get_mcast_loop(iod, ((bool *) data));
     case GENSIO_SOCKCTL_GET_SOCKNAME:
 	return gensio_stdsock_getsockname(iod, data);
     case GENSIO_SOCKCTL_GET_PEERNAME:
@@ -1587,6 +1669,10 @@ gensio_stdsock_control(struct gensio_iod *iod, int func,
 	if (*datalen != sizeof(unsigned int))
 	    return GE_INVAL;
 	return gensio_stdsock_set_mcast_ttl(iod, *((unsigned int *) data));
+    case GENSIO_SOCKCTL_GET_MCAST_TTL:
+	if (*datalen != sizeof(unsigned int))
+	    return GE_INVAL;
+	return gensio_stdsock_get_mcast_ttl(iod, ((unsigned int *) data));
     default:
 	return GE_NOTSUP;
     }

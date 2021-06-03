@@ -201,6 +201,15 @@ receive packets on.
 .SS "GENSIO_CONTROL_DEL_MCAST"
 On UDP connections, delete a multicast address that the socket will
 receive packets on.
+.SS "GENSIO_CONTROL_MCAST_LOOP"
+On UDP connections, sets whether multicast packets sent on the socket
+will be received by the same machine.  Takes/returns string boolean
+"true" or "false".  Defaults to false.
+.SS "GENSIO_CONTROL_MCAST_TTL"
+Sets the multicast time-to-live.  Takes/returns a string integer. The
+default is 1, meaning multicast stays in the local network.
+Increasing this value increases the number of hops over multicast
+routers a send packet will traverse.
 .SS "GENSIO_CONTROL_LADDR"
 Return the local address for the connection.  Only for network
 connections.  Since a single gensio may have more than one local

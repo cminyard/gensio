@@ -161,11 +161,15 @@ const char *gensio_log_level_to_str(enum gensio_log_levels level);
 #define GENSIO_SOCKCTL_CHECK_OPEN	6
 
 /*
- * Set the multicast time to live value for a UDP socket.  data points
- * to an unsigned integer, datalen should point to a gensiods with
- * sizeof(unsigned int) in it.
+ * Set/get the multicast time to live value for a UDP socket.  data
+ * points to an unsigned integer, datalen should point to a gensiods
+ * with sizeof(unsigned int) in it.
  */
 #define GENSIO_SOCKCTL_SET_MCAST_TTL	7
+#define GENSIO_SOCKCTL_GET_MCAST_TTL	8
+
+/* Return the multicast loop value, see set value. */
+#define GENSIO_SOCKCTL_GET_MCAST_LOOP	9
 
 /******************************************************************
  * For iod_control()
