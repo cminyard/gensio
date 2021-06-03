@@ -1730,7 +1730,7 @@ udp_gensio_alloc(const struct gensio_addr *addr, const char * const args[],
 	if (gensio_check_keybool(args[i], "nocon", &nocon) > 0)
 	    continue;
 	if (gensio_check_keyuint(args[i], "mttl", &mttl) > 0) {
-	    if (mttl < 1) {
+	    if (mttl < 1 || mttl > 255) {
 		err = GE_INVAL;
 		goto parm_err;
 	    }
