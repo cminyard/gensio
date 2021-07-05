@@ -290,6 +290,11 @@ do_vlog(struct gensio_os_funcs *f, enum gensio_log_levels level,
 #define X509_get0_notAfter(x) X509_get_notAfter(x)
 #endif
 
+#if OPENSSL_VERSION_NUMBER < 0x10002000L || defined(LIBRESSL_VERSION_NUMBER)
+/* We need to provide our own backport of the ASN1_TIME_diff() function. */
+#include "openssl_compat.h"
+#endif
+
 static void
 translate_filename(char *filename)
 {
