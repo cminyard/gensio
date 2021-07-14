@@ -1023,7 +1023,6 @@ udpn_control(struct gensio *io, bool get, int option,
     struct udpna_data *nadata = ndata->nadata;
     struct gensio_os_funcs *o = nadata->o;
     int err;
-    struct gensio_addr *addr;
 
     switch(option) {
     case GENSIO_CONTROL_MAX_WRITE_PACKET:
@@ -1047,13 +1046,15 @@ udpn_control(struct gensio *io, bool get, int option,
 	if (!get)
 	    return GE_NOTSUP;
 	gensio_addr_getaddr(ndata->raddr, data, datalen);
-	return 0;
+	break;
 
     case GENSIO_CONTROL_LPORT:
 	return udpna_control_lport(nadata, get, data, datalen);
 
     case GENSIO_CONTROL_ADD_MCAST:
-    case GENSIO_CONTROL_DEL_MCAST:
+    case GENSIO_CONTROL_DEL_MCAST: {
+	struct gensio_addr *addr;
+
 	err = gensio_scan_network_addr(nadata->o, data,
 				       GENSIO_NET_PROTOCOL_UDP, &addr);
 	if (err)
@@ -1063,9 +1064,8 @@ udpn_control(struct gensio *io, bool get, int option,
 	else
 	    err = nadata->o->mcast_del(nadata->fds->iod, addr, 0, false);
 	gensio_addr_free(addr);
-	if (err)
-	    return err;
-	break;
+	return err;
+    }
 
     case GENSIO_CONTROL_MCAST_LOOP: {
 	bool mcast_loop;
@@ -1113,6 +1113,7 @@ udpn_control(struct gensio *io, bool get, int option,
 	    return o->sock_control(iod, GENSIO_SOCKCTL_SET_MCAST_TTL,
 				   &ttl, &size);
 	}
+	break;
     }
 
     default:
