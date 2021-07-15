@@ -35,6 +35,7 @@
 #ifdef _WIN32
 #include <windows.h>
 #endif
+#include <assert.h>
 
 #include "ioinfo.h"
 #include "localports.h"
@@ -303,13 +304,175 @@ translate_filename(char *filename)
 #endif
 }
 
+/*
+ * This would be a lot simpler if we could use ASN1_TIME_diff(), but
+ * it's not available on libressl.  Keep things as basic as possible,
+ * code to calculate the difference in time between now and an ASN1
+ * date.
+ */
+static bool is_leap_year(int year)
+{
+    return (year % 4 == 0) && !((year % 100 == 0) && !(year % 400 == 0));
+}
+
+#define SECS_IN_DAY 86400
+
+/* Number of days to the beginning of the given month. */
+static int mdays[12] ={ 0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334 };
+
+static int get_yearday(struct tm *t)
+{
+    int yday;
+
+    assert(t->tm_mon >= 0 && t->tm_mon <= 11);
+    yday = mdays[t->tm_mon];
+    if (t->tm_mon > 1 && is_leap_year(t->tm_year))
+	yday++;
+    yday += t->tm_mday - 1; /* tm_mday ranges from 1 - 31, need to adjust */
+    return yday;
+}
+
+/*
+ * Calculate the number of days between two dates assuming
+ *   t1.tm_year < t2.tm_year.
+ */
+static int
+tmdaydiff(struct tm *t1, struct tm *t2)
+{
+    int days, v;
+
+    if (t2->tm_year - t1->tm_year > 2) {
+	/*
+	 * Just short-circuit this if more than two years apart.
+	 * We don't care about the actual value at this point.
+	 */
+	return 730;
+    }
+
+    if (is_leap_year(t1->tm_year))
+	days = 366 - t1->tm_yday;
+    else
+	days = 365 - t1->tm_yday;
+    v = t1->tm_year + 1;
+    while (v < t1->tm_year - 1) {
+	days += 365;
+	if (is_leap_year(v))
+	    days++;
+	v++;
+    }
+    days += t2->tm_yday;
+    return days;
+}
+
+static int
+second_in_day(struct tm *t)
+{
+    return t->tm_hour * 3600 + t->tm_min * 60 + t->tm_sec;
+}
+
+static void
+tmdiff(int *rdays, int *rseconds, struct tm *from, struct tm *to)
+{
+    int days, seconds;
+
+    if (to->tm_year < from->tm_year) {
+	days = -tmdaydiff(to, from);
+    } else if (to->tm_year > from->tm_year) {
+	days = tmdaydiff(from, to);
+    } else {
+	days = to->tm_yday - from->tm_yday;
+    }
+
+    seconds = second_in_day(to) - second_in_day(from);
+    if (seconds > 0 && days < 0) {
+	seconds -= SECS_IN_DAY;
+	days++;
+    } else if (seconds < 0 && days > 0) {
+	seconds += SECS_IN_DAY;
+	days--;
+    }
+
+    *rdays = days;
+    *rseconds = seconds;
+}
+
+static int
+calc_timediff(int *days, int *seconds, const ASN1_TIME *t)
+{
+    struct asn1_string_st *g = (struct asn1_string_st *)
+	ASN1_TIME_to_generalizedtime(t, NULL);
+    struct tm tm, now_tm;
+    time_t now;
+    int rv;
+
+    if (!g)
+	return GE_NOMEM;
+
+    /* Per rfc5280 generalized time is in the form: YYYYMMDDHHMMSSZ. */
+    if (g->length != 15) {
+	ASN1_STRING_free((ASN1_STRING *) g);
+	return -1;
+    }
+
+    /* Extract all the fields into integers. */
+    rv = sscanf((char *) g->data, "%4d%2d%2d%2d%2d%2d",
+		&tm.tm_year, &tm.tm_mon, &tm.tm_mday,
+		&tm.tm_hour, &tm.tm_min, &tm.tm_sec);
+    ASN1_STRING_free((ASN1_STRING *) g);
+    if (rv != 6)
+	return -1;
+
+    /*
+     * Month is 1-12 in ISO8601, so adjust to tm's 0-11. The day is,
+     * for some odd reason, 1-31 in a tm, same as ISO8601.
+     */
+    tm.tm_mon -= 1;
+
+    /* We need this later. */
+    tm.tm_yday = get_yearday(&tm);
+
+    /*
+     * rfc5280 generalized time is always GMT/UTC.  Get the current
+     * time in GMT/UTC.
+     */
+    now = time(NULL);
+    if (gmtime_r(&now, &now_tm) == NULL)
+	return -1;
+
+    /* tm_year starts with 0 == 1900, adjust so leap year calcs work. */
+    now_tm.tm_year += 1900;
+
+    tmdiff(days, seconds, &now_tm, &tm);
+    return 0;
+}
+
+static int
+has_time_passed(const ASN1_TIME *t, int *rdays)
+{
+    int days, seconds;
+
+    /*
+     * Get the time from "t" to now.  If "t" is in the past, the value will
+     * be negative.
+     */
+    if (calc_timediff(&days, &seconds, t))
+	return GE_IOERR;
+
+    if (days < 0 || seconds < 0)
+	return GE_TIMEDOUT;
+
+    *rdays = days;
+
+    return 0;
+}
+
 static int
 check_cert_expiry(const char *name, const char *filename,
 		  const char *cert, gensiods certlen)
 {
     X509 *x = NULL;
     const ASN1_TIME *t = NULL;
-    int days, seconds, err = 0;
+    int err = 0, days;
 
     if (filename) {
 	FILE *fp = fopen(filename, "r");
@@ -347,15 +510,13 @@ check_cert_expiry(const char *name, const char *filename,
 	goto out;
     }
 
-    if (!ASN1_TIME_diff(&days, &seconds, NULL, t)) {
-	fprintf(stderr, "Unable to compare certificate expiry time\n");
-	err = GE_IOERR;
-	goto out;
-    }
-
-    if (days < 0 || seconds < 0) {
+    err = has_time_passed(t, &days);
+    if (err == GE_TIMEDOUT) {
 	fprintf(stderr, "***Error: %s certificate has expired\n", name);
 	err = GE_CERTEXPIRED;
+	goto out;
+    } else if (err) {
+	fprintf(stderr, "Unable to compare certificate expiry time\n");
 	goto out;
     }
 
