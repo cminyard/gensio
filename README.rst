@@ -193,6 +193,8 @@ conacc
     Why would you want to use this?  Say in ser2net you wanted to
     connect one serial port to another.  You could have a connection like:
 
+    .. code-block:: yaml
+
       connection: &con0
         accepter: conacc,serialdev,/dev/ttyS1,115200
         connector: serialdev,/dev/ttyS2,115200
@@ -202,10 +204,14 @@ conacc
     use gtlsshd on a serial port if you wanted encrypted authenticated
     logins over a serial port.  If you ran gtlsshd with the following:
 
-      gtlsshd --notcp --nosctp --oneshot --nodaemon --other_acc \
+    .. code-block:: bash
+
+      gtlsshd --notcp --nosctp --oneshot --nodaemon --other_acc
          'conacc,relpkt(mode=server),msgdelim,/dev/ttyUSB1,115200n81'
 
     You could connect with:
+
+    .. code-block:: bash
 
       gtlssh --transport 'relpkt,msgdelim,/dev/ttyUSB2,115200n81' USB2
 
@@ -238,7 +244,9 @@ gensio_mdns.h, and you can use the gensio_mdns(3) man page to get more
 information on it.
 
 To make an mdns connection using gensiot, say you have ser2net set up
-with mdns enabled like::
+with mdns enabled like:
+
+.. code-block:: yaml
 
   connection: &my-port
     accepter: telnet(rfc2217),tcp,3001
@@ -246,7 +254,9 @@ with mdns enabled like::
     options:
       mdns: true
 
-then you can connection to it with gensiot::
+then you can connection to it with gensiot:
+
+.. code-block:: bash
 
   gensiot 'mdns,my-port'
 
@@ -256,7 +266,9 @@ enabled and make the connection.
 In addition, there is an gmdns tool that lets you do queries and
 advertising, and gtlssh can do mDNS queries to find services.  If you
 have secure authenticated logins for ser2net, and you enable mdns on
-ser2net, like::
+ser2net, like:
+
+.. code-block:: yaml
 
   connection: &access-console
     accepter: telnet(rfc2217),mux,certauth(),ssl,tcp,3001
@@ -264,7 +276,9 @@ ser2net, like::
     options:
       mdns: true
 
-it makes the setup very convenient, as you can just do::
+it makes the setup very convenient, as you can just do:
+
+.. code-block:: bash
 
   gtlssh -m access-console
 
@@ -445,12 +459,16 @@ an example is ``serialdev,/dev/ttyS0,9600N81`` will create a connection
 to the serial port /dev/ttyS0.
 
 This lets you stack gensio layers on top of gensio layers.  For
-instance, to layer telnet on top of a TCP connection::
+instance, to layer telnet on top of a TCP connection:
+
+.. code-block:: bash
 
   telnet,tcp,localhost,3001
 
 Say you want to enable RFC2217 on your telnet connection.  You can add
-an option to do that::
+an option to do that:
+
+.. code-block:: bash
 
   telnet(rfc2217=true),tcp,localhost,3001
 
@@ -463,7 +481,9 @@ gensio accepters
 
 A gensio accepter is similar to a connecting gensio, but with
 ``str_to_gensio_accepter()`` instead.  The format is the same.  For
-instance::
+instance:
+
+.. code-block:: bash
 
   telnet(rfc2217=true),tcp,3001
 
@@ -477,7 +497,7 @@ Using a gensio
 Once you have created a gensio, it's not yet open or operational.  To
 use it, you have to open it.  To open it, do:
 
-.. code:: c
+.. code-block:: c
 
   struct gensio *io;
   int rv;
@@ -540,14 +560,14 @@ Synchronous I/O
 You can do basic synchronous I/O with gensios.  This is useful in some
 situations where you need to read something inline.  To do this, call:
 
-.. code:: c
+.. code-block:: c
 
   err = gensio_set_sync(io);
 
 The given gensio will cease to deliver read and write events.  Other
 events *are* delivered.  Then you can do:
 
-.. code:: c
+.. code-block:: c
 
   err = gensio_read_s(io, &count, data, datalen, &timeout);
   err = gensio_write_s(io, &count, data, datalen, &timeout);
@@ -573,7 +593,7 @@ is returned in count.
 
 Once you are done doing synchronous I/O with a gensio, call:
 
-.. code:: c
+.. code-block:: c
 
   err = gensio_clear_sync(io);
 
@@ -595,7 +615,7 @@ Using a gensio accepter
 Like a gensio, a gensio accepter is not operational when you create
 it.  You must call ``gensio_acc_startup()`` to enable it:
 
-.. code:: c
+.. code-block:: c
 
   struct gensio_accepter *acc;
   int rv;
@@ -666,7 +686,7 @@ waiters.
 
 Here's a small program:
 
-.. code:: python
+.. code-block:: python
 
   import gensio
 
@@ -785,7 +805,7 @@ hooked in echo mode (RX and TX tied together) and two serial devices
 hooked together do I/O on one device goes to/comes from the other.
 Then set the following environment variables:
 
-.. code:: bash
+.. code-block:: bash
 
   export GENSIO_TEST_PIPE_DEVS="/dev/ttyxxx:/dev/ttywww"
   export GENSIO_TEST_ECHO_DEV="/dev/ttyzzz"
@@ -798,7 +818,7 @@ https://github.com/cminyard/openipmi to run the ipmisol tests.
 To run the tests, you need to enable some internal debugging to get
 the full effect.  You generally want to run something like:
 
-.. code:: bash
+.. code-block:: bash
 
   ./configure --enable-internal-trace CFLAGS='-g -Wall'
 
@@ -828,7 +848,7 @@ Fuzzing
 
 To set up for fuzzing, install afl, then configure with the following:
 
-.. code:: bash
+.. code-block:: bash
 
   mkdir Zfuzz; cd Zfuzz
   ../configure --enable-internal-trace=yes --disable-shared CC=afl-gcc
@@ -847,14 +867,14 @@ Code Coverage
 Running code coverage on the library is pretty easy.  First you need
 to configure the code to enable coverage:
 
-.. code:: bash
+.. code-block:: bash
 
   mkdir Ocov; cd Ocov
   ../configure --enable-internal-trace=yes CC='gcc -fprofile-arcs -ftest-coverage'
 
 The compile and run "make check".  Then run:
 
-..code:: bash
+..code-block:: bash
 
   (cd tests; ./oomtest -t 13 ../tools/gensiot)
 
@@ -863,7 +883,7 @@ issues in the kernel and around running it.
 
 To generate the report, run:
 
-.. code:: bash
+.. code-block:: bash
 
   cd lib
   gcov -o .libs/ *.o
@@ -879,7 +899,7 @@ If you want to add some tests for perf, trace, and file, you can do
 the following, each a pair where you run each command in separate
 windows:
 
-.. code:: bash
+.. code-block:: bash
 
   tools/gensiot -a 'perf(write_len=1000000,expect_len=1000000),tcp,1234'
   tools/gensiot 'perf(write_len=1000000,expect_len=1000000),tcp,localhost,1234'
@@ -890,7 +910,7 @@ windows:
 
 Then for file do:
 
-.. code:: bash
+.. code-block:: bash
 
   ./tools/gensiot 'file(outfile=asdf,create)'
   (Type in some data then do ^\q to exit.  If you want to see the data,
