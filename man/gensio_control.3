@@ -157,8 +157,21 @@ authorization is done, generally before open or in the
 .I GENSIO_EVENT_PRECERT_VERIFY
 event (see gensio_event(3) for details).
 .SS "GENSIO_CONTROL_USERNAME"
-Get the username for the gensio, generally the username sent from
-the remote end or a certauth gensio.
+Get/set the username for the gensio, generally the username sent from
+the client end on a certauth gensio.  This is always a string.
+.SS "GENSIO_CONTROL_PASSWORD"
+Get/set the password for the gensio, generally the password sent from
+the client end on a certauth gensio.  This is always a string.  On the
+server side this will only be available in the
+.I GENSIO_EVENT_PASSWORD_VERIFY
+event. and is cleared outside of that.
+.SS "GENSIO_CONTROL_2FA"
+Get/set the 2-factor auth data for the gensio, generally the data sent
+from the client end on a certauth gensio.  This is non-nil terminated
+binary data, generally.  On the server side this will only be
+available in the GENSIO_EVENT_PASSWORD_VERIFY event or the
+.I GENSIO_2FA_VERIFY
+event and is cleared outside of that.
 .SS "GENSIO_CONTROL_SERVICE"
 On a client, set the service data passed by the gensio to the server.
 On a server, et the service sent from the gensio client, generally

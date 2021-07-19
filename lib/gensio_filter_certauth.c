@@ -1819,9 +1819,76 @@ certauth_filter_control(struct gensio_filter *filter, bool get, int op,
 	    }
 	    if (sfilter->username)
 		sfilter->o->free(sfilter->o, sfilter->username);
-	    sfilter->username = data;
+	    sfilter->username = newusername;
 	}
 	out_username:
+	certauth_unlock(sfilter);
+	return rv;
+    }
+
+    case GENSIO_CONTROL_PASSWORD: {
+	int rv = 0;
+
+	certauth_lock(sfilter);
+	if (get) {
+	    if (!sfilter->password) {
+		rv = GE_DATAMISSING;
+		goto out_username;
+	    }
+	    *datalen = snprintf(data, *datalen, "%s", sfilter->username);
+	} else {
+	    char *newpw = NULL;
+
+	    if (data) {
+		newpw = gensio_strdup(sfilter->o, data);
+		if (!newpw) {
+		    rv = GE_NOMEM;
+		    goto out_pw;
+		}
+	    }
+	    if (sfilter->password)
+		sfilter->o->free(sfilter->o, sfilter->password);
+	    sfilter->password = newpw;
+	}
+	out_pw:
+	certauth_unlock(sfilter);
+	return rv;
+    }
+
+    case GENSIO_CONTROL_2FA: {
+	int rv = 0;
+	gensiods len;
+
+	certauth_lock(sfilter);
+	if (get) {
+	    if (!sfilter->val_2fa) {
+		rv = GE_DATAMISSING;
+		goto out_username;
+	    }
+	    len = sfilter->len_2fa;
+	    if (len > *datalen)
+		len = *datalen;
+	    memcpy(data, sfilter->val_2fa, len);
+	    *datalen = sfilter->len_2fa;
+	} else {
+	    unsigned char *new2fa = NULL;
+
+	    if (*datalen == 0)
+		data = NULL;
+	    if (data) {
+		new2fa = sfilter->o->zalloc(sfilter->o, *datalen);
+		if (!new2fa) {
+		    rv = GE_NOMEM;
+		    goto out_2fa;
+		}
+		memcpy(new2fa, data, *datalen);
+	    }
+	    if (sfilter->val_2fa)
+		sfilter->o->free(sfilter->o, sfilter->val_2fa);
+	    sfilter->val_2fa = new2fa;
+	    sfilter->len_2fa = *datalen;
+	}
+	out_2fa:
 	certauth_unlock(sfilter);
 	return rv;
     }
