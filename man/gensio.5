@@ -1365,7 +1365,8 @@ connecting =
 .B trace[(options)]
 
 A transparent gensio that allows the data passing through it to be
-sent to a file.  Useful for debugging.
+sent to a file.  Useful for debugging.  It can also block data in
+either direction.
 
 Note that the trace gensio only prints data that is accepted by the
 other end.  So, for instance, if the trace gensio receives 100 bytes
@@ -1376,27 +1377,34 @@ only accept 40 bytes from the gensio below it.  Same for sent data.
 trace does not support readbuf.  It supports the following options:
 .TP
 .B dir=none|read|write|both
-Sets what data is traced.  "none" means no data, "read" means data
-flowing up the gensio stack (read by the parent), write means data
-flowing down the gensio stack (written by the parent), and "both"
-traces reads and writes.
+Sets what data is traced.  "none" means no data is traced (the
+default), "read" traces data flowing up the gensio stack (read by the
+parent), write traces data flowing down the gensio stack (written by
+the parent), and "both" traces reads and writes.
+.TP
+.B block=none|read|write|both
+Blocks data in one or both directions.  "none" means data flows both
+directions (the default), "read" means data flowing up the gensio
+stack is discarded, write means data flowing down the gensio
+stack is discarded, and "both" discards both reads and writes.
+Data that is discarded is not traced.
 .TP
 .B raw[=yes|no]
-If set, data will be written as raw bytes.  If not set, data will be
-written in human-readable form.
+If set, traced data will be written as raw bytes.  If not set, traced
+data will be written in human-readable form.
 .TP
 .B file=<filename>
-The filename to write to.  If not supplied, tracing is disabled.  Note
-that unless
+The filename to write trace data to.  If not supplied, tracing is
+disabled.  Note that unless
 .B delold
 is specified, the file is opened append, so it will add new trace data
 onto the end of an existing file.
 .TP
 .B stderr[=yes|no]
-Send the output to standard error.  Overrides file.
+Send the trace output to standard error.  Overrides file.
 .TP
 .B stdout[=yes|no]
-Send the output to standard output.  Overrides file and stderr.
+Send the trace output to standard output.  Overrides file and stderr.
 .TP
 .B delold[=yes|no]
 Delete the old data in the file instead of appending to the file.
