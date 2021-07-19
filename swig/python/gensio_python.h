@@ -713,6 +713,54 @@ gensio_child_event(struct gensio *io, void *user_data, int event, int readerr,
 	}
 	break;
 
+    case GENSIO_EVENT_2FA_VERIFY:
+	io_ref = swig_make_ref(io, gensio);
+	args = PyTuple_New(2);
+	ref_gensio_data(data);
+	PyTuple_SET_ITEM(args, 0, io_ref.val);
+	/*
+	 * FIXME - is there a way to make this a secure python string
+	 * that gets wiped on free?
+	 */
+	o = PyBytes_FromStringAndSize((const char *) buf, *buflen);
+	PyTuple_SET_ITEM(args, 1, o);
+
+	rv = swig_finish_call_rv_int(data->handler_val, "verify_2fa",
+				     args, true);
+	break;
+
+    case GENSIO_EVENT_REQUEST_2FA:
+	io_ref = swig_make_ref(io, gensio);
+	args = PyTuple_New(1);
+	ref_gensio_data(data);
+	PyTuple_SET_ITEM(args, 0, io_ref.val);
+	o = swig_finish_call_rv(data->handler_val, "request_2fa",
+				args, true);
+	rv = GE_NOTSUP;
+	if (o) {
+	    if (OI_PI_BytesCheck(o)) {
+		char *p;
+		unsigned char *p2;
+		my_ssize_t len = strlen(p);
+
+		rv = OI_PI_AsBytesAndSize(o, &p, &len);
+		if (!rv) {
+		    p2 = data->o->zalloc(data->o, len);
+		    if (!p2) {
+			rv = GE_NOMEM;
+		    } else {
+			memcpy(p2, p, len);
+			*((unsigned char **) buf) = p2;
+			*buflen = len;
+		    }
+		}
+	    } else if (PyInt_Check(o)) {
+		rv = PyInt_AsLong(o);
+	    }
+	    Py_DecRef(o);
+	}
+	break;
+
     case GENSIO_EVENT_SER_MODEMSTATE:
 	sgensio_modemstate(io, *((unsigned int *) buf));
 	break;
