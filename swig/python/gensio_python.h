@@ -998,6 +998,61 @@ gensio_acc_child_event(struct gensio_accepter *accepter, void *user_data,
 	    Py_DecRef(o);
 	}
 	return rv;
+
+    case GENSIO_ACC_EVENT_2FA_VERIFY:
+	pwvfy = (struct gensio_acc_password_verify_data *) cdata;
+	return gensio_acc_io_call_cb(accepter, pwvfy->io, "verify_2fa",
+				     -1, pwvfy->password, true);
+
+    case GENSIO_ACC_EVENT_REQUEST_2FA:
+	pwvfy = (struct gensio_acc_password_verify_data *) cdata;
+	io = pwvfy->io;
+
+	gstate = OI_PY_STATE_GET();
+
+	/*
+	 * This is a situation where the gensio has not been reported
+	 * to the upper layer yet and thus there is no user data.
+	 * Just create something to say that this isn't valid.
+	 */
+	old_user_data = gensio_get_user_data(io);
+	tmpdata.tmpval = true;
+	gensio_set_user_data(io, &tmpdata);
+
+	acc_ref = swig_make_ref(accepter, gensio_accepter);
+	gensio_accepter_ref(accepter);
+	io_ref = swig_make_ref(io, gensio);
+	args = PyTuple_New(2);
+	PyTuple_SET_ITEM(args, 0, acc_ref.val);
+	PyTuple_SET_ITEM(args, 1, io_ref.val);
+
+	o = swig_finish_call_rv(data->handler_val, "request_2fa",
+				args, true);
+	gensio_set_user_data(io, old_user_data);
+	rv = GE_NOTSUP;
+	if (o) {
+	    if (OI_PI_BytesCheck(o)) {
+		char *p;
+		unsigned char *p2;
+		my_ssize_t len = strlen(p);
+
+		rv = OI_PI_AsBytesAndSize(o, &p, &len);
+		if (!rv) {
+		    p2 = data->o->zalloc(data->o, len);
+		    if (!p2) {
+			rv = GE_NOMEM;
+		    } else {
+			memcpy(p2, p, len);
+			*((unsigned char **) pwvfy->password) = p2;
+			pwvfy->password_len = len;
+		    }
+		}
+	    } else if (PyInt_Check(o)) {
+		rv = PyInt_AsLong(o);
+	    }
+	    Py_DecRef(o);
+	}
+	return rv;
     }
 
     return GE_NOTSUP;

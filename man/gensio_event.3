@@ -172,8 +172,14 @@ ssl and certauth
 A password has been received from the remote end, it is passed
 in
 .B buf.
-The callee should validate it.  The length is passed in *buflen,
-Return values are:
+The callee should validate it.  If doing 2-factor auth, you should
+also fetch the 2-factor data with the
+.I GENSIO_CONTROL_2FA
+control and handle that here, too.  If this function is called,
+.I GENSIO_EVENT_2FA_VERIFY
+is not called.
+The length is passed in *buflen.  Note that the buf is
+nil terminated one past the length.  Return values are:
 .TP
 .B 0
 \- The password verification succeeds.
@@ -183,7 +189,7 @@ Return values are:
 depend on the setting of allow-authfail.
 .TP
 .B GE_AUTHREJECT
-\- Reject the authorization for some other reason besides vailing
+\- Reject the authorization for some other reason besides failing
 validation.
 .PP
 Any other error will terminate the connection, these should
@@ -205,6 +211,46 @@ to the actual length.
 
 Return 0 for success, or any other gensio error to fail the password
 fetch.
+.SS "GENSIO_EVENT_REQUEST_2FA"
+On the client side of an authorization, the remote end has requested
+two-factor authentication data, but it has not been supplied already.
+.B buf
+points to a pointer to a buffer (unsigned char **) that you should
+return.  It should be allocated with the zalloc function of the
+os_functions in use.
+.B *buflen
+is where to put the size of the buffer.  This buffer will be zeroed
+and freed when done.
+
+Return 0 for success, or any other gensio error to fail the 2FA
+fetch.
+.SS "GENSIO_EVENT_2FA_VERIFY"
+A 2-factor auth has been received from the remote end and passed as
+part of the password transfer.  This is only called if the login was
+validated with a certificate, this is called to handle 2-factor auth
+with a certificate.  The 2fa data is passed in
+.B buf.
+The callee should validate it.  The length is passed in *buflen.  Note
+that the buf is nil terminated one past the length.  Return values
+are:
+.TP
+.B 0
+\- The verification succeeds.
+.TP
+.B GE_NOTSUP
+\- Fail the validation, but the connection shutdown will
+depend on the setting of allow-authfail.
+.TP
+.B GE_AUTHREJECT
+\- Reject the authorization for some other reason besides failing
+validation.
+.PP
+Any other error will terminate the connection, these should
+generally be things like out of memory and such,
+.B NOT
+authentication failures of any kind.
+
+certauth only
 .SH "OTHER EVENTS"
 sergensio gensios have a set of other events, see sergensio(5) for
 details.  Other gensio that are not part of the gensio library proper
