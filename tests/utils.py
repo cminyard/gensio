@@ -66,7 +66,8 @@ class HandleData:
     """
 
     def __init__(self, o, iostr, name = None, chunksize=10240,
-                 io = None, password = None, expect_remclose = True):
+                 io = None, password = None, expect_remclose = True,
+                 val_2fa = None):
         """Start a gensio object with this handler"""
         if (name):
             self.name = name
@@ -90,6 +91,7 @@ class HandleData:
         self.ignore_input = False
         self.stream = None
         self.password = password
+        self.val_2fa = val_2fa
         if (io):
             self.io = io
             io.set_cbs(self)
@@ -306,6 +308,11 @@ class HandleData:
         if self.password is None:
             return gensio.ENOTSUP
         return self.password
+
+    def request_2fa(self, io):
+        if self.val_2fa is None:
+            return gensio.ENOTSUP
+        return self.val_2fa
 
     def set_expecting_oob(self, data):
         self.to_compare_oob = data
@@ -806,7 +813,9 @@ class TestAcceptConnect:
                  io1_dummy_write = None, CA=None, do_close = True,
                  auth_begin_rv = gensio.GE_NOTSUP, expect_pw = None,
                  expect_pw_rv = gensio.GE_NOTSUP, password = None,
-                 expect_remclose = True, use_port = True):
+                 expect_remclose = True, use_port = True,
+                 expect_2fa = None, expect_2fa_rv = gensio.GE_NOTSUP,
+                 val_2fa = None):
         self.o = o
         if (name):
             self.name = name
@@ -827,10 +836,13 @@ class TestAcceptConnect:
         self.io2 = None
         self.CA = CA
         h = HandleData(o, io3str, io = self.io1, password = password,
-                             expect_remclose = expect_remclose)
+                       expect_remclose = expect_remclose,
+                       val_2fa = val_2fa)
         self.auth_begin_rv = auth_begin_rv
         self.expect_pw = expect_pw
         self.expect_pw_rv = expect_pw_rv
+        self.expect_2fa = expect_2fa
+        self.expect_2fa_rv = expect_2fa_rv
         try:
             self.io1.open_s()
         except:
@@ -896,6 +908,15 @@ class TestAcceptConnect:
             raise Exception("Invalid password in verify, expected %s, got %s"
                             % (self.expect_pw, password))
         return self.expect_pw_rv
+
+    def verify_2fa(self, acc, io, val_2fa):
+        if self.expect_2fa is None:
+            raise Exception("got 2-factor auth verify when none expected")
+        if self.expect_2fa != val_2fa:
+            raise Exception(
+                "Invalid 2-factor auth in verify, expected %s, got %s"
+                % (self.expect_2fa, val_2fa))
+        return self.expect_2fa_rv
 
     def accepter_log(self, acc, level, logstr):
         print("***%s LOG: %s: %s" % (level, self.name, logstr))
