@@ -16,10 +16,10 @@
 #include "gensio_filter_trace.h"
 
 enum trace_dir {
-    TRACE_NONE,
-    TRACE_READ,
-    TRACE_WRITE,
-    TRACE_BOTH
+    DIR_NONE,
+    DIR_READ,
+    DIR_WRITE,
+    DIR_BOTH
 };
 
 struct trace_filter {
@@ -30,6 +30,7 @@ struct trace_filter {
     struct gensio_lock *lock;
 
     enum trace_dir dir;
+    enum trace_dir block;
     bool raw;
     char *filename;
     bool tr_stdout;
@@ -202,8 +203,19 @@ trace_ul_write(struct gensio_filter *filter,
     int err = 0;
     gensiods count = 0;
 
+    if (tfilter->block == DIR_WRITE || tfilter->block == DIR_BOTH) {
+	if (rcount) {
+	    unsigned int i;
+
+	    for (i = 0; i < sglen; i++)
+		count += sg[i].buflen;
+	    *rcount = count;
+	}
+	return 0;
+    }
+
     err = handler(cb_data, &count, sg, sglen, auxdata);
-    if (tfilter->dir == TRACE_WRITE || tfilter->dir == TRACE_BOTH) {
+    if (tfilter->dir == DIR_WRITE || tfilter->dir == DIR_BOTH) {
 	trace_lock(tfilter);
 	if (tfilter->tr)
 	    trace_data("Write", tfilter->o, tfilter->tr, tfilter->raw, err,
@@ -227,8 +239,14 @@ trace_ll_write(struct gensio_filter *filter,
     int err = 0;
     gensiods count = 0;
 
+    if (tfilter->block == DIR_READ || tfilter->block == DIR_BOTH) {
+	if (rcount)
+	    *rcount = buflen;
+	return 0;
+    }
+
     err = handler(cb_data, &count, buf, buflen, auxdata);
-    if (tfilter->dir == TRACE_READ || tfilter->dir == TRACE_BOTH) {
+    if (tfilter->dir == DIR_READ || tfilter->dir == DIR_BOTH) {
 	struct gensio_sg sg = {buf, buflen};
 
 	trace_lock(tfilter);
@@ -334,13 +352,14 @@ static int gensio_trace_filter_func(struct gensio_filter *filter, int op,
 
 static struct gensio_filter *
 gensio_trace_filter_raw_alloc(struct gensio_os_funcs *o, enum trace_dir dir,
+			      enum trace_dir block,
 			      bool raw, const char *filename, bool tr_stdout,
 			      bool tr_stderr, const char *modeflag)
 {
     struct trace_filter *tfilter;
 
     if (!filename && !tr_stdout && !tr_stderr)
-	dir = TRACE_NONE;
+	dir = DIR_NONE;
 
     tfilter = o->zalloc(o, sizeof(*tfilter));
     if (!tfilter)
@@ -348,6 +367,7 @@ gensio_trace_filter_raw_alloc(struct gensio_os_funcs *o, enum trace_dir dir,
 
     tfilter->o = o;
     tfilter->dir = dir;
+    tfilter->block = block;
     tfilter->raw = raw;
     if (filename) {
 	tfilter->filename = gensio_strdup(o, filename);
@@ -375,10 +395,10 @@ gensio_trace_filter_raw_alloc(struct gensio_os_funcs *o, enum trace_dir dir,
 }
 
 static struct gensio_enum_val trace_dir_enum[] = {
-    { "none", TRACE_NONE },
-    { "read", TRACE_READ },
-    { "write", TRACE_WRITE },
-    { "both", TRACE_BOTH },
+    { "none", DIR_NONE },
+    { "read", DIR_READ },
+    { "write", DIR_WRITE },
+    { "both", DIR_BOTH },
     { NULL }
 };
 
@@ -388,7 +408,8 @@ gensio_trace_filter_alloc(struct gensio_os_funcs *o,
 			  struct gensio_filter **rfilter)
 {
     struct gensio_filter *filter;
-    int dir = TRACE_NONE;
+    int dir = DIR_NONE;
+    int block = DIR_NONE;
     bool raw = false, tr_stdout = false, tr_stderr = false, tbool;
     const char *filename = NULL;
     unsigned int i;
@@ -396,6 +417,8 @@ gensio_trace_filter_alloc(struct gensio_os_funcs *o,
 
     for (i = 0; args && args[i]; i++) {
 	if (gensio_check_keyenum(args[i], "dir", trace_dir_enum, &dir) > 0)
+	    continue;
+	if (gensio_check_keyenum(args[i], "block", trace_dir_enum, &block) > 0)
 	    continue;
 	if (gensio_check_keybool(args[i], "raw", &raw) > 0)
 	    continue;
@@ -413,7 +436,7 @@ gensio_trace_filter_alloc(struct gensio_os_funcs *o,
 	return GE_INVAL;
     }
 
-    filter = gensio_trace_filter_raw_alloc(o, dir, raw, filename,
+    filter = gensio_trace_filter_raw_alloc(o, dir, block, raw, filename,
 					   tr_stdout, tr_stderr, modeflag);
     if (!filter)
 	return GE_NOMEM;

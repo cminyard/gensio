@@ -175,7 +175,8 @@ relpkt
 trace
     A transparent gensio that allows the data read and/or written to
     be sent to a file, either as raw data or as human-readable hex
-    data.
+    data.  It can also be used to block data flowing in one or both
+    directions.
 
 perf
     A gensio that can send/receive data on top of a stack of gensios
