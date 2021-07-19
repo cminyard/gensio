@@ -1027,6 +1027,18 @@ On the server, allow passwords for login.  On the client, send a
 password if asked for one.  By default passwords are disabled.
 Use of passwords is much less secure than certificates, so this
 is discouraged.
+.TP
+.B enable-2fa[=true|false]
+On the server, request 2-factor authentication data from the client.
+This is only useful for situations where the 2-factor data is known
+before startup, like Google Authenticator or other things of that
+nature.  It is not useful for text/email types of things that send
+the data after the connection is initiated.  But those are usually
+interactive and can be handled with interactive methods.
+.TP
+.B 2fa=<string>
+On the client, provide the given 2-factor authentication data to the
+server if it asks for it.
 .PP
 Verification of the common name is
 .B not

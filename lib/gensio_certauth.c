@@ -174,6 +174,23 @@ certauthna_gensio_event(struct gensio *io, void *user_data, int event, int err,
 	    *buflen = pwvfy.password_len;
 	return rv;
 
+    case GENSIO_EVENT_2FA_VERIFY:
+	pwvfy.io = io;
+	pwvfy.password = (char *) buf;
+	pwvfy.password_len = *buflen;
+	return gensio_acc_cb(nadata->acc, GENSIO_ACC_EVENT_2FA_VERIFY,
+			     &pwvfy);
+
+    case GENSIO_EVENT_REQUEST_2FA:
+	pwvfy.io = io;
+	pwvfy.password = (char *) buf;
+	pwvfy.password_len = 0;
+	rv = gensio_acc_cb(nadata->acc, GENSIO_ACC_EVENT_REQUEST_2FA,
+			   &pwvfy);
+	if (!rv)
+	    *buflen = pwvfy.password_len;
+	return rv;
+
     default:
 	return GE_NOTSUP;
     }

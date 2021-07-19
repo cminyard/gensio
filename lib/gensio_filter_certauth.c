@@ -21,9 +21,12 @@ struct gensio_certauth_filter_data {
     char *username;
     char *password;
     char *service;
+    char *val_2fa;
+    unsigned int len_2fa;
     bool allow_authfail;
     bool use_child_auth;
     bool enable_password;
+    bool do_2fa; /* Ask for two-factor authentication, version 2+ */
 
     /*
      * The following is only used for testing. so certauth can be run
@@ -67,7 +70,7 @@ static void EVP_MD_CTX_free(EVP_MD_CTX *c)
 
 #define GENSIO_CERTAUTH_DATA_SIZE	2048
 #define GENSIO_CERTAUTH_CHALLENGE_SIZE	32
-#define GENSIO_CERTAUTH_VERSION		1
+#define GENSIO_CERTAUTH_VERSION		2
 
 /*
  * Passwords are always sent in this size buffer to keep an attacker
@@ -255,6 +258,13 @@ enum certauth_elements {
     CERTAUTH_PASSWORD_TYPE	= 110,
 
     /*
+     * 108 <n> <2fa data length n>
+     *
+     * The service is used to transfer 2-factor auth data.  Added in version 2.
+     */
+    CERTAUTH_2FA_DATA		= 111,
+
+    /*
      * 200
      *
      * This is the last thing in the message.
@@ -262,14 +272,22 @@ enum certauth_elements {
     CERTAUTH_END		= 200
 };
 #define CERTAUTH_MIN_ELEMENT CERTAUTH_VERSION
-#define CERTAUTH_MAX_ELEMENT CERTAUTH_PASSWORD_TYPE
+#define CERTAUTH_MAX_ELEMENT CERTAUTH_2FA_DATA
 
 #define CERTAUTH_RESULT_SUCCESS	1
 #define CERTAUTH_RESULT_FAILURE	2
 #define CERTAUTH_RESULT_ERR	3
 
+/* Request a password. */
 #define CERTAUTH_PASSWORD_TYPE_REQ	1
+/* Don't send a password, just send dummy data. */
 #define CERTAUTH_PASSWORD_TYPE_DUMMY	2
+#define CERTAUTH_PASSWORD_TYPE_MASK	0xff
+/*
+ * Request 2 factor authentication data on top of password or dummy data.
+ * Added in version 2.
+ */
+#define CERTAUTH_PASSWORD_TYPE_BIT_2FA	(1 << 8)
 
 struct certauth_filter {
     struct gensio_filter *filter;
@@ -302,12 +320,19 @@ struct certauth_filter {
     /* Enable password authentication. */
     bool enable_password;
 
+    /* Enable 2-factor authentication. */
+    bool do_2fa;
+
     char *username;
     size_t username_len;
 
     unsigned int password_req_val;
     char *password;
     size_t password_len;
+
+    bool req_2fa_val;
+    unsigned char *val_2fa;
+    gensiods len_2fa;
 
     char *service;
     size_t service_len;
@@ -793,6 +818,7 @@ certauth_try_connect(struct gensio_filter *filter, gensio_time *timeout)
     gensiods len;
     bool password_requested = false;
     int err, rv;
+    unsigned int req;
 
     certauth_lock(sfilter);
     if (sfilter->pending_err)
@@ -831,6 +857,15 @@ certauth_try_connect(struct gensio_filter *filter, gensio_time *timeout)
 	    sfilter->pending_err = GE_DATAMISSING;
 	    break;
 	}
+
+	/* Verify support for things requested. */
+	if (sfilter->do_2fa && sfilter->version < 2) {
+	    gca_log_err(sfilter,
+		"2-factor auth requested but other end doesn't have it");
+	    sfilter->pending_err = GE_INVAL;
+	    break;
+	}
+
 	io = gensio_filter_get_gensio(filter);
 	if (sfilter->use_child_auth) {
 	    if (gensio_is_authenticated(io)) {
@@ -935,6 +970,7 @@ certauth_try_connect(struct gensio_filter *filter, gensio_time *timeout)
 	     */
 	    goto try_password;
 	}
+
 	if (!!sfilter->cert != !!sfilter->response_result) {
 	    gca_log_err(sfilter, "Remote end did not send cert and response");
 	    sfilter->pending_err = GE_PROTOERR;
@@ -984,22 +1020,25 @@ certauth_try_connect(struct gensio_filter *filter, gensio_time *timeout)
 	 */
 
     try_password:
+	if (!sfilter->result && sfilter->enable_password)
+	    req = CERTAUTH_PASSWORD_TYPE_REQ;
+	else
+	    req = CERTAUTH_PASSWORD_TYPE_DUMMY;
+	/* Request 2 factor authentication data. */
+	if (sfilter->do_2fa)
+	    req |= CERTAUTH_PASSWORD_TYPE_BIT_2FA;
 	sfilter->write_buf_len = 0;
 	certauth_write_byte(sfilter, CERTAUTH_PASSWORD_REQUEST);
 	certauth_write_byte(sfilter, CERTAUTH_PASSWORD_TYPE);
 	certauth_write_u16(sfilter, 2);
-	certauth_write_u16(sfilter,
-			   sfilter->result || !sfilter->enable_password ?
-			   CERTAUTH_PASSWORD_TYPE_DUMMY :
-			   CERTAUTH_PASSWORD_TYPE_REQ);
+	certauth_write_u16(sfilter, req);
 	certauth_write_byte(sfilter, CERTAUTH_END);
 	sfilter->state = CERTAUTH_PASSWORD;
 	break;
 
     case CERTAUTH_PASSWORD_REQUEST:
 	if (!sfilter->password_req_val) {
-	    gca_log_err(sfilter,
-			   "Remote client didn't send request value");
+	    gca_log_err(sfilter, "Remote client didn't send request value");
 	    sfilter->pending_err = GE_DATAMISSING;
 	    goto finish_result;
 	}
@@ -1012,6 +1051,10 @@ certauth_try_connect(struct gensio_filter *filter, gensio_time *timeout)
 	}
 
 	if (!sfilter->enable_password) {
+	    /*
+	     * If we don't have passwords enabled but the other end
+	     * requests, send all zeros.
+	     */
 	    certauth_write_byte(sfilter, CERTAUTH_PASSWORD);
 	    certauth_write_byte(sfilter, CERTAUTH_PASSWORD_DATA);
 	    certauth_write_u16(sfilter, sfilter->password_len);
@@ -1051,15 +1094,82 @@ certauth_try_connect(struct gensio_filter *filter, gensio_time *timeout)
 	    memset(sfilter->password, 0, sfilter->password_len);
 
     password_done:
+	if (sfilter->val_2fa) {
+	    if (sfilter->version < 2) {
+		gca_log_err(sfilter,
+		    "2-factor auth given, but server doesn't support it");
+		sfilter->pending_err = GE_INVAL;
+		goto finish_result;
+	    }
+	    goto send_2fa;
+	}
+	if (!sfilter->req_2fa_val)
+	    goto password_end;
+
+	password_requested = false;
+	if (!sfilter->val_2fa) {
+	    /* Empty 2fa data, ask the user. */
+	    certauth_unlock(sfilter);
+	    err = gensio_filter_do_event(sfilter->filter,
+					 GENSIO_EVENT_REQUEST_2FA, 0,
+					 (unsigned char *) &sfilter->val_2fa,
+					 &sfilter->len_2fa,
+					 NULL);
+	    certauth_lock(sfilter);
+	    if (err) {
+		if (err != GE_NOTSUP) {
+		    gca_log_err(sfilter, "Error fetching 2-factor auth: %s",
+				gensio_err_to_str(err));
+		    sfilter->pending_err = err;
+		    goto finish_result;
+		}
+	    }
+	    password_requested = true;
+	    if (sfilter->len_2fa > 65535 || sfilter->len_2fa < 1) {
+		gca_log_err(sfilter, "2-factor auth data bad size: %lld",
+			    (unsigned long long) sfilter->len_2fa);
+		sfilter->pending_err = GE_TOOBIG;
+		goto clear_2fa;
+	    }
+	}
+
+    send_2fa:
+	certauth_write_byte(sfilter, CERTAUTH_2FA_DATA);
+	certauth_write_u16(sfilter, sfilter->len_2fa);
+	if (sfilter->len_2fa)
+	    certauth_write(sfilter, sfilter->val_2fa, sfilter->len_2fa);
+    clear_2fa:
+	if (password_requested) {
+	    memset(sfilter->val_2fa, 0, sfilter->len_2fa);
+	    sfilter->o->free(sfilter->o, sfilter->val_2fa);
+	    sfilter->val_2fa = NULL;
+	    sfilter->len_2fa = 0;
+	}
+	if (sfilter->pending_err)
+	    goto finish_result;
+    password_end:
 	certauth_write_byte(sfilter, CERTAUTH_END);
 
 	sfilter->state = CERTAUTH_SERVERDONE;
 	break;
 
     case CERTAUTH_PASSWORD:
-	if (sfilter->result)
-	    /* Already verified, the rest was for show. */
+	if (sfilter->do_2fa && !sfilter->val_2fa) {
+	    /* Remote end didn't send a password and we requested one. */
+	    gca_log_err(sfilter, "Remote client didn't send 2fa data");
+	    sfilter->pending_err = GE_DATAMISSING;
 	    goto finish_result;
+	}
+
+	if (sfilter->result) {
+	    /* Already verified by certificate, the password was for show. */
+	    if (sfilter->val_2fa
+			&& sfilter->result == CERTAUTH_RESULT_SUCCESS) {
+		sfilter->result = 0;
+		goto check_2fa;
+	    }
+	    goto finish_result;
+	}
 
 	if (sfilter->enable_password && !sfilter->password) {
 	    /* Remote end didn't send a password and we requested one. */
@@ -1078,6 +1188,13 @@ certauth_try_connect(struct gensio_filter *filter, gensio_time *timeout)
 				     (unsigned char *) sfilter->password,
 				     &len, NULL);
 	certauth_lock(sfilter);
+	if (sfilter->state != CERTAUTH_PASSWORD)
+	    /*
+	     * Either something went wrong, or the user called
+	     * GENSIO_CONTROL_FINISH_INIT.  We just exit in either
+	     * case.
+	     */
+	    goto out_finish;
 	memset(sfilter->password, 0, sfilter->password_len);
 	if (!err) {
 	    sfilter->result = CERTAUTH_RESULT_SUCCESS;
@@ -1085,6 +1202,36 @@ certauth_try_connect(struct gensio_filter *filter, gensio_time *timeout)
 	    gca_log_err(sfilter, "Application rejected password");
 	} else if (err != GE_NOTSUP) {
 	    gca_log_err(sfilter, "Error from application at password: %s",
+			gensio_err_to_str(err));
+	    sfilter->pending_err = err;
+	}
+	goto finish_result;
+
+    check_2fa:
+	len = sfilter->len_2fa;
+	certauth_unlock(sfilter);
+	err = gensio_filter_do_event(sfilter->filter,
+				     GENSIO_EVENT_2FA_VERIFY, 0,
+				     (unsigned char *) sfilter->val_2fa,
+				     &len, NULL);
+	certauth_lock(sfilter);
+	if (sfilter->state != CERTAUTH_PASSWORD)
+	    /*
+	     * Either something went wrong, or the user called
+	     * GENSIO_CONTROL_FINISH_INIT.  We just exit in either
+	     * case.
+	     */
+	    goto out_finish;
+	memset(sfilter->val_2fa, 0, sfilter->len_2fa);
+	sfilter->o->free(sfilter->o, sfilter->val_2fa);
+	sfilter->val_2fa = NULL;
+	sfilter->len_2fa = 0;
+	if (!err) {
+	    sfilter->result = CERTAUTH_RESULT_SUCCESS;
+	} else if (err == GE_CERTINVALID) {
+	    gca_log_err(sfilter, "Application rejected 2-factor auth");
+	} else if (err != GE_NOTSUP) {
+	    gca_log_err(sfilter, "Error from application at 2-factor auth: %s",
 			gensio_err_to_str(err));
 	    sfilter->pending_err = err;
 	}
@@ -1269,6 +1416,9 @@ certauth_handle_new_element(struct certauth_filter *sfilter)
 	    sfilter->pending_err = GE_PROTOERR;
 	} else {
 	    sfilter->password_req_val = certauth_buf_to_u16(sfilter->read_buf);
+	    sfilter->req_2fa_val = (sfilter->password_req_val &
+				    CERTAUTH_PASSWORD_TYPE_BIT_2FA);
+	    sfilter->password_req_val &= CERTAUTH_PASSWORD_TYPE_MASK;
 	    if (!sfilter->password_req_val) {
 		gca_log_err(sfilter, "password req was zero");
 		sfilter->pending_err = GE_PROTOERR;
@@ -1291,6 +1441,22 @@ certauth_handle_new_element(struct certauth_filter *sfilter)
 	} else {
 	    memcpy(sfilter->password, sfilter->read_buf,
 		   sfilter->password_len);
+	}
+	break;
+
+    case CERTAUTH_2FA_DATA:
+	if (sfilter->len_2fa) {
+	    gca_log_err(sfilter, "2-factor auth received when already set");
+	    sfilter->pending_err = GE_PROTOERR;
+	    break;
+	}
+	sfilter->len_2fa = sfilter->curr_elem_len;
+	sfilter->val_2fa = o->zalloc(o, sfilter->len_2fa + 1);
+	if (!sfilter->val_2fa) {
+	    gca_log_err(sfilter, "Unable to allocate memory for 2-factor auth");
+	    sfilter->pending_err = GE_NOMEM;
+	} else {
+	    memcpy(sfilter->val_2fa, sfilter->read_buf, sfilter->len_2fa);
 	}
 	break;
 
@@ -1512,10 +1678,11 @@ static void
 certauth_cleanup(struct gensio_filter *filter)
 {
     struct certauth_filter *sfilter = filter_to_certauth(filter);
+    struct gensio_os_funcs *o = sfilter->o;
 
     if (sfilter->is_client) {
 	if (sfilter->challenge_data)
-	    sfilter->o->free(sfilter->o, sfilter->challenge_data);
+	    o->free(o, sfilter->challenge_data);
 	sfilter->challenge_data = NULL;
 	memset(sfilter->password, 0, sfilter->password_len);
     } else {
@@ -1528,19 +1695,23 @@ certauth_cleanup(struct gensio_filter *filter)
 	if (sfilter->password)
 	    memset(sfilter->password, 0, sfilter->password_len);
 	if (!sfilter->is_client && sfilter->password) {
-	    sfilter->o->free(sfilter->o, sfilter->password);
+	    o->free(o, sfilter->password);
 	    sfilter->password = NULL;
 	    sfilter->password_len = 0;
 	}
 	if (sfilter->username)
-	    sfilter->o->free(sfilter->o, sfilter->username);
+	    o->free(o, sfilter->username);
 	sfilter->username = NULL;
 	sfilter->username_len = 0;
 	if (sfilter->service)
-	    sfilter->o->free(sfilter->o, sfilter->service);
+	    o->free(o, sfilter->service);
 	sfilter->service = NULL;
 	sfilter->service_len = 0;
     }
+    if (sfilter->val_2fa)
+	o->free(o, sfilter->val_2fa);
+    sfilter->val_2fa = NULL;
+    sfilter->len_2fa = 0;
 
     sfilter->pending_err = 0;
     sfilter->password_req_val = 0;
@@ -1556,6 +1727,8 @@ certauth_cleanup(struct gensio_filter *filter)
 static void
 sfilter_free(struct certauth_filter *sfilter)
 {
+    struct gensio_os_funcs *o = sfilter->o;
+
     if (sfilter->cert)
 	X509_free(sfilter->cert);
     if (sfilter->sk_ca)
@@ -1563,30 +1736,30 @@ sfilter_free(struct certauth_filter *sfilter)
     if (sfilter->cert_bio)
 	BIO_free(sfilter->cert_bio);
     if (sfilter->lock)
-	sfilter->o->free_lock(sfilter->lock);
+	o->free_lock(sfilter->lock);
     if (sfilter->read_buf) {
 	memset(sfilter->read_buf, 0, sfilter->max_read_size);
-	sfilter->o->free(sfilter->o, sfilter->read_buf);
+	o->free(o, sfilter->read_buf);
     }
     if (sfilter->write_buf)
-	sfilter->o->free(sfilter->o, sfilter->write_buf);
+	o->free(o, sfilter->write_buf);
     if (sfilter->pkey)
 	EVP_PKEY_free(sfilter->pkey);
     if (sfilter->password) {
 	memset(sfilter->password, 0, sfilter->password_len);
-	sfilter->o->free(sfilter->o, sfilter->password);
+	o->free(o, sfilter->password);
     }
     if (sfilter->username)
-	sfilter->o->free(sfilter->o, sfilter->username);
+	o->free(o, sfilter->username);
     if (sfilter->service)
-	sfilter->o->free(sfilter->o, sfilter->service);
+	o->free(o, sfilter->service);
     if (sfilter->challenge_data)
-	sfilter->o->free(sfilter->o, sfilter->challenge_data);
+	o->free(o, sfilter->challenge_data);
     if (sfilter->filter)
 	gensio_filter_free_data(sfilter->filter);
     if (sfilter->verify_store)
 	X509_STORE_free(sfilter->verify_store);
-    sfilter->o->free(sfilter->o, sfilter);
+    o->free(o, sfilter);
 }
 
 static void
@@ -1770,9 +1943,10 @@ gensio_certauth_filter_raw_alloc(struct gensio_os_funcs *o,
 				 X509 *cert, STACK_OF(X509) *sk_ca,
 				 EVP_PKEY *pkey,
 				 const char *username, const char *password,
+				 const char *val_2fa, gensiods len_2fa,
 				 const char *service,
 				 bool allow_authfail, bool use_child_auth,
-				 bool enable_password,
+				 bool enable_password, bool do_2fa,
 				 struct gensio_filter **rfilter)
 {
     struct certauth_filter *sfilter;
@@ -1786,7 +1960,8 @@ gensio_certauth_filter_raw_alloc(struct gensio_os_funcs *o,
     sfilter->is_client = is_client;
     sfilter->allow_authfail = allow_authfail;
     sfilter->use_child_auth = use_child_auth;
-    sfilter->enable_password = enable_password,
+    sfilter->enable_password = enable_password;
+    sfilter->do_2fa = do_2fa;
     sfilter->rsa_md5 = EVP_get_digestbyname("ssl3-md5");
     if (!sfilter->rsa_md5) {
 	rv = GE_IOERR;
@@ -1811,6 +1986,16 @@ gensio_certauth_filter_raw_alloc(struct gensio_os_funcs *o,
 	    }
 
 	    strncpy(sfilter->password, password, GENSIO_CERTAUTH_PASSWORD_LEN);
+	}
+
+	if (val_2fa) {
+	    sfilter->val_2fa = o->zalloc(o, len_2fa);
+	    if (!sfilter->val_2fa) {
+		rv = GE_NOMEM;
+		goto out_err;
+	    }
+	    memcpy(sfilter->val_2fa, val_2fa, len_2fa);
+	    sfilter->len_2fa = len_2fa;
 	}
     }
 
@@ -1896,6 +2081,10 @@ gensio_certauth_filter_config_free(struct gensio_certauth_filter_data *data)
     if (data->password) {
 	memset(data->password, 0, strlen(data->password));
 	o->free(o, data->password);
+    }
+    if (data->val_2fa) {
+	memset(data->val_2fa, 0, data->len_2fa);
+	o->free(o, data->val_2fa);
     }
     if (data->username)
 	o->free(o, data->username);
@@ -1991,6 +2180,15 @@ gensio_certauth_filter_config(struct gensio_os_funcs *o,
 		goto out_err;
 	    continue;
 	}
+	if (gensio_check_keyvalue(args[i], "2fa", &str) > 0) {
+	    data->len_2fa = strlen(str);
+	    if (data->len_2fa == 0)
+		goto out_err;
+	    data->val_2fa = gensio_strdup(o, str);
+	    if (!data->val_2fa)
+		goto out_err;
+	    continue;
+	}
 	if (gensio_check_keyvalue(args[i], "service", &str) > 0) {
 	    data->service = gensio_strdup(o, str);
 	    if (!data->service)
@@ -2008,6 +2206,9 @@ gensio_certauth_filter_config(struct gensio_os_funcs *o,
 	    continue;
 	if (gensio_check_keybool(args[i], "enable-password",
 				 &data->enable_password) > 0)
+	    continue;
+	if (gensio_check_keybool(args[i], "enable-2fa",
+				 &data->do_2fa) > 0)
 	    continue;
 	if (gensio_check_keybool(args[i], "allow-unencrypted",
 				 &data->allow_unencrypted) > 0)
@@ -2086,12 +2287,12 @@ gensio_certauth_filter_config(struct gensio_os_funcs *o,
     }
 
     if (data->is_client) {
-	if (data->CAfilepath) {
+	if (data->CAfilepath || data->do_2fa) {
 	    rv = GE_INVAL;
 	    goto out_err;
 	}
     } else {
-	if (data->keyfile || data->username) {
+	if (data->keyfile || data->username || data->val_2fa) {
 	    rv = GE_INVAL;
 	    goto out_err;
 	}
@@ -2238,10 +2439,12 @@ gensio_certauth_filter_alloc(struct gensio_certauth_filter_data *data,
     rv = gensio_certauth_filter_raw_alloc(o, data->is_client, store,
 					  cert, sk_ca, pkey,
 					  data->username, data->password,
+					  data->val_2fa, data->len_2fa,
 					  data->service,
 					  data->allow_authfail,
 					  data->use_child_auth,
 					  data->enable_password,
+					  data->do_2fa,
 					  &filter);
     if (rv)
 	goto err;

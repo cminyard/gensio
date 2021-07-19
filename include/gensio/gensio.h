@@ -40,6 +40,8 @@ typedef unsigned long gensiods; /* Data size */
 #define GENSIO_EVENT_POSTCERT_VERIFY	7
 #define GENSIO_EVENT_PASSWORD_VERIFY	8
 #define GENSIO_EVENT_REQUEST_PASSWORD	9
+#define GENSIO_EVENT_REQUEST_2FA	10
+#define GENSIO_EVENT_2FA_VERIFY		11
 
 /*
  * Serial callbacks start here and run to 2000.
@@ -259,6 +261,10 @@ struct gensio_acc_postcert_verify_data {
     int err;
     const char *errstr;
 };
+
+#define GENSIO_ACC_EVENT_2FA_VERIFY		8
+#define GENSIO_ACC_EVENT_REQUEST_2FA		9
+/* Uses struct gensio_acc_password_verify_data */
 
 typedef int (*gensio_accepter_event)(struct gensio_accepter *accepter,
 				     void *user_data, int event, void *data);
