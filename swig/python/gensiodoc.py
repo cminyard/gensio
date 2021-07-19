@@ -144,7 +144,7 @@ class EventHandler:
 
     def password_verify(self, io, password):
         """Called from certauth server to report a password verification
-        request from the client.  The certauth code will not to it's own
+        request from the client.  The certauth code will not do it's own
         password verification, it relies on the code using it to do this.
 
         io -- The gensio requesting verification.
@@ -164,6 +164,33 @@ class EventHandler:
         io -- The gensio requesting the password.
 
         Return a password string.
+        """
+        return ""
+
+    def verify_2fa(self, io, data_2fa):
+        """Called from certauth server to report a 2-factor authentication
+        verification request from the client.  The certauth code will
+        not do it's own verification, it relies on the code using it
+        to do this.
+
+        io -- The gensio requesting verification.
+        data_wfa -- The 2-factor authentication byte string to verify.
+
+        Return GE_NOTSUP to continue authentication (causing it to
+        reject the password, or 0 to cause the authentication to
+        succeed.  GE_AUTHREJECT will also reject the password
+
+        """
+        return gensio.GE_NOTSUP
+
+    def request_2fa(self, io):
+        """Called from the certauth client to request 2-factor auth data from
+        the user.
+
+        io -- The gensio requesting the password.
+
+        Return a 2fa byte string.
+
         """
         return ""
 
