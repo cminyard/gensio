@@ -229,6 +229,10 @@ namespace gensio {
 	     { return GE_NOTSUP; }
 	virtual int request_password(Gensio *io, unsigned char *password,
 				     gensiods *pwlen) { return GE_NOTSUP; }
+	virtual int verify_2fa(Gensio *io, const unsigned char *val_2fa,
+			       gensiods len_2fa) { return GE_NOTSUP; }
+	virtual int request_2fa(Gensio *io, unsigned char **val_2fa,
+				gensiods *len_2fa) { return GE_NOTSUP; }
 
 	// A gensio that is non-standard may generate events for its
 	// own purposes; these events have event numbers that fall

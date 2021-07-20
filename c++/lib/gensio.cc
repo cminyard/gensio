@@ -235,6 +235,12 @@ namespace gensio {
 
 	    case GENSIO_EVENT_REQUEST_PASSWORD:
 		return cb->request_password(g, buf, buflen);
+
+	    case GENSIO_EVENT_2FA_VERIFY:
+		return cb->verify_2fa(g, buf, *buflen);
+
+	    case GENSIO_EVENT_REQUEST_2FA:
+		return cb->request_2fa(g, (unsigned char **) buf, buflen);
 	    }
 	    return GE_NOTSUP;
 	} catch (std::exception e) {
