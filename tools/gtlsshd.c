@@ -488,13 +488,22 @@ acc_shutdown(struct gensio_accepter *acc, void *done_data)
 
 static pam_handle_t *pamh;
 static char *passwd;
+static char *val_2fa;
+static gensiods len_2fa;
 static bool pam_started = false;
 static bool pam_cred_set = false;
+static bool authed_by_cert = false;
 static char username[100];
 static char *homedir;
 static int pam_err;
 static uid_t uid = -1;
 static gid_t gid = -1;
+
+/*
+ * If this is set and a certificate auth happens, we use this to start
+ * PAM.  This way we can do 2-factor auth with certificates.
+ */
+static const char *pam_cert_auth_progname;
 
 /*
  * Ambiguity in spec: is it an array of pointers or a pointer to an array?
@@ -506,64 +515,9 @@ static gid_t gid = -1;
 # define PAM_MSG_MEMBER(msg, n, member) ((msg)[(n)]->member)
 #endif
 
-static int
-pam_cb(int num_msg, const struct pam_message **msg,
-       struct pam_response **resp, void *appdata_ptr)
-{
-    int i, j;
-    struct pam_response *reply = NULL;
-
-    if (num_msg <= 0 || num_msg > PAM_MAX_NUM_MSG)
-	return PAM_CONV_ERR;
-
-    reply = malloc(sizeof(*reply) * num_msg);
-    if (!reply)
-	return PAM_CONV_ERR;
-
-    for (i = 0; i < num_msg; i++) {
-	reply[i].resp = NULL;
-	reply[i].resp_retcode = 0;
-
-	switch (PAM_MSG_MEMBER(msg, i, msg_style)) {
-	case PAM_PROMPT_ECHO_OFF:
-	    if (passwd) {
-		reply[i].resp = strdup(passwd);
-		if (!reply[i].resp)
-		    goto out_err;
-	    }
-	    break;
-
-	case PAM_PROMPT_ECHO_ON:
-	    break;
-
-	case PAM_ERROR_MSG:
-	    syslog(LOG_ERR, "Error from pam: %s",
-		   PAM_MSG_MEMBER(msg, i, msg));
-	    break;
-
-	case PAM_TEXT_INFO:
-	    break;
-
-	default:
-	    goto out_err;
-	}
-    }
-    *resp = reply;
-    return PAM_SUCCESS;
-
- out_err:
-    for (j = 0; j < i; j++) {
-	if (reply[j].resp)
-	    free(reply[j].resp);
-    }
-    free(reply);
-    return PAM_CONV_ERR;
-}
-
-static struct pam_conv auth_conv = { pam_cb, NULL };
-
 static bool permit_root = false;
 static bool pw_login = false;
+static bool do_2fa = false;
 
 static int
 get_vals_from_service(char ***rvals, unsigned int *rvlen,
@@ -608,6 +562,31 @@ get_vals_from_service(char ***rvals, unsigned int *rvlen,
 }
 
 static int
+get_2fa(struct gensio *io)
+{
+    int err;
+    char dummy;
+
+    len_2fa = 0;
+    err = gensio_control(io, 0, true, GENSIO_CONTROL_2FA, &dummy, &len_2fa);
+    if (err) {
+	if (err == GE_DATAMISSING)
+	    return 0;
+	return err;
+    }
+    val_2fa = malloc(len_2fa + 1);
+    if (!val_2fa)
+	return GE_NOMEM;
+    val_2fa[len_2fa] = '\0'; /* nil terminate, 2fa may be binary. */
+    err = gensio_control(io, 0, true, GENSIO_CONTROL_2FA, val_2fa, &len_2fa);
+    if (err) {
+	free(val_2fa);
+	val_2fa = NULL;
+    }
+    return err;
+}
+
+static int
 certauth_event(struct gensio *io, void *user_data, int event, int ierr,
 	       unsigned char *buf, gensiods *buflen,
 	       const char *const *auxdata)
@@ -641,14 +620,6 @@ certauth_event(struct gensio *io, void *user_data, int event, int ierr,
 	}
 	uid = pw->pw_uid;
 	gid = pw->pw_gid;
-
-	pam_err = pam_start(progname, username, &auth_conv, &pamh);
-	if (pam_err != PAM_SUCCESS) {
-	    syslog(LOG_ERR, "pam_start failed for %s: %s", username,
-		   pam_strerror(pamh, pam_err));
-	    return GE_AUTHREJECT;
-	}
-	pam_started = true;
 	homedir = pw->pw_dir;
 
 	len = snprintf(authdir, sizeof(authdir), "%s/.gtlssh/allowed_certs/",
@@ -674,23 +645,29 @@ certauth_event(struct gensio *io, void *user_data, int event, int ierr,
 		   auxdata[0] ? auxdata[0] : "");
 	    return GE_AUTHREJECT;
 	}
-	if (!ierr)
+	if (!ierr) {
 	    syslog(LOG_INFO, "Accepted certificate for %s\n", username);
+	    authed_by_cert = true;
+	}
 	return GE_NOTSUP;
 
     case GENSIO_EVENT_PASSWORD_VERIFY:
-	passwd = (char *) buf;
-	pam_err = pam_authenticate(pamh, PAM_SILENT);
-	passwd = NULL;
-	if (pam_err == PAM_AUTH_ERR) {
-	    return GE_NOTSUP;
-	} else if (pam_err != PAM_SUCCESS) {
-	    syslog(LOG_ERR, "pam_authenticate failed for %s: %s", username,
-		   pam_strerror(pamh, pam_err));
-	    return GE_INVAL;
-	}
-	syslog(LOG_INFO, "Accepted password for %s\n", username);
-	return 0;
+	passwd = strdup((char *) buf);
+	if (!passwd)
+	    return GE_NOMEM;
+	err = get_2fa(io);
+	if (err)
+	    return err;
+	return GE_NOTSUP;
+
+    case GENSIO_EVENT_2FA_VERIFY:
+	len_2fa = *buflen;
+	val_2fa = malloc(len_2fa + 1);
+	if (!val_2fa)
+	    return GE_NOMEM;
+	memcpy(val_2fa, buf, len_2fa);
+	val_2fa[len_2fa] = '\0';
+	return GE_NOTSUP;
 
     default:
 	return GE_NOTSUP;
@@ -726,6 +703,21 @@ gensio_pam_cb(int num_msg, const struct pam_message **msg,
 	switch (style) {
 	case PAM_PROMPT_ECHO_OFF:
 	case PAM_PROMPT_ECHO_ON:
+	    /* If we have passwd or 2fa data, just supply it. */
+	    if (passwd) {
+		reply[i].resp = passwd;
+		if (!reply[i].resp)
+		    goto out_err;
+		passwd = NULL;
+		break;
+	    } else if (val_2fa) {
+		reply[i].resp = val_2fa;
+		if (!reply[i].resp)
+		    goto out_err;
+		val_2fa = NULL;
+		break;
+	    }
+
 	    if (msgdata) {
 		err = write_str_to_gensio(msgdata, io, &timeout, true);
 		if (err)
@@ -1119,11 +1111,13 @@ handle_new(struct gensio_runner *r, void *cb_data)
     int err;
     const char *ssl_args[] = { ginfo->key, ginfo->cert, "mode=server", NULL };
     const char *certauth_args[] = { "mode=server", "allow-authfail", NULL,
-				    NULL };
+				    NULL, NULL };
     struct gensio *ssl_io, *certauth_io, *top_io;
     gensiods len;
     char tmpservice[20];
+    const char *pn;
     bool interactive = false;
+    unsigned int i;
 
     o->free_runner(r);
 
@@ -1140,8 +1134,16 @@ handle_new(struct gensio_runner *r, void *cb_data)
 	exit(1);
     }
 
+    i = 2;
     if (pw_login)
-	certauth_args[2] = "enable-password";
+	certauth_args[i++] = "enable-password";
+
+    if (do_2fa)
+	certauth_args[i++] = "enable-2fa";
+    else if (pam_cert_auth_progname)
+	/* Not required if do_2fa is set. */
+	certauth_args[i++] = "enable-cert-2fa";
+
     err = certauth_gensio_alloc(ssl_io, certauth_args, o,
 				certauth_event, NULL, &certauth_io);
     if (err) {
@@ -1173,30 +1175,36 @@ handle_new(struct gensio_runner *r, void *cb_data)
     else
 	top_io = certauth_io;
 
+    pn = progname;
+    if (pam_cert_auth_progname && authed_by_cert)
+	pn = pam_cert_auth_progname;
     ginfo->rem_io = top_io;
     gensio_conv.appdata_ptr = ginfo;
-    pam_err = pam_set_item(pamh, PAM_CONV, &gensio_conv);
-    if (pam_err) {
-	syslog(LOG_ERR, "Unable to set PAM_CONV");
+    pam_err = pam_start(pn, username, &gensio_conv, &pamh);
+    if (pam_err != PAM_SUCCESS) {
+	syslog(LOG_ERR, "pam_start failed for %s: %s", username,
+	       pam_strerror(pamh, pam_err));
 	exit(1);
     }
+    pam_started = true;
 
-    if (!gensio_is_authenticated(top_io)) {
+    if (!gensio_is_authenticated(top_io) || pam_cert_auth_progname) {
 	int tries = 3;
 
-	do {
+	pam_err = pam_authenticate(pamh, 0);
+	while (pam_err != PAM_SUCCESS && tries > 0) {
 	    gensio_time timeout = {10, 0};
 
 	    err = write_str_to_gensio("Permission denied, please try again\n",
 				      top_io, &timeout, true);
 	    if (err) {
-		syslog(LOG_INFO, "Error getting password: %s\n",
+		syslog(LOG_INFO, "Error writing password prompt: %s\n",
 		       gensio_err_to_str(err));
 		exit(1);
 	    }
 	    pam_err = pam_authenticate(pamh, 0);
 	    tries--;
-	} while (pam_err != PAM_SUCCESS && tries > 0);
+	}
 
 	if (pam_err != PAM_SUCCESS) {
 	    gensio_time timeout = {10, 0};
@@ -1406,6 +1414,10 @@ help(int err)
     printf("     accepter used by gtlsshd, in addition to sctp and tcp.\n");
     printf("  -4 - Do IPv4 only.\n");
     printf("  -6 - Do IPv6 only.\n");
+    printf("  --do-2fa - Have the client get 2-factor auth data.\n");
+    printf("  --pam-cert-auth <name> - When doing a certificate auth,\n");
+    printf("     use the name as the PAM program name and run the PAM auth\n");
+    printf("     after the certificate auth succeeds.  For 2-factor auth.\n");
     printf("  -P, --pidfile <file> - Create the given pidfile.\n");
     printf("  -h, --help - This help\n");
     exit(err);
@@ -1494,6 +1506,11 @@ main(int argc, char *argv[])
 	    permit_root = true;
 	else if ((rv = cmparg(argc, argv, &arg, NULL, "--allow-password", NULL)))
 	    pw_login = true;
+	else if ((rv = cmparg(argc, argv, &arg, NULL, "--do-2fa", NULL)))
+	    do_2fa = true;
+	else if ((rv = cmparg(argc, argv, &arg, NULL, "--pam-cert-auth",
+			      &pam_cert_auth_progname)))
+	    ;
 	else if ((rv = cmparg(argc, argv, &arg, NULL, "--oneshot", NULL)))
 	    oneshot = true;
 	else if ((rv = cmparg(argc, argv, &arg, NULL, "--nodaemon", NULL)))
@@ -1736,6 +1753,15 @@ main(int argc, char *argv[])
 
     gensio_os_proc_cleanup(proc_data);
     o->free_funcs(o);
+
+    if (passwd) {
+	memset(passwd, 0, strlen(passwd));
+	free(passwd);
+    }
+    if (val_2fa) {
+	memset(val_2fa, 0, len_2fa);
+	free(val_2fa);
+    }
 
     if (pam_cred_set) {
 	pam_err = pam_setcred(pamh, PAM_DELETE_CRED | PAM_SILENT);

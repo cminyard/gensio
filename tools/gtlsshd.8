@@ -41,13 +41,30 @@ Use the given file for the key instead of the default.  Defaults to
 .I \-c|\-\-certfile file
 Set the certificate to use.  Defaults to /etc/gtlssh/gtlsshd.crt.
 .TP
-.I \-\-permit-root
+.I \-\-permit\-root
 Allow root logins.  Otherwise root or uid=0 is denied.
 .TP
-.I \-\-allow-password
+.I \-\-allow\-password
 Allow password logins.  By default only certificate-based logins
 are allowed.  Passwords are much less secure than certificate
 logins, so their use is discouraged.
+.TP
+.I \-\-do\-2fa
+Enable 2-factor authentication.  This means that 2-factor
+authentication is enabled in PAM for gtlssh.  This will cause the
+client end to request 2-factor data and transmit it over along with
+the password.  During authentication, it is expected that PAM will
+request two authentication tokens and the first will be the password
+(if certificate failed).  Note that this is not required to do
+2-factor auth, but is useful to allow gtlssh to read the 2-factor data
+and transfer it as part of the login data.
+.TP
+.I \-\-pam\-cert\-auth <name>
+If the connection is authorized with a certificate, still do a PAM
+authentication, but use the given name as the program name for PAM to
+use to find the rules.  This will allow 2-factor auth to be done on a
+certificate login, as the given set of rules can be written to only
+do the second factor authentication part.
 .TP
 .I \-\-oneshot
 Do not fork the program at the beginning or when a connection is
