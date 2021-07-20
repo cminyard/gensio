@@ -150,69 +150,159 @@ static char *tlssh_dir = NULL;
 static int port = 852;
 
 static int
-getpassword(char *pw, gensiods *len)
+setup_promptuser(struct gdata *ginfo, const char *prompt, struct gensio **rtty)
 {
-    int fd = open("/dev/tty", O_RDWR);
-    struct termios old_termios, new_termios;
-    int err = 0;
-    gensiods pos = 0;
-    char c = 0;
-    static char *prompt = "Password: ";
+    struct gensio *tty;
+    int err;
+    const char *constr = "stdio(console,raw)";
 
-    if (fd == -1) {
-	err = errno;
-	fprintf(stderr, "Unable to open controlling terminal: %s\n",
-		strerror(err));
+    err = str_to_gensio(constr, ginfo->o, NULL, NULL, &tty);
+    if (err) {
+	fprintf(stderr, "Unable to allocate gensio for %s: %s\n", constr,
+		gensio_err_to_str(err));
 	return err;
     }
 
-    err = tcgetattr(fd, &old_termios);
-    if (err == -1) {
-	err = errno;
-	fprintf(stderr, "Unable to get terminal information: %s\n",
-		strerror(err));
-	goto out_close;
+    err = gensio_open_s(tty);
+    if (err) {
+	gensio_free(tty);
+	fprintf(stderr, "Unable to open console %s: %s\n", constr,
+		gensio_err_to_str(err));
+	return err;
     }
 
-    new_termios = old_termios;
-    new_termios.c_lflag &= ~ECHO;
-
-    err = tcsetattr(fd, TCSANOW, &new_termios);
-    if (err == -1) {
-	err = errno;
-	fprintf(stderr, "Unable to set terminal information: %s\n",
-		strerror(err));
-	goto out_close;
+    err = gensio_set_sync(tty);
+    if (err) {
+	gensio_free(tty);
+	fprintf(stderr, "Unable to set %s synchronous: %s\n", constr,
+		gensio_err_to_str(err));
+	return err;
     }
 
-    err = write(fd, prompt, strlen(prompt));
-    if (err == -1) {
+    err = gensio_write_s(tty, NULL, prompt, strlen(prompt), NULL);
+    if (err) {
+	gensio_free(tty);
 	fprintf(stderr, "Error writing password prompt, giving up: %s\n",
 		strerror(errno));
 	exit(1);
     }
+
+    *rtty = tty;
+
+    return err;
+}
+
+static int
+getpassword(struct gdata *ginfo, char *pw, gensiods *len, const char *prompt)
+{
+    struct gensio *tty;
+    int err;
+    gensiods pos = 0;
+    char c = 0;
+
+    err = setup_promptuser(ginfo, prompt, &tty);
+    if (err)
+	return err;
+
     while (true) {
-	err = read(fd, &c, 1);
-	if (err < 0) {
-	    err = errno;
-	    fprintf(stderr, "Error reading password: %s\n", strerror(err));
-	    goto out;
+	gensiods count = 0;
+
+	err = gensio_read_s(tty, &count, &c, 1, NULL);
+	if (err) {
+	    fprintf(stderr, "Error reading password: %s\n",
+		    gensio_err_to_str(err));
+	    goto out_err;
+	}
+	if (count != 1) {
+	    fprintf(stderr,
+		    "Error reading password: read didn't return data\n");
+	    err = GE_IOERR;
+	    goto out_err;
 	}
 	if (c == '\r' || c == '\n')
 	    break;
 	if (pos < *len)
 	    pw[pos++] = c;
     }
-    err = 0;
-    printf("\n");
+    gensio_write_s(tty, NULL, "\r\n", 2, NULL);
     if (pos < *len)
 	pw[pos++] = '\0';
     *len = pos;
 
- out:
-    tcsetattr(fd, TCSANOW, &old_termios);
- out_close:
-    close(fd);
+ out_err:
+    gensio_clear_sync(tty);
+    gensio_close_s(tty);
+    gensio_free(tty);
+    return err;
+}
+
+static int
+increase_size(struct gensio_os_funcs *o, char **rval, gensiods *size)
+{
+    gensiods newsize = *size + 10;
+    char *val;
+
+    val = o->zalloc(o, newsize);
+    if (!val) {
+	fprintf(stderr, "Out of memory allocating 2fa data\n");
+	return GE_NOMEM;
+    }
+    if (*rval) {
+	memcpy(val, *rval, *size);
+	o->free(o, *rval);
+    }
+    *rval = val;
+    *size = newsize;
+    return 0;
+}
+
+static int
+get2fa(struct gdata *ginfo, char **rval, gensiods *len, const char *prompt)
+{
+    struct gensio_os_funcs *o = ginfo->o;
+    struct gensio *tty;
+    int err;
+    gensiods pos = 0, size = 0;
+    char *val = NULL;
+
+    err = setup_promptuser(ginfo, prompt, &tty);
+    if (err)
+	return err;
+
+    while (true) {
+	gensiods count = 0;
+
+	if (pos >= size) {
+	    err = increase_size(o, &val, &size);
+	    if (err)
+		goto out_err;
+	}
+	err = gensio_read_s(tty, &count, &(val[pos]), 1, NULL);
+	if (err) {
+	    fprintf(stderr, "Error reading 2fa: %s\n",
+		    gensio_err_to_str(err));
+	    goto out_err;
+	}
+	if (count != 1) {
+	    fprintf(stderr,
+		    "Error reading 2fa: read didn't return data\n");
+	    err = GE_IOERR;
+	    goto out_err;
+	}
+	if (val[pos] == '\r' || val[pos] == '\n')
+	    break;
+	pos++;
+    }
+    *len = pos;
+    *rval = val;
+    val = NULL;
+
+ out_err:
+    if (val)
+	o->free(o, val);
+    gensio_clear_sync(tty);
+    gensio_close_s(tty);
+    gensio_free(tty);
     return err;
 }
 
@@ -261,6 +351,7 @@ help(int err)
     printf("  --mdns-type - Set the type used for the lookup.  See\n");
     printf("    the gmdns(1) man page under 'STRING VALUES FOR QUERIES'\n");
     printf("    for detail on how to do regex, glob, etc.\n");
+    printf("  --2fa <str> - Pass the given string as 2-factor auth data.\n");
     printf("  -d, --debug - Enable debug.  Specify more than once to increase\n"
 	   "    the debug level\n");
     printf("  -L <accept addr>:<connect addr> - Listen at the <accept addr>\n"
@@ -945,7 +1036,10 @@ auth_event(struct gensio *io, void *user_data, int event, int ierr,
 	return err;
 
     case GENSIO_EVENT_REQUEST_PASSWORD:
-	return getpassword((char *) ibuf, buflen);
+	return getpassword(ginfo, (char *) ibuf, buflen, "Password: ");
+
+    case GENSIO_EVENT_REQUEST_2FA:
+	return get2fa(ginfo, (char **) ibuf, buflen, "2-factor auth: ");
 
     default:
 	return GE_NOTSUP;
@@ -1438,6 +1532,7 @@ main(int argc, char *argv[])
     const char *addr;
     const char *iptype = ""; /* Try both IPv4 and IPv6 by default. */
     const char *mdns_type = NULL;
+    const char *val_2fa = "", *pfx_2fa = "";
 
     localport_err = pr_localport;
 
@@ -1538,6 +1633,9 @@ main(int argc, char *argv[])
 	} else if ((rv = cmparg(argc, argv, &arg, NULL, "--mdns-type",
 				&mdns_type))) {
 	    ;
+	} else if ((rv = cmparg(argc, argv, &arg, NULL, "--2fa",
+				 &val_2fa))) {
+	    pfx_2fa = ",2fa=";
 	} else if ((rv = cmparg(argc, argv, &arg, "-L", NULL, &addr))) {
 	    rv = handle_port(o, false, addr);
 	} else if ((rv = cmparg(argc, argv, &arg, "-R", NULL, &addr))) {
@@ -1753,15 +1851,15 @@ main(int argc, char *argv[])
 
  retry:
     if (user_transport)
-	s = alloc_sprintf("%s%scertauth(enable-password,username=%s%s%s),"
+	s = alloc_sprintf("%s%scertauth(enable-password,username=%s%s%s%s%s),"
 			  "ssl(%s),%s",
 			  do_telnet, muxstr, username, certfilespec,
-			  keyfilespec, CAdirspec, transport);
+			  keyfilespec, pfx_2fa, val_2fa, CAdirspec, transport);
     else
-	s = alloc_sprintf("%s%scertauth(enable-password,username=%s%s%s),"
+	s = alloc_sprintf("%s%scertauth(enable-password,username=%s%s%s%s%s),"
 			  "ssl(%s),%s,%s%s,%d",
 			  do_telnet, muxstr, username, certfilespec,
-			  keyfilespec, CAdirspec,
+			  keyfilespec, pfx_2fa, val_2fa, CAdirspec,
 			  transport, iptype, hostname, port);
     if (!s) {
 	fprintf(stderr, "out of memory allocating IO string\n");
