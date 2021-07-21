@@ -521,7 +521,8 @@ gensio_write(struct gensio *io, gensiods *count,
     struct gensio_sg sg;
 
     if (buflen == 0) {
-	*count = 0;
+	if (count)
+	    *count = 0;
 	return 0;
     }
     sg.buf = buf;
@@ -535,7 +536,8 @@ gensio_write_sg(struct gensio *io, gensiods *count,
 		const char *const *auxdata)
 {
     if (sglen == 0) {
-	*count = 0;
+	if (count)
+	    *count = 0;
 	return 0;
     }
     return io->func(io, GENSIO_FUNC_WRITE_SG, count, sg, sglen, NULL, auxdata);
@@ -2734,6 +2736,7 @@ gensio_wait_no_cb(struct gensio *io, struct gensio_waiter *waiter,
     struct gensio_nocbwait wait;
     int rv = 0;
 
+    memset(&wait, 0, sizeof(wait));
     wait.waiter = waiter;
     o->lock(io->lock);
     if (io->cb_count != 0) {
