@@ -29,6 +29,30 @@ have a certificate that matches the presented certificate,
 .BR gtlsshd
 will attempt a normal password login if that is enabled.
 
+.SH TWO-FACTOR AUTHENTICATION
+.BR gtlsshd
+supports two-factor authentication in a number of ways.  The certauth
+gensio supports sending a second authentication token, gtlsshd will
+pick that up and use it if PAM asks for it.  If it's not there but PAM
+asks for it, it will interactively prompt the user for the token
+unless
+.I \-\-nointeractive
+is specified.
+
+This requires, of course, proper PAM setup.  It also direclty supports
+second authentication tokens with certificates.  You can specify a
+different PAM authentication script for logins done with certificates
+using
+.I \-\-pam\-cert\-auth
+to allow a second factor to be added for just certificate
+authentications.
+
+You can request that the other end prompt for a second-factor
+authentication token and send it along with the password by adding the
+.I \-\-do\-2fa
+option.  This will cause the other end to always ask for a second
+factor.
+
 .SH OPTIONS
 .TP
 .I \-p|\-\-port port
