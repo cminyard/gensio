@@ -149,6 +149,7 @@ static struct ioinfo_user_handlers guh = {
 static const char *username, *hostname, *keyfile, *certfile, *CAdir;
 static char *tlssh_dir = NULL;
 static int port = 852;
+static struct gtlssh_aux_data aux_data;
 
 static int
 setup_promptuser(struct gdata *ginfo, const char *prompt, int *rfd,
@@ -158,6 +159,9 @@ setup_promptuser(struct gdata *ginfo, const char *prompt, int *rfd,
     struct termios new_termios;
     gensiods pos = 0;
     char c = 0;
+
+    if (aux_data.flags & GTLSSH_AUX_FLAG_NO_INTERACTIVE)
+	return GE_KEYNOTFOUND;
 
     if (fd == -1) {
 	err = errno;
@@ -1504,8 +1508,6 @@ lookup_mdns_transport(struct gensio_os_funcs *o, const char *name,
     return 0;
 }
 
-static struct gtlssh_aux_data aux_data;
-
 int
 main(int argc, char *argv[])
 {
@@ -1908,6 +1910,8 @@ main(int argc, char *argv[])
 	    return 1;
 	}
     }
+
+    aux_data.flags = ntohl(aux_data.flags);
 
     rv = gensio_control(userdata2.io, 0 + use_telnet, false,
 			GENSIO_CONTROL_SERVICE, service, &service_len);
