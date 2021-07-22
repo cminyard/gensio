@@ -26,6 +26,7 @@
 #ifndef GTLSSH_H
 #define GTLSSH_H
 #include <stdbool.h>
+#include <stdint.h>
 #include <gensio/gensio.h>
 
 int checkout_file(const char *filename, bool expect_dir, bool check_private);
@@ -57,5 +58,11 @@ int run_get_output(const char *argv[],
 #define DIRSEP '/'
 #define DIRSEPS "/"
 #endif
+
+/* Transferred over the aux data. */
+struct gtlssh_aux_data {
+    uint32_t flags; /* Flag fields in network order. */
+};
+#define GTLSSH_AUX_FLAG_NO_INTERACTIVE		(1 << 0)
 
 #endif /* GENSIOTOOL_UTILS_H */
