@@ -345,6 +345,7 @@ static char *homedir;
 static int pam_err;
 static uid_t uid = -1;
 static gid_t gid = -1;
+static bool interactive_login = true;
 
 /*
  * If this is set and a certificate auth happens, we use this to start
@@ -564,6 +565,8 @@ gensio_pam_cb(int num_msg, const struct pam_message **msg,
 		val_2fa = NULL;
 		break;
 	    }
+	    if (!interactive_login)
+		goto out_err;
 
 	    if (msgdata) {
 		err = write_str_to_gensio(msgdata, io, &timeout, true);
@@ -1035,6 +1038,8 @@ handle_new(struct gensio_runner *r, void *cb_data)
     if (!gensio_is_authenticated(top_io) || pam_cert_auth_progname) {
 	int tries = 3;
 
+	if (!interactive_login)
+	    tries = 1;
 	pam_err = pam_authenticate(pamh, 0);
 	while (pam_err != PAM_SUCCESS && tries > 0) {
 	    gensio_time timeout = {10, 0};
@@ -1053,14 +1058,19 @@ handle_new(struct gensio_runner *r, void *cb_data)
 	if (pam_err != PAM_SUCCESS) {
 	    gensio_time timeout = {10, 0};
 
-	    err = write_str_to_gensio("Too many tries, giving up\n",
-				      top_io, &timeout, true);
-	    if (err) {
-		syslog(LOG_INFO, "Error getting password: %s\n",
-		       gensio_err_to_str(err));
-		exit(1);
+	    if (interactive_login) {
+		err = write_str_to_gensio("Too many tries, giving up\n",
+					  top_io, &timeout, true);
+		syslog(LOG_ERR, "Too many login tries for %s\n", username);
+	    } else {
+		err = write_str_to_gensio("Non-interactive login only\n",
+					  top_io, &timeout, true);
+		syslog(LOG_ERR, "Non-interactive login only %s\n", username);
 	    }
-	    syslog(LOG_ERR, "Too many login tries for %s\n", username);
+	    if (err) {
+		syslog(LOG_INFO, "Error writing login error: %s\n",
+		       gensio_err_to_str(err));
+	    }
 	    exit(1);
 	}
 	syslog(LOG_INFO, "Accepted password for %s\n", username);
@@ -1252,6 +1262,7 @@ help(int err)
     printf("  --allow-password - Allow password-based logins.\n");
     printf("  --oneshot - Do not fork new connections, do one and exit.\n");
     printf("  --nodaemon - Do not daemonize.\n");
+    printf("  --nointeractive - Do not do interactive login queries.\n");
     printf("  --nosctp - Disable SCTP support.\n");
     printf("  --notcp - Disable TCP support.\n");
     printf("  --other_acc <accepter> - Allows the user to specify the\n");
@@ -1360,6 +1371,8 @@ main(int argc, char *argv[])
 	    daemonize = false;
 	else if ((rv = cmparg(argc, argv, &arg, "-P", "--pidfile", &pid_file)))
 	    ;
+	else if ((rv = cmparg(argc, argv, &arg, NULL, "--nointeractive", NULL)))
+	    interactive_login = false;
 	else if ((rv = cmparg(argc, argv, &arg, "-4", NULL, NULL)))
 	    iptype = "ipv4,0.0.0.0,";
 	else if ((rv = cmparg(argc, argv, &arg, "-6", NULL, NULL)))
