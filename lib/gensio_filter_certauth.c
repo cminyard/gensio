@@ -119,8 +119,8 @@ enum certauth_state {
      * (containing the version, random challenge, and optional
      * options) and goes into CHALLENGE_RESPONSE.
      *
-     * Message contains a VERSION element, an optinal USERNAME
-     * element, and an option SERVICE element.
+     * Message contains a VERSION element, an optional USERNAME
+     * element, and an optional SERVICE element.
      */
     CERTAUTH_CLIENTHELLO = 1,
 
@@ -133,8 +133,9 @@ enum certauth_state {
      * Client may also receive a SERVERDONE in this state if the
      * authorization is rejected or authorized on username alone.
      *
-     * Message contains a VERSION element and a CHALLENGE_DATA
-     * element.
+     * Message contains a VERSION element, a CHALLENGE_DATA element,
+     * and an optional AUX_DATA element.  AUX_DATA is version 2 or
+     * later.
      */
     CERTAUTH_SERVERHELLO = 2,
 
@@ -154,8 +155,11 @@ enum certauth_state {
      * passthrough mode.  If the certificate does not verify, send
      * a PASSWORD_REQUEST (no data) and go into PASSWORD mode.
      *
-     * Message contains a CERTIFICATE element and a CHALLENGE_RSP
-     * element.
+     * Message contains a CERTIFICATE element, a CHALLENGE_RSP
+     * element, and an optional AUX_DATA element.  AUX_DATA is version
+     * 2 or later.  AUX_DATA has to be here, and not in CLIENTHELLO,
+     * because the client doesn't know the remote version when sending
+     * a CLIENTHELLO.
      */
     CERTAUTH_CHALLENGE_RESPONSE = 3,
 
@@ -289,6 +293,14 @@ enum certauth_elements {
     CERTAUTH_2FA_DATA		= 111,
 
     /*
+     * 112 <n> <data>
+     *
+     * Holds a block of generic data.  It has no meaning to certauth,
+     * it is used to transfer useful information to the other end.
+     */
+    CERTAUTH_AUX_DATA		= 112,
+
+    /*
      * 200
      *
      * This is the last thing in the message.
@@ -296,7 +308,7 @@ enum certauth_elements {
     CERTAUTH_END		= 200
 };
 #define CERTAUTH_MIN_ELEMENT CERTAUTH_VERSION
-#define CERTAUTH_MAX_ELEMENT CERTAUTH_2FA_DATA
+#define CERTAUTH_MAX_ELEMENT CERTAUTH_AUX_DATA
 
 #define CERTAUTH_RESULT_SUCCESS	1
 #define CERTAUTH_RESULT_FAILURE	2
@@ -357,6 +369,12 @@ struct certauth_filter {
     bool req_2fa_val;
     unsigned char *val_2fa;
     gensiods len_2fa;
+
+    /* Aux data locally and from the remote end. */
+    unsigned char *val_aux;
+    gensiods len_aux;
+    unsigned char *val_rem_aux;
+    gensiods len_rem_aux;
 
     char *service;
     size_t service_len;
@@ -943,6 +961,11 @@ certauth_try_connect(struct gensio_filter *filter, gensio_time *timeout)
 	}
 	certauth_write(sfilter, sfilter->challenge_data,
 		       sfilter->challenge_data_size);
+	if (sfilter->version >= 2 && sfilter->len_aux && sfilter->val_aux) {
+	    certauth_write_byte(sfilter, CERTAUTH_AUX_DATA);
+	    certauth_write_u16(sfilter, sfilter->len_aux);
+	    certauth_write(sfilter, sfilter->val_aux, sfilter->len_aux);
+	}
 
 	certauth_write_byte(sfilter, CERTAUTH_END);
 
@@ -979,6 +1002,11 @@ certauth_try_connect(struct gensio_filter *filter, gensio_time *timeout)
 	} else {
 	    /* Mask the fact we are not sending a response. */
 	    certauth_add_dummy(sfilter, 256);
+	}
+	if (sfilter->version >= 2 && sfilter->len_aux && sfilter->val_aux) {
+	    certauth_write_byte(sfilter, CERTAUTH_AUX_DATA);
+	    certauth_write_u16(sfilter, sfilter->len_aux);
+	    certauth_write(sfilter, sfilter->val_aux, sfilter->len_aux);
 	}
 
 	certauth_write_byte(sfilter, CERTAUTH_END);
@@ -1484,6 +1512,23 @@ certauth_handle_new_element(struct certauth_filter *sfilter)
 	}
 	break;
 
+    case CERTAUTH_AUX_DATA:
+	if (sfilter->len_rem_aux) {
+	    gca_log_err(sfilter, "Remote aux data received when already set");
+	    sfilter->pending_err = GE_PROTOERR;
+	    break;
+	}
+	sfilter->len_rem_aux = sfilter->curr_elem_len;
+	sfilter->val_rem_aux = o->zalloc(o, sfilter->len_rem_aux + 1);
+	if (!sfilter->val_rem_aux) {
+	    gca_log_err(sfilter, "Unable to allocate memory for remote aux");
+	    sfilter->pending_err = GE_NOMEM;
+	} else {
+	    memcpy(sfilter->val_rem_aux, sfilter->read_buf,
+		   sfilter->len_rem_aux);
+	}
+	break;
+
     case CERTAUTH_OPTIONS:
 	break;
 
@@ -1737,6 +1782,15 @@ certauth_cleanup(struct gensio_filter *filter)
     sfilter->val_2fa = NULL;
     sfilter->len_2fa = 0;
 
+    if (sfilter->val_aux)
+	o->free(o, sfilter->val_aux);
+    sfilter->val_aux = NULL;
+    sfilter->len_aux = 0;
+    if (sfilter->val_rem_aux)
+	o->free(o, sfilter->val_rem_aux);
+    sfilter->val_rem_aux = NULL;
+    sfilter->len_rem_aux = 0;
+
     sfilter->pending_err = 0;
     sfilter->password_req_val = 0;
     sfilter->read_buf_len = 0;
@@ -1801,6 +1855,7 @@ certauth_filter_control(struct gensio_filter *filter, bool get, int op,
     struct certauth_filter *sfilter = filter_to_certauth(filter);
     X509_STORE *store;
     char *CApath = NULL, *CAfile = NULL;
+    int rv = 0;
 
     switch (op) {
     case GENSIO_CONTROL_GET_PEER_CERT_NAME:
@@ -1816,8 +1871,6 @@ certauth_filter_control(struct gensio_filter *filter, bool get, int op,
 	return gensio_cert_to_buf(sfilter->cert, data, datalen);
 
     case GENSIO_CONTROL_USERNAME: {
-	int rv = 0;
-
 	certauth_lock(sfilter);
 	if (get) {
 	    if (!sfilter->username) {
@@ -1845,8 +1898,6 @@ certauth_filter_control(struct gensio_filter *filter, bool get, int op,
     }
 
     case GENSIO_CONTROL_PASSWORD: {
-	int rv = 0;
-
 	certauth_lock(sfilter);
 	if (get) {
 	    if (!sfilter->password) {
@@ -1874,7 +1925,6 @@ certauth_filter_control(struct gensio_filter *filter, bool get, int op,
     }
 
     case GENSIO_CONTROL_2FA: {
-	int rv = 0;
 	gensiods len;
 
 	certauth_lock(sfilter);
@@ -1907,6 +1957,80 @@ certauth_filter_control(struct gensio_filter *filter, bool get, int op,
 	    sfilter->len_2fa = *datalen;
 	}
 	out_2fa:
+	certauth_unlock(sfilter);
+	return rv;
+    }
+
+    case GENSIO_CONTROL_AUX_DATA: {
+	gensiods len;
+
+	certauth_lock(sfilter);
+	if (get) {
+	    if (!sfilter->val_aux) {
+		rv = GE_DATAMISSING;
+		goto out_username;
+	    }
+	    len = sfilter->len_aux;
+	    if (len > *datalen)
+		len = *datalen;
+	    memcpy(data, sfilter->val_aux, len);
+	    *datalen = sfilter->len_aux;
+	} else {
+	    unsigned char *newaux = NULL;
+
+	    if (*datalen == 0)
+		data = NULL;
+	    if (data) {
+		newaux = sfilter->o->zalloc(sfilter->o, *datalen);
+		if (!newaux) {
+		    rv = GE_NOMEM;
+		    goto out_aux;
+		}
+		memcpy(newaux, data, *datalen);
+	    }
+	    if (sfilter->val_aux)
+		sfilter->o->free(sfilter->o, sfilter->val_aux);
+	    sfilter->val_aux = newaux;
+	    sfilter->len_aux = *datalen;
+	}
+	out_aux:
+	certauth_unlock(sfilter);
+	return rv;
+    }
+
+    case GENSIO_CONTROL_REM_AUX_DATA: {
+	gensiods len;
+
+	certauth_lock(sfilter);
+	if (get) {
+	    if (!sfilter->val_rem_aux) {
+		rv = GE_DATAMISSING;
+		goto out_username;
+	    }
+	    len = sfilter->len_rem_aux;
+	    if (len > *datalen)
+		len = *datalen;
+	    memcpy(data, sfilter->val_rem_aux, len);
+	    *datalen = sfilter->len_rem_aux;
+	} else {
+	    unsigned char *newrem_aux = NULL;
+
+	    if (*datalen == 0)
+		data = NULL;
+	    if (data) {
+		newrem_aux = sfilter->o->zalloc(sfilter->o, *datalen);
+		if (!newrem_aux) {
+		    rv = GE_NOMEM;
+		    goto out_rem_aux;
+		}
+		memcpy(newrem_aux, data, *datalen);
+	    }
+	    if (sfilter->val_rem_aux)
+		sfilter->o->free(sfilter->o, sfilter->val_rem_aux);
+	    sfilter->val_rem_aux = newrem_aux;
+	    sfilter->len_rem_aux = *datalen;
+	}
+	out_rem_aux:
 	certauth_unlock(sfilter);
 	return rv;
     }

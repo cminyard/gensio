@@ -192,6 +192,8 @@ int gensio_control(struct gensio *io, int depth, bool get,
 #define GENSIO_CONTROL_MCAST_TTL		26
 #define GENSIO_CONTROL_PASSWORD			27
 #define GENSIO_CONTROL_2FA			28
+#define GENSIO_CONTROL_AUX_DATA			29
+#define GENSIO_CONTROL_REM_AUX_DATA		30
 
 GENSIO_DLL_PUBLIC
 const char *gensio_get_type(struct gensio *io, unsigned int depth);
