@@ -35,6 +35,7 @@
 #include <assert.h>
 #include <sys/ioctl.h>
 #include <termios.h>
+#include <arpa/inet.h> /* For htonl and friends. */
 
 #include <security/pam_appl.h>
 #include <security/pam_misc.h>
@@ -346,6 +347,9 @@ static int pam_err;
 static uid_t uid = -1;
 static gid_t gid = -1;
 static bool interactive_login = true;
+
+static struct gtlssh_aux_data aux_data;
+static gensiods aux_data_len;
 
 /*
  * If this is set and a certificate auth happens, we use this to start
@@ -1003,6 +1007,19 @@ handle_new(struct gensio_runner *r, void *cb_data)
     if (err) {
 	syslog(LOG_ERR, "certauth open failed: %s", gensio_err_to_str(err));
 	exit(1);
+    }
+
+    aux_data_len = sizeof(aux_data);
+    err = gensio_control(certauth_io, 0, true, GENSIO_CONTROL_REM_AUX_DATA,
+			 (char *) &aux_data, &aux_data_len);
+    if (err)
+	aux_data_len = 0;
+
+    if (aux_data_len >= sizeof(aux_data)) {
+	aux_data.flags = ntohl(aux_data.flags);
+
+	if (aux_data.flags & GTLSSH_AUX_FLAG_NO_INTERACTIVE)
+	    interactive_login = false;
     }
 
     /* FIXME - figure out a way to unstack certauth_io after authentication */

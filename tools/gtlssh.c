@@ -41,6 +41,7 @@
 #include <sys/prctl.h>
 #endif
 #include <assert.h>
+#include <arpa/inet.h> /* For htonl and friends. */
 
 #include <openssl/x509.h>
 #include <openssl/pem.h>
@@ -350,6 +351,7 @@ help(int err)
     printf("    the gmdns(1) man page under 'STRING VALUES FOR QUERIES'\n");
     printf("    for detail on how to do regex, glob, etc.\n");
     printf("  --2fa <str> - Pass the given string as 2-factor auth data.\n");
+    printf("  --nointeractive - Do not do interactive login queries.\n");
     printf("  -d, --debug - Enable debug.  Specify more than once to increase\n"
 	   "    the debug level\n");
     printf("  -L <accept addr>:<connect addr> - Listen at the <accept addr>\n"
@@ -1502,6 +1504,8 @@ lookup_mdns_transport(struct gensio_os_funcs *o, const char *name,
     return 0;
 }
 
+static struct gtlssh_aux_data aux_data;
+
 int
 main(int argc, char *argv[])
 {
@@ -1634,6 +1638,9 @@ main(int argc, char *argv[])
 	} else if ((rv = cmparg(argc, argv, &arg, NULL, "--2fa",
 				 &val_2fa))) {
 	    pfx_2fa = ",2fa=";
+	} else if ((err = cmparg(argc, argv, &arg, NULL, "--nointeractive",
+				 NULL))) {
+	    aux_data.flags |= GTLSSH_AUX_FLAG_NO_INTERACTIVE;
 	} else if ((rv = cmparg(argc, argv, &arg, "-L", NULL, &addr))) {
 	    rv = handle_port(o, false, addr);
 	} else if ((rv = cmparg(argc, argv, &arg, "-R", NULL, &addr))) {
@@ -1872,6 +1879,8 @@ main(int argc, char *argv[])
 	return 1;
     }
 
+    aux_data.flags = htonl(aux_data.flags);
+
     if (use_mux) {
 	len = 4;
 	rv = gensio_control(userdata2.io, 1 + use_telnet, false,
@@ -1879,6 +1888,23 @@ main(int argc, char *argv[])
 	if (rv) {
 	    fprintf(stderr, "Could not set mux service %s: %s\n",
 		    userdata2.ios, gensio_err_to_str(rv));
+	    return 1;
+	}
+	len = sizeof(aux_data);
+	err = gensio_control(userdata2.io, 1 + use_telnet, false,
+			     GENSIO_CONTROL_AUX_DATA, (char *) &aux_data, &len);
+	if (err) {
+	    fprintf(stderr, "Could not set aux data on %s: %s\n",
+		    userdata2.ios, gensio_err_to_str(err));
+	    return 1;
+	}
+    } else {
+	len = sizeof(aux_data);
+	err = gensio_control(userdata2.io, 0 + use_telnet, false,
+			     GENSIO_CONTROL_AUX_DATA, (char *) &aux_data, &len);
+	if (err) {
+	    fprintf(stderr, "Could not set aux data on %s: %s\n",
+		    userdata2.ios, gensio_err_to_str(err));
 	    return 1;
 	}
     }

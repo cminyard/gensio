@@ -25,6 +25,8 @@
 
 #ifndef GTLSSH_H
 #define GTLSSH_H
+#include <stdbool.h>
+#include <stdint.h>
 #include <gensio/gensio.h>
 
 int checkout_file(const char *filename, bool expect_dir, bool check_private);
@@ -38,5 +40,11 @@ int write_str_to_gensio(const char *str, struct gensio *io,
 			gensio_time *timeout, bool xlatnl);
 int read_rsp_from_gensio(char *buf, gensiods *len, struct gensio *io,
 			 gensio_time *timeout, bool echo);
+
+/* Transferred over the aux data. */
+struct gtlssh_aux_data {
+    uint32_t flags; /* Flag fields in network order. */
+};
+#define GTLSSH_AUX_FLAG_NO_INTERACTIVE		(1 << 0)
 
 #endif /* GENSIOTOOL_UTILS_H */
