@@ -131,6 +131,7 @@ static char *username, *hostname;
 static char *certname, *CAname, *keyname;
 static char *tlssh_dir = NULL;
 static unsigned int port = 852;
+static struct gtlssh_aux_data aux_data;
 
 static int
 setup_promptuser(struct gdata *ginfo, const char *prompt, struct gensio **rtty)
@@ -138,6 +139,9 @@ setup_promptuser(struct gdata *ginfo, const char *prompt, struct gensio **rtty)
     struct gensio *tty;
     int err;
     const char *constr = "stdio(console,raw)";
+
+    if (aux_data.flags & GTLSSH_AUX_FLAG_NO_INTERACTIVE)
+	return GE_KEYNOTFOUND;
 
     err = str_to_gensio(constr, ginfo->o, NULL, NULL, &tty);
     if (err) {
@@ -1714,8 +1718,6 @@ lookup_mdns_transport(struct gensio_os_funcs *o, const char *name,
     return 0;
 }
 
-static struct gtlssh_aux_data aux_data;
-
 int
 main(int argc, char *argv[])
 {
@@ -2124,6 +2126,8 @@ main(int argc, char *argv[])
 	    return 1;
 	}
     }
+
+    aux_data.flags = ntohl(aux_data.flags);
 
     err = gensio_control(userdata2.io, 0 + use_telnet, false,
 			 GENSIO_CONTROL_SERVICE, service, &service_len);
