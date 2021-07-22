@@ -1140,9 +1140,6 @@ handle_new(struct gensio_runner *r, void *cb_data)
 
     if (do_2fa)
 	certauth_args[i++] = "enable-2fa";
-    else if (pam_cert_auth_progname)
-	/* Not required if do_2fa is set. */
-	certauth_args[i++] = "enable-cert-2fa";
 
     err = certauth_gensio_alloc(ssl_io, certauth_args, o,
 				certauth_event, NULL, &certauth_io);
