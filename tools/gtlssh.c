@@ -150,90 +150,90 @@ static char *tlssh_dir = NULL;
 static int port = 852;
 
 static int
-setup_promptuser(struct gdata *ginfo, const char *prompt, struct gensio **rtty)
+setup_promptuser(struct gdata *ginfo, const char *prompt, int *rfd,
+		 struct termios *old_termios)
 {
-    struct gensio *tty;
-    int err;
-    const char *constr = "stdio(console,raw)";
+    int err, fd = open("/dev/tty", O_RDWR);
+    struct termios new_termios;
+    gensiods pos = 0;
+    char c = 0;
 
-    err = str_to_gensio(constr, ginfo->o, NULL, NULL, &tty);
-    if (err) {
-	fprintf(stderr, "Unable to allocate gensio for %s: %s\n", constr,
-		gensio_err_to_str(err));
+    if (fd == -1) {
+	err = errno;
+	fprintf(stderr, "Unable to open controlling terminal: %s\n",
+		strerror(err));
+	return err;
+    }
+    err = tcgetattr(fd, old_termios);
+    if (err == -1) {
+	err = errno;
+	fprintf(stderr, "Unable to get terminal information: %s\n",
+		strerror(err));
+	close(fd);
+	return err;
+    }
+    new_termios = *old_termios;
+    new_termios.c_lflag &= ~ECHO;
+
+    err = tcsetattr(fd, TCSANOW, &new_termios);
+    if (err == -1) {
+	err = errno;
+	fprintf(stderr, "Unable to set terminal information: %s\n",
+		strerror(err));
+	close(fd);
 	return err;
     }
 
-    err = gensio_open_s(tty);
-    if (err) {
-	gensio_free(tty);
-	fprintf(stderr, "Unable to open console %s: %s\n", constr,
-		gensio_err_to_str(err));
-	return err;
+    err = write(fd, prompt, strlen(prompt));
+    if (err == -1) {
+	err = errno;
+	tcsetattr(fd, TCSANOW, old_termios);
+        fprintf(stderr, "Error writing password prompt, giving up: %s\n",
+		strerror(err));
+        exit(1);
     }
 
-    err = gensio_set_sync(tty);
-    if (err) {
-	gensio_free(tty);
-	fprintf(stderr, "Unable to set %s synchronous: %s\n", constr,
-		gensio_err_to_str(err));
-	return err;
-    }
+    *rfd = fd;
 
-    err = gensio_write_s(tty, NULL, prompt, strlen(prompt), NULL);
-    if (err) {
-	gensio_free(tty);
-	fprintf(stderr, "Error writing password prompt, giving up: %s\n",
-		strerror(errno));
-	exit(1);
-    }
-
-    *rtty = tty;
-
-    return err;
+    return 0;
 }
 
 static int
 getpassword(struct gdata *ginfo, char *pw, gensiods *len, const char *prompt)
 {
-    struct gensio *tty;
-    int err;
+    int err, fd;
+    struct termios old_termios;
     gensiods pos = 0;
     char c = 0;
 
-    err = setup_promptuser(ginfo, prompt, &tty);
+    err = setup_promptuser(ginfo, prompt, &fd, &old_termios);
     if (err)
 	return err;
 
     while (true) {
-	gensiods count = 0;
-
-	err = gensio_read_s(tty, &count, &c, 1, NULL);
-	if (err) {
-	    fprintf(stderr, "Error reading password: %s\n",
-		    gensio_err_to_str(err));
-	    goto out_err;
+	err = read(fd, &c, 1);
+	if (err <= 0) {
+	    err = errno;
+	    fprintf(stderr, "Error reading password: %s\n", strerror(err));
+	    goto out;
 	}
-	if (count != 1) {
-	    fprintf(stderr,
-		    "Error reading password: read didn't return data\n");
-	    err = GE_IOERR;
-	    goto out_err;
-	}
-	if (c == '\r' || c == '\n')
-	    break;
-	if (pos < *len)
-	    pw[pos++] = c;
+        if (c == '\r' || c == '\n')
+            break;
+        if (pos < *len)
+            pw[pos++] = c;
     }
-    gensio_write_s(tty, NULL, "\r\n", 2, NULL);
+    printf("\n");
     if (pos < *len)
 	pw[pos++] = '\0';
     *len = pos;
+    err = 0;
 
- out_err:
-    gensio_clear_sync(tty);
-    gensio_close_s(tty);
-    gensio_free(tty);
-    return err;
+ out:
+    tcsetattr(fd, TCSANOW, &old_termios);
+    close(fd);
+    if (err)
+	return gensio_os_err_to_err(ginfo->o, err);
+    return 0;
 }
 
 static int
@@ -260,12 +260,13 @@ static int
 get2fa(struct gdata *ginfo, char **rval, gensiods *len, const char *prompt)
 {
     struct gensio_os_funcs *o = ginfo->o;
-    struct gensio *tty;
+    int fd;
+    struct termios old_termios;
     int err;
     gensiods pos = 0, size = 0;
     char *val = NULL;
 
-    err = setup_promptuser(ginfo, prompt, &tty);
+    err = setup_promptuser(ginfo, prompt, &fd, &old_termios);
     if (err)
 	return err;
 
@@ -277,33 +278,30 @@ get2fa(struct gdata *ginfo, char **rval, gensiods *len, const char *prompt)
 	    if (err)
 		goto out_err;
 	}
-	err = gensio_read_s(tty, &count, &(val[pos]), 1, NULL);
-	if (err) {
-	    fprintf(stderr, "Error reading 2fa: %s\n",
-		    gensio_err_to_str(err));
-	    goto out_err;
-	}
-	if (count != 1) {
-	    fprintf(stderr,
-		    "Error reading 2fa: read didn't return data\n");
-	    err = GE_IOERR;
+	err = read(fd, &(val[pos]), 1);
+	if (err <= 0) {
+	    err = errno;
+	    fprintf(stderr, "Error reading 2fa: %s\n", strerror(err));
 	    goto out_err;
 	}
 	if (val[pos] == '\r' || val[pos] == '\n')
 	    break;
 	pos++;
     }
+    printf("\n");
     *len = pos;
     *rval = val;
     val = NULL;
+    err = 0;
 
  out_err:
     if (val)
 	o->free(o, val);
-    gensio_clear_sync(tty);
-    gensio_close_s(tty);
-    gensio_free(tty);
-    return err;
+    tcsetattr(fd, TCSANOW, &old_termios);
+    close(fd);
+    if (err)
+	return gensio_os_err_to_err(ginfo->o, err);
+    return 0;
 }
 
 static void
