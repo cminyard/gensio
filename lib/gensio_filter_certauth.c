@@ -112,6 +112,9 @@ enum certauth_state {
      * If apps says to continue verification, send the SERVERHELLO
      * (containing the version, random challenge, and optional
      * options) and goes into CHALLENGE_RESPONSE.
+     *
+     * Message contains a VERSION element, an optinal USERNAME
+     * element, and an option SERVICE element.
      */
     CERTAUTH_CLIENTHELLO = 1,
 
@@ -123,6 +126,9 @@ enum certauth_state {
      *
      * Client may also receive a SERVERDONE in this state if the
      * authorization is rejected or authorized on username alone.
+     *
+     * Message contains a VERSION element and a CHALLENGE_DATA
+     * element.
      */
     CERTAUTH_SERVERHELLO = 2,
 
@@ -141,15 +147,20 @@ enum certauth_state {
      * verification, send a SERVERDONE giving the result and go into
      * passthrough mode.  If the certificate does not verify, send
      * a PASSWORD_REQUEST (no data) and go into PASSWORD mode.
+     *
+     * Message contains a CERTIFICATE element and a CHALLENGE_RSP
+     * element.
      */
     CERTAUTH_CHALLENGE_RESPONSE = 3,
 
     /*
-     * Client waits for PASSWORD_REQUEST.  One byte, after the request
-     * tells whether to actually send the password (1) or send a dummy (2).
+     * Client waits for PASSWORD_REQUEST.
      *
      * Client may also receive a SERVERDONE in this state if the
      * authorization is rejected or authorized by the certificate.
+     *
+     * Message contains a PASSWORD_TYPE element to tell how to handle
+     * the request.
      */
     CERTAUTH_PASSWORD_REQUEST = 4,
 
@@ -157,12 +168,17 @@ enum certauth_state {
      * Server waits for a password.  When received. the application is
      * notified of the password.  Send a SERVERDONE with error result
      * from the app.
+     *
+     * Message contains either a PASSWORD_DATA element or a DUMMY_DATA
+     * element and then an optional 2FA_DATA element.
      */
     CERTAUTH_PASSWORD = 5,
 
     /*
      * Client waits for SERVERDONE and goes into passthrough mode if
      * successful, contains the result.
+     *
+     * Message contains a RESULT element.
      */
     CERTAUTH_SERVERDONE = 6,
 
@@ -252,13 +268,15 @@ enum certauth_elements {
     CERTAUTH_DUMMY_DATA		= 109,
 
     /*
-     * 110 <n>
-     * What password data we are asking for.
+     * 110 2 <val>
+     * The bottom two bits is what password data we are asking for, either
+     * send the password (1) or send a dummy (2).  Bit 8 requests that a
+     * 2FA_DATA element be sent, also.
      */
     CERTAUTH_PASSWORD_TYPE	= 110,
 
     /*
-     * 108 <n> <2fa data length n>
+     * 111 <n> <2fa data length n>
      *
      * The service is used to transfer 2-factor auth data.  Added in version 2.
      */
