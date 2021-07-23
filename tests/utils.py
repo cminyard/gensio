@@ -659,14 +659,15 @@ else:
     sys.exit(1)
 
 def check_raddr(io, testname, expected):
-    r = io.control(gensio.GENSIO_CONTROL_DEPTH_FIRST, True,
+    r = io.control(gensio.GENSIO_CONTROL_DEPTH_FIRST, gensio.GENSIO_CONTROL_GET,
                    gensio.GENSIO_CONTROL_RADDR, "0")
     if r != expected:
         raise Exception("%s raddr was not '%s', it was '%s'" %
                         (testname, expected, r));
 
 def check_laddr(acc, testname, expected):
-    r = acc.control(0, True, gensio.GENSIO_ACC_CONTROL_LADDR, "0")
+    r = acc.control(0, gensio.GENSIO_CONTROL_GET,
+                    gensio.GENSIO_ACC_CONTROL_LADDR, "0")
     if r != expected:
         expected = expected.replace("127.0.0.1", "::1")
         expected = expected.replace("ipv4", "ipv6")
@@ -675,7 +676,8 @@ def check_laddr(acc, testname, expected):
                         (testname, expected, r));
 
 def check_port(acc, testname, expected):
-    r = acc.control(0, True, gensio.GENSIO_ACC_CONTROL_LPORT, "0")
+    r = acc.control(0, gensio.GENSIO_CONTROL_GET,
+                    gensio.GENSIO_ACC_CONTROL_LPORT, "0")
     if r != expected:
         raise Exception("%s port was not '%s', it was '%s'" %
                         (testname, expected, r));
@@ -719,7 +721,8 @@ class TestAccept:
         self.waiter.service(1) # Wait a bit for the accepter to start up.
 
         if get_port:
-            port = self.acc.control(gensio.GENSIO_CONTROL_DEPTH_FIRST, True,
+            port = self.acc.control(gensio.GENSIO_CONTROL_DEPTH_FIRST,
+                                    gensio.GENSIO_CONTROL_GET,
                                     gensio.GENSIO_ACC_CONTROL_LPORT, "0")
         else:
             port = ""
@@ -857,7 +860,8 @@ class TestAcceptConnect:
         self.acc2 = gensio.gensio_accepter(o, io2str, self);
         self.acc2.startup()
         if (use_port):
-            port = self.acc.control(gensio.GENSIO_CONTROL_DEPTH_FIRST, True,
+            port = self.acc.control(gensio.GENSIO_CONTROL_DEPTH_FIRST,
+                                    gensio.GENSIO_CONTROL_GET,
                                     gensio.GENSIO_ACC_CONTROL_LPORT, "0")
             io3str = io3str + port
         self.io1 = self.acc2.str_to_gensio(io3str, None);
@@ -925,7 +929,8 @@ class TestAcceptConnect:
 
     def precert_verify(self, acc, io):
         if self.CA:
-            io.control(0, False, gensio.GENSIO_CONTROL_CERT_AUTH, self.CA)
+            io.control(0, gensio.GENSIO_CONTROL_SET,
+                       gensio.GENSIO_CONTROL_CERT_AUTH, self.CA)
             return gensio.GE_NOTSUP
         return gensio.GE_NOTSUP
 
@@ -1049,7 +1054,8 @@ def check_pipe_dev(is_serialsim = False):
         sys.exit(77)
 
 def remote_id_int(io):
-    return int(io.control(0, True, gensio.GENSIO_CONTROL_REMOTE_ID, None))
+    return int(io.control(0, gensio.GENSIO_CONTROL_GET,
+                          gensio.GENSIO_CONTROL_REMOTE_ID, None))
 
 def check_sctp():
     try:

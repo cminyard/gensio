@@ -901,7 +901,7 @@ ccon_stderr_closed(struct gensio *io, void *close_data)
 
     assert(!od->finished);
     od->stderr_closed = true;
-    rv = gensio_control(io, GENSIO_CONTROL_DEPTH_FIRST, true,
+    rv = gensio_control(io, GENSIO_CONTROL_DEPTH_FIRST, GENSIO_CONTROL_GET,
 			GENSIO_CONTROL_EXIT_CODE, intstr, &size);
     assert(!debug || !rv);
     OOMLOCK(&od->lock);
@@ -1084,8 +1084,8 @@ set_max_write(struct io_test_data *id, struct gensio *io)
     char databuf[20];
     gensiods dbsize = sizeof(databuf);
 
-    rv = gensio_control(io, 0, true, GENSIO_CONTROL_MAX_WRITE_PACKET,
-			databuf, &dbsize);
+    rv = gensio_control(io, 0, GENSIO_CONTROL_GET,
+			GENSIO_CONTROL_MAX_WRITE_PACKET, databuf, &dbsize);
     if (!rv)
 	id->max_write = strtoul(databuf, NULL, 0);
 }
@@ -1609,8 +1609,8 @@ run_oom_test(struct oom_tests *test, long count, int *exitcode,
     if (rv)
 	goto out_err;
 
-    rv = gensio_control(od->ccon.io, 0, false, GENSIO_CONTROL_ENVIRONMENT,
-			(char *) env->argv, NULL);
+    rv = gensio_control(od->ccon.io, 0, GENSIO_CONTROL_SET,
+			GENSIO_CONTROL_ENVIRONMENT, (char *) env->argv, NULL);
     if (rv)
 	goto out_err;
 
