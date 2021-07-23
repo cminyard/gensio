@@ -561,7 +561,7 @@ gensio_raddr_to_str(struct gensio *io, gensiods *pos,
 	curlen = 0;
 	data = buf;
     }
-    rv = gensio_control(io, GENSIO_CONTROL_DEPTH_FIRST, true,
+    rv = gensio_control(io, GENSIO_CONTROL_DEPTH_FIRST, GENSIO_CONTROL_GET,
 			GENSIO_CONTROL_RADDR, data, &curlen);
     if (!rv)
 	*pos += curlen;
@@ -571,7 +571,7 @@ gensio_raddr_to_str(struct gensio *io, gensiods *pos,
 int
 gensio_get_raddr(struct gensio *io, void *addr, gensiods *addrlen)
 {
-    return gensio_control(io, GENSIO_CONTROL_DEPTH_FIRST, true,
+    return gensio_control(io, GENSIO_CONTROL_DEPTH_FIRST, GENSIO_CONTROL_GET,
 			  GENSIO_CONTROL_RADDR_BIN, addr, addrlen);
 }
 
