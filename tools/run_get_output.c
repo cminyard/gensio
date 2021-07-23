@@ -81,8 +81,8 @@ run_io_event(struct gensio *io, void *user_data,
 	if (d->indata_pos >= d->indata_len) {
 	    gensio_set_write_callback_enable(io, false);
 	    if (d->close_stdin) {
-		err = gensio_control(io, 0, false, GENSIO_CONTROL_CLOSE_OUTPUT,
-				     NULL, NULL);
+		err = gensio_control(io, 0, GENSIO_CONTROL_SET,
+				     GENSIO_CONTROL_CLOSE_OUTPUT, NULL, NULL);
 		if (err)
 		    goto out_err;
 	    }
@@ -277,8 +277,8 @@ run_get_output(const char *argv[],
     if (d.indata) {
 	gensio_set_write_callback_enable(io, true);
     } else if (close_stdin) {
-	d.err = gensio_control(io, 0, false, GENSIO_CONTROL_CLOSE_OUTPUT,
-			       NULL, NULL);
+	d.err = gensio_control(io, 0, GENSIO_CONTROL_SET,
+			       GENSIO_CONTROL_CLOSE_OUTPUT, NULL, NULL);
 	if (d.err) {
 	    fprintf(stderr, "Error closing stdin: %s\n",
 		    gensio_err_to_str(d.err));
@@ -303,7 +303,8 @@ run_get_output(const char *argv[],
 	    char intstr[10];
 	    gensiods size = sizeof(intstr);
 
-	    d.err = gensio_control(io, GENSIO_CONTROL_DEPTH_FIRST, true,
+	    d.err = gensio_control(io, GENSIO_CONTROL_DEPTH_FIRST,
+				   GENSIO_CONTROL_GET,
 				   GENSIO_CONTROL_EXIT_CODE, intstr, &size);
 	    if (d.err)
 		fprintf(stderr, "Error getting return code: %s\n",

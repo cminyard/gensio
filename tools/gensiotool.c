@@ -239,7 +239,7 @@ print_io_addr(struct gensio *io, bool local)
     for (i = 0; ; i++) {
 	size = sizeof(str);
 	snprintf(str, sizeof(str), "%u", i);
-	rv = gensio_control(io, GENSIO_CONTROL_DEPTH_FIRST, true,
+	rv = gensio_control(io, GENSIO_CONTROL_DEPTH_FIRST, GENSIO_CONTROL_GET,
 			    local ? GENSIO_CONTROL_LADDR : GENSIO_CONTROL_RADDR,
 			    str, &size);
 	if (rv == GE_NOTFOUND)

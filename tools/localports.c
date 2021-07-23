@@ -195,7 +195,7 @@ local_port_new_con(struct local_portinfo *pi, struct gensio *io)
     }
 
     len = strlen(pi->service_str);
-    err = gensio_control(pc->io2, 0, false, GENSIO_CONTROL_SERVICE,
+    err = gensio_control(pc->io2, 0, GENSIO_CONTROL_SET, GENSIO_CONTROL_SERVICE,
 			 pi->service_str, &len);
     if (err) {
 	localport_pr("Unable to set channel service for %s: %s\n",

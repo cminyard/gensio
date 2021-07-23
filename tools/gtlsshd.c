@@ -399,8 +399,8 @@ handle_winch(struct per_con_info *pcinfo,
     if (msglen < 8)
 	return;
 
-    err = gensio_control(pcinfo->io2, 0, true, GENSIO_CONTROL_RADDR_BIN,
-			 (char *) &ptym, &len);
+    err = gensio_control(pcinfo->io2, 0, GENSIO_CONTROL_GET,
+			 GENSIO_CONTROL_RADDR_BIN, (char *) &ptym, &len);
     if (err)
 	return;
 
@@ -573,7 +573,8 @@ get_2fa(struct gensio *io)
     char dummy;
 
     len_2fa = 0;
-    err = gensio_control(io, 0, true, GENSIO_CONTROL_2FA, &dummy, &len_2fa);
+    err = gensio_control(io, 0, GENSIO_CONTROL_GET, GENSIO_CONTROL_2FA,
+			 &dummy, &len_2fa);
     if (err) {
 	if (err == GE_DATAMISSING)
 	    return 0;
@@ -583,7 +584,8 @@ get_2fa(struct gensio *io)
     if (!val_2fa)
 	return GE_NOMEM;
     val_2fa[len_2fa] = '\0'; /* nil terminate, 2fa may be binary. */
-    err = gensio_control(io, 0, true, GENSIO_CONTROL_2FA, val_2fa, &len_2fa);
+    err = gensio_control(io, 0, GENSIO_CONTROL_GET, GENSIO_CONTROL_2FA,
+			 val_2fa, &len_2fa);
     if (err) {
 	free(val_2fa);
 	val_2fa = NULL;
@@ -605,8 +607,8 @@ certauth_event(struct gensio *io, void *user_data, int event, int ierr,
 	struct passwd *pw;
 
 	len = sizeof(username);
-	err = gensio_control(io, 0, true, GENSIO_CONTROL_USERNAME, username,
-			     &len);
+	err = gensio_control(io, 0, GENSIO_CONTROL_GET, GENSIO_CONTROL_USERNAME,
+			     username, &len);
 	if (err) {
 	    syslog(LOG_ERR, "No username provided by remote: %s",
 		   gensio_err_to_str(err));
@@ -629,8 +631,8 @@ certauth_event(struct gensio *io, void *user_data, int event, int ierr,
 
 	len = snprintf(authdir, sizeof(authdir), "%s/.gtlssh/allowed_certs/",
 		       pw->pw_dir);
-	err = gensio_control(io, 0, false, GENSIO_CONTROL_CERT_AUTH,
-			     authdir, &len);
+	err = gensio_control(io, 0, GENSIO_CONTROL_SET,
+			     GENSIO_CONTROL_CERT_AUTH, authdir, &len);
 	if (err) {
 	    syslog(LOG_ERR, "Could not set authdir %s: %s", authdir,
 		   gensio_err_to_str(err));
@@ -794,7 +796,7 @@ new_rem_io(struct gensio *io, struct gdata *ginfo)
     bool set_uid = true;
 
     len = 0;
-    err = gensio_control(io, 0, true, GENSIO_CONTROL_SERVICE,
+    err = gensio_control(io, 0, GENSIO_CONTROL_GET, GENSIO_CONTROL_SERVICE,
 			 NULL, &len);
     if (err) {
 	gensio_time timeout = {10, 0};
@@ -809,7 +811,7 @@ new_rem_io(struct gensio *io, struct gdata *ginfo)
 	syslog(LOG_ERR, "Could not allocate service memory");
 	goto out_free;
     }
-    err = gensio_control(io, 0, true, GENSIO_CONTROL_SERVICE,
+    err = gensio_control(io, 0, GENSIO_CONTROL_GET, GENSIO_CONTROL_SERVICE,
 			 service, &len);
     if (err) {
 	syslog(LOG_ERR, "Could not get service(2): %s",
@@ -966,7 +968,7 @@ new_rem_io(struct gensio *io, struct gdata *ginfo)
     pcinfo->io1 = io;
 
     if (login) {
-	err = gensio_control(io, GENSIO_CONTROL_DEPTH_ALL, false,
+	err = gensio_control(io, GENSIO_CONTROL_DEPTH_ALL, GENSIO_CONTROL_SET,
 			     GENSIO_CONTROL_NODELAY, "1", NULL);
 	if (err) {
 	    fprintf(stderr, "Could not set nodelay: %s\n",
@@ -986,7 +988,7 @@ new_rem_io(struct gensio *io, struct gdata *ginfo)
     pcinfo->io2 = pty_io;
 
     if (progv) {
-	err = gensio_control(pty_io, 0, false, GENSIO_CONTROL_ARGS,
+	err = gensio_control(pty_io, 0, GENSIO_CONTROL_SET, GENSIO_CONTROL_ARGS,
 			     (char *) progv, NULL);
 	if (err) {
 		syslog(LOG_ERR, "Setting program arguments failed: %s",
@@ -996,8 +998,8 @@ new_rem_io(struct gensio *io, struct gdata *ginfo)
     }
 
     if (progv || login) {
-	err = gensio_control(pty_io, 0, false, GENSIO_CONTROL_ENVIRONMENT,
-			     (char *) env, NULL);
+	err = gensio_control(pty_io, 0, GENSIO_CONTROL_SET,
+			     GENSIO_CONTROL_ENVIRONMENT, (char *) env, NULL);
 	if (err) {
 	    syslog(LOG_ERR, "set env failed for %s: %s", username,
 		   gensio_err_to_str(err));
@@ -1163,7 +1165,8 @@ handle_new(struct gensio_runner *r, void *cb_data)
     }
 
     aux_data_len = sizeof(aux_data);
-    err = gensio_control(certauth_io, 0, true, GENSIO_CONTROL_REM_AUX_DATA,
+    err = gensio_control(certauth_io, 0, GENSIO_CONTROL_GET,
+			 GENSIO_CONTROL_REM_AUX_DATA,
 			 (char *) &aux_data, &aux_data_len);
     if (err)
 	aux_data_len = 0;
@@ -1178,8 +1181,8 @@ handle_new(struct gensio_runner *r, void *cb_data)
     /* FIXME - figure out a way to unstack certauth_io after authentication */
 
     len = sizeof(tmpservice);
-    err = gensio_control(certauth_io, 0, true, GENSIO_CONTROL_SERVICE,
-			 tmpservice, &len);
+    err = gensio_control(certauth_io, 0, GENSIO_CONTROL_GET,
+			 GENSIO_CONTROL_SERVICE, tmpservice, &len);
     if (err) {
 	gensio_time timeout = {10, 0};
 	write_str_to_gensio("Could not get service\n", certauth_io,

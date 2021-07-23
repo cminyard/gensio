@@ -157,7 +157,7 @@ handle_escapechar(struct ioinfo *ioinfo, char c)
 	return false;
 
     if (c == 'b') { /* Send a break */
-	gensio_control(ioinfo->otherio->io, 0, false,
+	gensio_control(ioinfo->otherio->io, 0, GENSIO_CONTROL_SET,
 		       GENSIO_CONTROL_SEND_BREAK, NULL, NULL);
 	return false;
     }
@@ -326,8 +326,8 @@ set_max_write(struct ioinfo *ioinfo)
     char databuf[20];
     gensiods dbsize = sizeof(databuf);
 
-    rv = gensio_control(ioinfo->io, 0, true, GENSIO_CONTROL_MAX_WRITE_PACKET,
-			databuf, &dbsize);
+    rv = gensio_control(ioinfo->io, 0, GENSIO_CONTROL_GET,
+			GENSIO_CONTROL_MAX_WRITE_PACKET, databuf, &dbsize);
     if (!rv)
 	ioinfo->max_write = strtoul(databuf, NULL, 0);
 }
