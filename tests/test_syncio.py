@@ -80,7 +80,8 @@ def test_sync_gensio_accepter(o):
     a = gensio.gensio_accepter(o, "tcp,0", None)
     a.set_sync()
     a.startup()
-    port = a.control(gensio.GENSIO_CONTROL_DEPTH_FIRST, True,
+    port = a.control(gensio.GENSIO_CONTROL_DEPTH_FIRST,
+                     gensio.GENSIO_CONTROL_GET,
                      gensio.GENSIO_ACC_CONTROL_LPORT, "0")
 
     sa = SyncEvent()

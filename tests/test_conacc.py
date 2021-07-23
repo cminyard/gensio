@@ -20,7 +20,8 @@ class TestAcceptConAcc:
         self.acc = gensio.gensio_accepter(o, accstr, self);
         self.acc.startup()
 
-        port = self.acc.control(gensio.GENSIO_CONTROL_DEPTH_FIRST, True,
+        port = self.acc.control(gensio.GENSIO_CONTROL_DEPTH_FIRST,
+                                gensio.GENSIO_CONTROL_GET,
                                 gensio.GENSIO_ACC_CONTROL_LPORT, "0")
         acc2str = acc2str + port
         self.acc2 = gensio.gensio_accepter(o, acc2str, self);

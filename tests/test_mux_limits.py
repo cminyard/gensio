@@ -19,7 +19,8 @@ class MuxHandler:
         return
 
     def read_callback(self, io, err, buf, auxdata):
-        i = int(io.control(0, True, gensio.GENSIO_CONTROL_SERVICE, None))
+        i = int(io.control(0, gensio.GENSIO_CONTROL_GET,
+                           gensio.GENSIO_CONTROL_SERVICE, None))
         if (err):
             if (self.expect_close != -1 and i != self.expect_close):
                 raise HandlerException(
@@ -44,7 +45,8 @@ class MuxHandler:
         return
 
     def new_channel(self, io1, io2, auxdata):
-        i = int(io2.control(0, True, gensio.GENSIO_CONTROL_SERVICE, None))
+        i = int(io2.control(0, gensio.GENSIO_CONTROL_GET,
+                            gensio.GENSIO_CONTROL_SERVICE, None))
         if (self.channels[i]):
             raise HandlerException(
                 "Got channel %d, but it already exists" % i)
@@ -59,7 +61,8 @@ class MuxHandler:
         return
 
     def close_done(self, io):
-        i = int(io.control(0, True, gensio.GENSIO_CONTROL_SERVICE, None))
+        i = int(io.control(0, gensio.GENSIO_CONTROL_GET,
+                           gensio.GENSIO_CONTROL_SERVICE, None))
         if (self.expect_close != -1 and self.expect_close != i):
             raise HandlerException("Unexpected close for channel %d" % i)
         if (self.channels[i] is None):
@@ -78,7 +81,8 @@ class MuxHandler:
         return
 
     def open_done(self, io, err):
-        i = int(io.control(0, True, gensio.GENSIO_CONTROL_SERVICE, None))
+        i = int(io.control(0, gensio.GENSIO_CONTROL_GET,
+                           gensio.GENSIO_CONTROL_SERVICE, None))
         if (err):
             raise HandlerException(
                 "Error opening channel %d: %s" % (i, err))
@@ -99,7 +103,8 @@ gensios_enabled.check_iostr_gensios("mux,tcp")
 muxacc = gensio.gensio_accepter(o, "mux(max_channels=10),tcp,0",
                                 handlemuxacc)
 muxacc.startup()
-port = muxacc.control(gensio.GENSIO_CONTROL_DEPTH_FIRST, True,
+port = muxacc.control(gensio.GENSIO_CONTROL_DEPTH_FIRST,
+                      gensio.GENSIO_CONTROL_GET,
                       gensio.GENSIO_ACC_CONTROL_LPORT, "0")
 
 handlemuxcl = MuxHandler(o, num_channels = 10)

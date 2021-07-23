@@ -12,7 +12,8 @@ check_sctp()
 print("Test accept mux-tcp")
 ta = TestAccept(o, "mux(service=myservice),sctp,ipv4,localhost,",
                 "mux,sctp,0", do_test, do_close = False)
-service = ta.io2.control(0, True, gensio.GENSIO_CONTROL_SERVICE, None)
+service = ta.io2.control(0, gensio.GENSIO_CONTROL_GET,
+                         gensio.GENSIO_CONTROL_SERVICE, None)
 if service != "myservice":
     raise Exception(
         "Invalid service, expected %s, got %s" % ("myservice", service))
