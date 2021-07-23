@@ -857,7 +857,7 @@ auth_event(struct gensio *io, void *user_data, int event, int ierr,
 	}
 
 	certlen = sizeof(cert);
-	err = gensio_control(ssl_io, 0, true, GENSIO_CONTROL_CERT,
+	err = gensio_control(ssl_io, 0, GENSIO_CONTROL_GET, GENSIO_CONTROL_CERT,
 			     cert, &certlen);
 	if (err) {
 	    fprintf(stderr, "Error getting certificate: %s\n",
@@ -871,12 +871,14 @@ auth_event(struct gensio *io, void *user_data, int event, int ierr,
 
 	strcpy(raddr, "0");
 	len = sizeof(raddr);
-	err = gensio_control(ssl_io, GENSIO_CONTROL_DEPTH_FIRST, true,
+	err = gensio_control(ssl_io, GENSIO_CONTROL_DEPTH_FIRST,
+			     GENSIO_CONTROL_GET,
 			     GENSIO_CONTROL_CONNECT_ADDR_STR, raddr, &len);
 	if (err) {
 	    strcpy(raddr, "0");
 	    len = sizeof(raddr);
-	    err = gensio_control(ssl_io, GENSIO_CONTROL_DEPTH_FIRST, true,
+	    err = gensio_control(ssl_io, GENSIO_CONTROL_DEPTH_FIRST,
+				 GENSIO_CONTROL_GET,
 				 GENSIO_CONTROL_RADDR, raddr, &len);
 	}
 	if (err) {
@@ -963,7 +965,8 @@ auth_event(struct gensio *io, void *user_data, int event, int ierr,
 
 	/* Key was not present, ask the user if that is ok. */
 	len = sizeof(fingerprint);
-	err = gensio_control(ssl_io, 0, true, GENSIO_CONTROL_CERT_FINGERPRINT,
+	err = gensio_control(ssl_io, 0, GENSIO_CONTROL_GET,
+			     GENSIO_CONTROL_CERT_FINGERPRINT,
 			     fingerprint, &len);
 	if (err) {
 	    fprintf(stderr, "Error getting fingerprint: %s\n",
@@ -1005,7 +1008,7 @@ auth_event(struct gensio *io, void *user_data, int event, int ierr,
 	    return err;
 
 	len = sizeof(cert);
-	err = gensio_control(ssl_io, 0, true, GENSIO_CONTROL_CERT,
+	err = gensio_control(ssl_io, 0, GENSIO_CONTROL_GET, GENSIO_CONTROL_CERT,
 			     cert, &len);
 	if (err) {
 	    fprintf(stderr, "Error getting certificate: %s\n",
@@ -1885,7 +1888,7 @@ main(int argc, char *argv[])
 
     if (use_mux) {
 	len = 4;
-	rv = gensio_control(userdata2.io, 1 + use_telnet, false,
+	rv = gensio_control(userdata2.io, 1 + use_telnet, GENSIO_CONTROL_SET,
 			    GENSIO_CONTROL_SERVICE, "mux", &len);
 	if (rv) {
 	    fprintf(stderr, "Could not set mux service %s: %s\n",
@@ -1893,7 +1896,7 @@ main(int argc, char *argv[])
 	    return 1;
 	}
 	len = sizeof(aux_data);
-	err = gensio_control(userdata2.io, 1 + use_telnet, false,
+	err = gensio_control(userdata2.io, 1 + use_telnet, GENSIO_CONTROL_SET,
 			     GENSIO_CONTROL_AUX_DATA, (char *) &aux_data, &len);
 	if (err) {
 	    fprintf(stderr, "Could not set aux data on %s: %s\n",
@@ -1902,7 +1905,7 @@ main(int argc, char *argv[])
 	}
     } else {
 	len = sizeof(aux_data);
-	err = gensio_control(userdata2.io, 0 + use_telnet, false,
+	err = gensio_control(userdata2.io, 0 + use_telnet, GENSIO_CONTROL_SET,
 			     GENSIO_CONTROL_AUX_DATA, (char *) &aux_data, &len);
 	if (err) {
 	    fprintf(stderr, "Could not set aux data on %s: %s\n",
@@ -1913,7 +1916,7 @@ main(int argc, char *argv[])
 
     aux_data.flags = ntohl(aux_data.flags);
 
-    rv = gensio_control(userdata2.io, 0 + use_telnet, false,
+    rv = gensio_control(userdata2.io, 0 + use_telnet, GENSIO_CONTROL_SET,
 			GENSIO_CONTROL_SERVICE, service, &service_len);
     if (rv) {
 	fprintf(stderr, "Could not set service %s: %s\n", userdata2.ios,
@@ -1922,7 +1925,8 @@ main(int argc, char *argv[])
     }
 
     if (userdata2.interactive) {
-	rv = gensio_control(userdata2.io, GENSIO_CONTROL_DEPTH_ALL, false,
+	rv = gensio_control(userdata2.io, GENSIO_CONTROL_DEPTH_ALL,
+			    GENSIO_CONTROL_SET,
 			    GENSIO_CONTROL_NODELAY, "1", NULL);
 	if (rv) {
 	    fprintf(stderr, "Could not set nodelay on %s: %s\n", userdata2.ios,
