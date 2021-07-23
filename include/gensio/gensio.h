@@ -168,6 +168,9 @@ int gensio_control(struct gensio *io, int depth, bool get,
 #define GENSIO_CONTROL_DEPTH_ALL	-1
 #define GENSIO_CONTROL_DEPTH_FIRST	-2
 
+#define GENSIO_CONTROL_GET	true
+#define GENSIO_CONTROL_SET	false
+
 #define GENSIO_CONTROL_NODELAY			1
 #define GENSIO_CONTROL_STREAMS			2
 #define GENSIO_CONTROL_SEND_BREAK		3

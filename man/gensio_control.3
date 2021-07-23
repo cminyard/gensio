@@ -39,9 +39,11 @@ information to be passed.
 
 If
 .I get
-is true, attempt to fetch the option.  You cannot use
+is
+.I GENSIO_CONTROL_GET
+(true), attempt to fetch the option.  You cannot use
 .I GENSIO_CONTROL_DEPTH_ALL
-with get==true.  To fetch an option, you must pass in data long
+with a fetch.  To fetch an option, you must pass in data long
 enough to hold the output and set
 .I datalen
 to the number of bytes available in
@@ -52,7 +54,9 @@ not including the terminating nil) or binary data in
 
 An operation with
 .I get
-false is a set operation, it will set values or controls in the gensio.
+set to
+.I GENSIO_CONTROL_SET
+(false) is a set operation, it will set values or controls in the gensio.
 For string values,
 .I datalen
 is not used in a put operation or for determining the length
