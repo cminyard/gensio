@@ -139,12 +139,12 @@ gensio_addr_addrinfo_create(struct gensio_os_funcs *o,
 			    int nettype, const void *iaddr, gensiods len,
 			    unsigned int port, struct gensio_addr **newaddr)
 {
-    struct sockaddr_in s4;
+    struct sockaddr_in s4 = {};
 #ifdef AF_INET6
-    struct sockaddr_in6 s6;
+    struct sockaddr_in6 s6 = {};
 #endif
 #if HAVE_UNIX
-    struct sockaddr_un su;
+    struct sockaddr_un su = {};
 #endif
     struct sockaddr *s;
     unsigned int slen;
