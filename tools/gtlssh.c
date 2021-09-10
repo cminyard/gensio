@@ -34,9 +34,10 @@
 #endif
 #ifdef _WIN32
 #include <windows.h>
+#else
+#include <arpa/inet.h> /* For htonl and friends. */
 #endif
 #include <assert.h>
-#include <arpa/inet.h> /* For htonl and friends. */
 
 #include "ioinfo.h"
 #include "localports.h"
@@ -397,6 +398,17 @@ translate_filename(char *filename)
 #endif
 }
 
+#ifdef _WIN32
+/*
+ * For windows, assume we are using openssl and can use
+ * ASN1_TIME_diff().
+ */
+static int
+calc_timediff(int *days, int *seconds, const ASN1_TIME *t)
+{
+    return !ASN1_TIME_diff(days, seconds, NULL, t);
+}
+#else
 /*
  * This would be a lot simpler if we could use ASN1_TIME_diff(), but
  * it's not available on libressl.  Keep things as basic as possible,
@@ -538,6 +550,7 @@ calc_timediff(int *days, int *seconds, const ASN1_TIME *t)
     tmdiff(days, seconds, &now_tm, &tm);
     return 0;
 }
+#endif
 
 static int
 has_time_passed(const ASN1_TIME *t, int *rdays)
