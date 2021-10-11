@@ -712,7 +712,7 @@ keygen_one(const char *name, const char *key, const char *cert)
     argv[10] = "-out";
     argv[11] = cert;
     argv[12] = "-subj";
-    cn = alloc_sprintf("/CN=%s", commonname);;
+    cn = alloc_sprintf("/CN=%s/O=gensio/OU=client", commonname);
     if (!cn) {
 	free(days);
 	free(keyval);
@@ -878,7 +878,7 @@ serverkey(int inargc, char *inargv[])
     argv[10] = "-out";
     argv[11] = servercert;
     argv[12] = "-subj";
-    cn = alloc_sprintf("/CN=%s", commonname);;
+    cn = alloc_sprintf("/CN=%s/O=gensio/OU=server", commonname);
     if (!cn) {
 	fprintf(stderr, "Out of memory allocating commonname settings\n");
 	rv = 1;
