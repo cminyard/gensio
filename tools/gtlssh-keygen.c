@@ -660,11 +660,58 @@ addallow(int argc, char **argv)
     return 1;
 }
 
+/*
+ * Generate the given private RSA key.
+ */
+static int
+genpkey_rsa(const char *key)
+{
+    const char *argv[9];
+    char *out, *errout, *keyval;
+    int err, rc;
+
+    argv[0] = "openssl";
+    argv[1] = "genpkey";
+    argv[2] = "-algorithm";
+    argv[3] = "rsa";
+    argv[4] = "-pkeyopt";
+    keyval = alloc_sprintf("rsa_keygen_bits:%u", keysize);
+    if (!keyval) {
+	fprintf(stderr, "Out of memory allocating key settings\n");
+	return 1;
+    }
+    argv[5] = keyval;
+    argv[6] = "-out";
+    argv[7] = key;
+    argv[8] = NULL;
+
+    err = run_get_output(argv, true, NULL, 0,
+			 NULL, 0, &out, NULL, &errout, NULL, &rc);
+    if (err)
+	return 1;
+
+    if (rc) {
+	fprintf(stderr, "Error running openssl: %s\n", errout);
+    } else {
+	printf("Key created at %s.\n", key);
+    }
+
+    free(out);
+    free(errout);
+    return rc != 0;
+}
+
+static int (*genpkey)(const char *key) = genpkey_rsa;
+
+/*
+ * Create a single key.  If name is NULL, it's a server key, otherwise
+ * it's a client key.
+ */
 static int
 keygen_one(const char *name, const char *key, const char *cert)
 {
-    const char *argv[15];
-    char *out, *errout, *keyval, *days, *cn, *s;
+    const char *argv[13];
+    char *out, *errout, *days, *cn, *s;
     int err, rc;
 
     if (check_file_exists(key) || check_file_exists(cert)) {
@@ -691,43 +738,37 @@ keygen_one(const char *name, const char *key, const char *cert)
 	}
     }
 
+    err = genpkey(key);
+    if (err)
+	return 1;
+
     argv[0] = "openssl";
     argv[1] = "req";
-    argv[2] = "-newkey";
-    keyval = alloc_sprintf("rsa:%u", keysize);
-    if (!keyval) {
-	fprintf(stderr, "Out of memory allocating key settings\n");
-	return 1;
-    }
-    argv[3] = keyval;
+    argv[2] = "-key";
+    argv[3] = key;
     argv[4] = "-nodes";
-    argv[5] = "-keyout";
-    argv[6] = key;
-    argv[7] = "-x509";
-    argv[8] = "-days";
+    argv[5] = "-x509";
+    argv[6] = "-days";
     days = alloc_sprintf("%u", keydays);
     if (!days) {
-	free(keyval);
 	fprintf(stderr, "Out of memory allocating days settings\n");
 	return 1;
     }
-    argv[9] = days;
-    argv[10] = "-out";
-    argv[11] = cert;
-    argv[12] = "-subj";
+    argv[7] = days;
+    argv[8] = "-out";
+    argv[9] = cert;
+    argv[10] = "-subj";
     cn = alloc_sprintf("/CN=%s/O=gensio/OU=client", commonname);
     if (!cn) {
 	free(days);
-	free(keyval);
 	fprintf(stderr, "Out of memory allocating commonname settings\n");
 	return 1;
     }
-    argv[13] = cn;
-    argv[14] = NULL;
+    argv[11] = cn;
+    argv[12] = NULL;
 
     err = run_get_output(argv, true, NULL, 0,
 			 NULL, 0, &out, NULL, &errout, NULL, &rc);
-    free(keyval);
     free(days);
     free(cn);
     if (err)
@@ -736,14 +777,13 @@ keygen_one(const char *name, const char *key, const char *cert)
     if (rc) {
 	fprintf(stderr, "Error running openssl: %s\n", errout);
     } else {
-	printf("Key created.  Put %s into:\n", cert);
 	if (name) {
+	    printf("Certificate created.  Put %s into:\n", cert);
 	    printf("  .gtlssh/allowed_certs\n");
 	    printf("on remote systems you want to log into"
 		   " without a password.\n");
 	} else {
-	    printf("  %s\n", confdir);
-	    printf("if it's not already there");
+	    printf("Server certificate %s created.\n", cert);
 	}
     }
 
