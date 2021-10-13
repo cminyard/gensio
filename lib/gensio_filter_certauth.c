@@ -76,7 +76,7 @@ static void EVP_MD_CTX_free(EVP_MD_CTX *c)
 
 #define GENSIO_CERTAUTH_DATA_SIZE	2048
 #define GENSIO_CERTAUTH_CHALLENGE_SIZE	32
-#define GENSIO_CERTAUTH_VERSION		2
+#define GENSIO_CERTAUTH_VERSION		3
 
 /*
  * Passwords are always sent in this size buffer to keep an attacker
@@ -392,6 +392,8 @@ struct certauth_filter {
     BUF_MEM cert_buf_mem;
     BIO *cert_bio;
     const EVP_MD *rsa_md5;
+    const EVP_MD *sha3_512;
+    const EVP_MD *digest;
 
     unsigned char *read_buf;
     gensiods read_buf_len;
@@ -738,7 +740,7 @@ certauth_add_challenge_rsp(struct certauth_filter *sfilter)
 	gca_log_err(sfilter, "Unable to allocate signature context");
 	return GE_NOMEM;
     }
-    if (!EVP_SignInit(sign_ctx, sfilter->rsa_md5)) {
+    if (!EVP_SignInit(sign_ctx, sfilter->digest)) {
 	gca_logs_err(sfilter, "Signature init failed");
 	goto out_nomem;
     }
@@ -780,7 +782,7 @@ certauth_check_challenge(struct certauth_filter *sfilter)
 	gca_log_err(sfilter, "Unable to allocate verify context");
 	return GE_NOMEM;
     }
-    if (!EVP_VerifyInit(sign_ctx, sfilter->rsa_md5)) {
+    if (!EVP_VerifyInit(sign_ctx, sfilter->digest)) {
 	gca_logs_err(sfilter, "Verify init failed");
 	goto out_nomem;
     }
@@ -852,6 +854,15 @@ certauth_send_server_done(struct certauth_filter *sfilter)
     certauth_write_byte(sfilter, CERTAUTH_END);
 }
 
+static void
+set_digest(struct certauth_filter *sfilter)
+{
+    if (sfilter->version >= 3)
+	sfilter->digest = sfilter->sha3_512;
+    else
+	sfilter->digest = sfilter->rsa_md5;
+}
+
 static int
 certauth_try_connect(struct gensio_filter *filter, gensio_time *timeout)
 {
@@ -907,6 +918,7 @@ certauth_try_connect(struct gensio_filter *filter, gensio_time *timeout)
 	    sfilter->pending_err = GE_INVAL;
 	    break;
 	}
+	set_digest(sfilter);
 
 	io = gensio_filter_get_gensio(filter);
 	if (sfilter->use_child_auth) {
@@ -983,6 +995,7 @@ certauth_try_connect(struct gensio_filter *filter, gensio_time *timeout)
 	    sfilter->pending_err = GE_DATAMISSING;
 	    break;
 	}
+	set_digest(sfilter);
 	sfilter->write_buf_len = 0;
 	certauth_write_byte(sfilter, CERTAUTH_CHALLENGE_RESPONSE);
 
@@ -2179,6 +2192,11 @@ gensio_certauth_filter_raw_alloc(struct gensio_os_funcs *o,
     sfilter->do_2fa = do_2fa;
     sfilter->rsa_md5 = EVP_get_digestbyname("ssl3-md5");
     if (!sfilter->rsa_md5) {
+	rv = GE_IOERR;
+	goto out_err;
+    }
+    sfilter->sha3_512 = EVP_get_digestbyname("sha3-512");
+    if (!sfilter->sha3_512) {
 	rv = GE_IOERR;
 	goto out_err;
     }
