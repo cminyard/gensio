@@ -682,8 +682,11 @@ keygen_one(const char *name, const char *key, const char *cert)
 	    }
 	    delete_file(key);
 	    delete_file(cert);
-	} else {
+	} else if (name) {
 	    printf("Not generating key for %s", name);
+	    return 1;
+	} else {
+	    printf("Not generating server key");
 	    return 1;
 	}
     }
@@ -734,13 +737,19 @@ keygen_one(const char *name, const char *key, const char *cert)
 	fprintf(stderr, "Error running openssl: %s\n", errout);
     } else {
 	printf("Key created.  Put %s into:\n", cert);
-	printf("  .gtlssh/allowed_certs\n");
-	printf("on remote systems you want to log into without a password.\n");
+	if (name) {
+	    printf("  .gtlssh/allowed_certs\n");
+	    printf("on remote systems you want to log into"
+		   " without a password.\n");
+	} else {
+	    printf("  %s\n", confdir);
+	    printf("if it's not already there");
+	}
     }
 
     free(out);
     free(errout);
-    return 0;
+    return rc != 0;
 }
 
 static int
@@ -806,11 +815,8 @@ static int
 serverkey(int inargc, char *inargv[])
 {
     const char *keyname = "gtlsshd";
-    const char *argv[15];
-    char *serverkey = NULL, *servercert = NULL, *s;
-    char *keyval = NULL, *days = NULL, *cn = NULL;
-    char *out = NULL, *errout = NULL;
-    int rv = 0, rc, err;
+    char *serverkey = NULL, *servercert = NULL;
+    int rv = 0;
 
     if (inargc > 0)
 	keyname = inargv[0];
@@ -828,91 +834,16 @@ serverkey(int inargc, char *inargv[])
 	goto out;
     }
 
-    if (check_file_exists(serverkey) || check_file_exists(servercert)) {
-	if (force || promptyn("Files %s or %s already exist, do you want to overwrite them?", serverkey, servercert)) {
-	    /* Move the key and certificate to backup files. */
-	    s = alloc_sprintf("%s.1", serverkey);
-	    if (s) {
-		move_file(serverkey, s);
-		free(s);
-	    }
-	    s = alloc_sprintf("%s.1", servercert);
-	    if (s) {
-		move_file(servercert, s);
-		free(s);
-	    }
-	    delete_file(serverkey);
-	    delete_file(servercert);
-	} else {
-	    printf("Not generating server keys");
-	    rv = 1;
-	    goto out;
-	}
-    }
-
     if (!check_dir_exists(confdir, false))
 	make_dir(confdir, false);
 
-    argv[0] = "openssl";
-    argv[1] = "req";
-    argv[2] = "-newkey";
-    keyval = alloc_sprintf("rsa:%u", keysize);
-    if (!keyval) {
-	fprintf(stderr, "Out of memory allocating key settings\n");
-	rv = 1;
-	goto out;
-    }
-    argv[3] = keyval;
-    argv[4] = "-nodes";
-    argv[5] = "-keyout";
-    argv[6] = serverkey;
-    argv[7] = "-x509";
-    argv[8]= "-days";
-    days = alloc_sprintf("%u", keydays);
-    if (!days) {
-	fprintf(stderr, "Out of memory allocating days settings\n");
-	rv = 1;
-	goto out;
-    }
-    argv[9] = days;
-    argv[10] = "-out";
-    argv[11] = servercert;
-    argv[12] = "-subj";
-    cn = alloc_sprintf("/CN=%s/O=gensio/OU=server", commonname);
-    if (!cn) {
-	fprintf(stderr, "Out of memory allocating commonname settings\n");
-	rv = 1;
-	goto out;
-    }
-    argv[13] = cn;
-    argv[14] = NULL;
-
-    err = run_get_output(argv, true, NULL, 0,
-			 NULL, 0, &out, NULL, &errout, NULL, &rc);
-
-    if (err) {
-	/* Error has already been printed. */
-    } else if (rc) {
-	fprintf(stderr, "Error running openssl for serverkey: %s\n", errout);
-    } else {
-	printf("Key created.  Put %s into:\n", servercert);
-    }
+    rv = keygen_one(NULL, serverkey, servercert);
 
  out:
-    if (keyval)
-	free(keyval);
-    if (days)
-	free(days);
-    if (cn)
-	free(cn);
     if (serverkey)
 	free(serverkey);
     if (servercert)
 	free(servercert);
-    if (out)
-	free(out);
-    if (errout)
-	free(errout);
     return rv;
 }
 #endif
