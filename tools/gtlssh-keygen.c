@@ -41,8 +41,10 @@
 
 int debug;
 
-#define DEFAULT_KEYSIZE 2048
-static unsigned int keysize = DEFAULT_KEYSIZE;
+#define DEFAULT_RSA_KEYSIZE 2048
+#define DEFAULT_EC_KEYSIZE 256
+static unsigned int keysize = 0;
+static bool keysize_set = false;
 
 static char *default_gtlsshdir;
 static const char *gtlsshdir;
@@ -73,7 +75,8 @@ help(const char *progname)
     P("%s [<option> [<option> [...]]] command <command options>\n", progname);
     P("Options are:\n");
     P("  --keysize <size> - Create an RSA key with the given number of bits.\n");
-    P("        default is %u\n", DEFAULT_KEYSIZE);
+    P("        default is %u for rsa, %u for ec\n", DEFAULT_RSA_KEYSIZE,
+      DEFAULT_EC_KEYSIZE);
     P("  --keydays <days> - Create a key that expires in the given number\n");
     P("        of days.  Default is %u\n", DEFAULT_KEYDAYS);
     P("  --basedir <dir> - Location where keys are stored.\n");
@@ -86,6 +89,8 @@ help(const char *progname)
     P("  --commonname <name> - Set the common name in the certificate.\n");
     P("        The default is your username for normal certificates and\n");
     P("        the fully qualified domain name for server certificates.\n");
+    P("  --algorithm <algname> - Set the algorithm to use for the key,\n");
+    P("        either rsa or ec.  The default is rsa\n");
     P("  --force, -f - Don't ask questions, just do the operation.  This\n");
     P("        may overwrite data without asking.\n");
     P("\n");
@@ -670,12 +675,70 @@ genpkey_rsa(const char *key)
     char *out, *errout, *keyval;
     int err, rc;
 
+    if (!keysize_set)
+	keysize = DEFAULT_RSA_KEYSIZE;
+
     argv[0] = "openssl";
     argv[1] = "genpkey";
     argv[2] = "-algorithm";
     argv[3] = "rsa";
     argv[4] = "-pkeyopt";
     keyval = alloc_sprintf("rsa_keygen_bits:%u", keysize);
+    if (!keyval) {
+	fprintf(stderr, "Out of memory allocating key settings\n");
+	return 1;
+    }
+    argv[5] = keyval;
+    argv[6] = "-out";
+    argv[7] = key;
+    argv[8] = NULL;
+
+    err = run_get_output(argv, true, NULL, 0,
+			 NULL, 0, &out, NULL, &errout, NULL, &rc);
+    if (err)
+	return 1;
+
+    if (rc) {
+	fprintf(stderr, "Error running openssl: %s\n", errout);
+    } else {
+	printf("Key created at %s.\n", key);
+    }
+
+    free(out);
+    free(errout);
+    return rc != 0;
+}
+
+/*
+ * Generate the given private EC key.
+ */
+static int
+genpkey_ec(const char *key)
+{
+    const char *argv[9];
+    char *out, *errout, *keyval;
+    int err, rc;
+    static unsigned int valid_ec_keysizes[] = { 192, 224, 256, 384, 521, 0 };
+
+    if (keysize_set) {
+	unsigned int i;
+
+	for (i = 0; valid_ec_keysizes[i]; i++) {
+	    if (valid_ec_keysizes[i] == keysize)
+		goto keysize_good;
+	}
+	fprintf(stderr, "Keysize %u is invalid for EC\n", keysize);
+	return 1;
+    } else {
+	keysize = DEFAULT_EC_KEYSIZE;
+    }
+ keysize_good:
+    argv[0] = "openssl";
+    argv[1] = "genpkey";
+    argv[2] = "-algorithm";
+    argv[3] = "ec";
+    argv[4] = "-pkeyopt";
+    keyval = alloc_sprintf("ec_paramgen_curve:P-%u", keysize);
     if (!keyval) {
 	fprintf(stderr, "Out of memory allocating key settings\n");
 	return 1;
@@ -1067,11 +1130,12 @@ int
 main(int argc, char **argv)
 {
     int i, rv = 1;
+    const char *algorithm = NULL;
 
     default_gtlsshdir = get_tlsshdir();
     if (!default_gtlsshdir)
 	exit(1);
-    default_keydir = alloc_sprintf("%s%ckeycerts", gtlsshdir, DIRSEP);
+    default_keydir = alloc_sprintf("%s%ckeycerts", default_gtlsshdir, DIRSEP);
     if (!default_keydir) {
 	fprintf(stderr, "Could not allocate memory for keydir\n");
 	exit(1);
@@ -1088,8 +1152,10 @@ main(int argc, char **argv)
 	    debug++;
 	    continue;
 	}
-	if (cmparg_uint(argc, argv, &i, NULL, "--keysize", &keysize))
+	if (cmparg_uint(argc, argv, &i, NULL, "--keysize", &keysize)) {
+	    keysize_set = true;
 	    continue;
+	}
 	if (cmparg_uint(argc, argv, &i, NULL, "--keydays", &keydays))
 	    continue;
 	if (cmparg(argc, argv, &i, NULL, "--basedir", &gtlsshdir))
@@ -1102,6 +1168,8 @@ main(int argc, char **argv)
 	    commonname_set = true;
 	    continue;
 	}
+	if (cmparg(argc, argv, &i, NULL, "--algorithm", &algorithm))
+	    continue;
 	if (cmparg(argc, argv, &i, "-f", "--force", NULL)) {
 	    force = true;
 	    continue;
@@ -1113,6 +1181,17 @@ main(int argc, char **argv)
 
 	fprintf(stderr, "Unknown option '%s'\n", argv[i]);
 	exit(1);
+    }
+
+    if (algorithm) {
+	if (strcmp(algorithm, "rsa") == 0) {
+	    genpkey = genpkey_rsa;
+	} else if (strcmp(algorithm, "ec") == 0) {
+	    genpkey = genpkey_ec;
+	} else {
+	    fprintf(stderr, "Invalid algorithm: %s\n", algorithm);
+	    exit(1);
+	}
     }
 
     if (!gtlsshdir)
@@ -1177,7 +1256,7 @@ main(int argc, char **argv)
     } else if (strcmp(argv[0], "pushcert") == 0) {
 	rv = pushcert(argc - 1, argv + 1);
     } else {
-	fprintf(stderr, "Unknown command %s, use --help for help\n", argv[i]);
+	fprintf(stderr, "Unknown command %s, use --help for help\n", argv[0]);
 	exit(1);
     }
 
