@@ -183,9 +183,10 @@ gensio_log(struct gensio_os_funcs *f, enum gensio_log_levels level,
 int main(int argc, char *argv[])
 {
     int err;
-    Os_Funcs o(0);
 
     try {
+	Os_Funcs o(0);
+
 	o->vlog = gensio_log;
 	o.proc_setup();
 	Addr addr(o, argv[1], true, NULL, NULL, NULL);
