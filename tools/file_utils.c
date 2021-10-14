@@ -270,7 +270,11 @@ int
 move_file(const char *src, const char *dest)
 {
     unlink(dest);
-    link(src, dest);
+    if (link(src, dest)) {
+	fprintf(stderr, "Error making link (in move) from %s to %s: %s\n",
+		src, dest, strerror(errno));
+	return LINK_ERROR;
+    }
     return 0;
 }
 
