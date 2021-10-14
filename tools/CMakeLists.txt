@@ -1,5 +1,6 @@
 
-add_library(gensiotool STATIC ioinfo.c ser_ioinfo.c utils.c localports.c)
+add_library(gensiotool STATIC ioinfo.c ser_ioinfo.c utils.c localports.c
+	    file_utils.c run_get_output.c)
 set_target_properties(gensiotool PROPERTIES
                       POSITION_INDEPENDENT_CODE OFF)
 
@@ -14,6 +15,13 @@ install(TARGETS gensiot DESTINATION bin)
 
 install(FILES gensiot.1 DESTINATION ${CMAKE_INSTALL_FULL_MANDIR}/man1)
 
+add_library(gtlssh-shared STATIC gtlssh-shared.c)
+
+if(HAVE_OPENSSL)
+  add_executable(gtlssh-keygen gtlssh-keygen.c)
+  target_link_libraries(gtlssh-keygen gensiotool gtlssh-shared crypto gensio)
+endif()
+
 if(HAVE_AVAHI)
   add_executable(gmdns gensiomdns.c)
   target_link_libraries(gmdns gensio gensiotool)
@@ -22,12 +30,10 @@ if(HAVE_AVAHI)
 endif()
 
 if(UNIX)
-  add_library(gtlssh-shared STATIC gtlssh-shared.c)
   set_target_properties(gensiotool PROPERTIES
                         POSITION_INDEPENDENT_CODE OFF)
 
   set (SYSCONFDIR, "${CMAKE_INSTALL_FULL_SYSCONFDIR}")
-  configure_file(gtlssh-keygen.in gtlssh-keygen @ONLY)
 
   add_executable(gtlssh gtlssh.c)
   target_link_libraries(gtlssh gensio gtlssh-shared gensiotool)

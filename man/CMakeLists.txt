@@ -14,7 +14,7 @@ install(FILES gensio_event.3 str_to_gensio.3 gensio_set_callback.3
 	DESTINATION ${CMAKE_INSTALL_FULL_MANDIR}/man3)
 
 macro(install_man3_symlink filepath sympath)
-    install(CODE "execute_process(COMMAND ${CMAKE_COMMAND} -E create_symlink ${filepath} ${CMAKE_INSTALL_FULL_MANDIR}/man3/${sympath})")
+    install(CODE "execute_process(COMMAND sh -c \"${CMAKE_COMMAND} -E create_symlink ${filepath} $DESTDIR${CMAKE_INSTALL_FULL_MANDIR}/man3/${sympath}\")")
     install(CODE "message(\"-- Created symlink: ${sympath} -> ${filepath}\")")
 endmacro(install_man3_symlink)
 
