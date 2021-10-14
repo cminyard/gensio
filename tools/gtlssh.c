@@ -1513,8 +1513,6 @@ handle_port(struct gensio_os_funcs *o, bool remote, const char *iaddr)
 
     if (num_s < 2)
 	goto out_not_enough_fields;
-    if (num_s > 4)
-	goto out_too_many_fields;
 
     if (s[num_s - 1][0] == '/') { /* remote is a unix socket. */
 	if (s[0][0] == '/') { /* local is a unix socket */
@@ -1528,6 +1526,8 @@ handle_port(struct gensio_os_funcs *o, bool remote, const char *iaddr)
     } else if (s[0][0] == '/') { /* local is a unix socket */
 	if (num_s > 3)
 	    goto out_too_many_fields;
+	if (num_s < 3)
+	    goto out_not_enough_fields;
     } else if (num_s < 3) {
 	goto out_not_enough_fields;
     } else if (num_s == 4) {
@@ -1734,6 +1734,8 @@ lookup_mdns_transport(struct gensio_os_funcs *o, const char *name,
     return 0;
 }
 
+char *service;
+
 int
 main(int argc, char *argv[])
 {
@@ -1751,7 +1753,6 @@ main(int argc, char *argv[])
     char *do_telnet = "";
     unsigned int use_telnet = 0;
     char *CAspec = NULL, *certspec = NULL, *keyspec = NULL;
-    char *service;
     gensiods service_len, len;
     const char *transport = "sctp";
     bool user_transport = false, mdns_transport = false;
@@ -1891,9 +1892,11 @@ main(int argc, char *argv[])
 				 NULL))) {
 	    aux_data.flags |= GTLSSH_AUX_FLAG_NO_INTERACTIVE;
 	} else if ((err = cmparg(argc, argv, &arg, "-L", NULL, &addr))) {
-	    err = handle_port(o, false, addr);
+	    if (!err)
+		err = handle_port(o, false, addr);
 	} else if ((err = cmparg(argc, argv, &arg, "-R", NULL, &addr))) {
-	    err = handle_port(o, true, addr);
+	    if (!err)
+		err = handle_port(o, true, addr);
 	} else if ((err = cmparg(argc, argv, &arg, "-4", NULL, NULL))) {
 	    iptype = "ipv4,";
 	} else if ((err = cmparg(argc, argv, &arg, "-6", NULL, NULL))) {
@@ -1914,7 +1917,7 @@ main(int argc, char *argv[])
 
     if (nosctp && notcp && !user_transport) {
 	fprintf(stderr, "You cannot disable both TCP and SCTP\n");
-	exit(1);
+	return 1;
     }
 
     if (nosctp && !user_transport)
@@ -1923,7 +1926,7 @@ main(int argc, char *argv[])
     if (!!certname != !!keyname) {
 	fprintf(stderr,
 		"If you specify a certname, you must specify a keyname\n");
-	exit(1);
+	return 1;
     }
 
     if (arg >= argc) {
@@ -1936,7 +1939,7 @@ main(int argc, char *argv[])
 	if (prctl(PR_SET_DUMPABLE, 0) != 0) {
 	    fprintf(stderr,
 		    "Unable to disable ptrace attach, giving up.\n");
-	    exit(1);
+	    return 1;
 	}
     }
 #endif

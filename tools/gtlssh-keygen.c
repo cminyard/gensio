@@ -526,7 +526,7 @@ hash_file(const char *dir, const char *name, void *cbdata)
 static void
 hash_dir(const char *fmt, ...)
 {
-    bool certpresent;
+    bool certpresent = false;
     int err;
     char *dir;
     va_list args;
@@ -1065,7 +1065,7 @@ pushcert(int argc, char *argv[])
     char *port, *name;
     char *defport = "";
     char *hostname;
-    int rv, i;
+    int rv = 0, i;
 
     if (argc == 0) {
 	fprintf(stderr, "No remote system given to update\n");
@@ -1125,7 +1125,7 @@ pushcert(int argc, char *argv[])
 	free(hostname);
     if (port != defport)
 	free(port);
-    return 0;
+    return rv;
 }
 
 int

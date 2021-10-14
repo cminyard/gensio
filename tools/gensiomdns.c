@@ -263,6 +263,8 @@ main(int argc, char *argv[])
 	    fprintf(stderr, "Unknown argument: %s\n", argv[arg]);
 	    help(1);
 	}
+	if (rv < 0)
+	    return 1;
     }
 
     closewaiter = o->alloc_waiter(o);
