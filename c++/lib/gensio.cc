@@ -69,7 +69,7 @@ namespace gensio {
 	else
 	    err = gensio_addr_to_str(addr, buf, NULL, len);
 	if (err) {
-	    delete buf;
+	    delete[] buf;
 	    throw gensio_error(err);
 	}
 
