@@ -787,7 +787,7 @@ keygen_one(const char *name, const char *key, const char *cert)
 	    }
 	    s = alloc_sprintf("%s.1", cert);
 	    if (s) {
-		move_file(key, s);
+		move_file(cert, s);
 		free(s);
 	    }
 	    delete_file(key);
