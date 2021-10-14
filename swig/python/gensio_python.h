@@ -549,7 +549,7 @@ gensio_child_event(struct gensio *io, void *user_data, int event, int readerr,
 		   const char *const *auxdata)
 {
     struct gensio_data *data = user_data;
-    swig_ref io_ref = { .val = NULL }, new_con = { .val = NULL };
+    swig_ref io_ref, new_con;
     PyObject *args, *o;
     OI_PY_STATE gstate;
     int rv = 0;
@@ -1045,6 +1045,7 @@ gensio_acc_child_event(struct gensio_accepter *accepter, void *user_data,
 	    }
 	    Py_DecRef(o);
 	}
+	OI_PY_STATE_PUT(gstate);
 	return rv;
 
     case GENSIO_ACC_EVENT_2FA_VERIFY:
@@ -1100,6 +1101,7 @@ gensio_acc_child_event(struct gensio_accepter *accepter, void *user_data,
 	    }
 	    Py_DecRef(o);
 	}
+	OI_PY_STATE_PUT(gstate);
 	return rv;
     }
 
