@@ -128,10 +128,6 @@ struct stdiona_data {
     struct gensio_accepter *acc;
 };
 
-static void i_stdion_fd_cleared(struct gensio_iod *iod,
-				struct stdiona_data *nadata,
-				struct stdion_channel *schan);
-
 static void
 stdiona_lock(struct stdiona_data *nadata)
 {
@@ -332,7 +328,7 @@ check_waitpid(struct stdion_channel *schan)
     if (schan->in_free && schan->io) {
 	gensio_data_free(schan->io);
 	schan->io = NULL;
-	stdiona_deref_and_unlock(nadata);
+	stdiona_deref(nadata);
     }
     return;
 
