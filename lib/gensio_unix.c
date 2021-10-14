@@ -268,7 +268,7 @@ alloc_waiter(struct gensio_os_funcs *o, struct selector_s *sel, int wake_sig)
 {
     waiter_t *waiter;
 
-    waiter = o->zalloc(sizeof(waiter_t));
+    waiter = o->zalloc(o, sizeof(waiter_t));
     if (waiter) {
 	waiter->o = o;
 	waiter->sel = sel;
@@ -1639,12 +1639,12 @@ gensio_os_proc_unix_get_wait_sigset(struct gensio_os_proc_data *data)
 }
 
 struct gensio_thread {
-#ifdef USE_PTHREADS
     struct gensio_os_funcs *o;
+#ifdef USE_PTHREADS
     pthread_t id;
+#endif
     void (*start_func)(void *data);
     void *data;
-#endif
 };
 
 static void *
