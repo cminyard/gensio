@@ -469,7 +469,7 @@ namespace gensio {
 	Gensio *g;
 
 	// Set frdata for the gensio and all children.
-	for (i = 0; cio = gensio_get_child(io, i); i++) {
+	for (i = 0; (cio = gensio_get_child(io, i)); i++) {
 	    if (gensio_get_frdata(cio))
 		break; // It's already been set.
 	    const char *type = gensio_get_type(cio, 0);
@@ -1596,7 +1596,7 @@ namespace gensio {
 	Accepter *a;
 
 	// Set frdata for the gensio and all children.
-	for (i = 0; cacc = gensio_acc_get_child(acc, i); i++) {
+	for (i = 0; (cacc = gensio_acc_get_child(acc, i)); i++) {
 	    if (gensio_acc_get_frdata(cacc))
 		break; // It's already been set.
 	    const char *type = gensio_acc_get_type(cacc, 0);

@@ -99,7 +99,7 @@ private:
     // If errors occur in the accepter stack, they generally can't be
     // reported through normal mechanisms.  So those types of errors
     // come in through this mechanism.
-    void log(enum gensio_log_levels level, char *str, va_list args)
+    void log(enum gensio_log_levels level, char *str, va_list args) override
     {
 	fprintf(stderr, "accepter %s log: ", gensio_log_level_to_str(level));
 	vfprintf(stderr, str, args);
