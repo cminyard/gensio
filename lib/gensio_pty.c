@@ -469,7 +469,7 @@ pty_control(void *handler_data, int fd, bool get, unsigned int option,
 	    err = gensio_os_err_to_err(tdata->o, errno);
 	else
 	    *datalen = snprintf(data, *datalen, "%s", ptsstr);
-	return 0;
+	return err;
     }
 #endif
 

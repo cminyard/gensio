@@ -157,8 +157,6 @@ setup_promptuser(struct gdata *ginfo, const char *prompt, int *rfd,
 {
     int err, fd = open("/dev/tty", O_RDWR);
     struct termios new_termios;
-    gensiods pos = 0;
-    char c = 0;
 
     if (aux_data.flags & GTLSSH_AUX_FLAG_NO_INTERACTIVE)
 	return GE_KEYNOTFOUND;
@@ -276,8 +274,6 @@ get2fa(struct gdata *ginfo, char **rval, gensiods *len, const char *prompt)
 	return err;
 
     while (true) {
-	gensiods count = 0;
-
 	if (pos >= size) {
 	    err = increase_size(o, &val, &size);
 	    if (err)
@@ -1848,7 +1844,7 @@ main(int argc, char *argv[])
 	return 1;
 
     if (mdns_transport) {
-	bool ltelnet;
+	bool ltelnet = false;
 	err = lookup_mdns_transport(o, hostname, mdns_type, iptype,
 				    &transport, &ltelnet);
 	if (err)

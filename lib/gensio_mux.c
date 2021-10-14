@@ -1347,7 +1347,6 @@ mux_new_channel(struct mux_data *muxdata, gensio_event cb, void *user_data,
      * through the entries until we find an empty spot.
      */
     if (gensio_list_empty(&muxdata->chans)) {
-	id = 0; /* This is always the automatic channel. */
 	gensio_list_add_tail(&muxdata->chans, &chan->link);
 	/* Note that we do not claim a ref here, there is already one. */
     } else {
@@ -1383,7 +1382,6 @@ mux_new_channel(struct mux_data *muxdata, gensio_event cb, void *user_data,
 	return err;
 
     found:
-	tchan = gensio_container_of(p, struct mux_inst, link);
 	chan->id = id;
 	muxdata->last_id = id;
 	gensio_list_add_next(&muxdata->chans, p, &chan->link);
@@ -2440,6 +2438,7 @@ mux_child_read(struct mux_data *muxdata, int ierr,
 		    break;
 
 		case MUX_DATA:
+		    assert(chan);
 		    if (muxdata->data_size == 0)
 			goto handle_read_no_data;
 		    if (chan_rdbufleft(chan) < muxdata->data_size + 3) {
@@ -2532,6 +2531,7 @@ mux_child_read(struct mux_data *muxdata, int ierr,
 		goto more_data;
 
 	    case MUX_DATA:
+		assert(chan);
 		if (buflen + muxdata->data_pos < muxdata->data_size + 2) {
 		    /* Not all data received yet. */
 		    chan_addrdbuf(chan, buf, buflen);

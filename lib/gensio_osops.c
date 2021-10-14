@@ -2467,6 +2467,8 @@ addrinfo_list_dup(struct gensio_os_funcs *o,
 
     if (rpai)
 	pai = *rpai;
+    else if (!rai)
+	return GE_INVAL;
 
     while (ai) {
 	cai = addrinfo_dup(o, ai);

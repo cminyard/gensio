@@ -318,7 +318,6 @@ ssl_try_connect(struct gensio_filter *filter, gensio_time *timeout)
 	    break;
 
 	case SSL_ERROR_SSL:
-	err_rpt:
 	    gssl_logs_err(sfilter, "Failed SSL startup");
 	    rv = GE_PROTOERR;
 	    break;
@@ -328,7 +327,8 @@ ssl_try_connect(struct gensio_filter *filter, gensio_time *timeout)
 	    break;
 
 	default:
-	    gssl_log_err(sfilter, "Failed SSL startup");
+	err_rpt:
+	    gssl_log_err(sfilter, "Failed SSL startup: 0x%8.8x", err);
 	    rv = GE_COMMERR;
 	}
     }
@@ -511,7 +511,6 @@ ssl_ul_write(struct gensio_filter *filter,
 	    if (!BIO_should_retry(sfilter->io_bio)) {
 		gssl_log_err(sfilter, "Failed BIO read");
 		err = GE_COMMERR;
-		rdlen = 0;
 	    }
 	} else {
 	    sfilter->xmit_buf_len = rdlen;

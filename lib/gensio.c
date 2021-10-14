@@ -3085,7 +3085,7 @@ i_gensio_acc_accept_s(struct gensio_accepter *acc, gensio_time *timeout,
     struct gensio_os_funcs *o = acc->o;
     struct gensio_waiting_accept wa;
     struct gensio_link *l;
-    int rv;
+    int rv = 0;
 
     memset(&wa, 0, sizeof(wa));
     wa.waiter = o->alloc_waiter(o);
@@ -3110,9 +3110,8 @@ i_gensio_acc_accept_s(struct gensio_accepter *acc, gensio_time *timeout,
 	gensio_list_rm(&acc->waiting_accepts, &wa.link);
     } else if (gensio_list_empty(&acc->waiting_ios)) {
 	rv = GE_LOCALCLOSED;
-    } else {
+    } else if (!rv) {
     got_one:
-	rv = 0;
 	l = gensio_list_first(&acc->waiting_ios);
 	gensio_list_rm(&acc->waiting_ios, l);
 	*new_io = gensio_container_of(l, struct gensio, link);

@@ -405,7 +405,7 @@ udpna_do_free(struct udpna_data *nadata)
     unsigned int i;
 
     for (i = 0; i < nadata->nr_fds; i++) {
-	if (nadata->fds[i].fd != -1)
+	if (nadata->fds && nadata->fds[i].fd != -1)
 	    gensio_os_close(nadata->o, &nadata->fds[i].fd);
     }
 

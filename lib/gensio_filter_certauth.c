@@ -2352,7 +2352,7 @@ gensio_certauth_filter_config(struct gensio_os_funcs *o,
 	    data->is_client = false;
 	else {
 	    gensio_log(o, GENSIO_LOG_ERR,
-		       "Unknown default certauth mode (%s), ignoring", str);
+		       "Unknown default certauth mode (%s), ignoring", fstr);
 	}
 	o->free(o, fstr);
     }
