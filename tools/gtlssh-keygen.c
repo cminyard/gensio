@@ -282,8 +282,10 @@ iterate_dir(const char *dir,
 
     while ((e = readdir(d))) {
 	rv = op(dir, e->d_name, cbdata);
-	if (rv == ITERATE_DIR_ERR)
+	if (rv == ITERATE_DIR_ERR) {
+	    closedir(d);
 	    return 1;
+	}
 	if (rv == ITERATE_DIR_STOP)
 	    break;
     }
