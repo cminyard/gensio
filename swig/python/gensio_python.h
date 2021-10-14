@@ -745,7 +745,7 @@ gensio_child_event(struct gensio *io, void *user_data, int event, int readerr,
 
 		rv = OI_PI_AsBytesAndSize(o, &p, &len);
 		if (!rv) {
-		    p2 = data->o->zalloc(data->o, len);
+		    p2 = data->o->zalloc(data->o, len + 1);
 		    if (!p2) {
 			rv = GE_NOMEM;
 		    } else {
@@ -1082,11 +1082,11 @@ gensio_acc_child_event(struct gensio_accepter *accepter, void *user_data,
 	    if (OI_PI_BytesCheck(o)) {
 		char *p;
 		unsigned char *p2;
-		my_ssize_t len = strlen(p);
+		my_ssize_t len;
 
 		rv = OI_PI_AsBytesAndSize(o, &p, &len);
 		if (!rv) {
-		    p2 = data->o->zalloc(data->o, len);
+		    p2 = data->o->zalloc(data->o, len + 1);
 		    if (!p2) {
 			rv = GE_NOMEM;
 		    } else {
