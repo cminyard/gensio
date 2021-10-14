@@ -1917,7 +1917,7 @@ certauth_filter_control(struct gensio_filter *filter, bool get, int op,
 		rv = GE_DATAMISSING;
 		goto out_username;
 	    }
-	    *datalen = snprintf(data, *datalen, "%s", sfilter->username);
+	    *datalen = snprintf(data, *datalen, "%s", sfilter->password);
 	} else {
 	    char *newpw = NULL;
 
