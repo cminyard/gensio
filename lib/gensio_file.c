@@ -315,7 +315,7 @@ filen_deferred_op(struct gensio_runner *runner, void *cb_data)
 
     while (ndata->state == FILEN_OPEN &&
 	   (f_ready(ndata->inf) || ndata->read_err) && ndata->read_enabled) {
-	gensiods count;
+	gensiods count = 0;
 
 	if (ndata->data_pending_len == 0 && !ndata->read_err) {
 	    int rv = f_read(ndata->o, ndata->inf, ndata->read_data,

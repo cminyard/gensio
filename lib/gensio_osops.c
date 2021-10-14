@@ -1395,9 +1395,11 @@ gensio_unix_termios_control(struct gensio_os_funcs *o, int op, bool get,
     case GENSIO_IOD_CONTROL_IXONXOFF:
     case GENSIO_IOD_CONTROL_RS485:
     case GENSIO_IOD_CONTROL_APPLY:
+    case GENSIO_IOD_CONTROL_SET_BREAK:
 	rv = gensio_unix_setup_termios(o, fd, it);
 	if (rv)
 	    return rv;
+	assert(*it);
 	break;
 
     case GENSIO_IOD_CONTROL_FREE_SERDATA:
@@ -1609,11 +1611,10 @@ gensio_unix_termios_control(struct gensio_os_funcs *o, int op, bool get,
 	    bool enabled = !!(t->rs485.flags & SER_RS485_ENABLED);
 
 	    if (enabled != t->rs485_applied) {
-		if (ioctl(fd, TIOCSRS485, &t->rs485) < 0) {
+		if (ioctl(fd, TIOCSRS485, &t->rs485) < 0)
 		    rv = gensio_os_err_to_err(o, errno);
-		    if (!rv)
-			enabled = t->rs485_applied;
-		}
+		else
+		    t->rs485_applied = enabled;
 	    }
 #endif
 	}

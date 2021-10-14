@@ -1049,12 +1049,19 @@ handle_selector_call(struct selector_s *sel, fd_control_t *fdc,
 
     data = fdc->data;
     state = fdc->state;
+    if (!state)
+	/*
+	 * Can happen because we are called multiple times in succession.
+	 * Just ignore it.
+	 */
+	return;
     state->use_count++;
     sel_fd_unlock(sel);
     handler(fdc->fd, data);
     sel_fd_lock(sel);
     state->use_count--;
     if (state->deleted && state->use_count == 0) {
+	fdc->state = NULL;
 	if (state->done) {
 	    sel_fd_unlock(sel);
 	    state->done(fdc->fd, data);

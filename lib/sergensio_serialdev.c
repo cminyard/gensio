@@ -1071,6 +1071,8 @@ sterm_control_raddr(struct sterm_data *sdata, char *buf, gensiods *datalen)
 
 	rv = o->iod_control(sdata->iod, GENSIO_IOD_CONTROL_DTR,
 			    true, (intptr_t) &tval);
+	if (rv)
+	    return rv;
 	if (tval)
 	    gensio_pos_snprintf(buf, buflen, &pos, " DTRHI");
 	else

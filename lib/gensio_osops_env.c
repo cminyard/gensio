@@ -121,7 +121,7 @@ gensio_os_argvenv_alloc(struct gensio_os_funcs *o,
     char **epos;
     const char **argv = NULL;
     gensiods args = 0, argc = 0;
-    int rv;
+    int rv = 0;
 
     for (epos = environ; *epos != NULL; epos++)
 	rv = gensio_argv_append(o, &argv, *epos, &args, &argc, true);

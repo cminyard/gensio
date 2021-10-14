@@ -339,7 +339,7 @@ gensio_addr_addrinfo_equal(const struct gensio_addr *aa1,
 {
     struct gensio_addr_addrinfo *a1 = a_to_info(aa1);
     struct gensio_addr_addrinfo *a2 = a_to_info(aa2);
-    struct addrinfo *ai1 = a1->a, *ai2 = a2->a;
+    struct addrinfo *ai1, *ai2;
 
     if (compare_all) {
 	ai1 = a1->a;
@@ -789,6 +789,8 @@ addrinfo_list_dup(struct gensio_os_funcs *o,
 
     if (rpai)
 	pai = *rpai;
+    else if (!rai)
+	return GE_INVAL;
 
     while (ai) {
 	cai = addrinfo_dup(o, ai);
@@ -796,7 +798,7 @@ addrinfo_list_dup(struct gensio_os_funcs *o,
 	    return GE_NOMEM;
 	if (pai)
 	    pai->ai_next = cai;
-	else
+	else if (rai)
 	    *rai = cai;
 	pai = cai;
 	ai = ai->ai_next;

@@ -497,7 +497,7 @@ pty_control(void *handler_data, struct gensio_iod *iod, bool get,
 	    err = gensio_os_err_to_err(tdata->o, errno);
 	else
 	    *datalen = snprintf(data, *datalen, "%s", ptsstr);
-	return 0;
+	return err;
     }
 #endif
 

@@ -1098,7 +1098,7 @@ gensio_mdns_add_watch(struct gensio_mdns *m,
 
  out_err:
     watch_free(o, w);
-    return GE_NOMEM;
+    return err;
 }
 
 static int
