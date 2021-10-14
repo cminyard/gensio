@@ -1421,6 +1421,7 @@ gensio_stdsock_get_mcast_loop(struct gensio_iod *iod, bool *ival)
 	return rv;
     switch (family) {
     case AF_INET:
+	size = sizeof(val);
 	rv = getsockopt(o->iod_get_fd(iod), IPPROTO_IP, IP_MULTICAST_LOOP,
 			(void *) &val, &size);
 	if (rv == -1)
@@ -1429,6 +1430,7 @@ gensio_stdsock_get_mcast_loop(struct gensio_iod *iod, bool *ival)
 
 #ifdef AF_INET6
     case AF_INET6:
+	size = sizeof(val);
 	rv = getsockopt(o->iod_get_fd(iod), IPPROTO_IPV6, IPV6_MULTICAST_LOOP,
 			(void *) &val, &size);
 	if (rv == -1)
