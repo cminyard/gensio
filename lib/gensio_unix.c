@@ -1227,10 +1227,7 @@ gensio_unix_close(struct gensio_iod **iodp)
 	err = close(iod->fd);
 #ifdef ENABLE_INTERNAL_TRACE
 	/* Close should never fail, but don't crash in production builds. */
-	if (err) {
-	    err = errno;
-	    assert(0);
-	}
+	assert(err == 0);
 #endif
     }
     o->release_iod(iiod);

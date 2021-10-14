@@ -154,10 +154,7 @@ close_socket(struct gensio_os_funcs *o, int fd)
      * Close should never fail (well, except for windows), but don't crash
      * in production builds.
      */
-    if (err) {
-	err = sock_errno;
-	assert(0);
-    }
+    assert(err == 0);
 #endif
 
     if (err == -1)
