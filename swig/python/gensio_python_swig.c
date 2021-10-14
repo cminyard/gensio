@@ -9,6 +9,7 @@
 
 #include "config.h"
 #include <malloc.h>
+#include <assert.h>
 #include <Python.h>
 #include <gensio/gensio_os_funcs.h>
 #include <gensio/gensio_swig.h>
@@ -114,6 +115,7 @@ gensio_swig_setup_os_funcs(struct gensio_os_funcs *o,
     struct os_funcs_data *odata;
 
     odata = malloc(sizeof(*odata));
+    assert(odata != NULL);
     odata->refcount = 1;
 #ifdef USE_POSIX_THREADS
     pthread_mutex_init(&odata->lock, NULL);
