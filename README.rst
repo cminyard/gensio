@@ -852,7 +852,8 @@ To set up for fuzzing, install afl, then configure with the following:
 .. code-block:: bash
 
   mkdir Zfuzz; cd Zfuzz
-  ../configure --enable-internal-trace=yes --disable-shared CC=afl-gcc
+  ../configure --enable-internal-trace=yes --disable-shared CC=afl-gcc \
+      CXX=afl-g++
 
 Then build.  Then "cd tests" and run "make test_fuzz_xxx" where xxx is
 one of: certauth, mux, ssl, telnet, or relpkt.  You will probably need
@@ -871,7 +872,9 @@ to configure the code to enable coverage:
 .. code-block:: bash
 
   mkdir Ocov; cd Ocov
-  ../configure --enable-internal-trace=yes CC='gcc -fprofile-arcs -ftest-coverage'
+  ../configure --enable-internal-trace=yes \
+      CC='gcc -fprofile-arcs -ftest-coverage' \
+      CXX='g++ -fprofile-arcs -ftest-coverage'
 
 The compile and run "make check".  Then run:
 
