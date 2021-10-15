@@ -238,7 +238,7 @@ public:
     Acc_Event(Waiter *w, Event *e) { waiter = w; ev = e; }
 
 private:
-    void log(enum gensio_log_levels level, char *str, va_list args)
+    void log(enum gensio_log_levels level, char *str, va_list args) override
     {
 	fprintf(stderr, "accepter %s log: ", gensio_log_level_to_str(level));
 	vfprintf(stderr, str, args);
