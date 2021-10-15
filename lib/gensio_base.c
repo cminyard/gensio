@@ -17,7 +17,7 @@
 
 #ifdef DEBUG_DATA
 #define ENABLE_PRBUF 1
-#include <utils/utils.h>
+#include "utils.h"
 #endif
 
 /*
@@ -467,11 +467,21 @@ static int
 ll_write(struct basen_data *ndata, gensiods *rcount,
 	 const struct gensio_sg *sg, gensiods sglen, const char *const *auxdata)
 {
+    int rv;
+
 #ifdef DEBUG_DATA
     printf("LL write:");
-    prbuf(buf, buflen);
+    do {
+	unsigned int i;
+	for (i = 0; i < sglen; i++)
+	    prbuf(sg[i].buf, sg[i].buflen);
+    } while (false);
 #endif
-    return gensio_ll_write(ndata->ll, rcount, sg, sglen, auxdata);
+    rv = gensio_ll_write(ndata->ll, rcount, sg, sglen, auxdata);
+#ifdef DEBUG_DATA
+    printf("LL write returned %d accepted %ld\n", rv, rcount ? *rcount : 0);
+#endif
+    return rv;
 }
 
 /*
@@ -597,7 +607,7 @@ basen_write_data_handler(void *cb_data, gensiods *rcount,
 }
 
 static int
-basen_filter_ul_push(struct basen_data *ndata)
+basen_filter_ul_push(struct basen_data *ndata, bool check_open_close)
 {
     if (!ndata->ll_err && ndata->ll_can_write &&
 		filter_ll_write_pending(ndata)) {
@@ -609,7 +619,8 @@ basen_filter_ul_push(struct basen_data *ndata)
 	    handle_ioerr(ndata, err);
 	    return err;
 	}
-	basen_check_open_close_ops(ndata);
+	if (check_open_close)
+	    basen_check_open_close_ops(ndata);
     }
 
     return 0;
@@ -993,7 +1004,7 @@ basen_deferred_op(struct gensio_runner *runner, void *cbdata)
     }
 
     if (ndata->state != BASEN_CLOSED) {
-	basen_filter_ul_push(ndata);
+	basen_filter_ul_push(ndata, true);
 	basen_set_ll_enables(ndata);
     }
     basen_deref_and_unlock(ndata); /* Ref from basen_sched_deferred_op */
@@ -1017,10 +1028,14 @@ basen_filter_try_connect(struct basen_data *ndata, bool was_timeout)
 
     err = filter_try_connect(ndata, &timeout, was_timeout);
     if (!err || err == GE_INPROGRESS || err == GE_RETRY) {
-	int err2 = basen_filter_ul_push(ndata);
-	basen_set_ll_enables(ndata);
-	if (err2)
+	int err2 = basen_filter_ul_push(ndata, false);
+	if (err2) {
+	    basen_set_ll_enables(ndata);
 	    return err2;
+	} else if (err == GE_INPROGRESS) {
+	    err = filter_try_connect(ndata, &timeout, false);
+	    basen_set_ll_enables(ndata);
+	}
     }
     if (err == GE_INPROGRESS)
 	return GE_INPROGRESS;
@@ -1195,7 +1210,9 @@ basen_filter_try_close(struct basen_data *ndata, bool was_timeout)
 
     err = filter_try_disconnect(ndata, &timeout, was_timeout);
     if (err == GE_INPROGRESS || err == GE_RETRY) {
-	basen_filter_ul_push(ndata);
+	basen_filter_ul_push(ndata, false);
+	if (err == GE_INPROGRESS)
+	    err = filter_try_disconnect(ndata, &timeout, was_timeout);
 	basen_set_ll_enables(ndata);
     }
     if (err == GE_INPROGRESS)
@@ -1371,7 +1388,7 @@ basen_timeout(struct gensio_timer *timer, void *cb_data)
     default:
 	break;
     }
-    basen_filter_ul_push(ndata);
+    basen_filter_ul_push(ndata, true);
     basen_set_ll_enables(ndata);
     basen_deref_and_unlock(ndata);
 }
@@ -1588,7 +1605,7 @@ basen_ll_read(void *cb_data, int readerr,
 	} while (ndata->read_enabled && buflen > 0);
 	ndata->in_read = false;
 
-	basen_filter_ul_push(ndata);
+	basen_filter_ul_push(ndata, true);
 
 	basen_check_open_close_ops(ndata);
 
@@ -1606,6 +1623,9 @@ basen_ll_read(void *cb_data, int readerr,
  out_unlock:
     basen_deref_and_unlock(ndata);
 
+#ifdef DEBUG_DATA
+    printf("LL read returns %ld\n", buf - ibuf);
+#endif
     return buf - ibuf;
 }
 
@@ -1643,7 +1663,7 @@ basen_ll_write_ready(void *cb_data)
 	}
     }
 
-    basen_filter_ul_push(ndata);
+    basen_filter_ul_push(ndata, true);
 
     basen_check_open_close_ops(ndata);
 
@@ -1841,7 +1861,7 @@ base_gensio_server_start(struct gensio *io)
     basen_set_state(ndata, BASEN_IN_FILTER_OPEN);
     err = basen_filter_try_connect(ndata, false);
     if (!err) {
-	err = basen_filter_ul_push(ndata);
+	err = basen_filter_ul_push(ndata, true);
 	if (!err) {
 	    /* We are fully open, schedule it. */
 	    basen_set_state(ndata, BASEN_OPEN);
@@ -1849,7 +1869,7 @@ base_gensio_server_start(struct gensio *io)
 	    basen_sched_deferred_op(ndata);
 	}
     } else if (err == GE_INPROGRESS) {
-	err = basen_filter_ul_push(ndata);
+	err = basen_filter_ul_push(ndata, true);
     } else {
 	basen_set_state(ndata, BASEN_CLOSED);
 	err = GE_NOMEM;
