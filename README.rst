@@ -855,6 +855,16 @@ To set up for fuzzing, install afl, then configure with the following:
   ../configure --enable-internal-trace=yes --disable-shared CC=afl-gcc \
       CXX=afl-g++
 
+Or use clang, if available:
+
+.. code-block:: bash
+
+  ../configure --enable-internal-trace=yes --disable-shared CC=afl-clang \
+      CXX=afl-clang++ LIBS='-lstdc++'
+
+I'm not sure why the LIBS thing is necessary above, but I had to add
+it to get it to compile.
+
 Then build.  Then "cd tests" and run "make test_fuzz_xxx" where xxx is
 one of: certauth, mux, ssl, telnet, or relpkt.  You will probably need
 to adjust some things, afl will tell you.  Note that it will run
