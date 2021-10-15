@@ -120,6 +120,7 @@ if test "x$use_pthreads" != "xno"; then
    AX_PTHREAD(
       [LIBS="$LIBS $PTHREAD_LIBS"
        CFLAGS="$CFLAGS $PTHREAD_CFLAGS"
+       CXXFLAGS="$CXXFLAGS $PTHREAD_CFLAGS"
        CC="$PTHREAD_CC"
        AC_DEFINE([USE_PTHREADS], [], [Enable multithreaded support])],
       [if $use_pthreads_set; then
