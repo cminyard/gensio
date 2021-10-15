@@ -100,7 +100,7 @@ AC_ARG_WITH(sctp,
     fi,
 )
 
-if test "x$system_type" == "xunix"; then
+if test "x$system_type" = "xunix"; then
    use_pthreads=yes
 else
    use_pthreads=no
@@ -128,7 +128,7 @@ if test "x$use_pthreads" != "xno"; then
        fi])
 fi
 
-if test "x$system_type" == "xunix"; then
+if test "x$system_type" = "xunix"; then
    tryglib=yes
    trytcl=yes
 else
@@ -236,7 +236,7 @@ if test "x$trytcl" != "xno"; then
       AC_CHECK_HEADER(tcl/tcl.h, FOUND_TCL_HEADER=yes; )
       if test "x$FOUND_TCL_HEADER" != "xyes"; then
          AC_CHECK_HEADER(tcl/tcl.h, FOUND_TCL_HEADER=yes; )
-	 if test "x$FOUND_TCL_HEADER" == "xyes"; then
+	 if test "x$FOUND_TCL_HEADER" = "xyes"; then
 	    tclcflags="-I /usr/include/tcl$ver"
             TCL_CFLAGS="$tclcflags"
 	 fi
