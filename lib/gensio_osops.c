@@ -1498,7 +1498,7 @@ gensio_unix_termios_control(struct gensio_os_funcs *o, int op, bool get,
 		*((int *) val) = 0;
 	} else {
 	    if (val) {
-		t->curr_termios.c_iflag |= IXON;
+		t->curr_termios.c_iflag |= IXON | IXOFF;
 		t->curr_termios.c_cc[VSTART] = 17;
 		t->curr_termios.c_cc[VSTOP] = 19;
 	    } else {
