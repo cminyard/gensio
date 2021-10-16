@@ -26,3 +26,4 @@ ta = TestAccept(o,
                 "perf(write_len=1000000,expect_len=1000000),tcp,localhost,",
                 "perf(write_len=1000000,expect_len=1000000),tcp,0",
                 do_no_test)
+print("  Success!")
