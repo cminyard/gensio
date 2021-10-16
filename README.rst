@@ -898,33 +898,8 @@ To generate the report, run:
 You can look in the individual .gcov files created for information
 about what is covered.  See the gcov docs for detail.
 
-At the time of writing, I was getting about 72% code coverage,
-including some things (like file, trace, and perf gensios) that don't
-get tested in the normal testing.  So that's really pretty good.
-
-If you want to add some tests for perf, trace, and file, you can do
-the following, each a pair where you run each command in separate
-windows:
-
-.. code-block:: bash
-
-  tools/gensiot -a 'perf(write_len=1000000,expect_len=1000000),tcp,1234'
-  tools/gensiot 'perf(write_len=1000000,expect_len=1000000),tcp,localhost,1234'
-
-  tools/gensiot -a 'trace(file=adsf,dir=both),tcp,1234'
-  tools/gensiot 'trace(file=adsf2,dir=both),tcp,localhost,1234'
-  (Type in some data on each side, then do ^\q to exit.)
-
-Then for file do:
-
-.. code-block:: bash
-
-  ./tools/gensiot 'file(outfile=asdf,create)'
-  (Type in some data then do ^\q to exit.  If you want to see the data,
-   use ^J^M to do a new line.)
-  ./tools/gensiot 'file(infile=asdf)'
-
-That gets you to about 77% code coverage.  I'll be working to improve
+At the time of writing, I was getting about 77% code coverage,
+So that's really pretty good.  I'll be working to improve
 that, mostly through improved functional testing.
 
 ser2net is used for testing some things, primarily the serial port
