@@ -921,8 +921,14 @@ sterm_sub_open(void *handler_data, struct gensio_iod **riod)
     if (!sdata->write_only && !sdata->disablebreak) {
 	err = o->iod_control(sdata->iod, GENSIO_IOD_CONTROL_SET_BREAK,
 			     false, sdata->disablebreak);
-	if (err)
+	if (err) {
+	    gensio_log(o, GENSIO_LOG_ERR,
+		       "serialdev: "
+		       "Setting break failed on %s, "
+		       "try adding the nobreak option",
+		       sdata->devname);
 	    goto out_uucp;
+	}
     }
 
     sterm_lock(sdata);
