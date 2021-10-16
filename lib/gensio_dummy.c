@@ -78,6 +78,8 @@ dummyna_deref_and_unlock(struct dummyna_data *nadata)
     if (nadata->refcount == 0) {
 	dummyna_unlock(nadata);
 	dummyna_finish_free(nadata);
+    } else {
+	dummyna_unlock(nadata);
     }
 }
 
@@ -150,11 +152,11 @@ dummyna_shutdown(struct gensio_accepter *accepter,
     } else {
 	nadata->state = DUMMY_IN_SHUTDOWN;
 	/* Run the shutdown response in a runner to avoid deadlocks. */
-	nadata->shutdown_done = shutdown_data;
+	nadata->shutdown_done = shutdown_done;
 	nadata->shutdown_data = shutdown_data;
 	dummyna_deferred_op(nadata);
-	dummyna_unlock(nadata);
     }
+    dummyna_unlock(nadata);
 
     return rv;
 }
@@ -175,8 +177,8 @@ dummyna_set_accept_callback_enable(struct gensio_accepter *accepter,
 	nadata->enabled_done = done;
 	nadata->enabled_data = done_data;
 	dummyna_deferred_op(nadata);
-	dummyna_unlock(nadata);
     }
+    dummyna_unlock(nadata);
 
     return rv;
 }
