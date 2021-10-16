@@ -54,6 +54,7 @@ class mdns_handler:
         self.check = None
         self.print = True
         self.waiter = gensio.waiter(utils.o)
+        self.addr = None
 
     def mdns_all_for_now(self):
         self.done = True
@@ -62,6 +63,7 @@ class mdns_handler:
 
     def mdns_cb(self, is_add, interface, ipdomain, name, types, domain,
                 host, addr, txt):
+        self.addr = addr
         if self.print:
             print_mdns(is_add, interface, ipdomain, name, types, domain,
                        host, addr, txt)
@@ -129,16 +131,19 @@ print("  Data check")
 mdns = gensio.mdns(utils.o)
 watch = mdns.add_watch(-1, gensio.GENSIO_NETTYPE_UNSPEC,
                        None, '%_gensiotest\.*', None, None, e)
-watch = mdns.add_service(-1, gensio.GENSIO_NETTYPE_UNSPEC,
-                         "gensiotest_service", '_gensiotest._tcp', None, None,
-                         5000, ("Hello=yes", "Goodbye=no"))
 e.check = { "name" : "gensiotest_service",
             "type" : '_gensiotest._tcp',
             "port" : 5000,
             "txt" : ("Hello=yes", "Goodbye=no") }
+watch = mdns.add_service(-1, gensio.GENSIO_NETTYPE_UNSPEC,
+                         "gensiotest_service", '_gensiotest._tcp', None, None,
+                         5000, ("Hello=yes", "Goodbye=no"))
 if e.wait() == 0:
     raise Exception("Didn't get data in time")
 if e.check is not None:
     raise Exception("Didn't get right data")
+
+utils.TestAccept(utils.o, "mdns,gensiotest_service", "tcp,5000",
+                 utils.do_small_test, chunksize = 64, get_port=False)
 
 print("  Success!")
