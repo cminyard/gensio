@@ -238,7 +238,7 @@ static bool
 gensiostack_ok(const char *s)
 {
     unsigned int i;
-    static char *ok_gensios[] = { "telnet", "tcp", "udp", "sctp" };
+    static char *ok_gensios[] = { "telnet", "tcp", "udp", "sctp", NULL };
 
     while (*s) {
 	unsigned int len;
