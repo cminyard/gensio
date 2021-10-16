@@ -21,6 +21,7 @@ gensios_enabled = {
     "relpkt": 1,
     "trace": 1,
     "conacc": 1,
+    "perf": 1,
     "mdns": @HAVE_AVAHI@
 }
 
