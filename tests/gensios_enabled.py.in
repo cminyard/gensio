@@ -38,7 +38,8 @@ final_gensios = [
     "file",
     "ipmisol",
     "dummy",
-    "conacc"
+    "conacc",
+    "mdns"
 ]
 
 def check_gensio_enabled(g):
