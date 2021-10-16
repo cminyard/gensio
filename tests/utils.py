@@ -89,6 +89,7 @@ class HandleData:
         self.expected_sig_server_cb = False
         self.expected_sig_server_val = None
         self.ignore_input = False
+        self.waiting_rem_close = False
         self.stream = None
         self.password = password
         self.val_2fa = val_2fa
@@ -190,6 +191,8 @@ class HandleData:
             print("%s: Got data: (err %s %d bytes) %s" % (self.name, str(err),
                                                           len(buf), s))
         if self.expecting_remclose and err == "Remote end closed connection":
+            if (self.waiting_rem_close):
+                self.waiter.wake()
             io.read_cb_enable(False)
             return 0
         if (err):

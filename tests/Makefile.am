@@ -21,7 +21,7 @@ PYTESTS = test_syncio.py \
 	test_mux_tcp_large.py test_mux_limits.py test_mux_oob.py \
 	test_relpkt_basic.py test_relpkt_small.py test_relpkt_medium.py \
 	test_relpkt_large.py test_udp_nocon.py test_conacc.py test_mdns.py \
-	test_ipmisol.py
+	test_ipmisol.py test_perf.py test_trace.py test_file.py
 
 OOMTESTS = oomtest0 oomtest1 oomtest2 oomtest3 oomtest4 oomtest5 oomtest6 \
 	oomtest7 oomtest8 oomtest9 oomtest10 oomtest11 oomtest12 oomtest13 \
