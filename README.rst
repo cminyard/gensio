@@ -892,20 +892,28 @@ To generate the report, run:
 
 .. code-block:: bash
 
+  gcovr -f '.*/.libs/.*' -e '.*python.*'
+
+This will generate a summary.  If you want to see the coverage of
+individual lines in a file, you can do:
+
+.. code-block:: bash
+
   cd lib
   gcov -o .libs/ *.o
 
 You can look in the individual .gcov files created for information
 about what is covered.  See the gcov docs for detail.
 
-At the time of writing, I was getting about 77% code coverage,
+At the time of writing, I was getting about 74% code coverage,
 So that's really pretty good.  I'll be working to improve
 that, mostly through improved functional testing.
 
 ser2net is used for testing some things, primarily the serial port
 configuration (termios and rfc2217).  You can build ser2net against
 the gcov version of the gensio library and run "make check" in ser2net
-to get coverage on those parts.
+to get coverage on those parts.  With that, I'm seeing about 76%
+coverage, so it doesn't add much to the total.
 
 It would be nice to be able to combine this with fuzzing, but I'm not
 sure how to do that.  afl does it's own thing with code coverage.
