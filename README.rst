@@ -886,14 +886,7 @@ to configure the code to enable coverage:
       CC='gcc -fprofile-arcs -ftest-coverage' \
       CXX='g++ -fprofile-arcs -ftest-coverage'
 
-The compile and run "make check".  Then run:
-
-..code-block:: bash
-
-  (cd tests; ./oomtest -t 13 ../tools/gensiot)
-
-to run the pty test, which is not run by default since there are
-issues in the kernel and around running it.
+The compile and run "make check".
 
 To generate the report, run:
 
