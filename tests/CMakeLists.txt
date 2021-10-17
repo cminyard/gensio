@@ -109,9 +109,9 @@ set_tests_properties(ssl_sctp_accept_connect PROPERTIES SKIP_RETURN_CODE 77)
 add_test(NAME certauth_sctp_accept_connect
          COMMAND runtest test_certauth_sctp_accept_connect.py)
 set_tests_properties(certauth_sctp_accept_connect PROPERTIES SKIP_RETURN_CODE 77)
-add_test(NAME certauth_ssl_sctp_accept_connect
-         COMMAND runtest test_certauth_ssl_sctp_accept_connect.py)
-set_tests_properties(certauth_ssl_sctp_accept_connect PROPERTIES SKIP_RETURN_CODE 77)
+add_test(NAME certauth_ssl_tcp_accept_connect
+         COMMAND runtest test_certauth_ssl_tcp_accept_connect.py)
+set_tests_properties(certauth_ssl_tcp_accept_connect PROPERTIES SKIP_RETURN_CODE 77)
 add_test(NAME mux_sctp_small
          COMMAND runtest test_mux_sctp_small.py)
 set_tests_properties(mux_sctp_small PROPERTIES SKIP_RETURN_CODE 77)
