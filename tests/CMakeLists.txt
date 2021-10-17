@@ -138,7 +138,19 @@ add_test(NAME relpkt_large
 set_tests_properties(relpkt_large PROPERTIES SKIP_RETURN_CODE 77)
 add_test(NAME test_udp_nocon
          COMMAND runtest test_udp_nocon.py)
-set_tests_properties(relpkt_large PROPERTIES SKIP_RETURN_CODE 77)
+ set_tests_properties(test_udp_nocon PROPERTIES SKIP_RETURN_CODE 77)
+add_test(NAME test_perf
+         COMMAND runtest test_perf.py)
+set_tests_properties(test_perf PROPERTIES SKIP_RETURN_CODE 77)
+add_test(NAME test_trace
+         COMMAND runtest test_trace.py)
+set_tests_properties(test_trace PROPERTIES SKIP_RETURN_CODE 77)
+add_test(NAME test_file
+         COMMAND runtest test_file.py)
+set_tests_properties(test_file PROPERTIES SKIP_RETURN_CODE 77)
+add_test(NAME test_dummy
+         COMMAND runtest test_dummy.py)
+set_tests_properties(test_dummy PROPERTIES SKIP_RETURN_CODE 77)
 
 add_test(NAME oomtest0
          COMMAND runtest oomtest -t 0 ${PROJECT_BINARY_DIR}/tools/gensiot)
