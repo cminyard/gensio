@@ -69,6 +69,9 @@ struct gensio_data
     struct gensio_list waiting_threads;
     struct gensio_wait_thread *main_context_owner;
 
+    /* Used to track if we did some operation. */
+    bool did_something;
+
     struct gensio_memtrack *mtrack;
 };
 
@@ -86,6 +89,16 @@ gensio_glib_free(struct gensio_os_funcs *f, void *data)
     struct gensio_data *d = f->user_data;
 
     gensio_i_free(d->mtrack, data);
+}
+
+static void
+gensio_glib_did_something(struct gensio_os_funcs *f)
+{
+    struct gensio_data *d = f->user_data;
+
+    g_mutex_lock(&d->lock);
+    d->did_something = true;
+    g_mutex_unlock(&d->lock);
 }
 
 struct gensio_lock {
@@ -178,6 +191,7 @@ glib_read_handler(GIOChannel *source,
 {
     struct gensio_iod_glib *iod = data;
 
+    gensio_glib_did_something(iod->r.f);
     iod->read_handler(&iod->r, iod->cb_data);
     return G_SOURCE_CONTINUE;
 }
@@ -189,6 +203,7 @@ glib_write_handler(GIOChannel *source,
 {
     struct gensio_iod_glib *iod = data;
 
+    gensio_glib_did_something(iod->r.f);
     iod->write_handler(&iod->r, iod->cb_data);
     return G_SOURCE_CONTINUE;
 }
@@ -200,6 +215,7 @@ glib_except_handler(GIOChannel *source,
 {
     struct gensio_iod_glib *iod = data;
 
+    gensio_glib_did_something(iod->r.f);
     iod->except_handler(&iod->r, iod->cb_data);
     return G_SOURCE_CONTINUE;
 }
@@ -227,6 +243,7 @@ glib_real_cleared_handler(gpointer data)
 {
     struct gensio_iod_glib *iod = data;
 
+    gensio_glib_did_something(iod->r.f);
     g_mutex_lock(&iod->lock);
     assert(iod->clear_count > 0);
     iod->clear_count--;
@@ -242,7 +259,10 @@ glib_real_cleared_handler(gpointer data)
 static void
 glib_cleared_handler(gpointer data)
 {
+    struct gensio_iod_glib *iod = data;
+
     /* This can run from user context, call it from base context. */
+    gensio_glib_did_something(iod->r.f);
     g_idle_add(glib_real_cleared_handler, data);
 }
 
@@ -469,6 +489,7 @@ gensio_glib_timeout_handler(gpointer data)
     void (*handler)(struct gensio_timer *t, void *cb_data) = NULL;
     void *cb_data;
 
+    gensio_glib_did_something(t->o);
     g_mutex_lock(&t->lock);
     if (t->timer_id) {
 	handler = t->handler;
@@ -492,6 +513,7 @@ glib_real_timeout_destroyed(gpointer data)
     void *cb_data;
     unsigned int usecount;
 
+    gensio_glib_did_something(t->o);
     g_mutex_lock(&t->lock);
     if (t->done_handler) {
 	t->state = GLIB_TIMER_STOPPED;
@@ -518,7 +540,10 @@ glib_real_timeout_destroyed(gpointer data)
 static void
 gensio_glib_timeout_destroyed(gpointer data)
 {
+    struct gensio_timer *t = (void *) data;
+
     /* This can run from user context, call it from base context. */
+    gensio_glib_did_something(t->o);
     g_idle_add(glib_real_timeout_destroyed, data);
 }
 
@@ -714,6 +739,7 @@ gensio_glib_idle_handler(gpointer data)
     void (*handler)(struct gensio_runner *r, void *cb_data) = NULL;
     void *cb_data;
 
+    gensio_glib_did_something(r->o);
     g_mutex_lock(&r->lock);
     if (r->freed) {
 	g_mutex_unlock(&r->lock);
@@ -910,8 +936,9 @@ timeout_wait(struct timeout_info *t)
     if (t->timeout) {
 	guint timerid;
 
-	timerid = g_timeout_add(us_time_to_ms(t->end - t->now),
-				dummy_timeout_handler, NULL);
+	timerid = g_timeout_add_full(G_PRIORITY_LOW,
+				     us_time_to_ms(t->end - t->now),
+				     dummy_timeout_handler, NULL, NULL);
 	g_main_context_iteration(NULL, TRUE);
 	g_source_remove(timerid);
     } else {
@@ -1683,7 +1710,7 @@ gensio_glib_service(struct gensio_os_funcs *o, gensio_time *timeout)
     struct gensio_data *d = o->user_data;
     struct gensio_wait_thread t;
     struct timeout_info ti = { .timeout = timeout };
-    int rv = 0;
+    int rv = GE_TIMEDOUT;
 
     gensio_list_link_init(&t.global_link);
     t.count = 0;
@@ -1691,24 +1718,29 @@ gensio_glib_service(struct gensio_os_funcs *o, gensio_time *timeout)
 
     g_mutex_lock(&d->lock);
     gensio_list_add_tail(&d->waiting_threads, &t.global_link);
-    if (!timed_out(&ti)) {
-	if (!d->main_context_owner)
-	    d->main_context_owner = &t;
-	if (d->main_context_owner == &t) {
-	    /* This is the thread that will run the main context. */
-	    t.cond = NULL;
-	    g_mutex_unlock(&d->lock);
-	    timeout_wait(&ti);
-	    g_mutex_lock(&d->lock);
-	} else {
-	    /* Not running the main context, just wait on a cond. */
-	    t.cond = &d->cond;
-	    if (timeout)
-		g_cond_wait_until(t.cond, &d->lock, ti.end);
-	    else
-		g_cond_wait(t.cond, &d->lock);
-	}
+ retry:
+    if (!d->main_context_owner)
+	d->main_context_owner = &t;
+    if (d->main_context_owner == &t) {
+	/* This is the thread that will run the main context. */
+	t.cond = NULL;
+	d->did_something = false;
+	g_mutex_unlock(&d->lock);
+	timeout_wait(&ti);
+	g_mutex_lock(&d->lock);
+	if (d->did_something)
+	    rv = 0;
 	ti.now = g_get_monotonic_time();
+    } else {
+	/* Not running the main context, just wait on a cond. */
+	t.cond = &d->cond;
+	if (timeout)
+	    g_cond_wait_until(t.cond, &d->lock, ti.end);
+	else
+	    g_cond_wait(t.cond, &d->lock);
+	ti.now = g_get_monotonic_time();
+	if (!timed_out(&ti))
+	    goto retry;
     }
     gensio_list_rm(&d->waiting_threads, &t.global_link);
     if (d->main_context_owner == &t) {
@@ -1719,8 +1751,6 @@ gensio_glib_service(struct gensio_os_funcs *o, gensio_time *timeout)
     g_mutex_unlock(&d->lock);
 
     timeout_end(&ti);
-    if (timeout->secs == 0 && timeout->nsecs == 0)
-	rv = GE_TIMEDOUT;
 
     return rv;
 }
