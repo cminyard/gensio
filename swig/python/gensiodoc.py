@@ -1268,6 +1268,12 @@ class waiter:
         """
         return
 
+    def service_now(self):
+        """Run the gensio service routine and return immediately.  Returns
+        0 if it did something, GE_TIMEDOUT otherwise.
+        """
+        return
+
 def gensio_set_log_mask(mask):
     """Set the logs that are delivered by the gensio system.
 

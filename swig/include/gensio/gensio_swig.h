@@ -24,3 +24,5 @@ void gensio_swig_setup_os_funcs(struct gensio_os_funcs *o,
 GENSIO_DLL_PUBLIC
 void check_os_funcs_free(struct gensio_os_funcs *o);
 
+GENSIO_DLL_PUBLIC
+int get_os_funcs_refcount(struct gensio_os_funcs *o);

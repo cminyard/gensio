@@ -210,7 +210,7 @@ gensio_do_wait(struct waiter *waiter, unsigned int count,
     restore_waiter(prev_waiter);
 }
 
-static void
+static int
 gensio_do_service(struct waiter *waiter, gensio_time *timeout)
 {
     int err;
@@ -230,6 +230,7 @@ gensio_do_service(struct waiter *waiter, gensio_time *timeout)
 	break;
     } while (1);
     restore_waiter(prev_waiter);
+    return err;
 }
 
 #ifdef USE_POSIX_THREADS
@@ -276,6 +277,20 @@ struct gensio_os_funcs *alloc_gensio_os_funcs(swig_cb *log_handler)
 struct gensio_os_funcs *alloc_gensio_selector(swig_cb *log_handler)
 {
     return alloc_gensio_os_funcs(log_handler);
+}
+
+static void gensio_mdns_delete_watch_done(struct gensio_mdns_watch *watch,
+					  void *userdata)
+{
+    struct mdns_watch *w = userdata;
+    struct gensio_os_funcs *o = w->o;
+
+    o->lock(w->lock);
+    o->unlock(w->lock);
+    o->free_lock(w->lock);
+    deref_swig_cb_val(w->cb_val);
+    o->free(o, w);
+    check_os_funcs_free(o);
 }
 
 %}
@@ -746,7 +761,8 @@ struct waiter { };
 
 	if (!sio)
 	    cast_error("sergensio", "gensio");
-	ref_gensio_data(data);
+	else
+	    ref_gensio_data(data);
 	return sio;
     }
 }
@@ -1193,21 +1209,21 @@ struct waiter { };
 	return gensio_acc_is_reliable(self);
     }
 
-    %newobject cast_to_sergensio_accepter;
+    %newobject cast_to_sergensio_acc;
     struct sergensio_accepter *cast_to_sergensio_acc() {
 	struct gensio_data *data = gensio_acc_get_user_data(self);
 	struct sergensio_accepter *sacc = gensio_acc_to_sergensio_acc(self);
 
 	if (!sacc)
 	    cast_error("sergensio_accepter", "gensio_accepter");
-	ref_gensio_data(data);
+	else
+	    ref_gensio_data(data);
 	return sacc;
     }
 }
 
 %extend sergensio_accepter {
-    ~sergensio_accepter()
-    {
+    ~sergensio_accepter() {
 	struct gensio_accepter *acc = sergensio_acc_to_gensio_acc(self);
 	struct gensio_data *data = gensio_acc_get_user_data(acc);
 
@@ -1272,6 +1288,12 @@ struct waiter { };
 	gensio_do_service(self, &tv);
 	return tv.secs * 1000 + ((tv.nsecs + 500000) / 1000000);
     }
+
+    long service_now() {
+	gensio_time tv = { 0, 0 };
+
+	return gensio_do_service(self, &tv);
+    }
 }
 
 %nodefaultctor mdns_watch;
@@ -1283,17 +1305,20 @@ struct mdns_service { };
 %extend mdns_watch {
     ~mdns_watch() {
 	struct gensio_os_funcs *o = self->o;
-	int rv = 0;
+	int rv = GE_INVAL;
 
 	o->lock(self->lock);
 	self->free_on_close = true;
-	if (!self->closed)
+	if (!self->closed) {
+	    self->closed = true;
 	    rv = gensio_mdns_remove_watch(self->watch,
-					  gensio_mdns_remove_watch_done,
+					  gensio_mdns_delete_watch_done,
 					  self);
+	}
 	o->unlock(self->lock);
 	if (rv) {
 	    o->free_lock(self->lock);
+	    deref_swig_cb_val(self->cb_val);
 	    o->free(o, self);
 	    check_os_funcs_free(o);
 	}
@@ -1368,7 +1393,7 @@ struct mdns_service { };
 	struct gensio_os_funcs *o = self->o;
 
 	o->lock(self->lock);
-	if (self->closed) {
+	if (self->mdns && self->closed) {
 	    /* Free in the close function. */
 	    self->free_on_close = true;
 	    o->unlock(self->lock);
@@ -1405,6 +1430,7 @@ struct mdns_service { };
 	err_handle("close", rv);
     }
 
+    %newobject add_service;
     struct mdns_service *add_service(int interface, int ipdomain,
 				     const char *name, const char *type,
 				     const char *domain, const char *host,
@@ -1427,6 +1453,7 @@ struct mdns_service { };
 	return s;
     }
 
+    %newobject add_watch;
     struct mdns_watch *add_watch(int interface, int ipdomain,
 				 const char *name, const char *type,
 				 const char *domain, const char *host,
@@ -1462,7 +1489,9 @@ struct mdns_service { };
 		w = NULL;
 	    }
 	}
-	if (!w)
+	if (w)
+	    os_funcs_ref(o);
+	else
 	    err_handle("add_watch", rv);
 
 	return w;
@@ -1474,6 +1503,9 @@ struct gensio_os_funcs *alloc_gensio_selector(swig_cb *log_handler);
 
 %newobject alloc_gensio_os_funcs;
 struct gensio_os_funcs *alloc_gensio_os_funcs(swig_cb *log_handler);
+
+void gensio_cleanup_mem(struct gensio_os_funcs *o);
+int get_os_funcs_refcount(struct gensio_os_funcs *o);
 
 %constant int GENSIO_LOG_FATAL = GENSIO_LOG_FATAL;
 %constant int GENSIO_LOG_ERR = GENSIO_LOG_ERR;

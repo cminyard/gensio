@@ -166,3 +166,11 @@ check_os_funcs_free(struct gensio_os_funcs *o)
 	os_funcs_unlock(odata);
     }
 }
+
+int
+get_os_funcs_refcount(struct gensio_os_funcs *o)
+{
+    struct os_funcs_data *odata = o->other_data;
+
+    return odata->refcount;
+}
