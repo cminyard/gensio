@@ -692,78 +692,92 @@ class TestAccept:
                  chunksize = 10240, get_port = True, except_on_log = False,
                  is_sergensio = False):
         self.o = o
-        self.except_on_log = except_on_log
-        if (name):
-            self.name = name
-        else:
-            self.name = accstr
-        if debug:
-            print("TestAccept " + self.name);
+        self.io1 = None
         self.io2 = None
-        self.waiter = gensio.waiter(o)
-        gensios_enabled.check_iostr_gensios(accstr)
-        self.acc = gensio.gensio_accepter(o, accstr, self);
-        if is_sergensio:
-            sga = self.acc.cast_to_sergensio_acc()
-            if not sga:
-                raise Exception("Cast to sergensio_accepter failed");
-            ga = sga.cast_to_gensio_acc()
-            del sga
-            del ga
-        else:
-            sga = None
-            try:
+        self.acc = None
+
+        try:
+            self.except_on_log = except_on_log
+            if (name):
+                self.name = name
+            else:
+                self.name = accstr
+            if debug:
+                print("TestAccept " + self.name);
+            self.waiter = gensio.waiter(o)
+            gensios_enabled.check_iostr_gensios(accstr)
+            self.acc = gensio.gensio_accepter(o, accstr, self);
+            if is_sergensio:
                 sga = self.acc.cast_to_sergensio_acc()
+                if not sga:
+                    raise Exception("Cast to sergensio_accepter failed");
+                ga = sga.cast_to_gensio_acc()
+                del sga
+                del ga
+            else:
+                sga = None
+                try:
+                    sga = self.acc.cast_to_sergensio_acc()
+                except:
+                    pass
+                if sga:
+                    raise Exception("Cast to sergensio_accepter succeeded");
+            if debug:
+                print("acc startup");
+            self.acc.startup()
+            self.waiter.service(1) # Wait a bit for the accepter to start up.
+
+            if get_port:
+                port = self.acc.control(gensio.GENSIO_CONTROL_DEPTH_FIRST,
+                                        gensio.GENSIO_CONTROL_GET,
+                                        gensio.GENSIO_ACC_CONTROL_LPORT, "0")
+            else:
+                port = ""
+            io1str = io1str + port
+            io1 = alloc_io(o, io1str, do_open = False,
+                           chunksize = chunksize)
+            self.io1 = io1
+            if expected_acc_laddr:
+                expected_acc_laddr = expected_acc_laddr + port
+            if expected_raddr:
+                expected_raddr = expected_raddr + port
+
+            if expected_acc_laddr:
+                check_laddr(self.acc, self.name, expected_acc_laddr)
+            if debug:
+                print("io1 open " + self.name);
+            try:
+                io1.open_s()
             except:
-                pass
-            if sga:
-                raise Exception("Cast to sergensio_accepter succeeded");
-        if debug:
-            print("acc startup");
-        self.acc.startup()
-        self.waiter.service(1) # Wait a bit for the accepter to start up.
-
-        if get_port:
-            port = self.acc.control(gensio.GENSIO_CONTROL_DEPTH_FIRST,
-                                    gensio.GENSIO_CONTROL_GET,
-                                    gensio.GENSIO_ACC_CONTROL_LPORT, "0")
-        else:
-            port = ""
-        io1str = io1str + port
-        io1 = alloc_io(o, io1str, do_open = False,
-                       chunksize = chunksize)
-        self.io1 = io1
-        if expected_acc_laddr:
-            expected_acc_laddr = expected_acc_laddr + port
-        if expected_raddr:
-            expected_raddr = expected_raddr + port
-
-        if expected_acc_laddr:
-            check_laddr(self.acc, self.name, expected_acc_laddr)
-        if debug:
-            print("io1 open " + self.name);
-        io1.open_s()
-        if expected_raddr:
-            check_raddr(io1, self.name, expected_raddr)
-        if (io1_dummy_write):
-            # For UDP, kick start things.
-            io1.write(io1_dummy_write, None)
-        if debug:
-            print("wait 1 " + self.name);
-        # Wait for the accept to happen
-        if (self.wait_timeout(1000) == 0):
-            raise Exception(("%s: %s: " % ("test_accept", self.name)) +
-                    ("Timed out waiting for initial connection"))
-        if (io1_dummy_write):
-            self.io2.handler.set_compare(io1_dummy_write)
-            if (self.io2.handler.wait_timeout(1000) == 0):
-                raise Exception(("%s: %s: " % ("test_accept",
-                                               self.io2.handler.name)) +
-                        ("Timed out waiting for dummy read at byte %d" %
-                         self.io2.handler.compared))
-        tester(self.io1, self.io2)
-        if do_close:
-            self.close()
+                del io1.handler.io
+                del io1.handler
+                raise
+            if expected_raddr:
+                check_raddr(io1, self.name, expected_raddr)
+            if (io1_dummy_write):
+                # For UDP, kick start things.
+                io1.write(io1_dummy_write, None)
+            if debug:
+                print("wait 1 " + self.name);
+            # Wait for the accept to happen
+            if (self.wait_timeout(1000) == 0):
+                raise Exception(("%s: %s: " % ("test_accept", self.name)) +
+                                ("Timed out waiting for initial connection"))
+            if (io1_dummy_write):
+                self.io2.handler.set_compare(io1_dummy_write)
+                if (self.io2.handler.wait_timeout(1000) == 0):
+                    raise Exception(("%s: %s: " % ("test_accept",
+                                                   self.io2.handler.name)) +
+                                ("Timed out waiting for dummy read at byte %d" %
+                                     self.io2.handler.compared))
+            tester(self.io1, self.io2)
+            if do_close:
+                self.close()
+        except:
+            self.io1 = None
+            self.io2 = None
+            self.acc = None
+            raise
 
     def close(self):
         self.io1.read_cb_enable(False)
@@ -777,9 +791,9 @@ class TestAccept:
             io_close(self.io2)
 
         # Break all the possible circular references.
-        del self.io1
-        del self.io2
-        del self.acc
+        self.io1 = None
+        self.io2 = None
+        self.acc = None
 
     def new_connection(self, acc, io):
         HandleData(self.o, None, io = io, name = self.name)
@@ -851,58 +865,68 @@ class TestAcceptConnect:
                  expect_2fa = None, expect_2fa_rv = gensio.GE_NOTSUP,
                  val_2fa = None):
         self.o = o
-        if (name):
-            self.name = name
-        else:
-            self.name = iostr
-        self.waiter = gensio.waiter(o)
-        gensios_enabled.check_iostr_gensios(iostr)
-        gensios_enabled.check_iostr_gensios(io2str)
-        self.acc = gensio.gensio_accepter(o, iostr, self);
-        self.acc.startup()
-        self.acc2 = gensio.gensio_accepter(o, io2str, self);
-        self.acc2.startup()
-        if (use_port):
-            port = self.acc.control(gensio.GENSIO_CONTROL_DEPTH_FIRST,
-                                    gensio.GENSIO_CONTROL_GET,
-                                    gensio.GENSIO_ACC_CONTROL_LPORT, "0")
-            io3str = io3str + port
-        self.io1 = self.acc2.str_to_gensio(io3str, None);
+        self.io1 = None
         self.io2 = None
-        self.CA = CA
-        h = HandleData(o, io3str, io = self.io1, password = password,
-                       expect_remclose = expect_remclose,
-                       val_2fa = val_2fa)
-        self.auth_begin_rv = auth_begin_rv
-        self.expect_pw = expect_pw
-        self.expect_pw_rv = expect_pw_rv
-        self.expect_2fa = expect_2fa
-        self.expect_2fa_rv = expect_2fa_rv
+        self.acc = None
+        self.acc2 = None
         try:
-            self.io1.open_s()
+            if (name):
+                self.name = name
+            else:
+                self.name = iostr
+            self.waiter = gensio.waiter(o)
+            gensios_enabled.check_iostr_gensios(iostr)
+            gensios_enabled.check_iostr_gensios(io2str)
+            self.acc = gensio.gensio_accepter(o, iostr, self);
+            self.acc.startup()
+            self.acc2 = gensio.gensio_accepter(o, io2str, self);
+            self.acc2.startup()
+            if (use_port):
+                port = self.acc.control(gensio.GENSIO_CONTROL_DEPTH_FIRST,
+                                        gensio.GENSIO_CONTROL_GET,
+                                        gensio.GENSIO_ACC_CONTROL_LPORT, "0")
+                io3str = io3str + port
+            self.io1 = self.acc2.str_to_gensio(io3str, None);
+            self.io2 = None
+            self.CA = CA
+            h = HandleData(o, io3str, io = self.io1, password = password,
+                           expect_remclose = expect_remclose,
+                           val_2fa = val_2fa)
+            self.auth_begin_rv = auth_begin_rv
+            self.expect_pw = expect_pw
+            self.expect_pw_rv = expect_pw_rv
+            self.expect_2fa = expect_2fa
+            self.expect_2fa_rv = expect_2fa_rv
+            try:
+                self.io1.open_s()
+            except:
+                del self.io1.handler.io
+                del self.io1.handler
+                self.io1 = None
+                self.close()
+                raise
+            self.io1.read_cb_enable(True)
+            if (io1_dummy_write):
+                # For UDP, kick start things.
+                self.io1.write(io1_dummy_write, None)
+            try:
+                self.wait()
+            except:
+                self.close()
+                raise
+            if (io1_dummy_write):
+                self.io2.handler.set_compare(io1_dummy_write)
+                if (self.io2.handler.wait_timeout(1000) == 0):
+                    raise Exception(("%s: %s: " % ("test_accept",
+                                                   self.io2.handler.name)) +
+                               ("Timed out waiting for dummy read at byte %d" %
+                                     self.io2.handler.compared))
+            tester(self.io1, self.io2)
+            if do_close:
+                self.close()
         except:
-            self.io1 = None
             self.close()
             raise
-        self.io1.read_cb_enable(True)
-        if (io1_dummy_write):
-            # For UDP, kick start things.
-            self.io1.write(io1_dummy_write, None)
-        try:
-            self.wait()
-        except:
-            self.close()
-            raise
-        if (io1_dummy_write):
-            self.io2.handler.set_compare(io1_dummy_write)
-            if (self.io2.handler.wait_timeout(1000) == 0):
-                raise Exception(("%s: %s: " % ("test_accept",
-                                               self.io2.handler.name)) +
-                        ("Timed out waiting for dummy read at byte %d" %
-                         self.io2.handler.compared))
-        tester(self.io1, self.io2)
-        if do_close:
-            self.close()
 
     def close(self):
         if (self.io1):
@@ -915,12 +939,14 @@ class TestAcceptConnect:
             io_close(self.io2)
 
         # Break all the possible circular references.
-        del self.io1
-        del self.io2
-        self.acc.shutdown_s()
-        del self.acc
-        self.acc2.shutdown_s()
-        del self.acc2
+        self.io1 = None
+        self.io2 = None
+        if self.acc:
+            self.acc.shutdown_s()
+        self.acc = None
+        if self.acc2:
+            self.acc2.shutdown_s()
+        self.acc2 = None
 
     def new_connection(self, acc, io):
         HandleData(self.o, None, io = io, name = self.name)
