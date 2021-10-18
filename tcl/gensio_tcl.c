@@ -432,6 +432,7 @@ gensio_tcl_free_timer(struct gensio_timer *t)
     }
     t->state = TCL_TIMER_FREE;
     Tcl_MutexUnlock(&t->lock);
+    t->o->free(t->o, t);
 }
 
 /*
@@ -702,10 +703,25 @@ gensio_tcl_free_waiter(struct gensio_waiter *w)
     w->o->free(w->o, w);
 }
 
+struct dummy_timeout_data {
+    bool did_something;
+    Tcl_TimerToken timer;
+};
+
 static void
 dummy_timeout_handler(ClientData data)
 {
-    /* Will be removed in the main loop, avoid races with remove. */
+    struct dummy_timeout_data *td = data;
+
+    td->did_something = false;
+}
+
+static void
+dummy_idle_handler(ClientData data)
+{
+    struct dummy_timeout_data *td = data;
+
+    td->did_something = false;
 }
 
 struct timeout_info {
@@ -745,19 +761,33 @@ timed_out(struct timeout_info *t)
     return t->timeout && t->now >= t->end;
 }
 
-static void
+static bool
 timeout_wait(struct timeout_info *t)
 {
-    if (t->timeout) {
-	Tcl_TimerToken timerid;
+    struct dummy_timeout_data td = { .did_something = true, .timer = NULL };
 
-	timerid = Tcl_CreateTimerHandler(us_time_to_ms(t->end - t->now),
-					 dummy_timeout_handler, NULL);
-	Tcl_DoOneEvent(0);
-	Tcl_DeleteTimerHandler(timerid);
+    if (t->timeout) {
+	unsigned int timeout = us_time_to_ms(t->end - t->now);
+
+	if (timeout) {
+	    td.timer = Tcl_CreateTimerHandler(timeout,
+					      dummy_timeout_handler,
+					      &td);
+	    Tcl_DoOneEvent(0);
+	    Tcl_DeleteTimerHandler(td.timer);
+	} else {
+	    Tcl_DoWhenIdle(dummy_idle_handler, &td);
+	    Tcl_DoOneEvent(0);
+	    if (!td.did_something)
+		Tcl_CancelIdleCall(dummy_idle_handler, &td);
+	}
+	if (td.timer)
+	    Tcl_DeleteTimerHandler(td.timer);
     } else {
 	Tcl_DoOneEvent(0);
     }
+
+    return td.did_something;
 }
 
 static void
@@ -1240,18 +1270,15 @@ static int
 gensio_tcl_service(struct gensio_os_funcs *o, gensio_time *timeout)
 {
     struct timeout_info ti = { .timeout = timeout };
-    int rv = 0;
+    int rv = GE_TIMEDOUT;
 
     setup_timeout(&ti);
 
-    if (!timed_out(&ti)) {
-	timeout_wait(&ti);
-	ti.now = fetch_us_time();
-    }
+    if (timeout_wait(&ti))
+	rv = 0;
+    ti.now = fetch_us_time();
 
     timeout_end(&ti);
-    if (timeout->secs == 0 && timeout->nsecs == 0)
-	rv = GE_TIMEDOUT;
 
     return rv;
 }
