@@ -396,7 +396,7 @@ gensio_mdns_remove_service(struct gensio_mdns_service *s)
 
     gensio_avahi_lock(m->ap);
     err = i_gensio_mdns_remove_service(s);
-    gensio_avahi_unlock(m->ap);
+    gensio_mdns_deref_and_unlock(m);
 
     return err;
 }
@@ -433,6 +433,7 @@ gensio_mdns_add_service(struct gensio_mdns *m,
 	return GE_NOMEM;
 
     s->m = m;
+    gensio_mdns_ref(m);
     s->interface = interface;
     s->protocol = protocol;
     s->port = port;
@@ -467,7 +468,9 @@ gensio_mdns_add_service(struct gensio_mdns *m,
     return 0;
 
  out_err:
+    gensio_avahi_lock(m->ap);
     free_service(o, s);
+    gensio_mdns_deref_and_unlock(m);
     return err;
 }
 
@@ -593,6 +596,8 @@ struct gensio_mdns_watch {
 static void
 enqueue_callback(struct gensio_mdns *m, struct gensio_mdns_callback *c)
 {
+    if (c->remove)
+	return;
     if (!c->in_queue) {
 	gensio_list_add_tail(&m->callbacks, &c->link);
 	c->in_queue = true;
@@ -1058,6 +1063,7 @@ gensio_mdns_add_watch(struct gensio_mdns *m,
 	return GE_NOMEM;
 
     w->m = m;
+    gensio_mdns_ref(m);
     w->cb = callback;
     w->callback_data.w = w;
     w->userdata = userdata;
@@ -1097,7 +1103,9 @@ gensio_mdns_add_watch(struct gensio_mdns *m,
     return 0;
 
  out_err:
+    gensio_avahi_lock(m->ap);
     watch_free(o, w);
+    gensio_mdns_deref_and_unlock(m);
     return err;
 }
 
@@ -1140,8 +1148,8 @@ i_gensio_mdns_remove_watch(struct gensio_mdns_watch *w,
 	gensio_list_rm(&w->browsers, &b->link);
 	browser_free(o, b);
     }
-    w->callback_data.remove = true;
     enqueue_callback(m, &w->callback_data);
+    w->callback_data.remove = true;
 
     return 0;
 }
@@ -1215,6 +1223,7 @@ static void mdns_runner(struct gensio_runner *runner, void *userdata)
 		gensio_avahi_lock(m->ap);
 	    }
 	    watch_free(o, w);
+	    gensio_mdns_deref(m);
 	} else {
 	    if (c->data) {
 		struct gensio_mdns_watch_data *d = c->data;
