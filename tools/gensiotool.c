@@ -722,7 +722,9 @@ main(int argc, char *argv[])
 	o->free_waiter(closewaiter);
     if (proc_data)
 	gensio_os_proc_cleanup(proc_data);
-    if (o)
+    if (o) {
 	gensio_cleanup_mem(o);
+	o->free_funcs(o);
+    }
     gensio_osfunc_exit(!!rv);
 }
