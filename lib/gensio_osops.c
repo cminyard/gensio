@@ -1931,7 +1931,10 @@ check_mem(struct gensio_memtrack *m, struct mem_header *h, int32_t freed)
 	err = true;
     }
 
-    assert(!(err && m->abort_on_err));
+    if (err && m->abort_on_err) {
+	fflush(stderr);
+	assert(false);
+    }
 
     return err;
 }
@@ -1976,7 +1979,10 @@ gensio_memtrack_cleanup(struct gensio_memtrack *m)
 
 	print_meminfo("Lost memory", h);
     }
-    assert(!(m->abort_on_err && !gensio_list_empty(&m->alloced)));
+    if (m->abort_on_err && !gensio_list_empty(&m->alloced)) {
+	fflush(stderr);
+	assert(false);
+    }
 
     LOCK_DESTROY(&m->lock);
     free(m);
