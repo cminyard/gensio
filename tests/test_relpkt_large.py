@@ -11,3 +11,5 @@ import gensio
 print("Test large relpkt over udp")
 TestAccept(o, "mux,relpkt,udp,localhost,",
            "mux,relpkt,udp,localhost,0", do_large_test)
+del o
+test_shutdown()

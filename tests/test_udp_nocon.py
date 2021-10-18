@@ -38,5 +38,13 @@ h2.set_compare(cmpstr)
 io1.write(cmpstr, [ "addr:" + addr2 ])
 if h2.wait_timeout(1000) == 0:
     raise Exception("test_udp_nocon: read timeout 2")
-    
+
+io_close(io1)
+del io1
+io_close(io2)
+del io2
+del h1
+del h2
+del o
+test_shutdown()
 print("  Success!")

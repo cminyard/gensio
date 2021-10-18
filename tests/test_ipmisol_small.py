@@ -18,3 +18,9 @@ io2 = alloc_io(o, "ipmisol,lan -U ipmiusr -P test -p 9001 localhost,9600")
 do_small_test(io1, io2)
 io_close(io1)
 io_close(io2)
+del io1
+del io2
+del isim
+del o
+test_shutdown()
+print("  Success")

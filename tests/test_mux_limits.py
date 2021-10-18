@@ -218,3 +218,9 @@ if (handlemuxacc.wait(timeout = 1000) == 0):
     raise HandlerException(
         "Timeout waiting for single client open finish")
 
+del handlemuxacc
+del handlemuxcl
+del muxacc
+del muxcl
+del o
+test_shutdown()

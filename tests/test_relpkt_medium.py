@@ -25,3 +25,7 @@ TestConCon(o, io1, io2, do_medium_test, "relpkt1",
            expected_raddr1 = ttypipe[0] + "," + fast_baud + "N81 RTSHI DTRHI",
            expected_raddr2 = ttypipe[1] + "," + fast_baud + "N81 RTSHI DTRHI",
            timeout = timeout)
+del io1
+del io2
+del o
+test_shutdown()

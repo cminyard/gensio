@@ -15,4 +15,8 @@ io2 = alloc_io(o, "serialdev," + ttypipe[1] + ",9600")
 test_dataxfer(io1, io2, "This is a test string!")
 io_close(io1)
 io_close(io2)
+del io1
+del io2
+del o
+test_shutdown()
 print("  Success!")

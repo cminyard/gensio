@@ -17,4 +17,5 @@ waiter.service(1)
 acc.shutdown_s()
 del waiter
 del acc
+utils.test_shutdown()
 print("  Success!")

@@ -18,3 +18,6 @@ c = a.io1.control(0, gensio.GENSIO_CONTROL_GET,
 if c != "instreams=1,ostreams=1":
     raise Exception("Invalid stream settings: %s" % c)
 a.close()
+del a
+del o
+test_shutdown()

@@ -104,5 +104,10 @@ if (io1.handler.wait_timeout(2000) == 0):
 
 io_close(io1)
 io_close(io2)
+del io1
+del io2
+del sio2
+del o
+test_shutdown()
 print("  Success!")
 

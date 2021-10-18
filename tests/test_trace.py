@@ -28,10 +28,10 @@ try:
 except:
     pass
 
-ta = TestAccept(o,
-                "trace(file=asdf,dir=both,raw=yes),tcp,localhost,",
-                "trace(file=asdf2,dir=both,raw=yes),tcp,0",
-                do_small_test, chunksize = 64)
+TestAccept(o,
+           "trace(file=asdf,dir=both,raw=yes),tcp,localhost,",
+           "trace(file=asdf2,dir=both,raw=yes),tcp,0",
+           do_small_test, chunksize = 64)
 
 f = open("asdf")
 s = f.read()
@@ -49,4 +49,6 @@ if s != test1 + test2:
 
 os.remove("asdf")
 os.remove("asdf2")
+del o
+test_shutdown()
 print("  Success!")

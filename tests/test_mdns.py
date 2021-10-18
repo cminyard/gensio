@@ -27,8 +27,8 @@ class mdns_closer:
         self.watch_closed = True;
         self.waiter.wake()
 
-    def wait(self):
-        return self.waiter.wait_timeout(1, 10000)
+    def wait(self, timeout = 10000):
+        return self.waiter.wait_timeout(1, timeout)
 
 def print_mdns(is_add, interface, ipdomain, name, types, domain,
                host, addr, txt):
@@ -105,6 +105,12 @@ print("  Free close")
 mdns = gensio.mdns(utils.o)
 watch = mdns.add_watch(-1, gensio.GENSIO_NETTYPE_UNSPEC,
                        None, None, None, None, e)
+watch.close(c)
+if c.wait() == 0:
+    raise Exception("Didn't get close in time")
+if not c.watch_closed:
+    raise Exception("Didn't get watch close")
+c.watch_closed = False
 mdns.close(c)
 if c.wait() == 0:
     raise Exception("Didn't get close in time")
@@ -112,6 +118,7 @@ if not c.mdns_closed:
     raise Exception("Didn't get mdns close")
 c.mdns_closed = False
 del watch
+import sys
 del mdns
 
 print("  Watch free close")
@@ -135,9 +142,9 @@ e.check = { "name" : "gensiotest_service",
             "type" : '_gensiotest._tcp',
             "port" : 5000,
             "txt" : ("Hello=yes", "Goodbye=no") }
-watch = mdns.add_service(-1, gensio.GENSIO_NETTYPE_UNSPEC,
-                         "gensiotest_service", '_gensiotest._tcp', None, None,
-                         5000, ("Hello=yes", "Goodbye=no"))
+service = mdns.add_service(-1, gensio.GENSIO_NETTYPE_UNSPEC,
+                           "gensiotest_service", '_gensiotest._tcp', None, None,
+                           5000, ("Hello=yes", "Goodbye=no"))
 if e.wait() == 0:
     raise Exception("Didn't get data in time")
 if e.check is not None:
@@ -146,4 +153,12 @@ if e.check is not None:
 utils.TestAccept(utils.o, "mdns,gensiotest_service", "tcp,5000",
                  utils.do_small_test, chunksize = 64, get_port=False)
 
-print("  Success!")
+del mdns
+del watch
+del service
+while c.waiter.service_now() == 0:
+    # Give some time for everyting to clear out.
+    pass
+del c
+del e
+utils.test_shutdown()

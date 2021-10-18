@@ -36,3 +36,5 @@ TestAcceptConnect(o,
             "certauth(cert=%s/clientcert.pem,key=%s/clientkey.pem,username=test1),ssl(CA=%s/CA.pem),sctp,localhost," % (keydir, keydir, keydir),
                        do_small_test, CA="%s/clientcert.pem" % keydir)
 
+del o
+test_shutdown()

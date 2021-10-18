@@ -13,3 +13,5 @@ TestAccept(o, "udp,ipv4,localhost,", "udp,localhost,0",
            do_test, io1_dummy_write = "A",
            expected_raddr = "ipv4,127.0.0.1,",
            expected_acc_laddr = "ipv4,127.0.0.1,")
+del o
+test_shutdown()

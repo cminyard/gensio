@@ -52,3 +52,6 @@ TestAcceptConnect(o,
                   password = "jkl;",
                   expect_2fa = "Hello There", expect_2fa_rv = 0,
                   val_2fa = "Hello There")
+
+del o
+test_shutdown()

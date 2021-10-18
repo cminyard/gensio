@@ -12,3 +12,5 @@ print("Test accept tcp")
 TestAccept(o, "tcp,ipv4,localhost,", "tcp,localhost,0", do_test,
            expected_raddr = "ipv4,127.0.0.1,",
            expected_acc_laddr = "ipv4,127.0.0.1,")
+del o
+test_shutdown()

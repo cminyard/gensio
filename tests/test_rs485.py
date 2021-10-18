@@ -29,4 +29,8 @@ if rs485 != check_rs485:
 
 io_close(io1)
 io_close(io2)
+del io1
+del io2
+del o
+test_shutdown()
 print("  Success!")

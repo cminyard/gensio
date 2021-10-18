@@ -144,6 +144,8 @@ class IPMISimDaemon:
             print("Terminating")
         if self.io.closeme:
             utils.io_close(self.io)
+        self.io = None
+        self.handler = None
         count = 10
         while (count > 0):
             try:

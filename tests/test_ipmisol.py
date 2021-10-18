@@ -45,8 +45,8 @@ def check_baud_set(speed, bspeed):
     c = compare_termios(t, io1_r_termios);
     if c != -1:
         raise Exception("Termios %d failure on item %d" % (speed, c))
-    io1.close_s()
-    io2.close_s()
+    utils.io_close(io1)
+    utils.io_close(io2)
     isim.terminate()
 
 check_pipe_dev()
@@ -200,6 +200,13 @@ if (io1.handler.wait_timeout(3000) == 0):
 
 io_close(io1)
 io_close(io2)
+del io1
+del io2
+del sio1
+del sio2
+del h
 isim.terminate()
-
+del isim
+del o
+test_shutdown()
 print("Success!")

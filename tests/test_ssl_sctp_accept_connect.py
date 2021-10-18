@@ -64,3 +64,5 @@ TestAcceptConnect(o,
                            % (keydir, keydir, keydir),
                        do_small_test, CA="%s/clientcert.pem" % keydir)
 
+del o
+test_shutdown()

@@ -40,4 +40,5 @@ if s != test1:
 
 os.remove("asdf")
 
+utils.test_shutdown()
 print("  Success!")

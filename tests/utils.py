@@ -661,6 +661,17 @@ else:
     print("Unknown OS handler name: " + oshndname)
     sys.exit(1)
 
+def test_shutdown():
+    global o
+    c = sys.getrefcount(o)
+    if c != 2:
+        raise Exception("OS object refcount was %d, not 2" % c)
+    c = gensio.get_os_funcs_refcount(o)
+    if c != 1:
+        raise Exception("OS funcs refcount was %d, not 1" % c)
+    gensio.gensio_cleanup_mem(o)
+    del o
+
 def check_raddr(io, testname, expected):
     r = io.control(gensio.GENSIO_CONTROL_DEPTH_FIRST, gensio.GENSIO_CONTROL_GET,
                    gensio.GENSIO_CONTROL_RADDR, "0")

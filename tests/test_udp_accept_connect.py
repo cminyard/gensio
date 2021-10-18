@@ -11,4 +11,5 @@ import gensio
 print("Test udp accepter connect")
 TestAcceptConnect(o, "udp,0", "udp,0", "udp,localhost,",
                   do_small_test, io1_dummy_write = "A")
-
+del o
+test_shutdown()

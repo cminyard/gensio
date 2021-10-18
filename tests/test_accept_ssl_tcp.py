@@ -39,3 +39,6 @@ while True:
     print(v)
     i = i + 1
 ta.close()
+del ta
+del o
+test_shutdown()

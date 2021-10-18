@@ -14,6 +14,7 @@ io = alloc_io(o, "pty,cat", chunksize = 64)
 check_raddr(io, "pty basic", '"cat"')
 test_dataxfer(io, io, "This is a test string!")
 io_close(io)
+del io
 print("  Success!")
 
 print("Test pty accepter")
@@ -41,3 +42,5 @@ except Exception as E:
 print("Test pty symlink force")
 TestAccept(o, "serialdev,./ptylink1", "conacc,pty(link=./ptylink1,forcelink)",
            do_small_test, get_port = False)
+del o
+test_shutdown()

@@ -34,3 +34,6 @@ if service != "myservice":
     raise Exception(
         "Invalid service, expected %s, got %s" % ("myservice", service))
 ta.close()
+del ta
+del o
+test_shutdown()

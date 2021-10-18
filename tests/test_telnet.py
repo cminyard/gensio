@@ -27,6 +27,7 @@ class SigRspHandler:
     def wait_timeout(self, timeout):
         return self.waiter.wait_timeout(1, timeout)
 
+import sys
 def do_telnet_test(io1, io2):
     io1.handler.set_expected_modemstate(0)
     io1.read_cb_enable(True);
@@ -122,6 +123,8 @@ def do_telnet_test(io1, io2):
     return
 
 print("Test accept telnet")
-ta = TestAccept(o, "telnet(rfc2217),tcp,localhost,",
-                "telnet(rfc2217=true),tcp,0", do_telnet_test,
-                is_sergensio = True)
+TestAccept(o, "telnet(rfc2217),tcp,localhost,",
+           "telnet(rfc2217=true),tcp,0", do_telnet_test,
+           is_sergensio = True)
+del o
+test_shutdown()

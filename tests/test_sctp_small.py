@@ -10,4 +10,6 @@ import gensio
 
 check_sctp()
 print("Test sctp small")
-ta = TestAccept(o, "sctp,localhost,", "sctp,0", do_small_test, chunksize = 64)
+TestAccept(o, "sctp,localhost,", "sctp,0", do_small_test, chunksize = 64)
+del o
+test_shutdown()

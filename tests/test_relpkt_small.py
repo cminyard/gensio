@@ -15,3 +15,7 @@ io2 = alloc_io(o, "relpkt,msgdelim,serialdev," + ttypipe[1], do_open = False)
 TestConCon(o, io1, io2, do_small_test, "relpkt1",
            expected_raddr1 = ttypipe[0] + ",9600N81 RTSHI DTRHI",
            expected_raddr2 = ttypipe[1] + ",9600N81 RTSHI DTRHI")
+del io1
+del io2
+del o
+test_shutdown()

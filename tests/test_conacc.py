@@ -69,6 +69,8 @@ class TestAcceptConAcc:
 
         self.acc.shutdown_s()
         self.acc2.shutdown_s()
+        self.acc = None
+        self.acc2 = None
         self.close()
 
     def close(self):
@@ -110,5 +112,6 @@ class TestAcceptConAcc:
             raise Exception("test_conacc: Timed out");
 
 print("Test conacc")
-ta = TestAcceptConAcc(o, "tcp,0", "conacc,tcp,localhost,", do_small_test)
-
+TestAcceptConAcc(o, "tcp,0", "conacc,tcp,localhost,", do_small_test)
+del o
+test_shutdown()

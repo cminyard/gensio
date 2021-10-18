@@ -9,4 +9,6 @@ from utils import *
 import gensio
 
 print("Test tcp small")
-ta = TestAccept(o, "tcp,localhost,", "tcp,0", do_small_test, chunksize = 64)
+TestAccept(o, "tcp,localhost,", "tcp,0", do_small_test, chunksize = 64)
+del o
+test_shutdown()

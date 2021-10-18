@@ -19,4 +19,8 @@ HandleData(o, "stderr", chunksize = 64, io = err)
 test_dataxfer(io, err, "This is a test string!")
 io_close(io)
 io_close(err)
+del io
+del err
+del o
+test_shutdown()
 print("  Success!")

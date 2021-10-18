@@ -17,6 +17,8 @@ def do_urgent_test(io1, io2):
     print("  Success!")
 
 print("Test tcp urgent")
-ta = TestAccept(o, "tcp,localhost,", "tcp,0", do_urgent_test,
-                chunksize = 64)
+TestAccept(o, "tcp,localhost,", "tcp,0", do_urgent_test,
+           chunksize = 64)
+del o
+test_shutdown()
 

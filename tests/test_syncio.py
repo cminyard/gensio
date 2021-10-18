@@ -5,6 +5,7 @@
 #  SPDX-License-Identifier: GPL-2.0-only
 #
 
+import utils
 import gensio
 import gensios_enabled
 
@@ -108,3 +109,4 @@ import utils
 
 test_sync_gensio(utils.o)
 test_sync_gensio_accepter(utils.o)
+utils.test_shutdown()

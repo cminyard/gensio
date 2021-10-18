@@ -13,4 +13,5 @@ check_sctp()
 print("Test telnet over sctp accepter connect")
 TestAcceptConnect(o, "telnet,sctp,0", "telnet,sctp,0",
                   "telnet,sctp,localhost,", do_small_test)
-
+del o
+test_shutdown()
