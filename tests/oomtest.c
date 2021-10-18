@@ -788,6 +788,7 @@ struct oom_test_data {
     gensiods ccon_stderr_pos;
     struct gensio *ccon_stderr_io;
     bool stderr_expect_close;
+    bool stderr_rem_closed;
 
     bool stderr_open_done;
     bool stderr_closed;
@@ -1146,6 +1147,7 @@ ccon_stderr_cb(struct gensio *io, void *user_data,
 	OOMLOCK(&od->lock);
 	assert(!debug || err == GE_REMCLOSE);
 	gensio_set_read_callback_enable(io, false);
+	od->stderr_rem_closed = true;
 	if (!od->stderr_expect_close || err != GE_REMCLOSE)
 	    od->ccon.err = err;
 	o->wake(od->waiter);
@@ -1468,6 +1470,23 @@ close_stderr(struct oom_test_data *od, gensio_time *timeout)
     if (!od->ccon_stderr_io)
 	return 0;
 
+    while (!od->stderr_rem_closed) {
+	OOMUNLOCK(&od->lock);
+	rv = o->wait_intr_sigmask(od->waiter, 1, timeout, proc_data);
+	OOMLOCK(&od->lock);
+	if (rv == GE_TIMEDOUT) {
+	    printf("Waiting on timeout err G1\n");
+	    fflush(stdout);
+	    handle_timeout_err();
+	}
+	if (rv == GE_INTERRUPTED)
+	    continue;
+	if (rv) {
+	    if (!err)
+		err = rv;
+	    break;
+	}
+    }
     rv = gensio_close(od->ccon_stderr_io, ccon_stderr_closed, od);
     assert(!debug || !rv || rv == GE_REMCLOSE);
     if (rv && !err) {
@@ -2293,6 +2312,7 @@ main(int argc, char *argv[])
     o->free(o, gensiot);
     cleanup_ods();
     gensio_cleanup_mem(o);
+    o->free_funcs(o);
     gensio_osfunc_exit(1);
     return 1;
 }
