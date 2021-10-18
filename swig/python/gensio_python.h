@@ -1373,7 +1373,9 @@ static void gensio_mdns_remove_watch_done(struct gensio_mdns_watch *watch,
     if (w->free_on_close) {
 	o->unlock(w->lock);
 	o->free_lock(w->lock);
+	deref_swig_cb_val(w->cb_val);
 	o->free(o, w);
+	check_os_funcs_free(o);
     } else {
 	w->watch = NULL;
 	o->unlock(w->lock);
