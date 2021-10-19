@@ -114,9 +114,9 @@ print("  Data check")
 mdns = gensio.mdns(utils.o)
 watch = mdns.add_watch(-1, gensio.GENSIO_NETTYPE_UNSPEC,
                None, '%_gensiotest\.*', None, None, e)
-watch = mdns.add_service(-1, gensio.GENSIO_NETTYPE_UNSPEC,
-                         "gensiotest_service", '_gensiotest._tcp', None, None,
-                         5000, ("Hello=yes", "Goodbye=no"))
+service = mdns.add_service(-1, gensio.GENSIO_NETTYPE_UNSPEC,
+                           "gensiotest_service", '_gensiotest._tcp', None, None,
+                           5000, ("Hello=yes", "Goodbye=no"))
 e.check = { "name" : "gensiotest_service",
             "type" : '_gensiotest._tcp',
             "port" : 5000,
