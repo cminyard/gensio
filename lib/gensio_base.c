@@ -1103,6 +1103,9 @@ basen_open(struct basen_data *ndata, gensio_done_err open_done, void *open_data)
 {
     int err = GE_INUSE;
 
+    if (!open_done)
+	return GE_INVAL;
+
     basen_lock(ndata);
     if (ndata->state == BASEN_CLOSED) {
 	err = filter_setup(ndata);
@@ -1158,6 +1161,9 @@ basen_open_nochild(struct basen_data *ndata,
 {
     int err = GE_INUSE;
 
+    if (!open_done)
+	return GE_INVAL;
+
     basen_lock(ndata);
     if (ndata->state == BASEN_CLOSED) {
 	err = filter_setup(ndata);
@@ -1206,7 +1212,6 @@ basen_filter_try_close(struct basen_data *ndata, bool was_timeout)
 {
     int err;
     gensio_time timeout = {0, 0};
-
 
     err = filter_try_disconnect(ndata, &timeout, was_timeout);
     if (err == GE_INPROGRESS || err == GE_RETRY) {
@@ -1807,6 +1812,10 @@ gensio_i_alloc(struct gensio_os_funcs *o,
 	    ndata->ll = NULL;
 	    goto out_nomem;
 	}
+
+	/* This is not ideal, it should really return GE_NOMEM. */
+	if (!open_done)
+	    goto out_nomem;
 
 	ndata->open_done = open_done;
 	ndata->open_data = open_data;
