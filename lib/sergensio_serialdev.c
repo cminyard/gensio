@@ -443,17 +443,17 @@ serconf_xlat_iflowcontrol(struct sterm_data *sdata, bool get,
 			  int *oval, int val)
 {
     if (get) {
+	if (val)
+	    *oval = SERGENSIO_FLOWCONTROL_XON_XOFF;
+	else
+	    *oval = SERGENSIO_FLOWCONTROL_NONE;
+    } else {
 	switch (val) {
 	case SERGENSIO_FLOWCONTROL_NONE: *oval = 0; break;
 	case SERGENSIO_FLOWCONTROL_XON_XOFF: *oval = 1; break;
 	default:
 	    return GE_INVAL;
 	}
-    } else {
-	if (val)
-	    *oval = SERGENSIO_FLOWCONTROL_XON_XOFF;
-	else
-	    *oval = SERGENSIO_FLOWCONTROL_NONE;
     }
 
     return 0;
