@@ -396,6 +396,10 @@ serconf_xlat_flowcontrol(struct sterm_data *sdata, bool get,
 					false, 0);
 	    if (err)
 		return err;
+	    err = sdata->o->iod_control(sdata->iod, GENSIO_IOD_CONTROL_IXONXOFF,
+					false, 0);
+	    if (err)
+		return err;
 	    *oval = 0;
 	    break;
 
@@ -404,11 +408,19 @@ serconf_xlat_flowcontrol(struct sterm_data *sdata, bool get,
 					false, 1);
 	    if (err)
 		return err;
+	    err = sdata->o->iod_control(sdata->iod, GENSIO_IOD_CONTROL_IXONXOFF,
+					false, 1);
+	    if (err)
+		return err;
 	    *oval = 0;
 	    break;
 
 	case SERGENSIO_FLOWCONTROL_RTS_CTS:
 	    err = sdata->o->iod_control(sdata->iod, GENSIO_IOD_CONTROL_XONXOFF,
+					false, 0);
+	    if (err)
+		return err;
+	    err = sdata->o->iod_control(sdata->iod, GENSIO_IOD_CONTROL_IXONXOFF,
 					false, 0);
 	    if (err)
 		return err;
@@ -455,7 +467,7 @@ sterm_iflowcontrol(struct sergensio *sio, int iflowcontrol,
 {
     /* Input flow control is not independently settable. */
     return serconf_set_get(sergensio_get_gensio_data(sio),
-			   GENSIO_IOD_CONTROL_IXONXOFF, 0,
+			   GENSIO_IOD_CONTROL_XONXOFF, 0,
 			   serconf_xlat_flowcontrol, done, cb_data);
 }
 
