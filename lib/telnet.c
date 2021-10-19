@@ -47,9 +47,8 @@ send_i(telnet_data_t *td, unsigned char type, unsigned char option)
 }
 
 static void
-handle_telnet_cmd(telnet_data_t *td)
+handle_telnet_cmd(telnet_data_t *td, unsigned int size)
 {
-    int size = td->telnet_cmd_pos;
     unsigned char *cmd_str = td->telnet_cmd;
     struct telnet_cmd *cmd;
     int rv;
@@ -60,7 +59,14 @@ handle_telnet_cmd(telnet_data_t *td)
 
     if (cmd_str[1] < TN_SB) { /* A one-byte command. */
 	td->cmd_handler(td->cb_data, cmd_str[1]);
-    } else if (cmd_str[1] == TN_SB) { /* Option */
+	return;
+    }
+
+    /* Everything else is at least 3 bytes. */
+    if (size < 3)
+	return;
+
+    if (cmd_str[1] == TN_SB) { /* Option */
 	cmd = find_cmd(td->cmds, cmd_str[2]);
 	if (!cmd || !cmd->option_handler)
 	    return;
@@ -97,7 +103,9 @@ handle_telnet_cmd(telnet_data_t *td)
     } else if (cmd_str[1] == TN_DO) {
 	option = cmd_str[2];
 	cmd = find_cmd(td->cmds, option);
-	if (cmd) {
+	if (!cmd) {
+	    send_i(td, TN_WONT, option);
+	} else {
 	    rv = cmd->i_will;
 	    if (cmd->will_do_handler) {
 		rv = cmd->will_do_handler(td->cb_data, TN_DO);
@@ -187,14 +195,19 @@ process_telnet_data(unsigned char *outdata, unsigned int outlen,
 		   everything we need to handle the command. */
 		td->telnet_cmd[td->telnet_cmd_pos++] = tn_byte;
 		if (tn_byte < TN_SB) {
-		    handle_telnet_cmd(td);
+		    handle_telnet_cmd(td, td->telnet_cmd_pos);
 		    td->telnet_cmd_pos = 0;
 		}
 	    } else if (td->telnet_cmd_pos == 2) {
 		td->telnet_cmd[td->telnet_cmd_pos++] = tn_byte;
+		if (td->telnet_cmd[1] == TN_SE) {
+		    /* SE is never valid except after an SE. */
+		    td->telnet_cmd_pos = 0;
+		    continue;
+		}
 		if (td->telnet_cmd[1] != TN_SB) {
 		    /* It's a will/won't/do/don't */
-		    handle_telnet_cmd(td);
+		    handle_telnet_cmd(td, td->telnet_cmd_pos);
 		    td->telnet_cmd_pos = 0;
 		}
 	    } else {
@@ -203,7 +216,7 @@ process_telnet_data(unsigned char *outdata, unsigned int outlen,
 		    if (tn_byte == TN_SE) {
 			/* Remove the IAC 240 from the end. */
 			td->telnet_cmd_pos--;
-			handle_telnet_cmd(td);
+			handle_telnet_cmd(td, td->telnet_cmd_pos);
 			td->telnet_cmd_pos = 0;
 		    } else if (tn_byte == TN_IAC) {
 			/* Don't do anything, a double 255 means
