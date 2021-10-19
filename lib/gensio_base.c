@@ -505,6 +505,7 @@ basen_ll_close_done(void *cb_data, void *close_data)
     i_basen_add_trace(ndata, 1100, __LINE__);
     switch(ndata->state) {
     case BASEN_IN_LL_CLOSE:
+    case BASEN_IO_ERR_CLOSE:
 	/* Don't move to BASEN_CLOSED until later to avoid races. */
 	i_basen_add_trace(ndata, 102, __LINE__);
 	ndata->deferred_close = true;
@@ -513,6 +514,18 @@ basen_ll_close_done(void *cb_data, void *close_data)
 
     case BASEN_IN_LL_IO_ERR_CLOSE:
 	basen_set_state(ndata, BASEN_IO_ERR_CLOSE);
+	/*
+	 * This is kind of a hack.  This can come from an error two
+	 * places, either filter open or open.  If it's in filter
+	 * open, we need to deliver the open failure to the user,
+	 * otherwise we will already be set to deliver a read/write
+	 * failture.  So if open_done is set, we are in filter open,
+	 * and know to deliver the open failure.
+	 */
+	if (ndata->open_done) {
+	    ndata->deferred_open = true;
+	    basen_sched_deferred_op(ndata);
+	}
 	break;
 
     default:
@@ -664,19 +677,29 @@ basen_write(struct basen_data *ndata, gensiods *rcount,
      * to here.
      */
     if (ndata->in_write_count == 0 && ndata->ll_want_close) {
-	int rv = ll_close(ndata);
-	if (rv) {
-	    if (ndata->state == BASEN_CLOSE_WAIT_DRAIN) {
-		basen_set_state(ndata, BASEN_IN_FILTER_CLOSE);
-		basen_filter_try_close(ndata, false);
-	    } else if (ndata->state == BASEN_IN_LL_IO_ERR_CLOSE) {
-		basen_set_state(ndata, BASEN_IO_ERR_CLOSE);
-	    } else if (ndata->state == BASEN_IN_LL_CLOSE) {
+	int rv;
+
+	switch (ndata->state) {
+	case BASEN_CLOSE_WAIT_DRAIN:
+	    basen_set_state(ndata, BASEN_IN_LL_CLOSE);
+	    rv = ll_close(ndata);
+	    if (rv) {
 		ndata->deferred_close = true;
 		basen_sched_deferred_op(ndata);
-	    } else {
-		assert(0);
 	    }
+	    break;
+
+	case BASEN_IN_LL_IO_ERR_CLOSE:
+	    basen_set_state(ndata, BASEN_IO_ERR_CLOSE);
+	    break;
+
+	case BASEN_IN_LL_CLOSE:
+	    ndata->deferred_close = true;
+	    basen_sched_deferred_op(ndata);
+	    break;
+
+	default:
+	    assert(0);
 	}
     }
  out_unlock:
@@ -778,8 +801,6 @@ i_handle_ioerr(struct basen_data *ndata, int err, int line)
 
     case BASEN_IN_FILTER_OPEN:
 	filter_io_err(ndata, err);
-	ndata->deferred_open = true;
-	basen_sched_deferred_op(ndata);
 	basen_set_state(ndata, BASEN_IN_LL_IO_ERR_CLOSE);
 	/*
 	 * No need to check for in_write_count here, it can't be
@@ -893,6 +914,9 @@ basen_finish_close(struct basen_data *ndata)
 static void
 basen_finish_open(struct basen_data *ndata, int err)
 {
+    gensio_done_err open_done;
+    void *open_data;
+
     i_basen_add_trace(ndata, 100, __LINE__);
     if (!err) {
 	assert(ndata->state == BASEN_IN_FILTER_OPEN || ndata->state == BASEN_OPEN);
@@ -901,8 +925,11 @@ basen_finish_open(struct basen_data *ndata, int err)
 	    basen_start_timer(ndata, &ndata->pending_timer);
     }
 
+    open_done = ndata->open_done;
+    ndata->open_done = NULL;
+    open_data = ndata->open_data;
     basen_unlock(ndata);
-    ndata->open_done(ndata->io, err, ndata->open_data);
+    open_done(ndata->io, err, open_data);
     basen_lock(ndata);
 }
 
@@ -918,6 +945,7 @@ basen_in_read_callbackable_state(struct basen_data *ndata)
 	    ndata->state == BASEN_CLOSE_WAIT_DRAIN ||
 	    ndata->state == BASEN_IN_LL_IO_ERR_CLOSE ||
 	    ndata->state == BASEN_IN_LL_CLOSE ||
+	    ndata->state == BASEN_IN_FILTER_CLOSE ||
 	    ndata->state == BASEN_IO_ERR_CLOSE);
 }
 
@@ -1258,8 +1286,6 @@ basen_i_close(struct basen_data *ndata,
     if (ndata->state == BASEN_IN_LL_OPEN ||
 		ndata->state == BASEN_IN_FILTER_OPEN) {
 	basen_set_state(ndata, BASEN_IN_LL_CLOSE);
-	ndata->deferred_open = true;
-	basen_sched_deferred_op(ndata);
 	/*
 	 * No need to check for in_write_count here, it can't be
 	 * pending because we can't have started a write yet.
