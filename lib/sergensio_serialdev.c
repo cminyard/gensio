@@ -374,9 +374,9 @@ static int
 serconf_xlat_flowcontrol(struct sterm_data *sdata, bool get,
 			 int *oval, int val)
 {
-    if (get) {
-	int err;
+    int err;
 
+    if (get) {
 	if (val) {
 	    *oval = SERGENSIO_FLOWCONTROL_RTS_CTS;
 	} else {
@@ -392,13 +392,29 @@ serconf_xlat_flowcontrol(struct sterm_data *sdata, bool get,
     } else {
 	switch (val) {
 	case SERGENSIO_FLOWCONTROL_NONE:
-	case SERGENSIO_FLOWCONTROL_XON_XOFF:
-	case 0:
+	    err = sdata->o->iod_control(sdata->iod, GENSIO_IOD_CONTROL_XONXOFF,
+					false, 0);
+	    if (err)
+		return err;
 	    *oval = 0;
 	    break;
+
+	case SERGENSIO_FLOWCONTROL_XON_XOFF:
+	    err = sdata->o->iod_control(sdata->iod, GENSIO_IOD_CONTROL_XONXOFF,
+					false, 1);
+	    if (err)
+		return err;
+	    *oval = 0;
+	    break;
+
 	case SERGENSIO_FLOWCONTROL_RTS_CTS:
+	    err = sdata->o->iod_control(sdata->iod, GENSIO_IOD_CONTROL_XONXOFF,
+					false, 0);
+	    if (err)
+		return err;
 	    *oval = 1;
 	    break;
+
 	default:
 	    return GE_INVAL;
 	}
@@ -414,49 +430,21 @@ sterm_flowcontrol(struct sergensio *sio, int flowcontrol,
 		  void *cb_data)
 {
     struct sterm_data *sdata = sergensio_get_gensio_data(sio);
-    int xonxoff = 0, err;
 
     switch (flowcontrol) {
     case SERGENSIO_FLOWCONTROL_NONE:
     case SERGENSIO_FLOWCONTROL_RTS_CTS:
-    case 0:
-	break;
     case SERGENSIO_FLOWCONTROL_XON_XOFF:
-	xonxoff = 1;
 	break;
+
+    case 0:
     default:
-	return GE_INVAL;
+	/* We only fetch in any other case. */
+	flowcontrol = 0;
     }
 
-    if (flowcontrol) {
-	err = sdata->o->iod_control(sdata->iod, GENSIO_IOD_CONTROL_XONXOFF,
-				    false, xonxoff);
-	if (err)
-	    return err;
-    }
     return serconf_set_get(sdata, GENSIO_IOD_CONTROL_RTSCTS, flowcontrol,
 			   serconf_xlat_flowcontrol, done, cb_data);
-}
-
-static int
-serconf_xlat_iflowcontrol(struct sterm_data *sdata, bool get,
-			  int *oval, int val)
-{
-    if (get) {
-	if (val)
-	    *oval = SERGENSIO_FLOWCONTROL_XON_XOFF;
-	else
-	    *oval = SERGENSIO_FLOWCONTROL_NONE;
-    } else {
-	switch (val) {
-	case SERGENSIO_FLOWCONTROL_NONE: *oval = 0; break;
-	case SERGENSIO_FLOWCONTROL_XON_XOFF: *oval = 1; break;
-	default:
-	    return GE_INVAL;
-	}
-    }
-
-    return 0;
 }
 
 static int
@@ -465,9 +453,10 @@ sterm_iflowcontrol(struct sergensio *sio, int iflowcontrol,
 				int iflowcontrol, void *cb_data),
 		   void *cb_data)
 {
+    /* Input flow control is not independently settable. */
     return serconf_set_get(sergensio_get_gensio_data(sio),
-			   GENSIO_IOD_CONTROL_IXONXOFF, iflowcontrol,
-			   serconf_xlat_iflowcontrol, done, cb_data);
+			   GENSIO_IOD_CONTROL_IXONXOFF, 0,
+			   serconf_xlat_flowcontrol, done, cb_data);
 }
 
 static int
