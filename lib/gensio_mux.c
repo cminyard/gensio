@@ -482,6 +482,14 @@ struct mux_data {
     unsigned int opencount;
 
     /*
+     * Used when doing an error close and we get a normal close in the
+     * mean time.  This will cause the error close to invoke the
+     * normal close.
+     */
+    bool do_normal_close;
+    struct mux_inst *do_normal_close_chan;
+
+    /*
      * All the channels in the mux.  The channels are kept in id
      * order.
      */
@@ -526,8 +534,9 @@ i_mux_add_trace(struct mux_data *mux, struct mux_inst *chan,
     else
 	mux->trace_pos = pos + 1;
 }
-#define mux_add_trace(mux, chan, state, new_state, cstate, new_cstate) \
-    i_mux_add_trace(mux, chan, state, new_state, cstsate, new_cstate, __LINE__)
+#define mux_add_trace(mux, chan, new_state, new_cstate) \
+    i_mux_add_trace(mux, chan, mux->state, new_state, chan->state, \
+		    new_cstate, __LINE__)
 
 #define mux_set_state(mux, nstate) do {					\
 	i_mux_add_trace(mux, NULL, mux->state, nstate, 99, 99, __LINE__);\
@@ -542,7 +551,7 @@ i_mux_add_trace(struct mux_data *mux, struct mux_inst *chan,
 
 #else
 #define i_mux_add_trace(mux, chan, state, cstate, new_state, new_cstate, line)
-#define mux_add_trace(mux, chan, state, cstate, new_state, new_cstate)
+#define mux_add_trace(mux, chan, cstate, new_cstate)
 #define mux_set_state i_mux_set_state
 #define muxc_set_state i_muxc_set_state
 #endif
@@ -782,8 +791,14 @@ mux_channel_set_closed(struct mux_inst *chan, gensio_done close_done,
     chan_deref(chan);
     assert(muxdata->nr_not_closed > 0);
     muxdata->nr_not_closed--;
+    mux_add_trace(muxdata, chan, 150, muxdata->nr_not_closed);
     if (muxdata->nr_not_closed == 0) {
 	/* There are no open instances, shut the mux down. */
+	if (muxdata->state == MUX_IN_CLOSE) {
+	    muxdata->do_normal_close = true;
+	    muxdata->do_normal_close_chan = chan;
+	    return true;
+	}
 	mux_set_state(muxdata, MUX_IN_CLOSE);
 	err = gensio_close(muxdata->child, close_done, close_data);
 	if (!err)
@@ -812,14 +827,20 @@ finish_close(struct mux_inst *chan)
 }
 
 static void
+i_finish_close_close_done(struct mux_inst *chan, struct mux_data *muxdata)
+{
+    mux_set_state(muxdata, MUX_CLOSED);
+    finish_close(chan);
+}
+
+static void
 finish_close_close_done(struct gensio *child, void *close_data)
 {
     struct mux_inst *chan = close_data;
     struct mux_data *muxdata = chan->mux;
 
     mux_lock_and_ref(muxdata);
-    finish_close(chan);
-    mux_set_state(muxdata, MUX_CLOSED);
+    i_finish_close_close_done(chan, muxdata);
     mux_deref_and_unlock(muxdata);
 }
 
@@ -1628,6 +1649,8 @@ muxc_open(struct mux_inst *chan, gensio_done_err open_done, void *open_data,
 	muxdata->in_hdr = true;
 	muxdata->hdr_pos = 0;
 	muxdata->hdr_size = 0;
+	muxdata->exit_err = 0;
+	muxdata->do_normal_close = false;
 	muxc_reinit(chan);
 	if (muxdata->is_client) {
 	    if (!chan->in_open_chan) {
@@ -1847,13 +1870,17 @@ mux_shutdown_channels(struct mux_data *muxdata, int err)
 
 	case MUX_INST_IN_OPEN_CLOSE:
 	    muxc_set_state(chan, MUX_INST_CLOSED);
+	    chan_ref(chan); /* Don't let the open call free us. */
 	    mux_call_open_done(muxdata, chan, err);
 	    finish_close(chan);
+	    chan_deref(chan);
 	    break;
 
 	case MUX_INST_IN_CLOSE:
 	    /* Just close it. */
+	    muxc_set_state(chan, MUX_INST_CLOSED);
 	    finish_close(chan);
+	    chan_deref(chan);
 	    break;
 
 	case MUX_INST_OPEN:
@@ -1962,7 +1989,10 @@ mux_on_err_close(struct gensio *child, void *close_data)
     struct mux_data *muxdata = close_data;
 
     mux_lock_and_ref(muxdata);
-    mux_shutdown_channels(muxdata, muxdata->exit_err);
+    if (muxdata->do_normal_close)
+	i_finish_close_close_done(muxdata->do_normal_close_chan, muxdata);
+    else
+	mux_shutdown_channels(muxdata, muxdata->exit_err);
     mux_deref_and_unlock(muxdata); /* Lose the open ref. */
 }
 
