@@ -61,6 +61,7 @@ if ${PYTHON_MODE}; then
 	export LD_LIBRARY_PATH=${BUILDDIR}/lib:${BUILDDIR}/lib/.libs:${BUILDDIR}/swig/python/.libs:${BUILDDIR}/glib/.libs::${BUILDDIR}/tcl/.libs
     fi
     TEST="${PYTHON} ${TEST}"
+    export GENSIO_MEMTRACK=abort
 else
     if [ ! -x ${TEST} ]; then
 	echo "Test ${TEST} is not executable" 1>&2
