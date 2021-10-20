@@ -779,6 +779,7 @@ mux_channel_set_closed(struct mux_inst *chan, gensio_done close_done,
     int err;
 
     muxc_set_state(chan, MUX_INST_CLOSED);
+    chan_deref(chan);
     assert(muxdata->nr_not_closed > 0);
     muxdata->nr_not_closed--;
     if (muxdata->nr_not_closed == 0) {
@@ -808,7 +809,6 @@ finish_close(struct mux_inst *chan)
 	close_done(chan->io, chan->close_data);
 	mux_lock(muxdata);
     }
-    chan_deref(chan);
 }
 
 static void
@@ -1563,6 +1563,8 @@ mux_call_open_done(struct mux_data *muxdata, struct mux_inst *chan, int err)
 	open_done(chan->io, err, open_data);
 	mux_lock(muxdata);
     }
+    if (err)
+	chan_deref(chan);
 }
 
 static void
@@ -1839,13 +1841,11 @@ mux_shutdown_channels(struct mux_data *muxdata, int err)
 	case MUX_INST_PENDING_OPEN:
 	    muxc_set_state(chan, MUX_INST_CLOSED);
 	    mux_call_open_done(muxdata, chan, err);
-	    chan_deref(chan); /* Will free it. */
 	    break;
 
 	case MUX_INST_IN_OPEN:
 	    muxc_set_state(chan, MUX_INST_CLOSED);
 	    mux_call_open_done(muxdata, chan, err);
-	    chan_deref(chan); /* Lose our open ref. */
 	    break;
 
 	case MUX_INST_IN_OPEN_CLOSE:
@@ -2242,9 +2242,9 @@ mux_child_read(struct mux_data *muxdata, int ierr,
 	    switch (muxdata->msgid) {
 	    case MUX_NEW_CHANNEL: {
 		unsigned int remote_id = gensio_buf_to_u16(muxdata->hdr + 2);
-		if (muxdata->state == MUX_WAITING_OPEN)
+		if (muxdata->state == MUX_WAITING_OPEN) {
 		    chan = mux_chan0(muxdata);
-		else {
+		} else {
 		    int err;
 
 		    if (mux_find_remote_id(muxdata, remote_id)) {
@@ -2502,8 +2502,14 @@ mux_child_read(struct mux_data *muxdata, int ierr,
 					       muxdata->acc_open_data);
 			mux_lock(muxdata);
 		    } else {
-			chan_ref(chan);
-			mux_call_open_done(muxdata, chan, err);
+			mux_call_open_done(muxdata, chan, 0);
+			/*
+			 * In this case we got a new channel after we
+			 * sent a new channel on initialization.  We
+			 * will have already claimed a ref for the
+			 * open, undo the ref above since it is not
+			 * required.
+			 */
 			chan_deref(chan);
 		    }
 		} else {
@@ -2740,7 +2746,6 @@ struct muxna_data {
 static void
 muxna_free(struct muxna_data *nadata)
 {
-
     gensio_mux_config_cleanup(&nadata->data);
     nadata->o->free(nadata->o, nadata);
 }
