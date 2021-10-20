@@ -172,6 +172,8 @@ gensio_data_free(struct gensio *io)
 {
     assert(gensio_list_empty(&io->waiters));
 
+    gensio_clear_sync(io);
+
     while (io->classes) {
 	struct gensio_classobj *c = io->classes;
 
