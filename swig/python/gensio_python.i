@@ -70,7 +70,7 @@
 
     if (*$1) {
 	r = SWIG_NewPointerObj((void *) *$1, SWIGTYPE_p_gensio,
-			       SWIG_POINTER_NEW);
+			       SWIG_POINTER_OWN);
     } else {
 	Py_INCREF(Py_None);
 	r = Py_None;
