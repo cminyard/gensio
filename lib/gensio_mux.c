@@ -817,10 +817,10 @@ finish_close_close_done(struct gensio *child, void *close_data)
     struct mux_inst *chan = close_data;
     struct mux_data *muxdata = chan->mux;
 
-    mux_lock(muxdata);
+    mux_lock_and_ref(muxdata);
     finish_close(chan);
     mux_set_state(muxdata, MUX_CLOSED);
-    mux_deref_and_unlock(muxdata); /* Lose the open ref. */
+    mux_deref_and_unlock(muxdata);
 }
 
 static void
@@ -1578,7 +1578,6 @@ mux_child_open_done(struct gensio *child, int err, void *open_data)
     if (err) {
 	mux_shutdown_channels(muxdata, err);
 	muxdata->nr_not_closed = 0;
-	mux_deref(muxdata); /* Lose the child open ref. */
     } else if (chan->state != MUX_INST_IN_OPEN) {
 	/* A close was requested, handle it. */	
 	muxc_set_state(chan, MUX_INST_CLOSED);
@@ -1663,8 +1662,6 @@ muxc_open(struct mux_inst *chan, gensio_done_err open_done, void *open_data,
 	    gensio_set_read_callback_enable(muxdata->child, true);
 	    err = 0;
 	}
-	if (!err)
-	    mux_ref(muxdata); /* Claim the ref for the channel. */
     } else {
 	if (!do_child) {
 	    err = GE_INVAL;
@@ -1964,7 +1961,7 @@ mux_on_err_close(struct gensio *child, void *close_data)
 {
     struct mux_data *muxdata = close_data;
 
-    mux_lock(muxdata);
+    mux_lock_and_ref(muxdata);
     mux_shutdown_channels(muxdata, muxdata->exit_err);
     mux_deref_and_unlock(muxdata); /* Lose the open ref. */
 }
@@ -2770,7 +2767,6 @@ muxna_new_child(struct muxna_data *nadata, void **finish_data,
     if (!err) {
 	mux_lock(muxdata);
 	chan = mux_chan0(muxdata);
-	mux_ref(muxdata);
 	ncio->new_io = chan->io;
 	mux_set_state(muxdata, MUX_UNINITIALIZED);
 	muxdata->acc_open_done = ncio->open_done;
