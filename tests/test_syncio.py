@@ -103,6 +103,9 @@ def test_sync_gensio_accepter(o):
     if io == None or time == 0:
         raise Exception("accept_s_timeout timed out");
 
+    io.close_s()
+    g.close_s()
+    a.shutdown_s()
     return
 
 import utils
