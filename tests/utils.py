@@ -663,6 +663,11 @@ else:
 
 def test_shutdown():
     global o
+    w = gensio.waiter(o)
+    while w.service_now() == 0:
+        # Give some time for everyting to clear out.
+        pass
+    del w
     c = sys.getrefcount(o)
     if c != 2:
         raise Exception("OS object refcount was %d, not 2" % c)
