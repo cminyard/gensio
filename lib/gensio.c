@@ -174,6 +174,8 @@ gensio_data_free(struct gensio *io)
 {
     assert(gensio_list_empty(&io->waiters));
 
+    gensio_clear_sync(io);
+
     if (io->frdata && io->frdata->freed)
 	io->frdata->freed(io, io->frdata);
 
