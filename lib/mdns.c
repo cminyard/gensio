@@ -375,6 +375,7 @@ free_service(struct gensio_os_funcs *o, struct gensio_mdns_service *s)
 	o->free(o, s->host);
     if (s->txt)
 	avahi_string_list_free(s->txt);
+    o->free(o, s);
 }
 
 static int
@@ -913,6 +914,9 @@ mdns_service_type_callback(AvahiServiceTypeBrowser *ab,
     struct gensio_os_funcs *o = m->o;
     struct gensio_link *l;
     struct gensio_mdns_watch_browser *b = NULL;
+
+    if (w->removed)
+	return;
 
     switch (event) {
     case AVAHI_BROWSER_NEW:
