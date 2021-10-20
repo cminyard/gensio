@@ -156,9 +156,9 @@ utils.TestAccept(utils.o, "mdns,gensiotest_service", "tcp,5000",
 del mdns
 del watch
 del service
-while c.waiter.service_now() == 0:
-    # Give some time for everyting to clear out.
-    pass
 del c
 del e
+w = gensio.waiter(utils.o)
+w.wait_timeout(1, 10)
+del w
 utils.test_shutdown()
