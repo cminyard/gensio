@@ -664,6 +664,12 @@ else:
 def test_shutdown():
     global o
     w = gensio.waiter(o)
+    count = 0
+    while gensio.gensio_num_alloced() > 0:
+        count += 1
+        if (count > 100):
+            raise Exception("All gensios were not freed in time" % c)
+        w.service(1)
     while w.service_now() == 0:
         # Give some time for everyting to clear out.
         pass
