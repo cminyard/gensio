@@ -311,7 +311,7 @@ gensio_setup_child_on_pty(struct pty_data *tdata)
     if (link_created)
 	unlink(tdata->link);
     if (iod)
-	o->release_iod(iod);
+	o->close(&iod);
     close(ptym);
     return err;
 }
