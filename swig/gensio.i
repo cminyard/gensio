@@ -1504,6 +1504,7 @@ struct gensio_os_funcs *alloc_gensio_selector(swig_cb *log_handler);
 %newobject alloc_gensio_os_funcs;
 struct gensio_os_funcs *alloc_gensio_os_funcs(swig_cb *log_handler);
 
+unsigned long gensio_num_alloced(void);
 void gensio_cleanup_mem(struct gensio_os_funcs *o);
 int get_os_funcs_refcount(struct gensio_os_funcs *o);
 
