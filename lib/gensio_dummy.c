@@ -56,6 +56,7 @@ dummyna_finish_free(struct dummyna_data *nadata)
 {
     struct gensio_os_funcs *o = nadata->o;
 
+    gensio_acc_data_free(nadata->acc);
     if (nadata->deferred_runner)
 	o->free_runner(nadata->deferred_runner);
     if (nadata->lock)
