@@ -965,6 +965,8 @@ basen_deferred_op(struct gensio_runner *runner, void *cbdata)
     int err;
 
     basen_lock(ndata);
+    ndata->deferred_op_pending = false;
+
     if (ndata->deferred_open) {
 	ndata->deferred_open = false;
 	i_basen_add_trace(ndata, 100, __LINE__);
@@ -1017,12 +1019,6 @@ basen_deferred_op(struct gensio_runner *runner, void *cbdata)
     }
 
  skip_write:
-    /*
-     * Close callback may call open, if open defers make sure we
-     * run the runner.
-     */
-    ndata->deferred_op_pending = false;
-
     if (ndata->deferred_close) {
 	if (!(ndata->in_xmit_ready || ndata->in_read)) {
 	    ndata->deferred_close = false;
