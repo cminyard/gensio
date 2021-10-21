@@ -870,6 +870,10 @@ sterm_sub_open(void *handler_data, struct gensio_iod **riod)
 			     sdata->def_xonxoff);
 	if (err)
 	    goto out_uucp;
+	err = o->iod_control(sdata->iod, GENSIO_IOD_CONTROL_IXONXOFF, false,
+			     sdata->def_xonxoff);
+	if (err)
+	    goto out_uucp;
 	err = o->iod_control(sdata->iod, GENSIO_IOD_CONTROL_RTSCTS, false,
 			     sdata->def_rtscts);
 	if (err)
