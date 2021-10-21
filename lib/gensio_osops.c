@@ -1725,7 +1725,13 @@ gensio_unix_get_bufcount(struct gensio_os_funcs *o,
     if (isatty(fd)) {
 	switch (whichbuf) {
 	case GENSIO_IN_BUF:
+#ifdef TIOCINQ
 	    rv = ioctl(fd, TIOCINQ, &count);
+#elif defined(FIONREAD)
+	    rv = ioctl(fd, FIONREAD, &count);
+#else
+#error "No way to read tty bufcount"
+#endif
 	    break;
 
 	case GENSIO_OUT_BUF:
