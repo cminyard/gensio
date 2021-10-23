@@ -97,7 +97,6 @@ struct gensio_iod_win {
     void (*check)(struct gensio_iod_win *);
     void (*shutdown)(struct gensio_iod_win *); /* Optional. */
     intptr_t fd;
-    int protocol;
     struct gensio_link link;
     struct gensio_link all_link;
 
@@ -1149,6 +1148,7 @@ struct gensio_iod_win_sock {
     WSAEVENT wakeev;
     WSAEVENT sockev;
     BOOL connected;
+    void *sockinfo;
     enum { CL_NOT_CALLED, CL_CALLED, CL_DONE } close_state;
 };
 
@@ -2579,32 +2579,31 @@ win_iod_get_fd(struct gensio_iod *iiod)
 }
 
 static int
-win_iod_get_protocol(struct gensio_iod *iiod)
-{
-    struct gensio_iod_win *iod = i_to_win(iiod);
-
-    return iod->protocol;
-}
-
-static void
-win_iod_set_protocol(struct gensio_iod *iiod, int protocol)
-{
-    struct gensio_iod_win *iod = i_to_win(iiod);
-
-    iod->protocol = protocol;
-}
-
-static int
 win_iod_control(struct gensio_iod *iiod, int op, bool get, intptr_t val)
 {
     struct gensio_iod_win *iod = i_to_win(iiod);
 
-    if (iod->type == GENSIO_IOD_SOCKET && op == GENSIO_IOD_CONTROL_IS_CLOSED) {
-	if (!get)
+    if (iod->type == GENSIO_IOD_SOCKET) {
+	struct gensio_iod_win_sock *siod = i_to_winsock(wiod);
+
+	if (op == GENSIO_IOD_CONTROL_IS_CLOSED) {
+	    if (!get)
+		return GE_NOTSUP;
+	    *((bool *) val) = iod->closed;
+	    return 0;
+	}
+
+	if (op != GENSIO_IOD_CONTROL_SOCKINFO)
 	    return GE_NOTSUP;
-	*((bool *) val) = iod->closed;
+
+	if (get)
+	    *((void **) val) = siod->sockinfo;
+	else
+	    siod->sockinfo = (void *) val;
+
 	return 0;
     }
+
     if (iod->type == GENSIO_IOD_DEV)
 	return win_dev_control(iod, op, get, val);
     return GE_NOTSUP;
@@ -3207,8 +3206,6 @@ gensio_win_funcs_alloc(struct gensio_os_funcs **ro)
     o->release_iod = win_release_iod;
     o->iod_get_type = win_iod_get_type;
     o->iod_get_fd = win_iod_get_fd;
-    o->iod_get_protocol = win_iod_get_protocol;
-    o->iod_set_protocol = win_iod_set_protocol;
     o->iod_control = win_iod_control;
 
     o->set_non_blocking = win_set_non_blocking;

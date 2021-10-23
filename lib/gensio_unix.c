@@ -391,11 +391,14 @@ struct gensio_iod_file {
     bool in_handler;
 };
 
+struct gensio_iod_socket {
+    void *sockinfo;
+};
+
 struct gensio_iod_unix {
     struct gensio_iod r;
     int fd;
     enum gensio_iod_type type;
-    int protocol; /* GENSIO_NET_PROTOCOL_xxx */
     bool handlers_set;
     bool is_stdio;
     void *cb_data;
@@ -409,6 +412,7 @@ struct gensio_iod_unix {
     union {
 	struct gensio_iod_dev dev;
 	struct gensio_iod_file file;
+	struct gensio_iod_socket socket;
     } u;
 };
 
@@ -1123,22 +1127,6 @@ gensio_unix_iod_get_fd(struct gensio_iod *iiod)
     return iod->fd;
 }
 
-static int
-gensio_unix_iod_get_protocol(struct gensio_iod *iiod)
-{
-    struct gensio_iod_unix *iod = i_to_sel(iiod);
-
-    return iod->protocol;
-}
-
-static void
-gensio_unix_iod_set_protocol(struct gensio_iod *iiod, int protocol)
-{
-    struct gensio_iod_unix *iod = i_to_sel(iiod);
-
-    iod->protocol = protocol;
-}
-
 #define ERRHANDLE()			\
 do {								\
     int err = 0;						\
@@ -1216,10 +1204,12 @@ gensio_unix_close(struct gensio_iod **iodp)
 
     assert(iodp);
     assert(!iod->handlers_set);
-    if (iod->type != GENSIO_IOD_FILE) {
-	gensio_unix_cleanup_termios(o, &iod->u.dev.termios, iod->fd);
+    if (iod->type != GENSIO_IOD_FILE)
 	gensio_unix_do_cleanup_nonblock(o, iod->fd, &iod->mode);
-    }
+
+    if (iod->type == GENSIO_IOD_DEV ||
+		(iod->type == GENSIO_IOD_CONSOLE && iod->fd == 0))
+	gensio_unix_cleanup_termios(o, &iod->u.dev.termios, iod->fd);
 
     if (iod->type == GENSIO_IOD_SOCKET) {
 	err = o->close_socket(iiod, false, true);
@@ -1286,11 +1276,12 @@ gensio_unix_makeraw(struct gensio_iod *iiod)
 {
     struct gensio_iod_unix *iod = i_to_sel(iiod);
 
-    if (iod->fd == 1 || iod->fd == 2 || iod->type == GENSIO_IOD_FILE)
+    if (iod->type == GENSIO_IOD_DEV ||
+		(iod->type == GENSIO_IOD_CONSOLE && iod->fd == 0))
 	/* Only set this for stdin or other files. */
-	return 0;
+	return gensio_unix_setup_termios(iiod->f, iod->fd, &iod->u.dev.termios);
 
-    return gensio_unix_setup_termios(iiod->f, iod->fd, &iod->u.dev.termios);
+    return 0;
 }
 
 static int
@@ -1387,6 +1378,18 @@ static int
 gensio_unix_iod_control(struct gensio_iod *iiod, int op, bool get, intptr_t val)
 {
     struct gensio_iod_unix *iod = i_to_sel(iiod);
+
+    if (iod->type == GENSIO_IOD_SOCKET) {
+	if (op != GENSIO_IOD_CONTROL_SOCKINFO)
+	    return GE_NOTSUP;
+
+	if (get)
+	    *((void **) val) = iod->u.socket.sockinfo;
+	else
+	    iod->u.socket.sockinfo = (void *) val;
+
+	return 0;
+    }
 
     if (iod->type != GENSIO_IOD_DEV)
 	return GE_NOTSUP;
@@ -1517,8 +1520,6 @@ gensio_unix_alloc_sel(struct selector_s *sel, int wake_sig)
     o->release_iod = gensio_unix_release_iod;
     o->iod_get_type = gensio_unix_iod_get_type;
     o->iod_get_fd = gensio_unix_iod_get_fd;
-    o->iod_get_protocol = gensio_unix_iod_get_protocol;
-    o->iod_set_protocol = gensio_unix_iod_set_protocol;
 
     o->set_non_blocking = gensio_unix_set_non_blocking;
     o->close = gensio_unix_close;

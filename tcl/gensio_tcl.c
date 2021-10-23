@@ -125,7 +125,7 @@ struct gensio_iod_tcl {
 
     int fd;
     enum gensio_iod_type type;
-    int protocol; /* GENSIO_NET_PROTOCOL_xxx */
+    void *sockinfo;
     bool handlers_set;
     bool is_stdio;
     void *cb_data;
@@ -956,25 +956,21 @@ gensio_tcl_iod_get_fd(struct gensio_iod *iiod)
 }
 
 static int
-gensio_tcl_iod_get_protocol(struct gensio_iod *iiod)
-{
-    struct gensio_iod_tcl *iod = i_to_tcl(iiod);
-
-    return iod->protocol;
-}
-
-static void
-gensio_tcl_iod_set_protocol(struct gensio_iod *iiod, int protocol)
-{
-    struct gensio_iod_tcl *iod = i_to_tcl(iiod);
-
-    iod->protocol = protocol;
-}
-
-static int
 gensio_tcl_iod_control(struct gensio_iod *iiod, int op, bool get, intptr_t val)
 {
     struct gensio_iod_tcl *iod = i_to_tcl(iiod);
+
+    if (iod->type == GENSIO_IOD_SOCKET) {
+	if (op != GENSIO_IOD_CONTROL_SOCKINFO)
+	    return GE_NOTSUP;
+
+	if (get)
+	    *((void **) val) = iod->sockinfo;
+	else
+	    iod->sockinfo = (void *) val;
+
+	return 0;
+    }
 
     if (iod->type != GENSIO_IOD_DEV)
 	return GE_NOTSUP;
@@ -1434,8 +1430,6 @@ gensio_tcl_funcs_alloc(struct gensio_os_funcs **ro)
     o->release_iod = gensio_tcl_release_iod;
     o->iod_get_type = gensio_tcl_iod_get_type;
     o->iod_get_fd = gensio_tcl_iod_get_fd;
-    o->iod_get_protocol = gensio_tcl_iod_get_protocol;
-    o->iod_set_protocol = gensio_tcl_iod_set_protocol;
 
     o->set_non_blocking = gensio_tcl_set_non_blocking;
     o->close = gensio_tcl_close;

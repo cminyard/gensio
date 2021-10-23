@@ -1082,7 +1082,7 @@ if e is not None:
     else:
         ttypipe = None
 else:
-    ttypipe = [ "/dev/ttyPipeA0", "/dev/ttyPipeB0" ]
+    ttypipe = [ "/dev/ttyPipeA1", "/dev/ttyPipeB1" ]
 
 ttypipe_def = ttypipe
 if ttypipe and (not os.path.exists(ttypipe[0])

@@ -59,6 +59,11 @@ typedef ssize_t sockret;
 #define IPV6_ADD_MEMBERSHIP IPV6_JOIN_GROUP
 #endif
 
+struct gensio_stdsock_info {
+    int protocol;
+    int family;
+};
+
 struct gensio_listen_scan_info {
     unsigned int curr;
     unsigned int start;
@@ -879,8 +884,9 @@ gensio_stdsock_accept(struct gensio_iod *iod,
     struct sockaddr *sa;
     struct sockaddr_storage sadata;
     taddrlen len;
-    struct gensio_iod *riod;
+    struct gensio_iod *riod = NULL;
     struct addrinfo *ai = NULL;
+    struct gensio_stdsock_info *gsi = NULL, *ogsi = NULL;
 
     if (do_errtrig())
 	return GE_NOMEM;
@@ -901,23 +907,25 @@ gensio_stdsock_accept(struct gensio_iod *iod,
     rv = accept(o->iod_get_fd(iod), sa, &len);
 
     if (rv >= 0) {
-	err = o->add_iod(o, GENSIO_IOD_SOCKET, rv, &riod);
-	if (err) {
-	    close_socket(o, rv);
-	    if (addr)
-		gensio_addr_free(addr);
-	    return err;
+	gsi = o->zalloc(o, sizeof(*gsi));
+	if (!gsi) {
+	    err = GE_NOMEM;
+	    goto out;
 	}
+
+	err = o->add_iod(o, GENSIO_IOD_SOCKET, rv, &riod);
+	if (err)
+	    goto out;
 
 	err = o->set_non_blocking(riod);
-	if (err) {
-	    o->close(&riod);
-	    if (addr)
-		gensio_addr_free(addr);
-	    return err;
-	}
+	if (err)
+	    goto out;
 
-	o->iod_set_protocol(riod, o->iod_get_protocol(iod));
+	o->iod_control(iod, GENSIO_IOD_CONTROL_SOCKINFO, true,
+		       (intptr_t) &ogsi);
+	*gsi = *ogsi;
+	o->iod_control(riod, GENSIO_IOD_CONTROL_SOCKINFO, false,
+		       (intptr_t) gsi);
 
 	if (ai) {
 	    ai->ai_family = ai->ai_addr->sa_family;
@@ -925,15 +933,25 @@ gensio_stdsock_accept(struct gensio_iod *iod,
 	    *raddr = addr;
 	}
 	*newiod = riod;
-	return 0;
     } else {
 	rv = sock_errno;
+	if (rv == SOCK_EAGAIN && rv == SOCK_EWOULDBLOCK)
+	    err = GE_NODATA;
+	else
+	    err = gensio_os_err_to_err(o, rv);
 	if (addr)
 	    gensio_addr_free(addr);
     }
-    if (rv == SOCK_EAGAIN && rv == SOCK_EWOULDBLOCK)
-	return GE_NODATA;
-    return gensio_os_err_to_err(o, rv);
+ out:
+    if (err) {
+	if (gsi)
+	    o->free(o, gsi);
+	if (riod)
+	    o->close(&riod);
+	if (addr)
+	    gensio_addr_free(addr);
+    }
+    return err;
 }
 
 static int
@@ -962,6 +980,7 @@ gensio_stdsock_socket_open(struct gensio_os_funcs *o,
     int newfd, err;
     struct addrinfo *ai;
     struct gensio_iod *iod;
+    struct gensio_stdsock_info *gsi;
 
     if (do_errtrig())
 	return GE_NOMEM;
@@ -1007,12 +1026,21 @@ gensio_stdsock_socket_open(struct gensio_os_funcs *o,
 	close_socket(o, newfd);
 	return err;
     }
-    o->iod_set_protocol(iod, protocol);
     err = o->set_non_blocking(iod);
     if (err) {
 	o->close(&iod);
 	return err;
     }
+    gsi = o->zalloc(o, sizeof(*gsi));
+    if (!gsi) {
+	o->close(&iod);
+	return GE_NOMEM;
+    }
+
+    gsi->protocol = protocol;
+    gsi->family = family;
+    o->iod_control(iod, GENSIO_IOD_CONTROL_SOCKINFO, false, (intptr_t) gsi);
+
     *riod = iod;
     return 0;
 }
@@ -1034,13 +1062,20 @@ gensio_stdsock_socket_set_setup(struct gensio_iod *iod,
     }
 
     if (opensock_flags & GENSIO_SET_OPENSOCK_NODELAY) {
+	struct gensio_stdsock_info *gsi = NULL;
+
+	err = o->iod_control(iod, GENSIO_IOD_CONTROL_SOCKINFO, true,
+			     (intptr_t) &gsi);
+	if (err)
+	    return err;
+
 	val = !!(opensock_flags & GENSIO_OPENSOCK_NODELAY);
 
-	if (o->iod_get_protocol(iod) == GENSIO_NET_PROTOCOL_TCP)
+	if (gsi->protocol == GENSIO_NET_PROTOCOL_TCP)
 	    err = setsockopt(o->iod_get_fd(iod), IPPROTO_TCP, TCP_NODELAY,
 			     (void *) &val, sizeof(val));
 #if HAVE_LIBSCTP
-	else if (o->iod_get_protocol(iod) == GENSIO_NET_PROTOCOL_SCTP)
+	else if (gsi->protocol == GENSIO_NET_PROTOCOL_SCTP)
 	    err = setsockopt(o->iod_get_fd(iod), IPPROTO_SCTP, SCTP_NODELAY,
 			     (void *) &val, sizeof(val));
 #endif
@@ -1059,8 +1094,13 @@ gensio_stdsock_socket_set_setup(struct gensio_iod *iod,
 
     if (bindaddr) {
 	struct addrinfo *ai;
+	struct gensio_stdsock_info *gsi;
 
-	switch (o->iod_get_protocol(iod)) {
+	err = o->iod_control(iod, GENSIO_IOD_CONTROL_SOCKINFO, true,
+			     (intptr_t) &gsi);
+	if (err)
+	    return err;
+	switch (gsi->protocol) {
 #if HAVE_LIBSCTP
 	case GENSIO_NET_PROTOCOL_SCTP:
 	    ai = gensio_addr_addrinfo_get(bindaddr);
@@ -1110,13 +1150,19 @@ gensio_stdsock_socket_get_setup(struct gensio_iod *iod,
     }
 
     if (*iopensock_flags & GENSIO_SET_OPENSOCK_NODELAY) {
+	struct gensio_stdsock_info *gsi;
+
+	err = o->iod_control(iod, GENSIO_IOD_CONTROL_SOCKINFO, true,
+			     (intptr_t) &gsi);
+	if (err)
+	    return err;
 	val = 0;
 	len = sizeof(val);
-	if (o->iod_get_protocol(iod) == GENSIO_NET_PROTOCOL_TCP)
+	if (gsi->protocol == GENSIO_NET_PROTOCOL_TCP)
 	    err = getsockopt(o->iod_get_fd(iod), IPPROTO_TCP, TCP_NODELAY,
 			     (void *) &val, &len);
 #if HAVE_LIBSCTP
-	else if (o->iod_get_protocol(iod) == GENSIO_NET_PROTOCOL_SCTP)
+	else if (gsi->protocol == GENSIO_NET_PROTOCOL_SCTP)
 	    err = getsockopt(o->iod_get_fd(iod), IPPROTO_SCTP, SCTP_NODELAY,
 			     (void *) &val, &len);
 #endif
@@ -1169,10 +1215,20 @@ static int
 gensio_stdsock_close_socket(struct gensio_iod *iod, bool retry, bool force)
 {
     struct gensio_os_funcs *o = iod->f;
-#ifdef _WIN32
+    struct gensio_stdsock_info *gsi;
     int err;
+#ifdef _WIN32
     bool closed;
+#endif
 
+    err = o->iod_control(iod, GENSIO_IOD_CONTROL_SOCKINFO, true,
+			 (intptr_t) &gsi);
+    if (err)
+	return err;
+    if (gsi)
+	o->free(o, gsi);
+
+#ifdef _WIN32
     if (force)
 	return close_socket(o, o->iod_get_fd(iod));
 
@@ -1344,42 +1400,20 @@ gensio_stdsock_mcast_del(struct gensio_iod *iod,
 }
 
 static int
-get_sock_family(struct gensio_iod *iod, int *family)
-{
-    struct gensio_os_funcs *o = iod->f;
-    int rv;
-#ifdef _WIN32
-    WSAPROTOCOL_INFOA info;
-    int len = sizeof(info);
-
-    rv = getsockopt(o->iod_get_fd(iod), SOL_SOCKET, SO_PROTOCOL_INFO,
-		    (char *) &info, &len);
-    if (rv)
-	return gensio_os_err_to_err(o, sock_errno);
-    *family = info.iAddressFamily;
-#else
-    socklen_t len = sizeof(*family);
-
-    rv = getsockopt(o->iod_get_fd(iod), SOL_SOCKET, SO_DOMAIN, family, &len);
-    if (rv)
-	return gensio_os_err_to_err(o, sock_errno);
-#endif
-    return 0;
-}
-
-static int
 gensio_stdsock_set_mcast_loop(struct gensio_iod *iod, bool ival)
 {
     struct gensio_os_funcs *o = iod->f;
-    int rv, val = ival, family;
+    int rv, val = ival;
+    struct gensio_stdsock_info *gsi;
 
     if (do_errtrig())
 	return GE_NOMEM;
 
-    rv = get_sock_family(iod, &family);
+    rv = o->iod_control(iod, GENSIO_IOD_CONTROL_SOCKINFO, true,
+			(intptr_t) &gsi);
     if (rv)
 	return rv;
-    switch (family) {
+    switch (gsi->family) {
     case AF_INET:
 	rv = setsockopt(o->iod_get_fd(iod), IPPROTO_IP, IP_MULTICAST_LOOP,
 			(void *) &val, sizeof(val));
@@ -1407,16 +1441,18 @@ static int
 gensio_stdsock_get_mcast_loop(struct gensio_iod *iod, bool *ival)
 {
     struct gensio_os_funcs *o = iod->f;
-    int rv, val, family;
+    int rv, val;
     socklen_t size;
+    struct gensio_stdsock_info *gsi;
 
     if (do_errtrig())
 	return GE_NOMEM;
 
-    rv = get_sock_family(iod, &family);
+    rv = o->iod_control(iod, GENSIO_IOD_CONTROL_SOCKINFO, true,
+			(intptr_t) &gsi);
     if (rv)
 	return rv;
-    switch (family) {
+    switch (gsi->family) {
     case AF_INET:
 	size = sizeof(val);
 	rv = getsockopt(o->iod_get_fd(iod), IPPROTO_IP, IP_MULTICAST_LOOP,
@@ -1456,8 +1492,16 @@ gensio_stdsock_getsockname(struct gensio_iod *iod, struct gensio_addr **raddr)
 	return GE_NOMEM;
 
 #if HAVE_LIBSCTP
-    if (o->iod_get_protocol(iod) == GENSIO_NET_PROTOCOL_SCTP)
-	return gensio_os_sctp_getladdrs(iod, raddr);
+    {
+	struct gensio_stdsock_info *gsi;
+
+	err = o->iod_control(iod, GENSIO_IOD_CONTROL_SOCKINFO, true,
+			     (intptr_t) &gsi);
+	if (err)
+	    return err;
+	if (gsi->protocol == GENSIO_NET_PROTOCOL_SCTP)
+	    return gensio_os_sctp_getladdrs(iod, raddr);
+    }
 #endif
     addr = gensio_addr_addrinfo_make(o, sizeof(struct sockaddr_storage),
 				     false);
@@ -1491,8 +1535,16 @@ gensio_stdsock_getpeername(struct gensio_iod *iod, struct gensio_addr **raddr)
     if (do_errtrig())
 	return GE_NOMEM;
 #if HAVE_LIBSCTP
-    if (o->iod_get_protocol(iod) == GENSIO_NET_PROTOCOL_SCTP)
-	return gensio_os_sctp_getpaddrs(iod, raddr);
+    {
+	struct gensio_stdsock_info *gsi;
+
+	err = o->iod_control(iod, GENSIO_IOD_CONTROL_SOCKINFO, true,
+			     (intptr_t) &gsi);
+	if (err)
+	    return err;
+	if (gsi->protocol == GENSIO_NET_PROTOCOL_SCTP)
+	    return gensio_os_sctp_getpaddrs(iod, raddr);
+    }
 #endif
     addr = gensio_addr_addrinfo_make(o, sizeof(struct sockaddr_storage),
 				     false);
@@ -1524,8 +1576,16 @@ gensio_stdsock_getpeerraw(struct gensio_iod *iod, void *addr, gensiods *addrlen)
     if (do_errtrig())
 	return GE_NOMEM;
 #if HAVE_LIBSCTP
-    if (o->iod_get_protocol(iod) == GENSIO_NET_PROTOCOL_SCTP)
-	return gensio_os_sctp_getraddr(iod, addr, addrlen);
+    {
+	struct gensio_stdsock_info *gsi;
+
+	err = o->iod_control(iod, GENSIO_IOD_CONTROL_SOCKINFO, true,
+			     (intptr_t) &gsi);
+	if (err)
+	    return err;
+	if (gsi->protocol == GENSIO_NET_PROTOCOL_SCTP)
+	    return gensio_os_sctp_getraddr(iod, addr, addrlen);
+    }
 #endif
     len = *addrlen;
     err = getpeername(o->iod_get_fd(iod), addr, &len);
@@ -1567,15 +1627,17 @@ static int
 gensio_stdsock_set_mcast_ttl(struct gensio_iod *iod, unsigned int ttl)
 {
     struct gensio_os_funcs *o = iod->f;
-    int rv, val = ttl, family;
+    int rv, val = ttl;
+    struct gensio_stdsock_info *gsi;
 
     if (do_errtrig())
 	return GE_NOMEM;
 
-    rv = get_sock_family(iod, &family);
+    rv = o->iod_control(iod, GENSIO_IOD_CONTROL_SOCKINFO, true,
+			(intptr_t) &gsi);
     if (rv)
 	return rv;
-    switch (family) {
+    switch (gsi->family) {
     case AF_INET:
 	rv = setsockopt(o->iod_get_fd(iod), IPPROTO_IP, IP_MULTICAST_TTL,
 			(void *) &val, sizeof(val));
@@ -1603,16 +1665,18 @@ static int
 gensio_stdsock_get_mcast_ttl(struct gensio_iod *iod, unsigned int *ttl)
 {
     struct gensio_os_funcs *o = iod->f;
-    int rv, val, family;
+    int rv, val;
     socklen_t size;
+    struct gensio_stdsock_info *gsi;
 
     if (do_errtrig())
 	return GE_NOMEM;
 
-    rv = get_sock_family(iod, &family);
+    rv = o->iod_control(iod, GENSIO_IOD_CONTROL_SOCKINFO, true,
+			(intptr_t) &gsi);
     if (rv)
 	return rv;
-    switch (family) {
+    switch (gsi->family) {
     case AF_INET:
 	size = sizeof(val);
 	rv = getsockopt(o->iod_get_fd(iod), IPPROTO_IP, IP_MULTICAST_TTL,
@@ -1840,6 +1904,7 @@ gensio_setup_listen_socket(struct gensio_os_funcs *o, bool do_listen,
     struct sockaddr_storage sa;
     struct gensio_iod *iod = NULL;
     int protocol;
+    struct gensio_stdsock_info *gsi = NULL;
 
     if (family == AF_UNIX)
 	protocol = GENSIO_NET_PROTOCOL_UNIX;
@@ -1968,7 +2033,15 @@ gensio_setup_listen_socket(struct gensio_os_funcs *o, bool do_listen,
     if (rv)
 	goto out;
 
-    o->iod_set_protocol(iod,  protocol);
+    gsi = o->zalloc(o, sizeof(*gsi));
+    if (!gsi) {
+	rv = GE_NOMEM;
+	goto out;
+    }
+
+    gsi->protocol = protocol;
+    gsi->family = family;
+    o->iod_control(iod, GENSIO_IOD_CONTROL_SOCKINFO, false, (intptr_t) gsi);
 
     rv = o->set_non_blocking(iod);
     if (rv)
@@ -1987,6 +2060,8 @@ gensio_setup_listen_socket(struct gensio_os_funcs *o, bool do_listen,
     if (rv) {
 	if (iod)
 	    o->release_iod(iod);
+	if (gsi)
+	    o->free(o, gsi);
 	close_socket(o, fd);
     } else {
 	*riod = iod;

@@ -253,6 +253,13 @@ const char *gensio_log_level_to_str(enum gensio_log_levels level);
 #define GENSIO_IOD_CONTROL_IS_CLOSED 26
 
 /*
+ * These are for communication between the socket code and the iod, so
+ * the socket code can store information in the IOD.  It's only for
+ * that use.
+ */
+#define GENSIO_IOD_CONTROL_SOCKINFO	1000
+
+/*
  * Used by wait functions and general handling for process setup and
  * cleanup.
  */
@@ -536,8 +543,12 @@ struct gensio_os_funcs {
      */
     int (*iod_get_type)(struct gensio_iod *iod);
     int (*iod_get_fd)(struct gensio_iod *iod);
-    int (*iod_get_protocol)(struct gensio_iod *iod);
-    void (*iod_set_protocol)(struct gensio_iod *iod, int protocol);
+    /*
+     * get_protocol and set_protocol were removed in favor of using an
+     * iod_control to get/set socket info, which is more flexible.
+     */
+    void (*dummy1)(void);
+    void (*dummy2)(void);
 
     /*
      * iod-specific control operations.
