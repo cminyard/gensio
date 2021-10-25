@@ -522,7 +522,8 @@ check_ipmisim_present(struct gensio_os_funcs *o, struct oom_tests *test)
     }
 
     if (!get_echo_dev(o, "ipmisol", ipmisim_config, &config)) {
-	o->free(o, tprog);
+	if (tprog)
+	    o->free(o, tprog);
 	return false;
     }
 
