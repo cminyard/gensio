@@ -262,7 +262,10 @@ stdion_finish_read(struct stdion_channel *schan, int err)
 
     schan->in_read = false;
 
-    if (schan->read_enabled) {
+    if (schan->closed) {
+	nadata->o->set_read_handler(schan->out_iod, false);
+	nadata->o->set_except_handler(schan->out_iod, false);
+    } else if (schan->read_enabled) {
 	nadata->o->set_read_handler(schan->out_iod, true);
 	nadata->o->set_except_handler(schan->out_iod, true);
     }
