@@ -1675,8 +1675,12 @@ gensio_unix_termios_control(struct gensio_os_funcs *o, int op, bool get,
     case GENSIO_IOD_CONTROL_MODEMSTATE:
 	if (!get)
 	    return GE_NOTSUP;
-	if (ioctl(fd, TIOCMGET, &nval) == -1)
-	    return gensio_os_err_to_err(o, errno);
+	if (ioctl(fd, TIOCMGET, &nval) == -1) {
+	    if (errno == ENOTTY)
+		nval = 0; /* Happens with PTYs. */
+	    else
+		return gensio_os_err_to_err(o, errno);
+	}
 	modemstate = 0;
 	if (nval & TIOCM_CD)
 	    modemstate |= SERGENSIO_MODEMSTATE_CD;
