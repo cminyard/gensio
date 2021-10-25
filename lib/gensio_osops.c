@@ -1629,8 +1629,10 @@ gensio_unix_termios_control(struct gensio_os_funcs *o, int op, bool get,
 		nval = TIOCSBRK;
 	    else
 		nval = TIOCCBRK;
-	    if (ioctl(fd, nval) == -1)
-		return gensio_os_err_to_err(o, errno);
+	    if (ioctl(fd, nval) == -1) {
+		if (errno != ENOTTY) /* Happens with PTYs. */
+		    return gensio_os_err_to_err(o, errno);
+	    }
 	    t->break_set = nval;
 	}
 	break;

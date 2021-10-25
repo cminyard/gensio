@@ -11,8 +11,10 @@
 
 #if HAVE_PTY
 
+#ifdef linux
 #define _XOPEN_SOURCE 600 /* Get posix_openpt() and friends. */
 #define _GNU_SOURCE /* Get ptsname_r(). */
+#endif
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -221,20 +223,6 @@ gensio_setup_child_on_pty(struct pty_data *tdata)
 	if (grantpt(ptym) < 0)
 	    exit(1);
 
-	/* setsid() does this, but just in case... */
-	fd = open("/dev/tty", O_RDWR);
-	if (fd != -1) {
-	    ioctl(fd, TIOCNOTTY, NULL);
-	    close(fd);
-
-	    fd = open("/dev/tty", O_RDWR);
-	    if (fd != -1) {
-		fprintf(stderr, "pty fork: failed to drop control term: %s\r\n",
-			strerror(errno));
-		exit(1);
-	    }
-	}
-
 	if (setsid() == -1) {
 	    fprintf(stderr, "pty fork: failed to start new session: %s\r\n",
 		    strerror(errno));
@@ -243,6 +231,8 @@ gensio_setup_child_on_pty(struct pty_data *tdata)
 
 #if 0 /* FIXME = do we need this? */
 	if (setpgid(0, 0) == -1) {
+	    fprintf(stderr, "pty fork: failed setpgid: %s\r\n",
+		    strerror(errno));
 	    exit(1);
 	}
 #endif
@@ -253,6 +243,15 @@ gensio_setup_child_on_pty(struct pty_data *tdata)
 		    strerror(errno));
 	    exit(1);
 	}
+
+#if defined(TIOCSCTTY) && !defined(linux)
+	/* Linux sets the first opened TTY to the controlling terminal. */
+	if (ioctl(fd, TIOCSCTTY, NULL) == -1) {
+	    fprintf(stderr, "pty fork: failed to set controlling tty: %s\r\n",
+		    strerror(errno));
+	    exit(1);
+	}
+#endif
 
 	/* fd will be closed by the loop to close everything. */
 	if (open("/dev/tty", O_RDWR) == -1) {
