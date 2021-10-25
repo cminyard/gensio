@@ -940,8 +940,6 @@ gensio_stdsock_accept(struct gensio_iod *iod,
 	    err = GE_NODATA;
 	else
 	    err = gensio_os_err_to_err(o, rv);
-	if (addr)
-	    gensio_addr_free(addr);
     }
  out:
     if (err) {
