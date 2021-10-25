@@ -74,7 +74,8 @@ gensio_argv_append(struct gensio_os_funcs *o, const char ***argv,
 	if (!*argv)
 	    return GE_NOMEM;
     }
-    if (*argc >= *args) {
+    /* + 1 to leave room for the ending NULL. */
+    if (*argc + 1 >= *args) {
 	const char **nargv;
 
 	nargv = o->zalloc(o, sizeof(char *) * (*args + 10));
