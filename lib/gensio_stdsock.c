@@ -26,6 +26,7 @@ typedef int sockret;
 #else
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <netinet/in.h>
 #include <netdb.h>
 #include <arpa/inet.h>
 #include <netinet/tcp.h>

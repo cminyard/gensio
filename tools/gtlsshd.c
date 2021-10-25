@@ -38,7 +38,6 @@
 #include <arpa/inet.h> /* For htonl and friends. */
 
 #include <security/pam_appl.h>
-#include <security/pam_misc.h>
 
 #include <gensio/gensio.h>
 #include <gensio/gensio_builtins.h>

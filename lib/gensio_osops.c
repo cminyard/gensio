@@ -11,6 +11,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <assert.h>
+#include <sys/socket.h>
 #ifdef HAVE_TCPD_H
 #include <tcpd.h>
 #endif /* HAVE_TCPD_H */

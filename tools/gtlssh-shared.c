@@ -27,12 +27,15 @@
 #include "utils.h"
 #include <stdio.h>
 
+/* Should use sysconf to get this eventually. */
+#ifndef HOST_NAME_MAX
+#define HOST_NAME_MAX 255
+#endif
+
 #ifdef _WIN32
 #include <winsock2.h>
 #include <Windows.h>
 #include <Lmcons.h>
-
-#define HOST_NAME_MAX 255
 
 char *
 get_tlsshdir(void)
