@@ -23,7 +23,7 @@ gensio_wrap.c gensio.py: $(top_srcdir)/swig/gensio.i \
 		$(top_srcdir)/swig/python/gensio_python.i
 	$(SWIG) $(DEFS) -python $(PYTHON_SWIG_FLAGS) -o gensio_wrap.c \
 		-I$(top_srcdir)/swig/python -I$(top_srcdir)/include \
-		-I$(top_srcdir)/swig/include $<
+		-I$(top_srcdir)/swig/include $(top_srcdir)/swig/gensio.i
 
 EXTRA_DIST = gensio_python.i CMakeLists.txt libgensio_python_swig.pc.in
 
