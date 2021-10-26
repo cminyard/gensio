@@ -905,33 +905,43 @@ stdion_control(struct gensio *io, bool get, unsigned int option,
     case GENSIO_CONTROL_EXIT_CODE:
 	if (!get)
 	    return GE_NOTSUP;
+	err = 0;
+	stdiona_lock(nadata);
 	if (!nadata->exit_code_set)
-	    return GE_NOTREADY;
-	*datalen = snprintf(data, *datalen, "%d", nadata->exit_code);
-	return 0;
+	    err = GE_NOTREADY;
+	stdiona_unlock(nadata);
+	if (!err)
+	    *datalen = snprintf(data, *datalen, "%d", nadata->exit_code);
+	return err;
 
     case GENSIO_CONTROL_WAIT_TASK:
 	if (!get)
 	    return GE_NOTSUP;
+	stdiona_lock(nadata);
 	if (nadata->opid == -1)
-	    return GE_NOTREADY;
-	err = o->wait_subprog(o, nadata->opid, &status);
-	if (err)
-	    return err;
-	nadata->opid = -1;
+	    err = GE_NOTREADY;
+	else
+	    err = o->wait_subprog(o, nadata->opid, &status);
+	if (!err) {
+	    nadata->opid = -1;
+	    nadata->exit_code = status;
+	}
+	stdiona_unlock(nadata);
 	*datalen = snprintf(data, *datalen, "%d", status);
 	return 0;
 
     case GENSIO_CONTROL_KILL_TASK:
 	if (get)
 	    return GE_NOTSUP;
-	if (nadata->opid == -1)
-	    return GE_NOTREADY;
-	val = strtoul(data, NULL, 0);
-	err = o->kill_subprog(o, nadata->opid, val);
-	if (err)
-	    return err;
-	return 0;
+	stdiona_lock(nadata);
+	if (nadata->opid == -1) {
+	    err = GE_NOTREADY;
+	} else {
+	    val = strtoul(data, NULL, 0);
+	    err = o->kill_subprog(o, nadata->opid, val);
+	}
+	stdiona_unlock(nadata);
+	return err;
 
     case GENSIO_CONTROL_CLOSE_OUTPUT:
 	if (get)

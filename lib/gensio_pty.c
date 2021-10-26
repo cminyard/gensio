@@ -43,6 +43,8 @@ struct pty_data {
 
     struct gensio_ll *ll;
 
+    struct gensio_lock *lock;
+
     pid_t pid;
     int ptym;
     struct gensio_iod *iod;
@@ -329,12 +331,39 @@ pty_sub_open(void *handler_data, struct gensio_iod **riod)
 }
 
 static int
+pty_check_exit_code(struct pty_data *tdata)
+{
+    struct gensio_os_funcs *o = tdata->o;
+    pid_t rv;
+    int err;
+
+    err = 0;
+    o->lock(tdata->lock);
+    if (tdata->pid != -1) {
+	rv = waitpid(tdata->pid, &tdata->exit_code, WNOHANG);
+	if (rv < 0) {
+	    err = gensio_os_err_to_err(o, errno);
+	    goto out_unlock;
+	}
+	if (rv == 0) {
+	    err = GE_INPROGRESS;
+	    goto out_unlock;
+	}
+	tdata->exit_code_set = true;
+	tdata->pid = -1;
+    }
+ out_unlock:
+    o->unlock(tdata->lock);
+    return err;
+}
+
+static int
 pty_check_close(void *handler_data, struct gensio_iod *iod,
 		enum gensio_ll_close_state state,
 		gensio_time *timeout)
 {
     struct pty_data *tdata = handler_data;
-    pid_t rv;
+    int err;
 
     if (state != GENSIO_LL_CLOSE_STATE_DONE)
 	return 0;
@@ -347,37 +376,34 @@ pty_check_close(void *handler_data, struct gensio_iod *iod,
 	    unlink(tdata->link);
     }
 
-    if (tdata->pid != -1) {
-	rv = waitpid(tdata->pid, &tdata->exit_code, WNOHANG);
-	if (rv < 0)
-	    return gensio_os_err_to_err(tdata->o, errno);
-	if (rv == 0) {
-	    timeout->secs = 0;
-	    timeout->nsecs = 10000000;
-	    return GE_INPROGRESS;
-	}
-	tdata->exit_code_set = true;
-	tdata->pid = -1;
+    err = pty_check_exit_code(tdata);
+    if (err == GE_INPROGRESS) {
+	timeout->secs = 0;
+	timeout->nsecs = 10000000;
     }
-    return 0;
+
+    return err;
 }
 
 static void
 pty_free(void *handler_data)
 {
     struct pty_data *tdata = handler_data;
+    struct gensio_os_funcs *o = tdata->o;
 
     if (tdata->link)
-	tdata->o->free(tdata->o, tdata->link);
+	o->free(o, tdata->link);
     if (tdata->owner)
-	tdata->o->free(tdata->o, tdata->owner);
+	o->free(o, tdata->owner);
     if (tdata->group)
-	tdata->o->free(tdata->o, tdata->group);
+	o->free(o, tdata->group);
     if (tdata->argv)
-	gensio_argv_free(tdata->o, tdata->argv);
+	gensio_argv_free(o, tdata->argv);
     if (tdata->env)
-	gensio_argv_free(tdata->o, tdata->env);
-    tdata->o->free(tdata->o, tdata);
+	gensio_argv_free(o, tdata->env);
+    if (tdata->lock)
+	o->free_lock(tdata->lock);
+    o->free(o, tdata);
 }
 
 static int
@@ -418,7 +444,7 @@ pty_control(void *handler_data, struct gensio_iod *iod, bool get,
     struct pty_data *tdata = handler_data;
     struct gensio_os_funcs *o = tdata->o;
     const char **env, **argv;
-    int err, status, val;
+    int err, val;
 
     switch (option) {
     case GENSIO_CONTROL_ENVIRONMENT:
@@ -450,33 +476,37 @@ pty_control(void *handler_data, struct gensio_iod *iod, bool get,
     case GENSIO_CONTROL_EXIT_CODE:
 	if (!get)
 	    return GE_NOTSUP;
+	err = 0;
+	o->lock(tdata->lock);
 	if (!tdata->exit_code_set)
-	    return GE_NOTREADY;
-	*datalen = snprintf(data, *datalen, "%d", tdata->exit_code);
-	return 0;
+	    err = GE_NOTREADY;
+	o->unlock(tdata->lock);
+	if (!err)
+	    *datalen = snprintf(data, *datalen, "%d", tdata->exit_code);
+	return err;
 
     case GENSIO_CONTROL_KILL_TASK:
 	if (get)
 	    return GE_NOTSUP;
-	if (tdata->pid == -1)
-	    return GE_NOTREADY;
-	val = strtoul(data, NULL, 0);
-	err = kill(tdata->pid, val ? SIGKILL : SIGTERM);
-	if (err)
-	    return gensio_os_err_to_err(o, errno);
-	return 0;
+	o->lock(tdata->lock);
+	if (tdata->pid == -1) {
+	    err = GE_NOTREADY;
+	} else {
+	    val = strtoul(data, NULL, 0);
+	    err = kill(tdata->pid, val ? SIGKILL : SIGTERM);
+	    if (err)
+		err = gensio_os_err_to_err(o, errno);
+	}
+	o->unlock(tdata->lock);
+	return err;
 
     case GENSIO_CONTROL_WAIT_TASK:
 	if (!get)
 	    return GE_NOTSUP;
-	if (tdata->pid == -1)
-	    return GE_NOTREADY;
-	err = waitpid(tdata->pid, &status, WNOHANG | WNOWAIT);
-	if (err == 0)
-	    return GE_NOTREADY;
-	else if (err < 0)
-	    return gensio_os_err_to_err(o, errno);
-	*datalen = snprintf(data, *datalen, "%d", status);
+	err = pty_check_exit_code(tdata);
+	if (err)
+	    return err;
+	*datalen = snprintf(data, *datalen, "%d", tdata->exit_code);
 	return 0;
 
 #ifdef HAVE_PTSNAME_R
@@ -597,6 +627,11 @@ pty_gensio_alloc(const char * const argv[], const char * const args[],
 
     tdata->o = o;
     tdata->ptym = -1;
+
+    tdata->lock = o->alloc_lock(o);
+    if (!tdata->lock)
+	goto out_nomem;
+
     if (link) {
 	tdata->link = gensio_strdup(o, link);
 	if (!tdata->link)
