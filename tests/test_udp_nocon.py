@@ -11,7 +11,7 @@ import gensio
 cmpstr = "asdfasdfasdfsadf"
 
 print("Test udp nocon")
-io1 = alloc_io(o, "udp(nocon,laddr='0.0.0.0,0'),ipv4,localhost,1234")
+io1 = alloc_io(o, "udp(nocon,laddr='127.0.0.1,0'),ipv4,localhost,1234")
 addr1 = io1.control(gensio.GENSIO_CONTROL_DEPTH_FIRST,
                     gensio.GENSIO_CONTROL_GET,
                     gensio.GENSIO_CONTROL_LADDR, "0")
@@ -21,7 +21,7 @@ port1 = io1.control(gensio.GENSIO_CONTROL_DEPTH_FIRST,
 if not addr1.endswith(port1):
     raise Exception("Port/address mismatch")
 
-io2 = alloc_io(o, "udp(nocon,laddr='0.0.0.0,0')," + addr1)
+io2 = alloc_io(o, "udp(nocon,laddr='127.0.0.1,0')," + addr1)
 addr2 = io2.control(gensio.GENSIO_CONTROL_DEPTH_FIRST,
                     gensio.GENSIO_CONTROL_GET,
                     gensio.GENSIO_CONTROL_LADDR, "0")
