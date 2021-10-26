@@ -8,7 +8,7 @@
 #define SWIGPYTHON
 
 #include "config.h"
-#include <malloc.h>
+#include <stdlib.h>
 #include <assert.h>
 #include <Python.h>
 #include <gensio/gensio_os_funcs.h>
