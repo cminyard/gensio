@@ -341,6 +341,9 @@ struct certauth_filter {
     /* Version number from the remote end. */
     unsigned int version;
 
+    /* My version number, may be lowered due to openssl capabilities. */
+    unsigned int my_version;
+
     /* Result from the server or local verification. */
     unsigned int result;
 
@@ -857,7 +860,7 @@ certauth_send_server_done(struct certauth_filter *sfilter)
 static void
 set_digest(struct certauth_filter *sfilter)
 {
-    if (sfilter->version >= 3)
+    if (sfilter->version >= 3 && sfilter->my_version >= 3)
 	sfilter->digest = sfilter->sha3_512;
     else
 	sfilter->digest = sfilter->rsa_md5;
@@ -885,7 +888,7 @@ certauth_try_connect(struct gensio_filter *filter, gensio_time *timeout)
 	certauth_write_byte(sfilter, CERTAUTH_CLIENTHELLO);
 	certauth_write_byte(sfilter, CERTAUTH_VERSION);
 	certauth_write_u16(sfilter, 2);
-	certauth_write_u16(sfilter, GENSIO_CERTAUTH_VERSION);
+	certauth_write_u16(sfilter, sfilter->my_version);
 	if (sfilter->username && sfilter->username_len) {
 	    certauth_write_byte(sfilter, CERTAUTH_USERNAME);
 	    certauth_write_u16(sfilter, sfilter->username_len);
@@ -962,7 +965,7 @@ certauth_try_connect(struct gensio_filter *filter, gensio_time *timeout)
 	certauth_write_byte(sfilter, CERTAUTH_SERVERHELLO);
 	certauth_write_byte(sfilter, CERTAUTH_VERSION);
 	certauth_write_u16(sfilter, 2);
-	certauth_write_u16(sfilter, GENSIO_CERTAUTH_VERSION);
+	certauth_write_u16(sfilter, sfilter->my_version);
 	certauth_write_byte(sfilter, CERTAUTH_CHALLENGE_DATA);
 	certauth_write_u16(sfilter, sfilter->challenge_data_size);
 	if (!RAND_bytes(sfilter->challenge_data,
@@ -2190,16 +2193,15 @@ gensio_certauth_filter_raw_alloc(struct gensio_os_funcs *o,
     sfilter->use_child_auth = use_child_auth;
     sfilter->enable_password = enable_password;
     sfilter->do_2fa = do_2fa;
+    sfilter->my_version = GENSIO_CERTAUTH_VERSION;
     sfilter->rsa_md5 = EVP_get_digestbyname("ssl3-md5");
     if (!sfilter->rsa_md5) {
 	rv = GE_IOERR;
 	goto out_err;
     }
     sfilter->sha3_512 = EVP_get_digestbyname("sha3-512");
-    if (!sfilter->sha3_512) {
-	rv = GE_IOERR;
-	goto out_err;
-    }
+    if (!sfilter->sha3_512)
+	sfilter->my_version = 2;
 
     if (is_client) {
 	/* Extra byte at the end so it's always nil terminated. */
