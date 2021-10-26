@@ -507,7 +507,11 @@ AC_SUBST(PAMLIB)
 # python annoyingly defined HAVE_GETRANDOM
 AC_CHECK_FUNC(getrandom, [AC_DEFINE([HAVE_GETRANDOM_FUNC], [1],
 				    [Define if getrandom is available.])])
-AC_CHECK_FUNCS(ptsname_r)
+
+AC_CHECK_FUNC(ptsname_r, [HAVE_PTSNAME_R=1], [HAVE_PTSNAME_R=0])
+AC_DEFINE_UNQUOTED([HAVE_PTSNAME_R], [$HAVE_PTSNAME_R],
+	[Set to 1 if ptsname_r is available, 0 if not])
+AC_SUBST(HAVE_PTSNAME_R)
 AC_CHECK_FUNCS(cfmakeraw)
 AC_CHECK_FUNCS(signalfd)
 AC_CHECK_FUNCS(regexec)

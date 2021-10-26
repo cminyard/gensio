@@ -17,7 +17,7 @@
 #cmakedefine HAVE_STRNCASECMP
 #cmakedefine HAVE_PRCTL
 #cmakedefine HAVE_GETRANDOM_FUNC
-#cmakedefine HAVE_PTSNAME_R
+#cmakedefine01 HAVE_PTSNAME_R
 #cmakedefine HAVE_CFMAKERAW
 #cmakedefine HAVE_SIGNALFD
 #cmakedefine HAVE_REGEXEC
