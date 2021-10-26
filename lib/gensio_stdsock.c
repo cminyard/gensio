@@ -60,6 +60,11 @@ typedef ssize_t sockret;
 #define IPV6_ADD_MEMBERSHIP IPV6_JOIN_GROUP
 #endif
 
+/* For older systems that don't have this. */
+#ifndef AI_V4MAPPED
+#define AI_V4MAPPED 0
+#endif
+
 struct gensio_stdsock_info {
     int protocol;
     int family;

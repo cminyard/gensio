@@ -29,6 +29,11 @@
 #include <gensio/gensio.h>
 #include <gensio/gensio_osops_addrinfo.h>
 
+/* For older systems that don't have this. */
+#ifndef AI_V4MAPPED
+#define AI_V4MAPPED 0
+#endif
+
 struct gensio_addr_addrinfo {
     struct gensio_addr r;
     struct addrinfo *a;
