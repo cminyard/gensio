@@ -8,6 +8,7 @@
 from utils import *
 import gensio
 import os
+import gensios_enabled
 
 print("Test pty basic echo")
 io = alloc_io(o, "pty,cat", chunksize = 64)
@@ -17,30 +18,35 @@ io_close(io)
 del io
 print("  Success!")
 
-print("Test pty accepter")
-TestAccept(o, "serialdev,", "conacc,pty", do_small_test)
+def test_with_ptsname_r():
+    print("Test pty accepter")
+    TestAccept(o, "serialdev,", "conacc,pty", do_small_test)
 
-print("Test pty symlinks")
-try:
-    os.unlink("./ptylink1")
-except:
-    pass
+    print("Test pty symlinks")
+    try:
+        os.unlink("./ptylink1")
+    except:
+        pass
 
-TestAccept(o, "serialdev,./ptylink1", "conacc,pty(link=./ptylink1)",
-           do_small_test, get_port = False)
-
-print("Test pty symlink failure")
-os.symlink("asdf", "./ptylink1")
-try:
     TestAccept(o, "serialdev,./ptylink1", "conacc,pty(link=./ptylink1)",
-               do_small_test, get_port = False, except_on_log = True)
-except Exception as E:
-    if str(E) != "***err LOG: conacc,pty(link=./ptylink1): Error opening gensio: Value already exists":
-        raise
-    print("  Success!")
+               do_small_test, get_port = False)
 
-print("Test pty symlink force")
-TestAccept(o, "serialdev,./ptylink1", "conacc,pty(link=./ptylink1,forcelink)",
-           do_small_test, get_port = False)
+    print("Test pty symlink failure")
+    os.symlink("asdf", "./ptylink1")
+    try:
+        TestAccept(o, "serialdev,./ptylink1", "conacc,pty(link=./ptylink1)",
+                   do_small_test, get_port = False, except_on_log = True)
+    except Exception as E:
+        if str(E) != "***err LOG: conacc,pty(link=./ptylink1): Error opening gensio: Value already exists":
+            raise
+        print("  Success!")
+
+    print("Test pty symlink force")
+    TestAccept(o, "serialdev,./ptylink1", "conacc,pty(link=./ptylink1,forcelink)",
+               do_small_test, get_port = False)
+
+if gensios_enabled.have_ptsname_r:
+    test_with_ptsname_r()
+
 del o
 test_shutdown()

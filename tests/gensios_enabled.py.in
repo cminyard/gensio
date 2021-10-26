@@ -67,3 +67,5 @@ def check_iostr_gensios(s):
 
         if g in final_gensios:
             break
+
+have_ptsname_r = @HAVE_PTSNAME_R@
