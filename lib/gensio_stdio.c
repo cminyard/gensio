@@ -231,7 +231,7 @@ stdion_finish_read(struct stdion_channel *schan, int err)
     struct gensio *io = schan->io;
     gensiods count;
 
-    if (err && !schan->ll_err) {
+    if (err && !schan->ll_err && schan->out_iod) {
 	schan->ll_err = err;
 	nadata->o->set_read_handler(schan->out_iod, false);
 	nadata->o->set_except_handler(schan->out_iod, false);
@@ -262,12 +262,14 @@ stdion_finish_read(struct stdion_channel *schan, int err)
 
     schan->in_read = false;
 
-    if (schan->closed) {
-	nadata->o->set_read_handler(schan->out_iod, false);
-	nadata->o->set_except_handler(schan->out_iod, false);
-    } else if (schan->read_enabled) {
-	nadata->o->set_read_handler(schan->out_iod, true);
-	nadata->o->set_except_handler(schan->out_iod, true);
+    if (schan->out_iod) {
+	if (schan->closed) {
+	    nadata->o->set_read_handler(schan->out_iod, false);
+	    nadata->o->set_except_handler(schan->out_iod, false);
+	} else if (schan->read_enabled) {
+	    nadata->o->set_read_handler(schan->out_iod, true);
+	    nadata->o->set_except_handler(schan->out_iod, true);
+	}
     }
 }
 
@@ -313,8 +315,13 @@ check_waitpid(struct stdion_channel *schan)
     }
 
  close_anyway:
-    if (count > 0)
-	o->flush(schan->out_iod, GENSIO_OUT_BUF);
+    if (schan->in_iod)
+	o->close(&schan->in_iod);
+    if (schan->out_iod) {
+	if (count > 0)
+	    o->flush(schan->out_iod, GENSIO_OUT_BUF);
+	o->close(&schan->out_iod);
+    }
 
     if (schan->close_done) {
 	gensio_done close_done = schan->close_done;
@@ -498,7 +505,7 @@ stdion_set_read_callback_enable(struct gensio *io, bool enabled)
 	schan->deferred_read = true;
 	schan->in_read = true;
 	stdion_start_deferred_op(schan);
-    } else {
+    } else if (schan->out_iod) { /* Could be in the middle of close. */
 	nadata->o->set_read_handler(schan->out_iod, enabled);
 	nadata->o->set_except_handler(schan->out_iod, enabled);
     }
@@ -520,8 +527,10 @@ stdion_set_write_callback_enable(struct gensio *io, bool enabled)
     schan->xmit_enabled = enabled;
     if (schan->in_open)
 	goto out_unlock;
-    nadata->o->set_write_handler(schan->in_iod, enabled);
-    nadata->o->set_except_handler(schan->in_iod, enabled);
+    if (schan->in_iod) { /* Could be in the middle of close. */
+	nadata->o->set_write_handler(schan->in_iod, enabled);
+	nadata->o->set_except_handler(schan->in_iod, enabled);
+    }
  out_unlock:
     stdiona_unlock(nadata);
 }
