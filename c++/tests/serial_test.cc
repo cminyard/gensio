@@ -3,6 +3,11 @@
 //
 // SPDX-License-Identifier: GPL-2.0-only
 
+// Some systems want C includes first.
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
 
 #include <iostream>
 #include <gensio/gensio>
@@ -19,8 +24,35 @@ gensio_log(struct gensio_os_funcs *f, enum gensio_log_levels level,
     fflush(stderr);
 }
 
+#define DEFAULT_ECHO_COMMPORT "/dev/ttyEcho0"
+
+bool
+file_is_accessible_dev(const char *filename)
+{
+    struct stat sb;
+    int rv;
+
+    rv = stat(filename, &sb);
+    if (rv == -1)
+	return false;
+
+    if (!S_ISCHR(sb.st_mode))
+	return false;
+
+    rv = open(filename, O_RDWR);
+    if (rv >= 0) {
+	close(rv);
+	return true;
+    } else {
+	return false;
+    }
+}
+
 int main(int argc, char *argv[])
 {
+    if (!file_is_accessible_dev(DEFAULT_ECHO_COMMPORT))
+	return 77;
+
     Os_Funcs o(0);
     int err;
     Waiter w(o);
