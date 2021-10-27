@@ -215,10 +215,10 @@ i_wait_for_waiter_timeout(waiter_t *waiter, unsigned int count,
 	if (intr)
 	    err = sel_select_intr_sigmask(waiter->sel,
 					  wake_thread_send_sig_waiter,
-					  w.tid, &w, rtv, sigmask);
+					  (long) w.tid, &w, rtv, sigmask);
 	else
-	    err = sel_select(waiter->sel, wake_thread_send_sig_waiter, w.tid, &w,
-			     rtv);
+	    err = sel_select(waiter->sel, wake_thread_send_sig_waiter,
+			     (long) w.tid, &w, rtv);
 	if (err < 0)
 	    err = errno;
 	else if (err == 0)
@@ -909,7 +909,7 @@ gensio_unix_service(struct gensio_os_funcs *f, gensio_time *timeout)
     w.id = pthread_self();
     w.wake_sig = d->wake_sig;
     rtv = gensio_time_to_timeval(&tv, timeout);
-    err = sel_select_intr(d->sel, wake_thread_send_sig, w.id, &w, rtv);
+    err = sel_select_intr(d->sel, wake_thread_send_sig, (long) w.id, &w, rtv);
     if (err < 0)
 	err = gensio_os_err_to_err(f, errno);
     else if (err == 0)
