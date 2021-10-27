@@ -2008,13 +2008,14 @@ fill_random(void *buf, size_t buflen)
 static void
 run_tests(struct oom_tests *test, int testnrstart, int testnrend,
 	  unsigned long *skipcount, unsigned long *errcount,
-	  struct env_info *env)
+	  unsigned long *testcount, struct env_info *env)
 {
     if (!check_oom_test_present(o, test)) {
 	(*skipcount)++;
 	return;
     }
     printf("Running test %s\n", test->connecter);
+    (*testcount)++;
     *errcount += run_oom_tests(test, "oom", run_oom_test,
 			       testnrstart, testnrend, env);
     if (test->accepter && !test->conacc)
@@ -2033,8 +2034,7 @@ main(int argc, char *argv[])
     struct gensio_waiter *loopwaiter[3];
     unsigned int num_extra_threads = 3;
     unsigned int i, j;
-    unsigned long errcount = 0;
-    unsigned long skipcount = 0;
+    unsigned long errcount = 0, skipcount = 0, testcount = 0;
     unsigned int repeat_count = 1;
     int testnr = -1, numtests = 0, testnrstart = -1, testnrend = MAX_LOOPS;
     gensio_time zerotime = { 0, 0 };
@@ -2272,7 +2272,7 @@ main(int argc, char *argv[])
 
     if (user_test.connecter) {
 	run_tests(&user_test, testnrstart, testnrend,
-		  &skipcount, &errcount, &env);
+		  &skipcount, &errcount, &testcount, &env);
     } else {
 	for (j = 0; j < repeat_count; j++) {
 	    if (testnr < 0) {
@@ -2280,11 +2280,11 @@ main(int argc, char *argv[])
 		    if (oom_tests[i].no_default_run)
 			continue;
 		    run_tests(oom_tests + i, testnrstart, testnrend,
-			      &skipcount, &errcount, &env);
+			      &skipcount, &errcount, &testcount, &env);
 		}
 	    } else {
 		run_tests(oom_tests + testnr, testnrstart, testnrend,
-			  &skipcount, &errcount, &env);
+			  &skipcount, &errcount, &testcount, &env);
 	    }
 	}
     }
@@ -2307,6 +2307,8 @@ main(int argc, char *argv[])
 	;
     cleanup_ods();
     gensio_cleanup_mem(o);
+    if (testcount == 0)
+	return 77;
     gensio_osfunc_exit(!!errcount);
 
  out_err:
