@@ -297,7 +297,7 @@ if test "x$trytcl" != "xno"; then
    fi
    if test "x$tcllibs" = "x"; then
       if test "x$FOUND_TCL_HEADER" = "xyes"; then
-         AC_CHECK_LIB(tcl, Tcl_DoOneEvent, TCL_LIBS=-ltcl)
+         AC_CHECK_LIB(tcl, Tcl_CancelIdleCall, TCL_LIBS=-ltcl)
          if test "x$TCL_LIBS" = "x"; then
             AC_CHECK_LIB(tcl$ver, Tcl_DoOneEvent, TCL_LIBS=-ltcl$ver)
 	 fi
