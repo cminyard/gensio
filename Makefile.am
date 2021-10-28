@@ -1,8 +1,8 @@
 
 ACLOCAL_AMFLAGS = -I m4
 
-SUBDIRS = lib c++ include $(SWIG_DIR) $(GLIB_DIR) $(TCL_DIR) tests tools \
-	examples
+SUBDIRS = lib $(CPLUSPLUS_DIR) include $(SWIG_DIR) $(GLIB_DIR) $(TCL_DIR) \
+	tests tools examples
 if INSTALL_DOC
 SUBDIRS += man
 endif

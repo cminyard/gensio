@@ -161,6 +161,53 @@ AC_ARG_WITH(gliblibs,
     gliblibs="$withval",
 )
 
+AC_ARG_WITH(cplusplus,
+ [AS_HELP_STRING([--with-cplusplus=yes|no],
+                 [Enable or disable C++ support.])],
+    cplusplus="$withval",
+    [if test -z "$CXX"; then
+        cplusplus=no
+    else
+        cplusplus=yes
+    fi]
+)
+
+AC_ARG_WITH(cplusplus-ver,
+ [AS_HELP_STRING([--with-cplusplus-ver=],
+                 [Set the C++ version, same as the value of __cplusplus.])],
+    cplusplusver="$withval",
+    [if test "$cplusplus" = "yes"; then
+        AC_LANG_PUSH([C++])
+	AC_MSG_CHECKING([for C++ version support])
+        cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+Version: __cplusplus
+_ACEOF
+        cplusplusver=`(eval "$ac_cpp conftest.$ac_ext") | grep '^Version:'`
+        if test $? -ne 0; then
+            AC_MSG_RESULT([check faied])
+	    cplusplus=no
+        else
+	    cplusplusver=`echo $cplusplusver | sed 's/^Version: //'`
+	    cplusplusver=`echo $cplusplusver | sed 's/L$//'`
+            AC_MSG_RESULT([$cplusplusver])
+        fi
+	rm -f conftest.$ac_ext
+        AC_LANG_POP([C++])
+    else
+	cplusplusver=0
+    fi]
+)
+
+CPLUSPLUS_DIR=
+if test "$cplusplus" = "yes"; then
+    if test "$cplusplusver" -ge 201103; then
+        CPLUSPLUS_DIR="c++"
+    else
+        AC_MSG_RESULT([C++ version $cplusplusver is too old, need at least 201102, disabling c++])
+    fi
+fi
+AC_SUBST(CPLUSPLUS_DIR)
+
 # Find pkg-config
 pkgprog=
 AC_PATH_PROG(pkgprog, pkg-config)
