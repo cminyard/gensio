@@ -36,6 +36,11 @@
 #ifdef HAVE_TCL
 #include <gensio/gensio_tcl.h>
 #endif
+#ifndef _WIN32
+#include <errno.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#endif
 
 #include "ioinfo.h"
 #include "ser_ioinfo.h"
@@ -322,6 +327,10 @@ io_close(struct gensio *io, void *close_data)
     ginfo->o->wake(closewaiter);
 }
 
+#ifndef _WIN32
+static bool acc_fork;
+#endif
+
 static int
 io_acc_event(struct gensio_accepter *accepter, void *user_data,
 	     int event, void *data)
@@ -330,7 +339,7 @@ io_acc_event(struct gensio_accepter *accepter, void *user_data,
     struct gdata *ginfo = ioinfo_userdata(ioinfo);
     struct ioinfo *oioinfo = ioinfo_otherioinfo(ioinfo);
     struct gdata *oginfo = ioinfo_userdata(oioinfo);
-    int rv;
+    int err;
 
     if (event == GENSIO_ACC_EVENT_LOG) {
 	struct gensio_loginfo *li = data;
@@ -346,6 +355,55 @@ io_acc_event(struct gensio_accepter *accepter, void *user_data,
 
     if (event != GENSIO_ACC_EVENT_NEW_CONNECTION)
 	return GE_NOTSUP;
+
+#ifndef _WIN32
+    if (acc_fork) {
+	pid_t pid;
+
+	switch ((pid = fork())) {
+	case -1:
+	    fprintf(stderr, "Could not fork: %s", strerror(errno));
+	    err = gensio_close(data, NULL, NULL);
+	    if (err)
+		fprintf(stderr, "Could not close after fork: %s",
+			gensio_err_to_str(err));
+	    return 0;
+
+	case 0:
+	    /*
+	     * The fork, let the parent have the accepter and double
+	     * fork so parent doesn't own us.  We have to tell the os
+	     * handler, too that we forked, or epoll() misbehaves.
+	     */
+	    err = ginfo->o->handle_fork(ginfo->o);
+	    if (err) {
+		fprintf(stderr, "Could not fork gensio handler: %s",
+			gensio_err_to_str(err));
+		exit(1);
+	    }
+
+	    switch (fork()) {
+	    case -1:
+		fprintf(stderr, "Could not fork twice: %s", strerror(errno));
+		exit(1);
+	    case 0:
+		break;
+	    default:
+		exit(0);
+	    }
+
+	    gensio_acc_disable(accepter);
+	    gensio_acc_free(accepter);
+	    break;
+
+	default:
+	    gensio_disable(data);
+	    gensio_free(data);
+	    waitpid(pid, NULL, 0);
+	    return 0;
+	}
+    }
+#endif
 
     if (ginfo->io) {
 	gensio_free(data);
@@ -364,14 +422,14 @@ io_acc_event(struct gensio_accepter *accepter, void *user_data,
 	printf("Connected\r\n");
 
     oginfo->can_close = true;
-    rv = gensio_open(oginfo->io, io_open, NULL);
-    if (rv) {
+    err = gensio_open(oginfo->io, io_open, NULL);
+    if (err) {
 	oginfo->can_close = false;
 	fprintf(stderr, "Could not open %s: %s\n", oginfo->ios,
-		gensio_err_to_str(rv));
+		gensio_err_to_str(err));
 	fflush(stderr);
 
-	ginfo->err = rv;
+	ginfo->err = err;
 	ginfo->o->wake(ginfo->waiter);
 	return 0;
     }
@@ -398,6 +456,10 @@ help(int err)
 	   " initiating a connection\n");
     printf("  -p, --printacc - When the accepter is started, print out all"
 	   " the addresses being listened on.\n");
+#ifndef _WIN32
+    printf(" --fork - When an accept happens, fork off to handle that"
+	   " connection, and keep accepting.\n");
+#endif
     printf("  -l, --printlocaddr - When the connection opens, print out all"
 	   " the local addresses.\n");
     printf("  -r, --printremaddr - When the connection opens, print out all"
@@ -470,6 +532,10 @@ main(int argc, char *argv[])
 	    io2_do_acc = true;
 	else if ((rv = cmparg(argc, argv, &arg, "-p", "--printacc", NULL)))
 	    io2_acc_print = true;
+#ifndef _WIN32
+	else if ((rv = cmparg(argc, argv, &arg, NULL, "--fork", NULL)))
+	    acc_fork = true;
+#endif
 	else if ((rv = cmparg(argc, argv, &arg, "-l", "--printlocaddr", NULL)))
 	    print_laddr = true;
 	else if ((rv = cmparg(argc, argv, &arg, "-r", "--printremaddr", NULL)))
