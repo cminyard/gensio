@@ -361,7 +361,7 @@ alloc_ioinfo(struct gensio_os_funcs *o,
 {
     struct ioinfo *ioinfo;
 
-    ioinfo = malloc(sizeof(*ioinfo));
+    ioinfo = o->zalloc(o, sizeof(*ioinfo));
     if (ioinfo) {
 	memset(ioinfo, 0, sizeof(*ioinfo));
 	ioinfo->escape_char = escape_char;
@@ -377,5 +377,5 @@ alloc_ioinfo(struct gensio_os_funcs *o,
 void
 free_ioinfo(struct ioinfo *ioinfo)
 {
-    free(ioinfo);
+    ioinfo->o->free(ioinfo->o, ioinfo);
 }
