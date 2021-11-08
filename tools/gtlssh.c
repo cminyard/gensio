@@ -2039,12 +2039,12 @@ main(int argc, char *argv[])
 	return 1;
     }
 
-    subdata1 = alloc_ser_ioinfo(0, "", &sh1);
+    subdata1 = alloc_ser_ioinfo(o, "", &sh1);
     if (!subdata1) {
 	fprintf(stderr, "Could not allocate subdata 1\n");
 	return 1;
     }
-    subdata2 = alloc_ser_ioinfo(0, "", &sh2);
+    subdata2 = alloc_ser_ioinfo(o, "", &sh2);
     if (!subdata2) {
 	fprintf(stderr, "Could not allocate subdata 2\n");
 	return 1;
