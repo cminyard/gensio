@@ -237,7 +237,7 @@ stdion_finish_read(struct stdion_channel *schan, int err)
 	nadata->o->set_except_handler(schan->out_iod, false);
     }
 
-    while ((schan->data_pending_len || schan->ll_err) && !schan->closed &&
+    while ((schan->data_pending_len || schan->ll_err) &&
 	       schan->read_enabled) {
 	count = schan->data_pending_len;
 	if (schan->ll_err && schan->data_pending_len == 0) {
