@@ -145,8 +145,6 @@ void gensio_set_attr_from_child(struct gensio *io, struct gensio *child);
 GENSIO_DLL_PUBLIC
 gensio_event gensio_get_cb(struct gensio *io);
 GENSIO_DLL_PUBLIC
-void gensio_set_cb(struct gensio *io, gensio_event cb, void *user_data);
-GENSIO_DLL_PUBLIC
 int gensio_cb(struct gensio *io, int event, int err,
 	      unsigned char *buf, gensiods *buflen,
 	      const char *const *auxdata);

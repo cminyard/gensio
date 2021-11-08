@@ -205,12 +205,6 @@ gensio_get_cb(struct gensio *io)
     return io->cb;
 }
 
-void gensio_set_cb(struct gensio *io, gensio_event cb, void *user_data)
-{
-    io->cb = cb;
-    io->user_data = user_data;
-}
-
 int
 gensio_cb(struct gensio *io, int event, int err,
 	  unsigned char *buf, gensiods *buflen, const char *const *auxdata)
