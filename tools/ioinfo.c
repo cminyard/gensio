@@ -80,6 +80,12 @@ ioinfo_otherio(struct ioinfo *ioinfo)
     return ioinfo->otherio->io;
 }
 
+struct gensio *
+ioinfo_io(struct ioinfo *ioinfo)
+{
+    return ioinfo->io;
+}
+
 void *
 ioinfo_subdata(struct ioinfo *ioinfo)
 {

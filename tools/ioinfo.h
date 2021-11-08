@@ -134,7 +134,10 @@ struct ioinfo_user_handlers {
 		    unsigned char *buf, gensiods *buflen);
 };
 
-/* Get the ioinfo for the other side of the connection. */
+/* Get the gensio. */
+struct gensio *ioinfo_io(struct ioinfo *ioinfo);
+
+/* Get the gensio for the other side of the connection. */
 struct gensio *ioinfo_otherio(struct ioinfo *ioinfo);
 
 /* Get the data for the sub handler. */
