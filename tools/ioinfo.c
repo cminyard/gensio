@@ -35,6 +35,7 @@ struct ioinfo {
     struct gensio *io;
     struct ioinfo *otherio;
     struct gensio_os_funcs *o;
+    struct gensio_lock *lock;
     bool ready;
 
     int escape_char;
@@ -113,12 +114,16 @@ ioinfo_otherioinfo(struct ioinfo *ioinfo)
 void
 ioinfo_sendoob(struct ioinfo *ioinfo, struct ioinfo_oob *oobinfo)
 {
+    struct gensio_os_funcs *o = ioinfo->o;
+
+    o->lock(ioinfo->lock);
     oobinfo->next = NULL;
     if (ioinfo->oob_tail)
 	ioinfo->oob_tail->next = oobinfo;
     else
 	ioinfo->oob_head = oobinfo;
     ioinfo->oob_tail = oobinfo;
+    o->unlock(ioinfo->lock);
     gensio_set_write_callback_enable(ioinfo->io, true);
 }
 
@@ -185,6 +190,7 @@ io_event(struct gensio *io, void *user_data, int event, int err,
 	 const char *const *auxdata)
 {
     struct ioinfo *ioinfo = user_data;
+    struct gensio_os_funcs *o = ioinfo->o;
     struct ioinfo *rioinfo = ioinfo->otherio;
     int rv, escapepos = -1;
     gensiods count = 0;
@@ -234,6 +240,7 @@ io_event(struct gensio *io, void *user_data, int event, int err,
 		}
 	    }
 	}
+	rioinfo->o->lock(rioinfo->lock);
 	if (rioinfo->ready) {
 	    gensiods wrsize = *buflen;
 
@@ -246,6 +253,7 @@ io_event(struct gensio *io, void *user_data, int event, int err,
 		    ioinfo_err(rioinfo, "write error(1): %s",
 			       gensio_err_to_str(rv));
 		gensio_set_read_callback_enable(ioinfo->io, false);
+		rioinfo->o->unlock(rioinfo->lock);
 		ioinfo->uh->shutdown(ioinfo, rv == GE_REMCLOSE);
 		return 0;
 	    }
@@ -255,6 +263,8 @@ io_event(struct gensio *io, void *user_data, int event, int err,
 	     * disabled for now.  The remote gensio coming ready will
 	     * enable read again.
 	     */
+	    if (rioinfo->ready)
+		gensio_set_write_callback_enable(rioinfo->io, false);
 	    count = 0;
 	}
 	if (count < *buflen) {
@@ -271,10 +281,12 @@ io_event(struct gensio *io, void *user_data, int event, int err,
 	    ioinfo->in_escape = true;
 	    ioinfo->escape_pos = 0;
 	}
+	rioinfo->o->unlock(rioinfo->lock);
 	return 0;
 
     case GENSIO_EVENT_WRITE_READY:
-	if (ioinfo->oob_head) {
+	o->lock(ioinfo->lock);
+	if (ioinfo->oob_head && ioinfo->ready) {
 	    struct ioinfo_oob *oob = ioinfo->oob_head;
 	    gensiods count, wrsize = oob->len;
 
@@ -287,6 +299,7 @@ io_event(struct gensio *io, void *user_data, int event, int err,
 			   gensio_err_to_str(rv));
 		gensio_set_write_callback_enable(ioinfo->io, false);
 		gensio_set_read_callback_enable(ioinfo->io, false);
+		o->unlock(ioinfo->lock);
 		ioinfo->uh->shutdown(ioinfo, false);
 		return 0;
 	    }
@@ -303,17 +316,26 @@ io_event(struct gensio *io, void *user_data, int event, int err,
 	    }
 	    return 0;
 	}
+	if (ioinfo->ready)
+	    gensio_set_write_callback_enable(ioinfo->io, false);
+	o->unlock(ioinfo->lock);
 
-	gensio_set_read_callback_enable(rioinfo->io, true);
-	gensio_set_write_callback_enable(ioinfo->io, false);
+	o->lock(rioinfo->lock);
+	if (rioinfo->ready)
+	    gensio_set_read_callback_enable(rioinfo->io, true);
+	o->unlock(rioinfo->lock);
 	return 0;
 
     default:
 	break;
     }
 
-    if (!rioinfo->ready)
+    rioinfo->o->lock(rioinfo->lock);
+    if (!rioinfo->ready) {
+	rioinfo->o->unlock(rioinfo->lock);
 	return 0;
+    }
+    rioinfo->o->unlock(rioinfo->lock);
 
     rv = GE_NOTSUP;
     if (ioinfo->sh)
@@ -343,13 +365,29 @@ ioinfo_set_ready(struct ioinfo *ioinfo, struct gensio *io)
 {
     struct ioinfo *rioinfo = ioinfo->otherio;
 
+    ioinfo->o->lock(ioinfo->lock);
     ioinfo->io = io;
     set_max_write(ioinfo);
     gensio_set_callback(io, io_event, ioinfo);
     gensio_set_read_callback_enable(ioinfo->io, true);
     ioinfo->ready = true;
+    ioinfo->o->unlock(ioinfo->lock);
+    rioinfo->o->lock(rioinfo->lock);
     if (rioinfo->ready)
 	gensio_set_read_callback_enable(rioinfo->io, true);
+    rioinfo->o->unlock(rioinfo->lock);
+}
+
+void
+ioinfo_set_not_ready(struct ioinfo *ioinfo)
+{
+    ioinfo->o->lock(ioinfo->lock);
+    if (ioinfo->io) {
+	gensio_set_read_callback_enable(ioinfo->io, false);
+	gensio_set_write_callback_enable(ioinfo->io, false);
+    }
+    ioinfo->ready = false;
+    ioinfo->o->unlock(ioinfo->lock);
 }
 
 void
@@ -370,12 +408,18 @@ alloc_ioinfo(struct gensio_os_funcs *o,
     ioinfo = o->zalloc(o, sizeof(*ioinfo));
     if (ioinfo) {
 	memset(ioinfo, 0, sizeof(*ioinfo));
-	ioinfo->escape_char = escape_char;
-	ioinfo->o = o;
-	ioinfo->sh = sh;
-	ioinfo->subdata = subdata;
-	ioinfo->uh = uh;
-	ioinfo->userdata = userdata;
+	ioinfo->lock = o->alloc_lock(o);
+	if (!ioinfo->lock) {
+	    o->free(o, ioinfo);
+	    ioinfo = NULL;
+	} else {
+	    ioinfo->escape_char = escape_char;
+	    ioinfo->o = o;
+	    ioinfo->sh = sh;
+	    ioinfo->subdata = subdata;
+	    ioinfo->uh = uh;
+	    ioinfo->userdata = userdata;
+	}
     }
     return ioinfo;
 }
@@ -383,5 +427,6 @@ alloc_ioinfo(struct gensio_os_funcs *o,
 void
 free_ioinfo(struct ioinfo *ioinfo)
 {
+    ioinfo->o->free_lock(ioinfo->lock);
     ioinfo->o->free(ioinfo->o, ioinfo);
 }

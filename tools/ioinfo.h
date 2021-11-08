@@ -167,6 +167,11 @@ void ioinfo_set_otherioinfo(struct ioinfo *ioinfo, struct ioinfo *otherioinfo);
  */
 void ioinfo_set_ready(struct ioinfo *ioinfo, struct gensio *io);
 
+/*
+ * Call before close, so the ioinfo doesn't get used after close.
+ */
+void ioinfo_set_not_ready(struct ioinfo *ioinfo);
+
 /* Send data to the ioinfo user's out function. */
 void ioinfo_out(struct ioinfo *ioinfo, char *fmt, ...);
 
