@@ -6,7 +6,7 @@ gensio \- Tool for doing gensio connections
 .SH SYNOPSIS
 .B gensiotool
 [\-i|\-\-input io1] [\-d|\-\-debug] [\-a|\-\-accepter] [\-\-signature <sig>]
-[\-e|\-\-escchar char] [\-p|\-\-printacc] [\-\-fork] [\-h|\-\-help]
+[\-e|\-\-escchar char] [\-p|\-\-printacc] [\-\-server] [\-h|\-\-help]
 io2
 
 .SH DESCRIPTION
@@ -62,10 +62,11 @@ If
 .I -a
 is specified, print out all the accept addresses chosen by the program.
 .TP
-.I \-\-fork
-When an accept happens, fork off to handle that connection, and keep
-accepting in the parent.  The default is to shut down the accepter and
-handle the connection in the main program.
+.I \-\-server
+When an accept happens, don't disable accept, but continue to accept
+connections, and won't close if all the connections go away..  If this
+is not specified, it shut down the accepter when a connection comes in
+and will terminate when that connection closes.
 .TP
 .I \-h|\-\-help
 Help output

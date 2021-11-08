@@ -29,6 +29,7 @@
 #include <string.h>
 
 #include <gensio/gensio.h>
+#include <gensio/gensio_list.h>
 #include <gensio/gensio_unix.h>
 #ifdef HAVE_GLIB
 #include <gensio/gensio_glib.h>
@@ -36,19 +37,12 @@
 #ifdef HAVE_TCL
 #include <gensio/gensio_tcl.h>
 #endif
-#ifndef _WIN32
-#include <errno.h>
-#include <sys/types.h>
-#include <sys/wait.h>
-#endif
 
 #include "ioinfo.h"
 #include "ser_ioinfo.h"
 #include "utils.h"
 
 unsigned int debug;
-bool print_laddr;
-bool print_raddr;
 
 #if HAVE_OPENSSL
 /*
@@ -137,32 +131,116 @@ struct rand_meth_st dummyrnd = {
 };
 #endif
 
-struct gdata {
+struct gtinfo {
     struct gensio_os_funcs *o;
+    const char *ios1;
+    const char *ios2;
+    int escape_char;
+    const char *signature;
+    bool print_laddr;
+    bool print_raddr;
+
+    int err;
+
+    bool server_mode;
+
     struct gensio_waiter *waiter;
+
+    struct gensio_list io_list;
+
+    struct gensio_accepter *acc;
+};
+
+struct gtconn_info {
+    struct gensio_link link;
+    struct gtinfo *g;
     struct gensio *user_io;
     struct gensio *io;
     const char *ios;
-    bool can_close;
-    int err;
+    bool close_done;
 };
+
+static void
+check_finish(struct ioinfo *ioinfo)
+{
+    struct ioinfo *oioinfo = ioinfo_otherioinfo(ioinfo);
+    struct gtconn_info *gtconn = ioinfo_userdata(ioinfo);
+    struct gtconn_info *ogtconn = ioinfo_userdata(oioinfo);
+    void *subdata = ioinfo_subdata(ioinfo);
+    void *osubdata = ioinfo_subdata(oioinfo);
+    struct gtinfo *g = gtconn->g;
+    struct gensio_os_funcs *o = g->o;
+    struct gensio *io;
+
+    if (!gtconn->close_done || !ogtconn->close_done)
+	return;
+
+    io = ioinfo_io(ioinfo);
+    if (io)
+	gensio_free(io);
+    io = ioinfo_io(oioinfo);
+    if (io)
+	gensio_free(io);
+
+    gensio_list_rm(&g->io_list, &gtconn->link);
+    gensio_list_rm(&g->io_list, &ogtconn->link);
+
+    o->free(o, gtconn);
+    o->free(o, ogtconn);
+
+    free_ioinfo(ioinfo);
+    free_ioinfo(oioinfo);
+    free_ser_ioinfo(subdata);
+    free_ser_ioinfo(osubdata);
+
+    if (!g->server_mode)
+	g->o->wake(g->waiter);
+}
+
+static void
+io_closed(struct gensio *io, void *close_data)
+{
+    struct ioinfo *ioinfo = gensio_get_user_data(io);
+    struct gtconn_info *gtconn = ioinfo_userdata(ioinfo);
+
+    if (ioinfo_io(ioinfo) == NULL)
+	gensio_free(io);
+    gtconn->close_done = true;
+    gtconn->io = NULL;
+    check_finish(ioinfo);
+}
 
 static void
 gshutdown(struct ioinfo *ioinfo, bool user_req)
 {
-    struct gdata *ginfo = ioinfo_userdata(ioinfo);
+    struct ioinfo *oioinfo = ioinfo_otherioinfo(ioinfo);
+    struct gtconn_info *gtconn = ioinfo_userdata(ioinfo);
+    struct gtconn_info *ogtconn = ioinfo_userdata(oioinfo);
+    struct gtinfo *g = gtconn->g;
+    int err;
 
-    if (!user_req)
-	ginfo->err = 1;
-    ginfo->o->wake(ginfo->waiter);
+    if (gtconn->io) {
+	err = gensio_close(gtconn->io, io_closed, NULL);
+	if (err)
+	    io_closed(gtconn->io, NULL);
+	gtconn->io = NULL;
+    }
+    if (ogtconn->io) {
+	err = gensio_close(ogtconn->io, io_closed, NULL);
+	if (err)
+	    io_closed(ogtconn->io, NULL);
+	ogtconn->io = NULL;
+    }
+    if (!g->err && !user_req)
+	g->err = GE_IOERR;
 }
 
 static void
 gerr(struct ioinfo *ioinfo, char *fmt, va_list ap)
 {
-    struct gdata *ginfo = ioinfo_userdata(ioinfo);
+    struct gtconn_info *gtconn = ioinfo_userdata(ioinfo);
 
-    fprintf(stderr, "Error on %s: ", ginfo->ios);
+    fprintf(stderr, "Error on %s: ", gtconn->ios);
     vfprintf(stderr, fmt, ap);
     fprintf(stderr, "\r\n");
     fflush(stderr);
@@ -171,11 +249,11 @@ gerr(struct ioinfo *ioinfo, char *fmt, va_list ap)
 static void
 gout(struct ioinfo *ioinfo, char *fmt, va_list ap)
 {
-    struct gdata *ginfo = ioinfo_userdata(ioinfo);
+    struct gtconn_info *gtconn = ioinfo_userdata(ioinfo);
     char str[200];
 
     vsnprintf(str, sizeof(str), fmt, ap);
-    gensio_write(ginfo->user_io, NULL, str, strlen(str), NULL);
+    gensio_write(gtconn->user_io, NULL, str, strlen(str), NULL);
 }
 
 static struct ioinfo_user_handlers guh = {
@@ -269,13 +347,13 @@ static void
 io_open(struct gensio *io, int err, void *open_data)
 {
     struct ioinfo *ioinfo = gensio_get_user_data(io);
-    struct gdata *ginfo = ioinfo_userdata(ioinfo);
+    struct gtconn_info *gtconn = ioinfo_userdata(ioinfo);
 
     if (err) {
-	ginfo->can_close = false;
-	fprintf(stderr, "open error on %s: %s\n", ginfo->ios,
+	fprintf(stderr, "open error on %s: %s\n", gtconn->ios,
 		gensio_err_to_str(err));
 	fflush(stderr);
+	io_closed(io, NULL);
 	gshutdown(ioinfo, false);
     } else {
 	ioinfo_set_ready(ioinfo, io);
@@ -285,60 +363,136 @@ io_open(struct gensio *io, int err, void *open_data)
 static void
 io_open_paddr(struct gensio *io, int err, void *open_data)
 {
+    struct gtinfo *g = open_data;
     struct ioinfo *ioinfo = gensio_get_user_data(io);
     struct ioinfo *oioinfo = ioinfo_otherioinfo(ioinfo);
-    struct gdata *ginfo = ioinfo_userdata(ioinfo);
-    struct gdata *oginfo = ioinfo_userdata(oioinfo);
+    struct gtconn_info *gtconn = ioinfo_userdata(ioinfo);
+    struct gtconn_info *ogtconn = ioinfo_userdata(oioinfo);
     int rv;
 
     if (err) {
-	ginfo->can_close = false;
-	fprintf(stderr, "open error on %s: %s\n", ginfo->ios,
+	fprintf(stderr, "open error on %s: %s\n", gtconn->ios,
 		gensio_err_to_str(err));
 	fflush(stderr);
+	io_closed(io, NULL);
 	gshutdown(ioinfo, false);
     } else {
-	if (print_laddr)
+	if (g->print_laddr)
 	    print_io_addr(io, true);
-	if (print_raddr)
+	if (g->print_raddr)
 	    print_io_addr(io, false);
-	ioinfo_set_ready(ioinfo, io);
 
-	oginfo->can_close = true;
-	rv = gensio_open(oginfo->io, io_open, NULL);
+	rv = gensio_open(ogtconn->io, io_open, NULL);
 	if (rv) {
-	    oginfo->err = rv;
-	    oginfo->can_close = false;
-	    fprintf(stderr, "Could not open %s: %s\n", oginfo->ios,
+	    fprintf(stderr, "Could not open %s: %s\n", ogtconn->ios,
 		    gensio_err_to_str(rv));
 	    fflush(stderr);
+	    io_closed(ogtconn->io, NULL);
 	    gshutdown(ioinfo, false);
+	} else {
+	    ioinfo_set_ready(ioinfo, io);
 	}
     }
 }
 
-static void
-io_close(struct gensio *io, void *close_data)
+static int
+add_io(struct gtinfo *g, struct gensio *io, bool open_finished)
 {
-    struct ioinfo *ioinfo = gensio_get_user_data(io);
-    struct gdata *ginfo = ioinfo_userdata(ioinfo);
-    struct gensio_waiter *closewaiter = close_data;
+    struct gensio_os_funcs *o = g->o;
+    int err = GE_NOMEM;
+    struct ioinfo_sub_handlers *sh1 = NULL, *sh2 = NULL;
+    void *subdata1 = NULL, *subdata2 = NULL;
+    struct ioinfo *ioinfo1 = NULL, *ioinfo2 = NULL;
+    struct gtconn_info *gtconn1 = NULL, *gtconn2 = NULL;
 
-    ginfo->o->wake(closewaiter);
+    gtconn1 = o->zalloc(o, sizeof(*gtconn1));
+    if (!gtconn1) {
+	fprintf(stderr, "Could not allocate gtconn 1\n");
+	goto out_err;
+    }
+    gtconn2 = o->zalloc(o, sizeof(*gtconn2));
+    if (!gtconn2) {
+	fprintf(stderr, "Could not allocate gtconn 2\n");
+	goto out_err;
+    }
+
+    gtconn1->g = g;
+    gtconn2->g = g;
+
+    subdata1 = alloc_ser_ioinfo(o, g->signature, &sh1);
+    if (!subdata1) {
+	fprintf(stderr, "Could not allocate subdata 1\n");
+	goto out_err;
+    }
+    subdata2 = alloc_ser_ioinfo(o, g->signature, &sh2);
+    if (!subdata2) {
+	fprintf(stderr, "Could not allocate subdata 2\n");
+	goto out_err;
+    }
+
+    ioinfo1 = alloc_ioinfo(o, g->escape_char, sh1, subdata1, &guh, gtconn1);
+    if (!ioinfo1) {
+	fprintf(stderr, "Could not allocate ioinfo 1\n");
+	goto out_err;
+    }
+    ioinfo2 = alloc_ioinfo(o, -1, sh2, subdata2, &guh, gtconn2);
+    if (!ioinfo2) {
+	fprintf(stderr, "Could not allocate ioinfo 2\n");
+	goto out_err;
+    }
+
+    ioinfo_set_otherioinfo(ioinfo1, ioinfo2);
+
+    err = str_to_gensio(g->ios1, o, NULL, ioinfo1, &gtconn1->io);
+    if (err) {
+	fprintf(stderr, "Could not allocate %s: %s\n",
+		g->ios1, gensio_err_to_str(err));
+	goto out_err;
+    }
+
+    gtconn1->ios = g->ios1;
+    gtconn2->ios = g->ios2;
+    gtconn1->user_io = gtconn1->io;
+    gtconn2->user_io = gtconn1->io;
+    gtconn2->io = io;
+
+    if (open_finished)
+	ioinfo_set_ready(ioinfo2, gtconn2->io);
+    else
+	gensio_set_user_data(gtconn2->io, ioinfo2);
+
+    if (g->print_laddr)
+	print_io_addr(io, true);
+    if (g->print_raddr)
+	print_io_addr(io, false);
+    if (debug)
+	printf("Connected\r\n");
+
+    gensio_list_add_tail(&g->io_list, &gtconn1->link);
+    gensio_list_add_tail(&g->io_list, &gtconn2->link);
+    return 0;
+
+ out_err:
+    if (subdata1)
+	free_ser_ioinfo(subdata1);
+    if (subdata2)
+	free_ser_ioinfo(subdata2);
+    if (gtconn1)
+	o->free(o, gtconn1);
+    if (gtconn2)
+	o->free(o, gtconn2);
+    if (ioinfo1)
+	free_ioinfo(ioinfo1);
+    if (ioinfo2)
+	free_ioinfo(ioinfo2);
+    return err;
 }
-
-#ifndef _WIN32
-static bool acc_fork;
-#endif
 
 static int
 io_acc_event(struct gensio_accepter *accepter, void *user_data,
 	     int event, void *data)
 {
-    struct ioinfo *ioinfo = user_data;
-    struct gdata *ginfo = ioinfo_userdata(ioinfo);
-    struct ioinfo *oioinfo = ioinfo_otherioinfo(ioinfo);
-    struct gdata *oginfo = ioinfo_userdata(oioinfo);
+    struct gtinfo *g = user_data;
     int err;
 
     if (event == GENSIO_ACC_EVENT_LOG) {
@@ -348,92 +502,50 @@ io_acc_event(struct gensio_accepter *accepter, void *user_data,
 	fprintf(stderr, "\n");
 	fflush(stderr);
 
-	ginfo->err = 1;
-	ginfo->o->wake(ginfo->waiter);
+	g->err = 1;
+	g->o->wake(g->waiter);
 	return 0;
     }
 
-    if (event != GENSIO_ACC_EVENT_NEW_CONNECTION)
-	return GE_NOTSUP;
+    if (event == GENSIO_ACC_EVENT_NEW_CONNECTION) {
+	struct gensio *io = data;
+	struct ioinfo *ioinfo;
+	struct ioinfo *oioinfo;
+	struct gtconn_info *ogtconn;
 
-#ifndef _WIN32
-    if (acc_fork) {
-	pid_t pid;
-
-	switch ((pid = fork())) {
-	case -1:
-	    fprintf(stderr, "Could not fork: %s", strerror(errno));
-	    err = gensio_close(data, NULL, NULL);
-	    if (err)
-		fprintf(stderr, "Could not close after fork: %s",
-			gensio_err_to_str(err));
-	    return 0;
-
-	case 0:
-	    /*
-	     * The fork, let the parent have the accepter and double
-	     * fork so parent doesn't own us.  We have to tell the os
-	     * handler, too that we forked, or epoll() misbehaves.
-	     */
-	    err = ginfo->o->handle_fork(ginfo->o);
+	if (g->server_mode || gensio_list_empty(&g->io_list)) {
+	    err = add_io(g, io, true);
 	    if (err) {
-		fprintf(stderr, "Could not fork gensio handler: %s",
+		gensio_free(io);
+		return 0;
+	    }
+
+	    ioinfo = gensio_get_user_data(io);
+	    oioinfo = ioinfo_otherioinfo(ioinfo);
+	    ogtconn = ioinfo_userdata(oioinfo);
+
+	    err = gensio_open(ogtconn->io, io_open, NULL);
+	    if (err) {
+		g->err = err;
+		fprintf(stderr, "Could not open %s: %s\n", ogtconn->ios,
 			gensio_err_to_str(err));
-		exit(1);
+		fflush(stderr);
+		io_closed(ogtconn->io, NULL);
+		gshutdown(ioinfo, false);
+		return 0;
 	    }
-
-	    switch (fork()) {
-	    case -1:
-		fprintf(stderr, "Could not fork twice: %s", strerror(errno));
-		exit(1);
-	    case 0:
-		break;
-	    default:
-		exit(0);
-	    }
-
-	    gensio_acc_disable(accepter);
-	    gensio_acc_free(accepter);
-	    break;
-
-	default:
-	    gensio_disable(data);
+	} else {
 	    gensio_free(data);
-	    waitpid(pid, NULL, 0);
-	    return 0;
 	}
-    }
-#endif
+	if (!g->server_mode && g->acc) {
+	    gensio_acc_free(g->acc);
+	    g->acc = NULL;
+	}
 
-    if (ginfo->io) {
-	gensio_free(data);
 	return 0;
     }
 
-    ginfo->io = data;
-    ginfo->can_close = true;
-    ioinfo_set_ready(ioinfo, ginfo->io);
-    gensio_acc_free(accepter);
-    if (print_laddr)
-	print_io_addr(ginfo->io, true);
-    if (print_raddr)
-	print_io_addr(ginfo->io, false);
-    if (debug)
-	printf("Connected\r\n");
-
-    oginfo->can_close = true;
-    err = gensio_open(oginfo->io, io_open, NULL);
-    if (err) {
-	oginfo->can_close = false;
-	fprintf(stderr, "Could not open %s: %s\n", oginfo->ios,
-		gensio_err_to_str(err));
-	fflush(stderr);
-
-	ginfo->err = err;
-	ginfo->o->wake(ginfo->waiter);
-	return 0;
-    }
-    return 0;
+    return GE_NOTSUP;
 }
 
 static const char *progname;
@@ -456,10 +568,9 @@ help(int err)
 	   " initiating a connection\n");
     printf("  -p, --printacc - When the accepter is started, print out all"
 	   " the addresses being listened on.\n");
-#ifndef _WIN32
-    printf(" --fork - When an accept happens, fork off to handle that"
-	   " connection, and keep accepting.\n");
-#endif
+    printf(" --server - When an accept happens, do not shut down the accepter\n"
+	   " and continue to accept connections.  Do not terminate when\n"
+	   " all the connections close.\n");
     printf("  -l, --printlocaddr - When the connection opens, print out all"
 	   " the local addresses.\n");
     printf("  -r, --printremaddr - When the connection opens, print out all"
@@ -489,33 +600,26 @@ int
 main(int argc, char *argv[])
 {
     int arg, rv;
-    struct gensio_waiter *closewaiter = NULL;
-    unsigned int closecount = 0;
+    struct gtinfo g;
     bool io2_do_acc = false, io2_acc_print = false;
-    struct gensio_accepter *io2_acc = NULL;
     bool esc_set = false;
     bool io1_set = false;
-    int escape_char = -1;
-    const char *signature = "gensiotool";
     const char *deftty = io1_default_notty;
-    struct gensio_os_funcs *o = NULL;
-    struct ioinfo_sub_handlers *sh1 = NULL, *sh2 = NULL;
-    void *subdata1 = NULL, *subdata2 = NULL;
-    struct ioinfo *ioinfo1 = NULL, *ioinfo2 = NULL;
-    struct gdata userdata1, userdata2;
     const char *filename;
     bool use_glib = false;
     bool use_tcl = false;
     gensio_time endwait = { 5, 0 };
+    struct gensio *io = NULL;
     struct gensio_os_proc_data *proc_data = NULL;
 
-    memset(&userdata1, 0, sizeof(userdata1));
-    memset(&userdata2, 0, sizeof(userdata2));
+    memset(&g, 0, sizeof(g));
+    g.escape_char = -1;
+    gensio_list_init(&g.io_list);
 
     progname = argv[0];
 
     if (can_do_raw()) {
-	escape_char = 0x1c; /* ^\ */
+	g.escape_char = 0x1c; /* ^\ */
 	deftty = io1_default_tty;
     }
 
@@ -532,25 +636,23 @@ main(int argc, char *argv[])
 	    io2_do_acc = true;
 	else if ((rv = cmparg(argc, argv, &arg, "-p", "--printacc", NULL)))
 	    io2_acc_print = true;
-#ifndef _WIN32
-	else if ((rv = cmparg(argc, argv, &arg, NULL, "--fork", NULL)))
-	    acc_fork = true;
-#endif
+	else if ((rv = cmparg(argc, argv, &arg, NULL, "--server", NULL)))
+	    g.server_mode = true;
 	else if ((rv = cmparg(argc, argv, &arg, "-l", "--printlocaddr", NULL)))
-	    print_laddr = true;
+	    g.print_laddr = true;
 	else if ((rv = cmparg(argc, argv, &arg, "-r", "--printremaddr", NULL)))
-	    print_raddr = true;
+	    g.print_raddr = true;
 	else if ((rv = cmparg(argc, argv, &arg, "-v", "--verbose", NULL)))
 	    gensio_set_log_mask(GENSIO_LOG_MASK_ALL);
 	else if ((rv = cmparg_int(argc, argv, &arg, "-e", "--escchar",
-				  &escape_char)))
+				  &g.escape_char)))
 	    esc_set = true;
 	else if ((rv = cmparg(argc, argv, &arg, "", "--glib", NULL)))
 	    use_glib = true;
 	else if ((rv = cmparg(argc, argv, &arg, "", "--tcl", NULL)))
 	    use_tcl = true;
 	else if ((rv = cmparg(argc, argv, &arg, "", "--signature",
-			      &signature)))
+			      &g.signature)))
 	    ;
 	else if ((rv = cmparg(argc, argv, &arg, "-d", "--debug", NULL))) {
 	    debug++;
@@ -588,183 +690,103 @@ main(int argc, char *argv[])
     }
 
     if (io1_set && !esc_set)
-	escape_char = -1; /* disable */
+	g.escape_char = -1; /* disable */
 
     if (arg >= argc) {
 	fprintf(stderr, "No gensio string given to connect to\n");
 	help(1);
     }
 
-    userdata1.ios = deftty;
-    userdata2.ios = argv[arg];
+    g.ios1 = deftty;
+    g.ios2 = argv[arg];
 
     if (use_glib) {
 #ifndef HAVE_GLIB
 	fprintf(stderr, "glib specified, but glib OS handler not avaiable.\n");
 	exit(1);
 #else
-	rv = gensio_glib_funcs_alloc(&o);
+	rv = gensio_glib_funcs_alloc(&g.o);
 #endif
     } else if (use_tcl) {
 #ifndef HAVE_TCL
 	fprintf(stderr, "tcl specified, but tcl OS handler not avaiable.\n");
 	exit(1);
 #else
-	rv = gensio_tcl_funcs_alloc(&o);
+	rv = gensio_tcl_funcs_alloc(&g.o);
 #endif
     } else {
-	rv = gensio_default_os_hnd(0, &o);
+	rv = gensio_default_os_hnd(0, &g.o);
     }
     if (rv) {
 	fprintf(stderr, "Could not allocate OS handler: %s\n",
 		gensio_err_to_str(rv));
 	goto out_err;
     }
-    o->vlog = do_vlog;
+    g.o->vlog = do_vlog;
 
-    rv = gensio_os_proc_setup(o, &proc_data);
+    g.waiter = g.o->alloc_waiter(g.o);
+    if (!g.waiter) {
+	rv = GE_NOMEM;
+	fprintf(stderr, "Could not allocate OS waiter\n");
+	goto out_err;
+    }
+
+    rv = gensio_os_proc_setup(g.o, &proc_data);
     if (rv) {
 	fprintf(stderr, "Error setting up process data: %s\n",
 		gensio_err_to_str(rv));
 	goto out_err;
     }
 
-    userdata1.o = o;
-    userdata2.o = o;
-
-    userdata1.waiter = o->alloc_waiter(o);
-    if (!userdata1.waiter) {
-	userdata1.err = GE_NOMEM;
-	fprintf(stderr, "Could not allocate OS waiter\n");
-	goto out_err;
-    }
-    userdata2.waiter = userdata1.waiter;
-
-    closewaiter = o->alloc_waiter(o);
-    if (!closewaiter) {
-	userdata1.err = GE_NOMEM;
-	fprintf(stderr, "Could not allocate close waiter\n");
-	goto out_err;
-    }
-
-    subdata1 = alloc_ser_ioinfo(0, signature, &sh1);
-    if (!subdata1) {
-	userdata1.err = GE_NOMEM;
-	fprintf(stderr, "Could not allocate subdata 1\n");
-	goto out_err;
-    }
-    subdata2 = alloc_ser_ioinfo(0, signature, &sh2);
-    if (!subdata2) {
-	userdata1.err = GE_NOMEM;
-	fprintf(stderr, "Could not allocate subdata 2\n");
-	goto out_err;
-    }
-
-    ioinfo1 = alloc_ioinfo(o, escape_char, sh1, subdata1, &guh, &userdata1);
-    if (!ioinfo1) {
-	userdata1.err = GE_NOMEM;
-	fprintf(stderr, "Could not allocate ioinfo 1\n");
-	goto out_err;
-    }
-
-    ioinfo2 = alloc_ioinfo(o, -1, sh2, subdata2, &guh, &userdata2);
-    if (!ioinfo2) {
-	userdata1.err = GE_NOMEM;
-	fprintf(stderr, "Could not allocate ioinfo 2\n");
-	goto out_err;
-    }
-
-    ioinfo_set_otherioinfo(ioinfo1, ioinfo2);
-
-    rv = str_to_gensio(userdata1.ios, o, NULL, ioinfo1, &userdata1.io);
-    if (rv) {
-	fprintf(stderr, "Could not allocate %s: %s\n",
-		userdata1.ios, gensio_err_to_str(rv));
-	userdata1.err = rv;
-	goto out_err;
-    }
-
-    userdata1.user_io = userdata1.io;
-    userdata2.user_io = userdata1.io;
-
     if (io2_do_acc)
-	rv = str_to_gensio_accepter(userdata2.ios, o, io_acc_event,
-				    ioinfo2, &io2_acc);
+	rv = str_to_gensio_accepter(g.ios2, g.o, io_acc_event, &g, &g.acc);
     else
-	rv = str_to_gensio(userdata2.ios, o, NULL, ioinfo2, &userdata2.io);
+	rv = str_to_gensio(g.ios2, g.o, NULL, &g, &io);
     if (rv) {
-	userdata2.err = rv;
-	fprintf(stderr, "Could not allocate %s: %s\n", userdata2.ios,
+	fprintf(stderr, "Could not allocate %s: %s\n", g.ios2,
 		gensio_err_to_str(rv));
 	goto out_err;
     }
 
     if (io2_do_acc) {
-	userdata2.err = gensio_acc_startup(io2_acc);
-	if (userdata2.err)
-	    fprintf(stderr, "Could not start %s: %s\n", userdata2.ios,
-		    gensio_err_to_str(userdata2.err));
+	rv = gensio_acc_startup(g.acc);
+	if (rv)
+	    fprintf(stderr, "Could not start %s: %s\n", g.ios2,
+		    gensio_err_to_str(rv));
 	else if (io2_acc_print)
-	    userdata2.err = print_local_acc_addr(io2_acc);
-	if (userdata2.err)
+	    rv = print_local_acc_addr(g.acc);
+	if (rv)
 	    goto out_err;
     } else {
-	userdata2.can_close = true;
-	rv = gensio_open(userdata2.io, io_open_paddr, NULL);
+	rv = add_io(&g, io, false);
 	if (rv) {
-	    userdata2.err = rv;
-	    userdata2.can_close = false;
-	    fprintf(stderr, "Could not open %s: %s\n", userdata2.ios,
-		    gensio_err_to_str(rv));
+	    gensio_free(io);
+	    io = NULL;
 	    goto out_err;
 	}
+	rv = gensio_open(io, io_open_paddr, &g);
+	if (rv) {
+	    struct ioinfo *ioinfo = gensio_get_user_data(io);
+
+	    io_closed(io, NULL);
+	    io = NULL;
+	    fprintf(stderr, "Could not open %s: %s\n", g.ios2,
+		    gensio_err_to_str(rv));
+	    gshutdown(ioinfo, false);
+	}
+	io = NULL;
     }
 
-    o->wait(userdata1.waiter, 1, NULL);
+    g.o->wait(g.waiter, 1, NULL);
 
  out_err:
-    if (userdata2.can_close) {
-	rv = gensio_close(userdata2.io, io_close, closewaiter);
-	if (rv)
-	    fprintf(stderr, "Unable to close %s: %s\n", userdata2.ios,
-		    gensio_err_to_str(rv));
-	else
-	    closecount++;
-    } else if (!userdata2.io && io2_do_acc && io2_acc) {
-	gensio_acc_free(io2_acc);
-    }
+    if (io)
+	gensio_free(io);
+    if (g.acc)
+	gensio_acc_free(g.acc);
 
-    if (userdata1.can_close) {
-	rv = gensio_close(userdata1.io, io_close, closewaiter);
-	if (rv)
-	    fprintf(stderr, "Unable to close %s: %s\n", userdata1.ios,
-		    gensio_err_to_str(rv));
-	else
-	    closecount++;
-    }
-
-    if (closecount > 0) {
-	o->wait(closewaiter, closecount, NULL);
-    }
-
-    if (userdata1.io)
-	gensio_free(userdata1.io);
-    if (userdata2.io)
-	gensio_free(userdata2.io);
-
-    if (ioinfo1)
-	free_ioinfo(ioinfo1);
-    if (ioinfo2)
-	free_ioinfo(ioinfo2);
-    if (subdata1)
-	free_ser_ioinfo(subdata1);
-    if (subdata2)
-	free_ser_ioinfo(subdata2);
-
-    if (!rv && userdata1.err)
-	rv = userdata1.err;
-    if (!rv && userdata2.err)
-	rv = userdata2.err;
+    if (!rv && g.err)
+	rv = g.err;
 
     /*
      * We wait until there are no gensios left pending.  You can get
@@ -775,22 +797,20 @@ main(int argc, char *argv[])
      */
     if (gensio_num_alloced() == 0)
 	endwait.secs = 0; /* Just run events until we are out. */
-    while (o && o->service(o, &endwait) != GE_TIMEDOUT) {
+    while (g.o && g.o->service(g.o, &endwait) != GE_TIMEDOUT) {
 	if (gensio_num_alloced() == 0) {
 	    /* Waiting for no gensios left, then run events til we are out. */
 	    endwait.secs = 0;
 	    endwait.nsecs = 0;
 	}
     }
-    if (userdata1.waiter)
-	o->free_waiter(userdata1.waiter);
-    if (closewaiter)
-	o->free_waiter(closewaiter);
+    if (g.waiter)
+	g.o->free_waiter(g.waiter);
     if (proc_data)
 	gensio_os_proc_cleanup(proc_data);
-    if (o) {
-	gensio_cleanup_mem(o);
-	o->free_funcs(o);
+    if (g.o) {
+	gensio_cleanup_mem(g.o);
+	g.o->free_funcs(g.o);
     }
     gensio_osfunc_exit(!!rv);
 }
