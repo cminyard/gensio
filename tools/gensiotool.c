@@ -161,6 +161,24 @@ struct gtconn_info {
 };
 
 static void
+vreport_err(struct gtinfo *g, const char *fmt, va_list ap)
+{
+    vfprintf(stderr, fmt, ap);
+    fprintf(stderr, "\n");
+    fflush(stdout);
+}
+
+static void
+report_err(struct gtinfo *g, const char *fmt, ...)
+{
+    va_list ap;
+
+    va_start(ap, fmt);
+    vreport_err(g, fmt, ap);
+    va_end(ap);
+}
+
+static void
 check_finish(struct ioinfo *ioinfo)
 {
     struct ioinfo *oioinfo = ioinfo_otherioinfo(ioinfo);
@@ -239,11 +257,10 @@ static void
 gerr(struct ioinfo *ioinfo, char *fmt, va_list ap)
 {
     struct gtconn_info *gtconn = ioinfo_userdata(ioinfo);
+    char str[200];
 
-    fprintf(stderr, "Error on %s: ", gtconn->ios);
-    vfprintf(stderr, fmt, ap);
-    fprintf(stderr, "\r\n");
-    fflush(stderr);
+    vsnprintf(str, sizeof(str), fmt, ap);
+    report_err(gtconn->g, "Error on %s: %s\r", gtconn->ios, str);
 }
 
 static void
@@ -350,9 +367,8 @@ io_open(struct gensio *io, int err, void *open_data)
     struct gtconn_info *gtconn = ioinfo_userdata(ioinfo);
 
     if (err) {
-	fprintf(stderr, "open error on %s: %s\n", gtconn->ios,
-		gensio_err_to_str(err));
-	fflush(stderr);
+	report_err(gtconn->g, "open error on %s: %s", gtconn->ios,
+		   gensio_err_to_str(err));
 	io_closed(io, NULL);
 	gshutdown(ioinfo, false);
     } else {
@@ -371,9 +387,8 @@ io_open_paddr(struct gensio *io, int err, void *open_data)
     int rv;
 
     if (err) {
-	fprintf(stderr, "open error on %s: %s\n", gtconn->ios,
-		gensio_err_to_str(err));
-	fflush(stderr);
+	report_err(g, "open error on %s: %s", gtconn->ios,
+		   gensio_err_to_str(err));
 	io_closed(io, NULL);
 	gshutdown(ioinfo, false);
     } else {
@@ -384,9 +399,8 @@ io_open_paddr(struct gensio *io, int err, void *open_data)
 
 	rv = gensio_open(ogtconn->io, io_open, NULL);
 	if (rv) {
-	    fprintf(stderr, "Could not open %s: %s\n", ogtconn->ios,
-		    gensio_err_to_str(rv));
-	    fflush(stderr);
+	    report_err(g, "Could not open %s: %s", ogtconn->ios,
+		       gensio_err_to_str(rv));
 	    io_closed(ogtconn->io, NULL);
 	    gshutdown(ioinfo, false);
 	} else {
@@ -407,12 +421,12 @@ add_io(struct gtinfo *g, struct gensio *io, bool open_finished)
 
     gtconn1 = o->zalloc(o, sizeof(*gtconn1));
     if (!gtconn1) {
-	fprintf(stderr, "Could not allocate gtconn 1\n");
+	report_err(g, "Could not allocate gtconn 1");
 	goto out_err;
     }
     gtconn2 = o->zalloc(o, sizeof(*gtconn2));
     if (!gtconn2) {
-	fprintf(stderr, "Could not allocate gtconn 2\n");
+	report_err(g, "Could not allocate gtconn 2");
 	goto out_err;
     }
 
@@ -421,23 +435,23 @@ add_io(struct gtinfo *g, struct gensio *io, bool open_finished)
 
     subdata1 = alloc_ser_ioinfo(o, g->signature, &sh1);
     if (!subdata1) {
-	fprintf(stderr, "Could not allocate subdata 1\n");
+	report_err(g, "Could not allocate subdata 1");
 	goto out_err;
     }
     subdata2 = alloc_ser_ioinfo(o, g->signature, &sh2);
     if (!subdata2) {
-	fprintf(stderr, "Could not allocate subdata 2\n");
+	report_err(g, "Could not allocate subdata 2");
 	goto out_err;
     }
 
     ioinfo1 = alloc_ioinfo(o, g->escape_char, sh1, subdata1, &guh, gtconn1);
     if (!ioinfo1) {
-	fprintf(stderr, "Could not allocate ioinfo 1\n");
+	report_err(g, "Could not allocate ioinfo 1");
 	goto out_err;
     }
     ioinfo2 = alloc_ioinfo(o, -1, sh2, subdata2, &guh, gtconn2);
     if (!ioinfo2) {
-	fprintf(stderr, "Could not allocate ioinfo 2\n");
+	report_err(g, "Could not allocate ioinfo 2");
 	goto out_err;
     }
 
@@ -445,7 +459,7 @@ add_io(struct gtinfo *g, struct gensio *io, bool open_finished)
 
     err = str_to_gensio(g->ios1, o, NULL, ioinfo1, &gtconn1->io);
     if (err) {
-	fprintf(stderr, "Could not allocate %s: %s\n",
+	report_err(g, "Could not allocate %s: %s",
 		g->ios1, gensio_err_to_str(err));
 	goto out_err;
     }
@@ -498,9 +512,7 @@ io_acc_event(struct gensio_accepter *accepter, void *user_data,
     if (event == GENSIO_ACC_EVENT_LOG) {
 	struct gensio_loginfo *li = data;
 
-	vfprintf(stderr, li->str, li->args);
-	fprintf(stderr, "\n");
-	fflush(stderr);
+	vreport_err(g, li->str, li->args);
 
 	g->err = 1;
 	g->o->wake(g->waiter);
@@ -527,9 +539,8 @@ io_acc_event(struct gensio_accepter *accepter, void *user_data,
 	    err = gensio_open(ogtconn->io, io_open, NULL);
 	    if (err) {
 		g->err = err;
-		fprintf(stderr, "Could not open %s: %s\n", ogtconn->ios,
+		report_err(g, "Could not open %s: %s", ogtconn->ios,
 			gensio_err_to_str(err));
-		fflush(stderr);
 		io_closed(ogtconn->io, NULL);
 		gshutdown(ioinfo, false);
 		return 0;
@@ -588,12 +599,13 @@ static void
 do_vlog(struct gensio_os_funcs *f, enum gensio_log_levels level,
 	const char *log, va_list args)
 {
+    char buf[200];
+
     if (!debug)
 	return;
-    fprintf(stderr, "gensio %s log: ", gensio_log_level_to_str(level));
-    vfprintf(stderr, log, args);
-    fprintf(stderr, "\n");
-    fflush(stderr);
+    snprintf(buf, sizeof(buf), log, args);
+
+    report_err(NULL, "gensio %s log: %s", gensio_log_level_to_str(level), buf);
 }
 
 int
