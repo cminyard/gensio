@@ -150,6 +150,7 @@ struct gtinfo {
     int err;
 
     bool server_mode;
+    bool in_shutdown;
 
     struct gensio_waiter *waiter;
 
@@ -218,7 +219,7 @@ check_finish(struct ioinfo *ioinfo)
     free_ser_ioinfo(subdata);
     free_ser_ioinfo(osubdata);
 
-    if (!g->server_mode)
+    if (!g->server_mode || (g->in_shutdown && gensio_list_empty(&g->io_list)))
 	g->o->wake(g->waiter);
 }
 
@@ -248,7 +249,7 @@ io_closed(struct gensio *io, void *close_data)
 }
 
 static void
-gshutdown(struct ioinfo *ioinfo, bool user_req)
+i_gshutdown(struct ioinfo *ioinfo, bool user_req)
 {
     struct ioinfo *oioinfo = ioinfo_otherioinfo(ioinfo);
     struct gtconn_info *gtconn = ioinfo_userdata(ioinfo);
@@ -256,7 +257,6 @@ gshutdown(struct ioinfo *ioinfo, bool user_req)
     struct gtinfo *g = gtconn->g;
     int err;
 
-    g->o->lock(g->lock);
     if (gtconn->io) {
 	ioinfo_set_not_ready(ioinfo);
 	err = gensio_close(gtconn->io, io_closed, NULL);
@@ -277,6 +277,16 @@ gshutdown(struct ioinfo *ioinfo, bool user_req)
     }
     if (!g->err && !user_req)
 	g->err = GE_IOERR;
+}
+
+static void
+gshutdown(struct ioinfo *ioinfo, bool user_req)
+{
+    struct gtconn_info *gtconn = ioinfo_userdata(ioinfo);
+    struct gtinfo *g = gtconn->g;
+
+    g->o->lock(g->lock);
+    i_gshutdown(ioinfo, user_req);
     g->o->unlock(g->lock);
 }
 
@@ -511,10 +521,8 @@ add_io(struct gtinfo *g, struct gensio *io, bool open_finished)
     if (debug)
 	printf("Connected\r\n");
 
-    o->lock(g->lock);
     gensio_list_add_tail(&g->io_list, &gtconn1->link);
     gensio_list_add_tail(&g->io_list, &gtconn2->link);
-    o->unlock(g->lock);
     return 0;
 
  out_err:
@@ -533,6 +541,45 @@ add_io(struct gtinfo *g, struct gensio *io, bool open_finished)
     if (!g->server_mode)
 	g->o->wake(g->waiter);
     return err;
+}
+
+static void
+i_handle_term(struct gtinfo *g)
+{
+    struct gensio_link *link;
+    bool closed_one = false;
+    int err;
+
+    g->in_shutdown = true;
+    if (g->acc) {
+	gensio_acc_free(g->acc);
+	g->acc = NULL;
+    }
+    gensio_list_for_each(&g->io_list, link) {
+	struct gtconn_info *gtconn = gensio_container_of(link,
+							 struct gtconn_info,
+							 link);
+
+	closed_one = true;
+	if (gtconn->io) {
+	    err = gensio_close(gtconn->io, io_closed, NULL);
+	    if (err)
+		i_io_closed(gtconn->io, NULL);
+	    gtconn->io = NULL;
+	}
+    }
+    if (!closed_one)
+	g->o->wake(g->waiter);
+}
+
+static void
+handle_term(void *info)
+{
+    struct gtinfo *g = info;
+
+    g->o->lock(g->lock);
+    i_handle_term(g);
+    g->o->unlock(g->lock);
 }
 
 static int
@@ -558,12 +605,17 @@ io_acc_event(struct gensio_accepter *accepter, void *user_data,
 	struct ioinfo *oioinfo;
 	struct gtconn_info *ogtconn;
 
-	if (g->server_mode || gensio_list_empty(&g->io_list)) {
+	g->o->lock(g->lock);
+	if (g->in_shutdown) {
+	    gensio_free(io);
+	} else if (g->server_mode || gensio_list_empty(&g->io_list)) {
 	    err = add_io(g, io, true);
 	    if (err) {
 		g->err = err;
 		gensio_free(io);
-		return 0;
+		if (!g->server_mode)
+		    i_handle_term(g);
+		goto out_unlock;
 	    }
 
 	    ioinfo = gensio_get_user_data(io);
@@ -575,8 +627,8 @@ io_acc_event(struct gensio_accepter *accepter, void *user_data,
 		g->err = err;
 		report_err(g, "Could not open %s: %s", ogtconn->ios,
 			gensio_err_to_str(err));
-		gshutdown(ioinfo, false);
-		return 0;
+		i_gshutdown(ioinfo, false);
+		goto out_unlock;
 	    }
 	} else {
 	    gensio_free(data);
@@ -585,6 +637,8 @@ io_acc_event(struct gensio_accepter *accepter, void *user_data,
 	    gensio_acc_free(g->acc);
 	    g->acc = NULL;
 	}
+    out_unlock:
+	g->o->unlock(g->lock);
 
 	return 0;
     }
@@ -862,10 +916,12 @@ main(int argc, char *argv[])
 	if (rv)
 	    goto out_err;
     } else {
+	g.o->lock(g.lock);
 	rv = add_io(&g, io, false);
 	if (rv) {
 	    gensio_free(io);
 	    io = NULL;
+	    g.o->unlock(g.lock);
 	    goto out_err;
 	}
 	rv = gensio_open(io, io_open_paddr, &g);
@@ -874,18 +930,29 @@ main(int argc, char *argv[])
 
 	    fprintf(stderr, "Could not open %s: %s\n", g.ios2,
 		    gensio_err_to_str(rv));
-	    gshutdown(ioinfo, false);
+	    i_gshutdown(ioinfo, false);
 	}
+	g.o->unlock(g.lock);
 	io = NULL;
     }
+
+    rv = gensio_os_proc_register_term_handler(proc_data, handle_term, &g);
+    if (rv)
+	handle_term(&g);
 
     g.o->wait(g.waiter, 1, NULL);
 
  out_err:
     if (io)
 	gensio_free(io);
-    if (g.acc)
+    if (g.lock)
+	g.o->lock(g.lock);
+    if (g.acc) {
 	gensio_acc_free(g.acc);
+	g.acc = NULL;
+    }
+    if (g.lock)
+	g.o->unlock(g.lock);
 
     if (!rv && g.err)
 	rv = g.err;
