@@ -2186,8 +2186,8 @@ main(int argc, char *argv[])
 	exit(1);
 #else
 	if (num_extra_threads > 0)
-	    printf("Number of extra threads is %u, incompatible with TCL,"
-		   " forcing to 0\n", num_extra_threads);
+	    fprintf(stderr, "Number of extra threads is %u, incompatible with"
+		    " TCL, forcing to 0\n", num_extra_threads);
 	num_extra_threads = 0;
 	os_func_str = " --tcl";
 	rv = gensio_tcl_funcs_alloc(&o);
