@@ -21,6 +21,8 @@ extern "C" {
 GENSIO_DLL_PUBLIC
 int gensio_win_funcs_alloc(struct gensio_os_funcs **ro);
 
+HANDLE gensio_os_proc_win_get_main_handle(struct gensio_os_proc_data *data);
+
 #ifdef __cplusplus
 }
 #endif

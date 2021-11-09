@@ -199,6 +199,8 @@ struct gensio_data {
     DWORD timerthid;
     WSAEVENT timer_wakeev;
 
+    struct gensio_os_proc_data *pdata;
+
     struct gensio_memtrack *mtrack;
 
     int (*orig_recv)(struct gensio_iod *iod, void *buf, gensiods buflen,
@@ -938,18 +940,20 @@ win_do_wait(struct gensio_waiter *waiter, unsigned int count,
 	    gensio_time *timeout, BOOL alerts)
 {
     struct gensio_data *d = waiter->o->user_data;
-    int rv = 0;
+    int rv = 0, nrh = 0;
     ULONGLONG entry_time, end_time, now;
     DWORD rvw, mtimeout;
-    HANDLE h[2];
+    HANDLE h[3];
 
     entry_time = GetTickCount64();
     mtimeout = gensio_time_to_ms(timeout);
     end_time = entry_time + mtimeout;
     now = entry_time;
 
-    h[0] = d->waiter;
-    h[1] = waiter->wait_sem;
+    h[nrh++] = d->waiter;
+    h[nrh++] = waiter->wait_sem;
+    if (d->proc_data)
+	h[nrh++] = gensio_os_proc_win_get_main_handle(d->proc_data);
 
     EnterCriticalSection(&waiter->lock);
     if (waiter->in_free) {
@@ -967,10 +971,12 @@ win_do_wait(struct gensio_waiter *waiter, unsigned int count,
 		goto waitdone;
 	    }
 	    LeaveCriticalSection(&waiter->lock);
-	    rvw = WaitForMultipleObjectsEx(2, h, FALSE, end_time - now, alerts);
+	    rvw = WaitForMultipleObjectsEx(nrh, h, FALSE, end_time - now,
+					   alerts);
 	    assert(rvw != WAIT_FAILED);
 	    if (rvw != WAIT_TIMEOUT)
 		win_check_iods(waiter->o);
+	    gensio_os_proc_check_handlers(d->pdata)
 	    now = GetTickCount64();
 	    EnterCriticalSection(&waiter->lock);
 	}
@@ -3127,6 +3133,22 @@ win_finish_free(struct gensio_os_funcs *o)
     WSACleanup();
 }
 
+static int
+gensio_win_control(struct gensio_os_funcs *o, int func, void *data,
+		   gensiods *datalen)
+{
+    struct gensio_data *d = o->user_data;
+
+    switch (func) {
+    case GENSIO_CONTROL_SET_PROC_DATA:
+	d->pdata = data;
+	return 0;
+
+    default:
+	return GE_NOTSUP;
+    }
+}
+
 int
 gensio_win_funcs_alloc(struct gensio_os_funcs **ro)
 {
@@ -3222,6 +3244,7 @@ gensio_win_funcs_alloc(struct gensio_os_funcs **ro)
     o->kill_subprog = win_kill_subprog;
     o->wait_subprog = win_wait_subprog;
     o->get_random = win_get_random;
+    o->control = gensio_win_control;
 
     gensio_addr_addrinfo_set_os_funcs(o);
     err = gensio_stdsock_set_os_funcs(o);
@@ -3250,17 +3273,99 @@ gensio_win_funcs_alloc(struct gensio_os_funcs **ro)
     return err;
 }
 
+struct gensio_os_proc_data {
+    lock_type lock;
+    BOOL term_handler_set;
+    BOOL got_term_sig;
+    void (*term_handler)(void *handler_data);
+    void *term_handler_data;
+    HANDLE global_waiter;
+};
+static struct gensio_os_proc_data proc_data;
+
 int
 gensio_os_proc_setup(struct gensio_os_funcs *o,
 		     struct gensio_os_proc_data **data)
 {
-    *data = NULL;
+    proc.global_waiter = CreateSemaphoreA(NULL, 0, 1000000, NULL);
+    if (!proc.global_waiter)
+	return GE_NOMEM;
+    LOCK_INIT(&proc_data.lock);
+    *data = &proc_data;
     return 0;
+}
+
+static BOOL
+ConCtrlHandler(DWORD dwCtrlType)
+{
+    BOOL rvb;
+
+    switch (dwCtrlType) {
+    case CTRL_C_EVENT:
+    case CTRL_CLOSE_EVENT:
+    case CTRL_SHUTDOWN_EVENT:
+	proc_data.got_term_sig = true;
+	rvb = ReleaseSemaphore(proc_data.global_waiter, 1, NULL);
+	if (!rvb)
+	    /* Too many posts is improbable, but ok. */
+	    assert(GetLastError() == ERROR_TOO_MANY_POSTS);
+	return TRUE;
+
+    default:
+	return FALSE;
+    }
 }
 
 void
 gensio_os_proc_cleanup(struct gensio_os_proc_data *data)
 {
+    if (data->term_handler_set) {
+	SetConsoleCtrlHandler(ConCtrlHandler, false);
+	data->term_handler_set = false;
+    }
+    if (data->global_waiter) {
+	CloseHandler(data->global_waiter);
+	data->global_waiter = NULL;
+    }
+    LOCK_DESTROY(&proc_data.lock);
+}
+
+HANDLE
+gensio_os_proc_win_get_main_handle(struct gensio_os_proc_data *data)
+{
+    return data->global_waiter;
+}
+
+void
+gensio_os_proc_check_handlers(struct gensio_os_proc_data *data)
+{
+    LOCK(&data->lock);
+    if (data->got_term_sig) {
+	data->got_term_sig = FALSE;
+	data->term_handler(data->term_handler_data);
+    }
+    UNLOCK(&data->lock);
+}
+
+int
+gensio_os_proc_register_term_handler(struct gensio_os_proc_data *data,
+				     void (*handler)(void *handler_data),
+				     void *handler_data)
+{
+    if (SetConsoleCtrlHandler(ConCtrlHandler, TRUE) == 0)
+	return gensio_os_err_to_err(data->o, GetLastError());
+    data->term_handler = handler;
+    data->term_handler_data = handler_data;
+    data->term_handler_set = true;
+    return 0;
+}
+
+int
+gensio_os_proc_register_reload_handler(struct gensio_os_proc_data *data,
+				       void (*handler)(void *handler_data),
+				       void *handler_data)
+{
+    return GE_NOTSUP;
 }
 
 struct gensio_thread {
