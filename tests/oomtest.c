@@ -74,6 +74,7 @@ struct oom_tests {
 static bool verbose;
 static bool debug;
 
+static unsigned int num_extra_threads = 3;
 static bool use_glib = false;
 static bool use_tcl = false;
 static const char *os_func_str = "";
@@ -1612,12 +1613,16 @@ run_oom_test(struct oom_tests *test, long count, int *exitcode,
 	if (rv)
 	    goto out_err;
 
-	constr = gensio_alloc_sprintf(o, "stdio,%s%s%s -i 'stdio(self)' '%s%s'",
-				      gensiot, test->conacc ? " -a" : "",
-				      os_func_str, test->connecter, intstr);
+	constr = gensio_alloc_sprintf(o,
+			"stdio,%s%s%s -n %u -i 'stdio(self)' '%s%s'",
+			gensiot, test->conacc ? " -a" : "",
+			os_func_str, num_extra_threads, test->connecter,
+			intstr);
     } else {
-	constr = gensio_alloc_sprintf(o, "stdio,%s%s -i 'stdio(self)' '%s'",
-				      gensiot, os_func_str, test->connecter);
+	constr = gensio_alloc_sprintf(o,
+			"stdio,%s%s -n %u -i 'stdio(self)' '%s'",
+			gensiot, os_func_str, num_extra_threads,
+			test->connecter);
     }
     if (!constr) {
 	rv = GE_NOMEM;
@@ -1734,8 +1739,8 @@ run_oom_acc_test(struct oom_tests *test, long count, int *exitcode,
     }
 
     constr = gensio_alloc_sprintf(o,
-				  "stdio,%s%s -v -a -p -i 'stdio(self)' '%s'",
-				  gensiot, os_func_str, test->accepter);
+		"stdio,%s%s -n %d -v -a -p -i 'stdio(self)' '%s'",
+		gensiot, os_func_str, num_extra_threads, test->accepter);
     if (!constr) {
 	err = GE_NOMEM;
 	goto out_err;
@@ -2032,7 +2037,6 @@ main(int argc, char *argv[])
     int rv;
     struct gensio_thread *loopth[3];
     struct gensio_waiter *loopwaiter[3];
-    unsigned int num_extra_threads = 3;
     unsigned int i, j;
     unsigned long errcount = 0, skipcount = 0, testcount = 0;
     unsigned int repeat_count = 1;
