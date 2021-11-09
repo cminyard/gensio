@@ -350,9 +350,11 @@ fd_deliver_read_data(struct fd_ll *fdll, int err)
 	gensiods count;
 
     retry:
+	fd_unlock(fdll);
 	count = gensio_fd_ll_callback(fdll->ll, GENSIO_LL_CB_READ, err,
 				      fdll->read_data + fdll->read_data_pos,
 				      fdll->read_data_len, fdll->auxdata);
+	fd_lock(fdll);
 	if (err || count >= fdll->read_data_len) {
 	    fdll->read_data_pos = 0;
 	    fdll->read_data_len = 0;
@@ -427,11 +429,8 @@ fd_deferred_op(struct gensio_runner *runner, void *cbdata)
 	fdll->deferred_read = false;
 
 	fdll->in_read = true;
-	while (fdll->read_enabled && fdll->read_data_len) {
-	    fd_unlock(fdll);
+	while (fdll->read_enabled && fdll->read_data_len)
 	    fd_deliver_read_data(fdll, 0);
-	    fd_lock(fdll);
-	}
 	fdll->in_read = false;
     }
 
@@ -492,11 +491,12 @@ fd_handle_incoming(struct fd_ll *fdll,
 		fdll->state == FD_OPEN_ERR_WAIT)
 	goto out_disable;
     fdll->in_read = true;
-    fd_unlock(fdll);
 
     if (!fdll->read_data_len) {
+	fd_unlock(fdll);
 	err = doread(fdll->iod, fdll->read_data, fdll->read_data_size, &count,
 		     &auxdata, cb_data);
+	fd_lock(fdll);
 	if (!err) {
 	    fdll->read_data_len = count;
 	    fdll->auxdata = auxdata;
@@ -505,7 +505,6 @@ fd_handle_incoming(struct fd_ll *fdll,
 
     fd_deliver_read_data(fdll, err);
 
-    fd_lock(fdll);
     if (err) {
 	switch(fdll->state) {
 	case FD_IN_OPEN:
