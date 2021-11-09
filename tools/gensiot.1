@@ -62,6 +62,11 @@ If
 .I -a
 is specified, print out all the accept addresses chosen by the program.
 .TP
+.I \-n|\-\-extra\-threads <n>
+Spawn <n> extra threads to handle gensio operations.  Useful for
+scalabiity with
+.I \-\-server.
+.TP
 .I \-\-server
 When an accept happens, don't disable accept, but continue to accept
 connections, and won't close if all the connections go away..  If this
