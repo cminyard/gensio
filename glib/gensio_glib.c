@@ -73,6 +73,8 @@ struct gensio_data
     bool did_something;
 
     struct gensio_memtrack *mtrack;
+
+    struct gensio_os_proc_data *pdata;
 };
 
 static void *
@@ -962,8 +964,8 @@ timeout_end(struct timeout_info *t)
 }
 
 static int
-gensio_glib_wait(struct gensio_waiter *w, unsigned int count,
-		 gensio_time *timeout)
+i_gensio_glib_wait(struct gensio_waiter *w, unsigned int count,
+		   gensio_time *timeout)
 {
     struct gensio_data *d = w->o->user_data;
     struct gensio_wait_thread t;
@@ -1026,13 +1028,6 @@ gensio_glib_wait(struct gensio_waiter *w, unsigned int count,
 }
 
 static int
-gensio_glib_wait_intr(struct gensio_waiter *w, unsigned int count,
-		      gensio_time *timeout)
-{
-    return gensio_glib_wait(w, count, timeout);
-}
-
-static int
 gensio_glib_wait_intr_sigmask(struct gensio_waiter *w, unsigned int count,
 			      gensio_time *timeout,
 			      struct gensio_os_proc_data *proc_data)
@@ -1047,12 +1042,36 @@ gensio_glib_wait_intr_sigmask(struct gensio_waiter *w, unsigned int count,
 	pthread_sigmask(SIG_SETMASK,
 			gensio_os_proc_unix_get_wait_sigset(proc_data),
 			&origmask);
-    rv = gensio_glib_wait(w, count, timeout);
-    if (proc_data)
+    rv = i_gensio_glib_wait(w, count, timeout);
+    if (proc_data) {
 	pthread_sigmask(SIG_SETMASK, &origmask, NULL);
+	gensio_os_proc_check_handlers(proc_data);
+    }
 
     return rv;
 #endif
+}
+
+static int
+gensio_glib_wait_intr(struct gensio_waiter *w, unsigned int count,
+		      gensio_time *timeout)
+{
+    struct gensio_data *d = w->o->user_data;
+
+    return gensio_glib_wait_intr_sigmask(w, count, timeout, d->pdata);
+}
+
+static int
+gensio_glib_wait(struct gensio_waiter *w, unsigned int count,
+		 gensio_time *timeout)
+{
+    struct gensio_data *d = w->o->user_data;
+    int err = GE_INTERRUPTED;
+
+    while (err == GE_INTERRUPTED)
+	err = gensio_glib_wait_intr_sigmask(w, count, timeout, d->pdata);
+
+    return err;
 }
 
 static void
@@ -1840,6 +1859,22 @@ gensio_glib_get_random(struct gensio_os_funcs *o, void *data, unsigned int len)
     return gensio_os_err_to_err(o, rv);
 }
 
+static int
+gensio_glib_control(struct gensio_os_funcs *o, int func, void *data,
+		    gensiods *datalen)
+{
+    struct gensio_data *d = o->user_data;
+
+    switch (func) {
+    case GENSIO_CONTROL_SET_PROC_DATA:
+	d->pdata = data;
+	return 0;
+
+    default:
+	return GE_NOTSUP;
+    }
+}
+
 int
 gensio_glib_funcs_alloc(struct gensio_os_funcs **ro)
 {
@@ -1919,6 +1954,7 @@ gensio_glib_funcs_alloc(struct gensio_os_funcs **ro)
     o->wait_subprog = gensio_glib_wait_subprog;
     o->get_random = gensio_glib_get_random;
     o->iod_control = gensio_glib_iod_control;
+    o->control = gensio_glib_control;
 
     gensio_addr_addrinfo_set_os_funcs(o);
     err = gensio_stdsock_set_os_funcs(o);

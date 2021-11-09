@@ -38,16 +38,8 @@ struct gensio_data {
     unsigned int refcount;
     bool freesel;
     int wake_sig;
+    struct gensio_os_proc_data *pdata;
     struct gensio_memtrack *mtrack;
-};
-
-struct gensio_os_proc_data {
-    struct gensio_os_funcs *o;
-    int wake_sig;
-    sigset_t old_sigs;
-    sigset_t wait_sigs;
-    struct sigaction old_sigchld;
-    struct sigaction old_wakesig;
 };
 
 static void *
@@ -319,20 +311,6 @@ wake_waiter(waiter_t *waiter)
 }
 
 #endif /* USE_PTHREADS */
-
-static int
-wait_for_waiter_timeout(waiter_t *waiter, unsigned int count,
-			gensio_time *timeout)
-{
-    return i_wait_for_waiter_timeout(waiter, count, timeout, false, NULL);
-}
-
-static int
-wait_for_waiter_timeout_intr(waiter_t *waiter, unsigned int count,
-			     gensio_time *timeout)
-{
-    return i_wait_for_waiter_timeout(waiter, count, timeout, true, NULL);
-}
 
 static int
 wait_for_waiter_timeout_intr_sigmask(waiter_t *waiter, unsigned int count,
@@ -840,27 +818,6 @@ gensio_unix_free_waiter(struct gensio_waiter *waiter)
 }
 
 static int
-gensio_unix_wait(struct gensio_waiter *waiter, unsigned int count,
-		 gensio_time *timeout)
-{
-    int err;
-
-    err = wait_for_waiter_timeout(waiter->sel_waiter, count, timeout);
-    return gensio_os_err_to_err(waiter->f, err);
-}
-
-
-static int
-gensio_unix_wait_intr(struct gensio_waiter *waiter, unsigned int count,
-		      gensio_time *timeout)
-{
-    int err;
-
-    err = wait_for_waiter_timeout_intr(waiter->sel_waiter, count, timeout);
-    return gensio_os_err_to_err(waiter->f, err);
-}
-
-static int
 gensio_unix_wait_intr_sigmask(struct gensio_waiter *waiter, unsigned int count,
 			      gensio_time *timeout,
 			      struct gensio_os_proc_data *proc_data)
@@ -869,10 +826,33 @@ gensio_unix_wait_intr_sigmask(struct gensio_waiter *waiter, unsigned int count,
     sigset_t *wait_sigs = NULL;
 
     if (proc_data)
-	wait_sigs = &proc_data->wait_sigs;
+	wait_sigs = gensio_os_proc_unix_get_wait_sigset(proc_data);
     err = wait_for_waiter_timeout_intr_sigmask(waiter->sel_waiter, count,
 					       timeout, wait_sigs);
+    if (proc_data)
+	gensio_os_proc_check_handlers(proc_data);
     return gensio_os_err_to_err(waiter->f, err);
+}
+
+static int
+gensio_unix_wait(struct gensio_waiter *waiter, unsigned int count,
+		 gensio_time *timeout)
+{
+    struct gensio_data *d = waiter->f->user_data;
+    int err = GE_INTERRUPTED;
+
+    while (err == GE_INTERRUPTED)
+	err = gensio_unix_wait_intr_sigmask(waiter, count, timeout, d->pdata);
+    return err;
+}
+
+static int
+gensio_unix_wait_intr(struct gensio_waiter *waiter, unsigned int count,
+		      gensio_time *timeout)
+{
+    struct gensio_data *d = waiter->f->user_data;
+
+    return gensio_unix_wait_intr_sigmask(waiter, count, timeout, d->pdata);
 }
 
 static void
@@ -1457,6 +1437,22 @@ gensio_unix_get_random(struct gensio_os_funcs *o,
     return gensio_os_err_to_err(o, rv);
 }
 
+static int
+gensio_unix_control(struct gensio_os_funcs *o, int func, void *data,
+		    gensiods *datalen)
+{
+    struct gensio_data *d = o->user_data;
+
+    switch (func) {
+    case GENSIO_CONTROL_SET_PROC_DATA:
+	d->pdata = data;
+	return 0;
+
+    default:
+	return GE_NOTSUP;
+    }
+}
+
 static struct gensio_os_funcs *
 gensio_unix_alloc_sel(struct selector_s *sel, int wake_sig)
 {
@@ -1536,6 +1532,7 @@ gensio_unix_alloc_sel(struct selector_s *sel, int wake_sig)
     o->wait_subprog = gensio_unix_wait_subprog;
     o->get_random = gensio_unix_get_random;
     o->iod_control = gensio_unix_iod_control;
+    o->control = gensio_unix_control;
 
     gensio_addr_addrinfo_set_os_funcs(o);
     if (gensio_stdsock_set_os_funcs(o)) {
@@ -1547,14 +1544,58 @@ gensio_unix_alloc_sel(struct selector_s *sel, int wake_sig)
     return o;
 }
 
+struct gensio_os_proc_data {
+    struct gensio_os_funcs *o;
+    int wake_sig;
+    sigset_t old_sigs;
+    sigset_t wait_sigs;
+
+    struct sigaction old_wakesig;
+
+    struct sigaction old_sigchld;
+    bool got_sigchld;
+
+    lock_type handler_lock;
+
+    bool term_sig_set;
+    bool got_term_sig;
+    struct sigaction old_sigint;
+    struct sigaction old_sigquit;
+    struct sigaction old_sigterm;
+    void (*term_handler)(void *handler_data);
+    void *term_handler_data;
+
+    bool reload_sig_set;
+    bool got_reload_sig;
+    struct sigaction old_sighup;
+    void (*reload_handler)(void *handler_data);
+    void *reload_handler_data;
+};
+
+/* We only have one of these per process, so it's global. */
+static struct gensio_os_proc_data proc_data;
+
 static void
 handle_sigchld(int sig)
 {
+    proc_data.got_sigchld = true;
 }
 
 static void
 handle_wakesig(int sig)
 {
+}
+
+static void
+term_sig_handler(int sig)
+{
+    proc_data.got_term_sig = true;
+}
+
+static void
+reload_sig_handler(int sig)
+{
+    proc_data.got_reload_sig = true;
 }
 
 int
@@ -1566,9 +1607,7 @@ gensio_os_proc_setup(struct gensio_os_funcs *o,
     struct sigaction sigdo;
     int rv;
 
-    data = o->zalloc(o, sizeof(*data));
-    if (!data)
-	return GE_NOMEM;
+    data = &proc_data;
     data->o = o;
     if (o->get_wake_sig)
 	data->wake_sig = o->get_wake_sig(o);
@@ -1614,6 +1653,18 @@ gensio_os_proc_setup(struct gensio_os_funcs *o,
 	}
     }
 
+    rv = data->o->control(o, GENSIO_CONTROL_SET_PROC_DATA, data, NULL);
+    if (rv) {
+	sigaction(SIGCHLD, &data->old_sigchld, NULL);
+	sigprocmask(SIG_SETMASK, &data->old_sigs, NULL);
+	if (data->wake_sig)
+	    sigaction(data->wake_sig, &data->old_wakesig, NULL);
+	o->free(o, data);
+	return rv;
+    }
+
+    LOCK_INIT(&data->handler_lock);
+
     *rdata = data;
     return 0;
 }
@@ -1621,13 +1672,121 @@ gensio_os_proc_setup(struct gensio_os_funcs *o,
 void
 gensio_os_proc_cleanup(struct gensio_os_proc_data *data)
 {
-    struct gensio_os_funcs *o = data->o;
+    LOCK_DESTROY(&data->handler_lock);
 
     if (data->wake_sig)
 	sigaction(data->wake_sig, &data->old_wakesig, NULL);
+    if (data->term_sig_set) {
+	data->term_sig_set = false;
+	sigaction(SIGINT, &data->old_sigint, NULL);
+	sigaction(SIGQUIT, &data->old_sigquit, NULL);
+	sigaction(SIGTERM, &data->old_sigterm, NULL);
+    }
+    if (data->reload_sig_set) {
+	data->reload_sig_set = false;
+	sigaction(SIGHUP, &data->old_sighup, NULL);
+    }
     sigaction(SIGCHLD, &data->old_sigchld, NULL);
     sigprocmask(SIG_SETMASK, &data->old_sigs, NULL);
-    o->free(o, data);
+}
+
+void
+gensio_os_proc_check_handlers(struct gensio_os_proc_data *data)
+{
+    LOCK(&data->handler_lock);
+    if (data->got_term_sig) {
+	data->got_term_sig = false;
+	data->term_handler(data->term_handler_data);
+    }
+    if (data->got_reload_sig) {
+	data->got_reload_sig = false;
+	data->reload_handler(data->reload_handler_data);
+    }
+    UNLOCK(&data->handler_lock);
+}
+
+int
+gensio_os_proc_register_term_handler(struct gensio_os_proc_data *data,
+				     void (*handler)(void *handler_data),
+				     void *handler_data)
+{
+    int err;
+    struct sigaction act;
+    sigset_t sigs, old_sigs;
+
+    sigemptyset(&sigs);
+    sigaddset(&sigs, SIGINT);
+    sigaddset(&sigs, SIGQUIT);
+    sigaddset(&sigs, SIGTERM);
+    err = sigprocmask(SIG_BLOCK, &sigs, &old_sigs);
+    if (err)
+	return gensio_os_err_to_err(data->o, errno);
+
+    memset(&act, 0, sizeof(act));
+    act.sa_handler = term_sig_handler;
+    act.sa_flags |= SA_RESETHAND;
+    err = sigaction(SIGINT, &act, &data->old_sigint);
+    if (err) {
+	err = errno;
+	goto out_err;
+    }
+    err = sigaction(SIGQUIT, &act, &data->old_sigquit);
+    if (err) {
+	err = errno;
+	sigaction(SIGINT, &data->old_sigint, NULL);
+	goto out_err;
+    }
+    err = sigaction(SIGTERM, &act, &data->old_sigterm);
+    if (err) {
+	err = errno;
+	sigaction(SIGINT, &data->old_sigint, NULL);
+	sigaction(SIGQUIT, &data->old_sigquit, NULL);
+	goto out_err;
+    }
+
+    sigdelset(&data->wait_sigs, SIGINT);
+    sigdelset(&data->wait_sigs, SIGQUIT);
+    sigdelset(&data->wait_sigs, SIGTERM);
+    data->term_handler = handler;
+    data->term_handler_data = handler_data;
+    data->term_sig_set = true;
+    return 0;
+
+ out_err:
+    sigprocmask(SIG_SETMASK, &old_sigs, NULL);
+    return gensio_os_err_to_err(data->o, err);
+}
+
+int gensio_os_proc_register_reload_handler(struct gensio_os_proc_data *data,
+					   void (*handler)(void *handler_data),
+					   void *handler_data)
+{
+    int err;
+    struct sigaction act;
+    sigset_t sigs, old_sigs;
+
+    sigemptyset(&sigs);
+    sigaddset(&sigs, SIGHUP);
+    err = sigprocmask(SIG_BLOCK, &sigs, &old_sigs);
+    if (err)
+	return gensio_os_err_to_err(data->o, errno);
+
+    memset(&act, 0, sizeof(act));
+    act.sa_handler = reload_sig_handler;
+    err = sigaction(SIGHUP, &act, &data->old_sighup);
+    if (err) {
+	err = errno;
+	goto out_err;
+    }
+    sigdelset(&data->wait_sigs, SIGHUP);
+    data->reload_handler = handler;
+    data->reload_handler_data = handler_data;
+    data->reload_sig_set = true;
+    return 0;
+
+ out_err:
+    sigprocmask(SIG_SETMASK, &old_sigs, NULL);
+    return gensio_os_err_to_err(data->o, err);
 }
 
 sigset_t *

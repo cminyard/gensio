@@ -267,8 +267,13 @@ struct gensio_os_proc_data;
 
 /*
  * Operations for the control function in gensio_os_funcs
- * None done yet.
  */
+
+/*
+ * Set the proc data for the os handler.  The struct
+ * gensio_os_proc_data pointer is passed in data, datalen is ignored.
+ */
+#define GENSIO_CONTROL_SET_PROC_DATA	10001
 
 struct gensio_os_funcs {
     /* For use by the code doing the os function translation. */
@@ -865,6 +870,13 @@ int gensio_os_proc_setup(struct gensio_os_funcs *o,
 GENSIO_DLL_PUBLIC
 void gensio_os_proc_cleanup(struct gensio_os_proc_data *data);
 
+/*
+ * Called from os handlers, check for any handlers that may need to be
+ * called.
+ */
+GENSIO_DLL_PUBLIC
+void gensio_os_proc_check_handlers(struct gensio_os_proc_data *data);
+
 #ifdef _WIN32
 #define GENSIO_DEF_WAKE_SIG 0
 #else
@@ -873,6 +885,27 @@ void gensio_os_proc_cleanup(struct gensio_os_proc_data *data);
 GENSIO_DLL_PUBLIC
 sigset_t *gensio_os_proc_unix_get_wait_sigset(struct gensio_os_proc_data *data);
 #endif
+
+/*
+ * Set the function to call when a termination (SIGINT, SIGQUIT,
+ * SIGTERM on Unix, console control handler or WM_CLOSE on windows) is
+ * requested by the operating system.  data should point to a struct
+ * gensio_control_register_handler.  Set to handler NULL to disable.
+ */
+GENSIO_DLL_PUBLIC
+int gensio_os_proc_register_term_handler(struct gensio_os_proc_data *data,
+					 void (*handler)(void *handler_data),
+					 void *handler_data);
+/*
+ * Set the function to call when a reaload is requested by the
+ * operating system (SIGHUP on Unix).  data should point to a struct
+ * gensio_control_register_handler.  Set handler to NULL to disable.
+ */
+GENSIO_DLL_PUBLIC
+int gensio_os_proc_register_reload_handler(struct gensio_os_proc_data *data,
+					   void (*handler)(void *handler_data),
+					   void *handler_data);
+
 
 /*
  * Basic thread handling.  You can use the standard OS functions to do
