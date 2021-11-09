@@ -592,6 +592,10 @@ basen_set_ll_enables(struct basen_data *ndata)
 	enabled = enabled || filter_ll_read_needed(ndata);
 	break;
 
+    case BASEN_IN_LL_CLOSE:
+	enabled = false;
+	break;
+
     default:
 	enabled = true;
 	break;
@@ -1593,9 +1597,7 @@ basen_ll_read(void *cb_data, int readerr,
     }
 
     while (buflen > 0 &&
-	   (ndata->read_enabled || filter_ll_read_needed(ndata) ||
-	    ndata->state == BASEN_IN_LL_CLOSE ||
-	    ndata->state == BASEN_CLOSE_WAIT_DRAIN)) {
+	   (ndata->read_enabled || filter_ll_read_needed(ndata))) {
 	ndata->in_read = true;
 	do {
 	    gensiods wrlen = 0;
