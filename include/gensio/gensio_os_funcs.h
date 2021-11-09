@@ -265,6 +265,10 @@ const char *gensio_log_level_to_str(enum gensio_log_levels level);
  */
 struct gensio_os_proc_data;
 
+/*
+ * Operations for the control function in gensio_os_funcs
+ * None done yet.
+ */
 
 struct gensio_os_funcs {
     /* For use by the code doing the os function translation. */
@@ -790,6 +794,13 @@ struct gensio_os_funcs {
 			     struct sctp_sack_info *sackinfo);
     int (*sctp_get_socket_status)(struct gensio_iod *iod,
 				  struct sctp_status *status);
+
+    /*
+     * Control operations for easily extending gensios.  func is
+     * GENSIO_CONTROL_xxx, see those above for details.
+     */
+    int (*control)(struct gensio_os_funcs *o, int func, void *data,
+		   gensiods *datalen);
 };
 
 GENSIO_DLL_PUBLIC
