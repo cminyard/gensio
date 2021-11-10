@@ -314,6 +314,7 @@ io_event(struct gensio *io, void *user_data, int event, int err,
 		oob->buf += count;
 		oob->len -= count;
 	    }
+	    o->unlock(ioinfo->lock);
 	    return 0;
 	}
 	if (ioinfo->ready)
