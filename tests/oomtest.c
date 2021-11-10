@@ -24,7 +24,6 @@
 #include <assert.h>
 #include <errno.h>
 #include <signal.h>
-#include <sys/wait.h>
 #include <gensio/gensio.h>
 #include <gensio/gensio_osops_env.h>
 #include <gensio/argvutils.h>
