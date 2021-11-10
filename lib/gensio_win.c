@@ -552,14 +552,14 @@ win_timer_check(struct gensio_iod_win *wiod)
     struct gensio_data *d = o->user_data;
     struct gensio_timer *t = wiod_to_timer(wiod);
 
+    t->val.in_handler = TRUE;
+    glock_unlock(d);
     EnterCriticalSection(&d->timer_lock);
     if (t->val.state == WIN_TIMER_IN_QUEUE) {
 	t->val.state = WIN_TIMER_STOPPED;
-	t->val.in_handler = TRUE;
 	LeaveCriticalSection(&d->timer_lock);
 	t->val.handler(t, t->val.cb_data);
 	EnterCriticalSection(&d->timer_lock);
-	t->val.in_handler = FALSE;
     }
     else {
 	assert(t->val.state == WIN_TIMER_STOPPED);
@@ -569,11 +569,9 @@ win_timer_check(struct gensio_iod_win *wiod)
 	void *cb_data = t->val.done_cb_data;
 
 	t->val.done = NULL;
-	t->val.in_handler = TRUE;
 	LeaveCriticalSection(&d->timer_lock);
 	done(t, cb_data);
 	EnterCriticalSection(&d->timer_lock);
-	t->val.in_handler = FALSE;
     }
     if (t->val.freed) {
 	LeaveCriticalSection(&d->timer_lock);
@@ -586,6 +584,8 @@ win_timer_check(struct gensio_iod_win *wiod)
 	t->val.state = WIN_TIMER_IN_HEAP;
     }
     LeaveCriticalSection(&d->timer_lock);
+    glock_lock(d);
+    t->val.in_handler = FALSE;
 }
 
 static struct gensio_timer *
@@ -775,24 +775,21 @@ win_runner_check(struct gensio_iod_win *wiod)
     struct gensio_os_funcs *o = wiod->iod.f;
     struct gensio_data *d = o->user_data;
     struct gensio_runner *r = wiod_to_runner(wiod);
-    BOOL freed;
 
-    glock_lock(d);
-    if (r->freed) {
-	glock_unlock(d);
-	o->release_iod(&r->wiod.iod);
-	return;
-    }
+    if (r->freed)
+	goto out_free;
     r->running = FALSE;
     r->in_handler = TRUE;
     glock_unlock(d);
     r->handler(r, r->cb_data);
     glock_lock(d);
     r->in_handler = FALSE;
-    freed = r->freed;
-    glock_unlock(d);
-    if (freed)
+    if (r->freed) {
+    out_free:
+	glock_unlock(d);
 	o->release_iod(&r->wiod.iod);
+	glock_lock(d);
+    }
 }
 
 static struct gensio_runner *
@@ -930,9 +927,7 @@ win_check_iods(struct gensio_os_funcs *o)
 	wiod = gensio_container_of(l, struct gensio_iod_win, link);
 	gensio_list_rm(&d->waiting_iods, l);
 
-	glock_unlock(d);
 	wiod->check(wiod);
-	glock_lock(d);
     }
     glock_unlock(d);
 }
@@ -1142,6 +1137,10 @@ win_iod_check_handler(struct gensio_iod_win *wiod, struct iostat *stat)
 static void
 win_iod_check(struct gensio_iod_win *wiod)
 {
+    struct gensio_os_funcs *o = wiod->iod.f;
+    struct gensio_data *d = o->user_data;
+
+    glock_unlock(d);
     EnterCriticalSection(&wiod->lock);
     wiod->in_handler_count++;
     LeaveCriticalSection(&wiod->lock);
@@ -1149,6 +1148,7 @@ win_iod_check(struct gensio_iod_win *wiod)
     win_iod_check_handler(wiod, &wiod->write);
     win_iod_check_handler(wiod, &wiod->except);
     win_iod_handler_done(wiod);
+    glock_lock(d);
 }
 
 struct gensio_iod_win_sock {
