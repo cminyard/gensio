@@ -68,6 +68,13 @@ typedef ssize_t sockret;
 struct gensio_stdsock_info {
     int protocol;
     int family;
+    /*
+     * Has the connect completed?  Windows shutdown will not return an
+     * FD_CLOSE after a shutdown if the socket has not finished
+     * opening, so if open is not complete, use this to just close the
+     * socket.
+     */
+    bool connected;
 };
 
 struct gensio_listen_scan_info {
@@ -930,6 +937,7 @@ gensio_stdsock_accept(struct gensio_iod *iod,
 	o->iod_control(iod, GENSIO_IOD_CONTROL_SOCKINFO, true,
 		       (intptr_t) &ogsi);
 	*gsi = *ogsi;
+	gsi->connected = true;
 	o->iod_control(riod, GENSIO_IOD_CONTROL_SOCKINFO, false,
 		       (intptr_t) gsi);
 
@@ -962,17 +970,27 @@ static int
 gensio_stdsock_check_socket_open(struct gensio_iod *iod)
 {
     struct gensio_os_funcs *o = iod->f;
+    struct gensio_stdsock_info *gsi;
     int err, optval;
     socklen_t len = sizeof(optval);
 
     if (do_errtrig())
 	return GE_NOMEM;
 
+    err = o->iod_control(iod, GENSIO_IOD_CONTROL_SOCKINFO, true,
+			 (intptr_t) &gsi);
+    if (err)
+	return err;
+
     err = getsockopt(o->iod_get_fd(iod), SOL_SOCKET, SO_ERROR,
 		     (void *) &optval, &len);
     if (err)
-	return gensio_os_err_to_err(o, sock_errno);
-    return gensio_os_err_to_err(o, optval);
+	err = gensio_os_err_to_err(o, sock_errno);
+    else
+	err = gensio_os_err_to_err(o, optval);
+    if (!err)
+	gsi->connected = true;
+    return err;
 }
 
 static int
@@ -1231,8 +1249,10 @@ gensio_stdsock_close_socket(struct gensio_iod *iod, bool retry, bool force)
 	return err;
 
 #ifdef _WIN32
-    if (force) {
+    if (force || !gsi->connected) {
 	err = close_socket(o, o->iod_get_fd(iod));
+	if (!gsi->connected)
+	    err = 0; /* Windows can return non-zero here, just force success. */
 	goto out;
     }
 
