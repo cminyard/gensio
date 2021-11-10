@@ -11,7 +11,6 @@
 #include <string.h>
 #include <stdlib.h>
 #include <assert.h>
-#include <sys/socket.h>
 #ifdef HAVE_TCPD_H
 #include <tcpd.h>
 #endif /* HAVE_TCPD_H */
@@ -35,6 +34,7 @@ bool gensio_set_progname(const char *iprogname)
 #ifdef _WIN32
 #include <winsock2.h> /* For AF_UNSPEC */
 #else
+#include <sys/socket.h>
 #include <arpa/inet.h> /* For AF_UNSPEC */
 #include <sys/types.h>
 #include <unistd.h>

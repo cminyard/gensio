@@ -36,6 +36,7 @@
 #include <gensio/gensio_osops.h>
 #include <gensio/gensio_circbuf.h>
 #include <gensio/gensio_win.h>
+#include <pthread_handler.h>
 #include "errtrig.h"
 
 #if defined(_MSC_VER) && defined(ENABLE_INTERNAL_TRACE)
@@ -199,7 +200,7 @@ struct gensio_data {
     DWORD timerthid;
     WSAEVENT timer_wakeev;
 
-    struct gensio_os_proc_data *pdata;
+    struct gensio_os_proc_data *proc_data;
 
     struct gensio_memtrack *mtrack;
 
@@ -976,7 +977,7 @@ win_do_wait(struct gensio_waiter *waiter, unsigned int count,
 	    assert(rvw != WAIT_FAILED);
 	    if (rvw != WAIT_TIMEOUT)
 		win_check_iods(waiter->o);
-	    gensio_os_proc_check_handlers(d->pdata)
+	    gensio_os_proc_check_handlers(d->proc_data);
 	    now = GetTickCount64();
 	    EnterCriticalSection(&waiter->lock);
 	}
@@ -2590,7 +2591,7 @@ win_iod_control(struct gensio_iod *iiod, int op, bool get, intptr_t val)
     struct gensio_iod_win *iod = i_to_win(iiod);
 
     if (iod->type == GENSIO_IOD_SOCKET) {
-	struct gensio_iod_win_sock *siod = i_to_winsock(wiod);
+	struct gensio_iod_win_sock *siod = i_to_winsock(iod);
 
 	if (op == GENSIO_IOD_CONTROL_IS_CLOSED) {
 	    if (!get)
@@ -3141,7 +3142,7 @@ gensio_win_control(struct gensio_os_funcs *o, int func, void *data,
 
     switch (func) {
     case GENSIO_CONTROL_SET_PROC_DATA:
-	d->pdata = data;
+	d->proc_data = data;
 	return 0;
 
     default:
@@ -3274,6 +3275,7 @@ gensio_win_funcs_alloc(struct gensio_os_funcs **ro)
 }
 
 struct gensio_os_proc_data {
+    struct gensio_os_funcs *o;
     lock_type lock;
     BOOL term_handler_set;
     BOOL got_term_sig;
@@ -3287,10 +3289,11 @@ int
 gensio_os_proc_setup(struct gensio_os_funcs *o,
 		     struct gensio_os_proc_data **data)
 {
-    proc.global_waiter = CreateSemaphoreA(NULL, 0, 1000000, NULL);
-    if (!proc.global_waiter)
+    proc_data.global_waiter = CreateSemaphoreA(NULL, 0, 1000000, NULL);
+    if (!proc_data.global_waiter)
 	return GE_NOMEM;
     LOCK_INIT(&proc_data.lock);
+    proc_data.o = o;
     *data = &proc_data;
     return 0;
 }
@@ -3324,7 +3327,7 @@ gensio_os_proc_cleanup(struct gensio_os_proc_data *data)
 	data->term_handler_set = false;
     }
     if (data->global_waiter) {
-	CloseHandler(data->global_waiter);
+	CloseHandle(data->global_waiter);
 	data->global_waiter = NULL;
     }
     LOCK_DESTROY(&proc_data.lock);
