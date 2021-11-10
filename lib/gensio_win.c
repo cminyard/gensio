@@ -160,7 +160,7 @@ typedef struct heap_val_s {
     BOOL in_handler;
 } heap_val_t;
 
-#define iod_to_timer(w) gensio_container_of(w, struct gensio_timer, val.wiod)
+#define wiod_to_timer(w) gensio_container_of(w, struct gensio_timer, val.wiod)
 
 #define heap_s theap_s
 #define heap_node_s gensio_timer
@@ -550,7 +550,7 @@ win_timer_check(struct gensio_iod_win *wiod)
 {
     struct gensio_os_funcs *o = wiod->iod.f;
     struct gensio_data *d = o->user_data;
-    struct gensio_timer *t = iod_to_timer(wiod);
+    struct gensio_timer *t = wiod_to_timer(wiod);
 
     EnterCriticalSection(&d->timer_lock);
     if (t->val.state == WIN_TIMER_IN_QUEUE) {
@@ -601,7 +601,7 @@ win_alloc_timer(struct gensio_os_funcs *o,
 		       &wiod);
     if (!rv) {
 	wiod->check = win_timer_check;
-	t = iod_to_timer(wiod);
+	t = wiod_to_timer(wiod);
 	t->val.handler = handler;
 	t->val.cb_data = cb_data;
     }
@@ -767,14 +767,14 @@ struct gensio_runner {
     void *cb_data;
 };
 
-#define iod_to_runner(w) gensio_container_of(w, struct gensio_runner, wiod)
+#define wiod_to_runner(w) gensio_container_of(w, struct gensio_runner, wiod)
 
 static void
 win_runner_check(struct gensio_iod_win *wiod)
 {
     struct gensio_os_funcs *o = wiod->iod.f;
     struct gensio_data *d = o->user_data;
-    struct gensio_runner *r = iod_to_runner(wiod);
+    struct gensio_runner *r = wiod_to_runner(wiod);
     BOOL freed;
 
     glock_lock(d);
@@ -808,7 +808,7 @@ win_alloc_runner(struct gensio_os_funcs *o,
 		       &wiod);
     if (!rv) {
 	wiod->check = win_runner_check;
-	r = iod_to_runner(wiod);
+	r = wiod_to_runner(wiod);
 	r->handler = handler;
 	r->cb_data = cb_data;
     }
