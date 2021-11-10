@@ -157,7 +157,7 @@ typedef struct heap_val_s {
     BOOL freed;
 
     /* Am I currently in a handler? */
-    BOOL in_handler;
+    unsigned int in_handler_count;
 } heap_val_t;
 
 #define wiod_to_timer(w) gensio_container_of(w, struct gensio_timer, val.wiod)
@@ -552,7 +552,7 @@ win_timer_check(struct gensio_iod_win *wiod)
     struct gensio_data *d = o->user_data;
     struct gensio_timer *t = wiod_to_timer(wiod);
 
-    t->val.in_handler = TRUE;
+    t->val.in_handler_count++;
     glock_unlock(d);
     EnterCriticalSection(&d->timer_lock);
     if (t->val.state == WIN_TIMER_IN_QUEUE) {
@@ -585,7 +585,7 @@ win_timer_check(struct gensio_iod_win *wiod)
     }
     LeaveCriticalSection(&d->timer_lock);
     glock_lock(d);
-    t->val.in_handler = FALSE;
+    t->val.in_handler_count--;
 }
 
 static struct gensio_timer *
@@ -640,7 +640,7 @@ win_free_timer(struct gensio_timer *timer)
     if (!timer->val.freed) {
 	timer->val.freed = TRUE;
 	win_stop_timer_now(timer);
-	if (!timer->val.in_handler)
+	if (timer->val.in_handler_count == 0)
 	    o->release_iod(&timer->val.wiod.iod);
     }
     LeaveCriticalSection(&d->timer_lock);
@@ -663,7 +663,7 @@ win_add_timer(struct gensio_timer *timer, ULONGLONG end_time)
 	goto out_unlock;
     }
     timer->val.end_time = end_time;
-    if (timer->val.in_handler) {
+    if (timer->val.in_handler_count > 0) {
 	/* We'll add it when the handler returns. */
 	timer->val.state = WIN_TIMER_PENDING;
     } else {
@@ -725,7 +725,7 @@ static int win_stop_timer_with_done(struct gensio_timer *timer,
     }
     switch (timer->val.state) {
     case WIN_TIMER_STOPPED:
-	if (!timer->val.in_handler) {
+	if (timer->val.in_handler_count == 0) {
 	    rv = GE_TIMEDOUT;
 	    goto out_unlock;
 	}
@@ -762,7 +762,7 @@ struct gensio_runner {
     struct gensio_iod_win wiod;
     BOOL running;
     BOOL freed;
-    BOOL in_handler;
+    BOOL in_handler_count;
     void (*handler)(struct gensio_runner *r, void *cb_data);
     void *cb_data;
 };
@@ -779,11 +779,11 @@ win_runner_check(struct gensio_iod_win *wiod)
     if (r->freed)
 	goto out_free;
     r->running = FALSE;
-    r->in_handler = TRUE;
+    r->in_handler_count++;
     glock_unlock(d);
     r->handler(r, r->cb_data);
     glock_lock(d);
-    r->in_handler = FALSE;
+    r->in_handler_count--;
     if (r->freed) {
     out_free:
 	glock_unlock(d);
@@ -821,7 +821,7 @@ win_free_runner(struct gensio_runner *runner)
     glock_lock(d);
     if (!runner->freed) {
 	runner->freed = TRUE;
-	if (!runner->in_handler) {
+	if (runner->in_handler_count == 0) {
 	    if (runner->running) {
 		gensio_list_rm(&d->waiting_iods, &runner->wiod.link);
 		runner->running = FALSE;
