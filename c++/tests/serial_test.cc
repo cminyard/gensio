@@ -4,10 +4,12 @@
 // SPDX-License-Identifier: GPL-2.0-only
 
 // Some systems want C includes first.
+#ifndef _WIN32
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#endif
 
 #include <iostream>
 #include <gensio/gensio>
@@ -24,6 +26,14 @@ gensio_log(struct gensio_os_funcs *f, enum gensio_log_levels level,
     fflush(stderr);
 }
 
+#ifdef _WIN32
+#define DEFAULT_ECHO_COMMPORT "COM0"
+bool
+file_is_accessible_dev(const char *filename)
+{
+    return true;
+}
+#else
 #define DEFAULT_ECHO_COMMPORT "/dev/ttyEcho0"
 
 bool
@@ -47,6 +57,7 @@ file_is_accessible_dev(const char *filename)
 	return false;
     }
 }
+#endif
 
 int main(int argc, char *argv[])
 {
