@@ -145,12 +145,12 @@ gensio_addr_addrinfo_create(struct gensio_os_funcs *o,
 			    int nettype, const void *iaddr, gensiods len,
 			    unsigned int port, struct gensio_addr **newaddr)
 {
-    struct sockaddr_in s4 = {};
+    struct sockaddr_in s4 = { .sin_family = AF_INET };
 #ifdef AF_INET6
-    struct sockaddr_in6 s6 = {};
+    struct sockaddr_in6 s6 = { .sin6_family = AF_INET6 };
 #endif
 #if HAVE_UNIX
-    struct sockaddr_un su = {};
+    struct sockaddr_un su = { .sun_family = AF_UNIX };
 #endif
     struct sockaddr *s;
     unsigned int slen;
@@ -160,8 +160,6 @@ gensio_addr_addrinfo_create(struct gensio_os_funcs *o,
     case GENSIO_NETTYPE_IPV4:
 	if (len != sizeof(struct in_addr))
 	    return GE_INVAL;
-	memset(&s4, 0, sizeof(s4));
-	s4.sin_family = AF_INET;
 	s4.sin_port = htons(port);
 	memcpy(&s4.sin_addr, iaddr, len);
 	s = (struct sockaddr *) &s4;
@@ -172,8 +170,6 @@ gensio_addr_addrinfo_create(struct gensio_os_funcs *o,
 #ifdef AF_INET6
 	if (len != sizeof(struct in6_addr))
 	    return GE_INVAL;
-	memset(&s6, 0, sizeof(s6));
-	s6.sin6_family = AF_INET6;
 	s6.sin6_port = htons(port);
 	memcpy(&s6.sin6_addr, iaddr, len);
 	s = (struct sockaddr *) &s6;
@@ -185,10 +181,8 @@ gensio_addr_addrinfo_create(struct gensio_os_funcs *o,
 
     case GENSIO_NETTYPE_UNIX:
 #if HAVE_UNIX
-	memset(&su, 0, sizeof(su));
 	if (len > sizeof(su.sun_path) - 1)
 	    return GE_TOOBIG;
-	su.sun_family = AF_UNIX;
 	memcpy(su.sun_path, iaddr, len);
 	s = (struct sockaddr *) &su;
 	slen = sizeof(su);
