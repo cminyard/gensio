@@ -576,6 +576,7 @@ win_timer_check(struct gensio_iod_win *wiod)
     if (t->val.freed) {
 	LeaveCriticalSection(&d->timer_lock);
 	o->release_iod(&t->val.wiod.iod);
+	glock_lock(d);
 	return;
     }
     if (t->val.state == WIN_TIMER_PENDING) {
