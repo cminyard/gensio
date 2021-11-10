@@ -1338,9 +1338,6 @@ win_iod_file_init(struct gensio_iod_win *wiod, void *cb_data)
     wiod->wake = win_dummy_wake;
 
     return 0;
-
- out_err:
-    return GE_NOMEM;
 }
 
 static int
@@ -1848,7 +1845,6 @@ win_iod_console2_init(struct gensio_iod_win *wiod, void *cb_data)
 static int
 win_iod_console_init(struct gensio_iod_win *wiod, void *cb_data)
 {
-    struct gensio_iod_win_oneway *oiod = i_to_win_oneway(wiod);
     HANDLE h;
     BOOL readable;
     int rv;
@@ -3289,9 +3285,18 @@ int
 gensio_os_proc_setup(struct gensio_os_funcs *o,
 		     struct gensio_os_proc_data **data)
 {
+    int rv;
+
     proc_data.global_waiter = CreateSemaphoreA(NULL, 0, 1000000, NULL);
     if (!proc_data.global_waiter)
 	return GE_NOMEM;
+
+    rv = o->control(o, GENSIO_CONTROL_SET_PROC_DATA, &proc_data, NULL);
+    if (rv) {
+	CloseHandle(proc_data.global_waiter);
+	proc_data.global_waiter = NULL;
+	return rv;
+    }
     LOCK_INIT(&proc_data.lock);
     proc_data.o = o;
     *data = &proc_data;
