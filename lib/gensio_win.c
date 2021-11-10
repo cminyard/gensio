@@ -1557,7 +1557,7 @@ win_oneway_out_thread(LPVOID data)
 		    /* When we have no data to write, let fd_clear() go on. */
 		    assert(wiod->in_handler_count > 0);
 		    wiod->in_handler_count--;
-		    if (wiod->in_handlers_clear)
+		    if (wiod->in_handlers_clear && wiod->in_handler_count == 0)
 			queue_iod(wiod);
 		}
 		if (!wiod->write.ready && !wiod->in_handlers_clear) {
@@ -1586,9 +1586,13 @@ win_oneway_out_thread(LPVOID data)
 
  out_err:
     rvw = GetLastError();
-    if (gensio_circbuf_datalen(owiod->buf) > 0)
+    if (gensio_circbuf_datalen(owiod->buf) > 0) {
 	/* Data is pending, meaning the handler count is incremented. */
+	assert(wiod->in_handler_count > 0);
 	wiod->in_handler_count--;
+	if (wiod->in_handlers_clear && wiod->in_handler_count == 0)
+	    queue_iod(wiod);
+    }
     if (!wiod->werr) {
 	wiod->write.ready = TRUE;
 	wiod->werr = rvw;
@@ -2059,7 +2063,8 @@ win_twoway_thread(LPVOID data)
 			 */
 			assert(wiod->in_handler_count > 0);
 			wiod->in_handler_count--;
-			if (wiod->in_handlers_clear)
+			if (wiod->in_handlers_clear &&
+				wiod->in_handler_count == 0)
 			    queue_iod(wiod);
 		    }
 		    if (!wiod->write.ready && !wiod->in_handlers_clear) {
@@ -2107,6 +2112,12 @@ win_twoway_thread(LPVOID data)
  out_err:
     rvw = GetLastError();
  out_err_noget:
+    if (gensio_circbuf_datalen(twiod->outbuf) > 0) {
+	assert(wiod->in_handler_count > 0);
+	wiod->in_handler_count--;
+	if (wiod->in_handlers_clear && wiod->in_handler_count == 0)
+	    queue_iod(wiod);
+    }
     if (!wiod->werr) {
 	wiod->read.ready = TRUE;
 	wiod->write.ready = TRUE;
