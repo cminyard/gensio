@@ -1,4 +1,4 @@
-AC_INIT([gensio], [2.3.2], [minyard@acm.org])
+AC_INIT([gensio],[2.3.2],[minyard@acm.org])
 AC_SUBST(gensio_VERSION_MAJOR, 2)
 AC_SUBST(gensio_VERSION_MINOR, 3)
 AC_SUBST(gensio_VERSION_PATCH, 2)
@@ -9,7 +9,7 @@ AC_CONFIG_HEADERS([config.h])
 AC_PROG_CC
 AC_PROG_CXX
 AM_PROG_AR
-AM_PROG_LIBTOOL
+LT_INIT
 
 # defaults
 uucp_locking_flag=yes
@@ -62,7 +62,7 @@ AC_ARG_WITH(tcp-wrappers,
  tcp_wrappers="no")
 if test "$tcp_wrappers" != "no"
 then
-  AC_HAVE_HEADERS(tcpd.h)
+  AC_CHECK_HEADERS([tcpd.h])
   AC_CHECK_LIB(wrap,main)
 fi
 
@@ -438,7 +438,7 @@ AC_CHECK_DECLS([TIOCSRS485], [], [], [[#include <sys/ioctl.h>]])
 m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES([yes])])
 
 AC_CONFIG_MACRO_DIR([m4])
-AC_STDC_HEADERS
+
 AC_CHECK_LIB(nsl,main)
 HAVE_AVAHI=0
 AC_CHECK_LIB(avahi-client, avahi_client_new,
@@ -677,7 +677,7 @@ AC_CHECK_DECLS([SIGWINCH], [], [], [#include <signal.h>])
 
 CPPFLAGS="$CPPFLAGS -I\$(top_srcdir)/include -I\$(top_builddir)/include"
 
-AC_OUTPUT([Makefile
+AC_CONFIG_FILES([Makefile
 	lib/libgensio.pc
 	lib/Makefile
 	c++/Makefile
@@ -713,3 +713,4 @@ AC_OUTPUT([Makefile
 	examples/Makefile
 	tests/runtest
 	tests/gensios_enabled.py])
+AC_OUTPUT
