@@ -1231,8 +1231,10 @@ gensio_stdsock_close_socket(struct gensio_iod *iod, bool retry, bool force)
 	return err;
 
 #ifdef _WIN32
-    if (force)
-	return close_socket(o, o->iod_get_fd(iod));
+    if (force) {
+	err = close_socket(o, o->iod_get_fd(iod));
+	goto out;
+    }
 
     if (!retry) {
 	err = shutdown(o->iod_get_fd(iod), SD_SEND);
