@@ -1620,7 +1620,6 @@ gensio_os_proc_setup(struct gensio_os_funcs *o,
     rv = sigprocmask(SIG_BLOCK, &sigs, &data->old_sigs);
     if (rv) {
 	rv = gensio_os_err_to_err(o, errno);
-	o->free(o, data);
 	return rv;
     }
     data->wait_sigs = data->old_sigs;
@@ -1636,7 +1635,6 @@ gensio_os_proc_setup(struct gensio_os_funcs *o,
     if (rv) {
 	rv = gensio_os_err_to_err(o, errno);
 	sigprocmask(SIG_SETMASK, &data->old_sigs, NULL);
-	o->free(o, data);
 	return rv;
     }
 
@@ -1648,7 +1646,6 @@ gensio_os_proc_setup(struct gensio_os_funcs *o,
 	    rv = gensio_os_err_to_err(o, errno);
 	    sigaction(SIGCHLD, &data->old_sigchld, NULL);
 	    sigprocmask(SIG_SETMASK, &data->old_sigs, NULL);
-	    o->free(o, data);
 	    return rv;
 	}
     }
@@ -1659,7 +1656,6 @@ gensio_os_proc_setup(struct gensio_os_funcs *o,
 	sigprocmask(SIG_SETMASK, &data->old_sigs, NULL);
 	if (data->wake_sig)
 	    sigaction(data->wake_sig, &data->old_wakesig, NULL);
-	o->free(o, data);
 	return rv;
     }
 
