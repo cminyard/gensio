@@ -1229,8 +1229,6 @@ gensio_stdsock_close_socket(struct gensio_iod *iod, bool retry, bool force)
 			 (intptr_t) &gsi);
     if (err)
 	return err;
-    if (gsi)
-	o->free(o, gsi);
 
 #ifdef _WIN32
     if (force)
@@ -1239,26 +1237,30 @@ gensio_stdsock_close_socket(struct gensio_iod *iod, bool retry, bool force)
     if (!retry) {
 	err = shutdown(o->iod_get_fd(iod), SD_SEND);
 	if (err == 0)
-	    return GE_INPROGRESS;
-	if (sock_errno == WSAENOTCONN)
+	    err = GE_INPROGRESS;
+	else if (sock_errno == WSAENOTCONN)
 	    /* Other end has already closed. */
-	    return close_socket(o, o->iod_get_fd(iod));
-	return gensio_os_err_to_err(o, sock_errno);
+	    err = close_socket(o, o->iod_get_fd(iod));
+	else
+	    err = gensio_os_err_to_err(o, sock_errno);
+	goto out;
     }
 
     err = o->iod_control(iod, GENSIO_IOD_CONTROL_IS_CLOSED, true,
 			 (intptr_t) &closed);
-    if (err) {
+    if (err)
 	close_socket(o, o->iod_get_fd(iod));
-	return err;
-    }
-    if (closed)
-	return close_socket(o, o->iod_get_fd(iod));
-
-    return GE_INPROGRESS;
+    else if (closed)
+	err = close_socket(o, o->iod_get_fd(iod));
+    else
+	err = GE_INPROGRESS;
+ out:
 #else
-    return close_socket(o, o->iod_get_fd(iod));
+    err = close_socket(o, o->iod_get_fd(iod));
 #endif
+    if (err != GE_INPROGRESS && gsi)
+	o->free(o, gsi);
+    return err;
 }
 
 static int
