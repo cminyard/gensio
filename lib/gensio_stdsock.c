@@ -1240,7 +1240,9 @@ gensio_stdsock_close_socket(struct gensio_iod *iod, bool retry, bool force)
 	err = shutdown(o->iod_get_fd(iod), SD_SEND);
 	if (err == 0)
 	    err = GE_INPROGRESS;
-	else if (sock_errno == WSAENOTCONN)
+	else if (sock_errno == WSAENOTCONN ||
+		 sock_errno == WSAECONNRESET ||
+		 sock_errno == WSAECONNABORTED)
 	    /* Other end has already closed. */
 	    err = close_socket(o, o->iod_get_fd(iod));
 	else
