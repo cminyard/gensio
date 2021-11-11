@@ -42,6 +42,9 @@
 #define SIGUSR1 0
 #else
 #include <signal.h>
+#include <errno.h>
+#include <sys/types.h>
+#include <sys/unistd.h>
 #endif
 
 #include "ioinfo.h"
@@ -140,6 +143,9 @@ struct rand_meth_st dummyrnd = {
 struct gtinfo {
     struct gensio_os_funcs *o;
     struct gensio_lock *lock;
+#ifndef _WIN32
+    const char *pid_file;
+#endif
     const char *ios1;
     const char *ios2;
     int escape_char;
@@ -677,6 +683,9 @@ help(int err)
 	   " the remote addresses.\n");
     printf("  -v, --verbose - Print all gensio logs\n");
     printf("  --signature <sig> - Set the RFC2217 server signature to <sig>\n");
+#ifndef _WIN32
+    printf("  -P, --pidfile <file> - Create a pid file.\n");
+#endif
     printf("  -e, --escchar - Set the local terminal escape character.\n"
 	   "    Set to -1 to disable the escape character\n"
 	   "    Default is ^\\ for tty stdin and disabled for non-tty stdin\n");
@@ -711,6 +720,26 @@ gensio_loop(void *info)
 
     li->o->wait(li->loopwaiter, 1, NULL);
 }
+
+#ifndef _WIN32
+static void
+make_pidfile(struct gtinfo *g)
+{
+    FILE *fpidfile;
+
+    if (!g->pid_file)
+	return;
+    fpidfile = fopen(g->pid_file, "w");
+    if (!fpidfile) {
+	report_err(g, "Error opening pidfile '%s': %s, pidfile not created",
+		   g->pid_file, strerror(errno));
+	g->pid_file = NULL;
+	return;
+    }
+    fprintf(fpidfile, "%d\n", getpid());
+    fclose(fpidfile);
+}
+#endif
 
 int
 main(int argc, char *argv[])
@@ -773,6 +802,11 @@ main(int argc, char *argv[])
 	else if ((rv = cmparg(argc, argv, &arg, "", "--signature",
 			      &g.signature)))
 	    ;
+#ifndef _WIN32
+	else if ((rv = cmparg(argc, argv, &arg, "-P", "--pidfile",
+			      &g.pid_file)))
+	    ;
+#endif
 	else if ((rv = cmparg(argc, argv, &arg, "-n", "--extra-threads",
 			      &tmpstr)))
 	    num_extra_threads = strtol(tmpstr, NULL, 0);
@@ -821,6 +855,8 @@ main(int argc, char *argv[])
 
     g.ios1 = deftty;
     g.ios2 = argv[arg];
+
+    make_pidfile(&g);
 
     if (use_glib) {
 #ifndef HAVE_GLIB
@@ -994,5 +1030,11 @@ main(int argc, char *argv[])
 	gensio_cleanup_mem(g.o);
 	g.o->free_funcs(g.o);
     }
+
+#ifndef _WIN32
+    if (g.pid_file)
+	unlink(g.pid_file);
+#endif
+
     gensio_osfunc_exit(!!rv);
 }
