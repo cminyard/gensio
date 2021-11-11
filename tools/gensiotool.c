@@ -709,9 +709,10 @@ do_vlog(struct gensio_os_funcs *f, enum gensio_log_levels level,
 
     if (!debug)
 	return;
-    snprintf(buf, sizeof(buf), log, args);
+    vsnprintf(buf, sizeof(buf), log, args);
 
-    report_err(NULL, "gensio %s log: %s", gensio_log_level_to_str(level), buf);
+    report_err(f->other_data, "gensio %s log: %s",
+	       gensio_log_level_to_str(level), buf);
 }
 
 struct gensio_loop_info
@@ -898,6 +899,7 @@ main(int argc, char *argv[])
 		gensio_err_to_str(rv));
 	goto out_err;
     }
+    g.o->other_data = &g;
     g.o->vlog = do_vlog;
 
     g.waiter = g.o->alloc_waiter(g.o);
