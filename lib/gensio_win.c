@@ -2378,7 +2378,7 @@ win_iod_dev_init(struct gensio_iod_win *wiod, void *cb_data)
     twiod->ioh = CreateFileA(dtwiod->name, GENERIC_READ | GENERIC_WRITE,
 		   	     0, NULL,
 			     OPEN_EXISTING, FILE_FLAG_OVERLAPPED, NULL);
-    if (!twiod->ioh)
+    if (twiod->ioh == INVALID_HANDLE_VALUE)
 	goto out_err_conv;
 
     if (GetFileType(twiod->ioh) != FILE_TYPE_CHAR) {
@@ -2427,7 +2427,7 @@ win_iod_dev_init(struct gensio_iod_win *wiod, void *cb_data)
  out_err_conv:
     rv = gensio_os_err_to_err(o, GetLastError());
  out_err:
-    win_iod_twoway_clean(wiod);
+    win_iod_dev_clean(wiod);
     return rv;
 }
 
