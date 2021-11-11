@@ -45,6 +45,7 @@
 #include <errno.h>
 #include <sys/types.h>
 #include <sys/unistd.h>
+#include <syslog.h>
 #endif
 
 #include "ioinfo.h"
@@ -144,6 +145,7 @@ struct gtinfo {
     struct gensio_os_funcs *o;
     struct gensio_lock *lock;
 #ifndef _WIN32
+    bool err_syslog;
     const char *pid_file;
 #endif
     const char *ios1;
@@ -177,6 +179,12 @@ struct gtconn_info {
 static void
 vreport_err(struct gtinfo *g, const char *fmt, va_list ap)
 {
+#ifndef _WIN32
+    if (g->err_syslog) {
+	vsyslog(LOG_ERR, fmt, ap);
+	return;
+    }
+#endif
     vfprintf(stderr, fmt, ap);
     fprintf(stderr, "\n");
     fflush(stdout);
@@ -806,6 +814,8 @@ main(int argc, char *argv[])
 	else if ((rv = cmparg(argc, argv, &arg, "-P", "--pidfile",
 			      &g.pid_file)))
 	    ;
+	else if ((rv = cmparg(argc, argv, &arg, NULL, "--syslog", NULL)))
+	    g.err_syslog = true;
 #endif
 	else if ((rv = cmparg(argc, argv, &arg, "-n", "--extra-threads",
 			      &tmpstr)))
@@ -856,7 +866,11 @@ main(int argc, char *argv[])
     g.ios1 = deftty;
     g.ios2 = argv[arg];
 
+#ifndef _WIN32
+    if (g.err_syslog)
+	openlog(argv[0], 0, LOG_DAEMON);
     make_pidfile(&g);
+#endif
 
     if (use_glib) {
 #ifndef HAVE_GLIB
@@ -1034,6 +1048,8 @@ main(int argc, char *argv[])
 #ifndef _WIN32
     if (g.pid_file)
 	unlink(g.pid_file);
+    if (g.err_syslog)
+	closelog();
 #endif
 
     gensio_osfunc_exit(!!rv);
