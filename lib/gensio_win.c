@@ -3456,6 +3456,7 @@ gensio_i_os_err_to_err(struct gensio_os_funcs *o,
     case ERROR_NO_DATA:		err = GE_REMCLOSE; break;
     case ERROR_FILE_NOT_FOUND:	err = GE_NOTFOUND; break;
     case ERROR_NOT_FOUND:	err = GE_NOTFOUND; break;
+    case ERROR_ACCESS_DENIED:	err = GE_PERM; break;
     default:			err = GE_OSERR;
     }
 
