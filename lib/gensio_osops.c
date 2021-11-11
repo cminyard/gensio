@@ -463,6 +463,8 @@ gensio_win_cleanup_commport(struct gensio_os_funcs *o, HANDLE h,
 	SetCommState(h, &(*c)->orig_dcb);
     if ((*c)->orig_timeouts_set)
 	SetCommTimeouts(h, &(*c)->orig_timeouts);
+    o->free(o, *c);
+    *c = NULL;
 }
 
 int
