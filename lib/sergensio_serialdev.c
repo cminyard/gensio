@@ -775,8 +775,8 @@ sterm_check_close_drain(void *handler_data, struct gensio_iod *iod,
     rv = o->bufcount(sdata->iod, GENSIO_OUT_BUF, &count);
     if (rv || count <= 0)
 	goto out_rm_uucp;
-    /* First time through, set the total time. */
     if (sdata->last_close_outq_count == 0)
+	/* First time through, set the total time. */
 	sdata->close_timeouts_left = sdata->drain_time;
     if (sdata->close_timeouts_left >= 0) {
 	if (sdata->close_timeouts_left == 0)
@@ -788,10 +788,6 @@ sterm_check_close_drain(void *handler_data, struct gensio_iod *iod,
 		count < sdata->last_close_outq_count) {
 	/* First time through or some data was written, restart the timer. */
 	sdata->last_close_outq_count = count;
-	/*
-	 * FIXME - this should be calculated, but 50 baud is 4-5 chars
-	 * per second, so 1/2 a second should be plenty.
-	 */
 	sdata->char_timeouts_left = sdata->char_drain_wait;
     }
 
