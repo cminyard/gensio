@@ -2008,6 +2008,10 @@ struct gensio_def_entry builtin_defaults[] = {
     { "custspeed",	GENSIO_DEFAULT_BOOL,	.def.intval = 0 },
     { "rs485",		GENSIO_DEFAULT_STR,	.def.strval = NULL },
     { "nouucplock",	GENSIO_DEFAULT_BOOL,	.def.intval = 0 },
+    { "drain_time",	GENSIO_DEFAULT_INT,	.min = -1, .max = INT_MAX,
+						.def.intval = -1, },
+    { "char_drain_wait",GENSIO_DEFAULT_INT,	.min = -1, .max = INT_MAX,
+						.def.intval = 50, },
     /* serialdev and SOL */
     { "speed",		GENSIO_DEFAULT_STR,	.def.strval = "9600N81" },
     { "nobreak",	GENSIO_DEFAULT_BOOL,	.def.intval = 0 },

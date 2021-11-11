@@ -95,7 +95,12 @@ struct sterm_data {
     bool timer_stopped;
 
     bool open;
-    unsigned int close_timeouts_left;
+
+    int drain_time;
+    int char_drain_wait;
+
+    int close_timeouts_left;
+    int char_timeouts_left;
     int last_close_outq_count;
 
     char *devname;
@@ -770,6 +775,15 @@ sterm_check_close_drain(void *handler_data, struct gensio_iod *iod,
     rv = o->bufcount(sdata->iod, GENSIO_OUT_BUF, &count);
     if (rv || count <= 0)
 	goto out_rm_uucp;
+    /* First time through, set the total time. */
+    if (sdata->last_close_outq_count == 0)
+	sdata->close_timeouts_left = sdata->drain_time;
+    if (sdata->close_timeouts_left >= 0) {
+	if (sdata->close_timeouts_left == 0)
+	    goto out_rm_uucp;
+	sdata->close_timeouts_left--;
+    }
+
     if (sdata->last_close_outq_count == 0 ||
 		count < sdata->last_close_outq_count) {
 	/* First time through or some data was written, restart the timer. */
@@ -778,12 +792,14 @@ sterm_check_close_drain(void *handler_data, struct gensio_iod *iod,
 	 * FIXME - this should be calculated, but 50 baud is 4-5 chars
 	 * per second, so 1/2 a second should be plenty.
 	 */
-	sdata->close_timeouts_left = 50;
+	sdata->char_timeouts_left = sdata->char_drain_wait;
     }
 
-    sdata->close_timeouts_left--;
-    if (sdata->close_timeouts_left == 0)
-	goto out_rm_uucp;
+    if (sdata->char_timeouts_left >= 0) {
+	if (sdata->char_timeouts_left == 0)
+	    goto out_rm_uucp;
+	sdata->char_timeouts_left--;
+    }
 
  out_einprogress:
     err = GE_INPROGRESS;
@@ -1371,6 +1387,8 @@ serialdev_gensio_alloc(const char *devname, const char * const args[],
     gensiods max_read_size = GENSIO_DEFAULT_BUF_SIZE;
     int i, ival;
     bool nouucplock_set = false, dummy = false;
+    const char *s;
+    char *end;
 
     if (!sdata)
 	return GE_NOMEM;
@@ -1382,10 +1400,38 @@ serialdev_gensio_alloc(const char *devname, const char * const args[],
     if (err)
 	goto out_err;
     sdata->no_uucp_lock = ival;
+    err = gensio_get_default(o, "sergensio", "drain_time", false,
+			     GENSIO_DEFAULT_INT, NULL, &sdata->drain_time);
+    if (err)
+	goto out_err;
+    err = gensio_get_default(o, "sergensio", "char_drain_wait", false,
+			     GENSIO_DEFAULT_INT, NULL, &sdata->char_drain_wait);
+    if (err)
+	goto out_err;
 
     for (i = 0; args && args[i]; i++) {
 	if (gensio_check_keyds(args[i], "readbuf", &max_read_size) > 0)
 	    continue;
+	if (gensio_check_keyvalue(args[i], "drain_time", &s) > 0) {
+	    if (strcmp(s, "off") == 0) {
+		sdata->drain_time = -1;
+	    } else {
+		sdata->drain_time = strtol(s, &end, 0);
+		if (*end != '\0')
+		    goto out_inval;
+	    }
+	    continue;
+	}
+	if (gensio_check_keyvalue(args[i], "char_drain_wait", &s) > 0) {
+	    if (strcmp(s, "off") == 0) {
+		sdata->char_drain_wait = -1;
+	    } else {
+		sdata->char_drain_wait = strtol(s, &end, 0);
+		if (*end != '\0')
+		    goto out_inval;
+	    }
+	    continue;
+	}
 	if (gensio_check_keybool(args[i], "nouucplock",
 				 &sdata->no_uucp_lock) > 0) {
 	    nouucplock_set = true;
@@ -1394,6 +1440,7 @@ serialdev_gensio_alloc(const char *devname, const char * const args[],
 	/* custspeed is ignored now */
 	if (gensio_check_keybool(args[i], "custspeed", &dummy) > 0)
 	    continue;
+    out_inval:
 	err = GE_INVAL;
 	goto out_err;
     }

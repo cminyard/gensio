@@ -602,6 +602,18 @@ In addition to readbuf, the serialdev gensio takes the following options:
 .B nouucplock[=true|false]
 disables UUCP locking on the device.  Useful for /dev/tty, which shouldn't
 use locking.  This is not available as a default.
+.TP
+.B drain_time=off|<time in 100ths of a second>
+The total amount of time to wait for the data to be sent on the serial
+port at close time.  Close will be delayed this amount of time, or
+until all the data is transmitted.  Default is off.
+.TP
+.B char_drain_wait=off|<time in 100ths of a second>
+At close time, if this much time elapses and no character is sent,
+finish the close.  Default is 50 (.5 seconds).  Note that if both this and
+.B drain_time
+are off, if the serial port is hung on flow control, it will never
+close.
 .PP
 There are a plethora of serialoptions, available as defaults:
 .TP
