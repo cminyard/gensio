@@ -922,13 +922,16 @@ gensio_stdsock_accept(struct gensio_iod *iod,
     if (rv >= 0) {
 	gsi = o->zalloc(o, sizeof(*gsi));
 	if (!gsi) {
+	    close(rv);
 	    err = GE_NOMEM;
 	    goto out;
 	}
 
 	err = o->add_iod(o, GENSIO_IOD_SOCKET, rv, &riod);
-	if (err)
+	if (err) {
+	    close(rv);
 	    goto out;
+	}
 
 	err = o->set_non_blocking(riod);
 	if (err)
