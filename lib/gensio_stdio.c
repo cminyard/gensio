@@ -936,7 +936,8 @@ stdion_control(struct gensio *io, bool get, unsigned int option,
 	    nadata->exit_code = status;
 	}
 	stdiona_unlock(nadata);
-	*datalen = snprintf(data, *datalen, "%d", status);
+	if (!err)
+	    *datalen = snprintf(data, *datalen, "%d", status);
 	return 0;
 
     case GENSIO_CONTROL_KILL_TASK:
