@@ -92,9 +92,10 @@ struct ssl_filter {
     gensiods write_data_len;
 
     /* This is data from BIO_read() waiting to be sent to the lower layer. */
-    unsigned char xmit_buf[1024];
+    unsigned char *xmit_buf;
     gensiods xmit_buf_pos;
     gensiods xmit_buf_len;
+    gensiods max_xmit_buf;
 
     /*
      * SSL has asked for something.
@@ -524,7 +525,7 @@ ssl_ul_write(struct gensio_filter *filter,
 
     if (!err && sfilter->xmit_buf_len == 0) {
 	int rdlen = BIO_read(sfilter->io_bio, sfilter->xmit_buf,
-			     sizeof(sfilter->xmit_buf));
+			     sfilter->max_xmit_buf);
 
 	if (rdlen <= 0) {
 	    if (!BIO_should_retry(sfilter->io_bio)) {
@@ -746,6 +747,8 @@ sfilter_free(struct ssl_filter *sfilter)
 	memset(sfilter->read_data, 0, sfilter->max_read_size);
 	sfilter->o->free(sfilter->o, sfilter->read_data);
     }
+    if (sfilter->xmit_buf)
+	sfilter->o->free(sfilter->o, sfilter->xmit_buf);
     if (sfilter->write_data)
 	sfilter->o->free(sfilter->o, sfilter->write_data);
     if (sfilter->filter)
@@ -1116,12 +1119,19 @@ gensio_ssl_filter_raw_alloc(struct gensio_os_funcs *o,
     if (!sfilter->lock)
 	goto out_nomem;
 
-    sfilter->read_data = o->zalloc(o, max_read_size);
+    sfilter->read_data = o->zalloc(o, sfilter->max_read_size);
     if (!sfilter->read_data)
 	goto out_nomem;
 
-    sfilter->write_data = o->zalloc(o, max_write_size);
+    sfilter->write_data = o->zalloc(o, sfilter->max_write_size);
     if (!sfilter->write_data)
+	goto out_nomem;
+
+    sfilter->max_xmit_buf = sfilter->max_write_size + 128;
+    if (sfilter->max_xmit_buf < 1024)
+	sfilter->max_xmit_buf = 1024; /* Enough room for the protocol. */
+    sfilter->xmit_buf = o->zalloc(o, sfilter->max_xmit_buf);
+    if (!sfilter->xmit_buf)
 	goto out_nomem;
 
     sfilter->filter = gensio_filter_alloc_data(o, gensio_ssl_filter_func,
