@@ -2712,8 +2712,8 @@ mux_gensio_alloc(struct gensio *child, const char *const args[],
 	return GE_NOTSUP;
 
     memset(&data, 0, sizeof(data));
-    data.max_read_size = GENSIO_DEFAULT_BUF_SIZE;
-    data.max_write_size = GENSIO_DEFAULT_BUF_SIZE;
+    data.max_read_size = GENSIO_DEFAULT_BUF_SIZE * 2;
+    data.max_write_size = GENSIO_DEFAULT_BUF_SIZE * 16;
     data.max_channels = 1000;
     err = gensio_get_default(o, "mux", "max-channels", false,
 			     GENSIO_DEFAULT_INT, NULL, &ival);
