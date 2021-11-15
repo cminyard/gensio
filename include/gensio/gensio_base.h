@@ -38,6 +38,11 @@ typedef int (*gensio_ll_filter_data_handler)(void *cb_data,
  */
 #define GENSIO_FILTER_CB_START_TIMER	2
 
+/*
+ * Tell gensio base to stop it's timer.
+ */
+#define GENSIO_FILTER_CB_STOP_TIMER	3
+
 typedef int (*gensio_filter_cb)(void *cb_data, int func, void *data);
 
 

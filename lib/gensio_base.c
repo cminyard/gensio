@@ -315,6 +315,13 @@ basen_start_timer(struct basen_data *ndata, gensio_time *timeout)
 	basen_ref(ndata);
 }
 
+static void
+basen_stop_timer(struct basen_data *ndata)
+{
+    if (ndata->o->stop_timer(ndata->timer) == 0)
+	basen_deref(ndata);
+}
+
 #ifdef DEBUG_STATE
 static void
 i_basen_add_trace(struct basen_data *ndata,
@@ -1760,6 +1767,16 @@ basen_start_timer_op(void *cb_data, gensio_time *timeout)
     }
 }
 
+static void
+basen_stop_timer_op(void *cb_data)
+{
+    struct basen_data *ndata = cb_data;
+
+    if (ndata->state == BASEN_OPEN || ndata->state == BASEN_CLOSE_WAIT_DRAIN) {
+	basen_stop_timer(ndata);
+    }
+}
+
 static int
 gensio_base_filter_cb(void *cb_data, int op, void *data)
 {
@@ -1770,6 +1787,10 @@ gensio_base_filter_cb(void *cb_data, int op, void *data)
 
     case GENSIO_FILTER_CB_START_TIMER:
 	basen_start_timer_op(cb_data, data);
+	return 0;
+
+    case GENSIO_FILTER_CB_STOP_TIMER:
+	basen_stop_timer_op(cb_data);
 	return 0;
 
     default:
