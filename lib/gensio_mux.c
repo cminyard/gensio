@@ -889,8 +889,8 @@ chan_check_send_more(struct mux_inst *chan)
 	return;
     chan->in_write_ready = true;
 
-    /* Need at least 3 bytes to write a message. */
-    while (chan->write_data_len + 3 < chan->max_write_size &&
+    /* Need at least 4 bytes to write a message. */
+    while (chan->max_write_size - chan->write_data_len >= 4 &&
 	   chan->write_ready_enabled && chan->state == MUX_INST_OPEN) {
 	chan_ref(chan);
 	mux_unlock(chan->mux);
