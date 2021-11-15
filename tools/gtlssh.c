@@ -306,7 +306,7 @@ io_close(struct gensio *io, void *close_data)
 
 static const char *progname;
 static char *io1_default_tty = "stdio(self,raw)";
-static char *io1_default_notty = "stdio(self)";
+static char *io1_default_notty = "stdio(self,readbuf=16384)";
 
 static void
 help(int err)
@@ -1643,7 +1643,8 @@ mdns_cb(struct gensio_mdns_watch *w,
 	goto out_wake;
     }
 
-    cb_data->transport = gensio_alloc_sprintf(o, "%s,%s", protocol, addrstr);
+    cb_data->transport = gensio_alloc_sprintf(o, "%s(readbuf=20000),%s",
+					      protocol, addrstr);
     if (!cb_data->transport) {
 	cb_data->err = GE_NOMEM;
 	goto out_wake;
@@ -1754,10 +1755,10 @@ main(int argc, char *argv[])
     unsigned int use_telnet = 0;
     char *CAspec = NULL, *certspec = NULL, *keyspec = NULL;
     gensiods service_len, len;
-    const char *transport = "sctp";
+    const char *transport = "sctp(readbuf=20000)";
     bool user_transport = false, mdns_transport = false;
     bool notcp = false, nosctp = true;
-    const char *muxstr = "mux,";
+    const char *muxstr = "mux(writebuf=32768,readbuf=262144),";
     bool use_mux = true;
     const char *addr, *cstr;
     const char *iptype = ""; /* Try both IPv4 and IPv6 by default. */
@@ -1921,7 +1922,7 @@ main(int argc, char *argv[])
     }
 
     if (nosctp && !user_transport)
-	transport = "tcp";
+	transport = "tcp(readbuf=20000)";
 
     if (!!certname != !!keyname) {
 	fprintf(stderr,
@@ -2178,7 +2179,7 @@ main(int argc, char *argv[])
 	    fprintf(stderr, "Falling back to tcp\n");
 	    free(userdata2.ios);
 	    userdata2.ios = NULL;
-	    transport = "tcp";
+	    transport = "tcp(readbuf=20000)";
 	    goto retry;
 	}
 	goto closeit;

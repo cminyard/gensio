@@ -831,7 +831,7 @@ new_rem_io(struct gensio *io, struct gdata *ginfo)
 	    goto out_free;
 	}
 	/* Dummy out the program, we will set it later with a control. */
-	s = alloc_sprintf("stdio(stderr-to-stdout),dummy");
+	s = alloc_sprintf("stdio(stderr-to-stdout,readbuf=16384),dummy");
     } else if (strstartswith(service, "login:")) {
 	char *str = strchr(service, ':') + 1;
 
@@ -1092,7 +1092,10 @@ open_mux(struct gensio *io, struct gdata *ginfo, const char *service)
     struct gensio_os_funcs *o = ginfo->o;
     struct gensio *mux_io;
     int err;
-    static const char *isclient[2] = { "mode=server", NULL };
+    static const char *isclient[4] = { "mode=server",
+				       "writebuf=32768",
+				       "readbuf=262144",
+				       NULL };
 
     err = mux_gensio_alloc(io, isclient, o, mux_event, ginfo, &mux_io);
     if (err) {
@@ -1613,7 +1616,7 @@ main(int argc, char *argv[])
     }
 
     if (!notcp) {
-	s = alloc_sprintf("tcp,%s%d", iptype, port);
+	s = alloc_sprintf("tcp(readbuf=20000),%s%d", iptype, port);
 	if (!s) {
 	    fprintf(stderr, "Could not allocate tcp descriptor\n");
 	    return 1;
@@ -1637,7 +1640,7 @@ main(int argc, char *argv[])
     }
 
     if (!nosctp) {
-	s = alloc_sprintf("sctp,%s%d", iptype, port);
+	s = alloc_sprintf("sctp(readbuf=20000),%s%d", iptype, port);
 	if (!s) {
 	    fprintf(stderr, "Could not allocate sctp descriptor\n");
 	    return 1;
