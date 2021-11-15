@@ -306,7 +306,8 @@ io_close(struct gensio *io, void *close_data)
 
 static const char *progname;
 static char *io1_default_tty = "stdio(self,raw)";
-static char *io1_default_notty = "stdio(self,readbuf=16384)";
+/* See the note on muxstr below about the readbuf size. */
+static char *io1_default_notty = "stdio(self,readbuf=16374)";
 
 static void
 help(int err)
@@ -1758,7 +1759,16 @@ main(int argc, char *argv[])
     const char *transport = "sctp(readbuf=20000)";
     bool user_transport = false, mdns_transport = false;
     bool notcp = false, nosctp = true;
-    const char *muxstr = "mux(writebuf=32768,readbuf=262144),";
+    /*
+     * The buffer sizes are carefully chosen here to mesh with ssl and
+     * mux.  ssl can encrypt up to 16384 bytes at a time, and the
+     * overhead of a mux data packet is 10 bytes.  So we set this up
+     * so writes can be up to 16384 bytes total.  On the read size of
+     * mux, each read packet has a 3-byte overhead in the buffer, so
+     * we will be getting 16374 bytes of data, + 3 for overhead, 32
+     * packets is 524064 bytes.
+     */
+    const char *muxstr = "mux(writebuf=16374,readbuf=524064),";
     bool use_mux = true;
     const char *addr, *cstr;
     const char *iptype = ""; /* Try both IPv4 and IPv6 by default. */
