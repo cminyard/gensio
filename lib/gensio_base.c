@@ -1965,10 +1965,13 @@ bool
 gensio_filter_ll_can_write(struct gensio_filter *filter)
 {
     bool val = true;
+    int err;
 
     /* If not implemented, this will just be ignored. */
-    filter->func(filter, GENSIO_FILTER_FUNC_LL_CAN_WRITE,
-		 NULL, &val, NULL, NULL, NULL, 0, NULL);
+    err = filter->func(filter, GENSIO_FILTER_FUNC_LL_CAN_WRITE,
+		       NULL, &val, NULL, NULL, NULL, 0, NULL);
+    if (err)
+	return filter->ndata->ll_can_write;
     return val;
 }
 
