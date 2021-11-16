@@ -1763,12 +1763,12 @@ main(int argc, char *argv[])
      * The buffer sizes are carefully chosen here to mesh with ssl and
      * mux.  ssl can encrypt up to 16384 bytes at a time, and the
      * overhead of a mux data packet is 10 bytes.  So we set this up
-     * so writes can be up to 16384 bytes total.  On the read size of
+     * so writes can be up to 16384 * 4 bytes total.  On the read size of
      * mux, each read packet has a 3-byte overhead in the buffer, so
-     * we will be getting 16374 bytes of data, + 3 for overhead, 32
-     * packets is 524064 bytes.
+     * we will be getting 16374 bytes of data, + 3 for overhead, 64
+     * packets is 1048128 bytes.
      */
-    const char *muxstr = "mux(writebuf=16374,readbuf=524064),";
+    const char *muxstr = "mux(writebuf=65496,readbuf=1048128),";
     bool use_mux = true;
     const char *addr, *cstr;
     const char *iptype = ""; /* Try both IPv4 and IPv6 by default. */
