@@ -69,8 +69,16 @@ struct gensio_os_funcs;
  */
 #define GE_USER_ERR_START	1000000
 
+#if __STDC_VERSION__ < 199901L
+# if __GNUC__ >= 2
+#  define __func__ __FUNCTION__
+# else
+#  define __func__ "<unknown>"
+# endif
+#endif
+
 #define gensio_os_err_to_err(o, oserr)					\
-    gensio_i_os_err_to_err(o, oserr, __FUNCTION__, __FILE__, __LINE__)
+    gensio_i_os_err_to_err(o, oserr, __func__, __FILE__, __LINE__)
 
 GENSIO_DLL_PUBLIC
 const char *gensio_err_to_str(int err);
