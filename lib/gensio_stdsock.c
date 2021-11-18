@@ -497,11 +497,13 @@ gensio_stdsock_sctp_connectx(struct gensio_iod *iod, struct gensio_addr *addrs)
 	    goto out_err;
     }
     err = sctp_connectx(o->iod_get_fd(iod), saddrs, naddrs, NULL);
+    if (err == -1)
+	err = gensio_os_err_to_err(o, sock_errno);
+    else
+	err = 0;
  out_err:
     o->free(o, saddrs);
-    if (err == -1)
-	return gensio_os_err_to_err(o, sock_errno);
-    return 0;
+    return err;
 }
 
 static int
