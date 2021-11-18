@@ -46,6 +46,7 @@ To fully build gensio, you need the following:
 * openssl dev libraries and executable - For all the crypto
 
 * openipmi dev libraries - For IPMI serial over lan, if you want that.
+  Note that you need a pretty recent one, really 2.0.31 or newer.
 
 * libsctp dev library - For sctp support
 
@@ -57,11 +58,15 @@ To fully build gensio, you need the following:
 
 * libwrap - for tcpd
 
+* glib dev - for the glib os funcs
+
+* tcl dev - for the tcl os funcs
+
 The following sets everything except openipmi up on ubuntu 20.04:
 
-  sudo apt install gcc git swig python3-dev libssl-dev pkg-config	\
+  sudo apt install gcc g++ git swig python3-dev libssl-dev pkg-config	\
     libavahi-client-dev avahi-daemon libtool autoconf automake make	\
-    libsctp-dev libpam-dev libwrap0-dev
+    libsctp-dev libpam-dev libwrap0-dev libglib2.0-dev tcl-dev		\
 
 Handling python installation configuration is a bit of a pain.  By
 default the build scripts will put it wherever the python program
