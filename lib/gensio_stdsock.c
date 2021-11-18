@@ -925,14 +925,14 @@ gensio_stdsock_accept(struct gensio_iod *iod,
     if (rv >= 0) {
 	gsi = o->zalloc(o, sizeof(*gsi));
 	if (!gsi) {
-	    close(rv);
+	    close_socket(o, rv);
 	    err = GE_NOMEM;
 	    goto out;
 	}
 
 	err = o->add_iod(o, GENSIO_IOD_SOCKET, rv, &riod);
 	if (err) {
-	    close(rv);
+	    close_socket(o, rv);
 	    goto out;
 	}
 
