@@ -69,11 +69,13 @@ struct gensio_os_funcs;
  */
 #define GE_USER_ERR_START	1000000
 
-#if __STDC_VERSION__ < 199901L
-# if __GNUC__ >= 2
-#  define __func__ __FUNCTION__
-# else
-#  define __func__ "<unknown>"
+#ifndef __func__ /* Just in case */
+# if __STDC_VERSION__ < 199901L
+#  if __GNUC__ >= 2
+#   define __func__ __FUNCTION__
+#  else
+#   define __func__ "<unknown>"
+#  endif
 # endif
 #endif
 
