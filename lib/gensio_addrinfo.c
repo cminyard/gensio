@@ -72,10 +72,6 @@ gensio_addr_addrinfo_set(struct gensio_addr *aaddr,
     addr->curr = ai;
 }
 
-static int addrinfo_list_dup(struct gensio_os_funcs *o,
-			     struct addrinfo *ai, struct addrinfo **rai,
-			     struct addrinfo **rpai);
-
 static struct gensio_addr_addrinfo *
 gensio_addrinfo_make(struct gensio_os_funcs *o, unsigned int size,
 		     bool is_recvfrom)
@@ -484,6 +480,120 @@ strtok_r(char *str, const char *delim, char **saveptr)
 }
 #endif
 
+static struct addrinfo *
+addrinfo_dup(struct gensio_os_funcs *o, struct addrinfo *iai)
+{
+    struct addrinfo *aic;
+
+    aic = o->zalloc(o, sizeof(*aic));
+    if (!aic)
+	return NULL;
+    memcpy(aic, iai, sizeof(*aic));
+    aic->ai_next = NULL;
+    aic->ai_addr = o->zalloc(o, iai->ai_addrlen);
+    if (!aic->ai_addr) {
+	o->free(o, aic);
+	return NULL;
+    }
+    memcpy(aic->ai_addr, iai->ai_addr, iai->ai_addrlen);
+    if (iai->ai_canonname) {
+	aic->ai_canonname = gensio_strdup(o, iai->ai_canonname);
+	if (!aic->ai_canonname) {
+	    o->free(o, aic->ai_addr);
+	    o->free(o, aic);
+	    return NULL;
+	}
+    }
+
+    return aic;
+}
+
+/*
+ * Duplicate list ai.  If rpai is set, it is a pointer to the last
+ * element of another list, add the duplicated list onto the end of
+ * that list.  Return the duplicated list in rai if it is set.
+ */
+static int
+addrinfo_list_dup(struct gensio_os_funcs *o,
+		  struct addrinfo *ai, struct addrinfo **rai,
+		  struct addrinfo **rpai)
+{
+    struct addrinfo *cai, *pai = NULL;
+
+    if (rpai)
+	pai = *rpai;
+    else if (!rai)
+	return GE_INVAL;
+
+    while (ai) {
+	cai = addrinfo_dup(o, ai);
+	if (!cai)
+	    return GE_NOMEM;
+	if (pai)
+	    pai->ai_next = cai;
+	else if (rai)
+	    *rai = cai;
+	pai = cai;
+	ai = ai->ai_next;
+    }
+
+    if (rpai)
+	*rpai = pai;
+
+    return 0;
+}
+
+static void
+addrinfo_item_free(struct gensio_os_funcs *o, struct addrinfo *ai)
+{
+    if (ai->ai_addr)
+	o->free(o, ai->ai_addr);
+    if (ai->ai_canonname)
+	o->free(o, ai->ai_canonname);
+    o->free(o, ai);
+}
+
+static int
+gensio_addr_dedup(struct gensio_os_funcs *o,
+		  struct gensio_addr_addrinfo **iaddr)
+{
+    struct gensio_addr_addrinfo *addr = *iaddr;
+    struct addrinfo *ai, *ai2, *pai;
+
+ restart:
+    for (ai = addr->a; ai; ai = ai->ai_next) {
+	for (ai2 = ai->ai_next, pai = ai; ai2; pai = ai2, ai2 = ai2->ai_next) {
+	    if (sockaddr_equal(ai->ai_addr, ai->ai_addrlen,
+			       ai2->ai_addr, ai2->ai_addrlen,
+			       true)) {
+		if (addr->is_getaddrinfo) {
+		    int err;
+
+		    /*
+		     * To delete the dup, we need to convert it into a
+		     * list not allocated by getaddrinfo so we can
+		     * modify it.
+		     */
+		    err = addrinfo_list_dup(o, addr->a, &ai, NULL);
+		    if (err)
+			return err;
+		    freeaddrinfo(addr->a);
+		    addr->is_getaddrinfo = false;
+		    addr->a = ai;
+		    addr->curr = ai;
+		    goto restart;
+		}
+		pai->ai_next = ai2->ai_next;
+		addrinfo_item_free(o, ai2);
+		ai2 = pai;
+	    }
+	}
+    }
+
+    *iaddr = addr;
+    return 0;
+}
+
 static int
 gensio_addr_addrinfo_scan_ips(struct gensio_os_funcs *o, const char *str,
 			      bool listen, int ifamily,
@@ -724,7 +834,9 @@ gensio_addr_addrinfo_scan_ips(struct gensio_os_funcs *o, const char *str,
     if (is_port_set)
 	*is_port_set = portset;
 
-    *raddr = &addr->r;
+    rv = gensio_addr_dedup(o, &addr);
+    if (!rv)
+	*raddr = &addr->r;
 
  out_err:
     if (ai)
@@ -736,34 +848,6 @@ gensio_addr_addrinfo_scan_ips(struct gensio_os_funcs *o, const char *str,
     return rv;
 }
 
-static struct addrinfo *
-addrinfo_dup(struct gensio_os_funcs *o, struct addrinfo *iai)
-{
-    struct addrinfo *aic;
-
-    aic = o->zalloc(o, sizeof(*aic));
-    if (!aic)
-	return NULL;
-    memcpy(aic, iai, sizeof(*aic));
-    aic->ai_next = NULL;
-    aic->ai_addr = o->zalloc(o, iai->ai_addrlen);
-    if (!aic->ai_addr) {
-	o->free(o, aic);
-	return NULL;
-    }
-    memcpy(aic->ai_addr, iai->ai_addr, iai->ai_addrlen);
-    if (iai->ai_canonname) {
-	aic->ai_canonname = gensio_strdup(o, iai->ai_canonname);
-	if (!aic->ai_canonname) {
-	    o->free(o, aic->ai_addr);
-	    o->free(o, aic);
-	    return NULL;
-	}
-    }
-
-    return aic;
-}
-
 static void
 addrinfo_list_free(struct gensio_os_funcs *o, struct addrinfo *ai)
 {
@@ -771,43 +855,9 @@ addrinfo_list_free(struct gensio_os_funcs *o, struct addrinfo *ai)
 
     while (ai) {
 	tai = ai->ai_next;
-	if (ai->ai_addr)
-	    o->free(o, ai->ai_addr);
-	if (ai->ai_canonname)
-	    o->free(o, ai->ai_canonname);
-	o->free(o, ai);
+	addrinfo_item_free(o, ai);
 	ai = tai;
     }
-}
-
-static int
-addrinfo_list_dup(struct gensio_os_funcs *o,
-		  struct addrinfo *ai, struct addrinfo **rai,
-		  struct addrinfo **rpai)
-{
-    struct addrinfo *cai, *pai = NULL;
-
-    if (rpai)
-	pai = *rpai;
-    else if (!rai)
-	return GE_INVAL;
-
-    while (ai) {
-	cai = addrinfo_dup(o, ai);
-	if (!cai)
-	    return GE_NOMEM;
-	if (pai)
-	    pai->ai_next = cai;
-	else if (rai)
-	    *rai = cai;
-	pai = cai;
-	ai = ai->ai_next;
-    }
-
-    if (rpai)
-	*rpai = pai;
-
-    return 0;
 }
 
 static struct gensio_addr *
@@ -881,6 +931,10 @@ gensio_addr_addrinfo_cat(const struct gensio_addr *aaddr1,
 	goto out_err;
 
     rv = addrinfo_list_dup(o, addr2->a, NULL, &aip);
+    if (rv)
+	goto out_err;
+
+    rv = gensio_addr_dedup(o, &addr);
     if (rv)
 	goto out_err;
 
