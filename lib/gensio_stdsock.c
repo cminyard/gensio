@@ -342,7 +342,7 @@ l_sctp_send(struct gensio_os_funcs *o,
 }
 
 #if HAVE_SCTP_SENDV
-#define gensio_os_sctp_send l_gensio_os_sctp_send
+#define gensio_stdsock_sctp_send l_gensio_stdsock_sctp_send
 #endif
 
 static int
@@ -372,7 +372,7 @@ gensio_stdsock_sctp_send(struct gensio_iod *iod,
 }
 
 #if HAVE_SCTP_SENDV
-#undef gensio_os_sctp_send
+#undef gensio_stdsock_sctp_send
 static bool sctp_sendv_broken;
 static int
 gensio_stdsock_sctp_send(struct gensio_iod *iod,
@@ -389,8 +389,7 @@ gensio_stdsock_sctp_send(struct gensio_iod *iod,
 
     if (sctp_sendv_broken) {
     broken:
-	return l_gensio_os_sctp_send(o, o->iod_get_fd(iod),
-				     sg, sglen, rcount, sinfo, flags);
+	return l_gensio_stdsock_sctp_send(iod, sg, sglen, rcount, sinfo, flags);
     }
     if (sinfo) {
 	sdata.snd_sid = sinfo->sinfo_stream;
