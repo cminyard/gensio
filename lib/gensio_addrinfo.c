@@ -480,6 +480,28 @@ strtok_r(char *str, const char *delim, char **saveptr)
 }
 #endif
 
+static void
+addrinfo_item_free(struct gensio_os_funcs *o, struct addrinfo *ai)
+{
+    if (ai->ai_addr)
+	o->free(o, ai->ai_addr);
+    if (ai->ai_canonname)
+	o->free(o, ai->ai_canonname);
+    o->free(o, ai);
+}
+
+static void
+addrinfo_list_free(struct gensio_os_funcs *o, struct addrinfo *ai)
+{
+    struct addrinfo *tai;
+
+    while (ai) {
+	tai = ai->ai_next;
+	addrinfo_item_free(o, ai);
+	ai = tai;
+    }
+}
+
 static struct addrinfo *
 addrinfo_dup(struct gensio_os_funcs *o, struct addrinfo *iai)
 {
@@ -491,21 +513,19 @@ addrinfo_dup(struct gensio_os_funcs *o, struct addrinfo *iai)
     memcpy(aic, iai, sizeof(*aic));
     aic->ai_next = NULL;
     aic->ai_addr = o->zalloc(o, iai->ai_addrlen);
-    if (!aic->ai_addr) {
-	o->free(o, aic);
-	return NULL;
-    }
+    if (!aic->ai_addr)
+	goto err;
     memcpy(aic->ai_addr, iai->ai_addr, iai->ai_addrlen);
     if (iai->ai_canonname) {
 	aic->ai_canonname = gensio_strdup(o, iai->ai_canonname);
-	if (!aic->ai_canonname) {
-	    o->free(o, aic->ai_addr);
-	    o->free(o, aic);
-	    return NULL;
-	}
+	if (!aic->ai_canonname)
+	    goto err;
     }
 
     return aic;
+ err:
+    addrinfo_item_free(o, aic);
+    return NULL;
 }
 
 /*
@@ -518,39 +538,35 @@ addrinfo_list_dup(struct gensio_os_funcs *o,
 		  struct addrinfo *ai, struct addrinfo **rai,
 		  struct addrinfo **rpai)
 {
-    struct addrinfo *cai, *pai = NULL;
+    struct addrinfo *cai, *pai = NULL, *tai = NULL;
 
-    if (rpai)
-	pai = *rpai;
-    else if (!rai)
+    if (!rpai && !rai)
 	return GE_INVAL;
 
     while (ai) {
 	cai = addrinfo_dup(o, ai);
 	if (!cai)
-	    return GE_NOMEM;
-	if (pai)
+	    goto out_nomem;
+	if (!tai)
+	    tai = cai;
+	else
 	    pai->ai_next = cai;
-	else if (rai)
-	    *rai = cai;
 	pai = cai;
 	ai = ai->ai_next;
     }
 
-    if (rpai)
+    if (rai)
+	*rai = tai;
+    if (rpai) {
+	if (*rpai)
+	    (*rpai)->ai_next = tai;
 	*rpai = pai;
+    }
 
     return 0;
-}
-
-static void
-addrinfo_item_free(struct gensio_os_funcs *o, struct addrinfo *ai)
-{
-    if (ai->ai_addr)
-	o->free(o, ai->ai_addr);
-    if (ai->ai_canonname)
-	o->free(o, ai->ai_canonname);
-    o->free(o, ai);
+out_nomem:
+    addrinfo_list_free(o, tai);
+    return GE_NOMEM;
 }
 
 static int
@@ -846,18 +862,6 @@ gensio_addr_addrinfo_scan_ips(struct gensio_os_funcs *o, const char *str,
     o->free(o, strtok_buffer);
 
     return rv;
-}
-
-static void
-addrinfo_list_free(struct gensio_os_funcs *o, struct addrinfo *ai)
-{
-    struct addrinfo *tai;
-
-    while (ai) {
-	tai = ai->ai_next;
-	addrinfo_item_free(o, ai);
-	ai = tai;
-    }
 }
 
 static struct gensio_addr *
