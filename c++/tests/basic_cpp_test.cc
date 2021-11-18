@@ -322,6 +322,13 @@ private:
 	if (portfound)
 	    return 0;
 
+	if (err) {
+	    io->set_read_callback_enable(false);
+	    waiter->wake();
+	    errstr = "subprogram failed before reading port";
+	    return 0;
+	}
+
 	for (i = 0; i < *buflen; i++) {
 	    if (portpos >= sizeof(port)) {
 		errstr = "Port from sub too large";
@@ -374,7 +381,7 @@ int main(int argc, char *argv[])
 	Waiter w(o);
 	Sub_Event se(&w);
 	gensio_time waittime = { 2, 0 };
-	int err, err2;
+	int err2;
 
 	cout << "Starting subprogram to act as a server" << endl;
 	s = gensio_quote_string(o, argv[0]);
