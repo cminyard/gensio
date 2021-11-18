@@ -23,6 +23,7 @@ typedef int sockret;
 #define SOCK_EAGAIN WSAEWOULDBLOCK
 #define SOCK_EADDRINUSE WSAEADDRINUSE
 #define SOCK_EPIPE WSAECONNRESET
+#define SOCK_EINVAL WSAEINVAL
 #else
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -40,6 +41,7 @@ typedef ssize_t sockret;
 #define SOCK_EAGAIN EWOULDBLOCK
 #define SOCK_EADDRINUSE EADDRINUSE
 #define SOCK_EPIPE EPIPE
+#define SOCK_EINVAL EINVAL
 #endif
 #if HAVE_UNIX
 #include <sys/un.h>
