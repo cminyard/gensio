@@ -6,6 +6,7 @@ install(FILES gensio.h gensio_class.h sergensio.h sergensio_class.h
 	gensio_deprecated.h gensio_mdns.h gensio_types.h
 	gensio_osops_addrinfo.h gensio_osops_stdsock.h gensio_circbuf.h
 	gensio_selector.h gensio_win.h gensio_osops_env.h
+	gensio_os_funcs_public.h
 	DESTINATION include/gensio)
 
 configure_file(gensio_version.h.in gensio_version.h)

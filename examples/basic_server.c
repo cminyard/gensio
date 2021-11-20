@@ -23,6 +23,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 #include <gensio/gensio.h>
 #include <gensio/gensio_list.h>
 
@@ -88,7 +89,7 @@ close_done(struct gensio *io, void *close_data)
 
     gensio_free(io);
     gensio_list_rm(&ai->ios, &ii->link);
-    ai->o->free(ai->o, ii);
+    free(ii);
     check_shutdown(ai);
 }
 
@@ -137,7 +138,7 @@ start_close(struct ioinfo *ii)
 	/* Should be impossible, but just in case... */
 	fprintf(stderr, "Error closing io: %s\n", gensio_err_to_str(rv));
 	gensio_free(ii->io);
-	ii->ai->o->free(ii->ai->o, ii);
+	free(ii);
     }
 }
 
@@ -279,7 +280,7 @@ io_acc_event(struct gensio_accepter *accepter, void *user_data,
 	return 0;
     }
 
-    ii = ai->o->zalloc(ai->o, sizeof(*ii));
+    ii = calloc(1, sizeof(*ii));
     if (!ii) {
 	fprintf(stderr, "Could not allocate info for new io\n");
 	gensio_free(data);

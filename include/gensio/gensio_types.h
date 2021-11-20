@@ -22,6 +22,19 @@ struct gensio_iod;
 struct gensio_addr;
 struct gensio_opensocks;
 
+/*
+ * Used by wait functions and general handling for process setup and
+ * cleanup.
+ */
+struct gensio_os_proc_data;
+
+/*
+ * Basic thread handling.  You can use the standard OS functions to do
+ * this, too, this is here for genericity.  It may not cover all your
+ * needs.
+ */
+struct gensio_thread;
+
 typedef unsigned long gensiods; /* Data size */
 
 enum gensio_log_levels {
@@ -31,6 +44,8 @@ enum gensio_log_levels {
     GENSIO_LOG_INFO,
     GENSIO_LOG_DEBUG
 };
+#define GENSIO_LOG_MASK_ALL (1 << GENSIO_LOG_FATAL | 1 << GENSIO_LOG_ERR | \
+	1 << GENSIO_LOG_WARNING | 1 << GENSIO_LOG_INFO | 1 << GENSIO_LOG_DEBUG)
 
 typedef struct gensio_time {
     int64_t secs;

@@ -86,19 +86,6 @@ struct gensio_opensocks
     int flags;
 };
 
-#define GENSIO_LOG_MASK_ALL (1 << GENSIO_LOG_FATAL | 1 << GENSIO_LOG_ERR | \
-	1 << GENSIO_LOG_WARNING | 1 << GENSIO_LOG_INFO | 1 << GENSIO_LOG_DEBUG)
-/*
- * A bitmask of log levels to tell what to log.  Defaults to fatal and err
- * only.
- */
-GENSIO_DLL_PUBLIC
-void gensio_set_log_mask(unsigned int mask);
-GENSIO_DLL_PUBLIC
-unsigned int gensio_get_log_mask(void);
-GENSIO_DLL_PUBLIC
-const char *gensio_log_level_to_str(enum gensio_log_levels level);
-
 /*
  * Flags for opensock_flags.  For the set function, add the _SET_
  * flags for the options you want to set, and set the option bits for
@@ -258,12 +245,6 @@ const char *gensio_log_level_to_str(enum gensio_log_levels level);
  * that use.
  */
 #define GENSIO_IOD_CONTROL_SOCKINFO	1000
-
-/*
- * Used by wait functions and general handling for process setup and
- * cleanup.
- */
-struct gensio_os_proc_data;
 
 /*
  * Operations for the control function in gensio_os_funcs
@@ -815,60 +796,9 @@ GENSIO_DLL_PUBLIC
 void gensio_log(struct gensio_os_funcs *o, enum gensio_log_levels level,
 		const char *str, ...);
 
-/*
- * Allocate the OS handler for the platform.  This will return the
- * same OS handler each time.  Can return GE_NOMEM if out of memory.
- */
-GENSIO_DLL_PUBLIC
-int gensio_default_os_hnd(int wake_sig, struct gensio_os_funcs **o);
-
 /* For testing, do not use in normal code. */
 GENSIO_DLL_PUBLIC
 void gensio_osfunc_exit(int rv);
-
-/*
- * Process setup for gensio OS handlers.  These are machine-specific.
- * You should call this after allocating the OS handlers and if you use
- * wait_intr_sigmask you should pass the process data from this into that
- * function.
- *
- * For Windows this currently just returns NULL data and doesn't do
- * anything.
- *
- * For Unix, this blocks SIGPIPE, SIGCHLD, and the wake signal passed
- * in to the allocation function (if the wake signal is non-zero).  It
- * then sets a sigmask to be installed on the wait_intr_sigmask with
- * the wake signal and SIGCHLD not blocked.
- *
- * It also installs signal handlers for SIGCHLD and (if non-zero) the
- * wake signal.
- *
- * For Unix this is generally what you want, you don't want SIGPIPE
- * doing bad things and having SIGCHLD wake up a wait can speed things
- * up a bit when waiting for subprograms.
- *
- * If you need to modify that signal mask used in wait_intr_signmask,
- * use gensio_os_proc_unix_get_wait_sigset() defined below to fetch it
- * and modify it.
- *
- * Note that you can override SIGCHLD and SIGPIPE if you like.  Don't
- * mess with the wake signal.
- */
-GENSIO_DLL_PUBLIC
-int gensio_os_proc_setup(struct gensio_os_funcs *o,
-			 struct gensio_os_proc_data **data);
-
-/*
- * Undo the proc setup.
- *
- * On Windows this currently does nothing.
- *
- * On Unix this restores the signal mask to what it was when
- * proc_setup was called and it removes the signal handlers it
- * installed.
- */
-GENSIO_DLL_PUBLIC
-void gensio_os_proc_cleanup(struct gensio_os_proc_data *data);
 
 /*
  * Called from os handlers, check for any handlers that may need to be
@@ -877,60 +807,11 @@ void gensio_os_proc_cleanup(struct gensio_os_proc_data *data);
 GENSIO_DLL_PUBLIC
 void gensio_os_proc_check_handlers(struct gensio_os_proc_data *data);
 
-#ifdef _WIN32
-#define GENSIO_DEF_WAKE_SIG 0
-#else
+#ifndef _WIN32
 #include <signal.h>
-#define GENSIO_DEF_WAKE_SIG SIGUSR1
 GENSIO_DLL_PUBLIC
 sigset_t *gensio_os_proc_unix_get_wait_sigset(struct gensio_os_proc_data *data);
 #endif
-
-/*
- * Set the function to call when a termination (SIGINT, SIGQUIT,
- * SIGTERM on Unix, console control handler or WM_CLOSE on windows) is
- * requested by the operating system.  data should point to a struct
- * gensio_control_register_handler.  Set to handler NULL to disable.
- */
-GENSIO_DLL_PUBLIC
-int gensio_os_proc_register_term_handler(struct gensio_os_proc_data *data,
-					 void (*handler)(void *handler_data),
-					 void *handler_data);
-/*
- * Set the function to call when a reaload is requested by the
- * operating system (SIGHUP on Unix).  data should point to a struct
- * gensio_control_register_handler.  Set handler to NULL to disable.
- */
-GENSIO_DLL_PUBLIC
-int gensio_os_proc_register_reload_handler(struct gensio_os_proc_data *data,
-					   void (*handler)(void *handler_data),
-					   void *handler_data);
-
-
-/*
- * Basic thread handling.  You can use the standard OS functions to do
- * this, too, this is here for genericity.  It may not cover all your
- * needs.
- */
-struct gensio_thread;
-
-/*
- * Start a new thread running at start_func, passing in the given
- * data.  The thread_id is returned, use that to wait for the thread
- * to complete after it should stop.
- */
-GENSIO_DLL_PUBLIC
-int gensio_os_new_thread(struct gensio_os_funcs *o,
-			 void (*start_func)(void *data), void *data,
-			 struct gensio_thread **thread_id);
-
-/*
- * Wait for the given thread to stop.  Note that this does not cause
- * the thread to stop, it waits for the thread to stop after it has
- * been stopped to avoid race condition.
- */
-GENSIO_DLL_PUBLIC
-int gensio_os_wait_thread(struct gensio_thread *thread_id);
 
 #ifdef __cplusplus
 }

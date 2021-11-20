@@ -64,6 +64,7 @@
 
 #include <stdarg.h>
 #include <gensio/gensio.h>
+#include <gensio/gensio_os_funcs.h>
 
 struct ioinfo;
 

@@ -35,105 +35,22 @@ extern "C" {
 #include <gensio/gensio_os_funcs.h>
 
 /*
- * The gensio_os_funcs_xxx() functions below are the accessors for
- * user-visible operations on the os functions.  Do not use the
+ * The gensio_os_funcs_xxx() functions in the following are accessors
+ * for user-visible operations on the os functions.  Do not use the
  * functions in gensio_os_funcs directly from user code.
  */
+#include <gensio/gensio_os_funcs_public.h>
 
 /*
- * Register a function to receive internal logs if they happen.  The
- * user must do this.
- */
-typedef void (gensio_vlog_func)(struct gensio_os_funcs *o,
-				enum gensio_log_levels level,
-				const char *log, va_list args);
-GENSIO_DLL_PUBLIC
-void gensio_os_funcs_set_vlog(struct gensio_os_funcs *o, gensio_vlog_func func);
-
-/* Used to free an allocates os funcs. */
-GENSIO_DLL_PUBLIC
-void gensio_os_funcs_free(struct gensio_os_funcs *o);
-
-/*
- * Run the timers, fd handling, runners, etc.  This does one
- * operation and returns.  If timeout is non-NULL, if nothing
- * happens before the relative time given it will return.  The
- * timeout is updated to the remaining time.  Returns
- * GE_INTERRUPTED if interrupted by a signal or GE_TIMEDOUT if the
- * timeout expired.  Note that really long timeouts (days) may be
- * shortened to some value.
+ * A bitmask of log levels to tell what to log.  Defaults to fatal and err
+ * only.
  */
 GENSIO_DLL_PUBLIC
-int gensio_os_funcs_service(struct gensio_os_funcs *o, gensio_time *timeout);
-
-/*
- * Must be called after a fork() in the child if the gensio will
- * continue to be used in both the parent and the child.  If you
- * don't do this you may get undefined results.  If this returns
- * an error (gensio err), the child is likely to be unusable.
- */
+void gensio_set_log_mask(unsigned int mask);
 GENSIO_DLL_PUBLIC
-int gensio_os_funcs_handle_fork(struct gensio_os_funcs *o);
-
-/*
- * Allocate a waiter, returns NULL on error.  A waiter is used to
- * wait for some action to occur.  When the action occurs, that code
- * should call wake to wake the waiter.  Normal operation of the
- * file descriptors, timers, runners, etc. happens while waiting.
- * You should be careful of the context of calling a waiter, like
- * what locks you are holding or what callbacks you are in.
- *
- * Note that waiters and wakes are count based, if you call wake()
- * before wait() that's ok.  If you call wake() 3 times, there
- * are 3 wakes pending.
- */
+unsigned int gensio_get_log_mask(void);
 GENSIO_DLL_PUBLIC
-struct gensio_waiter *gensio_os_funcs_alloc_waiter(struct gensio_os_funcs *o);
-
-/* Free a waiter allocated by alloc_waiter. */
-GENSIO_DLL_PUBLIC
-void gensio_os_funcs_free_waiter(struct gensio_os_funcs *o,
-				 struct gensio_waiter *waiter);
-
-/*
- * Wait for count wakeups for up to the amount of time (relative)
- * given in timeout.  If timeout is NULL wait forever.  This
- * returns GE_TIMEDOUT on a timeout.  It can return other errors.
- * The timeout is updated to the remaining time.
- * Note that if you get a timeout, none of the wakeups will be
- * "used" by this call.
- */
-GENSIO_DLL_PUBLIC
-int gensio_os_funcs_wait(struct gensio_os_funcs *o,
-			 struct gensio_waiter *waiter, unsigned int count,
-			 gensio_time *timeout);
-
-/*
- * Like wait, but return if a signal is received by the thread.
- * This is useful if you want to handle SIGINT or something like
- * that.  This will return GE_INTERRUPTED if interrupted by a
- * signal, GE_TIMEDOUT if it times out.
- */
-GENSIO_DLL_PUBLIC
-int gensio_os_funcs_wait_intr(struct gensio_os_funcs *o,
-			      struct gensio_waiter *waiter, unsigned int count,
-			      gensio_time *timeout);
-
-/*
- * Like wait_intr, but allows machine-specific handling to be set
- * up.  See gensio_os_proc_setup() for info.
- */
-GENSIO_DLL_PUBLIC
-int gensio_os_funcs_wait_intr_sigmask(struct gensio_os_funcs *o,
-				      struct gensio_waiter *waiter,
-				      unsigned int count,
-				      gensio_time *timeout,
-				      struct gensio_os_proc_data *proc_data);
-
-/* Wake the given waiter. */
-GENSIO_DLL_PUBLIC
-void gensio_os_funcs_wake(struct gensio_os_funcs *o,
-			  struct gensio_waiter *waiter);
+const char *gensio_log_level_to_str(enum gensio_log_levels level);
 
 /*
  * The following are documented in gensio_event.3

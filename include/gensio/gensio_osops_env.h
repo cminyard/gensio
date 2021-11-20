@@ -19,7 +19,7 @@ extern "C" {
 #endif
 
 #include <gensio/gensio_dllvisibility.h>
-#include <gensio/gensio_os_funcs.h>
+#include <gensio/gensio_types.h>
 
 /*
  * Functions for dealing with system environment variables.

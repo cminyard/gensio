@@ -8,7 +8,6 @@
 #include <gensio/gensio>
 
 namespace gensio {
-#include <gensio/gensio_os_funcs.h>
 #include <gensio/gensio_builtins.h>
 #include <gensio/gensio_osops.h>
 

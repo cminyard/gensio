@@ -15,6 +15,7 @@
 
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 #include <gensio/gensio.h>
 #include <gensio/gensio_list.h>
 
@@ -166,7 +167,7 @@ main(int argc, char *argv[])
     }
 
     ci.outbuf_len = strlen(argv[2]);
-    ci.outbuf = ci.o->zalloc(ci.o, ci.outbuf_len + 1);
+    ci.outbuf = calloc(1, ci.outbuf_len + 1);
     if (!ci.outbuf) {
 	fprintf(stderr, "Out of memory\n");
 	return 1;
@@ -202,7 +203,7 @@ main(int argc, char *argv[])
 	rv = ci.err;
 
  out_err:
-    ci.o->free(ci.o, ci.outbuf);
+    free(ci.outbuf);
     if (ci.io)
 	gensio_free(ci.io);
     if (ci.waiter)
