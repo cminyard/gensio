@@ -5,6 +5,9 @@
  *  SPDX-License-Identifier: LGPL-2.1-only
  */
 
+#ifndef GENSIO_ADDR_H
+#define GENSIO_ADDR_H
+
 /*
  * Gensio address structure
  *
@@ -24,3 +27,4 @@ struct gensio_addr {
     struct gensio_os_funcs *o;
 };
 
+#endif /* GENSIO_ADDR_H */
