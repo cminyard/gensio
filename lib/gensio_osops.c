@@ -953,7 +953,6 @@ gensio_win_do_exec(struct gensio_os_funcs *o,
 	CloseHandle(stdout_s);
     if (stderr_s)
 	CloseHandle(stderr_s);
-    return rv;
 
  out:
     if (envb)
