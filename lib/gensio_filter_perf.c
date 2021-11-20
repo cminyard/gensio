@@ -10,7 +10,7 @@
 #include <stdio.h>
 
 #include <gensio/gensio_class.h>
-#include <gensio/gensio_builtins.h>
+#include <gensio/gensio_os_funcs.h>
 
 #include "gensio_filter_perf.h"
 

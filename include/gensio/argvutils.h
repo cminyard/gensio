@@ -18,7 +18,7 @@ extern "C" {
 #endif
 
 #include <gensio/gensio_dllvisibility.h>
-#include <gensio/gensio_os_funcs.h>
+#include <gensio/gensio_types.h>
 
 /*
  * Separate out a string into an argv array, returning the argc/argv

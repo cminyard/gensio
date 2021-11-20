@@ -14,6 +14,7 @@
 
 #include <gensio/gensio_class.h>
 #include <gensio/gensio_base.h>
+#include <gensio/gensio_os_funcs.h>
 
 #ifdef DEBUG_DATA
 #define ENABLE_PRBUF 1

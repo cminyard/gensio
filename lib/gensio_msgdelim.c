@@ -7,6 +7,7 @@
 
 #include "config.h"
 
+#include <gensio/gensio_os_funcs.h>
 #include <gensio/gensio_class.h>
 #include <gensio/gensio_ll_gensio.h>
 #include <gensio/gensio_acc_gensio.h>

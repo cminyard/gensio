@@ -21,6 +21,7 @@
 #include <openssl/bio.h>
 #include <openssl/err.h>
 
+#include <gensio/gensio_os_funcs.h>
 #include <gensio/gensio_ll_gensio.h>
 #include <gensio/gensio_acc_gensio.h>
 #include <gensio/gensio_builtins.h>

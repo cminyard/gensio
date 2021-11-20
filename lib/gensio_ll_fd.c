@@ -9,6 +9,7 @@
 #include <assert.h>
 #include <stdio.h>
 
+#include <gensio/gensio_os_funcs.h>
 #include <gensio/gensio_class.h>
 #include <gensio/gensio_ll_fd.h>
 #include <gensio/gensio_osops.h>

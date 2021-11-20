@@ -29,7 +29,6 @@ extern "C" {
 #include <gensio/gensio_version.h>
 #include <gensio/gensio_os_funcs.h>
 
-
 /*
  * The following are documented in gensio_event.3
  */
@@ -253,8 +252,6 @@ struct gensio_frdata *gensio_get_frdata(struct gensio *io);
 
 /****** Accepters ******/
 
-struct gensio_accepter;
-
 GENSIO_DLL_PUBLIC
 struct gensio_accepter *gensio_acc_get_child(struct gensio_accepter *acc,
 					     unsigned int depth);
@@ -415,31 +412,13 @@ struct gensio_acc_frdata *gensio_acc_get_frdata(struct gensio_accepter *acc);
 
 /*
  * These are the low-level network protocol that gensio support.  Used
- * mostly in interacting with addresses.  zero is reserved.
+ * mostly in interacting with addresses, anything named protocol.
+ * zero is reserved.
  */
 #define GENSIO_NET_PROTOCOL_TCP 1
 #define GENSIO_NET_PROTOCOL_UDP 2
 #define GENSIO_NET_PROTOCOL_SCTP 3
 #define GENSIO_NET_PROTOCOL_UNIX 4
-
-/*
- * Gensio address structure
- *
- * This is used to hide the details of address handling for network
- * gensios.  A gensio_addr has a set of addresses embedded in it.  The
- * list is immutable after allocation.
- *
- * The address has the concept of a current address in it that can be
- * iterated.  You get an address, and you can use the iterator
- * function to iterate over it and extract information from the
- * individual addresses.
- *
- * Note that some function use the current address, and some use all
- * the addresses.
- */
-struct gensio_addr {
-    struct gensio_os_funcs *o;
-};
 
 /*
  * Dealing with iterators.

@@ -12,8 +12,8 @@
 #ifndef GENSIO_CIRCBUF_H
 #define GENSIO_CIRCBUF_H
 
+#include <gensio/gensio_dllvisibility.h>
 #include <gensio/gensio_types.h>
-#include <gensio/gensio_os_funcs.h>
 
 struct gensio_circbuf;
 

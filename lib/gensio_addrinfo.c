@@ -26,7 +26,10 @@
 #include <sys/un.h>
 #endif
 
+
 #include <gensio/gensio.h>
+#include <gensio/gensio_addr.h>
+#include <gensio/gensio_err.h>
 #include <gensio/gensio_osops_addrinfo.h>
 
 /* For older systems that don't have this. */

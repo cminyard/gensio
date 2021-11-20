@@ -20,6 +20,8 @@
 #include <openssl/bio.h>
 #include <openssl/err.h>
 
+#include <gensio/gensio_os_funcs.h>
+
 #ifdef _WIN32
 #define DIRSEP '\\'
 #else

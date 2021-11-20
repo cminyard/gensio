@@ -12,6 +12,7 @@
 #include <ctype.h>
 
 #include <gensio/gensio_class.h>
+#include <gensio/gensio_os_funcs.h>
 
 #include "gensio_filter_trace.h"
 

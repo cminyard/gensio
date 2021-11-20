@@ -9,7 +9,6 @@
 #define GENSIO_SELECTOR_H
 
 #include <gensio/gensio_dllvisibility.h>
-#include <gensio/gensio_os_funcs.h>
 
 struct selector_s; /* Don't include selector.h to reduce namespace pollution. */
 

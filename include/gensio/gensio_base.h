@@ -9,7 +9,7 @@
 #define GENSIO_BASE_H
 
 #include <gensio/gensio_dllvisibility.h>
-#include <gensio/gensio.h>
+#include <gensio/gensio_types.h>
 
 struct gensio_filter;
 

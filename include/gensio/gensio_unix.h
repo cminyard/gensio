@@ -13,7 +13,7 @@ extern "C" {
 #endif
 
 #include <gensio/gensio_dllvisibility.h>
-#include <gensio/gensio_os_funcs.h>
+#include <gensio/gensio_types.h>
 
 struct selector_s; /* Don't include selector.h to reduce namespace pollution. */
 

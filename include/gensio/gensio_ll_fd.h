@@ -16,6 +16,8 @@ enum gensio_ll_close_state {
     GENSIO_LL_CLOSE_STATE_DONE
 };
 
+struct gensio_iod;
+
 struct gensio_fd_ll_ops {
     int (*sub_open)(void *handler_data, struct gensio_iod **iod);
 

@@ -9,8 +9,8 @@
 #include <string.h>
 #include <stdio.h>
 
+#include <gensio/gensio_os_funcs.h>
 #include <gensio/gensio_class.h>
-#include <gensio/gensio_builtins.h>
 
 #include "gensio_filter_msgdelim.h"
 

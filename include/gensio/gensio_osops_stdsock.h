@@ -18,7 +18,7 @@
 #define GENSIO_OSOPS_STDSOCK_H
 
 #include <gensio/gensio_dllvisibility.h>
-#include <gensio/gensio_os_funcs.h>
+#include <gensio/gensio_types.h>
 
 
 /* Set up the osops with addrinfo based standard socket handling. */

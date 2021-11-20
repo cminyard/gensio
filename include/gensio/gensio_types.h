@@ -16,8 +16,11 @@ extern "C" {
 #include <stdint.h>
 
 struct gensio;
-
+struct gensio_accepter;
+struct gensio_os_funcs;
+struct gensio_iod;
 struct gensio_addr;
+struct gensio_opensocks;
 
 typedef unsigned long gensiods; /* Data size */
 

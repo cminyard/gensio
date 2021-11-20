@@ -8,6 +8,7 @@
 #include <string.h>
 #include <assert.h>
 #include <gensio/gensio_circbuf.h>
+#include <gensio/gensio_os_funcs.h>
 
 struct gensio_circbuf {
     struct gensio_os_funcs *o;

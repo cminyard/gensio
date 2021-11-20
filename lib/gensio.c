@@ -13,12 +13,14 @@
 #include <limits.h>
 #include <stdio.h>
 #include <assert.h>
+#include <strings.h>
 
 #include <gensio/gensio.h>
+#include <gensio/gensio_addr.h>
+#include <gensio/argvutils.h>
 #include <gensio/gensio_builtins.h>
 #include <gensio/gensio_class.h>
 
-#include "utils.h"
 #include "gensio_net.h"
 
 static unsigned int gensio_log_mask =
@@ -64,8 +66,6 @@ struct gensio_nocbwait {
     struct gensio_waiter *waiter;
     struct gensio_link link;
 };
-
-struct gensio_sync_io;
 
 struct gensio {
     struct gensio_os_funcs *o;

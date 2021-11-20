@@ -29,8 +29,6 @@
 #include <gensio/gensio.h>
 #include <gensio/sergensio.h>
 #include <gensio/gensio_list.h>
-#include <gensio/gensio_err.h>
-#include <gensio/gensio_os_funcs.h>
 #include <gensio/gensio_osops_addrinfo.h>
 #include <gensio/gensio_osops_stdsock.h>
 #include <gensio/gensio_osops.h>

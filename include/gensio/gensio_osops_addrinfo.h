@@ -22,7 +22,6 @@ struct sockaddr;
 
 #include <gensio/gensio_dllvisibility.h>
 #include <gensio/gensio_types.h>
-#include <gensio/gensio_os_funcs.h>
 
 /* Get the entire addrinfo list for the address. */
 GENSIO_DLL_PUBLIC

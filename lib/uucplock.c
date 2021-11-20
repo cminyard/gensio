@@ -22,6 +22,7 @@ bool gensio_uucp_locking_enabled = true;
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <signal.h>
+#include <gensio/gensio_os_funcs.h>
 
 static char *uucp_lck_dir = UUCP_LOCK_DIR;
 static char *dev_prefix = "/dev/";
