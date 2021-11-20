@@ -368,7 +368,7 @@ int main(int argc, char *argv[])
     const char *test = "mux,tcp,localhost,";
     const char *errstr;
 
-    o->vlog = gensio_log;
+    o.set_vlog(gensio_log);
     o.proc_setup();
 
     if (argc > 1) {

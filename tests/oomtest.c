@@ -314,7 +314,7 @@ ipmisim_cb(struct gensio *io, void *user_data, int event, int err,
 
 	if (verbose)
 	    printf("IPMISIM err: %s\n", gensio_err_to_str(err));
-	test->o->wake(test->waiter);
+	gensio_os_funcs_wake(test->o, test->waiter);
 	return 0;
     }
 
@@ -339,7 +339,7 @@ ipmisim_cb(struct gensio *io, void *user_data, int event, int err,
 	    if (test->wait_pos >= sizeof(waitstr)) {
 		test->wait_pos = 0;
 		test->str_found = true;
-		test->o->wake(test->waiter);
+		gensio_os_funcs_wake(test->o, test->waiter);
 		break;
 	    }
 	} else {
@@ -362,7 +362,7 @@ ipmisim_err_cb(struct gensio *io, void *user_data, int event, int err,
 	gensio_set_read_callback_enable(io, false);
 	if (verbose)
 	    printf("IPMISIM err err: %s\n", gensio_err_to_str(err));
-	test->o->wake(test->waiter);
+	gensio_os_funcs_wake(test->o, test->waiter);
 	return 0;
     }
 
@@ -428,7 +428,8 @@ ipmisim_start(struct gensio_os_funcs *o, struct oom_tests *test)
     gensio_set_read_callback_enable(test->io2, true);
 
  retry:
-    err = o->wait_intr_sigmask(test->waiter, 1, &timeout, proc_data);
+    err = gensio_os_funcs_wait_intr_sigmask(o, test->waiter,
+					    1, &timeout, proc_data);
     if (err == GE_INTERRUPTED)
 	goto retry;
     if (test->err)
@@ -495,7 +496,7 @@ ipmisim_finish(struct gensio_os_funcs *o, struct oom_tests *test)
 	test->args = NULL;
     }
     if (test->waiter) {
-	o->free_waiter(test->waiter);
+	gensio_os_funcs_free_waiter(o, test->waiter);
 	test->waiter = NULL;
     }
     test->o = NULL;
@@ -573,7 +574,7 @@ check_ipmisim_present(struct gensio_os_funcs *o, struct oom_tests *test)
 	goto out_err;
     }
 
-    test->waiter = o->alloc_waiter(o);
+    test->waiter = gensio_os_funcs_alloc_waiter(o);
     if (!test->waiter) {
 	printf("Unable to allocate ipmi_sim ewaiter,\n"
 	       "skipping ipmisol test\n");
@@ -716,7 +717,7 @@ gensio_loop(void *info)
 {
     struct gensio_waiter *closewaiter = info;
 
-    o->wait(closewaiter, 1, NULL);
+    gensio_os_funcs_wait(o, closewaiter, 1, NULL);
 }
 
 static void
@@ -865,7 +866,7 @@ i_od_deref_and_unlock(struct oom_test_data *od, int line)
 	    gensio_free(od->scon.io);
 	if (od->ccon_stderr_io)
 	    gensio_free(od->ccon_stderr_io);
-	o->free_waiter(od->waiter);
+	gensio_os_funcs_free_waiter(o, od->waiter);
 	od->finished = true;
 	od->next = old_ods;
 	old_ods = od;
@@ -917,7 +918,7 @@ ccon_stderr_closed(struct gensio *io, void *close_data)
 	od->ccon_exit_code_set = true;
     }
     od->ccon_stderr_io = NULL;
-    o->wake(od->waiter);
+    gensio_os_funcs_wake(o, od->waiter);
     gensio_free(io);
     od_deref_and_unlock(od);
 }
@@ -934,7 +935,7 @@ con_closed(struct gensio *io, void *close_data)
     id->closed = true;
     gensio_free(io);
     id->io = NULL;
-    o->wake(od->waiter);
+    gensio_os_funcs_wake(o, od->waiter);
     od_deref_and_unlock(od);
 }
 
@@ -947,7 +948,7 @@ acc_closed(struct gensio_accepter *acc, void *close_data)
     assert(acc == od->acc);
     LOCK(&od->lock);
     od->acc = NULL;
-    o->wake(od->waiter);
+    gensio_os_funcs_wake(o, od->waiter);
     gensio_acc_free(acc);
     od_deref_and_unlock(od);
 }
@@ -999,7 +1000,7 @@ con_cb(struct gensio *io, void *user_data,
 	} else {
 	    id->got_end = true;
 	}
-	o->wake(od->waiter);
+	gensio_os_funcs_wake(o, od->waiter);
 	goto out;
     }
 
@@ -1015,7 +1016,7 @@ con_cb(struct gensio *io, void *user_data,
 		   (long) id->read_pos, (long) *buflen, buf);
 	    fflush(stdout);
 	    assert(!debug);
-	    o->wake(od->waiter);
+	    gensio_os_funcs_wake(o, od->waiter);
 	    goto out_leave_read;
 	}
 
@@ -1024,12 +1025,12 @@ con_cb(struct gensio *io, void *user_data,
 	    gensio_set_write_callback_enable(io, false);
 	    gensio_set_read_callback_enable(io, false);
 	    id->err = OOME_DATA_MISMATCH;
-	    o->wake(od->waiter);
+	    gensio_os_funcs_wake(o, od->waiter);
 	}
 
 	id->read_pos += *buflen;
 	if (id->read_pos >= od->io_size)
-	    o->wake(od->waiter);
+	    gensio_os_funcs_wake(o, od->waiter);
     out_leave_read:
 	id->in_read = false;
 	break;
@@ -1060,13 +1061,13 @@ con_cb(struct gensio *io, void *user_data,
 		gensio_set_write_callback_enable(io, false);
 		gensio_set_read_callback_enable(io, false);
 		id->err = rv;
-		o->wake(od->waiter);
+		gensio_os_funcs_wake(o, od->waiter);
 	    } else {
 		id->write_pos += count;
 	    }
 	} else {
 	    gensio_set_write_callback_enable(io, false);
-	    o->wake(od->waiter);
+	    gensio_os_funcs_wake(o, od->waiter);
 	}
 	id->in_write = false;
 	break;
@@ -1152,7 +1153,7 @@ ccon_stderr_cb(struct gensio *io, void *user_data,
 	od->stderr_rem_closed = true;
 	if (!od->stderr_expect_close || err != GE_REMCLOSE)
 	    od->ccon.err = err;
-	o->wake(od->waiter);
+	gensio_os_funcs_wake(o, od->waiter);
 	OOMUNLOCK(&od->lock);
 	return 0;
     }
@@ -1197,7 +1198,7 @@ ccon_stderr_cb(struct gensio *io, void *user_data,
 			    fflush(stdout);
 			}
 			od->invalid_port_data = true;
-			o->wake(od->waiter);
+			gensio_os_funcs_wake(o, od->waiter);
 			return 0;
 		    }
 		    s = strchr(od->ccon_stderr, ':');
@@ -1216,7 +1217,7 @@ ccon_stderr_cb(struct gensio *io, void *user_data,
 		od->ccon_stderr_pos = size;
 		if (done) {
 		    od->look_for_port = false;
-		    o->wake(od->waiter);
+		    gensio_os_funcs_wake(o, od->waiter);
 		}
 		if (od->ccon_stderr_pos)
 		    goto more_data;
@@ -1243,7 +1244,7 @@ ccon_stderr_open_done(struct gensio *io, int err, void *open_data)
     if (err) {
 	assert(!debug || err == GE_REMCLOSE);
 	od->ccon.err = err;
-	o->wake(od->waiter);
+	gensio_os_funcs_wake(o, od->waiter);
     } else {
 	gensio_set_read_callback_enable(io, true);
     }
@@ -1260,7 +1261,7 @@ scon_open_done(struct gensio *io, int err, void *open_data)
     assert(!od->finished);
     OOMLOCK(&od->lock);
     assert(!id->open_done);
-    o->wake(od->waiter);
+    gensio_os_funcs_wake(o, od->waiter);
     if (id->closed)
 	goto out_unlock;
 
@@ -1299,7 +1300,7 @@ ccon_open_done(struct gensio *io, int err, void *open_data)
     assert(!od->finished);
     OOMLOCK(&od->lock);
     assert(!id->open_done);
-    o->wake(od->waiter);
+    gensio_os_funcs_wake(o, od->waiter);
     if (id->closed)
 	goto out_unlock;
 
@@ -1363,7 +1364,7 @@ alloc_od(struct oom_tests *test)
     if (!od)
 	return NULL;
     od->refcount = 1;
-    od->waiter = o->alloc_waiter(o);
+    od->waiter = gensio_os_funcs_alloc_waiter(o);
     if (!od->waiter) {
 	o->free(o, od);
 	return NULL;
@@ -1389,7 +1390,8 @@ wait_for_data(struct oom_test_data *od, gensio_time *timeout)
 
     for (;;) {
 	OOMUNLOCK(&od->lock);
-	rv = o->wait_intr_sigmask(od->waiter, 1, timeout, proc_data);
+	rv = gensio_os_funcs_wait_intr_sigmask(o, od->waiter,
+					       1, timeout, proc_data);
 	OOMLOCK(&od->lock);
 	if (rv == GE_INTERRUPTED)
 	    continue;
@@ -1435,7 +1437,8 @@ close_con(struct io_test_data *id, gensio_time *timeout)
     /* Make sure the open completes. */
     while (!id->open_done) {
 	OOMUNLOCK(&od->lock);
-	rv = o->wait_intr_sigmask(id->od->waiter, 1, timeout, proc_data);
+	rv = gensio_os_funcs_wait_intr_sigmask(o, id->od->waiter,
+					       1, timeout, proc_data);
 	OOMLOCK(&od->lock);
 	if (rv == GE_TIMEDOUT) {
 	    printf("Waiting on timeout err A\n");
@@ -1474,7 +1477,8 @@ close_stderr(struct oom_test_data *od, gensio_time *timeout)
 
     while (!od->stderr_rem_closed) {
 	OOMUNLOCK(&od->lock);
-	rv = o->wait_intr_sigmask(od->waiter, 1, timeout, proc_data);
+	rv = gensio_os_funcs_wait_intr_sigmask(o, od->waiter,
+					       1, timeout, proc_data);
 	OOMLOCK(&od->lock);
 	if (rv == GE_TIMEDOUT) {
 	    printf("Waiting on timeout err G1\n");
@@ -1499,7 +1503,8 @@ close_stderr(struct oom_test_data *od, gensio_time *timeout)
     od_ref(od); /* Ref for the close */
     while (od->ccon_stderr_io) {
 	OOMUNLOCK(&od->lock);
-	rv = o->wait_intr_sigmask(od->waiter, 1, timeout, proc_data);
+	rv = gensio_os_funcs_wait_intr_sigmask(o, od->waiter,
+					       1, timeout, proc_data);
 	OOMLOCK(&od->lock);
 	if (rv == GE_TIMEDOUT) {
 	    printf("Waiting on timeout err G\n");
@@ -1534,7 +1539,8 @@ close_cons(struct oom_test_data *od, bool close_acc, gensio_time *timeout)
 
     while (!err && (od->ccon.io || od->scon.io)) {
 	OOMUNLOCK(&od->lock);
-	rv = o->wait_intr_sigmask(od->waiter, 1, timeout, proc_data);
+	rv = gensio_os_funcs_wait_intr_sigmask(o, od->waiter,
+					       1, timeout, proc_data);
 	OOMLOCK(&od->lock);
 	if (rv == GE_TIMEDOUT) {
 	    printf("Waiting on timeout err B\n");
@@ -1662,7 +1668,8 @@ run_oom_test(struct oom_tests *test, long count, int *exitcode,
 	    od_ref(od); /* Ref for the close */
 	    while (od->acc) {
 		OOMUNLOCK(&od->lock);
-		rv = o->wait_intr_sigmask(od->waiter, 1, &timeout, proc_data);
+		rv = gensio_os_funcs_wait_intr_sigmask(o, od->waiter,
+						       1, &timeout, proc_data);
 		OOMLOCK(&od->lock);
 		if (rv == GE_TIMEDOUT) {
 		    printf("Waiting on timeout err C\n");
@@ -1762,7 +1769,8 @@ run_oom_acc_test(struct oom_tests *test, long count, int *exitcode,
 
     for (;;) {
 	OOMUNLOCK(&od->lock);
-	rv = o->wait_intr_sigmask(od->waiter, 1, &timeout, proc_data);
+	rv = gensio_os_funcs_wait_intr_sigmask(o, od->waiter,
+					       1, &timeout, proc_data);
 	OOMLOCK(&od->lock);
 	if (debug && rv == GE_TIMEDOUT) {
 	    printf("Waiting on err E\n");
@@ -2203,7 +2211,7 @@ main(int argc, char *argv[])
 		gensio_err_to_str(rv));
 	goto out_err;
     }
-    o->vlog = do_vlog;
+    gensio_os_funcs_set_vlog(o, do_vlog);
 
     rv = gensio_os_proc_setup(o, &proc_data);
     if (rv) {
@@ -2252,7 +2260,7 @@ main(int argc, char *argv[])
 	o->free(o, s);
 
     for (i = 0; i < num_extra_threads; i++) {
-	loopwaiter[i] = o->alloc_waiter(o);
+	loopwaiter[i] = gensio_os_funcs_alloc_waiter(o);
 	if (!loopwaiter[i]) {
 	    fprintf(stderr, "Could not allocate loop waiter\n");
 	    goto out_err;
@@ -2295,9 +2303,9 @@ main(int argc, char *argv[])
     gensio_argv_free(o, env.argv);
 
     for (i = 0; i < num_extra_threads; i++) {
-	o->wake(loopwaiter[i]);
+	gensio_os_funcs_wake(o, loopwaiter[i]);
 	gensio_os_wait_thread(loopth[i]);
-	o->free_waiter(loopwaiter[i]);
+	gensio_os_funcs_free_waiter(o, loopwaiter[i]);
     }
 
     for (i = 0; oom_tests[i].connecter; i++) {
@@ -2306,7 +2314,7 @@ main(int argc, char *argv[])
     }
 
     printf("Got %ld errors, skipped %ld tests\n", errcount, skipcount);
-    while (o && o->service(o, &zerotime) == 0)
+    while (o && gensio_os_funcs_service(o, &zerotime) == 0)
 	;
     cleanup_ods();
     gensio_cleanup_mem(o);
@@ -2319,7 +2327,7 @@ main(int argc, char *argv[])
     o->free(o, gensiot);
     cleanup_ods();
     gensio_cleanup_mem(o);
-    o->free_funcs(o);
+    gensio_os_funcs_free(o);
     gensio_osfunc_exit(1);
     return 1;
 }

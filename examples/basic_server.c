@@ -61,7 +61,7 @@ shutdown_done(struct gensio_accepter *acc, void *shutdown_data)
 {
     struct accinfo *ai = shutdown_data;
 
-    ai->o->wake(ai->waiter);
+    gensio_os_funcs_wake(ai->o, ai->waiter);
 }
 
 static void
@@ -300,7 +300,7 @@ thread2(void *data)
 {
     struct accinfo *ai = data;
 
-    ai->o->wait(ai->thread2_waiter, 1, NULL);
+    gensio_os_funcs_wait(ai->o, ai->thread2_waiter, 1, NULL);
 }
 
 int
@@ -325,7 +325,7 @@ main(int argc, char *argv[])
 		gensio_err_to_str(rv));
 	return 1;
     }
-    ai.o->vlog = do_vlog;
+    gensio_os_funcs_set_vlog(ai.o, do_vlog);
 
     rv = gensio_os_proc_setup(ai.o, &proc_data);
     if (rv) {
@@ -334,14 +334,14 @@ main(int argc, char *argv[])
 	return 1;
     }
 
-    ai.waiter = ai.o->alloc_waiter(ai.o);
+    ai.waiter = gensio_os_funcs_alloc_waiter(ai.o);
     if (!ai.waiter) {
 	rv = GE_NOMEM;
 	fprintf(stderr, "Could not waiter, out of memory\n");
 	goto out_err;
     }
 
-    ai.thread2_waiter = ai.o->alloc_waiter(ai.o);
+    ai.thread2_waiter = gensio_os_funcs_alloc_waiter(ai.o);
     if (!ai.thread2_waiter) {
 	rv = GE_NOMEM;
 	fprintf(stderr, "Could not thread2 waiter, out of memory\n");
@@ -371,21 +371,21 @@ main(int argc, char *argv[])
 	goto out_err;
     }
 
-    rv = ai.o->wait(ai.waiter, 1, NULL);
+    rv = gensio_os_funcs_wait(ai.o, ai.waiter, 1, NULL);
 
  out_err:
     if (tid2) {
-	ai.o->wake(ai.thread2_waiter);
+	gensio_os_funcs_wake(ai.o, ai.thread2_waiter);
 	gensio_os_wait_thread(tid2);
     }
     if (ai.acc)
 	gensio_acc_free(ai.acc);
     if (ai.waiter)
-	ai.o->free_waiter(ai.waiter);
+	gensio_os_funcs_free_waiter(ai.o, ai.waiter);
     if (ai.thread2_waiter)
-	ai.o->free_waiter(ai.thread2_waiter);
+	gensio_os_funcs_free_waiter(ai.o, ai.thread2_waiter);
     gensio_os_proc_cleanup(proc_data);
-    ai.o->free_funcs(ai.o);
+    gensio_os_funcs_free(ai.o);
 
     return !!rv;
 }

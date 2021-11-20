@@ -197,7 +197,7 @@ main(int argc, char *argv[])
 		gensio_err_to_str(rv));
 	return 1;
     }
-    o->vlog = do_vlog;
+    gensio_os_funcs_set_vlog(o, do_vlog);
 
     rv = gensio_os_proc_setup(o, &proc_data);
     if (rv) {
@@ -260,7 +260,7 @@ main(int argc, char *argv[])
 	gensio_acc_free(acc);
     }
     gensio_os_proc_cleanup(proc_data);
-    o->free_funcs(o);
+    gensio_os_funcs_free(o);
 
     return !!rv;
 }

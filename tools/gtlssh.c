@@ -65,7 +65,7 @@ gshutdown(struct ioinfo *ioinfo, bool user_req)
 {
     struct gdata *ginfo = ioinfo_userdata(ioinfo);
 
-    ginfo->o->wake(ginfo->waiter);
+    gensio_os_funcs_wake(ginfo->o, ginfo->waiter);
 }
 
 static void
@@ -301,7 +301,7 @@ io_close(struct gensio *io, void *close_data)
     struct gdata *ginfo = ioinfo_userdata(ioinfo);
     struct gensio_waiter *closewaiter = close_data;
 
-    ginfo->o->wake(closewaiter);
+    gensio_os_funcs_wake(ginfo->o, closewaiter);
 }
 
 static const char *progname;
@@ -1663,7 +1663,7 @@ mdns_cb(struct gensio_mdns_watch *w,
     if (addrstr)
 	o->free(o, addrstr);
     cb_data->done = true;
-    o->wake(cb_data->wait);
+    gensio_os_funcs_wake(o, cb_data->wait);
 }
 
 static void
@@ -1671,7 +1671,7 @@ mdns_freed(struct gensio_mdns *m, void *userdata)
 {
     struct mdns_cb_data *cb_data = userdata;
 
-    cb_data->o->wake(cb_data->wait);
+    gensio_os_funcs_wake(cb_data->o, cb_data->wait);
 }
 
 static int
@@ -1689,7 +1689,7 @@ lookup_mdns_transport(struct gensio_os_funcs *o, const char *name,
     memset(&cb_data, 0, sizeof(cb_data));
     cb_data.err = GE_NOTFOUND;
     cb_data.o = o;
-    cb_data.wait = o->alloc_waiter(o);
+    cb_data.wait = gensio_os_funcs_alloc_waiter(o);
     if (!cb_data.wait) {
 	fprintf(stderr, "Unable to allocate wait: out of memory\n");
 	return 1;
@@ -1702,7 +1702,7 @@ lookup_mdns_transport(struct gensio_os_funcs *o, const char *name,
 
     err = gensio_alloc_mdns(o, &mdns);
     if (err) {
-	o->free_waiter(cb_data.wait);
+	gensio_os_funcs_free_waiter(o, cb_data.wait);
 	fprintf(stderr, "Unable to allocate mdns data: %s\n",
 		gensio_err_to_str(err));
 	return 1;
@@ -1711,19 +1711,19 @@ lookup_mdns_transport(struct gensio_os_funcs *o, const char *name,
     err = gensio_mdns_add_watch(mdns, -1, nettype, name, type, NULL, NULL,
 				mdns_cb, &cb_data, &mdns_watch);
     if (err) {
-	o->free_waiter(cb_data.wait);
+	gensio_os_funcs_free_waiter(o, cb_data.wait);
 	gensio_free_mdns(mdns, NULL, NULL);
 	fprintf(stderr, "Unable to add mdns watch: %s\n",
 		gensio_err_to_str(err));
 	return 1;
     }
 
-    o->wait(cb_data.wait, 1, &timeout);
+    gensio_os_funcs_wait(o, cb_data.wait, 1, &timeout);
 
     gensio_mdns_remove_watch(mdns_watch, NULL, NULL);
     gensio_free_mdns(mdns, mdns_freed, &cb_data);
 
-    o->wait(cb_data.wait, 1, NULL);
+    gensio_os_funcs_wait(o, cb_data.wait, 1, NULL);
 
     if (cb_data.err) {
 	fprintf(stderr, "Error looking up %s with mdns: %s\n",
@@ -1788,13 +1788,13 @@ main(int argc, char *argv[])
 		gensio_err_to_str(err));
 	return 1;
     }
-    o->vlog = do_vlog;
+    gensio_os_funcs_set_vlog(o, do_vlog);
 
     err = gensio_os_proc_setup(o, &proc_data);
     if (err) {
 	fprintf(stderr, "Could not setup process data: %s\n",
 		gensio_err_to_str(err));
-	o->free_funcs(o);
+	gensio_os_funcs_free(o);
 	return 1;
     }
 
@@ -2037,14 +2037,14 @@ main(int argc, char *argv[])
     userdata1.o = o;
     userdata2.o = o;
 
-    userdata1.waiter = o->alloc_waiter(o);
+    userdata1.waiter = gensio_os_funcs_alloc_waiter(o);
     if (!userdata1.waiter) {
 	fprintf(stderr, "Could not allocate OS waiter\n");
 	return 1;
     }
     userdata2.waiter = userdata1.waiter;
 
-    closewaiter = o->alloc_waiter(o);
+    closewaiter = gensio_os_funcs_alloc_waiter(o);
     if (!closewaiter) {
 	fprintf(stderr, "Could not allocate close waiter\n");
 	return 1;
@@ -2217,7 +2217,7 @@ main(int argc, char *argv[])
     start_local_ports(userdata2.io);
     start_remote_ports(ioinfo2);
 
-    o->wait(userdata1.waiter, 1, NULL);
+    gensio_os_funcs_wait(o, userdata1.waiter, 1, NULL);
 
  closeit:
     free(service);
@@ -2241,7 +2241,7 @@ main(int argc, char *argv[])
     }
 
     if (closecount > 0)
-	o->wait(closewaiter, closecount, NULL);
+	gensio_os_funcs_wait(o, closewaiter, closecount, NULL);
 
     if (CAspec)
 	o->free(o, CAspec);
@@ -2255,8 +2255,8 @@ main(int argc, char *argv[])
 
     if (userdata2.ios)
 	free(userdata2.ios);
-    o->free_waiter(closewaiter);
-    o->free_waiter(userdata1.waiter);
+    gensio_os_funcs_free_waiter(o, closewaiter);
+    gensio_os_funcs_free_waiter(o, userdata1.waiter);
 
     free_ioinfo(ioinfo1);
     free_ioinfo(ioinfo2);
@@ -2264,7 +2264,7 @@ main(int argc, char *argv[])
     free_ser_ioinfo(subdata2);
 
     gensio_os_proc_cleanup(proc_data);
-    o->free_funcs(o);
+    gensio_os_funcs_free(o);
     if (keyname)
 	free(keyname);
     if (certname)

@@ -275,7 +275,7 @@ closecount_decr(struct gdata *ginfo)
     assert(ginfo->closecount > 0);
     ginfo->closecount--;
     if (ginfo->closecount == 0)
-	ginfo->o->wake(ginfo->waiter);
+	gensio_os_funcs_wake(ginfo->o, ginfo->waiter);
 }
 
 static void
@@ -353,11 +353,11 @@ gshutdown(struct ioinfo *ioinfo, bool user_req)
     struct gdata *ginfo = pcinfo->ginfo;
 
     if (user_req) {
-	ginfo->o->wake(ginfo->waiter);
+	gensio_os_funcs_wake(ginfo->o, ginfo->waiter);
     } else {
 	close_con_info(pcinfo);
 	if (ginfo->closecount == 0)
-	    ginfo->o->wake(ginfo->waiter);
+	    gensio_os_funcs_wake(ginfo->o, ginfo->waiter);
     }
 }
 
@@ -1367,7 +1367,7 @@ acc_event(struct gensio_accepter *accepter, void *user_data,
 	 * so parent doesn't own us.  We have to tell the os handler,
 	 * too that we forked, or epoll() misbehaves.
 	 */
-	err = o->handle_fork(o);
+	err = gensio_os_funcs_handle_fork(o);
 	if (err) {
 	    syslog(LOG_ERR, "Could not fork gensio handler: %s",
 		   gensio_err_to_str(err));
@@ -1595,13 +1595,13 @@ main(int argc, char *argv[])
 		gensio_err_to_str(rv));
 	return 1;
     }
-    o->vlog = do_vlog;
+    gensio_os_funcs_set_vlog(o, do_vlog);
 
     rv = gensio_os_proc_setup(o, &proc_data);
     if (rv) {
 	fprintf(stderr, "Could not setup process data: %s\n",
 		gensio_err_to_str(rv));
-	o->free_funcs(o);
+	gensio_os_funcs_free(o);
 	return 1;
     }
 
@@ -1618,7 +1618,7 @@ main(int argc, char *argv[])
 	return 1;
     }
 
-    ginfo.waiter = o->alloc_waiter(o);
+    ginfo.waiter = gensio_os_funcs_alloc_waiter(o);
     if (!ginfo.waiter) {
 	fprintf(stderr, "Could not allocate OS waiter\n");
 	return 1;
@@ -1729,7 +1729,7 @@ main(int argc, char *argv[])
 		exit(1);
 	    }
 	}
-	o->handle_fork(o);
+	gensio_os_funcs_handle_fork(o);
 
 	/* Close all my standard I/O. */
 	if (chdir("/") < 0) {
@@ -1743,7 +1743,7 @@ main(int argc, char *argv[])
 	make_pidfile();
     }
 
-    o->wait(ginfo.waiter, 1, NULL);
+    gensio_os_funcs_wait(o, ginfo.waiter, 1, NULL);
 
     if (tcp_acc) {
 	ginfo.closecount++;
@@ -1778,7 +1778,7 @@ main(int argc, char *argv[])
     close_cons(&ginfo);
 
     if (ginfo.closecount > 0)
-	o->wait(ginfo.waiter, 1, NULL);
+	gensio_os_funcs_wait(o, ginfo.waiter, 1, NULL);
 
     if (tcp_acc)
 	gensio_acc_free(tcp_acc);
@@ -1790,10 +1790,10 @@ main(int argc, char *argv[])
     free(ginfo.key);
     free(ginfo.cert);
 
-    o->free_waiter(ginfo.waiter);
+    gensio_os_funcs_free_waiter(o, ginfo.waiter);
 
     gensio_os_proc_cleanup(proc_data);
-    o->free_funcs(o);
+    gensio_os_funcs_free(o);
 
     if (passwd) {
 	memset(passwd, 0, strlen(passwd));

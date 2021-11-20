@@ -27,7 +27,7 @@ namespace gensio {
 
 	err = gensio_os_proc_setup(osf, &proc_data);
 	if (err) {
-	    osf->free_funcs(osf);
+	    gensio_os_funcs_free(osf);
 	    throw gensio_error(err);
 	}
     }
@@ -37,7 +37,7 @@ namespace gensio {
 	if (refcnt->fetch_sub(1) == 1) {
 	    if (proc_data)
 		gensio_os_proc_cleanup(proc_data);
-	    osf->free_funcs(osf);
+	    gensio_os_funcs_free(osf);
 	    delete refcnt;
 	}
     }
@@ -1163,19 +1163,19 @@ namespace gensio {
 
     Waiter::Waiter(Os_Funcs &io) : o(io)
     {
-	waiter = o->alloc_waiter(o);
+	waiter = gensio_os_funcs_alloc_waiter(o);
 	if (!waiter)
 	    throw std::bad_alloc();
     }
 
     Waiter::~Waiter()
     {
-	o->free_waiter(waiter);
+	gensio_os_funcs_free_waiter(o, waiter);
     }
 
     void Waiter:: wake()
     {
-	o->wake(waiter);
+	gensio_os_funcs_wake(o, waiter);
     }
 
     class Std_Ser_Op_Done: public Serial_Op_Done {
@@ -2065,7 +2065,7 @@ namespace gensio {
 
     int
     Waiter::wait(unsigned int count, gensio_time *timeout) {
-	int rv = o->wait(waiter, count, timeout);
+	int rv = gensio_os_funcs_wait(o, waiter, count, timeout);
 
 	if (rv == GE_TIMEDOUT)
 	    return rv;
@@ -2077,8 +2077,8 @@ namespace gensio {
     int
     Waiter::wait_intr(unsigned int count, gensio_time *timeout)
     {
-	int rv = o->wait_intr_sigmask(waiter, count, timeout,
-				      o.get_proc_data());
+	int rv = gensio_os_funcs_wait_intr_sigmask(o, waiter, count, timeout,
+						   o.get_proc_data());
 
 	if (rv == GE_TIMEDOUT || rv == GE_INTERRUPTED)
 	    return rv;

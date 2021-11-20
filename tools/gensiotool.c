@@ -234,7 +234,7 @@ check_finish(struct ioinfo *ioinfo)
     free_ser_ioinfo(osubdata);
 
     if (!g->server_mode || (g->in_shutdown && gensio_list_empty(&g->io_list)))
-	g->o->wake(g->waiter);
+	gensio_os_funcs_wake(g->o, g->waiter);
 }
 
 static void
@@ -553,7 +553,7 @@ add_io(struct gtinfo *g, struct gensio *io, bool open_finished)
     if (ioinfo2)
 	free_ioinfo(ioinfo2);
     if (!g->server_mode)
-	g->o->wake(g->waiter);
+	gensio_os_funcs_wake(g->o, g->waiter);
     return err;
 }
 
@@ -583,7 +583,7 @@ i_handle_term(struct gtinfo *g)
 	}
     }
     if (!closed_one)
-	g->o->wake(g->waiter);
+	gensio_os_funcs_wake(g->o, g->waiter);
 }
 
 static void
@@ -609,7 +609,7 @@ io_acc_event(struct gensio_accepter *accepter, void *user_data,
 	vreport_err(g, li->str, li->args);
 
 	g->err = 1;
-	g->o->wake(g->waiter);
+	gensio_os_funcs_wake(g->o, g->waiter);
 	return 0;
     }
 
@@ -727,7 +727,7 @@ gensio_loop(void *info)
 {
     struct gensio_loop_info *li = info;
 
-    li->o->wait(li->loopwaiter, 1, NULL);
+    gensio_os_funcs_wait(li->o, li->loopwaiter, 1, NULL);
 }
 
 #ifndef _WIN32
@@ -900,9 +900,9 @@ main(int argc, char *argv[])
 	goto out_err;
     }
     g.o->other_data = &g;
-    g.o->vlog = do_vlog;
+    gensio_os_funcs_set_vlog(g.o, do_vlog);
 
-    g.waiter = g.o->alloc_waiter(g.o);
+    g.waiter = gensio_os_funcs_alloc_waiter(g.o);
     if (!g.waiter) {
 	rv = GE_NOMEM;
 	fprintf(stderr, "Could not allocate OS waiter\n");
@@ -932,7 +932,7 @@ main(int argc, char *argv[])
 
     for (i = 0; i < num_extra_threads; i++) {
 	loopinfo[i].o = g.o;
-	loopinfo[i].loopwaiter = g.o->alloc_waiter(g.o);
+	loopinfo[i].loopwaiter = gensio_os_funcs_alloc_waiter(g.o);
 	if (!loopinfo[i].loopwaiter) {
 	    fprintf(stderr, "Could not allocate loop waiter\n");
 	    goto out_err;
@@ -992,7 +992,7 @@ main(int argc, char *argv[])
     if (rv)
 	handle_term(&g);
 
-    g.o->wait(g.waiter, 1, NULL);
+    gensio_os_funcs_wait(g.o, g.waiter, 1, NULL);
 
  out_err:
     if (io)
@@ -1011,11 +1011,11 @@ main(int argc, char *argv[])
 
     for (i = 0; loopinfo && i < num_extra_threads; i++) {
 	if (loopinfo[i].loopth) {
-	    g.o->wake(loopinfo[i].loopwaiter);
+	    gensio_os_funcs_wake(g.o, loopinfo[i].loopwaiter);
 	    gensio_os_wait_thread(loopinfo[i].loopth);
 	}
 	if (loopinfo[i].loopwaiter)
-	    g.o->free_waiter(loopinfo[i].loopwaiter);
+	    gensio_os_funcs_free_waiter(g.o, loopinfo[i].loopwaiter);
     }
     if (loopinfo)
 	g.o->free(g.o, loopinfo);
@@ -1029,7 +1029,7 @@ main(int argc, char *argv[])
      */
     if (gensio_num_alloced() == 0)
 	endwait.secs = 0; /* Just run events until we are out. */
-    while (g.o && g.o->service(g.o, &endwait) != GE_TIMEDOUT) {
+    while (g.o && gensio_os_funcs_service(g.o, &endwait) != GE_TIMEDOUT) {
 	if (gensio_num_alloced() == 0) {
 	    /* Waiting for no gensios left, then run events til we are out. */
 	    endwait.secs = 0;
@@ -1037,14 +1037,14 @@ main(int argc, char *argv[])
 	}
     }
     if (g.waiter)
-	g.o->free_waiter(g.waiter);
+	gensio_os_funcs_free_waiter(g.o, g.waiter);
     if (g.lock)
 	g.o->free_lock(g.lock);
     if (proc_data)
 	gensio_os_proc_cleanup(proc_data);
     if (g.o) {
 	gensio_cleanup_mem(g.o);
-	g.o->free_funcs(g.o);
+	gensio_os_funcs_free(g.o);
     }
 
 #ifndef _WIN32

@@ -11,6 +11,7 @@
 #include <stdlib.h>
 #include <assert.h>
 #include <Python.h>
+#include <gensio/gensio.h>
 #include <gensio/gensio_os_funcs.h>
 #include <gensio/gensio_swig.h>
 #include "python_swig_internals.h"
@@ -125,7 +126,7 @@ gensio_swig_setup_os_funcs(struct gensio_os_funcs *o,
 	odata->log_handler = gensio_python_ref_swig_cb_i(log_handler);
     else
 	odata->log_handler = NULL;
-    o->vlog = gensio_do_vlog;
+    gensio_os_funcs_set_vlog(o, gensio_do_vlog);
     o->other_data = odata;
 }
 
@@ -161,7 +162,7 @@ check_os_funcs_free(struct gensio_os_funcs *o)
 	pthread_mutex_destroy(&odata->lock);
 #endif
 	free(odata);
-	o->free_funcs(o);
+	gensio_os_funcs_free(o);
     } else {
 	os_funcs_unlock(odata);
     }

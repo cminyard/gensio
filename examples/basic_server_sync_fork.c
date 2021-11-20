@@ -215,7 +215,7 @@ main(int argc, char *argv[])
 		gensio_err_to_str(rv));
 	return 1;
     }
-    o->vlog = do_vlog;
+    gensio_os_funcs_set_vlog(o, do_vlog);
 
     rv = gensio_os_proc_setup(o, &proc_data);
     if (rv) {
@@ -273,7 +273,7 @@ main(int argc, char *argv[])
 
 	    case 0:
 		/* Tell the selector code we forked.  You *must* do this. */
-		o->handle_fork(o);
+		gensio_os_funcs_handle_fork(o);
 
 		/* Disable the accepter, let the main program keep that. */
 		gensio_acc_disable(acc);
@@ -310,7 +310,7 @@ main(int argc, char *argv[])
 	gensio_acc_free(acc);
     }
     gensio_os_proc_cleanup(proc_data);
-    o->free_funcs(o);
+    gensio_os_funcs_free(o);
 
     return !!rv;
 }

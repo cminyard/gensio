@@ -32,6 +32,76 @@ struct gensio_classobj {
     struct gensio_classobj *next;
 };
 
+void
+gensio_os_funcs_set_vlog(struct gensio_os_funcs *o, gensio_vlog_func func)
+{
+    o->vlog = func;
+}
+
+void
+gensio_os_funcs_free(struct gensio_os_funcs *o)
+{
+    o->free_funcs(o);
+}
+
+struct gensio_waiter *
+gensio_os_funcs_alloc_waiter(struct gensio_os_funcs *o)
+{
+    return o->alloc_waiter(o);
+}
+
+void
+gensio_os_funcs_free_waiter(struct gensio_os_funcs *o,
+			    struct gensio_waiter *waiter)
+{
+    o->free_waiter(waiter);
+}
+
+int
+gensio_os_funcs_wait(struct gensio_os_funcs *o,
+		     struct gensio_waiter *waiter, unsigned int count,
+		     gensio_time *timeout)
+{
+    return o->wait(waiter, count, timeout);
+}
+
+int
+gensio_os_funcs_wait_intr(struct gensio_os_funcs *o,
+			  struct gensio_waiter *waiter, unsigned int count,
+			  gensio_time *timeout)
+{
+    return o->wait_intr(waiter, count, timeout);
+}
+
+int
+gensio_os_funcs_wait_intr_sigmask(struct gensio_os_funcs *o,
+				  struct gensio_waiter *waiter,
+				  unsigned int count,
+				  gensio_time *timeout,
+				  struct gensio_os_proc_data *proc_data)
+{
+    return o->wait_intr_sigmask(waiter, count, timeout, proc_data);
+}
+
+void
+gensio_os_funcs_wake(struct gensio_os_funcs *o,
+		     struct gensio_waiter *waiter)
+{
+    return o->wake(waiter);
+}
+
+int
+gensio_os_funcs_service(struct gensio_os_funcs *o, gensio_time *timeout)
+{
+    return o->service(o, timeout);
+}
+
+int
+gensio_os_funcs_handle_fork(struct gensio_os_funcs *o)
+{
+    return o->handle_fork(o);
+}
+
 static int
 gen_addclass(struct gensio_os_funcs *o,
 	     struct gensio_classobj **classes,

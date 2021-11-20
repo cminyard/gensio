@@ -83,7 +83,7 @@ wake_curr_waiter(void)
     if (!data)
 	return;
     if (data->curr_waiter)
-	data->curr_waiter->o->wake(data->curr_waiter->waiter);
+	gensio_os_funcs_wake(data->curr_waiter->o, data->curr_waiter->waiter);
 }
 
 #elif defined(USE_WIN32_THREADS)
@@ -158,7 +158,7 @@ wake_curr_waiter(void)
     if (!data)
 	return;
     if (data->curr_waiter)
-	data->curr_waiter->o->wake(data->curr_waiter->waiter);
+	gensio_os_funcs_wake(data->curr_waiter->o, data->curr_waiter->waiter);
 }
 
 #else
@@ -183,7 +183,7 @@ static void
 wake_curr_waiter(void)
 {
     if (curr_waiter)
-	curr_waiter->o->wake(curr_waiter->waiter);
+	gensio_os_funcs_wake(curr_waiter->o, curr_waiter->waiter);
 }
 #endif
 
@@ -196,11 +196,12 @@ gensio_do_wait(struct waiter *waiter, unsigned int count,
 
     do {
 	GENSIO_SWIG_C_BLOCK_ENTRY
-	err = waiter->o->wait_intr(waiter->waiter, count, timeout);
+	err = gensio_os_funcs_wait_intr(waiter->o,
+					waiter->waiter, count, timeout);
 	GENSIO_SWIG_C_BLOCK_EXIT
 	if (check_for_err(err)) {
 	    if (prev_waiter)
-		prev_waiter->o->wake(prev_waiter->waiter);
+		gensio_os_funcs_wake(prev_waiter->o, prev_waiter->waiter);
 	    break;
 	}
 	if (err == GE_INTERRUPTED)
@@ -218,11 +219,11 @@ gensio_do_service(struct waiter *waiter, gensio_time *timeout)
 
     do {
 	GENSIO_SWIG_C_BLOCK_ENTRY
-	err = waiter->o->service(waiter->o, timeout);
+	err = gensio_os_funcs_service(waiter->o, timeout);
 	GENSIO_SWIG_C_BLOCK_EXIT
 	if (check_for_err(err)) {
 	    if (prev_waiter)
-		prev_waiter->o->wake(prev_waiter->waiter);
+		gensio_os_funcs_wake(prev_waiter->o, prev_waiter->waiter);
 	    break;
 	}
 	if (err == GE_INTERRUPTED)
@@ -1246,7 +1247,7 @@ struct waiter { };
 
 	if (w) {
 	    w->o = o;
-	    w->waiter = o->alloc_waiter(o);
+	    w->waiter = gensio_os_funcs_alloc_waiter(o);
 	    if (!w->waiter) {
 		free(w);
 		w = NULL;
@@ -1262,7 +1263,7 @@ struct waiter { };
     }
 
     ~waiter() {
-	self->o->free_waiter(self->waiter);
+	gensio_os_funcs_free_waiter(self->o, self->waiter);
 	check_os_funcs_free(self->o);
 	free(self);
     }
@@ -1279,7 +1280,7 @@ struct waiter { };
     }
 
     void wake() {
-	self->o->wake(self->waiter);
+	gensio_os_funcs_wake(self->o, self->waiter);
     }
 
     long service(int timeout) {

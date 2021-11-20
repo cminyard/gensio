@@ -44,7 +44,7 @@ close_done(struct gensio *io, void *close_data)
 {
     struct coninfo *ci = close_data;
 
-    ci->o->wake(ci->waiter);
+    gensio_os_funcs_wake(ci->o, ci->waiter);
 }
 
 static void
@@ -156,7 +156,7 @@ main(int argc, char *argv[])
 		gensio_err_to_str(rv));
 	return 1;
     }
-    ci.o->vlog = do_vlog;
+    gensio_os_funcs_set_vlog(ci.o, do_vlog);
 
     rv = gensio_os_proc_setup(ci.o, &proc_data);
     if (rv) {
@@ -174,7 +174,7 @@ main(int argc, char *argv[])
     memcpy(ci.outbuf, argv[2], ci.outbuf_len);
     ci.outbuf[ci.outbuf_len++] = '\n';
 
-    ci.waiter = ci.o->alloc_waiter(ci.o);
+    ci.waiter = gensio_os_funcs_alloc_waiter(ci.o);
     if (!ci.waiter) {
 	rv = GE_NOMEM;
 	fprintf(stderr, "Could not waiter, out of memory\n");
@@ -196,18 +196,19 @@ main(int argc, char *argv[])
     }
 
     gensio_set_write_callback_enable(ci.io, true);
-    rv = ci.o->wait(ci.waiter, 1, NULL);
+    rv = gensio_os_funcs_wait(ci.o, ci.waiter, 1, NULL);
 
     if (ci.err)
 	rv = ci.err;
 
  out_err:
+    ci.o->free(ci.o, ci.outbuf);
     if (ci.io)
 	gensio_free(ci.io);
     if (ci.waiter)
-	ci.o->free_waiter(ci.waiter);
+	gensio_os_funcs_free_waiter(ci.o, ci.waiter);
     gensio_os_proc_cleanup(proc_data);
-    ci.o->free_funcs(ci.o);
+    gensio_os_funcs_free(ci.o);
 
     return !!rv;
 }

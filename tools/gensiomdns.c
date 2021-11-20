@@ -65,14 +65,14 @@ static void mdns_freed(struct gensio_mdns *m, void *userdata)
 {
     struct freed_data *f = userdata;
 
-    f->o->wake(f->closewaiter);
+    gensio_os_funcs_wake(f->o, f->closewaiter);
 }
 
 static void mdns_watch_freed(struct gensio_mdns_watch *w, void *userdata)
 {
     struct freed_data *f = userdata;
 
-    f->o->wake(f->closewaiter);
+    gensio_os_funcs_wake(f->o, f->closewaiter);
 }
 
 static const char *
@@ -109,7 +109,7 @@ mdns_info_found(struct gensio_mdns_watch *w,
     if (state == GENSIO_MDNS_ALL_FOR_NOW) {
 	printf("All-for-now:\n");
 	if (close_on_done)
-	    f->o->wake(f->closewaiter);
+	    gensio_os_funcs_wake(f->o, f->closewaiter);
 	return;
     }
 
@@ -137,7 +137,7 @@ sigfd_read(struct gensio_iod *iod, void *cb_data)
     struct signalfd_siginfo i;
 
     dummy = iod->f->read(iod, &i, sizeof(i), NULL);
-    f->o->wake(f->closewaiter);
+    gensio_os_funcs_wake(f->o, f->closewaiter);
 }
 
 static void
@@ -145,7 +145,7 @@ sigfd_cleared(struct gensio_iod *iod, void *cb_data)
 {
     struct freed_data *f = cb_data;
 
-    f->o->wake(f->closewaiter);
+    gensio_os_funcs_wake(f->o, f->closewaiter);
 }
 #endif
 
@@ -210,7 +210,7 @@ main(int argc, char *argv[])
 		gensio_err_to_str(rv));
 	goto out_err;
     }
-    o->vlog = do_vlog;
+    gensio_os_funcs_set_vlog(o, do_vlog);
 
     for (arg = 1; arg < argc; arg++) {
 	if (argv[arg][0] != '-')
@@ -267,7 +267,7 @@ main(int argc, char *argv[])
 	    return 1;
     }
 
-    closewaiter = o->alloc_waiter(o);
+    closewaiter = gensio_os_funcs_alloc_waiter(o);
     if (!closewaiter) {
 	rv = GE_NOMEM;
 	fprintf(stderr, "Could not allocate close waiter\n");
@@ -352,7 +352,7 @@ main(int argc, char *argv[])
 	}
     }
 
-    o->wait(closewaiter, 1, NULL);
+    gensio_os_funcs_wait(o, closewaiter, 1, NULL);
 
  out_err:
     if (service) {
@@ -367,7 +367,7 @@ main(int argc, char *argv[])
 	    fprintf(stderr, "Could not free mdns watch: %s\n",
 		    gensio_err_to_str(rv));
 	else
-	    o->wait(closewaiter, 1, NULL);
+	    gensio_os_funcs_wait(o, closewaiter, 1, NULL);
     }
 
     if (mdns) {
@@ -376,13 +376,13 @@ main(int argc, char *argv[])
 	    fprintf(stderr, "Could not free mdns handler: %s\n",
 		    gensio_err_to_str(rv));
 	else
-	    o->wait(closewaiter, 1, NULL);
+	    gensio_os_funcs_wait(o, closewaiter, 1, NULL);
     }
 
 #ifdef HAVE_SIGNALFD
     if (sigfd_set) {
 	o->clear_fd_handlers(sig_iod);
-	o->wait(closewaiter, 1, NULL);
+	gensio_os_funcs_wait(o, closewaiter, 1, NULL);
     }
     if (sig_iod)
 	o->release_iod(sig_iod);
@@ -394,14 +394,14 @@ main(int argc, char *argv[])
 	gensio_argv_free(o, txt);
 
     if (closewaiter)
-	o->free_waiter(closewaiter);
+	gensio_os_funcs_free_waiter(o, closewaiter);
     if (o) {
 	gensio_time endwait = { 0, 0 };
 
-	while (o->service(o, &endwait) != GE_TIMEDOUT)
+	while (gensio_os_funcs_service(o, &endwait) != GE_TIMEDOUT)
 	    ;
 	gensio_cleanup_mem(o);
-	o->free_funcs(o);
+	gensio_os_funcs_free(o);
     }
     gensio_osfunc_exit(!!rv);
 }

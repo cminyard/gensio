@@ -63,7 +63,7 @@ run_io_event(struct gensio *io, void *user_data,
 	    fprintf(stderr, "Error from stdio: %s\n", gensio_err_to_str(err));
 	    d->err = err;
 	}
-	d->o->wake(d->w);
+	gensio_os_funcs_wake(d->o, d->w);
 	return 0;
     }
 
@@ -99,7 +99,7 @@ run_io_event(struct gensio *io, void *user_data,
 		d->closestr_pos++;
 		if (d->closestr_pos == d->closestr_len) {
 		    d->closestr_len = 0;
-		    d->o->wake(d->w);
+		    gensio_os_funcs_wake(d->o, d->w);
 		}
 	    } else {
 		d->closestr_pos = 0;
@@ -146,7 +146,7 @@ run_errio_event(struct gensio *io, void *user_data,
 	    fprintf(stderr, "Error from stdio: %s\n", gensio_err_to_str(err));
 	    d->err = err;
 	}
-	d->o->wake(d->w);
+	gensio_os_funcs_wake(d->o, d->w);
 	return 0;
     }
 
@@ -236,7 +236,7 @@ run_get_output(const char *argv[],
 	d.errdata[0] = '\0';
     }
 
-    d.w = d.o->alloc_waiter(d.o);
+    d.w = gensio_os_funcs_alloc_waiter(d.o);
     if (!d.w) {
 	d.err = GE_NOMEM;
 	fprintf(stderr, "Error allocating os waiter: %s\n",
@@ -288,7 +288,7 @@ run_get_output(const char *argv[],
     gensio_set_read_callback_enable(io, true);
     gensio_set_read_callback_enable(errio, true);
 
-    d.o->wait(d.w, 1, NULL);
+    gensio_os_funcs_wait(d.o, d.w, 1, NULL);
 
  out:
     if (errio) {
@@ -314,9 +314,9 @@ run_get_output(const char *argv[],
 	gensio_free(io);
     }
     if (d.w)
-	d.o->free_waiter(d.w);
+	gensio_os_funcs_free_waiter(d.o, d.w);
     if (d.o)
-	d.o->free_funcs(d.o);
+	gensio_os_funcs_free(d.o);
 
     if (d.err) {
 	if (d.outdata)

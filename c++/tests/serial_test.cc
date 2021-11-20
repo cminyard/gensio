@@ -76,7 +76,7 @@ int main(int argc, char *argv[])
 #endif
     unsigned int v;
 
-    o->vlog = gensio_log;
+    o.set_vlog(gensio_log);
     o.proc_setup();
 
     err = 0;

@@ -63,6 +63,11 @@ namespace gensio {
 	    osf = o;
 	}
 
+	void set_vlog(gensio_vlog_func func)
+	{
+	    gensio_os_funcs_set_vlog(osf, func);
+	}
+
 	// Assignment contructor
 	Os_Funcs& operator=(const Os_Funcs &o)
 	{

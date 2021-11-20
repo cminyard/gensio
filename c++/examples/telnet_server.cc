@@ -187,7 +187,7 @@ int main(int argc, char *argv[])
     try {
 	Os_Funcs o(0);
 
-	o->vlog = gensio_log;
+	o.set_vlog(gensio_log);
 	o.proc_setup();
 	Addr addr(o, argv[1], true, NULL, NULL, NULL);
 
