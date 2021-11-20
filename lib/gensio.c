@@ -13,7 +13,6 @@
 #include <limits.h>
 #include <stdio.h>
 #include <assert.h>
-#include <strings.h>
 
 #include <gensio/gensio.h>
 #include <gensio/gensio_addr.h>
@@ -87,7 +86,7 @@ void
 gensio_os_funcs_wake(struct gensio_os_funcs *o,
 		     struct gensio_waiter *waiter)
 {
-    return o->wake(waiter);
+    o->wake(waiter);
 }
 
 int
