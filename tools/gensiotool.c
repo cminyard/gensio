@@ -211,6 +211,9 @@ check_finish(struct ioinfo *ioinfo)
     struct gtinfo *g = gtconn->g;
     struct gensio_os_funcs *o = g->o;
     struct gensio *io;
+    int rv;
+    char data[10];
+    gensiods datasize;
 
     if (!gtconn->close_done || !ogtconn->close_done)
 	return;
@@ -219,11 +222,29 @@ check_finish(struct ioinfo *ioinfo)
     gensio_list_rm(&g->io_list, &ogtconn->link);
 
     io = ioinfo_io(ioinfo);
-    if (io)
+    if (io) {
+	if (!g->err) {
+	    datasize = sizeof(data);
+	    rv = gensio_control(io, GENSIO_CONTROL_DEPTH_FIRST,
+				true, GENSIO_CONTROL_EXIT_CODE,
+				data, &datasize);
+	    if (!rv)
+		g->err = strtol(data, NULL, 0);
+	}
 	gensio_free(io);
+    }
     io = ioinfo_io(oioinfo);
-    if (io)
+    if (io) {
+	if (!g->err) {
+	    datasize = sizeof(data);
+	    rv = gensio_control(io, GENSIO_CONTROL_DEPTH_FIRST,
+				true, GENSIO_CONTROL_EXIT_CODE,
+				data, &datasize);
+	    if (!rv)
+		g->err = strtol(data, NULL, 0);
+	}
 	gensio_free(io);
+    }
 
     o->free(o, gtconn);
     o->free(o, ogtconn);
