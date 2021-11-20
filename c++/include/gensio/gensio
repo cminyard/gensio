@@ -48,28 +48,12 @@ namespace gensio {
     public:
 	// Allocate the default os function handlers for the platform.
 	// See gensio_default_os_hnd.3 for details.
-	Os_Funcs(int wait_sig)
-	{
-	    int err;
-
-	    refcnt = new std::atomic<unsigned int>(1);
-	    err = gensio_default_os_hnd(wait_sig, &osf);
-	    if (err)
-		throw gensio_error(err);
-	}
+	Os_Funcs(int wait_sig);
 
 	// Do the setup for the process.  If you do this, this should be
 	// the last os funcs to destruct, if you have more than one.  See
 	// gensio_os_funcs.3 for details on process setup.
-	void proc_setup() {
-	    int err;
-
-	    err = gensio_os_proc_setup(osf, &proc_data);
-	    if (err) {
-		osf->free_funcs(osf);
-		throw gensio_error(err);
-	    }
-	}
+	void proc_setup();
 
 	// Allocate an os function handler object from an existing os
 	// handler.  Note that this takes over freeing the OS handler.
@@ -106,15 +90,7 @@ namespace gensio {
 	// gensio_os_funcs is asked for.
 	operator struct gensio_os_funcs * () const { return osf; }
 
-	~Os_Funcs()
-	{
-	    if (refcnt->fetch_sub(1) == 1) {
-		if (proc_data)
-		    gensio_os_proc_cleanup(proc_data);
-		osf->free_funcs(osf);
-		delete refcnt;
-	    }
-	}
+	~Os_Funcs();
 
     private:
 	struct gensio_os_funcs *osf;
@@ -1261,16 +1237,11 @@ namespace gensio {
     // things while running the event-driven code.
     class GENSIOCPP_DLL_PUBLIC Waiter {
     public:
-	Waiter(Os_Funcs &io) : o(io)
-	{
-	    waiter = o->alloc_waiter(o);
-	    if (!waiter)
-		throw std::bad_alloc();
-	}
-	~Waiter() { o->free_waiter(waiter); }
+	Waiter(Os_Funcs &io);
+	~Waiter();
 
 	// Add one wakeup to the waiter.
-	void wake() { o->wake(waiter); }
+	void wake();
 
 	// Wait for count wakeups to be delivered to the waiter, up to
 	// timeout time.  If the timeout occurs before count events

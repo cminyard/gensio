@@ -8,8 +8,39 @@
 #include <gensio/gensio>
 
 namespace gensio {
+#include <gensio/gensio_os_funcs.h>
 #include <gensio/gensio_builtins.h>
 #include <gensio/gensio_osops.h>
+
+    Os_Funcs::Os_Funcs(int wait_sig)
+    {
+	int err;
+
+	refcnt = new std::atomic<unsigned int>(1);
+	err = gensio_default_os_hnd(wait_sig, &osf);
+	if (err)
+	    throw gensio_error(err);
+    }
+
+    void Os_Funcs::proc_setup() {
+	int err;
+
+	err = gensio_os_proc_setup(osf, &proc_data);
+	if (err) {
+	    osf->free_funcs(osf);
+	    throw gensio_error(err);
+	}
+    }
+
+    Os_Funcs::~Os_Funcs()
+    {
+	if (refcnt->fetch_sub(1) == 1) {
+	    if (proc_data)
+		gensio_os_proc_cleanup(proc_data);
+	    osf->free_funcs(osf);
+	    delete refcnt;
+	}
+    }
 
     Addr::Addr(Os_Funcs &o, std::string str, bool listen, int *protocol,
 	       int *argc, const char ***args)
@@ -1128,6 +1159,23 @@ namespace gensio {
 	err = sergensio_signature(sio, sig, len, donefunc, done);
 	if (err)
 	    throw gensio_error(err);
+    }
+
+    Waiter::Waiter(Os_Funcs &io) : o(io)
+    {
+	waiter = o->alloc_waiter(o);
+	if (!waiter)
+	    throw std::bad_alloc();
+    }
+
+    Waiter::~Waiter()
+    {
+	o->free_waiter(waiter);
+    }
+
+    void Waiter:: wake()
+    {
+	o->wake(waiter);
     }
 
     class Std_Ser_Op_Done: public Serial_Op_Done {
