@@ -65,7 +65,7 @@ password from the remote gensio.  This requires synchronous I/O, and
 it uses this capability.
 
 .B gensio_set_sync
-sets up the gensio for syncronous I/O.  If you do this, the event
+sets up the gensio for synchronous I/O.  If you do this, the event
 callback that is currently registered will no longer receive read and
 write callbacks.  It *will* receive other callbacks.  You must call
 this before doing any of the synchronous read and write operations.
@@ -73,7 +73,7 @@ This function will block (while handling normal gensio events) until
 no callbacks are active.
 
 .B gensio_clear_sync
-returns the gensio to asyncronous I/O.  The callback will be restored
+returns the gensio to asynchronous I/O.  The callback will be restored
 to the one that was set when gensio_set_sync() was called.
 
 .B gensio_read_s

@@ -973,7 +973,7 @@ namespace gensio {
 	// The new gensio is returned in g.
 	int accept_s(gensio_time *timeout, Gensio **g);
 
-	// Like accept_s, but also returns if a signal is recevied.
+	// Like accept_s, but also returns if a signal is received.
 	// In that cast it returns GE_INTERRUPTED.
 	int accept_s_intr(gensio_time *timeout, Gensio **g);
 

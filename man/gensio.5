@@ -86,7 +86,7 @@ It basically means you can explicitly mark message boundaries when
 sending data, and that explicit mark will be set on the read side.
 You do this by adding an "eom" auxdata on the write; the end of that
 write it assumed to be the end of a message.  If the write does not
-accept all the data, the "eom" is ignored, you must write the remaning
+accept all the data, the "eom" is ignored, you must write the remaining
 data again with "eom" set.  You may also do partial write of messages
 and set "eom" at the end.  On the receive side, "eom" will be set when
 the end of a message is delivered.  The data delivered in the receive
@@ -328,7 +328,7 @@ on.  Not available if tcpd is disabled at compile time.
 .TP
 .B tcpdname=<name>
 Accepter only, sets the name to use for tcpd access control.  This
-defaults to "gensio", and the default can be overriden with
+defaults to "gensio", and the default can be overridden with
 gensio_set_progname().  This option allows you to override it on a
 per-gensio accepter basis.  Not available if tcpd is disabled at
 compile time.

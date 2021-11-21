@@ -269,10 +269,10 @@ Return some sort of remote id for what is on the other end of the
 connection.  Not implemented for most gensios, only for getting the
 pid on a pty and stdio and the file descriptor on serialdev.
 .SS "GENSIO_CONTROL_AUX_DATA"
-Return auxilliary sent on the connection.  On certauth, this will be
+Return auxiliary sent on the connection.  On certauth, this will be
 sent to the remote end and be available for them.
 .SS "GENSIO_CONTROL_REM_AUX_DATA"
-Return auxilliary received from the other end of the connection.  On
+Return auxiliary received from the other end of the connection.  On
 certauth, this will be received from the remote end.
 .SH "RETURN VALUES"
 Zero is returned on success, or a gensio error on failure.
