@@ -87,16 +87,6 @@ void gensio_log(struct gensio_os_funcs *o, enum gensio_log_levels level,
 #define GENSIO_EVENT_USER_MIN		100000
 #define GENSIO_EVENT_USER_MAX		199999
 
-/*
- * Callbacks for functions that don't give an error (close);
- */
-typedef void (*gensio_done)(struct gensio *io, void *open_data);
-
-/*
- * Callbacks for functions that give an error (open);
- */
-typedef void (*gensio_done_err)(struct gensio *io, int err, void *open_data);
-
 GENSIO_DLL_PUBLIC
 int str_to_gensio(const char *str,
 		  struct gensio_os_funcs *o,
@@ -310,11 +300,6 @@ struct gensio_acc_postcert_verify_data {
 #define GENSIO_ACC_EVENT_2FA_VERIFY		8
 #define GENSIO_ACC_EVENT_REQUEST_2FA		9
 /* Uses struct gensio_acc_password_verify_data */
-
-/*
- * Callbacks for functions that don't give an error (shutdown);
- */
-typedef void (*gensio_acc_done)(struct gensio_accepter *acc, void *cb_data);
 
 GENSIO_DLL_PUBLIC
 int str_to_gensio_accepter(const char *str, struct gensio_os_funcs *o,

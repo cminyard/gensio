@@ -7,11 +7,8 @@
 
 #include "config.h"
 
-#include <gensio/gensio_class.h>
-#include <gensio/gensio_os_funcs.h>
-
 #include "gensio_filter_certauth.h"
-#include "gensio_filter_ssl.h"
+#include <gensio/gensio_err.h>
 
 #ifdef _WIN32
 #define DIRSEP '\\'
@@ -53,6 +50,10 @@ struct gensio_certauth_filter_data {
 #include <openssl/pem.h>
 #include <openssl/rand.h>
 #include <openssl/err.h>
+
+#include <gensio/gensio.h>
+#include <gensio/gensio_class.h>
+#include <gensio/gensio_os_funcs.h>
 
 /* In gensio_filter_ssl.c, semi-private. */
 int gensio_cert_get_name(X509 *cert, char *data, gensiods *datalen);

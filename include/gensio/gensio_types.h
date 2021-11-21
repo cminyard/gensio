@@ -14,9 +14,14 @@ extern "C" {
 
 #include <stddef.h>
 #include <stdint.h>
+#include <stdbool.h>
 
 struct gensio;
 struct gensio_accepter;
+
+struct sergensio;
+struct sergensio_accepter;
+
 struct gensio_os_funcs;
 struct gensio_iod;
 struct gensio_addr;
@@ -49,6 +54,21 @@ typedef int (*gensio_event)(struct gensio *io, void *user_data,
 
 typedef int (*gensio_accepter_event)(struct gensio_accepter *accepter,
 				     void *user_data, int event, void *data);
+
+/*
+ * Callbacks for functions that don't give an error (close);
+ */
+typedef void (*gensio_done)(struct gensio *io, void *open_data);
+
+/*
+ * Callbacks for functions that give an error (open);
+ */
+typedef void (*gensio_done_err)(struct gensio *io, int err, void *open_data);
+
+/*
+ * Callbacks for functions that don't give an error (shutdown);
+ */
+typedef void (*gensio_acc_done)(struct gensio_accepter *acc, void *cb_data);
 
 enum gensio_log_levels {
     GENSIO_LOG_FATAL,

@@ -19,6 +19,7 @@
 #include <gensio/argvutils.h>
 #include <gensio/gensio_osops.h>
 #include <gensio/gensio_builtins.h>
+#include <gensio/gensio_list.h>
 
 #ifdef ENABLE_INTERNAL_TRACE
 #define DEBUG_STATE

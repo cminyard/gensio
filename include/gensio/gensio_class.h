@@ -8,9 +8,10 @@
 #ifndef GENSIO_CLASS_H
 #define GENSIO_CLASS_H
 
+#include <stdarg.h>
+
 #include <gensio/gensio_dllvisibility.h>
-#include <gensio/gensio.h>
-#include <gensio/gensio_list.h>
+#include <gensio/gensio_types.h>
 
 /*
  * This is the default for most gensio layers.  Some have specific buffer

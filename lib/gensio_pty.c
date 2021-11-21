@@ -8,13 +8,15 @@
 /* This code handles running a child process using a pty. */
 
 #include "config.h"
-
-#if HAVE_PTY
-
 #ifdef linux
 #define _XOPEN_SOURCE 600 /* Get posix_openpt() and friends. */
 #define _GNU_SOURCE /* Get ptsname_r(). */
 #endif
+#include <gensio/gensio_builtins.h>
+#include <gensio/gensio_err.h>
+
+#if HAVE_PTY
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -31,12 +33,12 @@
 #include <termios.h>
 #include <limits.h>
 
+#include <gensio/gensio.h>
 #include <gensio/gensio_os_funcs.h>
 #include <gensio/gensio_class.h>
 #include <gensio/gensio_ll_fd.h>
 #include <gensio/argvutils.h>
 #include <gensio/gensio_osops.h>
-#include <gensio/gensio_builtins.h>
 
 struct pty_data {
     struct gensio_os_funcs *o;

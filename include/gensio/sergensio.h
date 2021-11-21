@@ -20,9 +20,6 @@ extern "C" {
 #include <gensio/gensio_dllvisibility.h>
 #include <gensio/gensio.h>
 
-struct sergensio;
-struct sergensio_accepter;
-
 /*
  * Cast between sergensio and gensio types.  If
  */

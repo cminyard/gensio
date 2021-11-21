@@ -7,8 +7,8 @@
 
 #include "config.h"
 
-#include <gensio/gensio_class.h>
 #include <gensio/gensio_builtins.h>
+#include <gensio/gensio_err.h>
 
 #if HAVE_OPENSSL
 
@@ -21,10 +21,11 @@
 #include <openssl/bio.h>
 #include <openssl/err.h>
 
+#include <gensio/gensio.h>
 #include <gensio/gensio_os_funcs.h>
 #include <gensio/gensio_ll_gensio.h>
 #include <gensio/gensio_acc_gensio.h>
-#include <gensio/gensio_builtins.h>
+#include <gensio/gensio_class.h>
 
 #include "gensio_filter_certauth.h"
 

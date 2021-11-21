@@ -11,7 +11,7 @@
 #include <string.h>
 #include <ctype.h>
 
-#include <gensio/gensio_class.h>
+#include <gensio/gensio.h>
 #include "utils.h"
 
 char *

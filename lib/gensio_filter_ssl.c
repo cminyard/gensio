@@ -8,6 +8,7 @@
 #include "config.h"
 
 #include <gensio/gensio_class.h>
+#include <gensio/gensio_err.h>
 
 #include "gensio_filter_ssl.h"
 
@@ -20,6 +21,7 @@
 #include <openssl/bio.h>
 #include <openssl/err.h>
 
+#include <gensio/gensio.h>
 #include <gensio/gensio_os_funcs.h>
 
 #ifdef _WIN32

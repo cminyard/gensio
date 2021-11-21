@@ -8,6 +8,7 @@
 #include "config.h"
 #include <string.h>
 
+#include <gensio/gensio.h>
 #include <gensio/gensio_class.h>
 
 #include "gensio_filter_telnet.h"

@@ -11,6 +11,7 @@
 #include <stdbool.h>
 #include <ctype.h>
 
+#include <gensio/gensio.h>
 #include <gensio/gensio_class.h>
 #include <gensio/gensio_os_funcs.h>
 

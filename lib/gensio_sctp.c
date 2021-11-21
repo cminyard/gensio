@@ -8,9 +8,8 @@
 /* This code handles SCTP network I/O. */
 
 #include "config.h"
-#include <errno.h>
-#include <gensio/gensio.h>
 #include <gensio/gensio_builtins.h>
+#include <gensio/gensio_err.h>
 
 #if HAVE_LIBSCTP
 
@@ -21,7 +20,9 @@
 #include <netinet/sctp.h>
 #include <string.h>
 #include <assert.h>
+#include <errno.h>
 
+#include <gensio/gensio.h>
 #include <gensio/gensio_os_funcs.h>
 #include <gensio/gensio_class.h>
 #include <gensio/gensio_ll_fd.h>

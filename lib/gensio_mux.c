@@ -16,6 +16,7 @@
 #include <gensio/gensio_class.h>
 #include <gensio/gensio_acc_gensio.h>
 #include <gensio/gensio_builtins.h>
+#include <gensio/gensio_list.h>
 
 /*
  * The protocol consists of messages.  The first byte of a message

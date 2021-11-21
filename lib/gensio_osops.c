@@ -20,6 +20,7 @@
 #include <gensio/gensio_osops.h>
 #include <gensio/gensio_class.h>
 #include <gensio/argvutils.h>
+#include <gensio/gensio_list.h>
 
 #include "errtrig.h"
 

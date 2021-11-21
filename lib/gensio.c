@@ -20,6 +20,7 @@
 #include <gensio/argvutils.h>
 #include <gensio/gensio_builtins.h>
 #include <gensio/gensio_class.h>
+#include <gensio/gensio_list.h>
 
 #include "gensio_net.h"
 

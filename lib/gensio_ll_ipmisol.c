@@ -11,15 +11,18 @@
 #include <string.h>
 #include <stdio.h>
 
+#include "gensio_ll_ipmisol.h"
+#include <gensio/gensio_err.h>
+
+#if HAVE_OPENIPMI
+
 #include <gensio/gensio_class.h>
 #include <gensio/sergensio_class.h>
 #include <gensio/gensio_osops.h>
+#include <gensio/gensio_list.h>
 
-#include "gensio_ll_ipmisol.h"
 #include "buffer.h"
 #include "utils.h"
-
-#if HAVE_OPENIPMI
 
 #include <OpenIPMI/ipmiif.h>
 #include <OpenIPMI/ipmi_smi.h>
