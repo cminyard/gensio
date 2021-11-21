@@ -286,11 +286,11 @@ static void gensio_mdns_delete_watch_done(struct gensio_mdns_watch *watch,
     struct mdns_watch *w = userdata;
     struct gensio_os_funcs *o = w->o;
 
-    o->lock(w->lock);
-    o->unlock(w->lock);
-    o->free_lock(w->lock);
+    gensio_os_funcs_lock(o, w->lock);
+    gensio_os_funcs_unlock(o, w->lock);
+    gensio_os_funcs_free_lock(o, w->lock);
     deref_swig_cb_val(w->cb_val);
-    o->free(o, w);
+    gensio_os_funcs_zfree(o, w);
     check_os_funcs_free(o);
 }
 
@@ -1308,7 +1308,7 @@ struct mdns_service { };
 	struct gensio_os_funcs *o = self->o;
 	int rv = GE_INVAL;
 
-	o->lock(self->lock);
+	gensio_os_funcs_lock(o, self->lock);
 	self->free_on_close = true;
 	if (!self->closed) {
 	    self->closed = true;
@@ -1316,11 +1316,11 @@ struct mdns_service { };
 					  gensio_mdns_delete_watch_done,
 					  self);
 	}
-	o->unlock(self->lock);
+	gensio_os_funcs_unlock(o, self->lock);
 	if (rv) {
-	    o->free_lock(self->lock);
+	    gensio_os_funcs_free_lock(o, self->lock);
 	    deref_swig_cb_val(self->cb_val);
-	    o->free(o, self);
+	    gensio_os_funcs_zfree(o, self);
 	    check_os_funcs_free(o);
 	}
     }
@@ -1329,7 +1329,7 @@ struct mdns_service { };
 	struct gensio_os_funcs *o = self->o;
 	int rv;
 
-	o->lock(self->lock);
+	gensio_os_funcs_lock(o, self->lock);
 	if (self->closed) {
 	    rv = GE_INUSE;
 	} else {
@@ -1346,7 +1346,7 @@ struct mdns_service { };
 		self->closed = true;
 	    }
 	}
-	o->unlock(self->lock);
+	gensio_os_funcs_unlock(o, self->lock);
 	if (rv)
 	    err_handle("close", rv);
     }
@@ -1361,24 +1361,25 @@ struct mdns_service { };
 
 %extend mdns {
     mdns(struct gensio_os_funcs *o) {
-	struct mdns *m = o->zalloc(o, sizeof(*m));
+	struct mdns *m = gensio_os_funcs_zalloc(o, sizeof(*m));
 	int rv = GE_NOMEM;
 
 	if (m) {
 	    m->o = o;
-	    m->lock = o->alloc_lock(o);
-	    if (!o->lock) {
-		o->free(o, m);
+	    m->lock = gensio_os_funcs_alloc_lock(o);
+	    if (!m->lock) {
+		gensio_os_funcs_zfree(o, m);
 		m = NULL;
 	    }
 	}
 	if (m) {
-	    o->lock(m->lock); /* Assure m->mdns is set for other users. */
+	    /* Assure m->mdns is set for other users. */
+	    gensio_os_funcs_lock(o, m->lock);
 	    rv = gensio_alloc_mdns(o, &m->mdns);
-	    o->unlock(m->lock);
+	    gensio_os_funcs_unlock(o, m->lock);
 	    if (rv) {
-		o->free_lock(m->lock);
-		o->free(o, m);
+		gensio_os_funcs_free_lock(o, m->lock);
+		gensio_os_funcs_zfree(o, m);
 		m = NULL;
 	    }
 	}
@@ -1393,17 +1394,17 @@ struct mdns_service { };
     ~mdns() {
 	struct gensio_os_funcs *o = self->o;
 
-	o->lock(self->lock);
+	gensio_os_funcs_lock(o, self->lock);
 	if (self->mdns && self->closed) {
 	    /* Free in the close function. */
 	    self->free_on_close = true;
-	    o->unlock(self->lock);
+	    gensio_os_funcs_unlock(o, self->lock);
 	} else {
 	    if (self->mdns)
 		gensio_free_mdns(self->mdns, NULL, NULL);
-	    o->unlock(self->lock);
-	    o->free_lock(self->lock);
-	    o->free(o, self);
+	    gensio_os_funcs_unlock(o, self->lock);
+	    gensio_os_funcs_free_lock(o, self->lock);
+	    gensio_os_funcs_zfree(o, self);
 	    check_os_funcs_free(o);
 	}
     }
@@ -1412,7 +1413,7 @@ struct mdns_service { };
 	int rv;
 	struct gensio_os_funcs *o = self->o;
 
-	o->lock(self->lock);
+	gensio_os_funcs_lock(o, self->lock);
 	if (self->closed) {
 	    rv = GE_INUSE;
 	} else {
@@ -1426,7 +1427,7 @@ struct mdns_service { };
 		self->closed = true;
 	    }
 	}
-	o->unlock(self->lock);
+	gensio_os_funcs_unlock(o, self->lock);
 
 	err_handle("close", rv);
     }
@@ -1466,27 +1467,28 @@ struct mdns_service { };
 
 	if (nil_swig_cb(cb))
 	    return NULL;
-	w = o->zalloc(o, sizeof(*w));
+	w = gensio_os_funcs_zalloc(o, sizeof(*w));
 	if (w) {
 	    w->o = o;
-	    w->lock = o->alloc_lock(o);
-	    if (!o->lock) {
-		o->free(o, w);
+	    w->lock = gensio_os_funcs_alloc_lock(o);
+	    if (!w->lock) {
+		gensio_os_funcs_zfree(o, w);
 		w = NULL;
 	    }
 	}
 	if (w) {
 	    w->cb_val = ref_swig_cb(cb, gensio_mdns_cb);
-	    o->lock(w->lock); /* Assure w->watch is set for other users. */
+	    /* Assure w->watch is set for other users. */
+	    gensio_os_funcs_lock(o, w->lock);
 	    rv = gensio_mdns_add_watch(self->mdns,
 				       interface, ipdomain, name, type,
 				       domain, host,
 				       gensio_mdns_cb, w, &w->watch);
-	    o->unlock(w->lock);
+	    gensio_os_funcs_unlock(o, w->lock);
 	    if (rv) {
 		deref_swig_cb_val(w->cb_val);
-		o->free_lock(w->lock);
-		o->free(o, w);
+		gensio_os_funcs_free_lock(o, w->lock);
+		gensio_os_funcs_zfree(o, w);
 		w = NULL;
 	    }
 	}

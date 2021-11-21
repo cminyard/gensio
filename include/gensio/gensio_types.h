@@ -22,6 +22,11 @@ struct gensio_iod;
 struct gensio_addr;
 struct gensio_opensocks;
 
+struct gensio_lock;
+struct gensio_timer;
+struct gensio_runner;
+struct gensio_waiter;
+
 /*
  * Used by wait functions and general handling for process setup and
  * cleanup.
@@ -36,6 +41,14 @@ struct gensio_os_proc_data;
 struct gensio_thread;
 
 typedef unsigned long gensiods; /* Data size */
+
+typedef int (*gensio_event)(struct gensio *io, void *user_data,
+			    int event, int err,
+			    unsigned char *buf, gensiods *buflen,
+			    const char *const *auxdata);
+
+typedef int (*gensio_accepter_event)(struct gensio_accepter *accepter,
+				     void *user_data, int event, void *data);
 
 enum gensio_log_levels {
     GENSIO_LOG_FATAL,

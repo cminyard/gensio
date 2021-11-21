@@ -233,7 +233,7 @@ get_echo_dev(struct gensio_os_funcs *o, const char *testname,
 	if (strlen(te) == 0) {
 	    printf("Serial echo device disabled, skipping serialdev test\n");
 	    if (te)
-		o->free(o, te);
+		gensio_os_funcs_zfree(o, te);
 	    return false;
 	}
 	e = te;
@@ -248,12 +248,12 @@ get_echo_dev(struct gensio_os_funcs *o, const char *testname,
 	printf("Serial echo device '%s' doesn't exist or is not accessible,\n"
 	       "skipping %s test\n", e, testname);
 	if (te)
-	    o->free(o, te);
+	    gensio_os_funcs_zfree(o, te);
 	return false;
     }
     *newstr = gensio_alloc_sprintf(o, str, e);
     if (te)
-	o->free(o, te);
+	gensio_os_funcs_zfree(o, te);
     if (!*newstr) {
 	printf("Unable to allocate memory for echo device '%s',\n"
 	       "skipping %s test\n", e, testname);
@@ -492,7 +492,7 @@ ipmisim_finish(struct gensio_os_funcs *o, struct oom_tests *test)
 	test->configname[0] = '\0';
     }
     if (test->args) {
-	o->free(o, test->args);
+	gensio_os_funcs_zfree(o, test->args);
 	test->args = NULL;
     }
     if (test->waiter) {
@@ -524,7 +524,7 @@ check_ipmisim_present(struct gensio_os_funcs *o, struct oom_tests *test)
 
     if (!get_echo_dev(o, "ipmisol", ipmisim_config, &config)) {
 	if (tprog)
-	    o->free(o, tprog);
+	    gensio_os_funcs_zfree(o, tprog);
 	return false;
     }
 
@@ -538,7 +538,7 @@ check_ipmisim_present(struct gensio_os_funcs *o, struct oom_tests *test)
     }
     len = strlen(config);
     rv = fwrite(config, 1, len, f);
-    o->free(o, config);
+    gensio_os_funcs_zfree(o, config);
     config = NULL;
     fclose(f);
     if (rv != len) {
@@ -587,15 +587,15 @@ check_ipmisim_present(struct gensio_os_funcs *o, struct oom_tests *test)
 	goto out_err;
 
     if (tprog)
-	o->free(o, tprog);
+	gensio_os_funcs_zfree(o, tprog);
 
     return true;
 
  out_err:
     if (tprog)
-	o->free(o, tprog);
+	gensio_os_funcs_zfree(o, tprog);
     if (config)
-	o->free(o, config);
+	gensio_os_funcs_zfree(o, config);
     ipmisim_end(o, test);
     ipmisim_finish(o, test);
 
@@ -829,7 +829,7 @@ static void
 add_ref_trace(enum ref_trace_op op, unsigned int count, int line,
 	      unsigned int data)
 {
-    o->get_monotonic_time(o, &ref_trace[ref_trace_pos].time);
+    gensio_os_funcs_get_monotonic_time(o, &ref_trace[ref_trace_pos].time);
     ref_trace[ref_trace_pos].op = op;
     ref_trace[ref_trace_pos].refcount = count;
     ref_trace[ref_trace_pos].line = line;
@@ -881,7 +881,7 @@ cleanup_ods(void)
 
     while (od) {
 	next = od->next;
-	o->free(o, od);
+	gensio_os_funcs_zfree(o, od);
 	od = next;
     }
 }
@@ -1360,13 +1360,13 @@ alloc_od(struct oom_tests *test)
 {
     struct oom_test_data *od;
 
-    od = o->zalloc(o, sizeof(*od));
+    od = gensio_os_funcs_zalloc(o, sizeof(*od));
     if (!od)
 	return NULL;
     od->refcount = 1;
     od->waiter = gensio_os_funcs_alloc_waiter(o);
     if (!od->waiter) {
-	o->free(o, od);
+	gensio_os_funcs_zfree(o, od);
 	return NULL;
     }
     od->ccon.od = od;
@@ -1636,7 +1636,7 @@ run_oom_test(struct oom_tests *test, long count, int *exitcode,
 
     rv = str_to_gensio(constr, o, con_cb, &od->ccon, &od->ccon.io);
     assert(!debug || !rv);
-    o->free(o, constr);
+    gensio_os_funcs_zfree(o, constr);
     if (rv)
 	goto out_err;
 
@@ -1754,7 +1754,7 @@ run_oom_acc_test(struct oom_tests *test, long count, int *exitcode,
 
     err = str_to_gensio(constr, o, con_cb, &od->ccon, &od->ccon.io);
     assert(!debug || !err);
-    o->free(o, constr);
+    gensio_os_funcs_zfree(o, constr);
     if (err)
 	goto out_err;
 
@@ -1811,7 +1811,7 @@ run_oom_acc_test(struct oom_tests *test, long count, int *exitcode,
 
     err = str_to_gensio(locstr, o, con_cb, &od->scon, &od->scon.io);
     assert(!debug || !err);
-    o->free(o, locstr);
+    gensio_os_funcs_zfree(o, locstr);
     if (err)
 	goto out_err;
 
@@ -2257,7 +2257,7 @@ main(int argc, char *argv[])
 	exit(1);
     }
     if (i >= argc)
-	o->free(o, s);
+	gensio_os_funcs_zfree(o, s);
 
     for (i = 0; i < num_extra_threads; i++) {
 	loopwaiter[i] = gensio_os_funcs_alloc_waiter(o);
@@ -2310,7 +2310,7 @@ main(int argc, char *argv[])
 
     for (i = 0; oom_tests[i].connecter; i++) {
 	if (oom_tests[i].free_connecter)
-	    o->free(o, oom_tests[i].connecter);
+	    gensio_os_funcs_zfree(o, oom_tests[i].connecter);
     }
 
     printf("Got %ld errors, skipped %ld tests\n", errcount, skipcount);
@@ -2324,7 +2324,7 @@ main(int argc, char *argv[])
 
  out_err:
     gensio_os_proc_cleanup(proc_data);
-    o->free(o, gensiot);
+    gensio_os_funcs_zfree(o, gensiot);
     cleanup_ods();
     gensio_cleanup_mem(o);
     gensio_os_funcs_free(o);

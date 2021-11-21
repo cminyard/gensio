@@ -7,8 +7,9 @@
 
 #include <string.h>
 
-#include <gensio/gensio_osops_env.h>
 #include <gensio/gensio.h>
+#include <gensio/gensio_os_funcs.h>
+#include <gensio/gensio_osops_env.h>
 #include <gensio/argvutils.h>
 
 #ifdef _WIN32

@@ -10,6 +10,7 @@
 #include "config.h"
 #include <assert.h>
 #include <gensio/gensio.h>
+#include <gensio/gensio_os_funcs.h>
 #include <gensio/gensio_class.h>
 #include <gensio/gensio_base.h>
 #include <gensio/gensio_builtins.h>

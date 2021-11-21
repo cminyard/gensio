@@ -1139,7 +1139,7 @@ handle_new(struct gensio_runner *r, void *cb_data)
     bool interactive = false;
     unsigned int i;
 
-    o->free_runner(r);
+    gensio_os_funcs_free_runner(o, r);
 
     err = ssl_gensio_alloc(net_io, ssl_args, o, NULL, NULL, &ssl_io);
     if (err) {
@@ -1405,12 +1405,12 @@ acc_event(struct gensio_accepter *accepter, void *user_data,
 
 	/* Since handle_new does blocking calls, can't do it here. */
 	gensio_set_user_data(io, ginfo); /* Just temporarily. */
-	r = o->alloc_runner(o, handle_new, io);
+	r = gensio_os_funcs_alloc_runner(o, handle_new, io);
 	if (!r) {
 	    syslog(LOG_ERR, "Could not allocate runner");
 	    exit(1);
 	}
-	err = o->run(r);
+	err = gensio_os_funcs_run(o, r);
 	if (err) {
 	    syslog(LOG_ERR, "Could not run runner: %s",
 		   gensio_err_to_str(err));

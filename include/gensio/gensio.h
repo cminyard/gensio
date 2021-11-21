@@ -30,7 +30,7 @@ extern "C" {
 
 /*
  * This should eventually go away in preference to the functions given
- * just below.
+ * inthe include just below.
  */
 #include <gensio/gensio_os_funcs.h>
 
@@ -51,6 +51,13 @@ GENSIO_DLL_PUBLIC
 unsigned int gensio_get_log_mask(void);
 GENSIO_DLL_PUBLIC
 const char *gensio_log_level_to_str(enum gensio_log_levels level);
+
+GENSIO_DLL_PUBLIC
+void gensio_vlog(struct gensio_os_funcs *o, enum gensio_log_levels level,
+		 const char *str, va_list args);
+GENSIO_DLL_PUBLIC
+void gensio_log(struct gensio_os_funcs *o, enum gensio_log_levels level,
+		const char *str, ...);
 
 /*
  * The following are documented in gensio_event.3
@@ -79,11 +86,6 @@ const char *gensio_log_level_to_str(enum gensio_log_levels level);
  */
 #define GENSIO_EVENT_USER_MIN		100000
 #define GENSIO_EVENT_USER_MAX		199999
-
-typedef int (*gensio_event)(struct gensio *io, void *user_data,
-			    int event, int err,
-			    unsigned char *buf, gensiods *buflen,
-			    const char *const *auxdata);
 
 /*
  * Callbacks for functions that don't give an error (close);
@@ -308,9 +310,6 @@ struct gensio_acc_postcert_verify_data {
 #define GENSIO_ACC_EVENT_2FA_VERIFY		8
 #define GENSIO_ACC_EVENT_REQUEST_2FA		9
 /* Uses struct gensio_acc_password_verify_data */
-
-typedef int (*gensio_accepter_event)(struct gensio_accepter *accepter,
-				     void *user_data, int event, void *data);
 
 /*
  * Callbacks for functions that don't give an error (shutdown);
@@ -801,6 +800,10 @@ char *gensio_quote_string(struct gensio_os_funcs *o, const char *str);
  */
 GENSIO_DLL_PUBLIC
 gensiods gensio_num_alloced(void);
+
+/* For testing, do not use in normal code. */
+GENSIO_DLL_PUBLIC
+void gensio_osfunc_exit(int rv);
 
 #ifdef __cplusplus
 }

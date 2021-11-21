@@ -104,6 +104,124 @@ int gensio_os_new_thread(struct gensio_os_funcs *o,
 GENSIO_DLL_PUBLIC
 int gensio_os_wait_thread(struct gensio_thread *thread_id);
 
+GENSIO_DLL_PUBLIC
+void *gensio_os_funcs_zalloc(struct gensio_os_funcs *o, unsigned int len);
+
+GENSIO_DLL_PUBLIC
+void gensio_os_funcs_zfree(struct gensio_os_funcs *o, void *data);
+
+/* Allocate a lock.  Return NULL on error. */
+GENSIO_DLL_PUBLIC
+struct gensio_lock *gensio_os_funcs_alloc_lock(struct gensio_os_funcs *o);
+
+/* Free a lock allocated with alloc_lock. */
+GENSIO_DLL_PUBLIC
+void gensio_os_funcs_free_lock(struct gensio_os_funcs *o,
+			       struct gensio_lock *lock);
+
+/* Lock the lock. */
+GENSIO_DLL_PUBLIC
+void gensio_os_funcs_lock(struct gensio_os_funcs *o,
+			  struct gensio_lock *lock);
+
+/* Unlock the lock. */
+GENSIO_DLL_PUBLIC
+void gensio_os_funcs_unlock(struct gensio_os_funcs *o,
+			    struct gensio_lock *lock);
+
+/* Get the monotonic clock, used for gensio_os_start_timer_abs(). */
+GENSIO_DLL_PUBLIC
+void gensio_os_funcs_get_monotonic_time(struct gensio_os_funcs *o,
+					gensio_time *time);
+/*
+ * Allocate a timer that calls the given handler when it goes
+ * off.  Return NULL on error.
+ */
+GENSIO_DLL_PUBLIC
+struct gensio_timer *gensio_os_funcs_alloc_timer(struct gensio_os_funcs *o,
+				    void (*handler)(struct gensio_timer *t,
+						    void *cb_data),
+				    void *cb_data);
+
+/*
+ * Free a timer allocated with alloc_timer.  The timer should not
+ * be running.
+ */
+GENSIO_DLL_PUBLIC
+void gensio_os_funcs_free_timer(struct gensio_os_funcs *o,
+				struct gensio_timer *timer);
+
+/*
+ * Start the timer running.  Returns GE_INUSE if the timer is already
+ * running.  This is a relative timeout.
+ */
+GENSIO_DLL_PUBLIC
+int gensio_os_funcs_start_timer(struct gensio_os_funcs *o,
+				struct gensio_timer *timer,
+				gensio_time *timeout);
+
+/*
+ * Start the timer running.  Returns GE_INUSE if the timer is already
+ * running.  This is an absolute timeout based on the monotonic
+ * time returned by get_monotonic_time.
+ */
+GENSIO_DLL_PUBLIC
+int gensio_os_funcs_start_timer_abs(struct gensio_os_funcs *o,
+				    struct gensio_timer *timer,
+				    gensio_time *timeout);
+
+/*
+ * Stop the timer.  Returns GE_TIMEDOUT if the timer is not
+ * running.  Note that the timer may still be running in a timeout
+ * handler when this returns.
+ */
+GENSIO_DLL_PUBLIC
+int gensio_os_funcs_stop_timer(struct gensio_os_funcs *o,
+			       struct gensio_timer *timer);
+
+/*
+ * Like the above, but the done_handler is called when the timer
+ * is completely stopped and no handler is running.  If
+ * GE_TIMEDOUT is returned, the done_handler is not called.  If
+ * GE_INUSE is returned, that means the timer has already been
+ * stopped and the done handler for the previous call has not been
+ * called.
+ *
+ * Note that if you stop a timer with a done handler, you cannot
+ * start the timer until the done handler is called.
+ */
+GENSIO_DLL_PUBLIC
+int gensio_os_funcs_stop_timer_with_done(struct gensio_os_funcs *o,
+			    struct gensio_timer *timer,
+			    void (*done_handler)(struct gensio_timer *t,
+						 void *cb_data),
+			    void *cb_data);
+
+/*
+ * Allocate a runner.  Return NULL on error.  A runner runs things
+ * at a base context.  This is useful for handling situations
+ * where you need to run something outside of a lock or context,
+ * you schedule the runner.
+ */
+GENSIO_DLL_PUBLIC
+struct gensio_runner *gensio_os_funcs_alloc_runner(struct gensio_os_funcs *o,
+				      void (*handler)(struct gensio_runner *r,
+						      void *cb_data),
+				      void *cb_data);
+
+/* Free a runner allocated with alloc_runner. */
+GENSIO_DLL_PUBLIC
+void gensio_os_funcs_free_runner(struct gensio_os_funcs *o,
+				 struct gensio_runner *runner);
+
+/*
+ * Run a runner.  Return GE_INUSE if the runner is already scheduled
+ * to run.
+ */
+GENSIO_DLL_PUBLIC
+int gensio_os_funcs_run(struct gensio_os_funcs *o,
+			struct gensio_runner *runner);
+
 /*
  * Register a function to receive internal logs if they happen.  The
  * user must do this.
@@ -198,6 +316,13 @@ int gensio_os_funcs_wait_intr_sigmask(struct gensio_os_funcs *o,
 GENSIO_DLL_PUBLIC
 void gensio_os_funcs_wake(struct gensio_os_funcs *o,
 			  struct gensio_waiter *waiter);
+
+GENSIO_DLL_PUBLIC
+void gensio_os_funcs_set_data(struct gensio_os_funcs *o, void *data);
+
+GENSIO_DLL_PUBLIC
+void *gensio_os_funcs_get_data(struct gensio_os_funcs *o);
+
 
 #ifdef _WIN32
 #define GENSIO_DEF_WAKE_SIG 0

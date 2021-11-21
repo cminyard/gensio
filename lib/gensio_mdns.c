@@ -9,6 +9,7 @@
 
 #include "config.h"
 #include <gensio/gensio_builtins.h>
+#include <gensio/gensio_err.h>
 
 #ifdef HAVE_AVAHI
 #include <assert.h>
@@ -17,6 +18,7 @@
 #include <stdlib.h>
 #include "config.h"
 #include <gensio/gensio.h>
+#include <gensio/gensio_os_funcs.h>
 #include <gensio/gensio_class.h>
 #include <gensio/gensio_mdns.h>
 #include <gensio/argvutils.h>

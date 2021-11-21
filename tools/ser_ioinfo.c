@@ -59,9 +59,9 @@ deref(struct ser_dump_data *ddata)
     struct gensio_os_funcs *o = serinfo->o;
     unsigned int refcount;
 
-    o->lock(serinfo->lock);
+    gensio_os_funcs_lock(o, serinfo->lock);
     refcount = --ddata->refcount;
-    o->unlock(serinfo->lock);
+    gensio_os_funcs_unlock(o, serinfo->lock);
     if (refcount == 0) {
 	if (ddata->signature)
 	    ioinfo_out(ddata->ioinfo,
@@ -73,8 +73,8 @@ deref(struct ser_dump_data *ddata)
 		       "Speed: %d%c%d%d\r\n", ddata->speed,
 		       ddata->parity, ddata->datasize, ddata->stopbits);
 	if (ddata->signature)
-	    o->free(o, ddata->signature);
-	o->free(o, ddata);
+	    gensio_os_funcs_zfree(o, ddata->signature);
+	gensio_os_funcs_zfree(o, ddata);
     }
 }
 
@@ -97,8 +97,8 @@ signature_done(struct sergensio *sio, int err,
 
     if (sig) {
 	if (ddata->signature)
-	    o->free(o, ddata->signature);
-	ddata->signature = o->zalloc(o, len + 1);
+	    gensio_os_funcs_zfree(o, ddata->signature);
+	ddata->signature = gensio_os_funcs_zalloc(o, len + 1);
 	if (ddata->signature) {
 	    memcpy(ddata->signature, sig, len);
 	    ddata->signature[len] = '\0';
@@ -376,13 +376,13 @@ handle_sio_escape(struct ioinfo *ioinfo, char c)
 
     switch (c) {
     case 'd': /* Dump serial data. */
-	ddata = o->zalloc(o, sizeof(*ddata));
+	ddata = gensio_os_funcs_zalloc(o, sizeof(*ddata));
 	if (!ddata)
 	    return false;
 	memset(ddata, 0, sizeof(*ddata));
 	ddata->ioinfo = ioinfo;
 	ddata->serinfo = serinfo;
-	o->lock(serinfo->lock);
+	gensio_os_funcs_lock(o, serinfo->lock);
 	rv = sergensio_signature(sio, NULL, 0, signature_done, ddata);
 	if (!rv)
 	    ddata->refcount++;
@@ -398,9 +398,9 @@ handle_sio_escape(struct ioinfo *ioinfo, char c)
 	rv = sergensio_stopbits(sio, 0, stopbits_done, ddata);
 	if (!rv)
 	    ddata->refcount++;
-	o->unlock(serinfo->lock);
+	gensio_os_funcs_unlock(o, serinfo->lock);
 	if (ddata->refcount == 0) {
-	    o->free(o, ddata);
+	    gensio_os_funcs_zfree(o, ddata);
 	    return false;
 	}
 	break;
@@ -478,12 +478,12 @@ alloc_ser_ioinfo(struct gensio_os_funcs *o,
 {
     struct ser_info *subdata;
 
-    subdata = o->zalloc(o, sizeof(*subdata));
+    subdata = gensio_os_funcs_zalloc(o, sizeof(*subdata));
     if (subdata) {
 	subdata->o = o;
-	subdata->lock = o->alloc_lock(o);
+	subdata->lock = gensio_os_funcs_alloc_lock(o);
 	if (!subdata->lock) {
-	    o->free(o, subdata);
+	    gensio_os_funcs_zfree(o, subdata);
 	    subdata = NULL;
 	} else {
 	    subdata->signature = signature;
@@ -498,6 +498,6 @@ free_ser_ioinfo(void *i_subdata)
 {
     struct ser_info *subdata = i_subdata;
 
-    subdata->o->free_lock(subdata->lock);
-    subdata->o->free(subdata->o, subdata);
+    gensio_os_funcs_free_lock(subdata->o, subdata->lock);
+    gensio_os_funcs_zfree(subdata->o, subdata);
 }

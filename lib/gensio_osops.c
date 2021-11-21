@@ -16,6 +16,7 @@
 #endif /* HAVE_TCPD_H */
 
 #include <gensio/gensio.h>
+#include <gensio/gensio_os_funcs.h>
 #include <gensio/gensio_osops.h>
 #include <gensio/gensio_class.h>
 #include <gensio/argvutils.h>

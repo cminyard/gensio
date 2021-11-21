@@ -32,11 +32,6 @@ struct sctp_initmsg;
 struct sctp_sack_info;
 struct sctp_status;
 
-struct gensio_lock;
-struct gensio_timer;
-struct gensio_runner;
-struct gensio_waiter;
-
 /* I/O descriptor. */
 struct gensio_iod {
     /*
@@ -788,17 +783,6 @@ struct gensio_os_funcs {
     int (*control)(struct gensio_os_funcs *o, int func, void *data,
 		   gensiods *datalen);
 };
-
-GENSIO_DLL_PUBLIC
-void gensio_vlog(struct gensio_os_funcs *o, enum gensio_log_levels level,
-		 const char *str, va_list args);
-GENSIO_DLL_PUBLIC
-void gensio_log(struct gensio_os_funcs *o, enum gensio_log_levels level,
-		const char *str, ...);
-
-/* For testing, do not use in normal code. */
-GENSIO_DLL_PUBLIC
-void gensio_osfunc_exit(int rv);
 
 /*
  * Called from os handlers, check for any handlers that may need to be

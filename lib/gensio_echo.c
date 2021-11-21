@@ -12,6 +12,7 @@
 #include <stdlib.h>
 #include "config.h"
 #include <gensio/gensio.h>
+#include <gensio/gensio_os_funcs.h>
 #include <gensio/gensio_class.h>
 #include <gensio/argvutils.h>
 #include <gensio/gensio_builtins.h>

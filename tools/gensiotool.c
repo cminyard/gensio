@@ -246,8 +246,8 @@ check_finish(struct ioinfo *ioinfo)
 	gensio_free(io);
     }
 
-    o->free(o, gtconn);
-    o->free(o, ogtconn);
+    gensio_os_funcs_zfree(o, gtconn);
+    gensio_os_funcs_zfree(o, ogtconn);
 
     free_ioinfo(ioinfo);
     free_ioinfo(oioinfo);
@@ -278,9 +278,9 @@ io_closed(struct gensio *io, void *close_data)
     struct gtconn_info *gtconn = ioinfo_userdata(ioinfo);
     struct gtinfo *g = gtconn->g;
 
-    g->o->lock(g->lock);
+    gensio_os_funcs_lock(g->o, g->lock);
     i_io_closed(io, close_data);
-    g->o->unlock(g->lock);
+    gensio_os_funcs_unlock(g->o, g->lock);
 }
 
 static void
@@ -320,9 +320,9 @@ gshutdown(struct ioinfo *ioinfo, bool user_req)
     struct gtconn_info *gtconn = ioinfo_userdata(ioinfo);
     struct gtinfo *g = gtconn->g;
 
-    g->o->lock(g->lock);
+    gensio_os_funcs_lock(g->o, g->lock);
     i_gshutdown(ioinfo, user_req);
-    g->o->unlock(g->lock);
+    gensio_os_funcs_unlock(g->o, g->lock);
 }
 
 static void
@@ -493,12 +493,12 @@ add_io(struct gtinfo *g, struct gensio *io, bool open_finished)
     struct ioinfo *ioinfo1 = NULL, *ioinfo2 = NULL;
     struct gtconn_info *gtconn1 = NULL, *gtconn2 = NULL;
 
-    gtconn1 = o->zalloc(o, sizeof(*gtconn1));
+    gtconn1 = gensio_os_funcs_zalloc(o, sizeof(*gtconn1));
     if (!gtconn1) {
 	report_err(g, "Could not allocate gtconn 1");
 	goto out_err;
     }
-    gtconn2 = o->zalloc(o, sizeof(*gtconn2));
+    gtconn2 = gensio_os_funcs_zalloc(o, sizeof(*gtconn2));
     if (!gtconn2) {
 	report_err(g, "Could not allocate gtconn 2");
 	goto out_err;
@@ -566,9 +566,9 @@ add_io(struct gtinfo *g, struct gensio *io, bool open_finished)
     if (subdata2)
 	free_ser_ioinfo(subdata2);
     if (gtconn1)
-	o->free(o, gtconn1);
+	gensio_os_funcs_zfree(o, gtconn1);
     if (gtconn2)
-	o->free(o, gtconn2);
+	gensio_os_funcs_zfree(o, gtconn2);
     if (ioinfo1)
 	free_ioinfo(ioinfo1);
     if (ioinfo2)
@@ -612,9 +612,9 @@ handle_term(void *info)
 {
     struct gtinfo *g = info;
 
-    g->o->lock(g->lock);
+    gensio_os_funcs_lock(g->o, g->lock);
     i_handle_term(g);
-    g->o->unlock(g->lock);
+    gensio_os_funcs_unlock(g->o, g->lock);
 }
 
 static int
@@ -640,7 +640,7 @@ io_acc_event(struct gensio_accepter *accepter, void *user_data,
 	struct ioinfo *oioinfo;
 	struct gtconn_info *ogtconn;
 
-	g->o->lock(g->lock);
+	gensio_os_funcs_lock(g->o, g->lock);
 	if (g->in_shutdown) {
 	    gensio_free(io);
 	} else if (g->server_mode || gensio_list_empty(&g->io_list)) {
@@ -673,7 +673,7 @@ io_acc_event(struct gensio_accepter *accepter, void *user_data,
 	    g->acc = NULL;
 	}
     out_unlock:
-	g->o->unlock(g->lock);
+	gensio_os_funcs_unlock(g->o, g->lock);
 
 	return 0;
     }
@@ -723,7 +723,7 @@ help(int err)
 }
 
 static void
-do_vlog(struct gensio_os_funcs *f, enum gensio_log_levels level,
+do_vlog(struct gensio_os_funcs *o, enum gensio_log_levels level,
 	const char *log, va_list args)
 {
     char buf[200];
@@ -732,7 +732,7 @@ do_vlog(struct gensio_os_funcs *f, enum gensio_log_levels level,
 	return;
     vsnprintf(buf, sizeof(buf), log, args);
 
-    report_err(f->other_data, "gensio %s log: %s",
+    report_err(gensio_os_funcs_get_data(o), "gensio %s log: %s",
 	       gensio_log_level_to_str(level), buf);
 }
 
@@ -920,7 +920,7 @@ main(int argc, char *argv[])
 		gensio_err_to_str(rv));
 	goto out_err;
     }
-    g.o->other_data = &g;
+    gensio_os_funcs_set_data(g.o, &g);
     gensio_os_funcs_set_vlog(g.o, do_vlog);
 
     g.waiter = gensio_os_funcs_alloc_waiter(g.o);
@@ -930,7 +930,7 @@ main(int argc, char *argv[])
 	goto out_err;
     }
 
-    g.lock = g.o->alloc_lock(g.o);
+    g.lock = gensio_os_funcs_alloc_lock(g.o);
     if (!g.lock) {
 	rv = GE_NOMEM;
 	fprintf(stderr, "Could not allocate OS lock\n");
@@ -946,7 +946,8 @@ main(int argc, char *argv[])
 
     rv = GE_NOMEM;
     if (num_extra_threads > 0) {
-	loopinfo = g.o->zalloc(g.o, sizeof(*loopinfo) * num_extra_threads);
+	loopinfo = gensio_os_funcs_zalloc(g.o,
+				      sizeof(*loopinfo) * num_extra_threads);
 	if (!loopinfo)
 	    goto out_err;
     }
@@ -989,12 +990,12 @@ main(int argc, char *argv[])
 	if (rv)
 	    goto out_err;
     } else {
-	g.o->lock(g.lock);
+	gensio_os_funcs_lock(g.o, g.lock);
 	rv = add_io(&g, io, false);
 	if (rv) {
 	    gensio_free(io);
 	    io = NULL;
-	    g.o->unlock(g.lock);
+	    gensio_os_funcs_unlock(g.o, g.lock);
 	    goto out_err;
 	}
 	rv = gensio_open(io, io_open_paddr, &g);
@@ -1005,7 +1006,7 @@ main(int argc, char *argv[])
 		    gensio_err_to_str(rv));
 	    i_gshutdown(ioinfo, false);
 	}
-	g.o->unlock(g.lock);
+	gensio_os_funcs_unlock(g.o, g.lock);
 	io = NULL;
     }
 
@@ -1019,13 +1020,13 @@ main(int argc, char *argv[])
     if (io)
 	gensio_free(io);
     if (g.lock)
-	g.o->lock(g.lock);
+	gensio_os_funcs_lock(g.o, g.lock);
     if (g.acc) {
 	gensio_acc_free(g.acc);
 	g.acc = NULL;
     }
     if (g.lock)
-	g.o->unlock(g.lock);
+	gensio_os_funcs_unlock(g.o, g.lock);
 
     if (!rv && g.err)
 	rv = g.err;
@@ -1039,7 +1040,7 @@ main(int argc, char *argv[])
 	    gensio_os_funcs_free_waiter(g.o, loopinfo[i].loopwaiter);
     }
     if (loopinfo)
-	g.o->free(g.o, loopinfo);
+	gensio_os_funcs_zfree(g.o, loopinfo);
 
     /*
      * We wait until there are no gensios left pending.  You can get
@@ -1060,7 +1061,7 @@ main(int argc, char *argv[])
     if (g.waiter)
 	gensio_os_funcs_free_waiter(g.o, g.waiter);
     if (g.lock)
-	g.o->free_lock(g.lock);
+	gensio_os_funcs_free_lock(g.o, g.lock);
     if (proc_data)
 	gensio_os_proc_cleanup(proc_data);
     if (g.o) {

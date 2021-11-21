@@ -192,7 +192,7 @@ void os_funcs_unlock(struct os_funcs_data *odata)
 static void
 os_funcs_ref(struct gensio_os_funcs *o)
 {
-    struct os_funcs_data *odata = o->other_data;
+    struct os_funcs_data *odata = gensio_os_funcs_get_data(o);
 
     os_funcs_lock(odata);
     odata->refcount++;
@@ -237,7 +237,7 @@ free_gensio_data(struct gensio_data *data)
 static void
 ref_gensio_data(struct gensio_data *data)
 {
-    struct os_funcs_data *odata = data->o->other_data;
+    struct os_funcs_data *odata = gensio_os_funcs_get_data(data->o);
 
     os_funcs_lock(odata);
     data->refcount++;
@@ -247,7 +247,7 @@ ref_gensio_data(struct gensio_data *data)
 static void
 deref_gensio_data(struct gensio_data *data, struct gensio *io)
 {
-    struct os_funcs_data *odata = data->o->other_data;
+    struct os_funcs_data *odata = gensio_os_funcs_get_data(data->o);
 
     os_funcs_lock(odata);
     data->refcount--;
@@ -264,7 +264,7 @@ static void
 deref_gensio_accepter_data(struct gensio_data *data,
 			   struct gensio_accepter *acc)
 {
-    struct os_funcs_data *odata = data->o->other_data;
+    struct os_funcs_data *odata = gensio_os_funcs_get_data(data->o);
 
     os_funcs_lock(odata);
     data->refcount--;
@@ -745,7 +745,7 @@ gensio_child_event(struct gensio *io, void *user_data, int event, int readerr,
 
 		rv = OI_PI_AsBytesAndSize(o, &p, &len);
 		if (!rv) {
-		    p2 = data->o->zalloc(data->o, len + 1);
+		    p2 = gensio_os_funcs_zalloc(data->o, len + 1);
 		    if (!p2) {
 			rv = GE_NOMEM;
 		    } else {
@@ -1087,7 +1087,7 @@ gensio_acc_child_event(struct gensio_accepter *accepter, void *user_data,
 
 		rv = OI_PI_AsBytesAndSize(o, &p, &len);
 		if (!rv) {
-		    p2 = data->o->zalloc(data->o, len + 1);
+		    p2 = gensio_os_funcs_zalloc(data->o, len + 1);
 		    if (!p2) {
 			rv = GE_NOMEM;
 		    } else {
@@ -1231,15 +1231,15 @@ static void gensio_mdns_free_done(struct gensio_mdns *mdns, void *userdata)
     deref_swig_cb_val(m->done_val);
     OI_PY_STATE_PUT(gstate);
 
-    o->lock(m->lock);
+    gensio_os_funcs_lock(o, m->lock);
     if (m->free_on_close) {
-	o->unlock(m->lock);
-	o->free_lock(m->lock);
-	o->free(o, m);
+	gensio_os_funcs_unlock(o, m->lock);
+	gensio_os_funcs_free_lock(o, m->lock);
+	gensio_os_funcs_zfree(o, m);
 	check_os_funcs_free(o);
     } else {
 	m->mdns = NULL;
-	o->unlock(m->lock);
+	gensio_os_funcs_unlock(o, m->lock);
     }
 }
 
@@ -1257,16 +1257,16 @@ static void gensio_mdns_remove_watch_done(struct gensio_mdns_watch *watch,
     deref_swig_cb_val(w->done_val);
     OI_PY_STATE_PUT(gstate);
 
-    o->lock(w->lock);
+    gensio_os_funcs_lock(o, w->lock);
     if (w->free_on_close) {
-	o->unlock(w->lock);
-	o->free_lock(w->lock);
+	gensio_os_funcs_unlock(o, w->lock);
+	gensio_os_funcs_free_lock(o, w->lock);
 	deref_swig_cb_val(w->cb_val);
-	o->free(o, w);
+	gensio_os_funcs_zfree(o, w);
 	check_os_funcs_free(o);
     } else {
 	w->watch = NULL;
-	o->unlock(w->lock);
+	gensio_os_funcs_unlock(o, w->lock);
     }
 }
 

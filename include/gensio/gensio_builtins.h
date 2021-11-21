@@ -13,7 +13,7 @@
 #define GENSIO_BUILTINS_H
 
 #include <gensio/gensio_dllvisibility.h>
-#include <gensio/gensio.h>
+#include <gensio/gensio_types.h>
 
 #ifdef __cplusplus
 extern "C" {

@@ -28,7 +28,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <gensio/gensio.h>
-#include <gensio/gensio_os_funcs.h>
+#include <gensio/gensio_os_funcs.h> /* For iod pipe functions. */
 #include <gensio/gensio_mdns.h>
 #include <gensio/gensio_selector.h>
 #include <gensio/gensio_osops.h>

@@ -391,7 +391,7 @@ int main(int argc, char *argv[])
 	    goto out;
 	}
 	ios += s;
-	o->free(o, s);
+	gensio_os_funcs_zfree(o, s);
 	ios += " ";
 	ios += test;
 	ios += "0";

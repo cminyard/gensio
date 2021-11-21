@@ -22,6 +22,7 @@
 #include <string.h>
 #include <assert.h>
 
+#include <gensio/gensio_os_funcs.h>
 #include <gensio/gensio_class.h>
 #include <gensio/gensio_ll_fd.h>
 #include <gensio/argvutils.h>

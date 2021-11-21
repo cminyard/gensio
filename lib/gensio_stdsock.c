@@ -48,6 +48,7 @@ typedef ssize_t sockret;
 #endif
 
 #include <gensio/gensio.h>
+#include <gensio/gensio_os_funcs.h>
 #include <gensio/gensio_osops.h>
 #include <gensio/gensio_class.h>
 #include <gensio/argvutils.h>

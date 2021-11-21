@@ -28,6 +28,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <gensio/gensio.h>
+#include <gensio/gensio_os_funcs.h> /* For iod operations on pipes. */
 #include <gensio/gensio_mdns.h>
 #ifdef HAVE_PRCTL
 #include <sys/prctl.h>
@@ -230,14 +231,14 @@ increase_size(struct gensio_os_funcs *o, char **rval, gensiods *size)
     gensiods newsize = *size + 10;
     char *val;
 
-    val = o->zalloc(o, newsize);
+    val = gensio_os_funcs_zalloc(o, newsize);
     if (!val) {
 	fprintf(stderr, "Out of memory allocating 2fa data\n");
 	return GE_NOMEM;
     }
     if (*rval) {
 	memcpy(val, *rval, *size);
-	o->free(o, *rval);
+	gensio_os_funcs_zfree(o, *rval);
     }
     *rval = val;
     *size = newsize;
@@ -287,7 +288,7 @@ get2fa(struct gdata *ginfo, char **rval, gensiods *len, const char *prompt)
 
  out_err:
     if (val)
-	o->free(o, val);
+	gensio_os_funcs_zfree(o, val);
     gensio_clear_sync(tty);
     gensio_close_s(tty);
     gensio_free(tty);
@@ -724,7 +725,7 @@ lookup_certinfo(struct gensio_os_funcs *o,
     free(tmp);
     if (!*rcertspec) {
     out_err1:
-	o->free(o, *rCAspec);
+	gensio_os_funcs_zfree(o, *rCAspec);
 	*rCAspec = NULL;
 	goto out_err;
     }
@@ -735,9 +736,9 @@ lookup_certinfo(struct gensio_os_funcs *o,
     free(tmp);
     if (!*rkeyspec) {
     out_err2:
-	o->free(o, *rcertspec);
+	gensio_os_funcs_zfree(o, *rcertspec);
 	*rcertspec = NULL;
-	o->free(o, *rCAspec);
+	gensio_os_funcs_zfree(o, *rCAspec);
 	*rCAspec = NULL;
 	goto out_err;
     }
@@ -1637,10 +1638,10 @@ mdns_cb(struct gensio_mdns_watch *w,
     cb_data->err = gensio_addr_to_str(addr, NULL, &addrstrlen, 0);
     if (cb_data->err)
 	goto out_wake;
-    addrstr = o->zalloc(o, addrstrlen + 1);
+    addrstr = gensio_os_funcs_zalloc(o, addrstrlen + 1);
     cb_data->err = gensio_addr_to_str(addr, addrstr, &pos, addrstrlen + 1);
     if (cb_data->err) {
-	o->free(o, addrstr);
+	gensio_os_funcs_zfree(o, addrstr);
 	goto out_wake;
     }
 
@@ -1661,7 +1662,7 @@ mdns_cb(struct gensio_mdns_watch *w,
 
  out_wake:
     if (addrstr)
-	o->free(o, addrstr);
+	gensio_os_funcs_zfree(o, addrstr);
     cb_data->done = true;
     gensio_os_funcs_wake(o, cb_data->wait);
 }
@@ -2196,7 +2197,7 @@ main(int argc, char *argv[])
     }
 
     if (mdns_transport)
-	o->free(o, (char *) transport);
+	gensio_os_funcs_zfree(o, (char *) transport);
 
     userdata1.can_close = true;
     err = gensio_open_s(userdata1.io);
@@ -2244,11 +2245,11 @@ main(int argc, char *argv[])
 	gensio_os_funcs_wait(o, closewaiter, closecount, NULL);
 
     if (CAspec)
-	o->free(o, CAspec);
+	gensio_os_funcs_zfree(o, CAspec);
     if (certspec)
-	o->free(o, certspec);
+	gensio_os_funcs_zfree(o, certspec);
     if (keyspec)
-	o->free(o, keyspec);
+	gensio_os_funcs_zfree(o, keyspec);
 
     gensio_free(userdata1.io);
     gensio_free(userdata2.io);
