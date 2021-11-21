@@ -28,7 +28,7 @@ execution, especially if you have a simple program that just accepts
 one connection and then does something.
 
 .B gensio_acc set_sync
-sets up the gensio accepter for syncronous accepts.  If you do this,
+sets up the gensio accepter for synchronous accepts.  If you do this,
 the event callback that is currently registered will no longer receive
 new connection events.  It *will* receive other callbacks.  You must
 call this before starting up the gensio accepter, and once you call it
