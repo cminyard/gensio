@@ -626,7 +626,11 @@ AC_ARG_ENABLE([internal-trace],
   [enable_internal_trace=no])
 if test "x$enable_internal_trace" != xno; then
    AC_DEFINE([ENABLE_INTERNAL_TRACE], [1], [Enable internal tracing])
+   ENABLE_INTERNAL_TRACE=1
+else
+   ENABLE_INTERNAL_TRACE=0
 fi
+AM_CONDITIONAL([ENABLE_INTERNAL_TRACE], [test ${enable_internal_trace} != no])
 
 HAVE_UNIX=0
 AC_CHECK_HEADER(sys/un.h, [HAVE_UNIX=1] )

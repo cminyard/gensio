@@ -12,7 +12,7 @@ noinst_HEADERS = telnet.h heap.h utils.h uucplock.h buffer.h \
 libgensio_la_SOURCES = \
 	gensio.c gensio_osops.c gensio_base.c sergensio.c utils.c buffer.c \
 	gensio_ll_fd.c gensio_ll_gensio.c gensio_acc.c gensio_acc_gensio.c \
-	errtrig.c gensio_circbuf.c gensio_osops_env.c \
+	gensio_circbuf.c gensio_osops_env.c \
 	gensio_net.c gensio_udp.c gensio_sctp.c \
 	sergensio_telnet.c gensio_filter_telnet.c telnet.c \
 	gensio_ssl.c gensio_filter_ssl.c \
@@ -34,6 +34,9 @@ libgensio_la_SOURCES += gensio_unix.c selector.c
 endif
 if HAVE_WINDOWS_OS
 libgensio_la_SOURCES += gensio_win.c
+endif
+if ENABLE_INTERNAL_TRACE
+libgensio_la_SOURCES += errtrig.c
 endif
 
 libgensio_la_LDFLAGS = $(OPENSSL_LIBS) -no-undefined
