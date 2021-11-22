@@ -34,7 +34,7 @@ specifies a telnet filter on top of a TCP connection.
 
 When specifying a gensio, you can add quotes (single or double) to
 remove the special meaning for some characters, so you can have commas
-in options and such.  They may also be escaped with a "\\".  For instance,
+in options and such.  They may also be escaped with a "\e".  For instance,
 if you are specifying a laddr in an sctp address, you need to do this.
 The following address:
 .IP
@@ -766,7 +766,7 @@ The remote address string is either "stdio,<args>" for the main channel or
 "stderr,<args>" for the error channel.  The args will be a set of quoted
 strings with a space between each string, one for each argument,
 with '"' around each argument, each '"' in the string converted
-to '\\"' and each '\\' in the string converted to '\\\\'.
+to '\e"' and each '\e' in the string converted to '\e\e'.
 .SS "Remote ID"
 The remote ID is the pid for the remote device, only for connecting
 gensios that start a program, not for any other type.
@@ -1307,8 +1307,8 @@ Set the group of the slave pty to the given group.
 The remote address string the program and arguments run on the pty.
 The argiuments will be a set of quoted strings with a space between each
 string, one for each argument, with '"' around each argument, each '"'
-in the string converted to '\\"' and each '\\' in the string
-converted to '\\\\'.
+in the string converted to '\e"' and each '\e' in the string
+converted to '\e\e'.
 .SS "Remote Address"
 The address is a pointer to an integer, the ptym file descriptor is
 returned.  addrlen must be set to sizeof(int) when passed in.

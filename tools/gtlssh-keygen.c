@@ -136,7 +136,7 @@ help(const char *progname)
     P("    Put the local certificate for the given host onto the remote\n");
     P("    host so it can be used for login.  It uses old credentials\n");
     P("    (credentials with .1 appended to the name, per keygen) if\n");
-    P("    they are there.  This is useful if you have upated your\n");
+    P("    they are there.  This is useful if you have updated your\n");
     P("    certificate and need to send a new one to some remote hosts.\n");
     P("    It finds the certificate name as described in the keygen\n");
     P("    command.  If old credentials exist, it will use those to\n");
