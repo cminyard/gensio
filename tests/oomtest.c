@@ -2185,7 +2185,7 @@ main(int argc, char *argv[])
 
     if (use_glib) {
 #ifndef HAVE_GLIB
-	fprintf(stderr, "glib specified, but glib OS handler not avaiable.\n");
+	fprintf(stderr, "glib specified, but glib OS handler not available.\n");
 	exit(1);
 #else
 	os_func_str = " --glib";
@@ -2193,7 +2193,7 @@ main(int argc, char *argv[])
 #endif
     } else if (use_tcl) {
 #ifndef HAVE_TCL
-	fprintf(stderr, "tcl specified, but tcl OS handler not avaiable.\n");
+	fprintf(stderr, "tcl specified, but tcl OS handler not available.\n");
 	exit(1);
 #else
 	if (num_extra_threads > 0)

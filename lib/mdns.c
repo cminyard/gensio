@@ -354,7 +354,7 @@ avahi_add_service(struct gensio_mdns *m, struct gensio_mdns_service *s)
     err = avahi_entry_group_commit(s->group);
     if (err)
 	gensio_mdns_log(m, GENSIO_LOG_ERR,
-			"Error commiting service entry: %s",
+			"Error committing service entry: %s",
 			avahi_strerror(err));
 }
 
