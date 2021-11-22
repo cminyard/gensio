@@ -10,8 +10,6 @@
 #include <intrin.h>
 #endif
 
-#ifdef ENABLE_ERRTRIG_TEST
-
 #include "pthread_handler.h"
 #include <assert.h>
 /*
@@ -94,4 +92,3 @@ void errtrig_exit(int rv)
 	rv = 3;
     exit(rv);
 }
-#endif
