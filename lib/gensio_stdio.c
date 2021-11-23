@@ -988,6 +988,20 @@ stdion_control(struct gensio *io, bool get, unsigned int option,
 	*datalen = snprintf(data, *datalen, "%llu",
 			    (unsigned long long) nadata->opid);
 	return 0;
+
+    case GENSIO_CONTROL_IOD:
+	if (!get)
+	    return GE_NOTSUP;
+	if (*datalen != sizeof(void *))
+	    return GE_INVAL;
+	val = strtoul(data, NULL, 0);
+	if (val == 0)
+	    memcpy(data, &schan->in_iod, sizeof(void *));
+	else if (val == 1)
+	    memcpy(data, &schan->out_iod, sizeof(void *));
+	else
+	    return GE_INVAL;
+	return 0;
     }
 
     return GE_NOTSUP;

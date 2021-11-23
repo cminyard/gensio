@@ -274,6 +274,11 @@ sent to the remote end and be available for them.
 .SS "GENSIO_CONTROL_REM_AUX_DATA"
 Return auxiliary received from the other end of the connection.  On
 certauth, this will be received from the remote end.
+.SS "GENSIO_CONTROL_IOD"
+Used to get the IOD pointer for the gensio as a raw pointer.  For
+gensios that have more than one IOD, the string you pass in will be a
+string number representing which IOD, "0" for the first (stdin), "1"
+for the second (stdout), and "2" for the third, (stderr).
 .SH "RETURN VALUES"
 Zero is returned on success, or a gensio error on failure.
 .SH "SEE ALSO"
