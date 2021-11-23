@@ -12,7 +12,6 @@
 #include <assert.h>
 #include <Python.h>
 #include <gensio/gensio.h>
-#include <gensio/gensio_os_funcs.h>
 #include <gensio/gensio_swig.h>
 #include "python_swig_internals.h"
 
@@ -75,7 +74,7 @@ gensio_do_vlog(struct gensio_os_funcs *o,
 	       enum gensio_log_levels level,
 	       const char *fmt, va_list fmtargs)
 {
-    struct os_funcs_data *odata = o->other_data;
+    struct os_funcs_data *odata = gensio_os_funcs_get_data(o);
     char *buf = NULL;
     unsigned int len;
     PyObject *args, *po;
@@ -90,7 +89,7 @@ gensio_do_vlog(struct gensio_os_funcs *o,
     va_copy(tmpva, fmtargs);
     len = vsnprintf(buf, 0, fmt, tmpva);
     va_end(tmpva);
-    buf = o->zalloc(o, len + 1);
+    buf = gensio_os_funcs_zalloc(o, len + 1);
     if (!buf)
 	goto out;
     vsnprintf(buf, len + 1, fmt, fmtargs);
@@ -100,7 +99,7 @@ gensio_do_vlog(struct gensio_os_funcs *o,
     PyTuple_SET_ITEM(args, 0, po);
     po = OI_PI_FromString(buf);
     PyTuple_SET_ITEM(args, 1, po);
-    o->free(o, buf);
+    gensio_os_funcs_zfree(o, buf);
 
     po = swig_finish_call_rv(odata->log_handler, "gensio_log", args, false);
     if (po)
@@ -127,7 +126,7 @@ gensio_swig_setup_os_funcs(struct gensio_os_funcs *o,
     else
 	odata->log_handler = NULL;
     gensio_os_funcs_set_vlog(o, gensio_do_vlog);
-    o->other_data = odata;
+    gensio_os_funcs_set_data(o, odata);
 }
 
 #ifdef USE_POSIX_THREADS
@@ -151,7 +150,7 @@ void os_funcs_unlock(struct os_funcs_data *odata)
 void
 check_os_funcs_free(struct gensio_os_funcs *o)
 {
-    struct os_funcs_data *odata = o->other_data;
+    struct os_funcs_data *odata = gensio_os_funcs_get_data(o);
 
     os_funcs_lock(odata);
     if (--odata->refcount == 0) {
@@ -171,7 +170,7 @@ check_os_funcs_free(struct gensio_os_funcs *o)
 int
 get_os_funcs_refcount(struct gensio_os_funcs *o)
 {
-    struct os_funcs_data *odata = o->other_data;
+    struct os_funcs_data *odata = gensio_os_funcs_get_data(o);
 
     return odata->refcount;
 }
