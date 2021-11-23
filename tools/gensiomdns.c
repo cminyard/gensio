@@ -28,17 +28,11 @@
 #include <string.h>
 #include <stdlib.h>
 #include <gensio/gensio.h>
-#include <gensio/gensio_os_funcs.h> /* For iod pipe functions. */
 #include <gensio/gensio_mdns.h>
 #include <gensio/gensio_selector.h>
 #include <gensio/gensio_osops.h>
 #include <gensio/argvutils.h>
 #include "utils.h"
-#ifdef HAVE_SIGNALFD
-#include <unistd.h>
-#include <signal.h>
-#include <sys/signalfd.h>
-#endif
 
 static const char *progname;
 static int debug;
@@ -128,26 +122,13 @@ mdns_info_found(struct gensio_mdns_watch *w,
     }
 }
 
-#ifdef HAVE_SIGNALFD
-static ssize_t dummy; /* Eliminate warnings. */
 static void
-sigfd_read(struct gensio_iod *iod, void *cb_data)
+term_handler(void *handler_data)
 {
-    struct freed_data *f = cb_data;
-    struct signalfd_siginfo i;
-
-    dummy = iod->f->read(iod, &i, sizeof(i), NULL);
-    gensio_os_funcs_wake(f->o, f->closewaiter);
-}
-
-static void
-sigfd_cleared(struct gensio_iod *iod, void *cb_data)
-{
-    struct freed_data *f = cb_data;
+    struct freed_data *f = handler_data;
 
     gensio_os_funcs_wake(f->o, f->closewaiter);
 }
-#endif
 
 static void
 help(int err)
@@ -188,12 +169,6 @@ main(int argc, char *argv[])
     struct gensio_mdns_service *service = NULL;
     struct freed_data fdata;
     int rv, arg, err;
-#ifdef HAVE_SIGNALFD
-    int  sigfd = -1;
-    struct gensio_iod *sig_iod = NULL;
-    sigset_t sigmask;
-    bool sigfd_set = false;
-#endif
     const char *name = NULL, *type = NULL, *domain = NULL, *host = NULL;
     int interface = -1, nettype = GENSIO_NETTYPE_UNSPEC, port = -1;
     const char *nettype_str = NULL;
@@ -201,6 +176,7 @@ main(int argc, char *argv[])
     const char **txt = NULL;
     gensiods txtargc = 0, txtargs = 0;
     bool do_service = false;
+    struct gensio_os_proc_data *proc_data;
 
     progname = argv[0];
 
@@ -208,7 +184,7 @@ main(int argc, char *argv[])
     if (rv) {
 	fprintf(stderr, "Could not allocate OS handler: %s\n",
 		gensio_err_to_str(rv));
-	goto out_err;
+	return 1;
     }
     gensio_os_funcs_set_vlog(o, do_vlog);
 
@@ -267,6 +243,14 @@ main(int argc, char *argv[])
 	    return 1;
     }
 
+    rv = gensio_os_proc_setup(o, &proc_data);
+    if (rv) {
+	fprintf(stderr, "Could not setup process data: %s\n",
+		gensio_err_to_str(rv));
+	gensio_os_funcs_free(o);
+	return 1;
+    }
+
     closewaiter = gensio_os_funcs_alloc_waiter(o);
     if (!closewaiter) {
 	rv = GE_NOMEM;
@@ -277,34 +261,12 @@ main(int argc, char *argv[])
     fdata.o = o;
     fdata.closewaiter = closewaiter;
 
-#ifdef HAVE_SIGNALFD
-    if (!close_on_done || do_service) {
-	sigemptyset(&sigmask);
-	sigaddset(&sigmask, SIGINT);
-	sigprocmask(SIG_BLOCK, &sigmask, NULL);
-	rv = signalfd(-1, &sigmask, 0);
-	if (rv < 0) {
-	    perror("signalfd");
-	    goto out_err;
-	}
-	sigfd = rv;
-	rv = o->add_iod(o, GENSIO_IOD_SIGNAL, sigfd, &sig_iod);
-	if (rv) {
-	    fprintf(stderr, "Can't add signalfd iod: %s\n",
-		    gensio_err_to_str(rv));
-	    goto out_err;
-	}
-	rv = o->set_fd_handlers(sig_iod, &fdata, sigfd_read, NULL, NULL,
-				sigfd_cleared);
-	if (rv) {
-	    fprintf(stderr, "Can't set sigfd handler: %s\n",
-		    gensio_err_to_str(rv));
-	    goto out_err;
-	}
-	sigfd_set = true;
-	o->set_read_handler(sig_iod, true);
+    rv = gensio_os_proc_register_term_handler(proc_data, term_handler, &fdata);
+    if (rv) {
+	fprintf(stderr, "Can't register term handler: %s\n",
+		gensio_err_to_str(rv));
+	goto out_err;
     }
-#endif
 
     rv = gensio_alloc_mdns(o, &mdns);
     if (rv) {
@@ -379,17 +341,6 @@ main(int argc, char *argv[])
 	    gensio_os_funcs_wait(o, closewaiter, 1, NULL);
     }
 
-#ifdef HAVE_SIGNALFD
-    if (sigfd_set) {
-	o->clear_fd_handlers(sig_iod);
-	gensio_os_funcs_wait(o, closewaiter, 1, NULL);
-    }
-    if (sig_iod)
-	o->release_iod(sig_iod);
-    if (sigfd != -1)
-	close(sigfd);
-#endif
-
     if (txt)
 	gensio_argv_free(o, txt);
 
@@ -402,6 +353,7 @@ main(int argc, char *argv[])
 	    ;
 	gensio_cleanup_mem(o);
 	gensio_os_funcs_free(o);
+	gensio_os_proc_cleanup(proc_data);
     }
     gensio_osfunc_exit(!!rv);
 }
