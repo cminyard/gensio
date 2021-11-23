@@ -75,8 +75,9 @@ GENSIO_DLL_PUBLIC
 int gensio_os_proc_register_term_handler(struct gensio_os_proc_data *data,
 					 void (*handler)(void *handler_data),
 					 void *handler_data);
+
 /*
- * Set the function to call when a reaload is requested by the
+ * Set the function to call when a reload is requested by the
  * operating system (SIGHUP on Unix).  data should point to a struct
  * gensio_control_register_handler.  Set handler to NULL to disable.
  */
@@ -85,6 +86,23 @@ int gensio_os_proc_register_reload_handler(struct gensio_os_proc_data *data,
 					   void (*handler)(void *handler_data),
 					   void *handler_data);
 
+
+/*
+ * Set the function to call when a console window size change is
+ * requested by the operating system (SIGWINCH on Unix).  data should
+ * point to a struct gensio_control_register_handler.  Set handler to
+ * NULL to disable.
+ *
+ * Note that the handler will be called as part of the start of this
+ * operation.
+ */
+int
+gensio_os_proc_register_winsize_handler(struct gensio_os_proc_data *data,
+					struct gensio_iod *console_iod,
+					void (*handler)(int x_chrs, int y_chrs,
+							int x_bits, int y_bits,
+							void *handler_data),
+					void *handler_data);
 
 /*
  * Start a new thread running at start_func, passing in the given

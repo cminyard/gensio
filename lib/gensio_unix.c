@@ -30,6 +30,7 @@
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <fcntl.h>
+#include <sys/ioctl.h>
 #include "errtrig.h"
 
 struct gensio_data {
@@ -1570,6 +1571,15 @@ struct gensio_os_proc_data {
     struct sigaction old_sighup;
     void (*reload_handler)(void *handler_data);
     void *reload_handler_data;
+
+    bool winch_sig_set;
+    bool got_winch_sig;
+    struct sigaction old_sigwinch;
+    void (*winch_handler)(int x_chrs, int y_chrs,
+			  int x_bits, int y_bits,
+			  void *handler_data);
+    void *winch_handler_data;
+    int winch_fd;
 };
 
 /* We only have one of these per process, so it's global. */
@@ -1596,6 +1606,12 @@ static void
 reload_sig_handler(int sig)
 {
     proc_data.got_reload_sig = true;
+}
+
+static void
+winch_sig_handler(int sig)
+{
+    proc_data.got_winch_sig = true;
 }
 
 int
@@ -1682,6 +1698,10 @@ gensio_os_proc_cleanup(struct gensio_os_proc_data *data)
 	data->reload_sig_set = false;
 	sigaction(SIGHUP, &data->old_sighup, NULL);
     }
+    if (data->winch_sig_set) {
+	data->winch_sig_set = false;
+	sigaction(SIGWINCH, &data->old_sigwinch, NULL);
+    }
     sigaction(SIGCHLD, &data->old_sigchld, NULL);
     sigprocmask(SIG_SETMASK, &data->old_sigs, NULL);
 }
@@ -1698,6 +1718,17 @@ gensio_os_proc_check_handlers(struct gensio_os_proc_data *data)
 	data->got_reload_sig = false;
 	data->reload_handler(data->reload_handler_data);
     }
+    if (data->got_winch_sig) {
+	struct winsize win;
+	int err;
+
+	data->got_winch_sig = false;
+	err = ioctl(data->winch_fd, TIOCGWINSZ, &win);
+	if (err == 0)
+	    data->winch_handler(win.ws_col, win.ws_row,
+				win.ws_xpixel, win.ws_ypixel,
+				data->winch_handler_data);
+    }
     UNLOCK(&data->handler_lock);
 }
 
@@ -1710,6 +1741,15 @@ gensio_os_proc_register_term_handler(struct gensio_os_proc_data *data,
     struct sigaction act;
     sigset_t sigs, old_sigs;
 
+    if (data->term_sig_set) {
+	data->term_sig_set = false;
+	sigaction(SIGINT, &data->old_sigint, NULL);
+	sigaction(SIGQUIT, &data->old_sigquit, NULL);
+	sigaction(SIGTERM, &data->old_sigterm, NULL);
+    }
+    if (!handler)
+	return 0;
+
     sigemptyset(&sigs);
     sigaddset(&sigs, SIGINT);
     sigaddset(&sigs, SIGQUIT);
@@ -1717,6 +1757,9 @@ gensio_os_proc_register_term_handler(struct gensio_os_proc_data *data,
     err = sigprocmask(SIG_BLOCK, &sigs, &old_sigs);
     if (err)
 	return gensio_os_err_to_err(data->o, errno);
+
+    data->term_handler = handler;
+    data->term_handler_data = handler_data;
 
     memset(&act, 0, sizeof(act));
     act.sa_handler = term_sig_handler;
@@ -1743,8 +1786,6 @@ gensio_os_proc_register_term_handler(struct gensio_os_proc_data *data,
     sigdelset(&data->wait_sigs, SIGINT);
     sigdelset(&data->wait_sigs, SIGQUIT);
     sigdelset(&data->wait_sigs, SIGTERM);
-    data->term_handler = handler;
-    data->term_handler_data = handler_data;
     data->term_sig_set = true;
     return 0;
 
@@ -1761,11 +1802,21 @@ int gensio_os_proc_register_reload_handler(struct gensio_os_proc_data *data,
     struct sigaction act;
     sigset_t sigs, old_sigs;
 
+    if (data->reload_sig_set) {
+	data->reload_sig_set = false;
+	sigaction(SIGHUP, &data->old_sighup, NULL);
+    }
+    if (!handler)
+	return 0;
+
     sigemptyset(&sigs);
     sigaddset(&sigs, SIGHUP);
     err = sigprocmask(SIG_BLOCK, &sigs, &old_sigs);
     if (err)
 	return gensio_os_err_to_err(data->o, errno);
+
+    data->reload_handler = handler;
+    data->reload_handler_data = handler_data;
 
     memset(&act, 0, sizeof(act));
     act.sa_handler = reload_sig_handler;
@@ -1775,9 +1826,59 @@ int gensio_os_proc_register_reload_handler(struct gensio_os_proc_data *data,
 	goto out_err;
     }
     sigdelset(&data->wait_sigs, SIGHUP);
-    data->reload_handler = handler;
-    data->reload_handler_data = handler_data;
     data->reload_sig_set = true;
+    return 0;
+
+ out_err:
+    sigprocmask(SIG_SETMASK, &old_sigs, NULL);
+    return gensio_os_err_to_err(data->o, err);
+}
+
+int
+gensio_os_proc_register_winsize_handler(struct gensio_os_proc_data *data,
+					struct gensio_iod *console_iod,
+					void (*handler)(int x_chrs, int y_chrs,
+							int x_bits, int y_bits,
+							void *handler_data),
+					void *handler_data)
+{
+    struct gensio_iod_unix *iod = i_to_sel(console_iod);
+    int err;
+    struct sigaction act;
+    sigset_t sigs, old_sigs;
+    struct winsize win;
+
+    if (data->winch_sig_set) {
+	data->winch_sig_set = false;
+	sigaction(SIGWINCH, &data->old_sigwinch, NULL);
+    }
+    if (!handler)
+	return 0;
+
+    err = ioctl(iod->fd, TIOCGWINSZ, &win);
+    if (err == -1)
+	return GE_NOTSUP;
+
+    sigemptyset(&sigs);
+    sigaddset(&sigs, SIGWINCH);
+    err = sigprocmask(SIG_BLOCK, &sigs, &old_sigs);
+    if (err)
+	return gensio_os_err_to_err(data->o, errno);
+
+    data->winch_handler = handler;
+    data->winch_handler_data = handler_data;
+    data->winch_fd = iod->fd;
+
+    memset(&act, 0, sizeof(act));
+    act.sa_handler = winch_sig_handler;
+    err = sigaction(SIGWINCH, &act, &data->old_sigwinch);
+    if (err) {
+	err = errno;
+	goto out_err;
+    }
+    sigdelset(&data->wait_sigs, SIGWINCH);
+    data->winch_sig_set = true;
+    kill(getpid(), SIGWINCH);
     return 0;
 
  out_err:

@@ -3372,6 +3372,21 @@ gensio_os_proc_register_reload_handler(struct gensio_os_proc_data *data,
     return GE_NOTSUP;
 }
 
+/*
+ * FIXME - this is doable under Windows, but requires using
+ * ReadConsoleInput() to get I/O, so it would take some redesign.
+ */
+int
+gensio_os_proc_register_winsize_handler(struct gensio_os_proc_data *data,
+					struct gensio_iod *console_iod,
+					void (*handler)(int x_chrs, int y_chrs,
+							int x_bits, int y_bits,
+							void *handler_data),
+					void *handler_data)
+{
+    return GE_NOTSUP;
+}
+
 struct gensio_thread {
     struct gensio_os_funcs *o;
     HANDLE handle;
