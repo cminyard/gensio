@@ -46,7 +46,7 @@ gensio_os_funcs_free(struct gensio_os_funcs *o)
 }
 
 void *
-gensio_os_funcs_zalloc(struct gensio_os_funcs *o, unsigned int size)
+gensio_os_funcs_zalloc(struct gensio_os_funcs *o, gensiods size)
 {
     return o->zalloc(o, size);
 }

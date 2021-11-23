@@ -225,7 +225,7 @@ struct gensio_data {
 #define glock_unlock(d)  LeaveCriticalSection(&(d)->glock)
 
 static void *
-win_zalloc(struct gensio_os_funcs *o, unsigned int size)
+win_zalloc(struct gensio_os_funcs *o, gensiods size)
 {
     struct gensio_data *d = o->user_data;
 

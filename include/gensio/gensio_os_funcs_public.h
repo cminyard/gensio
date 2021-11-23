@@ -123,7 +123,7 @@ GENSIO_DLL_PUBLIC
 int gensio_os_wait_thread(struct gensio_thread *thread_id);
 
 GENSIO_DLL_PUBLIC
-void *gensio_os_funcs_zalloc(struct gensio_os_funcs *o, unsigned int len);
+void *gensio_os_funcs_zalloc(struct gensio_os_funcs *o, gensiods len);
 
 GENSIO_DLL_PUBLIC
 void gensio_os_funcs_zfree(struct gensio_os_funcs *o, void *data);

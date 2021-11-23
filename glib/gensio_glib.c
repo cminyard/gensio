@@ -78,7 +78,7 @@ struct gensio_data
 };
 
 static void *
-gensio_glib_zalloc(struct gensio_os_funcs *f, unsigned int size)
+gensio_glib_zalloc(struct gensio_os_funcs *f, gensiods size)
 {
     struct gensio_data *d = f->user_data;
 

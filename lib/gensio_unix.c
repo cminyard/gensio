@@ -44,7 +44,7 @@ struct gensio_data {
 };
 
 static void *
-gensio_unix_zalloc(struct gensio_os_funcs *o, unsigned int size)
+gensio_unix_zalloc(struct gensio_os_funcs *o, gensiods size)
 {
     struct gensio_data *d = o->user_data;
 

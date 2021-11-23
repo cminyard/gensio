@@ -260,7 +260,7 @@ struct gensio_os_funcs {
 
     /****** Memory Allocation ******/
     /* Return allocated and zeroed data.  Return NULL on error. */
-    void *(*zalloc)(struct gensio_os_funcs *f, unsigned int size);
+    void *(*zalloc)(struct gensio_os_funcs *f, gensiods size);
 
     /* Free data allocated by zalloc. */
     void (*free)(struct gensio_os_funcs *f, void *data);
