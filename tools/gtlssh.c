@@ -28,7 +28,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <gensio/gensio.h>
-#include <gensio/gensio_os_funcs.h> /* For iod operations on pipes. */
 #include <gensio/gensio_mdns.h>
 #ifdef HAVE_PRCTL
 #include <sys/prctl.h>
@@ -60,6 +59,8 @@ struct gdata {
     bool interactive;
     bool got_oob;
 };
+
+struct gensio_os_proc_data *proc_data;
 
 static void
 gshutdown(struct ioinfo *ioinfo, bool user_req)
@@ -101,7 +102,9 @@ static int gevent(struct ioinfo *ioinfo, struct gensio *io, int event,
     return 0;
 }
 
-static void winch_ready(struct gensio_iod *iod, void *cb_data);
+static void winch_ready(int x_chrs, int y_chrs,
+			int x_bits, int y_bits,
+			void *handler_data);
 
 /*
  * We wait until the other end has signalled us to say that it is
@@ -112,13 +115,37 @@ static void
 goobdata(struct ioinfo *ioinfo, unsigned char *buf, gensiods *buflen)
 {
     struct gdata *ginfo = ioinfo_userdata(ioinfo);
+    struct ioinfo *oioinfo = ioinfo_otherioinfo(ioinfo);
+    struct gdata *oginfo = ioinfo_userdata(oioinfo);
 
     if (ginfo->got_oob)
 	return;
 
     ginfo->got_oob = true;
-    if (ginfo->interactive)
-	winch_ready(NULL, ioinfo);
+
+    /*
+     * Wait for the other end of the connection to be fully up before
+     * we send the window size across to avoid screwing up login
+     * handling.
+     */
+    if (oginfo->interactive) {
+	struct gensio *io = ioinfo_io(oioinfo);
+	struct gensio_iod *iod;
+	gensiods len = sizeof(iod);
+	int err;
+
+	/*
+	 * Which iod is passed in the data as an index, but the iod is
+	 * returned in the same data.  It looks a little strange to do
+	 * this, but that's how it works.
+	 */
+	memcpy(&iod, "0", 2);
+	err = gensio_control(io, GENSIO_CONTROL_DEPTH_FIRST, true,
+			     GENSIO_CONTROL_IOD, (char *) &iod, &len);
+	if (!err)
+	    gensio_os_proc_register_winsize_handler(proc_data, iod,
+						    winch_ready, ioinfo);
+    }
 }
 
 static struct ioinfo_user_handlers guh = {
@@ -1190,38 +1217,25 @@ auth_event(struct gensio *io, void *user_data, int event, int ierr,
     }
 }
 
-#if HAVE_DECL_SIGWINCH
-#include <sys/types.h>
-#include <fcntl.h>
-#include <signal.h>
-#include <sys/ioctl.h>
-
 static void winch_sent(void *cb_data);
 
-static int winch_pipe[2];
-static struct gensio_iod *winch_iod;
 static unsigned char winch_buf[11];
 static struct ioinfo_oob winch_oob = { .buf = winch_buf };
 static bool winch_oob_sending;
 static bool winch_oob_pending;
+static int winch_x_chrs, winch_y_chrs, winch_x_bits, winch_y_bits;
 
 static void
-send_winch(struct ioinfo *ioinfo)
+send_winch(struct ioinfo *ioinfo,
+	   int x_chrs, int y_chrs, int x_bits, int y_bits)
 {
-    struct winsize win;
-    int rv;
-
-    rv = ioctl(0, TIOCGWINSZ, &win);
-    if (rv == -1)
-	return;
-
     /* See goobdata() comment for message format. */
     winch_oob.buf[0] = 'w';
     gensio_u16_to_buf(winch_oob.buf + 1, 8); /* Number of following bytes. */
-    gensio_u16_to_buf(winch_oob.buf + 3, win.ws_row);
-    gensio_u16_to_buf(winch_oob.buf + 5, win.ws_col);
-    gensio_u16_to_buf(winch_oob.buf + 7, win.ws_xpixel);
-    gensio_u16_to_buf(winch_oob.buf + 9, win.ws_ypixel);
+    gensio_u16_to_buf(winch_oob.buf + 3, y_chrs);
+    gensio_u16_to_buf(winch_oob.buf + 5, x_chrs);
+    gensio_u16_to_buf(winch_oob.buf + 7, x_bits);
+    gensio_u16_to_buf(winch_oob.buf + 9, y_bits);
     winch_oob.len = 11;
     winch_oob.cb_data = ioinfo;
     winch_oob.send_done = winch_sent;
@@ -1237,114 +1251,27 @@ winch_sent(void *cb_data)
     winch_oob_sending = false;
     if (winch_oob_pending) {
 	winch_oob_pending = false;
-	send_winch(ioinfo);
+	send_winch(ioinfo,
+		   winch_x_chrs, winch_y_chrs, winch_x_bits, winch_y_bits);
     }
 }
 
 static void
-winch_ready(struct gensio_iod *iod, void *cb_data)
+winch_ready(int x_chrs, int y_chrs, int x_bits, int y_bits,
+	    void *handler_data)
 {
-    struct ioinfo *ioinfo = cb_data;
-    char dummy;
-    int rv = 1;
+    struct ioinfo *ioinfo = handler_data;
 
-    /* Clear out the pipe. */
-    while (rv == 1)
-	rv = read(winch_pipe[0], &dummy, 1);
-    /* errno should be EAGAIN here. */
-
-    if (!isatty(0))
-	return;
-
-    if (winch_oob_sending)
+    if (winch_oob_sending) {
+	winch_x_chrs = x_chrs;
+	winch_y_chrs = y_chrs;
+	winch_x_bits = x_bits;
+	winch_y_bits = y_bits;
 	winch_oob_pending = true;
-    else
-	send_winch(ioinfo);
-}
-
-static void
-handle_sigwinch(int signum)
-{
-    int rv;
-
-    rv = write(winch_pipe[1], "w", 1);
-    if (rv != 1) {
-	/* What can be done here? */
+    } else {
+	send_winch(ioinfo, x_chrs, y_chrs, x_bits, y_bits);
     }
 }
-
-static int
-setup_window_change(void)
-{
-    struct sigaction sigact;
-
-    if (pipe(winch_pipe) == -1) {
-	perror("Unable to allocate SIGWINCH pipe");
-	return 1;
-    }
-    if (fcntl(winch_pipe[0], F_SETFL, O_NONBLOCK) == -1) {
-	perror("Unable to set nonblock on SIGWINCH pipe[0]");
-	return 1;
-    }
-    if (fcntl(winch_pipe[1], F_SETFL, O_NONBLOCK) == -1) {
-	perror("Unable to set nonblock on SIGWINCH pipe[1]");
-	return 1;
-    }
-
-    memset(&sigact, 0, sizeof(sigact));
-    sigact.sa_handler = handle_sigwinch;
-    if (sigaction(SIGWINCH, &sigact, NULL)) {
-	perror("Unable to setup SIGWINCH");
-	return 1;
-    }
-
-    return 0;
-}
-
-static int
-setup_window_change2(struct gensio_os_funcs *o, struct ioinfo *ioinfo)
-{
-    int rv;
-
-    rv = o->add_iod(o, GENSIO_IOD_PIPE, winch_pipe[0], &winch_iod);
-    if (rv) {
-	fprintf(stderr, "Could not add SIGWINCH fd iod: %s\n",
-		gensio_err_to_str(rv));
-	return 1;
-    }
-
-    rv = o->set_fd_handlers(winch_iod, ioinfo, winch_ready,
-			    NULL, NULL, NULL);
-    if (rv) {
-	fprintf(stderr, "Could not set SIGWINCH fd handler: %s\n",
-		gensio_err_to_str(rv));
-	return 1;
-    }
-    o->set_read_handler(winch_iod, true);
-
-    return 0;
-}
-
-#else
-
-static void
-winch_ready(struct gensio_iod *iod, void *cb_data)
-{
-}
-
-static int
-setup_window_change(void)
-{
-    return 0;
-}
-
-static int
-setup_window_change2(struct gensio_os_funcs *o, struct ioinfo *ioinfo)
-{
-    return 0;
-}
-
-#endif /* HAVE_DECL_SIGWINCH */
 
 static void
 pr_localport(const char *fmt, va_list ap)
@@ -1774,14 +1701,13 @@ main(int argc, char *argv[])
     const char *addr, *cstr;
     const char *iptype = ""; /* Try both IPv4 and IPv6 by default. */
     const char *mdns_type = NULL;
-    struct gensio_os_proc_data *proc_data;
     const char *val_2fa = "", *pfx_2fa = "";
 
     localport_err = pr_localport;
 
     memset(&userdata1, 0, sizeof(userdata1));
     memset(&userdata2, 0, sizeof(userdata2));
-    userdata2.interactive = true;
+    userdata1.interactive = true;
 
     err = gensio_default_os_hnd(0, &o);
     if (err) {
@@ -1799,9 +1725,6 @@ main(int argc, char *argv[])
 	return 1;
     }
 
-    if (setup_window_change())
-	return 1;
-
     progname = argv[0];
 
     if (can_do_raw()) {
@@ -1809,7 +1732,7 @@ main(int argc, char *argv[])
 	userdata1.ios = io1_default_tty;
     } else {
 	userdata1.ios = io1_default_notty;
-	userdata2.interactive = false;
+	userdata1.interactive = false;
     }
 
     for (arg = 1; arg < argc; arg++) {
@@ -1997,7 +1920,7 @@ main(int argc, char *argv[])
 	service[len++] = '\0';
 
 	userdata1.ios = io1_default_notty;
-	userdata2.interactive = false;
+	userdata1.interactive = false;
 	service_len = len;
     } else {
 	char *termvar = getenv("TERM");
@@ -2168,7 +2091,7 @@ main(int argc, char *argv[])
 	return 1;
     }
 
-    if (userdata2.interactive) {
+    if (userdata1.interactive) {
 	err = gensio_control(userdata2.io, GENSIO_CONTROL_DEPTH_ALL,
 			     GENSIO_CONTROL_SET,
 			     GENSIO_CONTROL_NODELAY, "1", NULL);
@@ -2211,9 +2134,6 @@ main(int argc, char *argv[])
 
     ioinfo_set_ready(ioinfo1, userdata1.io);
     ioinfo_set_ready(ioinfo2, userdata2.io);
-
-    if (setup_window_change2(o, ioinfo2))
-	return 1;
 
     start_local_ports(userdata2.io);
     start_remote_ports(ioinfo2);
