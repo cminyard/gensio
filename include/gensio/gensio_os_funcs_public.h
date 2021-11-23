@@ -13,6 +13,7 @@ extern "C" {
 #endif
 
 #include <gensio/gensio_types.h>
+#include <gensio/gensio_dllvisibility.h>
 
 GENSIO_DLL_PUBLIC
 int gensio_default_os_hnd(int wake_sig, struct gensio_os_funcs **o);
