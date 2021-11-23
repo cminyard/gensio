@@ -3,7 +3,7 @@
 gensio_os_funcs \- Abstraction for some operating system functions used
 by the gensio library
 .SH SYNOPSIS
-.B #include <gensio/gensio_os_funcs.h>
+.B #include <gensio/gensio_os_funcs_public.h>
 .PP
 .B struct gensio_os_funcs {}
 .PP
@@ -14,7 +14,8 @@ by the gensio library
 		struct gensio_os_funcs **o)
 .PP
 .B int gensio_win_funcs_alloc(struct gensio_os_funcs **o)
-.br
+.PP
+.B void gensio_os_funcs_free(struct gensio_os_funcs *o);
 .PP
 .B int gensio_os_proc_setup(struct gensio_os_funcs *o,
 .br
@@ -33,6 +34,156 @@ by the gensio library
 			 struct gensio_thread **thread_id);
 .PP
 .B int gensio_os_wait_thread(struct gensio_thread *thread_id);
+.PP
+.B int gensio_os_proc_register_term_handler(struct gensio_os_proc_data *data,
+.br
+					 void (*handler)(void *handler_data),
+.br
+					 void *handler_data);
+.PP
+.B int gensio_os_proc_register_reload_handler(struct gensio_os_proc_data *data,
+.br
+					   void (*handler)(void *handler_data),
+.br
+					   void *handler_data);
+.PP
+.B int gensio_os_proc_register_winsize_handler(struct gensio_os_proc_data *data,
+.br
+					struct gensio_iod *console_iod,
+.br
+					void (*handler)(int x_chrs, int y_chrs,
+.br
+							int x_bits, int y_bits,
+.br
+							void *handler_data),
+.br
+					void *handler_data);
+.PP
+.B void *gensio_os_funcs_zalloc(struct gensio_os_funcs *o, gensiods len);
+.PP
+.B void gensio_os_funcs_zfree(struct gensio_os_funcs *o, void *data);
+.PP
+.B struct gensio_lock *gensio_os_funcs_alloc_lock(struct gensio_os_funcs *o);
+.PP
+.B void gensio_os_funcs_free_lock(struct gensio_os_funcs *o,
+.br
+			       struct gensio_lock *lock);
+.PP
+.B void gensio_os_funcs_lock(struct gensio_os_funcs *o,
+.br
+			  struct gensio_lock *lock);
+.PP
+.B void gensio_os_funcs_unlock(struct gensio_os_funcs *o,
+.br
+			    struct gensio_lock *lock);
+.PP
+.B void gensio_os_funcs_get_monotonic_time(struct gensio_os_funcs *o,
+.br
+					gensio_time *time);
+.PP
+.B struct gensio_timer *gensio_os_funcs_alloc_timer(struct gensio_os_funcs *o,
+.br
+				    void (*handler)(struct gensio_timer *t,
+.br
+						    void *cb_data),
+.br
+				    void *cb_data);
+.PP
+.B void gensio_os_funcs_free_timer(struct gensio_os_funcs *o,
+.br
+				struct gensio_timer *timer);
+.PP
+.B int gensio_os_funcs_start_timer(struct gensio_os_funcs *o,
+.br
+				struct gensio_timer *timer,
+.br
+				gensio_time *timeout);
+.PP
+.B int gensio_os_funcs_start_timer_abs(struct gensio_os_funcs *o,
+.br
+				    struct gensio_timer *timer,
+.br
+				    gensio_time *timeout);
+.PP
+.B int gensio_os_funcs_stop_timer(struct gensio_os_funcs *o,
+.br
+			       struct gensio_timer *timer);
+.PP
+.B int gensio_os_funcs_stop_timer_with_done(struct gensio_os_funcs *o,
+.br
+			    struct gensio_timer *timer,
+.br
+			    void (*done_handler)(struct gensio_timer *t,
+.br
+						 void *cb_data),
+.br
+			    void *cb_data);
+.PP
+.B struct gensio_runner *gensio_os_funcs_alloc_runner(struct gensio_os_funcs *o,
+.br
+				      void (*handler)(struct gensio_runner *r,
+.br
+						      void *cb_data),
+.br
+				      void *cb_data);
+.PP
+.B void gensio_os_funcs_free_runner(struct gensio_os_funcs *o,
+.br
+				 struct gensio_runner *runner);
+.PP
+.B int gensio_os_funcs_run(struct gensio_os_funcs *o,
+.br
+			struct gensio_runner *runner);
+.PP
+.B typedef void (gensio_vlog_func)(struct gensio_os_funcs *o,
+.br
+				enum gensio_log_levels level,
+.br
+				const char *log, va_list args);
+.br
+.PP
+.B void gensio_os_funcs_set_vlog(struct gensio_os_funcs *o,
+                              gensio_vlog_func func);
+.PP
+.B int gensio_os_funcs_service(struct gensio_os_funcs *o, gensio_time *timeout);
+.PP
+.B int gensio_os_funcs_handle_fork(struct gensio_os_funcs *o);
+.PP
+.B struct gensio_waiter *gensio_os_funcs_alloc_waiter(struct gensio_os_funcs *o);
+.PP
+.B void gensio_os_funcs_free_waiter(struct gensio_os_funcs *o,
+.br
+				 struct gensio_waiter *waiter);
+.PP
+.B int gensio_os_funcs_wait(struct gensio_os_funcs *o,
+.br
+			 struct gensio_waiter *waiter, unsigned int count,
+.br
+			 gensio_time *timeout);
+.PP
+.B int gensio_os_funcs_wait_intr(struct gensio_os_funcs *o,
+.br
+			      struct gensio_waiter *waiter, unsigned int count,
+.br
+			      gensio_time *timeout);
+.PP
+.B int gensio_os_funcs_wait_intr_sigmask(struct gensio_os_funcs *o,
+.br
+				      struct gensio_waiter *waiter,
+.br
+				      unsigned int count,
+.br
+				      gensio_time *timeout,
+.br
+				      struct gensio_os_proc_data *proc_data);
+.PP
+.B void gensio_os_funcs_wake(struct gensio_os_funcs *o,
+.br
+			  struct gensio_waiter *waiter);
+.PP
+.B void gensio_os_funcs_set_data(struct gensio_os_funcs *o, void *data);
+.PP
+.B void *gensio_os_funcs_get_data(struct gensio_os_funcs *o);
 .SH "DESCRIPTION"
 This structure provides an abstraction for the gensio library that
 lets it work with various event libraries.  It provides the following
@@ -57,7 +208,9 @@ and watching for file descriptors.
 logging \- Allow the gensio library to generate logs to report issues.
 .PP
 
-These are documented in the include file.
+This document describes the public functions that users can use.  An
+os handler has many other functions for use by gensios, these are
+documented in the os funcs include file.
 
 The basic issue is that there are various event handling libraries
 (Tcl/Tk, glib, Xlib, custom ones, etc.) and you may want to integrate
@@ -105,7 +258,7 @@ value is multiple OS funcs, anyway.
 .B gensio_unix_funcs_alloc
 and
 .B gensio_win_funcs_alloc
-Allocate the normal os funcs for Unix and Windows based systems,
+allocate the normal os funcs for Unix and Windows based systems,
 respectively.
 
 The
@@ -123,36 +276,46 @@ any other purpose, generally
 .B SIGUSR1
 or
 .B SIGUSR2.
+You can use
+.B GENSIO_DEF_WAKE_SIG
+which is zero on Windows and
+.B SIGUSR1
+on Unix.
 
 The
 .I gensio_os_proc_setup
 function does all the standard setup for a process.  You should almost
-certainly use this function.  On Windows this isn't anything (though
-that may change in the future, so you should still do it), but on Unix
-it does all the signal handling setup, so you don't have
-to do all the things mentioned above.  This will block SIGPIPE
-(because those come in when connections die and most applications
-don't care), SIGCHLD (those come in for stdio and pty gensios), and
-the
+certainly use this function.  On Windows this sets up some basic
+things so termination registering will work, but on Unix it does all
+the signal handling setup, so you don't have to do all the things
+mentioned above.  This will block SIGPIPE (because those come in when
+connections die and most applications don't care), SIGCHLD (those come
+in for stdio and pty gensios), and the
 .I wake_sig
 if that is set.  It also install signal handlers for SIGCHLD and the
 .I wake_sig
 (if set) and sets up a signal mask.
 
+For Unix this is generally what you want, you don't want SIGPIPE doing
+bad things and having SIGCHLD wake up a wait can speed things up a bit
+when waiting for subprograms.
+
 If you use the
-.I wait_intr_sigmask
+.I gensio_os_funcs_wait_intr_sigmask
 OS function, you must pass the proc_data value returned by
 .I gensio_os_proc_setup
 into that.  If you want to modify the wait signal mask, you can use
 .I gensio_os_proc_unix_get_wait_sigset
-to fetch it and modify it.
+to fetch a pointer to it and modify it.
 
 The
 .I gensio_os_proc_cleanup
 function undoes all the changes
 .I gensio_os_proc_setup
-does.  On Unix it restores the signal mask and signal handlers it sets
-to their previous values.
+does, along with unregistering any signal handlers done by register
+calls.  On Unix it restores the signal mask and signal handlers it
+sets to their previous values.  On Windows it remove registered
+handlers.
 
 The
 .I gensio_os_new_thread
@@ -171,9 +334,193 @@ waits for a thread to stop.  Note that it does not cause the thread to
 stop, it waits for it to stop.  You have to cause the thread to stop
 yourself.
 
+The
+.I gensio_os_proc_register_term_handler
+function passes a handler to call when a termination (SIGINT, SIGQUIT,
+SIGTERM on Unix, console control handler or WM_CLOSE on windows) is
+received by the process.  Set
+.B handler
+to
+.B NULL
+to disable.  If you do this on Unix, the signals will be blocked
+except when in a wait or service call.
+
+The
+.I gensio_os_proc_register_reload_handler
+sets the function to call when a reload is requested by the
+operating system (SIGHUP on Unix).
+Set
+.B handler
+to
+.B NULL
+to disable.  On Unix, this will cause SIGHUP to be blocked except when
+in a wait or service call.
+
+The
+.I gensio_os_proc_register_winsize_handler
+function sets the function to call when a console window size change
+is requested by the operating system (SIGWINCH on Unix).  It will supply
+the new size parameters.  Set
+.B handler
+to
+.B NULL
+to disable.  Note that the handler will be called with current window
+size parameters after this is called.
+
+.B gensio_os_funcs_zalloc
+allocates a block of memory and zeroes it.  The
+.B gensio
+library has it's own allocator/deallocator that is using in testing to
+track if all allocated data is freed when the tests shut down, and to
+catch memory overruns, underruns, and use after free errors.  Returns
+.B NULL
+if the memory cannot be allocated.  Use
+.B gensio_os_funcs_zfree
+to free the allocated memory.
+
+.B gensio_os_funcs_alloc_lock
+allocates a mutex that can be used for locking by the user.  Use
+.B gensio_os_funcs_lock
+and
+.B gensio_os_funcs_unlock
+to lock/unlock the mutex.  The
+.B gensio_os_funcs_free_lock
+will make sure the lock is not locked and free the data associated
+with the lock.  Note that even for os funcs that don't implement
+locks, this will implement a counter to make sure that all locks are
+balanced.
+
+.B gensio_os_funcs_get_monotonic_time
+returns a time value from the monotonic clock used for
+.B gensio_os_start_timer_abs.
+It can also be used as a standard monotonic clock, but is not a wall
+clock of any kind.
+
+.B gensio_os_funcs_set_vlog
+.I must
+be called by the user to set a log handling function for the os funcs.
+If something goes wrong internally in the gensio library, this log
+function will be called to report the issue.
+
+Timers are allocated with
+.B gensio_os_funcs_alloc_timer.
+When the timer expires, the
+.B handlers
+will be called with the given
+.B cb_data.
+This will return
+.B NULL
+if the timer cannot be allocated.  Timers are not running when
+allocated, the must be started with
+.B gensio_os_funcs_start_timer,
+or
+.B gensio_os_funcs_start_timer_abs.
+The first starts a timer relative to the current time.  The second
+starts a timer based upon a monotonic clock, see
+.B gensio_os_funcs_get_monotonic_time
+for details.  These will return
+.B GE_INUSE
+if the timer was already running.  To stop a timer, call either
+.B gensio_os_funcs_stop_timer
+or
+.B gensio_os_funcs_stop_timer_with_done.
+These both return
+.B GE_TIMEDOUT
+if the timer is not running.  The first has no way to assure that the
+timer is finished running its handlers; the timer handler may still be
+active when it returns.  If it does not return an error, the second
+will call the
+.B done_handler
+function when the timer is completely stopped and all the handlers are
+finished.  The second also returns
+.B GE_INUSE
+if the timer has alrady been stopped but the done handler hasn't been
+called yet.  Note that you cannot start the timer again until the done
+handler is called.  And finally, to free a timer, use
+.B gensio_os_funcs_free_timer.
+The timer should not be running when calling this.
+
+Runners are sort of like zero-time timers, they will just be called
+immediately.  They are useful for escaping from deep locking
+situations where you want to do something at the base context.  Use
+.B gensio_os_funcs_alloc_runner
+to allocate one of these.  It returns
+.B NULL
+if the runner cannot be allocated.
+.B gensio_os_funcs_run
+causes the handler to be called.  It returns
+.B GE_INUSE
+if the runner is currently already scheduled to be run.  And
+.B gensio_os_funcs_free_runner
+frees the runner.  It should not be currently scheduled to run.
+
+.B gensio_os_funcs_service
+provides the main service function to run timers, runners, I/O
+handling, etc.  If it is interrupted by a signal (on Unix), it returns
+.B GE_INTERRUPTED.
+If
+.B timeout
+is non-NULL, it is a relative amount of time to wait and this will return
+.B GE_TIMEDOUT
+if the timeout expires.  Note that for long timeouts (days) this may
+return early on some os funcs, so don't rely on this for timing.  When
+this returns, the timeout will be updated to any remaining time, even
+on an early timeout.  Generally you don't use this function, you use
+waiters instead.
+
+Call
+.B gensio_os_funcs_handle_fork
+in the child function after a fork (Unix only).  This cleans up
+various things and readies the gensio library to be used after a fork.
+If this returns an error, it is likely that the gensio library is
+unusable on the child.
+
+Waiters are used to wait for things to happen.  When the thing happens
+occurs, that code should call wake to wake the waiter.  Normal
+servicing of tiers, runners, I/O, etc. are done while waiting.
+Waiters and wakes are count based, if you call the wake before the
+wait that's ok, the wake will be waiting when the wait happens.  If
+you call wake 3 times, there are 3 wakes pending.  To allocate a
+waiter, call
+.B gensio_os_funcs_alloc_waiter.
+It returns NULL if it cannot allocate the waiter.
+.B gensio_os_funcs_wait
+waits for
+.B count
+wakeups to be done and then returns zero.  If
+.B timeout
+is
+.B NULL
+it waits forever.  Otherwise if the timeout expires it returns
+.B GE_TIMEDOUT
+and the timeout is updated to the remaining time.  If this times out,
+no wakeups are "used" by the function, if only some are pending those
+are still pending.
+.B gensio_os_funcs_wait_intr
+is like
+.B gensio_os_funcs_wait
+except if an signal is received (Unix only) it will return
+.B GE_INTERRUPTED.
+.B gensio_os_funcs_wait_intr_sigmask
+is like
+.B gensio_os_funcs_wait_intr
+but allows a user-specified signal mask to be installed (Unix only).  See
+.B gensio_os_proc_setup
+for details.  To send a single wakeup to a waiter, use
+.B gensio_os_funcs_wake.
+And, of course, call
+.B gensio_os_funcs_free_waiter
+to free a waiter.
+
+An os funcs has a single void pointer that the user may install some
+data in for their own use.  Use
+.B gensio_os_funcs_set_data
+to set this data and
+.B gensio_os_funcs_get_data
+to retrieve it.
+
 .SH "RETURN VALUES"
-.B gensio_default_os_hnd
-returns a standard gensio error.
+Return values are documented in the text above.
 .SH "SEE ALSO"
 gensio_set_log_mask(3), gensio_get_log_mask(3), gensio_log_level_to_str(3),
 gensio(5), gensio_err(3)
