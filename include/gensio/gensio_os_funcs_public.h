@@ -96,8 +96,8 @@ int gensio_os_proc_register_reload_handler(struct gensio_os_proc_data *data,
  * Note that the handler will be called as part of the start of this
  * operation.
  */
-int
-gensio_os_proc_register_winsize_handler(struct gensio_os_proc_data *data,
+GENSIO_DLL_PUBLIC
+int gensio_os_proc_register_winsize_handler(struct gensio_os_proc_data *data,
 					struct gensio_iod *console_iod,
 					void (*handler)(int x_chrs, int y_chrs,
 							int x_bits, int y_bits,
@@ -117,7 +117,7 @@ int gensio_os_new_thread(struct gensio_os_funcs *o,
 /*
  * Wait for the given thread to stop.  Note that this does not cause
  * the thread to stop, it waits for the thread to stop after it has
- * been stopped to avoid race condition.
+ * been stopped to avoid race conditions.
  */
 GENSIO_DLL_PUBLIC
 int gensio_os_wait_thread(struct gensio_thread *thread_id);
