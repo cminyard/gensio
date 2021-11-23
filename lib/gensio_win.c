@@ -974,7 +974,8 @@ win_do_wait(struct gensio_waiter *waiter, unsigned int count,
 	    assert(rvw != WAIT_FAILED);
 	    if (rvw != WAIT_TIMEOUT)
 		win_check_iods(waiter->o);
-	    gensio_os_proc_check_handlers(d->proc_data);
+	    if (d->proc_data)
+		gensio_os_proc_check_handlers(d->proc_data);
 	    now = GetTickCount64();
 	    EnterCriticalSection(&waiter->lock);
 	}
