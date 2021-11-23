@@ -1572,6 +1572,7 @@ struct gensio_os_proc_data {
     void (*reload_handler)(void *handler_data);
     void *reload_handler_data;
 
+#if HAVE_DECL_SIGWINCH
     bool winch_sig_set;
     bool got_winch_sig;
     struct sigaction old_sigwinch;
@@ -1580,6 +1581,7 @@ struct gensio_os_proc_data {
 			  void *handler_data);
     void *winch_handler_data;
     int winch_fd;
+#endif
 };
 
 /* We only have one of these per process, so it's global. */
@@ -1608,11 +1610,13 @@ reload_sig_handler(int sig)
     proc_data.got_reload_sig = true;
 }
 
+#if HAVE_DECL_SIGWINCH
 static void
 winch_sig_handler(int sig)
 {
     proc_data.got_winch_sig = true;
 }
+#endif
 
 int
 gensio_os_proc_setup(struct gensio_os_funcs *o,
@@ -1698,10 +1702,12 @@ gensio_os_proc_cleanup(struct gensio_os_proc_data *data)
 	data->reload_sig_set = false;
 	sigaction(SIGHUP, &data->old_sighup, NULL);
     }
+#if HAVE_DECL_SIGWINCH
     if (data->winch_sig_set) {
 	data->winch_sig_set = false;
 	sigaction(SIGWINCH, &data->old_sigwinch, NULL);
     }
+#endif
     sigaction(SIGCHLD, &data->old_sigchld, NULL);
     sigprocmask(SIG_SETMASK, &data->old_sigs, NULL);
 }
@@ -1718,6 +1724,7 @@ gensio_os_proc_check_handlers(struct gensio_os_proc_data *data)
 	data->got_reload_sig = false;
 	data->reload_handler(data->reload_handler_data);
     }
+#if HAVE_DECL_SIGWINCH
     if (data->got_winch_sig) {
 	struct winsize win;
 	int err;
@@ -1729,6 +1736,7 @@ gensio_os_proc_check_handlers(struct gensio_os_proc_data *data)
 				win.ws_xpixel, win.ws_ypixel,
 				data->winch_handler_data);
     }
+#endif
     UNLOCK(&data->handler_lock);
 }
 
@@ -1848,6 +1856,7 @@ gensio_os_proc_register_winsize_handler(struct gensio_os_proc_data *data,
     sigset_t sigs, old_sigs;
     struct winsize win;
 
+#if HAVE_DECL_SIGWINCH
     if (data->winch_sig_set) {
 	data->winch_sig_set = false;
 	sigaction(SIGWINCH, &data->old_sigwinch, NULL);
@@ -1884,6 +1893,9 @@ gensio_os_proc_register_winsize_handler(struct gensio_os_proc_data *data,
  out_err:
     sigprocmask(SIG_SETMASK, &old_sigs, NULL);
     return gensio_os_err_to_err(data->o, err);
+#else
+    return GE_NOTSUP;
+#endif
 }
 
 sigset_t *
