@@ -9,9 +9,9 @@ import sys
 from utils import *
 import gensio
 import ipmisimdaemon
-import termios
-from termioschk import *
 try:
+    import termios
+    from termioschk import *
     from serialsim import *
 except:
     sys.exit(77)
