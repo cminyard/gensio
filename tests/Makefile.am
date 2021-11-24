@@ -1,7 +1,7 @@
 
 AM_CFLAGS = -I$(top_srcdir)/glib/include -I$(top_srcdir)/tcl/include
 
-AM_TESTS_ENVIRONMENT = GENSIOT=$(top_builddir)/tools/gensiot
+AM_TESTS_ENVIRONMENT = GENSIOT=$(top_builddir)/tools/gensiot${EXEEXT}
 
 LOG_COMPILER = $(SHELL) $(builddir)/runtest
 
