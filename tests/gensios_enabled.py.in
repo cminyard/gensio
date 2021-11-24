@@ -6,7 +6,7 @@ gensios_enabled = {
     "udp": 1,
     "sctp": @HAVE_LIBSCTP@,
     "stdio": 1,
-    "pty": 1,
+    "pty": @HAVE_PTY@,
     "unix" : @HAVE_UNIX@,
     "ssl": @HAVE_OPENSSL@,
     "mux": 1,

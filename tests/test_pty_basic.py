@@ -10,6 +10,8 @@ import gensio
 import os
 import gensios_enabled
 
+gensios_enabled.check_iostr_gensios("pty")
+
 print("Test pty basic echo")
 io = alloc_io(o, "pty,cat", chunksize = 64)
 check_raddr(io, "pty basic", '"cat"')
