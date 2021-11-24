@@ -12,7 +12,7 @@ print("Test echo gensio")
 io = alloc_io(o, "echo")
 check_raddr(io, "echo", "echo")
 test_dataxfer(io, io, "This is a test string!")
-io_close(io)
+io_close([io])
 del io
 del o
 test_shutdown()

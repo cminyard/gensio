@@ -17,8 +17,7 @@ err.open_s()
 check_raddr(err, "stderr basic", 'stderr,"sh" "-c" "cat 1>&2"')
 HandleData(o, "stderr", chunksize = 64, io = err)
 test_dataxfer(io, err, "This is a test string!")
-io_close(io)
-io_close(err)
+io_close((io, err))
 del io
 del err
 del o

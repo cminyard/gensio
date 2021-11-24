@@ -27,8 +27,7 @@ if rs485 != check_rs485:
     raise Exception("%s: %s: RS485 was not '%s', it was '%s'" %
                     ("test rs485", io1.handler.name, check_rs485, rs485))
 
-io_close(io1)
-io_close(io2)
+io_close((io1, io2))
 del io1
 del io2
 del o

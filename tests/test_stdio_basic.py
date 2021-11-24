@@ -12,7 +12,7 @@ print("Test stdio basic echo")
 io = alloc_io(o, "stdio,cat", chunksize = 64)
 check_raddr(io, "stdio basic", 'stdio,"cat"')
 test_dataxfer(io, io, "This is a test string!")
-io_close(io)
+io_close([io])
 del io
 del o
 test_shutdown()

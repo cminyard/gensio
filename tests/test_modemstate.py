@@ -102,8 +102,7 @@ if (io1.handler.wait_timeout(2000) == 0):
     raise Exception("%s: %s: Timed out waiting for modemstate 7" %
                     ("test dtr", io1.handler.name))
 
-io_close(io1)
-io_close(io2)
+io_close((io1, io2))
 del io1
 del io2
 del sio2

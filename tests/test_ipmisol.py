@@ -45,8 +45,7 @@ def check_baud_set(speed, bspeed):
     c = compare_termios(t, io1_r_termios);
     if c != -1:
         raise Exception("Termios %d failure on item %d" % (speed, c))
-    utils.io_close(io1)
-    utils.io_close(io2)
+    utils.io_close((io1, io2))
     isim.terminate()
 
 check_pipe_dev()
@@ -127,8 +126,7 @@ if (io1.handler.wait_timeout(3000) == 0):
 
 # No easy way to test ring.
 
-io_close(io1)
-io_close(io2)
+io_close((io1, io2))
 isim.terminate()
 
 print("Testing deassertion of CTS, DCD, and DSR at start");
@@ -198,8 +196,7 @@ sio1.sg_modemstate(gensio.SERGENSIO_MODEMSTATE_CTS |
 if (io1.handler.wait_timeout(3000) == 0):
     raise Exception("Timed out waiting for DCD/DSR on")
 
-io_close(io1)
-io_close(io2)
+io_close((io1, io2))
 del io1
 del io2
 del sio1

@@ -14,7 +14,7 @@ print("Test pty basic echo")
 io = alloc_io(o, "pty,cat", chunksize = 64)
 check_raddr(io, "pty basic", '"cat"')
 test_dataxfer(io, io, "This is a test string!")
-io_close(io)
+io_close([io])
 del io
 print("  Success!")
 

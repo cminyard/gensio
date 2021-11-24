@@ -623,18 +623,24 @@ def test_write_drain(io1, io2, data, timeout = 1000):
                          io2.handler.compared))
     return
 
-def io_close(io, timeout = 1000):
-    """close the given gensio
+def io_close(ios, timeout = 1000):
+    """close the given tuple of gensios
 
     If it does not succeed in timeout milliseconds, raise and exception.
     """
-    io.handler.close()
-    if (io.handler.wait_timeout(timeout) == 0):
-        raise Exception("%s: %s: Timed out waiting for close" %
-                        ("io_close", io.handler.name))
-    # Break all the possible circular references.
-    del io.handler.io
-    del io.handler
+    for io in ios:
+        if not io:
+            continue
+        io.handler.close()
+    for io in ios:
+        if not io:
+            continue
+        if (io.handler.wait_timeout(timeout) == 0):
+            raise Exception("%s: %s: Timed out waiting for close" %
+                            ("io_close", io.handler.name))
+        # Break all the possible circular references.
+        del io.handler.io
+        del io.handler
     return
 
 keydir = os.getenv("keydir")
@@ -808,9 +814,7 @@ class TestAccept:
         # Close the accepter first.  Some accepters (like conacc) will
         # re-open when the child closes.
         self.acc.shutdown_s()
-        io_close(self.io1)
-        if self.io2:
-            io_close(self.io2)
+        io_close((self.io1, self.io2))
 
         # Break all the possible circular references.
         self.io1 = None
@@ -955,10 +959,7 @@ class TestAcceptConnect:
             self.io1.read_cb_enable(False)
         if self.io2:
             self.io2.read_cb_enable(False)
-        if (self.io1):
-            io_close(self.io1)
-        if self.io2:
-            io_close(self.io2)
+        io_close((self.io1, self.io2))
 
         # Break all the possible circular references.
         self.io1 = None
@@ -1035,8 +1036,7 @@ class TestConCon:
     def close(self):
         self.io1.read_cb_enable(False)
         self.io2.read_cb_enable(False)
-        io_close(self.io1)
-        io_close(self.io2)
+        io_close((self.io1, self.io2))
 
         # Break all the possible circular references.
         del self.io1

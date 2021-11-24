@@ -12,7 +12,7 @@ print("Test stdio small echo")
 rb = os.urandom(512)
 io = alloc_io(o, "stdio,cat", chunksize = 64)
 test_dataxfer(io, io, rb)
-io_close(io)
+io_close([io])
 del io
 del o
 test_shutdown()

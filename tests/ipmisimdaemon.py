@@ -143,7 +143,7 @@ class IPMISimDaemon:
         if (self.handler.debug or utils.debug):
             print("Terminating")
         if self.io.closeme:
-            utils.io_close(self.io)
+            utils.io_close([self.io])
         self.io = None
         self.handler = None
         count = 10

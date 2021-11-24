@@ -81,9 +81,7 @@ class TestAcceptConAcc:
         io1.read_cb_enable(False)
         if io2:
             io2.read_cb_enable(False)
-        io_close(io1)
-        if io2:
-            io_close(io2)
+        io_close((io1, io2))
 
     def set_accept_callback_done(self, acc):
         self.waiter.wake()
