@@ -68,8 +68,12 @@ struct stdio_mode;
 #include <windows.h>
 
 GENSIO_DLL_PUBLIC
-int gensio_win_stdio_makeraw(struct gensio_os_funcs *o, HANDLE h,
+int gensio_win_stdin_makeraw(struct gensio_os_funcs *o, HANDLE h,
 			     struct stdio_mode **m);
+
+GENSIO_DLL_PUBLIC
+int gensio_win_stdout_makeraw(struct gensio_os_funcs *o, HANDLE h,
+			      struct stdio_mode **m);
 
 GENSIO_DLL_PUBLIC
 void gensio_win_stdio_cleanup(struct gensio_os_funcs *o, HANDLE h,

@@ -303,7 +303,7 @@ struct stdio_mode {
 };
 
 int
-gensio_win_stdio_makeraw(struct gensio_os_funcs *o, HANDLE h,
+gensio_win_stdin_makeraw(struct gensio_os_funcs *o, HANDLE h,
 			 struct stdio_mode **rm)
 {
     DWORD mode, omode;
@@ -323,7 +323,40 @@ gensio_win_stdio_makeraw(struct gensio_os_funcs *o, HANDLE h,
 		     ENABLE_INSERT_MODE |
 		     ENABLE_ECHO_INPUT |
 		     ENABLE_PROCESSED_INPUT);
-    mode |= ENABLE_WINDOW_INPUT;
+    mode |= ENABLE_WINDOW_INPUT | ENABLE_VIRTUAL_TERMINAL_INPUT;
+
+    if (!SetConsoleMode(h, mode)) {
+	if (m)
+	    o->free(o, m);
+	return gensio_os_err_to_err(o, GetLastError());
+    }
+
+    if (m)
+	*rm = m;
+
+    return 0;
+}
+
+int
+gensio_win_stdout_makeraw(struct gensio_os_funcs *o, HANDLE h,
+			  struct stdio_mode **rm)
+{
+    DWORD mode, omode;
+    struct stdio_mode *m = NULL;
+
+    if (!GetConsoleMode(h, &omode))
+	return GE_NOTSUP;
+
+    if (!*rm) {
+	m = o->zalloc(o, sizeof(*m));
+	if (!m)
+	    return GE_NOMEM;
+	m->old_mode_flags = omode;
+    }
+
+    mode = omode;
+    mode |= (ENABLE_PROCESSED_OUTPUT | ENABLE_VIRTUAL_TERMINAL_PROCESSING
+	     | ENABLE_WRAP_AT_EOL_OUTPUT);
 
     if (!SetConsoleMode(h, mode)) {
 	if (m)

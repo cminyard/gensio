@@ -1837,16 +1837,15 @@ win_console_makeraw(struct gensio_iod_win *wiod)
     struct gensio_iod_win_console *cowiod = owiod_to_winconsole(owiod);
     int rv;
 
-    if (!owiod->readable)
-	/*
-	 * Nothing to do for stdout. Disabling ENABLE_PROCESSED_OUTPUT
-	 * is not a good thing to do.
-	 */
-	return 0;
-
-    rv = gensio_win_stdio_makeraw(wiod->iod.f, owiod->ioh, &cowiod->mode);
-    if (!rv)
-	wiod->is_raw = TRUE;
+    if (owiod->readable) {
+	rv = gensio_win_stdin_makeraw(wiod->iod.f, owiod->ioh, &cowiod->mode);
+	if (!rv)
+	    wiod->is_raw = TRUE;
+    } else {
+	rv = gensio_win_stdout_makeraw(wiod->iod.f, owiod->ioh, &cowiod->mode);
+	if (!rv)
+	    wiod->is_raw = TRUE;
+    }
     return rv;
 }
 
