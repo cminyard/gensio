@@ -1926,6 +1926,10 @@ main(int argc, char *argv[])
 	char *termvar = getenv("TERM");
 	unsigned int len = 0;
 
+#ifdef _WIN32
+	if (!termvar)
+	    termvar = "ansi";
+#endif
 	if (termvar) {
 	    len = 6 + 5 + strlen(termvar) + 2;
 	    service = malloc(len);
