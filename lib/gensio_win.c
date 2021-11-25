@@ -3396,7 +3396,7 @@ void check_winsize(struct gensio_iod_win_oneway *owiod)
 	goto out_unlock;
     x_chrs = sbi.dwSize.X;
     y_chrs = sbi.dwSize.Y - sbi.srWindow.Top;
-    if (x_chrs != data->x_chrs || x_chrs != data->y_chrs) {
+    if (x_chrs != data->x_chrs || y_chrs != data->y_chrs) {
 	data->x_chrs = x_chrs;
 	data->y_chrs = y_chrs;
 	data->got_winsize_sig = TRUE;
