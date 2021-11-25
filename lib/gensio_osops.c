@@ -323,6 +323,7 @@ gensio_win_stdio_makeraw(struct gensio_os_funcs *o, HANDLE h,
 		     ENABLE_INSERT_MODE |
 		     ENABLE_ECHO_INPUT |
 		     ENABLE_PROCESSED_INPUT);
+    mode |= ENABLE_WINDOW_INPUT;
 
     if (!SetConsoleMode(h, mode)) {
 	if (m)

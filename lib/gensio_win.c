@@ -130,7 +130,7 @@ struct gensio_iod_win {
     void *cb_data;
 };
 
-#define iod_to_win(iod) gensio_container_of(iod, struct gensio_iod_win, iod);
+#define iod_to_win(i) gensio_container_of(i, struct gensio_iod_win, iod);
 
 enum win_timer_state {
     WIN_TIMER_STOPPED = 0,
@@ -1426,6 +1426,7 @@ struct gensio_iod_win_oneway {
 
     struct gensio_circbuf *buf;
 
+    BOOL is_console;
     BOOL readable;
 
     BOOL do_flush; /* Tell out to flush it's data. */
@@ -1434,6 +1435,8 @@ struct gensio_iod_win_oneway {
 #define wiod_to_win_oneway(w) gensio_container_of(w,			    \
 					       struct gensio_iod_win_oneway, \
 					       wiod);
+
+static void check_winsize(struct gensio_iod_win_oneway *owiod);
 
 static DWORD WINAPI
 win_oneway_in_thread(LPVOID data)
@@ -1462,6 +1465,29 @@ win_oneway_in_thread(LPVOID data)
 
 	    gensio_circbuf_next_write_area(owiod->buf, &readpos, &readsize);
 	    LeaveCriticalSection(&wiod->lock);
+	    if (owiod->is_console) {
+		while (true) {
+		    rvw = WaitForSingleObject(owiod->ioh, INFINITE);
+		    if (wiod->done)
+			break;
+		    if (rvw == WAIT_OBJECT_0) {
+			INPUT_RECORD r;
+
+			if (!PeekConsoleInput(owiod->ioh, &r, 1, &nread))
+			    goto out_err;
+			if (r.EventType == KEY_EVENT
+				&& r.Event.KeyEvent.bKeyDown)
+			    /*
+			     * Only let key down events through,
+			     * that's all we care about ReadFile handling.
+			     */
+			    break;
+			ReadConsoleInput(owiod->ioh, &r, 1, &nread);
+			if (r.EventType == WINDOW_BUFFER_SIZE_EVENT)
+			    goto handle_winsize;
+		    }
+		}
+	    }
 	    rvb = ReadFile(owiod->ioh, readpos, readsize, &nread, NULL);
 	    EnterCriticalSection(&wiod->lock);
 	    if (!rvb) {
@@ -1474,7 +1500,10 @@ win_oneway_in_thread(LPVOID data)
 		    goto continue_loop;
 		goto out_err;
 	    }
-
+	handle_winsize:
+	    if (owiod->is_console) {
+		check_winsize(owiod);
+	    }
 	    if (nread == 0) {
 		/* EOF (^Z<cr>) from windows. */
 		if (wiod->is_raw) {
@@ -1839,6 +1868,7 @@ win_iod_console2_init(struct gensio_iod_win *wiod, void *cb_data)
 
     owiod->readable = readable;
     owiod->ioh = (HANDLE) wiod->fd;
+    owiod->is_console = true;
     return win_iod_oneway_init(wiod, NULL);
 }
 
@@ -3270,10 +3300,24 @@ gensio_win_funcs_alloc(struct gensio_os_funcs **ro)
 struct gensio_os_proc_data {
     struct gensio_os_funcs *o;
     lock_type lock;
+
     BOOL term_handler_set;
     BOOL got_term_sig;
     void (*term_handler)(void *handler_data);
     void *term_handler_data;
+
+    BOOL winsize_handler_set;
+    HANDLE outcon;
+    int x_chrs;
+    int y_chrs;
+    int x_bits;
+    int y_bits;
+    BOOL got_winsize_sig;
+    void (*winsize_handler)(int x_chrs, int y_chrs,
+			    int x_bits, int y_bits,
+			    void *handler_data);
+    void *winsize_handler_data;
+
     HANDLE global_waiter;
 };
 static struct gensio_os_proc_data proc_data;
@@ -3300,25 +3344,67 @@ gensio_os_proc_setup(struct gensio_os_funcs *o,
     return 0;
 }
 
-static BOOL
-ConCtrlHandler(DWORD dwCtrlType)
+static void
+proc_release_sem(struct gensio_os_proc_data *data)
 {
     BOOL rvb;
 
+    rvb = ReleaseSemaphore(proc_data.global_waiter, 1, NULL);
+    if (!rvb)
+	/* Too many posts is improbable, but ok. */
+	assert(GetLastError() == ERROR_TOO_MANY_POSTS);
+}
+
+static BOOL
+ConCtrlHandler(DWORD dwCtrlType)
+{
     switch (dwCtrlType) {
     case CTRL_C_EVENT:
     case CTRL_CLOSE_EVENT:
     case CTRL_SHUTDOWN_EVENT:
 	proc_data.got_term_sig = true;
-	rvb = ReleaseSemaphore(proc_data.global_waiter, 1, NULL);
-	if (!rvb)
-	    /* Too many posts is improbable, but ok. */
-	    assert(GetLastError() == ERROR_TOO_MANY_POSTS);
+	proc_release_sem(&proc_data);
 	return TRUE;
 
     default:
 	return FALSE;
     }
+}
+
+void check_winsize(struct gensio_iod_win_oneway *owiod)
+{
+    struct gensio_iod_win *wiod = &owiod->wiod;
+    struct gensio_iod *iod = &wiod->iod;
+    struct gensio_os_funcs *o = iod->f;
+    struct gensio_data *d = o->user_data;
+    struct gensio_os_proc_data *data = d->proc_data;
+    CONSOLE_SCREEN_BUFFER_INFOEX sbi;
+    int x_chrs, y_chrs;
+
+    LOCK(&data->lock);
+    if (!data->outcon) {
+	data->outcon = CreateFileA("CONOUT$", GENERIC_WRITE | GENERIC_READ, 0,
+				   NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL,
+				   NULL);
+	if (data->outcon == INVALID_HANDLE_VALUE) {
+	    data->outcon = NULL;
+	    goto out_unlock;
+	}
+    }
+    memset(&sbi, 0, sizeof(sbi));
+    sbi.cbSize = sizeof(sbi);
+    if (!GetConsoleScreenBufferInfoEx(data->outcon, &sbi))
+	goto out_unlock;
+    x_chrs = sbi.dwSize.X;
+    y_chrs = sbi.dwSize.Y - sbi.srWindow.Top;
+    if (x_chrs != data->x_chrs || x_chrs != data->y_chrs) {
+	data->x_chrs = x_chrs;
+	data->y_chrs = y_chrs;
+	data->got_winsize_sig = TRUE;
+	proc_release_sem(data);
+    }
+ out_unlock:
+    UNLOCK(&data->lock);
 }
 
 void
@@ -3327,6 +3413,10 @@ gensio_os_proc_cleanup(struct gensio_os_proc_data *data)
     if (data->term_handler_set) {
 	SetConsoleCtrlHandler(ConCtrlHandler, false);
 	data->term_handler_set = false;
+    }
+    if (data->outcon) {
+	CloseHandle(data->outcon);
+	data->outcon = NULL;
     }
     if (data->global_waiter) {
 	CloseHandle(data->global_waiter);
@@ -3347,7 +3437,15 @@ gensio_os_proc_check_handlers(struct gensio_os_proc_data *data)
     LOCK(&data->lock);
     if (data->got_term_sig) {
 	data->got_term_sig = FALSE;
-	data->term_handler(data->term_handler_data);
+	if (data->term_handler)
+	    data->term_handler(data->term_handler_data);
+    }
+    if (data->got_winsize_sig) {
+	data->got_winsize_sig = FALSE;
+	if (data->winsize_handler)
+	    data->winsize_handler(data->x_chrs, data->y_chrs,
+				  data->x_bits, data->y_bits,
+				  data->winsize_handler_data);
     }
     UNLOCK(&data->lock);
 }
@@ -3357,12 +3455,18 @@ gensio_os_proc_register_term_handler(struct gensio_os_proc_data *data,
 				     void (*handler)(void *handler_data),
 				     void *handler_data)
 {
-    if (SetConsoleCtrlHandler(ConCtrlHandler, TRUE) == 0)
-	return gensio_os_err_to_err(data->o, GetLastError());
-    data->term_handler = handler;
-    data->term_handler_data = handler_data;
-    data->term_handler_set = true;
-    return 0;
+    int err = 0;
+
+    LOCK(&data->lock);
+    if (SetConsoleCtrlHandler(ConCtrlHandler, TRUE) == 0) {
+	err = gensio_os_err_to_err(data->o, GetLastError());
+    } else {
+	data->term_handler = handler;
+	data->term_handler_data = handler_data;
+	data->term_handler_set = true;
+    }
+    UNLOCK(&data->lock);
+    return err;
 }
 
 int
@@ -3373,10 +3477,6 @@ gensio_os_proc_register_reload_handler(struct gensio_os_proc_data *data,
     return GE_NOTSUP;
 }
 
-/*
- * FIXME - this is doable under Windows, but requires using
- * ReadConsoleInput() to get I/O, so it would take some redesign.
- */
 int
 gensio_os_proc_register_winsize_handler(struct gensio_os_proc_data *data,
 					struct gensio_iod *console_iod,
@@ -3385,7 +3485,18 @@ gensio_os_proc_register_winsize_handler(struct gensio_os_proc_data *data,
 							void *handler_data),
 					void *handler_data)
 {
-    return GE_NOTSUP;
+    struct gensio_iod_win *wiod = iod_to_win(console_iod);
+    int err = 0;
+
+    if (wiod->type != GENSIO_IOD_CONSOLE)
+	return GE_INVAL;
+    LOCK(&data->lock);
+    data->winsize_handler = handler;
+    data->winsize_handler_data = handler_data;
+    data->winsize_handler_set = true;
+    UNLOCK(&data->lock);
+    proc_release_sem(data);
+    return err;
 }
 
 struct gensio_thread {
