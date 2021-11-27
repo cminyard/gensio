@@ -544,17 +544,17 @@ add_io(struct gtinfo *g, struct gensio *io, bool open_finished)
     gtconn2->user_io = gtconn1->io;
     gtconn2->io = io;
 
-    if (open_finished)
+    if (open_finished) {
 	ioinfo_set_ready(ioinfo2, gtconn2->io);
-    else
+	if (g->print_laddr)
+	    print_io_addr(io, true);
+	if (g->print_raddr)
+	    print_io_addr(io, false);
+	if (debug)
+	    printf("Connected\r\n");
+    } else {
 	gensio_set_user_data(gtconn2->io, ioinfo2);
-
-    if (g->print_laddr)
-	print_io_addr(io, true);
-    if (g->print_raddr)
-	print_io_addr(io, false);
-    if (debug)
-	printf("Connected\r\n");
+    }
 
     gensio_list_add_tail(&g->io_list, &gtconn1->link);
     gensio_list_add_tail(&g->io_list, &gtconn2->link);
