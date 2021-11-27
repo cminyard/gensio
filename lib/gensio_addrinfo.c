@@ -760,7 +760,7 @@ gensio_addr_addrinfo_scan_ips(struct gensio_os_funcs *o, const char *str,
 	/*
 	 * If the user specified something like "tcp,0", ip will be
 	 * NULL and getaddrinfo will return IPv4 and IPv6 addresses if
-	 * they are available.  AF_V4MAPPED will be set, so we really
+	 * they are available.  AI_V4MAPPED will be set, so we really
 	 * only want IPv6 addresses (if any are available) as once you
 	 * open the IPv6 address you can't open the IPv4 address.
 	 */
