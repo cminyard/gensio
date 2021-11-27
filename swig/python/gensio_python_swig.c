@@ -108,11 +108,18 @@ gensio_do_vlog(struct gensio_os_funcs *o,
     OI_PY_STATE_PUT(gstate);
 }
 
-void
+static struct gensio_os_proc_data *proc_data;
+static struct gensio_os_funcs *curr_os_funcs;
+
+int
 gensio_swig_setup_os_funcs(struct gensio_os_funcs *o,
 			   swig_cb *log_handler)
 {
     struct os_funcs_data *odata;
+    int err;
+
+    if (curr_os_funcs)
+	return GE_INUSE;
 
     odata = malloc(sizeof(*odata));
     assert(odata != NULL);
@@ -126,7 +133,15 @@ gensio_swig_setup_os_funcs(struct gensio_os_funcs *o,
     else
 	odata->log_handler = NULL;
     gensio_os_funcs_set_vlog(o, gensio_do_vlog);
+
+    err = gensio_os_proc_setup(o, &proc_data);
+    if (err) {
+	free(odata);
+	return err;
+    }
     gensio_os_funcs_set_data(o, odata);
+    curr_os_funcs = o;
+    return 0;
 }
 
 #ifdef USE_POSIX_THREADS
@@ -161,7 +176,10 @@ check_os_funcs_free(struct gensio_os_funcs *o)
 	pthread_mutex_destroy(&odata->lock);
 #endif
 	free(odata);
+
+	gensio_os_proc_cleanup(proc_data);
 	gensio_os_funcs_free(o);
+	curr_os_funcs = NULL;
     } else {
 	os_funcs_unlock(odata);
     }

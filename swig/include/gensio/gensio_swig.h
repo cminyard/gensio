@@ -18,8 +18,8 @@ typedef PyObject swig_cb;
 #endif 
 
 GENSIO_DLL_PUBLIC
-void gensio_swig_setup_os_funcs(struct gensio_os_funcs *o,
-				swig_cb *log_handler);
+int gensio_swig_setup_os_funcs(struct gensio_os_funcs *o,
+			       swig_cb *log_handler);
 
 GENSIO_DLL_PUBLIC
 void check_os_funcs_free(struct gensio_os_funcs *o);

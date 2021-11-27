@@ -23,7 +23,12 @@ struct gensio_os_funcs *alloc_tcl_os_funcs(swig_cb *log_handler)
 	exit(1);
     }
 
-    gensio_swig_setup_os_funcs(o, log_handler);
+    err = gensio_swig_setup_os_funcs(o, log_handler);
+    if (err) {
+	fprintf(stderr, "Unable to set up gensio os funcs: %s, giving up\n",
+		gensio_err_to_str(err));
+	exit(1);
+    }
 
     return o;
 }
