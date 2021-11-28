@@ -260,26 +260,49 @@ divulge private keys or use the wrong keys is a lot easier.
 
 For more on cryptography in general, and cryptography and trust, Bruce
 Schneier has some excellent books on the subject.
-.SH "IPv6, IPV4, and host names"
+.SH "IPv6, IPv4, and host names"
 Note that a single hostname may result in more than one address.  For
 instance, it may have both an IPv4 and IPv6 address.  These are
-treated just like multiple hostnames.  The hostname may be prefixed
+treated just like multiple hostnames.  For instance, if you use localhost as a host name, you generally get the IPv4 and IPv6 version:
+.IP
+$ gensiot -a -p tcp,localhost,1234
+.br
+Address 0(0): ipv6,::1,1234
+.br
+Address 1(0): ipv4,127.0.0.1,1234
+.PP
+The hostname may be prefixed
 with ipv4 or ipv6, which will force the connections to those
 protocols.  Specifying ipv6n4 will create a socket that is IPv6 but
-will handle IPv4 connections.  This is the default.
+will handle IPv4 connections.
 
-In general IPv6 addresses are preferred if both are available.
-
+Note that using ipv6n4 will not automatically create a socket that is
+available to IPv4.  You can do, say
+.B tcp,ipv6n4,::1,1234
+and it will work, but since
+.B::1
+is not IPv4, you won't be able to get to it.  You have to specify an
+IPv4 address, like:
+.B tcp,ipv6n4,127.0.0.1,1234
+which will result in a single IPv6 socket mapped into IPv4 space:
+.IP
+$ gensiot -a -p tcp,ipv6n4,localhost,1234
+.br
+Address 0(0): ipv6,::ffff:127.0.0.1,1234
+.PP
 If you do not specify a hostname on an accepting gensio (like
 sctp,1234) it will only create an IPv6 socket that is IPv4 mapped.
-Even though getaddrinfo would normally return two addresses, only the
-IPv6 one is used unless there are no IPv6 addresses configured where it
-will return an IPv4 address.
+This way it will accept both IPv4 and IPv6 connections.  Even though
+getaddrinfo would normally return two addresses, only the IPv6 one is
+used unless there are no IPv6 addresses configured where it will
+return an IPv4 address.
 
 In general, for connecting gensios only the first address that is
 found will be used.  SCTP is the exception, it will do multi-homing on
 all the addresses that come up.  Do you may need to be fairly specific
 with addresses.
+
+In general IPv6 addresses are preferred if both are available.
 .SH "TCP"
 .B tcp[(<options>)][,<hostname>],<port>[[,<hostname>],<port>[...]]
 .br
