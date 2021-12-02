@@ -17,6 +17,7 @@
 #include <stdarg.h>
 #include <stdint.h>
 #include <stdbool.h>
+#include <stdio.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -790,6 +791,36 @@ gensiods gensio_num_alloced(void);
 /* For testing, do not use in normal code. */
 GENSIO_DLL_PUBLIC
 void gensio_osfunc_exit(int rv);
+
+/*
+ * Generic functions for dumping buffer data to stdio
+ */
+struct gensio_fdump {
+    unsigned int column;
+    unsigned int pos;
+    unsigned char data[16];
+};
+
+/*
+ * Call this before using an fdump structure.
+ */
+GENSIO_DLL_PUBLIC
+void gensio_fdump_init(struct gensio_fdump *h);
+
+/*
+ * Format len bytes of data in buf to file f.  You can call this
+ * multiple times and it will continue the dump where it left off.
+ */
+GENSIO_DLL_PUBLIC
+void gensio_fdump_buf(FILE *f, const unsigned char *buf, gensiods len,
+		      struct gensio_fdump *h);
+
+/*
+ * When you are done dumping a buffer, call this.  It will output the
+ * last bits of information.
+ */
+GENSIO_DLL_PUBLIC
+void gensio_fdump_buf_finish(FILE *f, struct gensio_fdump *h);
 
 #ifdef __cplusplus
 }

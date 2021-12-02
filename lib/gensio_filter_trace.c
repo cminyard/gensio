@@ -104,63 +104,12 @@ trace_try_disconnect(struct gensio_filter *filter, gensio_time *timeout)
     return 0;
 }
 
-struct dump_history {
-    unsigned int column;
-    unsigned int pos;
-    unsigned char data[16];
-};
-
-static void
-dump_buf(FILE *f, const unsigned char *buf, gensiods len,
-	 struct dump_history *h)
-{
-    gensiods i, j;
-
-    for (i = 0; i < len; i++) {
-	if (h->column == 0)
-	    fprintf(f, " %4.4x:", h->pos);
-	fprintf(f, " %2.2x", buf[i]);
-	h->data[h->column++] = buf[i];
-	h->pos++;
-	if (h->column == 16) {
-	    fputs("  ", f);
-	    for (j = 0; j < 16; j++) {
-		if (isprint(h->data[j]))
-		    fputc(h->data[j], f);
-		else
-		    fputc('.', f);
-	    }
-	    fputc('\n', f);
-	    h->column = 0;
-	}
-    }
-}
-
-static void
-dump_buf_finish(FILE *f, struct dump_history *h)
-{
-    gensiods i;
-
-    if (h->column == 0)
-	return;
-    for (i = h->column; i < 16; i++)
-	fputs("   ", f);
-    fputs("  ", f);
-    for (i = 0; i < h->column; i++) {
-	if (isprint(h->data[i]))
-	    fputc(h->data[i], f);
-	else
-	    fputc('.', f);
-    }
-    fputc('\n', f);
-}
-
 static void
 trace_data(const char *op, struct gensio_os_funcs *o,
 	   FILE *f, bool raw, int err, gensiods written,
 	   const struct gensio_sg *sg, gensiods sglen)
 {
-    struct dump_history h;
+    struct gensio_fdump h;
     gensio_time time;
 
     o->get_monotonic_time(o, &time);
@@ -174,7 +123,7 @@ trace_data(const char *op, struct gensio_os_funcs *o,
     } else if (written > 0) {
 	gensiods i, len;
 
-	memset(&h, 0, sizeof(h));
+	gensio_fdump_init(&h);
 	if (!raw)
 	    fprintf(f, "%lld:%6.6d %s (%lu):\n",
 		    (long long) time.secs, (time.nsecs + 500) / 1000,
@@ -187,9 +136,9 @@ trace_data(const char *op, struct gensio_os_funcs *o,
 	    if (raw)
 		fwrite(sg[i].buf, 1, len, f);
 	    else
-		dump_buf(f, sg[i].buf, len, &h);
+		gensio_fdump_buf(f, sg[i].buf, len, &h);
 	}
-	dump_buf_finish(f, &h);
+	gensio_fdump_buf_finish(f, &h);
 	fflush(f);
     }
 }

@@ -3692,3 +3692,55 @@ gensio_addr_getaddr(const struct gensio_addr *addr,
 {
     addr->o->addr_getaddr(addr, oaddr, rlen);
 }
+
+void
+gensio_fdump_init(struct gensio_fdump *h)
+{
+    h->column = 0;
+    h->pos = 0;
+}
+
+void
+gensio_fdump_buf(FILE *f, const unsigned char *buf, gensiods len,
+		 struct gensio_fdump *h)
+{
+    gensiods i, j;
+
+    for (i = 0; i < len; i++) {
+	if (h->column == 0)
+	    fprintf(f, " %4.4x:", h->pos);
+	fprintf(f, " %2.2x", buf[i]);
+	h->data[h->column++] = buf[i];
+	h->pos++;
+	if (h->column == 16) {
+	    fputs("  ", f);
+	    for (j = 0; j < 16; j++) {
+		if (isprint(h->data[j]))
+		    fputc(h->data[j], f);
+		else
+		    fputc('.', f);
+	    }
+	    fputc('\n', f);
+	    h->column = 0;
+	}
+    }
+}
+
+void
+gensio_fdump_buf_finish(FILE *f, struct gensio_fdump *h)
+{
+    gensiods i;
+
+    if (h->column == 0)
+	return;
+    for (i = h->column; i < 16; i++)
+	fputs("   ", f);
+    fputs("  ", f);
+    for (i = 0; i < h->column; i++) {
+	if (isprint(h->data[i]))
+	    fputc(h->data[i], f);
+	else
+	    fputc('.', f);
+    }
+    fputc('\n', f);
+}
