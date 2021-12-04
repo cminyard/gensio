@@ -1850,13 +1850,13 @@ gensio_os_proc_register_winsize_handler(struct gensio_os_proc_data *data,
 							void *handler_data),
 					void *handler_data)
 {
+#if HAVE_DECL_SIGWINCH
     struct gensio_iod_unix *iod = i_to_sel(console_iod);
     int err;
     struct sigaction act;
     sigset_t sigs, old_sigs;
     struct winsize win;
 
-#if HAVE_DECL_SIGWINCH
     if (data->winch_sig_set) {
 	data->winch_sig_set = false;
 	sigaction(SIGWINCH, &data->old_sigwinch, NULL);
