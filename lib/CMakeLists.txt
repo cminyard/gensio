@@ -33,7 +33,6 @@ set(BASE_LIBFILES
   gensio_perf.c
   gensio_filter_perf.c
   gensio_conacc.c
-  errtrig.c
   mdns.c
   avahi_watcher.c
   gensio_mdns.c
@@ -54,10 +53,16 @@ set(UNIX_LIBFILES
 set(WINDOWS_LIBFILES
   gensio_win.c)
 
-if(UNIX)
-  set(LIBFILES ${BASE_LIBFILES} ${UNIX_LIBFILES})
+if(ENABLE_INTERNAL_TRACE)
+  set(ERRTRIG_LIBFILES errtrig.c)
 else()
-  set(LIBFILES ${BASE_LIBFILES} ${WINDOWS_LIBFILES})
+  set(ERRTRIG_LIBFILES)
+endif()
+
+if(UNIX)
+  set(LIBFILES ${BASE_LIBFILES} ${UNIX_LIBFILES} ${ERRTIRG_LIBFILES})
+else()
+  set(LIBFILES ${BASE_LIBFILES} ${WINDOWS_LIBFILES} ${ERRTIRG_LIBFILES})
 endif()
 
 add_library(gensio ${LIBFILES})
