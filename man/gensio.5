@@ -1514,10 +1514,13 @@ connecting =
 .B mdns[(options)][,<name>]
 
 This gensio uses mDNS to find a service and then attempts to connect
-to it.  This can be convenient, it finds the connection type andport
-for you, automatically adds telnet and rfc2217 if it's available.
-The mDNS name can be set as an option or as the string after the comma
-show above.
+to it.  This can be convenient, it finds the connection type, address,
+and port for you, automatically adds telnet and rfc2217 if it's
+available.  The mDNS name can be set as an option or as the string
+after the comma show above.
+
+The name, type, host, and domain strings can be wildcarded in various
+ways.  See "STRING VALUES FOR WATCHES" in gensio_mdns(3) for details.
 .SS Options
 The readbuf option is accepted, but if it is not specified the default
 value for readbuf will be taken for the sub-gensio is taken.  In
