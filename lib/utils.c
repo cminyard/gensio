@@ -29,6 +29,22 @@ gensio_strdup(struct gensio_os_funcs *o, const char *str)
     return s;
 }
 
+char *
+gensio_strndup(struct gensio_os_funcs *o, const char *str, gensiods len)
+{
+    char *s;
+    gensiods slen = strlen(str);
+
+    if (len > slen)
+	len = slen;
+    
+    s = o->zalloc(o, len + 1);
+    if (!s)
+	return NULL;
+    memcpy(s, str, len);
+    return s;
+}
+
 int
 gensio_argv_copy(struct gensio_os_funcs *o,
 		 const char * const oargv[],

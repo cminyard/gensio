@@ -772,6 +772,9 @@ char *gensio_alloc_sprintf(struct gensio_os_funcs *o,
 GENSIO_DLL_PUBLIC
 char *gensio_strdup(struct gensio_os_funcs *o, const char *str);
 
+GENSIO_DLL_PUBLIC
+char *gensio_strndup(struct gensio_os_funcs *o, const char *str, gensiods len);
+
 /*
  * Take the input string, put " around it, and put a \ infront of
  * every \ and ".  This allows you to take a string with " and \ in it
