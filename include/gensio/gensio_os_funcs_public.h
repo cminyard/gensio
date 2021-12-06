@@ -12,6 +12,7 @@
 extern "C" {
 #endif
 
+#include <stdarg.h>
 #include <gensio/gensio_types.h>
 #include <gensio/gensio_dllvisibility.h>
 
