@@ -29,7 +29,8 @@ libgensio_la_SOURCES = \
 	mdns.c avahi_watcher.c gensio_mdns.c \
 	gensio_addrinfo.c gensio_stdsock.c \
 	gensio_filter_kiss.c gensio_kiss.c \
-	crc16.c gensio_ax25_addr.c gensio_ax25.c
+	crc16.c gensio_ax25_addr.c gensio_ax25.c \
+	mdns_parse.c
 
 if HAVE_UNIX_OS
 libgensio_la_SOURCES += gensio_unix.c selector.c
@@ -50,3 +51,11 @@ EXTRA_DIST = README.rst libgensio.pc.in CMakeLists.txt
 # by 'install-exec' target (instead of default 'install-data')
 pkgconfigexecdir = $(libdir)/pkgconfig
 pkgconfigexec_DATA = libgensio.pc
+
+TESTS = mdns_parse_test
+
+mdns_parse_test_SOURCES = mdns_parse_test.c
+
+mdns_parse_test_LDADD = $(top_builddir)/lib/libgensio.la
+
+check_PROGRAMS = mdns_parse_test

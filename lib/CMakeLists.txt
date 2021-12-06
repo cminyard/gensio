@@ -50,6 +50,7 @@ set(BASE_LIBFILES
   crc16.c
   gensio_ax25_addr.c
   gensio_ax25.c
+  mdns_parse.c
   )
 
 set(UNIX_LIBFILES
