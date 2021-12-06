@@ -1354,19 +1354,615 @@ gensio_free_mdns(struct gensio_mdns *m, gensio_mdns_done done, void *userdata)
 
 #else
 
-int
-gensio_alloc_mdns(struct gensio_os_funcs *o, struct gensio_mdns **m)
+/*
+ * Implement it ourselves.
+ */
+
+#include <assert.h>
+#include <string.h>
+#include <unistd.h>
+#include <limits.h>
+#include <errno.h>
+#include <arpa/inet.h>
+#include <gensio/gensio_list.h>
+#include <gensio/gensio_osops.h>
+#include <gensio/mdns_parse.h>
+
+#define MAX_MSG_SIZE 1200
+
+struct gensio_mdns_service
 {
-    return GE_NOTSUP;
+    struct gensio_link link;
+    struct gensio_mdns *m;
+
+    const char *hostname[3];
+    struct mdns_name hostname_name;
+
+    const char *srvname[5];
+    struct mdns_name srvname_name;
+
+    int port;
+    int interface;
+    int ipdomain;
+    char *name;
+    char *type1;
+    char *type2;
+    char *domain;
+    char *host;
+
+    bool in_close;
+};
+
+struct gensio_mdns_watch
+{
+    struct gensio_link link;
+    struct gensio_mdns *m;
+    struct gensio_runner *run;
+
+    int interface;
+    int ipdomain;
+    char *name;
+    char *type;
+    char *domain;
+    char *host;
+
+    bool in_cb;
+    bool in_close;
+    gensio_mdns_watch_done done;
+    void *done_data;
+
+    gensio_mdns_watch_cb cb;
+    void *cb_data;
+};
+
+struct gensio_mdns
+{
+    struct gensio_os_funcs *o;
+    int err;
+    struct gensio_lock *lock;
+    struct gensio_runner *run;
+
+    char host[HOST_NAME_MAX];
+
+    enum {
+	  MDNS_STATE_CLOSED,
+	  MDNS_STATE_IN_OPEN,
+	  MDNS_STATE_OPEN,
+	  MDNS_STATE_START_CLOSE,
+	  MDNS_STATE_IN_CLOSE
+    } state;
+
+    gensio_mdns_done done;
+    void *done_data;
+
+    uint32_t ttl;
+    unsigned int max_send;
+
+    unsigned int nifs;
+    struct gensio_net_if **ifs;
+
+    /* Track opens in progress at any time. */
+    unsigned int opens_pending;
+
+    /* Track closes in progress during shutdown. */
+    unsigned int close_pending;
+
+    const char *hostname[3];
+    struct mdns_name hostname_name;
+
+    struct gensio *mcast_io;
+#ifdef AF_INET6
+    struct gensio *mcast6_io;
+#endif
+    struct gensio *unicast_io;
+
+    /* Used to discover all service types on a network. */
+    struct mdns_msg *discover;
+
+    struct gensio_list services;
+
+    unsigned int watch_dones;
+    struct gensio_list watches;
+};
+
+/*
+ * Sending a PTR query for this name will cause all entities on the
+ * local net to respond.
+ */
+static const char *mdns_domain_discovery_strs[5] = {
+    "_services",  "_dns-sd", "_udp", "local"
+};
+static const struct mdns_name mdns_domain_discovery_name =
+    { .nstrs = 4, .strs = mdns_domain_discovery_strs };
+
+static void
+mdns_free_service(struct gensio_mdns *m, struct gensio_mdns_service *s)
+{
+    if (s->name)
+	gensio_os_funcs_zfree(m->o, s->name);
+    if (s->type1)
+	gensio_os_funcs_zfree(m->o, s->type1);
+    if (s->type2)
+	gensio_os_funcs_zfree(m->o, s->type2);
+    if (s->domain)
+	gensio_os_funcs_zfree(m->o, s->domain);
+    if (s->host)
+	gensio_os_funcs_zfree(m->o, s->host);
+    gensio_os_funcs_zfree(m->o, s);
+}
+
+static void
+mdns_free_watch(struct gensio_mdns *m, struct gensio_mdns_watch *w)
+{
+    if (w->name)
+	gensio_os_funcs_zfree(m->o, w->name);
+    if (w->type)
+	gensio_os_funcs_zfree(m->o, w->type);
+    if (w->domain)
+	gensio_os_funcs_zfree(m->o, w->domain);
+    if (w->host)
+	gensio_os_funcs_zfree(m->o, w->host);
+    if (w->run)
+	gensio_os_funcs_free_runner(m->o, w->run);
+    gensio_os_funcs_zfree(m->o, w);
+}
+
+static void
+mdns_finish_close(struct gensio_mdns *m)
+{
+    struct gensio_link *l, *l2;
+
+    m->state = MDNS_STATE_CLOSED;
+    gensio_list_for_each_safe(&m->services, l, l2) {
+	struct gensio_mdns_service *s;
+
+	s = gensio_container_of(l, struct gensio_mdns_service, link);
+	gensio_list_rm(&m->services, &s->link);
+	mdns_free_service(m, s);
+    }
+    gensio_list_for_each_safe(&m->watches, l, l2) {
+	struct gensio_mdns_watch *w;
+
+	w = gensio_container_of(l, struct gensio_mdns_watch, link);
+	gensio_list_rm(&m->services, &w->link);
+	mdns_free_watch(m, w);
+    }
+
+    if (m->done)
+	m->done(m, m->done_data);
+    gensio_os_funcs_free_lock(m->o, m->lock);
+    gensio_os_funcs_free_runner(m->o, m->run);
+
+    gensio_os_free_net_ifs(m->o, m->ifs, m->nifs);
+#if 0
+    mdns_free_msg(m->query);
+    mdns_free_msg(m->answer);
+#endif
+    mdns_free_msg(m->discover);
+    gensio_os_funcs_zfree(m->o, m);
+}
+
+static void
+check_close(struct gensio_mdns *m)
+{
+    if (m->close_pending == 0 && m->watch_dones == 0)
+	gensio_os_funcs_run(m->o, m->run);
+}
+
+static void
+close_done(struct gensio *io, void *data)
+{
+    struct gensio_mdns *m = data;
+
+    gensio_os_funcs_lock(m->o, m->lock);
+    if (io == m->mcast_io)
+	m->mcast_io = NULL;
+#ifdef AF_INET6
+    else if (io == m->mcast6_io)
+	m->mcast6_io = NULL;
+#endif
+    else if (io == m->unicast_io)
+	m->unicast_io = NULL;
+    gensio_free(io);
+    assert(m->close_pending > 0);
+    m->close_pending--;
+    /*
+     * We don't have to check for watch callbacks here.  They are all
+     * done from io callbacks, which can't be happening now.
+     */
+    check_close(m);
+    gensio_os_funcs_unlock(m->o, m->lock);
+}
+
+static void
+start_close(struct gensio_mdns *m)
+{
+    int rv;
+
+    m->state = MDNS_STATE_IN_CLOSE;
+    if (m->mcast_io) {
+	rv = gensio_close(m->mcast_io, close_done, m);
+	if (rv) {
+	    gensio_free(m->mcast_io);
+	    m->mcast_io = NULL;
+	} else {
+	    m->close_pending++;
+	}
+    }
+#ifdef AF_INET6
+    if (m->mcast6_io) {
+	rv = gensio_close(m->mcast6_io, close_done, m);
+	if (rv) {
+	    gensio_free(m->mcast6_io);
+	    m->mcast6_io = NULL;
+	} else {
+	    m->close_pending++;
+	}
+    }
+#endif
+    if (m->unicast_io) {
+	rv = gensio_close(m->unicast_io, close_done, m);
+	if (rv) {
+	    gensio_free(m->unicast_io);
+	    m->unicast_io = NULL;
+	} else {
+	    m->close_pending++;
+	}
+    }
+
+    check_close(m);
+}
+
+static void
+open_done(struct gensio *io, int err, void *data)
+{
+    struct gensio_mdns *m = data;
+
+    gensio_os_funcs_lock(m->o, m->lock);
+    if (err) {
+	if (io == m->mcast_io)
+	    m->mcast_io = NULL;
+#ifdef AF_INET6
+	else if (io == m->mcast6_io)
+	    m->mcast6_io = NULL;
+#endif
+	else if (io == m->unicast_io)
+	    m->unicast_io = NULL;
+	gensio_free(io);
+    }
+    if (!m->err)
+	m->err = err;
+    assert(m->opens_pending > 0);
+    m->opens_pending--;
+    if (m->opens_pending) {
+	gensio_os_funcs_unlock(m->o, m->lock);
+	return;
+    }
+
+    /* All opens are complete, if we got a close shut things down. */
+    if (m->state == MDNS_STATE_START_CLOSE)
+	start_close(m);
+    else
+	m->state = MDNS_STATE_OPEN;
+    gensio_os_funcs_unlock(m->o, m->lock);
+}
+
+static int
+gensio_mdns_send(struct gensio_mdns *m, struct mdns_msg *msg)
+{
+    unsigned int len = 0;
+    unsigned char buf[MAX_MSG_SIZE];
+    int rv;
+
+    rv = mdns_output(msg, buf, sizeof(buf), &len);
+    if (rv)
+	return rv;
+    if (len > sizeof(buf))
+	return GE_OUTOFRANGE;
+    return gensio_write(m->unicast_io, NULL, buf, len, NULL);
+}
+
+static int
+gensio_mdns_sendto(struct gensio_mdns *m, struct mdns_msg *msg,
+		   const char *addr)
+{
+    unsigned int len = 0;
+    unsigned char buf[MAX_MSG_SIZE];
+    const char *aux[2];
+    int rv;
+
+    rv = mdns_output(msg, buf, sizeof(buf), &len);
+    if (rv)
+	return rv;
+    if (len > sizeof(buf))
+	return GE_OUTOFRANGE;
+    aux[0] = addr;
+    aux[1] = NULL;
+    return gensio_write(m->unicast_io, NULL, buf, len, aux);
+}
+
+static void
+mdns_run(struct gensio_runner *r, void *data)
+{
+    struct gensio_mdns *m = data;
+
+    mdns_finish_close(m);
+}
+
+static int
+mcast_event(struct gensio *io, void *user_data, int event, int err,
+	    unsigned char *buf, gensiods *buflen,
+	    const char *const *auxdata)
+{
+    return 0;
+}
+
+static void
+add_a_records(struct gensio_mdns *m, struct mdns_msg *msg,
+	      struct mdns_name *name)
+{
+    unsigned int i, j;
+
+    if (!msg)
+	return;
+
+    for (i = 0; i < m->nifs; i++) {
+	for (j = 0; j < m->ifs[i]->naddrs; j++) {
+	    if (m->ifs[i]->addrs[j].family != AF_INET)
+		continue;
+	    mdns_add_rr_a(msg, MDNS_RR_ANSWER, name, DNS_CLASS_IN, m->ttl,
+			  m->ifs[i]->addrs[j].addr);
+	}
+    }
+}
+
+static void
+alloc_query_rsp(struct gensio_mdns *m,
+		struct mdns_msg *msg, struct mdns_msg **rsp)
+{
+    if (*rsp)
+	return;
+    *rsp = mdns_alloc_msg(m->o, 0, DNS_FLAG_AA | DNS_FLAG_QUERY, m->max_send);
+}
+
+static void
+handle_query(struct gensio_mdns *m, struct mdns_msg *msg,
+	     struct mdns_query *q, struct mdns_msg **rsp)
+{
+    switch (q->type) {
+    case DNS_RR_TYPE_A:
+	if (mdns_name_cmp(&m->hostname_name, &q->name) == 0) {
+	    alloc_query_rsp(m, msg, rsp);
+	    add_a_records(m, *rsp, &q->name);
+	}
+	break;
+
+    case DNS_RR_TYPE_AAAA:
+	break;
+
+    case DNS_RR_TYPE_PTR:
+	break;
+
+    case DNS_RR_TYPE_TXT:
+	break;
+
+    case DNS_RR_TYPE_SRV:
+	break;
+    }
+}
+
+static int
+unicast_event(struct gensio *io, void *user_data, int event, int err,
+	      unsigned char *buf, gensiods *buflen,
+	      const char *const *auxdata)
+{
+    struct gensio_mdns *m = user_data;
+    struct mdns_msg *msg, *rsp = NULL;
+    const char *addrstr = NULL;
+    unsigned int i;
+    int rv;
+
+    if (err) {
+	m->err = err;
+	gensio_set_read_callback_enable(io, false);
+	return 0;
+    }
+
+    for (i = 0; auxdata && auxdata[i]; i++) {
+	if (strncmp(auxdata[i], "addr:", 5) == 0) {
+	    addrstr = auxdata[i];
+	    break;
+	}
+    }
+    if (!addrstr)
+	return 0;
+
+    rv = mdns_parse_msg(m->o, buf, *buflen, &msg);
+    if (rv)
+	return 0;
+
+    for (i = 0; i < msg->h.nr_queries; i++)
+	handle_query(m, msg, msg->queries[i], &rsp);
+
+    if (rsp) {
+	if (rsp->h.nr_answers > 0)
+	    gensio_mdns_sendto(m, rsp, addrstr);
+	mdns_free_msg(rsp);
+    }
+
+    mdns_free_msg(msg);
+    return 0;
+}
+
+static int
+build_base_msgs(struct gensio_mdns *m)
+{
+    struct gensio_os_funcs *o = m->o;
+    int rv;
+#if 0
+    unsigned int i, j;
+
+    m->query = mdns_alloc_msg(o, 0, DNS_FLAG_AA | DNS_FLAG_QUERY);
+    if (!m->query)
+	return GE_NOMEM;
+    rv = mdns_add_query(m->query, &m->hostname_name, DNS_RR_TYPE_A,
+			DNS_CLASS_IN | DNS_CLASS_UNICAST_RESPONSE);
+    if (rv)
+	return rv;
+    rv = mdns_add_query(m->query, &m->hostname_name, DNS_RR_TYPE_AAAA,
+			DNS_CLASS_IN | DNS_CLASS_UNICAST_RESPONSE);
+    if (rv)
+	return rv;
+
+    m->answer = mdns_alloc_msg(o, 0, DNS_FLAG_AA | DNS_FLAG_QUERY);
+    if (!m->answer)
+	return GE_NOMEM;
+    for (i = 0; i < m->nifs; i++) {
+	for (j = 0; j < m->ifs[i]->naddrs; j++) {
+	    if (m->ifs[i]->addrs[j].family == AF_INET) {
+		rv = mdns_add_rr_a(m->answer, MDNS_RR_ANSWER, &m->hostname_name,
+				   DNS_CLASS_IN, m->ttl,
+				   m->ifs[i]->addrs[j].addr);
+	    } else {
+		rv = mdns_add_rr_aaaa(m->answer, MDNS_RR_ANSWER,
+				      &m->hostname_name, DNS_CLASS_IN, m->ttl,
+				      m->ifs[i]->addrs[j].addr);
+	    }
+	    if (rv)
+		return rv;
+	}
+    }
+#endif
+    m->discover = mdns_alloc_msg(o, 0, DNS_FLAG_AA | DNS_FLAG_QUERY,
+				 m->max_send);
+    if (!m->discover)
+	return GE_NOMEM;
+    rv = mdns_add_query(m->discover, &mdns_domain_discovery_name,
+			DNS_RR_TYPE_PTR,
+			DNS_CLASS_IN | DNS_CLASS_UNICAST_RESPONSE);
+
+    return rv;
+}
+
+int
+gensio_alloc_mdns(struct gensio_os_funcs *o, struct gensio_mdns **rm)
+{
+    struct gensio_mdns *m;
+    int rv;
+
+    m = gensio_os_funcs_zalloc(o, sizeof(*m));
+    if (!m)
+	return GE_NOMEM;
+    m->o = o;
+    m->ttl = 60;
+    m->max_send = MAX_MSG_SIZE;
+    gethostname(m->host, sizeof(m->host));
+    m->hostname[0] = m->host;
+    m->hostname[1] = "local";
+    m->hostname_name.strs = m->hostname;
+    m->hostname_name.nstrs = 2;
+    gensio_list_init(&m->services);
+    gensio_list_init(&m->watches);
+    m->run = gensio_os_funcs_alloc_runner(o, mdns_run, m);
+    if (!m->run) {
+	gensio_os_funcs_zfree(o, m);
+	return GE_NOMEM;
+    }
+    /* After we have the runner we can use gensio_mdns_free() */
+
+    rv = gensio_os_get_net_ifs(o, &m->ifs, &m->nifs);
+    if (rv)
+	goto out_err;
+
+    rv = build_base_msgs(m);
+    if (rv)
+	goto out_err;
+
+    rv = GE_NOMEM;
+    m->lock = gensio_os_funcs_alloc_lock(o);
+    if (!m->lock)
+	goto out_err;
+
+    rv = str_to_gensio("udp(nocon,mloop,mcast='224.0.0.251',laddr='ipv4,5353',"
+		       "reuseaddr),224.0.0.251,5353",
+		       o, mcast_event, m, &m->mcast_io);
+    if (rv)
+	goto out_err;
+
+#ifdef AF_INET6
+    rv = str_to_gensio("udp(nocon,mloop,mcast='FF02::FB',laddr='ipv6,5353',"
+		       "reuseaddr),FF02::FB,5353",
+		       o, mcast_event, m, &m->mcast6_io);
+    if (rv)
+	goto out_err;
+#endif
+
+    rv = str_to_gensio("udp(nocon),224.0.0.251,5353", o, unicast_event,
+		       m, &m->unicast_io);
+    if (rv)
+	goto out_err;
+
+    gensio_os_funcs_lock(m->o, m->lock);
+    m->state = MDNS_STATE_IN_OPEN;
+    rv = gensio_open(m->mcast_io, open_done, m);
+    if (rv) {
+	gensio_os_funcs_unlock(m->o, m->lock);
+	goto out_err;
+    }
+    m->opens_pending++;
+
+    /*
+     * One receiver is running, we might get something, so from here
+     * out we have to do a deferred cleanup.
+     */
+
+#ifdef AF_INET6
+    rv = gensio_open(m->mcast6_io, open_done, m);
+    if (rv) {
+	gensio_os_funcs_unlock(m->o, m->lock);
+	goto out_err;
+    }
+    m->opens_pending++;
+#endif
+
+    m->err = gensio_open(m->unicast_io, open_done, m);
+    if (m->err) {
+	gensio_os_funcs_unlock(m->o, m->lock);
+	goto out_err;
+    }
+    m->opens_pending++;
+#if 0
+    rv = gensio_mdns_send(m, m->query);
+    if (rv)
+	goto out_err;
+    gensio_os_funcs_unlock(m->o, m->lock);
+#endif
+    return 0;
+
+ out_err:
+    gensio_os_funcs_unlock(m->o, m->lock);
+    gensio_free_mdns(m, NULL, NULL);
+    return rv;
 }
 
 int
 gensio_free_mdns(struct gensio_mdns *m,
 		 gensio_mdns_done done, void *userdata)
 {
+    gensio_os_funcs_lock(m->o, m->lock);
+    if (!(m->state == MDNS_STATE_IN_OPEN || m->state == MDNS_STATE_OPEN)) {
+	gensio_os_funcs_unlock(m->o, m->lock);
+	return GE_NOTREADY;
+    }
+
+    if (m->state == MDNS_STATE_IN_OPEN)
+	m->state = MDNS_STATE_START_CLOSE;
+    else
+	start_close(m);
+    gensio_os_funcs_unlock(m->o, m->lock);
+
     return GE_NOTSUP;
 }
-
 
 int
 gensio_mdns_add_service(struct gensio_mdns *m,
@@ -1376,13 +1972,123 @@ gensio_mdns_add_service(struct gensio_mdns *m,
 			int port, const char * const *txt,
 			struct gensio_mdns_service **rservice)
 {
-    return GE_NOTSUP;
+    struct gensio_mdns_service *s;
+    int rv = GE_NOMEM;
+    const char *type1, *type2;
+
+    if (!name | !type)
+	return GE_INVAL;
+    if (!domain)
+	domain = "local";
+    if (!host)
+	host = m->host;
+
+    type1 = type;
+    type2 = strchr(type, '.');
+    if (!type2 || *type1 != '_')
+	return GE_INVAL;
+    if (!(strcmp(type2, "_udp") == 0 || strcmp(type2, "_tcp")))
+	return GE_INVAL;
+
+    s = gensio_os_funcs_zalloc(m->o, sizeof(*s));
+    if (!s)
+	return GE_NOMEM;
+    s->m = m;
+
+    s->name = gensio_strdup(m->o, name);
+    if (!s->name)
+	goto out_err;
+    s->type1 = gensio_strndup(m->o, type1, type2 - type1 - 1);
+    if (!s->type1)
+	goto out_err;
+    s->type2 = gensio_strdup(m->o, type2);
+    if (!s->type1)
+	goto out_err;
+    s->domain = gensio_strdup(m->o, domain);
+    if (!s->domain)
+	goto out_err;
+    s->host = gensio_strdup(m->o, host);
+    if (!s->host)
+	goto out_err;
+
+    s->hostname[0] = s->host;
+    s->hostname[1] = s->domain;
+    s->hostname_name.nstrs = 2;
+    s->hostname_name.strs = s->hostname;
+
+    s->srvname[0] = s->name;
+    s->srvname[1] = s->type1;
+    s->srvname[2] = s->type2;
+    s->srvname[3] = s->domain;
+    s->srvname_name.nstrs = 4;
+    s->srvname_name.strs = s->srvname;
+#if 0
+    s->query = mdns_alloc_msg(m->o, 0, DNS_FLAG_QUERY | DNS_FLAG_AA,);
+    if (!s->query)
+	goto out_err;
+    rv = mdns_add_query(s->query, &s->srvname_name,
+			DNS_RR_TYPE_SRV, DNS_CLASS_IN);
+    if (rv)
+	goto out_err;
+
+    s->answer = mdns_alloc_msg(m->o, 0, DNS_FLAG_QUERY | DNS_FLAG_AA);
+    if (!s->answer)
+	goto out_err;
+    rv = mdns_add_rr_srv(s->answer, MDNS_RR_ANSWER, &s->srvname_name,
+			 DNS_CLASS_IN, m->ttl, 0, 0, port, &s->hostname_name);
+    if (rv)
+	goto out_err;
+    if (txt && txt[0]) {
+	rv = mdns_add_rr_txt(s->answer, MDNS_RR_ANSWER, &s->srvname_name,
+			     DNS_CLASS_IN, m->ttl, txt);
+	if (rv)
+	    goto out_err;
+    }
+#endif
+
+    s->interface = interface;
+    s->ipdomain = ipdomain;
+    s->port = port;
+
+    gensio_os_funcs_lock(m->o, m->lock);
+    gensio_list_add_tail(&m->services, &s->link);
+    gensio_os_funcs_unlock(m->o, m->lock);
+    *rservice = s;
+    return 0;
+
+ out_err:
+    mdns_free_service(m, s);
+    return rv;
 }
 
 int
 gensio_mdns_remove_service(struct gensio_mdns_service *s)
 {
-    return GE_NOTSUP;
+    struct gensio_mdns *m = s->m;
+
+    gensio_os_funcs_lock(m->o, m->lock);
+    if (s->in_close) {
+	gensio_os_funcs_unlock(m->o, m->lock);
+	return GE_NOTREADY;
+    }
+    s->in_close = true;
+    gensio_list_rm(&m->services, &s->link);
+    gensio_os_funcs_unlock(m->o, m->lock);
+    mdns_free_service(m, s);
+    return 0;
+}
+
+static void
+mdns_watch_run(struct gensio_runner *r, void *data)
+{
+    struct gensio_mdns_watch *w = data;
+    struct gensio_mdns *m = w->m;
+
+    gensio_os_funcs_lock(m->o, m->lock);
+    m->watch_dones--;
+    if (m->state == MDNS_STATE_IN_CLOSE)
+	check_close(m);
+    gensio_os_funcs_unlock(m->o, m->lock);
 }
 
 int
@@ -1393,14 +2099,62 @@ gensio_mdns_add_watch(struct gensio_mdns *m,
 		      gensio_mdns_watch_cb callback, void *userdata,
 		      struct gensio_mdns_watch **rwatch)
 {
-    return GE_NOTSUP;
+    struct gensio_mdns_watch *w;
+    int rv = GE_NOMEM;
+
+    w = gensio_os_funcs_zalloc(m->o, sizeof(*w));
+    if (!w)
+	return GE_NOMEM;
+    w->m = m;
+
+    w->run = gensio_os_funcs_alloc_runner(m->o, mdns_watch_run, w);
+    if (!w->run)
+	goto out_err;
+
+    w->name = gensio_strdup(m->o, name);
+    if (!w->name)
+	goto out_err;
+    w->type = gensio_strdup(m->o, type);
+    if (!w->type)
+	goto out_err;
+    w->domain = gensio_strdup(m->o, domain);
+    if (!w->domain)
+	goto out_err;
+    w->host = gensio_strdup(m->o, host);
+    if (!w->host)
+	goto out_err;
+    w->interface = interface;
+    w->ipdomain = ipdomain;
+    w->cb = callback;
+    w->cb_data = userdata;
+    gensio_os_funcs_lock(m->o, m->lock);
+    gensio_list_add_tail(&m->watches, &w->link);
+    gensio_os_funcs_unlock(m->o, m->lock);
+    *rwatch = w;
+    return 0;
+
+ out_err:
+    mdns_free_watch(m, w);
+    return rv;
 }
 
 int
 gensio_mdns_remove_watch(struct gensio_mdns_watch *w,
 			 gensio_mdns_watch_done done, void *userdata)
 {
-    return GE_NOTSUP;
+    struct gensio_mdns *m = w->m;
+
+    gensio_os_funcs_lock(m->o, m->lock);
+    if (w->in_close) {
+	gensio_os_funcs_unlock(m->o, m->lock);
+	return GE_NOTREADY;
+    }
+    w->in_close = true;
+    m->watch_dones++;
+    if (!w->in_cb)
+	gensio_os_funcs_run(m->o, w->run);
+    gensio_os_funcs_unlock(m->o, m->lock);
+    return 0;
 }
 
 #endif
