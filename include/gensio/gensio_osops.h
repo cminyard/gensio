@@ -18,6 +18,7 @@
 extern "C" {
 #endif
 
+#include <stdint.h>
 #include <gensio/gensio_dllvisibility.h>
 #include <gensio/gensio_types.h>
 
@@ -45,6 +46,42 @@ int gensio_os_open_listen_sockets(struct gensio_os_funcs *o,
 		      int (*call_b4_listen)(struct gensio_iod *, void *),
 		      void *data, unsigned int opensock_flags,
 		      struct gensio_opensocks **rfds, unsigned int *rnr_fds);
+
+enum gensio_net_if_flags {
+    GENSIO_NET_IF_UP = (1 << 0),
+    GENSIO_NET_IF_LOOPBACK = (1 << 1),
+    GENSIO_NET_IF_MULTICAST = (1 << 2),
+};
+
+struct gensio_net_addr
+{
+    unsigned int family; /* GENSIO_NETTTYPE_xxx */
+    uint8_t netbits; /* Bits in netmask */
+    uint8_t addrlen; /* Bytes in addr. */
+    unsigned char addr[16];
+    char *addrstr;
+};
+
+struct gensio_net_if
+{
+    char *name;
+    enum gensio_net_if_flags flags;
+    unsigned int ifindex;
+    unsigned int naddrs;
+    struct gensio_net_addr *addrs;
+};
+
+/*
+ * Return information about the network interfaces on the system.
+ */
+GENSIO_DLL_PUBLIC
+int gensio_os_get_net_ifs(struct gensio_os_funcs *o,
+			  struct gensio_net_if ***rifs, unsigned int *rnifs);
+
+GENSIO_DLL_PUBLIC
+void gensio_os_free_net_ifs(struct gensio_os_funcs *o,
+			    struct gensio_net_if **ifs, unsigned int nifs);
+
 
 /*
  * Returns a NULL if the fd is ok, a non-NULL error string if not.

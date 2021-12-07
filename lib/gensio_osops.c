@@ -43,6 +43,9 @@ bool gensio_set_progname(const char *iprogname)
 #include <grp.h>
 #include <pwd.h>
 #include <errno.h>
+#include <ifaddrs.h>
+#include <netinet/in.h>
+#include <net/if.h>
 
 int
 gensio_unix_os_setupnewprog(void)
@@ -269,6 +272,182 @@ gensio_os_scan_netaddr(struct gensio_os_funcs *o, const char *str, bool listen,
     } else if (!rv) {
 	*raddr = addr;
     }
+    return rv;
+}
+
+
+void
+gensio_os_free_net_ifs(struct gensio_os_funcs *o,
+		       struct gensio_net_if **ifs, unsigned int nifs)
+{
+    unsigned int i, j;
+
+    for (i = 0; i < nifs; i++) {
+	if (!ifs)
+	    continue;
+	if (ifs[i]->name)
+	    gensio_os_funcs_zfree(o, ifs[i]->name);
+	if (ifs[i]->addrs) {
+	    for (j = 0; j < ifs[i]->naddrs; j++) {
+		if (ifs[i]->addrs[j].addrstr)
+		    gensio_os_funcs_zfree(o, ifs[i]->addrs[j].addrstr);
+	    }
+	    gensio_os_funcs_zfree(o, ifs[i]->addrs);
+	}
+	gensio_os_funcs_zfree(o, ifs[i]);
+    }
+    gensio_os_funcs_zfree(o, ifs);
+}
+
+static bool
+is_inet_family(struct sockaddr *s)
+{
+    if (!s) /* This can happen on down interfaces. */
+	return false;
+    return (s->sa_family == AF_INET || s->sa_family == AF_INET6);
+}
+
+int
+gensio_os_get_net_ifs(struct gensio_os_funcs *o,
+		      struct gensio_net_if ***rifs, unsigned int *rnifs)
+{
+    struct gensio_net_if **ifs = NULL;
+    struct ifaddrs *ifap, *ifp, *ifp2;
+    unsigned int i, j, k, nifs = 0, naddrs, addrlen, nbits;
+    unsigned char *addr, *netmask;
+    bool found;
+    int rv;
+    char buf[100], *addrtype;
+
+    rv = getifaddrs(&ifap);
+    if (rv) {
+	rv = gensio_os_err_to_err(o, errno);
+	return rv;
+    }
+
+    /* Count the number of unique interfaces by name. */
+    for (ifp = ifap; ifp; ifp = ifp->ifa_next) {
+	if (!is_inet_family(ifp->ifa_addr))
+	    continue;
+
+	found = false;
+	for (ifp2 = ifap; ifp2 != ifp; ifp2 = ifp2->ifa_next) {
+	    if (!is_inet_family(ifp2->ifa_addr))
+		continue;
+	    if (strcmp(ifp2->ifa_name, ifp->ifa_name) == 0) {
+		found = true;
+		break;
+	    }
+	}
+	if (found)
+	    continue;
+	nifs++;
+    }
+    rv = GE_NOMEM;
+    ifs = gensio_os_funcs_zalloc(o, sizeof(*ifs) * (nifs + 1));
+    if (!ifs)
+	goto out_err;
+    for (ifp = ifap; ifp; ifp = ifp->ifa_next) {
+	if (!is_inet_family(ifp->ifa_addr))
+	    continue;
+
+	for (i = 0; i < nifs && ifs[i]; i++) {
+	    if (strcmp(ifs[i]->name, ifp->ifa_name) == 0)
+		break;
+	}
+	if (!ifs[i]) {
+	    /*
+	     * First occurence of this name, allocate info and the
+	     * if address array.
+	     */
+	    ifs[i] = gensio_os_funcs_zalloc(o, sizeof(**ifs));
+	    if (!ifs[i])
+		goto out_err;
+	    ifs[i]->name = gensio_strdup(o, ifp->ifa_name);
+	    if (!ifs[i]->name)
+		goto out_err;
+	    ifs[i]->ifindex = if_nametoindex(ifp->ifa_name);
+	    if (!ifs[i]->ifindex) {
+		rv = gensio_os_err_to_err(o, errno);
+		goto out_err;
+	    }
+
+	    /* Count the number of addresses for this interface. */
+	    naddrs = 1;
+	    for (ifp2 = ifp->ifa_next; ifp2; ifp2 = ifp2->ifa_next) {
+		if (!is_inet_family(ifp2->ifa_addr))
+		    continue;
+
+		if (strcmp(ifp2->ifa_name, ifp->ifa_name) == 0)
+		    naddrs++;
+	    }
+	    ifs[i]->addrs = gensio_os_funcs_zalloc(o,
+				  naddrs * sizeof(struct gensio_net_addr));
+	    if (!ifs[i]->addrs)
+		goto out_err;
+	}
+	if (ifp->ifa_flags & IFF_UP)
+	    ifs[i]->flags |= GENSIO_NET_IF_UP;
+	if (ifp->ifa_flags & IFF_LOOPBACK)
+	    ifs[i]->flags |= GENSIO_NET_IF_LOOPBACK;
+	if (ifp->ifa_flags & IFF_MULTICAST)
+	    ifs[i]->flags |= GENSIO_NET_IF_MULTICAST;
+	if (ifp->ifa_addr->sa_family == AF_INET) {
+	    struct sockaddr_in *s;
+
+	    s = (struct sockaddr_in *) ifp->ifa_addr;
+	    addr = (unsigned char *) &s->sin_addr;
+	    s = (struct sockaddr_in *) ifp->ifa_netmask;
+	    netmask = (unsigned char *) &s->sin_addr;
+	    addrlen = 4;
+	    addrtype = "ipv4:";
+	} else {
+	    struct sockaddr_in6 *s;
+
+	    s = (struct sockaddr_in6 *) ifp->ifa_addr;
+	    addr = s->sin6_addr.s6_addr;
+	    s = (struct sockaddr_in6 *) ifp->ifa_netmask;
+	    netmask = s->sin6_addr.s6_addr;
+	    addrlen = 16;
+	    addrtype = "ipv6:";
+	}
+
+	j = (ifs[i]->naddrs)++;
+	memcpy(ifs[i]->addrs[j].addr, addr, addrlen);
+	ifs[i]->addrs[j].addrlen = addrlen;
+	if (ifp->ifa_addr->sa_family == AF_INET)
+	    ifs[i]->addrs[j].family = GENSIO_NETTYPE_IPV4;
+	else
+	    ifs[i]->addrs[j].family = GENSIO_NETTYPE_IPV6;
+	for (nbits = 0, k = 0; k < addrlen && netmask[k] == 0xff; k++)
+	    nbits += 8;
+	if (k < addrlen) {
+	    unsigned char v = netmask[k];
+
+	    while (v & 0xff) {
+		if (v & 0x80)
+		    nbits++;
+		else
+		    break;
+	    }
+	}
+	ifs[i]->addrs[j].netbits = nbits;
+	memcpy(buf, addrtype, 5);
+	inet_ntop(ifp->ifa_addr->sa_family, addr, buf + 5, sizeof(buf) - 5);
+	ifs[i]->addrs[j].addrstr = gensio_strdup(o, buf);
+	if (!ifs[i]->addrs[j].addrstr)
+	    goto out_err;
+    }
+    freeifaddrs(ifap);
+    *rifs = ifs;
+    *rnifs = nifs;
+
+    return 0;
+
+ out_err:
+    freeifaddrs(ifap);
+    if (ifs)
+	gensio_os_free_net_ifs(o, ifs, nifs);
     return rv;
 }
 
