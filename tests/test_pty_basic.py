@@ -39,7 +39,11 @@ def test_with_ptsname_r():
         TestAccept(o, "serialdev,./ptylink1", "conacc,pty(link=./ptylink1)",
                    do_small_test, get_port = False, except_on_log = True)
     except Exception as E:
-        if str(E) != "***err LOG: conacc,pty(link=./ptylink1): Error opening gensio: Value already exists":
+        if str(E) == "***err LOG: conacc,pty(link=./ptylink1): Error opening gensio: Value already exists":
+            None
+        elif str(E) == "gensio:startup: Value already exists":
+            None
+        else:
             raise
         print("  Success!")
 
