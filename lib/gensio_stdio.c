@@ -98,6 +98,10 @@ struct stdiona_data {
     struct gensio_runner *connect_runner;
     bool in_connect_runner;
 
+    struct gensio_runner *enable_done_runner;
+    gensio_acc_done enable_done;
+    void *enable_done_data;
+
     struct gensio_timer *waitpid_timer;
 
     /* For the accepter only. */
@@ -159,6 +163,8 @@ stdiona_finish_free(struct stdiona_data *nadata)
 	nadata->o->free_runner(nadata->err.deferred_op_runner);
     if (nadata->connect_runner)
 	nadata->o->free_runner(nadata->connect_runner);
+    if (nadata->enable_done_runner)
+	nadata->o->free_runner(nadata->enable_done_runner);
     if (nadata->io.read_data)
 	nadata->o->free(nadata->o, nadata->io.read_data);
     if (nadata->waitpid_timer)
@@ -1371,26 +1377,22 @@ stdiona_shutdown(struct gensio_accepter *accepter,
     return rv;
 }
 
-struct stdiona_waiters {
-    struct gensio_os_funcs *o;
-    struct stdiona_data *nadata;
-    gensio_acc_done done;
-    void *done_data;
-    struct gensio_runner *runner;
-};
-
 static void
-waiter_runner_cb(struct gensio_runner *runner, void *cb_data)
+enable_done_op(struct gensio_runner *runner, void *cb_data)
 {
-    struct stdiona_waiters *w = cb_data;
+    struct stdiona_data *nadata = cb_data;
 
-    w->done(w->nadata->acc, w->done_data);
-    w->o->free_runner(w->runner);
+    stdiona_lock(nadata);
+    if (nadata->enable_done) {
+	gensio_acc_done done = nadata->enable_done;
+	void *done_data = nadata->enable_done_data;
 
-    stdiona_lock(w->nadata);
-    stdiona_deref_and_unlock(w->nadata);
-
-    w->o->free(w->o, w);
+	nadata->enable_done = NULL;
+	stdiona_unlock(nadata);
+	done(nadata->acc, done_data);
+	stdiona_lock(nadata);
+    }
+    stdiona_deref_and_unlock(nadata);
 }
 
 static int
@@ -1401,26 +1403,14 @@ stdiona_set_accept_callback_enable(struct gensio_accepter *accepter,
     struct stdiona_data *nadata = gensio_acc_get_gensio_data(accepter);
     int rv = 0;
 
-    if (done) {
-	struct gensio_os_funcs *o = nadata->o;
-	struct stdiona_waiters *w = o->zalloc(o, sizeof(*w));
-
-	if (!w)
-	    rv = GE_NOMEM;
-	else {
-	    w->o = o;
-	    w->done = done;
-	    w->done_data = done_data;
-	    w->nadata = nadata;
-	    w->runner = o->alloc_runner(o, waiter_runner_cb, w);
-	    if (!w->runner) {
-		o->free(o, w);
-		rv = GE_NOMEM;
-	    } else {
-		stdiona_ref(nadata);
-		o->run(w->runner);
-	    }
-	}
+    /* FIXME - there's no real enable for this, maybe there should be? */
+    if (nadata->enable_done) {
+	rv = GE_INUSE;
+    } else {
+	nadata->enable_done = done;
+	nadata->enable_done_data = done_data;
+	stdiona_ref(nadata);
+	nadata->o->run(nadata->enable_done_runner);
     }
 
     return rv;
@@ -1489,6 +1479,14 @@ stdio_gensio_accepter_alloc(const char * const args[],
     if (!nadata->connect_runner) {
 	stdiona_finish_free(nadata);
 	return GE_NOMEM;
+    }
+
+    nadata->enable_done_runner = nadata->o->alloc_runner(nadata->o,
+							 enable_done_op,
+							 nadata);
+    if (!nadata->enable_done_runner) {
+	stdiona_finish_free(nadata);
+	return err;
     }
 
     err = setup_self(nadata, false);

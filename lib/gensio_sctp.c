@@ -730,8 +730,10 @@ static void
 sctpna_cb_en_done(struct gensio_runner *runner, void *cb_data)
 {
     struct sctpna_data *nadata = cb_data;
+    gensio_acc_done done = nadata->cb_en_done;
 
-    nadata->cb_en_done(nadata->acc, NULL);
+    nadata->cb_en_done = NULL;
+    done(nadata->acc, NULL);
 }
 
 static int
@@ -741,6 +743,9 @@ sctpna_set_accept_callback_enable(struct gensio_accepter *accepter,
 				  gensio_acc_done done)
 {
     unsigned int i;
+
+    if (nadata->cb_en_done)
+	return GE_INUSE;
 
     nadata->cb_en_done = done;
     for (i = 0; i < nadata->nr_acceptfds; i++)

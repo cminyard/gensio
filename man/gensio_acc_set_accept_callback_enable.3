@@ -37,9 +37,11 @@ will do an asynchronous disable.  Note that this can race with pending
 and running callbacks, you must be prepared to handle these races.
 
 .B gensio_acc_set_accept_callback_enable_cb
-is like the above, but do a callback when the enable is complete.  Really
-only useful for disable, when the done callback is called then no
-more accepts will be called and all callbacks are done.
+is like the above, but do a callback when the enable is complete.
+Really only useful for disable, when the done callback is called then
+no more accepts will be called and all callbacks are done.  Note that
+if you call this, you cannot do another enable/disable until done is
+called.
 
 .B gensio_acc_set_accept_callback_enable_s
 Like above, but a synchronous call.  See the notes on gensio_open_s()

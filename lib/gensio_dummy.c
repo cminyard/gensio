@@ -172,7 +172,7 @@ dummyna_set_accept_callback_enable(struct gensio_accepter *accepter,
     int rv = 0;
 
     dummyna_lock(nadata);
-    if (done && nadata->enabled_done) {
+    if (nadata->enabled_done) {
 	rv = GE_INUSE;
     } else if (done) {
 	/* Run the response in a runner to avoid deadlocks. */

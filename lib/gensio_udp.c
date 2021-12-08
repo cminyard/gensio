@@ -82,15 +82,6 @@ struct udpn_data {
 
 struct udpna_data;
 
-struct udpna_waiters {
-    struct gensio_os_funcs *o;
-    struct udpna_data *nadata;
-    gensio_acc_done done;
-    void *done_data;
-    struct gensio_runner *runner;
-    struct udpna_waiters *next;
-};
-
 #ifdef DEBUG_STATE
 struct udp_state_trace {
     enum udpn_state old_state;
@@ -132,7 +123,10 @@ struct udpna_data {
     struct gensio_runner *deferred_op_runner;
 
     bool in_new_connection;
-    struct udpna_waiters *acc_disable_waiters;
+
+    struct gensio_runner *enable_done_runner;
+    gensio_acc_done enable_done;
+    void *enable_done_data;
 
     bool is_dummy; /* Am I a dummy udpna? */
 
@@ -415,6 +409,8 @@ udpna_do_free(struct udpna_data *nadata)
 
     if (nadata->deferred_op_runner)
 	nadata->o->free_runner(nadata->deferred_op_runner);
+    if (nadata->enable_done_runner)
+	nadata->o->free_runner(nadata->enable_done_runner);
     if (nadata->ai)
 	gensio_addr_free(nadata->ai);
     if (nadata->fds)
@@ -1220,7 +1216,6 @@ udpna_readhandler(struct gensio_iod *iod, void *cbdata)
 {
     struct udpna_data *nadata = cbdata;
     struct udpn_data *ndata;
-    struct udpna_waiters *waiters = NULL, *next;
     gensiods datalen;
     int err;
 
@@ -1286,9 +1281,16 @@ udpna_readhandler(struct gensio_iod *iod, void *cbdata)
 
     udpna_lock(nadata);
     ndata->in_read = false;
+    while (nadata->enable_done) {
+	gensio_acc_done enable_done = nadata->enable_done;
+	void *enable_done_data = nadata->enable_done_data;
+
+	nadata->enable_done = NULL;
+	udpna_unlock(nadata);
+	enable_done(nadata->acc, enable_done_data);
+	udpna_lock(nadata);
+    }
     nadata->in_new_connection = false;
-    waiters = nadata->acc_disable_waiters;
-    nadata->acc_disable_waiters = NULL;
 
     if (ndata->state == UDPN_OPEN) {
     got_ndata:
@@ -1330,15 +1332,6 @@ udpna_readhandler(struct gensio_iod *iod, void *cbdata)
     }
  out_unlock:
     udpna_deref_and_unlock(nadata);
-
-    while (waiters) {
-	next = waiters->next;
-	waiters->done(nadata->acc, waiters->done_data);
-	nadata->o->free(nadata->o, waiters);
-	waiters = next;
-    }
-
-    return;
 }
 
 static int
@@ -1391,17 +1384,21 @@ udpna_shutdown(struct gensio_accepter *accepter,
 }
 
 static void
-waiter_runner_cb(struct gensio_runner *runner, void *cb_data)
+udpna_enable_op(struct gensio_runner *runner, void *cb_data)
 {
-    struct udpna_waiters *w = cb_data;
+    struct udpna_data *nadata = cb_data;
 
-    w->done(w->nadata->acc, w->done_data);
-    w->o->free_runner(w->runner);
+    udpna_lock(nadata);
+    if (nadata->enable_done) {
+	gensio_acc_done done = nadata->enable_done;
+	void *done_data = nadata->enable_done_data;
 
-    udpna_lock(w->nadata);
-    udpna_deref_and_unlock(w->nadata);
-
-    w->o->free(w->o, w);
+	nadata->enable_done = NULL;
+	udpna_unlock(nadata);
+	done(nadata->acc, done_data);
+	udpna_lock(nadata);
+    }
+    udpna_deref_and_unlock(nadata);
 }
 
 static int
@@ -1412,31 +1409,15 @@ udpna_set_accept_callback_enable(struct gensio_accepter *accepter, bool enabled,
     int rv = 0;
 
     udpna_lock(nadata);
-    nadata->enabled = enabled;
-    if (done) {
-	struct gensio_os_funcs *o = nadata->o;
-	struct udpna_waiters *w = o->zalloc(o, sizeof(*w));
-
-	if (!w)
-	    rv = GE_NOMEM;
-	else {
-	    w->o = o;
-	    w->done = done;
-	    w->done_data = done_data;
-	    if (nadata->in_new_connection) {
-		w->next = nadata->acc_disable_waiters;
-		nadata->acc_disable_waiters = w;
-	    } else {
-		w->nadata = nadata;
-		w->runner = o->alloc_runner(o, waiter_runner_cb, w);
-		if (!w->runner) {
-		    o->free(o, w);
-		    rv = GE_NOMEM;
-		} else {
-		    udpna_ref(nadata);
-		    o->run(w->runner);
-		}
-	    }
+    if (nadata->enable_done) {
+	rv = GE_INUSE;
+    } else {
+	nadata->enabled = enabled;
+	nadata->enable_done = done;
+	nadata->enable_done_data = done_data;
+	if (!nadata->in_new_connection) {
+	    udpna_ref(nadata);
+	    nadata->o->run(nadata->enable_done_runner);
 	}
     }
     udpna_unlock(nadata);
@@ -1641,6 +1622,12 @@ i_udp_gensio_accepter_alloc(struct gensio_addr *iai, gensiods max_read_size,
 
     nadata->deferred_op_runner = o->alloc_runner(o, udpna_deferred_op, nadata);
     if (!nadata->deferred_op_runner)
+	goto out_nomem;
+
+    nadata->enable_done_runner = nadata->o->alloc_runner(nadata->o,
+							 udpna_enable_op,
+							 nadata);
+    if (!nadata->enable_done_runner)
 	goto out_nomem;
 
     nadata->lock = o->alloc_lock(o);
