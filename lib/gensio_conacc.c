@@ -43,6 +43,203 @@ struct conaccn_data {
     unsigned int freeref;
 };
 
+enum conaccna_state {
+    /*
+     * Events of concern:
+     *  From the user:
+     *   startup
+     *   shutdown
+     *   cb_enable
+     *   cb_disable
+     *  Internal:
+     *   timeout
+     *   open failed
+     *   open succeeded
+     *   ndata closed
+     *   deferred op
+     *   stop timer done
+     *
+     * Variables of concern:
+     *   retry_timeout
+     *   enabled
+     */
+
+    /*
+     * Starting state, or state when shutdown completes.
+     *
+     * startup:
+     *   !enabled: -> CONACCNA_DISABLED
+     *   enabled:
+     *     ndata open: -> CONACCNA_READY
+     *     ndata not open:
+     *       open no error: -> CONACCNA_OPENING
+     *       open error:
+     *         retry_timeout == 0: -> return error
+     *         retry_timeout != 0: -> CONACCNA_WAITING_RETRY
+     *
+     * cb_enable: enabled = true
+     *
+     * cb_disable: enabled = false
+     */
+    CONACCNA_SHUTDOWN,
+
+    /*
+     * started, but disabled
+     *
+     * cb_enable:
+     *   ndata open: -> CONACCNA_READY
+     *   ndata not open:
+     *     open no error: -> CONACCNA_OPENING, enabled_cb = cb
+     *     open error:
+     *        retry_timeout == 0: -> return error
+     *        retry_timeout != 0: -> CONACCNA_WAITING_RETRY
+     *
+     * cb_disable: do nothing
+     *
+     * shutdown: -> CONACCNA_IN_SHUTDOWN, start deferred op
+     */
+    CONACCNA_DISABLED, /* Started, but disabled. */
+
+    /*
+     * ndata is being opened.
+     *
+     * shutdown: -> CONACCNA_OPEN_SHUTDOWN
+     *
+     * cb_enable: do nothing
+     *
+     * cb_disable: -> CONACCNA_OPEN_DISABLE
+     *
+     * open failed:
+     *   retry_timeout == 0: -> CONACCNA_DEAD
+     *   retry_timeout != 0: -> CONACCNA_WAITING_RETRY, start timer
+     *
+     * open succeeded: -> CONACCNA_READY
+     */
+    CONACCNA_OPENING,
+
+    /*
+     * ndata is open.
+     *
+     * shutdown: -> CONACC_IN_SHUTDOWN, start deferred op
+     *
+     * cb_enable: do nothing
+     *
+     * cb_disable: -> CONACC_IN_DISABLE, start deferred op
+     *
+     * ndata closed:
+     *   retry_timeout != 0: -> CONACCNA_WAITING_RETRY, start timer
+     *   retry_timeout == 0:
+     *     open no error: -> CONACCNA_OPENING, enabled_cb = cb
+     *     open error: start timer
+     */
+    CONACCNA_READY,
+
+    /*
+     * Timer is running waiting to retry the open.
+     *
+     * timeout:
+     *   open no error: -> CONACCNA_OPENING
+     *   open error: -> CONACCNA_WAITING_RETRY, start timer
+     *
+     * shutdown:
+     *   -> CONACCNA_IN_SHUTDOWN
+     *   stop timer failed: start deferred op
+     *   stop timer succeeded: do nothing
+     *
+     * cb_enable: do nothing
+     *
+     * cb_disable:
+     *   -> CONACC_IN_DISABLE,
+     *   stop timer failed: start deferred op
+     *   stop timer succeeded: do nothing
+     */
+    CONACCNA_WAITING_RETRY,
+
+    /*
+     * Got a shutdown while opening.
+     *
+     * open failed: -> CONACCNA_SHUTDOWN
+     *
+     * open succeeded: -> CONACCNA_SHUTDOWN
+     *
+     * cb_enable: enabled = true
+     *
+     * cb_disable: enabled = false
+     */
+    CONACCNA_OPEN_SHUTDOWN,
+
+    /*
+     * Waiting for timer cancel or deferred op to shut down.
+     *
+     * cb_enable: enabled = true
+     *
+     * cb_disable: enabled = false
+     *
+     * stop timer done: -> CONACCNA_SHUTDOWN
+     *
+     * deferred op: -> CONACCNA_SHUTDOWN
+     */
+    CONACCNA_IN_SHUTDOWN,
+
+    /*
+     * Got a disable while opening.
+     *
+     * shutdown: -> CONACCNA_OPEN_SHUTDOWN
+     *
+     * open failed: -> CONACCNA_DISABLED
+     *
+     * open succeeded: -> CONACCNA_DISABLED
+     *
+     * cb_enable: -> CONACCNA_OPENING, enabled = true
+     *
+     * cb_disable: do nothing
+     */
+    CONACCNA_OPEN_DISABLE,
+
+    /*
+     * Currently being disabled.
+     *
+     * shutdown: -> CONACCNA_IN_SHUTDOWN
+     *
+     * cb_enable: -> CONACCNA_IN_DISABLE_RESTART, enabled = true
+     *
+     * cb_disable: do nothing
+     *
+     * (timeout, stop timer done, deferred op): -> CONACCNA_DISABLED
+     */
+    CONACCNA_IN_DISABLE,
+
+    /*
+     * In disable, re-enable when disable done.
+     *
+     * shutdown: -> CONACCNA_IN_SHUTDOWN, start deferred op
+     *
+     * cb_enable: do nothing
+     *
+     * cb_disable: -> CONACC_IN_DISABLE, enabled = false
+     *
+     * (timeout, stop timer done, deferred op):
+     *   ndata open: -> CONACCNA_READY
+     *   ndata not open:
+     *     open no error: -> CONACCNA_OPENING
+     *     open error:
+     *        retry_timeout == 0: -> CONACCNA_DEAD
+     *        retry_timeout != 0: -> CONACCNA_WAITING_RETRY
+     */
+    CONACCNA_IN_DISABLE_RESTART,
+
+    /*
+     * Got an error on open.
+     *
+     * shutdown: -> CONACCNA_IN_SHUTDOWN, start deferred op
+     *
+     * cb_enable: enabled = true
+     *
+     * cb_disable: enabled = false
+     */
+    CONACCNA_DEAD /* Got an error from the start and no retry. */
+};
+
 struct conaccna_data {
     struct gensio_os_funcs *o;
     struct gensio_lock *lock;
@@ -50,14 +247,19 @@ struct conaccna_data {
 
     struct conaccn_data *ndata;
 
+    struct gensio_timer *retry_timer;
+    unsigned int retry_time;
+
     bool deferred_op_pending;
     struct gensio_runner *deferred_runner;
 
-    bool in_open;
-    bool enabled;
     gensio_acc_done enabled_done;
 
     gensio_acc_done shutdown_done;
+
+    bool enabled; /* accepter enable/disable state */
+
+    enum conaccna_state state;
 
     /* Set when an error happens to report it back to the accepter log. */
     int con_err;
@@ -69,6 +271,7 @@ struct conaccna_data {
 };
 
 static void conacc_start(struct conaccna_data *nadata);
+static void start_retry(struct conaccna_data *nadata);
 
 static void
 conaccn_lock(struct conaccn_data *ndata)
@@ -144,6 +347,8 @@ conaccna_finish_free(struct conaccna_data *nadata)
 	o->free(o, nadata->gensio_str);
     if (nadata->deferred_runner)
 	o->free_runner(nadata->deferred_runner);
+    if (nadata->retry_timer)
+	o->free_timer(nadata->retry_timer);
     if (nadata->lock)
 	o->free_lock(nadata->lock);
     o->free(o, nadata);
@@ -170,6 +375,37 @@ conaccna_deref_and_unlock(struct conaccna_data *nadata)
     }
 }
 
+/* Releases the lock and re-acquires it. */
+static void
+conaccna_call_enabled(struct conaccna_data *nadata)
+{
+    gensio_acc_done done;
+
+    if (nadata->enabled_done) {
+	done = nadata->enabled_done;
+	nadata->enabled_done = NULL;
+	conaccna_unlock(nadata);
+	done(nadata->acc, NULL);
+	conaccna_lock(nadata);
+    }
+}
+
+static void
+conaccna_finish_shutdown(struct conaccna_data *nadata)
+{
+    gensio_acc_done done;
+
+    conaccna_call_enabled(nadata);
+    nadata->state = CONACCNA_SHUTDOWN;
+    if (nadata->shutdown_done) {
+	done = nadata->shutdown_done;
+	nadata->shutdown_done = NULL;
+	conaccna_unlock(nadata);
+	done(nadata->acc, NULL);
+	conaccna_lock(nadata);
+    }
+}
+
 static void
 conaccna_do_deferred(struct gensio_runner *runner, void *cb_data)
 {
@@ -178,32 +414,41 @@ conaccna_do_deferred(struct gensio_runner *runner, void *cb_data)
     conaccna_lock(nadata);
     nadata->deferred_op_pending = false;
 
-    if (nadata->con_err) {
-	int err = nadata->con_err;
+    conaccna_call_enabled(nadata);
 
-	nadata->con_err = 0;
-	conaccna_unlock(nadata);
-	gensio_acc_log(nadata->acc, GENSIO_LOG_ERR,
-		       "Error opening gensio: %s", gensio_err_to_str(err));
-	conaccna_lock(nadata);
-    }
+    switch (nadata->state) {
+    case CONACCNA_SHUTDOWN:
+    case CONACCNA_OPENING:
+    case CONACCNA_READY:
+    case CONACCNA_WAITING_RETRY:
+    case CONACCNA_OPEN_SHUTDOWN:
+    case CONACCNA_OPEN_DISABLE:
+    case CONACCNA_DISABLED:
+	break;
 
-    if (nadata->enabled_done) {
-	gensio_acc_done enabled_done = nadata->enabled_done;;
+    case CONACCNA_IN_SHUTDOWN:
+	conaccna_finish_shutdown(nadata);
+	break;
 
-	nadata->enabled_done = NULL;
-	conaccna_unlock(nadata);
-	enabled_done(nadata->acc, NULL);
-	conaccna_lock(nadata);
-    }
+    case CONACCNA_IN_DISABLE:
+	nadata->state = CONACCNA_DISABLED;
+	break;
 
-    if (nadata->shutdown_done && !nadata->in_open) {
-	gensio_acc_done shutdown_done = nadata->shutdown_done;
+    case CONACCNA_IN_DISABLE_RESTART:
+	conacc_start(nadata);
+	break;
 
-	nadata->shutdown_done = NULL;
-	conaccna_unlock(nadata);
-	shutdown_done(nadata->acc, NULL);
-	conaccna_lock(nadata);
+    case CONACCNA_DEAD:
+	if (nadata->con_err) {
+	    int err = nadata->con_err;
+
+	    nadata->con_err = 0;
+	    conaccna_unlock(nadata);
+	    gensio_acc_log(nadata->acc, GENSIO_LOG_ERR,
+			   "Error opening gensio: %s", gensio_err_to_str(err));
+	    conaccna_lock(nadata);
+	}
+	break;
     }
     conaccna_deref_and_unlock(nadata);
 }
@@ -224,12 +469,28 @@ conaccn_finish_close(struct conaccn_data *ndata)
     struct conaccna_data *nadata = ndata->nadata;
 
     ndata->child_state = CONACCN_CLOSED;
-    ndata->nadata = NULL;
-
     if (nadata) {
 	conaccna_lock(nadata);
 	nadata->ndata = NULL;
-	conacc_start(nadata);
+	switch (nadata->state) {
+	case CONACCNA_SHUTDOWN:
+	case CONACCNA_DISABLED:
+	case CONACCNA_OPENING:
+	case CONACCNA_WAITING_RETRY:
+	case CONACCNA_OPEN_SHUTDOWN:
+	case CONACCNA_IN_SHUTDOWN:
+	case CONACCNA_OPEN_DISABLE:
+	case CONACCNA_IN_DISABLE:
+	case CONACCNA_IN_DISABLE_RESTART:
+	case CONACCNA_DEAD:
+	    break;
+
+	case CONACCNA_READY:
+	    if (nadata->retry_time)
+		start_retry(nadata);
+	    else
+		conacc_start(nadata);
+	}
 	conaccna_deref_and_unlock(nadata);
     }
 }
@@ -328,14 +589,20 @@ conaccn_func_ref(struct conaccn_data *ndata)
 static void
 conaccn_disable(struct conaccn_data *ndata)
 {
-    struct conaccna_data *nadata = ndata->nadata;
+    struct conaccna_data *nadata;
 
     conaccn_lock(ndata);
     ndata->child_state = CONACCN_CLOSED;
     gensio_disable(ndata->child);
+    nadata = ndata->nadata;
+    ndata->nadata = NULL;
     if (nadata) {
 	conaccna_lock(nadata);
 	nadata->ndata = NULL;
+	if (nadata->retry_time)
+	    start_retry(nadata);
+	else
+	    conacc_start(nadata);
 	conacc_start(nadata);
 	conaccna_unlock(nadata);
     }
@@ -390,7 +657,21 @@ conaccn_event(struct gensio *io, void *user_data,
     return gensio_cb(ndata->io, event, err, buf, buflen, auxdata);
 }
 
-#include <stdio.h>
+/* Called with the lock held. */
+static void
+start_retry(struct conaccna_data *nadata)
+{
+    struct gensio_os_funcs *o = nadata->o;
+    gensio_time timeout = { nadata->retry_time / 1000,
+			    nadata->retry_time % 1000 };
+    int rv;
+
+    nadata->state = CONACCNA_WAITING_RETRY;
+    rv = o->start_timer(nadata->retry_timer, &timeout);
+    assert(rv == 0);
+    conaccna_ref(nadata);
+}
+
 static void
 conaccn_open_done(struct gensio *io, int err, void *open_data)
 {
@@ -415,24 +696,56 @@ conaccn_open_done(struct gensio *io, int err, void *open_data)
     ndata->child_state = CONACCN_OPEN;
     base_gensio_accepter_new_child_end(nadata->acc, ndata->io, err);
 
-    /* Keep the nadata ref for the open child. */
-
-    base_gensio_server_open_done(nadata->acc, ndata->io, err);
-
+ out_err:
     conaccna_lock(nadata);
-    nadata->in_open = false;
-    if (nadata->shutdown_done)
-	conaccna_deferred_op(nadata);
+    switch (nadata->state) {
+    case CONACCNA_SHUTDOWN:
+    case CONACCNA_DISABLED:
+    case CONACCNA_READY:
+    case CONACCNA_WAITING_RETRY:
+    case CONACCNA_IN_SHUTDOWN:
+    case CONACCNA_DEAD:
+    case CONACCNA_IN_DISABLE:
+    case CONACCNA_IN_DISABLE_RESTART:
+	assert(0);
+	break;
+
+    case CONACCNA_OPENING:
+	if (err) {
+	    if (nadata->retry_time) {
+		start_retry(nadata);
+	    } else {
+		nadata->con_err = err;
+		nadata->state = CONACCNA_DEAD;
+		conaccna_deferred_op(nadata);
+	    }
+	    goto out_cleanup;
+	}
+	nadata->state = CONACCNA_READY;
+	break;
+
+    case CONACCNA_OPEN_SHUTDOWN:
+	conaccna_finish_shutdown(nadata);
+	goto out_cleanup;
+
+    case CONACCNA_OPEN_DISABLE:
+	nadata->state = CONACCNA_DISABLED;
+	goto out_cleanup;
+    }
     conaccna_unlock(nadata);
 
+    /* Keep the nadata ref for the open child. */
+
+    base_gensio_server_open_done(nadata->acc, ndata->io, 0);
     return;
 
- out_err:
-    conaccn_finish_free(ndata);
-    conaccna_lock(nadata);
-    nadata->con_err = err;
-    nadata->in_open = false;
-    conaccna_deferred_op(nadata);
+ out_cleanup:
+    if (!err) {
+	err = GE_NOTREADY;
+	base_gensio_server_open_done(nadata->acc, ndata->io, err);
+    }
+    if (ndata)
+	conaccn_finish_free(ndata);
     conaccna_deref_and_unlock(nadata);
 }
 
@@ -442,8 +755,12 @@ conacc_start(struct conaccna_data *nadata)
     struct conaccn_data *ndata;
     int err = GE_NOMEM;
 
-    if (!nadata || !nadata->enabled)
+    if (nadata->ndata) {
+	nadata->state = CONACCNA_READY;
 	return;
+    }
+
+    nadata->state = CONACCNA_OPENING;
 
     ndata = nadata->o->zalloc(nadata->o, sizeof(*ndata));
     if (!ndata)
@@ -462,13 +779,11 @@ conacc_start(struct conaccna_data *nadata)
 	goto out_err;
 
     nadata->ndata = ndata;
-    nadata->in_open = true;
     conaccna_ref(nadata);
     ndata->child_state = CONACCN_IN_OPEN;
     err = gensio_open(ndata->child, conaccn_open_done, ndata);
     if (err) {
 	nadata->ndata = NULL;
-	nadata->in_open = false;
 	conaccna_deref(nadata);
 	goto out_err;
     }
@@ -477,20 +792,108 @@ conacc_start(struct conaccna_data *nadata)
  out_err:
     conaccn_finish_free(ndata);
  out_err_nofree:
-    nadata->con_err = err;
-    conaccna_deferred_op(nadata);
+    if (nadata->retry_time) {
+	start_retry(nadata);
+    } else {
+	nadata->state = CONACCNA_DEAD;
+	nadata->con_err = err;
+	conaccna_deferred_op(nadata);
+    }
+}
+
+static void
+conaccna_retry_timeout(struct gensio_timer *t, void *cb_data)
+{
+    struct conaccna_data *nadata = cb_data;
+
+    conaccna_lock(nadata);
+    switch (nadata->state) {
+    case CONACCNA_SHUTDOWN:
+    case CONACCNA_DISABLED:
+    case CONACCNA_OPENING:
+    case CONACCNA_READY:
+    case CONACCNA_OPEN_SHUTDOWN:
+    case CONACCNA_OPEN_DISABLE:
+    case CONACCNA_DEAD:
+	assert(0);
+
+    case CONACCNA_IN_SHUTDOWN:
+	conaccna_finish_shutdown(nadata);
+	break;
+
+    case CONACCNA_IN_DISABLE_RESTART:
+    case CONACCNA_WAITING_RETRY:
+	conacc_start(nadata);
+	break;
+
+    case CONACCNA_IN_DISABLE:
+	nadata->state = CONACCNA_DISABLED;
+	break;
+    }
+    conaccna_deref_and_unlock(nadata);
+}
+
+static void
+retry_timer_done(struct gensio_timer *t, void *cb_data)
+{
+    struct conaccna_data *nadata = cb_data;
+
+    conaccna_lock(nadata);
+    switch (nadata->state) {
+    case CONACCNA_SHUTDOWN:
+    case CONACCNA_DISABLED:
+    case CONACCNA_OPENING:
+    case CONACCNA_READY:
+    case CONACCNA_WAITING_RETRY:
+    case CONACCNA_OPEN_SHUTDOWN:
+    case CONACCNA_OPEN_DISABLE:
+    case CONACCNA_DEAD:
+	assert(0);
+	break;
+
+    case CONACCNA_IN_SHUTDOWN:
+	conaccna_finish_shutdown(nadata);
+	break;
+
+    case CONACCNA_IN_DISABLE:
+	nadata->state = CONACCNA_DISABLED;
+	break;
+
+    case CONACCNA_IN_DISABLE_RESTART:
+	conacc_start(nadata);
+	break;
+
+    default:
+	assert(0);
+    }
+    conaccna_deref_and_unlock(nadata);
 }
 
 static int
 conaccna_startup(struct gensio_accepter *accepter,
 		 struct conaccna_data *nadata)
 {
+    int rv = 0;
+
     conaccna_lock(nadata);
-    nadata->enabled = true;
-    conacc_start(nadata);
+    if (nadata->state == CONACCNA_SHUTDOWN) {
+	nadata->con_err = 0;
+	if (!nadata->enabled)
+	    nadata->state = CONACCNA_DISABLED;
+	else {
+	    conacc_start(nadata);
+	    if (nadata->state == CONACCNA_DEAD) {
+		nadata->state = CONACCNA_SHUTDOWN;
+		rv = nadata->con_err;
+		nadata->con_err = 0;
+	    }
+	}
+    } else {
+	rv = GE_NOTREADY;
+    }
     conaccna_unlock(nadata);
 
-    return 0;
+    return rv;
 }
 
 static int
@@ -498,14 +901,69 @@ conaccna_shutdown(struct gensio_accepter *accepter,
 		  struct conaccna_data *nadata,
 		  gensio_acc_done shutdown_done)
 {
+    struct gensio_os_funcs *o = nadata->o;
+    int rv = 0, err;
+
     conaccna_lock(nadata);
-    nadata->enabled = false;
-    /* Run the shutdown response in a runner to avoid deadlocks. */
-    nadata->shutdown_done = shutdown_done;
-    conaccna_deferred_op(nadata);
+    switch (nadata->state) {
+    case CONACCNA_SHUTDOWN:
+    case CONACCNA_OPEN_SHUTDOWN:
+    case CONACCNA_IN_SHUTDOWN:
+	rv = GE_NOTREADY;
+	break;
+
+    case CONACCNA_OPENING:
+	/* Let the shutdown happen when the open completes. */
+	nadata->state = CONACCNA_OPEN_SHUTDOWN;
+	break;
+
+    case CONACCNA_READY:
+	nadata->state = CONACCNA_IN_SHUTDOWN;
+	conaccna_deferred_op(nadata);
+	break;
+
+    case CONACCNA_WAITING_RETRY:
+	nadata->state = CONACCNA_IN_SHUTDOWN;
+	err = o->stop_timer_with_done(nadata->retry_timer,
+				      retry_timer_done, nadata);
+	if (err == GE_TIMEDOUT) {
+	    /* Done handler won't be called, run it in the deferred op. */
+	    conaccna_deferred_op(nadata);
+	} else if (!err) {
+	    /* Done handler will be called. */
+	} else {
+	    /*
+	     * We should not get GE_INUSE, that means there is already
+	     * a stop in progress and the done handler will be called.
+	     */
+	    assert(0);
+	}
+	break;
+
+    case CONACCNA_OPEN_DISABLE:
+	nadata->state = CONACCNA_OPEN_SHUTDOWN;
+	break;
+
+    case CONACCNA_IN_DISABLE:
+	nadata->state = CONACCNA_IN_SHUTDOWN;
+	break;
+
+    case CONACCNA_IN_DISABLE_RESTART:
+	nadata->state = CONACCNA_IN_SHUTDOWN;
+	conaccna_deferred_op(nadata);
+	break;
+
+    case CONACCNA_DISABLED:
+    case CONACCNA_DEAD:
+	nadata->state = CONACCNA_IN_SHUTDOWN;
+	conaccna_deferred_op(nadata);
+	break;
+    }
+    if (!rv)
+	nadata->shutdown_done = shutdown_done;
     conaccna_unlock(nadata);
 
-    return 0;
+    return rv;
 }
 
 static int
@@ -514,15 +972,82 @@ conaccna_set_accept_callback_enable(struct gensio_accepter *accepter,
 				    bool enabled,
 				    gensio_acc_done done)
 {
+    int rv = 0, err;
+
     conaccna_lock(nadata);
-    if (enabled != nadata->enabled) {
-	nadata->enabled = enabled;
-	conacc_start(nadata);
+    if (nadata->enabled_done) {
+	rv = GE_INUSE;
+	goto out_unlock;
     }
-    if (done) {
+    switch (nadata->state) {
+    case CONACCNA_SHUTDOWN:
+    case CONACCNA_DEAD:
+    case CONACCNA_OPEN_SHUTDOWN:
+    case CONACCNA_IN_SHUTDOWN:
+	break;
+
+    case CONACCNA_DISABLED:
+	if (enabled) {
+	    conacc_start(nadata);
+	    if (nadata->state == CONACCNA_DEAD) {
+		nadata->state = CONACCNA_SHUTDOWN;
+		rv = nadata->con_err;
+		nadata->con_err = 0;
+	    }
+	}
+	break;
+
+    case CONACCNA_OPENING:
+	if (!enabled)
+	    nadata->state = CONACCNA_OPEN_DISABLE;
+	break;
+
+    case CONACCNA_READY:
+	nadata->state = CONACCNA_IN_DISABLE;
+	break;
+
+    case CONACCNA_WAITING_RETRY:
+	if (!enabled) {
+	    nadata->state = CONACCNA_IN_DISABLE;
+	    err = nadata->o->stop_timer_with_done(nadata->retry_timer,
+						  retry_timer_done, nadata);
+	    if (err == GE_TIMEDOUT) {
+		/* Done handler won't be called, run it in the deferred op. */
+		conaccna_deferred_op(nadata);
+	    } else if (!err) {
+		/* Done handler will be called. */
+	    } else {
+		/*
+		 * We should not get GE_INUSE, that means there is already
+		 * a stop in progress and the done handler will be called.
+		 */
+		assert(0);
+	    }
+	}
+	break;
+
+    case CONACCNA_OPEN_DISABLE:
+	if (enabled)
+	    nadata->state = CONACCNA_OPENING;
+	break;
+
+    case CONACCNA_IN_DISABLE:
+	if (enabled)
+	    nadata->state = CONACCNA_IN_DISABLE_RESTART;
+	break;
+
+    case CONACCNA_IN_DISABLE_RESTART:
+	if (!enabled)
+	    nadata->state = CONACCNA_IN_DISABLE;
+	break;
+    }
+    if (!rv) {
+	nadata->enabled = enabled;
 	nadata->enabled_done = done;
 	conaccna_deferred_op(nadata);
     }
+
+ out_unlock:
     conaccna_unlock(nadata);
 
     return 0;
@@ -533,7 +1058,6 @@ conaccna_free(struct gensio_accepter *accepter,
 	      struct conaccna_data *nadata)
 {
     conaccna_lock(nadata);
-    nadata->enabled = false;
     conaccna_deref_and_unlock(nadata);
 }
 
@@ -542,7 +1066,7 @@ conaccna_disable(struct gensio_accepter *accepter,
 		 struct conaccna_data *nadata)
 {
     conaccna_lock(nadata);
-    nadata->enabled = false;
+    nadata->state = CONACCNA_DEAD;
     conaccna_unlock(nadata);
 }
 
@@ -618,13 +1142,22 @@ conacc_gensio_accepter_alloc(const char *gensio_str,
 			     struct gensio_accepter **accepter)
 {
     struct conaccna_data *nadata;
+    unsigned int i, retry_time = 0;
     int err;
+
+    for (i = 0; args && args[i]; i++) {
+	if (gensio_check_keyuint(args[i], "retry-time", &retry_time) > 0)
+	    continue;
+	return GE_INVAL;
+    }
 
     nadata = o->zalloc(o, sizeof(*nadata));
     if (!nadata)
 	return GE_NOMEM;
     nadata->o = o;
+    nadata->enabled = true;
     nadata->refcount = 1;
+    nadata->retry_time = retry_time;
 
     nadata->gensio_str = gensio_strdup(o, gensio_str);
     if (!nadata->gensio_str)
@@ -632,6 +1165,10 @@ conacc_gensio_accepter_alloc(const char *gensio_str,
 
     nadata->lock = o->alloc_lock(o);
     if (!nadata->lock)
+	goto out_nomem;
+
+    nadata->retry_timer = o->alloc_timer(o, conaccna_retry_timeout, nadata);
+    if (!nadata->retry_timer)
 	goto out_nomem;
 
     nadata->deferred_runner = o->alloc_runner(o, conaccna_do_deferred, nadata);

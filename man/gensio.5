@@ -1473,7 +1473,7 @@ The number of bytes to write.
 The number of bytes to expect from the other end.
 .SH "conacc"
 accepter =
-.B conacc,<gensio string>
+.B conacc[(options)],<gensio string>
 
 .B conacc
 is a gensio accepter that takes a gensio as a child.  When the
@@ -1482,10 +1482,20 @@ finishes the open, it reports a new child for the accepter.  The
 reported gensio can be used normally.
 
 When the gensio is closed, when the close completes the accepter will
-attempt to re-open the gensio.  This means that if the gensio has some
-sort of random address (like a pty or a tcp address with the port set
-to zero) you can get a different address for the re-opened gensio.  So
-you must refetch the local address or local port in this case.
+attempt to re-open the gensio immediately and will disable itself if
+the connect fails, unless retry-time is set.  This means that if the
+gensio has some sort of random address (like a pty or a tcp address
+with the port set to zero) you can get a different address for the
+re-opened gensio.  So you must refetch the local address or local port
+in this case.
+.SS Options
+The readbuf option is not accepted.
+.TP
+.B retry-time=<time in milliseconds>
+Instead of restarting a closed connection immediately, this will cause
+a delay between the close and the re-open.  Also, if the connect
+fails, it will not disable itself, it will wait another retry-time
+period and try the connect again.
 .SH "mdns"
 connecting =
 .B mdns[(options)][,<name>]
