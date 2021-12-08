@@ -9,7 +9,7 @@ from utils import *
 import gensio
 
 class TestAcceptConAcc:
-    def __init__(self, o, accstr, acc2str, tester):
+    def __init__(self, o, accstr, acc2str, acc3str, tester):
         self.o = o
         self.name = accstr
         self.io1 = None
@@ -66,11 +66,29 @@ class TestAcceptConAcc:
         self.acc2.set_accept_callback_enable(True);
         self.wait()
         tester(self.io1, self.io2)
+        self.acc2.set_accept_callback_enable_s(False);
+        self.close()
+
+        print(" Test retry time");
+        acc3str = acc3str + port
+        self.acc3 = gensio.gensio_accepter(o, acc3str, self);
+        self.expect_connects = True
+        self.acc3.startup();
+        self.wait()
+        self.close()
+
+        if self.waiter.wait_timeout(1, 200) != 0:
+            raise Exception("Got wakeup when nothing should happen");
+
+        self.expect_connects = True
+        self.wait()
 
         self.acc.shutdown_s()
         self.acc2.shutdown_s()
+        self.acc3.shutdown_s()
         self.acc = None
         self.acc2 = None
+        self.acc3 = None
         self.close()
 
     def close(self):
@@ -110,6 +128,7 @@ class TestAcceptConAcc:
             raise Exception("test_conacc: Timed out");
 
 print("Test conacc")
-TestAcceptConAcc(o, "tcp,0", "conacc,tcp,localhost,", do_small_test)
+TestAcceptConAcc(o, "tcp,0", "conacc,tcp,localhost,",
+                 "conacc(retry-time=1000),tcp,localhost,", do_small_test)
 del o
 test_shutdown()
