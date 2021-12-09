@@ -15,6 +15,7 @@
 #include <gensio/sergensio.h>
 #include <gensio/gensio_selector.h>
 #include <gensio/gensio_mdns.h>
+#include <gensio/gensio_osops.h>
 #include "config.h"
 
 static void wake_curr_waiter(void);
@@ -1527,3 +1528,125 @@ int get_os_funcs_refcount(struct gensio_os_funcs *o);
 void gensio_set_log_mask(unsigned int mask);
 
 unsigned int gensio_get_log_mask(void);
+
+%{
+struct ifinfo {
+    struct gensio_os_funcs *o;
+    struct gensio_net_if **ifs;
+    unsigned int nifs;
+};
+%}
+struct ifinfo { };
+%extend ifinfo {
+    ifinfo(struct gensio_os_funcs *o) {
+	struct ifinfo *ifi;
+	int rv = GE_NOMEM;
+
+	ifi = gensio_os_funcs_zalloc(o, sizeof(*ifi));
+	if (ifi) {
+	    rv = gensio_os_get_net_ifs(o, &ifi->ifs, &ifi->nifs);
+	    if (rv) {
+		gensio_os_funcs_zfree(o, ifi);
+		ifi = NULL;
+	    } else {
+		ifi->o = o;
+	    }
+	}
+	err_handle("ifinfo", rv);
+	return ifi;
+    }
+
+    ~ifinfo() {
+	gensio_os_free_net_ifs(self->o, self->ifs, self->nifs);
+	gensio_os_funcs_zfree(self->o, self);
+    }
+
+    unsigned int get_num_ifs() {
+	return self->nifs;
+    }
+
+    char *get_name(unsigned int idx) {
+	char *name = NULL;
+
+	if (idx >= self->nifs)
+	    err_handle("if_is_up", GE_OUTOFRANGE);
+	else
+	    name = strdup(self->ifs[idx]->name);
+	return name;
+    }
+
+    bool is_up(unsigned int idx) {
+	bool rv = false;
+
+	if (idx >= self->nifs)
+	    err_handle("if_is_up", GE_OUTOFRANGE);
+	else
+	    rv = self->ifs[idx]->flags & GENSIO_NET_IF_UP;
+	return rv;
+    }
+
+    bool is_loopback(unsigned int idx) {
+	bool rv = false;
+
+	if (idx >= self->nifs)
+	    err_handle("if_is_loopback", GE_OUTOFRANGE);
+	else
+	    rv = self->ifs[idx]->flags & GENSIO_NET_IF_LOOPBACK;
+	return rv;
+    }
+
+    bool is_multicast(unsigned int idx) {
+	bool rv = false;
+
+	if (idx >= self->nifs)
+	    err_handle("if_is_multicast", GE_OUTOFRANGE);
+	else
+	    rv = self->ifs[idx]->flags & GENSIO_NET_IF_MULTICAST;
+	return rv;
+    }
+
+    unsigned int get_ifindex(unsigned int idx) {
+	unsigned int ifindex = 0;
+
+	if (idx >= self->nifs)
+	    err_handle("get_ifindex", GE_OUTOFRANGE);
+	else
+	    ifindex = self->ifs[idx]->ifindex;
+	return ifindex;
+    }
+
+    unsigned int get_num_addrs(unsigned int idx) {
+	unsigned int num_addrs = 0;
+
+	if (idx >= self->nifs)
+	    err_handle("get_num_addrs", GE_OUTOFRANGE);
+	else
+	    num_addrs = self->ifs[idx]->naddrs;
+	return num_addrs;
+    }
+
+    unsigned int get_addr_netbits(unsigned int idx, unsigned int addridx) {
+	unsigned int netbits = 0;
+
+	if (idx > self->nifs || addridx >= self->ifs[idx]->naddrs)
+	    err_handle("get_addr_netbits", GE_OUTOFRANGE);
+	else
+	    netbits = self->ifs[idx]->addrs[addridx].netbits;
+	return netbits;
+    }
+
+    char *get_addr(unsigned int idx, unsigned int addridx) {
+	char *addr = NULL;
+
+	if (idx > self->nifs || addridx >= self->ifs[idx]->naddrs) {
+	    err_handle("get_addr", GE_OUTOFRANGE);
+	} else {
+	    struct gensio_net_addr *a = &(self->ifs[idx]->addrs[addridx]);
+
+	    addr = strdup(a->addrstr);
+	    if (!addr)
+		err_handle("get_addr", GE_NOMEM);
+	}
+	return addr;
+    }
+}
