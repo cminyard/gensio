@@ -1288,3 +1288,84 @@ def gensio_get_log_mask():
     """Return the current log mask.  See gensio_set_log_mask() above
     for details."""
     return 0
+
+class ifinfo:
+    def __init__(o):
+        """Get information about all the network interafces on the box and
+        return them in an object.
+
+        o -- The gensio_os_funcs to use for this.
+        """
+        return
+
+    def get_num_ifs():
+        """Return the number of interfaces found, used for indexing"""
+        return
+
+    def get_name(idx):
+        """Return the name of interface as a string.
+
+        idx -- The index of the interface in the list (NOT the ifindex).
+        """
+        return
+
+    def is_up(idx):
+        """Is the given index up?  Returns a bool.
+
+        idx -- The index of the interface in the list (NOT the ifindex).
+        """
+        return
+
+    def is_loopback(idx):
+        """Is the given index a loopback?  Returns a bool.
+
+        idx -- The index of the interface in the list (NOT the ifindex).
+        """
+        return
+
+    def is_multicast(idx):
+        """Is the given index multicast capable?  Returns a bool.
+
+        idx -- The index of the interface in the list (NOT the ifindex).
+        """
+        return
+
+    def get_ifindex(idx):
+        """Return the system interface index of the interface, use for other
+        system operations.  This is not the same as "idx".  Returns an
+        integer.
+
+        idx -- The index of the interface in the list (NOT the ifindex).
+
+        """
+        return
+
+    def get_num_addrs(idx):
+        """Return the number of IP addresses on this interface.  Returns an
+        integer.
+
+        idx -- The index of the interface in the list (NOT the ifindex).
+
+        """
+        return
+
+    def get_addr_netbits(idx, addridx):
+        """Return the number of of network bits the given address.  This is
+        the same as the number after a slash in an address, like
+        127.0.0.1/8.  Returns an integer.
+
+        idx -- The index of the interface in the list (NOT the ifindex).
+        addridx -- The index of the address in the interface.
+
+        """
+        return
+
+    def get_addr(idx, addridx):
+        """Return the number of of network bits the given address.  Returns a
+        string in the form: "ipv4:n.n.n.n" or "ipv6:::1".
+
+        idx -- The index of the interface in the list (NOT the ifindex).
+        addridx -- The index of the address in the interface.
+
+        """
+        return
