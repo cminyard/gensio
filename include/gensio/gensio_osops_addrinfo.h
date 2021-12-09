@@ -63,4 +63,10 @@ int gensio_sockaddr_set_port(const struct sockaddr *s, unsigned int port);
 GENSIO_DLL_PUBLIC
 void gensio_addr_addrinfo_set_os_funcs(struct gensio_os_funcs *o);
 
+/*
+ * This is a special value for family that is used for returning the
+ * ifindex from a recvfrom.
+ */
+#define GENSIO_AF_IFINDEX	0x5492
+
 #endif /* GENSIO_OSOPS_ADDRINFO_H */

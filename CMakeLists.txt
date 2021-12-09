@@ -166,6 +166,7 @@ check_c_source_compiles("int main()
 }" HAVE_GCC_ATOMICS)
 
 check_symbol_exists(sendmsg sys/socket.h HAVE_SENDMSG)
+check_symbol_exists(recvmsg sys/socket.h HAVE_RECVMSG)
 check_symbol_exists(isatty unistd.h HAVE_ISATTY)
 check_symbol_exists(strcasecmp string.h HAVE_STRCASECMP)
 check_symbol_exists(strncasecmp string.h HAVE_STRNCASECMP)

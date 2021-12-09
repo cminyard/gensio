@@ -213,6 +213,7 @@ int gensio_control(struct gensio *io, int depth, bool get,
 #define GENSIO_CONTROL_AUX_DATA			29
 #define GENSIO_CONTROL_REM_AUX_DATA		30
 #define GENSIO_CONTROL_IOD			31
+#define GENSIO_CONTROL_EXTRAINFO		32
 
 GENSIO_DLL_PUBLIC
 const char *gensio_get_type(struct gensio *io, unsigned int depth);

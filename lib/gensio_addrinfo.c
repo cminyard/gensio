@@ -81,7 +81,7 @@ gensio_addrinfo_make(struct gensio_os_funcs *o, unsigned int size,
 		     bool is_recvfrom)
 {
     struct gensio_addr_addrinfo *addr = o->zalloc(o, sizeof(*addr));
-    struct addrinfo *ai = NULL;
+    struct addrinfo *ai = NULL, *nai;
 
     if (!addr)
 	return NULL;
@@ -89,42 +89,56 @@ gensio_addrinfo_make(struct gensio_os_funcs *o, unsigned int size,
 #if HAVE_GCC_ATOMICS
     if (!is_recvfrom) {
 	addr->refcount = o->zalloc(o, sizeof(*addr->refcount));
-	if (!addr->refcount) {
-	    o->free(o, addr);
-	    return NULL;
-	}
+	if (!addr->refcount)
+	    goto out_err;
 	*addr->refcount = 1;
     }
 #endif
 
     if (size > 0) {
 	ai = o->zalloc(o, sizeof(*ai));
-	if (!ai) {
-#if HAVE_GCC_ATOMICS
-	    if (addr->refcount)
-		o->free(o, addr->refcount);
-#endif
-	    o->free(o, addr);
-	    return NULL;
-	}
+	if (!ai)
+	    goto out_err;
 
 	ai->ai_addr = o->zalloc(o, size);
-	if (!ai->ai_addr) {
-#if HAVE_GCC_ATOMICS
-	    if (addr->refcount)
-		o->free(o, addr->refcount);
-#endif
-	    o->free(o, addr);
-	    o->free(o, ai);
-	    return NULL;
-	}
+	if (!ai->ai_addr)
+	    goto out_err;
 	ai->ai_addrlen = size;
+    }
+    if (is_recvfrom) {
+	/* Tack on two more for room for ifindex and dest addr. */
+	unsigned int i;
+
+	nai = ai;
+	for (i = 0; i < 2; i++) {
+	    nai->ai_next = o->zalloc(o, sizeof(*ai));
+	    if (!nai->ai_next)
+		goto out_err;
+	    nai->ai_next->ai_addr = o->zalloc(o, size);
+	    if (!nai->ai_next->ai_addr)
+		goto out_err;
+	    nai = nai->ai_next;
+	}
     }
     addr->r.o = o;
     addr->a = ai;
     addr->curr = ai;
 
     return addr;
+ out_err:
+#if HAVE_GCC_ATOMICS
+    if (addr->refcount)
+	o->free(o, addr->refcount);
+#endif
+    while (ai) {
+	nai = ai->ai_next;
+	if (ai->ai_addr)
+	    o->free(o, ai->ai_addr);
+	o->free(o, ai);
+	ai = nai;
+    }
+    o->free(o, addr);
+    return NULL;
 }
 
 struct gensio_addr *
@@ -391,6 +405,11 @@ gensio_sockaddr_to_str(const struct sockaddr *addr, int flags,
 
 	gensio_pos_snprintf(buf, buflen, pos, "unix,%s", au->sun_path);
 #endif
+    } else if (addr->sa_family == GENSIO_AF_IFINDEX) {
+	struct sockaddr *as = (struct sockaddr *) addr;
+	unsigned int *iptr = (unsigned int *) as->sa_data;
+
+	gensio_pos_snprintf(buf, buflen, pos, "ifidx:%u", *iptr);
     } else {
 	if (*pos < buflen)
 	    buf[*pos] = '\0';

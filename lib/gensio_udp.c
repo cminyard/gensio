@@ -59,6 +59,7 @@ struct udpn_data {
     bool write_pending; /* Need to redo the write callback. */
     bool in_open_cb;	/* Currently in an open callback. */
     bool in_close_cb;	/* Currently in a close callback. */
+    bool extrainfo;	/* Deliver extrainfo to user? */
 
     enum udpn_state state;
     bool freed;		/* Freed during the close process. */
@@ -144,6 +145,8 @@ struct udpna_data {
 					   the UDP ports. */
     unsigned int   nr_fds;
     unsigned int opensock_flags;
+
+    unsigned int extrainfo; /* Is extrainfo enabled or disabled in the iod? */
 
     bool nocon;		/* Disable connection-oriented handling. */
     struct gensio_addr *curr_recvaddr;	/* Address of current received packet */
@@ -549,10 +552,12 @@ udpn_finish_read(struct udpn_data *ndata)
     struct gensio *io = ndata->io;
     gensiods count;
     char raddrdata[200];
-    const char *auxmem[2] = { NULL, NULL };
+    char daddrdata[200];
+    char ifidx[20];
+    const char *auxmem[4] = { NULL, NULL, NULL, NULL };
     const char *const *auxdata;
     int err;
-    gensiods addrlen = sizeof(raddrdata), pos = 5;
+    gensiods pos;
 
  retry:
     udpna_unlock(nadata);
@@ -562,12 +567,38 @@ udpn_finish_read(struct udpn_data *ndata)
     auxdata = auxmem;
     auxmem[0] = raddrdata;
     strcpy(raddrdata, "addr:");
+    pos = 5;
     err = gensio_addr_to_str(nadata->curr_recvaddr, raddrdata, &pos,
-			     addrlen);
+			     sizeof(raddrdata));
     if (err) {
 	strcpy(raddrdata, "err:addr:");
 	strncpy(raddrdata + 9, gensio_err_to_str(err), sizeof(raddrdata) - 9);
 	raddrdata[sizeof(raddrdata) - 1] = '\0';
+    }
+
+    if (ndata->extrainfo) {
+	/* Get the ifidx */
+	if (nadata->o->addr_next(nadata->curr_recvaddr)) {
+	    pos = 0;
+	    err = gensio_addr_to_str(nadata->curr_recvaddr, ifidx, &pos,
+				     sizeof(ifidx));
+	    if (!err)
+		auxmem[1] = ifidx;
+	}
+	/* Get the destination address */
+	if (nadata->o->addr_next(nadata->curr_recvaddr)) {
+	    strncpy(daddrdata, "daddr:", sizeof(daddrdata));
+	    pos = 6;
+	    err = gensio_addr_to_str(nadata->curr_recvaddr, daddrdata, &pos,
+				     sizeof(daddrdata));
+	    if (!err) {
+		/* Chop off the ,0 at the end. */
+		pos -= 2;
+		if (daddrdata[pos] == ',' && daddrdata[pos + 1] == '0')
+		    daddrdata[pos] = '\0';
+		auxmem[2] = daddrdata;
+	    }
+	}
     }
 
     gensio_cb(io, GENSIO_EVENT_READ, 0, nadata->read_data, &count, auxdata);
@@ -1104,12 +1135,43 @@ udpn_control(struct gensio *io, bool get, int option,
 		return err;
 	    *datalen = snprintf(data, *datalen, "%u", ttl);
 	} else {
-	    unsigned int ttl;
-	    gensiods size = sizeof(ttl);
-
 	    ttl = strtoul(data, NULL, 0);
 	    return o->sock_control(iod, GENSIO_SOCKCTL_SET_MCAST_TTL,
 				   &ttl, &size);
+	}
+	break;
+    }
+
+    case GENSIO_CONTROL_EXTRAINFO: {
+	int val;
+	gensiods size = sizeof(val);
+	struct gensio_iod *iod = nadata->fds->iod;
+
+	if (get) {
+	    err = o->sock_control(iod, GENSIO_SOCKCTL_GET_EXTRAINFO,
+				  &val, &size);
+	    if (err)
+		return err;
+	    *datalen = snprintf(data, *datalen, "%u", val);
+	} else {
+	    val = !!strtoul(data, NULL, 0);
+	    udpna_lock(nadata);
+	    if (ndata->extrainfo != val) {
+		err = 0;
+		if ((val && nadata->extrainfo == 0) ||
+			(!val && nadata->extrainfo == 1)) {
+		    err = o->sock_control(iod, GENSIO_SOCKCTL_SET_EXTRAINFO,
+					  &val, &size);
+		    if (err)
+			return err;
+		    ndata->extrainfo = val;
+		    if (val)
+			nadata->extrainfo++;
+		    else
+			nadata->extrainfo--;
+		}
+	    }
+	    udpna_unlock(nadata);
 	}
 	break;
     }

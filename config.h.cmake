@@ -12,6 +12,7 @@
 #cmakedefine01 HAVE_GCC_ATOMICS
 #cmakedefine01 HAVE_WORKING_PORT0
 #cmakedefine HAVE_SENDMSG
+#cmakedefine HAVE_RECVMSG
 #cmakedefine HAVE_ISATTY
 #cmakedefine HAVE_STRCASECMP
 #cmakedefine HAVE_STRNCASECMP

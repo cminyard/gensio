@@ -672,6 +672,7 @@ AC_DEFINE_UNQUOTED([HAVE_GCC_ATOMICS], [$HAVE_GCC_ATOMICS],
 	           [Are GCC atomic operations available])
 
 AC_CHECK_FUNCS(sendmsg)
+AC_CHECK_FUNCS(recvmsg)
 AC_CHECK_FUNCS(isatty)
 AC_CHECK_FUNCS(strcasecmp)
 AC_CHECK_FUNCS(strncasecmp)

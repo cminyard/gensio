@@ -153,6 +153,13 @@ struct gensio_opensocks
 /* Return the multicast loop value, see set value. */
 #define GENSIO_SOCKCTL_GET_MCAST_LOOP	9
 
+/*
+ * For UDP sockets, return the destination address and interface for
+ * received packets in the recvfrom call.
+ */
+#define GENSIO_SOCKCTL_SET_EXTRAINFO	10
+#define GENSIO_SOCKCTL_GET_EXTRAINFO	11
+
 /******************************************************************
  * For iod_control()
  */
