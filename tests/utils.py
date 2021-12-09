@@ -104,7 +104,8 @@ class HandleData:
         self.debug = 0
         return
 
-    def set_compare(self, to_compare, start_reader = True, stream = None):
+    def set_compare(self, to_compare, start_reader = True, stream = None,
+                    auxdata = None):
         """Set some data to compare
 
         If start_reader is true (default), it enable the read callback.
@@ -112,6 +113,7 @@ class HandleData:
         """
         self.compared = 0
         self.stream = stream
+        self.compare_auxdata = auxdata
         self.to_compare = conv_to_bytes(to_compare);
         if (start_reader):
             self.io.read_cb_enable(True)
@@ -125,6 +127,7 @@ class HandleData:
         """
         self.compared_oob = 0
         self.stream = stream
+        self.compare_auxdata = None
         self.to_compare_oob = conv_to_bytes(to_compare)
         if (start_reader):
             self.io.read_cb_enable(True)
@@ -214,6 +217,21 @@ class HandleData:
 
         oob = False;
         stream = 0
+
+        if (self.compare_auxdata is not None):
+            if not auxdata:
+                raise HandlerException("%s: no auxdata, expected %s" %
+                                       (self.name, str(self.compare_auxdata)))
+            if len(auxdata) != len(self.compare_auxdata):
+                raise HandlerException(
+                    "%s: length mismatch in auxdata, expected %s, got %s" %
+                    (self.name, str(self.compare_auxdata), str(auxdata)))
+
+            for i in range(0, len(auxdata)):
+                if auxdata[i] != self.compare_auxdata[i]:
+                    raise HandlerException(
+                        "%s: auxdata item %d wrong, expected %s, got %s" %
+                        (self.name, i, str(self.compare_auxdata), str(auxdata)))
 
         if auxdata:
             for i in auxdata:
