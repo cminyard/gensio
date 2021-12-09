@@ -857,6 +857,7 @@ retry_timer_done(struct gensio_timer *t, void *cb_data)
 
     case CONACCNA_IN_DISABLE:
 	nadata->state = CONACCNA_DISABLED;
+	conaccna_call_enabled(nadata);
 	break;
 
     case CONACCNA_IN_DISABLE_RESTART:
@@ -973,6 +974,7 @@ conaccna_set_accept_callback_enable(struct gensio_accepter *accepter,
 				    gensio_acc_done done)
 {
     int rv = 0, err;
+    bool do_deferred = true;
 
     conaccna_lock(nadata);
     if (nadata->enabled_done) {
@@ -1013,9 +1015,9 @@ conaccna_set_accept_callback_enable(struct gensio_accepter *accepter,
 						  retry_timer_done, nadata);
 	    if (err == GE_TIMEDOUT) {
 		/* Done handler won't be called, run it in the deferred op. */
-		conaccna_deferred_op(nadata);
 	    } else if (!err) {
 		/* Done handler will be called. */
+		do_deferred = false;
 	    } else {
 		/*
 		 * We should not get GE_INUSE, that means there is already
@@ -1044,7 +1046,8 @@ conaccna_set_accept_callback_enable(struct gensio_accepter *accepter,
     if (!rv) {
 	nadata->enabled = enabled;
 	nadata->enabled_done = done;
-	conaccna_deferred_op(nadata);
+	if (do_deferred)
+	    conaccna_deferred_op(nadata);
     }
 
  out_unlock:
