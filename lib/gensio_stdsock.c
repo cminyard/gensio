@@ -922,8 +922,8 @@ gensio_stdsock_recvfrom(struct gensio_iod *iod,
     if (!err && gsi->extrainfo) {
 	struct cmsghdr *cmsg;
 
-	for (cmsg = CMSG_FIRSTHDR(&hdr); cmsg; cmsg = CMSG_NXTHDR(&hdr, cmsg)) {
 #ifdef IP_PKTINFO
+	for (cmsg = CMSG_FIRSTHDR(&hdr); cmsg; cmsg = CMSG_NXTHDR(&hdr, cmsg)) {
 	    if (cmsg->cmsg_level == IPPROTO_IP &&
 			cmsg->cmsg_type == IP_PKTINFO) {
 		struct in_pktinfo *pi;
@@ -949,8 +949,51 @@ gensio_stdsock_recvfrom(struct gensio_iod *iod,
 		    inaddr->sin_addr = pi->ipi_addr;
 		}
 	    }
+	}
+#elif defined(IP_RECVIF) && defined(IP_RECVDSTADDR)
+	for (cmsg = CMSG_FIRSTHDR(&hdr); cmsg; cmsg = CMSG_NXTHDR(&hdr, cmsg)) {
+	    if (cmsg->cmsg_level == IPPROTO_IP &&
+			cmsg->cmsg_type == IP_RECVIF) {
+		uint16_t *iptr;
+		struct sockaddr *inaddr;
+
+		/*
+		 * There's no docs on this that I could find, but the
+		 * value seems to be in the second 16-bit value in the
+		 * data.  Not sure if it will work on big endian, or
+		 * if this is even right.
+		 */
+		iptr = (uint16_t *) CMSG_DATA(cmsg);
+		if (o->addr_next(addr)) {
+		    ai = gensio_addr_addrinfo_get_curr(addr);
+		    ai->ai_family = GENSIO_AF_IFINDEX;
+		    inaddr = (struct sockaddr *) ai->ai_addr;
+		    inaddr->sa_family = GENSIO_AF_IFINDEX;
+		    *((unsigned int *) inaddr->sa_data) = iptr[1];
+		}
+	    }
+	}
+	for (cmsg = CMSG_FIRSTHDR(&hdr); cmsg; cmsg = CMSG_NXTHDR(&hdr, cmsg)) {
+	    if (cmsg->cmsg_level == IPPROTO_IP &&
+		       cmsg->cmsg_type == IP_RECVDSTADDR) {
+		struct sockaddr_in *inaddr;
+
+		if (o->addr_next(addr)) {
+		    struct in_addr *iptr;
+
+		    iptr = (struct in_addr *) CMSG_DATA(cmsg);
+		    ai = gensio_addr_addrinfo_get_curr(addr);
+		    ai->ai_family = AF_INET;
+		    inaddr = (struct sockaddr_in *) ai->ai_addr;
+		    inaddr->sin_family = AF_INET;
+		    inaddr->sin_port = 0;
+		    inaddr->sin_addr = *iptr;
+		}
+	    }
+	}
 #endif
 #ifdef IPV6_RECVPKTINFO
+	for (cmsg = CMSG_FIRSTHDR(&hdr); cmsg; cmsg = CMSG_NXTHDR(&hdr, cmsg)) {
 	    if (cmsg->cmsg_level == IPPROTO_IPV6 &&
 			cmsg->cmsg_type == IPV6_PKTINFO) {
 		struct in6_pktinfo *pi;
@@ -1861,6 +1904,13 @@ gensio_stdsock_set_extrainfo(struct gensio_iod *iod, unsigned int val)
     if (gsi->family == AF_UNSPEC || gsi->family == AF_INET) {
 #ifdef IP_PKTINFO
 	err = setsockopt(fd, IPPROTO_IP, IP_PKTINFO, &val, sizeof(val));
+	if (err)
+	    return gensio_os_err_to_err(o, sock_errno);
+#elif defined(IP_RECVIF) && defined(IP_RECVDSTADDR)
+	err = setsockopt(fd, IPPROTO_IP, IP_RECVIF, &val, sizeof(val));
+	if (err)
+	    return gensio_os_err_to_err(o, sock_errno);
+	err = setsockopt(fd, IPPROTO_IP, IP_RECVDSTADDR, &val, sizeof(val));
 	if (err)
 	    return gensio_os_err_to_err(o, sock_errno);
 #else
