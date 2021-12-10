@@ -802,6 +802,7 @@ void gensio_osfunc_exit(int rv);
 struct gensio_fdump {
     unsigned int column;
     unsigned int pos;
+    unsigned int indent;
     unsigned char data[16];
 };
 
@@ -809,7 +810,7 @@ struct gensio_fdump {
  * Call this before using an fdump structure.
  */
 GENSIO_DLL_PUBLIC
-void gensio_fdump_init(struct gensio_fdump *h);
+void gensio_fdump_init(struct gensio_fdump *h, unsigned int indent);
 
 /*
  * Format len bytes of data in buf to file f.  You can call this

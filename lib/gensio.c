@@ -3696,10 +3696,11 @@ gensio_addr_getaddr(const struct gensio_addr *addr,
 }
 
 void
-gensio_fdump_init(struct gensio_fdump *h)
+gensio_fdump_init(struct gensio_fdump *h, unsigned int indent)
 {
     h->column = 0;
     h->pos = 0;
+    h->indent = indent;
 }
 
 void
@@ -3710,7 +3711,7 @@ gensio_fdump_buf(FILE *f, const unsigned char *buf, gensiods len,
 
     for (i = 0; i < len; i++) {
 	if (h->column == 0)
-	    fprintf(f, " %4.4x:", h->pos);
+	    fprintf(f, "%*s%4.4x:", h->indent, "", h->pos);
 	fprintf(f, " %2.2x", buf[i]);
 	h->data[h->column++] = buf[i];
 	h->pos++;

@@ -123,7 +123,7 @@ trace_data(const char *op, struct gensio_os_funcs *o,
     } else if (written > 0) {
 	gensiods i, len;
 
-	gensio_fdump_init(&h);
+	gensio_fdump_init(&h, 1);
 	if (!raw)
 	    fprintf(f, "%lld:%6.6d %s (%lu):\n",
 		    (long long) time.secs, (time.nsecs + 500) / 1000,
