@@ -133,6 +133,7 @@ open_tempfile(char *name, unsigned int len, const char *pattern)
 #else /* _WIN32 */
 
 #include <sys/types.h>
+#include <sys/wait.h>
 #include <sys/stat.h>
 #include <unistd.h>
 #include <fcntl.h>
