@@ -76,9 +76,16 @@ read for that data will appear on the other side.  A gensio that is
 not packet will not respect write boundaries, that 15 byte write may
 result in multiple reads or it may be combined with another write into
 more than 15 bytes.  Packet I/O requires careful use to make it work
-correctly.  Particularly, you must set the max read and write size to
-the same value, and you must accept all data on receipt and write
-complete packets all at once.
+correctly.  If the gensio doesn't have room for another packet, a
+write will succeed but write 0 bytes.  Otherwise if you write larger
+than a packet size, it will only take the number of bytes that can fit
+into a packet, so it will truncate.  This is useful if you want to
+stream over a packet interface, but if you really want packets you
+have to make sure all the sizes are set properly. Particularly, you
+must set the max read and write size to the same value.  You should
+check on writes that it wrote all the data.  You can do partial read
+handling, if you like, but you will only get the rest of the packet on
+the second and following read.
 
 A gensio may be message oriented.  This implementation is stolen from
 SCTP (even though it's not really supported on Linux at the moment).
@@ -1569,7 +1576,64 @@ take the default value for the sub-gensio that gets chosen.
 .B laddr=<addr>
 An address specification to bind to on the local socket to set the
 local address.
+.SH "kiss"
+accepter =
+.B kiss[(options)]
+.br
+connecting =
+.B kiss[(options)]
+
+A gensio that implements the KISS amateur radio protocol for
+transferring data between a TNC and AX25.  See
+http://www.ax25.net/kiss.aspx for details.  It contains a number of
+tunable parameters, you probably shouldn't mess with most of them.
+
+This is a normal packet-oriented interface.
+
+KISS supports multiple TNCs underneath it.  To write to a specific
+TNC, you must use the auxdata string "tnc:<n>" when writing.  If you
+don't set that, the TNC is assumed to be zero.  On reading, "tnc:<n>"
+will always be in one of the auxdata fields.  You shouldn't set a TNC
+larger than the configured number of TNCs.
+
+.SS Options
+kiss supports the following options:
 .TP
+.B readbuf=<n>
+Sets the maximum packet size that can be read from the TNC.  Defaults
+to 256.
+.TP
+.B writebuf=<n>
+Sets the maximum packet size that can be written to the TNC.  Defaults
+to 256.
+.TP
+.B tncs=<n>
+The number of supported TNCs.  Defaults to 1.
+.TP
+.B server[=yes|no]
+Is this a KISS server or client.  A client will set the tunable
+parameters on the TNC.  A server is expected to be a TNC, but this
+isn't fully implemented yet as you can't get the tunable parameters.
+.TP
+.B txdelay=<n>
+The KISS txdelay parameter, in milliseconds, rounded to the nearest
+power of ten.  The maximum values is 2550.  Default is 50ms.
+.TP
+.B persist=<n>
+The KISS "P" parameter, ranging from 0-255.  I don't know what this
+means, the spec isn't clear.  You'll have to figure it out on your
+own.  Default is 63.
+.TP
+.B slottime=<n>
+The KISS slot time parameter, in milliseconds, rounded to the nearest
+power of 10.  The maximum value is 2550ms, the default is 100ms.
+.TP
+.B fullduplex[=yes|no]
+Set's full duplex on the connection.
+.TP
+.B sethardware=<n>
+A hardware-specific control value ranging from 0-255.  It's meaning
+depends on the hardware.  By default it is not set.
 .SH "Forking and gensios"
 Unlike normal file descriptors, when you fork with a gensio, you now
 have two unassociated copies of the gensios.  So if you do operations

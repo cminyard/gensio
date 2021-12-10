@@ -116,6 +116,12 @@ int str_to_conacc_gensio_accepter(const char *str, const char * const args[],
 				  void *user_data,
 				  struct gensio_accepter **acc);
 
+GENSIO_DLL_PUBLIC
+int str_to_kiss_gensio_accepter(const char *str, const char * const args[],
+				struct gensio_os_funcs *o,
+				gensio_accepter_event cb,
+				void *user_data,
+				struct gensio_accepter **new_accepter);
 /*
  * Allocators for the various gensio types, compatible with
  * register_gensio().
@@ -215,7 +221,11 @@ int str_to_mdns_gensio(const char *str, const char * const args[],
 		       struct gensio_os_funcs *o,
 		       gensio_event cb, void *user_data,
 		       struct gensio **new_gensio);
-
+GENSIO_DLL_PUBLIC
+int str_to_kiss_gensio(const char *str, const char * const args[],
+		       struct gensio_os_funcs *o,
+		       gensio_event cb, void *user_data,
+		       struct gensio **new_gensio);
 
 /*
  * Allocators for accepters for different I/O types.
@@ -335,6 +345,14 @@ int conacc_gensio_accepter_alloc(const char *gensio_str,
 				 struct gensio_os_funcs *o,
 				 gensio_accepter_event cb, void *user_data,
 				 struct gensio_accepter **accepter);
+
+GENSIO_DLL_PUBLIC
+int kiss_gensio_accepter_alloc(struct gensio_accepter *child,
+			       const char * const args[],
+			       struct gensio_os_funcs *o,
+			       gensio_accepter_event cb,
+			       void *user_data,
+			       struct gensio_accepter **new_accepter);
 
 /* Client allocators. */
 
@@ -466,6 +484,12 @@ int trace_gensio_alloc(struct gensio *child, const char * const args[],
 
 GENSIO_DLL_PUBLIC
 int perf_gensio_alloc(struct gensio *child, const char * const args[],
+		      struct gensio_os_funcs *o,
+		      gensio_event cb, void *user_data,
+		      struct gensio **new_gensio);
+
+GENSIO_DLL_PUBLIC
+int kiss_gensio_alloc(struct gensio *child, const char * const args[],
 		      struct gensio_os_funcs *o,
 		      gensio_event cb, void *user_data,
 		      struct gensio **new_gensio);

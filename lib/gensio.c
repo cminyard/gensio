@@ -1441,6 +1441,8 @@ add_default_gensio_accepters(void *cb_data)
     REG_FILT_GENSIO_ACC(o, "perf", str_to_perf_gensio_accepter,
 			perf_gensio_accepter_alloc);
     REG_GENSIO_ACC(o, "conacc", str_to_conacc_gensio_accepter);
+    REG_FILT_GENSIO_ACC(o, "kiss", str_to_kiss_gensio_accepter,
+			kiss_gensio_accepter_alloc);
 }
 
 int
@@ -1650,6 +1652,8 @@ add_default_gensios(void *cb_data)
 		    trace_gensio_alloc);
     REG_FILT_GENSIO(o, "perf", str_to_perf_gensio,
 		    perf_gensio_alloc);
+    REG_FILT_GENSIO(o, "kiss", str_to_kiss_gensio,
+		    kiss_gensio_alloc);
 }
 
 int

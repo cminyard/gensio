@@ -44,7 +44,9 @@ set(BASE_LIBFILES
   uucplock.c
   gensio_pty.c
   gensio_osops.c
-  gensio_osops_env.c)
+  gensio_osops_env.c
+  gensio_filter_kiss.c
+  gensio_kiss.c)
 
 set(UNIX_LIBFILES
   selector.c
