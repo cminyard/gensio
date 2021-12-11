@@ -1634,6 +1634,157 @@ Set's full duplex on the connection.
 .B sethardware=<n>
 A hardware-specific control value ranging from 0-255.  It's meaning
 depends on the hardware.  By default it is not set.
+.SH "ax25"
+accepter =
+.B ax25[(options)]
+.br
+connecting =
+.B ax25[(options)]
+
+A gensio that implements the AX25 amateur radio protocol for
+transferring data.  You would generally run this on top of a KISS
+gensio.  See http://www.ax25.net for details.
+
+This is a normal packet-oriented interface.
+
+It is also a channel-based implementation.  Each AX25 connection to a
+remote system is implemented as a channel.  You can also have an
+unconnected channel if you want to just receive UI frames.
+
+There is no server/client setting on an ax25 gensio.  The protocol is
+symmetric, so it's not necessary.  An ax25 accepter will take the
+first connection that comes in and deliver it as a gensio, but after
+that there's really no difference.
+
+It also doesn't make much sense to have more than one accept on an
+accepter.  The accepter stuff is there, but it's really not very
+useful except for testing.
+
+So to use this, allocate an ax25 gensio.  If you want to make a
+connection, you must set the laddr to the local address and the addr
+to a destination address.  If you just want UI frames, you don't need
+them (more on that later).  Then you open the gensio.  An ax25 gensio
+without an address will just open immediately and start receiving UI
+packets as directed.  With laddr and addr set, it will attempt to make
+a connection.  Once that is up (or fails), the open callback is
+called.
+.SS AX25 Addresses
+A gensio AX25 address string is in the form:
+.IP
+[ax25:]tncport,dest[:c|r],src[:c|r][,extra1[:h][,extra2[:h][..]]]
+.PP
+.B tncport
+is a number from 0-15 specifying which TNC to use.
+.B dest
+and
+.B src
+and subaddresses specifying the destination and source addresses.
+Note that the source address better match an laddr, or the connection
+won't work.
+.B extra
+fields are also subaddresses.  These are used for routing (a function
+that is deprecated and no longer use) and by APRS for it's own
+purposes, see the APRS spec for details.  The
+.B c, r,
+and
+.B h
+values are bits in the address that you generally don't care about,
+except for the
+.B h
+field for APRS.
+
+Subaddresses are in the form
+.IP
+callsign-n
+.PP
+where
+.B callsign
+is a set of alphanumeric digits (a-zA-Z0-9) and
+.B n
+is a single digit 0-9.  Lower case digits are converted to upper case
+in the address and not converted back on receipt.
+.SS Handling unconnected packets (UI frames)
+To receive UI frames, you must enable the
+.B GENSIO\_CONTROL\_ENABLE\_OOB
+control on the gensio.  If you set the value to 1, you will receive UI
+frames where the destination matches one of your laddrs.  If you set
+it to 2, you will receive all UI frames (promiscuous mode).  0
+disables receipt of UI frames.
+
+UI frames are reported with the "oob" in the auxdata, like out of band
+data.  Note that you must completely handle all the UI frame in the
+call.  If you don't consume all the data, it will not be called again.
+
+You can have a channel that receives both connected data and UI
+frames, but you would generally have a separate channel with no addr
+set for receiving UI frames.  If you don't set the laddr field, that
+channel can only be used for promiscuous mode.
+
+On received packets, the auxdata will contain a field starting with
+"addr:" and the rest is the gensio AX25 address in the packet.  When
+sending a UI frame, you must set "oob" and "addr:" fields in the
+auxdata, with a valid address in the "addr:" field.
+.SS Options
+Option values for channels are all inherited from the options used to
+create the first channel, except for addr (which must be supplied for
+each channel if you care) and laddr (which is only used on the first
+channel.  ax25 supports the following options:
+.TP
+.B readbuf=<n>
+Sets the maximum packet size that can be read.  Defaults to 256.
+.TP
+.B writebuf=<n>
+Sets the maximum packet size that can be written.  Defaults to 256.
+.TP
+.B readwindow=<n>
+Sets the maximum packet size that can be received and unacked.
+Defaults to 7 for extended and 4 for non-extended.
+.TP
+.B writewindow=<n>
+Sets the maximum number of packets that can be sent unacked to the
+remote side.  Defaults to 7 for extended and 4 for non-extended.
+.TP
+.B extended=<n>
+Set the extended mode.  Setting it to 1 will enable 7-bit sequence
+numbers, the connection will first attempt to use 7-bit sequence
+number.  If that fails, it will fall back to 3-bit sequence numbers.
+
+Setting the value to 2 will enable a non-standard operation that will
+add parameter negotiation to the connection startup.  Setting the
+readbuf, writebuf, readwindow, and writewindow without extended=2
+really isn't very useful as without the negotiation it will be forced
+to fall back to the defaults.  If extended=2 fails, it will fall back
+to extended=1.
+.TP
+.B laddr=<subaddr>[;<subaddr[...]]
+Set the addresses the ax25 gensio will receive packets for.  Except
+for promiscuous UI mode, the destination of a packet must match one of
+these addresses to be handled.  This can only be set on the accepter
+or on the first connection and applies to all channels.
+.TP
+.B addr=<ax25addr>
+Set the address of the remote end of the connection.  Packets will be
+sent to this address.
+.TP
+.B crc[=yes|no]
+Enable CRC checking.  Default is off.
+.TP
+.B srt=<n>
+The initial smoothed round trip time for the connection.  See the spec
+for details, you probably don't need to mess with it.
+.TP
+.B t2=<n>
+The timer 2 value for the connection.  See the spec for details, you
+probably don't need to mess with it.
+.TP
+.B t3=<n>
+The timer 3 value for the connection.  See the spec for details, you
+probably don't need to mess with it.
+.TP
+.B retries=<n>
+Number of retries on a send before giving up and dropping the
+connection.  See the spec for details, you probably don't need to mess
+with it.
 .SH "Forking and gensios"
 Unlike normal file descriptors, when you fork with a gensio, you now
 have two unassociated copies of the gensios.  So if you do operations

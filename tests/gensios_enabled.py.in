@@ -22,7 +22,8 @@ gensios_enabled = {
     "trace": 1,
     "conacc": 1,
     "perf": 1,
-    "mdns": @HAVE_AVAHI@
+    "mdns": @HAVE_AVAHI@,
+    "ax25": 1
 }
 
 # Gensios that are always last in the list.

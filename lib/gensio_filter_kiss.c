@@ -449,8 +449,8 @@ gensio_kiss_filter_alloc(struct gensio_os_funcs *o, const char * const args[],
 {
     struct kiss_filter *kfilter;
     unsigned int i;
-    gensiods max_read_size = 256; /* FIXME - magic number. */
-    gensiods max_write_size = 256; /* FIXME - magic number. */
+    gensiods max_read_size = 1024; /* FIXME - magic number. */
+    gensiods max_write_size = 1024; /* FIXME - magic number. */
     bool tncs[16] = { true, false };
     unsigned int txdelay = 500;
     unsigned int persist = 63;

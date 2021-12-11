@@ -7,7 +7,8 @@ noinst_HEADERS = telnet.h heap.h utils.h uucplock.h buffer.h \
 	gensio_filter_ssl.h gensio_filter_telnet.h gensio_ll_ipmisol.h \
 	gensio_filter_certauth.h gensio_filter_msgdelim.h \
 	gensio_filter_relpkt.h gensio_filter_trace.h gensio_filter_perf.h \
-	errtrig.h avahi_watcher.h gensio_net.h gensio_filter_kiss.h crc16.h
+	errtrig.h avahi_watcher.h gensio_net.h gensio_filter_kiss.h crc16.h \
+	gensio_ax25_addr.h
 
 libgensio_la_SOURCES = \
 	gensio.c gensio_osops.c gensio_base.c sergensio.c utils.c buffer.c \
@@ -28,7 +29,8 @@ libgensio_la_SOURCES = \
 	gensio_pty.c \
 	mdns.c avahi_watcher.c gensio_mdns.c \
 	gensio_addrinfo.c gensio_stdsock.c \
-	gensio_filter_kiss.c gensio_kiss.c crc16.c
+	gensio_filter_kiss.c gensio_kiss.c \
+	crc16.c gensio_ax25_addr.c gensio_ax25.c
 
 if HAVE_UNIX_OS
 libgensio_la_SOURCES += gensio_unix.c selector.c

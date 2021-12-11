@@ -452,6 +452,7 @@ void gensio_addr_getaddr(const struct gensio_addr *addr,
 #define GENSIO_NETTYPE_IPV4	1
 #define GENSIO_NETTYPE_IPV6	2
 #define GENSIO_NETTYPE_UNIX	3
+#define GENSIO_NETTYPE_AX25	4
 
 /*
  * Create a gensio address from raw address data.  Note that the iaddr

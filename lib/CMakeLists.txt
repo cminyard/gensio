@@ -47,7 +47,10 @@ set(BASE_LIBFILES
   gensio_osops_env.c
   gensio_filter_kiss.c
   gensio_kiss.c,
-  crc16.c)
+  crc16.c
+  gensio_filter_ax25.c
+  gensio_ax25.c
+  )
 
 set(UNIX_LIBFILES
   selector.c
