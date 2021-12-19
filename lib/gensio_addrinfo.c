@@ -48,6 +48,8 @@ struct gensio_addr_addrinfo {
     bool is_getaddrinfo; /* Allocated with getaddrinfo()? */
 };
 
+static struct gensio_addr_funcs addrinfo_funcs;
+
 static void gensio_addr_addrinfo_free(struct gensio_addr *addr);
 
 #define a_to_info(a) gensio_container_of(a, struct gensio_addr_addrinfo, r);
@@ -121,6 +123,7 @@ gensio_addrinfo_make(struct gensio_os_funcs *o, unsigned int size,
 	}
     }
     addr->r.o = o;
+    addr->r.funcs = &addrinfo_funcs;
     addr->a = ai;
     addr->curr = ai;
 
@@ -902,6 +905,7 @@ gensio_addr_addrinfo_dup(const struct gensio_addr *iaaddr)
     if (!addr)
 	return NULL;
     addr->r.o = o;
+    addr->r.funcs = &addrinfo_funcs;
 
 #if HAVE_GCC_ATOMICS
     if (iaddr->refcount) {
@@ -1073,21 +1077,24 @@ gensio_addr_addrinfo_getaddr(const struct gensio_addr *aaddr,
     *rlen = addr->curr->ai_addrlen;
 }
 
+static struct gensio_addr_funcs addrinfo_funcs = {
+    .addr_equal = gensio_addr_addrinfo_equal,
+    .addr_to_str = gensio_addr_addrinfo_to_str,
+    .addr_to_str_all = gensio_addr_addrinfo_to_str_all,
+    .addr_dup = gensio_addr_addrinfo_dup,
+    .addr_cat = gensio_addr_addrinfo_cat,
+    .addr_addr_present = gensio_addr_addrinfo_addr_present,
+    .addr_free = gensio_addr_addrinfo_free,
+    .addr_next = gensio_addr_addrinfo_next,
+    .addr_rewind = gensio_addr_addrinfo_rewind,
+    .addr_get_nettype = gensio_addr_addrinfo_get_nettype,
+    .addr_family_supports = gensio_addr_addrinfo_family_supports,
+    .addr_getaddr = gensio_addr_addrinfo_getaddr
+};
+
 void
 gensio_addr_addrinfo_set_os_funcs(struct gensio_os_funcs *o)
 {
     o->addr_create = gensio_addr_addrinfo_create;
-    o->addr_equal = gensio_addr_addrinfo_equal;
-    o->addr_to_str = gensio_addr_addrinfo_to_str;
-    o->addr_to_str_all = gensio_addr_addrinfo_to_str_all;
-    o->addr_dup = gensio_addr_addrinfo_dup;
-    o->addr_cat = gensio_addr_addrinfo_cat;
-    o->addr_addr_present = gensio_addr_addrinfo_addr_present;
-    o->addr_free = gensio_addr_addrinfo_free;
-    o->addr_next = gensio_addr_addrinfo_next;
-    o->addr_rewind = gensio_addr_addrinfo_rewind;
-    o->addr_get_nettype = gensio_addr_addrinfo_get_nettype;
-    o->addr_family_supports = gensio_addr_addrinfo_family_supports;
-    o->addr_getaddr = gensio_addr_addrinfo_getaddr;
     o->addr_scan_ips = gensio_addr_addrinfo_scan_ips;
 }
