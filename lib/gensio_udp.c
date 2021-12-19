@@ -578,7 +578,7 @@ udpn_finish_read(struct udpn_data *ndata)
 
     if (ndata->extrainfo) {
 	/* Get the ifidx */
-	if (nadata->o->addr_next(nadata->curr_recvaddr)) {
+	if (gensio_addr_next(nadata->curr_recvaddr)) {
 	    pos = 0;
 	    err = gensio_addr_to_str(nadata->curr_recvaddr, ifidx, &pos,
 				     sizeof(ifidx));
@@ -586,7 +586,7 @@ udpn_finish_read(struct udpn_data *ndata)
 		auxmem[1] = ifidx;
 	}
 	/* Get the destination address */
-	if (nadata->o->addr_next(nadata->curr_recvaddr)) {
+	if (gensio_addr_next(nadata->curr_recvaddr)) {
 	    strncpy(daddrdata, "daddr:", sizeof(daddrdata));
 	    pos = 6;
 	    err = gensio_addr_to_str(nadata->curr_recvaddr, daddrdata, &pos,
