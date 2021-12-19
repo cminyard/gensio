@@ -883,7 +883,7 @@ gensio_stdsock_recvfrom(struct gensio_iod *iod,
     if (do_errtrig())
 	return GE_NOMEM;
 
-    o->addr_rewind(addr);
+    gensio_addr_rewind(addr);
     ai = gensio_addr_addrinfo_get_curr(addr);
  retry:
     len = sizeof(struct sockaddr_storage);
@@ -929,7 +929,7 @@ gensio_stdsock_recvfrom(struct gensio_iod *iod,
 		struct in_pktinfo *pi;
 
 		pi = (struct in_pktinfo *) CMSG_DATA(cmsg);
-		if (o->addr_next(addr)) {
+		if (gensio_addr_next(addr)) {
 		    struct sockaddr *inaddr;
 
 		    ai = gensio_addr_addrinfo_get_curr(addr);
@@ -938,7 +938,7 @@ gensio_stdsock_recvfrom(struct gensio_iod *iod,
 		    inaddr->sa_family = GENSIO_AF_IFINDEX;
 		    *((unsigned int *) inaddr->sa_data) = pi->ipi_ifindex;
 		}
-		if (o->addr_next(addr)) {
+		if (gensio_addr_next(addr)) {
 		    struct sockaddr_in *inaddr;
 
 		    ai = gensio_addr_addrinfo_get_curr(addr);
@@ -999,7 +999,7 @@ gensio_stdsock_recvfrom(struct gensio_iod *iod,
 		struct in6_pktinfo *pi;
 
 		pi = (struct in6_pktinfo *) CMSG_DATA(cmsg);
-		if (o->addr_next(addr)) {
+		if (gensio_addr_next(addr)) {
 		    struct sockaddr *inaddr;
 
 		    ai = gensio_addr_addrinfo_get_curr(addr);
@@ -1008,7 +1008,7 @@ gensio_stdsock_recvfrom(struct gensio_iod *iod,
 		    inaddr->sa_family = GENSIO_AF_IFINDEX;
 		    *((unsigned int *) inaddr->sa_data) = pi->ipi6_ifindex;
 		}
-		if (o->addr_next(addr)) {
+		if (gensio_addr_next(addr)) {
 		    struct sockaddr_in6 *inaddr;
 
 		    ai = gensio_addr_addrinfo_get_curr(addr);
@@ -1020,7 +1020,7 @@ gensio_stdsock_recvfrom(struct gensio_iod *iod,
 		}
 	    }
 	}
-	o->addr_rewind(addr);
+	gensio_addr_rewind(addr);
 #endif
     }
 #endif
