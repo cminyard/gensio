@@ -40,6 +40,7 @@
 
 struct gensio_addr_addrinfo {
     struct gensio_addr r;
+    struct gensio_os_funcs *o;
     struct addrinfo *a;
     struct addrinfo *curr;
 #if HAVE_GCC_ATOMICS
@@ -122,7 +123,7 @@ gensio_addrinfo_make(struct gensio_os_funcs *o, unsigned int size,
 	    nai = nai->ai_next;
 	}
     }
-    addr->r.o = o;
+    addr->o = o;
     addr->r.funcs = &addrinfo_funcs;
     addr->a = ai;
     addr->curr = ai;
@@ -900,11 +901,11 @@ gensio_addr_addrinfo_dup(const struct gensio_addr *iaaddr)
     if (!iaaddr)
 	return NULL;
     iaddr = a_to_info(iaaddr);
-    o = iaddr->r.o;
+    o = iaddr->o;
     addr = o->zalloc(o, sizeof(*addr));
     if (!addr)
 	return NULL;
-    addr->r.o = o;
+    addr->o = o;
     addr->r.funcs = &addrinfo_funcs;
 
 #if HAVE_GCC_ATOMICS
@@ -948,7 +949,7 @@ gensio_addr_addrinfo_cat(const struct gensio_addr *aaddr1,
 {
     struct gensio_addr_addrinfo *addr1 = a_to_info(aaddr1);
     struct gensio_addr_addrinfo *addr2 = a_to_info(aaddr2);
-    struct gensio_os_funcs *o = addr1->r.o;
+    struct gensio_os_funcs *o = addr1->o;
     struct gensio_addr_addrinfo *addr;
     struct addrinfo *aip = NULL;
     int rv;
@@ -1000,7 +1001,7 @@ static void
 gensio_addr_addrinfo_free(struct gensio_addr *aaddr)
 {
     struct gensio_addr_addrinfo *addr = a_to_info(aaddr);
-    struct gensio_os_funcs *o = addr->r.o;
+    struct gensio_os_funcs *o = addr->o;
 
 #if HAVE_GCC_ATOMICS
     if (addr->refcount) {

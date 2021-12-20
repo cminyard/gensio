@@ -56,7 +56,6 @@ struct gensio_addr_funcs {
  * the addresses.
  */
 struct gensio_addr {
-    struct gensio_os_funcs *o;
     const struct gensio_addr_funcs *funcs;
 };
 
