@@ -21,6 +21,7 @@
 #include <gensio/gensio_builtins.h>
 #include <gensio/gensio_class.h>
 #include <gensio/gensio_list.h>
+#include <gensio/gensio_time.h>
 
 #include "gensio_net.h"
 
@@ -3754,4 +3755,63 @@ gensio_fdump_buf_finish(FILE *f, struct gensio_fdump *h)
 	    fputc('.', f);
     }
     fputc('\n', f);
+}
+
+void
+gensio_time_add_nsecs(gensio_time *t, int64_t v)
+{
+    t->secs += v / GENSIO_NSECS_IN_SEC;
+    t->nsecs += v % GENSIO_NSECS_IN_SEC;
+    while (t->nsecs > GENSIO_NSECS_IN_SEC) {
+	t->secs++;
+	t->nsecs -= GENSIO_NSECS_IN_SEC;
+    }
+    while (t->nsecs < 0) {
+	t->secs--;
+	t->nsecs += GENSIO_NSECS_IN_SEC;
+    }
+}
+
+int64_t
+gensio_time_to_msecs(gensio_time *t1)
+{
+    int64_t v;
+
+    v = t1->secs * 1000;
+    v += GENSIO_NSECS_TO_MSECS(t1->nsecs);
+    return v;
+}
+
+int64_t
+gensio_time_to_usecs(gensio_time *t1)
+{
+    int64_t v;
+
+    v = t1->secs * 1000000;
+    v += GENSIO_NSECS_TO_USECS(t1->nsecs);
+    return v;
+}
+
+void
+gensio_msecs_to_time(gensio_time *t1, int64_t v)
+{
+    t1->secs = v / 1000;
+    t1->nsecs = GENSIO_MSECS_TO_NSECS(v % 1000);
+}
+
+void
+gensio_usecs_to_time(gensio_time *t1, int64_t v)
+{
+    t1->secs = v / 1000000;
+    t1->nsecs = GENSIO_USECS_TO_NSECS(v % 1000000);
+}
+
+int64_t
+gensio_time_diff_nsecs(gensio_time *t1, gensio_time *t2)
+{
+    int64_t v;
+
+    v = t1->secs - t2->secs;
+    v += (int64_t) t1->nsecs - (int64_t) t2->nsecs;
+    return v;
 }
