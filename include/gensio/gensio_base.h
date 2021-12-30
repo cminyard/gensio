@@ -43,6 +43,18 @@ typedef int (*gensio_ll_filter_data_handler)(void *cb_data,
  */
 #define GENSIO_FILTER_CB_STOP_TIMER	3
 
+/*
+ * Run a control on the child.
+ */
+struct gensio_filter_cb_control_data {
+    int depth;
+    bool get;
+    unsigned int option;
+    char *data;
+    gensiods *datalen;
+};
+#define GENSIO_FILTER_CB_CONTROL	4
+
 typedef int (*gensio_filter_cb)(void *cb_data, int func, void *data);
 
 

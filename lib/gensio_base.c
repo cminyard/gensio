@@ -1780,6 +1780,14 @@ basen_stop_timer_op(void *cb_data)
 }
 
 static int
+basen_call_child_control_op(struct basen_data *ndata,
+			    struct gensio_filter_cb_control_data *ctrl)
+{
+    return gensio_control(ndata->child, ctrl->depth, ctrl->get, ctrl->option,
+			  ctrl->data, ctrl->datalen);
+}
+
+static int
 gensio_base_filter_cb(void *cb_data, int op, void *data)
 {
     switch (op) {
@@ -1793,6 +1801,10 @@ gensio_base_filter_cb(void *cb_data, int op, void *data)
 
     case GENSIO_FILTER_CB_STOP_TIMER:
 	basen_stop_timer_op(cb_data);
+	return 0;
+
+    case GENSIO_FILTER_CB_CONTROL:
+	basen_call_child_control_op(cb_data, data);
 	return 0;
 
     default:
