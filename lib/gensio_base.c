@@ -1844,10 +1844,6 @@ gensio_i_alloc(struct gensio_os_funcs *o,
 	goto out_nomem;
 
     ll->ndata = ndata;
-    if (filter) {
-	filter->ndata = ndata;
-	gensio_filter_set_callback(filter, gensio_base_filter_cb, ndata);
-    }
     ndata->io = gensio_data_alloc(o, cb, user_data, gensio_base_func,
 				  child, typename, ndata);
     if (!ndata->io)
@@ -1855,6 +1851,10 @@ gensio_i_alloc(struct gensio_os_funcs *o,
     ndata->child = child;
     gensio_set_is_client(ndata->io, is_client);
     gensio_ll_set_callback(ll, gensio_ll_base_cb, ndata);
+    if (filter) {
+	filter->ndata = ndata;
+	gensio_filter_set_callback(filter, gensio_base_filter_cb, ndata);
+    }
 
     /*
      * Save this until we succeed, otherwise basen_finish_free will

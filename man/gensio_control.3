@@ -286,6 +286,11 @@ fields will be added to the auxdata in received packets.  These field
 are: "daddr:<address>" with the destination address from the packet
 and "ifidx:<n>" with the integer interface index the packet was
 received on.
+.SS "GENSIO_CONTROL_ENABLE_OOB"
+Out of band (OOB) data is disabled by default on all gensios and
+setting this to non-zero (normal string like "1" passed in) will
+enable it.  Note that you should only set this on the gensio you are
+directly communicating with, it is used between some gensios.
 .SH "RETURN VALUES"
 Zero is returned on success, or a gensio error on failure.
 .SH "SEE ALSO"

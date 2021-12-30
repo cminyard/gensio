@@ -49,6 +49,7 @@ struct net_data {
 
     int last_err;
 
+    bool do_oob;
     int oob_char;
 };
 
@@ -230,11 +231,20 @@ net_control(void *handler_data, struct gensio_iod *iod, bool get,
 	return 0;
 
     case GENSIO_CONTROL_LPORT:
+	if (!get)
+	    return GE_NOTSUP;
 	size = sizeof(unsigned int);
 	rv = tdata->o->sock_control(iod, GENSIO_SOCKCTL_GET_PORT, &i, &size);
 	if (rv)
 	    return rv;
 	*datalen = snprintf(data, *datalen, "%d", i);
+	return 0;
+
+    case GENSIO_CONTROL_ENABLE_OOB:
+	if (get)
+	    *datalen = snprintf(data, *datalen, "%u", tdata->do_oob);
+	else
+	    tdata->do_oob = !!strtoul(data, NULL, 0);
 	return 0;
 
     default:
@@ -250,15 +260,18 @@ net_except_read(struct gensio_iod *iod, void *data, gensiods count,
     static const char *argv[3] = { "oob", "oobtcp", NULL };
 
     if (tdata->oob_char >= 0) {
-	*auxdata = argv;
-	if (count == 0) {
-	    *rcount = 0;
+	if (tdata->do_oob) {
+	    *auxdata = argv;
+	    if (count == 0) {
+		*rcount = 0;
+		return 0;
+	    }
+	    *((unsigned char *) data) = tdata->oob_char;
+	    tdata->oob_char = -1;
+	    *rcount = 1;
 	    return 0;
 	}
-	*((unsigned char *) data) = tdata->oob_char;
 	tdata->oob_char = -1;
-	*rcount = 1;
-	return 0;
     }
 
     return tdata->o->recv(iod, data, count, rcount, 0);

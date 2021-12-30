@@ -43,6 +43,7 @@ struct sctp_data {
     struct sctp_sack_info sackinfo;
 
     bool nodelay;
+    bool do_oob;
     unsigned int instreams;
     unsigned int ostreams;
 
@@ -290,6 +291,13 @@ sctp_control(void *handler_data, struct gensio_iod *iod, bool get, unsigned int 
 	*datalen = pos;
 	return 0;
 
+    case GENSIO_CONTROL_ENABLE_OOB:
+	if (get)
+	    *datalen = snprintf(data, *datalen, "%u", tdata->do_oob);
+	else
+	    tdata->do_oob = !!strtoul(data, NULL, 0);
+	return 0;
+
     default:
 	return GE_NOTSUP;
     }
@@ -331,8 +339,9 @@ sctp_do_read(struct gensio_iod *iod, void *data, gensiods count, gensiods *rcoun
     struct sctp_sndrcvinfo sinfo;
     int flags = 0;
     unsigned int stream;
-    unsigned int i = 0;
+    unsigned int i;
 
+ restart:
     rv = tdata->o->sctp_recvmsg(iod, data, count, rcount, &sinfo, &flags);
     /* If the data length is zero, we won't have any info. */
     if (rv || *rcount == 0)
@@ -342,11 +351,15 @@ sctp_do_read(struct gensio_iod *iod, void *data, gensiods count, gensiods *rcoun
     /* Shouldn't happen, but just in case. */
     assert(stream < tdata->instreams);
 
+    i = 0;
     if (tdata->strind[stream])
 	(*auxdata)[i++] = tdata->strind[stream];
 
-    if (sinfo.sinfo_flags && SCTP_UNORDERED)
+    if (sinfo.sinfo_flags && SCTP_UNORDERED) {
+	if (!tdata->do_oob)
+	    goto restart;
 	(*auxdata)[i++] = "oob";
+    }
 
     (*auxdata)[i] = NULL;
 

@@ -1073,12 +1073,19 @@ mux_event(struct gensio *io, void *user_data, int event, int ierr,
 	  unsigned char *buf, gensiods *buflen,
 	  const char *const *auxdata)
 {
+    gensiods len;
+
     switch (event) {
     case GENSIO_EVENT_READ:
     case GENSIO_EVENT_WRITE_READY:
 	abort();
 
     case GENSIO_EVENT_NEW_CHANNEL:
+	/* Enable oob data from the new channel. */
+	len = 1;
+	gensio_control((struct gensio *) buf,
+		       0, false, GENSIO_CONTROL_ENABLE_OOB, "1", &len);
+
 	new_rem_io((struct gensio *) buf, user_data);
 	return 0;
     }
@@ -1091,6 +1098,7 @@ open_mux(struct gensio *io, struct gdata *ginfo, const char *service)
 {
     struct gensio_os_funcs *o = ginfo->o;
     struct gensio *mux_io;
+    gensiods len;
     int err;
     /*
      * The buffer sizes are carefully chosen here to mesh with ssl and
@@ -1112,6 +1120,10 @@ open_mux(struct gensio *io, struct gdata *ginfo, const char *service)
 	       gensio_err_to_str(err));
 	exit(1);
     }
+
+    /* Enable OOB data from the mux. */
+    len = 1;
+    gensio_control(mux_io, 0, false, GENSIO_CONTROL_ENABLE_OOB, "1", &len);
 
     err = gensio_open_nochild_s(mux_io);
     if (err) {

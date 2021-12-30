@@ -2058,6 +2058,10 @@ main(int argc, char *argv[])
     aux_data.flags = htonl(aux_data.flags);
 
     if (use_mux) {
+	len = 1;
+	gensio_control(userdata2.io,
+		       0, false, GENSIO_CONTROL_ENABLE_OOB, "1", &len);
+
 	len = 4;
 	err = gensio_control(userdata2.io, 1 + use_telnet, GENSIO_CONTROL_SET,
 			     GENSIO_CONTROL_SERVICE, "mux", &len);

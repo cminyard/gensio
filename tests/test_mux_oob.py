@@ -12,7 +12,7 @@ check_sctp()
 
 print("Test mux sctp oob")
 TestAccept(o, "mux,sctp,localhost,", "mux,sctp,0", do_oob_test,
-           chunksize = 64)
+           chunksize = 64, enable_oob = True)
 
 del o
 test_shutdown()

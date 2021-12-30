@@ -94,9 +94,19 @@ telnet_set_callbacks(struct gensio_filter *filter,
 		     gensio_filter_cb cb, void *cb_data)
 {
     struct telnet_filter *tfilter = filter_to_telnet(filter);
+    struct gensio_filter_cb_control_data ctrl;
+    gensiods datalen = 1;
 
     tfilter->filter_cb = cb;
     tfilter->filter_cb_data = cb_data;
+
+    /* Enable OOB data, as we need it from TCP for proper mark handling. */
+    ctrl.depth = 0;
+    ctrl.get = false;
+    ctrl.option = GENSIO_CONTROL_ENABLE_OOB;
+    ctrl.data = "1";
+    ctrl.datalen = &datalen;
+    cb(cb_data, GENSIO_FILTER_CB_CONTROL, &ctrl);
 }
 
 static bool

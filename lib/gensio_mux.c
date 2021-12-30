@@ -203,6 +203,7 @@ struct mux_inst {
     bool send_close;
     bool is_client;
     bool close_sent;
+    bool do_oob;
 
     /*
      * The service, either the local one or the remote one.
@@ -959,8 +960,11 @@ chan_check_read(struct mux_inst *chan)
 
 	chan->in_read_report = true;
 	i = 0;
-	if (flags & MUX_FLAG_OUT_OF_BOUND)
+	if (flags & MUX_FLAG_OUT_OF_BOUND) {
+	    if (!chan->do_oob)
+		goto after_read_done;
 	    flstr[i++] = "oob";
+	}
 	flstr[i] = NULL;
 	if (pos + len > chan->max_read_size) {
 	    /* Buffer wraps, deliver in two parts. */
@@ -1772,6 +1776,13 @@ muxc_control(struct mux_inst *chan, bool get, int op,
 	    chan->service = new_service;
 	    chan->service_len = *datalen;
 	}
+	break;
+
+    case GENSIO_CONTROL_ENABLE_OOB:
+	if (get)
+	    *datalen = snprintf(data, *datalen, "%u", chan->do_oob);
+	else
+	    chan->do_oob = !!strtoul(data, NULL, 0);
 	break;
 
     default:

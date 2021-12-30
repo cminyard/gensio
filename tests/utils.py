@@ -530,13 +530,16 @@ class HandleData:
         self.waiter.wake()
         return
 
-def alloc_io(o, iostr, do_open = True, chunksize = 10240):
+def alloc_io(o, iostr, do_open = True, chunksize = 10240, enable_oob = False):
     """Allocate an io instance with a HandlerData handler
 
     If do_open is True (default), open it, too.
     """
     gensios_enabled.check_iostr_gensios(iostr)
     h = HandleData(o, iostr, chunksize = chunksize)
+    if enable_oob:
+        h.io.control(0, gensio.GENSIO_CONTROL_SET,
+                     gensio.GENSIO_CONTROL_ENABLE_OOB, "1")
     if (do_open):
         h.io.open_s()
     return h.io
@@ -736,11 +739,12 @@ class TestAccept:
                  io1_dummy_write = None, do_close = True,
                  expected_raddr = None, expected_acc_laddr = None,
                  chunksize = 10240, get_port = True, except_on_log = False,
-                 is_sergensio = False):
+                 is_sergensio = False, enable_oob = False):
         self.o = o
         self.io1 = None
         self.io2 = None
         self.acc = None
+        self.enable_oob = enable_oob
 
         try:
             self.except_on_log = except_on_log
@@ -781,7 +785,7 @@ class TestAccept:
                 port = ""
             io1str = io1str + port
             io1 = alloc_io(o, io1str, do_open = False,
-                           chunksize = chunksize)
+                           chunksize = chunksize, enable_oob = enable_oob)
             self.io1 = io1
             if expected_acc_laddr:
                 expected_acc_laddr = expected_acc_laddr + port
@@ -840,6 +844,9 @@ class TestAccept:
         self.acc = None
 
     def new_connection(self, acc, io):
+        if self.enable_oob:
+            io.control(0, gensio.GENSIO_CONTROL_SET,
+                       gensio.GENSIO_CONTROL_ENABLE_OOB, "1")
         HandleData(self.o, None, io = io, name = self.name)
         print("New connection " + self.name);
         self.io2 = io

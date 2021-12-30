@@ -10,6 +10,7 @@ import gensio
 
 check_sctp()
 print("Test sctp oob")
-TestAccept(o, "sctp,localhost,", "sctp,0", do_oob_test, chunksize = 64)
+TestAccept(o, "sctp,localhost,", "sctp,0", do_oob_test, chunksize = 64,
+           enable_oob = True)
 del o
 test_shutdown()
