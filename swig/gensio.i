@@ -396,6 +396,44 @@ struct waiter { };
 %constant int GENSIO_NETTYPE_IPV6 = GENSIO_NETTYPE_IPV6;
 %constant int GENSIO_NETTYPE_UNIX = GENSIO_NETTYPE_UNIX;
 
+%constant int GE_NOERR = GE_NOERR;
+%constant int GE_NOMEM = GE_NOMEM;
+%constant int GE_NOTSUP = GE_NOTSUP;
+%constant int GE_INVAL = GE_INVAL;
+%constant int GE_NOTFOUND = GE_NOTFOUND;
+%constant int GE_EXISTS = GE_EXISTS;
+%constant int GE_OUTOFRANGE = GE_OUTOFRANGE;
+%constant int GE_INCONSISTENT = GE_INCONSISTENT;
+%constant int GE_NODATA = GE_NODATA;
+%constant int GE_OSERR = GE_OSERR;
+%constant int GE_INUSE = GE_INUSE;
+%constant int GE_INPROGRESS = GE_INPROGRESS;
+%constant int GE_NOTREADY = GE_NOTREADY;
+%constant int GE_TOOBIG = GE_TOOBIG;
+%constant int GE_TIMEDOUT = GE_TIMEDOUT;
+%constant int GE_RETRY = GE_RETRY;
+%constant int GE_KEYNOTFOUND = GE_KEYNOTFOUND;
+%constant int GE_CERTREVOKED = GE_CERTREVOKED;
+%constant int GE_CERTEXPIRED = GE_CERTEXPIRED;
+%constant int GE_KEYINVALID = GE_KEYINVALID;
+%constant int GE_NOCERT = GE_NOCERT;
+%constant int GE_CERTINVALID = GE_CERTINVALID;
+%constant int GE_PROTOERR = GE_PROTOERR;
+%constant int GE_COMMERR = GE_COMMERR;
+%constant int GE_IOERR = GE_IOERR;
+%constant int GE_REMCLOSE = GE_REMCLOSE;
+%constant int GE_HOSTDOWN = GE_HOSTDOWN;
+%constant int GE_CONNREFUSE = GE_CONNREFUSE;
+%constant int GE_DATAMISSING = GE_DATAMISSING;
+%constant int GE_CERTNOTFOUND = GE_CERTNOTFOUND;
+%constant int GE_AUTHREJECT = GE_AUTHREJECT;
+%constant int GE_ADDRINUSE = GE_ADDRINUSE;
+%constant int GE_INTERRUPTED = GE_INTERRUPTED;
+%constant int GE_SHUTDOWN = GE_SHUTDOWN;
+%constant int GE_LOCALCLOSED = GE_LOCALCLOSED;
+%constant int GE_PERM = GE_PERM;
+%constant int GE_APPERR = GE_APPERR;
+
 %constant char *version = gensio_version_string;
 
 %extend gensio {
