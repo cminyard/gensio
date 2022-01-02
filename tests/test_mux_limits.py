@@ -16,6 +16,7 @@ class MuxHandler:
         self.waiter = gensio.waiter(o)
         self.expect_close = -1
         self.op_count = 0
+        self.op_err = 0
         return
 
     def read_callback(self, io, err, buf, auxdata):
@@ -50,11 +51,16 @@ class MuxHandler:
         if (self.channels[i]):
             raise HandlerException(
                 "Got channel %d, but it already exists" % i)
-        self.channels[i] = io2
-        io2.set_cbs(self)
+        err = 0
+        if self.op_err:
+            err = self.op_err
+            self.op_err = 0
+        else:
+            self.channels[i] = io2
+            io2.set_cbs(self)
+            io2.read_cb_enable(True)
         self.dec_op_count()
-        io2.read_cb_enable(True)
-        return 0
+        return err
 
     def new_connection(self, acc, io):
         self.new_channel(None, io, None)
@@ -80,13 +86,24 @@ class MuxHandler:
         self.op_count = nr
         return
 
+    def set_op_err(self, err):
+        self.op_err = err
+        return
+
     def open_done(self, io, err):
         i = int(io.control(0, gensio.GENSIO_CONTROL_GET,
                            gensio.GENSIO_CONTROL_SERVICE, None))
-        if (err):
+        if self.op_err:
+            if self.op_err != err:
+                raise HandlerException(
+                    "Bad error opening channel %d: got %s, expected %s" %
+                    (i, err, str(self.op_err)))
+            self.op_err = 0
+        elif (err):
             raise HandlerException(
                 "Error opening channel %d: %s" % (i, err))
-        io.read_cb_enable(True)
+        if not err:
+            io.read_cb_enable(True)
         self.dec_op_count()
         return
 
@@ -163,6 +180,24 @@ if (handlemuxacc.wait(timeout = 1000) == 0):
     raise HandlerException(
         "Timeout waiting for single server close finish")
 
+print("Open that channel again and reject the open")
+handlemuxacc.set_op_count(1)
+handlemuxacc.set_op_err(gensio.GE_APPERR)
+handlemuxcl.set_op_count(1)
+handlemuxcl.set_op_err("Application error")
+handlemuxcl.channels[3] = muxcl.alloc_channel(["service=3"],
+                                              handlemuxcl)
+handlemuxcl.channels[3].open(handlemuxcl)
+
+if (handlemuxcl.wait(timeout = 1000) == 0):
+    raise HandlerException(
+        "Timeout waiting for client error open finish")
+if (handlemuxacc.wait(timeout = 1000) == 0):
+    raise HandlerException(
+        "Timeout waiting for server error open finish")
+handlemuxcl.channels[3] = None
+handlemuxacc.wait(timeout = 1)
+
 print("Open that channel again")
 handlemuxacc.set_op_count(1)
 handlemuxcl.set_op_count(1)
@@ -172,10 +207,10 @@ handlemuxcl.channels[3].open(handlemuxcl)
 
 if (handlemuxcl.wait(timeout = 1000) == 0):
     raise HandlerException(
-        "Timeout waiting for client singe close finish")
+        "Timeout waiting for client single open finish")
 if (handlemuxacc.wait(timeout = 1000) == 0):
     raise HandlerException(
-        "Timeout waiting for server single close finish")
+        "Timeout waiting for server single open finish")
 
 print("Close all channels")
 handlemuxcl.set_expect_close(-1)
@@ -194,6 +229,7 @@ if (handlemuxcl.wait(timeout = 2000) == 0):
 if (handlemuxacc.wait(timeout = 2000) == 0):
     raise HandlerException(
         "Timeout waiting for server all close finish")
+handlemuxacc.wait(timeout = 1)
 
 print("Re-open the mux")
 handlemuxacc.set_op_count(1)
