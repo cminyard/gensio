@@ -82,8 +82,8 @@ A new channel has been created by the remote end of the connection.
 The new channel gensio is in buf and must be cast.  Information about
 the channel will be passed in
 .B auxdata,
-see documentation on the particular gensio for details.  The return
-value is ignored.
+see documentation on the particular gensio for details.  If this
+returns an error (non-zero) the channel is shut down.
 
 .SS "GENSIO_EVENT_SEND_BREAK"
 Got a request from the other end to send a break.  Telnet client or
