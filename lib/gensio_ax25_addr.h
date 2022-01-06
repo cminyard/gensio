@@ -25,6 +25,9 @@ struct gensio_ax25_subaddr {
 bool ax25_subaddr_equal(const struct gensio_ax25_subaddr *a1,
 			const struct gensio_ax25_subaddr *a2);
 
+/* Doesn't include terminating '\0' */
+#define GENSIO_AX25_MAX_SUBADDR_STR_LEN 10
+
 /* Convert a string to/from a subaddress. */
 int ax25_str_to_subaddr(const char *s, struct gensio_ax25_subaddr *a,
 			bool is_cr);
@@ -42,6 +45,14 @@ struct gensio_ax25_addr {
     struct gensio_ax25_subaddr src;
     struct gensio_ax25_subaddr extra[GENSIO_AX25_ADDR_MAX_EXTRA];
 };
+
+/*
+ * Doesn't include terminating '\0'. 10 subaddresses plus a colon
+ * between each plus the "ax25:<tnc>," at the beginning.
+ */
+#define GENSIO_AX25_MAX_ADDR_STR_LEN \
+    ((GENSIO_AX25_MAX_SUBADDR_STR_LEN * (GENSIO_AX25_ADDR_MAX_EXTRA + 2)) + \
+      (GENSIO_AX25_ADDR_MAX_EXTRA + 1 + 8))
 
 #define addr_to_ax25(a) gensio_container_of(a, struct gensio_ax25_addr, r)
 

@@ -119,7 +119,8 @@ class HandleData:
             self.io.read_cb_enable(True)
         return
 
-    def set_compare_oob(self, to_compare, start_reader = True, stream = None):
+    def set_compare_oob(self, to_compare, start_reader = True, stream = None,
+                        auxdata = None):
         """Set some oob data to compare
 
         If start_reader is true (default), it enable the read callback.
@@ -127,7 +128,7 @@ class HandleData:
         """
         self.compared_oob = 0
         self.stream = stream
-        self.compare_auxdata = None
+        self.compare_auxdata = auxdata
         self.to_compare_oob = conv_to_bytes(to_compare)
         if (start_reader):
             self.io.read_cb_enable(True)
