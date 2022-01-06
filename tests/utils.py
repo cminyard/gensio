@@ -739,12 +739,14 @@ class TestAccept:
                  io1_dummy_write = None, do_close = True,
                  expected_raddr = None, expected_acc_laddr = None,
                  chunksize = 10240, get_port = True, except_on_log = False,
-                 is_sergensio = False, enable_oob = False):
+                 is_sergensio = False, enable_oob = False, timeout = 0,
+                 close_timeout = 1000):
         self.o = o
         self.io1 = None
         self.io2 = None
         self.acc = None
         self.enable_oob = enable_oob
+        self.close_timeout = close_timeout;
 
         try:
             self.except_on_log = except_on_log
@@ -820,7 +822,10 @@ class TestAccept:
                                                    self.io2.handler.name)) +
                                 ("Timed out waiting for dummy read at byte %d" %
                                      self.io2.handler.compared))
-            tester(self.io1, self.io2)
+            if timeout > 0:
+                tester(self.io1, self.io2, timeout=timeout)
+            else:
+                tester(self.io1, self.io2)
             if do_close:
                 self.close()
         except:
@@ -836,7 +841,7 @@ class TestAccept:
         # Close the accepter first.  Some accepters (like conacc) will
         # re-open when the child closes.
         self.acc.shutdown_s()
-        io_close((self.io1, self.io2))
+        io_close((self.io1, self.io2), timeout = self.close_timeout)
 
         # Break all the possible circular references.
         self.io1 = None
@@ -865,8 +870,8 @@ class TestAccept:
     def wait_timeout(self, timeout):
         return self.waiter.wait_timeout(1, timeout)
 
-def do_test(io1, io2):
-    test_dataxfer(io1, io2, "This is a test string!")
+def do_test(io1, io2, timeout = 1000):
+    test_dataxfer(io1, io2, "This is a test string!", timeout = timeout)
     print("  Success!")
 
 def do_small_test(io1, io2, timeout=2000):
