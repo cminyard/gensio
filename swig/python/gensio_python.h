@@ -114,15 +114,17 @@ swig_finish_call_rv_gensiods(swig_cb_val *cb, const char *method_name,
 {
     PyObject *o;
     gensiods rv = 0;
+    /* cb can go away in the callback, fetch the class here. */
+    PyObject *t = PyObject_GetAttrString(cb, "__class__");
 
     o = swig_finish_call_rv(cb, method_name, args, optional);
     if (o) {
 	rv = PyLong_AsUnsignedLong(o);
 	if (PyErr_Occurred()) {
-	    PyObject *t = PyObject_GetAttrString(cb, "__class__");
 	    PyObject *c = PyObject_GetAttrString(t, "__name__");
 	    const char *class = OI_PI_AsString(c);
 
+	    Py_DECREF(c);
 	    PyErr_Format(PyExc_RuntimeError, "gensio callback: "
 			 "Class '%s' method '%s' did not return "
 			 "an integer\n", class, method_name);
@@ -130,6 +132,7 @@ swig_finish_call_rv_gensiods(swig_cb_val *cb, const char *method_name,
 	}
 	Py_DECREF(o);
     }
+    Py_DECREF(t);
 
     return rv;
 }
