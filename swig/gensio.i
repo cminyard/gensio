@@ -552,7 +552,7 @@ struct waiter { };
 
 	data = alloc_gensio_data(olddata->o, handler);
 	if (!data) {
-	    err_handle("gensio alloc channel", rv);
+	    err_handle("gensio alloc channel", GE_NOMEM);
 	    return NULL;
 	}
 
