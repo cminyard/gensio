@@ -72,7 +72,7 @@ class EventHandler:
         """
         return
 
-    def new_channel(self, old_io, new_io):
+    def new_channel(self, old_io, new_io, auxdata):
         """A new channel has been requested from the other end.
 
         old_io - an existing channel on a mux gensio
@@ -460,7 +460,7 @@ class gensio:
         """
         return
 
-    def open_channel(self, args, handler, done):
+    def alloc_channel(self, args, handler):
         """Create a new channel on the gensio.  This is gensio-specific, most
         gensios don't support channels.
 
@@ -468,13 +468,6 @@ class gensio:
         handler -- The EventHandler object to receive events for the channel.
         done -- An OpenDone type class whose open_done() method is called
             when the open is complete.
-        """
-        return
-
-    def open_channel_s(self, args, handler):
-        """Like open_channel(), but waits for the open to complete and raises
-        an exception on an error.  The wait operation is a normal
-        waiter, so gensio is fully operational during the wait.
         """
         return
 
