@@ -79,7 +79,7 @@ class EventHandler:
         new_io - a new channel for the mux gensio
 
         Return an integer. If you return 0, the new channel is
-        accepted.  If you return non-zero, it is considered a gensio
+        accepted.  If you return a GE_xxx erro, it is considered a gensio
         error and that error is reported as an open channel failure on
         the remote end.  If you return non-zero, the new_io is freed,
         you should not use it.
@@ -646,8 +646,18 @@ class gensio:
         """
         return None
 
+    def same_as(self, other):
+        """Compare two gensios to see if they are the same.
+
+        Due to the way python works, you can hold two different
+        pointers to the same gensio.  This compares the base data and
+        returns True if two gensio object are the same, False if not.
+        """
+        return False
+
 class SergensioDone:
-    """These are methods called when a sergensio request from a client
+
+        """These are methods called when a sergensio request from a client
     completes.  Note that the base code may not honor the request or
     may choose a different value than requested.  Check the returned
     value to be sure.  Also, an error may occur, if the err value is

@@ -774,6 +774,10 @@ struct waiter { };
 	    ref_gensio_data(data);
 	return sio;
     }
+
+    bool same_as(struct gensio *other) {
+	return self == other;
+    }
 }
 
 %define sgensio_entry(name)
