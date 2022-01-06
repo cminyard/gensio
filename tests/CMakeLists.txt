@@ -151,6 +151,12 @@ set_tests_properties(test_file PROPERTIES SKIP_RETURN_CODE 77)
 add_test(NAME test_dummy
          COMMAND runtest test_dummy.py)
 set_tests_properties(test_dummy PROPERTIES SKIP_RETURN_CODE 77)
+add_test(NAME test_ax25_small
+         COMMAND runtest test_ax25_small.py)
+set_tests_properties(test_ax25_small PROPERTIES SKIP_RETURN_CODE 77)
+add_test(NAME test_ax25_basics
+         COMMAND runtest test_ax25_basics.py)
+set_tests_properties(test_ax25_basics PROPERTIES SKIP_RETURN_CODE 77)
 
 add_test(NAME oomtest0
          COMMAND runtest oomtest -t 0 ${PROJECT_BINARY_DIR}/tools/gensiot)
@@ -197,6 +203,9 @@ set_tests_properties(oomtest13 PROPERTIES SKIP_RETURN_CODE 77)
 add_test(NAME oomtest14
          COMMAND runtest oomtest -t 14 ${PROJECT_BINARY_DIR}/tools/gensiot)
 set_tests_properties(oomtest14 PROPERTIES SKIP_RETURN_CODE 77)
+add_test(NAME oomtest15
+         COMMAND runtest oomtest -t 15 ${PROJECT_BINARY_DIR}/tools/gensiot)
+set_tests_properties(oomtest15 PROPERTIES SKIP_RETURN_CODE 77)
 
 #
 # If you get certauth fuzz failures, they will be in the
