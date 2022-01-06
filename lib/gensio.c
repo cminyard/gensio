@@ -3624,6 +3624,10 @@ int
 gensio_addr_to_str(const struct gensio_addr *addr,
 		   char *buf, gensiods *pos, gensiods buflen)
 {
+    gensiods dummypos = 0;
+
+    if (!pos)
+	pos = &dummypos;
     return addr->o->addr_to_str(addr, buf, pos, buflen);
 }
 
