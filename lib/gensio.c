@@ -296,8 +296,6 @@ struct gensio {
     struct gensio_sync_io *sync_io;
 
     struct gensio_link link;
-
-    struct gensio_link glink;
 };
 
 static struct gensio_os_funcs *o_base;
