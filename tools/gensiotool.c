@@ -172,6 +172,7 @@ struct gtconn_info {
     struct gtinfo *g;
     struct gensio *user_io;
     struct gensio *io;
+    struct gensio *close_io;
     const char *ios;
     bool close_done;
 };
@@ -267,7 +268,7 @@ i_io_closed(struct gensio *io, void *close_data)
     if (ioinfo_io(ioinfo) == NULL)
 	gensio_free(io);
     gtconn->close_done = true;
-    gtconn->io = NULL;
+    gtconn->close_io = NULL;
     check_finish(ioinfo);
 }
 
@@ -294,10 +295,11 @@ i_gshutdown(struct ioinfo *ioinfo, bool user_req)
 
     if (gtconn->io) {
 	ioinfo_set_not_ready(ioinfo);
-	err = gensio_close(gtconn->io, io_closed, NULL);
-	if (err)
-	    i_io_closed(gtconn->io, NULL);
+	gtconn->close_io = gtconn->io;
 	gtconn->io = NULL;
+	err = gensio_close(gtconn->close_io, io_closed, NULL);
+	if (err)
+	    i_io_closed(gtconn->close_io, NULL);
     }
     if (ogtconn->io) {
 	/*
@@ -305,10 +307,11 @@ i_gshutdown(struct ioinfo *ioinfo, bool user_req)
 	 * for oomtest to work it has to get that failure.  So let it
 	 * report the error if it happens.
 	 */
-	err = gensio_close(ogtconn->io, io_closed, NULL);
-	if (err)
-	    i_io_closed(ogtconn->io, NULL);
+	ogtconn->close_io = ogtconn->io;
 	ogtconn->io = NULL;
+	err = gensio_close(ogtconn->close_io, io_closed, NULL);
+	if (err)
+	    i_io_closed(ogtconn->close_io, NULL);
     }
     if (!g->err && !user_req)
 	g->err = GE_IOERR;
@@ -597,10 +600,11 @@ i_handle_term(struct gtinfo *g)
 
 	closed_one = true;
 	if (gtconn->io) {
-	    err = gensio_close(gtconn->io, io_closed, NULL);
-	    if (err)
-		i_io_closed(gtconn->io, NULL);
+	    gtconn->close_io = gtconn->io;
 	    gtconn->io = NULL;
+	    err = gensio_close(gtconn->close_io, io_closed, NULL);
+	    if (err)
+		i_io_closed(gtconn->close_io, NULL);
 	}
     }
     if (!closed_one)
