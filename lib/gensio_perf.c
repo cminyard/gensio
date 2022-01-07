@@ -113,7 +113,7 @@ perfna_new_child(void *acc_data, void **finish_data,
 static int
 perfna_finish_parent(void *acc_data, void *finish_data, struct gensio *io)
 {
-    gensio_set_is_packet(io, true);
+    gensio_set_attr_from_child(io, gensio_get_child(io, 0));
     return 0;
 }
 
