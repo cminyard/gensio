@@ -495,9 +495,11 @@ stdion_set_read_callback_enable(struct gensio *io, bool enabled)
     struct stdiona_data *nadata = schan->nadata;
 
     stdiona_lock(nadata);
-    if ((!schan->in_close && schan->closed) || !schan->io)
+    if (schan->read_enabled == enabled)
 	goto out_unlock;
     schan->read_enabled = enabled;
+    if ((!schan->in_close && schan->closed) || !schan->io)
+	goto out_unlock;
     if (schan->in_read || schan->in_open ||
 			(schan->data_pending_len && !enabled)) {
 	/* Nothing to do, let the read handling wake things up. */
@@ -520,11 +522,11 @@ stdion_set_write_callback_enable(struct gensio *io, bool enabled)
     struct stdiona_data *nadata = schan->nadata;
 
     stdiona_lock(nadata);
-    if ((!schan->in_close && schan->closed) || !schan->in_iod)
-	goto out_unlock;
     if (schan->xmit_enabled == enabled)
 	goto out_unlock;
     schan->xmit_enabled = enabled;
+    if ((!schan->in_close && schan->closed) || !schan->in_iod)
+	goto out_unlock;
     if (schan->in_open)
 	goto out_unlock;
     if (schan->in_iod) { /* Could be in the middle of close. */
