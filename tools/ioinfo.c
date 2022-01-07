@@ -124,7 +124,8 @@ ioinfo_sendoob(struct ioinfo *ioinfo, struct ioinfo_oob *oobinfo)
 	ioinfo->oob_head = oobinfo;
     ioinfo->oob_tail = oobinfo;
     gensio_os_funcs_unlock(o, ioinfo->lock);
-    gensio_set_write_callback_enable(ioinfo->io, true);
+    if (ioinfo->ready)
+	gensio_set_write_callback_enable(ioinfo->io, true);
 }
 
 static bool
@@ -197,7 +198,11 @@ io_event(struct gensio *io, void *user_data, int event, int err,
     static const char *oobaux[2] = { "oob", NULL };
 
     if (err) {
+	gensio_os_funcs_lock(o, ioinfo->lock);
 	gensio_set_read_callback_enable(ioinfo->io, false);
+	gensio_set_write_callback_enable(ioinfo->io, false);
+	ioinfo->ready = false;
+	gensio_os_funcs_unlock(o, ioinfo->lock);
 	if (err != GE_REMCLOSE) {
 	    ioinfo_err(ioinfo, "read error: %s", gensio_err_to_str(err));
 	    ioinfo->uh->shutdown(ioinfo, false);
@@ -252,7 +257,8 @@ io_event(struct gensio *io, void *user_data, int event, int err,
 		if (rv != GE_REMCLOSE)
 		    ioinfo_err(rioinfo, "write error(1): %s",
 			       gensio_err_to_str(rv));
-		gensio_set_read_callback_enable(ioinfo->io, false);
+		if (ioinfo->ready)
+		    gensio_set_read_callback_enable(ioinfo->io, false);
 		gensio_os_funcs_unlock(o, rioinfo->lock);
 		ioinfo->uh->shutdown(ioinfo, rv == GE_REMCLOSE);
 		return 0;
@@ -263,13 +269,14 @@ io_event(struct gensio *io, void *user_data, int event, int err,
 	     * disabled for now.  The remote gensio coming ready will
 	     * enable read again.
 	     */
-	    if (rioinfo->ready)
-		gensio_set_write_callback_enable(rioinfo->io, false);
+	    if (ioinfo->ready)
+		gensio_set_read_callback_enable(ioinfo->io, false);
 	    count = 0;
 	}
 	if (count < *buflen) {
 	    *buflen = count;
-	    gensio_set_read_callback_enable(ioinfo->io, false);
+	    if (ioinfo->ready)
+		gensio_set_read_callback_enable(ioinfo->io, false);
 	    if (rioinfo->ready)
 		gensio_set_write_callback_enable(rioinfo->io, true);
 	} else if (escapepos >= 0) {
@@ -299,6 +306,7 @@ io_event(struct gensio *io, void *user_data, int event, int err,
 			   gensio_err_to_str(rv));
 		gensio_set_write_callback_enable(ioinfo->io, false);
 		gensio_set_read_callback_enable(ioinfo->io, false);
+		ioinfo->ready = false;
 		gensio_os_funcs_unlock(o, ioinfo->lock);
 		ioinfo->uh->shutdown(ioinfo, false);
 		return 0;
