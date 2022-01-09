@@ -430,7 +430,7 @@ stdion_deferred_op(struct gensio_runner *runner, void *cbdata)
 
     if (schan->deferred_read) {
 	schan->deferred_read = false;
-	while (schan->read_enabled &&
+	while (schan->read_enabled && schan->io &&
 	       (schan->ll_err || schan->data_pending_len))
 	    stdion_finish_read(schan, 0);
     }
