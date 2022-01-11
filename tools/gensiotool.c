@@ -670,7 +670,7 @@ io_acc_event(struct gensio_accepter *accepter, void *user_data,
 		goto out_unlock;
 	    }
 	} else {
-	    gensio_free(data);
+	    gensio_free(io);
 	}
 	if (!g->server_mode && g->acc) {
 	    gensio_acc_free(g->acc);
