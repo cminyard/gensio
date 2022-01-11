@@ -50,7 +50,7 @@ def ax25_setup_io(o, name, io, chunksize = 1024, oob = 0):
         h.io.control(0, gensio.GENSIO_CONTROL_SET,
                      gensio.GENSIO_CONTROL_ENABLE_OOB, str(oob))
 
-refl = reflector.Reflector(o, "udp,0", trace = True)
+refl = reflector.Reflector(o, "udp,0", close_on_no_con = True)
 port = refl.get_port()
 print("port is " + port)
 
@@ -91,6 +91,8 @@ if ch2_1.handler.wait_timeout(1000) == 0:
     raise HandlerException("Timed out waiting for channel data write")
 if ch1_1.handler.wait_timeout(1000) == 0:
     raise HandlerException("Timed out waiting for channel data read")
+
+print("Success!")
 
 io_close((ch1_1, ch2_1))
 
