@@ -1656,9 +1656,10 @@ symmetric, so it's not necessary.  An ax25 accepter will take the
 first connection that comes in and deliver it as a gensio, but after
 that there's really no difference.
 
-It also doesn't make much sense to have more than one accept on an
-accepter.  The accepter stuff is there, but it's really not very
-useful except for testing.
+When running as an accepter, incoming connections will be delivered as
+new connections, not new channels.  This allows you to use an ax25
+gensio more naturally underneath a server without having to know about
+ax25 in the code.
 
 So to use this, allocate an ax25 gensio.  If you want to make a
 connection, you must set the laddr to the local address and the addr

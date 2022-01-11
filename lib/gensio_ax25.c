@@ -435,6 +435,9 @@ struct ax25_base {
 
     struct gensio_lock *lock;
 
+    /* If we came from an accepter. */
+    struct gensio_accepter *accepter;
+
     enum ax25_base_state state;
 
     bool locked;
@@ -2336,22 +2339,29 @@ ax25_chan_handle_sabm(struct ax25_base *base, struct ax25_chan *chan,
 		return NULL;
 	    }
 	    ax25_chan_set_extended(chan, extended, data, len);
-	    chan->in_newchannel = 1;
-	    rv = ax25_firstchan_event(base, GENSIO_EVENT_NEW_CHANNEL, 0,
-				      (unsigned char *) chan->io, NULL, NULL);
-	    ax25_chan_lock(chan);
-	    if (rv || chan->in_newchannel == 2) {
-		if (chan->in_newchannel != 2) {
-		    ax25_chan_set_state(chan, AX25_CHAN_CLOSED);
-		    ax25_chan_move_to_closed(chan, &base->chans);
+	    if (base->accepter) {
+		gensio_acc_cb(base->accepter, GENSIO_ACC_EVENT_NEW_CONNECTION,
+			      chan->io);
+		ax25_chan_lock(chan);
+	    } else {
+		chan->in_newchannel = 1;
+		rv = ax25_firstchan_event(base, GENSIO_EVENT_NEW_CHANNEL, 0,
+					  (unsigned char *) chan->io,
+					  NULL, NULL);
+		ax25_chan_lock(chan);
+		if (rv || chan->in_newchannel == 2) {
+		    if (chan->in_newchannel != 2) {
+			ax25_chan_set_state(chan, AX25_CHAN_CLOSED);
+			ax25_chan_move_to_closed(chan, &base->chans);
+		    }
+		    ax25_chan_deref_and_unlock(chan);
+		    ax25_base_send_rsp(base, &addr->r, X25_DM, pf);
+		    chan->in_newchannel = 0;
+		    return NULL;
 		}
-		ax25_chan_deref_and_unlock(chan);
-		ax25_base_send_rsp(base, &addr->r, X25_DM, pf);
 		chan->in_newchannel = 0;
-		return NULL;
 	    }
 	    ax25_chan_ref(chan);
-	    chan->in_newchannel = 0;
 	}
 	ax25_chan_send_rsp(chan, X25_UA, pf);
 	chan->srt = chan->conf.srtv;
@@ -4555,6 +4565,7 @@ ax25a_new_child(struct ax25a_data *adata, void **finish_data,
 	return err;
 
     base = chan->base;
+    base->accepter = adata->acc;
     ncio->new_io = chan->io;
     base->state = AX25_BASE_OPEN;
     base->refcount++;
