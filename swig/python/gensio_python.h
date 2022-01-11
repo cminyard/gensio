@@ -1276,7 +1276,7 @@ static void gensio_mdns_remove_watch_done(struct gensio_mdns_watch *watch,
 
 static void gensio_mdns_cb(struct gensio_mdns_watch *watch,
 			   enum gensio_mdns_data_state state,
-			   int interface, int ipdomain,
+			   int ipinterface, int ipdomain,
 			   const char *name, const char *type,
 			   const char *domain, const char *host,
 			   const struct gensio_addr *addr,
@@ -1298,7 +1298,7 @@ static void gensio_mdns_cb(struct gensio_mdns_watch *watch,
 
     args = PyTuple_New(9);
     PyTuple_SET_ITEM(args, 0, PyBool_FromLong(state == GENSIO_MDNS_NEW_DATA));
-    PyTuple_SET_ITEM(args, 1, PyInt_FromLong(interface));
+    PyTuple_SET_ITEM(args, 1, PyInt_FromLong(ipinterface));
     PyTuple_SET_ITEM(args, 2, PyInt_FromLong(ipdomain));
     PyTuple_SET_ITEM(args, 3, OI_PI_FromStringN(name));
     PyTuple_SET_ITEM(args, 4, OI_PI_FromStringN(type));

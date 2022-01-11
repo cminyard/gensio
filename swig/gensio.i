@@ -1484,7 +1484,7 @@ struct mdns_service { };
     }
 
     %newobject add_service;
-    struct mdns_service *add_service(int interface, int ipdomain,
+    struct mdns_service *add_service(int ipinterface, int ipdomain,
 				     const char *name, const char *type,
 				     const char *domain, const char *host,
 				     int port, const char **txt)
@@ -1494,7 +1494,7 @@ struct mdns_service { };
 
 	if (s) {
 	    rv = gensio_mdns_add_service(self->mdns,
-					 interface, ipdomain, name, type,
+					 ipinterface, ipdomain, name, type,
 					 domain, host, port, txt, &s->service);
 	    if (rv) {
 		free(s);
@@ -1507,7 +1507,7 @@ struct mdns_service { };
     }
 
     %newobject add_watch;
-    struct mdns_watch *add_watch(int interface, int ipdomain,
+    struct mdns_watch *add_watch(int ipinterface, int ipdomain,
 				 const char *name, const char *type,
 				 const char *domain, const char *host,
 				 swig_cb *cb)
@@ -1532,7 +1532,7 @@ struct mdns_service { };
 	    /* Assure w->watch is set for other users. */
 	    gensio_os_funcs_lock(o, w->lock);
 	    rv = gensio_mdns_add_watch(self->mdns,
-				       interface, ipdomain, name, type,
+				       ipinterface, ipdomain, name, type,
 				       domain, host,
 				       gensio_mdns_cb, w, &w->watch);
 	    gensio_os_funcs_unlock(o, w->lock);
