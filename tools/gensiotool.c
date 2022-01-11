@@ -188,7 +188,7 @@ vreport_err(struct gtinfo *g, const char *fmt, va_list ap)
 #endif
     vfprintf(stderr, fmt, ap);
     fprintf(stderr, "\n");
-    fflush(stdout);
+    fflush(stderr);
 }
 
 static void
