@@ -5,6 +5,7 @@
  *  SPDX-License-Identifier: LGPL-2.1-only
  */
 
+#define _GNU_SOURCE /* Get extended getaddrinfo errors. */
 #include "config.h"
 #include <stdbool.h>
 
@@ -12,6 +13,7 @@
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #else
+#include <errno.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -811,7 +813,46 @@ gensio_addr_addrinfo_scan_ips(struct gensio_os_funcs *o, const char *str,
 		rv = 0;
 		goto ignore_getaddr_error;
 	    }
-	    rv = GE_INVAL;
+	    switch (rv) {
+#ifdef EAI_INTR
+	    case EAI_INTR:
+		goto redo_getaddrinfo;
+#endif
+	    case EAI_AGAIN:
+		rv = GE_RETRY;
+		break;
+#ifdef EAI_ADDRFAMILY
+	    case EAI_ADDRFAMILY:
+		rv = GE_NAME_NET_NOT_UP;
+		break;
+#endif
+	    case EAI_BADFLAGS:
+	    case EAI_FAMILY:
+	    case EAI_SOCKTYPE:
+		/* These mean the code here did something wrong. */
+		rv = GE_NAME_INVALID;
+		break;
+	    case EAI_FAIL:
+		rv = GE_NAME_SERVER_FAILURE;
+		break;
+	    case EAI_MEMORY:
+		rv = GE_NOMEM;
+		break;
+#ifdef EAI_ADDRFAMILY
+	    case EAI_NODATA:
+#endif
+	    case EAI_NONAME:
+		rv = GE_NAME_ERROR;
+		break;
+#ifdef EAI_SYSTEM
+	    case EAI_SYSTEM:
+		rv = gensio_os_err_to_err(o, errno);
+		break;
+#endif
+	    default:
+		rv = GE_UNKNOWN_NAME_ERROR;
+		break;
+	    }
 	    goto out_err;
 	}
 	gotaddr = true;

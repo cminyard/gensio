@@ -3599,7 +3599,12 @@ static const char *gensio_errs[] = {
     /*  34 */    "Operation on shutdown fd",
     /*  35 */    "Local end closed connection",
     /*  36 */    "Permission denied",
-    /*  37 */    "Application error"
+    /*  37 */    "Application error",
+    /*  38 */	 "Unknown name server lookup failure",
+    /*  39 */	 "Unable to find a valid name on the name server",
+    /*  40 */	 "Serious name server failure",
+    /*  41 */	 "Invalid name server information",
+    /*  42 */	 "Network address for the given name is not available"
 };
 const unsigned int errno_len = sizeof(gensio_errs) / sizeof(char *);
 

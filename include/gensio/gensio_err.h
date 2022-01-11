@@ -53,6 +53,11 @@ struct gensio_os_funcs;
 #define GE_LOCALCLOSED		35
 #define GE_PERM			36
 #define GE_APPERR		37
+#define GE_UNKNOWN_NAME_ERROR	38
+#define GE_NAME_ERROR		39
+#define GE_NAME_SERVER_FAILURE	40
+#define GE_NAME_INVALID		41
+#define GE_NAME_NET_NOT_UP	42
 
 /*
  * Gensio mux has the ability to return an arbitrary error from the
