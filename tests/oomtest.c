@@ -180,25 +180,23 @@ open_tempfile(char *name, unsigned int len, const char *pattern)
 #endif
 
 bool sleep_on_timeout_err;
+#ifndef _WIN32
+bool kill_on_timeout_err;
+#endif
+struct oom_test_data;
+
+static void handle_timeout_err(struct oom_test_data *od);
 
 static void
-handle_timeout_err(void)
-{
-    while (sleep_on_timeout_err)
-	sleep(100);
-    assert(0);
-}
-
-static void
-l_assert_or_stop(bool val, char *expr, int line)
+l_assert_or_stop(struct oom_test_data *od, bool val, char *expr, int line)
 {
     if (val)
 	return;
     fprintf(stderr, "Assert '%s' failed on line %d\n", expr, line);
     fflush(stderr);
-    handle_timeout_err();
+    handle_timeout_err(od);
 }
-#define assert_or_stop(val) l_assert_or_stop(val, #val, __LINE__)
+#define assert_or_stop(od, val) l_assert_or_stop(od, val, #val, __LINE__)
 
 #if HAVE_LIBSCTP
 #include <sys/socket.h>
@@ -759,8 +757,6 @@ oom_err_to_str(int err)
     }
 }
 
-struct oom_test_data;
-
 struct io_test_data {
     struct gensio *io;
     gensiods write_pos;
@@ -825,6 +821,30 @@ struct ref_trace {
     unsigned int data;
 } ref_trace[512];
 unsigned int ref_trace_pos;
+
+static void
+handle_timeout_err(struct oom_test_data *od)
+{
+#ifndef _WIN32
+    if (kill_on_timeout_err && od->ccon_stderr_io) {
+	int rv;
+	char str[10];
+	gensiods len = sizeof(str);
+
+	rv = gensio_control(od->ccon_stderr_io, GENSIO_CONTROL_DEPTH_FIRST,
+			    GENSIO_CONTROL_GET,
+			    GENSIO_CONTROL_REMOTE_ID, str, &len);
+	if (!rv) {
+	    pid_t pid = strtoul(str, NULL, 0);
+
+	    kill(pid, SIGSEGV);
+	}
+    }
+#endif
+    while (sleep_on_timeout_err)
+	sleep(100);
+    assert(0);
+}
 
 static void
 add_ref_trace(enum ref_trace_op op, unsigned int count, int line,
@@ -989,7 +1009,8 @@ con_cb(struct gensio *io, void *user_data,
     add_ref_trace(ref_inc, err, __LINE__, event);
     assert(id->io == io);
     if (err) {
-	assert_or_stop(!debug || err == GE_REMCLOSE || err == GE_NOTREADY || err == GE_LOCALCLOSED);
+	assert_or_stop(od, !debug || err == GE_REMCLOSE || err == GE_NOTREADY
+		       || err == GE_LOCALCLOSED);
 	gensio_set_write_callback_enable(io, false);
 	gensio_set_read_callback_enable(io, false);
 	if (!id->expect_close || err != GE_REMCLOSE) {
@@ -1272,7 +1293,7 @@ scon_open_done(struct gensio *io, int err, void *open_data)
 		   id->iostr);
 	    fflush(stdout);
 	}
-	assert_or_stop(!debug || err == GE_REMCLOSE || err == GE_INVAL ||
+	assert_or_stop(od, !debug || err == GE_REMCLOSE || err == GE_INVAL ||
 		       err == GE_SHUTDOWN || err == GE_LOCALCLOSED ||
 		       err == GE_NOTREADY);
 	if (err == GE_INVAL)
@@ -1400,7 +1421,7 @@ wait_for_data(struct oom_test_data *od, gensio_time *timeout)
 		      od->ccon.err == OOME_READ_OVERFLOW) {
 	    printf("Waiting on err A: %s\n", gensio_err_to_str(rv));
 	    fflush(stdout);
-	    handle_timeout_err();
+	    handle_timeout_err(od);
 	}
 	if (rv) {
 	    err = rv;
@@ -1444,7 +1465,7 @@ close_con(struct io_test_data *id, gensio_time *timeout)
 	if (rv == GE_TIMEDOUT) {
 	    printf("Waiting on timeout err A\n");
 	    fflush(stdout);
-	    handle_timeout_err();
+	    handle_timeout_err(od);
 	}
 	if (rv == GE_INTERRUPTED) {
 	    rv = 0;
@@ -1484,7 +1505,7 @@ close_stderr(struct oom_test_data *od, gensio_time *timeout)
 	if (rv == GE_TIMEDOUT) {
 	    printf("Waiting on timeout err G1\n");
 	    fflush(stdout);
-	    handle_timeout_err();
+	    handle_timeout_err(od);
 	}
 	if (rv == GE_INTERRUPTED)
 	    continue;
@@ -1510,7 +1531,7 @@ close_stderr(struct oom_test_data *od, gensio_time *timeout)
 	if (rv == GE_TIMEDOUT) {
 	    printf("Waiting on timeout err G\n");
 	    fflush(stdout);
-	    handle_timeout_err();
+	    handle_timeout_err(od);
 	}
 	if (rv == GE_INTERRUPTED)
 	    continue;
@@ -1546,7 +1567,7 @@ close_cons(struct oom_test_data *od, bool close_acc, gensio_time *timeout)
 	if (rv == GE_TIMEDOUT) {
 	    printf("Waiting on timeout err B\n");
 	    fflush(stdout);
-	    handle_timeout_err();
+	    handle_timeout_err(od);
 	}
 	if (rv == GE_INTERRUPTED)
 	    continue;
@@ -1675,7 +1696,7 @@ run_oom_test(struct oom_tests *test, long count, int *exitcode,
 		if (rv == GE_TIMEDOUT) {
 		    printf("Waiting on timeout err C\n");
 		    fflush(stdout);
-		    handle_timeout_err();
+		    handle_timeout_err(od);
 		}
 		if (rv == GE_INTERRUPTED)
 		    continue;
@@ -2109,6 +2130,10 @@ main(int argc, char *argv[])
 	    gensio_set_log_mask(GENSIO_LOG_MASK_ALL);
 	} else if (strcmp(argv[i], "-b") == 0) {
 	    sleep_on_timeout_err = true;
+#ifndef _WIN32
+	} else if (strcmp(argv[i], "-k") == 0) {
+	    kill_on_timeout_err = true;
+#endif
 	} else if (strcmp(argv[i], "-l") == 0) {
 	    list_tests = true;
 	} else if (strcmp(argv[i], "-t") == 0) {
