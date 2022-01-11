@@ -8,8 +8,11 @@ bin_PROGRAMS = gensiot @GMDNS@ @GTLSSH@ @GTLSSH_KEYGEN@
 sbin_PROGRAMS = @GTLSSHD@
 EXTRA_PROGRAMS = gtlsshd gtlssh gmdns gtlssh-keygen
 
-bin_SCRIPTS = @GTLSSYNC@
+bin_SCRIPTS = @GTLSSYNC@ greflector
 EXTRA_SCRIPTS = gtlssync
+
+greflector: $(top_srcdir)/tests/reflector.py
+	cp $< $@
 
 do_subst = sed -e 's,[@]SYSCONFDIR[@],$(sysconfdir),g'
 
@@ -54,4 +57,4 @@ endif
 EXTRA_DIST = $(manpages) CMakeLists.txt gtlssync
 
 clean-local:
-	rm -f gtlssh-keygen
+	rm -f gtlssh-keygen greflector

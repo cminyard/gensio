@@ -1659,7 +1659,21 @@ that there's really no difference.
 When running as an accepter, incoming connections will be delivered as
 new connections, not new channels.  This allows you to use an ax25
 gensio more naturally underneath a server without having to know about
-ax25 in the code.
+ax25 in the code.  For instance, to create a simple AX25 server that
+reflects all incoming data, you could create a reflector:
+.IP
+greflector -t kiss,tcp,1234
+.PP
+then you could create the server:
+.IP
+gensiot -i 'echo' --server -a \\
+.br
+    'ax25(laddr=test-1),conacc,kiss,tcp,localhost,1234'
+.PP
+then you could connect to it:
+.IP
+gensiot 'ax25(laddr=test-2,addr="0,test-1,test-2"),kiss,tcp,localhost,1234'
+.PP
 
 So to use this, allocate an ax25 gensio.  If you want to make a
 connection, you must set the laddr to the local address and the addr

@@ -1,0 +1,39 @@
+.TH greflector 1 01/02/19  "A program for reflecting data to all connected"
+
+.SH NAME
+greflector \- A program that will reflect data to all connections
+
+.SH SYNOPSIS
+.B greflector [-c] [-t] <gensio accepter>
+
+.SH DESCRIPTION
+The
+.B greflector
+program accepts gensio connections on the given accepter.  For all
+connections, if data comes in, it will send that data out to all other
+connections.
+
+This is useful for debugging.  For instance, if you wanted to simulate
+an AX25 KISS TNC connection and the air connecting them, and you wanted to
+observe the data, you could do:
+.IP
+$ greflector -t kiss,tcp,1234
+.PP
+
+.SH OPTIONS
+.TP
+.I \-c
+When all connections have closed, shut down the reflector.
+.TP
+.I \-t
+Trace all connections and incoming data to stdout.
+
+.SH "SEE ALSO"
+gensio(5)
+
+.SH "KNOWN PROBLEMS"
+None.
+
+.SH AUTHOR
+.PP
+Corey Minyard <minyard@acm.org>
