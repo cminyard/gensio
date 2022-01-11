@@ -11,7 +11,7 @@
 #include <ctype.h>
 #include <assert.h>
 #include <gensio/gensio.h>
-#include "gensio_ax25_addr.h"
+#include <gensio/gensio_ax25_addr.h>
 
 bool
 ax25_subaddr_equal(const struct gensio_ax25_subaddr *a1,

@@ -111,7 +111,7 @@
 #include <gensio/gensio_list.h>
 #include <gensio/gensio_time.h>
 #include <gensio/gensio_acc_gensio.h>
-#include "gensio_ax25_addr.h"
+#include <gensio/gensio_ax25_addr.h>
 #include "crc16.h"
 
 #ifdef DEBUG_DATA
