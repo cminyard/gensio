@@ -35,6 +35,7 @@ bool gensio_set_progname(const char *iprogname)
 
 #ifdef _WIN32
 #include <winsock2.h> /* For AF_UNSPEC */
+#include <iphlpapi.h>
 #else
 #include <sys/socket.h>
 #include <arpa/inet.h> /* For AF_UNSPEC */
@@ -312,6 +313,115 @@ gensio_os_get_net_ifs(struct gensio_os_funcs *o,
 		      struct gensio_net_if ***rifs, unsigned int *rnifs)
 {
     struct gensio_net_if **ifs = NULL;
+#ifdef _WIN32
+    IP_ADAPTER_ADDRESSES *t, *c, *p;
+    ULONG err;
+    unsigned int i, j, nifs;
+    ULONG buflen = 15 * 1024;
+
+    while (true) {
+	t = o->zalloc(o, buflen);
+	if (!t)
+	    return GE_NOMEM;
+	err = GetAdaptersAddresses(AF_UNSPEC,
+				   (GAA_FLAG_SKIP_ANYCAST |
+				    GAA_FLAG_SKIP_MULTICAST |
+				    GAA_FLAG_SKIP_DNS_SERVER |
+				    GAA_FLAG_SKIP_FRIENDLY_NAME),
+				   NULL, t, &buflen);
+	if (err == NO_ERROR)
+	    break;
+	o->free(o, t);
+	if (err == ERROR_BUFFER_OVERFLOW) {
+	    /* Just retry */
+	} else if (err == ERROR_NOT_ENOUGH_MEMORY) {
+	    return GE_NOMEM;
+	} else {
+	    return GE_OSERR;
+	}
+    }
+
+    i = 0;
+    for (c = t; c; c = c->Next) {
+	if (c->IfIndex != c->Ipv6IfIndex && c->Ipv6IfIndex != 0)
+	    continue; /* FIXME - Not sure what to do with these. */
+	i++;
+    }
+    nifs = i;
+
+    ifs = gensio_os_funcs_zalloc(o, sizeof(*ifs) * (nifs + 1));
+    if (!ifs)
+	goto out_err;
+
+    i = 0;
+    for (c = t; c; c = c->Next) {
+	IP_ADAPTER_UNICAST_ADDRESS *al;
+	unsigned int slen;
+	size_t rlen;
+
+	if (c->IfIndex != c->Ipv6IfIndex && c->Ipv6IfIndex != 0)
+	    continue; /* FIXME - Not sure what to do with these. */
+
+	ifs[i] = gensio_os_funcs_zalloc(o, sizeof(**ifs));
+	if (!ifs[i])
+	    goto out_err;
+
+	ifs[i]->ifindex = c->IfIndex;
+	if (c->IfType == IF_TYPE_SOFTWARE_LOOPBACK)
+	    ifs[i]->flags |= GENSIO_NET_IF_LOOPBACK;
+	if (c->OperStatus == IfOperStatusUp)
+	    ifs[i]->flags |= GENSIO_NET_IF_UP;
+	if (!c->NoMulticast)
+	    ifs[i]->flags |= GENSIO_NET_IF_MULTICAST;
+	slen = wcslen(c->FriendlyName) * 2;
+	ifs[i]->name = o->zalloc(o, slen + 1);
+	if (!ifs[i]->name)
+	    goto out_err;
+	wcstombs_s(&rlen, ifs[i]->name, slen + 1, c->FriendlyName, slen);
+
+	for (j = 0; al = c->FirstUnicastAddress; j++, al = al->Next)
+	    ;
+	ifs[i]->addrs = o->zalloc(o, sizeof(struct gensio_net_addr) * j);
+	if (!ifs[i]->addrs)
+	    goto out_err;
+	for (j = 0; al = c->FirstUnicastAddress; al = al->Next) {
+	    struct sockaddr *a = (void *) &al->Address.lpSockaddr;
+
+	    if (a->sa_family == AF_INET) {
+		struct sockaddr_in *ia = (void *) a;
+
+		ifs[i]->addrs[j].family = GENSIO_NETTYPE_IPV4;
+		ifs[i]->addrs[j].netbits = al->OnLinkPrefixLength;
+		ifs[i]->addrs[j].addrlen = 4;
+		memcpy(ifs[i]->addrs[j].addr, &ia->sin_addr, 4);
+	    } else if (a->sa_family == AF_INET6) {
+		struct sockaddr_in6 *ia = (void *) a;
+
+		ifs[i]->addrs[j].family = GENSIO_NETTYPE_IPV6;
+		ifs[i]->addrs[j].netbits = al->OnLinkPrefixLength;
+		ifs[i]->addrs[j].addrlen = 16;
+		memcpy(ifs[i]->addrs[j].addr, &ia->sin6_addr, 16);
+	    } else {
+		continue;
+	    }
+	    j++;
+	}
+	ifs[i]->naddrs = j;
+
+	i++;
+	assert(i <= nifs);
+    }
+
+    *rifs = ifs;
+    *rnifs = i;
+
+    return 0;
+ out_err:
+    o->free(o, t);
+    if (ifs)
+	gensio_os_free_net_ifs(o, ifs, nifs);
+    return GE_NOMEM;
+#else
     struct ifaddrs *ifap, *ifp, *ifp2;
     unsigned int i, j, k, nifs = 0, naddrs, addrlen, nbits;
     unsigned char *addr, *netmask;
@@ -449,6 +559,7 @@ gensio_os_get_net_ifs(struct gensio_os_funcs *o,
     if (ifs)
 	gensio_os_free_net_ifs(o, ifs, nifs);
     return rv;
+#endif
 }
 
 const char *

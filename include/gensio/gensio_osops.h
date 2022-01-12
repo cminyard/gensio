@@ -56,6 +56,7 @@ enum gensio_net_if_flags {
 struct gensio_net_addr
 {
     unsigned int family; /* GENSIO_NETTTYPE_xxx */
+    unsigned int flags;
     uint8_t netbits; /* Bits in netmask */
     uint8_t addrlen; /* Bytes in addr. */
     unsigned char addr[16];
@@ -102,6 +103,7 @@ struct stdio_mode;
 
 #ifdef _WIN32
 #include <winsock2.h>
+#include <ws2tcpip.h>
 #include <windows.h>
 
 GENSIO_DLL_PUBLIC
