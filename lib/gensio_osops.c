@@ -313,6 +313,7 @@ gensio_os_get_net_ifs(struct gensio_os_funcs *o,
 		      struct gensio_net_if ***rifs, unsigned int *rnifs)
 {
     struct gensio_net_if **ifs = NULL;
+    char buf[100], *addrtype;
 #ifdef _WIN32
     IP_ADAPTER_ADDRESSES *t, *c, *p;
     ULONG err;
@@ -379,13 +380,13 @@ gensio_os_get_net_ifs(struct gensio_os_funcs *o,
 	    goto out_err;
 	wcstombs_s(&rlen, ifs[i]->name, slen + 1, c->FriendlyName, slen);
 
-	for (j = 0; al = c->FirstUnicastAddress; j++, al = al->Next)
+	for (j = 0, al = c->FirstUnicastAddress; al; j++, al = al->Next)
 	    ;
 	ifs[i]->addrs = o->zalloc(o, sizeof(struct gensio_net_addr) * j);
 	if (!ifs[i]->addrs)
 	    goto out_err;
-	for (j = 0; al = c->FirstUnicastAddress; al = al->Next) {
-	    struct sockaddr *a = (void *) &al->Address.lpSockaddr;
+	for (j = 0, al = c->FirstUnicastAddress; al; al = al->Next) {
+	    struct sockaddr *a = (void *) al->Address.lpSockaddr;
 
 	    if (a->sa_family == AF_INET) {
 		struct sockaddr_in *ia = (void *) a;
@@ -394,6 +395,7 @@ gensio_os_get_net_ifs(struct gensio_os_funcs *o,
 		ifs[i]->addrs[j].netbits = al->OnLinkPrefixLength;
 		ifs[i]->addrs[j].addrlen = 4;
 		memcpy(ifs[i]->addrs[j].addr, &ia->sin_addr, 4);
+		addrtype = "ipv4:";
 	    } else if (a->sa_family == AF_INET6) {
 		struct sockaddr_in6 *ia = (void *) a;
 
@@ -401,9 +403,16 @@ gensio_os_get_net_ifs(struct gensio_os_funcs *o,
 		ifs[i]->addrs[j].netbits = al->OnLinkPrefixLength;
 		ifs[i]->addrs[j].addrlen = 16;
 		memcpy(ifs[i]->addrs[j].addr, &ia->sin6_addr, 16);
+		addrtype = "ipv6:";
 	    } else {
 		continue;
 	    }
+	    memcpy(buf, addrtype, 5);
+	    inet_ntop(a->sa_family, ifs[i]->addrs[j].addr,
+		      buf + 5, sizeof(buf) - 5);
+	    ifs[i]->addrs[j].addrstr = gensio_strdup(o, buf);
+	    if (!ifs[i]->addrs[j].addrstr)
+		goto out_err;
 	    j++;
 	}
 	ifs[i]->naddrs = j;
@@ -412,6 +421,7 @@ gensio_os_get_net_ifs(struct gensio_os_funcs *o,
 	assert(i <= nifs);
     }
 
+    o->free(o, t);
     *rifs = ifs;
     *rnifs = i;
 
@@ -425,9 +435,8 @@ gensio_os_get_net_ifs(struct gensio_os_funcs *o,
     struct ifaddrs *ifap, *ifp, *ifp2;
     unsigned int i, j, k, nifs = 0, naddrs, addrlen, nbits;
     unsigned char *addr, *netmask;
-    bool found;
     int rv;
-    char buf[100], *addrtype;
+    bool found;
 
     rv = getifaddrs(&ifap);
     if (rv) {
