@@ -9,22 +9,20 @@
  * This is an implementation of the AX25 protocol, sort of 2.0 and
  * sort of 2.2, available at http://www.ax25.net.
  *
- * It's not a full 2.2 implementation because that protocol is almost
- * unimplementable.  The XID stuff just doesn't work and I don't see
- * how the segmentation/reassembly could possibly work as described.
+ * It's not a full 2.2 implementation because parts of the protocol
+ * are almost unimplementable.  I don't see how the
+ * segmentation/reassembly could possibly work as described.
  *
  * This code does implement the extended sequence numbers (SABME) from
- * that spec.  Without XID, there is no way to negotiate the size in
- * the standard, and I couldn't understand the XID description in the
- * spec and I couldn't find an implementation.  And it's stupid.
- * Really.  The SABME should carry the information needed to negotiate
- * the various parameters.  4 bytes would be plenty.  So this code
- * implements a extra data field to tell the remote end about the max
- * message size and windows, if extended2 is enabled.  If it gets a
- * FRMR back from the remote end, it falls back to SABME.  If not
- * enabled (the default) it will send a normal SABME, In both cases if
- * it gets a FRMR from a normal SABME it will fall back to 3-bit
- * sequence numbers.
+ * that spec.  XID is implemented, but it's stupid.  Really.  The
+ * SABME should carry the information needed to negotiate the various
+ * parameters.  4 bytes would be plenty.  So this code implements a
+ * extra data field to tell the remote end about the max message size
+ * and windows, if extended2 is enabled.  If it gets a FRMR back from
+ * the remote end, it falls back to SABME.  If not enabled (the
+ * default) it will send a normal SABME, In both cases if it gets a
+ * FRMR from a normal SABME it will fall back to 3-bit sequence
+ * numbers.
  *
  * The extended2 extra data is carried on SABME and UA responses to
  * SABME.  It has the following format:
@@ -128,15 +126,15 @@ enum x25_cmds {
     X25_UA = 0x63,
     X25_FRMR = 0x87,
     X25_UI = 0x03,
-    X25_XID = 0xaf, /* Not implemented. */
-    X25_TEST = 0xe3, /* Not implemented. */
+    X25_XID = 0xaf,
+    X25_TEST = 0xe3,
 
     X25_I = 0x00,
 
     X25_RR = 0x01,
     X25_RNR = 0x05,
     X25_REJ = 0x09,
-    X25_SREJ = 0x0d /* Send side implemented. */
+    X25_SREJ = 0x0d /* Receive side implemented. */
 };
 
 enum ax25_base_state {
@@ -411,6 +409,8 @@ struct ax25_base_cmdrsp {
     uint8_t addrlen;
     uint8_t cr;
     uint8_t crlen;
+    uint8_t extra_data_size;
+    unsigned char extra_data[4];
 };
 #define AX25_BASE_MAX_CMDRSP 16
 
@@ -500,12 +500,13 @@ struct ax25_ui_data {
     uint16_t len;
 };
 
+#define AX25_CHAN_MAX_CMDRSP_EXTRA	32
 struct ax25_chan_cmdrsp {
     uint8_t cr;
     uint8_t pf;
     uint8_t is_cmd;
     uint8_t extra_data_size;
-    unsigned char extra_data[4];
+    unsigned char extra_data[AX25_CHAN_MAX_CMDRSP_EXTRA];
 };
 #define AX25_CHAN_MAX_CMDRSP 8
 
@@ -545,6 +546,7 @@ struct ax25_chan {
     uint8_t readwindow;
     uint8_t writewindow;
     uint16_t max_write_size;
+    unsigned int max_retries;
 
     unsigned int curr_drop;
 
@@ -635,7 +637,7 @@ struct ax25_chan {
     bool poll_pending; /* Timer recovery state. */
 
     /*
-     * SREJ is not currently implemented.
+     * SREJ is not currently implemented on the send side, just the receive.
      * uint8_t srej_count;
      */
 
@@ -1317,6 +1319,8 @@ ax25_chan_deliver_read(struct ax25_chan *chan)
 {
     gensiods rcount;
     struct ax25_data *d;
+    char pidstr[10];
+    const char *auxdata[2] = { pidstr, NULL };
 
     if (chan->in_read)
 	goto check_for_busy;
@@ -1332,11 +1336,21 @@ ax25_chan_deliver_read(struct ax25_chan *chan)
 	}
 
 	d = &(chan->read_data[chan->read_pos]);
-	rcount = d->len;
-	ax25_chan_unlock(chan);
-	gensio_cb(chan->io, GENSIO_EVENT_READ, 0, d->data + d->pos,
-		  &rcount, NULL);
-	ax25_chan_lock(chan);
+	if (d->len > 0) {
+	    if (d->pos == 0) {
+		d->pos++;
+		d->len--;
+	    }
+	    snprintf(pidstr, sizeof(pidstr), "pid:%d", d->data[0]);
+	    ax25_chan_unlock(chan);
+	    rcount = d->len;
+	    gensio_cb(chan->io, GENSIO_EVENT_READ, 0, d->data + d->pos,
+		      &rcount, auxdata);
+	    ax25_chan_lock(chan);
+	} else {
+	    /* No data for a pid. */
+	    rcount = d->len;
+	}
 	if (rcount < d->len) {
 	    d->len -= rcount;
 	    d->pos += rcount;
@@ -1691,7 +1705,8 @@ ax25_chan_schedule_write(struct ax25_chan *chan)
 
 static void
 ax25_base_send_rsp(struct ax25_base *base, struct gensio_addr *addr,
-		   uint8_t rsp, uint8_t pf)
+		   uint8_t rsp, uint8_t pf,
+		   unsigned char *extra, unsigned extra_size)
 {
     struct ax25_base_cmdrsp *cr;
     unsigned int pos;
@@ -1706,6 +1721,9 @@ ax25_base_send_rsp(struct ax25_base *base, struct gensio_addr *addr,
 	/* Set C/R bits to response. */
 	cr->addr[6] &= ~0x80;
 	cr->addr[13] |= 0x80;
+	cr->extra_data_size = extra_size;
+	if (extra)
+	    memcpy(cr->extra_data, extra, extra_size);
 	base->cmdrsp_len++;
 	gensio_set_write_callback_enable(base->child, true);
     }
@@ -1921,7 +1939,7 @@ ax25_t1_timeout(struct ax25_chan *chan)
 
     switch (chan->state) {
     case AX25_CHAN_IN_OPEN:
-	if (chan->retry_count >= chan->conf.max_retries) {
+	if (chan->retry_count >= chan->max_retries) {
 	    chan->err = GE_TIMEDOUT;
 	    ax25_chan_set_state(chan, AX25_CHAN_CLOSED);
 	    ax25_chan_move_to_closed(chan, &base->chans);
@@ -1938,7 +1956,7 @@ ax25_t1_timeout(struct ax25_chan *chan)
     case AX25_CHAN_OPEN:
     case AX25_CHAN_CLOSE_WAIT_DRAIN:
 	if (chan->poll_pending) {
-	    if (chan->retry_count == chan->conf.max_retries) {
+	    if (chan->retry_count == chan->max_retries) {
 		ax25_proto_err(chan->base, chan, "Connection timed out");
 		ax25_chan_send_rsp(chan, X25_DM, 1);
 		chan->err = GE_TIMEDOUT;
@@ -1957,7 +1975,7 @@ ax25_t1_timeout(struct ax25_chan *chan)
 	break;
 
     case AX25_CHAN_IN_CLOSE:
-	if (chan->retry_count >= chan->conf.max_retries) {
+	if (chan->retry_count >= chan->max_retries) {
 	    chan->err = GE_TIMEDOUT;
 	    ax25_chan_do_close(chan, true);
 	} else {
@@ -2069,6 +2087,7 @@ ax25_chan_set_extended(struct ax25_chan *chan, bool extended,
 {
     unsigned int max_pkt;
 
+    chan->max_retries = chan->conf.max_retries;
     if (chan->extended >= 2 && extended && len >= 4) {
 	chan->extended = 2;
 	chan->modulo = 128;
@@ -2320,13 +2339,23 @@ ax25_chan_handle_sabm(struct ax25_base *base, struct ax25_chan *chan,
     int rv;
 
     if (!chan) {
+	if (extended && !base->conf.extended) {
+	    unsigned char extra[3];
+
+	    extra[2] = X25_SABME;
+	    extra[1] = is_cmd << 4;
+	    extra[0] = 1;
+	    ax25_base_send_rsp(base, &addr->r, X25_FRMR, pf, extra, 3);
+	    return 0;
+	}
+
 	if (base->waiting_first_open) {
 	    base->waiting_first_open = false;
 	    chan = ax25_base_promote_first_chan(base);
 	    chan->conf.addr = gensio_addr_dup(&addr->r);
 	    if (!chan->conf.addr) {
 		chan->err = GE_NOMEM;
-		ax25_base_send_rsp(base, &addr->r, X25_DM, pf);
+		ax25_base_send_rsp(base, &addr->r, X25_DM, pf, NULL, 0);
 		ax25_chan_report_open(chan);
 		return NULL;
 	    }
@@ -2339,7 +2368,7 @@ ax25_chan_handle_sabm(struct ax25_base *base, struct ax25_chan *chan,
 	    rv = ax25_chan_alloc(base, NULL, NULL, NULL, AX25_CHAN_OPEN,
 				 &addr->r, false, &chan);
 	    if (rv) {
-		ax25_base_send_rsp(base, &addr->r, X25_DM, pf);
+		ax25_base_send_rsp(base, &addr->r, X25_DM, pf, NULL, 0);
 		return NULL;
 	    }
 	    ax25_chan_set_extended(chan, extended, data, len);
@@ -2359,7 +2388,7 @@ ax25_chan_handle_sabm(struct ax25_base *base, struct ax25_chan *chan,
 			ax25_chan_move_to_closed(chan, &base->chans);
 		    }
 		    ax25_chan_deref_and_unlock(chan);
-		    ax25_base_send_rsp(base, &addr->r, X25_DM, pf);
+		    ax25_base_send_rsp(base, &addr->r, X25_DM, pf, NULL, 0);
 		    chan->in_newchannel = 0;
 		    return NULL;
 		}
@@ -2368,6 +2397,8 @@ ax25_chan_handle_sabm(struct ax25_base *base, struct ax25_chan *chan,
 	    ax25_chan_ref(chan);
 	}
 	ax25_chan_send_rsp(chan, X25_UA, pf);
+	if (chan->extended)
+	    ax25_chan_send_cmd(chan, X25_XID, 1);
 	chan->srt = chan->conf.srtv;
 	chan->t1v = chan->srt * 2;
 	ax25_chan_start_t3(chan);
@@ -2423,7 +2454,7 @@ ax25_chan_handle_disc(struct ax25_base *base, struct ax25_chan *chan,
 		      struct gensio_ax25_addr *addr, uint8_t pf, bool is_cmd)
 {
     if (!chan) {
-	ax25_base_send_rsp(base, &addr->r, X25_DM, pf);
+	ax25_base_send_rsp(base, &addr->r, X25_DM, pf, NULL, 0);
 	return;
     }
 
@@ -2435,7 +2466,7 @@ ax25_chan_handle_disc(struct ax25_base *base, struct ax25_chan *chan,
     case AX25_CHAN_CLOSE_WAIT_DRAIN:
     case AX25_CHAN_IN_CLOSE:
 	/* Channel will be closed, used the base queue. */
-	ax25_base_send_rsp(base, chan->conf.addr, X25_UA, pf);
+	ax25_base_send_rsp(base, chan->conf.addr, X25_UA, pf, NULL, 0);
 	ax25_chan_do_close(chan, true);
 	break;
 
@@ -2569,6 +2600,167 @@ ax25_chan_handle_ua(struct ax25_base *base, struct ax25_chan *chan,
     }
 }
 
+#define AX25_XID_SIZE	29
+static void
+ax25_chan_format_xid(struct ax25_chan *chan, unsigned char *buf)
+{
+    unsigned int i = 0;
+    uint32_t val;
+
+    /* Note that these are big endian, the rest of AX.25 is little. */
+
+    buf[i++] = 0x82; /* FI Format indicator */
+    buf[i++] = 0x80; /* GI Group indicator */
+    val = 25; /* Our group size */
+    buf[i++] = (val >> 8) & 0xff;
+    buf[i++] = val & 0xff;
+
+    buf[i++] = 2; /* PI Classes of Procedures */
+    buf[i++] = 2;
+    val = 0x2100; /* Only half duplex and balanced mode. */
+    buf[i++] = (val >> 8) & 0xff;
+    buf[i++] = val & 0xff;
+
+    buf[i++] = 3; /* PI HDLC Optional Functions */
+    buf[i++] = 3;
+    val = (0x800000 | /* Extended address  */
+	   0x020000 | /* REJ */
+	   0x040000 | /* SREJ */
+	   0x008000 | /* 16 bit FCS */
+	   0x002000 | /* TEST cmd */
+	   0x000800 | /* Modulo 128 */
+	   0x000002); /* synchronous TX */
+    buf[i++] = (val >> 16) & 0xff;
+    buf[i++] = (val >> 8) & 0xff;
+    buf[i++] = val & 0xff;
+
+    buf[i++] = 6; /* PI I Field Length RX */
+    buf[i++] = 2;
+    val = chan->conf.max_read_size * 8;
+    buf[i++] = (val >> 8) & 0xff;
+    buf[i++] = val & 0xff;
+
+    buf[i++] = 8; /* PI Window Size RX */
+    buf[i++] = 1;
+    buf[i++] = chan->conf.readwindow;
+
+    buf[i++] = 9; /* Ack Timeout */
+    buf[i++] = 4;
+    val = chan->conf.srtv * 2;
+    buf[i++] = (val >> 24) & 0xff;
+    buf[i++] = (val >> 16) & 0xff;
+    buf[i++] = (val >> 8) & 0xff;
+    buf[i++] = val & 0xff;
+
+    buf[i++] = 10; /* PI Retries */
+    buf[i++] = 1;
+    buf[i++] = chan->conf.max_retries;
+
+    assert(i == AX25_XID_SIZE);
+}
+
+static void
+ax25_chan_handle_xid(struct ax25_base *base, struct ax25_chan *chan,
+		     struct gensio_ax25_addr *addr, uint8_t pf, bool is_cmd,
+		     unsigned char *buf, unsigned int buflen)
+{
+    unsigned int i = 0, group_len, len;
+
+    if (!chan || chan->state != AX25_CHAN_OPEN)
+	/* Ignore this. */
+	return;
+
+    if (buflen < 4)
+	return;
+
+    if (buf[i++] != 0x82) /* FI Format indicator */
+	return;
+    if (buf[i++] != 0x80) /* GI Group indicator */
+	return;
+    group_len = buf[i++];
+    group_len = (group_len << 8) | buf[i++];
+    buf += 4;
+    buflen -= 4;
+    if (buflen < group_len)
+	return;
+
+    for (; group_len; group_len -= len, buf += len) {
+	unsigned int ind, val, j;
+
+	if (group_len < 2)
+	    return;
+	i = 0;
+	ind = buf[i++];
+	len = buf[i++];
+	if (len < 1 || len > 4)
+	    return;
+	if (group_len < len + 2)
+	    return;
+	for (j = 0, val = 0; j < len; j++)
+	    val = (val << 8) | buf[i++];
+	len += 2;
+	switch(ind) {
+	case 2: /* PI Classes of Procedures */
+	    /* Ignore this, we only really do half duplex. */
+	    break;
+
+	case 3: /* PI HDLC Optional Functions */
+	    /* Ignore this, we only send REJ. */
+	    break;
+
+	case 6: /* PI I Field Length RX */
+	    if (val % 8 != 0) /* This is in bits, needs tobe multiple of 8 */
+		break;
+	    val /= 8;
+	    if (val <= 0)
+		break;
+	    if (val > chan->conf.max_write_size)
+		val = chan->conf.max_write_size;
+	    chan->writewindow = val;
+	    break;
+
+	case 8: /* PI Window Size RX */
+	    if (val <= 0)
+		break;
+	    if (val > chan->conf.writewindow)
+		val = chan->conf.writewindow;
+	    chan->writewindow = val;
+	    break;
+
+	case 9: /* PI Ack Timer */
+	    if (val <= 0)
+		break;
+	    if (val / 2 > chan->conf.srtv)
+		chan->srt = val / 2;
+	    break;
+
+	case 10: /* PI Retries */
+	    if (val <= 0)
+		break;
+	    if (val > chan->conf.max_retries)
+		chan->max_retries = val;
+	    break;
+	}
+    }
+    if (is_cmd)
+	ax25_chan_send_rsp(chan, X25_XID, pf);
+}
+
+static void
+ax25_chan_handle_test(struct ax25_base *base, struct ax25_chan *chan,
+		      struct gensio_ax25_addr *addr, uint8_t pf, bool is_cmd,
+		      unsigned char *buf, unsigned int buflen)
+{
+    if (!chan || chan->state != AX25_CHAN_OPEN)
+	/* Ignore this. */
+	return;
+
+    if (buflen > AX25_CHAN_MAX_CMDRSP_EXTRA)
+	buflen = AX25_CHAN_MAX_CMDRSP_EXTRA;
+
+    ax25_chan_send_cr(chan, X25_TEST, pf, false, buf, buflen);
+}
+
 static void
 ax25_chan_handle_frmr(struct ax25_base *base, struct ax25_chan *chan,
 		      struct gensio_ax25_addr *addr, uint8_t pf, bool is_cmd,
@@ -2592,21 +2784,10 @@ ax25_chan_handle_frmr(struct ax25_base *base, struct ax25_chan *chan,
 
     case AX25_CHAN_OPEN:
     case AX25_CHAN_CLOSE_WAIT_DRAIN:
-	chan->err = GE_REMCLOSE;
-	ax25_chan_stop_t3(chan);
-	ax25_chan_stop_t1(chan);
-	if (chan->state == AX25_CHAN_CLOSE_WAIT_DRAIN)
-	    ax25_chan_do_close(chan, true);
-	else
-	    ax25_chan_do_err_close(chan, true);
-	break;
-
     case AX25_CHAN_IN_CLOSE:
     case AX25_CHAN_REM_DISC:
     case AX25_CHAN_REM_CLOSE:
-	chan->err = GE_REMCLOSE;
-	ax25_chan_stop_t1(chan);
-	ax25_chan_do_close(chan, true);
+	/* Just ignore these. */
 	break;
 
     default:
@@ -3265,6 +3446,14 @@ ax25_child_read(struct ax25_base *base, int ierr,
 	ax25_chan_handle_frmr(base, chan, &addr, pf, is_cmd, buf + pos, buflen);
 	break;
 
+    case X25_XID:
+	ax25_chan_handle_xid(base, chan, &addr, pf, is_cmd, buf + pos, buflen);
+	break;
+
+    case X25_TEST:
+	ax25_chan_handle_test(base, chan, &addr, pf, is_cmd, buf + pos, buflen);
+	break;
+
     case X25_I:
 	err = ax25_chan_handle_i(base, chan, &addr,
 				 nr, ns, pf, is_cmd, buf + pos, buflen);
@@ -3343,7 +3532,7 @@ ax25_child_write_ready(struct ax25_base *base)
     struct ax25_chan_cmdrsp *ccr;
     struct ax25_base_cmdrsp *bcr;
     struct ax25_ui_data *ui;
-    unsigned char crv[2], crc[2];
+    unsigned char crv[2], crc[2], xid[AX25_XID_SIZE];
     struct gensio_sg sg[4];
     gensiods sglen, len, sendcnt;
     int rv;
@@ -3410,10 +3599,22 @@ ax25_child_write_ready(struct ax25_base *base)
 				crv, sg[1].buflen);
 	    len += sg[1].buflen;
 	    sglen = 2;
+	    if (ccr->cr == X25_XID) {
+		sg[sglen].buf = xid;
+		sg[sglen].buflen = sizeof(xid);
+		ax25_chan_format_xid(chan, xid);
+		sglen++;
+		len += sizeof(xid);
+	    } else if (ccr->extra_data_size) {
+		sg[sglen].buf = ccr->extra_data;
+		sg[sglen].buflen = ccr->extra_data_size;
+		sglen++;
+		len += ccr->extra_data_size;
+	    }
 	    if (base->do_crc) {
 		crc16_sg(sg, sglen, crc);
-		sg[3].buf = crc;
-		sg[3].buflen = 2;
+		sg[sglen].buf = crc;
+		sg[sglen].buflen = 2;
 		sglen++;
 		len += 2;
 	    }
@@ -3536,7 +3737,6 @@ ax25_child_write_ready(struct ax25_base *base)
 
     while (base->cmdrsp_len > 0) {
 	bcr = &(base->cmdrsp[base->cmdrsp_pos]);
-	/* Set command/response. */
 	sg[0].buf = bcr->addr;
 	sg[0].buflen = bcr->addrlen;
 	len = sg[0].buflen;
@@ -3545,10 +3745,16 @@ ax25_child_write_ready(struct ax25_base *base)
 	sg[1].buflen = 1;
 	len += 1;
 	sglen = 2;
+	if (bcr->extra_data_size) {
+	    sg[sglen].buf = bcr->extra_data;
+	    sg[sglen].buflen = bcr->extra_data_size;
+	    sglen++;
+	    len += bcr->extra_data_size;
+	}
 	if (base->do_crc) {
 	    crc16_sg(sg, sglen, crc);
-	    sg[3].buf = crc;
-	    sg[3].buflen = 2;
+	    sg[sglen].buf = crc;
+	    sg[sglen].buflen = 2;
 	    sglen++;
 	    len += 2;
 	}
@@ -3635,7 +3841,7 @@ ax25_add_crc(unsigned char *buf, gensiods len)
     
 static int
 ax25_chan_send_ui(struct ax25_chan *chan, struct gensio_addr *addr,
-		  gensiods *rcount, gensiods datalen,
+		  gensiods *rcount, uint8_t pid, gensiods datalen,
 		  const struct gensio_sg *sg, gensiods sglen)
 {
     struct ax25_ui_data *ui;
@@ -3643,7 +3849,7 @@ ax25_chan_send_ui(struct ax25_chan *chan, struct gensio_addr *addr,
     gensiods len, pos;
     unsigned int i;
 
-    len = sizeof(*ui) + datalen + ax25_addr_encode_len(addr) + 1;
+    len = sizeof(*ui) + datalen + 1 + ax25_addr_encode_len(addr) + 1;
     if (chan->base->do_crc)
 	len += 2;
     ui = chan->o->zalloc(chan->o, len);
@@ -3654,6 +3860,7 @@ ax25_chan_send_ui(struct ax25_chan *chan, struct gensio_addr *addr,
 
     pos = ax25_addr_encode(buf, addr);
     buf[pos++] = 0x03; /* UI with P/F clear */
+    buf[pos++] = pid; /* UI with P/F clear */
     for (i = 0; i < sglen; i++) {
 	memcpy(buf + pos, sg[i].buf, sg[i].buflen);
 	pos += sg[i].buflen;
@@ -3684,9 +3891,17 @@ ax25_chan_write(struct ax25_chan *chan, gensiods *rcount,
     struct ax25_data *d;
     gensiods len, left, pos;
     unsigned int i;
+    uint8_t pid = 0xf0;
 
     for (len = 0, i = 0; i < sglen; i++)
 	len += sg[i].buflen;
+
+    for (i = 0; auxdata && auxdata[i]; i++) {
+	if (strncmp(auxdata[i], "pid:", 4) == 0) {
+	    pid = strtoul(auxdata[i] + 4, NULL, 0);
+	    break;
+	}
+    }
 
     if (gensio_str_in_auxdata(auxdata, "oob")) {
 	const char *addrstr = NULL;
@@ -3699,7 +3914,7 @@ ax25_chan_write(struct ax25_chan *chan, gensiods *rcount,
 	    rv = GE_NOTREADY;
 	    goto out_unlock;
 	}
-	for (i = 0; auxdata[i]; i++) {
+	for (i = 0; auxdata && auxdata[i]; i++) {
 	    if (strncmp(auxdata[i], "addr:", 5) == 0) {
 		addrstr = auxdata[i] + 5;
 		break;
@@ -3714,7 +3929,7 @@ ax25_chan_write(struct ax25_chan *chan, gensiods *rcount,
 	    rv = 0;
 	    goto out_unlock;
 	}
-	rv = ax25_chan_send_ui(chan, addr, rcount, len, sg, sglen);
+	rv = ax25_chan_send_ui(chan, addr, rcount, pid, len, sg, sglen);
 	gensio_addr_free(addr);
 	goto out_unlock;
     }
@@ -3737,7 +3952,10 @@ ax25_chan_write(struct ax25_chan *chan, gensiods *rcount,
     }
 
     d = &(chan->write_data[chan->write_pos]);
-    for (left = len, pos = 0, i = 0; i < sglen; i++) {
+    *((unsigned char *) d->data) = pid;
+    left = len - 1;
+    pos = 1;
+    for (i = 0; i < sglen; i++) {
 	if (sg[i].buflen > left) {
 	    memcpy(((char *) d->data) + pos, sg[i].buf, left);
 	} else {
@@ -3788,6 +4006,7 @@ i_ax25_chan_open(struct ax25_chan *chan,
     chan->writewindow = chan->conf.writewindow;
     chan->readwindow = chan->conf.readwindow;
     chan->max_write_size = chan->conf.max_write_size;
+    chan->max_retries = chan->conf.max_retries;
     
     chan->err = 0;
 
