@@ -493,6 +493,7 @@ struct ax25_data {
     uint16_t pos;
     uint8_t seq;
     uint8_t present;
+    uint8_t pid;
 };
 
 struct ax25_ui_data {
@@ -1336,21 +1337,12 @@ ax25_chan_deliver_read(struct ax25_chan *chan)
 	}
 
 	d = &(chan->read_data[chan->read_pos]);
-	if (d->len > 0) {
-	    if (d->pos == 0) {
-		d->pos++;
-		d->len--;
-	    }
-	    snprintf(pidstr, sizeof(pidstr), "pid:%d", d->data[0]);
-	    ax25_chan_unlock(chan);
-	    rcount = d->len;
-	    gensio_cb(chan->io, GENSIO_EVENT_READ, 0, d->data + d->pos,
-		      &rcount, auxdata);
-	    ax25_chan_lock(chan);
-	} else {
-	    /* No data for a pid. */
-	    rcount = d->len;
-	}
+	snprintf(pidstr, sizeof(pidstr), "pid:%d", d->pid);
+	ax25_chan_unlock(chan);
+	rcount = d->len;
+	gensio_cb(chan->io, GENSIO_EVENT_READ, 0, d->data + d->pos,
+		  &rcount, auxdata);
+	ax25_chan_lock(chan);
 	if (rcount < d->len) {
 	    d->len -= rcount;
 	    d->pos += rcount;
@@ -2184,9 +2176,16 @@ ax25_chan_handle_ui(struct ax25_base *base, struct gensio_ax25_addr *addr,
     struct gensio_list to_deliver;
     struct gensio_link *l, *l2;
     char addrstr[GENSIO_AX25_MAX_ADDR_STR_LEN];
-    const char *auxdata[3] = { "oob", addrstr, NULL };
+    char pidstr[10];
+    const char *auxdata[4] = { "oob", addrstr, pidstr, NULL };
     gensiods rcount;
 
+    if (len == 0)
+	return;
+
+    snprintf(pidstr, sizeof(pidstr), "pid:%d", *data);
+    data++;
+    len--;
     gensio_list_init(&to_deliver);
     ax25_base_lock(base);
     gensio_list_for_each(&base->chans, l) {
@@ -2833,6 +2832,7 @@ ax25_chan_handle_data(struct ax25_chan *chan, uint8_t ns, uint8_t pf,
 {
     uint8_t pos = add_seq(chan->read_pos, chan->read_len, chan->conf.readwindow);
     struct ax25_data *d;
+    uint8_t pid;
 
     if (chan->own_rcv_bsy) {
 	if (pf) {
@@ -2841,6 +2841,14 @@ ax25_chan_handle_data(struct ax25_chan *chan, uint8_t ns, uint8_t pf,
 	}
 	return 0;
     }
+    if (len == 0) {
+	/* No PID. */
+	ax25_proto_err(chan->base, chan, "I frame too short");
+	return GE_PROTOERR;
+    }
+    pid = *data;
+    data++;
+    len--;
     if (ns == chan->vr) {
 	/* It's what we expect, just deliver it. */
 	if (chan->read_len >= chan->conf.readwindow) {
@@ -2852,6 +2860,7 @@ ax25_chan_handle_data(struct ax25_chan *chan, uint8_t ns, uint8_t pf,
 	chan->in_rej = false;
 	d = &(chan->read_data[pos]);
 	memcpy(d->data, data, len);
+	d->pid = pid;
 	d->len = len;
 	d->pos = 0;
 	d->seq = ns;
@@ -2956,7 +2965,7 @@ ax25_chan_handle_i(struct ax25_base *base, struct ax25_chan *chan,
 	    ax25_proto_err(base, chan, "Received response I frame");
 	    return 0;
 	}
-	if (len > chan->conf.max_read_size) {
+	if (len > chan->conf.max_read_size + 1) { /* + 1 for PID */
 	    ax25_proto_err(base, chan, "Received too large a packet");
 	    return GE_PROTOERR;
 	}
@@ -3532,7 +3541,7 @@ ax25_child_write_ready(struct ax25_base *base)
     struct ax25_chan_cmdrsp *ccr;
     struct ax25_base_cmdrsp *bcr;
     struct ax25_ui_data *ui;
-    unsigned char crv[2], crc[2], xid[AX25_XID_SIZE];
+    unsigned char crv[3], crc[2], xid[AX25_XID_SIZE];
     struct gensio_sg sg[4];
     gensiods sglen, len, sendcnt;
     int rv;
@@ -3656,13 +3665,15 @@ ax25_child_write_ready(struct ax25_base *base)
 	    if (chan->extended) {
 		crv[0] = d->seq << 1;
 		crv[1] = chan->vr << 1; /* Never set P/F on i frames. */
-		sg[1].buflen = 2;
-		len += 2;
+		crv[2] = d->pid;
+		sg[1].buflen = 3;
+		len += 3;
 	    } else {
 		/* Never set P/F on i frames. */
 		crv[0] = (chan->vr << 5) | (d->seq << 1);
-		sg[1].buflen = 1;
-		len += 1;
+		crv[1] = d->pid;
+		sg[1].buflen = 2;
+		len += 2;
 	    }
 	    ax25_chan_trace_msg(chan, SENT, true, 0, crv, sg[1].buflen);
 	    sg[2].buf = d->data;
@@ -3849,7 +3860,8 @@ ax25_chan_send_ui(struct ax25_chan *chan, struct gensio_addr *addr,
     gensiods len, pos;
     unsigned int i;
 
-    len = sizeof(*ui) + datalen + 1 + ax25_addr_encode_len(addr) + 1;
+    /* + 2 for the UI and PID */
+    len = sizeof(*ui) + datalen + ax25_addr_encode_len(addr) + 2;
     if (chan->base->do_crc)
 	len += 2;
     ui = chan->o->zalloc(chan->o, len);
@@ -3952,10 +3964,8 @@ ax25_chan_write(struct ax25_chan *chan, gensiods *rcount,
     }
 
     d = &(chan->write_data[chan->write_pos]);
-    *((unsigned char *) d->data) = pid;
-    left = len - 1;
-    pos = 1;
-    for (i = 0; i < sglen; i++) {
+    d->pid = pid;
+    for (left = len, pos = 0, i = 0; i < sglen; i++) {
 	if (sg[i].buflen > left) {
 	    memcpy(((char *) d->data) + pos, sg[i].buf, left);
 	} else {

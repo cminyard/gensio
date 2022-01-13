@@ -1596,6 +1596,11 @@ don't set that, the TNC is assumed to be zero.  On reading, "tnc:<n>"
 will always be in one of the auxdata fields.  You shouldn't set a TNC
 larger than the configured number of TNCs.
 
+There is a 8-bit protocol field in the AX25 frame call the PID.  This
+is not passed in the data, it is also in the auxdata with the format
+"pid:<n>".  And to set the pid, pass it in the auxdata on write.  If
+you don't set the pid, it defaults to 240 (0xf0).
+
 .SS Options
 kiss supports the following options:
 .TP

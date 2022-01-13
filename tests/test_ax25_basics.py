@@ -66,8 +66,15 @@ io2.write("dummy", [ "oob", "addr:0,dummy-1,dummy-2" ])
 io2.handler.wait_timeout(10)
 
 io2.handler.set_compare_oob("asdf",
-                            auxdata = [ "oob", "addr:ax25:0,AE5KM-2,AE5KM-1" ])
+               auxdata = [ "oob", "addr:ax25:0,AE5KM-2,AE5KM-1", "pid:240" ])
 io1.write("asdf", [ "oob", "addr:0,AE5KM-2,AE5KM-1" ])
+
+if io2.handler.wait_timeout(1000) == 0:
+    raise HandlerException("Timed out waiting for UI data")
+
+io2.handler.set_compare_oob("jkl;",
+               auxdata = [ "oob", "addr:ax25:0,AE5KM-2,AE5KM-1", "pid:100" ])
+io1.write("jkl;", [ "oob", "addr:0,AE5KM-2,AE5KM-1", "pid:100" ])
 
 if io2.handler.wait_timeout(1000) == 0:
     raise HandlerException("Timed out waiting for UI data")
@@ -85,8 +92,8 @@ ax25_setup_io(o, "ch2_1", ch2_1)
 
 print("Sending some data on the new channel")
 rb = os.urandom(1234)
-ch1_1.handler.set_compare(rb)
-ch2_1.handler.set_write_data(rb)
+ch1_1.handler.set_compare(rb, auxdata = ("pid:45",))
+ch2_1.handler.set_write_data(rb, auxdata = ("pid:45",))
 if ch2_1.handler.wait_timeout(1000) == 0:
     raise HandlerException("Timed out waiting for channel data write")
 if ch1_1.handler.wait_timeout(1000) == 0:
