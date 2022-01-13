@@ -1350,7 +1350,7 @@ ax25_chan_deliver_read(struct ax25_chan *chan)
     if (chan->state == AX25_CHAN_REPORT_CLOSE)
 	ax25_chan_check_close(chan);
  check_for_busy:
-    if (!chan->own_rcv_bsy && chan->read_len > 0) {
+    if (!chan->own_rcv_bsy && chan->read_len > chan->conf.readwindow / 2) {
 	chan->own_rcv_bsy = true;
 	ax25_chan_send_ack(chan, 0, false);
     } else if (chan->own_rcv_bsy && chan->read_len == 0) {
