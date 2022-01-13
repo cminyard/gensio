@@ -78,7 +78,8 @@
  * code gets a SABM[E] before it has transferred any data, it will
  * just pretend the previous SABM[E] didn't occur and use the last
  * one, to help in situations where two systems come up at the same
- * time.
+ * time.  It also does a similar thing with UAs, if the system gets
+ * another UA and no data has been received, just ignore the second.
  *
  * When a connection is closed, the code here has a wait drain state
  * that waits for all transmitted data to be acked.  That's pretty
@@ -2390,6 +2391,7 @@ ax25_chan_handle_sabm(struct ax25_base *base, struct ax25_chan *chan,
 	break;
 
     case AX25_CHAN_OPEN:
+	/* If not packets have been received, pretend this is a new sabm. */
 	if (!chan->got_firstmsg)
 	    goto handle_in_open;
 	ax25_proto_err(base, chan, "Data Link Reset");
@@ -2526,6 +2528,10 @@ ax25_chan_handle_ua(struct ax25_base *base, struct ax25_chan *chan,
 	break;
 
     case AX25_CHAN_OPEN:
+	/* If no packets have been received, just ignore this. */
+	if (!chan->got_firstmsg)
+	    break;
+
 	/*
 	 * Do not follow the standard here.  If there is a protocol error,
 	 * just shut the connection down.
