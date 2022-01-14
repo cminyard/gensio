@@ -11,7 +11,7 @@ EXTRA_PROGRAMS = gtlsshd gtlssh gmdns gtlssh-keygen
 bin_SCRIPTS = @GTLSSYNC@ greflector
 EXTRA_SCRIPTS = gtlssync
 
-greflector: $(top_srcdir)/tests/reflector.py
+greflector: $(top_builddir)/tests/reflector.py
 	cp $< $@
 
 do_subst = sed -e 's,[@]SYSCONFDIR[@],$(sysconfdir),g'

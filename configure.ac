@@ -717,5 +717,6 @@ AC_CONFIG_FILES([Makefile
 	man/Makefile
 	examples/Makefile
 	tests/runtest
-	tests/gensios_enabled.py])
+	tests/gensios_enabled.py
+	tests/reflector.py])
 AC_OUTPUT
