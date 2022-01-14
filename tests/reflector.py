@@ -38,10 +38,17 @@ class Reflector:
     written on any other connected socket will be sent to the
     connection.
     """
-    def __init__(self, o, iostr, trace = False, close_on_no_con = False):
+    def __init__(self, o, iostrs, trace = False, close_on_no_con = False):
         self.o = o
-        self.acc = gensio.gensio_accepter(o, iostr, self)
-        self.acc.startup()
+        self.accs = []
+        if hasattr(iostrs, "__iter__"):
+            for i in iostrs:
+                a = gensio.gensio_accepter(o, i, self)
+                self.accs.append(a)
+                a.startup()
+        else:
+            self.accs = [ gensio.gensio_accepter(o, iostrs, self) ]
+            self.accs[0].startup()
         self.ios = [ ]
         self.waiter = gensio.waiter(o)
         self.trace = trace
@@ -52,8 +59,9 @@ class Reflector:
         for i in self.ios:
             i.close_s()
         self.ios = []
-        self.acc.shutdown_s()
-        self.acc = None
+        for i in self.accs:
+            i.shutdown_s()
+        self.accs = []
 
     def new_connection(self, acc, io):
         if self.trace:
@@ -65,11 +73,32 @@ class Reflector:
         io.set_cbs(self)
         io.read_cb_enable(True);
 
-    def get_port(self):
+    def nr_accepters(self):
+        return len(self.accs)
+
+    def get_port(self, acc = 0, inst = 0):
         """Return the port number for the accepter."""
-        return self.acc.control(gensio.GENSIO_CONTROL_DEPTH_FIRST,
-                                gensio.GENSIO_CONTROL_GET,
-                                gensio.GENSIO_ACC_CONTROL_LPORT, "0")
+        try:
+            return self.accs[acc].control(gensio.GENSIO_CONTROL_DEPTH_FIRST,
+                                          gensio.GENSIO_CONTROL_GET,
+                                          gensio.GENSIO_ACC_CONTROL_LPORT,
+                                          str(inst));
+        except Exception as E:
+            if str(E) == "gensio:control: Value or file not found":
+                return None
+            raise
+
+    def get_addr(self, acc = 0, inst = 0):
+        """Return the address string for the accepter."""
+        try:
+            return self.accs[acc].control(gensio.GENSIO_CONTROL_DEPTH_FIRST,
+                                          gensio.GENSIO_CONTROL_GET,
+                                          gensio.GENSIO_ACC_CONTROL_LADDR,
+                                          str(inst));
+        except Exception as E:
+            if str(E) == "gensio:control: Value or file not found":
+                return None
+            raise
 
     def read_callback(self, io, err, buf, auxdata):
         if err:
@@ -123,21 +152,26 @@ if __name__ == "__main__":
     import sys
 
     def print_help():
-        print(sys.argv[0] + " [-t] [-c] <gensio accepter>")
+        print(sys.argv[0] +
+              " [-t] [-c] <gensio accepter> [<gensio accepter>..]")
         print("Program to accept connections and reflect the data to all")
         print("other connections.  Options are:")
         print("  -t - trace all connections and incoming data")
         print("  -c - close the reflector when all connections close")
+        print("  -l - List accepters (with ports) after they are open")
 
     i = 1
     trace = False
     close_on_no_con = False
+    list_accs = False
     while i < len(sys.argv):
         if sys.argv[i][0] == "-":
             if sys.argv[i] == "-t":
                 trace = True
             elif sys.argv[i] == "-c":
                 close_on_no_con = True
+            elif sys.argv[i] == "-l":
+                list_accs = True
             elif sys.argv[i] == "-h":
                 print_help()
                 sys.exit(0)
@@ -158,6 +192,15 @@ if __name__ == "__main__":
             print("***%s log: %s" % (level, log))
 
     o = gensio.alloc_gensio_selector(Logger())
-    refl = Reflector(o, sys.argv[i], trace=trace,
+    refl = Reflector(o, sys.argv[i:], trace=trace,
                      close_on_no_con = close_on_no_con)
+    if list_accs:
+        for i in range(0, refl.nr_accepters()):
+            j = 0
+            s = refl.get_addr(acc = i, inst = j)
+            while s is not None:
+                print("  " + s)
+                j = j + 1
+                s = refl.get_addr(acc = i, inst = j)
+
     refl.wait()

@@ -4,12 +4,12 @@
 greflector \- A program that will reflect data to all connections
 
 .SH SYNOPSIS
-.B greflector [-c] [-t] <gensio accepter>
+.B greflector [-c] [-t] <gensio accepter> [<gensio accepter> [...]]
 
 .SH DESCRIPTION
 The
 .B greflector
-program accepts gensio connections on the given accepter.  For all
+program accepts gensio connections on the given accepters.  For all
 connections, if data comes in, it will send that data out to all other
 connections.
 
@@ -19,6 +19,11 @@ observe the data, you could do:
 .IP
 $ greflector -t kiss,tcp,1234
 .PP
+
+If you want to make a connection instead of accept a connection, use
+the
+.B conacc
+gensio.  See gensio(5) for details.
 
 .SH OPTIONS
 .TP
