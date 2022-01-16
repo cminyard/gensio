@@ -41,7 +41,7 @@ class Reflector:
     def __init__(self, o, iostrs, trace = False, close_on_no_con = False):
         self.o = o
         self.accs = []
-        if hasattr(iostrs, "__iter__"):
+        if type(iostrs) is list or type(iostrs) is tuple:
             for i in iostrs:
                 a = gensio.gensio_accepter(o, i, self)
                 self.accs.append(a)
