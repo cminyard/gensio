@@ -344,7 +344,7 @@ main(int argc, char *argv[])
     if (txt)
 	gensio_argv_free(o, txt);
 
-    if (closewaiter)
+    if (o && closewaiter)
 	gensio_os_funcs_free_waiter(o, closewaiter);
     if (o) {
 	gensio_time endwait = { 0, 0 };

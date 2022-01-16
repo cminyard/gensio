@@ -246,9 +246,9 @@ io_event(struct gensio *io, void *user_data, int event, int err,
 	    }
 	}
 	if (ii->outbuf_len == 0) {
+	    gensio_set_write_callback_enable(ii->io, false);
 	    if (ii->close_on_write && !ii->closing)
 		start_close(ii);
-	    gensio_set_write_callback_enable(ii->io, false);
 	}
 	return 0;
 

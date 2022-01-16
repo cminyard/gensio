@@ -142,8 +142,8 @@ kiss_ul_write(struct gensio_filter *filter,
     unsigned int i, tnc = 0;
     int rv = 0;
 
-    if (!auxdata) {
-	for (i = 0; auxdata && auxdata[i]; i++) {
+    if (auxdata) {
+	for (i = 0; auxdata[i]; i++) {
 	    if (strncmp(auxdata[i], "tnc:", 4) == 0) {
 		char *end;
 

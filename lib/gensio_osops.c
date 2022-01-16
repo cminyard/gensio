@@ -548,6 +548,7 @@ gensio_os_get_net_ifs(struct gensio_os_funcs *o,
 		    nbits++;
 		else
 		    break;
+		v <<= 1;
 	    }
 	}
 	ifs[i]->addrs[j].netbits = nbits;

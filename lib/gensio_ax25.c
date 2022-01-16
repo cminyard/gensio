@@ -4444,7 +4444,8 @@ ax25_scan_laddrs(struct gensio_os_funcs *o, const char *str,
 	    o->free(o, addrs);
 	    return rv;
 	}
-	str = s2 + 1;
+	if (s2)
+	    str = s2 + 1;
     }
     if (*raddrs)
 	o->free(o, *raddrs);

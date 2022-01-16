@@ -110,7 +110,7 @@ gensio_addrinfo_make(struct gensio_os_funcs *o, unsigned int size,
 	    goto out_err;
 	ai->ai_addrlen = size;
     }
-    if (is_recvfrom) {
+    if (is_recvfrom && ai) {
 	/* Tack on two more for room for ifindex and dest addr. */
 	unsigned int i;
 
