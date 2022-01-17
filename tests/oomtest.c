@@ -706,7 +706,10 @@ struct oom_tests oom_tests[] = {
       .no_default_run = true,
       .check_value = HAVE_PTY },
     { "ax25(laddr=test-2,addr=\"0,test-1,test-2\"),kiss(writebuf=512,readbuf=512),tcp,localhost,",
-      "ax25(laddr=test-1),kiss(writebuf=512,readbuf=512),tcp,0" },
+      "ax25(laddr=test-1),kiss(writebuf=512,readbuf=512),tcp,0",
+      /* In this tests some errors will not result in a failure. */
+      .allow_no_err_on_trig = true,
+    },
     { NULL }
 };
 
