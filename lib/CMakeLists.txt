@@ -12,6 +12,7 @@ set(BASE_LIBFILES
   gensio_ll_fd.c
   gensio_udp.c
   gensio.c
+  errtrig.c
   gensio_ll_ipmisol.c
   gensio_certauth.c
   gensio_msgdelim.c
@@ -46,9 +47,9 @@ set(BASE_LIBFILES
   gensio_osops.c
   gensio_osops_env.c
   gensio_filter_kiss.c
-  gensio_kiss.c,
+  gensio_kiss.c
   crc16.c
-  gensio_filter_ax25.c
+  gensio_ax25_addr.c
   gensio_ax25.c
   )
 
