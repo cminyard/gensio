@@ -12,7 +12,7 @@ bin_SCRIPTS = @GTLSSYNC@ greflector
 EXTRA_SCRIPTS = gtlssync
 
 greflector: $(top_builddir)/tests/reflector.py
-	cp $< $@
+	cp $(top_builddir)/tests/reflector.py $@
 
 do_subst = sed -e 's,[@]SYSCONFDIR[@],$(sysconfdir),g'
 
