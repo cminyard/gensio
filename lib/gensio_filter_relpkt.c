@@ -1063,7 +1063,6 @@ relpkt_ll_write(struct relpkt_filter *rfilter,
  protocol_err:
     gensio_log(rfilter->o, GENSIO_LOG_ERR,
 	       "relpkt: protocol error: %s", proto_err_str);
-    assert(0);
     relpkt_unlock(rfilter);
     return GE_PROTOERR;
 }
