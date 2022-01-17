@@ -151,8 +151,34 @@ test_fuzz_relpkt:
 		$(top_builddir)/tools/gensiot --dummyrand relpkt-randfile \
 		-i echo "relpkt(mode=server),msgdelim(crc=off),file(infile=relpkt-infile)"
 
+#
+# If you get ax25 fuzz failures, they will be in the
+# fuzz-results-ax25/crashes or fuzz-results-ax25/hangs directories.
+# To reproduce the failure, in this directory, run:
+#
+# ../tools/gensiot --dummyrand ax25-randfile -i echo 'ax25(laddr=test-1),file(infile="fuzz-results-ax25/[hangs|crashes]/<file>")'
+#
+# where the <file> is the specific failure.
+#
+# NOTE: This runs very slowly because of the timeouts.  It's not
+# really useful as is.  I need to figure out how to make it run
+# faster.
+#
+test_fuzz_ax25:
+	-rm -rf fuzz-test-ax25 fuzz-results-ax25
+	mkdir -p fuzz-test-ax25
+	mkdir -p fuzz-results-ax25
+	$(LOG_COMPILER) $(top_srcdir)/tests/test_fuzz_setup.py \
+		$(top_builddir)/tools/gensiot ax25-randfile \
+		'ax25(laddr=test-2,addr="0,test-1,test-2"),kiss' \
+		'ax25(laddr=test-1),kiss' fuzz-test-ax25/tracefile
+	afl-fuzz -T ax25 -t 10000 \
+		-i fuzz-test-ax25 -o fuzz-results-ax25 -f ax25-infile \
+		$(top_builddir)/tools/gensiot --dummyrand ax25-randfile \
+		-i echo "ax25(laddr=test-1,srt=10,t2=20,t3=30,retries=1),kiss,file(infile=ax25-infile)"
+
 test_fuzz: test_fuzz_certauth test_fuzz_mux test_fuzz_ssl test_fuzz_telnet \
-	test_fuzz_relpkt
+	test_fuzz_relpkt test_fuzz_ax25
 
 clean-local:
 	-rm -rf ca \
