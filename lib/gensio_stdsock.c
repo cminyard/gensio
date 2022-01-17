@@ -964,7 +964,7 @@ gensio_stdsock_recvfrom(struct gensio_iod *iod,
 		 * if this is even right.
 		 */
 		iptr = (uint16_t *) CMSG_DATA(cmsg);
-		if (o->addr_next(addr)) {
+		if (gensio_addr_next(addr)) {
 		    ai = gensio_addr_addrinfo_get_curr(addr);
 		    ai->ai_family = GENSIO_AF_IFINDEX;
 		    inaddr = (struct sockaddr *) ai->ai_addr;
@@ -978,7 +978,7 @@ gensio_stdsock_recvfrom(struct gensio_iod *iod,
 		       cmsg->cmsg_type == IP_RECVDSTADDR) {
 		struct sockaddr_in *inaddr;
 
-		if (o->addr_next(addr)) {
+		if (gensio_addr_next(addr)) {
 		    struct in_addr *iptr;
 
 		    iptr = (struct in_addr *) CMSG_DATA(cmsg);
