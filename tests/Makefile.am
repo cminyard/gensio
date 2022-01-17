@@ -189,4 +189,10 @@ clean-local:
 		ssl-randfile fuzz-test-ssl fuzz-results-ssl \
 		ssl-infile \
 		telnet-randfile fuzz-test-telnet fuzz-results-telnet \
-		telnet-infile __pycache__
+		telnet-infile \
+		relpkt-randfile fuzz-test-relpkt fuzz-results-relpkt \
+		relpkt-infile \
+		ax25-randfile fuzz-test-ax25 fuzz-results-ax25 \
+		ax25-infile \
+		*.log *.trs \
+		__pycache__
