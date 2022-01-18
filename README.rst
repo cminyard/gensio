@@ -240,7 +240,6 @@ kiss
     in many cases.
 
 ax25
-
     An amateur radio protocol for packet radio.  To fully use this you
     would need to write code, since it uses channels and oob data for
     unnumbered information, but you can do basic things with just
@@ -251,16 +250,16 @@ ax25
 
     .. code-block:: bash
 
-    gensiot -i 'stdio(self)' -a \
-        'ax25(laddr=AE5KM-1),kiss,conacc,tcp,localhost,8001'
+      gensiot -i 'stdio(self)' -a \
+          'ax25(laddr=AE5KM-1),kiss,conacc,tcp,localhost,8001'
 
     which will hook to the TNC and wait for a connection on address
     AE5KM-1.  Then you could run:
 
     .. code-block:: bash
 
-    gensiot -i 'stdio(self)' \
-        'ax25(laddr=AE5KM-2,addr="0,AE5KM-1,AE5KM-2"),kiss,tcp,localhost,8001
+      gensiot -i 'stdio(self)' \
+          'ax25(laddr=AE5KM-2,addr="0,AE5KM-1,AE5KM-2"),kiss,tcp,localhost,8001
 
     on the other machine.  This will connect to the other machine over
     TNC 0 with the given address.  Then anything you type in one will
@@ -269,6 +268,53 @@ ax25
     time and you get local echo.  Otherwise every character you types
     would send a packet and you couldn't see what you were typing.
 
+    Of course, this being gensio, you can put any workable gensio
+    underneath ax25 that you would like.  So if you want to play
+    around or test without a radio, you could do ax25 over UDP
+    multicast.  Here's the accepter side:
+
+    .. code-block:: bash
+
+      gensiot -i 'stdio(self)' -a \
+      'ax25(laddr=AE5KM-1),conacc,'\
+      'udp(mcast="ipv4,224.0.0.20",laddr="ipv4,1234",nocon),'\
+      'ipv4,224.0.0.20,1234'
+
+    and here's the connector side:
+
+    .. code-block:: bash
+
+    gensiot -i 'stdio(self)' \
+    'ax25(laddr=AE5KM-2,addr="0,AE5KM-1,AE5KM-2"),'\
+    'udp(mcast="ipv4,224.0.0.20",laddr="ipv4,1234",nocon),'\
+    'ipv4,224.0.0.20,1234'
+
+    kiss is not required because UDP is already a packet-oriented
+    media.  Or you can use the greflector program to create a
+    simulated radio situation.  On the machine "radiopi2", run:
+
+    .. code-block:: bash
+
+      greflector kiss,tcp,1234
+
+    which will create a program that will reflect all received input
+    to all other connections.  Then on the accepter side:
+
+    .. code-block:: bash
+
+      gensiot -i 'stdio(self)' -a \
+      'ax25(laddr=AE5KM-1),kiss,conacc,tcp,radiopi2,1234'
+
+    and the connecting side:
+
+    .. code-block:: bash
+
+      gensiot -i 'stdio(self)' \
+      'ax25(laddr=AE5KM-2,addr="0,AE5KM-1,AE5KM-2"),kiss,tcp,radiopi2,1234'
+
+    The test code uses the reflector for some testing, since it's so
+    convenient to use.
+		  
 These are all documented in detail in gensio(5).  Unless otherwise
 stated, these all are available as accepters or connecting gensios.
 
