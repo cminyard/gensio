@@ -235,6 +235,40 @@ mdns
     have to worry about finding port numbers and such, it's all
     handled for you.
 
+kiss
+    An amateur radio protocol for talking to TNCs.  This is used by AX25
+    in many cases.
+
+ax25
+
+    An amateur radio protocol for packet radio.  To fully use this you
+    would need to write code, since it uses channels and oob data for
+    unnumbered information, but you can do basic things with just
+    gensiot if all you need is one communication channel.  For
+    instance, if you wanted to chat with someone over the radio, and
+    the kiss port is on 8001 on both machines, on the accepting machine
+    you can run:
+
+    .. code-block:: bash
+
+    gensiot -i 'stdio(self)' -a \
+        'ax25(laddr=AE5KM-1),kiss,conacc,tcp,localhost,8001'
+
+    which will hook to the TNC and wait for a connection on address
+    AE5KM-1.  Then you could run:
+
+    .. code-block:: bash
+
+    gensiot -i 'stdio(self)' \
+        'ax25(laddr=AE5KM-2,addr="0,AE5KM-1,AE5KM-2"),kiss,tcp,localhost,8001
+
+    on the other machine.  This will connect to the other machine over
+    TNC 0 with the given address.  Then anything you type in one will
+    appear on the other, a line at a time.  Type "Ctrl-D" to exit.
+    The 'stdio(self)' part turns off raw mode, so it's a line at a
+    time and you get local echo.  Otherwise every character you types
+    would send a packet and you couldn't see what you were typing.
+
 These are all documented in detail in gensio(5).  Unless otherwise
 stated, these all are available as accepters or connecting gensios.
 
