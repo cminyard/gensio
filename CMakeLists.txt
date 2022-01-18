@@ -206,7 +206,7 @@ if(UNIX)
   set(HAVE_PTY 1)
 else()
   set(HAVE_PTY 0)
-  list(APPEND EXTRA_LIBS ws2_32 bcrypt)
+  list(APPEND EXTRA_LIBS ws2_32 bcrypt Iphlpapi)
 endif()
 
 configure_file(config.h.cmake config.h)
