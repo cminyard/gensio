@@ -382,6 +382,8 @@ int main(int argc, char *argv[])
 	Sub_Event se(&w);
 	gensio_time waittime = { 2, 0 };
 	int err2;
+	char buf[10];
+	gensiods len = sizeof(buf);
 
 	cout << "Starting subprogram to act as a server" << endl;
 	s = gensio_quote_string(o, argv[0]);
@@ -422,6 +424,18 @@ int main(int argc, char *argv[])
 	    }
 	}
 	cout << "Closing sub program" << endl;
+	sub->close_s();
+	err2 = sub->control(0, true, GENSIO_CONTROL_EXIT_CODE, buf, &len);
+	if (err2) {
+	    cerr << "Error getting exit code: " << gensio_err_to_str(err2)
+		 << endl;
+	    err = 1;
+	}
+	err2 = strtoul(buf, NULL, 0);
+	if (err2) {
+	    cerr << "Error from subprogram: " << err2 << endl;
+	    err = 1;
+	}
 	sub->free();
 	waittime = { 2, 0 };
 	err2 = w.wait(1, &waittime);
