@@ -12,7 +12,6 @@ set(BASE_LIBFILES
   gensio_ll_fd.c
   gensio_udp.c
   gensio.c
-  errtrig.c
   gensio_ll_ipmisol.c
   gensio_certauth.c
   gensio_msgdelim.c
@@ -69,7 +68,7 @@ endif()
 if(UNIX)
   set(LIBFILES ${BASE_LIBFILES} ${UNIX_LIBFILES} ${ERRTIRG_LIBFILES})
 else()
-  set(LIBFILES ${BASE_LIBFILES} ${WINDOWS_LIBFILES} ${ERRTIRG_LIBFILES})
+  set(LIBFILES ${BASE_LIBFILES} ${WINDOWS_LIBFILES} ${ERRTRIG_LIBFILES})
 endif()
 
 add_library(gensio ${LIBFILES})
