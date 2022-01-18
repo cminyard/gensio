@@ -1288,12 +1288,6 @@ muxc_free(struct mux_inst *chan)
 	goto out_unlock;
     switch (chan->state) {
     case MUX_INST_IN_REM_CLOSE:
-	/*
-	 * We don't call finish_close() in this case, so we need to do
-	 * the deref here instead.
-	 */
-	chan_deref(chan);
-	/* Fallthrough */
     case MUX_INST_IN_CLOSE:
     case MUX_INST_IN_CLOSE_FINAL:
     case MUX_INST_IN_OPEN_CLOSE:
