@@ -707,12 +707,10 @@ namespace gensio {
 	    throw gensio_error(err);
     }
 
-    void Gensio::control(int depth, bool get, unsigned int option,
-			 char *data, gensiods *datalen)
+    int Gensio::control(int depth, bool get, unsigned int option,
+			char *data, gensiods *datalen)
     {
-	int err = gensio_control(io, depth, get, option, data, datalen);
-	if (err)
-	    throw gensio_error(err);
+	return gensio_control(io, depth, get, option, data, datalen);
     }
 
     Gensio *Gensio::get_child(unsigned int depth)

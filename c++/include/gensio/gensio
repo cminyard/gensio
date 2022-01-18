@@ -348,8 +348,8 @@ namespace gensio {
 
 	// Various control operations on a gensio, see
 	// gensio_control.3 for details.
-	void control(int depth, bool get, unsigned int option,
-		     char *data, gensiods *datalen);
+	int control(int depth, bool get, unsigned int option,
+		    char *data, gensiods *datalen);
 
 	// Return the type of the gensio.  If depth is larger than the
 	// stack, returns NULL.
