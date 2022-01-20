@@ -23,6 +23,7 @@ namespace gensio {
     // gensio" and "namespace gensio" in the same namespace.
 #include <gensio/gensio.h>
 #include <gensio/sergensio.h>
+#include <gensio/gensio_mdns.h>
 
     // This is an exception that is raised by gensio operations that
     // get errors.  Most operations raise exceptions, unless otherwise
@@ -121,6 +122,13 @@ namespace gensio {
 	// port.  See gensio_addr_create() in gensio.h for details.
 	Addr(Os_Funcs &o, int nettype, const void *iaddr, gensiods len,
 	     unsigned int port);
+
+	// Allocate an address based on the low-level address.
+	// We assume ethe port is set in this case.
+	Addr(struct gensio_addr *iaddr) {
+	    gaddr = iaddr;
+	    is_port_set = true;
+	}
 
 	// For copying and assignment, we duplicate the low-level
 	// address.  Addresses are immutable and refcounted.
@@ -1019,7 +1027,7 @@ namespace gensio {
 
     protected:
 	virtual void set_accepter(struct gensio_accepter *acc, bool set_cb);
-    Accepter(Os_Funcs &o, Accepter_Event *cb) : go(o), gcb(cb) { }
+	Accepter(Os_Funcs &o, Accepter_Event *cb) : go(o), gcb(cb) { }
 	virtual ~Accepter() { }
 
     private:
@@ -1268,6 +1276,99 @@ namespace gensio {
 	struct gensio_waiter *waiter;
     };
 
+    // Access to the MDNS code
+
+    class MDNS;
+
+    //
+    class GENSIOCPP_DLL_PUBLIC MDNS_Done {
+    public:
+	virtual void done(MDNS *mdns) = 0;
+	virtual ~MDNS_Done() = default;
+    protected:
+	MDNS *m;
+    private:
+	friend void mdns_free_done(struct gensio_mdns *m, void *userdata);
+	friend class MDNS;
+    };
+
+    class GENSIOCPP_DLL_PUBLIC MDNS {
+    public:
+	MDNS(Os_Funcs &o);
+	inline Os_Funcs &get_os_funcs() { return go; }
+	void free(MDNS_Done *done);
+    protected:
+	virtual ~MDNS() { }
+    private:
+	struct gensio_mdns *m;
+	Os_Funcs go;
+	friend class MDNS_Service;
+	friend class MDNS_Watch;
+	friend void mdns_free_done(struct gensio_mdns *m, void *userdata);
+    };
+
+    class GENSIOCPP_DLL_PUBLIC MDNS_Service {
+    public:
+	MDNS_Service(MDNS *m, int interface, int ipdomain,
+		     const char *name, const char *type,
+		     const char *domain, const char *host,
+		     int port, const char *txt[]);
+	~MDNS_Service();
+    private:
+	struct gensio_mdns_service *s;
+    };
+
+    class MDNS_Watch;
+
+    class GENSIOCPP_DLL_PUBLIC GENSIOCPP_DLL_PUBLIC MDNS_Watch_Done {
+    public:
+	virtual void done(MDNS_Watch *w) = 0;
+	virtual ~MDNS_Watch_Done() = default;
+    private:
+	MDNS_Watch *w;
+        friend void mdns_watch_done(struct gensio_mdns_watch *w,
+				    void *userdata);
+	friend class MDNS_Watch;
+    };
+
+    class GENSIOCPP_DLL_PUBLIC MDNS_Watch_Event {
+    public:
+	virtual void event(MDNS_Watch *w,
+			   enum gensio_mdns_data_state state,
+			   int interface, int ipdomain,
+			   const char *name, const char *type,
+			   const char *domain, const char *host,
+			   Addr *addr, const char *txt[]) = 0;
+	virtual ~MDNS_Watch_Event() = default;
+    private:
+	MDNS_Watch *w;
+	friend class MDNS_Watch;
+	friend void mdns_watch_event(struct gensio_mdns_watch *w,
+				     enum gensio_mdns_data_state state,
+				     int interface, int ipdomain,
+				     const char *name, const char *type,
+				     const char *domain, const char *host,
+				     const struct gensio_addr *addr,
+				     const char *txt[], void *userdata);
+        };
+
+    class GENSIOCPP_DLL_PUBLIC MDNS_Watch {
+    public:
+	MDNS_Watch(MDNS *m, int interface, int ipdomain,
+		   const char *name, const char *type,
+		   const char *domain, const char *host,
+		   MDNS_Watch_Event *event);
+	inline Os_Funcs &get_os_funcs() { return m->get_os_funcs(); }
+	void free(MDNS_Watch_Done *done);
+    protected:
+	virtual ~MDNS_Watch() {	}
+    private:
+	MDNS *m;
+	MDNS_Watch_Event *event;
+	struct gensio_mdns_watch *w;
+        friend void mdns_watch_done(struct gensio_mdns_watch *w,
+				    void *userdata);
+    };
 }
 
 #endif /* GENSIO_CPP_INCLUDE */

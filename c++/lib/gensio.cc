@@ -2083,4 +2083,131 @@ namespace gensio {
 	    throw gensio_error(rv);
 	return 0;
     }
+
+    MDNS::MDNS(Os_Funcs &o) : go(o)
+    {
+	int rv;
+
+	this->go = o;
+	rv = gensio_alloc_mdns(o, &this->m);
+	if (rv)
+	    throw gensio_error(rv);
+    }
+
+    void mdns_free_done(struct gensio_mdns *m, void *userdata)
+    {
+	MDNS_Done *done = static_cast<MDNS_Done *>(userdata);
+
+	try {
+	    done->done(done->m);
+	} catch (std::exception e) {
+	    gensio_log(done->m->get_os_funcs(), GENSIO_LOG_ERR,
+		       "Received C++ exception in mdns open done handler: %s",
+		       e.what());
+	}
+	delete done->m;
+    }
+
+    void MDNS::free(MDNS_Done *done)
+    {
+	int rv;
+
+	done->m = this;
+	rv = gensio_free_mdns(this->m, mdns_free_done, done);
+	if (rv)
+	    throw gensio_error(rv);
+    }
+
+    MDNS_Service::MDNS_Service(MDNS *m, int interface, int ipdomain,
+			       const char *name, const char *type,
+			       const char *domain, const char *host,
+			       int port, const char *txt[])
+    {
+	int rv;
+
+	rv = gensio_mdns_add_service(m->m, interface, ipdomain, name, type,
+				     domain, host, port, txt, &this->s);
+	if (rv)
+	    throw gensio_error(rv);
+    }
+
+    MDNS_Service::~MDNS_Service()
+    {
+	/* FIXME - no return code handling from this, C++ gives an error. */
+	gensio_mdns_remove_service(this->s);
+    }
+
+    void mdns_watch_event(struct gensio_mdns_watch *w,
+			  enum gensio_mdns_data_state state,
+			  int interface, int ipdomain,
+			  const char *name, const char *type,
+			  const char *domain, const char *host,
+			  const struct gensio_addr *addr,
+			  const char *txt[], void *userdata)
+    {
+	MDNS_Watch_Event *event = static_cast<MDNS_Watch_Event *>(userdata);
+	struct gensio_addr *naddr = NULL;
+
+	if (addr) {
+	    naddr = gensio_addr_dup(addr);
+	    if (!naddr) {
+		gensio_log(event->w->get_os_funcs(), GENSIO_LOG_ERR,
+			   "Memory allocation failure in mdns watch event");
+		return;
+	    }
+	}
+
+	try {
+	    if (naddr) {
+		Addr a(naddr);
+
+		event->event(event->w, state, interface, ipdomain, name, type,
+			     domain, host, &a, txt);
+	    } else {
+		event->event(event->w, state, interface, ipdomain, name, type,
+			     domain, host, NULL, txt);
+	    }
+	} catch (std::exception e) {
+	    gensio_log(event->w->get_os_funcs(), GENSIO_LOG_ERR,
+		       "Received C++ exception in mdns watch event handler: %s",
+		       e.what());
+	}
+    }
+
+    MDNS_Watch::MDNS_Watch(MDNS *m, int interface, int ipdomain,
+			   const char *name, const char *type,
+			   const char *domain, const char *host,
+			   MDNS_Watch_Event *event)
+    {
+	int rv;
+
+	this->m = m;
+	this->event = event;
+	event->w = this;
+	rv = gensio_mdns_add_watch(m->m, interface, ipdomain, name, type,
+				   domain, host, mdns_watch_event,
+				   event, &this->w);
+	if (rv)
+	    throw gensio_error(rv);
+    }
+
+    void mdns_watch_done(struct gensio_mdns_watch *w, void *userdata)
+    {
+	MDNS_Watch_Done *done = static_cast<MDNS_Watch_Done *>(userdata);
+
+	try {
+	    done->done(done->w);
+	} catch (std::exception e) {
+	    gensio_log(done->w->get_os_funcs(), GENSIO_LOG_ERR,
+		       "Received C++ exception in mdns watch done handler: %s",
+		       e.what());
+	}
+	delete done->w;
+    }
+
+    void MDNS_Watch::free(MDNS_Watch_Done *done)
+    {
+	done->w = this;
+	gensio_mdns_remove_watch(this->w, mdns_watch_done, done);
+    }
 }
