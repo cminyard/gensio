@@ -2118,6 +2118,24 @@ namespace gensio {
 	    throw gensio_error(rv);
     }
 
+    MDNS_Service *MDNS::add_service(int interface, int ipdomain,
+				    const char *name, const char *type,
+				    const char *domain, const char *host,
+				    int port, const char *txt[])
+    {
+	return new MDNS_Service(this, interface, ipdomain, name, type,
+				domain, host, port, txt);
+    }
+
+    MDNS_Watch *MDNS::add_watch(int interface, int ipdomain,
+				const char *name, const char *type,
+				const char *domain, const char *host,
+				MDNS_Watch_Event *event)
+    {
+	return new MDNS_Watch(this, interface, ipdomain, name, type,
+				domain, host, event);
+    }
+
     MDNS_Service::MDNS_Service(MDNS *m, int interface, int ipdomain,
 			       const char *name, const char *type,
 			       const char *domain, const char *host,
