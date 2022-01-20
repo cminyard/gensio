@@ -13,6 +13,10 @@
 
 #include <gensio/gensio_dllvisibility.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #ifdef SWIGPYTHON
 typedef PyObject swig_cb;
 #endif 
@@ -26,3 +30,7 @@ void check_os_funcs_free(struct gensio_os_funcs *o);
 
 GENSIO_DLL_PUBLIC
 int get_os_funcs_refcount(struct gensio_os_funcs *o);
+
+#ifdef __cplusplus
+}
+#endif

@@ -80,13 +80,8 @@
 	r = Py_None;
     }
 
-    /*
-     * This is kind of a hack, gensio must be the first return item.
-     * We can't use add_python_result because *io may be Py_None.
-     */
-    Py_XDECREF($result);
-    $result = PyTuple_New(1);
-    PyTuple_SetItem($result, 0, r);
+    /* We always return a sequence with this. */
+    $result = add_python_seqresult($result, r);
 }
 
 %typemap(in) (char *bytestr, my_ssize_t len) {
@@ -119,7 +114,7 @@
     if (len == 0)
 	goto null_auxdata;
 
-    temp = malloc(sizeof(char *) * (len + 1));
+    temp = (char **) malloc(sizeof(char *) * (len + 1));
     if (!temp) {
 	PyErr_SetString(PyExc_ValueError, "Out of memory");
 	SWIG_fail;

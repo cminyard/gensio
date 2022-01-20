@@ -17,6 +17,7 @@
 #include <gensio/gensio_selector.h>
 #include <gensio/gensio_mdns.h>
 #include <gensio/gensio_osops.h>
+#include <gensio/gensio_swig.h>
 
 static void wake_curr_waiter(void);
 %}
@@ -51,11 +52,12 @@ gensio_key_del(void *data)
 static struct waiter *
 save_waiter(struct waiter *waiter)
 {
-    struct gensio_wait_block *data = pthread_getspecific(gensio_thread_key);
+    struct gensio_wait_block *data = (struct gensio_wait_block *)
+	pthread_getspecific(gensio_thread_key);
     struct waiter *prev_waiter;
 
     if (!data) {
-	data = malloc(sizeof(*data));
+	data = (struct gensio_wait_block *) malloc(sizeof(*data));
 	if (!data) {
 	    oom_err();
 	    return NULL;
@@ -73,7 +75,8 @@ save_waiter(struct waiter *waiter)
 static void
 restore_waiter(struct waiter *prev_waiter)
 {
-    struct gensio_wait_block *data = pthread_getspecific(gensio_thread_key);
+    struct gensio_wait_block *data = (struct gensio_wait_block *)
+	pthread_getspecific(gensio_thread_key);
 
     data->curr_waiter = prev_waiter;
 }
@@ -81,7 +84,8 @@ restore_waiter(struct waiter *prev_waiter)
 static void
 wake_curr_waiter(void)
 {
-    struct gensio_wait_block *data = pthread_getspecific(gensio_thread_key);
+    struct gensio_wait_block *data = (struct gensio_wait_block *)
+	pthread_getspecific(gensio_thread_key);
 
     if (!data)
 	return;
@@ -130,7 +134,7 @@ save_waiter(struct waiter *waiter)
     struct waiter *prev_waiter;
 
     if (!data) {
-	data = malloc(sizeof(*data));
+	data = (struct gensio_wait_block *) malloc(sizeof(*data));
 	if (!data) {
 	    oom_err();
 	    return NULL;
@@ -292,7 +296,7 @@ struct gensio_os_funcs *alloc_gensio_selector(swig_cb *log_handler)
 static void gensio_mdns_delete_watch_done(struct gensio_mdns_watch *watch,
 					  void *userdata)
 {
-    struct mdns_watch *w = userdata;
+    struct mdns_watch *w = (struct mdns_watch *) userdata;
     struct gensio_os_funcs *o = w->o;
 
     gensio_os_funcs_lock(o, w->lock);
@@ -457,7 +461,8 @@ struct waiter { };
 
     ~gensio()
     {
-	struct gensio_data *data = gensio_get_user_data(self);
+	struct gensio_data *data = (struct gensio_data *)
+	    gensio_get_user_data(self);
 
 	if (data->tmpval)
 	    return;
@@ -484,7 +489,8 @@ struct waiter { };
     }
 
     void set_cbs(swig_cb *handler) {
-	struct gensio_data *data = gensio_get_user_data(self);
+	struct gensio_data *data = (struct gensio_data *)
+	    gensio_get_user_data(self);
 
 	if (data->handler_val)
 	    deref_swig_cb_val(data->handler_val);
@@ -546,7 +552,8 @@ struct waiter { };
      */
     struct gensio *alloc_channelt(const char **auxdata,
 				  swig_cb *handler) {
-	struct gensio_data *olddata = gensio_get_user_data(self);
+	struct gensio_data *olddata = (struct gensio_data *)
+	    gensio_get_user_data(self);
 	int rv = 0;
 	struct gensio_data *data;
 	struct gensio *io = NULL;
@@ -628,9 +635,10 @@ struct waiter { };
     void read_st(char **rbuffer, size_t *rbuffer_len, long *r_int,
 		 unsigned int reqlen, long timeout) {
 	int rv;
-	gensio_time tv = { timeout / 1000, timeout % 1000 * 1000000 };
+	gensio_time tv = { timeout / 1000, (((int32_t) timeout % 1000)
+					    * 1000000) };
 	gensio_time *rtv = &tv;
-	char *buf = malloc(reqlen);
+	char *buf = (char *) malloc(reqlen);
 	gensiods count = 0;
 
 	if (!buf) {
@@ -658,9 +666,10 @@ struct waiter { };
     void read_s_intrt(char **rbuffer, size_t *rbuffer_len, long *r_int,
 		      unsigned int reqlen, long timeout) {
 	int rv;
-	gensio_time tv = { timeout / 1000, timeout % 1000 * 1000000 };
+	gensio_time tv = { timeout / 1000, (((int32_t) (timeout % 1000))
+					    * 1000000) };
 	gensio_time *rtv = &tv;
-	char *buf = malloc(reqlen);
+	char *buf = (char *) malloc(reqlen);
 	gensiods count = 0;
 
 	if (!buf) {
@@ -687,7 +696,8 @@ struct waiter { };
     %rename(write_s) write_st;
     long write_st(long *r_int, char *bytestr, my_ssize_t len, long timeout) {
 	int rv;
-	gensio_time tv = { timeout / 1000, timeout % 1000 * 1000000 };
+	gensio_time tv = { timeout / 1000, (((int32_t) (timeout % 1000))
+					    * 1000000) };
 	gensio_time *rtv = &tv;
 	gensiods count = 0;
 
@@ -706,7 +716,8 @@ struct waiter { };
     long write_s_intrt(long *r_int, char *bytestr, my_ssize_t len,
 		       long timeout) {
 	int rv;
-	gensio_time tv = { timeout / 1000, timeout % 1000 * 1000000 };
+	gensio_time tv = { timeout / 1000, (((int32_t) (timeout % 1000))
+					    * 1000000) };
 	gensio_time *rtv = &tv;
 	gensiods count = 0;
 
@@ -736,10 +747,10 @@ struct waiter { };
 		goto out;
 	    /* Allocate the larger of strlen(bytestr) and len) */
 	    if (slen > glen) {
-		data = malloc(slen + 1);
+		data = (char *) malloc(slen + 1);
 		glen = slen;
 	    } else {
-		data = malloc(glen + 1);
+		data = (char *) malloc(glen + 1);
 	    }
 	    if (!data) {
 		rv = GE_NOMEM;
@@ -804,7 +815,8 @@ struct waiter { };
 
     %newobject cast_to_sergensio;
     struct sergensio *cast_to_sergensio() {
-	struct gensio_data *data = gensio_get_user_data(self);
+	struct gensio_data *data = (struct gensio_data *)
+	    gensio_get_user_data(self);
 	struct sergensio *sio = gensio_to_sergensio(self);
 
 	if (!sio)
@@ -837,11 +849,12 @@ struct waiter { };
 
 	if (rv && cbdata)
 	    cleanup_sergensio_cbdata(cbdata);
-	ser_err_handle("sg_"stringify(name), rv);
+	ser_err_handle("sg_" stringify(name), rv);
     }
 
     int sg_##name##_s(int name) {
-	struct gensio_data *data = sergensio_get_user_data(self);
+	struct gensio_data *data = (struct gensio_data *)
+	    sergensio_get_user_data(self);
 	struct sergensio_b *b = NULL;
 	int rv;
 
@@ -849,7 +862,7 @@ struct waiter { };
 	if (!rv)
 	    rv = sergensio_##name##_b(b, &name);
 	if (rv)
-	    ser_err_handle("sg_"stringify(name)"_s", rv);
+	    ser_err_handle("sg_" stringify(name)"_s", rv);
 	if (b)
 	    sergensio_b_free(b);
 	return name;
@@ -917,7 +930,8 @@ struct waiter { };
     ~sergensio()
     {
 	struct gensio *io = sergensio_to_gensio(self);
-	struct gensio_data *data = gensio_get_user_data(io);
+	struct gensio_data *data = (struct gensio_data *)
+	    gensio_get_user_data(io);
 
 	deref_gensio_data(data, io);
     }
@@ -925,7 +939,8 @@ struct waiter { };
     %newobject cast_to_gensio;
     struct gensio *cast_to_gensio() {
 	struct gensio *io = sergensio_to_gensio(self);
-	struct gensio_data *data = gensio_get_user_data(io);
+	struct gensio_data *data = (struct gensio_data *)
+	    gensio_get_user_data(io);
 
 	ref_gensio_data(data);
 	return io;
@@ -1031,13 +1046,15 @@ struct waiter { };
 
     ~gensio_accepter()
     {
-	struct gensio_data *data = gensio_acc_get_user_data(self);
+	struct gensio_data *data = (struct gensio_data *)
+	    gensio_acc_get_user_data(self);
 
 	deref_gensio_accepter_data(data, self);
     }
 
     void set_cbs(swig_cb *handler) {
-	struct gensio_data *data = gensio_acc_get_user_data(self);
+	struct gensio_data *data = (struct gensio_data *)
+	    gensio_acc_get_user_data(self);
 
 	if (data->handler_val)
 	    deref_swig_cb_val(data->handler_val);
@@ -1049,7 +1066,8 @@ struct waiter { };
 
     %newobject str_to_gensio;
     struct gensio *str_to_gensio(char *str, swig_cb *handler) {
-	struct gensio_data *olddata = gensio_acc_get_user_data(self);
+	struct gensio_data *olddata = (struct gensio_data *)
+	    gensio_acc_get_user_data(self);
 	int rv;
 	struct gensio_data *data;
 	struct gensio *io;
@@ -1126,7 +1144,8 @@ struct waiter { };
     void accept_s_timeout(struct gensio **io, long *r_int,
 			  struct gensio_os_funcs *o,
 			  swig_cb *handler, int timeout) {
-	gensio_time tv = { timeout / 1000, timeout % 1000 * 1000000 };
+	gensio_time tv = { timeout / 1000, (((int32_t) (timeout % 1000))
+					    * 1000000) };
 	int rv;
 	struct gensio_data *data = alloc_gensio_data(o, handler);
 
@@ -1172,7 +1191,8 @@ struct waiter { };
     void accept_s_intr_timeout(struct gensio **io, long *r_int,
 			       struct gensio_os_funcs *o,
 			       swig_cb *handler, int timeout) {
-	gensio_time tv = { timeout / 1000, timeout % 1000 * 1000000 };
+	gensio_time tv = { timeout / 1000, (((int32_t) (timeout % 1000))
+					    * 1000000) };
 	int rv;
 	struct gensio_data *data = alloc_gensio_data(o, handler);
 
@@ -1230,9 +1250,9 @@ struct waiter { };
 	    len += 1;
 	    /* Allocate the larger of strlen(controldata) and len) */
 	    if (slen > len)
-		data = malloc(slen);
+		data = (char *) malloc(slen);
 	    else
-		data = malloc(len);
+		data = (char *) malloc(len);
 	    if (!data) {
 		rv = GE_NOMEM;
 		goto out;
@@ -1263,7 +1283,8 @@ struct waiter { };
 
     %newobject cast_to_sergensio_acc;
     struct sergensio_accepter *cast_to_sergensio_acc() {
-	struct gensio_data *data = gensio_acc_get_user_data(self);
+	struct gensio_data *data = (struct gensio_data *)
+	    gensio_acc_get_user_data(self);
 	struct sergensio_accepter *sacc = gensio_acc_to_sergensio_acc(self);
 
 	if (!sacc)
@@ -1277,7 +1298,8 @@ struct waiter { };
 %extend sergensio_accepter {
     ~sergensio_accepter() {
 	struct gensio_accepter *acc = sergensio_acc_to_gensio_acc(self);
-	struct gensio_data *data = gensio_acc_get_user_data(acc);
+	struct gensio_data *data = (struct gensio_data *)
+	    gensio_acc_get_user_data(acc);
 
 	deref_gensio_accepter_data(data, acc);
     }
@@ -1285,7 +1307,8 @@ struct waiter { };
     %newobject cast_to_gensio_acc;
     struct gensio_accepter *cast_to_gensio_acc() {
 	struct gensio_accepter *acc = sergensio_acc_to_gensio_acc(self);
-	struct gensio_data *data = gensio_acc_get_user_data(acc);
+	struct gensio_data *data = (struct gensio_data *)
+	    gensio_acc_get_user_data(acc);
 
 	ref_gensio_data(data);
 	return acc;
@@ -1294,7 +1317,7 @@ struct waiter { };
 
 %extend waiter {
     waiter(struct gensio_os_funcs *o) {
-	struct waiter *w = malloc(sizeof(*w));
+	struct waiter *w = (struct waiter *) malloc(sizeof(*w));
 
 	if (w) {
 	    w->o = o;
@@ -1320,7 +1343,8 @@ struct waiter { };
     }
 
     long wait_timeout(unsigned int count, int timeout) {
-	gensio_time tv = { timeout / 1000, timeout % 1000 * 1000000 };
+	gensio_time tv = { timeout / 1000, (((int32_t) (timeout % 1000))
+					    * 1000000) };
 
 	gensio_do_wait(self, count, &tv);
 	return tv.secs * 1000 + ((tv.nsecs + 500000) / 1000000);
@@ -1335,7 +1359,8 @@ struct waiter { };
     }
 
     long service(int timeout) {
-	gensio_time tv = { timeout / 1000, timeout % 1000 * 1000000 };
+	gensio_time tv = { timeout / 1000, (((int32_t) (timeout % 1000))
+					    * 1000000) };
 
 	gensio_do_service(self, &tv);
 	return tv.secs * 1000 + ((tv.nsecs + 500000) / 1000000);
@@ -1412,7 +1437,7 @@ struct mdns_service { };
 
 %extend mdns {
     mdns(struct gensio_os_funcs *o) {
-	struct mdns *m = gensio_os_funcs_zalloc(o, sizeof(*m));
+	struct mdns *m = (struct mdns *) gensio_os_funcs_zalloc(o, sizeof(*m));
 	int rv = GE_NOMEM;
 
 	if (m) {
@@ -1489,7 +1514,7 @@ struct mdns_service { };
 				     const char *domain, const char *host,
 				     int port, const char **txt)
     {
-	struct mdns_service *s = malloc(sizeof(*s));
+	struct mdns_service *s = (struct mdns_service *) malloc(sizeof(*s));
 	int rv = GE_NOMEM;
 
 	if (s) {
@@ -1518,7 +1543,7 @@ struct mdns_service { };
 
 	if (nil_swig_cb(cb))
 	    return NULL;
-	w = gensio_os_funcs_zalloc(o, sizeof(*w));
+	w = (struct mdns_watch *) gensio_os_funcs_zalloc(o, sizeof(*w));
 	if (w) {
 	    w->o = o;
 	    w->lock = gensio_os_funcs_alloc_lock(o);
@@ -1586,7 +1611,7 @@ struct ifinfo { };
 	struct ifinfo *ifi;
 	int rv = GE_NOMEM;
 
-	ifi = gensio_os_funcs_zalloc(o, sizeof(*ifi));
+	ifi = (struct ifinfo *) gensio_os_funcs_zalloc(o, sizeof(*ifi));
 	if (ifi) {
 	    rv = gensio_os_get_net_ifs(o, &ifi->ifs, &ifi->nifs);
 	    if (rv) {

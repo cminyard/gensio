@@ -26,6 +26,10 @@ typedef PyObject swig_cb_val;
 #endif
 #endif
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 struct os_funcs_data {
 #ifdef USE_POSIX_THREADS
     pthread_mutex_t lock;
@@ -58,3 +62,7 @@ PyObject *swig_finish_call_rv(swig_cb_val *cb, const char *method_name,
 
 GENSIO_DLL_PUBLIC
 extern void (*swig_waiter_wake)(void);
+
+#ifdef __cplusplus
+}
+#endif

@@ -88,13 +88,13 @@ OI_PI_FromStringN(const char *s)
 #define ref_swig_cb(cb, func) gensio_python_ref_swig_cb_i(cb)
 
 static swig_ref
-swig_make_ref_i(void *item, swig_type_info *class)
+swig_make_ref_i(void *item, swig_type_info *classt)
 {
     swig_ref    rv;
     OI_PY_STATE gstate;
 
     gstate = OI_PY_STATE_GET();
-    rv.val = SWIG_NewPointerObj(item, class, SWIG_POINTER_OWN);
+    rv.val = SWIG_NewPointerObj(item, classt, SWIG_POINTER_OWN);
     OI_PY_STATE_PUT(gstate);
     return rv;
 }
@@ -123,12 +123,12 @@ swig_finish_call_rv_gensiods(swig_cb_val *cb, const char *method_name,
 	rv = PyLong_AsUnsignedLong(o);
 	if (PyErr_Occurred()) {
 	    PyObject *c = PyObject_GetAttrString(t, "__name__");
-	    const char *class = OI_PI_AsString(c);
+	    const char *classt = OI_PI_AsString(c);
 
 	    Py_DECREF(c);
 	    PyErr_Format(PyExc_RuntimeError, "gensio callback: "
 			 "Class '%s' method '%s' did not return "
-			 "an integer\n", class, method_name);
+			 "an integer\n", classt, method_name);
 	    wake_curr_waiter();
 	}
 	Py_DECREF(o);
@@ -151,11 +151,11 @@ swig_finish_call_rv_int(swig_cb_val *cb, const char *method_name,
 	if (PyErr_Occurred()) {
 	    PyObject *t = PyObject_GetAttrString(cb, "__class__");
 	    PyObject *c = PyObject_GetAttrString(t, "__name__");
-	    const char *class = OI_PI_AsString(c);
+	    const char *classt = OI_PI_AsString(c);
 
 	    PyErr_Format(PyExc_RuntimeError, "gensio callback: "
 			 "Class '%s' method '%s' did not return "
-			 "an integer\n", class, method_name);
+			 "an integer\n", classt, method_name);
 	    wake_curr_waiter();
 	}
 	Py_DECREF(o);
@@ -196,7 +196,8 @@ void os_funcs_unlock(struct os_funcs_data *odata)
 static void
 os_funcs_ref(struct gensio_os_funcs *o)
 {
-    struct os_funcs_data *odata = gensio_os_funcs_get_data(o);
+    struct os_funcs_data *odata =
+	(struct os_funcs_data *) gensio_os_funcs_get_data(o);
 
     os_funcs_lock(odata);
     odata->refcount++;
@@ -215,7 +216,7 @@ alloc_gensio_data(struct gensio_os_funcs *o, swig_cb *handler)
 {
     struct gensio_data *data;
 
-    data = malloc(sizeof(*data));
+    data = (struct gensio_data *) malloc(sizeof(*data));
     if (!data)
 	return NULL;
     data->tmpval = false;
@@ -241,7 +242,8 @@ free_gensio_data(struct gensio_data *data)
 static void
 ref_gensio_data(struct gensio_data *data)
 {
-    struct os_funcs_data *odata = gensio_os_funcs_get_data(data->o);
+    struct os_funcs_data *odata = (struct os_funcs_data *)
+	gensio_os_funcs_get_data(data->o);
 
     os_funcs_lock(odata);
     data->refcount++;
@@ -251,7 +253,8 @@ ref_gensio_data(struct gensio_data *data)
 static void
 deref_gensio_data(struct gensio_data *data, struct gensio *io)
 {
-    struct os_funcs_data *odata = gensio_os_funcs_get_data(data->o);
+    struct os_funcs_data *odata = (struct os_funcs_data *)
+	gensio_os_funcs_get_data(data->o);
 
     os_funcs_lock(odata);
     data->refcount--;
@@ -268,7 +271,8 @@ static void
 deref_gensio_accepter_data(struct gensio_data *data,
 			   struct gensio_accepter *acc)
 {
-    struct os_funcs_data *odata = gensio_os_funcs_get_data(data->o);
+    struct os_funcs_data *odata = (struct os_funcs_data *)
+	gensio_os_funcs_get_data(data->o);
 
     os_funcs_lock(odata);
     data->refcount--;
@@ -284,7 +288,7 @@ deref_gensio_accepter_data(struct gensio_data *data,
 static void
 gensio_ref(struct gensio *io)
 {
-    struct gensio_data *data = gensio_get_user_data(io);
+    struct gensio_data *data = (struct gensio_data *) gensio_get_user_data(io);
 
     ref_gensio_data(data);
 }
@@ -292,7 +296,8 @@ gensio_ref(struct gensio *io)
 static void
 sergensio_ref(struct sergensio *sio)
 {
-    struct gensio_data *data = sergensio_get_user_data(sio);
+    struct gensio_data *data =
+	(struct gensio_data *) sergensio_get_user_data(sio);
 
     ref_gensio_data(data);
 }
@@ -300,14 +305,15 @@ sergensio_ref(struct sergensio *sio)
 static void
 gensio_accepter_ref(struct gensio_accepter *acc)
 {
-    struct gensio_data *data = gensio_acc_get_user_data(acc);
+    struct gensio_data *data =
+	(struct gensio_data *) gensio_acc_get_user_data(acc);
 
     ref_gensio_data(data);
 }
 
 static void
 gensio_open_done(struct gensio *io, int err, void *cb_data) {
-    swig_cb_val *cb = cb_data;
+    swig_cb_val *cb = (swig_cb_val *) cb_data;
     swig_ref io_ref;
     PyObject *args, *o;
     OI_PY_STATE gstate;
@@ -334,7 +340,7 @@ gensio_open_done(struct gensio *io, int err, void *cb_data) {
 
 static void
 gensio_close_done(struct gensio *io, void *cb_data) {
-    swig_cb_val *cb = cb_data;
+    swig_cb_val *cb = (swig_cb_val *) cb_data;
     swig_ref io_ref;
     PyObject *args;
     OI_PY_STATE gstate;
@@ -353,9 +359,9 @@ gensio_close_done(struct gensio *io, void *cb_data) {
 }
 
 static void
-sgensio_call(struct gensio *io, long val, char *func)
+sgensio_call(struct gensio *io, long val, const char *func)
 {
-    struct gensio_data *data = gensio_get_user_data(io);
+    struct gensio_data *data = (struct gensio_data *) gensio_get_user_data(io);
     swig_ref io_ref;
     PyObject *args, *o;
     OI_PY_STATE gstate;
@@ -397,7 +403,7 @@ sgensio_signature(struct gensio *io)
      * FIXME - this is wrong, it is for the client side, but this needs
      * to be the server side code that gets a signature.
      */
-    struct gensio_data *data = gensio_get_user_data(io);
+    struct gensio_data *data = (struct gensio_data *) gensio_get_user_data(io);
     swig_ref io_ref;
     PyObject *args;
     OI_PY_STATE gstate;
@@ -421,7 +427,7 @@ sgensio_signature(struct gensio *io)
 static void
 sgensio_sync(struct gensio *io)
 {
-    struct gensio_data *data = gensio_get_user_data(io);
+    struct gensio_data *data = (struct gensio_data *) gensio_get_user_data(io);
     swig_ref io_ref;
     PyObject *args;
     OI_PY_STATE gstate;
@@ -445,7 +451,7 @@ sgensio_sync(struct gensio *io)
 static void
 sgensio_flowcontrol_state(struct gensio *io, bool val)
 {
-    struct gensio_data *data = gensio_get_user_data(io);
+    struct gensio_data *data = (struct gensio_data *) gensio_get_user_data(io);
     swig_ref io_ref;
     PyObject *args, *o;
     OI_PY_STATE gstate;
@@ -552,7 +558,7 @@ gensio_child_event(struct gensio *io, void *user_data, int event, int readerr,
 		   unsigned char *buf, gensiods *buflen,
 		   const char *const *auxdata)
 {
-    struct gensio_data *data = user_data;
+    struct gensio_data *data = (struct gensio_data *) user_data;
     swig_ref io_ref, new_con;
     PyObject *args, *o;
     OI_PY_STATE gstate;
@@ -750,7 +756,8 @@ gensio_child_event(struct gensio *io, void *user_data, int event, int readerr,
 
 		rv = OI_PI_AsBytesAndSize(o, &p, &len);
 		if (!rv) {
-		    p2 = gensio_os_funcs_zalloc(data->o, len + 1);
+		    p2 = (unsigned char *)
+			gensio_os_funcs_zalloc(data->o, len + 1);
 		    if (!p2) {
 			rv = GE_NOMEM;
 		    } else {
@@ -840,7 +847,7 @@ gensio_child_event(struct gensio *io, void *user_data, int event, int readerr,
 static void
 gensio_acc_shutdown_done(struct gensio_accepter *accepter, void *cb_data)
 {
-    swig_cb_val *cb = cb_data;
+    swig_cb_val *cb = (swig_cb_val *) cb_data;
     swig_ref acc_ref;
     PyObject *args;
     OI_PY_STATE gstate;
@@ -861,7 +868,7 @@ gensio_acc_shutdown_done(struct gensio_accepter *accepter, void *cb_data)
 static void
 gensio_acc_set_acc_cb_done(struct gensio_accepter *accepter, void *cb_data)
 {
-    swig_cb_val *cb = cb_data;
+    swig_cb_val *cb = (swig_cb_val *) cb_data;
     swig_ref acc_ref;
     PyObject *args;
     OI_PY_STATE gstate;
@@ -884,7 +891,8 @@ gensio_acc_io_call_cb(struct gensio_accepter *accepter, struct gensio *io,
 		      const char *func, int opterr, const char *optstr,
 		      bool optional)
 {
-    struct gensio_data *data = gensio_acc_get_user_data(accepter);
+    struct gensio_data *data =
+	(struct gensio_data *) gensio_acc_get_user_data(accepter);
     swig_ref acc_ref, io_ref;
     PyObject *args, *o;
     int rv;
@@ -940,13 +948,13 @@ static int
 gensio_acc_child_event(struct gensio_accepter *accepter, void *user_data,
 		       int event, void *cdata)
 {
-    struct gensio_data *data = user_data;
+    struct gensio_data *data = (struct gensio_data *) user_data;
     swig_ref acc_ref, io_ref;
     PyObject *args, *o;
     OI_PY_STATE gstate;
     struct gensio_data *iodata;
     struct gensio *io;
-    struct gensio_loginfo *i = cdata;
+    struct gensio_loginfo *i = (struct gensio_loginfo *) cdata;
     struct gensio_acc_password_verify_data *pwvfy;
     struct gensio_acc_postcert_verify_data *postvfy;
     char buf[256];
@@ -974,9 +982,9 @@ gensio_acc_child_event(struct gensio_accepter *accepter, void *user_data,
 	return 0;
 
     case GENSIO_ACC_EVENT_NEW_CONNECTION:
-	io = cdata;
+	io = (struct gensio *) cdata;
 	iodata = alloc_gensio_data(data->o, NULL);
-	gensio_set_callback(cdata /*io*/, gensio_child_event, iodata);
+	gensio_set_callback(io, gensio_child_event, iodata);
 
 	gstate = OI_PY_STATE_GET();
 
@@ -993,12 +1001,12 @@ gensio_acc_child_event(struct gensio_accepter *accepter, void *user_data,
 	return 0;
 
     case GENSIO_ACC_EVENT_AUTH_BEGIN:
-	return gensio_acc_io_call_cb(accepter, cdata, "auth_begin",
-				     -1, NULL, true);
+	return gensio_acc_io_call_cb(accepter, (struct gensio *) cdata,
+				     "auth_begin", -1, NULL, true);
 
     case GENSIO_ACC_EVENT_PRECERT_VERIFY:
-	return gensio_acc_io_call_cb(accepter, cdata, "precert_verify",
-				     -1, NULL, true);
+	return gensio_acc_io_call_cb(accepter, (struct gensio *) cdata,
+				     "precert_verify", -1, NULL, true);
 
     case GENSIO_ACC_EVENT_POSTCERT_VERIFY:
 	postvfy = (struct gensio_acc_postcert_verify_data *) cdata;
@@ -1092,7 +1100,8 @@ gensio_acc_child_event(struct gensio_accepter *accepter, void *user_data,
 
 		rv = OI_PI_AsBytesAndSize(o, &p, &len);
 		if (!rv) {
-		    p2 = gensio_os_funcs_zalloc(data->o, len + 1);
+		    p2 = (unsigned char *)
+			gensio_os_funcs_zalloc(data->o, len + 1);
 		    if (!p2) {
 			rv = GE_NOMEM;
 		    } else {
@@ -1123,7 +1132,8 @@ struct sergensio_cbdata {
 
 #define sergensio_cbdata(name, h) \
 ({							\
-    struct sergensio_cbdata *cbd = malloc(sizeof(*cbd));	\
+    struct sergensio_cbdata *cbd = (struct sergensio_cbdata *) \
+	malloc(sizeof(*cbd));				       \
     if (cbd) {						\
 	cbd->cbname = stringify(name);			\
 	cbd->h_val = ref_swig_cb(h, name);		\
@@ -1141,7 +1151,7 @@ cleanup_sergensio_cbdata(struct sergensio_cbdata *cbd)
 static void
 sergensio_cb(struct sergensio *sio, int err, unsigned int val, void *cb_data)
 {
-    struct sergensio_cbdata *cbd = cb_data;
+    struct sergensio_cbdata *cbd = (struct sergensio_cbdata *) cb_data;
     swig_ref sio_ref;
     PyObject *o, *args;
     OI_PY_STATE gstate;
@@ -1172,7 +1182,7 @@ static void
 sergensio_sig_cb(struct sergensio *sio, int err,
 		 const char *sig, unsigned int len, void *cb_data)
 {
-    swig_cb_val *h_val = cb_data;
+    swig_cb_val *h_val = (swig_cb_val *) cb_data;
     swig_ref sio_ref;
     PyObject *args, *o;
     OI_PY_STATE gstate;
@@ -1225,7 +1235,7 @@ struct mdns_watch {
 
 static void gensio_mdns_free_done(struct gensio_mdns *mdns, void *userdata)
 {
-    struct mdns *m = userdata;
+    struct mdns *m = (struct mdns *) userdata;
     struct gensio_os_funcs *o = m->o;
     OI_PY_STATE gstate;
 
@@ -1251,7 +1261,7 @@ static void gensio_mdns_free_done(struct gensio_mdns *mdns, void *userdata)
 static void gensio_mdns_remove_watch_done(struct gensio_mdns_watch *watch,
 					  void *userdata)
 {
-    struct mdns_watch *w = userdata;
+    struct mdns_watch *w = (struct mdns_watch *) userdata;
     struct gensio_os_funcs *o = w->o;
     OI_PY_STATE gstate;
 
@@ -1283,7 +1293,7 @@ static void gensio_mdns_cb(struct gensio_mdns_watch *watch,
 			   const struct gensio_addr *addr,
 			   const char *txt[], void *userdata)
 {
-    struct mdns_watch *w = userdata;
+    struct mdns_watch *w = (struct mdns_watch *) userdata;
     PyObject *args, *a;
     OI_PY_STATE gstate;
     char *s = NULL;
@@ -1308,7 +1318,7 @@ static void gensio_mdns_cb(struct gensio_mdns_watch *watch,
 
     rv = gensio_addr_to_str(addr, NULL, &len, 0);
     if (!rv) {
-	s = malloc(len + 1);
+	s = (char *) malloc(len + 1);
 	rv = gensio_addr_to_str(addr, s, &pos, len + 1);
     }
     if (rv)
@@ -1332,28 +1342,65 @@ static void gensio_mdns_cb(struct gensio_mdns_watch *watch,
     OI_PY_STATE_PUT(gstate);
 }
 
+/*
+ * This cannot return a sequence with None as the first value.  You
+ * can use add_python_seqresult if you need to do that.
+ */
 static PyObject *
 add_python_result(PyObject *result, PyObject *val)
 {
+    PyObject *seq, *o;
+
     if (result == Py_None) {
-	Py_XDECREF(result);
 	result = val;
-    } else {
-	PyObject *seq, *o2;
-
-	if (!PyTuple_Check(result)) {
-	    PyObject *tmpr = result;
-
-	    result = PyTuple_New(1);
-	    PyTuple_SetItem(result, 0, tmpr);
-	}
-	seq = PyTuple_New(1);
-	PyTuple_SetItem(seq, 0, val);
-	o2 = result;
-	result = PySequence_Concat(o2, seq);
-	Py_DECREF(o2);
-	Py_DECREF(seq);
+	Py_DECREF(Py_None);
+	return result;
     }
+
+    if (!PyTuple_Check(result)) {
+	PyObject *tmpr = result;
+
+	result = PyTuple_New(1);
+	PyTuple_SetItem(result, 0, tmpr);
+    }
+
+    seq = PyTuple_New(1);
+    PyTuple_SetItem(seq, 0, val);
+    o = result;
+    result = PySequence_Concat(o, seq);
+    Py_DECREF(o);
+    Py_DECREF(seq);
+    return result;
+}
+
+/*
+ * Always returns a sequence.  Otherwise it's not really very useful,
+ * just return it normally.
+ */
+static PyObject *
+add_python_seqresult(PyObject *result, PyObject *val)
+{
+    PyObject *seq, *o;
+
+    if (result == Py_None) {
+	result = PyTuple_New(1);
+	PyTuple_SetItem(result, 0, val);
+	return result;
+    }
+
+    if (!PyTuple_Check(result)) {
+	PyObject *tmpr = result;
+
+	result = PyTuple_New(1);
+	PyTuple_SetItem(result, 0, tmpr);
+    }
+
+    seq = PyTuple_New(1);
+    PyTuple_SetItem(seq, 0, val);
+    o = result;
+    result = PySequence_Concat(o, seq);
+    Py_DECREF(o);
+    Py_DECREF(seq);
     return result;
 }
 
@@ -1367,7 +1414,7 @@ static bool check_for_err(int err)
     return rv;
 };
 
-static void err_handle(char *name, int rv)
+static void err_handle(const char *name, int rv)
 {
     if (!rv)
 	return;
@@ -1375,7 +1422,7 @@ static void err_handle(char *name, int rv)
 		 gensio_err_to_str(rv));
 }
 
-static void ser_err_handle(char *name, int rv)
+static void ser_err_handle(const char *name, int rv)
 {
     if (!rv)
 	return;
@@ -1383,7 +1430,7 @@ static void ser_err_handle(char *name, int rv)
 		 gensio_err_to_str(rv));
 }
 
-static void cast_error(char *to, char *from)
+static void cast_error(const char *to, const char *from)
 {
     PyErr_Format(PyExc_RuntimeError, "Error casting from %s to %s", from, to);
 }
