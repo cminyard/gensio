@@ -5,6 +5,7 @@
  *  SPDX-License-Identifier: LGPL-2.1-only
  */
 
+#include <gensio/gensio.h>
 #include <gensio/gensio_swig.h>
 #include "python_swig_internals.h"
 

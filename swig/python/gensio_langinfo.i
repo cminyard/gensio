@@ -5,6 +5,10 @@
  *  SPDX-License-Identifier: LGPL-2.1-only
  */
 
+%{
+#include "gensio_python.h"
+%}
+
 %include <gensio/gensio_swig.i>
 
 %exception {

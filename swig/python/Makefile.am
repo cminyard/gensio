@@ -20,7 +20,7 @@ noinst_HEADERS = gensio_python.h python_swig_internals.h
 
 gensio_wrap.c gensio.py: $(top_srcdir)/swig/gensio.swig \
 		$(top_srcdir)/swig/python/gensio_python.h \
-		$(top_srcdir)/swig/python/gensio_python.i
+		$(top_srcdir)/swig/python/gensio_langinfo.i
 	$(SWIG) $(DEFS) -python $(PYTHON_SWIG_FLAGS) -o gensio_wrap.c \
 		-I$(top_srcdir)/swig/python -I$(top_srcdir)/include \
 		-I$(top_srcdir)/swig/include $(top_srcdir)/swig/gensio.swig

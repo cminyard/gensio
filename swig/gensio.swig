@@ -8,6 +8,7 @@
 %module gensio
 
 %{
+#include "config.h"
 #include <string.h>
 #include <signal.h>
 
@@ -16,12 +17,13 @@
 #include <gensio/gensio_selector.h>
 #include <gensio/gensio_mdns.h>
 #include <gensio/gensio_osops.h>
-#include "config.h"
 
 static void wake_curr_waiter(void);
+%}
 
-#include "gensio_python.h"
+%include "gensio_langinfo.i"
 
+%{
 struct waiter {
     struct gensio_os_funcs *o;
     struct gensio_waiter *waiter;
@@ -327,8 +329,6 @@ static void gensio_mdns_delete_watch_done(struct gensio_mdns_watch *watch,
 
 %include <typemaps.i>
 %include <exception.i>
-
-%include "gensio_python.i"
 
 %nodefaultctor sergensio;
 %nodefaultctor sergensio_accepter;
