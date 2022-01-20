@@ -456,6 +456,20 @@ namespace gensio {
 	return new Mux(o);
     }
 
+    Gensio *
+    alloc_kiss_class(Os_Funcs &o,
+		     struct gensio *io)
+    {
+	return new Kiss(o);
+    }
+
+    Gensio *
+    alloc_ax25_class(Os_Funcs &o,
+		     struct gensio *io)
+    {
+	return new AX25(o);
+    }
+
     typedef Gensio *(*gensio_allocator)(Os_Funcs &o,
 					struct gensio *io);
 
@@ -479,6 +493,8 @@ namespace gensio {
 	{ "relpkt", alloc_relpkt_class },
 	{ "trace", alloc_trace_class },
 	{ "perf", alloc_perf_class },
+	{ "kiss", alloc_kiss_class },
+	{ "ax25", alloc_ax25_class },
     };
 
     void gensio_add_class(const char *name,
@@ -968,6 +984,32 @@ namespace gensio {
 	int err;
 
 	err = perf_gensio_alloc(child->get_gensio(), args, o, NULL, NULL, &io);
+	if (err)
+	    throw gensio_error(err);
+	this->set_gensio(io, true);
+    }
+
+    Kiss::Kiss(Gensio *child, const char * const args[],
+	       Os_Funcs &o, Event *cb)
+	: Gensio(o, cb)
+    {
+	struct gensio *io;
+	int err;
+
+	err = kiss_gensio_alloc(child->get_gensio(), args, o, NULL, NULL, &io);
+	if (err)
+	    throw gensio_error(err);
+	this->set_gensio(io, true);
+    }
+
+    AX25::AX25(Gensio *child, const char * const args[],
+	       Os_Funcs &o, Event *cb)
+	: Gensio(o, cb)
+    {
+	struct gensio *io;
+	int err;
+
+	err = ax25_gensio_alloc(child->get_gensio(), args, o, NULL, NULL, &io);
 	if (err)
 	    throw gensio_error(err);
 	this->set_gensio(io, true);
@@ -1602,6 +1644,20 @@ namespace gensio {
 	return new Perf_Accepter(o);
     }
 
+    Accepter *
+    alloc_kiss_accepter_class(Os_Funcs &o,
+			      struct gensio_accepter *acc)
+    {
+	return new Kiss_Accepter(o);
+    }
+
+    Accepter *
+    alloc_ax25_accepter_class(Os_Funcs &o,
+			      struct gensio_accepter *acc)
+    {
+	return new AX25_Accepter(o);
+    }
+
     typedef Accepter *(*gensio_acc_allocator)(Os_Funcs &o,
 					      struct gensio_accepter *acc);
 
@@ -1621,6 +1677,8 @@ namespace gensio {
 	{ "relpkt", alloc_relpkt_accepter_class },
 	{ "trace", alloc_trace_accepter_class },
 	{ "perf", alloc_perf_accepter_class },
+	{ "kiss", alloc_kiss_accepter_class },
+	{ "ax25", alloc_ax25_accepter_class },
     };
 
     void gensio_add_accepter_class(
@@ -2054,6 +2112,38 @@ namespace gensio {
 	int err;
 
 	err = perf_gensio_accepter_alloc(child->get_accepter(), args, o,
+					 NULL, NULL, &acc);
+	if (err)
+	    throw gensio_error(err);
+	this->set_accepter(acc, true);
+    }
+
+    AX25_Accepter::AX25_Accepter(Accepter *child,
+				 const char * const args[],
+				 Os_Funcs &o,
+				 Accepter_Event *cb)
+	: Accepter(o, cb)
+    {
+	struct gensio_accepter *acc;
+	int err;
+
+	err = ax25_gensio_accepter_alloc(child->get_accepter(), args, o,
+					 NULL, NULL, &acc);
+	if (err)
+	    throw gensio_error(err);
+	this->set_accepter(acc, true);
+    }
+
+    Kiss_Accepter::Kiss_Accepter(Accepter *child,
+				 const char * const args[],
+				 Os_Funcs &o,
+				 Accepter_Event *cb)
+	: Accepter(o, cb)
+    {
+	struct gensio_accepter *acc;
+	int err;
+
+	err = kiss_gensio_accepter_alloc(child->get_accepter(), args, o,
 					 NULL, NULL, &acc);
 	if (err)
 	    throw gensio_error(err);

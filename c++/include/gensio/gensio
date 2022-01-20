@@ -681,6 +681,32 @@ namespace gensio {
 					struct gensio *io);
     };
 
+    class GENSIOCPP_DLL_PUBLIC Kiss: public Gensio {
+    public:
+	Kiss(Gensio *child, const char * const args[],
+	    Os_Funcs &o, Event *cb);
+
+	Kiss &operator=(const Gensio&) = delete;
+    private:
+	virtual ~Kiss() { }
+	Kiss(Os_Funcs &o) : Gensio(o, NULL) { }
+	friend Gensio *alloc_kiss_class(Os_Funcs &o,
+					struct gensio *io);
+    };
+
+    class GENSIOCPP_DLL_PUBLIC AX25: public Gensio {
+    public:
+	AX25(Gensio *child, const char * const args[],
+	    Os_Funcs &o, Event *cb);
+
+	AX25 &operator=(const Gensio&) = delete;
+    private:
+	virtual ~AX25() { }
+	AX25(Os_Funcs &o) : Gensio(o, NULL) { }
+	friend Gensio *alloc_ax25_class(Os_Funcs &o,
+					struct gensio *io);
+    };
+
     //*****************************************************************
 
     // These are events from a serial port device, client and server.
@@ -1241,6 +1267,32 @@ namespace gensio {
 	virtual ~Perf_Accepter() { }
 	Perf_Accepter(Os_Funcs &o) : Accepter(o, NULL) { }
 	friend Accepter *alloc_perf_accepter_class(
+				Os_Funcs &o,
+				struct gensio_accepter *a);
+    };
+
+    class GENSIOCPP_DLL_PUBLIC Kiss_Accepter : public Accepter {
+    public:
+	Kiss_Accepter(Accepter *child, const char * const args[],
+		      Os_Funcs &o, Accepter_Event *cb);
+	Kiss_Accepter &operator=(const Gensio&) = delete;
+    private:
+	virtual ~Kiss_Accepter() { }
+	Kiss_Accepter(Os_Funcs &o) : Accepter(o, NULL) { }
+	friend Accepter *alloc_kiss_accepter_class(
+				Os_Funcs &o,
+				struct gensio_accepter *a);
+    };
+
+    class GENSIOCPP_DLL_PUBLIC AX25_Accepter : public Accepter {
+    public:
+	AX25_Accepter(Accepter *child, const char * const args[],
+		      Os_Funcs &o, Accepter_Event *cb);
+	AX25_Accepter &operator=(const Gensio&) = delete;
+    private:
+	virtual ~AX25_Accepter() { }
+	AX25_Accepter(Os_Funcs &o) : Accepter(o, NULL) { }
+	friend Accepter *alloc_ax25_accepter_class(
 				Os_Funcs &o,
 				struct gensio_accepter *a);
     };
