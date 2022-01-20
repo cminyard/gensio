@@ -156,26 +156,26 @@ namespace gensio {
 	// See gensio_addr_xxx functions in gensio.h for details on these.
 	void rewind() { gensio_addr_rewind(gaddr); }
 	bool next() { return gensio_addr_next(gaddr); }
-	void getaddr(void *oaddr, gensiods *len)
+	void getaddr(void *oaddr, gensiods *len) const
 	    { gensio_addr_getaddr(gaddr, oaddr, len); }
-	int get_nettype() { return gensio_addr_get_nettype(gaddr); }
-	bool family_supports(int family, int flags)
+	int get_nettype() const { return gensio_addr_get_nettype(gaddr); }
+	bool family_supports(int family, int flags) const
 	    { return gensio_addr_family_supports(gaddr, family, flags); }
-	std::string to_string();
-	std::string to_string_all();
+	std::string to_string() const;
+	std::string to_string_all() const;
 
-	inline bool operator==(const Addr &a2)
+	inline bool operator==(const Addr &a2) const
 	    { return gensio_addr_equal(*this, a2, true, false); }
-	bool equal(const Addr &a2, bool compare_ports, bool compare_all)
+	bool equal(const Addr &a2, bool compare_ports, bool compare_all) const
 	    { return gensio_addr_equal(*this, a2, compare_ports, compare_all); }
 	bool addr_present(const void *addr, gensiods addrlen,
-			  bool compare_ports)
+			  bool compare_ports) const
 	{
 	    return gensio_addr_addr_present(*this, addr, addrlen,
 					    compare_ports);
 	}
 
-	bool port_set() { return is_port_set; }
+	bool port_set() const { return is_port_set; }
 
     private:
 	struct gensio_addr *gaddr;
@@ -373,12 +373,13 @@ namespace gensio {
 
 	// Return various characterstics about a gensio.  See the
 	// gensio_is_xxx.3 man pages for details.
-	inline bool is_client() { return gensio_is_client(io); }
-	inline bool is_reliable() { return gensio_is_reliable(io); }
-	inline bool is_packet() { return gensio_is_packet(io); }
-	inline bool is_authenticated() { return gensio_is_authenticated(io); }
-	inline bool is_encrypted() { return gensio_is_encrypted(io); }
-	inline bool is_message() { return gensio_is_message(io); }
+	inline bool is_client() const { return gensio_is_client(io); }
+	inline bool is_reliable() const { return gensio_is_reliable(io); }
+	inline bool is_packet() const { return gensio_is_packet(io); }
+	inline bool is_authenticated() const
+		{ return gensio_is_authenticated(io); }
+	inline bool is_encrypted() const { return gensio_is_encrypted(io); }
+	inline bool is_message() const { return gensio_is_message(io); }
 
 	// Turn on/off synchronous mode for a gensio.  In synchrohous
 	// mode, the gensio will not deliver data via the read call.
@@ -999,9 +1000,9 @@ namespace gensio {
 
 	// Report capabilities of gensios from this accepter, see
 	// gensio_acc_is_xxx.3 for details.
-	inline bool is_reliable() { return gensio_acc_is_reliable(acc); }
-	inline bool is_packet() { return gensio_acc_is_packet(acc); }
-	inline bool is_message() { return gensio_acc_is_message(acc); }
+	inline bool is_reliable() const { return gensio_acc_is_reliable(acc); }
+	inline bool is_packet() const { return gensio_acc_is_packet(acc); }
+	inline bool is_message() const { return gensio_acc_is_message(acc); }
 
 	// Return a child of this accpeter.  A depth of zero returns
 	// this accepter, 1 returns its child, 2 its grandchild, etc.
@@ -1013,13 +1014,13 @@ namespace gensio {
 	// letting the code choose a port.  Then you can fetch the
 	// actual port with this.  Note that some accepter types will
 	// return something besides a number here (ie unix).
-	std::string get_port();
+	std::string get_port() const;
 
 	// Get the os funcs for this accepter.
 	inline Os_Funcs &get_os_funcs() { return go; }
 
 	// Get the event handler for this accepter.
-	inline class Accepter_Event *get_cb() { return gcb; }
+	inline class Accepter_Event *get_cb() const { return gcb; }
 
 	// Return the raw accepter.  Don't use this, it's for subclasses
 	// to use.
@@ -1338,7 +1339,7 @@ namespace gensio {
 			   int interface, int ipdomain,
 			   const char *name, const char *type,
 			   const char *domain, const char *host,
-			   Addr *addr, const char *txt[]) = 0;
+			   const Addr *addr, const char *txt[]) = 0;
 	virtual ~MDNS_Watch_Event() = default;
     private:
 	MDNS_Watch *w;

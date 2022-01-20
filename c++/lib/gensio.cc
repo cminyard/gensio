@@ -113,12 +113,12 @@ namespace gensio {
 	return s;
     }
 
-    std::string Addr::to_string()
+    std::string Addr::to_string() const
     {
 	return do_to_string(gaddr, false);
     }
 
-    std::string Addr::to_string_all()
+    std::string Addr::to_string_all() const
     {
 	return do_to_string(gaddr, true);
     }
@@ -1821,7 +1821,7 @@ namespace gensio {
 	return d->a;
     }
 
-    std::string Accepter::get_port()
+    std::string Accepter::get_port() const
     {
 	char portbuf[100];
 	gensiods len = sizeof(portbuf);
