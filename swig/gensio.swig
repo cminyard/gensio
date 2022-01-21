@@ -1141,7 +1141,8 @@ struct waiter { };
 	err_handle("set_accept_callback_enable_s", rv);
     }
 
-    void accept_s_timeout(struct gensio **io, long *r_int,
+    /* See note in gensio_langinfo.i, int ** is really struct gensio **. */
+    void accept_s_timeout(int **r_io, long *r_int,
 			  struct gensio_os_funcs *o,
 			  swig_cb *handler, int timeout) {
 	gensio_time tv = { timeout / 1000, (((int32_t) (timeout % 1000))
@@ -1149,13 +1150,13 @@ struct waiter { };
 	int rv;
 	struct gensio_data *data = alloc_gensio_data(o, handler);
 
-	*io = NULL;
+	*r_io = NULL;
 	*r_int = 0;
 	if (!data) {
 	    rv = GE_NOMEM;
 	    goto out_err;
 	}
-	rv = gensio_acc_accept_s(self, &tv, io);
+	rv = gensio_acc_accept_s(self, &tv, (struct gensio **) r_io);
 	if (rv) {
 	    free_gensio_data(data);
 	    if (rv == GE_TIMEDOUT)
@@ -1164,7 +1165,7 @@ struct waiter { };
 	}
 
 	*r_int = tv.secs * 1000 + ((tv.nsecs + 500000) / 1000000);
-	gensio_set_callback(*io, gensio_child_event, data);
+	gensio_set_callback(*((struct gensio **) r_io), gensio_child_event, data);
 	return;
 
     out_err:
@@ -1188,7 +1189,8 @@ struct waiter { };
 	return io;
     }
 
-    void accept_s_intr_timeout(struct gensio **io, long *r_int,
+    /* See note in gensio_langinfo.i, int ** is really struct gensio **. */
+    void accept_s_intr_timeout(int **r_io, long *r_int,
 			       struct gensio_os_funcs *o,
 			       swig_cb *handler, int timeout) {
 	gensio_time tv = { timeout / 1000, (((int32_t) (timeout % 1000))
@@ -1196,13 +1198,13 @@ struct waiter { };
 	int rv;
 	struct gensio_data *data = alloc_gensio_data(o, handler);
 
-	*io = NULL;
+	*r_io = NULL;
 	*r_int = 0;
 	if (!data) {
 	    rv = GE_NOMEM;
 	    goto out_err;
 	}
-	rv = gensio_acc_accept_s_intr(self, &tv, io);
+	rv = gensio_acc_accept_s_intr(self, &tv, (struct gensio **) r_io);
 	if (rv) {
 	    free_gensio_data(data);
 	    if (rv == GE_TIMEDOUT)
@@ -1211,7 +1213,8 @@ struct waiter { };
 	}
 
 	*r_int = tv.secs * 1000 + ((tv.nsecs + 500000) / 1000000);
-	gensio_set_callback(*io, gensio_child_event, data);
+	gensio_set_callback(*((struct gensio **) r_io),
+			      gensio_child_event, data);
 	return;
 
     out_err:

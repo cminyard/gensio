@@ -65,11 +65,17 @@
     $result = add_python_result($result, r);
 }
 
-%typemap(in, numinputs=0) struct gensio **io (struct gensio *temp = NULL) {
-    $1 = &temp;
+/*
+ * This is not really int **, it is struct gensio **.  There is a bug
+ * in swig (https://github.com/swig/swig/issues/2153) that, when
+ * processing with c++ output, causes numinputs to be ignored for
+ * structs.  So it's an int and cast when necessary :(.
+ */
+%typemap(in, numinputs=0) int **r_io (struct gensio *temp = NULL) {
+    $1 = (int **) &temp;
 }
 
-%typemap(argout) (struct gensio **io) {
+%typemap(argout) (int **r_io) {
     PyObject *r;
 
     if (*$1) {
