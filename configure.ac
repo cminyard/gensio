@@ -692,6 +692,11 @@ AC_CONFIG_FILES([Makefile
 	c++/lib/libgensiocpp.pc
 	c++/tests/Makefile
 	c++/examples/Makefile
+	c++/swig/Makefile
+	c++/swig/python/Makefile
+	c++/swig/python/libgensio_python_swig.pc
+	c++/swig/include/Makefile
+	c++/swig/include/gensio/Makefile
 	glib/libgensioglib.pc
 	glib/Makefile
 	glib/include/Makefile
@@ -709,11 +714,6 @@ AC_CONFIG_FILES([Makefile
 	include/gensio/gensio_version.h
 	tests/Makefile
 	tools/Makefile
-	swig/Makefile
-	swig/include/Makefile
-	swig/include/gensio/Makefile
-	swig/python/Makefile
-	swig/python/libgensio_python_swig.pc
 	man/Makefile
 	examples/Makefile
 	tests/runtest

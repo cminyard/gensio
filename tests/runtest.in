@@ -53,12 +53,12 @@ else
 fi
 
 if ${PYTHON_MODE}; then
-    export PYTHONPATH=${BUILDDIR}/swig/python:${BUILDDIR}/swig/python/.libs:${BUILDDIR}/glib/swig/python:${BUILDDIR}/glib/swig/python/.libs:${BUILDDIR}/tcl/swig/python:${BUILDDIR}/tcl/swig/python/.libs:${TEST_BUILDDIR}
+    export PYTHONPATH=${BUILDDIR}/c++/swig/python:${BUILDDIR}/c++/swig/python/.libs:${BUILDDIR}/glib/swig/python:${BUILDDIR}/glib/swig/python/.libs:${BUILDDIR}/tcl/swig/python:${BUILDDIR}/tcl/swig/python/.libs:${TEST_BUILDDIR}
     # We need to put the DLL in PATH for MSYS on Windows
     if [ ! -z "$MSYSTEM" ]; then
-	export PATH=${BUILDDIR}/lib:${BUILDDIR}/lib/.libs:$PATH:${BUILDDIR}/swig/python/.libs:${BUILDDIR}/glib/.libs::${BUILDDIR}/tcl/.libs
+	export PATH=${BUILDDIR}/lib:${BUILDDIR}/lib/.libs:$PATH:${BUILDDIR}/c++/swig/python/.libs:${BUILDDIR}/glib/.libs::${BUILDDIR}/tcl/.libs
     else
-	export LD_LIBRARY_PATH=${BUILDDIR}/lib:${BUILDDIR}/lib/.libs:${BUILDDIR}/swig/python/.libs:${BUILDDIR}/glib/.libs::${BUILDDIR}/tcl/.libs
+	export LD_LIBRARY_PATH=${BUILDDIR}/lib:${BUILDDIR}/lib/.libs:${BUILDDIR}/c++/swig/python/.libs:${BUILDDIR}/glib/.libs::${BUILDDIR}/tcl/.libs
     fi
     TEST="${PYTHON} ${TEST}"
     export GENSIO_MEMTRACK=abort
@@ -72,7 +72,7 @@ fi
 if ${PRINT_MODE}; then
     echo export PYTHONPATH="${PYTHONPATH}"
     if [ ! -z "$MSYSTEM" ]; then
-	echo export PATH=${BUILDDIR}/lib:${BUILDDIR}/lib/.libs:\$PATH:${BUILDDIR}/swig/python/.libs:${BUILDDIR}/glib/.libs:${BUILDDIR}/tcl/.libs
+	echo export PATH=${BUILDDIR}/lib:${BUILDDIR}/lib/.libs:\$PATH:${BUILDDIR}/c++/swig/python/.libs:${BUILDDIR}/glib/.libs:${BUILDDIR}/tcl/.libs
     else
 	echo export LD_LIBRARY_PATH="${LD_LIBRARY_PATH}"
     fi

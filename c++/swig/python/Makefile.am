@@ -2,7 +2,7 @@
 AM_CFLAGS = $(PYTHON_CPPFLAGS) \
 	    -I$(top_srcdir)/include \
 	    -I$(top_builddir)/include \
-	    -I$(top_srcdir) -I$(top_srcdir)/swig/include \
+	    -I$(top_srcdir) -I$(top_srcdir)/c++/swig/include \
 	    -DPYTHON_HAS_THREADS=@PYTHON_HAS_THREADS@
 
 pythonlibdir=$(PYTHON_INSTALL_LIB_DIR)
@@ -18,12 +18,13 @@ libgensio_python_swig_la_LIBADD = $(PYTHON_LIBS) \
 
 noinst_HEADERS = gensio_python.h python_swig_internals.h
 
-gensio_wrap.c gensio.py: $(top_srcdir)/swig/gensio.swig \
-		$(top_srcdir)/swig/python/gensio_python.h \
-		$(top_srcdir)/swig/python/gensio_langinfo.i
+gensio_wrap.c gensio.py: $(top_srcdir)/c++/swig/gensio.swig \
+		$(top_srcdir)/c++/swig/python/gensio_python.h \
+		$(top_srcdir)/c++/swig/python/gensio_langinfo.i
 	$(SWIG) $(DEFS) -python $(PYTHON_SWIG_FLAGS) -o gensio_wrap.c \
-		-I$(top_srcdir)/swig/python -I$(top_srcdir)/include \
-		-I$(top_srcdir)/swig/include $(top_srcdir)/swig/gensio.swig
+		-I$(top_srcdir)/c++/swig/python -I$(top_srcdir)/include \
+		-I$(top_srcdir)/c++/swig/include \
+		$(top_srcdir)/c++/swig/gensio.swig
 
 EXTRA_DIST = gensio_langinfo.i CMakeLists.txt libgensio_python_swig.pc.in
 
