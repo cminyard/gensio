@@ -227,27 +227,64 @@ void sergensio_b_free(struct sergensio_b *sbio);
 GENSIO_DLL_PUBLIC
 int sergensio_baud_b(struct sergensio_b *sbio, int *baud);
 GENSIO_DLL_PUBLIC
+int sergensio_baud_b_timeout(struct sergensio_b *sbio, int *baud,
+			     gensio_time *timeout);
+GENSIO_DLL_PUBLIC
 int sergensio_datasize_b(struct sergensio_b *sbio, int *datasize);
+GENSIO_DLL_PUBLIC
+int sergensio_datasize_b_timeout(struct sergensio_b *sbio, int *datasize,
+				 gensio_time *timeout);
 GENSIO_DLL_PUBLIC
 int sergensio_parity_b(struct sergensio_b *sbio, int *parity);
 GENSIO_DLL_PUBLIC
+int sergensio_parity_b_timeout(struct sergensio_b *sbio, int *parity,
+			       gensio_time *timeout);
+GENSIO_DLL_PUBLIC
 int sergensio_stopbits_b(struct sergensio_b *sbio, int *stopbits);
+GENSIO_DLL_PUBLIC
+int sergensio_stopbits_b_timeout(struct sergensio_b *sbio, int *stopbits,
+				 gensio_time *timeout);
 GENSIO_DLL_PUBLIC
 int sergensio_flowcontrol_b(struct sergensio_b *sbio, int *flowcontrol);
 GENSIO_DLL_PUBLIC
+int sergensio_flowcontrol_b_timeout(struct sergensio_b *sbio, int *flowcontrol,
+				    gensio_time *timeout);
+GENSIO_DLL_PUBLIC
 int sergensio_iflowcontrol_b(struct sergensio_b *sbio, int *iflowcontrol);
+GENSIO_DLL_PUBLIC
+int sergensio_iflowcontrol_b_timeout(struct sergensio_b *sbio,
+				     int *iflowcontrol,
+				     gensio_time *timeout);
 GENSIO_DLL_PUBLIC
 int sergensio_sbreak_b(struct sergensio_b *sbio, int *breakv);
 GENSIO_DLL_PUBLIC
+int sergensio_sbreak_b_timeout(struct sergensio_b *sbio, int *breakv,
+			       gensio_time *timeout);
+GENSIO_DLL_PUBLIC
 int sergensio_dtr_b(struct sergensio_b *sbio, int *dtr);
+GENSIO_DLL_PUBLIC
+int sergensio_dtr_b_timeout(struct sergensio_b *sbio, int *dtr,
+			    gensio_time *timeout);
 GENSIO_DLL_PUBLIC
 int sergensio_rts_b(struct sergensio_b *sbio, int *rts);
 GENSIO_DLL_PUBLIC
+int sergensio_rts_b_timeout(struct sergensio_b *sbio, int *rts,
+			    gensio_time *timeout);
+GENSIO_DLL_PUBLIC
 int sergensio_cts_b(struct sergensio_b *sbio, int *cts);
+GENSIO_DLL_PUBLIC
+int sergensio_cts_b_timeout(struct sergensio_b *sbio, int *cts,
+			    gensio_time *timeout);
 GENSIO_DLL_PUBLIC
 int sergensio_dcd_dsr_b(struct sergensio_b *sbio, int *dcd_dsr);
 GENSIO_DLL_PUBLIC
+int sergensio_dcd_dsr_b_timeout(struct sergensio_b *sbio, int *dcd_dsr,
+				gensio_time *timeout);
+GENSIO_DLL_PUBLIC
 int sergensio_ri_b(struct sergensio_b *sbio, int *ri);
+GENSIO_DLL_PUBLIC
+int sergensio_ri_b_timeout(struct sergensio_b *sbio, int *ri,
+			   gensio_time *timeout);
 
 /*
  * Events for dynamic changes to the serial port.  Users can ignore these

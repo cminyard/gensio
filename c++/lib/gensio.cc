@@ -1221,7 +1221,10 @@ namespace gensio {
     public:
 	Std_Ser_Op_Done(Os_Funcs &o) : waiter(o) { }
 
-	void wait() { waiter.wait(1, NULL); }
+	int wait(gensio_time *timeout = NULL)
+	{
+	    return waiter.wait(1, timeout);
+	}
 
 	int err = 0;
 	unsigned int val = 0;
@@ -1236,136 +1239,184 @@ namespace gensio {
 	Waiter waiter;
     };
     
-    void Serial_Gensio::baud_s(unsigned int *baud)
+    int Serial_Gensio::baud_s(unsigned int *baud, gensio_time *timeout)
     {
 	Std_Ser_Op_Done w(this->get_os_funcs());
+	int err;
 
 	this->baud(*baud, &w);
-	w.wait();
+	err = w.wait();
+	if (err)
+	    return err;
 	if (w.err)
 	    throw gensio_error(w.err);
 	*baud = w.val;
+	return 0;
     }
 
-    void Serial_Gensio::datasize_s(unsigned int *size)
+    int Serial_Gensio::datasize_s(unsigned int *size, gensio_time *timeout)
     {
 	Std_Ser_Op_Done w(this->get_os_funcs());
+	int err;
 
 	this->datasize(*size, &w);
-	w.wait();
+	err = w.wait(timeout);
+	if (err)
+	    return err;
 	if (w.err)
 	    throw gensio_error(w.err);
 	*size = w.val;
+	return 0;
     }
 
-    void Serial_Gensio::parity_s(unsigned int *par)
+    int Serial_Gensio::parity_s(unsigned int *par, gensio_time *timeout)
     {
 	Std_Ser_Op_Done w(this->get_os_funcs());
+	int err;
 
 	this->parity(*par, &w);
-	w.wait();
+	err = w.wait(timeout);
+	if (err)
+	    return err;
 	if (w.err)
 	    throw gensio_error(w.err);
 	*par = w.val;
+	return 0;
     }
 
-    void Serial_Gensio::stopbits_s(unsigned int *bits)
+    int Serial_Gensio::stopbits_s(unsigned int *bits, gensio_time *timeout)
     {
 	Std_Ser_Op_Done w(this->get_os_funcs());
+	int err;
 
 	this->stopbits(*bits, &w);
-	w.wait();
+	err = w.wait(timeout);
+	if (err)
+	    return err;
 	if (w.err)
 	    throw gensio_error(w.err);
 	*bits = w.val;
+	return 0;
     }
 
-    void Serial_Gensio::flowcontrol_s(unsigned int *flow)
+    int Serial_Gensio::flowcontrol_s(unsigned int *flow, gensio_time *timeout)
     {
 	Std_Ser_Op_Done w(this->get_os_funcs());
+	int err;
 
 	this->flowcontrol(*flow, &w);
-	w.wait();
+	err = w.wait(timeout);
+	if (err)
+	    return err;
 	if (w.err)
 	    throw gensio_error(w.err);
 	*flow = w.val;
+	return 0;
     }
 
-    void Serial_Gensio::iflowcontrol_s(unsigned int *flow)
+    int Serial_Gensio::iflowcontrol_s(unsigned int *flow, gensio_time *timeout)
     {
 	Std_Ser_Op_Done w(this->get_os_funcs());
+	int err;
 
 	this->iflowcontrol(*flow, &w);
-	w.wait();
+	err = w.wait(timeout);
+	if (err)
+	    return err;
 	if (w.err)
 	    throw gensio_error(w.err);
 	*flow = w.val;
+	return 0;
     }
 
-    void Serial_Gensio::sbreak_s(unsigned int *sbreak)
+    int Serial_Gensio::sbreak_s(unsigned int *sbreak, gensio_time *timeout)
     {
 	Std_Ser_Op_Done w(this->get_os_funcs());
+	int err;
 
 	this->sbreak(*sbreak, &w);
-	w.wait();
+	err = w.wait(timeout);
+	if (err)
+	    return err;
 	if (w.err)
 	    throw gensio_error(w.err);
 	*sbreak = w.val;
+	return 0;
     }
 
-    void Serial_Gensio::dtr_s(unsigned int *dtr)
+    int Serial_Gensio::dtr_s(unsigned int *dtr, gensio_time *timeout)
     {
 	Std_Ser_Op_Done w(this->get_os_funcs());
+	int err;
 
 	this->dtr(*dtr, &w);
-	w.wait();
+	err = w.wait(timeout);
+	if (err)
+	    return err;
 	if (w.err)
 	    throw gensio_error(w.err);
 	*dtr = w.val;
+	return 0;
     }
 
-    void Serial_Gensio::rts_s(unsigned int *rts)
+    int Serial_Gensio::rts_s(unsigned int *rts, gensio_time *timeout)
     {
 	Std_Ser_Op_Done w(this->get_os_funcs());
+	int err;
 
 	this->rts(*rts, &w);
-	w.wait();
+	err = w.wait(timeout);
+	if (err)
+	    return err;
 	if (w.err)
 	    throw gensio_error(w.err);
 	*rts = w.val;
+	return 0;
     }
 
-    void Serial_Gensio::cts_s(unsigned int *cts)
+    int Serial_Gensio::cts_s(unsigned int *cts, gensio_time *timeout)
     {
 	Std_Ser_Op_Done w(this->get_os_funcs());
+	int err;
 
 	this->cts(*cts, &w);
-	w.wait();
+	err = w.wait(timeout);
+	if (err)
+	    return err;
 	if (w.err)
 	    throw gensio_error(w.err);
 	*cts = w.val;
+	return 0;
     }
 
-    void Serial_Gensio::dcd_dsr_s(unsigned int *dcd_dsr)
+    int Serial_Gensio::dcd_dsr_s(unsigned int *dcd_dsr, gensio_time *timeout)
     {
 	Std_Ser_Op_Done w(this->get_os_funcs());
+	int err;
 
 	this->dcd_dsr(*dcd_dsr, &w);
-	w.wait();
+	err = w.wait(timeout);
+	if (err)
+	    return err;
 	if (w.err)
 	    throw gensio_error(w.err);
 	*dcd_dsr = w.val;
+	return 0;
     }
 
-    void Serial_Gensio::ri_s(unsigned int *ri)
+    int Serial_Gensio::ri_s(unsigned int *ri, gensio_time *timeout)
     {
 	Std_Ser_Op_Done w(this->get_os_funcs());
+	int err;
 
 	this->ri(*ri, &w);
-	w.wait();
+	err = w.wait(timeout);
+	if (err)
+	    return err;
 	if (w.err)
 	    throw gensio_error(w.err);
 	*ri = w.val;
+	return 0;
     }
     
     void Serial_Gensio::modemstate(unsigned int state)

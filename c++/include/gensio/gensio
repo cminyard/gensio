@@ -800,18 +800,20 @@ namespace gensio {
 	void signature(const char *sig, unsigned int len,
 		       Serial_Op_Sig_Done *done);
 
-	void baud_s(unsigned int *baud);
-	void datasize_s(unsigned int *size);
-	void parity_s(unsigned int *par);
-	void stopbits_s(unsigned int *bits);
-	void flowcontrol_s(unsigned int *flow);
-	void iflowcontrol_s(unsigned int *flow);
-	void sbreak_s(unsigned int *sbreak);
-	void dtr_s(unsigned int *dtr);
-	void rts_s(unsigned int *rts);
-	void cts_s(unsigned int *cts);
-	void dcd_dsr_s(unsigned int *dcd_dsr);
-	void ri_s(unsigned int *ri);
+	// If you pass in a valid timeout, this will return GE_TIMEOUT
+	// on a timeout.  On all other errors it raises an exception.
+	int baud_s(unsigned int *baud, gensio_time *timeout = NULL);
+	int datasize_s(unsigned int *size, gensio_time *timeout = NULL);
+	int parity_s(unsigned int *par, gensio_time *timeout = NULL);
+	int stopbits_s(unsigned int *bits, gensio_time *timeout = NULL);
+	int flowcontrol_s(unsigned int *flow, gensio_time *timeout = NULL);
+	int iflowcontrol_s(unsigned int *flow, gensio_time *timeout = NULL);
+	int sbreak_s(unsigned int *sbreak, gensio_time *timeout = NULL);
+	int dtr_s(unsigned int *dtr, gensio_time *timeout = NULL);
+	int rts_s(unsigned int *rts, gensio_time *timeout = NULL);
+	int cts_s(unsigned int *cts, gensio_time *timeout = NULL);
+	int dcd_dsr_s(unsigned int *dcd_dsr, gensio_time *timeout = NULL);
+	int ri_s(unsigned int *ri, gensio_time *timeout = NULL);
 
 	// Server side only, for reporting changes
 	void flow_state(bool state);
