@@ -1830,7 +1830,7 @@ namespace gensio {
 	    throw gensio_error(err);
     }
 
-    int Accepter::accept_s(gensio_time *timeout, Gensio **g)
+    int Accepter::accept_s(Gensio **g, gensio_time *timeout)
     {
 	struct gensio *io;
 	int err = gensio_acc_accept_s(acc, timeout, &io);
@@ -1842,7 +1842,7 @@ namespace gensio {
 	return 0;
     }
 
-    int Accepter::accept_s_intr(gensio_time *timeout, Gensio **g)
+    int Accepter::accept_s_intr(Gensio **g, gensio_time *timeout)
     {
 	struct gensio *io;
 	int err = gensio_acc_accept_s_intr(acc, timeout, &io);
