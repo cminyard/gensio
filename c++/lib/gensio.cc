@@ -236,7 +236,8 @@ namespace gensio {
 
 	    switch (event) {
 	    case GENSIO_EVENT_READ:
-		return cb->read(g, err, buf, buflen, auxdata);
+		cb->read(g, err, buf, buflen, auxdata);
+		return 0;
 
 	    case GENSIO_EVENT_WRITE_READY:
 		cb->write_ready(g);

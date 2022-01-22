@@ -33,8 +33,8 @@ public:
 private:
     // Handle errors, and if no error wreite the read data back into
     // the gensio for echoing.
-    int read(Gensio *io, int err, unsigned char *buf,
-	     gensiods *buflen, const char *const *auxdata) override
+    void read(Gensio *io, int err, unsigned char *buf,
+	      gensiods *buflen, const char *const *auxdata) override
     {
 	gensiods count;
 
@@ -44,7 +44,7 @@ private:
 	    io->set_read_callback_enable(false);
 	    io->set_write_callback_enable(false);
 	    io->free();
-	    return 0;
+	    return;
 	}
 
 	try {
@@ -54,7 +54,7 @@ private:
 	    io->set_read_callback_enable(false);
 	    io->set_write_callback_enable(false);
 	    io->free();
-	    return 0;
+	    return;
 	}
 
 	if (count < *buflen) {
@@ -65,7 +65,6 @@ private:
 	    io->set_write_callback_enable(true);
 	}
 	*buflen = count;
-	return 0;
     }
 
     void write_ready(Gensio *io) override

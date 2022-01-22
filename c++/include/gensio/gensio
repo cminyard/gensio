@@ -191,8 +191,8 @@ namespace gensio {
     public:
 	// Data from the gensio is delivered in this callback.  You
 	// must implement this.
-	virtual int read(Gensio *io, int err, unsigned char *buf,
-			 gensiods *buflen, const char *const *auxdata) = 0;
+	virtual void read(Gensio *io, int err, unsigned char *buf,
+			  gensiods *buflen, const char *const *auxdata) = 0;
 
 	// Data can be written to the gensio.  By default this
 	// disables write callbacks.
@@ -309,11 +309,11 @@ namespace gensio {
 	// Like the above, but synchronous.
 	void open_nochild_s();
 
-	// Write buflen bytes of data in buf to the given gensio.  The
+	// Write datalen bytes of data to the given gensio.  The
 	// actual number of bytes written is returned in count.  The
 	// meaning of auxdata depends on the gensio, see gensio.5 for
 	// detais.
-	void write(gensiods *count, const void *buf, gensiods buflen,
+	void write(gensiods *count, const void *data, gensiods datalen,
 		   const char *const *auxdata);
 
 	// Like the above, but use a scatter-gather structure to write
@@ -410,7 +410,7 @@ namespace gensio {
 	// been written, the amount written is returned in count.
 	// If timeout is NULL, wait forever.
 	int write_s(gensiods *count, const void *data, gensiods datalen,
-		     gensio_time *timeout = NULL);
+		    gensio_time *timeout = NULL);
 
 	// Like the above, but the write may be interrupted by a
 	// signal.  If that happens, this returns GE_INTERRUPTED.
