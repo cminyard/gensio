@@ -96,7 +96,7 @@ namespace gensio {
 	// gensio_os_funcs is asked for.
 	operator struct gensio_os_funcs * () const { return osf; }
 
-	~Os_Funcs();
+	virtual ~Os_Funcs();
 
     private:
 	struct gensio_os_funcs *osf;
@@ -151,7 +151,7 @@ namespace gensio {
 	// Automatically convert to a low-level address
 	operator struct gensio_addr * () const { return gaddr; }
 
-	~Addr();
+	virtual ~Addr();
 
 	// See gensio_addr_xxx functions in gensio.h for details on these.
 	void rewind() { gensio_addr_rewind(gaddr); }
