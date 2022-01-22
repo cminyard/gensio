@@ -599,7 +599,7 @@ namespace gensio {
 
 	try {
 	    done->done(g, err);
-	} catch (std::exception e) {
+	} catch (const std::exception &e) {
 	    gensio_log(g->get_os_funcs(), GENSIO_LOG_ERR,
 		       "Received C++ exception in open done handler: %s",
 		       e.what());
