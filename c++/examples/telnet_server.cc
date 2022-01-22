@@ -33,7 +33,7 @@ public:
 private:
     // Handle errors, and if no error wreite the read data back into
     // the gensio for echoing.
-    void read(Gensio *io, int err, unsigned char *buf,
+    void read(Gensio *io, int err, const unsigned char *buf,
 	      gensiods *buflen, const char *const *auxdata) override
     {
 	gensiods count;

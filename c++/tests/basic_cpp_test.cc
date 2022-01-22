@@ -43,7 +43,7 @@ private:
 
 class Client_Event: public Event {
 public:
-    Client_Event(Waiter *w, unsigned char *data, gensiods datalen,
+    Client_Event(Waiter *w, const unsigned char *data, gensiods datalen,
 		 Close_Done *ce)
     {
 	waiter = w;
@@ -55,7 +55,7 @@ public:
     const char *get_err() { return errstr; }
 
 private:
-    void read(Gensio *io, int err, unsigned char *buf,
+    void read(Gensio *io, int err, const unsigned char *buf,
 	      gensiods *buflen, const char *const *auxdata) override
     {
 	if (err) {
@@ -116,7 +116,7 @@ private:
 
     const char *errstr = NULL;
 
-    unsigned char *data;
+    const unsigned char *data;
     gensiods datalen;
     gensiods readpos = 0;
     gensiods writepos = 0;
@@ -184,7 +184,7 @@ public:
     const char *get_err() { return errstr; }
 
 private:
-    void read(Gensio *io, int err, unsigned char *buf,
+    void read(Gensio *io, int err, const unsigned char *buf,
 	      gensiods *buflen, const char *const *auxdata) override
     {
 	gensiods count;
@@ -311,7 +311,7 @@ public:
     string get_port() { return string(port, portpos); }
 
 private:
-    void read(Gensio *io, int err, unsigned char *buf,
+    void read(Gensio *io, int err, const unsigned char *buf,
 	      gensiods *buflen, const char *const *auxdata) override
     {
 	gensiods i;

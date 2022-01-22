@@ -191,7 +191,7 @@ namespace gensio {
     public:
 	// Data from the gensio is delivered in this callback.  You
 	// must implement this.
-	virtual void read(Gensio *io, int err, unsigned char *buf,
+	virtual void read(Gensio *io, int err, const unsigned char *buf,
 			  gensiods *buflen, const char *const *auxdata) = 0;
 
 	// Data can be written to the gensio.  By default this
