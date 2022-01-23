@@ -505,12 +505,11 @@ struct ax25_chan_cmdrsp {
 };
 #define AX25_CHAN_MAX_CMDRSP 8
 
+enum ax25_snt_rcvd { SENT, RCVD };
 #ifdef DEBUG_STATE
 struct ax25_chan_msgtrace {
     gensio_time time;
-    enum {
-	  SENT, RCVD
-    } type;
+    enum ax25_snt_rcvd type;
     bool is_cmd;
     unsigned char data[2];
     bool in_rej;
@@ -1096,6 +1095,7 @@ ax25_chan_set_state(struct ax25_chan *chan, enum ax25_chan_state state)
 {
     chan->state = state;
 }
+#define ax25_chan_set_stateb(chan, state) ax25_chan_set_state(chan, state)
 
 static void
 ax25_base_set_state(struct ax25_base *base, enum ax25_base_state state)
