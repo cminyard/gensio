@@ -33,8 +33,8 @@ public:
 private:
     // Handle errors, and if no error wreite the read data back into
     // the gensio for echoing.
-    void read(Gensio *io, int err, const unsigned char *buf,
-	      gensiods *buflen, const char *const *auxdata) override
+    gensiods read(Gensio *io, int err, const std::vector<unsigned char> data,
+		  const char *const *auxdata) override
     {
 	gensiods count;
 
@@ -44,27 +44,27 @@ private:
 	    io->set_read_callback_enable(false);
 	    io->set_write_callback_enable(false);
 	    io->free();
-	    return;
+	    return 0;
 	}
 
 	try {
-	    io->write(&count, buf, *buflen, NULL);
+	    count = io->write(data.data(), data.size(), NULL);
 	} catch (gensio_error e) {
 	    errstr = e.what();
 	    io->set_read_callback_enable(false);
 	    io->set_write_callback_enable(false);
 	    io->free();
-	    return;
+	    return 0;
 	}
 
-	if (count < *buflen) {
+	if (count < data.size()) {
 	    // We couldn't write all the data, so the write side is in
 	    // flow control.  Enable the write callback so we know
 	    // when we can write again.
 	    io->set_read_callback_enable(false);
 	    io->set_write_callback_enable(true);
 	}
-	*buflen = count;
+	return count;
     }
 
     void write_ready(Gensio *io) override

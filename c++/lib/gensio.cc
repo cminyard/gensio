@@ -235,9 +235,16 @@ namespace gensio {
 	    }
 
 	    switch (event) {
-	    case GENSIO_EVENT_READ:
-		cb->read(g, err, buf, buflen, auxdata);
+	    case GENSIO_EVENT_READ: {
+		if (buflen) {
+		    std::vector<unsigned char> vdata(buf, buf + *buflen);
+		    *buflen = cb->read(g, err, vdata, auxdata);
+		} else {
+		    std::vector<unsigned char> vdata(0);
+		    cb->read(g, err, vdata, auxdata);
+		}
 		return 0;
+	    }
 
 	    case GENSIO_EVENT_WRITE_READY:
 		cb->write_ready(g);
@@ -640,25 +647,38 @@ namespace gensio {
 	    throw gensio_error(err);
     }
 
-    void Gensio::write(gensiods *count, const void *buf, gensiods buflen,
-		       const char *const *auxdata)
+    gensiods Gensio::write(const void *buf, gensiods buflen,
+			   const char *const *auxdata)
     {
-	int err = gensio_write(io, count, buf, buflen, auxdata);
+	gensiods count;
+	int err = gensio_write(io, &count, buf, buflen, auxdata);
 	if (err)
 	    throw gensio_error(err);
+	return count;
     }
 
-    void Gensio::write_sg(gensiods *count,
-			  const struct gensio_sg *sg, gensiods sglen,
-			  const char *const *auxdata)
+    gensiods Gensio::write(const std::vector<unsigned char> data,
+			   const char *const *auxdata)
     {
-	int err = gensio_write_sg(io, count, sg, sglen, auxdata);
+	gensiods count;
+	int err = gensio_write(io, &count, data.data(), data.size(), auxdata);
 	if (err)
 	    throw gensio_error(err);
+	return count;
+    }
+
+    gensiods Gensio::write_sg(const struct gensio_sg *sg, gensiods sglen,
+			      const char *const *auxdata)
+    {
+	gensiods count;
+	int err = gensio_write_sg(io, &count, sg, sglen, auxdata);
+	if (err)
+	    throw gensio_error(err);
+	return count;
     }
 
     int Gensio::write_s(gensiods *count, const void *data, gensiods datalen,
-			 gensio_time *timeout)
+			gensio_time *timeout)
     {
 	int err = gensio_write_s(io, count, data, datalen, timeout);
 	if (err == GE_TIMEDOUT)

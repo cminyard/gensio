@@ -55,40 +55,41 @@ public:
     const char *get_err() { return errstr; }
 
 private:
-    void read(Gensio *io, int err, const unsigned char *buf,
-	      gensiods *buflen, const char *const *auxdata) override
+    gensiods read(Gensio *io, int err, const vector<unsigned char> idata,
+		  const char *const *auxdata) override
     {
 	if (err) {
 	    errstr = gensio_err_to_str(err);
 	    io->set_read_callback_enable(false);
 	    io->set_write_callback_enable(false);
 	    io->close(ce);
-	    return;
+	    return 0;
 	}
 		  
-	string str((char *) buf, *buflen);
+	string str((char *) idata.data(), idata.size());
 
-	if (readpos + *buflen > datalen) {
+	if (readpos + idata.size() > datalen) {
 	    errstr = "Too much data";
 	    io->set_read_callback_enable(false);
 	    io->set_write_callback_enable(false);
 	    io->close(ce);
-	    return;
+	    return idata.size();
 	}
 
-	if (memcmp(data + readpos, buf, *buflen) != 0) {
+	if (memcmp(data + readpos, idata.data(), idata.size()) != 0) {
 	    errstr = "Data mismatch";
 	    io->set_read_callback_enable(false);
 	    io->set_write_callback_enable(false);
 	    io->close(ce);
-	    return;
+	    return idata.size();
 	}
 
-	readpos += *buflen;
+	readpos += idata.size();
 	if (readpos == datalen) {
 	    io->set_read_callback_enable(false);
 	    io->close(ce);
 	}
+	return idata.size();
     }
 
     void write_ready(Gensio *io) override
@@ -96,7 +97,7 @@ private:
 	gensiods count;
 
 	try {
-	    io->write(&count, data + writepos, datalen - writepos, NULL);
+	    count = io->write(data + writepos, datalen - writepos, NULL);
 	} catch (gensio_error e) {
 	    errstr = e.what();
 	    io->set_read_callback_enable(false);
@@ -184,8 +185,8 @@ public:
     const char *get_err() { return errstr; }
 
 private:
-    void read(Gensio *io, int err, const unsigned char *buf,
-	      gensiods *buflen, const char *const *auxdata) override
+    gensiods read(Gensio *io, int err, const vector<unsigned char> data,
+		  const char *const *auxdata) override
     {
 	gensiods count;
 
@@ -195,24 +196,24 @@ private:
 	    io->set_read_callback_enable(false);
 	    io->set_write_callback_enable(false);
 	    io->free();
-	    return;
+	    return 0;
 	}
 
 	try {
-	    io->write(&count, buf, *buflen, NULL);
+	    count = io->write(data, NULL);
 	} catch (gensio_error e) {
 	    errstr = e.what();
 	    io->set_read_callback_enable(false);
 	    io->set_write_callback_enable(false);
 	    io->free();
-	    return;
+	    return data.size();
 	}
 
-	if (count < *buflen) {
+	if (count < data.size()) {
 	    io->set_read_callback_enable(false);
 	    io->set_write_callback_enable(true);
 	}
-	*buflen = count;
+	return data.size();
     }
 
     void write_ready(Gensio *io) override
@@ -311,37 +312,40 @@ public:
     string get_port() { return string(port, portpos); }
 
 private:
-    void read(Gensio *io, int err, const unsigned char *buf,
-	      gensiods *buflen, const char *const *auxdata) override
+    gensiods read(Gensio *io, int err, const vector<unsigned char> data,
+		  const char *const *auxdata) override
     {
 	gensiods i;
 
-	if (portfound)
-	    return;
+	if (portfound) {
+	    io->set_read_callback_enable(false);
+	    return 0;
+	}
 
 	if (err) {
 	    io->set_read_callback_enable(false);
 	    waiter->wake();
 	    errstr = "subprogram failed before reading port";
-	    return;
+	    return 0;
 	}
 
-	for (i = 0; i < *buflen; i++) {
+	for (i = 0; i < data.size(); i++) {
 	    if (portpos >= sizeof(port)) {
 		errstr = "Port from sub too large";
 		waiter->wake();
 		io->set_read_callback_enable(false);
-		return;
+		return i;
 	    }
-	    if (buf[i] == '\n' || buf[i] == '\r') {
+	    if (data[i] == '\n' || data[i] == '\r') {
 		port[portpos] = '\0';
 		portfound = true;
 		waiter->wake();
 		io->set_read_callback_enable(false);
-		return;
+		return i;
 	    }
-	    port[portpos++] = buf[i];
+	    port[portpos++] = data[i];
 	}
+	return i;
     }
 
     void freed() override

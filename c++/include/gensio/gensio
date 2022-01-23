@@ -13,6 +13,7 @@
 #include <string>
 #include <memory>
 #include <atomic>
+#include <vector>
 #include <gensio/gensio_dllvisibility>
 
 #include <iostream>
@@ -191,8 +192,9 @@ namespace gensio {
     public:
 	// Data from the gensio is delivered in this callback.  You
 	// must implement this.
-	virtual void read(Gensio *io, int err, const unsigned char *buf,
-			  gensiods *buflen, const char *const *auxdata) = 0;
+	virtual gensiods read(Gensio *io, int err,
+			      const std::vector<unsigned char> data,
+			      const char *const *auxdata) = 0;
 
 	// Data can be written to the gensio.  By default this
 	// disables write callbacks.
@@ -310,17 +312,18 @@ namespace gensio {
 	void open_nochild_s();
 
 	// Write datalen bytes of data to the given gensio.  The
-	// actual number of bytes written is returned in count.  The
+	// actual number of bytes written is returned.  The
 	// meaning of auxdata depends on the gensio, see gensio.5 for
 	// detais.
-	void write(gensiods *count, const void *data, gensiods datalen,
-		   const char *const *auxdata);
+	gensiods write(const void *data, gensiods datalen,
+		       const char *const *auxdata);
+	gensiods write(const std::vector<unsigned char> data,
+		       const char *const *auxdata);
 
 	// Like the above, but use a scatter-gather structure to write
 	// the data.
-	void write_sg(gensiods *count,
-		      const struct gensio_sg *sg, gensiods sglen,
-		      const char *const *auxdata);
+	gensiods write_sg(const struct gensio_sg *sg, gensiods sglen,
+			  const char *const *auxdata);
 
 	// Allocate a new channel for the gensio based upon the given
 	// arguments, and use the given event handler for it.  How
