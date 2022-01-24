@@ -689,25 +689,17 @@ namespace gensio {
     gensiods Gensio::write(const std::vector<unsigned char> data,
 			   const char *const *auxdata)
     {
-	gensiods count;
-	int err = gensio_write(io, &count, data.data(), data.size(), auxdata);
-	if (err)
-	    throw gensio_error(err);
-	return count;
+	return write(data.data(), data.size(), auxdata);
     }
 
     gensiods Gensio::write(const SimpleUCharVector data,
 			   const char *const *auxdata)
     {
-	gensiods count;
-	int err = gensio_write(io, &count, data.data(), data.size(), auxdata);
-	if (err)
-	    throw gensio_error(err);
-	return count;
+	return write(data.data(), data.size(), auxdata);
     }
 
-    gensiods Gensio::write_sg(const struct gensio_sg *sg, gensiods sglen,
-			      const char *const *auxdata)
+    gensiods Gensio::write(const struct gensio_sg *sg, gensiods sglen,
+			   const char *const *auxdata)
     {
 	gensiods count;
 	int err = gensio_write_sg(io, &count, sg, sglen, auxdata);

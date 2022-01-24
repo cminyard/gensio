@@ -346,8 +346,8 @@ namespace gensio {
 
 	// Like the above, but use a scatter-gather structure to write
 	// the data.
-	gensiods write_sg(const struct gensio_sg *sg, gensiods sglen,
-			  const char *const *auxdata);
+	gensiods write(const struct gensio_sg *sg, gensiods sglen,
+		       const char *const *auxdata);
 
 	// Allocate a new channel for the gensio based upon the given
 	// arguments, and use the given event handler for it.  How
