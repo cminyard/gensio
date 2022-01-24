@@ -15,7 +15,7 @@
 #include <iostream>
 #include <string>
 #include <cstring>
-#include <gensio/gensio>
+#include <gensio/gensio_classes>
 
 using namespace std;
 using namespace gensio;
@@ -33,7 +33,7 @@ public:
 private:
     // Handle errors, and if no error wreite the read data back into
     // the gensio for echoing.
-    gensiods read(Gensio *io, int err, const std::vector<unsigned char> data,
+    gensiods read(Gensio *io, int err, const SimpleUCharVector data,
 		  const char *const *auxdata) override
     {
 	gensiods count;

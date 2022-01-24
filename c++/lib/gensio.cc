@@ -5,7 +5,8 @@
 //  SPDX-License-Identifier: LGPL-2.1-only
 
 #include <map>
-#include <gensio/gensio>
+#include <gensio/gensio_classes>
+#include <string.h>
 
 namespace gensio {
 #include <gensio/gensio_builtins.h>
@@ -155,8 +156,10 @@ namespace gensio {
 
 	try {
 	    if (event >= GENSIO_EVENT_USER_MIN &&
-		event <= GENSIO_EVENT_USER_MAX)
-		return cb->user_event(g, event, err, buf, buflen, auxdata);
+		event <= GENSIO_EVENT_USER_MAX) {
+		std::vector<unsigned char> val(buf, buf + *buflen);
+		return cb->user_event(g, event, err, val, auxdata);
+	    }
 
 	    if (event >= SERGENSIO_EVENT_BASE &&
 			event <= SERGENSIO_EVENT_MAX) {
@@ -237,10 +240,10 @@ namespace gensio {
 	    switch (event) {
 	    case GENSIO_EVENT_READ: {
 		if (buflen) {
-		    std::vector<unsigned char> vdata(buf, buf + *buflen);
+		    SimpleUCharVector vdata(buf, *buflen);
 		    *buflen = cb->read(g, err, vdata, auxdata);
 		} else {
-		    std::vector<unsigned char> vdata(0);
+		    SimpleUCharVector vdata(NULL, 0);
 		    cb->read(g, err, vdata, auxdata);
 		}
 		return 0;
@@ -268,17 +271,43 @@ namespace gensio {
 	    case GENSIO_EVENT_POSTCERT_VERIFY:
 		return cb->postcert_verify(g);
 
-	    case GENSIO_EVENT_PASSWORD_VERIFY:
-		return cb->password_verify(g, buf);
+	    case GENSIO_EVENT_PASSWORD_VERIFY: {
+		std::string pwstr((char *) buf);
+		return cb->password_verify(g, pwstr);
+	    }
 
-	    case GENSIO_EVENT_REQUEST_PASSWORD:
-		return cb->request_password(g, buf, buflen);
+	    case GENSIO_EVENT_REQUEST_PASSWORD: {
+		int rv;
+		std::string pwstr("");
 
-	    case GENSIO_EVENT_2FA_VERIFY:
-		return cb->verify_2fa(g, buf, *buflen);
+		rv = cb->request_password(g, pwstr, *buflen);
+		if (rv)
+		    return rv;
+		if (pwstr.size() > *buflen)
+		    return GE_TOOBIG;
+		*buflen = pwstr.size();
+		memcpy(buf, pwstr.c_str(), *buflen);
+		return 0;
+	    }
 
-	    case GENSIO_EVENT_REQUEST_2FA:
-		return cb->request_2fa(g, (unsigned char **) buf, buflen);
+	    case GENSIO_EVENT_2FA_VERIFY: {
+		std::vector<unsigned char> val(buf, buf + *buflen);
+		return cb->verify_2fa(g, val);
+	    }
+
+	    case GENSIO_EVENT_REQUEST_2FA: {
+		int rv;
+		std::vector<unsigned char> val(0);
+
+		rv = cb->request_2fa(g, val, *buflen);
+		if (rv)
+		    return rv;
+		if (val.size() > *buflen)
+		    return GE_TOOBIG;
+		*buflen = val.size();
+		memcpy(buf, val.data(), *buflen);
+		return 0;
+	    }
 	    }
 	    return GE_NOTSUP;
 	} catch (std::exception e) {
@@ -647,17 +676,27 @@ namespace gensio {
 	    throw gensio_error(err);
     }
 
-    gensiods Gensio::write(const void *buf, gensiods buflen,
+    gensiods Gensio::write(const void *data, gensiods datalen,
 			   const char *const *auxdata)
     {
 	gensiods count;
-	int err = gensio_write(io, &count, buf, buflen, auxdata);
+	int err = gensio_write(io, &count, data, datalen, auxdata);
 	if (err)
 	    throw gensio_error(err);
 	return count;
     }
 
     gensiods Gensio::write(const std::vector<unsigned char> data,
+			   const char *const *auxdata)
+    {
+	gensiods count;
+	int err = gensio_write(io, &count, data.data(), data.size(), auxdata);
+	if (err)
+	    throw gensio_error(err);
+	return count;
+    }
+
+    gensiods Gensio::write(const SimpleUCharVector data,
 			   const char *const *auxdata)
     {
 	gensiods count;
@@ -688,10 +727,56 @@ namespace gensio {
 	return 0;
     }
 
+    int Gensio::write_s(gensiods *count, std::vector<unsigned char> data,
+			gensio_time *timeout)
+    {
+	int err = gensio_write_s(io, count, data.data(), data.size(), timeout);
+	if (err == GE_TIMEDOUT)
+	    return err;
+	if (err)
+	    throw gensio_error(err);
+	return 0;
+    }
+
+    int Gensio::write_s(gensiods *count, SimpleUCharVector data,
+			gensio_time *timeout)
+    {
+	int err = gensio_write_s(io, count, data.data(), data.size(), timeout);
+	if (err == GE_TIMEDOUT)
+	    return err;
+	if (err)
+	    throw gensio_error(err);
+	return 0;
+    }
+
     int Gensio::write_s_intr(gensiods *count, const void *data,
 			     gensiods datalen, gensio_time *timeout)
     {
 	int err = gensio_write_s_intr(io, count, data, datalen, timeout);
+	if (err == GE_TIMEDOUT || err == GE_INTERRUPTED)
+	    return err;
+	if (err)
+	    throw gensio_error(err);
+	return 0;
+    }
+
+    int Gensio::write_s_intr(gensiods *count, std::vector<unsigned char> data,
+			     gensio_time *timeout)
+    {
+	int err = gensio_write_s_intr(io, count, data.data(), data.size(),
+				      timeout);
+	if (err == GE_TIMEDOUT || err == GE_INTERRUPTED)
+	    return err;
+	if (err)
+	    throw gensio_error(err);
+	return 0;
+    }
+
+    int Gensio::write_s_intr(gensiods *count, SimpleUCharVector data,
+			     gensio_time *timeout)
+    {
+	int err = gensio_write_s_intr(io, count, data.data(), data.size(),
+				      timeout);
 	if (err == GE_TIMEDOUT || err == GE_INTERRUPTED)
 	    return err;
 	if (err)
@@ -776,7 +861,7 @@ namespace gensio {
     }
 
     int Gensio::read_s_intr(gensiods *count, void *data, gensiods datalen,
-			     gensio_time *timeout)
+			    gensio_time *timeout)
     {
 	int err = gensio_read_s_intr(io, count, data, datalen, timeout);
 	if (err == GE_TIMEDOUT || err == GE_INTERRUPTED)

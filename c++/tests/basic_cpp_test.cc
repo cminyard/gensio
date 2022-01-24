@@ -55,7 +55,7 @@ public:
     const char *get_err() { return errstr; }
 
 private:
-    gensiods read(Gensio *io, int err, const vector<unsigned char> idata,
+    gensiods read(Gensio *io, int err, SimpleUCharVector idata,
 		  const char *const *auxdata) override
     {
 	if (err) {
@@ -185,7 +185,7 @@ public:
     const char *get_err() { return errstr; }
 
 private:
-    gensiods read(Gensio *io, int err, const vector<unsigned char> data,
+    gensiods read(Gensio *io, int err, const SimpleUCharVector data,
 		  const char *const *auxdata) override
     {
 	gensiods count;
@@ -312,7 +312,7 @@ public:
     string get_port() { return string(port, portpos); }
 
 private:
-    gensiods read(Gensio *io, int err, const vector<unsigned char> data,
+    gensiods read(Gensio *io, int err, const SimpleUCharVector data,
 		  const char *const *auxdata) override
     {
 	gensiods i;

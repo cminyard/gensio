@@ -13,6 +13,7 @@
 
 #include <iostream>
 #include <gensio/gensio>
+#include <gensio/gensio_classes>
 using namespace std;
 using namespace gensio;
 
