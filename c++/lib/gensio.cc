@@ -310,7 +310,7 @@ namespace gensio {
 	    }
 	    }
 	    return GE_NOTSUP;
-	} catch (std::exception e) {
+	} catch (std::exception &e) {
 	    gensio_log(g->get_os_funcs(), GENSIO_LOG_ERR,
 		       "Received C++ exception in callback handler: %s",
 		       e.what());
@@ -798,7 +798,7 @@ namespace gensio {
 
 	try {
 	    done->done(g);
-	} catch (std::exception e) {
+	} catch (std::exception &e) {
 	    gensio_log(g->get_os_funcs(), GENSIO_LOG_ERR,
 		       "Received C++ exception in close done handler: %s",
 		       e.what());
@@ -1645,7 +1645,7 @@ namespace gensio {
 	    default:
 		return GE_NOTSUP;
 	    }
-	} catch (std::exception e) {
+	} catch (std::exception &e) {
 	    gensio_log(g->get_os_funcs(), GENSIO_LOG_ERR,
 		     "Received C++ exception in accepter callback handler: %s",
 		     e.what());
@@ -1929,7 +1929,7 @@ namespace gensio {
 
 	try {
 	    done->done(a);
-	} catch (std::exception e) {
+	} catch (std::exception &e) {
 	    gensio_log(a->get_os_funcs(), GENSIO_LOG_ERR,
 		       "Received C++ exception in accepter done handler: %s",
 		       e.what());
@@ -2339,7 +2339,7 @@ namespace gensio {
 
 	try {
 	    done->done(done->m);
-	} catch (std::exception e) {
+	} catch (std::exception &e) {
 	    gensio_log(done->m->get_os_funcs(), GENSIO_LOG_ERR,
 		       "Received C++ exception in mdns open done handler: %s",
 		       e.what());
@@ -2424,7 +2424,7 @@ namespace gensio {
 		event->event(event->w, state, interface, ipdomain, name, type,
 			     domain, host, NULL, txt);
 	    }
-	} catch (std::exception e) {
+	} catch (std::exception &e) {
 	    gensio_log(event->w->get_os_funcs(), GENSIO_LOG_ERR,
 		       "Received C++ exception in mdns watch event handler: %s",
 		       e.what());
@@ -2454,7 +2454,7 @@ namespace gensio {
 
 	try {
 	    done->done(done->w);
-	} catch (std::exception e) {
+	} catch (std::exception &e) {
 	    gensio_log(done->w->get_os_funcs(), GENSIO_LOG_ERR,
 		       "Received C++ exception in mdns watch done handler: %s",
 		       e.what());
