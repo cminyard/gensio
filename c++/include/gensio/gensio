@@ -462,6 +462,9 @@ namespace gensio {
 	// to use.
 	struct gensio *get_gensio() { return io; }
 
+	// The user may use this for whatever they like.
+	void *user_data;
+
     protected:
 	// Subclasses can use this to initialize the gensio object.
 	virtual void set_gensio(struct gensio *io, bool set_cb);
