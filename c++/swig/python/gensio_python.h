@@ -1291,7 +1291,7 @@ static void gensio_mdns_cb(struct gensio_mdns_watch *watch,
 			   const char *name, const char *type,
 			   const char *domain, const char *host,
 			   const struct gensio_addr *addr,
-			   const char *txt[], void *userdata)
+			   const char * const *txt, void *userdata)
 {
     struct mdns_watch *w = (struct mdns_watch *) userdata;
     PyObject *args, *a;

@@ -788,7 +788,7 @@ namespace gensio {
 	// times out, it returns GE_TIMEDOUT, otherwise it returns
 	// zero.  Any other errors get thrown as a gensio_error.
 	// The new gensio is returned in g.
-	int accept_s(Gensio **g, gensio_time *timeout = NULL,
+	int accept_s(Gensio **gret, gensio_time *timeout = NULL,
 		     bool intr = false);
 
 	// Create a new gensio as if it came from this accepter.  This
@@ -880,7 +880,7 @@ namespace gensio {
 	// true it will return GE_INTERRUPTED if a signal comes in.
 	// Any other error will result in a gensio_error being thrown.
 	int wait(unsigned int count, gensio_time *timeout = NULL,
-	     bool intr = false);
+		 bool intr = false);
 
     private:
 	Os_Funcs o;
@@ -920,7 +920,7 @@ namespace gensio {
 	MDNS_Service *add_service(int interface, int ipdomain,
 				  const char *name, const char *type,
 				  const char *domain, const char *host,
-				  int port, const char *txt[]);
+				  int port, const char * const *txt);
 	MDNS_Watch *add_watch(int interface, int ipdomain,
 			      const char *name, const char *type,
 			      const char *domain, const char *host,
@@ -948,7 +948,7 @@ namespace gensio {
 	MDNS_Service(MDNS *m, int interface, int ipdomain,
 		     const char *name, const char *type,
 		     const char *domain, const char *host,
-		     int port, const char *txt[]);
+		     int port, const char * const *txt);
 	~MDNS_Service();
     private:
 	struct gensio_mdns_service *s;
@@ -981,7 +981,7 @@ namespace gensio {
 			   int interface, int ipdomain,
 			   const char *name, const char *type,
 			   const char *domain, const char *host,
-			   const Addr *addr, const char *txt[]) = 0;
+			   const Addr *addr, const char * const *txt) = 0;
 	virtual ~MDNS_Watch_Event() = default;
     private:
 	MDNS_Watch *w;
@@ -992,7 +992,7 @@ namespace gensio {
 				     const char *name, const char *type,
 				     const char *domain, const char *host,
 				     const struct gensio_addr *addr,
-				     const char *txt[], void *userdata);
+				     const char * const *txt, void *userdata);
     };
 
     class GENSIOCPP_DLL_PUBLIC Raw_MDNS_Event_Handler {
@@ -1005,7 +1005,7 @@ namespace gensio {
 			    const char *name, const char *type,
 			    const char *domain, const char *host,
 			    const struct gensio_addr *addr,
-			    const char *txt[]) = 0;
+			    const char * const *txt) = 0;
     };
 
     // A class representing an MDNS service.  A wrapper around

@@ -307,7 +307,7 @@ addarg(char **args, gensiods *len, struct gensio_os_funcs *o,
 }
 
 static int
-get_mdns_gensiostack(struct mdnsn_data *ndata, const char *txt[],
+get_mdns_gensiostack(struct mdnsn_data *ndata, const char * const *txt,
 		     const struct gensio_addr *addr, char **rstack)
 {
     struct gensio_os_funcs *o = ndata->o;
@@ -391,7 +391,7 @@ mdns_cb(struct gensio_mdns_watch *w,
 	int interface, int ipdomain,
 	const char *name, const char *type,
 	const char *domain, const char *host,
-	const struct gensio_addr *addr, const char *txt[],
+	const struct gensio_addr *addr, const char * const *txt,
 	void *userdata)
 {
     struct mdnsn_data *ndata = userdata;

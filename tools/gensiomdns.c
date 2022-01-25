@@ -93,10 +93,10 @@ mdns_info_found(struct gensio_mdns_watch *w,
 		const char *name, const char *type,
 		const char *domain, const char *host,
 		const struct gensio_addr *addr,
-		const char *txt[], void *userdata)
+		const char * const *txt, void *userdata)
 {
     char strbuf[250];
-    const char **s;
+    const char * const *s;
     int rv;
     struct freed_data *f = userdata;
 

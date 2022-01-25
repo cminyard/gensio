@@ -1525,7 +1525,7 @@ mdns_cb(struct gensio_mdns_watch *w,
 	int iface, int ipdomain,
 	const char *name, const char *type,
 	const char *domain, const char *host,
-	const struct gensio_addr *addr, const char *txt[],
+	const struct gensio_addr *addr, const char * const *txt,
 	void *userdata)
 {
     struct mdns_cb_data *cb_data = userdata;

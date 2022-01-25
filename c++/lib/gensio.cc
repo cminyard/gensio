@@ -2362,7 +2362,7 @@ namespace gensio {
     MDNS_Service *MDNS::add_service(int interface, int ipdomain,
 				    const char *name, const char *type,
 				    const char *domain, const char *host,
-				    int port, const char *txt[])
+				    int port, const char * const *txt)
     {
 	return new MDNS_Service(this, interface, ipdomain, name, type,
 				domain, host, port, txt);
@@ -2380,7 +2380,7 @@ namespace gensio {
     MDNS_Service::MDNS_Service(MDNS *m, int interface, int ipdomain,
 			       const char *name, const char *type,
 			       const char *domain, const char *host,
-			       int port, const char *txt[])
+			       int port, const char * const *txt)
     {
 	int rv;
 
@@ -2407,7 +2407,7 @@ namespace gensio {
 		    const char *name, const char *type,
 		    const char *domain, const char *host,
 		    const struct gensio_addr *addr,
-		    const char *txt[]) override
+		    const char * const *txt) override
 	{
 	    struct gensio_addr *naddr = NULL;
 
@@ -2444,7 +2444,7 @@ namespace gensio {
 			  const char *name, const char *type,
 			  const char *domain, const char *host,
 			  const struct gensio_addr *addr,
-			  const char *txt[], void *userdata)
+			  const char * const *txt, void *userdata)
     {
 	MDNS_Watch_Event *event = static_cast<MDNS_Watch_Event *>(userdata);
 

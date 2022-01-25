@@ -34,7 +34,7 @@ int gensio_mdns_add_service(struct gensio_mdns *m,
 			    int interface, int ipdomain,
 			    const char *name, const char *type,
 			    const char *domain, const char *host,
-			    int port, const char *txt[],
+			    int port, const char * const *txt,
 			    struct gensio_mdns_service **rservice);
 
 GENSIO_DLL_PUBLIC
@@ -51,7 +51,7 @@ typedef void (*gensio_mdns_watch_cb)(struct gensio_mdns_watch *w,
 				     const char *name, const char *type,
 				     const char *domain, const char *host,
 				     const struct gensio_addr *addr,
-				     const char *txt[], void *userdata);
+				     const char * const *txt, void *userdata);
 
 GENSIO_DLL_PUBLIC
 int gensio_mdns_add_watch(struct gensio_mdns *m,

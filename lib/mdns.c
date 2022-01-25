@@ -407,7 +407,7 @@ gensio_mdns_add_service(struct gensio_mdns *m,
 			int interface, int ipdomain,
 			const char *name, const char *type,
 			const char *domain, const char *host,
-			int port, const char *txt[],
+			int port, const char * const *txt,
 			struct gensio_mdns_service **rservice)
 {
     struct gensio_os_funcs *o = m->o;
@@ -450,7 +450,7 @@ gensio_mdns_add_service(struct gensio_mdns *m,
 	goto out_err;
 
     if (txt && txt[0]) {
-	s->txt = avahi_string_list_new_from_array(txt, -1);
+	s->txt = avahi_string_list_new_from_array((const char **) txt, -1);
 	if (!s->txt)
 	    goto out_err;
     }

@@ -23,7 +23,7 @@ private:
 	       int interface, int ipdomain,
 	       const char *name, const char *type,
 	       const char *domain, const char *host,
-	       const Addr *addr, const char *txt[]) override
+	       const Addr *addr, const char * const *txt) override
     {
 	if (state == GENSIO_MDNS_ALL_FOR_NOW)
 	    waiter->wake();
