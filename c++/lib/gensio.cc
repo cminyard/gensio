@@ -2037,20 +2037,6 @@ namespace gensio {
 	return g;
     }
 
-    Accepter *Accepter::get_child(unsigned int depth)
-    {
-	struct gensio_accepter *acc2 = gensio_acc_get_child(acc, depth);
-	struct gensio_acc_frdata *f;
-	struct gensio_acc_cpp_data *d;
-
-	if (!acc2)
-	    return NULL;
-
-	f = gensio_acc_get_frdata(acc2);
-	d = gensio_container_of(f, struct gensio_acc_cpp_data, frdata);
-	return d->a;
-    }
-
     std::string Accepter::get_port() const
     {
 	char portbuf[100];

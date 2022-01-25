@@ -809,11 +809,6 @@ namespace gensio {
 	inline bool is_packet() const { return gensio_acc_is_packet(acc); }
 	inline bool is_message() const { return gensio_acc_is_message(acc); }
 
-	// Return a child of this accpeter.  A depth of zero returns
-	// this accepter, 1 returns its child, 2 its grandchild, etc.
-	// Returns NULL if the depth is deeper than the accepter stack.
-	Accepter *get_child(unsigned int depth);
-
 	// Return the local side port for the accepter.  This is
 	// useful if you create a gensio with the port set to zero,
 	// letting the code choose a port.  Then you can fetch the
