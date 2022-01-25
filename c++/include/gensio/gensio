@@ -425,15 +425,16 @@ namespace gensio {
 	inline void clear_sync() { gensio_clear_sync(io); }
 
 	// Read data from the gensio in synchronous mode and wait up
-	// to timeout time for the data.  The amount of data read is
-	// returned in count.  If a timeout occurs, data may still
+	// to timeout time for the data.  The vector's capacity should
+	// be set to the max data to read, the length will be set to
+	// the actual read length. If a timeout occurs, data may still
 	// have been read.  If timeout is NULL, wait forever.  Note
 	// that this returns if any data is available, even if it is
 	// less than datalen.  This will return GE_TIMEDOUT on a
 	// timeout or 0 on success.  If intr is true, it will return
 	// GE_INTERRUPTED on a signal.  All other errors throw
 	// gensio_error.
-	int read_s(gensiods *count, void *data, gensiods datalen,
+	int read_s(std::vector<unsigned char> &rvec,
 		   gensio_time *timeout = NULL, bool intr = false);
 
 	// Write data and wait for the write to complete.  If the
@@ -444,9 +445,9 @@ namespace gensio {
 	// will cause this to return GE_INTERRUPTED.
 	int write_s(gensiods *count, const void *data, gensiods datalen,
 		    gensio_time *timeout = NULL, bool intr = false);
-	int write_s(gensiods *count, std::vector<unsigned char> data,
+	int write_s(gensiods *count, const std::vector<unsigned char> data,
 		    gensio_time *timeout = NULL, bool intr = false);
-	int write_s(gensiods *count, SimpleUCharVector data,
+	int write_s(gensiods *count, const SimpleUCharVector data,
 		    gensio_time *timeout = NULL, bool intr = false);
 
 	// Return the os funcs assigned to a gensio.

@@ -812,19 +812,22 @@ namespace gensio {
 	return gensio_control(io, depth, get, option, data, datalen);
     }
 
-    int Gensio::read_s(gensiods *count, void *data, gensiods datalen,
+    int Gensio::read_s(std::vector<unsigned char> &rvec,
 		       gensio_time *timeout, bool intr)
     {
 	int err;
+	gensiods len = rvec.capacity(), count = 0;
+	unsigned char buf[len];
 
 	if (intr)
-	    err = gensio_read_s_intr(io, count, data, datalen, timeout);
+	    err = gensio_read_s_intr(io, &count, buf, len, timeout);
 	else
-	    err = gensio_read_s(io, count, data, datalen, timeout);
+	    err = gensio_read_s(io, &count, buf, len, timeout);
 	if (err == GE_TIMEDOUT || err== GE_INTERRUPTED)
 	    return err;
 	if (err)
 	    throw gensio_error(err);
+	rvec.assign(buf, buf + count);
 	return 0;
     }
 
