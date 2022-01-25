@@ -295,6 +295,20 @@ namespace gensio {
     Gensio *gensio_alloc(Gensio *child, std::string str,
 			 Os_Funcs &o, Event *cb);
 
+    class GENSIOCPP_DLL_PUBLIC Raw_Event_Handler {
+    public:
+	virtual ~Raw_Event_Handler() = default;
+
+	virtual int handle(Gensio *g, struct gensio *io,
+			   int event, int err,
+			   unsigned char *buf, gensiods *buflen,
+			   const char *const *auxdata) = 0;
+
+	// New channels are routed through here so they can be set up properly.
+	virtual void new_channel(Event *e, Gensio *g, Gensio *new_chan,
+				 const char *const *auxdata) = 0;
+    };
+
     // This is a gensio, the central class in the gensio framework.
     // This is the thing that you use to send/receive data and control
     // various operations of the gensio.
@@ -393,11 +407,6 @@ namespace gensio {
 	    return gensio_get_type(io, depth);
 	}
 
-	// Return a gensio in the stack.  0 return this gensio, 1
-	// returns its child, 2 returns it grandchild, etc.  If the
-	// depth is larger than the stack, returns NULL.
-	Gensio *get_child(unsigned int depth);
-
 	// Return various characterstics about a gensio.  See the
 	// gensio_is_xxx.3 man pages for details.
 	inline bool is_client() const { return gensio_is_client(io); }
@@ -453,11 +462,15 @@ namespace gensio {
 	// The user may use this for whatever they like.
 	void *user_data;
 
+	// This allows the user to intercept raw events, it is primarily
+	// used to help other language bindings tie in things they need.
+	Raw_Event_Handler *raw_event_handler;
+
     protected:
 	// Subclasses can use this to initialize the gensio object.
 	virtual void set_gensio(struct gensio *io, bool set_cb);
 	Gensio(Os_Funcs &o, Event *cb): go(o), gcb(cb) { }
-	virtual ~Gensio() { }
+	virtual ~Gensio() { delete raw_event_handler; }
 
     private:
 	struct gensio *io = NULL;

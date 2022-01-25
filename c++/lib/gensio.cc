@@ -145,177 +145,200 @@ namespace gensio {
     Gensio *gensio_alloc(struct gensio *io, Os_Funcs &o,
 			 class Event *cb);
 
-    static int gensio_cpp_cb(struct gensio *io, void *user_data,
-			     int event, int err,
-			     unsigned char *buf, gensiods *buflen,
-			     const char *const *auxdata)
-    {
-	Gensio *g = static_cast<Gensio *>(user_data);
-	Event *cb = g->get_cb();
-	Gensio *g2;
+    class GENSIOCPP_DLL_PUBLIC Main_Raw_Event_Handler:
+	public Raw_Event_Handler {
+    public:
+	Main_Raw_Event_Handler() { }
+	int handle(Gensio *g, struct gensio *io,
+		   int event, int err,
+		   unsigned char *buf, gensiods *buflen,
+		   const char *const *auxdata) override
+	{
+	    Event *cb = g->get_cb();
+	    Gensio *g2;
 
-	try {
-	    if (event >= GENSIO_EVENT_USER_MIN &&
-		event <= GENSIO_EVENT_USER_MAX) {
-		std::vector<unsigned char> val(buf, buf + *buflen);
-		return cb->user_event(g, event, err, val, auxdata);
-	    }
+	    try {
+		if (event >= GENSIO_EVENT_USER_MIN &&
+		    event <= GENSIO_EVENT_USER_MAX) {
+		    std::vector<unsigned char> val(buf, buf + *buflen);
+		    return cb->user_event(g, event, err, val, auxdata);
+		}
 
-	    if (event >= SERGENSIO_EVENT_BASE &&
-			event <= SERGENSIO_EVENT_MAX) {
-		Serial_Event *scb = dynamic_cast<Serial_Event *>(cb);
-		unsigned int *val = (unsigned int *) buf;
+		if (event >= SERGENSIO_EVENT_BASE &&
+		    event <= SERGENSIO_EVENT_MAX) {
+		    Serial_Event *scb = dynamic_cast<Serial_Event *>(cb);
+		    unsigned int *val = (unsigned int *) buf;
 
-		if (!scb)
-		    return GE_NOTSUP;
+		    if (!scb)
+			return GE_NOTSUP;
 
-		if (event == GENSIO_EVENT_SER_SIGNATURE) {
-		    scb->signature((char *) buf, *buflen);
+		    if (event == GENSIO_EVENT_SER_SIGNATURE) {
+			scb->signature((char *) buf, *buflen);
+			return 0;
+		    }
+
+		    switch (event) {
+		    case GENSIO_EVENT_SER_MODEMSTATE:
+			scb->modemstate(*val);
+			break;
+
+		    case GENSIO_EVENT_SER_LINESTATE:
+			scb->linestate(*val);
+			break;
+
+		    case GENSIO_EVENT_SER_FLOW_STATE:
+			scb->flow_state(*val);
+			break;
+
+		    case GENSIO_EVENT_SER_FLUSH:
+			scb->flush(*val);
+			break;
+
+		    case GENSIO_EVENT_SER_SYNC:
+			scb->sync();
+			break;
+
+		    case GENSIO_EVENT_SER_BAUD:
+			scb->baud(*val);
+			break;
+
+		    case GENSIO_EVENT_SER_DATASIZE:
+			scb->datasize(*val);
+			break;
+
+		    case GENSIO_EVENT_SER_PARITY:
+			scb->parity(*val);
+			break;
+
+		    case GENSIO_EVENT_SER_STOPBITS:
+			scb->stopbits(*val);
+			break;
+
+		    case GENSIO_EVENT_SER_FLOWCONTROL:
+			scb->flowcontrol(*val);
+			break;
+
+		    case GENSIO_EVENT_SER_IFLOWCONTROL:
+			scb->iflowcontrol(*val);
+			break;
+
+		    case GENSIO_EVENT_SER_SBREAK:
+			scb->sbreak(*val);
+			break;
+
+		    case GENSIO_EVENT_SER_DTR:
+			scb->dtr(*val);
+			break;
+
+		    case GENSIO_EVENT_SER_RTS:
+			scb->rts(*val);
+			break;
+
+		    default:
+			return GE_NOTSUP;
+		    }
 		    return 0;
 		}
 
 		switch (event) {
-		case GENSIO_EVENT_SER_MODEMSTATE:
-		    scb->modemstate(*val);
-		    break;
-
-		case GENSIO_EVENT_SER_LINESTATE:
-		    scb->linestate(*val);
-		    break;
-
-		case GENSIO_EVENT_SER_FLOW_STATE:
-		    scb->flow_state(*val);
-		    break;
-
-		case GENSIO_EVENT_SER_FLUSH:
-		    scb->flush(*val);
-		    break;
-
-		case GENSIO_EVENT_SER_SYNC:
-		    scb->sync();
-		    break;
-
-		case GENSIO_EVENT_SER_BAUD:
-		    scb->baud(*val);
-		    break;
-
-		case GENSIO_EVENT_SER_DATASIZE:
-		    scb->datasize(*val);
-		    break;
-
-		case GENSIO_EVENT_SER_PARITY:
-		    scb->parity(*val);
-		    break;
-
-		case GENSIO_EVENT_SER_STOPBITS:
-		    scb->stopbits(*val);
-		    break;
-
-		case GENSIO_EVENT_SER_FLOWCONTROL:
-		    scb->flowcontrol(*val);
-		    break;
-
-		case GENSIO_EVENT_SER_IFLOWCONTROL:
-		    scb->iflowcontrol(*val);
-		    break;
-
-		case GENSIO_EVENT_SER_SBREAK:
-		    scb->sbreak(*val);
-		    break;
-
-		case GENSIO_EVENT_SER_DTR:
-		    scb->dtr(*val);
-		    break;
-
-		case GENSIO_EVENT_SER_RTS:
-		    scb->rts(*val);
-		    break;
-
-		default:
-		    return GE_NOTSUP;
+		case GENSIO_EVENT_READ: {
+		    if (buflen) {
+			SimpleUCharVector vdata(buf, *buflen);
+			*buflen = cb->read(g, err, vdata, auxdata);
+		    } else {
+			SimpleUCharVector vdata(NULL, 0);
+			cb->read(g, err, vdata, auxdata);
+		    }
+		    return 0;
 		}
-		return 0;
-	    }
 
-	    switch (event) {
-	    case GENSIO_EVENT_READ: {
-		if (buflen) {
-		    SimpleUCharVector vdata(buf, *buflen);
-		    *buflen = cb->read(g, err, vdata, auxdata);
-		} else {
-		    SimpleUCharVector vdata(NULL, 0);
-		    cb->read(g, err, vdata, auxdata);
+		case GENSIO_EVENT_WRITE_READY:
+		    cb->write_ready(g);
+		    break;
+
+		case GENSIO_EVENT_NEW_CHANNEL:
+		    g2 = gensio_alloc(io, g->get_os_funcs(), NULL);
+		    g->raw_event_handler->new_channel(cb, g, g2, auxdata);
+		    cb->new_channel(g, g2, auxdata);
+		    break;
+
+		case GENSIO_EVENT_SEND_BREAK:
+		    cb->send_break(g);
+		    break;
+
+		case GENSIO_EVENT_AUTH_BEGIN:
+		    return cb->auth_begin(g);
+
+		case GENSIO_EVENT_PRECERT_VERIFY:
+		    return cb->precert_verify(g);
+
+		case GENSIO_EVENT_POSTCERT_VERIFY:
+		    return cb->postcert_verify(g);
+
+		case GENSIO_EVENT_PASSWORD_VERIFY: {
+		    std::string pwstr((char *) buf);
+		    return cb->password_verify(g, pwstr);
 		}
-		return 0;
+
+		case GENSIO_EVENT_REQUEST_PASSWORD: {
+		    int rv;
+		    std::string pwstr("");
+
+		    rv = cb->request_password(g, pwstr, *buflen);
+		    if (rv)
+			return rv;
+		    if (pwstr.size() > *buflen)
+			return GE_TOOBIG;
+		    *buflen = pwstr.size();
+		    memcpy(buf, pwstr.c_str(), *buflen);
+		    return 0;
+		}
+
+		case GENSIO_EVENT_2FA_VERIFY: {
+		    std::vector<unsigned char> val(buf, buf + *buflen);
+		    return cb->verify_2fa(g, val);
+		}
+
+		case GENSIO_EVENT_REQUEST_2FA: {
+		    int rv;
+		    std::vector<unsigned char> val(0);
+
+		    rv = cb->request_2fa(g, val, *buflen);
+		    if (rv)
+			return rv;
+		    if (val.size() > *buflen)
+			return GE_TOOBIG;
+		    *buflen = val.size();
+		    memcpy(buf, val.data(), *buflen);
+		    return 0;
+		}
+		}
+		return GE_NOTSUP;
+	    } catch (std::exception &e) {
+		gensio_log(g->get_os_funcs(), GENSIO_LOG_ERR,
+			   "Received C++ exception in callback handler: %s",
+			   e.what());
+		return GE_APPERR;
 	    }
-
-	    case GENSIO_EVENT_WRITE_READY:
-		cb->write_ready(g);
-		break;
-
-	    case GENSIO_EVENT_NEW_CHANNEL:
-		g2 = gensio_alloc(io, g->get_os_funcs(), NULL);
-		cb->new_channel(g, g2, auxdata);
-		break;
-
-	    case GENSIO_EVENT_SEND_BREAK:
-		cb->send_break(g);
-		break;
-
-	    case GENSIO_EVENT_AUTH_BEGIN:
-		return cb->auth_begin(g);
-
-	    case GENSIO_EVENT_PRECERT_VERIFY:
-		return cb->precert_verify(g);
-
-	    case GENSIO_EVENT_POSTCERT_VERIFY:
-		return cb->postcert_verify(g);
-
-	    case GENSIO_EVENT_PASSWORD_VERIFY: {
-		std::string pwstr((char *) buf);
-		return cb->password_verify(g, pwstr);
-	    }
-
-	    case GENSIO_EVENT_REQUEST_PASSWORD: {
-		int rv;
-		std::string pwstr("");
-
-		rv = cb->request_password(g, pwstr, *buflen);
-		if (rv)
-		    return rv;
-		if (pwstr.size() > *buflen)
-		    return GE_TOOBIG;
-		*buflen = pwstr.size();
-		memcpy(buf, pwstr.c_str(), *buflen);
-		return 0;
-	    }
-
-	    case GENSIO_EVENT_2FA_VERIFY: {
-		std::vector<unsigned char> val(buf, buf + *buflen);
-		return cb->verify_2fa(g, val);
-	    }
-
-	    case GENSIO_EVENT_REQUEST_2FA: {
-		int rv;
-		std::vector<unsigned char> val(0);
-
-		rv = cb->request_2fa(g, val, *buflen);
-		if (rv)
-		    return rv;
-		if (val.size() > *buflen)
-		    return GE_TOOBIG;
-		*buflen = val.size();
-		memcpy(buf, val.data(), *buflen);
-		return 0;
-	    }
-	    }
-	    return GE_NOTSUP;
-	} catch (std::exception &e) {
-	    gensio_log(g->get_os_funcs(), GENSIO_LOG_ERR,
-		       "Received C++ exception in callback handler: %s",
-		       e.what());
-	    return GE_APPERR;
 	}
+
+	void new_channel(Event *e, Gensio *g, Gensio *new_chan,
+			 const char *const *auxdata) override
+	{
+	    e->new_channel(g, new_chan, auxdata);
+	}
+    };
+
+    static int
+    gensio_cpp_cb(struct gensio *io, void *user_data,
+		  int event, int err,
+		  unsigned char *buf, gensiods *buflen,
+		  const char *const *auxdata)
+    {
+	Gensio *g = static_cast<Gensio *>(user_data);
+
+	return g->raw_event_handler->handle(g, io, event, err, buf, buflen,
+					    auxdata);
     }
 
     void gensio_cpp_freed(struct gensio *io, struct gensio_frdata *frdata)
@@ -346,8 +369,10 @@ namespace gensio {
 	d->g = this;
 	d->frdata.freed = gensio_cpp_freed;
 	gensio_set_frdata(io, &d->frdata);
-	if (set_cb)
+	if (set_cb) {
 	    gensio_set_callback(io, gensio_cpp_cb, this);
+	    this->raw_event_handler = new Main_Raw_Event_Handler();
+	}
     }
 
     void
@@ -785,20 +810,6 @@ namespace gensio {
 			char *data, gensiods *datalen)
     {
 	return gensio_control(io, depth, get, option, data, datalen);
-    }
-
-    Gensio *Gensio::get_child(unsigned int depth)
-    {
-	struct gensio *io2 = gensio_get_child(io, depth);
-	struct gensio_frdata *f;
-	struct gensio_cpp_data *d;
-
-	if (!io2)
-	    return NULL;
-
-	f = gensio_get_frdata(io2);
-	d = gensio_container_of(f, struct gensio_cpp_data, frdata);
-	return d->g;
     }
 
     int Gensio::read_s(gensiods *count, void *data, gensiods datalen,
