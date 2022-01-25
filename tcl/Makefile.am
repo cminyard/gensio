@@ -1,5 +1,5 @@
 
-AM_CFLAGS = -DBUILDING_GENSIO_DLL -I$(top_srcdir)/tcl/include \
+AM_CFLAGS = -DBUILDING_GENSIOTCL_DLL -I$(top_srcdir)/tcl/include \
 	 -I$(top_srcdir)/swig/include
 
 lib_LTLIBRARIES = libgensiotcl.la

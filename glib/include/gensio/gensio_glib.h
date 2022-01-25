@@ -12,13 +12,13 @@
 extern "C" {
 #endif
 
-#include <gensio/gensio_dllvisibility.h>
+#include <gensio/gensio_glib_dllvisibility.h>
 #include <gensio/gensio_types.h>
 
 /*
  * Allocate a glib-based os funcs.
  */
-GENSIO_DLL_PUBLIC
+GENSIOGLIB_DLL_PUBLIC
 int gensio_glib_funcs_alloc(struct gensio_os_funcs **o);
 
 #ifdef __cplusplus

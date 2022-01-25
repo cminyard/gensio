@@ -12,13 +12,13 @@
 extern "C" {
 #endif
 
-#include <gensio/gensio_dllvisibility.h>
+#include <gensio/gensio_tcl_dllvisibility.h>
 #include <gensio/gensio_types.h>
 
 /*
  * Allocate a tcl-based os funcs.
  */
-GENSIO_DLL_PUBLIC
+GENSIOTCL_DLL_PUBLIC
 int gensio_tcl_funcs_alloc(struct gensio_os_funcs **o);
 
 #ifdef __cplusplus
