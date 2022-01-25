@@ -669,12 +669,18 @@ namespace gensio {
 				    int err, const char *errstr)
 	{ return GE_NOTSUP; }
 	virtual int password_verify(Accepter *acc, Gensio *g,
-				    const char *password,
-				    gensiods password_len)
+				    const std::string val)
 	{ return GE_NOTSUP; }
 	virtual int request_password(Accepter *acc, Gensio *g,
-				     char *password, gensiods *password_len)
+				     std::string &retval, gensiods maxsize)
 	{ return GE_NOTSUP; }
+	virtual int verify_2fa(Accepter *acc, Gensio *io,
+			       const std::vector<unsigned char> val)
+	    { return GE_NOTSUP; }
+	virtual int request_2fa(Accepter *acc, Gensio *io,
+				std::vector<unsigned char> &retval,
+				gensiods maxsize)
+	    { return GE_NOTSUP; }
 
 	// The free() operation for accepter this object is assigned to
 	// has finished and the data will immediately be freed.

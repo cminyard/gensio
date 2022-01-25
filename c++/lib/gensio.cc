@@ -1599,18 +1599,52 @@ namespace gensio {
 		case GENSIO_ACC_EVENT_PASSWORD_VERIFY: {
 		    struct gensio_acc_password_verify_data *p =
 			(struct gensio_acc_password_verify_data *) data;
+		    std::string pwstr((char *) p->password);
 
 		    g = gensio_alloc(p->io, a->get_os_funcs());
-		    return cb->password_verify(a, g, p->password, p->password_len);
+		    return cb->password_verify(a, g, pwstr);
 		}
 
 		case GENSIO_ACC_EVENT_REQUEST_PASSWORD: {
 		    struct gensio_acc_password_verify_data *p =
 			(struct gensio_acc_password_verify_data *) data;
+		    std::string pwstr("");
+		    int rv;
 
 		    g = gensio_alloc(p->io, a->get_os_funcs());
-		    return cb->request_password(a, g,
-						p->password, &p->password_len);
+		    rv = cb->request_password(a, g, pwstr, p->password_len);
+		    if (rv)
+			return rv;
+		    if (pwstr.size() > p->password_len)
+			return GE_TOOBIG;
+		    p->password_len = pwstr.size();
+		    memcpy(p->password, pwstr.c_str(), p->password_len);
+		    return 0;
+		}
+
+		case GENSIO_EVENT_2FA_VERIFY: {
+		    struct gensio_acc_password_verify_data *p =
+			(struct gensio_acc_password_verify_data *) data;
+		    std::vector<unsigned char> val(p->password,
+					p->password + p->password_len);
+
+		    return cb->verify_2fa(a, g, val);
+		}
+
+		case GENSIO_EVENT_REQUEST_2FA: {
+		    struct gensio_acc_password_verify_data *p =
+			(struct gensio_acc_password_verify_data *) data;
+		    int rv;
+		    std::vector<unsigned char> val(0);
+
+		    rv = cb->request_2fa(a, g, val, p->password_len);
+		    if (rv)
+			return rv;
+		    if (val.size() > p->password_len)
+			return GE_TOOBIG;
+		    p->password_len = val.size();
+		    memcpy(p->password, val.data(), p->password_len);
+		    return 0;
 		}
 
 		case GENSIO_ACC_EVENT_POSTCERT_VERIFY: {
