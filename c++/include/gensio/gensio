@@ -689,6 +689,18 @@ namespace gensio {
 	virtual ~Accepter_Done() = default;
     };
 
+    class GENSIOCPP_DLL_PUBLIC Raw_Accepter_Event_Handler {
+    public:
+	virtual ~Raw_Accepter_Event_Handler() = default;
+
+	virtual int handle(Accepter *a, int event, void *data) = 0;
+
+	// New connections are routed through here so they can be set
+	// up properly.
+	virtual void new_connection(Accepter_Event *e,
+				    Accepter *acc, Gensio *g) = 0;
+    };
+
     // Allocate a new accepter object based on the given string.  See
     // gensio.5 for details on the format of this string.  Note that
     // the returned object will be a subclass of Accepter.
@@ -750,7 +762,7 @@ namespace gensio {
 	// enable/disable completes.  Not really useful for enable,
 	// but it can let you know that no callbacks are pending on a
 	// disable.
-	void set_callback_enable_cb(bool enabled, Accepter_Done *done);
+	void set_callback_enable(bool enabled, Accepter_Done *done);
 
 	// Synchronous enable/disable, won't return until the
 	// enable/disable completes.
@@ -813,10 +825,14 @@ namespace gensio {
 	// to use.
 	struct gensio_accepter *get_accepter() { return acc; }
 
+	// This allows the user to intercept raw events, it is primarily
+	// used to help other language bindings tie in things they need.
+	Raw_Accepter_Event_Handler *raw_event_handler;
+
     protected:
 	virtual void set_accepter(struct gensio_accepter *acc, bool set_cb);
 	Accepter(Os_Funcs &o, Accepter_Event *cb) : go(o), gcb(cb) { }
-	virtual ~Accepter() { }
+	virtual ~Accepter() { delete raw_event_handler; }
 
     private:
 	struct gensio_accepter *acc = NULL;
@@ -976,7 +992,20 @@ namespace gensio {
 				     const char *domain, const char *host,
 				     const struct gensio_addr *addr,
 				     const char *txt[], void *userdata);
-        };
+    };
+
+    class GENSIOCPP_DLL_PUBLIC Raw_MDNS_Event_Handler {
+    public:
+	virtual ~Raw_MDNS_Event_Handler() = default;
+
+	virtual void handle(MDNS_Watch *w, MDNS_Watch_Event *e,
+			    enum gensio_mdns_data_state state,
+			    int interface, int ipdomain,
+			    const char *name, const char *type,
+			    const char *domain, const char *host,
+			    const struct gensio_addr *addr,
+			    const char *txt[]) = 0;
+    };
 
     // A class representing an MDNS service.  A wrapper around
     // gensio_mdns_add/remove_watch(), see man pages on those
@@ -994,8 +1023,13 @@ namespace gensio {
 	// It may be in callbacks.  You have to go through a special
 	// free operation.  See the Gensio free() method for details.
 	void free(MDNS_Watch_Done *done);
+
+	// This allows the user to intercept raw events, it is primarily
+	// used to help other language bindings tie in things they need.
+	Raw_MDNS_Event_Handler *raw_event_handler;
+
     protected:
-	virtual ~MDNS_Watch() {	}
+	virtual ~MDNS_Watch() { delete raw_event_handler; }
     private:
 	MDNS *m;
 	MDNS_Watch_Event *event;

@@ -1560,76 +1560,93 @@ namespace gensio {
 	Accepter *a;
     };
 
+    class GENSIOCPP_DLL_PUBLIC Main_Raw_Accepter_Event_Handler:
+	public Raw_Accepter_Event_Handler {
+    public:
+	Main_Raw_Accepter_Event_Handler() { }
+	int handle(Accepter *a, int event, void *data) override
+	{
+	    Accepter_Event *cb = a->get_cb();
+	    struct gensio *io;
+	    Gensio *g;
+
+	    try {
+		switch (event) {
+		case GENSIO_ACC_EVENT_NEW_CONNECTION:
+		    io = (struct gensio *) data;
+		    g = gensio_alloc(io, a->get_os_funcs(), NULL);
+		    a->raw_event_handler->new_connection(cb, a, g);
+		    break;
+
+		case GENSIO_ACC_EVENT_LOG: {
+		    struct gensio_loginfo *l = (struct gensio_loginfo *) data;
+		    cb->log(l->level, l->str, l->args);
+		    break;
+		}
+
+		case GENSIO_ACC_EVENT_PRECERT_VERIFY: {
+		    io = (struct gensio *) data;
+		    g = gensio_alloc(io, a->get_os_funcs());
+		    return cb->precert_verify(a, g);
+		}
+
+		case GENSIO_ACC_EVENT_AUTH_BEGIN: {
+		    io = (struct gensio *) data;
+		    g = gensio_alloc(io, a->get_os_funcs());
+		    return cb->auth_begin(a, g);
+		}
+
+		case GENSIO_ACC_EVENT_PASSWORD_VERIFY: {
+		    struct gensio_acc_password_verify_data *p =
+			(struct gensio_acc_password_verify_data *) data;
+
+		    g = gensio_alloc(p->io, a->get_os_funcs());
+		    return cb->password_verify(a, g, p->password, p->password_len);
+		}
+
+		case GENSIO_ACC_EVENT_REQUEST_PASSWORD: {
+		    struct gensio_acc_password_verify_data *p =
+			(struct gensio_acc_password_verify_data *) data;
+
+		    g = gensio_alloc(p->io, a->get_os_funcs());
+		    return cb->request_password(a, g,
+						p->password, &p->password_len);
+		}
+
+		case GENSIO_ACC_EVENT_POSTCERT_VERIFY: {
+		    struct gensio_acc_postcert_verify_data *p =
+			(struct gensio_acc_postcert_verify_data *) data;
+
+		    g = gensio_alloc(p->io, a->get_os_funcs());
+		    return cb->postcert_verify(a, g, p->err, p->errstr);
+		}
+
+		default:
+		    return GE_NOTSUP;
+		}
+	    } catch (std::exception &e) {
+		gensio_log(g->get_os_funcs(), GENSIO_LOG_ERR,
+		     "Received C++ exception in accepter callback handler: %s",
+		     e.what());
+		return GE_APPERR;
+	    }
+
+	    return 0;
+	}
+
+	void new_connection(Accepter_Event *e, Accepter *a,
+			    Gensio *new_g) override
+	{
+	    e->new_connection(a, new_g);
+	}
+    };
+
     static int gensio_acc_cpp_cb(struct gensio_accepter *acc, void *user_data,
 				 int event, void *data)
     {
 	Accepter *a = static_cast<Accepter *>(user_data);
-	Accepter_Event *cb = a->get_cb();
-	struct gensio *io;
-	Gensio *g;
 
-	try {
-	    switch (event) {
-	    case GENSIO_ACC_EVENT_NEW_CONNECTION:
-		io = (struct gensio *) data;
-		g = gensio_alloc(io, a->get_os_funcs(), NULL);
-		cb->new_connection(a, g);
-		break;
-
-	    case GENSIO_ACC_EVENT_LOG: {
-		struct gensio_loginfo *l = (struct gensio_loginfo *) data;
-		cb->log(l->level, l->str, l->args);
-		break;
-	    }
-
-	    case GENSIO_ACC_EVENT_PRECERT_VERIFY: {
-		io = (struct gensio *) data;
-		g = gensio_alloc(io, a->get_os_funcs());
-		return cb->precert_verify(a, g);
-	    }
-
-	    case GENSIO_ACC_EVENT_AUTH_BEGIN: {
-		io = (struct gensio *) data;
-		g = gensio_alloc(io, a->get_os_funcs());
-		return cb->auth_begin(a, g);
-	    }
-
-	    case GENSIO_ACC_EVENT_PASSWORD_VERIFY: {
-		struct gensio_acc_password_verify_data *p =
-		    (struct gensio_acc_password_verify_data *) data;
-
-		g = gensio_alloc(p->io, a->get_os_funcs());
-		return cb->password_verify(a, g, p->password, p->password_len);
-	    }
-
-	    case GENSIO_ACC_EVENT_REQUEST_PASSWORD: {
-		struct gensio_acc_password_verify_data *p =
-		    (struct gensio_acc_password_verify_data *) data;
-
-		g = gensio_alloc(p->io, a->get_os_funcs());
-		return cb->request_password(a, g,
-						p->password, &p->password_len);
-	    }
-
-	    case GENSIO_ACC_EVENT_POSTCERT_VERIFY: {
-		struct gensio_acc_postcert_verify_data *p =
-		    (struct gensio_acc_postcert_verify_data *) data;
-
-		g = gensio_alloc(p->io, a->get_os_funcs());
-		return cb->postcert_verify(a, g, p->err, p->errstr);
-	    }
-
-	    default:
-		return GE_NOTSUP;
-	    }
-	} catch (std::exception &e) {
-	    gensio_log(g->get_os_funcs(), GENSIO_LOG_ERR,
-		     "Received C++ exception in accepter callback handler: %s",
-		     e.what());
-	    return GE_APPERR;
-	}
-
-        return 0;
+	return a->raw_event_handler->handle(a, event, data);
     }
 
     void gensio_acc_cpp_freed(struct gensio_accepter *acc,
@@ -1661,8 +1678,10 @@ namespace gensio {
 	d->a = this;
 	d->frdata.freed = gensio_acc_cpp_freed;
 	gensio_acc_set_frdata(acc, &d->frdata);
-	if (set_cb)
+	if (set_cb) {
 	    gensio_acc_set_callback(acc, gensio_acc_cpp_cb, this);
+	    this->raw_event_handler = new Main_Raw_Accepter_Event_Handler();
+	}
     }
 
     Accepter *
@@ -1929,7 +1948,7 @@ namespace gensio {
 	    throw gensio_error(err);
     }
 
-    void Accepter::set_callback_enable_cb(bool enabled, Accepter_Done *done)
+    void Accepter::set_callback_enable(bool enabled, Accepter_Done *done)
     {
 	int err;
 
@@ -2357,6 +2376,48 @@ namespace gensio {
 	gensio_mdns_remove_service(this->s);
     }
 
+    class GENSIOCPP_DLL_PUBLIC Main_Raw_MDNS_Event_Handler:
+	public Raw_MDNS_Event_Handler {
+    public:
+	Main_Raw_MDNS_Event_Handler() { }
+
+	void handle(MDNS_Watch *w, MDNS_Watch_Event *event,
+		    enum gensio_mdns_data_state state,
+		    int interface, int ipdomain,
+		    const char *name, const char *type,
+		    const char *domain, const char *host,
+		    const struct gensio_addr *addr,
+		    const char *txt[]) override
+	{
+	    struct gensio_addr *naddr = NULL;
+
+	    if (addr) {
+		naddr = gensio_addr_dup(addr);
+		if (!naddr) {
+		    gensio_log(w->get_os_funcs(), GENSIO_LOG_ERR,
+			       "Memory allocation failure in mdns watch event");
+		    return;
+		}
+	    }
+
+	    try {
+		if (naddr) {
+		    Addr a(naddr);
+
+		    event->event(w, state, interface, ipdomain, name, type,
+				 domain, host, &a, txt);
+		} else {
+		    event->event(w, state, interface, ipdomain, name, type,
+				 domain, host, NULL, txt);
+		}
+	    } catch (std::exception &e) {
+		gensio_log(w->get_os_funcs(), GENSIO_LOG_ERR,
+		      "Received C++ exception in mdns watch event handler: %s",
+		      e.what());
+	    }
+	}
+    };
+
     void mdns_watch_event(struct gensio_mdns_watch *w,
 			  enum gensio_mdns_data_state state,
 			  int interface, int ipdomain,
@@ -2366,32 +2427,11 @@ namespace gensio {
 			  const char *txt[], void *userdata)
     {
 	MDNS_Watch_Event *event = static_cast<MDNS_Watch_Event *>(userdata);
-	struct gensio_addr *naddr = NULL;
 
-	if (addr) {
-	    naddr = gensio_addr_dup(addr);
-	    if (!naddr) {
-		gensio_log(event->w->get_os_funcs(), GENSIO_LOG_ERR,
-			   "Memory allocation failure in mdns watch event");
-		return;
-	    }
-	}
-
-	try {
-	    if (naddr) {
-		Addr a(naddr);
-
-		event->event(event->w, state, interface, ipdomain, name, type,
-			     domain, host, &a, txt);
-	    } else {
-		event->event(event->w, state, interface, ipdomain, name, type,
-			     domain, host, NULL, txt);
-	    }
-	} catch (std::exception &e) {
-	    gensio_log(event->w->get_os_funcs(), GENSIO_LOG_ERR,
-		       "Received C++ exception in mdns watch event handler: %s",
-		       e.what());
-	}
+	event->w->raw_event_handler->handle(event->w, event, state,
+					    interface, ipdomain,
+					    name, type, domain, host,
+					    addr, txt);
     }
 
     MDNS_Watch::MDNS_Watch(MDNS *m, int interface, int ipdomain,
@@ -2404,6 +2444,7 @@ namespace gensio {
 	this->m = m;
 	this->event = event;
 	event->w = this;
+	this->raw_event_handler = new Main_Raw_MDNS_Event_Handler();
 	rv = gensio_mdns_add_watch(m->m, interface, ipdomain, name, type,
 				   domain, host, mdns_watch_event,
 				   event, &this->w);
