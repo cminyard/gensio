@@ -709,10 +709,15 @@ namespace gensio {
     }
 
     int Gensio::write_s(gensiods *count, const void *data, gensiods datalen,
-			gensio_time *timeout)
+			gensio_time *timeout, bool intr)
     {
-	int err = gensio_write_s(io, count, data, datalen, timeout);
-	if (err == GE_TIMEDOUT)
+	int err;
+
+	if (intr)
+	    err = gensio_write_s_intr(io, count, data, datalen, timeout);
+	else
+	    err = gensio_write_s(io, count, data, datalen, timeout);
+	if (err == GE_TIMEDOUT || err == GE_INTERRUPTED)
 	    return err;
 	if (err)
 	    throw gensio_error(err);
@@ -720,60 +725,15 @@ namespace gensio {
     }
 
     int Gensio::write_s(gensiods *count, std::vector<unsigned char> data,
-			gensio_time *timeout)
+			gensio_time *timeout, bool intr)
     {
-	int err = gensio_write_s(io, count, data.data(), data.size(), timeout);
-	if (err == GE_TIMEDOUT)
-	    return err;
-	if (err)
-	    throw gensio_error(err);
-	return 0;
+	return write_s(count, data.data(), data.size(), timeout, intr);
     }
 
     int Gensio::write_s(gensiods *count, SimpleUCharVector data,
-			gensio_time *timeout)
+			gensio_time *timeout, bool intr)
     {
-	int err = gensio_write_s(io, count, data.data(), data.size(), timeout);
-	if (err == GE_TIMEDOUT)
-	    return err;
-	if (err)
-	    throw gensio_error(err);
-	return 0;
-    }
-
-    int Gensio::write_s_intr(gensiods *count, const void *data,
-			     gensiods datalen, gensio_time *timeout)
-    {
-	int err = gensio_write_s_intr(io, count, data, datalen, timeout);
-	if (err == GE_TIMEDOUT || err == GE_INTERRUPTED)
-	    return err;
-	if (err)
-	    throw gensio_error(err);
-	return 0;
-    }
-
-    int Gensio::write_s_intr(gensiods *count, std::vector<unsigned char> data,
-			     gensio_time *timeout)
-    {
-	int err = gensio_write_s_intr(io, count, data.data(), data.size(),
-				      timeout);
-	if (err == GE_TIMEDOUT || err == GE_INTERRUPTED)
-	    return err;
-	if (err)
-	    throw gensio_error(err);
-	return 0;
-    }
-
-    int Gensio::write_s_intr(gensiods *count, SimpleUCharVector data,
-			     gensio_time *timeout)
-    {
-	int err = gensio_write_s_intr(io, count, data.data(), data.size(),
-				      timeout);
-	if (err == GE_TIMEDOUT || err == GE_INTERRUPTED)
-	    return err;
-	if (err)
-	    throw gensio_error(err);
-	return 0;
+	return write_s(count, data.data(), data.size(), timeout, intr);
     }
 
     Gensio *Gensio::alloc_channel(const char *const args[], Event *cb)
@@ -842,21 +802,15 @@ namespace gensio {
     }
 
     int Gensio::read_s(gensiods *count, void *data, gensiods datalen,
-		       gensio_time *timeout)
+		       gensio_time *timeout, bool intr)
     {
-	int err = gensio_read_s(io, count, data, datalen, timeout);
-	if (err == GE_TIMEDOUT)
-	    return err;
-	if (err)
-	    throw gensio_error(err);
-	return 0;
-    }
+	int err;
 
-    int Gensio::read_s_intr(gensiods *count, void *data, gensiods datalen,
-			    gensio_time *timeout)
-    {
-	int err = gensio_read_s_intr(io, count, data, datalen, timeout);
-	if (err == GE_TIMEDOUT || err == GE_INTERRUPTED)
+	if (intr)
+	    err = gensio_read_s_intr(io, count, data, datalen, timeout);
+	else
+	    err = gensio_read_s(io, count, data, datalen, timeout);
+	if (err == GE_TIMEDOUT || err== GE_INTERRUPTED)
 	    return err;
 	if (err)
 	    throw gensio_error(err);
@@ -1319,9 +1273,9 @@ namespace gensio {
     public:
 	Std_Ser_Op_Done(Os_Funcs &o) : waiter(o) { }
 
-	int wait(gensio_time *timeout = NULL)
+	int wait(gensio_time *timeout = NULL, bool intr = false)
 	{
-	    return waiter.wait(1, timeout);
+	    return waiter.wait(1, timeout, intr);
 	}
 
 	int err = 0;
@@ -1337,13 +1291,14 @@ namespace gensio {
 	Waiter waiter;
     };
     
-    int Serial_Gensio::baud_s(unsigned int *baud, gensio_time *timeout)
+    int Serial_Gensio::baud_s(unsigned int *baud, gensio_time *timeout,
+			      bool intr)
     {
 	Std_Ser_Op_Done w(this->get_os_funcs());
 	int err;
 
 	this->baud(*baud, &w);
-	err = w.wait();
+	err = w.wait(timeout, intr);
 	if (err)
 	    return err;
 	if (w.err)
@@ -1352,13 +1307,14 @@ namespace gensio {
 	return 0;
     }
 
-    int Serial_Gensio::datasize_s(unsigned int *size, gensio_time *timeout)
+    int Serial_Gensio::datasize_s(unsigned int *size, gensio_time *timeout,
+				  bool intr)
     {
 	Std_Ser_Op_Done w(this->get_os_funcs());
 	int err;
 
 	this->datasize(*size, &w);
-	err = w.wait(timeout);
+	err = w.wait(timeout, intr);
 	if (err)
 	    return err;
 	if (w.err)
@@ -1367,13 +1323,14 @@ namespace gensio {
 	return 0;
     }
 
-    int Serial_Gensio::parity_s(unsigned int *par, gensio_time *timeout)
+    int Serial_Gensio::parity_s(unsigned int *par, gensio_time *timeout,
+				bool intr)
     {
 	Std_Ser_Op_Done w(this->get_os_funcs());
 	int err;
 
 	this->parity(*par, &w);
-	err = w.wait(timeout);
+	err = w.wait(timeout, intr);
 	if (err)
 	    return err;
 	if (w.err)
@@ -1382,13 +1339,14 @@ namespace gensio {
 	return 0;
     }
 
-    int Serial_Gensio::stopbits_s(unsigned int *bits, gensio_time *timeout)
+    int Serial_Gensio::stopbits_s(unsigned int *bits, gensio_time *timeout,
+				  bool intr)
     {
 	Std_Ser_Op_Done w(this->get_os_funcs());
 	int err;
 
 	this->stopbits(*bits, &w);
-	err = w.wait(timeout);
+	err = w.wait(timeout, intr);
 	if (err)
 	    return err;
 	if (w.err)
@@ -1397,13 +1355,14 @@ namespace gensio {
 	return 0;
     }
 
-    int Serial_Gensio::flowcontrol_s(unsigned int *flow, gensio_time *timeout)
+    int Serial_Gensio::flowcontrol_s(unsigned int *flow, gensio_time *timeout,
+				     bool intr)
     {
 	Std_Ser_Op_Done w(this->get_os_funcs());
 	int err;
 
 	this->flowcontrol(*flow, &w);
-	err = w.wait(timeout);
+	err = w.wait(timeout, intr);
 	if (err)
 	    return err;
 	if (w.err)
@@ -1412,13 +1371,14 @@ namespace gensio {
 	return 0;
     }
 
-    int Serial_Gensio::iflowcontrol_s(unsigned int *flow, gensio_time *timeout)
+    int Serial_Gensio::iflowcontrol_s(unsigned int *flow, gensio_time *timeout,
+				      bool intr)
     {
 	Std_Ser_Op_Done w(this->get_os_funcs());
 	int err;
 
 	this->iflowcontrol(*flow, &w);
-	err = w.wait(timeout);
+	err = w.wait(timeout, intr);
 	if (err)
 	    return err;
 	if (w.err)
@@ -1427,13 +1387,14 @@ namespace gensio {
 	return 0;
     }
 
-    int Serial_Gensio::sbreak_s(unsigned int *sbreak, gensio_time *timeout)
+    int Serial_Gensio::sbreak_s(unsigned int *sbreak, gensio_time *timeout,
+				bool intr)
     {
 	Std_Ser_Op_Done w(this->get_os_funcs());
 	int err;
 
 	this->sbreak(*sbreak, &w);
-	err = w.wait(timeout);
+	err = w.wait(timeout, intr);
 	if (err)
 	    return err;
 	if (w.err)
@@ -1442,13 +1403,14 @@ namespace gensio {
 	return 0;
     }
 
-    int Serial_Gensio::dtr_s(unsigned int *dtr, gensio_time *timeout)
+    int Serial_Gensio::dtr_s(unsigned int *dtr, gensio_time *timeout,
+			     bool intr)
     {
 	Std_Ser_Op_Done w(this->get_os_funcs());
 	int err;
 
 	this->dtr(*dtr, &w);
-	err = w.wait(timeout);
+	err = w.wait(timeout, intr);
 	if (err)
 	    return err;
 	if (w.err)
@@ -1457,13 +1419,14 @@ namespace gensio {
 	return 0;
     }
 
-    int Serial_Gensio::rts_s(unsigned int *rts, gensio_time *timeout)
+    int Serial_Gensio::rts_s(unsigned int *rts, gensio_time *timeout,
+			     bool intr)
     {
 	Std_Ser_Op_Done w(this->get_os_funcs());
 	int err;
 
 	this->rts(*rts, &w);
-	err = w.wait(timeout);
+	err = w.wait(timeout, intr);
 	if (err)
 	    return err;
 	if (w.err)
@@ -1472,13 +1435,14 @@ namespace gensio {
 	return 0;
     }
 
-    int Serial_Gensio::cts_s(unsigned int *cts, gensio_time *timeout)
+    int Serial_Gensio::cts_s(unsigned int *cts, gensio_time *timeout,
+			     bool intr)
     {
 	Std_Ser_Op_Done w(this->get_os_funcs());
 	int err;
 
 	this->cts(*cts, &w);
-	err = w.wait(timeout);
+	err = w.wait(timeout, intr);
 	if (err)
 	    return err;
 	if (w.err)
@@ -1487,13 +1451,14 @@ namespace gensio {
 	return 0;
     }
 
-    int Serial_Gensio::dcd_dsr_s(unsigned int *dcd_dsr, gensio_time *timeout)
+    int Serial_Gensio::dcd_dsr_s(unsigned int *dcd_dsr, gensio_time *timeout,
+				 bool intr)
     {
 	Std_Ser_Op_Done w(this->get_os_funcs());
 	int err;
 
 	this->dcd_dsr(*dcd_dsr, &w);
-	err = w.wait(timeout);
+	err = w.wait(timeout, intr);
 	if (err)
 	    return err;
 	if (w.err)
@@ -1502,13 +1467,14 @@ namespace gensio {
 	return 0;
     }
 
-    int Serial_Gensio::ri_s(unsigned int *ri, gensio_time *timeout)
+    int Serial_Gensio::ri_s(unsigned int *ri, gensio_time *timeout,
+			    bool intr)
     {
 	Std_Ser_Op_Done w(this->get_os_funcs());
 	int err;
 
 	this->ri(*ri, &w);
-	err = w.wait(timeout);
+	err = w.wait(timeout, intr);
 	if (err)
 	    return err;
 	if (w.err)
@@ -1979,22 +1945,15 @@ namespace gensio {
 	    throw gensio_error(err);
     }
 
-    int Accepter::accept_s(Gensio **g, gensio_time *timeout)
+    int Accepter::accept_s(Gensio **g, gensio_time *timeout, bool intr)
     {
 	struct gensio *io;
-	int err = gensio_acc_accept_s(acc, timeout, &io);
-	if (err == GE_TIMEDOUT)
-	    return err;
-	if (err)
-	    throw gensio_error(err);
-	*g = gensio_alloc(io, go, NULL);
-	return 0;
-    }
+	int err;
 
-    int Accepter::accept_s_intr(Gensio **g, gensio_time *timeout)
-    {
-	struct gensio *io;
-	int err = gensio_acc_accept_s_intr(acc, timeout, &io);
+	if (intr)
+	    err = gensio_acc_accept_s_intr(acc, timeout, &io);
+	else
+	    err = gensio_acc_accept_s(acc, timeout, &io);
 	if (err == GE_TIMEDOUT || err == GE_INTERRUPTED)
 	    return err;
 	if (err)
@@ -2300,21 +2259,14 @@ namespace gensio {
     }
 
     int
-    Waiter::wait(unsigned int count, gensio_time *timeout) {
-	int rv = gensio_os_funcs_wait(o, waiter, count, timeout);
+    Waiter::wait(unsigned int count, gensio_time *timeout, bool intr) {
+	int rv;
 
-	if (rv == GE_TIMEDOUT)
-	    return rv;
-	if (rv)
-	    throw gensio_error(rv);
-	return 0;
-    }
-
-    int
-    Waiter::wait_intr(unsigned int count, gensio_time *timeout)
-    {
-	int rv = gensio_os_funcs_wait_intr_sigmask(o, waiter, count, timeout,
+	if (intr)
+	    rv = gensio_os_funcs_wait_intr_sigmask(o, waiter, count, timeout,
 						   o.get_proc_data());
+	else
+	    rv = gensio_os_funcs_wait(o, waiter, count, timeout);
 
 	if (rv == GE_TIMEDOUT || rv == GE_INTERRUPTED)
 	    return rv;

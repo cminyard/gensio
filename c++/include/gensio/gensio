@@ -421,36 +421,24 @@ namespace gensio {
 	// have been read.  If timeout is NULL, wait forever.  Note
 	// that this returns if any data is available, even if it is
 	// less than datalen.  This will return GE_TIMEDOUT on a
-	// timeout or 0 on success.  All other errors throw
+	// timeout or 0 on success.  If intr is true, it will return
+	// GE_INTERRUPTED on a signal.  All other errors throw
 	// gensio_error.
 	int read_s(gensiods *count, void *data, gensiods datalen,
-		   gensio_time *timeout = NULL);
-
-	// Like the above, but will also return on a signal.  It
-	// returns GE_INTERRUPTED in this case.
-	int read_s_intr(gensiods *count, void *data, gensiods datalen,
-			gensio_time *timeout = NULL);
+		   gensio_time *timeout = NULL, bool intr = false);
 
 	// Write data and wait for the write to complete.  If the
 	// write does not complete in the time specified by timeout,
 	// returns GE_TIMEDOUT.  Note that some data may still have
-	// been written, the amount written is returned in count.
-	// If timeout is NULL, wait forever.
+	// been written, the amount written is returned in count.  If
+	// timeout is NULL, wait forever.  If intr is true, a signal
+	// will cause this to return GE_INTERRUPTED.
 	int write_s(gensiods *count, const void *data, gensiods datalen,
-		    gensio_time *timeout = NULL);
+		    gensio_time *timeout = NULL, bool intr = false);
 	int write_s(gensiods *count, std::vector<unsigned char> data,
-		    gensio_time *timeout = NULL);
+		    gensio_time *timeout = NULL, bool intr = false);
 	int write_s(gensiods *count, SimpleUCharVector data,
-		    gensio_time *timeout = NULL);
-
-	// Like the above, but the write may be interrupted by a
-	// signal.  If that happens, this returns GE_INTERRUPTED.
-	int write_s_intr(gensiods *count, const void *data, gensiods datalen,
-			 gensio_time *timeout = NULL);
-	int write_s_intr(gensiods *count, std::vector<unsigned char> data,
-			 gensio_time *timeout = NULL);
-	int write_s_intr(gensiods *count, SimpleUCharVector data,
-			 gensio_time *timeout = NULL);
+		    gensio_time *timeout = NULL, bool intr = false);
 
 	// Return the os funcs assigned to a gensio.
 	inline Os_Funcs &get_os_funcs() { return go; }
@@ -573,6 +561,7 @@ namespace gensio {
 	Serial_Gensio(const Serial_Gensio&) = delete;
 	Serial_Gensio &operator=(const Serial_Gensio&) = delete;
 
+	// Non-blocking variants of these calls
 	void baud(unsigned int baud, Serial_Op_Done *done);
 	void datasize(unsigned int size, Serial_Op_Done *done);
 	void parity(unsigned int par, Serial_Op_Done *done);
@@ -588,20 +577,34 @@ namespace gensio {
 	void signature(const char *sig, unsigned int len,
 		       Serial_Op_Sig_Done *done);
 
-	// If you pass in a valid timeout, this will return GE_TIMEOUT
-	// on a timeout.  On all other errors it raises an exception.
-	int baud_s(unsigned int *baud, gensio_time *timeout = NULL);
-	int datasize_s(unsigned int *size, gensio_time *timeout = NULL);
-	int parity_s(unsigned int *par, gensio_time *timeout = NULL);
-	int stopbits_s(unsigned int *bits, gensio_time *timeout = NULL);
-	int flowcontrol_s(unsigned int *flow, gensio_time *timeout = NULL);
-	int iflowcontrol_s(unsigned int *flow, gensio_time *timeout = NULL);
-	int sbreak_s(unsigned int *sbreak, gensio_time *timeout = NULL);
-	int dtr_s(unsigned int *dtr, gensio_time *timeout = NULL);
-	int rts_s(unsigned int *rts, gensio_time *timeout = NULL);
-	int cts_s(unsigned int *cts, gensio_time *timeout = NULL);
-	int dcd_dsr_s(unsigned int *dcd_dsr, gensio_time *timeout = NULL);
-	int ri_s(unsigned int *ri, gensio_time *timeout = NULL);
+	// If you pass in a valid timeout, this will return GE_TIMEDOUT
+	// on a timeout.  If you set intr to true, it will return
+	// GE_INTERRUPTED if a signal comes in.  On all other errors
+	// it raises an exception.
+	int baud_s(unsigned int *baud, gensio_time *timeout = NULL,
+		   bool intr = false);
+	int datasize_s(unsigned int *size, gensio_time *timeout = NULL,
+		       bool intr = false);
+	int parity_s(unsigned int *par, gensio_time *timeout = NULL,
+		     bool intr = false);
+	int stopbits_s(unsigned int *bits, gensio_time *timeout = NULL,
+		       bool intr = false);
+	int flowcontrol_s(unsigned int *flow, gensio_time *timeout = NULL,
+			  bool intr = false);
+	int iflowcontrol_s(unsigned int *flow, gensio_time *timeout = NULL,
+			   bool intr = false);
+	int sbreak_s(unsigned int *sbreak, gensio_time *timeout = NULL,
+		     bool intr = false);
+	int dtr_s(unsigned int *dtr, gensio_time *timeout = NULL,
+		  bool intr = false);
+	int rts_s(unsigned int *rts, gensio_time *timeout = NULL,
+		  bool intr = false);
+	int cts_s(unsigned int *cts, gensio_time *timeout = NULL,
+		  bool intr = false);
+	int dcd_dsr_s(unsigned int *dcd_dsr, gensio_time *timeout = NULL,
+		      bool intr = false);
+	int ri_s(unsigned int *ri, gensio_time *timeout = NULL,
+		 bool intr = false);
 
 	// Server side only, for reporting changes
 	void flow_state(bool state);
@@ -754,11 +757,8 @@ namespace gensio {
 	// times out, it returns GE_TIMEDOUT, otherwise it returns
 	// zero.  Any other errors get thrown as a gensio_error.
 	// The new gensio is returned in g.
-	int accept_s(Gensio **g, gensio_time *timeout = NULL);
-
-	// Like accept_s, but also returns if a signal is received.
-	// In that cast it returns GE_INTERRUPTED.
-	int accept_s_intr(Gensio **g, gensio_time *timeout = NULL);
+	int accept_s(Gensio **g, gensio_time *timeout = NULL,
+		     bool intr = false);
 
 	// Create a new gensio as if it came from this accepter.  This
 	// doesn't have much meaning except for UDP.  For UDP, it uses
@@ -846,16 +846,11 @@ namespace gensio {
 	// timeout time.  If the timeout occurs before count events
 	// are delivered, none of the wakeups are used.  If timeout is
 	// NULL, wait forever.  This will return either 0 if woken or
-	// GE_TIMEDOUT if not woken before the timeout.  Any other
-	// error will result in a gensio_error being thrown.
-	int wait(unsigned int count, gensio_time *timeout = NULL);
-
-	// Like the above but installs the given sigmask (if not NULL)
-	// and will return if a interrupt (signal) occurs while
-	// waiting.  This will also return GE_INTERRUPTED in addition
-	// to 0 and GE_TIMEDOUT, an interrupt will not throw an
-	// exception.
-	int wait_intr(unsigned int count, gensio_time *timeout = NULL);
+	// GE_TIMEDOUT if not woken before the timeout.  If intr is
+	// true it will return GE_INTERRUPTED if a signal comes in.
+	// Any other error will result in a gensio_error being thrown.
+	int wait(unsigned int count, gensio_time *timeout = NULL,
+	     bool intr = false);
 
     private:
 	Os_Funcs o;
