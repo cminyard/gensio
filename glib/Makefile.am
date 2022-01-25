@@ -1,6 +1,6 @@
 
 AM_CFLAGS = -DBUILDING_GENSIOGLIB_DLL -I$(top_srcdir)/glib/include \
-	 -I$(top_srcdir)/swig/include
+	 -I$(top_srcdir)/c++/swig/include
 
 lib_LTLIBRARIES = libgensioglib.la
 
