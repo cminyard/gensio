@@ -464,13 +464,16 @@ namespace gensio {
 
 	// This allows the user to intercept raw events, it is primarily
 	// used to help other language bindings tie in things they need.
-	Raw_Event_Handler *raw_event_handler;
+	Raw_Event_Handler *raw_event_handler = NULL;
 
     protected:
 	// Subclasses can use this to initialize the gensio object.
 	virtual void set_gensio(struct gensio *io, bool set_cb);
 	Gensio(Os_Funcs &o, Event *cb): go(o), gcb(cb) { }
-	virtual ~Gensio() { delete raw_event_handler; }
+	virtual ~Gensio() {
+	    if (raw_event_handler)
+		delete raw_event_handler;
+	}
 
     private:
 	struct gensio *io = NULL;
@@ -828,12 +831,15 @@ namespace gensio {
 
 	// This allows the user to intercept raw events, it is primarily
 	// used to help other language bindings tie in things they need.
-	Raw_Accepter_Event_Handler *raw_event_handler;
+	Raw_Accepter_Event_Handler *raw_event_handler = NULL;
 
     protected:
 	virtual void set_accepter(struct gensio_accepter *acc, bool set_cb);
 	Accepter(Os_Funcs &o, Accepter_Event *cb) : go(o), gcb(cb) { }
-	virtual ~Accepter() { delete raw_event_handler; }
+	virtual ~Accepter() {
+	    if (raw_event_handler)
+		delete raw_event_handler;
+	}
 
     private:
 	struct gensio_accepter *acc = NULL;
@@ -1027,10 +1033,13 @@ namespace gensio {
 
 	// This allows the user to intercept raw events, it is primarily
 	// used to help other language bindings tie in things they need.
-	Raw_MDNS_Event_Handler *raw_event_handler;
+	Raw_MDNS_Event_Handler *raw_event_handler = NULL;
 
     protected:
-	virtual ~MDNS_Watch() { delete raw_event_handler; }
+	virtual ~MDNS_Watch() {
+	    if (raw_event_handler)
+		delete raw_event_handler;
+	}
     private:
 	MDNS *m;
 	MDNS_Watch_Event *event;
