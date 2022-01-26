@@ -491,6 +491,7 @@ AC_SUBST(SWIG)
 
 # Handle PYTHON support
 PYTHON_DIR=
+PYGENSIO_DIR=
 PYTHON_INSTALL_DIR=
 PYTHON_INSTALL_LIB_DIR=
 PYTHON_SWIG_FLAGS=
@@ -504,7 +505,11 @@ if test "x$trypython" = "xyes"; then
    AX_PYTHON_DEVEL
 fi
 if test "x$PYTHON" != "x"; then
-   AX_PROG_PYTHON_VERSION([3.0.0], [PYTHON_SWIG_FLAGS=-py3], [])
+   AX_PROG_PYTHON_VERSION([3.0.0],
+       [
+           PYTHON_SWIG_FLAGS=-py3
+           PYGENSIO_DIR=pygensio
+       ], [])
    PYTHON_DIR=python
    if test "x$pythoninstalldir" = "x"; then
       PYTHON_INSTALL_DIR="$PYTHON_SITE_PKG"
@@ -538,6 +543,7 @@ _ACEOF
 fi
 
 AC_SUBST(PYTHON_DIR)
+AC_SUBST(PYGENSIO_DIR)
 AC_SUBST(PYTHON_INSTALL_DIR)
 AC_SUBST(PYTHON_INSTALL_LIB_DIR)
 AC_SUBST(PYTHON_HAS_THREADS)
@@ -715,6 +721,8 @@ AC_CONFIG_FILES([Makefile
 	c++/lib/libgensiocpp.pc
 	c++/tests/Makefile
 	c++/examples/Makefile
+	c++/swig/Makefile
+	c++/swig/pygensio/Makefile
 	glib/libgensioglib.pc
 	glib/Makefile
 	glib/include/Makefile
