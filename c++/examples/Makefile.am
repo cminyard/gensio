@@ -15,3 +15,4 @@ mdns_LDADD = $(top_builddir)/lib/libgensio.la \
 	$(top_builddir)/c++/lib/libgensiocpp.la \
 	$(OPENSSL_LIBS)
 
+EXTRA_DIST = CMakeLists.txt

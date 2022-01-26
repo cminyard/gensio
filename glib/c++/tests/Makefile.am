@@ -13,3 +13,5 @@ basic_glib_test_LDADD = $(top_builddir)/lib/libgensio.la \
 	$(OPENSSL_LIBS)
 
 check_PROGRAMS = basic_glib_test
+
+EXTRA_DIST = CMakeLists.txt

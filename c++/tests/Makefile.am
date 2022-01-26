@@ -17,3 +17,4 @@ serial_test_LDADD = $(top_builddir)/lib/libgensio.la \
 
 check_PROGRAMS = basic_cpp_test serial_test
 
+EXTRA_DIST = CMakeLists.txt
