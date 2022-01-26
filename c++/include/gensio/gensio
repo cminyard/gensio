@@ -25,6 +25,7 @@ namespace gensio {
 #include <gensio/gensio.h>
 #include <gensio/sergensio.h>
 #include <gensio/gensio_mdns.h>
+#include <gensio/gensio_osops.h>
 
     // This is an exception that is raised by gensio operations that
     // get errors.  Most operations raise exceptions, unless otherwise
@@ -1050,6 +1051,105 @@ namespace gensio {
 	struct gensio_mdns_watch *w;
         friend void mdns_watch_done(struct gensio_mdns_watch *w,
 				    void *userdata);
+    };
+
+    // Retrieve and view network interfaces on the system.
+    class GENSIOCPP_DLL_PUBLIC Net_Ifs {
+    public:
+	Net_Ifs(Os_Funcs *ino): o(ino)
+	{
+	    int rv = gensio_os_get_net_ifs(*o, &ifs, &nifs);
+	    if (rv)
+		throw std::bad_alloc();
+	}
+
+	~Net_Ifs()
+	{
+	    gensio_os_free_net_ifs(*o, ifs, nifs);
+	}
+
+	unsigned int get_num_ifs()
+	{
+	    return this->nifs;
+	}
+
+	std::string get_name(unsigned int index)
+	{
+	    if (index >= this->nifs)
+		throw gensio_error(GE_OUTOFRANGE);
+	    return std::string(this->ifs[index]->name);
+	}
+
+	bool is_up(unsigned int index)
+	{
+	    if (index >= this->nifs)
+		throw gensio_error(GE_OUTOFRANGE);
+	    return !!(this->ifs[index]->flags & GENSIO_NET_IF_UP);
+	}
+
+	bool is_loopback(unsigned int index)
+	{
+	    if (index >= this->nifs)
+		throw gensio_error(GE_OUTOFRANGE);
+	    return !!(this->ifs[index]->flags & GENSIO_NET_IF_LOOPBACK);
+	}
+
+	bool is_multicast(unsigned int index)
+	{
+	    if (index >= this->nifs)
+		throw gensio_error(GE_OUTOFRANGE);
+	    return !!(this->ifs[index]->flags & GENSIO_NET_IF_MULTICAST);
+	}
+
+	unsigned int get_ifindex(unsigned int index)
+	{
+	    if (index >= this->nifs)
+		throw gensio_error(GE_OUTOFRANGE);
+	    return this->ifs[index]->ifindex;
+	}
+
+	unsigned int get_num_addrs(unsigned int index)
+	{
+	    if (index >= this->nifs)
+		throw gensio_error(GE_OUTOFRANGE);
+	    return this->ifs[index]->naddrs;
+	}
+
+	unsigned int get_addr_netbits(unsigned int index, unsigned int addridx)
+	{
+	    if (index >= this->nifs || addridx > this->ifs[index]->naddrs)
+		throw gensio_error(GE_OUTOFRANGE);
+	    return this->ifs[index]->addrs[addridx].netbits;
+	}
+
+	unsigned int get_addr_family(unsigned int index, unsigned int addridx)
+	{
+	    if (index >= this->nifs || addridx > this->ifs[index]->naddrs)
+		throw gensio_error(GE_OUTOFRANGE);
+	    return this->ifs[index]->addrs[addridx].family;
+	}
+
+	std::vector<unsigned char> get_addr(unsigned int index,
+					    unsigned int addridx)
+	{
+	    if (index >= this->nifs || addridx > this->ifs[index]->naddrs)
+		throw gensio_error(GE_OUTOFRANGE);
+	    struct gensio_net_addr *a = &(this->ifs[index]->addrs[addridx]);
+	    return std::vector<unsigned char>(a->addr,
+					      a->addr + sizeof(a->addr));
+	}
+
+        std::string get_addrstr(unsigned int index, unsigned int addridx)
+	{
+	    if (index >= this->nifs || addridx > this->ifs[index]->naddrs)
+		throw gensio_error(GE_OUTOFRANGE);
+	    return std::string(this->ifs[index]->addrs[addridx].addrstr);
+	}
+
+    private:
+	Os_Funcs *o;
+	struct gensio_net_if **ifs;
+	unsigned int nifs;
     };
 }
 
