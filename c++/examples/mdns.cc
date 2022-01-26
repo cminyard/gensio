@@ -46,24 +46,24 @@ private:
     Waiter *waiter;
 };
 
-class Watch_Done: public MDNS_Watch_Done {
+class Watch_Done: public MDNS_Watch_Free_Done {
 public:
     Watch_Done(Waiter *w) { waiter = w; }
 
 private:
-    void done(MDNS_Watch *w)
+    void mdns_watch_free_done(MDNS_Watch *w)
     {
 	waiter->wake();
     }
     Waiter *waiter;
 };
 
-class Done: public MDNS_Done {
+class Done: public MDNS_Free_Done {
 public:
     Done(Waiter *w) { waiter = w; }
 
 private:
-    void done(MDNS *m)
+    void mdns_free_done(MDNS *m)
     {
 	waiter->wake();
     }

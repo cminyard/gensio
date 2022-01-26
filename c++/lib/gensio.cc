@@ -657,10 +657,10 @@ namespace gensio {
 	struct gensio_cpp_data *d = gensio_container_of(f,
 					      struct gensio_cpp_data, frdata);
 	Gensio *g = d->g;
-	Gensio_Done_Err *done = static_cast<Gensio_Done_Err *>(user_data);
+	Gensio_Open_Done *done = static_cast<Gensio_Open_Done *>(user_data);
 
 	try {
-	    done->done(g, err);
+	    done->open_done(g, err);
 	} catch (const std::exception &e) {
 	    gensio_log(g->get_os_funcs(), GENSIO_LOG_ERR,
 		       "Received C++ exception in open done handler: %s",
@@ -668,7 +668,7 @@ namespace gensio {
 	}
     }
 
-    void Gensio::open(Gensio_Done_Err *done)
+    void Gensio::open(Gensio_Open_Done *done)
     {
 	int err;
 
@@ -685,7 +685,7 @@ namespace gensio {
 	    throw gensio_error(err);
     }
 
-    void Gensio::open_nochild(Gensio_Done_Err *done)
+    void Gensio::open_nochild(Gensio_Open_Done *done)
     {
 	int err;
 
@@ -779,10 +779,10 @@ namespace gensio {
 	struct gensio_cpp_data *d = gensio_container_of(f,
 					      struct gensio_cpp_data, frdata);
 	Gensio *g = d->g;
-	Gensio_Done *done = static_cast<Gensio_Done *>(user_data);
+	Gensio_Close_Done *done = static_cast<Gensio_Close_Done *>(user_data);
 
 	try {
-	    done->done(g);
+	    done->close_done(g);
 	} catch (std::exception &e) {
 	    gensio_log(g->get_os_funcs(), GENSIO_LOG_ERR,
 		       "Received C++ exception in close done handler: %s",
@@ -790,7 +790,7 @@ namespace gensio {
 	}
     }
 
-    void Gensio::close(Gensio_Done *done)
+    void Gensio::close(Gensio_Close_Done *done)
     {
 	int err;
 
@@ -1091,7 +1091,7 @@ namespace gensio {
 	Serial_Gensio *sg = (Serial_Gensio *) d->g;
 	Serial_Op_Done *done = static_cast<Serial_Op_Done *>(cb_data);
 
-	done->done(sg, err, val);
+	done->serial_op_done(sg, err, val);
     }
 
     void Serial_Gensio::baud(unsigned int baud, Serial_Op_Done *done)
@@ -1250,7 +1250,7 @@ namespace gensio {
 	Serial_Gensio *sg = (Serial_Gensio *) d->g;
 	Serial_Op_Sig_Done *done = static_cast<Serial_Op_Sig_Done *>(cb_data);
 
-	done->done(sg, err, sig, len);
+	done->serial_op_sig_done(sg, err, sig, len);
     }
 
     void Serial_Gensio::signature(const char *sig, unsigned int len,
@@ -1296,7 +1296,7 @@ namespace gensio {
 	unsigned int val = 0;
 
     private:
-	void done(Serial_Gensio *sf, int err, unsigned int val)
+	void serial_op_done(Serial_Gensio *sf, int err, unsigned int val)
 	{
 	    this->err = err;
 	    this->val = val;
@@ -1951,17 +1951,18 @@ namespace gensio {
 	    throw gensio_error(err);
     }
 
-    static void gensio_acc_cpp_done(struct gensio_accepter *acc,
-				    void *user_data)
+    static void gensio_acc_cpp_shutdown_done(struct gensio_accepter *acc,
+					     void *user_data)
     {
 	struct gensio_acc_frdata *f = gensio_acc_get_frdata(acc);
 	struct gensio_acc_cpp_data *d = gensio_container_of(f,
 					  struct gensio_acc_cpp_data, frdata);
 	Accepter *a = d->a;
-	Accepter_Done *done = static_cast<Accepter_Done *>(user_data);
+	Accepter_Shutdown_Done *done =
+	    static_cast<Accepter_Shutdown_Done *>(user_data);
 
 	try {
-	    done->done(a);
+	    done->shutdown_done(a);
 	} catch (std::exception &e) {
 	    gensio_log(a->get_os_funcs(), GENSIO_LOG_ERR,
 		       "Received C++ exception in accepter done handler: %s",
@@ -1969,11 +1970,11 @@ namespace gensio {
 	}
     }
 
-    void Accepter::shutdown(Accepter_Done *done)
+    void Accepter::shutdown(Accepter_Shutdown_Done *done)
     {
 	int err;
 
-	err = gensio_acc_shutdown(acc, gensio_acc_cpp_done, done);
+	err = gensio_acc_shutdown(acc, gensio_acc_cpp_shutdown_done, done);
 	if (err)
 	    throw gensio_error(err);
     }
@@ -1985,14 +1986,33 @@ namespace gensio {
 	    throw gensio_error(err);
     }
 
-    void Accepter::set_callback_enable(bool enabled, Accepter_Done *done)
+    static void gensio_acc_cpp_enable_done(struct gensio_accepter *acc,
+					   void *user_data)
+    {
+	struct gensio_acc_frdata *f = gensio_acc_get_frdata(acc);
+	struct gensio_acc_cpp_data *d = gensio_container_of(f,
+					  struct gensio_acc_cpp_data, frdata);
+	Accepter *a = d->a;
+	Accepter_Enable_Done *done =
+	    static_cast<Accepter_Enable_Done *>(user_data);
+
+	try {
+	    done->enable_done(a);
+	} catch (std::exception &e) {
+	    gensio_log(a->get_os_funcs(), GENSIO_LOG_ERR,
+		       "Received C++ exception in accepter done handler: %s",
+		       e.what());
+	}
+    }
+
+    void Accepter::set_callback_enable(bool enabled, Accepter_Enable_Done *done)
     {
 	int err;
 
 	err = gensio_acc_set_accept_callback_enable_cb(acc,
-						       enabled,
-						       gensio_acc_cpp_done,
-						       done);
+						enabled,
+						gensio_acc_cpp_enable_done,
+						done);
 	if (err)
 	    throw gensio_error(err);
     }
@@ -2340,10 +2360,10 @@ namespace gensio {
 
     void mdns_free_done(struct gensio_mdns *m, void *userdata)
     {
-	MDNS_Done *done = static_cast<MDNS_Done *>(userdata);
+	MDNS_Free_Done *done = static_cast<MDNS_Free_Done *>(userdata);
 
 	try {
-	    done->done(done->m);
+	    done->mdns_free_done(done->m);
 	} catch (std::exception &e) {
 	    gensio_log(done->m->get_os_funcs(), GENSIO_LOG_ERR,
 		       "Received C++ exception in mdns open done handler: %s",
@@ -2352,7 +2372,7 @@ namespace gensio {
 	delete done->m;
     }
 
-    void MDNS::free(MDNS_Done *done)
+    void MDNS::free(MDNS_Free_Done *done)
     {
 	int rv;
 
@@ -2475,12 +2495,13 @@ namespace gensio {
 	    throw gensio_error(rv);
     }
 
-    void mdns_watch_done(struct gensio_mdns_watch *w, void *userdata)
+    void mdns_watch_free_done(struct gensio_mdns_watch *w, void *userdata)
     {
-	MDNS_Watch_Done *done = static_cast<MDNS_Watch_Done *>(userdata);
+	MDNS_Watch_Free_Done *done =
+	    static_cast<MDNS_Watch_Free_Done *>(userdata);
 
 	try {
-	    done->done(done->w);
+	    done->mdns_watch_free_done(done->w);
 	} catch (std::exception &e) {
 	    gensio_log(done->w->get_os_funcs(), GENSIO_LOG_ERR,
 		       "Received C++ exception in mdns watch done handler: %s",
@@ -2489,9 +2510,9 @@ namespace gensio {
 	delete done->w;
     }
 
-    void MDNS_Watch::free(MDNS_Watch_Done *done)
+    void MDNS_Watch::free(MDNS_Watch_Free_Done *done)
     {
 	done->w = this;
-	gensio_mdns_remove_watch(this->w, mdns_watch_done, done);
+	gensio_mdns_remove_watch(this->w, mdns_watch_free_done, done);
     }
 }

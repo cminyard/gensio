@@ -11,7 +11,7 @@
 using namespace std;
 using namespace gensio;
 
-class Open_Done: public Gensio_Done_Err {
+class Open_Done: public Gensio_Open_Done {
 public:
     Open_Done(Waiter *w) { waiter = w; }
     const char *get_err() { return errstr; }
@@ -20,7 +20,7 @@ private:
 
     const char *errstr = NULL;
 
-    void done(Gensio *io, int err) override {
+    void open_done(Gensio *io, int err) override {
 	if (err)
 	    errstr = gensio_err_to_str(err);
 	waiter->wake();
@@ -29,12 +29,12 @@ private:
     Waiter *waiter;
 };
 
-class Close_Done: public Gensio_Done {
+class Close_Done: public Gensio_Close_Done {
 public:
     Close_Done(Waiter *w) { waiter = w; }
 private:
 
-    void done(Gensio *io) override {
+    void close_done(Gensio *io) override {
 	io->free();
     }
 

@@ -265,17 +265,17 @@ namespace gensio {
 
     // Used for done handlers for gensio operations that can fail,
     // failure is returned in the err field.
-    class GENSIOCPP_DLL_PUBLIC Gensio_Done_Err {
+    class GENSIOCPP_DLL_PUBLIC Gensio_Open_Done {
     public:
-	virtual void done(Gensio *io, int err) = 0;
-	virtual ~Gensio_Done_Err() = default;
+	virtual void open_done(Gensio *io, int err) = 0;
+	virtual ~Gensio_Open_Done() = default;
     };
 
     // Used for done handlers for gension operations that cannot fail.
-    class GENSIOCPP_DLL_PUBLIC Gensio_Done {
+    class GENSIOCPP_DLL_PUBLIC Gensio_Close_Done {
     public:
-	virtual void done(Gensio *io) = 0;
-	virtual ~Gensio_Done() = default;
+	virtual void close_done(Gensio *io) = 0;
+	virtual ~Gensio_Close_Done() = default;
     };
 
     // Allocate a gensio based upon the given string.  The string
@@ -335,7 +335,7 @@ namespace gensio {
 
 	// Open a gensio.  When the done handler is called it is ready
 	// (unless it reports an error).
-	void open(Gensio_Done_Err *done);
+	void open(Gensio_Open_Done *done);
 
 	// Open a gensio and wait for it's open peration to complete.
 	void open_s();
@@ -343,7 +343,7 @@ namespace gensio {
 	// Open a gensio but assume that it's children are already
 	// open.  This is used if you stacked a new gensio on top of a
 	// running stack.
-	void open_nochild(Gensio_Done_Err *done);
+	void open_nochild(Gensio_Open_Done *done);
 
 	// Like the above, but synchronous.
 	void open_nochild_s();
@@ -372,7 +372,7 @@ namespace gensio {
 
 	// Close the given gensio.  When the close completely call the
 	// done handler.
-	void close(Gensio_Done *done);
+	void close(Gensio_Close_Done *done);
 
 	// Like the above, but do it synchronosly.
 	void close_s();
@@ -537,7 +537,8 @@ namespace gensio {
     public:
 	// Serial operation is finished, err non-zero if an error
 	// occurred.  If no error, val is the result.
-	virtual void done(Serial_Gensio *sf, int err, unsigned int val) = 0;
+	virtual void serial_op_done(Serial_Gensio *sf, int err,
+				    unsigned int val) = 0;
 	virtual ~Serial_Op_Done() = default;
     };
 
@@ -545,8 +546,9 @@ namespace gensio {
     // number.
     class GENSIOCPP_DLL_PUBLIC Serial_Op_Sig_Done {
     public:
-	virtual void done(Serial_Gensio *sg, int err, const char *sig,
-			  unsigned int siglen) = 0;
+	virtual void serial_op_sig_done(Serial_Gensio *sg, int err,
+					const char *sig,
+					unsigned int siglen) = 0;
 	virtual ~Serial_Op_Sig_Done() = default;
     };
 
@@ -694,10 +696,16 @@ namespace gensio {
 	virtual ~Accepter_Event() = default;
     };
 
-    class GENSIOCPP_DLL_PUBLIC Accepter_Done {
+    class GENSIOCPP_DLL_PUBLIC Accepter_Shutdown_Done {
     public:
-	virtual void done(Accepter *acc) = 0;
-	virtual ~Accepter_Done() = default;
+	virtual void shutdown_done(Accepter *acc) = 0;
+	virtual ~Accepter_Shutdown_Done() = default;
+    };
+
+    class GENSIOCPP_DLL_PUBLIC Accepter_Enable_Done {
+    public:
+	virtual void enable_done(Accepter *acc) = 0;
+	virtual ~Accepter_Enable_Done() = default;
     };
 
     class GENSIOCPP_DLL_PUBLIC Raw_Accepter_Event_Handler {
@@ -753,7 +761,7 @@ namespace gensio {
 	// Shutdown the accepter, closing the accept socket or
 	// whatever is required for the gensio.  The done will be
 	// called when the shutdown is complete.
-	void shutdown(Accepter_Done *done);
+	void shutdown(Accepter_Shutdown_Done *done);
 
 	// Shutdown and block until it completes.
 	void shutdown_s();
@@ -773,7 +781,7 @@ namespace gensio {
 	// enable/disable completes.  Not really useful for enable,
 	// but it can let you know that no callbacks are pending on a
 	// disable.
-	void set_callback_enable(bool enabled, Accepter_Done *done);
+	void set_callback_enable(bool enabled, Accepter_Enable_Done *done);
 
 	// Synchronous enable/disable, won't return until the
 	// enable/disable completes.
@@ -907,13 +915,13 @@ namespace gensio {
 
     // This class is used to know when an MDNS object has finished the
     // shutdown operation and will not call any more callbacks.
-    class GENSIOCPP_DLL_PUBLIC MDNS_Done {
+    class GENSIOCPP_DLL_PUBLIC MDNS_Free_Done {
     public:
 	// Called when the shutdown is complete.  The mdns object may be
 	// freed when this returns.
-	virtual void done(MDNS *mdns) = 0;
+	virtual void mdns_free_done(MDNS *mdns) = 0;
 
-	virtual ~MDNS_Done() = default;
+	virtual ~MDNS_Free_Done() = default;
     protected:
 	MDNS *m;
     private:
@@ -940,7 +948,7 @@ namespace gensio {
 	// Like a gensio, you cannot directly delete an MDNS object.
 	// It may be in callbacks.  You have to go through a special
 	// free operation.  See the Gensio free() method for details.
-	void free(MDNS_Done *done);
+	void free(MDNS_Free_Done *done);
     protected:
 	virtual ~MDNS() { }
     private:
@@ -968,17 +976,17 @@ namespace gensio {
     // This class is used to know when an MDNS_Watch object has
     // finished the shutdown operation and will not call any more
     // callbacks.
-    class GENSIOCPP_DLL_PUBLIC GENSIOCPP_DLL_PUBLIC MDNS_Watch_Done {
+    class GENSIOCPP_DLL_PUBLIC GENSIOCPP_DLL_PUBLIC MDNS_Watch_Free_Done {
     public:
 	// Called when the shutdown is complete.  The mdns object may be
 	// freed when this returns.
-	virtual void done(MDNS_Watch *w) = 0;
+	virtual void mdns_watch_free_done(MDNS_Watch *w) = 0;
 
-	virtual ~MDNS_Watch_Done() = default;
+	virtual ~MDNS_Watch_Free_Done() = default;
     private:
 	MDNS_Watch *w;
-        friend void mdns_watch_done(struct gensio_mdns_watch *w,
-				    void *userdata);
+        friend void mdns_watch_free_done(struct gensio_mdns_watch *w,
+					 void *userdata);
 	friend class MDNS_Watch;
     };
 
@@ -1034,7 +1042,7 @@ namespace gensio {
 	// Like a gensio, you cannot directly delete an MDNS_Watch object.
 	// It may be in callbacks.  You have to go through a special
 	// free operation.  See the Gensio free() method for details.
-	void free(MDNS_Watch_Done *done);
+	void free(MDNS_Watch_Free_Done *done);
 
 	// This allows the user to intercept raw events, it is primarily
 	// used to help other language bindings tie in things they need.
@@ -1049,8 +1057,8 @@ namespace gensio {
 	MDNS *m;
 	MDNS_Watch_Event *event;
 	struct gensio_mdns_watch *w;
-        friend void mdns_watch_done(struct gensio_mdns_watch *w,
-				    void *userdata);
+        friend void mdns_watch_free_done(struct gensio_mdns_watch *w,
+					 void *userdata);
     };
 
     // Retrieve and view network interfaces on the system.
