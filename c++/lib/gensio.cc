@@ -15,11 +15,12 @@ namespace gensio {
     Os_Funcs::Os_Funcs(int wait_sig)
     {
 	int err;
+	struct gensio_os_funcs *o;
 
-	refcnt = new std::atomic<unsigned int>(1);
-	err = gensio_default_os_hnd(wait_sig, &osf);
+	err = gensio_default_os_hnd(wait_sig, &o);
 	if (err)
 	    throw gensio_error(err);
+	this->init(o);
     }
 
     void Os_Funcs::proc_setup() {

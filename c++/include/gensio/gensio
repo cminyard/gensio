@@ -58,9 +58,15 @@ namespace gensio {
 	// gensio_os_funcs.3 for details on process setup.
 	void proc_setup();
 
-	// Allocate an os function handler object from an existing os
-	// handler.  Note that this takes over freeing the OS handler.
-	Os_Funcs(struct gensio_os_funcs *o)
+	// Should only be used for subclasses
+	Os_Funcs()
+	{
+	}
+
+	// If you allocate your own subclass of this, you must call
+	// this to set it up.  Note that this takes over freeing the
+	// OS handler.
+	void init(struct gensio_os_funcs *o)
 	{
 	    refcnt = new std::atomic<unsigned int>(1);
 	    osf = o;
