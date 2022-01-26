@@ -1,13 +1,13 @@
 
 ACLOCAL_AMFLAGS = -I m4
 
-SUBDIRS = lib $(CPLUSPLUS_DIR) include $(GLIB_DIR) $(TCL_DIR) \
+SUBDIRS = lib $(SWIG_DIR) $(CPLUSPLUS_DIR) include $(GLIB_DIR) $(TCL_DIR) \
 	tests tools examples
 if INSTALL_DOC
 SUBDIRS += man
 endif
 
-DIST_SUBDIRS = lib c++ include glib tcl tests tools examples man
+DIST_SUBDIRS = lib swig c++ include glib tcl tests tools examples man
 
 EXTRA_DIST = README.rst reconf CMakeLists.txt config.h.cmake
 

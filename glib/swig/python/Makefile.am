@@ -4,7 +4,7 @@ AM_CFLAGS = $(PYTHON_CPPFLAGS) \
 	    -I$(top_builddir)/include \
 	    -I $(top_srcdir) \
 	    -I$(top_srcdir)/glib/include \
-	    -I$(top_srcdir)/c++/swig/include \
+	    -I$(top_srcdir)/swig/include \
 	    -DPYTHON_HAS_THREADS=@PYTHON_HAS_THREADS@
 
 pythonlibdir=$(PYTHON_INSTALL_LIB_DIR)
@@ -12,7 +12,7 @@ pythonlib_LTLIBRARIES = _gensioglib.la
 
 gensioglib_wrap.c gensioglib.py: $(top_srcdir)/glib/swig/gensioglib.i
 	$(SWIG) $(DEFS) -python $(PYTHON_SWIG_FLAGS) -o gensioglib_wrap.c \
-		-I$(top_srcdir)/include -I$(top_srcdir)/c++/swig/include $<
+		-I$(top_srcdir)/include -I$(top_srcdir)/swig/include $<
 
 EXTRA_DIST = CMakeLists.txt
 
@@ -20,7 +20,7 @@ nodist__gensioglib_la_SOURCES = gensioglib_wrap.c
 _gensioglib_la_LIBADD = $(top_builddir)/glib/libgensioglib.la \
 		$(top_builddir)/lib/libgensio.la $(OPENSSL_LIBS) \
 		$(PYTHON_LIBS) \
-		$(top_builddir)/c++/swig/python/libgensio_python_swig.la
+		$(top_builddir)/swig/python/libgensio_python_swig.la
 _gensioglib_la_LDFLAGS = -module -avoid-version $(OPENSSL_LDFLAGS) -no-undefined
 
 clean-local:

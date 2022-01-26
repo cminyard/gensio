@@ -685,6 +685,11 @@ CPPFLAGS="$CPPFLAGS -I\$(top_srcdir)/include -I\$(top_builddir)/include"
 AC_CONFIG_FILES([Makefile
 	lib/libgensio.pc
 	lib/Makefile
+	swig/Makefile
+	swig/python/libgensio_python_swig.pc
+	swig/python/Makefile
+	swig/include/gensio/Makefile
+	swig/include/Makefile
 	c++/Makefile
 	c++/include/Makefile
 	c++/include/gensio/Makefile
@@ -692,11 +697,6 @@ AC_CONFIG_FILES([Makefile
 	c++/lib/libgensiocpp.pc
 	c++/tests/Makefile
 	c++/examples/Makefile
-	c++/swig/Makefile
-	c++/swig/python/Makefile
-	c++/swig/python/libgensio_python_swig.pc
-	c++/swig/include/Makefile
-	c++/swig/include/gensio/Makefile
 	glib/libgensioglib.pc
 	glib/Makefile
 	glib/include/Makefile
