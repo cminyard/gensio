@@ -1,4 +1,5 @@
 
-SUBDIRS = include lib $(SWIG_DIR) tests examples
+SUBDIRS = include lib tests examples
 
-DIST_SUBDIRS = include lib swig tests examples
+DIST_SUBDIRS = include lib tests examples
+

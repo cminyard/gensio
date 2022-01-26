@@ -1,0 +1,9 @@
+prefix=@prefix@
+exec_prefix=@exec_prefix@
+libdir=@libdir@
+includedir=@includedir@
+
+Name: libpython_swig_handlers
+Description: A library to abstract stream I/O like serial port, TCP, telnet, UDP, SSL, IPMI SOL, etc. 
+Version: @VERSION@
+Libs: -L${libdir} -lpython_swig_handlers -lgensio @LIBS@
