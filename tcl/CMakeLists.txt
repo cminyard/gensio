@@ -29,6 +29,7 @@ target_include_directories(gensiotcl
 target_include_directories(gensiotcl PUBLIC ${TCL_INCLUDE_PATH})
 include_directories("include")
 
+add_subdirectory(c++)
 if(SWIG_FOUND)
   add_subdirectory(swig)
 endif()

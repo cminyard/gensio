@@ -9,8 +9,8 @@ libgensiotcl_la_LIBADD = $(top_builddir)/lib/libgensio.la @OPENSSL_LIBS@ \
 	@GLIB_LIBS@
 libgensiotcl_la_LDFLAGS = -no-undefined -rpath $(libdir)
 
-SUBDIRS = . $(SWIG_DIR) include
-DIST_SUBDIRS = swig include
+SUBDIRS = . $(SWIG_DIR) include $(CPLUSPLUS_DIR)
+DIST_SUBDIRS = swig include c++
 
 # This variable must have 'exec' in its name, in order to be installed
 # by 'install-exec' target (instead of default 'install-data')

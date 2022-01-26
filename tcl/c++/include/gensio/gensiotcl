@@ -1,0 +1,31 @@
+//
+//  gensio - A library for abstracting stream I/O
+//  Copyright (C) 2022  Corey Minyard <minyard@acm.org>
+//
+//  SPDX-License-Identifier: LGPL-2.1-only
+
+// This is a C++ wrapper for the gensio library.
+
+#ifndef GENSIOGLIB_CPP_INCLUDE
+#define GENSIOGLIB_CPP_INCLUDE
+
+#include <gensio/gensio>
+
+namespace gensio {
+#include <gensio/gensio_tcl.h>
+
+    class Tcl_Os_Funcs: public Os_Funcs {
+    public:
+	Tcl_Os_Funcs()
+	{
+	    struct gensio_os_funcs *o;
+
+	    int err = gensio_tcl_funcs_alloc(&o);
+	    if (err)
+		throw gensio_error(err);
+	    init(o);
+	}
+    };
+}
+
+#endif /* GENSIOGLIB_CPP_INCLUDE */
