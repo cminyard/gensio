@@ -733,6 +733,8 @@ AC_CONFIG_FILES([Makefile
 	glib/c++/include/Makefile
 	glib/c++/include/gensio/Makefile
 	glib/c++/tests/Makefile
+	glib/c++/swig/Makefile
+	glib/c++/swig/pygensio/Makefile
 	tcl/libgensiotcl.pc
 	tcl/Makefile
 	tcl/include/Makefile

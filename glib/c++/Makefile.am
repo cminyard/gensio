@@ -1,6 +1,6 @@
 
-SUBDIRS = include tests
+SUBDIRS = include tests $(SWIG_DIR)
 
-DIST_SUBDIRS = include tests
+DIST_SUBDIRS = include tests swig
 
 EXTRA_DIST = CMakeLists.txt
