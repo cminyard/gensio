@@ -1,6 +1,6 @@
 %module gensioglib
 
-%include <gensio/gensio_swig.i>
+%import <gensio/gensio_swig.i>
 
 %{
 #include "config.h"
