@@ -29,6 +29,7 @@ target_include_directories(gensioglib
 target_include_directories(gensioglib PUBLIC ${GLIB_INCLUDE_DIRS})
 include_directories("include")
 
+add_subdirectory(c++)
 if(SWIG_FOUND)
   add_subdirectory(swig)
 endif()
