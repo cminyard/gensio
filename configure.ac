@@ -745,6 +745,8 @@ AC_CONFIG_FILES([Makefile
 	tcl/c++/include/Makefile
 	tcl/c++/include/gensio/Makefile
 	tcl/c++/tests/Makefile
+	tcl/c++/swig/Makefile
+	tcl/c++/swig/pygensio/Makefile
 	include/Makefile
 	include/gensio/Makefile
 	include/gensio/gensio_version.h
