@@ -2349,7 +2349,7 @@ namespace gensio {
 	return 0;
     }
 
-    MDNS::MDNS(Os_Funcs &o) : go(o)
+    MDNS::MDNS(Os_Funcs &o)
     {
 	int rv;
 
