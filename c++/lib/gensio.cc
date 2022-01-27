@@ -2441,10 +2441,11 @@ namespace gensio {
     MDNS_Watch *MDNS::add_watch(int interface, int ipdomain,
 				const char *name, const char *type,
 				const char *domain, const char *host,
-				MDNS_Watch_Event *event)
+				MDNS_Watch_Event *event,
+				Raw_MDNS_Event_Handler *evh)
     {
 	return new MDNS_Watch(this, interface, ipdomain, name, type,
-				domain, host, event);
+			      domain, host, event, evh);
     }
 
     MDNS_Service::MDNS_Service(MDNS *m, int interface, int ipdomain,
@@ -2527,7 +2528,8 @@ namespace gensio {
     MDNS_Watch::MDNS_Watch(MDNS *m, int interface, int ipdomain,
 			   const char *name, const char *type,
 			   const char *domain, const char *host,
-			   MDNS_Watch_Event *event)
+			   MDNS_Watch_Event *event,
+			   Raw_MDNS_Event_Handler *raw_event_handler)
     {
 	int rv;
 
@@ -2535,11 +2537,17 @@ namespace gensio {
 	this->event = event;
 	event->w = this;
 	this->raw_event_handler = new Main_Raw_MDNS_Event_Handler();
+	if (raw_event_handler) {
+	    raw_event_handler->set_parent(this->raw_event_handler);
+	    this->raw_event_handler = raw_event_handler;
+	}
 	rv = gensio_mdns_add_watch(m->m, interface, ipdomain, name, type,
 				   domain, host, mdns_watch_event,
 				   event, &this->w);
-	if (rv)
+	if (rv) {
+	    delete this->raw_event_handler;
 	    throw gensio_error(rv);
+	}
     }
 
     void mdns_watch_free_done(struct gensio_mdns_watch *w, void *userdata)

@@ -931,6 +931,20 @@ namespace gensio {
 	friend class MDNS;
     };
 
+    class GENSIOCPP_DLL_PUBLIC Raw_MDNS_Event_Handler {
+    public:
+	virtual ~Raw_MDNS_Event_Handler() = default;
+
+	virtual void handle(MDNS_Watch *w, MDNS_Watch_Event *e,
+			    enum gensio_mdns_data_state state,
+			    int interface, int ipdomain,
+			    const char *name, const char *type,
+			    const char *domain, const char *host,
+			    const struct gensio_addr *addr,
+			    const char * const *txt) = 0;
+	virtual void set_parent(Raw_MDNS_Event_Handler *parent) { }
+    };
+
     class GENSIOCPP_DLL_PUBLIC MDNS {
     public:
 	MDNS(Os_Funcs &o);
@@ -945,7 +959,8 @@ namespace gensio {
 	MDNS_Watch *add_watch(int interface, int ipdomain,
 			      const char *name, const char *type,
 			      const char *domain, const char *host,
-			      MDNS_Watch_Event *event);
+			      MDNS_Watch_Event *event,
+			      Raw_MDNS_Event_Handler *evh = NULL);
 
 	// Like a gensio, you cannot directly delete an MDNS object.
 	// It may be in callbacks.  You have to go through a special
@@ -1016,28 +1031,21 @@ namespace gensio {
 				     const char * const *txt, void *userdata);
     };
 
-    class GENSIOCPP_DLL_PUBLIC Raw_MDNS_Event_Handler {
-    public:
-	virtual ~Raw_MDNS_Event_Handler() = default;
-
-	virtual void handle(MDNS_Watch *w, MDNS_Watch_Event *e,
-			    enum gensio_mdns_data_state state,
-			    int interface, int ipdomain,
-			    const char *name, const char *type,
-			    const char *domain, const char *host,
-			    const struct gensio_addr *addr,
-			    const char * const *txt) = 0;
-    };
-
     // A class representing an MDNS service.  A wrapper around
     // gensio_mdns_add/remove_watch(), see man pages on those
     // functions for details.
     class GENSIOCPP_DLL_PUBLIC MDNS_Watch {
     public:
+	// If you have a raw event handler, you must supply it here.
+	// This avoids race conditions between creating the watch and
+	// installing the new raw event handler.  This is not a
+	// problem for gensios because events aren't enabled at
+	// startup, but they are for MDNS watches.
 	MDNS_Watch(MDNS *m, int interface, int ipdomain,
 		   const char *name, const char *type,
 		   const char *domain, const char *host,
-		   MDNS_Watch_Event *event);
+		   MDNS_Watch_Event *event,
+		   Raw_MDNS_Event_Handler *raw_event_handler = NULL);
 
 	inline Os_Funcs &get_os_funcs() { return m->get_os_funcs(); }
 
