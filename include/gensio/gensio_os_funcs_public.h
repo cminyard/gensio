@@ -128,6 +128,8 @@ typedef void (gensio_vlog_func)(struct gensio_os_funcs *o,
 				const char *log, va_list args);
 GENSIO_DLL_PUBLIC
 void gensio_os_funcs_set_vlog(struct gensio_os_funcs *o, gensio_vlog_func func);
+GENSIO_DLL_PUBLIC
+gensio_vlog_func *gensio_os_funcs_get_vlog(struct gensio_os_funcs *o);
 
 GENSIO_DLL_PUBLIC
 void gensio_os_funcs_free(struct gensio_os_funcs *o);

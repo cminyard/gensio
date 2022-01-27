@@ -40,6 +40,12 @@ gensio_os_funcs_set_vlog(struct gensio_os_funcs *o, gensio_vlog_func func)
     o->vlog = func;
 }
 
+gensio_vlog_func *
+gensio_os_funcs_get_vlog(struct gensio_os_funcs *o)
+{
+    return o->vlog;
+}
+
 void
 gensio_os_funcs_free(struct gensio_os_funcs *o)
 {
@@ -2104,7 +2110,8 @@ gensio_vlog(struct gensio_os_funcs *o, enum gensio_log_levels level,
     if (!(gensio_log_mask & (1 << level)))
 	return;
 
-    o->vlog(o, level, str, args);
+    if (o->vlog)
+	o->vlog(o, level, str, args);
 }
 
 void
