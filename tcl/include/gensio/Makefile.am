@@ -1,4 +1,4 @@
 
-pkginclude_HEADERS = gensio_tcl.h
+pkginclude_HEADERS = gensio_tcl.h gensio_tcl_dllvisibility.h
 
 EXTRA_DIST = CMakeLists.txt
