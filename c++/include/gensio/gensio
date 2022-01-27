@@ -65,6 +65,8 @@ namespace gensio {
 	// parameter list, that can be used accidentally.
 	Os_Funcs(bool dummy) { };
 
+	Os_Funcs_Log_Handler *get_log_handler() { return logger; };
+
 	// Do the setup for the process.  If you do this, this should be
 	// the last os funcs to destruct, if you have more than one.  See
 	// gensio_os_funcs.3 for details on process setup.
