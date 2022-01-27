@@ -284,7 +284,6 @@ namespace gensio {
 		case GENSIO_EVENT_NEW_CHANNEL:
 		    g2 = gensio_alloc(io, g->get_os_funcs(), NULL);
 		    g->raw_event_handler->new_channel(cb, g, g2, auxdata);
-		    cb->new_channel(g, g2, auxdata);
 		    break;
 
 		case GENSIO_EVENT_SEND_BREAK:
@@ -350,7 +349,14 @@ namespace gensio {
 	void new_channel(Event *e, Gensio *g, Gensio *new_chan,
 			 const char *const *auxdata) override
 	{
-	    e->new_channel(g, new_chan, auxdata);
+	    if (e)
+		e->new_channel(g, new_chan, auxdata);
+	}
+
+	void freed(Event *e, Gensio *g) override
+	{
+	    if (e)
+		e->freed(g);
 	}
     };
 
@@ -373,8 +379,14 @@ namespace gensio {
 							frdata);
 	Event *cb = d->g->get_cb();
 
-	if (cb)
-	    cb->freed();
+	// Gensios that are not top-level will not have a raw event
+	// handler.  This only matters for freed, as the freed call
+	// doesn't come in from the gensio event handler, but from the
+	// frdata handler.
+	if (d->g->raw_event_handler)
+	    d->g->raw_event_handler->freed(cb, d->g);
+	else if (cb)
+	    cb->freed(d->g);
 	delete d->g;
 	delete d;
     }
@@ -1699,7 +1711,14 @@ namespace gensio {
 	void new_connection(Accepter_Event *e, Accepter *a,
 			    Gensio *new_g) override
 	{
-	    e->new_connection(a, new_g);
+	    if (e)
+		e->new_connection(a, new_g);
+	}
+
+	void freed(Accepter_Event *e, Accepter *a) override
+	{
+	    if (e)
+		e->freed(a);
 	}
     };
 
@@ -1719,8 +1738,11 @@ namespace gensio {
 						 frdata);
 	Accepter_Event *cb = d->a->get_cb();
 
-	if (cb)
-	    cb->freed();
+	// See comments in gensio_cpp_freed
+	if (d->a->raw_event_handler)
+	    d->a->raw_event_handler->freed(cb, d->a);
+	else if (cb)
+	    cb->freed(d->a);
 	delete d->a;
 	delete d;
     }

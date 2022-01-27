@@ -111,7 +111,7 @@ private:
 	    io->set_write_callback_enable(false);
     }
 
-    void freed() override {
+    void freed(Gensio *io) override {
 	waiter->wake();
     }
 
@@ -222,7 +222,7 @@ private:
 	io->set_write_callback_enable(false);
     }
 
-    void freed() override {
+    void freed(Gensio *io) override {
 	waiter->wake();
     }
 
@@ -254,7 +254,7 @@ private:
 	acc->free();
     }
 
-    void freed() override
+    void freed(Accepter *a) override
     {
 	waiter->wake();
     }
@@ -348,7 +348,7 @@ private:
 	return i;
     }
 
-    void freed() override
+    void freed(Gensio *io) override
     {
 	waiter->wake();
     }

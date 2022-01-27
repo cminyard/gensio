@@ -253,7 +253,7 @@ namespace gensio {
 
 	// The free() operation for gensio this object is assigned to
 	// has finished and the data will immediately be freed.
-	virtual void freed() { };
+	virtual void freed(Gensio *io) { };
 
 	virtual ~Event() = default;
     };
@@ -303,6 +303,9 @@ namespace gensio {
 	// New channels are routed through here so they can be set up properly.
 	virtual void new_channel(Event *e, Gensio *g, Gensio *new_chan,
 				 const char *const *auxdata) = 0;
+
+	// Final free calls come through here.
+	virtual void freed(Event *e, Gensio *g) = 0;
     };
 
     // This is a gensio, the central class in the gensio framework.
@@ -686,7 +689,7 @@ namespace gensio {
 
 	// The free() operation for accepter this object is assigned to
 	// has finished and the data will immediately be freed.
-	virtual void freed() { };
+	virtual void freed(Accepter *a) { };
 
 	virtual ~Accepter_Event() = default;
     };
@@ -713,6 +716,10 @@ namespace gensio {
 	// up properly.
 	virtual void new_connection(Accepter_Event *e,
 				    Accepter *acc, Gensio *g) = 0;
+
+	// Freed accepters are routed through here so they can be shut
+	// down properly.
+	virtual void freed(Accepter_Event *e, Accepter *acc) = 0;
     };
 
     // Allocate a new accepter object based on the given string.  See

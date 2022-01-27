@@ -77,7 +77,7 @@ private:
 
     // Called when the free is complete.  We wake up whatever is
     // waiting on us.
-    void freed() override
+    void freed(Gensio *io) override
     {
 	waiter->wake();
     }
@@ -125,7 +125,7 @@ private:
 
     // The free of the accepter has completed, wake up whatever is
     // waiting.
-    void freed() override
+    void freed(Accepter *a) override
     {
 	waiter->wake();
     }
