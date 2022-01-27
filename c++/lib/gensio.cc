@@ -27,17 +27,41 @@ namespace gensio {
 	int err;
 
 	err = gensio_os_proc_setup(osf, &proc_data);
-	if (err) {
-	    gensio_os_funcs_free(osf);
+	if (err)
 	    throw gensio_error(err);
+    }
+
+    void Os_Funcs::refcount_from(const Os_Funcs *o)
+    {
+	std::atomic<unsigned int> *old_refcnt = refcnt;
+	struct gensio_os_funcs *old_osf = osf;
+
+	refcnt = o->refcnt;
+	osf = o->osf;
+	++*refcnt;
+	if (old_refcnt) {
+	    if (old_refcnt->fetch_sub(1) == 1) {
+		gensio_os_funcs_free(old_osf);
+		delete old_refcnt;
+	    }
 	}
+    }
+
+    Os_Funcs& Os_Funcs::operator=(const Os_Funcs &o)
+    {
+	refcount_from(&o);
+	return *this;
+    }
+
+    Os_Funcs::Os_Funcs(const Os_Funcs &o) {
+	refcount_from(&o);
     }
 
     Os_Funcs::~Os_Funcs()
     {
+	if (proc_data)
+	    gensio_os_proc_cleanup(proc_data);
 	if (refcnt->fetch_sub(1) == 1) {
-	    if (proc_data)
-		gensio_os_proc_cleanup(proc_data);
 	    gensio_os_funcs_free(osf);
 	    delete refcnt;
 	}

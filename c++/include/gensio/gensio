@@ -77,21 +77,9 @@ namespace gensio {
 	    gensio_os_funcs_set_vlog(osf, func);
 	}
 
-	// Assignment contructor
-	Os_Funcs& operator=(const Os_Funcs &o)
-	{
-	    refcnt = o.refcnt;
-	    osf = o.osf;
-	    ++*refcnt;
-	    return *this;
-	}
+	Os_Funcs& operator=(const Os_Funcs &o);
 
-	// Copy constructor
-	Os_Funcs(const Os_Funcs &o) {
-	    refcnt = o.refcnt;
-	    osf = o.osf;
-	    ++*refcnt;
-	}
+	Os_Funcs(const Os_Funcs &o);
 
 	struct gensio_os_proc_data *get_proc_data() { return proc_data; }
 
@@ -107,9 +95,10 @@ namespace gensio {
 	virtual ~Os_Funcs();
 
     private:
-	struct gensio_os_funcs *osf;
+	void refcount_from(const Os_Funcs *o);
+	struct gensio_os_funcs *osf = NULL;
 	struct gensio_os_proc_data *proc_data = NULL;
-	std::atomic<unsigned int> *refcnt;
+	std::atomic<unsigned int> *refcnt = NULL;
     };
 
     // A wrapper for the gensio_addr structure.
