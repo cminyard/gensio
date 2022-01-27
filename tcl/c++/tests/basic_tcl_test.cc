@@ -291,15 +291,17 @@ do_server_test(Os_Funcs &o, string ios)
     }
 }
 
-static void
-gensio_log(struct gensio_os_funcs *f, enum gensio_log_levels level,
-	   const char *log, va_list args)
-{
-    fprintf(stderr, "gensio %s log: ", gensio_log_level_to_str(level));
-    vfprintf(stderr, log, args);
-    fprintf(stderr, "\n");
-    fflush(stderr);
-}
+// Internal gensio errors come in through this mechanism.
+class Logger: public Os_Funcs_Log_Handler {
+    void log(enum gensio_log_levels level, const char *log, va_list args)
+	override
+    {
+	fprintf(stderr, "gensio %s log: ", gensio_log_level_to_str(level));
+	vfprintf(stderr, log, args);
+	fprintf(stderr, "\n");
+	fflush(stderr);
+    }
+};
 
 class Sub_Event: public Event {
 public:
@@ -365,11 +367,10 @@ private:
 int main(int argc, char *argv[])
 {
     int err = 0;
-    Tcl_Os_Funcs o;
+    Tcl_Os_Funcs o(new Logger);
     const char *test = "mux,tcp,localhost,";
     const char *errstr;
 
-    o.set_vlog(gensio_log);
     o.proc_setup();
 
     if (argc > 1) {

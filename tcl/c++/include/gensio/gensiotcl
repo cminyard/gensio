@@ -16,14 +16,14 @@ namespace gensio {
 
     class Tcl_Os_Funcs: public Os_Funcs {
     public:
-	Tcl_Os_Funcs()
+	Tcl_Os_Funcs(Os_Funcs_Log_Handler *logger = NULL) : Os_Funcs(true)
 	{
 	    struct gensio_os_funcs *o;
 
 	    int err = gensio_tcl_funcs_alloc(&o);
 	    if (err)
 		throw gensio_error(err);
-	    init(o);
+	    init(o, logger);
 	}
     };
 }

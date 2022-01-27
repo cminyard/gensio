@@ -14,9 +14,10 @@
 #include <memory>
 #include <atomic>
 #include <vector>
+#include <stdarg.h>
 #include <gensio/gensio_dllvisibility>
 
-#include <iostream>
+//#include <iostream>
 
 namespace gensio {
     // Incuding this in the gensio namespace to keep things neat, and
@@ -43,6 +44,13 @@ namespace gensio {
 	int err;
     };
 
+    class Os_Funcs_Log_Handler {
+    public:
+	virtual void log(enum gensio_log_levels level, const char *log,
+			 va_list args) = 0;
+	virtual ~Os_Funcs_Log_Handler() = default;
+    };
+
     // This is a wrapper for gensio_os_funcs that makes using it a lot
     // cleaner.  The default constructor automatically allocates the
     // default, destruction takes place automatically.
@@ -51,31 +59,22 @@ namespace gensio {
     public:
 	// Allocate the default os function handlers for the platform.
 	// See gensio_default_os_hnd.3 for details.
-	Os_Funcs(int wait_sig);
+	Os_Funcs(int wait_sig, Os_Funcs_Log_Handler *logger = NULL);
+
+	// This is for use by subclasses.  Don't use one with an empty
+	// parameter list, that can be used accidentally.
+	Os_Funcs(bool dummy) { };
 
 	// Do the setup for the process.  If you do this, this should be
 	// the last os funcs to destruct, if you have more than one.  See
 	// gensio_os_funcs.3 for details on process setup.
 	void proc_setup();
 
-	// Should only be used for subclasses
-	Os_Funcs()
-	{
-	}
-
 	// If you allocate your own subclass of this, you must call
 	// this to set it up.  Note that this takes over freeing the
-	// OS handler.
-	void init(struct gensio_os_funcs *o)
-	{
-	    refcnt = new std::atomic<unsigned int>(1);
-	    osf = o;
-	}
-
-	void set_vlog(gensio_vlog_func func)
-	{
-	    gensio_os_funcs_set_vlog(osf, func);
-	}
+	// OS handler and the logger.
+	void init(struct gensio_os_funcs *o,
+		  Os_Funcs_Log_Handler *logger = NULL);
 
 	Os_Funcs& operator=(const Os_Funcs &o);
 
@@ -96,6 +95,10 @@ namespace gensio {
 
     private:
 	void refcount_from(const Os_Funcs *o);
+	friend void gensio_cpp_vlog_handler(struct gensio_os_funcs *io,
+					    enum gensio_log_levels level,
+					    const char *log, va_list args);
+	Os_Funcs_Log_Handler *logger;
 	struct gensio_os_funcs *osf = NULL;
 	struct gensio_os_proc_data *proc_data = NULL;
 	std::atomic<unsigned int> *refcnt = NULL;

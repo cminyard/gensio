@@ -17,15 +17,17 @@
 using namespace std;
 using namespace gensio;
 
-static void
-gensio_log(struct gensio_os_funcs *f, enum gensio_log_levels level,
-	   const char *log, va_list args)
-{
-    fprintf(stderr, "gensio %s log: ", gensio_log_level_to_str(level));
-    vfprintf(stderr, log, args);
-    fprintf(stderr, "\n");
-    fflush(stderr);
-}
+// Internal gensio errors come in through this mechanism.
+class Logger: public Os_Funcs_Log_Handler {
+    void log(enum gensio_log_levels level, const char *log, va_list args)
+	override
+    {
+	fprintf(stderr, "gensio %s log: ", gensio_log_level_to_str(level));
+	vfprintf(stderr, log, args);
+	fprintf(stderr, "\n");
+	fflush(stderr);
+    }
+};
 
 #ifdef _WIN32
 #define DEFAULT_ECHO_COMMPORT "COM0"
@@ -65,7 +67,7 @@ int main(int argc, char *argv[])
     if (!file_is_accessible_dev(DEFAULT_ECHO_COMMPORT))
 	return 77;
 
-    Os_Funcs o(0);
+    Os_Funcs o(0, new Logger);
     int err;
     Waiter w(o);
     static const char *serial_parms[] = { "nouucplock=false", NULL };
@@ -77,7 +79,6 @@ int main(int argc, char *argv[])
 #endif
     unsigned int v;
 
-    o.set_vlog(gensio_log);
     o.proc_setup();
 
     err = 0;

@@ -12,7 +12,28 @@ namespace gensio {
 #include <gensio/gensio_builtins.h>
 #include <gensio/gensio_osops.h>
 
-    Os_Funcs::Os_Funcs(int wait_sig)
+    void gensio_cpp_vlog_handler(struct gensio_os_funcs *io,
+				 enum gensio_log_levels level,
+				 const char *log, va_list args)
+    {
+	struct Os_Funcs *o =
+	    static_cast<Os_Funcs *>(gensio_os_funcs_get_data(io));
+
+	if (o->logger)
+	    o->logger->log(level, log, args);
+    }
+
+    void Os_Funcs::init(struct gensio_os_funcs *o,
+			Os_Funcs_Log_Handler *ilogger)
+    {
+	logger = ilogger;
+	refcnt = new std::atomic<unsigned int>(1);
+	osf = o;
+	gensio_os_funcs_set_vlog(osf, gensio_cpp_vlog_handler);
+	gensio_os_funcs_set_data(osf, this);
+    }
+
+    Os_Funcs::Os_Funcs(int wait_sig, Os_Funcs_Log_Handler *logger)
     {
 	int err;
 	struct gensio_os_funcs *o;
@@ -20,7 +41,7 @@ namespace gensio {
 	err = gensio_default_os_hnd(wait_sig, &o);
 	if (err)
 	    throw gensio_error(err);
-	this->init(o);
+	this->init(o, logger);
     }
 
     void Os_Funcs::proc_setup() {
@@ -38,6 +59,7 @@ namespace gensio {
 
 	refcnt = o->refcnt;
 	osf = o->osf;
+	logger = o->logger;
 	++*refcnt;
 	if (old_refcnt) {
 	    if (old_refcnt->fetch_sub(1) == 1) {
@@ -63,6 +85,8 @@ namespace gensio {
 	    gensio_os_proc_cleanup(proc_data);
 	if (refcnt->fetch_sub(1) == 1) {
 	    gensio_os_funcs_free(osf);
+	    if (logger)
+		delete logger;
 	    delete refcnt;
 	}
     }
@@ -2395,11 +2419,10 @@ namespace gensio {
 	return 0;
     }
 
-    MDNS::MDNS(Os_Funcs &o)
+    MDNS::MDNS(Os_Funcs &o): go(o)
     {
 	int rv;
 
-	this->go = o;
 	rv = gensio_alloc_mdns(o, &this->m);
 	if (rv)
 	    throw gensio_error(rv);

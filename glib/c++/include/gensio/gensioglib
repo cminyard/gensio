@@ -16,14 +16,14 @@ namespace gensio {
 
     class Glib_Os_Funcs: public Os_Funcs {
     public:
-	Glib_Os_Funcs()
+	Glib_Os_Funcs(Os_Funcs_Log_Handler *logger = NULL) : Os_Funcs(false)
 	{
 	    struct gensio_os_funcs *o;
 
 	    int err = gensio_glib_funcs_alloc(&o);
 	    if (err)
 		throw gensio_error(err);
-	    init(o);
+	    init(o, logger);
 	}
     };
 }
