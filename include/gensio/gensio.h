@@ -176,45 +176,8 @@ void gensio_set_write_callback_enable(struct gensio *io, bool enabled);
 GENSIO_DLL_PUBLIC
 int gensio_control(struct gensio *io, int depth, bool get,
 		   unsigned int option, char *data, gensiods *datalen);
-#define GENSIO_CONTROL_DEPTH_ALL	-1
-#define GENSIO_CONTROL_DEPTH_FIRST	-2
 
-#define GENSIO_CONTROL_GET	true
-#define GENSIO_CONTROL_SET	false
-
-#define GENSIO_CONTROL_NODELAY			1
-#define GENSIO_CONTROL_STREAMS			2
-#define GENSIO_CONTROL_SEND_BREAK		3
-#define GENSIO_CONTROL_GET_PEER_CERT_NAME	4
-#define GENSIO_CONTROL_CERT_AUTH		5
-#define GENSIO_CONTROL_USERNAME			6
-#define GENSIO_CONTROL_SERVICE			7
-#define GENSIO_CONTROL_CERT			8
-#define GENSIO_CONTROL_CERT_FINGERPRINT		9
-#define GENSIO_CONTROL_ENVIRONMENT		10
-#define GENSIO_CONTROL_MAX_WRITE_PACKET		11
-#define GENSIO_CONTROL_ARGS			12
-#define GENSIO_CONTROL_EXIT_CODE		13
-#define GENSIO_CONTROL_WAIT_TASK		14
-#define GENSIO_CONTROL_ADD_MCAST		15
-#define GENSIO_CONTROL_DEL_MCAST		16
-#define GENSIO_CONTROL_LADDR			17
-#define GENSIO_CONTROL_LPORT			18
-#define GENSIO_CONTROL_CLOSE_OUTPUT		19
-#define GENSIO_CONTROL_CONNECT_ADDR_STR		20
-#define GENSIO_CONTROL_RADDR			21
-#define GENSIO_CONTROL_RADDR_BIN		22
-#define GENSIO_CONTROL_REMOTE_ID		23
-#define GENSIO_CONTROL_KILL_TASK		24
-#define GENSIO_CONTROL_MCAST_LOOP		25
-#define GENSIO_CONTROL_MCAST_TTL		26
-#define GENSIO_CONTROL_PASSWORD			27
-#define GENSIO_CONTROL_2FA			28
-#define GENSIO_CONTROL_AUX_DATA			29
-#define GENSIO_CONTROL_REM_AUX_DATA		30
-#define GENSIO_CONTROL_IOD			31
-#define GENSIO_CONTROL_EXTRAINFO		32
-#define GENSIO_CONTROL_ENABLE_OOB		33
+#include <gensio/gensio_control.h>
 
 GENSIO_DLL_PUBLIC
 const char *gensio_get_type(struct gensio *io, unsigned int depth);
@@ -361,14 +324,6 @@ int gensio_acc_set_accept_callback_enable_s(struct gensio_accepter *accepter,
 GENSIO_DLL_PUBLIC
 int gensio_acc_control(struct gensio_accepter *accepter, int depth, bool get,
 		       unsigned int option, char *data, gensiods *datalen);
-/* Uses GENSIO_CONTROL_DEPTH_xxx options above. */
-#define GENSIO_ACC_CONTROL_LADDR	1
-#define GENSIO_ACC_CONTROL_LPORT	2
-
-/*
- * Get/set the tcpdname option for the gensio dynamically.
- */
-#define GENSIO_ACC_CONTROL_TCPDNAME	3
 
 GENSIO_DLL_PUBLIC
 int gensio_acc_set_sync(struct gensio_accepter *acc);
