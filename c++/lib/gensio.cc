@@ -19,8 +19,12 @@ namespace gensio {
 	struct Os_Funcs *o =
 	    static_cast<Os_Funcs *>(gensio_os_funcs_get_data(io));
 
-	if (o->logger)
-	    o->logger->log(level, log, args);
+	if (o->logger) {
+	    size_t len = vsnprintf(NULL, 0, log, args);
+	    std::string outstr(len + 1, '\0');
+	    snprintf(&outstr[0], len + 1, log, args);
+	    o->logger->log(level, outstr);
+	}
     }
 
     void Os_Funcs::init(struct gensio_os_funcs *o,
@@ -1644,7 +1648,10 @@ namespace gensio {
 
 		case GENSIO_ACC_EVENT_LOG: {
 		    struct gensio_loginfo *l = (struct gensio_loginfo *) data;
-		    cb->log(l->level, l->str, l->args);
+		    size_t len = vsnprintf(NULL, 0, l->str, l->args);
+		    std::string outstr(len + 1, '\0');
+		    snprintf(&outstr[0], len + 1, l->str, l->args);
+		    cb->log(l->level, outstr);
 		    break;
 		}
 

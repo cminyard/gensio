@@ -72,13 +72,10 @@ private:
 
 // Internal gensio errors come in through this mechanism.
 class MDNS_Logger: public Os_Funcs_Log_Handler {
-    void log(enum gensio_log_levels level, const char *log, va_list args)
-	override
+    void log(enum gensio_log_levels level, const std::string log) override
     {
-	fprintf(stderr, "gensio %s log: ", gensio_log_level_to_str(level));
-	vfprintf(stderr, log, args);
-	fprintf(stderr, "\n");
-	fflush(stderr);
+	std::cerr << "gensio " << gensio_log_level_to_str(level) <<
+	    " log: " << log << std::endl;
     }
 };
 

@@ -46,8 +46,8 @@ namespace gensio {
 
     class Os_Funcs_Log_Handler {
     public:
-	virtual void log(enum gensio_log_levels level, const char *log,
-			 va_list args) = 0;
+	virtual void log(enum gensio_log_levels level, const std::string log)
+		= 0;
 	virtual ~Os_Funcs_Log_Handler() = default;
     };
 
@@ -662,7 +662,7 @@ namespace gensio {
 
 	// An error has occurred in the accepter that cannot be
 	// reported as a return value.
-	virtual void log(enum gensio_log_levels level, char *str, va_list args)
+	virtual void log(enum gensio_log_levels level, const std::string log)
 	{
 	}
 

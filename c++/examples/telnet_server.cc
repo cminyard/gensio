@@ -98,12 +98,10 @@ private:
     // If errors occur in the accepter stack, they generally can't be
     // reported through normal mechanisms.  So those types of errors
     // come in through this mechanism.
-    void log(enum gensio_log_levels level, char *str, va_list args) override
+    void log(enum gensio_log_levels level, const std::string log) override
     {
-	fprintf(stderr, "accepter %s log: ", gensio_log_level_to_str(level));
-	vfprintf(stderr, str, args);
-	fprintf(stderr, "\n");
-	fflush(stderr);
+	std::cerr << "accepter " << gensio_log_level_to_str(level) <<
+	    " log: " << log << std::endl;
     }
 
     // New connection, kick off the new connection's echo handling.
@@ -170,13 +168,10 @@ do_server(Os_Funcs &o, const Addr &addr)
 
 // Internal gensio errors come in through this mechanism.
 class Telnet_Logger: public Os_Funcs_Log_Handler {
-    void log(enum gensio_log_levels level, const char *log, va_list args)
-	override
+    void log(enum gensio_log_levels level, const std::string log) override
     {
-	fprintf(stderr, "gensio %s log: ", gensio_log_level_to_str(level));
-	vfprintf(stderr, log, args);
-	fprintf(stderr, "\n");
-	fflush(stderr);
+	std::cerr << "gensio " << gensio_log_level_to_str(level) <<
+	    " log: " << log << std::endl;
     }
 };
 
