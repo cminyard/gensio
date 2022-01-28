@@ -11,6 +11,8 @@ AC_PROG_CXX
 AM_PROG_AR
 LT_INIT
 
+CXXFLAGS="$CXXFLAGS -I\$(top_srcdir)/c++/include"
+
 # defaults
 uucp_locking_flag=yes
 UUCP_LOCK_DIR=/var/spool/lock
