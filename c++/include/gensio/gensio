@@ -14,7 +14,6 @@
 #include <memory>
 #include <atomic>
 #include <vector>
-#include <stdarg.h>
 #include <gensio/gensio_dllvisibility>
 
 //#include <iostream>
@@ -97,9 +96,6 @@ namespace gensio {
 
     private:
 	void refcount_from(const Os_Funcs *o);
-	friend void gensio_cpp_vlog_handler(struct gensio_os_funcs *io,
-					    enum gensio_log_levels level,
-					    const char *log, va_list args);
 	Os_Funcs_Log_Handler *logger;
 	struct gensio_os_funcs *osf = NULL;
 	struct gensio_os_proc_data *proc_data = NULL;

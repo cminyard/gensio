@@ -7,6 +7,7 @@
 #include <map>
 #include <gensio/gensio_classes>
 #include <string.h>
+#include <stdarg.h>
 
 namespace gensio {
 #include <gensio/gensio_builtins.h>
@@ -18,12 +19,13 @@ namespace gensio {
     {
 	struct Os_Funcs *o =
 	    static_cast<Os_Funcs *>(gensio_os_funcs_get_data(io));
+	Os_Funcs_Log_Handler *logger = o->get_log_handler();
 
-	if (o->logger) {
+	if (logger) {
 	    size_t len = vsnprintf(NULL, 0, log, args);
 	    std::string outstr(len + 1, '\0');
 	    snprintf(&outstr[0], len + 1, log, args);
-	    o->logger->log(level, outstr);
+	    logger->log(level, outstr);
 	}
     }
 
