@@ -43,6 +43,10 @@ namespace gensio {
 	int err;
     };
 
+    std::string err_to_string(int err) {
+	return std::string(gensio_err_to_str(err));
+    }
+
     class Os_Funcs_Log_Handler {
     public:
 	virtual void log(enum gensio_log_levels level, const std::string log)
