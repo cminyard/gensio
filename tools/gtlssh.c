@@ -1037,13 +1037,13 @@ auth_event(struct gensio *io, void *user_data, int event, int ierr,
 	    if ((err1 == GE_CERTNOTFOUND && err1 == err2) ||
 			(err1 == GE_CERTNOTFOUND && !err2) ||
 			(err2 == GE_CERTNOTFOUND && !err1)) {
-		if (err1)
-		    printf("\nCertificate for %s found and correct, but"
-			   " address file was\nmissing for it.\n", hostname);
 		if (err2)
 		    printf("\nCertificate for %s found and correct, but"
-			   " address file was\nmissing for\n  %s\n",
-			   hostname, raddr);
+			   " address file was\nmissing for it.\n", hostname);
+		if (err1)
+		    printf("\nCertificate for %s found and correct, but"
+			   " hostname file was\nmissing for\n  %s\n",
+			   raddr, hostname);
 		printf("It is possible that the same key is used for"
 		       " different connections,\nbut"
 		       " there may also be a man in the middle\n");
@@ -1073,6 +1073,12 @@ auth_event(struct gensio *io, void *user_data, int event, int ierr,
 		    if (!err && err2)
 			err = add_cert(ginfo->o, cert, CAname, raddr, 0);
 		}
+	    } else if (err1 || err2) {
+		printf("Certificate failed validation, giving up.\n");
+		err = err2;
+		if (err1)
+		    err = err1;
+		return err;
 	    }
 
 	    goto postcert_done;
