@@ -1,14 +1,16 @@
 
-AM_CPPFLAGS = $(PYTHON_CPPFLAGS) \
-	    -I$(top_srcdir)/include -I$(top_builddir)/include \
-	    -I$(top_srcdir) -I$(top_srcdir)/c++/include \
-	    -DPYTHON_HAS_THREADS=@PYTHON_HAS_THREADS@
+AM_CPPFLAGS = $(PYTHON_CPPFLAGS)
 
 pythonlibdir=$(PYTHON_INSTALL_LIB_DIR)
 pythonlib_LTLIBRARIES = _pygensio.la
 
-pygensio_wrap.cc pygensio.py: pygensio.i $(top_srcdir)/c++/include/gensio
-	$(SWIG) $(DEFS) -Wall -python $(PYTHON_SWIG_FLAGS) -o pygensio_wrap.cc -c++ \
+pygensio_wrap.cc pygensio.py: pygensio.i $(top_srcdir)/c++/include/gensio \
+			$(top_srcdir)/c++/swig/include/gensio_base.i \
+			$(top_srcdir)/include/gensio/gensio_err.h \
+			$(top_srcdir)/include/gensio/gensio_control.h \
+			$(top_srcdir)/include/gensio/gensio_types.h
+	$(SWIG) $(DEFS) -Wall -python $(PYTHON_SWIG_FLAGS) \
+		-o pygensio_wrap.cc -c++ \
 		-I$(top_srcdir)/c++/swig/pygensio -I$(top_srcdir)/c++/include \
 		-I$(top_srcdir)/include \
 		-I$(top_builddir)/include -I$(top_srcdir)/c++/swig/include \

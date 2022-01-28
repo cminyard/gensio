@@ -6,12 +6,14 @@ pythonlibdir=$(PYTHON_INSTALL_LIB_DIR)
 pythonlib_LTLIBRARIES = _pygensioglib.la
 
 pygensioglib_wrap.cc pygensioglib.py: \
+			$(top_srcdir)/c++/swig/include/gensio_base.i \
 			$(top_srcdir)/c++/swig/pygensio/pygensio.i \
 			$(top_srcdir)/glib/c++/swig/pygensio/pygensioglib.i \
 			$(top_srcdir)/c++/include/gensio
 	$(SWIG) $(DEFS) -Wall -python $(PYTHON_SWIG_FLAGS) \
 		-o pygensioglib_wrap.cc -c++ \
 		-I$(top_srcdir)/glib/c++/include \
+		-I$(top_srcdir)/c++/swig/include \
 		-I$(top_srcdir)/c++/swig/pygensio -I$(top_srcdir)/c++/include \
 		-I$(top_srcdir)/include -I$(top_builddir)/include \
 		$(top_srcdir)/glib/c++/swig/pygensio/pygensioglib.i
