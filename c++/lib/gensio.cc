@@ -2095,12 +2095,10 @@ namespace gensio {
 	    throw gensio_error(err);
     }
 
-    void Accepter::control(int depth, bool get, unsigned int option,
-			   char *data, gensiods *datalen)
+    int Accepter::control(int depth, bool get, unsigned int option,
+			  char *data, gensiods *datalen)
     {
-	int err = gensio_acc_control(acc, depth, get, option, data, datalen);
-	if (err)
-	    throw gensio_error(err);
+	return gensio_acc_control(acc, depth, get, option, data, datalen);
     }
 
     int Accepter::accept_s(Gensio **g, gensio_time *timeout, bool intr)

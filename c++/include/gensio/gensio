@@ -253,7 +253,7 @@ namespace gensio {
 	// into a range defined in gensio.h.  These events will be
 	// delivered here.
 	virtual int user_event(Gensio *io, int event, int err,
-			       std::vector<unsigned char> &data,
+			       std::vector<unsigned char> &userdata,
 			       const char *const *auxdata) { return GE_NOTSUP; }
 
 	// The free() operation for gensio this object is assigned to
@@ -796,8 +796,8 @@ namespace gensio {
 
 	// Special control operations on the accepter, see
 	// gensio_acc_control.3 for details.
-	void control(int depth, bool get, unsigned int option,
-		     char *data, gensiods *datalen);
+	int control(int depth, bool get, unsigned int option,
+		    char *data, gensiods *datalen);
 
 	// Put an accepter in synchronous mode.  With this, all
 	// accepts must be received with accept_s()
