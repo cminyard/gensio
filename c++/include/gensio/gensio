@@ -49,6 +49,9 @@ namespace gensio {
 		= 0;
 	virtual ~Os_Funcs_Log_Handler() = default;
     };
+    std::string log_level_to_str(enum gensio_log_levels level) {
+	return std::string(gensio_log_level_to_str(level));
+    }
 
     // This is a wrapper for gensio_os_funcs that makes using it a lot
     // cleaner.  The default constructor automatically allocates the
@@ -93,6 +96,10 @@ namespace gensio {
 	operator struct gensio_os_funcs * () const { return osf; }
 
 	virtual ~Os_Funcs();
+
+	void log(enum gensio_log_levels level, const std::string log) {
+	    gensio_log(osf, level, "%s", log.c_str());
+	}
 
     private:
 	void refcount_from(const Os_Funcs *o);
