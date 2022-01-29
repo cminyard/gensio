@@ -11,7 +11,6 @@
 using namespace gensio;
 %}
 
-%include <typemaps/std_string.swg>
 %include <std_string.i>
 %include <stdint.i>
 
