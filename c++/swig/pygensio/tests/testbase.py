@@ -236,6 +236,7 @@ class EvHnd(pygensio.Event):
 
     def write_ready(self):
         if self.data is None or self.writepos >= len(self.data):
+            self.g.set_write_callback_enable(False)
             return
         count = self.g.write(self.data[self.writepos:], None)
         self.writepos = self.writepos + count
