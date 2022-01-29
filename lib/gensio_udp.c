@@ -601,8 +601,11 @@ udpn_finish_read(struct udpn_data *ndata)
 	}
     }
 
-    gensio_cb(io, GENSIO_EVENT_READ, 0, nadata->read_data, &count, auxdata);
+    err = gensio_cb(io, GENSIO_EVENT_READ, 0, nadata->read_data,
+		    &count, auxdata);
     udpna_lock(nadata);
+    if (err)
+	goto out;
 
     if (ndata->state == UDPN_IN_CLOSE) {
 	udpn_finish_close(nadata, ndata);
@@ -907,6 +910,7 @@ static void
 udpn_handle_write_incoming(struct udpna_data *nadata, struct udpn_data *ndata)
 {
     struct gensio *io = ndata->io;
+    int err;
 
     if (ndata->in_write) {
 	/* Only one write callback at a time. */
@@ -916,14 +920,17 @@ udpn_handle_write_incoming(struct udpna_data *nadata, struct udpn_data *ndata)
     ndata->in_write = true;
  retry:
     udpna_unlock(nadata);
-    gensio_cb(io, GENSIO_EVENT_WRITE_READY, 0, NULL, NULL, NULL);
+    err = gensio_cb(io, GENSIO_EVENT_WRITE_READY, 0, NULL, NULL, NULL);
     udpna_lock(nadata);
+    if (err)
+	goto out;
     if (ndata->write_pending) {
 	/* Another write came in while we were unlocked.  Retry. */
 	ndata->write_pending = false;
 	if (ndata->write_enabled)
 	    goto retry;
     }
+ out:
     ndata->in_write = false;
 
     if (ndata->state == UDPN_IN_CLOSE)

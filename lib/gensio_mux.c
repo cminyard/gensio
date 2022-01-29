@@ -889,6 +889,8 @@ mux_send_init(struct mux_data *muxdata)
 static void
 chan_check_send_more(struct mux_inst *chan)
 {
+    int err;
+
     if (chan->in_write_ready)
 	/* Another caller is already handling, just let it retry. */
 	return;
@@ -899,10 +901,15 @@ chan_check_send_more(struct mux_inst *chan)
 	   chan->write_ready_enabled && chan->state == MUX_INST_OPEN) {
 	chan_ref(chan);
 	mux_unlock(chan->mux);
-	gensio_cb(chan->io, GENSIO_EVENT_WRITE_READY, 0, NULL, NULL, NULL);
+	err = gensio_cb(chan->io, GENSIO_EVENT_WRITE_READY, 0, NULL,
+			NULL, NULL);
 	mux_lock(chan->mux);
 	if (chan_deref(chan))
 	    return; /* chan was freed. */
+	if (err) {
+	    chan->errcode = err;
+	    break;
+	}
     }
     chan->in_write_ready = false;
 }
@@ -938,6 +945,7 @@ chan_check_read(struct mux_inst *chan)
     const char *flstr[3];
     unsigned int i;
     bool fullmsg;
+    int err;
 
     while (((fullmsg = full_msg_ready(chan, &len)) || chan->errcode) &&
 	   chan->read_enabled && !chan->in_read_report) {
@@ -946,10 +954,12 @@ chan_check_read(struct mux_inst *chan)
 	    chan->in_read_report = true;
 	    chan->read_enabled = false;
 	    mux_unlock(muxdata);
-	    gensio_cb(chan->io, GENSIO_EVENT_READ, chan->errcode,
-		      NULL, NULL, NULL);
+	    err = gensio_cb(chan->io, GENSIO_EVENT_READ, chan->errcode,
+			    NULL, NULL, NULL);
 	    mux_lock(muxdata);
 	    chan->in_read_report = false;
+	    if (err)
+		break;
 	    continue;
 	}
 
@@ -971,9 +981,13 @@ chan_check_read(struct mux_inst *chan)
 	    rcount = chan->max_read_size - pos;
 	    orcount = rcount;
 	    mux_unlock(muxdata);
-	    gensio_cb(chan->io, GENSIO_EVENT_READ,
-		      0, chan->read_data + pos, &rcount, flstr);
+	    err = gensio_cb(chan->io, GENSIO_EVENT_READ,
+			    0, chan->read_data + pos, &rcount, flstr);
 	    mux_lock(muxdata);
+	    if (err) {
+		chan->errcode = err;
+		goto after_read_done;
+	    }
 	    if (rcount > orcount)
 		rcount = orcount;
 	    len -= rcount;
@@ -990,9 +1004,13 @@ chan_check_read(struct mux_inst *chan)
 	if (flags & MUX_FLAG_END_OF_MESSAGE)
 	    flstr[i++] = "eom";
 	flstr[i] = NULL;
-	gensio_cb(chan->io, GENSIO_EVENT_READ,
-		  0, chan->read_data + pos, &rcount, flstr);
+	err = gensio_cb(chan->io, GENSIO_EVENT_READ,
+			0, chan->read_data + pos, &rcount, flstr);
 	mux_lock(muxdata);
+	if (err) {
+	    chan->errcode = err;
+	    goto after_read_done;
+	}
 	if (rcount > orcount)
 	    rcount = orcount;
 	len -= rcount;

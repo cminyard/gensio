@@ -140,11 +140,10 @@ static void
 echon_deferred_op(struct gensio_runner *runner, void *cb_data)
 {
     struct echon_data *ndata = cb_data;
+    int err = 0;
 
     echon_lock(ndata);
     if (ndata->state == ECHON_IN_OPEN || ndata->state == ECHON_IN_OPEN_CLOSE) {
-	int err = 0;
-
 	if (ndata->state == ECHON_IN_OPEN_CLOSE) {
 	    ndata->state = ECHON_IN_CLOSE;
 	    err = GE_LOCALCLOSED;
@@ -166,8 +165,10 @@ echon_deferred_op(struct gensio_runner *runner, void *cb_data)
 
 	gensio_circbuf_next_read_area(ndata->buf, &data, &count);
 	echon_unlock(ndata);
-	gensio_cb(ndata->io, GENSIO_EVENT_READ, 0, data, &count, NULL);
+	err = gensio_cb(ndata->io, GENSIO_EVENT_READ, 0, data, &count, NULL);
 	echon_lock(ndata);
+	if (err)
+	    break;
 	gensio_circbuf_data_removed(ndata->buf, count);
     }
 
@@ -175,11 +176,13 @@ echon_deferred_op(struct gensio_runner *runner, void *cb_data)
 	   gensio_circbuf_room_left(ndata->buf) > 0 &&
 	   ndata->xmit_enabled) {
 	echon_unlock(ndata);
-	gensio_cb(ndata->io, GENSIO_EVENT_WRITE_READY, 0,
-		  NULL, NULL, NULL);
+	err = gensio_cb(ndata->io, GENSIO_EVENT_WRITE_READY, 0,
+			NULL, NULL, NULL);
 	echon_lock(ndata);
+	if (err)
+	    break;
     }
-    if (ndata->state == ECHON_OPEN &&
+    if (!err && ndata->state == ECHON_OPEN &&
 		gensio_circbuf_datalen(ndata->buf) > 0 && ndata->read_enabled)
 	goto more_read;
 

@@ -249,20 +249,35 @@ stdion_finish_read(struct stdion_channel *schan, int err)
 	if (schan->ll_err && schan->data_pending_len == 0) {
 	    schan->read_enabled = false;
 	    stdiona_unlock(nadata);
-	    gensio_cb(io, GENSIO_EVENT_READ, schan->ll_err, NULL, NULL, NULL);
+	    err = gensio_cb(io, GENSIO_EVENT_READ, schan->ll_err, NULL,
+			    NULL, NULL);
 	    stdiona_lock(nadata);
+	    if (err) {
+		schan->ll_err = err;
+		nadata->o->set_read_handler(schan->out_iod, false);
+		nadata->o->set_except_handler(schan->out_iod, false);
+		break;
+	    }
 	} else {
 	    stdiona_unlock(nadata);
-	    gensio_cb(io, GENSIO_EVENT_READ, 0,
-		      schan->read_data + schan->data_pos, &count, NULL);
+	    err = gensio_cb(io, GENSIO_EVENT_READ, 0,
+			    schan->read_data + schan->data_pos, &count, NULL);
 	    stdiona_lock(nadata);
-	    if (count < schan->data_pending_len) {
-		/* The user didn't consume all the data. */
-		schan->data_pending_len -= count;
-		schan->data_pos += count;
-	    } else {
-		schan->data_pending_len = 0;
+	    if (!err) {
+		if (count < schan->data_pending_len) {
+		    /* The user didn't consume all the data. */
+		    schan->data_pending_len -= count;
+		    schan->data_pos += count;
+		} else {
+		    schan->data_pending_len = 0;
+		}
 	    }
+	}
+	if (err) {
+	    schan->ll_err = err;
+	    nadata->o->set_read_handler(schan->out_iod, false);
+	    nadata->o->set_except_handler(schan->out_iod, false);
+	    break;
 	}
     }
 
@@ -574,6 +589,7 @@ stdion_write_ready(struct gensio_iod *iod, void *cbdata)
 {
     struct stdion_channel *schan = cbdata;
     struct stdiona_data *nadata = schan->nadata;
+    int err;
 
     stdiona_lock(nadata);
     if (schan->in_write_ready) {
@@ -583,9 +599,13 @@ stdion_write_ready(struct gensio_iod *iod, void *cbdata)
     schan->in_write_ready = true;
  retry:
     stdiona_unlock(nadata);
-    gensio_cb(schan->io, GENSIO_EVENT_WRITE_READY, 0, NULL, NULL, NULL);
+    err = gensio_cb(schan->io, GENSIO_EVENT_WRITE_READY, 0, NULL, NULL, NULL);
     stdiona_lock(nadata);
-    if (schan->write_pending) {
+    if (err) {
+	schan->ll_err = err;
+	nadata->o->set_read_handler(schan->out_iod, false);
+	nadata->o->set_except_handler(schan->out_iod, false);
+    } else if (schan->write_pending) {
 	schan->write_pending = false;
 	if (schan->xmit_enabled)
 	    goto retry;

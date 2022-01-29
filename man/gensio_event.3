@@ -63,7 +63,7 @@ then the gensio will be closed.  This is used to report that the other
 end closed the connection (GE_REMCLOSE), or that other internal errors
 occurred.
 
-Return value is ignored.
+You should always return zero, it used to not matter, but it does now.
 .SS "GENSIO_EVENT_WRITE_READY"
 Called when data can be written to the I/O device.
 
@@ -76,7 +76,7 @@ don't have a separate exception handler coming from the lower layer.
 But this lets the write operation return a failure if something has
 gone wrong.
 
-Return value is ignored.
+You should always return zero, it used to not matter, but it does now.
 .SS "GENSIO_EVENT_NEW_CHANNEL"
 A new channel has been created by the remote end of the connection.
 The new channel gensio is in buf and must be cast.  Information about

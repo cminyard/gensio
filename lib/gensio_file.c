@@ -294,13 +294,12 @@ static void
 filen_deferred_op(struct gensio_runner *runner, void *cb_data)
 {
     struct filen_data *ndata = cb_data;
+    int err = 0;
 
     filen_lock(ndata);
     ndata->deferred_op_pending = false;
 
     if (ndata->state == FILEN_IN_OPEN || ndata->state == FILEN_IN_OPEN_CLOSE) {
-	int err = 0;
-
 	if (ndata->state == FILEN_IN_OPEN_CLOSE) {
 	    ndata->state = FILEN_IN_CLOSE;
 	    err = GE_LOCALCLOSED;
@@ -319,12 +318,12 @@ filen_deferred_op(struct gensio_runner *runner, void *cb_data)
 	gensiods count = 0;
 
 	if (ndata->data_pending_len == 0 && !ndata->read_err) {
-	    int rv = f_read(ndata->o, ndata->inf, ndata->read_data,
-			    ndata->max_read_size, &count);
+	    err = f_read(ndata->o, ndata->inf, ndata->read_data,
+			 ndata->max_read_size, &count);
 
-	    if (rv) {
+	    if (err) {
 		ndata->read_enabled = false;
-		ndata->read_err = rv;
+		ndata->read_err = err;
 	    } else {
 		ndata->data_pending_len = count;
 	    }
@@ -335,9 +334,14 @@ filen_deferred_op(struct gensio_runner *runner, void *cb_data)
 	    ndata->read_enabled = false;
 	} else {
 	    filen_unlock(ndata);
-	    gensio_cb(ndata->io, GENSIO_EVENT_READ, ndata->read_err,
-		      ndata->read_data, &count, NULL);
+	    err = gensio_cb(ndata->io, GENSIO_EVENT_READ, ndata->read_err,
+			    ndata->read_data, &count, NULL);
 	    filen_lock(ndata);
+	    if (err) {
+		ndata->read_enabled = false;
+		ndata->read_err = err;
+		break;
+	    }
 	}
 	if (count > 0) {
 	    if (count >= ndata->data_pending_len) {
@@ -352,9 +356,14 @@ filen_deferred_op(struct gensio_runner *runner, void *cb_data)
 
     while (ndata->state == FILEN_OPEN && ndata->xmit_enabled) {
 	filen_unlock(ndata);
-	gensio_cb(ndata->io, GENSIO_EVENT_WRITE_READY, 0,
-		  NULL, NULL, NULL);
+	err = gensio_cb(ndata->io, GENSIO_EVENT_WRITE_READY, 0,
+			NULL, NULL, NULL);
 	filen_lock(ndata);
+	if (err) {
+	    ndata->read_enabled = false;
+	    ndata->read_err = err;
+	    break;
+	}
     }
 
     if (ndata->state == FILEN_IN_CLOSE) {

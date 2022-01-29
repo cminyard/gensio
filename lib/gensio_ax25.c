@@ -1322,6 +1322,7 @@ ax25_chan_deliver_read(struct ax25_chan *chan)
     struct ax25_data *d;
     char pidstr[10];
     const char *auxdata[2] = { pidstr, NULL };
+    int err;
 
     if (chan->in_read)
 	goto check_for_busy;
@@ -1330,9 +1331,11 @@ ax25_chan_deliver_read(struct ax25_chan *chan)
 	if (chan->err) {
 	    ax25_chan_unlock(chan);
 	    chan->read_enabled = false;
-	    gensio_cb(chan->io, GENSIO_EVENT_READ, chan->err,
-		      NULL, NULL, NULL);
+	    err = gensio_cb(chan->io, GENSIO_EVENT_READ, chan->err,
+			    NULL, NULL, NULL);
 	    ax25_chan_lock(chan);
+	    if (err)
+		break;
 	    continue;
 	}
 
@@ -1340,9 +1343,13 @@ ax25_chan_deliver_read(struct ax25_chan *chan)
 	snprintf(pidstr, sizeof(pidstr), "pid:%d", d->pid);
 	ax25_chan_unlock(chan);
 	rcount = d->len;
-	gensio_cb(chan->io, GENSIO_EVENT_READ, 0, d->data + d->pos,
-		  &rcount, auxdata);
+	err = gensio_cb(chan->io, GENSIO_EVENT_READ, 0, d->data + d->pos,
+			&rcount, auxdata);
 	ax25_chan_lock(chan);
+	if (err) {
+	    ax25_chan_do_err_close(chan, err);
+	    break;
+	}
 	if (rcount < d->len) {
 	    d->len -= rcount;
 	    d->pos += rcount;
@@ -1373,13 +1380,20 @@ ax25_chan_deliver_read(struct ax25_chan *chan)
 static void
 ax25_chan_deliver_write_ready(struct ax25_chan *chan)
 {
+    int err;
+
     if (chan->in_write)
 	return;
     chan->in_write = true;
     while (chan->xmit_enabled && chan_can_write(chan)) {
 	ax25_chan_unlock(chan);
-	gensio_cb(chan->io, GENSIO_EVENT_WRITE_READY, 0, NULL, NULL, NULL);
+	err = gensio_cb(chan->io, GENSIO_EVENT_WRITE_READY, 0, NULL,
+			NULL, NULL);
 	ax25_chan_lock(chan);
+	if (err) {
+	    ax25_chan_do_err_close(chan, err);
+	    break;
+	}
     }
     chan->in_write = false;
     if (chan->state == AX25_CHAN_REPORT_CLOSE)
@@ -2221,6 +2235,7 @@ ax25_chan_handle_ui(struct ax25_base *base, struct gensio_ax25_addr *addr,
 	ax25_chan_unlock(chan);
 
 	rcount = len;
+	/* Errors from here don't matter, we don't loop. */
 	gensio_cb(chan->io, GENSIO_EVENT_READ, 0, data, &rcount, auxdata);
 
 	ax25_chan_lock(chan);
