@@ -188,11 +188,10 @@ namespace gensio {
 	io->set_write_callback_enable(false);
     }
 
-    void Event::new_channel(Gensio *io, Gensio *new_channel,
-			    const char *const *auxdata)
+    int Event::new_channel(Gensio *io, Gensio *new_channel,
+			   const char *const *auxdata)
     {
-	// No handler, just delete it.
-	new_channel->free();
+	return GE_NOTSUP;
     }
 
     struct gensio_cpp_data {
@@ -316,8 +315,8 @@ namespace gensio {
 
 		case GENSIO_EVENT_NEW_CHANNEL:
 		    g2 = gensio_alloc(io, g->get_os_funcs(), NULL);
-		    g->raw_event_handler->new_channel(cb, g, g2, auxdata);
-		    return 0;
+		    return g->raw_event_handler->new_channel(cb, g, g2,
+							     auxdata);
 
 		case GENSIO_EVENT_SEND_BREAK:
 		    cb->send_break(g);
@@ -379,11 +378,12 @@ namespace gensio {
 	    }
 	}
 
-	void new_channel(Event *e, Gensio *g, Gensio *new_chan,
-			 const char *const *auxdata) override
+	int new_channel(Event *e, Gensio *g, Gensio *new_chan,
+			const char *const *auxdata) override
 	{
 	    if (e)
-		e->new_channel(g, new_chan, auxdata);
+		return e->new_channel(g, new_chan, auxdata);
+	    return GE_NOTSUP;
 	}
 
 	void freed(Event *e, Gensio *g) override

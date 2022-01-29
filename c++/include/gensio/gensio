@@ -229,8 +229,8 @@ namespace gensio {
 
 	// A new channel is available on the gensio.  By default this
 	// deletes the new channel.
-	virtual void new_channel(Gensio *io, Gensio *new_channel,
-				 const char *const *auxdata);
+	virtual int new_channel(Gensio *io, Gensio *new_channel,
+				const char *const *auxdata);
 
 	// The remote end has requested that the receiver of this do a
 	// break.  This is primarily for a telnet server that is
@@ -313,8 +313,8 @@ namespace gensio {
 			   const char *const *auxdata) = 0;
 
 	// New channels are routed through here so they can be set up properly.
-	virtual void new_channel(Event *e, Gensio *g, Gensio *new_chan,
-				 const char *const *auxdata) = 0;
+	virtual int new_channel(Event *e, Gensio *g, Gensio *new_chan,
+				const char *const *auxdata) = 0;
 
 	// Final free calls come through here.
 	virtual void freed(Event *e, Gensio *g) = 0;

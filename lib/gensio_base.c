@@ -739,6 +739,7 @@ basen_read_data_handler(void *cb_data,
 {
     struct basen_data *ndata = cb_data;
     gensiods count = 0, rval;
+    int err = 0;
 
     basen_lock(ndata);
     if (!basen_can_deliver_ul_data(ndata)) {
@@ -756,14 +757,14 @@ basen_read_data_handler(void *cb_data,
 	   (count < buflen || ndata->ll_err)) {
 	if (ndata->ll_err && !filter_ul_read_pending(ndata)) {
 	    basen_unlock(ndata);
-	    gensio_cb(ndata->io, GENSIO_EVENT_READ, ndata->ll_err,
-		      NULL, NULL, NULL);
+	    err = gensio_cb(ndata->io, GENSIO_EVENT_READ, ndata->ll_err,
+			    NULL, NULL, NULL);
 	    basen_lock(ndata);
 	} else {
 	    basen_unlock(ndata);
 	    rval = buflen - count;
-	    gensio_cb(ndata->io, GENSIO_EVENT_READ, 0,
-		      buf + count, &rval, auxdata);
+	    err = gensio_cb(ndata->io, GENSIO_EVENT_READ, 0,
+			    buf + count, &rval, auxdata);
 #ifdef ENABLE_INTERNAL_TRACE
 	    /* Only for testing. */
 	    assert(rval <= buflen - count);
@@ -782,7 +783,7 @@ basen_read_data_handler(void *cb_data,
 
  out:
     *rcount = count;
-    return 0;
+    return err;
 }
 
 static void
@@ -996,18 +997,18 @@ basen_deferred_op(struct gensio_runner *runner, void *cbdata)
 		/* Automatically disable read on an error. */
 		ndata->read_enabled = false;
 		basen_unlock(ndata);
-		gensio_cb(ndata->io, GENSIO_EVENT_READ, ndata->ll_err,
-			  NULL, NULL, NULL);
+		err = gensio_cb(ndata->io, GENSIO_EVENT_READ, ndata->ll_err,
+				NULL, NULL, NULL);
 		basen_lock(ndata);
 	    } else {
 		basen_unlock(ndata);
 		err = filter_ll_write(ndata, basen_read_data_handler,
 				      NULL, NULL, 0, NULL);
 		basen_lock(ndata);
-		if (err) {
-		    handle_ioerr(ndata, err);
-		    break;
-		}
+	    }
+	    if (err) {
+		handle_ioerr(ndata, err);
+		break;
 	    }
 	} while (ndata->read_enabled &&
 		 (ndata->ll_err || filter_ul_read_pending(ndata)));
@@ -1025,8 +1026,13 @@ basen_deferred_op(struct gensio_runner *runner, void *cbdata)
 	       (filter_ll_can_write(ndata) || ndata->ll_err)
 	       && ndata->xmit_enabled) {
 	    basen_unlock(ndata);
-	    gensio_cb(ndata->io, GENSIO_EVENT_WRITE_READY, 0, NULL, 0, NULL);
+	    err = gensio_cb(ndata->io, GENSIO_EVENT_WRITE_READY, 0, NULL,
+			    0, NULL);
 	    basen_lock(ndata);
+	    if (err) {
+		handle_ioerr(ndata, err);
+		break;
+	    }
 	}
 	ndata->in_xmit_ready = false;
     }
@@ -1583,6 +1589,7 @@ basen_ll_read(void *cb_data, int readerr,
 {
     struct basen_data *ndata = cb_data;
     unsigned char *buf = ibuf;
+    int err;
 
 #ifdef DEBUG_DATA
     printf("LL read:");
@@ -1651,8 +1658,13 @@ basen_ll_read(void *cb_data, int readerr,
 	       (filter_ll_can_write(ndata) || ndata->ll_err)
 	       && ndata->xmit_enabled) {
 	    basen_unlock(ndata);
-	    gensio_cb(ndata->io, GENSIO_EVENT_WRITE_READY, 0, NULL, 0, NULL);
+	    err = gensio_cb(ndata->io, GENSIO_EVENT_WRITE_READY, 0, NULL,
+			    0, NULL);
 	    basen_lock(ndata);
+	    if (err) {
+		handle_ioerr(ndata, readerr);
+		break;
+	    }
 	}
     }
 
@@ -1709,8 +1721,12 @@ basen_ll_write_ready(void *cb_data)
 	   (filter_ll_can_write(ndata) || ndata->ll_err)
 	   && ndata->xmit_enabled) {
 	basen_unlock(ndata);
-	gensio_cb(ndata->io, GENSIO_EVENT_WRITE_READY, 0, NULL, 0, NULL);
+	err = gensio_cb(ndata->io, GENSIO_EVENT_WRITE_READY, 0, NULL, 0, NULL);
 	basen_lock(ndata);
+	if (err) {
+	    handle_ioerr(ndata, err);
+	    goto out_setnotready;
+	}
     }
 
     if (ndata->redo_xmit_ready) {
