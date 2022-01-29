@@ -309,16 +309,16 @@ namespace gensio {
 
 		case GENSIO_EVENT_WRITE_READY:
 		    cb->write_ready(g);
-		    break;
+		    return 0;
 
 		case GENSIO_EVENT_NEW_CHANNEL:
 		    g2 = gensio_alloc(io, g->get_os_funcs(), NULL);
 		    g->raw_event_handler->new_channel(cb, g, g2, auxdata);
-		    break;
+		    return 0;
 
 		case GENSIO_EVENT_SEND_BREAK:
 		    cb->send_break(g);
-		    break;
+		    return 0;
 
 		case GENSIO_EVENT_AUTH_BEGIN:
 		    return cb->auth_begin(g);
