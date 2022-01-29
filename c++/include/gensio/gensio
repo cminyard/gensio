@@ -949,8 +949,8 @@ namespace gensio {
 
 	virtual void handle(MDNS_Watch *w, MDNS_Watch_Event *e,
 			    enum gensio_mdns_data_state state,
-			    int interface, int ipdomain,
-			    const char *name, const char *type,
+			    int interfacenum, int ipdomain,
+			    const char *name, const char *mtype,
 			    const char *domain, const char *host,
 			    const struct gensio_addr *addr,
 			    const char * const *txt) = 0;
@@ -964,12 +964,12 @@ namespace gensio {
 	inline Os_Funcs &get_os_funcs() { return go; }
 
 	// Convenience functions to allocate a service and a watch.
-	MDNS_Service *add_service(int interface, int ipdomain,
-				  const char *name, const char *type,
+	MDNS_Service *add_service(int interfacenum, int ipdomain,
+				  const char *name, const char *mtype,
 				  const char *domain, const char *host,
 				  int port, const char * const *txt);
-	MDNS_Watch *add_watch(int interface, int ipdomain,
-			      const char *name, const char *type,
+	MDNS_Watch *add_watch(int interfacenum, int ipdomain,
+			      const char *name, const char *mtype,
 			      const char *domain, const char *host,
 			      MDNS_Watch_Event *event,
 			      Raw_MDNS_Event_Handler *evh = NULL);
@@ -993,8 +993,8 @@ namespace gensio {
     // functions for details.
     class GENSIOCPP_DLL_PUBLIC MDNS_Service {
     public:
-	MDNS_Service(MDNS *m, int interface, int ipdomain,
-		     const char *name, const char *type,
+	MDNS_Service(MDNS *m, int interfacenum, int ipdomain,
+		     const char *name, const char *mtype,
 		     const char *domain, const char *host,
 		     int port, const char * const *txt);
 	~MDNS_Service();
@@ -1026,8 +1026,8 @@ namespace gensio {
     public:
 	virtual void event(MDNS_Watch *w,
 			   enum gensio_mdns_data_state state,
-			   int interface, int ipdomain,
-			   const char *name, const char *type,
+			   int interfacenum, int ipdomain,
+			   const char *name, const char *mtype,
 			   const char *domain, const char *host,
 			   const Addr *addr, const char * const *txt) = 0;
 	virtual ~MDNS_Watch_Event() = default;
@@ -1036,8 +1036,8 @@ namespace gensio {
 	friend class MDNS_Watch;
 	friend void mdns_watch_event(struct gensio_mdns_watch *w,
 				     enum gensio_mdns_data_state state,
-				     int interface, int ipdomain,
-				     const char *name, const char *type,
+				     int interfacenum, int ipdomain,
+				     const char *name, const char *mtype,
 				     const char *domain, const char *host,
 				     const struct gensio_addr *addr,
 				     const char * const *txt, void *userdata);
@@ -1053,8 +1053,8 @@ namespace gensio {
 	// installing the new raw event handler.  This is not a
 	// problem for gensios because events aren't enabled at
 	// startup, but they are for MDNS watches.
-	MDNS_Watch(MDNS *m, int interface, int ipdomain,
-		   const char *name, const char *type,
+	MDNS_Watch(MDNS *m, int interfacenum, int ipdomain,
+		   const char *name, const char *mtype,
 		   const char *domain, const char *host,
 		   MDNS_Watch_Event *event,
 		   Raw_MDNS_Event_Handler *raw_event_handler = NULL);
