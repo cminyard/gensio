@@ -443,6 +443,8 @@ namespace gensio {
 	inline bool is_encrypted() const { return gensio_is_encrypted(io); }
 	inline bool is_message() const { return gensio_is_message(io); }
 
+	virtual bool is_serial() { return false; }
+
 	// Turn on/off synchronous mode for a gensio.  In synchrohous
 	// mode, the gensio will not deliver data via the read call.
 	// You must call the read_s() functions below to read the data.
@@ -627,7 +629,7 @@ namespace gensio {
     // (baud, databits, stopbits) are given in the sergensio.h include
     // file above the C versions of these functions.
     //
-    // The methods ending in _s a synchronous, they block until the
+    // The methods ending in _s are synchronous, they block until the
     // operation completes.
     //
     // For the server side, requests are received in the Serial_Event
@@ -688,6 +690,8 @@ namespace gensio {
 	void flow_state(bool state);
 	void modemstate(unsigned int state);
 	void linestate(unsigned int state);
+
+	virtual bool is_serial() { return true; }
 
     protected:
 	virtual void set_gensio(struct gensio *io, bool set_cb);
