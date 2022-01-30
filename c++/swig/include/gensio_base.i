@@ -71,6 +71,7 @@ using namespace gensio;
 // Allocators
 
 %catches(gensio::gensio_error) gensio::gensio_alloc;
+%ignore gensio::GensioW;
 
 ////////////////////////////////////////////////////
 // Gensio
@@ -117,6 +118,7 @@ using namespace gensio;
 %ignore gensio::Accepter::get_cb;
 %ignore gensio::Accepter::raw_event_handler;
 %ignore gensio::Accepter::user_data;
+%ignore gensio::AccepterW;
 
 ////////////////////////////////////////////////////
 // MDNS

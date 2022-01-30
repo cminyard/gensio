@@ -74,12 +74,13 @@ int main(int argc, char *argv[])
     Serial_Gensio *sg = new Serialdev("/dev/ttyEcho0,9600N81", serial_parms,
 				      o, NULL);
 #endif
+    GensioW g(sg); // Take over lifetime of the gensio
     unsigned int v;
 
     o.proc_setup();
 
     err = 0;
-    sg->open_s();
+    g->open_s();
     cout << "Allocated" << endl;
     cout << "Validating baud is 9600" << endl;
     v = 0;
@@ -98,8 +99,6 @@ int main(int argc, char *argv[])
 	cout << "baud set to 19200" << endl;
     }
     cout << "Closing" << endl;
-    sg->close_s();
-    sg->free();
 
     return 0;
 }

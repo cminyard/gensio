@@ -507,6 +507,38 @@ namespace gensio {
 	friend class Serial_Gensio;
     };
 
+    // A wrapper to allow RAII to be used on a Gensio.  If you use
+    // this, you should either make sure the gensio is closed before
+    // the end of this object's lifetime, or you should not free it
+    // and let this destructor close it.  What you should *not* do is
+    // an asynchronous free then call this, because the close here
+    // will fail and then the free won't be done after the destructor
+    // returns.
+    class GensioW {
+    public:
+	GensioW(std::string str, Os_Funcs &o, Event *cb) {
+	    io = gensio_alloc(str, o, cb);
+	}
+	GensioW(Gensio *child, std::string str, Os_Funcs &o, Event *cb) {
+	    io = gensio_alloc(child, str, o, cb);
+	}
+	// Take over an existing gensio.
+	GensioW(Gensio *iio): io(iio) { }
+	~GensioW() {
+	    try {
+		io->close_s();
+	    } catch (gensio_error e) {
+		// Ignore the error, already closed.
+	    }
+	    // Make sure the freed handler doesn't get called.
+	    io->set_event_handler(NULL);
+	    io->free();
+	}
+	Gensio * operator->() { return io; }
+    private:
+	Gensio *io;
+    };
+
     // Add a new class type.  This is for user-added gensios, so they
     // can tie in to the C++ frameworks.
     GENSIOCPP_DLL_PUBLIC
@@ -888,6 +920,39 @@ namespace gensio {
 					  Accepter_Event *cb);
 	friend void gensio_acc_cpp_freed(struct gensio_accepter *acc,
 					 struct gensio_acc_frdata *frdata);
+    };
+
+    // A wrapper to allow RAII to be used on a Gensio.  If you use
+    // this, you should either make sure the gensio is closed before
+    // the end of this object's lifetime, or you should not free it
+    // and let this destructor close it.  What you should *not* do is
+    // an asynchronous free then call this, because the close here
+    // will fail and then the free won't be done after the destructor
+    // returns.
+    class AccepterW {
+    public:
+	AccepterW(std::string str, Os_Funcs &o, Accepter_Event *cb) {
+	    acc = gensio_acc_alloc(str, o, cb);
+	}
+	AccepterW(Accepter *child, std::string str, Os_Funcs &o,
+		  Accepter_Event *cb) {
+	    acc = gensio_acc_alloc(child, str, o, cb);
+	}
+	// Take over an existing accepter.
+	AccepterW(Accepter *iacc): acc(iacc) { }
+	~AccepterW() {
+	    try {
+		acc->shutdown_s();
+	    } catch (gensio_error e) {
+		// Ignore the error, already closed.
+	    }
+	    // Make sure the freed handler doesn't get called.
+	    acc->set_callback(NULL);
+	    acc->free();
+	}
+	Accepter * operator->() { return acc; }
+    private:
+	Accepter *acc;
     };
 
     // Add a new accepter class type.  This is for user-added gensios,
