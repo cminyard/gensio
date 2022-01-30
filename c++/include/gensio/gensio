@@ -264,7 +264,10 @@ namespace gensio {
 			       const char *const *auxdata) { return GE_NOTSUP; }
 
 	// The free() operation for gensio this object is assigned to
-	// has finished and the data will immediately be freed.
+	// has finished and the data will immediately be freed.  This
+	// is generally where you would free the event handler for a
+	// gensio.  Obviously, the Event object here must stay around
+	// until the Gensio is freed.
 	virtual void freed(Gensio *io) { };
 
 	virtual ~Event() = default;
@@ -699,8 +702,10 @@ namespace gensio {
 				gensiods maxsize)
 	    { return GE_NOTSUP; }
 
-	// The free() operation for accepter this object is assigned to
-	// has finished and the data will immediately be freed.
+	// The free() operation for accepter this object is assigned
+	// to has finished and the data will immediately be freed.
+	// Usually used to free the Event object.  Like the one for
+	// the Event class, see that for details.
 	virtual void freed(Accepter *a) { };
 
 	virtual ~Accepter_Event() = default;

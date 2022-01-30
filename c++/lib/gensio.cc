@@ -424,6 +424,9 @@ namespace gensio {
 	delete d;
     }
 
+    // Note - If this fails, it deletes the object it is part of and
+    // throws an exception.  Most of the time that's what you want,
+    // but some places needs special handling.
     void
     Gensio::set_gensio(struct gensio *io, bool set_cb)
     {
@@ -441,7 +444,13 @@ namespace gensio {
 	gensio_set_frdata(io, &d->frdata);
 	if (set_cb) {
 	    gensio_set_callback(io, gensio_cpp_cb, this);
-	    this->raw_event_handler = new Main_Raw_Event_Handler();
+	    try {
+		this->raw_event_handler = new Main_Raw_Event_Handler();
+	    } catch (...) {
+		delete d;
+		delete this;
+		throw;
+	    }
 	}
     }
 
@@ -1803,7 +1812,13 @@ namespace gensio {
 	gensio_acc_set_frdata(acc, &d->frdata);
 	if (set_cb) {
 	    gensio_acc_set_callback(acc, gensio_acc_cpp_cb, this);
-	    this->raw_event_handler = new Main_Raw_Accepter_Event_Handler();
+	    try {
+		this->raw_event_handler = new Main_Raw_Accepter_Event_Handler();
+	    } catch (...) {
+		delete d;
+		delete this;
+		throw;
+	    }
 	}
     }
 
