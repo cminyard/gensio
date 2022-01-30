@@ -111,6 +111,8 @@ using namespace gensio;
 
 ////////////////////////////////////////////////////
 // Accepter
+// Constructor is deleted.
+%ignore gensio::Accepter::~Accepter;
 %ignore gensio::Accepter::get_os_funcs;
 %ignore gensio::Accepter::get_cb;
 %ignore gensio::Accepter::raw_event_handler;

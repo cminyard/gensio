@@ -778,7 +778,6 @@ static bool check_for_err(int err)
 %ignore gensio::Serial_Gensio::ri;
 %ignore gensio::Serial_Gensio::signature;
 %ignore gensio::gensio_acc_alloc;
-%ignore gensio::Accepter::~Accepter;
 %ignore gensio::Accepter::set_callback;
 %ignore gensio::Accepter::shutdown;
 %ignore gensio::Accepter::set_callback_enable(bool enabled,
