@@ -76,15 +76,20 @@ using namespace gensio;
 ////////////////////////////////////////////////////
 // Gensio
 // Ignore the normal destructor, it's protected.
+%extend gensio::Gensio {
+    ~Gensio()
+    {
+	self->free();
+    }
+}
+
 %ignore gensio::Gensio::~Gensio();
 
 // We supply our own destructor
 %ignore gensio::Gensio::free;
 
-// Only allow the vector version of write()
+// Only allow the vector versions of write()
 %ignore gensio::Gensio::write(const void *data, gensiods datalen,
-			      const char *const *auxdata);
-%ignore gensio::Gensio::write(const SimpleUCharVector data,
 			      const char *const *auxdata);
 %ignore gensio::Gensio::write_s;
 %ignore gensio::Gensio::write(const struct gensio_sg *sg, gensiods sglen,
@@ -113,6 +118,12 @@ using namespace gensio;
 ////////////////////////////////////////////////////
 // Accepter
 // Constructor is deleted.
+%extend gensio::Accepter {
+    ~Accepter()
+    {
+	self->free();
+    }
+}
 %ignore gensio::Accepter::~Accepter;
 %ignore gensio::Accepter::get_os_funcs;
 %ignore gensio::Accepter::get_cb;
@@ -122,15 +133,23 @@ using namespace gensio;
 
 ////////////////////////////////////////////////////
 // MDNS
+%extend gensio::MDNS {
+    ~MDNS()
+    {
+	self->free(NULL);
+    }
+}
+%ignore gensio::MDNS::~MDNS;
+%extend gensio::MDNS_Watch {
+    ~MDNS_Watch()
+    {
+	self->free(NULL);
+    }
+}
+%ignore gensio::MDNS_Watch::~MDNS_Watch;
 %delobject gensio::MDNS::free;
 %delobject gensio::MDNS_Watch::free;
 %ignore gensio::MDNS_Watch::raw_event_handler;
-
-////////////////////////////////////////////////////
-// Waiter
-
-// We provide our own version
-%ignore gensio::Waiter::wait;
 
 ////////////////////////////////////////////////////
 // gensio_err.h

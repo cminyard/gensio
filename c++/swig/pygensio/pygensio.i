@@ -177,6 +177,10 @@ static bool check_for_err(int err)
 
 %}
 
+// We use the pure vector version for python
+%ignore gensio::Gensio::write(const SimpleUCharVector data,
+			      const char *const *auxdata);
+
 ////////////////////////////////////////////////////
 // Typemaps
 //
@@ -763,10 +767,11 @@ static bool check_for_err(int err)
 					      Accepter_Enable_Done *done);
 %ignore gensio::Accepter::str_to_gensio;
 %ignore gensio::Accepter::control;
-%ignore gensio::MDNS::~MDNS;
+
+%ignore gensio::Waiter::wait;
+
 %ignore gensio::MDNS::free;
 %ignore gensio::MDNS::add_watch;
-%ignore gensio::MDNS_Watch::~MDNS_Watch;
 %ignore gensio::MDNS_Watch::free;
 
 %include <gensio/gensio_err.h>
@@ -796,7 +801,6 @@ static bool check_for_err(int err)
 
 ////////////////////////////////////////////////////
 // Define our own Gensio functins.
-%rename("") gensio::Gensio::~Gensio();
 %rename("") gensio::Gensio::open;
 %rename("") gensio::Gensio::open_nochild;
 %rename("") gensio::Gensio::close;
@@ -806,11 +810,6 @@ static bool check_for_err(int err)
 %rename("") gensio::Gensio::control;
 %catches(gensio::gensio_error) gensio::Gensio::write_s;
 %extend gensio::Gensio {
-    ~Gensio()
-    {
-	self->free();
-    }
-
     void open(Gensio_Open_Done *done)
     {
 	Py_Open_Done *pydone = new Py_Open_Done(done);
@@ -1066,7 +1065,6 @@ gensio_acc_alloct(gensio::Accepter *child, std::string str, gensio::Os_Funcs &o,
 }
 %}
 
-%rename("") gensio::Accepter::~Accepter;
 %rename("") gensio::Accepter::set_callback;
 %rename("") gensio::Accepter::shutdown;
 %rename("") gensio::Accepter::set_callback_enable(bool enabled,
@@ -1074,11 +1072,6 @@ gensio_acc_alloct(gensio::Accepter *child, std::string str, gensio::Os_Funcs &o,
 %rename("") gensio::Accepter::str_to_gensio;
 %rename("") gensio::Accepter::control;
 %extend gensio::Accepter {
-    ~Accepter()
-    {
-	self->free();
-    }
-
     void shutdown(Accepter_Shutdown_Done *done)
     {
 	Py_Accepter_Shutdown_Done *pydone = new Py_Accepter_Shutdown_Done(done);
@@ -1166,15 +1159,9 @@ gensio_acc_alloct(gensio::Accepter *child, std::string str, gensio::Os_Funcs &o,
 
 ////////////////////////////////////////////////////
 // MDNS handling
-%rename("") gensio::MDNS::~MDNS;
 %rename("") gensio::MDNS::free;
 %rename("") gensio::MDNS::add_watch;
 %extend gensio::MDNS {
-    ~MDNS()
-    {
-	self->free(NULL);
-    }
-
     void free(MDNS_Free_Done *done)
     {
 	Py_MDNS_Free_Done *pydone = new Py_MDNS_Free_Done(done);
@@ -1194,14 +1181,8 @@ gensio_acc_alloct(gensio::Accepter *child, std::string str, gensio::Os_Funcs &o,
     }
 }
 
-%rename("") gensio::MDNS_Watch::~MDNS_Watch;
 %rename("") gensio::MDNS_Watch::free;
 %extend gensio::MDNS_Watch {
-    ~MDNS_Watch()
-    {
-	self->free(NULL);
-    }
-
     void free(MDNS_Watch_Free_Done *done)
     {
 	Py_MDNS_Watch_Free_Done *pydone = new Py_MDNS_Watch_Free_Done(done);
