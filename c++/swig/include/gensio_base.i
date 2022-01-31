@@ -160,6 +160,7 @@ using namespace gensio;
 %rename("%s") gensio_time::secs;
 %rename("%s") gensio_time::nsecs;
 %rename("%s") gensio_log_level;
+%rename("%s") gensiods;
 %include <gensio/gensio_types.h>
 %rename("%s") "";
 const int GENSIO_LOG_FATAL = GENSIO_LOG_FATAL;

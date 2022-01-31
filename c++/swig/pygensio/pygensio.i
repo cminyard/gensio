@@ -189,17 +189,6 @@ static bool check_for_err(int err)
     $result = PI_add_result($result, SWIG_From_int(*$1));
 }
 
-// We need to tell swig what a gensiods is.
-%typemap(directorout) gensiods {
-    $result = PyInt_AsLong($1);
-}
-%typemap(out) gensiods {
-    $result = PyInt_FromLong($1);
-}
-%typemap(typecheck, precedence=SWIG_TYPECHECK_INTEGER) gensiods {
-    $1 = PyInt_Check($input) ? 1 : 0;
-}
-
 // For strings returned from directors.
 %typemap(directorin, numinputs=0) std::string &retval {
 }
