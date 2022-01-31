@@ -195,6 +195,7 @@ namespace gensio {
     // data to the read() call to avoid copying the data.
     class SimpleUCharVector {
     public:
+	SimpleUCharVector() { }
 	SimpleUCharVector(const unsigned char *idata, gensiods ilen) {
 	    buffer = idata;
 	    len = ilen;
@@ -205,9 +206,13 @@ namespace gensio {
 	gensiods size() const { return len; }
 	const unsigned char *data() const { return buffer; }
 	unsigned char operator[](gensiods pos) const { return buffer[pos]; }
+	void setbuf(const unsigned char *ibuffer, gensiods ilen) {
+	    buffer = ibuffer;
+	    len = ilen;
+	};
     private:
-	const unsigned char *buffer;
-	gensiods len;
+	const unsigned char *buffer = NULL;
+	gensiods len = 0;
     };
 
     class Gensio;
