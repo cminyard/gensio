@@ -224,39 +224,36 @@ namespace gensio {
     public:
 	// Data from the gensio is delivered in this callback.  You
 	// must implement this.
-	virtual gensiods read(Gensio *io, int err,
+	virtual gensiods read(int err,
 			      const SimpleUCharVector data,
 			      const char *const *auxdata) = 0;
 
-	// Data can be written to the gensio.  By default this
-	// disables write callbacks.
-	virtual void write_ready(Gensio *io);
+	// Data can be written to the gensio.  You must implement this.
+	virtual void write_ready() = 0;
 
 	// A new channel is available on the gensio.  By default this
 	// deletes the new channel.
-	virtual int new_channel(Gensio *io, Gensio *new_channel,
+	virtual int new_channel(Gensio *new_channel,
 				const char *const *auxdata);
 
 	// The remote end has requested that the receiver of this do a
 	// break.  This is primarily for a telnet server that is
 	// hooked to a serial port, if it receives this it should send
 	// a break on the serial port.  By default htis does nothing.
-	virtual void send_break(Gensio *io) { };
+	virtual void send_break() { };
 
 	// Various authentication operations.  See gensio_event.3 for
 	// details on what these do.
-	virtual int auth_begin(Gensio *io) { return GE_NOTSUP; }
-	virtual int precert_verify(Gensio *io) { return GE_NOTSUP; }
-	virtual int postcert_verify(Gensio *io) { return GE_NOTSUP; }
-	virtual int password_verify(Gensio *io, const std::string val)
+	virtual int auth_begin() { return GE_NOTSUP; }
+	virtual int precert_verify() { return GE_NOTSUP; }
+	virtual int postcert_verify() { return GE_NOTSUP; }
+	virtual int password_verify(const std::string val)
 	     { return GE_NOTSUP; }
-	virtual int request_password(Gensio *io, std::string &retval,
-				     gensiods maxsize)
+	virtual int request_password(std::string &retval, gensiods maxsize)
 	    { return GE_NOTSUP; }
-	virtual int verify_2fa(Gensio *io, const std::vector<unsigned char> val)
+	virtual int verify_2fa(const std::vector<unsigned char> val)
 	    { return GE_NOTSUP; }
-	virtual int request_2fa(Gensio *io,
-				std::vector<unsigned char> &retval,
+	virtual int request_2fa(std::vector<unsigned char> &retval,
 				gensiods maxsize)
 	    { return GE_NOTSUP; }
 
@@ -264,7 +261,7 @@ namespace gensio {
 	// own purposes; these events have event numbers that fall
 	// into a range defined in gensio.h.  These events will be
 	// delivered here.
-	virtual int user_event(Gensio *io, int event, int err,
+	virtual int user_event(int event, int err,
 			       std::vector<unsigned char> &userdata,
 			       const char *const *auxdata) { return GE_NOTSUP; }
 
@@ -273,7 +270,7 @@ namespace gensio {
 	// is generally where you would free the event handler for a
 	// gensio.  Obviously, the Event object here must stay around
 	// until the Gensio is freed.
-	virtual void freed(Gensio *io) { };
+	virtual void freed() { };
 
 	virtual ~Event() = default;
     };
@@ -282,14 +279,14 @@ namespace gensio {
     // failure is returned in the err field.
     class GENSIOCPP_DLL_PUBLIC Gensio_Open_Done {
     public:
-	virtual void open_done(Gensio *io, int err) = 0;
+	virtual void open_done(int err) = 0;
 	virtual ~Gensio_Open_Done() = default;
     };
 
     // Used for done handlers for gension operations that cannot fail.
     class GENSIOCPP_DLL_PUBLIC Gensio_Close_Done {
     public:
-	virtual void close_done(Gensio *io) = 0;
+	virtual void close_done() = 0;
 	virtual ~Gensio_Close_Done() = default;
     };
 
@@ -321,11 +318,11 @@ namespace gensio {
 			   const char *const *auxdata) = 0;
 
 	// New channels are routed through here so they can be set up properly.
-	virtual int new_channel(Event *e, Gensio *g, Gensio *new_chan,
+	virtual int new_channel(Event *e, Gensio *new_chan,
 				const char *const *auxdata) = 0;
 
 	// Final free calls come through here.
-	virtual void freed(Event *e, Gensio *g) = 0;
+	virtual void freed(Event *e) = 0;
     };
 
     // This is a gensio, the central class in the gensio framework.
@@ -587,8 +584,7 @@ namespace gensio {
     public:
 	// Serial operation is finished, err non-zero if an error
 	// occurred.  If no error, val is the result.
-	virtual void serial_op_done(Serial_Gensio *sf, int err,
-				    unsigned int val) = 0;
+	virtual void serial_op_done(int err, unsigned int val) = 0;
 	virtual ~Serial_Op_Done() = default;
     };
 
@@ -596,7 +592,7 @@ namespace gensio {
     // number.
     class GENSIOCPP_DLL_PUBLIC Serial_Op_Sig_Done {
     public:
-	virtual void serial_op_sig_done(Serial_Gensio *sg, int err,
+	virtual void serial_op_sig_done(int err,
 					const char *sig,
 					unsigned int siglen) = 0;
 	virtual ~Serial_Op_Sig_Done() = default;
@@ -705,7 +701,7 @@ namespace gensio {
 
 	// A new connection has come in, the new gensio is in g.  You
 	// must provide this.
-	virtual void new_connection(Accepter *acc, Gensio *g) = 0;
+	virtual void new_connection(Gensio *g) = 0;
 
 	// An error has occurred in the accepter that cannot be
 	// reported as a return value.
@@ -718,23 +714,23 @@ namespace gensio {
 	// that the delivered gensio is not operational, it can only
 	// be used to fetch username, certificate info, etc.  See
 	// gensio_event.3 for details on these.
-	virtual int auth_begin(Accepter *acc, Gensio *g)
+	virtual int auth_begin(Gensio *g)
 	{ return GE_NOTSUP; }
-	virtual int precert_verify(Accepter *acc, Gensio *g)
+	virtual int precert_verify(Gensio *g)
 	{ return GE_NOTSUP; }
-	virtual int postcert_verify(Accepter *acc, Gensio *g,
+	virtual int postcert_verify(Gensio *g,
 				    int err, const char *errstr)
 	{ return GE_NOTSUP; }
-	virtual int password_verify(Accepter *acc, Gensio *g,
+	virtual int password_verify(Gensio *g,
 				    const std::string val)
 	{ return GE_NOTSUP; }
-	virtual int request_password(Accepter *acc, Gensio *g,
+	virtual int request_password(Gensio *g,
 				     std::string &retval, gensiods maxsize)
 	{ return GE_NOTSUP; }
-	virtual int verify_2fa(Accepter *acc, Gensio *io,
+	virtual int verify_2fa(Gensio *io,
 			       const std::vector<unsigned char> val)
 	    { return GE_NOTSUP; }
-	virtual int request_2fa(Accepter *acc, Gensio *io,
+	virtual int request_2fa(Gensio *io,
 				std::vector<unsigned char> &retval,
 				gensiods maxsize)
 	    { return GE_NOTSUP; }
@@ -743,20 +739,20 @@ namespace gensio {
 	// to has finished and the data will immediately be freed.
 	// Usually used to free the Event object.  Like the one for
 	// the Event class, see that for details.
-	virtual void freed(Accepter *a) { };
+	virtual void freed() { };
 
 	virtual ~Accepter_Event() = default;
     };
 
     class GENSIOCPP_DLL_PUBLIC Accepter_Shutdown_Done {
     public:
-	virtual void shutdown_done(Accepter *acc) = 0;
+	virtual void shutdown_done() = 0;
 	virtual ~Accepter_Shutdown_Done() = default;
     };
 
     class GENSIOCPP_DLL_PUBLIC Accepter_Enable_Done {
     public:
-	virtual void enable_done(Accepter *acc) = 0;
+	virtual void enable_done() = 0;
 	virtual ~Accepter_Enable_Done() = default;
     };
 
@@ -768,12 +764,11 @@ namespace gensio {
 
 	// New connections are routed through here so they can be set
 	// up properly.
-	virtual void new_connection(Accepter_Event *e,
-				    Accepter *acc, Gensio *g) = 0;
+	virtual void new_connection(Accepter_Event *e, Gensio *g) = 0;
 
 	// Freed accepters are routed through here so they can be shut
 	// down properly.
-	virtual void freed(Accepter_Event *e, Accepter *acc) = 0;
+	virtual void freed(Accepter_Event *e) = 0;
     };
 
     // Allocate a new accepter object based on the given string.  See
@@ -1008,7 +1003,7 @@ namespace gensio {
     public:
 	// Called when the shutdown is complete.  The mdns object may be
 	// freed when this returns.
-	virtual void mdns_free_done(MDNS *mdns) = 0;
+	virtual void mdns_free_done() = 0;
 
 	virtual ~MDNS_Free_Done() = default;
     protected:
@@ -1022,7 +1017,7 @@ namespace gensio {
     public:
 	virtual ~Raw_MDNS_Event_Handler() = default;
 
-	virtual void handle(MDNS_Watch *w, MDNS_Watch_Event *e,
+	virtual void handle(MDNS_Watch_Event *e,
 			    enum gensio_mdns_data_state state,
 			    int interfacenum, int ipdomain,
 			    const char *name, const char *mtype,
@@ -1055,9 +1050,9 @@ namespace gensio {
 	void free(MDNS_Free_Done *done);
     protected:
 	virtual ~MDNS() { }
+	Os_Funcs go;
     private:
 	struct gensio_mdns *m;
-	Os_Funcs go;
 	friend class MDNS_Service;
 	friend class MDNS_Watch;
 	friend void mdns_free_done(struct gensio_mdns *m, void *userdata);
@@ -1084,7 +1079,7 @@ namespace gensio {
     public:
 	// Called when the shutdown is complete.  The mdns object may be
 	// freed when this returns.
-	virtual void mdns_watch_free_done(MDNS_Watch *w) = 0;
+	virtual void mdns_watch_free_done() = 0;
 
 	virtual ~MDNS_Watch_Free_Done() = default;
     private:
@@ -1099,8 +1094,7 @@ namespace gensio {
     // the gensio_mdns_add_watch() man page for details.
     class GENSIOCPP_DLL_PUBLIC MDNS_Watch_Event {
     public:
-	virtual void event(MDNS_Watch *w,
-			   enum gensio_mdns_data_state state,
+	virtual void event(enum gensio_mdns_data_state state,
 			   int interfacenum, int ipdomain,
 			   const char *name, const char *mtype,
 			   const char *domain, const char *host,

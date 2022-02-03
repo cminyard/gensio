@@ -454,11 +454,11 @@ static bool check_for_err(int err)
 	    pydirobj_incref(dynamic_cast<Swig::Director *>(parent));
 	}
 
-	void open_done(Gensio *io, int err) override {
+	void open_done(int err) override {
 	    PyGILState_STATE gstate;
 
 	    gstate = PyGILState_Ensure();
-	    parent->open_done(io, err);
+	    parent->open_done(err);
 	    PyGILState_Release(gstate);
 	    pydirobj_decref(dynamic_cast<Swig::Director *>(parent));
 	    delete this;
@@ -475,11 +475,11 @@ static bool check_for_err(int err)
 	    pydirobj_incref(dynamic_cast<Swig::Director *>(parent));
 	}
 
-	void close_done(Gensio *io) override {
+	void close_done() override {
 	    PyGILState_STATE gstate;
 
 	    gstate = PyGILState_Ensure();
-	    parent->close_done(io);
+	    parent->close_done();
 	    PyGILState_Release(gstate);
 	    pydirobj_decref(dynamic_cast<Swig::Director *>(parent));
 	    delete this;
@@ -508,26 +508,22 @@ static bool check_for_err(int err)
 	    return rv;
 	}
 
-	int new_channel(Event *e, Gensio *g, Gensio *new_chan,
+	int new_channel(Event *e, Gensio *new_chan,
 			 const char *const *auxdata) override
 	{
 	    new_chan->raw_event_handler =
 		new Py_Raw_Event_Handler(new_chan->raw_event_handler);
-	    return parent->new_channel(e, g, new_chan, auxdata);
+	    return parent->new_channel(e, new_chan, auxdata);
 	}
 
-	void freed(Event *e, Gensio *g) override
+	void freed(Event *e) override
 	{
-	    // Lose the reference to the event handler
-	    Event *old_cb = g->get_cb();
-
-	    g->set_event_handler(NULL);
 	    // Don't pass the event handler.  The python object is
 	    // gone, we don't want this trying to report a deleted
 	    // object to the freed event handler.
-	    parent->freed(NULL, g);
-	    if (old_cb)
-		pydirobj_decref(dynamic_cast<Swig::Director *>(old_cb));
+	    parent->freed(NULL);
+	    if (e)
+		pydirobj_decref(dynamic_cast<Swig::Director *>(e));
 	}
 
     private:
@@ -541,12 +537,11 @@ static bool check_for_err(int err)
 	    pydirobj_incref(dynamic_cast<Swig::Director *>(parent));
 	}
 
-	void serial_op_done(Serial_Gensio *io, int err,
-			    unsigned int val) override {
+	void serial_op_done(int err, unsigned int val) override {
 	    PyGILState_STATE gstate;
 
 	    gstate = PyGILState_Ensure();
-	    parent->serial_op_done(io, err, val);
+	    parent->serial_op_done(err, val);
 	    PyGILState_Release(gstate);
 	    pydirobj_decref(dynamic_cast<Swig::Director *>(parent));
 	    delete this;
@@ -563,12 +558,12 @@ static bool check_for_err(int err)
 	    pydirobj_incref(dynamic_cast<Swig::Director *>(parent));
 	}
 
-	void serial_op_sig_done(Serial_Gensio *io, int err, const char *sig,
+	void serial_op_sig_done(int err, const char *sig,
 				unsigned int siglen) override {
 	    PyGILState_STATE gstate;
 
 	    gstate = PyGILState_Ensure();
-	    parent->serial_op_sig_done(io, err, sig, siglen);
+	    parent->serial_op_sig_done(err, sig, siglen);
 	    PyGILState_Release(gstate);
 	    pydirobj_decref(dynamic_cast<Swig::Director *>(parent));
 	    delete this;
@@ -586,11 +581,11 @@ static bool check_for_err(int err)
 	    pydirobj_incref(dynamic_cast<Swig::Director *>(parent));
 	}
 
-	void shutdown_done(Accepter *a) override {
+	void shutdown_done() override {
 	    PyGILState_STATE gstate;
 
 	    gstate = PyGILState_Ensure();
-	    parent->shutdown_done(a);
+	    parent->shutdown_done();
 	    PyGILState_Release(gstate);
 	    pydirobj_decref(dynamic_cast<Swig::Director *>(parent));
 	    delete this;
@@ -608,11 +603,11 @@ static bool check_for_err(int err)
 	    pydirobj_incref(dynamic_cast<Swig::Director *>(parent));
 	}
 
-	void enable_done(Accepter *a) override {
+	void enable_done() override {
 	    PyGILState_STATE gstate;
 
 	    gstate = PyGILState_Ensure();
-	    parent->enable_done(a);
+	    parent->enable_done();
 	    PyGILState_Release(gstate);
 	    pydirobj_decref(dynamic_cast<Swig::Director *>(parent));
 	    delete this;
@@ -639,23 +634,18 @@ static bool check_for_err(int err)
 	    return rv;
 	}
 
-	void new_connection(Accepter_Event *e,
-			    Accepter *a, Gensio *g) override
+	void new_connection(Accepter_Event *e, Gensio *g) override
 	{
 	    g->raw_event_handler =
 		new Py_Raw_Event_Handler(g->raw_event_handler);
-	    parent->new_connection(e, a, g);
+	    parent->new_connection(e, g);
 	}
 
-	void freed(Accepter_Event *e, Accepter *a) override
+	void freed(Accepter_Event *e) override
 	{
-	    // Lose the ref to our event handler, if set
-	    Accepter_Event *old_cb = a->get_cb();
-
-	    a->set_callback(NULL);
-	    if (old_cb)
-		pydirobj_decref(dynamic_cast<Swig::Director *>(old_cb));
-	    parent->freed(e, a);
+	    parent->freed(e);
+	    if (e)
+		pydirobj_decref(dynamic_cast<Swig::Director *>(e));
 	}
 
     private:
@@ -669,11 +659,11 @@ static bool check_for_err(int err)
 	    pydirobj_incref(dynamic_cast<Swig::Director *>(parent));
 	}
 
-	void mdns_free_done(MDNS *mdns) override {
+	void mdns_free_done() override {
 	    PyGILState_STATE gstate;
 
 	    gstate = PyGILState_Ensure();
-	    parent->mdns_free_done(mdns);
+	    parent->mdns_free_done();
 	    PyGILState_Release(gstate);
 	    pydirobj_decref(dynamic_cast<Swig::Director *>(parent));
 	    delete this;
@@ -691,11 +681,11 @@ static bool check_for_err(int err)
 	    pydirobj_incref(dynamic_cast<Swig::Director *>(parent));
 	}
 
-	void mdns_watch_free_done(MDNS_Watch *w) override {
+	void mdns_watch_free_done() override {
 	    PyGILState_STATE gstate;
 
 	    gstate = PyGILState_Ensure();
-	    parent->mdns_watch_free_done(w);
+	    parent->mdns_watch_free_done();
 	    PyGILState_Release(gstate);
 	    pydirobj_decref(dynamic_cast<Swig::Director *>(parent));
 	    delete this;
@@ -710,7 +700,7 @@ static bool check_for_err(int err)
 	Py_Raw_MDNS_Event_Handler() { }
 	~Py_Raw_MDNS_Event_Handler() { if (parent) delete parent; }
 
-	void handle(MDNS_Watch *w, MDNS_Watch_Event *e,
+	void handle(MDNS_Watch_Event *e,
 		    enum gensio_mdns_data_state state,
 		    int interface, int ipdomain,
 		    const char *name, const char *type,
@@ -721,7 +711,7 @@ static bool check_for_err(int err)
 	    PyGILState_STATE gstate;
 
 	    gstate = PyGILState_Ensure();
-	    parent->handle(w, e, state, interface, ipdomain,
+	    parent->handle(e, state, interface, ipdomain,
 			   name, type, domain, host, addr, txt);
 	    PyGILState_Release(gstate);
 	}

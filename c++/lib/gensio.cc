@@ -182,13 +182,7 @@ namespace gensio {
 	return do_to_string(gaddr, true);
     }
 
-    void Event::write_ready(Gensio *io)
-    {
-	// Make sure we don't go into an infinite loop.
-	io->set_write_callback_enable(false);
-    }
-
-    int Event::new_channel(Gensio *io, Gensio *new_channel,
+    int Event::new_channel(Gensio *new_channel,
 			   const char *const *auxdata)
     {
 	return GE_NOTSUP;
@@ -218,7 +212,7 @@ namespace gensio {
 		if (event >= GENSIO_EVENT_USER_MIN &&
 		    event <= GENSIO_EVENT_USER_MAX) {
 		    std::vector<unsigned char> val(buf, buf + *buflen);
-		    return cb->user_event(g, event, err, val, auxdata);
+		    return cb->user_event(event, err, val, auxdata);
 		}
 
 		if (event >= SERGENSIO_EVENT_BASE &&
@@ -301,46 +295,46 @@ namespace gensio {
 		case GENSIO_EVENT_READ: {
 		    if (buflen) {
 			SimpleUCharVector vdata(buf, *buflen);
-			*buflen = cb->read(g, err, vdata, auxdata);
+			*buflen = cb->read(err, vdata, auxdata);
 		    } else {
 			SimpleUCharVector vdata(NULL, 0);
-			cb->read(g, err, vdata, auxdata);
+			cb->read(err, vdata, auxdata);
 		    }
 		    return 0;
 		}
 
 		case GENSIO_EVENT_WRITE_READY:
-		    cb->write_ready(g);
+		    cb->write_ready();
 		    return 0;
 
 		case GENSIO_EVENT_NEW_CHANNEL:
 		    g2 = gensio_alloc(io, g->get_os_funcs(), NULL);
-		    return g->raw_event_handler->new_channel(cb, g, g2,
+		    return g->raw_event_handler->new_channel(cb, g2,
 							     auxdata);
 
 		case GENSIO_EVENT_SEND_BREAK:
-		    cb->send_break(g);
+		    cb->send_break();
 		    return 0;
 
 		case GENSIO_EVENT_AUTH_BEGIN:
-		    return cb->auth_begin(g);
+		    return cb->auth_begin();
 
 		case GENSIO_EVENT_PRECERT_VERIFY:
-		    return cb->precert_verify(g);
+		    return cb->precert_verify();
 
 		case GENSIO_EVENT_POSTCERT_VERIFY:
-		    return cb->postcert_verify(g);
+		    return cb->postcert_verify();
 
 		case GENSIO_EVENT_PASSWORD_VERIFY: {
 		    std::string pwstr((char *) buf);
-		    return cb->password_verify(g, pwstr);
+		    return cb->password_verify(pwstr);
 		}
 
 		case GENSIO_EVENT_REQUEST_PASSWORD: {
 		    int rv;
 		    std::string pwstr("");
 
-		    rv = cb->request_password(g, pwstr, *buflen);
+		    rv = cb->request_password(pwstr, *buflen);
 		    if (rv)
 			return rv;
 		    if (pwstr.size() > *buflen)
@@ -352,14 +346,14 @@ namespace gensio {
 
 		case GENSIO_EVENT_2FA_VERIFY: {
 		    std::vector<unsigned char> val(buf, buf + *buflen);
-		    return cb->verify_2fa(g, val);
+		    return cb->verify_2fa(val);
 		}
 
 		case GENSIO_EVENT_REQUEST_2FA: {
 		    int rv;
 		    std::vector<unsigned char> val(0);
 
-		    rv = cb->request_2fa(g, val, *buflen);
+		    rv = cb->request_2fa(val, *buflen);
 		    if (rv)
 			return rv;
 		    if (val.size() > *buflen)
@@ -378,18 +372,18 @@ namespace gensio {
 	    }
 	}
 
-	int new_channel(Event *e, Gensio *g, Gensio *new_chan,
+	int new_channel(Event *e, Gensio *new_chan,
 			const char *const *auxdata) override
 	{
 	    if (e)
-		return e->new_channel(g, new_chan, auxdata);
+		return e->new_channel(new_chan, auxdata);
 	    return GE_NOTSUP;
 	}
 
-	void freed(Event *e, Gensio *g) override
+	void freed(Event *e) override
 	{
 	    if (e)
-		e->freed(g);
+		e->freed();
 	}
     };
 
@@ -397,8 +391,8 @@ namespace gensio {
     gensio_cpp_cb(struct gensio *io, void *user_data,
 		  int event, int err,
 		  unsigned char *buf, gensiods *buflen,
-		  const char *const *auxdata)
-    {
+		  const char *const *auxdata) 
+   {
 	Gensio *g = static_cast<Gensio *>(user_data);
 
 	return g->raw_event_handler->handle(g, io, event, err, buf, buflen,
@@ -412,14 +406,17 @@ namespace gensio {
 							frdata);
 	Event *cb = d->g->get_cb();
 
+	// Disable callbacks from here out.
+	d->g->set_event_handler(NULL);
+
 	// Gensios that are not top-level will not have a raw event
 	// handler.  This only matters for freed, as the freed call
 	// doesn't come in from the gensio event handler, but from the
 	// frdata handler.
 	if (d->g->raw_event_handler)
-	    d->g->raw_event_handler->freed(cb, d->g);
+	    d->g->raw_event_handler->freed(cb);
 	else if (cb)
-	    cb->freed(d->g);
+	    cb->freed();
 	delete d->g;
 	delete d;
     }
@@ -739,7 +736,7 @@ namespace gensio {
 	Gensio_Open_Done *done = static_cast<Gensio_Open_Done *>(user_data);
 
 	try {
-	    done->open_done(g, err);
+	    done->open_done(err);
 	} catch (const std::exception &e) {
 	    gensio_log(g->get_os_funcs(), GENSIO_LOG_ERR,
 		       "Received C++ exception in open done handler: %s",
@@ -861,7 +858,7 @@ namespace gensio {
 	Gensio_Close_Done *done = static_cast<Gensio_Close_Done *>(user_data);
 
 	try {
-	    done->close_done(g);
+	    done->close_done();
 	} catch (std::exception &e) {
 	    gensio_log(g->get_os_funcs(), GENSIO_LOG_ERR,
 		       "Received C++ exception in close done handler: %s",
@@ -1170,7 +1167,7 @@ namespace gensio {
 	Serial_Gensio *sg = (Serial_Gensio *) d->g;
 	Serial_Op_Done *done = static_cast<Serial_Op_Done *>(cb_data);
 
-	done->serial_op_done(sg, err, val);
+	done->serial_op_done(err, val);
     }
 
     void Serial_Gensio::baud(unsigned int baud, Serial_Op_Done *done)
@@ -1329,7 +1326,7 @@ namespace gensio {
 	Serial_Gensio *sg = (Serial_Gensio *) d->g;
 	Serial_Op_Sig_Done *done = static_cast<Serial_Op_Sig_Done *>(cb_data);
 
-	done->serial_op_sig_done(sg, err, sig, len);
+	done->serial_op_sig_done(err, sig, len);
     }
 
     void Serial_Gensio::signature(const char *sig, unsigned int len,
@@ -1375,7 +1372,7 @@ namespace gensio {
 	unsigned int val = 0;
 
     private:
-	void serial_op_done(Serial_Gensio *sf, int err, unsigned int val)
+	void serial_op_done(int err, unsigned int val)
 	{
 	    this->err = err;
 	    this->val = val;
@@ -1657,7 +1654,7 @@ namespace gensio {
 		case GENSIO_ACC_EVENT_NEW_CONNECTION:
 		    io = (struct gensio *) data;
 		    g = gensio_alloc(io, a->get_os_funcs(), NULL);
-		    a->raw_event_handler->new_connection(cb, a, g);
+		    a->raw_event_handler->new_connection(cb, g);
 		    break;
 
 		case GENSIO_ACC_EVENT_LOG: {
@@ -1675,13 +1672,13 @@ namespace gensio {
 		case GENSIO_ACC_EVENT_PRECERT_VERIFY: {
 		    io = (struct gensio *) data;
 		    g = gensio_alloc(io, a->get_os_funcs());
-		    return cb->precert_verify(a, g);
+		    return cb->precert_verify(g);
 		}
 
 		case GENSIO_ACC_EVENT_AUTH_BEGIN: {
 		    io = (struct gensio *) data;
 		    g = gensio_alloc(io, a->get_os_funcs());
-		    return cb->auth_begin(a, g);
+		    return cb->auth_begin(g);
 		}
 
 		case GENSIO_ACC_EVENT_PASSWORD_VERIFY: {
@@ -1690,7 +1687,7 @@ namespace gensio {
 		    std::string pwstr((char *) p->password);
 
 		    g = gensio_alloc(p->io, a->get_os_funcs());
-		    return cb->password_verify(a, g, pwstr);
+		    return cb->password_verify(g, pwstr);
 		}
 
 		case GENSIO_ACC_EVENT_REQUEST_PASSWORD: {
@@ -1700,7 +1697,7 @@ namespace gensio {
 		    int rv;
 
 		    g = gensio_alloc(p->io, a->get_os_funcs());
-		    rv = cb->request_password(a, g, pwstr, p->password_len);
+		    rv = cb->request_password(g, pwstr, p->password_len);
 		    if (rv)
 			return rv;
 		    if (pwstr.size() > p->password_len)
@@ -1716,7 +1713,7 @@ namespace gensio {
 		    std::vector<unsigned char> val(p->password,
 					p->password + p->password_len);
 
-		    return cb->verify_2fa(a, g, val);
+		    return cb->verify_2fa(g, val);
 		}
 
 		case GENSIO_EVENT_REQUEST_2FA: {
@@ -1725,7 +1722,7 @@ namespace gensio {
 		    int rv;
 		    std::vector<unsigned char> val(0);
 
-		    rv = cb->request_2fa(a, g, val, p->password_len);
+		    rv = cb->request_2fa(g, val, p->password_len);
 		    if (rv)
 			return rv;
 		    if (val.size() > p->password_len)
@@ -1740,7 +1737,7 @@ namespace gensio {
 			(struct gensio_acc_postcert_verify_data *) data;
 
 		    g = gensio_alloc(p->io, a->get_os_funcs());
-		    return cb->postcert_verify(a, g, p->err, p->errstr);
+		    return cb->postcert_verify(g, p->err, p->errstr);
 		}
 
 		default:
@@ -1756,17 +1753,16 @@ namespace gensio {
 	    return 0;
 	}
 
-	void new_connection(Accepter_Event *e, Accepter *a,
-			    Gensio *new_g) override
+	void new_connection(Accepter_Event *e, Gensio *new_g) override
 	{
 	    if (e)
-		e->new_connection(a, new_g);
+		e->new_connection(new_g);
 	}
 
-	void freed(Accepter_Event *e, Accepter *a) override
+	void freed(Accepter_Event *e) override
 	{
 	    if (e)
-		e->freed(a);
+		e->freed();
 	}
     };
 
@@ -1786,11 +1782,13 @@ namespace gensio {
 						 frdata);
 	Accepter_Event *cb = d->a->get_cb();
 
+	d->a->set_callback(NULL);
+
 	// See comments in gensio_cpp_freed
 	if (d->a->raw_event_handler)
-	    d->a->raw_event_handler->freed(cb, d->a);
+	    d->a->raw_event_handler->freed(cb);
 	else if (cb)
-	    cb->freed(d->a);
+	    cb->freed();
 	delete d->a;
 	delete d;
     }
@@ -2063,7 +2061,7 @@ namespace gensio {
 	    static_cast<Accepter_Shutdown_Done *>(user_data);
 
 	try {
-	    done->shutdown_done(a);
+	    done->shutdown_done();
 	} catch (std::exception &e) {
 	    gensio_log(a->get_os_funcs(), GENSIO_LOG_ERR,
 		       "Received C++ exception in accepter done handler: %s",
@@ -2098,7 +2096,7 @@ namespace gensio {
 	    static_cast<Accepter_Enable_Done *>(user_data);
 
 	try {
-	    done->enable_done(a);
+	    done->enable_done();
 	} catch (std::exception &e) {
 	    gensio_log(a->get_os_funcs(), GENSIO_LOG_ERR,
 		       "Received C++ exception in accepter done handler: %s",
@@ -2461,7 +2459,7 @@ namespace gensio {
 	MDNS_Free_Done *done = static_cast<MDNS_Free_Done *>(userdata);
 
 	try {
-	    done->mdns_free_done(done->m);
+	    done->mdns_free_done();
 	} catch (std::exception &e) {
 	    gensio_log(done->m->get_os_funcs(), GENSIO_LOG_ERR,
 		       "Received C++ exception in mdns open done handler: %s",
@@ -2521,9 +2519,11 @@ namespace gensio {
     class GENSIOCPP_DLL_PUBLIC Main_Raw_MDNS_Event_Handler:
 	public Raw_MDNS_Event_Handler {
     public:
-	Main_Raw_MDNS_Event_Handler() { }
+	Main_Raw_MDNS_Event_Handler(Os_Funcs io): o(io) { }
 
-	void handle(MDNS_Watch *w, MDNS_Watch_Event *event,
+	Os_Funcs o;
+
+	void handle(MDNS_Watch_Event *event,
 		    enum gensio_mdns_data_state state,
 		    int interface, int ipdomain,
 		    const char *name, const char *type,
@@ -2536,7 +2536,7 @@ namespace gensio {
 	    if (addr) {
 		naddr = gensio_addr_dup(addr);
 		if (!naddr) {
-		    gensio_log(w->get_os_funcs(), GENSIO_LOG_ERR,
+		    gensio_log(o, GENSIO_LOG_ERR,
 			       "Memory allocation failure in mdns watch event");
 		    return;
 		}
@@ -2546,14 +2546,14 @@ namespace gensio {
 		if (naddr) {
 		    Addr a(naddr);
 
-		    event->event(w, state, interface, ipdomain, name, type,
+		    event->event(state, interface, ipdomain, name, type,
 				 domain, host, &a, txt);
 		} else {
-		    event->event(w, state, interface, ipdomain, name, type,
+		    event->event(state, interface, ipdomain, name, type,
 				 domain, host, NULL, txt);
 		}
 	    } catch (std::exception &e) {
-		gensio_log(w->get_os_funcs(), GENSIO_LOG_ERR,
+		gensio_log(o, GENSIO_LOG_ERR,
 		      "Received C++ exception in mdns watch event handler: %s",
 		      e.what());
 	    }
@@ -2570,7 +2570,7 @@ namespace gensio {
     {
 	MDNS_Watch_Event *event = static_cast<MDNS_Watch_Event *>(userdata);
 
-	event->w->raw_event_handler->handle(event->w, event, state,
+	event->w->raw_event_handler->handle(event, state,
 					    interface, ipdomain,
 					    name, type, domain, host,
 					    addr, txt);
@@ -2587,7 +2587,7 @@ namespace gensio {
 	this->m = m;
 	this->event = event;
 	event->w = this;
-	this->raw_event_handler = new Main_Raw_MDNS_Event_Handler();
+	this->raw_event_handler = new Main_Raw_MDNS_Event_Handler(m->go);
 	if (raw_event_handler) {
 	    raw_event_handler->set_parent(this->raw_event_handler);
 	    this->raw_event_handler = raw_event_handler;
@@ -2607,7 +2607,7 @@ namespace gensio {
 	    static_cast<MDNS_Watch_Free_Done *>(userdata);
 
 	try {
-	    done->mdns_watch_free_done(done->w);
+	    done->mdns_watch_free_done();
 	} catch (std::exception &e) {
 	    gensio_log(done->w->get_os_funcs(), GENSIO_LOG_ERR,
 		       "Received C++ exception in mdns watch done handler: %s",

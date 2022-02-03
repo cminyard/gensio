@@ -30,10 +30,12 @@ public:
     // error.
     const char *get_err() { return errstr; }
 
+    void set_gensio(Gensio *g) { io = g; }
+
 private:
     // Handle errors, and if no error wreite the read data back into
     // the gensio for echoing.
-    gensiods read(Gensio *io, int err, const SimpleUCharVector data,
+    gensiods read(int err, const SimpleUCharVector data,
 		  const char *const *auxdata) override
     {
 	gensiods count;
@@ -67,7 +69,7 @@ private:
 	return count;
     }
 
-    void write_ready(Gensio *io) override
+    void write_ready() override
     {
 	// We were flow controlled on write and we can write again.
 	// Kick back off the reads.
@@ -77,12 +79,19 @@ private:
 
     // Called when the free is complete.  We wake up whatever is
     // waiting on us.
-    void freed(Gensio *io) override
+    void freed() override
     {
+	if (errstr) {
+	    cerr << "Server error handling: " << errstr << endl;
+	}
+
 	waiter->wake();
+	delete this;
     }
 
     const char *errstr = NULL;
+
+    Gensio *io;
 
     Waiter *waiter;
 };
@@ -92,9 +101,13 @@ private:
 // in to the constructor.
 class Acc_Event: public Accepter_Event {
 public:
-    Acc_Event(Waiter *w, Event *e) { waiter = w; ev = e; }
+    Acc_Event(Waiter *w) { waiter = w; }
+
+    void set_accepter(Accepter *iacc) { acc = iacc; }
 
 private:
+    Accepter *acc;
+
     // If errors occur in the accepter stack, they generally can't be
     // reported through normal mechanisms.  So those types of errors
     // come in through this mechanism.
@@ -105,7 +118,7 @@ private:
     }
 
     // New connection, kick off the new connection's echo handling.
-    void new_connection(Accepter *acc, Gensio *g) override
+    void new_connection(Gensio *g) override
     {
 	if (connected) {
 	    // We got a second connection, this can happen due to a
@@ -114,8 +127,9 @@ private:
 	    return;
 	}
 	connected = true;
+	Server_Event *ev = new Server_Event(waiter);
 	g->set_event_handler(ev);
-	ev = NULL;
+	ev->set_gensio(g);
 	g->set_read_callback_enable(true);
 	g->set_write_callback_enable(true);
 	acc->free();
@@ -123,14 +137,13 @@ private:
 
     // The free of the accepter has completed, wake up whatever is
     // waiting.
-    void freed(Accepter *a) override
+    void freed() override
     {
 	waiter->wake();
     }
 
     bool connected = false;
     Waiter *waiter;
-    Event *ev;
 };
 
 // The basic server handling.  Allocate the gensio stack, tcp and
@@ -140,13 +153,12 @@ static int
 do_server(Os_Funcs &o, const Addr &addr)
 {
     Waiter w(o);
-    Server_Event e(&w);
-    Acc_Event ae(&w, &e);
+    Acc_Event ae(&w);
     Accepter *atcp, *atelnet;
-    const char *errstr;
 
     atcp = new Tcp_Accepter(addr, NULL, o, NULL);
     atelnet = new Telnet_Accepter(atcp, NULL, o, &ae);
+    ae.set_accepter(atelnet);
 
     try {
 	atelnet->startup();
@@ -157,11 +169,6 @@ do_server(Os_Funcs &o, const Addr &addr)
     cout << "Port is: " << atcp->get_port() << endl;
     atelnet->set_callback_enable(true);
     w.wait(2, NULL);
-
-    errstr = e.get_err();
-    if (errstr) {
-	cerr << "Server error handling: " << errstr << endl;
-    }
 
     return 0;
 }

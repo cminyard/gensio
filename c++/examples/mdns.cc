@@ -18,8 +18,7 @@ public:
     Watch_Event(Waiter *w) { waiter = w; }
 
 private:
-    void event(MDNS_Watch *w,
-	       enum gensio_mdns_data_state state,
+    void event(enum gensio_mdns_data_state state,
 	       int interface, int ipdomain,
 	       const char *name, const char *type,
 	       const char *domain, const char *host,
@@ -51,7 +50,7 @@ public:
     Watch_Done(Waiter *w) { waiter = w; }
 
 private:
-    void mdns_watch_free_done(MDNS_Watch *w)
+    void mdns_watch_free_done()
     {
 	waiter->wake();
     }
@@ -63,7 +62,7 @@ public:
     Done(Waiter *w) { waiter = w; }
 
 private:
-    void mdns_free_done(MDNS *m)
+    void mdns_free_done()
     {
 	waiter->wake();
     }
