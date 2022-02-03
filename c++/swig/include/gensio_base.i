@@ -95,10 +95,10 @@ using namespace gensio;
 			      const char *const *auxdata);
 %ignore gensio::Gensio::write_s(gensiods *count,
 				const void *data, gensiods datalen,
-				gensio_time *timeout, bool intr);
+				gensio_time *timeout = NULL, bool intr = false);
 %ignore gensio::Gensio::write_s(gensiods *count,
 				const std::vector<unsigned char> data,
-				gensio_time *timeout, bool intr);
+				gensio_time *timeout = NULL, bool intr = false);
 %ignore gensio::Gensio::get_os_funcs();
 %ignore gensio::Gensio::get_cb();
 %ignore gensio::Gensio::get_gensio();

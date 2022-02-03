@@ -177,9 +177,11 @@ static bool check_for_err(int err)
 
 %}
 
-// We use the pure vector version for python
+// We use the pure vector versions for python
 %ignore gensio::Gensio::write(const SimpleUCharVector data,
 			      const char *const *auxdata);
+%ignore gensio::Gensio::read_s(const SimpleUCharVector data,
+			       gensio_time *timeout = NULL, bool intr = false);
 
 ////////////////////////////////////////////////////
 // Typemaps
