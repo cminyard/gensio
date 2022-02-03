@@ -715,6 +715,7 @@ static bool check_for_err(int err)
 %ignore gensio::Gensio::open;
 %ignore gensio::Gensio::open_nochild;
 %ignore gensio::Gensio::close;
+%ignore gensio::Gensio::write_s;
 %ignore gensio::Gensio::set_event_handler;
 %ignore gensio::Gensio::alloc_channel;
 %ignore gensio::Gensio::control;
@@ -809,7 +810,7 @@ static bool check_for_err(int err)
 	return rv;
     }
 
-    Gensio *alloc_channel(const char *const args[], Event *cb)
+    Gensio *alloc_channel(const char *const *args, Event *cb)
     {
 	Gensio *g = self->alloc_channel(args, cb);
 

@@ -91,9 +91,14 @@ using namespace gensio;
 // Only allow the vector versions of write()
 %ignore gensio::Gensio::write(const void *data, gensiods datalen,
 			      const char *const *auxdata);
-%ignore gensio::Gensio::write_s;
 %ignore gensio::Gensio::write(const struct gensio_sg *sg, gensiods sglen,
 			      const char *const *auxdata);
+%ignore gensio::Gensio::write_s(gensiods *count,
+				const void *data, gensiods datalen,
+				gensio_time *timeout, bool intr);
+%ignore gensio::Gensio::write_s(gensiods *count,
+				const std::vector<unsigned char> data,
+				gensio_time *timeout, bool intr);
 %ignore gensio::Gensio::get_os_funcs();
 %ignore gensio::Gensio::get_cb();
 %ignore gensio::Gensio::get_gensio();
