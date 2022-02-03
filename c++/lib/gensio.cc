@@ -907,6 +907,24 @@ namespace gensio {
 	return 0;
     }
 
+    int Gensio::read_s(SimpleUCharVector &data,
+		       gensio_time *timeout, bool intr)
+    {
+	int err;
+	gensiods len = data.capacity(), count = 0;
+
+	if (intr)
+	    err = gensio_read_s_intr(io, &count, data.data(), len, timeout);
+	else
+	    err = gensio_read_s(io, &count, data.data(), len, timeout);
+	data.resize(count);
+	if (err == GE_TIMEDOUT || err== GE_INTERRUPTED)
+	    return err;
+	if (err)
+	    throw gensio_error(err);
+	return 0;
+    }
+
     Tcp::Tcp(const Addr &addr, const char * const args[],
 	     Os_Funcs &o, Event *cb)
 	: Gensio(o, cb)
