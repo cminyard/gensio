@@ -383,7 +383,7 @@ namespace gensio {
 	// arguments, and use the given event handler for it.  How
 	// this works depends on the particular gensio, see gensio.5
 	// for details.
-	Gensio *alloc_channel(const char *const args[], Event *cb);
+	Gensio *alloc_channel(const char *const *args, Event *cb);
 
 	// Close the given gensio.  When the close completely call the
 	// done handler.
