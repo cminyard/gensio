@@ -326,29 +326,15 @@ static bool check_for_err(int err)
     $input = PI_StringArrayToTuple($1_name);
 }
 
-// For Gensios we fetch and refcount our saved object if it's there,
-// if not we create it.
 %typemap(directorin) gensio::Gensio * {
-    if ($1->user_data) {
-	$input = (PyObject *) $1->user_data;
-	Py_INCREF($input);
-    } else {
-	$input = SWIG_NewPointerObj(SWIG_as_voidptr($1),
-				  SWIGTYPE_p_gensio__Gensio,
-				  SWIG_POINTER_OWN |  0 );
-	$1->user_data = (void *) $input;
-    }
+    $input = SWIG_NewPointerObj(SWIG_as_voidptr($1),
+				SWIGTYPE_p_gensio__Gensio,
+				SWIG_POINTER_OWN |  0 );
 }
 %typemap(out) gensio::Gensio * {
-    if ($1->user_data) {
-	$result = (PyObject *) $1->user_data;
-	Py_INCREF($result);
-    } else {
-	$result = SWIG_NewPointerObj(SWIG_as_voidptr($1),
-				     SWIGTYPE_p_gensio__Gensio,
-				     SWIG_POINTER_OWN |  0 );
-	$1->user_data = (void *) $result;
-    }
+    $result = SWIG_NewPointerObj(SWIG_as_voidptr($1),
+				 SWIGTYPE_p_gensio__Gensio,
+				 SWIG_POINTER_OWN |  0 );
 }
 %typemap(in, numinputs=0) gensio::Gensio **gret (Gensio *temp = NULL)  {
     $1 = &temp;
@@ -356,15 +342,9 @@ static bool check_for_err(int err)
 %typemap(argout) gensio::Gensio **gret {
     PyObject *val;
     if (*$1) {
-	if ((*$1)->user_data) {
-	    val = (PyObject *) (*$1)->user_data;
-	    Py_INCREF($result);
-	} else {
-	    val = SWIG_NewPointerObj(SWIG_as_voidptr(*$1),
-				     SWIGTYPE_p_gensio__Gensio,
-				     SWIG_POINTER_OWN |  0 );
-	    (*$1)->user_data = (void *) val;
-	}
+	val = SWIG_NewPointerObj(SWIG_as_voidptr(*$1),
+				 SWIGTYPE_p_gensio__Gensio,
+				 SWIG_POINTER_OWN |  0 );
     } else {
 	val = Py_None;
 	Py_INCREF(Py_None);
@@ -372,18 +352,10 @@ static bool check_for_err(int err)
     $result = PI_add_result($result, val);
 }
 
-// For Accepters we fetch and refcount our saved object if it's there,
-// if not we create it.
 %typemap(out) gensio::Accepter * {
-    if ($1->user_data) {
-	$result = (PyObject *) $1->user_data;
-	Py_INCREF($result);
-    } else {
-	$result = SWIG_NewPointerObj(SWIG_as_voidptr($1),
-				     SWIGTYPE_p_gensio__Accepter,
-				     SWIG_POINTER_OWN |  0 );
-	$1->user_data = (void *) $result;
-    }
+    $result = SWIG_NewPointerObj(SWIG_as_voidptr($1),
+				 SWIGTYPE_p_gensio__Accepter,
+				 SWIG_POINTER_OWN |  0 );
 }
 
 // Handling of nested waiters and python callback.
