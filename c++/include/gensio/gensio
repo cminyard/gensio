@@ -476,9 +476,6 @@ namespace gensio {
 	// to use.
 	struct gensio *get_gensio() { return io; }
 
-	// The user may use this for whatever they like.
-	void *user_data = NULL;
-
 	// This allows the user to intercept raw events, it is primarily
 	// used to help other language bindings tie in things they need.
 	Raw_Event_Handler *raw_event_handler = NULL;
@@ -889,9 +886,6 @@ namespace gensio {
 	// Return the raw accepter.  Don't use this, it's for subclasses
 	// to use.
 	struct gensio_accepter *get_accepter() { return acc; }
-
-	// The user may use this for whatever they like.
-	void *user_data = NULL;
 
 	// This allows the user to intercept raw events, it is primarily
 	// used to help other language bindings tie in things they need.
