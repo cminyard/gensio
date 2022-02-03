@@ -159,8 +159,6 @@ using namespace gensio;
 // A bunch of friend functions that we need to ignore.
 %ignore gensio::gensio_cpp_vlog_handler;
 %ignore gensio::gensio_alloc(struct gensio *io, Os_Funcs &o);
-%ignore gensio::gensio_alloc(Gensio *child, std::string str, Os_Funcs &o,
-			     Event *cb);
 %ignore gensio_acc_alloc(struct gensio_accepter *acc, Os_Funcs &o);
 %ignore gensio_acc_alloc(Accepter *child, std::string str, Os_Funcs &o,
 			 Accepter_Event *cb);
