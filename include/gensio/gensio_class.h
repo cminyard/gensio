@@ -104,16 +104,6 @@ typedef int (*gensio_func)(struct gensio *io, int func, gensiods *count,
 			   const void *cbuf, gensiods buflen, void *buf,
 			   const char *const *auxdata);
 
-/*
- * Increment the gensio's refcount.  There are situations where one
- * piece of code passes a gensio into another piece of code, and
- * that other piece of code that might free it on an error, but
- * the upper layer gets the error and wants to free it, too.  This
- * keeps it around for that situation.
- */
-GENSIO_DLL_PUBLIC
-void gensio_ref(struct gensio *io);
-
 GENSIO_DLL_PUBLIC
 struct gensio *gensio_data_alloc(struct gensio_os_funcs *o,
 				 gensio_event cb, void *user_data,

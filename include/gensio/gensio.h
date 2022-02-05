@@ -218,6 +218,17 @@ int gensio_write_s_intr(struct gensio *io, gensiods *count,
 			gensio_time *timeout);
 
 /*
+ * Increment the gensio's refcount.  Internally there are situations
+ * where one piece of code passes a gensio into another piece of code,
+ * and that other piece of code that might free it on an error, but
+ * the upper layer gets the error and wants to free it, too.  This
+ * keeps it around for that situation.  It may also be used externally
+ * for refcounting, every ref will require an extra free.
+ */
+GENSIO_DLL_PUBLIC
+void gensio_ref(struct gensio *io);
+
+/*
  * This is data for frameworks that sit on top of gensio, added to do
  * a clean addition of a C++ framework on top of gensio.  It's data
  * you can set on a gensio that has a destructor that is called when
