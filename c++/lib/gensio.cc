@@ -1800,7 +1800,7 @@ namespace gensio {
 						 frdata);
 	Accepter_Event *cb = d->a->get_cb();
 
-	d->a->set_callback(NULL);
+	d->a->set_event_handler(NULL);
 
 	// See comments in gensio_cpp_freed
 	if (d->a->raw_event_handler)
@@ -2033,7 +2033,7 @@ namespace gensio {
 	if (err)
 	    throw gensio_error(err);
 	a = gensio_acc_alloc(acc, o);
-	a->set_callback(cb);
+	a->set_event_handler(cb);
 	gensio_acc_set_callback(acc, gensio_acc_cpp_cb, a);
 	return a;
     }

@@ -806,7 +806,7 @@ namespace gensio {
 
 	// Set the callback object.  Not really very useful, and you
 	// shouldn't do this while the accepter is started.
-	inline void set_callback(Accepter_Event *cb) { gcb = cb; }
+	inline void set_event_handler(Accepter_Event *cb) { gcb = cb; }
 
 	// Start accepting connections.  You still need to set the
 	// enable to actual receive connections, this opens the
@@ -948,7 +948,7 @@ namespace gensio {
 		// Ignore the error, already closed.
 	    }
 	    // Make sure the freed handler doesn't get called.
-	    acc->set_callback(NULL);
+	    acc->set_event_handler(NULL);
 	    acc->free();
 	}
 	Accepter * operator->() { return acc; }

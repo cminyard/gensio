@@ -736,7 +736,7 @@ static bool check_for_err(int err)
 %ignore gensio::Serial_Gensio::ri;
 %ignore gensio::Serial_Gensio::signature;
 %ignore gensio::gensio_acc_alloc;
-%ignore gensio::Accepter::set_callback;
+%ignore gensio::Accepter::set_event_handler;
 %ignore gensio::Accepter::shutdown;
 %ignore gensio::Accepter::set_callback_enable(bool enabled,
 					      Accepter_Enable_Done *done);
@@ -1040,7 +1040,7 @@ gensio_acc_alloct(gensio::Accepter *child, std::string str, gensio::Os_Funcs &o,
 }
 %}
 
-%rename("") gensio::Accepter::set_callback;
+%rename("") gensio::Accepter::set_event_handler;
 %rename("") gensio::Accepter::shutdown;
 %rename("") gensio::Accepter::set_callback_enable(bool enabled,
 						  Accepter_Enable_Done *done);
@@ -1059,13 +1059,13 @@ gensio_acc_alloct(gensio::Accepter *child, std::string str, gensio::Os_Funcs &o,
 	self->set_callback_enable(enabled, (Accepter_Enable_Done *) pydone);
     }
 
-    void set_callback(Accepter_Event *cb)
+    void set_event_handler(Accepter_Event *cb)
     {
 	Accepter_Event *old_cb = self->get_cb();
 
 	if (cb)
 	    pydirobj_incref(dynamic_cast<Swig::Director *>(cb));
-	self->set_callback(cb);
+	self->set_event_handler(cb);
 	if (old_cb)
 	    pydirobj_decref(dynamic_cast<Swig::Director *>(old_cb));
     }
