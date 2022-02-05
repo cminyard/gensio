@@ -129,6 +129,7 @@ using namespace gensio;
 	self->free();
     }
 }
+%ignore gensio::Serial_Gensio::~Serial_Gensio();
 
 ////////////////////////////////////////////////////
 // Accepter
