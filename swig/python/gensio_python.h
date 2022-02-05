@@ -286,7 +286,7 @@ deref_gensio_accepter_data(struct gensio_data *data,
 }
 
 static void
-gensio_ref(struct gensio *io)
+gensio_pyref(struct gensio *io)
 {
     struct gensio_data *data = (struct gensio_data *) gensio_get_user_data(io);
 
@@ -294,7 +294,7 @@ gensio_ref(struct gensio *io)
 }
 
 static void
-sergensio_ref(struct sergensio *sio)
+sergensio_pyref(struct sergensio *sio)
 {
     struct gensio_data *data =
 	(struct gensio_data *) sergensio_get_user_data(sio);
@@ -303,7 +303,7 @@ sergensio_ref(struct sergensio *sio)
 }
 
 static void
-gensio_accepter_ref(struct gensio_accepter *acc)
+gensio_accepter_pyref(struct gensio_accepter *acc)
 {
     struct gensio_data *data =
 	(struct gensio_data *) gensio_acc_get_user_data(acc);
@@ -321,7 +321,7 @@ gensio_open_done(struct gensio *io, int err, void *cb_data) {
     gstate = OI_PY_STATE_GET();
 
     io_ref = swig_make_ref(io, gensio);
-    gensio_ref(io);
+    gensio_pyref(io);
     args = PyTuple_New(2);
     PyTuple_SET_ITEM(args, 0, io_ref.val);
     if (err) {
@@ -349,7 +349,7 @@ gensio_close_done(struct gensio *io, void *cb_data) {
 
     io_ref = swig_make_ref(io, gensio);
     args = PyTuple_New(1);
-    gensio_ref(io);
+    gensio_pyref(io);
     PyTuple_SET_ITEM(args, 0, io_ref.val);
 
     swig_finish_call(cb, "close_done", args, false);
@@ -856,7 +856,7 @@ gensio_acc_shutdown_done(struct gensio_accepter *accepter, void *cb_data)
 
     acc_ref = swig_make_ref(accepter, gensio_accepter);
     args = PyTuple_New(1);
-    gensio_accepter_ref(accepter);
+    gensio_accepter_pyref(accepter);
     PyTuple_SET_ITEM(args, 0, acc_ref.val);
 
     swig_finish_call(cb, "shutdown_done", args, false);
@@ -877,7 +877,7 @@ gensio_acc_set_acc_cb_done(struct gensio_accepter *accepter, void *cb_data)
 
     acc_ref = swig_make_ref(accepter, gensio_accepter);
     args = PyTuple_New(1);
-    gensio_accepter_ref(accepter);
+    gensio_accepter_pyref(accepter);
     PyTuple_SET_ITEM(args, 0, acc_ref.val);
 
     swig_finish_call(cb, "set_accept_callback_done", args, false);
@@ -912,7 +912,7 @@ gensio_acc_io_call_cb(struct gensio_accepter *accepter, struct gensio *io,
     gensio_set_user_data(io, &tmpdata);
 
     acc_ref = swig_make_ref(accepter, gensio_accepter);
-    gensio_accepter_ref(accepter);
+    gensio_accepter_pyref(accepter);
     io_ref = swig_make_ref(io, gensio);
     if (opterr >= 0)
 	args = PyTuple_New(4);
@@ -989,7 +989,7 @@ gensio_acc_child_event(struct gensio_accepter *accepter, void *user_data,
 	gstate = OI_PY_STATE_GET();
 
 	acc_ref = swig_make_ref(accepter, gensio_accepter);
-	gensio_accepter_ref(accepter);
+	gensio_accepter_pyref(accepter);
 	io_ref = swig_make_ref(io, gensio);
 	args = PyTuple_New(2);
 	PyTuple_SET_ITEM(args, 0, acc_ref.val);
@@ -1034,7 +1034,7 @@ gensio_acc_child_event(struct gensio_accepter *accepter, void *user_data,
 	gensio_set_user_data(io, &tmpdata);
 
 	acc_ref = swig_make_ref(accepter, gensio_accepter);
-	gensio_accepter_ref(accepter);
+	gensio_accepter_pyref(accepter);
 	io_ref = swig_make_ref(io, gensio);
 	args = PyTuple_New(2);
 	PyTuple_SET_ITEM(args, 0, acc_ref.val);
@@ -1082,7 +1082,7 @@ gensio_acc_child_event(struct gensio_accepter *accepter, void *user_data,
 	gensio_set_user_data(io, &tmpdata);
 
 	acc_ref = swig_make_ref(accepter, gensio_accepter);
-	gensio_accepter_ref(accepter);
+	gensio_accepter_pyref(accepter);
 	io_ref = swig_make_ref(io, gensio);
 	args = PyTuple_New(2);
 	PyTuple_SET_ITEM(args, 0, acc_ref.val);
@@ -1160,7 +1160,7 @@ sergensio_cb(struct sergensio *sio, int err, unsigned int val, void *cb_data)
 
     sio_ref = swig_make_ref(sio, sergensio);
     args = PyTuple_New(3);
-    sergensio_ref(sio);
+    sergensio_pyref(sio);
     PyTuple_SET_ITEM(args, 0, sio_ref.val);
     if (err) {
 	o = OI_PI_FromString(gensio_err_to_str(err));
@@ -1191,7 +1191,7 @@ sergensio_sig_cb(struct sergensio *sio, int err,
 
     sio_ref = swig_make_ref(sio, sergensio);
     args = PyTuple_New(3);
-    sergensio_ref(sio);
+    sergensio_pyref(sio);
     PyTuple_SET_ITEM(args, 0, sio_ref.val);
     if (err) {
 	o = OI_PI_FromString(gensio_err_to_str(err));
