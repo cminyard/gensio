@@ -121,6 +121,16 @@ using namespace gensio;
 %newobject gensio::Gensio::alloc_channel;
 
 ////////////////////////////////////////////////////
+// Gensio
+// Ignore the normal destructor, it's protected.
+%extend gensio::Serial_Gensio {
+    ~Serial_Gensio()
+    {
+	self->free();
+    }
+}
+
+////////////////////////////////////////////////////
 // Accepter
 // Constructor is deleted.
 %extend gensio::Accepter {
@@ -165,8 +175,6 @@ using namespace gensio;
 %ignore gensio::gensio_cpp_vlog_handler;
 %ignore gensio::gensio_alloc(struct gensio *io, Os_Funcs &o);
 %ignore gensio_acc_alloc(struct gensio_accepter *acc, Os_Funcs &o);
-%ignore gensio_acc_alloc(Accepter *child, std::string str, Os_Funcs &o,
-			 Accepter_Event *cb);
 %ignore gensio::gensio_add_class;
 %ignore gensio::gensio_cpp_freed;
 %ignore gensio::gensio_acc_cpp_freed;
