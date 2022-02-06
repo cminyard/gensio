@@ -1,4 +1,4 @@
 
 SUBDIRS = gensio
 
-#EXTRA_DIST = CMakeLists.txt
+EXTRA_DIST = CMakeLists.txt

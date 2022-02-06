@@ -729,6 +729,8 @@ namespace gensio {
     static void gensio_cpp_open_done(struct gensio *io, int err,
 				     void *user_data)
     {
+	if (!user_data)
+	    return;
 	struct gensio_frdata *f = gensio_get_frdata(io);
 	struct gensio_cpp_data *d = gensio_container_of(f,
 					      struct gensio_cpp_data, frdata);
@@ -851,6 +853,8 @@ namespace gensio {
 
     static void gensio_cpp_close_done(struct gensio *io, void *user_data)
     {
+	if (!user_data)
+	    return;
 	struct gensio_frdata *f = gensio_get_frdata(io);
 	struct gensio_cpp_data *d = gensio_container_of(f,
 					      struct gensio_cpp_data, frdata);
@@ -1178,6 +1182,8 @@ namespace gensio {
     static void sergensio_cpp_done(struct sergensio *sio, int err,
 			    unsigned int val, void *cb_data)
     {
+	if (!cb_data)
+	    return;
 	struct gensio *io = sergensio_to_gensio(sio);
 	struct gensio_frdata *f = gensio_get_frdata(io);
 	struct gensio_cpp_data *d = gensio_container_of(f,
@@ -1337,6 +1343,8 @@ namespace gensio {
 				       const char *sig, unsigned int len,
 				       void *cb_data)
     {
+	if (!cb_data)
+	    return;
 	struct gensio *io = sergensio_to_gensio(sio);
 	struct gensio_frdata *f = gensio_get_frdata(io);
 	struct gensio_cpp_data *d = gensio_container_of(f,
@@ -2071,6 +2079,8 @@ namespace gensio {
     static void gensio_acc_cpp_shutdown_done(struct gensio_accepter *acc,
 					     void *user_data)
     {
+	if (!user_data)
+	    return;
 	struct gensio_acc_frdata *f = gensio_acc_get_frdata(acc);
 	struct gensio_acc_cpp_data *d = gensio_container_of(f,
 					  struct gensio_acc_cpp_data, frdata);
@@ -2106,6 +2116,8 @@ namespace gensio {
     static void gensio_acc_cpp_enable_done(struct gensio_accepter *acc,
 					   void *user_data)
     {
+	if (!user_data)
+	    return;
 	struct gensio_acc_frdata *f = gensio_acc_get_frdata(acc);
 	struct gensio_acc_cpp_data *d = gensio_container_of(f,
 					  struct gensio_acc_cpp_data, frdata);
@@ -2472,9 +2484,11 @@ namespace gensio {
 	    throw gensio_error(rv);
     }
 
-    void mdns_free_done(struct gensio_mdns *m, void *userdata)
+    void mdns_free_done(struct gensio_mdns *m, void *user_data)
     {
-	MDNS_Free_Done *done = static_cast<MDNS_Free_Done *>(userdata);
+	if (!user_data)
+	    return;
+	MDNS_Free_Done *done = static_cast<MDNS_Free_Done *>(user_data);
 
 	try {
 	    done->mdns_free_done();
@@ -2619,10 +2633,12 @@ namespace gensio {
 	}
     }
 
-    void mdns_watch_free_done(struct gensio_mdns_watch *w, void *userdata)
+    void mdns_watch_free_done(struct gensio_mdns_watch *w, void *user_data)
     {
+	if (!user_data)
+	    return;
 	MDNS_Watch_Free_Done *done =
-	    static_cast<MDNS_Watch_Free_Done *>(userdata);
+	    static_cast<MDNS_Watch_Free_Done *>(user_data);
 
 	try {
 	    done->mdns_watch_free_done();
