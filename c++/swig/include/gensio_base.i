@@ -147,6 +147,18 @@ using namespace gensio;
 %ignore gensio::Accepter::user_data;
 %ignore gensio::AccepterW;
 
+%catches(gensio::gensio_error) gensio::Accepter::startup;
+%catches(gensio::gensio_error) gensio::Accepter::shutdown;
+%catches(gensio::gensio_error) gensio::Accepter::shutdown_s;
+%catches(gensio::gensio_error) gensio::Accepter::set_callback_enable;
+%catches(gensio::gensio_error) gensio::Accepter::set_callback_enable_s;
+%catches(gensio::gensio_error) gensio::Accepter::control;
+%catches(gensio::gensio_error) gensio::Accepter::accept_s;
+%catches(gensio::gensio_error) gensio::Accepter::str_to_gensio;
+%catches(gensio::gensio_error) gensio::Accepter::get_port;
+
+%catches(gensio::gensio_error) gensio::gensio_acc_alloc;
+
 ////////////////////////////////////////////////////
 // MDNS
 %extend gensio::MDNS {
@@ -175,7 +187,7 @@ using namespace gensio;
 // A bunch of friend functions that we need to ignore.
 %ignore gensio::gensio_cpp_vlog_handler;
 %ignore gensio::gensio_alloc(struct gensio *io, Os_Funcs &o);
-%ignore gensio_acc_alloc(struct gensio_accepter *acc, Os_Funcs &o);
+%ignore gensio::gensio_acc_alloc(struct gensio_accepter *acc, Os_Funcs &o);
 %ignore gensio::gensio_add_class;
 %ignore gensio::gensio_cpp_freed;
 %ignore gensio::gensio_acc_cpp_freed;
