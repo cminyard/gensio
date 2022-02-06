@@ -1,6 +1,7 @@
 
 AM_CPPFLAGS = $(PYTHON_CPPFLAGS) \
-	-I$(top_srcdir)/glib/c++/include -I$(top_srcdir)/glib/include
+	-I$(top_srcdir)/glib/c++/include -I$(top_srcdir)/glib/include \
+	-I$(top_srcdir)/c++/swig/pygensio/include
 
 pythonlibdir=$(PYTHON_INSTALL_LIB_DIR)
 pythonlib_LTLIBRARIES = _pygensioglib.la
@@ -22,8 +23,8 @@ EXTRA_DIST = pygensioglib.i CMakeLists.txt
 
 nodist__pygensioglib_la_SOURCES = pygensioglib_wrap.cc
 _pygensioglib_la_LIBADD = $(top_builddir)/c++/lib/libgensiocpp.la \
-		$(top_builddir)/lib/libgensio.la $(OPENSSL_LIBS) \
-		$(PYTHON_LIBS)
+		$(top_builddir)/lib/libgensio.la $(top_builddir)/glib/libgensioglib.la \
+		$(OPENSSL_LIBS) $(PYTHON_LIBS)
 _pygensioglib_la_LDFLAGS = -module -avoid-version $(OPENSSL_LDFLAGS) \
 		-no-undefined
 

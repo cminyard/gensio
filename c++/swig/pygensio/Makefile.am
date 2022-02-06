@@ -1,5 +1,7 @@
 
-AM_CPPFLAGS = $(PYTHON_CPPFLAGS)
+SUBDIRS = include
+
+AM_CPPFLAGS = $(PYTHON_CPPFLAGS) -I$(top_srcdir)/c++/swig/pygensio/include
 
 pythonlibdir=$(PYTHON_INSTALL_LIB_DIR)
 pythonlib_LTLIBRARIES = _pygensio.la

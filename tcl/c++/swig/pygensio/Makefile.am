@@ -1,6 +1,7 @@
 
 AM_CPPFLAGS = $(PYTHON_CPPFLAGS) \
-	-I$(top_srcdir)/tcl/c++/include -I$(top_srcdir)/tcl/include
+	-I$(top_srcdir)/tcl/c++/include -I$(top_srcdir)/tcl/include \
+	-I$(top_srcdir)/c++/swig/pygensio/include
 
 pythonlibdir=$(PYTHON_INSTALL_LIB_DIR)
 pythonlib_LTLIBRARIES = _pygensiotcl.la
@@ -22,8 +23,8 @@ EXTRA_DIST = pygensiotcl.i CMakeLists.txt
 
 nodist__pygensiotcl_la_SOURCES = pygensiotcl_wrap.cc
 _pygensiotcl_la_LIBADD = $(top_builddir)/c++/lib/libgensiocpp.la \
-		$(top_builddir)/lib/libgensio.la $(OPENSSL_LIBS) \
-		$(PYTHON_LIBS)
+		$(top_builddir)/lib/libgensio.la $(top_builddir)/tcl/libgensiotcl.la \
+		$(OPENSSL_LIBS) $(PYTHON_LIBS) $(TCL_LIBS)
 _pygensiotcl_la_LDFLAGS = -module -avoid-version $(OPENSSL_LDFLAGS) \
 		-no-undefined
 
