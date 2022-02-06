@@ -21,7 +21,7 @@ private:
 
     const char *errstr = NULL;
 
-    void open_done(Gensio *io, int err) override {
+    void open_done(int err) override {
 	if (err)
 	    errstr = gensio_err_to_str(err);
 	waiter->wake();
@@ -33,9 +33,13 @@ private:
 class Close_Done: public Gensio_Close_Done {
 public:
     Close_Done(Waiter *w) { waiter = w; }
-private:
 
-    void close_done(Gensio *io) override {
+    void set_gensio(Gensio *g) { io = g; }
+
+private:
+    Gensio *io;
+
+    void close_done() override {
 	io->free();
     }
 
@@ -44,8 +48,7 @@ private:
 
 class Client_Event: public Event {
 public:
-    Client_Event(Waiter *w, const unsigned char *data, gensiods datalen,
-		 Close_Done *ce)
+    Client_Event(Waiter *w, const unsigned char *data, gensiods datalen): ce(w)
     {
 	waiter = w;
 	this->data = data;
@@ -53,17 +56,21 @@ public:
 	this->ce = ce;
     }
 
+    void set_gensio(Gensio *g) { io = g; ce.set_gensio(g); }
+
     const char *get_err() { return errstr; }
 
 private:
-    gensiods read(Gensio *io, int err, SimpleUCharVector idata,
+    Gensio *io;
+
+    gensiods read(int err, SimpleUCharVector idata,
 		  const char *const *auxdata) override
     {
 	if (err) {
 	    errstr = gensio_err_to_str(err);
 	    io->set_read_callback_enable(false);
 	    io->set_write_callback_enable(false);
-	    io->close(ce);
+	    io->close(&ce);
 	    return 0;
 	}
 		  
@@ -73,7 +80,7 @@ private:
 	    errstr = "Too much data";
 	    io->set_read_callback_enable(false);
 	    io->set_write_callback_enable(false);
-	    io->close(ce);
+	    io->close(&ce);
 	    return idata.size();
 	}
 
@@ -81,19 +88,19 @@ private:
 	    errstr = "Data mismatch";
 	    io->set_read_callback_enable(false);
 	    io->set_write_callback_enable(false);
-	    io->close(ce);
+	    io->close(&ce);
 	    return idata.size();
 	}
 
 	readpos += idata.size();
 	if (readpos == datalen) {
 	    io->set_read_callback_enable(false);
-	    io->close(ce);
+	    io->close(&ce);
 	}
 	return idata.size();
     }
 
-    void write_ready(Gensio *io) override
+    void write_ready() override
     {
 	gensiods count;
 
@@ -103,7 +110,7 @@ private:
 	    errstr = e.what();
 	    io->set_read_callback_enable(false);
 	    io->set_write_callback_enable(false);
-	    io->close(ce);
+	    io->close(&ce);
 	    return;
 	}
 
@@ -112,7 +119,7 @@ private:
 	    io->set_write_callback_enable(false);
     }
 
-    void freed(Gensio *io) override {
+    void freed() override {
 	waiter->wake();
     }
 
@@ -123,7 +130,7 @@ private:
     gensiods readpos = 0;
     gensiods writepos = 0;
 
-    Close_Done *ce;
+    Close_Done ce;
 
     Waiter *waiter;
 };
@@ -135,13 +142,13 @@ do_client_test(Os_Funcs &o, string ios)
     Gensio *g;
     string s("This is a test!\r\n");
     Open_Done oe(&w);
-    Close_Done ce(&w);
-    Client_Event e(&w, (unsigned char *) s.c_str(), (gensiods) s.size(), &ce);
+    Client_Event e(&w, (unsigned char *) s.c_str(), (gensiods) s.size());
     const char *errstr;
     gensio_time waittime = { 2, 0 };
     int err;
 
     g = gensio_alloc(ios, o, &e);
+    e.set_gensio(g);
     try {
 	g->open(&oe);
     } catch (gensio_error e) {
@@ -183,10 +190,14 @@ class Server_Event: public Event {
 public:
     Server_Event(Waiter *w) { waiter = w; }
 
+    void set_gensio(Gensio *g) { io = g; }
+
     const char *get_err() { return errstr; }
 
 private:
-    gensiods read(Gensio *io, int err, const SimpleUCharVector data,
+    Gensio *io;
+
+    gensiods read(int err, const SimpleUCharVector data,
 		  const char *const *auxdata) override
     {
 	gensiods count;
@@ -217,13 +228,13 @@ private:
 	return data.size();
     }
 
-    void write_ready(Gensio *io) override
+    void write_ready() override
     {
 	io->set_read_callback_enable(true);
 	io->set_write_callback_enable(false);
     }
 
-    void freed(Gensio *io) override {
+    void freed() override {
 	waiter->wake();
     }
 
@@ -234,7 +245,9 @@ private:
 
 class Acc_Event: public Accepter_Event {
 public:
-    Acc_Event(Waiter *w, Event *e) { waiter = w; ev = e; }
+    Acc_Event(Waiter *w, Server_Event *e) { waiter = w; ev = e; }
+
+    void set_accepter(Accepter *a) { acc = a; }
 
 private:
     void log(enum gensio_log_levels level, const std::string log) override
@@ -243,9 +256,10 @@ private:
 	    " log: " << log << std::endl;
     }
 
-    void new_connection(Accepter *acc, Gensio *g) override
+    void new_connection(Gensio *g) override
     {
 	io = g;
+	ev->set_gensio(g);
 	g->set_event_handler(ev);
 	ev = NULL;
 	g->set_read_callback_enable(true);
@@ -253,14 +267,15 @@ private:
 	acc->free();
     }
 
-    void freed(Accepter *a) override
+    void freed() override
     {
 	waiter->wake();
     }
 
+    Accepter *acc;
     Gensio *io;
     Waiter *waiter;
-    Event *ev;
+    Server_Event *ev;
 };
 
 static void
@@ -273,6 +288,7 @@ do_server_test(Os_Funcs &o, string ios)
     const char *errstr;
 
     a = gensio_acc_alloc(ios, o, &ae);
+    ae.set_accepter(a);
     try {
 	a->startup();
     } catch (gensio_error e) {
@@ -305,12 +321,16 @@ public:
 	waiter = w;
     }
 
+    void set_gensio(Gensio *g) { io = g; }
+
     const char *get_err() { return errstr; }
 
     string get_port() { return string(port, portpos); }
 
 private:
-    gensiods read(Gensio *io, int err, const SimpleUCharVector data,
+    Gensio *io;
+
+    gensiods read(int err, const SimpleUCharVector data,
 		  const char *const *auxdata) override
     {
 	gensiods i;
@@ -346,7 +366,11 @@ private:
 	return i;
     }
 
-    void freed(Gensio *io) override
+    void write_ready() {
+	io->set_write_callback_enable(false);
+    }
+
+    void freed() override
     {
 	waiter->wake();
     }
@@ -401,6 +425,7 @@ int main(int argc, char *argv[])
 	    err = 1;
 	    goto out;
 	}
+	se.set_gensio(sub);
 	sub->open_s();
 	sub->set_read_callback_enable(true);
 	err = w.wait(1, &waittime);
