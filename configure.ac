@@ -726,6 +726,8 @@ AC_CONFIG_FILES([Makefile
 	c++/swig/pygensio/Makefile
 	c++/swig/pygensio/include/Makefile
 	c++/swig/pygensio/include/gensio/Makefile
+	c++/swig/pygensio/tests/Makefile
+	c++/swig/pygensio/tests/runtest
 	glib/libgensioglib.pc
 	glib/Makefile
 	glib/include/Makefile

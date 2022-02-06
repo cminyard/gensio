@@ -1,5 +1,5 @@
 
-SUBDIRS = include
+SUBDIRS = include tests
 
 AM_CPPFLAGS = $(PYTHON_CPPFLAGS) -I$(top_srcdir)/c++/swig/pygensio/include
 
