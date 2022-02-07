@@ -754,24 +754,26 @@ static bool check_for_err(int err)
 %extend gensio::Gensio {
     void open(Gensio_Open_Done *done)
     {
-	Py_Open_Done *pydone = new Py_Open_Done(done);
+	Py_Open_Done *pydone = NULL;
+	if (done)
+	    pydone = new Py_Open_Done(done);
 	self->open((Gensio_Open_Done *) pydone);
     }
 
     void open_nochild(Gensio_Open_Done *done)
     {
-	Py_Open_Done *pydone = new Py_Open_Done(done);
+	Py_Open_Done *pydone = NULL;
+	if (done)
+	    pydone = new Py_Open_Done(done);
 	self->open_nochild((Gensio_Open_Done *) pydone);
     }
 
     void close(Gensio_Close_Done *done)
     {
-	if (done) {
-	    Py_Gensio_Close_Done *pydone = new Py_Gensio_Close_Done(done);
-	    self->close((Gensio_Close_Done *) pydone);
-	} else {
-	    self->close(NULL);
-	}
+	Py_Gensio_Close_Done *pydone = NULL;
+	if (done)
+	    pydone = new Py_Gensio_Close_Done(done);
+	self->close((Gensio_Close_Done *) pydone);
     }
 
     int write_s(gensiods *count, const std::vector<unsigned char> data)
@@ -899,80 +901,106 @@ gensio::Gensio *gensio_alloct(gensio::Gensio *child, std::string str,
 %extend gensio::Serial_Gensio {
     void baud(unsigned int baud, gensio::Serial_Op_Done *done)
     {
-	Py_Serial_Op_Done *pydone = new Py_Serial_Op_Done(done);
+	Py_Serial_Op_Done *pydone = NULL;
+	if (done)
+	    pydone = new Py_Serial_Op_Done(done);
 	self->baud(baud, (gensio::Serial_Op_Done *) pydone);
     }
 
     void datasize(unsigned int size, gensio::Serial_Op_Done *done)
     {
-	Py_Serial_Op_Done *pydone = new Py_Serial_Op_Done(done);
+	Py_Serial_Op_Done *pydone = NULL;
+	if (done)
+	    pydone = new Py_Serial_Op_Done(done);
 	self->datasize(size, (gensio::Serial_Op_Done *) pydone);
     }
 
     void parity(unsigned int par, gensio::Serial_Op_Done *done)
     {
-	Py_Serial_Op_Done *pydone = new Py_Serial_Op_Done(done);
+	Py_Serial_Op_Done *pydone = NULL;
+	if (done)
+	    pydone = new Py_Serial_Op_Done(done);
 	self->parity(par, (gensio::Serial_Op_Done *) pydone);
     }
 
     void stopbits(unsigned int bits, gensio::Serial_Op_Done *done)
     {
-	Py_Serial_Op_Done *pydone = new Py_Serial_Op_Done(done);
+	Py_Serial_Op_Done *pydone = NULL;
+	if (done)
+	    pydone = new Py_Serial_Op_Done(done);
 	self->stopbits(bits, (gensio::Serial_Op_Done *) pydone);
     }
 
     void flowcontrol(unsigned int flow, gensio::Serial_Op_Done *done)
     {
-	Py_Serial_Op_Done *pydone = new Py_Serial_Op_Done(done);
+	Py_Serial_Op_Done *pydone = NULL;
+	if (done)
+	    pydone = new Py_Serial_Op_Done(done);
 	self->flowcontrol(flow, (gensio::Serial_Op_Done *) pydone);
     }
 
     void iflowcontrol(unsigned int flow, gensio::Serial_Op_Done *done)
     {
-	Py_Serial_Op_Done *pydone = new Py_Serial_Op_Done(done);
+	Py_Serial_Op_Done *pydone = NULL;
+	if (done)
+	    pydone = new Py_Serial_Op_Done(done);
 	self->iflowcontrol(flow, (gensio::Serial_Op_Done *) pydone);
     }
 
     void sbreak(unsigned int sbreak, gensio::Serial_Op_Done *done)
     {
-	Py_Serial_Op_Done *pydone = new Py_Serial_Op_Done(done);
+	Py_Serial_Op_Done *pydone = NULL;
+	if (done)
+	    pydone = new Py_Serial_Op_Done(done);
 	self->sbreak(sbreak, (gensio::Serial_Op_Done *) pydone);
     }
 
     void dtr(unsigned int dtr, gensio::Serial_Op_Done *done)
     {
-	Py_Serial_Op_Done *pydone = new Py_Serial_Op_Done(done);
+	Py_Serial_Op_Done *pydone = NULL;
+	if (done)
+	    pydone = new Py_Serial_Op_Done(done);
 	self->dtr(dtr, (gensio::Serial_Op_Done *) pydone);
     }
 
     void rts(unsigned int rts, gensio::Serial_Op_Done *done)
     {
-	Py_Serial_Op_Done *pydone = new Py_Serial_Op_Done(done);
+	Py_Serial_Op_Done *pydone = NULL;
+	if (done)
+	    pydone = new Py_Serial_Op_Done(done);
 	self->rts(rts, (gensio::Serial_Op_Done *) pydone);
     }
 
     void cts(unsigned int cts, gensio::Serial_Op_Done *done)
     {
-	Py_Serial_Op_Done *pydone = new Py_Serial_Op_Done(done);
+	Py_Serial_Op_Done *pydone = NULL;
+	if (done)
+	    pydone = new Py_Serial_Op_Done(done);
 	self->cts(cts, (gensio::Serial_Op_Done *) pydone);
     }
 
     void dcd_dsr(unsigned int dcd_dsr, gensio::Serial_Op_Done *done)
     {
-	Py_Serial_Op_Done *pydone = new Py_Serial_Op_Done(done);
+	Py_Serial_Op_Done *pydone = NULL;
+	if (done)
+	    pydone = new Py_Serial_Op_Done(done);
 	self->dcd_dsr(dcd_dsr, (gensio::Serial_Op_Done *) pydone);
     }
 
     void ri(unsigned int ri, gensio::Serial_Op_Done *done)
     {
-	Py_Serial_Op_Done *pydone = new Py_Serial_Op_Done(done);
+	Py_Serial_Op_Done *pydone = NULL;
+	if (done)
+	    pydone = new Py_Serial_Op_Done(done);
 	self->ri(ri, (gensio::Serial_Op_Done *) pydone);
     }
 
     void signature(const char *sig, unsigned int len,
 		   gensio::Serial_Op_Sig_Done *done)
     {
-	Py_Serial_Op_Sig_Done *pydone = new Py_Serial_Op_Sig_Done(done);
+	Py_Serial_Op_Sig_Done *pydone = NULL;
+	if (done)
+	    pydone = new Py_Serial_Op_Sig_Done(done);
 	self->signature(sig, len, (gensio::Serial_Op_Sig_Done *) pydone);
     }
 
@@ -1020,13 +1048,17 @@ gensio_acc_alloct(gensio::Accepter *child, std::string str, gensio::Os_Funcs &o,
 %extend gensio::Accepter {
     void shutdown(Accepter_Shutdown_Done *done)
     {
-	Py_Accepter_Shutdown_Done *pydone = new Py_Accepter_Shutdown_Done(done);
+	Py_Accepter_Shutdown_Done *pydone = NULL;
+	if (done)
+	    pydone = new Py_Accepter_Shutdown_Done(done);
 	self->shutdown((Accepter_Shutdown_Done *) pydone);
     }
 
     void set_callback_enable(bool enabled, Accepter_Enable_Done *done)
     {
-	Py_Accepter_Enable_Done *pydone = new Py_Accepter_Enable_Done(done);
+	Py_Accepter_Enable_Done *pydone = NULL;
+	if (done)
+	    pydone = new Py_Accepter_Enable_Done(done);
 	self->set_callback_enable(enabled, (Accepter_Enable_Done *) pydone);
     }
 
