@@ -136,6 +136,7 @@ open_tempfile(char *name, unsigned int len, const char *pattern)
 #include <sys/stat.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <sys/wait.h>
 bool
 file_is_accessible_dev(const char *filename)
 {
