@@ -1,3 +1,13 @@
+#
+#  gensio - A library for abstracting stream I/O
+#  Copyright (C) 2018  Corey Minyard <minyard@acm.org>
+#
+#  SPDX-License-Identifier: GPL-2.0-only
+#
+
+# Test basic operation, both synchronous and asynchronous open, close,
+# and data passing. Also shutdown, enable, and new connections for
+# Accepters.
 
 import pygensio
 import sys
@@ -28,8 +38,21 @@ r.shutdown_s()
 del r
 del g
 
+class Telnet_Refl_EvHnd(Refl_EvHnd):
+    def __init__(self, w):
+        Refl_EvHnd.__init__(self, w)
+        self.got_break = False
+        return
+
+    def send_break(self):
+        self.got_break = True
+        self.w.wake()
+        return
+
 # Basic test with non-blocking I/O
-r = Reflector(o, "tcp,0")
+w = pygensio.Waiter(o)
+treh = Telnet_Refl_EvHnd(w)
+r = Reflector(o, "telnet,tcp,0", w = w, evh = treh)
 r.startup()
 port = r.get_port()
 r.set_enable(False)
@@ -40,7 +63,7 @@ r.set_enable_s(False)
 rv = r.set_enable(True, do_cb = False)
 
 h = EvHnd(o)
-g = pygensio.gensio_alloc("tcp,localhost," + port, o, h)
+g = pygensio.gensio_alloc("telnet,tcp,localhost," + port, o, h)
 h.set_gensio(g)
 w = pygensio.Waiter(o)
 oh = Open_Done(w)
@@ -51,10 +74,22 @@ if rv != 0:
 if oh.err != 0:
     raise Exception("Error in open: " + pygensio.err_to_string(oh.err))
 del oh
+
 h.set_data(conv_to_bytes("Test string"))
 rv = h.wait(timeout=pygensio.gensio_time(1, 0))
 if rv != 0:
     raise Exception("Error waiting for I/O: " + pygensio.err_to_string(rv))
+
+g.set_read_callback_enable(True)
+(rv, rsp) = g.control(0, False, pygensio.GENSIO_CONTROL_SEND_BREAK, None)
+if rv != 0:
+    raise Exception("Error sending break: " + pygensio.err_to_string(rv))
+rv = treh.w.wait(1, pygensio.gensio_time(1, 0))
+if rv != 0:
+    raise Exception("Error waiting for break: " + pygensio.err_to_string(rv))
+if not treh.got_break:
+    raise Exception("Didn't receive break: " + pygensio.err_to_string(rv))
+
 ch = Close_Done(w)
 g.close(ch)
 rv = w.wait(1, pygensio.gensio_time(1, 0))

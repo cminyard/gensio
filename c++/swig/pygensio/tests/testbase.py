@@ -108,13 +108,19 @@ class Refl_Acc_Enable(pygensio.Accepter_Enable_Done):
         return
 
 class Reflector:
-    def __init__(self, o, accstr):
+    def __init__(self, o, accstr, evh = None, w = None):
         self.e = Refl_Acc_EvHnd(self)
         self.acc = pygensio.gensio_acc_alloc(accstr, o, self.e)
         self.o = o
-        self.w = pygensio.Waiter(o)
+        if w is None:
+            self.w = pygensio.Waiter(o)
+        else:
+            self.w = w
         self.g = None
-        self.h = None
+        if evh is None:
+            self.h = Refl_EvHnd(self.w)
+        else:
+            self.h = evh
         return
 
     def startup(self):
@@ -125,7 +131,6 @@ class Reflector:
         if self.g is not None:
             raise Exception("New connection while connected")
         self.g = g
-        self.h = Refl_EvHnd(self.w)
         self.h.set_gensio(g)
         self.g.set_event_handler(self.h)
         self.g.set_read_callback_enable(True)
