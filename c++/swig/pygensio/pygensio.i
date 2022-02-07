@@ -393,8 +393,8 @@ static bool check_for_err(int err)
 
 	    gstate = PyGILState_Ensure();
 	    parent->open_done(err);
-	    PyGILState_Release(gstate);
 	    pydirobj_decref(dynamic_cast<Swig::Director *>(parent));
+	    PyGILState_Release(gstate);
 	    delete this;
 	}
     private:
@@ -414,8 +414,8 @@ static bool check_for_err(int err)
 
 	    gstate = PyGILState_Ensure();
 	    parent->close_done();
-	    PyGILState_Release(gstate);
 	    pydirobj_decref(dynamic_cast<Swig::Director *>(parent));
+	    PyGILState_Release(gstate);
 	    delete this;
 	}
     private:
@@ -456,8 +456,12 @@ static bool check_for_err(int err)
 	    // gone, we don't want this trying to report a deleted
 	    // object to the freed event handler.
 	    parent->freed(NULL);
-	    if (e)
+	    if (e) {
+		PyGILState_STATE gstate;
+		gstate = PyGILState_Ensure();
 		pydirobj_decref(dynamic_cast<Swig::Director *>(e));
+		PyGILState_Release(gstate);
+	    }
 	}
 
     private:
@@ -476,8 +480,8 @@ static bool check_for_err(int err)
 
 	    gstate = PyGILState_Ensure();
 	    parent->serial_op_done(err, val);
-	    PyGILState_Release(gstate);
 	    pydirobj_decref(dynamic_cast<Swig::Director *>(parent));
+	    PyGILState_Release(gstate);
 	    delete this;
 	}
     private:
@@ -498,8 +502,8 @@ static bool check_for_err(int err)
 
 	    gstate = PyGILState_Ensure();
 	    parent->serial_op_sig_done(err, sig, siglen);
-	    PyGILState_Release(gstate);
 	    pydirobj_decref(dynamic_cast<Swig::Director *>(parent));
+	    PyGILState_Release(gstate);
 	    delete this;
 	}
     private:
@@ -520,8 +524,8 @@ static bool check_for_err(int err)
 
 	    gstate = PyGILState_Ensure();
 	    parent->shutdown_done();
-	    PyGILState_Release(gstate);
 	    pydirobj_decref(dynamic_cast<Swig::Director *>(parent));
+	    PyGILState_Release(gstate);
 	    delete this;
 	}
     private:
@@ -542,8 +546,8 @@ static bool check_for_err(int err)
 
 	    gstate = PyGILState_Ensure();
 	    parent->enable_done();
-	    PyGILState_Release(gstate);
 	    pydirobj_decref(dynamic_cast<Swig::Director *>(parent));
+	    PyGILState_Release(gstate);
 	    delete this;
 	}
     private:
@@ -578,8 +582,12 @@ static bool check_for_err(int err)
 	void freed(Accepter_Event *e) override
 	{
 	    parent->freed(e);
-	    if (e)
+	    if (e) {
+		PyGILState_STATE gstate;
+		gstate = PyGILState_Ensure();
 		pydirobj_decref(dynamic_cast<Swig::Director *>(e));
+		PyGILState_Release(gstate);
+	    }
 	}
 
     private:
@@ -598,8 +606,8 @@ static bool check_for_err(int err)
 
 	    gstate = PyGILState_Ensure();
 	    parent->mdns_free_done();
-	    PyGILState_Release(gstate);
 	    pydirobj_decref(dynamic_cast<Swig::Director *>(parent));
+	    PyGILState_Release(gstate);
 	    delete this;
 	}
     private:
@@ -620,8 +628,8 @@ static bool check_for_err(int err)
 
 	    gstate = PyGILState_Ensure();
 	    parent->mdns_watch_free_done();
-	    PyGILState_Release(gstate);
 	    pydirobj_decref(dynamic_cast<Swig::Director *>(parent));
+	    PyGILState_Release(gstate);
 	    delete this;
 	}
     private:
@@ -736,6 +744,9 @@ static bool check_for_err(int err)
 %rename("") gensio::Gensio::open_nochild;
 %rename("") gensio::Gensio::close;
 %rename("") gensio::Gensio::write_s;
+%rename("") gensio::Gensio::write_s(gensiods *count,
+				const std::vector<unsigned char> data,
+				gensio_time *timeout = NULL, bool intr = false);
 %rename("") gensio::Gensio::set_event_handler;
 %rename("") gensio::Gensio::alloc_channel;
 %rename("") gensio::Gensio::control;
