@@ -323,7 +323,8 @@ namespace gensio {
 		    return cb->precert_verify();
 
 		case GENSIO_EVENT_POSTCERT_VERIFY:
-		    return cb->postcert_verify();
+		    return cb->postcert_verify(err,
+					       auxdata ? auxdata[0] : NULL);
 
 		case GENSIO_EVENT_PASSWORD_VERIFY: {
 		    std::string pwstr((char *) buf);

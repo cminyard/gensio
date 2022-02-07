@@ -251,9 +251,10 @@ namespace gensio {
 	// details on what these do.
 	virtual int auth_begin() { return GE_NOTSUP; }
 	virtual int precert_verify() { return GE_NOTSUP; }
-	virtual int postcert_verify() { return GE_NOTSUP; }
+	virtual int postcert_verify(int err, const char *errstr)
+	    { return GE_NOTSUP; }
 	virtual int password_verify(const std::string val)
-	     { return GE_NOTSUP; }
+	    { return GE_NOTSUP; }
 	virtual int request_password(std::string &retval, gensiods maxsize)
 	    { return GE_NOTSUP; }
 	virtual int verify_2fa(const std::vector<unsigned char> val)
