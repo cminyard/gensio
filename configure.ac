@@ -15,6 +15,7 @@ LT_INIT
 uucp_locking_flag=yes
 UUCP_LOCK_DIR=/var/spool/lock
 USE_FILE_STDIO=0
+broken_pselect=no
 system_type=unix
 case $target_os in
 	mingw*)
@@ -30,10 +31,14 @@ case $target_os in
 		UUCP_LOCK_DIR=/var/lock
 		;;
 	darwin*)
+		broken_pselect=yes
 		uucp_locking_flag=no
 		;;
+	*bsd* | *BSD*)
+		broken_pselect=yes
+		;;
 	*)
-		# Defaults should be correct for BSD type systems
+		# Defaults, maybe it will work
 		;;
 esac
 AC_ARG_WITH(uucp-locking,
@@ -55,6 +60,17 @@ AC_DEFINE_UNQUOTED([USE_UUCP_LOCKING], [$USE_UUCP_LOCKING],
 		   [Enable device locking])
 AC_DEFINE_UNQUOTED([UUCP_LOCK_DIR], ["$UUCP_LOCK_DIR"],
 		   [Directory holding UUCP locks])
+
+AC_ARG_WITH(broken-pselect,
+ [AS_HELP_STRING([--with-broken-pselect], [pselect is not atomic, work around it])],
+ broken_pselect="$withval")
+case "$broken_pselect" in
+	yes)
+		AC_DEFINE([BROKEN_PSELECT], [], [PSELECT call is not atomic])
+		;;
+	*)
+		;;
+esac
 
 AC_ARG_WITH(tcp-wrappers,
  [AS_HELP_STRING([--with-tcp-wrappers], [Enable tcpwrappers support])],

@@ -216,6 +216,11 @@ int sel_select_loop(struct selector_s *sel,
 SEL_DLL_PUBLIC
 void sel_wake_all(struct selector_s *sel);
 
+/* Wake one thread in a select loop. */
+SEL_DLL_PUBLIC
+void sel_wake_one(struct selector_s *sel, long thread_id, sel_send_sig_cb killer,
+		  void *cb_data);
+
 /*
  * If you fork and expect to use the selector in the forked process,
  * you *must* call this function in the forked process or you may

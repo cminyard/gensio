@@ -162,8 +162,14 @@ i_wake_waiter(waiter_t *waiter, unsigned int count)
 		count -= w->count;
 		w->count = 0;
 	    }
-	    if (w->count == 0)
+	    if (w->count == 0) {
+#ifdef BROKEN_PSELECT
+		sel_wake_one(waiter->sel, (long) w->tid,
+			     wake_thread_send_sig_waiter, w);
+#else
 		pthread_kill(w->tid, w->wake_sig);
+#endif
+	    }
 	}
 	w = w->next;
     }

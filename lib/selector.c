@@ -181,7 +181,10 @@ typedef struct sel_wait_list_s
 
     /* The time when the thread is set to wake up. */
     struct timeval wake_time;
-
+#ifdef BROKEN_PSELECT
+    struct timespec *wait_time;
+    bool signalled;
+#endif
     struct sel_wait_list_s *next, *prev;
 } sel_wait_list_t;
 
@@ -262,15 +265,16 @@ sel_fd_unlock(struct selector_s *sel)
 /* This function will wake the SEL thread.  It must be called with the
    timer lock held, because it messes with timeout.
 
-   The operation is is subtle, but it does work.  The timeout in the
-   selector is the data passed in (must be the actual data) as the
-   timeout to select.  When we want to wake the select, we set the
-   timeout to zero first.  That way, if the select has calculated the
-   timeout but has not yet called select, then this will set it to
-   zero (causing it to wait zero time).  If select has already been
-   called, then the signal send should wake it up.  We only need to do
-   this after we have calculated the timeout, but before we have
-   called select, thus only things in the wait list matter. */
+   For broken pselect(), where the signal mask is not applied
+   atomically, we have a workaround.  The operation is is subtle, but
+   it does work.  We have a pointer to the actual timeout passed in to
+   pselect.  When we want to wake the pselect, we set the timeout to
+   zero first.  That way, if the select has calculated the timeout but
+   has not yet called select, then this will set it to zero (causing
+   it to wait zero time).  If select has already been called, then the
+   signal send should wake it up.  We only need to do this after we
+   have calculated the timeout, but before we have called select, thus
+   only things in the wait list matter. */
 static void
 i_wake_sel_thread(struct selector_s *sel, struct timeval *new_timeout)
 {
@@ -280,7 +284,14 @@ i_wake_sel_thread(struct selector_s *sel, struct timeval *new_timeout)
     while (item != &sel->wait_list) {
 	if (item->send_sig && (!new_timeout ||
 			       cmp_timeval(new_timeout, &item->wake_time) < 0))
+	{
+#ifdef BROKEN_PSELECT
+	    item->signalled = true;
+	    item->wait_time->tv_sec = 0;
+	    item->wait_time->tv_nsec = 0;
+#endif
 	    item->send_sig(item->thread_id, item->send_sig_cb_data);
+	}
 	item = item->next;
     }
 }
@@ -290,6 +301,32 @@ sel_wake_all(struct selector_s *sel)
 {
     sel_timer_lock(sel);
     i_wake_sel_thread(sel, NULL);
+    sel_timer_unlock(sel);
+}
+
+/* See comment on i_wake_sel_thread() for notes on BROKEN_PSELECT. */
+void
+sel_wake_one(struct selector_s *sel, long thread_id, sel_send_sig_cb killer,
+	     void *cb_data)
+{
+#ifdef BROKEN_PSELECT
+    sel_wait_list_t *item;
+#endif
+
+    sel_timer_lock(sel);
+#ifdef BROKEN_PSELECT
+    item = sel->wait_list.next;
+    while (item != &sel->wait_list) {
+	if (thread_id == item->thread_id) {
+	    item->signalled = true;
+	    item->wait_time->tv_sec = 0;
+	    item->wait_time->tv_nsec = 0;
+	    break;
+	}
+	item = item->next;
+    }
+#endif
+    killer(thread_id, cb_data);
     sel_timer_unlock(sel);
 }
 
@@ -310,12 +347,16 @@ add_sel_wait_list(struct selector_s *sel, sel_wait_list_t *item,
 		  sel_send_sig_cb send_sig,
 		  void            *cb_data,
 		  long thread_id,
-		  struct timeval *wake_time)
+		  struct timeval *wake_time, struct timespec *wait_time)
 {
     item->thread_id = thread_id;
     item->send_sig = send_sig;
     item->send_sig_cb_data = cb_data;
     item->wake_time = *wake_time;
+#ifdef BROKEN_PSELECT
+    item->wait_time = wait_time;
+    item->signalled = false;
+#endif
     item->next = sel->wait_list.next;
     item->prev = &sel->wait_list;
     sel->wait_list.next->prev = item;
@@ -1092,7 +1133,7 @@ setup_my_sigmask(sigset_t *sigmask, sigset_t *isigmask)
  */
 static int
 process_fds(struct selector_s	    *sel,
-	    volatile struct timeval *timeout,
+	    volatile struct timespec *timeout,
 	    sigset_t *isigmask)
 {
     fd_set      tmp_read_set;
@@ -1102,8 +1143,6 @@ process_fds(struct selector_s	    *sel,
     int err;
     int num_fds;
     sigset_t sigmask;
-    struct timespec ts = { .tv_sec = timeout->tv_sec,
-			   .tv_nsec = timeout->tv_usec * 1000 };
     unsigned long entry_fd_del_count = sel->fd_del_count;
     fd_control_t *fdc;
 
@@ -1121,7 +1160,7 @@ process_fds(struct selector_s	    *sel,
 		  &tmp_read_set,
 		  &tmp_write_set,
 		  &tmp_except_set,
-		  &ts, &sigmask);
+		  (struct timespec *) timeout, &sigmask);
     if (err < 0) {
 	if (errno == EBADF || errno == EBADFD)
 	    /* We raced, just retry it. */
@@ -1160,7 +1199,7 @@ out:
 
 #ifdef HAVE_EPOLL_PWAIT
 static int
-process_fds_epoll(struct selector_s *sel, struct timeval *tvtimeout,
+process_fds_epoll(struct selector_s *sel, struct timespec *tstimeout,
 		  sigset_t *isigmask)
 {
     int rv;
@@ -1172,14 +1211,14 @@ process_fds_epoll(struct selector_s *sel, struct timeval *tvtimeout,
 
     setup_my_sigmask(&sigmask, isigmask);
 
-    if (tvtimeout->tv_sec > 600)
+    if (tstimeout->tv_sec > 600)
 	 /* Don't wait over 10 minutes, to work around an old epoll bug
 	    and avoid issues with timeout overflowing on 64-bit systems,
 	    which is much larger that 10 minutes, but who cares. */
 	timeout = 600 * 1000;
     else
-	timeout = ((tvtimeout->tv_sec * 1000) +
-		   (tvtimeout->tv_usec + 999) / 1000);
+	timeout = ((tstimeout->tv_sec * 1000) +
+		   (tstimeout->tv_nsec + 999999) / 1000000);
 
     sigdelset(&sigmask, sel->wake_sig);
     rv = epoll_pwait(sel->epollfd, &event, 1, timeout, &sigmask);
@@ -1273,7 +1312,8 @@ sel_select_intr_sigmask(struct selector_s *sel,
 			sigset_t        *sigmask)
 {
     int             err = 0, old_errno;
-    struct timeval  loc_timeout, wake_time;
+    struct timeval  wake_time, tmp_timeout;
+    struct timespec loc_timeout;
     sel_wait_list_t wait_entry;
     unsigned int    count;
     struct timeval  end = { 0, 0 }, now;
@@ -1286,19 +1326,22 @@ sel_select_intr_sigmask(struct selector_s *sel,
 
     sel_timer_lock(sel);
     count = process_runners(sel);
-    process_timers(sel, &count, &loc_timeout, &wake_time);
+    process_timers(sel, &count, &tmp_timeout, &wake_time);
 
     if (count == 0) {
 	/* Didn't do anything, wait for something. */
 	if (timeout) {
-	    if (cmp_timeval(&loc_timeout, timeout) >= 0) {
-		loc_timeout = *timeout;
+	    if (cmp_timeval(&tmp_timeout, timeout) >= 0) {
+		tmp_timeout = *timeout;
 		user_timeout = 1;
 	    }
 	}
 
+	loc_timeout.tv_sec = tmp_timeout.tv_sec;
+	loc_timeout.tv_nsec = tmp_timeout.tv_usec * 1000;
+
 	add_sel_wait_list(sel, &wait_entry, send_sig, cb_data, thread_id,
-			  &wake_time);
+			  &wake_time, &loc_timeout);
 	sel_timer_unlock(sel);
 
 #ifdef HAVE_EPOLL_PWAIT
@@ -1309,15 +1352,24 @@ sel_select_intr_sigmask(struct selector_s *sel,
 	    err = process_fds(sel, &loc_timeout, sigmask);
 
 	old_errno = errno;
-	if (!user_timeout && !err) {
-	    /*
-	     * Only return a timeout if we waited on the user's timeout
-	     * Otherwise there is a timer to process.
-	     */
-	    count++;
-	}
 
 	sel_timer_lock(sel);
+	if (err == 0) {
+#ifdef BROKEN_PSELECT
+	    if (wait_entry.signalled) {
+		err = -1;
+		old_errno = EINTR;
+	    } else
+#endif
+	    if (!user_timeout) {
+		/*
+		 * Only return a timeout if we waited on the user's timeout
+		 * Otherwise there is a timer to process.
+		 */
+		count++;
+	    }
+	}
+
 	remove_sel_wait_list(sel, &wait_entry);
 
 	/*
