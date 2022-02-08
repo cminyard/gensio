@@ -38,6 +38,7 @@ certauth_gensio_alloc(struct gensio *child, const char *const args[],
     struct gensio_ll *ll;
     struct gensio *io;
     struct gensio_certauth_filter_data *data;
+    bool is_client;
 
     err = gensio_certauth_filter_config(o, args, true, &data);
     if (err)
@@ -53,6 +54,7 @@ certauth_gensio_alloc(struct gensio *child, const char *const args[],
 	 */
 	return GE_NOTSUP;
 
+    is_client = gensio_certauth_filter_config_is_client(data);
     err = gensio_certauth_filter_alloc(data, &filter);
     gensio_certauth_filter_config_free(data);
     if (err)
@@ -72,6 +74,7 @@ certauth_gensio_alloc(struct gensio *child, const char *const args[],
 	return GE_NOMEM;
     }
 
+    gensio_set_is_client(io, is_client);
     gensio_set_is_packet(io, true);
     gensio_set_is_reliable(io, true);
     gensio_set_is_encrypted(io, true);
@@ -200,6 +203,14 @@ certauthna_gensio_event(struct gensio *io, void *user_data, int event, int err,
 static int
 certauthna_finish_parent(void *acc_data, void *finish_data, struct gensio *io)
 {
+    struct certauthna_data *nadata = acc_data;
+
+    gensio_set_is_client(io, gensio_certauth_filter_config_is_client(
+					nadata->data));
+    gensio_set_is_packet(io, true);
+    gensio_set_is_reliable(io, true);
+    gensio_set_is_encrypted(io, true);
+
     gensio_set_callback(io, certauthna_gensio_event, acc_data);
     return 0;
 }

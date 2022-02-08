@@ -2542,11 +2542,20 @@ gensio_certauth_filter_config(struct gensio_os_funcs *o,
     return rv;
 }
 
-bool gensio_certauth_filter_config_allow_unencrypted(
+bool
+gensio_certauth_filter_config_allow_unencrypted(
 	     struct gensio_certauth_filter_data *data)
 {
     return data->allow_unencrypted;
 }
+
+bool
+gensio_certauth_filter_config_is_client(
+	     struct gensio_certauth_filter_data *data)
+{
+    return data->is_client;
+}
+
 
 static int
 read_certificate_chain(const char *file, X509 **rcert, STACK_OF(X509) **rca)
