@@ -329,9 +329,10 @@ static bool check_for_err(int err)
 }
 
 %typemap(directorin) gensio::Gensio * {
+    // Don't set SWIG_POINTER_OWN on this, we don't want python refcounts
+    // managing it.
     $input = SWIG_NewPointerObj(SWIG_as_voidptr($1),
-				SWIGTYPE_p_gensio__Gensio,
-				SWIG_POINTER_OWN |  0 );
+				SWIGTYPE_p_gensio__Gensio, 0);
 }
 %typemap(out) gensio::Gensio * {
     $result = SWIG_NewPointerObj(SWIG_as_voidptr($1),
