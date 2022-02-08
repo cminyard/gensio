@@ -721,6 +721,7 @@ static bool check_for_err(int err)
 %ignore gensio::MDNS::free;
 %ignore gensio::MDNS::add_watch;
 %ignore gensio::MDNS_Watch::free;
+%ignore gensio::MDNS_Watch::MDNS_Watch;
 
 %include <gensio/gensio_err.h>
 %include <gensio/gensio_control.h>
@@ -1184,7 +1185,18 @@ gensio_acc_alloct(gensio::Accepter *child, std::string str, gensio::Os_Funcs &o,
 }
 
 %rename("") gensio::MDNS_Watch::free;
+%rename("") gensio::MDNS_Watch::MDNS_Watch;
 %extend gensio::MDNS_Watch {
+    MDNS_Watch(MDNS *m, int interface, int ipdomain,
+	       char *name, char *type, char *domain, char *host,
+	       MDNS_Watch_Event *event) {
+	Raw_MDNS_Event_Handler *evh = new Py_Raw_MDNS_Event_Handler;
+	MDNS_Watch *w = m->add_watch(interface, ipdomain, name, type,
+				     domain, host, event, evh);
+
+	return w;
+    }
+
     void free(MDNS_Watch_Free_Done *done)
     {
 	Py_MDNS_Watch_Free_Done *pydone = new Py_MDNS_Watch_Free_Done(done);
