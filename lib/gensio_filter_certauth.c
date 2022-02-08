@@ -1275,7 +1275,8 @@ certauth_try_connect(struct gensio_filter *filter, gensio_time *timeout)
 			gensio_err_to_str(err));
 	    sfilter->pending_err = err;
 	}
-	goto finish_result;
+	if (!sfilter->do_2fa)
+	    goto finish_result;
 
     check_2fa:
 	len = sfilter->len_2fa;
