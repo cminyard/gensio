@@ -238,11 +238,10 @@ static bool check_for_err(int err)
 }
 // Used for verify_2fa
 %typemap(directorin) const std::vector<unsigned char> data {
-    $result = PI_FromStringAndSize((const char *) $1.data(), $1.size());
+    $input = PI_FromStringAndSize((const char *) $1.data(), $1.size());
 }
 // Used for request_2fa
 %typemap(directorin, numinputs=0) std::vector<unsigned char> &retval {
-    $input = PI_FromStringAndSize((const char *) $1.data(), $1.size());
 }
 %typemap(directorargout) std::vector<unsigned char> &retval {
     char *buf;
