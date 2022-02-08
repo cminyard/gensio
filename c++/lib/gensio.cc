@@ -2512,8 +2512,12 @@ namespace gensio {
     {
 	int rv;
 
-	done->m = this;
-	rv = gensio_free_mdns(this->m, mdns_free_done, done);
+	if (done) {
+	    done->m = this;
+	    rv = gensio_free_mdns(this->m, mdns_free_done, done);
+	} else {
+	    rv = gensio_free_mdns(this->m, NULL, NULL);
+	}
 	if (rv)
 	    throw gensio_error(rv);
     }
@@ -2660,7 +2664,11 @@ namespace gensio {
 
     void MDNS_Watch::free(MDNS_Watch_Free_Done *done)
     {
-	done->w = this;
-	gensio_mdns_remove_watch(this->w, mdns_watch_free_done, done);
+	if (done) {
+	    done->w = this;
+	    gensio_mdns_remove_watch(this->w, mdns_watch_free_done, done);
+	} else {
+	    gensio_mdns_remove_watch(this->w, NULL, NULL);
+	}
     }
 }
