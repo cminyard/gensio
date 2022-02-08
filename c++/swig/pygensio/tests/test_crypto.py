@@ -100,6 +100,7 @@ if rv != 0:
     raise Exception("Error waiting for I/O: " + pygensio.err_to_string(rv))
 
 g.close_s()
+h.g = None
 r.shutdown()
 rv = r.wait(pygensio.gensio_time(1, 0))
 if rv != 0:
@@ -107,6 +108,8 @@ if rv != 0:
                     pygensio.err_to_string(rv))
 del g
 del r
+del h
+del acch
 
 print("Verify backwards crypto interfaces")
 acch = Crypto_Refl_Acc_EvHnd()
@@ -137,6 +140,7 @@ if rv != 0:
     raise Exception("Error waiting for I/O: " + pygensio.err_to_string(rv))
 
 g.close_s()
+h.g = None
 r.shutdown()
 rv = r.wait(pygensio.gensio_time(1, 0))
 if rv != 0:
@@ -144,7 +148,12 @@ if rv != 0:
                     pygensio.err_to_string(rv))
 del g
 del r
+del h
+del acch
+
 del o
+
+test_shutdown()
            
 print("Pass")
 sys.exit(0)

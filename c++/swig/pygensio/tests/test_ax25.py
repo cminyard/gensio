@@ -76,7 +76,10 @@ if rv != 0:
     raise Exception("Error waiting for acc shutdown: " + pygensio.err_to_string(rv))
 del g
 del r
+del h
 del o
-           
+
+test_shutdown()
+
 print("Pass")
 sys.exit(0)

@@ -94,6 +94,7 @@ ch = Close_Done(w)
 g.close(ch)
 rv = w.wait(1, pygensio.gensio_time(1, 0))
 del ch
+h.g = None
 if rv != 0:
     raise Exception("Error waiting for close: " + pygensio.err_to_string(rv))
 r.shutdown()
@@ -102,7 +103,13 @@ if rv != 0:
     raise Exception("Error waiting for acc shutdown: " + pygensio.err_to_string(rv))
 del g
 del r
+del h
+del treh
+del w
+
 del o
-           
+
+test_shutdown()
+
 print("Pass")
 sys.exit(0)

@@ -112,13 +112,13 @@ class Refl_Acc_Enable(pygensio.Accepter_Enable_Done):
 
 class Reflector:
     def __init__(self, o, accstr, evh = None, w = None, acc_evh = None):
+        self.o = o
         if acc_evh is None:
             self.e = Refl_Acc_EvHnd()
         else:
             self.e = acc_evh
         self.e.set_reflector(self)
         self.acc = pygensio.gensio_acc_alloc(accstr, o, self.e)
-        self.o = o
         if w is None:
             self.w = pygensio.Waiter(o)
         else:
@@ -166,11 +166,19 @@ class Reflector:
 
     def shutdown_done(self):
         self.w.wake()
+        self.del_links()
         return
 
     def shutdown_s(self):
-        return self.w.wait(1, pygensio.gensio_time(1, 0))
         self.acc.shutdown_s()
+        self.del_links()
+        return
+
+    def del_links(self):
+        self.g = None
+        self.acc = None
+        self.h = None
+        self.e = None
         return
 
     def wait(self, timeout = None):
@@ -223,6 +231,7 @@ class EvHnd(pygensio.Event):
         self.readpos = self.readpos + readlen
         if self.readpos == len(self.data):
             self.w.wake()
+            self.g = None
         return len(data)
 
     def write_ready(self):
@@ -291,3 +300,27 @@ def verify_gen(g, gtype, is_client, is_reliable, is_packet,
     if g.is_message():
         raise Exception("Gensio is_message incorrect, expect %s, got %s" %
                         (is_message, g.is_message()))
+
+def test_shutdown():
+    global o
+    w = pygensio.Waiter(o)
+    count = 0
+    while pygensio.gensio_num_alloced() > 0:
+        count += 1
+        if (count > 100):
+            raise Exception("All gensios were not freed in time, %d left" %
+                            pygensio.gensio_num_alloced())
+        w.service(pygensio.gensio_time(0, 1000000))
+    while w.service(pygensio.gensio_time(0, 0)) == 0:
+        # Give some time for everyting to clear out.
+        pass
+    del w
+    o.set_log_handler(None)
+    c = sys.getrefcount(o)
+    if c != 2:
+        raise Exception("OS object refcount was %d, not 2" % c)
+    c = o.get_refcount()
+    if c != 1:
+        raise Exception("OS funcs refcount was %d, not 1" % c)
+    o.cleanup_mem()
+    del o
