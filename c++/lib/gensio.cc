@@ -1674,15 +1674,15 @@ namespace gensio {
 	{
 	    Accepter_Event *cb = a->get_cb();
 	    struct gensio *io;
-	    Gensio *g;
 
 	    try {
 		switch (event) {
-		case GENSIO_ACC_EVENT_NEW_CONNECTION:
+		case GENSIO_ACC_EVENT_NEW_CONNECTION: {
 		    io = (struct gensio *) data;
-		    g = gensio_alloc(io, a->get_os_funcs(), NULL);
+		    Gensio *g = gensio_alloc(io, a->get_os_funcs(), NULL);
 		    a->raw_event_handler->new_connection(cb, g);
 		    break;
+		}
 
 		case GENSIO_ACC_EVENT_LOG: {
 		    struct gensio_loginfo *l = (struct gensio_loginfo *) data;
@@ -1698,23 +1698,22 @@ namespace gensio {
 
 		case GENSIO_ACC_EVENT_PRECERT_VERIFY: {
 		    io = (struct gensio *) data;
-		    g = gensio_alloc(io, a->get_os_funcs());
-		    return cb->precert_verify(g);
+		    Gensio g(io, a->get_os_funcs());
+		    return cb->precert_verify(&g);
 		}
 
 		case GENSIO_ACC_EVENT_AUTH_BEGIN: {
 		    io = (struct gensio *) data;
-		    g = gensio_alloc(io, a->get_os_funcs());
-		    return cb->auth_begin(g);
+		    Gensio g(io, a->get_os_funcs());
+		    return cb->auth_begin(&g);
 		}
 
 		case GENSIO_ACC_EVENT_PASSWORD_VERIFY: {
 		    struct gensio_acc_password_verify_data *p =
 			(struct gensio_acc_password_verify_data *) data;
 		    std::string pwstr((char *) p->password);
-
-		    g = gensio_alloc(p->io, a->get_os_funcs());
-		    return cb->password_verify(g, pwstr);
+		    Gensio g(p->io, a->get_os_funcs());
+		    return cb->password_verify(&g, pwstr);
 		}
 
 		case GENSIO_ACC_EVENT_REQUEST_PASSWORD: {
@@ -1722,9 +1721,9 @@ namespace gensio {
 			(struct gensio_acc_password_verify_data *) data;
 		    std::string pwstr("");
 		    int rv;
+		    Gensio g(p->io, a->get_os_funcs());
 
-		    g = gensio_alloc(p->io, a->get_os_funcs());
-		    rv = cb->request_password(g, pwstr, p->password_len);
+		    rv = cb->request_password(&g, pwstr, p->password_len);
 		    if (rv)
 			return rv;
 		    if (pwstr.size() > p->password_len)
@@ -1739,8 +1738,8 @@ namespace gensio {
 			(struct gensio_acc_password_verify_data *) data;
 		    std::vector<unsigned char> val(p->password,
 					p->password + p->password_len);
-
-		    return cb->verify_2fa(g, val);
+		    Gensio g(p->io, a->get_os_funcs());
+		    return cb->verify_2fa(&g, val);
 		}
 
 		case GENSIO_EVENT_REQUEST_2FA: {
@@ -1748,8 +1747,8 @@ namespace gensio {
 			(struct gensio_acc_password_verify_data *) data;
 		    int rv;
 		    std::vector<unsigned char> val(0);
-
-		    rv = cb->request_2fa(g, val, p->password_len);
+		    Gensio g(p->io, a->get_os_funcs());
+		    rv = cb->request_2fa(&g, val, p->password_len);
 		    if (rv)
 			return rv;
 		    if (val.size() > p->password_len)
@@ -1762,16 +1761,15 @@ namespace gensio {
 		case GENSIO_ACC_EVENT_POSTCERT_VERIFY: {
 		    struct gensio_acc_postcert_verify_data *p =
 			(struct gensio_acc_postcert_verify_data *) data;
-
-		    g = gensio_alloc(p->io, a->get_os_funcs());
-		    return cb->postcert_verify(g, p->err, p->errstr);
+		    Gensio g(p->io, a->get_os_funcs());
+		    return cb->postcert_verify(&g, p->err, p->errstr);
 		}
 
 		default:
 		    return GE_NOTSUP;
 		}
 	    } catch (std::exception &e) {
-		gensio_log(g->get_os_funcs(), GENSIO_LOG_ERR,
+		gensio_log(a->get_os_funcs(), GENSIO_LOG_ERR,
 		     "Received C++ exception in accepter callback handler: %s",
 		     e.what());
 		return GE_APPERR;

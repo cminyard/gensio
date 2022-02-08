@@ -492,6 +492,7 @@ namespace gensio {
 	// Subclasses can use this to initialize the gensio object.
 	virtual void set_gensio(struct gensio *io, bool set_cb);
 	Gensio(Os_Funcs &o, Event *cb): go(o), gcb(cb) { }
+	Gensio(struct gensio *iio, Os_Funcs &o): go(o), io(iio) { }
 	virtual ~Gensio() {
 	    if (raw_event_handler)
 		delete raw_event_handler;
@@ -499,12 +500,13 @@ namespace gensio {
 
     private:
 	struct gensio *io = NULL;
-	Event *gcb;
+	Event *gcb = NULL;
 	Os_Funcs go;
 
 	GENSIOCPP_DLL_PUBLIC
 	friend Gensio *gensio_alloc(struct gensio *io,
 				    Os_Funcs &o);
+	friend class Main_Raw_Accepter_Event_Handler;
 	GENSIOCPP_DLL_PUBLIC
 	friend Gensio *gensio_alloc(Gensio *child, std::string str,
 				    Os_Funcs &o,
