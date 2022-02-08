@@ -335,7 +335,7 @@ namespace gensio {
 		    int rv;
 		    std::string pwstr("");
 
-		    rv = cb->request_password(pwstr, *buflen);
+		    rv = cb->request_password(*buflen, pwstr);
 		    if (rv)
 			return rv;
 		    if (pwstr.size() > *buflen)
@@ -353,14 +353,18 @@ namespace gensio {
 		case GENSIO_EVENT_REQUEST_2FA: {
 		    int rv;
 		    std::vector<unsigned char> val(0);
+		    Os_Funcs o = g->get_os_funcs();
+		    unsigned char *rbuf;
 
-		    rv = cb->request_2fa(val, *buflen);
+		    rv = cb->request_2fa(val);
 		    if (rv)
 			return rv;
-		    if (val.size() > *buflen)
-			return GE_TOOBIG;
+		    rbuf = (unsigned char *) o->zalloc(o, val.size());
+		    if (!rbuf)
+			return GE_NOMEM;
 		    *buflen = val.size();
-		    memcpy(buf, val.data(), *buflen);
+		    memcpy(rbuf, val.data(), *buflen);
+		    *((unsigned char **) buf) = rbuf;
 		    return 0;
 		}
 		}
@@ -1723,7 +1727,7 @@ namespace gensio {
 		    int rv;
 		    Gensio g(p->io, a->get_os_funcs());
 
-		    rv = cb->request_password(&g, pwstr, p->password_len);
+		    rv = cb->request_password(&g, p->password_len, pwstr);
 		    if (rv)
 			return rv;
 		    if (pwstr.size() > p->password_len)
@@ -1733,7 +1737,7 @@ namespace gensio {
 		    return 0;
 		}
 
-		case GENSIO_EVENT_2FA_VERIFY: {
+		case GENSIO_ACC_EVENT_2FA_VERIFY: {
 		    struct gensio_acc_password_verify_data *p =
 			(struct gensio_acc_password_verify_data *) data;
 		    std::vector<unsigned char> val(p->password,
@@ -1742,19 +1746,24 @@ namespace gensio {
 		    return cb->verify_2fa(&g, val);
 		}
 
-		case GENSIO_EVENT_REQUEST_2FA: {
+		case GENSIO_ACC_EVENT_REQUEST_2FA: {
 		    struct gensio_acc_password_verify_data *p =
 			(struct gensio_acc_password_verify_data *) data;
 		    int rv;
 		    std::vector<unsigned char> val(0);
 		    Gensio g(p->io, a->get_os_funcs());
-		    rv = cb->request_2fa(&g, val, p->password_len);
+		    Os_Funcs o = a->get_os_funcs();
+		    unsigned char *rbuf;
+
+		    rv = cb->request_2fa(&g, val);
 		    if (rv)
 			return rv;
-		    if (val.size() > p->password_len)
-			return GE_TOOBIG;
+		    rbuf = (unsigned char *) o->zalloc(o, val.size());
+		    if (!rbuf)
+			return GE_NOMEM;
 		    p->password_len = val.size();
-		    memcpy(p->password, val.data(), p->password_len);
+		    memcpy(rbuf, val.data(), p->password_len);
+		    *((unsigned char **) p->password) = rbuf;
 		    return 0;
 		}
 
