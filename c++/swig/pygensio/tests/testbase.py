@@ -253,3 +253,41 @@ def conv_to_bytes(s):
 
 def conv_from_bytes(b):
     return str(b, "utf-8")
+
+def verify_acc(acc, acctype, is_reliable, is_packet, is_message):
+    if acc.get_type(0) != acctype:
+        raise Exception("Accepter type incorrect, expected %s, got %s" %
+                        (acctype, r.acc.get_type(0)))
+    if acc.is_reliable() != is_reliable:
+        raise Exception("Accepter is_reliable incorrect, expect %s, got %s" %
+                        (is_reliable, acc.is_reliable()))
+    if acc.is_packet() != is_packet:
+        raise Exception("Accepter is_packet incorrect, expect %s, got %s" %
+                        (is_packet, acc.is_packet()))
+    if acc.is_message():
+        raise Exception("Accepter is_message incorrect, expect %s, got %s" %
+                        (is_message, acc.is_message()))
+
+def verify_gen(g, gtype, is_client, is_reliable, is_packet,
+               is_authenticated, is_encrypted, is_message):
+    if g.get_type(0) != gtype:
+        raise Exception("Gensio type incorrect, expected %s, got %s" %
+                        (gentype, g.get_type(0)))
+    if g.is_client() != is_client:
+        raise Exception("Gensio is_client incorrect, expect %s, got %s" %
+                        (is_client, g.is_client()))
+    if g.is_reliable() != is_reliable:
+        raise Exception("Gensio is_reliable incorrect, expect %s, got %s" %
+                        (is_reliable, g.is_reliable()))
+    if g.is_packet() != is_packet:
+        raise Exception("Gensio is_packet incorrect, expect %s, got %s" %
+                        (is_packet, g.is_packet()))
+    if g.is_authenticated() != is_authenticated:
+        raise Exception("Gensio is_authenticated incorrect, expect %s, got %s" %
+                        (is_authenticated, g.is_authenticated()))
+    if g.is_encrypted() != is_encrypted:
+        raise Exception("Gensio is_encrypted incorrect, expect %s, got %s" %
+                        (is_encrypted, g.is_encrypted()))
+    if g.is_message():
+        raise Exception("Gensio is_message incorrect, expect %s, got %s" %
+                        (is_message, g.is_message()))

@@ -117,6 +117,8 @@ r = Reflector(o,
 r.startup()
 port = r.get_port()
 
+verify_acc(r.acc, "certauth", True, True, False)
+
 h = Crypto_EvHnd(o)
 g = pygensio.gensio_alloc("certauth(enable-password,enable-2fa,mode=server)," +
                           "ssl(key=ca/key.pem,cert=ca/cert.pem,mode=server)," +
@@ -125,6 +127,9 @@ g = pygensio.gensio_alloc("certauth(enable-password,enable-2fa,mode=server)," +
 h.set_gensio(g)
 
 g.open_s()
+
+verify_gen(g, "certauth", False, True, True, True, True, False)
+verify_gen(r.g, "certauth", True, True, True, True, True, False)
 
 h.set_data(conv_to_bytes("Crypto Test string"))
 rv = h.wait(timeout=pygensio.gensio_time(1, 0))
