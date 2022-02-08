@@ -118,20 +118,20 @@ PI_StringArrayToTuple(const char *const *val)
 }
 
 static int
-PI_TupleToStringArray(char ***out, PyObject *o)
+PI_TupleToStringArray(char ***out, PyObject *so)
 {
     unsigned int i;
     unsigned int len;
     char **temp = NULL;
 
-    if (o == Py_None)
+    if (so == Py_None)
 	goto null_auxdata;
 
-    if (!PySequence_Check(o)) {
+    if (!PySequence_Check(so)) {
 	PyErr_SetString(PyExc_TypeError, "Expecting a sequence");
 	return -1;
     }
-    len = PyObject_Length(o);
+    len = PyObject_Length(so);
     if (len == 0)
 	goto null_auxdata;
 
@@ -142,7 +142,7 @@ PI_TupleToStringArray(char ***out, PyObject *o)
     }
     memset(temp, 0, sizeof(char *) * (len + 1));
     for (i = 0; i < len; i++) {
-	PyObject *o = PySequence_GetItem(o, i);
+	PyObject *o = PySequence_GetItem(so, i);
 
 	if (!PI_StringCheck(o)) {
 	    Py_XDECREF(o);
