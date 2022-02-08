@@ -23,12 +23,22 @@ void pydirobj_decref(Swig::Director *dir)
 class Internal_Log_Handler : public gensio::Os_Funcs_Log_Handler {
  public:
  Internal_Log_Handler(gensio::Os_Funcs_Log_Handler *pyhandler):
-    handler(pyhandler) {
-	pydirobj_incref(dynamic_cast<Swig::Director *>(handler));
+		handler(pyhandler) {
+	if (handler)
+	    pydirobj_incref(dynamic_cast<Swig::Director *>(handler));
     }
 
     virtual ~Internal_Log_Handler() {
-	pydirobj_decref(dynamic_cast<Swig::Director *>(handler));
+	if (handler)
+	    pydirobj_decref(dynamic_cast<Swig::Director *>(handler));
+    }
+
+    void set_handler(gensio::Os_Funcs_Log_Handler *pyhandler) {
+	if (handler)
+	    pydirobj_decref(dynamic_cast<Swig::Director *>(handler));
+	handler = pyhandler;
+	if (handler)
+	    pydirobj_incref(dynamic_cast<Swig::Director *>(handler));
     }
 
     void log(enum gensio::gensio_log_levels level, const std::string log) override {
@@ -39,7 +49,8 @@ class Internal_Log_Handler : public gensio::Os_Funcs_Log_Handler {
 	// log.
 	PyErr_Print();
 
-	handler->log(level, log);
+	if (handler)
+	    handler->log(level, log);
     }
 
  private:

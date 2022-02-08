@@ -327,7 +327,12 @@ static bool check_for_err(int err)
     $input = PI_StringArrayToTuple($1_name);
 }
 
-%typemap(directorin) gensio::Gensio * {
+%typemap(directorin) gensio::Gensio *newg {
+    // This is for reporting new gensios
+    $input = SWIG_NewPointerObj(SWIG_as_voidptr($1),
+				SWIGTYPE_p_gensio__Gensio, SWIG_POINTER_OWN);
+}
+%typemap(directorin) gensio::Gensio *g {
     // Don't set SWIG_POINTER_OWN on this, we don't want python refcounts
     // managing it.
     $input = SWIG_NewPointerObj(SWIG_as_voidptr($1),
@@ -442,12 +447,12 @@ static bool check_for_err(int err)
 	    return rv;
 	}
 
-	int new_channel(Event *e, Gensio *new_chan,
+	int new_channel(Event *e, Gensio *newg,
 			 const char *const *auxdata) override
 	{
-	    new_chan->raw_event_handler =
-		new Py_Raw_Event_Handler(new_chan->raw_event_handler);
-	    return parent->new_channel(e, new_chan, auxdata);
+	    newg->raw_event_handler =
+		new Py_Raw_Event_Handler(newg->raw_event_handler);
+	    return parent->new_channel(e, newg, auxdata);
 	}
 
 	void freed(Event *e) override
@@ -572,16 +577,19 @@ static bool check_for_err(int err)
 	    return rv;
 	}
 
-	void new_connection(Accepter_Event *e, Gensio *g) override
+	void new_connection(Accepter_Event *e, Gensio *newg) override
 	{
-	    g->raw_event_handler =
-		new Py_Raw_Event_Handler(g->raw_event_handler);
-	    parent->new_connection(e, g);
+	    newg->raw_event_handler =
+		new Py_Raw_Event_Handler(newg->raw_event_handler);
+	    parent->new_connection(e, newg);
 	}
 
 	void freed(Accepter_Event *e) override
 	{
-	    parent->freed(e);
+	    // Don't pass the event handler.  The python object is
+	    // gone, we don't want this trying to report a deleted
+	    // object to the freed event handler.
+	    parent->freed(NULL);
 	    if (e) {
 		PyGILState_STATE gstate;
 		gstate = PyGILState_Ensure();
@@ -678,6 +686,7 @@ static bool check_for_err(int err)
 // into python code from C/C++, we have to handle all those.
 %ignore gensio::Os_Funcs::Os_Funcs;
 %ignore gensio::Os_Funcs::~Os_Funcs;
+%ignore gensio::Os_Funcs::set_log_handler;
 %ignore gensio::Gensio::open;
 %ignore gensio::Gensio::open_nochild;
 %ignore gensio::Gensio::close;
@@ -723,6 +732,7 @@ static bool check_for_err(int err)
 
 %rename("") gensio::Os_Funcs::Os_Funcs;
 %rename("") gensio::Os_Funcs::~Os_Funcs;
+%rename("") gensio::Os_Funcs::set_log_handler;
 %extend gensio::Os_Funcs {
     Os_Funcs(int wait_sig, Os_Funcs_Log_Handler *logger = NULL)
     {
@@ -735,6 +745,16 @@ static bool check_for_err(int err)
     ~Os_Funcs()
     {
 	delete self;
+    }
+
+    void set_log_handler(Os_Funcs_Log_Handler *logger) {
+	Internal_Log_Handler *ilogger =
+	    dynamic_cast<Internal_Log_Handler *>(self->get_log_handler());
+	ilogger->set_handler(logger);
+    }
+
+    void cleanup_mem() {
+	gensio_cleanup_mem(*self);
     }
 }
 
@@ -1046,6 +1066,10 @@ gensio_acc_alloct(gensio::Accepter *child, std::string str, gensio::Os_Funcs &o,
 %rename("") gensio::Accepter::str_to_gensio;
 %rename("") gensio::Accepter::control;
 %extend gensio::Accepter {
+    ~Accepter() {
+	self->free()
+    }
+
     void shutdown(Accepter_Shutdown_Done *done)
     {
 	Py_Accepter_Shutdown_Done *pydone = NULL;
@@ -1195,4 +1219,28 @@ gensio_acc_alloct(gensio::Accepter *child, std::string str, gensio::Os_Funcs &o,
 	restore_waiter(prev_waiter);
 	return rv;
     }
+
+    int service(gensio_time *timeout) {
+	int err;
+	Waiter *prev_waiter = save_waiter(self);
+	Os_Funcs o = self->get_os_funcs();
+
+	do {
+	    GENSIO_SWIG_C_BLOCK_ENTRY
+		err = gensio_os_funcs_service(o, timeout);
+	    GENSIO_SWIG_C_BLOCK_EXIT
+	    if (check_for_err(err)) {
+		if (prev_waiter)
+		    prev_waiter->wake();
+		break;
+	    }
+	    if (err == GE_INTERRUPTED)
+		continue;
+	    break;
+	} while(true);
+	restore_waiter(prev_waiter);
+	return err;
+    }
 }
+
+int gensio_num_alloced();
