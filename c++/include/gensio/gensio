@@ -71,6 +71,10 @@ namespace gensio {
 	// parameter list, that can be used accidentally.
 	Os_Funcs(bool dummy) { };
 
+	void set_log_handler(Os_Funcs_Log_Handler *ilogger) {
+	    logger = ilogger;
+	};
+
 	Os_Funcs_Log_Handler *get_log_handler() { return logger; };
 
 	// Do the setup for the process.  If you do this, this should be
@@ -104,6 +108,8 @@ namespace gensio {
 	void log(enum gensio_log_levels level, const std::string log) {
 	    gensio_log(osf, level, "%s", log.c_str());
 	}
+
+	unsigned int get_refcount() { return *refcnt; }
 
     private:
 	void refcount_from(const Os_Funcs *o);
@@ -238,8 +244,7 @@ namespace gensio {
 
 	// A new channel is available on the gensio.  By default this
 	// deletes the new channel.
-	virtual int new_channel(Gensio *new_channel,
-				const char *const *auxdata);
+	virtual int new_channel(Gensio *newg, const char *const *auxdata);
 
 	// The remote end has requested that the receiver of this do a
 	// break.  This is primarily for a telnet server that is
@@ -707,7 +712,7 @@ namespace gensio {
 
 	// A new connection has come in, the new gensio is in g.  You
 	// must provide this.
-	virtual void new_connection(Gensio *g) = 0;
+	virtual void new_connection(Gensio *newg) = 0;
 
 	// An error has occurred in the accepter that cannot be
 	// reported as a return value.
@@ -769,7 +774,7 @@ namespace gensio {
 
 	// New connections are routed through here so they can be set
 	// up properly.
-	virtual void new_connection(Accepter_Event *e, Gensio *g) = 0;
+	virtual void new_connection(Accepter_Event *e, Gensio *newg) = 0;
 
 	// Freed accepters are routed through here so they can be shut
 	// down properly.
@@ -986,6 +991,8 @@ namespace gensio {
 	// Any other error will result in a gensio_error being thrown.
 	int wait(unsigned int count, gensio_time *timeout = NULL,
 		 bool intr = false);
+
+	Os_Funcs get_os_funcs() { return o; }
 
     private:
 	Os_Funcs o;
