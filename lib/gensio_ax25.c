@@ -1147,8 +1147,9 @@ seq_in_range(uint8_t start, uint8_t end, uint8_t val, uint8_t window)
 static bool
 chan_can_write(struct ax25_chan *chan)
 {
-    return (chan->state == AX25_CHAN_OPEN &&
-	    chan->write_len < chan->writewindow) || chan->err;
+    return ((chan->state == AX25_CHAN_OPEN &&
+	     chan->write_len < chan->writewindow) ||
+	    chan->err || chan->state == AX25_CHAN_NOCON);
 }
 
 /* Do I have data to deliver to the upper layer? */
