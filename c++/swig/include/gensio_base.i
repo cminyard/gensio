@@ -30,6 +30,7 @@ using namespace gensio;
 
 %define GENSIOCPP_DLL_PUBLIC %enddef
 %define GENSIO_DLL_PUBLIC %enddef
+%define GENSIO_FUNC_DEPRECATED %enddef
 
 %ignore gensio::gensio_error;
 
@@ -175,9 +176,11 @@ using namespace gensio;
     }
 }
 %ignore gensio::MDNS_Watch::~MDNS_Watch;
+%ignore gensio::MDNS_Watch::~MDNS;
 %delobject gensio::MDNS::free;
 %delobject gensio::MDNS_Watch::free;
 %ignore gensio::MDNS_Watch::raw_event_handler;
+%ignore gensio::Raw_MDNS_Event_Handler;
 
 ////////////////////////////////////////////////////
 // gensio_err.h
@@ -197,7 +200,7 @@ using namespace gensio;
 %ignore gensio::mdns_watch_free_done;
 
 ////////////////////////////////////////////////////
-// We need gensio_time from here.
+// We need gensio_time and gensiods from here.
 %ignore "";
 %rename("%s") gensio_time;
 %rename("%s") gensio_time::secs;
@@ -224,3 +227,19 @@ const int GENSIO_LOG_DEBUG = GENSIO_LOG_DEBUG;
 	return t;
     }
 }
+
+////////////////////////////////////////////////////
+// Pull some constants from gensio.h
+%ignore "";
+%rename("%s", regextarget=1) "GENSIO_NETTYPE_.*";
+%include <gensio/gensio.h>
+%rename("%s") "";
+
+////////////////////////////////////////////////////
+// Pull some constants from gensio_mdns.h
+%ignore "";
+%include <gensio/gensio_mdns.h>
+%rename("%s") "";
+const int GENSIO_MDNS_NEW_DATA = GENSIO_MDNS_NEW_DATA;
+const int GENSIO_MDNS_DATA_GONE = GENSIO_MDNS_DATA_GONE;
+const int GENSIO_MDNS_ALL_FOR_NOW = GENSIO_MDNS_ALL_FOR_NOW;
