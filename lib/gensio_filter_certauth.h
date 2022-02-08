@@ -23,6 +23,9 @@ gensio_certauth_filter_config_free(struct gensio_certauth_filter_data *data);
 bool gensio_certauth_filter_config_allow_unencrypted(
 	     struct gensio_certauth_filter_data *data);
 
+bool gensio_certauth_filter_config_is_client(
+	     struct gensio_certauth_filter_data *data);
+
 int gensio_certauth_filter_alloc(struct gensio_certauth_filter_data *data,
 				 struct gensio_filter **rfilter);
 
