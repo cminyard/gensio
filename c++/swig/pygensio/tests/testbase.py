@@ -78,8 +78,11 @@ class Refl_EvHnd(pygensio.Event):
         return
 
 class Refl_Acc_EvHnd(pygensio.Accepter_Event):
-    def __init__(self, r):
+    def __init__(self):
         pygensio.Accepter_Event.__init__(self)
+        return
+
+    def set_reflector(self, r):
         self.r = r
         return
 
@@ -108,8 +111,12 @@ class Refl_Acc_Enable(pygensio.Accepter_Enable_Done):
         return
 
 class Reflector:
-    def __init__(self, o, accstr, evh = None, w = None):
-        self.e = Refl_Acc_EvHnd(self)
+    def __init__(self, o, accstr, evh = None, w = None, acc_evh = None):
+        if acc_evh is None:
+            self.e = Refl_Acc_EvHnd()
+        else:
+            self.e = acc_evh
+        self.e.set_reflector(self)
         self.acc = pygensio.gensio_acc_alloc(accstr, o, self.e)
         self.o = o
         if w is None:
@@ -243,3 +250,6 @@ def conv_to_bytes(s):
         return bytes(s, "utf-8")
     else:
         return s
+
+def conv_from_bytes(b):
+    return str(b, "utf-8")
