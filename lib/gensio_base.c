@@ -1662,7 +1662,7 @@ basen_ll_read(void *cb_data, int readerr,
 			    0, NULL);
 	    basen_lock(ndata);
 	    if (err) {
-		handle_ioerr(ndata, readerr);
+		handle_ioerr(ndata, err);
 		break;
 	    }
 	}
