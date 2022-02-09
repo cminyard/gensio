@@ -265,7 +265,6 @@ static bool check_for_err(int err)
 
     if (PI_AsBytesAndSize($result, (void **) &buf, &size) == -1) {
 	Swig::DirectorTypeMismatchException::raise(
-		SWIG_ErrorType(SWIG_ArgError(swig_res)),
 		"in output value of type '""std::vector<unsigned char>""'");
     } else {
 	$1.assign((unsigned char *) buf, ((unsigned char *) buf) + size);
@@ -363,6 +362,14 @@ static bool check_for_err(int err)
     $result = SWIG_NewPointerObj(SWIG_as_voidptr($1),
 				 SWIGTYPE_p_gensio__Accepter,
 				 SWIG_POINTER_OWN |  0 );
+}
+
+%typemap(in, numinputs=0) unsigned int *outval (unsigned int temp) {
+    temp = 0;
+    $1 = &temp;
+}
+%typemap(argout) unsigned int *outval {
+    $result = PI_add_result($result, PyInt_FromLong(*$1));
 }
 
 // Handling of nested waiters and python callback.
@@ -501,12 +508,13 @@ static bool check_for_err(int err)
 	    pydirobj_incref(dynamic_cast<Swig::Director *>(parent));
 	}
 
-	void serial_op_sig_done(int err, const char *sig,
-				unsigned int siglen) override {
+	void serial_op_sig_done(int err,
+				const std::vector<unsigned char> data) override
+	{
 	    PyGILState_STATE gstate;
 
 	    gstate = PyGILState_Ensure();
-	    parent->serial_op_sig_done(err, sig, siglen);
+	    parent->serial_op_sig_done(err, data);
 	    pydirobj_decref(dynamic_cast<Swig::Director *>(parent));
 	    PyGILState_Release(gstate);
 	    delete this;
@@ -708,6 +716,18 @@ static bool check_for_err(int err)
 %ignore gensio::Serial_Gensio::dcd_dsr;
 %ignore gensio::Serial_Gensio::ri;
 %ignore gensio::Serial_Gensio::signature;
+%ignore gensio::Serial_Gensio::baud_s;
+%ignore gensio::Serial_Gensio::datasize_s;
+%ignore gensio::Serial_Gensio::parity_s;
+%ignore gensio::Serial_Gensio::stopbits_s;
+%ignore gensio::Serial_Gensio::flowcontrol_s;
+%ignore gensio::Serial_Gensio::iflowcontrol_s;
+%ignore gensio::Serial_Gensio::sbreak_s;
+%ignore gensio::Serial_Gensio::dtr_s;
+%ignore gensio::Serial_Gensio::rts_s;
+%ignore gensio::Serial_Gensio::cts_s;
+%ignore gensio::Serial_Gensio::dcd_dsr_s;
+%ignore gensio::Serial_Gensio::ri_s;
 %ignore gensio::gensio_acc_alloc;
 %ignore gensio::Accepter::set_event_handler;
 %ignore gensio::Accepter::shutdown;
@@ -881,6 +901,7 @@ static bool check_for_err(int err)
 %rename("") gensio::gensio_alloc;
 %rename(gensio_alloc) gensio_alloct;
 %newobject gensio_alloct;
+%newobject cast_to_serial_gensio;
 %inline %{
 gensio::Gensio *gensio_alloct(std::string str, gensio::Os_Funcs &o,
 			      gensio::Event *cb)
@@ -905,6 +926,11 @@ gensio::Gensio *gensio_alloct(gensio::Gensio *child, std::string str,
 	g->raw_event_handler = new Py_Raw_Event_Handler(g->raw_event_handler);
     return g;
 }
+
+gensio::Serial_Gensio *cast_to_serial_gensio(gensio::Gensio *g) {
+    gensio_ref(g->get_gensio());
+    return dynamic_cast<gensio::Serial_Gensio *>(g);
+}
 %}
 
 %rename("") gensio::Serial_Gensio::baud;
@@ -919,6 +945,17 @@ gensio::Gensio *gensio_alloct(gensio::Gensio *child, std::string str,
 %rename("") gensio::Serial_Gensio::dcd_dsr;
 %rename("") gensio::Serial_Gensio::ri;
 %rename("") gensio::Serial_Gensio::signature;
+%rename("") gensio::Serial_Gensio::baud_s;
+%rename("") gensio::Serial_Gensio::datasize_s;
+%rename("") gensio::Serial_Gensio::parity_s;
+%rename("") gensio::Serial_Gensio::stopbits_s;
+%rename("") gensio::Serial_Gensio::flowcontrol_s;
+%rename("") gensio::Serial_Gensio::iflowcontrol_s;
+%rename("") gensio::Serial_Gensio::sbreak_s;
+%rename("") gensio::Serial_Gensio::dtr_s;
+%rename("") gensio::Serial_Gensio::rts_s;
+%rename("") gensio::Serial_Gensio::dcd_dsr_s;
+%rename("") gensio::Serial_Gensio::ri_s;
 %extend gensio::Serial_Gensio {
     void baud(unsigned int baud, gensio::Serial_Op_Done *done)
     {
@@ -1016,15 +1053,146 @@ gensio::Gensio *gensio_alloct(gensio::Gensio *child, std::string str,
 	self->ri(ri, (gensio::Serial_Op_Done *) pydone);
     }
 
-    void signature(const char *sig, unsigned int len,
+    void signature(const std::vector<unsigned char> sig,
 		   gensio::Serial_Op_Sig_Done *done)
     {
 	Py_Serial_Op_Sig_Done *pydone = NULL;
 	if (done)
 	    pydone = new Py_Serial_Op_Sig_Done(done);
-	self->signature(sig, len, (gensio::Serial_Op_Sig_Done *) pydone);
+	self->signature(sig, (gensio::Serial_Op_Sig_Done *) pydone);
     }
 
+    int baud_s(unsigned int *outval,
+	       unsigned int baud, gensio_time *timeout = NULL,
+	       bool intr = false)
+    {
+	int rv = self->baud_s(&baud, timeout, intr);
+	if (rv)
+	    return rv;
+	*outval = baud;
+	return 0;
+    }
+
+    int datasize_s(unsigned int *outval,
+		   unsigned int size, gensio_time *timeout = NULL,
+		   bool intr = false)
+    {
+	int rv = self->datasize_s(&size, timeout, intr);
+	if (rv)
+	    return rv;
+	*outval = size;
+	return 0;
+    }
+
+    int parity_s(unsigned int *outval,
+		 unsigned int par, gensio_time *timeout = NULL,
+		 bool intr = false)
+    {
+	int rv = self->parity_s(&par, timeout, intr);
+	if (rv)
+	    return rv;
+	*outval = par;
+	return 0;
+    }
+
+    int stopbits_s(unsigned int *outval,
+		   unsigned int bits, gensio_time *timeout = NULL,
+		   bool intr = false)
+    {
+	int rv = self->stopbits_s(&bits, timeout, intr);
+	if (rv)
+	    return rv;
+	*outval = bits;
+	return 0;
+    }
+
+    int flowcontrol_s(unsigned int *outval,
+		      unsigned int flow, gensio_time *timeout = NULL,
+		      bool intr = false)
+    {
+	int rv = self->flowcontrol_s(&flow, timeout, intr);
+	if (rv)
+	    return rv;
+	*outval = flow;
+	return 0;
+    }
+
+    int iflowcontrol_s(unsigned int *outval,
+		       unsigned int flow, gensio_time *timeout = NULL,
+		       bool intr = false)
+    {
+	int rv = self->iflowcontrol_s(&flow, timeout, intr);
+	if (rv)
+	    return rv;
+	*outval = flow;
+	return 0;
+    }
+
+    int sbreak_s(unsigned int *outval,
+		 unsigned int sbreak, gensio_time *timeout = NULL,
+		 bool intr = false)
+    {
+	int rv = self->sbreak_s(&sbreak, timeout, intr);
+	if (rv)
+	    return rv;
+	*outval = sbreak;
+	return 0;
+    }
+
+    int dtr_s(unsigned int *outval,
+	      unsigned int dtr, gensio_time *timeout = NULL,
+	      bool intr = false)
+    {
+	int rv = self->dtr_s(&dtr, timeout, intr);
+	if (rv)
+	    return rv;
+	*outval = dtr;
+	return 0;
+    }
+
+    int rts_s(unsigned int *outval,
+	      unsigned int rts, gensio_time *timeout = NULL,
+	      bool intr = false)
+    {
+	int rv = self->rts_s(&rts, timeout, intr);
+	if (rv)
+	    return rv;
+	*outval = rts;
+	return 0;
+    }
+
+    int cts_s(unsigned int *outval,
+	      unsigned int cts, gensio_time *timeout = NULL,
+	      bool intr = false)
+    {
+	int rv = self->cts_s(&cts, timeout, intr);
+	if (rv)
+	    return rv;
+	*outval = cts;
+	return 0;
+    }
+
+    int dcd_dsr_s(unsigned int *outval,
+		  unsigned int dcd_dsr, gensio_time *timeout = NULL,
+		  bool intr = false)
+    {
+	int rv = self->dcd_dsr_s(&dcd_dsr, timeout, intr);
+	if (rv)
+	    return rv;
+	*outval = dcd_dsr;
+	return 0;
+    }
+
+    int ri_s(unsigned int *outval,
+	     unsigned int ri, gensio_time *timeout = NULL,
+	     bool intr = false)
+    {
+	int rv = self->ri_s(&ri, timeout, intr);
+	if (rv)
+	    return rv;
+	*outval = ri;
+	return 0;
+    }
 }
 
 %rename("") gensio::gensio_acc_alloc;
