@@ -571,12 +571,12 @@ namespace gensio {
 	virtual void modemstate(unsigned int state) { }
 	// See sergensio_linestate.3 for details
 	virtual void linestate(unsigned int state) { }
+	virtual void flow_state(bool state) { }
+	virtual void sync() { }
 
 	// Server side calls, used when the client requests changes.  See sergensio_xxx
-	virtual void signature(const char *sig, gensiods len) { }
-	virtual void flow_state(bool state) { }
+	virtual void signature(const std::vector<unsigned char> data) { }
 	virtual void flush(unsigned int val) { }
-	virtual void sync() { }
 	virtual void baud(unsigned int speed) { }
 	virtual void datasize(unsigned int size) { }
 	virtual void parity(unsigned int par) { }
@@ -604,8 +604,8 @@ namespace gensio {
     class GENSIOCPP_DLL_PUBLIC Serial_Op_Sig_Done {
     public:
 	virtual void serial_op_sig_done(int err,
-					const char *sig,
-					unsigned int siglen) = 0;
+				const std::vector<unsigned char> data) = 0;
+
 	virtual ~Serial_Op_Sig_Done() = default;
     };
 
@@ -651,7 +651,7 @@ namespace gensio {
 	void cts(unsigned int cts, Serial_Op_Done *done);
 	void dcd_dsr(unsigned int dcd_dsr, Serial_Op_Done *done);
 	void ri(unsigned int ri, Serial_Op_Done *done);
-	void signature(const char *sig, unsigned int len,
+	void signature(const std::vector<unsigned char> sig,
 		       Serial_Op_Sig_Done *done);
 
 	// If you pass in a valid timeout, this will return GE_TIMEDOUT

@@ -224,7 +224,8 @@ namespace gensio {
 			return GE_NOTSUP;
 
 		    if (event == GENSIO_EVENT_SER_SIGNATURE) {
-			scb->signature((char *) buf, *buflen);
+			std::vector<unsigned char> sig(buf, buf + *buflen);
+			scb->signature(sig);
 			return 0;
 		    }
 
@@ -1356,19 +1357,21 @@ namespace gensio {
 					      struct gensio_cpp_data, frdata);
 	Serial_Gensio *sg = (Serial_Gensio *) d->g;
 	Serial_Op_Sig_Done *done = static_cast<Serial_Op_Sig_Done *>(cb_data);
+	std::vector<unsigned char> sigv(sig, sig + len);
 
-	done->serial_op_sig_done(err, sig, len);
+	done->serial_op_sig_done(err, sigv);
     }
 
-    void Serial_Gensio::signature(const char *sig, unsigned int len,
-				      Serial_Op_Sig_Done *done)
+    void Serial_Gensio::signature(const std::vector<unsigned char> sig,
+				  Serial_Op_Sig_Done *done)
     {
 	int err;
 	sergensio_done_sig donefunc = sergensio_cpp_sig_done;
 
 	if (!done)
 	    donefunc = NULL;
-	err = sergensio_signature(sio, sig, len, donefunc, done);
+	err = sergensio_signature(sio, (const char *) sig.data(), sig.size(),
+				  donefunc, done);
 	if (err)
 	    throw gensio_error(err);
     }
