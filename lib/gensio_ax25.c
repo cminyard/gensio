@@ -1348,7 +1348,10 @@ ax25_chan_deliver_read(struct ax25_chan *chan)
 			&rcount, auxdata);
 	ax25_chan_lock(chan);
 	if (err) {
-	    ax25_chan_do_err_close(chan, err);
+	    if (!chan->err) {
+		chan->err = err;
+		ax25_chan_do_err_close(chan, true);
+	    }
 	    break;
 	}
 	if (rcount < d->len) {
@@ -1392,7 +1395,10 @@ ax25_chan_deliver_write_ready(struct ax25_chan *chan)
 			NULL, NULL);
 	ax25_chan_lock(chan);
 	if (err) {
-	    ax25_chan_do_err_close(chan, err);
+	    if (!chan->err) {
+		chan->err = err;
+		ax25_chan_do_err_close(chan, true);
+	    }
 	    break;
 	}
     }
