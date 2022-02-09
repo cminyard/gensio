@@ -1093,11 +1093,9 @@ gensio_mdns_add_watch(struct gensio_mdns *m,
     err = GE_NOMEM;
 
     gensio_avahi_lock(m->ap);
-    if (m->state == AVAHI_CLIENT_S_RUNNING) {
+    if (m->state == AVAHI_CLIENT_S_RUNNING)
 	avahi_add_watch(w);
-	gensio_list_add_tail(&m->watches, &w->link);
-    } else if (w->browser)
-	gensio_list_add_tail(&m->watches, &w->link);
+    gensio_list_add_tail(&m->watches, &w->link);
     gensio_avahi_unlock(m->ap);
     if (m->state == AVAHI_CLIENT_S_RUNNING && !w->browser)
 	goto out_err;
