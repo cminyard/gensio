@@ -1200,6 +1200,15 @@ namespace gensio {
 	done->serial_op_done(err, val);
     }
 
+    void Serial_Gensio::flush(unsigned int flush)
+    {
+	int err;
+
+	err = sergensio_flush(sio, flush);
+	if (err)
+	    throw gensio_error(err);
+    }
+
     void Serial_Gensio::baud(unsigned int baud, Serial_Op_Done *done)
     {
 	int err;

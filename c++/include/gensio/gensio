@@ -585,7 +585,7 @@ namespace gensio {
 	virtual void iflowcontrol(unsigned int flow) { }
 	virtual void sbreak(unsigned int sbreak) { }
 	virtual void dtr(unsigned int dtr) { }
-	virtual void rts(unsigned int dsr) { }
+	virtual void rts(unsigned int rts) { }
 
 	virtual ~Serial_Event() = default;
     };
@@ -639,6 +639,7 @@ namespace gensio {
 	Serial_Gensio &operator=(const Serial_Gensio&) = delete;
 
 	// Non-blocking variants of these calls
+	void flush(unsigned int flush);
 	void baud(unsigned int baud, Serial_Op_Done *done);
 	void datasize(unsigned int size, Serial_Op_Done *done);
 	void parity(unsigned int par, Serial_Op_Done *done);
