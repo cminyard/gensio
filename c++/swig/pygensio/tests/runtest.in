@@ -82,6 +82,9 @@ else
     for i in default @TCL_DIR@ @GLIB_DIR@; do
 	echo "Testing with '$i'"
 	export GENSIO_TEST_OS_HANDLER=$i
-	${RUNPREFIX} ${TEST} $*
+	if ! ${RUNPREFIX} ${TEST} $*; then
+	    # A test failed, exit
+	    exit 1
+	fi
     done
 fi
