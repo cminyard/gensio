@@ -1467,15 +1467,15 @@ static int ipmisol_do_flush(struct gensio_ll *ll, int val)
     int rv;
 
     switch(val) {
-    case SERGIO_FLUSH_RCV_BUFFER:
+    case SERGENSIO_FLUSH_RCV_BUFFER:
 	val = IPMI_SOL_BMC_RECEIVE_QUEUE;
 	break;
 
-    case SERGIO_FLUSH_XMIT_BUFFER:
+    case SERGENSIO_FLUSH_XMIT_BUFFER:
 	val = IPMI_SOL_BMC_TRANSMIT_QUEUE;
 	break;
 
-    case SERGIO_FLUSH_RCV_XMIT_BUFFERS:
+    case SERGENSIO_FLUSH_RCV_XMIT_BUFFERS:
 	return GE_NOTSUP;
 
     default:
