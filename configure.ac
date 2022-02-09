@@ -552,6 +552,36 @@ AC_SUBST(PYTHON_SWIG_FLAGS)
 PYTHON_EXECUTABLE="${PYTHON}"
 AC_SUBST(PYTHON_EXECUTABLE)
 
+trygo=yes
+GOPROG=
+AC_ARG_WITH(go,
+ [AS_HELP_STRING([--with-go[[=yes|no|PATH]]],
+		 [Look for go, with the optional path.])],
+    if test "x$withval" = "x"; then
+      trygo=yes
+    elif test "x$withval" = "xyes"; then
+      trygo=yes
+    elif test "x$withval" = "xno"; then
+      trygo=no
+    else
+      GOPROG="$withval"
+      trygo=yes
+    fi,
+)
+
+GODIR=
+if test $trygo = yes; then
+	if test "x$GOPROG" = "x"; then
+		AC_CHECK_TOOL([GOPROG], [go], [])
+	fi
+fi
+if test "x$GOPROG" != "x"; then
+	AC_DEFINE([HAVE_GO], [], [Have swig installed])
+	GO_DIR=go
+fi
+AC_SUBST(GOPROG)
+AC_SUBST(GO_DIR)
+
 HAVE_LIBSCTP=0
 if test "x$trysctp" != "xno"; then
    AC_CHECK_LIB(sctp, sctp_bindx,
