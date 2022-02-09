@@ -601,6 +601,8 @@ static void telnet_filter_send_option(struct gensio_filter *filter,
 
     telnet_lock(tfilter);
     telnet_send_option(&tfilter->tn_data, buf, len);
+    tfilter->filter_cb(tfilter->filter_cb_data,
+		       GENSIO_FILTER_CB_OUTPUT_READY, NULL);
     telnet_unlock(tfilter);
 }
 
