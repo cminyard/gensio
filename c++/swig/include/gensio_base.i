@@ -132,6 +132,31 @@ using namespace gensio;
 }
 %ignore gensio::Serial_Gensio::~Serial_Gensio();
 
+%catches(gensio::gensio_error) gensio::Serial_Gensio::baud;
+%catches(gensio::gensio_error) gensio::Serial_Gensio::datasize;
+%catches(gensio::gensio_error) gensio::Serial_Gensio::parity;
+%catches(gensio::gensio_error) gensio::Serial_Gensio::stopbits;
+%catches(gensio::gensio_error) gensio::Serial_Gensio::flowcontrol;
+%catches(gensio::gensio_error) gensio::Serial_Gensio::iflowcontrol;
+%catches(gensio::gensio_error) gensio::Serial_Gensio::sbreak;
+%catches(gensio::gensio_error) gensio::Serial_Gensio::dtr;
+%catches(gensio::gensio_error) gensio::Serial_Gensio::rts;
+%catches(gensio::gensio_error) gensio::Serial_Gensio::dcd_dsr;
+%catches(gensio::gensio_error) gensio::Serial_Gensio::ri;
+%catches(gensio::gensio_error) gensio::Serial_Gensio::signature;
+%catches(gensio::gensio_error) gensio::Serial_Gensio::baud_s;
+%catches(gensio::gensio_error) gensio::Serial_Gensio::datasize_s;
+%catches(gensio::gensio_error) gensio::Serial_Gensio::parity_s;
+%catches(gensio::gensio_error) gensio::Serial_Gensio::stopbits_s;
+%catches(gensio::gensio_error) gensio::Serial_Gensio::flowcontrol_s;
+%catches(gensio::gensio_error) gensio::Serial_Gensio::iflowcontrol_s;
+%catches(gensio::gensio_error) gensio::Serial_Gensio::sbreak_s;
+%catches(gensio::gensio_error) gensio::Serial_Gensio::dtr_s;
+%catches(gensio::gensio_error) gensio::Serial_Gensio::rts_s;
+%catches(gensio::gensio_error) gensio::Serial_Gensio::dcd_dsr_s;
+%catches(gensio::gensio_error) gensio::Serial_Gensio::ri_s;
+%catches(gensio::gensio_error) gensio::Serial_Gensio::signature_s;
+
 ////////////////////////////////////////////////////
 // Accepter
 // Constructor is deleted.
@@ -243,3 +268,10 @@ const int GENSIO_LOG_DEBUG = GENSIO_LOG_DEBUG;
 const int GENSIO_MDNS_NEW_DATA = GENSIO_MDNS_NEW_DATA;
 const int GENSIO_MDNS_DATA_GONE = GENSIO_MDNS_DATA_GONE;
 const int GENSIO_MDNS_ALL_FOR_NOW = GENSIO_MDNS_ALL_FOR_NOW;
+
+////////////////////////////////////////////////////
+// Pull some constants from sergensio.h
+%ignore "";
+%rename("%s", regextarget=1) "SERGENSIO_.*";
+%include <gensio/sergensio.h>
+%rename("%s") "";
