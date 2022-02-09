@@ -7,8 +7,12 @@
 
 # Test mdns interfaces
 
-import pygensio
 import sys
+import gensios_enabled
+if not gensios_enabled.check_gensio_enabled("mdns"):
+    sys.exit(77)
+
+import pygensio
 from testbase import *
 
 class Free_Done(pygensio.MDNS_Free_Done):

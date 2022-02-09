@@ -53,7 +53,7 @@ else
 fi
 
 if ${PYTHON_MODE}; then
-    export PYTHONPATH=${BUILDDIR}/c++/swig/pygensio:${BUILDDIR}/c++/swig/pygensio/.libs:${SRCDIR}/c++/swig/pygensio/test:${BUILDDIR}/glib/c++/swig/pygensio:${BUILDDIR}/glib/c++/swig/pygensio/.libs:${BUILDDIR}/tcl/c++/swig/pygensio:${BUILDDIR}/tcl/c++/swig/pygensio/.libs:${TEST_BUILDDIR}
+    export PYTHONPATH=${BUILDDIR}/tests:${BUILDDIR}/c++/swig/pygensio:${BUILDDIR}/c++/swig/pygensio/.libs:${SRCDIR}/c++/swig/pygensio/test:${BUILDDIR}/glib/c++/swig/pygensio:${BUILDDIR}/glib/c++/swig/pygensio/.libs:${BUILDDIR}/tcl/c++/swig/pygensio:${BUILDDIR}/tcl/c++/swig/pygensio/.libs:${TEST_BUILDDIR}
     # We need to put the DLL in PATH for MSYS on Windows
     if [ ! -z "$MSYSTEM" ]; then
 	export PATH=${BUILDDIR}/lib:${BUILDDIR}/lib/.libs:$PATH:${BUILDDIR}/c++/swig/python/.libs:${BUILDDIR}/glib/.libs:${BUILDDIR}/glib/c++/swig/pygensio/.libs:${BUILDDIR}/tcl/.libs:${BUILDDIR}/tcl/c++/swig/pygensio/.libs
