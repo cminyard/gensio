@@ -942,6 +942,7 @@ gensio::Serial_Gensio *cast_to_serial_gensio(gensio::Gensio *g) {
 %rename("") gensio::Serial_Gensio::sbreak;
 %rename("") gensio::Serial_Gensio::dtr;
 %rename("") gensio::Serial_Gensio::rts;
+%rename("") gensio::Serial_Gensio::cts;
 %rename("") gensio::Serial_Gensio::dcd_dsr;
 %rename("") gensio::Serial_Gensio::ri;
 %rename("") gensio::Serial_Gensio::signature;
@@ -954,6 +955,7 @@ gensio::Serial_Gensio *cast_to_serial_gensio(gensio::Gensio *g) {
 %rename("") gensio::Serial_Gensio::sbreak_s;
 %rename("") gensio::Serial_Gensio::dtr_s;
 %rename("") gensio::Serial_Gensio::rts_s;
+%rename("") gensio::Serial_Gensio::cts_s;
 %rename("") gensio::Serial_Gensio::dcd_dsr_s;
 %rename("") gensio::Serial_Gensio::ri_s;
 %extend gensio::Serial_Gensio {
