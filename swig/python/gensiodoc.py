@@ -209,8 +209,8 @@ class EventHandler:
         requested.
 
         sio -- The sergensio object requesting the flush.
-        val -- The flush type, one of SERGIO_FLUSH_RCV_BUFFER,
-            SERGIO_FLUSH_XMIT_BUFFER, or SERGIO_FLUSH_RCV_XMIT_BUFFERS.
+        val -- The flush type, one of SERGENSIO_FLUSH_RCV_BUFFER,
+            SERGENSIO_FLUSH_XMIT_BUFFER, or SERGENSIO_FLUSH_RCV_XMIT_BUFFERS.
         """
         return
 
@@ -815,8 +815,8 @@ class sergensio:
     def sg_flush(self, val):
         """Request that the remote end do a data flush.
 
-        val -- The flush type, one of SERGIO_FLUSH_RCV_BUFFER,
-            SERGIO_FLUSH_XMIT_BUFFER, or SERGIO_FLUSH_RCV_XMIT_BUFFERS.
+        val -- The flush type, one of SERGENSIO_FLUSH_RCV_BUFFER,
+            SERGENSIO_FLUSH_XMIT_BUFFER, or SERGENSIO_FLUSH_RCV_XMIT_BUFFERS.
         """
         return
 

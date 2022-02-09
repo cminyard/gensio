@@ -184,11 +184,15 @@ int sergensio_flowcontrol_state(struct sergensio *sio, bool val);
 /*
  * Tell the remote end to flush its buffers.
  */
+#define SERGENSIO_FLUSH_RCV_BUFFER		1
+#define SERGENSIO_FLUSH_XMIT_BUFFER		2
+#define SERGENSIO_FLUSH_RCV_XMIT_BUFFERS	3
+GENSIO_DLL_PUBLIC
+int sergensio_flush(struct sergensio *sio, unsigned int val);
+/* These were misnamed, their use is deprecated. */
 #define SERGIO_FLUSH_RCV_BUFFER		1
 #define SERGIO_FLUSH_XMIT_BUFFER	2
 #define SERGIO_FLUSH_RCV_XMIT_BUFFERS	3
-GENSIO_DLL_PUBLIC
-int sergensio_flush(struct sergensio *sio, unsigned int val);
 
 /*
  * Tell the remote end to send a break.

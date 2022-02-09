@@ -655,9 +655,9 @@ sterm_flush(struct sergensio *sio, unsigned int val)
     int tval;
 
     switch(val) {
-    case SERGIO_FLUSH_RCV_BUFFER:	tval = GENSIO_IN_BUF; break;
-    case SERGIO_FLUSH_XMIT_BUFFER:	tval = GENSIO_OUT_BUF; break;
-    case SERGIO_FLUSH_RCV_XMIT_BUFFERS:
+    case SERGENSIO_FLUSH_RCV_BUFFER:	tval = GENSIO_IN_BUF; break;
+    case SERGENSIO_FLUSH_XMIT_BUFFER:	tval = GENSIO_OUT_BUF; break;
+    case SERGENSIO_FLUSH_RCV_XMIT_BUFFERS:
 	tval = GENSIO_IN_BUF | GENSIO_OUT_BUF;
 	break;
     default:

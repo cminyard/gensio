@@ -90,8 +90,8 @@ if (io1.handler.wait_timeout(1000) == 0):
 
 print("Testing flush")
 # Flush is hard to test, just make sure it doesn't crash.
-sio2.sg_flush(gensio.SERGIO_FLUSH_RCV_BUFFER)
-sio2.sg_flush(gensio.SERGIO_FLUSH_XMIT_BUFFER)
+sio2.sg_flush(gensio.SERGENSIO_FLUSH_RCV_BUFFER)
+sio2.sg_flush(gensio.SERGENSIO_FLUSH_XMIT_BUFFER)
 
 print("Testing CTS")
 io1.handler.set_expected_modemstate(gensio.SERGENSIO_MODEMSTATE_CTS_CHANGED |
