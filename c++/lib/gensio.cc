@@ -2509,6 +2509,7 @@ namespace gensio {
 	if (!user_data)
 	    return;
 	MDNS_Free_Done *done = static_cast<MDNS_Free_Done *>(user_data);
+	MDNS *mdns = done->m;
 
 	try {
 	    done->mdns_free_done();
@@ -2517,7 +2518,7 @@ namespace gensio {
 		       "Received C++ exception in mdns open done handler: %s",
 		       e.what());
 	}
-	delete done->m;
+	delete mdns;
     }
 
     void MDNS::free(MDNS_Free_Done *done)
@@ -2663,6 +2664,7 @@ namespace gensio {
 	    return;
 	MDNS_Watch_Free_Done *done =
 	    static_cast<MDNS_Watch_Free_Done *>(user_data);
+	MDNS_Watch *watch = done->w;
 
 	try {
 	    done->mdns_watch_free_done();
@@ -2671,7 +2673,7 @@ namespace gensio {
 		       "Received C++ exception in mdns watch done handler: %s",
 		       e.what());
 	}
-	delete done->w;
+	delete watch;
     }
 
     void MDNS_Watch::free(MDNS_Watch_Free_Done *done)

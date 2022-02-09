@@ -1093,7 +1093,7 @@ namespace gensio {
 
 	virtual ~MDNS_Watch_Free_Done() = default;
     private:
-	MDNS_Watch *w;
+	MDNS_Watch *w = NULL;
         friend void mdns_watch_free_done(struct gensio_mdns_watch *w,
 					 void *userdata);
 	friend class MDNS_Watch;
