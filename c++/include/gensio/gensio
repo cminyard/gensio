@@ -311,14 +311,14 @@ namespace gensio {
     // particular string provided.
     GENSIOCPP_DLL_PUBLIC
     Gensio *gensio_alloc(std::string str, Os_Funcs &o,
-			 Event *cb);
+			 Event *cb = NULL);
 
     // Like the above, but stacks the newly created gensio as defined
     // by str on top of the given gensio.  This can be used to
     // dynamically add gensios to a gensio stack.
     GENSIOCPP_DLL_PUBLIC
     Gensio *gensio_alloc(Gensio *child, std::string str,
-			 Os_Funcs &o, Event *cb);
+			 Os_Funcs &o, Event *cb = NULL);
 
     class GENSIOCPP_DLL_PUBLIC Raw_Event_Handler {
     public:
@@ -358,7 +358,7 @@ namespace gensio {
 	// gensios delivered via new_channel() or in an accepter can
 	// get their event handlers set.  It's a bad idea to change
 	// the event handler on a running gensio.
-	inline void set_event_handler(Event *cb) { gcb = cb; }
+	inline void set_event_handler(Event *cb = NULL) { gcb = cb; }
 
 	// Open a gensio.  When the done handler is called it is ready
 	// (unless it reports an error).
@@ -395,7 +395,7 @@ namespace gensio {
 	// arguments, and use the given event handler for it.  How
 	// this works depends on the particular gensio, see gensio.5
 	// for details.
-	Gensio *alloc_channel(const char *const *args, Event *cb);
+	Gensio *alloc_channel(const char *const *args, Event *cb = NULL);
 
 	// Close the given gensio.  When the close completely call the
 	// done handler.
@@ -531,10 +531,10 @@ namespace gensio {
     // returns.
     class GensioW {
     public:
-	GensioW(std::string str, Os_Funcs &o, Event *cb) {
+	GensioW(std::string str, Os_Funcs &o, Event *cb = NULL) {
 	    io = gensio_alloc(str, o, cb);
 	}
-	GensioW(Gensio *child, std::string str, Os_Funcs &o, Event *cb) {
+	GensioW(Gensio *child, std::string str, Os_Funcs &o, Event *cb = NULL) {
 	    io = gensio_alloc(child, str, o, cb);
 	}
 	// Take over an existing gensio.
@@ -790,14 +790,14 @@ namespace gensio {
     GENSIOCPP_DLL_PUBLIC
     Accepter *gensio_acc_alloc(std::string str,
 			       Os_Funcs &o,
-			       Accepter_Event *cb);
+			       Accepter_Event *cb = NULL);
 
     // Like above, but stack the accepter on top of an existing
     // accepter stack given in child.
     GENSIOCPP_DLL_PUBLIC
     Accepter *gensio_acc_alloc(Accepter *child, std::string str,
 			       Os_Funcs &o,
-			       Accepter_Event *cb);
+			       Accepter_Event *cb = NULL);
 
     class GENSIOCPP_DLL_PUBLIC Accepter {
     public:
@@ -815,7 +815,7 @@ namespace gensio {
 
 	// Set the callback object.  Not really very useful, and you
 	// shouldn't do this while the accepter is started.
-	inline void set_event_handler(Accepter_Event *cb) { gcb = cb; }
+	inline void set_event_handler(Accepter_Event *cb = NULL) { gcb = cb; }
 
 	// Start accepting connections.  You still need to set the
 	// enable to actual receive connections, this opens the
@@ -870,7 +870,7 @@ namespace gensio {
 	// packets will come from this accepter's socket and packets
 	// received on this accepters's socket from the given remote
 	// end will be sent to this gensio.
-	Gensio *str_to_gensio(std::string str, Event *cb);
+	Gensio *str_to_gensio(std::string str, Event *cb = NULL);
 
 	// Return the type string for the accepter.
 	inline const char *get_type(unsigned int depth)
@@ -937,11 +937,11 @@ namespace gensio {
     // returns.
     class AccepterW {
     public:
-	AccepterW(std::string str, Os_Funcs &o, Accepter_Event *cb) {
+	AccepterW(std::string str, Os_Funcs &o, Accepter_Event *cb = NULL) {
 	    acc = gensio_acc_alloc(str, o, cb);
 	}
 	AccepterW(Accepter *child, std::string str, Os_Funcs &o,
-		  Accepter_Event *cb) {
+		  Accepter_Event *cb = NULL) {
 	    acc = gensio_acc_alloc(child, str, o, cb);
 	}
 	// Take over an existing accepter.
