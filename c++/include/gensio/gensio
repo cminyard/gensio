@@ -56,6 +56,8 @@ namespace gensio {
     std::string log_level_to_str(enum gensio_log_levels level) {
 	return std::string(gensio_log_level_to_str(level));
     }
+    void set_log_mask(int mask) { gensio_set_log_mask(mask); }
+    int get_log_mask() { return gensio_get_log_mask(); }
 
     // This is a wrapper for gensio_os_funcs that makes using it a lot
     // cleaner.  The default constructor automatically allocates the
