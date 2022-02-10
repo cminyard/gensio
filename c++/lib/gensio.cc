@@ -880,7 +880,10 @@ namespace gensio {
     {
 	int err;
 
-	err = gensio_close(io, gensio_cpp_close_done, done);
+	if (done)
+	    err = gensio_close(io, gensio_cpp_close_done, done);
+	else
+	    err = gensio_close(io, NULL, NULL);
 	if (err)
 	    throw gensio_error(err);
     }
@@ -2121,7 +2124,10 @@ namespace gensio {
     {
 	int err;
 
-	err = gensio_acc_shutdown(acc, gensio_acc_cpp_shutdown_done, done);
+	if (done)
+	    err = gensio_acc_shutdown(acc, gensio_acc_cpp_shutdown_done, done);
+	else
+	    err = gensio_acc_shutdown(acc, NULL, NULL);;
 	if (err)
 	    throw gensio_error(err);
     }
@@ -2158,10 +2164,14 @@ namespace gensio {
     {
 	int err;
 
-	err = gensio_acc_set_accept_callback_enable_cb(acc,
+	if (done)
+	    err = gensio_acc_set_accept_callback_enable_cb(acc,
 						enabled,
 						gensio_acc_cpp_enable_done,
 						done);
+	else
+	    err = gensio_acc_set_accept_callback_enable_cb(acc, enabled,
+							   NULL, NULL);
 	if (err)
 	    throw gensio_error(err);
     }

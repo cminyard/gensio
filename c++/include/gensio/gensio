@@ -399,7 +399,7 @@ namespace gensio {
 
 	// Close the given gensio.  When the close completely call the
 	// done handler.
-	void close(Gensio_Close_Done *done);
+	void close(Gensio_Close_Done *done = NULL);
 
 	// Like the above, but do it synchronosly.
 	void close_s();
@@ -642,20 +642,20 @@ namespace gensio {
 
 	// Non-blocking variants of these calls
 	void flush(unsigned int flush);
-	void baud(unsigned int baud, Serial_Op_Done *done);
-	void datasize(unsigned int size, Serial_Op_Done *done);
-	void parity(unsigned int par, Serial_Op_Done *done);
-	void stopbits(unsigned int bits, Serial_Op_Done *done);
-	void flowcontrol(unsigned int flow, Serial_Op_Done *done);
-	void iflowcontrol(unsigned int flow, Serial_Op_Done *done);
-	void sbreak(unsigned int sbreak, Serial_Op_Done *done);
-	void dtr(unsigned int dtr, Serial_Op_Done *done);
-	void rts(unsigned int rts, Serial_Op_Done *done);
-	void cts(unsigned int cts, Serial_Op_Done *done);
-	void dcd_dsr(unsigned int dcd_dsr, Serial_Op_Done *done);
-	void ri(unsigned int ri, Serial_Op_Done *done);
+	void baud(unsigned int baud, Serial_Op_Done *done = NULL);
+	void datasize(unsigned int size, Serial_Op_Done *done = NULL);
+	void parity(unsigned int par, Serial_Op_Done *done = NULL);
+	void stopbits(unsigned int bits, Serial_Op_Done *done = NULL);
+	void flowcontrol(unsigned int flow, Serial_Op_Done *done = NULL);
+	void iflowcontrol(unsigned int flow, Serial_Op_Done *done = NULL);
+	void sbreak(unsigned int sbreak, Serial_Op_Done *done = NULL);
+	void dtr(unsigned int dtr, Serial_Op_Done *done = NULL);
+	void rts(unsigned int rts, Serial_Op_Done *done = NULL);
+	void cts(unsigned int cts, Serial_Op_Done *done = NULL);
+	void dcd_dsr(unsigned int dcd_dsr, Serial_Op_Done *done = NULL);
+	void ri(unsigned int ri, Serial_Op_Done *done = NULL);
 	void signature(const std::vector<unsigned char> sig,
-		       Serial_Op_Sig_Done *done);
+		       Serial_Op_Sig_Done *done = NULL);
 
 	// If you pass in a valid timeout, this will return GE_TIMEDOUT
 	// on a timeout.  If you set intr to true, it will return
@@ -825,7 +825,7 @@ namespace gensio {
 	// Shutdown the accepter, closing the accept socket or
 	// whatever is required for the gensio.  The done will be
 	// called when the shutdown is complete.
-	void shutdown(Accepter_Shutdown_Done *done);
+	void shutdown(Accepter_Shutdown_Done *done = NULL);
 
 	// Shutdown and block until it completes.
 	void shutdown_s();
@@ -834,18 +834,14 @@ namespace gensio {
 	// This is not for normal use.
 	void disable() { gensio_acc_disable(acc); }
 
-	// Set the enable for receiving accepts.  Note that if you
-	// disable this, there may still be callbacks pending on the
-	// gensio.  Don't assume that when this returns there are no
-	// callbacks pending.
-	inline void set_callback_enable(bool enabled)
-	{ gensio_acc_set_accept_callback_enable(acc, enabled); }
-
 	// Set the enable/disable, but call the done function when the
-	// enable/disable completes.  Not really useful for enable,
-	// but it can let you know that no callbacks are pending on a
-	// disable.
-	void set_callback_enable(bool enabled, Accepter_Enable_Done *done);
+	// enable/disable completes, unless done is NULL.  Using done
+	// is not really useful for enable, but it can let you know
+	// that no callbacks are pending on a disable.  If you don't
+	// have a done handler on a disable, you won't know when all
+	// the callbacks are done.
+	void set_callback_enable(bool enabled,
+				 Accepter_Enable_Done *done = NULL);
 
 	// Synchronous enable/disable, won't return until the
 	// enable/disable completes.
@@ -1059,7 +1055,7 @@ namespace gensio {
 	// Like a gensio, you cannot directly delete an MDNS object.
 	// It may be in callbacks.  You have to go through a special
 	// free operation.  See the Gensio free() method for details.
-	void free(MDNS_Free_Done *done);
+	void free(MDNS_Free_Done *done = NULL);
     protected:
 	virtual ~MDNS() { }
 	Os_Funcs go;
@@ -1145,7 +1141,7 @@ namespace gensio {
 	// Like a gensio, you cannot directly delete an MDNS_Watch object.
 	// It may be in callbacks.  You have to go through a special
 	// free operation.  See the Gensio free() method for details.
-	void free(MDNS_Watch_Free_Done *done);
+	void free(MDNS_Watch_Free_Done *done = NULL);
 
 	// This allows the user to intercept raw events, it is primarily
 	// used to help other language bindings tie in things they need.
