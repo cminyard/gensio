@@ -232,15 +232,11 @@ using namespace gensio;
 %rename("%s") gensio_time;
 %rename("%s") gensio_time::secs;
 %rename("%s") gensio_time::nsecs;
-%rename("%s") gensio_log_level;
+%rename("%s") gensio_log_levels;
+%rename("%s", regextarget=1) "GENSIO_LOG_.*";
 %rename("%s") gensiods;
 %include <gensio/gensio_types.h>
 %rename("%s") "";
-const int GENSIO_LOG_FATAL = GENSIO_LOG_FATAL;
-const int GENSIO_LOG_ERR = GENSIO_LOG_ERR;
-const int GENSIO_LOG_WARNING = GENSIO_LOG_WARNING;
-const int GENSIO_LOG_INFO = GENSIO_LOG_INFO;
-const int GENSIO_LOG_DEBUG = GENSIO_LOG_DEBUG;
 
 ////////////////////////////////////////////////////
 // gensio_time
