@@ -331,16 +331,11 @@ static bool check_for_err(int err)
     $input = SWIG_NewPointerObj(SWIG_as_voidptr($1),
 				SWIGTYPE_p_gensio__Gensio, SWIG_POINTER_OWN);
 }
-%typemap(directorin) gensio::Gensio *g {
+%typemap(directorin) gensio::Gensio *tmpg {
     // Don't set SWIG_POINTER_OWN on this, we don't want python refcounts
     // managing it.
     $input = SWIG_NewPointerObj(SWIG_as_voidptr($1),
 				SWIGTYPE_p_gensio__Gensio, 0);
-}
-%typemap(out) gensio::Gensio * {
-    $result = SWIG_NewPointerObj(SWIG_as_voidptr($1),
-				 SWIGTYPE_p_gensio__Gensio,
-				 SWIG_POINTER_OWN |  0 );
 }
 %typemap(in, numinputs=0) gensio::Gensio **gret (Gensio *temp = NULL)  {
     $1 = &temp;
@@ -356,12 +351,6 @@ static bool check_for_err(int err)
 	Py_INCREF(Py_None);
     }
     $result = PI_add_result($result, val);
-}
-
-%typemap(out) gensio::Accepter * {
-    $result = SWIG_NewPointerObj(SWIG_as_voidptr($1),
-				 SWIGTYPE_p_gensio__Accepter,
-				 SWIG_POINTER_OWN |  0 );
 }
 
 %typemap(in, numinputs=0) unsigned int *outval (unsigned int temp) {

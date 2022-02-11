@@ -120,6 +120,8 @@ using namespace gensio;
 
 %newobject gensio::Gensio::get_child;
 %newobject gensio::Gensio::alloc_channel;
+%newobject gensio::Gensio::gensio_alloc;
+%newobject gensio::Gensio::gensio_acc_alloc;
 
 ////////////////////////////////////////////////////
 // Gensio
@@ -186,6 +188,8 @@ using namespace gensio;
 %catches(gensio::gensio_error) gensio::Accepter::get_port;
 
 %catches(gensio::gensio_error) gensio::gensio_acc_alloc;
+
+%newobject gensio::Accepter::str_to_gensio;
 
 ////////////////////////////////////////////////////
 // MDNS
