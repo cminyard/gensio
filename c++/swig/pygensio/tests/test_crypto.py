@@ -53,6 +53,10 @@ class Crypto_EvHnd(EvHnd):
         return
 
     def auth_begin(self):
+        (rv, name) = self.g.control(pygensio.GENSIO_CONTROL_DEPTH_FIRST, True,
+                                    pygensio.GENSIO_CONTROL_USERNAME, "0")
+        if str(name, "utf8") != "asdf":
+            raise Exception("Name mismatch in auth_begin")
         return pygensio.GE_NOTSUP
 
     def precert_verify(self):
