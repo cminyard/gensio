@@ -280,6 +280,7 @@ struct gensio {
     gensio_event cb;
     unsigned int cb_count;
     struct gensio_list waiters;
+    unsigned int refcount;
     struct gensio_lock *lock;
 
     struct gensio_classobj *classes;
@@ -352,6 +353,7 @@ gensio_data_alloc(struct gensio_os_funcs *o,
     io = o->zalloc(o, sizeof(*io));
     if (!io)
 	return NULL;
+    io->refcount = 1;
 
     io->lock = o->alloc_lock(o);
     if (!io->lock) {
@@ -983,7 +985,14 @@ gensio_disable(struct gensio *io)
 void
 gensio_free(struct gensio *io)
 {
-    io->func(io, GENSIO_FUNC_FREE, NULL, NULL, 0, NULL, NULL);
+    struct gensio_os_funcs *o = io->o;
+    unsigned int count;
+
+    o->lock(io->lock);
+    count = --io->refcount;
+    o->unlock(io->lock);
+    if (count == 0)
+	io->func(io, GENSIO_FUNC_FREE, NULL, NULL, 0, NULL, NULL);
 }
 
 void
@@ -1003,7 +1012,11 @@ gensio_set_write_callback_enable(struct gensio *io, bool enabled)
 void
 gensio_ref(struct gensio *io)
 {
-    io->func(io, GENSIO_FUNC_REF, NULL, NULL, 0, NULL, NULL);
+    struct gensio_os_funcs *o = io->o;
+
+    o->lock(io->lock);
+    io->refcount++;
+    o->unlock(io->lock);
 }
 
 bool

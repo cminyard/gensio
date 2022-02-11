@@ -61,8 +61,8 @@
 /* No translations needed, return value not used */
 #define GENSIO_FUNC_FREE		7
 
-/* No translations needed, return value not used */
-#define GENSIO_FUNC_REF			8
+/* Used to be GENSIO_FUNC_REF, the main gensio code handles refcounts now */
+#define GENSIO_FUNC_xxx			8
 
 /* enabled => buflen, return value not used. */
 #define GENSIO_FUNC_SET_READ_CALLBACK	9

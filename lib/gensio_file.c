@@ -486,16 +486,6 @@ filen_close(struct gensio *io, gensio_done close_done, void *close_data)
 }
 
 static void
-filen_func_ref(struct gensio *io)
-{
-    struct filen_data *ndata = gensio_get_gensio_data(io);
-
-    filen_lock(ndata);
-    filen_ref(ndata);
-    filen_unlock(ndata);
-}
-
-static void
 filen_free(struct gensio *io)
 {
     struct filen_data *ndata = gensio_get_gensio_data(io);
@@ -560,10 +550,6 @@ gensio_file_func(struct gensio *io, int func, gensiods *count,
 
     case GENSIO_FUNC_FREE:
 	filen_free(io);
-	return 0;
-
-    case GENSIO_FUNC_REF:
-	filen_func_ref(io);
 	return 0;
 
     case GENSIO_FUNC_SET_READ_CALLBACK:

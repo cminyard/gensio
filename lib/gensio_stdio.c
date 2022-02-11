@@ -40,8 +40,6 @@ struct stdion_channel {
     bool in_handler_set;
     bool out_handler_set;
 
-    unsigned int refcount;
-
     struct gensio *io;
 
     gensiods max_read_size;
@@ -844,11 +842,6 @@ stdion_free(struct gensio *io)
     struct stdiona_data *nadata = schan->nadata;
 
     stdiona_lock(nadata);
-    assert(schan->refcount > 0);
-    if (--schan->refcount > 0) {
-	stdiona_unlock(nadata);
-	return;
-    }
     schan->in_free = true;
     if (schan->in_close) {
 	schan->close_done = NULL;
@@ -861,18 +854,6 @@ stdion_free(struct gensio *io)
 	i_stdion_close(schan, NULL, NULL);
 	stdiona_unlock(nadata);
     }
-}
-
-static void
-stdion_ref(struct gensio *io)
-{
-    struct stdion_channel *schan = gensio_get_gensio_data(io);
-    struct stdiona_data *nadata = schan->nadata;
-
-    stdiona_lock(nadata);
-    assert(schan->refcount > 0);
-    schan->refcount++;
-    stdiona_unlock(nadata);
 }
 
 static int
@@ -1054,10 +1035,6 @@ gensio_stdio_func(struct gensio *io, int func, gensiods *count,
 	stdion_free(io);
 	return 0;
 
-    case GENSIO_FUNC_REF:
-	stdion_ref(io);
-	return 0;
-
     case GENSIO_FUNC_SET_READ_CALLBACK:
 	stdion_set_read_callback_enable(io, buflen);
 	return 0;
@@ -1095,8 +1072,6 @@ stdio_nadata_setup(struct gensio_os_funcs *o, gensiods max_read_size,
 	return GE_NOMEM;
     nadata->o = o;
     nadata->refcount = 1;
-    nadata->io.refcount = 1;
-    nadata->err.refcount = 1;
     nadata->io.closed = true;
     nadata->err.closed = true;
     nadata->io.nadata = nadata;

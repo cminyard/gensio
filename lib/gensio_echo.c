@@ -31,7 +31,6 @@ struct echon_data {
     struct gensio_lock *lock;
 
     unsigned int refcount;
-    unsigned int freeref;
     enum echon_state state;
 
     struct gensio *io;
@@ -283,28 +282,13 @@ echon_close(struct gensio *io, gensio_done close_done, void *close_data)
 }
 
 static void
-echon_func_ref(struct gensio *io)
-{
-    struct echon_data *ndata = gensio_get_gensio_data(io);
-
-    echon_lock(ndata);
-    ndata->freeref++;
-    echon_unlock(ndata);
-}
-
-static void
 echon_free(struct gensio *io)
 {
     struct echon_data *ndata = gensio_get_gensio_data(io);
 
     echon_lock(ndata);
-    assert(ndata->freeref > 0);
-    if (--ndata->freeref == 0) {
-	ndata->state = ECHON_CLOSED;
-	echon_unlock_and_deref(ndata);
-    } else {
-	echon_unlock(ndata);
-    }
+    ndata->state = ECHON_CLOSED;
+    echon_unlock_and_deref(ndata);
 }
 
 static int
@@ -352,10 +336,6 @@ gensio_echo_func(struct gensio *io, int func, gensiods *count,
 	echon_free(io);
 	return 0;
 
-    case GENSIO_FUNC_REF:
-	echon_func_ref(io);
-	return 0;
-
     case GENSIO_FUNC_SET_READ_CALLBACK:
 	echon_set_read_callback_enable(io, buflen);
 	return 0;
@@ -386,7 +366,6 @@ echo_ndata_setup(struct gensio_os_funcs *o, gensiods max_read_size,
 	return GE_NOMEM;
     ndata->o = o;
     ndata->refcount = 1;
-    ndata->freeref = 1;
 
     ndata->buf = gensio_circbuf_alloc(o, max_read_size);
     if (!ndata->buf)

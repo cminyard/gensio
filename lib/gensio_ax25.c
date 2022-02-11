@@ -660,8 +660,6 @@ struct ax25_chan {
 
     unsigned int refcount;
 
-    unsigned int freeref;
-
     bool read_enabled;
     bool xmit_enabled;
 
@@ -4223,12 +4221,6 @@ static void
 ax25_chan_free(struct ax25_chan *chan)
 {
     ax25_chan_lock(chan);
-    assert(chan->freeref > 0);
-    if (--chan->freeref > 0) {
-	ax25_chan_unlock(chan);
-	return;
-    }
-
     switch (chan->state) {
     case AX25_CHAN_REPORT_CLOSE:
     case AX25_CHAN_REPORT_OPEN_CLOSE:
@@ -4263,14 +4255,6 @@ ax25_chan_free(struct ax25_chan *chan)
     }
     /* Lose the initial ref so it will be freed when done. */
     ax25_chan_deref_and_unlock(chan);
-}
-
-static void
-ax25_chan_do_ref(struct ax25_chan *chan)
-{
-    ax25_chan_lock(chan);
-    chan->freeref++;
-    ax25_chan_unlock(chan);
 }
 
 static void
@@ -4405,10 +4389,6 @@ ax25_chan_func(struct gensio *io, int func, gensiods *count,
 
     case GENSIO_FUNC_FREE:
 	ax25_chan_free(chan);
-	return 0;
-
-    case GENSIO_FUNC_REF:
-	ax25_chan_do_ref(chan);
 	return 0;
 
     case GENSIO_FUNC_SET_READ_CALLBACK:
@@ -4599,7 +4579,6 @@ ax25_chan_alloc(struct ax25_base *base, const char *const args[],
     conf.my_addrs = NULL;
     conf.num_my_addrs = 0;
     chan->refcount = 1;
-    chan->freeref = 1;
     gensio_list_init(&chan->uis);
 
     /* After this point we can use ax25_chan_finish_free to free it. */

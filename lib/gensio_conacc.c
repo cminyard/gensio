@@ -41,7 +41,6 @@ struct conaccn_data {
     void *close_data;
 
     unsigned int refcount;
-    unsigned int freeref;
 };
 
 enum conaccna_state {
@@ -554,12 +553,6 @@ static void
 conaccn_free(struct conaccn_data *ndata)
 {
     conaccn_lock(ndata);
-    assert(ndata->freeref > 0);
-    if (--ndata->freeref > 0) {
-	conaccn_unlock(ndata);
-	return;
-    }
-
     switch (ndata->child_state) {
     case CONACCN_IN_OPEN:
     case CONACCN_OPEN:
@@ -577,14 +570,6 @@ conaccn_free(struct conaccn_data *ndata)
 	break;
     }
     conaccn_deref_and_unlock(ndata);
-}
-
-static void
-conaccn_func_ref(struct conaccn_data *ndata)
-{
-    conaccn_lock(ndata);
-    ndata->freeref++;
-    conaccn_unlock(ndata);
 }
 
 static void
@@ -626,10 +611,6 @@ conaccn_func(struct gensio *io, int func, gensiods *count,
 
     case GENSIO_FUNC_FREE:
 	conaccn_free(ndata);
-	return 0;
-
-    case GENSIO_FUNC_REF:
-	conaccn_func_ref(ndata);
 	return 0;
 
     case GENSIO_FUNC_DISABLE:
@@ -767,7 +748,6 @@ conacc_start(struct conaccna_data *nadata)
 	goto out_err_nofree;
     ndata->o = nadata->o;
     ndata->nadata = nadata;
-    ndata->freeref = 1;
     ndata->refcount = 1;
     ndata->lock = nadata->o->alloc_lock(nadata->o);
     if (!ndata->lock)

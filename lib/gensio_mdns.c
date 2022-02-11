@@ -37,7 +37,6 @@ struct mdnsn_data {
     struct gensio_lock *lock;
 
     unsigned int refcount;
-    unsigned int freeref;
     enum mdnsn_state state;
 
     struct gensio *io;
@@ -607,29 +606,14 @@ mdnsn_close(struct gensio *io, gensio_done close_done, void *close_data)
 }
 
 static void
-mdnsn_func_ref(struct gensio *io)
-{
-    struct mdnsn_data *ndata = gensio_get_gensio_data(io);
-
-    mdnsn_lock(ndata);
-    ndata->freeref++;
-    mdnsn_unlock(ndata);
-}
-
-static void
 mdnsn_free(struct gensio *io)
 {
     struct mdnsn_data *ndata = gensio_get_gensio_data(io);
 
     mdnsn_lock(ndata);
-    assert(ndata->freeref > 0);
-    if (--ndata->freeref == 0) {
-	if (ndata->state != MDNSN_CLOSED)
-	    mdnsn_start_close(ndata);
-	mdnsn_deref_and_unlock(ndata);
-    } else {
-	mdnsn_unlock(ndata);
-    }
+    if (ndata->state != MDNSN_CLOSED)
+	mdnsn_start_close(ndata);
+    mdnsn_deref_and_unlock(ndata);
 }
 
 static int
@@ -666,10 +650,6 @@ gensio_mdns_func(struct gensio *io, int func, gensiods *count,
 
     case GENSIO_FUNC_FREE:
 	mdnsn_free(io);
-	return 0;
-
-    case GENSIO_FUNC_REF:
-	mdnsn_func_ref(io);
 	return 0;
 
     case GENSIO_FUNC_SET_READ_CALLBACK:
@@ -709,7 +689,6 @@ mdns_ndata_setup(struct gensio_os_funcs *o, gensiods max_read_size,
 
     ndata->o = o;
     ndata->refcount = 1;
-    ndata->freeref = 1;
     ndata->max_read_size = max_read_size;
     ndata->nodelay = nodelay;
     ndata->interface = interface;

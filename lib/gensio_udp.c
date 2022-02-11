@@ -46,8 +46,6 @@ struct udpn_data {
 
     struct gensio_os_funcs *o;
 
-    unsigned int refcount;
-
     /* iod the original request came in on, for sending. */
     struct gensio_iod *myiod;
 
@@ -796,10 +794,6 @@ udpn_free(struct gensio *io)
     struct udpna_data *nadata = ndata->nadata;
 
     udpna_lock_and_ref(nadata);
-    assert(ndata->refcount > 0);
-    if (--ndata->refcount > 0)
-	goto out_unlock;
-
     ndata->freed = true;
     if (ndata->state == UDPN_IN_CLOSE)
 	ndata->close_done = NULL;
@@ -807,19 +801,7 @@ udpn_free(struct gensio *io)
 	udpn_start_close(ndata, NULL, NULL);
     else if (!ndata->in_close_cb && !ndata->deferred_op_pending)
 	udpn_finish_free(ndata);
- out_unlock:
     udpna_deref_and_unlock(nadata);
-}
-
-static void
-udpn_do_ref(struct gensio *io)
-{
-    struct udpn_data *ndata = gensio_get_gensio_data(io);
-    struct udpna_data *nadata = ndata->nadata;
-
-    udpna_lock(nadata);
-    ndata->refcount++;
-    udpna_unlock(nadata);
 }
 
 static void
@@ -1208,10 +1190,6 @@ gensio_udp_func(struct gensio *io, int func, gensiods *count,
 	udpn_free(io);
 	return 0;
 
-    case GENSIO_FUNC_REF:
-	udpn_do_ref(io);
-	return 0;
-
     case GENSIO_FUNC_SET_READ_CALLBACK:
 	udpn_set_read_callback_enable(io, buflen);
 	return 0;
@@ -1244,7 +1222,6 @@ udp_alloc_gensio(struct udpna_data *nadata, struct gensio_iod *iod,
 	return NULL;
 
     ndata->o = nadata->o;
-    ndata->refcount = 1;
     ndata->nadata = nadata;
 
     ndata->deferred_op_runner = ndata->o->alloc_runner(ndata->o,

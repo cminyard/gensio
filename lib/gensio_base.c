@@ -159,8 +159,6 @@ struct basen_data {
 
     unsigned int refcount;
 
-    unsigned int freeref;
-
     enum basen_state state;
 
     gensio_done_err open_done;
@@ -1358,13 +1356,6 @@ basen_free(struct basen_data *ndata)
 {
     basen_lock(ndata);
     i_basen_add_trace(ndata, 103, __LINE__);
-    assert(ndata->freeref > 0);
-    if (--ndata->freeref > 0) {
-	basen_unlock(ndata);
-	return;
-    }
-
-    i_basen_add_trace(ndata, 103, __LINE__);
     switch (ndata->state) {
     case BASEN_CLOSED:
 	/* We can free immediately. */
@@ -1396,14 +1387,6 @@ basen_free(struct basen_data *ndata)
     }
     /* Lose the initial ref so it will be freed when done. */
     basen_deref_and_unlock(ndata);
-}
-
-static void
-basen_do_ref(struct basen_data *ndata)
-{
-    basen_lock(ndata);
-    ndata->freeref++;
-    basen_unlock(ndata);
 }
 
 static void
@@ -1514,10 +1497,6 @@ gensio_base_func(struct gensio *io, int func, gensiods *count,
 
     case GENSIO_FUNC_FREE:
 	basen_free(ndata);
-	return 0;
-
-    case GENSIO_FUNC_REF:
-	basen_do_ref(ndata);
 	return 0;
 
     case GENSIO_FUNC_SET_READ_CALLBACK:
@@ -1845,7 +1824,6 @@ gensio_i_alloc(struct gensio_os_funcs *o,
 
     ndata->o = o;
     ndata->refcount = 1;
-    ndata->freeref = 1;
 
     ndata->lock = o->alloc_lock(o);
     if (!ndata->lock)
