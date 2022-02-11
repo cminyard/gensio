@@ -728,23 +728,23 @@ namespace gensio {
 	// that the delivered gensio is not operational, it can only
 	// be used to fetch username, certificate info, etc.  See
 	// gensio_event.3 for details on these.
-	virtual int auth_begin(Gensio *g)
+	virtual int auth_begin(Gensio *tmpg)
 	{ return GE_NOTSUP; }
-	virtual int precert_verify(Gensio *g)
+	virtual int precert_verify(Gensio *tmpg)
 	{ return GE_NOTSUP; }
-	virtual int postcert_verify(Gensio *g,
+	virtual int postcert_verify(Gensio *tmpg,
 				    int err, const char *errstr)
 	{ return GE_NOTSUP; }
-	virtual int password_verify(Gensio *g,
+	virtual int password_verify(Gensio *tmpg,
 				    const std::string val)
 	{ return GE_NOTSUP; }
-	virtual int request_password(Gensio *g, gensiods maxsize,
+	virtual int request_password(Gensio *tmpg, gensiods maxsize,
 				     std::string &retval)
 	{ return GE_NOTSUP; }
-	virtual int verify_2fa(Gensio *io,
+	virtual int verify_2fa(Gensio *tmpg,
 			       const std::vector<unsigned char> data)
 	    { return GE_NOTSUP; }
-	virtual int request_2fa(Gensio *io,
+	virtual int request_2fa(Gensio *tmpg,
 				std::vector<unsigned char> &retval)
 	    { return GE_NOTSUP; }
 
