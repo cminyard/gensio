@@ -65,11 +65,11 @@ GENSIO_DLL_PUBLIC
 int sergensio_datasize(struct sergensio *sio, unsigned int datasize,
 		       sergensio_done done, void *cb_data);
 
-#define SERGENSIO_PARITY_NONE	1
-#define SERGENSIO_PARITY_ODD	2
-#define SERGENSIO_PARITY_EVEN	3
-#define SERGENSIO_PARITY_MARK	4
-#define SERGENSIO_PARITY_SPACE	5
+#define SERGENSIO_PARITY_NONE	1u
+#define SERGENSIO_PARITY_ODD	2u
+#define SERGENSIO_PARITY_EVEN	3u
+#define SERGENSIO_PARITY_MARK	4u
+#define SERGENSIO_PARITY_SPACE	5u
 GENSIO_DLL_PUBLIC
 int sergensio_parity(struct sergensio *sio, unsigned int parity,
 		     sergensio_done done, void *cb_data);
@@ -78,34 +78,34 @@ GENSIO_DLL_PUBLIC
 int sergensio_stopbits(struct sergensio *sio, unsigned int stopbits,
 		       sergensio_done done, void *cb_data);
 
-#define SERGENSIO_FLOWCONTROL_NONE	1
-#define SERGENSIO_FLOWCONTROL_XON_XOFF	2
-#define SERGENSIO_FLOWCONTROL_RTS_CTS	3
+#define SERGENSIO_FLOWCONTROL_NONE	1u
+#define SERGENSIO_FLOWCONTROL_XON_XOFF	2u
+#define SERGENSIO_FLOWCONTROL_RTS_CTS	3u
 GENSIO_DLL_PUBLIC
 int sergensio_flowcontrol(struct sergensio *sio, unsigned int flowcontrol,
 			  sergensio_done done, void *cb_data);
 
-#define SERGENSIO_FLOWCONTROL_DCD	4
-#define SERGENSIO_FLOWCONTROL_DTR	5
-#define SERGENSIO_FLOWCONTROL_DSR	6
+#define SERGENSIO_FLOWCONTROL_DCD	4u
+#define SERGENSIO_FLOWCONTROL_DTR	5u
+#define SERGENSIO_FLOWCONTROL_DSR	6u
 GENSIO_DLL_PUBLIC
 int sergensio_iflowcontrol(struct sergensio *sio, unsigned int iflowcontrol,
 			   sergensio_done done, void *cb_data);
 
-#define SERGENSIO_BREAK_ON	1
-#define SERGENSIO_BREAK_OFF	2
+#define SERGENSIO_BREAK_ON	1u
+#define SERGENSIO_BREAK_OFF	2u
 GENSIO_DLL_PUBLIC
 int sergensio_sbreak(struct sergensio *sio, unsigned int breakv,
 		     sergensio_done done, void *cb_data);
 
-#define SERGENSIO_DTR_ON	1
-#define SERGENSIO_DTR_OFF	2
+#define SERGENSIO_DTR_ON	1u
+#define SERGENSIO_DTR_OFF	2u
 GENSIO_DLL_PUBLIC
 int sergensio_dtr(struct sergensio *sio, unsigned int dtr,
 		  sergensio_done done, void *cb_data);
 
-#define SERGENSIO_RTS_ON	1
-#define SERGENSIO_RTS_OFF	2
+#define SERGENSIO_RTS_ON	1u
+#define SERGENSIO_RTS_OFF	2u
 GENSIO_DLL_PUBLIC
 int sergensio_rts(struct sergensio *sio, unsigned int rts,
 		  sergensio_done done, void *cb_data);
@@ -115,8 +115,8 @@ int sergensio_rts(struct sergensio *sio, unsigned int rts,
  * under control of the remote system.  This is for a modem-side
  * connection, like ipmisol.
  */
-#define SERGENSIO_CTS_AUTO	1
-#define SERGENSIO_CTS_OFF	2
+#define SERGENSIO_CTS_AUTO	1u
+#define SERGENSIO_CTS_OFF	2u
 GENSIO_DLL_PUBLIC
 int sergensio_cts(struct sergensio *sio, unsigned int cts,
 		  sergensio_done done, void *cb_data);
@@ -125,8 +125,8 @@ int sergensio_cts(struct sergensio *sio, unsigned int cts,
  * Controls the DCD/DSR lines to the remote side.  This is for a modem-side
  * connection, like ipmisol.
  */
-#define SERGENSIO_DCD_DSR_ON	1
-#define SERGENSIO_DCD_DSR_OFF	2
+#define SERGENSIO_DCD_DSR_ON	1u
+#define SERGENSIO_DCD_DSR_OFF	2u
 GENSIO_DLL_PUBLIC
 int sergensio_dcd_dsr(struct sergensio *sio, unsigned int dcd_dsr,
 		      sergensio_done done, void *cb_data);
@@ -135,8 +135,8 @@ int sergensio_dcd_dsr(struct sergensio *sio, unsigned int dcd_dsr,
  * Controls the RI (Ring Indicator) line to the remote side.  This is
  * for a modem-side connection, like ipmisol.
  */
-#define SERGENSIO_RI_ON		1
-#define SERGENSIO_RI_OFF	2
+#define SERGENSIO_RI_ON		1u
+#define SERGENSIO_RI_OFF	2u
 GENSIO_DLL_PUBLIC
 int sergensio_ri(struct sergensio *sio, unsigned int ri,
 		 sergensio_done done, void *cb_data);
