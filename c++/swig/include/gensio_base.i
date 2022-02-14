@@ -265,11 +265,10 @@ using namespace gensio;
 ////////////////////////////////////////////////////
 // Pull some constants from gensio_mdns.h
 %ignore "";
+%rename("%s") gensio_mdns_data_state;
+%rename("%s", regextarget=1) "GENSIO_MDNS_.*";
 %include <gensio/gensio_mdns.h>
 %rename("%s") "";
-const int GENSIO_MDNS_NEW_DATA = GENSIO_MDNS_NEW_DATA;
-const int GENSIO_MDNS_DATA_GONE = GENSIO_MDNS_DATA_GONE;
-const int GENSIO_MDNS_ALL_FOR_NOW = GENSIO_MDNS_ALL_FOR_NOW;
 
 ////////////////////////////////////////////////////
 // Pull some constants from sergensio.h
