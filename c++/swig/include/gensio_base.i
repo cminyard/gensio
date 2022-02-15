@@ -212,6 +212,8 @@ using namespace gensio;
 %delobject gensio::MDNS_Watch::free;
 %ignore gensio::MDNS_Watch::raw_event_handler;
 %ignore gensio::Raw_MDNS_Event_Handler;
+%newobject gensio::MDNS::alloc_watch;
+%newobject gensio::MDNS::alloc_service;
 
 ////////////////////////////////////////////////////
 // gensio_err.h
