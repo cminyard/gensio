@@ -61,7 +61,7 @@ namespace gensio {
 
     // This is a wrapper for gensio_os_funcs that makes using it a lot
     // cleaner.  The default constructor automatically allocates the
-    // default, destruction takes place automatically.
+    // default os handler, destruction takes place automatically.
     // This is a smart pointer like object.
     class GENSIOCPP_DLL_PUBLIC Os_Funcs {
     public:
@@ -251,7 +251,7 @@ namespace gensio {
 	// The remote end has requested that the receiver of this do a
 	// break.  This is primarily for a telnet server that is
 	// hooked to a serial port, if it receives this it should send
-	// a break on the serial port.  By default htis does nothing.
+	// a break on the serial port.  By default this does nothing.
 	virtual void send_break() { };
 
 	// Various authentication operations.  See gensio_event.3 for
@@ -550,6 +550,7 @@ namespace gensio {
 	    io->free();
 	}
 	Gensio * operator->() { return io; }
+	Gensio * operator&() { return io; }
     private:
 	Gensio *io;
     };
@@ -564,7 +565,7 @@ namespace gensio {
     //*****************************************************************
 
     // These are events from a serial port device, client and server.
-    // These are documented in sergensio_event.3
+    // These are documented in sergensio_event.3.
     class GENSIOCPP_DLL_PUBLIC Serial_Event: public Event {
     public:
 	// Client-side calls, used to report serial line changes.
@@ -612,7 +613,9 @@ namespace gensio {
     };
 
     // This is a set of operations you can do on a serial port.
-    // sergensio_xxx.3 man pages describe each of these.
+    // sergensio_xxx.3 man pages describe each of these.  You cannot
+    // directly allocate one of these.  If you allocate a gensio that
+    // is serial-capable, you can cast it to this.
     //
     // For the methods not ending in _s, the interface is
     // non-blocking, calling the function will start the process of
@@ -750,8 +753,8 @@ namespace gensio {
 
 	// The free() operation for accepter this object is assigned
 	// to has finished and the data will immediately be freed.
-	// Usually used to free the Event object.  Like the one for
-	// the Event class, see that for details.
+	// Usually used to free the Accepter Event object.  Like the
+	// one for the Event class, see that for details.
 	virtual void freed() { };
 
 	virtual ~Accepter_Event() = default;
