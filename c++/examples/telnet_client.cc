@@ -94,8 +94,6 @@ class Telnet_Logger: public gensio::Os_Funcs_Log_Handler {
 
 int main(int argc, char *argv[])
 {
-    int err;
-
     try {
 	// Note that Telnet_Logger must be dynamically allocated.
 	// Os_Funcs will delete it when the Os_Funcs is destroyed.
@@ -141,6 +139,7 @@ int main(int argc, char *argv[])
 	// freed, then the user events, the waiter, and the OS funcs.
     } catch (gensio::gensio_error e) {
 	std::cerr << "gensio error: " << e.what() << std::endl;
+	return 1;
     }
-    return err;
+    return 0;
 }
