@@ -73,8 +73,8 @@ PI_CanBeBytes(PyObject *o)
 static int
 PI_ToUCharVector(std::vector<unsigned char> &v, PyObject *o)
 {
-    void *tdata;
-    gensiods len;
+    void *tdata = NULL;
+    gensiods len = 0;
 
     if (o == Py_None) {
 	// Nothing to do, vector is empty
@@ -199,8 +199,8 @@ static bool check_for_err(int err)
 %typemap(directorin, numinputs=0) std::string &retval {
 }
 %typemap(directorargout) std::string &retval {
-    char *buf;
-    gensiods size;
+    char *buf = NULL;
+    gensiods size = 0;
 
     if (PI_AsBytesAndSize($result, (void **) &buf, &size) == -1) {
 	Swig::DirectorTypeMismatchException::raise(
@@ -244,8 +244,8 @@ static bool check_for_err(int err)
 %typemap(directorin, numinputs=0) std::vector<unsigned char> &retval {
 }
 %typemap(directorargout) std::vector<unsigned char> &retval {
-    char *buf;
-    gensiods size;
+    char *buf = NULL;
+    gensiods size = 0;
 
     if (PI_AsBytesAndSize($result, (void **) &buf, &size) == -1) {
 	Swig::DirectorTypeMismatchException::raise(
@@ -260,8 +260,8 @@ static bool check_for_err(int err)
     $input = PI_FromStringAndSize((const char *) $1.data(), $1.size());
 }
 %typemap(directorargout) std::vector<unsigned char> &userdata {
-    char *buf;
-    gensiods size;
+    char *buf = NULL;
+    gensiods size = 0;
 
     if (PI_AsBytesAndSize($result, (void **) &buf, &size) == -1) {
 	Swig::DirectorTypeMismatchException::raise(
