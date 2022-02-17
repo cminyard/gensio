@@ -115,7 +115,7 @@ namespace gensio {
 
     private:
 	void refcount_from(const Os_Funcs *o);
-	Os_Funcs_Log_Handler *logger;
+	Os_Funcs_Log_Handler *logger = NULL;
 	struct gensio_os_funcs *osf = NULL;
 	struct gensio_os_proc_data *proc_data = NULL;
 	std::atomic<unsigned int> *refcnt = NULL;
