@@ -744,8 +744,7 @@ conaccn_open_done(struct gensio *io, int err, void *open_data)
 	err = GE_NOTREADY;
 	base_gensio_server_open_done(nadata->acc, ndata->io, err);
     }
-    if (ndata)
-	conaccn_finish_free(ndata);
+    conaccn_finish_free(ndata);
     conaccna_deref_and_unlock(nadata);
 }
 
