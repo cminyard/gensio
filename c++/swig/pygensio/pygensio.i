@@ -386,7 +386,9 @@ static bool check_for_err(int err)
     public:
 	Py_Open_Done(Gensio_Open_Done *iparent) : parent(iparent)
 	{
-	    pydirobj_incref(dynamic_cast<Swig::Director *>(parent));
+	    Swig::Director *d = dynamic_cast<Swig::Director *>(parent);
+	    if (d)
+		pydirobj_incref(d);
 	}
 
 	void open_done(int err) override {
@@ -394,7 +396,9 @@ static bool check_for_err(int err)
 
 	    gstate = PyGILState_Ensure();
 	    parent->open_done(err);
-	    pydirobj_decref(dynamic_cast<Swig::Director *>(parent));
+	    Swig::Director *d = dynamic_cast<Swig::Director *>(parent);
+	    if (d)
+		pydirobj_decref(d);
 	    PyGILState_Release(gstate);
 	    delete this;
 	}
@@ -407,7 +411,9 @@ static bool check_for_err(int err)
     public:
 	Py_Gensio_Close_Done(Gensio_Close_Done *iparent) : parent(iparent)
 	{
-	    pydirobj_incref(dynamic_cast<Swig::Director *>(parent));
+	    Swig::Director *d = dynamic_cast<Swig::Director *>(parent);
+	    if (d)
+		pydirobj_incref(d);
 	}
 
 	void close_done() override {
@@ -415,7 +421,9 @@ static bool check_for_err(int err)
 
 	    gstate = PyGILState_Ensure();
 	    parent->close_done();
-	    pydirobj_decref(dynamic_cast<Swig::Director *>(parent));
+	    Swig::Director *d = dynamic_cast<Swig::Director *>(parent);
+	    if (d)
+		pydirobj_decref(d);
 	    PyGILState_Release(gstate);
 	    delete this;
 	}
@@ -460,7 +468,9 @@ static bool check_for_err(int err)
 	    if (e) {
 		PyGILState_STATE gstate;
 		gstate = PyGILState_Ensure();
-		pydirobj_decref(dynamic_cast<Swig::Director *>(e));
+		Swig::Director *d = dynamic_cast<Swig::Director *>(e);
+		if (d)
+		    pydirobj_decref(d);
 		PyGILState_Release(gstate);
 	    }
 	}
@@ -473,7 +483,9 @@ static bool check_for_err(int err)
     public:
 	Py_Serial_Op_Done(Serial_Op_Done *iparent) : parent(iparent)
 	{
-	    pydirobj_incref(dynamic_cast<Swig::Director *>(parent));
+	    Swig::Director *d = dynamic_cast<Swig::Director *>(parent);
+	    if (d)
+		pydirobj_incref(d);
 	}
 
 	void serial_op_done(int err, unsigned int val) override {
@@ -481,7 +493,9 @@ static bool check_for_err(int err)
 
 	    gstate = PyGILState_Ensure();
 	    parent->serial_op_done(err, val);
-	    pydirobj_decref(dynamic_cast<Swig::Director *>(parent));
+	    Swig::Director *d = dynamic_cast<Swig::Director *>(parent);
+	    if (d)
+		pydirobj_decref(d);
 	    PyGILState_Release(gstate);
 	    delete this;
 	}
@@ -494,7 +508,9 @@ static bool check_for_err(int err)
     public:
 	Py_Serial_Op_Sig_Done(Serial_Op_Sig_Done *iparent) : parent(iparent)
 	{
-	    pydirobj_incref(dynamic_cast<Swig::Director *>(parent));
+	    Swig::Director *d = dynamic_cast<Swig::Director *>(parent);
+	    if (d)
+		pydirobj_incref(d);
 	}
 
 	void serial_op_sig_done(int err,
@@ -504,7 +520,9 @@ static bool check_for_err(int err)
 
 	    gstate = PyGILState_Ensure();
 	    parent->serial_op_sig_done(err, data);
-	    pydirobj_decref(dynamic_cast<Swig::Director *>(parent));
+	    Swig::Director *d = dynamic_cast<Swig::Director *>(parent);
+	    if (d)
+		pydirobj_decref(d);
 	    PyGILState_Release(gstate);
 	    delete this;
 	}
@@ -518,7 +536,9 @@ static bool check_for_err(int err)
 	Py_Accepter_Shutdown_Done(Accepter_Shutdown_Done *iparent) :
 		parent(iparent)
 	{
-	    pydirobj_incref(dynamic_cast<Swig::Director *>(parent));
+	    Swig::Director *d = dynamic_cast<Swig::Director *>(parent);
+	    if (d)
+		pydirobj_incref(d);
 	}
 
 	void shutdown_done() override {
@@ -526,7 +546,9 @@ static bool check_for_err(int err)
 
 	    gstate = PyGILState_Ensure();
 	    parent->shutdown_done();
-	    pydirobj_decref(dynamic_cast<Swig::Director *>(parent));
+	    Swig::Director *d = dynamic_cast<Swig::Director *>(parent);
+	    if (d)
+		pydirobj_decref(d);
 	    PyGILState_Release(gstate);
 	    delete this;
 	}
@@ -540,7 +562,9 @@ static bool check_for_err(int err)
 	Py_Accepter_Enable_Done(Accepter_Enable_Done *iparent) :
 		parent(iparent)
 	{
-	    pydirobj_incref(dynamic_cast<Swig::Director *>(parent));
+	    Swig::Director *d = dynamic_cast<Swig::Director *>(parent);
+	    if (d)
+		pydirobj_incref(d);
 	}
 
 	void enable_done() override {
@@ -548,7 +572,9 @@ static bool check_for_err(int err)
 
 	    gstate = PyGILState_Ensure();
 	    parent->enable_done();
-	    pydirobj_decref(dynamic_cast<Swig::Director *>(parent));
+	    Swig::Director *d = dynamic_cast<Swig::Director *>(parent);
+	    if (d)
+		pydirobj_decref(d);
 	    PyGILState_Release(gstate);
 	    delete this;
 	}
@@ -590,7 +616,9 @@ static bool check_for_err(int err)
 	    if (e) {
 		PyGILState_STATE gstate;
 		gstate = PyGILState_Ensure();
-		pydirobj_decref(dynamic_cast<Swig::Director *>(e));
+		Swig::Director *d = dynamic_cast<Swig::Director *>(e);
+		if (d)
+		    pydirobj_decref(d);
 		PyGILState_Release(gstate);
 	    }
 	}
@@ -603,7 +631,9 @@ static bool check_for_err(int err)
     public:
 	Py_MDNS_Free_Done(MDNS_Free_Done *iparent) : parent(iparent)
 	{
-	    pydirobj_incref(dynamic_cast<Swig::Director *>(parent));
+	    Swig::Director *d = dynamic_cast<Swig::Director *>(parent);
+	    if (d)
+		pydirobj_incref(d);
 	}
 
 	void mdns_free_done() override {
@@ -611,7 +641,9 @@ static bool check_for_err(int err)
 
 	    gstate = PyGILState_Ensure();
 	    parent->mdns_free_done();
-	    pydirobj_decref(dynamic_cast<Swig::Director *>(parent));
+	    Swig::Director *d = dynamic_cast<Swig::Director *>(parent);
+	    if (d)
+		pydirobj_decref(d);
 	    PyGILState_Release(gstate);
 	    delete this;
 	}
@@ -625,7 +657,9 @@ static bool check_for_err(int err)
 	Py_MDNS_Watch_Free_Done(MDNS_Watch_Free_Done *iparent) :
 		parent(iparent)
 	{
-	    pydirobj_incref(dynamic_cast<Swig::Director *>(parent));
+	    Swig::Director *d = dynamic_cast<Swig::Director *>(parent);
+	    if (d)
+		pydirobj_incref(d);
 	}
 
 	void mdns_watch_free_done() override {
@@ -633,7 +667,9 @@ static bool check_for_err(int err)
 
 	    gstate = PyGILState_Ensure();
 	    parent->mdns_watch_free_done();
-	    pydirobj_decref(dynamic_cast<Swig::Director *>(parent));
+	    Swig::Director *d = dynamic_cast<Swig::Director *>(parent);
+	    if (d)
+		pydirobj_decref(d);
 	    PyGILState_Release(gstate);
 	    delete this;
 	}
@@ -760,7 +796,8 @@ static bool check_for_err(int err)
     void set_log_handler(Os_Funcs_Log_Handler *logger) {
 	Internal_Log_Handler *ilogger =
 	    dynamic_cast<Internal_Log_Handler *>(self->get_log_handler());
-	ilogger->set_handler(logger);
+	if (ilogger)
+	    ilogger->set_handler(logger);
     }
 
     void cleanup_mem() {
@@ -819,8 +856,11 @@ static bool check_for_err(int err)
     {
 	Gensio *g = self->alloc_channel(args, cb);
 
-	if (cb)
-	    pydirobj_incref(dynamic_cast<Swig::Director *>(cb));
+	if (cb) {
+	    Swig::Director *d = dynamic_cast<Swig::Director *>(cb);
+	    if (d)
+		pydirobj_incref(d);
+	}
 	if (g)
 	    g->raw_event_handler =
 		new Py_Raw_Event_Handler(g->raw_event_handler);
@@ -831,11 +871,17 @@ static bool check_for_err(int err)
     {
 	Event *old_cb = self->get_cb();
 
-	if (cb)
-	    pydirobj_incref(dynamic_cast<Swig::Director *>(cb));
+	if (cb) {
+	    Swig::Director *d = dynamic_cast<Swig::Director *>(cb);
+	    if (d)
+		pydirobj_incref(d);
+	}
 	self->set_event_handler(cb);
-	if (old_cb)
-	    pydirobj_decref(dynamic_cast<Swig::Director *>(old_cb));
+	if (old_cb) {
+	    Swig::Director *d = dynamic_cast<Swig::Director *>(old_cb);
+	    if (d)
+		pydirobj_decref(d);
+	}
     }
 
     %rename(control) controlt;
@@ -897,8 +943,11 @@ gensio::Gensio *gensio_alloct(std::string str, gensio::Os_Funcs &o,
 {
     Gensio *g = gensio_alloc(str, o, cb);
 
-    if (cb)
-	pydirobj_incref(dynamic_cast<Swig::Director *>(cb));
+    if (cb) {
+	Swig::Director *d = dynamic_cast<Swig::Director *>(cb);
+	if (d)
+	    pydirobj_incref(d);
+    }
     if (g)
 	g->raw_event_handler = new Py_Raw_Event_Handler(g->raw_event_handler);
     return g;
@@ -909,8 +958,11 @@ gensio::Gensio *gensio_alloct(gensio::Gensio *child, std::string str,
 {
     Gensio *g = gensio_alloc(child, str, o, cb);
 
-    if (cb)
-	pydirobj_incref(dynamic_cast<Swig::Director *>(cb));
+    if (cb) {
+	Swig::Director *d = dynamic_cast<Swig::Director *>(cb);
+	if (d)
+	    pydirobj_incref(d);
+    }
     if (g)
 	g->raw_event_handler = new Py_Raw_Event_Handler(g->raw_event_handler);
     return g;
@@ -1196,8 +1248,11 @@ gensio_acc_alloct(std::string str, gensio::Os_Funcs &o,
 {
     Accepter *a = gensio_acc_alloc(str, o, cb);
 
-    if (cb)
-	pydirobj_incref(dynamic_cast<Swig::Director *>(cb));
+    if (cb) {
+	Swig::Director *d = dynamic_cast<Swig::Director *>(cb);
+	if (d)
+	    pydirobj_incref(d);
+    }
     if (a)
 	a->raw_event_handler =
 	    new Py_Raw_Acc_Event_Handler(a->raw_event_handler);
@@ -1210,8 +1265,11 @@ gensio_acc_alloct(gensio::Accepter *child, std::string str, gensio::Os_Funcs &o,
 {
     Accepter *a = gensio_acc_alloc(child, str, o, cb);
 
-    if (cb)
-	pydirobj_incref(dynamic_cast<Swig::Director *>(cb));
+    if (cb) {
+	Swig::Director *d = dynamic_cast<Swig::Director *>(cb);
+	if (d)
+	    pydirobj_incref(d);
+    }
     if (a)
 	a->raw_event_handler =
 	    new Py_Raw_Acc_Event_Handler(a->raw_event_handler);
@@ -1250,11 +1308,17 @@ gensio_acc_alloct(gensio::Accepter *child, std::string str, gensio::Os_Funcs &o,
     {
 	Accepter_Event *old_cb = self->get_cb();
 
-	if (cb)
-	    pydirobj_incref(dynamic_cast<Swig::Director *>(cb));
+	if (cb) {
+	    Swig::Director *d = dynamic_cast<Swig::Director *>(cb);
+	    if (d)
+		pydirobj_incref(d);
+	}
 	self->set_event_handler(cb);
-	if (old_cb)
-	    pydirobj_decref(dynamic_cast<Swig::Director *>(old_cb));
+	if (old_cb) {
+	    Swig::Director *d = dynamic_cast<Swig::Director *>(old_cb);
+	    if (d)
+		pydirobj_decref(d);
+	}
     }
 
     %newobject str_to_gensio;
@@ -1262,8 +1326,11 @@ gensio_acc_alloct(gensio::Accepter *child, std::string str, gensio::Os_Funcs &o,
     {
 	Gensio *g = self->str_to_gensio(str, cb);
 
-	if (cb)
-	    pydirobj_incref(dynamic_cast<Swig::Director *>(cb));
+	if (cb) {
+	    Swig::Director *d = dynamic_cast<Swig::Director *>(cb);
+	    if (d)
+		pydirobj_incref(d);
+	}
 	if (g)
 	    g->raw_event_handler =
 		new Py_Raw_Event_Handler(g->raw_event_handler);
