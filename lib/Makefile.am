@@ -41,7 +41,8 @@ if ENABLE_INTERNAL_TRACE
 libgensio_la_SOURCES += errtrig.c
 endif
 
-libgensio_la_LDFLAGS = $(OPENSSL_LIBS) -no-undefined
+libgensio_la_LDFLAGS = $(OPENSSL_LIBS) -no-undefined \
+	-version-info 0:1:0
 
 EXTRA_DIST = README.rst libgensio.pc.in CMakeLists.txt
 
