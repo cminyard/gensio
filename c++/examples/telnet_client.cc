@@ -76,8 +76,8 @@ private:
 
     int err = 0;
 
-    gensio::Gensio *io;
-    gensio::Gensio *otherio;
+    gensio::Gensio *io = NULL;
+    gensio::Gensio *otherio = NULL;
 
     gensio::Waiter *waiter;
 };

@@ -91,7 +91,7 @@ private:
 
     const char *errstr = NULL;
 
-    Gensio *io;
+    Gensio *io = NULL;
 
     Waiter *waiter;
 };
@@ -106,7 +106,7 @@ public:
     void set_accepter(Accepter *iacc) { acc = iacc; }
 
 private:
-    Accepter *acc;
+    Accepter *acc = NULL;
 
     // If errors occur in the accepter stack, they generally can't be
     // reported through normal mechanisms.  So those types of errors
