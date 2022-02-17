@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.10)
 
 cmake_policy(SET CMP0078 NEW) # For swig
 
-project(gensio VERSION 2.3.5)
+project(gensio VERSION 2.3.6)
 set (gensio_VERSION_STRING "${gensio_VERSION_MAJOR}.${gensio_VERSION_MINOR}.${gensio_VERSION_PATCH}")
 
 include_directories("${PROJECT_BINARY_DIR}" "${PROJECT_SOURCE_DIR}/include"
