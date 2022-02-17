@@ -39,9 +39,11 @@ or google it.
 
 To fully build gensio, you need the following:
 
-* swig - For python bindings
+* swig - For python and go bindings
 
 * python dev libraries - For python bindings
+
+* go language installed in the path
 
 * openssl dev libraries and executable - For all the crypto
 
@@ -763,6 +765,9 @@ and server capabilities.
 Python Interface
 ================
 
+NOTE: The python interface described here is deprecated.  Use the one
+in c++/swig/pygensio now.
+
 You can access pretty much all of the gensio interface through python,
 though it's done a little differently than the C interface.
 
@@ -835,44 +840,21 @@ you can see that for documentation.
 C++
 ===
 
-A full C++ interface is available, with the gensio object model mapped
-into C++ in a fairly straightforward manner.  The
-c++/include/gensio/gensio include file also documents the interface.
-Examples are in c++/examples.
+The C++ interface is documented in c++/README.rst.
 
-The basic principles are the same as the C interface, and you can use
-the man pages for the various C functions for explainations of how
-most of the interfaces work.  It's a pretty straightforward mapping in
-most cases.  Like ``gensio_write(g, ...)`` would map to
-``g->write(...)``.
+pygensio
+========
 
-A few things are not the same:
+The new pygensio interface is a cleaner implementation using swig
+directors instead of hand-coded callbacks into python.  See the
+README.rst in c++/swig/pygensio.  There are also glib and tcl OS_Funcs
+in the glib and tcl directories.
 
-* Everything (even the base C gensio interface) is in the gensio
-  namespace.
+GO
+===
 
-* Unless otherwise documented, errors raise a ``gensio_error`` type
-  exception.
-
-* gensio_os_funcs is wrapped, but it's easier to use and safer in the
-  C++ form since it's a smart pointer type of thing.
-
-* Callbacks are done through subclassing an ``Event`` or
-  ``Accepter_Event`` class for the main callbacks and various ``Done``
-  classes for open, close, etc. operations.
-
-* You allocate gensios/accepters with
-  ``gensio_alloc()``/``gensio_acc_alloc()`` functions.  The object
-  returned will be a subclass of ``Gensio`` or ``Accepter``.  There
-  are specific subclasses for all the gensios.  If you are
-  hand-allocating the gensio/accepter instead of using a string, you
-  use the specific subclass constructor (Tcp, Serialdev, Mux, etc.).
-
-The only thing you should need from the C gensio include file is
-constants, gensiods, and gensio_sg.  Everything else should be
-accessible through the C++ interface for using gensios.  Implementing
-new gensios in C++ is a different story, and probably hard if not
-impossible at the moment.
+The full C++ interface is available to Go programs through swig and
+swig directors.  See c++/swig/go/README.rst for details.
 
 =============
 Running Tests
