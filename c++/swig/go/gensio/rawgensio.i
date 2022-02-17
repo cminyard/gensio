@@ -37,6 +37,7 @@
 %rename(RawMDNS_Watch_Event) gensio::MDNS_Watch_Event;
 %rename(RawMDNS_Watch) gensio::MDNS_Watch;
 
+%ignore gensio::Addr::operator==;
 %ignore gensio::MDNS::add_service;
 %ignore gensio::MDNS::add_watch;
 
