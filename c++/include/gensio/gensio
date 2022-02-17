@@ -515,10 +515,6 @@ namespace gensio {
 	friend Gensio *gensio_alloc(struct gensio *io,
 				    Os_Funcs &o);
 	friend class Main_Raw_Accepter_Event_Handler;
-	GENSIOCPP_DLL_PUBLIC
-	friend Gensio *gensio_alloc(Gensio *child, std::string str,
-				    Os_Funcs &o,
-				    Event *cb);
 	friend void gensio_cpp_freed(struct gensio *io,
 				     struct gensio_frdata *frdata);
 	friend class Serial_Gensio;
@@ -927,10 +923,6 @@ namespace gensio {
 	friend Accepter *gensio_acc_alloc(struct gensio_accepter *acc,
 					  Os_Funcs &o);
 	GENSIOCPP_DLL_PUBLIC
-	friend Accepter *gensio_acc_alloc(Accepter *child,
-					  std::string str,
-					  Os_Funcs &o,
-					  Accepter_Event *cb);
 	friend void gensio_acc_cpp_freed(struct gensio_accepter *acc,
 					 struct gensio_acc_frdata *frdata);
     };

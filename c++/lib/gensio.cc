@@ -719,7 +719,7 @@ namespace gensio {
 	int err;
 	Gensio *g;
 
-	err = str_to_gensio_child(child->io, str.c_str(), o,
+	err = str_to_gensio_child(child->get_gensio(), str.c_str(), o,
 				  NULL, NULL, &io);
 	if (err)
 	    throw gensio_error(err);
@@ -2077,12 +2077,13 @@ namespace gensio {
 	int err;
 	Accepter *a;
 
-	err = str_to_gensio_accepter_child(child->acc, str.c_str(), o,
+	err = str_to_gensio_accepter_child(child->get_accepter(),
+					   str.c_str(), o,
 					   NULL, NULL, &acc);
 	if (err)
 	    throw gensio_error(err);
 	a = gensio_acc_alloc(acc, o);
-	a->gcb = cb;
+	a->set_event_handler(cb);
 	gensio_acc_set_callback(acc, gensio_acc_cpp_cb, a);
 	return a;
     }
