@@ -17,10 +17,9 @@ rawgensio_wrap.cxx rawgensio_wrap.h gensio.go: \
 		$(srcdir)/rawgensio.i
 
 
-go.mod: gensioapi.go gensio.go
+$(builddir)/go.mod: $(srcdir)/srcgo.mod gensioapi.go gensio.go
 	rm -f go.mod
-	go mod init $(GOMOD)
-	go mod tidy
+	cp $(srcdir)/srcgo.mod go.mod
 
 $(builddir)/gensioapi.go: $(srcdir)/srcgensioapi.go
 	cp $(srcdir)/srcgensioapi.go gensioapi.go
