@@ -40,38 +40,38 @@ export CGO_CPPFLAGS = -I$(abs_top_srcdir)/include -I$(abs_top_builddir)/include
 export CGO_LDFLAGS = -L$(abs_top_builddir)/c++/lib/.libs -lgensiocpp -L$(abs_top_builddir)/lib/.libs -lgensio
 
 test_basic: ../gensio/gensio.go \
-		../gensio/rawgensio_wrap.cxx \
-		../gensio/rawgensio_wrap.h \
+		../gensio/gensio_wrap.cxx \
+		../gensio/gensio_wrap.h \
 		test_basic.go ../gensio/gensioapi.go go.mod
 	go build test_basic.go
 
 test_ax25: ../gensio/gensio.go \
-		../gensio/rawgensio_wrap.cxx \
-		../gensio/rawgensio_wrap.h \
+		../gensio/gensio_wrap.cxx \
+		../gensio/gensio_wrap.h \
 		test_ax25.go ../gensio/gensioapi.go go.mod
 	go build test_ax25.go
 
 test_crypto: ../gensio/gensio.go \
-		../gensio/rawgensio_wrap.cxx \
-		../gensio/rawgensio_wrap.h \
+		../gensio/gensio_wrap.cxx \
+		../gensio/gensio_wrap.h \
 		test_crypto.go ../gensio/gensioapi.go go.mod
 	go build test_crypto.go
 
 test_serial: ../gensio/gensio.go \
-		../gensio/rawgensio_wrap.cxx \
-		../gensio/rawgensio_wrap.h \
+		../gensio/gensio_wrap.cxx \
+		../gensio/gensio_wrap.h \
 		test_serial.go ../gensio/gensioapi.go go.mod
 	go build test_serial.go
 
 test_mdns: ../gensio/gensio.go \
-		../gensio/rawgensio_wrap.cxx \
-		../gensio/rawgensio_wrap.h \
+		../gensio/gensio_wrap.cxx \
+		../gensio/gensio_wrap.h \
 		test_mdns.go ../gensio/gensioapi.go go.mod
 	go build test_mdns.go
 
 test_netifs: ../gensio/gensio.go \
-		../gensio/rawgensio_wrap.cxx \
-		../gensio/rawgensio_wrap.h \
+		../gensio/gensio_wrap.cxx \
+		../gensio/gensio_wrap.h \
 		test_netifs.go ../gensio/gensioapi.go go.mod
 	go build test_netifs.go
 

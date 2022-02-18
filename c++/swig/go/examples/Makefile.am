@@ -17,8 +17,8 @@ export CGO_CPPFLAGS = -I$(abs_top_srcdir)/include -I$(abs_top_builddir)/include
 export CGO_LDFLAGS = -L$(abs_top_builddir)/c++/lib/.libs -lgensiocpp -L$(abs_top_builddir)/lib/.libs -lgensio
 
 example: ../gensio/gensio.go \
-		../gensio/rawgensio_wrap.cxx \
-		../gensio/rawgensio_wrap.h \
+		../gensio/gensio_wrap.cxx \
+		../gensio/gensio_wrap.h \
 		example.go ../gensio/gensioapi.go go.mod
 	go build example.go
 
