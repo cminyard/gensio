@@ -50,7 +50,7 @@ private:
 	}
 
 	try {
-	    count = io->write(data.data(), data.size(), NULL);
+	    count = io->write(data, NULL);
 	} catch (gensio_error e) {
 	    errstr = e.what();
 	    io->set_read_callback_enable(false);
