@@ -19,6 +19,35 @@ to be garbage collected by the system and provides a more friendly
 go-like interface.  Unfortunately, this comes with some restrictions,
 but not nearly as many as what comes with the swig interface.
 
+Building with Gensio for Go
+===========================
+
+To use this, you must download, build, and install a current version
+of gensio, version 2.4.0-rc2 or later.  Assuming you don't already
+have it installed from your distro.  Make sure to run 'ldconfig' after
+installing new libraries!  You can get gensio from git at
+https://github.com/cminyard/gensio or downloads of tarballs are
+available at https://sourceforge.net/projects/ser2net/files/ser2net/
+
+After all this, add:
+
+  .. code-block:: go
+  import "github.com/cminyard/go/gensio"
+
+to your imports in your go program, run go mod tidy to download it,
+and you should be in business.
+
+If you install gensio in a non-standard location, say the default
+/usr/local, you might have to set some environment variables so "go
+build" can find gensio.  These would be:
+
+  .. code-block:: bash
+  export CGO_LDFLAGS='-L/usr/local/lib -lgensiocpp -lgensio'
+  export CGO_CXXFLAGS='-I/usr/local/include'
+
+See the gensio library itself in the c++/swig/go directory for
+examples and tests.
+
 Basic Go Binding Concepts
 =========================
 
