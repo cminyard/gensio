@@ -79,4 +79,4 @@ EXTRA_DIST = srctest_basic.go srctest_ax25.go srctest_crypto.go \
 	srctest_serial.go srctest_mdns.go srctest_netifs.go
 
 clean-local:
-	rm -rf go.mod $(TESTS) $(TEST_SRCS)
+	rm -rf go.mod ca $(TESTS) $(TEST_SRCS)

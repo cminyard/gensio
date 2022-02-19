@@ -24,7 +24,7 @@ $(builddir)/go.mod: $(srcdir)/srcgo.mod gensioapi.go gensio.go
 $(builddir)/gensioapi.go: $(srcdir)/srcgensioapi.go
 	cp $(srcdir)/srcgensioapi.go gensioapi.go
 
-EXTRA_DIST = srcgensioapi.go gensio.swigcxx
+EXTRA_DIST = srcgensioapi.go gensio.swigcxx srcgo.mod
 
 clean-local:
 	rm -rf gensioapi.go go.mod

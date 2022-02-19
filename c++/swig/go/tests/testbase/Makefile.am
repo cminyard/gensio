@@ -11,3 +11,8 @@ go.mod: testbase.go
 
 $(builddir)/testbase.go: $(srcdir)/srctestbase.go
 	cp $(srcdir)/srctestbase.go testbase.go
+
+EXTRA_DIST = srctestbase.go
+
+clean-local:
+	rm -f testbase.go go.mod
