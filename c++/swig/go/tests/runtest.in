@@ -1,0 +1,59 @@
+#!/bin/sh
+
+SRCDIR="@top_srcdir@"
+TEST_SRCDIR="${SRCDIR}/c++/swig/go/tests"
+BUILDDIR="@top_builddir@"
+TEST_BUILDDIR="${BUILDDIR}/c++/swig/go/tests"
+
+PRINT_MODE=false
+while echo $1 | grep '^-' >/dev/null; do
+    if [ "X$1" = "X--print" ]; then
+	PRINT_MODE=true
+    elif [ "X$1" = "X--" ]; then
+	break
+    else
+	echo "Unknown option: $1" 1>&2
+	exit 1
+    fi
+    shift
+done
+
+if [ ! -e ca ]; then
+    ${SRCDIR}/tests/make_keys;
+fi
+
+if [ -z "$1" ]; then
+    echo "No test given" 1>&2
+    exit 1
+fi
+
+TEST=$1
+shift
+
+if [ -e "${TEST_BUILDDIR}/${TEST}" ]; then
+    TEST="${TEST_BUILDDIR}/${TEST}"
+elif [ -e "${TEST_SRCDIR}/${TEST}" ]; then
+    TEST="${TEST_SRCDIR}/${TEST}"
+else
+    echo "Test ${TEST} not found" 1>&2
+    exit 1
+fi
+
+if [ ! -x ${TEST} ]; then
+    echo "Test ${TEST} is not executable" 1>&2
+    exit 1
+fi
+
+LD_LIBRARY_PATH=${BUILDDIR}/c++/lib/.libs:${BUILDDIR}/lib/.libs
+	
+if ${PRINT_MODE}; then
+    echo export LD_LIBRARY_PATH="${LD_LIBRARY_PATH}"
+    echo ${TEST} $*
+else
+    # Run the test with each available OS handler
+    export LD_LIBRARY_PATH="${LD_LIBRARY_PATH}"
+    if ! ${TEST} $*; then
+        # A test failed, exit
+	exit 1
+    fi
+fi
