@@ -25,3 +25,5 @@ modules.*
 *.mod.c
 *.ur-safe
 ser2net
+/.vs
+/out

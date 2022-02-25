@@ -1082,7 +1082,7 @@ namespace gensio {
     // This class is used to know when an MDNS_Watch object has
     // finished the shutdown operation and will not call any more
     // callbacks.
-    class GENSIOCPP_DLL_PUBLIC GENSIOCPP_DLL_PUBLIC MDNS_Watch_Free_Done {
+    class GENSIOCPP_DLL_PUBLIC MDNS_Watch_Free_Done {
     public:
 	// Called when the shutdown is complete.  The mdns object may be
 	// freed when this returns.

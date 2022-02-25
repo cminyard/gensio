@@ -17,7 +17,7 @@ namespace gensio {
 				 enum gensio_log_levels level,
 				 const char *log, va_list args)
     {
-	struct Os_Funcs *o =
+	class Os_Funcs *o =
 	    static_cast<Os_Funcs *>(gensio_os_funcs_get_data(io));
 	Os_Funcs_Log_Handler *logger = o->get_log_handler();
 
@@ -341,7 +341,7 @@ namespace gensio {
 			return rv;
 		    if (pwstr.size() > *buflen)
 			return GE_TOOBIG;
-		    *buflen = pwstr.size();
+		    *buflen = (gensiods) pwstr.size();
 		    memcpy(buf, pwstr.c_str(), *buflen);
 		    return 0;
 		}
@@ -360,10 +360,10 @@ namespace gensio {
 		    rv = cb->request_2fa(val);
 		    if (rv)
 			return rv;
-		    rbuf = (unsigned char *) o->zalloc(o, val.size());
+		    rbuf = (unsigned char *) o->zalloc(o, (gensiods) val.size());
 		    if (!rbuf)
 			return GE_NOMEM;
-		    *buflen = val.size();
+		    *buflen = (gensiods) val.size();
 		    memcpy(rbuf, val.data(), *buflen);
 		    *((unsigned char **) buf) = rbuf;
 		    return 0;
@@ -798,13 +798,13 @@ namespace gensio {
     gensiods Gensio::write(const std::vector<unsigned char> data,
 			   const char *const *auxdata)
     {
-	return write(data.data(), data.size(), auxdata);
+	return write(data.data(), (gensiods) data.size(), auxdata);
     }
 
     gensiods Gensio::write(const SimpleUCharVector data,
 			   const char *const *auxdata)
     {
-	return write(data.data(), data.size(), auxdata);
+	return write(data.data(), (gensiods) data.size(), auxdata);
     }
 
     gensiods Gensio::write(const struct gensio_sg *sg, gensiods sglen,
@@ -836,13 +836,13 @@ namespace gensio {
     int Gensio::write_s(gensiods *count, std::vector<unsigned char> data,
 			gensio_time *timeout, bool intr)
     {
-	return write_s(count, data.data(), data.size(), timeout, intr);
+	return write_s(count, data.data(), (gensiods) data.size(), timeout, intr);
     }
 
     int Gensio::write_s(gensiods *count, SimpleUCharVector data,
 			gensio_time *timeout, bool intr)
     {
-	return write_s(count, data.data(), data.size(), timeout, intr);
+	return write_s(count, data.data(), (gensiods) data.size(), timeout, intr);
     }
 
     Gensio *Gensio::alloc_channel(const char *const args[], Event *cb)
@@ -905,7 +905,7 @@ namespace gensio {
 		       gensio_time *timeout, bool intr)
     {
 	int err;
-	gensiods len = rvec.capacity(), count = 0;
+	gensiods len = (gensiods) rvec.capacity(), count = 0;
 	unsigned char buf[len];
 
 	if (intr)
@@ -1382,7 +1382,7 @@ namespace gensio {
 
 	if (!done)
 	    donefunc = NULL;
-	err = sergensio_signature(sio, (const char *) sig.data(), sig.size(),
+	err = sergensio_signature(sio, (const char *) sig.data(), (gensiods) sig.size(),
 				  donefunc, done);
 	if (err)
 	    throw gensio_error(err);
@@ -1747,7 +1747,7 @@ namespace gensio {
 			return rv;
 		    if (pwstr.size() > p->password_len)
 			return GE_TOOBIG;
-		    p->password_len = pwstr.size();
+		    p->password_len = (gensiods) pwstr.size();
 		    memcpy(p->password, pwstr.c_str(), p->password_len);
 		    return 0;
 		}
@@ -1773,10 +1773,10 @@ namespace gensio {
 		    rv = cb->request_2fa(&g, val);
 		    if (rv)
 			return rv;
-		    rbuf = (unsigned char *) o->zalloc(o, val.size());
+		    rbuf = (unsigned char *) o->zalloc(o, (gensiods) val.size());
 		    if (!rbuf)
 			return GE_NOMEM;
-		    p->password_len = val.size();
+		    p->password_len = (gensiods) val.size();
 		    memcpy(rbuf, val.data(), p->password_len);
 		    *((unsigned char **) p->password) = rbuf;
 		    return 0;

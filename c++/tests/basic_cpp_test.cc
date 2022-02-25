@@ -41,7 +41,7 @@ private:
 	io->free();
     }
 
-    Gensio *io;
+    Gensio *io = NULL;
     Waiter *waiter;
 };
 
@@ -61,7 +61,7 @@ public:
     const char *get_err() { return errstr; }
 
 private:
-    Gensio *io;
+    Gensio *io = NULL;
 
     gensiods read(int err, SimpleUCharVector idata,
 		  const char *const *auxdata) override
@@ -255,7 +255,7 @@ public:
     void set_accepter(Accepter *iacc) { acc = iacc; }
 
 private:
-    Accepter *acc;
+    Accepter *acc = NULL;
 
     void log(enum gensio_log_levels level, const std::string log) override
     {
@@ -286,7 +286,6 @@ do_server_test(Os_Funcs &o, string ios)
     Waiter w(o);
     Accepter *a;
     Acc_Event ae(&w);
-    const char *errstr;
 
     a = gensio_acc_alloc(ios, o, &ae);
     ae.set_accepter(a);
@@ -324,7 +323,7 @@ public:
     string get_port() { return string(port, portpos); }
 
 private:
-    Gensio *io;
+    Gensio *io = NULL;
 
     gensiods read(int err, const SimpleUCharVector data,
 		  const char *const *auxdata) override
@@ -372,7 +371,7 @@ private:
 	waiter->wake();
     }
 
-    char port[100];
+    char port[100] = "";
     gensiods portpos = 0;
     bool portfound = false;
 
