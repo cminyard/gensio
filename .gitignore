@@ -27,3 +27,4 @@ modules.*
 ser2net
 /.vs
 /out
+/CMakeSettings.json
