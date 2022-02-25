@@ -1373,7 +1373,7 @@ gensio_mdns_add_service(struct gensio_mdns *m,
 			int interface, int ipdomain,
 			const char *name, const char *type,
 			const char *domain, const char *host,
-			int port, const char *txt[],
+			int port, const char * const *txt,
 			struct gensio_mdns_service **rservice)
 {
     return GE_NOTSUP;
