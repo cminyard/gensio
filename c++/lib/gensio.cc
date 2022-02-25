@@ -906,12 +906,16 @@ namespace gensio {
     {
 	int err;
 	gensiods len = (gensiods) rvec.capacity(), count = 0;
-	unsigned char buf[len];
+	unsigned char *buf;
 
+	buf = (unsigned char *) go->zalloc(go, len);
+	if (!buf)
+	    throw gensio_error(GE_NOMEM);
 	if (intr)
 	    err = gensio_read_s_intr(io, &count, buf, len, timeout);
 	else
 	    err = gensio_read_s(io, &count, buf, len, timeout);
+	go->free(go, (void *) buf);
 	if (err == GE_TIMEDOUT || err== GE_INTERRUPTED)
 	    return err;
 	if (err)
