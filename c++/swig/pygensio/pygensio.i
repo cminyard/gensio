@@ -685,7 +685,7 @@ static bool check_for_err(int err)
 
 	void handle(MDNS_Watch_Event *e,
 		    enum gensio_mdns_data_state state,
-		    int interface, int ipdomain,
+		    int interfacenum, int ipdomain,
 		    const char *name, const char *type,
 		    const char *domain, const char *host,
 		    const struct gensio_addr *addr,
@@ -694,7 +694,7 @@ static bool check_for_err(int err)
 	    PyGILState_STATE gstate;
 
 	    gstate = PyGILState_Ensure();
-	    parent->handle(e, state, interface, ipdomain,
+	    parent->handle(e, state, interfacenum, ipdomain,
 			   name, type, domain, host, addr, txt);
 	    PyGILState_Release(gstate);
 	}
@@ -1398,12 +1398,12 @@ gensio_acc_alloct(gensio::Accepter *child, std::string str, gensio::Os_Funcs &o,
     }
 
     %newobject add_watch;
-    MDNS_Watch *add_watch(int interface, int ipdomain,
+    MDNS_Watch *add_watch(int interfacenum, int ipdomain,
 			  char *name, char *type, char *domain, char *host,
 			  MDNS_Watch_Event *event)
     {
 	Raw_MDNS_Event_Handler *evh = new Py_Raw_MDNS_Event_Handler;
-	MDNS_Watch *w = self->add_watch(interface, ipdomain, name, type,
+	MDNS_Watch *w = self->add_watch(interfacenum, ipdomain, name, type,
 					domain, host, event, evh);
 
 	return w;
@@ -1413,11 +1413,11 @@ gensio_acc_alloct(gensio::Accepter *child, std::string str, gensio::Os_Funcs &o,
 %rename("") gensio::MDNS_Watch::free;
 %rename("") gensio::MDNS_Watch::MDNS_Watch;
 %extend gensio::MDNS_Watch {
-    MDNS_Watch(MDNS *m, int interface, int ipdomain,
+    MDNS_Watch(MDNS *m, int interfacenum, int ipdomain,
 	       char *name, char *type, char *domain, char *host,
 	       MDNS_Watch_Event *event) {
 	Raw_MDNS_Event_Handler *evh = new Py_Raw_MDNS_Event_Handler;
-	MDNS_Watch *w = m->add_watch(interface, ipdomain, name, type,
+	MDNS_Watch *w = m->add_watch(interfacenum, ipdomain, name, type,
 				     domain, host, event, evh);
 
 	return w;

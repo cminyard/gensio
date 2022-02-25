@@ -19,7 +19,7 @@ public:
 
 private:
     void event(enum gensio_mdns_data_state state,
-	       int interface, int ipdomain,
+	       int interfacenum, int ipdomain,
 	       const char *name, const char *type,
 	       const char *domain, const char *host,
 	       const Addr *addr, const char * const *txt) override
@@ -28,7 +28,7 @@ private:
 	    waiter->wake();
 	if (state != GENSIO_MDNS_NEW_DATA)
 	    return;
-	cout << "Got MDNS interface " << interface << " ipdomain " << ipdomain
+	cout << "Got MDNS interface " << interfacenum << " ipdomain " << ipdomain
 	     << endl;
 	cout << " name:" << name << endl;
 	cout << " type:" << type << endl;

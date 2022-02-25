@@ -2546,33 +2546,33 @@ namespace gensio {
 	    throw gensio_error(rv);
     }
 
-    MDNS_Service *MDNS::add_service(int interface, int ipdomain,
+    MDNS_Service *MDNS::add_service(int interfacenum, int ipdomain,
 				    const char *name, const char *type,
 				    const char *domain, const char *host,
 				    int port, const char * const *txt)
     {
-	return new MDNS_Service(this, interface, ipdomain, name, type,
+	return new MDNS_Service(this, interfacenum, ipdomain, name, type,
 				domain, host, port, txt);
     }
 
-    MDNS_Watch *MDNS::add_watch(int interface, int ipdomain,
+    MDNS_Watch *MDNS::add_watch(int interfacenum, int ipdomain,
 				const char *name, const char *type,
 				const char *domain, const char *host,
 				MDNS_Watch_Event *event,
 				Raw_MDNS_Event_Handler *evh)
     {
-	return new MDNS_Watch(this, interface, ipdomain, name, type,
+	return new MDNS_Watch(this, interfacenum, ipdomain, name, type,
 			      domain, host, event, evh);
     }
 
-    MDNS_Service::MDNS_Service(MDNS *m, int interface, int ipdomain,
+    MDNS_Service::MDNS_Service(MDNS *m, int interfacenum, int ipdomain,
 			       const char *name, const char *type,
 			       const char *domain, const char *host,
 			       int port, const char * const *txt)
     {
 	int rv;
 
-	rv = gensio_mdns_add_service(m->m, interface, ipdomain, name, type,
+	rv = gensio_mdns_add_service(m->m, interfacenum, ipdomain, name, type,
 				     domain, host, port, txt, &this->s);
 	if (rv)
 	    throw gensio_error(rv);
@@ -2593,7 +2593,7 @@ namespace gensio {
 
 	void handle(MDNS_Watch_Event *event,
 		    enum gensio_mdns_data_state state,
-		    int interface, int ipdomain,
+		    int interfacenum, int ipdomain,
 		    const char *name, const char *type,
 		    const char *domain, const char *host,
 		    const struct gensio_addr *addr,
@@ -2614,10 +2614,10 @@ namespace gensio {
 		if (naddr) {
 		    Addr a(naddr);
 
-		    event->event(state, interface, ipdomain, name, type,
+		    event->event(state, interfacenum, ipdomain, name, type,
 				 domain, host, &a, txt);
 		} else {
-		    event->event(state, interface, ipdomain, name, type,
+		    event->event(state, interfacenum, ipdomain, name, type,
 				 domain, host, NULL, txt);
 		}
 	    } catch (std::exception &e) {
@@ -2630,7 +2630,7 @@ namespace gensio {
 
     void mdns_watch_event(struct gensio_mdns_watch *w,
 			  enum gensio_mdns_data_state state,
-			  int interface, int ipdomain,
+			  int interfacenum, int ipdomain,
 			  const char *name, const char *type,
 			  const char *domain, const char *host,
 			  const struct gensio_addr *addr,
@@ -2639,12 +2639,12 @@ namespace gensio {
 	MDNS_Watch_Event *event = static_cast<MDNS_Watch_Event *>(userdata);
 
 	event->w->raw_event_handler->handle(event, state,
-					    interface, ipdomain,
+					    interfacenum, ipdomain,
 					    name, type, domain, host,
 					    addr, txt);
     }
 
-    MDNS_Watch::MDNS_Watch(MDNS *m, int interface, int ipdomain,
+    MDNS_Watch::MDNS_Watch(MDNS *m, int interfacenum, int ipdomain,
 			   const char *name, const char *type,
 			   const char *domain, const char *host,
 			   MDNS_Watch_Event *event,
@@ -2660,7 +2660,7 @@ namespace gensio {
 	    raw_event_handler->set_parent(this->raw_event_handler);
 	    this->raw_event_handler = raw_event_handler;
 	}
-	rv = gensio_mdns_add_watch(m->m, interface, ipdomain, name, type,
+	rv = gensio_mdns_add_watch(m->m, interfacenum, ipdomain, name, type,
 				   domain, host, mdns_watch_event,
 				   event, &this->w);
 	if (rv) {
