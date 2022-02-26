@@ -31,7 +31,7 @@ def dump_buffer(buf):
         print(s)
         i = i + e
         left = left - e
-        
+
 
 class Reflector:
     """This creates an accepter socket.  If you connect to it, any data
@@ -138,7 +138,7 @@ class Reflector:
             else:
                 i = i + 1
         return len(buf)
-                
+
     def wait(self):
         """Wait for all the I/O connections to close"""
         self.waiter.wait(1)

@@ -107,7 +107,7 @@ class TestAcceptConAcc:
     def new_connection(self, acc, io):
         if not self.expect_connects:
             raise Exception("Connect when unexpected");
-            
+
         if self.io1 is None:
             self.io1 = io
             self.io1_hand = HandleData(self.o, None, io = io, name = "io1")

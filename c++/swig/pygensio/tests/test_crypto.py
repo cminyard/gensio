@@ -158,6 +158,6 @@ del acch
 del o
 
 test_shutdown()
-           
+
 print("Pass")
 sys.exit(0)

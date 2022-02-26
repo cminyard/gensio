@@ -276,7 +276,7 @@ gensio_ax25_str_to_addr(struct gensio_os_funcs *o,
     tnc_port = strtoul(instr, &end, 10);
     if (*end != ',')
 	return GE_INVAL;
-    
+
     s = gensio_strdup(o, end + 1);
     if (!s)
 	return GE_NOMEM;
@@ -297,7 +297,7 @@ gensio_ax25_str_to_addr(struct gensio_os_funcs *o,
     rv = gensio_ax25_addr_alloc(o, tnc_port, dest, src, i, extras, raddr);
     o->free(o, s);
     return rv;
-	
+
  out_inval:
     o->free(o, s);
     return GE_INVAL;

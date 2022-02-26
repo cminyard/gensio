@@ -1619,7 +1619,7 @@ mux_child_open_done(struct gensio *child, int err, void *open_data)
 	mux_shutdown_channels(muxdata, err);
 	muxdata->nr_not_closed = 0;
     } else if (chan->state != MUX_INST_IN_OPEN) {
-	/* A close was requested, handle it. */	
+	/* A close was requested, handle it. */
 	muxc_set_state(chan, MUX_INST_CLOSED);
 	mux_call_open_done(muxdata, chan, 0);
 	mux_channel_finish_close(chan);

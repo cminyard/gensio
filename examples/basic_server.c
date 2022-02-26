@@ -191,7 +191,7 @@ io_event(struct gensio *io, void *user_data, int event, int err,
 	    if (err != GE_REMCLOSE)
 		fprintf(stderr, "Error from io: %s\n", gensio_err_to_str(err));
 	    start_close(ii);
-	    return 0; 
+	    return 0;
 	}
 
 	len = *buflen;
@@ -292,7 +292,7 @@ io_acc_event(struct gensio_accepter *accepter, void *user_data,
     gensio_set_callback(ii->io, io_event, ii);
     gensio_set_read_callback_enable(ii->io, true);
     add_output_buf(ii, "Ready\n");
-    
+
     return 0;
 }
 

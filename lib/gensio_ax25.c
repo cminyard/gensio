@@ -2107,7 +2107,7 @@ ax25_chan_set_extended(struct ax25_chan *chan, bool extended,
 	    chan->writewindow = data[0];
 	else if (chan->conf.writewindow > 7)
 	    chan->writewindow = 7;
-	else 
+	else
 	    chan->writewindow = chan->conf.writewindow;
 	max_pkt = data[2] << 8 | data[1];
 	if (max_pkt < 256)
@@ -3870,7 +3870,7 @@ ax25_add_crc(unsigned char *buf, gensiods len)
     buf[len++] = (crc >> 8) & 0xff;
     return len;
 }
-    
+
 static int
 ax25_chan_send_ui(struct ax25_chan *chan, struct gensio_addr *addr,
 		  gensiods *rcount, uint8_t pid, gensiods datalen,
@@ -3888,7 +3888,7 @@ ax25_chan_send_ui(struct ax25_chan *chan, struct gensio_addr *addr,
     ui = chan->o->zalloc(chan->o, len);
     if (!ui)
 	return 0;
-		 
+
     buf = ((unsigned char *) ui) + sizeof(*ui);
 
     pos = ax25_addr_encode(buf, addr);
@@ -4038,7 +4038,7 @@ i_ax25_chan_open(struct ax25_chan *chan,
     chan->readwindow = chan->conf.readwindow;
     chan->max_write_size = chan->conf.max_write_size;
     chan->max_retries = chan->conf.max_retries;
-    
+
     chan->err = 0;
 
     switch (base->state) {
@@ -4147,7 +4147,7 @@ i_ax25_chan_close(struct ax25_chan *chan,
     case AX25_CHAN_REM_DISC:
 	ax25_chan_set_state(chan, AX25_CHAN_REM_CLOSE);
 	break;
-	
+
     case AX25_CHAN_WAITING_OPEN:
 	ax25_chan_set_state(chan, AX25_CHAN_REPORT_CLOSE);
 	ax25_chan_move_to_closed(chan, &base->chans_waiting_open);

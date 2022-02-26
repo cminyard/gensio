@@ -362,7 +362,7 @@ bool gensio_acc_exit_on_close(struct gensio_accepter *accepter);
 GENSIO_DLL_PUBLIC
 const char *gensio_acc_get_type(struct gensio_accepter *acc,
 				unsigned int depth);
-    
+
 GENSIO_DLL_PUBLIC
 bool gensio_acc_is_reliable(struct gensio_accepter *accepter);
 GENSIO_DLL_PUBLIC
@@ -737,7 +737,7 @@ char *gensio_alloc_vsprintf(struct gensio_os_funcs *o,
 GENSIO_DLL_PUBLIC
 char *gensio_alloc_sprintf(struct gensio_os_funcs *o,
 			   const char *fmt, ...);
-    
+
 GENSIO_DLL_PUBLIC
 char *gensio_strdup(struct gensio_os_funcs *o, const char *str);
 

@@ -45,7 +45,7 @@ if [ ! -x ${TEST} ]; then
 fi
 
 LD_LIBRARY_PATH=${BUILDDIR}/c++/lib/.libs:${BUILDDIR}/lib/.libs
-	
+
 if ${PRINT_MODE}; then
     echo export LD_LIBRARY_PATH="${LD_LIBRARY_PATH}"
     echo ${TEST} $*

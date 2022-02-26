@@ -1061,7 +1061,7 @@ sctp_gensio_accepter_alloc(struct gensio_addr *iai,
 				    o, "sctp", cb, user_data, accepter);
     if (err)
 	goto out_err;
-	
+
     nadata->acc = *accepter;
     gensio_acc_set_is_reliable(nadata->acc, true);
     /* See comment on gensio_set_is_packet() above. */

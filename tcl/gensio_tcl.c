@@ -894,7 +894,7 @@ gensio_tcl_add_iod(struct gensio_os_funcs *o, enum gensio_iod_type type,
 	err = GE_NOMEM;
 	goto out_err;
     }
-    
+
     iod->r.f = o;
     iod->fd = fd;
     if (type == GENSIO_IOD_STDIO) {
@@ -1401,7 +1401,7 @@ gensio_tcl_funcs_alloc(struct gensio_os_funcs **ro)
      */
     interp = Tcl_CreateInterp();
     Tcl_DeleteInterp(interp);
-    
+
     o = malloc(sizeof(*o));
     if (!o)
 	return GE_NOMEM;

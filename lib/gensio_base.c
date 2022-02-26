@@ -438,7 +438,7 @@ filter_ul_write(struct basen_data *ndata, gensio_ul_filter_data_handler handler,
 	return gensio_filter_ul_write(ndata->filter, handler,
 				      ndata, rcount, sg, sglen, auxdata);
     return handler(ndata, rcount, sg, sglen, auxdata);
-}	     
+}
 
 static int
 filter_ll_write(struct basen_data *ndata, gensio_ll_filter_data_handler handler,
@@ -452,7 +452,7 @@ filter_ll_write(struct basen_data *ndata, gensio_ll_filter_data_handler handler,
     if (buflen)
 	return handler(ndata, rcount, buf, buflen, auxdata);
     return 0;
-}	     
+}
 
 static int
 filter_setup(struct basen_data *ndata)

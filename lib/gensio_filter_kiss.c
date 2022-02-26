@@ -537,7 +537,7 @@ gensio_kiss_filter_alloc(struct gensio_os_funcs *o, const char * const args[],
     for (i = 0; !server && i < 16; i++) {
 	if (!tncs[i])
 	    continue;
-	
+
 	kfilter->startdata[kfilter->startdata_len++] = 0xc0;
 	kfilter->startdata[kfilter->startdata_len++] = (i << 4) | 1;
 	kfilter->startdata[kfilter->startdata_len++] = (txdelay + 5) / 10;

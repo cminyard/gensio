@@ -835,7 +835,7 @@ stels_cb_com_port_cmd(void *handler_data, const unsigned char *option,
 	gensio_cb(io, GENSIO_EVENT_SER_MODEMSTATE, 0,
 		  (unsigned char *) &val, &vlen, NULL);
 	break;
-	
+
     case 12:
 	if (len < 3)
 	    return;

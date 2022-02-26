@@ -203,7 +203,7 @@ stdiona_deref_and_unlock(struct stdiona_data *nadata)
 	stdiona_finish_free(nadata);
     } else {
 	stdiona_unlock(nadata);
-    }	
+    }
 }
 
 static int

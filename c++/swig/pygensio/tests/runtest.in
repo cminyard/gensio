@@ -68,7 +68,7 @@ else
 	exit 1
     fi
 fi
-	
+
 if ${PRINT_MODE}; then
     echo export PYTHONPATH="${PYTHONPATH}"
     if [ ! -z "$MSYSTEM" ]; then

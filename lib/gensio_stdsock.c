@@ -2060,7 +2060,7 @@ gensio_stdsock_open_listen_sockets(struct gensio_os_funcs *o,
 #else
     family = AF_INET;
 #endif
-    
+
 #if defined(AF_INET6) || HAVE_UNIX
  restart:
 #endif

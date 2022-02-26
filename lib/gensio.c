@@ -2789,7 +2789,7 @@ gensio_del_default(struct gensio_os_funcs *o,
 	    prevc->next = c->next;
 	else
 	    d->classvals = c->next;
-	
+
 	if (c->val.strval)
 	    o->free(o, c->val.strval);
 	o->free(o, c->class);

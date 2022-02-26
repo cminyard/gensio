@@ -78,7 +78,7 @@ class IPMISimDaemon:
         It is started with the -r and -d options set, you can supply extra
         options if you like as a string.
         """
-        
+
         prog = os.getenv("IPMISIM_EXEC")
         if (not prog):
             prog = "ipmi_sim"

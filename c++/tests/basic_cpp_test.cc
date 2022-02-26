@@ -73,7 +73,7 @@ private:
 	    io->close(ce);
 	    return 0;
 	}
-		  
+
 	string str((char *) idata.data(), idata.size());
 
 	if (readpos + idata.size() > datalen) {

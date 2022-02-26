@@ -19,7 +19,7 @@ extern "C" {
 
 #ifdef SWIGPYTHON
 typedef PyObject swig_cb;
-#endif 
+#endif
 
 GENSIO_DLL_PUBLIC
 int gensio_swig_setup_os_funcs(struct gensio_os_funcs *o,

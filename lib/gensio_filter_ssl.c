@@ -1108,7 +1108,7 @@ gensio_ssl_filter_raw_alloc(struct gensio_os_funcs *o,
     sfilter = o->zalloc(o, sizeof(*sfilter));
     if (!sfilter)
 	return NULL;
-    
+
     sfilter->o = o;
     sfilter->is_client = is_client;
     sfilter->max_write_size = max_write_size;

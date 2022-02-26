@@ -84,7 +84,7 @@ io_event(struct gensio *io, void *user_data, int event, int err,
 	    if (err != GE_REMCLOSE)
 		ci->err = err;
 	    start_close(ci);
-	    return 0; 
+	    return 0;
 	}
 
 	len = *buflen;

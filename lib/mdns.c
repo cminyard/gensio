@@ -672,13 +672,13 @@ mdns_service_resolver_callback(AvahiServiceResolver *ar,
 	addrsize = sizeof(a->data.ipv4);
 	addrdata = &a->data.ipv4;
 	break;
-	
+
     case AVAHI_PROTO_INET6:
 	nettype = GENSIO_NETTYPE_IPV6;
 	addrsize = sizeof(a->data.ipv6);
 	addrdata = &a->data.ipv6;
 	break;
-	
+
     default:
 	return;
     }
@@ -730,7 +730,7 @@ mdns_service_resolver_callback(AvahiServiceResolver *ar,
 
     gensio_list_add_tail(&r->results, &e->link);
     enqueue_callback(m, c);
-    
+
     return;
 
  out_nomem:
@@ -1038,7 +1038,7 @@ avahi_add_watch(struct gensio_mdns_watch *w)
 	w->service_calls_pending++;
 }
 
-int				    
+int
 gensio_mdns_add_watch(struct gensio_mdns *m,
 		      int interface, int ipdomain,
 		      const char *name, const char *type,
@@ -1281,7 +1281,7 @@ gensio_alloc_mdns(struct gensio_os_funcs *o, struct gensio_mdns **new_m)
 	gensio_avahi_poll_free(m->ap, NULL, NULL);
 	o->free(o, m);
 	return GE_NOMEM;
-    }	
+    }
 
     gensio_list_init(&m->services);
     gensio_list_init(&m->watches);

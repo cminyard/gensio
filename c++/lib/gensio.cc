@@ -397,7 +397,7 @@ namespace gensio {
     gensio_cpp_cb(struct gensio *io, void *user_data,
 		  int event, int err,
 		  unsigned char *buf, gensiods *buflen,
-		  const char *const *auxdata) 
+		  const char *const *auxdata)
    {
 	Gensio *g = static_cast<Gensio *>(user_data);
 
@@ -1430,7 +1430,7 @@ namespace gensio {
 	}
 	Waiter waiter;
     };
-    
+
     int Serial_Gensio::baud_s(unsigned int *baud, gensio_time *timeout,
 			      bool intr)
     {
@@ -1622,28 +1622,28 @@ namespace gensio {
 	*ri = w.val;
 	return 0;
     }
-    
+
     void Serial_Gensio::modemstate(unsigned int state)
     {
 	int err = sergensio_modemstate(sio, state);
 	if (err)
 	    throw gensio_error(err);
     }
-    
+
     void Serial_Gensio::linestate(unsigned int state)
     {
 	int err = sergensio_linestate(sio, state);
 	if (err)
 	    throw gensio_error(err);
     }
-    
+
     void Serial_Gensio::flow_state(bool state)
     {
 	int err = sergensio_flowcontrol_state(sio, state);
 	if (err)
 	    throw gensio_error(err);
     }
-    
+
     Serialdev::Serialdev(const char *devname, const char * const args[],
 			 Os_Funcs &o, Event *cb)
 	: Serial_Gensio(o, cb)
@@ -1850,7 +1850,7 @@ namespace gensio {
     Accepter::set_accepter(struct gensio_accepter *acc, bool set_cb)
     {
 	struct gensio_acc_cpp_data *d;
-	
+
 	try {
 	    d = new struct gensio_acc_cpp_data;
 	} catch (...) {

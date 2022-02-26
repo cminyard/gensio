@@ -465,7 +465,7 @@ hash_file(const char *dir, const char *name, void *cbdata)
 	fprintf(stderr, "Out of memory allocating %s%c%s", dir, DIRSEP, name);
 	return ITERATE_DIR_ERR;
     }
-    
+
     cert = load_cert(s);
     if (!cert)
 	goto out_err;

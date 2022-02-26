@@ -31,7 +31,7 @@ type ioInfo struct {
 	errstr string
 	inClose bool
 }
-    
+
 type ioEvent struct {
 	gensio.EventBase
 	g gensio.Gensio

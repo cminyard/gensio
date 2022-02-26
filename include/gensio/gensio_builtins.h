@@ -18,7 +18,7 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-   
+
 /*
  * Allocators for the various gensio accepter types, compatible with
  * register_gensio_accepter().

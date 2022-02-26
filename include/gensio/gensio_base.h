@@ -70,7 +70,7 @@ void gensio_filter_set_callback(struct gensio_filter *filter,
 				gensio_filter_cb cb, void *cb_data);
 
 /*
- * Is there data ready to be read from the top of the filter? 
+ * Is there data ready to be read from the top of the filter?
  */
 #define GENSIO_FILTER_FUNC_UL_READ_PENDING	2
 GENSIO_DLL_PUBLIC

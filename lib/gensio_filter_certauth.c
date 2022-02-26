@@ -1034,7 +1034,7 @@ certauth_try_connect(struct gensio_filter *filter, gensio_time *timeout)
 
     case CERTAUTH_CHALLENGE_RESPONSE:
 	if (!sfilter->cert || !sfilter->response_result) {
-	    /* 
+	    /*
 	     * Remote end didn't send certificate and/or challenge
 	     * response, try password.
 	     */

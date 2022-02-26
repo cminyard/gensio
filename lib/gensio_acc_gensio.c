@@ -241,7 +241,7 @@ gensna_child_event(struct gensio_accepter *accepter, void *user_data,
 	if (io)
 	    base_allocated = false;
     }
-	
+
     if (err)
 	goto out_err_unlock;
 

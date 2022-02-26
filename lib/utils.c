@@ -37,7 +37,7 @@ gensio_strndup(struct gensio_os_funcs *o, const char *str, gensiods len)
 
     if (len > slen)
 	len = slen;
-    
+
     s = o->zalloc(o, len + 1);
     if (!s)
 	return NULL;

@@ -667,7 +667,7 @@ netna_readhandler(struct gensio_iod *iod, void *cbdata)
     tdata->istcp = nadata->istcp;
     tdata->nodelay = nadata->nodelay;
     raddr = NULL;
-    
+
     if (tdata->istcp)
 	setup |= GENSIO_OPENSOCK_KEEPALIVE;
     if (tdata->nodelay)

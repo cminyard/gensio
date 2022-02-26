@@ -259,7 +259,7 @@ gio_start_timer(os_handler_t      *handler,
     rv = o->start_timer(timer->timer, &gtime);
     if (rv)
 	timer->running = false;
-    
+
  out_unlock:
     o->unlock(timer->lock);
 
@@ -360,7 +360,7 @@ gio_get_random(os_handler_t  *handler,
 
 static void
 gio_vlog(os_handler_t         *handler,
-	 enum ipmi_log_type_e log_type, 
+	 enum ipmi_log_type_e log_type,
 	 const char           *format,
 	 va_list              ap)
 {
@@ -407,7 +407,7 @@ gio_vlog(os_handler_t         *handler,
 
 static void
 gio_log(os_handler_t         *handler,
-	enum ipmi_log_type_e log_type, 
+	enum ipmi_log_type_e log_type,
 	const char           *format,
 	...)
 {
@@ -1068,7 +1068,6 @@ sol_connection_state(ipmi_sol_conn_t *conn, ipmi_sol_state state,
 {
     struct sol_ll *solll = cb_data;
 
-    
     if (err)
 	err = sol_xlat_ipmi_err(solll->o, err);
 
@@ -1185,7 +1184,7 @@ conn_changed(ipmi_con_t   *ipmi,
 	solll->read_err = GE_NOTREADY;
 	check_for_read_delivery(solll);
     }
-	
+
  out_unlock:
     sol_unlock(solll);
 }

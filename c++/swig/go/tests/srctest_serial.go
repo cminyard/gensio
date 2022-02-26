@@ -223,7 +223,7 @@ func main() {
 		panic(fmt.Sprintf("Signature mismatch, expected %s got %s",
 			"mysig", string(osd.val)))
 	}
-	osd = nil	
+	osd = nil
 
 	var val uint
 	var sval uint
@@ -254,7 +254,7 @@ func main() {
 		panic(fmt.Sprintf("Baud mismatch2, expected %d got %d",
 			sval, od.val))
 	}
-	od = nil	
+	od = nil
 
 	testbase.ObjCount++
 	od = &SerOpDone{}
@@ -282,7 +282,7 @@ func main() {
 		panic(fmt.Sprintf("Datasize mismatch2, expected %d got %d",
 			sval, od.val))
 	}
-	od = nil	
+	od = nil
 
 	testbase.ObjCount++
 	od = &SerOpDone{}
@@ -310,7 +310,7 @@ func main() {
 		panic(fmt.Sprintf("Parity mismatch2, expected %d got %d",
 			sval, od.val))
 	}
-	od = nil	
+	od = nil
 
 	testbase.ObjCount++
 	od = &SerOpDone{}
@@ -338,7 +338,7 @@ func main() {
 		panic(fmt.Sprintf("Stopbits mismatch2, expected %d got %d",
 			sval, od.val))
 	}
-	od = nil	
+	od = nil
 
 	testbase.ObjCount++
 	od = &SerOpDone{}
@@ -366,7 +366,7 @@ func main() {
 		panic(fmt.Sprintf("Stopbits mismatch2, expected %d got %d",
 			sval, od.val))
 	}
-	od = nil	
+	od = nil
 
 	testbase.ObjCount++
 	od = &SerOpDone{}
@@ -394,7 +394,7 @@ func main() {
 		panic(fmt.Sprintf("Flowcontrol mismatch2, expected %d got %d",
 			sval, od.val))
 	}
-	od = nil	
+	od = nil
 
 	testbase.ObjCount++
 	od = &SerOpDone{}
@@ -422,7 +422,7 @@ func main() {
 		panic(fmt.Sprintf("Iflowcontrol mismatch2, expected %d got %d",
 			sval, od.val))
 	}
-	od = nil	
+	od = nil
 
 	testbase.ObjCount++
 	od = &SerOpDone{}
@@ -450,7 +450,7 @@ func main() {
 		panic(fmt.Sprintf("Sbreak mismatch2, expected %d got %d",
 			sval, od.val))
 	}
-	od = nil	
+	od = nil
 
 	testbase.ObjCount++
 	od = &SerOpDone{}
@@ -478,7 +478,7 @@ func main() {
 		panic(fmt.Sprintf("Rts mismatch2, expected %d got %d",
 			sval, od.val))
 	}
-	od = nil	
+	od = nil
 
 	// No tests for cts, dcd_dsr, ri.  Those require ipmisol
 

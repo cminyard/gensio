@@ -40,7 +40,7 @@ enum relpkt_msgs {
     /*
      * Send some data.  If there is no data after the header, msg seq
      * is ignore and this is only an ack.
-     * 
+     *
      * +----------------+----------------+----------------+
      * |   2   |reserv|A| next expected  |  msg seq       |
      * +----------------+----------------+----------------+
@@ -52,7 +52,7 @@ enum relpkt_msgs {
      * Request resending data from starting at the first sequence
      * number up to and including the last sequence number.
      * Data after the header is more resend requests in pairs.
-     * 
+     *
      * +----------------+----------------+----------------+
      * |   3   |reserved|first seq resend|last seq resend |
      * +----------------+----------------+----------------+
@@ -61,7 +61,7 @@ enum relpkt_msgs {
 
     /*
      * Request that the connection be closed.
-     * 
+     *
      * +----------------+----------------+----------------+
      * |   4   |reserved|   error msb    |   error lsb    |
      * +----------------+----------------+----------------+
@@ -72,7 +72,7 @@ enum relpkt_msgs {
 enum relpkt_state {
     /*
      * relpkt is not operational.
-     * 
+     *
      * init =>
      *   send close
      *
@@ -167,7 +167,7 @@ enum relpkt_state {
     /*
      * A local close has been requested, waiting for the transmit
      * queue to clear.
-     * 
+     *
      * init =>
      *   if !response
      *     send init rsp
@@ -582,7 +582,7 @@ relpkt_try_connect(struct relpkt_filter *rfilter, gensio_time *timeout,
     case RELPKT_WAITING_CLOSE_RSP:
 	rv = GE_NOTREADY;
 	break;
-    
+
     default:
 	assert(0);
     }
@@ -668,7 +668,7 @@ relpkt_try_disconnect(struct relpkt_filter *rfilter, gensio_time *timeout,
 	    rv = GE_INPROGRESS;
 	}
 	break;
-    
+
     case RELPKT_WAITING_INIT_RSP: /* Should not happen. */
     default:
 	assert(0);
@@ -1147,7 +1147,7 @@ i_relpkt_filter_timeout(struct relpkt_filter *rfilter)
 	if (rfilter->next_acked_seq == rfilter->last_timeout_ack) {
 	    rfilter->timeout_ack_count++;
 	    if (rfilter->timeout_ack_count > 1) {
-		/* 
+		/*
 		 * We haven't received an ack for something we sent.
 		 * The packet must have been dropped.  Resend.
 		 */
@@ -1159,7 +1159,6 @@ i_relpkt_filter_timeout(struct relpkt_filter *rfilter)
 	    rfilter->timeout_ack_count = 0;
 	    rfilter->last_timeout_ack = rfilter->next_acked_seq;
 	}
-	
     }
     relpkt_filter_start_timer(rfilter);
     return 0;
