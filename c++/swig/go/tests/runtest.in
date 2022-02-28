@@ -52,8 +52,10 @@ if ${PRINT_MODE}; then
 else
     # Run the test with each available OS handler
     export LD_LIBRARY_PATH="${LD_LIBRARY_PATH}"
-    if ! ${TEST} $*; then
+    ${TEST} $*
+    rv=$?
+    if test $rv != 0; then
         # A test failed, exit
-	exit 1
+	exit $rv
     fi
 fi
