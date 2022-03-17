@@ -15,6 +15,8 @@ import (
 	"runtime"
 	"reflect"
 	"sync/atomic"
+	"net"
+	"time"
 )
 
 // This is the interface used to receive logs from an OS handler.
@@ -1129,7 +1131,9 @@ func (e *EventBase) UserEvent(event int, err int,
 }
 
 func (e *EventBase) destroy() {
-	DeleteRawEvent(e.e)
+	if e.e != nil {
+		DeleteRawEvent(e.e)
+	}
 	if Debug {
 		fmt.Println("Event destroy")
 	}
@@ -2278,4 +2282,249 @@ func (n *netIfsO) GetAddrFamily(i uint, j uint) uint {
 
 func (n *netIfsO) GetAddrStr(i uint, j uint) string {
 	return n.n.Get_addrstr(i, j)
+}
+
+// A net.Conn interface for a gensio.  Note that this does not support
+// any type of callback (all callbacks return GE_NOTSUP), and it puts
+// the gensio into synchronous mode so no read or write ready
+// callbacks are called.  If you modify the gensio's synchronous
+// setting, it will mess things up.
+type Conn struct {
+	g Gensio
+	readTimeout time.Time
+	writeTimeout time.Time
+}
+
+type ax25NetAddr struct {
+	addrstr string
+}
+
+func (a *ax25NetAddr) Network() string {
+	return "gensio-ax25"
+}
+
+func (a *ax25NetAddr) String() string {
+	return a.addrstr
+}
+
+// Create a gensio net.Conn
+func Dial(str string, o *OsFuncs) (rc *Conn, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			rc = nil
+			err = fmt.Errorf("%s", r)
+		}
+	}()
+	c := &Conn{ }
+	c.g = NewGensio(str, o, &EventBase{ })
+	c.g.SetSync()
+	c.g.OpenS()
+	return c, nil
+}
+
+// Convert a gensio into a net.Conn.  The gensio should be closed, this
+// will open it.
+func DialGensio(g Gensio) (rc *Conn, err error) {
+	c := &Conn{ }
+	c.g = g
+	c.g.SetSync()
+	c.g.OpenS()
+	return c, nil
+}
+
+// Return the gensio for a gensio net.Conn
+func (c *Conn) GetGensio() Gensio {
+	return c.g
+}
+
+// Allocate a channel for an existing connection and return it as a
+// new net.Conn.  The underlying gensio must support channels.
+func (mc *Conn) DialChannel(args []string) (rc *Conn, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			rc = nil
+			err = fmt.Errorf("%s", r)
+		}
+	}()
+	c := &Conn{ }
+	c.g = mc.g.AllocChannel(args, &EventBase{ })
+	c.g.SetSync()
+	c.g.OpenS()
+	return c, nil
+}
+
+// Standard net.Conn read function.
+func (c *Conn) Read(b []byte) (n int, err error) {
+	var timeout *Time = nil
+
+	defer func() {
+		if r := recover(); r != nil {
+			n = 0
+			err = fmt.Errorf("%s", r)
+		}
+	}()
+
+	if !c.readTimeout.IsZero() {
+		diff := c.readTimeout.Sub(time.Now())
+		if diff <= 0 {
+			return 0, fmt.Errorf("Timeout is in the past")
+		}
+		timeout = NewTime(int64(diff) / 1000000000,
+			int(int64(diff) % 1000000000))
+	}
+	errv, data := c.g.ReadS(b, timeout, false)
+	if errv != 0 {
+		return 0, fmt.Errorf("%s", ErrToStr(errv))
+	}
+	return len(data), nil
+}
+
+// Standard net.Conn write function.
+func (c *Conn) Write(b []byte) (n int, err error) {
+	var timeout *Time = nil
+
+	defer func() {
+		if r := recover(); r != nil {
+			n = 0
+			err = fmt.Errorf("%s", r)
+		}
+	}()
+
+	if !c.writeTimeout.IsZero() {
+		diff := c.writeTimeout.Sub(time.Now())
+		if diff <= 0 {
+			return 0, fmt.Errorf("Timeout is in the past")
+		}
+		timeout = NewTime(int64(diff) / 1000000000,
+			int(int64(diff) % 1000000000))
+	}
+	errv, count := c.g.WriteS(b, timeout, false)
+	if errv != 0 {
+		return 0, fmt.Errorf("%s", ErrToStr(errv))
+	}
+	return int(count), nil
+}
+
+// Standard net.Conn close function.
+func (c *Conn) Close() (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("%s", r)
+		}
+	}()
+
+	c.g.CloseS()
+	return nil
+}
+
+// Return the local address for the gensio.
+func (c *Conn) LocalAddr() net.Addr {
+	addrdata := make([]byte, 1024)
+	errv, data, count := c.g.Control(GENSIO_CONTROL_DEPTH_FIRST, true,
+		GENSIO_CONTROL_LADDR, addrdata)
+	if errv != 0 || count == 0 || count > 1024 {
+		return nil
+	}
+	return &ax25NetAddr { string(data) }
+}
+
+// Return the remote address for the gensio.
+func (c *Conn) RemoteAddr() net.Addr {
+	addrdata := make([]byte, 1024)
+	errv, data, count := c.g.Control(GENSIO_CONTROL_DEPTH_FIRST, true,
+		GENSIO_CONTROL_RADDR, addrdata)
+	if errv != 0 || count == 0 || count > 1024 {
+		return nil
+	}
+	return &ax25NetAddr { string(data) }
+}
+
+func (c *Conn) SetDeadline(t time.Time) error {
+	c.readTimeout = t
+	c.writeTimeout = t
+	return nil
+}
+
+func (c *Conn) SetReadDeadline(t time.Time) error {
+	c.readTimeout = t
+	return nil
+}
+
+func (c *Conn) SetWriteDeadline(t time.Time) error {
+	c.writeTimeout = t
+	return nil
+}
+
+// A net.Listener implementation for gensio
+type Listener struct {
+	a Accepter
+}
+
+// Allocate a gensio and a net.Listener under it
+func Listen(str string, o *OsFuncs) (rl *Listener, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			rl = nil
+			err = fmt.Errorf("%s", r)
+		}
+	}()
+
+	l := &Listener{ }
+	l.a = NewAccepter(str, o, &AccepterEventBase{ })
+	l.a.SetSync()
+	l.a.Startup()
+	return l, nil
+}
+
+// Create a listener from an existing accepter.  The accepter should be
+// shut down, this will start it up.
+func ListenAccepter(a Accepter) (rl *Listener, err error) {
+	l := &Listener{ }
+	l.a = a
+	l.a.SetSync()
+	l.a.Startup()
+	return l, nil
+}
+
+// Return the accepter associated with the listener
+func (l *Listener) GetAccepter() Accepter {
+	return l.a
+}
+
+func (l *Listener) Accept() (rc net.Conn, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			rc = nil
+			err = fmt.Errorf("%s", r)
+		}
+	}()
+
+	errv, g := l.a.AcceptS(nil, false)
+	if errv != 0 {
+		return nil, fmt.Errorf("%s", ErrToStr(errv))
+	}
+	c := &Conn{ }
+	c.g = g;
+	return c, nil
+}
+
+func (l *Listener) Close() (err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("%s", r)
+		}
+	}()
+
+	l.a.ShutdownS()
+	return nil
+}
+
+func (l *Listener) Addr() net.Addr {
+	addrdata := make([]byte, 1024)
+	errv, data, count := l.a.Control(GENSIO_CONTROL_DEPTH_FIRST, true,
+		GENSIO_ACC_CONTROL_LADDR, addrdata)
+	if errv != 0 || count == 0 || count > 1024 {
+		return nil
+	}
+	return &ax25NetAddr { string(data) }
 }
