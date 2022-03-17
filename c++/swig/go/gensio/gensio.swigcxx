@@ -81,7 +81,7 @@
 
 %typemap(gotype) (std::vector<unsigned char> &) "*[]byte";
 %typemap(directorin) (std::vector<unsigned char> &) (_goslice_ temp) {
-    $input = (std::vector<unsigned char> *) &temp;
+    $input = &temp;
     temp.array = (void *) $1.data();
     temp.len = $1.size();
     temp.cap = temp.len;
@@ -93,7 +93,7 @@
 }
 
 %typemap(directorin) std::string &retval (_gostring_ temp) {
-    $input = (std::string *) &temp;
+    $input = &temp;
     temp.p = (char *) $1.data();
     temp.n = $1.size();
 }
