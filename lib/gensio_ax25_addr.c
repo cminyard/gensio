@@ -177,7 +177,9 @@ ax25_str_to_subaddr(const char *s, struct gensio_ax25_subaddr *a, bool is_cr)
 	return GE_INVAL;
 
     for (i = 0; i < 6; i++) {
-	if (isupper(s[i]) || isdigit(s[i]))
+	if (!s[i])
+	    break;
+	else if (isupper(s[i]) || isdigit(s[i]))
 	    a->addr[i] = s[i];
 	else if (islower(s[i]))
 	    a->addr[i] = toupper(s[i]);
