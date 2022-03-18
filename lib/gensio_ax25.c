@@ -2796,9 +2796,11 @@ ax25_chan_handle_frmr(struct ax25_base *base, struct ax25_chan *chan,
 	if (chan->extended == 2) {
 	    chan->extended = 1;
 	    ax25_chan_send_sabm(chan);
+	    ax25_chan_start_t1(chan);
 	} else if (chan->extended == 1) {
 	    chan->extended = 0;
 	    ax25_chan_send_sabm(chan);
+	    ax25_chan_start_t1(chan);
 	}
 	break;
 
