@@ -97,10 +97,10 @@ static void
 kiss_add_wrbyte(struct kiss_filter *kfilter, unsigned char byte)
 {
     if (byte == 0xc0) {
-	kfilter->write_data[kfilter->write_data_len++] = 0xd8;
+	kfilter->write_data[kfilter->write_data_len++] = 0xdb;
 	kfilter->write_data[kfilter->write_data_len++] = 0xdc;
-    } else if (byte == 0xd8) {
-	kfilter->write_data[kfilter->write_data_len++] = 0xd8;
+    } else if (byte == 0xdb) {
+	kfilter->write_data[kfilter->write_data_len++] = 0xdb;
 	kfilter->write_data[kfilter->write_data_len++] = 0xdd;
     } else {
 	kfilter->write_data[kfilter->write_data_len++] = byte;
@@ -254,12 +254,12 @@ kiss_ll_write(struct gensio_filter *filter,
 		if (b == 0xdc) {
 		    b = 0xc0;
 		} else if (b == 0xdd) {
-		    b = 0xd8;
+		    b = 0xdb;
 		} else {
 		    kfilter->in_bad_packet = true;
 		    continue;
 		}
-	    } else if (b == 0xd8) { /* escape char */
+	    } else if (b == 0xdb) { /* escape char */
 		kfilter->in_esc = true;
 		continue;
 	    }
