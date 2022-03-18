@@ -2322,13 +2322,12 @@ func Dial(str string, o *OsFuncs) (rc *Conn, err error) {
 	return c, nil
 }
 
-// Convert a gensio into a net.Conn.  The gensio should be closed, this
-// will open it.
+// Convert a gensio into a net.Conn.  The gensio is not opened, the caller
+// must do this.  Synchronous mode is turned on.
 func DialGensio(g Gensio) (rc *Conn, err error) {
 	c := &Conn{ }
 	c.g = g
 	c.g.SetSync()
-	c.g.OpenS()
 	return c, nil
 }
 
