@@ -154,56 +154,87 @@
 }
 
 // Handle auxdata
+%inline %{
+#include <stdlib.h>
+void *gensio_alloc_ptr_array(unsigned int len)
+{
+    return calloc(len, sizeof(void *));
+}
+void gensio_set_ptr_array(void *ain, unsigned int pos, void *val)
+{
+    void **a = (void **) ain;
+    a[pos] = val;
+}
+void *gensio_get_ptr_array(void *ain, unsigned int pos)
+{
+    void **a = (void **) ain;
+    return a[pos];
+}
+void gensio_free_ptr_array(void *ain)
+{
+    void **a = (void **) ain;
+    unsigned int i;
+
+    if (!a)
+        return;
+    for (i = 0; a[i]; i++) {
+        free(a[i]);
+    }
+    free(a);
+}
+char *gensio_uintptr_to_string(void *in)
+{
+    return (char *) in;
+}
+void *gensio_string_to_uintptr(char *in)
+{
+    return strdup(in);
+}
+%}
 %typemap(gotype) (const char * const *) "[]string";
+%typemap(imtype) (const char * const *) "uintptr";
+%typemap(goin) (const char * const *) {
+	if $input == nil || len($input) == 0 {
+		$result = 0
+	} else {
+		$result = Gensio_alloc_ptr_array(uint(len($input) + 1))
+		defer func() {
+			Gensio_free_ptr_array($result)
+		}()
+		var i uint
+		for i = 0; i < uint(len($input)); i++ {
+			Gensio_set_ptr_array($result, i,
+				Gensio_string_to_uintptr($input[i]))
+		}
+	}
+}
 %typemap(in) (const char * const *) {
-    unsigned int i;
-    _gostring_ *strs;
-
-    if (!$input.array || $input.len == 0) {
-	$1 = NULL;
-    } else {
-	strs = (_gostring_ *) $input.array;
-	$1 = (char **) malloc(sizeof(char *) * ($input.len + 1));
-	for (i = 0; i < $input.len; i++) {
-	    $1[i] = (char *) malloc(strs[i].n + 1);
-	    memcpy($1[i], strs[i].p, strs[i].n);
-	    $1[i][strs[i].n] = '\0';
+    $1 = (char **) $input;
+}
+%typemap(godirectorin) (const char * const *) {
+	if ($input == 0) {
+		$result = nil
+	} else {
+		var i uint
+		for i = 0; ; i++ {
+			var v uintptr = Gensio_get_ptr_array($input, i)
+			if v == 0 {
+				break
+			}
+		}
+		if i == 0 {
+			$result = nil
+		} else {
+			$result = make([]string, i)
+			for i = 0; ; i++ {
+				var v uintptr = Gensio_get_ptr_array($input, i)
+				if v == 0 {
+					break
+				}
+				$result[i] = Gensio_uintptr_to_string(v)
+			}
+		}
 	}
-	$1[i] = NULL;
-    }
-}
-%typemap(freearg) (const char * const *) {
-    unsigned int i;
-    if ($1) {
-	for (i = 0; $1[i]; i++)
-	    free($1[i]);
-	free($1);
-    }
-}
-%typemap(directorin) (const char * const *) {
-    unsigned int i;
-    _gostring_ *strs;
-
-    if (!$1 || $1[0] == NULL) {
-	$input.array = NULL;
-	$input.len = 0;
-    } else {
-	for (i = 0; $1[i]; i++)
-	    ;
-	$input.len = i;
-	strs = (_gostring_ *) malloc(sizeof(_gostring_) * i);
-	for (i = 0; $1[i]; i++) {
-	    strs[i].p = (char *) $1[i];
-	    strs[i].n = strlen($1[i]);
-	}
-	$input.array = (void *) strs;
-    }
-    $input.cap = $input.len;
-}
-%typemap(directorargout) (const char * const *) {
-    // Not actually doing argout, use this for cleanup for the directorin.
-    if ($input.array)
-	free($input.array);
 }
 
 // Make sure a nil gensio time is handled correctly
