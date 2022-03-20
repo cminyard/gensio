@@ -111,6 +111,8 @@ using namespace gensio;
 %catches(gensio::gensio_error) gensio::Gensio::open_nochild;
 %catches(gensio::gensio_error) gensio::Gensio::open_nochild_s;
 %catches(gensio::gensio_error) gensio::Gensio::write;
+%catches(gensio::gensio_error) gensio::Gensio::write_s;
+%catches(gensio::gensio_error) gensio::Gensio::read_s;
 %catches(gensio::gensio_error) gensio::Gensio::alloc_channel;
 %catches(gensio::gensio_error) gensio::Gensio::close;
 %catches(gensio::gensio_error) gensio::Gensio::close_s;
