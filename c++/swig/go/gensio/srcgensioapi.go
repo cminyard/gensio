@@ -73,12 +73,12 @@ type OsFuncs struct {
 // zero for single-threaded programs, and must be zero for non-Unix
 // OSes.  l is the function to receive log messages.  It may be nil,
 // and no logs will be printed.
-func NewOsFuncs(sig int, l Logger) *OsFuncs {
+func NewOsFuncs(l Logger) *OsFuncs {
 	var o *OsFuncs
 	if l == nil {
-		o = &OsFuncs{NewRawOs_Funcs(sig), l}
+		o = &OsFuncs{NewRawOs_Funcs(-198234), l}
 	} else {
-		o = &OsFuncs{NewRawOs_Funcs(sig, setupLogger(l)), l}
+		o = &OsFuncs{NewRawOs_Funcs(-198234, setupLogger(l)), l}
 	}
 	runtime.SetFinalizer(o, destroyer.destroy)
 	return o

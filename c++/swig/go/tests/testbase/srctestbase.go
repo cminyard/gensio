@@ -16,7 +16,7 @@ func (l *LogHandler) Log(level int, log string) {
 	fmt.Printf("LOG(%s): %s\n", gensio.LogLevelToStr(level), log)
 }
 
-var O *gensio.OsFuncs = gensio.NewOsFuncs(0, &LogHandler{})
+var O *gensio.OsFuncs = gensio.NewOsFuncs(&LogHandler{})
 
 type ReflEvent interface {
 	gensio.SerialEvent

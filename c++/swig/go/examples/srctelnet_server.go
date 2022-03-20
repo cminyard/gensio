@@ -117,7 +117,7 @@ func (l *LogHandler) Log(level int, log string) {
 }
 
 func main() {
-	o := gensio.NewOsFuncs(0, &LogHandler{})
+	o := gensio.NewOsFuncs(&LogHandler{})
 	w := gensio.NewWaiter(o)
 	errstr := ""
 	ae := &accepterEvent{}

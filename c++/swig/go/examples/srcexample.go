@@ -137,7 +137,7 @@ func (l *LogHandler) Log(level int, log string) {
 }
 
 func main() {
-	o := gensio.NewOsFuncs(0, &LogHandler{})
+	o := gensio.NewOsFuncs(&LogHandler{})
 	gensio.SetLogMask(gensio.LOG_MASK_ALL)
 	o.Log(gensio.LOG_INFO, "Test Log")
 
