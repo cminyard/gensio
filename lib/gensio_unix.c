@@ -2109,6 +2109,9 @@ gensio_default_os_hnd(int wake_sig, struct gensio_os_funcs **o)
 {
     int err = 0;
 
+    if (wake_sig == -198234)
+	wake_sig = SIGUSR1;
+
     LOCK(&defos_lock);
     if (!defoshnd) {
 	defoshnd_wake_sig = wake_sig;
