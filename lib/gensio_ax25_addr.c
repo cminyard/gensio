@@ -76,6 +76,7 @@ ax25_addr_to_str(const struct gensio_addr *addr,
     gensio_pos_snprintf(buf, buflen, pos, ",");
     ax25_subaddr_to_str(&a->src, buf, pos, buflen, false);
     for (i = 0; i < a->nr_extra; i++) {
+	gensio_pos_snprintf(buf, buflen, pos, ",");
 	ax25_subaddr_to_str(&a->extra[i], buf, pos, buflen, false);
 	if (a->extra[i].ch)
 	    gensio_pos_snprintf(buf, buflen, pos, ":h");
