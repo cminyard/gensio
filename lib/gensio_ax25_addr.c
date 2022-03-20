@@ -55,11 +55,12 @@ ax25_subaddr_to_str(const struct gensio_ax25_subaddr *a,
 		    char *buf, gensiods *pos, gensiods buflen,
 		    bool do_cr)
 {
-    if (do_cr)
-	gensio_pos_snprintf(buf, buflen, pos, "%s-%d:%c",
-			    a->addr, a->ssid, a->ch ? 'c' : 'r');
-    else
+    if (a->ssid)
 	gensio_pos_snprintf(buf, buflen, pos, "%s-%d", a->addr, a->ssid);
+    else
+	gensio_pos_snprintf(buf, buflen, pos, "%s", a->addr);
+    if (do_cr)
+	gensio_pos_snprintf(buf, buflen, pos, ":%c", a->ch ? 'c' : 'r');
     return 0;
 }
 
@@ -70,13 +71,15 @@ ax25_addr_to_str(const struct gensio_addr *addr,
     struct gensio_ax25_addr *a = addr_to_ax25(addr);
     unsigned int i;
 
-    gensio_pos_snprintf(buf, buflen, pos, "ax25:%d", a->tnc_port);
-    gensio_pos_snprintf(buf, buflen, pos, ",%s-%d", a->dest.addr, a->dest.ssid);
-    gensio_pos_snprintf(buf, buflen, pos, ",%s-%d", a->src.addr, a->src.ssid);
-    for (i = 0; i < a->nr_extra; i++)
-	gensio_pos_snprintf(buf, buflen, pos, ",%s-%d%s",
-			    a->extra[i].addr, a->extra[i].ssid,
-			    a->extra[i].ch ? ":h" : "");
+    gensio_pos_snprintf(buf, buflen, pos, "ax25:%d,", a->tnc_port);
+    ax25_subaddr_to_str(&a->dest, buf, pos, buflen, false);
+    gensio_pos_snprintf(buf, buflen, pos, ",");
+    ax25_subaddr_to_str(&a->src, buf, pos, buflen, false);
+    for (i = 0; i < a->nr_extra; i++) {
+	ax25_subaddr_to_str(&a->extra[i], buf, pos, buflen, false);
+	if (a->extra[i].ch)
+	    gensio_pos_snprintf(buf, buflen, pos, ":h");
+    }
 
     return 0;
 }
