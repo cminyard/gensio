@@ -2195,7 +2195,7 @@ ax25_chan_handle_ui(struct ax25_base *base, struct gensio_ax25_addr *addr,
 {
     struct gensio_list to_deliver;
     struct gensio_link *l, *l2;
-    char addrstr[GENSIO_AX25_MAX_ADDR_STR_LEN];
+    char addrstr[GENSIO_AX25_MAX_ADDR_STR_LEN + 5];
     char pidstr[10];
     const char *auxdata[4] = { "oob", addrstr, pidstr, NULL };
     gensiods rcount;
@@ -2309,7 +2309,9 @@ ax25_firstchan_event(struct ax25_base *base, int event, int err,
     chan = ax25_chan_check_base_lock_state(chan, &base->chans, true);
     if (!chan)
 	goto retry;
+    ax25_chan_unlock(chan);
     rerr = gensio_cb(chan->io, event, err, buf, buflen, auxdata);
+    ax25_chan_lock(chan);
     ax25_chan_deref_and_unlock(chan);
 
     return rerr;
@@ -2397,10 +2399,16 @@ ax25_chan_handle_sabm(struct ax25_base *base, struct ax25_chan *chan,
 			      chan->io);
 		ax25_chan_lock(chan);
 	    } else {
+		char addrstr[GENSIO_AX25_MAX_ADDR_STR_LEN + 5];
+		const char *auxdata[2] = { addrstr, NULL };
+
+		strcpy(addrstr, "addr:");
+		gensio_addr_to_str(&addr->r, addrstr + 5, NULL,
+				   sizeof(addrstr) - 5);
 		chan->in_newchannel = 1;
 		rv = ax25_firstchan_event(base, GENSIO_EVENT_NEW_CHANNEL, 0,
 					  (unsigned char *) chan->io,
-					  NULL, NULL);
+					  NULL, auxdata);
 		ax25_chan_lock(chan);
 		if (rv || chan->in_newchannel == 2) {
 		    if (chan->in_newchannel != 2) {
