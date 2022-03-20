@@ -2894,11 +2894,11 @@ ax25_chan_handle_data(struct ax25_chan *chan, uint8_t ns, uint8_t pf,
 	chan->read_len++;
 	ax25_chan_deliver_read(chan);
 	chan->vr = add_seq(chan->vr, 1, chan->modulo);
-	if (pf)
-	    ax25_chan_send_ack(chan, pf, false);
 
 	/* We got some data, handle acks. */
-	if (chan->ack_pending > (chan->readwindow / 2)) {
+	if (pf) {
+	    ax25_chan_send_ack(chan, pf, false);
+	} else if (chan->ack_pending > (chan->readwindow / 2)) {
 	    /* More than half the window is used, send an ack now. */
 	    ax25_chan_send_ack(chan, 0, false);
 	} else {
