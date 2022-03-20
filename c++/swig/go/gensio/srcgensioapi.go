@@ -2307,6 +2307,10 @@ func (a *ax25NetAddr) String() string {
 	return a.addrstr
 }
 
+func NewAx25NetAddr(addr string) net.Addr {
+	return &ax25NetAddr{addr}
+}
+
 // Create a gensio net.Conn
 func Dial(str string, o *OsFuncs) (rc *Conn, err error) {
 	defer func() {
