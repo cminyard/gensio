@@ -309,7 +309,8 @@ namespace gensio {
 		    return 0;
 
 		case GENSIO_EVENT_NEW_CHANNEL:
-		    g2 = gensio_alloc(io, g->get_os_funcs(), NULL);
+		    g2 = gensio_alloc((struct gensio *) buf,
+				      g->get_os_funcs(), NULL);
 		    return g->raw_event_handler->new_channel(cb, g2,
 							     auxdata);
 
