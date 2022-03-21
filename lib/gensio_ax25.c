@@ -76,8 +76,7 @@
  * code gets a SABM[E] before it has transferred any data, it will
  * just pretend the previous SABM[E] didn't occur and use the last
  * one, to help in situations where two systems come up at the same
- * time.  It also does a similar thing with UAs, if the system gets
- * another UA and no data has been received, just ignore the second.
+ * time.
  *
  * When a connection is closed, the code here has a wait drain state
  * that waits for all transmitted data to be acked.  That's pretty
@@ -2588,18 +2587,11 @@ ax25_chan_handle_ua(struct ax25_base *base, struct ax25_chan *chan,
 
     case AX25_CHAN_OPEN:
 	/* If no packets have been received, just ignore this. */
-	if (!chan->got_firstmsg)
-	    break;
-
-	/*
-	 * Do not follow the standard here.  If there is a protocol error,
-	 * just shut the connection down.
-	 */
 	ax25_proto_err(base, chan, "Unexpected UA when connected");
-	chan->err = GE_PROTOERR;
-	ax25_chan_do_err_close(chan, true);
 	ax25_chan_stop_t3(chan);
+	ax25_chan_stop_t2(chan);
 	ax25_chan_stop_t1(chan);
+	ax25_chan_reset_data(chan);
 	break;
 
     case AX25_CHAN_CLOSE_WAIT_DRAIN:
