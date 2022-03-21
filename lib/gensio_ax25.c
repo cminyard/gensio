@@ -2120,7 +2120,7 @@ ax25_chan_set_extended(struct ax25_chan *chan, bool extended,
 	return;
     }
 
-    chan->extended = chan->conf.extended;
+    chan->extended = extended;
     if (chan->conf.max_write_size > 256)
 	chan->max_write_size = 256;
     else
