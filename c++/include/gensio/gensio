@@ -43,9 +43,7 @@ namespace gensio {
 	int err;
     };
 
-    std::string err_to_string(int err) {
-	return std::string(gensio_err_to_str(err));
-    }
+    std::string err_to_string(int err);
 
     class Os_Funcs_Log_Handler {
     public:
@@ -53,11 +51,9 @@ namespace gensio {
 		= 0;
 	virtual ~Os_Funcs_Log_Handler() = default;
     };
-    std::string log_level_to_str(enum gensio_log_levels level) {
-	return std::string(gensio_log_level_to_str(level));
-    }
-    void set_log_mask(int mask) { gensio_set_log_mask(mask); }
-    int get_log_mask() { return gensio_get_log_mask(); }
+    std::string log_level_to_str(enum gensio_log_levels level);
+    void set_log_mask(int mask);
+    int get_log_mask();
 
     // This is a wrapper for gensio_os_funcs that makes using it a lot
     // cleaner.  The default constructor automatically allocates the

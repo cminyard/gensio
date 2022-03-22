@@ -13,6 +13,18 @@ namespace gensio {
 #include <gensio/gensio_builtins.h>
 #include <gensio/gensio_osops.h>
 
+    std::string err_to_string(int err) {
+	return std::string(gensio_err_to_str(err));
+    }
+
+    std::string log_level_to_str(enum gensio_log_levels level) {
+	return std::string(gensio_log_level_to_str(level));
+    }
+
+    void set_log_mask(int mask) { gensio_set_log_mask(mask); }
+
+    int get_log_mask() { return gensio_get_log_mask(); }
+
     void gensio_cpp_vlog_handler(struct gensio_os_funcs *io,
 				 enum gensio_log_levels level,
 				 const char *log, va_list args)
