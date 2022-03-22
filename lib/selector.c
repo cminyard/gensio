@@ -304,6 +304,22 @@ sel_wake_all(struct selector_s *sel)
     sel_timer_unlock(sel);
 }
 
+static void
+i_sel_wake_first(struct selector_s *sel)
+{
+    sel_wait_list_t *item;
+
+    item = sel->wait_list.next;
+    if (item != &sel->wait_list) {
+#ifdef BROKEN_PSELECT
+	item->signalled = true;
+	item->wait_time->tv_sec = 0;
+	item->wait_time->tv_nsec = 0;
+#endif
+	item->send_sig(item->thread_id, item->send_sig_cb_data);
+    }
+}
+
 /* See comment on i_wake_sel_thread() for notes on BROKEN_PSELECT. */
 void
 sel_wake_one(struct selector_s *sel, long thread_id, sel_send_sig_cb killer,
@@ -1039,6 +1055,8 @@ sel_run(sel_runner_t *runner, sel_runner_func_t func, void *cb_data)
 	sel->runner_head = runner;
 	sel->runner_tail = runner;
     }
+    /* Make sure someone is awake to run the runner. */
+    i_sel_wake_first(sel);
     sel_timer_unlock(sel);
     return 0;
 }
