@@ -260,6 +260,21 @@ void *gensio_string_to_uintptr(char *in)
     }
 }
 
+%typemap(in) (const std::string *) (std::string temp) {
+    if ($input) {
+	temp.assign($input->p, $input->n);
+	$1 = &temp;
+    } else {
+	$1 = NULL;
+    }
+}
+%typemap(argout) (const std::string *) {
+    if ($1) {
+	*$input = Swig_AllocateString($1->data(), $1->length());
+    }
+}
+%typemap(goargout) (const std::string *) { }
+
 %extend gensio::Gensio {
     Serial_Gensio *to_serial_gensio() {
 	gensio_ref(self->get_gensio());
