@@ -230,6 +230,8 @@ i_wait_for_waiter_timeout(waiter_t *waiter, unsigned int count,
 	    break;
     }
     timeval_to_gensio_time(timeout, rtv);
+    w.next->prev = w.prev;
+    w.prev->next = w.next;
     if (w.count == 0) {
 	err = 0; /* If our count was decremented to zero, ignore errors. */
     } else if (err) {
@@ -239,8 +241,6 @@ i_wait_for_waiter_timeout(waiter_t *waiter, unsigned int count,
 	 */
 	i_wake_waiter(waiter, count - w.count);
     }
-    w.next->prev = w.prev;
-    w.prev->next = w.next;
     pthread_mutex_unlock(&waiter->lock);
 
     return err;
