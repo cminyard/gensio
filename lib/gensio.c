@@ -24,6 +24,8 @@
 static unsigned int gensio_log_mask =
     (1 << GENSIO_LOG_FATAL) | (1 << GENSIO_LOG_ERR);
 
+static void check_flush_sync_io(struct gensio *io);
+
 struct gensio_classobj {
     const char *name;
     void *classdata;
@@ -729,8 +731,13 @@ gensio_get_child(struct gensio *io, unsigned int depth)
 int
 gensio_close(struct gensio *io, gensio_done close_done, void *close_data)
 {
-    return io->func(io, GENSIO_FUNC_CLOSE, NULL, close_done, 0, close_data,
-		    NULL);
+    int rv;
+
+    rv = io->func(io, GENSIO_FUNC_CLOSE, NULL, close_done, 0, close_data,
+		  NULL);
+    if (!rv)
+	check_flush_sync_io(io);
+    return rv;
 }
 
 struct gensio_close_s_data {
@@ -778,6 +785,7 @@ gensio_disable(struct gensio *io)
 void
 gensio_free(struct gensio *io)
 {
+    check_flush_sync_io(io);
     io->func(io, GENSIO_FUNC_FREE, NULL, NULL, 0, NULL, NULL);
 }
 
@@ -2800,6 +2808,21 @@ gensio_sync_flush_waiters(struct gensio_sync_io *sync_io,
 	op->queued = false;
 	o->wake(op->waiter);
 	gensio_list_rm(&sync_io->writeops, l);
+    }
+}
+
+static void
+check_flush_sync_io(struct gensio *io)
+{
+    struct gensio_sync_io *sync_io = io->sync_io;
+    struct gensio_os_funcs *o = io->o;
+
+    if (sync_io) {
+	o->lock(sync_io->lock);
+	if (!sync_io->err)
+	    sync_io->err = GE_LOCALCLOSED;
+	gensio_sync_flush_waiters(sync_io, io->o);
+	o->unlock(sync_io->lock);
     }
 }
 
