@@ -657,10 +657,16 @@ struct oom_tests oom_tests[] = {
       /* In this tests some errors will not result in a failure. */
       .allow_no_err_on_trig = true,
       .check_done = 1, .check_value = HAVE_OPENSSL },
-    { "echo", NULL },
-    { "tcp,localhost,", "tcp,0" },
+    { "echo", NULL,
+      .allow_no_err_on_trig = true,
+    },
+    { "tcp,localhost,", "tcp,0",
+      .allow_no_err_on_trig = true,
+    },
     { "sctp,localhost,", "sctp,0",
-      .check_if_present = check_sctp_present, .check_value = HAVE_LIBSCTP },
+      .check_if_present = check_sctp_present, .check_value = HAVE_LIBSCTP,
+      .allow_no_err_on_trig = true,
+    },
     { "udp,ipv4,localhost,", "udp,ipv4,0",
       /* In this tests some errors will not result in a failure. */
       .allow_no_err_on_trig = true
@@ -674,17 +680,26 @@ struct oom_tests oom_tests[] = {
        * large I/O sizes.  So limit it to a reasonable value.
        */
       .max_io_size = 10000 },
-    { "telnet(rfc2217),tcp,localhost,", "telnet(rfc2217),tcp,0" },
+    { "telnet(rfc2217),tcp,localhost,", "telnet(rfc2217),tcp,0",
+      .allow_no_err_on_trig = true,
+    },
     { "serialdev,%s,115200", NULL,
       .check_if_present = check_serialdev_present,
+      .allow_no_err_on_trig = true,
       /*
        * The error injections cause this to take way to long with
        * large I/O sizes.  So limit it to a reasonable value.
        */
       .max_io_size = 1000 },
-    { "telnet,tcp,localhost,", "telnet,tcp,0" },
-    { "stdio,cat", NULL },
-    { "conacc,tcp,localhost,", "tcp,0", .conacc=true },
+    { "telnet,tcp,localhost,", "telnet,tcp,0",
+      .allow_no_err_on_trig = true,
+    },
+    { "stdio,cat", NULL,
+      .allow_no_err_on_trig = true,
+    },
+    { "conacc,tcp,localhost,", "tcp,0", .conacc=true,
+      .allow_no_err_on_trig = true,
+    },
     { "serialdev,", "conacc,pty(raw)",
       /* In this tests some errors will not result in a failure. */
       .allow_no_err_on_trig = true,
