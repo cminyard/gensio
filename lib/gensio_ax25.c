@@ -1835,7 +1835,11 @@ ax25_chan_check_new_timeout(struct ax25_chan *chan, int64_t value,
     then = chan->curr_timeout - now;
     gensio_msecs_to_time(&t, then);
     rv = o->start_timer(chan->timer, &t);
-    assert(rv == 0);
+    if (rv) {
+	gensio_log(o, GENSIO_LOG_FATAL, "AX25 timer start error: %s",
+		   gensio_err_to_str(rv));
+	assert(0);
+    }
     ax25_chan_ref(chan);
 }
 
