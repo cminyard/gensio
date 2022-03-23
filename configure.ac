@@ -377,10 +377,25 @@ AC_DEFINE_UNQUOTED([HAVE_OPENIPMI], [$HAVE_OPENIPMI],
 	[Set to 1 to enable IPMI support through OpenIPMI, 0 to disable])
 AC_SUBST(HAVE_OPENIPMI)
 
-AX_CHECK_OPENSSL([HAVE_OPENSSL=1
+tryssl=yes
+AC_ARG_WITH(ssl,
+ [AS_HELP_STRING([--with-ssl[[=yes|no]]],
+		 [Look for ssl.])],
+    if test "x$withval" = "x"; then
+      tryssl=yes
+    elif test "x$withval" = "xyes"; then
+      tryssl=yes
+    elif test "x$withval" = "xno"; then
+      tryssl=no
+    fi,
+)
+HAVE_OPENSSL=0
+if test $tryssl = yes; then
+	AX_CHECK_OPENSSL([HAVE_OPENSSL=1
 		  LIBS="$LIBS $OPENSSL_LIBS"
 		  LDFLAGS="$LDFLAGS $OPENSSL_LDFLAGS"
 		  CPPFLAGS="$CPPFLAGS $OPENSSL_INCLUDES"], [HAVE_OPENSSL=0])
+fi
 AC_DEFINE_UNQUOTED([HAVE_OPENSSL], [$HAVE_OPENSSL],
 	[Set to 1 to enable SSL support through OpenSSL, 0 to disable])
 AC_SUBST(HAVE_OPENSSL)
@@ -458,11 +473,26 @@ m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES([yes])])
 AC_CONFIG_MACRO_DIR([m4])
 
 AC_CHECK_LIB(nsl,main)
+
+trymdns=yes
+AC_ARG_WITH(mdns,
+ [AS_HELP_STRING([--with-mdns[[=yes|no]]],
+		 [Look for mdns.])],
+    if test "x$withval" = "x"; then
+      trymdns=yes
+    elif test "x$withval" = "xyes"; then
+      trymdns=yes
+    elif test "x$withval" = "xno"; then
+      trymdns=no
+    fi,
+)
 HAVE_AVAHI=0
-AC_CHECK_LIB(avahi-client, avahi_client_new,
+if test $trymdns = yes; then
+	AC_CHECK_LIB(avahi-client, avahi_client_new,
 	     [AC_DEFINE([HAVE_AVAHI], [1], [Have avahi installed])
 	     HAVE_AVAHI=1
 	     LIBS="-lavahi-client -lavahi-common $LIBS"])
+fi
 AC_SUBST(HAVE_AVAHI)
 GMDNS=
 GMDNSMAN=
