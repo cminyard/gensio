@@ -31,7 +31,7 @@ namespace gensio {
     // get errors.  Most operations raise exceptions, unless otherwise
     // noted.  Note that the string is set, so what() will return the
     // string.  You can get the number with get_error().
-    class gensio_error: public std::runtime_error {
+    class GENSIOCPP_DLL_PUBLIC gensio_error: public std::runtime_error {
     public:
 	gensio_error(int ierr): std::runtime_error(gensio_err_to_str(ierr))
 	{
@@ -43,16 +43,22 @@ namespace gensio {
 	int err;
     };
 
+    GENSIOCPP_DLL_PUBLIC
     std::string err_to_string(int err);
 
-    class Os_Funcs_Log_Handler {
+    class GENSIOCPP_DLL_PUBLIC Os_Funcs_Log_Handler {
     public:
 	virtual void log(enum gensio_log_levels level, const std::string log)
 		= 0;
 	virtual ~Os_Funcs_Log_Handler() = default;
     };
+    GENSIOCPP_DLL_PUBLIC
     std::string log_level_to_str(enum gensio_log_levels level);
+
+    GENSIOCPP_DLL_PUBLIC
     void set_log_mask(int mask);
+
+    GENSIOCPP_DLL_PUBLIC
     int get_log_mask();
 
     // This is a wrapper for gensio_os_funcs that makes using it a lot
@@ -197,7 +203,7 @@ namespace gensio {
 
     // This is a simple vector of unsigned chars, we use it to pass
     // data to the read() call to avoid copying the data.
-    class SimpleUCharVector {
+    class GENSIOCPP_DLL_PUBLIC SimpleUCharVector {
     public:
 	SimpleUCharVector() { }
 	SimpleUCharVector(unsigned char *idata, gensiods ilen) {
@@ -523,7 +529,7 @@ namespace gensio {
     // an asynchronous free then call this, because the close here
     // will fail and then the free won't be done after the destructor
     // returns.
-    class GensioW {
+    class GENSIOCPP_DLL_PUBLIC GensioW {
     public:
 	GensioW(std::string str, Os_Funcs &o, Event *cb = NULL) {
 	    io = gensio_alloc(str, o, cb);
@@ -930,7 +936,7 @@ namespace gensio {
     // an asynchronous free then call this, because the close here
     // will fail and then the free won't be done after the destructor
     // returns.
-    class AccepterW {
+    class GENSIOCPP_DLL_PUBLIC AccepterW {
     public:
 	AccepterW(std::string str, Os_Funcs &o, Accepter_Event *cb = NULL) {
 	    acc = gensio_acc_alloc(str, o, cb);
