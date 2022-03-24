@@ -606,7 +606,7 @@ if test $trygo = yes; then
 	fi
 fi
 if test "x$GOPROG" != "x"; then
-	AC_DEFINE([HAVE_GO], [], [Have swig installed])
+	AC_DEFINE([HAVE_GO], [], [Have go installed])
 	GO_DIR=go
 fi
 AC_SUBST(GOPROG)
