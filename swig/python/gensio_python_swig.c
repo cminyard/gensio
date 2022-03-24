@@ -8,6 +8,10 @@
 #define SWIGPYTHON
 
 #include "config.h"
+#ifdef _WIN32
+/* This fails to compile without including this, has to do with Python.h */
+#include <windows.h>
+#endif
 #include <stdlib.h>
 #include <assert.h>
 #include <Python.h>
