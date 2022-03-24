@@ -1196,6 +1196,7 @@ winsock_func(LPVOID data)
 	    /* FIXME - check if events changed? */
 	    rv = WSAEventSelect(wiod->fd, swiod->sockev, events);
 	    if (rv == SOCKET_ERROR) {
+		EnterCriticalSection(&wiod->lock);
 		if (!wiod->werr)
 		    wiod->werr = WSAGetLastError();
 		wiod->closed = TRUE;
@@ -2414,6 +2415,7 @@ win_iod_dev_init(struct gensio_iod_win *wiod, void *cb_data)
 	rv = GE_NOTSUP;
 	goto out_err;
     }
+    memset(&props, 0, sizeof(props));
     if (!GetCommProperties(twiod->ioh, &props))
 	goto out_err_conv;
 
