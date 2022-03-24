@@ -81,7 +81,8 @@ PI_ToUCharVector(std::vector<unsigned char> &v, PyObject *o)
 	return 0;
     }
     if (PI_BytesCheck(o)) {
-	PI_AsBytesAndSize(o, &tdata, &len);
+	if (PI_AsBytesAndSize(o, &tdata, &len) == -1)
+	    PyErr_SetString(PyExc_TypeError, "byte string conversion failed");
     } else if (PyByteArray_Check(o)) {
 	tdata = PyByteArray_AsString(o);
 	len = PyByteArray_Size(o);
