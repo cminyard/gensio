@@ -1,6 +1,7 @@
 set(SWIG_EXTRA_FLAGS -py3 -c++)
 include_directories(${PYTHON_INCLUDE_DIRS} ${CMAKE_CURRENT_SOURCE_DIR}
   "${PROJECT_SOURCE_DIR}/c++/include"
+  "${PROJECT_SOURCE_DIR}/c++/swig/include"
   "${PROJECT_SOURCE_DIR}/c++/swig/pygensio"
 )
 set(CMAKE_SWIG_FLAGS -I${CMAKE_CURRENT_SOURCE_DIR} ${SWIG_EXTRA_FLAGS})
