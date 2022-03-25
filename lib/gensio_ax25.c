@@ -442,7 +442,6 @@ struct ax25_base {
     enum ax25_base_state state;
 
     bool locked;
-    bool do_crc;
 
     /*
      * When opened as an accepter, this says to take the first channel
@@ -3356,13 +3355,16 @@ ax25_child_read(struct ax25_base *base, int ierr,
     }
     /* We will always process the whole buffer, don't modify ibuflen. */
 
-    if (base->do_crc) {
+    if (base->conf.do_crc) {
+	uint16_t msgcrc;
+
 	if (buflen < 2)
 	    return 0;
+	msgcrc = (buf[buflen - 1] << 8) | buf[buflen - 2];
 	crc = 0xffff;
 	crc16_ccitt(buf, buflen - 2, &crc);
 	crc ^= 0xffff;
-	if (((buf[buflen - 1] << 8) | buf[buflen - 2]) != crc)
+	if (msgcrc != crc)
 	    return 0;
 	buflen -= 2;
     }
@@ -3650,7 +3652,7 @@ ax25_child_write_ready(struct ax25_base *base)
 		sglen++;
 		len += ccr->extra_data_size;
 	    }
-	    if (base->do_crc) {
+	    if (base->conf.do_crc) {
 		crc16_sg(sg, sglen, crc);
 		sg[sglen].buf = crc;
 		sg[sglen].buflen = 2;
@@ -3710,7 +3712,7 @@ ax25_child_write_ready(struct ax25_base *base)
 	    sg[2].buflen = d->len;
 	    len += d->len;
 	    sglen = 3;
-	    if (base->do_crc) {
+	    if (base->conf.do_crc) {
 		crc16_sg(sg, sglen, crc);
 		sg[3].buf = crc;
 		sg[3].buflen = 2;
@@ -3792,7 +3794,7 @@ ax25_child_write_ready(struct ax25_base *base)
 	    sglen++;
 	    len += bcr->extra_data_size;
 	}
-	if (base->do_crc) {
+	if (base->conf.do_crc) {
 	    crc16_sg(sg, sglen, crc);
 	    sg[sglen].buf = crc;
 	    sg[sglen].buflen = 2;
@@ -3892,7 +3894,7 @@ ax25_chan_send_ui(struct ax25_chan *chan, struct gensio_addr *addr,
 
     /* + 2 for the UI and PID */
     len = sizeof(*ui) + datalen + ax25_addr_encode_len(addr) + 2;
-    if (chan->base->do_crc)
+    if (chan->base->conf.do_crc)
 	len += 2;
     ui = chan->o->zalloc(chan->o, len);
     if (!ui)
@@ -3911,7 +3913,7 @@ ax25_chan_send_ui(struct ax25_chan *chan, struct gensio_addr *addr,
     buf[6] &= ~0x80;
     buf[13] |= 0x80;
 
-    if (chan->base->do_crc)
+    if (chan->base->conf.do_crc)
 	pos = ax25_add_crc(buf, pos);
     ui->len = pos;
 
