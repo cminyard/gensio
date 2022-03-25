@@ -804,16 +804,24 @@ sel_alloc_timer(struct selector_s     *sel,
 static int
 sel_stop_timer_i(struct selector_s *sel, sel_timer_t *timer)
 {
-    if (timer->val.stopped)
-	return ETIMEDOUT;
+    int rv = 0;
 
+    if (timer->val.stopped)
+	rv = ETIMEDOUT;
+    /*
+     * It should not be possible for the timer to be stopped but in
+     * the heap, but that's happening sometimes.  (The opposite is
+     * possible, a timer can be not stopped but not in the heap; that
+     * is used to signal a timer restart on return from a timer
+     * handler.)  So make sure it's not in the heap.
+     */
     if (timer->val.in_heap) {
 	theap_remove(&sel->timer_heap, timer);
 	timer->val.in_heap = 0;
     }
     timer->val.stopped = 1;
 
-    return 0;
+    return rv;
 }
 
 int
@@ -912,6 +920,7 @@ sel_stop_timer_with_done(sel_timer_t *timer,
     }
     sel_get_monotonic_time(&timer->val.timeout);
     theap_add(&sel->timer_heap, timer);
+    timer->val.in_heap = 1;
 
  out_unlock:
     sel_timer_unlock(sel);
@@ -1557,6 +1566,7 @@ sel_free_selector(struct selector_s *sel)
     elem = theap_get_top(&(sel->timer_heap));
     while (elem) {
 	theap_remove(&(sel->timer_heap), elem);
+	elem->val.in_heap = 0;
 	free(elem);
 	elem = theap_get_top(&(sel->timer_heap));
     }
