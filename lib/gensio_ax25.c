@@ -3399,6 +3399,12 @@ ax25_child_read(struct ax25_base *base, int ierr,
 	return 0;
     }
 
+    /* Ignore packets with subaddresses that have not yet been repeated. */
+    for (i = 0; i < iaddr.nr_extra; i++) {
+	if (!iaddr.extra[i].ch)
+	    return 0;
+    }
+
     if (!ax25_match_subaddr(&iaddr.dest, base->conf.my_addrs,
 			    base->conf.num_my_addrs))
 	return 0;
