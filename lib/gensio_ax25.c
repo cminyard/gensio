@@ -1808,6 +1808,9 @@ ax25_stop_timer(struct ax25_chan *chan)
 	    /* It's in the handler, it will do the deref. */
 	    assert(rv == GE_TIMEDOUT);
 	}
+    } else {
+	/* Just to be sure. */
+	chan->o->stop_timer(chan->timer);
     }
 }
 
