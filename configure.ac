@@ -1,4 +1,4 @@
-AC_INIT([gensio],[2.4.0-rc4],[minyard@acm.org])
+AC_INIT([gensio],[2.4.0-rc5],[minyard@acm.org])
 AC_SUBST(gensio_VERSION_MAJOR, 2)
 AC_SUBST(gensio_VERSION_MINOR, 4)
 AC_SUBST(gensio_VERSION_PATCH, 0)
