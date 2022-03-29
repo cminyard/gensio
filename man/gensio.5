@@ -1789,6 +1789,12 @@ sent to this address.
 .B crc[=yes|no]
 Enable CRC checking.  Default is off.
 .TP
+.B ign_emb_ua[=yes|no]
+Some AX.25 stacks do not properly reset themselves when they get a
+second SABM (due to a timeout) but they still send a UA.  If you are
+getting errors about receiving a UA while connected and the connection
+hangs, try enabling this option.
+.TP
 .B srt=<n>
 The initial smoothed round trip time for the connection.  See the spec
 for details, you probably don't need to mess with it.

@@ -425,6 +425,7 @@ struct ax25_conf_data {
     unsigned int max_retries;
     unsigned int extended;
     bool do_crc;
+    bool ignore_embedded_ua;
     struct gensio_ax25_subaddr *my_addrs;
     unsigned int num_my_addrs;
     struct gensio_addr *addr;
@@ -2594,10 +2595,12 @@ ax25_chan_handle_ua(struct ax25_base *base, struct ax25_chan *chan,
     case AX25_CHAN_OPEN:
 	/* If no packets have been received, just ignore this. */
 	ax25_proto_err(base, chan, "Unexpected UA when connected");
-	ax25_chan_stop_t3(chan);
-	ax25_chan_stop_t2(chan);
-	ax25_chan_stop_t1(chan);
-	ax25_chan_reset_data(chan);
+	if (!chan->conf.ignore_embedded_ua) {
+	    ax25_chan_stop_t3(chan);
+	    ax25_chan_stop_t2(chan);
+	    ax25_chan_stop_t1(chan);
+	    ax25_chan_reset_data(chan);
+	}
 	break;
 
     case AX25_CHAN_CLOSE_WAIT_DRAIN:
@@ -4513,6 +4516,9 @@ ax25_readconf(struct gensio_os_funcs *o, bool firstchan, bool noaddr,
 	    continue;
 	}
 	if (firstchan & gensio_check_keybool(args[i], "crc", &conf->do_crc))
+	    continue;
+	if (gensio_check_keybool(args[i], "ign_emb_ua",
+				 &conf->ignore_embedded_ua))
 	    continue;
 	if (gensio_check_keyuint(args[i], "srt", &conf->srtv) > 0)
 	    continue;
