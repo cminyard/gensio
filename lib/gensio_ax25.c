@@ -1683,6 +1683,12 @@ ax25_chan_reset_data(struct ax25_chan *chan)
     chan->ack_pending = 0;
     chan->poll_pending = false;
     chan->srt = chan->conf.srtv;
+    if (chan->conf.addr) {
+	struct gensio_ax25_addr *aaddr = addr_to_ax25(chan->conf.addr);
+
+	/* Increase the timeout based on the number of digipeaters. */
+	chan->srt *= (aaddr->nr_extra + 1);
+    }
     chan->t1v = chan->srt * 2;
     chan->t1 = 0;
     chan->t2 = 0;
@@ -2433,7 +2439,8 @@ ax25_chan_handle_sabm(struct ax25_base *base, struct ax25_chan *chan,
 	ax25_chan_send_rsp(chan, X25_UA, pf);
 	if (chan->extended)
 	    ax25_chan_send_cmd(chan, X25_XID, 1);
-	chan->srt = chan->conf.srtv;
+	/* Increase the timeout for every hop through a digipeater. */
+	chan->srt = chan->conf.srtv * (addr->nr_extra + 1);
 	chan->t1v = chan->srt * 2;
 	ax25_chan_start_t3(chan);
 	return chan;
@@ -4562,7 +4569,7 @@ ax25_defconf(struct ax25_conf_data *conf)
     conf->writewindow = 7;
     conf->extended = 1;
     conf->srtv = 1500; /* 1.5 seconds (t1 is 3 seconds). */
-    conf->t2v = 2000; /* 3 seconds. */
+    conf->t2v = 2000; /* 2 seconds. */
     conf->t3v = 300000; /* 300 seconds. */
     conf->max_retries = 10;
     conf->drop_pos = 0;

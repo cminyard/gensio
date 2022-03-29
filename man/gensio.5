@@ -1796,21 +1796,26 @@ getting errors about receiving a UA while connected and the connection
 hangs, try enabling this option.
 .TP
 .B srt=<n>
-The initial smoothed round trip time for the connection.  See the spec
-for details, you probably don't need to mess with it.
+The initial smoothed round trip time for the connection, in
+milliseconds.  See the spec for details, you probably don't need to
+mess with it.  Note that this value you set here is multiplied by the
+number of digipeaters between the source and the destination for the
+actual value.  Defaults to 1500.
 .TP
 .B t2=<n>
-The timer 2 value for the connection.  See the spec for details, you
-probably don't need to mess with it.
+The timer 2 value for the connection, in milliseconds.  See the spec
+for details, you probably don't need to mess with it.  Defaults to 2
+seconds.
 .TP
 .B t3=<n>
-The timer 3 value for the connection.  See the spec for details, you
-probably don't need to mess with it.
+The timer 3 value for the connection, in milliseconds.  See the spec
+for details, you probably don't need to mess with it.  Defaults to 300
+seconds.
 .TP
 .B retries=<n>
 Number of retries on a send before giving up and dropping the
 connection.  See the spec for details, you probably don't need to mess
-with it.
+with it.  Defaults to 10.
 .SH "Forking and gensios"
 Unlike normal file descriptors, when you fork with a gensio, you now
 have two unassociated copies of the gensios.  So if you do operations
