@@ -64,6 +64,10 @@
  * In the spec, SREJ in connected state starts T3, but it should stop
  * T3.
  *
+ * There is nothing in the spec that resets the RC value to zero.
+ * That should happen when going from timer recover to connected
+ * state.
+ *
  * When checking the sequence numbers for sending a REJ, the sequence
  * number must be in the current receive window.  Otherwise an message
  * from an old resend can result in in_rej being set, but never having
@@ -1682,6 +1686,7 @@ ax25_chan_reset_data(struct ax25_chan *chan)
     chan->in_rej = false;
     chan->ack_pending = 0;
     chan->poll_pending = false;
+    chan->retry_count = 0;
     chan->srt = chan->conf.srtv;
     if (chan->conf.addr) {
 	struct gensio_ax25_addr *aaddr = addr_to_ax25(chan->conf.addr);
@@ -3036,10 +3041,12 @@ ax25_chan_check_response_needed(struct ax25_chan *chan,
     if (is_cmd && pf) {
 	ax25_chan_send_ack(chan, pf, false);
     } else if (!is_cmd && pf) {
-	if (chan->poll_pending)
+	if (chan->poll_pending) {
 	    chan->poll_pending = false;
-	else
+	    chan->retry_count = 0;
+	} else {
 	    ax25_proto_err(chan->base, chan, "F=1 but P=1 not outstanding");
+	}
     }
 }
 
@@ -3079,6 +3086,7 @@ ax25_chan_handle_recovery_rsp(struct ax25_chan *chan, uint8_t nr,
 	ax25_chan_update_va(chan, nr);
 	if (chan->vs == chan->va) {
 	    chan->poll_pending = false;
+	    chan->retry_count = 0;
 	    ax25_chan_start_t3(chan);
 	} else {
 	    ax25_chan_rewind_seq(chan, nr, false);
@@ -4201,6 +4209,7 @@ i_ax25_chan_close(struct ax25_chan *chan,
 	    chan->in_newchannel = 2;
 	} else if (chan->in_newchannel == 0) {
 	    if (chan->state == AX25_CHAN_IN_OPEN) {
+		chan->retry_count = 0;
 		chan->err = GE_LOCALCLOSED;
 		ax25_chan_send_cmd(chan, X25_DM, 1);
 		ax25_chan_set_state(chan, AX25_CHAN_REPORT_OPEN_CLOSE);
@@ -4213,10 +4222,10 @@ i_ax25_chan_close(struct ax25_chan *chan,
 		ax25_chan_transmit_enquiry(chan);
 		ax25_chan_set_state(chan, AX25_CHAN_CLOSE_WAIT_DRAIN);
 	    } else {
+		chan->retry_count = 0;
 		ax25_chan_send_cmd(chan, X25_DISC, 1);
 		ax25_chan_set_state(chan, AX25_CHAN_IN_CLOSE);
 	    }
-	    chan->retry_count = 0;
 	    ax25_chan_start_t1(chan);
 	    ax25_chan_stop_t3(chan);
 	}
