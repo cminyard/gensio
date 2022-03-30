@@ -1306,6 +1306,7 @@ ax25_chan_send_ack(struct ax25_chan *chan, uint8_t pf, bool is_cmd)
 	if (cr->cr == X25_RR && cr->is_cmd == is_cmd) {
 	    if (pf)
 		cr->pf = pf;
+	    return;
 	}
 
 	pos = (pos + 1) % AX25_CHAN_MAX_CMDRSP;
@@ -2468,7 +2469,7 @@ ax25_chan_handle_sabm(struct ax25_base *base, struct ax25_chan *chan,
 	break;
 
     case AX25_CHAN_OPEN:
-	/* If not packets have been received, pretend this is a new sabm. */
+	/* If no packets have been received, pretend this is a new sabm. */
 	if (!chan->got_firstmsg)
 	    goto handle_in_open;
 	ax25_proto_err(base, chan, "Data Link Reset");
@@ -2882,10 +2883,8 @@ ax25_chan_handle_data(struct ax25_chan *chan, uint8_t ns, uint8_t pf,
     uint8_t pid;
 
     if (chan->own_rcv_bsy) {
-	if (pf) {
+	if (pf)
 	    ax25_chan_send_ack(chan, pf, 1);
-	    chan->ack_pending = 0;
-	}
 	return 0;
     }
     if (len == 0) {
@@ -3734,6 +3733,8 @@ ax25_child_write_ready(struct ax25_base *base)
 		sg[1].buflen = 2;
 		len += 2;
 	    }
+	    chan->ack_pending = 0; /* Sent an ack. */
+	    ax25_chan_stop_t2(chan);
 	    ax25_chan_trace_msg(chan, SENT, true, 0, crv, sg[1].buflen);
 	    sg[2].buf = d->data;
 	    sg[2].buflen = d->len;
@@ -4223,6 +4224,9 @@ i_ax25_chan_close(struct ax25_chan *chan,
 		ax25_chan_set_state(chan, AX25_CHAN_CLOSE_WAIT_DRAIN);
 	    } else {
 		chan->retry_count = 0;
+		if (chan->ack_pending)
+		    /* Make sure to ack anything pending. */
+		    ax25_chan_send_ack(chan, 0, 0);
 		ax25_chan_send_cmd(chan, X25_DISC, 1);
 		ax25_chan_set_state(chan, AX25_CHAN_IN_CLOSE);
 	    }
@@ -4577,7 +4581,8 @@ ax25_defconf(struct ax25_conf_data *conf)
     conf->readwindow = 7;
     conf->writewindow = 7;
     conf->extended = 1;
-    conf->srtv = 1500; /* 1.5 seconds (t1 is 3 seconds). */
+    conf->ignore_embedded_ua = true;
+    conf->srtv = 3000; /* 3 seconds (t1 is 6 seconds). */
     conf->t2v = 2000; /* 2 seconds. */
     conf->t3v = 300000; /* 300 seconds. */
     conf->max_retries = 10;
