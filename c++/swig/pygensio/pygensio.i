@@ -10,6 +10,12 @@
 
 %include <gensio_base.i>
 
+%typemap(throws) gensio::gensio_error {
+    PyErr_SetString(PyExc_RuntimeError, $1.what());
+    SWIG_fail;
+}
+
+
 %{
 static PyObject *
 PI_add_result(PyObject *result, PyObject *val)
