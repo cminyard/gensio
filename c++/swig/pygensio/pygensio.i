@@ -10,10 +10,10 @@
 
 %include <gensio_base.i>
 
-%typemap(throws) gensio::gensio_error {
+%typemap(throws) gensio::gensio_error %{
     PyErr_SetString(PyExc_RuntimeError, $1.what());
     SWIG_fail;
-}
+%}
 
 
 %{
