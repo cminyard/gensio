@@ -44,6 +44,12 @@
 %include <std_string.i>
 %include <gensio_base.i>
 
+%typemap(throws) gensio::gensio_error {
+  std::string errstr = "gensio_error: ";
+  errstr += $1.what();
+  _swig_gopanic(errstr.c_str());
+}
+
 // We use the simple uchar vector for go
 %ignore gensio::Gensio::write(const std::vector<unsigned char> data,
 			      const char *const *auxdata);
