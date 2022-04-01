@@ -8,7 +8,10 @@
 #ifndef GENSIO_DLLVISIBILITY
 #define GENSIO_DLLVISIBILITY
 
-#if defined _WIN32 || defined __CYGWIN__
+#if defined GENSIO_LINK_STATIC
+  #define GENSIO_DLL_PUBLIC
+  #define GENSIO_DLL_LOCAL
+#elif defined _WIN32 || defined __CYGWIN__
   #ifdef BUILDING_GENSIO_DLL
     #ifdef __GNUC__
       #define GENSIO_DLL_PUBLIC __attribute__ ((dllexport))

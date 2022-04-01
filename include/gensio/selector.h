@@ -10,7 +10,10 @@
 #include <sys/time.h> /* For timeval */
 #include <signal.h>
 
-#if defined _WIN32 || defined __CYGWIN__
+#if defined GENSIO_LINK_STATIC
+  #define SEL_DLL_PUBLIC
+  #define SEL_DLL_LOCAL
+#elif defined _WIN32 || defined __CYGWIN__
   #ifdef BUILDING_GENSIO_DLL
     #ifdef __GNUC__
       #define SEL_DLL_PUBLIC __attribute__ ((dllexport))
