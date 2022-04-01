@@ -43,6 +43,21 @@ case $target_os in
 		# Defaults, maybe it will work
 		;;
 esac
+
+# If compiling static, turn off DLL visibility, primarily so Windows
+# will link properly.  Don't allow both static and shared libraries
+# to be built at the same time for now.
+if test "$version_type" = "windows"; then
+    if test "${enable_shared}" = yes; then
+        enable_static=no
+    fi
+    if test "$enable_static" = "yes"; then
+        CFLAGS="$CFLAGS -DGENSIO_LINK_STATIC"
+        CXXFLAGS="$CXXFLAGS -DGENSIO_LINK_STATIC"
+    fi
+fi
+
+
 AC_ARG_WITH(uucp-locking,
  [AS_HELP_STRING([--with-uucp-locking], [Enable UUCP-style locking with yes/no, or set the uucp lock directory otherwise])],
  uucp_locking_flag="$withval")
