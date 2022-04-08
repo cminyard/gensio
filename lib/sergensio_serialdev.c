@@ -503,7 +503,7 @@ sterm_sbreak(struct sergensio *sio, int breakv,
 	     void *cb_data)
 {
     return serconf_set_get(sergensio_get_gensio_data(sio),
-			   GENSIO_IOD_CONTROL_SEND_BREAK, breakv,
+			   GENSIO_IOD_CONTROL_SET_BREAK, breakv,
 			   sterm_xlat_sbreak, done, cb_data);
 }
 
@@ -938,14 +938,18 @@ sterm_sub_open(void *handler_data, struct gensio_iod **riod)
     if (!sdata->write_only && !sdata->disablebreak) {
 	err = o->iod_control(sdata->iod, GENSIO_IOD_CONTROL_SET_BREAK,
 			     false, sdata->disablebreak);
-	if (err) {
-	    gensio_log(o, GENSIO_LOG_ERR,
+	if (err)
+	    gensio_log(o, GENSIO_LOG_WARNING,
 		       "serialdev: "
 		       "Setting break failed on %s, "
-		       "try adding the nobreak option",
-		       sdata->devname);
-	    goto out_uucp;
-	}
+		       "try adding the nobreak option: %s",
+		       sdata->devname, gensio_err_to_str(err));
+	/*
+	 * Do not fail on an error here.  There are USB and bluetooth devices that fail
+	 * this because they don't implement it, but it's impossible to tell beforehand
+	 * that they will fail.  This shouldn't be able to fail on a working device, so
+	 * just log and allow it.
+	 */
     }
 
     sterm_lock(sdata);
