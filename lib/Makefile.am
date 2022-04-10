@@ -29,7 +29,8 @@ libgensio_la_SOURCES = \
 	mdns.c avahi_watcher.c gensio_mdns.c \
 	gensio_addrinfo.c gensio_stdsock.c \
 	gensio_filter_kiss.c gensio_kiss.c \
-	crc16.c gensio_ax25_addr.c gensio_ax25.c
+	crc16.c gensio_ax25_addr.c gensio_ax25.c \
+	gensio_filter_xlt.c gensio_xlt.c
 
 if HAVE_UNIX_OS
 libgensio_la_SOURCES += gensio_unix.c selector.c

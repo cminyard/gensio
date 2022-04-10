@@ -1474,6 +1474,8 @@ add_default_gensio_accepters(void *cb_data)
 			kiss_gensio_accepter_alloc);
     REG_FILT_GENSIO_ACC(o, "ax25", str_to_ax25_gensio_accepter,
 			ax25_gensio_accepter_alloc);
+    REG_FILT_GENSIO_ACC(o, "xlt", str_to_xlt_gensio_accepter,
+			xlt_gensio_accepter_alloc);
 }
 
 int
@@ -1687,6 +1689,8 @@ add_default_gensios(void *cb_data)
 		    kiss_gensio_alloc);
     REG_FILT_GENSIO(o, "ax25", str_to_ax25_gensio,
 		    ax25_gensio_alloc);
+    REG_FILT_GENSIO(o, "xlt", str_to_xlt_gensio,
+		    xlt_gensio_alloc);
 }
 
 int

@@ -1816,6 +1816,34 @@ seconds.
 Number of retries on a send before giving up and dropping the
 connection.  See the spec for details, you probably don't need to mess
 with it.  Defaults to 10.
+.SH "xlt"
+accepter =
+.B xlt[(options)]
+.br
+connecting =
+.B xlt[(options)]
+
+A gensio that translates characters.  This is primarily for
+translating line feeds and carraige returns, but may eventually be
+extended to do string substitutions and such.
+
+.SS Options
+.TP
+.B in=<n>:<m>
+Translate character n (a number, 0xnn for hex, 0nnn  for octal, or nn for
+decimal) to character m on data read from the gensio.
+.TP
+.B out=<n>:<m>
+Like in, but translate character n to character m on data written to the
+gensio.
+.TP
+.B nlcr
+Translate new lines to carraige returns on data read from the gensio, and
+carraige returns to new lines on data written to the gensio.
+.TP
+.B crnl
+Translate carraige returns to new lines on data read from the gensio, and
+new lines to carraige returns on data written to the gensio.
 .SH "Forking and gensios"
 Unlike normal file descriptors, when you fork with a gensio, you now
 have two unassociated copies of the gensios.  So if you do operations
