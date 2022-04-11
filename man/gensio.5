@@ -1681,13 +1681,13 @@ gensiot 'ax25(laddr=test-2,addr="0,test-1,test-2"),kiss,tcp,localhost,1234'
 .PP
 
 So to use this, allocate an ax25 gensio.  If you want to make a
-connection, you must set the laddr to the local address and the addr
-to a destination address.  If you just want UI frames, you don't need
-them (more on that later).  Then you open the gensio.  An ax25 gensio
-without an address will just open immediately and start receiving UI
-packets as directed.  With laddr and addr set, it will attempt to make
-a connection.  Once that is up (or fails), the open callback is
-called.
+connection, you must set the addr to a destination address.  By
+default the laddr will be set from the addr if the addr is supplied.
+If you just want UI frames, you don't need to set an address (more on
+that later).  Then you open the gensio.  An ax25 gensio without an
+address will just open immediately and start receiving UI packets as
+directed.  With an addr set, it will attempt to make a connection.
+Once that is up (or fails), the open callback is called.
 .SS AX25 Addresses
 A gensio AX25 address string is in the form:
 .IP
@@ -1781,6 +1781,9 @@ Set the addresses the ax25 gensio will receive packets for.  Except
 for promiscuous UI mode, the destination of a packet must match one of
 these addresses to be handled.  This can only be set on the accepter
 or on the first connection and applies to all channels.
+
+If you do not set this, but addr is set, the laddr will be set from
+the source address of addr.
 .TP
 .B addr=<ax25addr>
 Set the address of the remote end of the connection.  Packets will be

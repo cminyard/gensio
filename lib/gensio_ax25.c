@@ -4620,8 +4620,20 @@ ax25_chan_alloc(struct ax25_base *base, const char *const args[],
 	goto out_nomem;
 
     chan->o = o;
-    if (conf.addr)
-	chan->encoded_addr_len = ax25_addr_encode(chan->encoded_addr, conf.addr);
+    if (conf.addr) {
+	chan->encoded_addr_len = ax25_addr_encode(chan->encoded_addr,
+						  conf.addr);
+	if (conf.num_my_addrs == 0 && firstchan) {
+	    /* Pull the local address from addr. */
+	    struct gensio_ax25_addr *aaddr = addr_to_ax25(conf.addr);
+
+	    conf.my_addrs = o->zalloc(o, sizeof(*conf.my_addrs));
+	    if (!conf.my_addrs)
+		goto out_nomem;
+	    conf.my_addrs[0] = aaddr->src;
+	    conf.num_my_addrs = 1;
+	}
+    }
     chan->conf = conf;
     conf.addr = NULL; /* So we won't free it later. */
     conf.my_addrs = NULL;
