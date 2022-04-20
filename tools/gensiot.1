@@ -4,10 +4,7 @@
 gensio \- Tool for doing gensio connections
 
 .SH SYNOPSIS
-.B gensiotool
-[\-i|\-\-input io1] [\-d|\-\-debug] [\-a|\-\-accepter] [\-\-signature <sig>]
-[\-e|\-\-escchar char] [\-p|\-\-printacc] [\-\-server] [\-h|\-\-help]
-io2
+.B gensiotool [options] io2
 
 .SH DESCRIPTION
 The
@@ -33,10 +30,10 @@ For a description of how to specify a gensio, see the gensio documentation.
 By default io1 is the local terminal (
 .BR /dev/tty
 ) for a tty stdin, or the program's stdin/stdout for a non-tty stdin.
-This lets another gensio be specified as the device hook to io2.
+This lets another gensio be specified as the device to hook to io2.
 .TP
 .I "\-a|\-\-accepter"
-By default io2 make an outgoing connection.  This modifies io2 to
+By default io2 makes an outgoing connection.  This modifies io2 to
 be a gensio accepter and waits for an incoming connection.  Once
 the connection comes in, the accepter is closed and operations
 proceeds as normal.
@@ -72,6 +69,9 @@ When an accept happens, don't disable accept, but continue to accept
 connections, and won't close if all the connections go away..  If this
 is not specified, it shut down the accepter when a connection comes in
 and will terminate when that connection closes.
+.TP
+.I \-\-version
+Print the version number and exit.
 .TP
 .I \-h|\-\-help
 Help output

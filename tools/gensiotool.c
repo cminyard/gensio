@@ -722,6 +722,7 @@ help(int err)
     printf("  -e, --escchar - Set the local terminal escape character.\n"
 	   "    Set to -1 to disable the escape character\n"
 	   "    Default is ^\\ for tty stdin and disabled for non-tty stdin\n");
+    printf("  --version - Print the version number and exit.\n");
     printf("  -h, --help - This help\n");
     gensio_osfunc_exit(err);
 }
@@ -850,6 +851,9 @@ main(int argc, char *argv[])
 	    debug++;
 	    if (debug > 1)
 		gensio_set_log_mask(GENSIO_LOG_MASK_ALL);
+	} else if ((rv = cmparg(argc, argv, &arg, NULL, "--version", NULL))) {
+	    printf("Version %s\n", gensio_version_string);
+	    exit(0);
 	} else if ((rv = cmparg(argc, argv, &arg, "-h", "--help", NULL)))
 	    help(0);
 	else if ((rv = cmparg(argc, argv, &arg, NULL, "--dummyrand",

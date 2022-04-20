@@ -1470,6 +1470,7 @@ help(int err)
     printf("     use the name as the PAM program name and run the PAM auth\n");
     printf("     after the certificate auth succeeds.  For 2-factor auth.\n");
     printf("  -P, --pidfile <file> - Create the given pidfile.\n");
+    printf("  --version - Print the version number and exit.\n");
     printf("  -h, --help - This help\n");
     exit(err);
 }
@@ -1578,6 +1579,9 @@ main(int argc, char *argv[])
 	    debug++;
 	    if (debug > 1)
 		gensio_set_log_mask(GENSIO_LOG_MASK_ALL);
+	} else if ((rv = cmparg(argc, argv, &arg, NULL, "--version", NULL))) {
+	    printf("Version %s\n", gensio_version_string);
+	    exit(0);
 	} else if ((rv = cmparg(argc, argv, &arg, "-h", "--help", NULL)))
 	    help(0);
 	else {

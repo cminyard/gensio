@@ -93,6 +93,7 @@ help(const char *progname)
     P("        either rsa or ec.  The default is rsa\n");
     P("  --force, -f - Don't ask questions, just do the operation.  This\n");
     P("        may overwrite data without asking.\n");
+    P("  --version - Print the version number and exit.\n");
     P("\n");
     P("Commands are:\n");
     P("  setup\n");
@@ -1175,6 +1176,10 @@ main(int argc, char **argv)
 	if (cmparg(argc, argv, &i, "-f", "--force", NULL)) {
 	    force = true;
 	    continue;
+	}
+	if (cmparg(argc, argv, &i, NULL, "--version", NULL)) {
+	    printf("Version %s\n", gensio_version_string);
+	    exit(0);
 	}
 	if (cmparg(argc, argv, &i, "-h", "--help", NULL)) {
 	    help(argv[0]);

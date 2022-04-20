@@ -391,6 +391,7 @@ help(int err)
 	   "    done from the local machine\n");
     printf("  -4 - Do IPv4 only.\n");
     printf("  -6 - Do IPv6 only.\n");
+    printf("  --version - Print the version number and exit.\n");
     printf("  -h, --help - This help\n");
     exit(err);
 }
@@ -1846,6 +1847,9 @@ main(int argc, char *argv[])
 	    debug++;
 	    if (debug > 1)
 		gensio_set_log_mask(GENSIO_LOG_MASK_ALL);
+	} else if ((rv = cmparg(argc, argv, &arg, NULL, "--version", NULL))) {
+	    printf("Version %s\n", gensio_version_string);
+	    exit(0);
 	} else if ((err = cmparg(argc, argv, &arg, "-h", "--help", NULL))) {
 	    help(0);
 	} else {
