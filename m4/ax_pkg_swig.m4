@@ -19,6 +19,11 @@
 #   1.3.17), AX_PKG_SWIG checks that the swig package is this version number
 #   or higher.
 #
+#   If successful, SWIG_NUMVERSION is set to a numeric value for the
+#   version found in the format NNnnpp where NN is the major version,
+#   nn is the minor version, and pp is the patch version.  This is
+#   easy to directly compare with a number.
+#
 #   As usual, action-if-found is executed if SWIG is found, otherwise
 #   action-if-not-found is executed.
 #
@@ -124,6 +129,7 @@ AC_DEFUN([AX_PKG_SWIG],[
                                 SWIG_LIB=`$SWIG -swiglib | tail -1`
                                 AC_MSG_RESULT([$SWIG_LIB])
                                 m4_ifval([$2],[$2],[])
+                                SWIG_NUMVERSION=$available_swig_vernum
                         fi
                 else
                         AC_MSG_WARN([cannot determine SWIG version])

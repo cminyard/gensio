@@ -520,6 +520,7 @@ AC_SUBST(GMDNSMAN)
 
 # Now check for swig
 SWIG_DIR=
+SWIG_CPP_DIR=
 SWIG=
 if test "x$tryswig" = "xyes"; then
    if test "x$swigprog" != "x"; then
@@ -529,9 +530,15 @@ if test "x$tryswig" = "xyes"; then
    if test "x$SWIG" != "x"; then
       AC_DEFINE([HAVE_SWIG], [], [Have swig installed])
       SWIG_DIR=swig
+      if test $SWIG_NUMVERSION -ge 40100; then
+          SWIG_CPP_DIR=swig
+      else
+          AC_MSG_WARN([SWIG version >= 4.1.0 is required for C++ swig.])
+      fi
    fi
 fi
 AC_SUBST(SWIG_DIR)
+AC_SUBST(SWIG_CPP_DIR)
 AC_SUBST(SWIG)
 
 # Handle PYTHON support
