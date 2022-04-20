@@ -3397,7 +3397,7 @@ void check_winsize(struct gensio_iod_win_oneway *owiod)
     if (!GetConsoleScreenBufferInfoEx(data->outcon, &sbi))
 	goto out_unlock;
     x_chrs = sbi.dwSize.X;
-    y_chrs = sbi.dwSize.Y - sbi.srWindow.Top;
+    y_chrs = sbi.srWindow.Bottom - sbi.srWindow.Top + 1;
     if (x_chrs != data->x_chrs || y_chrs != data->y_chrs) {
 	data->x_chrs = x_chrs;
 	data->y_chrs = y_chrs;
