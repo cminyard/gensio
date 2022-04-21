@@ -5,7 +5,10 @@
  *  SPDX-License-Identifier: LGPL-2.1-only
  */
 
-/* This code is for a gensio that echos all writes back to read. */
+/*
+ * This code is for discovering gensio parameters via MDNS then
+ * creating a gensio based upon those..
+ */
 
 #include "config.h"
 #include <gensio/gensio_builtins.h>
