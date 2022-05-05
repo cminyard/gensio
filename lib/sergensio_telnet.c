@@ -992,8 +992,6 @@ telnet_gensio_alloc(struct gensio *child, const char * const args[],
     if (!io)
 	goto out_nomem;
 
-    gensio_set_is_reliable(io, gensio_is_reliable(child));
-
     sdata->sio = sergensio_data_alloc(o, io, sergensio_stel_func, sdata);
     if (!sdata->sio)
 	goto out_nomem;
