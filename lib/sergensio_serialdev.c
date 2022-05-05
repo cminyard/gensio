@@ -1511,13 +1511,7 @@ serialdev_gensio_alloc(const char *devname, const char * const args[],
 	return GE_NOMEM;
     }
 
-    sdata->sio = sergensio_data_alloc(o, io, sergensio_sterm_func, sdata);
-    if (!sdata->sio) {
-	gensio_free(io);
-	return GE_NOMEM;
-    }
-
-    err = gensio_addclass(io, "sergensio", sdata->sio);
+    err = sergensio_addclass(o, io, sergensio_sterm_func, sdata, &sdata->sio);
     if (err) {
 	gensio_free(io);
 	return err;

@@ -36,13 +36,18 @@ typedef int (*sergensio_func)(struct sergensio *sio, int op, int val, char *buf,
 			      void *done, void *cb_data);
 
 
-GENSIO_DLL_PUBLIC
+GENSIO_DLL_PUBLIC /* Deprecated, use sergensio_addclass(). */
 struct sergensio *sergensio_data_alloc(struct gensio_os_funcs *o,
 				       struct gensio *io,
 				       sergensio_func func,
 				       void *gensio_data);
 GENSIO_DLL_PUBLIC
 void sergensio_data_free(struct sergensio *sio);
+
+GENSIO_DLL_PUBLIC
+int sergensio_addclass(struct gensio_os_funcs *o, struct gensio *io,
+		       sergensio_func func, void *gensio_data,
+		       struct sergensio **sio);
 
 GENSIO_DLL_PUBLIC
 void *sergensio_get_gensio_data(struct sergensio *sio);
@@ -54,12 +59,17 @@ typedef int (*sergensio_acc_func)(struct sergensio_accepter *sio,
 				  int op, int val,
 				  char *buf, void *done, void *cb_data);
 
-GENSIO_DLL_PUBLIC
+GENSIO_DLL_PUBLIC /* Deprecated, use sergensio_acc_addclass(). */
 struct sergensio_accepter *sergensio_acc_data_alloc(struct gensio_os_funcs *o,
 						    struct gensio_accepter *acc,
 						    sergensio_acc_func func,
 						    void *gensio_acc_data);
 GENSIO_DLL_PUBLIC
 void sergensio_acc_data_free(struct sergensio_accepter *sio);
+GENSIO_DLL_PUBLIC
+int sergensio_acc_addclass(struct gensio_os_funcs *o,
+			   struct gensio_accepter *acc,
+			   sergensio_acc_func func, void *gensio_data,
+			   struct sergensio_accepter **rsacc);
 
 #endif /* SERGENSIO_CLASS_H */

@@ -92,20 +92,14 @@ ipmisol_gensio_alloc(const char *devname, const char * const args[],
 	return GE_NOMEM;
     }
 
-    idata->sio = sergensio_data_alloc(o, idata->io,
-				      sergensio_iterm_func, idata);
-    if (!idata->sio) {
-	gensio_free(idata->io);
-	return GE_NOMEM;
-    }
-
-    ipmisol_gensio_ll_set_sio(idata->ll, idata->sio);
-
-    err = gensio_addclass(idata->io, "sergensio", idata->sio);
+    err = sergensio_addclass(o, idata->io, sergensio_iterm_func, idata,
+			     &idata->sio);
     if (err) {
 	gensio_free(idata->io);
 	return err;
     }
+
+    ipmisol_gensio_ll_set_sio(idata->ll, idata->sio);
 
     *rio = idata->io;
     return 0;

@@ -79,6 +79,44 @@ sergensio_data_free(struct sergensio *sio)
     sio->o->free(sio->o, sio);
 }
 
+int
+sergensio_addclass(struct gensio_os_funcs *o, struct gensio *io,
+		   sergensio_func func, void *gensio_data,
+		   struct sergensio **rsio)
+{
+    struct sergensio *sio;
+    int rv;
+
+    sio = sergensio_data_alloc(o, io, func, gensio_data);
+    if (!sio)
+	return GE_NOMEM;
+    rv = gensio_addclass(io, "sergensio", sio);
+    if (rv)
+	sergensio_data_free(sio);
+    else
+	*rsio = sio;
+    return rv;
+}
+
+int
+sergensio_acc_addclass(struct gensio_os_funcs *o, struct gensio_accepter *acc,
+		       sergensio_acc_func func, void *gensio_data,
+		       struct sergensio_accepter **rsacc)
+{
+    struct sergensio_accepter *sacc;
+    int rv;
+
+    sacc = sergensio_acc_data_alloc(o, acc, func, gensio_data);
+    if (!sacc)
+	return GE_NOMEM;
+    rv = gensio_acc_addclass(acc, "sergensio", sacc);
+    if (rv)
+	sergensio_acc_data_free(sacc);
+    else
+	*rsacc = sacc;
+    return rv;
+}
+
 void *
 sergensio_get_gensio_data(struct sergensio *sio)
 {
