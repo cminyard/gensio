@@ -33,6 +33,7 @@ static void check_flush_sync_io(struct gensio *io);
 struct gensio_classobj {
     const char *name;
     void *classdata;
+    struct gensio_classops *ops;
     struct gensio_classobj *next;
 };
 
@@ -242,9 +243,8 @@ gensio_os_funcs_get_data(struct gensio_os_funcs *o)
 }
 
 static int
-gen_addclass(struct gensio_os_funcs *o,
-	     struct gensio_classobj **classes,
-	     const char *name, void *classdata)
+gen_addclass(struct gensio_os_funcs *o, struct gensio_classobj **classes,
+	     const char *name, struct gensio_classops *ops, void *classdata)
 {
     struct gensio_classobj *c;
 
@@ -252,6 +252,7 @@ gen_addclass(struct gensio_os_funcs *o,
     if (!c)
 	return GE_NOMEM;
     c->name = name;
+    c->ops = ops;
     c->classdata = classdata;
     c->next = *classes;
     *classes = c;
@@ -371,6 +372,21 @@ gensio_data_alloc(struct gensio_os_funcs *o,
     io->gensio_data = gensio_data;
     io->child = child;
 
+    if (child) {
+	struct gensio_classobj *c = child->classes;
+
+	while (c) {
+	    if (c->ops && c->ops->propagate_to_parent) {
+		int rv = c->ops->propagate_to_parent(io, child, c->classdata);
+		if (rv) {
+		    gensio_data_free(io);
+		    return NULL;
+		}
+	    }
+	    c = c->next;
+	}
+    }
+
     o_base->lock(gensio_base_lock);
     num_alloced_gensios++;
     o_base->unlock(gensio_base_lock);
@@ -391,6 +407,8 @@ gensio_data_free(struct gensio *io)
     while (io->classes) {
 	struct gensio_classobj *c = io->classes;
 
+	if (c->ops && c->ops->cleanup)
+	    c->ops->cleanup(io, c->classdata);
 	io->classes = c->next;
 	io->o->free(io->o, c);
     }
@@ -449,9 +467,10 @@ gensio_cb(struct gensio *io, int event, int err,
 }
 
 int
-gensio_addclass(struct gensio *io, const char *name, void *classdata)
+gensio_addclass(struct gensio *io, const char *name, int classops_ver,
+		struct gensio_classops *ops, void *classdata)
 {
-    return gen_addclass(io->o, &io->classes, name, classdata);
+    return gen_addclass(io->o, &io->classes, name, ops, classdata);
 }
 
 void *
@@ -470,6 +489,44 @@ gensio_getclass(struct gensio *io, const char *name)
     return rv;
 }
 
+struct gensio_acc_classobj {
+    const char *name;
+    void *classdata;
+    struct gensio_acc_classops *ops;
+    struct gensio_acc_classobj *next;
+};
+
+static int
+gen_acc_addclass(struct gensio_os_funcs *o,
+		 struct gensio_acc_classobj **classes,
+		 const char *name, struct gensio_acc_classops *ops,
+		 void *classdata)
+{
+    struct gensio_acc_classobj *c;
+
+    c = o->zalloc(o, sizeof(*c));
+    if (!c)
+	return GE_NOMEM;
+    c->name = name;
+    c->ops = ops;
+    c->classdata = classdata;
+    c->next = *classes;
+    *classes = c;
+    return 0;
+}
+
+static void *
+gen_acc_getclass(struct gensio_acc_classobj *classes, const char *name)
+{
+    struct gensio_acc_classobj *c;
+
+    for (c = classes; c; c = c->next) {
+	if (strcmp(c->name, name) == 0)
+	    return c->classdata;
+    }
+    return NULL;
+}
+
 struct gensio_accepter {
     struct gensio_os_funcs *o;
 
@@ -477,7 +534,7 @@ struct gensio_accepter {
     gensio_accepter_event cb;
     struct gensio_lock *lock;
 
-    struct gensio_classobj *classes;
+    struct gensio_acc_classobj *classes;
 
     const struct gensio_accepter_functions *funcs;
     gensio_acc_func func;
@@ -534,6 +591,21 @@ gensio_acc_data_alloc(struct gensio_os_funcs *o,
     gensio_list_init(&acc->waiting_ios);
     gensio_list_init(&acc->waiting_accepts);
 
+    if (child) {
+	struct gensio_acc_classobj *c = child->classes;
+
+	while (c) {
+	    if (c->ops && c->ops->propagate_to_parent) {
+		int rv = c->ops->propagate_to_parent(acc, child, c->classdata);
+		if (rv) {
+		    gensio_acc_data_free(acc);
+		    return NULL;
+		}
+	    }
+	    c = c->next;
+	}
+    }
+
     return acc;
 }
 
@@ -544,8 +616,10 @@ gensio_acc_data_free(struct gensio_accepter *acc)
 	acc->frdata->freed(acc, acc->frdata);
 
     while (acc->classes) {
-	struct gensio_classobj *c = acc->classes;
+	struct gensio_acc_classobj *c = acc->classes;
 
+	if (c->ops && c->ops->cleanup)
+	    c->ops->cleanup(acc, c->classdata);
 	acc->classes = c->next;
 	acc->o->free(acc->o, c);
     }
@@ -595,15 +669,17 @@ gensio_acc_cb(struct gensio_accepter *acc, int event, void *data)
 
 int
 gensio_acc_addclass(struct gensio_accepter *acc,
-		    const char *name, void *classdata)
+		    const char *name, int classops_ver,
+		    struct gensio_acc_classops *ops,
+		    void *classdata)
 {
-    return gen_addclass(acc->o, &acc->classes, name, classdata);
+    return gen_acc_addclass(acc->o, &acc->classes, name, ops, classdata);
 }
 
 void *
 gensio_acc_getclass(struct gensio_accepter *acc, const char *name)
 {
-    return gen_getclass(acc->classes, name);
+    return gen_acc_getclass(acc->classes, name);
 }
 
 const char *

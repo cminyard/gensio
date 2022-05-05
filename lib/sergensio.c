@@ -90,7 +90,7 @@ sergensio_addclass(struct gensio_os_funcs *o, struct gensio *io,
     sio = sergensio_data_alloc(o, io, func, gensio_data);
     if (!sio)
 	return GE_NOMEM;
-    rv = gensio_addclass(io, "sergensio", sio);
+    rv = gensio_addclass(io, "sergensio", GENSIO_CLASSOPS_VERSION, NULL, sio);
     if (rv)
 	sergensio_data_free(sio);
     else
@@ -109,7 +109,8 @@ sergensio_acc_addclass(struct gensio_os_funcs *o, struct gensio_accepter *acc,
     sacc = sergensio_acc_data_alloc(o, acc, func, gensio_data);
     if (!sacc)
 	return GE_NOMEM;
-    rv = gensio_acc_addclass(acc, "sergensio", sacc);
+    rv = gensio_acc_addclass(acc, "sergensio", GENSIO_ACC_CLASSOPS_VERSION,
+			     NULL, sacc);
     if (rv)
 	sergensio_acc_data_free(sacc);
     else
