@@ -26,6 +26,8 @@ struct sergensio {
     struct gensio_lock *lock;
 
     struct gensio *assoc_io;
+
+    bool autofree;
 };
 
 struct gensio *
@@ -79,6 +81,42 @@ sergensio_data_free(struct sergensio *sio)
     sio->o->free(sio->o, sio);
 }
 
+static int sergensio_prop_func(struct sergensio *sio, int op, int val,
+			       char *buf, void *done, void *cb_data)
+{
+    struct sergensio *child_sio = sergensio_get_gensio_data(sio);
+
+    return child_sio->func(child_sio, op, val, buf, done, cb_data);
+}
+
+static int
+sergensio_prop_class(struct gensio *parent, struct gensio *child,
+		     void *classdata)
+{
+    struct sergensio *sio, *child_sio = classdata;
+    int rv;
+
+    rv = sergensio_addclass(child_sio->o, parent, sergensio_prop_func,
+			    child_sio, &sio);
+    if (rv)
+	return rv;
+    sio->autofree = true;
+    return 0;
+}
+
+static void sergensio_prop_cleanup(struct gensio *io, void *classdata)
+{
+    struct sergensio *sio = classdata;
+
+    if (sio->autofree)
+	sergensio_data_free(sio);
+}
+
+static struct gensio_classops sergensio_classops = {
+    sergensio_prop_class,
+    sergensio_prop_cleanup
+};
+
 int
 sergensio_addclass(struct gensio_os_funcs *o, struct gensio *io,
 		   sergensio_func func, void *gensio_data,
@@ -90,31 +128,12 @@ sergensio_addclass(struct gensio_os_funcs *o, struct gensio *io,
     sio = sergensio_data_alloc(o, io, func, gensio_data);
     if (!sio)
 	return GE_NOMEM;
-    rv = gensio_addclass(io, "sergensio", GENSIO_CLASSOPS_VERSION, NULL, sio);
+    rv = gensio_addclass(io, "sergensio", GENSIO_CLASSOPS_VERSION,
+			 &sergensio_classops, sio);
     if (rv)
 	sergensio_data_free(sio);
-    else
+    else if (rsio)
 	*rsio = sio;
-    return rv;
-}
-
-int
-sergensio_acc_addclass(struct gensio_os_funcs *o, struct gensio_accepter *acc,
-		       sergensio_acc_func func, void *gensio_data,
-		       struct sergensio_accepter **rsacc)
-{
-    struct sergensio_accepter *sacc;
-    int rv;
-
-    sacc = sergensio_acc_data_alloc(o, acc, func, gensio_data);
-    if (!sacc)
-	return GE_NOMEM;
-    rv = gensio_acc_addclass(acc, "sergensio", GENSIO_ACC_CLASSOPS_VERSION,
-			     NULL, sacc);
-    if (rv)
-	sergensio_acc_data_free(sacc);
-    else
-	*rsacc = sacc;
     return rv;
 }
 
@@ -701,6 +720,8 @@ struct sergensio_accepter {
     struct gensio_lock *lock;
 
     struct gensio_accepter *assoc_acc;
+
+    bool autofree;
 };
 
 struct gensio_accepter *
@@ -753,4 +774,63 @@ sergensio_acc_data_free(struct sergensio_accepter *sacc)
 {
     sacc->o->free_lock(sacc->lock);
     sacc->o->free(sacc->o, sacc);
+}
+
+static int sergensio_acc_prop_func(struct sergensio_accepter *sio,
+				   int op, int val,
+				   char *buf, void *done, void *cb_data)
+{
+    struct sergensio_accepter *child_sio = sio->gensio_data;
+
+    return child_sio->func(child_sio, op, val, buf, done, cb_data);
+}
+
+static int
+sergensio_acc_prop_class(struct gensio_accepter *parent,
+			 struct gensio_accepter *child,
+			 void *classdata)
+{
+    struct sergensio_accepter *sio, *child_sio = classdata;
+    int rv;
+
+    rv = sergensio_acc_addclass(child_sio->o, parent, sergensio_acc_prop_func,
+				child_sio, &sio);
+    if (rv)
+	return rv;
+    sio->autofree = true;
+    return 0;
+}
+
+static void sergensio_acc_prop_cleanup(struct gensio_accepter *acc,
+				       void *classdata)
+{
+    struct sergensio_accepter *sio = classdata;
+
+    if (sio->autofree)
+	sergensio_acc_data_free(sio);
+}
+
+static struct gensio_acc_classops sergensio_acc_classops = {
+    sergensio_acc_prop_class,
+    sergensio_acc_prop_cleanup,
+};
+
+int
+sergensio_acc_addclass(struct gensio_os_funcs *o, struct gensio_accepter *acc,
+		       sergensio_acc_func func, void *gensio_data,
+		       struct sergensio_accepter **rsacc)
+{
+    struct sergensio_accepter *sacc;
+    int rv;
+
+    sacc = sergensio_acc_data_alloc(o, acc, func, gensio_data);
+    if (!sacc)
+	return GE_NOMEM;
+    rv = gensio_acc_addclass(acc, "sergensio", GENSIO_ACC_CLASSOPS_VERSION,
+			     &sergensio_acc_classops, sacc);
+    if (rv)
+	sergensio_acc_data_free(sacc);
+    else if (rsacc)
+	*rsacc = sacc;
+    return rv;
 }
