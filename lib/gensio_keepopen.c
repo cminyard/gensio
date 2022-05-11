@@ -152,6 +152,8 @@ struct keepn_data {
     unsigned int refcount;
     enum keepn_state state;
 
+    int last_child_err;
+
     bool discard_badwrites;
 
     /* Keep these around to set them when the open completes. */
@@ -310,9 +312,21 @@ keepn_open_done(struct gensio *io, int err, void *open_data)
     switch (ndata->state) {
     case KEEPN_IN_OPEN:
 	if (err) {
+	    ndata->last_child_err = err;
+	    gensio_log(ndata->o, GENSIO_LOG_INFO,
+		       "Error opening child gensio: %s",
+		       gensio_err_to_str(err));
 	    ndata->state = KEEPN_CHILD_CLOSED;
 	    keepn_start_timer(ndata);
 	} else {
+	    /*
+	     * last_child_err is set if there was a previous error, we
+	     * use that to know if this was the first connection and
+	     * don't report on a first connection.
+	     */
+	    if (ndata->last_child_err)
+		gensio_log(ndata->o, GENSIO_LOG_INFO,
+			   "child gensio open restored");
 	    gensio_set_write_callback_enable(ndata->child, ndata->tx_enable);
 	    gensio_set_read_callback_enable(ndata->child, ndata->rx_enable);
 	    ndata->state = KEEPN_OPEN;
@@ -364,13 +378,16 @@ keepn_close_done(struct gensio *io, void *open_data)
 }
 
 static int
-keepn_handle_io_err(struct keepn_data *ndata)
+keepn_handle_io_err(struct keepn_data *ndata, int err)
 {
-    int err;
 
     keepn_lock(ndata);
     if (ndata->state != KEEPN_OPEN)
 	goto out_unlock;
+
+    ndata->last_child_err = err;
+    gensio_log(ndata->o, GENSIO_LOG_INFO, "I/O error from child gensio: %s",
+	       gensio_err_to_str(err));
 
     err = gensio_close(ndata->child, keepn_close_done, ndata);
     if (err) {
@@ -395,7 +412,7 @@ keepn_event(struct gensio *io, void *user_data,
     struct keepn_data *ndata = user_data;
 
     if (err && event == GENSIO_EVENT_READ) {
-	keepn_handle_io_err(ndata);
+	keepn_handle_io_err(ndata, err);
 	return 0;
     }
 
@@ -412,6 +429,8 @@ keepn_retry_timeout(struct gensio_timer *t, void *cb_data)
     keepn_lock(ndata);
     switch (ndata->state) {
     case KEEPN_OPEN_INIT_FAIL:
+	gensio_log(ndata->o, GENSIO_LOG_INFO, "Error from gensio open: %s",
+		   gensio_err_to_str(ndata->last_child_err));
 	keepn_check_open_done(ndata);
 	ndata->state = KEEPN_CHILD_CLOSED;
 	keepn_start_timer(ndata);
@@ -450,9 +469,11 @@ keepn_open(struct gensio *io, gensio_done_err open_done, void *open_data)
     }
     err = gensio_open(ndata->child, keepn_open_done, ndata);
     if (err) {
+	ndata->last_child_err = err;
 	ndata->state = KEEPN_OPEN_INIT_FAIL;
 	keepn_start_zero_timer(ndata);
     } else {
+	ndata->last_child_err = 0;
 	ndata->state = KEEPN_IN_OPEN;
     }
     ndata->open_done = open_done;
@@ -580,7 +601,7 @@ keepn_gensio_func(struct gensio *io, int func, gensiods *count,
 	err = gensio_call_func(ndata->child,
 			       func, count, cbuf, buflen, buf, auxdata);
 	if (err) {
-	    keepn_handle_io_err(ndata);
+	    keepn_handle_io_err(ndata, err);
 	    if (ndata->discard_badwrites) {
 		gensiods i, amt = 0;
 		const struct gensio_sg *sg = cbuf;
