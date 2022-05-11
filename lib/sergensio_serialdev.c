@@ -861,6 +861,7 @@ sterm_sub_open(void *handler_data, struct gensio_iod **riod)
     }
 
     sdata->timer_stopped = false;
+    sdata->iod = NULL; /* If it's a re-open make sure this is clear. */
 
     options = GENSIO_OPEN_OPTION_WRITEABLE;
     if (!sdata->write_only)
