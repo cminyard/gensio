@@ -1864,6 +1864,11 @@ The readbuf option is not available in this gensio.
 .B retry-time=<n>
 Set the retry interval to n milliseconds.  The default is 1000, or 1
 second.
+.TP
+.B discard-badwrites[=yes|no]
+Normally this gensio will flow-control the upper layer when the lower
+gensio is not open.  If you enable this, it will just throw write
+data away if the lower gensio is not open.
 .SH "Forking and gensios"
 Unlike normal file descriptors, when you fork with a gensio, you now
 have two unassociated copies of the gensios.  So if you do operations

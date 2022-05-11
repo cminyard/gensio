@@ -152,6 +152,8 @@ struct keepn_data {
     unsigned int refcount;
     enum keepn_state state;
 
+    bool discard_badwrites;
+
     /* Keep these around to set them when the open completes. */
     bool rx_enable;
     bool tx_enable;
@@ -579,7 +581,16 @@ keepn_gensio_func(struct gensio *io, int func, gensiods *count,
 			       func, count, cbuf, buflen, buf, auxdata);
 	if (err) {
 	    keepn_handle_io_err(ndata);
-	    *count = 0; /* Tell the user to wait. */
+	    if (ndata->discard_badwrites) {
+		gensiods i, amt = 0;
+		const struct gensio_sg *sg = cbuf;
+
+		for (i = 0; i < buflen; i++)
+		    amt += sg[i].buflen;
+		*count = amt;
+	    } else {
+		*count = 0; /* Tell the user to wait. */
+	    }
 	}
 	return 0;
 
@@ -625,9 +636,13 @@ keepopen_gensio_alloc(struct gensio *child, const char * const args[],
     struct keepn_data *ndata = NULL;
     int i;
     unsigned int retry_time = 1000;
+    bool discard_badwrites;
 
     for (i = 0; args && args[i]; i++) {
 	if (gensio_check_keyuint(args[i], "retry-time", &retry_time) > 0)
+	    continue;
+	if (gensio_check_keybool(args[i], "discard-badwrites",
+				 &discard_badwrites) > 0)
 	    continue;
 	return GE_INVAL;
     }
@@ -648,6 +663,7 @@ keepopen_gensio_alloc(struct gensio *child, const char * const args[],
 
     ndata->child = child;
     ndata->retry_time = retry_time;
+    ndata->discard_badwrites = discard_badwrites;
     gensio_set_callback(child, keepn_event, ndata);
 
     ndata->io = gensio_data_alloc(ndata->o, cb, user_data,
