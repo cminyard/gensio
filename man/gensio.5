@@ -1691,7 +1691,9 @@ Once that is up (or fails), the open callback is called.
 .SS AX25 Addresses
 A gensio AX25 address string is in the form:
 .IP
-[ax25:]tncport,dest[:c|r],src[:c|r][,extra1[:h][,extra2[:h][..]]]
+[ax25:]tncport,dest[:c|r],src[:c|r][,extra1[:h]
+.br
+[,extra2[:h][..]]]
 .PP
 .B tncport
 is a number from 0-15 specifying which TNC to use.
@@ -1830,6 +1832,7 @@ A gensio that translates characters.  This is primarily for
 translating line feeds and carraige returns, but may eventually be
 extended to do string substitutions and such.
 
+The readbuf option is not available in this gensio.
 .SS Options
 .TP
 .B in=<n>:<m>
@@ -1847,6 +1850,20 @@ carraige returns to new lines on data written to the gensio.
 .B crnl
 Translate carraige returns to new lines on data read from the gensio, and
 new lines to carraige returns on data written to the gensio.
+.SH "keepopen"
+connecting =
+.B keepopen[(options)]
+
+A filter gensio that makes it appear to the user that the gensios
+below it are always open.  If the gensio below it goes away, this will
+attempt to re-open it periodically.
+
+The readbuf option is not available in this gensio.
+.SS Options
+.TP
+.B retry-time=<n>
+Set the retry interval to n milliseconds.  The default is 1000, or 1
+second.
 .SH "Forking and gensios"
 Unlike normal file descriptors, when you fork with a gensio, you now
 have two unassociated copies of the gensios.  So if you do operations

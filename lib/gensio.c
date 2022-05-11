@@ -1767,6 +1767,8 @@ add_default_gensios(void *cb_data)
 		    ax25_gensio_alloc);
     REG_FILT_GENSIO(o, "xlt", str_to_xlt_gensio,
 		    xlt_gensio_alloc);
+    REG_FILT_GENSIO(o, "keepopen", str_to_keepopen_gensio,
+		    keepopen_gensio_alloc);
 }
 
 int
