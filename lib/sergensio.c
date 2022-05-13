@@ -25,32 +25,19 @@ struct sergensio {
 
     struct gensio_lock *lock;
 
-    struct gensio *assoc_io;
-
     bool autofree;
 };
 
 struct gensio *
 sergensio_to_gensio(struct sergensio *sio)
 {
-    return sio->assoc_io;
+    return sio->io;
 }
 
 struct sergensio *
 gensio_to_sergensio(struct gensio *io)
 {
-    struct sergensio *rv;
-
-    rv = gensio_getclass(io, "sergensio");
-    if (rv) {
-	rv->o->lock(rv->lock);
-	if (!rv->assoc_io)
-	    rv->assoc_io = io;
-	else
-	    assert(rv->assoc_io == io);
-	rv->o->unlock(rv->lock);
-    }
-    return rv;
+    return gensio_getclass(io, "sergensio");
 }
 
 struct sergensio *
@@ -288,7 +275,7 @@ sergensio_is_client(struct sergensio *sio)
 void *
 sergensio_get_user_data(struct sergensio *sio)
 {
-    return gensio_get_user_data(sio->assoc_io);
+    return gensio_get_user_data(sio->io);
 }
 
 struct sergensio_b {
