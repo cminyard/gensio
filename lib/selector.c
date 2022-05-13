@@ -310,7 +310,7 @@ i_sel_wake_first(struct selector_s *sel)
     sel_wait_list_t *item;
 
     item = sel->wait_list.next;
-    if (item != &sel->wait_list) {
+    if (item->send_sig && item != &sel->wait_list) {
 #ifdef BROKEN_PSELECT
 	item->signalled = true;
 	item->wait_time->tv_sec = 0;
