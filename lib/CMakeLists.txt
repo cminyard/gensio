@@ -50,6 +50,9 @@ set(BASE_LIBFILES
   crc16.c
   gensio_ax25_addr.c
   gensio_ax25.c
+  gensio_filter_xlt.c
+  gensio_xlt.c
+  gensio_keepopen.c
   )
 
 set(UNIX_LIBFILES
