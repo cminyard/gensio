@@ -13,8 +13,8 @@ import reflector
 class AX25HandleData(HandleData):
     def __init__(self, o, iostr, name = None, chunksize=10240,
                  io = None, expect_remclose = True):
-        super().__init__(o, iostr, name = name, chunksize = chunksize,
-                         io = io, expect_remclose = expect_remclose)
+        HandleData.__init__(self, o, iostr, name = name, chunksize = chunksize,
+                            io = io, expect_remclose = expect_remclose)
         self.newchan = None
         self.expected_channel = None
 
