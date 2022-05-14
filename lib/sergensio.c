@@ -136,101 +136,236 @@ sergensio_get_my_gensio(struct sergensio *sio)
     return sio->io;
 }
 
+/*
+ * Because sergensio classes can stack, we have to catch each call and
+ * coming back up the stack to pass in the right sergensio structure.
+ */
+struct sergensio_done_data {
+    struct sergensio *sio;
+    sergensio_done done;
+    void *cb_data;
+};
+
+static void
+sg_done(struct sergensio *sio, int err, unsigned int val, void *cb_data)
+{
+    struct sergensio_done_data *d = cb_data;
+
+    d->done(d->sio, err, val, d->cb_data);
+    d->sio->o->free(d->sio->o, d);
+}
+
+static int
+setup_sergensio_done(struct sergensio *sio, sergensio_done *done,
+		     void **cb_data)
+{
+    struct sergensio_done_data *d;
+    struct gensio_os_funcs *o = sio->o;
+
+    if (!*done)
+	return 0;
+
+    d = o->zalloc(o, sizeof(*d));
+    if (!d)
+	return GE_NOMEM;
+    d->sio = sio;
+    d->done = *done;
+    d->cb_data = *cb_data;
+    *done = sg_done;
+    *cb_data = d;
+
+    return 0;
+}
+
+static int
+finish_sergensio_done(struct sergensio *sio, sergensio_done done,
+		      void *cb_data, int rv)
+{
+    if (rv && done) {
+	struct gensio_os_funcs *o = sio->o;
+
+	o->free(o, cb_data);
+    }
+    return rv;
+}
+
 int
 sergensio_baud(struct sergensio *sio, unsigned int baud,
 	       sergensio_done done, void *cb_data)
 {
-    return sio->func(sio, SERGENSIO_FUNC_BAUD, baud, NULL, done, cb_data);
+    int rv = setup_sergensio_done(sio, &done, &cb_data);
+    if (rv)
+	return rv;
+    rv = sio->func(sio, SERGENSIO_FUNC_BAUD, baud, NULL, done, cb_data);
+    return finish_sergensio_done(sio, done, cb_data, rv);
 }
 
 int
 sergensio_datasize(struct sergensio *sio, unsigned int datasize,
 		   sergensio_done done, void *cb_data)
 {
-    return sio->func(sio, SERGENSIO_FUNC_DATASIZE, datasize, NULL,
-		     done, cb_data);
+    int rv = setup_sergensio_done(sio, &done, &cb_data);
+    if (rv)
+	return rv;
+    rv = sio->func(sio, SERGENSIO_FUNC_DATASIZE, datasize, NULL,
+		   done, cb_data);
+    return finish_sergensio_done(sio, done, cb_data, rv);
 }
 
 int
 sergensio_parity(struct sergensio *sio, unsigned int parity,
 		 sergensio_done done, void *cb_data)
 {
-    return sio->func(sio, SERGENSIO_FUNC_PARITY, parity, NULL, done, cb_data);
+    int rv = setup_sergensio_done(sio, &done, &cb_data);
+    if (rv)
+	return rv;
+    rv = sio->func(sio, SERGENSIO_FUNC_PARITY, parity, NULL, done, cb_data);
+    return finish_sergensio_done(sio, done, cb_data, rv);
 }
 
 int
 sergensio_stopbits(struct sergensio *sio, unsigned int stopbits,
 		   sergensio_done done, void *cb_data)
 {
-    return sio->func(sio, SERGENSIO_FUNC_STOPBITS, stopbits, NULL,
-		     done, cb_data);
+    int rv = setup_sergensio_done(sio, &done, &cb_data);
+    if (rv)
+	return rv;
+    rv = sio->func(sio, SERGENSIO_FUNC_STOPBITS, stopbits, NULL,
+		   done, cb_data);
+    return finish_sergensio_done(sio, done, cb_data, rv);
 }
 
 int
 sergensio_flowcontrol(struct sergensio *sio, unsigned int flowcontrol,
 		      sergensio_done done, void *cb_data)
 {
-    return sio->func(sio, SERGENSIO_FUNC_FLOWCONTROL, flowcontrol, NULL,
-		     done, cb_data);
+    int rv = setup_sergensio_done(sio, &done, &cb_data);
+    if (rv)
+	return rv;
+    rv = sio->func(sio, SERGENSIO_FUNC_FLOWCONTROL, flowcontrol, NULL,
+		   done, cb_data);
+    return finish_sergensio_done(sio, done, cb_data, rv);
 }
 
 int
 sergensio_iflowcontrol(struct sergensio *sio, unsigned int iflowcontrol,
 		       sergensio_done done, void *cb_data)
 {
-    return sio->func(sio, SERGENSIO_FUNC_IFLOWCONTROL, iflowcontrol, NULL,
-		     done, cb_data);
+    int rv = setup_sergensio_done(sio, &done, &cb_data);
+    if (rv)
+	return rv;
+    rv = sio->func(sio, SERGENSIO_FUNC_IFLOWCONTROL, iflowcontrol, NULL,
+		   done, cb_data);
+    return finish_sergensio_done(sio, done, cb_data, rv);
 }
 
 int
 sergensio_sbreak(struct sergensio *sio, unsigned int breakv,
 		 sergensio_done done, void *cb_data)
 {
-    return sio->func(sio, SERGENSIO_FUNC_SBREAK, breakv, NULL,
-		     done, cb_data);
+    int rv = setup_sergensio_done(sio, &done, &cb_data);
+    if (rv)
+	return rv;
+    rv = sio->func(sio, SERGENSIO_FUNC_SBREAK, breakv, NULL,
+		   done, cb_data);
+    return finish_sergensio_done(sio, done, cb_data, rv);
 }
 
 int
 sergensio_dtr(struct sergensio *sio, unsigned int dtr,
 	      sergensio_done done, void *cb_data)
 {
-    return sio->func(sio, SERGENSIO_FUNC_DTR, dtr, NULL, done, cb_data);
+    int rv = setup_sergensio_done(sio, &done, &cb_data);
+    if (rv)
+	return rv;
+    rv = sio->func(sio, SERGENSIO_FUNC_DTR, dtr, NULL, done, cb_data);
+    return finish_sergensio_done(sio, done, cb_data, rv);
 }
 
 int
 sergensio_rts(struct sergensio *sio, unsigned int rts,
 	      sergensio_done done, void *cb_data)
 {
-    return sio->func(sio, SERGENSIO_FUNC_RTS, rts, NULL, done, cb_data);
+    int rv = setup_sergensio_done(sio, &done, &cb_data);
+    if (rv)
+	return rv;
+    rv = sio->func(sio, SERGENSIO_FUNC_RTS, rts, NULL, done, cb_data);
+    return finish_sergensio_done(sio, done, cb_data, rv);
 }
 
 int
 sergensio_cts(struct sergensio *sio, unsigned int cts,
 	      sergensio_done done, void *cb_data)
 {
-    return sio->func(sio, SERGENSIO_FUNC_CTS, cts, NULL, done, cb_data);
+    int rv = setup_sergensio_done(sio, &done, &cb_data);
+    if (rv)
+	return rv;
+    rv = sio->func(sio, SERGENSIO_FUNC_CTS, cts, NULL, done, cb_data);
+    return finish_sergensio_done(sio, done, cb_data, rv);
 }
 
 int
 sergensio_dcd_dsr(struct sergensio *sio, unsigned int dcd_dsr,
 	      sergensio_done done, void *cb_data)
 {
-    return sio->func(sio, SERGENSIO_FUNC_DCD_DSR, dcd_dsr, NULL, done, cb_data);
+    int rv = setup_sergensio_done(sio, &done, &cb_data);
+    if (rv)
+	return rv;
+    rv = sio->func(sio, SERGENSIO_FUNC_DCD_DSR, dcd_dsr, NULL, done, cb_data);
+    return finish_sergensio_done(sio, done, cb_data, rv);
 }
 
 int
 sergensio_ri(struct sergensio *sio, unsigned int ri,
-	      sergensio_done done, void *cb_data)
+	     sergensio_done done, void *cb_data)
 {
-    return sio->func(sio, SERGENSIO_FUNC_RI, ri, NULL, done, cb_data);
+    int rv = setup_sergensio_done(sio, &done, &cb_data);
+    if (rv)
+	return rv;
+    rv = sio->func(sio, SERGENSIO_FUNC_RI, ri, NULL, done, cb_data);
+    return finish_sergensio_done(sio, done, cb_data, rv);
+}
+
+struct sergensio_done_sig_data {
+    struct sergensio *sio;
+    sergensio_done_sig done;
+    void *cb_data;
+};
+
+static void
+sg_done_sig(struct sergensio *sio, int err, const char *sig, unsigned int len,
+	    void *cb_data)
+{
+    struct sergensio_done_sig_data *d = cb_data;
+
+    d->done(d->sio, err, sig, len, d->cb_data);
+    d->sio->o->free(d->sio->o, d);
 }
 
 int
 sergensio_signature(struct sergensio *sio, const char *sig, unsigned int len,
 		    sergensio_done_sig done, void *cb_data)
 {
-    return sio->func(sio, SERGENSIO_FUNC_SIGNATURE, len, (char *) sig,
-		     done, cb_data);
+    struct sergensio_done_sig_data *d = NULL;
+    struct gensio_os_funcs *o = sio->o;
+    int rv;
+
+    if (done) {
+	d = o->zalloc(o, sizeof(*d));
+	if (!d)
+	    return GE_NOMEM;
+	d->sio = sio;
+	d->done = done;
+	d->cb_data = cb_data;
+	done = sg_done_sig;
+	cb_data = d;
+    }
+    rv = sio->func(sio, SERGENSIO_FUNC_SIGNATURE, len, (char *) sig,
+		   done, cb_data);
+    if (d && rv) {
+	o->free(o, cb_data);
+    }
+    return rv;
 }
 
 int
