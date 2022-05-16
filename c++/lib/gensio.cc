@@ -928,12 +928,16 @@ namespace gensio {
 	    err = gensio_read_s_intr(io, &count, buf, len, timeout);
 	else
 	    err = gensio_read_s(io, &count, buf, len, timeout);
-	go->free(go, (void *) buf);
-	if (err == GE_TIMEDOUT || err== GE_INTERRUPTED)
+	if (err == GE_TIMEDOUT || err== GE_INTERRUPTED) {
+	    go->free(go, (void *) buf);
 	    return err;
-	if (err)
+	}
+	if (err) {
+	    go->free(go, (void *) buf);
 	    throw gensio_error(err);
+	}
 	rvec.assign(buf, buf + count);
+	go->free(go, (void *) buf);
 	return 0;
     }
 
