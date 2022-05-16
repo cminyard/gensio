@@ -6,13 +6,13 @@ if(BUILD_SHARED_LIBS AND ALSOSTATIC)
   add_library(gensioglib-static STATIC ${LIBFILES})
   SET_TARGET_PROPERTIES(gensioglib-static PROPERTIES OUTPUT_NAME gensioglib
                         CLEAN_DIRECT_OUTPUT 1)
-  install(TARGETS gensioglib-static DESTINATION lib)
+  install(TARGETS gensioglib-static DESTINATION ${CMAKE_INSTALL_LIBDIR})
 endif()
 target_link_libraries(gensioglib ${EXTRA_LIBS})
 set_property(TARGET gensioglib PROPERTY VERSION 0.0.0)
 set_property(TARGET gensioglib PROPERTY SOVERSION 0)
 
-install(TARGETS gensioglib DESTINATION lib EXPORT gensioglib)
+install(TARGETS gensioglib DESTINATION ${CMAKE_INSTALL_LIBDIR} EXPORT gensioglib)
 install(EXPORT gensioglib FILE gensioglib.cmake DESTINATION lib/cmake/gensio)
 set_target_properties(gensioglib PROPERTIES COMPILE_FLAGS
                       "-DBUILDING_GENSIO_DLL")

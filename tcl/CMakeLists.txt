@@ -6,13 +6,13 @@ if(BUILD_SHARED_LIBS AND ALSOSTATIC)
   add_library(gensiotcl-static STATIC ${LIBFILES})
   SET_TARGET_PROPERTIES(gensiotcl-static PROPERTIES OUTPUT_NAME gensiotcl
                         CLEAN_DIRECT_OUTPUT 1)
-  install(TARGETS gensiotcl-static DESTINATION lib)
+  install(TARGETS gensiotcl-static DESTINATION ${CMAKE_INSTALL_LIBDIR})
 endif()
 target_link_libraries(gensiotcl ${TCL_LIBRARY})
 set_property(TARGET gensiotcl PROPERTY VERSION 0.0.0)
 set_property(TARGET gensiotcl PROPERTY SOVERSION 0)
 
-install(TARGETS gensiotcl DESTINATION lib EXPORT gensiotcl)
+install(TARGETS gensiotcl DESTINATION ${CMAKE_INSTALL_LIBDIR} EXPORT gensiotcl)
 install(EXPORT gensiotcl FILE gensiotcl.cmake DESTINATION lib/cmake/gensio)
 set_target_properties(gensiotcl PROPERTIES COMPILE_FLAGS
                       "-DBUILDING_GENSIO_DLL")
