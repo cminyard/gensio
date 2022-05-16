@@ -44,7 +44,7 @@ libgensio_la_SOURCES += errtrig.c
 endif
 
 libgensio_la_LDFLAGS = $(OPENSSL_LIBS) -no-undefined \
-	-version-info 0:1:0
+	-version-info 1:0:1
 
 EXTRA_DIST = README.rst libgensio.pc.in CMakeLists.txt
 
