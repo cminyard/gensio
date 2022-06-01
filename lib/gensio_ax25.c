@@ -2536,6 +2536,24 @@ ax25_chan_handle_disc(struct ax25_base *base, struct ax25_chan *chan,
 }
 
 static void
+ax25_chan_handle_fallback_response(struct ax25_chan *chan)
+{
+    /* FIXME - handle subfields. */
+    if (chan->extended == 2) {
+	chan->extended = 1;
+	ax25_chan_send_sabm(chan);
+	ax25_chan_start_t1(chan);
+    } else if (chan->extended == 1) {
+	chan->extended = 0;
+	chan->modulo = 8;
+	chan->writewindow = 4;
+	chan->readwindow = 4;
+	ax25_chan_send_sabm(chan);
+	ax25_chan_start_t1(chan);
+    }
+}
+
+static void
 ax25_chan_handle_dm(struct ax25_base *base, struct ax25_chan *chan,
 		    struct gensio_ax25_addr *addr, uint8_t pf, bool is_cmd)
 {
@@ -2545,11 +2563,19 @@ ax25_chan_handle_dm(struct ax25_base *base, struct ax25_chan *chan,
 
     switch (chan->state) {
     case AX25_CHAN_IN_OPEN:
-	if (pf) {
-	    chan->err = GE_REMCLOSE;
-	    ax25_chan_do_err_close(chan, false);
-	    ax25_chan_stop_t1(chan);
-	    ax25_chan_report_open(chan);
+	if (chan->extended > 0) {
+	    /*
+	     * Some broken stacks respond with DM, not FRMR, when they
+	     * receive a SABME but don't support it.
+	     */
+	    ax25_chan_handle_fallback_response(chan);
+	} else {
+	    if (pf) {
+		chan->err = GE_REMCLOSE;
+		ax25_chan_do_err_close(chan, false);
+		ax25_chan_stop_t1(chan);
+		ax25_chan_report_open(chan);
+	    }
 	}
 	break;
 
@@ -2814,19 +2840,7 @@ ax25_chan_handle_frmr(struct ax25_base *base, struct ax25_chan *chan,
 
     switch (chan->state) {
     case AX25_CHAN_IN_OPEN:
-	/* FIXME - handle subfields. */
-	if (chan->extended == 2) {
-	    chan->extended = 1;
-	    ax25_chan_send_sabm(chan);
-	    ax25_chan_start_t1(chan);
-	} else if (chan->extended == 1) {
-	    chan->extended = 0;
-	    chan->modulo = 8;
-	    chan->writewindow = 4;
-	    chan->readwindow = 4;
-	    ax25_chan_send_sabm(chan);
-	    ax25_chan_start_t1(chan);
-	}
+	ax25_chan_handle_fallback_response(chan);
 	break;
 
     case AX25_CHAN_OPEN:
