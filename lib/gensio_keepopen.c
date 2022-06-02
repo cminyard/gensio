@@ -657,7 +657,7 @@ keepopen_gensio_alloc(struct gensio *child, const char * const args[],
     struct keepn_data *ndata = NULL;
     int i;
     unsigned int retry_time = 1000;
-    bool discard_badwrites;
+    bool discard_badwrites = false;
 
     for (i = 0; args && args[i]; i++) {
 	if (gensio_check_keyuint(args[i], "retry-time", &retry_time) > 0)
