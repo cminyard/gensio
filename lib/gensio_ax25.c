@@ -863,6 +863,8 @@ ax25_chan_finish_free(struct ax25_chan *chan, bool baselocked)
     struct gensio_os_funcs *o = chan->o;
     unsigned int i;
 
+    if (chan->io)
+	gensio_data_free(chan->io);
     if (chan->read_data) {
 	for (i = 0; i < chan->conf.readwindow; i++) {
 	    if (chan->read_data[i].data)
@@ -896,8 +898,6 @@ ax25_chan_finish_free(struct ax25_chan *chan, bool baselocked)
 	o->free_timer(chan->timer);
     if (chan->deferred_op_runner)
 	o->free_runner(chan->deferred_op_runner);
-    if (chan->io)
-	gensio_data_free(chan->io);
     o->free(o, chan);
 }
 

@@ -249,6 +249,8 @@ i_basen_unlock(struct basen_data *ndata)
 static void
 basen_finish_free(struct basen_data *ndata)
 {
+    if (ndata->io)
+	gensio_data_free(ndata->io);
     if (ndata->lock)
 	ndata->o->free_lock(ndata->lock);
     if (ndata->timer)
@@ -259,8 +261,6 @@ basen_finish_free(struct basen_data *ndata)
 	gensio_filter_free(ndata->filter);
     if (ndata->ll)
 	gensio_ll_free(ndata->ll);
-    if (ndata->io)
-	gensio_data_free(ndata->io);
     ndata->o->free(ndata->o, ndata);
 }
 

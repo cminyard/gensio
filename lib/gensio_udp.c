@@ -458,10 +458,10 @@ udpna_check_finish_free(struct udpna_data *nadata)
 static void
 udpn_do_free(struct udpn_data *ndata)
 {
-    if (ndata->deferred_op_runner)
-	ndata->o->free_runner(ndata->deferred_op_runner);
     if (ndata->io)
 	gensio_data_free(ndata->io);
+    if (ndata->deferred_op_runner)
+	ndata->o->free_runner(ndata->deferred_op_runner);
     if (ndata->raddr)
 	gensio_addr_free(ndata->raddr);
     ndata->o->free(ndata->o, ndata);

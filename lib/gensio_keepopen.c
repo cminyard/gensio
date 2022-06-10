@@ -180,10 +180,10 @@ keepn_finish_free(struct keepn_data *ndata)
 {
     struct gensio_os_funcs *o = ndata->o;
 
-    if (ndata->child)
-	gensio_free(ndata->child);
     if (ndata->io)
 	gensio_data_free(ndata->io);
+    if (ndata->child)
+	gensio_free(ndata->child);
     if (ndata->retry_timer)
 	o->free_timer(ndata->retry_timer);
     if (ndata->lock)
