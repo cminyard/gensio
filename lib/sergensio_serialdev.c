@@ -984,6 +984,8 @@ sterm_free(void *handler_data)
 {
     struct sterm_data *sdata = handler_data;
 
+    if (sdata->sio)
+	sergensio_data_free(sdata->sio);
     serconf_clear_q(sdata);
     if (sdata->rs485)
 	sdata->o->free(sdata->o, sdata->rs485);
@@ -995,8 +997,6 @@ sterm_free(void *handler_data)
 	sdata->o->free(sdata->o, sdata->devname);
     if (sdata->deferred_op_runner)
 	sdata->o->free_runner(sdata->deferred_op_runner);
-    if (sdata->sio)
-	sergensio_data_free(sdata->sio);
     sdata->o->free(sdata->o, sdata);
 }
 

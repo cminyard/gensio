@@ -656,6 +656,8 @@ stel_free(void *handler_data)
 {
     struct stel_data *sdata = handler_data;
 
+    if (sdata->sio)
+	sergensio_data_free(sdata->sio);
     if (sdata->lock)
 	sdata->o->free_lock(sdata->lock);
     while (sdata->reqs) {
@@ -664,8 +666,6 @@ stel_free(void *handler_data)
 	sdata->reqs = req->next;
 	sdata->o->free(sdata->o, req);
     }
-    if (sdata->sio)
-	sergensio_data_free(sdata->sio);
     sdata->o->free(sdata->o, sdata);
 }
 

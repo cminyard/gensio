@@ -145,6 +145,10 @@ stdiona_finish_free(struct stdiona_data *nadata)
 {
     struct gensio_os_funcs *o = nadata->o;
 
+    if (nadata->io.io)
+	gensio_data_free(nadata->io.io);
+    if (nadata->err.io)
+	gensio_data_free(nadata->err.io);
     if (nadata->io.out_iod)
 	o->release_iod(nadata->io.out_iod);
     if (nadata->io.in_iod)
@@ -167,10 +171,6 @@ stdiona_finish_free(struct stdiona_data *nadata)
 	nadata->o->free(nadata->o, nadata->err.read_data);
     if (nadata->lock)
 	nadata->o->free_lock(nadata->lock);
-    if (nadata->io.io)
-	gensio_data_free(nadata->io.io);
-    if (nadata->err.io)
-	gensio_data_free(nadata->err.io);
     if (nadata->acc)
 	gensio_acc_data_free(nadata->acc);
     nadata->o->free(nadata->o, nadata);

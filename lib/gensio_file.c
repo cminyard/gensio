@@ -215,12 +215,12 @@ filen_finish_free(struct filen_data *ndata)
 {
     struct gensio_os_funcs *o = ndata->o;
 
+    if (ndata->io)
+	gensio_data_free(ndata->io);
     if (ndata->infile)
 	o->free(ndata->o, ndata->infile);
     if (ndata->outfile)
 	o->free(ndata->o, ndata->outfile);
-    if (ndata->io)
-	gensio_data_free(ndata->io);
     if (ndata->read_data)
 	o->free(o, ndata->read_data);
     if (ndata->deferred_op_runner)

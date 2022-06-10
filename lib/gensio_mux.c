@@ -663,14 +663,14 @@ chan_free(struct mux_inst *chan)
 {
     struct gensio_os_funcs *o = chan->o;
 
+    if (chan->io)
+	gensio_data_free(chan->io);
     if (chan->read_data)
 	o->free(o, chan->read_data);
     if (chan->write_data)
 	o->free(o, chan->write_data);
     if (chan->service)
 	o->free(o, chan->service);
-    if (chan->io)
-	gensio_data_free(chan->io);
     if (chan->deferred_op_runner)
 	o->free_runner(chan->deferred_op_runner);
     o->free(o, chan);
