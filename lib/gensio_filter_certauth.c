@@ -78,7 +78,7 @@ static void EVP_MD_CTX_free(EVP_MD_CTX *c)
 
 #define GENSIO_CERTAUTH_DATA_SIZE	2048
 #define GENSIO_CERTAUTH_CHALLENGE_SIZE	32
-#define GENSIO_CERTAUTH_VERSION		3
+#define GENSIO_CERTAUTH_VERSION		4
 
 /*
  * Passwords are always sent in this size buffer to keep an attacker
@@ -726,11 +726,17 @@ certauth_get_cert(struct certauth_filter *sfilter)
 }
 
 static int
-certauth_add_challenge_rsp(struct certauth_filter *sfilter)
+v3_certauth_add_challenge_rsp(struct certauth_filter *sfilter)
 {
     EVP_MD_CTX *sign_ctx;
     unsigned int lenpos, len;
     int rv = 0;
+
+    if (EVP_PKEY_base_id(sfilter->pkey) == EVP_PKEY_ED25519) {
+	gca_log_err(sfilter,
+		    "Remote end or SSL too old to support ed25519 key");
+	return GE_KEYINVALID;
+    }
 
     certauth_write_byte(sfilter, CERTAUTH_CHALLENGE_RSP);
     lenpos = sfilter->write_buf_len;
@@ -776,7 +782,76 @@ certauth_add_challenge_rsp(struct certauth_filter *sfilter)
 }
 
 static int
-certauth_check_challenge(struct certauth_filter *sfilter)
+certauth_add_challenge_rsp(struct certauth_filter *sfilter)
+{
+    struct gensio_os_funcs *o = sfilter->o;
+    EVP_MD_CTX *sign_ctx;
+    size_t lenpos, len;
+    int rv = 0;
+    unsigned char *to_sign = NULL;
+    gensiods to_sign_size;
+    const EVP_MD *digest = sfilter->digest;
+
+    if (sfilter->version < 4 || sfilter->my_version < 4)
+	return v3_certauth_add_challenge_rsp(sfilter);
+
+    if (EVP_PKEY_base_id(sfilter->pkey) == EVP_PKEY_ED25519)
+	digest = NULL;
+
+    certauth_write_byte(sfilter, CERTAUTH_CHALLENGE_RSP);
+    lenpos = sfilter->write_buf_len;
+    sfilter->write_buf_len += 2;
+
+    sign_ctx = EVP_MD_CTX_new();
+    if (!sign_ctx) {
+	gca_log_err(sfilter, "Unable to allocate signature context");
+	return GE_NOMEM;
+    }
+
+    to_sign_size = sfilter->challenge_data_size + sfilter->service_len;
+    to_sign = o->zalloc(o, to_sign_size);
+    if (!to_sign) {
+	gca_logs_err(sfilter, "challeng data allocation failed");
+	goto out_nomem;
+    }
+    memcpy(to_sign, sfilter->challenge_data, sfilter->challenge_data_size);
+    memcpy(to_sign + sfilter->challenge_data_size,
+	   sfilter->service, sfilter->service_len);
+
+    if (!EVP_DigestSignInit(sign_ctx, NULL, digest, NULL, sfilter->pkey)) {
+	gca_logs_err(sfilter, "Digest signature init failed");
+	goto out_nomem;
+    }
+    if (!EVP_DigestSign(sign_ctx, NULL, &len,
+			to_sign, to_sign_size)) {
+	gca_logs_err(sfilter, "Digest Signature sign failed");
+	goto out_nomem;
+    }
+    if (certauth_writeleft(sfilter) < len) {
+	gca_log_err(sfilter, "Signature too large to fit in the data");
+	return GE_TOOBIG;
+    }
+    if (!EVP_DigestSign(sign_ctx, certauth_writepos(sfilter), &len,
+			to_sign, to_sign_size)) {
+	gca_logs_err(sfilter, "Digest Signature sign(2) failed");
+	goto out_nomem;
+    }
+    sfilter->write_buf_len += len;
+    certauth_u16_to_buf(sfilter->write_buf + lenpos, len);
+
+ out:
+    if (to_sign)
+	o->free(o, to_sign);
+    EVP_MD_CTX_free(sign_ctx);
+    return rv;
+
+ out_nomem:
+    rv = GE_NOMEM;
+    goto out;
+}
+
+static int
+v3_certauth_check_challenge(struct certauth_filter *sfilter)
 {
     EVP_MD_CTX *sign_ctx;
     int rv = 0;
@@ -823,6 +898,78 @@ certauth_check_challenge(struct certauth_filter *sfilter)
     rv = 0;
 
  out:
+    EVP_MD_CTX_free(sign_ctx);
+    return rv;
+
+ out_nomem:
+    rv = GE_NOMEM;
+    goto out;
+}
+
+static int
+certauth_check_challenge(struct certauth_filter *sfilter)
+{
+    struct gensio_os_funcs *o = sfilter->o;
+    EVP_MD_CTX *sign_ctx;
+    int rv = 0;
+    EVP_PKEY *pkey = NULL;
+    unsigned char *to_sign = NULL;
+    gensiods to_sign_size;
+    const EVP_MD *digest = sfilter->digest;
+
+    if (sfilter->version < 4 || sfilter->my_version < 4)
+	return v3_certauth_check_challenge(sfilter);
+
+    sign_ctx = EVP_MD_CTX_new();
+    if (!sign_ctx) {
+	gca_log_err(sfilter, "Unable to allocate verify context");
+	return GE_NOMEM;
+    }
+
+    to_sign_size = sfilter->challenge_data_size + sfilter->service_len;
+    to_sign = o->zalloc(o, to_sign_size);
+    if (!to_sign) {
+	gca_logs_err(sfilter, "challeng data allocation failed");
+	goto out_nomem;
+    }
+    memcpy(to_sign, sfilter->challenge_data, sfilter->challenge_data_size);
+    memcpy(to_sign + sfilter->challenge_data_size,
+	   sfilter->service, sfilter->service_len);
+
+    pkey = X509_get_pubkey(sfilter->cert);
+    if (!pkey) {
+	gca_logs_err(sfilter, "Getting public key failed");
+	goto out_nomem;
+    }
+
+    if (EVP_PKEY_base_id(pkey) == EVP_PKEY_ED25519)
+	digest = NULL;
+
+    if (!EVP_DigestVerifyInit(sign_ctx, NULL, digest, NULL, pkey)) {
+	gca_logs_err(sfilter, "Digest verify init failed");
+	goto out_nomem;
+    }
+    rv = EVP_DigestVerify(sign_ctx, sfilter->read_buf, sfilter->read_buf_len,
+			  to_sign, to_sign_size);
+    if (rv != 0 && rv != 1) {
+	gca_logs_err(sfilter, "Verify final failed");
+	goto out_nomem;
+    }
+
+    if (rv) {
+	sfilter->response_result = CERTAUTH_RESULT_SUCCESS;
+    } else {
+	sfilter->response_result = CERTAUTH_RESULT_FAILURE;
+	gca_logs_info(sfilter, "Challenge verify failed");
+    }
+
+    rv = 0;
+
+ out:
+    if (pkey)
+	EVP_PKEY_free(pkey);
+    if (to_sign)
+	o->free(o, to_sign);
     EVP_MD_CTX_free(sign_ctx);
     return rv;
 
