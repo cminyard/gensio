@@ -382,6 +382,7 @@ struct gensio_iod_socket {
 
 struct gensio_iod_unix {
     struct gensio_iod r;
+    int orig_fd;
     int fd;
     enum gensio_iod_type type;
     bool handlers_set;
@@ -1016,11 +1017,11 @@ gensio_handle_fork(struct gensio_os_funcs *f)
 
 static int
 gensio_unix_add_iod(struct gensio_os_funcs *o, enum gensio_iod_type type,
-		    intptr_t fd, struct gensio_iod **riod)
+		    intptr_t ofd, struct gensio_iod **riod)
 {
     struct gensio_iod_unix *iod = NULL;
     bool closefd = false;
-    int err = GE_NOMEM;
+    int err = GE_NOMEM, fd = ofd;
 
     if (type == GENSIO_IOD_CONSOLE) {
 	if (fd == 0)
@@ -1041,6 +1042,7 @@ gensio_unix_add_iod(struct gensio_os_funcs *o, enum gensio_iod_type type,
     }
     iod->r.f = o;
     iod->fd = fd;
+    iod->orig_fd = ofd;
     if (type == GENSIO_IOD_STDIO) {
 	struct stat statb;
 
@@ -1195,7 +1197,7 @@ gensio_unix_close(struct gensio_iod **iodp)
 	gensio_unix_do_cleanup_nonblock(o, iod->fd, &iod->mode);
 
     if (iod->type == GENSIO_IOD_DEV ||
-		(iod->type == GENSIO_IOD_CONSOLE && iod->fd == 0))
+		(iod->type == GENSIO_IOD_CONSOLE && iod->orig_fd == 0))
 	gensio_unix_cleanup_termios(o, &iod->u.dev.termios, iod->fd);
 
     if (iod->type == GENSIO_IOD_SOCKET) {
@@ -1264,7 +1266,7 @@ gensio_unix_makeraw(struct gensio_iod *iiod)
     struct gensio_iod_unix *iod = i_to_sel(iiod);
 
     if (iod->type == GENSIO_IOD_DEV ||
-		(iod->type == GENSIO_IOD_CONSOLE && iod->fd == 0))
+		(iod->type == GENSIO_IOD_CONSOLE && iod->orig_fd == 0))
 	/* Only set this for stdin or other files. */
 	return gensio_unix_setup_termios(iiod->f, iod->fd, &iod->u.dev.termios);
 
