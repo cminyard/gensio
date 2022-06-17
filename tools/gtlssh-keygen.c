@@ -77,12 +77,13 @@ help(const char *progname)
     P("  --keysize <size> - Create an RSA key with the given number of bits.\n");
     P("        default is %u for rsa, %u for ec\n", DEFAULT_RSA_KEYSIZE,
       DEFAULT_EC_KEYSIZE);
+    P("        Do not specify for ed25519\n");
     P("  --keydays <days> - Create a key that expires in the given number\n");
     P("        of days.  Default is %u\n", DEFAULT_KEYDAYS);
     P("  --basedir <dir> - Location where keys are stored.\n");
     P("        Default is %s\n", default_gtlsshdir);
     P("  --keydir <dir> - Location to put the non-default generated keys.\n");
-    P("        Default is %s for normal certificates.\n", keydir);
+    P("        Default is %s for normal certificates.\n", default_keydir);
 #ifdef DEFAULT_CONFDIR
     P("        %s for server certificates.\n", DEFAULT_CONFDIR);
 #endif
@@ -90,7 +91,7 @@ help(const char *progname)
     P("        The default is your username for normal certificates and\n");
     P("        the fully qualified domain name for server certificates.\n");
     P("  --algorithm <algname> - Set the algorithm to use for the key,\n");
-    P("        either rsa or ec.  The default is rsa\n");
+    P("        either ed25519, rsa or ec.  The default is ed25519.\n");
     P("  --force, -f - Don't ask questions, just do the operation.  This\n");
     P("        may overwrite data without asking.\n");
     P("  --version - Print the version number and exit.\n");
@@ -767,7 +768,45 @@ genpkey_ec(const char *key)
     return rc != 0;
 }
 
-static int (*genpkey)(const char *key) = genpkey_rsa;
+/*
+ * Generate the given private ED25519 key.
+ */
+static int
+genpkey_ed25519(const char *key)
+{
+    const char *argv[7];
+    char *out, *errout;
+    int err, rc;
+
+    if (keysize_set) {
+	fprintf(stderr, "Keysize not accepted for ED25519\n");
+	return 1;
+    }
+    argv[0] = "openssl";
+    argv[1] = "genpkey";
+    argv[2] = "-algorithm";
+    argv[3] = "ed25519";
+    argv[4] = "-out";
+    argv[5] = key;
+    argv[6] = NULL;
+
+    err = run_get_output(argv, true, NULL, 0,
+			 NULL, 0, &out, NULL, &errout, NULL, &rc);
+    if (err)
+	return 1;
+
+    if (rc) {
+	fprintf(stderr, "Error running openssl: %s\n", errout);
+    } else {
+	printf("Key created at %s.\n", key);
+    }
+
+    free(out);
+    free(errout);
+    return rc != 0;
+}
+
+static int (*genpkey)(const char *key) = genpkey_ed25519;
 
 /*
  * Create a single key.  If name is NULL, it's a server key, otherwise
@@ -1195,6 +1234,8 @@ main(int argc, char **argv)
 	    genpkey = genpkey_rsa;
 	} else if (strcmp(algorithm, "ec") == 0) {
 	    genpkey = genpkey_ec;
+	} else if (strcmp(algorithm, "ed25519") == 0) {
+	    genpkey = genpkey_ed25519;
 	} else {
 	    fprintf(stderr, "Invalid algorithm: %s\n", algorithm);
 	    exit(1);
