@@ -1087,7 +1087,7 @@ mux_event(struct gensio *io, void *user_data, int event, int ierr,
 }
 
 static struct gensio *
-open_mux(struct gensio *io, struct gdata *ginfo, const char *service)
+open_mux(struct gensio *io, struct gdata *ginfo)
 {
     struct gensio_os_funcs *o = ginfo->o;
     struct gensio *mux_io;
@@ -1202,7 +1202,7 @@ handle_new(struct gensio_runner *r, void *cb_data)
     }
 
     if (strstartswith(tmpservice, "mux"))
-	top_io = open_mux(certauth_io, ginfo, tmpservice);
+	top_io = open_mux(certauth_io, ginfo);
     else
 	top_io = certauth_io;
 
