@@ -1176,7 +1176,7 @@ win_env_to_block(struct gensio_os_funcs *o,
 int
 gensio_win_do_exec(struct gensio_os_funcs *o,
 		   const char *argv[], const char **env,
-		   bool stderr_to_stdout,
+		   unsigned int flags,
 		   HANDLE *phandle,
 		   HANDLE *rin, HANDLE *rout, HANDLE *rerr)
 {
@@ -1189,7 +1189,7 @@ gensio_win_do_exec(struct gensio_os_funcs *o,
     HANDLE stdout_m = NULL, stdout_s = NULL;
     HANDLE stderr_m = NULL, stderr_s = NULL;
 
-    if (rerr && stderr_to_stdout)
+    if (rerr && (flags & GENSIO_EXEC_STDERR_TO_STDOUT))
 	return GE_INVAL;
 
     rv = argv_to_win_cmdline(o, argv, &cmdline);
@@ -1222,7 +1222,7 @@ gensio_win_do_exec(struct gensio_os_funcs *o,
     if (!SetHandleInformation(stdout_m, HANDLE_FLAG_INHERIT, 0))
 	goto out_err_conv;
 
-    if (stderr_to_stdout) {
+    if (flags & GENSIO_EXEC_STDERR_TO_STDOUT) {
 	if (!DuplicateHandle(GetCurrentProcess(),
 			     stdout_s,
 			     GetCurrentProcess(),
@@ -2102,7 +2102,7 @@ extern char **environ;
 int
 gensio_unix_do_exec(struct gensio_os_funcs *o,
 		    const char *argv[], const char **env,
-		    bool stderr_to_stdout,
+		    unsigned int flags,
 		    int *rpid,
 		    int *rin, int *rout, int *rerr)
 {
@@ -2112,7 +2112,7 @@ gensio_unix_do_exec(struct gensio_os_funcs *o,
     int stderrpipe[2] = {-1, -1};
     int pid = -1;
 
-    if (stderr_to_stdout && rerr)
+    if (rerr && (flags & GENSIO_EXEC_STDERR_TO_STDOUT))
 	return GE_INVAL;
 
     err = pipe(stdinpipe);
@@ -2145,7 +2145,7 @@ gensio_unix_do_exec(struct gensio_os_funcs *o,
 
 	dup2(stdinpipe[0], 0);
 	dup2(stdoutpipe[1], 1);
-	if (stderr_to_stdout)
+	if (flags & GENSIO_EXEC_STDERR_TO_STDOUT)
 	    dup2(stdoutpipe[1], 2);
 	else if (rerr)
 	    dup2(stderrpipe[1], 2);

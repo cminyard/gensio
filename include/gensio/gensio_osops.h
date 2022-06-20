@@ -110,7 +110,7 @@ DWORD gensio_win_commport_break_done(struct gensio_os_funcs *o, HANDLE h,
 GENSIO_DLL_PUBLIC
 int gensio_win_do_exec(struct gensio_os_funcs *o,
 		       const char *argv[], const char **env,
-		       bool stderr_to_stdout,
+		       unsigned int flags,
 		       HANDLE *phandle,
 		       HANDLE *rin, HANDLE *rout, HANDLE *rerr);
 
@@ -149,7 +149,7 @@ int gensio_unix_get_bufcount(struct gensio_os_funcs *o,
 GENSIO_DLL_PUBLIC
 int gensio_unix_do_exec(struct gensio_os_funcs *o,
 			const char *argv[], const char **env,
-			bool stderr_to_stdout,
+			unsigned int flags,
 			int *rpid,
 			int *rin, int *rout, int *rerr);
 

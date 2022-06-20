@@ -1174,7 +1174,7 @@ generic_close(intptr_t fd)
 static int
 gensio_tcl_exec_subprog(struct gensio_os_funcs *o,
 			const char *argv[], const char **env,
-			bool stderr_to_stdout,
+			unsigned int flags,
 			intptr_t *rpid,
 			struct gensio_iod **rstdin,
 			struct gensio_iod **rstdout,
@@ -1188,7 +1188,7 @@ gensio_tcl_exec_subprog(struct gensio_os_funcs *o,
     int uinfd = -1, uoutfd = -1, uerrfd = -1;
     int upid = -1;
 
-    err = gensio_unix_do_exec(o, argv, env, stderr_to_stdout, &upid, &uinfd,
+    err = gensio_unix_do_exec(o, argv, env, flags, &upid, &uinfd,
 			      &uoutfd, rstderr ? &uerrfd : NULL);
     if (err)
 	return err;

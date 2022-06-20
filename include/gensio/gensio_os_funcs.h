@@ -612,9 +612,10 @@ struct gensio_os_funcs {
      * has terminated, and the wait must return without error, to
      * avoid leaking resources.
      */
+#define GENSIO_EXEC_STDERR_TO_STDOUT	1
     int (*exec_subprog)(struct gensio_os_funcs *o,
 			const char *argv[], const char **env,
-			bool stderr_to_stdout,
+			unsigned int flags,
 			intptr_t *rpid,
 			struct gensio_iod **rstdin,
 			struct gensio_iod **rstdout,
