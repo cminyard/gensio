@@ -64,6 +64,27 @@ enum gensio_iod_type {
      */
     GENSIO_IOD_CONSOLE,
 
+    /*
+     * PTY iods create a pseudoterminal on the system.  This does not
+     * start the pty, though.  You have to call the START control to
+     * enable it.  On *nix systems, you can fetch the fd and create
+     * a symlink to the device, set permissions, or whatnot.
+     *
+     * If you do not set the ARGV via control, on *nix systems it will
+     * create a PTY that another process can connect to.  On Windows
+     * this will return an error.
+     *
+     * If you set the ARGV (and optionally ENV) before calling START,
+     * this will start a new program with the given arguments (and
+     * environoment) with the pty as stdio when you call START.  On
+     * Unix it will use the effective UID/GUI for the program.  On
+     * Windows it will use the impersonation token of the calling
+     * thread.
+     *
+     * fd is currently not used, you should pass in zero.
+     */
+    GENSIO_IOD_PTY,
+
     /* Must be last */
     NR_GENSIO_IOD_TYPES
 };
@@ -249,8 +270,15 @@ struct gensio_opensocks
 #define GENSIO_IOD_CONTROL_SOCKINFO	1000
 
 /*
- * Operations for the control function in gensio_os_funcs
+ * Operations for PTYs.  See the discussion baove GENSIO_IOD_PTY for
+ * details.
  */
+#define GENSIO_IOD_CONTROL_ARGV		2000
+#define GENSIO_IOD_CONTROL_ENV		2001
+#define GENSIO_IOD_CONTROL_START	2002
+
+/* Get pid, val is a ptr to intptr_t. */
+#define GENSIO_IOD_CONTROL_PID		2003
 
 /*
  * Set the proc data for the os handler.  The struct
@@ -608,11 +636,13 @@ struct gensio_os_funcs {
      * to stdout and rstderr should be NULL.  Otherwise if you want to
      * leave stderr to the caller's stderr, then set rstderr to NULL.
      *
+     * If pty is set, then stderr should be passed in as NULL.
+     *
      * Note that you must wait for the subprogram after you think it
      * has terminated, and the wait must return without error, to
      * avoid leaking resources.
      */
-#define GENSIO_EXEC_STDERR_TO_STDOUT	1
+#define GENSIO_EXEC_STDERR_TO_STDOUT	(1 << 0)
     int (*exec_subprog)(struct gensio_os_funcs *o,
 			const char *argv[], const char **env,
 			unsigned int flags,
@@ -621,9 +651,9 @@ struct gensio_os_funcs {
 			struct gensio_iod **rstdout,
 			struct gensio_iod **rstderr);
     /*
-     * Attempt to stop a subprogram.  If force is given, don't get the
-     * subprogram an option (kill -1).  You still must wait on the
-     * subprogramm.
+     * Attempt to stop a subprogram.  If force is given, don't give the
+     * subprogram an option (kill -9).  You still must wait on the
+     * subprogram.
      */
     int (*kill_subprog)(struct gensio_os_funcs *o, intptr_t pid, bool force);
     /* Wait for a program to terminate. */
