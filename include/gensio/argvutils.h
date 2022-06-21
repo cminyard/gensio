@@ -58,7 +58,8 @@ int gensio_str_to_argv_endchar(struct gensio_os_funcs *o,
 
 /*
  * Copy an argv array.  The source does not have to be from str_to_argv
- * and must be NULL terminated.
+ * and must be NULL terminated.  r_args may be NULL if you don't care, but
+ * you must supply r_argv.
  */
 GENSIO_DLL_PUBLIC
 int gensio_argv_copy(struct gensio_os_funcs *o,
