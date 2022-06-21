@@ -1180,8 +1180,10 @@ certauth_try_connect(struct gensio_filter *filter, gensio_time *timeout)
 	break;
 
     case CERTAUTH_CHALLENGE_RESPONSE:
-	if (!sfilter->cert ||
-		sfilter->response_result != CERTAUTH_RESULT_SUCCESS) {
+	if (sfilter->result == CERTAUTH_RESULT_SUCCESS)
+	    /* Already authenticated, just do the dummy password. */
+	    goto try_password;
+	if (!sfilter->cert) {
 	    if (!sfilter->enable_password) {
 		sfilter->pending_err = GE_AUTHREJECT;
 		goto finish_result;
