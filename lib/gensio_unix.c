@@ -380,6 +380,12 @@ struct gensio_iod_socket {
     void *sockinfo;
 };
 
+struct gensio_iod_pty {
+    const char **argv;
+    const char **env;
+    pid_t pid;
+};
+
 struct gensio_iod_unix {
     struct gensio_iod r;
     int orig_fd;
@@ -399,6 +405,7 @@ struct gensio_iod_unix {
 	struct gensio_iod_dev dev;
 	struct gensio_iod_file file;
 	struct gensio_iod_socket socket;
+	struct gensio_iod_pty pty;
     } u;
 };
 
@@ -1023,6 +1030,9 @@ gensio_unix_add_iod(struct gensio_os_funcs *o, enum gensio_iod_type type,
     bool closefd = false;
     int err = GE_NOMEM, fd = ofd;
 
+    if (type >= NR_GENSIO_IOD_TYPES)
+	return GE_INVAL;
+
     if (type == GENSIO_IOD_CONSOLE) {
 	if (fd == 0)
 	    fd = open("/dev/tty", O_RDONLY);
@@ -1032,6 +1042,11 @@ gensio_unix_add_iod(struct gensio_os_funcs *o, enum gensio_iod_type type,
 	    return GE_INVAL;
 	if (fd == -1)
 	    return gensio_os_err_to_err(o, errno);
+	closefd = true;
+    } else if (type == GENSIO_IOD_PTY) {
+	err = gensio_unix_pty_alloc(o, &fd);
+	if (err)
+	    return err;
 	closefd = true;
     }
 
@@ -1062,6 +1077,8 @@ gensio_unix_add_iod(struct gensio_os_funcs *o, enum gensio_iod_type type,
 	    err = GE_INVAL;
 	    goto out_err;
 	}
+    } else if (type == GENSIO_IOD_PTY) {
+	iod->u.pty.pid = -1;
     }
     iod->type = type;
 
@@ -1091,13 +1108,20 @@ static void
 gensio_unix_release_iod(struct gensio_iod *iiod)
 {
     struct gensio_iod_unix *iod = i_to_sel(iiod);
+    struct gensio_os_funcs *o = iod->r.f;
 
     assert(!iod->handlers_set);
     if (iod->type == GENSIO_IOD_FILE) {
-	iod->r.f->free_runner(iod->u.file.runner);
-	iod->r.f->free_lock(iod->u.file.lock);
+	o->free_runner(iod->u.file.runner);
+	o->free_lock(iod->u.file.lock);
     }
-    iod->r.f->free(iiod->f, iod);
+    if (iod->type == GENSIO_IOD_PTY) {
+	if (iod->u.pty.argv)
+	    gensio_argv_free(o, iod->u.pty.argv);
+	if (iod->u.pty.env)
+	    gensio_argv_free(o, iod->u.pty.env);
+    }
+    o->free(o, iod);
 }
 
 static int
@@ -1265,7 +1289,7 @@ gensio_unix_makeraw(struct gensio_iod *iiod)
 {
     struct gensio_iod_unix *iod = i_to_sel(iiod);
 
-    if (iod->type == GENSIO_IOD_DEV ||
+    if (iod->type == GENSIO_IOD_DEV || iod->type == GENSIO_IOD_PTY ||
 		(iod->type == GENSIO_IOD_CONSOLE && iod->orig_fd == 0))
 	/* Only set this for stdin or other files. */
 	return gensio_unix_setup_termios(iiod->f, iod->fd, &iod->u.dev.termios);
@@ -1364,6 +1388,51 @@ gensio_unix_exec_subprog(struct gensio_os_funcs *o,
 }
 
 static int
+gensio_unix_pty_control(struct gensio_iod_unix *iod, int op, bool get,
+			intptr_t val)
+{
+    int err;
+    const char **nargv;
+
+    if (get) {
+	if (op == GENSIO_IOD_CONTROL_PID) {
+	    if (iod->u.pty.pid == -1)
+		return GE_NOTREADY;
+	    *((intptr_t *) val) = iod->u.pty.pid;
+	    return 0;
+	}
+	return GE_NOTSUP;
+    }
+
+    switch (op) {
+    case GENSIO_IOD_CONTROL_ARGV:
+	err = gensio_argv_copy(iod->r.f, (const char **) val, NULL, &nargv);
+	if (err)
+	    return err;
+	if (iod->u.pty.argv)
+	    gensio_argv_free(iod->r.f, iod->u.pty.argv);
+	iod->u.pty.argv = nargv;
+	return 0;
+
+    case GENSIO_IOD_CONTROL_ENV:
+	err = gensio_argv_copy(iod->r.f, (const char **) val, NULL, &nargv);
+	if (err)
+	    return err;
+	if (iod->u.pty.env)
+	    gensio_argv_free(iod->r.f, iod->u.pty.env);
+	iod->u.pty.env = nargv;
+	return 0;
+
+    case GENSIO_IOD_CONTROL_START:
+	return gensio_unix_pty_start(iod->r.f, iod->fd, iod->u.pty.argv,
+				     iod->u.pty.env, &iod->u.pty.pid);
+
+    default:
+	return GE_NOTSUP;
+    }
+}
+
+static int
 gensio_unix_iod_control(struct gensio_iod *iiod, int op, bool get, intptr_t val)
 {
     struct gensio_iod_unix *iod = i_to_sel(iiod);
@@ -1379,6 +1448,9 @@ gensio_unix_iod_control(struct gensio_iod *iiod, int op, bool get, intptr_t val)
 
 	return 0;
     }
+
+    if (iod->type == GENSIO_IOD_PTY)
+	return gensio_unix_pty_control(iod, op, get, val);
 
     if (iod->type != GENSIO_IOD_DEV)
 	return GE_NOTSUP;
@@ -1401,7 +1473,7 @@ gensio_unix_kill_subprog(struct gensio_os_funcs *o, intptr_t pid,
 
 static int
 gensio_unix_wait_subprog(struct gensio_os_funcs *o, intptr_t pid,
-			      int *retcode)
+			 int *retcode)
 {
     pid_t rv;
 

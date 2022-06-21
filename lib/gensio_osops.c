@@ -5,6 +5,11 @@
  *  SPDX-License-Identifier: LGPL-2.1-only
  */
 
+#ifdef linux
+#define _XOPEN_SOURCE 600 /* Get posix_openpt() and friends. */
+#define _GNU_SOURCE /* Get ptsname_r(). */
+#endif
+
 #include "config.h"
 #define _DEFAULT_SOURCE /* Get getgrouplist(), setgroups() */
 #include <stdio.h>
@@ -2197,6 +2202,129 @@ gensio_unix_do_exec(struct gensio_os_funcs *o,
 	close(stderrpipe[1]);
 
     return err;
+}
+
+int
+gensio_unix_pty_alloc(struct gensio_os_funcs *o, int *rfd)
+{
+    int fd = posix_openpt(O_RDWR | O_NOCTTY);
+    if (fd == -1)
+	return gensio_os_err_to_err(o, errno);
+    *rfd = fd;
+    return 0;
+}
+
+int
+gensio_unix_pty_start(struct gensio_os_funcs *o,
+		      int pfd, const char **argv, const char **env, pid_t *rpid)
+{
+    const char *pgm;
+    pid_t pid = -1;
+    int err;
+
+    if (unlockpt(pfd) < 0)
+	goto out_errno;
+
+    if (!argv)
+	goto skip_child;
+
+    pid = fork();
+    if (pid < 0)
+	goto out_errno;
+
+    if (pid == 0) {
+	/*
+	 * Delay getting the slave until here becase ptsname is not
+	 * thread-safe, but after the fork we are single-threaded.
+	 */
+	char *slave = ptsname(pfd);
+	int i, openfiles = sysconf(_SC_OPEN_MAX);
+	int fd;
+
+	/* Set the owner of the slave PT. */
+	/* FIXME - This should not be necessary, can we remove? */
+	if (grantpt(pfd) < 0)
+	    exit(1);
+
+	if (setsid() == -1) {
+	    fprintf(stderr, "pty fork: failed to start new session: %s\r\n",
+		    strerror(errno));
+	    exit(1);
+	}
+
+#if 0 /* FIXME = do we need this? */
+	if (setpgid(0, 0) == -1) {
+	    fprintf(stderr, "pty fork: failed setpgid: %s\r\n",
+		    strerror(errno));
+	    exit(1);
+	}
+#endif
+
+	fd = open(slave, O_RDWR);
+	if (fd == -1) {
+	    fprintf(stderr, "pty fork: failed to open slave terminal: %s\r\n",
+		    strerror(errno));
+	    exit(1);
+	}
+
+#if defined(TIOCSCTTY) && !defined(linux)
+	/* Linux sets the first opened TTY to the controlling terminal. */
+	if (ioctl(fd, TIOCSCTTY, NULL) == -1) {
+	    fprintf(stderr, "pty fork: failed to set controlling tty: %s\r\n",
+		    strerror(errno));
+	    exit(1);
+	}
+#endif
+
+	/* fd will be closed by the loop to close everything. */
+	if (open("/dev/tty", O_RDWR) == -1) {
+	    fprintf(stderr, "pty fork: failed to set control term: %s\r\n",
+		    strerror(errno));
+	    exit(1);
+	}
+
+	if (dup2(fd, 0) == -1) {
+	    fprintf(stderr, "pty fork: stdin open fail\r\n");
+	    exit(1);
+	}
+
+	if (dup2(fd, 1) == -1) {
+	    fprintf(stderr, "pty fork: stdout open fail\r\n");
+	    exit(1);
+	}
+
+	if (dup2(fd, 2) == -1) {
+	    fprintf(stderr, "pty fork: stderr open fail\r\n");
+	    exit(1);
+	}
+
+	/* Close everything. */
+	for (i = 3; i < openfiles; i++)
+	    close(i);
+
+	err = gensio_unix_os_setupnewprog();
+	if (err) {
+	    fprintf(stderr, "Unable to set groups or user: %s\r\n",
+		    strerror(err));
+	    exit(1);
+	}
+
+	if (env)
+	    environ = (char **) env;
+
+	pgm = argv[0];
+	if (*pgm == '-')
+	    pgm++;
+	execvp(pgm, (char **) argv);
+	fprintf(stderr, "Unable to exec %s: %s\r\n", argv[0],
+		strerror(errno));
+	exit(1); /* Only reached on error. */
+    }
+ skip_child:
+    *rpid = pid;
+    return 0;
+ out_errno:
+    return gensio_os_err_to_err(o, errno);
 }
 
 #endif /* _WIN32 */

@@ -7,11 +7,11 @@
 
 /* This code handles running a child process using a pty. */
 
-#include "config.h"
 #ifdef linux
-#define _XOPEN_SOURCE 600 /* Get posix_openpt() and friends. */
 #define _GNU_SOURCE /* Get ptsname_r(). */
 #endif
+
+#include "config.h"
 #include <gensio/gensio_builtins.h>
 #include <gensio/gensio_err.h>
 
@@ -19,19 +19,14 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#if HAVE_PTSNAME_R
 #include <unistd.h>
-#include <fcntl.h>
 #include <errno.h>
-#include <string.h>
-#include <strings.h>
-#include <assert.h>
 #include <pwd.h>
 #include <grp.h>
-#include <sys/wait.h>
-#include <sys/ioctl.h>
-#include <sys/stat.h>
-#include <termios.h>
 #include <limits.h>
+#include <sys/stat.h>
+#endif
 
 #include <gensio/gensio.h>
 #include <gensio/gensio_os_funcs.h>
@@ -47,12 +42,12 @@ struct pty_data {
 
     struct gensio_lock *lock;
 
-    pid_t pid;
-    int ptym;
     struct gensio_iod *iod;
+    intptr_t pid;
     const char **argv;
     const char **env;
 
+#if HAVE_PTSNAME_R
     mode_t mode;
     bool mode_set;
     char *owner;
@@ -61,6 +56,9 @@ struct pty_data {
     /* Symbolic link to create (if not NULL). */
     char *link;
     bool forcelink;
+    bool link_created;
+#endif
+
     bool raw;
 
     int last_err;
@@ -75,67 +73,23 @@ static int pty_check_open(void *handler_data, struct gensio_iod *iod)
     return 0;
 }
 
-#ifndef HAVE_CFMAKERAW
-static void
-cfmakeraw(struct termios *termios_p) {
-    termios_p->c_iflag &= ~(IGNBRK|BRKINT|PARMRK|ISTRIP|INLCR|IGNCR|ICRNL|IXON);
-    termios_p->c_oflag &= ~OPOST;
-    termios_p->c_lflag &= ~(ECHO|ECHONL|ICANON|ISIG|IEXTEN);
-    termios_p->c_cflag &= ~(CSIZE|PARENB);
-    termios_p->c_cflag |= CS8;
-    termios_p->c_cc[VMIN] = 1;
-}
-#endif
-
-static int
-pty_make_raw(int ptym)
-{
-    struct termios t;
-    int err;
-
-    err = tcgetattr(ptym, &t);
-    if (err)
-	return err;
-
-    cfmakeraw(&t);
-    return tcsetattr(ptym, TCSANOW, &t);
-}
-
 /*
  * This is ugly, but it's by far the simplest way.
  */
 extern char **environ;
 
 static int
-gensio_setup_child_on_pty(struct pty_data *tdata)
+gensio_setup_pty(struct pty_data *tdata, struct gensio_iod *iod)
 {
-    struct gensio_os_funcs *o = tdata->o;
-    pid_t pid = -1;
-    int ptym, err = 0;
-    struct gensio_iod *iod = NULL;
+    int err = 0;
+
+#if HAVE_PTSNAME_R
     uid_t ownerid = -1;
     uid_t groupid = -1;
-    const char *pgm;
-    bool link_created = false;
-#if HAVE_PTSNAME_R
     char ptsstr[PATH_MAX];
     char pwbuf[16384];
-#endif
 
-    ptym = posix_openpt(O_RDWR | O_NOCTTY);
-    if (ptym == -1)
-	return gensio_os_err_to_err(o, errno);
-
-    err = o->add_iod(o, GENSIO_IOD_DEV, ptym, &iod);
-    if (err)
-	goto out_err_noconv;
-
-    err = o->set_non_blocking(iod);
-    if (err)
-	goto out_err_noconv;
-
-#if HAVE_PTSNAME_R
-    err = ptsname_r(ptym, ptsstr, sizeof(ptsstr));
+    err = ptsname_r(tdata->o->iod_get_fd(iod), ptsstr, sizeof(ptsstr));
     if (err)
 	goto out_errno;
 
@@ -193,135 +147,75 @@ gensio_setup_child_on_pty(struct pty_data *tdata)
 	    goto out_errno;
 	}
 
-	link_created = true;
+	tdata->link_created = true;
     }
-#endif
-
-    if (tdata->raw) {
-	err = pty_make_raw(ptym);
-	if (err)
-	    goto out_errno;
-    }
-
-    if (unlockpt(ptym) < 0)
-	goto out_errno;
-
-    if (!tdata->argv)
-	goto skip_child;
-
-    pid = fork();
-    if (pid < 0)
-	goto out_errno;
-
-    if (pid == 0) {
-	/*
-	 * Delay getting the slave until here becase ptsname is not
-	 * thread-safe, but after the fork we are single-threaded.
-	 */
-	char *slave = ptsname(ptym);
-	int i, openfiles = sysconf(_SC_OPEN_MAX);
-	int fd;
-
-#if 0
-	/* Set the owner of the slave PT. */
-	/*
-	 * This is not be necessary, the pty is created with the euid,
-	 * so it will be correct already.  Since euid isn't root at this
-	 * point, it will fail.
-	 */
-	if (grantpt(ptym) < 0)
-	    exit(1);
-#endif
-
-	if (setsid() == -1) {
-	    fprintf(stderr, "pty fork: failed to start new session: %s\r\n",
-		    strerror(errno));
-	    exit(1);
-	}
-
-#if 0 /* FIXME = do we need this? */
-	if (setpgid(0, 0) == -1) {
-	    fprintf(stderr, "pty fork: failed setpgid: %s\r\n",
-		    strerror(errno));
-	    exit(1);
-	}
-#endif
-
-	fd = open(slave, O_RDWR);
-	if (fd == -1) {
-	    fprintf(stderr, "pty fork: failed to open slave terminal: %s\r\n",
-		    strerror(errno));
-	    exit(1);
-	}
-
-#if defined(TIOCSCTTY) && !defined(linux)
-	/* Linux sets the first opened TTY to the controlling terminal. */
-	if (ioctl(fd, TIOCSCTTY, NULL) == -1) {
-	    fprintf(stderr, "pty fork: failed to set controlling tty: %s\r\n",
-		    strerror(errno));
-	    exit(1);
-	}
-#endif
-
-	/* fd will be closed by the loop to close everything. */
-	if (open("/dev/tty", O_RDWR) == -1) {
-	    fprintf(stderr, "pty fork: failed to set control term: %s\r\n",
-		    strerror(errno));
-	    exit(1);
-	}
-
-	if (dup2(fd, 0) == -1) {
-	    fprintf(stderr, "pty fork: stdin open fail\r\n");
-	    exit(1);
-	}
-
-	if (dup2(fd, 1) == -1) {
-	    fprintf(stderr, "pty fork: stdout open fail\r\n");
-	    exit(1);
-	}
-
-	if (dup2(fd, 2) == -1) {
-	    fprintf(stderr, "pty fork: stderr open fail\r\n");
-	    exit(1);
-	}
-
-	/* Close everything. */
-	for (i = 3; i < openfiles; i++)
-	    close(i);
-
-	err = gensio_unix_os_setupnewprog();
-	if (err) {
-	    fprintf(stderr, "Unable to set groups or user: %s\r\n",
-		    strerror(err));
-	    exit(1);
-	}
-
-	if (tdata->env)
-	    environ = (char **) tdata->env;
-
-	pgm = tdata->argv[0];
-	if (*pgm == '-')
-	    pgm++;
-	execvp(pgm, (char **) tdata->argv);
-	fprintf(stderr, "Unable to exec %s: %s\r\n", tdata->argv[0],
-		strerror(errno));
-	exit(1); /* Only reached on error. */
-    }
- skip_child:
-    tdata->pid = pid;
-    tdata->ptym = ptym;
-    tdata->iod = iod;
     return 0;
+
  out_errno:
     err = errno;
  out_err:
-    err = gensio_os_err_to_err(o, err);
- out_err_noconv:
-    if (link_created)
+    err = gensio_os_err_to_err(tdata->o, err);
+#endif
+    return err;
+}
+
+static void
+gensio_cleanup_pty(struct pty_data *tdata)
+{
+#if HAVE_PTSNAME_R
+    if (tdata->link_created)
 	unlink(tdata->link);
+#endif
+}
+
+static int
+gensio_setup_child_on_pty(struct pty_data *tdata)
+{
+    struct gensio_os_funcs *o = tdata->o;
+    int err = 0;
+    struct gensio_iod *iod = NULL;
+
+    err = o->add_iod(o, GENSIO_IOD_PTY, 0, &iod);
+    if (err)
+	goto out_err;
+
+    err = o->set_non_blocking(iod);
+    if (err)
+	goto out_err;
+
+    err = gensio_setup_pty(tdata, iod);
+
+    if (tdata->raw) {
+	err = o->makeraw(iod);
+	if (err)
+	    goto out_err;
+    }
+
+    if (tdata->argv)
+	err = o->iod_control(iod, GENSIO_IOD_CONTROL_ARGV, false,
+			     (intptr_t) tdata->argv);
+    if (!err && tdata->env)
+	err = o->iod_control(iod, GENSIO_IOD_CONTROL_ENV, false,
+			     (intptr_t) tdata->env);
+    if (!err)
+	err = o->iod_control(iod, GENSIO_IOD_CONTROL_START, false, 0);
+    if (err)
+	goto out_err;
+
+    if (tdata->argv) {
+	err = o->iod_control(iod, GENSIO_IOD_CONTROL_PID, true,
+			     (intptr_t) &tdata->pid);
+	if (err)
+	    goto out_err;
+    }
+
+    tdata->iod = iod;
+    return 0;
+
+ out_err:
+    gensio_cleanup_pty(tdata);
     if (iod)
 	o->close(&iod);
-    close(ptym);
     return err;
 }
 
@@ -342,23 +236,17 @@ static int
 pty_check_exit_code(struct pty_data *tdata)
 {
     struct gensio_os_funcs *o = tdata->o;
-    pid_t rv;
-    int err;
+    int err = 0;
 
-    err = 0;
     o->lock(tdata->lock);
-    if (tdata->pid != -1) {
-	rv = waitpid(tdata->pid, &tdata->exit_code, WNOHANG);
-	if (rv < 0) {
-	    err = gensio_os_err_to_err(o, errno);
-	    goto out_unlock;
-	}
-	if (rv == 0) {
-	    err = GE_INPROGRESS;
-	    goto out_unlock;
-	}
-	tdata->exit_code_set = true;
-	tdata->pid = -1;
+    if (tdata->exit_code_set)
+	goto out_unlock;
+    if (tdata->pid == -1) {
+	err = GE_NOTREADY;
+    } else {
+	err = o->wait_subprog(o, tdata->pid, &tdata->exit_code);
+	if (!err)
+	    tdata->exit_code_set = true;
     }
  out_unlock:
     o->unlock(tdata->lock);
@@ -376,12 +264,10 @@ pty_check_close(void *handler_data, struct gensio_iod *iod,
     if (state != GENSIO_LL_CLOSE_STATE_DONE)
 	return 0;
 
-    /* The ptym will be closed in the fd ll, it owns the fd. */
-    if (tdata->ptym != -1) {
-	tdata->ptym = -1;
+    if (tdata->iod) {
+	tdata->iod = NULL;
+	gensio_cleanup_pty(tdata);
 	gensio_fd_ll_close_now(tdata->ll);
-	if (tdata->link)
-	    unlink(tdata->link);
     }
 
     err = pty_check_exit_code(tdata);
@@ -471,7 +357,7 @@ pty_control(void *handler_data, struct gensio_iod *iod, bool get,
     case GENSIO_CONTROL_ARGS:
 	if (get)
 	    return GE_NOTSUP;
-	if (tdata->ptym != -1)
+	if (tdata->iod)
 	    return GE_NOTREADY; /* Have to do this while closed. */
 	err = gensio_argv_copy(tdata->o, (const char **) data, NULL, &argv);
 	if (err)
@@ -501,9 +387,7 @@ pty_control(void *handler_data, struct gensio_iod *iod, bool get,
 	    err = GE_NOTREADY;
 	} else {
 	    val = strtoul(data, NULL, 0);
-	    err = kill(tdata->pid, val ? SIGKILL : SIGTERM);
-	    if (err)
-		err = gensio_os_err_to_err(o, errno);
+	    err = o->kill_subprog(o, tdata->pid, !!val);
 	}
 	o->unlock(tdata->lock);
 	return err;
@@ -527,9 +411,10 @@ pty_control(void *handler_data, struct gensio_iod *iod, bool get,
 	    return GE_NOTSUP;
 	if (strtoul(data, NULL, 0) > 0)
 	    return GE_NOTFOUND;
-	if (tdata->ptym == -1)
+	if (!tdata->iod)
 	    return GE_NOTREADY;
-	err = ptsname_r(tdata->ptym, ptsstr, sizeof(ptsstr));
+	err = ptsname_r(tdata->o->iod_get_fd(tdata->iod),
+			ptsstr, sizeof(ptsstr));
 	if (err)
 	    err = gensio_os_err_to_err(tdata->o, errno);
 	else
@@ -552,14 +437,17 @@ pty_control(void *handler_data, struct gensio_iod *iod, bool get,
 	if (!get)
 	    return GE_NOTSUP;
 	if (*datalen >= sizeof(int))
-	    *((int *) data) = tdata->ptym;
-	*datalen = 4;
+	    *((int *) data) = tdata->o->iod_get_fd(tdata->iod);
+	*datalen = sizeof(int);
 	return 0;
 
     case GENSIO_CONTROL_REMOTE_ID:
 	if (!get)
 	    return GE_NOTSUP;
-	*datalen = snprintf(data, *datalen, "%d", tdata->pid);
+	if (tdata->pid == -1)
+	    return GE_NOTREADY;
+	*datalen = snprintf(data, *datalen, "%llu",
+			    (unsigned long long) tdata->pid);
 	return 0;
     }
 
@@ -634,7 +522,7 @@ pty_gensio_alloc(const char * const argv[], const char * const args[],
 	return GE_NOMEM;
 
     tdata->o = o;
-    tdata->ptym = -1;
+    tdata->pid = -1;
 
     tdata->lock = o->alloc_lock(o);
     if (!tdata->lock)

@@ -46,6 +46,7 @@
 #include <gensio/gensio_osops.h>
 #include <gensio/gensio_osops_addrinfo.h>
 #include <gensio/gensio_osops_stdsock.h>
+#include <gensio/argvutils.h>
 
 #include <glib.h>
 
@@ -157,6 +158,7 @@ struct gensio_iod_glib {
     unsigned int clear_count;
     enum { CL_NOT_CALLED, CL_CALLED, CL_DONE } close_state;
 
+    int orig_fd;
     int fd;
     enum gensio_iod_type type;
     void *sockinfo;
@@ -182,6 +184,11 @@ struct gensio_iod_glib {
     bool read_enabled;
     bool write_enabled;
     bool in_handler;
+
+    /* For GENSIO_IOD_PTY */
+    const char **argv;
+    const char **env;
+    int pid;
 };
 
 #define i_to_glib(i) gensio_container_of(i, struct gensio_iod_glib, r);
@@ -1086,11 +1093,12 @@ gensio_glib_wake(struct gensio_waiter *w)
 
 static int
 gensio_glib_add_iod(struct gensio_os_funcs *o, enum gensio_iod_type type,
-		    intptr_t fd, struct gensio_iod **riod)
+		    intptr_t ofd, struct gensio_iod **riod)
 {
     struct gensio_iod_glib *iod;
     bool closefd = false;
     int err = GE_NOMEM;
+    intptr_t fd = ofd;
 
 #ifndef _WIN32
     if (type == GENSIO_IOD_CONSOLE) {
@@ -1103,6 +1111,13 @@ gensio_glib_add_iod(struct gensio_os_funcs *o, enum gensio_iod_type type,
 	if (fd == -1)
 	    return gensio_os_err_to_err(o, errno);
 	closefd = true;
+    } else if (type == GENSIO_IOD_PTY) {
+	int ufd;
+	err = gensio_unix_pty_alloc(o, &ufd);
+	if (err)
+	    return err;
+	fd = ufd;
+	closefd = true;
     }
 #endif
 
@@ -1114,6 +1129,7 @@ gensio_glib_add_iod(struct gensio_os_funcs *o, enum gensio_iod_type type,
     }
     iod->r.f = o;
     iod->fd = fd;
+    iod->orig_fd = ofd;
     if (type == GENSIO_IOD_STDIO) {
 #ifndef _WIN32
 	struct stat statb;
@@ -1134,6 +1150,8 @@ gensio_glib_add_iod(struct gensio_os_funcs *o, enum gensio_iod_type type,
 	    err = GE_INVAL;
 	    goto out_err;
 	}
+    } else if (type == GENSIO_IOD_PTY) {
+	iod->pid = -1;
 #endif
     }
     iod->type = type;
@@ -1183,13 +1201,20 @@ gensio_glib_add_iod(struct gensio_os_funcs *o, enum gensio_iod_type type,
 static void
 gensio_glib_release_iod(struct gensio_iod *iiod)
 {
+    struct gensio_os_funcs *o = iiod->f;
     struct gensio_iod_glib *iod = i_to_glib(iiod);
 
     assert(!iod->handlers_set);
     g_mutex_clear(&iod->lock);
     if (iod->type == GENSIO_IOD_FILE)
-	iod->r.f->free_runner(iod->runner);
-    iiod->f->free(iiod->f, iod);
+	o->free_runner(iod->runner);
+    if (iod->type == GENSIO_IOD_PTY) {
+	if (iod->argv)
+	    gensio_argv_free(o, iod->argv);
+	if (iod->env)
+	    gensio_argv_free(o, iod->env);
+    }
+    o->free(o, iod);
 }
 
 static int
@@ -1209,6 +1234,55 @@ gensio_glib_iod_get_fd(struct gensio_iod *iiod)
 }
 
 static int
+gensio_glib_pty_control(struct gensio_iod_glib *iod, int op, bool get,
+			intptr_t val)
+{
+    int err;
+    const char **nargv;
+
+    if (get) {
+	if (op == GENSIO_IOD_CONTROL_PID) {
+	    if (iod->pid == -1)
+		return GE_NOTREADY;
+	    *((intptr_t *) val) = iod->pid;
+	    return 0;
+	}
+	return GE_NOTSUP;
+    }
+
+    switch (op) {
+    case GENSIO_IOD_CONTROL_ARGV:
+	err = gensio_argv_copy(iod->r.f, (const char **) val, NULL, &nargv);
+	if (err)
+	    return err;
+	if (iod->argv)
+	    gensio_argv_free(iod->r.f, iod->argv);
+	iod->argv = nargv;
+	return 0;
+
+    case GENSIO_IOD_CONTROL_ENV:
+	err = gensio_argv_copy(iod->r.f, (const char **) val, NULL, &nargv);
+	if (err)
+	    return err;
+	if (iod->env)
+	    gensio_argv_free(iod->r.f, iod->env);
+	iod->env = nargv;
+	return 0;
+
+    case GENSIO_IOD_CONTROL_START:
+#ifdef _WIN32
+	return GE_NOTSUP;
+#else
+	return gensio_unix_pty_start(iod->r.f, iod->fd, iod->argv,
+				     iod->env, &iod->pid);
+#endif
+
+    default:
+	return GE_NOTSUP;
+    }
+}
+
+static int
 gensio_glib_iod_control(struct gensio_iod *iiod, int op, bool get, intptr_t val)
 {
     struct gensio_iod_glib *iod = i_to_glib(iiod);
@@ -1224,6 +1298,9 @@ gensio_glib_iod_control(struct gensio_iod *iiod, int op, bool get, intptr_t val)
 
 	return 0;
     }
+
+    if (iod->type == GENSIO_IOD_PTY)
+	return gensio_glib_pty_control(iod, op, get, val);
 
     if (iod->type != GENSIO_IOD_DEV)
 	return GE_NOTSUP;
@@ -1503,7 +1580,7 @@ gensio_glib_makeraw(struct gensio_iod *iiod)
 
     return GE_NOTSUP;
 #else
-    if (iod->fd == 1 || iod->fd == 2 || iod->type == GENSIO_IOD_FILE)
+    if (iod->orig_fd == 1 || iod->orig_fd == 2 || iod->type == GENSIO_IOD_FILE)
 	/* Only set this for stdin or other files. */
 	return 0;
 

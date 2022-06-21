@@ -116,6 +116,8 @@ int gensio_win_do_exec(struct gensio_os_funcs *o,
 
 #else
 
+#include <sys/types.h>
+
 GENSIO_DLL_PUBLIC
 int gensio_unix_do_nonblock(struct gensio_os_funcs *o, int fd,
 			    struct stdio_mode **m);
@@ -155,6 +157,14 @@ int gensio_unix_do_exec(struct gensio_os_funcs *o,
 
 GENSIO_DLL_PUBLIC
 int gensio_unix_os_setupnewprog(void);
+
+GENSIO_DLL_PUBLIC
+int gensio_unix_pty_alloc(struct gensio_os_funcs *o, int *rfd);
+
+GENSIO_DLL_PUBLIC
+int gensio_unix_pty_start(struct gensio_os_funcs *o,
+			  int pfd, const char **argv, const char **env,
+			  pid_t *rpid);
 
 #endif /* _WIN32 */
 
