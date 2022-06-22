@@ -19,6 +19,7 @@
 #include <netinet/in.h>
 #include <netdb.h>
 #include <arpa/inet.h>
+#include <net/if.h>
 #endif
 #include <assert.h>
 #include <stdlib.h>
@@ -399,10 +400,17 @@ gensio_sockaddr_to_str(const struct sockaddr *addr, int flags,
     } else if (addr->sa_family == AF_INET6) {
 	struct sockaddr_in6 *a6 = (struct sockaddr_in6 *) addr;
 	char ibuf[INET6_ADDRSTRLEN];
+	char ifbuf[IF_NAMESIZE + 1];
 
-	gensio_pos_snprintf(buf, buflen, pos, "%s,%s,%d",
+	if (IN6_IS_ADDR_LINKLOCAL(&a6->sin6_addr) &&
+		if_indextoname(a6->sin6_scope_id, &(ifbuf[1])) != NULL)
+	    ifbuf[0] = '%';
+	else
+	    ifbuf[0] = '\0';
+	gensio_pos_snprintf(buf, buflen, pos, "%s,%s%s,%d",
 			flags & AI_V4MAPPED ? "ipv6n4" : "ipv6",
 			inet_ntop(AF_INET6, &a6->sin6_addr, ibuf, sizeof(ibuf)),
+			ifbuf,
 			ntohs(a6->sin6_port));
 #endif
 #if HAVE_UNIX
