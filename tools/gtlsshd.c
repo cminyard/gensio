@@ -1138,6 +1138,7 @@ handle_new(struct gensio_runner *r, void *cb_data)
     const char *pn;
     bool interactive = false;
     unsigned int i;
+    char dummy;
 
     o->free_runner(r);
 
@@ -1218,6 +1219,37 @@ handle_new(struct gensio_runner *r, void *cb_data)
 	exit(1);
     }
     pam_started = true;
+
+    /* Set rhost.  If any of thils fails, we just go on. */
+    len = 0;
+    err = gensio_control(net_io, 0, GENSIO_CONTROL_GET,
+			 GENSIO_CONTROL_RADDR, &dummy, &len);
+    if (!err && len > 0) {
+	char *rhost = malloc(len + 1), *c2;
+
+	if (!rhost)
+	    goto skip_rhost;
+	err = gensio_control(net_io, 0, GENSIO_CONTROL_GET,
+			     GENSIO_CONTROL_RADDR, rhost, &len);
+	if (err)
+	    goto skip_rhost;
+
+	/* Pull the address out, it's between the first and last comma. */
+	c2 = strrchr(rhost, ',');
+	if (c2)
+	    *c2 = '\0';
+	c2 = strchr(rhost, ',');
+	if (c2)
+	    c2++;
+	else
+	    c2 = rhost;
+
+	pam_set_item(pamh, PAM_RHOST, c2);
+
+    skip_rhost:
+	if (rhost)
+	    free(rhost);
+    }
 
     if (!gensio_is_authenticated(top_io) || pam_cert_auth_progname) {
 	int tries = 3;
