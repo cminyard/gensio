@@ -1218,8 +1218,7 @@ gensio_unix_close(struct gensio_iod **iodp)
     if (iod->type != GENSIO_IOD_FILE)
 	gensio_unix_do_cleanup_nonblock(o, iod->fd, &iod->mode);
 
-    if (iod->type == GENSIO_IOD_DEV ||
-		(iod->type == GENSIO_IOD_CONSOLE && iod->orig_fd == 0))
+    if (iod->termios)
 	gensio_unix_cleanup_termios(o, &iod->termios, iod->fd);
 
     if (iod->type == GENSIO_IOD_SOCKET) {
