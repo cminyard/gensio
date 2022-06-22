@@ -363,10 +363,6 @@ gensio_unix_unlock(struct gensio_lock *lock)
     UNLOCK(&lock->lock);
 }
 
-struct gensio_iod_dev {
-    struct gensio_unix_termios *termios;
-};
-
 struct gensio_iod_file {
     struct gensio_lock *lock;
     struct gensio_runner *runner;
@@ -401,8 +397,10 @@ struct gensio_iod_unix {
 
     struct stdio_mode *mode;
 
+    /* Used by dev and pty. */
+    struct gensio_unix_termios *termios;
+
     union {
-	struct gensio_iod_dev dev;
 	struct gensio_iod_file file;
 	struct gensio_iod_socket socket;
 	struct gensio_iod_pty pty;
@@ -1222,7 +1220,7 @@ gensio_unix_close(struct gensio_iod **iodp)
 
     if (iod->type == GENSIO_IOD_DEV ||
 		(iod->type == GENSIO_IOD_CONSOLE && iod->orig_fd == 0))
-	gensio_unix_cleanup_termios(o, &iod->u.dev.termios, iod->fd);
+	gensio_unix_cleanup_termios(o, &iod->termios, iod->fd);
 
     if (iod->type == GENSIO_IOD_SOCKET) {
 	err = o->close_socket(iiod, false, true);
@@ -1292,7 +1290,7 @@ gensio_unix_makeraw(struct gensio_iod *iiod)
     if (iod->type == GENSIO_IOD_DEV || iod->type == GENSIO_IOD_PTY ||
 		(iod->type == GENSIO_IOD_CONSOLE && iod->orig_fd == 0))
 	/* Only set this for stdin or other files. */
-	return gensio_unix_setup_termios(iiod->f, iod->fd, &iod->u.dev.termios);
+	return gensio_unix_setup_termios(iiod->f, iod->fd, &iod->termios);
 
     return 0;
 }
@@ -1456,7 +1454,7 @@ gensio_unix_iod_control(struct gensio_iod *iiod, int op, bool get, intptr_t val)
 	return GE_NOTSUP;
 
     return gensio_unix_termios_control(iiod->f, op, get, val,
-				       &iod->u.dev.termios, iod->fd);
+				       &iod->termios, iod->fd);
 }
 
 static int
