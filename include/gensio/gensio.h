@@ -465,8 +465,10 @@ void gensio_addr_getaddr(const struct gensio_addr *addr,
 
 /*
  * Create a gensio address from raw address data.  Note that the iaddr
- * data is type in_addr for ipv4, in6_addr for ipv6, and the patch for
- * unix.
+ * data is type in_addr for ipv4, in6_addr for ipv6, and the path for
+ * unix.  ipv6 also takes a sockaddr_in6 (it can tell by the length)
+ * and it will pull the address and scope id from that.  That way you
+ * can set the scope id.
  */
 GENSIO_DLL_PUBLIC
 int gensio_addr_create(struct gensio_os_funcs *o,
