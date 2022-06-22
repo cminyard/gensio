@@ -12,6 +12,7 @@
 #include <string.h>
 #include <assert.h>
 #include <sys/socket.h>
+#include <netinet/in.h>
 #include <avahi-client/client.h>
 #include <avahi-client/publish.h>
 #include <avahi-client/lookup.h>
@@ -652,6 +653,9 @@ mdns_service_resolver_callback(AvahiServiceResolver *ar,
     AvahiStringList *str;
     int nettype, addrsize, rv;
     const void *addrdata = NULL;
+#ifdef AF_INET6
+    struct sockaddr_in6 s6 = { .sin6_family = AF_INET6 };
+#endif
 
     switch (event) {
     case AVAHI_RESOLVER_FOUND:
@@ -672,13 +676,19 @@ mdns_service_resolver_callback(AvahiServiceResolver *ar,
 	addrsize = sizeof(a->data.ipv4);
 	addrdata = &a->data.ipv4;
 	break;
-	
+
+#ifdef AF_INET6
     case AVAHI_PROTO_INET6:
 	nettype = GENSIO_NETTYPE_IPV6;
-	addrsize = sizeof(a->data.ipv6);
-	addrdata = &a->data.ipv6;
+	addrsize = sizeof(s6);
+	addrdata = &s6;
+	memcpy(&s6.sin6_addr, &a->data.ipv6, sizeof(s6.sin6_addr));
+	if (IN6_IS_ADDR_LINKLOCAL(&s6.sin6_addr))
+	    s6.sin6_scope_id = interface;
+	/* Port is not used here. */
 	break;
-	
+#endif
+
     default:
 	return;
     }
