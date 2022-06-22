@@ -52,7 +52,7 @@ class mdns_handler:
     def __init__(self):
         self.done = False
         self.check = None
-        self.print = True
+        self.printit = True
         self.waiter = gensio.waiter(utils.o)
         self.addr = None
 
@@ -64,7 +64,7 @@ class mdns_handler:
     def mdns_cb(self, is_add, interface, ipdomain, name, types, domain,
                 host, addr, txt):
         self.addr = addr
-        if self.print:
+        if self.printit:
             print_mdns(is_add, interface, ipdomain, name, types, domain,
                        host, addr, txt)
         if self.check:
