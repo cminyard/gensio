@@ -229,7 +229,7 @@ if (handlemuxcl.wait(timeout = 2000) == 0):
 if (handlemuxacc.wait(timeout = 2000) == 0):
     raise HandlerException(
         "Timeout waiting for server all close finish")
-handlemuxacc.wait(timeout = 1)
+handlemuxacc.wait(timeout = 10)
 
 print("Re-open the mux")
 handlemuxacc.set_op_count(1)
