@@ -189,10 +189,18 @@ gensio_addr_addrinfo_create(struct gensio_os_funcs *o,
 
     case GENSIO_NETTYPE_IPV6:
 #ifdef AF_INET6
-	if (len != sizeof(struct in6_addr))
+	if (len == sizeof(struct in6_addr)) {
+	    memcpy(&s6.sin6_addr, iaddr, len);
+	} else if (len == sizeof(s6)) {
+	    /* Full sockaddr_in6, so we can get scope. */
+	    const struct sockaddr_in6 *is6 = iaddr;
+
+	    memcpy(&s6.sin6_addr, &is6->sin6_addr, sizeof(struct in6_addr));
+	    s6.sin6_scope_id = is6->sin6_scope_id;
+	} else {
 	    return GE_INVAL;
+	}
 	s6.sin6_port = htons(port);
-	memcpy(&s6.sin6_addr, iaddr, len);
 	s = (struct sockaddr *) &s6;
 	slen = sizeof(s6);
 	break;
