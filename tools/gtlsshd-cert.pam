@@ -1,0 +1,72 @@
+#
+# Set up 2-factor authentication for gtlsshd when using certificate
+# authentication.  If you use this, you would put this file in
+# /etc/pam.d/gtlsshd-cert.  Then you would run gtlsshd with
+# --pam-cert-auth set to gtlsshd-cert.  If gtlsshd us authenticated
+# with a certificate, then this will be run instead of the standard
+# gtlsshd pam file so you can just to the 2fa authentication after the
+# certificate.
+#
+
+# Note that we don't do pam_unix.so here we have already authenticated
+# with a certificate.
+
+# Do your 2-factor authentication.  This is just a dummy one, you will
+# need to get your own.  An example is in the gtlssh tools directory.
+auth	[success=1 default=ignore]	pam_2factor_dummy.so
+
+auth	requisite			pam_deny.so
+# prime the stack with a positive return value if there isn't one already;
+# this avoids us returning an error just because nothing sets a success code
+# since the modules above will each just jump around
+auth	required			pam_permit.so
+# and here are more per-package modules (the "Additional" block)
+auth	optional			pam_cap.so 
+
+# Uncomment and edit /etc/security/access.conf if you need to set complex
+# access limits.
+# account  required     pam_access.so
+
+@include common-account
+
+# SELinux needs to be the first session rule.  This ensures that any
+# lingering context has been cleared.  Without this it is possible that a
+# module could execute code in the wrong domain.
+session [success=ok ignore=ignore module_unknown=ignore default=bad]        pam_selinux.so close
+
+# Set the loginuid process attribute.
+session    required     pam_loginuid.so
+
+# Create a new session keyring.
+session    optional     pam_keyinit.so force revoke
+
+@include common-session
+
+# Print the message of the day upon successful login.
+# This includes a dynamically generated part from /run/motd.dynamic
+# and a static (admin-editable) part from /etc/motd.
+session    optional     pam_motd.so  motd=/run/motd.dynamic
+session    optional     pam_motd.so noupdate
+
+# Print the status of the user's mailbox upon successful login.
+session    optional     pam_mail.so standard noenv # [1]
+
+# Set the lastlog entry.  gtlsshd depends on pam to do this.
+session    optional     pam_lastlog.so
+
+# Set up user limits from /etc/security/limits.conf.
+session    required     pam_limits.so
+
+# Read environment variables from /etc/environment and
+# /etc/security/pam_env.conf.
+session    required     pam_env.so # [1]
+# In Debian 4.0 (etch), locale-related environment variables were moved to
+# /etc/default/locale, so read that as well.
+session    required     pam_env.so user_readenv=1 envfile=/etc/default/locale
+
+# SELinux needs to intervene at login time to ensure that the process starts
+# in the proper default security context.  Only sessions which are intended
+# to run in the user's context should be run after this.
+session [success=ok ignore=ignore module_unknown=ignore default=bad]        pam_selinux.so open
+
+@include common-password
