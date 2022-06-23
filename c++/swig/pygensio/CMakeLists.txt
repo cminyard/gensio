@@ -3,6 +3,7 @@ include_directories(${PYTHON_INCLUDE_DIRS} ${CMAKE_CURRENT_SOURCE_DIR}
   "${PROJECT_SOURCE_DIR}/c++/include"
   "${PROJECT_SOURCE_DIR}/c++/swig/include"
   "${PROJECT_SOURCE_DIR}/c++/swig/pygensio"
+  "${PROJECT_SOURCE_DIR}/c++/swig/pygensio/include"
 )
 set(CMAKE_SWIG_FLAGS -I${CMAKE_CURRENT_SOURCE_DIR} ${SWIG_EXTRA_FLAGS})
 set_property(SOURCE pygensio.i PROPERTY CPLUSPLUS ON)
