@@ -492,9 +492,11 @@ static char *val_2fa;
 static gensiods len_2fa;
 static bool pam_started = false;
 static bool pam_cred_set = false;
+static bool pam_session_open = false;
 static bool authed_by_cert = false;
 static char username[100];
 static char *homedir;
+static char *ushell;
 static int pam_err;
 static uid_t uid = -1;
 static gid_t gid = -1;
@@ -627,6 +629,9 @@ certauth_event(struct gensio *io, void *user_data, int event, int ierr,
 	uid = pw->pw_uid;
 	gid = pw->pw_gid;
 	homedir = pw->pw_dir;
+	ushell = pw->pw_shell;
+	if (ushell[0] == '\0')
+	    ushell = "/bin/sh";
 
 	len = snprintf(authdir, sizeof(authdir), "%s/.gtlssh/allowed_certs/",
 		       pw->pw_dir);
@@ -785,14 +790,13 @@ new_rem_io(struct gensio *io, struct gdata *ginfo)
     struct gensio *pty_io;
     gensiods len;
     char *s = NULL;
-    int err;
+    int err, err2;
     char **progv = NULL; /* If set in the service. */
     bool login = false;
     char *service = NULL;
     char **env = NULL, **penv2;
     unsigned int env_len = 0;
     unsigned int i, j;
-    bool set_uid = true;
 
     len = 0;
     err = gensio_control(io, 0, GENSIO_CONTROL_GET, GENSIO_CONTROL_SERVICE,
@@ -839,13 +843,8 @@ new_rem_io(struct gensio *io, struct gdata *ginfo)
 	err = get_vals_from_service(&env, &env_len, str, len);
 	if (err)
 	    goto out_bad_vals;
+	s = alloc_sprintf("pty,%s -i", ushell);
 	login = true;
-	/*
-	 * Let login handle everything else.  If the password
-	 * authentication from pam succeeded, don't ask for password.
-	 */
-	s = alloc_sprintf("pty,/bin/login -f -p %s", username);
-	set_uid = false; /* login requires root, it will set the uid. */
     } else if (strstartswith(service, "tcp,") ||
 	       strstartswith(service, "sctp,")) {
 	char *host = strchr(service, ',');
@@ -1006,28 +1005,23 @@ new_rem_io(struct gensio *io, struct gdata *ginfo)
 	}
     }
 
-    if (set_uid) {
-	err = setegid(gid);
-	if (err) {
-	    syslog(LOG_ERR, "setgid failed: %s", strerror(errno));
-	    goto out_err;
-	}
-	err = seteuid(uid);
-	if (err) {
-	    syslog(LOG_ERR, "setuid failed: %s", strerror(errno));
-	    goto out_err;
-	}
+    err = setegid(gid);
+    if (err) {
+	syslog(LOG_ERR, "setgid failed: %s", strerror(errno));
+	goto out_err;
+    }
+    err = seteuid(uid);
+    if (err) {
+	syslog(LOG_ERR, "setuid failed: %s", strerror(errno));
+	goto out_err;
     }
     err = gensio_open_s(pty_io);
-    if (set_uid) {
-	int err2;
-	err2 = seteuid(getuid());
-	if (err2)
-	    syslog(LOG_WARNING, "reset setuid failed: %s", strerror(errno));
-	err2 = setegid(getgid());
-	if (err2)
-	    syslog(LOG_WARNING, "reset setgid failed: %s", strerror(errno));
-    }
+    err2 = seteuid(getuid());
+    if (err2)
+	syslog(LOG_WARNING, "reset setuid failed: %s", strerror(errno));
+    err2 = setegid(getgid());
+    if (err2)
+	syslog(LOG_WARNING, "reset setgid failed: %s", strerror(errno));
     if (err) {
 	syslog(LOG_ERR, "pty open failed: %s", gensio_err_to_str(err));
 	goto out_err;
@@ -1151,6 +1145,7 @@ handle_new(struct gensio_runner *r, void *cb_data)
     bool interactive = false;
     unsigned int i;
     char dummy;
+    int pamflags = 0;
 
     gensio_os_funcs_free_runner(o, r);
 
@@ -1214,10 +1209,20 @@ handle_new(struct gensio_runner *r, void *cb_data)
 	exit(1);
     }
 
-    if (strstartswith(tmpservice, "mux"))
+    if (strstartswith(tmpservice, "mux")) {
 	top_io = open_mux(certauth_io, ginfo);
-    else
+	len = sizeof(tmpservice);
+	err = gensio_control(top_io, 0, GENSIO_CONTROL_GET,
+			     GENSIO_CONTROL_SERVICE, tmpservice, &len);
+	if (err) {
+	    gensio_time timeout = {10, 0};
+	    write_str_to_gensio("Could not get service(2)\n", top_io,
+				&timeout, true);
+	    exit(1);
+	}
+    } else {
 	top_io = certauth_io;
+    }
 
     pn = progname;
     if (pam_cert_auth_progname && authed_by_cert)
@@ -1263,12 +1268,29 @@ handle_new(struct gensio_runner *r, void *cb_data)
 	    free(rhost);
     }
 
+    if (strstartswith(tmpservice, "login:"))
+	interactive = true;
+    else
+	pamflags |= PAM_SILENT;
+
+    /*
+     * We need to do this because authorization in pam is skipped if
+     * we do a certificate login.
+     */
+    if (file_is_readable("/etc/nologin") && uid != 0) {
+	gensio_time timeout = {10, 0};
+	if (interactive)
+	    /* Don't send this to non-interactive logins. */
+	    write_file_to_gensio("/etc/nologin", top_io, o, &timeout, true);
+	exit(1);
+    }
+
     if (!gensio_is_authenticated(top_io) || pam_cert_auth_progname) {
 	int tries = 3;
 
 	if (!interactive_login)
 	    tries = 1;
-	pam_err = pam_authenticate(pamh, 0);
+	pam_err = pam_authenticate(pamh, pamflags);
 	while (pam_err != PAM_SUCCESS && tries > 0) {
 	    gensio_time timeout = {10, 0};
 
@@ -1279,7 +1301,7 @@ handle_new(struct gensio_runner *r, void *cb_data)
 		       gensio_err_to_str(err));
 		exit(1);
 	    }
-	    pam_err = pam_authenticate(pamh, 0);
+	    pam_err = pam_authenticate(pamh, pamflags);
 	    tries--;
 	}
 
@@ -1305,25 +1327,14 @@ handle_new(struct gensio_runner *r, void *cb_data)
 	/* FIXME - gensio_set_is_authenticated(certauth_io, true); */
     }
 
-    if (strstartswith(tmpservice, "login:"))
-	interactive = true;
-
-    if (file_is_readable("/etc/nologin") && uid != 0) {
-	gensio_time timeout = {10, 0};
-	if (interactive)
-	    /* Don't send this to non-interactive logins. */
-	    write_file_to_gensio("/etc/nologin", top_io, o, &timeout, true);
-	exit(1);
-    }
-
-    pam_err = pam_acct_mgmt(pamh, 0);
+    pam_err = pam_acct_mgmt(pamh, pamflags);
     if (pam_err == PAM_NEW_AUTHTOK_REQD) {
 	if (interactive) {
 	    syslog(LOG_ERR, "user %s password expired, non-interactive login",
 		   username);
 	    exit(1);
 	}
-	pam_err = pam_chauthtok(pamh, 0);
+	pam_err = pam_chauthtok(pamh, pamflags);
 	if (pam_err != PAM_SUCCESS) {
 	    syslog(LOG_ERR, "Changing password for %s failed", username);
 	    exit(1);
@@ -1334,13 +1345,21 @@ handle_new(struct gensio_runner *r, void *cb_data)
 	exit(1);
     }
 
-    pam_err = pam_setcred(pamh, PAM_ESTABLISH_CRED | PAM_SILENT);
+    pam_err = pam_setcred(pamh, PAM_ESTABLISH_CRED | pamflags);
     if (pam_err != PAM_SUCCESS) {
 	syslog(LOG_ERR, "pam_setcred failed for %s: %s", username,
 	       pam_strerror(pamh, pam_err));
 	exit(1);
     }
     pam_cred_set = true;
+
+    pam_err = pam_open_session(pamh, pamflags);
+    if (pam_err != PAM_SUCCESS) {
+	syslog(LOG_ERR, "pam_open_session failed for %s: %s", username,
+	       pam_strerror(pamh, pam_err));
+	exit(1);
+    }
+    pam_session_open = true;
 
     pam_env = pam_getenvlist(pamh);
     if (!pam_env) {
@@ -1852,7 +1871,12 @@ main(int argc, char *argv[])
 	free(val_2fa);
     }
 
-    if (pam_cred_set) {
+    if (pam_session_open) {
+	pam_err = pam_close_session(pamh, PAM_SILENT);
+	if (pam_err != PAM_SUCCESS)
+	    syslog(LOG_ERR, "pam_close_session failed for %s: %s", username,
+		   pam_strerror(pamh, pam_err));
+    } else if (pam_cred_set) {
 	pam_err = pam_setcred(pamh, PAM_DELETE_CRED | PAM_SILENT);
 	if (pam_err != PAM_SUCCESS)
 	    syslog(LOG_ERR, "pam_setcred delete failed for %s: %s", username,

@@ -98,8 +98,10 @@ received.  This allows easier debugging of the program.
 Do not daemonize (double fork) the program.
 .TP
 .I \-\-nointeractive
-Disable interactive logins.  All authentication information must be passed
-in via the protocol.
+Disable interactive logins.  All authentication information must be
+passed in via the protocol.  This is different than gtlssh's view of
+interactive, which affects how I/O is done.  This only affects
+prompting for credentials interactively.
 .TP
 .I \-\-nosctp
 Disable SCTP support.
