@@ -2243,8 +2243,10 @@ gensio_unix_pty_start(struct gensio_os_funcs *o,
 
 	/* Set the owner of the slave PT. */
 	/* FIXME - This should not be necessary, can we remove? */
+#if 0
 	if (grantpt(pfd) < 0)
 	    exit(1);
+#endif
 
 	if (setsid() == -1) {
 	    fprintf(stderr, "pty fork: failed to start new session: %s\r\n",
