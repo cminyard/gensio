@@ -13,7 +13,6 @@
 #include <gensio/gensio_class.h>
 #include <gensio/gensio_err.h>
 #include <gensio/gensio_ll_fd.h>
-#include <gensio/gensio_osops.h>
 
 enum fd_state {
     /*

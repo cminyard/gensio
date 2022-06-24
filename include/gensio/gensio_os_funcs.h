@@ -44,6 +44,7 @@ struct gensio_iod {
 enum gensio_iod_type {
     GESNIO_IOD_INVALID, /* Not used for anything the user will see. */
     GENSIO_IOD_SOCKET,
+    /* User cannot allocate these with add_iod().  See note in gensio_win.c */
     GENSIO_IOD_PIPE,
     GENSIO_IOD_DEV,
     GENSIO_IOD_FILE,

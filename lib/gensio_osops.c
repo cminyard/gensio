@@ -40,6 +40,7 @@ bool gensio_set_progname(const char *iprogname)
 
 #ifdef _WIN32
 #include <winsock2.h> /* For AF_UNSPEC */
+#include <windows.h>
 #include <iphlpapi.h>
 #else
 #include <sys/socket.h>
@@ -1303,6 +1304,179 @@ gensio_win_do_exec(struct gensio_os_funcs *o,
     if (cmdline)
 	o->free(o, cmdline);
     return rv;
+}
+
+int
+gensio_win_pty_alloc(struct gensio_os_funcs *o, HANDLE *rreadh, HANDLE *rwriteh,
+		     HPCON *rptyh)
+{
+    HANDLE readh_m = NULL, readh_s = NULL;
+    HANDLE writeh_m = NULL, writeh_s = NULL;
+    HPCON ptyh = NULL;
+    COORD winsize;
+    HRESULT hr;
+    int err;
+
+    if (!CreatePipe(&writeh_s, &writeh_m, NULL, 0))
+	goto out_err_conv;
+    if (!CreatePipe(&readh_m, &readh_s, NULL, 0))
+	goto out_err_conv;
+    winsize.X = 80;
+    winsize.Y = 25;
+    hr = CreatePseudoConsole(winsize, writeh_s, readh_s, 0, &ptyh);
+    if (hr != S_OK) {
+	if (HRESULT_FACILITY(hr) == FACILITY_WIN32)
+	    err = gensio_os_err_to_err(o, HRESULT_CODE(hr));
+	else
+	    err = gensio_os_err_to_err(o, hr); /* Force an OS_ERR. */
+	goto out_err;
+    }
+
+    CloseHandle(writeh_s);
+    CloseHandle(readh_s);
+    *rwriteh = writeh_m;
+    *rreadh = readh_m;
+    *rptyh = ptyh;
+    
+    return 0;
+
+ out_err_conv:
+    err = gensio_os_err_to_err(o, GetLastError());
+ out_err:
+    if (readh_m)
+	CloseHandle(readh_m);
+    if (readh_s)
+	CloseHandle(readh_s);
+    if (writeh_m)
+	CloseHandle(writeh_m);
+    if (writeh_s)
+	CloseHandle(writeh_s);
+    if (ptyh)
+	ClosePseudoConsole(ptyh);
+    return err;
+}
+
+int
+gensio_win_pty_start(struct gensio_os_funcs *o,
+		     HPCON ptyh, const char **argv, const char **env,
+		     HANDLE *child)
+{
+    char *cmdline, *envb = NULL;
+    STARTUPINFOEX si;
+    PROCESS_INFORMATION procinfo;
+    size_t len;
+    HANDLE tokh = NULL, imptokh = NULL;
+    int err;
+    bool setuser = true;
+    bool attrs_added = false;
+
+    memset(&si, 0, sizeof(si));
+
+    err = argv_to_win_cmdline(o, argv, &cmdline);
+    if (err)
+	return err;
+
+    if (env) {
+	envb = win_env_to_block(o, env);
+	if (!envb) {
+	    err = GE_NOMEM;
+	    goto out_err;
+	}
+    }
+
+    si.StartupInfo.cb = sizeof(STARTUPINFOEX);
+
+    InitializeProcThreadAttributeList(NULL, 1, 0, &len);
+    si.lpAttributeList = o->zalloc(o, len);
+    if (!si.lpAttributeList) {
+	err = GE_NOMEM;
+	goto out_err;
+    }
+    if (!InitializeProcThreadAttributeList(si.lpAttributeList, 1, 0, &len))
+	goto out_err_conv;
+    if (!UpdateProcThreadAttribute(si.lpAttributeList,
+                                   0,
+                                   PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE,
+                                   ptyh,
+                                   sizeof(ptyh),
+                                   NULL,
+                                   NULL))
+	goto out_err_conv;
+    attrs_added = true;
+
+    /*
+     * Get the impersonation token, convert it to a real token, and
+     * create the process as that user.
+     */
+    if (!OpenThreadToken(GetCurrentThread(),
+			 TOKEN_ALL_ACCESS,
+			 FALSE,
+			 &imptokh)) {
+	if (GetLastError() == ERROR_NO_TOKEN)
+	    /* Impersonation token not set, just do a normal create process. */
+	    setuser = false;
+	else
+	    goto out_err_conv;
+    }
+
+    if (setuser) {
+	if (!DuplicateTokenEx(imptokh, 0, NULL, SecurityImpersonation,
+			      TokenPrimary, &tokh))
+	    goto out_err_conv;
+
+	if (!CreateProcessAsUserA(tokh,
+				  NULL,
+				  cmdline,
+				  NULL,
+				  NULL,
+				  FALSE,
+				  EXTENDED_STARTUPINFO_PRESENT
+				  | CREATE_NEW_PROCESS_GROUP,
+				  envb,
+				  NULL,
+				  &si.StartupInfo,
+				  &procinfo))
+	    goto out_err_conv;
+    } else {
+	if (!CreateProcess(NULL,
+			   cmdline,
+			   NULL,
+			   NULL,
+			   FALSE,
+			   EXTENDED_STARTUPINFO_PRESENT,
+			   envb,
+			   start_dir,
+			   &si.StartupInfo,
+			   &procinfo))
+	    goto out_err_conv;
+    }
+
+    if (imptokh)
+	CloseHandle(imptokh);
+    if (tokh)
+	CloseHandle(tokh);
+    CloseHandle(procinfo.hThread);
+    DeleteProcThreadAttributeList(si.lpAttributeList);
+    o->free(o, si.lpAttributeList);
+    *child = procinfo.hProcess;
+    return 0;
+
+ out_err_conv:
+    err = gensio_os_err_to_err(o, GetLastError());
+ out_err:
+    if (imptokh)
+	CloseHandle(imptokh);
+    if (tokh)
+	CloseHandle(tokh);
+    if (attrs_added)
+	DeleteProcThreadAttributeList(si.lpAttributeList);
+    if (si.lpAttributeList)
+	o->free(o, si.lpAttributeList);
+    if (cmdline)
+	o->free(o, cmdline);
+    if (envb)
+	o->free(o, envb);
+    return err;
 }
 
 #else /* _WIN32 */

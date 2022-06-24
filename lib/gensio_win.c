@@ -35,6 +35,7 @@
 #include <gensio/gensio_osops.h>
 #include <gensio/gensio_circbuf.h>
 #include <gensio/gensio_win.h>
+#include <gensio/argvutils.h>
 #include <pthread_handler.h>
 #include "errtrig.h"
 
@@ -128,6 +129,11 @@ struct gensio_iod_win {
     BOOL in_handlers_clear;
     void (*cleared_handler)(struct gensio_iod *iod, void *cb_data);
     void *cb_data;
+
+    void (*set_read_handler)(struct gensio_iod_win *wiod, bool enable);
+    void (*set_write_handler)(struct gensio_iod_win *wiod, bool enable);
+    void (*set_except_handler)(struct gensio_iod_win *wiod, bool enable);
+    void (*clear_fd_handlers)(struct gensio_iod_win *wiod);
 };
 
 #define iod_to_win(i) gensio_container_of(i, struct gensio_iod_win, iod);
@@ -160,6 +166,8 @@ typedef struct heap_val_s {
 } heap_val_t;
 
 #define wiod_to_timer(w) gensio_container_of(w, struct gensio_timer, val.wiod)
+
+static int i_win_close(struct gensio_iod **iodp, bool force);
 
 #define heap_s theap_s
 #define heap_node_s gensio_timer
@@ -462,6 +470,10 @@ win_clear_fd_handlers(struct gensio_iod *iod)
     EnterCriticalSection(&wiod->lock);
     if (wiod->handlers_set && !wiod->in_handlers_clear) {
 	wiod->in_handlers_clear = TRUE;
+	if (wiod->clear_fd_handlers) {
+	    wiod->clear_fd_handlers(wiod);
+	    goto out;
+	}
 	wiod->read.wait = FALSE;
 	wiod->read.ready = FALSE;
 	wiod->write.wait = FALSE;
@@ -471,6 +483,7 @@ win_clear_fd_handlers(struct gensio_iod *iod)
 	if (wiod->in_handler_count == 0)
 	    queue_iod(wiod);
     }
+out:
     LeaveCriticalSection(&wiod->lock);
 }
 
@@ -498,11 +511,15 @@ win_set_read_handler(struct gensio_iod *iod, bool enable)
     EnterCriticalSection(&wiod->lock);
     if (wiod->read.wait != enable && !wiod->in_handlers_clear) {
 	wiod->read.wait = enable;
-	if (enable) {
-	    if (wiod->read.ready)
-		queue_iod(wiod);
-	    else
-		wiod->wake(wiod);
+	if (wiod->set_read_handler) {
+	    wiod->set_read_handler(wiod, enable);
+	} else {
+	    if (enable) {
+		if (wiod->read.ready)
+		    queue_iod(wiod);
+		else
+		    wiod->wake(wiod);
+	    }
 	}
     }
     LeaveCriticalSection(&wiod->lock);
@@ -516,11 +533,15 @@ win_set_write_handler(struct gensio_iod *iod, bool enable)
     EnterCriticalSection(&wiod->lock);
     if (wiod->write.wait != enable && !wiod->in_handlers_clear) {
 	wiod->write.wait = enable;
-	if (enable) {
-	    if (wiod->write.ready)
-		queue_iod(wiod);
-	    else
-		wiod->wake(wiod);
+	if (wiod->set_write_handler) {
+	    wiod->set_write_handler(wiod, enable);
+	} else {
+	    if (enable) {
+		if (wiod->write.ready)
+		    queue_iod(wiod);
+		else
+		    wiod->wake(wiod);
+	    }
 	}
     }
     LeaveCriticalSection(&wiod->lock);
@@ -534,11 +555,15 @@ win_set_except_handler(struct gensio_iod *iod, bool enable)
     EnterCriticalSection(&wiod->lock);
     if (wiod->except.wait != enable && !wiod->in_handlers_clear) {
 	wiod->except.wait = enable;
-	if (enable) {
-	    if (wiod->except.ready)
-		queue_iod(wiod);
-	    else
-		wiod->wake(wiod);
+	if (wiod->set_except_handler) {
+	    wiod->set_except_handler(wiod, enable);
+	} else {
+	    if (enable) {
+		if (wiod->except.ready)
+		    queue_iod(wiod);
+		else
+		    wiod->wake(wiod);
+	    }
 	}
     }
     LeaveCriticalSection(&wiod->lock);
@@ -1676,7 +1701,7 @@ win_iod_oneway_shutdown(struct gensio_iod_win *wiod)
     /* This sucks, see notes at beginning of oneway section. */
     assert(SetEvent(owiod->wakeh));
     CancelSynchronousIo(wiod->threadh);
-    while (WaitForSingleObject(wiod->threadh, 1) == WAIT_TIMEOUT) {
+    while (WaitForSingleObject(wiod->threadh, 1000) == WAIT_TIMEOUT) {
 	assert(SetEvent(owiod->wakeh));
 	CancelSynchronousIo(wiod->threadh);
     }
@@ -2471,18 +2496,414 @@ win_iod_dev_init(struct gensio_iod_win *wiod, void *cb_data)
     return rv;
 }
 
+/*
+ * A pty iod doesn't work like the other ones.  It doesn't use any of
+ * the iod services.  Instead, it has two pipe iods for the input and
+ * output of the child process and this basically routes data and
+ * event between those pipes and the user.
+ */
+struct gensio_iod_win_pty
+{
+    struct gensio_iod_win wiod;
+
+    struct gensio_iod_win *write; /* Data (input) sent to the child */
+    struct gensio_iod_win *read; /* Data (output) from the child */
+    HANDLE child;
+    HPCON ptyh;
+    HANDLE watch_thread;
+    DWORD watch_thread_id;
+    HANDLE watch_start;
+
+    unsigned int clearcount;
+
+    const char **argv;
+    const char **env;
+};
+
+#define wiod_to_win_pty(w) gensio_container_of(w,			  \
+					       struct gensio_iod_win_pty, \
+					       wiod);
+
+static int
+win_pty_write(struct gensio_iod_win *wiod,
+	      const struct gensio_sg *sg, gensiods sglen,
+	      gensiods *rcount)
+{
+    struct gensio_os_funcs *o = wiod->iod.f;
+    struct gensio_iod_win_pty *piod = wiod_to_win_pty(wiod);
+    int rv = 0;
+
+    EnterCriticalSection(&wiod->lock);
+    if (wiod->err || wiod->werr) {
+	if (!wiod->err)
+	    wiod->err = gensio_os_err_to_err(wiod->iod.f, wiod->werr);
+	rv = wiod->err;
+	goto out_err;
+    }
+    rv = o->write(&piod->write->iod, sg, sglen, rcount);
+    if (rv)
+	wiod->err = rv;
+ out_err:
+    LeaveCriticalSection(&wiod->lock);
+    return rv;
+}
+
+static int
+win_pty_read(struct gensio_iod_win *wiod,
+	     void *ibuf, gensiods buflen, gensiods *rcount)
+{
+    struct gensio_os_funcs *o = wiod->iod.f;
+    struct gensio_iod_win_pty *piod = wiod_to_win_pty(wiod);
+    int rv = 0;
+
+    EnterCriticalSection(&wiod->lock);
+    if (wiod->err) {
+	rv = wiod->err;
+	goto out;
+    }
+    rv = o->read(&piod->read->iod, ibuf, buflen, rcount);
+    if (rv)
+	wiod->err = rv;
+ out:
+    LeaveCriticalSection(&wiod->lock);
+    return rv;
+}
+
+static void
+win_pty_set_read_handler(struct gensio_iod_win *wiod, bool enable)
+{
+    struct gensio_os_funcs *o = wiod->iod.f;
+    struct gensio_iod_win_pty *piod = wiod_to_win_pty(wiod);
+
+    EnterCriticalSection(&wiod->lock);
+    o->set_read_handler(&piod->read->iod, enable);
+    LeaveCriticalSection(&wiod->lock);
+}
+
+static void
+win_pty_set_write_handler(struct gensio_iod_win *wiod, bool enable)
+{
+    struct gensio_os_funcs *o = wiod->iod.f;
+    struct gensio_iod_win_pty *piod = wiod_to_win_pty(wiod);
+
+    EnterCriticalSection(&wiod->lock);
+    o->set_write_handler(&piod->write->iod, enable);
+    LeaveCriticalSection(&wiod->lock);
+}
+
+static void
+win_pty_set_except_handler(struct gensio_iod_win *wiod, bool enable)
+{
+    struct gensio_os_funcs *o = wiod->iod.f;
+    struct gensio_iod_win_pty *piod = wiod_to_win_pty(wiod);
+
+    EnterCriticalSection(&wiod->lock);
+    o->set_except_handler(&piod->read->iod, enable);
+    o->set_except_handler(&piod->write->iod, enable);
+    LeaveCriticalSection(&wiod->lock);
+}
+
+static int
+win_pty_close(struct gensio_iod_win *wiod, bool force)
+{
+    struct gensio_iod_win_pty *piod = wiod_to_win_pty(wiod);
+    struct gensio_iod *iod;
+    int rv = 0;
+
+    EnterCriticalSection(&wiod->lock);
+    if (wiod->closed == TRUE) {
+	LeaveCriticalSection(&wiod->lock);
+	goto out;
+    }
+    wiod->closed = TRUE;
+    LeaveCriticalSection(&wiod->lock);
+    if (piod->write) {
+	iod = &piod->write->iod;
+	rv = i_win_close(&iod, force);
+	if (rv)
+	    goto out;
+	piod->write = NULL;
+    }
+    if (piod->read) {
+	iod = &piod->read->iod;
+	rv = i_win_close(&iod, force);
+	if (rv)
+	    goto out;
+	piod->read = NULL;
+    }
+    TerminateProcess(piod->child, 0);
+    if (piod->watch_thread) {
+	WaitForSingleObject(piod->watch_thread, INFINITE);
+	CloseHandle(piod->watch_thread);
+	piod->watch_thread = NULL;
+    }
+    if (piod->child) {
+	CloseHandle(piod->child);
+	piod->child = NULL;
+    }
+ out:
+    return rv;
+}
+
+/*
+ * Wait for the child process to die and close the pty and files when
+ * that happens.  This is necessary because the read will not wake up
+ * when the child dies unless the pty is closed.
+ */
+static DWORD WINAPI
+win_pty_watch_thread(LPVOID data)
+{
+    struct gensio_iod_win_pty *piod = data;
+    struct gensio_iod_win *wiod = &piod->wiod;
+
+    WaitForSingleObject(piod->watch_start, INFINITE);
+
+    EnterCriticalSection(&wiod->lock);
+    /* If child is not set, the thread start failed, just quit. */
+    if (piod->child) {
+	LeaveCriticalSection(&wiod->lock);
+	WaitForSingleObject(piod->child, INFINITE);
+	EnterCriticalSection(&wiod->lock);
+	if (piod->ptyh) {
+	    ClosePseudoConsole(piod->ptyh);
+	    piod->ptyh = NULL;
+	}
+    }
+    LeaveCriticalSection(&wiod->lock);
+    return 0;
+}
+
+static int
+win_pty_control(struct gensio_iod_win *wiod, int op, bool get, intptr_t val)
+{
+    struct gensio_os_funcs *o = wiod->iod.f;
+    struct gensio_iod_win_pty *piod = wiod_to_win_pty(wiod);
+    int err = 0;
+
+    const char **nargv;
+
+    if (get) {
+	if (op == GENSIO_IOD_CONTROL_PID) {
+	    if (!piod->child)
+		return GE_NOTREADY;
+	    *((intptr_t *) val) = (intptr_t) piod->child;
+	    return 0;
+	}
+	return GE_NOTSUP;
+    }
+
+    switch (op) {
+    case GENSIO_IOD_CONTROL_ARGV:
+	err = gensio_argv_copy(o, (const char **) val, NULL, &nargv);
+	if (err)
+	    return err;
+	if (piod->argv)
+	    gensio_argv_free(o, piod->argv);
+	piod->argv = nargv;
+	return 0;
+
+    case GENSIO_IOD_CONTROL_ENV:
+	err = gensio_argv_copy(o, (const char **) val, NULL, &nargv);
+	if (err)
+	    return err;
+	if (piod->env)
+	    gensio_argv_free(o, piod->env);
+	piod->env = nargv;
+	return 0;
+
+    case GENSIO_IOD_CONTROL_START:
+	EnterCriticalSection(&wiod->lock);
+	if (piod->child) {
+	    err = GE_INUSE;
+	} else {
+	    piod->watch_thread = CreateThread(NULL, 0, win_pty_watch_thread,
+					      piod, 0, &piod->watch_thread_id);
+	    if (!piod->watch_thread) {
+		err = gensio_os_err_to_err(o, GetLastError());
+	    } else {
+		err = gensio_win_pty_start(o, piod->ptyh, piod->argv,
+					   piod->env, &piod->child);
+		assert(SetEvent(piod->watch_start));
+		if (err) {
+		    HANDLE wthread = piod->watch_thread;
+
+		    piod->watch_thread = NULL;
+		    LeaveCriticalSection(&wiod->lock);
+		    WaitForSingleObject(wthread, INFINITE);
+		    CloseHandle(wthread);
+		    return err;
+		}
+	    }
+	}
+	LeaveCriticalSection(&wiod->lock);
+	return err;
+
+    default:
+	return GE_NOTSUP;
+    }
+}
+
+static void win_pty_read_handler(struct gensio_iod *iod, void *cb_data)
+{
+    struct gensio_iod_win_pty *piod = cb_data;
+
+    piod->wiod.read.handler(&piod->wiod.iod, piod->wiod.cb_data);
+}
+
+static void win_pty_write_handler(struct gensio_iod *iod, void *cb_data)
+{
+    struct gensio_iod_win_pty *piod = cb_data;
+
+    piod->wiod.write.handler(&piod->wiod.iod, piod->wiod.cb_data);
+}
+
+static void win_pty_except_handler(struct gensio_iod *iod, void *cb_data)
+{
+    struct gensio_iod_win_pty *piod = cb_data;
+
+    piod->wiod.except.handler(&piod->wiod.iod, piod->wiod.cb_data);
+}
+
+static void win_pty_cleared_handler(struct gensio_iod *iod, void *cb_data)
+{
+    struct gensio_iod_win_pty *piod = cb_data;
+    struct gensio_iod_win *wiod = &piod->wiod;
+    void (*cleared)(struct gensio_iod *iod, void *cb_data) = NULL;
+
+    EnterCriticalSection(&wiod->lock);
+    assert(piod->clearcount > 0);
+    piod->clearcount--;
+    if (piod->clearcount == 0) {
+	cleared = wiod->cleared_handler;
+	wiod->in_handlers_clear = false;
+    }
+    LeaveCriticalSection(&wiod->lock);
+    if (cleared)
+	cleared(&wiod->iod, wiod->cb_data);
+}
+
+static void
+win_pty_clear_fd_handlers(struct gensio_iod_win *wiod)
+{
+    struct gensio_os_funcs *o = wiod->iod.f;
+    struct gensio_iod_win_pty *piod = wiod_to_win_pty(wiod);
+
+    EnterCriticalSection(&wiod->lock);
+    if (piod->read) {
+	o->clear_fd_handlers(&piod->read->iod);
+	piod->clearcount++;
+    }
+    if (piod->write) {
+	o->clear_fd_handlers(&piod->write->iod);
+	piod->clearcount++;
+    }
+    LeaveCriticalSection(&wiod->lock);
+}
+
+static void
+win_iod_pty_clean(struct gensio_iod_win *wiod)
+{
+    struct gensio_os_funcs *o = wiod->iod.f;
+    struct gensio_iod_win_pty *piod = wiod_to_win_pty(wiod);
+
+    if (piod->read)
+	o->release_iod(&piod->read->iod);
+    if (piod->write)
+	o->release_iod(&piod->write->iod);
+    if (piod->child)
+	CloseHandle(piod->child);
+    if (piod->ptyh)
+	ClosePseudoConsole(piod->ptyh);
+    if (piod->watch_start)
+	CloseHandle(piod->watch_start);
+}
+
+static int
+win_iod_pty_init(struct gensio_iod_win *wiod, void *cb_data)
+{
+    struct gensio_os_funcs *o = wiod->iod.f;
+    struct gensio_iod_win_pty *piod = wiod_to_win_pty(wiod);
+    HANDLE readh = NULL, writeh = NULL;
+    BOOL readable;
+    int err;
+
+    wiod->clean = win_iod_pty_clean;
+    wiod->set_read_handler = win_pty_set_read_handler;
+    wiod->set_write_handler = win_pty_set_write_handler;
+    wiod->set_except_handler = win_pty_set_except_handler;
+    wiod->clear_fd_handlers = win_pty_clear_fd_handlers;
+
+    piod->watch_start = CreateEventA(NULL, FALSE, FALSE, NULL);
+    if (!piod->watch_start) {
+	err = gensio_os_err_to_err(o, GetLastError());
+	goto out_err;
+    }
+
+    err = gensio_win_pty_alloc(o, &readh, &writeh, &piod->ptyh);
+    if (err)
+	goto out_err;
+
+    readable = TRUE;
+    err = win_alloc_iod(o, sizeof(struct gensio_iod_win_pipe),
+			(intptr_t) readh,
+			GENSIO_IOD_PIPE, win_iod_pipe_init,
+			&readable, &piod->read);
+    if (err)
+	goto out_err;
+    readh = NULL;
+    err = win_set_fd_handlers(&piod->read->iod, piod,
+			      win_pty_read_handler, NULL,
+			      win_pty_except_handler, win_pty_cleared_handler);
+    if (err)
+	goto out_err;
+
+    readable = FALSE;
+    err = win_alloc_iod(o, sizeof(struct gensio_iod_win_pipe),
+			(intptr_t) writeh,
+			GENSIO_IOD_PIPE, win_iod_pipe_init,
+			&readable, &piod->write);
+    if (err)
+	goto out_err;
+    writeh = NULL;
+    err = win_set_fd_handlers(&piod->write->iod, piod,
+			      NULL, win_pty_write_handler,
+			      win_pty_except_handler, win_pty_cleared_handler);
+    if (err)
+	goto out_err;
+
+    return 0;
+
+ out_err:
+    if (readh)
+	CloseHandle(readh);
+    if (writeh)
+	CloseHandle(writeh);
+    if (piod->watch_start) {
+	CloseHandle(piod->watch_start);
+	piod->watch_start = NULL;
+    }
+    return err;
+}
+
 static unsigned int win_iod_sizes[NR_GENSIO_IOD_TYPES] = {
     [GENSIO_IOD_SOCKET] = sizeof(struct gensio_iod_win_sock),
     [GENSIO_IOD_CONSOLE] = sizeof(struct gensio_iod_win_console),
-    [GENSIO_IOD_PIPE] = sizeof(struct gensio_iod_win_pipe),
     [GENSIO_IOD_FILE] = sizeof(struct gensio_iod_win_file),
+    [GENSIO_IOD_PTY] = sizeof(struct gensio_iod_win_pty),
+    /*
+     * FIXME - no GENSIO_IOD_PIPE support.  The add_iod function
+     * doesn't have a way to pass if the handle is read or write, and
+     * there's no way to tell from the handle.  If we ever need this,
+     * a ... will need to be added to add_iod and the read/write type
+     * passed there.
+     */
 };
 typedef int (*win_iod_initfunc)(struct gensio_iod_win *, void *);
 static win_iod_initfunc win_iod_init[NR_GENSIO_IOD_TYPES] = {
     [GENSIO_IOD_SOCKET] = win_iod_socket_init,
     [GENSIO_IOD_CONSOLE] = win_iod_console_init,
-    [GENSIO_IOD_PIPE] = win_iod_pipe_init,
     [GENSIO_IOD_FILE] = win_iod_file_init,
+    [GENSIO_IOD_PTY] = win_iod_pty_init,
 };
 
 static int
@@ -2645,6 +3066,10 @@ win_iod_control(struct gensio_iod *iod, int op, bool get, intptr_t val)
 
     if (wiod->type == GENSIO_IOD_DEV)
 	return win_dev_control(wiod, op, get, val);
+
+    if (wiod->type == GENSIO_IOD_PTY)
+	return win_pty_control(wiod, op, get, val);
+
     return GE_NOTSUP;
 }
 
@@ -2858,6 +3283,8 @@ i_win_close(struct gensio_iod **iodp, bool force)
 	err = win_oneway_close(wiod, force);
     } else if (wiod->type == GENSIO_IOD_DEV) {
 	err = win_dev_close(wiod, force);
+    } else if (wiod->type == GENSIO_IOD_PTY) {
+	err = win_pty_close(wiod, force);
     } else {
 	err = GE_NOTSUP;
     }
@@ -2901,6 +3328,10 @@ win_set_non_blocking(struct gensio_iod *iod)
 	/* Nothing to do, already non-blocking. */
     } else if (wiod->type == GENSIO_IOD_FILE) {
 	/* Nothing to do, already non-blocking. */
+    } else if (wiod->type == GENSIO_IOD_PIPE) {
+	/* Nothing to do, already non-blocking. */
+    } else if (wiod->type == GENSIO_IOD_PTY) {
+	/* Nothing to do, already non-blocking. */
     } else {
 	return GE_NOTSUP;
     }
@@ -2926,6 +3357,8 @@ win_write(struct gensio_iod *iod,
 	return win_oneway_write(wiod, sg, sglen, rcount);
     } else if (wiod->type == GENSIO_IOD_DEV) {
 	return win_twoway_write(wiod, sg, sglen, rcount);
+    } else if (wiod->type == GENSIO_IOD_PTY) {
+	return win_pty_write(wiod, sg, sglen, rcount);
     }
 
     return GE_NOTSUP;
@@ -2947,6 +3380,8 @@ win_read(struct gensio_iod *iod,
 	return win_oneway_read(wiod, ibuf, buflen, rcount);
     } else if (wiod->type == GENSIO_IOD_DEV) {
 	return win_twoway_read(wiod, ibuf, buflen, rcount);
+    } else if (wiod->type == GENSIO_IOD_PTY) {
+	return win_pty_read(wiod, ibuf, buflen, rcount);
     }
 
     return GE_NOTSUP;
@@ -3051,7 +3486,7 @@ win_exec_subprog(struct gensio_os_funcs *o,
     struct gensio_iod_win *stdin_iod = NULL;
     struct gensio_iod_win *stdout_iod = NULL;
     struct gensio_iod_win *stderr_iod = NULL;
-    bool readable = false;
+    BOOL readable = FALSE;
 
     rv = gensio_win_do_exec(o, argv, env, flags, &phandle,
 			    &stdin_m, &stdout_m,
@@ -3065,7 +3500,7 @@ win_exec_subprog(struct gensio_os_funcs *o,
 		       win_iod_pipe_init, &readable, &stdin_iod);
     if (rv)
 	goto out_err;
-    readable = true;
+    readable = TRUE;
     rv = win_alloc_iod(o, sizeof(struct gensio_iod_win_pipe),
 		       (intptr_t) stdout_m, GENSIO_IOD_PIPE,
 		       win_iod_pipe_init, &readable, &stdout_iod);

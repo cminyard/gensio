@@ -114,6 +114,14 @@ int gensio_win_do_exec(struct gensio_os_funcs *o,
 		       HANDLE *phandle,
 		       HANDLE *rin, HANDLE *rout, HANDLE *rerr);
 
+int gensio_win_pty_alloc(struct gensio_os_funcs *o,
+			 HANDLE *rreadh, HANDLE *rwriteh,
+			 HPCON *rptyh);
+
+int gensio_win_pty_start(struct gensio_os_funcs *o,
+			 HPCON ptyh, const char **argv, const char **env,
+			 HANDLE *child);
+
 #else
 
 #include <sys/types.h>

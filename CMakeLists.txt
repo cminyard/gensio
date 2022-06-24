@@ -207,7 +207,7 @@ option(USE_UUCP_LOCKING "Enable UUCP lock file handling for devices"
 if(UNIX)
   set(HAVE_PTY 1)
 else()
-  set(HAVE_PTY 0)
+  set(HAVE_PTY 1)
   list(APPEND EXTRA_LIBS ws2_32 bcrypt Iphlpapi)
 endif()
 

@@ -285,12 +285,14 @@ pty_free(void *handler_data)
     struct pty_data *tdata = handler_data;
     struct gensio_os_funcs *o = tdata->o;
 
+#if HAVE_PTSNAME_R
     if (tdata->link)
 	o->free(o, tdata->link);
     if (tdata->owner)
 	o->free(o, tdata->owner);
     if (tdata->group)
 	o->free(o, tdata->group);
+#endif
     if (tdata->argv)
 	gensio_argv_free(o, tdata->argv);
     if (tdata->env)
@@ -473,12 +475,15 @@ pty_gensio_alloc(const char * const argv[], const char * const args[],
     struct pty_data *tdata = NULL;
     struct gensio *io;
     gensiods max_read_size = GENSIO_DEFAULT_BUF_SIZE;
-    unsigned int umode = 6, gmode = 6, omode = 6, i, mode;
+    unsigned int i;
+#if HAVE_PTSNAME_R
+    unsigned int umode = 6, gmode = 6, omode = 6, mode;
     bool mode_set = false;
     const char *owner = NULL, *group = NULL, *link = NULL;
-    int err;
     bool forcelink = false;
+#endif
     bool raw = false;
+    int err;
 
     for (i = 0; args && args[i]; i++) {
 	if (gensio_check_keyds(args[i], "readbuf", &max_read_size) > 0)
@@ -528,20 +533,10 @@ pty_gensio_alloc(const char * const argv[], const char * const args[],
     if (!tdata->lock)
 	goto out_nomem;
 
+#if HAVE_PTSNAME_R
     if (link) {
 	tdata->link = gensio_strdup(o, link);
 	if (!tdata->link)
-	    goto out_nomem;
-    }
-
-    if (argv && argv[0]) {
-	if (mode_set || owner || group) {
-	    /* These are only for non-subprogram ptys. */
-	    err = GE_INCONSISTENT;
-	    goto out_err;
-	}
-	err = gensio_argv_copy(o, argv, NULL, &tdata->argv);
-	if (err)
 	    goto out_nomem;
     }
 
@@ -557,6 +552,20 @@ pty_gensio_alloc(const char * const argv[], const char * const args[],
     if (group) {
 	tdata->group = gensio_strdup(o, group);
 	if (!tdata->group)
+	    goto out_nomem;
+    }
+#endif
+
+    if (argv && argv[0]) {
+#if HAVE_PTSNAME_R
+	if (mode_set || owner || group) {
+	    /* These are only for non-subprogram ptys. */
+	    err = GE_INCONSISTENT;
+	    goto out_err;
+	}
+#endif
+	err = gensio_argv_copy(o, argv, NULL, &tdata->argv);
+	if (err)
 	    goto out_nomem;
     }
 
@@ -576,7 +585,9 @@ pty_gensio_alloc(const char * const argv[], const char * const args[],
 
  out_nomem:
     err = GE_NOMEM;
+#if HAVE_PTSNAME_R
  out_err:
+#endif
     if (tdata->ll)
 	gensio_ll_free(tdata->ll);
     else
