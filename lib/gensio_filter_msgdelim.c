@@ -45,6 +45,13 @@ struct msgdelim_filter {
     gensiods user_write_pos; /* Current user position. */
 };
 
+/*
+ * The basic protocol is pretty simple here.  A 254 is a command byte,
+ * followed by 0 for sending a single 254, and 1 for a message
+ * separator.  There is a 16 bit CRC at the end of every message,
+ * unless disabled.
+ */
+
 #define filter_to_msgdelim(v) ((struct msgdelim_filter *) \
 			       gensio_filter_get_user_data(v))
 
