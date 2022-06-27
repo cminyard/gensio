@@ -9,7 +9,7 @@ man_MANS = gensio.5 gensio_event.3 str_to_gensio.3 gensio_set_callback.3 \
 	sergensio.5 gensio_to_sergensio.3 sergensio_baud.3 \
 	sergensio_b_alloc.3 sergensio_event.3 gensio_mdns.3
 
-LN_SF = $(LN_S) -f
+# Note that $(LN_SF) is set in configure.ac
 
 install-data-hook:
 	$(LN_SF) str_to_gensio.3 $(DESTDIR)$(man3dir)/str_to_gensio_child.3

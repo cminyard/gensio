@@ -45,6 +45,15 @@ case $target_os in
 		;;
 esac
 
+if test "$version_type" = "windows"; then
+    # LN_S gets set to "cp -pR", which just doesn't work.  MinGW has
+    # a working "ln", so force it.
+    LN_SF="ln -sf"
+else
+    LN_SF="\$(LN_S) -f"
+fi
+AC_SUBST(LN_SF)
+
 # If compiling static, turn off DLL visibility, primarily so Windows
 # will link properly.  Don't allow both static and shared libraries
 # to be built at the same time for now.
