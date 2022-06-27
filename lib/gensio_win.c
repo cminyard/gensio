@@ -1444,6 +1444,7 @@ win_oneway_in_thread(LPVOID data)
 {
     struct gensio_iod_win_oneway *owiod = data;
     struct gensio_iod_win *wiod = &owiod->wiod;
+    HANDLE waiters[2] = { owiod->ioh, owiod->wakeh };
     DWORD rvw;
 
     /*
@@ -1465,12 +1466,14 @@ win_oneway_in_thread(LPVOID data)
 	    DWORD nread;
 
 	    gensio_circbuf_next_write_area(owiod->buf, &readpos, &readsize);
-	    LeaveCriticalSection(&wiod->lock);
 	    if (owiod->is_console) {
 		while (true) {
-		    rvw = WaitForSingleObject(owiod->ioh, INFINITE);
+		    LeaveCriticalSection(&wiod->lock);
+		    rvw = WaitForMultipleObjects(2, waiters, FALSE, INFINITE);
+		    EnterCriticalSection(&wiod->lock);
 		    if (wiod->done)
-			break;
+			goto continue_loop;
+		    LeaveCriticalSection(&wiod->lock);
 		    if (rvw == WAIT_OBJECT_0) {
 			INPUT_RECORD r;
 
@@ -1487,10 +1490,16 @@ win_oneway_in_thread(LPVOID data)
 			if (r.EventType == WINDOW_BUFFER_SIZE_EVENT)
 			    goto handle_winsize;
 		    }
+		    EnterCriticalSection(&wiod->lock);
 		}
 	    }
+	    if (wiod->done)
+		goto continue_loop;
+	    LeaveCriticalSection(&wiod->lock);
 	    rvb = ReadFile(owiod->ioh, readpos, readsize, &nread, NULL);
 	    EnterCriticalSection(&wiod->lock);
+	    if (wiod->done)
+		goto continue_loop;
 	    if (!rvb) {
 		if (GetLastError() == ERROR_OPERATION_ABORTED)
 		     /*
@@ -2568,13 +2577,11 @@ static void win_release_iod(struct gensio_iod *iod)
     if (wiod->shutdown) {
 	LeaveCriticalSection(&wiod->lock);
 	wiod->shutdown(wiod);
-    }
-    else if (wiod->threadh) {
+    } else if (wiod->threadh) {
 	wiod->wake(wiod);
 	LeaveCriticalSection(&wiod->lock);
 	WaitForSingleObject(wiod->threadh, INFINITE);
-    }
-    else {
+    } else {
 	LeaveCriticalSection(&wiod->lock);
     }
 
