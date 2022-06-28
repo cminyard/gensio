@@ -33,7 +33,6 @@
 #include <sys/wait.h>
 #include <pwd.h>
 #include <assert.h>
-#include <sys/ioctl.h>
 #include <fcntl.h>
 #include <arpa/inet.h> /* For htonl and friends. */
 
@@ -391,23 +390,22 @@ static void
 handle_winch(struct per_con_info *pcinfo,
 	     unsigned char *msg, unsigned int msglen)
 {
-    int err, ptym;
-    struct winsize win;
-    gensiods len = sizeof(int);
+    int col, row, xpixel, ypixel;
+    char *str;
 
     if (msglen < 8)
 	return;
 
-    err = gensio_control(pcinfo->io2, 0, GENSIO_CONTROL_GET,
-			 GENSIO_CONTROL_RADDR_BIN, (char *) &ptym, &len);
-    if (err)
+    row = gensio_buf_to_u16(msg + 0);
+    col = gensio_buf_to_u16(msg + 2);
+    xpixel = gensio_buf_to_u16(msg + 4);
+    ypixel = gensio_buf_to_u16(msg + 6);
+    str = alloc_sprintf("%d:%d:%d:%d", row, col, xpixel, ypixel);
+    if (!str)
 	return;
-
-    win.ws_row = gensio_buf_to_u16(msg + 0);
-    win.ws_col = gensio_buf_to_u16(msg + 2);
-    win.ws_xpixel = gensio_buf_to_u16(msg + 4);
-    win.ws_ypixel = gensio_buf_to_u16(msg + 6);
-    ioctl(ptym, TIOCSWINSZ, &win);
+    gensio_control(pcinfo->io2, 0, GENSIO_CONTROL_SET, GENSIO_CONTROL_WIN_SIZE,
+		   str, 0);
+    free(str);
 }
 
 static void
