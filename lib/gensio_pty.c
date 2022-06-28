@@ -348,11 +348,11 @@ pty_control(void *handler_data, struct gensio_iod *iod, bool get,
 	    return GE_NOTSUP;
 	if (!tdata->argv)
 	    return GE_NOTSUP;
-	err = gensio_argv_copy(tdata->o, (const char **) data, NULL, &env);
+	err = gensio_argv_copy(o, (const char **) data, NULL, &env);
 	if (err)
 	    return err;
 	if (tdata->env)
-	    gensio_argv_free(tdata->o, tdata->env);
+	    gensio_argv_free(o, tdata->env);
 	tdata->env = env;
 	return 0;
 
@@ -361,11 +361,11 @@ pty_control(void *handler_data, struct gensio_iod *iod, bool get,
 	    return GE_NOTSUP;
 	if (tdata->iod)
 	    return GE_NOTREADY; /* Have to do this while closed. */
-	err = gensio_argv_copy(tdata->o, (const char **) data, NULL, &argv);
+	err = gensio_argv_copy(o, (const char **) data, NULL, &argv);
 	if (err)
 	    return err;
 	if (tdata->argv)
-	    gensio_argv_free(tdata->o, tdata->argv);
+	    gensio_argv_free(o, tdata->argv);
 	tdata->argv = argv;
 	return 0;
 
@@ -415,10 +415,9 @@ pty_control(void *handler_data, struct gensio_iod *iod, bool get,
 	    return GE_NOTFOUND;
 	if (!tdata->iod)
 	    return GE_NOTREADY;
-	err = ptsname_r(tdata->o->iod_get_fd(tdata->iod),
-			ptsstr, sizeof(ptsstr));
+	err = ptsname_r(o->iod_get_fd(tdata->iod), ptsstr, sizeof(ptsstr));
 	if (err)
-	    err = gensio_os_err_to_err(tdata->o, errno);
+	    err = gensio_os_err_to_err(o, errno);
 	else
 	    *datalen = snprintf(data, *datalen, "%s", ptsstr);
 	return err;
@@ -439,7 +438,7 @@ pty_control(void *handler_data, struct gensio_iod *iod, bool get,
 	if (!get)
 	    return GE_NOTSUP;
 	if (*datalen >= sizeof(int))
-	    *((int *) data) = tdata->o->iod_get_fd(tdata->iod);
+	    *((int *) data) = o->iod_get_fd(tdata->iod);
 	*datalen = sizeof(int);
 	return 0;
 
@@ -451,6 +450,23 @@ pty_control(void *handler_data, struct gensio_iod *iod, bool get,
 	*datalen = snprintf(data, *datalen, "%llu",
 			    (unsigned long long) tdata->pid);
 	return 0;
+
+    case GENSIO_CONTROL_WIN_SIZE: {
+	struct gensio_winsize ws;
+	int c;
+
+	if (get)
+	    return GE_NOTSUP;
+
+	c = sscanf(data, "%d:%d:%d:%d", &ws.ws_row, &ws.ws_col,
+		   &ws.ws_xpixel, &ws.ws_ypixel);
+	if (c < 0)
+	    return gensio_os_err_to_err(o, errno);
+	if (c < 2)
+	    return GE_INVAL;
+	return o->iod_control(tdata->iod, GENSIO_IOD_CONTROL_WIN_SIZE, get,
+			      (intptr_t) &ws);
+    }
     }
 
     return GE_NOTSUP;

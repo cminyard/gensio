@@ -2743,15 +2743,14 @@ win_pty_control(struct gensio_iod_win *wiod, int op, bool get, intptr_t val)
 	COORD size;
 	HRESULT hr;
 
-	size.X = gwin->ws_row;
-	size.Y = gwin->ws_col;
-	hr = ResizePseudoConsole(m_hpc, size);
+	size.Y = gwin->ws_row;
+	size.X = gwin->ws_col;
+	hr = ResizePseudoConsole(piod->ptyh, size);
 	if (hr != S_OK) {
 	    if (HRESULT_FACILITY(hr) == FACILITY_WIN32)
 		err = gensio_os_err_to_err(o, HRESULT_CODE(hr));
 	    else
 		err = gensio_os_err_to_err(o, hr); /* Force an OS_ERR. */
-	    goto out_err;
 	}
 	return err;
     }

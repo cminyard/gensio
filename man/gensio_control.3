@@ -291,6 +291,14 @@ Out of band (OOB) data is disabled by default on all gensios and
 setting this to non-zero (normal string like "1" passed in) will
 enable it.  Note that you should only set this on the gensio you are
 directly communicating with, it is used between some gensios.
+.SS "GENSIO_CONTROL_WIN_SIZE"
+For pty gensios, sets the window size of the virtual window.  The
+value is a string with four values separated by ":".  The first two
+are the number of rows and number of columns.  The second two are
+number of horizontal pixels and number of vertical pixels.  The pixel
+values are currently ignored by windows.  pixel values do not have to
+be given, if there are less than 4 values, pixels values are ignored
+and set to zero.  datalen is ignored.
 .SH "RETURN VALUES"
 Zero is returned on success, or a gensio error on failure.
 .SH "SEE ALSO"
