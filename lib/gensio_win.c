@@ -2738,6 +2738,24 @@ win_pty_control(struct gensio_iod_win *wiod, int op, bool get, intptr_t val)
 	LeaveCriticalSection(&wiod->lock);
 	return err;
 
+    case GENSIO_IOD_CONTROL_WIN_SIZE: {
+	struct gensio_winsize *gwin = (struct gensio_winsize *) val;
+	COORD size;
+	HRESULT hr;
+
+	size.X = gwin->ws_row;
+	size.Y = gwin->ws_col;
+	hr = ResizePseudoConsole(m_hpc, size);
+	if (hr != S_OK) {
+	    if (HRESULT_FACILITY(hr) == FACILITY_WIN32)
+		err = gensio_os_err_to_err(o, HRESULT_CODE(hr));
+	    else
+		err = gensio_os_err_to_err(o, hr); /* Force an OS_ERR. */
+	    goto out_err;
+	}
+	return err;
+    }
+
     default:
 	return GE_NOTSUP;
     }

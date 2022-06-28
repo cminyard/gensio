@@ -263,6 +263,21 @@ struct gensio_opensocks
 /* Windows sockets only, is the socket closed? */
 #define GENSIO_IOD_CONTROL_IS_CLOSED 26
 
+/* For ptys, set the window size. */
+#define GENSIO_IOD_CONTROL_WIN_SIZE 27
+/*
+ * Used to inform a pty of a new window size.  Based on the *nix
+ * winsize type, but used for windows, too.  For windows the pixel
+ * values are ignored.
+ */
+struct gensio_winsize {
+    int ws_row;
+    int ws_col;
+    int ws_xpixel;
+    int ws_ypixel;
+};
+
+
 /*
  * These are for communication between the socket code and the iod, so
  * the socket code can store information in the IOD.  It's only for

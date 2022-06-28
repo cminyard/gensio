@@ -1388,7 +1388,8 @@ static int
 gensio_unix_pty_control(struct gensio_iod_unix *iod, int op, bool get,
 			intptr_t val)
 {
-    int err;
+    struct gensio_os_funcs *o = iod->r.f;
+    int err = 0;
     const char **nargv;
 
     if (get) {
@@ -1403,26 +1404,39 @@ gensio_unix_pty_control(struct gensio_iod_unix *iod, int op, bool get,
 
     switch (op) {
     case GENSIO_IOD_CONTROL_ARGV:
-	err = gensio_argv_copy(iod->r.f, (const char **) val, NULL, &nargv);
+	err = gensio_argv_copy(o, (const char **) val, NULL, &nargv);
 	if (err)
 	    return err;
 	if (iod->u.pty.argv)
-	    gensio_argv_free(iod->r.f, iod->u.pty.argv);
+	    gensio_argv_free(o, iod->u.pty.argv);
 	iod->u.pty.argv = nargv;
 	return 0;
 
     case GENSIO_IOD_CONTROL_ENV:
-	err = gensio_argv_copy(iod->r.f, (const char **) val, NULL, &nargv);
+	err = gensio_argv_copy(o, (const char **) val, NULL, &nargv);
 	if (err)
 	    return err;
 	if (iod->u.pty.env)
-	    gensio_argv_free(iod->r.f, iod->u.pty.env);
+	    gensio_argv_free(o, iod->u.pty.env);
 	iod->u.pty.env = nargv;
 	return 0;
 
     case GENSIO_IOD_CONTROL_START:
-	return gensio_unix_pty_start(iod->r.f, iod->fd, iod->u.pty.argv,
+	return gensio_unix_pty_start(o, iod->fd, iod->u.pty.argv,
 				     iod->u.pty.env, &iod->u.pty.pid);
+
+    case GENSIO_IOD_CONTROL_WIN_SIZE: {
+	struct winsize win;
+	struct gensio_winsize *gwin = (struct gensio_winsize *) val;
+
+	win.ws_row = gwin->ws_row;
+	win.ws_col = gwin->ws_col;
+	win.ws_xpixel = gwin->ws_xpixel;
+	win.ws_ypixel = gwin->ws_ypixel;
+	if (ioctl(iod->fd, TIOCSWINSZ, &win) == -1)
+	    err = gensio_os_err_to_err(o, errno);
+	return err;
+    }
 
     default:
 	return GE_NOTSUP;
