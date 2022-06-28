@@ -1963,7 +1963,7 @@ main(int argc, char *argv[])
     }
 
     if (!tlssh_dir) {
-	tlssh_dir = get_tlsshdir();
+	tlssh_dir = get_tlsshdir(NULL, NULL);
 	if (!tlssh_dir)
 	    return 1;
     }

@@ -37,28 +37,39 @@
 #include <Windows.h>
 #include <Lmcons.h>
 
+#define GTLSSHDIR "/.gtlssh"
+
 char *
-get_tlsshdir(void)
+get_homedir(const char *username, const char *extra)
 {
-    char homedrive[200];
-    char homepath[200];
     char *dir;
 
-    if (GetEnvironmentVariable("HOMEDRIVE", homedrive, sizeof(homedrive)) == 0)
-    {
-	fprintf(stderr, "No HOMEDRIVE set\n");
-	return NULL;
-    }
+    if (!extra)
+	extra = "";
 
-    if (GetEnvironmentVariable("HOMEPATH", homepath, sizeof(homepath)) == 0) {
-	fprintf(stderr, "No HOMEPATH set\n");
-	return NULL;
-    }
+    if (!username) {
+	char homedrive[200];
+	char homepath[200];
 
-    dir = alloc_sprintf("%s%s\\.gtlssh", homedrive, homepath);
-    if (!dir) {
-	fprintf(stderr, "Out of memory allocating gtlssh dir\n");
-	return NULL;
+	if (GetEnvironmentVariable("HOMEDRIVE", homedrive,
+				   sizeof(homedrive)) == 0)
+	    {
+		fprintf(stderr, "No HOMEDRIVE set\n");
+		return NULL;
+	    }
+
+	if (GetEnvironmentVariable("HOMEPATH", homepath,
+				   sizeof(homepath)) == 0) {
+	    fprintf(stderr, "No HOMEPATH set\n");
+	    return NULL;
+	}
+
+	dir = alloc_sprintf("%s%s%s", homedrive, homepath, extra);
+	if (!dir) {
+	    fprintf(stderr, "Out of memory allocating home dir\n");
+	    return NULL;
+	}
+    } else {
     }
 
     return dir;
@@ -100,18 +111,31 @@ get_my_username(void)
 #include <limits.h>
 #include <errno.h>
 
+#define GTLSSHDIR "/.gtlssh"
+
 char *
-get_tlsshdir(void)
+get_homedir(const char *username, const char *extra)
 {
-    const char *home = getenv("HOME");
     char *dir;
 
-    if (!home) {
-	fprintf(stderr, "No home directory set\n");
-	return NULL;
+    if (!extra)
+	extra = "";
+
+    if (!username) {
+	const char *home = getenv("HOME");
+
+	if (!home) {
+	    fprintf(stderr, "No home directory set\n");
+	    return NULL;
+	}
+
+	dir = alloc_sprintf("%s%s", home, extra);
+    } else {
+	struct passwd *pw = getpwnam(username);
+	
+	dir = alloc_sprintf("%s%s", pw->pw_dir, extra);
     }
 
-    dir = alloc_sprintf("%s/.gtlssh", home);
     if (!dir) {
 	fprintf(stderr, "Out of memory allocating gtlssh dir\n");
 	return NULL;
@@ -140,6 +164,21 @@ get_my_username(void)
 }
 
 #endif /* _WIN32 */
+
+char *
+get_tlsshdir(const char *username, const char *extra)
+{
+    char *hextra = GTLSSHDIR;
+
+    if (extra) {
+	hextra = alloc_sprintf("%s%s", GTLSSHDIR, extra);
+	if (!hextra) {
+	    fprintf(stderr, "Could not allocate tlsshdir\n");
+	    return NULL;
+	}
+    }
+    return get_homedir(username, hextra);
+}
 
 char *
 get_my_hostname(void)

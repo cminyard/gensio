@@ -1174,7 +1174,7 @@ main(int argc, char **argv)
     int i, rv = 1;
     const char *algorithm = NULL;
 
-    default_gtlsshdir = get_tlsshdir();
+    default_gtlsshdir = get_tlsshdir(NULL, NULL);
     if (!default_gtlsshdir)
 	exit(1);
     default_keydir = alloc_sprintf("%s%ckeycerts", default_gtlsshdir, DIRSEP);

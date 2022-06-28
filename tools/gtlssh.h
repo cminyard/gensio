@@ -31,7 +31,8 @@
 
 int checkout_file(const char *filename, bool expect_dir, bool check_private);
 bool file_is_readable(const char *filename);
-char *get_tlsshdir(void);
+char *get_homedir(const char *username, const char *extra);
+char *get_tlsshdir(const char *username, const char *extra);
 char *get_my_username(void);
 char *get_my_hostname(void);
 bool check_dir_exists(const char *dir, bool check_private);
