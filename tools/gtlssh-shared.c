@@ -32,12 +32,158 @@
 #define HOST_NAME_MAX 255
 #endif
 
+#define GTLSSHDIR DIRSEPS ".gtlssh"
+
 #ifdef _WIN32
 #include <winsock2.h>
 #include <Windows.h>
 #include <Lmcons.h>
+#include <ntsecapi.h>
+#include <userenv.h>
 
-#define GTLSSHDIR "/.gtlssh"
+void set_lsa_string(LSA_STRING *a, const char *b)
+{
+    a->Length = (USHORT) strlen(b);
+    a->MaximumLength = (USHORT)(a->Length + sizeof(*b));
+    a->Buffer = (char *) b;
+}
+
+static int win_get_user(const char *user, const char *src_module,
+			bool interactive, HANDLE *userh)
+{
+    HANDLE lsah;
+    NTSTATUS rv;
+    DWORD err = 0;
+    void *login_info= NULL;
+    LSA_STRING package_name;
+    ULONG package_auth;
+    DWORD user_chars = mbstowcs(NULL, user, strlen(user));
+    DWORD user_bytes = user_chars * sizeof(wchar_t);
+    bool domain_user;
+    DWORD logon_len;
+    char *pos;
+    TOKEN_SOURCE token_source;
+    LSA_STRING origin_name;
+    void *profile = NULL;
+    DWORD profile_len = 0;
+    LUID logon_id;
+    HANDLE htok;
+    QUOTA_LIMITS quota_limits;
+    NTSTATUS sub_status;
+
+    if (interactive) {
+	LSA_STRING name;
+	LSA_OPERATIONAL_MODE dummy1;
+
+	/* Interactive, get a token we can use for that. */
+	set_lsa_string(&name, src_module);
+	rv = LsaRegisterLogonProcess(&name, &lsah, &dummy1);
+    } else {
+	/* Just getting information, no need for a token requiring auth. */
+	rv = LsaConnectUntrusted(&lsah);
+    }
+    if (rv)
+	return LsaNtStatusToWinError(rv);
+
+    domain_user = strchr(user, '\\');
+
+    if (domain_user)
+	set_lsa_string(&package_name, MICROSOFT_KERBEROS_NAME_A);
+    else
+	set_lsa_string(&package_name, MSV1_0_PACKAGE_NAME);
+    rv = LsaLookupAuthenticationPackage(lsah, &package_name, &package_auth);
+    if (rv) {
+	err = LsaNtStatusToWinError(rv);
+	goto out_err;
+    }
+
+    if (domain_user) {
+	/* look up the Kerb authentication provider's index */
+	KERB_S4U_LOGON *s4u_logon;
+
+	/*
+	 * KERB_S4U_LOGON must be passed as a single contiguous buffer
+	 * that includes all strings, otherwise LsaLogonUser will
+	 * complain.  Add an extra char for the termination, just in
+	 * case.
+	 */
+	logon_len = sizeof(KERB_S4U_LOGON) + user_bytes;
+	s4u_logon = calloc(logon_len + sizeof(wchar_t), 1);
+	if (!s4u_logon) {
+	    err = STATUS_NO_MEMORY;
+	    goto out_err;
+	}
+	s4u_logon->MessageType = KerbS4ULogon;
+	if (interactive)
+	    s4u_logon->Flags = KERB_S4U_LOGON_FLAG_IDENTIFY;
+	s4u_logon->ClientUpn.Buffer = (wchar_t *) (s4u_logon + 1);
+	mbstowcs(s4u_logon->ClientUpn.Buffer, user, user_chars);
+	s4u_logon->ClientUpn.Length = user_bytes;
+	s4u_logon->ClientUpn.MaximumLength = user_bytes;
+	login_info = s4u_logon;
+    } else {
+	MSV1_0_S4U_LOGON *s4u_logon;
+
+	/*
+	 * MSV1_o_S4U_LOGON must be passed as a single contiguous
+	 * buffer that includes all strings, otherwise LsaLogonUser
+	 * will complain.  Add an extra char for the termination, just
+	 * in case.
+	 */
+	logon_len = sizeof(MSV1_0_S4U_LOGON) + user_bytes + sizeof(wchar_t);
+	s4u_logon = (MSV1_0_S4U_LOGON *) calloc(logon_len +
+						sizeof(wchar_t), 1);
+	if (!s4u_logon) {
+	    err = STATUS_NO_MEMORY;
+	    goto out_err;
+	}
+	s4u_logon->MessageType = MsV1_0S4ULogon;
+	if (interactive)
+	    s4u_logon->Flags = KERB_S4U_LOGON_FLAG_IDENTIFY;
+	pos = (char *) (s4u_logon + 1);
+	s4u_logon->UserPrincipalName.Buffer = (wchar_t *) pos;
+	mbstowcs(s4u_logon->UserPrincipalName.Buffer, user, user_chars);
+	s4u_logon->UserPrincipalName.Length = user_bytes;
+	s4u_logon->UserPrincipalName.MaximumLength = user_bytes;
+	pos += user_bytes;
+
+	s4u_logon->DomainName.Buffer = (wchar_t *) pos;
+	mbstowcs(s4u_logon->DomainName.Buffer, ".", 1);
+	s4u_logon->DomainName.Length = sizeof(wchar_t);
+	s4u_logon->DomainName.MaximumLength = sizeof(wchar_t);
+	login_info = s4u_logon;
+    }
+
+    /*
+     * This information is copied into the resulting token.  Note that
+     * SourceName is an 8 character ASCII buffer.
+     */
+    AllocateLocallyUniqueId(&token_source.SourceIdentifier);
+    strncpy(token_source.SourceName, src_module, 7);
+    token_source.SourceName[7] = 0;
+
+    set_lsa_string(&origin_name, src_module);
+
+    rv = LsaLogonUser(lsah, &origin_name, Network, package_auth,
+		      login_info, logon_len, NULL, &token_source,
+		      &profile, &profile_len, &logon_id, &htok,
+		      &quota_limits, &sub_status);
+    if (rv) {
+	err = LsaNtStatusToWinError(rv);
+	goto out_err;
+    }
+
+    *userh = htok;
+
+ out_err:
+    if (login_info)
+	free(login_info);
+    if (profile)
+	LsaFreeReturnBuffer(profile);
+    LsaClose(lsah);
+
+    return err;
+}
 
 char *
 get_homedir(const char *username, const char *extra)
@@ -48,28 +194,70 @@ get_homedir(const char *username, const char *extra)
 	extra = "";
 
     if (!username) {
-	char homedrive[200];
-	char homepath[200];
+	DWORD drive_len, path_len, extra_len = 0, rv;
 
-	if (GetEnvironmentVariable("HOMEDRIVE", homedrive,
-				   sizeof(homedrive)) == 0)
-	    {
+	drive_len = GetEnvironmentVariable("HOMEDRIVE", NULL, 0);
+	if (drive_len == 0) {
 		fprintf(stderr, "No HOMEDRIVE set\n");
 		return NULL;
-	    }
-
-	if (GetEnvironmentVariable("HOMEPATH", homepath,
-				   sizeof(homepath)) == 0) {
-	    fprintf(stderr, "No HOMEPATH set\n");
-	    return NULL;
 	}
+	/* Docs say return value includes the nil terminator. */
+	drive_len--;
+	path_len = GetEnvironmentVariable("HOMEPATH", NULL, 0);
+	if (path_len == 0) {
+		fprintf(stderr, "No HOMEPATH set\n");
+		return NULL;
+	}
+	path_len--;
+	if (extra)
+	    extra_len = strlen(extra);
 
-	dir = alloc_sprintf("%s%s%s", homedrive, homepath, extra);
+
+	dir = malloc(drive_len + path_len + extra_len + 1);
 	if (!dir) {
 	    fprintf(stderr, "Out of memory allocating home dir\n");
 	    return NULL;
 	}
+	rv = GetEnvironmentVariable("HOMEDRIVE", dir, drive_len + 1);
+	if (rv != drive_len) {
+		fprintf(stderr, "No HOMEDRIVE set\n");
+		return NULL;
+	}
+	rv = GetEnvironmentVariable("HOMEPATH", dir + drive_len, path_len + 1);
+	if (rv != path_len) {
+		fprintf(stderr, "No HOMEPATH set\n");
+		return NULL;
+	}
+	strncpy(dir + drive_len + path_len, extra, extra_len + 1);
     } else {
+	HANDLE userh = NULL;
+	DWORD err, len;
+
+	err = win_get_user(username, "gtlssh", false, &userh);
+	if (err) {
+	    char errbuf[128];
+
+	    FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM, NULL,
+			  err, 0, errbuf, sizeof(errbuf), NULL);
+	    fprintf(stderr, "Could not get user: %s\n", errbuf);
+	    return NULL;
+	}
+
+	len = 0;
+	if (!GetUserProfileDirectoryA(userh, NULL, &len)) {
+	    char errbuf[128];
+
+	    FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM, NULL,
+			  GetLastError(), 0, errbuf, sizeof(errbuf), NULL);
+	    fprintf(stderr, "GetUserProfileDirectory: %s\n", errbuf);
+	    return NULL;
+	}
+	dir = malloc(len);
+	if (!dir) {
+	    fprintf(stderr, "Out of memory allocating home dir\n");
+	    return NULL;
+	}
+	GetUserProfileDirectoryA(userh, dir, &len);
     }
 
     return dir;
@@ -110,8 +298,6 @@ get_my_username(void)
 #include <pwd.h>
 #include <limits.h>
 #include <errno.h>
-
-#define GTLSSHDIR "/.gtlssh"
 
 char *
 get_homedir(const char *username, const char *extra)
@@ -169,6 +355,8 @@ char *
 get_tlsshdir(const char *username, const char *extra)
 {
     char *hextra = GTLSSHDIR;
+    bool hextra_alloced = false;
+    char *dir;
 
     if (extra) {
 	hextra = alloc_sprintf("%s%s", GTLSSHDIR, extra);
@@ -176,8 +364,12 @@ get_tlsshdir(const char *username, const char *extra)
 	    fprintf(stderr, "Could not allocate tlsshdir\n");
 	    return NULL;
 	}
+	hextra_alloced = true;
     }
-    return get_homedir(username, hextra);
+    dir = get_homedir(username, hextra);
+    if (hextra_alloced)
+	free(hextra);
+    return dir;
 }
 
 char *
