@@ -700,6 +700,9 @@ if test $HAVE_OPENSSL -eq 1; then
    if test $HAVE_PAM -eq 1; then
       GTLSSHD="gtlsshd\$(EXEEXT)"
       GTLSSHDMAN=gtlsshd.8
+   elif test "$version_type" = "windows"; then
+      GTLSSHD="gtlsshd\$(EXEEXT)"
+      GTLSSHDMAN=gtlsshd.8
    fi
    GTLSSH="gtlssh\$(EXEEXT)"
    GTLSSHMAN=gtlssh.1

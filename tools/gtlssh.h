@@ -53,6 +53,9 @@ int run_get_output(const char *argv[],
 		   int *rc);
 
 #ifdef _WIN32
+#include <windows.h>
+int win_get_user(const char *user, const char *src_module,
+		 bool interactive, HANDLE *userh);
 #define DIRSEP '\\'
 #define DIRSEPS "\\"
 #else

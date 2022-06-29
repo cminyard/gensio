@@ -23,24 +23,38 @@
  *  release a modified version which carries forward this exception.
  */
 
+#include "config.h"
 #include <stdio.h>
-#include <unistd.h>
 #include <stdlib.h>
 #include <string.h>
-#include <errno.h>
-#include <syslog.h>
-#include <sys/types.h>
-#include <sys/wait.h>
-#include <pwd.h>
 #include <assert.h>
-#include <fcntl.h>
-#include <arpa/inet.h> /* For htonl and friends. */
-
-#include <security/pam_appl.h>
 
 #include <gensio/gensio.h>
 #include <gensio/gensio_builtins.h>
 #include <gensio/gensio_list.h>
+#include <gensio/argvutils.h>
+
+/* For htonl and friends. */
+#ifdef _WIN32
+#include <winsock2.h>
+#else
+#include <arpa/inet.h>
+#endif
+
+//#define _WIN32
+
+#ifndef _WIN32
+#include <unistd.h>
+#include <errno.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <pwd.h>
+#include <sys/ioctl.h>
+#include <fcntl.h>
+#include <security/pam_appl.h>
+#else
+#include <windows.h>
+#endif
 
 #include "ioinfo.h"
 #include "localports.h"
@@ -48,14 +62,100 @@
 #include "utils.h"
 #include "gtlssh.h"
 
+
+/* Global config options. */
+static const char *progname;
+static unsigned int debug;
+static bool oneshot;
+static bool permit_root = false;
+static bool pw_login = false;
+static bool do_2fa = false;
+static bool ginteractive_login = true;
+
+#ifndef _WIN32
+/*
+ * If this is set and a certificate auth happens, we use this to start
+ * PAM.  This way we can do 2-factor auth with certificates.
+ */
+static const char *pam_cert_auth_progname;
+static const char *pid_file = NULL;
+
+/* We fork in *nix. */
+#define DO_FORK 1
+
+#include <syslog.h>
+#define log_event syslog
+#define vlog_event vsyslog
+static void
+start_log(bool debug)
+{
+    if (!debug)
+	openlog(progname, 0, LOG_AUTH);
+    else
+	openlog(progname, LOG_PID | LOG_CONS | LOG_PERROR, LOG_DAEMON);
+}
+
+#else
+/* In windows we do threads. */
+#define DO_FORK 0
+
+#define LOG_NOTICE      EVENTLOG_SUCCESS
+#define LOG_INFO        EVENTLOG_INFORMATION_TYPE
+#define LOG_WARNING     EVENTLOG_WARNING_TYPE
+#define LOG_ERR         EVENTLOG_ERROR_TYPE
+#define LOG_CRIT        EVENTLOG_AUDIT_FAILURE
+#define LOG_DEBUG       EVENTLOG_INFORMATION_TYPE
+
+static HANDLE evlog;
+
+static void
+vlog_event(int level, const char *format, va_list va)
+{
+    char buf[128];
+    DWORD event_id = 0;
+    const char *strs[2] = { buf, NULL };;
+
+    switch(level) {
+    case LOG_NOTICE:  event_id = 0; break;
+    case LOG_INFO:    event_id = 1; break; /* and LOG_DEBUG */
+    case LOG_WARNING: event_id = 2; break;
+    case LOG_ERR:     event_id = 3; break;
+    case LOG_CRIT:    event_id = 3; break;
+    }
+    event_id <<= 1;
+    event_id |= 1;
+    event_id <<= 29;
+    vsnprintf(buf, sizeof(buf), format, va);
+    ReportEventA(evlog, level, 0, event_id, NULL, 1, 0, strs, NULL);
+}
+
+static void
+log_event(int level, const char *format, ...)
+{
+    va_list args;
+
+    va_start(args, format);
+    vlog_event(level, format, args);
+    va_end(args);
+}
+
+static void
+start_log(bool debug)
+{
+    evlog = OpenEventLogA(NULL, progname);
+    if (!evlog) {
+	char errbuf[128];
+
+	FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM, NULL,
+		      GetLastError(), 0, errbuf, sizeof(errbuf), NULL);
+	fprintf(stderr, "Could not get user: %s\n", errbuf);
+	exit(1);
+    }
+}
+#endif
+
 /* Default the program to this path. */
 #define STANDARD_PATH "/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
-
-unsigned int debug;
-bool oneshot;
-static const char *progname;
-
-static struct local_ports *locport;
 
 struct gdata {
     struct gensio_os_funcs *o;
@@ -63,14 +163,88 @@ struct gdata {
     char *key;
     char *cert;
 
-    struct gensio *rem_io;
+    unsigned int gclosecount;
+    struct gensio_lock *lock;
 
-    unsigned int closecount;
-    struct gensio_list cons;
+    struct gensio_list auths;
 };
 
-struct per_con_info {
+static void
+ginfo_lock(struct gdata *ginfo)
+{
+    ginfo->o->lock(ginfo->lock);
+}
+
+static void
+ginfo_unlock(struct gdata *ginfo)
+{
+    ginfo->o->unlock(ginfo->lock);
+}
+
+struct auth_data {
+    struct gensio_link link;
+
+    struct gensio_lock *lock;
+
     struct gdata *ginfo;
+    struct gensio *rem_io;
+
+    char username[100];
+    char *homedir;
+    char *ushell;
+    bool interactive_login;
+    bool interactive;
+
+    /*
+     * Note that passwd and val_2fa are passed to pam, so they must be
+     * allocated with malloc.
+     */
+    char *passwd;
+    char *val_2fa;
+    gensiods len_2fa;
+
+    char *raddr; /* From GETSIO_CONTROL_RADDR */
+    char *rhost; /* Host part, points into raddr, don't free */
+    bool authed_by_cert;
+
+    struct gtlssh_aux_data aux_data;
+    gensiods aux_data_len;
+
+    unsigned int closecount;
+
+#ifdef HAVE_LIBPAM
+    pam_handle_t *pamh;
+    bool pam_started;
+    bool pam_cred_set;
+    bool pam_session_open;
+    int pam_err;
+    uid_t uid;
+    gid_t gid;
+    struct pam_conv pam_conv;
+    char **pam_env;
+#endif
+#ifdef _WIN32
+    HANDLE userh;
+#endif
+
+    struct gensio_list cons;
+    struct local_ports *locport;
+};
+
+static void
+auth_lock(struct auth_data *auth)
+{
+    auth->ginfo->o->lock(auth->lock);
+}
+
+static void
+auth_unlock(struct auth_data *auth)
+{
+    auth->ginfo->o->unlock(auth->lock);
+}
+
+struct per_con_info {
+    struct auth_data *auth;
 
     /* Incoming connection from the remote. */
     struct gensio *io1;
@@ -92,11 +266,12 @@ struct per_con_info {
     unsigned int oobpos;
 };
 
-static const char *default_keyfile = SYSCONFDIR "/gtlssh/gtlsshd.key";
-static const char *default_certfile = SYSCONFDIR "/gtlssh/gtlsshd.crt";
-static const char *default_configfile = SYSCONFDIR "/gtlssh/gtlsshd.conf";
-
-static const char *pid_file = NULL;
+static const char *default_keyfile =
+    SYSCONFDIR DIRSEPS "gtlssh" DIRSEPS "gtlsshd.key";
+static const char *default_certfile =
+    SYSCONFDIR DIRSEPS "gtlssh" DIRSEPS "gtlsshd.crt";
+static const char *default_configfile =
+    SYSCONFDIR DIRSEPS "gtlssh" DIRSEPS "gtlsshd.conf";
 
 static int
 write_s_nl_addc(struct gensio *io, char *obuf, char c,
@@ -136,6 +311,7 @@ write_s_nl(struct gensio *io, const char *buf, gensiods len,
     return err;
 }
 
+#ifdef HAVE_LIBPAM
 static int
 write_file_to_gensio(const char *filename, struct gensio *io,
 		     struct gensio_os_funcs *o, gensio_time *timeout,
@@ -179,6 +355,7 @@ write_file_to_gensio(const char *filename, struct gensio *io,
 
     return err;
 }
+#endif
 
 static int
 write_buf_to_gensio(const char *buf, gensiods len, struct gensio *io,
@@ -207,85 +384,105 @@ write_str_to_gensio(const char *str, struct gensio *io,
     return write_buf_to_gensio(str, strlen(str), io, timeout, xlatnl);
 }
 
-static int
-read_rsp_from_gensio(char *buf, gensiods *len, struct gensio *io,
-		     gensio_time *timeout, bool echo)
-{
-    int err;
-    gensiods pos = 0, count;
-    gensiods size = *len;
-    char c;
-
-    err = gensio_set_sync(io);
-    if (err)
-	return err;
-
-    while (true) {
-	err = gensio_read_s(io, &count, &c, 1, timeout);
-	if (err)
-	    break;
-	if (count == 0) {
-	    err = GE_TIMEDOUT;
-	    break;
-	}
-	if (c == '\r' || c == '\n')
-	    break;
-	if (c == '\b' || c == 0x7f) {
-	    if (pos > 0)
-		pos--;
-	    if (echo)
-		gensio_write_s(io, NULL, "\b \b", 3, timeout);
-	    continue;
-	}
-	if (pos < size - 1) {
-	    buf[pos++] = c;
-	    if (echo)
-		gensio_write_s(io, NULL, &c, 1, timeout);
-	}
-    }
-
-    gensio_clear_sync(io);
-    buf[pos] = '\0';
-    *len = pos;
-
-    return err;
-}
-
 static void
-make_pidfile(void)
+closecount_decr_ginfo(struct gdata *ginfo)
 {
-    FILE *fpidfile;
-
-    if (!pid_file)
-	return;
-    fpidfile = fopen(pid_file, "w");
-    if (!fpidfile) {
-	syslog(LOG_WARNING,
-	       "Error opening pidfile '%s': %m, pidfile not created",
-	       pid_file);
-	pid_file = NULL;
-	return;
-    }
-    fprintf(fpidfile, "%d\n", getpid());
-    fclose(fpidfile);
-}
-
-static void
-closecount_decr(struct gdata *ginfo)
-{
-    assert(ginfo->closecount > 0);
-    ginfo->closecount--;
-    if (ginfo->closecount == 0)
+    ginfo_lock(ginfo);
+    assert(ginfo->gclosecount > 0);
+    ginfo->gclosecount--;
+    if (ginfo->gclosecount == 0 && (oneshot || DO_FORK))
+	/* All connections are closed, shut down the process. */
 	gensio_os_funcs_wake(ginfo->o, ginfo->waiter);
+    ginfo_unlock(ginfo);
+}
+
+static void
+auth_free(struct auth_data *auth)
+{
+    struct gensio_os_funcs *o = auth->ginfo->o;
+
+    if (auth->locport)
+	free_local_ports(auth->locport);
+    if (auth->homedir)
+	o->free(o, auth->homedir);
+    if (auth->ushell)
+	o->free(o, auth->ushell);
+    if (auth->passwd) {
+	memset(auth->passwd, 0, strlen(auth->passwd));
+	free(auth->passwd);
+    }
+    if (auth->val_2fa) {
+	memset(auth->val_2fa, 0, auth->len_2fa);
+	free(auth->val_2fa);
+    }
+    if (auth->raddr)
+	o->free(o, auth->raddr);
+#ifdef HAVE_LIBPAM
+    if (auth->pam_session_open) {
+	auth->pam_err = pam_close_session(auth->pamh, PAM_SILENT);
+	if (auth->pam_err != PAM_SUCCESS)
+	    log_event(LOG_ERR, "pam_close_session failed for %s: %s",
+		      auth->username,
+		      pam_strerror(auth->pamh, auth->pam_err));
+    } else if (auth->pam_cred_set) {
+	auth->pam_err = pam_setcred(auth->pamh, PAM_DELETE_CRED | PAM_SILENT);
+	if (auth->pam_err != PAM_SUCCESS)
+	    log_event(LOG_ERR, "pam_setcred delete failed for %s: %s",
+		      auth->username,
+		      pam_strerror(auth->pamh, auth->pam_err));
+    }
+    if (auth->pamh)
+	pam_end(auth->pamh, auth->pam_err);
+    if (auth->pam_env) {
+	unsigned int i;
+
+	for (i = 0; auth->pam_env[i]; i++)
+	    free(auth->pam_env[i]);
+	free(auth->pam_env);
+    }
+#endif
+    o->free(o, auth);
+}
+
+static void
+closecount_decr(struct auth_data *auth)
+{
+    bool do_free;
+
+    auth_lock(auth);
+    assert(gensio_list_empty(&auth->cons));
+    assert(auth->closecount > 0);
+    auth->closecount--;
+    do_free = auth->closecount == 0;
+    auth_unlock(auth);
+    if (do_free) {
+	struct gdata *ginfo = auth->ginfo;
+
+	ginfo_lock(ginfo);
+	gensio_list_rm(&ginfo->auths, &auth->link);
+	ginfo_unlock(ginfo);
+	auth_free(auth);
+	closecount_decr_ginfo(ginfo);
+    }
+}
+
+static void
+closecount_incr(struct auth_data *auth)
+{
+    auth_lock(auth);
+    auth->closecount++;
+    auth_unlock(auth);
 }
 
 static void
 io_finish_close(struct per_con_info *pcinfo)
 {
     if (pcinfo->io1 == NULL && pcinfo->io2 == NULL) {
-	free(pcinfo->ioinfo1);
-	free(pcinfo->ioinfo2);
-	free(pcinfo);
+	struct gensio_os_funcs *o = pcinfo->auth->ginfo->o;
+
+	free_ioinfo(pcinfo->ioinfo1);
+	free_ioinfo(pcinfo->ioinfo2);
+	o->free(o, pcinfo);
     }
 }
 
@@ -293,7 +490,7 @@ static void
 io_close(struct gensio *io, void *close_data)
 {
     struct per_con_info *pcinfo = close_data;
-    struct gdata *ginfo = pcinfo->ginfo;
+    struct auth_data *auth = pcinfo->auth;
 
     if (io == pcinfo->io1)
 	pcinfo->io1 = NULL;
@@ -305,23 +502,26 @@ io_close(struct gensio *io, void *close_data)
     gensio_free(io);
     io_finish_close(pcinfo);
 
-    closecount_decr(ginfo);
+    closecount_decr(auth);
 }
 
 static void
 close_con_info(struct per_con_info *pcinfo)
 {
-    struct gdata *ginfo = pcinfo->ginfo;
+    struct auth_data *auth = pcinfo->auth;
     int err;
+    unsigned int closecount = 0;
 
-    gensio_list_rm(&ginfo->cons, &pcinfo->link);
+    auth_lock(auth);
+    gensio_list_rm(&auth->cons, &pcinfo->link);
+    auth_unlock(auth);
     if (pcinfo->io1_can_close) {
 	pcinfo->io1_can_close = false;
 	err = gensio_close(pcinfo->io1, io_close, pcinfo);
 	if (err) {
-	    syslog(LOG_ERR, "Unable to close remote: %s",
-		   gensio_err_to_str(err));
-	    ginfo->closecount--;
+	    log_event(LOG_ERR, "Unable to close remote: %s",
+		      gensio_err_to_str(err));
+	    closecount++;
 	    gensio_free(pcinfo->io1);
 	    pcinfo->io1 = NULL;
 	}
@@ -334,9 +534,9 @@ close_con_info(struct per_con_info *pcinfo)
 	pcinfo->io2_can_close = false;
 	err = gensio_close(pcinfo->io2, io_close, pcinfo);
 	if (err) {
-	    syslog(LOG_ERR, "Unable to close local: %s",
-		   gensio_err_to_str(err));
-	    ginfo->closecount--;
+	    log_event(LOG_ERR, "Unable to close local: %s",
+		      gensio_err_to_str(err));
+	    closecount++;
 	    gensio_free(pcinfo->io2);
 	    pcinfo->io2 = NULL;
 	}
@@ -345,27 +545,27 @@ close_con_info(struct per_con_info *pcinfo)
 	pcinfo->io2 = NULL;
     }
     io_finish_close(pcinfo);
+
+    while (closecount > 0)
+	closecount_decr(auth);
 }
 
 static void
 gshutdown(struct ioinfo *ioinfo, enum ioinfo_shutdown_reason reason)
 {
     struct per_con_info *pcinfo = ioinfo_userdata(ioinfo);
-    struct gdata *ginfo = pcinfo->ginfo;
+    struct auth_data *auth = pcinfo->auth;
 
-    if (reason == IOINFO_SHUTDOWN_USER_REQ) {
-	gensio_os_funcs_wake(ginfo->o, ginfo->waiter);
-    } else {
+    if (reason == IOINFO_SHUTDOWN_USER_REQ)
+	gensio_os_funcs_wake(auth->ginfo->o, auth->ginfo->waiter);
+    else
 	close_con_info(pcinfo);
-	if (ginfo->closecount == 0)
-	    gensio_os_funcs_wake(ginfo->o, ginfo->waiter);
-    }
 }
 
 static void
 gerr(struct ioinfo *ioinfo, char *fmt, va_list ap)
 {
-    vsyslog(LOG_ERR, fmt, ap);
+    vlog_event(LOG_ERR, fmt, ap);
 }
 
 static void
@@ -383,9 +583,8 @@ static int gevent(struct ioinfo *ioinfo, struct gensio *io, int event,
 		  const char *const *auxdata)
 {
     struct per_con_info *pcinfo = ioinfo_userdata(ioinfo);
-    struct gdata *ginfo = pcinfo->ginfo;
 
-    return mux_event(io, ginfo, event, ierr, buf, buflen, auxdata);
+    return mux_event(io, pcinfo->auth, event, ierr, buf, buflen, auxdata);
 }
 
 static void
@@ -428,10 +627,10 @@ handle_remote_socket(struct per_con_info *pcinfo,
     if (!strstartswith(accepter, "tcp,") &&
 		!strstartswith(accepter, "sctp,") &&
 		!strstartswith(accepter, "unix,")) {
-	syslog(LOG_ERR, "Unknown accepter type: %s\n", accepter);
+	log_event(LOG_ERR, "Unknown accepter type: %s\n", accepter);
 	return;
     }
-    add_local_port(locport, accepter, service, accepter);
+    add_local_port(pcinfo->auth->locport, accepter, service, accepter);
 }
 
 /*
@@ -481,35 +680,53 @@ static struct ioinfo_user_handlers guh = {
 static void
 acc_shutdown(struct gensio_accepter *acc, void *done_data)
 {
-    struct gdata *ginfo = done_data;
-
-    closecount_decr(ginfo);
+    closecount_decr_ginfo(done_data);
 }
 
-static pam_handle_t *pamh;
-static char *passwd;
-static char *val_2fa;
-static gensiods len_2fa;
-static bool pam_started = false;
-static bool pam_cred_set = false;
-static bool pam_session_open = false;
-static bool authed_by_cert = false;
-static char username[100];
-static char *homedir;
-static char *ushell;
-static int pam_err;
-static uid_t uid = -1;
-static gid_t gid = -1;
-static bool interactive_login = true;
+#ifdef HAVE_LIBPAM
+static int
+read_rsp_from_gensio(char *buf, gensiods *len, struct gensio *io,
+		     gensio_time *timeout, bool echo)
+{
+    int err;
+    gensiods pos = 0, count;
+    gensiods size = *len;
+    char c;
 
-static struct gtlssh_aux_data aux_data;
-static gensiods aux_data_len;
+    err = gensio_set_sync(io);
+    if (err)
+	return err;
 
-/*
- * If this is set and a certificate auth happens, we use this to start
- * PAM.  This way we can do 2-factor auth with certificates.
- */
-static const char *pam_cert_auth_progname;
+    while (true) {
+	err = gensio_read_s(io, &count, &c, 1, timeout);
+	if (err)
+	    break;
+	if (count == 0) {
+	    err = GE_TIMEDOUT;
+	    break;
+	}
+	if (c == '\r' || c == '\n')
+	    break;
+	if (c == '\b' || c == 0x7f) {
+	    if (pos > 0)
+		pos--;
+	    if (echo)
+		gensio_write_s(io, NULL, "\b \b", 3, timeout);
+	    continue;
+	}
+	if (pos < size - 1) {
+	    buf[pos++] = c;
+	    if (echo)
+		gensio_write_s(io, NULL, &c, 1, timeout);
+	}
+    }
+
+    gensio_clear_sync(io);
+    buf[pos] = '\0';
+    *len = pos;
+
+    return err;
+}
 
 /*
  * Ambiguity in spec: is it an array of pointers or a pointer to an array?
@@ -521,178 +738,14 @@ static const char *pam_cert_auth_progname;
 # define PAM_MSG_MEMBER(msg, n, member) ((msg)[(n)]->member)
 #endif
 
-static bool permit_root = false;
-static bool pw_login = false;
-static bool do_2fa = false;
-
-static int
-get_vals_from_service(char ***rvals, unsigned int *rvlen,
-		      char *str, gensiods len)
-{
-    unsigned int i;
-    static char **vals = NULL;
-    unsigned int vlen = 0;
-
-    /*
-     * Scan for a double nil that marks the end, counting the number
-     * of items we find along the way.
-     */
-    for (i = 0; str[i]; ) {
-	for (; str[i]; i++) {
-	    if (i >= len)
-		return GE_INVAL;
-	}
-	if (++i >= len)
-	    return GE_INVAL;
-	vlen++;
-    }
-    if (vlen == 0)
-	return 0;
-
-    vals = malloc((vlen + 1) * sizeof(char *));
-    if (!vals)
-	return GE_NOMEM;
-
-    /* Rescan, setting the variable array items. */
-    *rvals = vals;
-    if (rvlen)
-	*rvlen = vlen;
-    for (i = 0; str[i]; ) {
-	*vals++ = str + i;
-	for (; str[i]; i++)
-	    ;
-	i++;
-    }
-    *vals = NULL;
-    return 0;
-}
-
-static int
-get_2fa(struct gensio *io)
-{
-    int err;
-    char dummy;
-
-    len_2fa = 0;
-    err = gensio_control(io, 0, GENSIO_CONTROL_GET, GENSIO_CONTROL_2FA,
-			 &dummy, &len_2fa);
-    if (err) {
-	if (err == GE_DATAMISSING)
-	    return 0;
-	return err;
-    }
-    val_2fa = malloc(len_2fa + 1);
-    if (!val_2fa)
-	return GE_NOMEM;
-    val_2fa[len_2fa] = '\0'; /* nil terminate, 2fa may be binary. */
-    err = gensio_control(io, 0, GENSIO_CONTROL_GET, GENSIO_CONTROL_2FA,
-			 val_2fa, &len_2fa);
-    if (err) {
-	free(val_2fa);
-	val_2fa = NULL;
-    }
-    return err;
-}
-
-static int
-certauth_event(struct gensio *io, void *user_data, int event, int ierr,
-	       unsigned char *buf, gensiods *buflen,
-	       const char *const *auxdata)
-{
-    int err;
-
-    switch (event) {
-    case GENSIO_EVENT_AUTH_BEGIN: {
-	char authdir[1000];
-	gensiods len;
-	struct passwd *pw;
-
-	len = sizeof(username);
-	err = gensio_control(io, 0, GENSIO_CONTROL_GET, GENSIO_CONTROL_USERNAME,
-			     username, &len);
-	if (err) {
-	    syslog(LOG_ERR, "No username provided by remote: %s",
-		   gensio_err_to_str(err));
-	    return GE_AUTHREJECT;
-	}
-	pw = getpwnam(username);
-	if (!pw) {
-	    syslog(LOG_ERR, "Invalid username provided by remote: %s",
-		   username);
-	    return GE_AUTHREJECT;
-	}
-	if (!permit_root &&
-			(strcmp(username, "root") == 0 || pw->pw_uid == 0)) {
-	    syslog(LOG_ERR, "Root login not permitted");
-	    return GE_AUTHREJECT;
-	}
-	uid = pw->pw_uid;
-	gid = pw->pw_gid;
-	homedir = pw->pw_dir;
-	ushell = pw->pw_shell;
-	if (ushell[0] == '\0')
-	    ushell = "/bin/sh";
-
-	len = snprintf(authdir, sizeof(authdir), "%s/.gtlssh/allowed_certs/",
-		       pw->pw_dir);
-	err = gensio_control(io, 0, GENSIO_CONTROL_SET,
-			     GENSIO_CONTROL_CERT_AUTH, authdir, &len);
-	if (err) {
-	    syslog(LOG_ERR, "Could not set authdir %s: %s", authdir,
-		   gensio_err_to_str(err));
-	    return GE_NOTSUP;
-	}
-
-	return GE_NOTSUP;
-    }
-
-    case GENSIO_EVENT_PRECERT_VERIFY:
-	return GE_NOTSUP;
-
-    case GENSIO_EVENT_POSTCERT_VERIFY:
-	if (ierr && !pw_login) {
-	    syslog(LOG_ERR, "certificate failed verify for %s, "
-		   "passwords disabled: %s\n", username,
-		   auxdata[0] ? auxdata[0] : "");
-	    return GE_AUTHREJECT;
-	}
-	if (!ierr) {
-	    syslog(LOG_INFO, "Accepted certificate for %s\n", username);
-	    authed_by_cert = true;
-	}
-	return GE_NOTSUP;
-
-    case GENSIO_EVENT_PASSWORD_VERIFY:
-	passwd = strdup((char *) buf);
-	if (!passwd)
-	    return GE_NOMEM;
-	err = get_2fa(io);
-	if (err)
-	    return err;
-	return GE_NOTSUP;
-
-    case GENSIO_EVENT_2FA_VERIFY:
-	len_2fa = *buflen;
-	val_2fa = malloc(len_2fa + 1);
-	if (!val_2fa)
-	    return GE_NOMEM;
-	memcpy(val_2fa, buf, len_2fa);
-	val_2fa[len_2fa] = '\0';
-	return GE_NOTSUP;
-
-    default:
-	return GE_NOTSUP;
-    }
-}
-
 static int
 gensio_pam_cb(int num_msg, const struct pam_message **msg,
 	      struct pam_response **resp, void *appdata_ptr)
 {
     int i, j, err;
     struct pam_response *reply = NULL;
-    struct gdata *ginfo = appdata_ptr;
-    struct gensio *io = ginfo->rem_io;
+    struct auth_data *auth = appdata_ptr;
+    struct gensio *io = auth->rem_io;
     char buf[100];
     gensio_time timeout = { 60, 0 };
 
@@ -715,20 +768,21 @@ gensio_pam_cb(int num_msg, const struct pam_message **msg,
 	case PAM_PROMPT_ECHO_OFF:
 	case PAM_PROMPT_ECHO_ON:
 	    /* If we have passwd or 2fa data, just supply it. */
-	    if (passwd) {
-		reply[i].resp = passwd;
+	    if (auth->passwd) {
+		reply[i].resp = auth->passwd;
 		if (!reply[i].resp)
 		    goto out_err;
-		passwd = NULL;
+		auth->passwd = NULL;
 		break;
-	    } else if (val_2fa) {
-		reply[i].resp = val_2fa;
+	    } else if (auth->val_2fa) {
+		reply[i].resp = auth->val_2fa;
 		if (!reply[i].resp)
 		    goto out_err;
-		val_2fa = NULL;
+		auth->val_2fa = NULL;
+		auth->len_2fa = 0;
 		break;
 	    }
-	    if (!interactive_login)
+	    if (!auth->interactive_login)
 		goto out_err;
 
 	    if (msgdata) {
@@ -778,26 +832,452 @@ gensio_pam_cb(int num_msg, const struct pam_message **msg,
     free(reply);
     return PAM_CONV_ERR;
 }
+#endif
 
-static struct pam_conv gensio_conv = { gensio_pam_cb, NULL };
-static char **pam_env;
+static int
+get_vals_from_service(struct gensio_os_funcs *o,
+		      char ***rvals, unsigned int *rvlen,
+		      char *str, gensiods len)
+{
+    unsigned int i;
+    static char **vals = NULL;
+    unsigned int vlen = 0;
+
+    /*
+     * Scan for a double nil that marks the end, counting the number
+     * of items we find along the way.
+     */
+    for (i = 0; str[i]; ) {
+	for (; str[i]; i++) {
+	    if (i >= len)
+		return GE_INVAL;
+	}
+	if (++i >= len)
+	    return GE_INVAL;
+	vlen++;
+    }
+    if (vlen == 0)
+	return 0;
+
+    vals = o->zalloc(o, (vlen + 1) * sizeof(char *));
+    if (!vals)
+	return GE_NOMEM;
+
+    /* Rescan, setting the variable array items. */
+    *rvals = vals;
+    if (rvlen)
+	*rvlen = vlen;
+    for (i = 0; str[i]; ) {
+	*vals++ = str + i;
+	for (; str[i]; i++)
+	    ;
+	i++;
+    }
+    *vals = NULL;
+    return 0;
+}
+
+static int
+get_2fa(struct auth_data *auth, struct gensio *io)
+{
+    int err;
+    char dummy;
+
+    auth->len_2fa = 0;
+    err = gensio_control(io, 0, GENSIO_CONTROL_GET, GENSIO_CONTROL_2FA,
+			 &dummy, &auth->len_2fa);
+    if (err) {
+	if (err == GE_DATAMISSING)
+	    return 0;
+	return err;
+    }
+    /* Note: We must use malloc here, it goes to pam. */
+    auth->val_2fa = malloc(auth->len_2fa + 1);
+    if (!auth->val_2fa)
+	return GE_NOMEM;
+    auth->val_2fa[auth->len_2fa] = '\0'; /* nil terminate, 2fa may be binary. */
+    err = gensio_control(io, 0, GENSIO_CONTROL_GET, GENSIO_CONTROL_2FA,
+			 auth->val_2fa, &auth->len_2fa);
+    if (err) {
+	free(auth->val_2fa);
+	auth->val_2fa = NULL;
+    }
+    return err;
+}
+
+#ifndef _WIN32
+static int
+setup_user(struct auth_data *auth)
+{
+    struct gensio_os_funcs *o = auth->ginfo->o;
+    struct passwd *pw;
+
+    pw = getpwnam(auth->username);
+    if (!pw) {
+	log_event(LOG_ERR, "Invalid username provided by remote: %s",
+		  auth->username);
+	return GE_AUTHREJECT;
+    }
+    if (!permit_root &&
+		(strcmp(auth->username, "root") == 0 || pw->pw_uid == 0)) {
+	log_event(LOG_ERR, "Root login not permitted");
+	return GE_AUTHREJECT;
+    }
+    auth->uid = pw->pw_uid;
+    auth->gid = pw->pw_gid;
+    auth->homedir = gensio_strdup(o, pw->pw_dir);
+    if (!auth->homedir) {
+	log_event(LOG_ERR, "Out of memory allocating home dir");
+	return GE_NOMEM;
+    }
+    if (pw->pw_shell[0] == '\0')
+	auth->ushell = gensio_strdup(o, "/bin/sh");
+    else
+	auth->ushell = gensio_strdup(o, pw->pw_shell);
+    if (!auth->ushell) {
+	log_event(LOG_ERR, "Out of memory allocating shell");
+	return GE_NOMEM;
+    }
+    return 0;
+}
+
+static int
+switch_to_user(struct auth_data *auth)
+{
+    int err, err2;
+
+    err = setegid(auth->gid);
+    if (err) {
+	log_event(LOG_ERR, "setgid failed: %s", strerror(errno));
+	return err;
+    }
+    err = seteuid(auth->uid);
+    if (err) {
+	err2 = setegid(getgid());
+	if (err2)
+	    log_event(LOG_WARNING, "err reset setgid failed: %s",
+		      strerror(errno));
+	log_event(LOG_ERR, "setuid failed: %s", strerror(errno));
+	return err;
+    }
+    return 0;
+}
 
 static void
-new_rem_io(struct gensio *io, struct gdata *ginfo)
+switch_from_user(struct auth_data *auth)
 {
-    struct gensio_os_funcs *o = ginfo->o;
+    int err;
+
+    err = seteuid(getuid());
+    if (err)
+	log_event(LOG_WARNING, "reset setuid failed: %s", strerror(errno));
+    err = setegid(getgid());
+    if (err)
+	log_event(LOG_WARNING, "reset setgid failed: %s", strerror(errno));
+}
+
+static int
+setup_auth(struct auth_data *auth)
+{
+    const char *pn;
+
+    pn = progname;
+    if (pam_cert_auth_progname && auth->authed_by_cert)
+	pn = pam_cert_auth_progname;
+    auth->pam_conv.appdata_ptr = auth;
+    auth->pam_err = pam_start(pn, auth->username, &auth->pam_conv, &auth->pamh);
+    if (auth->pam_err != PAM_SUCCESS) {
+	log_event(LOG_ERR, "pam_start failed for %s: %s", auth->username,
+		  pam_strerror(auth->pamh, auth->pam_err));
+	return GE_AUTHREJECT;
+    }
+    auth->pam_started = true;
+    return 0;
+}
+
+static int
+finish_auth(struct auth_data *auth)
+{
+    struct gensio_os_funcs *o = auth->ginfo->o;
+    int pamflags = 0, err;
+
+    if (auth->rhost)
+	pam_set_item(auth->pamh, PAM_RHOST, auth->rhost);
+
+    if (!auth->interactive)
+	pamflags |= PAM_SILENT;
+
+    /*
+     * We need to do this because authorization in pam is skipped if
+     * we do a certificate login.
+     */
+    if (file_is_readable("/etc/nologin") && auth->uid != 0) {
+	gensio_time timeout = {10, 0};
+	if (auth->interactive)
+	    /* Don't send this to non-interactive logins. */
+	    write_file_to_gensio("/etc/nologin", auth->rem_io,
+				 o, &timeout, true);
+	return GE_AUTHREJECT;
+    }
+
+    if (!gensio_is_authenticated(auth->rem_io) || pam_cert_auth_progname) {
+	int tries = 3;
+
+	if (!auth->interactive_login)
+	    tries = 1;
+	auth->pam_err = pam_authenticate(auth->pamh, pamflags);
+	while (auth->pam_err != PAM_SUCCESS && tries > 0) {
+	    gensio_time timeout = {10, 0};
+
+	    err = write_str_to_gensio("Permission denied, please try again\n",
+				      auth->rem_io, &timeout, true);
+	    if (err) {
+		log_event(LOG_INFO, "Error writing password prompt: %s\n",
+			  gensio_err_to_str(err));
+		return err;
+	    }
+	    auth->pam_err = pam_authenticate(auth->pamh, pamflags);
+	    tries--;
+	}
+
+	if (auth->pam_err != PAM_SUCCESS) {
+	    gensio_time timeout = {10, 0};
+
+	    if (auth->interactive_login) {
+		err = write_str_to_gensio("Too many tries, giving up\n",
+					  auth->rem_io, &timeout, true);
+		log_event(LOG_ERR, "Too many login tries for %s\n",
+			  auth->username);
+	    } else {
+		err = write_str_to_gensio("Non-interactive login only\n",
+					  auth->rem_io, &timeout, true);
+		log_event(LOG_ERR, "Non-interactive login only %s\n",
+			  auth->username);
+	    }
+	    if (err) {
+		log_event(LOG_INFO, "Error writing login error: %s\n",
+			  gensio_err_to_str(err));
+	    }
+	    return err;
+	}
+	log_event(LOG_INFO, "Accepted password for %s\n", auth->username);
+	/* FIXME - gensio_set_is_authenticated(certauth_io, true); */
+    }
+
+    auth->pam_err = pam_acct_mgmt(auth->pamh, pamflags);
+    if (auth->pam_err == PAM_NEW_AUTHTOK_REQD) {
+	if (auth->interactive) {
+	    log_event(LOG_ERR,
+		      "user %s password expired, non-interactive login",
+		      auth->username);
+	    return GE_CONNREFUSE;
+	}
+	auth->pam_err = pam_chauthtok(auth->pamh, pamflags);
+	if (auth->pam_err != PAM_SUCCESS) {
+	    log_event(LOG_ERR, "Changing password for %s failed",
+		      auth->username);
+	    return GE_AUTHREJECT;
+	}
+    } else if (auth->pam_err != PAM_SUCCESS) {
+	log_event(LOG_ERR, "pam_acct_mgmt failed for %s: %s", auth->username,
+		  pam_strerror(auth->pamh, auth->pam_err));
+	return GE_AUTHREJECT;
+    }
+
+    auth->pam_err = pam_setcred(auth->pamh, PAM_ESTABLISH_CRED | pamflags);
+    if (auth->pam_err != PAM_SUCCESS) {
+	log_event(LOG_ERR, "pam_setcred failed for %s: %s", auth->username,
+		  pam_strerror(auth->pamh, auth->pam_err));
+	return GE_AUTHREJECT;
+    }
+    auth->pam_cred_set = true;
+
+    auth->pam_err = pam_open_session(auth->pamh, pamflags);
+    if (auth->pam_err != PAM_SUCCESS) {
+	log_event(LOG_ERR, "pam_open_session failed for %s: %s", auth->username,
+		  pam_strerror(auth->pamh, auth->pam_err));
+	return GE_AUTHREJECT;
+    }
+    auth->pam_session_open = true;
+
+    auth->pam_env = pam_getenvlist(auth->pamh);
+    if (!auth->pam_env) {
+	log_event(LOG_ERR, "pam_getenvlist failed for %s", auth->username);
+	return GE_NOMEM;
+    }
+
+    return 0;
+}
+
+#else
+
+static int
+setup_user(struct auth_data *auth)
+{
+    auth->homedir = get_homedir(auth->username, NULL);
+    if (!auth->homedir)
+	return GE_NOMEM;
+    auth->ushell = gensio_strdup(auth->ginfo->o,
+				 "C:\\\\Windows\\\\System32\\\\cmd.exe");
+    if (!auth->ushell) {
+	log_event(LOG_ERR, "Could not allocate shell string");
+	return GE_NOMEM;
+    }
+    return 0;
+}
+
+static int
+switch_to_user(struct auth_data *auth)
+{
+    int err;
+
+    err = win_get_user(auth->username, "gtlsshd", true, &auth->userh);
+    if (err) {
+	char errbuf[128];
+
+	CloseHandle(auth->userh);
+	auth->userh = NULL;
+	FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM, NULL,
+		      err, 0, errbuf, sizeof(errbuf), NULL);
+	fprintf(stderr, "Could not get user '%s': %s\n",
+		auth->username, errbuf);
+	return gensio_os_err_to_err(auth->ginfo->o, GetLastError());
+    }
+    if (!SetThreadToken(NULL, auth->userh)) {
+	char errbuf[128];
+
+	CloseHandle(auth->userh);
+	auth->userh = NULL;
+	FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM, NULL,
+		      GetLastError(), 0, errbuf, sizeof(errbuf), NULL);
+	fprintf(stderr, "Could not set thread user: %s\n", errbuf);
+	return gensio_os_err_to_err(auth->ginfo->o, GetLastError());
+    }
+    return 0;
+}
+
+static void
+switch_from_user(struct auth_data *auth)
+{
+    CloseHandle(auth->userh);
+    auth->userh = NULL;
+    if (!RevertToSelf()) {
+	char errbuf[128];
+
+	FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM, NULL,
+		      GetLastError(), 0, errbuf, sizeof(errbuf), NULL);
+	fprintf(stderr, "Could not revert user: %s\n", errbuf);
+    }
+}
+
+static int
+setup_auth(struct auth_data *auth)
+{
+    return 0;
+}
+
+static int
+finish_auth(struct auth_data *auth)
+{
+    return 0;
+}
+
+#endif
+
+static int
+certauth_event(struct gensio *io, void *user_data, int event, int ierr,
+	       unsigned char *buf, gensiods *buflen,
+	       const char *const *auxdata)
+{
+    struct auth_data *auth = user_data;
+    int err;
+
+    switch (event) {
+    case GENSIO_EVENT_AUTH_BEGIN: {
+	char authdir[1000];
+	gensiods len;
+
+	len = sizeof(auth->username);
+	err = gensio_control(io, 0, GENSIO_CONTROL_GET, GENSIO_CONTROL_USERNAME,
+			     auth->username, &len);
+	if (err) {
+	    log_event(LOG_ERR, "No username provided by remote: %s",
+		      gensio_err_to_str(err));
+	    return GE_AUTHREJECT;
+	}
+	err = setup_user(auth);
+	if (err)
+	    return err;
+
+	len = snprintf(authdir, sizeof(authdir), "%s%c.gtlssh%callowed_certs%c",
+		       auth->homedir, DIRSEP, DIRSEP, DIRSEP);
+	err = gensio_control(io, 0, GENSIO_CONTROL_SET,
+			     GENSIO_CONTROL_CERT_AUTH, authdir, &len);
+	if (err) {
+	    log_event(LOG_ERR, "Could not set authdir %s: %s", authdir,
+		      gensio_err_to_str(err));
+	    return GE_NOTSUP;
+	}
+
+	return GE_NOTSUP;
+    }
+
+    case GENSIO_EVENT_PRECERT_VERIFY:
+	return GE_NOTSUP;
+
+    case GENSIO_EVENT_POSTCERT_VERIFY:
+	if (ierr && !pw_login) {
+	    log_event(LOG_ERR, "certificate failed verify for %s, "
+		      "passwords disabled: %s\n", auth->username,
+		      auxdata[0] ? auxdata[0] : "");
+	    return GE_AUTHREJECT;
+	}
+	if (!ierr) {
+	    log_event(LOG_INFO, "Accepted certificate for %s\n",
+		      auth->username);
+	    auth->authed_by_cert = true;
+	}
+	return GE_NOTSUP;
+
+    case GENSIO_EVENT_PASSWORD_VERIFY:
+	auth->passwd = strdup((char *) buf);
+	if (!auth->passwd)
+	    return GE_NOMEM;
+	err = get_2fa(auth, io);
+	if (err)
+	    return err;
+	return GE_NOTSUP;
+
+    case GENSIO_EVENT_2FA_VERIFY:
+	auth->len_2fa = *buflen;
+	auth->val_2fa = malloc(auth->len_2fa + 1);
+	if (!auth->val_2fa)
+	    return GE_NOMEM;
+	memcpy(auth->val_2fa, buf, auth->len_2fa);
+	auth->val_2fa[auth->len_2fa] = '\0';
+	return GE_NOTSUP;
+
+    default:
+	return GE_NOTSUP;
+    }
+}
+
+static void
+new_rem_io(struct gensio *io, struct auth_data *auth)
+{
+    struct gensio_os_funcs *o = auth->ginfo->o;
     struct per_con_info *pcinfo = NULL;
     struct gensio *pty_io;
     gensiods len;
     char *s = NULL;
-    int err, err2;
+    int err;
     char **progv = NULL; /* If set in the service. */
     bool login = false;
     bool do_chdir = false;
     char *service = NULL;
-    char **env = NULL, **penv2;
+    char **env = NULL;
     unsigned int env_len = 0;
-    unsigned int i, j;
+    const char **penv2 = NULL;
 
     len = 0;
     err = gensio_control(io, 0, GENSIO_CONTROL_GET, GENSIO_CONTROL_SERVICE,
@@ -810,23 +1290,23 @@ new_rem_io(struct gensio *io, struct gdata *ginfo)
 	goto out_free;
     }
     len++; /* Add terminating nil. */
-    service = malloc(len);
+    service = o->zalloc(o, len);
     if (!service) {
-	syslog(LOG_ERR, "Could not allocate service memory");
+	log_event(LOG_ERR, "Could not allocate service memory");
 	goto out_free;
     }
     err = gensio_control(io, 0, GENSIO_CONTROL_GET, GENSIO_CONTROL_SERVICE,
 			 service, &len);
     if (err) {
-	syslog(LOG_ERR, "Could not get service(2): %s",
-	       gensio_err_to_str(err));
+	log_event(LOG_ERR, "Could not get service(2): %s",
+		  gensio_err_to_str(err));
 	goto out_free;
     }
     if (strstartswith(service, "program:")) {
 	char *str = strchr(service, ':') + 1;
 
 	len -= str - service;
-	err = get_vals_from_service(&progv, NULL, str, len);
+	err = get_vals_from_service(o, &progv, NULL, str, len);
     out_bad_vals:
 	if (err) {
 	    gensio_time timeout = {10, 0};
@@ -836,16 +1316,17 @@ new_rem_io(struct gensio *io, struct gdata *ginfo)
 	    goto out_free;
 	}
 	/* Dummy out the program, we will set it later with a control. */
-	s = alloc_sprintf("stdio(stderr-to-stdout,readbuf=16384),dummy");
+	s = gensio_alloc_sprintf(o,
+				 "stdio(stderr-to-stdout,readbuf=16384),dummy");
 	do_chdir = true;
     } else if (strstartswith(service, "login:")) {
 	char *str = strchr(service, ':') + 1;
 
 	len -= str - service;
-	err = get_vals_from_service(&env, &env_len, str, len);
+	err = get_vals_from_service(o, &env, &env_len, str, len);
 	if (err)
 	    goto out_bad_vals;
-	s = alloc_sprintf("pty,%s -i", ushell);
+	s = gensio_alloc_sprintf(o, "pty,%s -i", auth->ushell);
 	login = true;
 	do_chdir = true;
     } else if (strstartswith(service, "tcp,") ||
@@ -876,11 +1357,11 @@ new_rem_io(struct gensio *io, struct gdata *ginfo)
 	    goto out_free;
 	}
 
-	s = alloc_sprintf("%s,%s,%ld", service, host, port);
+	s = gensio_alloc_sprintf(o, "%s,%s,%ld", service, host, port);
     } else if (strstartswith(service, "unix,")) {
 	char *path = strchr(service, ',') + 1;
 
-	s = alloc_sprintf("unix,%s", service, path);
+	s = gensio_alloc_sprintf(o, "unix,%s", service, path);
     } else {
 	gensio_time timeout = {10, 0};
 
@@ -888,85 +1369,122 @@ new_rem_io(struct gensio *io, struct gdata *ginfo)
 	goto out_free;
     }
     if (!s) {
-	syslog(LOG_ERR, "Out of memory allocating program name");
+	log_event(LOG_ERR, "Out of memory allocating program name");
 	goto out_free;
     }
 
     if (login || progv) {
-	for (i = 0; pam_env[i]; i++)
+	unsigned int i = 0, j;
+
+#ifdef HAVE_LIBPAM
+	for (i = 0; auth->pam_env[i]; i++)
 	    ;
-	i += 4; /* Add a slot for minimal environment */
-	penv2 = malloc((i + env_len + 1) * sizeof(char *));
+#endif
+#ifndef _WIN32
+	i += 4;
+#endif
+	i += env_len;
+	if (i == 0)
+	    goto skip_env;
+
+	penv2 = o->zalloc(o, (i + 1) * sizeof(char *));
 	if (!penv2) {
-	    syslog(LOG_ERR, "Failure to reallocate env for %s", username);
-	    exit(1);
+	    log_event(LOG_ERR, "Failure to reallocate env for %s",
+		      auth->username);
+	    goto out_free;
 	}
 
-	penv2[0] = alloc_sprintf("HOME=%s", homedir);
-	if (!penv2[0]) {
-	    syslog(LOG_ERR, "Failure to alloc HOME env space for %s", username);
-	    exit(1);
+	i = 0;
+#ifndef _WIN32
+	penv2[i] = gensio_alloc_sprintf(o, "HOME=%s", auth->homedir);
+	if (!penv2[i]) {
+	    log_event(LOG_ERR, "Failure to alloc HOME env space for %s",
+		      auth->username);
+	    goto out_free;
 	}
-	penv2[1] = alloc_sprintf("USER=%s", username);
-	if (!penv2[1]) {
-	    syslog(LOG_ERR, "Failure to alloc USER env space for %s", username);
-	    exit(1);
+	i++;
+	penv2[i] = gensio_alloc_sprintf(o, "USER=%s", auth->username);
+	if (!penv2[i]) {
+	    log_event(LOG_ERR, "Failure to alloc USER env space for %s",
+		      auth->username);
+	    goto out_free;
 	}
-	penv2[2] = alloc_sprintf("LOGNAME=%s", username);
-	if (!penv2[2]) {
-	    syslog(LOG_ERR, "Failure to alloc LOGNAME env space for %s",
-		   username);
-	    exit(1);
+	i++;
+	penv2[i] = gensio_alloc_sprintf(o, "LOGNAME=%s", auth->username);
+	if (!penv2[i]) {
+	    log_event(LOG_ERR, "Failure to alloc LOGNAME env space for %s",
+		      auth->username);
+	    goto out_free;
 	}
-	penv2[3] = alloc_sprintf("PATH=%s", STANDARD_PATH);
-	if (!penv2[3]) {
-	    syslog(LOG_ERR, "Failure to alloc PATH env space for %s", username);
-	    exit(1);
+	i++;
+	penv2[i] = gensio_alloc_sprintf("PATH=%s", STANDARD_PATH);
+	if (!penv2[i]) {
+	    log_event(LOG_ERR, "Failure to alloc PATH env space for %s",
+		      auth->username);
+	    goto out_free;
 	}
-	for (i = 4, j = 0; pam_env[j]; i++, j++)
-	    penv2[i] = pam_env[j];
+	i++;
+#endif
+#ifdef HAVE_LIBPAM
+	for (j = 0; auth->pam_env[j]; i++, j++) {
+	    penv2[i] = gensio_strdup(o, auth->pam_env[j]);
+	    if (!penv2[i]) {
+		log_event(LOG_ERR, "Failure to alloc env space for %s",
+			  auth->username);
+		goto out_free;
+	    }
+	}
+#endif
 	if (env) {
-	    for (j = 0; j < env_len; i++, j++)
-		penv2[i] = env[j];
-	    free(env);
+	    for (j = 0; j < env_len; i++, j++) {
+		penv2[i] = gensio_strdup(o, env[j]);
+		if (!penv2[i]) {
+		    log_event(LOG_ERR, "Failure to alloc env space for %s",
+			      auth->username);
+		    goto out_free;
+		}
+	    }
 	}
 	penv2[i] = NULL;
-	env = penv2;
     }
+ skip_env:
 
-    pcinfo = malloc(sizeof(*pcinfo));
+    pcinfo = o->zalloc(o, sizeof(*pcinfo));
     if (!pcinfo) {
-	syslog(LOG_ERR, "Unable to allocate SSL pc info");
+	log_event(LOG_ERR, "Unable to allocate SSL pc info");
 	goto out_free;
     }
-    memset(pcinfo, 0, sizeof(*pcinfo));
-    pcinfo->ginfo = ginfo;
+    pcinfo->auth = auth;
     pcinfo->ooblen = 3;
 
     pcinfo->ioinfo1 = alloc_ioinfo(o, -1, NULL, NULL, &guh, pcinfo);
     if (!pcinfo->ioinfo1) {
-	syslog(LOG_ERR, "Could not allocate ioinfo 1\n");
-	free(pcinfo);
+	log_event(LOG_ERR, "Could not allocate ioinfo 1\n");
+	o->free(o, pcinfo);
 	goto out_free;
     }
 
     pcinfo->ioinfo2 = alloc_ioinfo(o, -1, NULL, NULL, &guh, pcinfo);
     if (!pcinfo->ioinfo2) {
 	free_ioinfo(pcinfo->ioinfo1);
-	free(pcinfo);
-	syslog(LOG_ERR, "Could not allocate ioinfo 2\n");
+	o->free(o, pcinfo);
+	log_event(LOG_ERR, "Could not allocate ioinfo 2\n");
 	goto out_free;
     }
+
+    /* After this point we use out_err, which will free pcinfo. */
 
     ioinfo_set_otherioinfo(pcinfo->ioinfo1, pcinfo->ioinfo2);
 
     gensio_set_user_data(io, pcinfo->ioinfo1);
 
-    ginfo->rem_io = NULL;
-    gensio_list_add_tail(&ginfo->cons, &pcinfo->link);
+    auth->rem_io = NULL;
     pcinfo->io1_can_close = true;
-    ginfo->closecount++;
     pcinfo->io1 = io;
+
+    auth_lock(auth);
+    gensio_list_add_tail(&auth->cons, &pcinfo->link);
+    auth_unlock(auth);
 
     if (login) {
 	err = gensio_control(io, GENSIO_CONTROL_DEPTH_ALL, GENSIO_CONTROL_SET,
@@ -979,11 +1497,13 @@ new_rem_io(struct gensio *io, struct gdata *ginfo)
 
 	pcinfo->is_pty = true;
     }
+    closecount_incr(auth);
+
     err = str_to_gensio(s, o, NULL, NULL, &pty_io);
-    free(s);
+    o->free(o, s);
     s = NULL;
     if (err) {
-	syslog(LOG_ERR, "pty alloc failed: %s", gensio_err_to_str(err));
+	log_event(LOG_ERR, "pty alloc failed: %s", gensio_err_to_str(err));
 	goto out_err;
     }
     pcinfo->io2 = pty_io;
@@ -991,10 +1511,10 @@ new_rem_io(struct gensio *io, struct gdata *ginfo)
     if (do_chdir) {
 	err = gensio_control(pty_io, 0, GENSIO_CONTROL_SET,
 			     GENSIO_CONTROL_START_DIRECTORY,
-			     (char *) homedir, NULL);
+			     auth->homedir, NULL);
 	if (err) {
-		syslog(LOG_ERR, "Setting start directory failed: %s",
-		       gensio_err_to_str(err));
+		log_event(LOG_ERR, "Setting start directory failed: %s",
+			  gensio_err_to_str(err));
 		goto out_err;
 	}
     }
@@ -1003,45 +1523,38 @@ new_rem_io(struct gensio *io, struct gdata *ginfo)
 	err = gensio_control(pty_io, 0, GENSIO_CONTROL_SET, GENSIO_CONTROL_ARGS,
 			     (char *) progv, NULL);
 	if (err) {
-		syslog(LOG_ERR, "Setting program arguments failed: %s",
-		       gensio_err_to_str(err));
+		log_event(LOG_ERR, "Setting program arguments failed: %s",
+			  gensio_err_to_str(err));
 		goto out_err;
 	}
     }
 
     if (progv || login) {
+	char *use_env = (char *) env;
+
+	if (penv2)
+	    use_env = (char *) penv2;
+
 	err = gensio_control(pty_io, 0, GENSIO_CONTROL_SET,
-			     GENSIO_CONTROL_ENVIRONMENT, (char *) env, NULL);
+			     GENSIO_CONTROL_ENVIRONMENT, use_env, NULL);
 	if (err) {
-	    syslog(LOG_ERR, "set env failed for %s: %s", username,
-		   gensio_err_to_str(err));
+	    log_event(LOG_ERR, "set env failed for %s: %s", auth->username,
+		      gensio_err_to_str(err));
 	    goto out_err;
 	}
     }
 
-    err = setegid(gid);
-    if (err) {
-	syslog(LOG_ERR, "setgid failed: %s", strerror(errno));
+    err = switch_to_user(auth);
+    if (err)
 	goto out_err;
-    }
-    err = seteuid(uid);
-    if (err) {
-	syslog(LOG_ERR, "setuid failed: %s", strerror(errno));
-	goto out_err;
-    }
     err = gensio_open_s(pty_io);
-    err2 = seteuid(getuid());
-    if (err2)
-	syslog(LOG_WARNING, "reset setuid failed: %s", strerror(errno));
-    err2 = setegid(getgid());
-    if (err2)
-	syslog(LOG_WARNING, "reset setgid failed: %s", strerror(errno));
+    switch_from_user(auth);
     if (err) {
-	syslog(LOG_ERR, "pty open failed: %s", gensio_err_to_str(err));
+	log_event(LOG_ERR, "pty open failed: %s", gensio_err_to_str(err));
 	goto out_err;
     }
     pcinfo->io2_can_close = true;
-    ginfo->closecount++;
+    closecount_incr(auth);
 
     ioinfo_set_ready(pcinfo->ioinfo1, io);
     ioinfo_set_ready(pcinfo->ioinfo2, pty_io);
@@ -1060,20 +1573,22 @@ new_rem_io(struct gensio *io, struct gdata *ginfo)
     goto out_free;
 
  out_err:
-    gshutdown(pcinfo->ioinfo1, false);
+    gshutdown(pcinfo->ioinfo1, IOINFO_SHUTDOWN_ERR);
     io = NULL;
 
  out_free:
     if (io)
 	gensio_free(io);
     if (env)
-	free(env);
+	o->free(o, env); /* Entries are from the service string. */
+    if (penv2)
+	gensio_argv_free(o, penv2);
     if (progv)
-	free(progv);
+	o->free(o, progv); /* Entries are from the service string. */
     if (service)
-	free(service);
+	o->free(o, service);
     if (s)
-	free(s);
+	o->free(o, s);
 }
 
 static int
@@ -1101,10 +1616,10 @@ mux_event(struct gensio *io, void *user_data, int event, int ierr,
     return GE_NOTSUP;
 }
 
-static struct gensio *
-open_mux(struct gensio *io, struct gdata *ginfo)
+static int
+open_mux(struct gensio **io, struct auth_data *auth, struct gensio **nio)
 {
-    struct gensio_os_funcs *o = ginfo->o;
+    struct gensio_os_funcs *o = auth->ginfo->o;
     struct gensio *mux_io;
     gensiods len;
     int err;
@@ -1122,12 +1637,13 @@ open_mux(struct gensio *io, struct gdata *ginfo)
 				       "readbuf=1048128",
 				       NULL };
 
-    err = mux_gensio_alloc(io, isclient, o, mux_event, ginfo, &mux_io);
+    err = mux_gensio_alloc(*io, isclient, o, mux_event, auth, &mux_io);
     if (err) {
-	syslog(LOG_ERR, "Unable to allocate mux gensio: %s",
-	       gensio_err_to_str(err));
-	exit(1);
+	log_event(LOG_ERR, "Unable to allocate mux gensio: %s",
+		  gensio_err_to_str(err));
+	return err;
     }
+    *io = NULL;
 
     /* Enable OOB data from the mux. */
     len = 1;
@@ -1135,45 +1651,78 @@ open_mux(struct gensio *io, struct gdata *ginfo)
 
     err = gensio_open_nochild_s(mux_io);
     if (err) {
-	syslog(LOG_ERR, "mux open failed: %s", gensio_err_to_str(err));
-	exit(1);
+	gensio_free(mux_io);
+	log_event(LOG_ERR, "mux open failed: %s", gensio_err_to_str(err));
+	return err;
     }
 
-    return mux_io;
+    *nio = mux_io;
+    return 0;
 }
 
 static void
-handle_new(struct gensio_runner *r, void *cb_data)
+pr_localport(void *cb_data, const char *fmt, va_list ap)
 {
-    struct gensio *net_io = cb_data;
+    vlog_event(LOG_ERR, fmt, ap);
+}
+
+static void
+handle_new(struct gensio *net_io)
+{
+    bool free_net_io = true;
     struct gdata *ginfo = gensio_get_user_data(net_io);
     struct gensio_os_funcs *o = ginfo->o;
     int err;
     const char *ssl_args[] = { ginfo->key, ginfo->cert, "mode=server", NULL };
     const char *certauth_args[] = { "mode=server", "allow-authfail", NULL,
 				    NULL, NULL };
-    struct gensio *ssl_io, *certauth_io, *top_io;
+    struct gensio *ssl_io = NULL, *certauth_io = NULL, *top_io = NULL;
+    struct auth_data *auth;
     gensiods len;
     char tmpservice[20];
-    const char *pn;
-    bool interactive = false;
     unsigned int i;
     char dummy;
-    int pamflags = 0;
 
-    gensio_os_funcs_free_runner(o, r);
+    auth = o->zalloc(o, sizeof(*auth));
+    if (!auth) {
+	gensio_free(net_io);
+	log_event(LOG_ERR, "Unable to allocate auth data");
+	return;
+    }
+    gensio_list_init(&auth->cons);
+    auth->ginfo = ginfo;
+    /* After this errors to to out_err. */
+
+    auth->lock = o->alloc_lock(o);
+    if (!auth->lock)
+	goto out_err;
+
+    auth->locport = alloc_local_ports(o, pr_localport, NULL);
+    if (!auth->locport) {
+	log_event(LOG_ERR, "Could not allocate local port data\n");
+	goto out_err;
+    }
+
+    auth->interactive_login = ginteractive_login;
+#ifdef HAVE_LIBPAM
+    auth->uid = -1;
+    auth->gid = -1;
+    auth->pam_conv.conv = gensio_pam_cb;
+    auth->pam_conv.appdata_ptr = auth;
+#endif
 
     err = ssl_gensio_alloc(net_io, ssl_args, o, NULL, NULL, &ssl_io);
     if (err) {
-	syslog(LOG_ERR, "Unable to allocate SSL gensio: %s",
-	       gensio_err_to_str(err));
-	exit(1);
+	log_event(LOG_ERR, "Unable to allocate SSL gensio: %s",
+		  gensio_err_to_str(err));
+	goto out_err;
     }
+    free_net_io = false;
 
     err = gensio_open_nochild_s(ssl_io);
     if (err) {
-	syslog(LOG_ERR, "SSL open failed: %s", gensio_err_to_str(err));
-	exit(1);
+	log_event(LOG_ERR, "SSL open failed: %s", gensio_err_to_str(err));
+	goto out_err;
     }
 
     i = 2;
@@ -1184,31 +1733,32 @@ handle_new(struct gensio_runner *r, void *cb_data)
 	certauth_args[i++] = "enable-2fa";
 
     err = certauth_gensio_alloc(ssl_io, certauth_args, o,
-				certauth_event, NULL, &certauth_io);
+				certauth_event, auth, &certauth_io);
     if (err) {
-	syslog(LOG_ERR, "Unable to allocate certauth gensio: %s",
-	       gensio_err_to_str(err));
-	exit(1);
+	log_event(LOG_ERR, "Unable to allocate certauth gensio: %s",
+		  gensio_err_to_str(err));
+	goto out_err;
     }
+    ssl_io = NULL;
 
     err = gensio_open_nochild_s(certauth_io);
     if (err) {
-	syslog(LOG_ERR, "certauth open failed: %s", gensio_err_to_str(err));
-	exit(1);
+	log_event(LOG_ERR, "certauth open failed: %s", gensio_err_to_str(err));
+	goto out_err;
     }
 
-    aux_data_len = sizeof(aux_data);
+    auth->aux_data_len = sizeof(auth->aux_data);
     err = gensio_control(certauth_io, 0, GENSIO_CONTROL_GET,
 			 GENSIO_CONTROL_REM_AUX_DATA,
-			 (char *) &aux_data, &aux_data_len);
+			 (char *) &auth->aux_data, &auth->aux_data_len);
     if (err)
-	aux_data_len = 0;
+	auth->aux_data_len = 0;
 
-    if (aux_data_len >= sizeof(aux_data)) {
-	aux_data.flags = ntohl(aux_data.flags);
+    if (auth->aux_data_len >= sizeof(auth->aux_data)) {
+	auth->aux_data.flags = ntohl(auth->aux_data.flags);
 
-	if (aux_data.flags & GTLSSH_AUX_FLAG_NO_INTERACTIVE)
-	    interactive_login = false;
+	if (auth->aux_data.flags & GTLSSH_AUX_FLAG_NO_INTERACTIVE)
+	    auth->interactive_login = false;
     }
 
     /* FIXME - figure out a way to unstack certauth_io after authentication */
@@ -1220,11 +1770,13 @@ handle_new(struct gensio_runner *r, void *cb_data)
 	gensio_time timeout = {10, 0};
 	write_str_to_gensio("Could not get service\n", certauth_io,
 			    &timeout, true);
-	exit(1);
+	goto out_err;
     }
 
     if (strstartswith(tmpservice, "mux")) {
-	top_io = open_mux(certauth_io, ginfo);
+	err = open_mux(&certauth_io, auth, &top_io);
+	if (err)
+	    goto out_err;
 	len = sizeof(tmpservice);
 	err = gensio_control(top_io, 0, GENSIO_CONTROL_GET,
 			     GENSIO_CONTROL_SERVICE, tmpservice, &len);
@@ -1232,206 +1784,113 @@ handle_new(struct gensio_runner *r, void *cb_data)
 	    gensio_time timeout = {10, 0};
 	    write_str_to_gensio("Could not get service(2)\n", top_io,
 				&timeout, true);
-	    exit(1);
+	    goto out_err;
 	}
     } else {
 	top_io = certauth_io;
+	certauth_io = NULL;
     }
 
-    pn = progname;
-    if (pam_cert_auth_progname && authed_by_cert)
-	pn = pam_cert_auth_progname;
-    ginfo->rem_io = top_io;
-    gensio_conv.appdata_ptr = ginfo;
-    pam_err = pam_start(pn, username, &gensio_conv, &pamh);
-    if (pam_err != PAM_SUCCESS) {
-	syslog(LOG_ERR, "pam_start failed for %s: %s", username,
-	       pam_strerror(pamh, pam_err));
-	exit(1);
-    }
-    pam_started = true;
+    auth->rem_io = top_io;
+
+    err = setup_auth(auth);
+    if (err)
+	goto out_err;
 
     /* Set rhost.  If any of thils fails, we just go on. */
     len = 0;
     err = gensio_control(net_io, 0, GENSIO_CONTROL_GET,
 			 GENSIO_CONTROL_RADDR, &dummy, &len);
     if (!err && len > 0) {
-	char *rhost = malloc(len + 1), *c2;
+	char *c2;
 
-	if (!rhost)
+	auth->raddr = o->zalloc(o, len + 1);
+	if (!auth->raddr)
 	    goto skip_rhost;
 	err = gensio_control(net_io, 0, GENSIO_CONTROL_GET,
-			     GENSIO_CONTROL_RADDR, rhost, &len);
-	if (err)
+			     GENSIO_CONTROL_RADDR, auth->raddr, &len);
+	if (err) {
+	    o->free(o, auth->raddr);
+	    auth->raddr = NULL;
 	    goto skip_rhost;
+	}
 
 	/* Pull the address out, it's between the first and last comma. */
-	c2 = strrchr(rhost, ',');
+	c2 = strrchr(auth->raddr, ',');
 	if (c2)
 	    *c2 = '\0';
-	c2 = strchr(rhost, ',');
+	c2 = strchr(auth->raddr, ',');
 	if (c2)
 	    c2++;
 	else
-	    c2 = rhost;
+	    c2 = auth->raddr;
 
-	pam_set_item(pamh, PAM_RHOST, c2);
-
-    skip_rhost:
-	if (rhost)
-	    free(rhost);
+	auth->rhost = c2;
     }
+ skip_rhost:
 
     if (strstartswith(tmpservice, "login:"))
-	interactive = true;
-    else
-	pamflags |= PAM_SILENT;
+	auth->interactive = true;
 
-    /*
-     * We need to do this because authorization in pam is skipped if
-     * we do a certificate login.
-     */
-    if (file_is_readable("/etc/nologin") && uid != 0) {
-	gensio_time timeout = {10, 0};
-	if (interactive)
-	    /* Don't send this to non-interactive logins. */
-	    write_file_to_gensio("/etc/nologin", top_io, o, &timeout, true);
-	exit(1);
-    }
-
-    if (!gensio_is_authenticated(top_io) || pam_cert_auth_progname) {
-	int tries = 3;
-
-	if (!interactive_login)
-	    tries = 1;
-	pam_err = pam_authenticate(pamh, pamflags);
-	while (pam_err != PAM_SUCCESS && tries > 0) {
-	    gensio_time timeout = {10, 0};
-
-	    err = write_str_to_gensio("Permission denied, please try again\n",
-				      top_io, &timeout, true);
-	    if (err) {
-		syslog(LOG_INFO, "Error writing password prompt: %s\n",
-		       gensio_err_to_str(err));
-		exit(1);
-	    }
-	    pam_err = pam_authenticate(pamh, pamflags);
-	    tries--;
-	}
-
-	if (pam_err != PAM_SUCCESS) {
-	    gensio_time timeout = {10, 0};
-
-	    if (interactive_login) {
-		err = write_str_to_gensio("Too many tries, giving up\n",
-					  top_io, &timeout, true);
-		syslog(LOG_ERR, "Too many login tries for %s\n", username);
-	    } else {
-		err = write_str_to_gensio("Non-interactive login only\n",
-					  top_io, &timeout, true);
-		syslog(LOG_ERR, "Non-interactive login only %s\n", username);
-	    }
-	    if (err) {
-		syslog(LOG_INFO, "Error writing login error: %s\n",
-		       gensio_err_to_str(err));
-	    }
-	    exit(1);
-	}
-	syslog(LOG_INFO, "Accepted password for %s\n", username);
-	/* FIXME - gensio_set_is_authenticated(certauth_io, true); */
-    }
-
-    pam_err = pam_acct_mgmt(pamh, pamflags);
-    if (pam_err == PAM_NEW_AUTHTOK_REQD) {
-	if (interactive) {
-	    syslog(LOG_ERR, "user %s password expired, non-interactive login",
-		   username);
-	    exit(1);
-	}
-	pam_err = pam_chauthtok(pamh, pamflags);
-	if (pam_err != PAM_SUCCESS) {
-	    syslog(LOG_ERR, "Changing password for %s failed", username);
-	    exit(1);
-	}
-    } else if (pam_err != PAM_SUCCESS) {
-	syslog(LOG_ERR, "pam_acct_mgmt failed for %s: %s", username,
-	       pam_strerror(pamh, pam_err));
-	exit(1);
-    }
-
-    pam_err = pam_setcred(pamh, PAM_ESTABLISH_CRED | pamflags);
-    if (pam_err != PAM_SUCCESS) {
-	syslog(LOG_ERR, "pam_setcred failed for %s: %s", username,
-	       pam_strerror(pamh, pam_err));
-	exit(1);
-    }
-    pam_cred_set = true;
-
-    pam_err = pam_open_session(pamh, pamflags);
-    if (pam_err != PAM_SUCCESS) {
-	syslog(LOG_ERR, "pam_open_session failed for %s: %s", username,
-	       pam_strerror(pamh, pam_err));
-	exit(1);
-    }
-    pam_session_open = true;
-
-    pam_env = pam_getenvlist(pamh);
-    if (!pam_env) {
-	syslog(LOG_ERR, "pam_getenvlist failed for %s", username);
-	exit(1);
-    }
-    /* login will open the session, don't do it here. */
+    err = finish_auth(auth);
+    if (err)
+	goto out_err;
 
     /* At this point we are fully authenticated and have all global info. */
+    ginfo_lock(ginfo);
+    gensio_list_add_tail(&ginfo->auths, &auth->link);
+    ginfo->gclosecount++;
+    ginfo_unlock(ginfo);
 
-    start_local_ports(locport, top_io);
-    new_rem_io(top_io, ginfo);
+    start_local_ports(auth->locport, top_io);
+    new_rem_io(top_io, auth);
+
     return;
+
+ out_err:
+    if (free_net_io)
+	gensio_free(net_io);
+    if (ssl_io)
+	gensio_free(ssl_io);
+    if (certauth_io)
+	gensio_free(certauth_io);
+    if (top_io)
+	gensio_free(top_io);
+    auth_free(auth);
+    if (oneshot)
+	gensio_os_funcs_wake(o, ginfo->waiter);
 }
 
 static struct gensio_accepter *tcp_acc, *sctp_acc, *other_acc;
 
-static int
-acc_event(struct gensio_accepter *accepter, void *user_data,
-	  int event, void *data)
+#ifndef _WIN32
+static void
+handle_new_runner(struct gensio_runner *r, void *cb_data)
 {
-    struct gdata *ginfo = gensio_acc_get_user_data(accepter);
+    struct gensio *net_io = cb_data;
+    struct gdata *ginfo = gensio_get_user_data(net_io);
     struct gensio_os_funcs *o = ginfo->o;
-    struct gensio *io;
+
+    gensio_os_funcs_free_runner(o, r);
+    handle_new(net_io);
+}
+
+static void
+setup_new_connection(struct gdata *ginfo, struct gensio *io)
+{
+    struct gensio_os_funcs *o = ginfo->o;
     struct gensio_runner *r;
-    int pid, err;
-
-    if (event == GENSIO_ACC_EVENT_LOG) {
-	struct gensio_loginfo *li = data;
-	int level = LOG_INFO;
-
-	switch (li->level) {
-	case GENSIO_LOG_FATAL:	level = LOG_CRIT; break;
-	case GENSIO_LOG_ERR:	level = LOG_ERR; break;
-	case GENSIO_LOG_WARNING:level = LOG_WARNING; break;
-	case GENSIO_LOG_INFO:	level = LOG_INFO; break;
-	case GENSIO_LOG_DEBUG:	level = LOG_DEBUG; break;
-	}
-	vsyslog(LOG_DAEMON | level, li->str, li->args);
-	return 0;
-    }
-
-    if (event != GENSIO_ACC_EVENT_NEW_CONNECTION)
-	return GE_NOTSUP;
-
-    io = data;
+    pid_t pid;
+    int err;
 
     if (oneshot)
 	goto skip_fork;
 
     switch ((pid = fork())) {
     case -1:
-	syslog(LOG_ERR, "Could not fork: %s", strerror(errno));
-	err = gensio_close(io, NULL, NULL);
-	if (err)
-	    syslog(LOG_ERR, "Could not close after fork: %s",
-		   gensio_err_to_str(err));
-	return 0;
+	log_event(LOG_ERR, "Could not fork: %s", strerror(errno));
+	gensio_free(io);
+	return;
 
     case 0:
 	/*
@@ -1441,16 +1900,17 @@ acc_event(struct gensio_accepter *accepter, void *user_data,
 	 */
 	err = gensio_os_funcs_handle_fork(o);
 	if (err) {
-	    syslog(LOG_ERR, "Could not fork gensio handler: %s",
-		   gensio_err_to_str(err));
+	    log_event(LOG_ERR, "Could not fork gensio handler: %s",
+		      gensio_err_to_str(err));
 	    exit(1);
+	    return;
 	}
 	pid_file = NULL; /* Make sure children don't delete this. */
 
 	setsid();
 	switch (fork()) {
 	case -1:
-	    syslog(LOG_ERR, "Could not fork twice: %s", strerror(errno));
+	    log_event(LOG_ERR, "Could not fork twice: %s", strerror(errno));
 	    exit(1);
 	case 0:
 	    break;
@@ -1477,15 +1937,15 @@ acc_event(struct gensio_accepter *accepter, void *user_data,
 
 	/* Since handle_new does blocking calls, can't do it here. */
 	gensio_set_user_data(io, ginfo); /* Just temporarily. */
-	r = gensio_os_funcs_alloc_runner(o, handle_new, io);
+	r = gensio_os_funcs_alloc_runner(o, handle_new_runner, io);
 	if (!r) {
-	    syslog(LOG_ERR, "Could not allocate runner");
+	    log_event(LOG_ERR, "Could not allocate runner");
 	    exit(1);
 	}
 	err = gensio_os_funcs_run(o, r);
 	if (err) {
-	    syslog(LOG_ERR, "Could not run runner: %s",
-		   gensio_err_to_str(err));
+	    log_event(LOG_ERR, "Could not run runner: %s",
+		      gensio_err_to_str(err));
 	    exit(1);
 	}
 	break;
@@ -1497,6 +1957,148 @@ acc_event(struct gensio_accepter *accepter, void *user_data,
 	waitpid(pid, NULL, 0);
 	break;
     }
+}
+
+static void
+make_pidfile(void)
+{
+    FILE *fpidfile;
+
+    if (!pid_file)
+	return;
+    fpidfile = fopen(pid_file, "w");
+    if (!fpidfile) {
+	log_event(LOG_WARNING,
+		  "Error opening pidfile '%s': %m, pidfile not created",
+		  pid_file);
+	pid_file = NULL;
+	return;
+    }
+    fprintf(fpidfile, "%d\n", getpid());
+    fclose(fpidfile);
+}
+
+static void
+do_daemonize(struct gensio_os_funcs *o)
+{
+    pid_t pid;
+
+    if ((pid = fork()) > 0) {
+	exit(0);
+    } else if (pid < 0) {
+	fprintf(stderr, "Error forking first fork: %s", strerror(errno));
+	exit(1);
+    } else {
+	/* setsid() is necessary if we really want to demonize */
+	setsid();
+	/* Second fork to really deamonize me. */
+	if ((pid = fork()) > 0) {
+	    exit(0);
+	} else if (pid < 0) {
+	    log_event(LOG_ERR, "Error forking second fork: %s",
+		      strerror(errno));
+	    exit(1);
+	}
+    }
+    gensio_os_funcs_handle_fork(o);
+
+    /* Close all my standard I/O. */
+    if (chdir("/") < 0) {
+	log_event(LOG_ERR, "unable to chdir to '/': %s", strerror(errno));
+	exit(1);
+    }
+    close(0);
+    close(1);
+    close(2);
+
+    make_pidfile();
+}
+
+static void
+sys_cleanup(void)
+{
+    if (pid_file)
+	unlink(pid_file);
+}
+
+#else
+
+static void
+thread_handle_new(void *data) {
+    handle_new(data);
+}
+
+static void
+setup_new_connection(struct gdata *ginfo, struct gensio *io)
+{
+    int err;
+    struct gensio_thread *id;
+
+    gensio_set_user_data(io, ginfo); /* Just temporarily. */
+    err = gensio_os_new_thread(ginfo->o, thread_handle_new, io, &id);
+    if (err) {
+	gensio_free(io);
+	log_event(LOG_ERR, "Unable to start handling thread: %s\n",
+		  gensio_err_to_str(err));
+    }
+}
+
+static void
+do_daemonize(struct gensio_os_funcs *o)
+{
+}
+
+static void
+sys_cleanup(void)
+{
+    CloseEventLog(evlog);
+}
+
+#endif
+
+static int
+acc_event(struct gensio_accepter *accepter, void *user_data,
+	  int event, void *data)
+{
+    struct gdata *ginfo = gensio_acc_get_user_data(accepter);
+    struct gensio *io;
+
+    if (event == GENSIO_ACC_EVENT_LOG) {
+	struct gensio_loginfo *li = data;
+	int level = LOG_INFO;
+
+	switch (li->level) {
+	case GENSIO_LOG_FATAL:	level = LOG_CRIT; break;
+	case GENSIO_LOG_ERR:	level = LOG_ERR; break;
+	case GENSIO_LOG_WARNING:level = LOG_WARNING; break;
+	case GENSIO_LOG_INFO:	level = LOG_INFO; break;
+	case GENSIO_LOG_DEBUG:	level = LOG_DEBUG; break;
+	}
+	vlog_event(level, li->str, li->args);
+	return 0;
+    }
+
+    if (event != GENSIO_ACC_EVENT_NEW_CONNECTION)
+	return GE_NOTSUP;
+
+    io = data;
+
+    if (oneshot) {
+	if (tcp_acc) {
+	    gensio_acc_free(tcp_acc);
+	    tcp_acc = NULL;
+	}
+	if (sctp_acc) {
+	    gensio_acc_free(sctp_acc);
+	    sctp_acc = NULL;
+	}
+	if (other_acc) {
+	    gensio_acc_free(other_acc);
+	    other_acc = NULL;
+	}
+    }
+
+    setup_new_connection(ginfo, io);
 
     return 0;
 }
@@ -1526,10 +2128,12 @@ help(int err)
     printf("  -4 - Do IPv4 only.\n");
     printf("  -6 - Do IPv6 only.\n");
     printf("  --do-2fa - Have the client get 2-factor auth data.\n");
+#ifdef HAVE_LIBPAM
     printf("  --pam-cert-auth <name> - When doing a certificate auth,\n");
     printf("     use the name as the PAM program name and run the PAM auth\n");
     printf("     after the certificate auth succeeds.  For 2-factor auth.\n");
     printf("  -P, --pidfile <file> - Create the given pidfile.\n");
+#endif
     printf("  --version - Print the version number and exit.\n");
     printf("  -h, --help - This help\n");
     exit(err);
@@ -1541,8 +2145,21 @@ do_vlog(struct gensio_os_funcs *f, enum gensio_log_levels level,
 {
     if (!debug)
 	return;
-    syslog(LOG_ERR, "gensio %s log: ", gensio_log_level_to_str(level));
-    vsyslog(LOG_ERR, log, args);
+    log_event(LOG_ERR, "gensio %s log: ", gensio_log_level_to_str(level));
+    vlog_event(LOG_ERR, log, args);
+}
+
+static void
+close_auth_cons(struct auth_data *auth)
+{
+    struct gensio_link *l, *l2;
+
+    gensio_list_for_each_safe(&auth->cons, l, l2) {
+	struct per_con_info *pcinfo =
+	    gensio_container_of(l, struct per_con_info, link);
+
+	close_con_info(pcinfo);
+    }
 }
 
 static void
@@ -1550,18 +2167,10 @@ close_cons(struct gdata *ginfo)
 {
     struct gensio_link *l, *l2;
 
-    gensio_list_for_each_safe(&ginfo->cons, l, l2) {
-	struct per_con_info *pcinfo = gensio_container_of(l, struct per_con_info,
-							  link);
-
-	close_con_info(pcinfo);
+    gensio_list_for_each_safe(&ginfo->auths, l, l2) {
+	struct auth_data *auth = gensio_container_of(l, struct auth_data, link);
+	close_auth_cons(auth);
     }
-}
-
-static void
-pr_localport(void *cb_data, const char *fmt, va_list ap)
-{
-    vsyslog(LOG_ERR, fmt, ap);
 }
 
 int
@@ -1618,17 +2227,19 @@ main(int argc, char *argv[])
 	    pw_login = true;
 	else if ((rv = cmparg(argc, argv, &arg, NULL, "--do-2fa", NULL)))
 	    do_2fa = true;
+#ifdef HAVE_LIBPAM
 	else if ((rv = cmparg(argc, argv, &arg, NULL, "--pam-cert-auth",
 			      &pam_cert_auth_progname)))
 	    ;
+	else if ((rv = cmparg(argc, argv, &arg, "-P", "--pidfile", &pid_file)))
+	    ;
+#endif
 	else if ((rv = cmparg(argc, argv, &arg, NULL, "--oneshot", NULL)))
 	    oneshot = true;
 	else if ((rv = cmparg(argc, argv, &arg, NULL, "--nodaemon", NULL)))
 	    daemonize = false;
-	else if ((rv = cmparg(argc, argv, &arg, "-P", "--pidfile", &pid_file)))
-	    ;
 	else if ((rv = cmparg(argc, argv, &arg, NULL, "--nointeractive", NULL)))
-	    interactive_login = false;
+	    ginteractive_login = false;
 	else if ((rv = cmparg(argc, argv, &arg, "-4", NULL, NULL)))
 	    iptype = "ipv4,0.0.0.0,";
 	else if ((rv = cmparg(argc, argv, &arg, "-6", NULL, NULL)))
@@ -1661,7 +2272,7 @@ main(int argc, char *argv[])
 	return 1;
 
     memset(&ginfo, 0, sizeof(ginfo));
-    gensio_list_init(&ginfo.cons);
+    gensio_list_init(&ginfo.auths);
 
     rv = gensio_default_os_hnd(0, &o);
     if (rv) {
@@ -1671,9 +2282,9 @@ main(int argc, char *argv[])
     }
     gensio_os_funcs_set_vlog(o, do_vlog);
 
-    locport = alloc_local_ports(o, pr_localport, NULL);
-    if (!locport) {
-	fprintf(stderr, "Could not allocate local port data\n");
+    ginfo.lock = o->alloc_lock(o);
+    if (!ginfo.lock) {
+	fprintf(stderr, "Could not allocate global lock.\n");
 	gensio_os_funcs_free(o);
 	return 1;
     }
@@ -1682,19 +2293,18 @@ main(int argc, char *argv[])
     if (rv) {
 	fprintf(stderr, "Could not setup process data: %s\n",
 		gensio_err_to_str(rv));
-	free_local_ports(locport);
 	gensio_os_funcs_free(o);
 	return 1;
     }
 
     ginfo.o = o;
 
-    ginfo.key = alloc_sprintf("key=%s", keyfile);
+    ginfo.key = gensio_alloc_sprintf(o, "key=%s", keyfile);
     if (!ginfo.key) {
 	fprintf(stderr, "Could not allocate keyfile data\n");
 	return 1;
     }
-    ginfo.cert = alloc_sprintf("cert=%s", certfile);
+    ginfo.cert = gensio_alloc_sprintf(o, "cert=%s", certfile);
     if (!ginfo.key) {
 	fprintf(stderr, "Could not allocate certfile data\n");
 	return 1;
@@ -1707,7 +2317,7 @@ main(int argc, char *argv[])
     }
 
     if (!notcp) {
-	s = alloc_sprintf("tcp(readbuf=20000),%s%d", iptype, port);
+	s = gensio_alloc_sprintf(o, "tcp(readbuf=20000),%s%d", iptype, port);
 	if (!s) {
 	    fprintf(stderr, "Could not allocate tcp descriptor\n");
 	    return 1;
@@ -1717,10 +2327,9 @@ main(int argc, char *argv[])
 	if (rv) {
 	    fprintf(stderr, "Could not allocate %s: %s\n", s,
 		    gensio_err_to_str(rv));
-	    free(s);
 	    return 1;
 	}
-	free(s);
+	o->free(o, s);
 
 	rv = gensio_acc_startup(tcp_acc);
 	if (rv) {
@@ -1731,7 +2340,7 @@ main(int argc, char *argv[])
     }
 
     if (!nosctp) {
-	s = alloc_sprintf("sctp(readbuf=20000),%s%d", iptype, port);
+	s = gensio_alloc_sprintf(o, "sctp(readbuf=20000),%s%d", iptype, port);
 	if (!s) {
 	    fprintf(stderr, "Could not allocate sctp descriptor\n");
 	    return 1;
@@ -1740,17 +2349,16 @@ main(int argc, char *argv[])
 	rv = str_to_gensio_accepter(s, o, acc_event, &ginfo, &sctp_acc);
 	if (rv == GE_NOTSUP) {
 	    /* No SCTP support */
-	    free(s);
+	    o->free(o, s);
 	    goto start_io;
 	}
 
 	if (rv) {
 	    fprintf(stderr, "Could not allocate %s: %s\n", s,
 		    gensio_err_to_str(rv));
-	    free(s);
 	    return 1;
 	}
-	free(s);
+	o->free(o, s);
 
 	rv = gensio_acc_startup(sctp_acc);
 	if (rv) {
@@ -1761,7 +2369,7 @@ main(int argc, char *argv[])
     }
 
     if (other_acc_str) {
-	s = alloc_sprintf(other_acc_str, iptype, port);
+	s = gensio_alloc_sprintf(o, other_acc_str, iptype, port);
 	if (!s) {
 	    fprintf(stderr, "Could not allocate '%s' descriptor\n",
 		    other_acc_str);
@@ -1772,10 +2380,9 @@ main(int argc, char *argv[])
 	if (rv) {
 	    fprintf(stderr, "Could not allocate %s: %s\n", s,
 		    gensio_err_to_str(rv));
-	    free(s);
 	    return 1;
 	}
-	free(s);
+	o->free(o, s);
 
 	rv = gensio_acc_startup(other_acc);
 	if (rv) {
@@ -1786,80 +2393,48 @@ main(int argc, char *argv[])
     }
 
  start_io:
-    if (!debug)
-	openlog(progname, 0, LOG_AUTH);
-    else
-	openlog(progname, LOG_PID | LOG_CONS | LOG_PERROR, LOG_DAEMON);
-    syslog(LOG_NOTICE, "gtlsshd startup");
-    if (!oneshot && daemonize) {
-	pid_t pid;
-
-	if ((pid = fork()) > 0) {
-	    exit(0);
-	} else if (pid < 0) {
-	    fprintf(stderr, "Error forking first fork: %s", strerror(errno));
-	    exit(1);
-	} else {
-	    /* setsid() is necessary if we really want to demonize */
-	    setsid();
-	    /* Second fork to really deamonize me. */
-	    if ((pid = fork()) > 0) {
-		exit(0);
-	    } else if (pid < 0) {
-		syslog(LOG_ERR, "Error forking second fork: %s",
-		       strerror(errno));
-		exit(1);
-	    }
-	}
-	gensio_os_funcs_handle_fork(o);
-
-	/* Close all my standard I/O. */
-	if (chdir("/") < 0) {
-	    syslog(LOG_ERR, "unable to chdir to '/': %s", strerror(errno));
-	    exit(1);
-	}
-	close(0);
-	close(1);
-	close(2);
-
-	make_pidfile();
-    }
+    start_log(debug);
+    log_event(LOG_NOTICE, "gtlsshd startup");
+    if (!oneshot && daemonize)
+	do_daemonize(o);
 
     gensio_os_funcs_wait(o, ginfo.waiter, 1, NULL);
 
+    /* FIXME - shutdown threads first. */
+
     if (tcp_acc) {
-	ginfo.closecount++;
+	ginfo.gclosecount++;
 	rv = gensio_acc_shutdown(tcp_acc, acc_shutdown, &ginfo);
 	if (rv) {
-	    syslog(LOG_ERR, "Unable to close accepter: %s",
+	    log_event(LOG_ERR, "Unable to close accepter: %s",
 		   gensio_err_to_str(rv));
-	    ginfo.closecount--;
+	    ginfo.gclosecount--;
 	}
     }
 
     if (sctp_acc) {
-	ginfo.closecount++;
+	ginfo.gclosecount++;
 	rv = gensio_acc_shutdown(sctp_acc, acc_shutdown, &ginfo);
 	if (rv) {
-	    syslog(LOG_ERR, "Unable to close accepter: %s",
+	    log_event(LOG_ERR, "Unable to close accepter: %s",
 		   gensio_err_to_str(rv));
-	    ginfo.closecount--;
+	    ginfo.gclosecount--;
 	}
     }
 
     if (other_acc) {
-	ginfo.closecount++;
+	ginfo.gclosecount++;
 	rv = gensio_acc_shutdown(other_acc, acc_shutdown, &ginfo);
 	if (rv) {
-	    syslog(LOG_ERR, "Unable to close '%s' accepter: %s",
-		   other_acc_str, gensio_err_to_str(rv));
-	    ginfo.closecount--;
+	    log_event(LOG_ERR, "Unable to close '%s' accepter: %s",
+		      other_acc_str, gensio_err_to_str(rv));
+	    ginfo.gclosecount--;
 	}
     }
 
     close_cons(&ginfo);
 
-    if (ginfo.closecount > 0)
+    if (ginfo.gclosecount > 0)
 	gensio_os_funcs_wait(o, ginfo.waiter, 1, NULL);
 
     if (tcp_acc)
@@ -1869,53 +2444,15 @@ main(int argc, char *argv[])
     if (other_acc)
 	gensio_acc_free(other_acc);
 
-    free(ginfo.key);
-    free(ginfo.cert);
+    o->free(o, ginfo.key);
+    o->free(o, ginfo.cert);
 
     gensio_os_funcs_free_waiter(o, ginfo.waiter);
 
     gensio_os_proc_cleanup(proc_data);
-    free_local_ports(locport);
     gensio_os_funcs_free(o);
 
-    if (passwd) {
-	memset(passwd, 0, strlen(passwd));
-	free(passwd);
-    }
-    if (val_2fa) {
-	memset(val_2fa, 0, len_2fa);
-	free(val_2fa);
-    }
-
-    if (pam_session_open) {
-	pam_err = pam_close_session(pamh, PAM_SILENT);
-	if (pam_err != PAM_SUCCESS)
-	    syslog(LOG_ERR, "pam_close_session failed for %s: %s", username,
-		   pam_strerror(pamh, pam_err));
-    } else if (pam_cred_set) {
-	pam_err = pam_setcred(pamh, PAM_DELETE_CRED | PAM_SILENT);
-	if (pam_err != PAM_SUCCESS)
-	    syslog(LOG_ERR, "pam_setcred delete failed for %s: %s", username,
-		   pam_strerror(pamh, pam_err));
-    }
-
-    if (pam_started) {
-	rv = pam_end(pamh, pam_err);
-	if (rv != PAM_SUCCESS)
-	    syslog(LOG_ERR, "pam_en failed for %s: %s", username,
-		   pam_strerror(pamh, rv));
-    }
-
-    if (pam_env) {
-	unsigned int i;
-
-	for (i = 0; pam_env[i]; i++)
-	    free(pam_env[i]);
-	free(pam_env);
-    }
-
-    if (pid_file)
-	unlink(pid_file);
+    sys_cleanup();
 
     return 0;
 }

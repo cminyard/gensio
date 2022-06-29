@@ -23,6 +23,14 @@
  *  release a modified version which carries forward this exception.
  */
 
+#ifdef _WIN32
+#include <winsock2.h>
+#include <Windows.h>
+#include <Lmcons.h>
+#include <ntsecapi.h>
+#include <userenv.h>
+#endif
+
 #include "gtlssh.h"
 #include "utils.h"
 #include <stdio.h>
@@ -35,21 +43,18 @@
 #define GTLSSHDIR DIRSEPS ".gtlssh"
 
 #ifdef _WIN32
-#include <winsock2.h>
-#include <Windows.h>
-#include <Lmcons.h>
-#include <ntsecapi.h>
-#include <userenv.h>
 
-void set_lsa_string(LSA_STRING *a, const char *b)
+void
+set_lsa_string(LSA_STRING *a, const char *b)
 {
     a->Length = (USHORT) strlen(b);
     a->MaximumLength = (USHORT)(a->Length + sizeof(*b));
     a->Buffer = (char *) b;
 }
 
-static int win_get_user(const char *user, const char *src_module,
-			bool interactive, HANDLE *userh)
+int
+win_get_user(const char *user, const char *src_module,
+	     bool interactive, HANDLE *userh)
 {
     HANDLE lsah;
     NTSTATUS rv;
@@ -232,6 +237,7 @@ get_homedir(const char *username, const char *extra)
     } else {
 	HANDLE userh = NULL;
 	DWORD err, len;
+	char dummy[1];
 
 	err = win_get_user(username, "gtlssh", false, &userh);
 	if (err) {
@@ -244,20 +250,24 @@ get_homedir(const char *username, const char *extra)
 	}
 
 	len = 0;
-	if (!GetUserProfileDirectoryA(userh, NULL, &len)) {
+	if (!GetUserProfileDirectoryA(userh, dummy, &len) &&
+		(GetLastError() != ERROR_INSUFFICIENT_BUFFER)) {
 	    char errbuf[128];
 
 	    FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM, NULL,
 			  GetLastError(), 0, errbuf, sizeof(errbuf), NULL);
 	    fprintf(stderr, "GetUserProfileDirectory: %s\n", errbuf);
+	    CloseHandle(userh);
 	    return NULL;
 	}
 	dir = malloc(len);
 	if (!dir) {
 	    fprintf(stderr, "Out of memory allocating home dir\n");
+	    CloseHandle(userh);
 	    return NULL;
 	}
 	GetUserProfileDirectoryA(userh, dir, &len);
+	CloseHandle(userh);
     }
 
     return dir;
