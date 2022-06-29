@@ -791,6 +791,7 @@ new_rem_io(struct gensio *io, struct gdata *ginfo)
     int err, err2;
     char **progv = NULL; /* If set in the service. */
     bool login = false;
+    bool do_chdir = false;
     char *service = NULL;
     char **env = NULL, **penv2;
     unsigned int env_len = 0;
@@ -834,6 +835,7 @@ new_rem_io(struct gensio *io, struct gdata *ginfo)
 	}
 	/* Dummy out the program, we will set it later with a control. */
 	s = alloc_sprintf("stdio(stderr-to-stdout,readbuf=16384),dummy");
+	do_chdir = true;
     } else if (strstartswith(service, "login:")) {
 	char *str = strchr(service, ':') + 1;
 
@@ -843,6 +845,7 @@ new_rem_io(struct gensio *io, struct gdata *ginfo)
 	    goto out_bad_vals;
 	s = alloc_sprintf("pty,%s -i", ushell);
 	login = true;
+	do_chdir = true;
     } else if (strstartswith(service, "tcp,") ||
 	       strstartswith(service, "sctp,")) {
 	char *host = strchr(service, ',');
@@ -982,6 +985,17 @@ new_rem_io(struct gensio *io, struct gdata *ginfo)
 	goto out_err;
     }
     pcinfo->io2 = pty_io;
+
+    if (do_chdir) {
+	err = gensio_control(pty_io, 0, GENSIO_CONTROL_SET,
+			     GENSIO_CONTROL_START_DIRECTORY,
+			     (char *) homedir, NULL);
+	if (err) {
+		syslog(LOG_ERR, "Setting start directory failed: %s",
+		       gensio_err_to_str(err));
+		goto out_err;
+	}
+    }
 
     if (progv) {
 	err = gensio_control(pty_io, 0, GENSIO_CONTROL_SET, GENSIO_CONTROL_ARGS,
@@ -1365,11 +1379,6 @@ handle_new(struct gensio_runner *r, void *cb_data)
 	exit(1);
     }
     /* login will open the session, don't do it here. */
-
-    if (chdir(homedir)) {
-	syslog(LOG_WARNING, "chdir failed for %s to %s: %s", username,
-	       homedir, strerror(errno));
-    }
 
     /* At this point we are fully authenticated and have all global info. */
 
