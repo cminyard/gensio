@@ -769,6 +769,10 @@ Like self, except connect to the running program's console device,
 /dev/tty on Unix and CONIN$/CONOUT$ on Windows.  Useful for reading
 passwords and such.
 .TP
+.B start-dir=path
+Start the subprogram in the given path instead of the current
+directory.
+.TP
 .B raw[=true|false]
 For a "self", console, or accepter version of the gensio, put the I/O
 in "raw" mode, meaning character at a time, turn off ^C, etc.  This
@@ -1266,21 +1270,30 @@ is running on a terminal.  Only connection gensios are supported.
 pty has some unusual handling to allow execution of login shells of
 users from root.
 
-If the first character of the program is '-', it is removed from the
-execution of the command but left in argv[0].  This will cause a shell
-to act as a login shell.
+In Unix type systems, if the first character of the program is '-', it
+is removed from the execution of the command but left in argv[0].
+This will cause a shell to act as a login shell.
 
-In the forked process, the pty code will set the uid and guid to the
-current set effective uid and guid if the effective and real uids are
-different.  This way a user can set the effective uid and gid to what
-the want to pty to run under, but keep the real uid and gid to the
-(probably root) values so they can be restored to those values after
-opening the pty.  The group list is also set to the groups the
-effective userid is in.  Note that nothing is done if the effective
-and real userids are the same.
+On Unix, type systems, In the forked process, the pty code will set
+the uid and guid to the current set effective uid and guid if the
+effective and real uids are different.  This way a user can set the
+effective uid and gid to what the want to pty to run under, but keep
+the real uid and gid to the (probably root) values so they can be
+restored to those values after opening the pty.  The group list is
+also set to the groups the effective userid is in.  Note that nothing
+is done if the effective and real userids are the same.
 
-The pty gensio supports the GENSIO_CONTROL_ENVIRONMENT control to allow
-the environment to be set for the new process.
+On Windows, the new process is set to the user in the impersonation
+token if it is set.  In that case, the new process will be run in a
+new process group.  If no impersonation token is set, the new process
+will run as the user of calling process in the same process group as
+the calling process.
+
+The pty gensio supports the GENSIO_CONTROL_ENVIRONMENT control to
+allow the environment to be set for the new process.
+GENSIO_CONTROL_ARGS sets the arguments as an argv array.
+GENSIO_CONTROL_WIN_SIZE sets the terminal size in characters.
+GENSIO_CONTROL_START_DIR sets the directory the new process runs in.
 
 If no program is specified, when the pty gensio is opened it will just
 create the pty but won't attach anything to it.  Another program can
@@ -1295,12 +1308,16 @@ programs run on them need to follow the standard semantics.
 create a symbolic link from filename to the pty name.  This way you
 can have a fixed reference to refer to the pty.  Standard permissions
 apply.  Without forcelink the open will file if filename already
-exists.
+exists.  Unix only.
 .TP
 .B forcelink[=true|false]
 if link is specified, if a file already exists where the symbolic link
 is, replace it.  Be careful, it deletes whatever is there
 indiscriminately.
+.TP
+.B start-dir=path
+Start the subprogram in the given path instead of the current
+directory.
 .TP
 .B raw[=true|false]
 causes the pty to be set in raw mode at startup.  This is important for

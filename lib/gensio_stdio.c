@@ -1168,6 +1168,7 @@ stdio_gensio_alloc(const char * const argv[], const char * const args[],
     bool stderr_to_stdout = false;
     bool noredir_stderr = false;
     bool raw = false;
+    const char *start_dir = NULL;
 
     for (i = 0; args && args[i]; i++) {
 	if (gensio_check_keyds(args[i], "readbuf", &max_read_size) > 0)
@@ -1177,6 +1178,8 @@ stdio_gensio_alloc(const char * const argv[], const char * const args[],
 	if (gensio_check_keybool(args[i], "self", &self) > 0)
 	    continue;
 	if (gensio_check_keybool(args[i], "raw", &raw) > 0)
+	    continue;
+	if (gensio_check_keyvalue(args[i], "start-dir", &start_dir) > 0)
 	    continue;
 	if (gensio_check_keybool(args[i], "stderr-to-stdout",
 				 &stderr_to_stdout) > 0) {
@@ -1199,6 +1202,13 @@ stdio_gensio_alloc(const char * const argv[], const char * const args[],
 
     nadata->stderr_to_stdout = stderr_to_stdout;
     nadata->noredir_stderr = noredir_stderr;
+    if (start_dir) {
+	nadata->start_dir = gensio_strdup(o, start_dir);
+	if (!nadata->start_dir) {
+	    err = GE_NOMEM;
+	    goto out_err;
+	}
+    }
 
     if (self || console) {
 	err = setup_self(nadata, console);

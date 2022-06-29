@@ -519,11 +519,14 @@ pty_gensio_alloc(const char * const argv[], const char * const args[],
     const char *owner = NULL, *group = NULL, *link = NULL;
     bool forcelink = false;
 #endif
+    const char *start_dir = NULL;
     bool raw = false;
     int err;
 
     for (i = 0; args && args[i]; i++) {
 	if (gensio_check_keyds(args[i], "readbuf", &max_read_size) > 0)
+	    continue;
+	if (gensio_check_keyvalue(args[i], "start-dir", &start_dir) > 0)
 	    continue;
 #if HAVE_PTSNAME_R
 	if (gensio_check_keyvalue(args[i], "link", &link))
@@ -565,6 +568,12 @@ pty_gensio_alloc(const char * const argv[], const char * const args[],
 
     tdata->o = o;
     tdata->pid = -1;
+
+    if (start_dir) {
+	tdata->start_dir = gensio_strdup(o, start_dir);
+	if (!tdata->start_dir)
+	    goto out_nomem;
+    }
 
     tdata->lock = o->alloc_lock(o);
     if (!tdata->lock)

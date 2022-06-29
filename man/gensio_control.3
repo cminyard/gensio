@@ -299,6 +299,10 @@ number of horizontal pixels and number of vertical pixels.  The pixel
 values are currently ignored by windows.  pixel values do not have to
 be given, if there are less than 4 values, pixels values are ignored
 and set to zero.  datalen is ignored.
+.SS "GENSIO_CONTROL_START_DIR"
+For pty and stdio gensios (that start another program), this will
+cause the new program to run in the given directory instead of the
+current directory.
 .SH "RETURN VALUES"
 Zero is returned on success, or a gensio error on failure.
 .SH "SEE ALSO"
