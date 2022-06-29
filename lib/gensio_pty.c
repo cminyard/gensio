@@ -46,6 +46,7 @@ struct pty_data {
     intptr_t pid;
     const char **argv;
     const char **env;
+    char *start_dir;
 
 #if HAVE_PTSNAME_R
     mode_t mode;
@@ -197,6 +198,9 @@ gensio_setup_child_on_pty(struct pty_data *tdata)
     if (!err && tdata->env)
 	err = o->iod_control(iod, GENSIO_IOD_CONTROL_ENV, false,
 			     (intptr_t) tdata->env);
+    if (!err && tdata->start_dir)
+	err = o->iod_control(iod, GENSIO_IOD_CONTROL_START_DIR, false,
+			     (intptr_t) tdata->start_dir);
     if (!err)
 	err = o->iod_control(iod, GENSIO_IOD_CONTROL_START, false, 0);
     if (err)
@@ -297,6 +301,8 @@ pty_free(void *handler_data)
 	gensio_argv_free(o, tdata->argv);
     if (tdata->env)
 	gensio_argv_free(o, tdata->env);
+    if (tdata->start_dir)
+	o->free(o, tdata->start_dir);
     if (tdata->lock)
 	o->free_lock(tdata->lock);
     o->free(o, tdata);
@@ -467,6 +473,21 @@ pty_control(void *handler_data, struct gensio_iod *iod, bool get,
 	return o->iod_control(tdata->iod, GENSIO_IOD_CONTROL_WIN_SIZE, get,
 			      (intptr_t) &ws);
     }
+
+    case GENSIO_CONTROL_START_DIRECTORY:
+	if (get) {
+	    *datalen = snprintf(data, *datalen, "%s", tdata->start_dir);
+	} else {
+	    char *dir;
+
+	    dir = gensio_strdup(o, (char *) data);
+	    if (!dir)
+		return GE_NOMEM;
+	    if (tdata->start_dir)
+		o->free(o, tdata->start_dir);
+	    tdata->start_dir = dir;
+	}
+	return 0;
     }
 
     return GE_NOTSUP;
