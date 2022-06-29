@@ -120,7 +120,7 @@ int gensio_win_pty_alloc(struct gensio_os_funcs *o,
 
 int gensio_win_pty_start(struct gensio_os_funcs *o,
 			 HPCON ptyh, const char **argv, const char **env,
-			 HANDLE *child);
+			 const char *start_dir, HANDLE *child);
 
 #else
 
@@ -172,7 +172,7 @@ int gensio_unix_pty_alloc(struct gensio_os_funcs *o, int *rfd);
 GENSIO_DLL_PUBLIC
 int gensio_unix_pty_start(struct gensio_os_funcs *o,
 			  int pfd, const char **argv, const char **env,
-			  pid_t *rpid);
+			  const char *start_dir, pid_t *rpid);
 
 #endif /* _WIN32 */
 

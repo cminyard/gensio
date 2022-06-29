@@ -1359,7 +1359,7 @@ gensio_win_pty_alloc(struct gensio_os_funcs *o, HANDLE *rreadh, HANDLE *rwriteh,
 int
 gensio_win_pty_start(struct gensio_os_funcs *o,
 		     HPCON ptyh, const char **argv, const char **env,
-		     HANDLE *child)
+		     const char *start_dir, HANDLE *child)
 {
     char *cmdline, *envb = NULL;
     STARTUPINFOEX si;
@@ -1433,7 +1433,7 @@ gensio_win_pty_start(struct gensio_os_funcs *o,
 				  EXTENDED_STARTUPINFO_PRESENT
 				  | CREATE_NEW_PROCESS_GROUP,
 				  envb,
-				  NULL,
+				  start_dir,
 				  &si.StartupInfo,
 				  &procinfo))
 	    goto out_err_conv;
@@ -2390,7 +2390,8 @@ gensio_unix_pty_alloc(struct gensio_os_funcs *o, int *rfd)
 
 int
 gensio_unix_pty_start(struct gensio_os_funcs *o,
-		      int pfd, const char **argv, const char **env, pid_t *rpid)
+		      int pfd, const char **argv, const char **env,
+		      const char *start_dir, pid_t *rpid)
 {
     const char *pgm;
     pid_t pid = -1;
@@ -2421,6 +2422,14 @@ gensio_unix_pty_start(struct gensio_os_funcs *o,
 	if (grantpt(pfd) < 0)
 	    exit(1);
 #endif
+
+	if (start_dir) {
+	    if (chdir(start_dir)) {
+		fprintf(stderr, "pty fork: chdir to %s failed: %s",
+			start_dir, strerror(errno));
+		exit(1);
+	    }
+	}
 
 	if (setsid() == -1) {
 	    fprintf(stderr, "pty fork: failed to start new session: %s\r\n",

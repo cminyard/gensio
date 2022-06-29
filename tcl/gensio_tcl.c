@@ -54,6 +54,7 @@
 #include <sys/wait.h>
 #include <sys/uio.h>
 #include <string.h>
+#include <sys/ioctl.h>
 
 struct gensio_data
 {
@@ -150,6 +151,7 @@ struct gensio_iod_tcl {
     /* For GENSIO_IOD_PTY */
     const char **argv;
     const char **env;
+    char *start_dir;
     int pid;
 };
 
@@ -990,6 +992,7 @@ static int
 gensio_tcl_pty_control(struct gensio_iod_tcl *iod, int op, bool get,
 		       intptr_t val)
 {
+    struct gensio_os_funcs *o = iod->r.f;
     int err;
     const char **nargv;
 
@@ -1005,26 +1008,54 @@ gensio_tcl_pty_control(struct gensio_iod_tcl *iod, int op, bool get,
 
     switch (op) {
     case GENSIO_IOD_CONTROL_ARGV:
-	err = gensio_argv_copy(iod->r.f, (const char **) val, NULL, &nargv);
+	err = gensio_argv_copy(o, (const char **) val, NULL, &nargv);
 	if (err)
 	    return err;
 	if (iod->argv)
-	    gensio_argv_free(iod->r.f, iod->argv);
+	    gensio_argv_free(o, iod->argv);
 	iod->argv = nargv;
 	return 0;
 
     case GENSIO_IOD_CONTROL_ENV:
-	err = gensio_argv_copy(iod->r.f, (const char **) val, NULL, &nargv);
+	err = gensio_argv_copy(o, (const char **) val, NULL, &nargv);
 	if (err)
 	    return err;
 	if (iod->env)
-	    gensio_argv_free(iod->r.f, iod->env);
+	    gensio_argv_free(o, iod->env);
 	iod->env = nargv;
 	return 0;
 
     case GENSIO_IOD_CONTROL_START:
-	return gensio_unix_pty_start(iod->r.f, iod->fd, iod->argv,
-				     iod->env, &iod->pid);
+	return gensio_unix_pty_start(o, iod->fd, iod->argv,
+				     iod->env, iod->start_dir, &iod->pid);
+
+    case GENSIO_IOD_CONTROL_WIN_SIZE: {
+	struct winsize win;
+	struct gensio_winsize *gwin = (struct gensio_winsize *) val;
+
+	win.ws_row = gwin->ws_row;
+	win.ws_col = gwin->ws_col;
+	win.ws_xpixel = gwin->ws_xpixel;
+	win.ws_ypixel = gwin->ws_ypixel;
+	if (ioctl(iod->fd, TIOCSWINSZ, &win) == -1)
+	    err = gensio_os_err_to_err(o, errno);
+	return err;
+    }
+
+    case GENSIO_IOD_CONTROL_START_DIR: {
+	char *dir = (char *) val;
+
+	if (dir) {
+	    dir = gensio_strdup(o, dir);
+	    if (!dir)
+		return GE_NOMEM;
+	}
+
+	if (iod->start_dir)
+	    o->free(o, iod->start_dir);
+	iod->start_dir = dir;
+	return 0;
+    }
 
     default:
 	return GE_NOTSUP;

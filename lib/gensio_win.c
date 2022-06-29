@@ -2518,6 +2518,7 @@ struct gensio_iod_win_pty
 
     const char **argv;
     const char **env;
+    char *start_dir;
 };
 
 #define wiod_to_win_pty(w) gensio_container_of(w,			  \
@@ -2722,7 +2723,8 @@ win_pty_control(struct gensio_iod_win *wiod, int op, bool get, intptr_t val)
 		err = gensio_os_err_to_err(o, GetLastError());
 	    } else {
 		err = gensio_win_pty_start(o, piod->ptyh, piod->argv,
-					   piod->env, &piod->child);
+					   piod->env, piod->start_dir,
+					   &piod->child);
 		assert(SetEvent(piod->watch_start));
 		if (err) {
 		    HANDLE wthread = piod->watch_thread;
@@ -2753,6 +2755,21 @@ win_pty_control(struct gensio_iod_win *wiod, int op, bool get, intptr_t val)
 		err = gensio_os_err_to_err(o, hr); /* Force an OS_ERR. */
 	}
 	return err;
+    }
+
+    case GENSIO_IOD_CONTROL_START_DIR: {
+	char *dir = (char *) val;
+
+	if (dir) {
+	    dir = gensio_strdup(o, dir);
+	    if (!dir)
+		return GE_NOMEM;
+	}
+
+	if (piod->start_dir)
+	    o->free(o, piod->start_dir);
+	piod->start_dir = dir;
+	return 0;
     }
 
     default:
@@ -2833,6 +2850,12 @@ win_iod_pty_clean(struct gensio_iod_win *wiod)
 	ClosePseudoConsole(piod->ptyh);
     if (piod->watch_start)
 	CloseHandle(piod->watch_start);
+    if (piod->argv)
+	gensio_argv_free(o, piod->argv);
+    if (piod->env)
+	gensio_argv_free(o, piod->env);
+    if (piod->start_dir)
+	o->free(o, piod->start_dir);
 }
 
 static int

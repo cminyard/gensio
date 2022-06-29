@@ -380,6 +380,7 @@ struct gensio_iod_pty {
     const char **argv;
     const char **env;
     pid_t pid;
+    char *start_dir;
 };
 
 struct gensio_iod_unix {
@@ -1118,6 +1119,8 @@ gensio_unix_release_iod(struct gensio_iod *iiod)
 	    gensio_argv_free(o, iod->u.pty.argv);
 	if (iod->u.pty.env)
 	    gensio_argv_free(o, iod->u.pty.env);
+	if (iod->u.pty.start_dir)
+	    o->free(o, iod->u.pty.start_dir);
     }
     o->free(o, iod);
 }
@@ -1423,7 +1426,8 @@ gensio_unix_pty_control(struct gensio_iod_unix *iod, int op, bool get,
 
     case GENSIO_IOD_CONTROL_START:
 	return gensio_unix_pty_start(o, iod->fd, iod->u.pty.argv,
-				     iod->u.pty.env, &iod->u.pty.pid);
+				     iod->u.pty.env, iod->u.pty.start_dir,
+				     &iod->u.pty.pid);
 
     case GENSIO_IOD_CONTROL_WIN_SIZE: {
 	struct winsize win;
@@ -1436,6 +1440,21 @@ gensio_unix_pty_control(struct gensio_iod_unix *iod, int op, bool get,
 	if (ioctl(iod->fd, TIOCSWINSZ, &win) == -1)
 	    err = gensio_os_err_to_err(o, errno);
 	return err;
+    }
+
+    case GENSIO_IOD_CONTROL_START_DIR: {
+	char *dir = (char *) val;
+
+	if (dir) {
+	    dir = gensio_strdup(o, dir);
+	    if (!dir)
+		return GE_NOMEM;
+	}
+
+	if (iod->u.pty.start_dir)
+	    o->free(o, iod->u.pty.start_dir);
+	iod->u.pty.start_dir = dir;
+	return 0;
     }
 
     default:

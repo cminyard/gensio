@@ -277,6 +277,8 @@ struct gensio_winsize {
     int ws_ypixel;
 };
 
+/* For ptys, will cd to this directory at startup. */
+#define GENSIO_IOD_CONTROL_START_DIR 28
 
 /*
  * These are for communication between the socket code and the iod, so
