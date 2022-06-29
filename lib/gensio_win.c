@@ -3512,6 +3512,7 @@ win_open_dev(struct gensio_os_funcs *o, const char *iname, int options,
 static int
 win_exec_subprog(struct gensio_os_funcs *o,
 		 const char *argv[], const char **env,
+		 const char *start_dir,
 		 unsigned int flags,
 		 intptr_t *rpid,
 		 struct gensio_iod **rstdin,
@@ -3528,7 +3529,7 @@ win_exec_subprog(struct gensio_os_funcs *o,
     struct gensio_iod_win *stderr_iod = NULL;
     BOOL readable = FALSE;
 
-    rv = gensio_win_do_exec(o, argv, env, flags, &phandle,
+    rv = gensio_win_do_exec(o, argv, env, start_dir, flags, &phandle,
 			    &stdin_m, &stdout_m,
 			    rstderr ? &stderr_m : NULL);
     if (rv)

@@ -92,6 +92,7 @@ struct stdiona_data {
     int argc;
     const char **argv;
     const char **env;
+    char *start_dir;
 
     struct gensio_runner *connect_runner;
     bool in_connect_runner;
@@ -159,6 +160,8 @@ stdiona_finish_free(struct stdiona_data *nadata)
 	gensio_argv_free(nadata->o, nadata->argv);
     if (nadata->env)
 	gensio_argv_free(nadata->o, nadata->env);
+    if (nadata->start_dir)
+	o->free(o, nadata->start_dir);
     if (nadata->io.deferred_op_runner)
 	nadata->o->free_runner(nadata->io.deferred_op_runner);
     if (nadata->err.deferred_op_runner)
@@ -625,7 +628,8 @@ setup_child_proc(struct stdiona_data *nadata)
     struct gensio_os_funcs *o = nadata->o;
     int rv;
 
-    rv = o->exec_subprog(o, nadata->argv, nadata->env, nadata->stderr_to_stdout,
+    rv = o->exec_subprog(o, nadata->argv, nadata->env, nadata->start_dir,
+			 nadata->stderr_to_stdout,
 			 &nadata->opid, &nadata->io.in_iod, &nadata->io.out_iod,
 			 nadata->noredir_stderr ? NULL : &nadata->err.out_iod);
     return rv;
@@ -1010,6 +1014,21 @@ stdion_control(struct gensio *io, bool get, unsigned int option,
 	    memcpy(data, &schan->out_iod, sizeof(void *));
 	else
 	    return GE_INVAL;
+	return 0;
+
+    case GENSIO_CONTROL_START_DIRECTORY:
+	if (get) {
+	    *datalen = snprintf(data, *datalen, "%s", nadata->start_dir);
+	} else {
+	    char *dir;
+
+	    dir = gensio_strdup(o, (char *) data);
+	    if (!dir)
+		return GE_NOMEM;
+	    if (nadata->start_dir)
+		o->free(o, nadata->start_dir);
+	    nadata->start_dir = dir;
+	}
 	return 0;
     }
 

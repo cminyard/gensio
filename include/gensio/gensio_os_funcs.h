@@ -663,6 +663,7 @@ struct gensio_os_funcs {
 #define GENSIO_EXEC_STDERR_TO_STDOUT	(1 << 0)
     int (*exec_subprog)(struct gensio_os_funcs *o,
 			const char *argv[], const char **env,
+			const char *start_dir,
 			unsigned int flags,
 			intptr_t *rpid,
 			struct gensio_iod **rstdin,

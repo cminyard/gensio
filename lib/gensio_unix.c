@@ -1323,6 +1323,7 @@ gensio_unix_open_dev(struct gensio_os_funcs *o, const char *name,
 static int
 gensio_unix_exec_subprog(struct gensio_os_funcs *o,
 			 const char *argv[], const char **env,
+			 const char *start_dir,
 			 unsigned int flags,
 			 intptr_t *rpid,
 			 struct gensio_iod **rstdin,
@@ -1334,7 +1335,7 @@ gensio_unix_exec_subprog(struct gensio_os_funcs *o,
     struct gensio_iod *stdiniod = NULL, *stdoutiod = NULL, *stderriod = NULL;
     int pid = -1;
 
-    err = gensio_unix_do_exec(o, argv, env, flags, &pid, &infd,
+    err = gensio_unix_do_exec(o, argv, env, start_dir, flags, &pid, &infd,
 			      &outfd, rstderr ? &errfd : NULL);
     if (err)
 	return err;

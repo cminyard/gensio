@@ -1182,6 +1182,7 @@ win_env_to_block(struct gensio_os_funcs *o,
 int
 gensio_win_do_exec(struct gensio_os_funcs *o,
 		   const char *argv[], const char **env,
+		   const char *start_dir,
 		   unsigned int flags,
 		   HANDLE *phandle,
 		   HANDLE *rin, HANDLE *rout, HANDLE *rerr)
@@ -1262,7 +1263,7 @@ gensio_win_do_exec(struct gensio_os_funcs *o,
 		       TRUE,
 		       0,
 		       envb,
-		       NULL,
+		       start_dir,
 		       &suinfo,
 		       &procinfo))
 	goto out_err_conv;
@@ -2281,6 +2282,7 @@ extern char **environ;
 int
 gensio_unix_do_exec(struct gensio_os_funcs *o,
 		    const char *argv[], const char **env,
+		    const char *start_dir,
 		    unsigned int flags,
 		    int *rpid,
 		    int *rin, int *rout, int *rerr)
@@ -2332,6 +2334,14 @@ gensio_unix_do_exec(struct gensio_os_funcs *o,
 	/* Close everything but stdio. */
 	for (i = 3; i < openfiles; i++)
 	    close(i);
+
+	if (start_dir) {
+	    if (chdir(start_dir)) {
+		fprintf(stderr, "stdio fork: chdir to %s failed: %s",
+			start_dir, strerror(errno));
+		exit(1);
+	    }
+	}
 
 	err = gensio_unix_os_setupnewprog();
 	if (err) {
