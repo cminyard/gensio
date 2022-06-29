@@ -299,7 +299,7 @@ check_for_certfile(const char *dir, const char *name, void *cbdata)
 {
     const char *s = strrchr(name, '.');
 
-    if (strcmp(s, ".crt") == 0) {
+    if (!s || strcmp(s, ".crt") == 0) {
 	bool *certpresent = cbdata;
 
 	*certpresent = true;
@@ -457,7 +457,7 @@ hash_file(const char *dir, const char *name, void *cbdata)
     const ASN1_TIME *notafter;
     const char *endstr = strrchr(name, '.');
 
-    if (strcmp(endstr, ".crt") != 0)
+    if (!endstr || (strcmp(endstr, ".crt") != 0))
 	return ITERATE_DIR_CONTINUE;
 
     s = alloc_sprintf("%s%c%s", dir, DIRSEP, name);
