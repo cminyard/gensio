@@ -105,11 +105,11 @@ help(const char *progname)
     P("    Generate a keys for the given hostnames, optionally at the given\n");
     P("    port.  If no hostname is given, the default key/cert is generated\n");
     P("    in\n");
-    P("      %s/default.key\n", default_gtlsshdir);
+    P("      %s%cdefault.key\n", default_gtlsshdir, DIRSEP);
     P("    and\n");
-    P("      %s/default.crt\n", default_gtlsshdir);
+    P("      %s%cdefault.crt\n", default_gtlsshdir, DIRSEP);
     P("    Otherwise the key is generated in\n");
-    P("      %s/<hostname>[,<port>].key/crt.\n", default_keydir);
+    P("      %s%c<hostname>[,<port>].key/crt.\n", default_keydir, DIRSEP);
     P("    When gtlssh makes a connection, it will look for the hostname\n");
     P("    with the port, then just the hostname, then the default key in\n");
     P("    that order for the key to use for the connection.\n");
@@ -121,14 +121,14 @@ help(const char *progname)
     P("    certificates into those directories but do not rehash them,\n");
     P("    the tools will not be able to find the new certificates.\n");
     P("    If you don't enter any directories, it will rehash the following:\n");
-    P("      %s/allowed_certs\n", default_gtlsshdir);
-    P("      %s/server_certs\n", default_gtlsshdir);
+    P("      %s%callowed_certs\n", default_gtlsshdir, DIRSEP);
+    P("      %s%cserver_certs\n", default_gtlsshdir, DIRSEP);
     P("    Certificates that have expired are automatically removed.\n");
     P("\n");
     P("  addallow [-i] <hostname> <file>\n");
     P("    Add the given file as an allowed public certificate for the given\n");
     P("    hostname.  It will install this file in the directory:\n");
-    P("      %s/allowed_certs\n", default_gtlsshdir);
+    P("      %s%callowed_certs\n", default_gtlsshdir, DIRSEP);
     P("    with the name 'hostname.crt'.  It will also rehash the\n");
     P("    directory.  If -i is specified, input comes from stdin and the\n");
     P("    file is not required or used.  If the destination file already\n");
@@ -631,8 +631,9 @@ addallow(int argc, char **argv)
     dest = alloc_sprintf("%s%callowed_certs%c%s.crt", gtlsshdir, DIRSEP,
 			 DIRSEP, argv[0]);
     if (!dest) {
-	fprintf(stderr, "Can't allocate memory for %s/allowed_certs/%s.crt\n",
-		gtlsshdir, argv[0]);
+	fprintf(stderr,
+		"Can't allocate memory for %s%callowed_certs%c%s.crt\n",
+		gtlsshdir, DIRSEP, DIRSEP, argv[0]);
 	return 1;
     }
 
@@ -884,7 +885,7 @@ keygen_one(const char *name, const char *key, const char *cert)
     } else {
 	if (name) {
 	    printf("Certificate created.  Put %s into:\n", cert);
-	    printf("  .gtlssh/allowed_certs\n");
+	    printf("  .gtlssh%callowed_certs\n", DIRSEP);
 	    printf("on remote systems you want to log into"
 		   " without a password.\n");
 	} else {
