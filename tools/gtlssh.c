@@ -1281,7 +1281,7 @@ winch_ready(int x_chrs, int y_chrs, int x_bits, int y_bits,
 }
 
 static void
-pr_localport(const char *fmt, va_list ap)
+pr_localport(void *cb_data, const char *fmt, va_list ap)
 {
     vfprintf(stderr, fmt, ap);
 }
@@ -1302,6 +1302,7 @@ struct remote_portinfo {
 
 static unsigned int curr_service;
 static struct remote_portinfo *remote_ports;
+static struct local_ports *locport;
 
 static void
 handle_rem_req(struct gensio *io, const char *service)
@@ -1318,7 +1319,7 @@ handle_rem_req(struct gensio *io, const char *service)
 	return;
     }
 
-    remote_port_new_con(pi->o, io, pi->connecter_str, pi->id_str);
+    remote_port_new_con(locport, io, pi->connecter_str, pi->id_str);
 }
 
 static int
@@ -1496,7 +1497,7 @@ handle_port(struct gensio_os_funcs *o, bool remote, const char *iaddr)
     if (remote)
 	err = add_remote_port(o, accepter_str, connecter_str, iaddr);
     else
-	err = add_local_port(o, accepter_str, connecter_str, iaddr);
+	err = add_local_port(locport, accepter_str, connecter_str, iaddr);
     goto out_err;
 
  out_not_enough_fields:
@@ -1514,6 +1515,8 @@ handle_port(struct gensio_os_funcs *o, bool remote, const char *iaddr)
     if (addr)
 	free(addr);
 
+    if (err)
+	err = -1;
     return err;
 }
 
@@ -1710,8 +1713,6 @@ main(int argc, char *argv[])
     const char *mdns_type = NULL;
     const char *val_2fa = "", *pfx_2fa = "";
 
-    localport_err = pr_localport;
-
     memset(&userdata1, 0, sizeof(userdata1));
     memset(&userdata2, 0, sizeof(userdata2));
     userdata1.interactive = true;
@@ -1724,10 +1725,18 @@ main(int argc, char *argv[])
     }
     gensio_os_funcs_set_vlog(o, do_vlog);
 
+    locport = alloc_local_ports(o, pr_localport, NULL);
+    if (!locport) {
+	fprintf(stderr, "Could not allocate local port data\n");
+	gensio_os_funcs_free(o);
+	return 1;
+    }
+
     err = gensio_os_proc_setup(o, &proc_data);
     if (err) {
 	fprintf(stderr, "Could not setup process data: %s\n",
 		gensio_err_to_str(err));
+	free_local_ports(locport);
 	gensio_os_funcs_free(o);
 	return 1;
     }
@@ -1834,11 +1843,9 @@ main(int argc, char *argv[])
 				 NULL))) {
 	    aux_data.flags |= GTLSSH_AUX_FLAG_NO_INTERACTIVE;
 	} else if ((err = cmparg(argc, argv, &arg, "-L", NULL, &addr))) {
-	    if (!err)
-		err = handle_port(o, false, addr);
+	    err = handle_port(o, false, addr);
 	} else if ((err = cmparg(argc, argv, &arg, "-R", NULL, &addr))) {
-	    if (!err)
-		err = handle_port(o, true, addr);
+	    err = handle_port(o, true, addr);
 	} else if ((err = cmparg(argc, argv, &arg, "-4", NULL, NULL))) {
 	    iptype = "ipv4,";
 	} else if ((err = cmparg(argc, argv, &arg, "-6", NULL, NULL))) {
@@ -2153,7 +2160,7 @@ main(int argc, char *argv[])
     ioinfo_set_ready(ioinfo1, userdata1.io);
     ioinfo_set_ready(ioinfo2, userdata2.io);
 
-    start_local_ports(userdata2.io);
+    start_local_ports(locport, userdata2.io);
     start_remote_ports(ioinfo2);
 
     gensio_os_funcs_wait(o, userdata1.waiter, 1, NULL);
@@ -2203,6 +2210,7 @@ main(int argc, char *argv[])
     free_ser_ioinfo(subdata2);
 
     gensio_os_proc_cleanup(proc_data);
+    free_local_ports(locport);
     gensio_os_funcs_free(o);
     if (keyname)
 	free(keyname);

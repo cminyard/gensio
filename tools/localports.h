@@ -29,15 +29,23 @@
 #include <stdarg.h>
 #include <gensio/gensio.h>
 
-void start_local_ports(struct gensio *user_io);
+struct local_ports;
 
-int add_local_port(struct gensio_os_funcs *o,
+struct local_ports *alloc_local_ports(struct gensio_os_funcs *o,
+				      void (*localport_err)(void *cb_data,
+							    const char *format,
+							    va_list ap),
+				      void *cb_data);
+
+void free_local_ports(struct local_ports *p);
+
+void start_local_ports(struct local_ports *p, struct gensio *user_io);
+
+int add_local_port(struct local_ports *p,
 		   const char *gensio_str, const char *service_str,
 		   const char *id_str);
 
-void remote_port_new_con(struct gensio_os_funcs *o, struct gensio *io,
+void remote_port_new_con(struct local_ports *p, struct gensio *io,
 			 const char *connecter_str, char *id_str);
-
-extern void (*localport_err)(const char *format, va_list ap);
 
 #endif /* LOCALPORTS_H */

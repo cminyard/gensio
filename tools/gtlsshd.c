@@ -55,6 +55,8 @@ unsigned int debug;
 bool oneshot;
 static const char *progname;
 
+static struct local_ports *locport;
+
 struct gdata {
     struct gensio_os_funcs *o;
     struct gensio_waiter *waiter;
@@ -429,7 +431,7 @@ handle_remote_socket(struct per_con_info *pcinfo,
 	syslog(LOG_ERR, "Unknown accepter type: %s\n", accepter);
 	return;
     }
-    add_local_port(pcinfo->ginfo->o, accepter, service, accepter);
+    add_local_port(locport, accepter, service, accepter);
 }
 
 /*
@@ -1382,7 +1384,7 @@ handle_new(struct gensio_runner *r, void *cb_data)
 
     /* At this point we are fully authenticated and have all global info. */
 
-    start_local_ports(top_io);
+    start_local_ports(locport, top_io);
     new_rem_io(top_io, ginfo);
     return;
 }
@@ -1557,7 +1559,7 @@ close_cons(struct gdata *ginfo)
 }
 
 static void
-pr_localport(const char *fmt, va_list ap)
+pr_localport(void *cb_data, const char *fmt, va_list ap)
 {
     vsyslog(LOG_ERR, fmt, ap);
 }
@@ -1578,8 +1580,6 @@ main(int argc, char *argv[])
     const char *iptype = ""; /* Try both IPv4 and IPv6 by default. */
     const char *other_acc_str = NULL;
     struct gensio_os_proc_data *proc_data;
-
-    localport_err = pr_localport;
 
     if ((progname = strrchr(argv[0], '/')) == NULL)
 	progname = argv[0];
@@ -1671,10 +1671,18 @@ main(int argc, char *argv[])
     }
     gensio_os_funcs_set_vlog(o, do_vlog);
 
+    locport = alloc_local_ports(o, pr_localport, NULL);
+    if (!locport) {
+	fprintf(stderr, "Could not allocate local port data\n");
+	gensio_os_funcs_free(o);
+	return 1;
+    }
+
     rv = gensio_os_proc_setup(o, &proc_data);
     if (rv) {
 	fprintf(stderr, "Could not setup process data: %s\n",
 		gensio_err_to_str(rv));
+	free_local_ports(locport);
 	gensio_os_funcs_free(o);
 	return 1;
     }
@@ -1867,6 +1875,7 @@ main(int argc, char *argv[])
     gensio_os_funcs_free_waiter(o, ginfo.waiter);
 
     gensio_os_proc_cleanup(proc_data);
+    free_local_ports(locport);
     gensio_os_funcs_free(o);
 
     if (passwd) {
