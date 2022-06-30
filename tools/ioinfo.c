@@ -202,7 +202,7 @@ io_event(struct gensio *io, void *user_data, int event, int err,
 	    ioinfo_err(ioinfo, "read error: %s", gensio_err_to_str(err));
 	    ioinfo->uh->shutdown(ioinfo, false);
 	} else {
-	    ioinfo->uh->shutdown(ioinfo, true);
+	    ioinfo->uh->shutdown(ioinfo, false);
 	}
 	return 0;
     }
@@ -254,7 +254,7 @@ io_event(struct gensio *io, void *user_data, int event, int err,
 			       gensio_err_to_str(rv));
 		gensio_set_read_callback_enable(ioinfo->io, false);
 		rioinfo->o->unlock(rioinfo->lock);
-		ioinfo->uh->shutdown(ioinfo, rv == GE_REMCLOSE);
+		ioinfo->uh->shutdown(ioinfo, false);
 		return 0;
 	    }
 	} else {
