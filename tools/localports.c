@@ -71,7 +71,7 @@ struct portcon {
 static struct gensio_list portcons;
 
 static void
-pshutdown(struct ioinfo *ioinfo1, bool user_req)
+pshutdown(struct ioinfo *ioinfo1, enum ioinfo_shutdown_reason reason)
 {
     struct portcon *pc = ioinfo_userdata(ioinfo1);
     struct ioinfo *ioinfo2;
@@ -127,7 +127,7 @@ popen_done(struct gensio *io, int err, void *open_data)
     if (err) {
 	localport_pr("Mux open failed for %s: %s\n",
 		pc->id_str, gensio_err_to_str(err));
-	pshutdown(ioinfo1, false);
+	pshutdown(ioinfo1, IOINFO_SHUTDOWN_ERR);
 	return;
     }
 
