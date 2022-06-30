@@ -1125,6 +1125,26 @@ muxc_write(struct mux_inst *chan, gensiods *count,
 	return err;
     }
 
+    if (chan->in_newchannel) {
+	/*
+	 * The user sent from the new channel event.  This is a fairly
+	 * complicated scenario, the user may expect a data exchange,
+	 * so we can't wait for the return from the new channel event
+	 * here.  In this case, we go ahead and finish the channel
+	 * response and set in_newchannel to 0 to tell the new channel
+	 * event handling what happened.
+	 */
+	chan->in_newchannel = 0;
+	mux_send_new_channel_rsp(muxdata, chan->remote_id,
+				 chan->max_read_size,
+				 chan->id, 0);
+	if (chan->service_len) {
+	    /* Ack the service data. */
+	    chan->received_unacked = chan->service_len;
+	    muxc_add_to_wrlist(chan);
+	}
+    }
+
     /*
      * Just return on buffer full.  We need 3 bytes for the header and at
      * least a byte of data.
@@ -2570,6 +2590,21 @@ mux_child_read(struct mux_data *muxdata, int ierr,
 		    chan_ref(chan);
 		    err = mux_firstchan_event(muxdata, GENSIO_EVENT_NEW_CHANNEL,
 					      0, (void *) chan->io, 0, auxdata);
+		    if (chan->in_newchannel == 0) {
+			/*
+			 * The user did a write, so the new channel
+			 * response and service data ack are already
+			 * done.  If an error is returned, we close
+			 * the channel.
+			 */
+			if (err && chan->state == MUX_INST_OPEN) {
+			    chan->errcode = err;
+			    muxc_set_state(chan, MUX_INST_IN_CLOSE);
+			    chan->send_close = true;
+			    muxc_add_to_wrlist(chan);
+			}
+			goto new_chan_done;
+		    }
 		    if (!err && chan->in_newchannel == 2)
 			err = GE_REMCLOSE;
 		    chan->in_newchannel = 0;
@@ -2588,6 +2623,7 @@ mux_child_read(struct mux_data *muxdata, int ierr,
 			chan->received_unacked = chan->service_len;
 			muxc_add_to_wrlist(chan);
 		    }
+		new_chan_done:
 		    chan_deref(chan);
 		}
 	    finish_new_chan:
