@@ -284,7 +284,7 @@ io_closed(struct gensio *io, void *close_data)
 }
 
 static void
-i_gshutdown(struct ioinfo *ioinfo, bool user_req)
+i_gshutdown(struct ioinfo *ioinfo, enum ioinfo_shutdown_reason reason)
 {
     struct ioinfo *oioinfo = ioinfo_otherioinfo(ioinfo);
     struct gtconn_info *gtconn = ioinfo_userdata(ioinfo);
@@ -310,18 +310,18 @@ i_gshutdown(struct ioinfo *ioinfo, bool user_req)
 	    i_io_closed(ogtconn->io, NULL);
 	ogtconn->io = NULL;
     }
-    if (!g->err && !user_req)
+    if (!g->err && reason == IOINFO_SHUTDOWN_ERR)
 	g->err = GE_IOERR;
 }
 
 static void
-gshutdown(struct ioinfo *ioinfo, bool user_req)
+gshutdown(struct ioinfo *ioinfo, enum ioinfo_shutdown_reason reason)
 {
     struct gtconn_info *gtconn = ioinfo_userdata(ioinfo);
     struct gtinfo *g = gtconn->g;
 
     g->o->lock(g->lock);
-    i_gshutdown(ioinfo, user_req);
+    i_gshutdown(ioinfo, reason);
     g->o->unlock(g->lock);
 }
 
@@ -444,7 +444,7 @@ io_open(struct gensio *io, int err, void *open_data)
 	    g->err = err;
 	report_err(gtconn->g, "open error on %s: %s", gtconn->ios,
 		   gensio_err_to_str(err));
-	gshutdown(ioinfo, false);
+	gshutdown(ioinfo, IOINFO_SHUTDOWN_ERR);
     } else {
 	ioinfo_set_ready(ioinfo, io);
     }
@@ -465,7 +465,7 @@ io_open_paddr(struct gensio *io, int err, void *open_data)
 	    g->err = err;
 	report_err(g, "open error on %s: %s", gtconn->ios,
 		   gensio_err_to_str(err));
-	gshutdown(ioinfo, false);
+	gshutdown(ioinfo, IOINFO_SHUTDOWN_ERR);
     } else {
 	if (g->print_laddr)
 	    print_io_addr(io, true);
@@ -476,7 +476,7 @@ io_open_paddr(struct gensio *io, int err, void *open_data)
 	if (rv) {
 	    report_err(g, "Could not open %s: %s", ogtconn->ios,
 		       gensio_err_to_str(rv));
-	    gshutdown(ioinfo, false);
+	    gshutdown(ioinfo, IOINFO_SHUTDOWN_ERR);
 	} else {
 	    ioinfo_set_ready(ioinfo, io);
 	}
@@ -662,7 +662,7 @@ io_acc_event(struct gensio_accepter *accepter, void *user_data,
 		g->err = err;
 		report_err(g, "Could not open %s: %s", ogtconn->ios,
 			gensio_err_to_str(err));
-		i_gshutdown(ioinfo, false);
+		i_gshutdown(ioinfo, IOINFO_SHUTDOWN_ERR);
 		goto out_unlock;
 	    }
 	} else {
@@ -1003,7 +1003,7 @@ main(int argc, char *argv[])
 
 	    fprintf(stderr, "Could not open %s: %s\n", g.ios2,
 		    gensio_err_to_str(rv));
-	    i_gshutdown(ioinfo, false);
+	    i_gshutdown(ioinfo, IOINFO_SHUTDOWN_ERR);
 	}
 	g.o->unlock(g.lock);
 	io = NULL;

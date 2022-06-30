@@ -160,7 +160,7 @@ handle_escapechar(struct ioinfo *ioinfo, char c)
     c = tolower(c);
 
     if (c == 'q') {
-	ioinfo->uh->shutdown(ioinfo, true);
+	ioinfo->uh->shutdown(ioinfo, IOINFO_SHUTDOWN_USER_REQ);
 	return false;
     }
 
@@ -200,9 +200,9 @@ io_event(struct gensio *io, void *user_data, int event, int err,
 	gensio_set_read_callback_enable(ioinfo->io, false);
 	if (err != GE_REMCLOSE) {
 	    ioinfo_err(ioinfo, "read error: %s", gensio_err_to_str(err));
-	    ioinfo->uh->shutdown(ioinfo, false);
+	    ioinfo->uh->shutdown(ioinfo, IOINFO_SHUTDOWN_ERR);
 	} else {
-	    ioinfo->uh->shutdown(ioinfo, false);
+	    ioinfo->uh->shutdown(ioinfo, IOINFO_SHUTDOWN_REMCLOSE);
 	}
 	return 0;
     }
@@ -249,12 +249,15 @@ io_event(struct gensio *io, void *user_data, int event, int err,
 
 	    rv = gensio_write(rioinfo->io, &count, buf, wrsize, NULL);
 	    if (rv) {
-		if (rv != GE_REMCLOSE)
+		enum ioinfo_shutdown_reason reason = IOINFO_SHUTDOWN_ERR;
+		if (rv == GE_REMCLOSE)
+		    reason = IOINFO_SHUTDOWN_REMCLOSE;
+		else
 		    ioinfo_err(rioinfo, "write error(1): %s",
 			       gensio_err_to_str(rv));
 		gensio_set_read_callback_enable(ioinfo->io, false);
 		rioinfo->o->unlock(rioinfo->lock);
-		ioinfo->uh->shutdown(ioinfo, false);
+		ioinfo->uh->shutdown(ioinfo, reason);
 		return 0;
 	    }
 	} else {
@@ -295,12 +298,16 @@ io_event(struct gensio *io, void *user_data, int event, int err,
 
 	    rv = gensio_write(ioinfo->io, &count, oob->buf, wrsize, oobaux);
 	    if (rv) {
-		ioinfo_err(rioinfo, "write error(2): %s",
-			   gensio_err_to_str(rv));
+		enum ioinfo_shutdown_reason reason = IOINFO_SHUTDOWN_ERR;
+		if (rv == GE_REMCLOSE)
+		    reason = IOINFO_SHUTDOWN_REMCLOSE;
+		else
+		    ioinfo_err(rioinfo, "write error(2): %s",
+			       gensio_err_to_str(rv));
 		gensio_set_write_callback_enable(ioinfo->io, false);
 		gensio_set_read_callback_enable(ioinfo->io, false);
 		o->unlock(ioinfo->lock);
-		ioinfo->uh->shutdown(ioinfo, false);
+		ioinfo->uh->shutdown(ioinfo, reason);
 		return 0;
 	    }
 	    if (count >= oob->len) {

@@ -61,7 +61,7 @@ struct gdata {
 };
 
 static void
-gshutdown(struct ioinfo *ioinfo, bool user_req)
+gshutdown(struct ioinfo *ioinfo, enum ioinfo_shutdown_reason reason)
 {
     struct gdata *ginfo = ioinfo_userdata(ioinfo);
 

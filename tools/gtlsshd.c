@@ -347,12 +347,12 @@ close_con_info(struct per_con_info *pcinfo)
 }
 
 static void
-gshutdown(struct ioinfo *ioinfo, bool user_req)
+gshutdown(struct ioinfo *ioinfo, enum ioinfo_shutdown_reason reason)
 {
     struct per_con_info *pcinfo = ioinfo_userdata(ioinfo);
     struct gdata *ginfo = pcinfo->ginfo;
 
-    if (user_req) {
+    if (reason == IOINFO_SHUTDOWN_USER_REQ) {
 	ginfo->o->wake(ginfo->waiter);
     } else {
 	close_con_info(pcinfo);

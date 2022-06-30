@@ -94,6 +94,12 @@ struct ioinfo_sub_handlers {
     void (*handle_multichar_escape)(struct ioinfo *ioinfo, char *escape_data);
 };
 
+enum ioinfo_shutdown_reason {
+    IOINFO_SHUTDOWN_USER_REQ,
+    IOINFO_SHUTDOWN_REMCLOSE,
+    IOINFO_SHUTDOWN_ERR
+};
+
 /*
  * Function calls the user of the ioinfo must provide.
  */
@@ -104,7 +110,8 @@ struct ioinfo_user_handlers {
      * is set, then it was due to a user command.  Otherwise it was
      * due to an I/O error from either end.
      */
-    void (*shutdown)(struct ioinfo *ioinfo, bool user_req);
+    void (*shutdown)(struct ioinfo *ioinfo,
+		     enum ioinfo_shutdown_reason reason);
 
     /*
      * Called to report an error received from the gensio.
