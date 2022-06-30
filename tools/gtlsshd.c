@@ -856,7 +856,7 @@ new_rem_io(struct gensio *io, struct gdata *ginfo)
 	if (!portstr) {
 	    gensio_time timeout = {1, 0};
 
-	    write_str_to_gensio("Invalid port in tcp service",
+	    write_str_to_gensio("Invalid port in tcp service\r\n",
 				io, &timeout, true);
 	    goto out_free;
 	}
@@ -868,7 +868,7 @@ new_rem_io(struct gensio *io, struct gdata *ginfo)
 	if (*portstr == '\0' || *end != '\0' || port > 65535) {
 	    gensio_time timeout = {1, 0};
 
-	    write_str_to_gensio("Invalid port number in tcp service",
+	    write_str_to_gensio("Invalid port number in tcp service\r\n",
 				io, &timeout, true);
 	    goto out_free;
 	}
