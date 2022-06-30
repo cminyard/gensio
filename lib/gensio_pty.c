@@ -222,10 +222,16 @@ gensio_setup_child_on_pty(struct pty_data *tdata)
 	int i, openfiles = sysconf(_SC_OPEN_MAX);
 	int fd;
 
+#if 0
 	/* Set the owner of the slave PT. */
-	/* FIXME - This should not be necessary, can we remove? */
+	/*
+	 * This is not be necessary, the pty is created with the euid,
+	 * so it will be correct already.  Since euid isn't root at this
+	 * point, it will fail.
+	 */
 	if (grantpt(ptym) < 0)
 	    exit(1);
+#endif
 
 	if (setsid() == -1) {
 	    fprintf(stderr, "pty fork: failed to start new session: %s\r\n",
