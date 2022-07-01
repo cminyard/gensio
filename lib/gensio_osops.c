@@ -1249,6 +1249,8 @@ gensio_win_do_exec(struct gensio_os_funcs *o,
 			     0, TRUE, DUPLICATE_SAME_ACCESS))
 	    goto out_err_conv;
     }
+    if (!SetHandleInformation(stderr_s, HANDLE_FLAG_INHERIT, 1))
+	goto out_err_conv;
 
     suinfo.cb = sizeof(STARTUPINFO);
     suinfo.hStdInput = stdin_s;
