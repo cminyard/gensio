@@ -1,5 +1,6 @@
 
-AM_CFLAGS = -DBUILDING_GENSIOTCL_DLL -I$(top_srcdir)/tcl/include
+AM_CPPFLAGS = -DBUILDING_GENSIOTCL_DLL
+AM_CFLAGS = -I$(top_srcdir)/tcl/include @EXTRA_CFLAGS@
 
 lib_LTLIBRARIES = libgensiotcl.la
 

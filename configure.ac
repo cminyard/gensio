@@ -11,9 +11,10 @@ AC_PROG_CXX
 AM_PROG_AR
 LT_INIT
 
-CXXFLAGS="$CXXFLAGS -I\$(top_srcdir)/c++/include"
-
 # defaults
+AM_CFLAGS=
+AM_CXXFLAGS=
+EXTRA_CFLAGS=
 uucp_locking_flag=yes
 UUCP_LOCK_DIR=/var/spool/lock
 USE_FILE_STDIO=0
@@ -52,9 +53,10 @@ if test "$version_type" = "windows"; then
         enable_static=no
     fi
     if test "$enable_static" = "yes"; then
-        CFLAGS="$CFLAGS -DGENSIO_LINK_STATIC"
-        CXXFLAGS="$CXXFLAGS -DGENSIO_LINK_STATIC"
+        EXTRA_CFLAGS="$EXTRA_CFLAGS -DGENSIO_LINK_STATIC"
     fi
+    # Need to pull in some special things for osops.
+    EXTRA_CFLAGS="$EXTRA_CFLAGS -DNTDDI_VERSION=0x0a000006 -DWINVER=0x0602"
 fi
 
 
@@ -152,8 +154,7 @@ AC_ARG_WITH(pthreads,
 if test "x$use_pthreads" != "xno"; then
    AX_PTHREAD(
       [LIBS="$LIBS $PTHREAD_LIBS"
-       CFLAGS="$CFLAGS $PTHREAD_CFLAGS"
-       CXXFLAGS="$CXXFLAGS $PTHREAD_CFLAGS"
+       EXTRA_CFLAGS="$EXTRA_CFLAGS $PTHREAD_CFLAGS"
        CC="$PTHREAD_CC"
        AC_DEFINE([USE_PTHREADS], [], [Enable multithreaded support])],
       [if $use_pthreads_set; then
@@ -785,6 +786,12 @@ AC_CHECK_FUNCS(strncasecmp)
 AC_CHECK_FUNCS(prctl)
 
 AC_CHECK_DECLS([SIGWINCH], [], [], [#include <signal.h>])
+
+AM_CXXFLAGS="$AM_CXXFLAGS $EXTRA_CFLAGS -I\$(top_srcdir)/c++/include"
+AM_CFLAGS="$AM_CFLAGS $EXTRA_CFLAGS"
+AC_SUBST(AM_CXXFLAGS)
+AC_SUBST(AM_CFLAGS)
+AC_SUBST(EXTRA_CFLAGS)
 
 CPPFLAGS="$CPPFLAGS -I\$(top_srcdir)/include -I\$(top_builddir)/include"
 

@@ -16,7 +16,7 @@
 #include <gensio/sergensio.h>
 #include <gensio/gensio_selector.h>
 #include <gensio/gensio_mdns.h>
-#include <gensio/gensio_osops.h>
+#include <gensio/netif.h>
 #include <gensio/gensio_swig.h>
 
 static void wake_curr_waiter(void);

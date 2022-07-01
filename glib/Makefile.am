@@ -1,5 +1,6 @@
 
-AM_CFLAGS = -DBUILDING_GENSIOGLIB_DLL -I$(top_srcdir)/glib/include
+AM_CPPFLAGS = -DBUILDING_GENSIOGLIB_DLL
+AM_CFLAGS = -I$(top_srcdir)/glib/include @EXTRA_CFLAGS@
 
 lib_LTLIBRARIES = libgensioglib.la
 
