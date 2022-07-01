@@ -25,7 +25,7 @@ namespace gensio {
 #include <gensio/gensio.h>
 #include <gensio/sergensio.h>
 #include <gensio/gensio_mdns.h>
-#include <gensio/gensio_osops.h>
+#include <gensio/netif.h>
 
     // This is an exception that is raised by gensio operations that
     // get errors.  Most operations raise exceptions, unless otherwise
