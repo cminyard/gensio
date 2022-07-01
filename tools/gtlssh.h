@@ -29,20 +29,30 @@
 #include <stdint.h>
 #include <gensio/gensio.h>
 
-int checkout_file(const char *filename, bool expect_dir, bool check_private);
+typedef void (*gtlssh_logger)(void *cbdata, const char *format, ...);
+
+int checkout_file(gtlssh_logger logger, void *cbdata,
+		  const char *filename, bool expect_dir, bool check_private);
 bool file_is_readable(const char *filename);
-char *get_homedir(const char *username, const char *extra);
-char *get_tlsshdir(const char *username, const char *extra);
-char *get_my_username(void);
-char *get_my_hostname(void);
-bool check_dir_exists(const char *dir, bool check_private);
+char *get_homedir(gtlssh_logger logger, void *cbdata,
+		  const char *username, const char *extra);
+char *get_tlsshdir(gtlssh_logger logger, void *cbdata,
+		   const char *username, const char *extra);
+char *get_my_username(gtlssh_logger logger, void *cbdata);
+char *get_my_hostname(gtlssh_logger logger, void *cbdata);
+bool check_dir_exists(gtlssh_logger logger, void *cbdata,
+		      const char *dir, bool check_private);
 bool check_file_exists(const char *file);
-void make_dir(const char *dir, bool make_private);
+void make_dir(gtlssh_logger logger, void *cbdata,
+	      const char *dir, bool make_private);
 #define LINK_ERROR  1
 #define LINK_EXISTS 2
-int make_link(const char *link, const char *file, const char *name);
-int move_file(const char *src, const char *dest);
-int delete_file(const char *filename);
+int make_link(gtlssh_logger logger, void *cbdata,
+	      const char *link, const char *file, const char *name);
+int move_file(gtlssh_logger logger, void *cbdata,
+	      const char *src, const char *dest);
+int delete_file(gtlssh_logger logger, void *cbdata,
+		const char *filename);
 
 int run_get_output(const char *argv[],
 		   bool close_stdin,
@@ -54,7 +64,8 @@ int run_get_output(const char *argv[],
 
 #ifdef _WIN32
 #include <windows.h>
-int win_get_user(const char *user, const char *src_module,
+int win_get_user(gtlssh_logger logger, void *cbdata,
+		 const char *user, const char *src_module,
 		 bool interactive, HANDLE *userh);
 #define DIRSEP '\\'
 #define DIRSEPS "\\"

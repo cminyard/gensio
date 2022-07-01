@@ -154,6 +154,16 @@ start_log(bool debug)
 }
 #endif
 
+static void
+slogger(void *cbdata, const char *format, ...)
+{
+    va_list va;
+
+    va_start(va, format);
+    vfprintf(stderr, format, va);
+    va_end(va);
+}
+
 /* Default the program to this path. */
 #define STANDARD_PATH "/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 
@@ -1111,10 +1121,20 @@ finish_auth(struct auth_data *auth)
 
 #else
 
+static void
+glogger(void *cbdata, const char *format, ...)
+{
+    va_list va;
+
+    va_start(va, format);
+    vlog_event(LOG_ERR, format, va);
+    va_end(va);
+}
+
 static int
 setup_user(struct auth_data *auth)
 {
-    auth->homedir = get_homedir(auth->username, NULL);
+    auth->homedir = get_homedir(glogger, NULL, auth->username, NULL);
     if (!auth->homedir)
 	return GE_NOMEM;
     auth->ushell = gensio_strdup(auth->ginfo->o,
@@ -1131,7 +1151,8 @@ switch_to_user(struct auth_data *auth)
 {
     int err;
 
-    err = win_get_user(auth->username, "gtlsshd", true, &auth->userh);
+    err = win_get_user(glogger, NULL,
+		       auth->username, "gtlsshd", true, &auth->userh);
     if (err) {
 	char errbuf[128];
 
@@ -1139,8 +1160,8 @@ switch_to_user(struct auth_data *auth)
 	auth->userh = NULL;
 	FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM, NULL,
 		      err, 0, errbuf, sizeof(errbuf), NULL);
-	fprintf(stderr, "Could not get user '%s': %s\n",
-		auth->username, errbuf);
+	log_event(LOG_ERR, "Could not get user '%s': %s\n",
+		  auth->username, errbuf);
 	return gensio_os_err_to_err(auth->ginfo->o, GetLastError());
     }
     if (!SetThreadToken(NULL, auth->userh)) {
@@ -1150,7 +1171,7 @@ switch_to_user(struct auth_data *auth)
 	auth->userh = NULL;
 	FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM, NULL,
 		      GetLastError(), 0, errbuf, sizeof(errbuf), NULL);
-	fprintf(stderr, "Could not set thread user: %s\n", errbuf);
+	log_event(LOG_ERR, "Could not set thread user: %s\n", errbuf);
 	return gensio_os_err_to_err(auth->ginfo->o, GetLastError());
     }
     return 0;
@@ -1166,7 +1187,7 @@ switch_from_user(struct auth_data *auth)
 
 	FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM, NULL,
 		      GetLastError(), 0, errbuf, sizeof(errbuf), NULL);
-	fprintf(stderr, "Could not revert user: %s\n", errbuf);
+	log_event(LOG_ERR, "Could not revert user: %s\n", errbuf);
     }
 }
 
@@ -1417,7 +1438,7 @@ new_rem_io(struct gensio *io, struct auth_data *auth)
 	    goto out_free;
 	}
 	i++;
-	penv2[i] = gensio_alloc_sprintf("PATH=%s", STANDARD_PATH);
+	penv2[i] = gensio_alloc_sprintf(o, "PATH=%s", STANDARD_PATH);
 	if (!penv2[i]) {
 	    log_event(LOG_ERR, "Failure to alloc PATH env space for %s",
 		      auth->username);
@@ -2266,9 +2287,9 @@ main(int argc, char *argv[])
 	exit(1);
     }
 
-    if (checkout_file(keyfile, false, true))
+    if (checkout_file(slogger, NULL, keyfile, false, true))
 	return 1;
-    if (checkout_file(certfile, false, false))
+    if (checkout_file(slogger, NULL, certfile, false, false))
 	return 1;
 
     memset(&ginfo, 0, sizeof(ginfo));

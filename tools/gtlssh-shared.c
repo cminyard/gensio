@@ -44,7 +44,7 @@
 
 #ifdef _WIN32
 
-void
+static void
 set_lsa_string(LSA_STRING *a, const char *b)
 {
     a->Length = (USHORT) strlen(b);
@@ -53,7 +53,8 @@ set_lsa_string(LSA_STRING *a, const char *b)
 }
 
 int
-win_get_user(const char *user, const char *src_module,
+win_get_user(gtlssh_logger logger, void *cbdata,
+	     const char *user, const char *src_module,
 	     bool interactive, HANDLE *userh)
 {
     HANDLE lsah;
@@ -191,7 +192,8 @@ win_get_user(const char *user, const char *src_module,
 }
 
 char *
-get_homedir(const char *username, const char *extra)
+get_homedir(gtlssh_logger logger, void *cbdata,
+	    const char *username, const char *extra)
 {
     char *dir;
 
@@ -203,14 +205,14 @@ get_homedir(const char *username, const char *extra)
 
 	drive_len = GetEnvironmentVariable("HOMEDRIVE", NULL, 0);
 	if (drive_len == 0) {
-		fprintf(stderr, "No HOMEDRIVE set\n");
+		logger(cbdata, "No HOMEDRIVE set\n");
 		return NULL;
 	}
 	/* Docs say return value includes the nil terminator. */
 	drive_len--;
 	path_len = GetEnvironmentVariable("HOMEPATH", NULL, 0);
 	if (path_len == 0) {
-		fprintf(stderr, "No HOMEPATH set\n");
+		logger(cbdata, "No HOMEPATH set\n");
 		return NULL;
 	}
 	path_len--;
@@ -220,17 +222,17 @@ get_homedir(const char *username, const char *extra)
 
 	dir = malloc(drive_len + path_len + extra_len + 1);
 	if (!dir) {
-	    fprintf(stderr, "Out of memory allocating home dir\n");
+	    logger(cbdata, "Out of memory allocating home dir\n");
 	    return NULL;
 	}
 	rv = GetEnvironmentVariable("HOMEDRIVE", dir, drive_len + 1);
 	if (rv != drive_len) {
-		fprintf(stderr, "No HOMEDRIVE set\n");
+		logger(cbdata, "No HOMEDRIVE set\n");
 		return NULL;
 	}
 	rv = GetEnvironmentVariable("HOMEPATH", dir + drive_len, path_len + 1);
 	if (rv != path_len) {
-		fprintf(stderr, "No HOMEPATH set\n");
+		logger(cbdata, "No HOMEPATH set\n");
 		return NULL;
 	}
 	strncpy(dir + drive_len + path_len, extra, extra_len + 1);
@@ -239,13 +241,13 @@ get_homedir(const char *username, const char *extra)
 	DWORD err, len;
 	char dummy[1];
 
-	err = win_get_user(username, "gtlssh", false, &userh);
+	err = win_get_user(logger, cbdata, username, "gtlssh", false, &userh);
 	if (err) {
 	    char errbuf[128];
 
 	    FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM, NULL,
 			  err, 0, errbuf, sizeof(errbuf), NULL);
-	    fprintf(stderr, "Could not get user: %s\n", errbuf);
+	    logger(cbdata, "Could not get user: %s\n", errbuf);
 	    return NULL;
 	}
 
@@ -256,13 +258,13 @@ get_homedir(const char *username, const char *extra)
 
 	    FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM, NULL,
 			  GetLastError(), 0, errbuf, sizeof(errbuf), NULL);
-	    fprintf(stderr, "GetUserProfileDirectory: %s\n", errbuf);
+	    logger(cbdata, "GetUserProfileDirectory: %s\n", errbuf);
 	    CloseHandle(userh);
 	    return NULL;
 	}
 	dir = malloc(len);
 	if (!dir) {
-	    fprintf(stderr, "Out of memory allocating home dir\n");
+	    logger(cbdata, "Out of memory allocating home dir\n");
 	    CloseHandle(userh);
 	    return NULL;
 	}
@@ -274,13 +276,13 @@ get_homedir(const char *username, const char *extra)
 }
 
 char *
-get_my_username(void)
+get_my_username(gtlssh_logger logger, void *cbdata)
 {
     char *username = malloc(UNLEN + 1);
     DWORD len = UNLEN + 1;
 
     if (!username) {
-	fprintf(stderr, "out of memory allocating username\n");
+	logger(cbdata, "out of memory allocating username\n");
 	return NULL;
     }
 
@@ -291,7 +293,7 @@ get_my_username(void)
 	free(username);
 	FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM, NULL,
 		      err, 0, errbuf, sizeof(errbuf), NULL);
-	fprintf(stderr, "Could not get username: %s\n", errbuf);
+	logger(cbdata, "Could not get username: %s\n", errbuf);
 	return NULL;
     }
 
@@ -310,7 +312,8 @@ get_my_username(void)
 #include <errno.h>
 
 char *
-get_homedir(const char *username, const char *extra)
+get_homedir(gtlssh_logger logger, void *cbdata,
+	    const char *username, const char *extra)
 {
     char *dir;
 
@@ -321,7 +324,7 @@ get_homedir(const char *username, const char *extra)
 	const char *home = getenv("HOME");
 
 	if (!home) {
-	    fprintf(stderr, "No home directory set\n");
+	    logger(cbdata, "No home directory set\n");
 	    return NULL;
 	}
 
@@ -333,7 +336,7 @@ get_homedir(const char *username, const char *extra)
     }
 
     if (!dir) {
-	fprintf(stderr, "Out of memory allocating gtlssh dir\n");
+	logger(cbdata, "Out of memory allocating gtlssh dir\n");
 	return NULL;
     }
 
@@ -341,18 +344,18 @@ get_homedir(const char *username, const char *extra)
 }
 
 char *
-get_my_username(void)
+get_my_username(gtlssh_logger logger, void *cbdata)
 {
     struct passwd *pw = getpwuid(getuid());
     char *username;
 
     if (!pw) {
-	fprintf(stderr, "no username given, and can't look up UID\n");
+	logger(cbdata, "no username given, and can't look up UID\n");
 	return NULL;
     }
     username = strdup(pw->pw_name);
     if (!username) {
-	fprintf(stderr, "out of memory allocating username\n");
+	logger(cbdata, "out of memory allocating username\n");
 	return NULL;
     }
 
@@ -362,7 +365,8 @@ get_my_username(void)
 #endif /* _WIN32 */
 
 char *
-get_tlsshdir(const char *username, const char *extra)
+get_tlsshdir(gtlssh_logger logger, void *cbdata,
+	     const char *username, const char *extra)
 {
     char *hextra = GTLSSHDIR;
     bool hextra_alloced = false;
@@ -371,19 +375,19 @@ get_tlsshdir(const char *username, const char *extra)
     if (extra) {
 	hextra = alloc_sprintf("%s%s", GTLSSHDIR, extra);
 	if (!hextra) {
-	    fprintf(stderr, "Could not allocate tlsshdir\n");
+	    logger(cbdata, "Could not allocate tlsshdir\n");
 	    return NULL;
 	}
 	hextra_alloced = true;
     }
-    dir = get_homedir(username, hextra);
+    dir = get_homedir(logger, cbdata, username, hextra);
     if (hextra_alloced)
 	free(hextra);
     return dir;
 }
 
 char *
-get_my_hostname(void)
+get_my_hostname(gtlssh_logger logger, void *cbdata)
 {
     char hostname[HOST_NAME_MAX + 1];
 
@@ -399,9 +403,9 @@ get_my_hostname(void)
 
 	FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM, NULL,
 		      err, 0, errbuf, sizeof(errbuf), NULL);
-	fprintf(stderr, "Could not get hostname: %s\n", errbuf);
+	logger(cbdata, "Could not get hostname: %s\n", errbuf);
 #else
-	fprintf(stderr, "Could not get hostname: %s\n", strerror(errno));
+	logger(cbdata, "Could not get hostname: %s\n", strerror(errno));
 #endif
 	return NULL;
     }

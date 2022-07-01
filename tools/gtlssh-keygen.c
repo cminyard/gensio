@@ -68,6 +68,16 @@ static bool commonname_set = false;
 static bool force = false;
 
 static void
+glogger(void *cbdata, const char *format, ...)
+{
+    va_list va;
+
+    va_start(va, format);
+    vfprintf(stderr, format, va);
+    va_end(va);
+}
+
+static void
 help(const char *progname)
 {
 #define P printf
@@ -228,12 +238,12 @@ check_dir(bool created, bool check_private, const char *fmt, ...)
 	exit(1);
     }
 
-    if (!check_dir_exists(dir, check_private)) {
+    if (!check_dir_exists(glogger, NULL, dir, check_private)) {
 	if (created) {
-	    make_dir(dir, check_private);
+	    make_dir(glogger, NULL, dir, check_private);
 	} else {
 	    if (force || promptyn("%s does not exist.  Create it?", dir)) {
-		make_dir(dir, check_private);
+		make_dir(glogger, NULL, dir, check_private);
 	    } else {
 		printf("Not creating %s, giving up\n", dir);
 		exit(1);
@@ -248,10 +258,10 @@ check_dirstruct(void)
 {
     bool created = false;
 
-    if (!check_dir_exists(gtlsshdir, true)) {
+    if (!check_dir_exists(glogger, NULL, gtlsshdir, true)) {
 	if (force || promptyn("%s does not exist.  Do you want to create it?",
 			      gtlsshdir)) {
-	    make_dir(gtlsshdir, true);
+	    make_dir(glogger, NULL, gtlsshdir, true);
 	    created = true;
 	} else {
 	    printf("Not modifying %s, giving up\n", gtlsshdir);
@@ -343,7 +353,7 @@ remove_links(const char *dir, const char *name, void *cbdata)
 		dir, DIRSEP, name);
 	return ITERATE_DIR_ERR;
     }
-    rv = delete_file(fname);
+    rv = delete_file(glogger, NULL, fname);
     free(fname);
     if (rv) {
 	fprintf(stderr, "Unable to remove %s%c%s: %s", dir, DIRSEP, name,
@@ -475,7 +485,7 @@ hash_file(const char *dir, const char *name, void *cbdata)
     notafter = X509_get0_notAfter(cert);
     if (X509_cmp_current_time(notafter) < 0) {
 	printf("Removing expired certificate %s\n", s);
-	delete_file(s);
+	delete_file(glogger, NULL, s);
 	free(s);
 	free_cert(cert);
 	return ITERATE_DIR_CONTINUE;
@@ -505,7 +515,7 @@ hash_file(const char *dir, const char *name, void *cbdata)
 	    goto out_err;
 	}
 
-	err = make_link(l, s, name);
+	err = make_link(glogger, NULL, l, s, name);
 	free(l);
 	if (err == 0)
 	    goto out;
@@ -583,9 +593,7 @@ rehash(int argc, char *argv[])
 	hash_dir("%s%cserver_certs", gtlsshdir, DIRSEP);
     } else {
 	for (i = 0; i < argc; i++) {
-	    if (!check_dir_exists(argv[i], false))
-		fprintf(stderr, "%s is not a directory", argv[i]);
-	    else
+	    if (check_dir_exists(glogger, NULL, argv[i], false))
 		hash_dir("%s", argv[i]);
 	}
     }
@@ -639,7 +647,7 @@ addallow(int argc, char **argv)
 
     if (check_file_exists(dest)) {
 	if (force || promptyn("File %s already exists, do you want to overwrite it?", dest)) {
-	    delete_file(dest);
+	    delete_file(glogger, NULL, dest);
 	} else {
 	    printf("Not installing certificate at %s\n", dest);
 	    goto out_err;
@@ -825,16 +833,16 @@ keygen_one(const char *name, const char *key, const char *cert)
 	    /* Move the key and certificate to backup files. */
 	    s = alloc_sprintf("%s.1", key);
 	    if (s) {
-		move_file(key, s);
+		move_file(glogger, NULL, key, s);
 		free(s);
 	    }
 	    s = alloc_sprintf("%s.1", cert);
 	    if (s) {
-		move_file(cert, s);
+		move_file(glogger, NULL, cert, s);
 		free(s);
 	    }
-	    delete_file(key);
-	    delete_file(cert);
+	    delete_file(glogger, NULL, key);
+	    delete_file(glogger, NULL, cert);
 	} else if (name) {
 	    printf("Not generating key for %s", name);
 	    return 1;
@@ -980,8 +988,8 @@ serverkey(int inargc, char *inargv[])
 	goto out;
     }
 
-    if (!check_dir_exists(confdir, false))
-	make_dir(confdir, false);
+    if (!check_dir_exists(glogger, NULL, confdir, false))
+	make_dir(glogger, NULL, confdir, false);
 
     rv = keygen_one(NULL, serverkey, servercert);
 
@@ -1113,7 +1121,7 @@ pushcert(int argc, char *argv[])
 	return 1;
     }
 
-    hostname = get_my_hostname();
+    hostname = get_my_hostname(glogger, NULL);
     if (!hostname) {
 	fprintf(stderr, "Out of memory allocating hostname\n");
 	return 1;
@@ -1175,7 +1183,7 @@ main(int argc, char **argv)
     int i, rv = 1;
     const char *algorithm = NULL;
 
-    default_gtlsshdir = get_tlsshdir(NULL, NULL);
+    default_gtlsshdir = get_tlsshdir(glogger, NULL, NULL, NULL);
     if (!default_gtlsshdir)
 	exit(1);
     default_keydir = alloc_sprintf("%s%ckeycerts", default_gtlsshdir, DIRSEP);
@@ -1263,7 +1271,7 @@ main(int argc, char **argv)
 	if (!keydir_set)
 	    check_dirstruct();
 	if (!commonname_set) {
-	    alloc_commonname = get_my_username();
+	    alloc_commonname = get_my_username(glogger, NULL);
 	    if (!alloc_commonname) {
 		fprintf(stderr, "Error allocating username\n");
 		exit(1);
@@ -1276,7 +1284,7 @@ main(int argc, char **argv)
     } else if (strcmp(argv[0], "setup") == 0) {
 	check_dirstruct();
 	if (!commonname_set) {
-	    alloc_commonname = get_my_username();
+	    alloc_commonname = get_my_username(glogger, NULL);
 	    if (!alloc_commonname) {
 		fprintf(stderr, "Error allocating username\n");
 		exit(1);
@@ -1291,7 +1299,7 @@ main(int argc, char **argv)
 	if (keydir_set)
 	    confdir = keydir;
 	if (!commonname_set) {
-	    alloc_commonname = get_my_hostname();
+	    alloc_commonname = get_my_hostname(glogger, NULL);
 	    if (!alloc_commonname) {
 		fprintf(stderr, "Error allocating hostname\n");
 		exit(1);

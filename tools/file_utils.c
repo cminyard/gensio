@@ -9,20 +9,22 @@
 #include <Lmcons.h>
 
 static int
-check_sid(const char *filename, const PSID osid, const PSID sid)
+check_sid(gtlssh_logger logger, void *cbdata,
+	  const char *filename, const PSID osid, const PSID sid)
 {
     if (!(EqualSid(sid, osid) ||
 	  IsWellKnownSid(sid, WinBuiltinAdministratorsSid) ||
 	  IsWellKnownSid(sid, WinLocalSystemSid))) {
-	fprintf(stderr, "%s is accessible by others, giving up\n",
-		filename);
+	logger(cbdata, "%s is accessible by others, giving up\n",
+	       filename);
 	return 1;
     }
     return 0;
 }
 
 static int
-i_checkout_file(const char *filename, bool expect_dir, bool check_private,
+i_checkout_file(gtlssh_logger logger, void *cbdata,
+		const char *filename, bool expect_dir, bool check_private,
 		bool pr_on_no_file)
 {
     DWORD attr;
@@ -40,20 +42,20 @@ i_checkout_file(const char *filename, bool expect_dir, bool check_private,
 	    err = GetLastError();
 	    FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM, NULL,
 			  err, 0, errbuf, sizeof(errbuf), NULL);
-	    fprintf(stderr, "Unable to examine %s: %s\n",
-		    filename, errbuf);
+	    logger(cbdata, "Unable to examine %s: %s\n",
+		   filename, errbuf);
 	}
 	goto out_err;
     }
 
     if (expect_dir) {
 	if (!(attr & FILE_ATTRIBUTE_DIRECTORY)) {
-	    fprintf(stderr, "%s is not a directory\n", filename);
+	    logger(cbdata, "%s is not a directory\n", filename);
 	    goto out_err;
 	}
     } else {
 	if (attr & (FILE_ATTRIBUTE_DIRECTORY | FILE_ATTRIBUTE_DEVICE)) {
-	    fprintf(stderr, "%s is not a regular file\n", filename);
+	    logger(cbdata, "%s is not a regular file\n", filename);
 	    goto out_err;
 	}
     }
@@ -64,8 +66,8 @@ i_checkout_file(const char *filename, bool expect_dir, bool check_private,
 	err = GetLastError();
 	FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM, NULL,
 		      err, 0, errbuf, sizeof(errbuf), NULL);
-	fprintf(stderr, "Unable to get my process security info: %s\n",
-		errbuf);
+	logger(cbdata, "Unable to get my process security info: %s\n",
+	       errbuf);
 	goto out_err;
     }
 
@@ -76,13 +78,13 @@ i_checkout_file(const char *filename, bool expect_dir, bool check_private,
 	err = GetLastError();
 	FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM, NULL,
 		      err, 0, errbuf, sizeof(errbuf), NULL);
-	fprintf(stderr, "Unable to get my security info for %s: %s\n",
-		filename, errbuf);
+	logger(cbdata, "Unable to get my security info for %s: %s\n",
+	       filename, errbuf);
 	goto out_err;
     }
 
     if (!EqualSid(psid, osid)) {
-	fprintf(stderr, "You do not own %s, giving up\n", filename);
+	logger(cbdata, "You do not own %s, giving up\n", filename);
 	goto out_err;
     }
 
@@ -96,32 +98,36 @@ i_checkout_file(const char *filename, bool expect_dir, bool check_private,
 		err = GetLastError();
 		FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM, NULL,
 			      err, 0, errbuf, sizeof(errbuf), NULL);
-		fprintf(stderr, "Unable to get ACE %d for %s: %s\n",
-			i, filename, errbuf);
+		logger(cbdata, "Unable to get ACE %d for %s: %s\n",
+		       i, filename, errbuf);
 		goto out_err;
 	    }
 	    switch (a->AceType) {
 	    case ACCESS_ALLOWED_ACE_TYPE: {
 		ACCESS_ALLOWED_ACE *aa = (void *) a;
-		if (check_sid(filename, psid, (SID *) &aa->SidStart))
+		if (check_sid(logger, cbdata,
+			      filename, psid, (SID *) &aa->SidStart))
 		    goto out_err;
 		break;
 	    }
 	    case ACCESS_ALLOWED_CALLBACK_ACE_TYPE: {
 		ACCESS_ALLOWED_CALLBACK_ACE *aa = (void *) a;
-		if (check_sid(filename, psid, (SID *) &aa->SidStart))
+		if (check_sid(logger, cbdata,
+			      filename, psid, (SID *) &aa->SidStart))
 		    goto out_err;
 		break;
 	    }
 	    case ACCESS_ALLOWED_OBJECT_ACE_TYPE: {
 		ACCESS_ALLOWED_OBJECT_ACE *aa = (void *) a;
-		if (check_sid(filename, psid, (SID *) &aa->SidStart))
+		if (check_sid(logger, cbdata,
+			      filename, psid, (SID *) &aa->SidStart))
 		    goto out_err;
 		break;
 	    }
 	    case ACCESS_ALLOWED_CALLBACK_OBJECT_ACE_TYPE: {
 		ACCESS_ALLOWED_CALLBACK_OBJECT_ACE *aa = (void *) a;
-		if (check_sid(filename, psid, (SID *) &aa->SidStart))
+		if (check_sid(logger, cbdata,
+			      filename, psid, (SID *) &aa->SidStart))
 		    goto out_err;
 		break;
 	    }
@@ -132,8 +138,8 @@ i_checkout_file(const char *filename, bool expect_dir, bool check_private,
 		/* Denies are ok. */
 		break;
 	    default:
-		fprintf(stderr, "%s is accessible by others, giving up\n",
-			filename);
+		logger(cbdata, "%s is accessible by others, giving up\n",
+		       filename);
 		goto out_err;
 	    }
 	}
@@ -152,9 +158,11 @@ i_checkout_file(const char *filename, bool expect_dir, bool check_private,
 }
 
 int
-checkout_file(const char *filename, bool expect_dir, bool check_private)
+checkout_file(gtlssh_logger logger, void *cbdata,
+	      const char *filename, bool expect_dir, bool check_private)
 {
-    return i_checkout_file(filename, expect_dir, check_private, true);
+    return i_checkout_file(logger, cbdata,
+			   filename, expect_dir, check_private, true);
 }
 
 bool
@@ -191,21 +199,25 @@ file_is_readable(const char *filename)
 }
 
 int
-delete_file(const char *filename)
+delete_file(gtlssh_logger logger, void *cbdata,
+	    const char *filename)
 {
     return !DeleteFileA(filename);
 }
 
 int
-move_file(const char *src, const char *dest)
+move_file(gtlssh_logger logger, void *cbdata,
+	  const char *src, const char *dest)
 {
-    delete_file(dest);
+    delete_file(logger, cbdata, dest);
     MoveFile(src, dest);
+    /* FIXME - error handling. */
     return 0;
 }
 
 int
-make_link(const char *link, const char *file, const char *name)
+make_link(gtlssh_logger logger, void *cbdata,
+	  const char *link, const char *file, const char *name)
 {
     DWORD err = 0;
     char errbuf[128];
@@ -216,15 +228,16 @@ make_link(const char *link, const char *file, const char *name)
 	    return LINK_EXISTS;
 	FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM, NULL,
 		      err, 0, errbuf, sizeof(errbuf), NULL);
-	fprintf(stderr, "Error making link from %s to %s: %s\n", file, link,
-		errbuf);
+	logger(cbdata, "Error making link from %s to %s: %s\n", file, link,
+	       errbuf);
 	return LINK_ERROR;
     }
     return 0;
 }
 
 void
-make_dir(const char *dir, bool make_private)
+make_dir(gtlssh_logger logger, void *cbdata,
+	 const char *dir, bool make_private)
 {
     if (CreateDirectoryA(dir, NULL) == 0) {
 	DWORD err = GetLastError();
@@ -232,15 +245,16 @@ make_dir(const char *dir, bool make_private)
 
 	FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM, NULL,
 		      err, 0, errbuf, sizeof(errbuf), NULL);
-	fprintf(stderr, "Unable to create directory %s: %s\n", dir, errbuf);
+	logger(cbdata, "Unable to create directory %s: %s\n", dir, errbuf);
 	exit(1);
     }
 }
 
 bool
-check_dir_exists(const char *dir, bool check_private)
+check_dir_exists(gtlssh_logger logger, void *cbdata,
+		 const char *dir, bool check_private)
 {
-    return !i_checkout_file(dir, true, check_private, false);
+    return !i_checkout_file(logger, cbdata, dir, true, check_private, false);
 }
 
 bool
@@ -261,25 +275,28 @@ check_file_exists(const char *filename)
 #include <stdlib.h>
 
 int
-delete_file(const char *filename)
+delete_file(gtlssh_logger logger, void *cbdata,
+	    const char *filename)
 {
     return unlink(filename);
 }
 
 int
-move_file(const char *src, const char *dest)
+move_file(gtlssh_logger logger, void *cbdata,
+	  const char *src, const char *dest)
 {
     unlink(dest);
     if (link(src, dest)) {
-	fprintf(stderr, "Error making link (in move) from %s to %s: %s\n",
-		src, dest, strerror(errno));
+	logger(cbdata, "Error making link (in move) from %s to %s: %s\n",
+	       src, dest, strerror(errno));
 	return LINK_ERROR;
     }
     return 0;
 }
 
 int
-make_link(const char *link, const char *file, const char *name)
+make_link(gtlssh_logger logger, void *cbdata,
+	  const char *link, const char *file, const char *name)
 {
     int err;
 
@@ -288,13 +305,14 @@ make_link(const char *link, const char *file, const char *name)
 	return 0;
     if (errno == EEXIST)
 	return LINK_EXISTS;
-    fprintf(stderr, "Error making link from %s to %s: %s\n", file, link,
-	    strerror(errno));
+    logger(cbdata, "Error making link from %s to %s: %s\n", file, link,
+	   strerror(errno));
     return LINK_ERROR;
 }
 
 void
-make_dir(const char *dir, bool make_private)
+make_dir(gtlssh_logger logger, void *cbdata,
+	 const char *dir, bool make_private)
 {
     int rv;
     mode_t mode;
@@ -306,14 +324,15 @@ make_dir(const char *dir, bool make_private)
 
     rv = mkdir(dir, mode);
     if (rv) {
-	fprintf(stderr, "Unable to create directory %s: %s\n", dir,
-		strerror(errno));
+	logger(cbdata, "Unable to create directory %s: %s\n", dir,
+	       strerror(errno));
 	exit(1);
     }
 }
 
 bool
-check_dir_exists(const char *dir, bool check_private)
+check_dir_exists(gtlssh_logger logger, void *cbdata,
+		 const char *dir, bool check_private)
 {
     struct stat sb;
     int rv;
@@ -323,17 +342,17 @@ check_dir_exists(const char *dir, bool check_private)
 	return false;
 
     if (!S_ISDIR(sb.st_mode)) {
-	fprintf(stderr, "%s is not a directory\n", dir);
+	logger(cbdata, "%s is not a directory\n", dir);
 	exit(1);
     }
 
     if (sb.st_uid != getuid()) {
-	fprintf(stderr, "You do not own %s, giving up\n", dir);
+	logger(cbdata, "You do not own %s, giving up\n", dir);
 	exit(1);
     }
 
     if (check_private && sb.st_mode & 077) {
-	fprintf(stderr, "%s is accessible by others, giving up\n", dir);
+	logger(cbdata, "%s is accessible by others, giving up\n", dir);
 	exit(1);
     }
 
@@ -354,36 +373,36 @@ check_file_exists(const char *file)
 }
 
 int
-checkout_file(const char *filename, bool expect_dir, bool check_private)
+checkout_file(gtlssh_logger logger, void *cbdata,
+	      const char *filename, bool expect_dir, bool check_private)
 {
     struct stat sb;
     int rv;
 
     rv = stat(filename, &sb);
     if (rv == -1) {
-	fprintf(stderr, "Unable to examine %s: %s\n",
-		filename, strerror(errno));
+	logger(cbdata, "Unable to examine %s: %s\n", filename, strerror(errno));
 	return errno;
     }
 
     if (sb.st_uid != getuid()) {
-	fprintf(stderr, "You do not own %s, giving up\n", filename);
+	logger(cbdata, "You do not own %s, giving up\n", filename);
 	return EPERM;
     }
 
     if (check_private && sb.st_mode & 077) {
-	fprintf(stderr, "%s is accessible by others, giving up\n", filename);
+	logger(cbdata, "%s is accessible by others, giving up\n", filename);
 	return EPERM;
     }
 
     if (expect_dir) {
 	if (!S_ISDIR(sb.st_mode)) {
-	    fprintf(stderr, "%s is not a directory\n", filename);
+	    logger(cbdata, "%s is not a directory\n", filename);
 	    return EINVAL;
 	}
     } else {
 	if (!S_ISREG(sb.st_mode)) {
-	    fprintf(stderr, "%s is not a regular file\n", filename);
+	    logger(cbdata, "%s is not a regular file\n", filename);
 	    return EINVAL;
 	}
     }

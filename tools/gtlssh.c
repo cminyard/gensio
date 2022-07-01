@@ -63,6 +63,16 @@ struct gdata {
 struct gensio_os_proc_data *proc_data;
 
 static void
+glogger(void *cbdata, const char *format, ...)
+{
+    va_list va;
+
+    va_start(va, format);
+    vfprintf(stderr, format, va);
+    va_end(va);
+}
+
+static void
 gshutdown(struct ioinfo *ioinfo, enum ioinfo_shutdown_reason reason)
 {
     struct gdata *ginfo = ioinfo_userdata(ioinfo);
@@ -724,15 +734,15 @@ lookup_certinfo(struct gensio_os_funcs *o,
 	keyname = tkeyname;
     }
 
-    err = checkout_file(CAname, true, false);
+    err = checkout_file(glogger, NULL, CAname, true, false);
     if (err)
 	goto out_err;
 
-    err = checkout_file(certname, false, false);
+    err = checkout_file(glogger, NULL, certname, false, false);
     if (err)
 	goto out_err;
 
-    err = checkout_file(keyname, false, true);
+    err = checkout_file(glogger, NULL, keyname, false, true);
     if (err)
 	goto out_err;
 
@@ -1906,7 +1916,7 @@ main(int argc, char *argv[])
 	}
 	hostname = s;
     } else {
-	username = get_my_username();
+	username = get_my_username(glogger, NULL);
 	if (!username)
 	    return 1;
 	hostname = argv[arg];
@@ -1970,12 +1980,12 @@ main(int argc, char *argv[])
     }
 
     if (!tlssh_dir) {
-	tlssh_dir = get_tlsshdir(NULL, NULL);
+	tlssh_dir = get_tlsshdir(glogger, NULL, NULL, NULL);
 	if (!tlssh_dir)
 	    return 1;
     }
 
-    err = checkout_file(tlssh_dir, true, true);
+    err = checkout_file(glogger, NULL, tlssh_dir, true, true);
     if (err)
 	return 1;
 
