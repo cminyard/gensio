@@ -23,7 +23,7 @@
  *  release a modified version which carries forward this exception.
  */
 
-
+#include "config.h"
 #include <stdlib.h>
 #include <ctype.h>
 #include <errno.h>
