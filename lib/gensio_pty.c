@@ -354,9 +354,13 @@ pty_control(void *handler_data, struct gensio_iod *iod, bool get,
 	    return GE_NOTSUP;
 	if (!tdata->argv)
 	    return GE_NOTSUP;
-	err = gensio_argv_copy(o, (const char **) data, NULL, &env);
-	if (err)
-	    return err;
+	if (data) {
+	    err = gensio_argv_copy(o, (const char **) data, NULL, &env);
+	    if (err)
+		return err;
+	} else {
+	    env = NULL;
+	}
 	if (tdata->env)
 	    gensio_argv_free(o, tdata->env);
 	tdata->env = env;
@@ -367,9 +371,13 @@ pty_control(void *handler_data, struct gensio_iod *iod, bool get,
 	    return GE_NOTSUP;
 	if (tdata->iod)
 	    return GE_NOTREADY; /* Have to do this while closed. */
-	err = gensio_argv_copy(o, (const char **) data, NULL, &argv);
-	if (err)
-	    return err;
+	if (data) {
+	    err = gensio_argv_copy(o, (const char **) data, NULL, &argv);
+	    if (err)
+		return err;
+	} else {
+	    argv = NULL;
+	}
 	if (tdata->argv)
 	    gensio_argv_free(o, tdata->argv);
 	tdata->argv = argv;

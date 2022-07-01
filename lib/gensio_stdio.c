@@ -913,9 +913,13 @@ stdion_control(struct gensio *io, bool get, unsigned int option,
     case GENSIO_CONTROL_ENVIRONMENT:
 	if (get)
 	    return GE_NOTSUP;
-	err = gensio_argv_copy(o, (const char **) data, NULL, &env);
-	if (err)
-	    return err;
+	if (data) {
+	    err = gensio_argv_copy(o, (const char **) data, NULL, &env);
+	    if (err)
+		return err;
+	} else {
+	    env = NULL;
+	}
 	if (nadata->env)
 	    gensio_argv_free(o, nadata->env);
 	nadata->env = env;
@@ -924,9 +928,13 @@ stdion_control(struct gensio *io, bool get, unsigned int option,
     case GENSIO_CONTROL_ARGS:
 	if (get)
 	    return GE_NOTSUP;
-	err = gensio_argv_copy(o, (const char **) data, NULL, &argv);
-	if (err)
-	    return err;
+	if (data) {
+	    err = gensio_argv_copy(o, (const char **) data, NULL, &argv);
+	    if (err)
+		return err;
+	} else {
+	    argv = NULL;
+	}
 	if (nadata->argv)
 	    gensio_argv_free(o, nadata->argv);
 	nadata->argv = argv;
