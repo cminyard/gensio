@@ -40,11 +40,11 @@ char *alloc_vsprintf(const char *fmt, va_list ap);
 
 bool strstartswith(const char *str, const char *cmp);
 
-#ifdef HAVE_ISATTY
+#if defined(_WIN32)
+bool can_do_raw(void);
+#elif defined(HAVE_ISATTY)
 # include <unistd.h>
 # define can_do_raw() isatty(0)
-#elif defined(_WIN32)
-bool can_do_raw(void);
 #else
 # define can_do_raw() false
 #endif
