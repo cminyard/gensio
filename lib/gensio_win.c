@@ -3048,9 +3048,10 @@ win_exec_subprog(struct gensio_os_funcs *o,
     HANDLE stdin_m = NULL;
     HANDLE stdout_m = NULL;
     HANDLE stderr_m = NULL;
-    struct gensio_iod *stdin_iod = NULL;
-    struct gensio_iod *stdout_iod = NULL;
-    struct gensio_iod *stderr_iod = NULL;
+    struct gensio_iod_win *stdin_iod = NULL;
+    struct gensio_iod_win *stdout_iod = NULL;
+    struct gensio_iod_win *stderr_iod = NULL;
+    bool readable = false;
 
     rv = gensio_win_do_exec(o, argv, env, stderr_to_stdout, &phandle,
 			    &stdin_m, &stdout_m,
@@ -3059,37 +3060,47 @@ win_exec_subprog(struct gensio_os_funcs *o,
 	return rv;
 
 
-    rv = o->add_iod(o, GENSIO_IOD_PIPE, (intptr_t) stdin_m, &stdin_iod);
+    rv = win_alloc_iod(o, sizeof(struct gensio_iod_win_pipe),
+		       (intptr_t) stdin_m, GENSIO_IOD_PIPE,
+		       win_iod_pipe_init, &readable, &stdin_iod);
     if (rv)
 	goto out_err;
-    rv = o->add_iod(o, GENSIO_IOD_PIPE, (intptr_t) stdout_m, &stdout_iod);
+    readable = true;
+    rv = win_alloc_iod(o, sizeof(struct gensio_iod_win_pipe),
+		       (intptr_t) stdout_m, GENSIO_IOD_PIPE,
+		       win_iod_pipe_init, &readable, &stdout_iod);
     if (rv)
 	goto out_err;
 
     if (stderr_m) {
-	rv = o->add_iod(o, GENSIO_IOD_PIPE, (intptr_t) stderr_m, &stderr_iod);
+	rv = win_alloc_iod(o, sizeof(struct gensio_iod_win_pipe),
+			   (intptr_t) stderr_m, GENSIO_IOD_PIPE,
+			   win_iod_pipe_init, &readable, &stderr_iod);
 	if (rv)
 	    goto out_err;
     }
 
     *rpid = (intptr_t) phandle;
-    *rstdin = stdin_iod;
-    *rstdout = stdout_iod;
+    *rstdin = &stdin_iod->iod;
+    *rstdout = &stdout_iod->iod;
     if (rstderr)
-	*rstderr = stderr_iod;
+	*rstderr = &stderr_iod->iod;
     return 0;
 
  out_err:
     if (stdin_iod) {
-	o->close(&stdin_iod);
+	struct gensio_iod *iod = &stdin_iod->iod;
+	o->close(&iod);
     } else if (stdin_m)
 	CloseHandle(stdin_m);
     if (stdout_iod) {
-	o->close(&stdout_iod);
+	struct gensio_iod *iod = &stdout_iod->iod;
+	o->close(&iod);
     } else if (stdout_m)
 	CloseHandle(stdout_m);
     if (stderr_iod) {
-	o->close(&stderr_iod);
+	struct gensio_iod *iod = &stderr_iod->iod;
+	o->close(&iod);
     } else if (stderr_m)
 	CloseHandle(stderr_m);
     return rv;
