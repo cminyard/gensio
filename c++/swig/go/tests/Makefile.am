@@ -35,8 +35,8 @@ go.mod: $(TEST_SRCS)
 	go mod edit -replace testbase=./testbase
 	go mod tidy
 
-export CGO_CXXFLAGS = $(CXXFLAGS) -I$(abs_top_srcdir)/c++/include
-export CGO_CPPFLAGS = -I$(abs_top_srcdir)/include -I$(abs_top_builddir)/include
+export CGO_CXXFLAGS = $(CXXFLAGS) $(AM_CXXFLAGS)
+export CGO_CPPFLAGS = $(CPPFLAGS)
 export CGO_LDFLAGS = -L$(abs_top_builddir)/c++/lib/.libs -lgensiocpp -L$(abs_top_builddir)/lib/.libs -lgensio
 
 test_basic: ../gensio/gensio.go \
