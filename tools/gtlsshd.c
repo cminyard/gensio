@@ -54,6 +54,7 @@
 #include <security/pam_appl.h>
 #else
 #include <windows.h>
+#include <userenv.h>
 #endif
 
 #include "ioinfo.h"
@@ -222,6 +223,8 @@ struct auth_data {
 
     unsigned int closecount;
 
+    char **env;
+
 #ifdef HAVE_LIBPAM
     pam_handle_t *pamh;
     bool pam_started;
@@ -231,7 +234,6 @@ struct auth_data {
     uid_t uid;
     gid_t gid;
     struct pam_conv pam_conv;
-    char **pam_env;
 #endif
 #ifdef _WIN32
     HANDLE userh;
@@ -443,14 +445,14 @@ auth_free(struct auth_data *auth)
     }
     if (auth->pamh)
 	pam_end(auth->pamh, auth->pam_err);
-    if (auth->pam_env) {
+#endif
+    if (auth->env) {
 	unsigned int i;
 
-	for (i = 0; auth->pam_env[i]; i++)
-	    free(auth->pam_env[i]);
-	free(auth->pam_env);
+	for (i = 0; auth->env[i]; i++)
+	    free(auth->env[i]);
+	free(auth->env);
     }
-#endif
     o->free(o, auth);
 }
 
@@ -1110,8 +1112,8 @@ finish_auth(struct auth_data *auth)
     }
     auth->pam_session_open = true;
 
-    auth->pam_env = pam_getenvlist(auth->pamh);
-    if (!auth->pam_env) {
+    auth->env = pam_getenvlist(auth->pamh);
+    if (!auth->env) {
 	log_event(LOG_ERR, "pam_getenvlist failed for %s", auth->username);
 	return GE_NOMEM;
     }
@@ -1162,7 +1164,7 @@ switch_to_user(struct auth_data *auth)
 		      err, 0, errbuf, sizeof(errbuf), NULL);
 	log_event(LOG_ERR, "Could not get user '%s': %s\n",
 		  auth->username, errbuf);
-	return gensio_os_err_to_err(auth->ginfo->o, GetLastError());
+	return gensio_os_err_to_err(auth->ginfo->o, err);
     }
     if (!SetThreadToken(NULL, auth->userh)) {
 	char errbuf[128];
@@ -1198,8 +1200,104 @@ setup_auth(struct auth_data *auth)
 }
 
 static int
+get_wvals_from_service(struct gensio_os_funcs *o,
+		       char ***rvals, unsigned int *rvlen,
+		       wchar_t *str)
+{
+    unsigned int i, j;
+    static char **vals = NULL, **v, *s;
+    unsigned int vlen = 0;
+
+    /*
+     * Scan for a double nil that marks the end, counting the number
+     * of items we find along the way.
+     */
+    for (i = 0; str[i]; ) {
+	for (; str[i]; i++)
+	    ;
+	vlen++;
+	i++;
+    }
+    if (vlen == 0)
+	return 0;
+
+    printf("Len: %d\n", vlen);
+    vals = malloc((vlen + 1) * sizeof(char *));
+    if (!vals)
+	return GE_NOMEM;
+
+    /* Rescan, setting the variable array items. */
+    v = vals;
+    for (i = 0; str[i]; ) {
+	size_t slen = wcslen(str + i);
+
+	*v = malloc(slen + 1);
+	if (!*v)
+	    goto out_nomem;
+	s = *v;
+	v++;
+	for (j = 0; str[i]; i++, j++)
+	    s[j] = str[i];
+	s[j] = '\0';
+	i++;
+    }
+    *v = NULL;
+
+    *rvals = vals;
+    if (rvlen)
+	*rvlen = vlen;
+    return 0;
+
+ out_nomem:
+    for (i = 0; vals[i]; i++)
+	free(vals[i]);
+    free(vals);
+    return GE_NOMEM;
+}
+
+static int
 finish_auth(struct auth_data *auth)
 {
+    struct gensio_os_funcs *o = auth->ginfo->o;
+    DWORD err;
+    HANDLE userh;
+    int rv;
+    void *envblock;
+
+    err = win_get_user(glogger, NULL, auth->username, "gtlsshd", false,
+		       &userh);
+    if (err) {
+	char errbuf[128];
+
+	FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM, NULL,
+		      err, 0, errbuf, sizeof(errbuf), NULL);
+	log_event(LOG_ERR, "Could not get user '%s': %s\n",
+		  auth->username, errbuf);
+	return gensio_os_err_to_err(o, err);
+    }
+    if (!CreateEnvironmentBlock(&envblock, userh, FALSE)) {
+	char errbuf[128];
+
+	err = GetLastError();
+	FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM, NULL,
+		      err, 0, errbuf, sizeof(errbuf), NULL);
+	log_event(LOG_ERR, "Could not get env for user '%s': %s",
+		  auth->username, errbuf);
+	return gensio_os_err_to_err(o, err);
+    }
+    rv = get_wvals_from_service(o, &auth->env, NULL, envblock);
+    DestroyEnvironmentBlock(envblock);
+    if (rv) {
+	log_event(LOG_ERR, "Error processing environgment for user '%s': %s",
+		  auth->username, gensio_err_to_str(rv));
+	return rv;
+    }
+    {
+	unsigned int i;
+	for (i = 0; auth->env[i]; i++) {
+	    printf("%s\n", auth->env[i]);
+	}
+    }
     return 0;
 }
 
@@ -1397,10 +1495,8 @@ new_rem_io(struct gensio *io, struct auth_data *auth)
     if (login || progv) {
 	unsigned int i = 0, j;
 
-#ifdef HAVE_LIBPAM
-	for (i = 0; auth->pam_env[i]; i++)
+	for (i = 0; auth->env && auth->env[i]; i++)
 	    ;
-#endif
 #ifndef _WIN32
 	i += 4;
 #endif
@@ -1446,16 +1542,14 @@ new_rem_io(struct gensio *io, struct auth_data *auth)
 	}
 	i++;
 #endif
-#ifdef HAVE_LIBPAM
-	for (j = 0; auth->pam_env[j]; i++, j++) {
-	    penv2[i] = gensio_strdup(o, auth->pam_env[j]);
+	for (j = 0; auth->env[j]; i++, j++) {
+	    penv2[i] = gensio_strdup(o, auth->env[j]);
 	    if (!penv2[i]) {
 		log_event(LOG_ERR, "Failure to alloc env space for %s",
 			  auth->username);
 		goto out_free;
 	    }
 	}
-#endif
 	if (env) {
 	    for (j = 0; j < env_len; i++, j++) {
 		penv2[i] = gensio_strdup(o, env[j]);
