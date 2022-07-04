@@ -66,6 +66,7 @@ win_get_user(gtlssh_logger logger, void *cbdata,
     ULONG package_auth;
     DWORD user_chars = mbstowcs(NULL, user, strlen(user));
     DWORD user_bytes = user_chars * sizeof(wchar_t);
+    wchar_t *wuser = NULL;
     bool domain_user;
     DWORD logon_len;
     char *pos;
@@ -77,6 +78,7 @@ win_get_user(gtlssh_logger logger, void *cbdata,
     HANDLE htok;
     QUOTA_LIMITS quota_limits;
     NTSTATUS sub_status;
+    PROFILEINFOW profile_info = { 0 };
 
     if (interactive) {
 	LSA_STRING name;
@@ -145,8 +147,6 @@ win_get_user(gtlssh_logger logger, void *cbdata,
 	    goto out_err;
 	}
 	s4u_logon->MessageType = MsV1_0S4ULogon;
-	if (interactive)
-	    s4u_logon->Flags = KERB_S4U_LOGON_FLAG_IDENTIFY;
 	pos = (char *) (s4u_logon + 1);
 	s4u_logon->UserPrincipalName.Buffer = (wchar_t *) pos;
 	mbstowcs(s4u_logon->UserPrincipalName.Buffer, user, user_chars);
@@ -180,13 +180,41 @@ win_get_user(gtlssh_logger logger, void *cbdata,
 	goto out_err;
     }
 
+    if (interactive) {
+	MSV1_0_INTERACTIVE_PROFILE *iprofile;
+
+	iprofile = (MSV1_0_INTERACTIVE_PROFILE *) profile;
+	if (iprofile->MessageType == MsV1_0InteractiveProfile)
+	    profile_info.lpServerName = iprofile->LogonServer.Buffer;
+
+	profile_info.dwSize = sizeof(profile_info);
+	profile_info.dwFlags = PI_NOUI;
+	wuser = calloc(user_bytes + sizeof(wchar_t), 1);
+	if (!wuser) {
+	    err = STATUS_NO_MEMORY;
+	    goto out_err;
+	}
+	mbstowcs(wuser, user, user_chars);
+	profile_info.lpUserName = wuser;
+	if (!LoadUserProfileW(htok, &profile_info)) {
+	    err = GetLastError();
+	    goto out_err;
+	}
+    }
+
     *userh = htok;
 
  out_err:
+    if (profile_info.hProfile)
+	UnloadUserProfile(htok, profile_info.hProfile);
+    if (wuser)
+	free(wuser);
     if (login_info)
 	free(login_info);
     if (profile)
 	LsaFreeReturnBuffer(profile);
+    if (lsah)
+	LsaDeregisterLogonProcess (lsah);
     LsaClose(lsah);
 
     return err;
