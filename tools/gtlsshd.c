@@ -1221,7 +1221,6 @@ get_wvals_from_service(struct gensio_os_funcs *o,
     if (vlen == 0)
 	return 0;
 
-    printf("Len: %d\n", vlen);
     vals = malloc((vlen + 1) * sizeof(char *));
     if (!vals)
 	return GE_NOMEM;
@@ -1292,12 +1291,7 @@ finish_auth(struct auth_data *auth)
 		  auth->username, gensio_err_to_str(rv));
 	return rv;
     }
-    {
-	unsigned int i;
-	for (i = 0; auth->env[i]; i++) {
-	    printf("%s\n", auth->env[i]);
-	}
-    }
+
     return 0;
 }
 
