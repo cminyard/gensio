@@ -921,7 +921,7 @@ new_rem_io(struct gensio *io, struct gdata *ginfo)
 	    exit(1);
 	}
 	for (i = 4, j = 0; pam_env[j]; i++, j++)
-	    penv2[i] = pam_env[i];
+	    penv2[i] = pam_env[j];
 	if (env) {
 	    for (j = 0; j < env_len; i++, j++)
 		penv2[i] = env[j];
