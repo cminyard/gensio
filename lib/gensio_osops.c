@@ -300,6 +300,7 @@ gensio_os_free_net_ifs(struct gensio_os_funcs *o,
     gensio_os_funcs_zfree(o, ifs);
 }
 
+#ifndef _WIN32
 static bool
 is_inet_family(struct sockaddr *s)
 {
@@ -307,6 +308,7 @@ is_inet_family(struct sockaddr *s)
 	return false;
     return (s->sa_family == AF_INET || s->sa_family == AF_INET6);
 }
+#endif
 
 int
 gensio_os_get_net_ifs(struct gensio_os_funcs *o,
@@ -315,7 +317,7 @@ gensio_os_get_net_ifs(struct gensio_os_funcs *o,
     struct gensio_net_if **ifs = NULL;
     char buf[100], *addrtype;
 #ifdef _WIN32
-    IP_ADAPTER_ADDRESSES *t, *c, *p;
+    IP_ADAPTER_ADDRESSES *t, *c;
     ULONG err;
     unsigned int i, j, nifs;
     ULONG buflen = 15 * 1024;
