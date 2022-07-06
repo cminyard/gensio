@@ -70,11 +70,9 @@ PI_AsBytesAndSize(PyObject *o, void **buf, gensiods *ilen)
     return rv;
 }
 
-static int
-PI_CanBeBytes(PyObject *o)
-{
-    return (o == Py_None || PI_BytesCheck(o) || PyByteArray_Check(o));
-}
+/* Not a function because it's not always used, avoid the unused warning. */
+#define PI_CanBeBytes(o) \
+    (o == Py_None || PI_BytesCheck(o) || PyByteArray_Check(o))
 
 static int
 PI_ToUCharVector(std::vector<unsigned char> &v, PyObject *o)
@@ -108,7 +106,6 @@ static PyObject *
 PI_StringArrayToTuple(const char *const *val)
 {
     PyObject *o;
-    gensiods len, i;
 
     if (val == NULL) {
 	Py_INCREF(Py_None);

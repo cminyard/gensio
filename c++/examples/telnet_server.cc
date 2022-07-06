@@ -51,7 +51,7 @@ private:
 
 	try {
 	    count = io->write(data, NULL);
-	} catch (gensio_error e) {
+	} catch (gensio_error &e) {
 	    errstr = e.what();
 	    io->set_read_callback_enable(false);
 	    io->set_write_callback_enable(false);
@@ -162,7 +162,7 @@ do_server(Os_Funcs &o, const Addr &addr)
 
     try {
 	atelnet->startup();
-    } catch (gensio_error e) {
+    } catch (gensio_error &e) {
 	cerr << "Error opening: " << e.what() << endl;
 	return 1;
     }
@@ -184,7 +184,7 @@ class Telnet_Logger: public Os_Funcs_Log_Handler {
 
 int main(int argc, char *argv[])
 {
-    int err;
+    int err = 1;
 
     try {
 	Os_Funcs o(0, new Telnet_Logger);
@@ -198,7 +198,7 @@ int main(int argc, char *argv[])
 	}
 
 	err = do_server(o, addr);
-    } catch (gensio_error e) {
+    } catch (gensio_error &e) {
 	cerr << "gensio error: " << e.what() << endl;
     }
     return err;

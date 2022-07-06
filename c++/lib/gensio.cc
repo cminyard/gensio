@@ -1214,11 +1214,6 @@ namespace gensio {
     {
 	if (!cb_data)
 	    return;
-	struct gensio *io = sergensio_to_gensio(sio);
-	struct gensio_frdata *f = gensio_get_frdata(io);
-	struct gensio_cpp_data *d = gensio_container_of(f,
-					      struct gensio_cpp_data, frdata);
-	Serial_Gensio *sg = (Serial_Gensio *) d->g;
 	Serial_Op_Done *done = static_cast<Serial_Op_Done *>(cb_data);
 
 	done->serial_op_done(err, val);
@@ -1384,11 +1379,6 @@ namespace gensio {
     {
 	if (!cb_data)
 	    return;
-	struct gensio *io = sergensio_to_gensio(sio);
-	struct gensio_frdata *f = gensio_get_frdata(io);
-	struct gensio_cpp_data *d = gensio_container_of(f,
-					      struct gensio_cpp_data, frdata);
-	Serial_Gensio *sg = (Serial_Gensio *) d->g;
 	Serial_Op_Sig_Done *done = static_cast<Serial_Op_Sig_Done *>(cb_data);
 	std::vector<unsigned char> sigv(sig, sig + len);
 
@@ -1403,8 +1393,8 @@ namespace gensio {
 
 	if (!done)
 	    donefunc = NULL;
-	err = sergensio_signature(sio, (const char *) sig.data(), (gensiods) sig.size(),
-				  donefunc, done);
+	err = sergensio_signature(sio, (const char *) sig.data(),
+				  (gensiods) sig.size(), donefunc, done);
 	if (err)
 	    throw gensio_error(err);
     }

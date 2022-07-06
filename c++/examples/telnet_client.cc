@@ -46,7 +46,7 @@ private:
 
 	try {
 	    count = otherio->write(data.data(), data.size(), NULL);
-	} catch (gensio::gensio_error e) {
+	} catch (gensio::gensio_error &e) {
 	    err = e.get_error();
 	    io->set_read_callback_enable(false);
 	    io->set_write_callback_enable(false);
@@ -137,7 +137,7 @@ int main(int argc, char *argv[])
 
 	// Destruction happens in reverse order, so the gensios are
 	// freed, then the user events, the waiter, and the OS funcs.
-    } catch (gensio::gensio_error e) {
+    } catch (gensio::gensio_error &e) {
 	std::cerr << "gensio error: " << e.what() << std::endl;
 	return 1;
     }

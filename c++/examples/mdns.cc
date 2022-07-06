@@ -80,7 +80,7 @@ class MDNS_Logger: public Os_Funcs_Log_Handler {
 
 int main(int argc, char *argv[])
 {
-    int err;
+    int err = 1;
 
     try {
 	Os_Funcs o(0, new MDNS_Logger);
@@ -105,7 +105,8 @@ int main(int argc, char *argv[])
 	watch->free(&d);
 	m->free(&d2);
 	w.wait(2, NULL);
-    } catch (gensio_error e) {
+	err = 0;
+    } catch (gensio_error &e) {
 	cerr << "gensio error: " << e.what() << endl;
     }
     return err;

@@ -509,9 +509,9 @@ namespace gensio {
 	}
 
     private:
+	Os_Funcs go;
 	struct gensio *io = NULL;
 	Event *gcb = NULL;
-	Os_Funcs go;
 
 	GENSIOCPP_DLL_PUBLIC
 	friend Gensio *gensio_alloc(struct gensio *io,
@@ -542,7 +542,7 @@ namespace gensio {
 	~GensioW() {
 	    try {
 		io->close_s();
-	    } catch (gensio_error e) {
+	    } catch (gensio_error *e) {
 		// Ignore the error, already closed.
 	    }
 	    // Make sure the freed handler doesn't get called.
@@ -950,7 +950,7 @@ namespace gensio {
 	~AccepterW() {
 	    try {
 		acc->shutdown_s();
-	    } catch (gensio_error e) {
+	    } catch (gensio_error *e) {
 		// Ignore the error, already closed.
 	    }
 	    // Make sure the freed handler doesn't get called.
