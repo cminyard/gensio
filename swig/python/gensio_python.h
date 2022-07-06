@@ -20,7 +20,9 @@ typedef struct swig_ref {
 static void gensio_swig_init_lang(void)
 {
     swig_waiter_wake = wake_curr_waiter;
+#if PY_VERSION_HEX < 0x03070000
     PyEval_InitThreads();
+#endif
 }
 
 /* We do need to work about blocking, though. */
