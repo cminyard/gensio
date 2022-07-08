@@ -1029,6 +1029,13 @@ gensio_tcl_pty_control(struct gensio_iod_tcl *iod, int op, bool get,
 	return gensio_unix_pty_start(o, iod->fd, iod->argv,
 				     iod->env, iod->start_dir, &iod->pid);
 
+    case GENSIO_IOD_CONTROL_STOP:
+	if (iod->fd != -1) {
+	    close(iod->fd);
+	    iod->fd = -1;
+	}
+	return 0;
+
     case GENSIO_IOD_CONTROL_WIN_SIZE: {
 	struct winsize win;
 	struct gensio_winsize *gwin = (struct gensio_winsize *) val;
@@ -1130,13 +1137,15 @@ gensio_tcl_close(struct gensio_iod **iodp)
 		iod->close_state = CL_DONE;
 	}
     } else if (!iod->is_stdio) {
-	err = close(iod->fd);
-	if (err == -1)
-	    err = gensio_os_err_to_err(o, errno);
+	if (iod->fd != -1) {
+	    err = close(iod->fd);
+	    if (err == -1)
+		err = gensio_os_err_to_err(o, errno);
 #ifdef ENABLE_INTERNAL_TRACE
 	/* Close should never fail, but don't crash in production builds. */
-	assert(err == 0);
+	    assert(err == 0);
 #endif
+	}
     }
     o->release_iod(iiod);
     *iodp = NULL;

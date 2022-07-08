@@ -1280,6 +1280,17 @@ gensio_glib_pty_control(struct gensio_iod_glib *iod, int op, bool get,
 				     iod->env, iod->start_dir, &iod->pid);
 #endif
 
+    case GENSIO_IOD_CONTROL_STOP:
+#ifdef _WIN32
+	return GE_NOTSUP;
+#else
+	if (iod->fd != -1) {
+	    close(iod->fd);
+	    iod->fd = -1;
+	}
+	return 0;
+#endif
+
     case GENSIO_IOD_CONTROL_WIN_SIZE: {
 	struct winsize win;
 	struct gensio_winsize *gwin = (struct gensio_winsize *) val;
@@ -1410,14 +1421,16 @@ gensio_glib_close(struct gensio_iod **iodp)
 #ifdef _WIN32
 	CloseHandle(iod->h);
 #else
-	err = close(iod->fd);
-	if (err == -1)
-	    err = gensio_os_err_to_err(o, errno);
+	if (iod->fd != -1) {
+	    err = close(iod->fd);
+	    if (err == -1)
+		err = gensio_os_err_to_err(o, errno);
 #endif
 #ifdef ENABLE_INTERNAL_TRACE
 	/* Close should never fail, but don't crash in production builds. */
-	assert(err == 0);
+	    assert(err == 0);
 #endif
+	}
     }
     o->release_iod(iiod);
     *iodp = NULL;

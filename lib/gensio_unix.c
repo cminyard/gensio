@@ -1226,8 +1226,9 @@ gensio_unix_close(struct gensio_iod **iodp)
 
     if (iod->type == GENSIO_IOD_SOCKET) {
 	err = o->close_socket(iiod, false, true);
-    } else if (!iod->is_stdio) {
+    } else if (!iod->is_stdio && iod->fd != -1) {
 	err = close(iod->fd);
+	iod->fd = -1;
 #ifdef ENABLE_INTERNAL_TRACE
 	/* Close should never fail, but don't crash in production builds. */
 	assert(err == 0);
@@ -1429,6 +1430,13 @@ gensio_unix_pty_control(struct gensio_iod_unix *iod, int op, bool get,
 	return gensio_unix_pty_start(o, iod->fd, iod->u.pty.argv,
 				     iod->u.pty.env, iod->u.pty.start_dir,
 				     &iod->u.pty.pid);
+
+    case GENSIO_IOD_CONTROL_STOP:
+	if (iod->fd != -1) {
+	    close(iod->fd);
+	    iod->fd = -1;
+	}
+	return 0;
 
     case GENSIO_IOD_CONTROL_WIN_SIZE: {
 	struct winsize win;

@@ -164,8 +164,10 @@ static void
 gensio_cleanup_pty(struct pty_data *tdata)
 {
 #if HAVE_PTSNAME_R
-    if (tdata->link_created)
+    if (tdata->link_created) {
 	unlink(tdata->link);
+	tdata->link_created = false;
+    }
 #endif
 }
 
@@ -263,21 +265,30 @@ pty_check_close(void *handler_data, struct gensio_iod *iod,
 		gensio_time *timeout)
 {
     struct pty_data *tdata = handler_data;
+    struct gensio_os_funcs *o = tdata->o;
     int err;
 
     if (state != GENSIO_LL_CLOSE_STATE_DONE)
 	return 0;
 
+    gensio_cleanup_pty(tdata);
     if (tdata->iod) {
-	tdata->iod = NULL;
-	gensio_cleanup_pty(tdata);
-	gensio_fd_ll_close_now(tdata->ll);
+	err = o->iod_control(iod, GENSIO_IOD_CONTROL_STOP, false, 0);
+	if (err)
+	    goto out_finish;
     }
 
     err = pty_check_exit_code(tdata);
     if (err == GE_INPROGRESS) {
 	timeout->secs = 0;
 	timeout->nsecs = 10000000;
+	return err;
+    }
+
+ out_finish:
+    if (tdata->iod) {
+	tdata->iod = NULL;
+	gensio_fd_ll_close_now(tdata->ll);
     }
 
     return err;

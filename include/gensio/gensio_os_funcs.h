@@ -297,6 +297,8 @@ struct gensio_winsize {
 
 /* Get pid, val is a ptr to intptr_t. */
 #define GENSIO_IOD_CONTROL_PID		2003
+/* Stop the process, but do not close the child process handle. */
+#define GENSIO_IOD_CONTROL_STOP		2004
 
 /*
  * Set the proc data for the os handler.  The struct

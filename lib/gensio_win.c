@@ -2605,44 +2605,57 @@ win_pty_set_except_handler(struct gensio_iod_win *wiod, bool enable)
 }
 
 static int
-win_pty_close(struct gensio_iod_win *wiod, bool force)
+win_pty_shutdown(struct gensio_iod_win_pty *piod, bool force)
 {
-    struct gensio_iod_win_pty *piod = wiod_to_win_pty(wiod);
+    struct gensio_iod_win *wiod = &piod->wiod;
     struct gensio_iod *iod;
     int rv = 0;
 
-    EnterCriticalSection(&wiod->lock);
-    if (wiod->closed == TRUE) {
-	LeaveCriticalSection(&wiod->lock);
-	goto out;
-    }
+    if (wiod->closed)
+	return 0;
+
     wiod->closed = TRUE;
-    LeaveCriticalSection(&wiod->lock);
     if (piod->write) {
 	iod = &piod->write->iod;
 	rv = i_win_close(&iod, force);
 	if (rv)
-	    goto out;
+	    return rv;;
 	piod->write = NULL;
     }
     if (piod->read) {
 	iod = &piod->read->iod;
 	rv = i_win_close(&iod, force);
 	if (rv)
-	    goto out;
+	    return rv;
 	piod->read = NULL;
     }
     TerminateProcess(piod->child, 0);
     if (piod->watch_thread) {
+	LeaveCriticalSection(&wiod->lock);
 	WaitForSingleObject(piod->watch_thread, INFINITE);
+	EnterCriticalSection(&wiod->lock);
 	CloseHandle(piod->watch_thread);
 	piod->watch_thread = NULL;
     }
+    return 0;
+}
+
+static int
+win_pty_close(struct gensio_iod_win *wiod, bool force)
+{
+    struct gensio_iod_win_pty *piod = wiod_to_win_pty(wiod);
+    int rv;
+
+    EnterCriticalSection(&wiod->lock);
+    rv = win_pty_shutdown(piod, force);
+    if (rv)
+	goto out;
     if (piod->child) {
 	CloseHandle(piod->child);
 	piod->child = NULL;
     }
  out:
+    LeaveCriticalSection(&wiod->lock);
     return rv;
 }
 
@@ -2737,6 +2750,12 @@ win_pty_control(struct gensio_iod_win *wiod, int op, bool get, intptr_t val)
 		}
 	    }
 	}
+	LeaveCriticalSection(&wiod->lock);
+	return err;
+
+    case GENSIO_IOD_CONTROL_STOP:
+	EnterCriticalSection(&wiod->lock);
+	err = win_pty_shutdown(piod, false);
 	LeaveCriticalSection(&wiod->lock);
 	return err;
 
