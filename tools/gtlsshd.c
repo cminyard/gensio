@@ -1150,6 +1150,289 @@ setup_user(struct auth_data *auth)
     return 0;
 }
 
+struct priv_data {
+    LPCTSTR name;
+    bool found;
+    LUID_AND_ATTRIBUTES priv;
+};
+
+/*
+ * These are the only privileges, and their attributes, that we keep
+ * in a non-privileged login.
+ */
+static struct priv_data std_privs[] = {
+    { .name = SE_SHUTDOWN_NAME, .priv = { .Attributes = 0 } },
+    { .name = SE_CHANGE_NOTIFY_NAME,
+      .priv = { .Attributes = SE_PRIVILEGE_ENABLED } },
+    { .name = SE_UNDOCK_NAME, .priv = { .Attributes = 0 } },
+    { .name = SE_INC_WORKING_SET_NAME, .priv = { .Attributes = 0 } },
+    { .name = SE_TIME_ZONE_NAME, .priv = { .Attributes = 0 } },
+    {}
+};
+
+static struct priv_data *
+alloc_priv_array(struct priv_data *iprivs, unsigned int *len)
+{
+    unsigned int i;
+    struct priv_data *privs;
+
+    for (i = 0; iprivs[i].name; i++)
+	;
+    privs = (struct priv_data *) malloc(i * sizeof(struct priv_data));
+    if (!privs)
+	return NULL;
+    for (i = 0; iprivs[i].name; i++) {
+	privs[i] = iprivs[i];
+	if (!LookupPrivilegeValue(NULL, privs[i].name, &privs[i].priv.Luid)) {
+	    free(privs);
+	    return NULL;
+	}
+    }
+    *len = i;
+    return privs;
+}
+
+static bool
+luid_equal(LUID a, LUID b)
+{
+    return a.LowPart == b.LowPart && a.HighPart == b.HighPart;
+}
+
+static DWORD
+read_token_info(HANDLE h, TOKEN_INFORMATION_CLASS type, void **rval,
+		DWORD *rlen)
+{
+    DWORD err, len = 0;
+    void *val;
+
+    if (GetTokenInformation(h, type, NULL, 0, &len))
+	/* This should fail. */
+	return ERROR_INVALID_DATA;
+    err = GetLastError();
+    if (err != ERROR_INSUFFICIENT_BUFFER)
+	return err;
+    val = malloc(len);
+    if (!val)
+	return STATUS_NO_MEMORY;
+    if (!GetTokenInformation(h, type, val, len, &len)) {
+	free(val);
+	return GetLastError();
+    }
+    *rval = val;
+    if (rlen)
+	*rlen = len;
+    return 0;
+}
+
+static DWORD
+update_privileges(HANDLE h, struct priv_data *privs, unsigned int privs_len)
+{
+    DWORD err;
+    TOKEN_PRIVILEGES *hpriv = NULL, *nhpriv = NULL;
+    unsigned int i, j;
+
+    err = read_token_info(h, TokenPrivileges, (void **) &hpriv, NULL);
+    if (err)
+	return err;
+
+    nhpriv = (TOKEN_PRIVILEGES *)
+	malloc(sizeof(TOKEN_PRIVILEGES) +
+	       sizeof(LUID_AND_ATTRIBUTES) * (hpriv->PrivilegeCount +
+					      privs_len));
+    nhpriv->PrivilegeCount = hpriv->PrivilegeCount;
+
+    for (j = 0; j < privs_len; j++)
+	privs[j].found = false;
+    for (i = 0; i < hpriv->PrivilegeCount; i++) {
+	nhpriv->Privileges[i] = hpriv->Privileges[i];
+	for (j = 0; j < privs_len; j++) {
+	    if (luid_equal(nhpriv->Privileges[i].Luid, privs[j].priv.Luid)) {
+		nhpriv->Privileges[i].Attributes = privs[j].priv.Attributes;
+		privs[j].found = true;
+		break;
+	    }
+	}
+	if (j == privs_len)
+	    /* Not found, remove it. */
+	    nhpriv->Privileges[i].Attributes = SE_PRIVILEGE_REMOVED;
+    }
+    for (j = 0; j < privs_len; j++) {
+	if (!privs[j].found)
+	    nhpriv->Privileges[nhpriv->PrivilegeCount++] = privs[j].priv;
+    }
+
+    if (!AdjustTokenPrivileges(h, FALSE, nhpriv, 0, NULL, NULL)) {
+	err = GetLastError();
+	goto out_err;
+    }
+    err = 0;
+ out_err:
+    if (hpriv)
+	free(hpriv);
+    if (nhpriv)
+	free(nhpriv);
+    return err;
+}
+
+DWORD
+medium_mandatory_policy(HANDLE h)
+{
+    DWORD err = 0;
+    TOKEN_MANDATORY_LABEL *integrity;
+    SID *integrity_sid;
+
+    err = read_token_info(h, TokenIntegrityLevel, (void **) &integrity, NULL);
+    if (err)
+	return err;
+
+    integrity_sid = (SID *) integrity->Label.Sid;
+    if (integrity_sid->SubAuthority[0] <= SECURITY_MANDATORY_MEDIUM_RID) {
+	free(integrity);
+	return 0;
+    }
+    integrity_sid->SubAuthority[0] = SECURITY_MANDATORY_MEDIUM_RID;
+
+    if (!SetTokenInformation(h, TokenIntegrityLevel,
+			     integrity, sizeof(integrity)))
+	err = GetLastError();
+    free(integrity);
+    return 0;
+}
+
+DWORD
+get_sid_from_type(WELL_KNOWN_SID_TYPE type, SID **rsid)
+{
+    DWORD err, len = 0;
+    SID *sid;
+
+    if (CreateWellKnownSid(type, NULL, NULL, &len))
+	/* This should fail. */
+	return ERROR_INVALID_DATA;
+    err = GetLastError();
+    if (err != ERROR_INSUFFICIENT_BUFFER)
+	return err;
+    sid = (SID *) malloc(len);
+    if (!CreateWellKnownSid(type, NULL, sid, &len)) {
+	err = GetLastError();
+	free(sid);
+	return err;
+    }
+    *rsid = sid;
+    return 0;
+}
+
+/* FIXME - only do this for admin accounts. */
+static DWORD
+deny_admin_groups(HANDLE h, HANDLE *rh)
+{
+    DWORD err;
+    HANDLE resh = NULL;
+    SID *admin_sid = NULL, *admin_member_sid = NULL;
+    SID_AND_ATTRIBUTES disable_sids[2];
+    TOKEN_GROUPS *grps = NULL;
+    unsigned int i;
+
+    /* NT AUTHORITY\Local account and member of Administrators group */
+    err = get_sid_from_type(WinNTLMAuthenticationSid, &admin_member_sid);
+    if (err)
+	return err;
+
+    /* BUILTIN\Administrators */
+    err = get_sid_from_type(WinBuiltinAdministratorsSid, &admin_sid);
+    if (err)
+	goto out_err;
+
+    /* Check if we have admin access. */
+    err = read_token_info(h, TokenGroups, (void **) &grps, NULL);
+    if (err)
+	goto out_err;
+    for (i = 0; i < grps->GroupCount; i++) {
+	if (EqualSid(admin_sid, grps->Groups[i].Sid))
+	    goto is_admin;
+	if (EqualSid(admin_member_sid, grps->Groups[i].Sid))
+	    goto is_admin;
+    }
+
+    goto out_err;
+
+ is_admin:
+
+    disable_sids[0].Sid = admin_member_sid;
+    disable_sids[1].Sid = admin_sid;
+
+    if (!CreateRestrictedToken(h, 0, 2, disable_sids,
+			       0, NULL, 0, NULL, &resh)) {
+	err = GetLastError();
+	goto out_err;
+    }
+#if 0 /* FIXME - why doesn't this work? */
+    TOKEN_LINKED_TOKEN link;
+    /*
+     * Link the privileged token to the restricted one so the privileged
+     * one can be used for escalation.
+     */
+    link.LinkedToken = h;
+    if (!SetTokenInformation(resh, TokenLinkedToken, &link, sizeof(link))) {
+	err = GetLastError();
+	goto out_err;
+    }
+#endif
+    err = 0;
+    *rh = resh;
+    resh = NULL;
+ out_err:
+    if (grps)
+	free(grps);
+    if (admin_sid)
+	free(admin_sid);
+    if (admin_member_sid)
+	free(admin_member_sid);
+    if (resh)
+	CloseHandle(resh);
+    return err;
+}
+
+DWORD
+setup_process_token(HANDLE *inh, bool priv)
+{
+    DWORD err = 0;
+    HANDLE newh = NULL, h = *inh;
+    struct priv_data *privs = NULL;
+    unsigned int privs_len;
+
+    if (!priv) {
+	err = deny_admin_groups(h, &newh);
+	if (err)
+	    goto out_err;
+	if (newh) {
+	    h = newh;
+	    newh = *inh;
+	}
+
+	err = medium_mandatory_policy(h);
+	if (err)
+	    goto out_err;
+
+	privs = alloc_priv_array(std_privs, &privs_len);
+	if (!privs) {
+	    err = STATUS_NO_MEMORY;
+	    goto out_err;
+	}
+	err = update_privileges(h, privs, privs_len);
+	if (err)
+	    goto out_err;
+
+	*inh = h;
+    }
+
+ out_err:
+    if (privs)
+	free(privs);
+    if (newh)
+	CloseHandle(newh);
+    return err;
+}
+
 struct group_list {
     const LPTSTR name;
 };
@@ -1169,30 +1452,39 @@ static unsigned int add_groups_len = (sizeof(add_groups) /
 
 /* Supply either isid or sidstr, not both. */
 static DWORD
-append_group(TOKEN_GROUPS *grps, SID *isid, const LPTSTR sidstr, DWORD attrs)
+append_group(TOKEN_GROUPS *grps, SID *sid, const LPTSTR sidstr, DWORD attrs)
 {
-    SID *sid = isid;
+    SID *new_sid, *free_sid = NULL;
     size_t len;
     unsigned int i = grps->GroupCount;
+    int err = 0;
 
     if (sidstr) {
-	if (!ConvertStringSidToSid(sidstr, (void **) &sid))
+	if (!ConvertStringSidToSid(sidstr, (void **) &free_sid))
 	    return GetLastError();
-    } else {
-	len = GetLengthSid(isid);
-	sid = malloc(len);
-	if (!sid)
-	    return STATUS_NO_MEMORY;
-	if (!CopySid(len, sid, isid)) {
-	    DWORD err = GetLastError();
-	    free(sid);
-	    return err;
-	}
+	/* Can't use free_sid directly, it's allocated with LocalAlloc(). */
+	sid = free_sid;
     }
+
+    len = GetLengthSid(sid);
+    new_sid = malloc(len);
+    if (!new_sid) {
+	err = STATUS_NO_MEMORY;
+	goto out_err;
+    }
+    if (!CopySid(len, new_sid, sid)) {
+	err = GetLastError();
+	free(new_sid);
+	goto out_err;
+    }
+
     grps->Groups[i].Attributes = attrs;
-    grps->Groups[i].Sid = sid;
+    grps->Groups[i].Sid = new_sid;
     grps->GroupCount++;
-    return 0;
+ out_err:
+    if (free_sid)
+	LocalFree(free_sid);
+    return err;
 }
 
 static void
@@ -1238,6 +1530,19 @@ switch_to_user(struct auth_data *auth)
 	FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM, NULL,
 		      err, 0, errbuf, sizeof(errbuf), NULL);
 	log_event(LOG_ERR, "Could not get user '%s': %s\n",
+		  auth->username, errbuf);
+	goto out_win_err;
+    }
+
+    err = setup_process_token(&auth->userh, false);
+    if (err) {
+	char errbuf[128];
+
+	CloseHandle(auth->userh);
+	auth->userh = NULL;
+	FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM, NULL,
+		      err, 0, errbuf, sizeof(errbuf), NULL);
+	log_event(LOG_ERR, "Could not setup process token '%s': %s\n",
 		  auth->username, errbuf);
 	goto out_win_err;
     }
