@@ -1318,7 +1318,27 @@ gensio_win_pty_alloc(struct gensio_os_funcs *o, HANDLE *rreadh, HANDLE *rwriteh,
     HPCON ptyh = NULL;
     COORD winsize;
     HRESULT hr;
+    HANDLE imptokh = NULL;
     int err;
+
+    /*
+     * We can't create pipes or the pseudoconsole with the default
+     * token set because it can't access the default security token.
+     * Briefly go back to the main access token to do this.
+     */
+    if (!OpenThreadToken(GetCurrentThread(),
+			 TOKEN_ALL_ACCESS,
+			 TRUE,
+			 &imptokh)) {
+	if (GetLastError() != ERROR_NO_TOKEN)
+	    goto out_err_conv;
+    } else {
+	if (!RevertToSelf()) {
+	    CloseHandle(imptokh);
+	    imptokh = NULL;
+	    goto out_err_conv;
+	}
+    }
 
     if (!CreatePipe(&writeh_s, &writeh_m, NULL, 0))
 	goto out_err_conv;
@@ -1336,11 +1356,20 @@ gensio_win_pty_alloc(struct gensio_os_funcs *o, HANDLE *rreadh, HANDLE *rwriteh,
     }
 
     CloseHandle(writeh_s);
+    writeh_s = NULL;
     CloseHandle(readh_s);
+    readh_s = NULL;
+
+    /* Go back to the impersonation token. */
+    if (imptokh) {
+	if (!SetThreadToken(NULL, imptokh))
+	    goto out_err_conv;
+    }
+
     *rwriteh = writeh_m;
     *rreadh = readh_m;
     *rptyh = ptyh;
-    
+
     return 0;
 
  out_err_conv:
@@ -1413,7 +1442,7 @@ gensio_win_pty_start(struct gensio_os_funcs *o,
      */
     if (!OpenThreadToken(GetCurrentThread(),
 			 TOKEN_ALL_ACCESS,
-			 FALSE,
+			 TRUE,
 			 &imptokh)) {
 	if (GetLastError() == ERROR_NO_TOKEN)
 	    /* Impersonation token not set, just do a normal create process. */
