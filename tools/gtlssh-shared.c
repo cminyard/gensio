@@ -56,7 +56,7 @@ set_lsa_string(LSA_STRING *a, const char *b)
 int
 win_get_user(gtlssh_logger logger, void *cbdata,
 	     const char *user, const char *src_module,
-	     bool interactive, HANDLE *userh)
+	     bool interactive, TOKEN_GROUPS *extra_groups, HANDLE *userh)
 {
     HANDLE lsah;
     NTSTATUS rv;
@@ -172,7 +172,7 @@ win_get_user(gtlssh_logger logger, void *cbdata,
     set_lsa_string(&origin_name, src_module);
 
     rv = LsaLogonUser(lsah, &origin_name, Network, package_auth,
-		      login_info, logon_len, NULL, &token_source,
+		      login_info, logon_len, extra_groups, &token_source,
 		      &profile, &profile_len, &logon_id, &htok,
 		      &quota_limits, &sub_status);
     if (rv) {
@@ -270,7 +270,8 @@ get_homedir(gtlssh_logger logger, void *cbdata,
 	DWORD err, len;
 	char dummy[1];
 
-	err = win_get_user(logger, cbdata, username, "gtlssh", false, &userh);
+	err = win_get_user(logger, cbdata, username, "gtlssh", false, NULL,
+			   &userh);
 	if (err) {
 	    char errbuf[128];
 

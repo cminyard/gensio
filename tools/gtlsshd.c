@@ -1122,6 +1122,8 @@ finish_auth(struct auth_data *auth)
 }
 
 #else
+#include <sddl.h>
+#include <winnt.h>
 
 static void
 glogger(void *cbdata, const char *format, ...)
@@ -1148,13 +1150,86 @@ setup_user(struct auth_data *auth)
     return 0;
 }
 
+struct group_list {
+    const LPTSTR name;
+};
+static struct group_list add_groups[] = {
+    /* Required for interactive. */
+    { .name = TEXT("S-1-5-14") }, /* NT AUTHORITY\REMOTE INTERACTIVE LOGON */
+    { .name = TEXT("S-1-5-4") }, /* NT AUTHORITY\INTERACTIVE */
+    { .name = TEXT("S-1-2-0") }, /* LOCAL */
+
+    /* FIXME = Not sure about these. */
+    { .name = TEXT("S-1-5-32-559") }, /* BUILTIN\Performance Log Users */
+    { .name = TEXT("S-1-5-64-36") }, /* NT AUTHORITY\Cloud Account Authentication */
+    { .name = TEXT("S-1-5-64-10") }, /* NT AUTHORITY\NTLM Authentication */
+};
+static unsigned int add_groups_len = (sizeof(add_groups) /
+				      sizeof(struct group_list));
+
+/* Supply either isid or sidstr, not both. */
+static DWORD
+append_group(TOKEN_GROUPS *grps, SID *isid, const LPTSTR sidstr, DWORD attrs)
+{
+    SID *sid = isid;
+    size_t len;
+    unsigned int i = grps->GroupCount;
+
+    if (sidstr) {
+	if (!ConvertStringSidToSid(sidstr, (void **) &sid))
+	    return GetLastError();
+    } else {
+	len = GetLengthSid(isid);
+	sid = malloc(len);
+	if (!sid)
+	    return STATUS_NO_MEMORY;
+	if (!CopySid(len, sid, isid)) {
+	    DWORD err = GetLastError();
+	    free(sid);
+	    return err;
+	}
+    }
+    grps->Groups[i].Attributes = attrs;
+    grps->Groups[i].Sid = sid;
+    grps->GroupCount++;
+    return 0;
+}
+
+static void
+free_groups(TOKEN_GROUPS *grps)
+{
+    unsigned int i;
+
+    for (i = 0; i < grps->GroupCount; i++)
+	free(grps->Groups[i].Sid);
+    free(grps);
+}
+
 static int
 switch_to_user(struct auth_data *auth)
 {
-    int err;
+    TOKEN_GROUPS *grps = NULL;
+    DWORD err;
+    unsigned int i;
+    size_t len;
+
+    /* Extra 1 for the logon SID when that happens. */
+    len = sizeof(TOKEN_GROUPS) + ((1 + add_groups_len) *
+				  sizeof(SID_AND_ATTRIBUTES));
+    grps = malloc(len);
+    if (!grps)
+	return GE_NOMEM;
+    memset(grps, 0, len);
+    for (i = 0; i < add_groups_len; i++) {
+	err = append_group(grps, NULL, add_groups[i].name,
+			   (SE_GROUP_ENABLED | SE_GROUP_ENABLED_BY_DEFAULT |
+			    SE_GROUP_MANDATORY));
+	if (err)
+	    goto out_win_err;
+    }
 
     err = win_get_user(glogger, NULL,
-		       auth->username, "gtlsshd", true, &auth->userh);
+		       auth->username, "gtlsshd", true, NULL, &auth->userh);
     if (err) {
 	char errbuf[128];
 
@@ -1164,8 +1239,9 @@ switch_to_user(struct auth_data *auth)
 		      err, 0, errbuf, sizeof(errbuf), NULL);
 	log_event(LOG_ERR, "Could not get user '%s': %s\n",
 		  auth->username, errbuf);
-	return gensio_os_err_to_err(auth->ginfo->o, err);
+	goto out_win_err;
     }
+
     if (!SetThreadToken(NULL, auth->userh)) {
 	char errbuf[128];
 
@@ -1176,6 +1252,11 @@ switch_to_user(struct auth_data *auth)
 	log_event(LOG_ERR, "Could not set thread user: %s\n", errbuf);
 	return gensio_os_err_to_err(auth->ginfo->o, GetLastError());
     }
+ out_win_err:
+    if (grps)
+	free_groups(grps);
+    if (err)
+	return gensio_os_err_to_err(auth->ginfo->o, err);
     return 0;
 }
 
@@ -1263,7 +1344,7 @@ finish_auth(struct auth_data *auth)
     int rv;
     void *envblock;
 
-    err = win_get_user(glogger, NULL, auth->username, "gtlsshd", false,
+    err = win_get_user(glogger, NULL, auth->username, "gtlsshd", false, NULL,
 		       &userh);
     if (err) {
 	char errbuf[128];
@@ -1282,6 +1363,7 @@ finish_auth(struct auth_data *auth)
 		      err, 0, errbuf, sizeof(errbuf), NULL);
 	log_event(LOG_ERR, "Could not get env for user '%s': %s",
 		  auth->username, errbuf);
+	CloseHandle(userh);
 	return gensio_os_err_to_err(o, err);
     }
     rv = get_wvals_from_service(o, &auth->env, NULL, envblock);
@@ -1289,6 +1371,7 @@ finish_auth(struct auth_data *auth)
     if (rv) {
 	log_event(LOG_ERR, "Error processing environgment for user '%s': %s",
 		  auth->username, gensio_err_to_str(rv));
+	CloseHandle(userh);
 	return rv;
     }
 
