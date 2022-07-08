@@ -205,6 +205,7 @@ struct auth_data {
     char *ushell;
     bool interactive_login;
     bool interactive;
+    bool privileged;
 
     /*
      * Note that passwd and val_2fa are passed to pam, so they must be
@@ -1534,7 +1535,7 @@ switch_to_user(struct auth_data *auth)
 	goto out_win_err;
     }
 
-    err = setup_process_token(&auth->userh, false);
+    err = setup_process_token(&auth->userh, auth->privileged);
     if (err) {
 	char errbuf[128];
 
@@ -2256,6 +2257,9 @@ handle_new(struct gensio *net_io)
 
 	if (auth->aux_data.flags & GTLSSH_AUX_FLAG_NO_INTERACTIVE)
 	    auth->interactive_login = false;
+	if ((auth->aux_data.flags & GTLSSH_AUX_FLAG_PRIVILEGED) &&
+		permit_root)
+	    auth->privileged = true;
     }
 
     /* FIXME - figure out a way to unstack certauth_io after authentication */

@@ -1852,6 +1852,9 @@ main(int argc, char *argv[])
 	} else if ((err = cmparg(argc, argv, &arg, NULL, "--nointeractive",
 				 NULL))) {
 	    aux_data.flags |= GTLSSH_AUX_FLAG_NO_INTERACTIVE;
+	} else if ((err = cmparg(argc, argv, &arg, NULL, "--privileged",
+				 NULL))) {
+	    aux_data.flags |= GTLSSH_AUX_FLAG_PRIVILEGED;
 	} else if ((err = cmparg(argc, argv, &arg, "-L", NULL, &addr))) {
 	    err = handle_port(o, false, addr);
 	} else if ((err = cmparg(argc, argv, &arg, "-R", NULL, &addr))) {

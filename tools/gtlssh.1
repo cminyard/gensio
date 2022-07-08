@@ -74,6 +74,12 @@ etc.
 Don't use a mux gensio.  This may cause issues with gtlsshd, but is
 useful in some cases for talking with ser2net with no mux support.
 .TP
+.I \-\-privileged
+.TP
+When logging onto a Windows server, don't drop privileges on a
+privileged account.  Normally you are logged in and run as a normal
+user (with a privileged linked token), this will allow you just run
+privileged.  Requires --allow-root on the server.
 .I \-L <accept addr>:<connect addr>
 Listen at the
 .I <accept addr>

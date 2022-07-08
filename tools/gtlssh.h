@@ -79,6 +79,10 @@ int win_get_user(gtlssh_logger logger, void *cbdata,
 struct gtlssh_aux_data {
     uint32_t flags; /* Flag fields in network order. */
 };
+/* Do not do interactive querying of passwords and 2fa. */
 #define GTLSSH_AUX_FLAG_NO_INTERACTIVE		(1 << 0)
+
+/* On windows, Don't drop the privileges on a privileged user. */
+#define GTLSSH_AUX_FLAG_PRIVILEGED		(1 << 1)
 
 #endif /* GENSIOTOOL_UTILS_H */
