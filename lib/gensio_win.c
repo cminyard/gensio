@@ -2629,13 +2629,9 @@ win_pty_shutdown(struct gensio_iod_win_pty *piod, bool force)
 	    return rv;
 	piod->read = NULL;
     }
-    TerminateProcess(piod->child, 0);
-    if (piod->watch_thread) {
-	LeaveCriticalSection(&wiod->lock);
-	WaitForSingleObject(piod->watch_thread, INFINITE);
-	EnterCriticalSection(&wiod->lock);
-	CloseHandle(piod->watch_thread);
-	piod->watch_thread = NULL;
+    if (piod->ptyh) {
+	ClosePseudoConsole(piod->ptyh);
+	piod->ptyh = NULL;
     }
     return 0;
 }
@@ -2650,6 +2646,14 @@ win_pty_close(struct gensio_iod_win *wiod, bool force)
     rv = win_pty_shutdown(piod, force);
     if (rv)
 	goto out;
+    TerminateProcess(piod->child, 0);
+    if (piod->watch_thread) {
+	LeaveCriticalSection(&wiod->lock);
+	WaitForSingleObject(piod->watch_thread, INFINITE);
+	EnterCriticalSection(&wiod->lock);
+	CloseHandle(piod->watch_thread);
+	piod->watch_thread = NULL;
+    }
     if (piod->child) {
 	CloseHandle(piod->child);
 	piod->child = NULL;
