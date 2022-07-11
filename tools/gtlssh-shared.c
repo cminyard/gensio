@@ -53,6 +53,19 @@ set_lsa_string(LSA_STRING *a, const char *b)
     a->Buffer = (char *) b;
 }
 
+static void
+add_unicode_str(UNICODE_STRING *ustr, const char *str, unsigned int len,
+		char **pos)
+{
+    unsigned int blen = len * sizeof(wchar_t);
+
+    ustr->Buffer = (wchar_t *) *pos;
+    mbstowcs(ustr->Buffer, str, len);
+    ustr->Length = blen;
+    ustr->MaximumLength = blen;
+    *pos += blen;
+}
+
 int
 win_get_user(gtlssh_logger logger, void *cbdata,
 	     const char *user, const char *src_module,
@@ -79,6 +92,7 @@ win_get_user(gtlssh_logger logger, void *cbdata,
     QUOTA_LIMITS quota_limits;
     NTSTATUS sub_status;
     PROFILEINFOW profile_info = { 0 };
+    SECURITY_LOGON_TYPE logon_type;
 
     if (interactive) {
 	LSA_STRING name;
@@ -125,11 +139,10 @@ win_get_user(gtlssh_logger logger, void *cbdata,
 	s4u_logon->MessageType = KerbS4ULogon;
 	if (interactive)
 	    s4u_logon->Flags = KERB_S4U_LOGON_FLAG_IDENTIFY;
-	s4u_logon->ClientUpn.Buffer = (wchar_t *) (s4u_logon + 1);
-	mbstowcs(s4u_logon->ClientUpn.Buffer, user, user_chars);
-	s4u_logon->ClientUpn.Length = user_bytes;
-	s4u_logon->ClientUpn.MaximumLength = user_bytes;
+	pos = (char *) (s4u_logon + 1);
+	add_unicode_str(&s4u_logon->ClientUpn, user, user_chars, &pos);
 	login_info = s4u_logon;
+	logon_type = Network;
     } else {
 	MSV1_0_S4U_LOGON *s4u_logon;
 
@@ -148,17 +161,12 @@ win_get_user(gtlssh_logger logger, void *cbdata,
 	}
 	s4u_logon->MessageType = MsV1_0S4ULogon;
 	pos = (char *) (s4u_logon + 1);
-	s4u_logon->UserPrincipalName.Buffer = (wchar_t *) pos;
-	mbstowcs(s4u_logon->UserPrincipalName.Buffer, user, user_chars);
-	s4u_logon->UserPrincipalName.Length = user_bytes;
-	s4u_logon->UserPrincipalName.MaximumLength = user_bytes;
-	pos += user_bytes;
 
-	s4u_logon->DomainName.Buffer = (wchar_t *) pos;
-	mbstowcs(s4u_logon->DomainName.Buffer, ".", 1);
-	s4u_logon->DomainName.Length = sizeof(wchar_t);
-	s4u_logon->DomainName.MaximumLength = sizeof(wchar_t);
+	add_unicode_str(&s4u_logon->UserPrincipalName, user, user_chars, &pos);
+	add_unicode_str(&s4u_logon->DomainName, ".", 1, &pos);
+
 	login_info = s4u_logon;
+	logon_type = Network;
     }
 
     /*
@@ -171,7 +179,7 @@ win_get_user(gtlssh_logger logger, void *cbdata,
 
     set_lsa_string(&origin_name, src_module);
 
-    rv = LsaLogonUser(lsah, &origin_name, Network, package_auth,
+    rv = LsaLogonUser(lsah, &origin_name, logon_type, package_auth,
 		      login_info, logon_len, extra_groups, &token_source,
 		      &profile, &profile_len, &logon_id, &htok,
 		      &quota_limits, &sub_status);
