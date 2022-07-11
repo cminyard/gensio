@@ -113,21 +113,35 @@ static void
 vlog_event(int level, const char *format, va_list va)
 {
     char buf[128];
-    DWORD event_id = 0;
-    const char *strs[2] = { buf, NULL };;
 
-    switch(level) {
-    case LOG_NOTICE:  event_id = 0; break;
-    case LOG_INFO:    event_id = 1; break; /* and LOG_DEBUG */
-    case LOG_WARNING: event_id = 2; break;
-    case LOG_ERR:     event_id = 3; break;
-    case LOG_CRIT:    event_id = 3; break;
-    }
-    event_id <<= 1;
-    event_id |= 1;
-    event_id <<= 29;
     vsnprintf(buf, sizeof(buf), format, va);
-    ReportEventA(evlog, level, 0, event_id, NULL, 1, 0, strs, NULL);
+    if (!debug) {
+	DWORD event_id = 0;
+	const char *strs[2] = { buf, NULL };;
+
+	switch(level) {
+	case LOG_NOTICE:  event_id = 0; break;
+	case LOG_INFO:    event_id = 1; break; /* and LOG_DEBUG */
+	case LOG_WARNING: event_id = 2; break;
+	case LOG_ERR:     event_id = 3; break;
+	case LOG_CRIT:    event_id = 3; break;
+	}
+	event_id <<= 1;
+	event_id |= 1;
+	event_id <<= 29;
+	ReportEventA(evlog, level, 0, event_id, NULL, 1, 0, strs, NULL);
+    } else {
+	const char *levelstr;
+
+	switch(level) {
+	case LOG_NOTICE:  levelstr = "notice"; break;
+	case LOG_INFO:    levelstr = "info"; break; /* and LOG_DEBUG */
+	case LOG_WARNING: levelstr = "warning"; break;
+	case LOG_ERR:     levelstr = "error"; break;
+	case LOG_CRIT:    levelstr = "critical"; break;
+	}
+	fprintf(stderr, "%s: %s\n", levelstr, buf);
+    }
 }
 
 static void
