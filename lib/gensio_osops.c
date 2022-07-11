@@ -1462,8 +1462,9 @@ gensio_win_pty_start(struct gensio_os_funcs *o,
 				  NULL,
 				  NULL,
 				  FALSE,
-				  EXTENDED_STARTUPINFO_PRESENT
-				  | CREATE_NEW_PROCESS_GROUP,
+				  (NORMAL_PRIORITY_CLASS |
+				   EXTENDED_STARTUPINFO_PRESENT |
+				   CREATE_NEW_PROCESS_GROUP),
 				  envb,
 				  start_dir,
 				  &si.StartupInfo,
