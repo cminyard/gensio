@@ -933,8 +933,9 @@ get_2fa(struct auth_data *auth, struct gensio *io)
 }
 
 #ifndef _WIN32
+
 static int
-setup_process(gensio_os_funcs *o)
+setup_process(struct gensio_os_funcs *o)
 {
     return 0;
 }
@@ -1154,6 +1155,53 @@ glogger(void *cbdata, const char *format, ...)
     va_start(va, format);
     vlog_event(LOG_ERR, format, va);
     va_end(va);
+}
+
+static DWORD
+set_privilege(HANDLE tok, char *privilege, bool enable)
+{
+    TOKEN_PRIVILEGES tp;
+    LUID luid;
+
+    if (!LookupPrivilegeValueA(NULL, privilege, &luid))
+	return GetLastError();
+
+    tp.PrivilegeCount = 1;
+    tp.Privileges[0].Luid = luid;
+    if (enable)
+	tp.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
+    else
+	tp.Privileges[0].Attributes = 0;
+
+    if (!AdjustTokenPrivileges(tok, FALSE, &tp, sizeof(tp), NULL, NULL))
+	return GetLastError();
+
+   return 0;
+}
+
+static int
+setup_process(struct gensio_os_funcs *o)
+{
+    DWORD err;
+    HANDLE tok;
+
+   OpenProcessToken(GetCurrentProcess(),
+		    TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, &tok);
+   err = set_privilege(tok, SE_TCB_NAME, true);
+   if (err)
+       goto out_err;
+   err = set_privilege(tok, SE_INCREASE_QUOTA_NAME, true);
+   if (err)
+       goto out_err;
+   err = set_privilege(tok, SE_ASSIGNPRIMARYTOKEN_NAME, true);
+   if (err)
+       goto out_err;
+
+ out_err:
+   CloseHandle(tok);
+   if (err)
+       return gensio_os_err_to_err(o, err);
+   return 0;
 }
 
 static int
@@ -2811,6 +2859,13 @@ main(int argc, char *argv[])
 	return 1;
     }
     gensio_os_funcs_set_vlog(o, do_vlog);
+
+    rv = setup_process(o);
+    if (rv) {
+	fprintf(stderr, "Could not setup process: %s\n",
+		gensio_err_to_str(rv));
+	return 1;
+    }
 
     ginfo.lock = o->alloc_lock(o);
     if (!ginfo.lock) {
