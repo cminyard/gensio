@@ -654,7 +654,7 @@ handle_remote_socket(struct per_con_info *pcinfo,
     if (!strstartswith(accepter, "tcp,") &&
 		!strstartswith(accepter, "sctp,") &&
 		!strstartswith(accepter, "unix,")) {
-	log_event(LOG_ERR, "Unknown accepter type: %s\n", accepter);
+	log_event(LOG_ERR, "Unknown accepter type: %s", accepter);
 	return;
     }
     add_local_port(pcinfo->auth->locport, accepter, service, accepter);
@@ -934,6 +934,12 @@ get_2fa(struct auth_data *auth, struct gensio *io)
 
 #ifndef _WIN32
 static int
+setup_process(gensio_os_funcs *o)
+{
+    return 0;
+}
+
+static int
 setup_user(struct auth_data *auth)
 {
     struct gensio_os_funcs *o = auth->ginfo->o;
@@ -1056,10 +1062,10 @@ finish_auth(struct auth_data *auth)
 	while (auth->pam_err != PAM_SUCCESS && tries > 0) {
 	    gensio_time timeout = {10, 0};
 
-	    err = write_str_to_gensio("Permission denied, please try again\n",
+	    err = write_str_to_gensio("Permission denied, please try again",
 				      auth->rem_io, &timeout, true);
 	    if (err) {
-		log_event(LOG_INFO, "Error writing password prompt: %s\n",
+		log_event(LOG_INFO, "Error writing password prompt: %s",
 			  gensio_err_to_str(err));
 		return err;
 	    }
@@ -1073,21 +1079,21 @@ finish_auth(struct auth_data *auth)
 	    if (auth->interactive_login) {
 		err = write_str_to_gensio("Too many tries, giving up\n",
 					  auth->rem_io, &timeout, true);
-		log_event(LOG_ERR, "Too many login tries for %s\n",
+		log_event(LOG_ERR, "Too many login tries for %s",
 			  auth->username);
 	    } else {
 		err = write_str_to_gensio("Non-interactive login only\n",
 					  auth->rem_io, &timeout, true);
-		log_event(LOG_ERR, "Non-interactive login only %s\n",
+		log_event(LOG_ERR, "Non-interactive login only %s",
 			  auth->username);
 	    }
 	    if (err) {
-		log_event(LOG_INFO, "Error writing login error: %s\n",
+		log_event(LOG_INFO, "Error writing login error: %s",
 			  gensio_err_to_str(err));
 	    }
 	    return err;
 	}
-	log_event(LOG_INFO, "Accepted password for %s\n", auth->username);
+	log_event(LOG_INFO, "Accepted password for %s", auth->username);
 	/* FIXME - gensio_set_is_authenticated(certauth_io, true); */
     }
 
@@ -1544,7 +1550,7 @@ switch_to_user(struct auth_data *auth)
 	auth->userh = NULL;
 	FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM, NULL,
 		      err, 0, errbuf, sizeof(errbuf), NULL);
-	log_event(LOG_ERR, "Could not get user '%s': %s\n",
+	log_event(LOG_ERR, "Could not get user '%s': %s",
 		  auth->username, errbuf);
 	goto out_win_err;
     }
@@ -1557,7 +1563,7 @@ switch_to_user(struct auth_data *auth)
 	auth->userh = NULL;
 	FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM, NULL,
 		      err, 0, errbuf, sizeof(errbuf), NULL);
-	log_event(LOG_ERR, "Could not setup process token '%s': %s\n",
+	log_event(LOG_ERR, "Could not setup process token '%s': %s",
 		  auth->username, errbuf);
 	goto out_win_err;
     }
@@ -1569,7 +1575,7 @@ switch_to_user(struct auth_data *auth)
 	auth->userh = NULL;
 	FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM, NULL,
 		      GetLastError(), 0, errbuf, sizeof(errbuf), NULL);
-	log_event(LOG_ERR, "Could not set thread user: %s\n", errbuf);
+	log_event(LOG_ERR, "Could not set thread user: %s", errbuf);
 	return gensio_os_err_to_err(auth->ginfo->o, GetLastError());
     }
  out_win_err:
@@ -1590,7 +1596,7 @@ switch_from_user(struct auth_data *auth)
 
 	FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM, NULL,
 		      GetLastError(), 0, errbuf, sizeof(errbuf), NULL);
-	log_event(LOG_ERR, "Could not revert user: %s\n", errbuf);
+	log_event(LOG_ERR, "Could not revert user: %s", errbuf);
     }
 }
 
@@ -1671,7 +1677,7 @@ finish_auth(struct auth_data *auth)
 
 	FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM, NULL,
 		      err, 0, errbuf, sizeof(errbuf), NULL);
-	log_event(LOG_ERR, "Could not get user '%s': %s\n",
+	log_event(LOG_ERR, "Could not get user '%s': %s",
 		  auth->username, errbuf);
 	return gensio_os_err_to_err(o, err);
     }
@@ -1749,7 +1755,7 @@ certauth_event(struct gensio *io, void *user_data, int event, int ierr,
 	    return GE_AUTHREJECT;
 	}
 	if (!ierr) {
-	    log_event(LOG_INFO, "Accepted certificate for %s\n",
+	    log_event(LOG_INFO, "Accepted certificate for %s",
 		      auth->username);
 	    auth->authed_by_cert = true;
 	}
@@ -1971,7 +1977,7 @@ new_rem_io(struct gensio *io, struct auth_data *auth)
 
     pcinfo->ioinfo1 = alloc_ioinfo(o, -1, NULL, NULL, &guh, pcinfo);
     if (!pcinfo->ioinfo1) {
-	log_event(LOG_ERR, "Could not allocate ioinfo 1\n");
+	log_event(LOG_ERR, "Could not allocate ioinfo 1");
 	o->free(o, pcinfo);
 	goto out_free;
     }
@@ -1980,7 +1986,7 @@ new_rem_io(struct gensio *io, struct auth_data *auth)
     if (!pcinfo->ioinfo2) {
 	free_ioinfo(pcinfo->ioinfo1);
 	o->free(o, pcinfo);
-	log_event(LOG_ERR, "Could not allocate ioinfo 2\n");
+	log_event(LOG_ERR, "Could not allocate ioinfo 2");
 	goto out_free;
     }
 
@@ -2211,7 +2217,7 @@ handle_new(struct gensio *net_io)
 
     auth->locport = alloc_local_ports(o, pr_localport, NULL);
     if (!auth->locport) {
-	log_event(LOG_ERR, "Could not allocate local port data\n");
+	log_event(LOG_ERR, "Could not allocate local port data");
 	goto out_err;
     }
 
@@ -2553,7 +2559,7 @@ setup_new_connection(struct gdata *ginfo, struct gensio *io)
     err = gensio_os_new_thread(ginfo->o, thread_handle_new, io, &id);
     if (err) {
 	gensio_free(io);
-	log_event(LOG_ERR, "Unable to start handling thread: %s\n",
+	log_event(LOG_ERR, "Unable to start handling thread: %s",
 		  gensio_err_to_str(err));
     }
 }
