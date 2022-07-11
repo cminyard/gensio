@@ -1522,6 +1522,7 @@ static int
 switch_to_user(struct auth_data *auth)
 {
     TOKEN_GROUPS *grps = NULL;
+    HANDLE tmptok;
     DWORD err;
     unsigned int i;
     size_t len;
@@ -1567,6 +1568,14 @@ switch_to_user(struct auth_data *auth)
 		  auth->username, errbuf);
 	goto out_win_err;
     }
+
+    /* Make sure it's an impersonation token. */
+    if (!DuplicateToken(auth->userh, SecurityImpersonation, &tmptok)) {
+	err = GetLastError();
+	goto out_win_err;
+    }
+    CloseHandle(auth->userh);
+    auth->userh = tmptok;
 
     if (!SetThreadToken(NULL, auth->userh)) {
 	char errbuf[128];
