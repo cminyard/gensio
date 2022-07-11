@@ -224,45 +224,61 @@ char *
 get_homedir(gtlssh_logger logger, void *cbdata,
 	    const char *username, const char *extra)
 {
+    DWORD extra_len = 0;
     char *dir;
 
     if (!extra)
 	extra = "";
+    extra_len = strlen(extra);
 
     if (!username) {
-	DWORD drive_len, path_len, extra_len = 0, rv;
+	DWORD drive_len = 0, path_len, rv;
+	bool have_userprofile = false;
 
-	drive_len = GetEnvironmentVariable("HOMEDRIVE", NULL, 0);
-	if (drive_len == 0) {
-		logger(cbdata, "No HOMEDRIVE set\n");
+	path_len = GetEnvironmentVariable("USERPROFILE", NULL, 0);
+	if (path_len != 0) {
+	    path_len--;
+	    have_userprofile = true;
+	} else {
+	    drive_len = GetEnvironmentVariable("HOMEDRIVE", NULL, 0);
+	    if (drive_len == 0) {
+		logger(cbdata, "No HOMEDRIVE or USERPROFILE set\n");
 		return NULL;
-	}
-	/* Docs say return value includes the nil terminator. */
-	drive_len--;
-	path_len = GetEnvironmentVariable("HOMEPATH", NULL, 0);
-	if (path_len == 0) {
-		logger(cbdata, "No HOMEPATH set\n");
+	    }
+	    /* Docs say return value includes the nil terminator. */
+	    drive_len--;
+	    path_len = GetEnvironmentVariable("HOMEPATH", NULL, 0);
+	    if (path_len == 0) {
+		logger(cbdata, "No HOMEPATH or USERPROFILE set\n");
 		return NULL;
+	    }
+	    path_len--;
 	}
-	path_len--;
-	if (extra)
-	    extra_len = strlen(extra);
-
 
 	dir = malloc(drive_len + path_len + extra_len + 1);
 	if (!dir) {
 	    logger(cbdata, "Out of memory allocating home dir\n");
 	    return NULL;
 	}
-	rv = GetEnvironmentVariable("HOMEDRIVE", dir, drive_len + 1);
-	if (rv != drive_len) {
+
+	if (have_userprofile) {
+	    rv = GetEnvironmentVariable("USERPROFILE", dir, path_len + 1);
+	    if (rv != path_len) {
+		logger(cbdata, "No USERPROFILE set\n");
+		return NULL;
+	    }
+	} else {
+	    rv = GetEnvironmentVariable("HOMEDRIVE", dir, drive_len + 1);
+	    if (rv != drive_len) {
 		logger(cbdata, "No HOMEDRIVE set\n");
 		return NULL;
-	}
-	rv = GetEnvironmentVariable("HOMEPATH", dir + drive_len, path_len + 1);
-	if (rv != path_len) {
+	    }
+	    rv = GetEnvironmentVariable("HOMEPATH", dir + drive_len,
+					path_len + 1);
+	    if (rv != path_len) {
 		logger(cbdata, "No HOMEPATH set\n");
 		return NULL;
+	    }
 	}
 	strncpy(dir + drive_len + path_len, extra, extra_len + 1);
     } else {
@@ -292,7 +308,7 @@ get_homedir(gtlssh_logger logger, void *cbdata,
 	    CloseHandle(userh);
 	    return NULL;
 	}
-	dir = malloc(len);
+	dir = malloc(len + extra_len);
 	if (!dir) {
 	    logger(cbdata, "Out of memory allocating home dir\n");
 	    CloseHandle(userh);
@@ -300,6 +316,7 @@ get_homedir(gtlssh_logger logger, void *cbdata,
 	}
 	GetUserProfileDirectoryA(userh, dir, &len);
 	CloseHandle(userh);
+	strncpy(dir + len - 1, extra, extra_len + 1);
     }
 
     return dir;
