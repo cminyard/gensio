@@ -2121,8 +2121,8 @@ win_twoway_thread(LPVOID data)
 		writing = FALSE;
 	    } else if (rvw == WAIT_OBJECT_0 + 3) {
 		rvw = twiod->extrah_func(twiod);
-		if (twiod->extrah)
-		    goto out_err;
+		if (rvw)
+		    goto out_err_noget;
 	    }
 	}
 	if (wiod->done)
