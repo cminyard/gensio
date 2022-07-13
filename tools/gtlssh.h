@@ -66,8 +66,9 @@ int run_get_output(const char *argv[],
 #ifdef _WIN32
 #include <windows.h>
 int win_get_user(gtlssh_logger logger, void *cbdata,
-		 const char *user, const char *src_module,
-		 bool interactive, TOKEN_GROUPS *extra_groups, HANDLE *userh);
+		 const char *user, const char *password,
+		 const char *src_module,
+		 bool interactive, HANDLE *userh);
 #define DIRSEP '\\'
 #define DIRSEPS "\\"
 #else

@@ -55,6 +55,9 @@
 #else
 #include <windows.h>
 #include <userenv.h>
+#include <psapi.h>
+#include <accctrl.h>
+#include <aclapi.h>
 #endif
 
 #include "ioinfo.h"
@@ -1343,7 +1346,7 @@ update_privileges(HANDLE h, struct priv_data *privs, unsigned int privs_len)
     return err;
 }
 
-DWORD
+static DWORD
 medium_mandatory_policy(HANDLE h)
 {
     DWORD err = 0;
@@ -1362,13 +1365,13 @@ medium_mandatory_policy(HANDLE h)
     integrity_sid->SubAuthority[0] = SECURITY_MANDATORY_MEDIUM_RID;
 
     if (!SetTokenInformation(h, TokenIntegrityLevel,
-			     integrity, sizeof(integrity)))
+			     integrity, sizeof(*integrity)))
 	err = GetLastError();
     free(integrity);
-    return 0;
+    return err;
 }
 
-DWORD
+static DWORD
 get_sid_from_type(WELL_KNOWN_SID_TYPE type, SID **rsid)
 {
     DWORD err, len = 0;
@@ -1390,9 +1393,91 @@ get_sid_from_type(WELL_KNOWN_SID_TYPE type, SID **rsid)
     return 0;
 }
 
-/* FIXME - only do this for admin accounts. */
+/*
+ * Find the lsass.exe program, verify that it has SE_CREATE_TOKEN_NAME
+ * privilege, and return it's token.
+ */
+DWORD
+find_lsass_tok(HANDLE *rtok)
+{
+    DWORD *processes, len = 1000, newlen, count, err = 0, i;
+    LUID luid;
+    bool found = false;
+    HANDLE tokh = NULL;
+
+    if (!LookupPrivilegeValue(NULL, SE_CREATE_TOKEN_NAME, &luid))
+	return GetLastError();
+
+ restart:
+    processes = (DWORD *) malloc(len);
+    if (!processes)
+	return STATUS_NO_MEMORY;
+    if (!EnumProcesses(processes, len, &newlen))
+	return GetLastError();
+    if (len == newlen) {
+	/* May not have gotten all the processes, try again. */
+	free(processes);
+	len += 1000;
+	goto restart;
+    }
+
+    count = len / sizeof(DWORD);
+    for (i = 0; !found && i < count; i++) {
+	HANDLE proch = OpenProcess(PROCESS_QUERY_INFORMATION |
+				   PROCESS_VM_READ,
+				   FALSE, processes[i]);
+        HMODULE modh;
+	TOKEN_PRIVILEGES *hpriv = NULL;
+	char procname[MAX_PATH];
+	unsigned int j;
+
+	if (!proch)
+	    continue;
+
+        if (!EnumProcessModules(proch, &modh, sizeof(modh), &len))
+	    goto nextproc;
+
+	if (!GetModuleBaseNameA(proch, modh, procname, sizeof(procname)))
+	    goto nextproc;
+
+	if (strcmp(procname, "lsass.exe") != 0)
+	    goto nextproc;
+
+	if (!OpenProcessToken(proch, TOKEN_ALL_ACCESS, &tokh))
+	    goto nextproc;
+
+	err = read_token_info(tokh, TokenPrivileges, (void **) &hpriv, NULL);
+	if (err)
+	    goto nextproc;
+
+	for (j = 0; j < hpriv->PrivilegeCount; j++) {
+	    if (luid_equal(hpriv->Privileges[j].Luid, luid))
+		found = true;
+	}
+
+    nextproc:
+	CloseHandle(proch);
+	if (!found && tokh) {
+	    CloseHandle(tokh);
+	    tokh = NULL;
+	}
+	if (hpriv)
+	    free(hpriv);
+    }
+
+    err = 0;
+    if (tokh) {
+	if (!DuplicateToken(tokh, SecurityImpersonation, rtok))
+	    err = GetLastError();
+	CloseHandle(tokh);
+	return err;
+    }
+
+    return ERROR_PROC_NOT_FOUND;
+}
+
 static DWORD
-deny_admin_groups(HANDLE h, HANDLE *rh)
+deny_admin_groups(HANDLE *ioh)
 {
     DWORD err;
     HANDLE resh = NULL;
@@ -1400,6 +1485,8 @@ deny_admin_groups(HANDLE h, HANDLE *rh)
     SID_AND_ATTRIBUTES disable_sids[2];
     TOKEN_GROUPS *grps = NULL;
     unsigned int i;
+    HANDLE lstok;
+    TOKEN_LINKED_TOKEN link;
 
     /* NT AUTHORITY\Local account and member of Administrators group */
     err = get_sid_from_type(WinNTLMAuthenticationSid, &admin_member_sid);
@@ -1412,7 +1499,7 @@ deny_admin_groups(HANDLE h, HANDLE *rh)
 	goto out_err;
 
     /* Check if we have admin access. */
-    err = read_token_info(h, TokenGroups, (void **) &grps, NULL);
+    err = read_token_info(*ioh, TokenGroups, (void **) &grps, NULL);
     if (err)
 	goto out_err;
     for (i = 0; i < grps->GroupCount; i++) {
@@ -1429,25 +1516,41 @@ deny_admin_groups(HANDLE h, HANDLE *rh)
     disable_sids[0].Sid = admin_member_sid;
     disable_sids[1].Sid = admin_sid;
 
-    if (!CreateRestrictedToken(h, 0, 2, disable_sids,
+    if (!CreateRestrictedToken(*ioh, 0, 2, disable_sids,
 			       0, NULL, 0, NULL, &resh)) {
 	err = GetLastError();
 	goto out_err;
     }
-#if 0 /* FIXME - why doesn't this work? */
-    TOKEN_LINKED_TOKEN link;
+
     /*
-     * Link the privileged token to the restricted one so the privileged
-     * one can be used for escalation.
+     * Link the privileged token to the restricted one so the
+     * privileged one can be used for escalation.  This requires
+     * SE_CREATE_TOKEN_NAME access, which we can only get from
+     * lsass.exe, so we steal it's token and impersonate it.
      */
-    link.LinkedToken = h;
-    if (!SetTokenInformation(resh, TokenLinkedToken, &link, sizeof(link))) {
+    err = find_lsass_tok(&lstok);
+    if (err)
+	goto out_err;
+
+    if (!SetThreadToken(NULL, lstok)) {
+	CloseHandle(lstok);
 	err = GetLastError();
 	goto out_err;
     }
-#endif
+    CloseHandle(lstok);
+
+    /* FIXME - this succeeds, but the new token doesn't work. */
+    link.LinkedToken = *ioh;
+    if (!SetTokenInformation(resh, TokenLinkedToken, &link, sizeof(link))) {
+	RevertToSelf();
+	err = GetLastError();
+	goto out_err;
+    }
+
+    RevertToSelf();
+
     err = 0;
-    *rh = resh;
+    *ioh = resh;
     resh = NULL;
  out_err:
     if (grps)
@@ -1461,22 +1564,163 @@ deny_admin_groups(HANDLE h, HANDLE *rh)
     return err;
 }
 
-DWORD
-setup_process_token(HANDLE *inh, bool priv)
+/*
+ * Why isn't there a windows function to do this?
+ */
+static DWORD
+dup_sid(SID *in, SID **out)
 {
-    DWORD err = 0;
-    HANDLE newh = NULL, h = *inh;
-    struct priv_data *privs = NULL;
-    unsigned int privs_len;
+    DWORD len;
+    SID *sid;
 
-    if (!priv) {
-	err = deny_admin_groups(h, &newh);
+    len = GetLengthSid(in);
+    sid = (SID *) malloc(len);
+    if (!sid)
+	return STATUS_NO_MEMORY;
+    if (!CopySid(len, sid, in)) {
+	free(sid);
+	return GetLastError();
+    }
+    *out = sid;
+    return 0;
+}
+
+static DWORD
+get_tok_user(HANDLE h, SID **rsid)
+{
+    DWORD err;
+    TOKEN_USER *user;
+
+    err = read_token_info(h, TokenUser, (void **) &user, NULL);
+    if (err)
+	return err;
+    err = dup_sid((SID *) user->User.Sid, rsid);
+    free(user);
+    return err;
+}
+
+static DWORD
+get_tok_prim_group(HANDLE h, SID **rsid)
+{
+    DWORD err;
+    TOKEN_PRIMARY_GROUP *pgroup;
+
+    err = read_token_info(h, TokenPrimaryGroup, (void **) &pgroup, NULL);
+    if (err)
+	return err;
+    err = dup_sid((SID *) pgroup->PrimaryGroup, rsid);
+    free(pgroup);
+    return err;
+}
+
+static DWORD
+set_tok_prim_group(HANDLE h, SID *sid)
+{
+    TOKEN_PRIMARY_GROUP pgroup;
+
+    pgroup.PrimaryGroup = sid;
+    if (!SetTokenInformation(h, TokenPrimaryGroup, &pgroup, sizeof(pgroup)))
+	return GetLastError();
+    return 0;
+}
+
+/*
+ * An Admin ACL will be in place, convert it to as user one.
+ */
+static DWORD
+fix_user_acl(HANDLE h, SID *user)
+{
+    DWORD err;
+    TOKEN_DEFAULT_DACL *dacl = NULL, ndacl;
+    ACL *acl, *nacl = NULL;
+    SID *admin_sid = NULL;
+    EXPLICIT_ACCESS_A *exa = NULL;
+    ULONG exa_len = 0, i;
+
+    if (!ConvertStringSidToSidA("S-1-5-32-544", ((void **) &admin_sid)))
+	return GetLastError();
+
+    err = read_token_info(h, TokenDefaultDacl, (void **) &dacl, NULL);
+    if (err)
+	goto out_err;
+    acl = dacl->DefaultDacl;
+
+    if (!GetExplicitEntriesFromAclA(acl, &exa_len, &exa)) {
+	err = GetLastError();
+	/* This return an error for some reason. */
+	if (err != ERROR_INSUFFICIENT_BUFFER)
+	    goto out_err;
+	err = 0;
+    }
+
+    /* Look for the allowed admin ACE. */
+    for (i = 0; i < exa_len; i++) {
+	if (exa[i].Trustee.TrusteeForm != TRUSTEE_IS_SID)
+	    continue;
+	if (!EqualSid((SID *) exa[i].Trustee.ptstrName, admin_sid))
+	    continue;
+
+	/* Found it, change the SID. */
+	exa[i].Trustee.ptstrName = (LPSTR) user;
+	err = SetEntriesInAclA(exa_len, exa, NULL, &nacl);
 	if (err)
 	    goto out_err;
-	if (newh) {
-	    h = newh;
-	    newh = *inh;
+	break;
+    }
+
+    if (nacl) {
+	ndacl.DefaultDacl = nacl;
+	if (!SetTokenInformation(h, TokenDefaultDacl, &ndacl, sizeof(ndacl))) {
+	    err = GetLastError();
+	    goto out_err;
 	}
+    }
+
+ out_err:
+    if (exa)
+	LocalFree(exa);
+    if (nacl)
+	LocalFree(nacl);
+    if (admin_sid)
+	LocalFree(admin_sid);
+    if (dacl)
+	free(dacl);
+    return err;
+}
+
+static DWORD
+setup_network_token(HANDLE *inh, bool priv)
+{
+    DWORD err = 0;
+    HANDLE h;
+    struct priv_data *privs = NULL;
+    unsigned int privs_len;
+    SID *user = NULL;
+    SID *prim_grp = NULL;
+
+    err = get_tok_user(*inh, &user);
+    if (err)
+	goto out_err;
+
+    err = get_tok_prim_group(*inh, &prim_grp);
+    if (err)
+	goto out_err;
+
+    err = set_tok_prim_group(*inh, user);
+    if (err)
+	goto out_err;
+
+    if (!priv) {
+	h = *inh;
+	err = deny_admin_groups(&h);
+	if (err) {
+	    h = NULL;
+	    goto out_err;
+	}
+
+	err = fix_user_acl(h, user);
+	if (err)
+	    goto out_err;
 
 	err = medium_mandatory_policy(h);
 	if (err)
@@ -1493,105 +1737,28 @@ setup_process_token(HANDLE *inh, bool priv)
 
 	*inh = h;
     }
+    h = NULL;
 
  out_err:
+    if (user)
+	free(user);
+    if (prim_grp)
+	free(prim_grp);
     if (privs)
 	free(privs);
-    if (newh)
-	CloseHandle(newh);
+    if (h)
+	CloseHandle(h);
     return err;
-}
-
-struct group_list {
-    const LPTSTR name;
-};
-static struct group_list add_groups[] = {
-    /* Required for interactive. */
-    { .name = TEXT("S-1-5-14") }, /* NT AUTHORITY\REMOTE INTERACTIVE LOGON */
-    { .name = TEXT("S-1-5-4") }, /* NT AUTHORITY\INTERACTIVE */
-    { .name = TEXT("S-1-2-0") }, /* LOCAL */
-
-    /* FIXME = Not sure about these. */
-    { .name = TEXT("S-1-5-32-559") }, /* BUILTIN\Performance Log Users */
-    { .name = TEXT("S-1-5-64-36") }, /* NT AUTHORITY\Cloud Account Authentication */
-    { .name = TEXT("S-1-5-64-10") }, /* NT AUTHORITY\NTLM Authentication */
-};
-static unsigned int add_groups_len = (sizeof(add_groups) /
-				      sizeof(struct group_list));
-
-/* Supply either isid or sidstr, not both. */
-static DWORD
-append_group(TOKEN_GROUPS *grps, SID *sid, const LPTSTR sidstr, DWORD attrs)
-{
-    SID *new_sid, *free_sid = NULL;
-    size_t len;
-    unsigned int i = grps->GroupCount;
-    int err = 0;
-
-    if (sidstr) {
-	if (!ConvertStringSidToSid(sidstr, (void **) &free_sid))
-	    return GetLastError();
-	/* Can't use free_sid directly, it's allocated with LocalAlloc(). */
-	sid = free_sid;
-    }
-
-    len = GetLengthSid(sid);
-    new_sid = malloc(len);
-    if (!new_sid) {
-	err = STATUS_NO_MEMORY;
-	goto out_err;
-    }
-    if (!CopySid(len, new_sid, sid)) {
-	err = GetLastError();
-	free(new_sid);
-	goto out_err;
-    }
-
-    grps->Groups[i].Attributes = attrs;
-    grps->Groups[i].Sid = new_sid;
-    grps->GroupCount++;
- out_err:
-    if (free_sid)
-	LocalFree(free_sid);
-    return err;
-}
-
-static void
-free_groups(TOKEN_GROUPS *grps)
-{
-    unsigned int i;
-
-    for (i = 0; i < grps->GroupCount; i++)
-	free(grps->Groups[i].Sid);
-    free(grps);
 }
 
 static int
 switch_to_user(struct auth_data *auth)
 {
-    TOKEN_GROUPS *grps = NULL;
-    HANDLE tmptok;
     DWORD err;
-    unsigned int i;
-    size_t len;
-
-    /* Extra 1 for the logon SID when that happens. */
-    len = sizeof(TOKEN_GROUPS) + ((1 + add_groups_len) *
-				  sizeof(SID_AND_ATTRIBUTES));
-    grps = malloc(len);
-    if (!grps)
-	return GE_NOMEM;
-    memset(grps, 0, len);
-    for (i = 0; i < add_groups_len; i++) {
-	err = append_group(grps, NULL, add_groups[i].name,
-			   (SE_GROUP_ENABLED | SE_GROUP_ENABLED_BY_DEFAULT |
-			    SE_GROUP_MANDATORY));
-	if (err)
-	    goto out_win_err;
-    }
 
     err = win_get_user(glogger, NULL,
-		       auth->username, "gtlsshd", true, NULL, &auth->userh);
+		       auth->username, auth->passwd,
+		       "gtlsshd", true, &auth->userh);
     if (err) {
 	char errbuf[128];
 
@@ -1604,26 +1771,25 @@ switch_to_user(struct auth_data *auth)
 	goto out_win_err;
     }
 
-    err = setup_process_token(&auth->userh, auth->privileged);
-    if (err) {
-	char errbuf[128];
+    /*
+     * Password authenticated logins are normal Interactive logins and
+     * can be used directly.  S4U logins are Network logins and not
+     * set up as such.
+     */
+    if (!auth->passwd) {
+	err = setup_network_token(&auth->userh, auth->privileged);
+	if (err) {
+	    char errbuf[128];
 
-	CloseHandle(auth->userh);
-	auth->userh = NULL;
-	FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM, NULL,
-		      err, 0, errbuf, sizeof(errbuf), NULL);
-	log_event(LOG_ERR, "Could not setup process token '%s': %s",
-		  auth->username, errbuf);
-	goto out_win_err;
+	    CloseHandle(auth->userh);
+	    auth->userh = NULL;
+	    FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM, NULL,
+			  err, 0, errbuf, sizeof(errbuf), NULL);
+	    log_event(LOG_ERR, "Could not setup process token '%s': %s",
+		      auth->username, errbuf);
+	    goto out_win_err;
+	}
     }
-
-    /* Make sure it's an impersonation token. */
-    if (!DuplicateToken(auth->userh, SecurityImpersonation, &tmptok)) {
-	err = GetLastError();
-	goto out_win_err;
-    }
-    CloseHandle(auth->userh);
-    auth->userh = tmptok;
 
     if (!SetThreadToken(NULL, auth->userh)) {
 	char errbuf[128];
@@ -1636,8 +1802,6 @@ switch_to_user(struct auth_data *auth)
 	return gensio_os_err_to_err(auth->ginfo->o, GetLastError());
     }
  out_win_err:
-    if (grps)
-	free_groups(grps);
     if (err)
 	return gensio_os_err_to_err(auth->ginfo->o, err);
     return 0;
@@ -1727,8 +1891,8 @@ finish_auth(struct auth_data *auth)
     int rv;
     void *envblock;
 
-    err = win_get_user(glogger, NULL, auth->username, "gtlsshd", false, NULL,
-		       &userh);
+    err = win_get_user(glogger, NULL, auth->username, auth->passwd,
+		       "gtlsshd", false, &userh);
     if (err) {
 	char errbuf[128];
 

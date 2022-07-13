@@ -760,7 +760,7 @@ EXTRA_WINDOWS_USER_LIBS=
 if test "$version_type" = "windows"; then
    # We have PTY support for windows.
    HAVE_PTY=1
-   EXTRA_WINDOWS_USER_LIBS="-lsecur32 -luserenv"
+   EXTRA_WINDOWS_USER_LIBS="-lsecur32 -luserenv -lwtsapi32"
 else
    HAVE_PTY=0
    AC_CHECK_FUNCS(posix_openpt, [HAVE_PTY=1])
