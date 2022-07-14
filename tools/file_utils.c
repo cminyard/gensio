@@ -83,8 +83,24 @@ i_checkout_file(gtlssh_logger logger, void *cbdata,
 	goto out_err;
     }
 
-    if (!EqualSid(psid, osid)) {
-	logger(cbdata, "You do not own %s, giving up\n", filename);
+    if (!EqualSid(psid, osid) &&
+		!IsWellKnownSid(psid, WinBuiltinAdministratorsSid) &&
+		!IsWellKnownSid(psid, WinLocalSystemSid)) {
+	char *psidstr;
+	char *osidstr;
+	if (ConvertSidToStringSidA(psid, &psidstr)) {
+	    logger(cbdata, "You are %s and do not own %s, giving up\n",
+		   psidstr, filename);
+	    LocalFree(psidstr);
+	} else {
+	    logger(cbdata, "You are ?? and do not own %s, giving up\n",
+		   filename);
+	}
+	if (ConvertSidToStringSidA(osid, &osidstr)) {
+	    logger(cbdata, "It is owned by %s\n", osidstr);
+	    LocalFree(osidstr);
+	}
+
 	goto out_err;
     }
 
