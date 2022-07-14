@@ -46,6 +46,15 @@ bool check_dir_exists(gtlssh_logger logger, void *cbdata,
 bool check_file_exists(const char *file);
 void make_dir(gtlssh_logger logger, void *cbdata,
 	      const char *dir, bool make_private);
+
+/* Only used on Windows. */
+int make_file(gtlssh_logger logger, void *cbdata,
+	      const char *filename,
+	      const void *contents, size_t len,
+	      bool make_private);
+int read_file(gtlssh_logger logger, void *cbdata,
+	      const char *filename, void *contents, size_t *len);
+
 #define LINK_ERROR  1
 #define LINK_EXISTS 2
 int make_link(gtlssh_logger logger, void *cbdata,

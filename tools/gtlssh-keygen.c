@@ -41,6 +41,8 @@
 #include "gtlssh.h"
 
 int debug;
+struct gensio_os_funcs *o;
+struct gensio_os_proc_data *proc_data;
 
 #define DEFAULT_RSA_KEYSIZE 2048
 #define DEFAULT_EC_KEYSIZE 256
@@ -77,6 +79,10 @@ glogger(void *cbdata, const char *format, ...)
     vfprintf(stderr, format, va);
     va_end(va);
 }
+
+#ifdef _WIN32
+static int storepw(void);
+#endif
 
 static void
 help(const char *progname)
@@ -161,6 +167,15 @@ help(const char *progname)
     P("    manually.  By default the credential on the remote host is\n");
     P("    named the output of 'hostname -f' on the local machine,\n");
     P("    -n overrides this.\n");
+#ifdef _WIN32
+    P("\n");
+    P("  storepw\n");
+    P("    On Windows, logons do not work very well without credentials,\n");
+    P("    but gtlsshd doesn't have a way to get them on a certificate.\n");
+    P("    logon.  This lets you store your password in your .gtlssh\n");
+    P("    directory so gtlsshd can pick it up.  Not ideal, but it's\n");
+    P("    not terrible, as the private keys are there, anyway.\n");
+#endif
 #ifdef DEFAULT_CONFDIR
     P("\n");
     P("  serverkey [name]\n");
@@ -928,7 +943,7 @@ keygen(int argc, char *argv[])
 	err = keygen_one("default", key, cert);
 	free(key);
 	free(cert);
-	return err;
+	goto out_finish;
     }
 
     port[0] = '\0';
@@ -963,6 +978,19 @@ keygen(int argc, char *argv[])
 	}
     }
     return 0;
+
+ out_finish:
+#ifdef _WIN32
+    printf("\n");
+    printf("On Windows, logons do not work very well without credentials,\n");
+    printf("but gtlsshd doesn't have a way to get them on a certificate.\n");
+    printf("logon.  This lets you store your password in your .gtlssh\n");
+    printf("directory so gtlsshd can pick it up.  Not ideal, but it's\n");
+    printf("not terrible, as the private keys are there, anyway.\n");
+    if (promptyn("Do you want to store your password?"))
+	storepw();
+#endif
+    return err;
 }
 
 #ifdef DEFAULT_CONFDIR
@@ -1178,10 +1206,95 @@ pushcert(int argc, char *argv[])
     return rv;
 }
 
+#ifdef _WIN32
+static int
+storepw(void)
+{
+    struct gensio *tty = NULL;
+    int err, rv = 1;
+    const char *constr = "stdio(console,raw)";
+    const char *prompt = "Password: ";
+    char password[100];
+    size_t pos = 0;
+    char *pwfile = alloc_sprintf("%s%cpassword", gtlsshdir, DIRSEP);
+
+    if (!pwfile) {
+	fprintf(stderr, "Error allocating password filename: Mo memory\n");
+	return 1;
+    }
+
+    err = str_to_gensio(constr, o, NULL, NULL, &tty);
+    if (err) {
+	fprintf(stderr, "Error allocating gensio: %s\n",
+		gensio_err_to_str(err));
+	goto out_err;
+    }
+
+    err = gensio_open_s(tty);
+    if (err) {
+	gensio_free(tty);
+	tty = NULL;
+	fprintf(stderr, "Unable to open console %s: %s\n", constr,
+		gensio_err_to_str(err));
+	goto out_err;
+    }
+
+    err = gensio_set_sync(tty);
+    if (err) {
+	fprintf(stderr, "Unable to set console sync %s: %s\n", constr,
+		gensio_err_to_str(err));
+	goto out_err;
+    }
+
+    err = gensio_write_s(tty, NULL, prompt, strlen(prompt), NULL);
+    if (err) {
+	fprintf(stderr, "Error writing password prompt, giving up: %s\n",
+		gensio_err_to_str(err));
+	goto out_err;
+    }
+
+    while (true) {
+	gensiods count = 0;
+	char c;
+
+	err = gensio_read_s(tty, &count, &c, 1, NULL);
+	if (err) {
+	    fprintf(stderr, "Error reading password: %s\n",
+		    gensio_err_to_str(err));
+	    goto out_err;
+	}
+	if (count != 1) {
+	    fprintf(stderr,
+		    "Error reading password: read didn't return data\n");
+	    err = GE_IOERR;
+	    goto out_err;
+	}
+	if (c == '\r' || c == '\n')
+	    break;
+	if (pos < sizeof(password) - 1)
+	    password[pos++] = c;
+    }
+    gensio_write_s(tty, NULL, "\r\n", 2, NULL);
+    password[pos++] = '\0';
+
+    rv = make_file(glogger, NULL, pwfile, password, pos, true);
+
+ out_err:
+    memset(password, 0, sizeof(password));
+    if (pwfile)
+	free(pwfile);
+    if (tty) {
+	gensio_close_s(tty);
+	gensio_free(tty);
+    }
+    return rv;
+}
+#endif
+
 int
 main(int argc, char **argv)
 {
-    int i, rv = 1;
+    int i, rv = 1, err;
     const char *algorithm = NULL;
 
     default_gtlsshdir = get_tlsshdir(glogger, NULL, NULL, NULL);
@@ -1264,6 +1377,20 @@ main(int argc, char **argv)
 	exit(1);
     }
 
+    err = gensio_default_os_hnd(0, &o);
+    if (err) {
+	fprintf(stderr, "Error allocating os handler: %s\n",
+		gensio_err_to_str(err));
+	exit(1);
+    }
+
+    err = gensio_os_proc_setup(o, &proc_data);
+    if (err) {
+	fprintf(stderr, "Could not setup process data: %s\n",
+		gensio_err_to_str(err));
+	exit(1);
+    }
+
     if (strcmp(argv[0], "rehash") == 0)
 	rv = rehash(argc - 1, argv + 1);
     else if (strcmp(argv[0], "addallow") == 0)
@@ -1313,10 +1440,19 @@ main(int argc, char **argv)
 #endif
     } else if (strcmp(argv[0], "pushcert") == 0) {
 	rv = pushcert(argc - 1, argv + 1);
+#ifdef _WIN32
+    } else if (strcmp(argv[0], "storepw") == 0) {
+	rv = storepw();
+#endif
     } else {
 	fprintf(stderr, "Unknown command %s, use --help for help\n", argv[0]);
 	exit(1);
     }
+
+    if (proc_data)
+	gensio_os_proc_cleanup(proc_data);
+    if (o)
+	gensio_os_funcs_free(o);
 
     return rv;
 }

@@ -1978,6 +1978,41 @@ certauth_event(struct gensio *io, void *user_data, int event, int ierr,
 	if (!ierr) {
 	    log_event(LOG_INFO, "Accepted certificate for %s",
 		      auth->username);
+#if _WIN32
+	    /*
+	     * On windows, we cache the password in .gtlssh.  Not
+	     * ideal, but Windows logons don't work very well if you
+	     * don't log on with a password, and we don't want to have
+	     * to ask for one on certificate logons.
+	     */
+	    {
+		char *pwfile = alloc_sprintf("%s%c.gtlssh%cpassword",
+					     auth->homedir, DIRSEP, DIRSEP);
+		size_t flen = 100;
+		if (!pwfile)
+		    return GE_NOMEM;
+		auth->passwd = malloc(100);
+		if (!auth->passwd) {
+		    free(pwfile);
+		    return GE_NOMEM;
+		}
+		err = read_file(glogger, NULL, pwfile, auth->passwd, &flen);
+		if (err) {
+		    /* Assume the file doesn't exist, just go on. */
+		    free(auth->passwd);
+		    auth->passwd = NULL;
+		} else {
+		    /* Remove any trailing newlines. */
+		    while (flen > 0 &&
+			   (auth->passwd[flen - 1] == '\r'
+			    || auth->passwd[flen - 1] == '\n')) {
+			flen--;
+			auth->passwd[flen] = '\0';
+		    }
+		}
+		free(pwfile);
+	    }
+#endif
 	    auth->authed_by_cert = true;
 	}
 	return GE_NOTSUP;

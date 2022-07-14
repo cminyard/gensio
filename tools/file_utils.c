@@ -250,6 +250,77 @@ make_dir(gtlssh_logger logger, void *cbdata,
     }
 }
 
+int
+make_file(gtlssh_logger logger, void *cbdata,
+	  const char *filename,
+	  const void *contents, size_t len,
+	  bool make_private)
+{
+    HANDLE file;
+
+    file = CreateFileA(filename, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS,
+		       FILE_ATTRIBUTE_NORMAL, NULL);
+    if (!file) {
+	DWORD err = GetLastError();
+	char errbuf[128];
+
+	FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM, NULL,
+		      err, 0, errbuf, sizeof(errbuf), NULL);
+	logger(cbdata, "Unable to create file %s: %s\n", filename, errbuf);
+	return 1;
+    }
+
+    if (!WriteFile(file, contents, len, NULL, NULL)) {
+	DWORD err = GetLastError();
+	char errbuf[128];
+
+	CloseHandle(file);
+	FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM, NULL,
+		      err, 0, errbuf, sizeof(errbuf), NULL);
+	logger(cbdata, "Unable to write to file %s: %s\n", filename, errbuf);
+	return 1;
+    }
+
+    CloseHandle(file);
+    return 0;
+}
+
+
+int
+read_file(gtlssh_logger logger, void *cbdata,
+	  const char *filename, void *contents, size_t *len)
+{
+    HANDLE file;
+    DWORD rlen;
+
+    file = CreateFileA(filename, GENERIC_READ, 0, NULL, OPEN_EXISTING,
+		       FILE_ATTRIBUTE_NORMAL, NULL);
+    if (!file) {
+	DWORD err = GetLastError();
+	char errbuf[128];
+
+	FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM, NULL,
+		      err, 0, errbuf, sizeof(errbuf), NULL);
+	logger(cbdata, "Unable to open file %s: %s\n", filename, errbuf);
+	return 1;
+    }
+
+    if (!ReadFile(file, contents, *len, &rlen, NULL)) {
+	DWORD err = GetLastError();
+	char errbuf[128];
+
+	CloseHandle(file);
+	FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM, NULL,
+		      err, 0, errbuf, sizeof(errbuf), NULL);
+	logger(cbdata, "Unable to read from file %s: %s\n", filename, errbuf);
+	return 1;
+    }
+    CloseHandle(file);
+
+    *len = rlen;
+    return 0;
+}
+
 bool
 check_dir_exists(gtlssh_logger logger, void *cbdata,
 		 const char *dir, bool check_private)
