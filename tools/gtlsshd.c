@@ -1178,6 +1178,8 @@ set_privilege(HANDLE tok, char *privilege, bool enable)
 
     if (!AdjustTokenPrivileges(tok, FALSE, &tp, sizeof(tp), NULL, NULL))
 	return GetLastError();
+    else if (GetLastError() == ERROR_NOT_ALL_ASSIGNED)
+	return GetLastError();
 
    return 0;
 }
