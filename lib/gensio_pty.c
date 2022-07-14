@@ -60,6 +60,8 @@ struct pty_data {
     bool link_created;
 #endif
 
+    unsigned int check_close_count;
+
     bool raw;
 
     int last_err;
@@ -231,6 +233,7 @@ pty_sub_open(void *handler_data, struct gensio_iod **riod)
     struct pty_data *tdata = handler_data;
     int err;
 
+    tdata->check_close_count = 0;
     err = gensio_setup_child_on_pty(tdata);
     if (!err)
 	*riod = tdata->iod;
@@ -280,6 +283,10 @@ pty_check_close(void *handler_data, struct gensio_iod *iod,
 
     err = pty_check_exit_code(tdata);
     if (err == GE_INPROGRESS) {
+	/* FIXME - this should probably be configurable. */
+	if (tdata->check_close_count >= 500) /* Wait for 5 seconds. */
+	    goto out_finish;
+	tdata->check_close_count++;
 	timeout->secs = 0;
 	timeout->nsecs = 10000000;
 	return err;
