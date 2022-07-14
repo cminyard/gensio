@@ -1206,11 +1206,13 @@ setup_user(struct auth_data *auth)
     auth->homedir = get_homedir(glogger, NULL, auth->username, NULL);
     if (!auth->homedir)
 	return GE_NOMEM;
-    auth->ushell = gensio_strdup(auth->ginfo->o,
-				 "C:\\\\Windows\\\\System32\\\\cmd.exe");
     if (!auth->ushell) {
-	log_event(LOG_ERR, "Could not allocate shell string");
-	return GE_NOMEM;
+	auth->ushell = gensio_strdup(auth->ginfo->o,
+				     "C:\\\\Windows\\\\System32\\\\cmd.exe");
+	if (!auth->ushell) {
+	    log_event(LOG_ERR, "Could not allocate shell string");
+	    return GE_NOMEM;
+	}
     }
     return 0;
 }
@@ -1821,19 +1823,58 @@ setup_auth(struct auth_data *auth)
 }
 
 static int
-get_wvals_from_service(struct gensio_os_funcs *o,
+handle_comspec(struct auth_data *auth, struct gensio_os_funcs *o, wchar_t *str)
+{
+    size_t i, len;
+    char *comspec;
+
+    /* Get the size, allowing for doubling each \. */
+    for (i = 0, len = 0; str[i]; i++, len++) {
+	if (str[i] == L'\\')
+	    len++;
+    }
+    if (len == 0)
+	return 0;
+
+    comspec = o->zalloc(o, len + 1);
+    if (!comspec)
+	return GE_NOMEM;
+
+    /* Copy the data, doubling each \. */
+    /* FIXME - we ignore unicode here. */
+    for (i = 0, len = 0; str[i]; i++) {
+	comspec[len++] = str[i];
+	if (str[i] == L'\\')
+	    comspec[len++] = str[i];
+    }
+    comspec[len] = 0;
+    if (auth->ushell)
+	o->free(o, auth->ushell);
+    auth->ushell = comspec;
+
+    return 0;
+}
+
+static int
+get_wvals_from_service(struct auth_data *auth, struct gensio_os_funcs *o,
 		       char ***rvals, unsigned int *rvlen,
 		       wchar_t *str)
 {
     unsigned int i, j;
     static char **vals = NULL, **v, *s;
     unsigned int vlen = 0;
+    int err;
 
     /*
      * Scan for a double nil that marks the end, counting the number
      * of items we find along the way.
      */
     for (i = 0; str[i]; ) {
+	if (_wcsnicmp(str + i, L"COMSPEC=", 8) == 0) {
+	    err = handle_comspec(auth, o, str + i + 8);
+	    if (err)
+		return err;
+	}
 	for (; str[i]; i++)
 	    ;
 	vlen++;
@@ -1906,7 +1947,7 @@ finish_auth(struct auth_data *auth)
 	CloseHandle(userh);
 	return gensio_os_err_to_err(o, err);
     }
-    rv = get_wvals_from_service(o, &auth->env, NULL, envblock);
+    rv = get_wvals_from_service(auth, o, &auth->env, NULL, envblock);
     DestroyEnvironmentBlock(envblock);
     if (rv) {
 	log_event(LOG_ERR, "Error processing environgment for user '%s': %s",
