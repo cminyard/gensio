@@ -2510,6 +2510,8 @@ struct gensio_iod_win_pty
     struct gensio_iod_win *read; /* Data (output) from the child */
     HANDLE child;
     HPCON ptyh;
+    HANDLE child_in;
+    HANDLE child_out;
     HANDLE watch_thread;
     DWORD watch_thread_id;
     HANDLE watch_start;
@@ -2739,7 +2741,9 @@ win_pty_control(struct gensio_iod_win *wiod, int op, bool get, intptr_t val)
 	    if (!piod->watch_thread) {
 		err = gensio_os_err_to_err(o, GetLastError());
 	    } else {
-		err = gensio_win_pty_start(o, piod->ptyh, piod->argv,
+		err = gensio_win_pty_start(o, piod->ptyh,
+					   &piod->child_in, &piod->child_out,
+					   piod->argv,
 					   piod->env, piod->start_dir,
 					   &piod->child);
 		assert(SetEvent(piod->watch_start));
@@ -2863,6 +2867,10 @@ win_iod_pty_clean(struct gensio_iod_win *wiod)
     struct gensio_os_funcs *o = wiod->iod.f;
     struct gensio_iod_win_pty *piod = wiod_to_win_pty(wiod);
 
+    if (piod->child_in)
+	CloseHandle(piod->child_in);
+    if (piod->child_out)
+	CloseHandle(piod->child_out);
     if (piod->read)
 	o->release_iod(&piod->read->iod);
     if (piod->write)
@@ -2902,7 +2910,8 @@ win_iod_pty_init(struct gensio_iod_win *wiod, void *cb_data)
 	goto out_err;
     }
 
-    err = gensio_win_pty_alloc(o, &readh, &writeh, &piod->ptyh);
+    err = gensio_win_pty_alloc(o, &readh, &writeh,
+			       &piod->child_in, &piod->child_out, &piod->ptyh);
     if (err)
 	goto out_err;
 

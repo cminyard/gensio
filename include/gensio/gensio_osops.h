@@ -117,10 +117,15 @@ int gensio_win_do_exec(struct gensio_os_funcs *o,
 
 int gensio_win_pty_alloc(struct gensio_os_funcs *o,
 			 HANDLE *rreadh, HANDLE *rwriteh,
+			 HANDLE *child_in, HANDLE *child_out,
 			 HPCON *rptyh);
 
+/*
+ * Note: If this is successful, it will NULL child_in and child_out.
+ */
 int gensio_win_pty_start(struct gensio_os_funcs *o,
-			 HPCON ptyh, const char **argv, const char **env,
+			 HPCON ptyh, HANDLE *child_in, HANDLE *child_out,
+			 const char **argv, const char **env,
 			 const char *start_dir, HANDLE *child);
 
 #else

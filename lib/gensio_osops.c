@@ -1262,7 +1262,7 @@ gensio_win_do_exec(struct gensio_os_funcs *o,
 		       cmdline,
 		       NULL,
 		       NULL,
-		       TRUE,
+		       FALSE,
 		       0,
 		       envb,
 		       start_dir,
@@ -1310,7 +1310,9 @@ gensio_win_do_exec(struct gensio_os_funcs *o,
 }
 
 int
-gensio_win_pty_alloc(struct gensio_os_funcs *o, HANDLE *rreadh, HANDLE *rwriteh,
+gensio_win_pty_alloc(struct gensio_os_funcs *o,
+		     HANDLE *rreadh, HANDLE *rwriteh,
+		     HANDLE *child_in, HANDLE *child_out,
 		     HPCON *rptyh)
 {
     HANDLE readh_m = NULL, readh_s = NULL;
@@ -1342,7 +1344,11 @@ gensio_win_pty_alloc(struct gensio_os_funcs *o, HANDLE *rreadh, HANDLE *rwriteh,
 
     if (!CreatePipe(&writeh_s, &writeh_m, NULL, 0))
 	goto out_err_conv;
+    if (!SetHandleInformation(writeh_s, HANDLE_FLAG_INHERIT, 0))
+	goto out_err_conv;
     if (!CreatePipe(&readh_m, &readh_s, NULL, 0))
+	goto out_err_conv;
+    if (!SetHandleInformation(readh_s, HANDLE_FLAG_INHERIT, 0))
 	goto out_err_conv;
     winsize.X = 80;
     winsize.Y = 25;
@@ -1355,17 +1361,14 @@ gensio_win_pty_alloc(struct gensio_os_funcs *o, HANDLE *rreadh, HANDLE *rwriteh,
 	goto out_err;
     }
 
-    CloseHandle(writeh_s);
-    writeh_s = NULL;
-    CloseHandle(readh_s);
-    readh_s = NULL;
-
     /* Go back to the impersonation token. */
     if (imptokh) {
 	if (!SetThreadToken(NULL, imptokh))
 	    goto out_err_conv;
     }
 
+    *child_in = writeh_s;
+    *child_out = readh_s;
     *rwriteh = writeh_m;
     *rreadh = readh_m;
     *rptyh = ptyh;
@@ -1390,7 +1393,8 @@ gensio_win_pty_alloc(struct gensio_os_funcs *o, HANDLE *rreadh, HANDLE *rwriteh,
 
 int
 gensio_win_pty_start(struct gensio_os_funcs *o,
-		     HPCON ptyh, const char **argv, const char **env,
+		     HPCON ptyh, HANDLE *child_in, HANDLE *child_out,
+		     const char **argv, const char **env,
 		     const char *start_dir, HANDLE *child)
 {
     char *cmdline, *envb = NULL;
@@ -1417,6 +1421,10 @@ gensio_win_pty_start(struct gensio_os_funcs *o,
     }
 
     si.StartupInfo.cb = sizeof(STARTUPINFOEX);
+    si.StartupInfo.hStdInput = *child_in;
+    si.StartupInfo.hStdOutput = *child_out;
+    si.StartupInfo.hStdError = *child_out;
+    si.StartupInfo.dwFlags |= STARTF_USESTDHANDLES;
 
     InitializeProcThreadAttributeList(NULL, 1, 0, &len);
     si.lpAttributeList = o->zalloc(o, len);
@@ -1484,6 +1492,10 @@ gensio_win_pty_start(struct gensio_os_funcs *o,
 	    goto out_err_conv;
     }
 
+    CloseHandle(*child_in);
+    *child_in = NULL;
+    CloseHandle(*child_out);
+    *child_out = NULL;
     if (imptokh)
 	CloseHandle(imptokh);
     if (tokh)
