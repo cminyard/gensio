@@ -491,6 +491,7 @@ closecount_decr(struct auth_data *auth)
 	ginfo_lock(ginfo);
 	gensio_list_rm(&ginfo->auths, &auth->link);
 	ginfo_unlock(ginfo);
+	log_event(LOG_INFO, "User %s logged out", auth->username);
 	auth_free(auth);
 	closecount_decr_ginfo(ginfo);
     }
