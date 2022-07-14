@@ -1921,7 +1921,7 @@ win_iod_console_init(struct gensio_iod_win *wiod, void *cb_data)
 			  NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
 	readable = TRUE;
     } else {
-	h = CreateFileA("CONOUT$", GENERIC_WRITE, 0,
+	h = CreateFileA("CONOUT$", GENERIC_READ | GENERIC_WRITE, 0,
 			  NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
 	readable = FALSE;
     }
