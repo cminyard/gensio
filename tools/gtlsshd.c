@@ -173,12 +173,12 @@ start_log(bool debug)
 #endif
 
 static void
-slogger(void *cbdata, const char *format, ...)
+glogger(void *cbdata, const char *format, ...)
 {
     va_list va;
 
     va_start(va, format);
-    vfprintf(stderr, format, va);
+    vlog_event(LOG_ERR, format, va);
     va_end(va);
 }
 
@@ -1149,16 +1149,6 @@ finish_auth(struct auth_data *auth)
 #else
 #include <sddl.h>
 #include <winnt.h>
-
-static void
-glogger(void *cbdata, const char *format, ...)
-{
-    va_list va;
-
-    va_start(va, format);
-    vlog_event(LOG_ERR, format, va);
-    va_end(va);
-}
 
 static DWORD
 set_privilege(HANDLE tok, char *privilege, bool enable)
@@ -3040,14 +3030,17 @@ main(int argc, char *argv[])
 	    return 1;
     }
 
+    start_log(debug);
+    log_event(LOG_NOTICE, "gtlsshd startup");
+
     if (nosctp && notcp) {
-	fprintf(stderr, "You cannot disable both TCP and SCTP\n");
+	log_event(LOG_ERR, "You cannot disable both TCP and SCTP\n");
 	exit(1);
     }
 
-    if (checkout_file(slogger, NULL, keyfile, false, true))
+    if (checkout_file(glogger, NULL, keyfile, false, true))
 	return 1;
-    if (checkout_file(slogger, NULL, certfile, false, false))
+    if (checkout_file(glogger, NULL, certfile, false, false))
 	return 1;
 
     memset(&ginfo, 0, sizeof(ginfo));
@@ -3055,29 +3048,29 @@ main(int argc, char *argv[])
 
     rv = gensio_default_os_hnd(0, &o);
     if (rv) {
-	fprintf(stderr, "Could not allocate OS handler: %s\n",
-		gensio_err_to_str(rv));
+	log_event(LOG_ERR, "Could not allocate OS handler: %s\n",
+		  gensio_err_to_str(rv));
 	return 1;
     }
     gensio_os_funcs_set_vlog(o, do_vlog);
 
     rv = setup_process(o);
     if (rv) {
-	fprintf(stderr, "Could not setup process: %s\n",
+	log_event(LOG_ERR, "Could not setup process: %s\n",
 		gensio_err_to_str(rv));
 	return 1;
     }
 
     ginfo.lock = o->alloc_lock(o);
     if (!ginfo.lock) {
-	fprintf(stderr, "Could not allocate global lock.\n");
+	log_event(LOG_ERR, "Could not allocate global lock.\n");
 	gensio_os_funcs_free(o);
 	return 1;
     }
 
     rv = gensio_os_proc_setup(o, &proc_data);
     if (rv) {
-	fprintf(stderr, "Could not setup process data: %s\n",
+	log_event(LOG_ERR, "Could not setup process data: %s\n",
 		gensio_err_to_str(rv));
 	gensio_os_funcs_free(o);
 	return 1;
@@ -3087,40 +3080,40 @@ main(int argc, char *argv[])
 
     ginfo.key = gensio_alloc_sprintf(o, "key=%s", keyfile);
     if (!ginfo.key) {
-	fprintf(stderr, "Could not allocate keyfile data\n");
+	log_event(LOG_ERR, "Could not allocate keyfile data\n");
 	return 1;
     }
     ginfo.cert = gensio_alloc_sprintf(o, "cert=%s", certfile);
     if (!ginfo.key) {
-	fprintf(stderr, "Could not allocate certfile data\n");
+	log_event(LOG_ERR, "Could not allocate certfile data\n");
 	return 1;
     }
 
     ginfo.waiter = gensio_os_funcs_alloc_waiter(o);
     if (!ginfo.waiter) {
-	fprintf(stderr, "Could not allocate OS waiter\n");
+	log_event(LOG_ERR, "Could not allocate OS waiter\n");
 	return 1;
     }
 
     if (!notcp) {
 	s = gensio_alloc_sprintf(o, "tcp(readbuf=20000),%s%d", iptype, port);
 	if (!s) {
-	    fprintf(stderr, "Could not allocate tcp descriptor\n");
+	    log_event(LOG_ERR, "Could not allocate tcp descriptor\n");
 	    return 1;
 	}
 
 	rv = str_to_gensio_accepter(s, o, acc_event, &ginfo, &tcp_acc);
 	if (rv) {
-	    fprintf(stderr, "Could not allocate %s: %s\n", s,
-		    gensio_err_to_str(rv));
+	    log_event(LOG_ERR, "Could not allocate %s: %s\n", s,
+		      gensio_err_to_str(rv));
 	    return 1;
 	}
 	o->free(o, s);
 
 	rv = gensio_acc_startup(tcp_acc);
 	if (rv) {
-	    fprintf(stderr, "Could not start TCP accepter: %s\n",
-		    gensio_err_to_str(rv));
+	    log_event(LOG_ERR, "Could not start TCP accepter: %s\n",
+		      gensio_err_to_str(rv));
 	    return 1;
 	}
     }
@@ -3128,7 +3121,7 @@ main(int argc, char *argv[])
     if (!nosctp) {
 	s = gensio_alloc_sprintf(o, "sctp(readbuf=20000),%s%d", iptype, port);
 	if (!s) {
-	    fprintf(stderr, "Could not allocate sctp descriptor\n");
+	    log_event(LOG_ERR, "Could not allocate sctp descriptor\n");
 	    return 1;
 	}
 
@@ -3140,16 +3133,16 @@ main(int argc, char *argv[])
 	}
 
 	if (rv) {
-	    fprintf(stderr, "Could not allocate %s: %s\n", s,
-		    gensio_err_to_str(rv));
+	    log_event(LOG_ERR, "Could not allocate %s: %s\n", s,
+		      gensio_err_to_str(rv));
 	    return 1;
 	}
 	o->free(o, s);
 
 	rv = gensio_acc_startup(sctp_acc);
 	if (rv) {
-	    fprintf(stderr, "Could not start SCTP accepter: %s\n",
-		    gensio_err_to_str(rv));
+	    log_event(LOG_ERR, "Could not start SCTP accepter: %s\n",
+		      gensio_err_to_str(rv));
 	    return 1;
 	}
     }
@@ -3157,30 +3150,28 @@ main(int argc, char *argv[])
     if (other_acc_str) {
 	s = gensio_alloc_sprintf(o, other_acc_str, iptype, port);
 	if (!s) {
-	    fprintf(stderr, "Could not allocate '%s' descriptor\n",
-		    other_acc_str);
+	    log_event(LOG_ERR, "Could not allocate '%s' descriptor\n",
+		      other_acc_str);
 	    return 1;
 	}
 
 	rv = str_to_gensio_accepter(s, o, acc_event, &ginfo, &other_acc);
 	if (rv) {
-	    fprintf(stderr, "Could not allocate %s: %s\n", s,
-		    gensio_err_to_str(rv));
+	    log_event(LOG_ERR, "Could not allocate %s: %s\n", s,
+		      gensio_err_to_str(rv));
 	    return 1;
 	}
 	o->free(o, s);
 
 	rv = gensio_acc_startup(other_acc);
 	if (rv) {
-	    fprintf(stderr, "Could not start '%s' accepter: %s\n",
-		    other_acc_str, gensio_err_to_str(rv));
+	    log_event(LOG_ERR, "Could not start '%s' accepter: %s\n",
+		      other_acc_str, gensio_err_to_str(rv));
 	    return 1;
 	}
     }
 
  start_io:
-    start_log(debug);
-    log_event(LOG_NOTICE, "gtlsshd startup");
     if (!oneshot && daemonize)
 	do_daemonize(o);
 
