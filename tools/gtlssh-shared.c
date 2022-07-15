@@ -131,6 +131,16 @@ get_logon_sid(SID *user, SID **logon_sid, bool *rfound)
     HANDLE h = NULL;
 
     /*
+     * Try the calling user's token first.
+     */
+    OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &h);
+    err = get_logon_sid_from_token(h, logon_sid, &found);
+    CloseHandle(h);
+    if (!err && found) {
+	*rfound = true;
+	return 0;
+    }
+    /*
      * Find a session with the same user SID as the passed in user.
      */
     if (!WTSEnumerateSessionsA(WTS_CURRENT_SERVER_HANDLE, 0, 1,
