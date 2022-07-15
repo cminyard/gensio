@@ -1350,6 +1350,22 @@ Set the owner of the slave pty to the given user.
 .TP
 .B group=<name>
 Set the group of the slave pty to the given group.
+.TP
+.B user=<name>
+Windows only, create the process under the given user instead of the
+calling process' user.  This generally required special privileges.
+.TP
+.B passwd=<name>
+Windows only, user must be specified to use.  Log on the user with the
+given password.  If a password is not given, an S4U logon will be
+attempted, but that may not work so well as some things are missing
+from the access token of the user.
+
+NOTE: There are significant security issues with passing a password
+this way.  You must use proper password handling.
+.B module=<name>
+Windows only, user must be specified to use.  Create the new user
+token with the given module.  If not specified, "gensio" is used.
 .SS "Remote Address String"
 The remote address string the program and arguments run on the pty.
 The argiuments will be a set of quoted strings with a space between each

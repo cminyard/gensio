@@ -34,6 +34,9 @@
 #include <gensio/gensio_ll_fd.h>
 #include <gensio/argvutils.h>
 #include <gensio/gensio_osops.h>
+#ifdef _WIN32
+#include <windows.h>
+#endif
 
 struct pty_data {
     struct gensio_os_funcs *o;
@@ -58,6 +61,13 @@ struct pty_data {
     char *link;
     bool forcelink;
     bool link_created;
+#endif
+
+#ifdef _WIN32
+    char *user;
+    char *passwd;
+    char *module;
+    HANDLE userh;
 #endif
 
     unsigned int check_close_count;
@@ -173,6 +183,72 @@ gensio_cleanup_pty(struct pty_data *tdata)
 #endif
 }
 
+#ifndef _WIN32
+static int
+setup_for_user(struct pty_data *tdata) {
+    return 0;
+}
+
+static void
+cleanup_for_user(struct pty_data *tdata) {}
+
+#else
+
+static int
+setup_for_user(struct pty_data *tdata) {
+    DWORD err;
+
+    if (!tdata->user)
+	return 0;
+
+    err = gensio_win_get_user_token(tdata->user, tdata->passwd,
+				    tdata->module, true, &tdata->userh);
+    if (err)
+	goto out_win_err;
+
+#if 0
+    /*
+     * Password authenticated logins are normal Interactive logins and
+     * can be used directly.  S4U logins are Network logins and not
+     * set up as such.
+     */
+    if (!tdata->passwd) {
+	err = setup_network_token(&tdata->userh, tdata->privileged);
+	if (err) {
+	    char errbuf[128];
+
+	    CloseHandle(tdata->userh);
+	    tdata->userh = NULL;
+	    FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM, NULL,
+			  err, 0, errbuf, sizeof(errbuf), NULL);
+	    log_event(LOG_ERR, "Could not setup process token '%s': %s",
+		      tdata->user, errbuf);
+	    goto out_win_err;
+	}
+    }
+#endif
+
+    if (!SetThreadToken(NULL, tdata->userh)) {
+	CloseHandle(tdata->userh);
+	tdata->userh = NULL;
+	err = GetLastError();
+    }
+ out_win_err:
+    if (err)
+	return gensio_os_err_to_err(tdata->o, err);
+    return 0;
+}
+
+static void
+cleanup_for_user(struct pty_data *tdata) {
+    if (!tdata->userh)
+	return;
+    CloseHandle(tdata->userh);
+    tdata->userh = NULL;
+    RevertToSelf();
+}
+#endif
+
 static int
 gensio_setup_child_on_pty(struct pty_data *tdata)
 {
@@ -205,8 +281,16 @@ gensio_setup_child_on_pty(struct pty_data *tdata)
     if (!err && tdata->start_dir)
 	err = o->iod_control(iod, GENSIO_IOD_CONTROL_START_DIR, false,
 			     (intptr_t) tdata->start_dir);
-    if (!err)
+
+    if (!err) {
+	err = setup_for_user(tdata);
+	if (err)
+	    goto out_err;
+    }
+    if (!err) {
 	err = o->iod_control(iod, GENSIO_IOD_CONTROL_START, false, 0);
+	cleanup_for_user(tdata);
+    }
     if (err)
 	goto out_err;
 
@@ -307,6 +391,16 @@ pty_free(void *handler_data)
     struct pty_data *tdata = handler_data;
     struct gensio_os_funcs *o = tdata->o;
 
+#ifdef _WIN32
+    if (tdata->user)
+	free(tdata->user);
+    if (tdata->module)
+	free(tdata->module);
+    if (tdata->passwd) {
+	memset(tdata->passwd, 0, strlen(tdata->passwd));
+	free(tdata->passwd);
+    }
+#endif
 #if HAVE_PTSNAME_R
     if (tdata->link)
 	o->free(o, tdata->link);
@@ -545,6 +639,9 @@ pty_gensio_alloc(const char * const argv[], const char * const args[],
     const char *owner = NULL, *group = NULL, *link = NULL;
     bool forcelink = false;
 #endif
+#ifdef _WIN32
+    const char *user = NULL, *passwd = NULL, *module = NULL;
+#endif
     const char *start_dir = NULL;
     bool raw = false;
     int err;
@@ -583,10 +680,25 @@ pty_gensio_alloc(const char * const argv[], const char * const args[],
 	if (gensio_check_keyvalue(args[i], "group", &group))
 	    continue;
 #endif
+#ifdef _WIN32
+	if (gensio_check_keyvalue(args[i], "user", &user))
+	    continue;
+	if (gensio_check_keyvalue(args[i], "passwd", &passwd))
+	    continue;
+#endif
 	if (gensio_check_keybool(args[i], "raw", &raw) > 0)
 	    continue;
 	return GE_INVAL;
     }
+
+#ifdef _WIN32
+    /* Must be running a program if specifying a user. */
+    if (user && !argv)
+	return GE_INVAL;
+    /* passwd and module require user to be set. */
+    if ((passwd || module) && !user)
+	return GE_INVAL;
+#endif
 
     tdata = o->zalloc(o, sizeof(*tdata));
     if (!tdata)
@@ -626,6 +738,24 @@ pty_gensio_alloc(const char * const argv[], const char * const args[],
 	if (!tdata->group)
 	    goto out_nomem;
     }
+#endif
+
+#ifdef _WIN32
+    if (user) {
+	tdata->user = gensio_strdup(o, user);
+	if (!tdata->user)
+	    goto out_nomem;
+    }
+    if (passwd) {
+	tdata->passwd = gensio_strdup(o, passwd);
+	if (!tdata->passwd)
+	    goto out_nomem;
+    }
+    if (!module)
+	module = "gensio";
+    tdata->module = gensio_strdup(o, module);
+    if (!tdata->module)
+	goto out_nomem;
 #endif
 
     if (argv && argv[0]) {
