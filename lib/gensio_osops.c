@@ -1421,6 +1421,15 @@ gensio_win_pty_start(struct gensio_os_funcs *o,
     }
 
     si.StartupInfo.cb = sizeof(STARTUPINFOEX);
+
+    /*
+     * This is not in any of the examples on Microsoft's site, but if
+     * the application has stdio relocated, anything that uses stdio
+     * in the child will get the parent's stdio.  If the child opens
+     * the console, all is good, but that's not the normal case.
+     *
+     * So set the stdio to the pipe, too.
+     */
     si.StartupInfo.hStdInput = *child_in;
     si.StartupInfo.hStdOutput = *child_out;
     si.StartupInfo.hStdError = *child_out;
