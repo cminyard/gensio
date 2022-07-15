@@ -1615,23 +1615,14 @@ get_local_logon(const char *user, const char *password,
     return 0;
 }
 
-struct group_list {
-    const LPTSTR name;
+static const char *add_groups[] = {
+    "S-1-2-0", /* LOCAL */
+    NULL
 };
-static struct group_list add_groups[] = {
-    { .name = TEXT("S-1-5-32-559") }, /* BUILTIN\Performance Log Users */
-    { .name = TEXT("S-1-5-14") }, /* NT AUTHORITY\REMOTE INTERACTIVE LOGON */
-    { .name = TEXT("S-1-5-4") }, /* NT AUTHORITY\INTERACTIVE */
-    { .name = TEXT("S-1-2-0") }, /* LOCAL */
-    { .name = TEXT("S-1-5-64-36") }, /* NT AUTHORITY\Cloud Account Authentication */
-    { .name = TEXT("S-1-5-64-10") }, /* NT AUTHORITY\NTLM Authentication */
-};
-static unsigned int add_groups_len = (sizeof(add_groups) /
-				      sizeof(struct group_list));
 
 /* Supply either isid or sidstr, not both. */
 static DWORD
-append_group(TOKEN_GROUPS *grps, SID *sid, const LPTSTR sidstr, DWORD attrs)
+append_group(TOKEN_GROUPS *grps, SID *sid, const char *sidstr, DWORD attrs)
 {
     SID *new_sid, *free_sid = NULL;
     size_t len;
@@ -1701,7 +1692,7 @@ print_sid(const char *str, SID *sid)
 
 int
 gensio_win_get_user_token(const char *user, const char *password,
-			  const char *src_module,
+			  const char *src_module, const char **groups,
 			  bool interactive, HANDLE *userh)
 {
     HANDLE lsah;
@@ -1730,9 +1721,12 @@ gensio_win_get_user_token(const char *user, const char *password,
     TOKEN_GROUPS *extra_groups = NULL;
     MSV1_0_INTERACTIVE_PROFILE *iprofile;
     bool found;
-    DWORD len, i;
+    DWORD len;
+    const char **grpp;
 
-    if (interactive) {
+    domain_user = strchr(user, '\\');
+
+    if (interactive && domain_user) {
 	LSA_STRING name;
 	LSA_OPERATIONAL_MODE dummy1;
 
@@ -1745,8 +1739,6 @@ gensio_win_get_user_token(const char *user, const char *password,
     }
     if (rv)
 	return LsaNtStatusToWinError(rv);
-
-    domain_user = strchr(user, '\\');
 
     if (domain_user)
 	set_lsa_string(&package_name, MICROSOFT_KERBEROS_NAME_A);
@@ -1834,8 +1826,10 @@ gensio_win_get_user_token(const char *user, const char *password,
      * logon, convert it to interactive by adding the proper sids.
      */
     len = sizeof(TOKEN_GROUPS) + sizeof(SID_AND_ATTRIBUTES);
-    if (logon_type == Network)
-	len += add_groups_len * sizeof(SID_AND_ATTRIBUTES);
+    for (grpp = add_groups; grpp && *grpp; grpp++)
+	len += sizeof(SID_AND_ATTRIBUTES);
+    for (grpp = groups; grpp && *grpp; grpp++)
+	len += sizeof(SID_AND_ATTRIBUTES);
     extra_groups = (TOKEN_GROUPS *) malloc(len);
     if (!extra_groups) {
 	err = STATUS_NO_MEMORY;
@@ -1845,15 +1839,21 @@ gensio_win_get_user_token(const char *user, const char *password,
     append_group(extra_groups, logon_sid, NULL,
 		 (SE_GROUP_ENABLED | SE_GROUP_ENABLED_BY_DEFAULT |
 		  SE_GROUP_MANDATORY | SE_GROUP_LOGON_ID));
-    if (logon_type == Network) {
-	for (i = 0; i < add_groups_len; i++) {
-	    err = append_group(extra_groups, NULL, add_groups[i].name,
-			       (SE_GROUP_ENABLED |
-				SE_GROUP_ENABLED_BY_DEFAULT |
-				SE_GROUP_MANDATORY));
-	    if (err)
-		goto out_err;
-	}
+    for (grpp = add_groups; grpp && *grpp; grpp++) {
+	err = append_group(extra_groups, NULL, *grpp,
+			   (SE_GROUP_ENABLED |
+			    SE_GROUP_ENABLED_BY_DEFAULT |
+			    SE_GROUP_MANDATORY));
+	if (err)
+	    goto out_err;
+    }
+    for (grpp = groups; grpp && *grpp; grpp++) {
+	err = append_group(extra_groups, NULL, *grpp,
+			   (SE_GROUP_ENABLED |
+			    SE_GROUP_ENABLED_BY_DEFAULT |
+			    SE_GROUP_MANDATORY));
+	if (err)
+	    goto out_err;
     }
 
     /* Now get the actual token. */
@@ -1918,7 +1918,7 @@ gensio_win_get_user_token(const char *user, const char *password,
     if (profile)
 	LsaFreeReturnBuffer(profile);
     if (lsah)
-	LsaDeregisterLogonProcess (lsah);
+	LsaDeregisterLogonProcess(lsah);
     LsaClose(lsah);
 
     return err;

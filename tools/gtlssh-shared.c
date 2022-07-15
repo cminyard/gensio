@@ -114,7 +114,7 @@ get_homedir(gtlssh_logger logger, void *cbdata,
 	DWORD err, len;
 	char dummy[1];
 
-	err = gensio_win_get_user_token(username, NULL, "gtlssh", false,
+	err = gensio_win_get_user_token(username, NULL, "gtlssh", NULL, false,
 					&userh);
 	if (err) {
 	    char errbuf[128];

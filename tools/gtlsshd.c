@@ -1747,13 +1747,19 @@ setup_network_token(HANDLE *inh, bool priv)
     return err;
 }
 
+static const char *more_groups[] = {
+    "S-1-5-14", /* NT AUTHORITY\REMOTE INTERACTIVE LOGON */
+    NULL
+};
+
 static int
 switch_to_user(struct auth_data *auth)
 {
     DWORD err;
 
     err = gensio_win_get_user_token(auth->username, auth->passwd,
-				    "gtlsshd", true, &auth->userh);
+				    "gtlsshd", more_groups, true,
+				    &auth->userh);
     if (err) {
 	char errbuf[128];
 
@@ -1926,7 +1932,7 @@ finish_auth(struct auth_data *auth)
     void *envblock;
 
     err = gensio_win_get_user_token(auth->username, auth->passwd,
-				    "gtlsshd", false, &userh);
+				    "gtlsshd", NULL, false, &userh);
     if (err) {
 	char errbuf[128];
 
@@ -1949,10 +1955,10 @@ finish_auth(struct auth_data *auth)
     }
     rv = get_wvals_from_service(auth, o, &auth->env, NULL, envblock);
     DestroyEnvironmentBlock(envblock);
+    CloseHandle(userh);
     if (rv) {
 	log_event(LOG_ERR, "Error processing environgment for user '%s': %s",
 		  auth->username, gensio_err_to_str(rv));
-	CloseHandle(userh);
 	return rv;
     }
 

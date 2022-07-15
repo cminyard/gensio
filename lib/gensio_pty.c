@@ -202,7 +202,7 @@ setup_for_user(struct pty_data *tdata) {
 	return 0;
 
     err = gensio_win_get_user_token(tdata->user, tdata->passwd,
-				    tdata->module, true, &tdata->userh);
+				    tdata->module, NULL, true, &tdata->userh);
     if (err)
 	goto out_win_err;
 

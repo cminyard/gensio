@@ -125,12 +125,16 @@ int gensio_win_do_exec(struct gensio_os_funcs *o,
  * kerberos logon is attempted.  Otherwise a normal Windows logon is
  * done.
  *
+ * groups is an array of pointers to characters (const char *groups[])
+ * that holds SID strings for groups to add to the token.  This may be
+ * NULL and only applies for interactive logons.
+ *
  * If interactive is true, the token will be good for logon.
  * Otherwise it will only be good for impersonation or query.
  */
 GENSIO_DLL_PUBLIC
 int gensio_win_get_user_token(const char *user, const char *password,
-			      const char *src_module,
+			      const char *src_module, const char **groups,
 			      bool interactive, HANDLE *userh);
 
 /*
