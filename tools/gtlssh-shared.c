@@ -207,15 +207,49 @@ get_kerb_logon(const char *user, const char *password, bool interactive,
 {
     DWORD user_chars = mbstowcs(NULL, user, strlen(user));
     DWORD user_bytes = user_chars * sizeof(wchar_t);
+    DWORD domain_chars = strchr(user, '\\') - user;
+    DWORD real_user_chars = strlen(user + domain_chars + 1);
     DWORD logon_len;
     char *pos;
 
     if (password) {
-	/* FIXME - add this. */
-	return ERROR_INVALID_FUNCTION;
+	DWORD pw_chars = mbstowcs(NULL, password, strlen(password));
+	DWORD pw_bytes = pw_chars * sizeof(wchar_t);
+	KERB_INTERACTIVE_LOGON *int_logon;
+
+	/*
+	 * KERB_S4U_LOGON must be passed as a single contiguous buffer
+	 * that includes all strings, otherwise LsaLogonUser will
+	 * complain.  Add an extra char for the termination, just in
+	 * case.
+	 */
+	logon_len = sizeof(KERB_INTERACTIVE_LOGON) + user_bytes + pw_bytes;
+	int_logon = calloc(logon_len + sizeof(wchar_t), 1);
+	if (!int_logon)
+	    return STATUS_NO_MEMORY;
+	int_logon->MessageType = KerbInteractiveLogon;
+	pos = (char *) (int_logon + 1);
+	add_unicode_str(&int_logon->LogonDomainName, user, domain_chars, &pos);
+	user += domain_chars + 1; /* SKip over domain\ */
+	add_unicode_str(&int_logon->UserName, user, real_user_chars, &pos);
+	add_unicode_str(&int_logon->Password, password, pw_chars, &pos);
+	*logon_info = int_logon;
+	*logon_type = Interactive;
     } else {
 	/* look up the Kerb authentication provider's index */
 	KERB_S4U_LOGON *s4u_logon;
+	char *tmpstr, *upnstr;
+
+	upnstr = malloc(user_chars + 1);
+	if (!upnstr)
+	    return STATUS_NO_MEMORY;
+	tmpstr = upnstr;
+	memcpy(tmpstr, user + domain_chars + 1, real_user_chars);
+	tmpstr += real_user_chars;
+	*tmpstr++ = '@';
+	memcpy(tmpstr, user, domain_chars);
+	tmpstr += domain_chars;
+	*tmpstr = '\0';
 
 	/*
 	 * KERB_S4U_LOGON must be passed as a single contiguous buffer
@@ -225,13 +259,16 @@ get_kerb_logon(const char *user, const char *password, bool interactive,
 	 */
 	logon_len = sizeof(KERB_S4U_LOGON) + user_bytes;
 	s4u_logon = calloc(logon_len + sizeof(wchar_t), 1);
-	if (!s4u_logon)
+	if (!s4u_logon) {
+	    free(upnstr);
 	    return STATUS_NO_MEMORY;
+	}
 	s4u_logon->MessageType = KerbS4ULogon;
 	if (interactive)
 	    s4u_logon->Flags = KERB_S4U_LOGON_FLAG_IDENTIFY;
 	pos = (char *) (s4u_logon + 1);
-	add_unicode_str(&s4u_logon->ClientUpn, user, user_chars, &pos);
+	add_unicode_str(&s4u_logon->ClientUpn, upnstr, user_chars, &pos);
+	free(upnstr);
 	*logon_info = s4u_logon;
 	*logon_type = Network;
     }
