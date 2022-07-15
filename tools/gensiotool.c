@@ -53,6 +53,7 @@
 #include "utils.h"
 
 unsigned int debug;
+struct gensio_os_proc_data *proc_data;
 
 #if HAVE_OPENSSL
 /*
@@ -436,6 +437,45 @@ print_io_addr(struct gensio *io, bool local)
 }
 
 static void
+winch_ready(int x_chrs, int y_chrs, int x_bits, int y_bits,
+	    void *handler_data)
+{
+    struct ioinfo *ioinfo = handler_data;
+    struct ioinfo *oioinfo = ioinfo_otherioinfo(ioinfo);
+    struct gensio *oio = ioinfo_io(oioinfo);
+    char *str;
+
+    str = alloc_sprintf("%d:%d:%d:%d", y_chrs, x_chrs, x_bits, y_bits);
+    if (!str)
+	return;
+    gensio_control(oio, GENSIO_CONTROL_DEPTH_FIRST,
+		   GENSIO_CONTROL_SET, GENSIO_CONTROL_WIN_SIZE,
+		   str, 0);
+    free(str);
+}
+
+static void
+reg_winch(struct ioinfo *ioinfo)
+{
+    struct gensio *io = ioinfo_io(ioinfo);
+    struct gensio_iod *iod;
+    gensiods len = sizeof(iod);
+    int err;
+
+    /*
+     * Which iod is passed in the data as an index, but the iod is
+     * returned in the same data.  It looks a little strange to do
+     * this, but that's how it works.
+     */
+    memcpy(&iod, "0", 2);
+    err = gensio_control(io, GENSIO_CONTROL_DEPTH_FIRST, true,
+			 GENSIO_CONTROL_IOD, (char *) &iod, &len);
+    if (!err)
+	gensio_os_proc_register_winsize_handler(proc_data, iod,
+						winch_ready, ioinfo);
+}
+
+static void
 io_open(struct gensio *io, int err, void *open_data)
 {
     struct ioinfo *ioinfo = gensio_get_user_data(io);
@@ -450,6 +490,7 @@ io_open(struct gensio *io, int err, void *open_data)
 	gshutdown(ioinfo, IOINFO_SHUTDOWN_ERR);
     } else {
 	ioinfo_set_ready(ioinfo, io);
+	reg_winch(ioinfo);
     }
 }
 
@@ -482,6 +523,7 @@ io_open_paddr(struct gensio *io, int err, void *open_data)
 	    gshutdown(ioinfo, IOINFO_SHUTDOWN_ERR);
 	} else {
 	    ioinfo_set_ready(ioinfo, io);
+	    reg_winch(ioinfo);
 	}
     }
 }
@@ -549,6 +591,7 @@ add_io(struct gtinfo *g, struct gensio *io, bool open_finished)
 
     if (open_finished) {
 	ioinfo_set_ready(ioinfo2, gtconn2->io);
+	reg_winch(ioinfo2);
 	if (g->print_laddr)
 	    print_io_addr(io, true);
 	if (g->print_raddr)
@@ -791,7 +834,6 @@ main(int argc, char *argv[])
     bool use_tcl = false;
     gensio_time endwait = { 5, 0 };
     struct gensio *io = NULL;
-    struct gensio_os_proc_data *proc_data = NULL;
     unsigned int num_extra_threads = 0, i;
     struct gensio_loop_info *loopinfo = NULL;
 
