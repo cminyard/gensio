@@ -1684,6 +1684,36 @@ lookup_mdns_transport(struct gensio_os_funcs *o, const char *name,
     return 0;
 }
 
+static bool
+strdup_double_backslash(char **str, gensiods *rlen)
+{
+    if (strchr(*str, '\\')) {
+	/* Double any \\ so they pass through properly. */
+	char *cp, *newstr;
+	size_t len = 0;
+
+	for (cp = *str; *cp; cp++) {
+	    len++;
+	    if (*cp == '\\')
+		len++;
+	}
+	newstr = malloc(len + 1);
+	if (!newstr)
+	    return true;
+	for (len = 0, cp = *str; *cp; cp++) {
+	    newstr[len++] = *cp;
+	    if (*cp == '\\')
+		newstr[len++] = *cp;
+	}
+	newstr[len] = '\0';
+	free(*str);
+	*str = newstr;
+	if (rlen)
+	    *rlen = len;
+    }
+    return false;
+}
+
 char *service;
 
 int
@@ -2058,6 +2088,12 @@ main(int argc, char *argv[])
 	    do_telnet = "telnet(rfc2217),";
 	    use_telnet = 1;
 	}
+    }
+
+    err = strdup_double_backslash(&username, NULL);
+    if (err) {
+	fprintf(stderr, "Out of memory allocating username\n");
+	return 1;
     }
 
  retry:
