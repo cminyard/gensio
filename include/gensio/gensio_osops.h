@@ -115,14 +115,57 @@ int gensio_win_do_exec(struct gensio_os_funcs *o,
 		       HANDLE *phandle,
 		       HANDLE *rin, HANDLE *rout, HANDLE *rerr);
 
+/*
+ * Create a user authentication token for the given user with the
+ * given password.  If password is NULL, this will attempt an S4U
+ * logon.  The resulting token is really only usable for impersonation
+ * or query.  A normal login is attempted otherwise.
+ *
+ * If a domain is in the user (in the form domain\username), a
+ * kerberos logon is attempted.  Otherwise a normal Windows logon is
+ * done.
+ *
+ * If interactive is true, the token will be good for logon.
+ * Otherwise it will only be good for impersonation or query.
+ */
+GENSIO_DLL_PUBLIC
+int gensio_win_get_user_token(const char *user, const char *password,
+			      const char *src_module,
+			      bool interactive, HANDLE *userh);
+
+/*
+ * Allocate a PseudoConsole.
+ *
+ * rreadh and rwriteh are return values for the handle to read from
+ * here and the handle to write to here in this process.
+ *
+ * child_in and child_out are handles that the child process will use
+ * for it's stdin and stdout.  You should close these when done, or
+ * let gensio_win_pty_start close them for you.
+ */
+GENSIO_DLL_PUBLIC
 int gensio_win_pty_alloc(struct gensio_os_funcs *o,
 			 HANDLE *rreadh, HANDLE *rwriteh,
 			 HANDLE *child_in, HANDLE *child_out,
 			 HPCON *rptyh);
 
 /*
+ * Start an allocated PseudoConsole.
+ *
+ * Start the process specified by argv on the given pseudoconsole.
+ * Set it's environment to env, and start it in start_dir.  The new
+ * processes' stdin is set to child_in, and its stdout and stderr are
+ * set to child_out.
+ *
+ * The child process handle is returned in child.
+ *
+ * If an impersonation token is set when this is called, the token is
+ * extracted from the thread and the new process will be started with
+ * that token.
+ *
  * Note: If this is successful, it will NULL child_in and child_out.
  */
+GENSIO_DLL_PUBLIC
 int gensio_win_pty_start(struct gensio_os_funcs *o,
 			 HPCON ptyh, HANDLE *child_in, HANDLE *child_out,
 			 const char **argv, const char **env,

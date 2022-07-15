@@ -58,6 +58,7 @@
 #include <psapi.h>
 #include <accctrl.h>
 #include <aclapi.h>
+#include <gensio/gensio_osops.h>
 #endif
 
 #include "ioinfo.h"
@@ -1751,9 +1752,8 @@ switch_to_user(struct auth_data *auth)
 {
     DWORD err;
 
-    err = win_get_user(glogger, NULL,
-		       auth->username, auth->passwd,
-		       "gtlsshd", true, &auth->userh);
+    err = gensio_win_get_user_token(auth->username, auth->passwd,
+				    "gtlsshd", true, &auth->userh);
     if (err) {
 	char errbuf[128];
 
@@ -1925,8 +1925,8 @@ finish_auth(struct auth_data *auth)
     int rv;
     void *envblock;
 
-    err = win_get_user(glogger, NULL, auth->username, auth->passwd,
-		       "gtlsshd", false, &userh);
+    err = gensio_win_get_user_token(auth->username, auth->passwd,
+				    "gtlsshd", false, &userh);
     if (err) {
 	char errbuf[128];
 
