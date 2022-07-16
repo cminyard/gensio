@@ -109,6 +109,16 @@ struct gensio_iod_win {
 
     BOOL done;
 
+    /*
+     * This is a hack to work around what is probably a bug in msys2.
+     * This adds a delay right before writing to the pipe that sends
+     * data to the process on a pty.  If I do not add this delay,
+     * characters will get dropped randomly, about 10% of the time.
+     * I have no idea how this helps, but it seems to fix the problem.
+     * If we can get the bug fixed, this should be pulled out.
+     */
+    BOOL do_delay;
+
     BOOL is_stdio;
 
     struct iostat read;
@@ -1602,6 +1612,8 @@ win_oneway_out_thread(LPVOID data)
 
 	    gensio_circbuf_next_read_area(owiod->buf, &writepos, &writelen);
 	    LeaveCriticalSection(&wiod->lock);
+	    if (wiod->do_delay)
+		Sleep(1);
 	    rvb = WriteFile(owiod->ioh, writepos, writelen, &nwrite, NULL);
 	    EnterCriticalSection(&wiod->lock);
 	    if (!rvb) {
@@ -2933,6 +2945,7 @@ win_iod_pty_init(struct gensio_iod_win *wiod, void *cb_data)
 			&readable, &piod->write);
     if (err)
 	goto out_err;
+    piod->write->do_delay = TRUE;
     writeh = NULL;
     err = win_set_fd_handlers(&piod->write->iod, piod,
 			      NULL, win_pty_write_handler,
