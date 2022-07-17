@@ -1495,6 +1495,11 @@ handle_port(struct gensio_os_funcs *o, bool remote, const char *iaddr)
 	accepter_str = alloc_sprintf("%s,%s", type, s[pos]);
 	pos++;
     }
+    if (!accepter_str) {
+	fprintf(stderr, "Unable to allocate accepter string");
+	err = GE_NOMEM;
+	goto out_err;
+    }
 
     if (s[pos][0] == '/') { /* remote is a unix socket */
 	connecter_str = alloc_sprintf("unix,%s", s[pos]);
