@@ -1240,7 +1240,7 @@ gensio_glib_pty_control(struct gensio_iod_glib *iod, int op, bool get,
 			intptr_t val)
 {
     struct gensio_os_funcs *o = iod->r.f;
-    int err;
+    int err = 0;
     const char **nargv;
 
     if (get) {
