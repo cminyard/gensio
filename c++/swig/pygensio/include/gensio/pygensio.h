@@ -22,23 +22,19 @@ void pydirobj_decref(Swig::Director *dir)
 
 class Internal_Log_Handler : public gensios::Os_Funcs_Log_Handler {
  public:
- Internal_Log_Handler(gensios::Os_Funcs_Log_Handler *pyhandler):
-		handler(pyhandler) {
-	if (handler)
-	    pydirobj_incref(dynamic_cast<Swig::Director *>(handler));
+ Internal_Log_Handler(gensios::Os_Funcs_Log_Handler *pyhandler)
+     : handler(pyhandler) {
+	incref();
     }
 
     virtual ~Internal_Log_Handler() {
-	if (handler)
-	    pydirobj_decref(dynamic_cast<Swig::Director *>(handler));
+	decref();
     }
 
     void set_handler(gensios::Os_Funcs_Log_Handler *pyhandler) {
-	if (handler)
-	    pydirobj_decref(dynamic_cast<Swig::Director *>(handler));
+	decref();
 	handler = pyhandler;
-	if (handler)
-	    pydirobj_incref(dynamic_cast<Swig::Director *>(handler));
+	incref();
     }
 
     void log(enum gensios::gensio_log_levels level, const std::string log) override {
@@ -54,6 +50,22 @@ class Internal_Log_Handler : public gensios::Os_Funcs_Log_Handler {
     }
 
  private:
+    void decref() {
+	if (handler) {
+	    Swig::Director *pydir_obj = dynamic_cast<Swig::Director *>(handler);
+	    if (pydir_obj)
+		pydirobj_decref(pydir_obj);
+	}
+    }
+
+    void incref() {
+	if (handler) {
+	    Swig::Director *pydir_obj = dynamic_cast<Swig::Director *>(handler);
+	    if (pydir_obj)
+		pydirobj_incref(pydir_obj);
+	}
+    }
+
     gensios::Os_Funcs_Log_Handler *handler;
 };
 
