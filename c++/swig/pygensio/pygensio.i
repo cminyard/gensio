@@ -10,7 +10,7 @@
 
 %include <gensio_base.i>
 
-%typemap(throws) gensio::gensio_error %{
+%typemap(throws) gensios::gensio_error %{
     PyErr_SetString(PyExc_RuntimeError, $1.what());
     SWIG_fail;
 %}
@@ -182,10 +182,10 @@ static bool check_for_err(int err)
 %}
 
 // We use the pure vector versions for python
-%ignore gensio::Gensio::write(const SimpleUCharVector data,
-			      const char *const *auxdata);
-%ignore gensio::Gensio::read_s(const SimpleUCharVector data,
-			       gensio_time *timeout = NULL, bool intr = false);
+%ignore gensios::Gensio::write(const SimpleUCharVector data,
+			       const char *const *auxdata);
+%ignore gensios::Gensio::read_s(const SimpleUCharVector data,
+				gensio_time *timeout = NULL, bool intr = false);
 
 ////////////////////////////////////////////////////
 // Typemaps
@@ -307,12 +307,12 @@ static bool check_for_err(int err)
 }
 
 // For non-allocating vectors passed from c++ to a direcotry target lang
-%typemap(typecheck, precedence=SWIG_TYPECHECK_VECTOR) gensio::SimpleUCharVector
+%typemap(typecheck, precedence=SWIG_TYPECHECK_VECTOR) gensios::SimpleUCharVector
 {
     $1 = PI_CanBeBytes($input);
 }
 
-%typemap(directorin) const gensio::SimpleUCharVector {
+%typemap(directorin) const gensios::SimpleUCharVector {
     $input = PI_FromStringAndSize((const char *) data.data(), data.size());
 }
 
@@ -330,25 +330,25 @@ static bool check_for_err(int err)
     $input = PI_StringArrayToTuple($1_name);
 }
 
-%typemap(directorin) gensio::Gensio *newg {
+%typemap(directorin) gensios::Gensio *newg {
     // This is for reporting new gensios
     $input = SWIG_NewPointerObj(SWIG_as_voidptr($1),
-				SWIGTYPE_p_gensio__Gensio, SWIG_POINTER_OWN);
+				SWIGTYPE_p_gensios__Gensio, SWIG_POINTER_OWN);
 }
-%typemap(directorin) gensio::Gensio *tmpg {
+%typemap(directorin) gensios::Gensio *tmpg {
     // Don't set SWIG_POINTER_OWN on this, we don't want python refcounts
     // managing it.
     $input = SWIG_NewPointerObj(SWIG_as_voidptr($1),
-				SWIGTYPE_p_gensio__Gensio, 0);
+				SWIGTYPE_p_gensios__Gensio, 0);
 }
-%typemap(in, numinputs=0) gensio::Gensio **gret (Gensio *temp = NULL)  {
+%typemap(in, numinputs=0) gensios::Gensio **gret (Gensio *temp = NULL)  {
     $1 = &temp;
 }
-%typemap(argout) gensio::Gensio **gret {
+%typemap(argout) gensios::Gensio **gret {
     PyObject *val;
     if (*$1) {
 	val = SWIG_NewPointerObj(SWIG_as_voidptr(*$1),
-				 SWIGTYPE_p_gensio__Gensio,
+				 SWIGTYPE_p_gensios__Gensio,
 				 SWIG_POINTER_OWN |  0 );
     } else {
 	val = Py_None;
@@ -456,7 +456,7 @@ static bool check_for_err(int err)
 	}
 
 	int new_channel(Event *e, Gensio *newg,
-			 const char *const *auxdata) override
+			const char *const *auxdata) override
 	{
 	    newg->raw_event_handler =
 		new Py_Raw_Event_Handler(newg->raw_event_handler);
@@ -716,61 +716,61 @@ static bool check_for_err(int err)
 
 // In Python there's no way to call the free handle as the python
 // object has been destroyed by then.
-%ignore gensio::Event::freed;
+%ignore gensios::Event::freed;
 
 // We intercept all functions with callbacks to insert our own code.
 // Python has special requirements when you block and when you call
 // into python code from C/C++, we have to handle all those.
-%ignore gensio::Os_Funcs::Os_Funcs;
-%ignore gensio::Os_Funcs::~Os_Funcs;
-%ignore gensio::Os_Funcs::set_log_handler;
-%ignore gensio::Gensio::open;
-%ignore gensio::Gensio::open_nochild;
-%ignore gensio::Gensio::close;
-%ignore gensio::Gensio::write_s;
-%ignore gensio::Gensio::set_event_handler;
-%ignore gensio::Gensio::alloc_channel;
-%ignore gensio::Gensio::control;
-%ignore gensio::gensio_alloc;
-%ignore gensio::Serial_Gensio::baud;
-%ignore gensio::Serial_Gensio::datasize;
-%ignore gensio::Serial_Gensio::parity;
-%ignore gensio::Serial_Gensio::stopbits;
-%ignore gensio::Serial_Gensio::flowcontrol;
-%ignore gensio::Serial_Gensio::iflowcontrol;
-%ignore gensio::Serial_Gensio::sbreak;
-%ignore gensio::Serial_Gensio::dtr;
-%ignore gensio::Serial_Gensio::rts;
-%ignore gensio::Serial_Gensio::cts;
-%ignore gensio::Serial_Gensio::dcd_dsr;
-%ignore gensio::Serial_Gensio::ri;
-%ignore gensio::Serial_Gensio::signature;
-%ignore gensio::Serial_Gensio::baud_s;
-%ignore gensio::Serial_Gensio::datasize_s;
-%ignore gensio::Serial_Gensio::parity_s;
-%ignore gensio::Serial_Gensio::stopbits_s;
-%ignore gensio::Serial_Gensio::flowcontrol_s;
-%ignore gensio::Serial_Gensio::iflowcontrol_s;
-%ignore gensio::Serial_Gensio::sbreak_s;
-%ignore gensio::Serial_Gensio::dtr_s;
-%ignore gensio::Serial_Gensio::rts_s;
-%ignore gensio::Serial_Gensio::cts_s;
-%ignore gensio::Serial_Gensio::dcd_dsr_s;
-%ignore gensio::Serial_Gensio::ri_s;
-%ignore gensio::gensio_acc_alloc;
-%ignore gensio::Accepter::set_event_handler;
-%ignore gensio::Accepter::shutdown;
-%ignore gensio::Accepter::set_callback_enable(bool enabled,
+%ignore gensios::Os_Funcs::Os_Funcs;
+%ignore gensios::Os_Funcs::~Os_Funcs;
+%ignore gensios::Os_Funcs::set_log_handler;
+%ignore gensios::Gensio::open;
+%ignore gensios::Gensio::open_nochild;
+%ignore gensios::Gensio::close;
+%ignore gensios::Gensio::write_s;
+%ignore gensios::Gensio::set_event_handler;
+%ignore gensios::Gensio::alloc_channel;
+%ignore gensios::Gensio::control;
+%ignore gensios::gensio_alloc;
+%ignore gensios::Serial_Gensio::baud;
+%ignore gensios::Serial_Gensio::datasize;
+%ignore gensios::Serial_Gensio::parity;
+%ignore gensios::Serial_Gensio::stopbits;
+%ignore gensios::Serial_Gensio::flowcontrol;
+%ignore gensios::Serial_Gensio::iflowcontrol;
+%ignore gensios::Serial_Gensio::sbreak;
+%ignore gensios::Serial_Gensio::dtr;
+%ignore gensios::Serial_Gensio::rts;
+%ignore gensios::Serial_Gensio::cts;
+%ignore gensios::Serial_Gensio::dcd_dsr;
+%ignore gensios::Serial_Gensio::ri;
+%ignore gensios::Serial_Gensio::signature;
+%ignore gensios::Serial_Gensio::baud_s;
+%ignore gensios::Serial_Gensio::datasize_s;
+%ignore gensios::Serial_Gensio::parity_s;
+%ignore gensios::Serial_Gensio::stopbits_s;
+%ignore gensios::Serial_Gensio::flowcontrol_s;
+%ignore gensios::Serial_Gensio::iflowcontrol_s;
+%ignore gensios::Serial_Gensio::sbreak_s;
+%ignore gensios::Serial_Gensio::dtr_s;
+%ignore gensios::Serial_Gensio::rts_s;
+%ignore gensios::Serial_Gensio::cts_s;
+%ignore gensios::Serial_Gensio::dcd_dsr_s;
+%ignore gensios::Serial_Gensio::ri_s;
+%ignore gensios::gensio_acc_alloc;
+%ignore gensios::Accepter::set_event_handler;
+%ignore gensios::Accepter::shutdown;
+%ignore gensios::Accepter::set_callback_enable(bool enabled,
 					      Accepter_Enable_Done *done);
-%ignore gensio::Accepter::str_to_gensio;
-%ignore gensio::Accepter::control;
+%ignore gensios::Accepter::str_to_gensio;
+%ignore gensios::Accepter::control;
 
-%ignore gensio::Waiter::wait;
+%ignore gensios::Waiter::wait;
 
-%ignore gensio::MDNS::free;
-%ignore gensio::MDNS::add_watch;
-%ignore gensio::MDNS_Watch::free;
-%ignore gensio::MDNS_Watch::MDNS_Watch;
+%ignore gensios::MDNS::free;
+%ignore gensios::MDNS::add_watch;
+%ignore gensios::MDNS_Watch::free;
+%ignore gensios::MDNS_Watch::MDNS_Watch;
 
 %include <gensio/gensio_err.h>
 %include <gensio/gensio_control.h>
@@ -780,10 +780,10 @@ static bool check_for_err(int err)
 ////////////////////////////////////////////////////
 // Define our own Os_Funcs functions.
 
-%rename("") gensio::Os_Funcs::Os_Funcs;
-%rename("") gensio::Os_Funcs::~Os_Funcs;
-%rename("") gensio::Os_Funcs::set_log_handler;
-%extend gensio::Os_Funcs {
+%rename("") gensios::Os_Funcs::Os_Funcs;
+%rename("") gensios::Os_Funcs::~Os_Funcs;
+%rename("") gensios::Os_Funcs::set_log_handler;
+%extend gensios::Os_Funcs {
     Os_Funcs(int wait_sig, Os_Funcs_Log_Handler *logger = NULL)
     {
 	Os_Funcs_Log_Handler *int_handler = NULL;
@@ -811,18 +811,18 @@ static bool check_for_err(int err)
 
 ////////////////////////////////////////////////////
 // Define our own Gensio functins.
-%rename("") gensio::Gensio::open;
-%rename("") gensio::Gensio::open_nochild;
-%rename("") gensio::Gensio::close;
-%rename("") gensio::Gensio::write_s;
-%rename("") gensio::Gensio::write_s(gensiods *count,
+%rename("") gensios::Gensio::open;
+%rename("") gensios::Gensio::open_nochild;
+%rename("") gensios::Gensio::close;
+%rename("") gensios::Gensio::write_s;
+%rename("") gensios::Gensio::write_s(gensiods *count,
 				const std::vector<unsigned char> data,
 				gensio_time *timeout = NULL, bool intr = false);
-%rename("") gensio::Gensio::set_event_handler;
-%rename("") gensio::Gensio::alloc_channel;
-%rename("") gensio::Gensio::control;
-%catches(gensio::gensio_error) gensio::Gensio::write_s;
-%extend gensio::Gensio {
+%rename("") gensios::Gensio::set_event_handler;
+%rename("") gensios::Gensio::alloc_channel;
+%rename("") gensios::Gensio::control;
+%catches(gensios::gensio_error) gensios::Gensio::write_s;
+%extend gensios::Gensio {
     void open(Gensio_Open_Done *done)
     {
 	Py_Open_Done *pydone = NULL;
@@ -937,13 +937,13 @@ static bool check_for_err(int err)
     }
 }
 
-%rename("") gensio::gensio_alloc;
+%rename("") gensios::gensio_alloc;
 %rename(gensio_alloc) gensio_alloct;
 %newobject gensio_alloct;
 %newobject cast_to_serial_gensio;
 %inline %{
-gensio::Gensio *gensio_alloct(std::string str, gensio::Os_Funcs &o,
-			      gensio::Event *cb)
+gensios::Gensio *gensio_alloct(std::string str, gensios::Os_Funcs &o,
+			       gensios::Event *cb)
 {
     Gensio *g = gensio_alloc(str, o, cb);
 
@@ -957,8 +957,8 @@ gensio::Gensio *gensio_alloct(std::string str, gensio::Os_Funcs &o,
     return g;
 }
 
-gensio::Gensio *gensio_alloct(gensio::Gensio *child, std::string str,
-			      gensio::Os_Funcs &o, gensio::Event *cb)
+gensios::Gensio *gensio_alloct(gensios::Gensio *child, std::string str,
+			      gensios::Os_Funcs &o, gensios::Event *cb)
 {
     Gensio *g = gensio_alloc(child, str, o, cb);
 
@@ -972,141 +972,141 @@ gensio::Gensio *gensio_alloct(gensio::Gensio *child, std::string str,
     return g;
 }
 
-gensio::Serial_Gensio *cast_to_serial_gensio(gensio::Gensio *g) {
+gensios::Serial_Gensio *cast_to_serial_gensio(gensios::Gensio *g) {
     gensio_ref(g->get_gensio());
-    return dynamic_cast<gensio::Serial_Gensio *>(g);
+    return dynamic_cast<gensios::Serial_Gensio *>(g);
 }
 %}
 
-%rename("") gensio::Serial_Gensio::baud;
-%rename("") gensio::Serial_Gensio::datasize;
-%rename("") gensio::Serial_Gensio::parity;
-%rename("") gensio::Serial_Gensio::stopbits;
-%rename("") gensio::Serial_Gensio::flowcontrol;
-%rename("") gensio::Serial_Gensio::iflowcontrol;
-%rename("") gensio::Serial_Gensio::sbreak;
-%rename("") gensio::Serial_Gensio::dtr;
-%rename("") gensio::Serial_Gensio::rts;
-%rename("") gensio::Serial_Gensio::cts;
-%rename("") gensio::Serial_Gensio::dcd_dsr;
-%rename("") gensio::Serial_Gensio::ri;
-%rename("") gensio::Serial_Gensio::signature;
-%rename("") gensio::Serial_Gensio::baud_s;
-%rename("") gensio::Serial_Gensio::datasize_s;
-%rename("") gensio::Serial_Gensio::parity_s;
-%rename("") gensio::Serial_Gensio::stopbits_s;
-%rename("") gensio::Serial_Gensio::flowcontrol_s;
-%rename("") gensio::Serial_Gensio::iflowcontrol_s;
-%rename("") gensio::Serial_Gensio::sbreak_s;
-%rename("") gensio::Serial_Gensio::dtr_s;
-%rename("") gensio::Serial_Gensio::rts_s;
-%rename("") gensio::Serial_Gensio::cts_s;
-%rename("") gensio::Serial_Gensio::dcd_dsr_s;
-%rename("") gensio::Serial_Gensio::ri_s;
-%extend gensio::Serial_Gensio {
-    void baud(unsigned int baud, gensio::Serial_Op_Done *done)
+%rename("") gensios::Serial_Gensio::baud;
+%rename("") gensios::Serial_Gensio::datasize;
+%rename("") gensios::Serial_Gensio::parity;
+%rename("") gensios::Serial_Gensio::stopbits;
+%rename("") gensios::Serial_Gensio::flowcontrol;
+%rename("") gensios::Serial_Gensio::iflowcontrol;
+%rename("") gensios::Serial_Gensio::sbreak;
+%rename("") gensios::Serial_Gensio::dtr;
+%rename("") gensios::Serial_Gensio::rts;
+%rename("") gensios::Serial_Gensio::cts;
+%rename("") gensios::Serial_Gensio::dcd_dsr;
+%rename("") gensios::Serial_Gensio::ri;
+%rename("") gensios::Serial_Gensio::signature;
+%rename("") gensios::Serial_Gensio::baud_s;
+%rename("") gensios::Serial_Gensio::datasize_s;
+%rename("") gensios::Serial_Gensio::parity_s;
+%rename("") gensios::Serial_Gensio::stopbits_s;
+%rename("") gensios::Serial_Gensio::flowcontrol_s;
+%rename("") gensios::Serial_Gensio::iflowcontrol_s;
+%rename("") gensios::Serial_Gensio::sbreak_s;
+%rename("") gensios::Serial_Gensio::dtr_s;
+%rename("") gensios::Serial_Gensio::rts_s;
+%rename("") gensios::Serial_Gensio::cts_s;
+%rename("") gensios::Serial_Gensio::dcd_dsr_s;
+%rename("") gensios::Serial_Gensio::ri_s;
+%extend gensios::Serial_Gensio {
+    void baud(unsigned int baud, gensios::Serial_Op_Done *done)
     {
 	Py_Serial_Op_Done *pydone = NULL;
 	if (done)
 	    pydone = new Py_Serial_Op_Done(done);
-	self->baud(baud, (gensio::Serial_Op_Done *) pydone);
+	self->baud(baud, (gensios::Serial_Op_Done *) pydone);
     }
 
-    void datasize(unsigned int size, gensio::Serial_Op_Done *done)
+    void datasize(unsigned int size, gensios::Serial_Op_Done *done)
     {
 	Py_Serial_Op_Done *pydone = NULL;
 	if (done)
 	    pydone = new Py_Serial_Op_Done(done);
-	self->datasize(size, (gensio::Serial_Op_Done *) pydone);
+	self->datasize(size, (gensios::Serial_Op_Done *) pydone);
     }
 
-    void parity(unsigned int par, gensio::Serial_Op_Done *done)
+    void parity(unsigned int par, gensios::Serial_Op_Done *done)
     {
 	Py_Serial_Op_Done *pydone = NULL;
 	if (done)
 	    pydone = new Py_Serial_Op_Done(done);
-	self->parity(par, (gensio::Serial_Op_Done *) pydone);
+	self->parity(par, (gensios::Serial_Op_Done *) pydone);
     }
 
-    void stopbits(unsigned int bits, gensio::Serial_Op_Done *done)
+    void stopbits(unsigned int bits, gensios::Serial_Op_Done *done)
     {
 	Py_Serial_Op_Done *pydone = NULL;
 	if (done)
 	    pydone = new Py_Serial_Op_Done(done);
-	self->stopbits(bits, (gensio::Serial_Op_Done *) pydone);
+	self->stopbits(bits, (gensios::Serial_Op_Done *) pydone);
     }
 
-    void flowcontrol(unsigned int flow, gensio::Serial_Op_Done *done)
+    void flowcontrol(unsigned int flow, gensios::Serial_Op_Done *done)
     {
 	Py_Serial_Op_Done *pydone = NULL;
 	if (done)
 	    pydone = new Py_Serial_Op_Done(done);
-	self->flowcontrol(flow, (gensio::Serial_Op_Done *) pydone);
+	self->flowcontrol(flow, (gensios::Serial_Op_Done *) pydone);
     }
 
-    void iflowcontrol(unsigned int flow, gensio::Serial_Op_Done *done)
+    void iflowcontrol(unsigned int flow, gensios::Serial_Op_Done *done)
     {
 	Py_Serial_Op_Done *pydone = NULL;
 	if (done)
 	    pydone = new Py_Serial_Op_Done(done);
-	self->iflowcontrol(flow, (gensio::Serial_Op_Done *) pydone);
+	self->iflowcontrol(flow, (gensios::Serial_Op_Done *) pydone);
     }
 
-    void sbreak(unsigned int sbreak, gensio::Serial_Op_Done *done)
+    void sbreak(unsigned int sbreak, gensios::Serial_Op_Done *done)
     {
 	Py_Serial_Op_Done *pydone = NULL;
 	if (done)
 	    pydone = new Py_Serial_Op_Done(done);
-	self->sbreak(sbreak, (gensio::Serial_Op_Done *) pydone);
+	self->sbreak(sbreak, (gensios::Serial_Op_Done *) pydone);
     }
 
-    void dtr(unsigned int dtr, gensio::Serial_Op_Done *done)
+    void dtr(unsigned int dtr, gensios::Serial_Op_Done *done)
     {
 	Py_Serial_Op_Done *pydone = NULL;
 	if (done)
 	    pydone = new Py_Serial_Op_Done(done);
-	self->dtr(dtr, (gensio::Serial_Op_Done *) pydone);
+	self->dtr(dtr, (gensios::Serial_Op_Done *) pydone);
     }
 
-    void rts(unsigned int rts, gensio::Serial_Op_Done *done)
+    void rts(unsigned int rts, gensios::Serial_Op_Done *done)
     {
 	Py_Serial_Op_Done *pydone = NULL;
 	if (done)
 	    pydone = new Py_Serial_Op_Done(done);
-	self->rts(rts, (gensio::Serial_Op_Done *) pydone);
+	self->rts(rts, (gensios::Serial_Op_Done *) pydone);
     }
 
-    void cts(unsigned int cts, gensio::Serial_Op_Done *done)
+    void cts(unsigned int cts, gensios::Serial_Op_Done *done)
     {
 	Py_Serial_Op_Done *pydone = NULL;
 	if (done)
 	    pydone = new Py_Serial_Op_Done(done);
-	self->cts(cts, (gensio::Serial_Op_Done *) pydone);
+	self->cts(cts, (gensios::Serial_Op_Done *) pydone);
     }
 
-    void dcd_dsr(unsigned int dcd_dsr, gensio::Serial_Op_Done *done)
+    void dcd_dsr(unsigned int dcd_dsr, gensios::Serial_Op_Done *done)
     {
 	Py_Serial_Op_Done *pydone = NULL;
 	if (done)
 	    pydone = new Py_Serial_Op_Done(done);
-	self->dcd_dsr(dcd_dsr, (gensio::Serial_Op_Done *) pydone);
+	self->dcd_dsr(dcd_dsr, (gensios::Serial_Op_Done *) pydone);
     }
 
-    void ri(unsigned int ri, gensio::Serial_Op_Done *done)
+    void ri(unsigned int ri, gensios::Serial_Op_Done *done)
     {
 	Py_Serial_Op_Done *pydone = NULL;
 	if (done)
 	    pydone = new Py_Serial_Op_Done(done);
-	self->ri(ri, (gensio::Serial_Op_Done *) pydone);
+	self->ri(ri, (gensios::Serial_Op_Done *) pydone);
     }
 
     void signature(const std::vector<unsigned char> sig,
-		   gensio::Serial_Op_Sig_Done *done)
+		   gensios::Serial_Op_Sig_Done *done)
     {
 	Py_Serial_Op_Sig_Done *pydone = NULL;
 	if (done)
 	    pydone = new Py_Serial_Op_Sig_Done(done);
-	self->signature(sig, (gensio::Serial_Op_Sig_Done *) pydone);
+	self->signature(sig, (gensios::Serial_Op_Sig_Done *) pydone);
     }
 
     int baud_s(unsigned int *outval,
@@ -1242,13 +1242,13 @@ gensio::Serial_Gensio *cast_to_serial_gensio(gensio::Gensio *g) {
     }
 }
 
-%rename("") gensio::gensio_acc_alloc;
+%rename("") gensios::gensio_acc_alloc;
 %rename(gensio_acc_alloc) gensio_acc_alloct;
 %newobject gensio_acc_alloct;
 %inline %{
-gensio::Accepter *
-gensio_acc_alloct(std::string str, gensio::Os_Funcs &o,
-		 gensio::Accepter_Event *cb)
+gensios::Accepter *
+gensio_acc_alloct(std::string str, gensios::Os_Funcs &o,
+		 gensios::Accepter_Event *cb)
 {
     Accepter *a = gensio_acc_alloc(str, o, cb);
 
@@ -1263,9 +1263,9 @@ gensio_acc_alloct(std::string str, gensio::Os_Funcs &o,
     return a;
 }
 
-gensio::Accepter *
-gensio_acc_alloct(gensio::Accepter *child, std::string str, gensio::Os_Funcs &o,
-		  gensio::Accepter_Event *cb)
+gensios::Accepter *
+gensio_acc_alloct(gensios::Accepter *child, std::string str, gensios::Os_Funcs &o,
+		  gensios::Accepter_Event *cb)
 {
     Accepter *a = gensio_acc_alloc(child, str, o, cb);
 
@@ -1281,13 +1281,13 @@ gensio_acc_alloct(gensio::Accepter *child, std::string str, gensio::Os_Funcs &o,
 }
 %}
 
-%rename("") gensio::Accepter::set_event_handler;
-%rename("") gensio::Accepter::shutdown;
-%rename("") gensio::Accepter::set_callback_enable(bool enabled,
+%rename("") gensios::Accepter::set_event_handler;
+%rename("") gensios::Accepter::shutdown;
+%rename("") gensios::Accepter::set_callback_enable(bool enabled,
 						  Accepter_Enable_Done *done);
-%rename("") gensio::Accepter::str_to_gensio;
-%rename("") gensio::Accepter::control;
-%extend gensio::Accepter {
+%rename("") gensios::Accepter::str_to_gensio;
+%rename("") gensios::Accepter::control;
+%extend gensios::Accepter {
     ~Accepter() {
 	self->free()
     }
@@ -1392,9 +1392,9 @@ gensio_acc_alloct(gensio::Accepter *child, std::string str, gensio::Os_Funcs &o,
 
 ////////////////////////////////////////////////////
 // MDNS handling
-%rename("") gensio::MDNS::free;
-%rename("") gensio::MDNS::add_watch;
-%extend gensio::MDNS {
+%rename("") gensios::MDNS::free;
+%rename("") gensios::MDNS::add_watch;
+%extend gensios::MDNS {
     void free(MDNS_Free_Done *done)
     {
 	Py_MDNS_Free_Done *pydone = new Py_MDNS_Free_Done(done);
@@ -1414,9 +1414,9 @@ gensio_acc_alloct(gensio::Accepter *child, std::string str, gensio::Os_Funcs &o,
     }
 }
 
-%rename("") gensio::MDNS_Watch::free;
-%rename("") gensio::MDNS_Watch::MDNS_Watch;
-%extend gensio::MDNS_Watch {
+%rename("") gensios::MDNS_Watch::free;
+%rename("") gensios::MDNS_Watch::MDNS_Watch;
+%extend gensios::MDNS_Watch {
     MDNS_Watch(MDNS *m, int interfacenum, int ipdomain,
 	       char *name, char *type, char *domain, char *host,
 	       MDNS_Watch_Event *event) {
@@ -1436,8 +1436,8 @@ gensio_acc_alloct(gensio::Accepter *child, std::string str, gensio::Os_Funcs &o,
 
 ////////////////////////////////////////////////////
 // Define our own Waiter function.
-%rename("") gensio::Waiter::wait;
-%extend gensio::Waiter {
+%rename("") gensios::Waiter::wait;
+%extend gensios::Waiter {
     int wait(unsigned int count, gensio_time *timeout)
     {
 	int rv;

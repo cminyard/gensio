@@ -20,9 +20,9 @@ void pydirobj_decref(Swig::Director *dir)
     Py_DECREF(po);
 }
 
-class Internal_Log_Handler : public gensio::Os_Funcs_Log_Handler {
+class Internal_Log_Handler : public gensios::Os_Funcs_Log_Handler {
  public:
- Internal_Log_Handler(gensio::Os_Funcs_Log_Handler *pyhandler):
+ Internal_Log_Handler(gensios::Os_Funcs_Log_Handler *pyhandler):
 		handler(pyhandler) {
 	if (handler)
 	    pydirobj_incref(dynamic_cast<Swig::Director *>(handler));
@@ -33,7 +33,7 @@ class Internal_Log_Handler : public gensio::Os_Funcs_Log_Handler {
 	    pydirobj_decref(dynamic_cast<Swig::Director *>(handler));
     }
 
-    void set_handler(gensio::Os_Funcs_Log_Handler *pyhandler) {
+    void set_handler(gensios::Os_Funcs_Log_Handler *pyhandler) {
 	if (handler)
 	    pydirobj_decref(dynamic_cast<Swig::Director *>(handler));
 	handler = pyhandler;
@@ -41,7 +41,7 @@ class Internal_Log_Handler : public gensio::Os_Funcs_Log_Handler {
 	    pydirobj_incref(dynamic_cast<Swig::Director *>(handler));
     }
 
-    void log(enum gensio::gensio_log_levels level, const std::string log) override {
+    void log(enum gensios::gensio_log_levels level, const std::string log) override {
 	// Hack.  If there is a python error, the call to the log
 	// function will always fail because this error is not
 	// cleared and SWIG will think the log call failed.  This
@@ -54,7 +54,7 @@ class Internal_Log_Handler : public gensio::Os_Funcs_Log_Handler {
     }
 
  private:
-    gensio::Os_Funcs_Log_Handler *handler;
+    gensios::Os_Funcs_Log_Handler *handler;
 };
 
 #endif /* __PYGENSIO_H__ */

@@ -18,10 +18,8 @@
 
 //#include <iostream>
 
-namespace gensio {
-    // Incuding this in the gensio namespace to keep things neat, and
-    // so we can have a gensio namespace.  You can't have a "struct
-    // gensio" and "namespace gensio" in the same namespace.
+namespace gensios {
+    // Incuding this in the gensio namespace to keep things neat.
 #include <gensio/gensio.h>
 #include <gensio/sergensio.h>
 #include <gensio/gensio_mdns.h>

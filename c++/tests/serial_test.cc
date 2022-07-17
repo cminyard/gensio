@@ -15,7 +15,7 @@
 #include <gensio/gensio>
 #include <gensio/gensio_classes>
 using namespace std;
-using namespace gensio;
+using namespace gensios;
 
 // Internal gensio errors come in through this mechanism.
 class Logger: public Os_Funcs_Log_Handler {

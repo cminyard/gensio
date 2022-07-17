@@ -18,7 +18,7 @@
 #include <gensio/gensio_classes>
 
 using namespace std;
-using namespace gensio;
+using namespace gensios;
 
 // This is a Gensio event handler for the server.  It's job is to echo
 // received characters.

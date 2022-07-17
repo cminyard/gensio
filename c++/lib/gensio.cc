@@ -9,7 +9,7 @@
 #include <string.h>
 #include <stdarg.h>
 
-namespace gensio {
+namespace gensios {
 #include <gensio/gensio_builtins.h>
 #include <gensio/gensio_osops.h>
 

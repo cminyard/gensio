@@ -11,7 +11,7 @@
 
 #include <gensio/gensio>
 
-namespace gensio {
+namespace gensios {
 #include <gensio/gensio_glib.h>
 
     class Glib_Os_Funcs: public Os_Funcs {

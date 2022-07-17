@@ -12,56 +12,56 @@
 
 // Renaming gensio_time doesn't, as the base code renames it.  Just
 // live with it.
-%rename(rawOs_Funcs) gensio::Os_Funcs;
-%rename("raw%s") gensio::Os_Funcs::log;
-%rename(rawGensio) gensio::Gensio;
-%rename(rawSerial_Gensio) gensio::Serial_Gensio;
-%rename(rawAccepter) gensio::Accepter;
-%rename(rawEvent) gensio::Event;
-%rename(rawSerial_Event) gensio::Serial_Event;
-%rename(rawGensio_Open_Done) gensio::Gensio_Open_Done;
-%rename(rawGensio_Close_Done) gensio::Gensio_Close_Done;
-%rename(rawSerial_Op_Done) gensio::Serial_Op_Done;
-%rename(rawSerial_Op_Sig_Done) gensio::Serial_Op_Sig_Done;
-%rename(rawAccepter_Event) gensio::Accepter_Event;
-%rename(rawAccepter_Shutdown_Done) gensio::Accepter_Shutdown_Done;
-%rename(rawAccepter_Enable_Done) gensio::Accepter_Enable_Done;
-%rename(rawWaiter) gensio::Waiter;
-%rename(rawWait) gensio::Waiter::wait;
-%rename(rawgensio_alloc) gensio::gensio_alloc;
-%rename(rawgensio_acc_alloc) gensio::gensio_acc_alloc;
-%rename(RawMDNS_Free_Done) gensio::MDNS_Free_Done;
-%rename(RawMDNS) gensio::MDNS;
-%rename(RawMDNS_Service) gensio::MDNS_Service;
-%rename(RawMDNS_Watch_Free_Done) gensio::MDNS_Watch_Free_Done;
-%rename(RawMDNS_Watch_Event) gensio::MDNS_Watch_Event;
-%rename(RawMDNS_Watch) gensio::MDNS_Watch;
+%rename(rawOs_Funcs) gensios::Os_Funcs;
+%rename("raw%s") gensios::Os_Funcs::log;
+%rename(rawGensio) gensios::Gensio;
+%rename(rawSerial_Gensio) gensios::Serial_Gensio;
+%rename(rawAccepter) gensios::Accepter;
+%rename(rawEvent) gensios::Event;
+%rename(rawSerial_Event) gensios::Serial_Event;
+%rename(rawGensio_Open_Done) gensios::Gensio_Open_Done;
+%rename(rawGensio_Close_Done) gensios::Gensio_Close_Done;
+%rename(rawSerial_Op_Done) gensios::Serial_Op_Done;
+%rename(rawSerial_Op_Sig_Done) gensios::Serial_Op_Sig_Done;
+%rename(rawAccepter_Event) gensios::Accepter_Event;
+%rename(rawAccepter_Shutdown_Done) gensios::Accepter_Shutdown_Done;
+%rename(rawAccepter_Enable_Done) gensios::Accepter_Enable_Done;
+%rename(rawWaiter) gensios::Waiter;
+%rename(rawWait) gensios::Waiter::wait;
+%rename(rawgensio_alloc) gensios::gensio_alloc;
+%rename(rawgensio_acc_alloc) gensios::gensio_acc_alloc;
+%rename(RawMDNS_Free_Done) gensios::MDNS_Free_Done;
+%rename(RawMDNS) gensios::MDNS;
+%rename(RawMDNS_Service) gensios::MDNS_Service;
+%rename(RawMDNS_Watch_Free_Done) gensios::MDNS_Watch_Free_Done;
+%rename(RawMDNS_Watch_Event) gensios::MDNS_Watch_Event;
+%rename(RawMDNS_Watch) gensios::MDNS_Watch;
 
-%ignore gensio::Addr::operator==;
-%ignore gensio::MDNS::add_service;
-%ignore gensio::MDNS::add_watch;
+%ignore gensios::Addr::operator==;
+%ignore gensios::MDNS::add_service;
+%ignore gensios::MDNS::add_watch;
 
 %include <std_string.i>
 %include <gensio_base.i>
 
-%typemap(throws) gensio::gensio_error %{
+%typemap(throws) gensios::gensio_error %{
   std::string errstr = "gensio_error: ";
   errstr += $1.what();
   _swig_gopanic(errstr.c_str());
 %}
 
 // We use the simple uchar vector for go
-%ignore gensio::Gensio::write(const std::vector<unsigned char> data,
+%ignore gensios::Gensio::write(const std::vector<unsigned char> data,
 			      const char *const *auxdata);
-%ignore gensio::Gensio::read_s(std::vector<unsigned char> &rvec,
+%ignore gensios::Gensio::read_s(std::vector<unsigned char> &rvec,
 			       gensio_time *timeout = NULL, bool intr = false);
 
 // We do our own version of read_s that returns the new length.
-%ignore gensio::Gensio::read_s(SimpleUCharVector &data,
+%ignore gensios::Gensio::read_s(SimpleUCharVector &data,
 			       gensio_time *timeout = NULL, bool intr = false);
-%ignore gensio::Gensio::control(int depth, bool get, unsigned int option,
+%ignore gensios::Gensio::control(int depth, bool get, unsigned int option,
 				char *data, gensiods *datalen);
-%ignore gensio::Accepter::control(int depth, bool get, unsigned int option,
+%ignore gensios::Accepter::control(int depth, bool get, unsigned int option,
 				  char *data, gensiods *datalen);
 
 // Convert betwen byte arrays and unsigned char vectors.
@@ -75,11 +75,11 @@
     $input.len = $1.size();
     $input.cap = $input.len;
 }
-%typemap(gotype) (gensio::SimpleUCharVector) "[]byte";
-%typemap(in) (gensio::SimpleUCharVector) {
+%typemap(gotype) (gensios::SimpleUCharVector) "[]byte";
+%typemap(in) (gensios::SimpleUCharVector) {
     $1.setbuf((unsigned char *) $input.array, $input.len);
 }
-%typemap(directorin) (gensio::SimpleUCharVector) {
+%typemap(directorin) (gensios::SimpleUCharVector) {
     $input.array = (void *) $1.data();
     $input.len = $1.size();
     $input.cap = $input.len;
@@ -108,7 +108,7 @@
     $1.assign(tmp->p, tmp->p + tmp->n);
 }
 
-%typemap(directorin) gensio::Gensio *tmpg {
+%typemap(directorin) gensios::Gensio *tmpg {
     $input = $1;
     gensio_ref($1->get_gensio());
 }
@@ -118,12 +118,12 @@
 // instead, create our own read_s function that takes the data and
 // returns a length, and on the go wrapper side you can slice and
 // return the data based on the return length.
-%typemap(gotype) (gensio::SimpleUCharVector &data) "[]byte";
-%typemap(in) (gensio::SimpleUCharVector &data) (gensio::SimpleUCharVector temp) {
+%typemap(gotype) (gensios::SimpleUCharVector &data) "[]byte";
+%typemap(in) (gensios::SimpleUCharVector &data) (gensios::SimpleUCharVector temp) {
     $1 = &temp;
     $1->setbuf((unsigned char *) $input.array, $input.cap);
 }
-%extend gensio::Gensio {
+%extend gensios::Gensio {
     int read_s(SimpleUCharVector &data, gensiods *rlen,
 	       gensio_time *timeout = NULL, bool intr = false) {
 	int rv = self->read_s(data, timeout, intr);
@@ -138,7 +138,7 @@
     $1 = (char *) $input.array;
     $2 = $input.cap;
 }
-%extend gensio::Gensio {
+%extend gensios::Gensio {
     int control(int depth, bool get, unsigned int option,
 		char *data, gensiods len, gensiods *rlen) {
 	int rv = self->control(depth, get, option, data, &len);
@@ -150,7 +150,7 @@
     }
 }
 
-%extend gensio::Accepter {
+%extend gensios::Accepter {
     int control(int depth, bool get, unsigned int option,
 		char *data, gensiods len, gensiods *rlen) {
 	int rv = self->control(depth, get, option, data, &len);
@@ -255,8 +255,8 @@ void *gensio_string_to_uintptr(char *in)
     }
 }
 
-%typemap(imtype) (gensio::Os_Funcs_Log_Handler *) "uintptr"
-%typemap(goin) (gensio::Os_Funcs_Log_Handler *) {
+%typemap(imtype) (gensios::Os_Funcs_Log_Handler *) "uintptr"
+%typemap(goin) (gensios::Os_Funcs_Log_Handler *) {
     if ! reflect.ValueOf($input).IsValid() {
 	$result = 0
     } else if reflect.ValueOf($input).IsNil() {
@@ -281,14 +281,14 @@ void *gensio_string_to_uintptr(char *in)
 }
 %typemap(goargout) (const std::string *) { }
 
-%extend gensio::Gensio {
+%extend gensios::Gensio {
     Serial_Gensio *to_serial_gensio() {
 	gensio_ref(self->get_gensio());
 	return dynamic_cast<Serial_Gensio *>(self);
     }
 }
 
-%extend gensio::Waiter {
+%extend gensios::Waiter {
     int service(gensio_time *timeout) {
 	int err;
 	Os_Funcs o = self->get_os_funcs();
@@ -303,18 +303,18 @@ void *gensio_string_to_uintptr(char *in)
     }
 }
 
-%extend gensio::Os_Funcs {
+%extend gensios::Os_Funcs {
     void cleanup_mem() {
 	gensio_cleanup_mem(*self);
     }
 }
 
-%rename("%s") gensio::MDNS::add_watch;
-%rename("%s") gensio::MDNS::add_service;
+%rename("%s") gensios::MDNS::add_watch;
+%rename("%s") gensios::MDNS::add_service;
 
 // Take string * for the strings and do the proper translation on the
 // go side.
-%extend gensio::MDNS {
+%extend gensios::MDNS {
     MDNS_Service *add_service(int interfacenum, int ipdomain,
 			      const std::string *name,
 			      const std::string *mtype,

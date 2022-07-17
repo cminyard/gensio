@@ -11,7 +11,7 @@
 #include <gensio/gensio>
 
 using namespace std;
-using namespace gensio;
+using namespace gensios;
 
 class Watch_Event: public MDNS_Watch_Event {
 public:

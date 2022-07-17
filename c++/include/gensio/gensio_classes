@@ -9,7 +9,7 @@
 
 #include <gensio/gensio>
 
-namespace gensio {
+namespace gensios {
     // Subclasses of Gensio.  This allows direct allocation of a
     // gensio.
 

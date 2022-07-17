@@ -9,7 +9,7 @@
 #include <gensio/gensio>
 
 using namespace std;
-using namespace gensio;
+using namespace gensios;
 
 class Open_Done: public Gensio_Open_Done {
 public:

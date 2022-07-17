@@ -11,7 +11,7 @@
 
 #include <gensio/gensio>
 
-namespace gensio {
+namespace gensios {
 #include <gensio/gensio_tcl.h>
 
     class Tcl_Os_Funcs: public Os_Funcs {
