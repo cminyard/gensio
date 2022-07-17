@@ -541,8 +541,8 @@ static void
 close_con_info(struct per_con_info *pcinfo)
 {
     struct auth_data *auth = pcinfo->auth;
+    unsigned int do_local_close = 0;
     int err;
-    unsigned int closecount = 0;
 
     auth_lock(auth);
     gensio_list_rm(&auth->cons, &pcinfo->link);
@@ -553,7 +553,7 @@ close_con_info(struct per_con_info *pcinfo)
 	if (err) {
 	    log_event(LOG_ERR, "Unable to close remote: %s",
 		      gensio_err_to_str(err));
-	    closecount++;
+	    do_local_close++;
 	    gensio_free(pcinfo->io1);
 	    pcinfo->io1 = NULL;
 	}
@@ -568,7 +568,7 @@ close_con_info(struct per_con_info *pcinfo)
 	if (err) {
 	    log_event(LOG_ERR, "Unable to close local: %s",
 		      gensio_err_to_str(err));
-	    closecount++;
+	    do_local_close++;
 	    gensio_free(pcinfo->io2);
 	    pcinfo->io2 = NULL;
 	}
@@ -578,7 +578,7 @@ close_con_info(struct per_con_info *pcinfo)
     }
     io_finish_close(pcinfo);
 
-    while (closecount > 0)
+    while (do_local_close-- > 0)
 	closecount_decr(auth);
 }
 
