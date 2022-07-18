@@ -86,11 +86,6 @@ static int pty_check_open(void *handler_data, struct gensio_iod *iod)
     return 0;
 }
 
-/*
- * This is ugly, but it's by far the simplest way.
- */
-extern char **environ;
-
 static int
 gensio_setup_pty(struct pty_data *tdata, struct gensio_iod *iod)
 {
