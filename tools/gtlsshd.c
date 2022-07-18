@@ -578,8 +578,10 @@ close_con_info(struct per_con_info *pcinfo)
     }
     io_finish_close(pcinfo);
 
-    while (do_local_close-- > 0)
+    while (do_local_close > 0) {
 	closecount_decr(auth);
+	do_local_close--;
+    }
 }
 
 static void
@@ -1068,7 +1070,7 @@ finish_auth(struct auth_data *auth)
 	while (auth->pam_err != PAM_SUCCESS && tries > 0) {
 	    gensio_time timeout = {10, 0};
 
-	    err = write_str_to_gensio("Permission denied, please try again",
+	    err = write_str_to_gensio("Permission denied, please try again\r\n",
 				      auth->rem_io, &timeout, true);
 	    if (err) {
 		log_event(LOG_INFO, "Error writing password prompt: %s",
@@ -1083,12 +1085,12 @@ finish_auth(struct auth_data *auth)
 	    gensio_time timeout = {10, 0};
 
 	    if (auth->interactive_login) {
-		err = write_str_to_gensio("Too many tries, giving up\n",
+		err = write_str_to_gensio("Too many tries, giving up\r\n",
 					  auth->rem_io, &timeout, true);
 		log_event(LOG_ERR, "Too many login tries for %s",
 			  auth->username);
 	    } else {
-		err = write_str_to_gensio("Non-interactive login only\n",
+		err = write_str_to_gensio("Non-interactive login only\r\n",
 					  auth->rem_io, &timeout, true);
 		log_event(LOG_ERR, "Non-interactive login only %s",
 			  auth->username);
@@ -1097,7 +1099,7 @@ finish_auth(struct auth_data *auth)
 		log_event(LOG_INFO, "Error writing login error: %s",
 			  gensio_err_to_str(err));
 	    }
-	    return err;
+	    return GE_AUTHREJECT;
 	}
 	log_event(LOG_INFO, "Accepted password for %s", auth->username);
 	/* FIXME - gensio_set_is_authenticated(certauth_io, true); */
