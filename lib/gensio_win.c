@@ -1197,7 +1197,7 @@ struct gensio_iod_win_sock {
 };
 
 #define wiod_to_winsock(w) gensio_container_of(w, struct gensio_iod_win_sock,\
-					       wiod);
+					       wiod)
 
 static DWORD WINAPI
 winsock_func(LPVOID data)
@@ -1350,7 +1350,7 @@ struct gensio_iod_win_file {
 };
 
 #define wiod_to_winfile(w) gensio_container_of(w, struct gensio_iod_win_file,\
-					       wiod);
+					       wiod)
 
 static void
 win_dummy_wake(struct gensio_iod_win *wiod)
@@ -1470,7 +1470,7 @@ struct gensio_iod_win_oneway {
 
 #define wiod_to_win_oneway(w) gensio_container_of(w,			    \
 					       struct gensio_iod_win_oneway, \
-					       wiod);
+					       wiod)
 
 static void check_winsize(struct gensio_iod_win_oneway *owiod);
 
@@ -1502,32 +1502,38 @@ win_oneway_in_thread(LPVOID data)
 
 	    gensio_circbuf_next_write_area(owiod->buf, &readpos, &readsize);
 	    if (owiod->is_console) {
+		LeaveCriticalSection(&wiod->lock);
 		while (true) {
-		    LeaveCriticalSection(&wiod->lock);
 		    rvw = WaitForMultipleObjects(2, waiters, FALSE, INFINITE);
 		    EnterCriticalSection(&wiod->lock);
 		    if (wiod->done)
 			goto continue_loop;
-		    LeaveCriticalSection(&wiod->lock);
+		    if (rvw == WAIT_FAILED)
+			goto out_err;
+		    if (rvw == WAIT_OBJECT_0 + 1) {
+			/* Maybe we were woken to handle the first winsize. */
+			check_winsize(owiod);
+		    }
 		    if (rvw == WAIT_OBJECT_0) {
 			INPUT_RECORD r;
 
-			if (!PeekConsoleInput(owiod->ioh, &r, 1, &nread))
+			LeaveCriticalSection(&wiod->lock);
+			rvb = PeekConsoleInput(owiod->ioh, &r, 1, &nread);
+			EnterCriticalSection(&wiod->lock);
+			if (!rvb)
 			    goto out_err;
-			if (r.EventType == KEY_EVENT
-				&& r.Event.KeyEvent.bKeyDown)
-			    /*
-			     * Only let key down events through,
-			     * that's all we care about ReadFile handling.
-			     */
-			    break;
-			ReadConsoleInput(owiod->ioh, &r, 1, &nread);
-			if (r.EventType == WINDOW_BUFFER_SIZE_EVENT)
-			    goto handle_winsize;
+			if (r.EventType == WINDOW_BUFFER_SIZE_EVENT) {
+			    ReadConsoleInput(owiod->ioh, &r, 1, &nread);
+			    check_winsize(owiod);
+			} else {
+			    goto leave_peek_loop;
+			}
 		    }
-		    EnterCriticalSection(&wiod->lock);
+		    LeaveCriticalSection(&wiod->lock);
 		}
+		EnterCriticalSection(&wiod->lock);
 	    }
+	leave_peek_loop:
 	    if (wiod->done)
 		goto continue_loop;
 	    LeaveCriticalSection(&wiod->lock);
@@ -1545,10 +1551,13 @@ win_oneway_in_thread(LPVOID data)
 		    goto continue_loop;
 		goto out_err;
 	    }
-	handle_winsize:
-	    if (owiod->is_console) {
+	    /*
+	     * We handle this here because sometimes the event is
+	     * already eaten in ReadFile and we don't see it
+	     * above where we check.
+	     */
+	    if (owiod->is_console)
 		check_winsize(owiod);
-	    }
 	    if (nread == 0) {
 		/* EOF (^Z<cr>) from windows. */
 		if (wiod->is_raw) {
@@ -1573,6 +1582,9 @@ win_oneway_in_thread(LPVOID data)
 	    EnterCriticalSection(&wiod->lock);
 	    if (rvw == WAIT_FAILED)
 		goto out_err;
+	    if (!wiod->done)
+		/* Maybe we were woken to handle the first winsize. */
+		check_winsize(owiod);
 	}
     continue_loop:
 	if (wiod->done)
@@ -1875,7 +1887,7 @@ struct gensio_iod_win_console {
 
 #define owiod_to_winconsole(ow) gensio_container_of(ow,			    \
 					       struct gensio_iod_win_console, \
-					       owiod);
+					       owiod)
 
 static int
 win_console_makeraw(struct gensio_iod_win *wiod)
@@ -1955,7 +1967,7 @@ struct gensio_iod_win_pipe
 
 #define owiod_to_winpipe(ow) gensio_container_of(ow,			\
 					     struct gensio_iod_win_pipe,\
-					     owiod);
+					     owiod)
 static int
 win_iod_read_pipe_init(struct gensio_iod_win *wiod, void *cb_data)
 {
@@ -2024,7 +2036,7 @@ struct gensio_iod_win_twoway {
 
 #define wiod_to_win_twoway(w) gensio_container_of(w,			\
 					       struct gensio_iod_win_twoway, \
-					       wiod);
+					       wiod)
 
 static DWORD WINAPI
 win_twoway_thread(LPVOID data)
@@ -2364,7 +2376,7 @@ struct gensio_iod_win_dev
 
 #define twiod_to_windev(tw) gensio_container_of(tw,			\
 					    struct gensio_iod_win_dev, \
-					    twiod);
+					    twiod)
 static int
 win_dev_control(struct gensio_iod_win *wiod, int op, bool get, intptr_t val)
 {
@@ -2537,7 +2549,7 @@ struct gensio_iod_win_pty
 
 #define wiod_to_win_pty(w) gensio_container_of(w,			  \
 					       struct gensio_iod_win_pty, \
-					       wiod);
+					       wiod)
 
 static int
 win_pty_write(struct gensio_iod_win *wiod,
@@ -3919,6 +3931,8 @@ void check_winsize(struct gensio_iod_win_oneway *owiod)
     int x_chrs, y_chrs;
 
     LOCK(&data->lock);
+    if (!data->winsize_handler_set)
+	goto out_unlock;
     if (!data->outcon) {
 	data->outcon = CreateFileA("CONOUT$", GENERIC_WRITE | GENERIC_READ, 0,
 				   NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL,
@@ -4032,6 +4046,8 @@ gensio_os_proc_register_winsize_handler(struct gensio_os_proc_data *data,
     data->winsize_handler_data = handler_data;
     data->winsize_handler_set = true;
     UNLOCK(&data->lock);
+    /* Wake the input handler to do the winch handling. */
+    SetEvent(wiod_to_win_oneway(wiod)->wakeh);
     proc_release_sem(data);
     return err;
 }
