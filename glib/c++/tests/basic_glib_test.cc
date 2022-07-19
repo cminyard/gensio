@@ -10,7 +10,7 @@
 #include <gensio/gensioglib>
 
 using namespace std;
-using namespace gensio;
+using namespace gensios;
 
 class Open_Done: public Gensio_Open_Done {
 public:
@@ -51,7 +51,6 @@ public:
 	waiter = w;
 	this->data = data;
 	this->datalen = datalen;
-	this->ce = ce;
     }
 
     void set_gensio(Gensio *g) { io = g; ce.set_gensio(g); }
@@ -365,7 +364,7 @@ private:
 	return i;
     }
 
-    void write_ready()
+    void write_ready() override
     {
 	io->set_write_callback_enable(false);
     }
