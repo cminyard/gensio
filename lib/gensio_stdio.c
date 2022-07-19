@@ -1025,9 +1025,9 @@ stdion_control(struct gensio *io, bool get, unsigned int option,
 	    return GE_INVAL;
 	val = strtoul(data, NULL, 0);
 	if (val == 0)
-	    memcpy(data, &schan->in_iod, sizeof(void *));
-	else if (val == 1)
 	    memcpy(data, &schan->out_iod, sizeof(void *));
+	else if (val == 1)
+	    memcpy(data, &schan->in_iod, sizeof(void *));
 	else
 	    return GE_INVAL;
 	return 0;

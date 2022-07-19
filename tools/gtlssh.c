@@ -147,7 +147,8 @@ goobdata(struct ioinfo *ioinfo, unsigned char *buf, gensiods *buflen)
 	/*
 	 * Which iod is passed in the data as an index, but the iod is
 	 * returned in the same data.  It looks a little strange to do
-	 * this, but that's how it works.
+	 * this, but that's how it works.  We want stdin, which is the
+	 * first one.
 	 */
 	memcpy(&iod, "0", 2);
 	err = gensio_control(io, GENSIO_CONTROL_DEPTH_FIRST, true,
