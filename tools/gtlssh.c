@@ -1507,7 +1507,13 @@ handle_port(struct gensio_os_funcs *o, bool remote, const char *iaddr)
     } else {
 	if (!validate_port(s[pos], s[pos + 1], &type, iaddr))
 	    goto out_err;
+	err = GE_INVAL;
 	connecter_str = alloc_sprintf("%s,%s,%s", type, s[pos], s[pos + 1]);
+    }
+    if (!connecter_str) {
+	fprintf(stderr, "Unable to allocate connecter string");
+	err = GE_NOMEM;
+	goto out_err;
     }
 
     if (remote)
