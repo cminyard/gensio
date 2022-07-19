@@ -1994,7 +1994,7 @@ main(int argc, char *argv[])
 
 #ifdef _WIN32
 	if (!termvar)
-	    termvar = "ansi";
+	    termvar = "xterm";
 #endif
 	if (termvar) {
 	    len = 6 + 5 + strlen(termvar) + 2;
