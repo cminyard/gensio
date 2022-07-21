@@ -68,6 +68,10 @@
  * That should happen when going from timer recover to connected
  * state.
  *
+ * The spec says to never set the P bit on I frames, but that's kind
+ * of crazy.  This implementation sets the P bit when sending the
+ * packet that closes it's transmit window.
+ *
  * When checking the sequence numbers for sending a REJ, the sequence
  * number must be in the current receive window.  Otherwise an message
  * from an old resend can result in in_rej being set, but never having
@@ -3721,6 +3725,7 @@ ax25_child_write_ready(struct ax25_base *base)
 	} else if (!chan->peer_rcv_bsy && chan->send_len > 0) {
 	    unsigned int pos = sub_seq(chan->write_pos, chan->send_len,
 				       chan->conf.writewindow);
+	    unsigned int p = 0;
 
 	    d = &(chan->write_data[pos]);
 	    if (!d->present) {
@@ -3734,15 +3739,22 @@ ax25_child_write_ready(struct ax25_base *base)
 	    sg[0].buflen = chan->encoded_addr_len;
 	    len = sg[0].buflen;
 	    sg[1].buf = crv;
+
+	    /*
+	     * If our transmit window is closing with this packet, set the
+	     * p bit to get an immediate response.
+	     */
+	    if (sub_seq(chan->vs, chan->va, chan->modulo) >= chan->writewindow)
+		p = 1;
+
 	    if (chan->extended) {
 		crv[0] = d->seq << 1;
-		crv[1] = chan->vr << 1; /* Never set P/F on i frames. */
+		crv[1] = chan->vr << 1 | p;
 		crv[2] = d->pid;
 		sg[1].buflen = 3;
 		len += 3;
 	    } else {
-		/* Never set P/F on i frames. */
-		crv[0] = (chan->vr << 5) | (d->seq << 1);
+		crv[0] = (chan->vr << 5) | (p << 4) | (d->seq << 1);
 		crv[1] = d->pid;
 		sg[1].buflen = 2;
 		len += 2;
