@@ -4608,7 +4608,7 @@ ax25_defconf(struct ax25_conf_data *conf)
     conf->writewindow = 7;
     conf->extended = 1;
     conf->ignore_embedded_ua = true;
-    conf->srtv = 3000; /* 3 seconds (t1 is 6 seconds). */
+    conf->srtv = 4000; /* 4 seconds (t1 is 8 seconds). */
     conf->t2v = 2000; /* 2 seconds. */
     conf->t3v = 300000; /* 300 seconds. */
     conf->max_retries = 10;
