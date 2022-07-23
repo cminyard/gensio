@@ -21,6 +21,14 @@ struct kiss_filter {
     struct gensio_os_funcs *o;
 
     struct gensio_lock *lock;
+    gensio_filter_cb filter_cb;
+    void *filter_cb_data;
+
+    bool waiting_setup_timer;
+    unsigned char *setupstr;
+    gensiods setupstr_pos;
+    gensiods setupstr_len;
+    unsigned int setup_delay;
 
     bool in_esc; /* Currently processing message data (after a start). */
     bool in_msg_complete; /* A full message is ready. */
@@ -77,7 +85,8 @@ kiss_ll_write_pending(struct gensio_filter *filter)
 {
     struct kiss_filter *kfilter = filter_to_kiss(filter);
 
-    return kfilter->out_msg_ready;
+    return kfilter->out_msg_ready ||
+	kfilter->setupstr_pos < kfilter->setupstr_len;
 }
 
 static bool
@@ -113,6 +122,15 @@ kiss_try_connect(struct gensio_filter *filter, gensio_time *timeout)
     struct kiss_filter *kfilter = filter_to_kiss(filter);
     unsigned int i;
 
+    if (!kfilter->waiting_setup_timer && kfilter->setupstr_len) {
+	kfilter->setupstr_pos = 0;
+	kfilter->waiting_setup_timer = true;
+	timeout->secs = kfilter->setup_delay / 1000;
+	timeout->nsecs = kfilter->setup_delay % 1000 * 1000000;
+	return GE_RETRY;
+    } else {
+	kfilter->waiting_setup_timer = false;
+    }
     for (i = 0; i < kfilter->startdata_len; i++)
 	kiss_add_wrbyte(kfilter, kfilter->startdata[i]);
     if (i > 0)
@@ -158,6 +176,20 @@ kiss_ul_write(struct gensio_filter *filter,
     kiss_lock(kfilter);
     if (!kfilter->tncs[tnc]) {
 	rv = GE_INVAL;
+    } else if (kfilter->setupstr_pos < kfilter->setupstr_len) {
+	struct gensio_sg sg[1];
+	gensiods count;
+
+	kiss_unlock(kfilter);
+	sg[0].buflen = kfilter->setupstr_len - kfilter->setupstr_pos;
+	sg[0].buf = kfilter->setupstr + kfilter->setupstr_pos;
+	rv = handler(cb_data, &count, sg, 1, NULL);
+	kiss_lock(kfilter);
+	if (!rv) {
+	    kfilter->setupstr_pos += count;
+	    if (rcount)
+		*rcount = 0;
+	}
     } else if (kfilter->out_msg_ready) {
 	if (rcount)
 	    *rcount = 0;
@@ -224,7 +256,7 @@ kiss_ll_write(struct gensio_filter *filter,
 		const char *const *auxdata)
 {
     struct kiss_filter *kfilter = filter_to_kiss(filter);
-    gensiods in_buflen = buflen;
+    gensiods in_buflen = buflen, count = 0;
     int err = 0;
 
     kiss_lock(kfilter);
@@ -275,10 +307,10 @@ kiss_ll_write(struct gensio_filter *filter,
     }
 
     if (kfilter->in_msg_complete) {
-	gensiods count = 0;
 	char tncbuf[10];
 	const char *auxdata[2] = { tncbuf, NULL };
 
+	count = 0;
 	if (kfilter->read_data_pos == 0) {
 	    kfilter->curr_tnc = kfilter->read_data[0] >> 4;
 
@@ -340,15 +372,19 @@ kiss_filter_cleanup(struct gensio_filter *filter)
 static void
 kfilter_free(struct kiss_filter *kfilter)
 {
+    struct gensio_os_funcs *o = kfilter->o;
+
     if (kfilter->lock)
-	kfilter->o->free_lock(kfilter->lock);
+	o->free_lock(kfilter->lock);
+    if (kfilter->setupstr)
+	o->free(o, kfilter->setupstr);
     if (kfilter->read_data)
-	kfilter->o->free(kfilter->o, kfilter->read_data);
+	o->free(o, kfilter->read_data);
     if (kfilter->write_data)
-	kfilter->o->free(kfilter->o, kfilter->write_data);
+	o->free(o, kfilter->write_data);
     if (kfilter->filter)
 	gensio_filter_free_data(kfilter->filter);
-    kfilter->o->free(kfilter->o, kfilter);
+    o->free(o, kfilter);
 }
 
 static void
@@ -457,8 +493,9 @@ gensio_kiss_filter_alloc(struct gensio_os_funcs *o, const char * const args[],
     unsigned int slot_time = 100;
     bool full_duplex = false;
     unsigned int set_hardware = 0;
-    bool set_hardware_set = false;
-    const char *str;
+    unsigned int setup_delay = 1000;
+    bool set_hardware_set = false, bval;
+    const char *str, *setupstr = NULL;
     int rv;
 
     for (i = 0; args && args[i]; i++) {
@@ -497,6 +534,20 @@ gensio_kiss_filter_alloc(struct gensio_os_funcs *o, const char * const args[],
 	}
 	if (gensio_check_keybool(args[i], "server", &server) > 0)
 	    continue;
+	if (gensio_check_keyvalue(args[i], "setupstr", &setupstr) > 0)
+	    continue;
+	if (gensio_check_keyuint(args[i], "setup-delay", &setup_delay) > 0)
+	    continue;
+	if (gensio_check_keybool(args[i], "d710", &bval) > 0) {
+	    if (bval)
+		setupstr = "xflow on\rhbaud 1200\rkiss on\rrestart\r";
+	    continue;
+	}
+	if (gensio_check_keybool(args[i], "d710-9600", &bval) > 0) {
+	    if (bval)
+		setupstr = "xflow on\rhbaud 9600\rkiss on\rrestart\r";
+	    continue;
+	}
 	return GE_INVAL;
     }
 
@@ -511,6 +562,14 @@ gensio_kiss_filter_alloc(struct gensio_os_funcs *o, const char * const args[],
     kfilter->max_write_size = max_write_size;
     kfilter->max_read_size = max_read_size;
     kfilter->server = server;
+    kfilter->setup_delay = setup_delay;
+
+    if (setupstr) {
+	kfilter->setupstr = (unsigned char *) gensio_strdup(o, setupstr);
+	if (!kfilter->setupstr)
+	    goto out_nomem;
+	kfilter->setupstr_len = strlen(setupstr);
+    }
 
     /* Room to double every byte and the begin and end frame markers. */
     kfilter->buf_max_write = ((max_write_size + 2) * 2) + 2;

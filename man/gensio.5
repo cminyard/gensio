@@ -1653,6 +1653,23 @@ Is this a KISS server or client.  A client will set the tunable
 parameters on the TNC.  A server is expected to be a TNC, but this
 isn't fully implemented yet as you can't get the tunable parameters.
 .TP
+.B setupstr=<string>
+Send the given string at startup to set up the device.
+.TP
+.B setup-delay=<n milliseconds>
+Wait for the given number of milliseconds after sending the setup
+string before continuing operation.
+.TP
+.B d710[=yes|no]
+If set to yes or just "d710" is given, set the setupstr to a value for
+the Kenwood D710 radio.  This is the same as doing:
+setupstr='xflow on\rhbaud 1200\rkiss on\rrestart\r'
+.TP
+.B d710-9600[=yes|no]
+If set to yes or just "d710-9600" is given, set the setupstr to a
+value for the Kenwood D710 radio at 9600 bps.  This is the same as
+doing: setupstr='xflow on\rhbaud 9600\rkiss on\rrestart\r'
+.TP
 .B txdelay=<n>
 The KISS txdelay parameter, in milliseconds, rounded to the nearest
 power of ten.  The maximum values is 2550.  Default is 50ms.
