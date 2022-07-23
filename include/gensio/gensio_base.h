@@ -34,7 +34,7 @@ typedef int (*gensio_ll_filter_data_handler)(void *cb_data,
 /*
  * Tell gensio base to start it's timer and call the timeout
  * at the appropriate interval.
- * timeout => data
+ * timeout => data (a pointer to gensio_time)
  */
 #define GENSIO_FILTER_CB_START_TIMER	2
 
@@ -222,7 +222,7 @@ int gensio_filter_control(struct gensio_filter *filter, bool get,
  * enables write but there's no way for the filter to write data
  * because it's blocked on flow control.
  *
- * &val => data
+ * &val => data (pointer to a bool)
  */
 #define GENSIO_FILTER_FUNC_LL_CAN_WRITE		16
 GENSIO_DLL_PUBLIC
