@@ -3868,6 +3868,8 @@ struct gensio_os_proc_data {
     void *winsize_handler_data;
 
     HANDLE global_waiter;
+
+    struct gensio_os_cleanup_handler *cleanup_handlers;
 };
 static struct gensio_os_proc_data proc_data;
 
@@ -3959,8 +3961,29 @@ void check_winsize(struct gensio_iod_win_oneway *owiod)
 }
 
 void
+gensio_register_os_cleanup_handler(struct gensio_os_funcs *o,
+				   struct gensio_os_cleanup_handler *h)
+{
+    struct gensio_data *d = o->user_data;
+    struct gensio_os_proc_data *data = d->proc_data;
+
+    LOCK(&data->lock);
+    h->next = data->cleanup_handlers;
+    data->cleanup_handlers = h;
+    UNLOCK(&data->lock);
+}
+
+void
 gensio_os_proc_cleanup(struct gensio_os_proc_data *data)
 {
+    /* We should be single-threaded here. */
+    while (data->cleanup_handlers) {
+	struct gensio_os_cleanup_handler *h = data->cleanup_handlers;
+
+	data->cleanup_handlers = h->next;
+	h->cleanup(h);
+    }
+
     if (data->term_handler_set) {
 	SetConsoleCtrlHandler(ConCtrlHandler, false);
 	data->term_handler_set = false;

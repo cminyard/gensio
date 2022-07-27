@@ -1701,6 +1701,8 @@ struct gensio_os_proc_data {
     void *winch_handler_data;
     int winch_fd;
 #endif
+
+    struct gensio_os_cleanup_handler *cleanup_handlers;
 };
 
 /* We only have one of these per process, so it's global. */
@@ -1805,8 +1807,29 @@ gensio_os_proc_setup(struct gensio_os_funcs *o,
 }
 
 void
+gensio_register_os_cleanup_handler(struct gensio_os_funcs *o,
+				   struct gensio_os_cleanup_handler *h)
+{
+    struct gensio_data *d = o->user_data;
+    struct gensio_os_proc_data *data = d->pdata;
+
+    LOCK(&data->handler_lock);
+    h->next = data->cleanup_handlers;
+    data->cleanup_handlers = h;
+    UNLOCK(&data->handler_lock);
+}
+
+void
 gensio_os_proc_cleanup(struct gensio_os_proc_data *data)
 {
+    /* We should be single-threaded here. */
+    while (data->cleanup_handlers) {
+	struct gensio_os_cleanup_handler *h = data->cleanup_handlers;
+
+	data->cleanup_handlers = h->next;
+	h->cleanup(h);
+    }
+
     LOCK_DESTROY(&data->handler_lock);
 
     if (data->wake_sig)

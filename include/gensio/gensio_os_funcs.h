@@ -835,6 +835,21 @@ GENSIO_DLL_PUBLIC
 sigset_t *gensio_os_proc_unix_get_wait_sigset(struct gensio_os_proc_data *data);
 #endif
 
+struct gensio_os_cleanup_handler {
+    void (*cleanup)(struct gensio_os_cleanup_handler *h);
+    struct gensio_os_cleanup_handler *next;
+};
+
+/*
+ * Register a handler to be called when gensio_os_proc_cleanup() is
+ * called.  This does not free the data for "h", but it is
+ * automatically unlinked before the cleanup handler is called, so you
+ * may free it in the handler.
+ */
+GENSIO_DLL_PUBLIC
+void gensio_register_os_cleanup_handler(struct gensio_os_funcs *o,
+					struct gensio_os_cleanup_handler *h);
+
 #ifdef __cplusplus
 }
 #endif
