@@ -55,6 +55,8 @@ set(BASE_LIBFILES
   gensio_keepopen.c
   gensio_script.c
   gensio_filter_script.c
+  gensio_sound.c
+  gensio_ll_sound.c
   )
 
 set(UNIX_LIBFILES

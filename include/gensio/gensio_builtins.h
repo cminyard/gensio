@@ -270,6 +270,12 @@ int str_to_script_gensio(const char *str, const char * const args[],
 			 gensio_event cb, void *user_data,
 			 struct gensio **new_gensio);
 
+GENSIO_DLL_PUBLIC
+int str_to_sound_gensio(const char *str, const char * const args[],
+			struct gensio_os_funcs *o,
+			gensio_event cb, void *user_data,
+			struct gensio **new_gensio);
+
 /*
  * Allocators for accepters for different I/O types.
  */
@@ -502,6 +508,12 @@ int mdns_gensio_alloc(const char *str, const char * const args[],
 		      struct gensio_os_funcs *o,
 		      gensio_event cb, void *user_data,
 		      struct gensio **new_gensio);
+
+GENSIO_DLL_PUBLIC
+int sound_gensio_alloc(const char *devname, const char * const args[],
+		       struct gensio_os_funcs *o,
+		       gensio_event cb, void *user_data,
+		       struct gensio **rio);
 
 /*
  * Filter gensios

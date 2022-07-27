@@ -3878,14 +3878,22 @@ gensio_os_proc_setup(struct gensio_os_funcs *o,
 		     struct gensio_os_proc_data **data)
 {
     int rv;
+    HRESULT res;
+
+    res = CoInitializeEx(NULL, COINIT_MULTITHREADED);
+    if (res == RPC_E_CHANGED_MODE)
+	return GE_INCONSISTENT;
 
     proc_data.global_waiter = CreateSemaphoreA(NULL, 0, 1000000, NULL);
-    if (!proc_data.global_waiter)
+    if (!proc_data.global_waiter) {
+	CoUninitialize();
 	return GE_NOMEM;
+    }
 
     rv = o->control(o, GENSIO_CONTROL_SET_PROC_DATA, &proc_data, NULL);
     if (rv) {
 	CloseHandle(proc_data.global_waiter);
+	CoUninitialize();
 	proc_data.global_waiter = NULL;
 	return rv;
     }
@@ -3997,6 +4005,7 @@ gensio_os_proc_cleanup(struct gensio_os_proc_data *data)
 	data->global_waiter = NULL;
     }
     LOCK_DESTROY(&proc_data.lock);
+    CoUninitialize();
 }
 
 HANDLE
