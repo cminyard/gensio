@@ -1945,6 +1945,123 @@ shortcut.
 Instead of running a program, run the given gensio.  When the gensio
 closes, handle an error.  If the gensio supported getting an error
 code, that is done.
+.SH "sound"
+connecting =
+.B sound[(options)],<device>
+
+The sound gensio provides access to sound devices on the platform.
+It's an unusual gensio in many respects.  It's not terribly useful for
+normal streaming operation.  It is a streaming operation, though, so
+it still fits.  But to avoid underruns and overruns, the stream has to
+be continuously supplied or consumed.
+
+The stream consists of bytes of binary data in the host's byte order.
+If the low-level sound interface uses a different byte order, it is
+converted to the host's order in the gensio.  The gensio can also
+convert data types.  If you ask for a float format and the low level
+driver can only do integers, the gensio will convert for you.  Each
+data item (byte, int16, etc) is called a sample.  So the driver has a
+user format (what the user sees) and a PCM format (what the driver
+uses).
+
+A stream has a number of channels at least one.  Stereo, for instance,
+has two channels.  A frame consists of samples for all channels.
+Frames are always interleaved; the individual channels appear as
+successive data items in the stream.  So in stereo, sample1 is channel
+1 in the first frame, sample2 is channel 2 in the first frame, sample
+3 is channel 1 in the second frame, etc.
+
+A buffer is a set of frames.  A buffers's size must be a multiple of
+the frames size.  For instance, a float sample in stereo will be 8
+bytes per frame, so the buffer's size must be a multiple of 8.  Reads
+are always provided in buffer size chunks.  If you do not comsume all
+the data in a buffer, it will give you the rest of the buffer the next
+read, until the buffer is consumed.  Writes can be written in any
+size, but it's generally most efficient to always write buffer sized
+chunks.
+
+A number of buffers can also be specified.  You generally want a large
+enough number that data can be smoothly written into the device
+without delay if the program lags a bit, but too large and you end up
+with lag when changing things.
+
+A sound gensio may have input, output, or both.  You specify which you
+want by setting the number of channels to a non-zero value.  Most of
+the parameters can be prefixed with "in" or "out" to specify that the
+parameter only applies to the input and output device.  If you don't
+have that prefix, it will apply to both the input and output.  Note
+that the input and output streams are completely independent; they can
+have different type, format, rates, etc. 
+
+Different sound interfaces are available on platforms.  For Linux,
+alsa and file interfaces are available.  On Windows, win and file
+interfaces are available.
+
+The device is specified on the command line.  The name is
+system-dependent.  For alsa, the name must match exactly.  You can use
+"aplay -L" or "arecord -L" to list input and output devices available.
+Or you can use the "examples/sound -L" program in the gensio.
+
+For Windows, the name just has to match the first part of the device's
+name.  Windows names always start with a number.  So, for instance, if
+the output of "examples/sound -L" on your windows platform is:
+.IP
+    0:Microphone (Realtek(R) Audio)     input,inchans=2
+.br
+    0:Speakers (Realtek(R) Audio)       output,outchans=2
+.PP
+then "0:" will match the the microphone for an input device, and "0:"
+will match the speakers for an output device.  On Windows, you must
+generally specify the input and output device, as the numbers don't
+always line up as nicely as above.
+
+For file type, the device name is a filename; data is streamed to/from
+the file in the PCM format.
+
+The readbuf option is not available in this gensio, obviously.
+.SS Options
+.TP
+.B outdev=<str>
+If the output device has a different name than the input device, it
+must be specified separately.
+.TP
+.B inbufsize=<n>, outbufsize=<n>, bufsize=<n>
+Specify the buffer size, in bytes.  It must be a multiple of chans *
+samplesize.  This defaults to 2048.
+.TP
+.B innbufs=<n>, outnbufs=<n>, nbufs=<n>
+Specify the number of buffers to use.  This may or may not be used
+depending on the interface type.  It's ignore for file, for instance.
+Defaults to 4.
+.TP
+.B inchans=<n>, outchans=<n>
+Set the number of input and output channels.  One of these must be
+specified, and notice there is no "chans" option.  You must specify
+these individually.
+.TP
+.B inrate=<n>, outrate=<n>, rate=<n>
+The sample rate, in samples per second.  Common ones are 44100 (CD),
+48000 (DAT).
+.TP
+.B intype=<n>, outtype=<n>, type=<n>
+Set the interface type.  Must be "alsa" (Linux only), "win" (Windows
+only) or "file".  If not set, this default to alsa on Linux and win on
+Windows.
+.TP
+.B informat=<n>, outformat=<n>, format=<n>
+Set the type of data to supply to the user.  This is one of: double,
+float, int32, int24, in16, or int8.  User samples are always signed
+and either floating point or integer.  Floating point is normalized
+from -1.0 to 1.0.  You must specify this.
+.TP
+.B inpformat=<n>, outpformat=<n>, pformat=<n>
+The data format on the PCM size.  You have all the data formats
+specified for format above.  The integer ones can be prefixed with "u"
+to make them unsigned (like uint16), and all may be suffixed with "le"
+or "be" to make them little or big endian (like doublele).  If you do
+not specify this, the gensio will attempt the same format as the user
+format.  If that doesn't work, it will attempt to pick the best
+matching format and convert.
 .SH "Forking and gensios"
 Unlike normal file descriptors, when you fork with a gensio, you now
 have two unassociated copies of the gensios.  So if you do operations

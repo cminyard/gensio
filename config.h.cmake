@@ -32,3 +32,4 @@
 #cmakedefine01 HAVE_DECL_SIGWINCH
 #cmakedefine01 HAVE_PTY
 #cmakedefine HAVE_LIBPAM
+#cmakedefine01 HAVE_ALSA

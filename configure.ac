@@ -23,7 +23,8 @@ system_type=unix
 case $target_os in
 	mingw*)
 		LIBS="$LIBS -lws2_32 -liphlpapi -lgdi32 -lbcrypt"
-		LIBS="$LIBS -lsecur32 -luserenv -lwtsapi32"
+		LIBS="$LIBS -lsecur32 -luserenv -lwtsapi32 -lwinmm"
+		LIBS="$LIBS -lole32"
 		uucp_locking_flag=no
 		system_type=windows
 		USE_FILE_STDIO=1
@@ -132,6 +133,16 @@ AC_ARG_WITH(openipmi,
       tryopenipmi=yes
     elif test "x$withval" = "xno"; then
       tryopenipmi=no
+    fi,
+)
+
+tryalsa=yes
+AC_ARG_WITH(alsa,
+ [AS_HELP_STRING([--with-alsa=yes|no], [Look for alsa])],
+    if test "x$withval" = "xyes"; then
+      tryalsa=yes
+    elif test "x$withval" = "xno"; then
+      tryalsa=no
     fi,
 )
 
@@ -402,6 +413,26 @@ fi
 AC_DEFINE_UNQUOTED([HAVE_OPENIPMI], [$HAVE_OPENIPMI],
 	[Set to 1 to enable IPMI support through OpenIPMI, 0 to disable])
 AC_SUBST(HAVE_OPENIPMI)
+
+# Handle alsa support
+HAVE_ALSA=no
+if test "x$tryalsa" != "xno"; then
+   found_alsa=no
+   AC_CHECK_HEADER(alsa/asoundlib.h, found_alsa=yes; )
+   if test "x$found_alsa" = "xyes"; then
+      AC_CHECK_LIB(asound, snd_pcm_open, HAVE_ALSA=yes)
+   fi
+fi
+
+if test "x$HAVE_ALSA" != "xno"; then
+   LIBS="$LIBS -lasound"
+   HAVE_ALSA=1
+else
+   HAVE_ALSA=0
+fi
+AC_DEFINE_UNQUOTED([HAVE_ALSA], [$HAVE_ALSA],
+	[Set to 1 to enable alsa, 0 to disable])
+AC_SUBST(HAVE_ALSA)
 
 tryssl=yes
 AC_ARG_WITH(ssl,

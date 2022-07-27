@@ -1755,6 +1755,7 @@ add_default_gensios(void *cb_data)
     REG_GENSIO(o, "file", str_to_file_gensio);
     REG_GENSIO(o, "ipmisol", str_to_ipmisol_gensio);
     REG_GENSIO(o, "mdns", str_to_mdns_gensio);
+    REG_GENSIO(o, "sound", str_to_sound_gensio);
     REG_FILT_GENSIO(o, "msgdelim", str_to_msgdelim_gensio,
 		    msgdelim_gensio_alloc);
     REG_FILT_GENSIO(o, "relpkt", str_to_relpkt_gensio,

@@ -1,6 +1,6 @@
 
 noinst_PROGRAMS = basic_server basic_server_sync basic_client \
-	basic_server_sync_fork
+	basic_server_sync_fork sound
 
 EXTRA_DIST = basic_server.py basic_client.py CMakeLists.txt
 
@@ -19,4 +19,8 @@ basic_server_sync_LDADD = $(top_builddir)/lib/libgensio.la
 basic_server_sync_fork_SOURCES = basic_server_sync_fork.c
 
 basic_server_sync_fork_LDADD = $(top_builddir)/lib/libgensio.la
+
+sound_SOURCES = sound.c
+
+sound_LDADD = $(top_builddir)/lib/libgensio.la ../tools/libgensiotool.a
 
