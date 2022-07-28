@@ -77,6 +77,11 @@
  * from an old resend can result in in_rej being set, but never having
  * anything to clear it.
  *
+ * Don't recalculate t1 on a disconnect.  If the other end is no
+ * longer available, it can make the shutdown painfully slow.  Just
+ * stuck with the t1 value that we were at when the disconnect
+ * starts.
+ *
  * There are some layer 3 interactions that this code does differently
  * than the spec.  It will never re-initialize a connection if it lost
  * data.  Any significant protocol error will cause the code to shut
@@ -2015,7 +2020,11 @@ ax25_t1_timeout(struct ax25_chan *chan)
 	} else {
 	    chan->retry_count++;
 	    ax25_chan_send_cmd(chan, X25_DISC, 1);
-	    ax25_chan_recalc_t1(chan, true);
+	    /*
+	     * Do not recalculate t1 on a disconnect.  It is possible
+	     * the other end isn't listening any more and this will
+	     * make the disconnect painfully slow.
+	     */
 	    chan->t1 = chan->t1v;
 	    ax25_chan_start_t1(chan);
 	}
