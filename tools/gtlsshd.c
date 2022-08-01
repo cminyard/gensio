@@ -2020,7 +2020,7 @@ certauth_event(struct gensio *io, void *user_data, int event, int ierr,
 	if (!ierr) {
 	    log_event(LOG_INFO, "Accepted certificate for %s",
 		      auth->username);
-#if _WIN32
+#ifdef _WIN32
 	    /*
 	     * On windows, we cache the password in .gtlssh.  Not
 	     * ideal, but Windows logons don't work very well if you
@@ -2146,7 +2146,11 @@ new_rem_io(struct gensio *io, struct auth_data *auth)
 	err = get_vals_from_service(o, &env, &env_len, str, len);
 	if (err)
 	    goto out_bad_vals;
+#ifdef _WIN32
+	s = gensio_alloc_sprintf(o, "pty,%s -i", auth->ushell);
+#else
 	s = gensio_alloc_sprintf(o, "pty,-%s -i", auth->ushell);
+#endif
 	login = true;
 	do_chdir = true;
     } else if (strstartswith(service, "tcp,") ||
