@@ -2146,7 +2146,7 @@ new_rem_io(struct gensio *io, struct auth_data *auth)
 	err = get_vals_from_service(o, &env, &env_len, str, len);
 	if (err)
 	    goto out_bad_vals;
-	s = gensio_alloc_sprintf(o, "pty,%s -i", auth->ushell);
+	s = gensio_alloc_sprintf(o, "pty,-%s -i", auth->ushell);
 	login = true;
 	do_chdir = true;
     } else if (strstartswith(service, "tcp,") ||
