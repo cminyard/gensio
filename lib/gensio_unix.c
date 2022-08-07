@@ -1667,8 +1667,9 @@ gensio_unix_alloc_sel(struct selector_s *sel, int wake_sig)
 struct gensio_os_proc_data {
     struct gensio_os_funcs *o;
     int wake_sig;
-    sigset_t old_sigs;
-    sigset_t wait_sigs;
+    sigset_t old_sigs; /* Original signal mask. */
+    sigset_t wait_sigs; /* Signal mask to use when waiting. */
+    sigset_t check_sigs; /* Signals we are checking for. */
 
     struct sigaction old_wakesig;
 
@@ -1754,6 +1755,7 @@ gensio_os_proc_setup(struct gensio_os_funcs *o,
 	data->wake_sig = o->get_wake_sig(o);
 
     sigemptyset(&sigs);
+    sigemptyset(&data->check_sigs);
     if (data->wake_sig)
 	sigaddset(&sigs, data->wake_sig);
     sigaddset(&sigs, SIGCHLD); /* Ignore SIGCHLD in normal operation. */
@@ -1767,6 +1769,7 @@ gensio_os_proc_setup(struct gensio_os_funcs *o,
     if (data->wake_sig)
 	sigdelset(&data->wait_sigs, data->wake_sig);
     sigdelset(&data->wait_sigs, SIGCHLD); /* Allow SIGCHLD while waiting. */
+    sigaddset(&data->check_sigs, SIGCHLD);
     sigaddset(&data->wait_sigs, SIGPIPE); /* No SIGPIPE ever. */
 
     memset(&sigdo, 0, sizeof(sigdo));
@@ -1857,7 +1860,38 @@ gensio_os_proc_cleanup(struct gensio_os_proc_data *data)
 void
 gensio_os_proc_check_handlers(struct gensio_os_proc_data *data)
 {
+    int sig;
+    static struct timespec zerotime = { 0, 0 };
+
     LOCK(&data->handler_lock);
+    /*
+     * Poll implementations (at least epoll) will not necessarily
+     * check for signals if they return immediately.  So to avoid
+     * missing a signal on a really busy system, check for signals
+     * here.
+     */
+    while ((sig = sigtimedwait(&data->check_sigs, NULL, &zerotime)) > 0) {
+	switch(sig) {
+	case SIGCHLD:
+	    data->got_sigchld = true;
+	    break;
+	case SIGQUIT:
+	case SIGTERM:
+	case SIGINT:
+	    data->got_term_sig = true;
+	    break;
+	case SIGHUP:
+	    data->got_reload_sig = true;
+	    break;
+#if HAVE_DECL_SIGWINCH
+	case SIGWINCH:
+	    data->got_winch_sig = true;
+	    break;
+#endif
+	default:
+	    assert(0);
+	}
+    }
     if (data->got_term_sig) {
 	data->got_term_sig = false;
 	data->term_handler(data->term_handler_data);
@@ -1936,6 +1970,9 @@ gensio_os_proc_register_term_handler(struct gensio_os_proc_data *data,
     sigdelset(&data->wait_sigs, SIGINT);
     sigdelset(&data->wait_sigs, SIGQUIT);
     sigdelset(&data->wait_sigs, SIGTERM);
+    sigaddset(&data->check_sigs, SIGINT);
+    sigaddset(&data->check_sigs, SIGQUIT);
+    sigaddset(&data->check_sigs, SIGTERM);
     data->term_sig_set = true;
     return 0;
 
@@ -1976,6 +2013,7 @@ int gensio_os_proc_register_reload_handler(struct gensio_os_proc_data *data,
 	goto out_err;
     }
     sigdelset(&data->wait_sigs, SIGHUP);
+    sigaddset(&data->check_sigs, SIGHUP);
     data->reload_sig_set = true;
     return 0;
 
