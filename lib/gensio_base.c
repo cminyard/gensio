@@ -1782,6 +1782,27 @@ basen_call_child_control_op(struct basen_data *ndata,
 			  ctrl->data, ctrl->datalen);
 }
 
+static void
+basen_filter_open_done(void *cb_data)
+{
+    struct basen_data *ndata = cb_data;
+
+    basen_lock(ndata);
+    if (ndata->state == BASEN_IN_FILTER_OPEN) {
+	basen_filter_try_connect_finish(ndata, false);
+	basen_set_ll_enables(ndata);
+    }
+    basen_unlock(ndata);
+}
+
+static void
+basen_filter_input_ready(void *cb_data)
+{
+    struct basen_data *ndata = cb_data;
+
+    basen_set_ll_enables(ndata);
+}
+
 static int
 gensio_base_filter_cb(void *cb_data, int op, void *data)
 {
@@ -1801,6 +1822,12 @@ gensio_base_filter_cb(void *cb_data, int op, void *data)
     case GENSIO_FILTER_CB_CONTROL:
 	basen_call_child_control_op(cb_data, data);
 	return 0;
+
+    case GENSIO_FILTER_CB_OPEN_DONE:
+	basen_filter_open_done(cb_data);
+
+    case GENSIO_FILTER_CB_INPUT_READY:
+	basen_filter_input_ready(cb_data);
 
     default:
 	return GE_NOTSUP;

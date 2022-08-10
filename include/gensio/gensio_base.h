@@ -26,8 +26,8 @@ typedef int (*gensio_ll_filter_data_handler)(void *cb_data,
 					     const char *const *auxdata);
 
 /*
- * The filter has some asynchronously generated data that it needs
- * to send, tell the gensio base to recalculate its enables.
+ * The filter has some asynchronously generated data that it needs to
+ * send, tell the gensio base to recalculate its enables.
  */
 #define GENSIO_FILTER_CB_OUTPUT_READY	1
 
@@ -54,6 +54,17 @@ struct gensio_filter_cb_control_data {
     gensiods *datalen;
 };
 #define GENSIO_FILTER_CB_CONTROL	4
+
+/*
+ * During open, check_open_done needs to be called.
+ */
+#define GENSIO_FILTER_CB_OPEN_DONE	5
+
+/*
+ * An asynchronous event has happend where the filter is ready for
+ * lower-level input again.
+ */
+#define GENSIO_FILTER_CB_INPUT_READY	6
 
 typedef int (*gensio_filter_cb)(void *cb_data, int func, void *data);
 
