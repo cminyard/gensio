@@ -137,6 +137,13 @@ int str_to_xlt_gensio_accepter(const char *str, const char * const args[],
 			       void *user_data,
 			       struct gensio_accepter **new_accepter);
 
+GENSIO_DLL_PUBLIC
+int str_to_script_gensio_accepter(const char *str, const char * const args[],
+				  struct gensio_os_funcs *o,
+				  gensio_accepter_event cb,
+				  void *user_data,
+				  struct gensio_accepter **new_accepter);
+
 /*
  * Allocators for the various gensio types, compatible with
  * register_gensio().
@@ -256,6 +263,12 @@ int str_to_keepopen_gensio(const char *str, const char * const args[],
 			   struct gensio_os_funcs *o,
 			   gensio_event cb, void *user_data,
 			   struct gensio **new_gensio);
+
+GENSIO_DLL_PUBLIC
+int str_to_script_gensio(const char *str, const char * const args[],
+			 struct gensio_os_funcs *o,
+			 gensio_event cb, void *user_data,
+			 struct gensio **new_gensio);
 
 /*
  * Allocators for accepters for different I/O types.
@@ -398,6 +411,14 @@ int xlt_gensio_accepter_alloc(struct gensio_accepter *child,
 			      gensio_accepter_event cb,
 			      void *user_data,
 			      struct gensio_accepter **new_accepter);
+
+GENSIO_DLL_PUBLIC
+int script_gensio_accepter_alloc(struct gensio_accepter *child,
+				 const char * const args[],
+				 struct gensio_os_funcs *o,
+				 gensio_accepter_event cb,
+				 void *user_data,
+				 struct gensio_accepter **new_accepter);
 
 /* Client allocators. */
 
@@ -556,6 +577,12 @@ int keepopen_gensio_alloc(struct gensio *child, const char * const args[],
 			  struct gensio_os_funcs *o,
 			  gensio_event cb, void *user_data,
 			  struct gensio **new_gensio);
+
+GENSIO_DLL_PUBLIC
+int script_gensio_alloc(struct gensio *child, const char * const args[],
+			struct gensio_os_funcs *o,
+			gensio_event cb, void *user_data,
+			struct gensio **new_gensio);
 
 #ifdef __cplusplus
 }

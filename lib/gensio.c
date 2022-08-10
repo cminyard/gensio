@@ -1552,6 +1552,8 @@ add_default_gensio_accepters(void *cb_data)
 			ax25_gensio_accepter_alloc);
     REG_FILT_GENSIO_ACC(o, "xlt", str_to_xlt_gensio_accepter,
 			xlt_gensio_accepter_alloc);
+    REG_FILT_GENSIO_ACC(o, "script", str_to_script_gensio_accepter,
+			script_gensio_accepter_alloc);
 }
 
 int
@@ -1769,6 +1771,8 @@ add_default_gensios(void *cb_data)
 		    xlt_gensio_alloc);
     REG_FILT_GENSIO(o, "keepopen", str_to_keepopen_gensio,
 		    keepopen_gensio_alloc);
+    REG_FILT_GENSIO(o, "script", str_to_script_gensio,
+		    script_gensio_alloc);
 }
 
 int
