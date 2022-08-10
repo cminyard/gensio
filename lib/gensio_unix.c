@@ -1825,6 +1825,9 @@ gensio_register_os_cleanup_handler(struct gensio_os_funcs *o,
 void
 gensio_os_proc_cleanup(struct gensio_os_proc_data *data)
 {
+    static struct timespec zerotime = { 0, 0 };
+    int sig;
+
     /* We should be single-threaded here. */
     while (data->cleanup_handlers) {
 	struct gensio_os_cleanup_handler *h = data->cleanup_handlers;
@@ -1854,6 +1857,11 @@ gensio_os_proc_cleanup(struct gensio_os_proc_data *data)
     }
 #endif
     sigaction(SIGCHLD, &data->old_sigchld, NULL);
+
+    /* Clear out any pending signals before we restore the mask. */
+    while ((sig = sigtimedwait(&data->check_sigs, NULL, &zerotime)) > 0)
+	;
+
     sigprocmask(SIG_SETMASK, &data->old_sigs, NULL);
 }
 
