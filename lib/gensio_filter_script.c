@@ -121,12 +121,11 @@ script_finish_close(struct gensio *io, void *close_data)
     struct script_filter *sfilter = close_data;
     char data[50];
     gensiods datalen = sizeof(data);
-    int err;
 
     if (!sfilter->err) {
 	/* Check that the script returned no error. */
-	err = gensio_control(sfilter->io, 0, true, GENSIO_CONTROL_EXIT_CODE,
-			     data, &datalen);
+	int err = gensio_control(sfilter->io, 0, true, GENSIO_CONTROL_EXIT_CODE,
+				 data, &datalen);
 	if (!err) {
 	    int errcode = strtoul(data, 0, 0);
 
@@ -142,7 +141,7 @@ script_finish_close(struct gensio *io, void *close_data)
 	sfilter->err = err;
     }
 
-    if (err)
+    if (sfilter->err)
 	sfilter->state = SCRIPT_OPEN_FAIL;
     else
 	sfilter->state = SCRIPT_OPEN;
