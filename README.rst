@@ -230,12 +230,28 @@ conacc
     reliable communication, so it won't run directly over a serial
     port.
 
+xlt
+    This gensio allows character translations to be done on data flowing
+    through this filter.  It's primarily to convert carraige returns and
+    line feeds.
+
 mdns
     This gensio uses mDNS to lookup a service (protocol type, network
     type, port, address) and then connect to that service.  If you
     have a program like ser2net that advertise mDNS service, you don't
     have to worry about finding port numbers and such, it's all
     handled for you.
+
+keepopen
+    This gensio presents an always open connection to the upper layer and
+    keeps the lower layer connection open.  If it closes, it re-opens it.
+
+script
+    This gensio executes an external program with the external program's
+    stdio connected to the child of this gensio.  Once the external program
+    terminates, this gensio will report that it is open and pass all the
+    data through.  This can be used to run scripts to set things up on a
+    connection before hooking to the parent gensio.
 
 kiss
     An amateur radio protocol for talking to TNCs.  This is used by AX25

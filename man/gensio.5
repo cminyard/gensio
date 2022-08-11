@@ -1919,6 +1919,32 @@ second.
 Normally this gensio will flow-control the upper layer when the lower
 gensio is not open.  If you enable this, it will just throw write
 data away if the lower gensio is not open.
+.SH "script"
+connecting =
+.B script[(options)]
+accepting =
+.B script[(options)]
+
+A filter gensio that allows an external program to interact with the
+child gensio before reporting that it is open.  The external program
+runs with its stdio connected to the child of this gensio, so writes
+from the external program get written to the child and reads from the
+child get written to the external program's stdin.  If the program
+returns without error, the open for this gensio succeeds.  If the
+program returns an error, GE_LOCALCLOSED is reported as an open error.
+
+The readbuf option is not available in this gensio.
+.SS Options
+.TP
+.B script=<string>
+Run the program given in the string as the external program.  This is
+equivalent to doing: gensio=stdio(noredir-stderr),<string>, it just a
+shortcut.
+.TP
+.B gensio=<string>
+Instead of running a program, run the given gensio.  When the gensio
+closes, handle an error.  If the gensio supported getting an error
+code, that is done.
 .SH "Forking and gensios"
 Unlike normal file descriptors, when you fork with a gensio, you now
 have two unassociated copies of the gensios.  So if you do operations
