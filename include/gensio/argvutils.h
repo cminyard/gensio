@@ -81,6 +81,7 @@ int gensio_argv_copy(struct gensio_os_funcs *o,
  * it is false, str must have been allocated with o->zalloc() and it
  * will be directly put into the argv.
  */
+GENSIO_DLL_PUBLIC
 int gensio_argv_append(struct gensio_os_funcs *o, const char ***argv,
 		       const char *str, gensiods *args, gensiods *argc,
 		       bool allocstr);
@@ -89,9 +90,11 @@ int gensio_argv_append(struct gensio_os_funcs *o, const char ***argv,
  * Standard utilities using sprintf-type things to append arguments to
  * an argv.  The string data is always allocated.
  */
+GENSIO_DLL_PUBLIC
 int gensio_argv_vappend(struct gensio_os_funcs *o, const char ***argv,
 			gensiods *args, gensiods *argc,
 			const char *fmt, va_list ap);
+GENSIO_DLL_PUBLIC
 int gensio_argv_sappend(struct gensio_os_funcs *o, const char ***argv,
 			gensiods *args, gensiods *argc, const char *fmt, ...);
 
