@@ -646,11 +646,10 @@ start_retry(struct conaccna_data *nadata)
     struct gensio_os_funcs *o = nadata->o;
     gensio_time timeout = { nadata->retry_time / 1000,
 			    nadata->retry_time % 1000 };
-    int rv;
 
     nadata->state = CONACCNA_WAITING_RETRY;
-    rv = o->start_timer(nadata->retry_timer, &timeout);
-    assert(rv == 0);
+    if (o->start_timer(nadata->retry_timer, &timeout) != 0)
+	assert(0);
     conaccna_ref(nadata);
 }
 

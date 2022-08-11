@@ -2077,7 +2077,6 @@ ax25_chan_timeout(struct gensio_timer *timer, void *cb_data)
     struct gensio_os_funcs *o = chan->o;
     gensio_time t;
     int64_t now;
-    int rv;
 
     o->get_monotonic_time(o, &t);
     now = gensio_time_to_msecs(&t);
@@ -2116,8 +2115,8 @@ ax25_chan_timeout(struct gensio_timer *timer, void *cb_data)
 	 * enough, especially on some OS handlers.
 	 */
 	gensio_msecs_to_time(&t, then);
-	rv = o->start_timer(chan->timer, &t);
-	assert(rv == 0);
+	if (o->start_timer(chan->timer, &t) != 0)
+	    assert(0);
 	ax25_chan_ref(chan);
     }
  out_unlock:

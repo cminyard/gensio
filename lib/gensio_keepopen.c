@@ -234,24 +234,22 @@ keepn_unlock_and_deref(struct keepn_data *ndata)
 static void
 keepn_start_zero_timer(struct keepn_data *ndata)
 {
-    int rv;
     gensio_time timeout = { 0, 0 };
 
     keepn_ref(ndata);
-    rv = ndata->o->start_timer(ndata->retry_timer, &timeout);
-    assert(rv == 0);
+    if (ndata->o->start_timer(ndata->retry_timer, &timeout) != 0)
+	assert(0);
 }
 
 static void
 keepn_start_timer(struct keepn_data *ndata)
 {
-    int rv;
     gensio_time timeout = { ndata->retry_time / 1000,
 			    ndata->retry_time % 1000 };
 
     keepn_ref(ndata);
-    rv = ndata->o->start_timer(ndata->retry_timer, &timeout);
-    assert(rv == 0);
+    if (ndata->o->start_timer(ndata->retry_timer, &timeout) != 0)
+	assert(0);
 }
 
 static void
