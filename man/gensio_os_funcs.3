@@ -434,7 +434,7 @@ will call the
 function when the timer is completely stopped and all the handlers are
 finished.  The second also returns
 .B GE_INUSE
-if the timer has alrady been stopped but the done handler hasn't been
+if the timer has already been stopped but the done handler hasn't been
 called yet.  Note that you cannot start the timer again until the done
 handler is called.  And finally, to free a timer, use
 .B gensio_os_funcs_free_timer.
