@@ -138,7 +138,14 @@ endif()
 
 string(COMPARE EQUAL "${CMAKE_HOST_SYSTEM_NAME}" "Linux" HAVE_WORKING_PORT0)
 
-CHECK_LIBRARY_EXISTS(pam "pam_start" "" HAVE_PAM)
+option(ENABLE_LIBPAM "Enable PAM support" ON)
+if(ENABLE_LIBPAM)
+  CHECK_LIBRARY_EXISTS(pam "pam_start" "" LIBPAM_LIB_FOUND)
+  CHECK_INCLUDE_FILE(security/map_appl.h LIBPAM_INC_FOUND)
+  if(LIBPAM_LIB_FOUND AND LIBPAM_INC_FOUND)
+    set(HAVE_LIBPAM 1)
+  endif()
+endif()
 
 check_symbol_exists(TIOCSRS485 sys/ioctl.h HAVE_DECL_TIOCSRS485)
 check_symbol_exists(SIGWINCH signal.h HAVE_DECL_SIGWINCH)

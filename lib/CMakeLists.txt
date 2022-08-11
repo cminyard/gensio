@@ -53,6 +53,8 @@ set(BASE_LIBFILES
   gensio_filter_xlt.c
   gensio_xlt.c
   gensio_keepopen.c
+  gensio_script.c
+  gensio_filter_script.c
   )
 
 set(UNIX_LIBFILES

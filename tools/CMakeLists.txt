@@ -46,7 +46,7 @@ if(UNIX)
   install(FILES gtlssync.1 DESTINATION ${CMAKE_INSTALL_FULL_MANDIR}/man1)
   install(FILES gtlssh-keygen.1 DESTINATION ${CMAKE_INSTALL_FULL_MANDIR}/man1)
 
-  if(HAVE_PAM)
+  if(HAVE_PAM OR WIN32)
     add_executable(gtlsshd gtlsshd.c)
     target_compile_definitions(gtlsshd PRIVATE "SYSCONFDIR=\"${CMAKE_INSTALL_FULL_SYSCONFDIR}\"")
     target_link_libraries(gtlsshd gensio gtlssh-shared gensiotool pam)
