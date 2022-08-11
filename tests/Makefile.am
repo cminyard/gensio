@@ -35,7 +35,9 @@ oomtest_SOURCES = oomtest.c
 oomtest_LDADD = $(top_builddir)/lib/libgensio.la $(OPENSSL_LIBS) \
 	@GLIB_LIB@ @GLIB_LIBS@ @TCL_LIB@ @TCL_LIBS@
 
-check_PROGRAMS = oomtest
+echotest_SOURCES = echotest.c
+
+check_PROGRAMS = oomtest echotest
 
 EXTRA_DIST = utils.py ipmisimdaemon.py termioschk.py \
 	test_fuzz_setup.py make_keys $(PYTESTS) $(OOMTESTS) CMakeLists.txt
