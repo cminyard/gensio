@@ -1505,9 +1505,10 @@ handle_port(struct gensio_os_funcs *o, bool remote, const char *iaddr)
     if (s[pos][0] == '/') { /* remote is a unix socket */
 	connecter_str = alloc_sprintf("unix,%s", s[pos]);
     } else {
-	if (!validate_port(s[pos], s[pos + 1], &type, iaddr))
+	if (!validate_port(s[pos], s[pos + 1], &type, iaddr)) {
+	    err = GE_INVAL;
 	    goto out_err;
-	err = GE_INVAL;
+	}
 	connecter_str = alloc_sprintf("%s,%s,%s", type, s[pos], s[pos + 1]);
     }
     if (!connecter_str) {
