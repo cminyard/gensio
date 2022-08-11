@@ -1439,7 +1439,8 @@ basen_set_read_callback_enable(struct basen_data *ndata, bool enabled)
     if (ndata->deferred_op_pending && enabled) {
 	/* Nothing to do, let the read/open handling wake things up. */
 	ndata->deferred_read = true;
-    } else if (enabled && (read_pending || ndata->ll_err)) {
+    } else if (enabled && (read_pending || ndata->ll_err) &&
+	       ndata->state == BASEN_OPEN) {
 	ndata->deferred_read = true;
 	basen_sched_deferred_op(ndata);
     } else {
