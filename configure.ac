@@ -14,7 +14,7 @@ LT_INIT
 # defaults
 AM_CFLAGS=
 AM_CXXFLAGS=
-EXTRA_CFLAGS=
+EXTRA_CFLAGS=-fvisibility=hidden
 uucp_locking_flag=yes
 UUCP_LOCK_DIR=/var/spool/lock
 USE_FILE_STDIO=0
