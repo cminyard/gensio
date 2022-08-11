@@ -22,7 +22,7 @@ PYTESTS = test_syncio.py \
 	test_relpkt_basic.py test_relpkt_small.py test_relpkt_medium.py \
 	test_relpkt_large.py test_udp_nocon.py test_conacc.py test_mdns.py \
 	test_ipmisol.py test_perf.py test_trace.py test_file.py test_dummy.py \
-	test_ax25_small.py test_ax25_basics.py
+	test_ax25_small.py test_ax25_basics.py test_script.py
 
 OOMTESTS = oomtest0 oomtest1 oomtest2 oomtest3 oomtest4 oomtest5 oomtest6 \
 	oomtest7 oomtest8 oomtest9 oomtest10 oomtest11 oomtest12 oomtest13 \
