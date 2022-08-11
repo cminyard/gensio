@@ -31,4 +31,4 @@
 #cmakedefine01 HAVE_DECL_TIOCSRS485
 #cmakedefine01 HAVE_DECL_SIGWINCH
 #cmakedefine01 HAVE_PTY
-#cmakedefine01 HAVE_LIBPAM
+#cmakedefine HAVE_LIBPAM
