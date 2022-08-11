@@ -1826,9 +1826,11 @@ gensio_base_filter_cb(void *cb_data, int op, void *data)
 
     case GENSIO_FILTER_CB_OPEN_DONE:
 	basen_filter_open_done(cb_data);
+	return 0;
 
     case GENSIO_FILTER_CB_INPUT_READY:
 	basen_filter_input_ready(cb_data);
+	return 0;
 
     default:
 	return GE_NOTSUP;
