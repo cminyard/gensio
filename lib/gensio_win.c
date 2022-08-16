@@ -3881,8 +3881,14 @@ gensio_os_proc_setup(struct gensio_os_funcs *o,
     HRESULT res;
 
     res = CoInitializeEx(NULL, COINIT_MULTITHREADED);
-    if (res == RPC_E_CHANGED_MODE)
-	return GE_INCONSISTENT;
+    switch (res) {
+    case S_OK: case S_FALSE:
+	break;
+    case RPC_E_CHANGED_MODE:	return GE_INCONSISTENT;
+    case E_INVALIDARG:		return GE_INVAL;
+    case E_OUTOFMEMORY:		return GE_NOMEM;
+    case E_UNEXPECTED: default: return GE_OSERR;
+    }
 
     proc_data.global_waiter = CreateSemaphoreA(NULL, 0, 1000000, NULL);
     if (!proc_data.global_waiter) {
