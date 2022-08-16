@@ -132,6 +132,33 @@ term_handler(void *cb_data)
     gensio_os_funcs_wake(o, waiter);
 }
 
+static const char *progname;
+
+static void
+help(int err)
+{
+    printf("%s [options] io2\n", progname);
+    printf("\nA program to record/play sound using the sound gensio\n");
+    printf("Data is read/written from/to stdin/stdout.\n");
+    printf("\noptions are:\n");
+    printf("  -r, --rate <n> - The sample rate, defaults to 44100\n");
+    printf("  -n, --nbufs <n> - The number of buffers, defaults to 4\n");
+    printf("  -c, --channels <n> - The number of channels, defaults to 1\n");
+    printf("  -s, --bufsize <n> - The number of buffer size, defaults to"
+	   " 2048\n");
+    printf("  -t, --type <n> - The interface type, either alsa (Linux),\n"
+	   "    win (Windows), or file.  Default to alsa or win.\n");
+    printf("  -f, --format <str> - The I/O format.  Default to float.  May\n"
+	   "    be one of double, float, int32, int24, int16, or int8\n");
+    printf("  -p, --play - Playback data from stdin.  The default is to\n"
+	   "    record data to stdout.\n");
+    printf("  -L, --list-devs - List available devices and exit.\n");
+    printf("  -d, --debug - Enable debug.  Specify more than once to increase\n"
+	   "    the debug level\n");
+    printf("  -h, --help - This help\n");
+    gensio_osfunc_exit(err);
+}
+
 int
 main(int argc, char *argv[])
 {
@@ -147,6 +174,8 @@ main(int argc, char *argv[])
     bool play = false;
     const char *devtype = NULL; /* Take the default by default. */
     const char *format = "float";
+
+    progname = argv[0];
 
     for (arg = 1; arg < argc; arg++) {
 	if (argv[arg][0] != '-')
@@ -177,8 +206,11 @@ main(int argc, char *argv[])
 	    list_devs = true;
 	} else if ((rv = cmparg(argc, argv, &arg, "-d", "--debug", NULL))) {
 	    gensio_set_log_mask(GENSIO_LOG_MASK_ALL);
+	} else if ((rv = cmparg(argc, argv, &arg, "-h", "--help", NULL))) {
+	    help(0);
 	} else {
-	    fprintf(stderr, "Unknown argument: %s\n", argv[arg]);
+	    fprintf(stderr, "Unknown argument: %s, us -h for help\n",
+		    argv[arg]);
 	    return 1;
 	}
     }

@@ -1,0 +1,60 @@
+.TH gsound 1 15 Aug 2022  "Tool for doing sound I/O"
+
+.SH NAME
+gsound \- Tool for doing sound I/O using the sound gensio
+
+.SH SYNOPSIS
+.B gsound
+[\-r|\-\-rate num] [\-n|--nbufs num] [\-c|\-\-channels num]
+[\-s|\-\-bufsize num] [\-t|\-\-type num] [\-f|\-\-format str]
+[\-p|\-\-play] [\-L|\-\-list\-devs] [\-d|\-\-debug] [\-h|\-\-help]
+
+.SH DESCRIPTION
+The
+.BR gsound
+program allows you to record/play sound to/from 
+services on the local network.
+
+.SH OPTIONS
+.TP
+.I "\-r|\-\-rate num"
+The sample rate, defaults to 44100.
+.TP
+.I "\-n|\-\-nbufs num"
+The number of buffers, defaults to 4.
+.TP
+.I "\-c|\-\-channels num"
+The number of channels, defaults to 1.
+.TP
+.I "\-s|\-\-bufsize num"
+The number of buffer size, defaults to 2048.
+.TP
+.I "\-t|\-\-type num"
+The interface type, either alsa (Linux), win (Windows), or file.
+Default to alsa or win.
+.TP
+.I "\-f|\-\-format str"
+The I/O format.  Default to float.  May be one of double, float,
+int32, int24, int16, or int8
+.TP
+.I "\-p|\-\-play"
+Playback data from stdin.  The default is to record data to stdout.
+.TP
+.I "\-L|\-\-list\-devs"
+List available devices and exit.
+.TP
+.I "\-d|\-\-debug"
+Enable debug.  Specify more than once to increase the debug level
+.TP
+.I "\-h|\-\-help"
+Help
+
+.SH "SEE ALSO"
+gensio(5)
+
+.SH "KNOWN PROBLEMS"
+None.
+
+.SH AUTHOR
+.PP
+Corey Minyard <minyard@acm.org>
