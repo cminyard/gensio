@@ -43,24 +43,12 @@ do_vlog(struct gensio_os_funcs *f, enum gensio_log_levels level,
 static int
 fill_playbuf(void)
 {
-    float *v = (float *) playbuf;
-    gensiods i;
-    unsigned int c;
+    size_t i;
 
-    playbuf_pos = 0;
-    playbuf_len = 0;
-    for (i = 0; playbuf_len < playbuf_size; ) {
-	if (scanf("%f", &v[i++]) == EOF) {
-	    return GE_REMCLOSE;
-	}
-	playbuf_len += sizeof(float);
-	for (c = 1; c < channels; c++) {
-	    if (scanf(" %f", &v[i++]) == EOF) {
-		return GE_REMCLOSE;
-	    }
-	    playbuf_len += sizeof(float);
-	}
-    }
+    i = fread(playbuf, playbuf_size, 1, stdin);
+    if (i == 0)
+	return GE_REMCLOSE;
+    playbuf_len = playbuf_size;
     return 0;
 }
 
@@ -71,19 +59,16 @@ io_event(struct gensio *io, void *user_data, int event, int err,
 {
     struct gensio_waiter *waiter = user_data;
     gensiods i;
-    unsigned int c;
-    float *v;
+    size_t len;
 
     switch (event) {
     case GENSIO_EVENT_READ:
 	if (err)
 	    goto handle_err;
-	for (i = 0; i < *buflen; i += sizeof(float) * channels) {
-	    v = (float *) &buf[i];
-	    printf("%f", v[0]);
-	    for (c = 1; c < channels; c++)
-		printf(" %f", v[c]);
-	    putchar('\n');
+	len = fwrite(buf, *buflen, 1, stdout);
+	if (len == 0) {
+	    err = GE_REMCLOSE;
+	    goto handle_err;
 	}
 	return 0;
 
@@ -117,14 +102,14 @@ io_event(struct gensio *io, void *user_data, int event, int err,
 }
 
 static int
-list_sound_devs(void)
+list_sound_devs(const char *devtype)
 {
     char **names, **specs;
     gensiods i, count;
     int err;
 
     /* FIXME - supply a sound type. */
-    err = gensio_sound_devices(NULL, &names, &specs, &count);
+    err = gensio_sound_devices(devtype, &names, &specs, &count);
     if (err) {
 	fprintf(stderr, "Unable to get sound devices: %s\n",
 		gensio_err_to_str(err));
@@ -160,7 +145,8 @@ main(int argc, char *argv[])
     char *gensiostr;
     bool list_devs = false;
     bool play = false;
-    const char *type = NULL; /* Take the default by default. */
+    const char *devtype = NULL; /* Take the default by default. */
+    const char *format = "float";
 
     for (arg = 1; arg < argc; arg++) {
 	if (argv[arg][0] != '-')
@@ -181,7 +167,9 @@ main(int argc, char *argv[])
 	else if ((rv = cmparg_uint(argc, argv, &arg, "-s", "--bufsize",
 				   &bufsize)))
 	    ;
-	else if ((rv = cmparg(argc, argv, &arg, "-t", "--type", &type)))
+	else if ((rv = cmparg(argc, argv, &arg, "-t", "--type", &devtype)))
+	    ;
+	else if ((rv = cmparg(argc, argv, &arg, "-f", "--format", &format)))
 	    ;
 	else if ((rv = cmparg(argc, argv, &arg, "-p", "--play", NULL))) {
 	    play = true;
@@ -196,7 +184,7 @@ main(int argc, char *argv[])
     }
 
     if (list_devs) {
-	list_sound_devs();
+	list_sound_devs(devtype);
 	return 0;
     }
 
@@ -211,10 +199,10 @@ main(int argc, char *argv[])
     }
 
     gensiostr = alloc_sprintf("sound(rate=%u,%schans=%u,bufsize=%u,nbufs=%u,"
-			      "format=float%s%s),%s",
+			      "format=%s%s%s),%s",
 			      sample_rate, play ? "out" : "in",
-			      channels, bufsize, num_bufs,
-			      type ? ",type=" : "", type ? type : "",
+			      channels, bufsize, num_bufs, format,
+			      devtype ? ",type=" : "", devtype ? devtype : "",
 			      argv[arg]);
     if (!gensiostr) {
 	fprintf(stderr, "Could not allocate gensio string\n");
