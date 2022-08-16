@@ -5,7 +5,7 @@ AM_CFLAGS = -DSYSCONFDIR="\"${sysconfdir}\"" -I$(top_builddir) \
 
 noinst_LIBRARIES = libgensiotool.a libgtlssh.a
 
-bin_PROGRAMS = gensiot @GMDNS@ @GTLSSH@ @GTLSSH_KEYGEN@
+bin_PROGRAMS = gensiot @GMDNS@ @GTLSSH@ @GTLSSH_KEYGEN@ gsound
 sbin_PROGRAMS = @GTLSSHD@
 EXTRA_PROGRAMS = gtlsshd gtlssh gmdns gtlssh-keygen
 
@@ -22,31 +22,31 @@ gtlssh_keygen_SOURCES = gtlssh-keygen.c
 gtlssh_keygen_LDADD = libgtlssh.a libgensiotool.a \
 	$(top_builddir)/lib/libgensio.la @OPENSSL_LIBS@
 
-gensiot_SOURCES = gensiotool.c
-
-gmdns_SOURCES = gensiomdns.c
-
 libgensiotool_a_SOURCES = ioinfo.c ser_ioinfo.c utils.c localports.c
 
 libgtlssh_a_SOURCES = gtlssh-shared.c run_get_output.c file_utils.c
 
-gtlssh_SOURCES = gtlssh.c
-
-gtlsshd_SOURCES = gtlsshd.c
-
 noinst_HEADERS = ioinfo.h ser_ioinfo.h utils.h localports.h gtlssh.h
 
+gmdns_SOURCES = gensiomdns.c
 gmdns_LDADD = libgtlssh.a libgensiotool.a $(top_builddir)/lib/libgensio.la \
 	@OPENSSL_LIBS@
 
+gensiot_SOURCES = gensiotool.c
 gensiot_LDADD = libgensiotool.a $(top_builddir)/lib/libgensio.la \
 	@OPENSSL_LIBS@ @GLIB_LIB@ @GLIB_LIBS@ @TCL_LIB@ @TCL_LIBS@
 
+gtlssh_SOURCES = gtlssh.c
 gtlssh_LDADD = libgtlssh.a libgensiotool.a $(top_builddir)/lib/libgensio.la \
 	@OPENSSL_LIBS@
 
+gtlsshd_SOURCES = gtlsshd.c
 gtlsshd_LDADD = libgtlssh.a libgensiotool.a $(top_builddir)/lib/libgensio.la \
 	@PAMLIB@ @OPENSSL_LIBS@
+
+gsound_SOURCES = gensio_sound.c
+gsound_LDADD = $(top_builddir)/lib/libgensio.la ../tools/libgensiotool.a \
+	@OPENSSL_LIBS@
 
 manpages = gensiot.1 gtlsshd.8 gtlssh.1 gtlssh-keygen.1 gtlssync.1 gmdns.1 \
 	greflector.1
