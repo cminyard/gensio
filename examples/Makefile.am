@@ -20,5 +20,3 @@ basic_server_sync_fork_SOURCES = basic_server_sync_fork.c
 
 basic_server_sync_fork_LDADD = $(top_builddir)/lib/libgensio.la
 
-sound_LDADD = $(top_builddir)/lib/libgensio.la ../tools/libgensiotool.a
-
