@@ -104,7 +104,7 @@ io_event(struct gensio *io, void *user_data, int event, int err,
 static int
 list_sound_devs(const char *devtype)
 {
-    char **names, **specs;
+    char **names = NULL, **specs = NULL;
     gensiods i, count;
     int err;
 
