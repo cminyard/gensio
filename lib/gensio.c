@@ -1541,6 +1541,8 @@ add_default_gensio_accepters(void *cb_data)
 			msgdelim_gensio_accepter_alloc);
     REG_FILT_GENSIO_ACC(o, "relpkt", str_to_relpkt_gensio_accepter,
 			relpkt_gensio_accepter_alloc);
+    REG_FILT_GENSIO_ACC(o, "ratelimit", str_to_ratelimit_gensio_accepter,
+			ratelimit_gensio_accepter_alloc);
     REG_FILT_GENSIO_ACC(o, "trace", str_to_trace_gensio_accepter,
 			trace_gensio_accepter_alloc);
     REG_FILT_GENSIO_ACC(o, "perf", str_to_perf_gensio_accepter,
@@ -1760,6 +1762,8 @@ add_default_gensios(void *cb_data)
 		    msgdelim_gensio_alloc);
     REG_FILT_GENSIO(o, "relpkt", str_to_relpkt_gensio,
 		    relpkt_gensio_alloc);
+    REG_FILT_GENSIO(o, "ratelimit", str_to_ratelimit_gensio,
+		    ratelimit_gensio_alloc);
     REG_FILT_GENSIO(o, "trace", str_to_trace_gensio,
 		    trace_gensio_alloc);
     REG_FILT_GENSIO(o, "perf", str_to_perf_gensio,

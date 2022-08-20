@@ -96,6 +96,12 @@ int str_to_relpkt_gensio_accepter(const char *str, const char * const args[],
 				  void *user_data,
 				  struct gensio_accepter **new_accepter);
 GENSIO_DLL_PUBLIC
+int str_to_ratelimit_gensio_accepter(const char *str, const char * const args[],
+				     struct gensio_os_funcs *o,
+				     gensio_accepter_event cb,
+				     void *user_data,
+				     struct gensio_accepter **new_accepter);
+GENSIO_DLL_PUBLIC
 int str_to_trace_gensio_accepter(const char *str, const char * const args[],
 				 struct gensio_os_funcs *o,
 				 gensio_accepter_event cb,
@@ -228,6 +234,11 @@ int str_to_relpkt_gensio(const char *str, const char * const args[],
 			 struct gensio_os_funcs *o,
 			 gensio_event cb, void *user_data,
 			 struct gensio **new_gensio);
+GENSIO_DLL_PUBLIC
+int str_to_ratelimit_gensio(const char *str, const char * const args[],
+			    struct gensio_os_funcs *o,
+			    gensio_event cb, void *user_data,
+			    struct gensio **new_gensio);
 GENSIO_DLL_PUBLIC
 int str_to_trace_gensio(const char *str, const char * const args[],
 			struct gensio_os_funcs *o,
@@ -371,6 +382,14 @@ int relpkt_gensio_accepter_alloc(struct gensio_accepter *child,
 				 gensio_accepter_event cb,
 				 void *user_data,
 				 struct gensio_accepter **new_accepter);
+
+GENSIO_DLL_PUBLIC
+int ratelimit_gensio_accepter_alloc(struct gensio_accepter *child,
+				    const char * const args[],
+				    struct gensio_os_funcs *o,
+				    gensio_accepter_event cb,
+				    void *user_data,
+				    struct gensio_accepter **new_accepter);
 
 GENSIO_DLL_PUBLIC
 int trace_gensio_accepter_alloc(struct gensio_accepter *child,
@@ -553,6 +572,12 @@ int relpkt_gensio_alloc(struct gensio *child, const char * const args[],
 			struct gensio_os_funcs *o,
 			gensio_event cb, void *user_data,
 			struct gensio **new_gensio);
+
+GENSIO_DLL_PUBLIC
+int ratelimit_gensio_alloc(struct gensio *child, const char * const args[],
+			   struct gensio_os_funcs *o,
+			   gensio_event cb, void *user_data,
+			   struct gensio **new_gensio);
 
 GENSIO_DLL_PUBLIC
 int trace_gensio_alloc(struct gensio *child, const char * const args[],

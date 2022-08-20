@@ -9,7 +9,7 @@ noinst_HEADERS = telnet.h heap.h utils.h uucplock.h buffer.h \
 	gensio_filter_relpkt.h gensio_filter_trace.h gensio_filter_perf.h \
 	errtrig.h avahi_watcher.h gensio_net.h gensio_filter_kiss.h crc16.h \
 	gensio_filter_xlt.h gensio_filter_script.h \
-	gensio_ll_sound.h alsa_sound.h file_sound.h
+	gensio_ll_sound.h alsa_sound.h file_sound.h gensio_filter_ratelimit.h
 
 libgensio_la_SOURCES = \
 	gensio.c gensio_osops.c gensio_base.c sergensio.c utils.c buffer.c \
@@ -34,7 +34,8 @@ libgensio_la_SOURCES = \
 	crc16.c gensio_ax25_addr.c gensio_ax25.c \
 	gensio_filter_xlt.c gensio_xlt.c gensio_keepopen.c \
 	gensio_filter_script.c gensio_script.c \
-	gensio_ll_sound.c gensio_sound.c
+	gensio_ll_sound.c gensio_sound.c \
+	gensio_filter_ratelimit.c gensio_ratelimit.c
 
 if HAVE_UNIX_OS
 libgensio_la_SOURCES += gensio_unix.c selector.c
