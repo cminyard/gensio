@@ -310,6 +310,14 @@ all the addresses that come up.  Do you may need to be fairly specific
 with addresses.
 
 In general IPv6 addresses are preferred if both are available.
+.SH "gtime"
+Time consists of a set of numbers each followed by a single letter.
+That letter may be 'D', 'H', 'M', 's', 'm', 'u', or 'n', meaning days,
+hours, minutes, seconds, milliseconds, microseconds, or nanoseconds.
+So, for instance, "10D5H4M9s100u" would be ten days, 5 hours, 4
+minutes, 9 seconds, 100 microseconds.  If a plain number with no
+letter at the end is given, the value may default to a specific unit.
+That will be specified by the specific gensio.
 .SH "TCP"
 .B tcp[(<options>)][,<hostname>],<port>[[,<hostname>],<port>[...]]
 .br
@@ -1446,6 +1454,27 @@ by the remote end, but will never be exceeded.
 .B mode=client|server
 By default a relpkt is a server on an accepter and a client on a
 connecter.  See the discussion above on clients and servers.
+.SH "ratelimit"
+accepter =
+.B ratelimit[(options)]
+.br
+connecting =
+.B ratelimit[(options)]
+
+Limit the transmit rate of data going through this filter gensio.  A
+number of bytes is let through, then transmit is delayed until the
+given delay has passed.  Receive is not currently rate limited, but
+that may be added in the future.
+.TP
+.B xmit_len=<n>
+The number of bytes to allow before a delay.  Note that the delay
+occurs after a single write succeeds, so if a single byte is written
+it will delay.  If a write is done of more than this length, it will
+be limited to this length.  Defaults to one.
+.TP
+.B xmit_delay=<gtime>
+The amount of time to wait between writes.  See the "gtime" section
+for information for this time specification.  This must be supplied.
 .SH "trace"
 accepter =
 .B trace[(options)]
