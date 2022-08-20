@@ -676,6 +676,19 @@ GENSIO_DLL_PUBLIC
 int gensio_check_keymode(const char *str, const char *key, unsigned int *rmode);
 GENSIO_DLL_PUBLIC
 int gensio_check_keyperm(const char *str, const char *key, unsigned int *rmode);
+/*
+ * Get a gensio time structure. Time consists of a set of numbers each
+ * followed by a single letter.  That letter may be 'D', 'H', 'M',
+ * 's', 'm', 'u', or 'n', meaning days, hours, minutes, seconds,
+ * milliseconds, microseconds, or nanoseconds.  So, for instance,
+ * "10D5H4M9s100u" would be ten days, 5 hours, 4 minutes, 9 seconds,
+ * 100 microseconds.  If a plain number with no letter at the end is
+ * given, then the value passed in "mod" is used.  Pass in 0 for "mod"
+ * to require the user to specify the modifier.
+ */
+GENSIO_DLL_PUBLIC
+int gensio_check_keytime(const char *str, const char *key, char mod,
+			 gensio_time *rgt);
 
 /*
  * Helper functions that don't fit anywhere else.

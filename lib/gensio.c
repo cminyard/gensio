@@ -2200,6 +2200,50 @@ gensio_check_keyperm(const char *str, const char *key, unsigned int *rmode)
     return 1;
 }
 
+int
+gensio_check_keytime(const char *str, const char *key, char mod,
+		     gensio_time *rgt)
+{
+    const char *sval;
+    char *end;
+    int rv = gensio_check_keyvalue(str, key, &sval);
+    gensio_time gt = { 0, 0 };
+    int64_t v;
+
+    if (!rv)
+	return 0;
+
+    while (true) {
+	v = strtoul(sval, &end, 0);
+	if (end == sval)
+	    return -1;
+	if (*end) {
+	    mod = *end;
+	    end++;
+	}
+	switch (mod) {
+	case 'D': gt.secs += v * 24 * 3600; break;
+	case 'H': gt.secs += v * 3600; break;
+	case 'M': gt.secs += v * 60; break;
+	case 's': gt.secs += v; break;
+	case 'm': gt.nsecs += v * 1000000; goto done;
+	case 'u': gt.nsecs += v * 1000; goto done;
+	case 'n': gt.nsecs += v; goto done;
+	default:
+	    return -1;
+	}
+	if (!*end)
+	    break;
+	sval = end;
+    }
+ done:
+    if (*end)
+	return -1;
+
+    *rgt = gt;
+    return 1;
+}
+
 void
 gensio_set_log_mask(unsigned int mask)
 {
