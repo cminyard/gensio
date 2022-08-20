@@ -1749,6 +1749,8 @@ basen_output_ready(void *cb_data)
 {
     struct basen_data *ndata = cb_data;
 
+    /* Force the lower-level callback to be enabled. */
+    ndata->ll_can_write = false;
     ll_set_write_callback_enable(ndata, true);
 }
 
