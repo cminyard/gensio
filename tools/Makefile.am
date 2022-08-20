@@ -45,7 +45,7 @@ gtlsshd_LDADD = libgtlssh.a libgensiotool.a $(top_builddir)/lib/libgensio.la \
 	@PAMLIB@ @OPENSSL_LIBS@
 
 gsound_SOURCES = gensio_sound.c
-gsound_LDADD = $(top_builddir)/lib/libgensio.la ../tools/libgensiotool.a \
+gsound_LDADD = $(top_builddir)/lib/libgensio.la libgensiotool.a \
 	@OPENSSL_LIBS@
 
 manpages = gensiot.1 gtlsshd.8 gtlssh.1 gtlssh-keygen.1 gtlssync.1 gmdns.1 \
