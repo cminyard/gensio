@@ -23,7 +23,8 @@ gensios_enabled = {
     "conacc": 1,
     "perf": 1,
     "mdns": @HAVE_AVAHI@,
-    "ax25": 1
+    "ax25": 1,
+    "ratelimit": 1
 }
 
 # Gensios that are always last in the list.
