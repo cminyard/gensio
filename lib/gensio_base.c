@@ -1801,7 +1801,9 @@ basen_filter_input_ready(void *cb_data)
 {
     struct basen_data *ndata = cb_data;
 
+    basen_lock(ndata);
     basen_set_ll_enables(ndata);
+    basen_unlock(ndata);
 }
 
 static int
