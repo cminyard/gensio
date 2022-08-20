@@ -780,7 +780,8 @@ basen_read_data_handler(void *cb_data,
     basen_unlock(ndata);
 
  out:
-    *rcount = count;
+    if (rcount)
+	*rcount = count;
     return err;
 }
 
