@@ -235,9 +235,9 @@ int gensio_filter_control(struct gensio_filter *filter, bool get,
  *
  * &val => data (pointer to a bool)
  */
-#define GENSIO_FILTER_FUNC_LL_CAN_WRITE		16
+#define GENSIO_FILTER_FUNC_UL_CAN_WRITE		16
 GENSIO_DLL_PUBLIC
-bool gensio_filter_ll_can_write(struct gensio_filter *filter);
+bool gensio_filter_ul_can_write(struct gensio_filter *filter);
 
 /*
  * Does the filter have write data queued?  This is different from

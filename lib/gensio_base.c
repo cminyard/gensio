@@ -385,10 +385,10 @@ filter_io_err(struct basen_data *ndata, int err)
 }
 
 static bool
-filter_ll_can_write(struct basen_data *ndata)
+filter_ul_can_write(struct basen_data *ndata)
 {
     if (ndata->filter)
-	return gensio_filter_ll_can_write(ndata->filter);
+	return gensio_filter_ul_can_write(ndata->filter);
     return ndata->ll_can_write;
 }
 
@@ -1021,7 +1021,7 @@ basen_deferred_op(struct gensio_runner *runner, void *cbdata)
 	    goto skip_write;
 	ndata->in_xmit_ready = true;
 	while (basen_in_write_callbackable_state(ndata) &&
-	       (filter_ll_can_write(ndata) || ndata->ll_err)
+	       (filter_ul_can_write(ndata) || ndata->ll_err)
 	       && ndata->xmit_enabled) {
 	    basen_unlock(ndata);
 	    err = gensio_cb(ndata->io, GENSIO_EVENT_WRITE_READY, 0, NULL,
@@ -1466,7 +1466,7 @@ basen_set_write_callback_enable(struct basen_data *ndata, bool enabled)
     if (!basen_in_write_callbackable_state(ndata))
 	goto out_unlock;
     ndata->xmit_enabled = enabled;
-    if (enabled && (filter_ll_can_write(ndata) || ndata->ll_err)) {
+    if (enabled && (filter_ul_can_write(ndata) || ndata->ll_err)) {
 	/* We can write, schedule the callback as a deferred op. */
 	ndata->deferred_write = true;
 	basen_sched_deferred_op(ndata);
@@ -1635,7 +1635,7 @@ basen_ll_read(void *cb_data, int readerr,
 	basen_check_open_close_ops(ndata);
 
 	while (basen_in_write_callbackable_state(ndata) &&
-	       (filter_ll_can_write(ndata) || ndata->ll_err)
+	       (filter_ul_can_write(ndata) || ndata->ll_err)
 	       && ndata->xmit_enabled) {
 	    basen_unlock(ndata);
 	    err = gensio_cb(ndata->io, GENSIO_EVENT_WRITE_READY, 0, NULL,
@@ -1698,7 +1698,7 @@ basen_ll_write_ready(void *cb_data)
     basen_check_open_close_ops(ndata);
 
     while (basen_in_write_callbackable_state(ndata) &&
-	   (filter_ll_can_write(ndata) || ndata->ll_err)
+	   (filter_ul_can_write(ndata) || ndata->ll_err)
 	   && ndata->xmit_enabled) {
 	basen_unlock(ndata);
 	err = gensio_cb(ndata->io, GENSIO_EVENT_WRITE_READY, 0, NULL, 0, NULL);
@@ -2002,13 +2002,13 @@ gensio_filter_ll_write_pending(struct gensio_filter *filter)
 }
 
 bool
-gensio_filter_ll_can_write(struct gensio_filter *filter)
+gensio_filter_ul_can_write(struct gensio_filter *filter)
 {
     bool val = true;
     int err;
 
     /* If not implemented, this will just be ignored. */
-    err = filter->func(filter, GENSIO_FILTER_FUNC_LL_CAN_WRITE,
+    err = filter->func(filter, GENSIO_FILTER_FUNC_UL_CAN_WRITE,
 		       NULL, &val, NULL, NULL, NULL, 0, NULL);
     if (err)
 	return filter->ndata->ll_can_write;

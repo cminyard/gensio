@@ -497,7 +497,7 @@ relpkt_ll_write_pending(struct relpkt_filter *rfilter)
 }
 
 static bool
-relpkt_ll_can_write(struct relpkt_filter *rfilter, bool *rv)
+relpkt_ul_can_write(struct relpkt_filter *rfilter, bool *rv)
 {
     unsigned int nrqueued = rfilter->next_send_seq - rfilter->next_acked_seq;
 
@@ -1195,8 +1195,8 @@ static int gensio_relpkt_filter_func(struct gensio_filter *filter, int op,
     case GENSIO_FILTER_FUNC_LL_WRITE_PENDING:
 	return relpkt_ll_write_pending(rfilter);
 
-    case GENSIO_FILTER_FUNC_LL_CAN_WRITE:
-	return relpkt_ll_can_write(rfilter, data);
+    case GENSIO_FILTER_FUNC_UL_CAN_WRITE:
+	return relpkt_ul_can_write(rfilter, data);
 
     case GENSIO_FILTER_FUNC_LL_WRITE_QUEUED:
 	return relpkt_ll_write_queued(rfilter, data);
