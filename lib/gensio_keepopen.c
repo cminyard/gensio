@@ -163,7 +163,7 @@ struct keepn_data {
     struct gensio *io;
 
     struct gensio_timer *retry_timer;
-    unsigned int retry_time;
+    struct gensio_time retry_time;
 
     bool read_enabled;
     bool xmit_enabled;
@@ -244,11 +244,8 @@ keepn_start_zero_timer(struct keepn_data *ndata)
 static void
 keepn_start_timer(struct keepn_data *ndata)
 {
-    gensio_time timeout = { ndata->retry_time / 1000,
-			    ndata->retry_time % 1000 };
-
     keepn_ref(ndata);
-    if (ndata->o->start_timer(ndata->retry_timer, &timeout) != 0)
+    if (ndata->o->start_timer(ndata->retry_timer, &ndata->retry_time) != 0)
 	assert(0);
 }
 
@@ -654,11 +651,11 @@ keepopen_gensio_alloc(struct gensio *child, const char * const args[],
 {
     struct keepn_data *ndata = NULL;
     int i;
-    unsigned int retry_time = 1000;
+    struct gensio_time retry_time = { 1, 0 };
     bool discard_badwrites = false;
 
     for (i = 0; args && args[i]; i++) {
-	if (gensio_check_keyuint(args[i], "retry-time", &retry_time) > 0)
+	if (gensio_check_keytime(args[i], "retry-time", 'm', &retry_time) > 0)
 	    continue;
 	if (gensio_check_keybool(args[i], "discard-badwrites",
 				 &discard_badwrites) > 0)

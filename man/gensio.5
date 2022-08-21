@@ -1940,9 +1940,9 @@ attempt to re-open it periodically.
 The readbuf option is not available in this gensio.
 .SS Options
 .TP
-.B retry-time=<n>
-Set the retry interval to n milliseconds.  The default is 1000, or 1
-second.
+.B retry-time=<gtime>
+Set the retry interval.  See the section on gtime for detail on this.
+Defaults to milliseconds it no unit given.  The default is 1 second.
 .TP
 .B discard-badwrites[=yes|no]
 Normally this gensio will flow-control the upper layer when the lower
