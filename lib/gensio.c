@@ -2236,6 +2236,10 @@ gensio_check_keytime(const char *str, const char *key, char mod,
 	default:
 	    return -1;
 	}
+	while (gt.nsecs >= 1000000000) {
+	    gt.nsecs -= 1000000000;
+	    gt.secs += 1;
+	}
 	if (!*end)
 	    break;
 	sval = end;
