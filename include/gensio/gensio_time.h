@@ -44,6 +44,8 @@ int64_t gensio_time_diff_nsecs(gensio_time *t1, gensio_time *t2);
 #define GENSIO_USECS_TO_NSECS(v) ((int64_t) (v) * 1000)
 #define GENSIO_MSECS_TO_NSECS(v) ((int64_t) (v) * 1000000)
 
+#define gensio_time_is_zero(v) ((v).secs == 0 && (v).nsecs == 0)
+
 #ifdef __cplusplus
 }
 #endif
