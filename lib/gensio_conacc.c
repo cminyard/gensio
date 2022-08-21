@@ -10,6 +10,7 @@
 #include "config.h"
 #include <assert.h>
 #include <gensio/gensio.h>
+#include <gensio/gensio_time.h>
 #include <gensio/gensio_os_funcs.h>
 #include <gensio/gensio_class.h>
 #include <gensio/gensio_base.h>
@@ -248,7 +249,7 @@ struct conaccna_data {
     struct conaccn_data *ndata;
 
     struct gensio_timer *retry_timer;
-    unsigned int retry_time;
+    struct gensio_time retry_time;
 
     bool deferred_op_pending;
     struct gensio_runner *deferred_runner;
@@ -486,7 +487,7 @@ conaccn_finish_close(struct conaccn_data *ndata)
 	    break;
 
 	case CONACCNA_READY:
-	    if (nadata->retry_time)
+	    if (!gensio_time_is_zero(nadata->retry_time))
 		start_retry(nadata);
 	    else
 		conacc_start(nadata);
@@ -585,7 +586,7 @@ conaccn_disable(struct conaccn_data *ndata)
     if (nadata) {
 	conaccna_lock(nadata);
 	nadata->ndata = NULL;
-	if (nadata->retry_time)
+	if (!gensio_time_is_zero(nadata->retry_time))
 	    start_retry(nadata);
 	else
 	    conacc_start(nadata);
@@ -644,11 +645,9 @@ static void
 start_retry(struct conaccna_data *nadata)
 {
     struct gensio_os_funcs *o = nadata->o;
-    gensio_time timeout = { nadata->retry_time / 1000,
-			    nadata->retry_time % 1000 };
 
     nadata->state = CONACCNA_WAITING_RETRY;
-    if (o->start_timer(nadata->retry_timer, &timeout) != 0)
+    if (o->start_timer(nadata->retry_timer, &nadata->retry_time) != 0)
 	assert(0);
     conaccna_ref(nadata);
 }
@@ -693,7 +692,7 @@ conaccn_open_done(struct gensio *io, int err, void *open_data)
 
     case CONACCNA_OPENING:
 	if (err) {
-	    if (nadata->retry_time) {
+	    if (!gensio_time_is_zero(nadata->retry_time)) {
 		start_retry(nadata);
 	    } else {
 		nadata->con_err = err;
@@ -771,7 +770,7 @@ conacc_start(struct conaccna_data *nadata)
  out_err:
     conaccn_finish_free(ndata);
  out_err_nofree:
-    if (nadata->retry_time) {
+    if (!gensio_time_is_zero(nadata->retry_time)) {
 	start_retry(nadata);
     } else {
 	nadata->state = CONACCNA_DEAD;
@@ -1124,11 +1123,12 @@ conacc_gensio_accepter_alloc(const char *gensio_str,
 			     struct gensio_accepter **accepter)
 {
     struct conaccna_data *nadata;
-    unsigned int i, retry_time = 0;
+    unsigned int i;
+    struct gensio_time retry_time = { 0, 0 };
     int err;
 
     for (i = 0; args && args[i]; i++) {
-	if (gensio_check_keyuint(args[i], "retry-time", &retry_time) > 0)
+	if (gensio_check_keytime(args[i], "retry-time", 'm', &retry_time) > 0)
 	    continue;
 	return GE_INVAL;
     }

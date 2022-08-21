@@ -1583,11 +1583,12 @@ in this case.
 .SS Options
 The readbuf option is not accepted.
 .TP
-.B retry-time=<time in milliseconds>
+.B retry-time=<gtime>
 Instead of restarting a closed connection immediately, this will cause
 a delay between the close and the re-open.  Also, if the connect
 fails, it will not disable itself, it will wait another retry-time
-period and try the connect again.
+period and try the connect again.  See the section on gtime above.
+The unit defaults to milliseconds.  The default value is zero.
 .SH "mdns"
 connecting =
 .B mdns[(options)][,<name>]
