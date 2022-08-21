@@ -2213,6 +2213,7 @@ gensio_check_keytime(const char *str, const char *key, char mod,
     int rv = gensio_check_keyvalue(str, key, &sval);
     gensio_time gt = { 0, 0 };
     int64_t v;
+    int64_t nsecs = 0; /* Use this to avoid overflows. */
 
     if (!rv)
 	return 0;
@@ -2230,15 +2231,21 @@ gensio_check_keytime(const char *str, const char *key, char mod,
 	case 'H': gt.secs += v * 3600; break;
 	case 'M': gt.secs += v * 60; break;
 	case 's': gt.secs += v; break;
-	case 'm': gt.nsecs += v * 1000000; goto done;
-	case 'u': gt.nsecs += v * 1000; goto done;
-	case 'n': gt.nsecs += v; goto done;
+	case 'm': nsecs += GENSIO_MSECS_TO_NSECS(v); goto done;
+	case 'u': nsecs += GENSIO_USECS_TO_NSECS(v); goto done;
+	case 'n': nsecs += v; goto done;
 	default:
 	    return -1;
 	}
-	while (gt.nsecs >= 1000000000) {
-	    gt.nsecs -= 1000000000;
-	    gt.secs += 1;
+	if (nsecs >= 10 * GENSIO_NSECS_IN_SEC) {
+	    gt.secs += nsecs / GENSIO_NSECS_IN_SEC;
+	    nsecs = nsecs % GENSIO_NSECS_IN_SEC;
+	} else {
+	    /* Avoid the division on small numbers. */
+	    while (nsecs >= GENSIO_NSECS_IN_SEC) {
+		nsecs -= GENSIO_NSECS_IN_SEC;
+		gt.secs += 1;
+	    }
 	}
 	if (!*end)
 	    break;
@@ -2246,6 +2253,7 @@ gensio_check_keytime(const char *str, const char *key, char mod,
 	sval = end;
     }
  done:
+    gt.nsecs = nsecs;
     if (*end)
 	return -1;
 
