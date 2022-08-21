@@ -2242,6 +2242,7 @@ gensio_check_keytime(const char *str, const char *key, char mod,
 	}
 	if (!*end)
 	    break;
+	mod = 0;
 	sval = end;
     }
  done:
