@@ -8,7 +8,7 @@
 from utils import *
 import gensio
 
-def do_ratelimit_test(io1, io2, timeout=2000):
+def do_ratelimit_test1(io1, io2, timeout=2000):
     data = "123456789012345" # 15 characters, 1.5 seconds.
     io1.handler.set_write_data(data)
     io2.handler.set_compare(data)
@@ -22,8 +22,15 @@ def do_ratelimit_test(io1, io2, timeout=2000):
         raise Exception(("%s: %s: " % ("test_dataxfer", io2.handler.name)) +
                         ("Read data wasn't received"))
 
-print("Test ratelimit")
+def do_ratelimit_test2(io1, io2, timeout=2000):
+    do_ratelimit_test1(io2, io1, timeout)
+
+print("Test ratelimit gensio")
 TestAccept(o, "ratelimit(xmit_delay=100m),tcp,localhost,", "tcp,0",
-           do_ratelimit_test, chunksize = 64)
+           do_ratelimit_test1, chunksize = 64)
+print("Test ratelimit accepter")
+TestAccept(o, "tcp,localhost,", "ratelimit(xmit_delay=100m),tcp,0",
+           do_ratelimit_test2, chunksize = 64)
 del o
 test_shutdown()
+print("Success!")
