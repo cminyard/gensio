@@ -191,3 +191,21 @@ str_to_ratelimit_gensio_accepter(const char *str, const char * const args[],
 
     return err;
 }
+
+int
+gensio_init_ratelimit(struct gensio_os_funcs *o)
+{
+    int rv;
+
+    rv = register_filter_gensio(o, "ratelimit",
+				str_to_ratelimit_gensio,
+				ratelimit_gensio_alloc);
+    if (rv)
+	return rv;
+    rv = register_filter_gensio_accepter(o, "ratelimit",
+					 str_to_ratelimit_gensio_accepter,
+					 ratelimit_gensio_accepter_alloc);
+    if (rv)
+	return rv;
+    return 0;
+}

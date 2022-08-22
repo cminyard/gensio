@@ -1501,31 +1501,41 @@ static struct gensio_lock *reg_gensio_acc_lock;
 static struct gensio_once gensio_str_initialized;
 static int reg_gensio_rv;
 
-#define REG_GENSIO_ACC(o, str, acc) \
-    do {								\
-	reg_gensio_rv = register_gensio_accepter(o, str, acc);	\
-	if (reg_gensio_rv)						\
-	    return;							\
-    } while(0)
-#define REG_FILT_GENSIO_ACC(o, str, acc, aloc) \
-    do {								\
-	reg_gensio_rv = register_filter_gensio_accepter(o, str, acc, aloc);\
-	if (reg_gensio_rv)						\
-	    return;							\
-    } while(0)
-#define REG_GENSIO(o, str, con) \
-    do {								\
-	reg_gensio_rv = register_gensio(o, str, con);			\
-	if (reg_gensio_rv)						\
-	    return;							\
+#define INIT_GENSIO(o, name)				\
+    do {						\
+	reg_gensio_rv = gensio_init_##name(o);		\
+	if (reg_gensio_rv)				\
+	    return;					\
     } while(0)
 
-#define REG_FILT_GENSIO(o, str, con, aloc)				\
-    do {								\
-	reg_gensio_rv = register_filter_gensio(o, str, con, aloc);	\
-	if (reg_gensio_rv)						\
-	    return;							\
-    } while(0)
+int gensio_init_net(struct gensio_os_funcs *o);
+int gensio_init_udp(struct gensio_os_funcs *o);
+int gensio_init_sctp(struct gensio_os_funcs *o);
+int gensio_init_stdio(struct gensio_os_funcs *o);
+int gensio_init_pty(struct gensio_os_funcs *o);
+int gensio_init_dummy(struct gensio_os_funcs *o);
+int gensio_init_conacc(struct gensio_os_funcs *o);
+int gensio_init_serialdev(struct gensio_os_funcs *o);
+int gensio_init_echo(struct gensio_os_funcs *o);
+int gensio_init_file(struct gensio_os_funcs *o);
+int gensio_init_ipmisol(struct gensio_os_funcs *o);
+int gensio_init_mdns(struct gensio_os_funcs *o);
+int gensio_init_sound(struct gensio_os_funcs *o);
+
+int gensio_init_ssl(struct gensio_os_funcs *o);
+int gensio_init_mux(struct gensio_os_funcs *o);
+int gensio_init_certauth(struct gensio_os_funcs *o);
+int gensio_init_telnet(struct gensio_os_funcs *o);
+int gensio_init_msgdelim(struct gensio_os_funcs *o);
+int gensio_init_relpkt(struct gensio_os_funcs *o);
+int gensio_init_ratelimit(struct gensio_os_funcs *o);
+int gensio_init_trace(struct gensio_os_funcs *o);
+int gensio_init_perf(struct gensio_os_funcs *o);
+int gensio_init_kiss(struct gensio_os_funcs *o);
+int gensio_init_ax25(struct gensio_os_funcs *o);
+int gensio_init_xlt(struct gensio_os_funcs *o);
+int gensio_init_keepopen(struct gensio_os_funcs *o);
+int gensio_init_script(struct gensio_os_funcs *o);
 
 static void
 add_default_gensios(void *cb_data)
@@ -1543,78 +1553,34 @@ add_default_gensios(void *cb_data)
 	return;
     }
 
-    REG_GENSIO_ACC(o, "tcp", str_to_tcp_gensio_accepter);
-    REG_GENSIO_ACC(o, "udp", str_to_udp_gensio_accepter);
-    REG_GENSIO_ACC(o, "sctp", str_to_sctp_gensio_accepter);
-    REG_GENSIO_ACC(o, "stdio", str_to_stdio_gensio_accepter);
-    REG_GENSIO_ACC(o, "unix", str_to_unix_gensio_accepter);
-    REG_FILT_GENSIO_ACC(o, "ssl", str_to_ssl_gensio_accepter,
-			ssl_gensio_accepter_alloc);
-    REG_FILT_GENSIO_ACC(o, "mux", str_to_mux_gensio_accepter,
-			mux_gensio_accepter_alloc);
-    REG_FILT_GENSIO_ACC(o, "certauth",
-			str_to_certauth_gensio_accepter,
-			certauth_gensio_accepter_alloc);
-    REG_FILT_GENSIO_ACC(o, "telnet", str_to_telnet_gensio_accepter,
-			telnet_gensio_accepter_alloc);
-    REG_GENSIO_ACC(o, "dummy", str_to_dummy_gensio_accepter);
-    REG_FILT_GENSIO_ACC(o, "msgdelim", str_to_msgdelim_gensio_accepter,
-			msgdelim_gensio_accepter_alloc);
-    REG_FILT_GENSIO_ACC(o, "relpkt", str_to_relpkt_gensio_accepter,
-			relpkt_gensio_accepter_alloc);
-    REG_FILT_GENSIO_ACC(o, "ratelimit", str_to_ratelimit_gensio_accepter,
-			ratelimit_gensio_accepter_alloc);
-    REG_FILT_GENSIO_ACC(o, "trace", str_to_trace_gensio_accepter,
-			trace_gensio_accepter_alloc);
-    REG_FILT_GENSIO_ACC(o, "perf", str_to_perf_gensio_accepter,
-			perf_gensio_accepter_alloc);
-    REG_GENSIO_ACC(o, "conacc", str_to_conacc_gensio_accepter);
-    REG_FILT_GENSIO_ACC(o, "kiss", str_to_kiss_gensio_accepter,
-			kiss_gensio_accepter_alloc);
-    REG_FILT_GENSIO_ACC(o, "ax25", str_to_ax25_gensio_accepter,
-			ax25_gensio_accepter_alloc);
-    REG_FILT_GENSIO_ACC(o, "xlt", str_to_xlt_gensio_accepter,
-			xlt_gensio_accepter_alloc);
-    REG_FILT_GENSIO_ACC(o, "script", str_to_script_gensio_accepter,
-			script_gensio_accepter_alloc);
+    INIT_GENSIO(o, net);
+    INIT_GENSIO(o, udp);
+    INIT_GENSIO(o, sctp);
+    INIT_GENSIO(o, stdio);
+    INIT_GENSIO(o, pty);
+    INIT_GENSIO(o, dummy);
+    INIT_GENSIO(o, conacc);
+    INIT_GENSIO(o, serialdev);
+    INIT_GENSIO(o, echo);
+    INIT_GENSIO(o, file);
+    INIT_GENSIO(o, ipmisol);
+    INIT_GENSIO(o, mdns);
+    INIT_GENSIO(o, sound);
 
-    REG_GENSIO(o, "tcp", str_to_tcp_gensio);
-    REG_GENSIO(o, "udp", str_to_udp_gensio);
-    REG_GENSIO(o, "sctp", str_to_sctp_gensio);
-    REG_GENSIO(o, "unix", str_to_unix_gensio);
-    REG_GENSIO(o, "stdio", str_to_stdio_gensio);
-    REG_GENSIO(o, "pty", str_to_pty_gensio);
-    REG_FILT_GENSIO(o, "ssl", str_to_ssl_gensio, ssl_gensio_alloc);
-    REG_FILT_GENSIO(o, "mux", str_to_mux_gensio, mux_gensio_alloc);
-    REG_FILT_GENSIO(o, "certauth", str_to_certauth_gensio,
-		    certauth_gensio_alloc);
-    REG_FILT_GENSIO(o, "telnet", str_to_telnet_gensio, telnet_gensio_alloc);
-    REG_GENSIO(o, "serialdev", str_to_serialdev_gensio);
-    REG_GENSIO(o, "echo", str_to_echo_gensio);
-    REG_GENSIO(o, "file", str_to_file_gensio);
-    REG_GENSIO(o, "ipmisol", str_to_ipmisol_gensio);
-    REG_GENSIO(o, "mdns", str_to_mdns_gensio);
-    REG_GENSIO(o, "sound", str_to_sound_gensio);
-    REG_FILT_GENSIO(o, "msgdelim", str_to_msgdelim_gensio,
-		    msgdelim_gensio_alloc);
-    REG_FILT_GENSIO(o, "relpkt", str_to_relpkt_gensio,
-		    relpkt_gensio_alloc);
-    REG_FILT_GENSIO(o, "ratelimit", str_to_ratelimit_gensio,
-		    ratelimit_gensio_alloc);
-    REG_FILT_GENSIO(o, "trace", str_to_trace_gensio,
-		    trace_gensio_alloc);
-    REG_FILT_GENSIO(o, "perf", str_to_perf_gensio,
-		    perf_gensio_alloc);
-    REG_FILT_GENSIO(o, "kiss", str_to_kiss_gensio,
-		    kiss_gensio_alloc);
-    REG_FILT_GENSIO(o, "ax25", str_to_ax25_gensio,
-		    ax25_gensio_alloc);
-    REG_FILT_GENSIO(o, "xlt", str_to_xlt_gensio,
-		    xlt_gensio_alloc);
-    REG_FILT_GENSIO(o, "keepopen", str_to_keepopen_gensio,
-		    keepopen_gensio_alloc);
-    REG_FILT_GENSIO(o, "script", str_to_script_gensio,
-		    script_gensio_alloc);
+    INIT_GENSIO(o, ssl);
+    INIT_GENSIO(o, mux);
+    INIT_GENSIO(o, certauth);
+    INIT_GENSIO(o, telnet);
+    INIT_GENSIO(o, msgdelim);
+    INIT_GENSIO(o, relpkt);
+    INIT_GENSIO(o, ratelimit);
+    INIT_GENSIO(o, trace);
+    INIT_GENSIO(o, perf);
+    INIT_GENSIO(o, kiss);
+    INIT_GENSIO(o, ax25);
+    INIT_GENSIO(o, xlt);
+    INIT_GENSIO(o, keepopen);
+    INIT_GENSIO(o, script);
 }
 
 int

@@ -200,3 +200,20 @@ str_to_perf_gensio_accepter(const char *str, const char * const args[],
 
     return err;
 }
+
+int
+gensio_init_perf(struct gensio_os_funcs *o)
+{
+    int rv;
+
+    rv = register_filter_gensio(o, "perf",
+				str_to_perf_gensio, perf_gensio_alloc);
+    if (rv)
+	return rv;
+    rv = register_filter_gensio_accepter(o, "perf",
+					 str_to_perf_gensio_accepter,
+					 perf_gensio_accepter_alloc);
+    if (rv)
+	return rv;
+    return 0;
+}

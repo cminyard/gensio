@@ -834,3 +834,14 @@ str_to_pty_gensio(const char *str, const char * const args[],
 }
 
 #endif
+
+int
+gensio_init_pty(struct gensio_os_funcs *o)
+{
+    int rv;
+
+    rv = register_gensio(o, "pty", str_to_pty_gensio);
+    if (rv)
+	return rv;
+    return 0;
+}

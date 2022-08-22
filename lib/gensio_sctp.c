@@ -1137,3 +1137,17 @@ str_to_sctp_gensio_accepter(const char *str, const char * const args[],
     return GE_NOTSUP;
 }
 #endif
+
+int
+gensio_init_sctp(struct gensio_os_funcs *o)
+{
+    int rv;
+
+    rv = register_gensio(o, "sctp", str_to_sctp_gensio);
+    if (rv)
+	return rv;
+    rv = register_gensio_accepter(o, "sctp", str_to_sctp_gensio_accepter);
+    if (rv)
+	return rv;
+    return 0;
+}

@@ -117,3 +117,14 @@ str_to_ipmisol_gensio(const char *str, const char * const args[],
 {
     return ipmisol_gensio_alloc(str, args, o, cb, user_data, new_gensio);
 }
+
+int
+gensio_init_ipmisol(struct gensio_os_funcs *o)
+{
+    int rv;
+
+    rv = register_gensio(o, "ipmisol", str_to_ipmisol_gensio);
+    if (rv)
+	return rv;
+    return 0;
+}

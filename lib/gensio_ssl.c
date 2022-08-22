@@ -278,3 +278,20 @@ str_to_ssl_gensio_accepter(const char *str, const char * const args[],
 }
 
 #endif /* HAVE_OPENSSL */
+
+int
+gensio_init_ssl(struct gensio_os_funcs *o)
+{
+    int rv;
+
+    rv = register_filter_gensio(o, "ssl",
+				str_to_ssl_gensio, ssl_gensio_alloc);
+    if (rv)
+	return rv;
+    rv = register_filter_gensio_accepter(o, "ssl",
+					 str_to_ssl_gensio_accepter,
+					 ssl_gensio_accepter_alloc);
+    if (rv)
+	return rv;
+    return 0;
+}

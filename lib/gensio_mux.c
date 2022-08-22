@@ -2984,3 +2984,20 @@ str_to_mux_gensio_accepter(const char *str, const char * const args[],
 
     return err;
 }
+
+int
+gensio_init_mux(struct gensio_os_funcs *o)
+{
+    int rv;
+
+    rv = register_filter_gensio(o, "mux",
+				str_to_mux_gensio, mux_gensio_alloc);
+    if (rv)
+	return rv;
+    rv = register_filter_gensio_accepter(o, "mux",
+					 str_to_mux_gensio_accepter,
+					 mux_gensio_accepter_alloc);
+    if (rv)
+	return rv;
+    return 0;
+}

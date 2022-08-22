@@ -183,3 +183,14 @@ str_to_sound_gensio(const char *str, const char * const args[],
 {
     return sound_gensio_alloc(str, args, o, cb, user_data, new_gensio);
 }
+
+int
+gensio_init_sound(struct gensio_os_funcs *o)
+{
+    int rv;
+
+    rv = register_gensio(o, "sound", str_to_sound_gensio);
+    if (rv)
+	return rv;
+    return 0;
+}

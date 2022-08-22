@@ -716,3 +716,15 @@ str_to_keepopen_gensio(const char *str, const char * const args[],
 
     return err;
 }
+
+int
+gensio_init_keepopen(struct gensio_os_funcs *o)
+{
+    int rv;
+
+    rv = register_filter_gensio(o, "keepopen",
+				str_to_keepopen_gensio, keepopen_gensio_alloc);
+    if (rv)
+	return rv;
+    return 0;
+}

@@ -946,3 +946,14 @@ str_to_mdns_gensio(const char *str, const char * const args[],
 }
 
 #endif
+
+int
+gensio_init_mdns(struct gensio_os_funcs *o)
+{
+    int rv;
+
+    rv = register_gensio(o, "mdns", str_to_mdns_gensio);
+    if (rv)
+	return rv;
+    return 0;
+}
