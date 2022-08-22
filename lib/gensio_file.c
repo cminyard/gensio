@@ -718,3 +718,14 @@ str_to_file_gensio(const char *str, const char * const args[],
 {
     return file_gensio_alloc(args, o, cb, user_data, new_gensio);
 }
+
+int
+gensio_init_file(struct gensio_os_funcs *o)
+{
+    int rv;
+
+    rv = register_gensio(o, "file", str_to_file_gensio);
+    if (rv)
+	return rv;
+    return 0;
+}

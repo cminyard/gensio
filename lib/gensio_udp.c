@@ -1957,3 +1957,17 @@ str_to_udp_gensio(const char *str, const char * const args[],
     gensio_addr_free(addr);
     return err;
 }
+
+int
+gensio_init_udp(struct gensio_os_funcs *o)
+{
+    int rv;
+
+    rv = register_gensio(o, "udp", str_to_udp_gensio);
+    if (rv)
+	return rv;
+    rv = register_gensio_accepter(o, "udp", str_to_udp_gensio_accepter);
+    if (rv)
+	return rv;
+    return 0;
+}

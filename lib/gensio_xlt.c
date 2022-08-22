@@ -196,3 +196,20 @@ str_to_xlt_gensio_accepter(const char *str, const char * const args[],
 
     return err;
 }
+
+int
+gensio_init_xlt(struct gensio_os_funcs *o)
+{
+    int rv;
+
+    rv = register_filter_gensio(o, "xlt",
+				str_to_xlt_gensio, xlt_gensio_alloc);
+    if (rv)
+	return rv;
+    rv = register_filter_gensio_accepter(o, "xlt",
+					 str_to_xlt_gensio_accepter,
+					 xlt_gensio_accepter_alloc);
+    if (rv)
+	return rv;
+    return 0;
+}

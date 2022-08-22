@@ -1285,3 +1285,20 @@ str_to_telnet_gensio_accepter(const char *str, const char * const args[],
 
     return err;
 }
+
+int
+gensio_init_telnet(struct gensio_os_funcs *o)
+{
+    int rv;
+
+    rv = register_filter_gensio(o, "telnet",
+				str_to_telnet_gensio, telnet_gensio_alloc);
+    if (rv)
+	return rv;
+    rv = register_filter_gensio_accepter(o, "telnet",
+					 str_to_telnet_gensio_accepter,
+					 telnet_gensio_accepter_alloc);
+    if (rv)
+	return rv;
+    return 0;
+}

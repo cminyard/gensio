@@ -1350,3 +1350,23 @@ str_to_unix_gensio_accepter(const char *str, const char * const args[],
     return str_to_net_gensio_accepter(str, args, GENSIO_NET_PROTOCOL_UNIX,
 				      "unix", o, cb, user_data, acc);
 }
+
+int
+gensio_init_net(struct gensio_os_funcs *o)
+{
+    int rv;
+
+    rv = register_gensio(o, "tcp", str_to_tcp_gensio);
+    if (rv)
+	return rv;
+    rv = register_gensio_accepter(o, "tcp", str_to_tcp_gensio_accepter);
+    if (rv)
+	return rv;
+    rv = register_gensio(o, "unix", str_to_unix_gensio);
+    if (rv)
+	return rv;
+    rv = register_gensio_accepter(o, "unix", str_to_unix_gensio_accepter);
+    if (rv)
+	return rv;
+    return 0;
+}

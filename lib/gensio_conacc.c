@@ -1182,3 +1182,14 @@ str_to_conacc_gensio_accepter(const char *str, const char * const args[],
 {
     return conacc_gensio_accepter_alloc(str, args, o, cb, user_data, acc);
 }
+
+int
+gensio_init_conacc(struct gensio_os_funcs *o)
+{
+    int rv;
+
+    rv = register_gensio_accepter(o, "conacc", str_to_conacc_gensio_accepter);
+    if (rv)
+	return rv;
+    return 0;
+}

@@ -264,3 +264,14 @@ str_to_dummy_gensio_accepter(const char *str, const char * const args[],
 {
     return dummy_gensio_accepter_alloc(args, o, cb, user_data, acc);
 }
+
+int
+gensio_init_dummy(struct gensio_os_funcs *o)
+{
+    int rv;
+
+    rv = register_gensio_accepter(o, "dummy", str_to_dummy_gensio_accepter);
+    if (rv)
+	return rv;
+    return 0;
+}

@@ -193,3 +193,20 @@ str_to_msgdelim_gensio_accepter(const char *str, const char * const args[],
 
     return err;
 }
+
+int
+gensio_init_msgdelim(struct gensio_os_funcs *o)
+{
+    int rv;
+
+    rv = register_filter_gensio(o, "msgdelim",
+				str_to_msgdelim_gensio, msgdelim_gensio_alloc);
+    if (rv)
+	return rv;
+    rv = register_filter_gensio_accepter(o, "msgdelim",
+					 str_to_msgdelim_gensio_accepter,
+					 msgdelim_gensio_accepter_alloc);
+    if (rv)
+	return rv;
+    return 0;
+}

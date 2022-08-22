@@ -342,3 +342,20 @@ str_to_certauth_gensio_accepter(const char *str, const char * const args[],
 }
 
 #endif /* HAVE_OPENSSL */
+
+int
+gensio_init_certauth(struct gensio_os_funcs *o)
+{
+    int rv;
+
+    rv = register_filter_gensio(o, "certauth",
+				str_to_certauth_gensio, certauth_gensio_alloc);
+    if (rv)
+	return rv;
+    rv = register_filter_gensio_accepter(o, "certauth",
+					 str_to_certauth_gensio_accepter,
+					 certauth_gensio_accepter_alloc);
+    if (rv)
+	return rv;
+    return 0;
+}

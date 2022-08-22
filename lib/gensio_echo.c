@@ -466,3 +466,14 @@ str_to_echo_gensio(const char *str, const char * const args[],
 {
     return echo_gensio_alloc(args, o, cb, user_data, new_gensio);
 }
+
+int
+gensio_init_echo(struct gensio_os_funcs *o)
+{
+    int rv;
+
+    rv = register_gensio(o, "echo", str_to_echo_gensio);
+    if (rv)
+	return rv;
+    return 0;
+}

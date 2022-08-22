@@ -1571,3 +1571,17 @@ str_to_stdio_gensio_accepter(const char *str, const char * const args[],
 {
     return stdio_gensio_accepter_alloc(args, o, cb, user_data, acc);
 }
+
+int
+gensio_init_stdio(struct gensio_os_funcs *o)
+{
+    int rv;
+
+    rv = register_gensio(o, "stdio", str_to_stdio_gensio);
+    if (rv)
+	return rv;
+    rv = register_gensio_accepter(o, "stdio", str_to_stdio_gensio_accepter);
+    if (rv)
+	return rv;
+    return 0;
+}
