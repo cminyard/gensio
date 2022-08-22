@@ -255,7 +255,7 @@ dummy_gensio_accepter_alloc(const char * const args[],
     return 0;
 }
 
-int
+static int
 str_to_dummy_gensio_accepter(const char *str, const char * const args[],
 			     struct gensio_os_funcs *o,
 			     gensio_accepter_event cb,

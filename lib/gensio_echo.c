@@ -458,7 +458,7 @@ echo_gensio_alloc(const char * const args[],
     return GE_NOMEM;
 }
 
-int
+static int
 str_to_echo_gensio(const char *str, const char * const args[],
 		   struct gensio_os_funcs *o,
 		   gensio_event cb, void *user_data,

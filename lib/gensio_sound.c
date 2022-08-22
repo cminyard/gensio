@@ -175,7 +175,7 @@ sound_gensio_alloc(const char *devname, const char * const args[],
     return err;
 }
 
-int
+static int
 str_to_sound_gensio(const char *str, const char * const args[],
 		    struct gensio_os_funcs *o,
 		    gensio_event cb, void *user_data,

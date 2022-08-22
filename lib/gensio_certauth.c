@@ -86,7 +86,7 @@ certauth_gensio_alloc(struct gensio *child, const char *const args[],
     return 0;
 }
 
-int
+static int
 str_to_certauth_gensio(const char *str, const char * const args[],
 		       struct gensio_os_funcs *o,
 		       gensio_event cb, void *user_data,
@@ -282,7 +282,7 @@ certauth_gensio_accepter_alloc(struct gensio_accepter *child,
     return err;
 }
 
-int
+static int
 str_to_certauth_gensio_accepter(const char *str, const char * const args[],
 				struct gensio_os_funcs *o,
 				gensio_accepter_event cb,
@@ -312,7 +312,7 @@ certauth_gensio_alloc(struct gensio *child, const char * const args[],
     return GE_NOTSUP;
 }
 
-int
+static int
 str_to_certauth_gensio(const char *str, const char * const args[],
 		  struct gensio_os_funcs *o,
 		  gensio_event cb, void *user_data,
@@ -331,7 +331,7 @@ certauth_gensio_accepter_alloc(struct gensio_accepter *child,
     return GE_NOTSUP;
 }
 
-int
+static int
 str_to_certauth_gensio_accepter(const char *str, const char * const args[],
 				struct gensio_os_funcs *o,
 				gensio_accepter_event cb,

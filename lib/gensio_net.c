@@ -482,7 +482,7 @@ tcp_gensio_alloc(const struct gensio_addr *iai, const char * const args[],
     return net_gensio_alloc(iai, args, o, cb, user_data, "tcp", new_gensio);
 }
 
-int
+static int
 str_to_tcp_gensio(const char *str, const char * const args[],
 		  struct gensio_os_funcs *o,
 		  gensio_event cb, void *user_data,
@@ -505,7 +505,7 @@ unix_gensio_alloc(const struct gensio_addr *iai, const char * const args[],
 #endif
 }
 
-int
+static int
 str_to_unix_gensio(const char *str, const char * const args[],
 		   struct gensio_os_funcs *o,
 		   gensio_event cb, void *user_data,
@@ -1314,7 +1314,7 @@ tcp_gensio_accepter_alloc(struct gensio_addr *iai,
 				     accepter);
 }
 
-int
+static int
 str_to_tcp_gensio_accepter(const char *str, const char * const args[],
 			   struct gensio_os_funcs *o,
 			   gensio_accepter_event cb,
@@ -1340,7 +1340,7 @@ unix_gensio_accepter_alloc(struct gensio_addr *iai,
 #endif
 }
 
-int
+static int
 str_to_unix_gensio_accepter(const char *str, const char * const args[],
 			    struct gensio_os_funcs *o,
 			    gensio_accepter_event cb,

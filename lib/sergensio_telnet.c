@@ -1024,7 +1024,7 @@ telnet_gensio_alloc(struct gensio *child, const char * const args[],
     return err;
 }
 
-int
+static int
 str_to_telnet_gensio(const char *str, const char * const args[],
 		     struct gensio_os_funcs *o,
 		     gensio_event cb, void *user_data,
@@ -1266,7 +1266,7 @@ telnet_gensio_accepter_alloc(struct gensio_accepter *child,
     return err;
 }
 
-int
+static int
 str_to_telnet_gensio_accepter(const char *str, const char * const args[],
 			      struct gensio_os_funcs *o,
 			      gensio_accepter_event cb,
