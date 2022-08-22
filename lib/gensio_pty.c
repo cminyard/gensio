@@ -792,7 +792,7 @@ pty_gensio_alloc(const char * const argv[], const char * const args[],
     return err;
 }
 
-int
+static int
 str_to_pty_gensio(const char *str, const char * const args[],
 		  struct gensio_os_funcs *o,
 		  gensio_event cb, void *user_data,
@@ -824,7 +824,7 @@ pty_gensio_alloc(const char * const argv[], const char * const args[],
     return GE_NOTSUP;
 }
 
-int
+static int
 str_to_pty_gensio(const char *str, const char * const args[],
 		  struct gensio_os_funcs *o,
 		  gensio_event cb, void *user_data,

@@ -1173,7 +1173,7 @@ conacc_gensio_accepter_alloc(const char *gensio_str,
     return err;
 }
 
-int
+static int
 str_to_conacc_gensio_accepter(const char *str, const char * const args[],
 			      struct gensio_os_funcs *o,
 			      gensio_accepter_event cb,

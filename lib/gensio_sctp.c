@@ -514,7 +514,7 @@ sctp_gensio_alloc(const struct gensio_addr *iai, const char * const args[],
     return err;
 }
 
-int
+static int
 str_to_sctp_gensio(const char *str, const char * const args[],
 		  struct gensio_os_funcs *o,
 		  gensio_event cb, void *user_data,
@@ -1077,7 +1077,7 @@ sctp_gensio_accepter_alloc(struct gensio_addr *iai,
     return err;
 }
 
-int
+static int
 str_to_sctp_gensio_accepter(const char *str, const char * const args[],
 			    struct gensio_os_funcs *o,
 			    gensio_accepter_event cb,
@@ -1108,7 +1108,7 @@ sctp_gensio_alloc(const struct gensio_addr *iai, const char * const args[],
     return GE_NOTSUP;
 }
 
-int
+static int
 str_to_sctp_gensio(const char *str, const char * const args[],
 		  struct gensio_os_funcs *o,
 		  gensio_event cb, void *user_data,
@@ -1127,7 +1127,7 @@ sctp_gensio_accepter_alloc(struct gensio_addr *iai,
     return GE_NOTSUP;
 }
 
-int
+static int
 str_to_sctp_gensio_accepter(const char *str, const char * const args[],
 			    struct gensio_os_funcs *o,
 			    gensio_accepter_event cb,

@@ -1764,6 +1764,16 @@ register_gensio(struct gensio_os_funcs *o,
     return register_filter_gensio(o, name, handler, NULL);
 }
 
+static bool
+is_serialdev_default_gensio(const char *str)
+{
+#if _WIN32
+    return strncmp(str, "COM", 3) == 0;
+#else
+    return *str == '/';
+#endif
+}
+
 int
 str_to_gensio(const char *str,
 	      struct gensio_os_funcs *o,
@@ -1802,19 +1812,16 @@ str_to_gensio(const char *str,
 	return err;
     }
 
-#if _WIN32
-    if (strncmp(str, "COM", 3) == 0) {
-	err = str_to_serialdev_gensio(str, NULL, o, cb, user_data,
-				      gensio);
+    if (is_serialdev_default_gensio(str)) {
+	char *nstr = gensio_alloc_sprintf(o, "serialdev,%s", str);
+
+	if (!nstr)
+	    return GE_NOMEM;
+	
+	err = str_to_gensio(nstr, o, cb, user_data, gensio);
+	o->free(o, nstr);
 	goto out;
     }
-#else
-    if (*str == '/') {
-	err = str_to_serialdev_gensio(str, NULL, o, cb, user_data,
-				      gensio);
-	goto out;
-    }
-#endif
 
     err = gensio_scan_network_port(o, str, false, &ai, &protocol,
 				   &is_port_set, NULL, &args);
