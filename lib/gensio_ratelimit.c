@@ -145,9 +145,6 @@ ratelimit_gensio_accepter_alloc(struct gensio_accepter *child,
     struct ratelimitna_data *nadata;
     int err;
 
-    if (!gensio_acc_is_packet(child))
-	return GE_INVAL;
-
     nadata = o->zalloc(o, sizeof(*nadata));
     if (!nadata)
 	return GE_NOMEM;
