@@ -267,19 +267,28 @@ typedef int (*str_to_gensio_acc_handler)(const char *str,
 					 gensio_accepter_event cb,
 					 void *user_data,
 					 struct gensio_accepter **new_gensio);
-typedef int (*str_to_gensio_acc_child_handler)(struct gensio_accepter *child,
+typedef int (*gensio_terminal_acc_alloch)(const void *gdata,
 					 const char * const args[],
 					 struct gensio_os_funcs *o,
 					 gensio_accepter_event cb,
 					 void *user_data,
-					 struct gensio_accepter **new_gensio);
+					 struct gensio_accepter **new_accepter);
+typedef int (*gensio_filter_acc_alloch)(struct gensio_accepter *child,
+					const char * const args[],
+					struct gensio_os_funcs *o,
+					gensio_accepter_event cb,
+					void *user_data,
+					struct gensio_accepter **new_accepter);
+
+
 /*
  * Add a gensio accepter to the set of registered gensio accepters.
  */
 GENSIO_DLL_PUBLIC
 int register_gensio_accepter(struct gensio_os_funcs *o,
 			     const char *name,
-			     str_to_gensio_acc_handler handler);
+			     str_to_gensio_acc_handler handler,
+			     gensio_terminal_acc_alloch alloc);
 
 /*
  * Like above, but use for filter gensios so str_to_gensio_accepter_child()
@@ -289,7 +298,7 @@ GENSIO_DLL_PUBLIC
 int register_filter_gensio_accepter(struct gensio_os_funcs *o,
 				    const char *name,
 				    str_to_gensio_acc_handler handler,
-				    str_to_gensio_acc_child_handler chandler);
+				    gensio_filter_acc_alloch alloc);
 
 /*
  * Handler registered so that str_to_gensio can process a gensio.
@@ -299,32 +308,39 @@ typedef int (*str_to_gensio_handler)(const char *str, const char * const args[],
 				     struct gensio_os_funcs *o,
 				     gensio_event cb, void *user_data,
 				     struct gensio **new_gensio);
+typedef int (*gensio_terminal_alloch)(const void *gdata,
+				     const char * const args[],
+				     struct gensio_os_funcs *o,
+				     gensio_event cb, void *user_data,
+				     struct gensio **new_gensio);
 
 /*
  * Add a gensio to the set of registered gensios.
  */
 GENSIO_DLL_PUBLIC
 int register_gensio(struct gensio_os_funcs *o,
-		    const char *name, str_to_gensio_handler handler);
+		    const char *name, str_to_gensio_handler handler,
+		    gensio_terminal_alloch alloc);
 
 /*
  * Handler registered so that str_to_gensio_child can process a filter
  * gensio with a child.  This is so users can create their own gensio
  * filter types.
  */
-typedef int (*str_to_gensio_child_handler)(struct gensio *child,
-					   const char * const args[],
-					   struct gensio_os_funcs *o,
-					   gensio_event cb, void *user_data,
-					   struct gensio **new_gensio);
+typedef int (*gensio_filter_alloch)(struct gensio *child,
+				    const char * const args[],
+				    struct gensio_os_funcs *o,
+				    gensio_event cb, void *user_data,
+				    struct gensio **new_gensio);
 
 /*
  * Add a filter gensio to the set of gensios.
  */
 GENSIO_DLL_PUBLIC
 int register_filter_gensio(struct gensio_os_funcs *o,
-			   const char *name, str_to_gensio_handler handler,
-			   str_to_gensio_child_handler chandler);
+			   const char *name,
+			   str_to_gensio_handler handler,
+			   gensio_filter_alloch alloc);
 
 struct gensio_class_cleanup {
     void (*cleanup)(void);

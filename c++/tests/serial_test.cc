@@ -13,7 +13,6 @@
 
 #include <iostream>
 #include <gensio/gensio>
-#include <gensio/gensio_classes>
 using namespace std;
 using namespace gensios;
 
@@ -69,11 +68,13 @@ int main(int argc, char *argv[])
     Waiter w(o);
     static const char *serial_parms[] = { "nouucplock=false", NULL };
 #ifdef _WIN32
-    Serial_Gensio *sg = new Serialdev("COM1,9600N81", serial_parms, o, NULL);
+    Gensio *bg = gensio_alloc("serialdev", "COM1,9600N81", serial_parms,
+			      o, NULL);
 #else
-    Serial_Gensio *sg = new Serialdev("/dev/ttyEcho0,9600N81", serial_parms,
-				      o, NULL);
+    Gensio *bg = gensio_alloc("serialdev", "/dev/ttyEcho0,9600n81",
+			      serial_parms, o, NULL);
 #endif
+    Serial_Gensio *sg = (Serial_Gensio *) bg;
     GensioW g(sg); // Take over lifetime of the gensio
     unsigned int v;
 

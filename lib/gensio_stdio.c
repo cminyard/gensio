@@ -17,7 +17,6 @@
 
 #include <gensio/gensio.h>
 #include <gensio/gensio_osops.h>
-#include <gensio/gensio_builtins.h>
 #include <gensio/gensio_class.h>
 
 #include "utils.h"
@@ -1169,7 +1168,7 @@ setup_self(struct stdiona_data *nadata, bool console)
     return 0;
 }
 
-int
+static int
 stdio_gensio_alloc(const void *gdata, const char * const args[],
 		   struct gensio_os_funcs *o,
 		   gensio_event cb, void *user_data,
@@ -1495,7 +1494,7 @@ gensio_acc_stdio_func(struct gensio_accepter *acc, int func, int val,
     }
 }
 
-int
+static int
 stdio_gensio_accepter_alloc(const void *gdata,
 			    const char * const args[],
 			    struct gensio_os_funcs *o,
@@ -1579,10 +1578,11 @@ gensio_init_stdio(struct gensio_os_funcs *o)
 {
     int rv;
 
-    rv = register_gensio(o, "stdio", str_to_stdio_gensio);
+    rv = register_gensio(o, "stdio", str_to_stdio_gensio, stdio_gensio_alloc);
     if (rv)
 	return rv;
-    rv = register_gensio_accepter(o, "stdio", str_to_stdio_gensio_accepter);
+    rv = register_gensio_accepter(o, "stdio", str_to_stdio_gensio_accepter,
+				  stdio_gensio_accepter_alloc);
     if (rv)
 	return rv;
     return 0;

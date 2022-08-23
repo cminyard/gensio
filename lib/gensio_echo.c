@@ -15,7 +15,6 @@
 #include <gensio/gensio_os_funcs.h>
 #include <gensio/gensio_class.h>
 #include <gensio/argvutils.h>
-#include <gensio/gensio_builtins.h>
 #include <gensio/gensio_circbuf.h>
 
 enum echon_state {
@@ -400,7 +399,7 @@ echo_ndata_setup(struct gensio_os_funcs *o, gensiods max_read_size,
     return GE_NOMEM;
 }
 
-int
+static int
 echo_gensio_alloc(const void *gdata,
 		  const char * const args[],
 		  struct gensio_os_funcs *o,
@@ -473,7 +472,7 @@ gensio_init_echo(struct gensio_os_funcs *o)
 {
     int rv;
 
-    rv = register_gensio(o, "echo", str_to_echo_gensio);
+    rv = register_gensio(o, "echo", str_to_echo_gensio, echo_gensio_alloc);
     if (rv)
 	return rv;
     return 0;

@@ -30,7 +30,6 @@
 #include <assert.h>
 
 #include <gensio/gensio.h>
-#include <gensio/gensio_builtins.h>
 #include <gensio/gensio_list.h>
 #include <gensio/argvutils.h>
 
@@ -2457,7 +2456,8 @@ open_mux(struct gensio **io, struct auth_data *auth, struct gensio **nio)
 				       "readbuf=1048128",
 				       NULL };
 
-    err = mux_gensio_alloc(*io, isclient, o, mux_event, auth, &mux_io);
+    err = gensio_filter_alloc("mux", *io, isclient, o, mux_event, auth,
+			      &mux_io);
     if (err) {
 	log_event(LOG_ERR, "Unable to allocate mux gensio: %s",
 		  gensio_err_to_str(err));
@@ -2531,7 +2531,7 @@ handle_new(struct gensio *net_io)
     auth->pam_conv.appdata_ptr = auth;
 #endif
 
-    err = ssl_gensio_alloc(net_io, ssl_args, o, NULL, NULL, &ssl_io);
+    err = gensio_filter_alloc("ssl", net_io, ssl_args, o, NULL, NULL, &ssl_io);
     if (err) {
 	log_event(LOG_ERR, "Unable to allocate SSL gensio: %s",
 		  gensio_err_to_str(err));
@@ -2552,8 +2552,8 @@ handle_new(struct gensio *net_io)
     if (do_2fa)
 	certauth_args[i++] = "enable-2fa";
 
-    err = certauth_gensio_alloc(ssl_io, certauth_args, o,
-				certauth_event, auth, &certauth_io);
+    err = gensio_filter_alloc("certauth", ssl_io, certauth_args, o,
+			      certauth_event, auth, &certauth_io);
     if (err) {
 	log_event(LOG_ERR, "Unable to allocate certauth gensio: %s",
 		  gensio_err_to_str(err));

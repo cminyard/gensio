@@ -5,12 +5,11 @@
 //  SPDX-License-Identifier: LGPL-2.1-only
 
 #include <map>
-#include <gensio/gensio_classes>
+#include <gensio/gensio>
 #include <string.h>
 #include <stdarg.h>
 
 namespace gensios {
-#include <gensio/gensio_builtins.h>
 #include <gensio/gensio_osops.h>
 
     std::string err_to_string(int err) {
@@ -478,190 +477,6 @@ namespace gensios {
     }
 
     Gensio *
-    alloc_tcp_class(Os_Funcs &o,
-		    struct gensio *io)
-    {
-	return new Tcp(o);
-    }
-
-    Gensio *
-    alloc_udp_class(Os_Funcs &o,
-		    struct gensio *io)
-    {
-	return new Udp(o);
-    }
-
-    Gensio *
-    alloc_unix_class(Os_Funcs &o,
-		     struct gensio *io)
-    {
-	return new Unix(o);
-    }
-
-    Gensio *
-    alloc_sctp_class(Os_Funcs &o,
-		     struct gensio *io)
-    {
-	return new Sctp(o);
-    }
-
-    Gensio *
-    alloc_stdio_class(Os_Funcs &o,
-		      struct gensio *io)
-    {
-	return new Stdio(o);
-    }
-
-    Gensio *
-    alloc_pty_class(Os_Funcs &o,
-		    struct gensio *io)
-    {
-	return new Pty(o);
-    }
-
-    Gensio *
-    alloc_echo_class(Os_Funcs &o,
-		     struct gensio *io)
-    {
-	return new Echo(o);
-    }
-
-    Gensio *
-    alloc_file_class(Os_Funcs &o,
-		     struct gensio *io)
-    {
-	return new File(o);
-    }
-
-    Gensio *
-    alloc_mdns_class(Os_Funcs &o,
-		     struct gensio *io)
-    {
-	return new Mdns(o);
-    }
-
-    Gensio *
-    alloc_serialdev_class(Os_Funcs &o,
-			  struct gensio *io)
-    {
-	return new Serialdev(o);
-    }
-
-    Gensio *
-    alloc_ipmisol_class(Os_Funcs &o,
-			struct gensio *io)
-    {
-	return new Ipmisol(o);
-    }
-
-    Gensio *
-    alloc_ssl_class(Os_Funcs &o,
-		    struct gensio *io)
-    {
-	return new Ssl(o);
-    }
-
-    Gensio *
-    alloc_certauth_class(Os_Funcs &o,
-			 struct gensio *io)
-    {
-	return new Certauth(o);
-    }
-
-    Gensio *
-    alloc_telnet_class(Os_Funcs &o,
-		       struct gensio *io)
-    {
-	if (gensio_to_sergensio(io))
-	    return new Serial_Telnet(o);
-	else
-	    return new Telnet(o);
-    }
-
-    Gensio *
-    alloc_msgdelim_class(Os_Funcs &o,
-			 struct gensio *io)
-    {
-	return new Msgdelim(o);
-    }
-
-    Gensio *
-    alloc_relpkt_class(Os_Funcs &o,
-		       struct gensio *io)
-    {
-	return new Relpkt(o);
-    }
-
-    Gensio *
-    alloc_trace_class(Os_Funcs &o,
-		      struct gensio *io)
-    {
-	return new Trace(o);
-    }
-
-    Gensio *
-    alloc_perf_class(Os_Funcs &o,
-		     struct gensio *io)
-    {
-	return new Perf(o);
-    }
-
-    Gensio *
-    alloc_mux_class(Os_Funcs &o,
-		    struct gensio *io)
-    {
-	return new Mux(o);
-    }
-
-    Gensio *
-    alloc_kiss_class(Os_Funcs &o,
-		     struct gensio *io)
-    {
-	return new Kiss(o);
-    }
-
-    Gensio *
-    alloc_ax25_class(Os_Funcs &o,
-		     struct gensio *io)
-    {
-	return new AX25(o);
-    }
-
-    typedef Gensio *(*gensio_allocator)(Os_Funcs &o,
-					struct gensio *io);
-
-    static std::map<std::string, gensio_allocator> classes = {
-	{ "tcp", alloc_tcp_class },
-	{ "udp", alloc_udp_class },
-	{ "unix", alloc_unix_class },
-	{ "sctp", alloc_sctp_class },
-	{ "pty", alloc_pty_class },
-	{ "echo", alloc_echo_class },
-	{ "file", alloc_file_class },
-	{ "mdns", alloc_mdns_class },
-	{ "stdio", alloc_stdio_class },
-	{ "serialdev", alloc_serialdev_class },
-	{ "ipmisol", alloc_ipmisol_class },
-	{ "ssl", alloc_ssl_class },
-	{ "mux", alloc_mux_class },
-	{ "certauth", alloc_certauth_class },
-	{ "telnet", alloc_telnet_class },
-	{ "msgdelim", alloc_msgdelim_class },
-	{ "relpkt", alloc_relpkt_class },
-	{ "trace", alloc_trace_class },
-	{ "perf", alloc_perf_class },
-	{ "kiss", alloc_kiss_class },
-	{ "ax25", alloc_ax25_class },
-    };
-
-    void gensio_add_class(const char *name,
-			  Gensio *(*allocator)(Os_Funcs &o,
-					       struct gensio *io))
-    {
-	classes[name] = allocator;
-    }
-
-    Gensio *
     gensio_alloc(struct gensio *io, Os_Funcs &o)
     {
 	struct gensio *cio;
@@ -675,23 +490,11 @@ namespace gensios {
 	for (i = 0; (cio = gensio_get_child(io, i)); i++) {
 	    if (gensio_get_frdata(cio))
 		break; // It's already been set.
-	    const char *type = gensio_get_type(cio, 0);
-	    auto iter = classes.find(type);
-
-	    g = NULL;
-	    if (iter != classes.end()) {
-		g = iter->second(o, cio);
-	    }
-
-	    // If we don't find an assigned class for the gensio, just
-	    // use the base classes.  FIXME - Should this go away?
-	    if (!g) {
-		sio = gensio_to_sergensio(cio);
-		if (sio) {
-		    g = new Serial_Gensio(o, NULL);
-		} else {
-		    g = new Gensio(o, NULL);
-		}
+	    sio = gensio_to_sergensio(cio);
+	    if (sio) {
+		g = new Serial_Gensio(o, NULL);
+	    } else {
+		g = new Gensio(o, NULL);
 	    }
 	    g->set_gensio(cio, i == 0);
 	}
@@ -734,6 +537,23 @@ namespace gensios {
 
 	err = str_to_gensio_child(child->get_gensio(), str.c_str(), o,
 				  NULL, NULL, &io);
+	if (err)
+	    throw gensio_error(err);
+	g = gensio_alloc(io, o, cb);
+	return g;
+    }
+
+    Gensio *
+    gensio_alloc(const char *gensiotype, const void *gdata,
+		 const char * const args[], Os_Funcs &o,
+		 Event *cb)
+    {
+	struct gensio *io;
+	int err;
+	Gensio *g;
+
+	err = gensio_terminal_alloc(gensiotype, gdata, args, o,
+				    NULL, NULL, &io);
 	if (err)
 	    throw gensio_error(err);
 	g = gensio_alloc(io, o, cb);
@@ -957,256 +777,6 @@ namespace gensios {
 	if (err)
 	    throw gensio_error(err);
 	return 0;
-    }
-
-    Tcp::Tcp(const Addr &addr, const char * const args[],
-	     Os_Funcs &o, Event *cb)
-	: Gensio(o, cb)
-    {
-	struct gensio *io;
-	int err;
-
-	err = tcp_gensio_alloc(addr, args, o, NULL, NULL, &io);
-	if (err)
-	    throw gensio_error(err);
-	this->set_gensio(io, true);
-    }
-
-    Udp::Udp(const Addr &addr, const char * const args[],
-	     Os_Funcs &o, Event *cb)
-	: Gensio(o, cb)
-    {
-	struct gensio *io;
-	int err;
-
-	err = udp_gensio_alloc(addr, args, o, NULL, NULL, &io);
-	if (err)
-	    throw gensio_error(err);
-	this->set_gensio(io, true);
-    }
-
-    Unix::Unix(const Addr &addr, const char * const args[],
-	       Os_Funcs &o, Event *cb)
-	: Gensio(o, cb)
-    {
-	struct gensio *io;
-	int err;
-
-	err = unix_gensio_alloc(addr, args, o, NULL, NULL, &io);
-	if (err)
-	    throw gensio_error(err);
-	this->set_gensio(io, true);
-    }
-
-    Sctp::Sctp(const Addr &addr, const char * const args[],
-	       Os_Funcs &o, Event *cb)
-	: Gensio(o, cb)
-    {
-	struct gensio *io;
-	int err;
-
-	err = sctp_gensio_alloc(addr, args, o, NULL, NULL, &io);
-	if (err)
-	    throw gensio_error(err);
-	this->set_gensio(io, true);
-    }
-
-    Stdio::Stdio(const char *const argv[], const char * const args[],
-		 Os_Funcs &o, Event *cb)
-	: Gensio(o, cb)
-    {
-	struct gensio *io;
-	int err;
-
-	err = stdio_gensio_alloc(argv, args, o, NULL, NULL, &io);
-	if (err)
-	    throw gensio_error(err);
-	this->set_gensio(io, true);
-    }
-
-    Pty::Pty(const char *const argv[], const char * const args[],
-	     Os_Funcs &o, Event *cb)
-	: Gensio(o, cb)
-    {
-	struct gensio *io;
-	int err;
-
-	err = pty_gensio_alloc(argv, args, o, NULL, NULL, &io);
-	if (err)
-	    throw gensio_error(err);
-	this->set_gensio(io, true);
-    }
-
-    Echo::Echo(const char * const args[],
-	       Os_Funcs &o, Event *cb)
-	: Gensio(o, cb)
-    {
-	struct gensio *io;
-	int err;
-
-	err = echo_gensio_alloc(NULL, args, o, NULL, NULL, &io);
-	if (err)
-	    throw gensio_error(err);
-	this->set_gensio(io, true);
-    }
-
-    File::File(const char * const args[],
-	       Os_Funcs &o, Event *cb)
-	: Gensio(o, cb)
-    {
-	struct gensio *io;
-	int err;
-
-	err = file_gensio_alloc(NULL, args, o, NULL, NULL, &io);
-	if (err)
-	    throw gensio_error(err);
-	this->set_gensio(io, true);
-    }
-
-    Mdns::Mdns(const char *str, const char * const args[],
-	       Os_Funcs &o, Event *cb)
-	: Gensio(o, cb)
-    {
-	struct gensio *io;
-	int err;
-
-	err = mdns_gensio_alloc(str, args, o, NULL, NULL, &io);
-	if (err)
-	    throw gensio_error(err);
-	this->set_gensio(io, true);
-    }
-
-    Ssl::Ssl(Gensio *child, const char * const args[],
-	     Os_Funcs &o, Event *cb)
-	: Gensio(o, cb)
-    {
-	struct gensio *io;
-	int err;
-
-	err = ssl_gensio_alloc(child->get_gensio(), args, o, NULL, NULL, &io);
-	if (err)
-	    throw gensio_error(err);
-	this->set_gensio(io, true);
-    }
-
-    Mux::Mux(Gensio *child, const char * const args[],
-	     Os_Funcs &o, Event *cb)
-	: Gensio(o, cb)
-    {
-	struct gensio *io;
-	int err;
-
-	err = mux_gensio_alloc(child->get_gensio(), args, o, NULL, NULL, &io);
-	if (err)
-	    throw gensio_error(err);
-	this->set_gensio(io, true);
-    }
-
-    Certauth::Certauth(Gensio *child, const char * const args[],
-		       Os_Funcs &o, Event *cb)
-	: Gensio(o, cb)
-    {
-	struct gensio *io;
-	int err;
-
-	err = certauth_gensio_alloc(child->get_gensio(), args, o,
-				    NULL, NULL, &io);
-	if (err)
-	    throw gensio_error(err);
-	this->set_gensio(io, true);
-    }
-
-    Telnet::Telnet(Gensio *child, const char * const args[],
-		   Os_Funcs &o, Event *cb)
-	: Gensio(o, cb)
-    {
-	struct gensio *io;
-	int err;
-
-	err = telnet_gensio_alloc(child->get_gensio(), args, o, NULL, NULL, &io);
-	if (err)
-	    throw gensio_error(err);
-	this->set_gensio(io, true);
-    }
-
-    Msgdelim::Msgdelim(Gensio *child, const char * const args[],
-		       Os_Funcs &o, Event *cb)
-	: Gensio(o, cb)
-    {
-	struct gensio *io;
-	int err;
-
-	err = msgdelim_gensio_alloc(child->get_gensio(), args, o,
-				    NULL, NULL, &io);
-	if (err)
-	    throw gensio_error(err);
-	this->set_gensio(io, true);
-    }
-
-    Relpkt::Relpkt(Gensio *child, const char * const args[],
-		   Os_Funcs &o, Event *cb)
-	: Gensio(o, cb)
-    {
-	struct gensio *io;
-	int err;
-
-	err = relpkt_gensio_alloc(child->get_gensio(), args, o,
-				  NULL, NULL, &io);
-	if (err)
-	    throw gensio_error(err);
-	this->set_gensio(io, true);
-    }
-
-    Trace::Trace(Gensio *child, const char * const args[],
-		 Os_Funcs &o, Event *cb)
-	: Gensio(o, cb)
-    {
-	struct gensio *io;
-	int err;
-
-	err = trace_gensio_alloc(child->get_gensio(), args, o, NULL, NULL, &io);
-	if (err)
-	    throw gensio_error(err);
-	this->set_gensio(io, true);
-    }
-
-    Perf::Perf(Gensio *child, const char * const args[],
-	       Os_Funcs &o, Event *cb)
-	: Gensio(o, cb)
-    {
-	struct gensio *io;
-	int err;
-
-	err = perf_gensio_alloc(child->get_gensio(), args, o, NULL, NULL, &io);
-	if (err)
-	    throw gensio_error(err);
-	this->set_gensio(io, true);
-    }
-
-    Kiss::Kiss(Gensio *child, const char * const args[],
-	       Os_Funcs &o, Event *cb)
-	: Gensio(o, cb)
-    {
-	struct gensio *io;
-	int err;
-
-	err = kiss_gensio_alloc(child->get_gensio(), args, o, NULL, NULL, &io);
-	if (err)
-	    throw gensio_error(err);
-	this->set_gensio(io, true);
-    }
-
-    AX25::AX25(Gensio *child, const char * const args[],
-	       Os_Funcs &o, Event *cb)
-	: Gensio(o, cb)
-    {
-	struct gensio *io;
-	int err;
-
-	err = ax25_gensio_alloc(child->get_gensio(), args, o, NULL, NULL, &io);
-	if (err)
-	    throw gensio_error(err);
-	this->set_gensio(io, true);
     }
 
     static void sergensio_cpp_done(struct sergensio *sio, int err,
@@ -1651,46 +1221,6 @@ namespace gensios {
 	    throw gensio_error(err);
     }
 
-    Serialdev::Serialdev(const char *devname, const char * const args[],
-			 Os_Funcs &o, Event *cb)
-	: Serial_Gensio(o, cb)
-    {
-	struct gensio *io;
-	int err;
-
-	err = serialdev_gensio_alloc(devname, args, o, NULL, NULL, &io);
-	if (err)
-	    throw gensio_error(err);
-	this->set_gensio(io, true);
-    }
-
-    Serial_Telnet::Serial_Telnet(Gensio *child, const char * const args[],
-				 Os_Funcs &o, Event *cb)
-	: Serial_Gensio(o, cb)
-    {
-	struct gensio *io;
-	int err;
-
-	err = telnet_gensio_alloc(child->get_gensio(), args, o,
-				  NULL, NULL, &io);
-	if (err)
-	    throw gensio_error(err);
-	this->set_gensio(io, true);
-    }
-
-    Ipmisol::Ipmisol(const char *devname, const char * const args[],
-		     Os_Funcs &o, Event *cb)
-	: Serial_Gensio(o, cb)
-    {
-	struct gensio *io;
-	int err;
-
-	err = ipmisol_gensio_alloc(devname, args, o, NULL, NULL, &io);
-	if (err)
-	    throw gensio_error(err);
-	this->set_gensio(io, true);
-    }
-
     struct gensio_acc_cpp_data {
 	struct gensio_acc_frdata frdata;
 	Accepter *a;
@@ -1880,156 +1410,6 @@ namespace gensios {
 	}
     }
 
-    Accepter *
-    alloc_tcp_accepter_class(Os_Funcs &o,
-			     struct gensio_accepter *acc)
-    {
-	return new Tcp_Accepter(o);
-    }
-
-    Accepter *
-    alloc_udp_accepter_class(Os_Funcs &o,
-			     struct gensio_accepter *acc)
-    {
-	return new Udp_Accepter(o);
-    }
-
-    Accepter *
-    alloc_unix_accepter_class(Os_Funcs &o,
-			      struct gensio_accepter *acc)
-    {
-	return new Unix_Accepter(o);
-    }
-
-    Accepter *
-    alloc_sctp_accepter_class(Os_Funcs &o,
-			      struct gensio_accepter *acc)
-    {
-	return new Sctp_Accepter(o);
-    }
-
-    Accepter *
-    alloc_stdio_accepter_class(Os_Funcs &o,
-			       struct gensio_accepter *acc)
-    {
-	return new Stdio_Accepter(o);
-    }
-
-    Accepter *
-    alloc_dummy_accepter_class(Os_Funcs &o,
-			       struct gensio_accepter *acc)
-    {
-	return new Dummy_Accepter(o);
-    }
-
-    Accepter *
-    alloc_conacc_accepter_class(Os_Funcs &o,
-				struct gensio_accepter *acc)
-    {
-	return new Conacc_Accepter(o);
-    }
-
-    Accepter *
-    alloc_ssl_accepter_class(Os_Funcs &o,
-			     struct gensio_accepter *acc)
-    {
-	return new Ssl_Accepter(o);
-    }
-
-    Accepter *
-    alloc_mux_accepter_class(Os_Funcs &o,
-			     struct gensio_accepter *acc)
-    {
-	return new Mux_Accepter(o);
-    }
-
-    Accepter *
-    alloc_certauth_accepter_class(Os_Funcs &o,
-				  struct gensio_accepter *acc)
-    {
-	return new Certauth_Accepter(o);
-    }
-
-    Accepter *
-    alloc_telnet_accepter_class(Os_Funcs &o,
-				struct gensio_accepter *acc)
-    {
-	return new Telnet_Accepter(o);
-    }
-
-    Accepter *
-    alloc_msgdelim_accepter_class(Os_Funcs &o,
-				  struct gensio_accepter *acc)
-    {
-	return new Msgdelim_Accepter(o);
-    }
-
-    Accepter *
-    alloc_relpkt_accepter_class(Os_Funcs &o,
-				struct gensio_accepter *acc)
-    {
-	return new Relpkt_Accepter(o);
-    }
-
-    Accepter *
-    alloc_trace_accepter_class(Os_Funcs &o,
-			       struct gensio_accepter *acc)
-    {
-	return new Trace_Accepter(o);
-    }
-
-    Accepter *
-    alloc_perf_accepter_class(Os_Funcs &o,
-			      struct gensio_accepter *acc)
-    {
-	return new Perf_Accepter(o);
-    }
-
-    Accepter *
-    alloc_kiss_accepter_class(Os_Funcs &o,
-			      struct gensio_accepter *acc)
-    {
-	return new Kiss_Accepter(o);
-    }
-
-    Accepter *
-    alloc_ax25_accepter_class(Os_Funcs &o,
-			      struct gensio_accepter *acc)
-    {
-	return new AX25_Accepter(o);
-    }
-
-    typedef Accepter *(*gensio_acc_allocator)(Os_Funcs &o,
-					      struct gensio_accepter *acc);
-
-    static std::map<std::string, gensio_acc_allocator> acc_classes = {
-	{ "tcp", alloc_tcp_accepter_class },
-	{ "udp", alloc_udp_accepter_class },
-	{ "unix", alloc_unix_accepter_class },
-	{ "sctp", alloc_sctp_accepter_class },
-	{ "stdio", alloc_stdio_accepter_class },
-	{ "dummy", alloc_dummy_accepter_class },
-	{ "conacc", alloc_conacc_accepter_class },
-	{ "ssl", alloc_ssl_accepter_class },
-	{ "mux", alloc_mux_accepter_class },
-	{ "certauth", alloc_certauth_accepter_class },
-	{ "telnet", alloc_telnet_accepter_class },
-	{ "msgdelim", alloc_msgdelim_accepter_class },
-	{ "relpkt", alloc_relpkt_accepter_class },
-	{ "trace", alloc_trace_accepter_class },
-	{ "perf", alloc_perf_accepter_class },
-	{ "kiss", alloc_kiss_accepter_class },
-	{ "ax25", alloc_ax25_accepter_class },
-    };
-
-    void gensio_add_accepter_class(
-			  const char *name,
-			  Accepter *(*allocator)(Os_Funcs &o,
-						 struct gensio_accepter *a))
-    {
-	acc_classes[name] = allocator;
-    }
-
     Accepter *gensio_acc_alloc(struct gensio_accepter *acc,
 			       Os_Funcs &o)
     {
@@ -2043,20 +1423,8 @@ namespace gensios {
 	for (i = 0; (cacc = gensio_acc_get_child(acc, i)); i++) {
 	    if (gensio_acc_get_frdata(cacc))
 		break; // It's already been set.
-	    const char *type = gensio_acc_get_type(cacc, 0);
-	    auto iter = acc_classes.find(type);
 
-	    a = NULL;
-	    if (iter != acc_classes.end()) {
-		a = iter->second(o, cacc);
-	    }
-
-	    // Fall back to the general class if the subclass wasn't
-	    // registered.
-	    if (!a) {
-		a = new Accepter(o, NULL);
-	    }
-
+	    a = new Accepter(o, NULL);
 	    a->set_accepter(cacc, i == 0);
 	}
 	f = gensio_acc_get_frdata(acc);
@@ -2091,6 +1459,43 @@ namespace gensios {
 	err = str_to_gensio_accepter_child(child->get_accepter(),
 					   str.c_str(), o,
 					   NULL, NULL, &acc);
+	if (err)
+	    throw gensio_error(err);
+	a = gensio_acc_alloc(acc, o);
+	a->set_event_handler(cb);
+	gensio_acc_set_callback(acc, gensio_acc_cpp_cb, a);
+	return a;
+    }
+
+    Accepter *
+    gensio_acc_alloc(const char *gensiotype, const void *gdata,
+		     const char * const args[], Os_Funcs &o,
+		     Accepter_Event *cb)
+    {
+	struct gensio_accepter *acc;
+	int err;
+	Accepter *a;
+
+	err = gensio_terminal_acc_alloc(gensiotype, gdata, args,
+					o, NULL, NULL, &acc);
+	if (err)
+	    throw gensio_error(err);
+	a = gensio_acc_alloc(acc, o);
+	a->set_event_handler(cb);
+	gensio_acc_set_callback(acc, gensio_acc_cpp_cb, a);
+	return a;
+    }
+
+    Accepter *gensio_acc_alloc(const char *gensiotype, Accepter *child,
+			       const char * const args[], Os_Funcs &o,
+			       Accepter_Event *cb)
+    {
+	struct gensio_accepter *acc;
+	int err;
+	Accepter *a;
+
+	err = gensio_filter_acc_alloc(gensiotype, child->get_accepter(), args,
+				      o, NULL, NULL, &acc);
 	if (err)
 	    throw gensio_error(err);
 	a = gensio_acc_alloc(acc, o);
@@ -2242,262 +1647,6 @@ namespace gensios {
 	if (err)
 	    throw gensio_error(err);
 	return std::string(portbuf, len);
-    }
-
-    Tcp_Accepter::Tcp_Accepter(const Addr &addr,
-			       const char * const args[],
-			       Os_Funcs &o, Accepter_Event *cb)
-	: Accepter(o, cb)
-    {
-	struct gensio_accepter *acc;
-	int err;
-
-	err = tcp_gensio_accepter_alloc(addr, args, o, NULL, NULL, &acc);
-	if (err)
-	    throw gensio_error(err);
-	this->set_accepter(acc, true);
-    }
-
-    Udp_Accepter::Udp_Accepter(const Addr &addr,
-			       const char * const args[],
-			       Os_Funcs &o, Accepter_Event *cb)
-	: Accepter(o, cb)
-    {
-	struct gensio_accepter *acc;
-	int err;
-
-	err = udp_gensio_accepter_alloc(addr, args, o, NULL, NULL, &acc);
-	if (err)
-	    throw gensio_error(err);
-	this->set_accepter(acc, true);
-    }
-
-    Unix_Accepter::Unix_Accepter(const Addr &addr,
-				 const char * const args[],
-				 Os_Funcs &o, Accepter_Event *cb)
-	: Accepter(o, cb)
-    {
-	struct gensio_accepter *acc;
-	int err;
-
-	err = unix_gensio_accepter_alloc(addr, args, o, NULL, NULL, &acc);
-	if (err)
-	    throw gensio_error(err);
-	this->set_accepter(acc, true);
-    }
-
-    Sctp_Accepter::Sctp_Accepter(const Addr &addr,
-				 const char * const args[],
-				 Os_Funcs &o, Accepter_Event *cb)
-	: Accepter(o, cb)
-    {
-	struct gensio_accepter *acc;
-	int err;
-
-	err = sctp_gensio_accepter_alloc(addr, args, o, NULL, NULL, &acc);
-	if (err)
-	    throw gensio_error(err);
-	this->set_accepter(acc, true);
-    }
-
-    Stdio_Accepter::Stdio_Accepter(const char * const args[],
-				   Os_Funcs &o,
-				   Accepter_Event *cb)
-	: Accepter(o, cb)
-    {
-	struct gensio_accepter *acc;
-	int err;
-
-	err = stdio_gensio_accepter_alloc(NULL, args, o, NULL, NULL, &acc);
-	if (err)
-	    throw gensio_error(err);
-	this->set_accepter(acc, true);
-    }
-
-    Dummy_Accepter::Dummy_Accepter(const char * const args[],
-				   Os_Funcs &o,
-				   Accepter_Event *cb)
-	: Accepter(o, cb)
-    {
-	struct gensio_accepter *acc;
-	int err;
-
-	err = dummy_gensio_accepter_alloc(NULL, args, o, NULL, NULL, &acc);
-	if (err)
-	    throw gensio_error(err);
-	this->set_accepter(acc, true);
-    }
-
-    Conacc_Accepter::Conacc_Accepter(const char *str, const char * const args[],
-				     Os_Funcs &o,
-				     Accepter_Event *cb)
-	: Accepter(o, cb)
-    {
-	struct gensio_accepter *acc;
-	int err;
-
-	err = conacc_gensio_accepter_alloc(str, args, o, NULL, NULL, &acc);
-	if (err)
-	    throw gensio_error(err);
-	this->set_accepter(acc, true);
-    }
-
-    Ssl_Accepter::Ssl_Accepter(Accepter *child,
-			       const char * const args[],
-			       Os_Funcs &o, Accepter_Event *cb)
-	: Accepter(o, cb)
-    {
-	struct gensio_accepter *acc;
-	int err;
-
-	err = ssl_gensio_accepter_alloc(child->get_accepter(), args, o,
-					NULL, NULL, &acc);
-	if (err)
-	    throw gensio_error(err);
-	this->set_accepter(acc, true);
-    }
-
-    Mux_Accepter::Mux_Accepter(Accepter *child,
-			       const char * const args[],
-			       Os_Funcs &o, Accepter_Event *cb)
-	: Accepter(o, cb)
-    {
-	struct gensio_accepter *acc;
-	int err;
-
-	err = mux_gensio_accepter_alloc(child->get_accepter(), args, o,
-					NULL, NULL, &acc);
-	if (err)
-	    throw gensio_error(err);
-	this->set_accepter(acc, true);
-    }
-
-    Certauth_Accepter::Certauth_Accepter(Accepter *child,
-					 const char * const args[],
-					 Os_Funcs &o,
-					 Accepter_Event *cb)
-	: Accepter(o, cb)
-    {
-	struct gensio_accepter *acc;
-	int err;
-
-	err = certauth_gensio_accepter_alloc(child->get_accepter(), args, o,
-					     NULL, NULL, &acc);
-	if (err)
-	    throw gensio_error(err);
-	this->set_accepter(acc, true);
-    }
-
-    Telnet_Accepter::Telnet_Accepter(Accepter *child,
-				     const char * const args[],
-				     Os_Funcs &o,
-				     Accepter_Event *cb)
-	: Accepter(o, cb)
-    {
-	struct gensio_accepter *acc;
-	int err;
-
-	err = telnet_gensio_accepter_alloc(child->get_accepter(), args, o,
-					   NULL, NULL, &acc);
-	if (err)
-	    throw gensio_error(err);
-	this->set_accepter(acc, true);
-    }
-
-    Msgdelim_Accepter::Msgdelim_Accepter(Accepter *child,
-					 const char * const args[],
-					 Os_Funcs &o,
-					 Accepter_Event *cb)
-	: Accepter(o, cb)
-    {
-	struct gensio_accepter *acc;
-	int err;
-
-	err = msgdelim_gensio_accepter_alloc(child->get_accepter(), args, o,
-					     NULL, NULL, &acc);
-	if (err)
-	    throw gensio_error(err);
-	this->set_accepter(acc, true);
-    }
-
-    Relpkt_Accepter::Relpkt_Accepter(Accepter *child,
-				     const char * const args[],
-				     Os_Funcs &o,
-				     Accepter_Event *cb)
-	: Accepter(o, cb)
-    {
-	struct gensio_accepter *acc;
-	int err;
-
-	err = relpkt_gensio_accepter_alloc(child->get_accepter(), args, o,
-					   NULL, NULL, &acc);
-	if (err)
-	    throw gensio_error(err);
-	this->set_accepter(acc, true);
-    }
-
-    Trace_Accepter::Trace_Accepter(Accepter *child,
-				   const char * const args[],
-				   Os_Funcs &o,
-				   Accepter_Event *cb)
-	: Accepter(o, cb)
-    {
-	struct gensio_accepter *acc;
-	int err;
-
-	err = trace_gensio_accepter_alloc(child->get_accepter(), args, o,
-					  NULL, NULL, &acc);
-	if (err)
-	    throw gensio_error(err);
-	this->set_accepter(acc, true);
-    }
-
-    Perf_Accepter::Perf_Accepter(Accepter *child,
-				 const char * const args[],
-				 Os_Funcs &o,
-				 Accepter_Event *cb)
-	: Accepter(o, cb)
-    {
-	struct gensio_accepter *acc;
-	int err;
-
-	err = perf_gensio_accepter_alloc(child->get_accepter(), args, o,
-					 NULL, NULL, &acc);
-	if (err)
-	    throw gensio_error(err);
-	this->set_accepter(acc, true);
-    }
-
-    AX25_Accepter::AX25_Accepter(Accepter *child,
-				 const char * const args[],
-				 Os_Funcs &o,
-				 Accepter_Event *cb)
-	: Accepter(o, cb)
-    {
-	struct gensio_accepter *acc;
-	int err;
-
-	err = ax25_gensio_accepter_alloc(child->get_accepter(), args, o,
-					 NULL, NULL, &acc);
-	if (err)
-	    throw gensio_error(err);
-	this->set_accepter(acc, true);
-    }
-
-    Kiss_Accepter::Kiss_Accepter(Accepter *child,
-				 const char * const args[],
-				 Os_Funcs &o,
-				 Accepter_Event *cb)
-	: Accepter(o, cb)
-    {
-	struct gensio_accepter *acc;
-	int err;
-
-	err = kiss_gensio_accepter_alloc(child->get_accepter(), args, o,
-					 NULL, NULL, &acc);
-	if (err)
-	    throw gensio_error(err);
-	this->set_accepter(acc, true);
     }
 
     int

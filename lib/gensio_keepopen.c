@@ -18,7 +18,6 @@
 #include <gensio/gensio_os_funcs.h>
 #include <gensio/gensio_class.h>
 #include <gensio/argvutils.h>
-#include <gensio/gensio_builtins.h>
 
 /*
  * KEEPN_CLOSED:
@@ -643,7 +642,7 @@ keepn_gensio_func(struct gensio *io, int func, gensiods *count,
     }
 }
 
-int
+static int
 keepopen_gensio_alloc(struct gensio *child, const char * const args[],
 		      struct gensio_os_funcs *o,
 		      gensio_event cb, void *user_data,

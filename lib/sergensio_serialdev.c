@@ -16,7 +16,6 @@
 
 #include <gensio/sergensio_class.h>
 #include <gensio/gensio_ll_fd.h>
-#include <gensio/gensio_builtins.h>
 #include <gensio/gensio_osops.h>
 
 #include "uucplock.h"
@@ -1375,7 +1374,7 @@ sergensio_setup_defaults(struct sterm_data *sdata)
     return 0;
 }
 
-int
+static int
 serialdev_gensio_alloc(const void *gdata, const char * const args[],
 		       struct gensio_os_funcs *o,
 		       gensio_event cb, void *user_data,
@@ -1543,7 +1542,8 @@ gensio_init_serialdev(struct gensio_os_funcs *o)
 {
     int rv;
 
-    rv = register_gensio(o, "serialdev", str_to_serialdev_gensio);
+    rv = register_gensio(o, "serialdev", str_to_serialdev_gensio,
+			 serialdev_gensio_alloc);
     if (rv)
 	return rv;
     return 0;

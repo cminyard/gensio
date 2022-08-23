@@ -12,7 +12,6 @@
 #endif
 
 #include "config.h"
-#include <gensio/gensio_builtins.h>
 #include <gensio/gensio_err.h>
 
 #if HAVE_PTY
@@ -618,7 +617,7 @@ static const struct gensio_fd_ll_ops pty_fd_ll_ops = {
     .control = pty_control
 };
 
-int
+static int
 pty_gensio_alloc(const void *gdata, const char * const args[],
 		 struct gensio_os_funcs *o,
 		 gensio_event cb, void *user_data,
@@ -814,7 +813,6 @@ str_to_pty_gensio(const char *str, const char * const args[],
 #else
 
 #include <gensio/gensio_class.h>
-#include <gensio/gensio_builtins.h>
 
 int
 pty_gensio_alloc(const void *gdata, const char * const args[],
@@ -841,7 +839,7 @@ gensio_init_pty(struct gensio_os_funcs *o)
 {
     int rv;
 
-    rv = register_gensio(o, "pty", str_to_pty_gensio);
+    rv = register_gensio(o, "pty", str_to_pty_gensio, pty_gensio_alloc);
     if (rv)
 	return rv;
     return 0;

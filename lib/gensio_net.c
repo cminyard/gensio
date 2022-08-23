@@ -31,7 +31,6 @@
 #include <gensio/gensio_ll_fd.h>
 #include <gensio/argvutils.h>
 #include <gensio/gensio_osops.h>
-#include <gensio/gensio_builtins.h>
 
 #include "gensio_net.h"
 
@@ -473,7 +472,7 @@ str_to_net_gensio(const char *str, const char * const args[],
     return err;
 }
 
-int
+static int
 tcp_gensio_alloc(const void *gdata, const char * const args[],
 		 struct gensio_os_funcs *o,
 		 gensio_event cb, void *user_data,
@@ -494,7 +493,7 @@ str_to_tcp_gensio(const char *str, const char * const args[],
 			     o, cb, user_data, new_gensio);
 }
 
-int
+static int
 unix_gensio_alloc(const void *gdata, const char * const args[],
 		 struct gensio_os_funcs *o,
 		 gensio_event cb, void *user_data,
@@ -1307,7 +1306,7 @@ str_to_net_gensio_accepter(const char *str, const char * const args[],
     return err;
 }
 
-int
+static int
 tcp_gensio_accepter_alloc(const void *gdata,
 			  const char * const args[],
 			  struct gensio_os_funcs *o,
@@ -1331,7 +1330,7 @@ str_to_tcp_gensio_accepter(const char *str, const char * const args[],
 				      o, cb, user_data, acc);
 }
 
-int
+static int
 unix_gensio_accepter_alloc(const void *gdata,
 			   const char * const args[],
 			   struct gensio_os_funcs *o,
@@ -1364,16 +1363,18 @@ gensio_init_net(struct gensio_os_funcs *o)
 {
     int rv;
 
-    rv = register_gensio(o, "tcp", str_to_tcp_gensio);
+    rv = register_gensio(o, "tcp", str_to_tcp_gensio, tcp_gensio_alloc);
     if (rv)
 	return rv;
-    rv = register_gensio_accepter(o, "tcp", str_to_tcp_gensio_accepter);
+    rv = register_gensio_accepter(o, "tcp", str_to_tcp_gensio_accepter,
+				  tcp_gensio_accepter_alloc);
     if (rv)
 	return rv;
-    rv = register_gensio(o, "unix", str_to_unix_gensio);
+    rv = register_gensio(o, "unix", str_to_unix_gensio, unix_gensio_alloc);
     if (rv)
 	return rv;
-    rv = register_gensio_accepter(o, "unix", str_to_unix_gensio_accepter);
+    rv = register_gensio_accepter(o, "unix", str_to_unix_gensio_accepter,
+				  unix_gensio_accepter_alloc);
     if (rv)
 	return rv;
     return 0;

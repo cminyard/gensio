@@ -9,7 +9,6 @@
 #include <string.h>
 
 #include <gensio/sergensio_class.h>
-#include <gensio/gensio_builtins.h>
 
 #include "gensio_ll_sound.h"
 
@@ -64,7 +63,7 @@ alloc_sound_list(struct gensio_os_funcs *o, const char *type,
     return err;
 }
 
-int
+static int
 sound_gensio_alloc(const void *gdata, const char * const args[],
 		   struct gensio_os_funcs *o,
 		   gensio_event cb, void *user_data,
@@ -190,7 +189,7 @@ gensio_init_sound(struct gensio_os_funcs *o)
 {
     int rv;
 
-    rv = register_gensio(o, "sound", str_to_sound_gensio);
+    rv = register_gensio(o, "sound", str_to_sound_gensio, sound_gensio_alloc);
     if (rv)
 	return rv;
     return 0;

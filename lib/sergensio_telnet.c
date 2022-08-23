@@ -14,7 +14,6 @@
 #include <gensio/sergensio_class.h>
 #include <gensio/gensio_ll_gensio.h>
 #include <gensio/gensio_acc_gensio.h>
-#include <gensio/gensio_builtins.h>
 
 #include "utils.h"
 #include "telnet.h"
@@ -968,7 +967,7 @@ stel_setup(const char * const args[], bool default_is_client,
     return err;
 }
 
-int
+static int
 telnet_gensio_alloc(struct gensio *child, const char * const args[],
 		    struct gensio_os_funcs *o,
 		    gensio_event cb, void *user_data,
@@ -1193,7 +1192,7 @@ sergensio_stela_func(struct sergensio_accepter *sacc,
     return GE_NOTSUP;
 }
 
-int
+static int
 telnet_gensio_accepter_alloc(struct gensio_accepter *child,
 			     const char * const args[],
 			     struct gensio_os_funcs *o,

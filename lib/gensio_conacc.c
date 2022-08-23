@@ -14,7 +14,6 @@
 #include <gensio/gensio_os_funcs.h>
 #include <gensio/gensio_class.h>
 #include <gensio/gensio_base.h>
-#include <gensio/gensio_builtins.h>
 
 enum conaccn_state {
     CONACCN_CLOSED,
@@ -1115,7 +1114,7 @@ conacc_base_acc_op(struct gensio_accepter *acc, int func,
     }
 }
 
-int
+static int
 conacc_gensio_accepter_alloc(const void *gdata,
 			     const char * const args[],
 			     struct gensio_os_funcs *o,
@@ -1189,7 +1188,8 @@ gensio_init_conacc(struct gensio_os_funcs *o)
 {
     int rv;
 
-    rv = register_gensio_accepter(o, "conacc", str_to_conacc_gensio_accepter);
+    rv = register_gensio_accepter(o, "conacc", str_to_conacc_gensio_accepter,
+				  conacc_gensio_accepter_alloc);
     if (rv)
 	return rv;
     return 0;

@@ -8,7 +8,6 @@
 /* This code handles SCTP network I/O. */
 
 #include "config.h"
-#include <gensio/gensio_builtins.h>
 #include <gensio/gensio_err.h>
 
 #if HAVE_LIBSCTP
@@ -384,7 +383,7 @@ static const struct gensio_fd_ll_ops sctp_fd_ll_ops = {
     .read_ready = sctp_read_ready
 };
 
-int
+static int
 sctp_gensio_alloc(const void *gdata, const char * const args[],
 		  struct gensio_os_funcs *o,
 		  gensio_event cb, void *user_data,
@@ -983,7 +982,7 @@ sctpna_base_acc_op(struct gensio_accepter *acc, int op,
     }
 }
 
-int
+static int
 sctp_gensio_accepter_alloc(const void *gdata,
 			   const char * const args[],
 			   struct gensio_os_funcs *o,
@@ -1101,7 +1100,7 @@ str_to_sctp_gensio_accepter(const char *str, const char * const args[],
 
 #else
 
-int
+static int
 sctp_gensio_alloc(const struct gensio_addr *iai, const char * const args[],
 		  struct gensio_os_funcs *o,
 		  gensio_event cb, void *user_data,
@@ -1119,7 +1118,7 @@ str_to_sctp_gensio(const char *str, const char * const args[],
     return GE_NOTSUP;
 }
 
-int
+static int
 sctp_gensio_accepter_alloc(struct gensio_addr *iai,
 			   const char * const args[],
 			   struct gensio_os_funcs *o,
@@ -1145,10 +1144,11 @@ gensio_init_sctp(struct gensio_os_funcs *o)
 {
     int rv;
 
-    rv = register_gensio(o, "sctp", str_to_sctp_gensio);
+    rv = register_gensio(o, "sctp", str_to_sctp_gensio, sctp_gensio_alloc);
     if (rv)
 	return rv;
-    rv = register_gensio_accepter(o, "sctp", str_to_sctp_gensio_accepter);
+    rv = register_gensio_accepter(o, "sctp", str_to_sctp_gensio_accepter,
+				  sctp_gensio_accepter_alloc);
     if (rv)
 	return rv;
     return 0;

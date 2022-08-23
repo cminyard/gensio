@@ -28,7 +28,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <gensio/gensio.h>
-#include <gensio/gensio_builtins.h>
 
 struct run_data {
     struct gensio_os_funcs *o;
@@ -245,7 +244,8 @@ run_get_output(const char *argv[],
 	goto out;
     }
 
-    d.err = stdio_gensio_alloc(argv, NULL, d.o, run_io_event, &d, &io);
+    d.err = gensio_terminal_alloc("stdio", argv, NULL, d.o, run_io_event, &d,
+				  &io);
     if (d.err) {
 	fprintf(stderr, "Error allocating os stdio: %s\n",
 		gensio_err_to_str(d.err));

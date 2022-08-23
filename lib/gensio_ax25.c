@@ -123,7 +123,6 @@
 #include <gensio/gensio_time.h>
 #include <gensio/gensio_acc_gensio.h>
 #include <gensio/gensio_ax25_addr.h>
-#include <gensio/gensio_builtins.h>
 
 #ifdef DEBUG_DATA
 #define ENABLE_PRBUF 1
@@ -4873,7 +4872,7 @@ ax25_gensio_alloc_base(struct gensio *child, const char *const args[],
     return rv;
 }
 
-int
+static int
 ax25_gensio_alloc(struct gensio *child, const char *const args[],
 		  struct gensio_os_funcs *o,
 		  gensio_event cb, void *user_data,
@@ -4988,7 +4987,7 @@ gensio_gensio_acc_ax25_cb(void *acc_data, int op, void *data1, void *data2,
     }
 }
 
-int
+static int
 ax25_gensio_accepter_alloc(struct gensio_accepter *child,
 			   const char * const args[],
 			   struct gensio_os_funcs *o,

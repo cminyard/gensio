@@ -14,6 +14,8 @@ man_MANS = gensio.5 gensio_event.3 str_to_gensio.3 gensio_set_callback.3 \
 install-data-hook:
 	$(LN_SF) str_to_gensio.3 $(DESTDIR)$(man3dir)/str_to_gensio_child.3
 	$(LN_SF) str_to_gensio.3 $(DESTDIR)$(man3dir)/gensio_acc_str_to_gensio.3
+	$(LN_SF) str_to_gensio.3 $(DESTDIR)$(man3dir)/gensio_terminal_alloc.3
+	$(LN_SF) str_to_gensio.3 $(DESTDIR)$(man3dir)/gensio_filter_alloc.3
 	$(LN_SF) gensio_set_callback.3 $(DESTDIR)$(man3dir)/gensio_set_user_data.3
 	$(LN_SF) gensio_set_callback.3 $(DESTDIR)$(man3dir)/gensio_get_user_data.3
 	$(LN_SF) gensio_set_log_mask.3 $(DESTDIR)$(man3dir)/gensio_get_log_mask.3
@@ -79,6 +81,8 @@ install-data-hook:
 	$(LN_SF) gensio_set_sync.3 $(DESTDIR)$(man3dir)/gensio_read_s.3
 	$(LN_SF) gensio_set_sync.3 $(DESTDIR)$(man3dir)/gensio_write_s.3
 	$(LN_SF) str_to_gensio_accepter.3 $(DESTDIR)$(man3dir)/str_to_gensio_accepter_child.3
+	$(LN_SF) str_to_gensio_accepter.3 $(DESTDIR)$(man3dir)/gensio_terminal_acc_alloc.3
+	$(LN_SF) str_to_gensio_accepter.3 $(DESTDIR)$(man3dir)/gensio_filter_acc_alloc.3
 	$(LN_SF) gensio_acc_set_callback.3 $(DESTDIR)$(man3dir)/gensio_acc_set_user_data.3
 	$(LN_SF) gensio_acc_set_callback.3 $(DESTDIR)$(man3dir)/gensio_acc_get_user_data.3
 	$(LN_SF) gensio_acc_shutdown.3 $(DESTDIR)$(man3dir)/gensio_acc_shutdown_s.3
@@ -139,6 +143,8 @@ RM_F = -rm -f
 
 uninstall-hook:
 	$(RM_F) $(DESTDIR)$(man3dir)/str_to_gensio_child.3
+	$(RM_F) $(DESTDIR)$(man3dir)/gensio_terminal_alloc.3
+	$(RM_F) $(DESTDIR)$(man3dir)/gensio_filter_alloc.3
 	$(RM_F) $(DESTDIR)$(man3dir)/gensio_acc_str_to_gensio.3
 	$(RM_F) $(DESTDIR)$(man3dir)/gensio_set_user_data.3
 	$(RM_F) $(DESTDIR)$(man3dir)/gensio_get_user_data.3
@@ -174,6 +180,8 @@ uninstall-hook:
 	$(RM_F) $(DESTDIR)$(man3dir)/gensio_read_s.3
 	$(RM_F) $(DESTDIR)$(man3dir)/gensio_write_s.3
 	$(RM_F) $(DESTDIR)$(man3dir)/str_to_gensio_accepter_child.3
+	$(RM_F) $(DESTDIR)$(man3dir)/gensio_terminal_acc_alloc.3
+	$(RM_F) $(DESTDIR)$(man3dir)/gensio_filter_acc_alloc.3
 	$(RM_F) $(DESTDIR)$(man3dir)/gensio_acc_set_user_data.3
 	$(RM_F) $(DESTDIR)$(man3dir)/gensio_acc_get_user_data.3
 	$(RM_F) $(DESTDIR)$(man3dir)/gensio_acc_shutdown_s.3

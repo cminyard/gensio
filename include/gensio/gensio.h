@@ -95,6 +95,21 @@ int str_to_gensio(const char *str,
 		  struct gensio **gensio);
 
 GENSIO_DLL_PUBLIC
+int gensio_terminal_alloc(const char *gensiotype, const void *gdata,
+			  const char * const args[],
+			  struct gensio_os_funcs *o,
+			  gensio_event cb, void *user_data,
+			  struct gensio **new_gensio);
+
+GENSIO_DLL_PUBLIC
+int gensio_filter_alloc(const char *gensiotype,
+			struct gensio *child,
+			const char * const args[],
+			struct gensio_os_funcs *o,
+			gensio_event cb, void *user_data,
+			struct gensio **new_gensio);
+
+GENSIO_DLL_PUBLIC
 int str_to_gensio_child(struct gensio *child, const char *str,
 			struct gensio_os_funcs *o,
 			gensio_event cb, void *user_data,
@@ -283,6 +298,21 @@ GENSIO_DLL_PUBLIC
 int str_to_gensio_accepter(const char *str, struct gensio_os_funcs *o,
 			   gensio_accepter_event cb, void *user_data,
 			   struct gensio_accepter **accepter);
+
+GENSIO_DLL_PUBLIC
+int gensio_terminal_acc_alloc(const char *gensiotype, const void *gdata,
+			      const char * const args[],
+			      struct gensio_os_funcs *o,
+			      gensio_accepter_event cb, void *user_data,
+			      struct gensio_accepter **accepter);
+
+GENSIO_DLL_PUBLIC
+int gensio_filter_acc_alloc(const char *gensiotype,
+			    struct gensio_accepter *child,
+			    const char * const args[],
+			    struct gensio_os_funcs *o,
+			    gensio_accepter_event cb, void *user_data,
+			    struct gensio_accepter **accepter);
 
 GENSIO_DLL_PUBLIC
 int str_to_gensio_accepter_child(struct gensio_accepter *child,

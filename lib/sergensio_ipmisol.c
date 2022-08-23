@@ -8,7 +8,6 @@
 #include "config.h"
 
 #include <gensio/sergensio_class.h>
-#include <gensio/gensio_builtins.h>
 
 #include "utils.h"
 #include "gensio_ll_ipmisol.h"
@@ -53,7 +52,7 @@ sergensio_iterm_func(struct sergensio *sio, int op, int val, char *buf,
     return idata->ops(idata->ll, op, val, buf, done, cb_data);
 }
 
-int
+static int
 ipmisol_gensio_alloc(const void *gdata, const char * const args[],
 		     struct gensio_os_funcs *o,
 		     gensio_event cb, void *user_data,
@@ -124,7 +123,8 @@ gensio_init_ipmisol(struct gensio_os_funcs *o)
 {
     int rv;
 
-    rv = register_gensio(o, "ipmisol", str_to_ipmisol_gensio);
+    rv = register_gensio(o, "ipmisol", str_to_ipmisol_gensio,
+			 ipmisol_gensio_alloc);
     if (rv)
 	return rv;
     return 0;
