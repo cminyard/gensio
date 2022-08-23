@@ -619,11 +619,12 @@ static const struct gensio_fd_ll_ops pty_fd_ll_ops = {
 };
 
 int
-pty_gensio_alloc(const char * const argv[], const char * const args[],
+pty_gensio_alloc(const void *gdata, const char * const args[],
 		 struct gensio_os_funcs *o,
 		 gensio_event cb, void *user_data,
 		 struct gensio **new_gensio)
 {
+    const char * const *argv = gdata;
     struct pty_data *tdata = NULL;
     struct gensio *io;
     gensiods max_read_size = GENSIO_DEFAULT_BUF_SIZE;
@@ -816,7 +817,7 @@ str_to_pty_gensio(const char *str, const char * const args[],
 #include <gensio/gensio_builtins.h>
 
 int
-pty_gensio_alloc(const char * const argv[], const char * const args[],
+pty_gensio_alloc(const void *gdata, const char * const args[],
 		 struct gensio_os_funcs *o,
 		 gensio_event cb, void *user_data,
 		 struct gensio **new_gensio)

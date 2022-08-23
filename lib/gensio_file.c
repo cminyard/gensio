@@ -677,7 +677,8 @@ process_file_args(const char * const args[], struct file_ndata_data *data)
 }
 
 int
-file_gensio_alloc(const char * const args[],
+file_gensio_alloc(const void *gdata,
+		  const char * const args[],
 		  struct gensio_os_funcs *o,
 		  gensio_event cb, void *user_data,
 		  struct gensio **new_gensio)
@@ -716,7 +717,7 @@ str_to_file_gensio(const char *str, const char * const args[],
 		   gensio_event cb, void *user_data,
 		   struct gensio **new_gensio)
 {
-    return file_gensio_alloc(args, o, cb, user_data, new_gensio);
+    return file_gensio_alloc(NULL, args, o, cb, user_data, new_gensio);
 }
 
 int

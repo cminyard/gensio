@@ -717,11 +717,12 @@ mdns_ndata_setup(struct gensio_os_funcs *o, gensiods max_read_size,
 }
 
 int
-mdns_gensio_alloc(const char *mstr, const char * const args[],
+mdns_gensio_alloc(const void *gdata, const char * const args[],
 		  struct gensio_os_funcs *o,
 		  gensio_event cb, void *user_data,
 		  struct gensio **new_gensio)
 {
+    const char *mstr = gdata;
     int err;
     struct mdnsn_data *ndata = NULL;
     int i, interface = -1, nettype = GENSIO_NETTYPE_UNSPEC;
@@ -928,7 +929,7 @@ str_to_mdns_gensio(const char *str, const char * const args[],
 #else
 
 int
-mdns_gensio_alloc(const char *str, const char * const args[],
+mdns_gensio_alloc(const void *gdata, const char * const args[],
 		  struct gensio_os_funcs *o,
 		  gensio_event cb, void *user_data,
 		  struct gensio **new_gensio)
