@@ -15,7 +15,6 @@
 #include <gensio/gensio_os_funcs.h>
 #include <gensio/gensio_class.h>
 #include <gensio/gensio_acc_gensio.h>
-#include <gensio/gensio_builtins.h>
 #include <gensio/gensio_list.h>
 
 /*
@@ -2764,7 +2763,7 @@ mux_gensio_alloc_data(struct gensio *child, struct gensio_mux_config *data,
     return GE_NOMEM;
 }
 
-int
+static int
 mux_gensio_alloc(struct gensio *child, const char *const args[],
 		 struct gensio_os_funcs *o,
 		 gensio_event cb, void *user_data,
@@ -2907,7 +2906,7 @@ gensio_gensio_acc_mux_cb(void *acc_data, int op, void *data1, void *data2,
     }
 }
 
-int
+static int
 mux_gensio_accepter_alloc(struct gensio_accepter *child,
 			  const char * const args[],
 			  struct gensio_os_funcs *o,

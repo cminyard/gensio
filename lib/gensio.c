@@ -18,7 +18,6 @@
 #include <gensio/gensio_os_funcs.h>
 #include <gensio/gensio_addr.h>
 #include <gensio/argvutils.h>
-#include <gensio/gensio_builtins.h>
 #include <gensio/gensio_class.h>
 #include <gensio/gensio_list.h>
 #include <gensio/gensio_time.h>
@@ -1488,7 +1487,8 @@ gensio_acc_set_is_message(struct gensio_accepter *accepter, bool is_message)
 struct registered_gensio_accepter {
     const char *name;
     str_to_gensio_acc_handler handler;
-    str_to_gensio_acc_child_handler chandler;
+    gensio_terminal_acc_alloch terminal_alloc;
+    gensio_filter_acc_alloch filter_alloc;
     struct registered_gensio_accepter *next;
 };
 
@@ -1584,10 +1584,11 @@ add_default_gensios(void *cb_data)
 }
 
 int
-register_filter_gensio_accepter(struct gensio_os_funcs *o,
-				const char *name,
-				str_to_gensio_acc_handler handler,
-				str_to_gensio_acc_child_handler chandler)
+register_base_gensio_accepter(struct gensio_os_funcs *o,
+			      const char *name,
+			      str_to_gensio_acc_handler handler,
+			      gensio_terminal_acc_alloch terminal_alloc,
+			      gensio_filter_acc_alloch filter_alloc)
 {
     struct registered_gensio_accepter *n;
 
@@ -1601,7 +1602,8 @@ register_filter_gensio_accepter(struct gensio_os_funcs *o,
 
     n->name = name;
     n->handler = handler;
-    n->chandler = chandler;
+    n->terminal_alloc = terminal_alloc;
+    n->filter_alloc = filter_alloc;
     o->lock(reg_gensio_acc_lock);
     n->next = reg_gensio_accs;
     reg_gensio_accs = n;
@@ -1610,11 +1612,21 @@ register_filter_gensio_accepter(struct gensio_os_funcs *o,
 }
 
 int
+register_filter_gensio_accepter(struct gensio_os_funcs *o,
+				const char *name,
+				str_to_gensio_acc_handler handler,
+				gensio_filter_acc_alloch alloc)
+{
+    return register_base_gensio_accepter(o, name, handler, NULL, alloc);
+}
+
+int
 register_gensio_accepter(struct gensio_os_funcs *o,
 			 const char *name,
-			 str_to_gensio_acc_handler handler)
+			 str_to_gensio_acc_handler handler,
+			 gensio_terminal_acc_alloch alloc)
 {
-    return register_filter_gensio_accepter(o, name, handler, NULL);
+    return register_base_gensio_accepter(o, name, handler, alloc, NULL);
 }
 
 int
@@ -1666,14 +1678,14 @@ str_to_gensio_accepter(const char *str,
 				       NULL, NULL, &args);
 	if (!err) {
 	    if (protocol == GENSIO_NET_PROTOCOL_UDP) {
-		err = udp_gensio_accepter_alloc(ai, args, o, cb,
+		err = gensio_terminal_acc_alloc("udp", ai, args, o, cb,
 						user_data, accepter);
 	    } else if (protocol == GENSIO_NET_PROTOCOL_TCP) {
-		err = tcp_gensio_accepter_alloc(ai, args, o, cb,
+		err = gensio_terminal_acc_alloc("tcp", ai, args, o, cb,
 						user_data, accepter);
 	    } else if (protocol == GENSIO_NET_PROTOCOL_SCTP) {
-		err = sctp_gensio_accepter_alloc(ai, args, o, cb,
-						 user_data, accepter);
+		err = gensio_terminal_acc_alloc("sctp", ai, args, o, cb,
+						user_data, accepter);
 	    } else {
 		err = GE_INVAL;
 	    }
@@ -1686,6 +1698,57 @@ str_to_gensio_accepter(const char *str,
 	gensio_argv_free(o, args);
 
     return err;
+}
+
+int
+gensio_terminal_acc_alloc(const char *gensiotype, const void *gdata,
+			  const char * const args[],
+			  struct gensio_os_funcs *o,
+			  gensio_accepter_event cb, void *user_data,
+			  struct gensio_accepter **accepter)
+{
+    struct registered_gensio_accepter *r;
+
+    o->call_once(o, &gensio_str_initialized, add_default_gensios, o);
+    if (reg_gensio_rv)
+	return reg_gensio_rv;
+
+    for (r = reg_gensio_accs; r; r = r->next) {
+	if (strcmp(r->name, gensiotype) != 0)
+	    continue;
+
+	if (!r->terminal_alloc)
+	    break;
+
+	return r->terminal_alloc(gdata, args, o, cb, user_data, accepter);
+    }
+    return GE_NOTSUP;
+}
+
+int
+gensio_filter_acc_alloc(const char *gensiotype,
+			struct gensio_accepter *child,
+			const char * const args[],
+			struct gensio_os_funcs *o,
+			gensio_accepter_event cb, void *user_data,
+			struct gensio_accepter **accepter)
+{
+    struct registered_gensio_accepter *r;
+
+    o->call_once(o, &gensio_str_initialized, add_default_gensios, o);
+    if (reg_gensio_rv)
+	return reg_gensio_rv;
+
+    for (r = reg_gensio_accs; r; r = r->next) {
+	if (strcmp(r->name, gensiotype) != 0)
+	    continue;
+
+	if (!r->filter_alloc)
+	    break;
+
+	return r->filter_alloc(child, args, o, cb, user_data, accepter);
+    }
+    return GE_NOTSUP;
 }
 
 int
@@ -1716,7 +1779,7 @@ str_to_gensio_accepter_child(struct gensio_accepter *child,
 	str += len;
 	err = gensio_scan_args(o, &str, NULL, &args);
 	if (!err)
-	    err = r->chandler(child, args, o, cb, user_data, accepter);
+	    err = r->filter_alloc(child, args, o, cb, user_data, accepter);
 	if (args)
 	    gensio_argv_free(o, args);
 	return err;
@@ -1728,14 +1791,17 @@ str_to_gensio_accepter_child(struct gensio_accepter *child,
 struct registered_gensio {
     const char *name;
     str_to_gensio_handler handler;
-    str_to_gensio_child_handler chandler;
+    gensio_terminal_alloch terminal_alloc;
+    gensio_filter_alloch filter_alloc;
     struct registered_gensio *next;
 };
 
-int
-register_filter_gensio(struct gensio_os_funcs *o,
-		       const char *name, str_to_gensio_handler handler,
-		       str_to_gensio_child_handler chandler)
+static int
+register_base_gensio(struct gensio_os_funcs *o,
+		     const char *name,
+		     str_to_gensio_handler handler,
+		     gensio_terminal_alloch terminal_alloc,
+		     gensio_filter_alloch filter_alloc)
 {
     struct registered_gensio *n;
 
@@ -1749,7 +1815,8 @@ register_filter_gensio(struct gensio_os_funcs *o,
 
     n->name = name;
     n->handler = handler;
-    n->chandler = chandler;
+    n->terminal_alloc = terminal_alloc;
+    n->filter_alloc = filter_alloc;
     o->lock(reg_gensio_lock);
     n->next = reg_gensios;
     reg_gensios = n;
@@ -1758,10 +1825,20 @@ register_filter_gensio(struct gensio_os_funcs *o,
 }
 
 int
-register_gensio(struct gensio_os_funcs *o,
-		const char *name, str_to_gensio_handler handler)
+register_filter_gensio(struct gensio_os_funcs *o,
+		       const char *name,
+		       str_to_gensio_handler handler,
+		       gensio_filter_alloch alloc)
 {
-    return register_filter_gensio(o, name, handler, NULL);
+    return register_base_gensio(o, name, handler, NULL, alloc);
+}
+
+int
+register_gensio(struct gensio_os_funcs *o,
+		const char *name, str_to_gensio_handler handler,
+		gensio_terminal_alloch alloc)
+{
+    return register_base_gensio(o, name, handler, alloc, NULL);
 }
 
 static bool
@@ -1829,11 +1906,14 @@ str_to_gensio(const char *str,
 	if (!is_port_set) {
 	    err = GE_INVAL;
 	} else if (protocol == GENSIO_NET_PROTOCOL_UDP) {
-	    err = udp_gensio_alloc(ai, args, o, cb, user_data, gensio);
+	    err = gensio_terminal_alloc("udp", ai, args, o, cb, user_data,
+					gensio);
 	} else if (protocol == GENSIO_NET_PROTOCOL_TCP) {
-	    err = tcp_gensio_alloc(ai, args, o, cb, user_data, gensio);
+	    err = gensio_terminal_alloc("tcp", ai, args, o, cb, user_data,
+					gensio);
 	} else if (protocol == GENSIO_NET_PROTOCOL_SCTP) {
-	    err = sctp_gensio_alloc(ai, args, o, cb, user_data, gensio);
+	    err = gensio_terminal_alloc("sctp", ai, args, o, cb, user_data,
+					gensio);
 	} else {
 	    err = GE_INVAL;
 	}
@@ -1848,6 +1928,55 @@ str_to_gensio(const char *str,
 	gensio_argv_free(o, args);
 
     return err;
+}
+
+int
+gensio_terminal_alloc(const char *gensiotype, const void *gdata,
+		      const char * const args[],
+		      struct gensio_os_funcs *o,
+		      gensio_event cb, void *user_data,
+		      struct gensio **new_gensio)
+{
+    struct registered_gensio *r;
+
+    o->call_once(o, &gensio_str_initialized, add_default_gensios, o);
+    if (reg_gensio_rv)
+	return reg_gensio_rv;
+
+    for (r = reg_gensios; r; r = r->next) {
+	if (strcmp(r->name, gensiotype) != 0)
+	    continue;
+
+	if (!r->terminal_alloc)
+	    break;
+	return r->terminal_alloc(gdata, args, o, cb, user_data, new_gensio);
+    }
+    return GE_NOTSUP;
+}
+
+int
+gensio_filter_alloc(const char *gensiotype,
+		    struct gensio *child,
+		    const char * const args[],
+		    struct gensio_os_funcs *o,
+		    gensio_event cb, void *user_data,
+		    struct gensio **new_gensio)
+{
+    struct registered_gensio *r;
+
+    o->call_once(o, &gensio_str_initialized, add_default_gensios, o);
+    if (reg_gensio_rv)
+	return reg_gensio_rv;
+
+    for (r = reg_gensios; r; r = r->next) {
+	if (strcmp(r->name, gensiotype) != 0)
+	    continue;
+
+	if (!r->filter_alloc)
+	    break;
+	return r->filter_alloc(child, args, o, cb, user_data, new_gensio);
+    }
+    return GE_NOTSUP;
 }
 
 int
@@ -1870,13 +1999,13 @@ str_to_gensio_child(struct gensio *child,
 			(str[len] != '(' && str[len]))
 	    continue;
 
-	if (!r->chandler)
+	if (!r->filter_alloc)
 	    return GE_INVAL;
 
 	str += len;
 	err = gensio_scan_args(o, &str, NULL, &args);
 	if (!err)
-	    err = r->chandler(child, args, o, cb, user_data, gensio);
+	    err = r->filter_alloc(child, args, o, cb, user_data, gensio);
 	if (args)
 	    gensio_argv_free(o, args);
 	return err;

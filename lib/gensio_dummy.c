@@ -12,7 +12,6 @@
 #include <gensio/gensio.h>
 #include <gensio/gensio_os_funcs.h>
 #include <gensio/gensio_class.h>
-#include <gensio/gensio_builtins.h>
 
 struct dummyna_data;
 
@@ -218,7 +217,7 @@ gensio_acc_dummy_func(struct gensio_accepter *acc, int func, int val,
     }
 }
 
-int
+static int
 dummy_gensio_accepter_alloc(const void *gdata,
 			    const char * const args[],
 			    struct gensio_os_funcs *o,
@@ -271,7 +270,8 @@ gensio_init_dummy(struct gensio_os_funcs *o)
 {
     int rv;
 
-    rv = register_gensio_accepter(o, "dummy", str_to_dummy_gensio_accepter);
+    rv = register_gensio_accepter(o, "dummy", str_to_dummy_gensio_accepter,
+				  dummy_gensio_accepter_alloc);
     if (rv)
 	return rv;
     return 0;

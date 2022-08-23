@@ -320,6 +320,12 @@ namespace gensios {
     Gensio *gensio_alloc(Gensio *child, std::string str,
 			 Os_Funcs &o, Event *cb = NULL);
 
+    // Allocate a terminal gensio
+    GENSIOCPP_DLL_PUBLIC
+    Gensio *gensio_alloc(const char *gensiotype, const void *gdata,
+			 const char * const args[], Os_Funcs &o,
+			 Event *cb = NULL);
+
     // For internal use only.
     Gensio *gensio_alloc(struct gensio *io, Os_Funcs &o);
 
@@ -554,13 +560,6 @@ namespace gensios {
     private:
 	Gensio *io;
     };
-
-    // Add a new class type.  This is for user-added gensios, so they
-    // can tie in to the C++ frameworks.
-    GENSIOCPP_DLL_PUBLIC
-    void gensio_add_class(const char *name,
-			  Gensio *(*allocator)(Os_Funcs &o,
-					       struct gensio *io));
 
     //*****************************************************************
 
@@ -803,6 +802,18 @@ namespace gensios {
 			       Os_Funcs &o,
 			       Accepter_Event *cb = NULL);
 
+    // Allocate a terminal gensio accepter by gensio type string.
+    GENSIOCPP_DLL_PUBLIC
+    Accepter *gensio_acc_alloc(const char *gensiotype, const void *gdata,
+			       const char * const args[], Os_Funcs &o,
+			       Accepter_Event *cb = NULL);
+
+    // Allocate a filter gensio accepter by gensio type string.
+    GENSIOCPP_DLL_PUBLIC
+    Accepter *gensio_acc_alloc(const char *gensiotype, Accepter *child,
+			       const char * const args[], Os_Funcs &o,
+			       Accepter_Event *cb = NULL);
+
     class GENSIOCPP_DLL_PUBLIC Accepter {
     public:
 	Accepter(const Accepter&) = delete;
@@ -960,14 +971,6 @@ namespace gensios {
     private:
 	Accepter *acc;
     };
-
-    // Add a new accepter class type.  This is for user-added gensios,
-    // so they can tie in to the C++ frameworks.
-    GENSIOCPP_DLL_PUBLIC
-    void gensio_add_accepter_class(
-			  const char *name,
-			  Accepter *(*allocator)(Os_Funcs &o,
-						 struct gensio_accepter *a));
 
     //*****************************************************************
 

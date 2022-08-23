@@ -7,7 +7,6 @@
 
 #include "config.h"
 
-#include <gensio/gensio_builtins.h>
 #include <gensio/gensio_err.h>
 
 #if HAVE_OPENSSL
@@ -29,7 +28,7 @@
 
 #include "gensio_filter_certauth.h"
 
-int
+static int
 certauth_gensio_alloc(struct gensio *child, const char *const args[],
 		      struct gensio_os_funcs *o,
 		      gensio_event cb, void *user_data,
@@ -240,7 +239,7 @@ gensio_gensio_acc_certauth_cb(void *acc_data, int op, void *data1, void *data2,
     }
 }
 
-int
+static int
 certauth_gensio_accepter_alloc(struct gensio_accepter *child,
 			       const char * const args[],
 			       struct gensio_os_funcs *o,

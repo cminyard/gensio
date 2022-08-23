@@ -15,7 +15,7 @@
 #include <iostream>
 #include <string>
 #include <cstring>
-#include <gensio/gensio_classes>
+#include <gensio/gensio>
 
 using namespace std;
 using namespace gensios;
@@ -156,8 +156,9 @@ do_server(Os_Funcs &o, const Addr &addr)
     Acc_Event ae(&w);
     Accepter *atcp, *atelnet;
 
-    atcp = new Tcp_Accepter(addr, NULL, o, NULL);
-    atelnet = new Telnet_Accepter(atcp, NULL, o, &ae);
+    atcp = gensio_acc_alloc("tcp", (void *) ((struct gensio_addr *) addr),
+			    NULL, o, NULL);
+    atelnet = gensio_acc_alloc("telnet", atcp, NULL, o, &ae);
     ae.set_accepter(atelnet);
 
     try {

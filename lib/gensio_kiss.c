@@ -13,11 +13,10 @@
 #include <gensio/gensio_ll_gensio.h>
 #include <gensio/gensio_acc_gensio.h>
 #include <gensio/argvutils.h>
-#include <gensio/gensio_builtins.h>
 
 #include "gensio_filter_kiss.h"
 
-int
+static int
 kiss_gensio_alloc(struct gensio *child, const char *const args[],
 		  struct gensio_os_funcs *o,
 		  gensio_event cb, void *user_data,
@@ -137,7 +136,7 @@ gensio_gensio_acc_kiss_cb(void *acc_data, int op, void *data1, void *data2,
     }
 }
 
-int
+static int
 kiss_gensio_accepter_alloc(struct gensio_accepter *child,
 			   const char * const args[],
 			   struct gensio_os_funcs *o,

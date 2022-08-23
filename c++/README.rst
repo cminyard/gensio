@@ -152,13 +152,6 @@ allocate Gensio and Accepter objects on the stack so they get
 automatically cleaned up.  See the documentation with those classes,
 they have to be used carefully.
 
-Gensio Classes
-==============
-
-The gensio/gensio_classes include has specific classes for each gensio
-type.  These can be useful in some situations, like if you are
-allocating your own gensio stack, but generally shouldn't be used.
-
 Exceptions and Errors
 =====================
 

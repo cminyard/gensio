@@ -11,7 +11,6 @@
  */
 
 #include "config.h"
-#include <gensio/gensio_builtins.h>
 #include <gensio/gensio_err.h>
 
 #ifdef HAVE_AVAHI
@@ -462,13 +461,15 @@ mdns_cb(struct gensio_mdns_watch *w,
 		goto out_err;
 
 	    if (strcmp(s, "_tcp") == 0) {
-		ndata->open_err = tcp_gensio_alloc(addr, argv, ndata->o,
-						   child_cb, ndata,
-						   &ndata->child);
+		ndata->open_err = gensio_terminal_alloc("tcp",
+						addr, argv, ndata->o,
+						child_cb, ndata,
+						&ndata->child);
 	    } else if (strcmp(s, "_udp") == 0) {
-		ndata->open_err = udp_gensio_alloc(addr, argv, ndata->o,
-						   child_cb, ndata,
-						   &ndata->child);
+		ndata->open_err = gensio_terminal_alloc("udp",
+						addr, argv, ndata->o,
+						child_cb, ndata,
+						&ndata->child);
 	    } else {
 		goto out_unlock;
 	    }
@@ -716,7 +717,7 @@ mdns_ndata_setup(struct gensio_os_funcs *o, gensiods max_read_size,
     return GE_NOMEM;
 }
 
-int
+static int
 mdns_gensio_alloc(const void *gdata, const char * const args[],
 		  struct gensio_os_funcs *o,
 		  gensio_event cb, void *user_data,
@@ -953,7 +954,7 @@ gensio_init_mdns(struct gensio_os_funcs *o)
 {
     int rv;
 
-    rv = register_gensio(o, "mdns", str_to_mdns_gensio);
+    rv = register_gensio(o, "mdns", str_to_mdns_gensio, mdns_gensio_alloc);
     if (rv)
 	return rv;
     return 0;

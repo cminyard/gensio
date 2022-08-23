@@ -16,7 +16,6 @@
 #include <gensio/gensio_os_funcs.h>
 #include <gensio/gensio_class.h>
 #include <gensio/argvutils.h>
-#include <gensio/gensio_builtins.h>
 
 #if !USE_FILE_STDIO
 #include <errno.h>
@@ -676,7 +675,7 @@ process_file_args(const char * const args[], struct file_ndata_data *data)
     return 0;
 }
 
-int
+static int
 file_gensio_alloc(const void *gdata,
 		  const char * const args[],
 		  struct gensio_os_funcs *o,
@@ -725,7 +724,7 @@ gensio_init_file(struct gensio_os_funcs *o)
 {
     int rv;
 
-    rv = register_gensio(o, "file", str_to_file_gensio);
+    rv = register_gensio(o, "file", str_to_file_gensio, file_gensio_alloc);
     if (rv)
 	return rv;
     return 0;

@@ -376,6 +376,9 @@ address is in numeric format, IPv4, or IPv6.
 .SS Remote Address
 TCP returns a standard struct sockaddr for GENSIO_CONTROL_RADDR_BIN
 control.
+.SS "Direct Allocation"
+Allocated as a terminal gensio with gdata as a "const struct
+gensio_addr *"
 .SH "UDP"
 .B udp[(<options>)][,<hostname>],<port>[[,<hostname>],<port>[...]]
 .br
@@ -460,6 +463,9 @@ and you will receive and send data on the multicast address.  The
 .B laddr
 option is required to set the port to receive on.  It means you will
 have a local address, too, and will receive packets on that, too.
+.SS "Direct Allocation"
+Allocated as a terminal gensio with gdata as a "const struct
+gensio_addr *"
 .SH "SCTP"
 .B sctp[(<options>)][,<hostname>],<port>[[,<hostname>],<port>[...]]
 .br
@@ -564,6 +570,9 @@ listed.
 .SS "Remote Address"
 SCTP returns a packed struct sockaddr for GENSIO_CONTROL_RADDR_BIN
 control, per SCTP semantics.
+.SS "Direct Allocation"
+Allocated as a terminal gensio with gdata as a "const struct
+gensio_addr *"
 .SH "UNIX"
 .B unix[(<options>)],<socket_path>
 
@@ -620,6 +629,9 @@ The remote address will be: "unix,<socket path>".
 .SS Remote Address
 UNIX returns a standard struct sockaddr_un for GENSIO_CONTROL_RADDR_BIN
 control.
+.SS "Direct Allocation"
+Allocated as a terminal gensio with gdata as a "const struct
+gensio_addr *"
 .SH "serialdev"
 .B serialdev[(<options>)],<device>[,<serialoption>[,<serialoption>]]
 
@@ -723,6 +735,9 @@ offline.
 .SS "Remote ID"
 The remote ID for the serial dev is the file descriptor returned as an
 integer.
+.SS "Direct Allocation"x
+Allocated as a terminal gensio with gdata as a "const char *" with the
+device and paramters string.
 .SH "stdio"
 accepter =
 .B stdio[(options)]
@@ -812,6 +827,9 @@ to '\e"' and each '\e' in the string converted to '\e\e'.
 .SS "Remote ID"
 The remote ID is the pid for the remote device, only for connecting
 gensios that start a program, not for any other type.
+.SS "Direct Allocation"
+Allocated as a terminal gensio with gdata as a "const char * const args[]"
+for the gensio.  gdata is not used for the accepter.
 .SH "echo"
 connecting =
 .B echo[(options)]
@@ -830,6 +848,8 @@ noecho, it will create a gensio that just supplies the given data then
 returns a GE_REMCLOSE when done.
 .SS "Remote Address String"
 The remote address string is "echo".
+.SS "Direct Allocation"
+Allocated as a terminal gensio, gdata is not used.
 .SH "file"
 connecting =
 .B file[(options)]
@@ -885,6 +905,8 @@ Set the full mode for the file per standard *nix semantics, modified
 by umask as the above mode operations are.
 .SS "Remote Address String"
 The remote address string is "file([infile=<filename][,][outfile=<filename>])".
+.SS "Direct Allocation"
+Allocated as a terminal gensio, gdata is not used.
 .SH "dummy"
 accepter =
 .B dummy
@@ -893,6 +915,8 @@ The dummy gensio accepter is useful for place holding, where you don't
 want a real working accepter but need to put something.
 
 As you might guess, it doesn't do anything.
+.SS "Direct Allocation"
+Allocated as a terminal gensio, gdata is not used.
 .SH "ipmisol"
 .B ipmisol[(options)],<openipmi arguments>[,ipmisol option[,...]]
 
@@ -935,6 +959,8 @@ The time (in microseconds) when an ack times out.  1000000 by default.
 .B ack-retries=<number>
 The number of times (ack-timeouts) an ack is re-sent before giving up.
 10 by default.
+.SS "Direct Allocation"
+Allocated as a terminal gensio with gdata as a "const char *".
 .SH "telnet"
 accepter =
 .B telnet[(options)]
@@ -1393,6 +1419,8 @@ This returns the device of the pty, generally /dev/pts/<n>.  This is
 useful for pty gensios with no program, it allows you to get the value
 for the other end to connect to.  Note that if you close and re-open a
 pty gensio, you may be a different local address string.
+.SS "Direct Allocation"
+Allocated as a terminal gensio with gdata as a "const char * const args[]".
 .SH "msgdelim"
 accepter =
 .B msgdelim[(options)]
@@ -1594,6 +1622,9 @@ a delay between the close and the re-open.  Also, if the connect
 fails, it will not disable itself, it will wait another retry-time
 period and try the connect again.  See the section on gtime above.
 The unit defaults to milliseconds.  The default value is zero.
+.SS "Direct Allocation"
+Allocated as a terminal gensio with gdata as a "const char *".  That is
+the specification of the gensio below it.
 .SH "mdns"
 connecting =
 .B mdns[(options)][,<name>]
@@ -1644,6 +1675,9 @@ take the default value for the sub-gensio that gets chosen.
 .B laddr=<addr>
 An address specification to bind to on the local socket to set the
 local address.
+.SS "Direct Allocation"
+Allocated as a terminal gensio with gdata as a "const char *".  That is
+the specification of the mdns as a string.
 .SH "kiss"
 accepter =
 .B kiss[(options)]
@@ -2107,6 +2141,9 @@ or "be" to make them little or big endian (like doublele).  If you do
 not specify this, the gensio will attempt the same format as the user
 format.  If that doesn't work, it will attempt to pick the best
 matching format and convert.
+.SS "Direct Allocation"
+Allocated as a terminal gensio with gdata as a "const char *".  That is
+the device name.
 .SH "Forking and gensios"
 Unlike normal file descriptors, when you fork with a gensio, you now
 have two unassociated copies of the gensios.  So if you do operations
