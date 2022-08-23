@@ -219,7 +219,8 @@ gensio_acc_dummy_func(struct gensio_accepter *acc, int func, int val,
 }
 
 int
-dummy_gensio_accepter_alloc(const char * const args[],
+dummy_gensio_accepter_alloc(const void *gdata,
+			    const char * const args[],
 			    struct gensio_os_funcs *o,
 			    gensio_accepter_event cb, void *user_data,
 			    struct gensio_accepter **accepter)
@@ -262,7 +263,7 @@ str_to_dummy_gensio_accepter(const char *str, const char * const args[],
 			     void *user_data,
 			     struct gensio_accepter **acc)
 {
-    return dummy_gensio_accepter_alloc(args, o, cb, user_data, acc);
+    return dummy_gensio_accepter_alloc(NULL, args, o, cb, user_data, acc);
 }
 
 int

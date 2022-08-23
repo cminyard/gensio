@@ -1044,7 +1044,7 @@ namespace gensios {
 	struct gensio *io;
 	int err;
 
-	err = echo_gensio_alloc(args, o, NULL, NULL, &io);
+	err = echo_gensio_alloc(NULL, args, o, NULL, NULL, &io);
 	if (err)
 	    throw gensio_error(err);
 	this->set_gensio(io, true);
@@ -1057,7 +1057,7 @@ namespace gensios {
 	struct gensio *io;
 	int err;
 
-	err = file_gensio_alloc(args, o, NULL, NULL, &io);
+	err = file_gensio_alloc(NULL, args, o, NULL, NULL, &io);
 	if (err)
 	    throw gensio_error(err);
 	this->set_gensio(io, true);
@@ -2308,7 +2308,7 @@ namespace gensios {
 	struct gensio_accepter *acc;
 	int err;
 
-	err = stdio_gensio_accepter_alloc(args, o, NULL, NULL, &acc);
+	err = stdio_gensio_accepter_alloc(NULL, args, o, NULL, NULL, &acc);
 	if (err)
 	    throw gensio_error(err);
 	this->set_accepter(acc, true);
@@ -2322,7 +2322,7 @@ namespace gensios {
 	struct gensio_accepter *acc;
 	int err;
 
-	err = dummy_gensio_accepter_alloc(args, o, NULL, NULL, &acc);
+	err = dummy_gensio_accepter_alloc(NULL, args, o, NULL, NULL, &acc);
 	if (err)
 	    throw gensio_error(err);
 	this->set_accepter(acc, true);

@@ -401,7 +401,8 @@ echo_ndata_setup(struct gensio_os_funcs *o, gensiods max_read_size,
 }
 
 int
-echo_gensio_alloc(const char * const args[],
+echo_gensio_alloc(const void *gdata,
+		  const char * const args[],
 		  struct gensio_os_funcs *o,
 		  gensio_event cb, void *user_data,
 		  struct gensio **new_gensio)
@@ -464,7 +465,7 @@ str_to_echo_gensio(const char *str, const char * const args[],
 		   gensio_event cb, void *user_data,
 		   struct gensio **new_gensio)
 {
-    return echo_gensio_alloc(args, o, cb, user_data, new_gensio);
+    return echo_gensio_alloc(NULL, args, o, cb, user_data, new_gensio);
 }
 
 int

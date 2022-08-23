@@ -1170,11 +1170,12 @@ setup_self(struct stdiona_data *nadata, bool console)
 }
 
 int
-stdio_gensio_alloc(const char * const argv[], const char * const args[],
+stdio_gensio_alloc(const void *gdata, const char * const args[],
 		   struct gensio_os_funcs *o,
 		   gensio_event cb, void *user_data,
 		   struct gensio **new_gensio)
 {
+    const char * const *argv = gdata;
     int err;
     struct stdiona_data *nadata = NULL;
     int i;
@@ -1495,7 +1496,8 @@ gensio_acc_stdio_func(struct gensio_accepter *acc, int func, int val,
 }
 
 int
-stdio_gensio_accepter_alloc(const char * const args[],
+stdio_gensio_accepter_alloc(const void *gdata,
+			    const char * const args[],
 			    struct gensio_os_funcs *o,
 			    gensio_accepter_event cb, void *user_data,
 			    struct gensio_accepter **accepter)
@@ -1569,7 +1571,7 @@ str_to_stdio_gensio_accepter(const char *str, const char * const args[],
 			     void *user_data,
 			     struct gensio_accepter **acc)
 {
-    return stdio_gensio_accepter_alloc(args, o, cb, user_data, acc);
+    return stdio_gensio_accepter_alloc(NULL, args, o, cb, user_data, acc);
 }
 
 int

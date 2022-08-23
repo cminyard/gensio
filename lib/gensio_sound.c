@@ -65,11 +65,12 @@ alloc_sound_list(struct gensio_os_funcs *o, const char *type,
 }
 
 int
-sound_gensio_alloc(const char *devname, const char * const args[],
+sound_gensio_alloc(const void *gdata, const char * const args[],
 		   struct gensio_os_funcs *o,
 		   gensio_event cb, void *user_data,
 		   struct gensio **rio)
 {
+    const char *devname = gdata;
     int err;
     struct gensio_sound_info in, out;
     struct gensio_ll *ll;

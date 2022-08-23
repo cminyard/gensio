@@ -1640,7 +1640,8 @@ gensio_acc_udp_func(struct gensio_accepter *acc, int func, int val,
 }
 
 static int
-i_udp_gensio_accepter_alloc(struct gensio_addr *iai, gensiods max_read_size,
+i_udp_gensio_accepter_alloc(const struct gensio_addr *iai,
+			    gensiods max_read_size,
 			    bool reuseaddr, struct gensio_os_funcs *o,
 			    gensio_accepter_event cb, void *user_data,
 			    struct gensio_accepter **accepter)
@@ -1701,12 +1702,13 @@ i_udp_gensio_accepter_alloc(struct gensio_addr *iai, gensiods max_read_size,
 }
 
 int
-udp_gensio_accepter_alloc(struct gensio_addr *iai,
+udp_gensio_accepter_alloc(const void *gdata,
 			  const char * const args[],
 			  struct gensio_os_funcs *o,
 			  gensio_accepter_event cb, void *user_data,
 			  struct gensio_accepter **accepter)
 {
+    const struct gensio_addr *iai = gdata;
     gensiods max_read_size = GENSIO_DEFAULT_UDP_BUF_SIZE;
     unsigned int i;
     bool reuseaddr = false;
@@ -1748,11 +1750,12 @@ str_to_udp_gensio_accepter(const char *str, const char * const args[],
 }
 
 int
-udp_gensio_alloc(const struct gensio_addr *addr, const char * const args[],
+udp_gensio_alloc(const void *gdata, const char * const args[],
 		 struct gensio_os_funcs *o,
 		 gensio_event cb, void *user_data,
 		 struct gensio **new_gensio)
 {
+    const struct gensio_addr *addr = gdata;
     struct udpn_data *ndata = NULL;
     struct gensio_accepter *accepter;
     struct udpna_data *nadata = NULL;

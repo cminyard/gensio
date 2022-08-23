@@ -54,11 +54,12 @@ sergensio_iterm_func(struct sergensio *sio, int op, int val, char *buf,
 }
 
 int
-ipmisol_gensio_alloc(const char *devname, const char * const args[],
+ipmisol_gensio_alloc(const void *gdata, const char * const args[],
 		     struct gensio_os_funcs *o,
 		     gensio_event cb, void *user_data,
 		     struct gensio **rio)
 {
+    const char *devname = gdata;
     struct iterm_data *idata;
     int err;
     gensiods max_read_size = GENSIO_DEFAULT_BUF_SIZE;

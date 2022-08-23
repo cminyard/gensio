@@ -1116,12 +1116,13 @@ conacc_base_acc_op(struct gensio_accepter *acc, int func,
 }
 
 int
-conacc_gensio_accepter_alloc(const char *gensio_str,
+conacc_gensio_accepter_alloc(const void *gdata,
 			     const char * const args[],
 			     struct gensio_os_funcs *o,
 			     gensio_accepter_event cb, void *user_data,
 			     struct gensio_accepter **accepter)
 {
+    const char *gensio_str = gdata;
     struct conaccna_data *nadata;
     unsigned int i;
     struct gensio_time retry_time = { 0, 0 };

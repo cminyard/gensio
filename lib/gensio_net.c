@@ -474,11 +474,13 @@ str_to_net_gensio(const char *str, const char * const args[],
 }
 
 int
-tcp_gensio_alloc(const struct gensio_addr *iai, const char * const args[],
+tcp_gensio_alloc(const void *gdata, const char * const args[],
 		 struct gensio_os_funcs *o,
 		 gensio_event cb, void *user_data,
 		 struct gensio **new_gensio)
 {
+    const struct gensio_addr *iai = gdata;
+
     return net_gensio_alloc(iai, args, o, cb, user_data, "tcp", new_gensio);
 }
 
@@ -493,12 +495,14 @@ str_to_tcp_gensio(const char *str, const char * const args[],
 }
 
 int
-unix_gensio_alloc(const struct gensio_addr *iai, const char * const args[],
+unix_gensio_alloc(const void *gdata, const char * const args[],
 		 struct gensio_os_funcs *o,
 		 gensio_event cb, void *user_data,
 		 struct gensio **new_gensio)
 {
 #if HAVE_UNIX
+    const struct gensio_addr *iai = gdata;
+
     return net_gensio_alloc(iai, args, o, cb, user_data, "unix", new_gensio);
 #else
     return GE_NOTSUP;
@@ -1129,7 +1133,7 @@ struct gensio_enum_val tcpd_enums[] = {
 #endif
 
 static int
-net_gensio_accepter_alloc(struct gensio_addr *iai,
+net_gensio_accepter_alloc(const struct gensio_addr *iai,
 			  const char * const args[],
 			  struct gensio_os_funcs *o,
 			  gensio_accepter_event cb, void *user_data,
@@ -1304,12 +1308,14 @@ str_to_net_gensio_accepter(const char *str, const char * const args[],
 }
 
 int
-tcp_gensio_accepter_alloc(struct gensio_addr *iai,
+tcp_gensio_accepter_alloc(const void *gdata,
 			  const char * const args[],
 			  struct gensio_os_funcs *o,
 			  gensio_accepter_event cb, void *user_data,
 			  struct gensio_accepter **accepter)
 {
+    const struct gensio_addr *iai = gdata;
+
     return net_gensio_accepter_alloc(iai, args, o, cb, user_data, "tcp",
 				     accepter);
 }
@@ -1326,13 +1332,15 @@ str_to_tcp_gensio_accepter(const char *str, const char * const args[],
 }
 
 int
-unix_gensio_accepter_alloc(struct gensio_addr *iai,
+unix_gensio_accepter_alloc(const void *gdata,
 			   const char * const args[],
 			   struct gensio_os_funcs *o,
 			   gensio_accepter_event cb, void *user_data,
 			   struct gensio_accepter **accepter)
 {
 #if HAVE_UNIX
+    const struct gensio_addr *iai = gdata;
+
     return net_gensio_accepter_alloc(iai, args, o, cb, user_data, "unix",
 				     accepter);
 #else

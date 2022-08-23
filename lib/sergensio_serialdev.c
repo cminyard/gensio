@@ -1376,11 +1376,12 @@ sergensio_setup_defaults(struct sterm_data *sdata)
 }
 
 int
-serialdev_gensio_alloc(const char *devname, const char * const args[],
+serialdev_gensio_alloc(const void *gdata, const char * const args[],
 		       struct gensio_os_funcs *o,
 		       gensio_event cb, void *user_data,
 		       struct gensio **rio)
 {
+    const char *devname = gdata;
     struct sterm_data *sdata = o->zalloc(o, sizeof(*sdata));
     struct gensio *io;
     int err;

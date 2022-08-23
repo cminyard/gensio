@@ -385,11 +385,12 @@ static const struct gensio_fd_ll_ops sctp_fd_ll_ops = {
 };
 
 int
-sctp_gensio_alloc(const struct gensio_addr *iai, const char * const args[],
+sctp_gensio_alloc(const void *gdata, const char * const args[],
 		  struct gensio_os_funcs *o,
 		  gensio_event cb, void *user_data,
 		  struct gensio **new_gensio)
 {
+    const struct gensio_addr *iai = gdata;
     struct sctp_data *tdata = NULL;
     struct gensio *io;
     gensiods max_read_size = GENSIO_DEFAULT_BUF_SIZE;
@@ -983,12 +984,13 @@ sctpna_base_acc_op(struct gensio_accepter *acc, int op,
 }
 
 int
-sctp_gensio_accepter_alloc(struct gensio_addr *iai,
+sctp_gensio_accepter_alloc(const void *gdata,
 			   const char * const args[],
 			   struct gensio_os_funcs *o,
 			   gensio_accepter_event cb, void *user_data,
 			   struct gensio_accepter **accepter)
 {
+    const struct gensio_addr *iai = gdata;
     struct sctpna_data *nadata;
     gensiods max_read_size = GENSIO_DEFAULT_BUF_SIZE;
     unsigned int instreams = 1, ostreams = 1;
