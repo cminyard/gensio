@@ -126,36 +126,6 @@ AX_CONFIG_FEATURE(
    [epoll_pwait], [This platform supports epoll(7) with epoll_pwait(2)],
    [HAVE_EPOLL_PWAIT], [This platform supports epoll(7) with epoll_pwait(2).])
 
-tryopenipmi=yes
-AC_ARG_WITH(openipmi,
- [AS_HELP_STRING([--with-openipmi=yes|no], [Look for openipmi])],
-    if test "x$withval" = "xyes"; then
-      tryopenipmi=yes
-    elif test "x$withval" = "xno"; then
-      tryopenipmi=no
-    fi,
-)
-
-tryalsa=yes
-AC_ARG_WITH(alsa,
- [AS_HELP_STRING([--with-alsa=yes|no], [Look for alsa])],
-    if test "x$withval" = "xyes"; then
-      tryalsa=yes
-    elif test "x$withval" = "xno"; then
-      tryalsa=no
-    fi,
-)
-
-trysctp=yes
-AC_ARG_WITH(sctp,
- [AS_HELP_STRING([--with-sctp=yes|no], [Look for sctp])],
-    if test "x$withval" = "xyes"; then
-      trysctp=yes
-    elif test "x$withval" = "xno"; then
-      trysctp=no
-    fi,
-)
-
 if test "x$system_type" = "xunix"; then
    use_pthreads=yes
 else
@@ -378,6 +348,32 @@ AC_SUBST(TCL_LIBS)
 AC_SUBST(TCL_LIB)
 AC_SUBST(TCL_DIR)
 
+ALL_GENSIOS="net udp sctp stdio pty dummy conacc serialdev echo file"
+ALL_GENSIOS="$ALL_GENSIOS ipmisol mdns sound"
+
+ALL_GENSIOS="$ALL_GENSIOS ssl mux certauth telnet msgdelim relpkt ratelimit"
+ALL_GENSIOS="$ALL_GENSIOS trace perf kiss ax25 xlt keepopen script"
+
+echo "creating builtin_gensios.h"
+rm -f "$ac_pwd/lib/builtin_gensios.h"
+if ! test -e "$ac_pwd/lib"; then
+    mkdir "$ac_pwd/lib"
+fi
+touch "$ac_pwd/lib/builtin_gensios.h"
+for i in $ALL_GENSIOS; do
+    echo "INIT_GENSIO($i);" >>"$ac_pwd/lib/builtin_gensios.h"
+done
+
+tryopenipmi=yes
+AC_ARG_WITH(openipmi,
+ [AS_HELP_STRING([--with-openipmi=yes|no], [Look for openipmi])],
+    if test "x$withval" = "xyes"; then
+      tryopenipmi=yes
+    elif test "x$withval" = "xno"; then
+      tryopenipmi=no
+    fi,
+)
+
 AC_ARG_WITH(openipmiflags,
  [AS_HELP_STRING([--with-openipmiflags=flags],
 		 [Set the flags to compile with OpenIPMI.])],
@@ -415,6 +411,16 @@ AC_DEFINE_UNQUOTED([HAVE_OPENIPMI], [$HAVE_OPENIPMI],
 AC_SUBST(HAVE_OPENIPMI)
 
 # Handle alsa support
+tryalsa=yes
+AC_ARG_WITH(alsa,
+ [AS_HELP_STRING([--with-alsa=yes|no], [Look for alsa])],
+    if test "x$withval" = "xyes"; then
+      tryalsa=yes
+    elif test "x$withval" = "xno"; then
+      tryalsa=no
+    fi,
+)
+
 HAVE_ALSA=no
 if test "x$tryalsa" != "xno"; then
    found_alsa=no
@@ -456,6 +462,32 @@ fi
 AC_DEFINE_UNQUOTED([HAVE_OPENSSL], [$HAVE_OPENSSL],
 	[Set to 1 to enable SSL support through OpenSSL, 0 to disable])
 AC_SUBST(HAVE_OPENSSL)
+
+trysctp=yes
+AC_ARG_WITH(sctp,
+ [AS_HELP_STRING([--with-sctp=yes|no], [Look for sctp])],
+    if test "x$withval" = "xyes"; then
+      trysctp=yes
+    elif test "x$withval" = "xno"; then
+      trysctp=no
+    fi,
+)
+
+HAVE_LIBSCTP=0
+if test "x$trysctp" != "xno"; then
+   AC_CHECK_LIB(sctp, sctp_bindx,
+                [HAVE_LIBSCTP=1; LIBS="$LIBS -lsctp"])
+fi
+AC_DEFINE_UNQUOTED([HAVE_LIBSCTP], [$HAVE_LIBSCTP],
+	      [Set to 1 to enable SCTP, 0 to disable])
+AC_SUBST(HAVE_LIBSCTP)
+
+HAVE_SCTP_SENDV=0
+if test "$HAVE_LIBSCTP" = "1"; then
+   AC_CHECK_LIB(sctp, sctp_sendv, [HAVE_SCTP_SENDV=1])
+fi
+AC_DEFINE_UNQUOTED([HAVE_SCTP_SENDV], [$HAVE_SCTP_SENDV],
+	      [Set to 1 if sctp_sendv() is available, 0 if not])
 
 tryswig=yes
 swigprog=
@@ -675,22 +707,6 @@ if test "x$GOPROG" != "x"; then
 fi
 AC_SUBST(GOPROG)
 AC_SUBST(GO_DIR)
-
-HAVE_LIBSCTP=0
-if test "x$trysctp" != "xno"; then
-   AC_CHECK_LIB(sctp, sctp_bindx,
-                [HAVE_LIBSCTP=1; LIBS="$LIBS -lsctp"])
-fi
-AC_DEFINE_UNQUOTED([HAVE_LIBSCTP], [$HAVE_LIBSCTP],
-	      [Set to 1 to enable SCTP, 0 to disable])
-AC_SUBST(HAVE_LIBSCTP)
-
-HAVE_SCTP_SENDV=0
-if test "$HAVE_LIBSCTP" = "1"; then
-   AC_CHECK_LIB(sctp, sctp_sendv, [HAVE_SCTP_SENDV=1])
-fi
-AC_DEFINE_UNQUOTED([HAVE_SCTP_SENDV], [$HAVE_SCTP_SENDV],
-	      [Set to 1 if sctp_sendv() is available, 0 if not])
 
 AC_CHECK_LIB(pam, pam_start, [HAVE_PAM=1], [HAVE_PAM=0])
 if test $HAVE_PAM -eq 1; then
