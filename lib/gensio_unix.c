@@ -13,6 +13,7 @@
 
 #include <gensio/gensio_unix.h>
 #include <gensio/selector.h>
+#include <gensio/gensio_selector.h>
 #include <gensio/gensio.h>
 #include <gensio/gensio_osops_addrinfo.h>
 #include <gensio/gensio_osops_stdsock.h>
