@@ -2944,7 +2944,7 @@ help(int err)
     printf("  --oneshot - Do not fork new connections, do one and exit.\n");
     printf("  --nodaemon - Do not daemonize.\n");
     printf("  --nointeractive - Do not do interactive login queries.\n");
-    printf("  --nosctp - Disable SCTP support.\n");
+    printf("  --sctp - Enable SCTP support.\n");
     printf("  --notcp - Disable TCP support.\n");
     printf("  --other_acc <accepter> - Allows the user to specify the\n");
     printf("     accepter used by gtlsshd, in addition to sctp and tcp.\n");
@@ -3007,7 +3007,7 @@ main(int argc, char *argv[])
     const char *configfile = default_configfile;
     unsigned int port = 852;
     char *s;
-    bool notcp = false, nosctp = false;
+    bool notcp = false, sctp = false;
     bool daemonize = true;
     const char *iptype = ""; /* Try both IPv4 and IPv6 by default. */
     const char *other_acc_str = NULL;
@@ -3039,8 +3039,8 @@ main(int argc, char *argv[])
 	    ;
 	else if ((rv = cmparg(argc, argv, &arg, NULL, "--notcp", NULL)))
 	    notcp = true;
-	else if ((rv = cmparg(argc, argv, &arg, NULL, "--nosctp", NULL)))
-	    nosctp = true;
+	else if ((rv = cmparg(argc, argv, &arg, NULL, "--sctp", NULL)))
+	    sctp = true;
 	else if ((rv = cmparg(argc, argv, &arg, NULL, "--other_acc",
 			      &other_acc_str)))
 	    ;
@@ -3087,7 +3087,7 @@ main(int argc, char *argv[])
     start_log(debug);
     log_event(LOG_NOTICE, "gtlsshd startup");
 
-    if (nosctp && notcp) {
+    if (!sctp && notcp) {
 	log_event(LOG_ERR, "You cannot disable both TCP and SCTP\n");
 	exit(1);
     }
@@ -3172,7 +3172,7 @@ main(int argc, char *argv[])
 	}
     }
 
-    if (!nosctp) {
+    if (sctp) {
 	s = gensio_alloc_sprintf(o, "sctp(readbuf=20000),%s%d", iptype, port);
 	if (!s) {
 	    log_event(LOG_ERR, "Could not allocate sctp descriptor\n");
