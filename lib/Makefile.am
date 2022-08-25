@@ -52,6 +52,8 @@ libgensio_la_LDFLAGS = $(OPENSSL_LIBS) -no-undefined \
 
 EXTRA_DIST = README.rst libgensio.pc.in CMakeLists.txt
 
+DISTCLEANFILES = builtin_gensios.h
+
 # This variable must have 'exec' in its name, in order to be installed
 # by 'install-exec' target (instead of default 'install-data')
 pkgconfigexecdir = $(libdir)/pkgconfig

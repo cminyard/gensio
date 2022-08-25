@@ -1501,41 +1501,10 @@ static struct gensio_lock *reg_gensio_acc_lock;
 static struct gensio_once gensio_str_initialized;
 static int reg_gensio_rv;
 
-#define INIT_GENSIO(o, name)				\
-    do {						\
-	reg_gensio_rv = gensio_init_##name(o);		\
-	if (reg_gensio_rv)				\
-	    return;					\
-    } while(0)
-
-int gensio_init_net(struct gensio_os_funcs *o);
-int gensio_init_udp(struct gensio_os_funcs *o);
-int gensio_init_sctp(struct gensio_os_funcs *o);
-int gensio_init_stdio(struct gensio_os_funcs *o);
-int gensio_init_pty(struct gensio_os_funcs *o);
-int gensio_init_dummy(struct gensio_os_funcs *o);
-int gensio_init_conacc(struct gensio_os_funcs *o);
-int gensio_init_serialdev(struct gensio_os_funcs *o);
-int gensio_init_echo(struct gensio_os_funcs *o);
-int gensio_init_file(struct gensio_os_funcs *o);
-int gensio_init_ipmisol(struct gensio_os_funcs *o);
-int gensio_init_mdns(struct gensio_os_funcs *o);
-int gensio_init_sound(struct gensio_os_funcs *o);
-
-int gensio_init_ssl(struct gensio_os_funcs *o);
-int gensio_init_mux(struct gensio_os_funcs *o);
-int gensio_init_certauth(struct gensio_os_funcs *o);
-int gensio_init_telnet(struct gensio_os_funcs *o);
-int gensio_init_msgdelim(struct gensio_os_funcs *o);
-int gensio_init_relpkt(struct gensio_os_funcs *o);
-int gensio_init_ratelimit(struct gensio_os_funcs *o);
-int gensio_init_trace(struct gensio_os_funcs *o);
-int gensio_init_perf(struct gensio_os_funcs *o);
-int gensio_init_kiss(struct gensio_os_funcs *o);
-int gensio_init_ax25(struct gensio_os_funcs *o);
-int gensio_init_xlt(struct gensio_os_funcs *o);
-int gensio_init_keepopen(struct gensio_os_funcs *o);
-int gensio_init_script(struct gensio_os_funcs *o);
+#define INIT_GENSIO(name)				\
+    int gensio_init_##name(struct gensio_os_funcs *o);
+#include "builtin_gensios.h"
+#undef INIT_GENSIO
 
 static void
 add_default_gensios(void *cb_data)
@@ -1553,34 +1522,14 @@ add_default_gensios(void *cb_data)
 	return;
     }
 
-    INIT_GENSIO(o, net);
-    INIT_GENSIO(o, udp);
-    INIT_GENSIO(o, sctp);
-    INIT_GENSIO(o, stdio);
-    INIT_GENSIO(o, pty);
-    INIT_GENSIO(o, dummy);
-    INIT_GENSIO(o, conacc);
-    INIT_GENSIO(o, serialdev);
-    INIT_GENSIO(o, echo);
-    INIT_GENSIO(o, file);
-    INIT_GENSIO(o, ipmisol);
-    INIT_GENSIO(o, mdns);
-    INIT_GENSIO(o, sound);
-
-    INIT_GENSIO(o, ssl);
-    INIT_GENSIO(o, mux);
-    INIT_GENSIO(o, certauth);
-    INIT_GENSIO(o, telnet);
-    INIT_GENSIO(o, msgdelim);
-    INIT_GENSIO(o, relpkt);
-    INIT_GENSIO(o, ratelimit);
-    INIT_GENSIO(o, trace);
-    INIT_GENSIO(o, perf);
-    INIT_GENSIO(o, kiss);
-    INIT_GENSIO(o, ax25);
-    INIT_GENSIO(o, xlt);
-    INIT_GENSIO(o, keepopen);
-    INIT_GENSIO(o, script);
+#define INIT_GENSIO(name)				\
+    do {						\
+	reg_gensio_rv = gensio_init_##name(o);		\
+	if (reg_gensio_rv)				\
+	    return;					\
+    } while(0)
+#include "builtin_gensios.h"
+#undef INIT_GENSIO
 }
 
 int
