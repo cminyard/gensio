@@ -44,7 +44,7 @@
 #include <signal.h>
 #include <errno.h>
 #include <sys/types.h>
-#include <sys/unistd.h>
+#include <unistd.h>
 #include <syslog.h>
 #endif
 
