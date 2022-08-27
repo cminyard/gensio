@@ -21,6 +21,7 @@
 #include <gensio/gensio_class.h>
 #include <gensio/gensio_list.h>
 #include <gensio/gensio_time.h>
+#include <gensio/gensio_osops.h>
 
 #include "gensio_net.h"
 
@@ -1578,6 +1579,26 @@ register_gensio_accepter(struct gensio_os_funcs *o,
     return register_base_gensio_accepter(o, name, handler, alloc, NULL);
 }
 
+static bool
+gensio_loadlib(struct gensio_os_funcs *o, const char *str)
+{
+    const char *end = str;
+    unsigned int len;
+    char name[50];
+
+    while (*end && *end != '(' && *end != ',')
+	end++;
+    len = end - str;
+    if (len >= sizeof(name))
+	return false;
+    memcpy(name, str, len);
+    name[len] = '\0';
+    if (strcmp(name, "tcp") == 0 || strcmp(name, "unix") == 0)
+	strcpy(name, "net");
+
+    return gensio_os_loadlib(o, name);
+}
+
 int
 str_to_gensio_accepter(const char *str,
 		       struct gensio_os_funcs *o,
@@ -1590,6 +1611,7 @@ str_to_gensio_accepter(const char *str,
     const char **args = NULL;
     struct registered_gensio_accepter *r;
     size_t len;
+    bool retried = false;
 
     o->call_once(o, &gensio_str_initialized, add_default_gensios, o);
     if (reg_gensio_rv)
@@ -1597,6 +1619,7 @@ str_to_gensio_accepter(const char *str,
 
     while (isspace(*str))
 	str++;
+ retry:
     for (r = reg_gensio_accs; r; r = r->next) {
 	len = strlen(r->name);
 	if (strncmp(r->name, str, len) != 0 ||
@@ -1614,14 +1637,14 @@ str_to_gensio_accepter(const char *str,
 	    gensio_argv_free(o, args);
 	return err;
     }
+    if (!retried && gensio_loadlib(o, str)) {
+	retried = true;
+	goto retry;
+    }
 
     if (strisallzero(str)) {
-#if HAVE_STDIO
-	err = stdio_gensio_accepter_alloc(NULL, o, cb, user_data,
-					  accepter);
-#else
-	err = GE_NOTSUP;
-#endif
+	err = gensio_terminal_acc_alloc("stdio", NULL, NULL, o, cb, user_data,
+					accepter);
     } else {
 	err = gensio_scan_network_port(o, str, true, &ai, &protocol,
 				       NULL, NULL, &args);
@@ -1657,11 +1680,13 @@ gensio_terminal_acc_alloc(const char *gensiotype, const void *gdata,
 			  struct gensio_accepter **accepter)
 {
     struct registered_gensio_accepter *r;
+    bool retried = false;
 
     o->call_once(o, &gensio_str_initialized, add_default_gensios, o);
     if (reg_gensio_rv)
 	return reg_gensio_rv;
 
+ retry:
     for (r = reg_gensio_accs; r; r = r->next) {
 	if (strcmp(r->name, gensiotype) != 0)
 	    continue;
@@ -1670,6 +1695,10 @@ gensio_terminal_acc_alloc(const char *gensiotype, const void *gdata,
 	    break;
 
 	return r->terminal_alloc(gdata, args, o, cb, user_data, accepter);
+    }
+    if (!retried && gensio_loadlib(o, gensiotype)) {
+	retried = true;
+	goto retry;
     }
     return GE_NOTSUP;
 }
@@ -1683,11 +1712,13 @@ gensio_filter_acc_alloc(const char *gensiotype,
 			struct gensio_accepter **accepter)
 {
     struct registered_gensio_accepter *r;
+    bool retried = false;
 
     o->call_once(o, &gensio_str_initialized, add_default_gensios, o);
     if (reg_gensio_rv)
 	return reg_gensio_rv;
 
+ retry:
     for (r = reg_gensio_accs; r; r = r->next) {
 	if (strcmp(r->name, gensiotype) != 0)
 	    continue;
@@ -1696,6 +1727,10 @@ gensio_filter_acc_alloc(const char *gensiotype,
 	    break;
 
 	return r->filter_alloc(child, args, o, cb, user_data, accepter);
+    }
+    if (!retried && gensio_loadlib(o, gensiotype)) {
+	retried = true;
+	goto retry;
     }
     return GE_NOTSUP;
 }
@@ -1710,6 +1745,7 @@ str_to_gensio_accepter_child(struct gensio_accepter *child,
     int err = GE_INVAL;
     struct registered_gensio_accepter *r;
     size_t len;
+    bool retried = false;
 
     o->call_once(o, &gensio_str_initialized, add_default_gensios, o);
     if (reg_gensio_rv)
@@ -1717,6 +1753,7 @@ str_to_gensio_accepter_child(struct gensio_accepter *child,
 
     while (isspace(*str))
 	str++;
+ retry:
     for (r = reg_gensio_accs; r; r = r->next) {
 	const char **args = NULL;
 
@@ -1732,6 +1769,10 @@ str_to_gensio_accepter_child(struct gensio_accepter *child,
 	if (args)
 	    gensio_argv_free(o, args);
 	return err;
+    }
+    if (!retried && gensio_loadlib(o, str)) {
+	retried = true;
+	goto retry;
     }
 
     return err;
@@ -1813,6 +1854,7 @@ str_to_gensio(const char *str,
     const char **args = NULL;
     struct registered_gensio *r;
     size_t len;
+    bool retried = false;
 
     o->call_once(o, &gensio_str_initialized, add_default_gensios, o);
     if (reg_gensio_rv)
@@ -1820,6 +1862,7 @@ str_to_gensio(const char *str,
 
     while (isspace(*str))
 	str++;
+ retry:
     for (r = reg_gensios; r; r = r->next) {
 	len = strlen(r->name);
 	if (strncmp(r->name, str, len) != 0 ||
@@ -1836,6 +1879,10 @@ str_to_gensio(const char *str,
 	if (args)
 	    gensio_argv_free(o, args);
 	return err;
+    }
+    if (!retried && gensio_loadlib(o, str)) {
+	retried = true;
+	goto retry;
     }
 
     if (is_serialdev_default_gensio(str)) {
@@ -1868,8 +1915,6 @@ str_to_gensio(const char *str,
 	}
 
 	gensio_addr_free(ai);
-    } else {
-	err = GE_NOTSUP;
     }
 
  out:
@@ -1887,11 +1932,13 @@ gensio_terminal_alloc(const char *gensiotype, const void *gdata,
 		      struct gensio **new_gensio)
 {
     struct registered_gensio *r;
+    bool retried = false;
 
     o->call_once(o, &gensio_str_initialized, add_default_gensios, o);
     if (reg_gensio_rv)
 	return reg_gensio_rv;
 
+ retry:
     for (r = reg_gensios; r; r = r->next) {
 	if (strcmp(r->name, gensiotype) != 0)
 	    continue;
@@ -1899,6 +1946,10 @@ gensio_terminal_alloc(const char *gensiotype, const void *gdata,
 	if (!r->terminal_alloc)
 	    break;
 	return r->terminal_alloc(gdata, args, o, cb, user_data, new_gensio);
+    }
+    if (!retried && gensio_loadlib(o, gensiotype)) {
+	retried = true;
+	goto retry;
     }
     return GE_NOTSUP;
 }
@@ -1912,11 +1963,13 @@ gensio_filter_alloc(const char *gensiotype,
 		    struct gensio **new_gensio)
 {
     struct registered_gensio *r;
+    bool retried = false;
 
     o->call_once(o, &gensio_str_initialized, add_default_gensios, o);
     if (reg_gensio_rv)
 	return reg_gensio_rv;
 
+ retry:
     for (r = reg_gensios; r; r = r->next) {
 	if (strcmp(r->name, gensiotype) != 0)
 	    continue;
@@ -1924,6 +1977,10 @@ gensio_filter_alloc(const char *gensiotype,
 	if (!r->filter_alloc)
 	    break;
 	return r->filter_alloc(child, args, o, cb, user_data, new_gensio);
+    }
+    if (!retried && gensio_loadlib(o, gensiotype)) {
+	retried = true;
+	goto retry;
     }
     return GE_NOTSUP;
 }
@@ -1939,9 +1996,11 @@ str_to_gensio_child(struct gensio *child,
     const char **args = NULL;
     struct registered_gensio *r;
     size_t len;
+    bool retried = false;
 
     while (isspace(*str))
 	str++;
+ retry:
     for (r = reg_gensios; r; r = r->next) {
 	len = strlen(r->name);
 	if (strncmp(r->name, str, len) != 0 ||
@@ -1959,8 +2018,12 @@ str_to_gensio_child(struct gensio *child,
 	    gensio_argv_free(o, args);
 	return err;
     }
+    if (!retried && gensio_loadlib(o, str)) {
+	retried = true;
+	goto retry;
+    }
 
-    return GE_INVAL;
+    return GE_NOTSUP;
 }
 
 int

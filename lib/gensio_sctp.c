@@ -10,8 +10,6 @@
 #include "config.h"
 #include <gensio/gensio_err.h>
 
-#if HAVE_LIBSCTP
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/socket.h>
@@ -1097,47 +1095,6 @@ str_to_sctp_gensio_accepter(const char *str, const char * const args[],
 
     return err;
 }
-
-#else
-
-static int
-sctp_gensio_alloc(const struct gensio_addr *iai, const char * const args[],
-		  struct gensio_os_funcs *o,
-		  gensio_event cb, void *user_data,
-		  struct gensio **new_gensio)
-{
-    return GE_NOTSUP;
-}
-
-static int
-str_to_sctp_gensio(const char *str, const char * const args[],
-		  struct gensio_os_funcs *o,
-		  gensio_event cb, void *user_data,
-		  struct gensio **new_gensio)
-{
-    return GE_NOTSUP;
-}
-
-static int
-sctp_gensio_accepter_alloc(struct gensio_addr *iai,
-			   const char * const args[],
-			   struct gensio_os_funcs *o,
-			   gensio_accepter_event cb, void *user_data,
-			   struct gensio_accepter **accepter)
-{
-    return GE_NOTSUP;
-}
-
-static int
-str_to_sctp_gensio_accepter(const char *str, const char * const args[],
-			    struct gensio_os_funcs *o,
-			    gensio_accepter_event cb,
-			    void *user_data,
-			    struct gensio_accepter **acc)
-{
-    return GE_NOTSUP;
-}
-#endif
 
 int
 gensio_init_sctp(struct gensio_os_funcs *o)

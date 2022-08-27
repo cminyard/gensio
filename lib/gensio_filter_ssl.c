@@ -12,8 +12,6 @@
 
 #include "gensio_filter_ssl.h"
 
-#if HAVE_OPENSSL
-
 #include <assert.h>
 #include <string.h>
 
@@ -1385,27 +1383,3 @@ gensio_ssl_filter_alloc(struct gensio_ssl_filter_data *data,
     SSL_CTX_free(ctx);
     return rv;
 }
-#else /* HAVE_OPENSSL */
-
-int
-gensio_ssl_filter_config(struct gensio_os_funcs *o,
-			 const char * const args[],
-			 bool default_is_client,
-			 struct gensio_ssl_filter_data **rdata)
-{
-    return GE_NOTSUP;
-}
-
-void
-gensio_ssl_filter_config_free(struct gensio_ssl_filter_data *data)
-{
-}
-
-int
-gensio_ssl_filter_alloc(struct gensio_ssl_filter_data *data,
-			struct gensio_filter **rfilter)
-{
-    return GE_NOTSUP;
-}
-
-#endif /* HAVE_OPENSSL */

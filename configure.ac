@@ -30,20 +30,25 @@ case $target_os in
 		USE_FILE_STDIO=1
 		;;
 	cygwin*)
+		LIBS="$LIBS -ldl"
 		uucp_locking_flag=no
 		;;
 	linux*)
+		LIBS="$LIBS -ldl"
 		UUCP_LOCK_DIR=/var/lock
 		;;
 	darwin*)
+		LIBS="$LIBS -ldl"
 		broken_pselect=yes
 		uucp_locking_flag=no
 		;;
 	*bsd* | *BSD*)
+		LIBS="$LIBS -ldl"
 		broken_pselect=yes
 		;;
 	*)
 		# Defaults, maybe it will work
+		LIBS="$LIBS -ldl"
 		;;
 esac
 
@@ -348,67 +353,492 @@ AC_SUBST(TCL_LIBS)
 AC_SUBST(TCL_LIB)
 AC_SUBST(TCL_DIR)
 
-ALL_GENSIOS="net udp sctp stdio pty dummy conacc serialdev echo file"
-ALL_GENSIOS="$ALL_GENSIOS ipmisol mdns sound"
-
-ALL_GENSIOS="$ALL_GENSIOS ssl mux certauth telnet msgdelim relpkt ratelimit"
-ALL_GENSIOS="$ALL_GENSIOS trace perf kiss ax25 xlt keepopen script"
-
-echo "creating builtin_gensios.h"
-rm -f "$ac_pwd/lib/builtin_gensios.h"
-if ! test -e "$ac_pwd/lib"; then
-    mkdir "$ac_pwd/lib"
-fi
-touch "$ac_pwd/lib/builtin_gensios.h"
-for i in $ALL_GENSIOS; do
-    echo "INIT_GENSIO($i);" >>"$ac_pwd/lib/builtin_gensios.h"
-done
-
-tryopenipmi=yes
-AC_ARG_WITH(openipmi,
- [AS_HELP_STRING([--with-openipmi=yes|no], [Look for openipmi])],
+default_all=dynamic
+AC_ARG_WITH(all-gensios,
+ [AS_HELP_STRING([--with-all-gensios=yes|dynamic|no],
+                 [Default setting for all gensios])],
     if test "x$withval" = "xyes"; then
-      tryopenipmi=yes
+      default_all=yes
+    elif test "x$withval" = "xdynamic"; then
+      default_all=dynamic
     elif test "x$withval" = "xno"; then
-      tryopenipmi=no
+      default_all=no
     fi,
 )
 
+BUILTIN_GENSIOS=""
+DYNAMIC_GENSIOS=""
+
+net=$default_all
+AC_ARG_WITH(net,
+ [AS_HELP_STRING([--with-net=yes|dynamic|no], [Enable tcp/unix gensio])],
+    if test "x$withval" = "xyes"; then
+      net=yes
+    elif test "x$withval" = "xdynamic"; then
+      net=dynamic
+    elif test "x$withval" = "xno"; then
+      net=no
+    fi,
+)
+BUILTIN_NET=0
+DYNAMIC_NET=
+case $net in
+   yes)
+      BUILTIN_GENSIOS="$BUILTIN_GENSIOS net"
+      BUILTIN_NET=1
+      ;;
+   dynamic)
+      DYNAMIC_GENSIOS="$DYNAMIC_GENSIOS net"
+      DYNAMIC_NET=libgensio_net.la
+      ;;
+   no)
+      ;;
+esac
+AM_CONDITIONAL([BUILTIN_NET], [test ${BUILTIN_NET} = 1])
+AC_SUBST(DYNAMIC_NET)
+
+udp=$default_all
+AC_ARG_WITH(udp,
+ [AS_HELP_STRING([--with-udp=yes|dynamic|no], [Enable tcp/unix gensio])],
+    if test "x$withval" = "xyes"; then
+      udp=yes
+    elif test "x$withval" = "xdynamic"; then
+      udp=dynamic
+    elif test "x$withval" = "xno"; then
+      udp=no
+    fi,
+)
+BUILTIN_UDP=0
+DYNAMIC_UDP=
+case $udp in
+   yes)
+      BUILTIN_GENSIOS="$BUILTIN_GENSIOS udp"
+      BUILTIN_UDP=1
+      ;;
+   dynamic)
+      DYNAMIC_GENSIOS="$DYNAMIC_GENSIOS udp"
+      DYNAMIC_UDP=libgensio_udp.la
+      ;;
+   no)
+      ;;
+esac
+AM_CONDITIONAL([BUILTIN_UDP], [test ${BUILTIN_UDP} = 1])
+AC_SUBST(DYNAMIC_UDP)
+
+trysctp=yes
+AC_ARG_WITH(sctp,
+ [AS_HELP_STRING([--with-sctp=yes|no], [Look for sctp])],
+    if test "x$withval" = "xyes"; then
+      trysctp=yes
+    elif test "x$withval" = "xno"; then
+      trysctp=no
+    fi,
+)
+
+HAVE_LIBSCTP=0
+if test "x$trysctp" != "xno"; then
+   AC_CHECK_LIB(sctp, sctp_bindx, [HAVE_LIBSCTP=1])
+fi
+AC_DEFINE_UNQUOTED([HAVE_LIBSCTP], [$HAVE_LIBSCTP],
+	      [Set to 1 to enable SCTP, 0 to disable])
+AC_SUBST(HAVE_LIBSCTP)
+
+HAVE_SCTP_SENDV=0
+if test "$HAVE_LIBSCTP" = "1"; then
+   AC_CHECK_LIB(sctp, sctp_sendv, [HAVE_SCTP_SENDV=1])
+fi
+AC_DEFINE_UNQUOTED([HAVE_SCTP_SENDV], [$HAVE_SCTP_SENDV],
+	      [Set to 1 if sctp_sendv() is available, 0 if not])
+
+if test "$HAVE_LIBSCTP" = "1"; then
+   sctp=$default_all
+   LIBSCTP_LIBS="-lsctp"
+   # stdsock code uses sctp, so we always need it.
+   LIBS="$LIBS $LIBSCTP_LIBS"
+else
+   sctp=no
+fi
+AC_SUBST(LIBSCTP_LIBS)
+
+AC_ARG_WITH(sctp,
+ [AS_HELP_STRING([--with-sctp=yes|dynamic|no], [Enable sctp gensio])],
+    if test "x$withval" = "xyes"; then
+      sctp=yes
+    elif test "x$withval" = "xdynamic"; then
+      sctp=dynamic
+    elif test "x$withval" = "xno"; then
+      sctp=no
+    fi,
+)
+BUILTIN_SCTP=0
+DYNAMIC_SCTP=
+case $sctp in
+   yes)
+      if test $HAVE_OPENIPMI = 0; then
+         AC_MSG_ERROR("sctp enabled but openipmi not found")
+      fi
+      BUILTIN_GENSIOS="$BUILTIN_GENSIOS sctp"
+      BUILTIN_SCTP=1
+      ;;
+   dynamic)
+      if test $HAVE_OPENIPMI = 0; then
+         AC_MSG_ERROR("sctp enabled but openipmi not found")
+      fi
+      DYNAMIC_GENSIOS="$DYNAMIC_GENSIOS sctp"
+      DYNAMIC_SCTP=libgensio_sctp.la
+      ;;
+   no)
+      ;;
+esac
+AM_CONDITIONAL([BUILTIN_SCTP], [test ${BUILTIN_SCTP} = 1])
+AC_SUBST(DYNAMIC_SCTP)
+
+stdio=$default_all
+AC_ARG_WITH(stdio,
+ [AS_HELP_STRING([--with-stdio=yes|dynamic|no], [Enable tcp/unix gensio])],
+    if test "x$withval" = "xyes"; then
+      stdio=yes
+    elif test "x$withval" = "xdynamic"; then
+      stdio=dynamic
+    elif test "x$withval" = "xno"; then
+      stdio=no
+    fi,
+)
+BUILTIN_STDIO=0
+DYNAMIC_STDIO=
+case $stdio in
+   yes)
+      BUILTIN_GENSIOS="$BUILTIN_GENSIOS stdio"
+      BUILTIN_STDIO=1
+      ;;
+   dynamic)
+      DYNAMIC_GENSIOS="$DYNAMIC_GENSIOS stdio"
+      DYNAMIC_STDIO=libgensio_stdio.la
+      ;;
+   no)
+      ;;
+esac
+AM_CONDITIONAL([BUILTIN_STDIO], [test ${BUILTIN_STDIO} = 1])
+AC_SUBST(DYNAMIC_STDIO)
+
+pty=$default_all
+AC_ARG_WITH(pty,
+ [AS_HELP_STRING([--with-pty=yes|dynamic|no], [Enable tcp/unix gensio])],
+    if test "x$withval" = "xyes"; then
+      pty=yes
+    elif test "x$withval" = "xdynamic"; then
+      pty=dynamic
+    elif test "x$withval" = "xno"; then
+      pty=no
+    fi,
+)
+BUILTIN_PTY=0
+DYNAMIC_PTY=
+case $pty in
+   yes)
+      BUILTIN_GENSIOS="$BUILTIN_GENSIOS pty"
+      BUILTIN_PTY=1
+      ;;
+   dynamic)
+      DYNAMIC_GENSIOS="$DYNAMIC_GENSIOS pty"
+      DYNAMIC_PTY=libgensio_pty.la
+      ;;
+   no)
+      ;;
+esac
+AM_CONDITIONAL([BUILTIN_PTY], [test ${BUILTIN_PTY} = 1])
+AC_SUBST(DYNAMIC_PTY)
+
+dummy=$default_all
+AC_ARG_WITH(dummy,
+ [AS_HELP_STRING([--with-dummy=yes|dynamic|no], [Enable tcp/unix gensio])],
+    if test "x$withval" = "xyes"; then
+      dummy=yes
+    elif test "x$withval" = "xdynamic"; then
+      dummy=dynamic
+    elif test "x$withval" = "xno"; then
+      dummy=no
+    fi,
+)
+BUILTIN_DUMMY=0
+DYNAMIC_DUMMY=
+case $dummy in
+   yes)
+      BUILTIN_GENSIOS="$BUILTIN_GENSIOS dummy"
+      BUILTIN_DUMMY=1
+      ;;
+   dynamic)
+      DYNAMIC_GENSIOS="$DYNAMIC_GENSIOS dummy"
+      DYNAMIC_DUMMY=libgensio_dummy.la
+      ;;
+   no)
+      ;;
+esac
+AM_CONDITIONAL([BUILTIN_DUMMY], [test ${BUILTIN_DUMMY} = 1])
+AC_SUBST(DYNAMIC_DUMMY)
+
+conacc=$default_all
+AC_ARG_WITH(conacc,
+ [AS_HELP_STRING([--with-conacc=yes|dynamic|no], [Enable tcp/unix gensio])],
+    if test "x$withval" = "xyes"; then
+      conacc=yes
+    elif test "x$withval" = "xdynamic"; then
+      conacc=dynamic
+    elif test "x$withval" = "xno"; then
+      conacc=no
+    fi,
+)
+BUILTIN_CONACC=0
+DYNAMIC_CONACC=
+case $conacc in
+   yes)
+      BUILTIN_GENSIOS="$BUILTIN_GENSIOS conacc"
+      BUILTIN_CONACC=1
+      ;;
+   dynamic)
+      DYNAMIC_GENSIOS="$DYNAMIC_GENSIOS conacc"
+      DYNAMIC_CONACC=libgensio_conacc.la
+      ;;
+   no)
+      ;;
+esac
+AM_CONDITIONAL([BUILTIN_CONACC], [test ${BUILTIN_CONACC} = 1])
+AC_SUBST(DYNAMIC_CONACC)
+
+serialdev=$default_all
+AC_ARG_WITH(serialdev,
+ [AS_HELP_STRING([--with-serialdev=yes|dynamic|no], [Enable tcp/unix gensio])],
+    if test "x$withval" = "xyes"; then
+      serialdev=yes
+    elif test "x$withval" = "xdynamic"; then
+      serialdev=dynamic
+    elif test "x$withval" = "xno"; then
+      serialdev=no
+    fi,
+)
+BUILTIN_SERIALDEV=0
+DYNAMIC_SERIALDEV=
+case $serialdev in
+   yes)
+      BUILTIN_GENSIOS="$BUILTIN_GENSIOS serialdev"
+      BUILTIN_SERIALDEV=1
+      ;;
+   dynamic)
+      DYNAMIC_GENSIOS="$DYNAMIC_GENSIOS serialdev"
+      DYNAMIC_SERIALDEV=libgensio_serialdev.la
+      ;;
+   no)
+      ;;
+esac
+AM_CONDITIONAL([BUILTIN_SERIALDEV], [test ${BUILTIN_SERIALDEV} = 1])
+AC_SUBST(DYNAMIC_SERIALDEV)
+
+echo=$default_all
+AC_ARG_WITH(echo,
+ [AS_HELP_STRING([--with-echo=yes|dynamic|no], [Enable tcp/unix gensio])],
+    if test "x$withval" = "xyes"; then
+      echo=yes
+    elif test "x$withval" = "xdynamic"; then
+      echo=dynamic
+    elif test "x$withval" = "xno"; then
+      echo=no
+    fi,
+)
+BUILTIN_ECHO=0
+DYNAMIC_ECHO=
+case $echo in
+   yes)
+      BUILTIN_GENSIOS="$BUILTIN_GENSIOS echo"
+      BUILTIN_ECHO=1
+      ;;
+   dynamic)
+      DYNAMIC_GENSIOS="$DYNAMIC_GENSIOS echo"
+      DYNAMIC_ECHO=libgensio_echo.la
+      ;;
+   no)
+      ;;
+esac
+AM_CONDITIONAL([BUILTIN_ECHO], [test ${BUILTIN_ECHO} = 1])
+AC_SUBST(DYNAMIC_ECHO)
+
+file=$default_all
+AC_ARG_WITH(file,
+ [AS_HELP_STRING([--with-file=yes|dynamic|no], [Enable tcp/unix gensio])],
+    if test "x$withval" = "xyes"; then
+      file=yes
+    elif test "x$withval" = "xdynamic"; then
+      file=dynamic
+    elif test "x$withval" = "xno"; then
+      file=no
+    fi,
+)
+BUILTIN_FILE=0
+DYNAMIC_FILE=
+case $file in
+   yes)
+      BUILTIN_GENSIOS="$BUILTIN_GENSIOS file"
+      BUILTIN_FILE=1
+      ;;
+   dynamic)
+      DYNAMIC_GENSIOS="$DYNAMIC_GENSIOS file"
+      DYNAMIC_FILE=libgensio_file.la
+      ;;
+   no)
+      ;;
+esac
+AM_CONDITIONAL([BUILTIN_FILE], [test ${BUILTIN_FILE} = 1])
+AC_SUBST(DYNAMIC_FILE)
+
+# Handle OpenIPMI support
+OPENIPMI_CPPFLAGS=
 AC_ARG_WITH(openipmiflags,
  [AS_HELP_STRING([--with-openipmiflags=flags],
 		 [Set the flags to compile with OpenIPMI.])],
-    CPPFLAGS="$CPPFLAGS $withval"
+    OPENIPMI_CPPFLAGS="$withval"
 )
 
+OPENIPMI_LIBS=
 AC_ARG_WITH(openipmilibs,
  [AS_HELP_STRING([--with-openipmilibs=libs],
 		 [Set the libraries to link with OpenIPMI.])],
-    LIBS="$LIBS $withval"
+    OPENIPMI_LIBS="$withval"
 )
 
-# Handle OpenIPMI support
-HAVE_OPENIPMI=no
+AC_ARG_WITH(openipmi,
+ [AS_HELP_STRING([--with-openipmi=yes|dynamic|no], [Look for openipmi])],
+    if test "x$withval" = "xyes"; then
+      openipmi=yes
+    elif test "x$withval" = "xno"; then
+      openipmi=no
+    fi,
+)
+HAVE_OPENIPMI=0
 if test "x$tryopenipmi" != "xno"; then
    found_ipmiif=no
    AC_CHECK_HEADER(OpenIPMI/ipmiif.h, found_ipmiif=yes; )
    if test "x$found_ipmiif" = "xyes"; then
-      AC_CHECK_LIB(OpenIPMI, ipmi_alloc_os_handler, HAVE_OPENIPMI=yes)
+      AC_CHECK_LIB(OpenIPMI, ipmi_alloc_os_handler, HAVE_OPENIPMI=1)
    fi
 fi
 
-if test "x$HAVE_OPENIPMI" != "xno"; then
-   if test "x$ax_pthread_ok" = "xyes"; then
-      LIBS="$LIBS -lOpenIPMI -lOpenIPMIpthread -lOpenIPMIutils"
-   else
-      LIBS="$LIBS -lOpenIPMI -lOpenIPMIposix -lOpenIPMIutils"
+if test "$HAVE_OPENIPMI" = "1"; then
+   ipmisol=$default_all
+   if test "x$OPENIPMI_LIBS" = "x"; then
+      if test "x$ax_pthread_ok" = "xyes"; then
+         OPENIPMI_LIBS="-lOpenIPMI -lOpenIPMIpthread -lOpenIPMIutils"
+      else
+         OPENIPMI_LIBS="-lOpenIPMI -lOpenIPMIposix -lOpenIPMIutils"
+      fi
    fi
-   HAVE_OPENIPMI=1
 else
-   HAVE_OPENIPMI=0
+   ipmisol=no
 fi
 AC_DEFINE_UNQUOTED([HAVE_OPENIPMI], [$HAVE_OPENIPMI],
 	[Set to 1 to enable IPMI support through OpenIPMI, 0 to disable])
 AC_SUBST(HAVE_OPENIPMI)
+AC_SUBST(OPENIPMI_CPPFLAGS)
+AC_SUBST(OPENIPMI_LIBS)
+
+AC_ARG_WITH(ipmisol,
+ [AS_HELP_STRING([--with-ipmisol=yes|dynamic|no], [Enable ipmisol gensio])],
+    if test "x$withval" = "xyes"; then
+      ipmisol=yes
+    elif test "x$withval" = "xdynamic"; then
+      ipmisol=dynamic
+    elif test "x$withval" = "xno"; then
+      ipmisol=no
+    fi,
+)
+BUILTIN_IPMISOL=0
+DYNAMIC_IPMISOL=
+case $ipmisol in
+   yes)
+      if test $HAVE_OPENIPMI = 0; then
+         AC_MSG_ERROR("ipmisol enabled but openipmi not found")
+      fi
+      LIBS="$LIBS $OPENIPMI_LIBS"
+      BUILTIN_GENSIOS="$BUILTIN_GENSIOS ipmisol"
+      BUILTIN_IPMISOL=1
+      ;;
+   dynamic)
+      if test $HAVE_OPENIPMI = 0; then
+         AC_MSG_ERROR("ipmisol enabled but openipmi not found")
+      fi
+      DYNAMIC_GENSIOS="$DYNAMIC_GENSIOS ipmisol"
+      DYNAMIC_IPMISOL=libgensio_ipmisol.la
+      ;;
+   no)
+      ;;
+esac
+AM_CONDITIONAL([BUILTIN_IPMISOL], [test ${BUILTIN_IPMISOL} = 1])
+AC_SUBST(DYNAMIC_IPMISOL)
+
+trymdns=yes
+AC_ARG_WITH(mdns,
+ [AS_HELP_STRING([--with-mdns[[=yes|no]]],
+		 [Look for mdns.])],
+    if test "x$withval" = "x"; then
+      trymdns=yes
+    elif test "x$withval" = "xyes"; then
+      trymdns=yes
+    elif test "x$withval" = "xno"; then
+      trymdns=no
+    fi,
+)
+HAVE_AVAHI=0
+GMDNS=
+GMDNSMAN=
+if test $trymdns = yes; then
+    AC_CHECK_LIB(avahi-client, avahi_client_new, [HAVE_AVAHI=1])
+fi
+if test "$HAVE_AVAHI" = "1"; then
+   mdns=$default_all
+   LIBS="$LIBS -lavahi-client -lavahi-common"
+   GMDNS=gmdns
+   GMDNSMAN=gmdns.1
+else
+   ipmisol=no
+fi
+AC_DEFINE_UNQUOTED([HAVE_AVAHI], [$HAVE_AVAHI],
+	[Set to 1 to enable MDNS support through avahi, 0 to disable])
+AC_SUBST(HAVE_AVAHI)
+AC_SUBST(MDNS_LIBS)
+AC_SUBST(GMDNS)
+AC_SUBST(GMDNSMAN)
+
+AC_ARG_WITH(mdns,
+ [AS_HELP_STRING([--with-mdns=yes|dynamic|no], [Enable mdns gensio])],
+    if test "x$withval" = "xyes"; then
+      mdns=yes
+    elif test "x$withval" = "xdynamic"; then
+      mdns=dynamic
+    elif test "x$withval" = "xno"; then
+      mdns=no
+    fi,
+)
+BUILTIN_MDNS=0
+DYNAMIC_MDNS=
+case $mdns in
+   yes)
+      if test $HAVE_AVAHI = 0; then
+         AC_MSG_ERROR("mdns enabled but avahi not found")
+      fi
+      LIBS="$LIBS $OPENIPMI_LIBS"
+      BUILTIN_GENSIOS="$BUILTIN_GENSIOS mdns"
+      BUILTIN_MDNS=1
+      ;;
+   dynamic)
+      if test $HAVE_AVAHI = 0; then
+         AC_MSG_ERROR("mdns enabled but avahi not found")
+      fi
+      DYNAMIC_GENSIOS="$DYNAMIC_GENSIOS mdns"
+      DYNAMIC_MDNS=libgensio_mdns.la
+      ;;
+   no)
+      ;;
+esac
+AM_CONDITIONAL([BUILTIN_MDNS], [test ${BUILTIN_MDNS} = 1])
+AC_SUBST(DYNAMIC_MDNS)
 
 # Handle alsa support
 tryalsa=yes
@@ -431,7 +861,7 @@ if test "x$tryalsa" != "xno"; then
 fi
 
 if test "x$HAVE_ALSA" != "xno"; then
-   LIBS="$LIBS -lasound"
+   SOUND_LIBS="-lasound"
    HAVE_ALSA=1
 else
    HAVE_ALSA=0
@@ -439,11 +869,41 @@ fi
 AC_DEFINE_UNQUOTED([HAVE_ALSA], [$HAVE_ALSA],
 	[Set to 1 to enable alsa, 0 to disable])
 AC_SUBST(HAVE_ALSA)
+AC_SUBST(SOUND_LIBS)
+
+sound=$default_all
+AC_ARG_WITH(sound,
+ [AS_HELP_STRING([--with-sound=yes|dynamic|no], [Enable tcp/unix gensio])],
+    if test "x$withval" = "xyes"; then
+      sound=yes
+    elif test "x$withval" = "xdynamic"; then
+      sound=dynamic
+    elif test "x$withval" = "xno"; then
+      sound=no
+    fi,
+)
+BUILTIN_SOUND=0
+DYNAMIC_SOUND=
+case $sound in
+   yes)
+      BUILTIN_GENSIOS="$BUILTIN_GENSIOS sound"
+      BUILTIN_SOUND=1
+      LIBS="$LIBS $SOUND_LIBS"
+      ;;
+   dynamic)
+      DYNAMIC_GENSIOS="$DYNAMIC_GENSIOS sound"
+      DYNAMIC_SOUND=libgensio_sound.la
+      ;;
+   no)
+      ;;
+esac
+AM_CONDITIONAL([BUILTIN_SOUND], [test ${BUILTIN_SOUND} = 1])
+AC_SUBST(DYNAMIC_SOUND)
 
 tryssl=yes
-AC_ARG_WITH(ssl,
- [AS_HELP_STRING([--with-ssl[[=yes|no]]],
-		 [Look for ssl.])],
+AC_ARG_WITH(openssl,
+ [AS_HELP_STRING([--with-openssl[[=yes|no]]],
+		 [Look for openssl.])],
     if test "x$withval" = "x"; then
       tryssl=yes
     elif test "x$withval" = "xyes"; then
@@ -454,40 +914,437 @@ AC_ARG_WITH(ssl,
 )
 HAVE_OPENSSL=0
 if test $tryssl = yes; then
-	AX_CHECK_OPENSSL([HAVE_OPENSSL=1
-		  LIBS="$LIBS $OPENSSL_LIBS"
-		  LDFLAGS="$LDFLAGS $OPENSSL_LDFLAGS"
-		  CPPFLAGS="$CPPFLAGS $OPENSSL_INCLUDES"], [HAVE_OPENSSL=0])
+	AX_CHECK_OPENSSL([HAVE_OPENSSL=1])
+fi
+
+if test "$HAVE_OPENSSL" = "1"; then
+   ssl=$default_all
+   certauth=$default_all
+else
+   ssl=no
+   certauth=no
 fi
 AC_DEFINE_UNQUOTED([HAVE_OPENSSL], [$HAVE_OPENSSL],
 	[Set to 1 to enable SSL support through OpenSSL, 0 to disable])
 AC_SUBST(HAVE_OPENSSL)
 
-trysctp=yes
-AC_ARG_WITH(sctp,
- [AS_HELP_STRING([--with-sctp=yes|no], [Look for sctp])],
+AC_ARG_WITH(ssl,
+ [AS_HELP_STRING([--with-ssl=yes|dynamic|no], [Enable ssl gensio])],
     if test "x$withval" = "xyes"; then
-      trysctp=yes
+      ssl=yes
+    elif test "x$withval" = "xdynamic"; then
+      ssl=dynamic
     elif test "x$withval" = "xno"; then
-      trysctp=no
+      ssl=no
     fi,
 )
+BUILTIN_SSL=0
+DYNAMIC_SSL=
+case $ssl in
+   yes)
+      if test $HAVE_OPENSSL = 0; then
+         AC_MSG_ERROR("ssl enabled but openssl not found")
+      fi
+      BUILTIN_GENSIOS="$BUILTIN_GENSIOS ssl"
+      BUILTIN_SSL=1
+      ;;
+   dynamic)
+      if test $HAVE_OPENSSL = 0; then
+         AC_MSG_ERROR("ssl enabled but openssl not found")
+      fi
+      DYNAMIC_GENSIOS="$DYNAMIC_GENSIOS ssl"
+      DYNAMIC_SSL=libgensio_ssl.la
+      ;;
+   no)
+      ;;
+esac
+AM_CONDITIONAL([BUILTIN_SSL], [test ${BUILTIN_SSL} = 1])
+AC_SUBST(DYNAMIC_SSL)
 
-HAVE_LIBSCTP=0
-if test "x$trysctp" != "xno"; then
-   AC_CHECK_LIB(sctp, sctp_bindx,
-                [HAVE_LIBSCTP=1; LIBS="$LIBS -lsctp"])
-fi
-AC_DEFINE_UNQUOTED([HAVE_LIBSCTP], [$HAVE_LIBSCTP],
-	      [Set to 1 to enable SCTP, 0 to disable])
-AC_SUBST(HAVE_LIBSCTP)
+AC_ARG_WITH(certauth,
+ [AS_HELP_STRING([--with-certauth=yes|dynamic|no], [Enable certauth gensio])],
+    if test "x$withval" = "xyes"; then
+      certauth=yes
+    elif test "x$withval" = "xdynamic"; then
+      certauth=dynamic
+    elif test "x$withval" = "xno"; then
+      certauth=no
+    fi,
+)
+BUILTIN_CERTAUTH=0
+DYNAMIC_CERTAUTH=
+case $certauth in
+   yes)
+      if test $HAVE_OPENCERTAUTH = 0; then
+         AC_MSG_ERROR("certauth enabled but openssl not found")
+      fi
+      BUILTIN_GENSIOS="$BUILTIN_GENSIOS certauth"
+      BUILTIN_CERTAUTH=1
+      ;;
+   dynamic)
+      if test $HAVE_OPENSSL = 0; then
+         AC_MSG_ERROR("certauth enabled but openssl not found")
+      fi
+      DYNAMIC_GENSIOS="$DYNAMIC_GENSIOS certauth"
+      DYNAMIC_CERTAUTH=libgensio_certauth.la
+      ;;
+   no)
+      ;;
+esac
+AM_CONDITIONAL([BUILTIN_CERTAUTH], [test ${BUILTIN_CERTAUTH} = 1])
+AC_SUBST(DYNAMIC_CERTAUTH)
 
-HAVE_SCTP_SENDV=0
-if test "$HAVE_LIBSCTP" = "1"; then
-   AC_CHECK_LIB(sctp, sctp_sendv, [HAVE_SCTP_SENDV=1])
+if test $ssl = yes -o $certauth = yes; then
+   LIBS="$LIBS $OPENSSL_LIBS"
+   LDFLAGS="$LDFLAGS $OPENSSL_LDFLAGS"
+   CPPFLAGS="$CPPFLAGS $OPENSSL_INCLUDES"
 fi
-AC_DEFINE_UNQUOTED([HAVE_SCTP_SENDV], [$HAVE_SCTP_SENDV],
-	      [Set to 1 if sctp_sendv() is available, 0 if not])
+
+mux=$default_all
+AC_ARG_WITH(mux,
+ [AS_HELP_STRING([--with-mux=yes|dynamic|no], [Enable tcp/unix gensio])],
+    if test "x$withval" = "xyes"; then
+      mux=yes
+    elif test "x$withval" = "xdynamic"; then
+      mux=dynamic
+    elif test "x$withval" = "xno"; then
+      mux=no
+    fi,
+)
+BUILTIN_MUX=0
+DYNAMIC_MUX=
+case $mux in
+   yes)
+      BUILTIN_GENSIOS="$BUILTIN_GENSIOS mux"
+      BUILTIN_MUX=1
+      ;;
+   dynamic)
+      DYNAMIC_GENSIOS="$DYNAMIC_GENSIOS mux"
+      DYNAMIC_MUX=libgensio_mux.la
+      ;;
+   no)
+      ;;
+esac
+AM_CONDITIONAL([BUILTIN_MUX], [test ${BUILTIN_MUX} = 1])
+AC_SUBST(DYNAMIC_MUX)
+
+telnet=$default_all
+AC_ARG_WITH(telnet,
+ [AS_HELP_STRING([--with-telnet=yes|dynamic|no], [Enable tcp/unix gensio])],
+    if test "x$withval" = "xyes"; then
+      telnet=yes
+    elif test "x$withval" = "xdynamic"; then
+      telnet=dynamic
+    elif test "x$withval" = "xno"; then
+      telnet=no
+    fi,
+)
+BUILTIN_TELNET=0
+DYNAMIC_TELNET=
+case $telnet in
+   yes)
+      BUILTIN_GENSIOS="$BUILTIN_GENSIOS telnet"
+      BUILTIN_TELNET=1
+      ;;
+   dynamic)
+      DYNAMIC_GENSIOS="$DYNAMIC_GENSIOS telnet"
+      DYNAMIC_TELNET=libgensio_telnet.la
+      ;;
+   no)
+      ;;
+esac
+AM_CONDITIONAL([BUILTIN_TELNET], [test ${BUILTIN_TELNET} = 1])
+AC_SUBST(DYNAMIC_TELNET)
+
+msgdelim=$default_all
+AC_ARG_WITH(msgdelim,
+ [AS_HELP_STRING([--with-msgdelim=yes|dynamic|no], [Enable tcp/unix gensio])],
+    if test "x$withval" = "xyes"; then
+      msgdelim=yes
+    elif test "x$withval" = "xdynamic"; then
+      msgdelim=dynamic
+    elif test "x$withval" = "xno"; then
+      msgdelim=no
+    fi,
+)
+BUILTIN_MSGDELIM=0
+DYNAMIC_MSGDELIM=
+case $msgdelim in
+   yes)
+      BUILTIN_GENSIOS="$BUILTIN_GENSIOS msgdelim"
+      BUILTIN_MSGDELIM=1
+      ;;
+   dynamic)
+      DYNAMIC_GENSIOS="$DYNAMIC_GENSIOS msgdelim"
+      DYNAMIC_MSGDELIM=libgensio_msgdelim.la
+      ;;
+   no)
+      ;;
+esac
+AM_CONDITIONAL([BUILTIN_MSGDELIM], [test ${BUILTIN_MSGDELIM} = 1])
+AC_SUBST(DYNAMIC_MSGDELIM)
+
+relpkt=$default_all
+AC_ARG_WITH(relpkt,
+ [AS_HELP_STRING([--with-relpkt=yes|dynamic|no], [Enable tcp/unix gensio])],
+    if test "x$withval" = "xyes"; then
+      relpkt=yes
+    elif test "x$withval" = "xdynamic"; then
+      relpkt=dynamic
+    elif test "x$withval" = "xno"; then
+      relpkt=no
+    fi,
+)
+BUILTIN_RELPKT=0
+DYNAMIC_RELPKT=
+case $relpkt in
+   yes)
+      BUILTIN_GENSIOS="$BUILTIN_GENSIOS relpkt"
+      BUILTIN_RELPKT=1
+      ;;
+   dynamic)
+      DYNAMIC_GENSIOS="$DYNAMIC_GENSIOS relpkt"
+      DYNAMIC_RELPKT=libgensio_relpkt.la
+      ;;
+   no)
+      ;;
+esac
+AM_CONDITIONAL([BUILTIN_RELPKT], [test ${BUILTIN_RELPKT} = 1])
+AC_SUBST(DYNAMIC_RELPKT)
+
+trace=$default_all
+AC_ARG_WITH(trace,
+ [AS_HELP_STRING([--with-trace=yes|dynamic|no], [Enable tcp/unix gensio])],
+    if test "x$withval" = "xyes"; then
+      trace=yes
+    elif test "x$withval" = "xdynamic"; then
+      trace=dynamic
+    elif test "x$withval" = "xno"; then
+      trace=no
+    fi,
+)
+BUILTIN_TRACE=0
+DYNAMIC_TRACE=
+case $trace in
+   yes)
+      BUILTIN_GENSIOS="$BUILTIN_GENSIOS trace"
+      BUILTIN_TRACE=1
+      ;;
+   dynamic)
+      DYNAMIC_GENSIOS="$DYNAMIC_GENSIOS trace"
+      DYNAMIC_TRACE=libgensio_trace.la
+      ;;
+   no)
+      ;;
+esac
+AM_CONDITIONAL([BUILTIN_TRACE], [test ${BUILTIN_TRACE} = 1])
+AC_SUBST(DYNAMIC_TRACE)
+
+perf=$default_all
+AC_ARG_WITH(perf,
+ [AS_HELP_STRING([--with-perf=yes|dynamic|no], [Enable tcp/unix gensio])],
+    if test "x$withval" = "xyes"; then
+      perf=yes
+    elif test "x$withval" = "xdynamic"; then
+      perf=dynamic
+    elif test "x$withval" = "xno"; then
+      perf=no
+    fi,
+)
+BUILTIN_PERF=0
+DYNAMIC_PERF=
+case $perf in
+   yes)
+      BUILTIN_GENSIOS="$BUILTIN_GENSIOS perf"
+      BUILTIN_PERF=1
+      ;;
+   dynamic)
+      DYNAMIC_GENSIOS="$DYNAMIC_GENSIOS perf"
+      DYNAMIC_PERF=libgensio_perf.la
+      ;;
+   no)
+      ;;
+esac
+AM_CONDITIONAL([BUILTIN_PERF], [test ${BUILTIN_PERF} = 1])
+AC_SUBST(DYNAMIC_PERF)
+
+kiss=$default_all
+AC_ARG_WITH(kiss,
+ [AS_HELP_STRING([--with-kiss=yes|dynamic|no], [Enable tcp/unix gensio])],
+    if test "x$withval" = "xyes"; then
+      kiss=yes
+    elif test "x$withval" = "xdynamic"; then
+      kiss=dynamic
+    elif test "x$withval" = "xno"; then
+      kiss=no
+    fi,
+)
+BUILTIN_KISS=0
+DYNAMIC_KISS=
+case $kiss in
+   yes)
+      BUILTIN_GENSIOS="$BUILTIN_GENSIOS kiss"
+      BUILTIN_KISS=1
+      ;;
+   dynamic)
+      DYNAMIC_GENSIOS="$DYNAMIC_GENSIOS kiss"
+      DYNAMIC_KISS=libgensio_kiss.la
+      ;;
+   no)
+      ;;
+esac
+AM_CONDITIONAL([BUILTIN_KISS], [test ${BUILTIN_KISS} = 1])
+AC_SUBST(DYNAMIC_KISS)
+
+ax25=$default_all
+AC_ARG_WITH(ax25,
+ [AS_HELP_STRING([--with-ax25=yes|dynamic|no], [Enable tcp/unix gensio])],
+    if test "x$withval" = "xyes"; then
+      ax25=yes
+    elif test "x$withval" = "xdynamic"; then
+      ax25=dynamic
+    elif test "x$withval" = "xno"; then
+      ax25=no
+    fi,
+)
+BUILTIN_AX25=0
+DYNAMIC_AX25=
+case $ax25 in
+   yes)
+      BUILTIN_GENSIOS="$BUILTIN_GENSIOS ax25"
+      BUILTIN_AX25=1
+      ;;
+   dynamic)
+      DYNAMIC_GENSIOS="$DYNAMIC_GENSIOS ax25"
+      DYNAMIC_AX25=libgensio_ax25.la
+      ;;
+   no)
+      ;;
+esac
+AM_CONDITIONAL([BUILTIN_AX25], [test ${BUILTIN_AX25} = 1])
+AC_SUBST(DYNAMIC_AX25)
+
+xlt=$default_all
+AC_ARG_WITH(xlt,
+ [AS_HELP_STRING([--with-xlt=yes|dynamic|no], [Enable tcp/unix gensio])],
+    if test "x$withval" = "xyes"; then
+      xlt=yes
+    elif test "x$withval" = "xdynamic"; then
+      xlt=dynamic
+    elif test "x$withval" = "xno"; then
+      xlt=no
+    fi,
+)
+BUILTIN_XLT=0
+DYNAMIC_XLT=
+case $xlt in
+   yes)
+      BUILTIN_GENSIOS="$BUILTIN_GENSIOS xlt"
+      BUILTIN_XLT=1
+      ;;
+   dynamic)
+      DYNAMIC_GENSIOS="$DYNAMIC_GENSIOS xlt"
+      DYNAMIC_XLT=libgensio_xlt.la
+      ;;
+   no)
+      ;;
+esac
+AM_CONDITIONAL([BUILTIN_XLT], [test ${BUILTIN_XLT} = 1])
+AC_SUBST(DYNAMIC_XLT)
+
+keepopen=$default_all
+AC_ARG_WITH(keepopen,
+ [AS_HELP_STRING([--with-keepopen=yes|dynamic|no], [Enable tcp/unix gensio])],
+    if test "x$withval" = "xyes"; then
+      keepopen=yes
+    elif test "x$withval" = "xdynamic"; then
+      keepopen=dynamic
+    elif test "x$withval" = "xno"; then
+      keepopen=no
+    fi,
+)
+BUILTIN_KEEPOPEN=0
+DYNAMIC_KEEPOPEN=
+case $keepopen in
+   yes)
+      BUILTIN_GENSIOS="$BUILTIN_GENSIOS keepopen"
+      BUILTIN_KEEPOPEN=1
+      ;;
+   dynamic)
+      DYNAMIC_GENSIOS="$DYNAMIC_GENSIOS keepopen"
+      DYNAMIC_KEEPOPEN=libgensio_keepopen.la
+      ;;
+   no)
+      ;;
+esac
+AM_CONDITIONAL([BUILTIN_KEEPOPEN], [test ${BUILTIN_KEEPOPEN} = 1])
+AC_SUBST(DYNAMIC_KEEPOPEN)
+
+script=$default_all
+AC_ARG_WITH(script,
+ [AS_HELP_STRING([--with-script=yes|dynamic|no], [Enable tcp/unix gensio])],
+    if test "x$withval" = "xyes"; then
+      script=yes
+    elif test "x$withval" = "xdynamic"; then
+      script=dynamic
+    elif test "x$withval" = "xno"; then
+      script=no
+    fi,
+)
+BUILTIN_SCRIPT=0
+DYNAMIC_SCRIPT=
+case $script in
+   yes)
+      BUILTIN_GENSIOS="$BUILTIN_GENSIOS script"
+      BUILTIN_SCRIPT=1
+      ;;
+   dynamic)
+      DYNAMIC_GENSIOS="$DYNAMIC_GENSIOS script"
+      DYNAMIC_SCRIPT=libgensio_script.la
+      ;;
+   no)
+      ;;
+esac
+AM_CONDITIONAL([BUILTIN_SCRIPT], [test ${BUILTIN_SCRIPT} = 1])
+AC_SUBST(DYNAMIC_SCRIPT)
+
+ratelimit=$default_all
+AC_ARG_WITH(ratelimit,
+ [AS_HELP_STRING([--with-ratelimit=yes|dynamic|no], [Enable tcp/unix gensio])],
+    if test "x$withval" = "xyes"; then
+      ratelimit=yes
+    elif test "x$withval" = "xdynamic"; then
+      ratelimit=dynamic
+    elif test "x$withval" = "xno"; then
+      ratelimit=no
+    fi,
+)
+BUILTIN_RATELIMIT=0
+DYNAMIC_RATELIMIT=
+case $ratelimit in
+   yes)
+      BUILTIN_GENSIOS="$BUILTIN_GENSIOS ratelimit"
+      BUILTIN_RATELIMIT=1
+      ;;
+   dynamic)
+      DYNAMIC_GENSIOS="$DYNAMIC_GENSIOS ratelimit"
+      DYNAMIC_RATELIMIT=libgensio_ratelimit.la
+      ;;
+   no)
+      ;;
+esac
+AM_CONDITIONAL([BUILTIN_RATELIMIT], [test ${BUILTIN_RATELIMIT} = 1])
+AC_SUBST(DYNAMIC_RATELIMIT)
+
+echo "creating builtin_gensios.h"
+rm -f "$ac_pwd/lib/builtin_gensios.h"
+if ! test -e "$ac_pwd/lib"; then
+    mkdir "$ac_pwd/lib"
+fi
+echo "/* Do not edit, created by configure.h */" >"$ac_pwd/lib/builtin_gensios.h"
+for i in $BUILTIN_GENSIOS; do
+    echo "INIT_GENSIO($i);" >>"$ac_pwd/lib/builtin_gensios.h"
+done
 
 tryswig=yes
 swigprog=
@@ -562,35 +1419,6 @@ m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES([yes])])
 AC_CONFIG_MACRO_DIR([m4])
 
 AC_CHECK_LIB(nsl,main)
-
-trymdns=yes
-AC_ARG_WITH(mdns,
- [AS_HELP_STRING([--with-mdns[[=yes|no]]],
-		 [Look for mdns.])],
-    if test "x$withval" = "x"; then
-      trymdns=yes
-    elif test "x$withval" = "xyes"; then
-      trymdns=yes
-    elif test "x$withval" = "xno"; then
-      trymdns=no
-    fi,
-)
-HAVE_AVAHI=0
-if test $trymdns = yes; then
-	AC_CHECK_LIB(avahi-client, avahi_client_new,
-	     [AC_DEFINE([HAVE_AVAHI], [1], [Have avahi installed])
-	     HAVE_AVAHI=1
-	     LIBS="-lavahi-client -lavahi-common $LIBS"])
-fi
-AC_SUBST(HAVE_AVAHI)
-GMDNS=
-GMDNSMAN=
-if test "x$HAVE_AVAHI" = "x1"; then
-   GMDNS=gmdns
-   GMDNSMAN=gmdns.1
-fi
-AC_SUBST(GMDNS)
-AC_SUBST(GMDNSMAN)
 
 # Now check for swig
 SWIG_DIR=

@@ -14,8 +14,6 @@
 #include "gensio_ll_ipmisol.h"
 #include <gensio/gensio_err.h>
 
-#if HAVE_OPENIPMI
-
 #include <gensio/gensio_class.h>
 #include <gensio/sergensio_class.h>
 #include <gensio/gensio_osops.h>
@@ -2064,25 +2062,3 @@ ipmisol_gensio_ll_set_sio(struct gensio_ll *ll, struct sergensio *sio)
 
     solll->sio = sio;
 }
-
-#else
-
-int
-ipmisol_gensio_ll_alloc(struct gensio_os_funcs *o,
-			const char *devname,
-			gensio_ll_ipmisol_cb ser_cbs,
-			void *ser_cbs_data,
-			gensiods max_read_size,
-			gensiods max_write_size,
-			gensio_ll_ipmisol_ops *rops,
-			struct gensio_ll **rll)
-{
-    return GE_NOTSUP;
-}
-
-void
-ipmisol_gensio_ll_set_sio(struct gensio_ll *ll, struct sergensio *sio)
-{
-}
-
-#endif

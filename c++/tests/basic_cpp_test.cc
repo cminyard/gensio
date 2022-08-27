@@ -287,6 +287,7 @@ do_server_test(Os_Funcs &o, string ios)
     Accepter *a;
     Acc_Event ae(&w);
 
+    cerr << "Opening " << ios << endl;
     a = gensio_acc_alloc(ios, o, &ae);
     ae.set_accepter(a);
     try {

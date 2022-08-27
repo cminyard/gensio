@@ -9,8 +9,6 @@
 
 #include <gensio/gensio_err.h>
 
-#if HAVE_OPENSSL
-
 #include <stdlib.h>
 #include <limits.h>
 #include <string.h>
@@ -300,47 +298,6 @@ str_to_certauth_gensio_accepter(const char *str, const char * const args[],
 
     return err;
 }
-
-#else /* HAVE_OPENSSL */
-int
-certauth_gensio_alloc(struct gensio *child, const char * const args[],
-		      struct gensio_os_funcs *o,
-		      gensio_event cb, void *user_data,
-		      struct gensio **net)
-{
-    return GE_NOTSUP;
-}
-
-static int
-str_to_certauth_gensio(const char *str, const char * const args[],
-		  struct gensio_os_funcs *o,
-		  gensio_event cb, void *user_data,
-		  struct gensio **new_gensio)
-{
-    return GE_NOTSUP;
-}
-
-int
-certauth_gensio_accepter_alloc(struct gensio_accepter *child,
-			       const char * const args[],
-			       struct gensio_os_funcs *o,
-			       gensio_accepter_event cb, void *user_data,
-			       struct gensio_accepter **accepter)
-{
-    return GE_NOTSUP;
-}
-
-static int
-str_to_certauth_gensio_accepter(const char *str, const char * const args[],
-				struct gensio_os_funcs *o,
-				gensio_accepter_event cb,
-				void *user_data,
-				struct gensio_accepter **acc)
-{
-    return GE_NOTSUP;
-}
-
-#endif /* HAVE_OPENSSL */
 
 int
 gensio_init_certauth(struct gensio_os_funcs *o)

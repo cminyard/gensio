@@ -39,8 +39,6 @@ struct gensio_certauth_filter_data {
     bool allow_unencrypted;
 };
 
-#if HAVE_OPENSSL
-
 #include <assert.h>
 #include <string.h>
 
@@ -2971,28 +2969,3 @@ gensio_certauth_filter_alloc(struct gensio_certauth_filter_data *data,
 	X509_STORE_free(store);
     return rv;
 }
-
-#else /* HAVE_OPENSSL */
-
-int
-gensio_certauth_filter_config(struct gensio_os_funcs *o,
-			      const char * const args[],
-			      bool default_is_client,
-			      struct gensio_certauth_filter_data **rdata)
-{
-    return GE_NOTSUP;
-}
-
-void
-gensio_certauth_filter_config_free(struct gensio_certauth_filter_data *data)
-{
-}
-
-int
-gensio_certauth_filter_alloc(struct gensio_certauth_filter_data *data,
-			     struct gensio_filter **rfilter)
-{
-    return GE_NOTSUP;
-}
-
-#endif /* HAVE_OPENSSL */

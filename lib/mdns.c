@@ -8,7 +8,7 @@
 #include "config.h"
 #include <gensio/gensio_mdns.h>
 
-#ifdef HAVE_AVAHI
+#if HAVE_AVAHI
 #include <string.h>
 #include <assert.h>
 #include <sys/socket.h>
