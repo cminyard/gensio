@@ -80,6 +80,26 @@ and --with-pythoninstalllib configure options or you can set the
 pythoninstalldir and pythoninstalllibdir environment variables to
 where you want the libraries and modules to go.
 
+Dynamic vs Static gensios
+-------------------------
+
+The gensio library supports loading gensios dynamically or building
+them in to the library.  By default all gensios are compiled for
+dynamic loading and installed in a place that makes it possible.
+
+To set all gensios to be statically compiled, you can add
+"--with-all-gensios=yes" on the configure command line and it will
+build them in to the library.
+
+You can also disable all gensios by default by specifying
+"--with-all-gensios=no".
+
+You can override individual gensios, too.  For instance, if you only
+wanted to build the tcp gensio into the library and make the rest
+dynamic, you could set up for all dynamic gensios and then add
+"--with-net=yes".  This can also let you disable all gensios and only
+enable the ones you want.
+
 gensio tools
 ============
 

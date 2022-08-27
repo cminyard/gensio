@@ -13,7 +13,6 @@
 #include "config.h"
 #include <gensio/gensio_err.h>
 
-#ifdef HAVE_AVAHI
 #include <assert.h>
 #include <string.h>
 #include <stdio.h>
@@ -926,28 +925,6 @@ str_to_mdns_gensio(const char *str, const char * const args[],
 {
     return mdns_gensio_alloc(str, args, o, cb, user_data, new_gensio);
 }
-
-#else
-
-int
-mdns_gensio_alloc(const void *gdata, const char * const args[],
-		  struct gensio_os_funcs *o,
-		  gensio_event cb, void *user_data,
-		  struct gensio **new_gensio)
-{
-    return GE_NOTSUP;
-}
-
-static int
-str_to_mdns_gensio(const char *str, const char * const args[],
-		   struct gensio_os_funcs *o,
-		   gensio_event cb, void *user_data,
-		   struct gensio **new_gensio)
-{
-    return GE_NOTSUP;
-}
-
-#endif
 
 int
 gensio_init_mdns(struct gensio_os_funcs *o)

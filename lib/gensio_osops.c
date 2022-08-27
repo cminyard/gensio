@@ -53,6 +53,8 @@ bool gensio_set_progname(const char *iprogname)
 #include <ifaddrs.h>
 #include <netinet/in.h>
 #include <net/if.h>
+#include <limits.h>
+#include <dlfcn.h>
 
 int
 gensio_unix_os_setupnewprog(void)
@@ -2150,6 +2152,44 @@ gensio_win_pty_start(struct gensio_os_funcs *o,
     return err;
 }
 
+bool
+gensio_os_loadlib(struct gensio_os_funcs *o, const char *name)
+{
+    char *dllname;
+    char *initfuncname;
+    int (*initfunc)(struct gensio_os_funcs *);
+    HINSTANCE handle;
+    int err;
+
+    dllname = gensio_alloc_sprintf(o, "libgensio_%s.DLL", name);
+    if (!dllname)
+	return false;
+    initfuncname = gensio_alloc_sprintf(o, "gensio_init_%s", name);
+    if (!initfuncname) {
+	o->free(o, dllname);
+	return false;
+    }
+    handle = LoadLibrary(dllname);
+    o->free(o, dllname);
+    if (!handle) {
+	o->free(o, initfuncname);
+	return false;
+    }
+    initfunc = (int (*)(struct gensio_os_funcs *))
+	GetProcAddress(handle, initfuncname);
+    o->free(o, initfuncname);
+    if (!initfunc) {
+	FreeLibrary(handle);
+	return false;
+    }
+    err = initfunc(o);
+    if (err) {
+	FreeLibrary(handle);
+	return false;
+    }
+    return true;
+}
+
 #else /* _WIN32 */
 
 #include <fcntl.h>
@@ -3190,6 +3230,113 @@ gensio_unix_pty_start(struct gensio_os_funcs *o,
     return 0;
  out_errno:
     return gensio_os_err_to_err(o, errno);
+}
+
+static bool
+pathendswith(const char *str, const char *endstr)
+{
+    const char *end1 = str + strlen(str) - 1;
+    const char *end2 = endstr + strlen(endstr) - 1;
+
+    /* Ignore trailing '/' */
+    while (end1 != str && *end1 == '/')
+	end1--;
+    if (*end1 == '/')
+	return false; /* It was all /'s */
+
+    while (end1 != str && end2 != endstr && *end1 == *end2) {
+	end1--;
+	end2--;
+    }
+    return end2 == endstr && *end1 == *end2;
+}
+
+static bool
+try_loaddir(struct gensio_os_funcs *o, const char *name, const char *path,
+	    bool check_libtool_dir)
+{
+    gensiods len;
+    char fname[PATH_MAX];
+    void *handle;
+    int (*initfunc)(struct gensio_os_funcs *);
+    int err;
+
+    if (check_libtool_dir) {
+	/*
+	 * Only allow libtool libraries, so when running from in the
+	 * build directory it will find it.)
+	 */
+	if (!pathendswith(path, "/lib/.libs"))
+	    return false;
+    }
+    len = snprintf(fname, sizeof(fname), "%s/libgensio_%s.so", path, name);
+    if (len >= sizeof(fname))
+	return false;
+
+    handle = dlopen(fname, RTLD_LAZY | RTLD_GLOBAL);
+    if (!handle)
+	return false;
+    snprintf(fname, sizeof(fname), "gensio_init_%s", name);
+    initfunc = (int (*)(struct gensio_os_funcs *)) dlsym(handle, fname);
+    if (!initfunc) {
+	dlclose(handle);
+	return false;
+    }
+    err = initfunc(o);
+    if (err) {
+	dlclose(handle);
+	return false;
+    }
+    return true;
+}
+
+static bool
+try_loaddirs(struct gensio_os_funcs *o, const char *name, const char *paths,
+	     bool check_libtool_dir)
+{
+    char path[PATH_MAX];
+    const char *start, *end;
+    gensiods len;
+
+    start = paths;
+    while (*start) {
+	end = strchr(start, ':');
+	if (!end) {
+	    if (try_loaddir(o, name, start, check_libtool_dir))
+		return true;
+	    return false;
+	}
+
+	len = end - start;
+	if (len < sizeof(path)) {
+	    memcpy(path, start, len);
+	    path[len] = '\0';
+	    if (try_loaddir(o, name, path, check_libtool_dir))
+		return true;
+	}
+	start = end + 1;
+    }
+    return false;
+}
+
+static const char *default_libdir = PKG_LIBEXEC;
+
+bool
+gensio_os_loadlib(struct gensio_os_funcs *o, const char *name)
+{
+    const char *paths;
+
+    paths = getenv("LD_LIBRARY_PATH");
+    if (paths) {
+	if (try_loaddirs(o, name, paths, true))
+	    return true;
+    }
+    paths = getenv("GENSIO_LIBRARY_PATH");
+    if (paths) {
+	if (try_loaddirs(o, name, paths, false))
+	    return true;
+    }
+    return try_loaddirs(o, name, default_libdir, false);
 }
 
 #endif /* _WIN32 */

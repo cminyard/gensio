@@ -11,7 +11,7 @@
  */
 
 #include "config.h"
-#ifdef HAVE_AVAHI
+#if HAVE_AVAHI
 
 #include <stdlib.h>
 #include <assert.h>

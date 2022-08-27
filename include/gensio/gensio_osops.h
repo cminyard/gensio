@@ -231,6 +231,11 @@ int gensio_unix_pty_start(struct gensio_os_funcs *o,
 #endif /* _WIN32 */
 
 /*
+ * Load a gensio in a shared library.
+ */
+bool gensio_os_loadlib(struct gensio_os_funcs *o, const char *str);
+
+/*
  * Memory error testing.  If GENSIO_MEMTRACK is set in the
  * environment, track all memory allocated and freed and validate it.
  * To use this, allocate one, and pass it in to the alloc and free
