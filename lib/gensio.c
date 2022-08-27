@@ -2467,13 +2467,21 @@ gensio_default_init(void *cb_data)
 						  NULL, 0);
 }
 
-extern void gensio_sol_cleanup_mem(void);
+static struct gensio_class_cleanup *cleanups;
+
+void
+gensio_register_class_cleanup(struct gensio_class_cleanup *cleanup)
+{
+    cleanup->next = cleanups;
+    cleanups = cleanup;
+}
 
 void
 gensio_cleanup_mem(struct gensio_os_funcs *o)
 {
     struct registered_gensio_accepter *n, *n2;
     struct registered_gensio *g, *g2;
+    struct gensio_class_cleanup *cl = cleanups;
 
     if (gensio_base_lock)
 	o->free_lock(gensio_base_lock);
@@ -2511,7 +2519,11 @@ gensio_cleanup_mem(struct gensio_os_funcs *o)
 
     memset(&gensio_default_initialized, 0, sizeof(gensio_default_initialized));
     memset(&gensio_base_initialized, 0, sizeof(gensio_base_initialized));
-    gensio_sol_cleanup_mem();
+    cleanups = NULL;
+    while (cl) {
+	cl->cleanup();
+	cl = cl->next;
+    }
 }
 
 static void

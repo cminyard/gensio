@@ -1928,6 +1928,18 @@ sol_process_parms(struct sol_ll *solll)
 static struct gensio_once gensio_ipmi_initialized;
 static int ipmi_init_err;
 
+
+static void
+gensio_sol_cleanup_mem(void)
+{
+    ipmi_shutdown();
+}
+
+static struct gensio_class_cleanup sol_cleanup = {
+    gensio_sol_cleanup_mem
+};
+
+
 static void
 gensio_ipmi_init(void *cb_data)
 {
@@ -1937,6 +1949,8 @@ gensio_ipmi_init(void *cb_data)
     if (!gensio_os_handler)
 	abort();
     ipmi_init_err = ipmi_init(gensio_os_handler);
+    if (!ipmi_init_err)
+	gensio_register_class_cleanup(&sol_cleanup);
 }
 
 int
@@ -2051,12 +2065,6 @@ ipmisol_gensio_ll_set_sio(struct gensio_ll *ll, struct sergensio *sio)
     solll->sio = sio;
 }
 
-void
-gensio_sol_cleanup_mem(void)
-{
-    ipmi_shutdown();
-}
-
 #else
 
 int
@@ -2070,11 +2078,6 @@ ipmisol_gensio_ll_alloc(struct gensio_os_funcs *o,
 			struct gensio_ll **rll)
 {
     return GE_NOTSUP;
-}
-
-void
-gensio_sol_cleanup_mem(void)
-{
 }
 
 void

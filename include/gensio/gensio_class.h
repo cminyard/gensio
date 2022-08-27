@@ -326,5 +326,12 @@ int register_filter_gensio(struct gensio_os_funcs *o,
 			   const char *name, str_to_gensio_handler handler,
 			   str_to_gensio_child_handler chandler);
 
+struct gensio_class_cleanup {
+    void (*cleanup)(void);
+    struct gensio_class_cleanup *next;
+};
+
+GENSIO_DLL_PUBLIC
+void gensio_register_class_cleanup(struct gensio_class_cleanup *cleanup);
 
 #endif /* GENSIO_CLASS_H */
