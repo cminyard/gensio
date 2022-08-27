@@ -1880,6 +1880,8 @@ str_to_gensio(const char *str,
 	}
 
 	gensio_addr_free(ai);
+    } else {
+	err = GE_NOTSUP;
     }
 
  out:
