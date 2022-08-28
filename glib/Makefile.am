@@ -9,7 +9,7 @@ libgensioglib_la_CFLAGS = $(GLIB_CFLAGS) $(AM_CFLAGS)
 libgensioglib_la_LIBADD = $(top_builddir)/lib/libgensio.la @OPENSSL_LIBS@ \
 	@GLIB_LIBS@
 libgensioglib_la_LDFLAGS = -no-undefined -rpath $(libdir) \
-	-version-info 0:2:0
+	-version-info 0:2:0 -fvisibility=hidden
 
 SUBDIRS = . $(SWIG_DIR) include $(CPLUSPLUS_DIR)
 DIST_SUBDIRS = swig include c++
