@@ -3230,6 +3230,7 @@ gensio_syncio_event(struct gensio *io, void *user_data,
 	if (err) {
 	    if (!sync_io->err)
 		sync_io->err = err;
+	    gensio_set_read_callback_enable(io, false);
 	    gensio_sync_flush_waiters(sync_io, o);
 	    goto read_unlock;
 	}
