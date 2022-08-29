@@ -8,6 +8,22 @@
 
 %module(directors="1") pygensio
 
+/*
+ * The gensio library can dynamically load other modules that need access
+ * to the original library.  So we need to set RTLD_GLOBAL while loading.
+ */
+%pythonbegin %{
+import sys
+import os
+if os.name != 'nt':
+    origdlopenflags = sys.getdlopenflags()
+    sys.setdlopenflags(os.RTLD_GLOBAL | os.RTLD_LAZY)
+%}
+%pythoncode %{
+if os.name != 'nt':
+    sys.setdlopenflags(origdlopenflags)
+%}
+
 %include <gensio_base.i>
 
 %typemap(throws) gensios::gensio_error %{
