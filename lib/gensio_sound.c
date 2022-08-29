@@ -56,7 +56,7 @@ alloc_sound_list(struct gensio_os_funcs *o, const char *type,
     argv[1] = data;
     argv[2] = NULL;
 
-    err = echo_gensio_alloc(argv, o, cb, user_data, rio);
+    err = gensio_terminal_alloc("echo", NULL, argv, o, cb, user_data, rio);
  out:
     if (data)
 	o->free(o, data);
