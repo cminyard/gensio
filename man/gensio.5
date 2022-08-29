@@ -823,6 +823,11 @@ In addition to readbuf, a connecting echo takes the following options:
 .TP
 .B noecho[=true|false]
 Instead of echoing the data, just become a data sink.
+.TP
+.B data=<str>
+Supply the given data as the data to be read.  When combined with
+noecho, it will create a gensio that just supplies the given data then
+returns a GE_REMCLOSE when done.
 .SS "Remote Address String"
 The remote address string is "echo".
 .SH "file"

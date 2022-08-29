@@ -36,6 +36,7 @@ struct echon_data {
     struct gensio *io;
 
     bool noecho;
+    bool justdata;
 
     struct gensio_circbuf *buf;
 
@@ -158,17 +159,27 @@ echon_deferred_op(struct gensio_runner *runner, void *cb_data)
 
  more_read:
     while (ndata->state == ECHON_OPEN &&
-	   gensio_circbuf_datalen(ndata->buf) > 0 && ndata->read_enabled) {
+	   (gensio_circbuf_datalen(ndata->buf) > 0 || ndata->justdata) &&
+	   ndata->read_enabled) {
 	void *data;
 	gensiods count;
 
-	gensio_circbuf_next_read_area(ndata->buf, &data, &count);
-	echon_unlock(ndata);
-	err = gensio_cb(ndata->io, GENSIO_EVENT_READ, 0, data, &count, NULL);
-	echon_lock(ndata);
-	if (err)
-	    break;
-	gensio_circbuf_data_removed(ndata->buf, count);
+	if (gensio_circbuf_datalen(ndata->buf) == 0) {
+	    ndata->read_enabled = false;
+	    echon_unlock(ndata);
+	    gensio_cb(ndata->io, GENSIO_EVENT_READ, GE_REMCLOSE,
+		      NULL, NULL, NULL);
+	    echon_lock(ndata);
+	} else {
+	    gensio_circbuf_next_read_area(ndata->buf, &data, &count);
+	    echon_unlock(ndata);
+	    err = gensio_cb(ndata->io, GENSIO_EVENT_READ, 0,
+			    data, &count, NULL);
+	    echon_lock(ndata);
+	    if (err)
+		break;
+	    gensio_circbuf_data_removed(ndata->buf, count);
+	}
     }
 
     while (ndata->state == ECHON_OPEN &&
@@ -218,7 +229,7 @@ echon_set_read_callback_enable(struct gensio *io, bool enabled)
     echon_lock(ndata);
     ndata->read_enabled = enabled;
     if (enabled && ndata->state == ECHON_OPEN &&
-		gensio_circbuf_datalen(ndata->buf) > 0)
+		(gensio_circbuf_datalen(ndata->buf) > 0 || ndata->justdata))
 	echon_start_deferred_op(ndata);
     echon_unlock(ndata);
 }
@@ -400,18 +411,34 @@ echo_gensio_alloc(const char * const args[],
     int i;
     gensiods max_read_size = GENSIO_DEFAULT_BUF_SIZE;
     bool noecho = false;
+    const char *data = NULL;
 
     for (i = 0; args && args[i]; i++) {
 	if (gensio_check_keyds(args[i], "readbuf", &max_read_size) > 0)
 	    continue;
 	if (gensio_check_keybool(args[i], "noecho", &noecho) > 0)
 	    continue;
+	if (gensio_check_keyvalue(args[i], "data", &data) > 0)
+	    continue;
 	return GE_INVAL;
     }
+
+    if (data)
+	max_read_size = strlen(data);
 
     err = echo_ndata_setup(o, max_read_size, &ndata);
     if (err)
 	return err;
+
+    if (data) {
+	struct gensio_sg sg;
+
+	if (noecho)
+	    ndata->justdata = true;
+	sg.buf = data;
+	sg.buflen = max_read_size;
+	gensio_circbuf_sg_write(ndata->buf, &sg, 1, NULL);
+    }
 
     ndata->noecho = noecho;
 
