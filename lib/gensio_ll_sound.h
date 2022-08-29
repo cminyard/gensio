@@ -26,4 +26,9 @@ int gensio_sound_ll_alloc(struct gensio_os_funcs *o,
 			  struct gensio_sound_info *out,
 			  struct gensio_ll **newll);
 
+void gensio_sound_devices_free(char **names, char **specs, gensiods count);
+
+int gensio_sound_devices(const char *type,
+			 char ***names, char ***specs, gensiods *count);
+
 #endif /* GENSIO_LL_SOUND_H */
