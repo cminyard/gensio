@@ -13,6 +13,57 @@
 
 #include "gensio_ll_sound.h"
 
+
+static int
+alloc_sound_list(struct gensio_os_funcs *o, const char *type,
+		 gensio_event cb, void *user_data,
+		 struct gensio **rio)
+{
+    char **names, **specs;
+    gensiods i, count, len = 1;
+    int err;
+    const char *argv[3];
+    char *data;
+
+    err = gensio_sound_devices(type, &names, &specs, &count);
+    if (err)
+	return err;
+
+    for (i = 0; i < count; i++)
+	len += strlen(names[i]) + strlen(specs[i]) + 2;
+
+    data = o->zalloc(o, 5 + len);
+    if (!data) {
+	err = GE_NOMEM;
+	goto out;
+    }
+    memcpy(data, "data=", 5);
+    len = 5;
+    for (i = 0; i < count; i++) {
+	gensiods cpysize = strlen(names[i]);
+
+	memcpy(data + len, names[i], cpysize);
+	len += cpysize;
+	data[len++] = '\t';
+	cpysize = strlen(specs[i]);
+	memcpy(data + len, specs[i], cpysize);
+	len += cpysize;
+	data[len++] = '\n';
+    }
+    data[len] = '\0';
+
+    argv[0] = "noecho";
+    argv[1] = data;
+    argv[2] = NULL;
+
+    err = gensio_terminal_alloc("echo", NULL, argv, o, cb, user_data, rio);
+ out:
+    if (data)
+	o->free(o, data);
+    gensio_sound_devices_free(names, specs, count);
+    return err;
+}
+
 int
 sound_gensio_alloc(const char *devname, const char * const args[],
 		   struct gensio_os_funcs *o,
@@ -25,6 +76,7 @@ sound_gensio_alloc(const char *devname, const char * const args[],
     struct gensio *io;
     gensiods dsval;
     unsigned int uival;
+    bool list = false;
     int i;
 
     memset(&in, 0, sizeof(in));
@@ -70,6 +122,8 @@ sound_gensio_alloc(const char *devname, const char * const args[],
 	    out.samplerate = uival;
 	    continue;
 	}
+	if (gensio_check_keybool(args[i], "list", &list) > 0)
+	    continue;
 	if (gensio_check_keyvalue(args[i], "intype", &in.type) > 0)
 	    continue;
 	if (gensio_check_keyvalue(args[i], "outtype", &out.type) > 0)
@@ -100,6 +154,9 @@ sound_gensio_alloc(const char *devname, const char * const args[],
 	}
 	return GE_INVAL;
     }
+
+    if (list)
+	return alloc_sound_list(o, in.type, cb, user_data, rio);
 
     err = gensio_sound_ll_alloc(o, &in, &out, &ll);
     if (err)

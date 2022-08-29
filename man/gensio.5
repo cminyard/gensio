@@ -2056,6 +2056,16 @@ the file in the PCM format.
 The readbuf option is not available in this gensio, obviously.
 .SS Options
 .TP
+.B list[=yes|no]
+Instead of opening a sound device, the gensio will provide data about
+the various sound interfaces available.  Every other option but "type"
+is ignored.  If "type" is supplied, list the interfaces for that type.
+If "type" is not supplied, list the interfaces for the default one.
+
+The data will be a string with each interfaces separated by a newline.
+There will be an interface name, a tab, and the interface
+specification.
+.TP
 .B outdev=<str>
 If the output device has a different name than the input device, it
 must be specified separately.

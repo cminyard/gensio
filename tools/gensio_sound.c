@@ -13,7 +13,6 @@
 #include <stdlib.h>
 #include <signal.h>
 #include <gensio/gensio.h>
-#include <gensio/gensio_sound.h>
 #include <../tools/utils.h>
 
 #ifdef _WIN32
@@ -102,25 +101,60 @@ io_event(struct gensio *io, void *user_data, int event, int err,
 }
 
 static int
-list_sound_devs(const char *devtype)
+list_sound_devs(struct gensio_os_funcs *o, const char *devtype)
 {
-    char **names = NULL, **specs = NULL;
-    gensiods i, count;
+    char *gstr;
+    struct gensio *lg;
+    char buf[1025];
+    gensiods len;
     int err;
 
-    /* FIXME - supply a sound type. */
-    err = gensio_sound_devices(devtype, &names, &specs, &count);
+    if (devtype)
+	gstr = alloc_sprintf("sound(list,type=%s)", devtype);
+    else
+	gstr = alloc_sprintf("sound(list)");
+    if (!gstr) {
+	fprintf(stderr, "Unable to allocate gensio string\n");
+	return 1;
+    }
+    err = str_to_gensio(gstr, o, NULL, NULL, &lg);
+    free(gstr);
     if (err) {
-	fprintf(stderr, "Unable to get sound devices: %s\n",
+	fprintf(stderr, "Unable to allocated gensio: %s\n",
 		gensio_err_to_str(err));
 	return 1;
     }
 
-    printf("%-50s %s\n", "Name", "Specs");
-    for (i = 0; i < count; i++)
-	printf("%-50s %s\n", names[i], specs[i]);
+    err = gensio_open_s(lg);
+    if (err) {
+	fprintf(stderr, "Unable to open gensio: %s\n",
+		gensio_err_to_str(err));
+	return 1;
+    }
 
-    gensio_sound_devices_free(names, specs, count);
+    err = gensio_set_sync(lg);
+    if (err) {
+	fprintf(stderr, "Unable to set gensio sync: %s\n",
+		gensio_err_to_str(err));
+	return 1;
+    }
+
+    do {
+	err = gensio_read_s(lg, &len, buf, sizeof(buf) - 1, NULL);
+	if (!err) {
+	    buf[len] = '\0';
+	    puts(buf);
+	}
+    } while (!err);
+
+    gensio_free(lg);
+
+    if (err != GE_REMCLOSE) {
+	fprintf(stderr, "Error reading list data: %s\n",
+		gensio_err_to_str(err));
+	return 1;
+    }
+
     return 0;
 }
 
@@ -215,8 +249,23 @@ main(int argc, char *argv[])
 	}
     }
 
+    rv = gensio_default_os_hnd(GENSIOSIG, &o);
+    if (rv) {
+	fprintf(stderr, "Could not allocate OS handler: %s\n",
+		gensio_err_to_str(rv));
+	return 1;
+    }
+    gensio_os_funcs_set_vlog(o, do_vlog);
+
+    rv = gensio_os_proc_setup(o, &proc_data);
+    if (rv) {
+	fprintf(stderr, "Could not setup process data: %s\n",
+		gensio_err_to_str(rv));
+	return 1;
+    }
+
     if (list_devs) {
-	list_sound_devs(devtype);
+	list_sound_devs(o, devtype);
 	return 0;
     }
 
@@ -238,23 +287,6 @@ main(int argc, char *argv[])
 			      argv[arg]);
     if (!gensiostr) {
 	fprintf(stderr, "Could not allocate gensio string\n");
-	return 1;
-    }
-
-    rv = gensio_default_os_hnd(GENSIOSIG, &o);
-    if (rv) {
-	free(gensiostr);
-	fprintf(stderr, "Could not allocate OS handler: %s\n",
-		gensio_err_to_str(rv));
-	return 1;
-    }
-    gensio_os_funcs_set_vlog(o, do_vlog);
-
-    rv = gensio_os_proc_setup(o, &proc_data);
-    if (rv) {
-	free(gensiostr);
-	fprintf(stderr, "Could not setup process data: %s\n",
-		gensio_err_to_str(rv));
 	return 1;
     }
 
