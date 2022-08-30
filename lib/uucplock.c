@@ -8,8 +8,6 @@
 #include "config.h"
 #include "uucplock.h"
 
-bool gensio_uucp_locking_enabled = true;
-
 #if USE_UUCP_LOCKING
 
 #include <string.h>
