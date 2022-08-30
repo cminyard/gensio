@@ -21,7 +21,7 @@
 #include <gensio/gensio_osops.h>
 #include <gensio/gensio_list.h>
 
-#include "buffer.h"
+#include <gensio/gensio_buffer.h>
 #include "utils.h"
 
 #include <OpenIPMI/ipmiif.h>
@@ -580,7 +580,7 @@ struct sol_ll {
     gensio_ll_close_done close_done;
     void *close_data;
 
-    struct sbuf read_data;
+    struct gensio_buffer read_data;
     gensiods max_write_size;
 
     /*
@@ -749,7 +749,7 @@ static void
 check_for_read_delivery(struct sol_ll *solll)
 {
     while (solll->read_enabled &&
-	   (buffer_cursize(&solll->read_data) || solll->read_err) &&
+	   (gensio_buffer_cursize(&solll->read_data) || solll->read_err) &&
 	   !solll->in_read) {
 	if (solll->read_err) {
 	    sol_unlock(solll);
@@ -757,11 +757,11 @@ check_for_read_delivery(struct sol_ll *solll)
 		      NULL, 0, NULL);
 	    sol_lock(solll);
 	} else {
-	    buffer_write(sol_do_read_send, solll, &solll->read_data);
+	    gensio_buffer_write(sol_do_read_send, solll, &solll->read_data);
 
 	    /* Maybe we consumed some data, let the other end send if so. */
 	    while (solll->nacks_sent > 0 &&
-		   buffer_left(&solll->read_data) > 128) { /* FIXME - magic */
+		   gensio_buffer_left(&solll->read_data) > 128) { /* FIXME - magic */
 		if (ipmi_sol_release_nack(solll->sol))
 		    break;
 		solll->nacks_sent--;
@@ -1020,8 +1020,8 @@ sol_data_received(ipmi_sol_conn_t *conn,
     int rv = 0;
 
     sol_lock(solll);
-    if (count <= buffer_left(&solll->read_data)) {
-	buffer_output(&solll->read_data, idata, count);
+    if (count <= gensio_buffer_left(&solll->read_data)) {
+	gensio_buffer_output(&solll->read_data, idata, count);
 	check_for_read_delivery(solll);
     } else {
 	solll->nacks_sent++;
@@ -1206,7 +1206,7 @@ sol_open(struct gensio_ll *ll, gensio_ll_open_done done, void *open_data)
     solll->read_err = 0;
     solll->deferred_read = false;
     solll->deferred_write = false;
-    buffer_reset(&solll->read_data);
+    gensio_buffer_reset(&solll->read_data);
     solll->nacks_sent = 0;
 
     err = ipmi_args_setup_con(solll->args, gensio_os_handler, NULL,

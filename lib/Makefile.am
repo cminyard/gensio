@@ -3,7 +3,7 @@ AM_CPPFLAGS = -DBUILDING_GENSIO_DLL
 
 lib_LTLIBRARIES = libgensio.la
 
-noinst_HEADERS = telnet.h heap.h utils.h uucplock.h buffer.h \
+noinst_HEADERS = telnet.h heap.h utils.h uucplock.h \
 	gensio_filter_ssl.h gensio_filter_telnet.h gensio_ll_ipmisol.h \
 	gensio_filter_certauth.h gensio_filter_msgdelim.h \
 	gensio_filter_relpkt.h gensio_filter_trace.h gensio_filter_perf.h \
