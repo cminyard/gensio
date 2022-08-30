@@ -30,11 +30,6 @@
 #define DIRSEP '/'
 #endif
 
-/* In gensio_filter_ssl.c, semi-private. */
-int gensio_cert_get_name(X509 *cert, char *data, gensiods *datalen);
-int gensio_cert_to_buf(X509 *cert, char *buf, gensiods *datalen);
-int gensio_cert_fingerprint(X509 *cert, char *buf, gensiods *buflen);
-
 struct gensio_ssl_filter_data {
     struct gensio_os_funcs *o;
     bool is_client;
@@ -767,7 +762,8 @@ ssl_free(struct gensio_filter *filter)
     return sfilter_free(sfilter);
 }
 
-int
+/* Also in gensio_filter_certauth.c. */
+static int
 gensio_cert_get_name(X509 *cert, char *data, gensiods *datalen)
 {
     char *nidstr = NULL, *end;
@@ -823,7 +819,8 @@ gensio_cert_get_name(X509 *cert, char *data, gensiods *datalen)
     return 0;
 }
 
-int
+/* Also in gensio_filter_certauth.c. */
+static int
 gensio_cert_to_buf(X509 *cert, char *buf, gensiods *buflen)
 {
     BIO *mbio;
@@ -851,7 +848,8 @@ gensio_cert_to_buf(X509 *cert, char *buf, gensiods *buflen)
     return 0;
 }
 
-int
+/* Also in gensio_filter_certauth.c. */
+static int
 gensio_cert_fingerprint(X509 *cert, char *buf, gensiods *buflen)
 {
     gensiods len = *buflen, clen;

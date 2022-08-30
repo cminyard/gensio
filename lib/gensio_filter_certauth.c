@@ -55,10 +55,115 @@ struct gensio_certauth_filter_data {
 #include <gensio/gensio_class.h>
 #include <gensio/gensio_os_funcs.h>
 
-/* In gensio_filter_ssl.c, semi-private. */
-int gensio_cert_get_name(X509 *cert, char *data, gensiods *datalen);
-int gensio_cert_to_buf(X509 *cert, char *buf, gensiods *datalen);
-int gensio_cert_fingerprint(X509 *cert, char *buf, gensiods *buflen);
+/* Also in gensio_filter_ssl.c. */
+static int
+gensio_cert_get_name(X509 *cert, char *data, gensiods *datalen)
+{
+    char *nidstr = NULL, *end;
+    int index = -1, len, tlen, nid;
+    int datasize;
+    X509_NAME *nm;
+    X509_NAME_ENTRY *e;
+    ASN1_STRING *as;
+    unsigned char *strobj;
+    int strobjlen;
+    ASN1_OBJECT *obj;
+
+    if (!cert)
+	return GE_NOCERT;
+    datasize = *datalen;
+    index = strtol(data, &end, 0);
+    if (*end == ',')
+	nidstr = end + 1;
+    else if (*end)
+	return GE_CERTINVALID;
+    nm = X509_get_subject_name(cert);
+    if (nidstr) {
+	nid = OBJ_sn2nid(nidstr);
+	if (nid == NID_undef) {
+	    nid = OBJ_ln2nid(data);
+	    if (nid == NID_undef)
+		return GE_CERTINVALID;
+	}
+	index = X509_NAME_get_index_by_NID(nm, nid, index);
+	if (index < 0)
+	    return GE_NOTFOUND;
+    }
+    e = X509_NAME_get_entry(nm, index);
+    if (!e)
+	return GE_NOTFOUND;
+    obj = X509_NAME_ENTRY_get_object(e);
+    nid = OBJ_obj2nid(obj);
+    len = snprintf(data, datasize, "%d,%s,", index, OBJ_nid2sn(nid));
+    as = X509_NAME_ENTRY_get_data(e);
+    strobjlen = ASN1_STRING_to_UTF8(&strobj, as);
+    if (strobjlen < 0)
+	return GE_NOMEM;
+    tlen = strobjlen;
+    if (len + 1 < datasize) {
+	if (strobjlen > datasize - len - 1)
+	    strobjlen = datasize - len - 1;
+	memcpy(data + len, strobj, strobjlen);
+	data[strobjlen + len] = '\0';
+    }
+    len += tlen;
+    OPENSSL_free(strobj);
+    *datalen = len;
+    return 0;
+}
+
+/* Also in gensio_filter_ssl.c. */
+static int
+gensio_cert_to_buf(X509 *cert, char *buf, gensiods *buflen)
+{
+    BIO *mbio;
+    BUF_MEM *bptr;
+    gensiods len = *buflen, copylen;
+
+    mbio = BIO_new(BIO_s_mem());
+    if (!mbio)
+	return GE_NOMEM;
+
+    if (PEM_write_bio_X509(mbio, cert) == 0) {
+	BIO_free(mbio);
+	return GE_IOERR;
+    }
+
+    BIO_get_mem_ptr(mbio, &bptr);
+    *buflen = bptr->length;
+    copylen = len;
+    if (copylen > bptr->length)
+	copylen = bptr->length;
+    memcpy(buf, bptr->data, copylen);
+    if (len > copylen)
+	buf[copylen] = '\0';
+    BIO_free(mbio);
+    return 0;
+}
+
+/* Also in gensio_filter_ssl.c. */
+static int
+gensio_cert_fingerprint(X509 *cert, char *buf, gensiods *buflen)
+{
+    gensiods len = *buflen, clen;
+    unsigned int i, n, l;
+    unsigned char md[EVP_MAX_MD_SIZE];
+
+    if (X509_digest(cert, EVP_sha1(), md, &n) == 0)
+	return GE_NOMEM;
+
+    clen = snprintf(buf, len, "%2.2X", md[0]);
+    for (i = 1; i < n; i++) {
+	if (clen >= len)
+	    l = 0;
+	else
+	    l = len - clen;
+
+	clen += snprintf(buf + clen, l, ":%2.2X", md[i]);
+    }
+    *buflen = clen;
+    return 0;
+}
 
 #if OPENSSL_VERSION_NUMBER < 0x10100000L
 #define X509_up_ref(x) CRYPTO_add(&x->references, 1, CRYPTO_LOCK_X509)
