@@ -540,7 +540,7 @@ namespace gensios {
 	~GensioW() {
 	    try {
 		io->close_s();
-	    } catch (gensio_error) {
+	    } catch (gensio_error &) {
 		// Ignore the error, already closed.
 	    }
 	    // Make sure the freed handler doesn't get called.
@@ -948,7 +948,7 @@ namespace gensios {
 	~AccepterW() {
 	    try {
 		acc->shutdown_s();
-	    } catch (gensio_error) {
+	    } catch (gensio_error &) {
 		// Ignore the error, already closed.
 	    }
 	    // Make sure the freed handler doesn't get called.
