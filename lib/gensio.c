@@ -4068,3 +4068,6 @@ gensio_time_diff_nsecs(gensio_time *t1, gensio_time *t2)
     v += (int64_t) t1->nsecs - (int64_t) t2->nsecs;
     return v;
 }
+
+/* For lack of a better place to put this. */
+bool gensio_uucp_locking_enabled = true;
