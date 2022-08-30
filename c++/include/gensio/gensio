@@ -320,6 +320,9 @@ namespace gensios {
     Gensio *gensio_alloc(Gensio *child, std::string str,
 			 Os_Funcs &o, Event *cb = NULL);
 
+    // For internal use only.
+    Gensio *gensio_alloc(struct gensio *io, Os_Funcs &o);
+
     class GENSIOCPP_DLL_PUBLIC Raw_Event_Handler {
     public:
 	virtual ~Raw_Event_Handler() = default;
@@ -511,7 +514,6 @@ namespace gensios {
 	struct gensio *io = NULL;
 	Event *gcb = NULL;
 
-	GENSIOCPP_DLL_PUBLIC
 	friend Gensio *gensio_alloc(struct gensio *io,
 				    Os_Funcs &o);
 	friend class Main_Raw_Accepter_Event_Handler;
@@ -702,7 +704,6 @@ namespace gensios {
     private:
 	struct sergensio *sio = NULL;
 
-	GENSIOCPP_DLL_PUBLIC
 	friend Gensio *gensio_alloc(struct gensio *io,
 				    Os_Funcs &o);
     };
