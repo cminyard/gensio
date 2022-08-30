@@ -26,7 +26,7 @@ find_cmd(struct telnet_cmd *array, unsigned char option)
 void
 telnet_cmd_send(telnet_data_t *td, const unsigned char *cmd, int len)
 {
-    if (buffer_output(&td->out_telnet_cmd, cmd, len) < len) {
+    if (gensio_buffer_output(&td->out_telnet_cmd, cmd, len) < len) {
 	/* Out of data, abort the connection.  This really shouldn't
 	   happen.*/
 	td->error = 1;
@@ -147,22 +147,22 @@ telnet_send_option(telnet_data_t *td, const unsigned char *option,
 
     real_len += 4; /* Add the initial and end markers. */
 
-    if (real_len > buffer_left(&td->out_telnet_cmd)) {
+    if (real_len > gensio_buffer_left(&td->out_telnet_cmd)) {
 	/* Out of data, abort the connection.  This really shouldn't
 	   happen.*/
 	td->error = 1;
 	return;
     }
 
-    buffer_outchar(&td->out_telnet_cmd, TN_IAC);
-    buffer_outchar(&td->out_telnet_cmd, TN_SB);
+    gensio_buffer_outchar(&td->out_telnet_cmd, TN_IAC);
+    gensio_buffer_outchar(&td->out_telnet_cmd, TN_SB);
     for (i = 0; i < len; i++) {
-	buffer_outchar(&td->out_telnet_cmd, option[i]);
+	gensio_buffer_outchar(&td->out_telnet_cmd, option[i]);
 	if (option[i] == TN_IAC)
-	    buffer_outchar(&td->out_telnet_cmd, option[i]);
+	    gensio_buffer_outchar(&td->out_telnet_cmd, option[i]);
     }
-    buffer_outchar(&td->out_telnet_cmd, TN_IAC);
-    buffer_outchar(&td->out_telnet_cmd, TN_SE);
+    gensio_buffer_outchar(&td->out_telnet_cmd, TN_IAC);
+    gensio_buffer_outchar(&td->out_telnet_cmd, TN_SE);
 
     td->output_ready(td->cb_data);
 }
@@ -295,8 +295,8 @@ telnet_init(telnet_data_t *td,
 	    int init_seq_len)
 {
     memset(td, 0, sizeof(*td));
-    buffer_init(&td->out_telnet_cmd, td->out_telnet_cmdbuf,
-		sizeof(td->out_telnet_cmdbuf));
+    gensio_buffer_init(&td->out_telnet_cmd, td->out_telnet_cmdbuf,
+		       sizeof(td->out_telnet_cmdbuf));
     td->cb_data = cb_data;
     td->output_ready = output_ready;
     td->cmd_handler = cmd_handler;

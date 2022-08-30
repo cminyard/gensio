@@ -8,13 +8,13 @@
 #include "config.h"
 #include <stdlib.h>
 #include <string.h>
-#include "buffer.h"
+#include <gensio/gensio_buffer.h>
 
 #include <gensio/gensio_err.h>
 
 static int
-do_write(buffer_do_write tdo_write, void *cb_data,
-	 void  *buf, unsigned int buflen, unsigned int *written)
+do_write(gensio_buffer_do_write tdo_write, void *cb_data,
+	 void *buf, unsigned int buflen, unsigned int *written)
 {
     int err = 0;
     unsigned int write_count;
@@ -27,7 +27,8 @@ do_write(buffer_do_write tdo_write, void *cb_data,
 }
 
 int
-buffer_write(buffer_do_write tdo_write, void *cb_data, struct sbuf *buf)
+gensio_buffer_write(gensio_buffer_do_write tdo_write, void *cb_data,
+		    struct gensio_buffer *buf)
 {
     int err;
     unsigned int write_count;
@@ -67,12 +68,13 @@ buffer_write(buffer_do_write tdo_write, void *cb_data, struct sbuf *buf)
 }
 
 unsigned int
-buffer_output(struct sbuf *buf, const unsigned char *data, unsigned int len)
+gensio_buffer_output(struct gensio_buffer *buf,
+		     const unsigned char *data, unsigned int len)
 {
     int end;
 
-    if (buffer_left(buf) < len)
-	len = buffer_left(buf);
+    if (gensio_buffer_left(buf) < len)
+	len = gensio_buffer_left(buf);
 
     end = buf->pos + buf->cursize;
     if (end > buf->maxsize)
@@ -93,11 +95,11 @@ buffer_output(struct sbuf *buf, const unsigned char *data, unsigned int len)
 }
 
 unsigned int
-buffer_outchar(struct sbuf *buf, unsigned char data)
+gensio_buffer_outchar(struct gensio_buffer *buf, unsigned char data)
 {
     int end;
 
-    if (buffer_left(buf) < 1)
+    if (gensio_buffer_left(buf) < 1)
 	return 0;
 
     end = buf->pos + buf->cursize;
@@ -110,7 +112,8 @@ buffer_outchar(struct sbuf *buf, unsigned char data)
 }
 
 int
-buffer_init(struct sbuf *buf, unsigned char *data, unsigned int datasize)
+gensio_buffer_init(struct gensio_buffer *buf,
+		   unsigned char *data, unsigned int datasize)
 {
     if (data) {
 	buf->buf = data;

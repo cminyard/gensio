@@ -8,7 +8,7 @@
 #ifndef _SER2NET_TELNET_H
 #define _SER2NET_TELNET_H
 
-#include "buffer.h"
+#include <gensio/gensio_buffer.h>
 
 /* Telnet commands */
 #define TN_SE   240
@@ -72,7 +72,7 @@ struct telnet_data_s
     /* Outgoing telnet commands.  The output routines should look at
        this *first* to see if they should transmit some data from
        here. */
-    struct sbuf out_telnet_cmd;
+    struct gensio_buffer out_telnet_cmd;
     unsigned char out_telnet_cmdbuf[MAX_TELNET_CMD_XMIT_BUF];
 
     /* Marks that an output error occurred.  The only error that can
