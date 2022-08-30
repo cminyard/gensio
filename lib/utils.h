@@ -20,8 +20,6 @@ int strcasecmp(const char *s1, const char *s2);
 int strncasecmp(const char *s1, const char *s2, int n);
 #endif
 
-int gensio_time_cmp(gensio_time *t1, gensio_time *t2);
-
 struct enum_val
 {
     char *str;
