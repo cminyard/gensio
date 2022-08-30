@@ -742,6 +742,9 @@ bool gensio_str_in_auxdata(const char *const *auxdata, const char *str);
 GENSIO_DLL_PUBLIC
 bool gensio_set_progname(const char *progname);
 
+GENSIO_DLL_PUBLIC
+int gensio_time_cmp(gensio_time *t1, gensio_time *t2);
+
 /*
  * Various conversion helpers.  These may become inline someday...
  */
