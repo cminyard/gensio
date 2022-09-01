@@ -109,7 +109,7 @@ AC_ARG_WITH(tcp-wrappers,
 if test "$tcp_wrappers" != "no"
 then
   AC_CHECK_HEADERS([tcpd.h])
-  AC_CHECK_LIB(wrap,main)
+  AC_CHECK_LIB(wrap,request_init)
 fi
 
 AC_ARG_ENABLE([doc],
