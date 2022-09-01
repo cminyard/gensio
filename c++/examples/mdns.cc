@@ -9,6 +9,7 @@
 #include <string>
 #include <cstring>
 #include <gensio/gensio>
+#include <gensio/gensiomdns>
 
 using namespace std;
 using namespace gensios;

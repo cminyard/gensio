@@ -22,7 +22,9 @@ EXTRA_DIST = pygensio.i CMakeLists.txt
 
 nodist__pygensio_la_SOURCES = pygensio_wrap.cc
 _pygensio_la_LIBADD = $(top_builddir)/c++/lib/libgensiocpp.la \
-		$(top_builddir)/lib/libgensio.la $(OPENSSL_LIBS) \
+		$(top_builddir)/c++/lib/libgensiomdnscpp.la \
+		$(top_builddir)/lib/libgensio.la \
+		$(top_builddir)/lib/libgensiomdns.la \
 		$(PYTHON_LIBS)
 _pygensio_la_LDFLAGS = -module -avoid-version $(OPENSSL_LDFLAGS) -no-undefined
 

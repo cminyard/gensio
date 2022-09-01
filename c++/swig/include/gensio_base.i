@@ -8,6 +8,7 @@
 
 %{
 #include <gensio/gensio>
+#include <gensio/gensiomdns>
 using namespace gensios;
 %}
 

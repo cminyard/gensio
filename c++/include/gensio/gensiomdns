@@ -1,0 +1,206 @@
+//
+//  gensio - A library for abstracting stream I/O
+//  Copyright (C) 2022  Corey Minyard <minyard@acm.org>
+//
+//  SPDX-License-Identifier: LGPL-2.1-only
+
+// This is a C++ wrapper for the gensio library MDNS interface.
+
+#ifndef GENSIOMDNS_CPP_INCLUDE
+#define GENSIOMDNS_CPP_INCLUDE
+
+#if defined GENSIO_LINK_STATIC
+  #define GENSIOMDNSCPP_DLL_PUBLIC
+  #define GENSIOMDNSCPP_DLL_LOCAL
+#elif defined _WIN32 || defined __CYGWIN__
+  #ifdef BUILDING_GENSIOMDNSCPP_DLL
+    #ifdef __GNUC__
+      #define GENSIOMDNSCPP_DLL_PUBLIC __attribute__ ((dllexport))
+    #else
+      #define GENSIOMDNSCPP_DLL_PUBLIC __declspec(dllexport) // Note: actually gcc seems to also supports this syntax.
+    #endif
+  #else
+    #ifdef __GNUC__
+      #define GENSIOMDNSCPP_DLL_PUBLIC __attribute__ ((dllimport))
+    #else
+      #define GENSIOMDNSCPP_DLL_PUBLIC __declspec(dllimport) // Note: actually gcc seems to also supports this syntax.
+    #endif
+  #endif
+  #define GENSIOMDNSCPP_DLL_LOCAL
+#else
+  #if __GNUC__ >= 4
+    #define GENSIOMDNSCPP_DLL_PUBLIC __attribute__ ((visibility ("default")))
+    #define GENSIOMDNSCPP_DLL_LOCAL  __attribute__ ((visibility ("hidden")))
+  #else
+    #define GENSIOMDNSCPP_DLL_PUBLIC
+    #define GENSIOMDNSCPP_DLL_LOCAL
+  #endif
+#endif
+
+namespace gensios {
+#include <gensio/gensio_mdns.h>
+
+    // Access to the MDNS code
+
+    class MDNS;
+    class MDNS_Service;
+    class MDNS_Watch;
+    class MDNS_Watch_Event;
+
+    // This class is used to know when an MDNS object has finished the
+    // shutdown operation and will not call any more callbacks.
+    class GENSIOMDNSCPP_DLL_PUBLIC MDNS_Free_Done {
+    public:
+	// Called when the shutdown is complete.  The mdns object may be
+	// freed when this returns.
+	virtual void mdns_free_done() = 0;
+
+	virtual ~MDNS_Free_Done() = default;
+    protected:
+	MDNS *m;
+    private:
+	friend void mdns_free_done(struct gensio_mdns *m, void *userdata);
+	friend class MDNS;
+    };
+
+    class GENSIOMDNSCPP_DLL_PUBLIC Raw_MDNS_Event_Handler {
+    public:
+	virtual ~Raw_MDNS_Event_Handler() = default;
+
+	virtual void handle(MDNS_Watch_Event *e,
+			    enum gensio_mdns_data_state state,
+			    int interfacenum, int ipdomain,
+			    const char *name, const char *mtype,
+			    const char *domain, const char *host,
+			    const struct gensio_addr *addr,
+			    const char * const *txt) = 0;
+	virtual void set_parent(Raw_MDNS_Event_Handler *parent) { }
+    };
+
+    class GENSIOMDNSCPP_DLL_PUBLIC MDNS {
+    public:
+	MDNS(Os_Funcs &o);
+
+	inline Os_Funcs &get_os_funcs() { return go; }
+
+	// Convenience functions to allocate a service and a watch.
+	MDNS_Service *add_service(int interfacenum, int ipdomain,
+				  const char *name, const char *mtype,
+				  const char *domain, const char *host,
+				  int port, const char * const *txt);
+	MDNS_Watch *add_watch(int interfacenum, int ipdomain,
+			      const char *name, const char *mtype,
+			      const char *domain, const char *host,
+			      MDNS_Watch_Event *event,
+			      Raw_MDNS_Event_Handler *evh = NULL);
+
+	// Like a gensio, you cannot directly delete an MDNS object.
+	// It may be in callbacks.  You have to go through a special
+	// free operation.  See the Gensio free() method for details.
+	void free(MDNS_Free_Done *done = NULL);
+    protected:
+	virtual ~MDNS() { }
+	Os_Funcs go;
+    private:
+	struct gensio_mdns *m;
+	friend class MDNS_Service;
+	friend class MDNS_Watch;
+	friend void mdns_free_done(struct gensio_mdns *m, void *userdata);
+    };
+
+    // A class representing an MDNS service.  A wrapper around
+    // gensio_mdns_add/remove_service(), see man pages on those
+    // functions for details.
+    class GENSIOMDNSCPP_DLL_PUBLIC MDNS_Service {
+    public:
+	MDNS_Service(MDNS *m, int interfacenum, int ipdomain,
+		     const char *name, const char *mtype,
+		     const char *domain, const char *host,
+		     int port, const char * const *txt);
+	~MDNS_Service();
+    private:
+	struct gensio_mdns_service *s;
+    };
+
+    // This class is used to know when an MDNS_Watch object has
+    // finished the shutdown operation and will not call any more
+    // callbacks.
+    class GENSIOMDNSCPP_DLL_PUBLIC MDNS_Watch_Free_Done {
+    public:
+	// Called when the shutdown is complete.  The mdns object may be
+	// freed when this returns.
+	virtual void mdns_watch_free_done() = 0;
+
+	virtual ~MDNS_Watch_Free_Done() = default;
+    private:
+	MDNS_Watch *w = NULL;
+        friend void mdns_watch_free_done(struct gensio_mdns_watch *w,
+					 void *userdata);
+	friend class MDNS_Watch;
+    };
+
+    // This handles events from an mdns watch informing you that it
+    // has a new MDNS entry.  Analogous to gensio_mdns_watch_cb, see
+    // the gensio_mdns_add_watch() man page for details.
+    class GENSIOMDNSCPP_DLL_PUBLIC MDNS_Watch_Event {
+    public:
+	virtual void event(enum gensio_mdns_data_state state,
+			   int interfacenum, int ipdomain,
+			   const char *name, const char *mtype,
+			   const char *domain, const char *host,
+			   const Addr *addr, const char * const *txt) = 0;
+	virtual ~MDNS_Watch_Event() = default;
+    private:
+	MDNS_Watch *w;
+	friend class MDNS_Watch;
+	friend void mdns_watch_event(struct gensio_mdns_watch *w,
+				     enum gensio_mdns_data_state state,
+				     int interfacenum, int ipdomain,
+				     const char *name, const char *mtype,
+				     const char *domain, const char *host,
+				     const struct gensio_addr *addr,
+				     const char * const *txt, void *userdata);
+    };
+
+    // A class representing an MDNS service.  A wrapper around
+    // gensio_mdns_add/remove_watch(), see man pages on those
+    // functions for details.
+    class GENSIOMDNSCPP_DLL_PUBLIC MDNS_Watch {
+    public:
+	// If you have a raw event handler, you must supply it here.
+	// This avoids race conditions between creating the watch and
+	// installing the new raw event handler.  This is not a
+	// problem for gensios because events aren't enabled at
+	// startup, but they are for MDNS watches.
+	MDNS_Watch(MDNS *m, int interfacenum, int ipdomain,
+		   const char *name, const char *mtype,
+		   const char *domain, const char *host,
+		   MDNS_Watch_Event *event,
+		   Raw_MDNS_Event_Handler *raw_event_handler = NULL);
+
+	inline Os_Funcs &get_os_funcs() { return m->get_os_funcs(); }
+
+	// Like a gensio, you cannot directly delete an MDNS_Watch object.
+	// It may be in callbacks.  You have to go through a special
+	// free operation.  See the Gensio free() method for details.
+	void free(MDNS_Watch_Free_Done *done = NULL);
+
+	// This allows the user to intercept raw events, it is primarily
+	// used to help other language bindings tie in things they need.
+	Raw_MDNS_Event_Handler *raw_event_handler = NULL;
+
+    protected:
+	virtual ~MDNS_Watch() {
+	    if (raw_event_handler)
+		delete raw_event_handler;
+	}
+    private:
+	MDNS *m;
+	MDNS_Watch_Event *event;
+	struct gensio_mdns_watch *w;
+        friend void mdns_watch_free_done(struct gensio_mdns_watch *w,
+					 void *userdata);
+    };
+
+}
+#endif

@@ -1,5 +1,5 @@
 
-lib_LTLIBRARIES = libgensio.la
+lib_LTLIBRARIES =
 
 noinst_HEADERS = telnet.h heap.h utils.h uucplock.h \
 	gensio_filter_ssl.h gensio_filter_telnet.h gensio_ll_ipmisol.h \
@@ -13,7 +13,7 @@ libgensio_la_SOURCES = \
 	gensio.c gensio_osops.c gensio_base.c sergensio.c utils.c buffer.c \
 	gensio_ll_fd.c gensio_ll_gensio.c gensio_acc.c gensio_acc_gensio.c \
 	gensio_circbuf.c gensio_osops_env.c gensio_addrinfo.c gensio_stdsock.c \
-	mdns.c avahi_watcher.c gensio_ax25_addr.c
+	gensio_ax25_addr.c
 
 if HAVE_UNIX_OS
 libgensio_la_SOURCES += gensio_unix.c selector.c
@@ -28,7 +28,22 @@ endif
 libgensio_la_CPPFLAGS = -DBUILDING_GENSIO_DLL \
 			-DPKG_LIBEXEC="\"$(pkglibexecdir)\""
 libgensio_la_LDFLAGS = -no-undefined -version-info 3:0:3 -fvisibility=hidden
+if BUILTIN_MDNS
+libgensio_la_LIBADD = libgensiomdns.la
+endif
 
+EXTRA_LTLIBRARIES =
+
+lib_LTLIBRARIES += libgensiomdns.la
+libgensiomdns_la_SOURCES = mdns.c avahi_watcher.c
+libgensiomdns_la_CPPFLAGS = -DBUILDING_GENSIOMDNS_DLL
+libgensiomdns_la_LDFLAGS = -no-undefined -version-info 0:0:0 -fvisibility=hidden
+libgensiomdns_la_LIBADD = ${MDNS_LIBS}
+
+# libgensio.la can depend on iibgensiomdns if BUILTIN_MDNS is set.
+# Therefore it must be built after libgensiomdns, so it has to be
+# added after.
+lib_LTLIBRARIES += libgensio.la
 
 # Note that xgensio_libexecdir starts with "x" because it has to
 # install after libgensio and libgensiomdns for proper relinking, and
@@ -40,7 +55,6 @@ xgensio_libexecdir = $(pkglibexecdir)
 endif
 
 xgensio_libexec_LTLIBRARIES =
-EXTRA_LTLIBRARIES =
 DYNAMIC_LDFLAGS = -no-undefined -rpath "$(pkglibexecdir)" -avoid-version
 DYNAMIC_LIBS = libgensio.la
 
@@ -155,6 +169,7 @@ libgensio_ipmisol_la_LDFLAGS = $(DYNAMIC_LDFLAGS)
 libgensio_ipmisol_la_CFLAGS = $(OPENIPMI_CPPFLAGS)
 libgensio_ipmisol_la_LIBADD = $(DYNAMIC_LIBS) $(OPENIPMI_LIBS)
 
+if HAVE_AVAHI
 if BUILTIN_MDNS
 libgensio_la_SOURCES += gensio_mdns.c
 else
@@ -163,7 +178,8 @@ endif
 xgensio_libexec_LTLIBRARIES += $(DYNAMIC_MDNS)
 libgensio_mdns_la_SOURCES = gensio_mdns.c
 libgensio_mdns_la_LDFLAGS = $(DYNAMIC_LDFLAGS)
-libgensio_mdns_la_LIBADD = $(DYNAMIC_LIBS)
+libgensio_mdns_la_LIBADD = $(DYNAMIC_LIBS) libgensiomdns.la
+endif
 
 if BUILTIN_SOUND
 libgensio_la_SOURCES += gensio_ll_sound.c gensio_sound.c
@@ -317,7 +333,7 @@ libgensio_ratelimit_la_SOURCES = gensio_filter_ratelimit.c gensio_ratelimit.c
 libgensio_ratelimit_la_LDFLAGS = $(DYNAMIC_LDFLAGS)
 libgensio_ratelimit_la_LIBADD = $(DYNAMIC_LIBS)
 
-EXTRA_DIST = README.rst libgensio.pc.in CMakeLists.txt
+EXTRA_DIST = README.rst libgensio.pc.in libgensiomdns.pc.in CMakeLists.txt
 
 DISTCLEANFILES = builtin_gensios.h
 
@@ -325,3 +341,6 @@ DISTCLEANFILES = builtin_gensios.h
 # by 'install-exec' target (instead of default 'install-data')
 pkgconfigexecdir = $(libdir)/pkgconfig
 pkgconfigexec_DATA = libgensio.pc
+if HAVE_AVAHI
+pkgconfigexec_DATA += libgensiomdns.pc
+endif
