@@ -474,14 +474,14 @@ BUILTIN_SCTP=0
 DYNAMIC_SCTP=
 case $sctp in
    yes)
-      if test $HAVE_OPENIPMI = 0; then
+      if test $HAVE_LIBSCTP = 0; then
          AC_MSG_ERROR("sctp enabled but openipmi not found")
       fi
       BUILTIN_GENSIOS="$BUILTIN_GENSIOS sctp"
       BUILTIN_SCTP=1
       ;;
    dynamic)
-      if test $HAVE_OPENIPMI = 0; then
+      if test $HAVE_LIBSCTP = 0; then
          AC_MSG_ERROR("sctp enabled but openipmi not found")
       fi
       DYNAMIC_GENSIOS="$DYNAMIC_GENSIOS sctp"
@@ -793,7 +793,7 @@ if test $trymdns = yes; then
 fi
 if test "$HAVE_AVAHI" = "1"; then
    mdns=$default_all
-   LIBS="$LIBS -lavahi-client -lavahi-common"
+   MDNS_LIBS="-lavahi-client -lavahi-common"
    GMDNS=gmdns
    GMDNSMAN=gmdns.1
 else
@@ -801,6 +801,7 @@ else
 fi
 AC_DEFINE_UNQUOTED([HAVE_AVAHI], [$HAVE_AVAHI],
 	[Set to 1 to enable MDNS support through avahi, 0 to disable])
+AM_CONDITIONAL([HAVE_AVAHI], [test ${HAVE_AVAHI} = 1])
 AC_SUBST(HAVE_AVAHI)
 AC_SUBST(MDNS_LIBS)
 AC_SUBST(GMDNS)
@@ -823,7 +824,6 @@ case $mdns in
       if test $HAVE_AVAHI = 0; then
          AC_MSG_ERROR("mdns enabled but avahi not found")
       fi
-      LIBS="$LIBS $OPENIPMI_LIBS"
       BUILTIN_GENSIOS="$BUILTIN_GENSIOS mdns"
       BUILTIN_MDNS=1
       ;;
@@ -1690,6 +1690,7 @@ CPPFLAGS="$CPPFLAGS -I\$(top_srcdir)/include -I\$(top_builddir)/include"
 
 AC_CONFIG_FILES([Makefile
 	lib/libgensio.pc
+	lib/libgensiomdns.pc
 	lib/Makefile
 	swig/Makefile
 	swig/python/libgensio_python_swig.pc
@@ -1701,6 +1702,7 @@ AC_CONFIG_FILES([Makefile
 	c++/include/gensio/Makefile
 	c++/lib/Makefile
 	c++/lib/libgensiocpp.pc
+	c++/lib/libgensiomdnscpp.pc
 	c++/tests/Makefile
 	c++/examples/Makefile
 	c++/swig/Makefile

@@ -791,6 +791,7 @@ static bool check_for_err(int err)
 %include <gensio/gensio_err.h>
 %include <gensio/gensio_control.h>
 %include <gensio/gensio>
+%include <gensio/gensiomdns>
 
 
 ////////////////////////////////////////////////////

@@ -386,5 +386,6 @@ void *gensio_string_to_uintptr(char *in)
 %include <gensio/gensio_err.h>
 %include <gensio/gensio_control.h>
 %include <gensio/gensio>
+%include <gensio/gensiomdns>
 
 int gensio_num_alloced();

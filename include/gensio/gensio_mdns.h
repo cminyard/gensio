@@ -12,7 +12,34 @@
 extern "C" {
 #endif
 
-#include <gensio/gensio_dllvisibility.h>
+#if defined GENSIO_LINK_STATIC
+  #define GENSIOMDNS_DLL_PUBLIC
+  #define GENSIOMDNS_DLL_LOCAL
+#elif defined _WIN32 || defined __CYGWIN__
+  #ifdef BUILDING_GENSIOMDNS_DLL
+    #ifdef __GNUC__
+      #define GENSIOMDNS_DLL_PUBLIC __attribute__ ((dllexport))
+    #else
+      #define GENSIOMDNS_DLL_PUBLIC __declspec(dllexport) // Note: actually gcc seems to also supports this syntax.
+    #endif
+  #else
+    #ifdef __GNUC__
+      #define GENSIOMDNS_DLL_PUBLIC __attribute__ ((dllimport))
+    #else
+      #define GENSIOMDNS_DLL_PUBLIC __declspec(dllimport) // Note: actually gcc seems to also supports this syntax.
+    #endif
+  #endif
+  #define GENSIOMDNS_DLL_LOCAL
+#else
+  #if __GNUC__ >= 4
+    #define GENSIOMDNS_DLL_PUBLIC __attribute__ ((visibility ("default")))
+    #define GENSIOMDNS_DLL_LOCAL  __attribute__ ((visibility ("hidden")))
+  #else
+    #define GENSIOMDNS_DLL_PUBLIC
+    #define GENSIOMDNS_DLL_LOCAL
+  #endif
+#endif
+
 #include <gensio/gensio_types.h>
 #include <gensio/gensio.h>
 
@@ -21,15 +48,15 @@ struct gensio_mdns_service;
 
 typedef void (*gensio_mdns_done)(struct gensio_mdns *m, void *userdata);
 
-GENSIO_DLL_PUBLIC
+GENSIOMDNS_DLL_PUBLIC
 int gensio_alloc_mdns(struct gensio_os_funcs *o, struct gensio_mdns **m);
 
-GENSIO_DLL_PUBLIC
+GENSIOMDNS_DLL_PUBLIC
 int gensio_free_mdns(struct gensio_mdns *m,
 		     gensio_mdns_done done, void *userdata);
 
 
-GENSIO_DLL_PUBLIC
+GENSIOMDNS_DLL_PUBLIC
 int gensio_mdns_add_service(struct gensio_mdns *m,
 			    int interface, int ipdomain,
 			    const char *name, const char *type,
@@ -37,7 +64,7 @@ int gensio_mdns_add_service(struct gensio_mdns *m,
 			    int port, const char * const *txt,
 			    struct gensio_mdns_service **rservice);
 
-GENSIO_DLL_PUBLIC
+GENSIOMDNS_DLL_PUBLIC
 int gensio_mdns_remove_service(struct gensio_mdns_service *s);
 
 
@@ -53,7 +80,7 @@ typedef void (*gensio_mdns_watch_cb)(struct gensio_mdns_watch *w,
 				     const struct gensio_addr *addr,
 				     const char * const *txt, void *userdata);
 
-GENSIO_DLL_PUBLIC
+GENSIOMDNS_DLL_PUBLIC
 int gensio_mdns_add_watch(struct gensio_mdns *m,
 			  int interface, int ipdomain,
 			  const char *name, const char *type,
@@ -64,7 +91,7 @@ int gensio_mdns_add_watch(struct gensio_mdns *m,
 typedef void (*gensio_mdns_watch_done)(struct gensio_mdns_watch *w,
 				       void *userdata);
 
-GENSIO_DLL_PUBLIC
+GENSIOMDNS_DLL_PUBLIC
 int gensio_mdns_remove_watch(struct gensio_mdns_watch *w,
 			     gensio_mdns_watch_done done, void *userdata);
 
