@@ -28,8 +28,9 @@ endif
 libgensio_la_CPPFLAGS = -DBUILDING_GENSIO_DLL \
 			-DPKG_LIBEXEC="\"$(pkglibexecdir)\""
 libgensio_la_LDFLAGS = -no-undefined -version-info 3:0:3 -fvisibility=hidden
+libgensio_la_LIBADD = @LIBSCTP_LIBS@
 if BUILTIN_MDNS
-libgensio_la_LIBADD = libgensiomdns.la
+libgensio_la_LIBADD += libgensiomdns.la
 endif
 
 EXTRA_LTLIBRARIES =
