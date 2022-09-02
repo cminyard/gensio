@@ -453,8 +453,6 @@ AC_DEFINE_UNQUOTED([HAVE_SCTP_SENDV], [$HAVE_SCTP_SENDV],
 if test "$HAVE_LIBSCTP" = "1"; then
    sctp=$default_all
    LIBSCTP_LIBS="-lsctp"
-   # stdsock code uses sctp, so we always need it.
-   LIBS="$LIBS $LIBSCTP_LIBS"
 else
    sctp=no
 fi
