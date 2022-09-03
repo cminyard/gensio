@@ -64,11 +64,35 @@ To fully build gensio, you need the following:
 
 * tcl dev - for the tcl os funcs
 
+* alsa dev - for sound (on Linux)
+
 The following sets everything except openipmi up on ubuntu 20.04:
 
   sudo apt install gcc g++ git swig python3-dev libssl-dev pkg-config	\
     libavahi-client-dev avahi-daemon libtool autoconf automake make	\
     libsctp-dev libpam-dev libwrap0-dev libglib2.0-dev tcl-dev		\
+    libasound2-dev
+
+On Redhat, libwrap is gone, so you won't be using that, and swig doesn't appear
+to be available, so you will have to built that yourself with at least go and
+python support.  Here's the command for Redhat-like systems:
+
+  sudo yum install gcc g++ git python3-devel swig openssl-devel \
+    pkg-config avahi-devel libtool autoconf automake make \
+    lksctp-tools-devel pam-devel glib2-devel tcl-devel \
+    alsa-lib-devel
+
+You might have to do the following to enable access to the development
+packages:
+
+  sudo dnf config-manager --set-enabled devel
+
+And get the SCTP kernel modules, you might have to do:
+
+  sudo yum install kernel-modules-extra
+
+To use Go language, you must get a version of swig 4.1.0 or greater.
+You may have to pull a bleeding edge version out of git and use that.
 
 Handling python installation configuration is a bit of a pain.  By
 default the build scripts will put it wherever the python program
@@ -79,6 +103,11 @@ To override this, you can use the --with-pythoninstall
 and --with-pythoninstalllib configure options or you can set the
 pythoninstalldir and pythoninstalllibdir environment variables to
 where you want the libraries and modules to go.
+
+Note that you may need to set --with-uucp-locking to your lockdir (on
+older systems it's /var/lock, which is the default.  On newer it might
+be /run/lock/lockdev.  You might also need to be a member of dialout
+and lock groups to be able to open serial devices and/or locks.
 
 Dynamic vs Static gensios
 -------------------------
@@ -99,6 +128,8 @@ wanted to build the tcp gensio into the library and make the rest
 dynamic, you could set up for all dynamic gensios and then add
 "--with-net=yes".  This can also let you disable all gensios and only
 enable the ones you want.
+
+go language support requires go to be installed and in the path.
 
 gensio tools
 ============
