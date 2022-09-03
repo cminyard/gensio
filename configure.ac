@@ -312,10 +312,9 @@ if test "x$trytcl" != "xno"; then
    if test "x$tclcflags" = "x"; then
       AC_CHECK_HEADER(tcl/tcl.h, FOUND_TCL_HEADER=yes; )
       if test "x$FOUND_TCL_HEADER" != "xyes"; then
-         AC_CHECK_HEADER(tcl/tcl.h, FOUND_TCL_HEADER=yes; )
+         AC_CHECK_HEADER(tcl.h, FOUND_TCL_HEADER=yes; )
 	 if test "x$FOUND_TCL_HEADER" = "xyes"; then
-	    tclcflags="-I /usr/include/tcl$ver"
-            TCL_CFLAGS="$tclcflags"
+            TCL_CFLAGS=""
 	 fi
       else
 	tclcflags="-I /usr/include/tcl"
