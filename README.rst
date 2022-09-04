@@ -383,12 +383,56 @@ ax25
 
     The test code uses the reflector for some testing, since it's so
     convenient to use.
+
+ratelimit
+    Limit the data throughput for a gensio stack.
 		  
 These are all documented in detail in gensio(5).  Unless otherwise
 stated, these all are available as accepters or connecting gensios.
 
+Creating Your Own Gensios
+=========================
+
 You can create your own gensios and register them with the library and
 stack them along with the other gensios.
+
+The easiest way to do this is to steal code from a gensio that does
+kind of what you want, then modify it to create your own gensio.
+There is, unfortunately, no good documentation on how to do this.
+
+The include file include/gensio/gensio_class.h has the interface
+between the main gensio library and the gensio.  The gensio calls all
+come through a single function with numbers to identify the function
+being requested.  You have to map all these to the actual operations.
+This is somewhat painful, but it makes forwards and backwards
+compatibility much easier.
+
+Creating your own gensio this way is fairly complex.  The state
+machine for something like this can be surprisingly complex.  Cleanup
+is the hardest part.  You have to make sure you are out of all
+callbacks and no timers might be called back in a race condition at
+shutdown.  Only the simplest gensios (echo, dummy), strange gensios
+(conadd, keepopen, stdio), and gensios that have channels (mux, ax25)
+directly implement the interface.  Everything else uses
+include/gensio/gensio_base.h.  gensio_base provides the basic state
+machine for a gensio.  It has a filter portion (which is optional) and
+a low-level (ll) portion, which is not.
+
+The filter interface has data run through it for the processing.  This
+is used for things like ssl, certauth, ratelimit, etc.  Filter gensios
+would use this.  These all use gensio_ll_gensio (for stacking a gensio
+on top of another gensio) for the ll.
+
+Terminal gensios each have their own ll and generally no filter.  For
+lls based on a file descriptor (fd), gensio_ll_fd is used.  There is
+also an ll for IPMI serial-over-lan (ipmisol) and for sound.  Most of
+the terminal gensios (tcp, udp, sctp, serial port, pty) use the fd ll,
+obviously.
+
+Once you have a gensio, you can compile it as a module and stick it in
+/usr/libexec/gensio-<version>.  Then the gensio will just pick it up
+and use it.  You can also link it in with your application and do the
+init function from your application.
 
 mDNS support
 ============
