@@ -1421,6 +1421,7 @@ AC_CHECK_LIB(nsl,main)
 SWIG_DIR=
 SWIG_CPP_DIR=
 SWIG=
+SWIG_NUMBERSION=0
 if test "x$tryswig" = "xyes"; then
    if test "x$swigprog" != "x"; then
       SWIG="$swigprog"
@@ -1503,32 +1504,39 @@ AC_SUBST(PYTHON_SWIG_FLAGS)
 PYTHON_EXECUTABLE="${PYTHON}"
 AC_SUBST(PYTHON_EXECUTABLE)
 
-trygo=yes
+if test $SWIG_NUMVERSION -ge 40100; then
+   trygo=yes
+else
+   trygo=no
+fi
 GOPROG=
 AC_ARG_WITH(go,
  [AS_HELP_STRING([--with-go[[=yes|no|PATH]]],
 		 [Look for go, with the optional path.])],
-    if test "x$withval" = "x"; then
+   if test "x$withval" = "x"; then
       trygo=yes
-    elif test "x$withval" = "xyes"; then
+   elif test "x$withval" = "xyes"; then
       trygo=yes
-    elif test "x$withval" = "xno"; then
+   elif test "x$withval" = "xno"; then
       trygo=no
-    else
+   else
       GOPROG="$withval"
       trygo=yes
-    fi,
+   fi,
 )
 
+if test $trygo = yes -a $SWIG_NUMVERSION -lt 40100; then
+   AC_MSG_ERROR([Go enabled, but swig version must be >= 4.1.0 for that])
+fi
 GODIR=
 if test $trygo = yes; then
-	if test "x$GOPROG" = "x"; then
-		AC_CHECK_TOOL([GOPROG], [go], [])
-	fi
+   if test "x$GOPROG" = "x"; then
+      AC_CHECK_TOOL([GOPROG], [go], [])
+   fi
 fi
 if test "x$GOPROG" != "x"; then
-	AC_DEFINE([HAVE_GO], [], [Have go installed])
-	GO_DIR=go
+   AC_DEFINE([HAVE_GO], [], [Have go installed])
+   GO_DIR=go
 fi
 AC_SUBST(GOPROG)
 AC_SUBST(GO_DIR)
