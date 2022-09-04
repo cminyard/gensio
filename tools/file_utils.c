@@ -7,6 +7,7 @@
 #include <windows.h>
 #include <aclapi.h>
 #include <Lmcons.h>
+#include <sddl.h>
 
 static int
 check_sid(gtlssh_logger logger, void *cbdata,
