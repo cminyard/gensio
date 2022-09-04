@@ -9,7 +9,7 @@ AC_CONFIG_HEADERS([config.h])
 AC_PROG_CC
 AC_PROG_CXX
 AM_PROG_AR
-LT_INIT
+LT_INIT(dlopen)
 
 # defaults
 AM_CFLAGS=
