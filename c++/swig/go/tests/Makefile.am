@@ -37,9 +37,9 @@ go.mod: $(TEST_SRCS)
 
 export CGO_CXXFLAGS = $(CXXFLAGS) $(AM_CXXFLAGS)
 export CGO_CPPFLAGS = $(CPPFLAGS)
-export CGO_LDFLAGS = -L$(abs_top_builddir)/c++/lib/.libs \
+export CGO_LDFLAGS = -L$(top_builddir)/c++/lib/.libs \
 	-lgensiocpp -lgensiomdnscpp \
-	-L$(abs_top_builddir)/lib/.libs -lgensio -lgensiomdns
+	-L$(top_builddir)/lib/.libs -lgensio -lgensiomdns
 
 test_basic: ../gensio/gensio.go \
 		../gensio/gensio_wrap.cxx \
