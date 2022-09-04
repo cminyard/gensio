@@ -20,13 +20,16 @@ libgensio_la_SOURCES += gensio_unix.c selector.c
 endif
 if HAVE_WINDOWS_OS
 libgensio_la_SOURCES += gensio_win.c
+gensiolibexec = $(bindir)
+else
+gensiolibexec = $(pkglibexecdir)-$(PACKAGE_VERSION)
 endif
 if ENABLE_INTERNAL_TRACE
 libgensio_la_SOURCES += errtrig.c
 endif
 
 libgensio_la_CPPFLAGS = -DBUILDING_GENSIO_DLL \
-			-DPKG_LIBEXEC="\"$(pkglibexecdir)\""
+			-DPKG_LIBEXEC="\"$(gensiolibexec)\""
 libgensio_la_LDFLAGS = -no-undefined -version-info 2:0:2 -fvisibility=hidden
 libgensio_la_LIBADD = @LIBSCTP_LIBS@
 if BUILTIN_MDNS
@@ -49,14 +52,10 @@ lib_LTLIBRARIES += libgensio.la
 # Note that xgensio_libexecdir starts with "x" because it has to
 # install after libgensio and libgensiomdns for proper relinking, and
 # automake organizes the installs alphabetically
-if HAVE_WINDOWS_OS
-xgensio_libexecdir = $(bindir)
-else
-xgensio_libexecdir = $(pkglibexecdir)
-endif
+xgensio_libexecdir = $(gensiolibexec)
 
 xgensio_libexec_LTLIBRARIES =
-DYNAMIC_LDFLAGS = -no-undefined -rpath "$(pkglibexecdir)" -avoid-version
+DYNAMIC_LDFLAGS = -no-undefined -module -rpath "$(gensiolibexec)" -avoid-version
 DYNAMIC_LIBS = libgensio.la
 
 if BUILTIN_NET
