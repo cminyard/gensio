@@ -9,6 +9,15 @@ AC_CONFIG_HEADERS([config.h])
 AC_PROG_CC
 AC_PROG_CXX
 AM_PROG_AR
+
+# Per discussion at:
+# https://lists.gnu.org/archive/html/libtool/2022-09/msg00000.html
+# This enabled RUNPATH over RPATH.  libtool will not set
+# LD_LIBRARY_PATH if RPATH is used, but the code uses LD_LIBRARY_PATH
+# as a way to find module object files.  So this is a hack until a
+# workaround is available.
+LDFLAGS="$LDFLAGS -Wl,--enable-new-dtags"
+
 LT_INIT(dlopen)
 
 # defaults
