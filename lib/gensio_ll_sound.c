@@ -272,6 +272,7 @@ get_int(const unsigned char **in, unsigned int size,
     case 1:
 	v = *((int8_t *) *in);
 	(*in) += 1;
+	break;
 
     default:
 	assert(0);
@@ -556,18 +557,18 @@ setup_convv(struct sound_info *si, enum gensio_sound_fmt_type pfmt)
 
     if (pinfo->isfloat && uinfo->isfloat) {
 	si->cnv.convin = conv_float_to_float_in;
-	si->cnv.convin = conv_float_to_float_out;
+	si->cnv.convout = conv_float_to_float_out;
     } else if (pinfo->isfloat) {
 	si->cnv.scale = pinfo->offset;
 	si->cnv.convin = conv_float_to_int_in;
-	si->cnv.convin = conv_int_to_float_out;
+	si->cnv.convout = conv_int_to_float_out;
     } else if (uinfo->isfloat) {
 	si->cnv.scale = pinfo->offset;
 	si->cnv.convin = conv_int_to_float_in;
-	si->cnv.convin = conv_float_to_int_out;
+	si->cnv.convout = conv_float_to_int_out;
     } else {
 	si->cnv.convin = conv_int_to_int_in;
-	si->cnv.convin = conv_int_to_int_out;
+	si->cnv.convout = conv_int_to_int_out;
     }
 
     si->cnv.enabled = true;
