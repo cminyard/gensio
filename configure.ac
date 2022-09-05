@@ -16,8 +16,9 @@ AM_PROG_AR
 # LD_LIBRARY_PATH if RPATH is used, but the code uses LD_LIBRARY_PATH
 # as a way to find module object files.  So this is a hack until a
 # workaround is available.
-LDFLAGS="$LDFLAGS -Wl,--enable-new-dtags"
-
+if uname -a | grep '^Linux' >/dev/null 2>/dev/null; then
+  LDFLAGS="$LDFLAGS -Wl,--enable-new-dtags"
+fi
 LT_INIT(dlopen)
 
 # defaults

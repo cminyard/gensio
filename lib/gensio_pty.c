@@ -14,8 +14,6 @@
 #include "config.h"
 #include <gensio/gensio_err.h>
 
-#if HAVE_PTY
-
 #include <stdio.h>
 #include <stdlib.h>
 #if HAVE_PTSNAME_R
@@ -809,30 +807,6 @@ str_to_pty_gensio(const char *str, const char * const args[],
 
     return err;
 }
-
-#else
-
-#include <gensio/gensio_class.h>
-
-int
-pty_gensio_alloc(const void *gdata, const char * const args[],
-		 struct gensio_os_funcs *o,
-		 gensio_event cb, void *user_data,
-		 struct gensio **new_gensio)
-{
-    return GE_NOTSUP;
-}
-
-static int
-str_to_pty_gensio(const char *str, const char * const args[],
-		  struct gensio_os_funcs *o,
-		  gensio_event cb, void *user_data,
-		  struct gensio **new_gensio)
-{
-    return GE_NOTSUP;
-}
-
-#endif
 
 int
 gensio_init_pty(struct gensio_os_funcs *o)
