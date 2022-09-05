@@ -274,6 +274,11 @@ main(int argc, char *argv[])
 	return 1;
     }
 
+    if (channels == 0) {
+	fprintf(stderr, "channels must be >= 1\n");
+	return 1;
+    }
+
     if (bufsize % (channels * 4) != 0) {
 	fprintf(stderr, "bufsize must be a multiple of channel * 4\n");
 	return 1;

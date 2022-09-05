@@ -526,13 +526,13 @@ gensio_sound_alsa_api_open_dev(struct sound_info *si)
 	return GE_INCONSISTENT;
     }
 
-    a->fds = o->zalloc(o, a->nrfds * sizeof(struct pollfd *));
+    a->fds = o->zalloc(o, a->nrfds * sizeof(struct pollfd));
     if (!a->fds) {
 	gensio_sound_alsa_api_close_dev(si);
 	return GE_NOMEM;
     }
 
-    a->iods = o->zalloc(o, a->nrfds * sizeof(struct pollfd *));
+    a->iods = o->zalloc(o, a->nrfds * sizeof(struct gensio_iod));
     if (!a->iods) {
 	gensio_sound_alsa_api_close_dev(si);
 	return GE_NOMEM;
@@ -613,8 +613,6 @@ gensio_sound_alsa_api_devices(char ***rnames, char ***rspecs, gensiods *rcount)
 	count++;
 
     next:
-	if (name)
-	    free(name);
 	if (io)
 	    free(io);
     }
@@ -658,11 +656,12 @@ gensio_sound_alsa_api_cleanup(struct sound_info *si)
     struct gensio_os_funcs *o = si->soundll->o;
     struct alsa_info *a = si->pinfo;
 
-    if (a->close_timer)
-	o->free_timer(a->close_timer);
-    if (si->pinfo)
-	o->free(o, si->pinfo);
-    si->pinfo = NULL;
+    if (a) {
+	if (a->close_timer)
+	    o->free_timer(a->close_timer);
+	o->free(o, a);
+	si->pinfo = NULL;
+    }
 }
 
 static struct sound_type alsa_sound_type = {
