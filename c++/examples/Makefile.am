@@ -18,5 +18,3 @@ mdns_SOURCES = mdns.cc
 mdns_LDADD = $(top_builddir)/lib/libgensio.la \
 	$(top_builddir)/c++/lib/libgensiocpp.la \
 	$(top_builddir)/c++/lib/libgensiomdnscpp.la
-
-EXTRA_DIST = CMakeLists.txt

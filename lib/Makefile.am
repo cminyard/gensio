@@ -333,7 +333,7 @@ libgensio_ratelimit_la_SOURCES = gensio_filter_ratelimit.c gensio_ratelimit.c
 libgensio_ratelimit_la_LDFLAGS = $(DYNAMIC_LDFLAGS)
 libgensio_ratelimit_la_LIBADD = $(DYNAMIC_LIBS)
 
-EXTRA_DIST = README.rst libgensio.pc.in libgensiomdns.pc.in CMakeLists.txt
+EXTRA_DIST = README.rst libgensio.pc.in libgensiomdns.pc.in
 
 DISTCLEANFILES = builtin_gensios.h
 

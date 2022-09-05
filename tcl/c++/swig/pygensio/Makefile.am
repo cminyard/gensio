@@ -19,7 +19,7 @@ pygensiotcl_wrap.cc pygensiotcl.py: \
 		-I$(top_srcdir)/include -I$(top_builddir)/include \
 		$(top_srcdir)/tcl/c++/swig/pygensio/pygensiotcl.i
 
-EXTRA_DIST = pygensiotcl.i CMakeLists.txt
+EXTRA_DIST = pygensiotcl.i
 
 nodist__pygensiotcl_la_SOURCES = pygensiotcl_wrap.cc
 _pygensiotcl_la_LIBADD = $(top_builddir)/c++/lib/libgensiocpp.la \

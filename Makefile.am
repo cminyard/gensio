@@ -9,7 +9,7 @@ endif
 
 DIST_SUBDIRS = lib swig c++ include glib tcl tests tools examples man
 
-EXTRA_DIST = README.rst reconf CMakeLists.txt config.h.cmake
+EXTRA_DIST = README.rst reconf
 
 # Set distcheck up so python files get installed someplace that will
 # work, and enable internal trace so oomtest will work.

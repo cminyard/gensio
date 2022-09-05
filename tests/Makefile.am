@@ -40,7 +40,7 @@ echotest_SOURCES = echotest.c
 check_PROGRAMS = oomtest echotest
 
 EXTRA_DIST = utils.py ipmisimdaemon.py termioschk.py \
-	test_fuzz_setup.py make_keys $(PYTESTS) $(OOMTESTS) CMakeLists.txt
+	test_fuzz_setup.py make_keys $(PYTESTS) $(OOMTESTS) \
 	gensios_enabled.py.in
 
 #
