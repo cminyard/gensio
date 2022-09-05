@@ -2,7 +2,7 @@
 noinst_PROGRAMS = basic_server basic_server_sync basic_client \
 	basic_server_sync_fork
 
-EXTRA_DIST = basic_server.py basic_client.py CMakeLists.txt
+EXTRA_DIST = basic_server.py basic_client.py
 
 basic_server_SOURCES = basic_server.c
 

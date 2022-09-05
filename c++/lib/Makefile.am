@@ -24,5 +24,5 @@ libgensiomdnscpp_la_LDFLAGS = -no-undefined -rpath $(libdir) \
 
 pkgconfigexec_DATA += libgensiomdnscpp.pc
 
-EXTRA_DIST = libgensiocpp.pc.in libgensiomdnscpp.pc.in CMakeLists.txt
+EXTRA_DIST = libgensiocpp.pc.in libgensiomdnscpp.pc.in
 

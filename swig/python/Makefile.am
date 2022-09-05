@@ -27,7 +27,7 @@ gensio_wrap.c gensio.py: $(top_srcdir)/swig/gensio.i \
 		-I$(top_builddir)/include -I$(top_srcdir)/swig/include \
 		$(top_srcdir)/swig/gensio.i
 
-EXTRA_DIST = gensio_langinfo.i CMakeLists.txt libgensio_python_swig.pc.in
+EXTRA_DIST = gensio_langinfo.i libgensio_python_swig.pc.in
 
 pkgconfigexecdir = $(libdir)/pkgconfig
 pkgconfigexec_DATA = libgensio_python_swig.pc

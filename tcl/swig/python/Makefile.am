@@ -14,8 +14,6 @@ gensiotcl_wrap.c gensiotcl.py: $(top_srcdir)/tcl/swig/gensiotcl.i
 	$(SWIG) $(DEFS) -python $(PYTHON_SWIG_FLAGS) -o gensiotcl_wrap.c \
 		-I$(top_srcdir)/include -I$(top_srcdir)/swig/include $<
 
-EXTRA_DIST = CMakeLists.txt
-
 nodist__gensiotcl_la_SOURCES = gensiotcl_wrap.c
 _gensiotcl_la_LIBADD = $(top_builddir)/tcl/libgensiotcl.la \
 		$(top_builddir)/lib/libgensio.la $(OPENSSL_LIBS) \

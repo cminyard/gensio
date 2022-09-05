@@ -13,5 +13,3 @@ basic_tcl_test_LDADD = $(top_builddir)/lib/libgensio.la \
 	$(TCL_LIBS) $(OPENSSL_LIBS)
 
 check_PROGRAMS = basic_tcl_test
-
-EXTRA_DIST = CMakeLists.txt

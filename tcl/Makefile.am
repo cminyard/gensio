@@ -23,4 +23,4 @@ if INSTALL_DOC
 man3_MANS = gensio_tcl_funcs_alloc.3
 endif
 
-EXTRA_DIST = libgensiotcl.pc.in CMakeLists.txt $(man3_MANS)
+EXTRA_DIST = libgensiotcl.pc.in $(man3_MANS)

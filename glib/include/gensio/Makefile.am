@@ -1,4 +1,2 @@
 
 pkginclude_HEADERS = gensio_glib.h gensio_glib_dllvisibility.h
-
-EXTRA_DIST = CMakeLists.txt

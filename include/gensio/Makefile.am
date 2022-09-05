@@ -10,4 +10,4 @@ pkginclude_HEADERS = gensio.h gensio_class.h sergensio.h sergensio_class.h \
 	gensio_os_funcs_public.h gensio_time.h gensio_ax25_addr.h \
 	gensio_control.h netif.h gensio_buffer.h
 
-EXTRA_DIST = gensio_version.h.in CMakeLists.txt
+EXTRA_DIST = gensio_version.h.in

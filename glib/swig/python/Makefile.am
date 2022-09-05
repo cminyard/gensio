@@ -14,8 +14,6 @@ gensioglib_wrap.c gensioglib.py: $(top_srcdir)/glib/swig/gensioglib.i
 	$(SWIG) $(DEFS) -python $(PYTHON_SWIG_FLAGS) -o gensioglib_wrap.c \
 		-I$(top_srcdir)/include -I$(top_srcdir)/swig/include $<
 
-EXTRA_DIST = CMakeLists.txt
-
 nodist__gensioglib_la_SOURCES = gensioglib_wrap.c
 _gensioglib_la_LIBADD = $(top_builddir)/glib/libgensioglib.la \
 		$(top_builddir)/lib/libgensio.la $(OPENSSL_LIBS) \

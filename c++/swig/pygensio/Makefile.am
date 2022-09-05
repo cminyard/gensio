@@ -18,7 +18,7 @@ pygensio_wrap.cc pygensio.py: pygensio.i $(top_srcdir)/c++/include/gensio \
 		-I$(top_builddir)/include -I$(top_srcdir)/c++/swig/include \
 		$(top_srcdir)/c++/swig/pygensio/pygensio.i
 
-EXTRA_DIST = pygensio.i CMakeLists.txt
+EXTRA_DIST = pygensio.i
 
 nodist__pygensio_la_SOURCES = pygensio_wrap.cc
 _pygensio_la_LIBADD = $(top_builddir)/c++/lib/libgensiocpp.la \

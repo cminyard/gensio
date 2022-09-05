@@ -238,4 +238,4 @@ uninstall-hook:
 	$(RM_F) $(DESTDIR)$(man3dir)/gensio_mdns_add_watch.3
 	$(RM_F) $(DESTDIR)$(man3dir)/gensio_mdns_remove_watch.3
 
-EXTRA_DIST = $(man_MANS) CMakeLists.txt
+EXTRA_DIST = $(man_MANS)
