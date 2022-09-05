@@ -18,11 +18,27 @@ go.mod: example.go
 	go mod edit -replace $(GOMOD)=../gensio
 	go mod tidy
 
+MORE_LIBS=
+if BUILTIN_MDNS
+MORE_LIBS += $(MDNS_LIBS)
+endif
+if BUILTIN_SOUND
+MORE_LIBS += $(SOUND_LIBS)
+endif
+if BUILTIN_SCTP
+MORE_LIBS += $(LIBSCTP_LIBS)
+endif
+if BUILTIN_SSL
+MORE_LIBS += $(OPENSSL_LIBS)
+endif
+if BUILTIN_IPMISOL
+MORE_LIBS += $(OPENIPMI_LIBS)
+endif
 export CGO_CXXFLAGS = $(CXXFLAGS) $(AM_CXXFLAGS)
 export CGO_CPPFLAGS = $(CPPFLAGS)
 export CGO_LDFLAGS = -L$(top_builddir)/c++/lib/.libs \
 	-lgensiocpp -lgensiomdnscpp \
-	-L$(top_builddir)/lib/.libs -lgensio -lgensiomdns
+	-L$(top_builddir)/lib/.libs -lgensio -lgensiomdns $(MORE_LIBS)
 
 example: ../gensio/gensio.go \
 		../gensio/gensio_wrap.cxx \
