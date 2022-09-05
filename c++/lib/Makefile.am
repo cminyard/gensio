@@ -6,7 +6,7 @@ lib_LTLIBRARIES = libgensiocpp.la
 libgensiocpp_la_SOURCES = gensio.cc
 libgensiocpp_la_LIBADD = $(top_builddir)/lib/libgensio.la @OPENSSL_LIBS@
 libgensiocpp_la_LDFLAGS = -no-undefined -rpath $(libdir) \
-	-version-info 2:0:0 -fvisibility=hidden
+	-version-info 3:0:1 -fvisibility=hidden
 
 EXTRA_DIST = libgensiocpp.pc.in CMakeLists.txt
 
