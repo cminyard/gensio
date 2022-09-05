@@ -30,7 +30,7 @@ endif
 
 libgensio_la_CPPFLAGS = -DBUILDING_GENSIO_DLL \
 			-DPKG_LIBEXEC="\"$(gensiolibexec)\""
-libgensio_la_LDFLAGS = -no-undefined -version-info 3:0:3 -fvisibility=hidden
+libgensio_la_LDFLAGS = -no-undefined -version-info 4:0:0 -fvisibility=hidden
 libgensio_la_LIBADD = @LIBSCTP_LIBS@
 if BUILTIN_MDNS
 libgensio_la_LIBADD += libgensiomdns.la

@@ -5,7 +5,7 @@ libgensiocpp_la_SOURCES = gensio.cc
 libgensiocpp_la_CPPFLAGS = -DBUILDING_GENSIOCPP_DLL
 libgensiocpp_la_LIBADD = $(top_builddir)/lib/libgensio.la
 libgensiocpp_la_LDFLAGS = -no-undefined -rpath $(libdir) \
-	-version-info 3:0:1 -fvisibility=hidden
+	-version-info 4:0:0 -fvisibility=hidden
 
 # This variable must have 'exec' in its name, in order to be installed
 # by 'install-exec' target (instead of default 'install-data')
