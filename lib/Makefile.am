@@ -1,5 +1,8 @@
 
-lib_LTLIBRARIES =
+# libgensio.la can depend on iibgensiomdns if BUILTIN_MDNS is set.
+# Therefore it must be built after libgensiomdns, so it has to be
+# added after.
+lib_LTLIBRARIES = libgensioosh.la libgensiomdns.la libgensio.la
 
 noinst_HEADERS = telnet.h heap.h utils.h uucplock.h \
 	gensio_filter_ssl.h gensio_filter_telnet.h gensio_ll_ipmisol.h \
@@ -9,51 +12,49 @@ noinst_HEADERS = telnet.h heap.h utils.h uucplock.h \
 	gensio_filter_xlt.h gensio_filter_script.h \
 	gensio_ll_sound.h alsa_sound.h file_sound.h gensio_filter_ratelimit.h
 
-libgensio_la_SOURCES = \
-	gensio.c gensio_osops.c gensio_base.c sergensio.c utils.c buffer.c \
-	gensio_ll_fd.c gensio_ll_gensio.c gensio_acc.c gensio_acc_gensio.c \
-	gensio_circbuf.c gensio_osops_env.c gensio_addrinfo.c gensio_stdsock.c \
-	gensio_ax25_addr.c
-
+libgensioosh_la_SOURCES = \
+	gensio_osops.c gensio_circbuf.c gensio_osops_env.c gensio_addrinfo.c \
+	gensio_stdsock.c gensio_ax25_addr.c utils.c gensio_addr.c
 if HAVE_UNIX_OS
-libgensio_la_SOURCES += gensio_unix.c selector.c
+libgensioosh_la_SOURCES += gensio_unix.c selector.c
 endif
 if HAVE_WINDOWS_OS
-libgensio_la_SOURCES += gensio_win.c
-gensiolibexec = $(bindir)
-else
-gensiolibexec = $(pkglibexecdir)-$(PACKAGE_VERSION)
+libgensioosh_la_SOURCES += gensio_win.c
 endif
+libgensioosh_la_CPPFLAGS = -DBUILDING_GENSIOOSH_DLL \
+	-DPKG_LIBEXEC="\"$(gensiolibexec)\""
+libgensioosh_la_LDFLAGS = -no-undefined -version-info 0:0:0 -fvisibility=hidden
+libgensioosh_la_LIBADD = @LIBSCTP_LIBS@
 if ENABLE_INTERNAL_TRACE
-libgensio_la_SOURCES += errtrig.c
+libgensioosh_la_SOURCES += errtrig.c
 endif
 
-libgensio_la_CPPFLAGS = -DBUILDING_GENSIO_DLL \
-			-DPKG_LIBEXEC="\"$(gensiolibexec)\""
+libgensiomdns_la_SOURCES = mdns.c avahi_watcher.c
+libgensiomdns_la_CPPFLAGS = -DBUILDING_GENSIOMDNS_DLL
+libgensiomdns_la_LDFLAGS = -no-undefined -version-info 0:0:0 -fvisibility=hidden
+libgensiomdns_la_LIBADD = libgensioosh.la ${MDNS_LIBS}
+
+libgensio_la_SOURCES = \
+	gensio.c gensio_base.c sergensio.c buffer.c \
+	gensio_ll_fd.c gensio_ll_gensio.c gensio_acc.c gensio_acc_gensio.c
+libgensio_la_CPPFLAGS = -DBUILDING_GENSIO_DLL
 libgensio_la_LDFLAGS = -no-undefined -version-info 4:0:0 -fvisibility=hidden
-libgensio_la_LIBADD = @LIBSCTP_LIBS@
+libgensio_la_LIBADD = libgensioosh.la
 if BUILTIN_MDNS
 libgensio_la_LIBADD += libgensiomdns.la
 endif
 
-EXTRA_LTLIBRARIES =
-
-lib_LTLIBRARIES += libgensiomdns.la
-libgensiomdns_la_SOURCES = mdns.c avahi_watcher.c
-libgensiomdns_la_CPPFLAGS = -DBUILDING_GENSIOMDNS_DLL
-libgensiomdns_la_LDFLAGS = -no-undefined -version-info 0:0:0 -fvisibility=hidden
-libgensiomdns_la_LIBADD = ${MDNS_LIBS}
-
-# libgensio.la can depend on iibgensiomdns if BUILTIN_MDNS is set.
-# Therefore it must be built after libgensiomdns, so it has to be
-# added after.
-lib_LTLIBRARIES += libgensio.la
-
+if HAVE_WINDOWS_OS
+gensiolibexec = $(bindir)
+else
+gensiolibexec = $(pkglibexecdir)-$(PACKAGE_VERSION)
+endif
 # Note that xgensio_libexecdir starts with "x" because it has to
 # install after libgensio and libgensiomdns for proper relinking, and
 # automake organizes the installs alphabetically
 xgensio_libexecdir = $(gensiolibexec)
 
+EXTRA_LTLIBRARIES =
 xgensio_libexec_LTLIBRARIES =
 DYNAMIC_LDFLAGS = -no-undefined -module -rpath "$(gensiolibexec)" -avoid-version
 DYNAMIC_LIBS = libgensio.la
@@ -333,14 +334,11 @@ libgensio_ratelimit_la_SOURCES = gensio_filter_ratelimit.c gensio_ratelimit.c
 libgensio_ratelimit_la_LDFLAGS = $(DYNAMIC_LDFLAGS)
 libgensio_ratelimit_la_LIBADD = $(DYNAMIC_LIBS)
 
-EXTRA_DIST = README.rst libgensio.pc.in libgensiomdns.pc.in
+EXTRA_DIST = README.rst libgensioosh.pc.in libgensio.pc.in libgensiomdns.pc.in
 
 DISTCLEANFILES = builtin_gensios.h
 
 # This variable must have 'exec' in its name, in order to be installed
 # by 'install-exec' target (instead of default 'install-data')
 pkgconfigexecdir = $(libdir)/pkgconfig
-pkgconfigexec_DATA = libgensio.pc
-if HAVE_AVAHI
-pkgconfigexec_DATA += libgensiomdns.pc
-endif
+pkgconfigexec_DATA = libgensioosh.pc libgensio.pc libgensiomdns.pc

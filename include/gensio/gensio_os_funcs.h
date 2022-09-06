@@ -24,7 +24,7 @@ extern "C" {
 #include <stdbool.h>
 
 #include <gensio/gensio_types.h>
-#include <gensio/gensio_dllvisibility.h>
+#include <gensio/gensioosh_dllvisibility.h>
 
 /* Avoid having to include SCTP headers. */
 struct sctp_sndrcvinfo;
@@ -826,12 +826,12 @@ struct gensio_os_funcs {
  * Called from os handlers, check for any handlers that may need to be
  * called.
  */
-GENSIO_DLL_PUBLIC
+GENSIOOSH_DLL_PUBLIC
 void gensio_os_proc_check_handlers(struct gensio_os_proc_data *data);
 
 #ifndef _WIN32
 #include <signal.h>
-GENSIO_DLL_PUBLIC
+GENSIOOSH_DLL_PUBLIC
 sigset_t *gensio_os_proc_unix_get_wait_sigset(struct gensio_os_proc_data *data);
 #endif
 
@@ -846,7 +846,7 @@ struct gensio_os_cleanup_handler {
  * automatically unlinked before the cleanup handler is called, so you
  * may free it in the handler.
  */
-GENSIO_DLL_PUBLIC
+GENSIOOSH_DLL_PUBLIC
 void gensio_register_os_cleanup_handler(struct gensio_os_funcs *o,
 					struct gensio_os_cleanup_handler *h);
 

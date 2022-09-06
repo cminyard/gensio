@@ -17,7 +17,7 @@
 extern "C" {
 #endif
 
-#include <gensio/gensio_dllvisibility.h>
+#include <gensio/gensioosh_dllvisibility.h>
 #include <gensio/gensio_types.h>
 
 /*
@@ -36,7 +36,7 @@ extern "C" {
  * const array or the values in the strings, but the compiler
  * complains if you pass a "char **" into that.
  */
-GENSIO_DLL_PUBLIC
+GENSIOOSH_DLL_PUBLIC
 int gensio_str_to_argv(struct gensio_os_funcs *o,
 		       const char *s, int *argc, const char ***argv,
 		       const char *seps);
@@ -49,7 +49,7 @@ int gensio_str_to_argv(struct gensio_os_funcs *o,
  * the end character if the end character was encountered, or sets it
  * to NULL if the end character was not encountered.
  */
-GENSIO_DLL_PUBLIC
+GENSIOOSH_DLL_PUBLIC
 int gensio_str_to_argv_endchar(struct gensio_os_funcs *o,
 			       const char *ins,
 			       int *r_argc, const char ***r_argv,
@@ -61,7 +61,7 @@ int gensio_str_to_argv_endchar(struct gensio_os_funcs *o,
  * and must be NULL terminated.  r_args may be NULL if you don't care, but
  * you must supply r_argv.
  */
-GENSIO_DLL_PUBLIC
+GENSIOOSH_DLL_PUBLIC
 int gensio_argv_copy(struct gensio_os_funcs *o,
 	      const char * const oargv[],
 	      int *r_argc, const char ***r_argv);
@@ -81,7 +81,7 @@ int gensio_argv_copy(struct gensio_os_funcs *o,
  * it is false, str must have been allocated with o->zalloc() and it
  * will be directly put into the argv.
  */
-GENSIO_DLL_PUBLIC
+GENSIOOSH_DLL_PUBLIC
 int gensio_argv_append(struct gensio_os_funcs *o, const char ***argv,
 		       const char *str, gensiods *args, gensiods *argc,
 		       bool allocstr);
@@ -90,16 +90,16 @@ int gensio_argv_append(struct gensio_os_funcs *o, const char ***argv,
  * Standard utilities using sprintf-type things to append arguments to
  * an argv.  The string data is always allocated.
  */
-GENSIO_DLL_PUBLIC
+GENSIOOSH_DLL_PUBLIC
 int gensio_argv_vappend(struct gensio_os_funcs *o, const char ***argv,
 			gensiods *args, gensiods *argc,
 			const char *fmt, va_list ap);
-GENSIO_DLL_PUBLIC
+GENSIOOSH_DLL_PUBLIC
 int gensio_argv_sappend(struct gensio_os_funcs *o, const char ***argv,
 			gensiods *args, gensiods *argc, const char *fmt, ...);
 
 /* Free the return of str_to_argv */
-GENSIO_DLL_PUBLIC
+GENSIOOSH_DLL_PUBLIC
 void gensio_argv_free(struct gensio_os_funcs *o, const char **argv);
 
 /*
@@ -108,7 +108,7 @@ void gensio_argv_free(struct gensio_os_funcs *o, const char **argv);
  * end after the matching ')'.  Otherwise it scans to the end of the
  * string.  *rstr is updated to the end of the scan.
  */
-GENSIO_DLL_PUBLIC
+GENSIOOSH_DLL_PUBLIC
 int gensio_scan_args(struct gensio_os_funcs *o,
 		     const char **rstr, int *argc, const char ***args);
 

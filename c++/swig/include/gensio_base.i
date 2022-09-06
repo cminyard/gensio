@@ -7,6 +7,7 @@
 // This is base code that all target lagnages should need.
 
 %{
+#include <gensio/gensioosh>
 #include <gensio/gensio>
 #include <gensio/gensiomdns>
 using namespace gensios;
@@ -261,10 +262,11 @@ using namespace gensios;
 }
 
 ////////////////////////////////////////////////////
-// Pull some constants from gensio.h
+// Pull some constants from gensio_addr.h
 %ignore "";
 %rename("%s", regextarget=1) "GENSIO_NETTYPE_.*";
-%include <gensio/gensio.h>
+#define GENSIOOSH_DLL_PUBLIC // swig is not getting these defined right
+%include <gensio/gensio_addr.h>
 %rename("%s") "";
 
 ////////////////////////////////////////////////////

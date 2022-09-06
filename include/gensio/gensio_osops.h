@@ -23,7 +23,7 @@ extern "C" {
 #endif
 
 #include <stdint.h>
-#include <gensio/gensio_dllvisibility.h>
+#include <gensio/gensioosh_dllvisibility.h>
 #include <gensio/gensio_types.h>
 
 /*
@@ -33,7 +33,7 @@ extern "C" {
  * non-zero, allocate for the given protocol only.  The value of
  * protocol is the same as for gensio_scan_network_port().
  */
-GENSIO_DLL_PUBLIC
+GENSIOOSH_DLL_PUBLIC
 int gensio_os_scan_netaddr(struct gensio_os_funcs *o, const char *str,
 			   bool listen, int protocol, struct gensio_addr **rai);
 
@@ -41,7 +41,7 @@ int gensio_os_scan_netaddr(struct gensio_os_funcs *o, const char *str,
  * Call o->open_listen_sockets() then set the I/O handlers with the
  * given data.
  */
-GENSIO_DLL_PUBLIC
+GENSIOOSH_DLL_PUBLIC
 int gensio_os_open_listen_sockets(struct gensio_os_funcs *o,
 		      struct gensio_addr *addr,
 		      void (*readhndlr)(struct gensio_iod *, void *),
@@ -58,7 +58,7 @@ int gensio_os_open_listen_sockets(struct gensio_os_funcs *o,
  * Uses the default progname ("gensio", or set with
  * gensio_set_progname() if progname is NULL.
  */
-GENSIO_DLL_PUBLIC
+GENSIOOSH_DLL_PUBLIC
 const char *gensio_os_check_tcpd_ok(struct gensio_iod *iod,
 				    const char *progname);
 
@@ -75,39 +75,39 @@ struct stdio_mode;
 #include <ws2tcpip.h>
 #include <windows.h>
 
-GENSIO_DLL_PUBLIC
+GENSIOOSH_DLL_PUBLIC
 int gensio_win_stdin_makeraw(struct gensio_os_funcs *o, HANDLE h,
 			     struct stdio_mode **m);
 
-GENSIO_DLL_PUBLIC
+GENSIOOSH_DLL_PUBLIC
 int gensio_win_stdout_makeraw(struct gensio_os_funcs *o, HANDLE h,
 			      struct stdio_mode **m);
 
-GENSIO_DLL_PUBLIC
+GENSIOOSH_DLL_PUBLIC
 void gensio_win_stdio_cleanup(struct gensio_os_funcs *o, HANDLE h,
 			      struct stdio_mode **m);
 
 struct gensio_win_commport;
 
-GENSIO_DLL_PUBLIC
+GENSIOOSH_DLL_PUBLIC
 int gensio_win_setup_commport(struct gensio_os_funcs *o, HANDLE h,
 			      struct gensio_win_commport **c,
 			      HANDLE *break_timer);
 
-GENSIO_DLL_PUBLIC
+GENSIOOSH_DLL_PUBLIC
 void gensio_win_cleanup_commport(struct gensio_os_funcs *o, HANDLE h,
 				 struct gensio_win_commport **c);
 
-GENSIO_DLL_PUBLIC
+GENSIOOSH_DLL_PUBLIC
 int gensio_win_commport_control(struct gensio_os_funcs *o, int op, bool get,
 				intptr_t val,
 				struct gensio_win_commport **c, HANDLE h);
 
-GENSIO_DLL_PUBLIC
+GENSIOOSH_DLL_PUBLIC
 DWORD gensio_win_commport_break_done(struct gensio_os_funcs *o, HANDLE h,
 				     struct gensio_win_commport **c);
 
-GENSIO_DLL_PUBLIC
+GENSIOOSH_DLL_PUBLIC
 int gensio_win_do_exec(struct gensio_os_funcs *o,
 		       const char *argv[], const char **env,
 		       const char *start_dir,
@@ -132,7 +132,7 @@ int gensio_win_do_exec(struct gensio_os_funcs *o,
  * If interactive is true, the token will be good for logon.
  * Otherwise it will only be good for impersonation or query.
  */
-GENSIO_DLL_PUBLIC
+GENSIOOSH_DLL_PUBLIC
 int gensio_win_get_user_token(const char *user, const char *password,
 			      const char *src_module, const char **groups,
 			      bool interactive, HANDLE *userh);
@@ -147,7 +147,7 @@ int gensio_win_get_user_token(const char *user, const char *password,
  * for it's stdin and stdout.  You should close these when done, or
  * let gensio_win_pty_start close them for you.
  */
-GENSIO_DLL_PUBLIC
+GENSIOOSH_DLL_PUBLIC
 int gensio_win_pty_alloc(struct gensio_os_funcs *o,
 			 HANDLE *rreadh, HANDLE *rwriteh,
 			 HANDLE *child_in, HANDLE *child_out,
@@ -169,7 +169,7 @@ int gensio_win_pty_alloc(struct gensio_os_funcs *o,
  *
  * Note: If this is successful, it will NULL child_in and child_out.
  */
-GENSIO_DLL_PUBLIC
+GENSIOOSH_DLL_PUBLIC
 int gensio_win_pty_start(struct gensio_os_funcs *o,
 			 HPCON ptyh, HANDLE *child_in, HANDLE *child_out,
 			 const char **argv, const char **env,
@@ -179,37 +179,37 @@ int gensio_win_pty_start(struct gensio_os_funcs *o,
 
 #include <sys/types.h>
 
-GENSIO_DLL_PUBLIC
+GENSIOOSH_DLL_PUBLIC
 int gensio_unix_do_nonblock(struct gensio_os_funcs *o, int fd,
 			    struct stdio_mode **m);
 
-GENSIO_DLL_PUBLIC
+GENSIOOSH_DLL_PUBLIC
 void gensio_unix_do_cleanup_nonblock(struct gensio_os_funcs *o, int fd,
 				     struct stdio_mode **m);
 
 struct gensio_unix_termios;
 
-GENSIO_DLL_PUBLIC
+GENSIOOSH_DLL_PUBLIC
 int gensio_unix_setup_termios(struct gensio_os_funcs *o, int fd,
 			      struct gensio_unix_termios **t);
 
-GENSIO_DLL_PUBLIC
+GENSIOOSH_DLL_PUBLIC
 void gensio_unix_cleanup_termios(struct gensio_os_funcs *o,
 				 struct gensio_unix_termios **t, int fd);
 
-GENSIO_DLL_PUBLIC
+GENSIOOSH_DLL_PUBLIC
 int gensio_unix_termios_control(struct gensio_os_funcs *o, int op, bool get,
 				intptr_t val,
 				struct gensio_unix_termios **t, int fd);
 
-GENSIO_DLL_PUBLIC
+GENSIOOSH_DLL_PUBLIC
 void gensio_unix_do_flush(struct gensio_os_funcs *o, int fd, int whichbuf);
 
-GENSIO_DLL_PUBLIC
+GENSIOOSH_DLL_PUBLIC
 int gensio_unix_get_bufcount(struct gensio_os_funcs *o,
 			     int fd, int whichbuf, gensiods *rcount);
 
-GENSIO_DLL_PUBLIC
+GENSIOOSH_DLL_PUBLIC
 int gensio_unix_do_exec(struct gensio_os_funcs *o,
 			const char *argv[], const char **env,
 			const char *start_dir,
@@ -217,13 +217,13 @@ int gensio_unix_do_exec(struct gensio_os_funcs *o,
 			int *rpid,
 			int *rin, int *rout, int *rerr);
 
-GENSIO_DLL_PUBLIC
+GENSIOOSH_DLL_PUBLIC
 int gensio_unix_os_setupnewprog(void);
 
-GENSIO_DLL_PUBLIC
+GENSIOOSH_DLL_PUBLIC
 int gensio_unix_pty_alloc(struct gensio_os_funcs *o, int *rfd);
 
-GENSIO_DLL_PUBLIC
+GENSIOOSH_DLL_PUBLIC
 int gensio_unix_pty_start(struct gensio_os_funcs *o,
 			  int pfd, const char **argv, const char **env,
 			  const char *start_dir, pid_t *rpid);
@@ -233,6 +233,7 @@ int gensio_unix_pty_start(struct gensio_os_funcs *o,
 /*
  * Load a gensio in a shared library.
  */
+GENSIOOSH_DLL_PUBLIC
 bool gensio_os_loadlib(struct gensio_os_funcs *o, const char *str);
 
 /*
@@ -248,17 +249,21 @@ bool gensio_os_loadlib(struct gensio_os_funcs *o, const char *str);
  */
 struct gensio_memtrack;
 
-GENSIO_DLL_PUBLIC
+GENSIOOSH_DLL_PUBLIC
 struct gensio_memtrack *gensio_memtrack_alloc(void);
 
-GENSIO_DLL_PUBLIC
+GENSIOOSH_DLL_PUBLIC
 void gensio_memtrack_cleanup(struct gensio_memtrack *m);
 
-GENSIO_DLL_PUBLIC
+GENSIOOSH_DLL_PUBLIC
 void *gensio_i_zalloc(struct gensio_memtrack *m, unsigned int size);
 
-GENSIO_DLL_PUBLIC
+GENSIOOSH_DLL_PUBLIC
 void gensio_i_free(struct gensio_memtrack *m, void *data);
+
+/* For testing, do not use in normal code. */
+GENSIOOSH_DLL_PUBLIC
+void gensio_osfunc_exit(int rv);
 
 #ifdef __cplusplus
 }

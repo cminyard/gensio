@@ -31,6 +31,7 @@
 #include <gensio/gensio.h>
 #include <gensio/gensio_list.h>
 #include <gensio/gensio_unix.h>
+#include <gensio/gensio_osops.h>
 #ifdef HAVE_GLIB
 #include <gensio/gensio_glib.h>
 #endif

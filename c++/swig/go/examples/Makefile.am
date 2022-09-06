@@ -37,8 +37,9 @@ endif
 export CGO_CXXFLAGS = $(CXXFLAGS) $(AM_CXXFLAGS)
 export CGO_CPPFLAGS = $(CPPFLAGS)
 export CGO_LDFLAGS = -L$(top_builddir)/c++/lib/.libs \
-	-lgensiocpp -lgensiomdnscpp \
-	-L$(top_builddir)/lib/.libs -lgensio -lgensiomdns $(MORE_LIBS)
+	-lgensiooshcpp -lgensiocpp -lgensiomdnscpp \
+	-L$(top_builddir)/lib/.libs -lgensioosh -lgensio -lgensiomdns \
+	$(MORE_LIBS)
 
 example: ../gensio/gensio.go \
 		../gensio/gensio_wrap.cxx \

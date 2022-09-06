@@ -113,8 +113,10 @@ Dynamic vs Static gensios
 -------------------------
 
 The gensio library supports loading gensios dynamically or building
-them in to the library.  By default all gensios are compiled for
-dynamic loading and installed in a place that makes it possible.
+them in to the library.  By default if you create shared libraries,
+then all gensios are compiled for dynamic loading and installed in a
+place that makes it possible.  If you do not create shared libraries,
+all gensios are built in to the library.
 
 To set all gensios to be statically compiled, you can add
 "--with-all-gensios=yes" on the configure command line and it will

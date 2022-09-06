@@ -788,8 +788,11 @@ static bool check_for_err(int err)
 %ignore gensios::MDNS_Watch::free;
 %ignore gensios::MDNS_Watch::MDNS_Watch;
 
+#define GENSIOOSH_DLL_PUBLIC // For some reason this doesn't get set in swig
 %include <gensio/gensio_err.h>
 %include <gensio/gensio_control.h>
+#define GENSIOOSHCPP_DLL_PUBLIC // For some reason this doesn't get set in swig
+%include <gensio/gensioosh>
 %include <gensio/gensio>
 %include <gensio/gensiomdns>
 

@@ -22,6 +22,7 @@
 
 #include <gensio/gensio.h>
 #include <gensio/gensio_os_funcs.h>
+#include <gensio/gensio_os_funcs_public.h>
 #include <gensio/gensio_osops.h>
 #include <gensio/gensio_class.h>
 #include <gensio/argvutils.h>
@@ -3612,3 +3613,208 @@ gensio_i_free(struct gensio_memtrack *m, void *data)
 }
 
 #endif /* ENABLE_INTERNAL_TRACE */
+
+void
+gensio_os_funcs_set_vlog(struct gensio_os_funcs *o, gensio_vlog_func func)
+{
+    o->vlog = func;
+}
+
+gensio_vlog_func *
+gensio_os_funcs_get_vlog(struct gensio_os_funcs *o)
+{
+    return o->vlog;
+}
+
+void
+gensio_os_funcs_free(struct gensio_os_funcs *o)
+{
+    o->free_funcs(o);
+}
+
+void *
+gensio_os_funcs_zalloc(struct gensio_os_funcs *o, gensiods size)
+{
+    return o->zalloc(o, size);
+}
+
+void
+gensio_os_funcs_zfree(struct gensio_os_funcs *o, void *data)
+{
+    o->free(o, data);
+}
+
+struct gensio_waiter *
+gensio_os_funcs_alloc_waiter(struct gensio_os_funcs *o)
+{
+    return o->alloc_waiter(o);
+}
+
+void
+gensio_os_funcs_free_waiter(struct gensio_os_funcs *o,
+			    struct gensio_waiter *waiter)
+{
+    o->free_waiter(waiter);
+}
+
+int
+gensio_os_funcs_wait(struct gensio_os_funcs *o,
+		     struct gensio_waiter *waiter, unsigned int count,
+		     gensio_time *timeout)
+{
+    return o->wait(waiter, count, timeout);
+}
+
+int
+gensio_os_funcs_wait_intr(struct gensio_os_funcs *o,
+			  struct gensio_waiter *waiter, unsigned int count,
+			  gensio_time *timeout)
+{
+    return o->wait_intr(waiter, count, timeout);
+}
+
+int
+gensio_os_funcs_wait_intr_sigmask(struct gensio_os_funcs *o,
+				  struct gensio_waiter *waiter,
+				  unsigned int count,
+				  gensio_time *timeout,
+				  struct gensio_os_proc_data *proc_data)
+{
+    return o->wait_intr_sigmask(waiter, count, timeout, proc_data);
+}
+
+void
+gensio_os_funcs_wake(struct gensio_os_funcs *o,
+		     struct gensio_waiter *waiter)
+{
+    o->wake(waiter);
+}
+
+struct gensio_lock *
+gensio_os_funcs_alloc_lock(struct gensio_os_funcs *o)
+{
+    return o->alloc_lock(o);
+}
+
+void
+gensio_os_funcs_free_lock(struct gensio_os_funcs *o,
+			  struct gensio_lock *lock)
+{
+    o->free_lock(lock);
+}
+
+void
+gensio_os_funcs_lock(struct gensio_os_funcs *o,
+		     struct gensio_lock *lock)
+{
+    o->lock(lock);
+}
+
+void
+gensio_os_funcs_unlock(struct gensio_os_funcs *o,
+		       struct gensio_lock *lock)
+{
+    o->unlock(lock);
+}
+
+void
+gensio_os_funcs_get_monotonic_time(struct gensio_os_funcs *o,
+				   gensio_time *time)
+{
+    o->get_monotonic_time(o, time);
+}
+
+struct gensio_timer *
+gensio_os_funcs_alloc_timer(struct gensio_os_funcs *o,
+			    void (*handler)(struct gensio_timer *t,
+					    void *cb_data),
+			    void *cb_data)
+{
+    return o->alloc_timer(o, handler, cb_data);
+}
+
+void
+gensio_os_funcs_free_timer(struct gensio_os_funcs *o,
+			   struct gensio_timer *timer)
+{
+    o->free_timer(timer);
+}
+
+int
+gensio_os_funcs_start_timer(struct gensio_os_funcs *o,
+			    struct gensio_timer *timer,
+			    gensio_time *timeout)
+{
+    return o->start_timer(timer, timeout);
+}
+
+int gensio_os_funcs_start_timer_abs(struct gensio_os_funcs *o,
+				    struct gensio_timer *timer,
+				    gensio_time *timeout)
+{
+    return o->start_timer_abs(timer, timeout);
+}
+
+int
+gensio_os_funcs_stop_timer(struct gensio_os_funcs *o,
+			   struct gensio_timer *timer)
+{
+    return o->stop_timer(timer);
+}
+
+int
+gensio_os_funcs_stop_timer_with_done(struct gensio_os_funcs *o,
+				 struct gensio_timer *timer,
+				 void (*done_handler)(struct gensio_timer *t,
+						      void *cb_data),
+				 void *cb_data)
+{
+    return o->stop_timer_with_done(timer, done_handler, cb_data);
+}
+
+struct gensio_runner *
+gensio_os_funcs_alloc_runner(struct gensio_os_funcs *o,
+			     void (*handler)(struct gensio_runner *r,
+					     void *cb_data),
+			     void *cb_data)
+{
+    return o->alloc_runner(o, handler, cb_data);
+}
+
+void
+gensio_os_funcs_free_runner(struct gensio_os_funcs *o,
+			    struct gensio_runner *runner)
+{
+    o->free_runner(runner);
+}
+
+int
+gensio_os_funcs_run(struct gensio_os_funcs *o,
+		    struct gensio_runner *runner)
+{
+    return o->run(runner);
+}
+
+int
+gensio_os_funcs_service(struct gensio_os_funcs *o, gensio_time *timeout)
+{
+    return o->service(o, timeout);
+}
+
+int
+gensio_os_funcs_handle_fork(struct gensio_os_funcs *o)
+{
+    return o->handle_fork(o);
+}
+
+void
+gensio_os_funcs_set_data(struct gensio_os_funcs *o, void *data)
+{
+    o->other_data = data;
+}
+
+void *
+gensio_os_funcs_get_data(struct gensio_os_funcs *o)
+{
+    return o->other_data;
+}

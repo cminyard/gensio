@@ -6,4 +6,4 @@ includedir=@includedir@
 Name: libgensiomdnscpp
 Description: A C++ library wrapper around gensio MDNS
 Version: @VERSION@
-Libs: -L${libdir} -lgensiomdnscpp -lgensiomdns
+Libs: -L${libdir} -lgensiomdnscpp -lgensiomdns -lgensiooshcpp -lgensioosh

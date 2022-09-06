@@ -12,13 +12,13 @@
 extern "C" {
 #endif
 
-#include <gensio/gensio_dllvisibility.h>
+#include <gensio/gensioosh_dllvisibility.h>
 #include <gensio/gensio_types.h>
 
 /*
  * Allocate a windows os funcs.
  */
-GENSIO_DLL_PUBLIC
+GENSIOOSH_DLL_PUBLIC
 int gensio_win_funcs_alloc(struct gensio_os_funcs **ro);
 
 HANDLE gensio_os_proc_win_get_main_handle(struct gensio_os_proc_data *data);

@@ -15,13 +15,16 @@
 
 #include <stdlib.h>
 #include <stdbool.h>
+#include <gensio/gensioosh_dllvisibility.h>
 
 #ifdef ENABLE_INTERNAL_TRACE
 #define ENABLE_ERRTRIG_TEST
 #endif
 
 #ifdef ENABLE_ERRTRIG_TEST
+GENSIOOSH_DLL_PUBLIC
 bool do_errtrig(void);
+GENSIOOSH_DLL_PUBLIC
 void errtrig_exit(int rv);
 #else
 #define do_errtrig() false

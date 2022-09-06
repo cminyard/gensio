@@ -18,7 +18,7 @@
 extern "C" {
 #endif
 
-#include <gensio/gensio_dllvisibility.h>
+#include <gensio/gensioosh_dllvisibility.h>
 #include <gensio/gensio_types.h>
 
 /*
@@ -39,7 +39,7 @@ extern "C" {
  *
  * Returns GE_NOTFOUND if the environment variable does not exist.
  */
-GENSIO_DLL_PUBLIC
+GENSIOOSH_DLL_PUBLIC
 int gensio_os_env_get(const char *name, char *rval, gensiods *len);
 
 /*
@@ -47,14 +47,14 @@ int gensio_os_env_get(const char *name, char *rval, gensiods *len);
  * exists it will be overwritten.  If val is NULL the variable is
  * deleted from the environment.
  */
-GENSIO_DLL_PUBLIC
+GENSIOOSH_DLL_PUBLIC
 int gensio_os_env_set(const char *name, const char *val);
 
 /*
  * Return the environment variable in a newly allocated block of
  * memory.  Free it with o->free() when you are done with it.
  */
-GENSIO_DLL_PUBLIC
+GENSIOOSH_DLL_PUBLIC
 int gensio_os_env_getalloc(struct gensio_os_funcs *o,
 			   const char *name, char **rval);
 
@@ -63,7 +63,7 @@ int gensio_os_env_getalloc(struct gensio_os_funcs *o,
  * modify it with the below functions.  Free it with
  * gensio_argv_free() when you are done.
  */
-GENSIO_DLL_PUBLIC
+GENSIOOSH_DLL_PUBLIC
 int gensio_os_argvenv_alloc(struct gensio_os_funcs *o,
 			    const char ***argv, gensiods *args, gensiods *argc);
 
@@ -71,15 +71,15 @@ int gensio_os_argvenv_alloc(struct gensio_os_funcs *o,
  * Get/set values in an argv env array.  These work like the
  * gensio_os_env_xxx() functions.
  */
-GENSIO_DLL_PUBLIC
+GENSIOOSH_DLL_PUBLIC
 int gensio_os_argvenv_get(struct gensio_os_funcs *o,
 			  const char **argv,
 			  const char *name, char *rval, gensiods *len);
-GENSIO_DLL_PUBLIC
+GENSIOOSH_DLL_PUBLIC
 int gensio_os_argvenv_set(struct gensio_os_funcs *o,
 			  const char ***argv, gensiods *args, gensiods *argc,
 			  const char *name, const char *val);
-GENSIO_DLL_PUBLIC
+GENSIOOSH_DLL_PUBLIC
 int gensio_os_argvenv_getalloc(struct gensio_os_funcs *o,
 			       const char **argv,
 			       const char *name, char **rval);

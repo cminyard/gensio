@@ -13,7 +13,8 @@
 #include <stdlib.h>
 #include <signal.h>
 #include <gensio/gensio.h>
-#include <../tools/utils.h>
+#include <gensio/gensio_osops.h>
+#include "utils.h"
 
 #ifdef _WIN32
 #define GENSIOSIG 0

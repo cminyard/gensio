@@ -1,0 +1,324 @@
+//
+//  gensio - A library for abstracting stream I/O
+//  Copyright (C) 2021  Corey Minyard <minyard@acm.org>
+//
+//  SPDX-License-Identifier: LGPL-2.1-only
+
+// This is a C++ wrapper for the gensio library.
+
+#ifndef GENSIOOSH_CPP_INCLUDE
+#define GENSIOOSH_CPP_INCLUDE
+
+#include <string>
+#include <stdexcept>
+#include <atomic>
+#include <vector>
+#include <gensio/gensioosh_dllvisibility>
+
+namespace gensios {
+#include <gensio/gensio.h>
+#include <gensio/netif.h>
+
+    GENSIOOSHCPP_DLL_PUBLIC
+    std::string err_to_string(int err);
+
+    // This is an exception that is raised by gensio operations that
+    // get errors.  Most operations raise exceptions, unless otherwise
+    // noted.  Note that the string is set, so what() will return the
+    // string.  You can get the number with get_error().
+    class gensio_error: public std::runtime_error {
+    public:
+	gensio_error(int ierr): std::runtime_error(gensio_err_to_str(ierr))
+	{
+	    err = ierr;
+	};
+
+	int get_error() { return err; };
+    private:
+	int err;
+    };
+
+    class GENSIOOSHCPP_DLL_PUBLIC Os_Funcs_Log_Handler {
+    public:
+	virtual void log(enum gensio_log_levels level, const std::string log)
+		= 0;
+	virtual ~Os_Funcs_Log_Handler() = default;
+    };
+    GENSIOOSHCPP_DLL_PUBLIC
+    std::string log_level_to_str(enum gensio_log_levels level);
+
+    GENSIOOSHCPP_DLL_PUBLIC
+    void set_log_mask(int mask);
+
+    GENSIOOSHCPP_DLL_PUBLIC
+    int get_log_mask();
+
+    // This is a wrapper for gensio_os_funcs that makes using it a lot
+    // cleaner.  The default constructor automatically allocates the
+    // default os handler, destruction takes place automatically.
+    // This is a smart pointer like object.
+    class GENSIOOSHCPP_DLL_PUBLIC Os_Funcs {
+    public:
+	// Allocate the default os function handlers for the platform.
+	// See gensio_default_os_hnd.3 for details.
+	Os_Funcs(int wait_sig, Os_Funcs_Log_Handler *logger = NULL);
+
+	// This is for use by subclasses.  Don't use one with an empty
+	// parameter list, that can be used accidentally.
+	Os_Funcs(bool dummy) { };
+
+	void set_log_handler(Os_Funcs_Log_Handler *ilogger) {
+	    logger = ilogger;
+	};
+
+	Os_Funcs_Log_Handler *get_log_handler() { return logger; };
+
+	// Do the setup for the process.  If you do this, this should be
+	// the last os funcs to destruct, if you have more than one.  See
+	// gensio_os_funcs.3 for details on process setup.
+	void proc_setup();
+
+	// If you allocate your own subclass of this, you must call
+	// this to set it up.  Note that this takes over freeing the
+	// OS handler and the logger.
+	void init(struct gensio_os_funcs *o,
+		  Os_Funcs_Log_Handler *logger = NULL);
+
+	Os_Funcs& operator=(const Os_Funcs &o);
+
+	Os_Funcs(const Os_Funcs &o);
+
+	struct gensio_os_proc_data *get_proc_data() { return proc_data; }
+
+	// Instead of defining all our own functions, which would just
+	// be direct wrapper, we just do this so we return the base os
+	// funcs structure for a ->.
+	struct gensio_os_funcs * operator->() { return osf; }
+
+	// Automatically convert this object when a struct
+	// gensio_os_funcs is asked for.
+	operator struct gensio_os_funcs * () const { return osf; }
+
+	virtual ~Os_Funcs();
+
+	void log(enum gensio_log_levels level, const std::string log) {
+	    gensio_log(osf, level, "%s", log.c_str());
+	}
+
+	unsigned int get_refcount() { return *refcnt; }
+
+    private:
+	void refcount_from(const Os_Funcs *o);
+	Os_Funcs_Log_Handler *logger = NULL;
+	struct gensio_os_funcs *osf = NULL;
+	struct gensio_os_proc_data *proc_data = NULL;
+	std::atomic<unsigned int> *refcnt = NULL;
+    };
+
+    // A wrapper for the gensio_addr structure.
+    class GENSIOOSHCPP_DLL_PUBLIC Addr {
+    public:
+	// Create a new address structure using the passed in string.
+	// This is basically the same as gensio_scan_network_port()
+	// in gensio.h, see that for details.
+	Addr(Os_Funcs &o, std::string str, bool listen, int *protocol,
+	     int *argc, const char ***args);
+
+	// Scan a string and create an address from it.  If the address
+	// is being allocated for an accepter, set listen to true, othersize
+	// set it to false.  Protocol must be one of GENSIO_NET_PROTOCOL_XXX.
+	Addr(Os_Funcs &o, std::string str, bool listen, int protocol);
+
+	// Allocate an address based upon the given passed in address and
+	// port.  See gensio_addr_create() in gensio.h for details.
+	Addr(Os_Funcs &o, int nettype, const void *iaddr, gensiods len,
+	     unsigned int port);
+
+	// Allocate an address based on the low-level address.
+	// We assume ethe port is set in this case.
+	Addr(struct gensio_addr *iaddr) {
+	    gaddr = iaddr;
+	    is_port_set = true;
+	}
+
+	// For copying and assignment, we duplicate the low-level
+	// address.  Addresses are immutable and refcounted.
+	Addr(Addr &a)
+	{
+	    this->gaddr = gensio_addr_dup(a);
+	    if (!this->gaddr)
+		throw std::bad_alloc();
+	    this->is_port_set = a.is_port_set;
+	}
+	Addr & operator=(const Addr &a)
+	{
+	    this->gaddr = gensio_addr_dup(a);
+	    if (!this->gaddr)
+		throw std::bad_alloc();
+	    this->is_port_set = a.is_port_set;
+	    return *this;
+	}
+
+	// Automatically convert to a low-level address
+	operator struct gensio_addr * () const { return gaddr; }
+
+	virtual ~Addr();
+
+	// See gensio_addr_xxx functions in gensio.h for details on these.
+	void rewind() { gensio_addr_rewind(gaddr); }
+	bool next() { return gensio_addr_next(gaddr); }
+	void getaddr(void *oaddr, gensiods *len) const
+	    { gensio_addr_getaddr(gaddr, oaddr, len); }
+	int get_nettype() const { return gensio_addr_get_nettype(gaddr); }
+	bool family_supports(int family, int flags) const
+	    { return gensio_addr_family_supports(gaddr, family, flags); }
+	std::string to_string() const;
+	std::string to_string_all() const;
+
+	inline bool operator==(const Addr &a2) const
+	    { return gensio_addr_equal(*this, a2, true, false); }
+	bool equal(const Addr &a2, bool compare_ports, bool compare_all) const
+	    { return gensio_addr_equal(*this, a2, compare_ports, compare_all); }
+	bool addr_present(const void *addr, gensiods addrlen,
+			  bool compare_ports) const
+	{
+	    return gensio_addr_addr_present(*this, addr, addrlen,
+					    compare_ports);
+	}
+
+	bool port_set() const { return is_port_set; }
+
+    private:
+	struct gensio_addr *gaddr;
+	bool is_port_set;
+    };
+
+    //*****************************************************************
+
+    // This is a waiter class.  You use one of these to wait for
+    // things while running the event-driven code.
+    class GENSIOOSHCPP_DLL_PUBLIC Waiter {
+    public:
+	Waiter(Os_Funcs &io);
+	~Waiter();
+
+	// Add one wakeup to the waiter.
+	void wake();
+
+	// Wait for count wakeups to be delivered to the waiter, up to
+	// timeout time.  If the timeout occurs before count events
+	// are delivered, none of the wakeups are used.  If timeout is
+	// NULL, wait forever.  This will return either 0 if woken or
+	// GE_TIMEDOUT if not woken before the timeout.  If intr is
+	// true it will return GE_INTERRUPTED if a signal comes in.
+	// Any other error will result in a gensio_error being thrown.
+	int wait(unsigned int count, gensio_time *timeout = NULL,
+		 bool intr = false);
+
+	Os_Funcs get_os_funcs() { return o; }
+
+    private:
+	Os_Funcs o;
+	struct gensio_waiter *waiter;
+    };
+
+    // Retrieve and view network interfaces on the system.
+    class GENSIOOSHCPP_DLL_PUBLIC Net_Ifs {
+    public:
+	Net_Ifs(Os_Funcs *ino): o(ino)
+	{
+	    int rv = gensio_os_get_net_ifs(*o, &ifs, &nifs);
+	    if (rv)
+		throw std::bad_alloc();
+	}
+
+	~Net_Ifs()
+	{
+	    gensio_os_free_net_ifs(*o, ifs, nifs);
+	}
+
+	unsigned int get_num_ifs()
+	{
+	    return this->nifs;
+	}
+
+	std::string get_name(unsigned int index)
+	{
+	    if (index >= this->nifs)
+		throw gensio_error(GE_OUTOFRANGE);
+	    return std::string(this->ifs[index]->name);
+	}
+
+	bool is_up(unsigned int index)
+	{
+	    if (index >= this->nifs)
+		throw gensio_error(GE_OUTOFRANGE);
+	    return !!(this->ifs[index]->flags & GENSIO_NET_IF_UP);
+	}
+
+	bool is_loopback(unsigned int index)
+	{
+	    if (index >= this->nifs)
+		throw gensio_error(GE_OUTOFRANGE);
+	    return !!(this->ifs[index]->flags & GENSIO_NET_IF_LOOPBACK);
+	}
+
+	bool is_multicast(unsigned int index)
+	{
+	    if (index >= this->nifs)
+		throw gensio_error(GE_OUTOFRANGE);
+	    return !!(this->ifs[index]->flags & GENSIO_NET_IF_MULTICAST);
+	}
+
+	unsigned int get_ifindex(unsigned int index)
+	{
+	    if (index >= this->nifs)
+		throw gensio_error(GE_OUTOFRANGE);
+	    return this->ifs[index]->ifindex;
+	}
+
+	unsigned int get_num_addrs(unsigned int index)
+	{
+	    if (index >= this->nifs)
+		throw gensio_error(GE_OUTOFRANGE);
+	    return this->ifs[index]->naddrs;
+	}
+
+	unsigned int get_addr_netbits(unsigned int index, unsigned int addridx)
+	{
+	    if (index >= this->nifs || addridx > this->ifs[index]->naddrs)
+		throw gensio_error(GE_OUTOFRANGE);
+	    return this->ifs[index]->addrs[addridx].netbits;
+	}
+
+	unsigned int get_addr_family(unsigned int index, unsigned int addridx)
+	{
+	    if (index >= this->nifs || addridx > this->ifs[index]->naddrs)
+		throw gensio_error(GE_OUTOFRANGE);
+	    return this->ifs[index]->addrs[addridx].family;
+	}
+
+	std::vector<unsigned char> get_addr(unsigned int index,
+					    unsigned int addridx)
+	{
+	    if (index >= this->nifs || addridx > this->ifs[index]->naddrs)
+		throw gensio_error(GE_OUTOFRANGE);
+	    struct gensio_net_addr *a = &(this->ifs[index]->addrs[addridx]);
+	    return std::vector<unsigned char>(a->addr,
+					      a->addr + sizeof(a->addr));
+	}
+
+        std::string get_addrstr(unsigned int index, unsigned int addridx)
+	{
+	    if (index >= this->nifs || addridx > this->ifs[index]->naddrs)
+		throw gensio_error(GE_OUTOFRANGE);
+	    return std::string(this->ifs[index]->addrs[addridx].addrstr);
+	}
+
+    private:
+	Os_Funcs *o;
+	struct gensio_net_if **ifs;
+	unsigned int nifs;
+    };
+}
+#endif /* GENSIOOSH_CPP_INCLUDE */

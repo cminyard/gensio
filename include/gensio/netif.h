@@ -13,7 +13,7 @@
  */
 
 #include <stdint.h>
-#include <gensio/gensio_dllvisibility.h>
+#include <gensio/gensioosh_dllvisibility.h>
 #include <gensio/gensio_types.h>
 
 #ifdef __cplusplus
@@ -48,11 +48,11 @@ struct gensio_net_if
 /*
  * Return information about the network interfaces on the system.
  */
-GENSIO_DLL_PUBLIC
+GENSIOOSH_DLL_PUBLIC
 int gensio_os_get_net_ifs(struct gensio_os_funcs *o,
 			  struct gensio_net_if ***rifs, unsigned int *rnifs);
 
-GENSIO_DLL_PUBLIC
+GENSIOOSH_DLL_PUBLIC
 void gensio_os_free_net_ifs(struct gensio_os_funcs *o,
 			    struct gensio_net_if **ifs, unsigned int nifs);
 

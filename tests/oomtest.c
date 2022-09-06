@@ -25,6 +25,7 @@
 #include <errno.h>
 #include <signal.h>
 #include <gensio/gensio.h>
+#include <gensio/gensio_osops.h>
 #include <gensio/gensio_osops_env.h>
 #include <gensio/argvutils.h>
 #include <gensio/gensio_unix.h>

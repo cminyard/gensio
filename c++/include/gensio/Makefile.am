@@ -1,2 +1,3 @@
 
-pkginclude_HEADERS = gensio gensiomdns gensio_dllvisibility
+pkginclude_HEADERS = gensioosh gensio gensiomdns \
+	gensioosh_dllvisibility gensio_dllvisibility

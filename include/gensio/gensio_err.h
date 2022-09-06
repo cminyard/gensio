@@ -13,7 +13,7 @@ extern "C" {
 #endif
 
 struct gensio_os_funcs;
-#include <gensio/gensio_dllvisibility.h>
+#include <gensio/gensioosh_dllvisibility.h>
 
 #define GE_NOERR		0
 #define GE_NOMEM		1
@@ -87,10 +87,10 @@ struct gensio_os_funcs;
 #define gensio_os_err_to_err(o, oserr)					\
     gensio_i_os_err_to_err(o, oserr, __func__, __FILE__, __LINE__)
 
-GENSIO_DLL_PUBLIC
+GENSIOOSH_DLL_PUBLIC
 const char *gensio_err_to_str(int err);
 
-GENSIO_DLL_PUBLIC
+GENSIOOSH_DLL_PUBLIC
 int gensio_i_os_err_to_err(struct gensio_os_funcs *o,
 			   int oserr, const char *caller,
 			   const char *file, unsigned int lineno);

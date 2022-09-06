@@ -21,8 +21,10 @@ pygensio_wrap.cc pygensio.py: pygensio.i $(top_srcdir)/c++/include/gensio \
 EXTRA_DIST = pygensio.i
 
 nodist__pygensio_la_SOURCES = pygensio_wrap.cc
-_pygensio_la_LIBADD = $(top_builddir)/c++/lib/libgensiocpp.la \
+_pygensio_la_LIBADD = $(top_builddir)/c++/lib/libgensiooshcpp.la \
+		$(top_builddir)/c++/lib/libgensiocpp.la \
 		$(top_builddir)/c++/lib/libgensiomdnscpp.la \
+		$(top_builddir)/lib/libgensioosh.la \
 		$(top_builddir)/lib/libgensio.la \
 		$(top_builddir)/lib/libgensiomdns.la \
 		$(PYTHON_LIBS)

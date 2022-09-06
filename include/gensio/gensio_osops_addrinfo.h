@@ -20,15 +20,15 @@
 struct addrinfo;
 struct sockaddr;
 
-#include <gensio/gensio_dllvisibility.h>
+#include <gensio/gensioosh_dllvisibility.h>
 #include <gensio/gensio_types.h>
 
 /* Get the entire addrinfo list for the address. */
-GENSIO_DLL_PUBLIC
+GENSIOOSH_DLL_PUBLIC
 struct addrinfo *gensio_addr_addrinfo_get(const struct gensio_addr *addr);
 
 /* Get the current addrinfo. */
-GENSIO_DLL_PUBLIC
+GENSIOOSH_DLL_PUBLIC
 struct addrinfo *gensio_addr_addrinfo_get_curr(const struct gensio_addr *addr);
 
 /*
@@ -40,7 +40,7 @@ struct addrinfo *gensio_addr_addrinfo_get_curr(const struct gensio_addr *addr);
  * with a refcount because the addrinfo memory is reused.  So allow it
  * to be specially allocated.
  */
-GENSIO_DLL_PUBLIC
+GENSIOOSH_DLL_PUBLIC
 struct gensio_addr *gensio_addr_addrinfo_make(struct gensio_os_funcs *o,
 					      unsigned int size,
 					      bool is_recvfrom);
@@ -49,18 +49,18 @@ struct gensio_addr *gensio_addr_addrinfo_make(struct gensio_os_funcs *o,
  * Set the addrinfo list.  The current list must be NULL.  All the
  * data in ai must be allocated with o->zalloc();
  */
-GENSIO_DLL_PUBLIC
+GENSIOOSH_DLL_PUBLIC
 void gensio_addr_addrinfo_set(struct gensio_addr *addr,
 			      struct addrinfo *ai);
 
 /* Get/set the port for a sockaddr. */
-GENSIO_DLL_PUBLIC
+GENSIOOSH_DLL_PUBLIC
 int gensio_sockaddr_get_port(const struct sockaddr *s, unsigned int *port);
-GENSIO_DLL_PUBLIC
+GENSIOOSH_DLL_PUBLIC
 int gensio_sockaddr_set_port(const struct sockaddr *s, unsigned int port);
 
 /* Set up the osops with addrinfo based address handling. */
-GENSIO_DLL_PUBLIC
+GENSIOOSH_DLL_PUBLIC
 void gensio_addr_addrinfo_set_os_funcs(struct gensio_os_funcs *o);
 
 /*

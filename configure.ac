@@ -362,7 +362,12 @@ AC_SUBST(TCL_LIBS)
 AC_SUBST(TCL_LIB)
 AC_SUBST(TCL_DIR)
 
-default_all=dynamic
+# If not creating shared libraries, build everything in.
+if test "$enable_shared" = "no"; then
+   default_all=yes
+else
+   default_all=dynamic
+fi
 AC_ARG_WITH(all-gensios,
  [AS_HELP_STRING([--with-all-gensios=yes|dynamic|no],
                  [Default setting for all gensios])],
@@ -826,12 +831,14 @@ AC_ARG_WITH(mdns,
 )
 BUILTIN_MDNS=0
 DYNAMIC_MDNS=
+BUILTIN_MDNS_LIBS=
 case $mdns in
    yes)
       if test $HAVE_AVAHI = 0; then
          AC_MSG_ERROR("mdns enabled but avahi not found")
       fi
       BUILTIN_GENSIOS="$BUILTIN_GENSIOS mdns"
+      BUILTIN_MDNS_LIBS="$MDNS_LIBS"
       BUILTIN_MDNS=1
       ;;
    dynamic)
@@ -846,6 +853,7 @@ case $mdns in
 esac
 AM_CONDITIONAL([BUILTIN_MDNS], [test ${BUILTIN_MDNS} = 1])
 AC_SUBST(DYNAMIC_MDNS)
+AC_SUBST(BUILTIN_MDNS_LIBS)
 
 # Handle alsa support
 tryalsa=yes
@@ -1704,6 +1712,7 @@ AC_SUBST(EXTRA_CFLAGS)
 CPPFLAGS="$CPPFLAGS -I\$(top_srcdir)/include -I\$(top_builddir)/include"
 
 AC_CONFIG_FILES([Makefile
+	lib/libgensioosh.pc
 	lib/libgensio.pc
 	lib/libgensiomdns.pc
 	lib/Makefile
@@ -1716,6 +1725,7 @@ AC_CONFIG_FILES([Makefile
 	c++/include/Makefile
 	c++/include/gensio/Makefile
 	c++/lib/Makefile
+	c++/lib/libgensiooshcpp.pc
 	c++/lib/libgensiocpp.pc
 	c++/lib/libgensiomdnscpp.pc
 	c++/tests/Makefile

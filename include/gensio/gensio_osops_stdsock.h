@@ -17,14 +17,14 @@
 #ifndef GENSIO_OSOPS_STDSOCK_H
 #define GENSIO_OSOPS_STDSOCK_H
 
-#include <gensio/gensio_dllvisibility.h>
+#include <gensio/gensioosh_dllvisibility.h>
 #include <gensio/gensio_types.h>
 
 
 /* Set up the osops with addrinfo based standard socket handling. */
-GENSIO_DLL_PUBLIC
+GENSIOOSH_DLL_PUBLIC
 int gensio_stdsock_set_os_funcs(struct gensio_os_funcs *o);
-GENSIO_DLL_PUBLIC
+GENSIOOSH_DLL_PUBLIC
 void gensio_stdsock_cleanup(struct gensio_os_funcs *o);
 
 #endif /* GENSIO_OSOPS_STDSOCK_H */

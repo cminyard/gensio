@@ -8,7 +8,7 @@
 #ifndef GENSIO_AX25_ADDR_H
 #define GENSIO_AX25_ADDR_H
 
-#include <gensio/gensio_dllvisibility.h>
+#include <gensio/gensioosh_dllvisibility.h>
 #include <stdint.h>
 #include <gensio/gensio_addr.h>
 
@@ -23,7 +23,7 @@ struct gensio_ax25_subaddr {
     uint8_t r3 : 1;
 };
 
-GENSIO_DLL_PUBLIC
+GENSIOOSH_DLL_PUBLIC
 bool ax25_subaddr_equal(const struct gensio_ax25_subaddr *a1,
 			const struct gensio_ax25_subaddr *a2);
 
@@ -31,10 +31,10 @@ bool ax25_subaddr_equal(const struct gensio_ax25_subaddr *a1,
 #define GENSIO_AX25_MAX_SUBADDR_STR_LEN 10
 
 /* Convert a string to/from a subaddress. */
-GENSIO_DLL_PUBLIC
+GENSIOOSH_DLL_PUBLIC
 int ax25_str_to_subaddr(const char *s, struct gensio_ax25_subaddr *a,
 			bool is_cr);
-GENSIO_DLL_PUBLIC
+GENSIOOSH_DLL_PUBLIC
 int ax25_subaddr_to_str(const struct gensio_ax25_subaddr *addr,
 			char *buf, gensiods *pos, gensiods buflen,
 			bool do_cr);
@@ -68,7 +68,7 @@ struct gensio_ax25_addr {
  * is the command/response (for src and dest) or "h" bit (for extras).
  * If not given, h is zero and c/r is assumed to be "r".
  */
-GENSIO_DLL_PUBLIC
+GENSIOOSH_DLL_PUBLIC
 int gensio_ax25_addr_alloc(struct gensio_os_funcs *o,
 			   uint8_t tnc_port, const char *dest, const char *src,
 			   uint8_t nr_extra, const char *extras[],
@@ -82,7 +82,7 @@ int gensio_ax25_addr_alloc(struct gensio_os_funcs *o,
  * if ":c|r" is not given on a source/dest, then it is assumed to be
  * response (0).
  */
-GENSIO_DLL_PUBLIC
+GENSIOOSH_DLL_PUBLIC
 int gensio_ax25_str_to_addr(struct gensio_os_funcs *o,
 			    const char *s, struct gensio_addr **raddr);
 
@@ -94,17 +94,17 @@ int gensio_ax25_str_to_addr(struct gensio_os_funcs *o,
  * came from.  Data is decoded into the given address and pos is
  * updated to the first byte after the address.
  */
-GENSIO_DLL_PUBLIC
+GENSIOOSH_DLL_PUBLIC
 int decode_ax25_addr(struct gensio_os_funcs *o,
 		     unsigned char *data, gensiods *pos, gensiods len,
 		     uint16_t port, struct gensio_ax25_addr *addr);
 
 /* Return the length of the encoded address. */
-GENSIO_DLL_PUBLIC
+GENSIOOSH_DLL_PUBLIC
 unsigned int ax25_addr_encode_len(struct gensio_addr *iaddr);
 
 /* Encode the address in the buffer, returns the number of bytes. */
-GENSIO_DLL_PUBLIC
+GENSIOOSH_DLL_PUBLIC
 unsigned int ax25_addr_encode(unsigned char *buf, struct gensio_addr *iaddr);
 
 #endif /* GENSIO_AX25_ADDR_H */
