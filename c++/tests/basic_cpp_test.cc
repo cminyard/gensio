@@ -106,7 +106,7 @@ private:
 
 	try {
 	    count = io->write(data + writepos, datalen - writepos, NULL);
-	} catch (gensio_error e) {
+	} catch (gensio_error &e) {
 	    errstr = e.what();
 	    io->set_read_callback_enable(false);
 	    io->set_write_callback_enable(false);
@@ -152,7 +152,7 @@ do_client_test(Os_Funcs &o, string ios)
     e.set_gensio(g);
     try {
 	g->open(&oe);
-    } catch (gensio_error e) {
+    } catch (gensio_error &e) {
 	cerr << "Error opening '" << ios << "': " << e.what() << endl;
 	return 1;
     }
@@ -197,8 +197,6 @@ public:
     void set_gensio(Gensio *g) { io = g; }
 
 private:
-    Gensio *io;
-
     gensiods read(int err, const SimpleUCharVector data,
 		  const char *const *auxdata) override
     {
@@ -215,7 +213,7 @@ private:
 
 	try {
 	    count = io->write(data, NULL);
-	} catch (gensio_error e) {
+	} catch (gensio_error &e) {
 	    errstr = e.what();
 	    io->set_read_callback_enable(false);
 	    io->set_write_callback_enable(false);
@@ -246,6 +244,8 @@ private:
     const char *errstr = NULL;
 
     Waiter *waiter;
+
+    Gensio *io;
 };
 
 class Acc_Event: public Accepter_Event {
@@ -292,11 +292,11 @@ do_server_test(Os_Funcs &o, string ios)
     ae.set_accepter(a);
     try {
 	a->startup();
-    } catch (gensio_error e) {
+    } catch (gensio_error &e) {
 	cerr << "Error opening '" << ios << "': " << e.what() << endl;
 	return;
     }
-    cout << a->get_port() << endl;
+    cout << a->get_port() << endl << flush;
     a->set_callback_enable(true);
     w.wait(2, NULL);
 }
@@ -417,7 +417,7 @@ int main(int argc, char *argv[])
 	ios += "0";
 	try {
 	    sub = gensio_alloc(ios, o, &se);
-	} catch (gensio_error e) {
+	} catch (gensio_error &e) {
 	    cerr << "Unable to open " << ios << ": " << e.what() << endl;
 	    err = 1;
 	    goto out;
