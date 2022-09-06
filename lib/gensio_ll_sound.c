@@ -553,7 +553,7 @@ setup_convv(struct sound_info *si, enum gensio_sound_fmt_type pfmt)
     si->cnv.offset = pinfo->offset;
     si->cnv.host_bswap = pinfo->host_bswap;
 
-    si->cnv.pframesize = pinfo->size * si->chans;
+    si->cnv.pframesize = (gensiods) pinfo->size * si->chans;
 
     if (pinfo->isfloat && uinfo->isfloat) {
 	si->cnv.convin = conv_float_to_float_in;
