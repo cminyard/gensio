@@ -1001,7 +1001,7 @@ the full effect.  You generally want to run something like:
 
   ./configure --enable-internal-trace CFLAGS='-g -Wall'
 
-You can turn on -O3 in the CFLAGS, too, if you like, but it make
+You can turn on -O3 in the CFLAGS, too, if you like, but it makes
 debugging harder.
 
 There are two basic types of tests.  The python tests are functional
