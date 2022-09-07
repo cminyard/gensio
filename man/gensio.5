@@ -762,13 +762,13 @@ may shut down the gensio and possibly lose any output going to
 stdout.  Use the file gensio if you can.
 
 For connecting gensios, in the forked process, the code will set the
-uid and guid to the current set effective uid and guid if the
-effective and real uids are different.  This way a user can set the
-effective uid and gid to what they want the program to run under, but
-keep the uid and gid to the (probably root) values so they can be
-restored to those values after opening the pty.  The group list is
-also set to the groups the effective userid is in.  Note that nothing
-is done if the effective and real userids are the same.
+effective (and saved) uid and guid to the current real uid and guid if
+the effective and real uids are different.  This way a user can set
+the real uid and gid to what they want the program to run under, but
+keep the effective uid and gid to the (probably root) values so they
+can be restored to those values after opening the pty.  The group list
+is also set to the groups the real userid is in.  Note that nothing is
+done if the effective and real userids are the same.
 
 If you have both stdin/stdout and stderr opened, you must close both
 of them to completely close the gensio.  You cannot re-open the gensio
@@ -1313,14 +1313,14 @@ In Unix type systems, if the first character of the program is '-', it
 is removed from the execution of the command but left in argv[0].
 This will cause a shell to act as a login shell.
 
-On Unix, type systems, In the forked process, the pty code will set
-the uid and guid to the current set effective uid and guid if the
-effective and real uids are different.  This way a user can set the
-effective uid and gid to what the want to pty to run under, but keep
-the real uid and gid to the (probably root) values so they can be
-restored to those values after opening the pty.  The group list is
-also set to the groups the effective userid is in.  Note that nothing
-is done if the effective and real userids are the same.
+On Unix type systems, in the forked process, the code will set the
+effective (and saved) uid and guid to the current real uid and guid if
+the effective and real uids are different.  This way a user can set
+the real uid and gid to what they want the program to run under, but
+keep the effective uid and gid to the (probably root) values so they
+can be restored to those values after opening the pty.  The group list
+is also set to the groups the real userid is in.  Note that nothing is
+done if the effective and real userids are the same.
 
 On Windows, the new process is set to the user in the impersonation
 token if it is set.  In that case, the new process will be run in a

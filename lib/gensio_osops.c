@@ -62,22 +62,23 @@ gensio_unix_os_setupnewprog(void)
 {
     struct passwd *pw;
     int err;
-    uid_t uid = geteuid();
+    uid_t uid = getuid();
     gid_t *groups = NULL;
     int ngroup = 0;
 
     if (do_errtrig())
 	return GE_NOMEM;
 
-    if (uid == getuid())
+    if (uid == geteuid())
 	return 0;
-
-    err = seteuid(getuid());
-    if (err)
-	return errno;
 
     pw = getpwuid(uid);
     if (!pw)
+	return errno;
+
+    /* Sets the real, effective, and saved group. */
+    err = setgid(getgid());
+    if (err)
 	return errno;
 
     getgrouplist(pw->pw_name, pw->pw_gid, groups, &ngroup);
@@ -102,13 +103,11 @@ gensio_unix_os_setupnewprog(void)
 	free(groups);
     }
 
-    err = setgid(getegid());
-    if (err)
-	return errno;
-
+    /* Sets the real, effective, and saved userid. */
     err = setuid(uid);
     if (err)
 	return errno;
+
     return 0;
 }
 #endif
@@ -3138,11 +3137,8 @@ gensio_unix_pty_start(struct gensio_os_funcs *o,
 	int fd;
 
 	/* Set the owner of the slave PT. */
-	/* FIXME - This should not be necessary, can we remove? */
-#if 0
 	if (grantpt(pfd) < 0)
 	    exit(1);
-#endif
 
 	if (start_dir) {
 	    if (chdir(start_dir)) {
@@ -3157,14 +3153,6 @@ gensio_unix_pty_start(struct gensio_os_funcs *o,
 		    strerror(errno));
 	    exit(1);
 	}
-
-#if 0 /* FIXME = do we need this? */
-	if (setpgid(0, 0) == -1) {
-	    fprintf(stderr, "pty fork: failed setpgid: %s\r\n",
-		    strerror(errno));
-	    exit(1);
-	}
-#endif
 
 	fd = open(slave, O_RDWR);
 	if (fd == -1) {

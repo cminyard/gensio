@@ -986,14 +986,14 @@ switch_to_user(struct auth_data *auth)
 {
     int err, err2;
 
-    err = setegid(auth->gid);
+    err = setregid(auth->gid, -1);
     if (err) {
 	log_event(LOG_ERR, "setgid failed: %s", strerror(errno));
 	return err;
     }
-    err = seteuid(auth->uid);
+    err = setreuid(auth->uid, -1);
     if (err) {
-	err2 = setegid(getgid());
+	err2 = setgid(getegid());
 	if (err2)
 	    log_event(LOG_WARNING, "err reset setgid failed: %s",
 		      strerror(errno));
@@ -1008,10 +1008,10 @@ switch_from_user(struct auth_data *auth)
 {
     int err;
 
-    err = seteuid(getuid());
+    err = setuid(geteuid());
     if (err)
 	log_event(LOG_WARNING, "reset setuid failed: %s", strerror(errno));
-    err = setegid(getgid());
+    err = setgid(getegid());
     if (err)
 	log_event(LOG_WARNING, "reset setgid failed: %s", strerror(errno));
 }
