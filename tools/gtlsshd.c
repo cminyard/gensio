@@ -51,6 +51,9 @@
 #include <sys/ioctl.h>
 #include <fcntl.h>
 #include <security/pam_appl.h>
+#ifdef HAVE_SETUTXENT
+#include <utmpx.h>
+#endif
 #else
 #include <windows.h>
 #include <userenv.h>
@@ -216,6 +219,7 @@ struct auth_data {
 
     struct gdata *ginfo;
     struct gensio *rem_io;
+    struct gensio *local_io;
 
     char username[100];
     char *homedir;
@@ -415,6 +419,58 @@ write_str_to_gensio(const char *str, struct gensio *io,
 }
 
 static void
+write_utmp(struct auth_data *auth, bool is_login)
+{
+#ifdef HAVE_SETUTXENT
+    struct utmpx u;
+    gensiods len;
+    int err;
+    struct timeval tv;
+
+    if (!auth->interactive_login)
+	return;
+
+    memset(&u, 0, sizeof(u));
+    gettimeofday(&tv, NULL);
+    u.ut_tv.tv_sec = tv.tv_sec;
+    u.ut_tv.tv_usec = tv.tv_usec;
+    if (is_login)
+	u.ut_type = USER_PROCESS;
+    else
+	u.ut_type = DEAD_PROCESS;
+    u.ut_pid = getpid();
+    if (auth->rhost)
+	/* Don't nil terminate if full. */
+	strncpy(u.ut_host, auth->rhost, sizeof(u.ut_host));
+    strncpy(u.ut_user, auth->username, sizeof(u.ut_user));
+    len = sizeof(u.ut_line);
+    err = gensio_control(auth->local_io, 0, GENSIO_CONTROL_GET,
+			 GENSIO_CONTROL_LADDR, u.ut_line, &len);
+    if (err || len == 0) {
+	strncpy(u.ut_id, "~", sizeof(u.ut_id));
+    } else {
+	if (strncmp(u.ut_line, "/dev/", 5) == 0) {
+	    memmove(u.ut_line, u.ut_line + 5, len - 5);
+	    len -= 5;
+	    u.ut_line[len] = '\0';
+	}
+	if (len < 4)
+	    len = 0;
+	else
+	    len -= 4;
+	strncpy(u.ut_id, u.ut_line + len, sizeof(u.ut_id));
+    }
+
+    setutxent();
+    pututxline(&u);
+    endutxent();
+#ifdef WTMPX_FILE
+    updwtmpx(WTMPX_FILE, &u);
+#endif
+#endif
+}
+
+static void
 closecount_decr_ginfo(struct gdata *ginfo)
 {
     ginfo_lock(ginfo);
@@ -562,6 +618,7 @@ close_con_info(struct per_con_info *pcinfo)
     }
 
     if (pcinfo->io2_can_close) {
+	write_utmp(auth, false);
 	pcinfo->io2_can_close = false;
 	err = gensio_close(pcinfo->io2, io_close, pcinfo);
 	if (err) {
@@ -2081,7 +2138,8 @@ certauth_event(struct gensio *io, void *user_data, int event, int ierr,
     }
 }
 
-static void
+/* Returns true if successful, false if not. */
+static bool
 new_rem_io(struct gensio *io, struct auth_data *auth)
 {
     struct gensio_os_funcs *o = auth->ginfo->o;
@@ -2097,6 +2155,7 @@ new_rem_io(struct gensio *io, struct auth_data *auth)
     char **env = NULL;
     unsigned int env_len = 0;
     const char **penv2 = NULL;
+    bool rv = false;
 
     len = 0;
     err = gensio_control(io, 0, GENSIO_CONTROL_GET, GENSIO_CONTROL_SERVICE,
@@ -2326,6 +2385,7 @@ new_rem_io(struct gensio *io, struct auth_data *auth)
 	goto out_err;
     }
     pcinfo->io2 = pty_io;
+    auth->local_io = pty_io;
 
     if (do_chdir) {
 	err = gensio_control(pty_io, 0, GENSIO_CONTROL_SET,
@@ -2388,6 +2448,7 @@ new_rem_io(struct gensio *io, struct auth_data *auth)
     }
 
     io = NULL;
+    rv = true;
 
     goto out_free;
 
@@ -2408,6 +2469,7 @@ new_rem_io(struct gensio *io, struct auth_data *auth)
 	o->free(o, service);
     if (s)
 	o->free(o, s);
+    return rv;
 }
 
 static int
@@ -2666,7 +2728,8 @@ handle_new(struct gensio *net_io)
     ginfo_unlock(ginfo);
 
     start_local_ports(auth->locport, top_io);
-    new_rem_io(top_io, auth);
+    if (new_rem_io(top_io, auth))
+	write_utmp(auth, true);
 
     return;
 
