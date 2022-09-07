@@ -83,18 +83,28 @@ gensio_unix_os_setupnewprog(void)
 
     getgrouplist(pw->pw_name, pw->pw_gid, groups, &ngroup);
     if (ngroup > 0) {
+	int ngroup2 = ngroup;
+
 	groups = malloc(sizeof(gid_t) * ngroup);
 	if (!groups)
 	    return ENOMEM;
 
-	err = getgrouplist(pw->pw_name, pw->pw_gid, groups, &ngroup);
+	err = getgrouplist(pw->pw_name, pw->pw_gid, groups, &ngroup2);
 	if (err == -1) {
 	    err = errno;
 	    free(groups);
 	    return err;
 	}
+	/*
+	 * There is some possibility that the number of groups will
+	 * change between the calls.  If the new on is bigger than the
+	 * old, use the old one to avoid accessing past the end of the
+	 * buffer.  If the new one is smaller, use that.
+	 */
+	if (ngroup2 < ngroup)
+	    ngroup = ngroup2;
 
-	err = setgroups(err, groups);
+	err = setgroups(ngroup, groups);
 	if (err) {
 	    err = errno;
 	    free(groups);
