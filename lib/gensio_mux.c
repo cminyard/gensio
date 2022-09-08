@@ -702,14 +702,14 @@ static bool i_chan_deref(struct mux_inst *chan)
 #ifdef MUX_TRACING
 #define chan_ref(c) do {						\
 	i_mux_add_trace(c->mux, c, c->mux->state, 106,			\
-			c->state, c->refcount + 2000, __LINE__);	\
+			c->state, c->refcount + 3000, __LINE__);	\
 	i_chan_ref(c);							\
     } while (false)
 
 static bool i2_chan_deref(struct mux_inst *chan, int line)
 {
     i_mux_add_trace(chan->mux, chan, chan->mux->state, 107,
-		    chan->state, chan->refcount + 2000, line);
+		    chan->state, chan->refcount + 3000, line);
     return i_chan_deref(chan);
 }
 
@@ -969,8 +969,10 @@ chan_check_read(struct mux_inst *chan)
 	chan->in_read_report = true;
 	i = 0;
 	if (flags & MUX_FLAG_OUT_OF_BOUND) {
-	    if (!chan->do_oob)
-		goto after_read_done;
+	    if (!chan->do_oob) {
+		rcount = len;
+		goto skip_oob_data;
+	    }
 	    flstr[i++] = "oob";
 	}
 	flstr[i] = NULL;
@@ -988,6 +990,7 @@ chan_check_read(struct mux_inst *chan)
 	    }
 	    if (rcount > orcount)
 		rcount = orcount;
+	skip_oob_data:
 	    len -= rcount;
 	    to_ack += rcount;
 	    olen += rcount;
@@ -2312,8 +2315,10 @@ mux_child_read(struct mux_data *muxdata, int ierr,
 	    switch (muxdata->msgid) {
 	    case MUX_NEW_CHANNEL: {
 		unsigned int remote_id = gensio_buf_to_u16(muxdata->hdr + 2);
+		bool was_chan0 = false;
 		if (muxdata->state == MUX_WAITING_OPEN) {
 		    chan = mux_chan0(muxdata);
+		    was_chan0 = true;
 		} else {
 		    int err;
 
@@ -2335,7 +2340,10 @@ mux_child_read(struct mux_data *muxdata, int ierr,
 			gensio_buf_to_u32(muxdata->hdr + 4);
 		    if (chan->send_window_size <= MUX_MIN_SEND_WINDOW_SIZE) {
 			proto_err_str = "Invalid send window size";
-			goto protocol_err;
+			if (was_chan0)
+			    goto protocol_err;
+			else
+			    goto protocol_err_close_chan;
 		    }
 		    chan->remote_id = remote_id;
 		    muxdata->data_pos = 0;
@@ -2552,7 +2560,7 @@ mux_child_read(struct mux_data *muxdata, int ierr,
 		    if (muxdata->xmit_data_len) {
 			/* Only one new channel allowed at a time. */
 			proto_err_str = "New channel while in progress";
-			goto protocol_err;
+			goto protocol_err_close_chan;
 		    }
 		    mux_send_new_channel_rsp(muxdata,
 				gensio_buf_to_u16(muxdata->hdr + 2),
@@ -2581,7 +2589,7 @@ mux_child_read(struct mux_data *muxdata, int ierr,
 		} else {
 		    if (muxdata->xmit_data_len) {
 			proto_err_str = "New channel while in progress";
-			goto protocol_err;
+			goto protocol_err_close_chan;
 		    }
 		    if (chan->service)
 			auxdata[0] = chan->service;
@@ -2663,6 +2671,15 @@ mux_child_read(struct mux_data *muxdata, int ierr,
     *ibuflen = processed;
     return 0;
 
+ protocol_err_close_chan:
+    /*
+     * A protocol error was reported before the channel was reported
+     * to the user.  Just delete the channel, otherwise it will not
+     * get cleaned up on the close and the close of the mux will never
+     * happen.
+     */
+    chan_deref(muxdata->curr_chan);
+    muxdata->curr_chan = NULL;
  protocol_err:
     gmux_log_err(muxdata, "Protocol error: %s\n", proto_err_str);
     ierr = GE_PROTOERR;
