@@ -1032,15 +1032,15 @@ To set up for fuzzing, install afl, then configure with the following:
 .. code-block:: bash
 
   mkdir Zfuzz; cd Zfuzz
-  ../configure --enable-internal-trace=yes --disable-shared CC=afl-gcc \
-      CXX=afl-g++
+  ../configure --enable-internal-trace=yes --disable-shared --with-go=no \
+      CC=afl-gcc CXX=afl-g++
 
 Or use clang, if available:
 
 .. code-block:: bash
 
-  ../configure --enable-internal-trace=yes --disable-shared CC=afl-clang \
-      CXX=afl-clang++ LIBS='-lstdc++'
+  ../configure --enable-internal-trace=yes --disable-shared --with-go=no \
+      CC=afl-clang-fast CXX=afl-clang-fast++ LIBS='-lstdc++'
 
 I'm not sure why the LIBS thing is necessary above, but I had to add
 it to get it to compile.
@@ -1051,7 +1051,7 @@ to adjust some things, afl will tell you.  Note that it will run
 forever, you will need to ^C it when you are done.
 
 The makefile in tests/Makefile.am has instructions on how to handle a
-failure to reproduce for debuggig.
+failure to reproduce for debugging.
 
 Code Coverage
 =============
