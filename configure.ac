@@ -932,9 +932,11 @@ if test $tryssl = yes; then
 	AX_CHECK_OPENSSL([HAVE_OPENSSL=1])
 fi
 
+HAVE_RAND_SET_DRBG_TYPE=0
 if test "$HAVE_OPENSSL" = "1"; then
    ssl=$default_all
    certauth=$default_all
+   AC_CHECK_LIB(crypto, RAND_set_DRBG_type, HAVE_RAND_SET_DRBG_TYPE=1)
 else
    ssl=no
    certauth=no
@@ -942,6 +944,8 @@ fi
 AC_DEFINE_UNQUOTED([HAVE_OPENSSL], [$HAVE_OPENSSL],
 	[Set to 1 to enable SSL support through OpenSSL, 0 to disable])
 AC_SUBST(HAVE_OPENSSL)
+AC_DEFINE_UNQUOTED([HAVE_RAND_SET_DRBG_TYPE], [$HAVE_RAND_SET_DRBG_TYPE],
+	[Set to 1 to new random support in SSL, 0 to disable])
 
 AC_ARG_WITH(ssl,
  [AS_HELP_STRING([--with-ssl=yes|dynamic|no], [Enable ssl gensio])],
@@ -1522,7 +1526,7 @@ AC_SUBST(PYTHON_SWIG_FLAGS)
 PYTHON_EXECUTABLE="${PYTHON}"
 AC_SUBST(PYTHON_EXECUTABLE)
 
-if test $SWIG_NUMVERSION -ge 40100; then
+if test $SWIG_NUMVERSION -ge 40100 -a "${enable_shared}" = yes; then
    trygo=yes
 else
    trygo=no

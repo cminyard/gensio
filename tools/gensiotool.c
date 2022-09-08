@@ -56,7 +56,180 @@
 unsigned int debug;
 struct gensio_os_proc_data *proc_data;
 
-#if HAVE_OPENSSL
+#if HAVE_RAND_SET_DRBG_TYPE
+
+#include <openssl/core_names.h>
+#include <openssl/rand.h>
+#include <openssl/provider.h>
+
+static FILE *dummyrnd_file;
+
+static void *dummy_rand_newctx(
+         void *provctx, void *parent, const OSSL_DISPATCH *parent_dispatch)
+{
+    int *st = OPENSSL_malloc(sizeof(*st));
+
+    if (st != NULL)
+        *st = EVP_RAND_STATE_UNINITIALISED;
+    return st;
+}
+
+static void dummy_rand_freectx(ossl_unused void *vrng)
+{
+    OPENSSL_free(vrng);
+}
+
+static int dummy_rand_instantiate(ossl_unused void *vrng,
+                                 ossl_unused unsigned int strength,
+                                 ossl_unused int prediction_resistance,
+                                 ossl_unused const unsigned char *pstr,
+                                 ossl_unused size_t pstr_len,
+                                 ossl_unused const OSSL_PARAM params[])
+{
+    *(int *)vrng = EVP_RAND_STATE_READY;
+    return 1;
+}
+
+static int dummy_rand_uninstantiate(ossl_unused void *vrng)
+{
+    *(int *)vrng = EVP_RAND_STATE_UNINITIALISED;
+    return 1;
+}
+
+static int dummy_rand_generate(ossl_unused void *vdrbg,
+                              unsigned char *out, size_t outlen,
+                              ossl_unused unsigned int strength,
+                              ossl_unused int prediction_resistance,
+                              ossl_unused const unsigned char *adin,
+                              ossl_unused size_t adinlen)
+{
+    size_t rc;
+
+    while (outlen > 0) {
+	rc = fread(out, 1, outlen, dummyrnd_file);
+	if (rc == 0) {
+	    rewind(dummyrnd_file);
+
+	    rc = fread(out, 1, outlen, dummyrnd_file);
+	    if (rc == 0) {
+		fprintf(stderr, "Error reading from dummyrnd file\n");
+		return 0;
+	    }
+	}
+	out += rc;
+	outlen -= rc;
+    }
+
+    return 1;
+}
+
+static int dummy_rand_enable_locking(ossl_unused void *vrng)
+{
+    return 1;
+}
+
+static int dummy_rand_get_ctx_params(void *vrng, OSSL_PARAM params[])
+{
+    OSSL_PARAM *p;
+
+    p = OSSL_PARAM_locate(params, OSSL_RAND_PARAM_STATE);
+    if (p != NULL && !OSSL_PARAM_set_int(p, *(int *)vrng))
+        return 0;
+
+    p = OSSL_PARAM_locate(params, OSSL_RAND_PARAM_STRENGTH);
+    if (p != NULL && !OSSL_PARAM_set_int(p, 500))
+        return 0;
+
+    p = OSSL_PARAM_locate(params, OSSL_RAND_PARAM_MAX_REQUEST);
+    if (p != NULL && !OSSL_PARAM_set_size_t(p, INT_MAX))
+        return 0;
+    return 1;
+}
+
+static const OSSL_PARAM *dummy_rand_gettable_ctx_params(ossl_unused void *vrng,
+                                                       ossl_unused void *provctx)
+{
+    static const OSSL_PARAM known_gettable_ctx_params[] = {
+        OSSL_PARAM_int(OSSL_RAND_PARAM_STATE, NULL),
+        OSSL_PARAM_uint(OSSL_RAND_PARAM_STRENGTH, NULL),
+        OSSL_PARAM_size_t(OSSL_RAND_PARAM_MAX_REQUEST, NULL),
+        OSSL_PARAM_END
+    };
+    return known_gettable_ctx_params;
+}
+
+static const OSSL_DISPATCH dummy_rand_functions[] = {
+    { OSSL_FUNC_RAND_NEWCTX, (void (*)(void))dummy_rand_newctx },
+    { OSSL_FUNC_RAND_FREECTX, (void (*)(void))dummy_rand_freectx },
+    { OSSL_FUNC_RAND_INSTANTIATE, (void (*)(void))dummy_rand_instantiate },
+    { OSSL_FUNC_RAND_UNINSTANTIATE, (void (*)(void))dummy_rand_uninstantiate },
+    { OSSL_FUNC_RAND_GENERATE, (void (*)(void))dummy_rand_generate },
+    { OSSL_FUNC_RAND_ENABLE_LOCKING, (void (*)(void))dummy_rand_enable_locking },
+    { OSSL_FUNC_RAND_GETTABLE_CTX_PARAMS,
+      (void(*)(void))dummy_rand_gettable_ctx_params },
+    { OSSL_FUNC_RAND_GET_CTX_PARAMS, (void(*)(void))dummy_rand_get_ctx_params },
+    { 0, NULL }
+};
+
+static const OSSL_ALGORITHM dummy_rand_rand[] = {
+    { "dummy", "provider=dummy-rand", dummy_rand_functions },
+    { NULL, NULL, NULL }
+};
+
+static const OSSL_ALGORITHM *dummy_rand_query(void *provctx,
+                                             int operation_id,
+                                             int *no_cache)
+{
+    *no_cache = 0;
+    switch (operation_id) {
+    case OSSL_OP_RAND:
+        return dummy_rand_rand;
+    }
+    return NULL;
+}
+
+/* Functions we provide to the core */
+static const OSSL_DISPATCH dummy_rand_method[] = {
+    { OSSL_FUNC_PROVIDER_TEARDOWN, (void (*)(void))OSSL_LIB_CTX_free },
+    { OSSL_FUNC_PROVIDER_QUERY_OPERATION, (void (*)(void))dummy_rand_query },
+    { 0, NULL }
+};
+
+static int dummy_rand_provider_init(const OSSL_CORE_HANDLE *handle,
+                                   const OSSL_DISPATCH *in,
+                                   const OSSL_DISPATCH **out, void **provctx)
+{
+    *provctx = OSSL_LIB_CTX_new();
+    if (*provctx == NULL)
+        return 0;
+    *out = dummy_rand_method;
+    return 1;
+}
+
+/* Keep this around for cleanup. */
+static OSSL_PROVIDER *r_prov;
+
+static bool
+setup_dummyrand(const char *filename)
+{
+    if (dummyrnd_file)
+	fclose(dummyrnd_file);
+    dummyrnd_file = fopen(filename, "r");
+    if (!dummyrnd_file) {
+	fprintf(stderr, "Could not open rand file\n");
+	return false;
+    }
+
+    if (!OSSL_PROVIDER_add_builtin(NULL, "dummy-rand", dummy_rand_provider_init)
+        || !RAND_set_DRBG_type(NULL, "dummy", NULL, NULL, NULL)
+        || (r_prov = OSSL_PROVIDER_try_load(NULL, "dummy-rand", 1)) == NULL) {
+	fclose(dummyrnd_file);
+	dummyrnd_file = NULL;
+	return false;
+    }
+    return true;
+}
+#elif HAVE_OPENSSL
 /*
  * Set a dummy random input file, for reproducable openssl usage for
  * fuzz testing.
@@ -131,10 +304,6 @@ struct rand_meth_st dummyrnd = {
 static bool
 setup_dummyrand(const char *filename)
 {
-    /*
-     * This option is undocumented and only for testing.  Do not
-     * use it!
-     */
     if (dummyrnd_file)
 	fclose(dummyrnd_file);
     dummyrnd_file = fopen(filename, "r");
@@ -145,6 +314,7 @@ setup_dummyrand(const char *filename)
 
     if (RAND_set_rand_method(&dummyrnd) != 1) {
 	fclose(dummyrnd_file);
+	dummyrnd_file = NULL;
 	fprintf(stderr, "Error setting random method\n");
 	return false;
     }
@@ -154,8 +324,8 @@ setup_dummyrand(const char *filename)
 static bool
 setup_dummyrand(const char *filename)
 {
-    fprintf(stderr, "No dummyrand support\n");
-    return false;
+    fprintf(stderr, "Warning: No dummyrand support\n");
+    return true;
 }
 #endif
 
@@ -917,6 +1087,10 @@ main(int argc, char *argv[])
 	    help(0);
 	else if ((rv = cmparg(argc, argv, &arg, NULL, "--dummyrand",
 			      &filename))) {
+	    /*
+	     * This option is undocumented and only for testing.  Do
+	     * not use it!
+	     */
 	    if (!setup_dummyrand(filename))
 		goto out_err;
 	} else {
