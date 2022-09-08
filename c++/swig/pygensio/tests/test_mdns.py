@@ -40,28 +40,37 @@ class Watch_EvHnd(pygensio.MDNS_Watch_Event):
         pygensio.MDNS_Watch_Event.__init__(self)
         self.waiter = waiter
         self.watch_count = 0
+        self.found = False
         return
 
     def event(self, state, interfacenum, ipdomain,
               name, mtype, domain, host, addr, txt):
+        self.watch_count += 1
         if state == pygensio.GENSIO_MDNS_ALL_FOR_NOW:
             self.waiter.wake()
             return
-        self.watch_count += 1
+        if self.found:
+            return
+        if state == pygensio.GENSIO_MDNS_NEW_DATA:
+            self.found = True
+            self.waiter.wake()
         return
 
 waiter = pygensio.Waiter(o)
 m = pygensio.MDNS(o)
-s = pygensio.MDNS_Service(m, -1, pygensio.GENSIO_NETTYPE_UNSPEC, "gensio1",
-                          "_gensio1._tcp", None, None, 5001, ("A", "B"))
 e = Watch_EvHnd(waiter)
-w = pygensio.MDNS_Watch(m, -1,  pygensio.GENSIO_NETTYPE_UNSPEC, "gensio1",
-                None, None, None, e)
+w = pygensio.MDNS_Watch(m, -1,  pygensio.GENSIO_NETTYPE_UNSPEC, None,
+                "=_gensio_pytest._tcp", None, None, e)
+s = pygensio.MDNS_Service(m, -1, pygensio.GENSIO_NETTYPE_UNSPEC, "gensio1",
+                          "_gensio_pytest._tcp", None, None, 5001,
+                          ("A=1", "B=2"))
 
 rv = waiter.wait(1, pygensio.gensio_time(5, 0))
 if rv != 0:
     raise Exception("Error waiting for mdns watch: " +
                     pygensio.err_to_string(rv))
+if not e.found:
+    raise Exception("mdns watch not found")
 
 wfh = Watch_Free_Done(waiter)
 w.free(wfh)

@@ -34,12 +34,16 @@ type WatchEvent struct {
 	gensio.MDNSWatchEventBase
 	w *gensio.Waiter
 	watchCount int
+	found bool
 }
 
 func (we *WatchEvent) Event(state int, interfacenum int, ipdomain int,
 		name string, mtype string, domain string, host string,
 		addr gensio.Addr, txt []string) {
 	if state == gensio.MDNS_ALL_FOR_NOW {
+		we.w.Wake()
+	} else if state == gensio.MDNS_NEW_DATA {
+		we.found = true
 		we.w.Wake()
 	} else {
 		we.watchCount++
@@ -57,18 +61,23 @@ func main() {
 	testbase.ObjCount++
 	m := gensio.NewMDNS(o)
 	testbase.ObjCount++
-	s := m.AddService(-1, gensio.GENSIO_NETTYPE_UNSPEC, "gensio1",
-		"_gensio1._tcp", nil, nil, 5001, []string{"A", "B"})
-	testbase.ObjCount++
+
 	we := &WatchEvent{}
 	we.w = waiter
 	testbase.ObjCount++
-	w := m.AddWatch(-1, gensio.GENSIO_NETTYPE_UNSPEC, "gensio1",
-		nil, nil, nil, we)
+	w := m.AddWatch(-1, gensio.GENSIO_NETTYPE_UNSPEC, "=gensio2",
+		"@_gensio2.*", nil, nil, we)
 	testbase.ObjCount++
+	s := m.AddService(-1, gensio.GENSIO_NETTYPE_UNSPEC, "gensio2",
+		"_gensio2._tcp", nil, nil, 5001, []string{"A", "B"})
+	testbase.ObjCount++
+
 	rv := waiter.Wait(1, gensio.NewTime(5, 0))
 	if rv != 0 {
 		panic("Error waiting for watch: " + gensio.ErrToStr(rv))
+	}
+	if (! we.found) {
+		panic("Watch data not found")
 	}
 
 	testbase.ObjCount++
