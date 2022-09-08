@@ -65,18 +65,11 @@ struct gensio_os_proc_data *proc_data;
 
 static FILE *dummyrnd_file;
 
-#if OPENSSL_VERSION_NUMBER < 0x10100000L
-static void
-dummyrnd_seed(const void *buf, int num)
-{
-}
-#else
 static int
 dummyrnd_seed(const void *buf, int num)
 {
     return 1;
 }
-#endif
 
 static int
 dummyrnd_bytes(unsigned char *buf, int num)
@@ -108,18 +101,11 @@ dummyrnd_cleanup(void)
 {
 }
 
-#if OPENSSL_VERSION_NUMBER < 0x10100000L
-static void
-dummyrnd_add(const void *buf, int num, double randomness)
-{
-}
-#else
 static int
 dummyrnd_add(const void *buf, int num, double randomness)
 {
     return 1;
 }
-#endif
 
 static int
 dummyrnd_pseudorand(unsigned char *buf, int num)
@@ -141,6 +127,36 @@ struct rand_meth_st dummyrnd = {
     .pseudorand = dummyrnd_pseudorand,
     .status = dummyrnd_status,
 };
+
+static bool
+setup_dummyrand(const char *filename)
+{
+    /*
+     * This option is undocumented and only for testing.  Do not
+     * use it!
+     */
+    if (dummyrnd_file)
+	fclose(dummyrnd_file);
+    dummyrnd_file = fopen(filename, "r");
+    if (!dummyrnd_file) {
+	fprintf(stderr, "Could not open rand file\n");
+	return false;
+    }
+
+    if (RAND_set_rand_method(&dummyrnd) != 1) {
+	fclose(dummyrnd_file);
+	fprintf(stderr, "Error setting random method\n");
+	return false;
+    }
+    return true;
+}
+#else
+static bool
+setup_dummyrand(const char *filename)
+{
+    fprintf(stderr, "No dummyrand support\n");
+    return false;
+}
 #endif
 
 struct gtinfo {
@@ -901,25 +917,8 @@ main(int argc, char *argv[])
 	    help(0);
 	else if ((rv = cmparg(argc, argv, &arg, NULL, "--dummyrand",
 			      &filename))) {
-#if HAVE_OPENSSL
-	    /*
-	     * This option is undocumented and only for testing.  Do not
-	     * use it!
-	     */
-	    if (dummyrnd_file)
-		fclose(dummyrnd_file);
-	    dummyrnd_file = fopen(filename, "r");
-	    if (!dummyrnd_file) {
-		fprintf(stderr, "Could not open rand file\n");
+	    if (!setup_dummyrand(filename))
 		goto out_err;
-	    }
-
-	    rv = RAND_set_rand_method(&dummyrnd);
-	    if (rv != 1) {
-		fprintf(stderr, "Error setting random method\n");
-		goto out_err;
-	    }
-#endif
 	} else {
 	    fprintf(stderr, "Unknown argument: %s\n", argv[arg]);
 	    help(1);
