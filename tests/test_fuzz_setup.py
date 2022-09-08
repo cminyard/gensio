@@ -29,7 +29,7 @@ p = subprocess.Popen(["dd", "if=/dev/urandom", "of=" + randfile, "count=256"],
                      stderr = subprocess.PIPE)
 p.communicate()
 
-cmd = (filter1 + ',trace(dir=write,raw,file=' + tracefile + '),stdio,' +
+cmd = (filter1 + ',trace(dir=write,raw,file=' + tracefile + '),stdio(noredir-stderr),' +
        gensiot + ' --dummyrand ' + randfile + ' -i echo -a "' + filter2 +
        ',stdio"')
 
