@@ -1357,6 +1357,34 @@ esac
 AM_CONDITIONAL([BUILTIN_RATELIMIT], [test ${BUILTIN_RATELIMIT} = 1])
 AC_SUBST(DYNAMIC_RATELIMIT)
 
+afskmdm=$default_all
+AC_ARG_WITH(afskmdm,
+ [AS_HELP_STRING([--with-afskmdm=yes|dynamic|no], [Enable tcp/unix gensio])],
+    if test "x$withval" = "xyes"; then
+      afskmdm=yes
+    elif test "x$withval" = "xdynamic"; then
+      afskmdm=dynamic
+    elif test "x$withval" = "xno"; then
+      afskmdm=no
+    fi,
+)
+BUILTIN_AFSKMDM=0
+DYNAMIC_AFSKMDM=
+case $afskmdm in
+   yes)
+      BUILTIN_GENSIOS="$BUILTIN_GENSIOS afskmdm"
+      BUILTIN_AFSKMDM=1
+      ;;
+   dynamic)
+      DYNAMIC_GENSIOS="$DYNAMIC_GENSIOS afskmdm"
+      DYNAMIC_AFSKMDM=libgensio_afskmdm.la
+      ;;
+   no)
+      ;;
+esac
+AM_CONDITIONAL([BUILTIN_AFSKMDM], [test ${BUILTIN_AFSKMDM} = 1])
+AC_SUBST(DYNAMIC_AFSKMDM)
+
 echo "creating builtin_gensios.h"
 rm -f "$ac_pwd/lib/builtin_gensios.h"
 if ! test -e "$ac_pwd/lib"; then
