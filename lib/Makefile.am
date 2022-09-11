@@ -334,6 +334,16 @@ libgensio_ratelimit_la_SOURCES = gensio_filter_ratelimit.c gensio_ratelimit.c
 libgensio_ratelimit_la_LDFLAGS = $(DYNAMIC_LDFLAGS)
 libgensio_ratelimit_la_LIBADD = $(DYNAMIC_LIBS)
 
+if BUILTIN_AFSKMDM
+libgensio_la_SOURCES += gensio_filter_afskmdm.c gensio_afskmdm.c
+else
+EXTRA_LTLIBRARIES += libgensio_afskmdm.la
+endif
+xgensio_libexec_LTLIBRARIES += $(DYNAMIC_AFSKMDM)
+libgensio_afskmdm_la_SOURCES = gensio_filter_afskmdm.c gensio_afskmdm.c
+libgensio_afskmdm_la_LDFLAGS = $(DYNAMIC_LDFLAGS)
+libgensio_afskmdm_la_LIBADD = $(DYNAMIC_LIBS)
+
 EXTRA_DIST = README.rst libgensioosh.pc.in libgensio.pc.in libgensiomdns.pc.in
 
 DISTCLEANFILES = builtin_gensios.h

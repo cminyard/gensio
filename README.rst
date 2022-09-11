@@ -306,6 +306,17 @@ script
     data through.  This can be used to run scripts to set things up on a
     connection before hooking to the parent gensio.
 
+sound
+    A gensio that provides access to sound devices and files.  It's a
+    little complicated, read the docs in gensio.5
+
+afskmdm
+    Yes, it looks like a jumble of letters.
+
+    A filter gensio that sits on top of the sound gensio and does an
+    Audio Frequency Shift Keying modem, like is used on AX.25 amateur
+    radio.
+
 kiss
     An amateur radio protocol for talking to TNCs.  This is used by AX25
     in many cases.

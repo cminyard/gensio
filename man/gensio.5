@@ -2148,6 +2148,159 @@ This may not be supported by all hardware and may have no effect.  In
 general, you want a smaller hardware buffer size to limit the amount
 of data pending in the buffer.  ALSA, for instance, sets it extremely
 large.
+.SH "afskmdm"
+connecting =
+.B afskmcm[(options)]
+
+A filter gensio that sits on top of the sound gensio and implements an
+Audio Frequency Shift Keying modem, like is used on AX.25 amateur
+radio.  It must sit on top of a sound gensio.  Or, more accurately a
+gensio that implements the GENSIO_CONTROL_IN_BUFSIZE,
+GENSIO_CONTROL_OUT_BUFSIZE, GENSIO_CONTROL_IN_FORMAT, and
+GENSIO_CONTROL_OUT_FORMAT controls.
+
+Note that the sound gensio must supply a float user format.
+.SS Keying the Transmitter
+By default,
+.B afskmcm
+will not do anything specific to turn the transmitter on and off. In
+this case the keying must be VOX, like a SignaLink.
+
+If you need some other way to key the transmitter, afskmcm provide a
+.B key
+option.  This create a gensio that is used to turn the transmitter on
+and off.  It will send the
+.B keyon
+string and the
+.B keyoff
+string for this purpose.
+
+For instance, you could create your own program to do the keying and
+add:
+.IP
+key="stdio,mykeyprog --parm1 --parm2",keyon="1",keyoff="0"
+.PP
+to your
+.B afskmdm
+option and it would run the mykeyprog program when opened.  When it
+needed to transmit, it would write a "1" (no newline or anything sent)
+to the stdin of the program.  When the transmission was complete, it
+would write a "0".  Not numbers, these are "0" and "1" characters.
+
+If you program sends output to stderr, you probably want to add
+stderr-to-stdout to the stdin so the stderr buffers doesn't fill up
+and block the program.  Then stderr data will be ignored.
+
+You can use rigctld with this.  I have the following rigctld setup on my
+system:
+.IP
+rigctld -m 1022 -r /dev/ttyUSB0 -s 4800 -P CM108 -p /dev/hidraw1
+.PP
+And I use the following in my configuration:
+.IP
+afskmdm(key="tcp,localhost,4532",keyon="T 1\\n",keyoff="T 0\\n")
+.PP
+You have to be careful of the quoting here, as the key specification
+must be in quotes because it will have commas.  Notice the use of
+"\\n" in the strings for a new line.  Normal C "\\" escape sequences
+are handled.
+
+Anything read in from the key gensio is ignored.
+.SS Options
+.TP
+.B readbuf=<n>
+Sets the maximum packet size that can be read.  Defaults to 256.
+.TP
+.B writebuf=<n>
+Sets the maximum packet size that can be written.  Defaults to 256.
+.TP
+.B nchans=<n>, in_nchans=<n>, out_nchans=<n>
+Specify how many channels are coming from/going to the sound gensio.
+The sound gensio interleaves the sound for multiple channels.  By
+default this is fetched from the sound gensio.
+.TP
+.B chan=<n>, in_chan=<n>, out_chan=<n>
+Which specific channel to use.  One one channel is used for input
+sound and output sound, the others are ignored or filled with zeros.
+By default this is zero.
+.TP
+.B out_chans=<n>
+Specify a bitmask of which channels to output sound on.  The same
+sound will be output for all selected channel.  So n=1 will only
+output on channel 0, n=3 will output on channels 0 and 1, etc.  By
+default only channel 0 is output on.
+.TP
+.B samplerate=<n>, in_samplerate=<n>, out_samplerate=<n>
+The sample rate, samples per second, of the data.  By default this is
+fetched from the sound gensio.
+.TP
+.B wmsgs=<n>
+The number of working messages at the same time.  If the bit fails the
+certainty test (see below), for every current working message, two are
+created, one with each bit possibility, up to the count specified in
+this option.  These are kept until a message is correctly received
+(with CRC) or the series of bits is not valid.
+
+This way, if wmsg is 2^n, a message can be correctly decoded if up to
+n bits are wrong.  So it's sort of an error correction code without a
+code.
+Defaults to 32.
+.TP
+.B wmsg-extra=<n>
+Sets the number of extra amplification levels for the mark and space
+frequencies to try.  If set to 1, an extra complete detection is done
+with the space frequency amplified by 3db, then the mark frequency
+amplified by 3db.  If set to 2, it will do this with3db then 6db, and
+so on.  This can help compensate for filtering on the different
+frequencies.
+Defaults to 1.
+.TP
+.B min-certainty=<float>
+A floating point number that specifies the minimum certainty above
+which a bit is considered good.  The ratio of the signal power for the
+mark and space frequencies is calculated as the certainty.  If that
+certainty is below min-certainty, it does the wmsgs procedure above.
+Defaults to 2.0.
+.TP
+.B lpcutoff=<n>
+A low-pass Butterworth filter is implemented on the input.  This sets
+the cutoff frequency.  Setting it to zero disables it.  The default is
+2500Hz.
+.TP
+.B tx-preamble=<n>
+The time in milliseconds at the beginning of a message that is just
+flags.  This lets the receiver turn on and the other end synchronize.
+Default is 300.
+.TP
+.B tx-tail=<n>
+The time in milliseconds at the end of the message that is just flags.
+Default is 100.
+.TP
+.B tx-predelay=<n>
+The amount of time to wait after another sender has finished sending a
+message before the transmit is started.  Default is 100ms.
+.TP
+.B volume=<float>
+Sets the transmit volume, from 0.0-1.0.  Values above 1.0 will clip.
+Default is .75.
+.TP
+.B key=<gensio string>
+.TP
+This creates a gensio that will be used to key the transmitter on and
+off.  See the discussion above on keying for more details.  If you set this, you must set
+.B keyon
+and
+.B keyoff.
+Disabled by default.
+.B keyon=<string>, keyoff=<string>
+.TP
+The strings to send to the key gensio to turn the transmitter on and
+off.
+.B full-duplex[=yes|no]
+.TP
+Treat the read and write streams as completely independent.  Transmit
+does not check if something is being received before sending, all
+sends just start immediately.
 .SH "Forking and gensios"
 Unlike normal file descriptors, when you fork with a gensio, you now
 have two unassociated copies of the gensios.  So if you do operations
