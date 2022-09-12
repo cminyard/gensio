@@ -500,7 +500,7 @@ gensio_sound_win_api_open_dev(struct sound_info *si)
     InitializeCriticalSection(&w->ci->lock);
     w->ci->si = NULL;
 
-    si->cnv.buf = o->zalloc(o, (si->bufframes * si->bufframes *
+    si->cnv.buf = o->zalloc(o, (si->num_bufs * si->bufframes *
 				si->cnv.pframesize));
     if (!si->cnv.buf) {
 	gensio_sound_win_api_close_dev(si);
