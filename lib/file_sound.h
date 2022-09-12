@@ -100,10 +100,21 @@ static int
 gensio_sound_file_api_open_dev(struct sound_info *si)
 {
     struct file_info *a = si->pinfo;
+    struct gensio_os_funcs *o = si->soundll->o;
 
     a->f = fopen(si->devname, si->is_input ? "r" : "w");
     if (!a->f)
 	return GE_NOTFOUND;
+
+    if (si->cnv.enabled) {
+	si->cnv.pframesize = si->cnv.psize * si->chans;
+	si->cnv.buf = o->zalloc(o, si->bufframes * si->cnv.pframesize);
+	if (!si->cnv.buf) {
+	    fclose(a->f);
+	    a->f = NULL;
+	    return GE_NOMEM;
+	}
+    }
 
     if (!si->is_input)
 	si->ready = true; /* Write is always ready. */
