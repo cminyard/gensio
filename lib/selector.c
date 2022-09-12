@@ -1073,16 +1073,16 @@ sel_run(sel_runner_t *runner, sel_runner_func_t func, void *cb_data)
 static unsigned int
 process_runners(struct selector_s *sel)
 {
+    sel_runner_t *runner = sel->runner_head, *next_runner;
     int count = 0;
 
-    while (sel->runner_head) {
-	sel_runner_t *runner = sel->runner_head;
+    sel->runner_head = NULL;
+    sel->runner_tail = NULL;
+    while (runner) {
 	sel_runner_func_t func;
 	void *cb_data;
 
-	sel->runner_head = sel->runner_head->next;
-	if (!sel->runner_head)
-	    sel->runner_tail = NULL;
+	next_runner = runner->next;
 	runner->in_use = 0;
 	func = runner->func;
 	cb_data = runner->cb_data;
@@ -1090,6 +1090,7 @@ process_runners(struct selector_s *sel)
 	func(runner, cb_data);
 	count++;
 	sel_timer_lock(sel);
+	runner = next_runner;
     }
 
     return count;
@@ -1355,8 +1356,8 @@ sel_select_intr_sigmask(struct selector_s *sel,
     count = process_runners(sel);
     process_timers(sel, &count, &tmp_timeout, &wake_time);
 
-    if (count == 0) {
-	/* Didn't do anything, wait for something. */
+    if (count == 0 && !sel->runner_head) {
+	/* Didn't do anything and no runners waiting, wait for something. */
 	if (timeout) {
 	    if (cmp_timeval(&tmp_timeout, timeout) >= 0) {
 		tmp_timeout = *timeout;
