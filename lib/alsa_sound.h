@@ -24,6 +24,9 @@ gensio_sound_alsa_api_close_dev(struct sound_info *si)
     struct alsa_info *a = si->pinfo;
     unsigned int i;
 
+    if (!a)
+	return;
+
     for (i = 0; a->iods && i < a->nrfds; i++) {
 	if (!a->iods[i])
 	    continue;
