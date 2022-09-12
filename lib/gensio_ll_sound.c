@@ -167,11 +167,8 @@ struct sound_fmt_info {
     unsigned int size; /* Size, in bytes, of the sample. */
     bool host_bswap; /* Is this byte-swapped with respect to the host? */
     bool isfloat;
-    uint32_t offset; /* If unsigned, convert to signed with this. */
-    /*
-     * Also, offset is used as the scale value, the value that is 1.0
-     * in a floating point number.
-     */
+    uint32_t offset; /* If unsigned, convert to signed by subtracting this. */
+    float scale; /* Scale between offset value and float. */
 };
 
 static struct sound_fmt_info sound_fmt_info[] = {
@@ -182,22 +179,30 @@ static struct sound_fmt_info sound_fmt_info[] = {
 					    .host_bswap = IS_LITTLE_ENDIAN,
 					    .isfloat = true },
     [ GENSIO_SOUND_FMT_S32_BE ]		= { .size = 4,
-					    .host_bswap = IS_LITTLE_ENDIAN },
+					    .host_bswap = IS_LITTLE_ENDIAN,
+					    .scale = 2147483648. },
     [ GENSIO_SOUND_FMT_S24_BE ]		= { .size = 3,
-					    .host_bswap = IS_LITTLE_ENDIAN },
+					    .host_bswap = IS_LITTLE_ENDIAN,
+					    .scale = 8388608. },
     [ GENSIO_SOUND_FMT_S16_BE ]		= { .size = 2,
-					    .host_bswap = IS_LITTLE_ENDIAN },
+					    .host_bswap = IS_LITTLE_ENDIAN,
+					    .scale = 32768. },
     [ GENSIO_SOUND_FMT_U32_BE ]		= { .size = 4,
 					    .host_bswap = IS_LITTLE_ENDIAN,
-					    .offset = 2147483648 },
+					    .offset = 2147483648,
+					    .scale = 2147483648. },
     [ GENSIO_SOUND_FMT_U24_BE ]		= { .size = 3,
 					    .host_bswap = IS_LITTLE_ENDIAN,
-					    .offset = 8388608 },
+					    .offset = 8388608,
+					    .scale = 8388608. },
     [ GENSIO_SOUND_FMT_U16_BE ]		= { .size = 2,
 					    .host_bswap = IS_LITTLE_ENDIAN,
-					    .offset = 32768 },
-    [ GENSIO_SOUND_FMT_S8 ]		= { .size = 1 },
-    [ GENSIO_SOUND_FMT_U8 ]		= { .size = 1, .offset = 128 },
+					    .offset = 32768,
+					    .scale = 32768. },
+    [ GENSIO_SOUND_FMT_S8 ]		= { .size = 1,
+					    .scale = 128. },
+    [ GENSIO_SOUND_FMT_U8 ]		= { .size = 1, .offset = 128,
+					    .scale = 128. },
     [ GENSIO_SOUND_FMT_DOUBLE_LE ]	= { .size = sizeof(double),
 					    .host_bswap = IS_BIG_ENDIAN,
 					    .isfloat = true },
@@ -205,20 +210,26 @@ static struct sound_fmt_info sound_fmt_info[] = {
 					    .host_bswap = IS_BIG_ENDIAN,
 					    .isfloat = true },
     [ GENSIO_SOUND_FMT_S32_LE ]		= { .size = 4,
-					    .host_bswap = IS_BIG_ENDIAN },
+					    .host_bswap = IS_BIG_ENDIAN,
+					    .scale = 2147483648. },
     [ GENSIO_SOUND_FMT_S24_LE ]		= { .size = 3,
-					    .host_bswap = IS_BIG_ENDIAN },
+					    .host_bswap = IS_BIG_ENDIAN,
+					    .scale = 8388608. },
     [ GENSIO_SOUND_FMT_S16_LE ]		= { .size = 2,
-					    .host_bswap = IS_BIG_ENDIAN },
+					    .host_bswap = IS_BIG_ENDIAN,
+					    .scale = 32768. },
     [ GENSIO_SOUND_FMT_U32_LE ]		= { .size = 4,
 					    .host_bswap = IS_BIG_ENDIAN,
-					    .offset = 2147483648 },
+					    .offset = 2147483648,
+					    .scale = 2147483648. },
     [ GENSIO_SOUND_FMT_U24_LE ]		= { .size = 3,
 					    .host_bswap = IS_BIG_ENDIAN,
-					    .offset = 8388608 },
+					    .offset = 8388608,
+					    .scale = 8388608. },
     [ GENSIO_SOUND_FMT_U16_LE ]		= { .size = 2,
 					    .host_bswap = IS_BIG_ENDIAN,
-					    .offset = 32768 }
+					    .offset = 32768,
+					    .scale = 32768. }
 };
 
 static int32_t
@@ -402,7 +413,8 @@ struct sound_cnv_info {
     bool host_bswap;
     unsigned int psize; /* Sample size on the PCM side */
     uint32_t offset; /* Subtract/add this from/to the pcm/user to convert. */
-    double scale; /* Divide by this to scale float to -1 to 1. */
+    float scale_in; /* Multiply by this to scale to -1.0 - 1.0 float, before offset. */
+    float scale_out; /* Multiply by this to scale from -1.0 - 1.0 float, after offset. */
     void (*convin)(const unsigned char **in, unsigned char **out,
 		   struct sound_cnv_info *info);
     void (*convout)(const unsigned char **in, unsigned char **out,
@@ -416,7 +428,7 @@ conv_int_to_float_in(const unsigned char **in, unsigned char **out,
 {
     double v = get_int(in, info->psize, info->offset, info->host_bswap);
 
-    v /= info->scale;
+    v *= info->scale_in;
 
     put_float(v, out, info->usize, false);
 }
@@ -427,7 +439,7 @@ conv_float_to_int_out(const unsigned char **in, unsigned char **out,
 {
     double v = get_float(in, info->usize, false);
 
-    v *= info->scale;
+    v *= info->scale_out;
 
     put_int(v + .5, out, info->psize, info->offset, info->host_bswap);
 }
@@ -438,7 +450,7 @@ conv_float_to_int_in(const unsigned char **in, unsigned char **out,
 {
     double v = get_float(in, info->psize, info->host_bswap);
 
-    v /= info->scale;
+    v *= info->scale_in;
 
     put_int(v + .5, out, info->usize, 0, false);
 }
@@ -449,7 +461,7 @@ conv_int_to_float_out(const unsigned char **in, unsigned char **out,
 {
     double v = get_float(in, info->usize, false);
 
-    v *= info->scale;
+    v *= info->scale_out;
 
     put_int(v, out, info->psize, info->offset, info->host_bswap);
 }
@@ -559,11 +571,11 @@ setup_convv(struct sound_info *si, enum gensio_sound_fmt_type pfmt)
 	si->cnv.convin = conv_float_to_float_in;
 	si->cnv.convout = conv_float_to_float_out;
     } else if (pinfo->isfloat) {
-	si->cnv.scale = pinfo->offset;
+	si->cnv.scale_out = pinfo->scale;
 	si->cnv.convin = conv_float_to_int_in;
 	si->cnv.convout = conv_int_to_float_out;
     } else if (uinfo->isfloat) {
-	si->cnv.scale = pinfo->offset;
+	si->cnv.scale_in = 1 / pinfo->scale;
 	si->cnv.convin = conv_int_to_float_in;
 	si->cnv.convout = conv_float_to_int_out;
     } else {
