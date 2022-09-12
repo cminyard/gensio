@@ -164,6 +164,7 @@ term_handler(void *cb_data)
 {
     struct gensio_waiter *waiter = cb_data;
 
+    fflush(stdout);
     gensio_os_funcs_wake(o, waiter);
 }
 
