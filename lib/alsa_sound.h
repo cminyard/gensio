@@ -207,7 +207,7 @@ gensio_sound_alsa_set_hwparams(struct sound_info *si)
 
     if (si->hwbufsize) {
 	snd_pcm_uframes_t frsize = si->hwbufsize / si->framesize;
-	err = snd_pcm_hw_params_set_buffer_size_max(a->pcm, params, &frsize);
+	err = snd_pcm_hw_params_set_buffer_size_near(a->pcm, params, &frsize);
 	if (err < 0) {
 	    gensio_log(o, GENSIO_LOG_INFO,
 		"alsa error from snd_pcm_hw_params_set_buffer_size_max: %s\n",
@@ -215,6 +215,24 @@ gensio_sound_alsa_set_hwparams(struct sound_info *si)
 	    goto out_err;
 	}
     }
+
+#if 0
+    {
+	/* Period time, in usecs.  Do u64 arithmetic to avoid overflow. */
+	uint64_t lperiod_time = (si->bufframes * 1000000ULL) / si->samplerate;
+	unsigned int period_time = lperiod_time;
+	int dir;
+
+	err = snd_pcm_hw_params_set_period_time_near(a->pcm, params,
+						     &period_time, &dir);
+	if (err < 0) {
+	    gensio_log(o, GENSIO_LOG_INFO,
+		"alsa error from snd_pcm_hw_params_ser_period_time_near: %s\n",
+		snd_strerror(err));
+	    goto out_err;
+	}
+    }
+#endif
 
     /* write the parameters to device */
     err = snd_pcm_hw_params(a->pcm, params);
@@ -271,6 +289,16 @@ gensio_sound_alsa_set_swparams(struct sound_info *si)
 		  snd_strerror(err));
 	goto out_err;
     }
+
+#if 0
+    err = snd_pcm_sw_params_set_period_event(a->pcm, params, 1);
+    if (err < 0) {
+	gensio_log(o, GENSIO_LOG_INFO,
+		  "alsa error from snd_pcm_sw_params_set_period_event: %s\n",
+		  snd_strerror(err));
+	goto out_err;
+    }
+#endif
 
     err = snd_pcm_sw_params(a->pcm, params);
     if (err < 0) {
@@ -374,8 +402,12 @@ gensio_sound_alsa_api_set_read(struct sound_info *si, bool enable)
     unsigned int i;
 
     for (i = 0; i < a->nrfds; i++) {
-	o->set_read_handler(a->iods[i], enable);
-	o->set_except_handler(a->iods[i], enable);
+	if (a->fds[i].events & POLLIN)
+	    o->set_read_handler(a->iods[i], enable);
+	if (a->fds[i].events & POLLOUT)
+	    o->set_write_handler(a->iods[i], enable);
+	if (a->fds[i].events & POLLERR)
+	    o->set_except_handler(a->iods[i], enable);
     }
     if (enable)
 	gensio_sound_alsa_do_read(si);
@@ -389,8 +421,12 @@ gensio_sound_alsa_api_set_write(struct sound_info *si, bool enable)
     unsigned int i;
 
     for (i = 0; i < a->nrfds; i++) {
-	o->set_write_handler(a->iods[i], enable);
-	o->set_except_handler(a->iods[i], enable);
+	if (a->fds[i].events & POLLIN)
+	    o->set_read_handler(a->iods[i], enable);
+	if (a->fds[i].events & POLLOUT)
+	    o->set_write_handler(a->iods[i], enable);
+	if (a->fds[i].events & POLLERR)
+	    o->set_except_handler(a->iods[i], enable);
     }
 }
 
@@ -409,7 +445,7 @@ gensio_sound_alsa_read_handlerb(struct gensio_iod *iod, void *cb_data,
 	a->fds[i].revents = ievents;
     revents = 0;
     snd_pcm_poll_descriptors_revents(a->pcm, a->fds, a->nrfds, &revents);
-    if (revents & (POLLERR | POLLIN)) {
+    if (revents & (POLLERR | POLLIN | POLLOUT)) {
  restart:
 	if (soundll->in.ready || soundll->err)
 	    gensio_sound_ll_check_read(soundll);
@@ -426,6 +462,12 @@ static void
 gensio_sound_alsa_read_handler(struct gensio_iod *iod, void *cb_data)
 {
     gensio_sound_alsa_read_handlerb(iod, cb_data, POLLIN);
+}
+
+static void
+gensio_sound_alsa_read_write_handler(struct gensio_iod *iod, void *cb_data)
+{
+    gensio_sound_alsa_read_handlerb(iod, cb_data, POLLOUT);
 }
 
 static void
@@ -459,6 +501,12 @@ gensio_sound_alsa_write_handlerb(struct gensio_iod *iod, void *cb_data,
 
 static void
 gensio_sound_alsa_write_handler(struct gensio_iod *iod, void *cb_data)
+{
+    gensio_sound_alsa_write_handlerb(iod, cb_data, POLLOUT);
+}
+
+static void
+gensio_sound_alsa_write_read_handler(struct gensio_iod *iod, void *cb_data)
 {
     gensio_sound_alsa_write_handlerb(iod, cb_data, POLLIN);
 }
@@ -607,9 +655,11 @@ gensio_sound_alsa_api_open_dev(struct sound_info *si)
 	}
 	err = o->set_fd_handlers(a->iods[i], si,
 				 (stype == SND_PCM_STREAM_CAPTURE ?
-				  gensio_sound_alsa_read_handler : NULL),
+				  gensio_sound_alsa_read_handler :
+				  gensio_sound_alsa_write_read_handler),
 				 (stype == SND_PCM_STREAM_PLAYBACK ?
-				  gensio_sound_alsa_write_handler : NULL),
+				  gensio_sound_alsa_write_handler :
+				  gensio_sound_alsa_read_write_handler),
 				 (stype == SND_PCM_STREAM_CAPTURE ?
 				  gensio_sound_alsa_read_exc_handler :
 				  gensio_sound_alsa_write_exc_handler),
