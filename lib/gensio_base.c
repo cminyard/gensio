@@ -1163,7 +1163,7 @@ basen_open(struct basen_data *ndata, gensio_done_err open_done, void *open_data)
 	ndata->deferred_close = false;
 	ndata->read_enabled = false;
 	ndata->xmit_enabled = false;
-	ndata->ll_can_write = true;
+	ndata->ll_can_write = false;
 	ndata->timer_start_pending = false;
 	ndata->close_requested = false;
 	ndata->ll_want_close = false;
