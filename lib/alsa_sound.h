@@ -124,6 +124,7 @@ gensio_sound_alsa_set_hwparams(struct sound_info *si)
     struct gensio_os_funcs *o = si->soundll->o;
     struct alsa_info *a = si->pinfo;
     snd_pcm_hw_params_t *params;
+    snd_pcm_uframes_t frsize;
     int err;
 
     snd_pcm_hw_params_alloca(&params);
@@ -203,6 +204,18 @@ gensio_sound_alsa_set_hwparams(struct sound_info *si)
 		   "alsa error from snd_pcm_hw_params_set_rate: %s\n",
 		   snd_strerror(err));
 	goto out_err;
+    }
+
+
+    if (si->hwbufsize) {
+	frsize = si->hwbufsize / si->framesize;
+	err = snd_pcm_hw_params_set_buffer_size_max(a->pcm, params, &frsize);
+	if (err < 0) {
+	    gensio_log(o, GENSIO_LOG_INFO,
+		"alsa error from snd_pcm_hw_params_set_buffer_size_max: %s\n",
+		snd_strerror(err));
+	    goto out_err;
+	}
     }
 
     /* write the parameters to device */

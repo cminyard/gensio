@@ -19,6 +19,7 @@ struct gensio_sound_info {
     unsigned int num_bufs;
     const char *format;
     const char *pformat; /* Format on the PCM side. */
+    gensiods hwbufsize; /* Size of hardware buffer, if interface supports it. */
 };
 
 int gensio_sound_ll_alloc(struct gensio_os_funcs *o,

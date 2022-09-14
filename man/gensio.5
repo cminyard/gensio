@@ -2141,6 +2141,13 @@ or "be" to make them little or big endian (like doublele).  If you do
 not specify this, the gensio will attempt the same format as the user
 format.  If that doesn't work, it will attempt to pick the best
 matching format and convert.
+.TP
+.B inhwbufsize=<n>, outhwbufsize=<n>, hwbufsize=<n>
+Set the hardware buffer size on the device being used, in bytes.  This
+should be a multiple of the frame size. This may no be supported by
+all hardware and may have no effect.  In general, you want a smaller
+hardware buffer size to limit the amount of data pending in the
+buffer.  ALSA, for instance, sets it extremely large.
 .SS "Direct Allocation"
 Allocated as a terminal gensio with gdata as a "const char *".  That is
 the device name.
