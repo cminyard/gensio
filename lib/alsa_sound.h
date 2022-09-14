@@ -393,19 +393,63 @@ gensio_sound_alsa_api_set_write(struct sound_info *si, bool enable)
 }
 
 static void
-gensio_sound_alsa_read_handler(struct gensio_iod *iod, void *cb_data)
+gensio_sound_alsa_read_handlerb(struct gensio_iod *iod, void *cb_data,
+				unsigned short ievents)
 {
     struct sound_info *si = cb_data;
+    struct alsa_info *a = si->pinfo;
     struct sound_ll *soundll = si->soundll;
+    unsigned int i;
+    unsigned short revents;
 
     gensio_sound_ll_lock(soundll);
+    for (i = 0; i < a->nrfds; i++)
+	a->fds[i].revents = ievents;
+    revents = 0;
+    snd_pcm_poll_descriptors_revents(a->pcm, a->fds, a->nrfds, &revents);
+    if (revents & (POLLERR | POLLIN)) {
  restart:
-    if (soundll->in.ready || soundll->err)
-	gensio_sound_ll_check_read(soundll);
-    if (!soundll->in.ready && !soundll->err) {
-	gensio_sound_alsa_do_read(&soundll->in);
 	if (soundll->in.ready || soundll->err)
-	    goto restart;
+	    gensio_sound_ll_check_read(soundll);
+	if (!soundll->in.ready && !soundll->err) {
+	    gensio_sound_alsa_do_read(&soundll->in);
+	    if (soundll->in.ready || soundll->err)
+		goto restart;
+	}
+    }
+    gensio_sound_ll_unlock(soundll);
+}
+
+static void
+gensio_sound_alsa_read_handler(struct gensio_iod *iod, void *cb_data)
+{
+    gensio_sound_alsa_read_handlerb(iod, cb_data, POLLIN);
+}
+
+static void
+gensio_sound_alsa_read_exc_handler(struct gensio_iod *iod, void *cb_data)
+{
+    gensio_sound_alsa_read_handlerb(iod, cb_data, POLLERR);
+}
+
+static void
+gensio_sound_alsa_write_handlerb(struct gensio_iod *iod, void *cb_data,
+				 unsigned short ievents)
+{
+    struct sound_info *si = cb_data;
+    struct alsa_info *a = si->pinfo;
+    struct sound_ll *soundll = si->soundll;
+    unsigned int i;
+    unsigned short revents;
+
+    gensio_sound_ll_lock(soundll);
+    for (i = 0; i < a->nrfds; i++)
+	a->fds[i].revents = ievents;
+    revents = 0;
+    snd_pcm_poll_descriptors_revents(a->pcm, a->fds, a->nrfds, &revents);
+    if (revents & (POLLERR | POLLOUT)) {
+	si->ready = true;
+	gensio_sound_ll_check_write(soundll);
     }
     gensio_sound_ll_unlock(soundll);
 }
@@ -413,13 +457,13 @@ gensio_sound_alsa_read_handler(struct gensio_iod *iod, void *cb_data)
 static void
 gensio_sound_alsa_write_handler(struct gensio_iod *iod, void *cb_data)
 {
-    struct sound_info *si = cb_data;
-    struct sound_ll *soundll = si->soundll;
+    gensio_sound_alsa_write_handlerb(iod, cb_data, POLLIN);
+}
 
-    gensio_sound_ll_lock(soundll);
-    si->ready = true;
-    gensio_sound_ll_check_write(soundll);
-    gensio_sound_ll_unlock(soundll);
+static void
+gensio_sound_alsa_write_exc_handler(struct gensio_iod *iod, void *cb_data)
+{
+    gensio_sound_alsa_write_handlerb(iod, cb_data, POLLERR);
 }
 
 static void
@@ -563,8 +607,8 @@ gensio_sound_alsa_api_open_dev(struct sound_info *si)
 				 (stype == SND_PCM_STREAM_PLAYBACK ?
 				  gensio_sound_alsa_write_handler : NULL),
 				 (stype == SND_PCM_STREAM_CAPTURE ?
-				  gensio_sound_alsa_read_handler :
-				  gensio_sound_alsa_write_handler),
+				  gensio_sound_alsa_read_exc_handler :
+				  gensio_sound_alsa_write_exc_handler),
 				 gensio_sound_alsa_cleared_handler);
 	if (err) {
 	    gensio_sound_alsa_api_close_dev(si);
