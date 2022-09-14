@@ -796,7 +796,7 @@ gensio_sound_ll_check_read(struct sound_ll *soundll)
 {
     if (soundll->in_read)
 	return;
-    while (soundll->read_enabled && (soundll->in.ready || soundll->err)) {
+    if (soundll->read_enabled && (soundll->in.ready || soundll->err)) {
 	unsigned int len;
 	gensiods count;
 
@@ -807,7 +807,7 @@ gensio_sound_ll_check_read(struct sound_ll *soundll)
 				soundll->err, NULL, 0, NULL);
 	    gensio_sound_ll_lock(soundll);
 	    soundll->in_read = false;
-	    continue;
+	    goto out;
 	}
 
 	if (soundll->in.readpos + soundll->in.len > soundll->in.bufsize)
@@ -830,6 +830,9 @@ gensio_sound_ll_check_read(struct sound_ll *soundll)
 		soundll->in.type->next_read(&soundll->in);
 	}
     }
+ out:
+    if (soundll->read_enabled && (soundll->in.ready || soundll->err))
+	gensio_sound_sched_deferred_op(soundll);
 }
 
 static void
@@ -837,7 +840,7 @@ gensio_sound_ll_check_write(struct sound_ll *soundll)
 {
     if (soundll->in_write)
 	return;
-    while (soundll->write_enabled && soundll->out.ready) {
+    if (soundll->write_enabled && soundll->out.ready) {
 	soundll->in_write = true;
 	gensio_sound_ll_unlock(soundll);
 	soundll->cb(soundll->cb_data, GENSIO_LL_CB_WRITE_READY, 0,
@@ -845,6 +848,8 @@ gensio_sound_ll_check_write(struct sound_ll *soundll)
 	gensio_sound_ll_lock(soundll);
 	soundll->in_write = false;
     }
+    if (soundll->write_enabled && soundll->out.ready)
+	gensio_sound_sched_deferred_op(soundll);
 }
 
 static void
