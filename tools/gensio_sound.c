@@ -49,6 +49,7 @@ fill_playbuf(void)
     if (i == 0)
 	return GE_REMCLOSE;
     playbuf_len = playbuf_size;
+    playbuf_pos = 0;
     return 0;
 }
 
