@@ -124,7 +124,6 @@ gensio_sound_alsa_set_hwparams(struct sound_info *si)
     struct gensio_os_funcs *o = si->soundll->o;
     struct alsa_info *a = si->pinfo;
     snd_pcm_hw_params_t *params;
-    snd_pcm_uframes_t frsize;
     int err;
 
     snd_pcm_hw_params_alloca(&params);
@@ -206,9 +205,8 @@ gensio_sound_alsa_set_hwparams(struct sound_info *si)
 	goto out_err;
     }
 
-
     if (si->hwbufsize) {
-	frsize = si->hwbufsize / si->framesize;
+	snd_pcm_uframes_t frsize = si->hwbufsize / si->framesize;
 	err = snd_pcm_hw_params_set_buffer_size_max(a->pcm, params, &frsize);
 	if (err < 0) {
 	    gensio_log(o, GENSIO_LOG_INFO,
@@ -270,14 +268,6 @@ gensio_sound_alsa_set_swparams(struct sound_info *si)
     if (err < 0) {
 	gensio_log(o, GENSIO_LOG_INFO,
 		  "alsa error from snd_pcm_sw_params_set_avail_min: %s\n",
-		  snd_strerror(err));
-	goto out_err;
-    }
-
-    err = snd_pcm_sw_params_set_period_event(a->pcm, params, 1);
-    if (err < 0) {
-	gensio_log(o, GENSIO_LOG_INFO,
-		  "alsa error from snd_pcm_sw_params_set_period_event: %s\n",
 		  snd_strerror(err));
 	goto out_err;
     }
@@ -402,7 +392,6 @@ gensio_sound_alsa_api_set_write(struct sound_info *si, bool enable)
 	o->set_write_handler(a->iods[i], enable);
 	o->set_except_handler(a->iods[i], enable);
     }
-    gensio_sound_alsa_check_xrun_recovery(si, 0);
 }
 
 static void
@@ -460,7 +449,8 @@ gensio_sound_alsa_write_handlerb(struct gensio_iod *iod, void *cb_data,
 	a->fds[i].revents = ievents;
     revents = 0;
     snd_pcm_poll_descriptors_revents(a->pcm, a->fds, a->nrfds, &revents);
-    if (revents & (POLLERR | POLLOUT)) {
+    /* For some weird reason we get POLLIN on the output device. */
+    if (revents & (POLLERR | POLLOUT | POLLIN)) {
 	si->ready = true;
 	gensio_sound_ll_check_write(soundll);
     }
@@ -539,6 +529,7 @@ gensio_sound_alsa_api_write(struct sound_info *out, const unsigned char *buf,
     rv = snd_pcm_writei(a->pcm, buf, buflen);
     if (rv < 0) {
 	if (rv == -EBUSY || rv == -EAGAIN) {
+	    out->ready = false;
 	    *nr_written = 0;
 	    return 0;
 	}
