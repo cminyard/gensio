@@ -1140,6 +1140,10 @@ gensio_sound_ll_func(struct gensio_ll *ll, int op,
     case GENSIO_LL_FUNC_SET_READ_CALLBACK: {
 	bool enable = !!buflen;
 
+	/* Output only, just ignore. */
+	if (!soundll->in.type)
+	    return 0;
+
 	gensio_sound_ll_lock(soundll);
 	if (soundll->read_enabled != enable) {
 	    soundll->read_enabled = enable;
@@ -1156,6 +1160,10 @@ gensio_sound_ll_func(struct gensio_ll *ll, int op,
 
     case GENSIO_LL_FUNC_SET_WRITE_CALLBACK: {
 	bool enable = !!buflen;
+
+	/* Input only, just ignore. */
+	if (!soundll->out.type)
+	    return 0;
 
 	gensio_sound_ll_lock(soundll);
 	if (soundll->write_enabled != enable) {
