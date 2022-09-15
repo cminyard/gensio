@@ -821,6 +821,8 @@ gensio_sound_ll_check_read(struct sound_ll *soundll)
 			    NULL);
 	gensio_sound_ll_lock(soundll);
 	soundll->in_read = false;
+	if (soundll->state != GENSIO_SOUND_LL_OPEN)
+	    goto out;
 	soundll->in.readpos += count;
 	soundll->in.len -= count;
 	if (soundll->in.len == 0) {
