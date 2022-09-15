@@ -523,6 +523,9 @@ GENSIO_DLL_PUBLIC
 int gensio_check_keytime(const char *str, const char *key, char mod,
 			 gensio_time *rgt);
 
+GENSIO_DLL_PUBLIC
+int gensio_check_keyfloat(const char *str, const char *key, float *rfl);
+
 /*
  * Return the number of allocated gensios.  This is primarily for
  * testing and may change, use at your own risk.

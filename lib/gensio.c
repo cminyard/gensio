@@ -2122,6 +2122,28 @@ gensio_check_keytime(const char *str, const char *key, char mod,
     return 1;
 }
 
+int
+gensio_check_keyfloat(const char *str, const char *key, float *rvalue)
+{
+    const char *sval;
+    char *end;
+    int rv = gensio_check_keyvalue(str, key, &sval);
+    float value;
+
+    if (!rv)
+	return 0;
+
+    if (!*sval)
+	return -1;
+
+    value = strtof(sval, &end);
+    if (*end != '\0')
+	return -1;
+
+    *rvalue = value;
+    return 1;
+}
+
 void
 gensio_acc_vlog(struct gensio_accepter *acc, enum gensio_log_levels level,
 		char *str, va_list args)
