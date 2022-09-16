@@ -40,9 +40,11 @@ int64_t gensio_time_diff_nsecs(gensio_time *t1, gensio_time *t2);
 
 #define GENSIO_NSECS_TO_USECS(v) (((int64_t) (v) + 500) / 1000)
 #define GENSIO_NSECS_TO_MSECS(v) (((int64_t) (v) + 500000) / 1000000)
+#define GENSIO_NSECS_TO_SECS(v) (((int64_t) (v) + 500000000) / 1000000000)
 
 #define GENSIO_USECS_TO_NSECS(v) ((int64_t) (v) * 1000)
 #define GENSIO_MSECS_TO_NSECS(v) ((int64_t) (v) * 1000000)
+#define GENSIO_SECS_TO_NSECS(v) ((int64_t) (v) * 1000000000)
 
 #define gensio_time_is_zero(v) ((v).secs == 0 && (v).nsecs == 0)
 
