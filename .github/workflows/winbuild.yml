@@ -1,0 +1,48 @@
+name: WinBuild
+on: 
+  push:
+    branches:
+      - 'master'
+    tags:
+      - v*
+
+jobs:
+  mingw-build:
+    strategy:
+      matrix:
+        include:
+          - { sys: mingw64, env: x86_64 }
+          - { sys: mingw32, env: i686 }
+    
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: msys2 {0}
+    steps:
+      - uses: actions/checkout@v3
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: ${{matrix.sys}}
+          update: true
+          install: >-
+            git 
+            mingw-w64-${{matrix.env}}-gcc 
+            mingw-w64-${{matrix.env}}-openssl 
+            mingw-w64-${{matrix.env}}-python 
+            libtool 
+            autotools 
+            swig
+      - name: MSBuild
+        run: |
+          ./reconf
+          ./configure
+          make
+      - name: Upload binaries from lib and tools
+        uses: actions/upload-artifact@v3
+        with:
+          name: gensio-mingw-${{matrix.env}}
+          path: |
+            lib/.libs/*.dll
+            lib/.libs/*.a
+            lib/.libs/*.la
+            tools/*.exe
