@@ -807,6 +807,9 @@ sterm_check_close_drain(void *handler_data, struct gensio_iod *iod,
 	    uucp_rm_lock(sdata->devname);
 	gensio_fd_ll_close_now(sdata->ll);
     }
+    if (err != GE_INPROGRESS)
+	/* We are really closing, the iod will be destroyed now. */
+	sdata->iod = NULL;
  out_unlock:
     sterm_unlock(sdata);
     return err;
