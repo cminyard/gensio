@@ -330,7 +330,7 @@ ax25
     .. code-block:: bash
 
       gensiot -i 'stdio(self)' \
-          'ax25(laddr=AE5KM-2,addr="0,AE5KM-1,AE5KM-2"),kiss,tcp,localhost,8001
+          'ax25(laddr=AE5KM-2,addr="0,AE5KM-1,AE5KM-2"),kiss,tcp,localhost,8001'
 
     on the other machine.  This will connect to the other machine over
     TNC 0 with the given address.  Then anything you type in one will
@@ -338,6 +338,16 @@ ax25
     The 'stdio(self)' part turns off raw mode, so it's a line at a
     time and you get local echo.  Otherwise every character you types
     would send a packet and you couldn't see what you were typing.
+
+    To hook to the N5COR-11 AX.25 BBS system, you would do:
+
+    .. code-block:: bash
+
+      gensiot -i 'xlt(nlcr),stdio(self)' \
+        'ax25(laddr=AE5KM-2,addr="0,N5COR-11,AE5KM-2"),kiss,tcp,localhost,8001'
+
+    Most BBS systems use CR, not NL, for the new line, so the xlt
+    gensio is used to translate incoming these characters.
 
     Of course, this being gensio, you can put any workable gensio
     underneath ax25 that you would like.  So if you want to play
