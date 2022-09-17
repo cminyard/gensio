@@ -136,6 +136,8 @@ gensio_sound_file_api_open_dev(struct sound_info *si)
 int
 gensio_sound_file_api_devices(char ***rnames, char ***rspecs, gensiods *rcount)
 {
+    *rnames = NULL;
+    *rspecs = NULL;
     *rcount = 0;
     return 0;
 }
