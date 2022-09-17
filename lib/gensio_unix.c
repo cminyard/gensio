@@ -2052,6 +2052,8 @@ gensio_os_proc_register_winsize_handler(struct gensio_os_proc_data *data,
     }
     if (!handler)
 	return 0;
+    if (iod->type != GENSIO_IOD_STDIO && iod->type != GENSIO_IOD_CONSOLE)
+	return GE_NOTSUP;
 
     err = ioctl(iod->fd, TIOCGWINSZ, &win);
     if (err == -1)
