@@ -881,10 +881,10 @@ gensio_sound_ll_do_open(struct sound_ll *soundll, int err)
 static void
 gensio_sound_do_read_enable(struct sound_ll *soundll)
 {
+    soundll->in.type->set_read_enable(&soundll->in, true);
     if (soundll->in.ready || soundll->err) {
 	gensio_sound_sched_deferred_op(soundll);
     } else {
-	soundll->in.type->set_read_enable(&soundll->in, true);
 	if (soundll->in.ready || soundll->err)
 	    gensio_sound_sched_deferred_op(soundll);
     }

@@ -409,7 +409,7 @@ gensio_sound_alsa_api_set_read(struct sound_info *si, bool enable)
 	if (a->fds[i].events & POLLERR)
 	    o->set_except_handler(a->iods[i], enable);
     }
-    if (enable)
+    if (enable && !si->ready)
 	gensio_sound_alsa_do_read(si);
 }
 
