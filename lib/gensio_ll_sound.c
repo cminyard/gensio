@@ -1295,7 +1295,7 @@ gensio_sound_ll_alloc(struct gensio_os_funcs *o,
     }
 
     if (out) {
-	soundll->in.is_input = false;
+	soundll->out.is_input = false;
 	soundll->out.soundll = soundll;
 	err = setup_sound_info(o, &soundll->out, out, false);
 	if (err)
