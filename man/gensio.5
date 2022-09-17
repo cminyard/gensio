@@ -2085,7 +2085,8 @@ generally specify the input and output device, as the numbers don't
 always line up as nicely as above.
 
 For file type, the device name is a filename; data is streamed to/from
-the file in the PCM format.
+the file in the PCM format.  If the filename is "-", then stdio is
+used instead of opening a file.
 
 The readbuf option is not available in this gensio, obviously.
 .SS Options
