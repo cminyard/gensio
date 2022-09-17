@@ -572,11 +572,13 @@ setup_convv(struct sound_info *si, enum gensio_sound_fmt_type pfmt)
 	si->cnv.convin = conv_float_to_float_in;
 	si->cnv.convout = conv_float_to_float_out;
     } else if (pinfo->isfloat) {
-	si->cnv.scale_out = pinfo->scale;
+	si->cnv.scale_out = 1 / pinfo->scale;
+	si->cnv.scale_in = pinfo->scale;
 	si->cnv.convin = conv_float_to_int_in;
 	si->cnv.convout = conv_int_to_float_out;
     } else if (uinfo->isfloat) {
 	si->cnv.scale_in = 1 / pinfo->scale;
+	si->cnv.scale_out = pinfo->scale;
 	si->cnv.convin = conv_int_to_float_in;
 	si->cnv.convout = conv_float_to_int_out;
     } else {
@@ -971,7 +973,7 @@ gensio_sound_api_default_write(struct sound_info *out, gensiods *rcount,
 
 	if (out->cnv.enabled) {
 	    ibuf = sg[i].buf;
-	    ibuflen = sg[i].buflen / out->framesize;;
+	    ibuflen = sg[i].buflen / out->framesize;
 	moredata:
 	    tbuf = out->cnv.buf;
 	    for (j = 0; j < ibuflen && j < out->bufframes; j++)
@@ -980,7 +982,7 @@ gensio_sound_api_default_write(struct sound_info *out, gensiods *rcount,
 		ibuf = NULL;
 	    else
 		ibuflen -= j;
-	    buf = tbuf;
+	    buf = out->cnv.buf;
 	    buflen = j;
 	} else {
 	    buf = sg[i].buf;
