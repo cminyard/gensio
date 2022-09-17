@@ -1106,6 +1106,91 @@ gensio_sound_ll_close(struct sound_ll *soundll,
 }
 
 static int
+gensio_sound_ll_control(struct sound_ll *soundll, bool get, unsigned int option,
+			char *data, gensiods *datalen)
+{
+    unsigned int i;
+    struct sound_info *si;
+    const char *s;
+
+    switch(option) {
+    case GENSIO_CONTROL_RADDR:
+	if (!get)
+	    return GE_NOTSUP;
+	if (strtoul(data, NULL, 0) > 0)
+	    return GE_NOTFOUND;
+	*datalen = gensio_pos_snprintf(data, *datalen, NULL, "sound");
+	return 0;
+
+    case GENSIO_CONTROL_IN_RATE:
+	if (!get)
+	    return GE_NOTSUP;
+	*datalen = gensio_pos_snprintf(data, *datalen, NULL, "%u",
+				       soundll->in.samplerate);
+	return 0;
+
+    case GENSIO_CONTROL_OUT_RATE:
+	if (!get)
+	    return GE_NOTSUP;
+	*datalen = gensio_pos_snprintf(data, *datalen, NULL, "%u",
+				       soundll->out.samplerate);
+	return 0;
+
+    case GENSIO_CONTROL_IN_BUFSIZE:
+	if (!get)
+	    return GE_NOTSUP;
+	*datalen = gensio_pos_snprintf(data, *datalen, NULL, "%u",
+				       soundll->in.bufsize);
+	return 0;
+
+    case GENSIO_CONTROL_OUT_BUFSIZE:
+	if (!get)
+	    return GE_NOTSUP;
+	*datalen = gensio_pos_snprintf(data, *datalen, NULL, "%u",
+				       soundll->out.bufsize);
+	return 0;
+
+    case GENSIO_CONTROL_IN_NR_CHANS:
+	if (!get)
+	    return GE_NOTSUP;
+	*datalen = gensio_pos_snprintf(data, *datalen, NULL, "%u",
+				       soundll->in.chans);
+	return 0;
+
+    case GENSIO_CONTROL_OUT_NR_CHANS:
+	if (!get)
+	    return GE_NOTSUP;
+	*datalen = gensio_pos_snprintf(data, *datalen, NULL, "%u",
+				       soundll->out.chans);
+	return 0;
+
+    case GENSIO_CONTROL_IN_FORMAT:
+	if (!get)
+	    return GE_NOTSUP;
+	si = &soundll->in;
+	goto get_si_format;
+
+    case GENSIO_CONTROL_OUT_FORMAT:
+	if (!get)
+	    return GE_NOTSUP;
+	si = &soundll->out;
+    get_si_format:
+	s = "unknown";
+	for (i = 0; sound_format_names[i].name; i++) {
+	    if (sound_format_names[i].format == si->cnv.ufmt) {
+		s = sound_format_names[i].name;
+		break;
+	    }
+	}
+	*datalen = gensio_pos_snprintf(data, *datalen, NULL, "%s", s);
+	return 0;
+
+    default:
+	return GE_NOTSUP;
+    }
+}
+
+static int
 gensio_sound_ll_do_free(struct sound_ll *soundll)
 {
     gensio_sound_ll_lock(soundll);
@@ -1196,6 +1281,11 @@ gensio_sound_ll_func(struct gensio_ll *ll, int op,
 	soundll->in.type->close_dev(&soundll->out);
 	soundll->state = GENSIO_SOUND_LL_CLOSED;
 	return 0;
+
+    case GENSIO_LL_FUNC_CONTROL:
+	return gensio_sound_ll_control(soundll, *((bool *) cbuf), buflen, buf,
+				       count);
+
     }
 
     return GE_NOTSUP;

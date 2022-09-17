@@ -303,6 +303,18 @@ and set to zero.  datalen is ignored.
 For pty and stdio gensios (that start another program), this will
 cause the new program to run in the given directory instead of the
 current directory.
+.SS "GENSIO_CONTROL_IN_RATE", "GENSIO_CONTROL_OUT_RATE"
+For sound gensios, return the sample rate for the gensio for input or output.
+.SS "GENSIO_CONTROL_IN_BUFSIZE", "GENSIO_CONTROL_OUTBUFSIZE"
+For sound gensios, return the buffer size in bytes for input our
+output.  The data will be delivered to upper layer in chunks of this
+size.
+.SS "GENSIO_CONTROL_IN_NR_CHANS", "GENSIO_CONTROL_OUT_NR_CHANS"
+For sound gensios, return the number of channels for the interface for
+input or output.
+.SS "GENSIO_CONTROL_IN_FORMAT", "GENSIO_CONTROL_OUT_FORMAT"
+For sound gensios, return the format of the user data.  Like "float",
+"int16be", etc.
 .SH "RETURN VALUES"
 Zero is returned on success, or a gensio error on failure.
 .SH "SEE ALSO"
