@@ -328,6 +328,16 @@ gensio_xlt_filter_alloc(struct gensio_os_funcs *o,
 	    tfilter->inxlt['\n'] = '\r';
 	    continue;
 	}
+	if (gensio_check_keybool(args[i], "crnl", &bval) > 0) {
+	    tfilter->inxlt['\r'] = '\n';
+	    tfilter->outxlt['\n'] = '\r';
+	    continue;
+	}
+	if (gensio_check_keybool(args[i], "nlcr", &bval) > 0) {
+	    tfilter->outxlt['\r'] = '\n';
+	    tfilter->inxlt['\n'] = '\r';
+	    continue;
+	}
 	goto out_err;
     }
 
