@@ -30,18 +30,13 @@ gensio_sound_file_api_next_read(struct sound_info *si)
     if (si->len > 0)
 	return;
 
-    if (si->cnv.enabled) {
+    if (si->cnv.enabled)
 	rv = fread(si->cnv.buf, si->cnv.pframesize, si->bufframes, a->f);
-	if (rv != si->bufframes) {
-	    si->soundll->err = GE_REMCLOSE;
-	    return;
-	}
-    } else {
+    else
 	rv = fread(si->buf, si->framesize, si->bufframes, a->f);
-	if (rv != si->bufframes) {
-	    si->soundll->err = GE_REMCLOSE;
-	    return;
-	}
+    if (rv != si->bufframes) {
+	si->soundll->err = GE_REMCLOSE;
+	return;
     }
 
     if (si->cnv.enabled) {
@@ -88,7 +83,10 @@ gensio_sound_file_api_write(struct sound_info *out, const unsigned char *buf,
     size_t rv;
     int err = 0;
 
-    rv = fwrite(buf, out->framesize, buflen, a->f);
+    if (out->cnv.enabled)
+	rv = fwrite(buf, out->cnv.pframesize, buflen, a->f);
+    else
+	rv = fwrite(buf, out->framesize, buflen, a->f);
     if (rv != buflen)
 	err = GE_IOERR;
     else
