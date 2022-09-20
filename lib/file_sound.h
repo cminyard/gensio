@@ -117,7 +117,7 @@ gensio_sound_file_api_open_dev(struct sound_info *si)
     }
 
     if (si->cnv.enabled) {
-	si->cnv.pframesize = si->cnv.psize * si->chans;
+	si->cnv.pframesize = (gensiods) si->cnv.psize * si->chans;
 	si->cnv.buf = o->zalloc(o, si->bufframes * si->cnv.pframesize);
 	if (!si->cnv.buf) {
 	    if (!a->is_stdio)
