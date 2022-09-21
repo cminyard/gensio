@@ -658,9 +658,11 @@ afskmdm_check_start_xmit(struct afskmdm_filter *sfilter)
     /* Some primitive randomness.  Could be improved. */
     sfilter->o->get_random(sfilter->o, &randv, sizeof(randv));
     randv %= 10;
-    if (sfilter->start_xmit_delay_count > randv) {
+    if (sfilter->start_xmit_delay_count + 1 > randv) {
 	sfilter->start_xmit_delay_count = 0;
 	afskmdm_start_xmit(sfilter);
+    } else {
+	sfilter->start_xmit_delay_count++;
     }
 }
 
