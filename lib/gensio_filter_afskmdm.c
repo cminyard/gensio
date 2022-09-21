@@ -2319,7 +2319,8 @@ gensio_afskmdm_filter_alloc(struct gensio_os_funcs *o,
 		data.in_chunksize == 0 || data.out_chunksize == 0 ||
 		data.in_nchans == 0 || data.out_nchans == 0 ||
 		data.in_chan >= data.in_nchans ||
-		data.out_chans >= (1 << data.out_nchans))
+		data.out_chans >= (1 << data.out_nchans) ||
+		data.max_wmsgs == 0)
 	return GE_INVAL;
 
     data.wmsg_sets = wmsg_extra * 2 + 1;
