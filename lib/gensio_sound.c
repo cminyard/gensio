@@ -109,6 +109,10 @@ sound_gensio_alloc(const void *gdata, const char * const args[],
 	    out.num_bufs = uival;
 	    continue;
 	}
+	if (gensio_check_keyuint(args[i], "chans", &in.chans) > 0) {
+	    out.chans = in.chans;
+	    continue;
+	}
 	if (gensio_check_keyuint(args[i], "inchans", &in.chans) > 0)
 	    continue;
 	if (gensio_check_keyuint(args[i], "outchans", &out.chans) > 0)
