@@ -315,6 +315,9 @@ input or output.
 .SS "GENSIO_CONTROL_IN_FORMAT", "GENSIO_CONTROL_OUT_FORMAT"
 For sound gensios, return the format of the user data.  Like "float",
 "int16be", etc.
+.SS "GENSIO_CONTROL_DRAIN_COUNT"
+The amount of data left to be transmitted.  For sound, this is in
+frames.
 .SH "RETURN VALUES"
 Zero is returned on success, or a gensio error on failure.
 .SH "SEE ALSO"
