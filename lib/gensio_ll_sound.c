@@ -13,6 +13,7 @@
 #include <ctype.h>
 
 #include <gensio/gensio.h>
+#include <gensio/gensio_time.h>
 #include "gensio_ll_sound.h"
 
 #ifdef _WIN32

@@ -556,9 +556,9 @@ gensio_sound_alsa_api_start_close(struct sound_info *si)
     if (!si->is_input && a->nrfds > 0) {
 	/* Wait for output to drain. */
 	snd_pcm_delay(a->pcm, &frames_left);
-	drain_time = frames_left * 1000000000 / si->samplerate;
-	timeout.secs = drain_time / 1000000000;
-	timeout.nsecs = drain_time % 1000000000;
+	drain_time = frames_left * GENSIO_NSECS_IN_SEC / si->samplerate;
+	timeout.secs = drain_time / GENSIO_NSECS_IN_SEC;
+	timeout.nsecs = drain_time % GENSIO_NSECS_IN_SEC;
 	assert(o->start_timer(a->close_timer, &timeout) == 0);
     } else if (a->nrfds > 0) {
 	gensio_sound_alsa_timeout(NULL, si);
