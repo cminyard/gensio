@@ -2160,6 +2160,52 @@ GENSIO_CONTROL_OUT_BUFSIZE, GENSIO_CONTROL_IN_FORMAT, and
 GENSIO_CONTROL_OUT_FORMAT controls.
 
 Note that the sound gensio must supply a float user format.
+.SS Keying the Transmitter
+By default,
+.B afskmcm
+will not do anything specific to turn the transmitter on and off. In
+this case the keying must be VOX, like a SignaLink.
+
+If you need some other way to key the transmitter, afskmcm provide a
+.B key
+option.  This create a gensio that is used to turn the transmitter on
+and off.  It will send the
+.B keyon
+string and the
+.B keyoff
+string for this purpose.
+
+For instance, you could create your own program to do the keying and
+add:
+.IP
+key="stdio,mykeyprog --parm1 --parm2",keyon="1",keyoff="0"
+.PP
+to your
+.B afskmdm
+option and it would run the mykeyprog program when opened.  When it
+needed to transmit, it would write a "1" (no newline or anything sent)
+to the stdin of the program.  When the transmission was complete, it
+would write a "0".  Not numbers, these are "0" and "1" characters.
+
+If you program sends output to stderr, you probably want to add
+stderr-to-stdout to the stdin so the stderr buffers doesn't fill up
+and block the program.  Then stderr data will be ignored.
+
+You can use rigctld with this.  I have the following rigctld setup on my
+system:
+.IP
+rigctld -m 1022 -r /dev/ttyUSB0 -s 4800 -P CM108 -p /dev/hidraw1
+.PP
+And I use the following in my configuration:
+.IP
+afskmdm(key="tcp,localhost,4532",keyon="T 1\\n",keyoff="T 0\\n")
+.PP
+You have to be careful of the quoting here, as the key specification
+must be in quotes because it will have commas.  Notice the use of
+"\\n" in the strings for a new line.  Normal C "\\" escape sequences
+are handled.
+
+Anything read in from the key gensio is ignored.
 .SS Options
 .TP
 .B readbuf=<n>
@@ -2237,6 +2283,19 @@ message before the transmit is started.  Default is 100ms.
 .B volume=<float>
 Sets the transmit volume, from 0.0-1.0.  Values above 1.0 will clip.
 Default is .75.
+.TP
+.B key=<gensio string>
+.TP
+This creates a gensio that will be used to key the transmitter on and
+off.  See the discussion above on keying for more details.  If you set this, you must set
+.B keyon
+and
+.B keyoff.
+Disabled by default.
+.B keyon=<string>, keyoff=<string>
+.TP
+The strings to send to the key gensio to turn the transmitter on and
+off.
 .SH "Forking and gensios"
 Unlike normal file descriptors, when you fork with a gensio, you now
 have two unassociated copies of the gensios.  So if you do operations

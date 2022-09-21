@@ -2323,6 +2323,9 @@ gensio_afskmdm_filter_alloc(struct gensio_os_funcs *o,
 		data.max_wmsgs == 0)
 	return GE_INVAL;
 
+    if (data.key && (!data.keyon || !data.keyoff))
+	return GE_INVAL;
+
     data.wmsg_sets = wmsg_extra * 2 + 1;
 
     filter = gensio_afskmdm_filter_raw_alloc(o, &data);
