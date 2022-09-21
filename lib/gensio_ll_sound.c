@@ -406,13 +406,13 @@ struct sound_cnv_info {
     /* PCM format.  Will be UNKNOWN if not set by user. */
     enum gensio_sound_fmt_type pfmt;
     enum gensio_sound_fmt_type ufmt;
-    gensiods pframesize; /* Size of a frame on the PCM size. */
-    unsigned int usize; /* Sample size on the user side */
+    gensiods pframesize; /* Size of a frame on the PCM side, in bytes. */
+    unsigned int usize; /* Sample size (in bytes) on the user side */
 
     /* Above values are always set.  Values below are only set if enabled. */
 
     bool host_bswap;
-    unsigned int psize; /* Sample size on the PCM side */
+    unsigned int psize; /* Sample size on the PCM side, in bytes */
     uint32_t offset; /* Subtract/add this from/to the pcm/user to convert. */
     float scale_in; /* Multiply by this to scale to -1.0 - 1.0 float, before offset. */
     float scale_out; /* Multiply by this to scale from -1.0 - 1.0 float, after offset. */
@@ -530,17 +530,16 @@ struct sound_info {
     bool is_input;
 
     unsigned int samplerate; /* Frames per second. */
-    unsigned int framesize; /* User side sample size * number of channels */
-    gensiods bufframes; /* Number of frames in an I/O buffer (user and pcm). */
+    unsigned int framesize; /* User side sample size * number of chans, bytes */
     gensiods num_bufs; /* Number of buffers on the PCM size. */
     unsigned int chans; /* Number of channels, Will be 0 if disabled. */
-    gensiods hwbufsize; /* If non-zero, Set the hw buffer size to this. */
+    gensiods hwbufsize; /* If non-zero, set the hw buffer size, in frames. */
 
     bool ready; /* Is a frame ready to send to user, or is write ready? */
 
-    gensiods readpos; /* Byte offset into buf. */
-    gensiods len; /* Input only, the number of bytes in buf. */
-    gensiods bufsize; /* Size in bytes of buf. */
+    gensiods readpos; /* frame offset into buf. */
+    gensiods len; /* Input only, the number of frames in buf. */
+    gensiods bufsize; /* Size in frames of buf. */
     unsigned char *buf; /* User side buffer. */
 
     /*
@@ -610,7 +609,6 @@ setup_conv(const char *ufmt, const char *pfmt, struct sound_info *si)
 
 	si->cnv.usize = sound_fmt_info[i].size;
 	si->framesize = si->cnv.usize * si->chans;
-	si->bufframes = si->bufsize / si->framesize;
 
 	/* Will be overridden if pfmt is set. */
 	si->cnv.pframesize = si->framesize;
@@ -799,9 +797,11 @@ static int gensio_sound_api_default_write(struct sound_info *out,
 static void
 gensio_sound_ll_check_read(struct sound_ll *soundll)
 {
+    struct sound_info *si = &soundll->in;
+
     if (soundll->in_read)
 	return;
-    if (soundll->read_enabled && (soundll->in.ready || soundll->err)) {
+    if (soundll->read_enabled && (si->ready || soundll->err)) {
 	unsigned int len;
 	gensiods count;
 
@@ -815,39 +815,41 @@ gensio_sound_ll_check_read(struct sound_ll *soundll)
 	    goto out;
 	}
 
-	if (soundll->in.readpos + soundll->in.len > soundll->in.bufsize)
-	    len = soundll->in.bufsize - soundll->in.readpos;
+	if (si->readpos + si->len > si->bufsize)
+	    len = si->bufsize - si->readpos;
 	else
-	    len = soundll->in.len;
+	    len = si->len;
 	soundll->in_read = true;
 	gensio_sound_ll_unlock(soundll);
 	count = soundll->cb(soundll->cb_data, GENSIO_LL_CB_READ, 0,
-			    soundll->in.buf + soundll->in.readpos, len,
-			    NULL);
+			    si->buf + si->readpos * si->framesize,
+			    len * si->framesize, NULL);
 	gensio_sound_ll_lock(soundll);
 	soundll->in_read = false;
 	if (soundll->state != GENSIO_SOUND_LL_OPEN)
 	    goto out;
-	soundll->in.readpos += count;
-	soundll->in.len -= count;
-	if (soundll->in.len == 0) {
-	    soundll->in.readpos = 0;
-	    soundll->in.ready = false;
-	    if (soundll->in.type->next_read)
-		soundll->in.type->next_read(&soundll->in);
+	si->readpos += count / si->framesize;
+	si->len -= count / si->framesize;
+	if (si->len == 0) {
+	    si->readpos = 0;
+	    si->ready = false;
+	    if (si->type->next_read)
+		si->type->next_read(&soundll->in);
 	}
     }
  out:
-    if (soundll->read_enabled && (soundll->in.ready || soundll->err))
+    if (soundll->read_enabled && (si->ready || soundll->err))
 	gensio_sound_sched_deferred_op(soundll);
 }
 
 static void
 gensio_sound_ll_check_write(struct sound_ll *soundll)
 {
+    struct sound_info *si = &soundll->out;
+
     if (soundll->in_write)
 	return;
-    if (soundll->write_enabled && soundll->out.ready) {
+    if (soundll->write_enabled && si->ready) {
 	soundll->in_write = true;
 	gensio_sound_ll_unlock(soundll);
 	soundll->cb(soundll->cb_data, GENSIO_LL_CB_WRITE_READY, 0,
@@ -855,7 +857,7 @@ gensio_sound_ll_check_write(struct sound_ll *soundll)
 	gensio_sound_ll_lock(soundll);
 	soundll->in_write = false;
     }
-    if (soundll->write_enabled && soundll->out.ready)
+    if (soundll->write_enabled && si->ready)
 	gensio_sound_sched_deferred_op(soundll);
 }
 
@@ -979,8 +981,12 @@ gensio_sound_api_default_write(struct sound_info *out, gensiods *rcount,
 	    ibuflen = sg[i].buflen / out->framesize;
 	moredata:
 	    tbuf = out->cnv.buf;
-	    for (j = 0; j < ibuflen && j < out->bufframes; j++)
-		out->cnv.convout(&ibuf, &tbuf, &out->cnv);
+	    for (j = 0; j < ibuflen && j < out->bufsize; j++) {
+		gensiods k;
+
+		for (k = 0; k < out->chans; k++)
+		    out->cnv.convout(&ibuf, &tbuf, &out->cnv);
+	    }
 	    if (j == ibuflen)
 		ibuf = NULL;
 	    else
@@ -1350,9 +1356,6 @@ setup_sound_info(struct gensio_os_funcs *o,
     if (err)
 	return err;
 
-    if (si->bufsize % si->framesize != 0)
-	return GE_INVAL;
-
     err = si->type->setup(si, io);
     if (err)
 	return err;
@@ -1363,7 +1366,7 @@ setup_sound_info(struct gensio_os_funcs *o,
 
     if (isinput) {
 	/* One buffer for sending to the user. */
-	si->buf = o->zalloc(o, io->bufsize);
+	si->buf = o->zalloc(o, io->bufsize * si->framesize);
 	if (!si->buf)
 	    return GE_NOMEM;
     }

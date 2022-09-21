@@ -33,10 +33,10 @@ gensio_sound_file_api_next_read(struct sound_info *si)
 	return;
 
     if (si->cnv.enabled)
-	rv = fread(si->cnv.buf, si->cnv.pframesize, si->bufframes, a->f);
+	rv = fread(si->cnv.buf, si->cnv.pframesize, si->bufsize, a->f);
     else
-	rv = fread(si->buf, si->framesize, si->bufframes, a->f);
-    if (rv != si->bufframes) {
+	rv = fread(si->buf, si->framesize, si->bufsize, a->f);
+    if (rv != si->bufsize) {
 	si->soundll->err = GE_REMCLOSE;
 	return;
     }
@@ -46,10 +46,10 @@ gensio_sound_file_api_next_read(struct sound_info *si)
 	unsigned char *obuf = si->buf;
 	gensiods i;
 
-	for (i = 0; i < si->bufframes * si->chans; i++)
+	for (i = 0; i < si->bufsize * si->chans; i++)
 	    si->cnv.convin(&ibuf, &obuf, &si->cnv);
     }
-    si->len = si->bufframes * si->framesize;
+    si->len = si->bufsize;
     si->ready = true;
 }
 
@@ -118,7 +118,7 @@ gensio_sound_file_api_open_dev(struct sound_info *si)
 
     if (si->cnv.enabled) {
 	si->cnv.pframesize = (gensiods) si->cnv.psize * si->chans;
-	si->cnv.buf = o->zalloc(o, si->bufframes * si->cnv.pframesize);
+	si->cnv.buf = o->zalloc(o, si->bufsize * si->cnv.pframesize);
 	if (!si->cnv.buf) {
 	    if (!a->is_stdio)
 		fclose(a->f);

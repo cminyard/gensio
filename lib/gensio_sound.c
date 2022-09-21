@@ -84,10 +84,10 @@ sound_gensio_alloc(const void *gdata, const char * const args[],
     in.devname = devname;
     out.devname = devname;
 
-    in.bufsize = 2048;
+    in.bufsize = 1000;
     in.num_bufs = 4;
 
-    out.bufsize = 2048;
+    out.bufsize = 1000;
     out.num_bufs = 4;
 
     for (i = 0; args && args[i]; i++) {

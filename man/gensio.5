@@ -2106,8 +2106,7 @@ If the output device has a different name than the input device, it
 must be specified separately.
 .TP
 .B inbufsize=<n>, outbufsize=<n>, bufsize=<n>
-Specify the buffer size, in bytes.  It must be a multiple of chans *
-samplesize.  This defaults to 2048.
+Specify the buffer size, in samples.  This defaults to 1000.
 .TP
 .B innbufs=<n>, outnbufs=<n>, nbufs=<n>
 Specify the number of buffers to use.  This may or may not be used
@@ -2144,14 +2143,11 @@ format.  If that doesn't work, it will attempt to pick the best
 matching format and convert.
 .TP
 .B inhwbufsize=<n>, outhwbufsize=<n>, hwbufsize=<n>
-Set the hardware buffer size on the device being used, in bytes.  This
-should be a multiple of the frame size. This may no be supported by
-all hardware and may have no effect.  In general, you want a smaller
-hardware buffer size to limit the amount of data pending in the
-buffer.  ALSA, for instance, sets it extremely large.
-.SS "Direct Allocation"
-Allocated as a terminal gensio with gdata as a "const char *".  That is
-the device name.
+Set the hardware buffer size on the device being used, in samples.
+This may not be supported by all hardware and may have no effect.  In
+general, you want a smaller hardware buffer size to limit the amount
+of data pending in the buffer.  ALSA, for instance, sets it extremely
+large.
 .SH "Forking and gensios"
 Unlike normal file descriptors, when you fork with a gensio, you now
 have two unassociated copies of the gensios.  So if you do operations

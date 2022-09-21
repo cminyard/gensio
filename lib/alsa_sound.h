@@ -184,7 +184,7 @@ gensio_sound_alsa_set_hwparams(struct sound_info *si)
     }
     if (si->cnv.enabled) {
 	si->cnv.pframesize = si->cnv.psize * si->chans;
-	si->cnv.buf = o->zalloc(o, si->bufframes * si->cnv.pframesize);
+	si->cnv.buf = o->zalloc(o, si->bufsize * si->cnv.pframesize);
 	if (!si->cnv.buf)
 	    return GE_NOMEM;
     }
@@ -206,7 +206,7 @@ gensio_sound_alsa_set_hwparams(struct sound_info *si)
     }
 
     if (si->hwbufsize) {
-	snd_pcm_uframes_t frsize = si->hwbufsize / si->framesize;
+	snd_pcm_uframes_t frsize = si->hwbufsize;
 	err = snd_pcm_hw_params_set_buffer_size_near(a->pcm, params, &frsize);
 	if (err < 0) {
 	    gensio_log(o, GENSIO_LOG_INFO,
@@ -219,7 +219,7 @@ gensio_sound_alsa_set_hwparams(struct sound_info *si)
 #if 0
     {
 	/* Period time, in usecs.  Do u64 arithmetic to avoid overflow. */
-	uint64_t lperiod_time = (si->bufframes * 1000000ULL) / si->samplerate;
+	uint64_t lperiod_time = (si->bufsize * 1000000ULL) / si->samplerate;
 	unsigned int period_time = lperiod_time;
 	int dir;
 
@@ -268,8 +268,7 @@ gensio_sound_alsa_set_swparams(struct sound_info *si)
     }
 
     /* start the transfer when a buffer is written: */
-    err = snd_pcm_sw_params_set_start_threshold(a->pcm, params,
-						si->bufframes);
+    err = snd_pcm_sw_params_set_start_threshold(a->pcm, params, si->bufsize);
     if (err < 0) {
 	gensio_log(o, GENSIO_LOG_INFO,
 		  "alsa error from snd_pcm_sw_params_set_start_threshold: %s\n",
@@ -281,8 +280,7 @@ gensio_sound_alsa_set_swparams(struct sound_info *si)
      * Allow the transfer when at least period_size ont buffer can be
      * processed.
      */
-    err = snd_pcm_sw_params_set_avail_min(a->pcm, params,
-					  si->bufframes);
+    err = snd_pcm_sw_params_set_avail_min(a->pcm, params, si->bufsize);
     if (err < 0) {
 	gensio_log(o, GENSIO_LOG_INFO,
 		  "alsa error from snd_pcm_sw_params_set_avail_min: %s\n",
@@ -366,10 +364,10 @@ gensio_sound_alsa_do_read(struct sound_info *si)
     if (si->cnv.enabled) {
 	rv = snd_pcm_readi(a->pcm,
 			   si->cnv.buf + (si->len * si->cnv.pframesize),
-			   si->bufframes - si->len);
+			   si->bufsize - si->len);
     } else {
 	rv = snd_pcm_readi(a->pcm, si->buf + (si->len * si->framesize),
-			   si->bufframes - si->len);
+			   si->bufsize - si->len);
     }
 
     if (rv < 0) {
@@ -378,17 +376,16 @@ gensio_sound_alsa_do_read(struct sound_info *si)
 	gensio_sound_alsa_check_xrun_recovery(si, rv);
     } else {
 	si->len += rv;
-	assert(si->len <= si->bufframes);
-	if (si->len == si->bufframes) {
+	assert(si->len <= si->bufsize);
+	if (si->len == si->bufsize) {
 	    if (si->cnv.enabled) {
 		const unsigned char *ibuf = si->cnv.buf;
 		unsigned char *obuf = si->buf;
 		gensiods i;
 
-		for (i = 0; i < si->bufframes * si->chans; i++)
+		for (i = 0; i < si->bufsize * si->chans; i++)
 		    si->cnv.convin(&ibuf, &obuf, &si->cnv);
 	    }
-	    si->len *= si->framesize;
 	    si->ready = true;
 	}
     }

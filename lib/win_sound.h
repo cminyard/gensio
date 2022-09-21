@@ -149,7 +149,7 @@ gensio_sound_win_drain_count(struct sound_info *si)
 	    buffers_left++;
     }
 
-    return buffers_left * si->bufframes;
+    return buffers_left * si->bufsize;
 }
 
 static void
@@ -215,21 +215,21 @@ gensio_sound_win_process_read_buffer(struct sound_info *si)
 
     ibuf = (unsigned char *) whdr->lpData;
     ibuf += hdr->pos;
-    obuf = si->buf + si->len;
+    obuf = si->buf + (si->len * si->framesize);
 
     if (si->cnv.enabled) {
 	while (len > 0 && si->len < si->bufsize) {
 	    si->cnv.convin(&ibuf, &obuf, &si->cnv);
-	    si->len += si->cnv.usize;
+	    si->len++;
 	    len -= si->cnv.psize;
 	    hdr->pos += si->cnv.psize;
 	}
 	whdr->dwBytesRecorded = len;
     } else {
-	if (len > si->bufsize - si->len)
-	    len = si->bufsize - si->len;
+	if (len > (si->bufsize - si->len) * si->framesize)
+	    len = (si->bufsize - si->len) * si->framesize;
 	memcpy(obuf, ibuf, len);
-	si->len += len;
+	si->len += len / si->framesize;
 	hdr->pos += len;
 	whdr->dwBytesRecorded -= len;
     }
@@ -327,19 +327,19 @@ gensio_sound_win_api_write(struct sound_info *out, gensiods *rcount,
 		while (ibuflen > 0 && obuflen > 0) {
 		    out->cnv.convout(&ibuf, &obuf, &out->cnv);
 		    obuflen -= out->cnv.psize;
-		    ibuflen -= out->cnv.usize;
+		    ibuflen--;
 		    j += out->cnv.usize;
 		}
 	    } else {
-		if (ibuflen > obuflen)
+		if (ibuflen * out->framesize > obuflen)
 		    j = obuflen;
 		else
-		    j = ibuflen;
+		    j = ibuflen * out->framesize;
 		memcpy(obuf, ibuf, j);
 		ibuf += j;
 		ibuflen -= j;
-		obuf += j;
-		obuflen -= j;
+		obuf += j / out->framesize;
+		obuflen -= j / out->framesize;
 	    }
 	    count += j;
 	    hdr->pos += j;
@@ -517,7 +517,7 @@ gensio_sound_win_api_open_dev(struct sound_info *si)
     InitializeCriticalSection(&w->ci->lock);
     w->ci->si = NULL;
 
-    si->cnv.buf = o->zalloc(o, (si->num_bufs * si->bufframes *
+    si->cnv.buf = o->zalloc(o, (si->num_bufs * si->bufsize *
 				si->cnv.pframesize));
     if (!si->cnv.buf) {
 	gensio_sound_win_api_close_dev(si);
@@ -533,7 +533,7 @@ gensio_sound_win_api_open_dev(struct sound_info *si)
     for (i = 0; i < si->num_bufs; i++) {
 	w->hdrs[i].si = si;
 	w->hdrs[i].bufnum = i;
-	w->hdrs[i].whdr.dwBufferLength = si->bufframes * si->cnv.pframesize;
+	w->hdrs[i].whdr.dwBufferLength = si->bufsize * si->cnv.pframesize;
 	w->hdrs[i].whdr.lpData = (char *) si->cnv.buf +
 	    (w->hdrs[i].whdr.dwBufferLength * i);
 	w->hdrs[i].whdr.dwUser = (DWORD_PTR) &w->hdrs[i];
