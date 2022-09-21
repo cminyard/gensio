@@ -517,6 +517,8 @@ struct sound_type {
     void (*set_write_enable)(struct sound_info *si, bool enable);
     void (*set_read_enable)(struct sound_info *si, bool enable);
     unsigned int (*start_close)(struct sound_info *si);
+    /* Return number of frames left to send. */
+    unsigned long (*drain_count)(struct sound_info *si);
     int (*devices)(char ***rnames, char ***rspecs, gensiods *rcount);
 };
 
@@ -1185,6 +1187,20 @@ gensio_sound_ll_control(struct sound_ll *soundll, bool get, unsigned int option,
 	}
 	*datalen = gensio_pos_snprintf(data, *datalen, NULL, "%s", s);
 	return 0;
+
+    case GENSIO_CONTROL_DRAIN_COUNT: {
+	unsigned long frames_left = 0;
+
+	if (!get)
+	    return GE_NOTSUP;
+	si = &soundll->out;
+	if (!si->type)
+	    return GE_NOTSUP;
+	if (si->type->drain_count)
+	    frames_left = si->type->drain_count(si);
+	*datalen = gensio_pos_snprintf(data, *datalen, NULL, "%lu", frames_left);
+	return 0;
+    }
 
     default:
 	return GE_NOTSUP;

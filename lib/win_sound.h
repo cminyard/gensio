@@ -135,6 +135,23 @@ struct win_sound_info {
     struct win_bufhdr *tail;
 };
 
+static unsigned long
+gensio_sound_win_drain_count(struct sound_info *si)
+{
+    struct win_sound_info *w = si->pinfo;
+    unsigned long buffers_left = 0, i;
+
+    /* Count the buffers still in the driver. */
+    for (i = 0; i < si->num_bufs; i++) {
+	struct win_bufhdr *hdr = &w->hdrs[i];
+
+	if (hdr->in_driver)
+	    buffers_left++;
+    }
+
+    return buffers_left * si->bufframes;
+}
+
 static void
 gensio_sound_win_api_close_dev(struct sound_info *si)
 {
@@ -734,6 +751,7 @@ static struct sound_type win_sound_type = {
     .set_read_enable = gensio_sound_win_api_set_read,
     .next_read = gensio_sound_win_api_next_read,
     .start_close = gensio_sound_win_api_start_close,
+    .drain_count = gensio_sound_win_drain_count,
     .devices = gensio_sound_win_api_devices
 };
 

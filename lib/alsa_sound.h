@@ -544,6 +544,16 @@ gensio_sound_alsa_timeout(struct gensio_timer *t, void *cb_data)
 	si->soundll->o->clear_fd_handlers(a->iods[i]);
 }
 
+static unsigned long
+gensio_sound_alsa_drain_count(struct sound_info *si)
+{
+    struct alsa_info *a = si->pinfo;
+    snd_pcm_sframes_t frames_left;
+
+    snd_pcm_delay(a->pcm, &frames_left);
+    return frames_left;
+}
+
 static unsigned int
 gensio_sound_alsa_api_start_close(struct sound_info *si)
 {
@@ -776,6 +786,7 @@ static struct sound_type alsa_sound_type = {
     .set_write_enable = gensio_sound_alsa_api_set_write,
     .set_read_enable = gensio_sound_alsa_api_set_read,
     .start_close = gensio_sound_alsa_api_start_close,
+    .drain_count = gensio_sound_alsa_drain_count,
     .devices = gensio_sound_alsa_api_devices
 };
 
