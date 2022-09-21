@@ -185,6 +185,7 @@ struct afskmdm_filter {
     unsigned int out_samplesize; /* Size of a sample in bytes. */
     unsigned int in_chunksize; /* Sample count we get from the sound gensio. */
     unsigned int out_chunksize; /* Sample count we send to the sound gensio. */
+    bool full_duplex;
 
     unsigned int nsec_per_frame;
 
@@ -263,6 +264,7 @@ struct afskmdm_filter {
 #define SYNC_RESET	32
     unsigned int nr_in_sync;
     unsigned int nr_out_sync;
+    unsigned int start_xmit_delay_count;
 
     /*
      * Certainty value that we say is a known good bit.
@@ -651,8 +653,15 @@ afskmdm_timeout_done(struct gensio_filter *filter)
 static void
 afskmdm_check_start_xmit(struct afskmdm_filter *sfilter)
 {
-    /* FIXME - add some randomness here. */
-    afskmdm_start_xmit(sfilter);
+    unsigned int randv;
+
+    /* Some primitive randomness.  Could be improved. */
+    sfilter->o->get_random(sfilter->o, &randv, sizeof(randv));
+    randv %= 10;
+    if (sfilter->start_xmit_delay_count > randv) {
+	sfilter->start_xmit_delay_count = 0;
+	afskmdm_start_xmit(sfilter);
+    }
 }
 
 static void
@@ -875,7 +884,7 @@ afskmdm_ul_write(struct gensio_filter *filter,
     sfilter->nr_wrbufs++;
     if (sfilter->transmit_state != NOT_SENDING)
 	goto out_process;
-    if (sfilter->nr_out_sync >= sfilter->tx_delay) {
+    if (sfilter->full_duplex || sfilter->nr_out_sync >= sfilter->tx_delay) {
 	afskmdm_start_xmit(sfilter);
     } else {
 	sfilter->transmit_state = WAITING_TRANSMIT;
@@ -1528,7 +1537,8 @@ afskmdm_ll_write(struct gensio_filter *filter,
 	    sfilter->nr_out_sync = 0;
 	} else {
 	    sfilter->nr_out_sync++;
-	    if (sfilter->transmit_state == WAITING_TRANSMIT &&
+	    if (!sfilter->full_duplex &&
+			sfilter->transmit_state == WAITING_TRANSMIT &&
 			sfilter->nr_out_sync >= sfilter->tx_delay) {
 		afskmdm_check_start_xmit(sfilter);
 		if (sfilter->transmit_state > WAITING_TRANSMIT) {
@@ -1623,44 +1633,50 @@ afskmdm_cleanup(struct gensio_filter *filter)
 static void
 afskmdm_sfilter_free(struct afskmdm_filter *sfilter)
 {
+    struct gensio_os_funcs *o = sfilter->o;
     unsigned int i, j;
 
     if (sfilter->key_io)
 	gensio_free(sfilter->key_io);
+    if (sfilter->key)
+	o->free(o, sfilter->key);
+    if (sfilter->keyon)
+	o->free(o, sfilter->keyon);
+    if (sfilter->keyoff)
+	o->free(o, sfilter->keyoff);
     if (sfilter->lock)
-	sfilter->o->free_lock(sfilter->lock);
+	o->free_lock(sfilter->lock);
     if (sfilter->hzmark)
-	sfilter->o->free(sfilter->o, sfilter->hzmark);
+	o->free(o, sfilter->hzmark);
     if (sfilter->hzspace)
-	sfilter->o->free(sfilter->o, sfilter->hzspace);
+	o->free(o, sfilter->hzspace);
     if (sfilter->prevread)
-	sfilter->o->free(sfilter->o, sfilter->prevread);
+	o->free(o, sfilter->prevread);
     if (sfilter->wmsgsets) {
 	for (i = 0; i < sfilter->wmsg_sets; i++) {
 	    if (sfilter->wmsgsets[i].wmsgs) {
 		for (j = 0; j < sfilter->max_wmsgs; j++) {
 		    if (sfilter->wmsgsets[i].wmsgs[j].read_data)
-			sfilter->o->free(sfilter->o,
-				     sfilter->wmsgsets[i].wmsgs[j].read_data);
+			o->free(o, sfilter->wmsgsets[i].wmsgs[j].read_data);
 		}
 	    }
-	    sfilter->o->free(sfilter->o, sfilter->wmsgsets[i].wmsgs);
+	    o->free(o, sfilter->wmsgsets[i].wmsgs);
 	}
-	sfilter->o->free(sfilter->o, sfilter->wmsgsets);
+	o->free(o, sfilter->wmsgsets);
     }
     if (sfilter->deliver_data)
-	sfilter->o->free(sfilter->o, sfilter->deliver_data);
+	o->free(o, sfilter->deliver_data);
     if (sfilter->xmit_buf)
-	sfilter->o->free(sfilter->o, sfilter->xmit_buf);
+	o->free(o, sfilter->xmit_buf);
     for (i = 0; i < NR_WRITE_BUFS; i++) {
 	if (sfilter->wrbufs[i].data)
-	    sfilter->o->free(sfilter->o, sfilter->wrbufs[i].data);
+	    o->free(o, sfilter->wrbufs[i].data);
     }
     if (sfilter->filteredbuf)
-	sfilter->o->free(sfilter->o, sfilter->filteredbuf);
+	o->free(o, sfilter->filteredbuf);
     if (sfilter->filter)
 	gensio_filter_free_data(sfilter->filter);
-    sfilter->o->free(sfilter->o, sfilter);
+    o->free(o, sfilter);
 }
 
 static void
@@ -1899,6 +1915,7 @@ struct gensio_afskmdm_data {
     const char *key;
     const char *keyon;
     const char *keyoff;
+    bool full_duplex;
 };
 
 static int
@@ -1978,6 +1995,7 @@ gensio_afskmdm_filter_raw_alloc(struct gensio_os_funcs *o,
     sfilter->tx_preamble_time = GENSIO_MSECS_TO_NSECS(data->tx_preamble_time);
     sfilter->tx_postamble_time = GENSIO_MSECS_TO_NSECS(data->tx_postamble_time);
     sfilter->tx_predelay_time = GENSIO_MSECS_TO_NSECS(data->tx_predelay_time);
+    sfilter->full_duplex = data->full_duplex;
     if (data->key) {
 	sfilter->key = gensio_strdup(o, data->key);
 	if (!sfilter->key)
@@ -2208,6 +2226,7 @@ gensio_afskmdm_filter_alloc(struct gensio_os_funcs *o,
 	.tx_postamble_time = 100,
 	.tx_predelay_time = 100,
 	.volume = .75,
+	.full_duplex = false,
     };
     unsigned int i;
     int err;
@@ -2309,6 +2328,8 @@ gensio_afskmdm_filter_alloc(struct gensio_os_funcs *o,
 	if (gensio_check_keyvalue(args[i], "keyon", &data.keyon) > 0)
 	    continue;
 	if (gensio_check_keyvalue(args[i], "keyoff", &data.keyoff) > 0)
+	    continue;
+	if (gensio_check_keybool(args[i], "full-duplex", &data.full_duplex) > 0)
 	    continue;
 	if (gensio_check_keyuint(args[i], "debug", &data.debug) > 0)
 	    continue;

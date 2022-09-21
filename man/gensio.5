@@ -2296,6 +2296,11 @@ Disabled by default.
 .TP
 The strings to send to the key gensio to turn the transmitter on and
 off.
+.B full-duplex[=yes|no]
+.TP
+Treat the read and write streams as completely independent.  Transmit
+does not check if something is being received before sending, all
+sends just start immediately.
 .SH "Forking and gensios"
 Unlike normal file descriptors, when you fork with a gensio, you now
 have two unassociated copies of the gensios.  So if you do operations
