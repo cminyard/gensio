@@ -2113,10 +2113,12 @@ Specify the number of buffers to use.  This may or may not be used
 depending on the interface type.  It's ignore for file, for instance.
 Defaults to 4.
 .TP
-.B inchans=<n>, outchans=<n>
+.B chans=<n>, inchans=<n>, outchans=<n>
 Set the number of input and output channels.  One of these must be
-specified, and notice there is no "chans" option.  You must specify
-these individually.
+specified, if you say
+.B chans
+it will set both the input and ouput number of channels.  If you only
+specify in or out, the other is not enabled.
 .TP
 .B inrate=<n>, outrate=<n>, rate=<n>
 The sample rate, in samples per second.  Common ones are 44100 (CD),
