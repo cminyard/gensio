@@ -216,6 +216,7 @@ struct afskmdm_filter {
      */
     unsigned int out_bitsize;
     int out_bit_adj;
+    unsigned int max_out_bitsize; /* Largest entry we will send. */
     unsigned int out_bit_counter; /* Counter for out_bit_period */
     int out_bit_period; /* How often to do an alternate frame size. */
     uint64_t out_bit_time; /* Time in nsec for a bitsize to be sent. */
@@ -765,7 +766,8 @@ afskmdm_handle_send(struct afskmdm_filter *sfilter,
     }
     while (sfilter->transmit_state > WAITING_TRANSMIT) {
 	afskmdm_add_wrbit(sfilter);
-	if (sfilter->xmit_buf_len >= sfilter->max_xmit_buf) {
+	if (sfilter->xmit_buf_len >=
+			sfilter->max_xmit_buf - sfilter->max_out_bitsize) {
 	    afskmdm_send_buffer(sfilter, handler, cb_data);
 	    if (sfilter->err)
 		goto out;
@@ -1637,7 +1639,17 @@ afskmdm_sfilter_free(struct afskmdm_filter *sfilter)
 {
     struct gensio_os_funcs *o = sfilter->o;
     unsigned int i, j;
+    struct xmit_entry *e = sfilter->xmit_ent_list, *n;
 
+    while (e) {
+	n = e->next;
+	o->free(o, e);
+	e = n;
+    }
+    if (sfilter->mark_xmit)
+	o->free(o, sfilter->mark_xmit);
+    if (sfilter->space_xmit)
+	o->free(o, sfilter->space_xmit);
     if (sfilter->key_io)
 	gensio_free(sfilter->key_io);
     if (sfilter->key)
@@ -1886,7 +1898,7 @@ afskmdm_setup_xmit_ent(struct afskmdm_filter *sfilter, struct xmit_entry *e)
     ne = afskmdm_find_xmit_ent(sfilter, true, v, ascend, size);
     if (!ne)
 	return GE_NOMEM;
-    e->next_send[1] = ne;
+    e->next_send[3] = ne;
 
     return 0;
 }
@@ -2070,12 +2082,14 @@ gensio_afskmdm_filter_raw_alloc(struct gensio_os_funcs *o,
 	 */
 	float err = fbitsize - truncf(fbitsize);
 
+	sfilter->max_out_bitsize = sfilter->out_bitsize;
 	if (sfilter->out_bitsize > data->out_samplerate / data->data_rate) {
 	    /* We rounded up. */
 	    err = 1. - err;
 	    sfilter->out_bit_adj = -1;
 	} else {
 	    sfilter->out_bit_adj = 1;
+	    sfilter->max_out_bitsize++;
 	}
 	sfilter->out_bit_period = (unsigned int) ((1. / err) + 0.5);
     }
