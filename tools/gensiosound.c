@@ -30,6 +30,8 @@ static unsigned char *playbuf;
 static gensiods playbuf_size;
 static gensiods playbuf_len;
 static gensiods playbuf_pos;
+FILE *infile;
+FILE *outfile;
 
 static void
 do_vlog(struct gensio_os_funcs *f, enum gensio_log_levels level,
@@ -45,7 +47,7 @@ fill_playbuf(void)
 {
     size_t i;
 
-    i = fread(playbuf, playbuf_size, 1, stdin);
+    i = fread(playbuf, playbuf_size, 1, infile);
     if (i == 0)
 	return GE_REMCLOSE;
     playbuf_len = playbuf_size;
@@ -66,7 +68,7 @@ io_event(struct gensio *io, void *user_data, int event, int err,
     case GENSIO_EVENT_READ:
 	if (err)
 	    goto handle_err;
-	len = fwrite(buf, *buflen, 1, stdout);
+	len = fwrite(buf, *buflen, 1, outfile);
 	if (len == 0) {
 	    err = GE_REMCLOSE;
 	    goto handle_err;
@@ -280,6 +282,25 @@ main(int argc, char *argv[])
     if (arg >= argc) {
 	fprintf(stderr, "No sound device given\n");
 	return 1;
+    }
+
+    infile = stdin;
+    outfile = stdout;
+
+    if (arg + 1 < argc) {
+	if (play) {
+	    infile = fopen(argv[arg + 1], "rb");
+	    if (!infile) {
+		fprintf(stderr, "Unable to open %s\n", argv[arg + 1]);
+		return 1;
+	    }
+	} else {
+	    outfile = fopen(argv[arg + 1], "wb");
+	    if (!outfile) {
+		fprintf(stderr, "Unable to open %s\n", argv[arg + 1]);
+		return 1;
+	    }
+	}
     }
 
     if (channels == 0) {
