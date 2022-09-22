@@ -719,12 +719,16 @@ gensio_sound_ll_free(struct sound_ll *soundll)
     }
     if (soundll->in.devname)
 	o->free(o, soundll->in.devname);
+    if (soundll->out.devname)
+	o->free(o, soundll->out.devname);
     if (soundll->in.buf)
 	o->free(o, soundll->in.buf);
     if (soundll->in.cnv.buf)
 	o->free(o, soundll->in.cnv.buf);
     if (soundll->out.buf)
 	o->free(o, soundll->out.buf);
+    if (soundll->out.cnv.buf)
+	o->free(o, soundll->out.cnv.buf);
     if (soundll->ll)
 	gensio_ll_free_data(soundll->ll);
     if (soundll->lock)

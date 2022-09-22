@@ -48,6 +48,13 @@ gensio_sound_alsa_api_close_dev(struct sound_info *si)
 	a->iods = NULL;
     }
     a->nrfds = 0;
+    /*
+     * If you don't call this, lots of cached information gets left
+     * lying around in the alsa code and valgrind complains.  It would
+     * nice to put this in a gensio_class_cleanup(), but it's not that
+     * important.
+     */
+    snd_config_update_free_global();
 }
 
 struct alsa_sound_format_cnv {
