@@ -327,19 +327,19 @@ gensio_sound_win_api_write(struct sound_info *out, gensiods *rcount,
 		while (ibuflen > 0 && obuflen > 0) {
 		    out->cnv.convout(&ibuf, &obuf, &out->cnv);
 		    obuflen -= out->cnv.psize;
-		    ibuflen--;
+		    ibuflen -= out->cnv.usize;
 		    j += out->cnv.usize;
 		}
 	    } else {
-		if (ibuflen * out->framesize > obuflen)
+		if (ibuflen > obuflen)
 		    j = obuflen;
 		else
-		    j = ibuflen * out->framesize;
+		    j = ibuflen;
 		memcpy(obuf, ibuf, j);
 		ibuf += j;
 		ibuflen -= j;
-		obuf += j / out->framesize;
-		obuflen -= j / out->framesize;
+		obuf += j;
+		obuflen -= j;
 	    }
 	    count += j;
 	    hdr->pos += j;
