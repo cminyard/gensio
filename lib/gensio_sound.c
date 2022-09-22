@@ -7,6 +7,8 @@
 
 #include "config.h"
 #include <string.h>
+#include <ctype.h>
+#include <stdlib.h>
 
 #include <gensio/sergensio_class.h>
 
@@ -91,6 +93,23 @@ sound_gensio_alloc(const void *gdata, const char * const args[],
     out.num_bufs = 4;
 
     for (i = 0; args && args[i]; i++) {
+	if (isdigit(args[i][0])) {
+	    const char *s = args[i];
+	    char *n;
+
+	    in.samplerate = strtoul(s, &n, 0);
+	    if (n[0] != '-' || n[1] == '\0')
+		return GE_INVAL;
+	    s = n + 1;
+	    in.chans = strtoul(s, &n, 0);
+	    if (n[0] != '-' || n[1] == '\0')
+		return GE_INVAL;
+	    in.format = n + 1;
+	    out.samplerate = in.samplerate;
+	    out.chans = in.chans;
+	    out.format = in.format;
+	    continue;
+	}
 	if (gensio_check_keyds(args[i], "inbufsize", &in.bufsize) > 0)
 	    continue;
 	if (gensio_check_keyds(args[i], "outbufsize", &out.bufsize) > 0)
