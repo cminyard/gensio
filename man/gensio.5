@@ -2033,26 +2033,24 @@ data item (byte, int16, etc) is called a sample.  So the driver has a
 user format (what the user sees) and a PCM format (what the driver
 uses).
 
-A stream has a number of channels at least one.  Stereo, for instance,
+A stream has a number of channels, at least one.  Stereo, for instance,
 has two channels.  A frame consists of samples for all channels.
 Frames are always interleaved; the individual channels appear as
 successive data items in the stream.  So in stereo, sample1 is channel
 1 in the first frame, sample2 is channel 2 in the first frame, sample
 3 is channel 1 in the second frame, etc.
 
-A buffer is a set of frames.  A buffers's size must be a multiple of
-the frames size.  For instance, a float sample in stereo will be 8
-bytes per frame, so the buffer's size must be a multiple of 8.  Reads
-are always provided in buffer size chunks.  If you do not comsume all
-the data in a buffer, it will give you the rest of the buffer the next
-read, until the buffer is consumed.  Writes can be written in any
-size, but it's generally most efficient to always write buffer sized
-chunks.
+A buffer is a set of frames.  A buffers's size is specified in frames,
+not bytes.  Reads are always provided in buffer size chunks.  If you
+do not comsume all the data in a buffer, it will give you the rest of
+the buffer the next read, until the buffer is consumed.  Writes can be
+written in any size, but it's generally most efficient to always write
+buffer sized chunks.
 
 A number of buffers can also be specified.  You generally want a large
 enough number that data can be smoothly written into the device
 without delay if the program lags a bit, but too large and you end up
-with lag when changing things.
+with lag if you want to change the data being written..
 
 A sound gensio may have input, output, or both.  You specify which you
 want by setting the number of channels to a non-zero value.  Most of
