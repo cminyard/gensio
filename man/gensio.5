@@ -2128,19 +2128,19 @@ only) or "file".  If not set, this default to alsa on Linux and win on
 Windows.
 .TP
 .B informat=<n>, outformat=<n>, format=<n>
-Set the type of data to supply to the user.  This is one of: double,
-float, int32, int24, in16, or int8.  User samples are always signed
+Set the type of data to supply to the user.  This is one of: float64,
+float, s32, s32, s16, or s8.  User samples are always signed
 and either floating point or integer.  Floating point is normalized
 from -1.0 to 1.0.  You must specify this.
 .TP
 .B inpformat=<n>, outpformat=<n>, pformat=<n>
 The data format on the PCM size.  You have all the data formats
 specified for format above.  The integer ones can be prefixed with "u"
-to make them unsigned (like uint16), and all may be suffixed with "le"
-or "be" to make them little or big endian (like doublele).  If you do
-not specify this, the gensio will attempt the same format as the user
-format.  If that doesn't work, it will attempt to pick the best
-matching format and convert.
+instead of "s" to make them unsigned (like u16), and all may be
+suffixed with "le" or "be" to make them little or big endian (like
+float64_le).  If you do not specify this, the gensio will attempt the
+same format as the user format.  If that doesn't work, it will attempt
+to pick the best matching format and convert.
 .TP
 .B inhwbufsize=<n>, outhwbufsize=<n>, hwbufsize=<n>
 Set the hardware buffer size on the device being used, in samples.
