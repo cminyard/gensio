@@ -176,9 +176,10 @@ static const char *progname;
 static void
 help(int err)
 {
-    printf("%s [options] io2\n", progname);
+    printf("%s [options] <device> [file]\n", progname);
     printf("\nA program to record/play sound using the sound gensio\n");
-    printf("Data is read/written from/to stdin/stdout.\n");
+    printf("Data is read/written from/to stdin/stdout if a file isn't given.\n");
+    printf("Sound goes to/from the given device.\n");
     printf("\noptions are:\n");
     printf("  -r, --rate <n> - The sample rate, defaults to 44100\n");
     printf("  -n, --nbufs <n> - The number of buffers, defaults to 4\n");

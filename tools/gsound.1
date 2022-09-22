@@ -8,12 +8,13 @@ gsound \- Tool for doing sound I/O using the sound gensio
 [\-r|\-\-rate num] [\-n|--nbufs num] [\-c|\-\-channels num]
 [\-s|\-\-bufsize num] [\-t|\-\-type num] [\-f|\-\-format str]
 [\-p|\-\-play] [\-L|\-\-list\-devs] [\-d|\-\-debug] [\-h|\-\-help]
+<device> [<file>]
 
 .SH DESCRIPTION
 The
 .BR gsound
-program allows you to record/play sound to/from 
-services on the local network.
+program allows you to record/play sound to/from the given sound device.
+Sound data goes to/from file, or stdio if the file isn't given.
 
 .SH OPTIONS
 .TP
