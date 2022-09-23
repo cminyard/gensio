@@ -1503,7 +1503,7 @@ afskmdm_ll_write(struct gensio_filter *filter,
     if (buflen == 0)
 	goto try_deliver;
 
-    if (buflen != sfilter->in_chunksize * sfilter->in_samplesize)
+    if (buflen != (gensiods) sfilter->in_chunksize * sfilter->in_samplesize)
 	return GE_INVAL;
 
     if (sfilter->filteredbuf) {
@@ -1569,7 +1569,7 @@ afskmdm_ll_write(struct gensio_filter *filter,
     memcpy(sfilter->prevread,
 	   buf + (sfilter->in_samplesize *
 		  (sfilter->in_chunksize - sfilter->prevread_size)),
-	   sfilter->prevread_size * sfilter->in_samplesize);
+	   (size_t) sfilter->prevread_size * sfilter->in_samplesize);
 
  try_deliver:
     if (rcount)
@@ -2127,14 +2127,14 @@ gensio_afskmdm_filter_raw_alloc(struct gensio_os_funcs *o,
 			       sfilter->coefa, sfilter->coefb);
 
 	sfilter->filteredbuf = o->zalloc(o,
-		     sfilter->in_samplesize * sfilter->in_chunksize);
+		(gensiods) sfilter->in_samplesize * sfilter->in_chunksize);
 	if (!sfilter->filteredbuf)
 	    goto out_nomem;
     }
 
     sfilter->prevread_size = sfilter->in_convsize * 2 + CONVEDGE;
     sfilter->prevread = o->zalloc(o,
-			sfilter->in_samplesize * sfilter->prevread_size);
+		(gensiods) sfilter->in_samplesize * sfilter->prevread_size);
     if (!sfilter->prevread)
 	goto out_nomem;
     sfilter->curr_in_pos = sfilter->prevread_size;
@@ -2169,7 +2169,7 @@ gensio_afskmdm_filter_raw_alloc(struct gensio_os_funcs *o,
 
     sfilter->max_xmit_buf = sfilter->out_chunksize;
     sfilter->xmit_buf = o->zalloc(o,
-			sfilter->out_chunksize * sfilter->out_samplesize);
+		(gensiods) sfilter->out_chunksize * sfilter->out_samplesize);
     if (!sfilter->xmit_buf)
 	goto out_nomem;
 
