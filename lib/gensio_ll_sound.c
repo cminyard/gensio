@@ -853,7 +853,7 @@ gensio_sound_ll_check_read(struct sound_ll *soundll)
 	gensio_sound_ll_unlock(soundll);
 	count = soundll->cb(soundll->cb_data, GENSIO_LL_CB_READ, 0,
 			    si->buf + si->readpos * si->framesize,
-			    len * si->framesize, NULL);
+			    (gensiods) len * si->framesize, NULL);
 	gensio_sound_ll_lock(soundll);
 	soundll->in_read = false;
 	if (soundll->state != GENSIO_SOUND_LL_OPEN)
