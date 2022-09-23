@@ -153,7 +153,6 @@ struct xmit_entry {
     float *data;
     unsigned int size; /* in bytes. */
     bool is_mark;
-    unsigned int pos; /* FIXME - remove when debugged. */
 
     /*
      * If we just send this, the first two are the next entries to
@@ -1820,7 +1819,6 @@ afskmdm_create_xmit_ent(struct afskmdm_filter *sfilter, bool is_mark,
 	return NULL;
     e->data = data;
     e->size = size;
-    e->pos = pos;
     e->is_mark = is_mark;
     e->next = sfilter->xmit_ent_list;
     sfilter->xmit_ent_list = e;
