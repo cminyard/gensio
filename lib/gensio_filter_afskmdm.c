@@ -512,7 +512,8 @@ key_open_done(struct gensio *io, int err, void *open_data)
     /* Just turn on read and ignore what we get. */
     gensio_set_read_callback_enable(io, true);
 
-    /* FIXME - it would be nice to have a way to kick of things right now. */
+    sfilter->filter_cb(sfilter->filter_cb_data, GENSIO_FILTER_CB_OPEN_DONE,
+		       NULL);
 }
 
 static int
