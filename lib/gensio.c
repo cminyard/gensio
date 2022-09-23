@@ -1252,11 +1252,16 @@ struct registered_gensio_accepter {
     struct registered_gensio_accepter *next;
 };
 
+static struct gensio_os_funcs *reg_o;
+
 static struct registered_gensio *reg_gensios;
 static struct gensio_lock *reg_gensio_lock;
 
 static struct registered_gensio_accepter *reg_gensio_accs;
 static struct gensio_lock *reg_gensio_acc_lock;
+
+static struct gensio_class_cleanup *cleanups;
+static struct gensio_lock *cleanups_lock;
 
 static struct gensio_once gensio_str_initialized;
 static int reg_gensio_rv;
@@ -1271,6 +1276,8 @@ add_default_gensios(void *cb_data)
 {
     struct gensio_os_funcs *o = cb_data;
 
+    reg_o = o;
+
     reg_gensio_lock = o->alloc_lock(o);
     if (!reg_gensio_lock) {
 	reg_gensio_rv = GE_NOMEM;
@@ -1278,6 +1285,11 @@ add_default_gensios(void *cb_data)
     }
     reg_gensio_acc_lock = o->alloc_lock(o);
     if (!reg_gensio_acc_lock) {
+	reg_gensio_rv = GE_NOMEM;
+	return;
+    }
+    cleanups_lock = o->alloc_lock(o);
+    if (!cleanups_lock) {
 	reg_gensio_rv = GE_NOMEM;
 	return;
     }
@@ -2316,13 +2328,16 @@ gensio_default_init(void *cb_data)
 						  NULL, 0);
 }
 
-static struct gensio_class_cleanup *cleanups;
-
 void
 gensio_register_class_cleanup(struct gensio_class_cleanup *cleanup)
 {
-    cleanup->next = cleanups;
-    cleanups = cleanup;
+    reg_o->lock(cleanups_lock);
+    if (!cleanup->ginfo) {
+	cleanup->ginfo = (void *) 1; /* Just mark it as in use. */
+	cleanup->next = cleanups;
+	cleanups = cleanup;
+    }
+    reg_o->unlock(cleanups_lock);
 }
 
 void
@@ -2370,9 +2385,16 @@ gensio_cleanup_mem(struct gensio_os_funcs *o)
     memset(&gensio_base_initialized, 0, sizeof(gensio_base_initialized));
     cleanups = NULL;
     while (cl) {
+	cl->ginfo = NULL;
 	cl->cleanup();
 	cl = cl->next;
     }
+
+    if (cleanups_lock)
+	o->free_lock(cleanups_lock);
+    cleanups_lock = NULL;
+
+    reg_o = NULL;
 }
 
 static void

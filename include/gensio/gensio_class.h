@@ -344,9 +344,18 @@ int register_filter_gensio(struct gensio_os_funcs *o,
 
 struct gensio_class_cleanup {
     void (*cleanup)(void);
+
+    /* For internal used by gensio, set to NULL before calling and do not use. */
+    void *ginfo;
+
     struct gensio_class_cleanup *next;
 };
 
+/*
+ * Register a class cleanup handler.  Everything in this except
+ * cleanup must be NULL or zero.  You may call this multiple times
+ * with the same item and secondary ones will be ignored.
+ */
 GENSIO_DLL_PUBLIC
 void gensio_register_class_cleanup(struct gensio_class_cleanup *cleanup);
 
