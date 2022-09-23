@@ -7,6 +7,7 @@
 
 
 #include <alsa/asoundlib.h>
+#include <gensio/gensio_class.h>
 
 struct alsa_info {
     snd_pcm_t *pcm;
@@ -48,13 +49,6 @@ gensio_sound_alsa_api_close_dev(struct sound_info *si)
 	a->iods = NULL;
     }
     a->nrfds = 0;
-    /*
-     * If you don't call this, lots of cached information gets left
-     * lying around in the alsa code and valgrind complains.  It would
-     * nice to put this in a gensio_class_cleanup(), but it's not that
-     * important.
-     */
-    snd_config_update_free_global();
 }
 
 struct alsa_sound_format_cnv {
@@ -744,12 +738,27 @@ gensio_sound_alsa_api_devices(char ***rnames, char ***rspecs, gensiods *rcount)
     return GE_NOMEM;
 }
 
+static void
+gensio_sound_alsa_cleanup_func(void)
+{
+    snd_config_update_free_global();
+}
+
+static struct gensio_class_cleanup gensio_sound_alsa_class_cleanup = {
+    /*
+     * If you don't call this, lots of cached information gets left
+     * lying around in the alsa code and valgrind complains.
+     */
+    .cleanup = gensio_sound_alsa_cleanup_func
+};
+
 static int
 gensio_sound_alsa_api_setup(struct sound_info *si, struct gensio_sound_info *io)
 {
     struct gensio_os_funcs *o = si->soundll->o;
     struct alsa_info *a;
 
+    gensio_register_class_cleanup(&gensio_sound_alsa_class_cleanup);
     si->pinfo = o->zalloc(o, sizeof(struct alsa_info));
     if (!si->pinfo)
 	return GE_NOMEM;
