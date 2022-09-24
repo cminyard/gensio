@@ -576,7 +576,7 @@ serialdev_timeout(struct gensio_timer *t, void *cb_data)
     bool force_send;
 
     sterm_lock(sdata);
-    if (sdata->handling_modemstate) {
+    if (sdata->handling_modemstate || !sdata->open) {
 	sterm_unlock(sdata);
 	return;
     }
@@ -769,6 +769,9 @@ sterm_check_close_drain(void *handler_data, struct gensio_iod *iod,
 	goto out_einprogress;
 
     if (!sdata->timer_stopped)
+	goto out_einprogress;
+
+    if (sdata->handling_modemstate)
 	goto out_einprogress;
 
     rv = o->bufcount(sdata->iod, GENSIO_OUT_BUF, &count);
