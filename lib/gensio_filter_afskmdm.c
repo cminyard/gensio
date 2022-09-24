@@ -1442,7 +1442,7 @@ afskmdm_check_for_data(struct afskmdm_filter *sfilter, unsigned int *curpos,
 static void
 afskmdm_iir_filter(float *inbuf, float *outbuf, unsigned int nsamples,
 		   unsigned int nchans, unsigned int chan,
-		   float coefa[2], float coefb[2], float hold[2])
+		   float coefa[2], float coefb[3], float hold[2])
 {
     unsigned int i;
     float tmp;
