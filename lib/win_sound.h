@@ -548,7 +548,7 @@ gensio_sound_win_api_open_dev(struct sound_info *si)
 	    if (mres != MMSYSERR_NOERROR)
 		continue;
 	    snprintf(tmpstr, sizeof(tmpstr), "%d:%s", dev, icaps.szPname);
-	    if (strncmp(si->devname, tmpstr, strlen(si->devname)) == 0)
+	    if (strstr(tmpstr, si->devname))
 		break;
 	}
 	if (dev == ndevs) {
