@@ -1178,15 +1178,15 @@ gensio_sound_ll_control(struct sound_ll *soundll, bool get, unsigned int option,
     case GENSIO_CONTROL_IN_BUFSIZE:
 	if (!get)
 	    return GE_NOTSUP;
-	*datalen = gensio_pos_snprintf(data, *datalen, NULL, "%u",
-				       soundll->in.bufsize);
+	*datalen = gensio_pos_snprintf(data, *datalen, NULL, "%lu",
+				       (unsigned long) soundll->in.bufsize);
 	return 0;
 
     case GENSIO_CONTROL_OUT_BUFSIZE:
 	if (!get)
 	    return GE_NOTSUP;
-	*datalen = gensio_pos_snprintf(data, *datalen, NULL, "%u",
-				       soundll->out.bufsize);
+	*datalen = gensio_pos_snprintf(data, *datalen, NULL, "%lu",
+				       (unsigned long) soundll->out.bufsize);
 	return 0;
 
     case GENSIO_CONTROL_IN_NR_CHANS:
