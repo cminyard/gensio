@@ -161,7 +161,8 @@ gensio_sound_win_api_close_dev(struct sound_info *si)
 
     if (si->is_input) {
 	if (w->inh) {
-	    assert(waveInReset(w->inh) == MMSYSERR_NOERROR);
+	    if (w->started)
+		assert(waveInReset(w->inh) == MMSYSERR_NOERROR);
 	    for (i = 0; i < si->num_bufs; i++)
 		waveInUnprepareHeader(w->inh, &w->hdrs[i].whdr,
 			              sizeof(WAVEHDR));
@@ -582,7 +583,7 @@ gensio_sound_win_api_open_dev(struct sound_info *si)
 	    if (mres != MMSYSERR_NOERROR)
 		continue;
 	    snprintf(tmpstr, sizeof(tmpstr), "%d:%s", dev, ocaps.szPname);
-	    if (strncmp(si->devname, tmpstr, strlen(si->devname)) == 0)
+	    if (strstr(tmpstr, si->devname))
 		break;
 	}
 	if (dev == ndevs) {
