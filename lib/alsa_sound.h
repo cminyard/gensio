@@ -639,7 +639,7 @@ gensio_sound_alsa_api_open_dev(struct sound_info *si)
 	return GE_NOMEM;
     }
 
-    a->iods = o->zalloc(o, a->nrfds * sizeof(struct gensio_iod));
+    a->iods = o->zalloc(o, a->nrfds * sizeof(struct gensio_iod *));
     if (!a->iods) {
 	gensio_sound_alsa_api_close_dev(si);
 	return GE_NOMEM;
