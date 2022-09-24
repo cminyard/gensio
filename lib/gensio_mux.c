@@ -971,6 +971,7 @@ chan_check_read(struct mux_inst *chan)
 	if (flags & MUX_FLAG_OUT_OF_BOUND) {
 	    if (!chan->do_oob) {
 		rcount = len;
+		orcount = rcount;
 		goto skip_oob_data;
 	    }
 	    flstr[i++] = "oob";
