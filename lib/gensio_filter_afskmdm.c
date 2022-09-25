@@ -819,16 +819,22 @@ afskmdm_handle_send(struct afskmdm_filter *sfilter,
 		    sfilter->wrbyte = 0x7e;
 		} else {
 		    sfilter->nr_out_sync = 0;
-		    if (sfilter->keyed)
+		    if (sfilter->keyed) {
+			sfilter->transmit_state = WAITING_KEYOFF;
+			if (sfilter->xmit_buf_len == 0)
+			    /*
+			     * No more data to send, start the timer now.
+			     */
+			    afskmdm_start_drain_timer(sfilter);
 			/*
-			 * Don't start the timer here, wait until all
+			 * Otherwise, start the timer when all
 			 * the data has been sent.
 			 */
-			sfilter->transmit_state = WAITING_KEYOFF;
-		    else if (sfilter->nr_wrbufs > 0)
+		    } else if (sfilter->nr_wrbufs > 0) {
 			sfilter->transmit_state = WAITING_TRANSMIT;
-		    else
+		    } else {
 			sfilter->transmit_state = NOT_SENDING;
+		    }
 		    goto out;
 		}
 		break;
