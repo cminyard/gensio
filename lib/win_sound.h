@@ -198,6 +198,8 @@ gensio_sound_win_api_close_dev(struct sound_info *si)
 	o->free(o, w->hdrs);
 	w->hdrs = NULL;
     }
+
+    w->waiting_xmit_buf = NULL;
 }
 
 static void
