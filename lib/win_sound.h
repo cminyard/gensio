@@ -128,6 +128,13 @@ struct win_sound_info {
 
     bool started;
 
+    /*
+     * When starting, to avoid stutter at startup, wait until two
+     * buffers are ready to go.  This holds the waiting buffer.
+     */
+    struct win_bufhdr *waiting_xmit_buf;
+    unsigned int num_bufs_in_driver;
+
     struct win_bufhdr *hdrs;
 
     /* List of buffers ready to process. */
@@ -191,6 +198,8 @@ gensio_sound_win_api_close_dev(struct sound_info *si)
 	o->free(o, w->hdrs);
 	w->hdrs = NULL;
     }
+
+    w->waiting_xmit_buf = NULL;
 }
 
 static void
@@ -252,6 +261,7 @@ gensio_sound_win_process_read_buffer(struct sound_info *si)
 	hdr->pos = 0;
 	whdr->dwFlags = 0;
 	hdr->in_driver = true;
+	w->num_bufs_in_driver++;
 	assert(waveInPrepareHeader(w->inh, whdr, sizeof(WAVEHDR)) ==
 	       MMSYSERR_NOERROR);
 	assert(waveInAddBuffer(w->inh, whdr, sizeof(WAVEHDR)) ==
@@ -297,6 +307,32 @@ gensio_sound_win_api_start_close(struct sound_info *si)
     }
 
     return rv;
+}
+
+static void
+gensio_sound_win_start_buf_xmit(struct sound_ll *soundll,
+				struct win_sound_info *w,
+				struct win_bufhdr *hdr)
+{
+    WAVEHDR *whdr = &hdr->whdr;
+
+    hdr->in_driver = true;
+    w->num_bufs_in_driver++;
+    gensio_sound_ll_unlock(soundll);
+    /*
+     * If you call write while locked, you will deadlock with
+     * the out_handler code.
+     */
+
+    assert(waveOutUnprepareHeader(w->outh, whdr, sizeof(WAVEHDR)) ==
+	   MMSYSERR_NOERROR);
+    whdr->dwFlags = 0;
+    assert(waveOutPrepareHeader(w->outh, whdr, sizeof(WAVEHDR)) ==
+	   MMSYSERR_NOERROR);
+    assert(waveOutWrite(w->outh, whdr, sizeof(WAVEHDR))  ==
+	   MMSYSERR_NOERROR);
+
+    gensio_sound_ll_lock(soundll);
 }
 
 static int
@@ -350,22 +386,17 @@ gensio_sound_win_api_write(struct sound_info *out, gensiods *rcount,
 		w->head = hdr->next;
 		if (!w->head)
 		    w->tail = NULL;
-		hdr->in_driver = true;
-		gensio_sound_ll_unlock(soundll);
-		/*
-		 * If you call write while locked, you will deadlock with
-		 * the out_handler code.
-		 */
+		if (w->waiting_xmit_buf) {
+		    struct win_bufhdr *thdr = w->waiting_xmit_buf;
 
-		assert(waveOutUnprepareHeader(w->outh, whdr, sizeof(WAVEHDR)) ==
-		       MMSYSERR_NOERROR);
-		whdr->dwFlags = 0;
-		assert(waveOutPrepareHeader(w->outh, whdr, sizeof(WAVEHDR)) ==
-		       MMSYSERR_NOERROR);
-		assert(waveOutWrite(w->outh, whdr, sizeof(WAVEHDR))  ==
-		       MMSYSERR_NOERROR);
+		    w->waiting_xmit_buf = NULL;
+		    gensio_sound_win_start_buf_xmit(soundll, w, thdr);
+		}
+		if (w->num_bufs_in_driver == 0)
+		    w->waiting_xmit_buf = hdr;
+		else
+		    gensio_sound_win_start_buf_xmit(soundll, w, hdr);
 
-		gensio_sound_ll_lock(soundll);
 		if (!w->head) {
 		    out->ready = false;
 		    goto out;
@@ -427,6 +458,7 @@ gensio_sound_win_in_handler(HWAVEIN   hwi,
 
     gensio_sound_ll_lock(si->soundll);
     hdr->in_driver = false;
+    w->num_bufs_in_driver--;
     if (si->soundll->state == GENSIO_SOUND_LL_IN_CLOSE) {
 	gensio_sound_win_close_one(si);
 	goto out;
@@ -467,6 +499,7 @@ gensio_sound_win_out_handler(HWAVEOUT  hwo,
 
     gensio_sound_ll_lock(si->soundll);
     hdr->in_driver = false;
+    w->num_bufs_in_driver--;
     hdr->pos = 0;
     hdr->next = NULL;
     if (!w->head) {
@@ -574,6 +607,7 @@ gensio_sound_win_api_open_dev(struct sound_info *si)
 		   == MMSYSERR_NOERROR);
 	    w->hdrs[i].in_driver = true;
 	}
+	w->num_bufs_in_driver = si->num_bufs;
     } else {
 	WAVEOUTCAPS ocaps;
 
@@ -621,6 +655,7 @@ gensio_sound_win_api_open_dev(struct sound_info *si)
 		   MMSYSERR_NOERROR);
 	}
 
+	w->num_bufs_in_driver = 0;
 	si->ready = true;
     }
 
