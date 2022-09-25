@@ -77,9 +77,7 @@ enum afskmdm_state {
     AFSKMDM_STATE_IN_MSG,
 
     /* Got 6 1's in a row while in msg, looking for a 0. */
-    AFSKMDM_STATE_POSTAMBLE_LAST_0,
-
-    AFSKMDM_STATE_XMITTING
+    AFSKMDM_STATE_POSTAMBLE_LAST_0
 };
 
 /*
