@@ -175,15 +175,6 @@ sound_gensio_alloc(const void *gdata, const char * const args[],
 	    in.pformat = out.pformat;
 	    continue;
 	}
-
-	if (gensio_check_keyds(args[i], "inhwbufsize", &in.hwbufsize) > 0)
-	    continue;
-	if (gensio_check_keyds(args[i], "outhwbufsize", &out.hwbufsize) > 0)
-	    continue;
-	if (gensio_check_keyds(args[i], "hwbufsize", &out.hwbufsize) > 0) {
-	    in.hwbufsize = out.hwbufsize;
-	    continue;
-	}
 	return GE_INVAL;
     }
 

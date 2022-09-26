@@ -2110,12 +2110,12 @@ If the output device has a different name than the input device, it
 must be specified separately.
 .TP
 .B inbufsize=<n>, outbufsize=<n>, bufsize=<n>
-Specify the buffer size, in samples.  This defaults to 1000.
+Specify the buffer size, in samples.  This defaults to 1024.
 .TP
 .B innbufs=<n>, outnbufs=<n>, nbufs=<n>
 Specify the number of buffers to use.  This may or may not be used
-depending on the interface type.  It's ignore for file, for instance.
-Defaults to 4.
+depending on the interface type.  It's ignored for file, for instance.
+Defaults to 100.
 .TP
 .B chans=<n>, inchans=<n>, outchans=<n>
 Set the number of input and output channels.  One of these must be
@@ -2147,13 +2147,6 @@ suffixed with "le" or "be" to make them little or big endian (like
 float64_le).  If you do not specify this, the gensio will attempt the
 same format as the user format.  If that doesn't work, it will attempt
 to pick the best matching format and convert.
-.TP
-.B inhwbufsize=<n>, outhwbufsize=<n>, hwbufsize=<n>
-Set the hardware buffer size on the device being used, in samples.
-This may not be supported by all hardware and may have no effect.  In
-general, you want a smaller hardware buffer size to limit the amount
-of data pending in the buffer.  ALSA, for instance, sets it extremely
-large.
 .SH "afskmdm"
 connecting =
 .B afskmcm[(options)]
