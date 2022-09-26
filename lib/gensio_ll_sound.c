@@ -400,7 +400,7 @@ put_float(double v, unsigned char **out,
 static double
 get_float(const unsigned char **in, unsigned int size, bool host_bswap)
 {
-    double v;
+    double v = 0;
 
     if (size == 4) {
 	float fv = *((float *) (*in));
