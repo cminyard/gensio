@@ -547,7 +547,7 @@ afskmdm_print_msg(struct afskmdm_filter *sfilter, unsigned int msgn,
 		  unsigned char *buf, unsigned int buflen,
 		  bool pr_msgn)
 {
-    unsigned int i;
+    struct gensio_fdump h;
 
     if (pr_msgn) {
 	printf("MSG(%u %u):", msgn, buflen);
@@ -555,12 +555,10 @@ afskmdm_print_msg(struct afskmdm_filter *sfilter, unsigned int msgn,
 	printf("MSG(%u):", buflen);
 	afskmdm_ax25_prmsg(sfilter->o, buf, buflen);
     }
-    for (i = 0; i < buflen && i < sfilter->max_read_size; i++) {
-	if (i % 16 == 0)
-	    printf("\n        ");
-	printf(" %2.2x", buf[i]);
-    }
     printf("\n");
+    gensio_fdump_init(&h, 1);
+    gensio_fdump_buf(stdout, buf, buflen, &h);
+    gensio_fdump_buf_finish(stdout, &h);
     fflush(stdout);
 }
 
