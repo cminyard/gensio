@@ -108,6 +108,7 @@ struct win_bufhdr {
     unsigned int bufnum;
     struct win_bufhdr *next;
     gensiods pos; /* Position in bytes. */
+    gensiods len; /* Total length of the buffer. */
     WAVEHDR whdr;
     bool in_driver; /* Is the driver handling this buffer now? */
 };
@@ -292,23 +293,6 @@ gensio_sound_win_api_set_write(struct sound_info *si, bool enable)
     /* Nothing to do here. */
 }
 
-static unsigned int
-gensio_sound_win_api_start_close(struct sound_info *si)
-{
-    struct win_sound_info *w = si->pinfo;
-    unsigned int rv = 0, i;
-
-    for (i = 0; i < si->num_bufs; i++) {
-	struct win_bufhdr *hdr = &w->hdrs[i];
-
-	/* Wait until all the headers are out of the driver. */
-	if (hdr->in_driver)
-	    rv++;
-    }
-
-    return rv;
-}
-
 static void
 gensio_sound_win_start_buf_xmit(struct sound_ll *soundll,
 				struct win_sound_info *w,
@@ -316,6 +300,7 @@ gensio_sound_win_start_buf_xmit(struct sound_ll *soundll,
 {
     WAVEHDR *whdr = &hdr->whdr;
 
+    whdr->dwBufferLength = hdr->pos;
     hdr->in_driver = true;
     w->num_bufs_in_driver++;
     gensio_sound_ll_unlock(soundll);
@@ -335,6 +320,40 @@ gensio_sound_win_start_buf_xmit(struct sound_ll *soundll,
     gensio_sound_ll_lock(soundll);
 }
 
+static unsigned int
+gensio_sound_win_api_start_close(struct sound_info *si)
+{
+    struct win_sound_info *w = si->pinfo;
+    unsigned int rv = 0, i;
+
+    for (i = 0; i < si->num_bufs; i++) {
+	struct win_bufhdr *hdr = &w->hdrs[i];
+
+	/* Wait until all the headers are out of the driver. */
+	if (hdr->in_driver)
+	    rv++;
+    }
+    /* Also buffers that are waiting to send. */
+    if (w->waiting_xmit_buf) {
+	struct win_bufhdr *thdr = w->waiting_xmit_buf;
+
+	w->waiting_xmit_buf = NULL;
+	gensio_sound_win_start_buf_xmit(si->soundll, w, thdr);
+	rv++;
+    }
+    if (w->head && w->head->pos > 0) {
+	struct win_bufhdr *thdr = w->head;
+
+	w->head = thdr->next;
+	if (!w->head)
+	    w->tail = NULL;
+	gensio_sound_win_start_buf_xmit(si->soundll, w, thdr);
+	rv++;
+    }
+
+    return rv;
+}
+
 static int
 gensio_sound_win_api_write(struct sound_info *out, gensiods *rcount,
 			   const struct gensio_sg *sg, gensiods sglen)
@@ -352,7 +371,7 @@ gensio_sound_win_api_write(struct sound_info *out, gensiods *rcount,
     whdr = &hdr->whdr;
     obuf = (unsigned char *) whdr->lpData;
     obuf += hdr->pos;
-    obuflen = whdr->dwBufferLength - hdr->pos;
+    obuflen = hdr->len - hdr->pos;
 
     for (i = 0; i < sglen; i++) {
 	const unsigned char *ibuf = sg[i].buf;
@@ -365,6 +384,7 @@ gensio_sound_win_api_write(struct sound_info *out, gensiods *rcount,
 		    out->cnv.convout(&ibuf, &obuf, &out->cnv);
 		    obuflen -= out->cnv.psize;
 		    ibuflen -= out->cnv.usize;
+		    hdr->pos += out->cnv.psize;
 		    j += out->cnv.usize;
 		}
 	    } else {
@@ -377,11 +397,11 @@ gensio_sound_win_api_write(struct sound_info *out, gensiods *rcount,
 		ibuflen -= j;
 		obuf += j;
 		obuflen -= j;
+		hdr->pos += j;
 	    }
 	    count += j;
-	    hdr->pos += j;
 
-	    if (hdr->pos == whdr->dwBufferLength) {
+	    if (hdr->pos == hdr->len) {
 		/* We have a full buffer to write to the driver. */
 		w->head = hdr->next;
 		if (!w->head)
@@ -405,7 +425,7 @@ gensio_sound_win_api_write(struct sound_info *out, gensiods *rcount,
 		whdr = &hdr->whdr;
 		obuf = (unsigned char *) whdr->lpData;
 		obuf += hdr->pos;
-		obuflen = whdr->dwBufferLength - hdr->pos;
+		obuflen = hdr->len - hdr->pos;
 	    }
 	}
     }
@@ -496,7 +516,6 @@ gensio_sound_win_out_handler(HWAVEOUT  hwo,
     hdr = (struct win_bufhdr *) whdr->dwUser;
     si = hdr->si;
     w = si->pinfo;
-
     gensio_sound_ll_lock(si->soundll);
     hdr->in_driver = false;
     w->num_bufs_in_driver--;
@@ -509,11 +528,25 @@ gensio_sound_win_out_handler(HWAVEOUT  hwo,
 	w->tail->next = hdr;
 	w->tail = hdr;
     }
+
     if (si->soundll->state == GENSIO_SOUND_LL_IN_CLOSE) {
 	gensio_sound_win_close_one(si);
     } else if (!si->ready) {
 	si->ready = true;
 	gensio_sound_sched_deferred_op(si->soundll);
+    }
+
+    /*
+     * If we are transmitting the last queued buffer, and there is a
+     * partial buffer left, go ahead and send the partial buffer.
+     */
+    if (w->num_bufs_in_driver == 1 && w->head && w->head->pos > 0) {
+	struct win_bufhdr *thdr = w->head;
+
+	w->head = thdr->next;
+	if (!w->head)
+	    w->tail = NULL;
+	gensio_sound_win_start_buf_xmit(si->soundll, w, thdr);
     }
     gensio_sound_ll_unlock(si->soundll);
 }
@@ -542,8 +575,8 @@ gensio_sound_win_api_open_dev(struct sound_info *si)
 
     wfx.nChannels = si->chans;
     wfx.nSamplesPerSec = si->samplerate;
-    wfx.nAvgBytesPerSec = si->framesize * si->samplerate;
-    wfx.nBlockAlign = si->framesize;
+    wfx.nAvgBytesPerSec = si->cnv.pframesize * si->samplerate;
+    wfx.nBlockAlign = si->cnv.pframesize;
 
     w->ci = o->zalloc(o, sizeof(struct gensio_sound_win_close_info));
     if (!w->ci)
@@ -567,9 +600,9 @@ gensio_sound_win_api_open_dev(struct sound_info *si)
     for (i = 0; i < si->num_bufs; i++) {
 	w->hdrs[i].si = si;
 	w->hdrs[i].bufnum = i;
-	w->hdrs[i].whdr.dwBufferLength = si->bufsize * si->cnv.pframesize;
-	w->hdrs[i].whdr.lpData = (char *) si->cnv.buf +
-	    (w->hdrs[i].whdr.dwBufferLength * i);
+	w->hdrs[i].len = si->bufsize * si->cnv.pframesize;
+	w->hdrs[i].whdr.dwBufferLength = w->hdrs[i].len;
+	w->hdrs[i].whdr.lpData = (char *) si->cnv.buf + (w->hdrs[i].len * i);
 	w->hdrs[i].whdr.dwUser = (DWORD_PTR) &w->hdrs[i];
     }
 
