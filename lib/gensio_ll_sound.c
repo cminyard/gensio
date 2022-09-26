@@ -559,7 +559,6 @@ struct sound_info {
     unsigned int framesize; /* User side sample size * number of chans, bytes */
     gensiods num_bufs; /* Number of buffers on the PCM size. */
     unsigned int chans; /* Number of channels, Will be 0 if disabled. */
-    gensiods hwbufsize; /* If non-zero, set the hw buffer size, in frames. */
 
     bool ready; /* Is a frame ready to send to user, or is write ready? */
 
@@ -1380,7 +1379,6 @@ setup_sound_info(struct gensio_os_funcs *o,
     si->num_bufs = io->num_bufs;
     si->chans = io->chans;
     si->samplerate = io->samplerate;
-    si->hwbufsize = io->hwbufsize;
 
     err = setup_conv(io->format, io->pformat, si);
     if (err)
