@@ -86,11 +86,11 @@ sound_gensio_alloc(const void *gdata, const char * const args[],
     in.devname = devname;
     out.devname = devname;
 
-    in.bufsize = 1000;
-    in.num_bufs = 4;
+    in.bufsize = 1024;
+    in.num_bufs = 100;
 
-    out.bufsize = 1000;
-    out.num_bufs = 4;
+    out.bufsize = 1024;
+    out.num_bufs = 100;
 
     for (i = 0; args && args[i]; i++) {
 	if (isdigit(args[i][0])) {
