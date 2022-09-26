@@ -2070,6 +2070,7 @@ gensio_afskmdm_filter_raw_alloc(struct gensio_os_funcs *o,
     sfilter->out_bit_time = (GENSIO_SECS_TO_NSECS(sfilter->out_bitsize) /
 			     data->out_framerate);
     fbitsize = (float) data->out_framerate / data->data_rate;
+    sfilter->max_out_bitsize = sfilter->out_bitsize;
     if (data->out_framerate % data->data_rate != 0) {
 	/*
 	 * Calculate how often to adjust for the frame rate not being
@@ -2085,7 +2086,6 @@ gensio_afskmdm_filter_raw_alloc(struct gensio_os_funcs *o,
 	 */
 	float err = fbitsize - truncf(fbitsize);
 
-	sfilter->max_out_bitsize = sfilter->out_bitsize;
 	if (sfilter->out_bitsize > data->out_framerate / data->data_rate) {
 	    /* We rounded up. */
 	    err = 1. - err;
