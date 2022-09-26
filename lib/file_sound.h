@@ -16,7 +16,7 @@ gensio_sound_file_api_close_dev(struct sound_info *si)
 {
     struct file_info *a = si->pinfo;
 
-    if (a->f) {
+    if (a && a->f) {
 	if (!a->is_stdio)
 	    fclose(a->f);
 	a->f = NULL;
