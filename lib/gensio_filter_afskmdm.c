@@ -21,6 +21,7 @@
 #include <gensio/gensio.h>
 #include <gensio/gensio_os_funcs.h>
 #include <gensio/gensio_time.h>
+#include <gensio/gensio_ax25_addr.h>
 
 /*
  * This filter implements a audio frequency shift keying modem per the
@@ -1042,22 +1043,83 @@ afskmdm_handle_new_byte(struct afskmdm_filter *sfilter, unsigned int msgn,
     w->read_data_len++;
 }
 
+static int
+decode_ax25_control_field(char *str, size_t strlen,
+			  unsigned char *buf, unsigned int buflen)
+{
+    static char *sname[4] = { "RR", "RNR", "REJ", "SREJ" };
+    static char *uname[32] = { [0x0f] = "SABME", [0x07] = "SABM",
+	[0x08] = "DISC", [0x03] = "DM", [0x0c] = "UA", [0x11] = "FRMR",
+	[0x00] = "UI", [0x17] = "XID", [0x1c] = "TEST" };
+
+    if ((*buf & 1) == 0) {
+	/* I frame. */
+	snprintf(str, strlen, "I p=%d nr=%d ns=%d",
+		 (*buf >> 4) & 1,
+		 (*buf >> 5) & 0x7,
+		 (*buf >> 1) & 0x7);
+    } else if ((*buf & 0x3) == 1) {
+	/* S frame */
+	snprintf(str, strlen, "%s pf=%d nr=%d",
+		 sname[(*buf >> 2) & 0x3],
+		 (*buf >> 4) & 1,
+		 (*buf >> 5) & 0x7);
+    } else {
+	/* UI frame. */
+	char *n = uname[((*buf >> 2) & 0x3) | ((*buf >> 3) & 0x1c)];
+	if (!n)
+	    n = "?";
+	snprintf(str, strlen, "%s pf=%d", n, (*buf >> 4) & 1);
+    }
+
+    return 0;
+}
+
 static void
 afskmdm_print_msg(struct afskmdm_filter *sfilter, unsigned int msgn,
 		  struct wmsg *w, bool pr_msgn)
 {
     unsigned int i;
 
-    if (pr_msgn)
+    if (pr_msgn) {
 	printf("MSG(%u %ld):", msgn, w->read_data_len);
-    else
+    } else {
 	printf("FMSG(%ld):", w->read_data_len);
+	if (w->read_data_len >= 15) {
+	    struct gensio_ax25_addr addr;
+	    char str[100];
+	    gensiods pos = 0, pos2 = 0;
+	    int err;
+
+	    err = decode_ax25_addr(sfilter->o, w->read_data,
+				   &pos, w->read_data_len, 0, &addr);
+	    if (err)
+		goto no_addr;
+	    err = addr.r.funcs->addr_to_str(&addr.r, str, &pos2, sizeof(str));
+	    if (err)
+		goto no_addr;
+	    printf(" %s", str);
+
+	    printf(" ch=%d", addr.dest.ch);
+
+	    if (pos < w->read_data_len) {
+		err = decode_ax25_control_field(str, sizeof(str),
+						w->read_data + pos,
+						w->read_data_len - pos);
+		if (err)
+		    goto no_addr;
+		printf(" %s", str);
+	    }
+	}
+    }
+ no_addr:
     for (i = 0; i < w->read_data_len && i < sfilter->max_read_size; i++) {
-	if (i && i % 16 == 0)
+	if (i % 16 == 0)
 	    printf("\n        ");
 	printf(" %2.2x", w->read_data[i]);
     }
     printf("\n");
+    fflush(stdout);
 }
 
 static void
