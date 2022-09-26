@@ -26,11 +26,11 @@
  * This filter implements a audio frequency shift keying modem per the
  * GAX25 spec.
  *
- * The filter processes data from the child in convsize sample chunks.
- * This convsize will be in_samplerate/data_rate, so 1 convsize sample
+ * The filter processes data from the child in convsize frame chunks.
+ * This convsize will be in_framerate/data_rate, so 1 convsize frame
  * is a approximately a single bit.  It may not be exact, so there is
  * adjustment logic to keep it close to alignment.  A similar thing is
- * done for transmission with out_samplerate.
+ * done for transmission with out_framerate.
  *
  * Also, the transmitter and receiver may not be exactly aligned on
  * bit rate.  So it may drift.  There is logic to detect the drift and
@@ -39,9 +39,9 @@
  * The transmitter will send a preamble that allows the adjustment
  * logic to lock in with the transmitter.
  *
- * It keeps 2 * convsize samples before the beginning of the current
+ * It keeps 2 * convsize frames before the beginning of the current
  * chunk, and it waits until the next chunk to process the last
- * convsize samples of the previous chunk.  This lets the receiver
+ * convsize frames of the previous chunk.  This lets the receiver
  * adjust backwards in time a bit if it has to.
  *
  * It is constantly looking for 1200Hz (level 1, a mark) and 2200Hz
@@ -178,10 +178,10 @@ struct afskmdm_filter {
     unsigned int in_chan;
     unsigned int out_nchans;
     unsigned int out_chans;
-    unsigned int in_samplesize; /* Size of a sample in bytes. */
-    unsigned int out_samplesize; /* Size of a sample in bytes. */
-    unsigned int in_chunksize; /* Sample count we get from the sound gensio. */
-    unsigned int out_chunksize; /* Sample count we send to the sound gensio. */
+    unsigned int in_framesize; /* Size of a (sample * nchans) in bytes. */
+    unsigned int out_framesize; /* Size of a (sample * nchans) in bytes. */
+    unsigned int in_chunksize; /* Frame count we get from the sound gensio. */
+    unsigned int out_chunksize; /* Frame count we send to the sound gensio. */
     bool full_duplex;
 
     unsigned int nsec_per_frame;
@@ -194,7 +194,7 @@ struct afskmdm_filter {
     uint64_t tx_predelay_time;
 
     /*
-     * Samples in a single convolution.  Note that the convolution may
+     * Frames in a single convolution.  Note that the convolution may
      * not exactly match up with the period of the data rate.  If that
      * is the case, then we will need to periodically adjust the
      * convolution window to keep it aligned.
@@ -206,7 +206,7 @@ struct afskmdm_filter {
     uint64_t in_conv_time; /* Time in nsec for a convsize to be received. */
 
     /*
-     * The number of samples in a transmitted bit.  A similar
+     * The number of frames in a transmitted bit.  A similar
      * technique is used for sending, there are two send sizes if
      * out_bit_adj != 0 and conv_period says how often we use the
      * alternate one.
@@ -220,7 +220,7 @@ struct afskmdm_filter {
 
     unsigned int debug;
     gensiods framecount;
-    gensiods samplenr;
+    gensiods framenr;
 
     /* Previous level (mark = 1, space = 0) we received. */
     unsigned int prev_recv_level;
@@ -270,14 +270,14 @@ struct afskmdm_filter {
     float min_certainty;
 
     /*
-     * Current position in the input, holds this value between sample
+     * Current position in the input, holds this value between frame
      * processing.  Values from 0 to in_convsize-1 are in the prevread
      * buffer, greater values index into the current received buffer.
      */
     unsigned int curr_in_pos;
 
     /*
-     * 2 * in_convsize samples from end of the previous buffer.
+     * 2 * in_convsize frames from end of the previous buffer.
      */
     unsigned char *prevread;
     unsigned int prevread_size;
@@ -310,7 +310,6 @@ struct afskmdm_filter {
 
 #define NR_WRITE_BUFS 2
     gensiods max_write_size;
-    gensiods write_pos;
     struct wrbuf wrbufs[NR_WRITE_BUFS];
     unsigned int curr_wrbuf;
     unsigned int nr_wrbufs;
@@ -339,6 +338,7 @@ struct afskmdm_filter {
     struct xmit_entry *xmit_ent_list;
 
     unsigned char *xmit_buf;
+    gensiods write_pos;
     gensiods xmit_buf_pos;
     gensiods xmit_buf_len;
     gensiods max_xmit_buf;
@@ -674,9 +674,9 @@ afskmdm_send_buffer(struct afskmdm_filter *sfilter,
     struct gensio_sg sg;
 
     sg.buf = (sfilter->xmit_buf +
-	      (sfilter->xmit_buf_pos * sfilter->out_samplesize));
+	      (sfilter->xmit_buf_pos * sfilter->out_framesize));
     sg.buflen = ((sfilter->xmit_buf_len - sfilter->xmit_buf_pos) *
-		 sfilter->out_samplesize);
+		 sfilter->out_framesize);
     rv = handler(cb_data, &count, &sg, 1, NULL);
     if (rv) {
 	sfilter->err = rv;
@@ -688,7 +688,7 @@ afskmdm_send_buffer(struct afskmdm_filter *sfilter,
 	    sfilter->xmit_buf_len = 0;
 	    sfilter->xmit_buf_pos = 0;
 	} else {
-	    sfilter->xmit_buf_pos += count / sfilter->out_samplesize;
+	    sfilter->xmit_buf_pos += count / sfilter->out_framesize;
 	}
     }
 }
@@ -946,17 +946,17 @@ afskmdm_measure_power(struct afskmdm_filter *sfilter,
  * in_convsize floats are the sin table, the second 2 * in_convsize floats
  * are the cosine table.
  *
- * The data comes in two chunks, buf1 is 2 * in_convsize samples at the
- * beginning, buf2 is chunksize samples after that.
+ * The data comes in two chunks, buf1 is 2 * in_convsize frames at the
+ * beginning, buf2 is chunksize frames after that.
  *
  * buf is an array of floats.  So we have to cast it.  The data may be
- * interleaved, meaning that samples from multiple channels may be in
+ * interleaved, meaning that frames from multiple channels may be in
  * it.  We only care about one channel.  So we have to multiply by the
  * number of channels and add the channel offset.
  *
- * Each convolution is done on in_convsize samples of data.  The first
+ * Each convolution is done on in_convsize frames of data.  The first
  * in_convsize bytes is processed and put into p[0] (power at the given
- * frequency).  If edge > 0, then samples 1-(in_convsize+1) are processed
+ * frequency).  If edge > 0, then frames 1-(in_convsize+1) are processed
  * and put into p[1], and so on.  (This is done more efficiently by
  * tracking some values, subtracting off the beginning, and adding on
  * the end).
@@ -1106,8 +1106,8 @@ afskmdm_handle_new_message(struct afskmdm_filter *sfilter, unsigned int pos,
 
     if (sfilter->debug & 1) {
 	afskmdm_print_msg(sfilter, msgn, w, true);
-	printf("    bitpos %d  endsample %lu\n", w->curr_bit_pos,
-	       sfilter->samplenr + pos - sfilter->prevread_size);
+	printf("    bitpos %d  endframe %lu\n", w->curr_bit_pos,
+	       sfilter->framenr + pos - sfilter->prevread_size);
     }
 
     /*
@@ -1255,7 +1255,7 @@ afskmdm_process_bit(struct afskmdm_filter *sfilter, unsigned int pos,
 
     if (sfilter->debug & 2)
 	printf("BIT(%u %u %lu): l:%d b:%d %f  (%d)\n", wset, msgn,
-	       sfilter->samplenr + pos - sfilter->prevread_size,
+	       sfilter->framenr + pos - sfilter->prevread_size,
 	       level, bit, certainty, w->state);
 
     prev_num_rcv_1 = w->num_rcv_1;
@@ -1329,7 +1329,7 @@ afskmdm_process_bit(struct afskmdm_filter *sfilter, unsigned int pos,
 }
 
 /*
- * We have a set of samples.  Look through them all and choose the one
+ * We have a set of frames.  Look through them all and choose the one
  * with the most certainty.
  */
 static void
@@ -1386,7 +1386,7 @@ afskmdm_check_for_data(struct afskmdm_filter *sfilter, unsigned int *curpos,
     if (sfilter->debug & 2) {
 	printf("CONV(%lu %u %lu):\n",
 	       sfilter->framecount++, *curpos,
-	       sfilter->samplenr + *curpos - sfilter->prevread_size);
+	       sfilter->framenr + *curpos - sfilter->prevread_size);
 	for (i = 0; i < CONVEXTRA; i++)
 	    printf(" %f", pmark[i]);
 	printf("\n %d      ", level);
@@ -1507,7 +1507,7 @@ afskmdm_ll_write(struct gensio_filter *filter,
     if (buflen == 0)
 	goto try_deliver;
 
-    if (buflen != (gensiods) sfilter->in_chunksize * sfilter->in_samplesize)
+    if (buflen != (gensiods) sfilter->in_chunksize * sfilter->in_framesize)
 	return GE_INVAL;
 
     if (sfilter->filteredbuf) {
@@ -1520,7 +1520,7 @@ afskmdm_ll_write(struct gensio_filter *filter,
     }
 
     if (sfilter->debug & 2)
-	printf("Processing sample %lu %d %u\n", sfilter->samplenr,
+	printf("Processing frame %lu %d %u\n", sfilter->framenr,
 	       sfilter->transmit_state, pos);
     if (sfilter->transmit_state > WAITING_TRANSMIT) {
 	sfilter->curr_in_pos = sfilter->prevread_size;
@@ -1568,12 +1568,12 @@ afskmdm_ll_write(struct gensio_filter *filter,
     }
     sfilter->curr_in_pos = pos - sfilter->in_chunksize;
  skip_processing:
-    sfilter->samplenr += sfilter->in_chunksize;
+    sfilter->framenr += sfilter->in_chunksize;
 
     memcpy(sfilter->prevread,
-	   buf + (sfilter->in_samplesize *
+	   buf + (sfilter->in_framesize *
 		  (sfilter->in_chunksize - sfilter->prevread_size)),
-	   (size_t) sfilter->prevread_size * sfilter->in_samplesize);
+	   (size_t) sfilter->prevread_size * sfilter->in_framesize);
 
  try_deliver:
     if (rcount)
@@ -1917,8 +1917,8 @@ struct gensio_afskmdm_data {
     float space_freq;
     unsigned int data_rate;
     unsigned int debug;
-    unsigned int in_samplerate;
-    unsigned int out_samplerate;
+    unsigned int in_framerate;
+    unsigned int out_framerate;
     unsigned int in_chunksize;
     unsigned int out_chunksize;
     unsigned int max_wmsgs;
@@ -1944,7 +1944,7 @@ afskmdm_setup_transmit(struct afskmdm_filter *sfilter,
     unsigned int i;
     struct xmit_entry *e;
 
-    sfilter->mark_xmit_len = data->out_samplerate / data->mark_freq * 2 + 1;
+    sfilter->mark_xmit_len = data->out_framerate / data->mark_freq * 2 + 1;
     if (sfilter->mark_xmit_len < 2 * sfilter->out_bitsize + 1)
 	sfilter->mark_xmit_len = 2 * sfilter->out_bitsize + 1;
     sfilter->mark_xmit = o->zalloc(o, sizeof(float) * sfilter->mark_xmit_len);
@@ -1955,7 +1955,7 @@ afskmdm_setup_transmit(struct afskmdm_filter *sfilter,
 	sfilter->mark_xmit[i] = sin(v / fbitsize) * data->volume;
     }
 
-    sfilter->space_xmit_len = data->out_samplerate / data->space_freq * 2 + 1;
+    sfilter->space_xmit_len = data->out_framerate / data->space_freq * 2 + 1;
     if (sfilter->space_xmit_len < 2 * sfilter->out_bitsize + 1)
 	sfilter->space_xmit_len = 2 * sfilter->out_bitsize + 1;
     sfilter->space_xmit = o->zalloc(o, sizeof(float) * sfilter->space_xmit_len);
@@ -1997,8 +1997,8 @@ gensio_afskmdm_filter_raw_alloc(struct gensio_os_funcs *o,
     sfilter->out_nchans = data->out_nchans;
     sfilter->in_chan = data->in_chan;
     sfilter->out_chans = data->out_chans;
-    sfilter->in_samplesize = sizeof(float) * data->in_nchans;
-    sfilter->out_samplesize = sizeof(float) * data->out_nchans;
+    sfilter->in_framesize = sizeof(float) * data->in_nchans;
+    sfilter->out_framesize = sizeof(float) * data->out_nchans;
     sfilter->max_write_size = data->max_write_size;
     sfilter->max_read_size = data->max_read_size;
     sfilter->debug = data->debug;
@@ -2035,14 +2035,14 @@ gensio_afskmdm_filter_raw_alloc(struct gensio_os_funcs *o,
      * convolution tables with the actual floating point value, and we
      * use that for adjust calculation, so get that here, too.
      */
-    sfilter->in_convsize = ((data->in_samplerate + data->data_rate / 2)
+    sfilter->in_convsize = ((data->in_framerate + data->data_rate / 2)
 			    / data->data_rate);
     sfilter->in_conv_time = (GENSIO_SECS_TO_NSECS(sfilter->in_convsize) /
-			     data->in_samplerate);
-    fconvsize = (float) data->in_samplerate / data->data_rate;
-    if (data->in_samplerate % data->data_rate != 0) {
+			     data->in_framerate);
+    fconvsize = (float) data->in_framerate / data->data_rate;
+    if (data->in_framerate % data->data_rate != 0) {
 	/*
-	 * Calculate how often to adjust for the sample rate not being
+	 * Calculate how often to adjust for the frame rate not being
 	 * evenly divisible by the data rate.  If we rounded convsize
 	 * up, then it needs to be adjusted down periodically,
 	 * otherwise we adjust up.
@@ -2055,7 +2055,7 @@ gensio_afskmdm_filter_raw_alloc(struct gensio_os_funcs *o,
 	 */
 	float err = fconvsize - truncf(fconvsize);
 
-	if (sfilter->in_convsize > data->in_samplerate / data->data_rate) {
+	if (sfilter->in_convsize > data->in_framerate / data->data_rate) {
 	    /* We rounded up. */
 	    err = 1. - err;
 	    sfilter->in_conv_adj = -1;
@@ -2065,14 +2065,14 @@ gensio_afskmdm_filter_raw_alloc(struct gensio_os_funcs *o,
 	sfilter->in_conv_period = (unsigned int) ((1. / err) + 0.5);
     }
 
-    sfilter->out_bitsize = ((data->out_samplerate + data->data_rate / 2)
+    sfilter->out_bitsize = ((data->out_framerate + data->data_rate / 2)
 			    / data->data_rate);
     sfilter->out_bit_time = (GENSIO_SECS_TO_NSECS(sfilter->out_bitsize) /
-			     data->out_samplerate);
-    fbitsize = (float) data->out_samplerate / data->data_rate;
-    if (data->out_samplerate % data->data_rate != 0) {
+			     data->out_framerate);
+    fbitsize = (float) data->out_framerate / data->data_rate;
+    if (data->out_framerate % data->data_rate != 0) {
 	/*
-	 * Calculate how often to adjust for the sample rate not being
+	 * Calculate how often to adjust for the frame rate not being
 	 * evenly divisible by the data rate.  If we rounded convsize
 	 * up, then it needs to be adjusted down periodically,
 	 * otherwise we adjust up.
@@ -2086,7 +2086,7 @@ gensio_afskmdm_filter_raw_alloc(struct gensio_os_funcs *o,
 	float err = fbitsize - truncf(fbitsize);
 
 	sfilter->max_out_bitsize = sfilter->out_bitsize;
-	if (sfilter->out_bitsize > data->out_samplerate / data->data_rate) {
+	if (sfilter->out_bitsize > data->out_framerate / data->data_rate) {
 	    /* We rounded up. */
 	    err = 1. - err;
 	    sfilter->out_bit_adj = -1;
@@ -2126,18 +2126,18 @@ gensio_afskmdm_filter_raw_alloc(struct gensio_os_funcs *o,
     }
 
     if (data->lpcutoff) {
-	afskmdm_calc_iir_coefs(data->in_samplerate, data->lpcutoff,
+	afskmdm_calc_iir_coefs(data->in_framerate, data->lpcutoff,
 			       sfilter->coefa, sfilter->coefb);
 
 	sfilter->filteredbuf = o->zalloc(o,
-		(gensiods) sfilter->in_samplesize * sfilter->in_chunksize);
+		(gensiods) sfilter->in_framesize * sfilter->in_chunksize);
 	if (!sfilter->filteredbuf)
 	    goto out_nomem;
     }
 
     sfilter->prevread_size = sfilter->in_convsize * 2 + CONVEDGE;
     sfilter->prevread = o->zalloc(o,
-		(gensiods) sfilter->in_samplesize * sfilter->prevread_size);
+		(gensiods) sfilter->in_framesize * sfilter->prevread_size);
     if (!sfilter->prevread)
 	goto out_nomem;
     sfilter->curr_in_pos = sfilter->prevread_size;
@@ -2172,7 +2172,7 @@ gensio_afskmdm_filter_raw_alloc(struct gensio_os_funcs *o,
 
     sfilter->max_xmit_buf = sfilter->out_chunksize;
     sfilter->xmit_buf = o->zalloc(o,
-		(gensiods) sfilter->out_chunksize * sfilter->out_samplesize);
+		(gensiods) sfilter->out_chunksize * sfilter->out_framesize);
     if (!sfilter->xmit_buf)
 	goto out_nomem;
 
@@ -2181,7 +2181,7 @@ gensio_afskmdm_filter_raw_alloc(struct gensio_os_funcs *o,
     if (!sfilter->filter)
 	goto out_nomem;
 
-    sfilter->nsec_per_frame = (((float) 1) / (float) data->out_samplerate *
+    sfilter->nsec_per_frame = (((float) 1) / (float) data->out_framerate *
 			       (float) GENSIO_NSECS_IN_SEC);
     if (afskmdm_setup_transmit(sfilter, data, fbitsize))
 	goto out_nomem;
@@ -2233,8 +2233,8 @@ gensio_afskmdm_filter_alloc(struct gensio_os_funcs *o,
 	.mark_freq = 1200.,
 	.space_freq = 2200.,
 	.data_rate = 1200,
-	.in_samplerate = 0,
-	.out_samplerate = 0,
+	.in_framerate = 0,
+	.out_framerate = 0,
 	.in_chunksize = 0,
 	.out_chunksize = 0,
 	.max_wmsgs = 32,
@@ -2266,9 +2266,9 @@ gensio_afskmdm_filter_alloc(struct gensio_os_funcs *o,
 
     /* Don't care if these fail, we will check later. */
     afskmdm_child_getuint(child, GENSIO_CONTROL_IN_RATE,
-			  &data.in_samplerate);
+			  &data.in_framerate);
     afskmdm_child_getuint(child, GENSIO_CONTROL_OUT_RATE,
-			  &data.out_samplerate);
+			  &data.out_framerate);
     afskmdm_child_getuint(child, GENSIO_CONTROL_IN_NR_CHANS,
 			  &data.in_nchans);
     afskmdm_child_getuint(child, GENSIO_CONTROL_OUT_NR_CHANS,
@@ -2312,15 +2312,15 @@ gensio_afskmdm_filter_alloc(struct gensio_os_funcs *o,
 	    continue;
 	}
 	if (gensio_check_keyuint(args[i], "samplerate",
-				 &data.in_samplerate) > 0) {
-	    data.out_samplerate = data.in_samplerate;
+				 &data.in_framerate) > 0) {
+	    data.out_framerate = data.in_framerate;
 	    continue;
 	}
 	if (gensio_check_keyuint(args[i], "in_samplerate",
-				 &data.in_samplerate) > 0)
+				 &data.in_framerate) > 0)
 	    continue;
 	if (gensio_check_keyuint(args[i], "out_samplerate",
-				 &data.in_samplerate) > 0)
+				 &data.in_framerate) > 0)
 	    continue;
 	if (gensio_check_keyuint(args[i], "wmsgs", &data.max_wmsgs) > 0)
 	    continue;
@@ -2355,7 +2355,7 @@ gensio_afskmdm_filter_alloc(struct gensio_os_funcs *o,
 	return GE_INVAL;
     }
 
-    if (data.in_samplerate == 0 || data.out_samplerate == 0 ||
+    if (data.in_framerate == 0 || data.out_framerate == 0 ||
 		data.in_chunksize == 0 || data.out_chunksize == 0 ||
 		data.in_nchans == 0 || data.out_nchans == 0 ||
 		data.in_chan >= data.in_nchans ||
