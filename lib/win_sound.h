@@ -446,13 +446,11 @@ gensio_sound_win_close_one(struct sound_info *si)
 {
     struct sound_ll *soundll = si->soundll;
 
-    gensio_sound_ll_lock(soundll);
     soundll->nr_waiting_close--;
     if (soundll->nr_waiting_close == 0) {
 	soundll->do_close_now = true;
 	gensio_sound_sched_deferred_op(soundll);
     }
-    gensio_sound_ll_unlock(soundll);
 }
 
 static void
