@@ -882,6 +882,9 @@ afskmdm_handle_send(struct afskmdm_filter *sfilter,
 		unsigned int cbuf = sfilter->curr_wrbuf;
 
 		if (sfilter->write_pos >= sfilter->wrbufs[cbuf].len) {
+		    if (sfilter->bitstuff)
+			/* We need to send the last bitstuff. */
+			break;
 		    sfilter->write_pos = 0;
 		    sfilter->transmit_state = SENDING_POSTAMBLE;
 		    sfilter->wrbyte = 0x7e;
@@ -1184,9 +1187,10 @@ afskmdm_handle_new_message(struct afskmdm_filter *sfilter, unsigned int pos,
 
     /*
      * If the bit position is 6, that means there was no extra data
-     * bits data left after the last flag.
+     * bits data left after the last flag.  Also, allow 5 in case the
+     * sender didn't stuff the last bit in a message.
      */
-    if (w->curr_bit_pos != 6)
+    if (w->curr_bit_pos != 6 && w->curr_bit_pos != 5)
 	goto bad_msg;
 
     crc = 0xffff;
