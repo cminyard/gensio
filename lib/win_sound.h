@@ -263,10 +263,13 @@ gensio_sound_win_process_read_buffer(struct sound_info *si)
 	whdr->dwFlags = 0;
 	hdr->in_driver = true;
 	w->num_bufs_in_driver++;
+	gensio_sound_ll_unlock(si->soundll);
+	/* Like write, this will deadlock if called with the lock held. */
 	assert(waveInPrepareHeader(w->inh, whdr, sizeof(WAVEHDR)) ==
 	       MMSYSERR_NOERROR);
 	assert(waveInAddBuffer(w->inh, whdr, sizeof(WAVEHDR)) ==
 	       MMSYSERR_NOERROR);
+	gensio_sound_ll_lock(si->soundll);
     }
 }
 
