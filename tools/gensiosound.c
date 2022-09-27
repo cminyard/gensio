@@ -182,11 +182,9 @@ help(int err)
     printf("Sound goes to/from the given device.\n");
     printf("\noptions are:\n");
     printf("  -r, --rate <n> - The sample rate, defaults to 44100\n");
-    printf("  -n, --nbufs <n> - The number of buffers, defaults to 4\n");
+    printf("  -n, --nbufs <n> - The number of buffers, defaults to 100\n");
     printf("  -c, --channels <n> - The number of channels, defaults to 1\n");
     printf("  -s, --bufsize <n> - The buffer size, defaults to 2048\n");
-    printf("  -w, --hwbufsize <n> - The driver buffer size, defaults to"
-	   " 0 (use the default value).\n");
     printf("  -t, --type <n> - The interface type, either alsa (Linux),\n"
 	   "    win (Windows), or file.  Default to alsa or win.\n");
     printf("  -f, --format <str> - The I/O format.  Default to float.  May\n"
@@ -206,9 +204,8 @@ main(int argc, char *argv[])
     int rv, arg;
     struct gensio_os_proc_data *proc_data;
     unsigned int bufsize = 2048;
-    unsigned int hwbufsize = 0;
     unsigned int sample_rate = 44100;
-    unsigned int num_bufs = 4;
+    unsigned int num_bufs = 100;
     struct gensio *io;
     struct gensio_waiter *waiter;
     char *gensiostr;
@@ -237,9 +234,6 @@ main(int argc, char *argv[])
 	    ;
 	else if ((rv = cmparg_uint(argc, argv, &arg, "-s", "--bufsize",
 				   &bufsize)))
-	    ;
-	else if ((rv = cmparg_uint(argc, argv, &arg, "-w", "--hwbufsize",
-				   &hwbufsize)))
 	    ;
 	else if ((rv = cmparg(argc, argv, &arg, "-t", "--type", &devtype)))
 	    ;
@@ -315,11 +309,11 @@ main(int argc, char *argv[])
     }
 
     gensiostr = alloc_sprintf("sound(rate=%u,%schans=%u,bufsize=%u,nbufs=%u,"
-			      "format=%s%s%s,hwbufsize=%u),%s",
+			      "format=%s%s%s),%s",
 			      sample_rate, play ? "out" : "in",
 			      channels, bufsize, num_bufs, format,
 			      devtype ? ",type=" : "", devtype ? devtype : "",
-			      hwbufsize, argv[arg]);
+			      argv[arg]);
     if (!gensiostr) {
 	fprintf(stderr, "Could not allocate gensio string\n");
 	return 1;
