@@ -301,11 +301,11 @@ struct afskmdm_filter {
     unsigned int send_count;
 
     enum { NOT_SENDING,
-	   WAITING_KEYOFF,
 	   WAITING_TRANSMIT,
 	   SENDING_PREAMBLE,
 	   SENDING_MSG,
-	   SENDING_POSTAMBLE } transmit_state;
+	   SENDING_POSTAMBLE,
+	   WAITING_ENDXMIT } transmit_state;
 
     bool starting_output_ready;
 
@@ -343,6 +343,8 @@ struct afskmdm_filter {
     gensiods xmit_buf_pos;
     gensiods xmit_buf_len;
     gensiods max_xmit_buf;
+
+    unsigned int num_bytes_sent_this_xmit;
 
     enum {
 	KEY_CLOSED,
@@ -667,12 +669,12 @@ afskmdm_try_disconnect(struct gensio_filter *filter, gensio_time *timeout,
 static void
 afskmdm_start_xmit(struct afskmdm_filter *sfilter)
 {
+    sfilter->num_bytes_sent_this_xmit = 0;
     sfilter->transmit_state = SENDING_PREAMBLE;
     sfilter->wrbyte = 0x7e;
     sfilter->wrbyte_bit = 0;
     sfilter->send_count = (sfilter->tx_preamble_time /
 			   sfilter->out_bit_time / 8);
-    sfilter->num_xmit_1 = 0;
     sfilter->bitstuff = false;
     sfilter->starting_output_ready = true;
     if (sfilter->key_io) {
@@ -702,7 +704,7 @@ afskmdm_start_drain_timer(struct afskmdm_filter *sfilter)
     frames_left = strtoul(buf, NULL, 0);
 
     /*
-     * Set a timer to know when to turn off the transmitter.
+     * Set a timer to know when we are done transmitting.
      */
     timeoutns = frames_left * sfilter->nsec_per_frame;
     timeout.secs = timeoutns / GENSIO_NSECS_IN_SEC;
@@ -718,12 +720,12 @@ afskmdm_timeout_done(struct gensio_filter *filter)
     struct afskmdm_filter *sfilter = filter_to_afskmdm(filter);
 
     afskmdm_lock(sfilter);
+    if (sfilter->nr_wrbufs > 0) {
+	sfilter->transmit_state = WAITING_TRANSMIT;
+    } else {
+	sfilter->transmit_state = NOT_SENDING;
+    }
     if (sfilter->keyed) {
-	if (sfilter->nr_wrbufs > 0)
-	    sfilter->transmit_state = WAITING_TRANSMIT;
-	else
-	    sfilter->transmit_state = NOT_SENDING;
-
 	gensio_write(sfilter->key_io, NULL,
 		     sfilter->keyoff, strlen(sfilter->keyoff), NULL);
 	sfilter->keyed = false;
@@ -746,6 +748,10 @@ afskmdm_check_start_xmit(struct afskmdm_filter *sfilter)
 	afskmdm_start_xmit(sfilter);
     } else {
 	sfilter->start_xmit_delay_count++;
+	if (sfilter->curr_in_pos < sfilter->tx_delay / 10)
+	    sfilter->curr_in_pos = 0;
+	else
+	    sfilter->curr_in_pos -= sfilter->tx_delay / 10;
     }
 }
 
@@ -843,7 +849,7 @@ afskmdm_handle_send(struct afskmdm_filter *sfilter,
 	afskmdm_send_buffer(sfilter, handler, cb_data);
 	if (sfilter->xmit_buf_len > 0)
 	    goto out;
-	if (sfilter->transmit_state == WAITING_KEYOFF)
+	if (sfilter->transmit_state == WAITING_ENDXMIT)
 	    afskmdm_start_drain_timer(sfilter);
     }
     while (sfilter->transmit_state > WAITING_TRANSMIT) {
@@ -856,12 +862,14 @@ afskmdm_handle_send(struct afskmdm_filter *sfilter,
 	    if (sfilter->xmit_buf_len > 0)
 		goto out;
 	}
-	if (sfilter->wrbyte_bit >= 8) {
+
+	/* Make sure to send the last bitstuff. */
+	if (!sfilter->bitstuff && sfilter->wrbyte_bit >= 8) {
 	    sfilter->wrbyte_bit = 0;
 	    switch (sfilter->transmit_state) {
 	    case NOT_SENDING:
 	    case WAITING_TRANSMIT:
-	    case WAITING_KEYOFF:
+	    case WAITING_ENDXMIT:
 		goto out; /* Should not happen. */
 
 	    case SENDING_PREAMBLE:
@@ -871,8 +879,10 @@ afskmdm_handle_send(struct afskmdm_filter *sfilter,
 		} else {
 		    unsigned int cbuf = sfilter->curr_wrbuf;
 
+		    sfilter->num_bytes_sent_this_xmit++;
 		    sfilter->wrbyte = sfilter->wrbufs[cbuf].data[0];
 		    sfilter->write_pos = 1;
+		    sfilter->num_xmit_1 = 0;
 		    sfilter->transmit_state = SENDING_MSG;
 		    /* All messages are at least 3 bytes, no check for done. */
 		}
@@ -882,19 +892,30 @@ afskmdm_handle_send(struct afskmdm_filter *sfilter,
 		unsigned int cbuf = sfilter->curr_wrbuf;
 
 		if (sfilter->write_pos >= sfilter->wrbufs[cbuf].len) {
-		    if (sfilter->bitstuff)
-			/* We need to send the last bitstuff. */
-			break;
 		    sfilter->write_pos = 0;
-		    sfilter->transmit_state = SENDING_POSTAMBLE;
-		    sfilter->wrbyte = 0x7e;
-		    sfilter->send_count = (sfilter->tx_postamble_time /
-					   sfilter->out_bit_time / 8);
 		    sfilter->curr_wrbuf = (cbuf + 1) % NR_WRITE_BUFS;
 		    sfilter->nr_wrbufs--;
+
+		    if (sfilter->nr_wrbufs > 0 &&
+				sfilter->num_bytes_sent_this_xmit < 128) {
+			/*
+			 * We haven't sent too many bytes, and we have
+			 * another message.  Just throw in a couple of
+			 * flags and start it.
+			 */
+			sfilter->transmit_state = SENDING_PREAMBLE;
+			sfilter->wrbyte = 0x7e;
+			sfilter->send_count = 2;
+		    } else {
+			sfilter->transmit_state = SENDING_POSTAMBLE;
+			sfilter->wrbyte = 0x7e;
+			sfilter->send_count = (sfilter->tx_postamble_time /
+					       sfilter->out_bit_time / 8);
+		    }
 		} else {
 		    unsigned int pos = sfilter->write_pos++;
 
+		    sfilter->num_bytes_sent_this_xmit++;
 		    sfilter->wrbyte = sfilter->wrbufs[cbuf].data[pos];
 		}
 		break;
@@ -906,22 +927,16 @@ afskmdm_handle_send(struct afskmdm_filter *sfilter,
 		    sfilter->wrbyte = 0x7e;
 		} else {
 		    sfilter->nr_out_sync = 0;
-		    if (sfilter->keyed) {
-			sfilter->transmit_state = WAITING_KEYOFF;
-			if (sfilter->xmit_buf_len == 0)
-			    /*
-			     * No more data to send, start the timer now.
-			     */
-			    afskmdm_start_drain_timer(sfilter);
+		    sfilter->transmit_state = WAITING_ENDXMIT;
+		    if (sfilter->xmit_buf_len == 0)
 			/*
-			 * Otherwise, start the timer when all
-			 * the data has been sent.
+			 * No more data to send, start the timer now.
 			 */
-		    } else if (sfilter->nr_wrbufs > 0) {
-			sfilter->transmit_state = WAITING_TRANSMIT;
-		    } else {
-			sfilter->transmit_state = NOT_SENDING;
-		    }
+			afskmdm_start_drain_timer(sfilter);
+		    /*
+		     * Otherwise, start the timer when all
+		     * the data has been sent.
+		     */
 		    goto out;
 		}
 		break;
