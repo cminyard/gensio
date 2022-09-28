@@ -114,7 +114,7 @@ struct wmsg {
     enum afskmdm_state state;
 
     /* Level we received last time. */
-    unsigned char prev_level;
+    unsigned char prev_recv_level;
 
     /*
      * Current byte/bit the receiver is assembling.
@@ -317,7 +317,6 @@ struct afskmdm_filter {
     unsigned char wrbyte;
     unsigned char wrbyte_bit;
     unsigned int send_countdown;
-    unsigned char prev_wrlevel;
 
     /* Count the message 1's transmitted to know when to bit stuff. */
     unsigned int num_xmit_1;
@@ -1293,7 +1292,7 @@ afskmdm_process_bit(struct afskmdm_filter *sfilter, unsigned int pos,
 		w2->certainty = alt_certainty;
 		w2->num_uncertain = w->num_uncertain;
 		w2->num_rcv_1 = w->num_rcv_1;
-		w2->prev_level = w->prev_level;
+		w2->prev_recv_level = w->prev_recv_level;
 		w2->state = w->state;
 		w2->curr_byte = w->curr_byte;
 		w2->curr_bit_pos = w->curr_bit_pos;
@@ -1343,8 +1342,8 @@ afskmdm_process_bit(struct afskmdm_filter *sfilter, unsigned int pos,
      * The bit is 0 if the frequency changed, 1 if the frequency
      * stayed the same.
      */
-    bit = level == w->prev_level;
-    w->prev_level = level;
+    bit = level == w->prev_recv_level;
+    w->prev_recv_level = level;
 
     if (sfilter->debug & 2)
 	printf("BIT(%u %u %lu): l:%d b:%d %f  (%d)\n", wset, msgn,
