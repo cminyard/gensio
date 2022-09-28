@@ -301,11 +301,11 @@ struct afskmdm_filter {
     unsigned int send_count;
 
     enum { NOT_SENDING,
-	   WAITING_TRANSMIT,
+	   WAITING_ENDXMIT,
+	   WAITING_TRANSMIT, /* We will not transmit here and before. */
 	   SENDING_PREAMBLE,
 	   SENDING_MSG,
-	   SENDING_POSTAMBLE,
-	   WAITING_ENDXMIT } transmit_state;
+	   SENDING_POSTAMBLE } transmit_state;
 
     bool starting_output_ready;
 
