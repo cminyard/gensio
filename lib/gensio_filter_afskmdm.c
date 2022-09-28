@@ -852,14 +852,16 @@ afskmdm_handle_send(struct afskmdm_filter *sfilter,
 	    afskmdm_start_drain_timer(sfilter);
     }
     while (sfilter->transmit_state > WAITING_TRANSMIT) {
-	afskmdm_add_wrbit(sfilter);
-	if (sfilter->xmit_buf_len >=
+	if (sfilter->bitstuff || sfilter->wrbyte_bit < 8) {
+	    afskmdm_add_wrbit(sfilter);
+	    if (sfilter->xmit_buf_len >=
 			sfilter->max_xmit_buf - sfilter->max_out_bitsize) {
-	    afskmdm_send_buffer(sfilter, handler, cb_data);
-	    if (sfilter->err)
-		goto out;
-	    if (sfilter->xmit_buf_len > 0)
-		goto out;
+		afskmdm_send_buffer(sfilter, handler, cb_data);
+		if (sfilter->err)
+		    goto out;
+		if (sfilter->xmit_buf_len > 0)
+		    goto out;
+	    }
 	}
 
 	/* Make sure to send the last bitstuff. */
@@ -2255,6 +2257,7 @@ gensio_afskmdm_filter_raw_alloc(struct gensio_os_funcs *o,
 	goto out_nomem;
 
     for (i = 0; i < NR_WRITE_BUFS; i++) {
+	/* Add 2 to allow for the CRC to be added. */
 	sfilter->wrbufs[i].data = o->zalloc(o, sfilter->max_write_size + 2);
 	if (!sfilter->wrbufs[i].data)
 	    goto out_nomem;
