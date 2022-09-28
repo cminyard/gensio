@@ -1668,8 +1668,6 @@ afskmdm_ll_write(struct gensio_filter *filter,
 	   (size_t) sfilter->prevread_size * sfilter->in_framesize);
 
  try_deliver:
-    if (rcount)
-	*rcount = buflen;
     if (sfilter->deliver_data_len > 0) {
 	gensiods count = 0;
 
@@ -1685,11 +1683,11 @@ afskmdm_ll_write(struct gensio_filter *filter,
 	    else
 		sfilter->deliver_data_pos += count;
 	}
-	afskmdm_unlock(sfilter);
-	return err;
     }
  out_err:
     afskmdm_unlock(sfilter);
+    if (!err && rcount)
+	*rcount = buflen;
     return err;
 }
 
