@@ -219,9 +219,6 @@ gensio_sound_win_process_read_buffer(struct sound_info *si)
     hdr = w->head;
     whdr = &hdr->whdr;
 
-    assert(waveInUnprepareHeader(w->inh, whdr, sizeof(WAVEHDR)) ==
-	   MMSYSERR_NOERROR);
-
     len = whdr->dwBytesRecorded; /* In bytes. */
 
     ibuf = (unsigned char *) whdr->lpData;
@@ -265,6 +262,8 @@ gensio_sound_win_process_read_buffer(struct sound_info *si)
 	w->num_bufs_in_driver++;
 	gensio_sound_ll_unlock(si->soundll);
 	/* Like write, this will deadlock if called with the lock held. */
+	assert(waveInUnprepareHeader(w->inh, whdr, sizeof(WAVEHDR)) ==
+	       MMSYSERR_NOERROR);
 	assert(waveInPrepareHeader(w->inh, whdr, sizeof(WAVEHDR)) ==
 	       MMSYSERR_NOERROR);
 	assert(waveInAddBuffer(w->inh, whdr, sizeof(WAVEHDR)) ==
