@@ -2092,7 +2092,7 @@ gensio_afskmdm_filter_raw_alloc(struct gensio_os_funcs *o,
     sfilter->in_framesize = sizeof(float) * data->in_nchans;
     sfilter->out_framesize = sizeof(float) * data->out_nchans;
     sfilter->max_write_size = data->max_write_size;
-    sfilter->max_read_size = data->max_read_size;
+    sfilter->max_read_size = data->max_read_size + 2; /* Extra 2 for the CRC. */
     sfilter->debug = data->debug;
     sfilter->prev_xmit_level = -1;
     sfilter->prev_recv_level = 0;
