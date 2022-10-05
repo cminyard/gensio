@@ -835,11 +835,13 @@ v3_certauth_add_challenge_rsp(struct certauth_filter *sfilter)
     unsigned int lenpos, len;
     int rv = 0;
 
+#ifdef EVP_PKEY_ED25519
     if (EVP_PKEY_base_id(sfilter->pkey) == EVP_PKEY_ED25519) {
 	gca_log_err(sfilter,
 		    "Remote end or SSL too old to support ed25519 key");
 	return GE_KEYINVALID;
     }
+#endif
 
     certauth_write_byte(sfilter, CERTAUTH_CHALLENGE_RSP);
     lenpos = sfilter->write_buf_len;
@@ -898,8 +900,10 @@ certauth_add_challenge_rsp(struct certauth_filter *sfilter)
     if (sfilter->version < 4 || sfilter->my_version < 4)
 	return v3_certauth_add_challenge_rsp(sfilter);
 
+#ifdef EVP_PKEY_ED25519
     if (EVP_PKEY_base_id(sfilter->pkey) == EVP_PKEY_ED25519)
 	digest = NULL;
+#endif
 
     certauth_write_byte(sfilter, CERTAUTH_CHALLENGE_RSP);
     lenpos = sfilter->write_buf_len;
@@ -1045,8 +1049,10 @@ certauth_check_challenge(struct certauth_filter *sfilter)
 	goto out_nomem;
     }
 
+#ifdef EVP_PKEY_ED25519
     if (EVP_PKEY_base_id(pkey) == EVP_PKEY_ED25519)
 	digest = NULL;
+#endif
 
     if (!EVP_DigestVerifyInit(sign_ctx, NULL, digest, NULL, pkey)) {
 	gca_logs_err(sfilter, "Digest verify init failed");
