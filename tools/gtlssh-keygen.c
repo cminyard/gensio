@@ -108,7 +108,12 @@ help(const char *progname)
     P("        The default is your username for normal certificates and\n");
     P("        the fully qualified domain name for server certificates.\n");
     P("  --algorithm <algname> - Set the algorithm to use for the key,\n");
-    P("        either ed25519, rsa or ec.  The default is ed25519.\n");
+    P("        either ed25519, rsa or ec.  ");
+#ifdef EVP_PKEY_ED25519
+    P("The default is ed25519.\n");
+#else
+    P("The default is ec.\n");
+#endif
     P("  --force, -f - Don't ask questions, just do the operation.  This\n");
     P("        may overwrite data without asking.\n");
     P("  --version - Print the version number and exit.\n");
@@ -831,7 +836,11 @@ genpkey_ed25519(const char *key)
     return rc != 0;
 }
 
+#ifdef EVP_PKEY_ED25519
 static int (*genpkey)(const char *key) = genpkey_ed25519;
+#else
+static int (*genpkey)(const char *key) = genpkey_ec;
+#endif
 
 /*
  * Create a single key.  If name is NULL, it's a server key, otherwise
