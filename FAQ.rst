@@ -72,3 +72,16 @@ Here are some answer to questions about gensio.
   Of course.  Full support.  The documentation describes how to use
   it.  The library tries to make unsurprising decisions, but
   everything can be overridden.
+
+* How to run gtlsshd on Windows
+
+  gtlsshd works on Windows, but you must run as System or LocalSystem for the
+  proper privileges.  Normally you would start it with Task Scheduler, which
+  has that option, but if you want to run it by hand for testing or debugging,
+  you need to do the following:
+
+  * Run a command prompt as an administrator.
+  * Run "psexec -sid cmd".  This will open a new window running as System.
+  * PATH=C:\msys64\mingw64\sbin;C:\msys64\mingw64\bin;%PATH%
+  * gtlsshd -d -d
+  * You can also run it in gdb for debugging.
