@@ -1947,27 +1947,7 @@ gensio_win_pty_alloc(struct gensio_os_funcs *o,
     HPCON ptyh = NULL;
     COORD winsize;
     HRESULT hr;
-    HANDLE imptokh = NULL;
     int err;
-
-    /*
-     * We can't create pipes or the pseudoconsole with the default
-     * token set because it can't access the default security token.
-     * Briefly go back to the main access token to do this.
-     */
-    if (!OpenThreadToken(GetCurrentThread(),
-			 TOKEN_ALL_ACCESS,
-			 TRUE,
-			 &imptokh)) {
-	if (GetLastError() != ERROR_NO_TOKEN)
-	    goto out_err_conv;
-    } else {
-	if (!RevertToSelf()) {
-	    CloseHandle(imptokh);
-	    imptokh = NULL;
-	    goto out_err_conv;
-	}
-    }
 
     if (!CreatePipe(&writeh_s, &writeh_m, NULL, 0))
 	goto out_err_conv;
@@ -1986,12 +1966,6 @@ gensio_win_pty_alloc(struct gensio_os_funcs *o,
 	else
 	    err = gensio_os_err_to_err(o, hr); /* Force an OS_ERR. */
 	goto out_err;
-    }
-
-    /* Go back to the impersonation token. */
-    if (imptokh) {
-	if (!SetThreadToken(NULL, imptokh))
-	    goto out_err_conv;
     }
 
     *child_in = writeh_s;
