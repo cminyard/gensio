@@ -1859,9 +1859,21 @@ gensio_os_proc_cleanup(struct gensio_os_proc_data *data)
 #endif
     sigaction(SIGCHLD, &data->old_sigchld, NULL);
 
+#ifdef __APPLE__
+    /* mac os workaround for sigtimedwait */
+    do {
+        sig = 0;
+        sigset_t pending;
+
+        sigpending(&pending);
+        if (sigismember(&pending, &data->check_sigs))
+            sigwait(&data->check_sigs, &sig);
+    } while (sig);
+#else
     /* Clear out any pending signals before we restore the mask. */
     while ((sig = sigtimedwait(&data->check_sigs, NULL, &zerotime)) > 0)
 	;
+#endif
 
     sigprocmask(SIG_SETMASK, &data->old_sigs, NULL);
 }
@@ -1879,7 +1891,20 @@ gensio_os_proc_check_handlers(struct gensio_os_proc_data *data)
      * missing a signal on a really busy system, check for signals
      * here.
      */
+#ifdef __APPLE__
+    /* mac os workaround for sigtimedwait */
+    while (1) {
+        sig = 0;
+        sigset_t pending;
+
+        sigpending(&pending);
+        if (sigismember(&pending, &data->check_sigs))
+            sigwait(&data->check_sigs, &sig);
+	else
+	    break;
+#else
     while ((sig = sigtimedwait(&data->check_sigs, NULL, &zerotime)) > 0) {
+#endif
 	switch(sig) {
 	case SIGCHLD:
 	    data->got_sigchld = true;
