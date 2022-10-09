@@ -31,10 +31,18 @@
 #define IS_LITTLE_ENDIAN (__BYTE_ORDER != __BIG_ENDIAN)
 
 #else /* BSD and others? */
+#if defined(__APPLE__)
+#include <machine/endian.h>
+#include <libkern/OSByteOrder.h>
+#define bswap_16 OSSwapInt16
+#define bswap_32 OSSwapInt32
+#define bswap_64 OSSwapInt64
+#else
 #include <sys/endian.h>
 #define bswap_16 bswap16
 #define bswap_32 bswap32
 #define bswap_64 bswap64
+#endif
 #define IS_BIG_ENDIAN (BYTE_ORDER == BIG_ENDIAN)
 #define IS_LITTLE_ENDIAN (BYTE_ORDER != BIG_ENDIAN)
 #endif
