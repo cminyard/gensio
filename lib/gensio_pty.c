@@ -555,6 +555,8 @@ pty_control(void *handler_data, struct gensio_iod *iod, bool get,
     case GENSIO_CONTROL_RADDR_BIN:
 	if (!get)
 	    return GE_NOTSUP;
+	if (!tdata->iod)
+	    return GE_NOTREADY;
 	if (*datalen >= sizeof(int))
 	    *((int *) data) = o->iod_get_fd(tdata->iod);
 	*datalen = sizeof(int);
@@ -575,6 +577,8 @@ pty_control(void *handler_data, struct gensio_iod *iod, bool get,
 
 	if (get)
 	    return GE_NOTSUP;
+	if (!tdata->iod)
+	    return GE_NOTREADY;
 
 	c = sscanf(data, "%d:%d:%d:%d", &ws.ws_row, &ws.ws_col,
 		   &ws.ws_xpixel, &ws.ws_ypixel);
