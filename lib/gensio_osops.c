@@ -1702,6 +1702,24 @@ print_sid(const char *str, SID *sid)
 }
 #endif
 
+static wchar_t *
+str_to_wstr(const char *str)
+{
+    DWORD nchars;
+    DWORD nbytes;
+    wchar_t *wstr;
+
+    if (!str)
+	return NULL;
+    nchars = mbstowcs(NULL, str, strlen(str));
+    nbytes = nchars * sizeof(wchar_t);
+    wstr = calloc(nbytes + sizeof(wchar_t), 1);
+    if (!wstr)
+	return NULL;
+    mbstowcs(wstr, str, nchars);
+    return wstr;
+}
+
 int
 gensio_win_get_user_token(const char *user, const char *password,
 			  const char *src_module, const char **groups,
@@ -1713,8 +1731,6 @@ gensio_win_get_user_token(const char *user, const char *password,
     void *logon_info = NULL;
     LSA_STRING package_name;
     ULONG package_auth;
-    DWORD user_chars = mbstowcs(NULL, user, strlen(user));
-    DWORD user_bytes = user_chars * sizeof(wchar_t);
     wchar_t *wuser = NULL;
     bool domain_user;
     DWORD logon_len;
@@ -1887,12 +1903,11 @@ gensio_win_get_user_token(const char *user, const char *password,
 
     profile_info.dwSize = sizeof(profile_info);
     profile_info.dwFlags = PI_NOUI;
-    wuser = calloc(user_bytes + sizeof(wchar_t), 1);
+    wuser = str_to_wstr(user);
     if (!wuser) {
 	err = STATUS_NO_MEMORY;
 	goto out_err;
     }
-    mbstowcs(wuser, user, user_chars);
     profile_info.lpUserName = wuser;
     if (!LoadUserProfileW(htok, &profile_info)) {
 	err = GetLastError();
