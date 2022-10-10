@@ -5,9 +5,10 @@ AM_CFLAGS = -DSYSCONFDIR="\"${sysconfdir}\"" -I$(top_builddir) \
 
 noinst_LIBRARIES = libgensiotool.a libgtlssh.a
 
-bin_PROGRAMS = gensiot @GMDNS@ @GTLSSH@ @GTLSSH_KEYGEN@ gsound
+bin_PROGRAMS = gensiot @GMDNS@ @GTLSSH@ @GTLSSH_KEYGEN@ gsound \
+	@GENSIO_PTY_HELPER@
 sbin_PROGRAMS = @GTLSSHD@
-EXTRA_PROGRAMS = gtlsshd gtlssh gmdns gtlssh-keygen
+EXTRA_PROGRAMS = gtlsshd gtlssh gmdns gtlssh-keygen gensio_pty_helper
 
 bin_SCRIPTS = @GTLSSYNC@ greflector
 EXTRA_SCRIPTS = gtlssync
@@ -51,6 +52,8 @@ gtlsshd_LDADD = libgtlssh.a libgensiotool.a $(top_builddir)/lib/libgensioosh.la\
 gsound_SOURCES = gensiosound.c
 gsound_LDADD = $(top_builddir)/lib/libgensioosh.la \
 	$(top_builddir)/lib/libgensio.la libgensiotool.a
+
+gensio_pty_helper_SOURCES = gensio_pty_helper.c
 
 manpages = gensiot.1 gtlsshd.8 gtlssh.1 gtlssh-keygen.1 gtlssync.1 gmdns.1 \
 	greflector.1 gsound.1

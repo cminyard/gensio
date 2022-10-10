@@ -1172,7 +1172,8 @@ argv_to_win_cmdline(struct gensio_os_funcs *o, const char *argv[],
  */
 static char *
 win_env_to_block(struct gensio_os_funcs *o,
-		 const char **env)
+		 const char **env,
+		 gensiods *rsize)
 {
     /*
      * Start with size=2 because this must be terminated with two nil
@@ -1193,6 +1194,8 @@ win_env_to_block(struct gensio_os_funcs *o,
 	memcpy(pos, env[i], len);
 	pos += len + 1;
     }
+    if (rsize)
+	*rsize = size;
     return envb;
 }
 
@@ -1221,7 +1224,7 @@ gensio_win_do_exec(struct gensio_os_funcs *o,
 	return rv;
 
     if (env) {
-	envb = win_env_to_block(o, env);
+	envb = win_env_to_block(o, env, NULL);
 	if (!envb) {
 	    rv = GE_NOMEM;
 	    goto out;
@@ -1266,7 +1269,8 @@ gensio_win_do_exec(struct gensio_os_funcs *o,
 			     0, TRUE, DUPLICATE_SAME_ACCESS))
 	    goto out_err_conv;
     }
-    if (!SetHandleInformation(stderr_s, HANDLE_FLAG_INHERIT, 1))
+    if (!SetHandleInformation(stderr_s, HANDLE_FLAG_INHERIT,
+			      HANDLE_FLAG_INHERIT))
 	goto out_err_conv;
 
     suinfo.cb = sizeof(STARTUPINFO);
@@ -1959,6 +1963,7 @@ gensio_win_pty_alloc(struct gensio_os_funcs *o,
 {
     HANDLE readh_m = NULL, readh_s = NULL;
     HANDLE writeh_m = NULL, writeh_s = NULL;
+    HANDLE imptokh;
     HPCON ptyh = NULL;
     COORD winsize;
     HRESULT hr;
@@ -1966,12 +1971,33 @@ gensio_win_pty_alloc(struct gensio_os_funcs *o,
 
     if (!CreatePipe(&writeh_s, &writeh_m, NULL, 0))
 	goto out_err_conv;
-    if (!SetHandleInformation(writeh_s, HANDLE_FLAG_INHERIT, 0))
+    if (!SetHandleInformation(writeh_s, HANDLE_FLAG_INHERIT,
+			      HANDLE_FLAG_INHERIT))
 	goto out_err_conv;
     if (!CreatePipe(&readh_m, &readh_s, NULL, 0))
 	goto out_err_conv;
-    if (!SetHandleInformation(readh_s, HANDLE_FLAG_INHERIT, 0))
+    if (!SetHandleInformation(readh_s, HANDLE_FLAG_INHERIT,
+			      HANDLE_FLAG_INHERIT))
 	goto out_err_conv;
+
+    if (!OpenThreadToken(GetCurrentThread(),
+			 TOKEN_ALL_ACCESS,
+			 TRUE,
+			 &imptokh)) {
+	if (GetLastError() != ERROR_NO_TOKEN)
+	    /* Error getting the token. */
+	    goto out_err_conv;
+	/* No token was present, just create the pseudo console. */
+    } else {
+	/*
+	 * An impersonation token is present, the pseudo console will
+	 * be created in a special child process.
+	 */
+	CloseHandle(imptokh);
+	goto out;
+    }
+
+
     winsize.X = 80;
     winsize.Y = 25;
     hr = CreatePseudoConsole(winsize, writeh_s, readh_s, 0, &ptyh);
@@ -1983,6 +2009,7 @@ gensio_win_pty_alloc(struct gensio_os_funcs *o,
 	goto out_err;
     }
 
+ out:
     *child_in = writeh_s;
     *child_out = readh_s;
     *rwriteh = writeh_m;
@@ -2007,17 +2034,132 @@ gensio_win_pty_alloc(struct gensio_os_funcs *o,
     return err;
 }
 
+/*
+ * Start a special process that will be an intermediary between this
+ * process and the main user process.
+ *
+ * If you create a pseudo console under Windows, it will be created
+ * with the integrity level of the calling process, even if the
+ * impersonation token is set.  This means that the child process will
+ * not be able to do certain operations on the console handles, like
+ * WriteConsoleInput.  A discussion of the security limitiations is at
+ * https://learn.microsoft.com/en-us/windows/console/console-buffer-security-and-access-rights
+ *
+ * This was discussed by me with others at:
+ *
+ * https://learn.microsoft.com/en-us/answers/questions/1040676/createpseudoconsole-with-reduced-integrity-level.html
+ *
+ * The only reasonable approach seems to be to create another process
+ * with the user's token and have it create the pty.  That process is
+ * gensio_pty_helper in tools.  That way the pty gets created at the
+ * user's integrity level.  We talk to that process over it's stdio,
+ * which is relayed to the real child process.
+ *
+ * The environment and starting directory can be set here and it will
+ * propagate down.  However, the command line is a different issue.
+ * That is passed in some shared memory.
+ *
+ * There is yet another snag, though.  The console resize events need
+ * to be done on the pty.  So another pipe is created to send commands
+ * to gensio_pty_helper to handle resize events.
+ *
+ * The command line shared memory handle, size, and the rcontrol
+ * shared memory handle is passed on the command line to
+ * gensio_pty_helper.
+ *
+ * Also, the exit code must be propagated back through gensio_pty_helper.
+ *
+ * This is not really ideal, as the subprocess is not directly
+ * attached to us and the pid really isn't right.  But there's not
+ * much else we can do.
+ */
+static int
+start_pty_helper(struct gensio_os_funcs *o,
+		 HANDLE tokh, const char *cmdline, char *envb,
+		 const char *start_dir, STARTUPINFO *si,
+		 PROCESS_INFORMATION *procinfo, HANDLE *rcontrol)
+{
+    SECURITY_ATTRIBUTES secattr;
+    HANDLE shmem = NULL, ctl_s = NULL, ctl_m = NULL;
+    DWORD cmdline_len;
+    char *buf = NULL;
+    char cmd[50];
+    int err = 0;
+
+    if (!CreatePipe(&ctl_s, &ctl_m, NULL, 0))
+	goto out_err_conv;
+    if (!SetHandleInformation(ctl_s, HANDLE_FLAG_INHERIT, HANDLE_FLAG_INHERIT))
+	goto out_err_conv;
+
+    cmdline_len = strlen(cmdline) + 1;
+
+    memset(&secattr, 0, sizeof(secattr));
+    secattr.nLength = sizeof(secattr);
+    secattr.bInheritHandle = TRUE;
+
+    /* Add 1 to the length for the version. */
+    shmem = CreateFileMappingA(INVALID_HANDLE_VALUE, &secattr, PAGE_READWRITE,
+			       0, cmdline_len + 1, NULL);
+    if (!shmem)
+	goto out_err_conv;
+
+    buf = (char *) MapViewOfFile(shmem,
+				 FILE_MAP_ALL_ACCESS,
+				 0,
+				 0,
+				 cmdline_len + 1);
+    if (!buf)
+	goto out_err_conv;
+    buf[0] = 1; /* Version */
+    memcpy(buf + 1, cmdline, cmdline_len);
+    UnmapViewOfFile(buf);
+
+    /* Pass the handle in the command line. */
+    snprintf(cmd, sizeof(cmd), "gensio_pty_helper %lld %lu %lld",
+	     (intptr_t) shmem, (unsigned long) cmdline_len + 1,
+	     (intptr_t) ctl_s);
+
+    if (!CreateProcessAsUserA(tokh,
+			      NULL,
+			      cmd,
+			      NULL,
+			      NULL,
+			      TRUE,
+			      (NORMAL_PRIORITY_CLASS |
+			       CREATE_NEW_PROCESS_GROUP),
+			      envb,
+			      start_dir,
+			      si,
+			      procinfo))
+	goto out_err_conv;
+
+ out:
+    if (shmem)
+	CloseHandle(shmem);
+    if (ctl_s)
+	CloseHandle(ctl_s);
+    if (err && ctl_m)
+	CloseHandle(ctl_m);
+    else
+	*rcontrol = ctl_m;
+    return err;
+
+ out_err_conv:
+    err = gensio_os_err_to_err(o, GetLastError());
+    goto out;
+}
+
 int
 gensio_win_pty_start(struct gensio_os_funcs *o,
 		     HPCON ptyh, HANDLE *child_in, HANDLE *child_out,
 		     const char **argv, const char **env,
-		     const char *start_dir, HANDLE *child)
+		     const char *start_dir, HANDLE *child, HANDLE *rcontrol)
 {
     char *cmdline, *envb = NULL;
     STARTUPINFOEX si;
     PROCESS_INFORMATION procinfo;
     size_t len;
-    HANDLE tokh = NULL, imptokh = NULL;
+    HANDLE tokh = NULL, imptokh = NULL, control = NULL;
     int err;
     bool setuser = true;
     bool attrs_added = false;
@@ -2029,7 +2171,7 @@ gensio_win_pty_start(struct gensio_os_funcs *o,
 	return err;
 
     if (env) {
-	envb = win_env_to_block(o, env);
+	envb = win_env_to_block(o, env, NULL);
 	if (!envb) {
 	    err = GE_NOMEM;
 	    goto out_err;
@@ -2045,29 +2187,14 @@ gensio_win_pty_start(struct gensio_os_funcs *o,
      * the console, all is good, but that's not the normal case.
      *
      * So set the stdio to the pipe, too.
+     *
+     * Plus this is necessary if we are using the pty helper.
      */
     si.StartupInfo.hStdInput = *child_in;
     si.StartupInfo.hStdOutput = *child_out;
     si.StartupInfo.hStdError = *child_out;
     si.StartupInfo.dwFlags |= STARTF_USESTDHANDLES;
 
-    InitializeProcThreadAttributeList(NULL, 1, 0, &len);
-    si.lpAttributeList = o->zalloc(o, len);
-    if (!si.lpAttributeList) {
-	err = GE_NOMEM;
-	goto out_err;
-    }
-    if (!InitializeProcThreadAttributeList(si.lpAttributeList, 1, 0, &len))
-	goto out_err_conv;
-    if (!UpdateProcThreadAttribute(si.lpAttributeList,
-                                   0,
-                                   PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE,
-                                   ptyh,
-                                   sizeof(ptyh),
-                                   NULL,
-                                   NULL))
-	goto out_err_conv;
-    attrs_added = true;
 
     /*
      * Get the impersonation token, convert it to a real token, and
@@ -2089,21 +2216,29 @@ gensio_win_pty_start(struct gensio_os_funcs *o,
 			      TokenPrimary, &tokh))
 	    goto out_err_conv;
 
-	if (!CreateProcessAsUserA(tokh,
-				  NULL,
-				  cmdline,
-				  NULL,
-				  NULL,
-				  FALSE,
-				  (NORMAL_PRIORITY_CLASS |
-				   EXTENDED_STARTUPINFO_PRESENT |
-				   CREATE_NEW_PROCESS_GROUP),
-				  envb,
-				  start_dir,
-				  &si.StartupInfo,
-				  &procinfo))
-	    goto out_err_conv;
+	err = start_pty_helper(o, tokh, cmdline, envb, start_dir,
+			       &si.StartupInfo, &procinfo, &control);
+	if (err)
+	    goto out_err;
     } else {
+	InitializeProcThreadAttributeList(NULL, 1, 0, &len);
+	si.lpAttributeList = o->zalloc(o, len);
+	if (!si.lpAttributeList) {
+	    err = GE_NOMEM;
+	    goto out_err;
+	}
+	if (!InitializeProcThreadAttributeList(si.lpAttributeList, 1, 0, &len))
+	    goto out_err_conv;
+	if (!UpdateProcThreadAttribute(si.lpAttributeList,
+				       0,
+				       PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE,
+				       ptyh,
+				       sizeof(ptyh),
+				       NULL,
+				       NULL))
+	    goto out_err_conv;
+	attrs_added = true;
+
 	if (!CreateProcess(NULL,
 			   cmdline,
 			   NULL,
@@ -2131,6 +2266,7 @@ gensio_win_pty_start(struct gensio_os_funcs *o,
     DeleteProcThreadAttributeList(si.lpAttributeList);
     o->free(o, si.lpAttributeList);
     *child = procinfo.hProcess;
+    *rcontrol = control;
     return 0;
 
  out_err_conv:

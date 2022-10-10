@@ -161,7 +161,9 @@ int gensio_win_pty_alloc(struct gensio_os_funcs *o,
  * processes' stdin is set to child_in, and its stdout and stderr are
  * set to child_out.
  *
- * The child process handle is returned in child.
+ * The child process handle is returned in child.  If there is a
+ * control interface to the child (see start_pty_helper in
+ * gensio_osops.c) that is returned in control.
  *
  * If an impersonation token is set when this is called, the token is
  * extracted from the thread and the new process will be started with
@@ -173,7 +175,8 @@ GENSIOOSH_DLL_PUBLIC
 int gensio_win_pty_start(struct gensio_os_funcs *o,
 			 HPCON ptyh, HANDLE *child_in, HANDLE *child_out,
 			 const char **argv, const char **env,
-			 const char *start_dir, HANDLE *child);
+			 const char *start_dir, HANDLE *child,
+			 HANDLE *control);
 
 #else
 

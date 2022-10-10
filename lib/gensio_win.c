@@ -2534,6 +2534,7 @@ struct gensio_iod_win_pty
     struct gensio_iod_win *read; /* Data (output) from the child */
     HANDLE child;
     HPCON ptyh;
+    HANDLE control; /* Used to control a gensio_pty_helper. */
     HANDLE child_in;
     HANDLE child_out;
     HANDLE watch_thread;
@@ -2709,10 +2710,26 @@ win_pty_watch_thread(LPVOID data)
 	    ClosePseudoConsole(piod->ptyh);
 	    piod->ptyh = NULL;
 	}
+	if (piod->control) {
+	    CloseHandle(piod->control);
+	    piod->control = NULL;
+	}
     }
     LeaveCriticalSection(&wiod->lock);
     return 0;
 }
+
+struct pty_helper_cmd {
+    unsigned int cmd;
+    unsigned int size;
+    union {
+	struct {
+	    int x;
+	    int y;
+	} resize;
+    };
+};
+#define PTY_RESIZE 1
 
 static int
 win_pty_control(struct gensio_iod_win *wiod, int op, bool get, intptr_t val)
@@ -2766,7 +2783,7 @@ win_pty_control(struct gensio_iod_win *wiod, int op, bool get, intptr_t val)
 					   &piod->child_in, &piod->child_out,
 					   piod->argv,
 					   piod->env, piod->start_dir,
-					   &piod->child);
+					   &piod->child, &piod->control);
 		assert(SetEvent(piod->watch_start));
 		if (err) {
 		    HANDLE wthread = piod->watch_thread;
@@ -2790,17 +2807,29 @@ win_pty_control(struct gensio_iod_win *wiod, int op, bool get, intptr_t val)
 
     case GENSIO_IOD_CONTROL_WIN_SIZE: {
 	struct gensio_winsize *gwin = (struct gensio_winsize *) val;
-	COORD size;
-	HRESULT hr;
+	if (piod->control) {
+	    struct pty_helper_cmd cmd;
+	    DWORD len = 0;
 
-	size.Y = gwin->ws_row;
-	size.X = gwin->ws_col;
-	hr = ResizePseudoConsole(piod->ptyh, size);
-	if (hr != S_OK) {
-	    if (HRESULT_FACILITY(hr) == FACILITY_WIN32)
-		err = gensio_os_err_to_err(o, HRESULT_CODE(hr));
-	    else
-		err = gensio_os_err_to_err(o, hr); /* Force an OS_ERR. */
+	    cmd.cmd = PTY_RESIZE;
+	    cmd.size = sizeof(cmd);
+	    cmd.resize.x = gwin->ws_col;
+	    cmd.resize.y = gwin->ws_row;
+
+	    WriteFile(piod->control, &cmd, sizeof(cmd), &len, FALSE);
+	} else {
+	    COORD size;
+	    HRESULT hr;
+
+	    size.Y = gwin->ws_row;
+	    size.X = gwin->ws_col;
+	    hr = ResizePseudoConsole(piod->ptyh, size);
+	    if (hr != S_OK) {
+		if (HRESULT_FACILITY(hr) == FACILITY_WIN32)
+		    err = gensio_os_err_to_err(o, HRESULT_CODE(hr));
+		else
+		    err = gensio_os_err_to_err(o, hr); /* Force an OS_ERR. */
+	    }
 	}
 	return err;
     }
@@ -2900,6 +2929,8 @@ win_iod_pty_clean(struct gensio_iod_win *wiod)
 	CloseHandle(piod->child);
     if (piod->ptyh)
 	ClosePseudoConsole(piod->ptyh);
+    if (piod->control)
+	CloseHandle(piod->control);
     if (piod->watch_start)
 	CloseHandle(piod->watch_start);
     if (piod->argv)

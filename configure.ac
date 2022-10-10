@@ -1689,15 +1689,18 @@ AC_CHECK_HEADER(sys/un.h, [HAVE_UNIX=1] )
 AC_SUBST(HAVE_UNIX)
 AC_DEFINE_UNQUOTED([HAVE_UNIX], [$HAVE_UNIX], [Enable unix socket handling])
 
+GENSIO_PTY_HELPER=
 if test "$version_type" = "windows"; then
    # We have PTY support for windows.
    HAVE_PTY=1
+   GENSIO_PTY_HELPER="gensio_pty_helper\$(EXEEXT)"
 else
    HAVE_PTY=0
    AC_CHECK_FUNCS(posix_openpt, [HAVE_PTY=1])
 fi
 AC_SUBST(HAVE_PTY)
 AC_DEFINE_UNQUOTED([HAVE_PTY], [$HAVE_PTY], [Enable PTY gensio])
+AC_SUBST(GENSIO_PTY_HELPER)
 
 AM_CONDITIONAL([HAVE_UNIX_OS], [test ${system_type} != windows])
 AM_CONDITIONAL([HAVE_WINDOWS_OS], [test ${system_type} = windows])
