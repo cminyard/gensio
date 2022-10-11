@@ -1713,7 +1713,7 @@ win_iod_oneway_shutdown(struct gensio_iod_win *wiod)
     /* This sucks, see notes at beginning of oneway section. */
     assert(SetEvent(owiod->wakeh));
     CancelSynchronousIo(wiod->threadh);
-    while (WaitForSingleObject(wiod->threadh, 1000) == WAIT_TIMEOUT) {
+    while (WaitForSingleObject(wiod->threadh, 1) == WAIT_TIMEOUT) {
 	assert(SetEvent(owiod->wakeh));
 	CancelSynchronousIo(wiod->threadh);
     }
