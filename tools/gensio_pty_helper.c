@@ -33,6 +33,7 @@ static HANDLE in = NULL;
 static HANDLE out = NULL;
 static HPCON ptyh = NULL;
 static HANDLE done_ev = NULL;
+static volatile BOOL in_exit = FALSE;
 
 static void
 run_cmd(struct pty_helper_cmd *cmd)
@@ -57,7 +58,7 @@ cmd_handler(LPVOID data)
     unsigned char *buf = (unsigned char *) &cmd;
     DWORD buflen = 0, len;
 
-    while (TRUE) {
+    while (!in_exit) {
 	if (!ReadFile(ctl_s, buf + buflen, sizeof(cmd) - buflen, &len,
 		      NULL))
 	    break;
@@ -78,7 +79,7 @@ to_child_handler(LPVOID data)
     unsigned char buf[1024];
     DWORD buflen, len;
 
-    while (TRUE) {
+    while (!in_exit) {
 	if (!ReadFile(in, buf, sizeof(buf), &buflen, NULL))
 	    break;
 	if (!WriteFile(writeh_m, buf, buflen, &len, FALSE))
@@ -94,7 +95,7 @@ from_child_handler(LPVOID data)
     unsigned char buf[1024];
     DWORD buflen, len;
 
-    while (TRUE) {
+    while (!in_exit) {
 	if (!ReadFile(readh_m, buf, sizeof(buf), &buflen, NULL))
 	    break;
 	if (!WriteFile(out, buf, buflen, &len, FALSE))
@@ -214,6 +215,8 @@ int main(int argc, char *argv[])
     h[0] = done_ev;
     h[1] = procinfo.hProcess;
     WaitForMultipleObjects(2, h, FALSE, INFINITE);
+
+    in_exit = TRUE;
 
     CancelSynchronousIo(thread1);
     while (WaitForSingleObject(thread1, 1) == WAIT_TIMEOUT)
