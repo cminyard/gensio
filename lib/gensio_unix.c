@@ -1823,6 +1823,35 @@ gensio_register_os_cleanup_handler(struct gensio_os_funcs *o,
     UNLOCK(&data->handler_lock);
 }
 
+static int
+check_for_sigpending(sigset_t *check_for)
+{
+#ifdef HAVE_SIGTIMEDWAIT
+    static struct timespec zerotime = { 0, 0 };
+    return sigtimedwait(check_for, NULL, &zerotime);
+#else
+#ifndef SIGRTMAX
+#ifdef NSIG
+#define SIGRTMAX NSIG
+#else
+#define SIGRTMAX 64
+#endif
+#endif
+    int rsig = 0, sig;
+    sigset_t pending;
+
+    sigpending(&pending);
+    for (sig = 0; sig < SIGRTMAX; sig++) {
+	if (sigismember(&pending, sig) && sigismember(check_for, sig)) {
+	    rsig = sig;
+	    sigwait(&check_for, &sig);
+	    break;
+	}
+    }
+    return rsig;
+#endif
+}
+
 void
 gensio_os_proc_cleanup(struct gensio_os_proc_data *data)
 {
@@ -1860,7 +1889,7 @@ gensio_os_proc_cleanup(struct gensio_os_proc_data *data)
     sigaction(SIGCHLD, &data->old_sigchld, NULL);
 
     /* Clear out any pending signals before we restore the mask. */
-    while ((sig = sigtimedwait(&data->check_sigs, NULL, &zerotime)) > 0)
+    while ((sig = check_for_sigpending(&data->check_sigs)) > 0)
 	;
 
     sigprocmask(SIG_SETMASK, &data->old_sigs, NULL);
@@ -1879,7 +1908,7 @@ gensio_os_proc_check_handlers(struct gensio_os_proc_data *data)
      * missing a signal on a really busy system, check for signals
      * here.
      */
-    while ((sig = sigtimedwait(&data->check_sigs, NULL, &zerotime)) > 0) {
+    while ((sig = check_for_sigpending(&data->check_sigs)) > 0) {
 	switch(sig) {
 	case SIGCHLD:
 	    data->got_sigchld = true;
