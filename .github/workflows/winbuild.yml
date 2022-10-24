@@ -6,6 +6,9 @@ on:
     tags:
       - v*
 
+env:
+  INSTALLPREFIX: "_local"
+
 jobs:
   mingw-build:
     strategy:
@@ -35,14 +38,12 @@ jobs:
       - name: MSBuild
         run: |
           ./reconf
-          ./configure
+          mkdir $INSTALLPREFIX
+          ./configure --prefix=$(pwd)/$INSTALLPREFIX/
           make
-      - name: Upload binaries from lib and tools
+          make install
+      - name: Upload installed files
         uses: actions/upload-artifact@v3
         with:
           name: gensio-mingw-${{matrix.env}}
-          path: |
-            lib/.libs/*.dll
-            lib/.libs/*.a
-            lib/.libs/*.la
-            tools/*.exe
+          path: ${{ env.INSTALLPREFIX }}/**/*
