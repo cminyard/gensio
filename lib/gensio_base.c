@@ -1597,14 +1597,15 @@ basen_ll_read(void *cb_data, int readerr,
 	goto out_finish;
     }
 
-    if (ndata->in_read) {
-	/* Currently in a deferred read, just let that handle it. */
-	ll_set_read_callback_enable(ndata, false);
-	goto out_unlock;
-    }
-
     while (buflen > 0 &&
 	   (ndata->read_enabled || filter_ll_read_needed(ndata))) {
+
+	if (ndata->in_read) {
+	    /* Currently in a deferred read, just let that handle it. */
+	    ll_set_read_callback_enable(ndata, false);
+	    goto out_unlock;
+	}
+
 	ndata->in_read = true;
 	do {
 	    gensiods wrlen = 0;
