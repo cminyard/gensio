@@ -185,6 +185,8 @@ void *gensio_os_funcs_get_data(struct gensio_os_funcs *o);
  */
 GENSIOOSH_DLL_PUBLIC
 bool gensio_set_progname(const char *progname);
+GENSIOOSH_DLL_PUBLIC
+const char *gensio_get_progname(void);
 
 /*
  * Scan for a network port in the form:

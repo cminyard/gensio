@@ -38,6 +38,11 @@ bool gensio_set_progname(const char *iprogname)
     return true;
 }
 
+const char *gensio_get_progname(void)
+{
+    return progname;
+}
+
 
 #ifdef _WIN32
 #include <winsock2.h> /* For AF_UNSPEC */
