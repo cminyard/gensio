@@ -79,6 +79,8 @@ struct ssl_filter {
     gensiods read_data_len;
     gensiods max_read_size;
 
+    bool in_ul_handler;
+
     /*
      * This is data from the user waiting to be sent to SSL_write().  This
      * is required because if SSL_write() return that it needs I/O, it must
@@ -637,11 +639,14 @@ ssl_ll_write(struct gensio_filter *filter,
     if (!err && sfilter->read_data_len) {
 	gensiods count = 0;
 
+	assert(!sfilter->in_ul_handler);
+	sfilter->in_ul_handler = true;
 	ssl_unlock(sfilter);
 	err = handler(cb_data, &count,
 		      sfilter->read_data + sfilter->read_data_pos,
 		      sfilter->read_data_len, NULL);
 	ssl_lock(sfilter);
+	sfilter->in_ul_handler = false;
 	if (!err) {
 	    if (count >= sfilter->read_data_len) {
 		sfilter->read_data_len = 0;
