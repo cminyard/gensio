@@ -1,5 +1,6 @@
 
-AM_CFLAGS = -I$(top_srcdir)/glib/include -I$(top_srcdir)/tcl/include
+AM_CFLAGS = -I$(top_srcdir)/glib/include -I$(top_srcdir)/tcl/include \
+	@EXTRA_CFLAGS@
 
 AM_TESTS_ENVIRONMENT = GENSIOT=$(top_builddir)/tools/gensiot${EXEEXT}
 
