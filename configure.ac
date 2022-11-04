@@ -1473,7 +1473,7 @@ AC_CHECK_LIB(nsl,main)
 SWIG_DIR=
 SWIG_CPP_DIR=
 SWIG=
-SWIG_NUMBERSION=0
+SWIG_NUMVERSION=0
 if test "x$tryswig" = "xyes"; then
    if test "x$swigprog" != "x"; then
       SWIG="$swigprog"
