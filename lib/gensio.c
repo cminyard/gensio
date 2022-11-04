@@ -2222,6 +2222,15 @@ struct gensio_enum_val shared_serial_alert_enums[] = {
 };
 #endif
 
+#ifdef HAVE_TCPD_H
+static struct gensio_enum_val tcpd_enums[] = {
+    { "on",	GENSIO_TCPD_ON },
+    { "print",	GENSIO_TCPD_PRINT },
+    { "off", 	GENSIO_TCPD_OFF },
+    { NULL }
+};
+#endif
+
 struct gensio_def_entry builtin_defaults[] = {
     /* Defaults for TCP, UDP, and SCTP. */
     { "nodelay",	GENSIO_DEFAULT_BOOL,	.def.intval = 0 },

@@ -1123,7 +1123,7 @@ netna_base_acc_op(struct gensio_accepter *acc, int op,
 }
 
 #ifdef HAVE_TCPD_H
-struct gensio_enum_val tcpd_enums[] = {
+static struct gensio_enum_val tcpd_enums[] = {
     { "on",	GENSIO_TCPD_ON },
     { "print",	GENSIO_TCPD_PRINT },
     { "off", 	GENSIO_TCPD_OFF },

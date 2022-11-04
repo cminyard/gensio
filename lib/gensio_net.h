@@ -14,6 +14,4 @@ enum gensio_tcpd_options {
     GENSIO_TCPD_OFF,
 };
 
-extern struct gensio_enum_val tcpd_enums[];
-
 #endif /* GENSIO_NET_H */
