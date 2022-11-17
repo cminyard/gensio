@@ -2336,7 +2336,7 @@ gensio_afskmdm_filter_alloc(struct gensio_os_funcs *o,
 	.lpcutoff = 2500,
 	.tx_preamble_time = 300,
 	.tx_postamble_time = 100,
-	.tx_predelay_time = 100,
+	.tx_predelay_time = 500,
 	.volume = .75,
 	.full_duplex = false,
     };
