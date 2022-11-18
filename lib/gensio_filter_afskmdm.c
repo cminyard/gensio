@@ -2141,8 +2141,10 @@ struct gensio_afskmdm_data {
 #define NO_FILT 0
 #define IIR_FILT 1
 #define FIR_FILT 2
+    bool filt_type_set;
     unsigned int lpcutoff_iir;
     unsigned int lpcutoff_fir;
+    bool lpcutoff_set;
     unsigned int transition_freq;
 
     unsigned int tx_preamble_time;
@@ -2482,8 +2484,10 @@ gensio_afskmdm_filter_alloc(struct gensio_os_funcs *o,
 	.wmsg_sets = 3,
 	.min_certainty = 3.5,
 	.filt_type = IIR_FILT,
+	.filt_type_set = false,
 	.lpcutoff_iir = 2500,
 	.lpcutoff_fir = 2800,
+	.lpcutoff_set = false,
 	.transition_freq = 500,
 	.tx_preamble_time = 300,
 	.tx_postamble_time = 100,
@@ -2574,10 +2578,13 @@ gensio_afskmdm_filter_alloc(struct gensio_os_funcs *o,
 				  &data.min_certainty) > 0)
 	    continue;
 	if (gensio_check_keyenum(args[i], "filttype", filttype_enums,
-				 &data.filt_type) > 0)
+				 &data.filt_type) > 0) {
+	    data.filt_type_set = true;
 	    continue;
+	}
 	if (gensio_check_keyuint(args[i], "lpcutoff", &data.lpcutoff_iir) > 0) {
 	    data.lpcutoff_fir = data.lpcutoff_iir;
+	    data.lpcutoff_set = true;
 	    continue;
 	}
 	if (gensio_check_keyuint(args[i], "trfreq", &data.transition_freq) > 0)
@@ -2616,6 +2623,33 @@ gensio_afskmdm_filter_alloc(struct gensio_os_funcs *o,
 
     if (data.key && (!data.keyon || !data.keyoff))
 	return GE_INVAL;
+
+    /*
+     * For lower sample rates a FIR filter doesn't use as much CPU and
+     * is much more effective.  For higher sample rates, the IIR
+     * filter uses a lot less CPU and works just as well.
+     */
+    if (!data.filt_type_set) {
+	if (data.in_framerate < 30000)
+	    data.filt_type = FIR_FILT;
+	else
+	    data.filt_type = IIR_FILT;
+    }
+
+    /*
+     * Experimentation has shown that for the FIR filter lower sample
+     * rates work better with a lower cutoff cutoff frequencies.  Some
+     * experimentation may be in order here.
+     */
+    if (data.filt_type == FIR_FILT && !data.lpcutoff_set) {
+	if (data.in_framerate < 8000)
+	    data.lpcutoff_fir = 2500;
+	else if (data.in_framerate > 40000)
+	    data.lpcutoff_fir = 2800;
+	else
+	    data.lpcutoff_fir = 2500 +
+		300 * (data.in_framerate - 8000) / (40000 - 8000);
+    }
 
     data.wmsg_sets = wmsg_extra * 2 + 1;
 
