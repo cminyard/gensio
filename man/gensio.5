@@ -2261,10 +2261,21 @@ mark and space frequencies is calculated as the certainty.  If that
 certainty is below min-certainty, it does the wmsgs procedure above.
 Defaults to 2.0.
 .TP
+.B filttype=[fir|iir|none]
+A 2nd-order low-pass Butterworth IIR filter or a low-pass FIR filter
+is implemented on the input.  This selects which filter, or no filter.
+The IIR filter doesn't use very much CPU, the FIR filter uses a lot of
+CPU, and there's not much difference in performance.  This is mostly
+for experimentation.  The default is IIR.
+.TP
 .B lpcutoff=<n>
-A low-pass Butterworth filter is implemented on the input.  This sets
-the cutoff frequency.  Setting it to zero disables it.  The default is
-2500Hz.
+This sets the cutoff frequency for the input filter.  Setting it to
+zero disables it.  The default is 2500Hz for IIR and 2800Hz for FIR.
+.TP
+.B trfreq=<n>
+This sets the transition frequency width for the FIR filter.  This is
+ignored for the IIR filter.  The default is 500Hz.  Smaller numbers
+make a sharper cutoff but result in more CPU being used.
 .TP
 .B tx-preamble=<n>
 The time in milliseconds at the beginning of a message that is just
@@ -2277,7 +2288,7 @@ Default is 100.
 .TP
 .B tx-predelay=<n>
 The amount of time to wait after another sender has finished sending a
-message before the transmit is started.  Default is 100ms.
+message before the transmit is started.  Default is 500ms.
 .TP
 .B volume=<float>
 Sets the transmit volume, from 0.0-1.0.  Values above 1.0 will clip.

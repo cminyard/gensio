@@ -243,6 +243,13 @@ struct afskmdm_filter {
     float coefa[2];
     float coefb[3];
     float iirhold[2];
+
+    /* FIR Filter components. */
+    float *fir_h;
+    unsigned int fir_h_n;
+    float *firhold;
+
+    /* Filtered data. */
     unsigned char *filteredbuf;
 
     /*
@@ -1575,6 +1582,107 @@ afskmdm_calc_iir_coefs(float samplerate, float cutoff,
     coefb[2] = coefb[0];
 }
 
+static float
+get_fir_val(unsigned int i, unsigned int holdsize, float *inbuf, float *hold,
+	    unsigned int nchans, unsigned int chan)
+{
+    if (i < holdsize)
+	return hold[i];
+    i -= holdsize;
+    i = (i * nchans) + chan;
+    return inbuf[i];
+}
+
+/*
+ * Process a buffer with a fir filter.  h and n come from
+ * afskmdm_calc_fir_coefs(), hold must be of size n * 2.
+ */
+static void
+afskmdm_fir_filter(float *inbuf, float *outbuf, unsigned int nsamples,
+		   unsigned int nchans, unsigned int chan,
+		   unsigned int n, float *h, float *hold)
+{
+    unsigned int i, j, k;
+    unsigned int holdsize = n * 2;
+    float tmp;
+
+    for (i = 0; i < nsamples; i++) {
+
+	/* Get the middle value, it's always multiplied by 1. */
+	tmp = get_fir_val(n + i, holdsize, inbuf, hold, nchans, chan);
+
+	/*
+	 * The h array is half of a symmetric waveform.  That waveform
+	 * is always an odd number of values, but we don't include the
+	 * middle value (it's always one, handled above) and h only
+	 * holds the left half of the waveform.
+	 */
+	for (j = 0, k = holdsize; j < n; j++, k--) {
+	    tmp += h[j] * (get_fir_val(i + j, holdsize, inbuf, hold,
+				       nchans, chan) +
+			   get_fir_val(i + k, holdsize, inbuf, hold,
+				       nchans, chan));
+	}
+
+	outbuf[i * nchans + chan] = tmp;
+    }
+    for (i = 0; i < holdsize; i++) {
+	unsigned int pos = nsamples - holdsize + i;
+	hold[i] = inbuf[pos * nchans + chan];
+    }
+}
+
+/*
+ * Calculate FIR filter coefficients for a lowpass filter with the
+ * given transition band size, sample rate and cutoff frequency.
+ * The total number of coefficients is:
+ *
+ *   N = (n * 2) + 1
+ *
+ * but the middle value is always 1 and the coefficients are symmetric
+ * about the middle value.  Thus we only really need n values because
+ * h[n] would be 1 and h[i] == h[N - i - 1].
+ *
+ * A hamming filter is applied to the coefficients.
+ */
+static float *
+afskmdm_calc_fir_coefs(double samplerate, double cutoff, double transband,
+		       unsigned int *rn)
+{
+    double tba = transband / samplerate;
+    double w = 2 * M_PI * cutoff / samplerate;
+    unsigned int i;
+    /* For a hamming filter, transition band ~ (3.3 / N). */
+    unsigned int n = 3.3 / tba / 2;
+    double N = n * 2 + 1;
+    double dx = (n * 2) / (n * 2 - 1);
+    double x = dx;
+    float *h;
+
+    h = calloc(n, sizeof(float));
+    if (!h)
+	return NULL;
+
+    for (i = n - 1; ; i--) {
+	double tmp;
+
+	/* The sinc() function */
+	tmp = sin(w * x) / (w * x);
+
+	/* Hamming window */
+	tmp *= .54 - .46 * cos(2 * M_PI * (i + 1) / N);
+	//printf("  %u: %lf\n", i, h[i]);
+
+	h[i] = tmp;
+
+	if (i == 0)
+	    break;
+	x += dx;
+    }
+    *rn = n;
+    return h;
+}
+
 static int
 afskmdm_ll_write(struct gensio_filter *filter,
 		 gensio_ll_filter_data_handler handler, void *cb_data,
@@ -1605,11 +1713,19 @@ afskmdm_ll_write(struct gensio_filter *filter,
 	return GE_INVAL;
 
     if (sfilter->filteredbuf) {
-	afskmdm_iir_filter((float *) buf, (float *) sfilter->filteredbuf,
-			   sfilter->in_chunksize,
-			   sfilter->in_nchans, sfilter->in_chan,
-			   sfilter->coefa, sfilter->coefb,
-			   sfilter->iirhold);
+	if (sfilter->fir_h) {
+	    afskmdm_fir_filter((float *) buf, (float *) sfilter->filteredbuf,
+			       sfilter->in_chunksize,
+			       sfilter->in_nchans, sfilter->in_chan,
+			       sfilter->fir_h_n, sfilter->fir_h,
+			       sfilter->firhold);
+	} else {
+	    afskmdm_iir_filter((float *) buf, (float *) sfilter->filteredbuf,
+			       sfilter->in_chunksize,
+			       sfilter->in_nchans, sfilter->in_chan,
+			       sfilter->coefa, sfilter->coefb,
+			       sfilter->iirhold);
+	}
 	buf = sfilter->filteredbuf;
     }
 
@@ -1784,6 +1900,10 @@ afskmdm_sfilter_free(struct afskmdm_filter *sfilter)
     }
     if (sfilter->filteredbuf)
 	o->free(o, sfilter->filteredbuf);
+    if (sfilter->fir_h)
+	o->free(o, sfilter->fir_h);
+    if (sfilter->firhold)
+	o->free(o, sfilter->firhold);
     if (sfilter->filter)
 	gensio_filter_free_data(sfilter->filter);
     o->free(o, sfilter);
@@ -2016,7 +2136,15 @@ struct gensio_afskmdm_data {
     unsigned int max_wmsgs;
     unsigned int wmsg_sets;
     float min_certainty;
-    unsigned int lpcutoff;
+
+    int filt_type;
+#define NO_FILT 0
+#define IIR_FILT 1
+#define FIR_FILT 2
+    unsigned int lpcutoff_iir;
+    unsigned int lpcutoff_fir;
+    unsigned int transition_freq;
+
     unsigned int tx_preamble_time;
     unsigned int tx_postamble_time;
     unsigned int tx_predelay_time;
@@ -2217,9 +2345,22 @@ gensio_afskmdm_filter_raw_alloc(struct gensio_os_funcs *o,
 	sfilter->hzspace[i + 2 * sfilter->in_convsize] = cos(v / fconvsize);
     }
 
-    if (data->lpcutoff) {
-	afskmdm_calc_iir_coefs(data->in_framerate, data->lpcutoff,
-			       sfilter->coefa, sfilter->coefb);
+    if (data->lpcutoff_iir && data->filt_type != NO_FILT) {
+	if (data->filt_type == IIR_FILT) {
+	    afskmdm_calc_iir_coefs(data->in_framerate, data->lpcutoff_iir,
+				   sfilter->coefa, sfilter->coefb);
+	} else {
+	    sfilter->fir_h =
+		afskmdm_calc_fir_coefs(data->in_framerate, data->lpcutoff_fir,
+				       data->transition_freq,
+				       &sfilter->fir_h_n);
+	    if (!sfilter->fir_h)
+		goto out_nomem;
+	    sfilter->firhold = o->zalloc(o,
+					 2 * sfilter->fir_h_n * sizeof(float));
+	    if (!sfilter->firhold)
+		goto out_nomem;
+	}
 
 	sfilter->filteredbuf = o->zalloc(o,
 		(gensiods) sfilter->in_framesize * sfilter->in_chunksize);
@@ -2309,6 +2450,13 @@ afskmdm_child_getuint(struct gensio *child, int option, unsigned int *val)
     return 0;
 }
 
+static struct gensio_enum_val filttype_enums[] = {
+    { .name = "none", .val = NO_FILT },
+    { .name = "iir", .val = IIR_FILT },
+    { .name = "fir", .val = FIR_FILT },
+    { }
+};
+
 int
 gensio_afskmdm_filter_alloc(struct gensio_os_funcs *o,
 			    struct gensio *child,
@@ -2333,7 +2481,10 @@ gensio_afskmdm_filter_alloc(struct gensio_os_funcs *o,
 	.max_wmsgs = 32,
 	.wmsg_sets = 3,
 	.min_certainty = 3.5,
-	.lpcutoff = 2500,
+	.filt_type = IIR_FILT,
+	.lpcutoff_iir = 2500,
+	.lpcutoff_fir = 2800,
+	.transition_freq = 500,
 	.tx_preamble_time = 300,
 	.tx_postamble_time = 100,
 	.tx_predelay_time = 500,
@@ -2422,7 +2573,14 @@ gensio_afskmdm_filter_alloc(struct gensio_os_funcs *o,
 	if (gensio_check_keyfloat(args[i], "min-certainty",
 				  &data.min_certainty) > 0)
 	    continue;
-	if (gensio_check_keyuint(args[i], "lpcutoff", &data.lpcutoff) > 0)
+	if (gensio_check_keyenum(args[i], "filttype", filttype_enums,
+				 &data.filt_type) > 0)
+	    continue;
+	if (gensio_check_keyuint(args[i], "lpcutoff", &data.lpcutoff_iir) > 0) {
+	    data.lpcutoff_fir = data.lpcutoff_iir;
+	    continue;
+	}
+	if (gensio_check_keyuint(args[i], "trfreq", &data.transition_freq) > 0)
 	    continue;
 	if (gensio_check_keyuint(args[i], "tx-preamble",
 				 &data.tx_preamble_time) > 0)
