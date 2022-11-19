@@ -2347,13 +2347,13 @@ gensio_afskmdm_filter_raw_alloc(struct gensio_os_funcs *o,
 	sfilter->hzspace[i + 2 * sfilter->in_convsize] = cos(v / fconvsize);
     }
 
-    if (data->lpcutoff_iir && data->filt_type != NO_FILT) {
+    if (data->lpcutoff && data->filt_type != NO_FILT) {
 	if (data->filt_type == IIR_FILT) {
-	    afskmdm_calc_iir_coefs(data->in_framerate, data->lpcutoff_iir,
+	    afskmdm_calc_iir_coefs(data->in_framerate, data->lpcutoff,
 				   sfilter->coefa, sfilter->coefb);
 	} else {
 	    sfilter->fir_h =
-		afskmdm_calc_fir_coefs(data->in_framerate, data->lpcutoff_fir,
+		afskmdm_calc_fir_coefs(data->in_framerate, data->lpcutoff,
 				       data->transition_freq,
 				       &sfilter->fir_h_n);
 	    if (!sfilter->fir_h)
