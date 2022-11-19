@@ -2265,12 +2265,14 @@ Defaults to 2.0.
 A 2nd-order low-pass Butterworth IIR filter or a low-pass FIR filter
 is implemented on the input.  This selects which filter, or no filter.
 The IIR filter doesn't use very much CPU, the FIR filter uses a lot of
-CPU, and there's not much difference in performance.  This is mostly
-for experimentation.  The default is IIR.
+CPU at higher sample rates.  This is mostly for experimentation.  The
+default is IIR for sample rates above 30000Hz and FIR for lower sample
+rates.  Lower sample rates don't work well with the IIR filter, but
+there's not much difference at higher sample rates.
 .TP
 .B lpcutoff=<n>
 This sets the cutoff frequency for the input filter.  Setting it to
-zero disables it.  The default is 2500Hz for IIR and 2800Hz for FIR.
+zero disables it.  The default is 2500Hz.
 .TP
 .B trfreq=<n>
 This sets the transition frequency width for the FIR filter.  This is

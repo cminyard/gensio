@@ -1644,6 +1644,9 @@ afskmdm_fir_filter(float *inbuf, float *outbuf, unsigned int nsamples,
  * h[n] would be 1 and h[i] == h[N - i - 1].
  *
  * A hamming filter is applied to the coefficients.
+ *
+ * Adapted from http://www.labbookpages.co.uk/audio/firWindowing.html
+ * and https://www.staff.ncl.ac.uk/oliver.hinton/eee305/Chapter4.pdf
  */
 static float *
 afskmdm_calc_fir_coefs(double samplerate, double cutoff, double transband,
@@ -1667,11 +1670,10 @@ afskmdm_calc_fir_coefs(double samplerate, double cutoff, double transband,
 	double tmp;
 
 	/* The sinc() function */
-	tmp = sin(w * x) / (w * x);
+	tmp = sin(w * x) / (M_PI * x);
 
 	/* Hamming window */
 	tmp *= .54 - .46 * cos(2 * M_PI * (i + 1) / N);
-	//printf("  %u: %lf\n", i, h[i]);
 
 	h[i] = tmp;
 
@@ -2142,9 +2144,7 @@ struct gensio_afskmdm_data {
 #define IIR_FILT 1
 #define FIR_FILT 2
     bool filt_type_set;
-    unsigned int lpcutoff_iir;
-    unsigned int lpcutoff_fir;
-    bool lpcutoff_set;
+    unsigned int lpcutoff;
     unsigned int transition_freq;
 
     unsigned int tx_preamble_time;
@@ -2485,9 +2485,7 @@ gensio_afskmdm_filter_alloc(struct gensio_os_funcs *o,
 	.min_certainty = 3.5,
 	.filt_type = IIR_FILT,
 	.filt_type_set = false,
-	.lpcutoff_iir = 2500,
-	.lpcutoff_fir = 2800,
-	.lpcutoff_set = false,
+	.lpcutoff = 2500,
 	.transition_freq = 500,
 	.tx_preamble_time = 300,
 	.tx_postamble_time = 100,
@@ -2582,11 +2580,8 @@ gensio_afskmdm_filter_alloc(struct gensio_os_funcs *o,
 	    data.filt_type_set = true;
 	    continue;
 	}
-	if (gensio_check_keyuint(args[i], "lpcutoff", &data.lpcutoff_iir) > 0) {
-	    data.lpcutoff_fir = data.lpcutoff_iir;
-	    data.lpcutoff_set = true;
+	if (gensio_check_keyuint(args[i], "lpcutoff", &data.lpcutoff) > 0)
 	    continue;
-	}
 	if (gensio_check_keyuint(args[i], "trfreq", &data.transition_freq) > 0)
 	    continue;
 	if (gensio_check_keyuint(args[i], "tx-preamble",
@@ -2634,21 +2629,6 @@ gensio_afskmdm_filter_alloc(struct gensio_os_funcs *o,
 	    data.filt_type = FIR_FILT;
 	else
 	    data.filt_type = IIR_FILT;
-    }
-
-    /*
-     * Experimentation has shown that for the FIR filter lower sample
-     * rates work better with a lower cutoff cutoff frequencies.  Some
-     * experimentation may be in order here.
-     */
-    if (data.filt_type == FIR_FILT && !data.lpcutoff_set) {
-	if (data.in_framerate < 8000)
-	    data.lpcutoff_fir = 2500;
-	else if (data.in_framerate > 40000)
-	    data.lpcutoff_fir = 2800;
-	else
-	    data.lpcutoff_fir = 2500 +
-		300 * (data.in_framerate - 8000) / (40000 - 8000);
     }
 
     data.wmsg_sets = wmsg_extra * 2 + 1;
