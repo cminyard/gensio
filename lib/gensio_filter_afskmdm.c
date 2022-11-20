@@ -1669,7 +1669,7 @@ afskmdm_calc_fir_coefs(double samplerate, double cutoff, double transband,
     for (i = n - 1; ; i--) {
 	double tmp;
 
-	/* The sinc() function */
+	/* h(x) = 2 * f * sinc() */
 	tmp = sin(w * x) / (M_PI * x);
 
 	/* Hamming window */
