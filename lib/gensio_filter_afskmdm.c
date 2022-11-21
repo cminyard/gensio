@@ -1649,7 +1649,8 @@ afskmdm_fir_filter(float *inbuf, float *outbuf, unsigned int nsamples,
  * and https://www.staff.ncl.ac.uk/oliver.hinton/eee305/Chapter4.pdf
  */
 static float *
-afskmdm_calc_fir_coefs(double samplerate, double cutoff, double transband,
+afskmdm_calc_fir_coefs(struct gensio_os_funcs *o,
+		       double samplerate, double cutoff, double transband,
 		       unsigned int *rn)
 {
     double tba = transband / samplerate;
@@ -1662,7 +1663,7 @@ afskmdm_calc_fir_coefs(double samplerate, double cutoff, double transband,
     double x = dx;
     float *h;
 
-    h = calloc(n, sizeof(float));
+    h = o->zalloc(o, n * sizeof(float));
     if (!h)
 	return NULL;
 
@@ -2353,7 +2354,7 @@ gensio_afskmdm_filter_raw_alloc(struct gensio_os_funcs *o,
 				   sfilter->coefa, sfilter->coefb);
 	} else {
 	    sfilter->fir_h =
-		afskmdm_calc_fir_coefs(data->in_framerate, data->lpcutoff,
+		afskmdm_calc_fir_coefs(o, data->in_framerate, data->lpcutoff,
 				       data->transition_freq,
 				       &sfilter->fir_h_n);
 	    if (!sfilter->fir_h)
