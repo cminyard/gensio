@@ -116,9 +116,9 @@ Dynamic vs Static gensios
 
 The gensio library supports loading gensios dynamically or building
 them in to the library.  By default if you create shared libraries,
-then all gensios are compiled for dynamic loading and installed in a
-place that makes it possible.  If you do not create shared libraries,
-all gensios are built in to the library.
+then all gensios are compiled as modules for dynamic loading and
+installed in a place that makes it possible.  If you do not create
+shared libraries, all gensios are built in to the library.
 
 To set all gensios to be built into the library, you can add
 "--with-all-gensios=yes" on the configure command line and it will
@@ -137,6 +137,14 @@ To set how individual gensios are built, you do "--with-<gensio>=x" where x is
 executable).  For instance, if you only wanted to build the tcp gensio into the
 library and make the rest dynamic, you could set up for all dynamic gensios and
 then add "--with-net=yes".
+
+These modules are put by default into $(moduleinstalldir) (specified
+with --with-moduleinstall on the configure line) which defaults to
+$(pkglibexecdir) (which is generally /usr/libexec/gensio).
+
+Gensios will be loaded first from the environment variable
+LD_LIBRARY_PATH, then from GENSIO_LIBRARY_PATH, then from the default
+location.
 
 gensio tools
 ============
@@ -458,7 +466,7 @@ the terminal gensios (tcp, udp, sctp, serial port, pty) use the fd ll,
 obviously.
 
 Once you have a gensio, you can compile it as a module and stick it in
-/usr/libexec/gensio-<version>.  Then the gensio will just pick it up
+$(moduleinstalldir)/<version>.  Then the gensio will just pick it up
 and use it.  You can also link it in with your application and do the
 init function from your application.
 

@@ -45,7 +45,7 @@ libgensio_la_LIBADD = libgensioosh.la
 if HAVE_WINDOWS_OS
 gensiolibexec = $(bindir)
 else
-gensiolibexec = $(pkglibexecdir)-$(PACKAGE_VERSION)
+gensiolibexec = $(moduleinstalldir)/$(PACKAGE_VERSION)
 endif
 # Note that xgensio_libexecdir starts with "x" because it has to
 # install after libgensio and libgensiomdns for proper relinking, and

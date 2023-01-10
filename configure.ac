@@ -87,6 +87,13 @@ if test "$version_type" = "windows"; then
     EXTRA_CFLAGS="$EXTRA_CFLAGS -DNTDDI_VERSION=0x0a000006 -DWINVER=0x0602"
 fi
 
+moduleinstalldir="\$(pkglibexecdir)"
+AC_ARG_WITH(moduleinstall,
+ [AS_HELP_STRING([--with-moduleinstall=PATH],
+		 [Install gensio modules in the given location.])],
+    moduleinstalldir="$withval",
+)
+AC_SUBST(moduleinstalldir)
 
 AC_ARG_WITH(uucp-locking,
  [AS_HELP_STRING([--with-uucp-locking], [Enable UUCP-style locking with yes/no, or set the uucp lock directory otherwise])],
