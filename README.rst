@@ -109,6 +109,8 @@ older systems it's /var/lock, which is the default.  On newer it might
 be /run/lock/lockdev.  You might also need to be a member of dialout
 and lock groups to be able to open serial devices and/or locks.
 
+go language support requires go to be installed and in the path.
+
 Dynamic vs Static gensios
 -------------------------
 
@@ -118,20 +120,23 @@ then all gensios are compiled for dynamic loading and installed in a
 place that makes it possible.  If you do not create shared libraries,
 all gensios are built in to the library.
 
-To set all gensios to be statically compiled, you can add
+To set all gensios to be built into the library, you can add
 "--with-all-gensios=yes" on the configure command line and it will
 build them in to the library.
 
+You can also set them to all be dynamically loaded by adding
+"--with-all-gensios=dynamic", but this is the default.
+
 You can also disable all gensios by default by specifying
-"--with-all-gensios=no".
+"--with-all-gensios=no".  Then no gensios will be built by default.  This is
+useful if you only want a few gensios, you can turn all of them off then
+enable then ones you want.
 
-You can override individual gensios, too.  For instance, if you only
-wanted to build the tcp gensio into the library and make the rest
-dynamic, you could set up for all dynamic gensios and then add
-"--with-net=yes".  This can also let you disable all gensios and only
-enable the ones you want.
-
-go language support requires go to be installed and in the path.
+To set how individual gensios are built, you do "--with-<gensio>=x" where x is
+"no (don't built), yes (built into library) or dynamic (dynamically loaded
+executable).  For instance, if you only wanted to build the tcp gensio into the
+library and make the rest dynamic, you could set up for all dynamic gensios and
+then add "--with-net=yes".
 
 gensio tools
 ============
