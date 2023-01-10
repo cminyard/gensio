@@ -41,9 +41,6 @@ libgensio_la_SOURCES = \
 libgensio_la_CPPFLAGS = -DBUILDING_GENSIO_DLL
 libgensio_la_LDFLAGS = -no-undefined -version-info 4:0:0 -fvisibility=hidden
 libgensio_la_LIBADD = libgensioosh.la
-if BUILTIN_MDNS
-libgensio_la_LIBADD += libgensiomdns.la
-endif
 
 if HAVE_WINDOWS_OS
 gensiolibexec = $(bindir)
@@ -174,6 +171,7 @@ libgensio_ipmisol_la_LIBADD = $(DYNAMIC_LIBS) $(OPENIPMI_LIBS)
 if HAVE_AVAHI
 if BUILTIN_MDNS
 libgensio_la_SOURCES += gensio_mdns.c
+libgensio_la_LIBADD += libgensiomdns.la
 else
 EXTRA_LTLIBRARIES += libgensio_mdns.la
 endif
@@ -337,13 +335,14 @@ libgensio_ratelimit_la_LIBADD = $(DYNAMIC_LIBS)
 
 if BUILTIN_AFSKMDM
 libgensio_la_SOURCES += gensio_filter_afskmdm.c gensio_afskmdm.c
+libgensio_la_LIBADD += -lm
 else
 EXTRA_LTLIBRARIES += libgensio_afskmdm.la
 endif
 xgensio_libexec_LTLIBRARIES += $(DYNAMIC_AFSKMDM)
 libgensio_afskmdm_la_SOURCES = gensio_filter_afskmdm.c gensio_afskmdm.c
 libgensio_afskmdm_la_LDFLAGS = $(DYNAMIC_LDFLAGS)
-libgensio_afskmdm_la_LIBADD = $(DYNAMIC_LIBS)
+libgensio_afskmdm_la_LIBADD = $(DYNAMIC_LIBS) -lm
 
 EXTRA_DIST = README.rst libgensioosh.pc.in libgensio.pc.in libgensiomdns.pc.in
 
