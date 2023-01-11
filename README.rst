@@ -111,16 +111,25 @@ and lock groups to be able to open serial devices and/or locks.
 
 go language support requires go to be installed and in the path.
 
-Dynamic vs Static gensios
--------------------------
+Dynamic vs Built In gensios
+---------------------------
+
+As I continued to add gensios to the library, like crypto, mdns,
+sound, IPMI, sctp, etc. the number of dependencies in the library was
+getting out of control.  Why should you be loading libasound, or
+libOpenIPMI, if you don't need it?  Plus, though the library supported
+adding your own gensios through a programatic API, it had no standard
+way to add them for the system so you could write your own gensio and
+let everyone on the system use it.
 
 The gensio library supports loading gensios dynamically or building
 them in to the library.  By default if you create shared libraries,
 then all gensios are compiled as modules for dynamic loading and
 installed in a place that makes it possible.  If you do not create
-shared libraries, all gensios are built in to the library.
+shared libraries, all gensios are built in to the library.  But you
+can override this behaviour.
 
-To set all gensios to be built into the library, you can add
+To set all gensios to be built in to the library, you can add
 "--with-all-gensios=yes" on the configure command line and it will
 build them in to the library.
 
@@ -128,19 +137,23 @@ You can also set them to all be dynamically loaded by adding
 "--with-all-gensios=dynamic", but this is the default.
 
 You can also disable all gensios by default by specifying
-"--with-all-gensios=no".  Then no gensios will be built by default.  This is
-useful if you only want a few gensios, you can turn all of them off then
-enable then ones you want.
+"--with-all-gensios=no".  Then no gensios will be built by default.
+This is useful if you only want a few gensios, you can turn all of
+them off then enable then ones you want.
 
-To set how individual gensios are built, you do "--with-<gensio>=x" where x is
-"no (don't built), yes (built into library) or dynamic (dynamically loaded
-executable).  For instance, if you only wanted to build the tcp gensio into the
-library and make the rest dynamic, you could set up for all dynamic gensios and
-then add "--with-net=yes".
+To set how individual gensios are built, you do "--with-<gensio>=x"
+where x is "no (don't build), yes (build into library) or dynamic
+(dynamically loaded executable).  For instance, if you only wanted to
+build the tcp gensio into the library and make the rest dynamic, you
+could set up for all dynamic gensios and then add "--with-net=yes".
 
 These modules are put by default into $(moduleinstalldir) (specified
 with --with-moduleinstall on the configure line) which defaults to
 $(pkglibexecdir) (which is generally /usr/libexec/gensio).
+
+Note that dynamic loading is always available, even if you build in
+all the gensios in the library.  So you can still add your own gensios
+by adding then to the proper directory.
 
 Gensios will be loaded first from the environment variable
 LD_LIBRARY_PATH, then from GENSIO_LIBRARY_PATH, then from the default
