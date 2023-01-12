@@ -10,6 +10,12 @@ AC_PROG_CC
 AC_PROG_CXX
 AM_PROG_AR
 
+# Per discussions with the Debian maintainer, it's best for
+# maintainers to have all the soname libary versions be the same if
+# they come from a single source.  So here it is.
+GENSIO_LIB_VERSION=4:0:0
+AC_SUBST(GENSIO_LIB_VERSION)
+
 # Per discussion at:
 # https://lists.gnu.org/archive/html/libtool/2022-09/msg00000.html
 # This enabled RUNPATH over RPATH.  libtool will not set

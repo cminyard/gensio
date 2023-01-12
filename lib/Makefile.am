@@ -24,7 +24,8 @@ libgensioosh_la_SOURCES += gensio_win.c
 endif
 libgensioosh_la_CPPFLAGS = -DBUILDING_GENSIOOSH_DLL \
 	-DPKG_LIBEXEC="\"$(gensiolibexec)\""
-libgensioosh_la_LDFLAGS = -no-undefined -version-info 0:0:0 -fvisibility=hidden
+libgensioosh_la_LDFLAGS = -no-undefined -version-info $(GENSIO_LIB_VERSION) \
+	-fvisibility=hidden
 libgensioosh_la_LIBADD = @LIBSCTP_LIBS@
 if ENABLE_INTERNAL_TRACE
 libgensioosh_la_SOURCES += errtrig.c
@@ -32,14 +33,16 @@ endif
 
 libgensiomdns_la_SOURCES = mdns.c avahi_watcher.c
 libgensiomdns_la_CPPFLAGS = -DBUILDING_GENSIOMDNS_DLL
-libgensiomdns_la_LDFLAGS = -no-undefined -version-info 0:0:0 -fvisibility=hidden
+libgensiomdns_la_LDFLAGS = -no-undefined -version-info $(GENSIO_LIB_VERSION) \
+	-fvisibility=hidden
 libgensiomdns_la_LIBADD = libgensioosh.la ${MDNS_LIBS}
 
 libgensio_la_SOURCES = \
 	gensio.c gensio_base.c sergensio.c buffer.c \
 	gensio_ll_fd.c gensio_ll_gensio.c gensio_acc.c gensio_acc_gensio.c
 libgensio_la_CPPFLAGS = -DBUILDING_GENSIO_DLL
-libgensio_la_LDFLAGS = -no-undefined -version-info 4:0:0 -fvisibility=hidden
+libgensio_la_LDFLAGS = -no-undefined -version-info $(GENSIO_LIB_VERSION) \
+	-fvisibility=hidden
 libgensio_la_LIBADD = libgensioosh.la
 
 if HAVE_WINDOWS_OS

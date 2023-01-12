@@ -12,7 +12,8 @@ lib_LTLIBRARIES = libgensio_python_swig.la
 
 libgensio_python_swig_la_SOURCES = gensio_python_swig.c
 libgensio_python_swig_la_CFLAGS = -DBUILDING_GENSIO_DLL $(AM_CFLAGS)
-libgensio_python_swig_la_LDFLAGS = -no-undefined
+libgensio_python_swig_la_LDFLAGS = -no-undefined -rpath $(libdir) \
+		-version-info $(GENSIO_LIB_VERSION) 
 libgensio_python_swig_la_LIBADD = $(PYTHON_LIBS) \
 		$(top_builddir)/lib/libgensio.la \
 		$(top_builddir)/lib/libgensiomdns.la
