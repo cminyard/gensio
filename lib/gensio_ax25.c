@@ -695,6 +695,7 @@ struct ax25_chan {
     bool in_rej;
     uint8_t ack_pending; /* Number of rcv packets that haven't been acked. */
     bool poll_pending; /* Timer recovery state. */
+    bool data_p_sent; /* Sent a P=1 in data. */
 
     /*
      * SREJ is not currently implemented on the send side, just the receive.
@@ -1742,6 +1743,7 @@ ax25_chan_reset_data(struct ax25_chan *chan)
     chan->in_rej = false;
     chan->ack_pending = 0;
     chan->poll_pending = false;
+    chan->data_p_sent = false;
     chan->retry_count = 0;
     chan->srt = chan->conf.srtv;
     if (chan->conf.addr) {
@@ -3115,6 +3117,8 @@ ax25_chan_check_response_needed(struct ax25_chan *chan,
 	if (chan->poll_pending) {
 	    chan->poll_pending = false;
 	    chan->retry_count = 0;
+	} else if (chan->data_p_sent) {
+	    chan->data_p_sent = false;
 	} else {
 	    ax25_proto_err(chan->base, chan, "F=1 but P=1 not outstanding");
 	}
@@ -3798,8 +3802,10 @@ ax25_child_write_ready(struct ax25_base *base)
 	     * If our transmit window is closing with this packet, set the
 	     * p bit to get an immediate response.
 	     */
-	    if (sub_seq(chan->vs, chan->va, chan->modulo) >= chan->writewindow)
+	    if (sub_seq(chan->vs, chan->va, chan->modulo) >= chan->writewindow){
 		p = 1;
+		chan->data_p_sent = true;
+	    }
 
 	    if (chan->extended) {
 		crv[0] = d->seq << 1;
