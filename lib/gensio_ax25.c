@@ -478,6 +478,7 @@ struct ax25_conf_data {
     gensiods max_write_size;
     unsigned int readwindow;
     unsigned int writewindow;
+    bool writewindow_set;
     unsigned int srtv;
     unsigned int t2v;
     unsigned int t3v;
@@ -2215,10 +2216,13 @@ ax25_chan_set_extended(struct ax25_chan *chan, bool extended,
 	    chan->readwindow = chan->conf.readwindow;
     } else {
 	chan->modulo = 8;
-	if (chan->conf.writewindow > 4)
+	if (chan->conf.writewindow_set && chan->conf.writewindow > 4)
 	    chan->writewindow = 4;
-	else
+	else if (chan->conf.writewindow_set)
 	    chan->writewindow = chan->conf.writewindow;
+	else
+	    /* Default to 2, because that's what RMS packet does.  Sigh. */
+	    chan->writewindow = 2;
 	if (chan->conf.readwindow > 4)
 	    chan->readwindow = 4;
 	else
@@ -2606,7 +2610,7 @@ ax25_chan_handle_fallback_response(struct ax25_chan *chan)
     } else if (chan->extended == 1) {
 	chan->extended = 0;
 	chan->modulo = 8;
-	chan->writewindow = 4;
+	chan->writewindow = 2;
 	chan->readwindow = 4;
 	ax25_chan_send_sabm(chan);
 	ax25_chan_start_t1(chan);
@@ -4601,8 +4605,11 @@ ax25_readconf(struct gensio_os_funcs *o, bool firstchan, bool noaddr,
 	    continue;
 	if (gensio_check_keyuint(args[i], "readwindow", &conf->readwindow) > 0)
 	    continue;
-	if (gensio_check_keyuint(args[i], "writewindow", &conf->writewindow) > 0)
+	if (gensio_check_keyuint(args[i], "writewindow",
+				 &conf->writewindow) > 0) {
+	    conf->writewindow_set = true;
 	    continue;
+	}
 	if (gensio_check_keyuint(args[i], "extended", &conf->extended) > 0) {
 	    if (conf->extended > 2)
 		goto out_err;
