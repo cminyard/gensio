@@ -551,16 +551,25 @@ afskmdm_ax25_prmsg(struct gensio_os_funcs *o,
 }
 
 static void
-afskmdm_print_msg(struct afskmdm_filter *sfilter, unsigned int msgn,
+afskmdm_print_msg(struct afskmdm_filter *sfilter, char *t, unsigned int msgn,
 		  unsigned char *buf, unsigned int buflen,
 		  bool pr_msgn)
 {
+    struct gensio_os_funcs *o = sfilter->o;
     struct gensio_fdump h;
 
+    if (sfilter->debug & 0x10) {
+	gensio_time time;
+
+	o->get_monotonic_time(o, &time);
+	printf("%lld:%6.6d: ",
+	       (long long) time.secs, (time.nsecs + 500) / 1000);
+    }
+
     if (pr_msgn) {
-	printf("MSG(%u %u):", msgn, buflen);
+	printf("%sMSG(%u %u):", t, msgn, buflen);
     } else {
-	printf("MSG(%u):", buflen);
+	printf("%sMSG(%u):", t, buflen);
 	afskmdm_ax25_prmsg(sfilter->o, buf, buflen);
     }
     printf("\n");
@@ -991,8 +1000,7 @@ afskmdm_ul_write(struct gensio_filter *filter,
 	goto out_process;
 
     if (sfilter->debug & 8) {
-	printf("W");
-	afskmdm_print_msg(sfilter, 0, sfilter->wrbufs[cbuf].data,
+	afskmdm_print_msg(sfilter, "W", 0, sfilter->wrbufs[cbuf].data,
 			  sfilter->wrbufs[cbuf].len, false);
     }
 
@@ -1203,7 +1211,8 @@ afskmdm_handle_new_message(struct afskmdm_filter *sfilter, unsigned int pos,
 	goto bad_msg;
 
     if (sfilter->debug & 1) {
-	afskmdm_print_msg(sfilter, msgn, w->read_data, w->read_data_len, true);
+	afskmdm_print_msg(sfilter, "", msgn, w->read_data, w->read_data_len,
+			  true);
 	printf("    bitpos %d  endframe %lu\n", w->curr_bit_pos,
 	       sfilter->framenr + pos - sfilter->prevread_size);
     }
@@ -1231,8 +1240,8 @@ afskmdm_handle_new_message(struct afskmdm_filter *sfilter, unsigned int pos,
     w->read_data_len -= 2;
 
     if (sfilter->debug & 8) {
-	printf("R");
-	afskmdm_print_msg(sfilter, 0, w->read_data, w->read_data_len, false);
+	afskmdm_print_msg(sfilter, "R", 0, w->read_data, w->read_data_len,
+			  false);
     }
 
     if (w->read_data_len <= sfilter->max_read_size &&
