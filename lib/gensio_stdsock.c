@@ -2184,7 +2184,9 @@ gensio_setup_listen_socket(struct gensio_os_funcs *o, bool do_listen,
     if (rv == -1)
 	return GE_INVAL;
 
-    if (addrlen > sizeof(sa))
+    if (addrlen < 0)
+	return GE_INVAL;
+    if ((unsigned int) addrlen > sizeof(sa))
 	return GE_TOOBIG;
     memcpy(&sa, addr, addrlen);
     addr = (struct sockaddr *) &sa;

@@ -293,7 +293,7 @@ timer_thread(LPVOID data)
     struct gensio_data *d = o->user_data;
     struct gensio_timer *t;
     ULONGLONG now, delay;
-    int rv;
+    DWORD rv;
 
     EnterCriticalSection(&d->timer_lock);
     while (!d->freed) {
@@ -1196,7 +1196,8 @@ winsock_func(LPVOID data)
     struct gensio_iod_win *wiod = &swiod->wiod;
     WSAEVENT waiters[2];
     unsigned int i;
-    int rv;
+    DWORD rv;
+    int irv;
 
     EnterCriticalSection(&wiod->lock);
     waiters[0] = swiod->wakeev;
@@ -1219,8 +1220,8 @@ winsock_func(LPVOID data)
 	i = 1;
 	if (events) {
 	    /* FIXME - check if events changed? */
-	    rv = WSAEventSelect(wiod->fd, swiod->sockev, events);
-	    if (rv == SOCKET_ERROR) {
+	    irv = WSAEventSelect(wiod->fd, swiod->sockev, events);
+	    if (irv == SOCKET_ERROR) {
 		EnterCriticalSection(&wiod->lock);
 		if (!wiod->werr)
 		    wiod->werr = WSAGetLastError();
@@ -1240,8 +1241,8 @@ winsock_func(LPVOID data)
 	} else if (rv == WSA_WAIT_EVENT_0) {
 	    WSAResetEvent(swiod->wakeev);
 	} else if (rv == WSA_WAIT_EVENT_0 + 1) {
-	    rv = WSAEnumNetworkEvents(wiod->fd, swiod->sockev, &revents);
-	    if (rv == SOCKET_ERROR) {
+	    irv = WSAEnumNetworkEvents(wiod->fd, swiod->sockev, &revents);
+	    if (irv == SOCKET_ERROR) {
 		if (!wiod->werr)
 		    wiod->werr = WSAGetLastError();
 		wiod->closed = TRUE;

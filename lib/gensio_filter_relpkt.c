@@ -423,7 +423,7 @@ request_resend(struct relpkt_filter *rfilter, uint8_t first, uint8_t last)
 	rfilter->resend_pkt[0] = RELPKT_MSG_RESEND << 4;
 	rfilter->send_resend_pkt = true;
     }
-    if (rfilter->resend_pkt_len + 1 >= sizeof(rfilter->resend_pkt))
+    if (rfilter->resend_pkt_len + 1U >= sizeof(rfilter->resend_pkt))
 	return; /* No space left, let transmit timeout get it. */
     rfilter->resend_pkt[rfilter->resend_pkt_len++] = first;
     rfilter->resend_pkt[rfilter->resend_pkt_len++] = last;
@@ -941,7 +941,7 @@ relpkt_ll_write(struct relpkt_filter *rfilter,
 		break;
 	    seq = buf[2];
 	    pos = seq - rfilter->next_deliver_seq;
-	    if (seq - rfilter->next_deliver_seq > rfilter->max_pkt)
+	    if ((uint8_t) (seq - rfilter->next_deliver_seq) > rfilter->max_pkt)
 		break; /* Ignore it */
 	    ppos = recvpkt_pos(rfilter, pos);
 	    if (seq == rfilter->next_expected_seq) {
@@ -1046,7 +1046,7 @@ relpkt_ll_write(struct relpkt_filter *rfilter,
 		      p->len - p->start, p->eom ? eomaux : NULL);
 	relpkt_lock(rfilter);
 	if (!err) {
-	    if (count >= p->len - p->start) {
+	    if (count >= (uint16_t) (p->len - p->start)) {
 		p->ready = false;
 		rfilter->deliver_recvpkt = recvpkt_pos(rfilter, 1);
 		rfilter->next_deliver_seq++;

@@ -1367,7 +1367,7 @@ get_logon_sid_from_token(HANDLE h, SID **logon_sid, bool *found)
     DWORD err;
     unsigned int i;
     TOKEN_GROUPS *grps = NULL;
-    SID *sid;
+    SID *sid = NULL;
 
     err = read_token_info(h, TokenGroups, (void **) &grps, NULL);
     if (err) {

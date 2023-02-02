@@ -140,7 +140,7 @@ vlog_event(int level, const char *format, va_list va)
 	event_id <<= 29;
 	ReportEventA(evlog, level, 0, event_id, NULL, 1, 0, strs, NULL);
     } else {
-	const char *levelstr;
+	const char *levelstr = "";
 
 	switch(level) {
 	case LOG_NOTICE:  levelstr = "notice"; break;
@@ -1749,7 +1749,7 @@ static DWORD
 setup_network_token(HANDLE *inh, bool priv)
 {
     DWORD err = 0;
-    HANDLE h;
+    HANDLE h = NULL;
     struct priv_data *privs = NULL;
     unsigned int privs_len;
     SID *user = NULL;

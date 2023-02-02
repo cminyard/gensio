@@ -411,18 +411,29 @@ get_float(const unsigned char **in, unsigned int size, bool host_bswap)
     double v = 0;
 
     if (size == 4) {
-	float fv = *((float *) (*in));
+	char d[4];
+
+	memcpy(d, *in, 4);
 	if (host_bswap) {
-	    int32_t *iv = ((int32_t *) &fv);
-	    *iv = bswap_32(*((int32_t *) &fv));
+	    int32_t iv;
+
+	    memcpy(&iv, d, 4);
+	    iv = bswap_32(iv);
+	    memcpy(d, &iv, 4);
 	}
-	v = fv;
+	v = *((float *) d);
     } else if (size == 8) {
-	v = *((double *) (*in));
+	char d[8];
+
+	memcpy(d, *in, 8);
 	if (host_bswap) {
-	    int64_t *iv = ((int64_t *) &v);
-	    *iv = bswap_64(*((int64_t *) &v));
+	    int64_t iv;
+
+	    memcpy(&iv, d, 8);
+	    iv = bswap_64(iv);
+	    memcpy(d, &iv, 8);
 	}
+	v = *((double *) d);
     } else {
 	assert(0);
     }
