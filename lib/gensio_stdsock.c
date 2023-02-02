@@ -223,7 +223,7 @@ gensio_os_sctp_open_sockets(struct gensio_os_funcs *o,
     int rv = 0;
     struct gensio_listen_scan_info scaninfo;
     struct gensio_opensocks *fds = NULL, *tfds;
-    int nr_fds = 0;
+    unsigned int nr_fds = 0;
 
     memset(&scaninfo, 0, sizeof(scaninfo));
 

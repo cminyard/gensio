@@ -515,7 +515,7 @@ ssl_ul_write(struct gensio_filter *filter,
 		sfilter->write_data_len = 0;
 	    }
 	} else {
-	    assert(err == sfilter->write_data_len);
+	    assert((gensiods) err == sfilter->write_data_len);
 	    sfilter->write_data_len = 0;
 	    err = 0;
 	}

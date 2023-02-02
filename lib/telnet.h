@@ -95,7 +95,8 @@ struct telnet_data_s
 
 /* Send a telnet command.  This will set td->error to true if an
    output error occurs (out of space). */
-void telnet_cmd_send(telnet_data_t *td, const unsigned char *cmd, int len);
+void telnet_cmd_send(telnet_data_t *td, const unsigned char *cmd,
+		     unsigned int len);
 
 /* Received some data from the TCP port representing telnet, process
    it.  The leftover length is returned by this function, and the

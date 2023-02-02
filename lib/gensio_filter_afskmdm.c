@@ -216,7 +216,7 @@ struct afskmdm_filter {
     int out_bit_adj;
     unsigned int max_out_bitsize; /* Largest entry we will send. */
     unsigned int out_bit_counter; /* Counter for out_bit_period */
-    int out_bit_period; /* How often to do an alternate frame size. */
+    unsigned int out_bit_period; /* How often to do an alternate frame size. */
     uint64_t out_bit_time; /* Time in nsec for a bitsize to be sent. */
 
     unsigned int debug;

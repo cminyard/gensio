@@ -645,7 +645,7 @@ static const char *gensio_errs[] = {
     /*  41 */	 "Invalid name server information",
     /*  42 */	 "Network address for the given name is not available"
 };
-const unsigned int errno_len = sizeof(gensio_errs) / sizeof(char *);
+const int errno_len = sizeof(gensio_errs) / sizeof(char *);
 
 const char *
 gensio_err_to_str(int err)

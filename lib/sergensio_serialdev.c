@@ -100,7 +100,7 @@ struct sterm_data {
 
     int close_timeouts_left;
     int char_timeouts_left;
-    int last_close_outq_count;
+    gensiods last_close_outq_count;
 
     char *devname;
     char *parms;

@@ -32,8 +32,8 @@ gensio_buffer_write(gensio_buffer_do_write tdo_write, void *cb_data,
 {
     int err;
     unsigned int write_count;
-    int towrite1;
-    int towrite2 = 0;
+    unsigned int towrite1;
+    unsigned int towrite2 = 0;
 
     if (buf->pos + buf->cursize > buf->maxsize) {
 	towrite1 = buf->maxsize - buf->pos;
@@ -71,7 +71,7 @@ unsigned int
 gensio_buffer_output(struct gensio_buffer *buf,
 		     const unsigned char *data, unsigned int len)
 {
-    int end;
+    unsigned int end;
 
     if (gensio_buffer_left(buf) < len)
 	len = gensio_buffer_left(buf);
@@ -80,7 +80,7 @@ gensio_buffer_output(struct gensio_buffer *buf,
     if (end > buf->maxsize)
 	end -= buf->maxsize;
     if (end + len > buf->maxsize) {
-	int availend = buf->maxsize - end;
+	unsigned int availend = buf->maxsize - end;
 
 	memcpy(buf->buf + end, data, availend);
 	buf->cursize += availend;
@@ -97,7 +97,7 @@ gensio_buffer_output(struct gensio_buffer *buf,
 unsigned int
 gensio_buffer_outchar(struct gensio_buffer *buf, unsigned char data)
 {
-    int end;
+    unsigned int end;
 
     if (gensio_buffer_left(buf) < 1)
 	return 0;

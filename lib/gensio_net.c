@@ -766,9 +766,11 @@ netna_b4_listen(struct gensio_iod *iod, void *data)
 {
     struct netna_data *nadata = data;
 #if HAVE_UNIX
+    /* uid_t can be unsigned, do a cast to avoid warnings. */
+#define GENSIO_UID_INVALID_VAL ((uid_t) -1)
     char pwbuf[16384];
-    uid_t ownerid = -1;
-    uid_t groupid = -1;
+    uid_t ownerid = GENSIO_UID_INVALID_VAL;
+    uid_t groupid = GENSIO_UID_INVALID_VAL;
     int err;
     char unpath[MAX_UNIX_ADDR_PATH];
 #endif
@@ -813,7 +815,8 @@ netna_b4_listen(struct gensio_iod *iod, void *data)
 	groupid = grp->gr_gid;
     }
 
-    if (ownerid != -1 || groupid != -1) {
+    if (ownerid != GENSIO_UID_INVALID_VAL
+		|| groupid != GENSIO_UID_INVALID_VAL) {
 	err = chown(unpath, ownerid, groupid);
 	if (err)
 	    goto out_errno;

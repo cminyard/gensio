@@ -846,7 +846,8 @@ v3_certauth_add_challenge_rsp(struct certauth_filter *sfilter)
     certauth_write_byte(sfilter, CERTAUTH_CHALLENGE_RSP);
     lenpos = sfilter->write_buf_len;
     sfilter->write_buf_len += 2;
-    if (certauth_writeleft(sfilter) < EVP_PKEY_size(sfilter->pkey)) {
+    /* EVP_PKEY_size() docs say it always returns a positive number. */
+    if (certauth_writeleft(sfilter) < (gensiods) EVP_PKEY_size(sfilter->pkey)) {
 	gca_log_err(sfilter, "Key too large to fit in the data");
 	return GE_TOOBIG;
     }

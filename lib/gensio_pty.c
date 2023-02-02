@@ -89,8 +89,10 @@ gensio_setup_pty(struct pty_data *tdata, struct gensio_iod *iod)
     int err = 0;
 
 #if HAVE_PTSNAME_R
-    uid_t ownerid = -1;
-    uid_t groupid = -1;
+    /* uid_t can be unsigned, do a cast to avoid warnings. */
+#define GENSIO_UID_INVALID_VAL ((uid_t) -1)
+    uid_t ownerid = GENSIO_UID_INVALID_VAL;
+    uid_t groupid = GENSIO_UID_INVALID_VAL;
     char ptsstr[PATH_MAX];
     char pwbuf[16384];
 
@@ -130,7 +132,8 @@ gensio_setup_pty(struct pty_data *tdata, struct gensio_iod *iod)
 	groupid = grp->gr_gid;
     }
 
-    if (ownerid != -1 || groupid != -1) {
+    if (ownerid != GENSIO_UID_INVALID_VAL
+		|| groupid != GENSIO_UID_INVALID_VAL) {
 	err = chown(ptsstr, ownerid, groupid);
 	if (err)
 	    goto out_errno;
