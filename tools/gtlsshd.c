@@ -28,6 +28,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <assert.h>
+#ifdef HAVE_SETUTXENT
+#include <sys/time.h>
+#endif
 
 #include <gensio/gensio.h>
 #include <gensio/gensio_list.h>
