@@ -291,14 +291,17 @@ telnet_ll_write(struct gensio_filter *filter,
     if (gensio_str_in_auxdata(auxdata, "oobtcp")) {
 	/*
 	 * Just ignore OOB data, but set that we are looking for a
-	 * telnet mark.
+	 * telnet mark.  In some cases the IAC comes before the data
+	 * mark (so telnet_cmd_pos == 1), so we have to have a hack
+	 * for that.
 	 */
-	tfilter->in_urgent = true;
-	if (rcount)
-	    *rcount = buflen;
-	goto out_unlock;
-    }
-    if (gensio_str_in_auxdata(auxdata, "oob")) {
+	if (tfilter->tn_data.telnet_cmd_pos == 1)
+	    tfilter->in_urgent = 2;
+	else
+	    tfilter->in_urgent = 1;
+	/* Abandon any command handling on a sync. */
+	tfilter->tn_data.telnet_cmd_pos = 0;
+    } else if (gensio_str_in_auxdata(auxdata, "oob")) {
 	/* Ignore other oob data. */
 	if (rcount)
 	    *rcount = buflen;
