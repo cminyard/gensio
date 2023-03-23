@@ -158,7 +158,7 @@ child_event(struct gensio *io, void *user_data, int event, int err,
     switch (event) {
     case GENSIO_EVENT_READ:
 	rv = cdata->cb(cdata->cb_data, GENSIO_LL_CB_READ, err, buf,
-		       buflen ? *buflen : 0, NULL);
+		       buflen ? *buflen : 0, auxdata);
 	if (buflen)
 	    *buflen = rv;
 	return 0;
