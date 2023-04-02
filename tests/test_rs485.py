@@ -13,7 +13,7 @@ from serialsim import *
 
 print("Test RS485")
 
-io1str = "serialdev," + ttypipe[0] + ",9600N81,LOCAL,rs485=103:495"
+io1str = "serialdev," + ttypipe[0] + ",9600N81,LOCAL,rs485=50:75:rts_on_send"
 io2str = "serialdev," + ttypipe[1] + ",9600N81"
 
 print("serialdev rs485:\n  io1=%s\n  io2=%s" % (io1str, io2str))
@@ -22,7 +22,7 @@ io1 = alloc_io(o, io1str)
 io2 = alloc_io(o, io2str)
 
 rs485 = get_remote_rs485(remote_id_int(io2))
-check_rs485 = "103 495 enabled"
+check_rs485 = "50 75 enabled rts_on_send"
 if rs485 != check_rs485:
     raise Exception("%s: %s: RS485 was not '%s', it was '%s'" %
                     ("test rs485", io1.handler.name, check_rs485, rs485))
