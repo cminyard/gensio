@@ -2110,16 +2110,8 @@ gensio_check_keytime(const char *str, const char *key, char mod,
 	default:
 	    return -1;
 	}
-	if (nsecs >= 10 * GENSIO_NSECS_IN_SEC) {
-	    gt.secs += nsecs / GENSIO_NSECS_IN_SEC;
-	    nsecs = nsecs % GENSIO_NSECS_IN_SEC;
-	} else {
-	    /* Avoid the division on small numbers. */
-	    while (nsecs >= GENSIO_NSECS_IN_SEC) {
-		nsecs -= GENSIO_NSECS_IN_SEC;
-		gt.secs += 1;
-	    }
-	}
+	gt.secs += nsecs / GENSIO_NSECS_IN_SEC;
+	nsecs = nsecs % GENSIO_NSECS_IN_SEC;
 	if (!*end)
 	    break;
 	mod = 0;
