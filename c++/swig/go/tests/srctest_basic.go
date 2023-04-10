@@ -43,6 +43,74 @@ func (oh *CloseDone) CloseDone() {
 	oh.w.Wake()
 }
 
+type ParmlogEvHnd struct {
+	gensio.EventBase
+	log string
+	paniced bool
+}
+
+func (eh *ParmlogEvHnd) Parmlog(s string) {
+	eh.log = s
+}
+
+func testParmlog1(o *gensio.OsFuncs, eh *ParmlogEvHnd) gensio.Gensio {
+	defer func() {
+		if err := recover(); err != nil {
+			eh.paniced = true
+		}
+	}()
+
+	// This will fail and not create an object.
+	return gensio.NewGensio("tcp(asdf=x),localhost,123", o, eh)
+}
+
+type ParmlogAccEvHnd struct {
+	gensio.AccepterEventBase
+	log string
+	paniced bool
+}
+
+func (eh *ParmlogAccEvHnd) Parmlog(s string) {
+	eh.log = s
+}
+
+func testParmlog2(o *gensio.OsFuncs, eh *ParmlogAccEvHnd) gensio.Accepter {
+	defer func() {
+		if err := recover(); err != nil {
+			eh.paniced = true
+		}
+	}()
+
+	// This will fail and not create an object.
+	return gensio.NewAccepter("tcp(asdf=x),localhost,123", o, eh)
+}
+
+func testParmlog(o *gensio.OsFuncs) {
+	fmt.Println("Test Parmlog")
+
+	//testbase.ObjCount++
+	eh := &ParmlogEvHnd{}
+
+	testParmlog1(o, eh)
+	if !eh.paniced {
+		panic("Did not panic on error")
+	}
+	if eh.log != "gensio tcp: unknown parameter asdf=x" {
+		panic("Wrong parmlog error: " + eh.log)
+	}
+
+	//testbase.ObjCount++
+	eha := &ParmlogAccEvHnd{}
+
+	testParmlog2(o, eha)
+	if !eha.paniced {
+		panic("Did not panic on error")
+	}
+	if eha.log != "accepter tcp: unknown parameter asdf=x" {
+		panic("Wrong parmlog error: " + eha.log)
+	}
+}
+
 func testSync(o *gensio.OsFuncs) {
 	fmt.Println("Test sync I/O")
 
@@ -177,6 +245,7 @@ func main() {
 	gensio.SetLogMask(gensio.LOG_MASK_ALL)
 	o.Log(gensio.LOG_INFO, "Test Log")
 
+	testParmlog(o)
 	testSync(o)
 	testAsync(o)
 

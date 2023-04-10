@@ -346,6 +346,9 @@ type Event interface {
 	// gensio_event.3 for details.
 	Request2fa() (int, []byte)
 
+	// An error occurred parsing parameters
+	Parmlog(s string)
+
 	// An event in the user event range, this will only happen for
 	// custom gensios.
 	UserEvent(event int, err int, userdata *[]byte,
@@ -512,6 +515,8 @@ type AccepterEvent interface {
 	RequestPassword(g Gensio, maxlen uint64) (int, string)
 	Verify2fa(g Gensio, val []byte) int
 	Request2fa(g Gensio) (int, []byte)
+
+	Parmlog(s string)
 
 	// Internal methods, don't mess with these.
 	getAccepterEventBase() *AccepterEventBase
@@ -1125,6 +1130,9 @@ func (e *EventBase) Request2fa() (int, []byte) {
 	return GE_NOTSUP, nil
 }
 
+func (e *EventBase) Parmlog(s string) {
+}
+
 func (e *EventBase) UserEvent(event int, err int,
 			      userdata *[]byte, auxdata []string) int {
 	return GE_NOTSUP
@@ -1188,6 +1196,10 @@ func (e *raweventBase) Request_2fa(val *[]byte) int {
 	rv, ival := e.sube.Request2fa()
 	*val = ival
 	return rv
+}
+
+func (e *raweventBase) Parmlog(s string) {
+	e.sube.Parmlog(s)
 }
 
 func (e *raweventBase) User_event(event int, err int,
@@ -1282,6 +1294,10 @@ func (e *rawserialEventBase) Request_2fa(val *[]byte) int {
 	rv, ival := e.subse.Request2fa()
 	*val = ival
 	return rv
+}
+
+func (e *rawserialEventBase) Parmlog(s string) {
+	e.subse.Parmlog(s)
 }
 
 func (e *rawserialEventBase) User_event(event int, err int,
@@ -1663,6 +1679,9 @@ func (e *AccepterEventBase) Request2fa(g Gensio) (int, []byte) {
 	return GE_NOTSUP, nil
 }
 
+func (e *AccepterEventBase) Parmlog(s string) {
+}
+
 func (e *AccepterEventBase) destroy() {
 	DeleteRawAccepter_Event(e.e)
 	if Debug {
@@ -1738,6 +1757,10 @@ func (e *rawAccepterEventBase) Request_2fa(rawg RawGensio, val *[]byte) int {
 	g.g = nil
 	DeleteRawGensio(rawg)
 	return rv
+}
+
+func (e *rawAccepterEventBase) Parmlog(s string) {
+	e.sube.Parmlog(s)
 }
 
 func (e *rawAccepterEventBase) Freed() {
