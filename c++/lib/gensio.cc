@@ -199,6 +199,19 @@ namespace gensios {
 		    *((unsigned char **) buf) = rbuf;
 		    return 0;
 		}
+
+		case GENSIO_EVENT_PARMLOG: {
+		    struct gensio_parmlog_data *d =
+			(struct gensio_parmlog_data *) buf;
+		    va_list argcopy;
+		    va_copy(argcopy, d->args);
+		    size_t len = vsnprintf(NULL, 0, d->log, argcopy);
+		    va_end(argcopy);
+		    std::string outstr(len + 1, '\0');
+		    vsnprintf(&outstr[0], len + 1, d->log, d->args);
+		    cb->parmlog(outstr);
+		    break;
+		}
 		}
 		return GE_NOTSUP;
 	    } catch (std::exception &e) {
@@ -332,6 +345,28 @@ namespace gensios {
 	return g;
     }
 
+    static int init_gensio_eventh(struct gensio *io, void *user_data,
+				  int event, int err,
+				  unsigned char *buf, gensiods *buflen,
+				  const char *const *auxdata)
+    {
+	Event *cb = static_cast<Event *>(user_data);
+	struct gensio_parmlog_data *p;
+
+	if (event != GENSIO_EVENT_PARMLOG)
+	    return GE_NOTSUP;
+
+	p = (struct gensio_parmlog_data *) buf;
+	va_list argcopy;
+	va_copy(argcopy, p->args);
+	size_t len = vsnprintf(NULL, 0, p->log, argcopy);
+	va_end(argcopy);
+	std::string outstr(len, '\0');
+	vsnprintf(&outstr[0], len + 1, p->log, p->args);
+	cb->parmlog(outstr);
+	return 0;
+    }
+
     Gensio *
     gensio_alloc(std::string str, Os_Funcs &o, Event *cb)
     {
@@ -339,7 +374,7 @@ namespace gensios {
 	int err;
 	Gensio *g;
 
-	err = str_to_gensio(str.c_str(), o, NULL, NULL, &io);
+	err = str_to_gensio(str.c_str(), o, init_gensio_eventh, cb, &io);
 	if (err)
 	    throw gensio_error(err);
 	g = gensio_alloc(io, o, cb);
@@ -355,7 +390,7 @@ namespace gensios {
 	Gensio *g;
 
 	err = str_to_gensio_child(child->get_gensio(), str.c_str(), o,
-				  NULL, NULL, &io);
+				  init_gensio_eventh, cb, &io);
 	if (err)
 	    throw gensio_error(err);
 	g = gensio_alloc(io, o, cb);
@@ -1046,6 +1081,19 @@ namespace gensios {
 		    break;
 		}
 
+		case GENSIO_ACC_EVENT_PARMLOG: {
+		    struct gensio_parmlog_data *d =
+			(struct gensio_parmlog_data *) data;
+		    va_list argcopy;
+		    va_copy(argcopy, d->args);
+		    size_t len = vsnprintf(NULL, 0, d->log, argcopy);
+		    va_end(argcopy);
+		    std::string outstr(len + 1, '\0');
+		    vsnprintf(&outstr[0], len + 1, d->log, d->args);
+		    cb->parmlog(outstr);
+		    break;
+		}
+
 		case GENSIO_ACC_EVENT_LOG: {
 		    struct gensio_loginfo *l = (struct gensio_loginfo *) data;
 		    va_list argcopy;
@@ -1234,6 +1282,26 @@ namespace gensios {
 	return d->a;
     }
 
+    static int init_gensio_acc_eventh(struct gensio_accepter *iacc,
+				      void *user_data, int event, void *data)
+    {
+	Accepter_Event *cb = static_cast<Accepter_Event *>(user_data);
+	struct gensio_parmlog_data *p;
+
+	if (event != GENSIO_ACC_EVENT_PARMLOG)
+	    return GE_NOTSUP;
+
+	p = (struct gensio_parmlog_data *) data;
+	va_list argcopy;
+	va_copy(argcopy, p->args);
+	size_t len = vsnprintf(NULL, 0, p->log, argcopy);
+	va_end(argcopy);
+	std::string outstr(len, '\0');
+	vsnprintf(&outstr[0], len + 1, p->log, p->args);
+	cb->parmlog(outstr);
+	return 0;
+    }
+
     Accepter *gensio_acc_alloc(std::string str, Os_Funcs &o,
 			       Accepter_Event *cb)
     {
@@ -1241,7 +1309,8 @@ namespace gensios {
 	int err;
 	Accepter *a;
 
-	err = str_to_gensio_accepter(str.c_str(), o, NULL, NULL, &acc);
+	err = str_to_gensio_accepter(str.c_str(), o,
+				     init_gensio_acc_eventh, cb, &acc);
 	if (err)
 	    throw gensio_error(err);
 	a = gensio_acc_alloc(acc, o);
@@ -1260,7 +1329,7 @@ namespace gensios {
 
 	err = str_to_gensio_accepter_child(child->get_accepter(),
 					   str.c_str(), o,
-					   NULL, NULL, &acc);
+					   init_gensio_acc_eventh, cb, &acc);
 	if (err)
 	    throw gensio_error(err);
 	a = gensio_acc_alloc(acc, o);
@@ -1429,7 +1498,8 @@ namespace gensios {
     {
 	struct gensio *io;
 	Gensio *g;
-	int err = gensio_acc_str_to_gensio(acc, str.c_str(), NULL, NULL, &io);
+	int err = gensio_acc_str_to_gensio(acc, str.c_str(),
+					   init_gensio_eventh, cb, &io);
 	if (err)
 	    throw gensio_error(err);
 	g = gensio_alloc(io, go, cb);

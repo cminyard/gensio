@@ -107,6 +107,9 @@ namespace gensios {
 	virtual void freed() { };
 
 	virtual ~Event() = default;
+
+	// Errors from parameter parsing come in here.
+	virtual void parmlog(const std::string log) { }
     };
 
     // Used for done handlers for gensio operations that can fail,
@@ -580,6 +583,9 @@ namespace gensios {
 	virtual void freed() { };
 
 	virtual ~Accepter_Event() = default;
+
+	// Errors from parameter parsing come in here.
+	virtual void parmlog(const std::string log) { }
     };
 
     class GENSIOCPP_DLL_PUBLIC Accepter_Shutdown_Done {
