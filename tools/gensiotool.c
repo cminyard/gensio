@@ -716,6 +716,22 @@ io_open_paddr(struct gensio *io, int err, void *open_data)
 }
 
 static int
+parmlog_eventh(struct gensio *io, void *user_data,
+	       int event, int err, unsigned char *buf, gensiods *buflen,
+	       const char *const *auxdata)
+{
+    struct gtinfo *g = user_data;
+
+    if (event == GENSIO_EVENT_PARMLOG) {
+	struct gensio_parmlog_data *p = (struct gensio_parmlog_data *) buf;
+	vreport_err(g, p->log, p->args);
+	return 0;
+    }
+
+    return GE_NOTSUP;
+}
+
+static int
 add_io(struct gtinfo *g, struct gensio *io, bool open_finished)
 {
     struct gensio_os_funcs *o = g->o;
@@ -763,7 +779,7 @@ add_io(struct gtinfo *g, struct gensio *io, bool open_finished)
 
     ioinfo_set_otherioinfo(ioinfo1, ioinfo2);
 
-    err = str_to_gensio(g->ios1, o, NULL, ioinfo1, &gtconn1->io);
+    err = str_to_gensio(g->ios1, o, parmlog_eventh, ioinfo1, &gtconn1->io);
     if (err) {
 	report_err(g, "Could not allocate %s: %s",
 		g->ios1, gensio_err_to_str(err));
@@ -857,6 +873,12 @@ io_acc_event(struct gensio_accepter *accepter, void *user_data,
 {
     struct gtinfo *g = user_data;
     int err;
+
+    if (event == GENSIO_ACC_EVENT_PARMLOG) {
+	struct gensio_parmlog_data *p = (struct gensio_parmlog_data *) data;
+	vreport_err(g, p->log, p->args);
+	return 0;
+    }
 
     if (event == GENSIO_ACC_EVENT_LOG) {
 	struct gensio_loginfo *li = data;
@@ -1197,7 +1219,7 @@ main(int argc, char *argv[])
     if (io2_do_acc)
 	rv = str_to_gensio_accepter(g.ios2, g.o, io_acc_event, &g, &g.acc);
     else
-	rv = str_to_gensio(g.ios2, g.o, NULL, &g, &io);
+	rv = str_to_gensio(g.ios2, g.o, parmlog_eventh, &g, &io);
     if (rv) {
 	fprintf(stderr, "Could not allocate %s: %s\n", g.ios2,
 		gensio_err_to_str(rv));
