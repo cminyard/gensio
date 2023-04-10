@@ -13,6 +13,51 @@ import pygensio
 import sys
 from testbase import *
 
+class ParseHandler(pygensio.Event):
+    def __init__(self):
+        pygensio.Event.__init__(self)
+        self.log = None
+        return
+
+    def parmlog(self, log):
+        self.log = log
+        return
+    None
+
+p = ParseHandler()
+try:
+    g = pygensio.gensio_alloc("tcp(asdf=x),localhost,1234", o, p)
+except Exception as E:
+    if str(E) != "Invalid data to parameter":
+        raise Exception("Didn't get proper error from gensio_alloc: " + str(E))
+if p.log is None:
+    raise Exception("Log handler didn't get called ")
+if p.log != "gensio tcp: unknown parameter asdf=x":
+    raise Exception("Did't get proper log from gensio_alloc: " + p.log)
+
+class AccParseHandler(pygensio.Accepter_Event):
+    def __init__(self):
+        pygensio.Accepter_Event.__init__(self)
+        self.log = None
+        return
+
+    def parmlog(self, log):
+        self.log = log
+        return
+    None
+p = AccParseHandler()
+
+try:
+    g = pygensio.gensio_acc_alloc("tcp(asdf=x),0", o, p)
+except Exception as E:
+    if str(E) != "Invalid data to parameter":
+        raise Exception("Didn't get proper error from gensio_alloc: " + str(E))
+if p.log is None:
+    raise Exception("Log handler didn't get called ")
+if p.log != "accepter tcp: unknown parameter asdf=x":
+    raise Exception("Did't get proper log from gensio_acc_alloc: " + p.log)
+
+
 # Basic test with blocking I/O
 r = Reflector(o, "tcp,0")
 r.startup()
