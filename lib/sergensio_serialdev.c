@@ -22,7 +22,8 @@
 #include "utils.h"
 
 static int
-speedstr_to_speed(const char *speed, const char **rest)
+speedstr_to_speed(struct gensio_pparm_info *p, bool logerr,
+		  const char *speed, const char **rest)
 {
     const char *end = speed;
     unsigned int len;
@@ -31,8 +32,11 @@ speedstr_to_speed(const char *speed, const char **rest)
     while (*end && isdigit(*end))
 	end++;
     len = end - speed;
-    if (len < 1)
+    if (len < 1) {
+	if (logerr)
+	    gensio_pparm_log(p, "Invalid serial speed: %s", speed);
 	return -1;
+    }
 
     rv = strtoul(speed, NULL, 10);
     *rest = end;
@@ -150,7 +154,8 @@ struct sterm_data {
 };
 
 static int
-set_serdef_from_speed(struct sterm_data *sdata, int speed, const char *others)
+set_serdef_from_speed(struct gensio_pparm_info *p,
+		      struct sterm_data *sdata, int speed, const char *others)
 {
     sdata->def_baud = speed;
 
@@ -163,6 +168,7 @@ set_serdef_from_speed(struct sterm_data *sdata, int speed, const char *others)
 	case 'S': case 's': sdata->def_parity = SERGENSIO_PARITY_SPACE; break;
 	    break;
 	default:
+	    gensio_pparm_log(p, "Unknown parity: %s", others);
 	    return GE_INVAL;
 	}
 	others++;
@@ -175,6 +181,7 @@ set_serdef_from_speed(struct sterm_data *sdata, int speed, const char *others)
 	case '7': sdata->def_datasize = 7; break;
 	case '8': sdata->def_datasize = 8; break;
 	default:
+	    gensio_pparm_log(p, "Unknown number of bits: %s", others);
 	    return GE_INVAL;
 	}
 	others++;
@@ -185,13 +192,16 @@ set_serdef_from_speed(struct sterm_data *sdata, int speed, const char *others)
 	case '1': sdata->def_stopbits = 1; break;
 	case '2': sdata->def_stopbits = 2; break;
 	default:
+	    gensio_pparm_log(p, "Unknown number of stopbits: %s", others);
 	    return GE_INVAL;
 	}
 	others++;
     }
 
-    if (*others)
+    if (*others) {
+	gensio_pparm_log(p, "Extra data in serial spec: %s", others);
 	return GE_INVAL;
+    }
 
     return 0;
 }
@@ -1196,44 +1206,46 @@ static const struct gensio_fd_ll_ops sterm_fd_ll_ops = {
 };
 
 static int
-handle_speedstr(struct sterm_data *sdata, const char *str)
+handle_speedstr(struct gensio_pparm_info *p, bool logerr,
+		struct sterm_data *sdata, const char *str)
 {
     int val, rv;
     const char *rest = "";
 
-    val = speedstr_to_speed(str, &rest);
+    val = speedstr_to_speed(p, logerr, str, &rest);
     if (val < 10)
 	/* Some parameters start a digit, ignore them. */
 	return GE_INVAL;
-    rv = set_serdef_from_speed(sdata, val, rest);
+    rv = set_serdef_from_speed(p, sdata, val, rest);
     if (rv)
 	return rv;
     return 0;
 }
 
 static int
-process_defserial_parm(struct sterm_data *sdata, const char *parm)
+process_defserial_parm(struct gensio_pparm_info *p,
+		       struct sterm_data *sdata, const char *parm)
 {
     int rv = 0, val;
     const char *str;
     bool bval;
 
-    if (gensio_check_keyvalue(parm, "speed", &str) > 0) {
-	rv = handle_speedstr(sdata, str);
-    } else if (handle_speedstr(sdata, parm) == 0) {
+    if (gensio_pparm_value(p, parm, "speed", &str) > 0) {
+	rv = handle_speedstr(p, true, sdata, str);
+    } else if (handle_speedstr(p, false, sdata, parm) == 0) {
 	;
-    } else if (gensio_check_keybool(parm, "xonxoff", &bval) > 0) {
+    } else if (gensio_pparm_bool(p, parm, "xonxoff", &bval) > 0) {
 	sdata->def_xonxoff = bval;
-    } else if (gensio_check_keybool(parm, "rtscts", &bval) > 0) {
+    } else if (gensio_pparm_bool(p, parm, "rtscts", &bval) > 0) {
 	sdata->def_rtscts = bval;
-    } else if (gensio_check_keybool(parm, "local", &bval) > 0) {
+    } else if (gensio_pparm_bool(p, parm, "local", &bval) > 0) {
 	sdata->def_local = bval;
-    } else if (gensio_check_keybool(parm, "hangup-when-done", &bval) > 0) {
+    } else if (gensio_pparm_bool(p, parm, "hangup-when-done", &bval) > 0) {
 	sdata->def_hupcl = bval;
-    } else if (gensio_check_keybool(parm, "dtr", &bval) > 0) {
+    } else if (gensio_pparm_bool(p, parm, "dtr", &bval) > 0) {
 	sdata->dtr_set = true;
 	sdata->dtr_val = bval;
-    } else if (gensio_check_keybool(parm, "rts", &bval) > 0) {
+    } else if (gensio_pparm_bool(p, parm, "rts", &bval) > 0) {
 	if (!sdata->dtr_set)
 	    sdata->rts_first = true;
 	sdata->rts_set = true;
@@ -1265,6 +1277,7 @@ process_defserial_parm(struct sterm_data *sdata, const char *parm)
     } else if (strcasecmp(parm, "-HANGUP_WHEN_DONE") == 0) {
 	sdata->def_hupcl = 0;
     } else {
+	gensio_pparm_unknown_parm(p, parm);
 	rv = GE_INVAL;
     }
 
@@ -1272,7 +1285,7 @@ process_defserial_parm(struct sterm_data *sdata, const char *parm)
 }
 
 static int
-sergensio_process_parms(struct sterm_data *sdata)
+sergensio_process_parms(struct gensio_pparm_info *p, struct sterm_data *sdata)
 {
     int argc, i;
     const char **argv;
@@ -1280,16 +1293,20 @@ sergensio_process_parms(struct sterm_data *sdata)
 				 " \f\t\n\r\v,");
     const char *str;
 
-    if (err)
+    if (err) {
+	gensio_pparm_log(p, "Invalid parameters,"
+			 "likely unterminated string in '%s'",
+			 sdata->parms);
 	return err;
+    }
 
     for (i = 0; i < argc; i++) {
-	if (gensio_check_keybool(argv[i], "wronly", &sdata->write_only) > 0) {
+	if (gensio_pparm_bool(p, argv[i], "wronly", &sdata->write_only) > 0) {
 	    continue;
-	} else if (gensio_check_keybool(argv[i], "nobreak",
-					&sdata->disablebreak) > 0) {
+	} else if (gensio_pparm_bool(p, argv[i], "nobreak",
+				     &sdata->disablebreak) > 0) {
 	    continue;
-	} else if (gensio_check_keyvalue(argv[i], "rs485", &str) > 0) {
+	} else if (gensio_pparm_value(p, argv[i], "rs485", &str) > 0) {
 	    if (sdata->rs485)
 		sdata->o->free(sdata->o, sdata->rs485);
 	    sdata->rs485 = gensio_strdup(sdata->o, str);
@@ -1304,7 +1321,7 @@ sergensio_process_parms(struct sterm_data *sdata)
 	    sdata->disablebreak = false;
 	    continue;
 	}
-	err = process_defserial_parm(sdata, argv[i]);
+	err = process_defserial_parm(p, sdata, argv[i]);
 	if (err)
 	    break;
     }
@@ -1314,7 +1331,8 @@ sergensio_process_parms(struct sterm_data *sdata)
 }
 
 static int
-sergensio_setup_defaults(struct sterm_data *sdata)
+sergensio_setup_defaults(struct gensio_pparm_info *p,
+			 struct sterm_data *sdata)
 {
     struct gensio_os_funcs *o = sdata->o;
     int val, err;
@@ -1324,11 +1342,11 @@ sergensio_setup_defaults(struct sterm_data *sdata)
 			     GENSIO_DEFAULT_STR, &str, NULL);
     if (err) {
 	gensio_log(o, GENSIO_LOG_ERR, "Failed getting default serialdev speed:"
-		   " %s\n", gensio_err_to_str(err));
+		   " %s", gensio_err_to_str(err));
 	return err;
     }
     if (str) {
-	if (handle_speedstr(sdata, str)) {
+	if (handle_speedstr(p, false, sdata, str)) {
 	    gensio_log(o, GENSIO_LOG_ERR,
 		       "Default speed settings (%s) are invalid,"
 		       " defaulting to 9600N81", str);
@@ -1372,7 +1390,7 @@ sergensio_setup_defaults(struct sterm_data *sdata)
 			     &str, NULL);
     if (err) {
 	gensio_log(o, GENSIO_LOG_ERR, "Failed getting default serialdev rs485:"
-		   " %s\n", gensio_err_to_str(err));
+		   " %s", gensio_err_to_str(err));
 	return err;
     }
     sdata->rs485 = str;
@@ -1396,6 +1414,7 @@ serialdev_gensio_alloc(const void *gdata, const char * const args[],
     bool nouucplock_set = false, dummy = false;
     const char *s;
     char *end;
+    GENSIO_DECLARE_PPGENSIO(p, o, cb, "serialdev", user_data);
 
     if (!sdata)
 	return GE_NOMEM;
@@ -1417,9 +1436,9 @@ serialdev_gensio_alloc(const void *gdata, const char * const args[],
 	goto out_err;
 
     for (i = 0; args && args[i]; i++) {
-	if (gensio_check_keyds(args[i], "readbuf", &max_read_size) > 0)
+	if (gensio_pparm_ds(&p, args[i], "readbuf", &max_read_size) > 0)
 	    continue;
-	if (gensio_check_keyvalue(args[i], "drain_time", &s) > 0) {
+	if (gensio_pparm_value(&p, args[i], "drain_time", &s) > 0) {
 	    if (strcmp(s, "off") == 0) {
 		sdata->drain_time = -1;
 	    } else {
@@ -1429,7 +1448,7 @@ serialdev_gensio_alloc(const void *gdata, const char * const args[],
 	    }
 	    continue;
 	}
-	if (gensio_check_keyvalue(args[i], "char_drain_wait", &s) > 0) {
+	if (gensio_pparm_value(&p, args[i], "char_drain_wait", &s) > 0) {
 	    if (strcmp(s, "off") == 0) {
 		sdata->char_drain_wait = -1;
 	    } else {
@@ -1439,15 +1458,16 @@ serialdev_gensio_alloc(const void *gdata, const char * const args[],
 	    }
 	    continue;
 	}
-	if (gensio_check_keybool(args[i], "nouucplock",
-				 &sdata->no_uucp_lock) > 0) {
+	if (gensio_pparm_bool(&p, args[i], "nouucplock",
+			      &sdata->no_uucp_lock) > 0) {
 	    nouucplock_set = true;
 	    continue;
 	}
 	/* custspeed is ignored now */
-	if (gensio_check_keybool(args[i], "custspeed", &dummy) > 0)
+	if (gensio_pparm_bool(&p, args[i], "custspeed", &dummy) > 0)
 	    continue;
     out_inval:
+	gensio_pparm_unknown_parm(&p, args[i]);
 	err = GE_INVAL;
 	goto out_err;
     }
@@ -1483,13 +1503,13 @@ serialdev_gensio_alloc(const void *gdata, const char * const args[],
 	sdata->no_uucp_lock = strcmp(slash, "tty") == 0 || sdata->is_pty;
     }
 
-    err = sergensio_setup_defaults(sdata);
+    err = sergensio_setup_defaults(&p, sdata);
     if (err)
 	goto out_err;
 
     if (comma) {
 	sdata->parms = comma;
-	err = sergensio_process_parms(sdata);
+	err = sergensio_process_parms(&p, sdata);
 	if (err)
 	    goto out_err;
     }
@@ -1536,9 +1556,9 @@ serialdev_gensio_alloc(const void *gdata, const char * const args[],
 
 static int
 str_to_serialdev_gensio(const char *str, const char * const args[],
-		      struct gensio_os_funcs *o,
-		      gensio_event cb, void *user_data,
-		      struct gensio **new_gensio)
+			struct gensio_os_funcs *o,
+			gensio_event cb, void *user_data,
+			struct gensio **new_gensio)
 {
     return serialdev_gensio_alloc(str, args, o, cb, user_data, new_gensio);
 }
