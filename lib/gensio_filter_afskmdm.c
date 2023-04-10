@@ -1663,13 +1663,13 @@ afskmdm_calc_fir_coefs(struct gensio_os_funcs *o,
 		       unsigned int *rn)
 {
     double tba = transband / samplerate;
-    double w = 2 * M_PI * cutoff / samplerate;
+    double coa = cutoff / samplerate;
+    double w = 2 * M_PI * (coa + .5 * tba);
     unsigned int i;
     /* For a hamming filter, transition band ~ (3.3 / N). */
     unsigned int n = 3.3 / tba / 2;
     double N = n * 2 + 1;
-    double dx = (n * 2) / (n * 2 - 1);
-    double x = dx;
+    double x = 1.0;
     float *h;
 
     h = o->zalloc(o, n * sizeof(float));
@@ -1680,7 +1680,7 @@ afskmdm_calc_fir_coefs(struct gensio_os_funcs *o,
 	double tmp;
 
 	/* h(x) = 2 * f * sinc() */
-	tmp = sin(w * x) / (M_PI * x);
+	tmp = sin(x * w) / (x * M_PI);
 
 	/* Hamming window */
 	tmp *= .54 - .46 * cos(2 * M_PI * (i + 1) / N);
@@ -1689,7 +1689,7 @@ afskmdm_calc_fir_coefs(struct gensio_os_funcs *o,
 
 	if (i == 0)
 	    break;
-	x += dx;
+	x += 1.0;
     }
     *rn = n;
     return h;
