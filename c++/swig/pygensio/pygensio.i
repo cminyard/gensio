@@ -957,6 +957,7 @@ static bool check_for_err(int err)
     }
 }
 
+%catches(gensios::gensio_error) gensio_alloct;
 %rename("") gensios::gensio_alloc;
 %rename(gensio_alloc) gensio_alloct;
 %newobject gensio_alloct;
@@ -1262,6 +1263,7 @@ gensios::Serial_Gensio *cast_to_serial_gensio(gensios::Gensio *g) {
     }
 }
 
+%catches(gensios::gensio_error) gensio_acc_alloct;
 %rename("") gensios::gensio_acc_alloc;
 %rename(gensio_acc_alloc) gensio_acc_alloct;
 %newobject gensio_acc_alloct;
