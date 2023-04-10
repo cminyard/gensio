@@ -94,6 +94,11 @@ struct gensio_sg {
 #define gensio_container_of(ptr, type, member)		\
     ((type *)(((char *) ptr) - offsetof(type, member)))
 
+struct gensio_enum_val {
+    char *name;
+    int val;
+};
+
 #ifdef __cplusplus
 }
 #endif

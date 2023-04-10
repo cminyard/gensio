@@ -1800,8 +1800,144 @@ str_to_gensio_child(struct gensio *child,
 int
 gensio_check_keyvalue(const char *str, const char *key, const char **value)
 {
-    size_t keylen = strlen(key);
+    GENSIO_DECLARE_PPNULL(p);
+    return gensio_pparm_value(&p, str, key, value);
+}
 
+int
+gensio_check_keyds(const char *str, const char *key, gensiods *rvalue)
+{
+    GENSIO_DECLARE_PPNULL(p);
+    return gensio_pparm_ds(&p, str, key, rvalue);
+}
+
+int
+gensio_check_keyuint(const char *str, const char *key, unsigned int *rvalue)
+{
+    GENSIO_DECLARE_PPNULL(p);
+    return gensio_pparm_uint(&p, str, key, rvalue);
+}
+
+int
+gensio_check_keyint(const char *str, const char *key, int *rvalue)
+{
+    GENSIO_DECLARE_PPNULL(p);
+    return gensio_pparm_int(&p, str, key, rvalue);
+}
+
+int
+gensio_check_keybool(const char *str, const char *key, bool *rvalue)
+{
+    GENSIO_DECLARE_PPNULL(p);
+    return gensio_pparm_bool(&p, str, key, rvalue);
+}
+
+int
+gensio_check_keyboolv(const char *str, const char *key, const char *trueval,
+		      const char *falseval, bool *rvalue)
+{
+    GENSIO_DECLARE_PPNULL(p);
+    return gensio_pparm_boolv(&p, str, key, trueval, falseval, rvalue);
+}
+
+int
+gensio_check_keyenum(const char *str, const char *key,
+		     struct gensio_enum_val *enums, int *rval)
+{
+    GENSIO_DECLARE_PPNULL(p);
+    return gensio_pparm_enum(&p, str, key, enums, rval);
+}
+
+int
+gensio_check_keyaddrs(struct gensio_os_funcs *o,
+		      const char *str, const char *key, int iprotocol,
+		      bool listen, bool require_port,
+		      struct gensio_addr **rai)
+{
+    GENSIO_DECLARE_PPNULL(p);
+    p.o = o;
+    return gensio_pparm_addrs(&p, str, key, iprotocol, listen,
+				 require_port, rai);
+}
+
+int
+gensio_check_keyaddrs_noport(struct gensio_os_funcs *o,
+			     const char *str, const char *key, int protocol,
+			     struct gensio_addr **rai)
+{
+    GENSIO_DECLARE_PPNULL(p);
+    p.o = o;
+    return gensio_pparm_addrs_noport(&p, str, key, protocol, rai);
+}
+
+int
+gensio_check_keymode(const char *str, const char *key, unsigned int *rmode)
+{
+    GENSIO_DECLARE_PPNULL(p);
+    return gensio_pparm_mode(&p, str, key, rmode);
+}
+
+int
+gensio_check_keyperm(const char *str, const char *key, unsigned int *rmode)
+{
+    GENSIO_DECLARE_PPNULL(p);
+    return gensio_pparm_perm(&p, str, key, rmode);
+}
+
+int
+gensio_check_keytime(const char *str, const char *key, char mod,
+		     gensio_time *rgt)
+{
+    GENSIO_DECLARE_PPNULL(p);
+    return gensio_pparm_time(&p, str, key, mod, rgt);
+}
+
+int
+gensio_check_keyfloat(const char *str, const char *key, float *rvalue)
+{
+    GENSIO_DECLARE_PPNULL(p);
+    return gensio_pparm_float(&p, str, key, rvalue);
+}
+
+static void
+gensio_pparm_vlog(struct gensio_pparm_info *p, const char *log, va_list args)
+{
+    struct gensio_parmlog_data data;
+
+    data.log = log;
+    va_copy(data.args, args);
+
+    p->err = -1;
+
+    if (p->ghandler)
+	p->ghandler(NULL, p->user_data, GENSIO_EVENT_PARMLOG, 0,
+		    (unsigned char *) &data, NULL, NULL);
+    else if (p->acchandler)
+	p->acchandler(NULL, p->user_data, GENSIO_ACC_EVENT_PARMLOG,
+		      (unsigned char *) &data);
+    va_end(data.args);
+}
+
+void
+i_gensio_pparm_log(struct gensio_pparm_info *p, const char *log, ...)
+{
+    va_list args;
+
+    va_start(args, log);
+    gensio_pparm_vlog(p, log, args);
+    va_end(args);
+}
+
+int
+gensio_pparm_value(struct gensio_pparm_info *p,
+		   const char *str, const char *key, const char **value)
+{
+    size_t keylen;
+
+    if (p->err)
+	return 0;
+
+    keylen = strlen(key);
     if (strncasecmp(str, key, keylen) != 0)
 	return 0;
     if (str[keylen] != '=')
@@ -1811,96 +1947,120 @@ gensio_check_keyvalue(const char *str, const char *key, const char **value)
 }
 
 int
-gensio_check_keyds(const char *str, const char *key, gensiods *rvalue)
+gensio_pparm_ds(struct gensio_pparm_info *p,
+		const char *str, const char *key, gensiods *rvalue)
 {
     const char *sval;
     char *end;
-    int rv = gensio_check_keyvalue(str, key, &sval);
+    int rv = gensio_pparm_value(p, str, key, &sval);
     gensiods value;
 
     if (!rv)
 	return 0;
 
-    if (!*sval)
+    if (!*sval) {
+	gensio_pparm_log(p, "no value given in parameter %s", str);
 	return -1;
+    }
 
     value = strtoul(sval, &end, 0);
-    if (*end != '\0')
+    if (*end != '\0') {
+	gensio_pparm_log(p, "invalid number in parameter %s", str);
 	return -1;
+    }
 
     *rvalue = value;
     return 1;
 }
 
 int
-gensio_check_keyuint(const char *str, const char *key, unsigned int *rvalue)
+gensio_pparm_uint(struct gensio_pparm_info *p,
+		  const char *str, const char *key, unsigned int *rvalue)
 {
     const char *sval;
     char *end;
-    int rv = gensio_check_keyvalue(str, key, &sval);
+    int rv = gensio_pparm_value(p, str, key, &sval);
     unsigned long value;
 
     if (!rv)
 	return 0;
 
-    if (!*sval)
+    if (!*sval) {
+	gensio_pparm_log(p, "no value given in parameter %s", str);
 	return -1;
+    }
 
     value = strtoul(sval, &end, 0);
-    if (*end != '\0')
+    if (*end != '\0') {
+	gensio_pparm_log(p, "invalid number in parameter %s", str);
 	return -1;
+    }
 
-    if (value > UINT_MAX)
+    if (value > UINT_MAX) {
+	gensio_pparm_log(p, "unsigned int range exceeded in parameter %s",
+			 str);
 	return -1;
+    }
 
     *rvalue = value;
     return 1;
 }
 
 int
-gensio_check_keyint(const char *str, const char *key, int *rvalue)
+gensio_pparm_int(struct gensio_pparm_info *p,
+		 const char *str, const char *key, int *rvalue)
 {
     const char *sval;
     char *end;
-    int rv = gensio_check_keyvalue(str, key, &sval);
+    int rv = gensio_pparm_value(p, str, key, &sval);
     long value;
 
     if (!rv)
 	return 0;
 
-    if (!*sval)
+    if (!*sval) {
+	gensio_pparm_log(p, "no value given in parameter %s", str);
 	return -1;
+    }
 
     value = strtol(sval, &end, 0);
-    if (*end != '\0')
+    if (*end != '\0') {
+	gensio_pparm_log(p, "invalid number in parameter %s", str);
 	return -1;
+    }
 
-    if (value > INT_MAX)
-	return -1;
-    if (value < INT_MIN)
-	return -1;
+    if (value > INT_MAX || value < INT_MIN) {
+	gensio_pparm_log(p, "unsigned int range exceeded in parameter %s",
+			 str);
+    }
 
     *rvalue = value;
     return 1;
 }
 
 int
-gensio_check_keybool(const char *str, const char *key, bool *rvalue)
+gensio_pparm_bool(struct gensio_pparm_info *p,
+		  const char *str, const char *key, bool *rvalue)
 {
     const char *sval;
     int rv;
+
+    if (p->err)
+	return 0;
 
     if (strcasecmp(str, key) == 0) {
 	*rvalue = true;
 	return 1;
     }
 
-    rv = gensio_check_keyvalue(str, key, &sval);
+    rv = gensio_pparm_value(p, str, key, &sval);
     if (!rv)
 	return 0;
 
-    if (!*sval)
+    if (!*sval) {
+	gensio_pparm_log(p, "no value given in parameter %s", str);
 	return -1;
+    }
 
     if (strcmp(sval, "true") == 0 || strcmp(sval, "1") == 0 ||
 		strcmp(sval, "yes") == 0 || strcmp(sval, "on") == 0)
@@ -1908,45 +2068,53 @@ gensio_check_keybool(const char *str, const char *key, bool *rvalue)
     else if (strcmp(sval, "false") == 0 || strcmp(sval, "0") == 0 ||
 		strcmp(sval, "no") == 0 || strcmp(sval, "off") == 0)
 	*rvalue = false;
-    else
+    else {
+	gensio_pparm_log(p, "invalid bool in parameter %s", str);
 	return -1;
+    }
 
     return 1;
 }
 
 int
-gensio_check_keyboolv(const char *str, const char *key, const char *trueval,
-		      const char *falseval, bool *rvalue)
+gensio_pparm_boolv(struct gensio_pparm_info *p,
+		   const char *str, const char *key, const char *trueval,
+		   const char *falseval, bool *rvalue)
 {
     const char *sval;
     int rv;
 
-    rv = gensio_check_keyvalue(str, key, &sval);
+    rv = gensio_pparm_value(p, str, key, &sval);
     if (!rv)
 	return 0;
 
-    if (!*sval)
+    if (!*sval) {
+	gensio_pparm_log(p, "no value given in parameter %s", str);
 	return -1;
+    }
 
     if (strcmp(sval, trueval) == 0)
 	*rvalue = true;
     else if (strcmp(sval, falseval) == 0)
 	*rvalue = false;
-    else
+    else {
+	gensio_pparm_log(p, "invalid bool in parameter %s", str);
 	return -1;
+    }
 
     return 1;
 }
 
 int
-gensio_check_keyenum(const char *str, const char *key,
-		     struct gensio_enum_val *enums, int *rval)
+gensio_pparm_enum(struct gensio_pparm_info *p,
+		  const char *str, const char *key,
+		  struct gensio_enum_val *enums, int *rval)
 {
     const char *sval;
     int rv;
     unsigned int i;
 
-    rv = gensio_check_keyvalue(str, key, &sval);
+    rv = gensio_pparm_value(p, str, key, &sval);
     if (!rv)
 	return 0;
 
@@ -1957,14 +2125,15 @@ gensio_check_keyenum(const char *str, const char *key,
 	}
     }
 
+    gensio_pparm_log(p, "invalid enum value in parameter %s", str);
     return -1;
 }
 
 int
-gensio_check_keyaddrs(struct gensio_os_funcs *o,
-		      const char *str, const char *key, int iprotocol,
-		      bool listen, bool require_port,
-		      struct gensio_addr **rai)
+gensio_pparm_addrs(struct gensio_pparm_info *p,
+		   const char *str, const char *key, int iprotocol,
+		   bool listen, bool require_port,
+		   struct gensio_addr **rai)
 {
     const char *sval;
     int rv;
@@ -1972,19 +2141,27 @@ gensio_check_keyaddrs(struct gensio_os_funcs *o,
     int protocol = iprotocol;
     bool is_port_set;
 
-    rv = gensio_check_keyvalue(str, key, &sval);
+    rv = gensio_pparm_value(p, str, key, &sval);
     if (!rv)
 	return 0;
 
-    if (!*sval)
+    if (!*sval) {
+	gensio_pparm_log(p, "no value given in parameter %s",str);
 	return -1;
+    }
 
-    rv = gensio_scan_network_port(o, sval, listen, &ai,
+    rv = gensio_scan_network_port(p->o, sval, listen, &ai,
 				  &protocol, &is_port_set, NULL, NULL);
-    if (rv)
+    if (rv) {
+	gensio_pparm_log(p, "Invalid network address in parameter %s", str);
 	return -1;
+    }
 
-    if ((require_port && !is_port_set) || protocol != iprotocol) {
+    if (require_port && !is_port_set) {
+	gensio_pparm_log(p, "Port not set in parameter %s", str);
+	gensio_addr_free(ai);
+    } else if (protocol != iprotocol) {
+	gensio_pparm_log(p, "Protocol mismatch in parameter %s", str);
 	gensio_addr_free(ai);
 	return -1;
     }
@@ -1998,24 +2175,28 @@ gensio_check_keyaddrs(struct gensio_os_funcs *o,
 }
 
 int
-gensio_check_keyaddrs_noport(struct gensio_os_funcs *o,
-			     const char *str, const char *key, int protocol,
-			     struct gensio_addr **rai)
+gensio_pparm_addrs_noport(struct gensio_pparm_info *p,
+			  const char *str, const char *key, int protocol,
+			  struct gensio_addr **rai)
 {
     const char *sval;
     int rv;
     struct gensio_addr *ai;
 
-    rv = gensio_check_keyvalue(str, key, &sval);
+    rv = gensio_pparm_value(p, str, key, &sval);
     if (!rv)
 	return 0;
 
-    if (!*sval)
+    if (!*sval) {
+	gensio_pparm_log(p, "no value given in parameter %s", str);
 	return -1;
+    }
 
-    rv = gensio_scan_network_addr(o, sval, protocol, &ai);
-    if (rv)
+    rv = gensio_scan_network_addr(p->o, sval, protocol, &ai);
+    if (rv) {
+	gensio_pparm_log(p, "Invalid network address in parameter %s", str);
 	return -1;
+    }
 
     if (*rai)
 	gensio_addr_free(*rai);
@@ -2026,18 +2207,21 @@ gensio_check_keyaddrs_noport(struct gensio_os_funcs *o,
 }
 
 int
-gensio_check_keymode(const char *str, const char *key, unsigned int *rmode)
+gensio_pparm_mode(struct gensio_pparm_info *p,
+		  const char *str, const char *key, unsigned int *rmode)
 {
     const char *sval;
-    int rv = gensio_check_keyvalue(str, key, &sval);
+    int rv = gensio_pparm_value(p, str, key, &sval);
     unsigned int mode;
 
     if (!rv)
 	return 0;
 
     if (*sval >= '0' && *sval <= '7') {
-	if (sval[1])
+	if (sval[1]) {
+	    gensio_pparm_log(p, "Invalid keymode in parameter %s", str);
 	    return -1;
+	}
 	*rmode = *sval - '0';
 	return 1;
     }
@@ -2050,8 +2234,10 @@ gensio_check_keymode(const char *str, const char *key, unsigned int *rmode)
 	    mode |= 2;
 	else if (*sval == 'x')
 	    mode |= 1;
-	else
+	else {
+	    gensio_pparm_log(p, "Invalid keymode in parameter %s", str);
 	    return -1;
+	}
 	sval++;
     }
     *rmode = mode;
@@ -2059,31 +2245,35 @@ gensio_check_keymode(const char *str, const char *key, unsigned int *rmode)
 }
 
 int
-gensio_check_keyperm(const char *str, const char *key, unsigned int *rmode)
+gensio_pparm_perm(struct gensio_pparm_info *p,
+		  const char *str, const char *key, unsigned int *rmode)
 {
     const char *sval;
     char *end;
-    int rv = gensio_check_keyvalue(str, key, &sval);
+    int rv = gensio_pparm_value(p, str, key, &sval);
     unsigned int mode;
 
     if (!rv)
 	return 0;
 
     mode = strtoul(sval, &end, 8);
-    if (end == sval || *end != '\0')
+    if (end == sval || *end != '\0') {
+	gensio_pparm_log(p, "Invalid permissions in parameter %s", str);
 	return -1;
+    }
 
     *rmode = mode;
     return 1;
 }
 
 int
-gensio_check_keytime(const char *str, const char *key, char mod,
-		     gensio_time *rgt)
+gensio_pparm_time(struct gensio_pparm_info *p,
+		  const char *str, const char *key, char mod,
+		  gensio_time *rgt)
 {
     const char *sval;
     char *end;
-    int rv = gensio_check_keyvalue(str, key, &sval);
+    int rv = gensio_pparm_value(p, str, key, &sval);
     gensio_time gt = { 0, 0 };
     int64_t v;
     int64_t nsecs = 0; /* Use this to avoid overflows. */
@@ -2093,8 +2283,10 @@ gensio_check_keytime(const char *str, const char *key, char mod,
 
     while (true) {
 	v = strtoul(sval, &end, 0);
-	if (end == sval)
+	if (end == sval) {
+	    gensio_pparm_log(p, "Invalid time in parameter %s", str);
 	    return -1;
+	}
 	if (*end) {
 	    mod = *end;
 	    end++;
@@ -2119,33 +2311,49 @@ gensio_check_keytime(const char *str, const char *key, char mod,
     }
  done:
     gt.nsecs = nsecs;
-    if (*end)
+    if (*end) {
+	gensio_pparm_log(p, "Invalid time in parameter %s", str);
 	return -1;
+    }
 
     *rgt = gt;
     return 1;
 }
 
 int
-gensio_check_keyfloat(const char *str, const char *key, float *rvalue)
+gensio_pparm_float(struct gensio_pparm_info *p,
+		   const char *str, const char *key, float *rvalue)
 {
     const char *sval;
     char *end;
-    int rv = gensio_check_keyvalue(str, key, &sval);
+    int rv = gensio_pparm_value(p, str, key, &sval);
     float value;
 
     if (!rv)
 	return 0;
 
-    if (!*sval)
+    if (!*sval) {
+	gensio_pparm_log(p, "no value given in parameter %s", str);
 	return -1;
+    }
 
     value = strtof(sval, &end);
-    if (*end != '\0')
+    if (*end != '\0') {
+	gensio_pparm_log(p, "invalid number in parameter %s", str);
 	return -1;
+    }
 
     *rvalue = value;
     return 1;
+}
+
+void
+gensio_pparm_unknown_parm(struct gensio_pparm_info *p,
+			  const char *arg)
+{
+    if (p->err)
+	return;
+    gensio_pparm_log(p, "unknown parameter %s", arg);
 }
 
 void

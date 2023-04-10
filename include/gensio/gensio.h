@@ -60,6 +60,12 @@ extern "C" {
 #define GENSIO_EVENT_REQUEST_2FA	10
 #define GENSIO_EVENT_2FA_VERIFY		11
 
+struct gensio_parmlog_data {
+    const char *log;
+    va_list args;
+};
+#define GENSIO_EVENT_PARMLOG		12
+
 /*
  * Serial callbacks start here and run to 2000.
  */
@@ -279,6 +285,8 @@ struct gensio_acc_postcert_verify_data {
 #define GENSIO_ACC_EVENT_REQUEST_2FA		9
 /* Uses struct gensio_acc_password_verify_data */
 
+#define GENSIO_ACC_EVENT_PARMLOG		10
+
 GENSIO_DLL_PUBLIC
 int str_to_gensio_accepter(const char *str, struct gensio_os_funcs *o,
 			   gensio_accepter_event cb, void *user_data,
@@ -411,11 +419,6 @@ enum gensio_default_type {
     GENSIO_DEFAULT_ENUM,
     GENSIO_DEFAULT_STR,
     GENSIO_DEFAULT_DATA
-};
-
-struct gensio_enum_val {
-    char *name;
-    int val;
 };
 
 GENSIO_DLL_PUBLIC

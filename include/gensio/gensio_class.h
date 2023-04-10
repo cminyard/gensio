@@ -359,4 +359,99 @@ struct gensio_class_cleanup {
 GENSIO_DLL_PUBLIC
 void gensio_register_class_cleanup(struct gensio_class_cleanup *cleanup);
 
+/*
+ * Parameter parsing helpers.
+ */
+struct gensio_pparm_info {
+    struct gensio_os_funcs *o;
+    gensio_event ghandler;
+    gensio_accepter_event acchandler;
+    int err;
+    const char *gensio_name;
+    void *user_data;
+};
+
+#define GENSIO_DECLARE_PPINFO(name, po, ghandler, acchandler, gname, user) \
+    struct gensio_pparm_info name = { po, ghandler, acchandler, 0, gname, user }
+#define GENSIO_DECLARE_PPGENSIO(name, po, handler, gname, user)		\
+    GENSIO_DECLARE_PPINFO(name, po, handler, NULL, gname, user)
+#define GENSIO_DECLARE_PPACCEPTER(name, po, handler, gname, user)	\
+    GENSIO_DECLARE_PPINFO(name, po, NULL, handler, gname, user)
+#define GENSIO_DECLARE_PPNULL(name)	\
+    GENSIO_DECLARE_PPINFO(name, NULL, NULL, NULL, NULL, NULL)
+
+GENSIO_DLL_PUBLIC
+int gensio_pparm_value(struct gensio_pparm_info *p,
+		       const char *str, const char *key, const char **value);
+GENSIO_DLL_PUBLIC
+int gensio_pparm_ds(struct gensio_pparm_info *p,
+		    const char *str, const char *key, gensiods *value);
+GENSIO_DLL_PUBLIC
+int gensio_pparm_uint(struct gensio_pparm_info *p,
+		      const char *str, const char *key, unsigned int *value);
+GENSIO_DLL_PUBLIC
+int gensio_pparm_int(struct gensio_pparm_info *p,
+		     const char *str, const char *key, int *value);
+GENSIO_DLL_PUBLIC
+int gensio_pparm_bool(struct gensio_pparm_info *p,
+		      const char *str, const char *key, bool *rvalue);
+GENSIO_DLL_PUBLIC
+int gensio_pparm_boolv(struct gensio_pparm_info *p,
+		       const char *str, const char *key,
+		       const char *trueval, const char *falseval,
+		       bool *rvalue);
+GENSIO_DLL_PUBLIC
+int gensio_pparm_enum(struct gensio_pparm_info *p,
+		      const char *str, const char *key,
+		      struct gensio_enum_val *enums, int *rval);
+/* The value of protocol is the same as for gensio_scan_network_port(). */
+GENSIO_DLL_PUBLIC
+int gensio_pparm_addrs(struct gensio_pparm_info *p,
+		       const char *str, const char *key, int protocol,
+		       bool listen, bool require_port,
+		       struct gensio_addr **ai);
+GENSIO_DLL_PUBLIC
+int gensio_pparm_addrs_noport(struct gensio_pparm_info *p,
+			      const char *str, const char *key,
+			      int protocol, struct gensio_addr **ai);
+GENSIO_DLL_PUBLIC
+int gensio_pparm_mode(struct gensio_pparm_info *p,
+		      const char *str, const char *key, unsigned int *rmode);
+GENSIO_DLL_PUBLIC
+int gensio_pparm_perm(struct gensio_pparm_info *p,
+		      const char *str, const char *key, unsigned int *rmode);
+/*
+ * Get a gensio time structure. Time consists of a set of numbers each
+ * followed by a single letter.  That letter may be 'D', 'H', 'M',
+ * 's', 'm', 'u', or 'n', meaning days, hours, minutes, seconds,
+ * milliseconds, microseconds, or nanoseconds.  So, for instance,
+ * "10D5H4M9s100u" would be ten days, 5 hours, 4 minutes, 9 seconds,
+ * 100 microseconds.  If a plain number with no letter at the end is
+ * given, then the value passed in "mod" is used.  Pass in 0 for "mod"
+ * to require the user to specify the modifier.
+ */
+GENSIO_DLL_PUBLIC
+int gensio_pparm_time(struct gensio_pparm_info *p,
+		      const char *str, const char *key, char mod,
+		      gensio_time *rgt);
+
+GENSIO_DLL_PUBLIC
+int gensio_pparm_float(struct gensio_pparm_info *p,
+		       const char *str, const char *key, float *rfl);
+
+/*
+ * Report an unknown parameter when allocating a gensio.
+ */
+GENSIO_DLL_PUBLIC
+void gensio_pparm_unknown_parm(struct gensio_pparm_info *p,
+			       const char *arg);
+
+GENSIO_DLL_PUBLIC
+void i_gensio_pparm_log(struct gensio_pparm_info *p, const char *log, ...);
+#define gensio_pparm_log(p, log, ...) \
+    i_gensio_pparm_log(p, "%s %s: " log,				\
+		       (p)->ghandler ? "gensio" : "accepter",		\
+		       (p)->gensio_name __VA_OPT__(,)			\
+		       __VA_ARGS__)
+
 #endif /* GENSIO_CLASS_H */
