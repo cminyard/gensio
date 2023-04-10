@@ -365,6 +365,7 @@ net_gensio_alloc(const struct gensio_addr *iai, const char * const args[],
     int ival;
     int err;
     bool istcp = strcmp(type, "tcp") == 0;
+    GENSIO_DECLARE_PPGENSIO(p, o, cb, istcp ? "tcp" : "unix", user_data);
 
     err = gensio_get_default(o, type, "nodelay", false,
 			     GENSIO_DEFAULT_BOOL, NULL, &ival);
@@ -387,21 +388,22 @@ net_gensio_alloc(const struct gensio_addr *iai, const char * const args[],
     nodelay = ival;
 
     for (i = 0; args && args[i]; i++) {
-	if (gensio_check_keyds(args[i], "readbuf", &max_read_size) > 0)
+	if (gensio_pparm_ds(&p, args[i], "readbuf", &max_read_size) > 0)
 	    continue;
-	if (istcp && gensio_check_keyaddrs(o, args[i], "laddr",
-					   GENSIO_NET_PROTOCOL_TCP,
-					   true, false, &laddr2) > 0) {
+	if (istcp && gensio_pparm_addrs(&p, args[i], "laddr",
+					GENSIO_NET_PROTOCOL_TCP,
+					true, false, &laddr2) > 0) {
 	    if (laddr)
 		gensio_addr_free(laddr);
 	    laddr = laddr2;
 	    continue;
 	}
-	if (istcp && gensio_check_keybool(args[i], "nodelay", &nodelay) > 0)
+	if (istcp && gensio_pparm_bool(&p, args[i], "nodelay", &nodelay) > 0)
 	    continue;
 
 	if (laddr)
 	    gensio_addr_free(laddr);
+	gensio_pparm_unknown_parm(&p, args[i]);
 	return GE_INVAL;
     }
 
@@ -463,8 +465,13 @@ str_to_net_gensio(const char *str, const char * const args[],
     int err;
 
     err = gensio_os_scan_netaddr(o, str, false, protocol, &addr);
-    if (err)
+    if (err) {
+	bool istcp = strcmp(typestr, "tcp") == 0;
+	GENSIO_DECLARE_PPGENSIO(p, o, cb, istcp ? "tcp" : "unix", user_data);
+
+	gensio_pparm_log(&p, "Invalid network address: %s", str);
 	return err;
+    }
 
     err = net_gensio_alloc(addr, args, o, cb, user_data, typestr, new_gensio);
     gensio_addr_free(addr);
@@ -934,11 +941,15 @@ netna_str_to_gensio(struct gensio_accepter *accepter,
     bool is_port_set;
     int protocol = 0;
     bool nodelay = false;
+    GENSIO_DECLARE_PPGENSIO(p, nadata->o, cb,
+			    nadata->istcp ? "tcp" : "unix", user_data);
 
     err = gensio_scan_network_port(nadata->o, addr, false, &ai,
 				   &protocol, &is_port_set, NULL, &iargs);
-    if (err)
+    if (err) {
+	gensio_pparm_log(&p, "Invalid network address: %s", addr);
 	return err;
+    }
 
     err = GE_INVAL;
     if (nadata->istcp) {
@@ -950,16 +961,17 @@ netna_str_to_gensio(struct gensio_accepter *accepter,
     }
 
     for (i = 0; iargs && iargs[i]; i++) {
-	if (gensio_check_keyds(iargs[i], "readbuf", &max_read_size) > 0)
+	if (gensio_pparm_ds(&p, iargs[i], "readbuf", &max_read_size) > 0)
 	    continue;
 	if (nadata->istcp &&
-		gensio_check_keyvalue(iargs[i], "laddr", &dummy) > 0) {
+		gensio_pparm_value(&p, iargs[i], "laddr", &dummy) > 0) {
 	    laddr = iargs[i];
 	    continue;
 	}
 	if (nadata->istcp &&
-		gensio_check_keybool(args[i], "nodelay", &nodelay) > 0)
+		gensio_pparm_bool(&p, args[i], "nodelay", &nodelay) > 0)
 	    continue;
+	gensio_pparm_unknown_parm(&p, args[i]);
 	goto out_err;
     }
 
@@ -1158,6 +1170,7 @@ net_gensio_accepter_alloc(const struct gensio_addr *iai,
 #endif
     unsigned int i;
     int err, ival;
+    GENSIO_DECLARE_PPACCEPTER(p, o, cb, istcp ? "tcp" : "unix", user_data);
 
     if (istcp) {
 	err = gensio_get_default(o, type, "reuseaddr", false,
@@ -1181,50 +1194,51 @@ net_gensio_accepter_alloc(const struct gensio_addr *iai,
 #endif
 
     for (i = 0; args && args[i]; i++) {
-	if (gensio_check_keyds(args[i], "readbuf", &max_read_size) > 0)
+	if (gensio_pparm_ds(&p, args[i], "readbuf", &max_read_size) > 0)
 	    continue;
-	if (istcp && gensio_check_keybool(args[i], "nodelay", &nodelay) > 0)
+	if (istcp && gensio_pparm_bool(&p, args[i], "nodelay", &nodelay) > 0)
 	    continue;
 	if (!istcp &&
-		gensio_check_keybool(args[i], "delsock", &reuseaddr) > 0)
+		gensio_pparm_bool(&p, args[i], "delsock", &reuseaddr) > 0)
 	    continue;
 	if (istcp &&
-		gensio_check_keybool(args[i], "reuseaddr", &reuseaddr) > 0)
+		gensio_pparm_bool(&p, args[i], "reuseaddr", &reuseaddr) > 0)
 	    continue;
 #ifdef HAVE_TCPD_H
-	if (istcp && gensio_check_keyvalue(args[i], "tcpdname", &tcpdname))
+	if (istcp && gensio_pparm_value(&p, args[i], "tcpdname", &tcpdname))
 	    continue;
-	if (istcp && gensio_check_keyenum(args[i], "tcpd",
-					  tcpd_enums, &ival) > 0) {
+	if (istcp && gensio_pparm_enum(&p, args[i], "tcpd",
+				       tcpd_enums, &ival) > 0) {
 	    tcpd = ival;
 	    continue;
 	}
 #endif
 #if HAVE_UNIX
-	if (!istcp && gensio_check_keymode(args[i], "umode", &umode) > 0) {
+	if (!istcp && gensio_pparm_mode(&p, args[i], "umode", &umode) > 0) {
 	    mode_set = true;
 	    continue;
 	}
-	if (!istcp && gensio_check_keymode(args[i], "gmode", &gmode) > 0) {
+	if (!istcp && gensio_pparm_mode(&p, args[i], "gmode", &gmode) > 0) {
 	    mode_set = true;
 	    continue;
 	}
-	if (!istcp && gensio_check_keymode(args[i], "omode", &omode) > 0) {
+	if (!istcp && gensio_pparm_mode(&p, args[i], "omode", &omode) > 0) {
 	    mode_set = true;
 	    continue;
 	}
-	if (!istcp && gensio_check_keyperm(args[i], "perm", &mode) > 0) {
+	if (!istcp && gensio_pparm_perm(&p, args[i], "perm", &mode) > 0) {
 	    mode_set = true;
 	    umode = mode >> 6 & 7;
 	    gmode = mode >> 3 & 7;
 	    omode = mode & 7;
 	    continue;
 	}
-	if (!istcp && gensio_check_keyvalue(args[i], "owner", &owner))
+	if (!istcp && gensio_pparm_value(&p, args[i], "owner", &owner))
 	    continue;
-	if (!istcp && gensio_check_keyvalue(args[i], "group", &group))
+	if (!istcp && gensio_pparm_value(&p, args[i], "group", &group))
 	    continue;
 #endif
+	gensio_pparm_unknown_parm(&p, args[i]);
 	return GE_INVAL;
     }
 
@@ -1300,8 +1314,13 @@ str_to_net_gensio_accepter(const char *str, const char * const args[],
     struct gensio_addr *ai;
 
     err = gensio_os_scan_netaddr(o, str, true, protocol, &ai);
-    if (err)
+    if (err) {
+	bool istcp = strcmp(typestr, "tcp") == 0;
+	GENSIO_DECLARE_PPACCEPTER(p, o, cb, istcp ? "tcp" : "unix", user_data);
+
+	gensio_pparm_log(&p, "Invalid network address: %s", str);
 	return err;
+    }
 
     err = net_gensio_accepter_alloc(ai, args, o, cb, user_data, typestr, acc);
     gensio_addr_free(ai);
