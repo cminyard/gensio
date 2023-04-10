@@ -775,6 +775,30 @@ gensio_child_event(struct gensio *io, void *user_data, int event, int readerr,
 	}
 	break;
 
+    case GENSIO_EVENT_PARMLOG: {
+	struct gensio_parmlog_data *p = (struct gensio_parmlog_data *) buf;
+	va_list tmpva;
+	size_t len;
+	char *str = NULL;
+
+	va_copy(tmpva, p->args);
+	len = vsnprintf(str, 0, p->log, tmpva);
+	va_end(tmpva);
+	str = malloc(len + 1);
+	if (!str)
+	    goto out_put;
+	vsnprintf(str, len + 1, p->log, p->args);
+	args = PyTuple_New(1);
+	o = OI_PI_FromString(str);
+	PyTuple_SET_ITEM(args, 0, o);
+	free(str);
+
+	o = swig_finish_call_rv(data->handler_val, "parmlog", args, true);
+	if (o)
+	    Py_DECREF(o);
+	break;
+    }
+
     case GENSIO_EVENT_SER_MODEMSTATE:
 	sgensio_modemstate(io, *((unsigned int *) buf));
 	break;
@@ -1117,8 +1141,37 @@ gensio_acc_child_event(struct gensio_accepter *accepter, void *user_data,
 	    }
 	    Py_DecRef(o);
 	}
+
 	OI_PY_STATE_PUT(gstate);
 	return rv;
+
+    case GENSIO_ACC_EVENT_PARMLOG: {
+	struct gensio_parmlog_data *p = (struct gensio_parmlog_data *) cdata;
+	va_list tmpva;
+	size_t len;
+	char *str = NULL;
+
+	gstate = OI_PY_STATE_GET();
+
+	va_copy(tmpva, p->args);
+	len = vsnprintf(str, 0, p->log, tmpva);
+	va_end(tmpva);
+	str = malloc(len + 1);
+	if (!str)
+	    goto out_put;
+	vsnprintf(str, len + 1, p->log, p->args);
+	args = PyTuple_New(1);
+	o = OI_PI_FromString(str);
+	PyTuple_SET_ITEM(args, 0, o);
+	free(str);
+
+	o = swig_finish_call_rv(data->handler_val, "parmlog", args, true);
+	if (o)
+	    Py_DECREF(o);
+    out_put:
+	OI_PY_STATE_PUT(gstate);
+	return 0;
+    }
     }
 
     return GE_NOTSUP;

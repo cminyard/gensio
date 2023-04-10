@@ -364,6 +364,13 @@ class EventHandler:
             SERGENSIO_LINESTATE_TIMEOUT_ERR.
         """
 
+    def parmlog(self, log):
+        """Called during parsing of gensio strings, this reports
+        more detailed errors about what went wrong in parsing.
+
+        log -- The detailed log of the parsing error.
+        """
+
 class OpenDone:
 
         """A template for a class handling the finish of an open."""
@@ -929,6 +936,13 @@ class AccEventHandler:
         accepter before the gensio has been reported as operational.
         """
         return "password"
+
+    def parmlog(self, log):
+        """Called during parsing of gensio strings, this reports
+        more detailed errors about what went wrong in parsing.
+
+        log -- The detailed log of the parsing error.
+        """
 
 class ShutdownDone:
     """A class template for receiving shutdown done reports."""
