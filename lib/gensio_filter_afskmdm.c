@@ -2176,7 +2176,7 @@ afskmdm_setup_transmit(struct afskmdm_filter *sfilter,
     unsigned int i;
     struct xmit_entry *e;
 
-    sfilter->mark_xmit_len = data->out_framerate / data->mark_freq * 2 + 1;
+    sfilter->mark_xmit_len = data->out_framerate / data->mark_freq * 2 + 2;
     if (sfilter->mark_xmit_len < 2 * sfilter->out_bitsize + 1)
 	sfilter->mark_xmit_len = 2 * sfilter->out_bitsize + 1;
     sfilter->mark_xmit = o->zalloc(o, sizeof(float) * sfilter->mark_xmit_len);
@@ -2187,7 +2187,7 @@ afskmdm_setup_transmit(struct afskmdm_filter *sfilter,
 	sfilter->mark_xmit[i] = sin(v / fbitsize) * data->volume;
     }
 
-    sfilter->space_xmit_len = data->out_framerate / data->space_freq * 2 + 1;
+    sfilter->space_xmit_len = data->out_framerate / data->space_freq * 2 + 2;
     if (sfilter->space_xmit_len < 2 * sfilter->out_bitsize + 1)
 	sfilter->space_xmit_len = 2 * sfilter->out_bitsize + 1;
     sfilter->space_xmit = o->zalloc(o, sizeof(float) * sfilter->space_xmit_len);
