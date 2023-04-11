@@ -38,8 +38,9 @@ certauth_gensio_alloc(struct gensio *child, const char *const args[],
     struct gensio *io;
     struct gensio_certauth_filter_data *data;
     bool is_client;
+    GENSIO_DECLARE_PPGENSIO(p, o, cb, "certauth", user_data);
 
-    err = gensio_certauth_filter_config(o, args, true, &data);
+    err = gensio_certauth_filter_config(&p, o, args, true, &data);
     if (err)
 	return err;
 
@@ -246,6 +247,7 @@ certauth_gensio_accepter_alloc(struct gensio_accepter *child,
 {
     struct certauthna_data *nadata;
     int err;
+    GENSIO_DECLARE_PPACCEPTER(p, o, cb, "certauth", user_data);
 
     if (!gensio_acc_is_reliable(child))
 	/* Cowardly refusing to run over an unreliable connection. */
@@ -255,7 +257,7 @@ certauth_gensio_accepter_alloc(struct gensio_accepter *child,
     if (!nadata)
 	return GE_NOMEM;
 
-    err = gensio_certauth_filter_config(o, args, false, &nadata->data);
+    err = gensio_certauth_filter_config(&p, o, args, false, &nadata->data);
     if (err) {
 	o->free(o, nadata);
 	return err;

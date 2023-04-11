@@ -2598,7 +2598,8 @@ gensio_certauth_filter_config_free(struct gensio_certauth_filter_data *data)
 }
 
 int
-gensio_certauth_filter_config(struct gensio_os_funcs *o,
+gensio_certauth_filter_config(struct gensio_pparm_info *p,
+			      struct gensio_os_funcs *o,
 			      const char * const args[],
 			      bool default_is_client,
 			      struct gensio_certauth_filter_data **rdata)
@@ -2654,37 +2655,37 @@ gensio_certauth_filter_config(struct gensio_os_funcs *o,
 
     rv = GE_NOMEM;
     for (i = 0; args && args[i]; i++) {
-	if (gensio_check_keyvalue(args[i], "CA", &str) > 0) {
+	if (gensio_pparm_value(p, args[i], "CA", &str) > 0) {
 	    data->CAfilepath = gensio_strdup(o, str);
 	    if (!data->CAfilepath)
 		goto out_err;
 	    continue;
 	}
-	if (gensio_check_keyvalue(args[i], "key", &str) > 0) {
+	if (gensio_pparm_value(p, args[i], "key", &str) > 0) {
 	    data->keyfile = gensio_strdup(o, str);
 	    if (!data->keyfile)
 		goto out_err;
 	    continue;
 	}
-	if (gensio_check_keyvalue(args[i], "cert", &str) > 0) {
+	if (gensio_pparm_value(p, args[i], "cert", &str) > 0) {
 	    data->certfile = gensio_strdup(o, str);
 	    if (!data->certfile)
 		goto out_err;
 	    continue;
 	}
-	if (gensio_check_keyvalue(args[i], "username", &str) > 0) {
+	if (gensio_pparm_value(p, args[i], "username", &str) > 0) {
 	    data->username = gensio_strdup(o, str);
 	    if (!data->username)
 		goto out_err;
 	    continue;
 	}
-	if (gensio_check_keyvalue(args[i], "password", &str) > 0) {
+	if (gensio_pparm_value(p, args[i], "password", &str) > 0) {
 	    data->password = gensio_strdup(o, str);
 	    if (!data->password)
 		goto out_err;
 	    continue;
 	}
-	if (gensio_check_keyvalue(args[i], "2fa", &str) > 0) {
+	if (gensio_pparm_value(p, args[i], "2fa", &str) > 0) {
 	    data->len_2fa = strlen(str);
 	    if (data->len_2fa == 0)
 		goto out_err;
@@ -2693,30 +2694,31 @@ gensio_certauth_filter_config(struct gensio_os_funcs *o,
 		goto out_err;
 	    continue;
 	}
-	if (gensio_check_keyvalue(args[i], "service", &str) > 0) {
+	if (gensio_pparm_value(p, args[i], "service", &str) > 0) {
 	    data->service = gensio_strdup(o, str);
 	    if (!data->service)
 		goto out_err;
 	    continue;
 	}
-	if (gensio_check_keyboolv(args[i], "mode", "client", "server",
-				  &data->is_client) > 0)
+	if (gensio_pparm_boolv(p, args[i], "mode", "client", "server",
+			       &data->is_client) > 0)
 	    continue;
-	if (gensio_check_keybool(args[i], "allow-authfail",
-				 &data->allow_authfail) > 0)
+	if (gensio_pparm_bool(p, args[i], "allow-authfail",
+			      &data->allow_authfail) > 0)
 	    continue;
-	if (gensio_check_keybool(args[i], "use-child-auth",
-				 &data->use_child_auth) > 0)
+	if (gensio_pparm_bool(p, args[i], "use-child-auth",
+			      &data->use_child_auth) > 0)
 	    continue;
-	if (gensio_check_keybool(args[i], "enable-password",
-				 &data->enable_password) > 0)
+	if (gensio_pparm_bool(p, args[i], "enable-password",
+			      &data->enable_password) > 0)
 	    continue;
-	if (gensio_check_keybool(args[i], "enable-2fa",
-				 &data->do_2fa) > 0)
+	if (gensio_pparm_bool(p, args[i], "enable-2fa",
+			      &data->do_2fa) > 0)
 	    continue;
-	if (gensio_check_keybool(args[i], "allow-unencrypted",
-				 &data->allow_unencrypted) > 0)
+	if (gensio_pparm_bool(p, args[i], "allow-unencrypted",
+			      &data->allow_unencrypted) > 0)
 	    continue;
+	gensio_pparm_unknown_parm(p, args[i]);
 	rv = GE_INVAL;
 	goto out_err;
     }
@@ -2791,12 +2793,29 @@ gensio_certauth_filter_config(struct gensio_os_funcs *o,
     }
 
     if (data->is_client) {
-	if (data->CAfilepath || data->do_2fa) {
+	if (data->CAfilepath) {
+	    gensio_pparm_log(p, "CA is not valid for clients");
+	    rv = GE_INVAL;
+	    goto out_err;
+	}
+	if (data->do_2fa) {
+	    gensio_pparm_log(p, "enable-2fa is not valid for clients");
 	    rv = GE_INVAL;
 	    goto out_err;
 	}
     } else {
-	if (data->keyfile || data->username || data->val_2fa) {
+	if (data->keyfile) {
+	    gensio_pparm_log(p, "key is not valid for servers");
+	    rv = GE_INVAL;
+	    goto out_err;
+	}
+	if (data->username) {
+	    gensio_pparm_log(p, "username is not valid for servers");
+	    rv = GE_INVAL;
+	    goto out_err;
+	}
+	if (data->val_2fa) {
+	    gensio_pparm_log(p, "2fa is not valid for servers");
 	    rv = GE_INVAL;
 	    goto out_err;
 	}

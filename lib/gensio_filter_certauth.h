@@ -9,10 +9,12 @@
 #define GENSIO_FILTER_CERTAUTH_H
 
 #include <gensio/gensio_base.h>
+#include <gensio/gensio_class.h>
 
 struct gensio_certauth_filter_data;
 
-int gensio_certauth_filter_config(struct gensio_os_funcs *o,
+int gensio_certauth_filter_config(struct gensio_pparm_info *p,
+				  struct gensio_os_funcs *o,
 				  const char * const args[],
 				  bool default_is_client,
 				  struct gensio_certauth_filter_data **rdata);
