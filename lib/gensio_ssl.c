@@ -37,12 +37,13 @@ ssl_gensio_alloc(struct gensio *child, const char *const args[],
     struct gensio_ll *ll;
     struct gensio *io;
     struct gensio_ssl_filter_data *data;
+    GENSIO_DECLARE_PPGENSIO(p, o, cb, "ssl", user_data);
 
     if (!gensio_is_reliable(child))
 	/* Cowardly refusing to run SSL over an unreliable connection. */
 	return GE_NOTSUP;
 
-    err = gensio_ssl_filter_config(o, args, true, &data);
+    err = gensio_ssl_filter_config(&p, o, args, true, &data);
     if (err)
 	return err;
 
@@ -182,6 +183,7 @@ ssl_gensio_accepter_alloc(struct gensio_accepter *child,
 {
     struct sslna_data *nadata;
     int err;
+    GENSIO_DECLARE_PPACCEPTER(p, o, cb, "ssl", user_data);
 
     if (!gensio_acc_is_reliable(child))
 	/* Cowardly refusing to run SSL over an unreliable connection. */
@@ -191,7 +193,7 @@ ssl_gensio_accepter_alloc(struct gensio_accepter *child,
     if (!nadata)
 	return GE_NOMEM;
 
-    err = gensio_ssl_filter_config(o, args, false, &nadata->data);
+    err = gensio_ssl_filter_config(&p, o, args, false, &nadata->data);
     if (err) {
 	o->free(o, nadata);
 	return err;

@@ -1156,7 +1156,8 @@ gensio_ssl_filter_raw_alloc(struct gensio_os_funcs *o,
 }
 
 int
-gensio_ssl_filter_config(struct gensio_os_funcs *o,
+gensio_ssl_filter_config(struct gensio_pparm_info *p,
+			 struct gensio_os_funcs *o,
 			 const char * const args[],
 			 bool default_is_client,
 			 struct gensio_ssl_filter_data **rdata)
@@ -1206,37 +1207,38 @@ gensio_ssl_filter_config(struct gensio_os_funcs *o,
 
     rv = GE_NOMEM;
     for (i = 0; args && args[i]; i++) {
-	if (gensio_check_keyvalue(args[i], "CA", &cstr)) {
+	if (gensio_pparm_value(p, args[i], "CA", &cstr)) {
 	    data->CAfilepath = gensio_strdup(o, cstr);
 	    if (!data->CAfilepath)
 		goto out_err;
 	    continue;
 	}
-	if (gensio_check_keyvalue(args[i], "key", &cstr)) {
+	if (gensio_pparm_value(p, args[i], "key", &cstr)) {
 	    data->keyfile = gensio_strdup(o, cstr);
 	    if (!data->keyfile)
 		goto out_err;
 	    continue;
 	}
-	if (gensio_check_keyvalue(args[i], "cert", &cstr)) {
+	if (gensio_pparm_value(p, args[i], "cert", &cstr)) {
 	    data->certfile = gensio_strdup(o, cstr);
 	    if (!data->certfile)
 		goto out_err;
 	    continue;
 	}
-	if (gensio_check_keyds(args[i], "readbuf", &data->max_read_size) > 0)
+	if (gensio_pparm_ds(p, args[i], "readbuf", &data->max_read_size) > 0)
 	    continue;
-	if (gensio_check_keyds(args[i], "writebuf", &data->max_write_size) > 0)
+	if (gensio_pparm_ds(p, args[i], "writebuf", &data->max_write_size) > 0)
 	    continue;
-	if (gensio_check_keyboolv(args[i], "mode", "client", "server",
+	if (gensio_pparm_boolv(p, args[i], "mode", "client", "server",
 				  &data->is_client) > 0)
 	    continue;
-	if (gensio_check_keybool(args[i], "allow-authfail",
+	if (gensio_pparm_bool(p, args[i], "allow-authfail",
 				 &data->allow_authfail) > 0)
 	    continue;
-	if (gensio_check_keybool(args[i], "clientauth",
+	if (gensio_pparm_bool(p, args[i], "clientauth",
 				 &data->clientauth) > 0)
 	    continue;
+	gensio_pparm_unknown_parm(p, args[i]);
 	rv = GE_INVAL;
 	goto out_err;
     }
@@ -1262,6 +1264,7 @@ gensio_ssl_filter_config(struct gensio_os_funcs *o,
 
     if (!data->is_client) {
 	if (!data->keyfile) {
+	    gensio_pparm_log(p, "key must be specified for clients");
 	    rv = GE_KEYNOTFOUND;
 	    goto out_err;
 	}

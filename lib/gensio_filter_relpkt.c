@@ -1293,7 +1293,8 @@ gensio_relpkt_filter_raw_alloc(struct gensio_os_funcs *o,
 }
 
 int
-gensio_relpkt_filter_alloc(struct gensio_os_funcs *o,
+gensio_relpkt_filter_alloc(struct gensio_pparm_info *p,
+			   struct gensio_os_funcs *o,
 			   const char * const args[],
 			   bool server, struct gensio_filter **rfilter)
 {
@@ -1324,13 +1325,14 @@ gensio_relpkt_filter_alloc(struct gensio_os_funcs *o,
     }
 
     for (i = 0; args && args[i]; i++) {
-	if (gensio_check_keyds(args[i], "max_pktsize", &max_pktsize) > 0)
+	if (gensio_pparm_ds(p, args[i], "max_pktsize", &max_pktsize) > 0)
 	    continue;
-	if (gensio_check_keyds(args[i], "max_packets", &max_packets) > 0)
+	if (gensio_pparm_ds(p, args[i], "max_packets", &max_packets) > 0)
 	    continue;
-	if (gensio_check_keyboolv(args[i], "mode", "server", "client",
-				  &server) > 0)
+	if (gensio_pparm_boolv(p, args[i], "mode", "server", "client",
+			       &server) > 0)
 	    continue;
+	gensio_pparm_unknown_parm(p, args[i]);
 	return GE_INVAL;
     }
 

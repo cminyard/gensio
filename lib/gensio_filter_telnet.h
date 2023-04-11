@@ -9,6 +9,7 @@
 #define GENSIO_FILTER_TELNET_H
 
 #include <gensio/gensio_base.h>
+#include <gensio/gensio_class.h>
 
 struct gensio_telnet_filter_callbacks {
     void (*got_sync)(void *handler_data);
@@ -28,7 +29,8 @@ struct gensio_telnet_filter_rops {
     void (*start_timer)(struct gensio_filter *filter, gensio_time *timeout);
 };
 
-int gensio_telnet_filter_alloc(struct gensio_os_funcs *o,
+int gensio_telnet_filter_alloc(struct gensio_pparm_info *p,
+			       struct gensio_os_funcs *o,
 			       const char * const args[],
 			       bool default_is_client,
 			       const struct gensio_telnet_filter_callbacks *cbs,

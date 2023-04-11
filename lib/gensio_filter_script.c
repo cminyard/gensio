@@ -576,7 +576,8 @@ gensio_script_filter_raw_alloc(struct gensio_os_funcs *o, char *str)
 }
 
 int
-gensio_script_filter_alloc(struct gensio_os_funcs *o,
+gensio_script_filter_alloc(struct gensio_pparm_info *p,
+			   struct gensio_os_funcs *o,
 			   const char * const args[],
 			   struct gensio_filter **rfilter)
 {
@@ -587,15 +588,18 @@ gensio_script_filter_alloc(struct gensio_os_funcs *o,
     unsigned int i;
 
     for (i = 0; args && args[i]; i++) {
-	if (gensio_check_keyvalue(args[i], "script", &scr) > 0)
+	if (gensio_pparm_value(p, args[i], "script", &scr) > 0)
 	    continue;
-	if (gensio_check_keyvalue(args[i], "gensio", &gensioscr) > 0)
+	if (gensio_pparm_value(p, args[i], "gensio", &gensioscr) > 0)
 	    continue;
+	gensio_pparm_unknown_parm(p, args[i]);
 	return GE_INVAL;
     }
 
-    if (!scr && !gensioscr)
+    if (!scr && !gensioscr) {
+	gensio_pparm_log(p, "You must specify either script or gensio");
 	return GE_INVAL;
+    }
 
     if (scr)
 	str = gensio_alloc_sprintf(o, "stdio(noredir-stderr),%s", scr);

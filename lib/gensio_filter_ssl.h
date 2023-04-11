@@ -9,10 +9,12 @@
 #define GENSIO_FILTER_SSL_H
 
 #include <gensio/gensio_base.h>
+#include <gensio/gensio_class.h>
 
 struct gensio_ssl_filter_data;
 
-int gensio_ssl_filter_config(struct gensio_os_funcs *o,
+int gensio_ssl_filter_config(struct gensio_pparm_info *p,
+			     struct gensio_os_funcs *o,
 			     const char * const args[],
 			     bool default_is_client,
 			     struct gensio_ssl_filter_data **data);

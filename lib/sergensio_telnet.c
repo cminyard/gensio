@@ -904,7 +904,8 @@ struct gensio_telnet_filter_callbacks sergensio_telnet_server_filter_cbs = {
 };
 
 static int
-stel_setup(const char * const args[], bool default_is_client,
+stel_setup(struct gensio_pparm_info *p,
+	   const char * const args[], bool default_is_client,
 	   struct gensio_os_funcs *o, struct stel_data **rsdata)
 {
     struct stel_data *sdata;
@@ -921,13 +922,15 @@ stel_setup(const char * const args[], bool default_is_client,
     allow_2217 = ival;
 
     for (i = 0; args && args[i]; i++) {
-	if (gensio_check_keybool(args[i], "rfc2217", &allow_2217) > 0)
+	if (gensio_pparm_bool(p, args[i], "rfc2217", &allow_2217) > 0)
 	    continue;
-	if (gensio_check_keyboolv(args[i], "mode", "client", "server",
-				  &is_client) > 0)
+	if (gensio_pparm_boolv(p, args[i], "mode", "client", "server",
+			       &is_client) > 0)
 	    continue;
 	/* Ignore everything else, the filter will handle it. */
     }
+    if (p->err)
+	return GE_INVAL;
 
     sdata = o->zalloc(o, sizeof(*sdata));
     if (!sdata)
@@ -941,7 +944,7 @@ stel_setup(const char * const args[], bool default_is_client,
     if (!sdata->lock)
 	goto out_nomem;
 
-    err = gensio_telnet_filter_alloc(o, args, true,
+    err = gensio_telnet_filter_alloc(p, o, args, true,
 				     (is_client ?
 				      &sergensio_telnet_filter_cbs :
 				      &sergensio_telnet_server_filter_cbs),
@@ -977,8 +980,9 @@ telnet_gensio_alloc(struct gensio *child, const char * const args[],
     struct gensio_ll *ll = NULL;
     struct gensio *io = NULL;
     int err;
+    GENSIO_DECLARE_PPGENSIO(p, o, cb, "telnet", user_data);
 
-    err = stel_setup(args, true, o, &sdata);
+    err = stel_setup(&p, args, true, o, &sdata);
     if (err)
 	return err;
 
@@ -1050,6 +1054,8 @@ struct stela_data {
     gensiods max_write_size;
 
     struct gensio_os_funcs *o;
+    gensio_accepter_event cb;
+    void *user_data;
 
     bool allow_2217;
     bool is_client;
@@ -1078,17 +1084,20 @@ stela_alloc_gensio(void *acc_data, const char * const *iargs,
     gensiods max_write_size = stela->max_write_size;
     gensiods max_read_size = stela->max_read_size;
     bool is_client = stela->is_client;
+    GENSIO_DECLARE_PPACCEPTER(p, stela->o, stela->cb, "telnet",
+			      stela->user_data);
 
     for (i = 0; iargs && iargs[i]; i++) {
-	if (gensio_check_keybool(iargs[i], "rfc2217", &allow_2217) > 0)
+	if (gensio_pparm_bool(&p, iargs[i], "rfc2217", &allow_2217) > 0)
 	    continue;
-	if (gensio_check_keyds(iargs[i], "writebuf", &max_write_size) > 0)
+	if (gensio_pparm_ds(&p, iargs[i], "writebuf", &max_write_size) > 0)
 	    continue;
-	if (gensio_check_keyds(iargs[i], "readbuf", &max_read_size) > 0)
+	if (gensio_pparm_ds(&p, iargs[i], "readbuf", &max_read_size) > 0)
 	    continue;
-	if (gensio_check_keyboolv(iargs[i], "mode", "client", "server",
-				  &is_client) > 0)
+	if (gensio_pparm_boolv(&p, iargs[i], "mode", "client", "server",
+			       &is_client) > 0)
 	    continue;
+	gensio_pparm_unknown_parm(&p, iargs[i]);
 	return GE_INVAL;
     }
 
@@ -1121,6 +1130,8 @@ stela_new_child(void *acc_data, void **finish_data,
     int err;
     char arg1[25], arg2[25], arg3[25], arg4[25];
     const char *args[5] = { arg1, arg2, arg3, arg4, NULL };
+    GENSIO_DECLARE_PPACCEPTER(p, stela->o, stela->cb, "telnet",
+			      stela->user_data);
 
     snprintf(arg1, sizeof(arg1), "rfc2217=%d", stela->allow_2217);
     snprintf(arg2, sizeof(arg2), "writebuf=%lu",
@@ -1130,7 +1141,7 @@ stela_new_child(void *acc_data, void **finish_data,
     snprintf(arg4, sizeof(arg4), "mode=%s",
 	     stela->is_client ? "client" : "server");
 
-    err = stel_setup(args, false, o, &sdata);
+    err = stel_setup(&p, args, false, o, &sdata);
     if (err)
 	return err;
 
@@ -1208,6 +1219,7 @@ telnet_gensio_accepter_alloc(struct gensio_accepter *child,
     bool is_client = false;
     struct gensio_accepter *accepter = NULL;
     int rv, ival;
+    GENSIO_DECLARE_PPACCEPTER(p, o, cb, "telnet", user_data);
 
     rv = gensio_get_default(o, "telnet", "rfc2217", false,
 			    GENSIO_DEFAULT_BOOL, NULL, &ival);
@@ -1216,15 +1228,16 @@ telnet_gensio_accepter_alloc(struct gensio_accepter *child,
     allow_2217 = ival;
 
     for (i = 0; args && args[i]; i++) {
-	if (gensio_check_keybool(args[i], "rfc2217", &allow_2217) > 0)
+	if (gensio_pparm_bool(&p, args[i], "rfc2217", &allow_2217) > 0)
 	    continue;
-	if (gensio_check_keyds(args[i], "writebuf", &max_write_size) > 0)
+	if (gensio_pparm_ds(&p, args[i], "writebuf", &max_write_size) > 0)
 	    continue;
-	if (gensio_check_keyds(args[i], "readbuf", &max_read_size) > 0)
+	if (gensio_pparm_ds(&p, args[i], "readbuf", &max_read_size) > 0)
 	    continue;
-	if (gensio_check_keyboolv(args[i], "mode", "client", "server",
-				  &is_client) > 0)
+	if (gensio_pparm_boolv(&p, args[i], "mode", "client", "server",
+			       &is_client) > 0)
 	    continue;
+	gensio_pparm_unknown_parm(&p, args[i]);
 	return GE_INVAL;
     }
 
@@ -1233,6 +1246,8 @@ telnet_gensio_accepter_alloc(struct gensio_accepter *child,
 	return GE_NOMEM;
 
     stela->o = o;
+    stela->cb = cb;
+    stela->user_data = user_data;
     stela->max_write_size = max_write_size;
     stela->max_read_size = max_read_size;
     stela->allow_2217 = allow_2217;

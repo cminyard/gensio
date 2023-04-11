@@ -748,7 +748,8 @@ static const unsigned char telnet_client_init_seq[] = {
 };
 
 int
-gensio_telnet_filter_alloc(struct gensio_os_funcs *o, const char * const args[],
+gensio_telnet_filter_alloc(struct gensio_pparm_info *p,
+			   struct gensio_os_funcs *o, const char * const args[],
 			   bool default_is_client,
 			   const struct gensio_telnet_filter_callbacks *cbs,
 			   void *handler_data,
@@ -793,15 +794,16 @@ gensio_telnet_filter_alloc(struct gensio_os_funcs *o, const char * const args[],
     }
 
     for (i = 0; args && args[i]; i++) {
-	if (gensio_check_keybool(args[i], "rfc2217", &allow_2217) > 0)
+	if (gensio_pparm_bool(p, args[i], "rfc2217", &allow_2217) > 0)
 	    continue;
-	if (gensio_check_keyds(args[i], "writebuf", &max_write_size) > 0)
+	if (gensio_pparm_ds(p, args[i], "writebuf", &max_write_size) > 0)
 	    continue;
-	if (gensio_check_keyds(args[i], "readbuf", &max_read_size) > 0)
+	if (gensio_pparm_ds(p, args[i], "readbuf", &max_read_size) > 0)
 	    continue;
-	if (gensio_check_keyboolv(args[i], "mode", "client", "server",
-				  &is_client) > 0)
+	if (gensio_pparm_boolv(p, args[i], "mode", "client", "server",
+			       &is_client) > 0)
 	    continue;
+	gensio_pparm_unknown_parm(p, args[i]);
 	return GE_INVAL;
     }
 

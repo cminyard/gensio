@@ -9,8 +9,10 @@
 #define GENSIO_FILTER_RELPKT_H
 
 #include <gensio/gensio_base.h>
+#include <gensio/gensio_class.h>
 
-int gensio_relpkt_filter_alloc(struct gensio_os_funcs *o,
+int gensio_relpkt_filter_alloc(struct gensio_pparm_info *p,
+			       struct gensio_os_funcs *o,
 			       const char * const args[],
 			       bool default_is_server,
 			       struct gensio_filter **rfilter);
