@@ -1370,7 +1370,8 @@ static struct sound_type *sound_types[] = {
 };
 
 static int
-setup_sound_info(struct gensio_os_funcs *o,
+setup_sound_info(struct gensio_pparm_info *p, const char *dir,
+		 struct gensio_os_funcs *o,
 		 struct sound_info *si, struct gensio_sound_info *io,
 		 bool isinput)
 {
@@ -1383,14 +1384,36 @@ setup_sound_info(struct gensio_os_funcs *o,
 		break;
 	}
     }
-    if (!sound_types[i])
+    if (!sound_types[i]) {
+	gensio_pparm_log(p, "%s: Unknown sound type: %s", dir, io->type);
 	return GE_INVAL;
+    }
 
     si->type = sound_types[i];
-    if (!io->devname || io->samplerate == 0 || io->chans == 0)
+    if (!io->devname) {
+	gensio_pparm_log(p, "%s: No device name", dir);
 	return GE_INVAL;
-    if (!io->format || io->bufsize == 0 || io->num_bufs == 0)
+    }
+    if (io->samplerate == 0) {
+	gensio_pparm_log(p, "%s: Sample rate is 0", dir);
 	return GE_INVAL;
+    }
+    if (io->chans == 0) {
+	gensio_pparm_log(p, "%s: Number of channnels is 0", dir);
+	return GE_INVAL;
+    }
+    if (!io->format) {
+	gensio_pparm_log(p, "%s: format is not set", dir);
+	return GE_INVAL;
+    }
+    if (io->bufsize == 0) {
+	gensio_pparm_log(p, "%s: Buffer size is 0", dir);
+	return GE_INVAL;
+    }
+    if (io->num_bufs == 0) {
+	gensio_pparm_log(p, "%s: Number of buffers is 0", dir);
+	return GE_INVAL;
+    }
 
     si->cnv.pfmt = GENSIO_SOUND_FMT_UNKNOWN;
     si->cnv.ufmt = GENSIO_SOUND_FMT_UNKNOWN;
@@ -1400,8 +1423,10 @@ setup_sound_info(struct gensio_os_funcs *o,
     si->samplerate = io->samplerate;
 
     err = setup_conv(io->format, io->pformat, si);
-    if (err)
+    if (err) {
+	gensio_pparm_log(p, "%s: Unknown format", dir);
 	return err;
+    }
 
     err = si->type->setup(si, io);
     if (err)
@@ -1422,7 +1447,8 @@ setup_sound_info(struct gensio_os_funcs *o,
 }
 
 int
-gensio_sound_ll_alloc(struct gensio_os_funcs *o,
+gensio_sound_ll_alloc(struct gensio_pparm_info *p,
+		      struct gensio_os_funcs *o,
 		      struct gensio_sound_info *in,
 		      struct gensio_sound_info *out,
 		      struct gensio_ll **newll)
@@ -1435,8 +1461,10 @@ gensio_sound_ll_alloc(struct gensio_os_funcs *o,
     if (out && out->chans == 0)
 	out = NULL;
 
-    if (!in && !out)
+    if (!in && !out) {
+	gensio_pparm_log(p, "Must set input or output channels");
 	return GE_INVAL;
+    }
 
     soundll = o->zalloc(o, sizeof(*soundll));
     if (!soundll)
@@ -1448,7 +1476,7 @@ gensio_sound_ll_alloc(struct gensio_os_funcs *o,
     if (in) {
 	soundll->in.is_input = true;
 	soundll->in.soundll = soundll;
-	err = setup_sound_info(o, &soundll->in, in, true);
+	err = setup_sound_info(p, "in", o, &soundll->in, in, true);
 	if (err)
 	    goto out_err;
     }
@@ -1456,7 +1484,7 @@ gensio_sound_ll_alloc(struct gensio_os_funcs *o,
     if (out) {
 	soundll->out.is_input = false;
 	soundll->out.soundll = soundll;
-	err = setup_sound_info(o, &soundll->out, out, false);
+	err = setup_sound_info(p, "out", o, &soundll->out, out, false);
 	if (err)
 	    goto out_err;
     }

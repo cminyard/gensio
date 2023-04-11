@@ -765,13 +765,15 @@ stdion_alloc_channel(struct gensio *io, const char * const args[],
     int rv = 0;
     unsigned int i;
     gensiods max_read_size = nadata->io.max_read_size;
+    GENSIO_DECLARE_PPGENSIO(p, o, cb, "stdio", user_data);
 
     if (!nadata->err.out_iod || io != nadata->io.io)
 	return GE_INVAL;
 
     for (i = 0; args && args[i]; i++) {
-	if (gensio_check_keyds(args[i], "readbuf", &max_read_size) > 0)
+	if (gensio_pparm_ds(&p, args[i], "readbuf", &max_read_size) > 0)
 	    continue;
+	gensio_pparm_unknown_parm(&p, args[i]);
 	return GE_INVAL;
     }
 
@@ -1185,32 +1187,36 @@ stdio_gensio_alloc(const void *gdata, const char * const args[],
     bool noredir_stderr = false;
     bool raw = false;
     const char *start_dir = NULL;
+    GENSIO_DECLARE_PPGENSIO(p, o, cb, "stdio", user_data);
 
     for (i = 0; args && args[i]; i++) {
-	if (gensio_check_keyds(args[i], "readbuf", &max_read_size) > 0)
+	if (gensio_pparm_ds(&p, args[i], "readbuf", &max_read_size) > 0)
 	    continue;
-	if (gensio_check_keybool(args[i], "console", &console) > 0)
+	if (gensio_pparm_bool(&p, args[i], "console", &console) > 0)
 	    continue;
-	if (gensio_check_keybool(args[i], "self", &self) > 0)
+	if (gensio_pparm_bool(&p, args[i], "self", &self) > 0)
 	    continue;
-	if (gensio_check_keybool(args[i], "raw", &raw) > 0)
+	if (gensio_pparm_bool(&p, args[i], "raw", &raw) > 0)
 	    continue;
-	if (gensio_check_keyvalue(args[i], "start-dir", &start_dir) > 0)
+	if (gensio_pparm_value(&p, args[i], "start-dir", &start_dir) > 0)
 	    continue;
-	if (gensio_check_keybool(args[i], "stderr-to-stdout",
+	if (gensio_pparm_bool(&p, args[i], "stderr-to-stdout",
 				 &stderr_to_stdout) > 0) {
 	    /* We don't want to setup stderr here. */
 	    noredir_stderr = true;
 	    continue;
 	}
-	if (gensio_check_keybool(args[i], "noredir-stderr",
+	if (gensio_pparm_bool(&p, args[i], "noredir-stderr",
 				 &noredir_stderr) > 0)
 	    continue;
+	gensio_pparm_unknown_parm(&p, args[i]);
 	return GE_INVAL;
     }
 
-    if (raw && !(self || console))
+    if (raw && !(self || console)) {
+	gensio_pparm_log(&p, "If raw is set, self or console must be set");
 	return GE_INVAL;
+    }
 
     err = stdio_nadata_setup(o, max_read_size, raw, &nadata);
     if (err)
@@ -1506,12 +1512,14 @@ stdio_gensio_accepter_alloc(const void *gdata,
     gensiods max_read_size = GENSIO_DEFAULT_BUF_SIZE;
     bool raw = false;
     int i;
+    GENSIO_DECLARE_PPACCEPTER(p, o, cb, "stdio", user_data);
 
     for (i = 0; args && args[i]; i++) {
-	if (gensio_check_keyds(args[i], "readbuf", &max_read_size) > 0)
+	if (gensio_pparm_ds(&p, args[i], "readbuf", &max_read_size) > 0)
 	    continue;
-	if (gensio_check_keybool(args[i], "raw", &raw) > 0)
+	if (gensio_pparm_bool(&p, args[i], "raw", &raw) > 0)
 	    continue;
+	gensio_pparm_unknown_parm(&p, args[i]);
 	return GE_INVAL;
     }
 

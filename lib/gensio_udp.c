@@ -1712,10 +1712,12 @@ udp_gensio_accepter_alloc(const void *gdata,
     unsigned int i;
     bool reuseaddr = false;
     int err, ival;
+    GENSIO_DECLARE_PPACCEPTER(p, o, cb, "udp", user_data);
 
     for (i = 0; args && args[i]; i++) {
-	if (gensio_check_keyds(args[i], "readbuf", &max_read_size) > 0)
+	if (gensio_pparm_ds(&p, args[i], "readbuf", &max_read_size) > 0)
 	    continue;
+	gensio_pparm_unknown_parm(&p, args[i]);
 	return GE_INVAL;
     }
     err = gensio_get_default(o, "udp", "reuseaddr", false,
@@ -1766,6 +1768,7 @@ udp_gensio_alloc(const void *gdata, const char * const args[],
     bool nocon = false, mcast_loop_set = false, mcast_loop = true;
     bool reuseaddr = false;
     unsigned int mttl;
+    GENSIO_DECLARE_PPGENSIO(p, o, cb, "udp", user_data);
 
     err = gensio_get_defaultaddr(o, "udp", "laddr", false,
 				 GENSIO_NET_PROTOCOL_UDP, true, false, &laddr);
@@ -1787,19 +1790,19 @@ udp_gensio_alloc(const void *gdata, const char * const args[],
 
     err = GE_INVAL;
     for (i = 0; args && args[i]; i++) {
-	if (gensio_check_keyds(args[i], "readbuf", &max_read_size) > 0)
+	if (gensio_pparm_ds(&p, args[i], "readbuf", &max_read_size) > 0)
 	    continue;
 	tmpaddr = NULL;
-	if (gensio_check_keyaddrs(o, args[i], "laddr", GENSIO_NET_PROTOCOL_UDP,
-				  true, false, &tmpaddr) > 0) {
+	if (gensio_pparm_addrs(&p, args[i], "laddr", GENSIO_NET_PROTOCOL_UDP,
+			       true, false, &tmpaddr) > 0) {
 	    if (laddr)
 		gensio_addr_free(laddr);
 	    laddr = tmpaddr;
 	    continue;
 	}
-	if (gensio_check_keyaddrs_noport(o, args[i], "mcast",
-					 GENSIO_NET_PROTOCOL_UDP,
-					 &tmpaddr) > 0) {
+	if (gensio_pparm_addrs_noport(&p, args[i], "mcast",
+				      GENSIO_NET_PROTOCOL_UDP,
+				      &tmpaddr) > 0) {
 	    if (mcast) {
 		tmpaddr2 = gensio_addr_cat(mcast, tmpaddr);
 		if (!tmpaddr2) {
@@ -1814,21 +1817,22 @@ udp_gensio_alloc(const void *gdata, const char * const args[],
 	    }
 	    continue;
 	}
-	if (gensio_check_keybool(args[i], "nocon", &nocon) > 0)
+	if (gensio_pparm_bool(&p, args[i], "nocon", &nocon) > 0)
 	    continue;
-	if (gensio_check_keyuint(args[i], "mttl", &mttl) > 0) {
+	if (gensio_pparm_uint(&p, args[i], "mttl", &mttl) > 0) {
 	    if (mttl < 1 || mttl > 255) {
 		err = GE_INVAL;
 		goto parm_err;
 	    }
 	    continue;
 	}
-	if (gensio_check_keybool(args[i], "mloop", &mcast_loop) > 0) {
+	if (gensio_pparm_bool(&p, args[i], "mloop", &mcast_loop) > 0) {
 	    mcast_loop_set = true;
 	    continue;
 	}
-	if (gensio_check_keybool(args[i], "reuseaddr", &reuseaddr) > 0)
+	if (gensio_pparm_bool(&p, args[i], "reuseaddr", &reuseaddr) > 0)
 	    continue;
+	gensio_pparm_unknown_parm(&p, args[i]);
     parm_err:
 	if (laddr)
 	    gensio_addr_free(laddr);

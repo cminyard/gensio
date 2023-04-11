@@ -80,6 +80,7 @@ sound_gensio_alloc(const void *gdata, const char * const args[],
     unsigned int uival;
     bool list = false;
     int i;
+    GENSIO_DECLARE_PPGENSIO(p, o, cb, "sound", user_data);
 
     memset(&in, 0, sizeof(in));
     memset(&out, 0, sizeof(out));
@@ -98,90 +99,95 @@ sound_gensio_alloc(const void *gdata, const char * const args[],
 	    char *n;
 
 	    in.samplerate = strtoul(s, &n, 0);
-	    if (n[0] != '-' || n[1] == '\0')
+	    if (n[0] != '-' || n[1] == '\0') {
+		gensio_pparm_log(&p, "Invalid sample rate: %s\n", s);
 		return GE_INVAL;
+	    }
 	    s = n + 1;
 	    in.chans = strtoul(s, &n, 0);
-	    if (n[0] != '-' || n[1] == '\0')
+	    if (n[0] != '-' || n[1] == '\0') {
+		gensio_pparm_log(&p, "Invalid sample rate: %s\n", s);
 		return GE_INVAL;
+	    }
 	    in.format = n + 1;
 	    out.samplerate = in.samplerate;
 	    out.chans = in.chans;
 	    out.format = in.format;
 	    continue;
 	}
-	if (gensio_check_keyds(args[i], "inbufsize", &in.bufsize) > 0)
+	if (gensio_pparm_ds(&p, args[i], "inbufsize", &in.bufsize) > 0)
 	    continue;
-	if (gensio_check_keyds(args[i], "outbufsize", &out.bufsize) > 0)
+	if (gensio_pparm_ds(&p, args[i], "outbufsize", &out.bufsize) > 0)
 	    continue;
-	if (gensio_check_keyds(args[i], "bufsize", &dsval) > 0) {
+	if (gensio_pparm_ds(&p, args[i], "bufsize", &dsval) > 0) {
 	    in.bufsize = dsval;
 	    out.bufsize = dsval;
 	    continue;
 	}
-	if (gensio_check_keyuint(args[i], "innbufs", &in.num_bufs) > 0)
+	if (gensio_pparm_uint(&p, args[i], "innbufs", &in.num_bufs) > 0)
 	    continue;
-	if (gensio_check_keyuint(args[i], "outnbufs", &out.num_bufs) > 0)
+	if (gensio_pparm_uint(&p, args[i], "outnbufs", &out.num_bufs) > 0)
 	    continue;
-	if (gensio_check_keyuint(args[i], "nbufs", &uival) > 0) {
+	if (gensio_pparm_uint(&p, args[i], "nbufs", &uival) > 0) {
 	    in.num_bufs = uival;
 	    out.num_bufs = uival;
 	    continue;
 	}
-	if (gensio_check_keyuint(args[i], "chans", &in.chans) > 0) {
+	if (gensio_pparm_uint(&p, args[i], "chans", &in.chans) > 0) {
 	    out.chans = in.chans;
 	    continue;
 	}
-	if (gensio_check_keyuint(args[i], "inchans", &in.chans) > 0)
+	if (gensio_pparm_uint(&p, args[i], "inchans", &in.chans) > 0)
 	    continue;
-	if (gensio_check_keyuint(args[i], "outchans", &out.chans) > 0)
+	if (gensio_pparm_uint(&p, args[i], "outchans", &out.chans) > 0)
 	    continue;
-	if (gensio_check_keyuint(args[i], "inrate", &in.samplerate) > 0)
+	if (gensio_pparm_uint(&p, args[i], "inrate", &in.samplerate) > 0)
 	    continue;
-	if (gensio_check_keyuint(args[i], "outrate", &out.samplerate) > 0)
+	if (gensio_pparm_uint(&p, args[i], "outrate", &out.samplerate) > 0)
 	    continue;
-	if (gensio_check_keyuint(args[i], "rate", &uival) > 0) {
+	if (gensio_pparm_uint(&p, args[i], "rate", &uival) > 0) {
 	    in.samplerate = uival;
 	    out.samplerate = uival;
 	    continue;
 	}
-	if (gensio_check_keybool(args[i], "list", &list) > 0)
+	if (gensio_pparm_bool(&p, args[i], "list", &list) > 0)
 	    continue;
-	if (gensio_check_keyvalue(args[i], "intype", &in.type) > 0)
+	if (gensio_pparm_value(&p, args[i], "intype", &in.type) > 0)
 	    continue;
-	if (gensio_check_keyvalue(args[i], "outtype", &out.type) > 0)
+	if (gensio_pparm_value(&p, args[i], "outtype", &out.type) > 0)
 	    continue;
-	if (gensio_check_keyvalue(args[i], "type", &out.type) > 0) {
+	if (gensio_pparm_value(&p, args[i], "type", &out.type) > 0) {
 	    in.type = out.type;
 	    continue;
 	}
 
-	if (gensio_check_keyvalue(args[i], "outdev", &out.devname) > 0)
+	if (gensio_pparm_value(&p, args[i], "outdev", &out.devname) > 0)
 	    continue;
 
-	if (gensio_check_keyvalue(args[i], "informat", &in.format) > 0)
+	if (gensio_pparm_value(&p, args[i], "informat", &in.format) > 0)
 	    continue;
-	if (gensio_check_keyvalue(args[i], "outformat", &out.format) > 0)
+	if (gensio_pparm_value(&p, args[i], "outformat", &out.format) > 0)
 	    continue;
-	if (gensio_check_keyvalue(args[i], "format", &out.format) > 0) {
+	if (gensio_pparm_value(&p, args[i], "format", &out.format) > 0) {
 	    in.format = out.format;
 	    continue;
 	}
-	if (gensio_check_keyvalue(args[i], "inpformat", &in.pformat) > 0)
+	if (gensio_pparm_value(&p, args[i], "inpformat", &in.pformat) > 0)
 	    continue;
-	if (gensio_check_keyvalue(args[i], "outpformat", &out.pformat) > 0)
+	if (gensio_pparm_value(&p, args[i], "outpformat", &out.pformat) > 0)
 	    continue;
-	if (gensio_check_keyvalue(args[i], "pformat", &out.pformat) > 0) {
+	if (gensio_pparm_value(&p, args[i], "pformat", &out.pformat) > 0) {
 	    in.pformat = out.pformat;
 	    continue;
 	}
+	gensio_pparm_unknown_parm(&p, args[i]);
 	return GE_INVAL;
     }
 
     if (list)
 	return alloc_sound_list(o, in.type, cb, user_data, rio);
 
-    err = gensio_sound_ll_alloc(o, &in, &out, &ll);
+    err = gensio_sound_ll_alloc(&p, o, &in, &out, &ll);
     if (err)
 	goto out_err;
 

@@ -9,6 +9,7 @@
 #define GENSIO_LL_SOUND_H
 
 #include <gensio/gensio_base.h>
+#include <gensio/gensio_class.h>
 
 struct gensio_sound_info {
     const char *type; /* alsa, port, file, etc. */
@@ -21,7 +22,8 @@ struct gensio_sound_info {
     const char *pformat; /* Format on the PCM side. */
 };
 
-int gensio_sound_ll_alloc(struct gensio_os_funcs *o,
+int gensio_sound_ll_alloc(struct gensio_pparm_info *p,
+			  struct gensio_os_funcs *o,
 			  struct gensio_sound_info *in,
 			  struct gensio_sound_info *out,
 			  struct gensio_ll **newll);
