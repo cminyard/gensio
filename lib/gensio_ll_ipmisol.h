@@ -9,6 +9,7 @@
 #define GENSIO_LL_IPMISOL_H
 
 #include <gensio/gensio_base.h>
+#include <gensio/gensio_class.h>
 
 #define GENSIO_SOL_LL_FREE	GENSIO_EVENT_USER_MIN
 /*
@@ -22,7 +23,8 @@ typedef int (*gensio_ll_ipmisol_ops)(struct gensio_ll *ll, int op,
 				     int val, char *buf,
 				     void *done, void *cb_data);
 
-int ipmisol_gensio_ll_alloc(struct gensio_os_funcs *o,
+int ipmisol_gensio_ll_alloc(struct gensio_pparm_info *p,
+			    struct gensio_os_funcs *o,
 			    const char *devname,
 			    gensio_ll_ipmisol_cb ser_cbs,
 			    void *ser_cbs_data,

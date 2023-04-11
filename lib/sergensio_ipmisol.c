@@ -64,12 +64,14 @@ ipmisol_gensio_alloc(const void *gdata, const char * const args[],
     gensiods max_read_size = GENSIO_DEFAULT_BUF_SIZE;
     gensiods max_write_size = GENSIO_DEFAULT_BUF_SIZE;
     int i;
+    GENSIO_DECLARE_PPGENSIO(p, o, cb, "ipmisol", user_data);
 
     for (i = 0; args && args[i]; i++) {
-	if (gensio_check_keyds(args[i], "readbuf", &max_read_size) > 0)
+	if (gensio_pparm_ds(&p, args[i], "readbuf", &max_read_size) > 0)
 	    continue;
-	if (gensio_check_keyds(args[i], "writebuf", &max_write_size) > 0)
+	if (gensio_pparm_ds(&p, args[i], "writebuf", &max_write_size) > 0)
 	    continue;
+	gensio_pparm_unknown_parm(&p, args[i]);
 	return GE_INVAL;
     }
 
@@ -79,7 +81,7 @@ ipmisol_gensio_alloc(const void *gdata, const char * const args[],
 
     idata->o = o;
 
-    err = ipmisol_gensio_ll_alloc(o, devname, iterm_ser_cb, idata,
+    err = ipmisol_gensio_ll_alloc(&p, o, devname, iterm_ser_cb, idata,
 				  max_read_size, max_write_size,
 				  &idata->ops, &idata->ll);
     if (err)

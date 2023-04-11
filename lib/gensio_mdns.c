@@ -732,6 +732,7 @@ mdns_gensio_alloc(const void *gdata, const char * const args[],
     char *domain = NULL, *host = NULL, *nettype_str = NULL;
     bool nodelay = false, readbuf_set = false, nodelay_set = false;
     const char *str;
+    GENSIO_DECLARE_PPGENSIO(p, o, cb, "mdns", user_data);
 
     err = gensio_get_default(o, type, "nostack", false,
 			     GENSIO_DEFAULT_BOOL, NULL, &i);
@@ -785,17 +786,17 @@ mdns_gensio_alloc(const void *gdata, const char * const args[],
     }
 
     for (i = 0; args && args[i]; i++) {
-	if (gensio_check_keyds(args[i], "readbuf", &max_read_size) > 0) {
+	if (gensio_pparm_ds(&p, args[i], "readbuf", &max_read_size) > 0) {
 	    readbuf_set = true;
 	    continue;
 	}
-	if (gensio_check_keybool(args[i], "nodelay", &nodelay) > 0) {
+	if (gensio_pparm_bool(&p, args[i], "nodelay", &nodelay) > 0) {
 	    nodelay_set = true;
 	    continue;
 	}
-	if (gensio_check_keybool(args[i], "nostack", &nostack) > 0)
+	if (gensio_pparm_bool(&p, args[i], "nostack", &nostack) > 0)
 	    continue;
-	if (gensio_check_keyvalue(args[i], "laddr", &str) > 0) {
+	if (gensio_pparm_value(&p, args[i], "laddr", &str) > 0) {
 	    if (laddr)
 		free(laddr);
 	    laddr = gensio_strdup(o, str);
@@ -805,7 +806,7 @@ mdns_gensio_alloc(const void *gdata, const char * const args[],
 	    }
 	    continue;
 	}
-	if (gensio_check_keyvalue(args[i], "name", &str) > 0) {
+	if (gensio_pparm_value(&p, args[i], "name", &str) > 0) {
 	    if (name)
 		free(name);
 	    name = gensio_strdup(o, str);
@@ -815,7 +816,7 @@ mdns_gensio_alloc(const void *gdata, const char * const args[],
 	    }
 	    continue;
 	}
-	if (gensio_check_keyvalue(args[i], "type", &str) > 0) {
+	if (gensio_pparm_value(&p, args[i], "type", &str) > 0) {
 	    if (type)
 		free(type);
 	    type = gensio_strdup(o, str);
@@ -825,7 +826,7 @@ mdns_gensio_alloc(const void *gdata, const char * const args[],
 	    }
 	    continue;
 	}
-	if (gensio_check_keyvalue(args[i], "domain", &str) > 0) {
+	if (gensio_pparm_value(&p, args[i], "domain", &str) > 0) {
 	    if (domain)
 		free(domain);
 	    domain = gensio_strdup(o, str);
@@ -835,7 +836,7 @@ mdns_gensio_alloc(const void *gdata, const char * const args[],
 	    }
 	    continue;
 	}
-	if (gensio_check_keyvalue(args[i], "host", &str) > 0) {
+	if (gensio_pparm_value(&p, args[i], "host", &str) > 0) {
 	    if (host)
 		free(host);
 	    host = gensio_strdup(o, str);
@@ -845,7 +846,7 @@ mdns_gensio_alloc(const void *gdata, const char * const args[],
 	    }
 	    continue;
 	}
-	if (gensio_check_keyvalue(args[i], "nettype", &str) > 0) {
+	if (gensio_pparm_value(&p, args[i], "nettype", &str) > 0) {
 	    if (nettype_str)
 		free(nettype_str);
 	    nettype_str = gensio_strdup(o, str);
@@ -855,6 +856,7 @@ mdns_gensio_alloc(const void *gdata, const char * const args[],
 	    }
 	    continue;
 	}
+	gensio_pparm_unknown_parm(&p, args[i]);
 	err = GE_INVAL;
 	goto out_base_free;
     }
@@ -868,6 +870,7 @@ mdns_gensio_alloc(const void *gdata, const char * const args[],
     } else if (strcmp(nettype_str, "unspec") == 0) {
 	nettype = GENSIO_NETTYPE_UNSPEC;
     } else {
+	gensio_pparm_log(&p, "Unknown nettype: %s\n", nettype_str);
 	err = GE_INVAL;
 	goto out_base_free;
     }

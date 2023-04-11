@@ -271,7 +271,8 @@ process_xlt(unsigned char table[256], const char *str)
 }
 
 int
-gensio_xlt_filter_alloc(struct gensio_os_funcs *o,
+gensio_xlt_filter_alloc(struct gensio_pparm_info *p,
+			struct gensio_os_funcs *o,
 			const char * const args[],
 			struct gensio_filter **rfilter)
 {
@@ -306,38 +307,39 @@ gensio_xlt_filter_alloc(struct gensio_os_funcs *o,
     }
 
     for (i = 0; args && args[i]; i++) {
-	if (gensio_check_keyvalue(args[i], "in", &str) > 0) {
+	if (gensio_pparm_value(p, args[i], "in", &str) > 0) {
 	    rv = process_xlt(tfilter->inxlt, str);
 	    if (rv)
 		goto out_err;
 	    continue;
 	}
-	if (gensio_check_keyvalue(args[i], "out", &str) > 0) {
+	if (gensio_pparm_value(p, args[i], "out", &str) > 0) {
 	    rv = process_xlt(tfilter->outxlt, str);
 	    if (rv)
 		goto out_err;
 	    continue;
 	}
-	if (gensio_check_keybool(args[i], "crlf", &bval) > 0) {
+	if (gensio_pparm_bool(p, args[i], "crlf", &bval) > 0) {
 	    tfilter->inxlt['\r'] = '\n';
 	    tfilter->outxlt['\n'] = '\r';
 	    continue;
 	}
-	if (gensio_check_keybool(args[i], "lfcr", &bval) > 0) {
+	if (gensio_pparm_bool(p, args[i], "lfcr", &bval) > 0) {
 	    tfilter->outxlt['\r'] = '\n';
 	    tfilter->inxlt['\n'] = '\r';
 	    continue;
 	}
-	if (gensio_check_keybool(args[i], "crnl", &bval) > 0) {
+	if (gensio_pparm_bool(p, args[i], "crnl", &bval) > 0) {
 	    tfilter->inxlt['\r'] = '\n';
 	    tfilter->outxlt['\n'] = '\r';
 	    continue;
 	}
-	if (gensio_check_keybool(args[i], "nlcr", &bval) > 0) {
+	if (gensio_pparm_bool(p, args[i], "nlcr", &bval) > 0) {
 	    tfilter->outxlt['\r'] = '\n';
 	    tfilter->inxlt['\n'] = '\r';
 	    continue;
 	}
+	gensio_pparm_unknown_parm(p, args[i]);
 	goto out_err;
     }
 

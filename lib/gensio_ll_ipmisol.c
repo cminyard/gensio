@@ -1847,7 +1847,8 @@ sol_get_defaults(struct sol_ll *solll)
 }
 
 static int
-sol_process_parm(struct sol_ll *solll, char *arg)
+sol_process_parm(struct gensio_pparm_info *p,
+		 struct sol_ll *solll, char *arg)
 {
     if (strncmp(arg, "9600", 4) == 0) {
 	solll->speed = IPMI_SOL_BIT_RATE_9600;
@@ -1859,12 +1860,12 @@ sol_process_parm(struct sol_ll *solll, char *arg)
 	solll->speed = IPMI_SOL_BIT_RATE_57600;
     } else if (strncmp(arg, "115200", 6) == 0) {
 	solll->speed = IPMI_SOL_BIT_RATE_115200;
-    } else if (gensio_check_keybool(arg, "nobreak", &solll->disablebreak) > 0) {
-    } else if (gensio_check_keybool(arg, "authenticated",
-				    &solll->authenticated) > 0) {
-    } else if (gensio_check_keybool(arg, "encrypted", &solll->encrypted) > 0) {
-    } else if (gensio_check_keybool(arg, "deassert-CTS-DCD-DSR-on-connect",
-				    &solll->deassert_CTS_DCD_DSR_on_connect)
+    } else if (gensio_pparm_bool(p, arg, "nobreak", &solll->disablebreak) > 0) {
+    } else if (gensio_pparm_bool(p, arg, "authenticated",
+				 &solll->authenticated) > 0) {
+    } else if (gensio_pparm_bool(p, arg, "encrypted", &solll->encrypted) > 0) {
+    } else if (gensio_pparm_bool(p, arg, "deassert-CTS-DCD-DSR-on-connect",
+				 &solll->deassert_CTS_DCD_DSR_on_connect)
 	       > 0) {
     } else if (strcasecmp(arg, "shared-serial-alert-fail") == 0) {
 	solll->shared_serial_alert_behavior = ipmi_sol_serial_alerts_fail;
@@ -1872,11 +1873,11 @@ sol_process_parm(struct sol_ll *solll, char *arg)
 	solll->shared_serial_alert_behavior = ipmi_sol_serial_alerts_deferred;
     } else if (strcmp(arg, "shared-serial-alert-succeed") == 0) {
 	solll->shared_serial_alert_behavior = ipmi_sol_serial_alerts_succeed;
-    } else if (gensio_check_keyuint(arg, "ack-timeout",
-				    &solll->ack_timeout) > 0) {
+    } else if (gensio_pparm_uint(p, arg, "ack-timeout",
+				 &solll->ack_timeout) > 0) {
 
-    } else if (gensio_check_keyuint(arg, "ack-retries",
-				    &solll->ack_retries) > 0) {
+    } else if (gensio_pparm_uint(p, arg, "ack-retries",
+				 &solll->ack_retries) > 0) {
 
     /* The rest of the ones below are deprecated. */
     } else if (strcmp(arg, "-NOBREAK") == 0) {
@@ -1896,6 +1897,7 @@ sol_process_parm(struct sol_ll *solll, char *arg)
     } else if (strcmp(arg, "shared_serial_alert_succeed") == 0) {
 	solll->shared_serial_alert_behavior = ipmi_sol_serial_alerts_succeed;
     } else {
+	gensio_pparm_unknown_parm(p, arg);
 	return GE_INVAL;
     }
 
@@ -1903,7 +1905,8 @@ sol_process_parm(struct sol_ll *solll, char *arg)
 }
 
 static int
-sol_process_parms(struct sol_ll *solll)
+sol_process_parms(struct gensio_pparm_info *p,
+		  struct sol_ll *solll)
 {
     char *pos, *strtok_data;
     int err;
@@ -1915,7 +1918,7 @@ sol_process_parms(struct sol_ll *solll)
     *pos++ = '\0';
     for (pos = strtok_r(pos, ",", &strtok_data); pos;
 	 pos = strtok_r(NULL, ",", &strtok_data)) {
-	err = sol_process_parm(solll, pos);
+	err = sol_process_parm(p, solll, pos);
 	if (err)
 	    return err;
     }
@@ -1952,7 +1955,8 @@ gensio_ipmi_init(void *cb_data)
 }
 
 int
-ipmisol_gensio_ll_alloc(struct gensio_os_funcs *o,
+ipmisol_gensio_ll_alloc(struct gensio_pparm_info *p,
+			struct gensio_os_funcs *o,
 			const char *devname,
 			gensio_ll_ipmisol_cb ser_cbs,
 			void *ser_cbs_data,
@@ -1985,7 +1989,7 @@ ipmisol_gensio_ll_alloc(struct gensio_os_funcs *o,
 
     err = sol_get_defaults(solll);
     if (!err)
-	err = sol_process_parms(solll);
+	err = sol_process_parms(p, solll);
     if (err)
 	goto out_err;
 

@@ -652,12 +652,13 @@ keepopen_gensio_alloc(struct gensio *child, const char * const args[],
     int i;
     struct gensio_time retry_time = { 1, 0 };
     bool discard_badwrites = false;
+    GENSIO_DECLARE_PPGENSIO(p, o, cb, "keepopen", user_data);
 
     for (i = 0; args && args[i]; i++) {
-	if (gensio_check_keytime(args[i], "retry-time", 'm', &retry_time) > 0)
+	if (gensio_pparm_time(&p, args[i], "retry-time", 'm', &retry_time) > 0)
 	    continue;
-	if (gensio_check_keybool(args[i], "discard-badwrites",
-				 &discard_badwrites) > 0)
+	if (gensio_pparm_bool(&p, args[i], "discard-badwrites",
+			      &discard_badwrites) > 0)
 	    continue;
 	return GE_INVAL;
     }

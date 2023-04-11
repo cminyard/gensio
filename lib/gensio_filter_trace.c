@@ -354,7 +354,8 @@ static struct gensio_enum_val trace_dir_enum[] = {
 };
 
 int
-gensio_trace_filter_alloc(struct gensio_os_funcs *o,
+gensio_trace_filter_alloc(struct gensio_pparm_info *p,
+			  struct gensio_os_funcs *o,
 			  const char * const args[],
 			  struct gensio_filter **rfilter)
 {
@@ -367,23 +368,24 @@ gensio_trace_filter_alloc(struct gensio_os_funcs *o,
     const char *modeflag = "a";
 
     for (i = 0; args && args[i]; i++) {
-	if (gensio_check_keyenum(args[i], "dir", trace_dir_enum, &dir) > 0)
+	if (gensio_pparm_enum(p, args[i], "dir", trace_dir_enum, &dir) > 0)
 	    continue;
-	if (gensio_check_keyenum(args[i], "block", trace_dir_enum, &block) > 0)
+	if (gensio_pparm_enum(p, args[i], "block", trace_dir_enum, &block) > 0)
 	    continue;
-	if (gensio_check_keybool(args[i], "raw", &raw) > 0)
+	if (gensio_pparm_bool(p, args[i], "raw", &raw) > 0)
 	    continue;
-	if (gensio_check_keyvalue(args[i], "file", &filename) > 0)
+	if (gensio_pparm_value(p, args[i], "file", &filename) > 0)
 	    continue;
-	if (gensio_check_keybool(args[i], "stdout", &tr_stdout) > 0)
+	if (gensio_pparm_bool(p, args[i], "stdout", &tr_stdout) > 0)
 	    continue;
-	if (gensio_check_keybool(args[i], "stderr", &tr_stderr) > 0)
+	if (gensio_pparm_bool(p, args[i], "stderr", &tr_stderr) > 0)
 	    continue;
-	if (gensio_check_keybool(args[i], "delold", &tbool) > 0) {
+	if (gensio_pparm_bool(p, args[i], "delold", &tbool) > 0) {
 	    if (tbool)
 		modeflag = "w";
 	    continue;
 	}
+	gensio_pparm_unknown_parm(p, args[i]);
 	return GE_INVAL;
     }
 
