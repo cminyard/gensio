@@ -290,7 +290,8 @@ gensio_ratelimit_filter_raw_alloc(struct gensio_os_funcs *o,
 }
 
 int
-gensio_ratelimit_filter_alloc(struct gensio_os_funcs *o,
+gensio_ratelimit_filter_alloc(struct gensio_pparm_info *p,
+			      struct gensio_os_funcs *o,
 			      const char * const args[],
 			      struct gensio_filter **rfilter)
 {
@@ -300,15 +301,18 @@ gensio_ratelimit_filter_alloc(struct gensio_os_funcs *o,
     struct gensio_time xmit_delay = { 0, 0 };
 
     for (i = 0; args && args[i]; i++) {
-	if (gensio_check_keyds(args[i], "xmit_len", &xmit_len) > 0)
+	if (gensio_pparm_ds(p, args[i], "xmit_len", &xmit_len) > 0)
 	    continue;
-	if (gensio_check_keytime(args[i], "xmit_delay", 0, &xmit_delay) > 0)
+	if (gensio_pparm_time(p, args[i], "xmit_delay", 0, &xmit_delay) > 0)
 	    continue;
+	gensio_pparm_unknown_parm(p, args[i]);
 	return GE_INVAL;
     }
 
-    if (xmit_delay.secs == 0 && xmit_delay.nsecs == 0)
+    if (xmit_delay.secs == 0 && xmit_delay.nsecs == 0) {
+	gensio_pparm_log(p, "xmit_delay cannot be zero");
 	return GE_INVAL;
+    }
 
     filter = gensio_ratelimit_filter_raw_alloc(o, xmit_len, xmit_delay);
     if (!filter)

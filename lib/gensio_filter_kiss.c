@@ -480,7 +480,8 @@ handle_get_ranges(bool vals[16], const char *str)
 }
 
 int
-gensio_kiss_filter_alloc(struct gensio_os_funcs *o, const char * const args[],
+gensio_kiss_filter_alloc(struct gensio_pparm_info *p,
+			 struct gensio_os_funcs *o, const char * const args[],
 			 bool server, struct gensio_filter **rfilter)
 {
     struct kiss_filter *kfilter;
@@ -499,60 +500,67 @@ gensio_kiss_filter_alloc(struct gensio_os_funcs *o, const char * const args[],
     int rv;
 
     for (i = 0; args && args[i]; i++) {
-	if (gensio_check_keyds(args[i], "readbuf", &max_read_size) > 0)
+	if (gensio_pparm_ds(p, args[i], "readbuf", &max_read_size) > 0)
 	    continue;
-	if (gensio_check_keyds(args[i], "writebuf", &max_write_size) > 0)
+	if (gensio_pparm_ds(p, args[i], "writebuf", &max_write_size) > 0)
 	    continue;
-	if (gensio_check_keyvalue(args[i], "tncs", &str) > 0) {
+	if (gensio_pparm_value(p, args[i], "tncs", &str) > 0) {
 	    rv = handle_get_ranges(tncs, str);
 	    if (rv)
 		return rv;
 	    continue;
 	}
-	if (gensio_check_keyuint(args[i], "txdelay", &txdelay) > 0) {
+	if (gensio_pparm_uint(p, args[i], "txdelay", &txdelay) > 0) {
 	    if (txdelay > 2550)
 		return GE_INVAL;
 	    continue;
 	}
-	if (gensio_check_keyuint(args[i], "persist", &persist) > 0) {
+	if (gensio_pparm_uint(p, args[i], "persist", &persist) > 0) {
 	    if (persist > 255)
 		return GE_INVAL;
 	    continue;
 	}
-	if (gensio_check_keyuint(args[i], "slottime", &slot_time) > 0) {
+	if (gensio_pparm_uint(p, args[i], "slottime", &slot_time) > 0) {
 	    if (slot_time > 2550)
 		return GE_INVAL;
 	    continue;
 	}
-	if (gensio_check_keybool(args[i], "fullduplex", &full_duplex) > 0)
+	if (gensio_pparm_bool(p, args[i], "fullduplex", &full_duplex) > 0)
 	    continue;
-	if (gensio_check_keyuint(args[i], "sethardware", &set_hardware) > 0) {
+	if (gensio_pparm_uint(p, args[i], "sethardware", &set_hardware) > 0) {
 	    if (set_hardware > 255)
 		return GE_INVAL;
 	    set_hardware_set = true;
 	    continue;
 	}
-	if (gensio_check_keybool(args[i], "server", &server) > 0)
+	if (gensio_pparm_bool(p, args[i], "server", &server) > 0)
 	    continue;
-	if (gensio_check_keyvalue(args[i], "setupstr", &setupstr) > 0)
+	if (gensio_pparm_value(p, args[i], "setupstr", &setupstr) > 0)
 	    continue;
-	if (gensio_check_keyuint(args[i], "setup-delay", &setup_delay) > 0)
+	if (gensio_pparm_uint(p, args[i], "setup-delay", &setup_delay) > 0)
 	    continue;
-	if (gensio_check_keybool(args[i], "d710", &bval) > 0) {
+	if (gensio_pparm_bool(p, args[i], "d710", &bval) > 0) {
 	    if (bval)
 		setupstr = "xflow on\rhbaud 1200\rkiss on\rrestart\r";
 	    continue;
 	}
-	if (gensio_check_keybool(args[i], "d710-9600", &bval) > 0) {
+	if (gensio_pparm_bool(p, args[i], "d710-9600", &bval) > 0) {
 	    if (bval)
 		setupstr = "xflow on\rhbaud 9600\rkiss on\rrestart\r";
 	    continue;
 	}
+	gensio_pparm_unknown_parm(p, args[i]);
 	return GE_INVAL;
     }
 
-    if (max_read_size < 256 || max_write_size < 256)
+    if (max_read_size < 256) {
+	gensio_pparm_log(p, "readbuf must be >= 256");
 	return GE_INVAL;
+    }
+    if (max_write_size < 256) {
+	gensio_pparm_log(p, "writebuf must be >= 256");
+	return GE_INVAL;
+    }
 
     kfilter = o->zalloc(o, sizeof(*kfilter));
     if (!kfilter)

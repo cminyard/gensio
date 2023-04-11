@@ -486,7 +486,8 @@ gensio_perf_filter_raw_alloc(struct gensio_os_funcs *o,
 }
 
 int
-gensio_perf_filter_alloc(struct gensio_os_funcs *o,
+gensio_perf_filter_alloc(struct gensio_pparm_info *p,
+			 struct gensio_os_funcs *o,
 			 const char * const args[],
 			 struct gensio_filter **rfilter)
 {
@@ -497,12 +498,13 @@ gensio_perf_filter_alloc(struct gensio_os_funcs *o,
     unsigned int i;
 
     for (i = 0; args && args[i]; i++) {
-	if (gensio_check_keyds(args[i], "writebuf", &writebuf_size) > 0)
+	if (gensio_pparm_ds(p, args[i], "writebuf", &writebuf_size) > 0)
 	    continue;
-	if (gensio_check_keyds(args[i], "write_len", &write_len) > 0)
+	if (gensio_pparm_ds(p, args[i], "write_len", &write_len) > 0)
 	    continue;
-	if (gensio_check_keyds(args[i], "expect_len", &expect_len) > 0)
+	if (gensio_pparm_ds(p, args[i], "expect_len", &expect_len) > 0)
 	    continue;
+	gensio_pparm_unknown_parm(p, args[i]);
 	return GE_INVAL;
     }
 

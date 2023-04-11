@@ -26,8 +26,9 @@ ratelimit_gensio_alloc(struct gensio *child, const char *const args[],
     struct gensio_filter *filter;
     struct gensio_ll *ll;
     struct gensio *io;
+    GENSIO_DECLARE_PPGENSIO(p, o, cb, "ratelimie", user_data);
 
-    err = gensio_ratelimit_filter_alloc(o, args, &filter);
+    err = gensio_ratelimit_filter_alloc(&p, o, args, &filter);
     if (err)
 	return err;
 
@@ -75,6 +76,8 @@ struct ratelimitna_data {
     struct gensio_accepter *acc;
     const char **args;
     struct gensio_os_funcs *o;
+    gensio_accepter_event cb;
+    void *user_data;
 };
 
 static void
@@ -101,8 +104,10 @@ ratelimitna_new_child(void *acc_data, void **finish_data,
 		      struct gensio_filter **filter)
 {
     struct ratelimitna_data *nadata = acc_data;
+    GENSIO_DECLARE_PPACCEPTER(p, nadata->o, nadata->cb, "ratelimit",
+			      nadata->user_data);
 
-    return gensio_ratelimit_filter_alloc(nadata->o, nadata->args, filter);
+    return gensio_ratelimit_filter_alloc(&p, nadata->o, nadata->args, filter);
 }
 
 static int
@@ -155,6 +160,8 @@ ratelimit_gensio_accepter_alloc(struct gensio_accepter *child,
     }
 
     nadata->o = o;
+    nadata->cb = cb;
+    nadata->user_data = user_data;
 
     err = gensio_gensio_accepter_alloc(child, o, "ratelimit", cb, user_data,
 				       gensio_gensio_acc_ratelimit_cb, nadata,

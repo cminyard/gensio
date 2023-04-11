@@ -26,8 +26,9 @@ perf_gensio_alloc(struct gensio *child, const char *const args[],
     struct gensio_filter *filter;
     struct gensio_ll *ll;
     struct gensio *io;
+    GENSIO_DECLARE_PPGENSIO(p, o, cb, "perf", user_data);
 
-    err = gensio_perf_filter_alloc(o, args, &filter);
+    err = gensio_perf_filter_alloc(&p, o, args, &filter);
     if (err)
 	return err;
 
@@ -81,6 +82,8 @@ struct perfna_data {
     struct gensio_accepter *acc;
     const char **args;
     struct gensio_os_funcs *o;
+    gensio_accepter_event cb;
+    void *user_data;
 };
 
 static void
@@ -107,8 +110,10 @@ perfna_new_child(void *acc_data, void **finish_data,
 		  struct gensio_filter **filter)
 {
     struct perfna_data *nadata = acc_data;
+    GENSIO_DECLARE_PPACCEPTER(p, nadata->o, nadata->cb, "perf",
+			      nadata->user_data);
 
-    return gensio_perf_filter_alloc(nadata->o, nadata->args, filter);
+    return gensio_perf_filter_alloc(&p, nadata->o, nadata->args, filter);
 }
 
 static int
@@ -162,6 +167,8 @@ perf_gensio_accepter_alloc(struct gensio_accepter *child,
     }
 
     nadata->o = o;
+    nadata->cb = cb;
+    nadata->user_data = user_data;
 
     err = gensio_gensio_accepter_alloc(child, o, "perf", cb, user_data,
 				       gensio_gensio_acc_perf_cb, nadata,

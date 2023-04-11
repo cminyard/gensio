@@ -512,7 +512,8 @@ gensio_msgdelim_filter_raw_alloc(struct gensio_os_funcs *o,
 }
 
 int
-gensio_msgdelim_filter_alloc(struct gensio_os_funcs *o,
+gensio_msgdelim_filter_alloc(struct gensio_pparm_info *p,
+			     struct gensio_os_funcs *o,
 			     const char * const args[],
 			     struct gensio_filter **rfilter)
 {
@@ -523,12 +524,13 @@ gensio_msgdelim_filter_alloc(struct gensio_os_funcs *o,
     bool crc = true;
 
     for (i = 0; args && args[i]; i++) {
-	if (gensio_check_keyds(args[i], "writebuf", &max_write_size) > 0)
+	if (gensio_pparm_ds(p, args[i], "writebuf", &max_write_size) > 0)
 	    continue;
-	if (gensio_check_keyds(args[i], "readbuf", &max_read_size) > 0)
+	if (gensio_pparm_ds(p, args[i], "readbuf", &max_read_size) > 0)
 	    continue;
-	if (gensio_check_keybool(args[i], "crc", &crc) > 0)
+	if (gensio_pparm_bool(p, args[i], "crc", &crc) > 0)
 	    continue;
+	gensio_pparm_unknown_parm(p, args[i]);
 	return GE_INVAL;
     }
 

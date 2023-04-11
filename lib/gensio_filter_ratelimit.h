@@ -9,8 +9,10 @@
 #define GENSIO_FILTER_RATELIMIT_H
 
 #include <gensio/gensio_base.h>
+#include <gensio/gensio_class.h>
 
-int gensio_ratelimit_filter_alloc(struct gensio_os_funcs *o,
+int gensio_ratelimit_filter_alloc(struct gensio_pparm_info *p,
+				  struct gensio_os_funcs *o,
 				  const char * const args[],
 				  struct gensio_filter **rfilter);
 

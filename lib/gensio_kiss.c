@@ -26,8 +26,9 @@ kiss_gensio_alloc(struct gensio *child, const char *const args[],
     struct gensio_filter *filter;
     struct gensio_ll *ll;
     struct gensio *io;
+    GENSIO_DECLARE_PPGENSIO(p, o, cb, "kiss", user_data);
 
-    err = gensio_kiss_filter_alloc(o, args, false, &filter);
+    err = gensio_kiss_filter_alloc(&p, o, args, false, &filter);
     if (err)
 	return err;
 
@@ -76,6 +77,8 @@ struct kissna_data {
     struct gensio_accepter *acc;
     const char **args;
     struct gensio_os_funcs *o;
+    gensio_accepter_event cb;
+    void *user_data;
 };
 
 static void
@@ -102,8 +105,10 @@ kissna_new_child(void *acc_data, void **finish_data,
 		 struct gensio_filter **filter)
 {
     struct kissna_data *nadata = acc_data;
+    GENSIO_DECLARE_PPACCEPTER(p, nadata->o, nadata->cb, "kiss",
+			      nadata->user_data);
 
-    return gensio_kiss_filter_alloc(nadata->o, nadata->args, true, filter);
+    return gensio_kiss_filter_alloc(&p, nadata->o, nadata->args, true, filter);
 }
 
 static int
@@ -157,6 +162,8 @@ kiss_gensio_accepter_alloc(struct gensio_accepter *child,
     }
 
     nadata->o = o;
+    nadata->cb = cb;
+    nadata->user_data = user_data;
 
     err = gensio_gensio_accepter_alloc(child, o, "kiss", cb, user_data,
 				       gensio_gensio_acc_kiss_cb, nadata,
