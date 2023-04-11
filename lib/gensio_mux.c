@@ -1496,7 +1496,8 @@ muxc_alloc_channel_data(struct mux_data *muxdata,
 }
 
 static int
-gensio_mux_config(struct gensio_os_funcs *o,
+gensio_mux_config(struct gensio_pparm_info *p,
+		  struct gensio_os_funcs *o,
 		  const char * const args[],
 		  struct gensio_mux_config *data)
 {
@@ -1507,22 +1508,22 @@ gensio_mux_config(struct gensio_os_funcs *o,
     data->o = o;
 
     for (i = 0; args && args[i]; i++) {
-	if (gensio_check_keyds(args[i], "readbuf", &data->max_read_size) > 0)
+	if (gensio_pparm_ds(p, args[i], "readbuf", &data->max_read_size) > 0)
 	    continue;
-	if (gensio_check_keyds(args[i], "writebuf", &data->max_write_size) > 0)
+	if (gensio_pparm_ds(p, args[i], "writebuf", &data->max_write_size) > 0)
 	    continue;
-	if (gensio_check_keyboolv(args[i], "mode", "client", "server",
-				  &data->is_client) > 0)
+	if (gensio_pparm_boolv(p, args[i], "mode", "client", "server",
+			       &data->is_client) > 0)
 	    continue;
-	if (gensio_check_keyuint(args[i], "max_channels",
-				 &data->max_channels) > 0) {
+	if (gensio_pparm_uint(p, args[i], "max_channels",
+			      &data->max_channels) > 0) {
 	    if (data->max_channels > 65536 || data->max_channels < 1) {
 		rv = GE_INVAL;
 		goto out_err;
 	    }
 	    continue;
 	}
-	if (gensio_check_keyvalue(args[i], "service", &str) > 0) {
+	if (gensio_pparm_value(p, args[i], "service", &str) > 0) {
 	    data->service = gensio_strdup(o, str);
 	    if (!data->service)
 		goto out_err;
@@ -1586,6 +1587,8 @@ muxc_alloc_channel(struct mux_data *muxdata,
 {
     int err;
     struct gensio_mux_config data;
+    GENSIO_DECLARE_PPGENSIO(p, muxdata->o, ocdata->cb, "mux",
+			    ocdata->user_data);
 
     mux_lock(muxdata);
     if (muxdata->state != MUX_OPEN) {
@@ -1602,7 +1605,7 @@ muxc_alloc_channel(struct mux_data *muxdata,
     if (err)
 	return err;
 
-    err = gensio_mux_config(muxdata->o, ocdata->args, &data);
+    err = gensio_mux_config(&p, muxdata->o, ocdata->args, &data);
     if (err)
 	return err;
 
@@ -2792,6 +2795,7 @@ mux_gensio_alloc(struct gensio *child, const char *const args[],
     struct gensio_mux_config data;
     struct mux_data *muxdata;
     int ival;
+    GENSIO_DECLARE_PPGENSIO(p, o, cb, "mux", user_data);
 
     if (!gensio_is_reliable(child))
 	/* Cowardly refusing to run MUX over an unreliable connection. */
@@ -2811,7 +2815,7 @@ mux_gensio_alloc(struct gensio *child, const char *const args[],
     if (err)
 	return err;
 
-    err = gensio_mux_config(o, args, &data);
+    err = gensio_mux_config(&p, o, args, &data);
     if (err)
 	return err;
 
@@ -2933,6 +2937,7 @@ mux_gensio_accepter_alloc(struct gensio_accepter *child,
 {
     struct muxna_data *nadata;
     int err, ival;
+    GENSIO_DECLARE_PPACCEPTER(p, o, cb, "mux", user_data);
 
     if (!gensio_acc_is_reliable(child))
 	/* Cowardly refusing to run MUX over an unreliable connection. */
@@ -2958,7 +2963,7 @@ mux_gensio_accepter_alloc(struct gensio_accepter *child,
 	o->free(o, nadata);
 	return err;
     }
-    err = gensio_mux_config(o, args, &nadata->data);
+    err = gensio_mux_config(&p, o, args, &nadata->data);
     if (err) {
 	o->free(o, nadata);
 	return err;

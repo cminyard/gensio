@@ -396,6 +396,7 @@ sctp_gensio_alloc(const void *gdata, const char * const args[],
     int i, err, ival;
     struct gensio_addr *addr, *laddr = NULL;
     bool nodelay = false;
+    GENSIO_DECLARE_PPGENSIO(p, o, cb, "sctp", user_data);
 
     err = gensio_get_default(o, "sctp", "nodelay", false,
 			    GENSIO_DEFAULT_BOOL, NULL, &ival);
@@ -436,22 +437,23 @@ sctp_gensio_alloc(const void *gdata, const char * const args[],
     }
 
     for (i = 0; args && args[i]; i++) {
-	if (gensio_check_keyds(args[i], "readbuf", &max_read_size) > 0)
+	if (gensio_pparm_ds(&p, args[i], "readbuf", &max_read_size) > 0)
 	    continue;
-	if (gensio_check_keyaddrs(o, args[i], "laddr",
-				  GENSIO_NET_PROTOCOL_SCTP,
-				  true, false, &laddr) > 0)
+	if (gensio_pparm_addrs(&p, args[i], "laddr",
+			       GENSIO_NET_PROTOCOL_SCTP,
+			       true, false, &laddr) > 0)
 	    continue;
-	if (gensio_check_keybool(args[i], "nodelay", &nodelay) > 0)
+	if (gensio_pparm_bool(&p, args[i], "nodelay", &nodelay) > 0)
 	    continue;
-	if (gensio_check_keyuint(args[i], "instreams", &instreams) > 0)
+	if (gensio_pparm_uint(&p, args[i], "instreams", &instreams) > 0)
 	    continue;
-	if (gensio_check_keyuint(args[i], "ostreams", &ostreams) > 0)
+	if (gensio_pparm_uint(&p, args[i], "ostreams", &ostreams) > 0)
 	    continue;
-	if (gensio_check_keyuint(args[i], "sack_freq", &sack_freq) > 0)
+	if (gensio_pparm_uint(&p, args[i], "sack_freq", &sack_freq) > 0)
 	    continue;
-	if (gensio_check_keyuint(args[i], "sack_delay", &sack_delay) > 0)
+	if (gensio_pparm_uint(&p, args[i], "sack_delay", &sack_delay) > 0)
 	    continue;
+	gensio_pparm_unknown_parm(&p, args[i]);
 	err = GE_INVAL;
 	goto out_err;
     }
@@ -800,6 +802,7 @@ sctpna_str_to_gensio(struct gensio_accepter *accepter,
     bool is_port_set;
     int protocol = GENSIO_NET_PROTOCOL_SCTP;
     bool nodelay = false;
+    GENSIO_DECLARE_PPGENSIO(p, nadata->o, cb, "sctp", user_data);
 
     err = gensio_scan_network_port(nadata->o, addr, false, &ai,
 				   &protocol, &is_port_set, &iargc, &iargs);
@@ -811,22 +814,23 @@ sctpna_str_to_gensio(struct gensio_accepter *accepter,
 	goto out_err;
 
     for (i = 0; iargs && iargs[i]; i++) {
-	if (gensio_check_keyds(iargs[i], "readbuf", &max_read_size) > 0)
+	if (gensio_pparm_ds(&p, iargs[i], "readbuf", &max_read_size) > 0)
 	    continue;
-	if (gensio_check_keyvalue(iargs[i], "laddr", &dummy) > 0) {
+	if (gensio_pparm_value(&p, iargs[i], "laddr", &dummy) > 0) {
 	    laddr = iargs[i];
 	    continue;
 	}
-	if (gensio_check_keybool(args[i], "nodelay", &nodelay) > 0)
+	if (gensio_pparm_bool(&p, iargs[i], "nodelay", &nodelay) > 0)
 	    continue;
-	if (gensio_check_keyuint(iargs[i], "instreams", &instreams) > 0)
+	if (gensio_pparm_uint(&p, iargs[i], "instreams", &instreams) > 0)
 	    continue;
-	if (gensio_check_keyuint(iargs[i], "ostreams", &ostreams) > 0)
+	if (gensio_pparm_uint(&p, iargs[i], "ostreams", &ostreams) > 0)
 	    continue;
-	if (gensio_check_keyuint(args[i], "sack_freq", &sack_freq) > 0)
+	if (gensio_pparm_uint(&p, iargs[i], "sack_freq", &sack_freq) > 0)
 	    continue;
-	if (gensio_check_keyuint(args[i], "sack_delay", &sack_delay) > 0)
+	if (gensio_pparm_uint(&p, iargs[i], "sack_delay", &sack_delay) > 0)
 	    continue;
+	gensio_pparm_unknown_parm(&p, iargs[i]);
 	goto out_err;
     }
 
@@ -995,6 +999,7 @@ sctp_gensio_accepter_alloc(const void *gdata,
     bool nodelay = false, reuseaddr = true;
     unsigned int i;
     int err, ival;
+    GENSIO_DECLARE_PPACCEPTER(p, o, cb, "sctp", user_data);
 
     err = gensio_get_default(o, "sctp", "reuseaddr", false,
 			     GENSIO_DEFAULT_BOOL, NULL, &ival);
@@ -1015,20 +1020,21 @@ sctp_gensio_accepter_alloc(const void *gdata,
     sack_delay = ival;
 
     for (i = 0; args && args[i]; i++) {
-	if (gensio_check_keyds(args[i], "readbuf", &max_read_size) > 0)
+	if (gensio_pparm_ds(&p, args[i], "readbuf", &max_read_size) > 0)
 	    continue;
-	if (gensio_check_keybool(args[i], "nodelay", &nodelay) > 0)
+	if (gensio_pparm_bool(&p, args[i], "nodelay", &nodelay) > 0)
 	    continue;
-	if (gensio_check_keyuint(args[i], "instreams", &instreams) > 0)
+	if (gensio_pparm_uint(&p, args[i], "instreams", &instreams) > 0)
 	    continue;
-	if (gensio_check_keyuint(args[i], "ostreams", &ostreams) > 0)
+	if (gensio_pparm_uint(&p, args[i], "ostreams", &ostreams) > 0)
 	    continue;
-	if (gensio_check_keyuint(args[i], "sack_freq", &sack_freq) > 0)
+	if (gensio_pparm_uint(&p, args[i], "sack_freq", &sack_freq) > 0)
 	    continue;
-	if (gensio_check_keyuint(args[i], "sack_delay", &sack_delay) > 0)
+	if (gensio_pparm_uint(&p, args[i], "sack_delay", &sack_delay) > 0)
 	    continue;
-	if (gensio_check_keybool(args[i], "reuseaddr", &reuseaddr) > 0)
+	if (gensio_pparm_bool(&p, args[i], "reuseaddr", &reuseaddr) > 0)
 	    continue;
+	gensio_pparm_unknown_parm(&p, args[i]);
 	return GE_INVAL;
     }
 

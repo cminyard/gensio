@@ -645,59 +645,69 @@ pty_gensio_alloc(const void *gdata, const char * const args[],
     const char *start_dir = NULL;
     bool raw = false;
     int err;
+    GENSIO_DECLARE_PPGENSIO(p, o, cb, "pty", user_data);
 
     for (i = 0; args && args[i]; i++) {
-	if (gensio_check_keyds(args[i], "readbuf", &max_read_size) > 0)
+	if (gensio_pparm_ds(&p, args[i], "readbuf", &max_read_size) > 0)
 	    continue;
-	if (gensio_check_keyvalue(args[i], "start-dir", &start_dir) > 0)
+	if (gensio_pparm_value(&p, args[i], "start-dir", &start_dir) > 0)
 	    continue;
 #if HAVE_PTSNAME_R
-	if (gensio_check_keyvalue(args[i], "link", &link))
+	if (gensio_pparm_value(&p, args[i], "link", &link))
 	    continue;
-	if (gensio_check_keybool(args[i], "forcelink", &forcelink) > 0)
+	if (gensio_pparm_bool(&p, args[i], "forcelink", &forcelink) > 0)
 	    continue;
-	if (gensio_check_keymode(args[i], "umode", &umode) > 0) {
+	if (gensio_pparm_mode(&p, args[i], "umode", &umode) > 0) {
 	    mode_set = true;
 	    continue;
 	}
-	if (gensio_check_keymode(args[i], "gmode", &gmode) > 0) {
+	if (gensio_pparm_mode(&p, args[i], "gmode", &gmode) > 0) {
 	    mode_set = true;
 	    continue;
 	}
-	if (gensio_check_keymode(args[i], "omode", &omode) > 0) {
+	if (gensio_pparm_mode(&p, args[i], "omode", &omode) > 0) {
 	    mode_set = true;
 	    continue;
 	}
-	if (gensio_check_keyperm(args[i], "perm", &mode) > 0) {
+	if (gensio_pparm_perm(&p, args[i], "perm", &mode) > 0) {
 	    mode_set = true;
 	    umode = mode >> 6 & 7;
 	    gmode = mode >> 3 & 7;
 	    omode = mode & 7;
 	    continue;
 	}
-	if (gensio_check_keyvalue(args[i], "owner", &owner))
+	if (gensio_pparm_value(&p, args[i], "owner", &owner))
 	    continue;
-	if (gensio_check_keyvalue(args[i], "group", &group))
+	if (gensio_pparm_value(&p, args[i], "group", &group))
 	    continue;
 #endif
 #ifdef _WIN32
-	if (gensio_check_keyvalue(args[i], "user", &user))
+	if (gensio_pparm_value(&p, args[i], "user", &user))
 	    continue;
-	if (gensio_check_keyvalue(args[i], "passwd", &passwd))
+	if (gensio_pparm_value(&p, args[i], "passwd", &passwd))
+	    continue;
+	if (gensio_pparm_value(&p, args[i], "module", &module))
 	    continue;
 #endif
-	if (gensio_check_keybool(args[i], "raw", &raw) > 0)
+	if (gensio_pparm_bool(&p, args[i], "raw", &raw) > 0)
 	    continue;
+	gensio_pparm_unknown_parm(&p, args[i]);
 	return GE_INVAL;
     }
 
 #ifdef _WIN32
-    /* Must be running a program if specifying a user. */
-    if (user && !argv)
+    if (user && !argv) {
+	gensio_pparm_log(&p, "If user is specified, you must run a program");
 	return GE_INVAL;
-    /* passwd and module require user to be set. */
-    if ((passwd || module) && !user)
+    }
+    if (passwd && !user) {
+	gensio_pparm_log(&p, "passwd requires a user to be set");
 	return GE_INVAL;
+    }
+    if (module && !user) {
+	gensio_pparm_log(&p, "module requires a user to be set");
+	return GE_INVAL;
+    }
 #endif
 
     tdata = o->zalloc(o, sizeof(*tdata));
