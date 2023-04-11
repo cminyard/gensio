@@ -1126,10 +1126,12 @@ conacc_gensio_accepter_alloc(const void *gdata,
     unsigned int i;
     struct gensio_time retry_time = { 0, 0 };
     int err;
+    GENSIO_DECLARE_PPACCEPTER(p, o, cb, "conacc", user_data);
 
     for (i = 0; args && args[i]; i++) {
-	if (gensio_check_keytime(args[i], "retry-time", 'm', &retry_time) > 0)
+	if (gensio_pparm_time(&p, args[i], "retry-time", 'm', &retry_time) > 0)
 	    continue;
+	gensio_pparm_unknown_parm(&p, args[i]);
 	return GE_INVAL;
     }
 

@@ -412,14 +412,16 @@ echo_gensio_alloc(const void *gdata,
     gensiods max_read_size = GENSIO_DEFAULT_BUF_SIZE;
     bool noecho = false;
     const char *data = NULL;
+    GENSIO_DECLARE_PPGENSIO(p, o, cb, "echo", user_data);
 
     for (i = 0; args && args[i]; i++) {
-	if (gensio_check_keyds(args[i], "readbuf", &max_read_size) > 0)
+	if (gensio_pparm_ds(&p, args[i], "readbuf", &max_read_size) > 0)
 	    continue;
-	if (gensio_check_keybool(args[i], "noecho", &noecho) > 0)
+	if (gensio_pparm_bool(&p, args[i], "noecho", &noecho) > 0)
 	    continue;
-	if (gensio_check_keyvalue(args[i], "data", &data) > 0)
+	if (gensio_pparm_value(&p, args[i], "data", &data) > 0)
 	    continue;
+	gensio_pparm_unknown_parm(&p, args[i]);
 	return GE_INVAL;
     }
 

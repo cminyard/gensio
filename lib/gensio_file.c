@@ -633,7 +633,8 @@ file_ndata_setup(struct gensio_os_funcs *o, struct file_ndata_data *data,
 }
 
 static int
-process_file_args(const char * const args[], struct file_ndata_data *data)
+process_file_args(struct gensio_pparm_info *p,
+		  const char * const args[], struct file_ndata_data *data)
 {
 #if !USE_FILE_STDIO
     unsigned int mode;
@@ -645,30 +646,31 @@ process_file_args(const char * const args[], struct file_ndata_data *data)
     data->max_read_size = GENSIO_DEFAULT_BUF_SIZE;
 
     for (i = 0; args && args[i]; i++) {
-	if (gensio_check_keyds(args[i], "readbuf", &data->max_read_size) > 0)
+	if (gensio_pparm_ds(p, args[i], "readbuf", &data->max_read_size) > 0)
 	    continue;
-	if (gensio_check_keyvalue(args[i], "infile", &data->infile) > 0)
+	if (gensio_pparm_value(p, args[i], "infile", &data->infile) > 0)
 	    continue;
-	if (gensio_check_keyvalue(args[i], "outfile", &data->outfile) > 0)
+	if (gensio_pparm_value(p, args[i], "outfile", &data->outfile) > 0)
 	    continue;
-	if (gensio_check_keybool(args[i], "create", &data->create) > 0)
+	if (gensio_pparm_bool(p, args[i], "create", &data->create) > 0)
 	    continue;
 #if !USE_FILE_STDIO
-	if (gensio_check_keymode(args[i], "umode", &umode) > 0)
+	if (gensio_pparm_mode(p, args[i], "umode", &umode) > 0)
 	    continue;
-	if (gensio_check_keymode(args[i], "gmode", &gmode) > 0)
+	if (gensio_pparm_mode(p, args[i], "gmode", &gmode) > 0)
 	    continue;
-	if (gensio_check_keymode(args[i], "omode", &omode) > 0)
+	if (gensio_pparm_mode(p, args[i], "omode", &omode) > 0)
 	    continue;
-	if (gensio_check_keyperm(args[i], "perm", &mode) > 0) {
+	if (gensio_pparm_perm(p, args[i], "perm", &mode) > 0) {
 	    umode = mode >> 6 & 7;
 	    gmode = mode >> 3 & 7;
 	    omode = mode & 7;
 	    continue;
 	}
 #endif
-	if (gensio_check_keybool(args[i], "read_close", &data->read_close) > 0)
+	if (gensio_pparm_bool(p, args[i], "read_close", &data->read_close) > 0)
 	    continue;
+	gensio_pparm_unknown_parm(p, args[i]);
 	return GE_INVAL;
     }
     data->mode = umode << 6 | gmode << 3 | omode;
@@ -685,8 +687,9 @@ file_gensio_alloc(const void *gdata,
     int err;
     struct filen_data *ndata = NULL;
     struct file_ndata_data data;
+    GENSIO_DECLARE_PPGENSIO(p, o, cb, "file", user_data);
 
-    err = process_file_args(args, &data);
+    err = process_file_args(&p, args, &data);
     if (err)
 	return err;
 
