@@ -4591,7 +4591,8 @@ ax25_scan_laddrs(struct gensio_os_funcs *o, const char *str,
 }
 
 static int
-ax25_readconf(struct gensio_os_funcs *o, bool firstchan, bool noaddr,
+ax25_readconf(struct gensio_pparm_info *p,
+	      struct gensio_os_funcs *o, bool firstchan, bool noaddr,
 	      struct ax25_conf_data *conf, const char *const args[])
 {
     int rv = 0;
@@ -4599,66 +4600,103 @@ ax25_readconf(struct gensio_os_funcs *o, bool firstchan, bool noaddr,
     const char *str;
 
     for (i = 0; args && args[i]; i++) {
-	if (gensio_check_keyds(args[i], "readbuf", &conf->max_read_size) > 0)
+	if (gensio_pparm_ds(p, args[i], "readbuf", &conf->max_read_size) > 0)
 	    continue;
-	if (gensio_check_keyds(args[i], "writebuf", &conf->max_write_size) > 0)
+	if (gensio_pparm_ds(p, args[i], "writebuf", &conf->max_write_size) > 0)
 	    continue;
-	if (gensio_check_keyuint(args[i], "readwindow", &conf->readwindow) > 0)
+	if (gensio_pparm_uint(p, args[i], "readwindow", &conf->readwindow) > 0)
 	    continue;
-	if (gensio_check_keyuint(args[i], "writewindow",
-				 &conf->writewindow) > 0) {
+	if (gensio_pparm_uint(p, args[i], "writewindow",
+			      &conf->writewindow) > 0) {
 	    conf->writewindow_set = true;
 	    continue;
 	}
-	if (gensio_check_keyuint(args[i], "extended", &conf->extended) > 0) {
+	if (gensio_pparm_uint(p, args[i], "extended", &conf->extended) > 0) {
 	    if (conf->extended > 2)
 		goto out_err;
 	    continue;
 	}
 	if (!noaddr &&!conf->addr &&
-		gensio_check_keyvalue(args[i], "addr", &str)) {
+		gensio_pparm_value(p, args[i], "addr", &str)) {
 	    rv = gensio_ax25_str_to_addr(o, str, &conf->addr);
 	    if (rv)
 		goto out_err;
 	    continue;
 	}
-	if (firstchan & gensio_check_keyvalue(args[i], "laddr", &str)) {
+	if (firstchan & gensio_pparm_value(p, args[i], "laddr", &str)) {
 	    rv = ax25_scan_laddrs(o, str, &conf->my_addrs, &conf->num_my_addrs);
 	    if (rv)
 		goto out_err;
 	    continue;
 	}
-	if (firstchan & gensio_check_keybool(args[i], "crc", &conf->do_crc))
+	if (firstchan & gensio_pparm_bool(p, args[i], "crc", &conf->do_crc))
 	    continue;
-	if (gensio_check_keybool(args[i], "ign_emb_ua",
+	if (gensio_pparm_bool(p, args[i], "ign_emb_ua",
 				 &conf->ignore_embedded_ua))
 	    continue;
-	if (gensio_check_keyuint(args[i], "srt", &conf->srtv) > 0)
+	if (gensio_pparm_uint(p, args[i], "srt", &conf->srtv) > 0)
 	    continue;
-	if (gensio_check_keyuint(args[i], "t2", &conf->t2v) > 0)
+	if (gensio_pparm_uint(p, args[i], "t2", &conf->t2v) > 0)
 	    continue;
-	if (gensio_check_keyuint(args[i], "t3", &conf->t3v) > 0)
+	if (gensio_pparm_uint(p, args[i], "t3", &conf->t3v) > 0)
 	    continue;
-	if (gensio_check_keyuint(args[i], "retries", &conf->max_retries) > 0)
+	if (gensio_pparm_uint(p, args[i], "retries", &conf->max_retries) > 0)
 	    continue;
 	/* Undocumented, used for testing. */
-	if (gensio_check_keyuint(args[i], "drop", &conf->drop_pos) > 0)
+	if (gensio_pparm_uint(p, args[i], "drop", &conf->drop_pos) > 0)
 	    continue;
+	gensio_pparm_unknown_parm(p, args[i]);
 	rv = GE_INVAL;
 	goto out_err;
     }
 
-    if (conf->srtv == 0 || conf->t2v == 0 || conf->t3v == 0 ||
-		conf->readwindow == 0 || conf->writewindow == 0) {
+    if (conf->srtv == 0) {
+	gensio_pparm_log(p, "srt cannot be zero");
+	rv = GE_INVAL;
+	goto out_err;
+    }
+    if (conf->t2v == 0) {
+	gensio_pparm_log(p, "t2 cannot be zero");
+	rv = GE_INVAL;
+	goto out_err;
+    }
+    if (conf->t3v == 0) {
+	gensio_pparm_log(p, "t3 cannot be zero");
+	rv = GE_INVAL;
+	goto out_err;
+    }
+    if (conf->readwindow == 0) {
+	gensio_pparm_log(p, "readwindow cannot be zero");
+	rv = GE_INVAL;
+	goto out_err;
+    }
+    if (conf->writewindow == 0) {
+	gensio_pparm_log(p, "writewindow cannot be zero");
 	rv = GE_INVAL;
 	goto out_err;
     }
     if (conf->extended) {
-	if (conf->writewindow > 127 || conf->readwindow > 127)
+	if (conf->writewindow > 127) {
+	    gensio_pparm_log(p, "writewindow must be <= 127");
 	    rv = GE_INVAL;
+	    goto out_err;
+	}
+	if (conf->readwindow > 127) {
+	    gensio_pparm_log(p, "readwindow must be <= 127");
+	    rv = GE_INVAL;
+	    goto out_err;
+	}
     } else {
-	if (conf->writewindow > 7 || conf->readwindow > 7)
+	if (conf->writewindow > 7) {
+	    gensio_pparm_log(p, "writewindow must be <= 7");
 	    rv = GE_INVAL;
+	    goto out_err;
+	}
+	if (conf->readwindow > 7) {
+	    gensio_pparm_log(p, "readwindow must be <= 7");
+	    rv = GE_INVAL;
+	    goto out_err;
+	}
     }
 
  out_err:
@@ -4694,6 +4732,7 @@ ax25_chan_alloc(struct ax25_base *base, const char *const args[],
     unsigned int i;
     struct ax25_conf_data conf = base->conf;
     int rv;
+    GENSIO_DECLARE_PPGENSIO(p, o, cb, "ax25", user_data);
 
     conf.my_addrs = NULL;
     conf.num_my_addrs = 0;
@@ -4704,7 +4743,7 @@ ax25_chan_alloc(struct ax25_base *base, const char *const args[],
 	    return GE_NOMEM;
     }
 
-    rv = ax25_readconf(base->o, firstchan, false, &conf, args);
+    rv = ax25_readconf(&p, base->o, firstchan, false, &conf, args);
     if (rv)
 	goto out_err;
 
@@ -5009,6 +5048,7 @@ ax25_gensio_accepter_alloc(struct gensio_accepter *child,
 {
     struct ax25a_data *adata;
     int err;
+    GENSIO_DECLARE_PPACCEPTER(p, o, cb, "ax25", user_data);
 
     adata = o->zalloc(o, sizeof(*adata));
     if (!adata)
@@ -5016,7 +5056,7 @@ ax25_gensio_accepter_alloc(struct gensio_accepter *child,
 
     adata->o = o;
     ax25_defconf(&adata->conf);
-    err = ax25_readconf(o, true, true, &adata->conf, args);
+    err = ax25_readconf(&p, o, true, true, &adata->conf, args);
     if (err) {
 	ax25_cleanup_conf(o, &adata->conf);
 	o->free(o, adata);
