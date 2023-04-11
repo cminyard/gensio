@@ -2470,7 +2470,8 @@ static struct gensio_enum_val filttype_enums[] = {
 };
 
 int
-gensio_afskmdm_filter_alloc(struct gensio_os_funcs *o,
+gensio_afskmdm_filter_alloc(struct gensio_pparm_info *p,
+			    struct gensio_os_funcs *o,
 			    struct gensio *child,
 			    const char * const args[],
 			    struct gensio_filter **rfilter)
@@ -2512,13 +2513,19 @@ gensio_afskmdm_filter_alloc(struct gensio_os_funcs *o,
 
     err = afskmdm_child_getuint(child, GENSIO_CONTROL_IN_BUFSIZE,
 				&data.in_chunksize);
-    if (err)
+    if (err) {
+	gensio_pparm_log(p, "Unable to get child input buffer size,"
+			 " is it a sound device?");
 	return GE_INCONSISTENT;
+    }
 
     err = afskmdm_child_getuint(child, GENSIO_CONTROL_OUT_BUFSIZE,
 				&data.out_chunksize);
-    if (err)
+    if (err) {
+	gensio_pparm_log(p, "Unable to get child output buffer size,"
+			 " is it a sound device?");
 	return GE_INCONSISTENT;
+    }
 
     /* Don't care if these fail, we will check later. */
     afskmdm_child_getuint(child, GENSIO_CONTROL_IN_RATE,
@@ -2533,101 +2540,128 @@ gensio_afskmdm_filter_alloc(struct gensio_os_funcs *o,
     cdata_len = sizeof(cdata);
     err = gensio_control(child, GENSIO_CONTROL_DEPTH_FIRST, true,
 			 GENSIO_CONTROL_IN_FORMAT, cdata, &cdata_len);
-    if (err || strcmp(cdata, "float") != 0)
+    if (err) {
+	gensio_pparm_log(p, "Unable to get child input format,"
+			 " is it a sound device?");
 	return GE_INCONSISTENT;
+    }
+    if (strcmp(cdata, "float") != 0) {
+	gensio_pparm_log(p, "Child input format is not float");
+	return GE_INCONSISTENT;
+    }
 
     cdata_len = sizeof(cdata);
     err = gensio_control(child, GENSIO_CONTROL_DEPTH_FIRST, true,
 			 GENSIO_CONTROL_OUT_FORMAT, cdata, &cdata_len);
-    if (err || strcmp(cdata, "float") != 0)
+    if (err) {
+	gensio_pparm_log(p, "Unable to get child output format,"
+			 " is it a sound device?");
 	return GE_INCONSISTENT;
+    }
+    if (strcmp(cdata, "float") != 0) {
+	gensio_pparm_log(p, "Child output format is not float");
+	return GE_INCONSISTENT;
+    }
 
     for (i = 0; args && args[i]; i++) {
-	if (gensio_check_keyds(args[i], "readbuf", &data.max_read_size) > 0)
+	if (gensio_pparm_ds(p, args[i], "readbuf", &data.max_read_size) > 0)
 	    continue;
-	if (gensio_check_keyds(args[i], "writebuf", &data.max_write_size) > 0)
+	if (gensio_pparm_ds(p, args[i], "writebuf", &data.max_write_size) > 0)
 	    continue;
-	if (gensio_check_keyuint(args[i], "nchans", &data.in_nchans) > 0) {
+	if (gensio_pparm_uint(p, args[i], "nchans", &data.in_nchans) > 0) {
 	    data.out_nchans = data.in_nchans;
 	    continue;
 	}
-	if (gensio_check_keyuint(args[i], "in_nchans", &data.in_nchans) > 0)
+	if (gensio_pparm_uint(p, args[i], "in_nchans", &data.in_nchans) > 0)
 	    continue;
-	if (gensio_check_keyuint(args[i], "out_nchans", &data.out_nchans) > 0)
+	if (gensio_pparm_uint(p, args[i], "out_nchans", &data.out_nchans) > 0)
 	    continue;
-	if (gensio_check_keyuint(args[i], "chan", &data.in_chan) > 0) {
+	if (gensio_pparm_uint(p, args[i], "chan", &data.in_chan) > 0) {
 	    data.out_chans = 1 << data.in_chan;
 	    continue;
 	}
-	if (gensio_check_keyuint(args[i], "in_chan", &data.in_chan) > 0)
+	if (gensio_pparm_uint(p, args[i], "in_chan", &data.in_chan) > 0)
 	    continue;
-	if (gensio_check_keyuint(args[i], "out_chans", &data.out_chans) > 0)
+	if (gensio_pparm_uint(p, args[i], "out_chans", &data.out_chans) > 0)
 	    continue;
-	if (gensio_check_keyuint(args[i], "out_chan", &chan) > 0) {
+	if (gensio_pparm_uint(p, args[i], "out_chan", &chan) > 0) {
 	    data.out_chans = 1 << chan;
 	    continue;
 	}
-	if (gensio_check_keyuint(args[i], "samplerate",
+	if (gensio_pparm_uint(p, args[i], "samplerate",
 				 &data.in_framerate) > 0) {
 	    data.out_framerate = data.in_framerate;
 	    continue;
 	}
-	if (gensio_check_keyuint(args[i], "in_samplerate",
+	if (gensio_pparm_uint(p, args[i], "in_samplerate",
 				 &data.in_framerate) > 0)
 	    continue;
-	if (gensio_check_keyuint(args[i], "out_samplerate",
+	if (gensio_pparm_uint(p, args[i], "out_samplerate",
 				 &data.in_framerate) > 0)
 	    continue;
-	if (gensio_check_keyuint(args[i], "wmsgs", &data.max_wmsgs) > 0)
+	if (gensio_pparm_uint(p, args[i], "wmsgs", &data.max_wmsgs) > 0)
 	    continue;
-	if (gensio_check_keyuint(args[i], "wmsg-extra", &wmsg_extra) > 0)
+	if (gensio_pparm_uint(p, args[i], "wmsg-extra", &wmsg_extra) > 0)
 	    continue;
-	if (gensio_check_keyfloat(args[i], "min-certainty",
+	if (gensio_pparm_float(p, args[i], "min-certainty",
 				  &data.min_certainty) > 0)
 	    continue;
-	if (gensio_check_keyenum(args[i], "filttype", filttype_enums,
+	if (gensio_pparm_enum(p, args[i], "filttype", filttype_enums,
 				 &data.filt_type) > 0) {
 	    data.filt_type_set = true;
 	    continue;
 	}
-	if (gensio_check_keyuint(args[i], "lpcutoff", &data.lpcutoff) > 0)
+	if (gensio_pparm_uint(p, args[i], "lpcutoff", &data.lpcutoff) > 0)
 	    continue;
-	if (gensio_check_keyuint(args[i], "trfreq", &data.transition_freq) > 0)
+	if (gensio_pparm_uint(p, args[i], "trfreq", &data.transition_freq) > 0)
 	    continue;
-	if (gensio_check_keyuint(args[i], "tx-preamble",
+	if (gensio_pparm_uint(p, args[i], "tx-preamble",
 				 &data.tx_preamble_time) > 0)
 	    continue;
-	if (gensio_check_keyuint(args[i], "tx-tail",
+	if (gensio_pparm_uint(p, args[i], "tx-tail",
 				 &data.tx_postamble_time) > 0)
 	    continue;
-	if (gensio_check_keyuint(args[i], "tx-predelay",
+	if (gensio_pparm_uint(p, args[i], "tx-predelay",
 				 &data.tx_predelay_time) > 0)
 	    continue;
-	if (gensio_check_keyfloat(args[i], "volume", &data.volume) > 0)
+	if (gensio_pparm_float(p, args[i], "volume", &data.volume) > 0)
 	    continue;
-	if (gensio_check_keyvalue(args[i], "key", &data.key) > 0)
+	if (gensio_pparm_value(p, args[i], "key", &data.key) > 0)
 	    continue;
-	if (gensio_check_keyvalue(args[i], "keyon", &data.keyon) > 0)
+	if (gensio_pparm_value(p, args[i], "keyon", &data.keyon) > 0)
 	    continue;
-	if (gensio_check_keyvalue(args[i], "keyoff", &data.keyoff) > 0)
+	if (gensio_pparm_value(p, args[i], "keyoff", &data.keyoff) > 0)
 	    continue;
-	if (gensio_check_keybool(args[i], "full-duplex", &data.full_duplex) > 0)
+	if (gensio_pparm_bool(p, args[i], "full-duplex", &data.full_duplex) > 0)
 	    continue;
-	if (gensio_check_keyuint(args[i], "debug", &data.debug) > 0)
+	if (gensio_pparm_uint(p, args[i], "debug", &data.debug) > 0)
 	    continue;
+	gensio_pparm_unknown_parm(p, args[i]);
 	return GE_INVAL;
     }
 
-    if (data.in_framerate == 0 || data.out_framerate == 0 ||
-		data.in_chunksize == 0 || data.out_chunksize == 0 ||
-		data.in_nchans == 0 || data.out_nchans == 0 ||
-		data.in_chan >= data.in_nchans ||
-		data.out_chans >= (1U << data.out_nchans) ||
-		data.max_wmsgs == 0)
-	return GE_INVAL;
+#define MY_STRINGIZE(s) #s
+#define CHECK_VAL(d, cmp, v)						\
+    if (data.d cmp v) {							\
+	gensio_pparm_log(p, #d " cannot be " #cmp " %d\n", v);		\
+	return GE_INVAL;						\
+    }
 
-    if (data.key && (!data.keyon || !data.keyoff))
+    CHECK_VAL(in_framerate, ==, 0);
+    CHECK_VAL(out_framerate, ==, 0);
+    CHECK_VAL(in_chunksize, ==, 0);
+    CHECK_VAL(out_chunksize, ==, 0);
+    CHECK_VAL(in_nchans, ==, 0);
+    CHECK_VAL(out_nchans, ==, 0);
+    CHECK_VAL(in_chan, >=, data.in_nchans);
+    CHECK_VAL(out_chans, >=, (1U << data.out_nchans))
+    CHECK_VAL(max_wmsgs, ==, 0);
+
+    if (data.key && (!data.keyon || !data.keyoff)) {
+	gensio_pparm_log(p,
+			 "If key is specified, keyon or keyoff must be, too");
 	return GE_INVAL;
+    }
 
     /*
      * For lower sample rates a FIR filter doesn't use as much CPU and

@@ -31,8 +31,9 @@ afskmdm_gensio_alloc(struct gensio *child, const char *const args[],
     struct gensio_filter *filter;
     struct gensio_ll *ll;
     struct gensio *io;
+    GENSIO_DECLARE_PPGENSIO(p, o, cb, "afskmdm", user_data);
 
-    err = gensio_afskmdm_filter_alloc(o, child, args, &filter);
+    err = gensio_afskmdm_filter_alloc(&p, o, child, args, &filter);
     if (err)
 	return err;
 
