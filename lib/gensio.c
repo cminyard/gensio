@@ -1419,7 +1419,10 @@ str_to_gensio_accepter(const char *str,
     } else {
 	err = gensio_scan_network_port(o, str, true, &ai, &protocol,
 				       NULL, NULL, &args);
-	if (!err) {
+	if (err) {
+	    GENSIO_DECLARE_PPACCEPTER(p, o, cb, "base", user_data);
+	    gensio_pparm_log(&p, "Unknown gensio type: %s", str);
+	} else {
 	    if (protocol == GENSIO_NET_PROTOCOL_UDP) {
 		err = gensio_terminal_acc_alloc("udp", ai, args, o, cb,
 						user_data, accepter);
@@ -1669,7 +1672,10 @@ str_to_gensio(const char *str,
 
     err = gensio_scan_network_port(o, str, false, &ai, &protocol,
 				   &is_port_set, NULL, &args);
-    if (!err) {
+    if (err) {
+	GENSIO_DECLARE_PPGENSIO(p, o, cb, "base", user_data);
+	gensio_pparm_log(&p, "Unknown gensio type: %s", str);
+    } else {
 	if (!is_port_set) {
 	    err = GE_INVAL;
 	} else if (protocol == GENSIO_NET_PROTOCOL_UDP) {
@@ -1792,6 +1798,9 @@ str_to_gensio_child(struct gensio *child,
     if (!retried && gensio_loadlib(o, str)) {
 	retried = true;
 	goto retry;
+    } else {
+	GENSIO_DECLARE_PPGENSIO(p, o, cb, "base", user_data);
+	gensio_pparm_log(&p, "Unknown gensio type: %s", str);
     }
 
     return GE_NOTSUP;
