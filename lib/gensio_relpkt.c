@@ -64,7 +64,8 @@ str_to_relpkt_gensio(const char *str, const char * const args[],
     int err;
     struct gensio *io2;
 
-    err = str_to_gensio(str, o, NULL, NULL, &io2);
+    /* cb is passed in for parmerr handling, it will be overriden later. */
+    err = str_to_gensio(str, o, cb, user_data, &io2);
     if (err)
 	return err;
 
@@ -198,7 +199,8 @@ str_to_relpkt_gensio_accepter(const char *str, const char * const args[],
     int err;
     struct gensio_accepter *acc2 = NULL;
 
-    err = str_to_gensio_accepter(str, o, NULL, NULL, &acc2);
+    /* cb is passed in for parmerr handling, it will be overriden later. */
+    err = str_to_gensio_accepter(str, o, cb, user_data, &acc2);
     if (!err) {
 	err = relpkt_gensio_accepter_alloc(acc2, args, o, cb, user_data,
 					   acc);
