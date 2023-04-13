@@ -1908,7 +1908,7 @@ gensio_check_keyfloat(const char *str, const char *key, float *rvalue)
     return gensio_pparm_float(&p, str, key, rvalue);
 }
 
-static void
+void
 gensio_pparm_vlog(struct gensio_pparm_info *p, const char *log, va_list args)
 {
     struct gensio_parmlog_data data;

@@ -447,6 +447,9 @@ void gensio_pparm_unknown_parm(struct gensio_pparm_info *p,
 			       const char *arg);
 
 GENSIO_DLL_PUBLIC
+void gensio_pparm_vlog(struct gensio_pparm_info *p, const char *log,
+		       va_list args);
+GENSIO_DLL_PUBLIC
 void i_gensio_pparm_log(struct gensio_pparm_info *p, const char *log, ...);
 #define gensio_pparm_log(p, log, ...) \
     i_gensio_pparm_log(p, "%s %s: " log,				\
