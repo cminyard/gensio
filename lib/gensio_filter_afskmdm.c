@@ -174,6 +174,9 @@ struct afskmdm_filter {
 
     int err;
 
+    /* For reporting key errors. */
+    struct gensio_pparm_info p;
+
     bool simplex;
     unsigned int in_nchans;
     unsigned int in_chan;
@@ -583,7 +586,7 @@ static int
 key_cb(struct gensio *io, void *user_data, int event, int err,
        unsigned char *buf, gensiods *buflen, const char *const *auxdata)
 {
-    //struct afskmdm_filter *sfilter = user_data;
+    struct afskmdm_filter *sfilter = user_data;
 
     switch(event) {
     case GENSIO_EVENT_READ:
@@ -591,6 +594,13 @@ key_cb(struct gensio *io, void *user_data, int event, int err,
 
     case GENSIO_EVENT_WRITE_READY:
 	return 0;
+
+    case GENSIO_EVENT_PARMLOG: {
+	struct gensio_parmlog_data *d = (struct gensio_parmlog_data *) buf;
+
+	gensio_pparm_vlog(&sfilter->p, d->log, d->args);
+	return 0;
+    }
 
     default:
 	return GE_NOTSUP;
@@ -602,10 +612,14 @@ key_open_done(struct gensio *io, int err, void *open_data)
 {
     struct afskmdm_filter *sfilter = open_data;
 
-    if (err)
+    if (err) {
 	sfilter->key_io_state = KEY_CLOSED;
-    else
+	gensio_log(sfilter->o, GENSIO_LOG_ERR,
+		   "afskmdm: Error from open key I/O '%s': %s", sfilter->key,
+		   gensio_err_to_str(err));
+    } else {
 	sfilter->key_io_state = KEY_OPEN;
+    }
     sfilter->key_err = err;
 
     /* Just turn on read and ignore what we get. */
@@ -632,8 +646,12 @@ afskmdm_try_connect(struct gensio_filter *filter, gensio_time *timeout,
 	sfilter->key_io_state != KEY_OPEN) {
 
 	err = gensio_open(sfilter->key_io, key_open_done, sfilter);
-	if (err)
+	if (err) {
+	    gensio_log(sfilter->o, GENSIO_LOG_ERR,
+		       "afskmdm: Unable to open key I/O '%s': %s", sfilter->key,
+		       gensio_err_to_str(err));
 	    return err;
+	}
 	sfilter->key_io_state = KEY_IN_OPEN;
     }
     if (sfilter->key_io_state == KEY_IN_OPEN) {
@@ -666,10 +684,14 @@ afskmdm_try_disconnect(struct gensio_filter *filter, gensio_time *timeout,
 	    sfilter->keyed = false;
 	}
 	err = gensio_close(sfilter->key_io, key_close_done, sfilter);
-	if (err)
+	if (err) {
 	    sfilter->key_io_state = KEY_CLOSED;
-	else
+	    gensio_log(sfilter->o, GENSIO_LOG_WARNING,
+		       "afskmdm: Error from close key I/O '%s': %s",
+		       sfilter->key, gensio_err_to_str(err));
+	} else {
 	    sfilter->key_io_state = KEY_IN_CLOSE;
+	}
     }
     if (sfilter->key_io_state == KEY_IN_CLOSE) {
 	timeout->secs = 0;
@@ -2213,7 +2235,8 @@ afskmdm_setup_transmit(struct afskmdm_filter *sfilter,
 }
 
 static struct gensio_filter *
-gensio_afskmdm_filter_raw_alloc(struct gensio_os_funcs *o,
+gensio_afskmdm_filter_raw_alloc(struct gensio_pparm_info *p,
+				struct gensio_os_funcs *o,
 				struct gensio_afskmdm_data *data)
 {
     struct afskmdm_filter *sfilter;
@@ -2432,11 +2455,15 @@ gensio_afskmdm_filter_raw_alloc(struct gensio_os_funcs *o,
     if (afskmdm_setup_transmit(sfilter, data, fbitsize))
 	goto out_nomem;
 
+    sfilter->p = *p;
     if (sfilter->key) {
 	int err = str_to_gensio(sfilter->key, o, key_cb, sfilter,
 				&sfilter->key_io);
-	if (err)
+	if (err) {
+	    gensio_pparm_log(p, "Could not allocate key gensio '%s': %s",
+			     sfilter->key, gensio_err_to_str(err));
 	    goto out_nomem;
+	}
     }
 
     return sfilter->filter;
@@ -2677,7 +2704,7 @@ gensio_afskmdm_filter_alloc(struct gensio_pparm_info *p,
 
     data.wmsg_sets = wmsg_extra * 2 + 1;
 
-    filter = gensio_afskmdm_filter_raw_alloc(o, &data);
+    filter = gensio_afskmdm_filter_raw_alloc(p, o, &data);
     if (!filter)
 	return GE_NOMEM;
 
