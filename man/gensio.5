@@ -2220,7 +2220,11 @@ afskmdm(key="tcp,localhost,4532",keyon="T 1\\n",keyoff="T 0\\n")
 You have to be careful of the quoting here, as the key specification
 must be in quotes because it will have commas.  Notice the use of
 "\\n" in the strings for a new line.  Normal C "\\" escape sequences
-are handled.
+are handled.  Also, since the defaults for
+.B keyon
+and
+.B keyoff
+are what's given above, you don't have to specify those here.
 
 Anything read in from the key gensio is ignored.
 .SS Options
@@ -2319,13 +2323,7 @@ Default is .75.
 This creates a gensio that will be used to key the transmitter on and
 off.  See the discussion above on keying for more details.
 .B keytype=rw|rts|rtsinv|dtr|dtrinv
-This sets the type of keying done, per the discussion above.  If you
-set this to
-.B rw,
-you must set
-.B keyon
-and
-.B keyoff.
+This sets the type of keying done, per the discussion above.
 This is
 .B rw
 by default.
@@ -2334,7 +2332,8 @@ by default.
 The strings to send to the key gensio to turn the transmitter on and
 off.  For
 .B keytype=rw
-only.
+only.  The default to "T 1\n" and "T 0\n" by default, which is what
+rigctld takes.
 .B full-duplex[=yes|no]
 .TP
 Treat the read and write streams as completely independent.  Transmit

@@ -2634,6 +2634,8 @@ gensio_afskmdm_filter_alloc(struct gensio_pparm_info *p,
 	.volume = .75,
 	.full_duplex = false,
 	.keytype = KEY_RW,
+	.keyon = "T 1\n",
+	.keyoff = "T 0\n"
     };
     unsigned int i;
     int err;
@@ -2790,12 +2792,6 @@ gensio_afskmdm_filter_alloc(struct gensio_pparm_info *p,
     CHECK_VAL(in_chan, >=, data.in_nchans);
     CHECK_VAL(out_chans, >=, (1U << data.out_nchans))
     CHECK_VAL(max_wmsgs, ==, 0);
-
-    if (data.key && data.keytype == KEY_RW && (!data.keyon || !data.keyoff)) {
-	gensio_pparm_log(p,
-	  "If key is specified with keytype=rw, keyon and keyoff must be, too");
-	return GE_INVAL;
-    }
 
     /*
      * For lower sample rates a FIR filter doesn't use as much CPU and
