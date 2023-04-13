@@ -142,6 +142,7 @@ echon_deferred_op(struct gensio_runner *runner, void *cb_data)
     int err = 0;
 
     echon_lock(ndata);
+ restart:
     if (ndata->state == ECHON_IN_OPEN || ndata->state == ECHON_IN_OPEN_CLOSE) {
 	if (ndata->state == ECHON_IN_OPEN_CLOSE) {
 	    ndata->state = ECHON_IN_CLOSE;
@@ -202,6 +203,9 @@ echon_deferred_op(struct gensio_runner *runner, void *cb_data)
 	    ndata->close_done(ndata->io, ndata->close_data);
 	    echon_lock(ndata);
 	}
+
+	if (ndata->state != ECHON_CLOSED)
+	    goto restart;
     }
 
     ndata->deferred_op_pending = false;
