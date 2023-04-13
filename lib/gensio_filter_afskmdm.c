@@ -19,6 +19,7 @@
 #include <stdlib.h>
 
 #include <gensio/gensio.h>
+#include <gensio/sergensio.h>
 #include <gensio/gensio_os_funcs.h>
 #include <gensio/gensio_time.h>
 #include <gensio/gensio_ax25_addr.h>
@@ -162,6 +163,14 @@ struct xmit_entry {
 
     /* A linked list of all of the entries is kept for cleanup and searching */
     struct xmit_entry *next;
+};
+
+enum afskmdm_keytype {
+    KEY_RW, /* Read and write keyon/keyoff values. */
+    KEY_RTS,
+    KEY_RTSINV,
+    KEY_DTR,
+    KEY_DTRINV
 };
 
 struct afskmdm_filter {
@@ -361,7 +370,9 @@ struct afskmdm_filter {
 	KEY_OPEN,
 	KEY_IN_CLOSE,
     } key_io_state;
+    enum afskmdm_keytype keytype;
     struct gensio *key_io;
+    struct sergensio *key_sio;
     char *key;
     char *keyon;
     char *keyoff;
@@ -582,6 +593,83 @@ afskmdm_print_msg(struct afskmdm_filter *sfilter, char *t, unsigned int msgn,
     fflush(stdout);
 }
 
+static void
+keyop_done(struct sergensio *sio, int err, unsigned int val, void *cb_data)
+{
+    if (err)
+	gensio_log(cb_data, GENSIO_LOG_WARNING,
+		   "afskmdm: Error keying transmitter: %s\n",
+		   gensio_err_to_str(err));
+}
+
+static void
+afskmdm_do_keyon(struct afskmdm_filter *sfilter)
+{
+    if (!sfilter->key_io)
+	return;
+    switch (sfilter->keytype) {
+    case KEY_RW:
+	gensio_write(sfilter->key_io, NULL,
+		     sfilter->keyon, strlen(sfilter->keyon), NULL);
+	break;
+
+    case KEY_RTS:
+	sergensio_rts(sfilter->key_sio, SERGENSIO_RTS_ON, keyop_done,
+		      sfilter->o);
+	break;
+
+    case KEY_RTSINV:
+	sergensio_rts(sfilter->key_sio, SERGENSIO_RTS_OFF, keyop_done,
+		      sfilter->o);
+	break;
+
+    case KEY_DTR:
+	sergensio_dtr(sfilter->key_sio, SERGENSIO_DTR_ON, keyop_done,
+		      sfilter->o);
+	break;
+
+    case KEY_DTRINV:
+	sergensio_dtr(sfilter->key_sio, SERGENSIO_DTR_OFF, keyop_done,
+		      sfilter->o);
+	break;
+    }
+    sfilter->keyed = true;
+}
+
+static void
+afskmdm_do_keyoff(struct afskmdm_filter *sfilter)
+{
+    if (!sfilter->key_io)
+	return;
+    switch (sfilter->keytype) {
+    case KEY_RW:
+	gensio_write(sfilter->key_io, NULL,
+		     sfilter->keyoff, strlen(sfilter->keyoff), NULL);
+	break;
+
+    case KEY_RTS:
+	sergensio_rts(sfilter->key_sio, SERGENSIO_RTS_OFF, keyop_done,
+		      sfilter->o);
+	break;
+
+    case KEY_RTSINV:
+	sergensio_rts(sfilter->key_sio, SERGENSIO_RTS_ON, keyop_done,
+		      sfilter->o);
+	break;
+
+    case KEY_DTR:
+	sergensio_dtr(sfilter->key_sio, SERGENSIO_DTR_OFF, keyop_done,
+		      sfilter->o);
+	break;
+
+    case KEY_DTRINV:
+	sergensio_dtr(sfilter->key_sio, SERGENSIO_DTR_ON, keyop_done,
+		      sfilter->o);
+	break;
+    }
+    sfilter->keyed = false;
+}
+
 static int
 key_cb(struct gensio *io, void *user_data, int event, int err,
        unsigned char *buf, gensiods *buflen, const char *const *auxdata)
@@ -619,6 +707,7 @@ key_open_done(struct gensio *io, int err, void *open_data)
 		   gensio_err_to_str(err));
     } else {
 	sfilter->key_io_state = KEY_OPEN;
+	afskmdm_do_keyoff(sfilter);
     }
     sfilter->key_err = err;
 
@@ -678,11 +767,7 @@ afskmdm_try_disconnect(struct gensio_filter *filter, gensio_time *timeout,
     int err;
 
     if (sfilter->key_io_state == KEY_OPEN) {
-	if (sfilter->keyed) {
-	    gensio_write(sfilter->key_io, NULL,
-			 sfilter->keyoff, strlen(sfilter->keyoff), NULL);
-	    sfilter->keyed = false;
-	}
+	afskmdm_do_keyoff(sfilter);
 	err = gensio_close(sfilter->key_io, key_close_done, sfilter);
 	if (err) {
 	    sfilter->key_io_state = KEY_CLOSED;
@@ -714,11 +799,7 @@ afskmdm_start_xmit(struct afskmdm_filter *sfilter)
 			   sfilter->out_bit_time / 8);
     sfilter->bitstuff = false;
     sfilter->starting_output_ready = true;
-    if (sfilter->key_io) {
-	gensio_write(sfilter->key_io, NULL,
-		     sfilter->keyon, strlen(sfilter->keyon), NULL);
-	sfilter->keyed = true;
-    }
+    afskmdm_do_keyon(sfilter);
 }
 
 static void
@@ -762,11 +843,8 @@ afskmdm_timeout_done(struct gensio_filter *filter)
     } else {
 	sfilter->transmit_state = NOT_SENDING;
     }
-    if (sfilter->keyed) {
-	gensio_write(sfilter->key_io, NULL,
-		     sfilter->keyoff, strlen(sfilter->keyoff), NULL);
-	sfilter->keyed = false;
-    }
+    if (sfilter->keyed)
+	afskmdm_do_keyoff(sfilter);
     afskmdm_unlock(sfilter);
 
     return 0;
@@ -2184,6 +2262,7 @@ struct gensio_afskmdm_data {
     unsigned int tx_predelay_time;
     float volume;
     const char *key;
+    int keytype;
     const char *keyon;
     const char *keyoff;
     bool full_duplex;
@@ -2273,6 +2352,7 @@ gensio_afskmdm_filter_raw_alloc(struct gensio_pparm_info *p,
 	if (!sfilter->key)
 	    goto out_nomem;
     }
+    sfilter->keytype = data->keytype;
     if (data->keyon) {
 	sfilter->keyon = gensio_strdup(o, data->keyon);
 	if (!sfilter->keyon)
@@ -2464,6 +2544,20 @@ gensio_afskmdm_filter_raw_alloc(struct gensio_pparm_info *p,
 			     sfilter->key, gensio_err_to_str(err));
 	    goto out_nomem;
 	}
+	switch (sfilter->keytype) {
+	case KEY_RTS: case KEY_RTSINV: case KEY_DTR: case KEY_DTRINV:
+	    sfilter->key_sio = gensio_to_sergensio(sfilter->key_io);
+	    if (!sfilter->key_sio) {
+		gensio_pparm_log(p, "A serial keytype was given, '%s',"
+				 " but it is not a serial gensio",
+				 sfilter->key);
+		goto out_nomem;
+	    }
+	    break;
+
+	default:
+	    break;
+	}
     }
 
     return sfilter->filter;
@@ -2493,6 +2587,15 @@ static struct gensio_enum_val filttype_enums[] = {
     { .name = "none", .val = NO_FILT },
     { .name = "iir", .val = IIR_FILT },
     { .name = "fir", .val = FIR_FILT },
+    { }
+};
+
+static struct gensio_enum_val keytype_enums[] = {
+    { .name = "rw", .val = KEY_RW },
+    { .name = "rts", .val = KEY_RTS },
+    { .name = "rtsinv", .val = KEY_RTSINV },
+    { .name = "dtr", .val = KEY_DTR },
+    { .name = "dtrinv", .val = KEY_DTRINV },
     { }
 };
 
@@ -2530,6 +2633,7 @@ gensio_afskmdm_filter_alloc(struct gensio_pparm_info *p,
 	.tx_predelay_time = 500,
 	.volume = .75,
 	.full_duplex = false,
+	.keytype = KEY_RW,
     };
     unsigned int i;
     int err;
@@ -2655,6 +2759,9 @@ gensio_afskmdm_filter_alloc(struct gensio_pparm_info *p,
 	    continue;
 	if (gensio_pparm_value(p, args[i], "key", &data.key) > 0)
 	    continue;
+	if (gensio_pparm_enum(p, args[i], "keytype", keytype_enums,
+			      &data.keytype) > 0)
+	    continue;
 	if (gensio_pparm_value(p, args[i], "keyon", &data.keyon) > 0)
 	    continue;
 	if (gensio_pparm_value(p, args[i], "keyoff", &data.keyoff) > 0)
@@ -2684,9 +2791,9 @@ gensio_afskmdm_filter_alloc(struct gensio_pparm_info *p,
     CHECK_VAL(out_chans, >=, (1U << data.out_nchans))
     CHECK_VAL(max_wmsgs, ==, 0);
 
-    if (data.key && (!data.keyon || !data.keyoff)) {
+    if (data.key && data.keytype == KEY_RW && (!data.keyon || !data.keyoff)) {
 	gensio_pparm_log(p,
-			 "If key is specified, keyon or keyoff must be, too");
+	  "If key is specified with keytype=rw, keyon and keyoff must be, too");
 	return GE_INVAL;
     }
 

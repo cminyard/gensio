@@ -2168,14 +2168,32 @@ this case the keying must be VOX, like a SignaLink.
 If you need some other way to key the transmitter, afskmcm provide a
 .B key
 option.  This create a gensio that is used to turn the transmitter on
-and off.  It will send the
+and off.  Different types of keying options exist, specified by
+.B keytype.
+
+If keytype is
+.B rw,
+which is the default, then it will open the key gensio and send the
 .B keyon
 string and the
 .B keyoff
 string for this purpose.
 
-For instance, you could create your own program to do the keying and
-add:
+If keytype is one of
+.B rts, rtsinv, dts, dtsinv
+then it will open the key gensio as a serial device and set the
+RTS/DTR lines appropriately.  The "inv" options mean that setting the
+line "on" will turn off the transmitter, setting it "off" will enable
+the transmitter.
+
+You could do
+
+keytype=rts,key=\"serialdev,/dev/serial/by-path/pci-0000:00:14.0-usb-0:4.4.2.4.2:1.0-port0\"
+
+to set up an RTS-base serial control on a port.
+
+If you need something more sophisicated, you could create your own
+program to do the keying and add:
 .IP
 key="stdio,mykeyprog --parm1 --parm2",keyon="1",keyoff="0"
 .PP
@@ -2299,15 +2317,24 @@ Default is .75.
 .B key=<gensio string>
 .TP
 This creates a gensio that will be used to key the transmitter on and
-off.  See the discussion above on keying for more details.  If you set this, you must set
+off.  See the discussion above on keying for more details.
+.B keytype=rw|rts|rtsinv|dtr|dtrinv
+This sets the type of keying done, per the discussion above.  If you
+set this to
+.B rw,
+you must set
 .B keyon
 and
 .B keyoff.
-Disabled by default.
+This is
+.B rw
+by default.
 .B keyon=<string>, keyoff=<string>
 .TP
 The strings to send to the key gensio to turn the transmitter on and
-off.
+off.  For
+.B keytype=rw
+only.
 .B full-duplex[=yes|no]
 .TP
 Treat the read and write streams as completely independent.  Transmit
