@@ -194,6 +194,16 @@ libgensio_sound_la_SOURCES = gensio_ll_sound.c gensio_sound.c
 libgensio_sound_la_LDFLAGS = $(DYNAMIC_LDFLAGS)
 libgensio_sound_la_LIBADD = $(DYNAMIC_LIBS) $(SOUND_LIBS)
 
+if BUILTIN_CM108GPIO
+libgensio_la_SOURCES += gensio_cm108gpio.c
+else
+EXTRA_LTLIBRARIES += libgensio_cm108gpio.la
+endif
+xgensio_libexec_LTLIBRARIES += $(DYNAMIC_CM108GPIO)
+libgensio_cm108gpio_la_SOURCES = gensio_cm108gpio.c
+libgensio_cm108gpio_la_LDFLAGS = $(DYNAMIC_LDFLAGS)
+libgensio_cm108gpio_la_LIBADD = $(DYNAMIC_LIBS) $(CM108GPIO_LIBS)
+
 if BUILTIN_SSL
 libgensio_la_SOURCES += gensio_ssl.c gensio_filter_ssl.c
 else

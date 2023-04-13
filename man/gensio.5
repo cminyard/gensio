@@ -2192,6 +2192,13 @@ keytype=rts,key=\"serialdev,/dev/serial/by-path/pci-0000:00:14.0-usb-0:4.4.2.4.2
 
 to set up an RTS-base serial control on a port.
 
+There is a cm108 soundcard GPIO gensio available.  See that gensio for
+details, but you would generally do something like:
+
+key=\"cm108gpio,<dev>\"
+
+see the cm108gpio gensio docs for details.
+
 If you need something more sophisicated, you could create your own
 program to do the keying and add:
 .IP
@@ -2339,6 +2346,33 @@ rigctld takes.
 Treat the read and write streams as completely independent.  Transmit
 does not check if something is being received before sending, all
 sends just start immediately.
+.SH "cm108gpio"
+connecting =
+.B cm108gpio[(options)],<soundcard>
+
+This allows a GPIO on a cm108 soundcard to be controlled.  Some radio
+sound card devices use one of these bits to key the transmitter.  Any
+write with a '1' in it will enable the GPIO, any write with a '0' in
+it will disable the GPIO.  There are 8 available GPIOs, ranging 1-8,
+most devices use 3.
+
+For Linux, <soundcard> is the soundcard number or device name given to
+open the sound device, generally what's right after the ":", like
+"plughw,1,0" would be "1".  If it was "plughw,Device,0", it would be
+"Device".
+
+For Windows, things are a bit more complex.  There is no way I know of
+to correlate the soundcard to the HID device.  If there is only on
+cm108 style device on the system, you don't have to put anything, it
+will just find it and use it.  If there is more than one device, you
+have to put a number there for which device to use.  You'll have to
+play with it to figure out which is which.
+
+The readbuf option is not available in this gensio.
+.SS Options
+.TP
+.B bit=1-8
+The bit number to control.  The default is 3.
 .SH "Forking and gensios"
 Unlike normal file descriptors, when you fork with a gensio, you now
 have two unassociated copies of the gensios.  So if you do operations

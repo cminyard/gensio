@@ -933,6 +933,76 @@ esac
 AM_CONDITIONAL([BUILTIN_SOUND], [test ${BUILTIN_SOUND} = 1])
 AC_SUBST(DYNAMIC_SOUND)
 
+# Handle udev support
+tryudev=yes
+AC_ARG_WITH(udev,
+ [AS_HELP_STRING([--with-udev=yes|no], [Look for udev])],
+    if test "x$withval" = "xyes"; then
+      tryudev=yes
+    elif test "x$withval" = "xno"; then
+      tryudev=no
+    fi,
+)
+
+HAVE_UDEV=no
+if test "x$tryudev" != "xno"; then
+   found_udev=no
+   AC_CHECK_HEADER(libudev.h, found_udev=yes; )
+   if test "x$found_udev" = "xyes"; then
+      AC_CHECK_LIB(udev, udev_new, HAVE_UDEV=yes)
+   fi
+fi
+
+if test "x$HAVE_UDEV" != "xno"; then
+   HAVE_UDEV=1
+else
+   HAVE_UDEV=0
+fi
+AC_DEFINE_UNQUOTED([HAVE_UDEV], [$HAVE_UDEV],
+	[Set to 1 to enable udev, 0 to disable])
+AC_SUBST(HAVE_UDEV)
+
+if test "$HAVE_UDEV" = "1" -o "$version_type" = "windows"; then
+   cm108gpio=$default_all
+else
+   cm108gpio=no
+fi
+AC_ARG_WITH(cm108gpio,
+ [AS_HELP_STRING([--with-cm108gpio=yes|dynamic|no],[Enable cm108 GPIO gensio])],
+    if test "x$withval" = "xyes"; then
+      cm108gpio=yes
+    elif test "x$withval" = "xdynamic"; then
+      cm108gpio=dynamic
+    elif test "x$withval" = "xno"; then
+      cm108gpio=no
+    fi,
+)
+BUILTIN_CM108GPIO=0
+DYNAMIC_CM108GPIO=
+if test "x$HAVE_UDEV" != "0"; then
+   CM108GPIO_LIBS="-ludev"
+fi
+if test "$version_type" = "windows"; then
+   CM108GPIO_LIBS="-lhid -lsetupapi"
+fi
+
+case $cm108gpio in
+   yes)
+      BUILTIN_GENSIOS="$BUILTIN_GENSIOS cm108gpio"
+      BUILTIN_CM108GPIO=1
+      LIBS="$LIBS $CM108GPIO_LIBS"
+      ;;
+   dynamic)
+      DYNAMIC_GENSIOS="$DYNAMIC_GENSIOS cm108gpio"
+      DYNAMIC_CM108GPIO=libgensio_cm108gpio.la
+      ;;
+   no)
+      ;;
+esac
+AM_CONDITIONAL([BUILTIN_CM108GPIO], [test ${BUILTIN_CM108GPIO} = 1])
+AC_SUBST(CM108GPIO_LIBS)
+AC_SUBST(DYNAMIC_CM108GPIO)
+
 tryssl=yes
 AC_ARG_WITH(openssl,
  [AS_HELP_STRING([--with-openssl[[=yes|no]]],
