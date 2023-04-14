@@ -251,6 +251,28 @@ generally be things like out of memory and such,
 authentication failures of any kind.
 
 certauth only
+.SS "GENSIO_EVENT_PARMLOG"
+When parsing a gensio string, this will be called if the gensio
+detects an error in the initial parsing or initial configuration.
+This is called only during the allocation (
+.B str_to_gensio()
+or equivalent).  Loggin this information will make it easier for users
+to find out what's wrong with their gensio strings.
+
+The
+.B buf
+parameter contains a pointer to the following structure:
+
+struct gensio_parmlog_data {
+.br
+    const char *log;
+.br
+    va_list args;
+.br
+};
+
+which can be printed with normal vprintf() and the like.
+
 .SH "OTHER EVENTS"
 sergensio gensios have a set of other events, see sergensio(5) for
 details.  Other gensio that are not part of the gensio library proper
