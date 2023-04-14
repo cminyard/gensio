@@ -2187,16 +2187,16 @@ line "on" will turn off the transmitter, setting it "off" will enable
 the transmitter.
 
 You could do
-
-keytype=rts,key=\"serialdev,/dev/serial/by-path/pci-0000:00:14.0-usb-0:4.4.2.4.2:1.0-port0\"
-
+.IP
+keytype=rts,key="serialdev,/dev/serial/by-path/pci-0000:00:14.0-usb-0:4.4.2.4.2:1.0-port0"
+.PP
 to set up an RTS-base serial control on a port.
 
 There is a cm108 soundcard GPIO gensio available.  See that gensio for
 details, but you would generally do something like:
-
-key=\"cm108gpio,<dev>\"
-
+.IP
+key="cm108gpio,<dev>"
+.PP
 see the cm108gpio gensio docs for details.
 
 If you need something more sophisicated, you could create your own
