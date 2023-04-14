@@ -437,6 +437,10 @@ ax25
 
 ratelimit
     Limit the data throughput for a gensio stack.
+
+cm108gpio
+    Allow a GPIO on a CMedia CM108 or equivalent sound device to be
+    controlled.  Used with afskmdm for keying a transmitter.
 		  
 These are all documented in detail in gensio(5).  Unless otherwise
 stated, these all are available as accepters or connecting gensios.
