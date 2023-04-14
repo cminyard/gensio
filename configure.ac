@@ -41,7 +41,7 @@ system_type=unix
 case $target_os in
 	mingw*)
 		LIBS="$LIBS -lws2_32 -liphlpapi -lgdi32 -lbcrypt"
-		LIBS="$LIBS -lsecur32 -luserenv -lwtsapi32 -lwinmm"
+		LIBS="$LIBS -lsecur32 -luserenv -lwtsapi32"
 		LIBS="$LIBS -lole32"
 		uucp_locking_flag=no
 		system_type=windows
@@ -894,6 +894,9 @@ if test "x$HAVE_ALSA" != "xno"; then
    SOUND_LIBS="-lasound"
    HAVE_ALSA=1
 else
+   if test "$version_type" = "windows"; then
+       SOUND_LIBS="-lwinmm"
+   fi
    HAVE_ALSA=0
 fi
 AC_DEFINE_UNQUOTED([HAVE_ALSA], [$HAVE_ALSA],
