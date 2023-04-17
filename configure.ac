@@ -1,7 +1,7 @@
-AC_INIT([gensio],[2.6.3],[minyard@acm.org])
+AC_INIT([gensio],[2.6.4],[minyard@acm.org])
 AC_SUBST(gensio_VERSION_MAJOR, 2)
 AC_SUBST(gensio_VERSION_MINOR, 6)
-AC_SUBST(gensio_VERSION_PATCH, 3)
+AC_SUBST(gensio_VERSION_PATCH, 4)
 AC_SUBST(gensio_VERSION_STRING, ${PACKAGE_VERSION})
 AC_CANONICAL_TARGET
 AM_INIT_AUTOMAKE([-Wall])
