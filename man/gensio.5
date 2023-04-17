@@ -2195,9 +2195,15 @@ to set up an RTS-base serial control on a port.
 There is a cm108 soundcard GPIO gensio available.  See that gensio for
 details, but you would generally do something like:
 .IP
-key="cm108gpio,<dev>"
+keytype=cm108
 .PP
-see the cm108gpio gensio docs for details.
+and this gensio will fetch the sound card identifier from the sound
+device and use the cm108gpio gensio to key the device.  If you have
+some special setup where the default won't work, you can use
+.IP
+keytype=rw,key="cm108gpio,<dev>"
+.PP
+See the cm108gpio gensio docs for details.
 
 If you need something more sophisicated, you could create your own
 program to do the keying and add:
@@ -2329,7 +2335,7 @@ Default is .75.
 .TP
 This creates a gensio that will be used to key the transmitter on and
 off.  See the discussion above on keying for more details.
-.B keytype=rw|rts|rtsinv|dtr|dtrinv
+.B keytype=rw|rts|rtsinv|dtr|dtrinv|cm108
 This sets the type of keying done, per the discussion above.
 This is
 .B rw
@@ -2341,6 +2347,10 @@ off.  For
 .B keytype=rw
 only.  The default to "T 1\n" and "T 0\n" by default, which is what
 rigctld takes.
+.B keybit=<n>
+.TP
+This sets the bit number to use on the cm108 keytype.  This is 3 by
+default.
 .B full-duplex[=yes|no]
 .TP
 Treat the read and write streams as completely independent.  Transmit

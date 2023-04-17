@@ -170,7 +170,8 @@ enum afskmdm_keytype {
     KEY_RTS,
     KEY_RTSINV,
     KEY_DTR,
-    KEY_DTRINV
+    KEY_DTRINV,
+    KEY_CM108
 };
 
 struct afskmdm_filter {
@@ -632,6 +633,9 @@ afskmdm_do_keyon(struct afskmdm_filter *sfilter)
 	sergensio_dtr(sfilter->key_sio, SERGENSIO_DTR_OFF, keyop_done,
 		      sfilter->o);
 	break;
+
+    case KEY_CM108: /* Should never happen. */
+	assert(0);
     }
     sfilter->keyed = true;
 }
@@ -666,6 +670,9 @@ afskmdm_do_keyoff(struct afskmdm_filter *sfilter)
 	sergensio_dtr(sfilter->key_sio, SERGENSIO_DTR_ON, keyop_done,
 		      sfilter->o);
 	break;
+
+    case KEY_CM108: /* Should never happen. */
+	assert(0);
     }
     sfilter->keyed = false;
 }
@@ -2263,6 +2270,7 @@ struct gensio_afskmdm_data {
     float volume;
     const char *key;
     int keytype;
+    unsigned int keybit;
     const char *keyon;
     const char *keyoff;
     bool full_duplex;
@@ -2316,6 +2324,7 @@ afskmdm_setup_transmit(struct afskmdm_filter *sfilter,
 static struct gensio_filter *
 gensio_afskmdm_filter_raw_alloc(struct gensio_pparm_info *p,
 				struct gensio_os_funcs *o,
+				struct gensio *child,
 				struct gensio_afskmdm_data *data)
 {
     struct afskmdm_filter *sfilter;
@@ -2536,6 +2545,27 @@ gensio_afskmdm_filter_raw_alloc(struct gensio_pparm_info *p,
 	goto out_nomem;
 
     sfilter->p = *p;
+    if (sfilter->keytype == KEY_CM108) {
+	char name[100];
+	gensiods len = sizeof(name);
+	int err;
+
+	strcpy(name, "out");
+	err = gensio_control(child, 0, true, GENSIO_CONTROL_LADDR, name, &len);
+	if (err) {
+	    gensio_pparm_log(p, "Unable to get the output sound card name for"
+			     " fetching the cm108 parameter: %s.",
+			     gensio_err_to_str(err));
+	    goto out_nomem;
+	}
+	if (sfilter->key)
+	    o->free(o, sfilter->key);
+	sfilter->keytype = KEY_RW;
+	sfilter->key = gensio_alloc_sprintf(o, "cm108gpio(bit=%u),%s",
+					    data->keybit, name);
+	if (!sfilter->key)
+	    goto out_nomem;
+    }
     if (sfilter->key) {
 	int err = str_to_gensio(sfilter->key, o, key_cb, sfilter,
 				&sfilter->key_io);
@@ -2596,6 +2626,7 @@ static struct gensio_enum_val keytype_enums[] = {
     { .name = "rtsinv", .val = KEY_RTSINV },
     { .name = "dtr", .val = KEY_DTR },
     { .name = "dtrinv", .val = KEY_DTRINV },
+    { .name = "cm108", .val = KEY_CM108 },
     { }
 };
 
@@ -2634,6 +2665,7 @@ gensio_afskmdm_filter_alloc(struct gensio_pparm_info *p,
 	.volume = .75,
 	.full_duplex = false,
 	.keytype = KEY_RW,
+	.keybit = 3,
 	.keyon = "T 1\n",
 	.keyoff = "T 0\n"
     };
@@ -2764,6 +2796,8 @@ gensio_afskmdm_filter_alloc(struct gensio_pparm_info *p,
 	if (gensio_pparm_enum(p, args[i], "keytype", keytype_enums,
 			      &data.keytype) > 0)
 	    continue;
+	if (gensio_pparm_uint(p, args[i], "keybit", &data.keybit) > 0)
+	    continue;
 	if (gensio_pparm_value(p, args[i], "keyon", &data.keyon) > 0)
 	    continue;
 	if (gensio_pparm_value(p, args[i], "keyoff", &data.keyoff) > 0)
@@ -2807,7 +2841,7 @@ gensio_afskmdm_filter_alloc(struct gensio_pparm_info *p,
 
     data.wmsg_sets = wmsg_extra * 2 + 1;
 
-    filter = gensio_afskmdm_filter_raw_alloc(p, o, &data);
+    filter = gensio_afskmdm_filter_raw_alloc(p, o, child, &data);
     if (!filter)
 	return GE_NOMEM;
 
