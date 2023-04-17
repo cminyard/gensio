@@ -143,13 +143,21 @@ gensio_sound_file_api_devices(char ***rnames, char ***rspecs, gensiods *rcount)
 }
 
 static int
-gensio_sound_file_api_setup(struct sound_info *si, struct gensio_sound_info *io)
+gensio_sound_file_api_setup(struct gensio_pparm_info *p,
+			    struct sound_info *si, struct gensio_sound_info *io)
 {
     struct gensio_os_funcs *o = si->soundll->o;
 
-    si->pinfo = o->zalloc(o, sizeof(struct file_info));
-    if (!si->pinfo)
+    si->cardname = gensio_strdup(o, io->devname);
+    if (!si->cardname)
 	return GE_NOMEM;
+
+    si->pinfo = o->zalloc(o, sizeof(struct file_info));
+    if (!si->pinfo) {
+	o->free(o, si->cardname);
+	si->cardname = NULL;
+	return GE_NOMEM;
+    }
 
     return 0;
 }

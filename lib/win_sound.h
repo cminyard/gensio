@@ -167,6 +167,9 @@ gensio_sound_win_api_close_dev(struct sound_info *si)
     struct win_sound_info *w = si->pinfo;
     unsigned int i;
 
+    if (!w)
+	return;
+
     if (si->is_input) {
 	if (w->inh) {
 	    if (w->started)
@@ -615,7 +618,7 @@ gensio_sound_win_api_open_dev(struct sound_info *si)
 	    if (mres != MMSYSERR_NOERROR)
 		continue;
 	    snprintf(tmpstr, sizeof(tmpstr), "%d:%s", dev, icaps.szPname);
-	    if (strstr(tmpstr, si->devname))
+	    if (strstr(tmpstr, si->cardname))
 		break;
 	}
 	if (dev == ndevs) {
@@ -650,7 +653,7 @@ gensio_sound_win_api_open_dev(struct sound_info *si)
 	    if (mres != MMSYSERR_NOERROR)
 		continue;
 	    snprintf(tmpstr, sizeof(tmpstr), "%d:%s", dev, ocaps.szPname);
-	    if (strstr(tmpstr, si->devname))
+	    if (strstr(tmpstr, si->cardname))
 		break;
 	}
 	if (dev == ndevs) {
@@ -696,13 +699,60 @@ gensio_sound_win_api_open_dev(struct sound_info *si)
 }
 
 static int
-gensio_sound_win_api_setup(struct sound_info *si, struct gensio_sound_info *io)
+gensio_sound_win_api_setup(struct gensio_pparm_info *p,
+			   struct sound_info *si, struct gensio_sound_info *io)
 {
     struct gensio_os_funcs *o = si->soundll->o;
+    UINT dev, ndevs;
+    MMRESULT mres;
+    char tmpstr[100];
+
+    if (si->is_input) {
+	WAVEINCAPS icaps;
+
+	ndevs = waveInGetNumDevs();
+	for (dev = 0; dev < ndevs; dev++) {
+	    mres = waveInGetDevCaps(dev, &icaps, sizeof(icaps));
+	    if (mres != MMSYSERR_NOERROR)
+		continue;
+	    snprintf(tmpstr, sizeof(tmpstr), "%d:%s", dev, icaps.szPname);
+	    if (strstr(tmpstr, io->devname))
+		break;
+	}
+	if (dev == ndevs) {
+	    gensio_pparm_log(p, "Unable to find sound input device %s\n",
+			     io->devname);
+	    return GE_NOTFOUND;
+	}
+	si->cardname = gensio_strdup(o, icaps.szPname);
+    } else {
+	WAVEOUTCAPS ocaps;
+
+	ndevs = waveOutGetNumDevs();
+	for (dev = 0; dev < ndevs; dev++) {
+	    mres = waveOutGetDevCaps(dev, &ocaps, sizeof(ocaps));
+	    if (mres != MMSYSERR_NOERROR)
+		continue;
+	    snprintf(tmpstr, sizeof(tmpstr), "%d:%s", dev, ocaps.szPname);
+	    if (strstr(tmpstr, io->devname))
+		break;
+	}
+	if (dev == ndevs) {
+	    gensio_pparm_log(p, "Unable to find sound output device %s\n",
+			     io->devname);
+	    return GE_NOTFOUND;
+	}
+	si->cardname = gensio_strdup(o, ocaps.szPname);
+    }
+    if (!si->cardname)
+	return GE_NOMEM;
 
     si->pinfo = o->zalloc(o, sizeof(struct win_sound_info));
-    if (!si->pinfo)
+    if (!si->pinfo) {
+	o->free(o, si->cardname);
+	si->cardname = NULL;
 	return GE_NOMEM;
+    }
 
     return 0;
 }

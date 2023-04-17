@@ -229,8 +229,10 @@ Increasing this value increases the number of hops over multicast
 routers a send packet will traverse.
 .SS "GENSIO_CONTROL_LADDR"
 Return the local address for the connection.  Only for network
-connections.  Since a single gensio may have more than one local
-address, this control provides a means to tell which one.  The
+connections or sound devices.
+
+For network devices, since a single gensio may have more than one
+local address, this control provides a means to tell which one.  The
 .I data
 string passed in should be the string representation of a the number (like
 created with snprintf()) for the particular index you want to fetch.  If
@@ -242,6 +244,9 @@ Note that a single fetched string may contain more than one address.
 These will be separated by semicolons.  In some cases addresses may
 change dynamically (like with SCTP), so you get a single set of
 addresses.
+
+For sound devices, pass in "in" or "out" in the string to get the full
+card number or name that uniquely identifies the sound card.
 .SS "GENSIO_CONTROL_RADDR"
 Like
 .B GENSIO_CONTROL_LADDR

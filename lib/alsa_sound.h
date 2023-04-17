@@ -752,21 +752,48 @@ static struct gensio_class_cleanup gensio_sound_alsa_class_cleanup = {
 };
 
 static int
-gensio_sound_alsa_api_setup(struct sound_info *si, struct gensio_sound_info *io)
+gensio_sound_alsa_api_setup(struct gensio_pparm_info *p,
+			    struct sound_info *si, struct gensio_sound_info *io)
 {
     struct gensio_os_funcs *o = si->soundll->o;
     struct alsa_info *a;
+    char *start, *end;
+    unsigned int len;
+
+    /*
+     * Extract the card name/number (the value after the ":" and
+     * before the ","), like in "plughw:1,0".
+     */
+    start = strchr(io->devname, ':');
+    if (!start) {
+	gensio_pparm_log(p, "devname %s has no ':' in it", io->devname);
+	return GE_INVAL;
+    }
+    start++;
+    end = strchr(start, ',');
+    if (!end)
+	len = strlen(start);
+    else
+	len = end - start;
+    si->cardname = gensio_strndup(o, start, len);
+    if (!si->cardname)
+	return GE_NOMEM;
 
     gensio_register_class_cleanup(&gensio_sound_alsa_class_cleanup);
     si->pinfo = o->zalloc(o, sizeof(struct alsa_info));
-    if (!si->pinfo)
+    if (!si->pinfo) {
+	o->free(o, si->cardname);
+	si->cardname = NULL;
 	return GE_NOMEM;
+    }
     a = si->pinfo;
 
     a->close_timer = o->alloc_timer(o, gensio_sound_alsa_timeout, si);
     if (!a->close_timer) {
 	o->free(o, si->pinfo);
 	si->pinfo = NULL;
+	o->free(o, si->cardname);
+	si->cardname = NULL;
 	return GE_NOMEM;
     }
 

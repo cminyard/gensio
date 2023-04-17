@@ -550,7 +550,8 @@ conv_float_to_float_out(const unsigned char **in, unsigned char **out,
 
 struct sound_type {
     const char *name;
-    int (*setup)(struct sound_info *si, struct gensio_sound_info *io);
+    int (*setup)(struct gensio_pparm_info *p,
+		 struct sound_info *si, struct gensio_sound_info *io);
     void (*cleanup)(struct sound_info *si);
     int (*open_dev)(struct sound_info *si);
     void (*close_dev)(struct sound_info *si);
@@ -572,6 +573,7 @@ struct sound_info {
 
     struct sound_type *type;
     char *devname;
+    char *cardname;
     bool is_input;
 
     unsigned int samplerate; /* Frames per second. */
@@ -739,6 +741,10 @@ gensio_sound_ll_free(struct sound_ll *soundll)
 	o->free(o, soundll->in.devname);
     if (soundll->out.devname)
 	o->free(o, soundll->out.devname);
+    if (soundll->in.cardname)
+	o->free(o, soundll->in.cardname);
+    if (soundll->out.cardname)
+	o->free(o, soundll->out.cardname);
     if (soundll->in.buf)
 	o->free(o, soundll->in.buf);
     if (soundll->in.cnv.buf)
@@ -1179,6 +1185,20 @@ gensio_sound_ll_control(struct sound_ll *soundll, bool get, unsigned int option,
 	*datalen = gensio_pos_snprintf(data, *datalen, NULL, "sound");
 	return 0;
 
+    case GENSIO_CONTROL_LADDR:
+	if (!get)
+	    return GE_NOTSUP;
+	if (strcmp(data, "in") == 0) {
+	    *datalen = gensio_pos_snprintf(data, *datalen, NULL, "%s",
+					   soundll->in.cardname);
+	} else if (strcmp(data, "out") == 0) {
+	    *datalen = gensio_pos_snprintf(data, *datalen, NULL, "%s",
+					   soundll->out.cardname);
+	} else {
+	    return GE_NOTFOUND;
+	}
+	return 0;
+
     case GENSIO_CONTROL_IN_RATE:
 	if (!get)
 	    return GE_NOTSUP;
@@ -1428,7 +1448,7 @@ setup_sound_info(struct gensio_pparm_info *p, const char *dir,
 	return err;
     }
 
-    err = si->type->setup(si, io);
+    err = si->type->setup(p, si, io);
     if (err)
 	return err;
 
