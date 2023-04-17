@@ -2361,12 +2361,8 @@ open the sound device, generally what's right after the ":", like
 "plughw,1,0" would be "1".  If it was "plughw,Device,0", it would be
 "Device".
 
-For Windows, things are a bit more complex.  There is no way I know of
-to correlate the soundcard to the HID device.  If there is only on
-cm108 style device on the system, you don't have to put anything, it
-will just find it and use it.  If there is more than one device, you
-have to put a number there for which device to use.  You'll have to
-play with it to figure out which is which.
+For Windows, <soundcard> is the same thing you put for the soundcard,
+like "USB PnP Sound", or whatever "gsound -L" returns for your device.
 
 The readbuf option is not available in this gensio.
 .SS Options

@@ -238,36 +238,28 @@ hid_close(int fd)
 #include <windows.h>
 #include <setupapi.h>
 #include <hidsdi.h>
+#include <devpropdef.h>
+#include <devpkey.h>
 
 static const GUID InterfaceClassGuid = {0x4d1e55b2, 0xf16f, 0x11cf,
 					{0x88, 0xcb, 0x00, 0x11, 0x11, 0x00, 0x00, 0x30} };
 
-static struct {
-    unsigned int vendor_id;
-    unsigned int product_id;
-    /* unsigned int ngpios; No good way to get these. */
-} cmedia_ids[] = {
-    /* CMedia Devices */
-    { 0x0d8c, 0x0008 }, /* Range for CM108, CM109, CM119 (no following letters) */
-    { 0x0d8c, 0x0009 }, /* Range for CM108, CM109, CM119 (no following letters) */
-    { 0x0d8c, 0x000a }, /* Range for CM108, CM109, CM119 (no following letters) */
-    { 0x0d8c, 0x000b }, /* Range for CM108, CM109, CM119 (no following letters) */
-    { 0x0d8c, 0x000c }, /* Range for CM108, CM109, CM119 (no following letters) */
-    { 0x0d8c, 0x000d }, /* Range for CM108, CM109, CM119 (no following letters) */
-    { 0x0d8c, 0x000e }, /* Range for CM108, CM109, CM119 (no following letters) */
-    { 0x0d8c, 0x000f }, /* Range for CM108, CM109, CM119 (no following letters) */
-    { 0x0d8c, 0x0012 }, /* CM108B */
-    { 0x0d8c, 0x0013 }, /* CM119B */
-    { 0x0d8c, 0x0016 }, /* CM118B */
-    { 0x0d8c, 0x0139 }, /* CM108AH */
-    { 0x0d8c, 0x013A }, /* CM119A */
-    { 0x0d8c, 0x013c }, /* CM108AH (alternate?), HS100 */
-
-    /* SSS Devices */
-    { 0x0c76, 0x1605 },
-    { 0x0c76, 0x1607 },
-    { 0x0c76, 0x160B },
-    { 0, 0 }
+/*
+ * Stolen from devpropdef.h and devpkey.h.  I'd use what was defined
+ * there, but I can't find the actual implementation anywhere.
+ */
+#if 0
+#define DEFINE_DEVPROPKEY(name, l, w1, w2, b1, b2, b3, b4, b5, b6, b7, b8, pid)  \
+const DEVPROPKEY DECLSPEC_SELECTANY name = {{ l, w1, w2, {b1, b2, b3, b4, b5, b6 \
+, b7, b8}}, pid}
+DEFINE_DEVPROPKEY(DEVPKEY_Device_ContainerId, 0x8c7ed206,0x3f8a,0x4827,0xb3,0xab
+,0xae,0x9e,0x1f,0xae,0xfc,0x6c, 2);
+#endif
+const DEVPROPKEY DECLSPEC_SELECTANY my_DEVPKEY_Device_ContainerId = {
+    { 0x8c7ed206, 0x3f8a, 0x4827,
+      { 0xb3, 0xab, 0xae, 0x9e, 0x1f, 0xae, 0xfc, 0x6c },
+    },
+    2
 };
 
 struct win_hid_fd {
@@ -280,6 +272,20 @@ struct win_hid_fd {
 #define fdtype struct win_hid_fd *
 #define INVALID_FD NULL
 
+/*
+ * This searches through the setup api for a media device with the
+ * given idname as part of it, just like the search for a sound card
+ * will work in the sound gensio.  Then it pulls the container id
+ * (GUID) from the sound device.
+ *
+ * Once it has the container id for the sound device, it looks through
+ * all the HID devices for the same container id.  If it finds a
+ * match, it tries to open it, and if it succeeds it returns the path
+ * for the device.
+ *
+ * According to the Windows docs, the container id is used to identify
+ * devices on the same hardware, so it's exactly what we need here.
+ */
 static int
 find_hid_device(struct gensio_pparm_info *p, struct gensio_os_funcs *o,
 		const char *idnum, char **devpath)
@@ -287,29 +293,18 @@ find_hid_device(struct gensio_pparm_info *p, struct gensio_os_funcs *o,
     HDEVINFO devinfo = INVALID_HANDLE_VALUE;
     unsigned int i;
     int devidx, err = 0;
-    unsigned int matchcount, counter = 0;
     char *mypath = NULL;
-    char *end;
-
-    if (!idnum || strlen(idnum) == 0) {
-	matchcount = 0;
-    } else {
-	matchcount = strtoul(idnum, &end, 0);
-	if (*end != '\0') {
-	    gensio_pparm_log(p, "Invalid number to match against.");
-	    return GE_INVAL;
-	}
-    }
+    GUID sounddev_container_id;
+    DWORD size;
+    SP_DEVICE_INTERFACE_DATA dev_if_data;
+    SP_DEVICE_INTERFACE_DETAIL_DATA_A *dev_if_detail = NULL;
 
     devinfo = SetupDiGetClassDevsA(NULL, NULL, NULL,
 				   DIGCF_PRESENT | DIGCF_DEVICEINTERFACE | DIGCF_ALLCLASSES);
+
+    /* First thing is to find the sound device. */
     for (devidx = 0; !err; devidx++) {
-	HANDLE h = INVALID_HANDLE_VALUE;
-	DWORD size = 0;
 	SP_DEVINFO_DATA dev_data;
-	SP_DEVICE_INTERFACE_DATA dev_if_data;
-	SP_DEVICE_INTERFACE_DETAIL_DATA_A *dev_if_detail = NULL;
-	HIDD_ATTRIBUTES attrib;
 
 	memset(&dev_data, 0x0, sizeof(dev_data));
 	dev_data.cbSize = sizeof(SP_DEVINFO_DATA);
@@ -322,113 +317,168 @@ find_hid_device(struct gensio_pparm_info *p, struct gensio_os_funcs *o,
 					 &dev_if_data))
 	    break;
 
-	/* Fetch the size first and allocate the data. */
-	SetupDiGetDeviceInterfaceDetailA(devinfo,
-					 &dev_if_data,
-					 NULL,
-					 0,
-					 &size,
-					 NULL);
-
-	dev_if_detail = malloc(size);
-	dev_if_detail->cbSize = sizeof(*dev_if_detail);
-
-	if (!SetupDiGetDeviceInterfaceDetailA(devinfo,
-					      &dev_if_data,
-					      dev_if_detail,
-					      size,
-					      NULL,
-					      NULL))
-	    goto next;
-
-	/*The device must have class "HIDClass". */
+	/* The sound device must have class "MEDIA". */
 	for (i = 0; ; i++) {
-	    char class_name[256], driver_name[256];
+	    char name[256], classname[256];
+	    DEVPROPTYPE proptype = DEVPROP_TYPE_GUID;
 
 	    if (!SetupDiEnumDeviceInfo(devinfo, i, &dev_data))
-		goto next;
+		break;
 
 	    if (!SetupDiGetDeviceRegistryPropertyA(devinfo, &dev_data,
-						SPDRP_CLASS, NULL,
-						(PBYTE)class_name, sizeof(class_name),
-						NULL))
-		goto next;
+						   SPDRP_CLASS, NULL,
+						   (PBYTE)classname, sizeof(classname),
+						   NULL))
+		continue;
+	    if (strcmp(classname, "MEDIA") != 0)
+		continue;
 
-	    if (strcmp(class_name, "HIDClass") == 0) {
-		/* Make sure there's a driver bound. */
-		if (SetupDiGetDeviceRegistryPropertyA(devinfo, &dev_data,
-						      SPDRP_DRIVER, NULL,
-						      (PBYTE)driver_name, sizeof(driver_name),
-						      NULL))
-		    break;
-	    }
+	    if (!SetupDiGetDeviceRegistryPropertyA(devinfo, &dev_data,
+						   SPDRP_FRIENDLYNAME, NULL,
+						   (PBYTE)name, sizeof(name),
+						   NULL))
+		continue;
+	    if (!strstr(name, idnum))
+		continue;
+
+	    if (!SetupDiGetDevicePropertyW(devinfo, &dev_data,
+					   &my_DEVPKEY_Device_ContainerId,
+					   &proptype,
+					   (PBYTE)&sounddev_container_id,
+					   sizeof(sounddev_container_id),
+					   NULL, 0))
+		continue;
+#if 0
+	    printf("Found %s\n", name);
+	    printf(" ContainerId = {%08lX-%04hX-%04hX-%02hhX%02hhX-%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX}\n", 
+		   sounddev_container_id.Data1, sounddev_container_id.Data2, sounddev_container_id.Data3, 
+		   sounddev_container_id.Data4[0], sounddev_container_id.Data4[1], sounddev_container_id.Data4[2], sounddev_container_id.Data4[3],
+		   sounddev_container_id.Data4[4], sounddev_container_id.Data4[5], sounddev_container_id.Data4[6], sounddev_container_id.Data4[7]);
+#endif
+	    goto foundit;
 	}
-
-	h = CreateFileA(dev_if_detail->DevicePath,
-			0,
-			FILE_SHARE_READ | FILE_SHARE_WRITE,
-			NULL,
-			OPEN_EXISTING,
-			0,
-			0);
-	if (h == INVALID_HANDLE_VALUE)
-	    goto next;
-
-	attrib.Size = sizeof(HIDD_ATTRIBUTES);
-	HidD_GetAttributes(h, &attrib);
-	for (i = 0; cmedia_ids[i].vendor_id; i++) {
-	    if (attrib.VendorID == cmedia_ids[i].vendor_id &&
-			attrib.ProductID == cmedia_ids[i].product_id)
-		break;
-	}
-	if (cmedia_ids[i].vendor_id) {
-	    counter++;
-	    if (!mypath && (matchcount == 0 || counter == matchcount)) {
-		mypath = gensio_strdup(o, dev_if_detail->DevicePath);
-		if (!mypath)
-		    err = GE_NOMEM;
-	    }
-	}
-
-    next:
-	if (h != INVALID_HANDLE_VALUE)
-	    CloseHandle(h);
-
-	free(dev_if_detail);
     }
+    gensio_pparm_log(p, "Unable to find media device '%s'\n", idnum);
+    err = GE_NOTFOUND;
+    goto out;
 
+ foundit:
+    /* Now looking for the HID device. */
+    for (devidx = 0; !err; devidx++) {
+	SP_DEVINFO_DATA dev_data;
+	GUID hiddev_container_id;
+	HANDLE h;
+
+	memset(&dev_data, 0x0, sizeof(dev_data));
+	dev_data.cbSize = sizeof(SP_DEVINFO_DATA);
+	dev_if_data.cbSize = sizeof(SP_DEVICE_INTERFACE_DATA);
+
+	if (!SetupDiEnumDeviceInterfaces(devinfo,
+					 NULL,
+					 &InterfaceClassGuid,
+					 devidx,
+					 &dev_if_data))
+	    break;
+
+	/* The device must have class "HIDClass" and matching GUID. */
+	for (i = 0; ; i++) {
+	    char classname[256], drivername[256];
+	    DEVPROPTYPE proptype = DEVPROP_TYPE_GUID;
+
+	    if (!SetupDiEnumDeviceInfo(devinfo, i, &dev_data))
+		break;
+
+	    if (!SetupDiGetDeviceRegistryPropertyA(devinfo, &dev_data,
+						   SPDRP_CLASS, NULL,
+						   (PBYTE)classname, sizeof(classname),
+						   NULL))
+		continue;
+	    if (strcmp(classname, "HIDClass") != 0)
+		continue;
+	    /* Make sure there's a driver bound. */
+	    if (!SetupDiGetDeviceRegistryPropertyA(devinfo, &dev_data,
+						   SPDRP_DRIVER, NULL,
+						   (PBYTE)drivername, sizeof(drivername),
+						   NULL))
+		continue;
+
+	    if (!SetupDiGetDevicePropertyW(devinfo, &dev_data,
+					   &my_DEVPKEY_Device_ContainerId,
+					   &proptype,
+					   (PBYTE)&hiddev_container_id,
+					   sizeof(hiddev_container_id),
+					   NULL, 0))
+		continue;
+#if 0
+	    printf("Found HID dev\n");
+	    printf("ContainerId = {%08lX-%04hX-%04hX-%02hhX%02hhX-%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX}\n", 
+		   hiddev_container_id.Data1, hiddev_container_id.Data2, hiddev_container_id.Data3, 
+		   hiddev_container_id.Data4[0], hiddev_container_id.Data4[1], hiddev_container_id.Data4[2], hiddev_container_id.Data4[3],
+		   hiddev_container_id.Data4[4], hiddev_container_id.Data4[5], hiddev_container_id.Data4[6], hiddev_container_id.Data4[7]);
+#endif
+	    if (!IsEqualGUID(&hiddev_container_id, &sounddev_container_id))
+		continue;
+
+	    /*
+	     * Get the device path for the device.  Fetch the size first and
+	     * allocate the data.
+	     */
+	    SetupDiGetDeviceInterfaceDetailA(devinfo,
+					     &dev_if_data,
+					     NULL,
+					     0,
+					     &size,
+					     NULL);
+	    dev_if_detail = malloc(size);
+	    if (!dev_if_detail) {
+		err = GE_NOMEM;
+		goto out;
+	    }
+	    dev_if_detail->cbSize = sizeof(*dev_if_detail);
+	    if (SetupDiGetDeviceInterfaceDetailA(devinfo,
+						 &dev_if_data,
+						 dev_if_detail,
+						 size,
+						 NULL,
+						 NULL)) {
+		/*
+		 * Make sure the path can be opened.  The same HID
+		 * device ends up in multiple places with different
+		 * paths, and the user may not have permissions to
+		 * open some of the paths.
+		 */
+		h = CreateFileA(dev_if_detail->DevicePath,
+				GENERIC_READ | GENERIC_WRITE,
+				FILE_SHARE_READ | FILE_SHARE_WRITE,
+				NULL,
+				OPEN_EXISTING,
+				0,
+				0);
+		if (h != INVALID_HANDLE_VALUE) {
+		    printf("Got path %s\n", dev_if_detail->DevicePath);
+		    CloseHandle(h);
+		    mypath = gensio_strdup(o, dev_if_detail->DevicePath);
+		    if (!mypath)
+			err = GE_NOMEM;
+		    free(dev_if_detail);
+		    goto out;
+		} else {
+		    printf("Failed path open %s\n", dev_if_detail->DevicePath);
+		}
+	    }
+	    free(dev_if_detail);
+	}
+    }
+    gensio_pparm_log(p, "Unable to find HID device matching sound device '%s'\n", idnum);
+    err = GE_NOTFOUND;
+
+ out:
     SetupDiDestroyDeviceInfoList(devinfo);
 
-    if (err)
-	return err;
+    if (!err)
+	*devpath = mypath;
 
-#if 0 /* Maybe there will be a way to match against sound devices someday? */
-    UINT ndevs;
-    MMRESULT mres;
-    WAVEOUTCAPS ocaps;
-
-    ndevs = waveOutGetNumDevs();
-    gensio_pparm_log(p, "Wave out devices: %d\n", ndevs);
-    for (i = 0; i < ndevs; i++) {
-	mres = waveOutGetDevCaps(i, &ocaps, sizeof(ocaps));
-	if (mres != MMSYSERR_NOERROR)
-	    continue;
-	gensio_pparm_log(p, "  %d(%x,%x):%s\n", i, ocaps.wMid, ocaps.wPid, ocaps.szPname);
-    }
-#endif
-
-    if (!mypath)
-	return GE_NOTFOUND;
-
-    if (matchcount == 0 && counter > 1) {
-	gensio_pparm_log(p, "Found more than one cm108 device, you must enter which one to use.");
-	o->free(o, mypath);
-	return GE_INVAL;
-    }
-
-    *devpath = mypath;
-
-    return 0;
+    return err;
 }
 
 static int
