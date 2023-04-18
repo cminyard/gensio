@@ -238,29 +238,25 @@ hid_close(int fd)
 #include <windows.h>
 #include <setupapi.h>
 #include <hidsdi.h>
-#include <devpropdef.h>
-#include <devpkey.h>
+#include <wchar.h>
 
-static const GUID InterfaceClassGuid = {0x4d1e55b2, 0xf16f, 0x11cf,
-					{0x88, 0xcb, 0x00, 0x11, 0x11, 0x00, 0x00, 0x30} };
+/* Stolen from hidclass.h. */
+static const GUID my_GUID_DEVINTERFACE_HID =
+    {0x4d1e55b2, 0xf16f, 0x11cf,
+     {0x88, 0xcb, 0x00, 0x11, 0x11, 0x00, 0x00, 0x30} };
 
 /*
  * Stolen from devpropdef.h and devpkey.h.  I'd use what was defined
  * there, but I can't find the actual implementation anywhere.
  */
-#if 0
-#define DEFINE_DEVPROPKEY(name, l, w1, w2, b1, b2, b3, b4, b5, b6, b7, b8, pid)  \
-const DEVPROPKEY DECLSPEC_SELECTANY name = {{ l, w1, w2, {b1, b2, b3, b4, b5, b6 \
-, b7, b8}}, pid}
-DEFINE_DEVPROPKEY(DEVPKEY_Device_ContainerId, 0x8c7ed206,0x3f8a,0x4827,0xb3,0xab
-,0xae,0x9e,0x1f,0xae,0xfc,0x6c, 2);
-#endif
-const DEVPROPKEY DECLSPEC_SELECTANY my_DEVPKEY_Device_ContainerId = {
-    { 0x8c7ed206, 0x3f8a, 0x4827,
-      { 0xb3, 0xab, 0xae, 0x9e, 0x1f, 0xae, 0xfc, 0x6c },
-    },
-    2
-};
+#define MY_DEFINE_DEVPROPKEY(name, l, w1, w2, b1, b2, b3, b4, b5, b6, b7, b8, pid)  \
+    static const DEVPROPKEY name = {{ l, w1, w2, {b1, b2, b3, b4, b5, b6, \
+	b7, b8}}, pid}
+
+MY_DEFINE_DEVPROPKEY(my_DEVPKEY_Device_MatchingDeviceId,
+		     0xa8b865dd,0x2e3d,0x4094,0xad,0x97,0xe5,0x93,0xa7,0xc,0x75,0xd6, 8);
+MY_DEFINE_DEVPROPKEY(my_DEVPKEY_Device_Parent,
+		     0x4340a6c5,0x93fa,0x4706,0x97,0x2c,0x7b,0x64,0x80,0x08,0xa5,0xa7, 8);
 
 struct win_hid_fd {
     struct gensio_os_funcs *o;
@@ -273,166 +269,190 @@ struct win_hid_fd {
 #define INVALID_FD NULL
 
 /*
+ * Search up the parent chain until we find a USB composite device.
+ */
+static int
+find_usb_composite_parent(HDEVINFO devinfo, const SP_DEVINFO_DATA *cdev_data,
+			  wchar_t *composite_parent, unsigned int len)
+{
+    SP_DEVINFO_DATA dev_data = *cdev_data;
+    unsigned int up_count = 3;
+    int j;
+
+    while (up_count > 0) {
+	DEVPROPTYPE proptype = DEVPROP_TYPE_STRING;
+	wchar_t id[100];
+
+	if (SetupDiGetDevicePropertyW(devinfo, &dev_data,
+				      &my_DEVPKEY_Device_MatchingDeviceId,
+				      &proptype,
+				      (PBYTE) id, sizeof(id),
+				      NULL, 0)) {
+	    if (wcscmp(id, L"USB\\COMPOSITE") == 0)
+		return 0;
+	}
+
+	/* That wasn't a USB composite device, go to the parent. */
+	if (!SetupDiGetDevicePropertyW(devinfo, &dev_data,
+				       &my_DEVPKEY_Device_Parent,
+				       &proptype,
+				       (PBYTE)composite_parent, len,
+				       NULL, 0))
+	    return GE_NOTFOUND;
+
+	/*
+	 * Windows seems to use different cases for the same device in
+	 * different instances.  Sigh.
+	 */
+	for (j = 0; j < len - 1 && composite_parent[j]; j++)
+	    composite_parent[j] = towupper(composite_parent[j]);
+	composite_parent[j] = 0;
+
+	if (!SetupDiOpenDeviceInfoW(devinfo, composite_parent, NULL, 0, &dev_data))
+	    return GE_NOTFOUND;
+
+	up_count--;
+    }
+
+    return GE_NOTFOUND;
+}
+
+/*
  * This searches through the setup api for a media device with the
  * given idname as part of it, just like the search for a sound card
- * will work in the sound gensio.  Then it pulls the container id
- * (GUID) from the sound device.
+ * will work in the sound gensio.  Then it gets the USB composite
+ * device id from it.
  *
- * Once it has the container id for the sound device, it looks through
- * all the HID devices for the same container id.  If it finds a
- * match, it tries to open it, and if it succeeds it returns the path
- * for the device.
+ * Once it has the USB composite device id for the sound device, it
+ * looks through all the HID devices for the same USB composite device
+ * id parent.  If it finds a match, it tries to open it, and if it
+ * succeeds it returns the path for the device.
  *
  * According to the Windows docs, the container id is used to identify
- * devices on the same hardware, so it's exactly what we need here.
+ * devices on the same hardware, but for USB devices that appears to
+ * be the USB hub.  So we go with finding the parent USB composite
+ * device id.
  */
 static int
 find_hid_device(struct gensio_pparm_info *p, struct gensio_os_funcs *o,
 		const char *idnum, char **devpath)
 {
-    HDEVINFO devinfo = INVALID_HANDLE_VALUE;
+    HDEVINFO devinfo;
     unsigned int i;
     int devidx, err = 0;
     char *mypath = NULL;
-    GUID sounddev_container_id;
+    wchar_t sounddev_composite_parent[256];
     DWORD size;
-    SP_DEVICE_INTERFACE_DATA dev_if_data;
+    SP_DEVINFO_DATA dev_data;
     SP_DEVICE_INTERFACE_DETAIL_DATA_A *dev_if_detail = NULL;
 
     devinfo = SetupDiGetClassDevsA(NULL, NULL, NULL,
 				   DIGCF_PRESENT | DIGCF_DEVICEINTERFACE | DIGCF_ALLCLASSES);
+    if (devinfo == INVALID_HANDLE_VALUE) {
+	gensio_pparm_log(p, "Unable to get class devices");
+	return GE_NOTFOUND;
+    }
 
-    /* First thing is to find the sound device. */
-    for (devidx = 0; !err; devidx++) {
-	SP_DEVINFO_DATA dev_data;
+    /* Find the sound device by friendly name. */
+    for (i = 0; ; i++) {
+	char name[256], classname[256];
 
 	memset(&dev_data, 0x0, sizeof(dev_data));
 	dev_data.cbSize = sizeof(SP_DEVINFO_DATA);
-	dev_if_data.cbSize = sizeof(SP_DEVICE_INTERFACE_DATA);
 
-	if (!SetupDiEnumDeviceInterfaces(devinfo,
-					 NULL,
-					 &InterfaceClassGuid,
-					 devidx,
-					 &dev_if_data))
+	if (!SetupDiEnumDeviceInfo(devinfo, i, &dev_data))
 	    break;
 
+	if (!SetupDiGetDeviceRegistryPropertyA(devinfo, &dev_data,
+					       SPDRP_CLASS, NULL,
+					       (PBYTE)classname, sizeof(classname),
+					       NULL))
+	    continue;
 	/* The sound device must have class "MEDIA". */
-	for (i = 0; ; i++) {
-	    char name[256], classname[256];
-	    DEVPROPTYPE proptype = DEVPROP_TYPE_GUID;
+	if (strcmp(classname, "MEDIA") != 0)
+	    continue;
 
-	    if (!SetupDiEnumDeviceInfo(devinfo, i, &dev_data))
-		break;
+	if (!SetupDiGetDeviceRegistryPropertyA(devinfo, &dev_data,
+					       SPDRP_FRIENDLYNAME, NULL,
+					       (PBYTE)name, sizeof(name),
+					       NULL))
+	    continue;
+	if (!strstr(name, idnum))
+	    continue;
 
-	    if (!SetupDiGetDeviceRegistryPropertyA(devinfo, &dev_data,
-						   SPDRP_CLASS, NULL,
-						   (PBYTE)classname, sizeof(classname),
-						   NULL))
-		continue;
-	    if (strcmp(classname, "MEDIA") != 0)
-		continue;
-
-	    if (!SetupDiGetDeviceRegistryPropertyA(devinfo, &dev_data,
-						   SPDRP_FRIENDLYNAME, NULL,
-						   (PBYTE)name, sizeof(name),
-						   NULL))
-		continue;
-	    if (!strstr(name, idnum))
-		continue;
-
-	    if (!SetupDiGetDevicePropertyW(devinfo, &dev_data,
-					   &my_DEVPKEY_Device_ContainerId,
-					   &proptype,
-					   (PBYTE)&sounddev_container_id,
-					   sizeof(sounddev_container_id),
-					   NULL, 0))
-		continue;
+	if (find_usb_composite_parent(devinfo, &dev_data,
+				      sounddev_composite_parent,
+				      sizeof(sounddev_composite_parent)))
+	    continue;
 #if 0
-	    printf("Found %s\n", name);
-	    printf(" ContainerId = {%08lX-%04hX-%04hX-%02hhX%02hhX-%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX}\n", 
-		   sounddev_container_id.Data1, sounddev_container_id.Data2, sounddev_container_id.Data3, 
-		   sounddev_container_id.Data4[0], sounddev_container_id.Data4[1], sounddev_container_id.Data4[2], sounddev_container_id.Data4[3],
-		   sounddev_container_id.Data4[4], sounddev_container_id.Data4[5], sounddev_container_id.Data4[6], sounddev_container_id.Data4[7]);
+	printf("Found %s (%ls)\n", name, sounddev_composite_parent);
 #endif
-	    goto foundit;
-	}
+	goto foundsound;
     }
+
     gensio_pparm_log(p, "Unable to find media device '%s'", idnum);
     err = GE_NOTFOUND;
     goto out;
 
- foundit:
-    /* Now looking for the HID device. */
-    for (devidx = 0; !err; devidx++) {
-	SP_DEVINFO_DATA dev_data;
-	GUID hiddev_container_id;
-	HANDLE h;
+ foundsound:
+    /* Find the HID device with the same USB composite parent. */
+    for (i = 0; ; i++) {
+	char classname[256];
+	wchar_t hiddev_composite_parent[256];
 
 	memset(&dev_data, 0x0, sizeof(dev_data));
 	dev_data.cbSize = sizeof(SP_DEVINFO_DATA);
-	dev_if_data.cbSize = sizeof(SP_DEVICE_INTERFACE_DATA);
 
-	if (!SetupDiEnumDeviceInterfaces(devinfo,
-					 NULL,
-					 &InterfaceClassGuid,
-					 devidx,
-					 &dev_if_data))
+	if (!SetupDiEnumDeviceInfo(devinfo, i, &dev_data))
 	    break;
 
-	/* The device must have class "HIDClass" and matching GUID. */
-	for (i = 0; ; i++) {
-	    char classname[256], drivername[256];
-	    DEVPROPTYPE proptype = DEVPROP_TYPE_GUID;
+	if (!SetupDiGetDeviceRegistryPropertyA(devinfo, &dev_data,
+					       SPDRP_CLASS, NULL,
+					       (PBYTE)classname, sizeof(classname),
+					       NULL))
+	    continue;
+	if (strcmp(classname, "HIDClass") != 0)
+	    continue;
 
-	    if (!SetupDiEnumDeviceInfo(devinfo, i, &dev_data))
-		break;
-
-	    if (!SetupDiGetDeviceRegistryPropertyA(devinfo, &dev_data,
-						   SPDRP_CLASS, NULL,
-						   (PBYTE)classname, sizeof(classname),
-						   NULL))
-		continue;
-	    if (strcmp(classname, "HIDClass") != 0)
-		continue;
-	    /* Make sure there's a driver bound. */
-	    if (!SetupDiGetDeviceRegistryPropertyA(devinfo, &dev_data,
-						   SPDRP_DRIVER, NULL,
-						   (PBYTE)drivername, sizeof(drivername),
-						   NULL))
-		continue;
-
-	    if (!SetupDiGetDevicePropertyW(devinfo, &dev_data,
-					   &my_DEVPKEY_Device_ContainerId,
-					   &proptype,
-					   (PBYTE)&hiddev_container_id,
-					   sizeof(hiddev_container_id),
-					   NULL, 0))
-		continue;
+	if (find_usb_composite_parent(devinfo, &dev_data,
+				      hiddev_composite_parent,
+				      sizeof(hiddev_composite_parent)))
+	    continue;
+	if (wcscmp(sounddev_composite_parent, hiddev_composite_parent) != 0)
+	    continue;
 #if 0
-	    printf("Found HID dev\n");
-	    printf("ContainerId = {%08lX-%04hX-%04hX-%02hhX%02hhX-%02hhX%02hhX%02hhX%02hhX%02hhX%02hhX}\n", 
-		   hiddev_container_id.Data1, hiddev_container_id.Data2, hiddev_container_id.Data3, 
-		   hiddev_container_id.Data4[0], hiddev_container_id.Data4[1], hiddev_container_id.Data4[2], hiddev_container_id.Data4[3],
-		   hiddev_container_id.Data4[4], hiddev_container_id.Data4[5], hiddev_container_id.Data4[6], hiddev_container_id.Data4[7]);
+	printf("Found HID (%ls)\n", hiddev_composite_parent);
 #endif
-	    if (!IsEqualGUID(&hiddev_container_id, &sounddev_container_id))
-		continue;
+
+	/* Now that we have the device, enumerate the interfaces to get the path. */
+	for (devidx = 0; ; devidx++) {
+	    SP_DEVICE_INTERFACE_DATA dev_if_data;
+
+	    dev_if_data.cbSize = sizeof(SP_DEVICE_INTERFACE_DATA);
+	    if (!SetupDiEnumDeviceInterfaces(devinfo,
+					     &dev_data,
+					     &my_GUID_DEVINTERFACE_HID,
+					     devidx,
+					     &dev_if_data))
+		break;
 
 	    /*
 	     * Get the device path for the device.  Fetch the size first and
 	     * allocate the data.
 	     */
+	    size = 0;
 	    SetupDiGetDeviceInterfaceDetailA(devinfo,
 					     &dev_if_data,
 					     NULL,
 					     0,
 					     &size,
 					     NULL);
+	    if (size == 0)
+		continue;
 	    dev_if_detail = malloc(size);
 	    if (!dev_if_detail) {
 		err = GE_NOMEM;
-		goto out;
+		continue;
 	    }
 	    dev_if_detail->cbSize = sizeof(*dev_if_detail);
 	    if (SetupDiGetDeviceInterfaceDetailA(devinfo,
@@ -441,32 +461,17 @@ find_hid_device(struct gensio_pparm_info *p, struct gensio_os_funcs *o,
 						 size,
 						 NULL,
 						 NULL)) {
-		/*
-		 * Make sure the path can be opened.  The same HID
-		 * device ends up in multiple places with different
-		 * paths, and the user may not have permissions to
-		 * open some of the paths.
-		 */
-		h = CreateFileA(dev_if_detail->DevicePath,
-				GENERIC_READ | GENERIC_WRITE,
-				FILE_SHARE_READ | FILE_SHARE_WRITE,
-				NULL,
-				OPEN_EXISTING,
-				0,
-				0);
-		if (h != INVALID_HANDLE_VALUE) {
-		    CloseHandle(h);
-		    mypath = gensio_strdup(o, dev_if_detail->DevicePath);
-		    if (!mypath)
-			err = GE_NOMEM;
-		    free(dev_if_detail);
-		    goto out;
-		}
+		mypath = gensio_strdup(o, dev_if_detail->DevicePath);
+		if (!mypath)
+		    err = GE_NOMEM;
+		free(dev_if_detail);
+		goto out;
 	    }
 	    free(dev_if_detail);
 	}
     }
-    gensio_pparm_log(p, "Unable to find HID device matching sound device '%s'", idnum);
+
+    gensio_pparm_log(p, "Unable to find HID device associated with '%s'", idnum);
     err = GE_NOTFOUND;
 
  out:
