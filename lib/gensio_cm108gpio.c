@@ -55,13 +55,13 @@ find_hid_device(struct gensio_pparm_info *p, struct gensio_os_funcs *o,
     int err = GE_NOTFOUND;
 
     if (strlen(idnum) == 0) {
-	gensio_pparm_log(p, "You must provide an id or number to compare\n");
+	gensio_pparm_log(p, "You must provide an id or number to compare");
 	return GE_INVAL;
     }
 
     udev = udev_new();
     if (!udev) {
-	gensio_pparm_log(p, "Error opening udev()\n");
+	gensio_pparm_log(p, "Error opening udev()");
 	return GE_NOTFOUND;
     }
 
@@ -118,14 +118,14 @@ find_hid_device(struct gensio_pparm_info *p, struct gensio_os_funcs *o,
     }
 
     if (!sounddev) {
-	gensio_pparm_log(p, "Unable to find matching sound device\n");
+	gensio_pparm_log(p, "Unable to find matching sound device");
 	err = GE_IOERR;
 	goto out_err;
     }
 
     endp = my_strrstr(path, "/sound/");
     if (!endp) {
-	gensio_pparm_log(p, "No /sound/ in device path: %s\n", path);
+	gensio_pparm_log(p, "No /sound/ in device path: %s", path);
 	err = GE_IOERR;
 	goto out_err;
     }
@@ -134,7 +134,7 @@ find_hid_device(struct gensio_pparm_info *p, struct gensio_os_funcs *o,
     e = NULL;
     tmps = strrchr(basepath, ':');
     if (!tmps) {
-	gensio_pparm_log(p, "No valid ':' in device path: %s\n", basepath);
+	gensio_pparm_log(p, "No valid ':' in device path: %s", basepath);
 	err = GE_IOERR;
 	goto out_err;
     }
@@ -178,7 +178,7 @@ find_hid_device(struct gensio_pparm_info *p, struct gensio_os_funcs *o,
 	    char *n = strrchr(path, '/');
 
 	    if (!n) {
-		gensio_pparm_log(p, "No '/'' in path: %s\n", path);
+		gensio_pparm_log(p, "No '/'' in path: %s", path);
 		goto out_err;
 	    }
 	    n = gensio_alloc_sprintf(o, "/dev%s", n);
@@ -358,7 +358,7 @@ find_hid_device(struct gensio_pparm_info *p, struct gensio_os_funcs *o,
 	    goto foundit;
 	}
     }
-    gensio_pparm_log(p, "Unable to find media device '%s'\n", idnum);
+    gensio_pparm_log(p, "Unable to find media device '%s'", idnum);
     err = GE_NOTFOUND;
     goto out;
 
@@ -455,21 +455,18 @@ find_hid_device(struct gensio_pparm_info *p, struct gensio_os_funcs *o,
 				0,
 				0);
 		if (h != INVALID_HANDLE_VALUE) {
-		    printf("Got path %s\n", dev_if_detail->DevicePath);
 		    CloseHandle(h);
 		    mypath = gensio_strdup(o, dev_if_detail->DevicePath);
 		    if (!mypath)
 			err = GE_NOMEM;
 		    free(dev_if_detail);
 		    goto out;
-		} else {
-		    printf("Failed path open %s\n", dev_if_detail->DevicePath);
 		}
 	    }
 	    free(dev_if_detail);
 	}
     }
-    gensio_pparm_log(p, "Unable to find HID device matching sound device '%s'\n", idnum);
+    gensio_pparm_log(p, "Unable to find HID device matching sound device '%s'", idnum);
     err = GE_NOTFOUND;
 
  out:
@@ -969,7 +966,7 @@ cm108gpio_gensio_alloc(const void *gdata,
     }
 
     if (bit < 1 || bit > 8) {
-	gensio_pparm_log(&p, "Bit value must be from 1-8, it was %u\n", bit);
+	gensio_pparm_log(&p, "Bit value must be from 1-8, it was %u", bit);
 	return GE_INVAL;
     }
 
