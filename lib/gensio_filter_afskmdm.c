@@ -1578,10 +1578,8 @@ process_powers(struct afskmdm_filter *sfilter,
 }
 
 /*
- * Do a convolution at 1200Hz and 2200Hz over the data.  Return
- * whether the power at 1200Hz (bit=0) or 2200Hz (bit=1) is greater.
- * Returns the certainty of the bit, which is the ratio of the two
- * power levels.
+ * Do a convolution at mark and space the data then call the bit
+ * processing with the info extracted from the data.
  */
 static void
 afskmdm_check_for_data(struct afskmdm_filter *sfilter, unsigned int *curpos,
