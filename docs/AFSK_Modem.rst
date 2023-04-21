@@ -210,3 +210,48 @@ the CPU.  And that's only after a day or so of tuning it.  There are
 things I can do to tune it and improve it, I think.
 
 Anyway, something unique, I think.
+
+How to Test Receive Data
+========================
+
+There is a test CD at http://wa8lmf.net/TNCtest/ that has some test
+data you can use to test the demodulator. I had to burn the above test
+CD to a physical CD then extract that way, I couldn't figure out
+another way to get the data off.  I have the raw wav files if someone
+needs them.
+
+To dump a file through afskmdm, the data needs to be put into raw
+format so that the sound gensio can read it, as the sound gensio can't
+currently handle wav file.  To do this, do something like:
+
+  sox Track1.wav -t raw -c 1 Track1.raw
+
+This will output a single channel 16-bit signed PCM mixed down from
+the stereo 16-bit from the wave file.
+
+To process this with an afskmdm gensio, do something like:
+
+  tools/gensiot -i 'stdio(self)' 'trace(dir=none,block=both),'
+     'afskmdm(debug=0x18,checkax25),'
+     'sound(44100-1-float,type=file,outdev=/dev/null,pformat=s16),Track1.raw'
+
+The trace gensio blocks any data from coming out to keep it from
+mucking up things.  Then you have the modem, then the sound gensio to
+get the sound.  Have it do the validation checks that the AX.25 layer
+normally does to reject bad packets.  Then the sound, notice the
+outdev thing, that's important to keep the sound gensio from
+overwriting your file.  The lower level format is signed 16 bit, but
+the data delivered to afskmdm is floating point.
+
+Things Tried
+============
+
+Adjusting Receive Frequencies
+-----------------------------
+
+For receive, adjust the frequencies some.  For instance, at 48000
+samples/sec and 1200bps, each sample will be 40 samples long.  A DFT
+at that many samples is going to give 1200Hz resolution, which
+slightly overlaps betwen the 1200 and 2200 mark frequencies.  It
+seemed that moving the frequencies away from each other a little would
+help things.  However, testing said otherwise.
