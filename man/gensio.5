@@ -2268,6 +2268,18 @@ default only channel 0 is output on.
 The sample rate, samples per second, of the data.  By default this is
 fetched from the sound gensio.
 .TP
+.B checkax25[=true|false]
+Check that the packet is a valid AX.25 packet, that it has valid AX25
+length and address.  Normally the AX.25 layer does this, but this can
+be used when testing without an AX.25 layer to reject bad packets.
+Default to false.  Note that if you set
+.B crc
+to false, this option will not work.
+.TP
+.B crc[=true|false]
+Check and send CRCs on packets.  Normally you want the afskmdm code to
+do this, but can be useful for testing.  Default to true.
+.TP
 .B wmsgs=<n>
 The number of working messages at the same time.  If the bit fails the
 certainty test (see below), for every current working message, two are

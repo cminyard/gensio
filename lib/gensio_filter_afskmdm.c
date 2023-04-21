@@ -233,6 +233,8 @@ struct afskmdm_filter {
     uint64_t out_bit_time; /* Time in nsec for a bitsize to be sent. */
 
     unsigned int debug;
+    bool check_ax25;
+    bool do_crc;
     gensiods framecount;
     gensiods framenr;
 
@@ -1111,14 +1113,16 @@ afskmdm_ul_write(struct gensio_filter *filter,
 			  sfilter->wrbufs[cbuf].len, false);
     }
 
-    /* We have two extra bytes on the end for the CRC, no check needed. */
-    crc = 0xffff;
-    len = sfilter->wrbufs[cbuf].len;
-    crc16_ccitt(sfilter->wrbufs[cbuf].data, len, &crc);
-    crc ^= 0xffff;
-    sfilter->wrbufs[cbuf].data[len++] = crc & 0xff;
-    sfilter->wrbufs[cbuf].data[len++] = (crc >> 8) & 0xff;
-    sfilter->wrbufs[cbuf].len = len;
+    if (sfilter->do_crc) {
+	/* We have two extra bytes on the end for the CRC, no check needed. */
+	crc = 0xffff;
+	len = sfilter->wrbufs[cbuf].len;
+	crc16_ccitt(sfilter->wrbufs[cbuf].data, len, &crc);
+	crc ^= 0xffff;
+	sfilter->wrbufs[cbuf].data[len++] = crc & 0xff;
+	sfilter->wrbufs[cbuf].data[len++] = (crc >> 8) & 0xff;
+	sfilter->wrbufs[cbuf].len = len;
+    }
 
     sfilter->nr_wrbufs++;
     if (sfilter->transmit_state != NOT_SENDING)
@@ -1332,19 +1336,36 @@ afskmdm_handle_new_message(struct afskmdm_filter *sfilter, unsigned int pos,
     if (w->curr_bit_pos != 6 && w->curr_bit_pos != 5)
 	goto bad_msg;
 
-    crc = 0xffff;
-    crc16_ccitt(w->read_data, w->read_data_len - 2, &crc);
-    crc ^= 0xffff;
-    msgcrc = ((w->read_data[w->read_data_len - 1] << 8) |
-	      w->read_data[w->read_data_len - 2]);
+    if (sfilter->do_crc) {
+	crc = 0xffff;
+	crc16_ccitt(w->read_data, w->read_data_len - 2, &crc);
+	crc ^= 0xffff;
+	msgcrc = ((w->read_data[w->read_data_len - 1] << 8) |
+		  w->read_data[w->read_data_len - 2]);
 
-    if (sfilter->debug & 1)
-	printf("    CRC %4.4x, MSGCRC %4.4x\n", crc, msgcrc);
+	if (sfilter->debug & 1)
+	    printf("    CRC %4.4x, MSGCRC %4.4x\n", crc, msgcrc);
 
-    if (crc != msgcrc)
-	goto bad_msg;
+	if (crc != msgcrc)
+	    goto bad_msg;
 
-    w->read_data_len -= 2;
+	w->read_data_len -= 2;
+
+	if (sfilter->check_ax25) {
+	    struct gensio_ax25_addr iaddr;
+	    gensiods ipos;
+	    int err;
+
+	    if (w->read_data_len < 16)
+		goto bad_msg;
+
+	    ipos = 0;
+	    err = decode_ax25_addr(sfilter->o, w->read_data, &ipos,
+				   w->read_data_len, 0, &iaddr);
+	    if (err)
+		goto bad_msg;
+	}
+    }
 
     if (sfilter->debug & 8) {
 	afskmdm_print_msg(sfilter, "R", 0, w->read_data, w->read_data_len,
@@ -2246,6 +2267,8 @@ struct gensio_afskmdm_data {
     float space_freq;
     unsigned int data_rate;
     unsigned int debug;
+    bool check_ax25;
+    bool do_crc;
     unsigned int in_framerate;
     unsigned int out_framerate;
     unsigned int in_chunksize;
@@ -2343,6 +2366,8 @@ gensio_afskmdm_filter_raw_alloc(struct gensio_pparm_info *p,
     sfilter->max_write_size = data->max_write_size;
     sfilter->max_read_size = data->max_read_size + 2; /* Extra 2 for the CRC. */
     sfilter->debug = data->debug;
+    sfilter->check_ax25 = data->check_ax25;
+    sfilter->do_crc = data->do_crc;
     sfilter->prev_xmit_level = -1;
     sfilter->prev_recv_level = 0;
     sfilter->in_chunksize = data->in_chunksize;
@@ -2520,8 +2545,12 @@ gensio_afskmdm_filter_raw_alloc(struct gensio_pparm_info *p,
 	goto out_nomem;
 
     for (i = 0; i < NR_WRITE_BUFS; i++) {
-	/* Add 2 to allow for the CRC to be added. */
-	sfilter->wrbufs[i].data = o->zalloc(o, sfilter->max_write_size + 2);
+	gensiods wrsz = sfilter->max_write_size;
+
+	if (sfilter->do_crc)
+	    /* Add 2 to allow for the CRC to be added. */
+	    wrsz += 2;
+	sfilter->wrbufs[i].data = o->zalloc(o, wrsz);
 	if (!sfilter->wrbufs[i].data)
 	    goto out_nomem;
     }
@@ -2665,7 +2694,8 @@ gensio_afskmdm_filter_alloc(struct gensio_pparm_info *p,
 	.keytype = KEY_RW,
 	.keybit = 3,
 	.keyon = "T 1\n",
-	.keyoff = "T 0\n"
+	.keyoff = "T 0\n",
+	.do_crc = true
     };
     unsigned int i;
     int err;
@@ -2803,6 +2833,10 @@ gensio_afskmdm_filter_alloc(struct gensio_pparm_info *p,
 	if (gensio_pparm_bool(p, args[i], "full-duplex", &data.full_duplex) > 0)
 	    continue;
 	if (gensio_pparm_uint(p, args[i], "debug", &data.debug) > 0)
+	    continue;
+	if (gensio_pparm_bool(p, args[i], "checkax25", &data.check_ax25) > 0)
+	    continue;
+	if (gensio_pparm_bool(p, args[i], "crc", &data.do_crc) > 0)
 	    continue;
 	gensio_pparm_unknown_parm(p, args[i]);
 	return GE_INVAL;
