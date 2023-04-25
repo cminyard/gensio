@@ -167,6 +167,18 @@ password to store in your .gtlssh directory.
 Create keys for the server, generally in /etc/gtlssh/gtlsshd.key and
 /etc/gtlssh/gtlsshd.crt.  You generally must be root to do this.  Use
 for initial setup of gtlsshd.
+
+.B NOTE:
+If you run multiple servers on the same system, you must have a
+different common name for each one.  Some version of openssl will look
+at another certificate with the same common name as part of the same
+certificate chain and you will get a failure:
+
+  authority and subject key identifier mismatch
+
+So if, for instance, you are running ser2net and gtlsshd on the same
+system, they must have different common names.
+
 .SH "SEE ALSO"
 gtlssh(1), gtlsshd(8)
 .SH "KNOWN PROBLEMS"
