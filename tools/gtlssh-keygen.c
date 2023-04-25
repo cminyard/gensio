@@ -106,7 +106,8 @@ help(const char *progname)
 #endif
     P("  --commonname <name> - Set the common name in the certificate.\n");
     P("        The default is your username for normal certificates and\n");
-    P("        the fully qualified domain name for server certificates.\n");
+    P("        the fully qualified domain name (prefixed by the keyname\n");
+    P("        if specified) for server certificates.\n");
     P("  --algorithm <algname> - Set the algorithm to use for the key,\n");
     P("        either ed25519, rsa or ec.  ");
 #ifdef EVP_PKEY_ED25519
@@ -186,7 +187,7 @@ help(const char *progname)
     P("  serverkey [name]\n");
     P("    Create keys for the gtlsshd server.  Probably requires root.\n");
     P("    The name is a prefix for they filenames generated which will\n");
-    P("    be name.crt and name.key.  The default name is 'default'.\n");
+    P("    be name.crt and name.key.  The default name is 'gtlsshd'.\n");
 #endif
 #undef P
     exit(0);
@@ -1007,11 +1008,32 @@ static int
 serverkey(int inargc, char *inargv[])
 {
     const char *keyname = "gtlsshd";
-    char *serverkey = NULL, *servercert = NULL;
+    char *serverkey = NULL, *servercert = NULL, *hostname = NULL;
     int rv = 0;
 
-    if (inargc > 0)
+    if (!commonname_set) {
+	hostname = get_my_hostname(glogger, NULL);
+	if (!hostname) {
+	    fprintf(stderr, "Error allocating hostname\n");
+	    exit(1);
+	}
+    }
+    if (inargc > 0) {
 	keyname = inargv[0];
+
+	if (!commonname_set) {
+	    alloc_commonname = alloc_sprintf("%s.%s", keyname, hostname);
+	    if (!alloc_commonname) {
+		fprintf(stderr, "Error allocating hostname\n");
+		exit(1);
+	    }
+	    commonname = alloc_commonname;
+	}
+    } else if (!commonname_set) {
+	alloc_commonname = hostname;
+	hostname = NULL;
+	commonname = alloc_commonname;
+    }
 
     serverkey = alloc_sprintf("%s%c%s.key", confdir, DIRSEP, keyname);
     if (!serverkey) {
@@ -1032,6 +1054,11 @@ serverkey(int inargc, char *inargv[])
     rv = keygen_one(NULL, serverkey, servercert);
 
  out:
+    if (alloc_commonname)
+	free(alloc_commonname);
+    alloc_commonname = NULL;
+    if (hostname)
+	free(hostname);
     if (serverkey)
 	free(serverkey);
     if (servercert)
@@ -1418,6 +1445,7 @@ main(int argc, char **argv)
 	rv = keygen(argc - 1, argv + 1);
 	if (alloc_commonname)
 	    free(alloc_commonname);
+	alloc_commonname = NULL;
     } else if (strcmp(argv[0], "setup") == 0) {
 	check_dirstruct();
 	if (!commonname_set) {
@@ -1431,21 +1459,12 @@ main(int argc, char **argv)
 	rv = keygen(0, NULL);
 	if (alloc_commonname)
 	    free(alloc_commonname);
+	alloc_commonname = NULL;
 #ifdef DEFAULT_CONFDIR
     } else if (strcmp(argv[0], "serverkey") == 0) {
 	if (keydir_set)
 	    confdir = keydir;
-	if (!commonname_set) {
-	    alloc_commonname = get_my_hostname(glogger, NULL);
-	    if (!alloc_commonname) {
-		fprintf(stderr, "Error allocating hostname\n");
-		exit(1);
-	    }
-	    commonname = alloc_commonname;
-	}
 	rv = serverkey(argc - 1, argv + 1);
-	if (alloc_commonname)
-	    free(alloc_commonname);
 #endif
     } else if (strcmp(argv[0], "pushcert") == 0) {
 	rv = pushcert(argc - 1, argv + 1);

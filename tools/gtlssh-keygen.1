@@ -91,8 +91,8 @@ $HOME/.gtlssh/keycerts
 .TP
 .I \-\-commonname name
 Set the common name in the certificate.  The default is your username
-for normal certificates and the fully qualified domain name for server
-certificates.
+for normal certificates and the fully qualified domain name (prefixed
+with the keyname if the keyname is given) for server certificates.
 .TP
 .I \-\-algorithm algname
 Use the given algorithm for the key generation, one of rsa or ec.  The
@@ -167,6 +167,12 @@ password to store in your .gtlssh directory.
 Create keys for the server, generally in /etc/gtlssh/gtlsshd.key and
 /etc/gtlssh/gtlsshd.crt.  You generally must be root to do this.  Use
 for initial setup of gtlsshd.
+
+If you specify a keyname, the common name used for the key will be
+"<keyname>.<hostname>" by default, unless you set it with
+.B --commonname.
+If you do not specify a keyname (defaulting it to gtlsshd), the common
+name is just the hostname.  This avoids the following problem...
 
 .B NOTE:
 If you run multiple servers on the same system, you must have a
