@@ -1563,7 +1563,7 @@ mdns_cb(struct gensio_mdns_watch *w,
 {
     struct mdns_cb_data *cb_data = userdata;
     struct gensio_os_funcs *o = cb_data->o;
-    char *addrstr = NULL, *s;
+    char *addrstr = NULL, *s, *portstr;
     gensiods addrstrlen = 0, pos = 0;
     const char *protocol;
     static const char *stackstr = "gensiostack=";
@@ -1604,6 +1604,11 @@ mdns_cb(struct gensio_mdns_watch *w,
 	gensio_os_funcs_zfree(o, addrstr);
 	goto out_wake;
     }
+    portstr = strrchr(addrstr, ',');
+    if (!portstr)
+	port = 0;
+    else
+	port = strtoul(portstr + 1, NULL, 0);
 
     cb_data->transport = gensio_alloc_sprintf(o, "%s(readbuf=20000),%s",
 					      protocol, addrstr);
