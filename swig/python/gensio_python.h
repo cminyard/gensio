@@ -799,6 +799,23 @@ gensio_child_event(struct gensio *io, void *user_data, int event, int readerr,
 	break;
     }
 
+    case GENSIO_EVENT_WIN_SIZE: {
+	unsigned int width, height;
+
+	sscanf((char *) buf, "%u:%u", &height, &width);
+	io_ref = swig_make_ref(io, gensio);
+	args = PyTuple_New(3);
+	ref_gensio_data(data);
+	PyTuple_SET_ITEM(args, 0, io_ref.val);
+	o = PyInt_FromLong(height);
+	PyTuple_SET_ITEM(args, 1, o);
+	o = PyInt_FromLong(width);
+	PyTuple_SET_ITEM(args, 2, o);
+	swig_finish_call(data->handler_val, "win_size", args, true);
+	break;
+
+    }
+
     case GENSIO_EVENT_SER_MODEMSTATE:
 	sgensio_modemstate(io, *((unsigned int *) buf));
 	break;

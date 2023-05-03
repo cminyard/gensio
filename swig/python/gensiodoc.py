@@ -194,6 +194,16 @@ class EventHandler:
         """
         return ""
 
+    def win_size(self, io, height, width):
+        """Called to report a window size from the remote end of the
+        connection.
+
+        height -- The number of rows being reported
+        width -- The number of columns being reported
+
+        """
+        return
+
     def signature(self, sio):
         """Called from the telnet server to report that the client has
         requested the RFC2217 signature.  Call sg_signature(signature,

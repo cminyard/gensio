@@ -272,7 +272,9 @@ struct gensio_parmlog_data {
 };
 
 which can be printed with normal vprintf() and the like.
-
+.SS "GENSIO_EVENT_WIN_SIZE"
+The other end of the connection is reporting a window size change.
+Currently only on telnet with RFC1073 enabled.
 .SH "OTHER EVENTS"
 sergensio gensios have a set of other events, see sergensio(5) for
 details.  Other gensio that are not part of the gensio library proper

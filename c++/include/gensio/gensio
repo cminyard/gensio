@@ -110,6 +110,9 @@ namespace gensios {
 
 	// Errors from parameter parsing come in here.
 	virtual void parmlog(const std::string log) { }
+
+	// Window size events come in here.
+	virtual void win_size(unsigned int height, unsigned int width) { }
     };
 
     // Used for done handlers for gensio operations that can fail,

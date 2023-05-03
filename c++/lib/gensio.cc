@@ -212,6 +212,14 @@ namespace gensios {
 		    cb->parmlog(outstr);
 		    break;
 		}
+
+		case GENSIO_EVENT_WIN_SIZE: {
+		    unsigned int height = 0, width = 0;
+
+		    sscanf((char *) buf, "%u:%u", &height, &width);
+		    cb->win_size(height, width);
+		    break;
+		}
 		}
 		return GE_NOTSUP;
 	    } catch (std::exception &e) {

@@ -65,6 +65,7 @@ struct gensio_parmlog_data {
     va_list args;
 };
 #define GENSIO_EVENT_PARMLOG		12
+#define GENSIO_EVENT_WIN_SIZE		13
 
 /*
  * Serial callbacks start here and run to 2000.
