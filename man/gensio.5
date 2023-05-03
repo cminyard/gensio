@@ -982,6 +982,10 @@ and the remote end of the connection supports RFC2217 also, the gensio
 will be set up as a serial gensio and you can do normal serial gensio
 handling on it.
 .TP
+.B winsize[=true|false]
+enable or disable RFC1073, window size change notification.  Default
+is false.
+.TP
 .B mode=client|server
 Set the telnet mode to client or server.  This lets you run a telnet
 server on a connecting gensio, or a telnet client on an accepter
