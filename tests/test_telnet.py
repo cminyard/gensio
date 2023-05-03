@@ -29,6 +29,7 @@ class SigRspHandler:
 
 import sys
 def do_telnet_test(io1, io2):
+    # Modemstate must be the first test
     io1.handler.set_expected_modemstate(0)
     io1.read_cb_enable(True);
     sio2 = io2.cast_to_sergensio()
@@ -40,6 +41,12 @@ def do_telnet_test(io1, io2):
     sio1 = io1.cast_to_sergensio()
     io1.read_cb_enable(True);
     io2.read_cb_enable(True);
+
+    io2.handler.set_expected_win_size(12, 83)
+    io1.control(0, False, gensio.GENSIO_CONTROL_WIN_SIZE, "12:83");
+    if (io2.handler.wait_timeout(2000) == 0):
+        raise Exception("%s: Timed out waiting for telnet win size" %
+                        io1.handler.name)
 
     h = SigRspHandler(o, "testsig")
     io2.handler.set_expected_sig_server_cb("testsig")
@@ -123,8 +130,8 @@ def do_telnet_test(io1, io2):
     return
 
 print("Test accept telnet")
-TestAccept(o, "telnet(rfc2217),tcp,localhost,",
-           "telnet(rfc2217=true),tcp,0", do_telnet_test,
+TestAccept(o, "telnet(rfc2217,winsize),tcp,localhost,",
+           "telnet(rfc2217=true,winsize),tcp,0", do_telnet_test,
            is_sergensio = True)
 del o
 test_shutdown()

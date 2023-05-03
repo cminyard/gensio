@@ -2495,6 +2495,7 @@ struct gensio_def_entry builtin_defaults[] = {
     { "mode",		GENSIO_DEFAULT_STR,	.def.strval = NULL },
     /* For telnet */
     { "rfc2217",	GENSIO_DEFAULT_BOOL,	.def.intval = false },
+    { "winsize",	GENSIO_DEFAULT_BOOL,	.def.intval = false },
     /* For SSL or other key authentication. */
     { "CA",		GENSIO_DEFAULT_STR,	.def.strval = NULL },
     { "cert",		GENSIO_DEFAULT_STR,	.def.strval = NULL },

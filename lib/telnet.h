@@ -24,7 +24,8 @@
 #define TN_OPT_BINARY_TRANSMISSION	0
 #define TN_OPT_ECHO			1
 #define TN_OPT_SUPPRESS_GO_AHEAD	3
-#define TN_OPT_COM_PORT			44
+#define TN_OPT_COM_PORT			44 /* rfc2217 */
+#define TN_OPT_NAWS			31 /* rfc1073 - Window size */
 
 typedef struct telnet_data_s telnet_data_t;
 

@@ -17,6 +17,9 @@ struct gensio_telnet_filter_callbacks {
     int (*com_port_will_do)(void *handler_data, unsigned char cmd);
     void (*com_port_cmd)(void *handler_data, const unsigned char *option,
 			 unsigned int len);
+    int (*rfc1073_will_do)(void *handler_data, unsigned char cmd);
+    void (*rfc1073_cmd)(void *handler_data, const unsigned char *option,
+			unsigned int len);
     void (*timeout)(void *handler_data);
     void (*free)(void *handler_data);
 };

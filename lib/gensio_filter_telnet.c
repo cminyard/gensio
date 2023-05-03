@@ -33,14 +33,17 @@ struct telnet_filter {
     bool setup_done;
     int in_urgent;
 
-    const struct telnet_cmd *telnet_cmds;
+    struct telnet_cmd *telnet_cmds;
     struct telnet_cmd *working_telnet_cmds;
-    const unsigned char *telnet_init_seq;
+    unsigned char *telnet_init_seq;
     unsigned int telnet_init_seq_len;
 
     bool allow_2217;
     bool rfc2217_set;
-    gensio_time rfc2217_end_wait;
+    bool allow_rfc1073;
+    bool rfc1073_set;
+    bool rfc1073_enabled;
+    gensio_time init_end_wait;
 
     const struct gensio_telnet_filter_callbacks *telnet_cbs;
     void *handler_data;
@@ -146,7 +149,8 @@ telnet_ll_read_needed(struct gensio_filter *filter)
 {
     struct telnet_filter *tfilter = filter_to_telnet(filter);
 
-    return tfilter->allow_2217 && !tfilter->rfc2217_set;
+    return ((tfilter->allow_2217 && !tfilter->rfc2217_set) ||
+	    (tfilter->allow_rfc1073 && !tfilter->rfc1073_set));
 }
 
 static int
@@ -161,12 +165,13 @@ telnet_try_connect(struct gensio_filter *filter, gensio_time *timeout)
     struct telnet_filter *tfilter = filter_to_telnet(filter);
     gensio_time now;
 
-    if (tfilter->rfc2217_set)
+    if (tfilter->rfc2217_set && tfilter->rfc1073_set)
 	return 0;
 
     tfilter->o->get_monotonic_time(tfilter->o, &now);
-    if (gensio_time_cmp(&now, &tfilter->rfc2217_end_wait) > 0) {
+    if (gensio_time_cmp(&now, &tfilter->init_end_wait) > 0) {
 	tfilter->rfc2217_set = true;
+	tfilter->rfc1073_set = true;
 	return 0;
     }
 
@@ -399,6 +404,28 @@ com_port_handler(void *cb_data, unsigned char *option, int len)
 					  option, len);
 }
 
+static int
+rfc1073_will_do(void *cb_data, unsigned char cmd)
+{
+    struct telnet_filter *tfilter = cb_data;
+    int err = 0;
+
+    if (tfilter->telnet_cbs)
+	err = tfilter->telnet_cbs->rfc1073_will_do(tfilter->handler_data, cmd);
+    tfilter->rfc1073_set = true;
+    tfilter->rfc1073_enabled = !!err;
+    return err;
+}
+
+static void
+rfc1073_handler(void *cb_data, unsigned char *option, int len)
+{
+    struct telnet_filter *tfilter = cb_data;
+
+    if (tfilter->telnet_cbs)
+	tfilter->telnet_cbs->rfc1073_cmd(tfilter->handler_data, option, len);
+}
+
 static void
 telnet_output_ready(void *cb_data)
 {
@@ -450,16 +477,12 @@ telnet_setup(struct gensio_filter *filter)
     telnet_init(&tfilter->tn_data, tfilter, telnet_output_ready,
 		telnet_cmd_handler, cmds,
 		tfilter->telnet_init_seq, tfilter->telnet_init_seq_len);
-    if (tfilter->is_client)
-	tfilter->rfc2217_set = !tfilter->allow_2217;
-    else {
-	tfilter->rfc2217_set = true; /* Don't wait for this on the server. */
-	tfilter->setup_done = true;
-    }
-    if (!tfilter->rfc2217_set) {
+    tfilter->rfc2217_set = !tfilter->allow_2217;
+    tfilter->rfc1073_set = !tfilter->allow_rfc1073;
+    if (!tfilter->rfc2217_set || !tfilter->rfc1073_set) {
 	tfilter->o->get_monotonic_time(tfilter->o,
-				       &tfilter->rfc2217_end_wait);
-	tfilter->rfc2217_end_wait.secs += 4; /* FIXME - magic number */
+				       &tfilter->init_end_wait);
+	tfilter->init_end_wait.secs += 4; /* FIXME - magic number */
 	tfilter->setup_done = true;
 	if (gensio_buffer_cursize(&tfilter->tn_data.out_telnet_cmd))
 	    tfilter->write_state = TELNET_IN_TN_WRITE;
@@ -497,8 +520,12 @@ tfilter_free(struct telnet_filter *tfilter)
 {
     if (tfilter->lock)
 	tfilter->o->free_lock(tfilter->lock);
+    if (tfilter->telnet_cmds)
+	tfilter->o->free(tfilter->o, tfilter->telnet_cmds);
     if (tfilter->working_telnet_cmds)
 	tfilter->o->free(tfilter->o, tfilter->working_telnet_cmds);
+    if (tfilter->telnet_init_seq)
+	tfilter->o->free(tfilter->o, tfilter->telnet_init_seq);
     if (tfilter->read_data)
 	tfilter->o->free(tfilter->o, tfilter->read_data);
     if (tfilter->write_data)
@@ -523,17 +550,41 @@ static int
 telnet_filter_control(struct gensio_filter *filter, bool get, int op,
 		      char *data, gensiods *datalen)
 {
-    unsigned char buf[2];
+    struct telnet_filter *tfilter = filter_to_telnet(filter);
+    unsigned char buf[9];
+    unsigned int width, height;
+    int rv;
 
     if (get)
 	return GE_NOTSUP;
-    if (op != GENSIO_CONTROL_SEND_BREAK)
-	return GE_NOTSUP;
+    switch (op) {
+    case GENSIO_CONTROL_SEND_BREAK:
+	buf[0] = TN_IAC;
+	buf[1] = TN_BREAK;
+	telnet_filter_send_cmd(filter, buf, 2);
+	return 0;
 
-    buf[0] = TN_IAC;
-    buf[1] = TN_BREAK;
-    telnet_filter_send_cmd(filter, buf, 2);
-    return 0;
+    case GENSIO_CONTROL_WIN_SIZE:
+	if (!tfilter->rfc1073_enabled)
+	    return GE_NOTSUP;
+	buf[0] = TN_IAC;
+	buf[1] = TN_SB;
+	buf[2] = TN_OPT_NAWS;
+	rv = sscanf(data, "%u:%u", &height, &width);
+	if (rv != 2)
+	    return GE_INVAL;
+	buf[3] = width >> 8;
+	buf[4] = width;
+	buf[5] = height >> 8;
+	buf[6] = height;
+	buf[7] = TN_IAC;
+	buf[8] = TN_SE;
+	telnet_filter_send_cmd(filter, buf, 9);
+	return 0;
+
+    default:
+	return GE_NOTSUP;
+    }
 }
 
 static int gensio_telnet_filter_func(struct gensio_filter *filter, int op,
@@ -640,13 +691,13 @@ const struct gensio_telnet_filter_rops telnet_filter_rops = {
 static struct gensio_filter *
 gensio_telnet_filter_raw_alloc(struct gensio_os_funcs *o,
 			       bool is_client,
-			       bool allow_2217,
+			       bool allow_2217, bool allow_rfc1073,
 			       gensiods max_read_size,
 			       gensiods max_write_size,
 			       const struct gensio_telnet_filter_callbacks *cbs,
 			       void *handler_data,
-			       const struct telnet_cmd *telnet_cmds,
-			       const unsigned char *telnet_init_seq,
+			       struct telnet_cmd *telnet_cmds,
+			       unsigned char *telnet_init_seq,
 			       unsigned int telnet_init_seq_len,
 			       const struct gensio_telnet_filter_rops **rops)
 {
@@ -659,6 +710,7 @@ gensio_telnet_filter_raw_alloc(struct gensio_os_funcs *o,
     tfilter->o = o;
     tfilter->is_client = is_client;
     tfilter->allow_2217 = allow_2217;
+    tfilter->allow_rfc1073 = allow_rfc1073;
     tfilter->max_write_size = max_write_size;
     tfilter->max_read_size = max_read_size;
     tfilter->telnet_cmds = telnet_cmds;
@@ -692,36 +744,17 @@ gensio_telnet_filter_raw_alloc(struct gensio_os_funcs *o,
     return NULL;
 }
 
-static struct telnet_cmd telnet_server_cmds_2217[] =
-{
-    /*                        I will,  I do,  sent will, sent do */
-    { TN_OPT_SUPPRESS_GO_AHEAD,	   1,     1,          1,       0, },
-    { TN_OPT_ECHO,		   1,     0,          1,       1, },
-    { TN_OPT_BINARY_TRANSMISSION,  1,     1,          1,       1, },
-    { TN_OPT_COM_PORT,		   1,     0,          0,       1,
-      .option_handler = com_port_handler, .will_do_handler = com_port_will_do },
-    { TELNET_CMD_END_OPTION }
-};
-
 static struct telnet_cmd telnet_server_cmds[] =
 {
     /*                        I will,  I do,  sent will, sent do */
     { TN_OPT_SUPPRESS_GO_AHEAD,	   1,     1,          1,       1, },
     { TN_OPT_ECHO,		   1,     0,          1,       1, },
     { TN_OPT_BINARY_TRANSMISSION,  1,     1,          1,       1, },
-    { TN_OPT_COM_PORT,		   0,     0,          0,       0,
-      .option_handler = com_port_handler, .will_do_handler = com_port_will_do },
+#define SERV_COM_PORT_POS 3
+    { TN_OPT_COM_PORT,		   0,     0,          0,       0, },
+#define SERV_RFC1073_POS 4
+    { TN_OPT_NAWS,		   0,     0,          0,       0, },
     { TELNET_CMD_END_OPTION }
-};
-
-static unsigned char telnet_server_init_seq_2217[] = {
-    TN_IAC, TN_WILL, TN_OPT_SUPPRESS_GO_AHEAD,
-    TN_IAC, TN_DO,   TN_OPT_SUPPRESS_GO_AHEAD,
-    TN_IAC, TN_WILL, TN_OPT_ECHO,
-    TN_IAC, TN_DONT, TN_OPT_ECHO,
-    TN_IAC, TN_DO,   TN_OPT_BINARY_TRANSMISSION,
-    TN_IAC, TN_WILL, TN_OPT_BINARY_TRANSMISSION,
-    TN_IAC, TN_DO,   TN_OPT_COM_PORT,
 };
 
 static unsigned char telnet_server_init_seq[] = {
@@ -732,19 +765,30 @@ static unsigned char telnet_server_init_seq[] = {
     TN_IAC, TN_DO,   TN_OPT_BINARY_TRANSMISSION,
     TN_IAC, TN_WILL, TN_OPT_BINARY_TRANSMISSION,
 };
+static unsigned char telnet_server_rfc2217_seq[] = {
+    TN_IAC, TN_DO,   TN_OPT_COM_PORT,
+};
+static unsigned char telnet_server_rfc1073_seq[] = {
+    TN_IAC, TN_DO,   TN_OPT_NAWS,
+};
 
 static const struct telnet_cmd telnet_client_cmds[] = {
     /*                        I will,  I do,  sent will, sent do */
     { TN_OPT_SUPPRESS_GO_AHEAD,	   1,     0,          0,       0, },
     { TN_OPT_ECHO,		   1,     0,          0,       0, },
     { TN_OPT_BINARY_TRANSMISSION,  1,     1,          0,       0, },
-    { TN_OPT_COM_PORT,		   1,     0,          1,       0,
-      .option_handler = com_port_handler, .will_do_handler = com_port_will_do },
+#define CLIENT_COM_PORT_POS 3
+    { TN_OPT_COM_PORT,		   0,     0,          0,       0, },
+#define CLIENT_RFC1073_POS 4
+    { TN_OPT_NAWS,		   0,     0,          0,       0, },
     { TELNET_CMD_END_OPTION }
 };
 
-static const unsigned char telnet_client_init_seq[] = {
+static const unsigned char telnet_client_rfc2217_seq[] = {
     TN_IAC, TN_WILL, TN_OPT_COM_PORT,
+};
+static const unsigned char telnet_client_rfc1073_seq[] = {
+    TN_IAC, TN_WILL, TN_OPT_NAWS,
 };
 
 int
@@ -761,10 +805,11 @@ gensio_telnet_filter_alloc(struct gensio_pparm_info *p,
     gensiods max_read_size = 4096; /* FIXME - magic number. */
     gensiods max_write_size = 4096; /* FIXME - magic number. */
     bool allow_2217 = false;
+    bool allow_rfc1073 = false;
     bool is_client = default_is_client;
-    const struct telnet_cmd *telnet_cmds;
-    const unsigned char *init_seq;
-    unsigned int init_seq_len;
+    struct telnet_cmd *telnet_cmds = NULL;
+    unsigned char *init_seq = NULL;
+    unsigned int init_seq_len, pos;
     int rv, ival;
     char *str;
 
@@ -773,6 +818,12 @@ gensio_telnet_filter_alloc(struct gensio_pparm_info *p,
     if (rv)
 	return rv;
     allow_2217 = ival;
+
+    rv = gensio_get_default(o, "telnet", "winsize", false,
+			    GENSIO_DEFAULT_BOOL, NULL, &ival);
+    if (rv)
+	return rv;
+    allow_rfc1073 = ival;
 
     rv = gensio_get_default(o, "telnet", "mode", false,
 			    GENSIO_DEFAULT_STR, &str, NULL);
@@ -796,6 +847,8 @@ gensio_telnet_filter_alloc(struct gensio_pparm_info *p,
     for (i = 0; args && args[i]; i++) {
 	if (gensio_pparm_bool(p, args[i], "rfc2217", &allow_2217) > 0)
 	    continue;
+	if (gensio_pparm_bool(p, args[i], "winsize", &allow_rfc1073) > 0)
+	    continue;
 	if (gensio_pparm_ds(p, args[i], "writebuf", &max_write_size) > 0)
 	    continue;
 	if (gensio_pparm_ds(p, args[i], "readbuf", &max_read_size) > 0)
@@ -808,28 +861,92 @@ gensio_telnet_filter_alloc(struct gensio_pparm_info *p,
     }
 
     if (is_client) {
-	telnet_cmds = telnet_client_cmds;
-	init_seq = telnet_client_init_seq;
-	init_seq_len = (allow_2217 ? sizeof(telnet_client_init_seq) : 0);
-    } else if (allow_2217) {
-	telnet_cmds = telnet_server_cmds_2217;
-	init_seq_len = sizeof(telnet_server_init_seq_2217);
-	init_seq = telnet_server_init_seq_2217;
+	telnet_cmds = o->zalloc(o, sizeof(telnet_client_cmds));
+	if (!telnet_cmds)
+	    goto out_nomem;
+	memcpy(telnet_cmds, telnet_client_cmds, sizeof(telnet_client_cmds));
+
+	init_seq_len = 0;
+	if (allow_2217) {
+	    telnet_cmds[CLIENT_COM_PORT_POS].i_will = 1;
+	    telnet_cmds[CLIENT_COM_PORT_POS].sent_will = 1;
+	    telnet_cmds[CLIENT_COM_PORT_POS].option_handler = com_port_handler;
+	    telnet_cmds[CLIENT_COM_PORT_POS].will_do_handler = com_port_will_do;
+	    init_seq_len += 3;
+	}
+	if (allow_rfc1073) {
+	    telnet_cmds[CLIENT_RFC1073_POS].i_will = 1;
+	    telnet_cmds[CLIENT_RFC1073_POS].sent_will = 1;
+	    telnet_cmds[CLIENT_RFC1073_POS].option_handler = rfc1073_handler;
+	    telnet_cmds[CLIENT_RFC1073_POS].will_do_handler = rfc1073_will_do;
+	    init_seq_len += 3;
+	}
+
+	if (init_seq_len != 0) {
+	    init_seq = o->zalloc(o, init_seq_len);
+	    if (!init_seq)
+		goto out_nomem;
+	    pos = 0;
+	    if (allow_2217) {
+		memcpy(init_seq + pos, telnet_client_rfc2217_seq, 3);
+		pos += 3;
+	    }
+	    if (allow_rfc1073) {
+		memcpy(init_seq + pos, telnet_client_rfc1073_seq, 3);
+		pos += 3;
+	    }
+	}
     } else {
-	telnet_cmds = telnet_server_cmds;
+	telnet_cmds = o->zalloc(o, sizeof(telnet_server_cmds));
+	if (!telnet_cmds)
+	    goto out_nomem;
+	memcpy(telnet_cmds, telnet_server_cmds, sizeof(telnet_server_cmds));
+
 	init_seq_len = sizeof(telnet_server_init_seq);
-	init_seq = telnet_server_init_seq;
+	if (allow_2217) {
+	    telnet_cmds[SERV_COM_PORT_POS].option_handler = com_port_handler;
+	    telnet_cmds[SERV_COM_PORT_POS].will_do_handler = com_port_will_do;
+	    init_seq_len += 3;
+	}
+	if (allow_rfc1073) {
+	    telnet_cmds[SERV_RFC1073_POS].option_handler = rfc1073_handler;
+	    telnet_cmds[SERV_RFC1073_POS].will_do_handler = rfc1073_will_do;
+	    init_seq_len += 3;
+	}
+	init_seq = o->zalloc(o, init_seq_len);
+	if (!init_seq)
+	    goto out_nomem;
+	pos = 0;
+	memcpy(init_seq + pos, telnet_server_init_seq,
+	       sizeof(telnet_server_init_seq));
+	pos += sizeof(telnet_server_init_seq);
+	if (allow_2217) {
+	    memcpy(init_seq + pos, telnet_server_rfc2217_seq, 3);
+	    pos += 3;
+	}
+	if (allow_rfc1073) {
+	    memcpy(init_seq + pos, telnet_server_rfc1073_seq, 3);
+	    pos += 3;
+	}
     }
 
-    filter = gensio_telnet_filter_raw_alloc(o, is_client, allow_2217,
+    filter = gensio_telnet_filter_raw_alloc(o, is_client,
+					    allow_2217, allow_rfc1073,
 					    max_read_size, max_write_size,
 					    cbs, handler_data,
 					    telnet_cmds,
 					    init_seq, init_seq_len, rops);
 
     if (!filter)
-	return GE_NOMEM;
+	goto out_nomem;
 
     *rfilter = filter;
     return 0;
+
+ out_nomem:
+    if (init_seq)
+	o->free(o, init_seq);
+    if (telnet_cmds)
+	o->free(o, telnet_cmds);
+    return GE_NOMEM;
 }

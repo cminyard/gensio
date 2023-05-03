@@ -80,6 +80,9 @@ class HandleData:
         self.compared_oob = 0
         self.to_compare_oob = None
         self.to_waitfor = None
+        self.expecting_winsize = False
+        self.expected_winsize_height = -1
+        self.expected_winsize_width = -1
         self.expecting_modemstate = False
         self.expecting_linestate = False
         self.expecting_remclose = expect_remclose
@@ -357,6 +360,28 @@ class HandleData:
     def set_expected_modemstate(self, modemstate):
         self.expecting_modemstate = True
         self.expected_modemstate = modemstate
+        return
+
+    def win_size(self, io, height, width):
+        if (not self.expecting_winsize):
+            if (debug or self.debug):
+                print("Got unexpected window size for %s: %d %d" %
+                      (self.name, height, width))
+            return
+        if (height != self.expected_winsize_height or
+            width != self.expected_winsize_width):
+            raise HandlerException(
+                "%s: Expecting window size %d:%d, got %d:%d" %
+                (self.name, self.expected_winsize_height,
+                 self.expected_winsize_width, height, width))
+        self.expecting_winsize = False
+        self.waiter.wake()
+        return
+
+    def set_expected_win_size(self, height, width):
+        self.expecting_winsize = True
+        self.expected_winsize_height = height
+        self.expected_winsize_width = width
         return
 
     def linestate(self, io, linestate):
