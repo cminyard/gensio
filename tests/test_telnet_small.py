@@ -10,6 +10,7 @@ import gensio
 
 print("Test telnet small")
 TestAccept(o, "telnet,tcp,localhost,", "telnet(rfc2217=true),tcp,0",
-           do_small_test, chunksize = 64, is_sergensio = True)
+           do_small_test, chunksize = 64, is_sergensio = True,
+           enable_read_io1 = True)
 del o
 test_shutdown()

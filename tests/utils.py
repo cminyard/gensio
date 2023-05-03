@@ -766,7 +766,7 @@ class TestAccept:
                  expected_raddr = None, expected_acc_laddr = None,
                  chunksize = 10240, get_port = True, except_on_log = False,
                  is_sergensio = False, enable_oob = False, timeout = 0,
-                 close_timeout = 1000):
+                 close_timeout = 1000, enable_read_io1 = False):
         self.o = o
         self.io1 = None
         self.io2 = None
@@ -830,6 +830,10 @@ class TestAccept:
                 del io1.handler.io
                 del io1.handler
                 raise
+            if enable_read_io1:
+                # Some gensios, like telnet, need to have read enabled
+                # on the client for the accept to complete.
+                io1.read_cb_enable(True);
             if expected_raddr:
                 check_raddr(io1, self.name, expected_raddr)
             if (io1_dummy_write):
@@ -841,6 +845,8 @@ class TestAccept:
             if (self.wait_timeout(1000) == 0):
                 raise Exception(("%s: %s: " % ("test_accept", self.name)) +
                                 ("Timed out waiting for initial connection"))
+            if enable_read_io1:
+                io1.read_cb_enable(False);
             if (io1_dummy_write):
                 self.io2.handler.set_compare(io1_dummy_write)
                 if (self.io2.handler.wait_timeout(1000) == 0):
