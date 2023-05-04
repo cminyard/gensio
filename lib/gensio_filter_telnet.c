@@ -38,7 +38,7 @@ struct telnet_filter {
     unsigned char *telnet_init_seq;
     unsigned int telnet_init_seq_len;
 
-    bool allow_2217;
+    bool allow_rfc2217;
     bool rfc2217_set;
     bool allow_rfc1073;
     bool rfc1073_set;
@@ -149,7 +149,7 @@ telnet_ll_read_needed(struct gensio_filter *filter)
 {
     struct telnet_filter *tfilter = filter_to_telnet(filter);
 
-    return ((tfilter->allow_2217 && !tfilter->rfc2217_set) ||
+    return ((tfilter->allow_rfc2217 && !tfilter->rfc2217_set) ||
 	    (tfilter->allow_rfc1073 && !tfilter->rfc1073_set));
 }
 
@@ -477,7 +477,7 @@ telnet_setup(struct gensio_filter *filter)
     telnet_init(&tfilter->tn_data, tfilter, telnet_output_ready,
 		telnet_cmd_handler, cmds,
 		tfilter->telnet_init_seq, tfilter->telnet_init_seq_len);
-    tfilter->rfc2217_set = !tfilter->allow_2217;
+    tfilter->rfc2217_set = !tfilter->allow_rfc2217;
     tfilter->rfc1073_set = !tfilter->allow_rfc1073;
     if (!tfilter->rfc2217_set || !tfilter->rfc1073_set) {
 	tfilter->o->get_monotonic_time(tfilter->o,
@@ -691,7 +691,7 @@ const struct gensio_telnet_filter_rops telnet_filter_rops = {
 static struct gensio_filter *
 gensio_telnet_filter_raw_alloc(struct gensio_os_funcs *o,
 			       bool is_client,
-			       bool allow_2217, bool allow_rfc1073,
+			       bool allow_rfc2217, bool allow_rfc1073,
 			       gensiods max_read_size,
 			       gensiods max_write_size,
 			       const struct gensio_telnet_filter_callbacks *cbs,
@@ -709,7 +709,7 @@ gensio_telnet_filter_raw_alloc(struct gensio_os_funcs *o,
 
     tfilter->o = o;
     tfilter->is_client = is_client;
-    tfilter->allow_2217 = allow_2217;
+    tfilter->allow_rfc2217 = allow_rfc2217;
     tfilter->allow_rfc1073 = allow_rfc1073;
     tfilter->max_write_size = max_write_size;
     tfilter->max_read_size = max_read_size;
@@ -804,7 +804,7 @@ gensio_telnet_filter_alloc(struct gensio_pparm_info *p,
     unsigned int i;
     gensiods max_read_size = 4096; /* FIXME - magic number. */
     gensiods max_write_size = 4096; /* FIXME - magic number. */
-    bool allow_2217 = false;
+    bool allow_rfc2217 = false;
     bool allow_rfc1073 = false;
     bool is_client = default_is_client;
     struct telnet_cmd *telnet_cmds = NULL;
@@ -817,7 +817,7 @@ gensio_telnet_filter_alloc(struct gensio_pparm_info *p,
 			    GENSIO_DEFAULT_BOOL, NULL, &ival);
     if (rv)
 	return rv;
-    allow_2217 = ival;
+    allow_rfc2217 = ival;
 
     rv = gensio_get_default(o, "telnet", "winsize", false,
 			    GENSIO_DEFAULT_BOOL, NULL, &ival);
@@ -845,7 +845,7 @@ gensio_telnet_filter_alloc(struct gensio_pparm_info *p,
     }
 
     for (i = 0; args && args[i]; i++) {
-	if (gensio_pparm_bool(p, args[i], "rfc2217", &allow_2217) > 0)
+	if (gensio_pparm_bool(p, args[i], "rfc2217", &allow_rfc2217) > 0)
 	    continue;
 	if (gensio_pparm_bool(p, args[i], "winsize", &allow_rfc1073) > 0)
 	    continue;
@@ -867,7 +867,7 @@ gensio_telnet_filter_alloc(struct gensio_pparm_info *p,
 	memcpy(telnet_cmds, telnet_client_cmds, sizeof(telnet_client_cmds));
 
 	init_seq_len = 0;
-	if (allow_2217) {
+	if (allow_rfc2217) {
 	    telnet_cmds[CLIENT_COM_PORT_POS].i_will = 1;
 	    telnet_cmds[CLIENT_COM_PORT_POS].sent_will = 1;
 	    telnet_cmds[CLIENT_COM_PORT_POS].option_handler = com_port_handler;
@@ -887,7 +887,7 @@ gensio_telnet_filter_alloc(struct gensio_pparm_info *p,
 	    if (!init_seq)
 		goto out_nomem;
 	    pos = 0;
-	    if (allow_2217) {
+	    if (allow_rfc2217) {
 		memcpy(init_seq + pos, telnet_client_rfc2217_seq, 3);
 		pos += 3;
 	    }
@@ -903,7 +903,7 @@ gensio_telnet_filter_alloc(struct gensio_pparm_info *p,
 	memcpy(telnet_cmds, telnet_server_cmds, sizeof(telnet_server_cmds));
 
 	init_seq_len = sizeof(telnet_server_init_seq);
-	if (allow_2217) {
+	if (allow_rfc2217) {
 	    telnet_cmds[SERV_COM_PORT_POS].option_handler = com_port_handler;
 	    telnet_cmds[SERV_COM_PORT_POS].will_do_handler = com_port_will_do;
 	    init_seq_len += 3;
@@ -920,7 +920,7 @@ gensio_telnet_filter_alloc(struct gensio_pparm_info *p,
 	memcpy(init_seq + pos, telnet_server_init_seq,
 	       sizeof(telnet_server_init_seq));
 	pos += sizeof(telnet_server_init_seq);
-	if (allow_2217) {
+	if (allow_rfc2217) {
 	    memcpy(init_seq + pos, telnet_server_rfc2217_seq, 3);
 	    pos += 3;
 	}
@@ -931,7 +931,7 @@ gensio_telnet_filter_alloc(struct gensio_pparm_info *p,
     }
 
     filter = gensio_telnet_filter_raw_alloc(o, is_client,
-					    allow_2217, allow_rfc1073,
+					    allow_rfc2217, allow_rfc1073,
 					    max_read_size, max_write_size,
 					    cbs, handler_data,
 					    telnet_cmds,

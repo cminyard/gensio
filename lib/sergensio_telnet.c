@@ -43,8 +43,8 @@ struct stel_data {
     const struct gensio_telnet_filter_rops *rops;
     struct gensio_lock *lock;
 
-    bool allow_2217;
-    bool do_2217;
+    bool allow_rfc2217;
+    bool do_rfc2217;
     bool allow_rfc1073;
     bool do_rfc1073;
     bool cisco_baud;
@@ -131,7 +131,7 @@ stel_queue(struct stel_data *sdata, int option,
     struct stel_req *curr, *req;
     gensio_time timeout;
 
-    if (!sdata->do_2217)
+    if (!sdata->do_rfc2217)
 	return GE_NOTSUP;
 
     req = sdata->o->zalloc(sdata->o, sizeof(*req));
@@ -482,11 +482,11 @@ stelc_com_port_will_do(void *handler_data, unsigned char cmd)
 
     if (cmd == TN_DONT)
 	/* The remote end turned off RFC2217 handling. */
-	sdata->do_2217 = false;
+	sdata->do_rfc2217 = false;
     else
-	sdata->do_2217 = sdata->allow_2217;
+	sdata->do_rfc2217 = sdata->allow_rfc2217;
 
-    return sdata->do_2217;
+    return sdata->do_rfc2217;
 }
 
 static void
@@ -717,11 +717,11 @@ stels_cb_com_port_will_do(void *handler_data, unsigned char cmd)
     stel_lock(sdata);
     if (cmd == TN_WONT)
 	/* The remote end turned off RFC2217 handling. */
-	sdata->do_2217 = false;
+	sdata->do_rfc2217 = false;
     else
-	sdata->do_2217 = sdata->allow_2217;
+	sdata->do_rfc2217 = sdata->allow_rfc2217;
 
-    if (!sdata->reported_modemstate && sdata->do_2217) {
+    if (!sdata->reported_modemstate && sdata->do_rfc2217) {
 	struct gensio *io = sdata->io;
 
 	if (gensio_get_cb(io)) {
@@ -742,7 +742,7 @@ stels_cb_com_port_will_do(void *handler_data, unsigned char cmd)
     }
     stel_unlock(sdata);
 
-    return sdata->do_2217;
+    return sdata->do_rfc2217;
 }
 
 static void
@@ -943,7 +943,7 @@ stels_timeout(void *handler_data)
     struct stel_data *sdata = handler_data;
 
     stel_lock(sdata);
-    if (!sdata->reported_modemstate && sdata->do_2217) {
+    if (!sdata->reported_modemstate && sdata->do_rfc2217) {
 	struct gensio *io = sdata->io;
 	int val = 255;
 	gensiods vlen = sizeof(val);
@@ -981,7 +981,7 @@ stel_setup(struct gensio_pparm_info *p,
 {
     struct stel_data *sdata;
     unsigned int i;
-    bool allow_2217 = false;
+    bool allow_rfc2217 = false;
     bool allow_rfc1073 = false;
     bool is_client = default_is_client;
     int err;
@@ -991,7 +991,7 @@ stel_setup(struct gensio_pparm_info *p,
 			    GENSIO_DEFAULT_BOOL, NULL, &ival);
     if (rv)
 	return rv;
-    allow_2217 = ival;
+    allow_rfc2217 = ival;
 
     rv = gensio_get_default(o, "telnet", "winsize", false,
 			    GENSIO_DEFAULT_BOOL, NULL, &ival);
@@ -1000,7 +1000,7 @@ stel_setup(struct gensio_pparm_info *p,
     allow_rfc1073 = ival;
 
     for (i = 0; args && args[i]; i++) {
-	if (gensio_pparm_bool(p, args[i], "rfc2217", &allow_2217) > 0)
+	if (gensio_pparm_bool(p, args[i], "rfc2217", &allow_rfc2217) > 0)
 	    continue;
 	if (gensio_pparm_bool(p, args[i], "winsize", &allow_rfc1073) > 0)
 	    continue;
@@ -1017,7 +1017,7 @@ stel_setup(struct gensio_pparm_info *p,
 	return GE_NOMEM;
 
     sdata->o = o;
-    sdata->allow_2217 = allow_2217;
+    sdata->allow_rfc2217 = allow_rfc2217;
     sdata->allow_rfc1073 = allow_rfc1073;
     sdata->is_client = is_client;
 
@@ -1079,7 +1079,7 @@ telnet_gensio_alloc(struct gensio *child, const char * const args[],
 
     sdata->io = io;
 
-    if (sdata->allow_2217) {
+    if (sdata->allow_rfc2217) {
 	err = sergensio_addclass(o, io, sergensio_stel_func, sdata,
 				 &sdata->sio);
 	if (err)
@@ -1139,7 +1139,7 @@ struct stela_data {
     gensio_accepter_event cb;
     void *user_data;
 
-    bool allow_2217;
+    bool allow_rfc2217;
     bool allow_rfc1073;
     bool is_client;
 };
@@ -1163,7 +1163,7 @@ stela_alloc_gensio(void *acc_data, const char * const *iargs,
     const char *args[6] = { NULL, NULL, NULL, NULL, NULL, NULL };
     char buf1[50], buf2[50];
     unsigned int i;
-    bool allow_2217 = stela->allow_2217;
+    bool allow_rfc2217 = stela->allow_rfc2217;
     bool allow_rfc1073 = stela->allow_rfc1073;
     gensiods max_write_size = stela->max_write_size;
     gensiods max_read_size = stela->max_read_size;
@@ -1172,7 +1172,7 @@ stela_alloc_gensio(void *acc_data, const char * const *iargs,
 			      stela->user_data);
 
     for (i = 0; iargs && iargs[i]; i++) {
-	if (gensio_pparm_bool(&p, iargs[i], "rfc2217", &allow_2217) > 0)
+	if (gensio_pparm_bool(&p, iargs[i], "rfc2217", &allow_rfc2217) > 0)
 	    continue;
 	if (gensio_pparm_bool(&p, iargs[i], "winsize", &allow_rfc1073) > 0)
 	    continue;
@@ -1188,7 +1188,7 @@ stela_alloc_gensio(void *acc_data, const char * const *iargs,
     }
 
     i = 0;
-    if (allow_2217)
+    if (allow_rfc2217)
 	args[i++] = "rfc2217=true";
     if (allow_rfc1073)
 	args[i++] = "winsize=true";
@@ -1221,7 +1221,7 @@ stela_new_child(void *acc_data, void **finish_data,
     GENSIO_DECLARE_PPACCEPTER(p, stela->o, stela->cb, "telnet",
 			      stela->user_data);
 
-    snprintf(arg1, sizeof(arg1), "rfc2217=%d", stela->allow_2217);
+    snprintf(arg1, sizeof(arg1), "rfc2217=%d", stela->allow_rfc2217);
     snprintf(arg2, sizeof(arg2), "winsize=%d", stela->allow_rfc1073);
     snprintf(arg3, sizeof(arg3), "writebuf=%lu",
 	     (unsigned long) stela->max_write_size);
@@ -1249,7 +1249,7 @@ stela_finish_parent(void *acc_data, void *finish_data, struct gensio *io,
 
     sdata->io = io;
 
-    if (sdata->allow_2217) {
+    if (sdata->allow_rfc2217) {
 	err = sergensio_addclass(sdata->o, io, sergensio_stel_func, sdata,
 				 &sdata->sio);
 	if (err)
@@ -1304,7 +1304,7 @@ telnet_gensio_accepter_alloc(struct gensio_accepter *child,
     unsigned int i;
     gensiods max_read_size = GENSIO_DEFAULT_BUF_SIZE;
     gensiods max_write_size = GENSIO_DEFAULT_BUF_SIZE;
-    bool allow_2217 = false;
+    bool allow_rfc2217 = false;
     bool allow_rfc1073 = false;
     bool is_client = false;
     struct gensio_accepter *accepter = NULL;
@@ -1315,7 +1315,7 @@ telnet_gensio_accepter_alloc(struct gensio_accepter *child,
 			    GENSIO_DEFAULT_BOOL, NULL, &ival);
     if (rv)
 	return rv;
-    allow_2217 = ival;
+    allow_rfc2217 = ival;
 
     rv = gensio_get_default(o, "telnet", "winsize", false,
 			    GENSIO_DEFAULT_BOOL, NULL, &ival);
@@ -1324,7 +1324,7 @@ telnet_gensio_accepter_alloc(struct gensio_accepter *child,
     allow_rfc1073 = ival;
 
     for (i = 0; args && args[i]; i++) {
-	if (gensio_pparm_bool(&p, args[i], "rfc2217", &allow_2217) > 0)
+	if (gensio_pparm_bool(&p, args[i], "rfc2217", &allow_rfc2217) > 0)
 	    continue;
 	if (gensio_pparm_bool(&p, args[i], "winsize", &allow_rfc1073) > 0)
 	    continue;
@@ -1348,7 +1348,7 @@ telnet_gensio_accepter_alloc(struct gensio_accepter *child,
     stela->user_data = user_data;
     stela->max_write_size = max_write_size;
     stela->max_read_size = max_read_size;
-    stela->allow_2217 = allow_2217;
+    stela->allow_rfc2217 = allow_rfc2217;
     stela->allow_rfc1073 = allow_rfc1073;
     stela->is_client = is_client;
 
@@ -1359,7 +1359,7 @@ telnet_gensio_accepter_alloc(struct gensio_accepter *child,
     if (err)
 	goto out_err;
 
-    if (allow_2217) {
+    if (allow_rfc2217) {
 	err = sergensio_acc_addclass(o, accepter, sergensio_stela_func, stela,
 				     &stela->sacc);
 	if (err)
