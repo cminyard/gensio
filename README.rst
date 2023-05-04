@@ -79,10 +79,10 @@ On Redhat, libwrap is gone, so you won't be using that, and swig doesn't appear
 to be available, so you will have to built that yourself with at least go and
 python support.  Here's the command for Redhat-like systems:
 
-  sudo yum install gcc g++ git python3-devel swig openssl-devel \
+  sudo yum install gcc gcc-c++ git python3-devel swig openssl-devel \
     pkg-config avahi-devel libtool autoconf automake make \
     lksctp-tools-devel pam-devel glib2-devel tcl-devel \
-    alsa-lib-devel udev-dev
+    alsa-lib-devel systemd-devel
 
 You might have to do the following to enable access to the development
 packages:
