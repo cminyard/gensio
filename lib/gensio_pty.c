@@ -575,7 +575,7 @@ pty_control(void *handler_data, struct gensio_iod *iod, bool get,
 	return 0;
 
     case GENSIO_CONTROL_WIN_SIZE: {
-	struct gensio_winsize ws;
+	struct gensio_winsize ws = {0, 0, 0, 0};
 	int c;
 
 	if (get)
