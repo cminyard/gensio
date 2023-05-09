@@ -342,6 +342,18 @@ io_event(struct gensio *io, void *user_data, int event, int err,
 	gensio_os_funcs_unlock(o, rioinfo->lock);
 	return 0;
 
+    case GENSIO_EVENT_SEND_BREAK:
+	gensio_control(ioinfo->otherio->io, GENSIO_CONTROL_DEPTH_FIRST,
+		       GENSIO_CONTROL_SET, GENSIO_CONTROL_SEND_BREAK,
+		       NULL, NULL);
+	return 0;
+
+    case GENSIO_EVENT_WIN_SIZE:
+	gensio_control(ioinfo->otherio->io, GENSIO_CONTROL_DEPTH_FIRST,
+		       GENSIO_CONTROL_SET, GENSIO_CONTROL_WIN_SIZE,
+		       (char *) buf, 0);
+	return 0;
+
     default:
 	break;
     }
