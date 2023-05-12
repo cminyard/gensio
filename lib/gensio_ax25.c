@@ -1174,6 +1174,17 @@ ax25_base_set_state(struct ax25_base *base, enum ax25_base_state state)
 #define ax25_base_add_other(base, type, other, line)
 #endif
 
+/*
+ * Sequence number and window handling.  When dealing with sequence number, the
+ * window is either 8 or 128 depending on if we are in extended mode.
+ *
+ * This also used for calculations dealing with the circular queue, where
+ * window is the queue size.
+ */
+
+/*
+ * Return the value of val1 - val2, wrapping around at window.
+ */
 static uint8_t
 sub_seq(uint8_t val1, uint8_t val2, uint8_t window)
 {
@@ -1182,6 +1193,9 @@ sub_seq(uint8_t val1, uint8_t val2, uint8_t window)
     return val1 - val2;
 }
 
+/*
+ * Add amt to the given value, wrapping around at window.
+ */
 static uint8_t
 add_seq(uint8_t val, uint8_t amt, uint8_t window)
 {
@@ -1192,7 +1206,10 @@ add_seq(uint8_t val, uint8_t amt, uint8_t window)
     return rv;
 }
 
-/* Return true if start <= val < end, false if not. */
+/*
+ * Return true if start <= val < end, false if not, taking into account
+ * wrapping at the given window.
+ */
 static bool
 seq_in_range(uint8_t start, uint8_t end, uint8_t val, uint8_t window)
 {
