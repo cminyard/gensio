@@ -1265,19 +1265,6 @@ afskmdm_convolve(struct afskmdm_filter *sfilter, float *convdata,
 }
 
 static void
-afskmdm_handle_new_byte(struct afskmdm_filter *sfilter, unsigned int msgn,
-			struct wmsg *w)
-{
-    if (sfilter->debug & 2)
-	printf("BYTE(%d): %2.2x\n", msgn, w->curr_byte);
-    if (w->read_data_len < sfilter->max_read_size)
-	w->read_data[w->read_data_len] = w->curr_byte;
-    w->curr_byte = 0;
-    w->curr_bit_pos = 0;
-    w->read_data_len++;
-}
-
-static void
 afskmdm_drop_wmsg(struct afskmdm_filter *sfilter, unsigned int wset,
 		  unsigned int msgn, struct wmsg *w, bool at_flag)
 {
@@ -1309,6 +1296,23 @@ afskmdm_drop_wmsg(struct afskmdm_filter *sfilter, unsigned int wset,
 	ws->curr_wmsgs--;
 	w->in_use = false;
     }
+}
+
+static void
+afskmdm_handle_new_byte(struct afskmdm_filter *sfilter,
+			unsigned int wset, unsigned int msgn,
+			struct wmsg *w)
+{
+    if (sfilter->debug & 2)
+	printf("BYTE(%d): %2.2x\n", msgn, w->curr_byte);
+    if (w->read_data_len >= sfilter->max_read_size) {
+	afskmdm_drop_wmsg(sfilter, wset, msgn, w, false);
+	return;
+    }
+    w->read_data[w->read_data_len] = w->curr_byte;
+    w->curr_byte = 0;
+    w->curr_bit_pos = 0;
+    w->read_data_len++;
 }
 
 static void
@@ -1372,8 +1376,7 @@ afskmdm_handle_new_message(struct afskmdm_filter *sfilter, unsigned int pos,
 			  false);
     }
 
-    if (w->read_data_len <= sfilter->max_read_size &&
-		sfilter->deliver_data_len == 0) {
+    if (sfilter->deliver_data_len == 0) {
 	unsigned char *tmp;
 
 	tmp = w->read_data;
@@ -1544,7 +1547,7 @@ afskmdm_process_bit(struct afskmdm_filter *sfilter, unsigned int pos,
 
 	w->curr_byte |= bit << w->curr_bit_pos;
 	if (w->curr_bit_pos == 7)
-	    afskmdm_handle_new_byte(sfilter, msgn, w);
+	    afskmdm_handle_new_byte(sfilter, wset, msgn, w);
 	else
 	    w->curr_bit_pos++;
 	break;
