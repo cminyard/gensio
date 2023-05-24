@@ -55,7 +55,7 @@ namespace gensios {
 
 		    if (event == GENSIO_EVENT_SER_SIGNATURE) {
 			std::vector<unsigned char> sig(buf, buf + *buflen);
-			scb->signature(sig);
+			scb->signature(std::move(sig));
 			return 0;
 		    }
 
@@ -160,7 +160,7 @@ namespace gensios {
 
 		case GENSIO_EVENT_PASSWORD_VERIFY: {
 		    std::string pwstr((char *) buf);
-		    return cb->password_verify(pwstr);
+		    return cb->password_verify(std::move(pwstr));
 		}
 
 		case GENSIO_EVENT_REQUEST_PASSWORD: {
@@ -179,7 +179,7 @@ namespace gensios {
 
 		case GENSIO_EVENT_2FA_VERIFY: {
 		    std::vector<unsigned char> val(buf, buf + *buflen);
-		    return cb->verify_2fa(val);
+		    return cb->verify_2fa(std::move(val));
 		}
 
 		case GENSIO_EVENT_REQUEST_2FA: {
@@ -814,7 +814,7 @@ namespace gensios {
 	Serial_Op_Sig_Done *done = static_cast<Serial_Op_Sig_Done *>(cb_data);
 	std::vector<unsigned char> sigv(sig, sig + len);
 
-	done->serial_op_sig_done(err, sigv);
+	done->serial_op_sig_done(err, std::move(sigv));
     }
 
     void Serial_Gensio::signature(const std::vector<unsigned char> sig,
@@ -1131,7 +1131,7 @@ namespace gensios {
 			(struct gensio_acc_password_verify_data *) data;
 		    std::string pwstr((char *) p->password);
 		    Gensio g(p->io, a->get_os_funcs());
-		    return cb->password_verify(&g, pwstr);
+		    return cb->password_verify(&g, std::move(pwstr));
 		}
 
 		case GENSIO_ACC_EVENT_REQUEST_PASSWORD: {
@@ -1157,7 +1157,7 @@ namespace gensios {
 		    std::vector<unsigned char> val(p->password,
 					p->password + p->password_len);
 		    Gensio g(p->io, a->get_os_funcs());
-		    return cb->verify_2fa(&g, val);
+		    return cb->verify_2fa(&g, std::move(val));
 		}
 
 		case GENSIO_ACC_EVENT_REQUEST_2FA: {

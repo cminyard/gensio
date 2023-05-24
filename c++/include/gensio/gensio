@@ -366,10 +366,10 @@ namespace gensios {
     class GENSIOCPP_DLL_PUBLIC GensioW {
     public:
 	GensioW(std::string str, Os_Funcs &o, Event *cb = NULL) {
-	    io = gensio_alloc(str, o, cb);
+	    io = gensio_alloc(std::move(str), o, cb);
 	}
 	GensioW(Gensio *child, std::string str, Os_Funcs &o, Event *cb = NULL) {
-	    io = gensio_alloc(child, str, o, cb);
+	    io = gensio_alloc(child, std::move(str), o, cb);
 	}
 	// Take over an existing gensio.
 	GensioW(Gensio *iio): io(iio) { }
@@ -780,11 +780,11 @@ namespace gensios {
     class GENSIOCPP_DLL_PUBLIC AccepterW {
     public:
 	AccepterW(std::string str, Os_Funcs &o, Accepter_Event *cb = NULL) {
-	    acc = gensio_acc_alloc(str, o, cb);
+	    acc = gensio_acc_alloc(std::move(str), o, cb);
 	}
 	AccepterW(Accepter *child, std::string str, Os_Funcs &o,
 		  Accepter_Event *cb = NULL) {
-	    acc = gensio_acc_alloc(child, str, o, cb);
+	    acc = gensio_acc_alloc(child, std::move(str), o, cb);
 	}
 	// Take over an existing accepter.
 	AccepterW(Accepter *iacc): acc(iacc) { }

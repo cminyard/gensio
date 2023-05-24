@@ -966,7 +966,7 @@ static bool check_for_err(int err)
 gensios::Gensio *gensio_alloct(std::string str, gensios::Os_Funcs &o,
 			       gensios::Event *cb)
 {
-    Gensio *g = gensio_alloc(str, o, cb);
+    Gensio *g = gensio_alloc(std::move(str), o, cb);
 
     if (cb) {
 	Swig::Director *d = dynamic_cast<Swig::Director *>(cb);
@@ -981,7 +981,7 @@ gensios::Gensio *gensio_alloct(std::string str, gensios::Os_Funcs &o,
 gensios::Gensio *gensio_alloct(gensios::Gensio *child, std::string str,
 			      gensios::Os_Funcs &o, gensios::Event *cb)
 {
-    Gensio *g = gensio_alloc(child, str, o, cb);
+    Gensio *g = gensio_alloc(child, std::move(str), o, cb);
 
     if (cb) {
 	Swig::Director *d = dynamic_cast<Swig::Director *>(cb);
@@ -1272,7 +1272,7 @@ gensios::Accepter *
 gensio_acc_alloct(std::string str, gensios::Os_Funcs &o,
 		 gensios::Accepter_Event *cb)
 {
-    Accepter *a = gensio_acc_alloc(str, o, cb);
+    Accepter *a = gensio_acc_alloc(std::move(str), o, cb);
 
     if (cb) {
 	Swig::Director *d = dynamic_cast<Swig::Director *>(cb);
@@ -1289,7 +1289,7 @@ gensios::Accepter *
 gensio_acc_alloct(gensios::Accepter *child, std::string str, gensios::Os_Funcs &o,
 		  gensios::Accepter_Event *cb)
 {
-    Accepter *a = gensio_acc_alloc(child, str, o, cb);
+    Accepter *a = gensio_acc_alloc(child, std::move(str), o, cb);
 
     if (cb) {
 	Swig::Director *d = dynamic_cast<Swig::Director *>(cb);
@@ -1350,7 +1350,7 @@ gensio_acc_alloct(gensios::Accepter *child, std::string str, gensios::Os_Funcs &
     %newobject str_to_gensio;
     Gensio *str_to_gensio(std::string str, Event *cb)
     {
-	Gensio *g = self->str_to_gensio(str, cb);
+	Gensio *g = self->str_to_gensio(std::move(str), cb);
 
 	if (cb) {
 	    Swig::Director *d = dynamic_cast<Swig::Director *>(cb);
