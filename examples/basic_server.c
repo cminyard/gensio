@@ -155,11 +155,11 @@ handle_buf(struct ioinfo *ii)
 	ii->close_on_write = true;
     } else if (strcmp(ii->inbuf, "shutdown") == 0) {
 	struct accinfo *ai = ii->ai;
-	struct gensio_link *l;
+	struct gensio_link *l, *l2;
 
 	add_output_buf(ii, "adieu pour toujours\n");
 	ai->shutting_down = true;
-	gensio_list_for_each(&ai->ios, l) {
+	gensio_list_for_each_safe(&ai->ios, l, l2) {
 	    struct ioinfo *wii = gensio_container_of(l, struct ioinfo, link);
 
 	    if (wii == ii) /* Close on the final write. */
