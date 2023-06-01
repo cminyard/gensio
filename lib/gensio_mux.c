@@ -1386,6 +1386,7 @@ mux_new_channel(struct mux_data *muxdata, gensio_event cb, void *user_data,
 	goto out_free;
     gensio_set_is_packet(chan->io, true);
     gensio_set_is_reliable(chan->io, true);
+    gensio_set_is_mux(chan->io, true);
     if (gensio_is_authenticated(muxdata->child))
 	gensio_set_is_authenticated(chan->io, true);
     if (gensio_is_encrypted(muxdata->child))
@@ -2827,6 +2828,7 @@ mux_gensio_alloc(struct gensio *child, const char *const args[],
     io = mux_chan0(muxdata)->io;
     gensio_set_is_packet(io, true);
     gensio_set_is_reliable(io, true);
+    gensio_set_is_mux(io, true);
     if (gensio_is_encrypted(child))
 	gensio_set_is_encrypted(io, true);
 
@@ -2979,6 +2981,7 @@ mux_gensio_accepter_alloc(struct gensio_accepter *child,
 	goto out_err;
     gensio_acc_set_is_packet(nadata->acc, true);
     gensio_acc_set_is_reliable(nadata->acc, true);
+    gensio_acc_set_is_mux(nadata->acc, true);
     *accepter = nadata->acc;
 
     return 0;

@@ -132,6 +132,8 @@ void gensio_set_is_encrypted(struct gensio *io, bool is_encrypted);
 GENSIO_DLL_PUBLIC
 void gensio_set_is_message(struct gensio *io, bool is_message);
 GENSIO_DLL_PUBLIC
+void gensio_set_is_mux(struct gensio *io, bool is_mux);
+GENSIO_DLL_PUBLIC
 void gensio_set_attr_from_child(struct gensio *io, struct gensio *child);
 GENSIO_DLL_PUBLIC
 gensio_event gensio_get_cb(struct gensio *io);
@@ -248,6 +250,8 @@ GENSIO_DLL_PUBLIC
 void gensio_acc_set_is_reliable(struct gensio_accepter *io, bool is_reliable);
 GENSIO_DLL_PUBLIC
 void gensio_acc_set_is_message(struct gensio_accepter *io, bool is_message);
+GENSIO_DLL_PUBLIC
+void gensio_acc_set_is_mux(struct gensio_accepter *io, bool is_mux);
 
 GENSIO_DLL_PUBLIC
 void gensio_acc_vlog(struct gensio_accepter *acc, enum gensio_log_levels level,

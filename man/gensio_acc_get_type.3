@@ -1,7 +1,7 @@
 .TH gensio_acc_get_type 3 "27 Feb 2019"
 .SH NAME
 gensio_acc_get_type, gensio_acc_is_reliable, gensio_acc_is_packet,
-gensi_acc_is_message
+gensio_acc_is_message, gensio_acc_is_mux
 \- Return general information about a gensio accepter
 .SH SYNOPSIS
 .B #include <gensio/gensio.h>
@@ -13,6 +13,8 @@ gensi_acc_is_message
 .B bool gensio_acc_is_reliable(struct gensio *io);
 .TP 20
 .B bool gensio_acc_is_packet(struct gensio *io);
+.TP 20
+.B bool gensio_acc_is_mux(struct gensio *io);
 .SH "DESCRIPTION"
 .B gensio_acc_get_type
 return the type string for the gensio accepter (if
@@ -32,6 +34,10 @@ gensio_is_packet(3) for details.
 .B gensio_acc_is_message
 returns if the genios produce by this accepter are message-oriented.  See
 gensio_is_message(3) for details.
+
+.B gensio_acc_is_mux
+returns if the genios produced by this accepter are capable of
+multiplexing.  See gensio_is_mux(3) for details.
 
 .SH "SEE ALSO"
 gensio_err(3), gensio(5), gensio_get_type(3), gensio_is_reliable(3),

@@ -1249,6 +1249,8 @@ stdio_gensio_alloc(const void *gdata, const char * const args[],
 	goto out_nomem;
     gensio_set_is_client(nadata->io.io, true);
     gensio_set_is_reliable(nadata->io.io, true);
+    if (!nadata->noredir_stderr)
+	gensio_set_is_mux(nadata->io.io, true); /* stderr is a mux channel. */
 
     *new_gensio = nadata->io.io;
 

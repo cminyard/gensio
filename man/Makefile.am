@@ -77,6 +77,7 @@ install-data-hook:
 	$(LN_SF) gensio_get_type.3 $(DESTDIR)$(man3dir)/gensio_is_message.3
 	$(LN_SF) gensio_get_type.3 $(DESTDIR)$(man3dir)/gensio_is_authenticated.3
 	$(LN_SF) gensio_get_type.3 $(DESTDIR)$(man3dir)/gensio_is_encrypted.3
+	$(LN_SF) gensio_get_type.3 $(DESTDIR)$(man3dir)/gensio_is_mux.3
 	$(LN_SF) gensio_set_sync.3 $(DESTDIR)$(man3dir)/gensio_clear_sync.3
 	$(LN_SF) gensio_set_sync.3 $(DESTDIR)$(man3dir)/gensio_read_s.3
 	$(LN_SF) gensio_set_sync.3 $(DESTDIR)$(man3dir)/gensio_write_s.3
@@ -93,6 +94,7 @@ install-data-hook:
 	$(LN_SF) gensio_acc_get_type.3 $(DESTDIR)$(man3dir)/gensio_acc_is_reliable.3
 	$(LN_SF) gensio_acc_get_type.3 $(DESTDIR)$(man3dir)/gensio_acc_is_packet.3
 	$(LN_SF) gensio_acc_get_type.3 $(DESTDIR)$(man3dir)/gensio_acc_is_message.3
+	$(LN_SF) gensio_acc_get_type.3 $(DESTDIR)$(man3dir)/gensio_acc_is_mux.3
 	$(LN_SF) gensio_add_default.3 $(DESTDIR)$(man3dir)/gensio_set_default.3
 	$(LN_SF) gensio_add_default.3 $(DESTDIR)$(man3dir)/gensio_get_default.3
 	$(LN_SF) gensio_add_default.3 $(DESTDIR)$(man3dir)/gensio_get_defaultaddr.3
@@ -176,6 +178,7 @@ uninstall-hook:
 	$(RM_F) $(DESTDIR)$(man3dir)/gensio_is_message.3
 	$(RM_F) $(DESTDIR)$(man3dir)/gensio_is_authenticated.3
 	$(RM_F) $(DESTDIR)$(man3dir)/gensio_is_encrypted.3
+	$(RM_F) $(DESTDIR)$(man3dir)/gensio_is_mux.3
 	$(RM_F) $(DESTDIR)$(man3dir)/gensio_clear_sync.3
 	$(RM_F) $(DESTDIR)$(man3dir)/gensio_read_s.3
 	$(RM_F) $(DESTDIR)$(man3dir)/gensio_write_s.3
@@ -192,6 +195,7 @@ uninstall-hook:
 	$(RM_F) $(DESTDIR)$(man3dir)/gensio_acc_is_reliable.3
 	$(RM_F) $(DESTDIR)$(man3dir)/gensio_acc_is_packet.3
 	$(RM_F) $(DESTDIR)$(man3dir)/gensio_acc_is_message.3
+	$(RM_F) $(DESTDIR)$(man3dir)/gensio_acc_is_mux.3
 	$(RM_F) $(DESTDIR)$(man3dir)/gensio_set_default.3
 	$(RM_F) $(DESTDIR)$(man3dir)/gensio_get_default.3
 	$(RM_F) $(DESTDIR)$(man3dir)/gensio_get_defaultaddr.3

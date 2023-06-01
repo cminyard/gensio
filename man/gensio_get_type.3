@@ -2,7 +2,7 @@
 .SH NAME
 gensio_get_type, gensio_get_child, gensio_is_client, gensio_is_reliable,
 gensio_is_packet, gensio_is_authenticated, gensio_is_encrypted,
-gensio_is_message
+gensio_is_message, gensio_is_mux
 \- Return general information about a gensio
 .SH SYNOPSIS
 .B #include <gensio/gensio.h>
@@ -26,6 +26,8 @@ gensio_is_message
 .B bool gensio_is_encrypted(struct gensio *io);
 .TP 20
 .B bool gensio_is_message(struct gensio *io);
+.TP 20
+.B bool gensio_is_mux(struct gensio *io);
 .SH "DESCRIPTION"
 .B gensio_get_type
 return the type string for the gensio (if
@@ -69,6 +71,10 @@ returns if the genio is message-oriented.  In a message-oriented
 genio, a write can explicitly mark message boundaries, these are
 delivered to the reader with those boundaries set.  See gensio(5) for
 details on how this works.
+
+.B gensio_is_mux
+return true if the genio is capable of multiplexing, meaning that it
+accepts an gensio_alloc_channel() call.
 
 Note that for the "gensio_is_xxx" type of requests, the properly is
 usually inherited from the child.  So if you run a telnet gensio on

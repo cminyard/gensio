@@ -281,6 +281,7 @@ namespace gensios {
 		{ return gensio_is_authenticated(io); }
 	inline bool is_encrypted() const { return gensio_is_encrypted(io); }
 	inline bool is_message() const { return gensio_is_message(io); }
+	inline bool is_mux() const { return gensio_is_mux(io); }
 
 	virtual bool is_serial() { return false; }
 
@@ -727,6 +728,7 @@ namespace gensios {
 	inline bool is_reliable() const { return gensio_acc_is_reliable(acc); }
 	inline bool is_packet() const { return gensio_acc_is_packet(acc); }
 	inline bool is_message() const { return gensio_acc_is_message(acc); }
+	inline bool is_mux() const { return gensio_acc_is_mux(acc); }
 
 	// Return the local side port for the accepter.  This is
 	// useful if you create a gensio with the port set to zero,

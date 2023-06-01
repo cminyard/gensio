@@ -202,6 +202,8 @@ GENSIO_DLL_PUBLIC
 bool gensio_is_encrypted(struct gensio *io);
 GENSIO_DLL_PUBLIC
 bool gensio_is_message(struct gensio *io);
+GENSIO_DLL_PUBLIC
+bool gensio_is_mux(struct gensio *io);
 
 GENSIO_DLL_PUBLIC
 int gensio_set_sync(struct gensio *io);
@@ -393,6 +395,8 @@ GENSIO_DLL_PUBLIC
 bool gensio_acc_is_packet(struct gensio_accepter *accepter);
 GENSIO_DLL_PUBLIC
 bool gensio_acc_is_message(struct gensio_accepter *accepter);
+GENSIO_DLL_PUBLIC
+bool gensio_acc_is_mux(struct gensio_accepter *accepter);
 
 /*
  * This is data for frameworks that sit on top of gensio, added to do

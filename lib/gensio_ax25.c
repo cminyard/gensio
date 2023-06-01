@@ -4831,6 +4831,7 @@ ax25_chan_alloc(struct ax25_base *base, const char *const args[],
 
     gensio_set_is_packet(chan->io, true);
     gensio_set_is_reliable(chan->io, true);
+    gensio_set_is_mux(chan->io, true);
     if (gensio_is_authenticated(base->child))
 	gensio_set_is_authenticated(chan->io, true);
     if (gensio_is_encrypted(base->child))
@@ -5088,6 +5089,7 @@ ax25_gensio_accepter_alloc(struct gensio_accepter *child,
 	goto out_err;
     gensio_acc_set_is_packet(adata->acc, true);
     gensio_acc_set_is_reliable(adata->acc, true);
+    gensio_acc_set_is_mux(adata->acc, true);
     *accepter = adata->acc;
 
     return 0;
