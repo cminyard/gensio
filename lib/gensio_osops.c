@@ -2444,10 +2444,10 @@ set_flowcontrol(int fd, bool val)
     return ioctl(fd, TCXONC, val ? TCOOFF : TCOON);
 }
 
-static void
+static int
 do_break(int fd)
 {
-    ioctl(fd, TCSBRK, 0);
+    return ioctl(fd, TCSBRK, 0);
 }
 #else
 
@@ -2475,10 +2475,10 @@ set_flowcontrol(int fd, bool val)
     return tcflow(fd, val ? TCOOFF : TCOON);
 }
 
-static void
+static int
 do_break(int fd)
 {
-    tcsendbreak(fd, 0);
+    return tcsendbreak(fd, 0);
 }
 #endif
 
@@ -3007,10 +3007,13 @@ gensio_unix_termios_control(struct gensio_os_funcs *o, int op, bool get,
 	break;
 
     case GENSIO_IOD_CONTROL_SEND_BREAK:
-	if (get)
+	if (get) {
 	    *((int *) val) = 0;
-	else
-	    do_break(fd);
+	} else {
+	    rv = do_break(fd);
+	    if (rv)
+		rv = gensio_os_err_to_err(o, errno);
+	}
 	break;
 
     case GENSIO_IOD_CONTROL_DTR:
