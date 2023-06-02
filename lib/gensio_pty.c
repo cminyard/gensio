@@ -697,15 +697,15 @@ pty_gensio_alloc(const void *gdata, const char * const args[],
 
 #ifdef _WIN32
     if (user && !argv) {
-	gensio_pparm_log(&p, "If user is specified, you must run a program");
+	gensio_pparm_slog(&p, "If user is specified, you must run a program");
 	return GE_INVAL;
     }
     if (passwd && !user) {
-	gensio_pparm_log(&p, "passwd requires a user to be set");
+	gensio_pparm_slog(&p, "passwd requires a user to be set");
 	return GE_INVAL;
     }
     if (module && !user) {
-	gensio_pparm_log(&p, "module requires a user to be set");
+	gensio_pparm_slog(&p, "module requires a user to be set");
 	return GE_INVAL;
     }
 #endif
