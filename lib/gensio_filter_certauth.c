@@ -2794,28 +2794,28 @@ gensio_certauth_filter_config(struct gensio_pparm_info *p,
 
     if (data->is_client) {
 	if (data->CAfilepath) {
-	    gensio_pparm_log(p, "CA is not valid for clients");
+	    gensio_pparm_slog(p, "CA is not valid for clients");
 	    rv = GE_INVAL;
 	    goto out_err;
 	}
 	if (data->do_2fa) {
-	    gensio_pparm_log(p, "enable-2fa is not valid for clients");
+	    gensio_pparm_slog(p, "enable-2fa is not valid for clients");
 	    rv = GE_INVAL;
 	    goto out_err;
 	}
     } else {
 	if (data->keyfile) {
-	    gensio_pparm_log(p, "key is not valid for servers");
+	    gensio_pparm_slog(p, "key is not valid for servers");
 	    rv = GE_INVAL;
 	    goto out_err;
 	}
 	if (data->username) {
-	    gensio_pparm_log(p, "username is not valid for servers");
+	    gensio_pparm_slog(p, "username is not valid for servers");
 	    rv = GE_INVAL;
 	    goto out_err;
 	}
 	if (data->val_2fa) {
-	    gensio_pparm_log(p, "2fa is not valid for servers");
+	    gensio_pparm_slog(p, "2fa is not valid for servers");
 	    rv = GE_INVAL;
 	    goto out_err;
 	}

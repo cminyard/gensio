@@ -4668,49 +4668,49 @@ ax25_readconf(struct gensio_pparm_info *p,
     }
 
     if (conf->srtv == 0) {
-	gensio_pparm_log(p, "srt cannot be zero");
+	gensio_pparm_slog(p, "srt cannot be zero");
 	rv = GE_INVAL;
 	goto out_err;
     }
     if (conf->t2v == 0) {
-	gensio_pparm_log(p, "t2 cannot be zero");
+	gensio_pparm_slog(p, "t2 cannot be zero");
 	rv = GE_INVAL;
 	goto out_err;
     }
     if (conf->t3v == 0) {
-	gensio_pparm_log(p, "t3 cannot be zero");
+	gensio_pparm_slog(p, "t3 cannot be zero");
 	rv = GE_INVAL;
 	goto out_err;
     }
     if (conf->readwindow == 0) {
-	gensio_pparm_log(p, "readwindow cannot be zero");
+	gensio_pparm_slog(p, "readwindow cannot be zero");
 	rv = GE_INVAL;
 	goto out_err;
     }
     if (conf->writewindow == 0) {
-	gensio_pparm_log(p, "writewindow cannot be zero");
+	gensio_pparm_slog(p, "writewindow cannot be zero");
 	rv = GE_INVAL;
 	goto out_err;
     }
     if (conf->extended) {
 	if (conf->writewindow > 127) {
-	    gensio_pparm_log(p, "writewindow must be <= 127");
+	    gensio_pparm_slog(p, "writewindow must be <= 127");
 	    rv = GE_INVAL;
 	    goto out_err;
 	}
 	if (conf->readwindow > 127) {
-	    gensio_pparm_log(p, "readwindow must be <= 127");
+	    gensio_pparm_slog(p, "readwindow must be <= 127");
 	    rv = GE_INVAL;
 	    goto out_err;
 	}
     } else {
 	if (conf->writewindow > 7) {
-	    gensio_pparm_log(p, "writewindow must be <= 7");
+	    gensio_pparm_slog(p, "writewindow must be <= 7");
 	    rv = GE_INVAL;
 	    goto out_err;
 	}
 	if (conf->readwindow > 7) {
-	    gensio_pparm_log(p, "readwindow must be <= 7");
+	    gensio_pparm_slog(p, "readwindow must be <= 7");
 	    rv = GE_INVAL;
 	    goto out_err;
 	}

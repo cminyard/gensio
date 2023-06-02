@@ -310,7 +310,7 @@ gensio_ratelimit_filter_alloc(struct gensio_pparm_info *p,
     }
 
     if (xmit_delay.secs == 0 && xmit_delay.nsecs == 0) {
-	gensio_pparm_log(p, "xmit_delay cannot be zero");
+	gensio_pparm_slog(p, "xmit_delay cannot be zero");
 	return GE_INVAL;
     }
 

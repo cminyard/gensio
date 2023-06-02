@@ -2710,16 +2710,16 @@ gensio_afskmdm_filter_alloc(struct gensio_pparm_info *p,
     err = afskmdm_child_getuint(child, GENSIO_CONTROL_IN_BUFSIZE,
 				&data.in_chunksize);
     if (err) {
-	gensio_pparm_log(p, "Unable to get child input buffer size,"
-			 " is it a sound device?");
+	gensio_pparm_slog(p, "Unable to get child input buffer size,"
+			  " is it a sound device?");
 	return GE_INCONSISTENT;
     }
 
     err = afskmdm_child_getuint(child, GENSIO_CONTROL_OUT_BUFSIZE,
 				&data.out_chunksize);
     if (err) {
-	gensio_pparm_log(p, "Unable to get child output buffer size,"
-			 " is it a sound device?");
+	gensio_pparm_slog(p, "Unable to get child output buffer size,"
+			  " is it a sound device?");
 	return GE_INCONSISTENT;
     }
 
@@ -2737,12 +2737,12 @@ gensio_afskmdm_filter_alloc(struct gensio_pparm_info *p,
     err = gensio_control(child, GENSIO_CONTROL_DEPTH_FIRST, true,
 			 GENSIO_CONTROL_IN_FORMAT, cdata, &cdata_len);
     if (err) {
-	gensio_pparm_log(p, "Unable to get child input format,"
-			 " is it a sound device?");
+	gensio_pparm_slog(p, "Unable to get child input format,"
+			  " is it a sound device?");
 	return GE_INCONSISTENT;
     }
     if (strcmp(cdata, "float") != 0) {
-	gensio_pparm_log(p, "Child input format is not float");
+	gensio_pparm_slog(p, "Child input format is not float");
 	return GE_INCONSISTENT;
     }
 
@@ -2750,12 +2750,12 @@ gensio_afskmdm_filter_alloc(struct gensio_pparm_info *p,
     err = gensio_control(child, GENSIO_CONTROL_DEPTH_FIRST, true,
 			 GENSIO_CONTROL_OUT_FORMAT, cdata, &cdata_len);
     if (err) {
-	gensio_pparm_log(p, "Unable to get child output format,"
-			 " is it a sound device?");
+	gensio_pparm_slog(p, "Unable to get child output format,"
+			  " is it a sound device?");
 	return GE_INCONSISTENT;
     }
     if (strcmp(cdata, "float") != 0) {
-	gensio_pparm_log(p, "Child output format is not float");
+	gensio_pparm_slog(p, "Child output format is not float");
 	return GE_INCONSISTENT;
     }
 

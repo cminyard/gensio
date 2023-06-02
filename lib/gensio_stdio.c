@@ -1214,7 +1214,7 @@ stdio_gensio_alloc(const void *gdata, const char * const args[],
     }
 
     if (raw && !(self || console)) {
-	gensio_pparm_log(&p, "If raw is set, self or console must be set");
+	gensio_pparm_slog(&p, "If raw is set, self or console must be set");
 	return GE_INVAL;
     }
 

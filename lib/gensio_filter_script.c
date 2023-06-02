@@ -597,7 +597,7 @@ gensio_script_filter_alloc(struct gensio_pparm_info *p,
     }
 
     if (!scr && !gensioscr) {
-	gensio_pparm_log(p, "You must specify either script or gensio");
+	gensio_pparm_slog(p, "You must specify either script or gensio");
 	return GE_INVAL;
     }
 

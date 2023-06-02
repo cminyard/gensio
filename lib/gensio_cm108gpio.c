@@ -55,13 +55,13 @@ find_hid_device(struct gensio_pparm_info *p, struct gensio_os_funcs *o,
     int err = GE_NOTFOUND;
 
     if (strlen(idnum) == 0) {
-	gensio_pparm_log(p, "You must provide an id or number to compare");
+	gensio_pparm_slog(p, "You must provide an id or number to compare");
 	return GE_INVAL;
     }
 
     udev = udev_new();
     if (!udev) {
-	gensio_pparm_log(p, "Error opening udev()");
+	gensio_pparm_slog(p, "Error opening udev()");
 	return GE_NOTFOUND;
     }
 
@@ -118,7 +118,7 @@ find_hid_device(struct gensio_pparm_info *p, struct gensio_os_funcs *o,
     }
 
     if (!sounddev) {
-	gensio_pparm_log(p, "Unable to find matching sound device");
+	gensio_pparm_slog(p, "Unable to find matching sound device");
 	err = GE_IOERR;
 	goto out_err;
     }
@@ -349,7 +349,7 @@ find_hid_device(struct gensio_pparm_info *p, struct gensio_os_funcs *o,
     devinfo = SetupDiGetClassDevsA(NULL, NULL, NULL,
 				   DIGCF_PRESENT | DIGCF_DEVICEINTERFACE | DIGCF_ALLCLASSES);
     if (devinfo == INVALID_HANDLE_VALUE) {
-	gensio_pparm_log(p, "Unable to get class devices");
+	gensio_pparm_slog(p, "Unable to get class devices");
 	return GE_NOTFOUND;
     }
 

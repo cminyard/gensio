@@ -1264,7 +1264,7 @@ gensio_ssl_filter_config(struct gensio_pparm_info *p,
 
     if (!data->is_client) {
 	if (!data->keyfile) {
-	    gensio_pparm_log(p, "key must be specified for clients");
+	    gensio_pparm_slog(p, "key must be specified for clients");
 	    rv = GE_KEYNOTFOUND;
 	    goto out_err;
 	}

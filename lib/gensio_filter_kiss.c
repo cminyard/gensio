@@ -554,11 +554,11 @@ gensio_kiss_filter_alloc(struct gensio_pparm_info *p,
     }
 
     if (max_read_size < 256) {
-	gensio_pparm_log(p, "readbuf must be >= 256");
+	gensio_pparm_slog(p, "readbuf must be >= 256");
 	return GE_INVAL;
     }
     if (max_write_size < 256) {
-	gensio_pparm_log(p, "writebuf must be >= 256");
+	gensio_pparm_slog(p, "writebuf must be >= 256");
 	return GE_INVAL;
     }
 

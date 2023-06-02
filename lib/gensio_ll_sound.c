@@ -1482,7 +1482,7 @@ gensio_sound_ll_alloc(struct gensio_pparm_info *p,
 	out = NULL;
 
     if (!in && !out) {
-	gensio_pparm_log(p, "Must set input or output channels");
+	gensio_pparm_slog(p, "Must set input or output channels");
 	return GE_INVAL;
     }
 
