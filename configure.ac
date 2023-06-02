@@ -191,31 +191,6 @@ else
    trytcl=no
 fi
 
-AC_ARG_WITH(glib,
- [AS_HELP_STRING([--with-glib=yes|no], [Look for glib.])],
-    if test "x$withval" = "xyes"; then
-      if test "x$tryglib" = "xno"; then
-        AC_MSG_FAILURE([glib only support on Unix systems for now])
-      fi
-    elif test "x$withval" = "xno"; then
-      tryglib=no
-    fi,
-)
-
-glibcflags=
-AC_ARG_WITH(glibcflags,
- [AS_HELP_STRING([--with-glibcflags=flags],
-                 [Set the flags to compile with glib.])],
-    glibcflags="$withval",
-)
-
-gliblibs=
-AC_ARG_WITH(gliblibs,
- [AS_HELP_STRING([--with-gliblibs=libs],
-                 [Set the libraries to link with glib.])],
-    gliblibs="$withval",
-)
-
 AC_ARG_WITH(cplusplus,
  [AS_HELP_STRING([--with-cplusplus=yes|no],
                  [Enable or disable C++ support.])],
@@ -266,6 +241,31 @@ AC_SUBST(CPLUSPLUS_DIR)
 # Find pkg-config
 pkgprog=
 AC_PATH_PROG(pkgprog, pkg-config)
+
+AC_ARG_WITH(glib,
+ [AS_HELP_STRING([--with-glib=yes|no], [Look for glib.])],
+    if test "x$withval" = "xyes"; then
+      if test "x$tryglib" = "xno"; then
+        AC_MSG_FAILURE([glib only support on Unix systems for now])
+      fi
+    elif test "x$withval" = "xno"; then
+      tryglib=no
+    fi,
+)
+
+glibcflags=
+AC_ARG_WITH(glibcflags,
+ [AS_HELP_STRING([--with-glibcflags=flags],
+                 [Set the flags to compile with glib.])],
+    glibcflags="$withval",
+)
+
+gliblibs=
+AC_ARG_WITH(gliblibs,
+ [AS_HELP_STRING([--with-gliblibs=libs],
+                 [Set the libraries to link with glib.])],
+    gliblibs="$withval",
+)
 
 # Handle GLIB support
 haveglib=no
@@ -1903,3 +1903,89 @@ AC_CONFIG_FILES([Makefile
 	tests/gensios_enabled.py
 	tests/reflector.py])
 AC_OUTPUT
+
+pr_op() {
+    #echo "A: '$1' $2"
+    if test "$2" == 1; then
+	str='Yes'
+    elif test "$2" == "yes"; then
+	str='Yes'
+    else
+	str='no'
+    fi
+    echo "$1$str"
+}
+
+pr_vop() {
+    #echo "A: '$1' $2"
+    if test -n "$2"; then
+	str=$2
+    else
+	str='no'
+    fi
+    echo "$1$str"
+}
+
+echo "**************************************************"
+echo "Options:"
+	
+pr_op  "  UUCP Locking:		" $USE_UUCP_LOCKING
+pr_op  "  Broken pselect():	" $broken_pselect
+pr_op  "  TCP Wrappers:		" $ac_cv_header_tcpd_h
+pr_op  "  Install Docs:		" $enable_doc
+pr_op  "  epoll_pwait():	" $ax_config_feature_epoll_pwait
+pr_op  "  pthreads:		" $use_pthreads
+if test "$CPLUSPLUS_DIR" = "c++"; then
+  echo "  c++:			" "$cplusplusver"
+else
+  echo "  c++:			" "no"
+fi
+pr_vop "  pkgconfig:		" $pkgprog
+pr_op  "  glib:			" $haveglib
+pr_op  "  tcl:			" $havetcl
+pr_op  "  shared libraries:	" $enable_shared
+pr_op  "  sctp sendv:		" $ac_cv_lib_sctp_sctp_sendv
+pr_vop "  python:		" "$ax_python_version"
+if test "$SWIG_CPP_DIR" = "swig"; then
+  echo "  swig:			" "$SWIG_NUMVERSION"
+else
+  echo "  swig:			" "no"
+fi
+pr_vop "  go:			" $GOPROG
+pr_op  "  pam:			" $HAVE_PAM
+pr_op  "  internal trace:	" $ENABLE_INTERNAL_TRACE
+echo
+echo "**************************************************"
+echo "Gensios:"
+echo   "  net:		" $net
+echo   "  udp:		" $udp
+echo   "  sctp:		" $sctp
+echo   "  stdio:	" $stdio
+echo   "  pty:		" $pty
+echo   "  dummy:	" $dummy
+echo   "  conacc:	" $conacc
+echo   "  serialdev:	" $serialdev
+echo   "  echo:		" $echo
+echo   "  file:		" $file
+echo   "  ipmisol:	" $ipmisol
+echo   "  mdns:		" $mdns
+echo   "  sound:	" $sound
+echo   "  cm108gpio:	" $cm108gpio
+echo   "  ssl:		" $ssl
+echo   "  certauth:	" $certauth
+echo   "  mux:		" $mux
+echo   "  telnet:	" $telnet
+echo   "  msgdelim:	" $msgdelim
+echo   "  relpkt:	" $relpkt
+echo   "  trace:	" $trace
+echo   "  perf:		" $perf
+echo   "  kiss:		" $kiss
+echo   "  ax25:		" $ax25
+echo   "  xlt:		" $xlt
+echo   "  keepopen:	" $keepopen
+echo   "  script:	" $script
+echo   "  ratelimit:	" $ratelimit
+echo   "  afskmdm:	" $afskmdm
+echo
+echo "**************************************************"
+echo
