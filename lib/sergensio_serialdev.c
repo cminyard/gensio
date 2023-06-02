@@ -1140,7 +1140,6 @@ sterm_control(void *handler_data, struct gensio_iod *iod,
 	    break;
 	return sdata->o->iod_control(sdata->iod, GENSIO_IOD_CONTROL_SEND_BREAK,
 				     false, 0);
-	return 0;
 
     case GENSIO_CONTROL_RADDR:
 	if (!get)
