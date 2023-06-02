@@ -502,14 +502,14 @@ DYNAMIC_SCTP=
 case $sctp in
    yes)
       if test $HAVE_LIBSCTP = 0; then
-         AC_MSG_ERROR("sctp enabled but openipmi not found")
+         AC_MSG_ERROR("sctp enabled but libsctp not found")
       fi
       BUILTIN_GENSIOS="$BUILTIN_GENSIOS sctp"
       BUILTIN_SCTP=1
       ;;
    dynamic)
       if test $HAVE_LIBSCTP = 0; then
-         AC_MSG_ERROR("sctp enabled but openipmi not found")
+         AC_MSG_ERROR("sctp enabled but libsctp not found")
       fi
       DYNAMIC_GENSIOS="$DYNAMIC_GENSIOS sctp"
       DYNAMIC_SCTP=libgensio_sctp.la
@@ -734,9 +734,9 @@ AC_ARG_WITH(openipmilibs,
 AC_ARG_WITH(openipmi,
  [AS_HELP_STRING([--with-openipmi=yes|dynamic|no], [Look for openipmi])],
     if test "x$withval" = "xyes"; then
-      openipmi=yes
+      tryopenipmi=yes
     elif test "x$withval" = "xno"; then
-      openipmi=no
+      tryopenipmi=no
     fi,
 )
 HAVE_OPENIPMI=0
