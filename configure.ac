@@ -824,7 +824,7 @@ if test "$HAVE_AVAHI" = "1"; then
    GMDNS=gmdns
    GMDNSMAN=gmdns.1
 else
-   ipmisol=no
+   mdns=no
 fi
 AC_DEFINE_UNQUOTED([HAVE_AVAHI], [$HAVE_AVAHI],
 	[Set to 1 to enable MDNS support through avahi, 0 to disable])
