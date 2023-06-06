@@ -40,11 +40,12 @@ of bytes available.
 
 If
 .B err
-is set, buf and buflen are undefined.
+is set, buf and buflen are undefined and you should not use them or
+modify them.
 .B err
 is a standard gensio errno.
 
-You must set the number of bytes consumed in
+If err is non-zero, you must set the number of bytes consumed in
 .B buflen.
 Note that you must
 disable read if you don't consume all the bytes or in other
@@ -83,7 +84,11 @@ The new channel gensio is in buf and must be cast.  Information about
 the channel will be passed in
 .B auxdata,
 see documentation on the particular gensio for details.  If this
-returns an error (non-zero) the channel is shut down.
+returns an error (non-zero) the channel is shut down, though in the
+future specific error returns may have different behavior.  You must
+return GE_NOTSUP (like you should for all unhandled events) if you
+don't support this event.  All other error returns besides zero and
+GE_NOTSUP are reserved.
 
 .SS "GENSIO_EVENT_SEND_BREAK"
 Got a request from the other end to send a break.  Telnet client or
