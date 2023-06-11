@@ -9,10 +9,10 @@ go.mod: testbase.go
 	go mod edit -replace $(GOMOD)=$(abs_builddir)/../../gensio
 	go mod tidy
 
-$(builddir)/testbase.go: $(srcdir)/srctestbase.go
-	cp $(srcdir)/srctestbase.go testbase.go
+$(builddir)/testbase.go: $(srcdir)/testbase.srcgo
+	cp $(srcdir)/testbase.srcgo testbase.go
 
-EXTRA_DIST = srctestbase.go
+EXTRA_DIST = testbase.srcgo
 
 clean-local:
 	rm -f testbase.go go.mod

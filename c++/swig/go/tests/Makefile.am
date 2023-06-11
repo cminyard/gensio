@@ -51,8 +51,9 @@ endif
 if BUILTIN_IPMISOL
 MORE_LIBS += $(OPENIPMI_LIBS)
 endif
-export CGO_CXXFLAGS = $(CXXFLAGS) $(AM_CXXFLAGS)
-export CGO_CPPFLAGS = $(CPPFLAGS)
+export CGO_CXXFLAGS = $(CXXFLAGS) $(AM_CXXFLAGS) \
+	-I$(top_srcdir)/c++/swig/include
+export CGO_CPPFLAGS = $(CPPFLAGS) -I$(top_srcdir)/c++/swig/include
 export CGO_LDFLAGS = -L$(top_builddir)/c++/lib/.libs \
 	-lgensiooshcpp -lgensiocpp -lgensiomdnscpp \
 	-L$(top_builddir)/lib/.libs -lgensioosh -lgensio -lgensiomdns \

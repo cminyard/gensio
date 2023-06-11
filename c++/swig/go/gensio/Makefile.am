@@ -4,7 +4,7 @@ GOMOD = github.com/cminyard/go/gensio
 noinst_SCRIPTS = go.mod
 
 gensio_wrap.cxx gensio_wrap.h gensio.go: \
-			gensio.swigcxx $(top_srcdir)/c++/include/gensio \
+			gensio.srcswigcxx $(top_srcdir)/c++/include/gensio \
 			$(top_srcdir)/c++/swig/include/gensio_base.i \
 			$(top_srcdir)/include/gensio/gensio_err.h \
 			$(top_srcdir)/include/gensio/gensio_control.h \
@@ -14,17 +14,17 @@ gensio_wrap.cxx gensio_wrap.h gensio.go: \
 		-I$(top_srcdir)/c++/swig/go -I$(top_srcdir)/c++/include \
 		-I$(top_srcdir)/include \
 		-I$(top_builddir)/include -I$(top_srcdir)/c++/swig/include \
-		$(srcdir)/gensio.swigcxx
+		$(srcdir)/gensio.srcswigcxx
 
 
-$(builddir)/go.mod: $(srcdir)/srcgo.mod gensioapi.go gensio.go
+$(builddir)/go.mod: $(srcdir)/go.srcmod gensioapi.go gensio.go
 	rm -f go.mod
-	cp $(srcdir)/srcgo.mod go.mod
+	cp $(srcdir)/go.srcmod go.mod
 
-$(builddir)/gensioapi.go: $(srcdir)/srcgensioapi.go
-	cp $(srcdir)/srcgensioapi.go gensioapi.go
+$(builddir)/gensioapi.go: $(srcdir)/gensioapi.srcgo
+	cp $(srcdir)/gensioapi.srcgo gensioapi.go
 
-EXTRA_DIST = srcgensioapi.go gensio.swigcxx srcgo.mod
+EXTRA_DIST = gensioapi.srcgo gensio.swigcxx go.srcmod
 
 clean-local:
 	rm -rf gensioapi.go go.mod

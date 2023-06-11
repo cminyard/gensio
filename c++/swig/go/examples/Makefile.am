@@ -34,28 +34,26 @@ endif
 if BUILTIN_IPMISOL
 MORE_LIBS += $(OPENIPMI_LIBS)
 endif
-export CGO_CXXFLAGS = $(CXXFLAGS) $(AM_CXXFLAGS)
-export CGO_CPPFLAGS = $(CPPFLAGS)
+export CGO_CXXFLAGS = $(CXXFLAGS) $(AM_CXXFLAGS) \
+	-I$(top_srcdir)/c++/swig/include
+export CGO_CPPFLAGS = $(CPPFLAGS) -I$(top_srcdir)/c++/swig/include
 export CGO_LDFLAGS = -L$(top_builddir)/c++/lib/.libs \
 	-lgensiooshcpp -lgensiocpp -lgensiomdnscpp \
 	-L$(top_builddir)/lib/.libs -lgensioosh -lgensio -lgensiomdns \
 	$(MORE_LIBS)
 
 example: ../gensio/gensio.go \
-		../gensio/gensio_wrap.cxx \
-		../gensio/gensio_wrap.h \
+		../gensio/gensio_wrap.cxx ../gensio/gensio_wrap.h \
 		example.go ../gensio/gensioapi.go go.mod
 	go build example.go
 
 telnet_server: ../gensio/gensio.go \
-		../gensio/gensio_wrap.cxx \
-		../gensio/gensio_wrap.h \
+		../gensio/gensio_wrap.cxx ../gensio/gensio_wrap.h \
 		telnet_server.go ../gensio/gensioapi.go go.mod
 	go build telnet_server.go
 
 telnet_client: ../gensio/gensio.go \
-		../gensio/gensio_wrap.cxx \
-		../gensio/gensio_wrap.h \
+		../gensio/gensio_wrap.cxx ../gensio/gensio_wrap.h \
 		telnet_client.go ../gensio/gensioapi.go go.mod
 	go build telnet_client.go
 
