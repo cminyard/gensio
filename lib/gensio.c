@@ -3669,6 +3669,17 @@ gensio_fdump_buf_finish(FILE *f, struct gensio_fdump *h)
 }
 
 void
+gensio_time_add(gensio_time *t, gensio_time *v)
+{
+    t->secs += v->secs;
+    t->nsecs += v->nsecs;
+    while (t->nsecs >= GENSIO_NSECS_IN_SEC) {
+	t->secs++;
+	t->nsecs -= GENSIO_NSECS_IN_SEC;
+    }
+}
+
+void
 gensio_time_add_nsecs(gensio_time *t, int64_t v)
 {
     t->secs += v / GENSIO_NSECS_IN_SEC;

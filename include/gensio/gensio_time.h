@@ -16,6 +16,12 @@ extern "C" {
 #endif
 
 /*
+ * Add time v to time t1.
+ */
+GENSIO_DLL_PUBLIC
+void gensio_time_add(gensio_time *t, gensio_time *v);
+
+/*
  * Add the given number of nanoseconds to the time.
  */
 GENSIO_DLL_PUBLIC
