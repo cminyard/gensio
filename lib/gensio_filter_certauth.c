@@ -9,6 +9,7 @@
 
 #include "gensio_filter_certauth.h"
 #include <gensio/gensio_err.h>
+#include <gensio/gensio_time.h>
 
 #ifdef _WIN32
 #define DIRSEP '\\'
@@ -204,7 +205,7 @@ static void EVP_MD_CTX_free(EVP_MD_CTX *c)
 
 /*
  * State machines for both the client and the server, also message
- * numbers (except for CLIENT_START).
+ * numbers (for values < 100).
  */
 enum certauth_state {
     /*
@@ -243,6 +244,16 @@ enum certauth_state {
      * later.
      */
     CERTAUTH_SERVERHELLO = 2,
+
+    /*
+     * Client waits for a random amount of time before processing the
+     * random challenge from the server.  This is to help with timing
+     * attacks.
+     *
+     * This will be transitioned from with a timer and will process
+     * the challenge and go to PASSWORD_REQUEST.
+     */
+    CERTAUTH_CLIENTDELAY = 110,
 
     /*
      * Server receives the challenge response verifies the reponse and
@@ -597,7 +608,7 @@ certauth_unlock(struct certauth_filter *sfilter)
 
 static void
 certauth_set_callbacks(struct gensio_filter *filter,
-		  gensio_filter_cb cb, void *cb_data)
+		       gensio_filter_cb cb, void *cb_data)
 {
     /* We don't currently use callbacks. */
 }
@@ -1126,7 +1137,8 @@ set_digest(struct certauth_filter *sfilter)
 }
 
 static int
-certauth_try_connect(struct gensio_filter *filter, gensio_time *timeout)
+certauth_try_connect(struct gensio_filter *filter, gensio_time *timeout,
+		     bool was_timeout)
 {
     struct certauth_filter *sfilter = filter_to_certauth(filter);
     struct gensio *io;
@@ -1134,11 +1146,16 @@ certauth_try_connect(struct gensio_filter *filter, gensio_time *timeout)
     bool password_requested = false;
     int err, rv;
     unsigned int req;
+    uint64_t timeout_ns;
 
     certauth_lock(sfilter);
     if (sfilter->pending_err)
 	goto out_finish;
     if (!sfilter->got_msg)
+	goto out_inprogress;
+
+    if (was_timeout && sfilter->state != CERTAUTH_CLIENTDELAY)
+	/* A race isn't really possible here, but just in case ignore it. */
 	goto out_inprogress;
 
     switch (sfilter->state) {
@@ -1257,6 +1274,34 @@ certauth_try_connect(struct gensio_filter *filter, gensio_time *timeout)
 	    sfilter->pending_err = GE_DATAMISSING;
 	    break;
 	}
+
+	/*
+	 * Start a random timer from 0 to 10ms to obscure the
+	 * processing time for avoiding timing attacks.
+	 */
+	if (!RAND_bytes((unsigned char *) &timeout_ns, sizeof(timeout_ns))) {
+	    gca_log_err(sfilter,
+			"Unable to get random response delay");
+	    sfilter->pending_err = GE_DATAMISSING;
+	    break;
+	}
+	/* Between 0 and 10ms */
+	timeout_ns %= GENSIO_MSECS_TO_NSECS(10);
+	timeout->secs = timeout_ns / GENSIO_NSECS_IN_SEC;
+	timeout->nsecs = timeout_ns % GENSIO_NSECS_IN_SEC;
+
+	sfilter->state = CERTAUTH_CLIENTDELAY;
+	rv = GE_RETRY;
+	goto out;
+
+    case CERTAUTH_CLIENTDELAY:
+	if (!was_timeout) {
+	    gca_log_err(sfilter,
+		"Got server data while client waiting in challenge delay");
+	    sfilter->pending_err = GE_NOTREADY;
+	    break;
+	}
+
 	set_digest(sfilter);
 	sfilter->write_buf_len = 0;
 	certauth_write_byte(sfilter, CERTAUTH_CHALLENGE_RESPONSE);
@@ -2405,7 +2450,7 @@ int gensio_certauth_filter_func(struct gensio_filter *filter, int op,
 	return certauth_check_open_done(filter, data);
 
     case GENSIO_FILTER_FUNC_TRY_CONNECT:
-	return certauth_try_connect(filter, data);
+	return certauth_try_connect(filter, data, buflen);
 
     case GENSIO_FILTER_FUNC_TRY_DISCONNECT:
 	return certauth_try_disconnect(filter, data);
@@ -2429,7 +2474,7 @@ int gensio_certauth_filter_func(struct gensio_filter *filter, int op,
 
     case GENSIO_FILTER_FUNC_CONTROL:
 	return certauth_filter_control(filter, *((bool *) cbuf), buflen, data,
-				  count);
+				       count);
 
     case GENSIO_FILTER_FUNC_TIMEOUT:
     default:
