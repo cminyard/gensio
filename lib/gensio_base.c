@@ -1082,6 +1082,7 @@ basen_filter_try_connect(struct basen_data *ndata, bool was_timeout)
     if (err == GE_INPROGRESS)
 	return GE_INPROGRESS;
     if (err == GE_RETRY) {
+	basen_stop_timer(ndata);
 	basen_start_timer(ndata, &timeout);
 	return GE_INPROGRESS;
     }
@@ -1265,6 +1266,7 @@ basen_filter_try_close(struct basen_data *ndata, bool was_timeout)
     if (err == GE_INPROGRESS)
 	return;
     if (err == GE_RETRY) {
+	basen_stop_timer(ndata);
 	basen_start_timer(ndata, &timeout);
 	return;
     }
