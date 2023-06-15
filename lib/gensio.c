@@ -3734,6 +3734,7 @@ gensio_time_diff_nsecs(gensio_time *t1, gensio_time *t2)
     int64_t v;
 
     v = t1->secs - t2->secs;
+    v *= GENSIO_NSECS_IN_SEC;
     v += (int64_t) t1->nsecs - (int64_t) t2->nsecs;
     return v;
 }
