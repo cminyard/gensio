@@ -1044,6 +1044,13 @@ Normally an accepter gensio is in server mode and a connecting gensio
 is in client mode.  This can be used to switch the roles and run in
 SSL server mode on a connecting gensio, or vice versa.
 .TP
+.B con-timeout=<gtime>
+Set the timeout for a connection to complete.  If the connect process
+does not complete in this amount of time, the connection will be
+dropped.  The default is 60 seconds.  See the "gtime" section for more
+info on how to set the time.  Note that the default setting for
+con-timeout is not a gtime, it is an integer in seconds.
+.TP
 .B clientauth[=true|false]
 Normally a client is not authorized by the server.  This requires
 that the client provide a certificate and authorizes that certificate.
@@ -1165,6 +1172,13 @@ Verification of the common name is
 done.  The application should do this, it can fetch the common name
 and other certificate data through a control interface.  It may also
 use the username fetched through the control interface.
+.TP
+.B con-timeout=<gtime>
+Set the timeout for a connection to complete.  If the connect process
+does not complete in this amount of time, the connection will be
+dropped.  The default is 60 seconds.  See the "gtime" section for more
+info on how to set the time.  Note that the default setting for
+con-timeout is not a gtime, it is an integer in seconds.
 
 You can use self-signed certificates in this interface.  Just be aware
 of the security ramifications.  This gensio is fairly flexible, but
