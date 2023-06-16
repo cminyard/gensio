@@ -2540,6 +2540,12 @@ struct gensio_def_entry builtin_defaults[] = {
     /* For unix (accepter only) */
     { "delsock",	GENSIO_DEFAULT_BOOL,	.def.intval = false },
 
+    /*
+     * For certauth and ssl, at least. Anything that does some sort of
+     * connection can use this to time out.  Value is in seconds.
+     */
+    { "con-timeout",	GENSIO_DEFAULT_INT,	.def.intval = 60 },
+
     /* For mdns */
     { "name",		GENSIO_DEFAULT_STR,	.def.strval = NULL },
     { "type",		GENSIO_DEFAULT_STR,	.def.strval = NULL },
