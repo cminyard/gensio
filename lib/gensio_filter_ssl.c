@@ -21,6 +21,7 @@
 
 #include <gensio/gensio.h>
 #include <gensio/gensio_os_funcs.h>
+#include <gensio/gensio_time.h>
 
 #ifdef _WIN32
 #define DIRSEP '\\'
@@ -38,6 +39,9 @@ struct gensio_ssl_filter_data {
     gensiods max_write_size;
     bool allow_authfail;
     bool clientauth;
+
+    /* Amount of time in which the connection process must complete. */
+    gensio_time con_timeout;
 };
 
 static void
@@ -72,6 +76,15 @@ struct ssl_filter {
 
     bool expect_peer_cert;
     bool allow_authfail;
+
+    /* try_connect() has been called at least once. */
+    bool started;
+
+    /* Time to wait for the connection to complete. */
+    gensio_time con_timeout;
+
+    /* Absolute time when the connection will time out. */
+    gensio_time contime_done;
 
     /* This is data from SSL_read() that is waiting to be sent to the user. */
     unsigned char *read_data;
@@ -302,13 +315,36 @@ ssl_check_open_done(struct gensio_filter *filter, struct gensio *io)
     return rv;
 }
 
+static void
+ssl_start_con_timeout(struct ssl_filter *sfilter)
+{
+    struct gensio_os_funcs *o = sfilter->o;
+
+    o->get_monotonic_time(o, &sfilter->contime_done);
+    gensio_time_add(&sfilter->contime_done, &sfilter->con_timeout);
+}
+
 static int
-ssl_try_connect(struct gensio_filter *filter, gensio_time *timeout)
+ssl_try_connect(struct gensio_filter *filter, gensio_time *timeout,
+		bool was_timeout)
 {
     struct ssl_filter *sfilter = filter_to_ssl(filter);
     int rv, success, err;
+    int64_t timeout_ns;
+    gensio_time time_now;
 
     ssl_lock(sfilter);
+    if (!sfilter->started) {
+	ssl_start_con_timeout(sfilter);
+	sfilter->started = true;
+    }
+
+    if (was_timeout) {
+	gssl_log_err(sfilter, "Timed out waiting for connection to complete");
+	rv = GE_TIMEDOUT;
+	goto out;
+    }
+
     sfilter->want_read = false;
     sfilter->want_write = false;
     if (sfilter->is_client)
@@ -350,6 +386,16 @@ ssl_try_connect(struct gensio_filter *filter, gensio_time *timeout)
 	    rv = GE_COMMERR;
 	}
     }
+    if (rv == GE_INPROGRESS) {
+	sfilter->o->get_monotonic_time(sfilter->o, &time_now);
+	timeout_ns = gensio_time_diff_nsecs(&sfilter->contime_done, &time_now);
+	if (timeout_ns < 0)
+	    timeout_ns = 0;
+	timeout->secs = timeout_ns / GENSIO_NSECS_IN_SEC;
+	timeout->nsecs = timeout_ns % GENSIO_NSECS_IN_SEC;
+	rv = GE_RETRY;
+    }
+ out:
     ssl_unlock(sfilter);
     return rv;
 }
@@ -994,7 +1040,7 @@ static int gensio_ssl_filter_func(struct gensio_filter *filter, int op,
 	return ssl_check_open_done(filter, data);
 
     case GENSIO_FILTER_FUNC_TRY_CONNECT:
-	return ssl_try_connect(filter, data);
+	return ssl_try_connect(filter, data, buflen);
 
     case GENSIO_FILTER_FUNC_TRY_DISCONNECT:
 	return ssl_try_disconnect(filter, data);
@@ -1102,7 +1148,8 @@ gensio_ssl_filter_raw_alloc(struct gensio_os_funcs *o,
 			    bool expect_peer_cert,
 			    bool allow_authfail,
 			    gensiods max_read_size,
-			    gensiods max_write_size)
+			    gensiods max_write_size,
+			    gensio_time con_timeout)
 {
     struct ssl_filter *sfilter;
 
@@ -1116,6 +1163,7 @@ gensio_ssl_filter_raw_alloc(struct gensio_os_funcs *o,
     sfilter->max_read_size = max_read_size;
     sfilter->expect_peer_cert = expect_peer_cert;
     sfilter->allow_authfail = allow_authfail;
+    sfilter->con_timeout = con_timeout;
 
     SSL_CTX_set_cert_verify_callback(ctx, gensio_ssl_cert_verify, sfilter);
 
@@ -1205,6 +1253,14 @@ gensio_ssl_filter_config(struct gensio_pparm_info *p,
 	o->free(o, str);
     }
 
+    rv = gensio_get_default(o, "ssl", "con-timeout", false,
+			    GENSIO_DEFAULT_INT, NULL, &ival);
+    if (rv)
+	return rv;
+    data->con_timeout.secs = ival;
+    data->con_timeout.nsecs = 0;
+
+
     rv = GE_NOMEM;
     for (i = 0; args && args[i]; i++) {
 	if (gensio_pparm_value(p, args[i], "CA", &cstr)) {
@@ -1237,6 +1293,9 @@ gensio_ssl_filter_config(struct gensio_pparm_info *p,
 	    continue;
 	if (gensio_pparm_bool(p, args[i], "clientauth",
 				 &data->clientauth) > 0)
+	    continue;
+	if (gensio_pparm_time(p, args[i], "con-timeout", 's',
+			      &data->con_timeout) > 0)
 	    continue;
 	gensio_pparm_unknown_parm(p, args[i]);
 	rv = GE_INVAL;
@@ -1377,7 +1436,8 @@ gensio_ssl_filter_alloc(struct gensio_ssl_filter_data *data,
 					 expect_peer_cert,
 					 data->allow_authfail,
 					 data->max_read_size,
-					 data->max_write_size);
+					 data->max_write_size,
+					 data->con_timeout);
     if (!filter) {
 	rv = GE_NOMEM;
 	goto err;

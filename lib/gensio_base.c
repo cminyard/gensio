@@ -1069,28 +1069,46 @@ basen_filter_try_connect(struct basen_data *ndata, bool was_timeout)
     gensio_time timeout = {0, 0};
 
     err = filter_try_connect(ndata, &timeout, was_timeout);
-    if (!err || err == GE_INPROGRESS || err == GE_RETRY) {
+    if (err == GE_INPROGRESS || err == GE_RETRY) {
+	/*
+	 * If we are still in progress, we may have generated data to
+	 * send.  Push that out now.
+	 */
 	int err2 = basen_filter_ul_push(ndata, false);
-	if (err2) {
-	    basen_set_ll_enables(ndata);
+	if (err2)
 	    return err2;
-	} else if (err == GE_INPROGRESS) {
-	    err = filter_try_connect(ndata, &timeout, false);
-	    basen_set_ll_enables(ndata);
-	}
+
+	/*
+	 * The push out may have changed states, retry the connect
+	 * code.  This only needs to be done one, if something else
+	 * needs to happen it will be handled by normal callbacks.
+	 */
+	err2 = filter_try_connect(ndata, &timeout, false);
+	if (err2 && err2 != GE_INPROGRESS && err2 != GE_RETRY)
+	    return err2;
+
+	/*
+	 * We don't want to overwrite a GE_RETRY from the first call
+	 * unless we finished the connection.  But if we finished the
+	 * connection or got a GE_RETRY from this call, use it.
+	 */
+	if (err2 != GE_INPROGRESS)
+	    err = err2;
+    } else if (err) {
+	return err;
     }
+    /* At this point err can only be GE_INPROGRESS, GE_RETRY, or 0. */
+    basen_set_ll_enables(ndata);
     if (err == GE_INPROGRESS)
 	return GE_INPROGRESS;
+    basen_stop_timer(ndata);
     if (err == GE_RETRY) {
-	basen_stop_timer(ndata);
 	basen_start_timer(ndata, &timeout);
 	return GE_INPROGRESS;
     }
 
-    if (!err)
-	err = filter_check_open_done(ndata);
-
-    return err;
+    /* No error, are we connected? */
+    return filter_check_open_done(ndata);
 }
 
 static void

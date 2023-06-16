@@ -33,6 +33,9 @@ struct gensio_certauth_filter_data {
     bool enable_password;
     bool do_2fa; /* Ask for two-factor authentication, version 2+ */
 
+    /* Amount of time in which the connection process must complete. */
+    gensio_time con_timeout;
+
     /*
      * The following is only used for testing. so certauth can be run
      * over stdio for fuzz testing.  Do not document.
@@ -477,6 +480,15 @@ struct certauth_filter {
 
     /* Enable 2-factor authentication. */
     bool do_2fa;
+
+    /* try_connect() has been called at least once. */
+    bool started;
+
+    /* Time to wait for the connection to complete. */
+    gensio_time con_timeout;
+
+    /* Absolute time when the connection will time out. */
+    gensio_time contime_done;
 
     char *username;
     size_t username_len;
@@ -1128,6 +1140,15 @@ certauth_send_server_done(struct certauth_filter *sfilter)
 }
 
 static void
+certauth_start_con_timeout(struct certauth_filter *sfilter)
+{
+    struct gensio_os_funcs *o = sfilter->o;
+
+    o->get_monotonic_time(o, &sfilter->contime_done);
+    gensio_time_add(&sfilter->contime_done, &sfilter->con_timeout);
+}
+
+static void
 set_digest(struct certauth_filter *sfilter)
 {
     if (sfilter->version >= 3 && sfilter->my_version >= 3)
@@ -1146,17 +1167,27 @@ certauth_try_connect(struct gensio_filter *filter, gensio_time *timeout,
     bool password_requested = false;
     int err, rv;
     unsigned int req;
-    uint64_t timeout_ns;
+    int64_t timeout_ns;
+    gensio_time time_now;
+    struct gensio_os_funcs *o = sfilter->o;
 
     certauth_lock(sfilter);
+    if (!sfilter->started) {
+	certauth_start_con_timeout(sfilter);
+	sfilter->started = true;
+    }
+
     if (sfilter->pending_err)
 	goto out_finish;
-    if (!sfilter->got_msg)
-	goto out_inprogress;
+    if (!sfilter->got_msg && !was_timeout)
+	goto out_inprogress2;
 
-    if (was_timeout && sfilter->state != CERTAUTH_CLIENTDELAY)
-	/* A race isn't really possible here, but just in case ignore it. */
-	goto out_inprogress;
+    if (was_timeout && sfilter->state != CERTAUTH_CLIENTDELAY) {
+	gca_log_err(sfilter,
+		    "Remote system didn't finish connect in time");
+	sfilter->pending_err = GE_TIMEDOUT;
+	goto finish_result;
+    }
 
     switch (sfilter->state) {
     case CERTAUTH_CLIENT_START:
@@ -1285,21 +1316,26 @@ certauth_try_connect(struct gensio_filter *filter, gensio_time *timeout,
 	    sfilter->pending_err = GE_DATAMISSING;
 	    break;
 	}
-	/* Between 0 and 10ms */
+	if (timeout_ns < 0)
+	    timeout_ns = -timeout_ns;
 	timeout_ns %= GENSIO_MSECS_TO_NSECS(10);
 	timeout->secs = timeout_ns / GENSIO_NSECS_IN_SEC;
 	timeout->nsecs = timeout_ns % GENSIO_NSECS_IN_SEC;
 
+	sfilter->got_msg = false;
 	sfilter->state = CERTAUTH_CLIENTDELAY;
 	rv = GE_RETRY;
 	goto out;
 
     case CERTAUTH_CLIENTDELAY:
 	if (!was_timeout) {
-	    gca_log_err(sfilter,
-		"Got server data while client waiting in challenge delay");
-	    sfilter->pending_err = GE_NOTREADY;
-	    break;
+	    if (sfilter->got_msg) {
+		gca_log_err(sfilter,
+		    "Got server data while client waiting in challenge delay");
+		sfilter->pending_err = GE_NOTREADY;
+		break;
+	    }
+	    goto out;
 	}
 
 	set_digest(sfilter);
@@ -1627,9 +1663,9 @@ certauth_try_connect(struct gensio_filter *filter, gensio_time *timeout,
 	sfilter->state = CERTAUTH_WAIT_WRITE_DONE;
 	/*
 	 * Leave got_msg enabled so we won't read any more until we go
-	 * to passthrough state.
+	 * to passthrough state.  Don't start the timer in this state.
 	 */
-	goto out_inprogress;
+	goto out_inprogress2;
 
     case CERTAUTH_SERVERDONE:
 	if (!sfilter->result) {
@@ -1661,6 +1697,15 @@ certauth_try_connect(struct gensio_filter *filter, gensio_time *timeout,
 
     sfilter->got_msg = false;
  out_inprogress:
+    o->get_monotonic_time(o, &time_now);
+    timeout_ns = gensio_time_diff_nsecs(&sfilter->contime_done, &time_now);
+    if (timeout_ns < 0)
+	timeout_ns = 0;
+    timeout->secs = timeout_ns / GENSIO_NSECS_IN_SEC;
+    timeout->nsecs = timeout_ns % GENSIO_NSECS_IN_SEC;
+    rv = GE_RETRY;
+    goto out;
+ out_inprogress2:
     rv = GE_INPROGRESS;
     goto out;
  out_finish:
@@ -2492,6 +2537,7 @@ gensio_certauth_filter_raw_alloc(struct gensio_os_funcs *o,
 				 const char *service,
 				 bool allow_authfail, bool use_child_auth,
 				 bool enable_password, bool do_2fa,
+				 gensio_time con_timeout,
 				 struct gensio_filter **rfilter)
 {
     struct certauth_filter *sfilter;
@@ -2507,6 +2553,7 @@ gensio_certauth_filter_raw_alloc(struct gensio_os_funcs *o,
     sfilter->use_child_auth = use_child_auth;
     sfilter->enable_password = enable_password;
     sfilter->do_2fa = do_2fa;
+    sfilter->con_timeout = con_timeout;
     sfilter->my_version = GENSIO_CERTAUTH_VERSION;
     sfilter->rsa_md5 = EVP_get_digestbyname("ssl3-md5");
     if (!sfilter->rsa_md5) {
@@ -2698,6 +2745,14 @@ gensio_certauth_filter_config(struct gensio_pparm_info *p,
 	o->free(o, fstr);
     }
 
+    rv = gensio_get_default(o, "certauth", "con-timeout", false,
+			    GENSIO_DEFAULT_INT, NULL, &ival);
+    if (rv)
+	return rv;
+    data->con_timeout.secs = ival;
+    data->con_timeout.nsecs = 0;
+
+
     rv = GE_NOMEM;
     for (i = 0; args && args[i]; i++) {
 	if (gensio_pparm_value(p, args[i], "CA", &str) > 0) {
@@ -2759,6 +2814,9 @@ gensio_certauth_filter_config(struct gensio_pparm_info *p,
 	    continue;
 	if (gensio_pparm_bool(p, args[i], "enable-2fa",
 			      &data->do_2fa) > 0)
+	    continue;
+	if (gensio_pparm_time(p, args[i], "con-timeout", 's',
+			      &data->con_timeout) > 0)
 	    continue;
 	if (gensio_pparm_bool(p, args[i], "allow-unencrypted",
 			      &data->allow_unencrypted) > 0)
@@ -3021,7 +3079,7 @@ gensio_certauth_filter_alloc(struct gensio_certauth_filter_data *data,
 					  data->allow_authfail,
 					  data->use_child_auth,
 					  data->enable_password,
-					  data->do_2fa,
+					  data->do_2fa, data->con_timeout,
 					  &filter);
     if (rv)
 	goto err;
