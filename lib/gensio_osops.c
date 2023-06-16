@@ -118,6 +118,8 @@ gensio_unix_os_setupnewprog(void)
 	free(groups);
     } else {
 	err = setgroups(0, NULL);
+	if (err)
+	    return errno;
     }
 
     /* Sets the real, effective, and saved userid. */
