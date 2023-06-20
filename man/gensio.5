@@ -323,7 +323,7 @@ That will be specified by the specific gensio.
 .br
 .B hostname = [ipv4|ipv6|ipv6n4,]<name>
 
-A TCP connecting gensio must have the hostname specified.  Mulitiple
+A TCP connecting gensio must have the hostname specified.  Multiple
 hostname/port pairs may be specified.  For a connecting TCP gensio,
 each one will be tried in sequence until a connection is established.
 For acceptor gensios, every specified hostname/port pair will be
@@ -1457,7 +1457,7 @@ have a CRC16 on the end of them.
 This is primarily for use on serial ports and other streams that can
 munge up the data.  Use the mux gensio for TCP and such.
 
-THe default buffer size is 128 bytes, which is ok for a reasonably
+The default buffer size is 128 bytes, which is ok for a reasonably
 fast serial port interface.
 .SS Options
 In addition to readbuf, the msgdelim gensio takes the following options:
