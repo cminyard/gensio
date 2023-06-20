@@ -211,9 +211,15 @@ pty
     its tty.  No accepter available.
 
 serialdev
-    Connect to a device.  It can hook to termios type devices, more
-    than just serial ports.  It also has a write-only option for
-    talking to printer ports.  No accepter available.
+    Connect to a device.  It can hook to termios type devices, like
+    ptys and /dev/tty, more than just serial ports.  No accepter
+    available.
+
+dev
+    Connects to devices (like serialdev does) but does not do any
+    serial port processing.  It also has a write-only option for
+    talking to printer ports or other write-only devices.  No accepter
+    available.
 
 ipmisol
     Connect to a remote over IPMI SOL.  Full serial port capabilities

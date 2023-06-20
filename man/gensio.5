@@ -666,6 +666,9 @@ finish the close.  Default is 50 (.5 seconds).  Note that if both this and
 are off, if the serial port is hung on flow control, it will never
 close.  When setting the default value for this, "off" will not be
 accepted, use -1 instead.
+.TP
+.B wronly[=true|false]
+Set the device to write only.  Default is false.
 .PP
 There are a plethora of serialoptions, available as defaults:
 .TP
@@ -677,7 +680,12 @@ a default type for this.
 .B wronly[=true|false]
 Set the device to write only.  No termios definition is done on the
 port.  This can be done to talk to a line printer port, for instance.
-False by default.
+False by default.  Note that for historical reasons this is different
+than the
+.B wronly
+option set in the parameters, this one sets both turns off termio
+process and sets wronly.  This option is deprecated, use the "dev"
+gensio for non-serial port and the wronly in the parameters.
 .TP
 .B nobreak[=true|false]
 Clear the break line at start (or don't clear it).  Default it to not
@@ -738,6 +746,23 @@ integer.
 .SS "Direct Allocation"x
 Allocated as a terminal gensio with gdata as a "const char *" with the
 device and parameters string.
+.SH "dev"
+.B dev[(<options>)],<device>
+This is like a
+.B serialdev
+gensio, but doesn't do any serial port processing like termios or
+break processing.  This can be used for /dev/lpX devices for instance.
+This is read/write by default, you must set the wronly option to
+disable read access for a read-only device.
+
+This takes the same options as
+.B serialdev
+except that it does not take nouucplock.  The
+.B drain_time
+and
+.B char_drain_wait
+options may or may not work.  It does not take serial
+options.
 .SH "stdio"
 accepter =
 .B stdio[(options)]

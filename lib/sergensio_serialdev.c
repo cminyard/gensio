@@ -121,7 +121,8 @@ struct sterm_data {
      */
     bool is_pty;
 
-    bool write_only;		/* No serial settings, no read. */
+    bool write_only;		/* No read. */
+    bool set_tty;		/* No serial settings. */
 
     bool no_uucp_lock;
 
@@ -287,7 +288,7 @@ serconf_set_get(struct sterm_data *sdata, int op, int val,
     struct termio_op_q *qe = NULL;
     int err = 0;
 
-    if (sdata->write_only)
+    if (!sdata->set_tty)
 	return GE_NOTSUP;
 
     if (done) {
@@ -692,7 +693,7 @@ sergensio_sterm_func(struct sergensio *sio, int op, int val, char *buf,
 {
     struct sterm_data *sdata = sergensio_get_gensio_data(sio);
 
-    if (sdata->write_only)
+    if (!sdata->set_tty)
 	return GE_NOTSUP;
 
     switch (op) {
@@ -885,7 +886,7 @@ sterm_sub_open(void *handler_data, struct gensio_iod **riod)
     if (err)
 	goto out_uucp;
 
-    if (!sdata->write_only) {
+    if (sdata->set_tty) {
 	err = o->iod_control(sdata->iod, GENSIO_IOD_CONTROL_BAUD, false,
 			     sdata->def_baud);
 	if (err)
@@ -951,7 +952,7 @@ sterm_sub_open(void *handler_data, struct gensio_iod **riod)
 	}
     }
 
-    if (!sdata->write_only && !sdata->disablebreak) {
+    if (sdata->set_tty && !sdata->disablebreak) {
 	err = o->iod_control(sdata->iod, GENSIO_IOD_CONTROL_SET_BREAK,
 			     false, sdata->disablebreak);
 	if (err)
@@ -973,7 +974,7 @@ sterm_sub_open(void *handler_data, struct gensio_iod **riod)
     sdata->sent_first_modemstate = false;
     sterm_unlock(sdata);
 
-    if (!sdata->write_only)
+    if (sdata->set_tty)
 	sterm_modemstate(sdata->sio, 255);
 
     *riod = sdata->iod;
@@ -1025,7 +1026,7 @@ sterm_control_raddr(struct sterm_data *sdata, char *buf, gensiods *datalen)
 
     gensio_pos_snprintf(buf, buflen, &pos, "%s", sdata->devname);
 
-    if (!sdata->write_only) {
+    if (sdata->set_tty) {
 	int baud;
 	int stopbits;
 	int datasize;
@@ -1102,7 +1103,7 @@ sterm_control_raddr(struct sterm_data *sdata, char *buf, gensiods *datalen)
 	    gensio_pos_snprintf(buf, buflen, &pos, ",HANGUP_WHEN_DONE");
 
     }
-    if (!sdata->write_only && sdata->iod) {
+    if (sdata->set_tty && sdata->iod) {
 	rv = o->iod_control(sdata->iod, GENSIO_IOD_CONTROL_RTS,
 			    true, (intptr_t) &tval);
 	if (rv)
@@ -1301,6 +1302,8 @@ sergensio_process_parms(struct gensio_pparm_info *p, struct sterm_data *sdata)
 
     for (i = 0; i < argc; i++) {
 	if (gensio_pparm_bool(p, argv[i], "wronly", &sdata->write_only) > 0) {
+	    /* In the later parms, wronly sets both write only and set_tty. */
+	    sdata->set_tty = !sdata->write_only;
 	    continue;
 	} else if (gensio_pparm_bool(p, argv[i], "nobreak",
 				     &sdata->disablebreak) > 0) {
@@ -1398,10 +1401,10 @@ sergensio_setup_defaults(struct gensio_pparm_info *p,
 }
 
 static int
-serialdev_gensio_alloc(const void *gdata, const char * const args[],
-		       struct gensio_os_funcs *o,
-		       gensio_event cb, void *user_data,
-		       struct gensio **rio)
+iodev_gensio_alloc(const void *gdata, const char * const args[],
+		   struct gensio_os_funcs *o, bool set_tty,
+		   gensio_event cb, void *user_data,
+		   struct gensio **rio)
 {
     const char *devname = gdata;
     struct sterm_data *sdata = o->zalloc(o, sizeof(*sdata));
@@ -1410,7 +1413,7 @@ serialdev_gensio_alloc(const void *gdata, const char * const args[],
     char *comma;
     gensiods max_read_size = GENSIO_DEFAULT_BUF_SIZE;
     int i, ival;
-    bool nouucplock_set = false, dummy = false;
+    bool nouucplock_set = false, dummy = false, wronly = false;
     const char *s;
     char *end;
     GENSIO_DECLARE_PPGENSIO(p, o, cb, "serialdev", user_data);
@@ -1420,11 +1423,15 @@ serialdev_gensio_alloc(const void *gdata, const char * const args[],
 
     sdata->o = o;
 
-    err = gensio_get_default(o, "sergensio", "nouucplock", false,
-			     GENSIO_DEFAULT_BOOL, NULL, &ival);
-    if (err)
-	goto out_err;
-    sdata->no_uucp_lock = ival;
+    if (!set_tty) {
+	sdata->no_uucp_lock = true;
+    } else {
+	err = gensio_get_default(o, "sergensio", "nouucplock", false,
+				 GENSIO_DEFAULT_BOOL, NULL, &ival);
+	if (err)
+	    goto out_err;
+	sdata->no_uucp_lock = ival;
+    }
     err = gensio_get_default(o, "sergensio", "drain_time", false,
 			     GENSIO_DEFAULT_INT, NULL, &sdata->drain_time);
     if (err)
@@ -1436,6 +1443,8 @@ serialdev_gensio_alloc(const void *gdata, const char * const args[],
 
     for (i = 0; args && args[i]; i++) {
 	if (gensio_pparm_ds(&p, args[i], "readbuf", &max_read_size) > 0)
+	    continue;
+	if (gensio_pparm_bool(&p, args[i], "wronly", &wronly) > 0)
 	    continue;
 	if (gensio_pparm_value(&p, args[i], "drain_time", &s) > 0) {
 	    if (strcmp(s, "off") == 0) {
@@ -1457,7 +1466,7 @@ serialdev_gensio_alloc(const void *gdata, const char * const args[],
 	    }
 	    continue;
 	}
-	if (gensio_pparm_bool(&p, args[i], "nouucplock",
+	if (set_tty && gensio_pparm_bool(&p, args[i], "nouucplock",
 			      &sdata->no_uucp_lock) > 0) {
 	    nouucplock_set = true;
 	    continue;
@@ -1480,12 +1489,14 @@ serialdev_gensio_alloc(const void *gdata, const char * const args[],
 	goto out_nomem;
 
     sdata->is_pty = is_a_pty(sdata->devname);
+    sdata->write_only = wronly;
+    sdata->set_tty = set_tty;
 
     comma = strchr(sdata->devname, ',');
     if (comma)
 	*comma++ = '\0';
 
-    if (!nouucplock_set) {
+    if (set_tty && !nouucplock_set) {
 	const char *slash = strrchr(devname, '/');
 
 	/*
@@ -1502,16 +1513,24 @@ serialdev_gensio_alloc(const void *gdata, const char * const args[],
 	sdata->no_uucp_lock = strcmp(slash, "tty") == 0 || sdata->is_pty;
     }
 
-    err = sergensio_setup_defaults(&p, sdata);
-    if (err)
-	goto out_err;
-
-    if (comma) {
-	sdata->parms = comma;
-	err = sergensio_process_parms(&p, sdata);
+    if (set_tty) {
+	err = sergensio_setup_defaults(&p, sdata);
 	if (err)
 	    goto out_err;
+
+	if (comma) {
+	    sdata->parms = comma;
+	    err = sergensio_process_parms(&p, sdata);
+	    if (err)
+		goto out_err;
+	}
+    } else if (comma) {
+	gensio_pparm_slog(&p,
+			  "Serial port options not accepted for 'dev' gensios");
+	err = GE_INVAL;
+	goto out_err;
     }
+
     sdata->deferred_op_runner = o->alloc_runner(o, sterm_deferred_op, sdata);
     if (!sdata->deferred_op_runner)
 	goto out_nomem;
@@ -1554,12 +1573,39 @@ serialdev_gensio_alloc(const void *gdata, const char * const args[],
 }
 
 static int
+serialdev_gensio_alloc(const void *gdata, const char * const args[],
+		       struct gensio_os_funcs *o,
+		       gensio_event cb, void *user_data,
+		       struct gensio **rio)
+{
+    return iodev_gensio_alloc(gdata, args, o, true, cb, user_data, rio);
+}
+
+static int
 str_to_serialdev_gensio(const char *str, const char * const args[],
 			struct gensio_os_funcs *o,
 			gensio_event cb, void *user_data,
 			struct gensio **new_gensio)
 {
     return serialdev_gensio_alloc(str, args, o, cb, user_data, new_gensio);
+}
+
+static int
+dev_gensio_alloc(const void *gdata, const char * const args[],
+		 struct gensio_os_funcs *o,
+		 gensio_event cb, void *user_data,
+		 struct gensio **rio)
+{
+    return iodev_gensio_alloc(gdata, args, o, false, cb, user_data, rio);
+}
+
+static int
+str_to_dev_gensio(const char *str, const char * const args[],
+		  struct gensio_os_funcs *o,
+		  gensio_event cb, void *user_data,
+		  struct gensio **new_gensio)
+{
+    return dev_gensio_alloc(str, args, o, cb, user_data, new_gensio);
 }
 
 int
@@ -1571,5 +1617,11 @@ gensio_init_serialdev(struct gensio_os_funcs *o)
 			 serialdev_gensio_alloc);
     if (rv)
 	return rv;
+
+    rv = register_gensio(o, "dev", str_to_dev_gensio,
+			 dev_gensio_alloc);
+    if (rv)
+	return rv;
+
     return 0;
 }

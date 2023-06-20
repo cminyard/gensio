@@ -1392,6 +1392,8 @@ gensio_loadlib(struct gensio_os_funcs *o, const char *str)
     name[len] = '\0';
     if (strcmp(name, "tcp") == 0 || strcmp(name, "unix") == 0)
 	strcpy(name, "net");
+    if (strcmp(name, "dev") == 0)
+	strcpy(name, "serialdev");
 
     return gensio_os_loadlib(o, name);
 }
