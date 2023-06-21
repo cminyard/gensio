@@ -782,7 +782,7 @@ pty_gensio_alloc(const void *gdata, const char * const args[],
     }
 
     tdata->ll = fd_gensio_ll_alloc(o, NULL, &pty_fd_ll_ops, tdata,
-				   max_read_size, false);
+				   max_read_size, false, false);
     if (!tdata->ll)
 	goto out_nomem;
 

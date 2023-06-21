@@ -218,7 +218,8 @@ serialdev
 dev
     Connects to devices (like serialdev does) but does not do any
     serial port processing.  It also has a write-only option for
-    talking to printer ports or other write-only devices.  No accepter
+    talking to printer ports or other write-only devices.  It also has
+    a rdonly option for talking to read-only devices.  No accepter
     available.
 
 ipmisol

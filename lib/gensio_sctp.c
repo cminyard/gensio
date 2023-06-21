@@ -478,7 +478,7 @@ sctp_gensio_alloc(const void *gdata, const char * const args[],
     tdata->nodelay = nodelay;
 
     tdata->ll = fd_gensio_ll_alloc(o, NULL, &sctp_fd_ll_ops, tdata,
-				   max_read_size, false);
+				   max_read_size, false, false);
     if (!tdata->ll)
 	goto out_nomem;
 
@@ -660,7 +660,7 @@ sctpna_readhandler(struct gensio_iod *iod, void *cbdata)
     }
 
     tdata->ll = fd_gensio_ll_alloc(nadata->o, new_iod, &sctp_server_fd_ll_ops,
-				   tdata, nadata->max_read_size, false);
+				   tdata, nadata->max_read_size, false, false);
     if (!tdata->ll) {
 	gensio_acc_log(nadata->acc, GENSIO_LOG_ERR,
 		       "Out of memory allocating net ll");

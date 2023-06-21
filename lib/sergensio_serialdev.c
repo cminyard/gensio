@@ -122,6 +122,7 @@ struct sterm_data {
     bool is_pty;
 
     bool write_only;		/* No read. */
+    bool read_only;		/* No write. */
     bool set_tty;		/* No serial settings. */
 
     bool no_uucp_lock;
@@ -879,7 +880,8 @@ sterm_sub_open(void *handler_data, struct gensio_iod **riod)
     sdata->timer_stopped = false;
     sdata->iod = NULL; /* If it's a re-open make sure this is clear. */
 
-    options = GENSIO_OPEN_OPTION_WRITEABLE;
+    if (!sdata->read_only)
+	options = GENSIO_OPEN_OPTION_WRITEABLE;
     if (!sdata->write_only)
 	options |= GENSIO_OPEN_OPTION_READABLE;
     err = o->open_dev(o, sdata->devname, options, &sdata->iod);
@@ -1413,7 +1415,7 @@ iodev_gensio_alloc(const void *gdata, const char * const args[],
     char *comma;
     gensiods max_read_size = GENSIO_DEFAULT_BUF_SIZE;
     int i, ival;
-    bool nouucplock_set = false, dummy = false, wronly = false;
+    bool nouucplock_set = false, dummy = false, wronly = false, rdonly = false;
     const char *s;
     char *end;
     GENSIO_DECLARE_PPGENSIO(p, o, cb, "serialdev", user_data);
@@ -1445,6 +1447,8 @@ iodev_gensio_alloc(const void *gdata, const char * const args[],
 	if (gensio_pparm_ds(&p, args[i], "readbuf", &max_read_size) > 0)
 	    continue;
 	if (gensio_pparm_bool(&p, args[i], "wronly", &wronly) > 0)
+	    continue;
+	if (gensio_pparm_bool(&p, args[i], "rdonly", &rdonly) > 0)
 	    continue;
 	if (gensio_pparm_value(&p, args[i], "drain_time", &s) > 0) {
 	    if (strcmp(s, "off") == 0) {
@@ -1480,6 +1484,12 @@ iodev_gensio_alloc(const void *gdata, const char * const args[],
 	goto out_err;
     }
 
+    if (wronly && rdonly) {
+	gensio_pparm_slog(&p, "You cannot set both wronly and rdonly");
+	err = GE_INVAL;
+	goto out_err;
+    }
+
     sdata->timer = o->alloc_timer(o, serialdev_timeout, sdata);
     if (!sdata->timer)
 	goto out_nomem;
@@ -1490,6 +1500,7 @@ iodev_gensio_alloc(const void *gdata, const char * const args[],
 
     sdata->is_pty = is_a_pty(sdata->devname);
     sdata->write_only = wronly;
+    sdata->read_only = rdonly;
     sdata->set_tty = set_tty;
 
     comma = strchr(sdata->devname, ',');
@@ -1540,7 +1551,8 @@ iodev_gensio_alloc(const void *gdata, const char * const args[],
 	goto out_nomem;
 
     sdata->ll = fd_gensio_ll_alloc(o, NULL, &sterm_fd_ll_ops, sdata,
-				   max_read_size, sdata->write_only);
+				   max_read_size, sdata->write_only,
+				   sdata->read_only);
     if (!sdata->ll)
 	goto out_nomem;
 

@@ -114,6 +114,7 @@ struct fd_ll {
     bool read_enabled;
     bool write_enabled;
     bool write_only;
+    bool read_only;
 
     const struct gensio_fd_ll_ops *ops;
     void *handler_data;
@@ -886,6 +887,8 @@ fd_set_write_callback_enable(struct gensio_ll *ll, bool enabled)
     struct fd_ll *fdll = ll_to_fd(ll);
 
     fd_lock(fdll);
+    if (fdll->read_only)
+	goto out_unlock;
     fdll->write_enabled = enabled;
     if (fdll->state == FD_OPEN || fdll->state == FD_IN_OPEN ||
 		fdll->state == FD_IN_OPEN_RETRY) {
@@ -894,6 +897,7 @@ fd_set_write_callback_enable(struct gensio_ll *ll, bool enabled)
     } else if (fdll->deferred_except) {
 	fd_sched_deferred_op(fdll);
     }
+ out_unlock:
     fd_unlock(fdll);
 }
 
@@ -1002,7 +1006,7 @@ fd_gensio_ll_alloc(struct gensio_os_funcs *o,
 		   const struct gensio_fd_ll_ops *ops,
 		   void *handler_data,
 		   gensiods max_read_size,
-		   bool write_only)
+		   bool write_only, bool read_only)
 {
     struct fd_ll *fdll;
 
@@ -1015,6 +1019,7 @@ fd_gensio_ll_alloc(struct gensio_os_funcs *o,
     fdll->iod = iod;
     fdll->refcount = 1;
     fdll->write_only = write_only;
+    fdll->read_only = read_only;
     if (!iod) {
 	fd_set_state(fdll, FD_CLOSED);
     } else {

@@ -669,6 +669,8 @@ accepted, use -1 instead.
 .TP
 .B wronly[=true|false]
 Set the device to write only.  Default is false.
+.B rdonly[=true|false]
+Set the device to read only.  Default is false.
 .PP
 There are a plethora of serialoptions, available as defaults:
 .TP
@@ -685,7 +687,8 @@ than the
 .B wronly
 option set in the parameters, this one sets both turns off termio
 process and sets wronly.  This option is deprecated, use the "dev"
-gensio for non-serial port and the wronly in the parameters.
+gensio for non-serial port devices and the wronly option in the
+parameters.
 .TP
 .B nobreak[=true|false]
 Clear the break line at start (or don't clear it).  Default it to not

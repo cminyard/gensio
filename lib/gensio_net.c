@@ -422,7 +422,7 @@ net_gensio_alloc(const struct gensio_addr *iai, const char * const args[],
     tdata->nodelay = nodelay;
 
     tdata->ll = fd_gensio_ll_alloc(o, NULL, &net_fd_ll_ops, tdata,
-				   max_read_size, false);
+				   max_read_size, false, false);
     if (!tdata->ll)
 	goto out_nomem;
 
@@ -690,7 +690,7 @@ netna_readhandler(struct gensio_iod *iod, void *cbdata)
     }
 
     tdata->ll = fd_gensio_ll_alloc(nadata->o, new_iod, &net_server_fd_ll_ops,
-				   tdata, nadata->max_read_size, false);
+				   tdata, nadata->max_read_size, false, false);
     if (!tdata->ll) {
 	gensio_acc_log(nadata->acc, GENSIO_LOG_ERR,
 		       "Out of memory allocating net ll");

@@ -87,7 +87,7 @@ struct gensio_ll *fd_gensio_ll_alloc(struct gensio_os_funcs *o,
 				     const struct gensio_fd_ll_ops *ops,
 				     void *handler_data,
 				     gensiods max_read_size,
-				     bool write_only);
+				     bool write_only, bool read_only);
 
 
 #endif /* GENSIO_LL_FD_H */
