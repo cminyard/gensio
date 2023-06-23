@@ -211,9 +211,9 @@ pty
     its tty.  No accepter available.
 
 serialdev
-    Connect to a device.  It can hook to termios type devices, like
-    ptys and /dev/tty, more than just serial ports.  No accepter
-    available.
+    Connect to a device.  You can use "sdev" as shorthand for
+    "serialdev".  It can hook to termios type devices, like ptys and
+    /dev/tty, more than just serial ports.  No accepter available.
 
 dev
     Connects to devices (like serialdev does) but does not do any

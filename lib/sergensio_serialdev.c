@@ -1630,6 +1630,11 @@ gensio_init_serialdev(struct gensio_os_funcs *o)
     if (rv)
 	return rv;
 
+    rv = register_gensio(o, "sdev", str_to_serialdev_gensio,
+			 serialdev_gensio_alloc);
+    if (rv)
+	return rv;
+
     rv = register_gensio(o, "dev", str_to_dev_gensio,
 			 dev_gensio_alloc);
     if (rv)
