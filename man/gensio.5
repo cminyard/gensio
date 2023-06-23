@@ -638,7 +638,8 @@ gensio_addr *"
 A serialdev connection is a local serial port.  The device is a
 .B /dev/xxx
 type, and should be real stream device of some type that normal
-termios work on (except for wronly).
+termios or serial processing work on.  For non-serial devices, use the
+"dev" gensio.
 
 This is, no surprise, a serial gensio.
 
@@ -682,15 +683,16 @@ This is a normal serial port configuration specification, like
 a default type for this.
 .TP
 .B wronly[=true|false]
+This option is deprecated, use the "dev" gensio for non-serial port
+devices and the wronly option in the parameters.
+
 Set the device to write only.  No termios definition is done on the
 port.  This can be done to talk to a line printer port, for instance.
 False by default.  Note that for historical reasons this is different
 than the
 .B wronly
 option set in the parameters, this one sets both turns off termio
-process and sets wronly.  This option is deprecated, use the "dev"
-gensio for non-serial port devices and the wronly option in the
-parameters.
+process and sets wronly.
 .TP
 .B nobreak[=true|false]
 Clear the break line at start (or don't clear it).  Default it to not
@@ -758,7 +760,8 @@ This is like a
 gensio, but doesn't do any serial port processing like termios or
 break processing.  This can be used for /dev/lpX devices for instance.
 This is read/write by default, you must set the wronly option to
-disable read access for a read-only device.
+disable read access for a write-only device and rdonly to disable
+write access for read-only devices.
 
 This takes the same options as
 .B serialdev
