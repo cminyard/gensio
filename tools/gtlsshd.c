@@ -2746,10 +2746,11 @@ handle_new(struct gensio *net_io)
     if (top_io)
 	gensio_free(top_io);
     auth_free(auth);
-#ifndef _WIN32
-    /* Terminate the subprocess. */
-    gensio_os_funcs_wake(o, ginfo->waiter);
+#ifdef _WIN32
+    if (oneshot)
 #endif
+    /* Terminate the subprocess. */
+	gensio_os_funcs_wake(o, ginfo->waiter);
 }
 
 static struct gensio_accepter *tcp_acc, *sctp_acc, *other_acc;
