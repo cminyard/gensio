@@ -140,19 +140,19 @@ handle_escapechar(struct ioinfo *ioinfo, char c)
 	    if (ioinfo->escape_pos > 1 && ioinfo->sh)
 		ioinfo->sh->handle_multichar_escape(ioinfo,
 						    ioinfo->escape_data);
-	    ioinfo_out(ioinfo, ">", 1);
+	    ioinfo_out(ioinfo, ">");
 	    ioinfo->escape_pos = 0;
 	    return false;
 	}
 	if (c == '\b' || c == 0x7f) {
 	    if (ioinfo->escape_pos > 1) {
 		ioinfo->escape_pos--;
-		ioinfo_out(ioinfo, "\b \b", 3);
+		ioinfo_out(ioinfo, "\b \b");
 	    }
 	    return true;
 	}
 
-	ioinfo_out(ioinfo, &c, 1);
+	ioinfo_out(ioinfo, "%c", c);
 	if (ioinfo->escape_pos < sizeof(ioinfo->escape_data) - 1)
 	    ioinfo->escape_data[ioinfo->escape_pos++] = c;
 	return true;
@@ -177,7 +177,7 @@ handle_escapechar(struct ioinfo *ioinfo, char c)
     if (ioinfo->sh) {
 	rv = ioinfo->sh->handle_escape(ioinfo, c);
 	if (rv) {
-	    ioinfo_out(ioinfo, "<", 1);
+	    ioinfo_out(ioinfo, "<");
 	    ioinfo->escape_data[0] = c;
 	    ioinfo->escape_pos = 1;
 	}
