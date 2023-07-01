@@ -6,4 +6,4 @@ includedir=@includedir@
 Name: libgensiooshcpp
 Description: A C++ library wrapper around gensio OS handler
 Version: @VERSION@
-Libs: -L${libdir} -lgensiooshcpp -lgensioosh
+Libs: -L${libdir} -lgensiooshcpp -lgensio -lgensioosh

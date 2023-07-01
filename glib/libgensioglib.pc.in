@@ -6,4 +6,5 @@ includedir=@includedir@
 Name: libgensioglib
 Description: A library to abstract stream I/O like serial port, TCP, telnet, UDP, SSL, IPMI SOL, etc.
 Version: @VERSION@
-Libs: -L${libdir} -lgensioglib -lgensio @LIBS@
+Libs: -L${libdir} -lgensioglib -lgensio
+Libs.private: @GLIB_LIBS@

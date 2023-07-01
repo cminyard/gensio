@@ -6,4 +6,5 @@ includedir=@includedir@
 Name: libgensiomdns
 Description: A gensiolibrary to abstract MDNS interfaces
 Version: @VERSION@
-Libs: -L${libdir} -lgensioosh @MDNS_LIBS@ @LIBS@
+Libs: -L${libdir} -lgensioosh -lgensio
+Libs.private: @MDNS_LIBS@
