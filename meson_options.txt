@@ -1,0 +1,410 @@
+
+option(
+    'uucp-locking',
+    type: 'string',
+    description: 'Enable UUCP-style locking with yes/no, or set the uucp lock directory otherwise',
+)
+option(
+    'module-install-dir',
+    type: 'string',
+    description: 'path to install modules to',
+)
+option(
+    'broken-pselect',
+    type: 'boolean',
+    value: false,
+    description: 'pselect is not atomic, work around it',
+)
+
+option(
+    'flock-locking',
+    type: 'combo',
+    choices: ['auto', 'yes', 'no'],
+    value: 'auto',
+    description: 'Enable flock-style locking on serial ports',
+)
+
+option(
+    'internal-trace',
+    type: 'boolean',
+    value: false,
+    description: 'Enable internal tracing, used for testing',
+)
+
+option(
+    'tcp-wrappers',
+    type: 'feature',
+    value: 'disabled',
+    description: 'enable TCP Wrappers, off by default like in configure',
+)
+
+option(
+    'pam',
+    type: 'feature',
+    description: 'enable PAM support, gtlsshd is only built with PAM on unix',
+)
+
+option(
+    'swig',
+    type: 'feature',
+    description: 'Build the swig based language bindings (swig >= 4.0, >= 4.1 for C++)',
+)
+
+option(
+    'python',
+    type: 'feature',
+    description: 'Build the python bindings, requires swig',
+)
+
+option(
+    'python-install-dir',
+    type: 'string',
+    description: 'Directory to install the python modules to, default is the python platlib directory',
+)
+
+option(
+    'docs',
+    type: 'boolean',
+    value: true,
+    description: 'build and install documentation',
+)
+
+option(
+    'pthread',
+    type: 'feature',
+    description: 'enable Threading',
+)
+
+option(
+    'cplusplus',
+    type: 'boolean',
+    value: true,
+    description: 'Enable or disable C++ support',
+)
+
+option(
+    'cplusplus-ver',
+    type: 'string',
+    description: 'Set the C++ version, same as the value of __cplusplus',
+)
+
+option(
+    'glib',
+    type: 'feature',
+    description: 'enable glib',
+)
+
+#glibcflags
+#gliblibflags
+
+option(
+    'tcl',
+    type: 'feature',
+    description: 'enable Tcl',
+)
+
+option(
+    'openipmi',
+    type: 'feature',
+    description: 'enable OpenIPMI',
+)
+
+option(
+    'avahi',
+    type: 'feature',
+    description: 'enable Avahi mDNS',
+)
+option(
+    'alsa',
+    type: 'feature',
+    description: 'enable ALSA',
+)
+
+# gensios
+option(
+    'all-gensios',
+    type: 'combo',
+    choices: ['auto', 'yes', 'dynamic', 'no'],
+    value: 'auto',
+    description: 'Default setting for all gensios: yes (built into libgensio), dynamic (loadable module), no (not built). auto is dynamic for shared libraries, yes otherwise',
+)
+
+option(
+    'gensio-net',
+    type: 'combo',
+    choices: ['default', 'yes', 'dynamic', 'no'],
+    value: 'default',
+    description: 'Build the net gensio into the library (yes), as a module (dynamic) or not at all (no); default follows all-gensios',
+)
+
+option(
+    'gensio-dgram',
+    type: 'combo',
+    choices: ['default', 'yes', 'dynamic', 'no'],
+    value: 'default',
+    description: 'Build the dgram gensio into the library (yes), as a module (dynamic) or not at all (no); default follows all-gensios',
+)
+
+option(
+    'gensio-sctp',
+    type: 'combo',
+    choices: ['default', 'yes', 'dynamic', 'no'],
+    value: 'default',
+    description: 'Build the sctp gensio into the library (yes), as a module (dynamic) or not at all (no); default follows all-gensios',
+)
+
+option(
+    'gensio-stdio',
+    type: 'combo',
+    choices: ['default', 'yes', 'dynamic', 'no'],
+    value: 'default',
+    description: 'Build the stdio gensio into the library (yes), as a module (dynamic) or not at all (no); default follows all-gensios',
+)
+
+option(
+    'gensio-pty',
+    type: 'combo',
+    choices: ['default', 'yes', 'dynamic', 'no'],
+    value: 'default',
+    description: 'Build the pty gensio into the library (yes), as a module (dynamic) or not at all (no); default follows all-gensios',
+)
+
+option(
+    'gensio-dummy',
+    type: 'combo',
+    choices: ['default', 'yes', 'dynamic', 'no'],
+    value: 'default',
+    description: 'Build the dummy gensio into the library (yes), as a module (dynamic) or not at all (no); default follows all-gensios',
+)
+
+option(
+    'gensio-conacc',
+    type: 'combo',
+    choices: ['default', 'yes', 'dynamic', 'no'],
+    value: 'default',
+    description: 'Build the conacc gensio into the library (yes), as a module (dynamic) or not at all (no); default follows all-gensios',
+)
+
+option(
+    'gensio-serialdev',
+    type: 'combo',
+    choices: ['default', 'yes', 'dynamic', 'no'],
+    value: 'default',
+    description: 'Build the serialdev gensio into the library (yes), as a module (dynamic) or not at all (no); default follows all-gensios',
+)
+
+option(
+    'gensio-echo',
+    type: 'combo',
+    choices: ['default', 'yes', 'dynamic', 'no'],
+    value: 'default',
+    description: 'Build the echo gensio into the library (yes), as a module (dynamic) or not at all (no); default follows all-gensios',
+)
+
+option(
+    'gensio-file',
+    type: 'combo',
+    choices: ['default', 'yes', 'dynamic', 'no'],
+    value: 'default',
+    description: 'Build the file gensio into the library (yes), as a module (dynamic) or not at all (no); default follows all-gensios',
+)
+
+option(
+    'gensio-ipmisol',
+    type: 'combo',
+    choices: ['default', 'yes', 'dynamic', 'no'],
+    value: 'default',
+    description: 'Build the ipmisol gensio into the library (yes), as a module (dynamic) or not at all (no); default follows all-gensios',
+)
+
+option(
+    'gensio-mdns',
+    type: 'combo',
+    choices: ['default', 'yes', 'dynamic', 'no'],
+    value: 'default',
+    description: 'Build the mdns gensio into the library (yes), as a module (dynamic) or not at all (no); default follows all-gensios',
+)
+
+option(
+    'gensio-sound',
+    type: 'combo',
+    choices: ['default', 'yes', 'dynamic', 'no'],
+    value: 'default',
+    description: 'Build the sound gensio into the library (yes), as a module (dynamic) or not at all (no); default follows all-gensios',
+)
+
+option(
+    'gensio-cm108gpio',
+    type: 'combo',
+    choices: ['default', 'yes', 'dynamic', 'no'],
+    value: 'default',
+    description: 'Build the cm108gpio gensio into the library (yes), as a module (dynamic) or not at all (no); default follows all-gensios',
+)
+
+option(
+    'gensio-ssl',
+    type: 'combo',
+    choices: ['default', 'yes', 'dynamic', 'no'],
+    value: 'default',
+    description: 'Build the ssl gensio into the library (yes), as a module (dynamic) or not at all (no); default follows all-gensios',
+)
+
+option(
+    'gensio-certauth',
+    type: 'combo',
+    choices: ['default', 'yes', 'dynamic', 'no'],
+    value: 'default',
+    description: 'Build the certauth gensio into the library (yes), as a module (dynamic) or not at all (no); default follows all-gensios',
+)
+
+option(
+    'gensio-mux',
+    type: 'combo',
+    choices: ['default', 'yes', 'dynamic', 'no'],
+    value: 'default',
+    description: 'Build the mux gensio into the library (yes), as a module (dynamic) or not at all (no); default follows all-gensios',
+)
+
+option(
+    'gensio-telnet',
+    type: 'combo',
+    choices: ['default', 'yes', 'dynamic', 'no'],
+    value: 'default',
+    description: 'Build the telnet gensio into the library (yes), as a module (dynamic) or not at all (no); default follows all-gensios',
+)
+
+option(
+    'gensio-msgdelim',
+    type: 'combo',
+    choices: ['default', 'yes', 'dynamic', 'no'],
+    value: 'default',
+    description: 'Build the msgdelim gensio into the library (yes), as a module (dynamic) or not at all (no); default follows all-gensios',
+)
+
+option(
+    'gensio-relpkt',
+    type: 'combo',
+    choices: ['default', 'yes', 'dynamic', 'no'],
+    value: 'default',
+    description: 'Build the relpkt gensio into the library (yes), as a module (dynamic) or not at all (no); default follows all-gensios',
+)
+
+option(
+    'gensio-trace',
+    type: 'combo',
+    choices: ['default', 'yes', 'dynamic', 'no'],
+    value: 'default',
+    description: 'Build the trace gensio into the library (yes), as a module (dynamic) or not at all (no); default follows all-gensios',
+)
+
+option(
+    'gensio-perf',
+    type: 'combo',
+    choices: ['default', 'yes', 'dynamic', 'no'],
+    value: 'default',
+    description: 'Build the perf gensio into the library (yes), as a module (dynamic) or not at all (no); default follows all-gensios',
+)
+
+option(
+    'gensio-kiss',
+    type: 'combo',
+    choices: ['default', 'yes', 'dynamic', 'no'],
+    value: 'default',
+    description: 'Build the kiss gensio into the library (yes), as a module (dynamic) or not at all (no); default follows all-gensios',
+)
+
+option(
+    'gensio-ax25',
+    type: 'combo',
+    choices: ['default', 'yes', 'dynamic', 'no'],
+    value: 'default',
+    description: 'Build the ax25 gensio into the library (yes), as a module (dynamic) or not at all (no); default follows all-gensios',
+)
+
+option(
+    'gensio-xlt',
+    type: 'combo',
+    choices: ['default', 'yes', 'dynamic', 'no'],
+    value: 'default',
+    description: 'Build the xlt gensio into the library (yes), as a module (dynamic) or not at all (no); default follows all-gensios',
+)
+
+option(
+    'gensio-keepopen',
+    type: 'combo',
+    choices: ['default', 'yes', 'dynamic', 'no'],
+    value: 'default',
+    description: 'Build the keepopen gensio into the library (yes), as a module (dynamic) or not at all (no); default follows all-gensios',
+)
+
+option(
+    'gensio-script',
+    type: 'combo',
+    choices: ['default', 'yes', 'dynamic', 'no'],
+    value: 'default',
+    description: 'Build the script gensio into the library (yes), as a module (dynamic) or not at all (no); default follows all-gensios',
+)
+
+option(
+    'gensio-ratelimit',
+    type: 'combo',
+    choices: ['default', 'yes', 'dynamic', 'no'],
+    value: 'default',
+    description: 'Build the ratelimit gensio into the library (yes), as a module (dynamic) or not at all (no); default follows all-gensios',
+)
+
+option(
+    'gensio-chardelay',
+    type: 'combo',
+    choices: ['default', 'yes', 'dynamic', 'no'],
+    value: 'default',
+    description: 'Build the chardelay gensio into the library (yes), as a module (dynamic) or not at all (no); default follows all-gensios',
+)
+
+option(
+    'gensio-iosplit',
+    type: 'combo',
+    choices: ['default', 'yes', 'dynamic', 'no'],
+    value: 'default',
+    description: 'Build the iosplit gensio into the library (yes), as a module (dynamic) or not at all (no); default follows all-gensios',
+)
+
+option(
+    'gensio-fsk',
+    type: 'combo',
+    choices: ['default', 'yes', 'dynamic', 'no'],
+    value: 'default',
+    description: 'Build the fsk gensio into the library (yes), as a module (dynamic) or not at all (no); default follows all-gensios',
+)
+
+option(
+    'gensio-hdlc',
+    type: 'combo',
+    choices: ['default', 'yes', 'dynamic', 'no'],
+    value: 'default',
+    description: 'Build the hdlc gensio into the library (yes), as a module (dynamic) or not at all (no); default follows all-gensios',
+)
+
+option(
+    'gensio-axfec',
+    type: 'combo',
+    choices: ['default', 'yes', 'dynamic', 'no'],
+    value: 'default',
+    description: 'Build the axfec gensio into the library (yes), as a module (dynamic) or not at all (no); default follows all-gensios',
+)
+
+option(
+    'gensio-soapy',
+    type: 'combo',
+    choices: ['default', 'yes', 'dynamic', 'no'],
+    value: 'default',
+    description: 'Build the soapy gensio into the library (yes), as a module (dynamic) or not at all (no); default follows all-gensios',
+)
+
+option(
+    'gensio-convcode',
+    type: 'combo',
+    choices: ['default', 'yes', 'dynamic', 'no'],
+    value: 'default',
+    description: 'Build the convcode gensio into the library (yes), as a module (dynamic) or not at all (no); default follows all-gensios',
+)

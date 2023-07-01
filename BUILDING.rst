@@ -93,6 +93,13 @@ and --with-pythoninstalllib configure options or you can set the
 pythoninstalldir and pythoninstalllibdir environment variables to
 where you want the libraries and modules to go.
 
+With meson the python bindings are built when swig (4.0 or greater,
+4.1 or greater for the C++ bindings) and the python development files
+are found; use "-Dswig=disabled" or "-Dpython=disabled" to turn them
+off.  The install location is set with "-Dpython-install-dir=PATH".
+The test suite is run with "meson test -C <builddir>"; the oom tests
+need "-Dinternal-trace=true".
+
 Note that you may need to set --with-uucp-locking to your lockdir (on
 older systems it's /var/lock, which is the default.  On newer it might
 be /run/lock/lockdev.  You might also need to be a member of dialout
@@ -135,6 +142,11 @@ where x is "no (don't build), yes (build into library) or dynamic
 (dynamically loaded executable).  For instance, if you only wanted to
 build the tcp gensio into the library and make the rest dynamic, you
 could set up for all dynamic gensios and then add "--with-net=yes".
+
+With meson the same is done with "-Dall-gensios=yes|dynamic|no" and
+"-Dgensio-<gensio>=yes|dynamic|no", for instance
+"-Dall-gensios=dynamic -Dgensio-net=yes".  The module install
+directory is set with "-Dmodule-install-dir=PATH".
 
 These modules are put by default into ``$(moduleinstalldir)``
 (specified with --with-moduleinstall on the configure line) which
