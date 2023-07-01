@@ -26,7 +26,7 @@ libgensioosh_la_CPPFLAGS = -DBUILDING_GENSIOOSH_DLL \
 	-DPKG_LIBEXEC="\"$(gensiolibexec)\""
 libgensioosh_la_LDFLAGS = -no-undefined -version-info $(GENSIO_LIB_VERSION) \
 	-fvisibility=hidden
-libgensioosh_la_LIBADD = @LIBSCTP_LIBS@
+libgensioosh_la_LIBADD = @OSH_LIBS@
 if ENABLE_INTERNAL_TRACE
 libgensioosh_la_SOURCES += errtrig.c
 endif
@@ -43,7 +43,7 @@ libgensio_la_SOURCES = \
 libgensio_la_CPPFLAGS = -DBUILDING_GENSIO_DLL
 libgensio_la_LDFLAGS = -no-undefined -version-info $(GENSIO_LIB_VERSION) \
 	-fvisibility=hidden
-libgensio_la_LIBADD = libgensioosh.la
+libgensio_la_LIBADD = libgensioosh.la @BASE_LIBS@
 
 if HAVE_WINDOWS_OS
 gensiolibexec = $(bindir)

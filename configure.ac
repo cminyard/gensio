@@ -30,6 +30,8 @@ LT_INIT(dlopen)
 LDFLAGS="$OLD_LDFLAGS"
 
 # defaults
+OSH_LIBS=
+BASE_LIBS=
 AM_CFLAGS=
 AM_CXXFLAGS=
 EXTRA_CFLAGS=
@@ -40,33 +42,33 @@ broken_pselect=no
 system_type=unix
 case $target_os in
 	mingw*)
-		LIBS="$LIBS -lws2_32 -liphlpapi -lgdi32 -lbcrypt"
-		LIBS="$LIBS -lsecur32 -luserenv -lwtsapi32"
-		LIBS="$LIBS -lole32"
+		OSH_LIBS="$OSH_LIBS -lws2_32 -liphlpapi -lgdi32 -lbcrypt"
+		OSH_LIBS="$OSH_LIBS -lsecur32 -luserenv -lwtsapi32"
+		OSH_LIBS="$OSH_LIBS -lole32"
 		uucp_locking_flag=no
 		system_type=windows
 		USE_FILE_STDIO=1
 		;;
 	cygwin*)
-		LIBS="$LIBS -ldl"
+		OSH_LIBS="$OSH_LIBS -ldl"
 		uucp_locking_flag=no
 		;;
 	linux*)
-		LIBS="$LIBS -ldl"
+		OSH_LIBS="$OSH_LIBS -ldl"
 		UUCP_LOCK_DIR=/var/lock
 		;;
 	darwin*)
-		LIBS="$LIBS -ldl"
+		OSH_LIBS="$OSH_LIBS -ldl"
 		broken_pselect=yes
 		uucp_locking_flag=no
 		;;
 	*bsd* | *BSD*)
-		LIBS="$LIBS -ldl"
+		OSH_LIBS="$OSH_LIBS -ldl"
 		broken_pselect=yes
 		;;
 	*)
 		# Defaults, maybe it will work
-		LIBS="$LIBS -ldl"
+		OSH_LIBS="$OSH_LIBS -ldl"
 		;;
 esac
 
@@ -139,7 +141,8 @@ AC_ARG_WITH(tcp-wrappers,
 if test "$tcp_wrappers" != "no"
 then
   AC_CHECK_HEADERS([tcpd.h])
-  AC_CHECK_LIB(wrap,request_init)
+  AC_CHECK_LIB(wrap, request_init,
+	       [$HAVE_LIBWRAP=1; OSH_LIBS="-lwrap $OSH_LIBS"])
 fi
 
 AC_ARG_ENABLE([doc],
@@ -174,7 +177,7 @@ AC_ARG_WITH(pthreads,
 
 if test "x$use_pthreads" != "xno"; then
    AX_PTHREAD(
-      [LIBS="$LIBS $PTHREAD_LIBS"
+      [OSH_LIBS="$OSH_LIBS $PTHREAD_LIBS"
        EXTRA_CFLAGS="$EXTRA_CFLAGS $PTHREAD_CFLAGS"
        CC="$PTHREAD_CC"
        AC_DEFINE([USE_PTHREADS], [], [Enable multithreaded support])],
@@ -481,11 +484,10 @@ AC_DEFINE_UNQUOTED([HAVE_SCTP_SENDV], [$HAVE_SCTP_SENDV],
 
 if test "$HAVE_LIBSCTP" = "1"; then
    sctp=$default_all
-   LIBSCTP_LIBS="-lsctp"
+   OSH_LIBS="-lsctp $OSH_LIBS"
 else
    sctp=no
 fi
-AC_SUBST(LIBSCTP_LIBS)
 
 AC_ARG_WITH(sctp,
  [AS_HELP_STRING([--with-sctp=yes|dynamic|no], [Enable sctp gensio])],
@@ -744,7 +746,7 @@ if test "x$tryopenipmi" != "xno"; then
    found_ipmiif=no
    AC_CHECK_HEADER(OpenIPMI/ipmiif.h, found_ipmiif=yes; )
    if test "x$found_ipmiif" = "xyes"; then
-      AC_CHECK_LIB(OpenIPMI, ipmi_alloc_os_handler, HAVE_OPENIPMI=1)
+      AC_CHECK_LIB(OpenIPMI, ipmi_alloc_os_handler, [HAVE_OPENIPMI=1])
    fi
 fi
 
@@ -783,7 +785,7 @@ case $ipmisol in
       if test $HAVE_OPENIPMI = 0; then
          AC_MSG_ERROR("ipmisol enabled but openipmi not found")
       fi
-      LIBS="$LIBS $OPENIPMI_LIBS"
+      BASE_LIBS="$BASE_LIBS $OPENIPMI_LIBS"
       BUILTIN_GENSIOS="$BUILTIN_GENSIOS ipmisol"
       BUILTIN_IPMISOL=1
       ;;
@@ -921,7 +923,7 @@ case $sound in
    yes)
       BUILTIN_GENSIOS="$BUILTIN_GENSIOS sound"
       BUILTIN_SOUND=1
-      LIBS="$LIBS $SOUND_LIBS"
+      BASE_LIBS="$BASE_LIBS $SOUND_LIBS"
       ;;
    dynamic)
       DYNAMIC_GENSIOS="$DYNAMIC_GENSIOS sound"
@@ -990,7 +992,7 @@ case $cm108gpio in
    yes)
       BUILTIN_GENSIOS="$BUILTIN_GENSIOS cm108gpio"
       BUILTIN_CM108GPIO=1
-      LIBS="$LIBS $CM108GPIO_LIBS"
+      BASE_LIBS="$BASE_LIBS $CM108GPIO_LIBS"
       ;;
    dynamic)
       DYNAMIC_GENSIOS="$DYNAMIC_GENSIOS cm108gpio"
@@ -1102,7 +1104,7 @@ AM_CONDITIONAL([BUILTIN_CERTAUTH], [test ${BUILTIN_CERTAUTH} = 1])
 AC_SUBST(DYNAMIC_CERTAUTH)
 
 if test $ssl = yes -o $certauth = yes; then
-   LIBS="$LIBS $OPENSSL_LIBS"
+   BASE_LIBS="$BASE_LIBS $OPENSSL_LIBS"
    LDFLAGS="$LDFLAGS $OPENSSL_LDFLAGS"
    CPPFLAGS="$CPPFLAGS $OPENSSL_INCLUDES"
 fi
@@ -1553,7 +1555,7 @@ m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES([yes])])
 
 AC_CONFIG_MACRO_DIR([m4])
 
-AC_CHECK_LIB(nsl,main)
+AC_CHECK_LIB(nsl, main, [$HAVE_LIBNSL=1; OSH_LIBS="-lnsl $OSH_LIBS"])
 
 # Now check for swig
 SWIG_DIR=
@@ -1833,6 +1835,9 @@ AM_CFLAGS="$AM_CFLAGS $EXTRA_CFLAGS"
 AC_SUBST(AM_CXXFLAGS)
 AC_SUBST(AM_CFLAGS)
 AC_SUBST(EXTRA_CFLAGS)
+
+AC_SUBST(OSH_LIBS)
+AC_SUBST(BASE_LIBS)
 
 CPPFLAGS="$CPPFLAGS -I\$(top_srcdir)/include -I\$(top_builddir)/include"
 

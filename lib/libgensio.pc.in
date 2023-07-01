@@ -7,4 +7,4 @@ Name: libgensio
 Description: A library to abstract stream I/O like serial port, TCP, telnet, UDP, SSL, IPMI SOL, etc.
 Version: @VERSION@
 Libs: -L${libdir} -lgensioosh -lgensio
-Libs.private: @BUILTIN_MDNS_LIBS@ @LIBS@
+Libs.private: @BUILTIN_MDNS_LIBS@ @BASE_LIBS@
