@@ -1,0 +1,114 @@
+
+option(
+    'uucp-locking',
+    type: 'string',
+    description: 'Enable UUCP-style locking with yes/no, or set the uucp lock directory otherwise',
+)
+option(
+    'module-install-dir',
+    type: 'string',
+    description: 'path to install modules to',
+)
+option(
+    'broken-pselect',
+    type: 'boolean',
+    value: false,
+    description: 'pselect is not atomic, work around it',
+)
+
+option(
+    'tcp-wrappers',
+    type: 'feature',
+    description: 'enable TCP Wrappers',
+)
+
+option(
+    'docs',
+    type: 'boolean',
+    value: true,
+    description: 'build and install documentation',
+)
+
+option(
+    'pthread',
+    type: 'feature',
+    description: 'enable Threading',
+)
+
+option(
+    'cplusplus',
+    type: 'boolean',
+    value: true,
+    description: 'Enable or disable C++ support',
+)
+
+option(
+    'cplusplus-ver',
+    type: 'string',
+    description: 'Set the C++ version, same as the value of __cplusplus',
+)
+
+option(
+    'glib',
+    type: 'feature',
+    description: 'enable glib',
+)
+
+#glibcflags
+#gliblibflags
+
+option(
+    'tcl',
+    type: 'feature',
+    description: 'enable Tcl',
+)
+
+option(
+    'openipmi',
+    type: 'feature',
+    description: 'enable OpenIPMI',
+)
+
+option(
+    'avahi',
+    type: 'feature',
+    description: 'enable Avahi mDNS',
+)
+option(
+    'alsa',
+    type: 'feature',
+    description: 'enable ALSA',
+)
+
+# gensios
+option(
+    'all-gensios',
+    type : 'combo',
+    choices : ['yes', 'dynamic', 'no'],
+    value : 'no',
+    description: 'default setting for all gensios',
+)
+
+option(
+    'net',
+    type : 'combo',
+    choices : ['yes', 'dynamic', 'no'],
+    value : 'no',
+    description: 'enable tcp/unix gensio',
+)
+
+option(
+    'udp',
+    type : 'combo',
+    choices : ['yes', 'dynamic', 'no'],
+    value : 'no',
+    description: 'enable udp/unix gensio',
+)
+
+option(
+    'sctp',
+    type : 'combo',
+    choices : ['yes', 'dynamic', 'no'],
+    value : 'no',
+    description: 'enable tcp/unix gensio',
+)
