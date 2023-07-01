@@ -3,8 +3,8 @@ exec_prefix=@exec_prefix@
 libdir=@libdir@
 includedir=@includedir@
 
-Name: libgensiomdns
-Description: A gensiolibrary to abstract MDNS interfaces
+Name: libgensioosh
+Description: OS handler library for gensio
 Version: @VERSION@
 Libs: -L${libdir} -lgensioosh -lgensio
 Libs.private: @OSH_LIBS@
