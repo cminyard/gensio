@@ -1419,7 +1419,7 @@ setup_sound_info(struct gensio_pparm_info *p, const char *dir,
 	return GE_INVAL;
     }
     if (io->chans == 0) {
-	gensio_pparm_log(p, "%s: Number of channnels is 0", dir);
+	gensio_pparm_log(p, "%s: Number of channels is 0", dir);
 	return GE_INVAL;
     }
     if (!io->format) {
