@@ -2799,14 +2799,16 @@ win_pty_control(struct gensio_iod_win *wiod, int op, bool get, intptr_t val)
 	struct gensio_winsize *gwin = (struct gensio_winsize *) val;
 	if (piod->control) {
 	    struct pty_helper_cmd cmd;
-	    DWORD len = 0;
+	    DWORD len = 0, res;
 
 	    cmd.cmd = PTY_RESIZE;
 	    cmd.size = sizeof(cmd);
 	    cmd.resize.x = gwin->ws_col;
 	    cmd.resize.y = gwin->ws_row;
 
-	    WriteFile(piod->control, &cmd, sizeof(cmd), &len, FALSE);
+	    res = WriteFile(piod->control, &cmd, sizeof(cmd), &len, FALSE);
+	    if (!res)
+		err = gensio_os_err_to_err(o, GetLastError());
 	} else {
 	    COORD size;
 	    HRESULT hr;
