@@ -1368,6 +1368,10 @@ update_privileges(HANDLE h, struct priv_data *privs, unsigned int privs_len)
 	malloc(sizeof(TOKEN_PRIVILEGES) +
 	       sizeof(LUID_AND_ATTRIBUTES) * (hpriv->PrivilegeCount +
 					      privs_len));
+    if (!nhpriv) {
+	err = STATUS_NO_MEMORY;
+	goto out_err;
+    }
     nhpriv->PrivilegeCount = hpriv->PrivilegeCount;
 
     for (j = 0; j < privs_len; j++)
