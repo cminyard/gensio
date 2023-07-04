@@ -1065,8 +1065,6 @@ gensio_win_commport_control(struct gensio_os_funcs *o, int op, bool get,
     }
 
     case GENSIO_IOD_CONTROL_FLOWCTL_STATE:
-	rv = GE_NOTSUP;
-
     default:
 	rv = GE_NOTSUP;
     }
