@@ -869,7 +869,7 @@ sterm_sub_open(void *handler_data, struct gensio_iod **riod)
     struct sterm_data *sdata = handler_data;
     struct gensio_os_funcs *o = sdata->o;
     int err;
-    int options;
+    int options = 0;
 
     if (!sdata->no_uucp_lock) {
 	err = uucp_mk_lock(o, sdata->devname);
@@ -881,7 +881,7 @@ sterm_sub_open(void *handler_data, struct gensio_iod **riod)
     sdata->iod = NULL; /* If it's a re-open make sure this is clear. */
 
     if (!sdata->read_only)
-	options = GENSIO_OPEN_OPTION_WRITEABLE;
+	options |= GENSIO_OPEN_OPTION_WRITEABLE;
     if (!sdata->write_only)
 	options |= GENSIO_OPEN_OPTION_READABLE;
     err = o->open_dev(o, sdata->devname, options, &sdata->iod);
