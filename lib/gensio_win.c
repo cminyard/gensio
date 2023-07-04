@@ -1482,7 +1482,8 @@ win_oneway_in_thread(LPVOID data)
      */
     goto start_loop;
 
-    EnterCriticalSection(&wiod->lock);
+    /* The below is not necessary, it's just dead code. */
+    /* EnterCriticalSection(&wiod->lock); */
     for(;;) {
 	BOOL rvb;
 
