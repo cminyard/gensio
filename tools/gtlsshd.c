@@ -1396,8 +1396,7 @@ update_privileges(HANDLE h, struct priv_data *privs, unsigned int privs_len)
     }
     err = 0;
  out_err:
-    if (hpriv)
-	free(hpriv);
+    free(hpriv);
     if (nhpriv)
 	free(nhpriv);
     return err;
