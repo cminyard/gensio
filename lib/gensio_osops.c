@@ -1428,6 +1428,7 @@ get_logon_sid(SID *user, SID **logon_sid, bool *rfound)
     OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &h);
     err = get_logon_sid_from_token(h, logon_sid, &found);
     CloseHandle(h);
+    h = NULL;
     if (!err && found) {
 	*rfound = true;
 	return 0;
