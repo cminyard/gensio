@@ -1430,7 +1430,7 @@ gensio_stdsock_close_socket(struct gensio_iod *iod, bool retry, bool force)
 #else
     err = close_socket(o, o->iod_get_fd(iod));
 #endif
-    if (err != GE_INPROGRESS && gsi)
+    if (err != GE_INPROGRESS)
 	o->free(o, gsi);
     return err;
 }
