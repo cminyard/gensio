@@ -833,7 +833,7 @@ afskmdm_start_drain_timer(struct afskmdm_filter *sfilter)
     /*
      * Set a timer to know when we are done transmitting.
      */
-    timeoutns = frames_left * sfilter->nsec_per_frame;
+    timeoutns = (uint64_t) frames_left * sfilter->nsec_per_frame;
     timeout.secs = timeoutns / GENSIO_NSECS_IN_SEC;
     timeout.nsecs = timeoutns % GENSIO_NSECS_IN_SEC;
     sfilter->filter_cb(sfilter->filter_cb_data,
