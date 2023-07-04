@@ -2332,6 +2332,7 @@ gensio_os_loadlib(struct gensio_os_funcs *o, const char *name)
 	FreeLibrary(handle);
 	return false;
     }
+    /* Libraries are never unloaded, so there's no need to manage handle. */
     return true;
 }
 
