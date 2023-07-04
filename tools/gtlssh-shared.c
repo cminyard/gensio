@@ -266,11 +266,6 @@ get_my_hostname(gtlssh_logger logger, void *cbdata)
 {
     char hostname[HOST_NAME_MAX + 1];
 
-#ifdef _WIN32
-    struct gensio_os_funcs *o;
-    gensio_default_os_hnd(0, &o);
-#endif
-
     if (gethostname(hostname, sizeof(hostname)) != 0) {
 #ifdef _WIN32
 	int err = WSAGetLastError();
