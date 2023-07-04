@@ -92,18 +92,21 @@ get_homedir(gtlssh_logger logger, void *cbdata,
 	if (have_userprofile) {
 	    rv = GetEnvironmentVariable("USERPROFILE", dir, path_len + 1);
 	    if (rv != path_len) {
+		free(dir);
 		logger(cbdata, "No USERPROFILE set\n");
 		return NULL;
 	    }
 	} else {
 	    rv = GetEnvironmentVariable("HOMEDRIVE", dir, drive_len + 1);
 	    if (rv != drive_len) {
+		free(dir);
 		logger(cbdata, "No HOMEDRIVE set\n");
 		return NULL;
 	    }
 	    rv = GetEnvironmentVariable("HOMEPATH", dir + drive_len,
 					path_len + 1);
 	    if (rv != path_len) {
+		free(dir);
 		logger(cbdata, "No HOMEPATH set\n");
 		return NULL;
 	    }
