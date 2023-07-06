@@ -1555,7 +1555,7 @@ m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES([yes])])
 
 AC_CONFIG_MACRO_DIR([m4])
 
-AC_CHECK_LIB(nsl, main, [$HAVE_LIBNSL=1; OSH_LIBS="-lnsl $OSH_LIBS"])
+AC_CHECK_LIB(nsl, main, [HAVE_LIBNSL=1; OSH_LIBS="-lnsl $OSH_LIBS"])
 
 # Now check for swig
 SWIG_DIR=
