@@ -1,0 +1,13 @@
+[Unit]
+Description=Remote login daemon from gtlssh
+Requires=network.target
+Documentation=man:gtlsshd(8)
+
+[Service]
+Type=simple
+ExecStart=/usr/local/sbin/gtlsshd --nodaemon
+StandardOutput=null
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
