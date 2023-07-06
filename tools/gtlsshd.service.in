@@ -5,7 +5,7 @@ Documentation=man:gtlsshd(8)
 
 [Service]
 Type=simple
-ExecStart=/usr/local/sbin/gtlsshd --nodaemon
+ExecStart=@gtlsshdbindir@/gtlsshd --nodaemon
 StandardOutput=null
 Restart=on-failure
 

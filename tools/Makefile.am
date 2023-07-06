@@ -13,6 +13,8 @@ EXTRA_PROGRAMS = gtlsshd gtlssh gmdns gtlssh-keygen gensio_pty_helper
 bin_SCRIPTS = @GTLSSYNC@ greflector
 EXTRA_SCRIPTS = gtlssync
 
+noinst_DATA = gtlsshd.service
+
 greflector: $(top_builddir)/tests/reflector.py
 	cp $(top_builddir)/tests/reflector.py $@
 
@@ -49,6 +51,9 @@ gtlsshd_LDADD = libgtlssh.a libgensiotool.a $(top_builddir)/lib/libgensioosh.la\
 	$(top_builddir)/lib/libgensio.la \
 	@PAMLIB@ @OPENSSL_LIBS@
 
+gtlsshd.service: ${srcdir}/gtlsshd.service.in
+	sed "s%@gtlsshdbindir@%${sbindir}%" $< >$@
+
 gsound_SOURCES = gensiosound.c
 gsound_LDADD = $(top_builddir)/lib/libgensioosh.la \
 	$(top_builddir)/lib/libgensio.la libgensiotool.a
@@ -64,7 +69,7 @@ man1_MANS = gensiot.1 @GTLSSHMAN@ @GTLSSH_KEYGENMAN@ @GTLSSYNCMAN@ @GMDNSMAN@ \
 man8_MANS = @GTLSSHDMAN@
 endif
 
-EXTRA_DIST = $(manpages) gtlssync
+EXTRA_DIST = $(manpages) gtlssync gtlsshd.service.in
 
 clean-local:
-	rm -f gtlssh-keygen greflector
+	rm -f gtlssh-keygen greflector gtlsshd.service
