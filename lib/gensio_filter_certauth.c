@@ -1333,9 +1333,9 @@ certauth_try_connect(struct gensio_filter *filter, gensio_time *timeout,
 		gca_log_err(sfilter,
 		    "Got server data while client waiting in challenge delay");
 		sfilter->pending_err = GE_NOTREADY;
-		break;
+		goto finish_result;
 	    }
-	    goto out;
+	    goto out_inprogress;
 	}
 
 	set_digest(sfilter);
