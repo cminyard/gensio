@@ -142,7 +142,7 @@ if test "$tcp_wrappers" != "no"
 then
   AC_CHECK_HEADERS([tcpd.h])
   AC_CHECK_LIB(wrap, request_init,
-	       [$HAVE_LIBWRAP=1; OSH_LIBS="-lwrap $OSH_LIBS"])
+	       [HAVE_LIBWRAP=1; OSH_LIBS="-lwrap $OSH_LIBS"])
 fi
 
 AC_ARG_ENABLE([doc],
