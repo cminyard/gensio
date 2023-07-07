@@ -1911,9 +1911,9 @@ AC_OUTPUT
 
 pr_op() {
     #echo "A: '$1' $2"
-    if test "$2" == 1; then
+    if test "x$2" = x1; then
 	str='Yes'
-    elif test "$2" == "yes"; then
+    elif test "x$2" = "xyes"; then
 	str='Yes'
     else
 	str='no'
