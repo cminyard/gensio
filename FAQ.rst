@@ -85,3 +85,20 @@ Here are some answer to questions about gensio.
   * PATH=C:\msys64\mingw64\sbin;C:\msys64\mingw64\bin;%PATH%
   * gtlsshd -d -d
   * You can also run it in gdb for debugging.
+
+  To run it under task scheduler, you probably need something like the following
+  script to make it work:
+
+    PATH=C:\msys64\mingw64\sbin;C:\msys64\mingw64\bin;%PATH%
+    gtlsshd
+
+  All the gensio dlls are installed in the bin directory, you will need that directory
+  in your path to be able to load gensios.
+
+  Also, setting the permissions on C:\etc\gtlssh\gtlsshd.key is important.  It
+  must be accessible only by SYSTEM and Administrator.  This is checked by
+  gtlsshd at startup, and if it is wrong you will get:
+
+    error: C:\etc\gtlssh\gtlsshd.key is accessible by others, giving up
+
+  when gtlsshd start with debugging enabled.
