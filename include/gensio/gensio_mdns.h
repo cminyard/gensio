@@ -58,7 +58,7 @@ int gensio_free_mdns(struct gensio_mdns *m,
 
 GENSIOMDNS_DLL_PUBLIC
 int gensio_mdns_add_service(struct gensio_mdns *m,
-			    int interface, int ipdomain,
+			    int iface, int ipdomain,
 			    const char *name, const char *type,
 			    const char *domain, const char *host,
 			    int port, const char * const *txt,
@@ -74,7 +74,7 @@ enum gensio_mdns_data_state { GENSIO_MDNS_NEW_DATA, GENSIO_MDNS_DATA_GONE,
 
 typedef void (*gensio_mdns_watch_cb)(struct gensio_mdns_watch *w,
 				     enum gensio_mdns_data_state state,
-				     int interface, int ipdomain,
+				     int iface, int ipdomain,
 				     const char *name, const char *type,
 				     const char *domain, const char *host,
 				     const struct gensio_addr *addr,
@@ -82,7 +82,7 @@ typedef void (*gensio_mdns_watch_cb)(struct gensio_mdns_watch *w,
 
 GENSIOMDNS_DLL_PUBLIC
 int gensio_mdns_add_watch(struct gensio_mdns *m,
-			  int interface, int ipdomain,
+			  int iface, int ipdomain,
 			  const char *name, const char *type,
 			  const char *domain, const char *host,
 			  gensio_mdns_watch_cb callback, void *userdata,
