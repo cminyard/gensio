@@ -161,6 +161,31 @@ Gensios will be loaded first from the environment variable
 LD_LIBRARY_PATH, then from GENSIO_LIBRARY_PATH, then from the default
 location.
 
+Building on Windows
+-------------------
+
+The gensio library can be built under Windows using mingw64.  The following
+things don't work::
+
+* udev
+* sctp
+* avahi
+* pam
+* libwrap
+
+You also don't need to install alsa, it uses the Windows sound interface for
+sound.
+
+You have to install the mingw-w64-x86_64-xxx version of all the libraries.
+This has only been tested for 64-bit.
+
+For gtlsshd, you must set --sysconfdir to where the gtlssh directory with the
+keys will be (like /etc/gtlssh is on linix).  The annoying this is that for
+every '\' in the final directory, you must put 8 of them in the configure line.
+So to configure it so C:\etc is where the gtlssh directory is, you would do::
+
+  ../configure '--sysconfdir=C:\\\\\\\\etc'
+
 gensio tools
 ============
 
