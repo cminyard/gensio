@@ -8,19 +8,22 @@
 #include "config.h"
 #include <gensio/gensio_mdns.h>
 
-#if HAVE_AVAHI
+#if HAVE_MDNS
 #include <string.h>
 #include <assert.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <gensio/gensio.h>
+#include <gensio/gensio_list.h>
+#include <gensio/argvutils.h>
+
+#if HAVE_AVAHI
 #include <avahi-client/client.h>
 #include <avahi-client/publish.h>
 #include <avahi-client/lookup.h>
 #include <avahi-common/error.h>
-#include <gensio/gensio.h>
-#include <gensio/gensio_list.h>
-#include <gensio/argvutils.h>
 #include "avahi_watcher.h"
+#endif
 
 /* Returns true on failure (error) */
 static bool
@@ -39,11 +42,15 @@ struct gensio_mdns_service;
 
 struct gensio_mdns {
     struct gensio_os_funcs *o;
-    AvahiPoll *ap;
-    AvahiClient *ac;
+
     struct gensio_list services;
     struct gensio_list watches;
+
+#if HAVE_AVAHI
+    AvahiPoll *ap;
+    AvahiClient *ac;
     AvahiClientState state;
+#endif
 
     unsigned int refcount;
 
@@ -233,14 +240,9 @@ mdns_str_cleanup(struct gensio_os_funcs *o, struct mdns_str_data *sdata)
 }
 
 static void
-gensio_mdns_poll_freed(AvahiPoll *ap, void *userdata)
+gensio_mdns_finish_free(struct gensio_mdns *m)
 {
-    struct gensio_mdns *m = userdata;
     struct gensio_os_funcs *o = m->o;
-
-    /* Make sure everything is out of the lock. */
-    gensio_avahi_lock(m->ap);
-    gensio_avahi_unlock(m->ap);
 
     if (m->free_done)
 	m->free_done(m, m->free_userdata);
@@ -248,12 +250,103 @@ gensio_mdns_poll_freed(AvahiPoll *ap, void *userdata)
     o->free(o, m);
 }
 
-static void
-gensio_mdns_finish_free(struct gensio_mdns *m)
+#if HAVE_AVAHI
+
+static int
+protocol_to_avahi_protocol(int protocol, AvahiProtocol *aprotocol)
 {
-    avahi_client_free(m->ac);
-    gensio_avahi_poll_free(m->ap, gensio_mdns_poll_freed, m);
+    switch(protocol) {
+    case GENSIO_NETTYPE_IPV4: *aprotocol = AVAHI_PROTO_INET; break;
+    case GENSIO_NETTYPE_IPV6: *aprotocol = AVAHI_PROTO_INET6; break;
+    case GENSIO_NETTYPE_UNSPEC: *aprotocol = AVAHI_PROTO_UNSPEC; break;
+    default:
+	return GE_INVAL;
+    }
+    return 0;
 }
+
+static int
+avahi_protocol_to_protocol(AvahiProtocol aprotocol, int *protocol)
+{
+    switch(aprotocol) {
+    case AVAHI_PROTO_UNSPEC:
+	*protocol = GENSIO_NETTYPE_UNSPEC;
+	return 0;
+
+    case AVAHI_PROTO_INET:
+	*protocol = GENSIO_NETTYPE_IPV4;
+	return 0;
+
+#ifdef AF_INET6
+    case AVAHI_PROTO_INET6:
+	*protocol = GENSIO_NETTYPE_IPV6;
+	return 0;
+#endif
+
+    default:
+	return GE_INVAL;
+    }
+}
+
+static AvahiIfIndex
+interface_to_avahi_interface(int interface)
+{
+    if (interface == -1)
+	return AVAHI_IF_UNSPEC;
+    return interface;
+}
+
+static int avahi_interface_to_interface(AvahiIfIndex ainterface)
+{
+    return ainterface;
+}
+
+static void
+gensio_mdns_lock(struct gensio_mdns *m)
+{
+    gensio_avahi_lock(m->ap);
+}
+
+static void
+gensio_mdns_unlock(struct gensio_mdns *m)
+{
+    gensio_avahi_unlock(m->ap);
+}
+
+static void
+gensio_mdnslib_finish_free(AvahiPoll *ap, void *userdata)
+{
+    struct gensio_mdns *m = userdata;
+
+    /* Make sure everything is out of the lock. */
+    gensio_mdns_lock(m);
+    gensio_mdns_unlock(m);
+
+    gensio_mdns_finish_free(m);
+}
+
+static int
+gensio_mdnslib_init(struct gensio_mdns *m)
+{
+    m->ap = alloc_gensio_avahi_poll(m->o);
+    if (!m->ap)
+	return GE_NOMEM;
+    return 0;
+}
+
+static void
+gensio_mdnslib_free(struct gensio_mdns *m)
+{
+    if (m->ac) {
+	/* We are fully initialized */
+	avahi_client_free(m->ac);
+	gensio_avahi_poll_free(m->ap, gensio_mdnslib_finish_free, m);
+    } else {
+	gensio_avahi_poll_free(m->ap, NULL, NULL);
+    }
+}
+
+#endif
 
 static void
 gensio_mdns_ref(struct gensio_mdns *m)
@@ -272,38 +365,39 @@ gensio_mdns_deref(struct gensio_mdns *m)
 static void
 gensio_mdns_deref_and_unlock(struct gensio_mdns *m)
 {
-    AvahiPoll *ap = m->ap;
-
     assert(m->refcount > 0);
     m->refcount--;
     if (m->refcount == 0)
-	gensio_mdns_finish_free(m);
-    gensio_avahi_unlock(ap);
+	gensio_mdnslib_free(m);
+    gensio_mdns_unlock(m);
 }
 
 struct gensio_mdns_service {
     struct gensio_link link;
     struct gensio_mdns *m;
 
-    AvahiIfIndex interface;
-    AvahiProtocol protocol;
     char *name;
     char *type;
     char *domain;
     char *host;
     int port;
+
+#if HAVE_AVAHI
+    AvahiIfIndex avahi_interface;
+    AvahiProtocol avahi_protocol;
     AvahiStringList *txt;
+
+    AvahiEntryGroup *group;
+#endif
 
     /* Used to handle name collisions. */
     unsigned int nameseq;
     char *currname;
-
-    AvahiEntryGroup *group;
 };
 
-static void avahi_add_service(struct gensio_mdns *m,
-			      struct gensio_mdns_service *s);
+static void gensio_mdnslib_add_service(struct gensio_mdns_service *s);
 
+#if HAVE_AVAHI
 /* Lock should already be held when calling this. */
 static void
 avahi_group_callback(AvahiEntryGroup *group, AvahiEntryGroupState state,
@@ -323,16 +417,21 @@ avahi_group_callback(AvahiEntryGroup *group, AvahiEntryGroupState state,
 			    "Out of memory in group collision");
 	    return;
 	}
-	avahi_add_service(m, s);
+	gensio_mdnslib_add_service(s);
     }
     /* FIXME - handle other states. */
 }
 
 /* Must be called with the Avahi poll lock held. */
 static void
-avahi_add_service(struct gensio_mdns *m, struct gensio_mdns_service *s)
+gensio_mdnslib_add_service(struct gensio_mdns_service *s)
 {
+    struct gensio_mdns *m = s->m;
     int err;
+
+    if (m->state != AVAHI_CLIENT_S_RUNNING)
+	/* We'll catch it later. */
+	return;
 
     if (!s->group)
 	s->group = avahi_entry_group_new(m->ac, avahi_group_callback, s);
@@ -341,8 +440,8 @@ avahi_add_service(struct gensio_mdns *m, struct gensio_mdns_service *s)
 			"Out of memory adding a service");
 	return;
     }
-    err = avahi_entry_group_add_service_strlst(s->group, s->interface,
-					       s->protocol, 0,
+    err = avahi_entry_group_add_service_strlst(s->group, s->avahi_interface,
+					       s->avahi_protocol, 0,
 					       s->currname, s->type,
 					       s->domain, s->host,
 					       s->port, s->txt);
@@ -359,11 +458,48 @@ avahi_add_service(struct gensio_mdns *m, struct gensio_mdns_service *s)
 			avahi_strerror(err));
 }
 
+static int
+gensio_mdnslib_initservice(struct gensio_mdns_service *s,
+			   int ipdomain, int interface,
+			   const char * const *txt)
+{
+    int err;
+
+    err = protocol_to_avahi_protocol(ipdomain, &s->avahi_protocol);
+    if (err)
+	return err;
+
+    if (interface < 0)
+	s->avahi_interface = AVAHI_IF_UNSPEC;
+    else
+	s->avahi_interface = interface;
+
+    if (txt && txt[0]) {
+	s->txt = avahi_string_list_new_from_array((const char **) txt, -1);
+	if (!s->txt)
+	    return GE_NOMEM;
+    }
+
+    return 0;
+}
+
+/* Must be called with the Avahi poll lock held. */
 static void
-free_service(struct gensio_os_funcs *o, struct gensio_mdns_service *s)
+gensio_mdnslib_free_service(struct gensio_os_funcs *o,
+			    struct gensio_mdns_service *s)
 {
     if (s->group)
 	avahi_entry_group_free(s->group);
+    if (s->txt)
+	avahi_string_list_free(s->txt);
+}
+
+#endif /* HAVE_AVAHI */
+
+static void
+free_service(struct gensio_os_funcs *o, struct gensio_mdns_service *s)
+{
+    gensio_mdnslib_free_service(o, s);
     if (s->currname && s->currname != s->name)
 	o->free(o, s->currname);
     if (s->name)
@@ -374,8 +510,6 @@ free_service(struct gensio_os_funcs *o, struct gensio_mdns_service *s)
 	o->free(o, s->domain);
     if (s->host)
 	o->free(o, s->host);
-    if (s->txt)
-	avahi_string_list_free(s->txt);
     o->free(o, s);
 }
 
@@ -396,7 +530,7 @@ gensio_mdns_remove_service(struct gensio_mdns_service *s)
     struct gensio_mdns *m = s->m;
     int err;
 
-    gensio_avahi_lock(m->ap);
+    gensio_mdns_lock(m);
     err = i_gensio_mdns_remove_service(s);
     gensio_mdns_deref_and_unlock(m);
 
@@ -413,19 +547,7 @@ gensio_mdns_add_service(struct gensio_mdns *m,
 {
     struct gensio_os_funcs *o = m->o;
     struct gensio_mdns_service *s;
-    AvahiProtocol protocol;
     int err = GE_NOMEM;
-
-    switch(ipdomain) {
-    case GENSIO_NETTYPE_IPV4: protocol = AVAHI_PROTO_INET; break;
-    case GENSIO_NETTYPE_IPV6: protocol = AVAHI_PROTO_INET6; break;
-    case GENSIO_NETTYPE_UNSPEC: protocol = AVAHI_PROTO_UNSPEC; break;
-    default:
-	return GE_INVAL;
-    }
-
-    if (interface < 0)
-	interface = AVAHI_IF_UNSPEC;
 
     if (!name || !type)
 	return GE_INVAL;
@@ -435,9 +557,14 @@ gensio_mdns_add_service(struct gensio_mdns *m,
 	return GE_NOMEM;
 
     s->m = m;
+
+    err = gensio_mdnslib_initservice(s, ipdomain, interface, txt);
+    if (err) {
+	o->free(m->o, s);
+	return err;
+    }
+
     gensio_mdns_ref(m);
-    s->interface = interface;
-    s->protocol = protocol;
     s->port = port;
     s->name = gensio_strdup(o, name);
     if (!s->name)
@@ -450,19 +577,12 @@ gensio_mdns_add_service(struct gensio_mdns *m,
     if (dupstr(o, host, &s->host))
 	goto out_err;
 
-    if (txt && txt[0]) {
-	s->txt = avahi_string_list_new_from_array((const char **) txt, -1);
-	if (!s->txt)
-	    goto out_err;
-    }
-
     s->currname = s->name;
 
-    gensio_avahi_lock(m->ap);
+    gensio_mdns_lock(m);
     gensio_list_add_tail(&m->services, &s->link);
-    if (m->state == AVAHI_CLIENT_S_RUNNING)
-	avahi_add_service(m, s);
-    gensio_avahi_unlock(m->ap);
+    gensio_mdnslib_add_service(s);
+    gensio_mdns_unlock(m);
 
     if (rservice)
 	*rservice = s;
@@ -470,7 +590,7 @@ gensio_mdns_add_service(struct gensio_mdns *m,
     return 0;
 
  out_err:
-    gensio_avahi_lock(m->ap);
+    gensio_mdns_lock(m);
     free_service(o, s);
     gensio_mdns_deref_and_unlock(m);
     return err;
@@ -532,7 +652,6 @@ struct gensio_mdns_result {
     struct gensio_link link;
     struct gensio_mdns_watch_resolver *resolver;
     struct gensio_mdns_callback cbdata;
-    AvahiAddress addr;
     uint16_t port;
 };
 
@@ -547,23 +666,31 @@ result_free(struct gensio_os_funcs *o, struct gensio_mdns_result *e)
 struct gensio_mdns_watch_resolver {
     struct gensio_link link;
     struct gensio_mdns_watch_browser *b;
-    AvahiIfIndex interface;
-    AvahiProtocol protocol;
+    int interface;
+    int protocol;
     char *name;
     char *type;
     char *domain;
-    AvahiServiceResolver *resolver;
+
+#if HAVE_AVAHI
+    AvahiServiceResolver *avahi_resolver;
+#endif
+
     struct gensio_list results;
 };
 
 struct gensio_mdns_watch_browser {
     struct gensio_link link;
     struct gensio_mdns_watch *w;
-    AvahiIfIndex interface;
-    AvahiProtocol protocol;
+    int interface;
+    int protocol;
     char *type;
     char *domain;
-    AvahiServiceBrowser *browser;
+
+#if HAVE_AVAHI
+    AvahiServiceBrowser *avahi_browser;
+#endif
+
     struct gensio_list resolvers;
 };
 
@@ -571,14 +698,17 @@ struct gensio_mdns_watch {
     struct gensio_link link;
 
     struct gensio_mdns *m;
-    AvahiServiceTypeBrowser *browser;
-    AvahiIfIndex interface;
-    AvahiProtocol protocol;
     struct mdns_str_data name;
     struct mdns_str_data type;
     struct mdns_str_data domain;
+    int interface;
+    int protocol;
     char *domainstr; /* Need this to kick things off. */
     struct mdns_str_data host;
+
+#if HAVE_AVAHI
+    AvahiServiceTypeBrowser *avahi_browser;
+#endif
 
     bool removed;
 
@@ -596,66 +726,55 @@ struct gensio_mdns_watch {
 };
 
 static void
-enqueue_callback(struct gensio_mdns *m, struct gensio_mdns_callback *c)
-{
-    if (c->remove)
-	return;
-    if (!c->in_queue) {
-	gensio_list_add_tail(&m->callbacks, &c->link);
-	c->in_queue = true;
-	gensio_mdns_ref(m);
-    }
-    if (!m->runner_pending) {
-	m->runner_pending = true;
-	gensio_mdns_ref(m);
-	m->o->run(m->runner);
-    }
-}
+mdns_resolver_callback(struct gensio_mdns_watch_resolver *r,
+		       enum gensio_mdns_data_state state,
+		       int interface, int protocol,
+		       const char *name, const char *type,
+		       const char *domain, const char *host,
+		       struct gensio_addr *addr, uint16_t port,
+		       const char **txt);
+
+#if HAVE_AVAHI
 
 static void
-resolver_free(struct gensio_os_funcs *o, struct gensio_mdns_watch_resolver *r)
+gensio_mdnslib_resolver_free(struct gensio_os_funcs *o,
+			     struct gensio_mdns_watch_resolver *r)
 {
-    if (r->resolver)
-	avahi_service_resolver_free(r->resolver);
-    if (r->name)
-	o->free(o, r->name);
-    if (r->type)
-	o->free(o, r->type);
-    if (r->domain)
-	o->free(o, r->domain);
-    o->free(o, r);
+    if (r->avahi_resolver)
+	avahi_service_resolver_free(r->avahi_resolver);
 }
 
 /* Will be called with the lock held. */
 static void
-mdns_service_resolver_callback(AvahiServiceResolver *ar,
-			       AvahiIfIndex interface,
-			       AvahiProtocol protocol,
-			       AvahiResolverEvent event,
-			       const char *name,
-			       const char *type,
-			       const char *domain,
-			       const char *host,
-			       const AvahiAddress *a,
-			       uint16_t port,
-			       AvahiStringList *txt,
-			       AvahiLookupResultFlags flags,
-			       void *userdata)
+avahi_service_resolver_callback(AvahiServiceResolver *ar,
+				AvahiIfIndex ainterface,
+				AvahiProtocol aprotocol,
+				AvahiResolverEvent event,
+				const char *name,
+				const char *type,
+				const char *domain,
+				const char *host,
+				const AvahiAddress *a,
+				uint16_t port,
+				AvahiStringList *atxt,
+				AvahiLookupResultFlags flags,
+				void *userdata)
 {
     struct gensio_mdns_watch_resolver *r = userdata;
     struct gensio_mdns_watch_browser *b = r->b;
     struct gensio_mdns_watch *w = b->w;
     struct gensio_mdns *m = w->m;
-    struct gensio_mdns_callback *c = NULL;
     struct gensio_os_funcs *o = m->o;
-    struct gensio_mdns_result *e;
-    enum gensio_mdns_data_state state;
-    AvahiStringList *str;
-    int nettype, addrsize, rv;
+    struct gensio_addr *addr;
+    int nettype, addrsize, rv, interface;
     const void *addrdata = NULL;
+    const char **txt = NULL;
+    enum gensio_mdns_data_state state;
 #ifdef AF_INET6
     struct sockaddr_in6 s6 = { .sin6_family = AF_INET6 };
 #endif
+
+    interface = avahi_interface_to_interface(ainterface);
 
     switch (event) {
     case AVAHI_RESOLVER_FOUND:
@@ -693,14 +812,127 @@ mdns_service_resolver_callback(AvahiServiceResolver *ar,
 	return;
     }
 
-    if (!mdns_str_cmp(&w->host, host))
+    if (gensio_addr_create(o, nettype, addrdata, addrsize, port, &addr))
 	return;
+
+    if (txt) {
+	gensiods args = 0, argc = 0;
+	AvahiStringList *str;
+
+	for (str = atxt; str; str = str->next) {
+	    rv = gensio_argv_append(o, &txt, (char *) str->text,
+				    &args, &argc, true);
+	    if (rv)
+		goto out;
+	}
+	rv = gensio_argv_append(o, &txt, NULL, &args, &argc, false);
+	if (rv)
+	    goto out;
+    }
+
+    mdns_resolver_callback(r, state, interface, nettype, name, type,
+			   domain, host, addr, port, txt);
+    return;
+
+ out:
+    if (addr)
+	gensio_addr_free(addr);
+    if (txt)
+	gensio_argv_free(o, txt);
+}
+
+static void
+gensio_mdnslib_browser_free(struct gensio_os_funcs *o,
+			    struct gensio_mdns_watch_browser *b)
+{
+    if (b->avahi_browser)
+	avahi_service_browser_free(b->avahi_browser);
+}
+
+static int
+gensio_mdnslib_start_resolver(struct gensio_mdns *m,
+			      struct gensio_mdns_watch_resolver *r,
+			      int interface, int iprotocol,
+			      const char *name, const char *type,
+			      const char *domain,
+			      int iaprotocol)
+{
+    int err;
+    AvahiProtocol protocol;
+    AvahiProtocol aprotocol;
+    
+    err = protocol_to_avahi_protocol(iprotocol, &protocol);
+    if (err)
+	return err;
+    err = protocol_to_avahi_protocol(iaprotocol, &aprotocol);
+    if (err)
+	return err;
+
+    r->avahi_resolver =
+	avahi_service_resolver_new(m->ac, interface, protocol,
+				   name, type, domain, aprotocol,
+				   0, avahi_service_resolver_callback,
+				   r);
+    if (!r->avahi_resolver)
+	return GE_NOMEM;
+    return 0;
+}
+
+#endif /* HAVE_AVAHI */
+
+static void
+enqueue_callback(struct gensio_mdns *m, struct gensio_mdns_callback *c)
+{
+    if (c->remove)
+	return;
+    if (!c->in_queue) {
+	gensio_list_add_tail(&m->callbacks, &c->link);
+	c->in_queue = true;
+	gensio_mdns_ref(m);
+    }
+    if (!m->runner_pending) {
+	m->runner_pending = true;
+	gensio_mdns_ref(m);
+	m->o->run(m->runner);
+    }
+}
+
+static void
+resolver_free(struct gensio_os_funcs *o, struct gensio_mdns_watch_resolver *r)
+{
+    gensio_mdnslib_resolver_free(o, r);
+    if (r->name)
+	o->free(o, r->name);
+    if (r->type)
+	o->free(o, r->type);
+    if (r->domain)
+	o->free(o, r->domain);
+    o->free(o, r);
+}
+
+static void
+mdns_resolver_callback(struct gensio_mdns_watch_resolver *r,
+		       enum gensio_mdns_data_state state,
+		       int interface, int protocol,
+		       const char *name, const char *type,
+		       const char *domain, const char *host,
+		       struct gensio_addr *addr, uint16_t port,
+		       const char **txt)
+{
+    struct gensio_mdns_watch_browser *b = r->b;
+    struct gensio_mdns_watch *w = b->w;
+    struct gensio_mdns *m = w->m;
+    struct gensio_mdns_callback *c = NULL;
+    struct gensio_os_funcs *o = m->o;
+    struct gensio_mdns_result *e;
+
+    if (!mdns_str_cmp(&w->host, host))
+	goto out_nomem;
 
     e = o->zalloc(o, sizeof(*e));
     if (!e)
 	goto out_nomem;
     e->resolver = r;
-    e->addr = *a;
     e->port = port;
 
     c = &e->cbdata;
@@ -710,7 +942,11 @@ mdns_service_resolver_callback(AvahiServiceResolver *ar,
 	goto out_nomem;
     c->data->result = e;
     c->data->state = state;
-    c->data->ipdomain = nettype;
+    c->data->ipdomain = protocol;
+    c->data->addr = addr;
+    addr = NULL;
+    c->data->txt = txt;
+    txt = NULL;
     if (dupstr(o, name, &c->data->name))
 	goto out_nomem;
     if (dupstr(o, type, &c->data->type))
@@ -720,57 +956,39 @@ mdns_service_resolver_callback(AvahiServiceResolver *ar,
     if (dupstr(o, host, &c->data->host))
 	goto out_nomem;
 
-    if (gensio_addr_create(o, nettype, addrdata, addrsize, port,
-			   &c->data->addr))
-	goto out_nomem;
-
-    if (txt) {
-	gensiods args = 0, argc = 0;
-
-	for (str = txt; str; str = str->next) {
-	    rv = gensio_argv_append(o, &c->data->txt, (char *) str->text,
-				    &args, &argc, true);
-	    if (rv)
-		goto out_nomem;
-	}
-	rv = gensio_argv_append(o, &c->data->txt, NULL, &args, &argc, false);
-	if (rv)
-	    goto out_nomem;
-    }
-
     gensio_list_add_tail(&r->results, &e->link);
     enqueue_callback(m, c);
-
     return;
 
  out_nomem:
+    if (addr)
+	gensio_addr_free(addr);
+    if (txt)
+	gensio_argv_free(o, txt);
     if (c && c->data)
 	gensio_mdns_free_watch_data(o, c->data);
 }
 
-static void
-browser_finish_one(struct gensio_mdns_watch *w)
+static struct gensio_mdns_watch_resolver *
+resolver_find(struct gensio_mdns_watch_browser *b,
+	      int interface, int protocol,
+	      const char *name, const char *type, const char *domain)
 {
-    struct gensio_mdns *m = w->m;
+    struct gensio_mdns_watch_resolver *r = NULL;
+    struct gensio_link *l;
 
-    assert(w->service_calls_pending > 0);
-    w->service_calls_pending--;
-    if (w->service_calls_pending == 0) {
-	w->callback_data.all_for_now = true;
-	enqueue_callback(m, &w->callback_data);
+    gensio_list_for_each(&b->resolvers, l) {
+	r = gensio_container_of(l, struct gensio_mdns_watch_resolver, link);
+
+	if (r->interface == interface && r->protocol == protocol &&
+		strcmp(r->name, name) == 0 &&
+		strcmp(r->type, type) == 0 &&
+		strcmp(r->domain, domain) == 0)
+	    break;
+	else
+	    r = NULL;
     }
-}
-
-static void
-browser_free(struct gensio_os_funcs *o, struct gensio_mdns_watch_browser *b)
-{
-    if (b->browser)
-	avahi_service_browser_free(b->browser);
-    if (b->type)
-	o->free(o, b->type);
-    if (b->domain)
-	o->free(o, b->domain);
-    o->free(o, b);
+    return r;
 }
 
 static void
@@ -806,22 +1024,100 @@ resolver_remove(struct gensio_mdns_watch_resolver *r)
 }
 
 static void
-mdns_service_browser_callback(AvahiServiceBrowser *ab,
-			      AvahiIfIndex interface,
-			      AvahiProtocol protocol,
-			      AvahiBrowserEvent event,
-			      const char *name,
-			      const char *type,
-			      const char *domain,
-			      AvahiLookupResultFlags flags,
-			      void *userdata)
+browser_finish_one(struct gensio_mdns_watch *w)
+{
+    struct gensio_mdns *m = w->m;
+
+    assert(w->service_calls_pending > 0);
+    w->service_calls_pending--;
+    if (w->service_calls_pending == 0) {
+	w->callback_data.all_for_now = true;
+	enqueue_callback(m, &w->callback_data);
+    }
+}
+
+static void
+browser_free(struct gensio_os_funcs *o, struct gensio_mdns_watch_browser *b)
+{
+    gensio_mdnslib_browser_free(o, b);
+    if (b->type)
+	o->free(o, b->type);
+    if (b->domain)
+	o->free(o, b->domain);
+    o->free(o, b);
+}
+
+static void
+mdns_browser_callback(struct gensio_mdns_watch_browser *b,
+		      int interface, int protocol,
+		      const char *name, const char *type, const char *domain)
+{
+    struct gensio_mdns_watch_resolver *r = NULL;
+    struct gensio_mdns_watch *w = b->w;
+    struct gensio_mdns *m = w->m;
+    struct gensio_os_funcs *o = m->o;
+    int err;
+
+    if (w->interface != -1 && interface != w->interface)
+	return;
+    if (w->protocol != GENSIO_NETTYPE_UNSPEC && protocol != w->protocol)
+	return;
+    if (!mdns_str_cmp(&w->name, name))
+	return;
+
+    r = o->zalloc(o, sizeof(*r));
+    if (!r)
+	goto out_err;
+
+    gensio_list_init(&r->results);
+    r->b = b;
+    r->interface = interface;
+    r->protocol = protocol;
+
+    if (dupstr(o, name, &r->name))
+	goto out_err;
+    if (dupstr(o, type, &r->type))
+	goto out_err;
+    if (dupstr(o, domain, &r->domain))
+	goto out_err;
+
+    gensio_list_add_tail(&b->resolvers, &r->link);
+    err = gensio_mdnslib_start_resolver(m, r, interface, protocol,
+					name, type, domain,
+					w->protocol);
+    if (err) {
+	gensio_list_rm(&b->resolvers, &r->link);
+	goto out_err;
+    }
+    return;
+
+ out_err:
+    gensio_mdns_log(m, GENSIO_LOG_ERR,
+		    "Out of memory allocating browser");
+    if (r)
+	resolver_free(o, r);
+}
+
+#if HAVE_AVAHI
+
+static void
+avahi_service_browser_callback(AvahiServiceBrowser *ab,
+			       AvahiIfIndex ainterface,
+			       AvahiProtocol aprotocol,
+			       AvahiBrowserEvent event,
+			       const char *name,
+			       const char *type,
+			       const char *domain,
+			       AvahiLookupResultFlags flags,
+			       void *userdata)
 {
     struct gensio_mdns_watch_browser *b = userdata;
     struct gensio_mdns_watch *w = b->w;
     struct gensio_mdns *m = w->m;
-    struct gensio_os_funcs *o = m->o;
-    struct gensio_link *l;
     struct gensio_mdns_watch_resolver *r = NULL;
+    int protocol, interface;
+
+    interface = avahi_interface_to_interface(ainterface);
 
     switch (event) {
     case AVAHI_BROWSER_NEW:
@@ -844,18 +1140,11 @@ mdns_service_browser_callback(AvahiServiceBrowser *ab,
 	return;
     }
 
-    /* See if it aready exists. */
-    gensio_list_for_each(&b->resolvers, l) {
-	r = gensio_container_of(l, struct gensio_mdns_watch_resolver, link);
+    if (avahi_protocol_to_protocol(aprotocol, &protocol))
+	return;
 
-	if (r->interface == interface && r->protocol == protocol &&
-		strcmp(r->name, name) == 0 &&
-		strcmp(r->type, type) == 0 &&
-		strcmp(r->domain, domain) == 0)
-	    break;
-	else
-	    r = NULL;
-    }
+    /* See if it aready exists. */
+    r = resolver_find(b, interface, protocol, name, type, domain);
 
     if (event == AVAHI_BROWSER_REMOVE) {
 	/* If we have the resolver, remove it. */
@@ -867,66 +1156,31 @@ mdns_service_browser_callback(AvahiServiceBrowser *ab,
     if (r)
 	return; /* We already have it. */
 
-    if (w->interface != -1 && interface != w->interface)
-	return;
-    if (w->protocol != AVAHI_PROTO_UNSPEC && protocol != w->protocol)
-	return;
-    if (!mdns_str_cmp(&w->name, name))
-	return;
-
-    r = o->zalloc(o, sizeof(*r));
-    if (!r)
-	goto out_err;
-
-    gensio_list_init(&r->results);
-    r->b = b;
-    r->interface = interface;
-    r->protocol = protocol;
-
-    if (dupstr(o, name, &r->name))
-	goto out_err;
-    if (dupstr(o, type, &r->type))
-	goto out_err;
-    if (dupstr(o, domain, &r->domain))
-	goto out_err;
-
-    gensio_list_add_tail(&b->resolvers, &r->link);
-    r->resolver = avahi_service_resolver_new(m->ac, interface, protocol,
-					     name, type, domain, w->protocol,
-					     0, mdns_service_resolver_callback,
-					     r);
-    if (!r->resolver) {
-	gensio_list_rm(&b->resolvers, &r->link);
-	goto out_err;
-    }
-    return;
-
- out_err:
-    gensio_mdns_log(m, GENSIO_LOG_ERR,
-		    "Out of memory allocating browser");
-    if (r)
-	resolver_free(o, r);
+    mdns_browser_callback(b, interface, protocol, name, type, domain);
 }
 
 /* Will be called with the lock held. */
 static void
-mdns_service_type_callback(AvahiServiceTypeBrowser *ab,
-			   AvahiIfIndex interface,
-			   AvahiProtocol protocol,
-			   AvahiBrowserEvent event,
-			   const char *type,
-			   const char *domain,
-			   AvahiLookupResultFlags flags,
-			   void *userdata)
+avahi_service_type_callback(AvahiServiceTypeBrowser *ab,
+			    AvahiIfIndex ainterface,
+			    AvahiProtocol aprotocol,
+			    AvahiBrowserEvent event,
+			    const char *type,
+			    const char *domain,
+			    AvahiLookupResultFlags flags,
+			    void *userdata)
 {
     struct gensio_mdns_watch *w = userdata;
     struct gensio_mdns *m = w->m;
     struct gensio_os_funcs *o = m->o;
     struct gensio_link *l;
     struct gensio_mdns_watch_browser *b = NULL;
+    int protocol, interface, err;
 
     if (w->removed)
 	return;
+
+    interface = avahi_interface_to_interface(ainterface);
 
     switch (event) {
     case AVAHI_BROWSER_NEW:
@@ -948,6 +1202,10 @@ mdns_service_type_callback(AvahiServiceTypeBrowser *ab,
 			avahi_strerror(avahi_client_errno(m->ac)));
 	return;
     }
+
+    err = avahi_protocol_to_protocol(aprotocol, &protocol);
+    if (err)
+	return;
 
     /* If we have the resolver set, remove it. */
     gensio_list_for_each(&w->browsers, l) {
@@ -982,7 +1240,7 @@ mdns_service_type_callback(AvahiServiceTypeBrowser *ab,
 
     if (w->interface != -1 && interface != w->interface)
 	return;
-    if (w->protocol != AVAHI_PROTO_UNSPEC && protocol != w->protocol)
+    if (w->protocol != GENSIO_NETTYPE_UNSPEC && protocol != w->protocol)
 	return;
     if (!mdns_str_cmp(&w->type, type))
 	return;
@@ -1006,11 +1264,12 @@ mdns_service_type_callback(AvahiServiceTypeBrowser *ab,
 
     gensio_list_add_tail(&w->browsers, &b->link);
     w->service_calls_pending++;
-    b->browser = avahi_service_browser_new(m->ac, interface, protocol,
-					   type, domain,
-					   0, mdns_service_browser_callback,
-					   b);
-    if (!b->browser) {
+    b->avahi_browser =
+	avahi_service_browser_new(m->ac, interface, protocol,
+				  type, domain,
+				  0, avahi_service_browser_callback,
+				  b);
+    if (!b->avahi_browser) {
 	gensio_list_rm(&w->browsers, &b->link);
 	w->service_calls_pending--;
 	goto out_err;
@@ -1024,6 +1283,38 @@ mdns_service_type_callback(AvahiServiceTypeBrowser *ab,
 	browser_free(o, b);
 }
 
+static int
+gensio_mdnslib_add_watch(struct gensio_mdns_watch *w)
+{
+    struct gensio_mdns *m = w->m;
+    AvahiProtocol aprotocol;
+    AvahiIfIndex ainterface;
+    int err;
+
+    err = protocol_to_avahi_protocol(w->protocol, &aprotocol);
+    if (err)
+	return GE_INVAL;
+
+    if (m->state != AVAHI_CLIENT_S_RUNNING)
+	/* This will be caught later when avahi is ready. */
+	return 0;
+
+    ainterface = interface_to_avahi_interface(w->interface);
+
+    w->avahi_browser =
+	avahi_service_type_browser_new(m->ac, ainterface,
+				       aprotocol, w->domainstr, 0,
+				       avahi_service_type_callback, w);
+    if (w->avahi_browser)
+	w->service_calls_pending++;
+    else
+	return GE_NOMEM;
+
+    return 0;
+}
+
+#endif
+
 static void
 watch_free(struct gensio_os_funcs *o, struct gensio_mdns_watch *w)
 {
@@ -1036,18 +1327,6 @@ watch_free(struct gensio_os_funcs *o, struct gensio_mdns_watch *w)
     o->free(o, w);
 }
 
-static void
-avahi_add_watch(struct gensio_mdns_watch *w)
-{
-    struct gensio_mdns *m = w->m;
-
-    w->browser = avahi_service_type_browser_new(m->ac, w->interface,
-						w->protocol, w->domainstr, 0,
-						mdns_service_type_callback, w);
-    if (w->browser)
-	w->service_calls_pending++;
-}
-
 int
 gensio_mdns_add_watch(struct gensio_mdns *m,
 		      int interface, int ipdomain,
@@ -1058,19 +1337,7 @@ gensio_mdns_add_watch(struct gensio_mdns *m,
 {
     struct gensio_mdns_watch *w;
     struct gensio_os_funcs *o = m->o;
-    AvahiProtocol protocol;
     int err = GE_NOMEM;
-
-    switch(ipdomain) {
-    case GENSIO_NETTYPE_IPV4: protocol = AVAHI_PROTO_INET; break;
-    case GENSIO_NETTYPE_IPV6: protocol = AVAHI_PROTO_INET6; break;
-    case GENSIO_NETTYPE_UNSPEC: protocol = AVAHI_PROTO_UNSPEC; break;
-    default:
-	return GE_INVAL;
-    }
-
-    if (interface < 0)
-	interface = AVAHI_IF_UNSPEC;
 
     w = o->zalloc(o, sizeof(*w));
     if (!w)
@@ -1082,7 +1349,7 @@ gensio_mdns_add_watch(struct gensio_mdns *m,
     w->callback_data.w = w;
     w->userdata = userdata;
     w->interface = interface;
-    w->protocol = protocol;
+    w->protocol = ipdomain;
     gensio_list_init(&w->browsers);
 
     if (dupstr(o, domain, &w->domainstr))
@@ -1100,14 +1367,11 @@ gensio_mdns_add_watch(struct gensio_mdns *m,
     if (err)
 	goto out_err;
 
-    err = GE_NOMEM;
-
-    gensio_avahi_lock(m->ap);
-    if (m->state == AVAHI_CLIENT_S_RUNNING)
-	avahi_add_watch(w);
+    gensio_mdns_lock(m);
     gensio_list_add_tail(&m->watches, &w->link);
-    gensio_avahi_unlock(m->ap);
-    if (m->state == AVAHI_CLIENT_S_RUNNING && !w->browser)
+    err = gensio_mdnslib_add_watch(w);
+    gensio_mdns_unlock(m);
+    if (err)
 	goto out_err;
 
     if (rwatch)
@@ -1115,7 +1379,7 @@ gensio_mdns_add_watch(struct gensio_mdns *m,
     return 0;
 
  out_err:
-    gensio_avahi_lock(m->ap);
+    gensio_mdns_lock(m);
     watch_free(o, w);
     gensio_mdns_deref_and_unlock(m);
     return err;
@@ -1173,19 +1437,21 @@ gensio_mdns_remove_watch(struct gensio_mdns_watch *w,
     struct gensio_mdns *m = w->m;
     int err;
 
-    gensio_avahi_lock(m->ap);
+    gensio_mdns_lock(m);
     if (w->removed)
 	err = GE_INUSE;
     else
 	err = i_gensio_mdns_remove_watch(w, done, userdata);
-    gensio_avahi_unlock(m->ap);
+    gensio_mdns_unlock(m);
 
     return err;
 }
 
+#if HAVE_AVAHI
+
 /* Lock should already be held when calling this. */
 static void
-mdns_client_callback(AvahiClient *ac, AvahiClientState state, void *userdata)
+avahi_client_callback(AvahiClient *ac, AvahiClientState state, void *userdata)
 {
     struct gensio_mdns *m = userdata;
     struct gensio_link *l;
@@ -1200,16 +1466,42 @@ mdns_client_callback(AvahiClient *ac, AvahiClientState state, void *userdata)
 	gensio_list_for_each(&m->services, l) {
 	    s = gensio_container_of(l, struct gensio_mdns_service, link);
 
-	    avahi_add_service(m, s);
+	    gensio_mdnslib_add_service(s);
 	}
 	gensio_list_for_each(&m->watches, l) {
 	    w = gensio_container_of(l, struct gensio_mdns_watch, link);
 
-	    avahi_add_watch(w);
+	    gensio_mdnslib_add_watch(w);
 	}
     }
     /* FIXME - handle other states. */
 }
+
+int
+gensio_mdnslib_start(struct gensio_mdns *m)
+{
+    int aerr;
+
+    gensio_mdns_lock(m);
+    m->ac = avahi_client_new(m->ap, AVAHI_CLIENT_NO_FAIL,
+			     avahi_client_callback, m, &aerr);
+    gensio_mdns_unlock(m);
+    if (!m->ac) {
+	gensio_log(m->o, GENSIO_LOG_ERR,
+		   "mdns: Can't allocate avahi client: %s",
+		   avahi_strerror(aerr));
+	return GE_NOMEM;
+    }
+    return 0;
+}
+
+static void
+gensio_mdnslib_disable(struct gensio_mdns *m)
+{
+    gensio_avahi_poll_disable(m->ap);
+}
+
+#endif
 
 static void mdns_runner(struct gensio_runner *runner, void *userdata)
 {
@@ -1219,7 +1511,7 @@ static void mdns_runner(struct gensio_runner *runner, void *userdata)
     struct gensio_mdns_callback *c;
     struct gensio_mdns_watch *w;
 
-    gensio_avahi_lock(m->ap);
+    gensio_mdns_lock(m);
     while (!gensio_list_empty(&m->callbacks)) {
 	l = gensio_list_first(&m->callbacks);
 	c = gensio_container_of(l, struct gensio_mdns_callback, link);
@@ -1230,9 +1522,9 @@ static void mdns_runner(struct gensio_runner *runner, void *userdata)
 
 	if (c->remove) {
 	    if (w->remove_done) {
-		gensio_avahi_unlock(m->ap);
+		gensio_mdns_unlock(m);
 		w->remove_done(w, w->remove_done_data);
-		gensio_avahi_lock(m->ap);
+		gensio_mdns_lock(m);
 	    }
 	    watch_free(o, w);
 	    gensio_mdns_deref(m);
@@ -1246,20 +1538,20 @@ static void mdns_runner(struct gensio_runner *runner, void *userdata)
 		enum gensio_mdns_data_state state = d->state;
 
 		if (!m->freed && !w->removed) {
-		    gensio_avahi_unlock(m->ap);
+		    gensio_mdns_unlock(m);
 		    w->cb(w, d->state, d->interface, d->ipdomain, d->name,
 			  d->type, d->domain, d->host, d->addr, d->txt,
 			  w->userdata);
-		    gensio_avahi_lock(m->ap);
+		    gensio_mdns_lock(m);
 		}
 		if (state == GENSIO_MDNS_DATA_GONE)
 		    result_free(o, d->result);
 	    } else if (c->all_for_now) {
 		c->all_for_now = false;
-		gensio_avahi_unlock(m->ap);
+		gensio_mdns_unlock(m);
 		w->cb(w, GENSIO_MDNS_ALL_FOR_NOW, 0, 0, NULL,
 		      NULL, NULL, NULL, NULL, NULL, w->userdata);
-		gensio_avahi_lock(m->ap);
+		gensio_mdns_lock(m);
 	    }
 	}
     }
@@ -1271,7 +1563,7 @@ int
 gensio_alloc_mdns(struct gensio_os_funcs *o, struct gensio_mdns **new_m)
 {
     struct gensio_mdns *m;
-    int aerr;
+    int err;
 
     m = o->zalloc(o, sizeof(*m));
     if (!m)
@@ -1280,15 +1572,15 @@ gensio_alloc_mdns(struct gensio_os_funcs *o, struct gensio_mdns **new_m)
     m->o = o;
     m->refcount = 1;
 
-    m->ap = alloc_gensio_avahi_poll(o);
-    if (!m->ap) {
+    err = gensio_mdnslib_init(m);
+    if (err) {
 	o->free(o, m);
-	return GE_NOMEM;
+	return err;
     }
 
     m->runner = o->alloc_runner(o, mdns_runner, m);
     if (!m->runner) {
-	gensio_avahi_poll_free(m->ap, NULL, NULL);
+	gensio_mdnslib_free(m);
 	o->free(o, m);
 	return GE_NOMEM;
     }
@@ -1297,17 +1589,12 @@ gensio_alloc_mdns(struct gensio_os_funcs *o, struct gensio_mdns **new_m)
     gensio_list_init(&m->watches);
     gensio_list_init(&m->callbacks);
 
-    gensio_avahi_lock(m->ap);
-    m->ac = avahi_client_new(m->ap, AVAHI_CLIENT_NO_FAIL,
-			     mdns_client_callback, m, &aerr);
-    gensio_avahi_unlock(m->ap);
-    if (!m->ac) {
-	gensio_log(o, GENSIO_LOG_ERR, "mdns: Can't allocate avahi client: %s",
-		   avahi_strerror(aerr));
-	gensio_avahi_poll_free(m->ap, NULL, NULL);
+    err = gensio_mdnslib_start(m);
+    if (err) {
+	gensio_mdnslib_free(m);
 	o->free_runner(m->runner);
 	o->free(o, m);
-	return GE_NOMEM;
+	return err;
     }
 
     *new_m = m;
@@ -1321,13 +1608,13 @@ gensio_free_mdns(struct gensio_mdns *m, gensio_mdns_done done, void *userdata)
     struct gensio_link *l, *l2;
     int err = 0;
 
-    gensio_avahi_lock(m->ap);
+    gensio_mdns_lock(m);
     if (m->freed) {
 	err = GE_INUSE;
 	goto out_unlock;
     }
 
-    gensio_avahi_poll_disable(m->ap);
+    gensio_mdnslib_disable(m);
 
     m->freed = true;
     m->free_done = done;
@@ -1358,7 +1645,7 @@ gensio_free_mdns(struct gensio_mdns *m, gensio_mdns_done done, void *userdata)
 	gensio_mdns_deref(m);
     }
  out_unlock:
-    gensio_avahi_unlock(m->ap);
+    gensio_mdns_unlock(m);
     return err;
 }
 
