@@ -814,27 +814,80 @@ AC_ARG_WITH(mdns,
       trymdns=no
     fi,
 )
+HAVE_MDNS=0
+
 HAVE_AVAHI=0
-GMDNS=
-GMDNSMAN=
-if test $trymdns = yes; then
+tryavahi=yes
+AC_ARG_WITH(avahi,
+ [AS_HELP_STRING([--with-avahi[[=yes|no]]],
+		 [Look for avahi.])],
+    if test "x$withval" = "x"; then
+      tryavahi=yes
+    elif test "x$withval" = "xyes"; then
+      tryavahi=yes
+    elif test "x$withval" = "xno"; then
+      tryavahi=no
+    fi,
+)
+if test $trymdns = yes -a $tryavahi = yes; then
     AC_CHECK_LIB(avahi-client, avahi_client_new, [HAVE_AVAHI=1])
 fi
 if test "$HAVE_AVAHI" = "1"; then
    mdns=$default_all
    MDNS_LIBS="-lavahi-client -lavahi-common"
-   GMDNS=gmdns
-   GMDNSMAN=gmdns.1
-else
-   mdns=no
+   HAVE_MDNS=1
 fi
 AC_DEFINE_UNQUOTED([HAVE_AVAHI], [$HAVE_AVAHI],
 	[Set to 1 to enable MDNS support through avahi, 0 to disable])
 AM_CONDITIONAL([HAVE_AVAHI], [test ${HAVE_AVAHI} = 1])
 AC_SUBST(HAVE_AVAHI)
+
+HAVE_DNSSD=0
+trydnssd=yes
+AC_ARG_WITH(dnssd,
+ [AS_HELP_STRING([--with-dnssd[[=yes|no]]],
+		 [Look for dnssd.])],
+    if test "x$withval" = "x"; then
+      trydnssd=yes
+    elif test "x$withval" = "xyes"; then
+      trydnssd=yes
+    elif test "x$withval" = "xno"; then
+      trydnssd=no
+    fi,
+)
+if test $trymdns = yes -a ${HAVE_AVAHI} = 0 -a $trydnssd = yes; then
+   found_dns_sh=no
+   AC_CHECK_HEADER(dns_sd.h, [found_dns_sd=yes])
+   if test "x$found_dns_sd" = "xyes"; then
+      AC_CHECK_LIB(dns_sd, DNSServiceRegister, [HAVE_DNSSD=1])
+   fi
+   if test "$HAVE_DNSSD" = "1"; then
+      mdns=$default_all
+      MDNS_LIBS="-ldns_sd"
+      HAVE_MDNS=1
+   fi
+fi
+AC_DEFINE_UNQUOTED([HAVE_DNSSD], [$HAVE_DNSSD],
+	[Set to 1 to enable MDNS support through dnssd, 0 to disable])
+AM_CONDITIONAL([HAVE_DNSSD], [test ${HAVE_DNSSD} = 1])
+AC_SUBST(HAVE_DNSSD)
+
 AC_SUBST(MDNS_LIBS)
+
+GMDNS=
+GMDNSMAN=
+if test ${HAVE_MDNS} = 1; then
+   GMDNS=gmdns
+   GMDNSMAN=gmdns.1
+else
+   mdns=no
+fi
 AC_SUBST(GMDNS)
 AC_SUBST(GMDNSMAN)
+AC_DEFINE_UNQUOTED([HAVE_MDNS], [$HAVE_MDNS],
+	[Set to 1 to enable MDNS support, 0 to disable])
+AM_CONDITIONAL([HAVE_MDNS], [test ${HAVE_MDNS} = 1])
+AC_SUBST(HAVE_MDNS)
 
 AC_ARG_WITH(mdns,
  [AS_HELP_STRING([--with-mdns=yes|dynamic|no], [Enable mdns gensio])],
@@ -851,16 +904,16 @@ DYNAMIC_MDNS=
 BUILTIN_MDNS_LIBS=
 case $mdns in
    yes)
-      if test $HAVE_AVAHI = 0; then
-         AC_MSG_ERROR("mdns enabled but avahi not found")
+      if test $HAVE_MDNS = 0; then
+         AC_MSG_ERROR("mdns enabled but no support not found")
       fi
       BUILTIN_GENSIOS="$BUILTIN_GENSIOS mdns"
       BUILTIN_MDNS_LIBS="$MDNS_LIBS"
       BUILTIN_MDNS=1
       ;;
    dynamic)
-      if test $HAVE_AVAHI = 0; then
-         AC_MSG_ERROR("mdns enabled but avahi not found")
+      if test $HAVE_MDNS = 0; then
+         AC_MSG_ERROR("mdns enabled but no support not found")
       fi
       DYNAMIC_GENSIOS="$DYNAMIC_GENSIOS mdns"
       DYNAMIC_MDNS=libgensio_mdns.la

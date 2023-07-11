@@ -81,9 +81,10 @@ gensio_argv_copy(struct gensio_os_funcs *o,
 }
 
 int
-gensio_argv_append(struct gensio_os_funcs *o, const char ***argv,
-		   const char *str, gensiods *args, gensiods *argc,
-		   bool allocstr)
+gensio_argv_nappend(struct gensio_os_funcs *o, const char ***argv,
+		    const char *str, gensiods len,
+		    gensiods *args, gensiods *argc,
+		    bool allocstr)
 {
     if (!*argv) {
 	*args = 10;
@@ -106,9 +107,11 @@ gensio_argv_append(struct gensio_os_funcs *o, const char ***argv,
     }
     if (str) {
 	if (allocstr) {
-	    (*argv)[*argc] = gensio_strdup(o, str);
-	    if (!(*argv)[*argc])
+	    char *s = o->zalloc(o, len + 1);
+	    if (!s)
 		return GE_NOMEM;
+	    memcpy(s, str, len);
+	    (*argv)[*argc] = s;
 	} else {
 	    (*argv)[*argc] = str;
 	}
@@ -117,6 +120,18 @@ gensio_argv_append(struct gensio_os_funcs *o, const char ***argv,
 	(*argv)[*argc] = NULL;
     }
     return 0;
+}
+
+int
+gensio_argv_append(struct gensio_os_funcs *o, const char ***argv,
+		   const char *str, gensiods *args, gensiods *argc,
+		   bool allocstr)
+{
+    gensiods len = 0;
+
+    if (str)
+	len = strlen(str);
+    return gensio_argv_nappend(o, argv, str, len, args, argc, allocstr);
 }
 
 int

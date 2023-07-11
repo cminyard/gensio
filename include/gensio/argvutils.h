@@ -87,6 +87,15 @@ int gensio_argv_append(struct gensio_os_funcs *o, const char ***argv,
 		       bool allocstr);
 
 /*
+ * Like gensio_argv_append, but take a string length, too.
+ */
+GENSIOOSH_DLL_PUBLIC
+int gensio_argv_nappend(struct gensio_os_funcs *o, const char ***argv,
+		        const char *str, gensiods len,
+			gensiods *args, gensiods *argc,
+		        bool allocstr);
+
+/*
  * Standard utilities using sprintf-type things to append arguments to
  * an argv.  The string data is always allocated.
  */

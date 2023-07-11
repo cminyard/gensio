@@ -122,6 +122,14 @@ you have to make sure to wait until the done callback is called to
 know the code is out of all callbacks.  The done callback is optional
 if you don't care.
 
+Some MDNS libraries do not support an NULL
+.B type
+for the watch, and some do.  For portable code, always specify the
+watch.  If the library does not support a null
+.B type
+the function will return
+.B GE_INCONSISTENT.
+
 The watch callback state has three possible values:
 .TP
 .I GENSIO_MDNS_NEW_DATA

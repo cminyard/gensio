@@ -171,7 +171,7 @@ libgensio_ipmisol_la_LDFLAGS = $(DYNAMIC_LDFLAGS)
 libgensio_ipmisol_la_CFLAGS = $(OPENIPMI_CPPFLAGS)
 libgensio_ipmisol_la_LIBADD = $(DYNAMIC_LIBS) $(OPENIPMI_LIBS)
 
-if HAVE_AVAHI
+if HAVE_MDNS
 if BUILTIN_MDNS
 libgensio_la_SOURCES += gensio_mdns.c
 libgensio_la_LIBADD += libgensiomdns.la
