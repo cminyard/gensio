@@ -22,6 +22,7 @@
 #include <gensio/gensio_os_funcs.h>
 #include <gensio/gensio_class.h>
 #include <gensio/gensio_mdns.h>
+#include <gensio/gensio_time.h>
 #include <gensio/argvutils.h>
 
 enum mdnsn_state {
@@ -55,6 +56,10 @@ struct mdnsn_data {
     struct gensio_mdns *mdns;
     struct gensio_mdns_watch *watch;
 
+    bool timer_running;
+    struct gensio_timer *timer;
+    gensio_time timeout;
+
     char *laddr;
     gensiods max_read_size;
     bool readbuf_set;
@@ -83,6 +88,8 @@ mdnsn_finish_free(struct mdnsn_data *ndata)
 {
     struct gensio_os_funcs *o = ndata->o;
 
+    if (ndata->timer)
+	o->free_timer(ndata->timer);
     if (ndata->io)
 	gensio_data_free(ndata->io);
     if (ndata->laddr)
@@ -122,6 +129,14 @@ mdnsn_ref(struct mdnsn_data *ndata)
 }
 
 static void
+mdnsn_deref(struct mdnsn_data *ndata)
+{
+    /* Can't be the final deref. */
+    assert(ndata->refcount > 1);
+    ndata->refcount--;
+}
+
+static void
 mdnsn_deref_and_unlock(struct mdnsn_data *ndata)
 {
     assert(ndata->refcount > 0);
@@ -148,7 +163,7 @@ child_cb(struct gensio *io, void *user_data,
 static void
 mdnsn_check_close(struct mdnsn_data *ndata)
 {
-    if (!ndata->child && !ndata->mdns_in_free) {
+    if (!ndata->child && !ndata->mdns_in_free && !ndata->timer_running) {
 	ndata->state = MDNSN_CLOSED;
 	mdnsn_unlock(ndata);
 
@@ -385,6 +400,76 @@ get_mdns_gensiostack(struct mdnsn_data *ndata, const char * const *txt,
     goto out;
 }
 
+/* Must be called with lock held, releases the lock. */
+static void
+mdns_handle_err(struct mdnsn_data *ndata)
+{
+    int err;
+
+    ndata->state = MDNSN_IN_OPEN_ERR;
+    if (ndata->watch)
+	gensio_mdns_remove_watch(ndata->watch, NULL, NULL);
+    err = gensio_free_mdns(ndata->mdns, mdns_freed, ndata);
+    if (!err) {
+	ndata->mdns_in_free = true;
+	mdnsn_unlock(ndata);
+    } else {
+	ndata->mdns = NULL;
+	i_child_open_cb(ndata, ndata->open_err);
+	mdnsn_deref_and_unlock(ndata);
+    }
+}
+
+static int
+mdns_start_timer(struct mdnsn_data *ndata)
+{
+    int err;
+
+    err = ndata->o->start_timer(ndata->timer, &ndata->timeout);
+    if (!err) {
+	ndata->timer_running = true;
+	mdnsn_ref(ndata);
+    }
+    return err;
+}
+
+static int
+mdns_stop_timer(struct mdnsn_data *ndata)
+{
+    int err;
+
+    err = ndata->o->stop_timer(ndata->timer);
+    if (!err) {
+	ndata->timer_running = false;
+	mdnsn_deref(ndata);
+    }
+    return err;
+}
+
+static void
+mdns_timeout(struct gensio_timer *timer, void *cb_data)
+{
+    struct mdnsn_data *ndata = cb_data;
+
+    mdnsn_lock(ndata);
+    ndata->timer_running = false;
+    switch (ndata->state) {
+    case MDNSN_IN_OPEN_QUERY:
+	ndata->open_err = GE_NOTFOUND;
+	mdns_handle_err(ndata);
+	break;
+
+    case MDNSN_IN_CLOSE:
+	/* Maybe we should finish the close. */
+	mdnsn_start_deferred_op(ndata);
+	break;
+
+    default:
+	break;
+    }
+    mdnsn_deref_and_unlock(ndata);
+}
+
 static void
 mdns_cb(struct gensio_mdns_watch *w,
 	enum gensio_mdns_data_state state,
@@ -395,18 +480,33 @@ mdns_cb(struct gensio_mdns_watch *w,
 	void *userdata)
 {
     struct mdnsn_data *ndata = userdata;
+    struct gensio_os_funcs *o = ndata->o;
     const char **argv = NULL;
     char *s, *stack = NULL;
-    int err;
+    int err = 0;
 
     mdnsn_lock(ndata);
+    if (ndata->timer_running)
+	err = mdns_stop_timer(ndata);
+
     if (ndata->state != MDNSN_IN_OPEN_QUERY)
+	goto out_unlock;
+
+    if (err)
+	/* Timer will go off immediately. */
 	goto out_unlock;
 
     if (state == GENSIO_MDNS_ALL_FOR_NOW) {
 	/* Didn't find what we were looking for. */
-	ndata->open_err = GE_NOTFOUND;
-	goto out_err;
+	err = mdns_start_timer(ndata);
+	if (err) {
+	    /* Should never happen. */
+	    gensio_log(o, GENSIO_LOG_ERR, "mdns: Error starting timer: %s\n",
+		       gensio_err_to_str(err));
+	    ndata->open_err = err;
+	    goto out_err;
+	}
+	goto out_unlock;
     }
 
     if (state == GENSIO_MDNS_NEW_DATA) {
@@ -503,19 +603,8 @@ mdns_cb(struct gensio_mdns_watch *w,
     return;
 
  out_err:
-    ndata->state = MDNSN_IN_OPEN_ERR;
-    if (ndata->watch)
-	gensio_mdns_remove_watch(ndata->watch, NULL, NULL);
-    err = gensio_free_mdns(ndata->mdns, mdns_freed, ndata);
-    if (!err) {
-	ndata->mdns_in_free = true;
-    } else {
-	ndata->mdns = NULL;
-	i_child_open_cb(ndata, ndata->open_err);
-	mdnsn_deref_and_unlock(ndata);
-	goto out;
-    }
-    goto out_unlock;
+    mdns_handle_err(ndata);
+    goto out;
 }
 
 static int
@@ -532,6 +621,8 @@ mdnsn_open(struct gensio *io, gensio_done_err open_done, void *open_data)
     err = gensio_alloc_mdns(ndata->o, &ndata->mdns);
     if (err)
 	goto out_unlock;
+    err = mdns_start_timer(ndata);
+    assert(err == 0);
     err = gensio_mdns_add_watch(ndata->mdns, ndata->interface,
 				ndata->nettype,
 				ndata->name, ndata->type, ndata->domain,
@@ -558,6 +649,9 @@ static int
 mdnsn_start_close(struct mdnsn_data *ndata)
 {
     int err;
+
+    if (ndata->timer_running)
+	mdns_stop_timer(ndata);
 
     switch (ndata->state) {
     case MDNSN_OPEN:
@@ -625,6 +719,8 @@ mdnsn_disable(struct gensio *io)
     struct mdnsn_data *ndata = gensio_get_gensio_data(io);
 
     mdnsn_lock(ndata);
+    mdns_stop_timer(ndata);
+
     gensio_disable(ndata->child);
     ndata->state = MDNSN_CLOSED;
     mdnsn_unlock(ndata);
@@ -706,6 +802,10 @@ mdns_ndata_setup(struct gensio_os_funcs *o, gensiods max_read_size,
     if (!ndata->lock)
 	goto out_nomem;
 
+    ndata->timer = o->alloc_timer(o, mdns_timeout, ndata);
+    if (!ndata->timer)
+	goto out_nomem;
+
     *new_ndata = ndata;
 
     return 0;
@@ -725,7 +825,8 @@ mdns_gensio_alloc(const void *gdata, const char * const args[],
     const char *mstr = gdata;
     int err;
     struct mdnsn_data *ndata = NULL;
-    int i, interface = -1, nettype = GENSIO_NETTYPE_UNSPEC;
+    int i, interface = -1, nettype = GENSIO_NETTYPE_UNSPEC, timeoutms;
+    gensio_time timeout;
     bool nostack = false;
     gensiods max_read_size = GENSIO_DEFAULT_BUF_SIZE;
     char *laddr = NULL, *name = NULL, *type = NULL;
@@ -775,6 +876,12 @@ mdns_gensio_alloc(const void *gdata, const char * const args[],
     if (err)
 	goto out_base_free;
 
+    err = gensio_get_default(o, type, "mdnstimeout", false,
+			     GENSIO_DEFAULT_INT, NULL, &timeoutms);
+    if (err)
+	goto out_base_free;
+    gensio_msecs_to_time(&timeout, timeoutms);
+
     if (mstr) {
 	if (name)
 	    free(name);
@@ -794,6 +901,10 @@ mdns_gensio_alloc(const void *gdata, const char * const args[],
 	    nodelay_set = true;
 	    continue;
 	}
+	if (gensio_pparm_time(&p, args[i], "timeout", 'm', &timeout) > 0)
+	    continue;
+	if (gensio_pparm_time(&p, args[i], "mdnstimeout", 'n', &timeout) > 0)
+	    continue;
 	if (gensio_pparm_bool(&p, args[i], "nostack", &nostack) > 0)
 	    continue;
 	if (gensio_pparm_value(&p, args[i], "laddr", &str) > 0) {
@@ -889,6 +1000,7 @@ mdns_gensio_alloc(const void *gdata, const char * const args[],
     ndata->type = type;
     ndata->domain = domain;
     ndata->host = host;
+    ndata->timeout = timeout;
 
     ndata->io = gensio_data_alloc(ndata->o, cb, user_data,
 				  gensio_mdns_func, NULL, "mdns", ndata);

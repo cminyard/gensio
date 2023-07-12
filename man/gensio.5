@@ -1698,6 +1698,14 @@ By default the mdns gensio will attempt to use the "gensiostack" text
 string from the mDNS service.  If you don't want it to do this,
 setting this option will turn it off.
 .TP
+.B mdnstimeout=<gtime>
+Set the amount of time to wait for mdns to find the item.  See the
+"gtime" section for more info on how to set the time.  The default
+unit is milliseconds, default time is 1 second.  The default setting
+for mdnstimeout is not a gtime, it is in integer in milliseconds.  You
+may also use "timeout" instead of "mdnstimeout", but not in the
+default.
+.TP
 .B name=<mdnsstr>
 Set the mdns name to search for.  You generally want to set this,
 otherwise you will get the first thing that comes up from the search.
