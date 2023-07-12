@@ -86,6 +86,16 @@ ip_domain_to_str(int ipdomain)
     }
 }
 
+static struct gensio_timer *close_timer;
+
+static void
+check_close_done(struct gensio_timer *t, void *cb_data)
+{
+    struct freed_data *f = cb_data;
+
+    gensio_os_funcs_wake(f->o, f->closewaiter);
+}
+
 static void
 mdns_info_found(struct gensio_mdns_watch *w,
 		enum gensio_mdns_data_state state,
@@ -102,8 +112,11 @@ mdns_info_found(struct gensio_mdns_watch *w,
 
     if (state == GENSIO_MDNS_ALL_FOR_NOW) {
 	printf("All-for-now:\n");
-	if (close_on_done)
-	    gensio_os_funcs_wake(f->o, f->closewaiter);
+	if (close_on_done) {
+	    struct gensio_time timeout = {1, 0};
+	    gensio_os_funcs_stop_timer(f->o, close_timer);
+	    gensio_os_funcs_start_timer(f->o, close_timer, &timeout);
+	}
 	return;
     }
 
@@ -254,6 +267,15 @@ main(int argc, char *argv[])
 	return 1;
     }
 
+    if (close_on_done) {
+	close_timer = gensio_os_funcs_alloc_timer(o, check_close_done,
+						  &fdata);
+	if (!close_timer) {
+	    fprintf(stderr, "Could allocate close timer\n");
+	    goto out_err;
+	}
+    }
+
     closewaiter = gensio_os_funcs_alloc_waiter(o);
     if (!closewaiter) {
 	rv = GE_NOMEM;
@@ -349,6 +371,10 @@ main(int argc, char *argv[])
 
     if (o && closewaiter)
 	gensio_os_funcs_free_waiter(o, closewaiter);
+
+    if (close_timer)
+	gensio_os_funcs_free_timer(o, close_timer);
+
     if (o) {
 	gensio_time endwait = { 0, 0 };
 

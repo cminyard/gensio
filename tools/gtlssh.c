@@ -1550,7 +1550,18 @@ struct mdns_cb_data {
     char *transport;
     struct gensio_os_funcs *o;
     struct gensio_waiter *wait;
+    struct gensio_timer *timer;
 };
+
+
+static void
+check_mdns_done(struct gensio_timer *t, void *userdata)
+{
+    struct mdns_cb_data *cb_data = userdata;
+
+    cb_data->done = true;
+    gensio_os_funcs_wake(cb_data->o, cb_data->wait);
+}
 
 static void
 mdns_cb(struct gensio_mdns_watch *w,
@@ -1569,11 +1580,16 @@ mdns_cb(struct gensio_mdns_watch *w,
     static const char *stackstr = "gensiostack=";
     unsigned int i;
 
+    gensio_os_funcs_stop_timer(o, cb_data->timer);
+
     if (cb_data->done)
 	return;
 
-    if (state == GENSIO_MDNS_ALL_FOR_NOW)
-	goto out_wake;
+    if (state == GENSIO_MDNS_ALL_FOR_NOW) {
+	struct gensio_time timeout = {1, 0};
+	gensio_os_funcs_start_timer(o, cb_data->timer, &timeout);
+	return;
+    }
 
     if (state != GENSIO_MDNS_NEW_DATA)
 	return;
@@ -1661,6 +1677,13 @@ lookup_mdns_transport(struct gensio_os_funcs *o, const char *name,
 	return 1;
     }
 
+    cb_data.timer = gensio_os_funcs_alloc_timer(o, check_mdns_done,
+						&cb_data);
+    if (!cb_data.timer) {
+	fprintf(stderr, "Could allocate mdns timer\n");
+	return 1;
+    }
+
     if (strcmp(iptypestr, "ipv4,") == 0)
 	nettype = GENSIO_NETTYPE_IPV4;
     else if (strcmp(iptypestr, "ipv6,") == 0)
@@ -1690,6 +1713,11 @@ lookup_mdns_transport(struct gensio_os_funcs *o, const char *name,
     gensio_free_mdns(mdns, mdns_freed, &cb_data);
 
     gensio_os_funcs_wait(o, cb_data.wait, 1, NULL);
+
+    gensio_os_funcs_stop_timer(o, cb_data.timer);
+    gensio_os_funcs_free_timer(o, cb_data.timer);
+
+    gensio_os_funcs_free_waiter(o, cb_data.wait);
 
     if (cb_data.err) {
 	fprintf(stderr, "Error looking up %s with mdns: %s\n",
@@ -1768,7 +1796,7 @@ main(int argc, char *argv[])
     bool use_mux = true;
     const char *addr, *cstr;
     const char *iptype = ""; /* Try both IPv4 and IPv6 by default. */
-    const char *mdns_type = NULL;
+    const char *mdns_type = "_iostream._tcp";
     const char *val_2fa = "", *pfx_2fa = "";
 
     memset(&userdata1, 0, sizeof(userdata1));
