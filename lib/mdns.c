@@ -756,6 +756,27 @@ gensio_mdnslib_free_service(struct gensio_os_funcs *o,
 	o->free(o, s->dnssd_txt);
 }
 
+#elif HAVE_WINMDNS
+
+static void
+gensio_mdnslib_add_service(struct gensio_mdns_service *s)
+{
+}
+
+static int
+gensio_mdnslib_initservice(struct gensio_mdns_service *s,
+			   int ipdomain, int interface,
+			   const char * const *txt)
+{
+    return GE_NOSUP;
+}
+
+static void
+gensio_mdnslib_free_service(struct gensio_os_funcs *o,
+			    struct gensio_mdns_service *s)
+{
+}
+
 #endif /* HAVE_AVAHI */
 
 static void

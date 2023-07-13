@@ -872,6 +872,41 @@ AC_DEFINE_UNQUOTED([HAVE_DNSSD], [$HAVE_DNSSD],
 AM_CONDITIONAL([HAVE_DNSSD], [test ${HAVE_DNSSD} = 1])
 AC_SUBST(HAVE_DNSSD)
 
+HAVE_WINMDNS=0
+if test "$version_type" = "windows"; then
+   trywinmdns=yes
+else
+   trywinmdns=no
+fi
+AC_ARG_WITH(winmdns,
+ [AS_HELP_STRING([--with-winmdns[[=yes|no]]],
+		 [Look for windows mdns.])],
+    if test "x$withval" = "x"; then
+      trywinmdns=yes
+    elif test "x$withval" = "xyes"; then
+      trywinmdns=yes
+    elif test "x$withval" = "xno"; then
+      trywinmdns=no
+    fi,
+)
+if test $trymdns = yes -a ${HAVE_AVAHI} = 0 -a ${HAVE_DNSSD} = 0 \
+		-a $trywinmdns = yes; then
+   found_windns=no
+   AC_CHECK_HEADER(windns.h, [found_windns=yes], [], [#include <windows.h>])
+   if test "x$found_windns" = "xyes"; then
+      AC_CHECK_LIB(dnsapi, DnsServiceBrowse, [HAVE_WINMDNS=1])
+   fi
+   if test "$HAVE_WINMDNS" = "1"; then
+      mdns=$default_all
+      MDNS_LIBS="-ldnsapi"
+      HAVE_MDNS=1
+   fi
+fi
+AC_DEFINE_UNQUOTED([HAVE_WINMDNS], [$HAVE_WINMDNS],
+	[Set to 1 to enable MDNS support through winmdns, 0 to disable])
+AM_CONDITIONAL([HAVE_WINMDNS], [test ${HAVE_WINMDNS} = 1])
+AC_SUBST(HAVE_WINMDNS)
+
 AC_SUBST(MDNS_LIBS)
 
 GMDNS=
