@@ -23,9 +23,22 @@
 #include <avahi-client/lookup.h>
 #include <avahi-common/error.h>
 #include "avahi_watcher.h"
+#undef MDNS_USE_TIMER
 
 #elif HAVE_DNSSD
 #include <dns_sd.h>
+#undef MDNS_USE_TIMER
+
+#elif HAVE_WINMDNS
+#include <windows.h>
+#include <windns.h>
+#define MDNS_USE_TIMER
+#endif
+
+#ifdef MDNS_USE_TIMER
+/* We run the timer every 10 seconds to time out results. */
+#define MDNS_TIMEOUT 10
+static gensio_time mdns_time = {MDNS_TIMEOUT, 0};
 #endif
 
 /* Returns true on failure (error) */
@@ -48,6 +61,11 @@ struct gensio_mdns {
 
     struct gensio_list services;
     struct gensio_list watches;
+
+#ifdef MDNS_USE_TIMER
+    /* Used to time MDNS expiry, mostly for Windows. */
+    struct gensio_timer *timer;
+#endif
 
 #if HAVE_AVAHI
     AvahiPoll *ap;
@@ -255,7 +273,12 @@ gensio_mdns_finish_free(struct gensio_mdns *m)
 
     if (m->free_done)
 	m->free_done(m, m->free_userdata);
-    o->free_runner(m->runner);
+    if (m->runner)
+	o->free_runner(m->runner);
+#ifdef MDNS_USE_TIMER
+    if (m->timer)
+	o->free_timer(m->timer);
+#endif
     o->free(o, m);
 }
 
@@ -909,6 +932,26 @@ gensio_mdns_add_service(struct gensio_mdns *m,
  * convert resolve the individual addresses.  The callbacks for that
  * will hvae the addresses we want, and those are reported to the
  * user.
+ *
+ * There are four tiers of data structures:
+ *
+ *   gensio_mdns_watch - created by gensio_mdns_add_watch(), the main
+ *	watch structure.
+ *
+ *   gensio_mdns_watch_browser - created by
+ *	avahi_service_type_callback() and dnssd_watch_callback(),
+ *	callbacks from the main watdh.  A list of these is kept in
+ *	gensio_mdns_watch.
+ *
+ *   gensio_mdns_watch_resolver - created by mdns_browser_callback(),
+ *      which is called from avahi_service_browser_callback() and
+ *      dnssd_service_callback(), callbacks from the watch browser
+ *      callback.  A list of these is kept in
+ *      gensio_mdns_watch_browser.
+ *
+ *   gensio_mdns_result - Holds the final results of the callbacks,
+ *	one for each IP address from the query.  Created in
+ *	mdns_resolver_callback().
  */
 
 struct gensio_mdns_result;
@@ -954,7 +997,7 @@ struct gensio_mdns_callback {
 
     bool remove;		/* Remove the watch. */
 
-    /* Report that we are done with the initial scan. */
+    /* Report that no more data is pending. */
     bool all_for_now;
 
     struct gensio_mdns_watch *w;
@@ -965,6 +1008,9 @@ struct gensio_mdns_callback {
 struct gensio_mdns_watch_resolver;
 struct gensio_mdns_result {
     struct gensio_link link;
+#ifdef MDNS_USE_TIMER
+    uint32_t ttl;
+#endif
     struct gensio_mdns_watch_resolver *resolver;
     struct gensio_mdns_callback cbdata;
     uint16_t port;
@@ -983,7 +1029,7 @@ struct gensio_mdns_watch_resolver {
     struct gensio_mdns_watch_browser *b;
     int interface;
     int protocol;
-    int port; /* Not used for avahi. */
+    uint16_t port; /* Not used for avahi. */
     char *host;
     char *name;
     char *type;
@@ -1000,26 +1046,6 @@ struct gensio_mdns_watch_resolver {
 #endif
 
     struct gensio_list results;
-};
-
-struct gensio_mdns_watch_browser {
-    struct gensio_link link;
-    struct gensio_mdns_watch *w;
-    int interface;
-    int protocol;
-    char *name; /* Not used for avahi. */
-    char *type;
-    char *domain;
-
-#if HAVE_AVAHI
-    AvahiServiceBrowser *avahi_browser;
-#endif
-
-#if HAVE_DNSSD
-    DNSServiceRef dnssd_sref;
-#endif
-
-    struct gensio_list resolvers;
 };
 
 struct gensio_mdns_watch {
@@ -1058,13 +1084,106 @@ struct gensio_mdns_watch {
 };
 
 static void
+enqueue_callback(struct gensio_mdns *m, struct gensio_mdns_callback *c)
+{
+    if (c->remove)
+	return;
+    if (!c->in_queue) {
+	gensio_list_add_tail(&m->callbacks, &c->link);
+	c->in_queue = true;
+	gensio_mdns_ref(m);
+    }
+    if (!m->runner_pending) {
+	m->runner_pending = true;
+	gensio_mdns_ref(m);
+	m->o->run(m->runner);
+    }
+}
+
+static void
 mdns_resolver_callback(struct gensio_mdns_watch_resolver *r,
+		       struct gensio_mdns_watch *w,
 		       enum gensio_mdns_data_state state,
 		       int interface, int protocol,
 		       const char *name, const char *type,
 		       const char *domain, const char *host,
 		       struct gensio_addr *addr, uint16_t port,
-		       const char **txt);
+		       const char **txt, uint32_t ttl)
+{
+    struct gensio_mdns *m = w->m;
+    struct gensio_mdns_callback *c = NULL;
+    struct gensio_os_funcs *o = m->o;
+    struct gensio_mdns_result *e;
+
+    if (!mdns_str_cmp(&w->host, host))
+	goto out_nomem;
+
+    e = o->zalloc(o, sizeof(*e));
+    if (!e)
+	goto out_nomem;
+    e->resolver = r;
+    e->port = port;
+#ifdef MDNS_USE_TIMER
+    /*
+     * Add an extra timeout time to account for the fact that the
+     * timer might runn before the timeout.
+     */
+    e->ttl = ttl + MDNS_TIMEOUT;
+#endif
+
+    c = &e->cbdata;
+    c->w = w;
+    c->data = o->zalloc(o, sizeof(*(c->data)));
+    if (!c->data)
+	goto out_nomem;
+    c->data->result = e;
+    c->data->state = state;
+    c->data->ipdomain = protocol;
+    c->data->addr = addr;
+    addr = NULL;
+    c->data->txt = txt;
+    txt = NULL;
+    if (dupstr(o, name, &c->data->name))
+	goto out_nomem;
+    if (dupstr(o, type, &c->data->type))
+	goto out_nomem;
+    if (dupstr(o, domain, &c->data->domain))
+	goto out_nomem;
+    if (dupstr(o, host, &c->data->host))
+	goto out_nomem;
+
+    gensio_list_add_tail(&r->results, &e->link);
+    enqueue_callback(m, c);
+    return;
+
+ out_nomem:
+    if (addr)
+	gensio_addr_free(addr);
+    if (txt)
+	gensio_argv_free(o, txt);
+    if (c && c->data)
+	gensio_mdns_free_watch_data(o, c->data);
+}
+
+struct gensio_mdns_watch_browser {
+    struct gensio_link link;
+    struct gensio_mdns_watch *w;
+    int interface;
+    int protocol;
+    char *name; /* Not used for avahi. */
+    char *type;
+    char *domain;
+
+#if HAVE_AVAHI
+    AvahiServiceBrowser *avahi_browser;
+#endif
+
+#if HAVE_DNSSD
+    DNSServiceRef dnssd_sref;
+#endif
+
+    struct gensio_list resolvers;
+};
 
 static void browser_finish_one(struct gensio_mdns_watch *w);
 
@@ -1169,8 +1288,8 @@ avahi_service_resolver_callback(AvahiServiceResolver *ar,
 	    goto out;
     }
 
-    mdns_resolver_callback(r, state, interface, nettype, name, type,
-			   domain, host, addr, port, txt);
+    mdns_resolver_callback(r, w, state, interface, nettype, name, type,
+			   domain, host, addr, port, txt, 0);
     return;
 
  out:
@@ -1319,8 +1438,8 @@ dnssd_resolve_callback(DNSServiceRef sdRef,
     }
 
     state = GENSIO_MDNS_NEW_DATA;
-    mdns_resolver_callback(r, state, interface, nettype, r->name, r->type,
-			   r->domain, host, addr, r->port, txt);
+    mdns_resolver_callback(r, w, state, interface, nettype, r->name, r->type,
+			   r->domain, host, addr, r->port, txt, ttl);
  out:
     if (host)
 	o->free(o, host);
@@ -1363,22 +1482,8 @@ gensio_mdnslib_start_resolver(struct gensio_mdns *m,
 
 #endif /* HAVE_AVAHI */
 
-static void
-enqueue_callback(struct gensio_mdns *m, struct gensio_mdns_callback *c)
-{
-    if (c->remove)
-	return;
-    if (!c->in_queue) {
-	gensio_list_add_tail(&m->callbacks, &c->link);
-	c->in_queue = true;
-	gensio_mdns_ref(m);
-    }
-    if (!m->runner_pending) {
-	m->runner_pending = true;
-	gensio_mdns_ref(m);
-	m->o->run(m->runner);
-    }
-}
+static void browser_remove(struct gensio_mdns_watch_browser *b);
+static void resolver_remove(struct gensio_mdns_watch_resolver *r);
 
 static void
 resolver_free(struct gensio_os_funcs *o, struct gensio_mdns_watch_resolver *r)
@@ -1395,65 +1500,6 @@ resolver_free(struct gensio_os_funcs *o, struct gensio_mdns_watch_resolver *r)
     if (r->txt)
 	gensio_argv_free(o, r->txt);
     o->free(o, r);
-}
-
-static void
-mdns_resolver_callback(struct gensio_mdns_watch_resolver *r,
-		       enum gensio_mdns_data_state state,
-		       int interface, int protocol,
-		       const char *name, const char *type,
-		       const char *domain, const char *host,
-		       struct gensio_addr *addr, uint16_t port,
-		       const char **txt)
-{
-    struct gensio_mdns_watch_browser *b = r->b;
-    struct gensio_mdns_watch *w = b->w;
-    struct gensio_mdns *m = w->m;
-    struct gensio_mdns_callback *c = NULL;
-    struct gensio_os_funcs *o = m->o;
-    struct gensio_mdns_result *e;
-
-    if (!mdns_str_cmp(&w->host, host))
-	goto out_nomem;
-
-    e = o->zalloc(o, sizeof(*e));
-    if (!e)
-	goto out_nomem;
-    e->resolver = r;
-    e->port = port;
-
-    c = &e->cbdata;
-    c->w = w;
-    c->data = o->zalloc(o, sizeof(*(c->data)));
-    if (!c->data)
-	goto out_nomem;
-    c->data->result = e;
-    c->data->state = state;
-    c->data->ipdomain = protocol;
-    c->data->addr = addr;
-    addr = NULL;
-    c->data->txt = txt;
-    txt = NULL;
-    if (dupstr(o, name, &c->data->name))
-	goto out_nomem;
-    if (dupstr(o, type, &c->data->type))
-	goto out_nomem;
-    if (dupstr(o, domain, &c->data->domain))
-	goto out_nomem;
-    if (dupstr(o, host, &c->data->host))
-	goto out_nomem;
-
-    gensio_list_add_tail(&r->results, &e->link);
-    enqueue_callback(m, c);
-    return;
-
- out_nomem:
-    if (addr)
-	gensio_addr_free(addr);
-    if (txt)
-	gensio_argv_free(o, txt);
-    if (c && c->data)
-	gensio_mdns_free_watch_data(o, c->data);
 }
 
 static struct gensio_mdns_watch_resolver *
@@ -1482,6 +1528,27 @@ resolver_find(struct gensio_mdns_watch_browser *b,
 }
 
 static void
+result_remove(struct gensio_mdns *m,
+	      struct gensio_mdns_watch_resolver *r,
+	      struct gensio_mdns_result *e)
+{
+    gensio_list_rm(&r->results, &e->link);
+    if (e->cbdata.in_queue) {
+	if (e->cbdata.data->state == GENSIO_MDNS_NEW_DATA) {
+	    /* In queue but not reported, just remove it. */
+	    gensio_list_rm(&m->callbacks, &e->cbdata.link);
+	    gensio_mdns_deref(m);
+	    result_free(m->o, e);
+	}
+	/* Otherwise already scheduled for removal. */
+    } else {
+	/* Report removal */
+	e->cbdata.data->state = GENSIO_MDNS_DATA_GONE;
+	enqueue_callback(m, &e->cbdata);
+    }
+}
+
+static void
 resolver_remove(struct gensio_mdns_watch_resolver *r)
 {
     struct gensio_mdns_watch_browser *b = r->b;
@@ -1494,20 +1561,7 @@ resolver_remove(struct gensio_mdns_watch_resolver *r)
 	struct gensio_mdns_result *e =
 	    gensio_container_of(l, struct gensio_mdns_result, link);
 
-	gensio_list_rm(&r->results, &e->link);
-	if (e->cbdata.in_queue) {
-	    if (e->cbdata.data->state == GENSIO_MDNS_NEW_DATA) {
-		/* In queue but not reported, just remove it. */
-		gensio_list_rm(&m->callbacks, &e->cbdata.link);
-		gensio_mdns_deref(m);
-		result_free(o, e);
-	    }
-	    /* Otherwise already scheduled for removal. */
-	} else {
-	    /* Report removal */
-	    e->cbdata.data->state = GENSIO_MDNS_DATA_GONE;
-	    enqueue_callback(m, &e->cbdata);
-	}
+	result_remove(m, r, e);
     }
     gensio_list_rm(&b->resolvers, &r->link);
     resolver_free(o, r);
@@ -1693,8 +1747,11 @@ avahi_service_browser_callback(AvahiServiceBrowser *ab,
 
     if (event == AVAHI_BROWSER_REMOVE) {
 	/* If we have the resolver, remove it. */
-	if (r)
+	if (r) {
 	    resolver_remove(r);
+	    if (gensio_list_empty(&b->resolvers))
+		browser_remove(b);
+	}
 	return;
     }
 
@@ -2411,6 +2468,75 @@ static void mdns_runner(struct gensio_runner *runner, void *userdata)
     gensio_mdns_deref_and_unlock(m);
 }
 
+#ifdef MDNS_USE_TIMER
+static void
+mdns_timeout(struct gensio_timer *t, void *cb_data)
+{
+    struct gensio_mdns *m = cb_data;
+    struct gensio_link *lw;
+    struct gensio_link *l, *l2;
+    struct gensio_link *li, *li2;
+    struct gensio_link *lj, *lj2;
+    struct gensio_mdns_watch *w;
+    struct gensio_mdns_watch_resolver *r;
+    struct gensio_mdns_watch_browser *b;
+    struct gensio_mdns_result *e;
+
+    gensio_mdns_lock(m);
+    if (m->freed) {
+	if (m->runner_pending) {
+	    /* Let the runner delete this. */
+	    gensio_mdns_deref(m);
+	} else {
+	    /*
+	     * Run the runner to delete this.  Don't add a reference here,
+	     * we want the runner to delete it.
+	     */
+	    m->runner_pending = true;
+	    m->o->run(m->runner);
+	}
+	goto out_unlock;
+    }
+
+    /* Go through all the results and time them out as necessary. */
+    gensio_list_for_each(&m->watches, lw) {
+	w = gensio_container_of(lw, struct gensio_mdns_watch, link);
+
+	gensio_list_for_each_safe(&w->browsers, l, l2) {
+	    b = gensio_container_of(l, struct gensio_mdns_watch_browser, link);
+
+	    gensio_list_for_each_safe(&b->resolvers, li, li2) {
+		r = gensio_container_of(li, struct gensio_mdns_watch_resolver,
+					link);
+		gensio_list_for_each_safe(&r->results, lj, lj2) {
+		    e = gensio_container_of(lj, struct gensio_mdns_result,
+					    link);
+
+		    if (e->ttl <= MDNS_TIMEOUT)
+			result_remove(m, r, e);
+		    else
+			e->ttl -= MDNS_TIMEOUT;
+		}
+		if (gensio_list_empty(&r->results)) {
+		    resolver_remove(r);
+		    break;
+		}
+	    }
+	    if (gensio_list_empty(&b->resolvers)) {
+		browser_remove(b);
+		break;
+	    }
+	}
+	/* Watches are added by the user, so we don't time them out. */
+    }
+    
+    assert(m->o->start_timer(t, &mdns_time) == 0);
+ out_unlock:
+    gensio_mdns_unlock(m);
+}
+#endif
+
+
 int
 gensio_alloc_mdns(struct gensio_os_funcs *o, struct gensio_mdns **new_m)
 {
@@ -2433,7 +2559,6 @@ gensio_alloc_mdns(struct gensio_os_funcs *o, struct gensio_mdns **new_m)
     m->runner = o->alloc_runner(o, mdns_runner, m);
     if (!m->runner) {
 	gensio_mdnslib_free(m);
-	o->free(o, m);
 	return GE_NOMEM;
     }
 
@@ -2441,13 +2566,24 @@ gensio_alloc_mdns(struct gensio_os_funcs *o, struct gensio_mdns **new_m)
     gensio_list_init(&m->watches);
     gensio_list_init(&m->callbacks);
 
+#ifdef MDNS_USE_TIMER
+    m->timer = o->alloc_timer(o, mdns_timeout, m);
+    if (!m->timer) {
+	gensio_mdnslib_free(m);
+	return GE_NOMEM;
+    }
+#endif
+
     err = gensio_mdnslib_start(m);
     if (err) {
 	gensio_mdnslib_free(m);
-	o->free_runner(m->runner);
-	o->free(o, m);
 	return err;
     }
+
+#ifdef MDNS_USE_TIMER
+    gensio_mdns_ref(m);
+    assert(o->start_timer(m->timer, &mdns_time) == 0);
+#endif
 
     *new_m = m;
     return 0;
@@ -2472,6 +2608,15 @@ gensio_free_mdns(struct gensio_mdns *m, gensio_mdns_done done, void *userdata)
     m->free_done = done;
     m->free_userdata = userdata;
 
+#ifdef MDNS_USE_TIMER
+    if (o->stop_timer(m->timer) == 0)
+	/*
+	 * If the timer stops, all is good.  If it doesn't, then we need
+	 * to run the runner from the timer when it runs.
+	 */
+	gensio_mdns_deref(m);
+#endif
+
     gensio_list_for_each_safe(&m->callbacks, l, l2) {
 	struct gensio_mdns_callback *c =
 	    gensio_container_of(l, struct gensio_mdns_callback, link);
@@ -2487,13 +2632,18 @@ gensio_free_mdns(struct gensio_mdns *m, gensio_mdns_done done, void *userdata)
 	    result_free(o, c->data->result);
     }
 
-    if (m->refcount == 1) {
-	if (!m->runner_pending) {
-	    /* Don't add a reference here, we want the runner to delete it. */
-	    m->runner_pending = true;
-	    o->run(m->runner);
-	}
+    if (m->refcount == 1 && !m->runner_pending) {
+	/*
+	 * Run the runner to delete this.  Don't add a reference here,
+	 * we want the runner to delete it.
+	 */
+	m->runner_pending = true;
+	o->run(m->runner);
     } else {
+	/*
+	 * Services or watches are left or the runner is going to run,
+	 * set it to be deleted in the runner after those are deleted.
+	 */
 	gensio_mdns_deref(m);
     }
  out_unlock:
