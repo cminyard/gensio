@@ -11,8 +11,14 @@
 #if HAVE_MDNS
 #include <string.h>
 #include <assert.h>
+#ifdef _WIN32
+#include <winsock2.h>
+#include <iphlpapi.h>
+#include <ws2tcpip.h>
+#else
 #include <sys/socket.h>
 #include <netinet/in.h>
+#endif
 #include <gensio/gensio.h>
 #include <gensio/gensio_list.h>
 #include <gensio/argvutils.h>
@@ -74,9 +80,12 @@ struct gensio_mdns {
 
 #elif HAVE_DNSSD
     DNSServiceRef dnssd_sref;
-    struct gensio_lock *lock;
     struct gensio_iod *iod;
     int dnssd_fd;
+#endif
+
+#if HAVE_DNSSD || HAVE_WINMDNS
+    struct gensio_lock *lock;
 #endif
 
     unsigned int refcount;
@@ -321,11 +330,11 @@ avahi_protocol_to_protocol(AvahiProtocol aprotocol, int *protocol)
 }
 
 static AvahiIfIndex
-interface_to_avahi_interface(int interface)
+interface_to_avahi_interface(int ifinterface)
 {
-    if (interface == -1)
+    if (ifinterface == -1)
 	return AVAHI_IF_UNSPEC;
-    return interface;
+    return ifinterface;
 }
 
 static int avahi_interface_to_interface(AvahiIfIndex ainterface)
@@ -434,20 +443,20 @@ i_dnssd_err_to_err(struct gensio_mdns *m, DNSServiceErrorType derr,
 #define dnssd_err_to_err(m, err) i_dnssd_err_to_err(m, err, __LINE__)
 
 static int
-interface_to_dnssd_interface(int interface, uint32_t *sinterface)
+interface_to_dnssd_interface(int ifinterface, uint32_t *sinterface)
 {
     /*
      * FIXME - is this right? interface 0 is always localhost, so you
      * don't run mdns on that, so that's why zero is use as all
      * interfaces?
      */
-    if (interface == 0)
+    if (ifinterface == 0)
 	return GE_INVAL;
-    if (interface < 0) {
+    if (ifinterface < 0) {
 	*sinterface = 0;
 	return 0;
     }
-    *sinterface = interface;
+    *sinterface = ifinterface;
     return 0;
 }
 
@@ -487,17 +496,9 @@ dnssd_str_fix(struct gensio_os_funcs *o, const char *str)
     return gensio_strndup(o, str, len - 1);
 }
 
-static void
-gensio_mdns_lock(struct gensio_mdns *m)
-{
-    m->o->lock(m->lock);
-}
+#endif
 
-static void
-gensio_mdns_unlock(struct gensio_mdns *m)
-{
-    m->o->unlock(m->lock);
-}
+#if HAVE_DNSSD || HAVE_WINMDNS
 
 static int
 gensio_mdnslib_init(struct gensio_mdns *m)
@@ -515,6 +516,17 @@ gensio_mdnslib_free(struct gensio_mdns *m)
     gensio_mdns_finish_free(m);
 }
 
+static void
+gensio_mdns_lock(struct gensio_mdns *m)
+{
+    m->o->lock(m->lock);
+}
+
+static void
+gensio_mdns_unlock(struct gensio_mdns *m)
+{
+    m->o->unlock(m->lock);
+}
 #endif
 
 static void
@@ -544,6 +556,16 @@ gensio_mdns_deref_and_unlock(struct gensio_mdns *m)
     gensio_mdns_unlock(m);
 }
 
+#if HAVE_WINMDNS
+struct win_service_ipaddr {
+    bool found;
+    int ifindex;
+    struct sockaddr *addr;
+    DNS_SERVICE_CANCEL cancel;
+    struct gensio_link link;
+};
+#endif
+
 /*
  * Service Advertising
  *
@@ -569,9 +591,8 @@ struct gensio_mdns_service {
     AvahiStringList *txt;
 
     AvahiEntryGroup *group;
-#endif
 
-#if HAVE_DNSSD
+#elif HAVE_DNSSD
     uint32_t dnssd_interface;
     DNSServiceProtocol dnssd_protocol;
     char *dnssd_txt;
@@ -579,6 +600,16 @@ struct gensio_mdns_service {
 
     bool dnssd_started;
     DNSServiceRef dnssd_sref;
+
+#elif HAVE_WINMDNS
+    int win_interface;
+    int win_protocol;
+    wchar_t **win_keys;
+    wchar_t **win_values;
+    unsigned int win_kvcount;
+    struct gensio_list win_addrs;
+    wchar_t *win_host;
+    wchar_t *win_name;
 #endif
 
     /* Used to handle name collisions. */
@@ -651,7 +682,7 @@ gensio_mdnslib_add_service(struct gensio_mdns_service *s)
 
 static int
 gensio_mdnslib_initservice(struct gensio_mdns_service *s,
-			   int ipdomain, int interface,
+			   int ipdomain, int ifinterface,
 			   const char * const *txt)
 {
     int err;
@@ -660,10 +691,10 @@ gensio_mdnslib_initservice(struct gensio_mdns_service *s,
     if (err)
 	return err;
 
-    if (interface < 0)
+    if (ifinterface < 0)
 	s->avahi_interface = AVAHI_IF_UNSPEC;
     else
-	s->avahi_interface = interface;
+	s->avahi_interface = ifinterface;
 
     if (txt && txt[0]) {
 	s->txt = avahi_string_list_new_from_array((const char **) txt, -1);
@@ -729,13 +760,13 @@ gensio_mdnslib_add_service(struct gensio_mdns_service *s)
 
 static int
 gensio_mdnslib_initservice(struct gensio_mdns_service *s,
-			   int ipdomain, int interface,
+			   int ipdomain, int ifinterface,
 			   const char * const *txt)
 {
     struct gensio_mdns *m = s->m;
     int err;
 
-    err = interface_to_dnssd_interface(interface, &s->dnssd_interface);
+    err = interface_to_dnssd_interface(ifinterface, &s->dnssd_interface);
     if (err)
 	return err;
     err = protocol_to_dnssd_protocol(ipdomain, &s->dnssd_protocol);
@@ -781,23 +812,479 @@ gensio_mdnslib_free_service(struct gensio_os_funcs *o,
 
 #elif HAVE_WINMDNS
 
+static int
+str_to_wchar(struct gensio_os_funcs *o, const char *s, wchar_t **rws)
+{
+    size_t len;
+    wchar_t *ws;
+
+    len = mbstowcs(NULL, s, 0);
+    if (len == (size_t) -1)
+	return GE_INVAL;
+
+    len++;
+    ws = o->zalloc(o, len * sizeof(wchar_t));
+    if (!ws)
+	return GE_NOMEM;
+
+    mbstowcs(ws, s, len);
+    *rws = ws;
+    return 0;
+}
+
+static int
+str_to_wcharn(struct gensio_os_funcs *o, const char *is, gensiods n,
+	      wchar_t **rws)
+{
+    size_t len;
+    wchar_t *ws;
+    char *s = gensio_strndup(o, is, n);
+
+    if (!s)
+	return GE_NOMEM;
+
+    len = mbstowcs(NULL, s, 0);
+    if (len == (size_t) -1) {
+	o->free(o, s);
+	return GE_INVAL;
+    }
+
+    len++;
+    ws = o->zalloc(o, len * sizeof(wchar_t));
+    if (!ws) {
+	o->free(o, s);
+	return GE_NOMEM;
+    }
+
+    mbstowcs(ws, s, len);
+    o->free(o, s);
+    *rws = ws;
+    return 0;
+}
+
+static int
+wchar_to_str(struct gensio_os_funcs *o, const wchar_t *ws, char **rs)
+{
+    size_t len;
+    char *s;
+
+    len = wcstombs(NULL, ws, 0);
+    if (len == (size_t) -1)
+	return GE_INVAL;
+
+    len++;
+    s = o->zalloc(o, len);
+    if (!s)
+	return GE_NOMEM;
+
+    wcstombs(s, ws, len);
+    *rs = s;
+    return 0;
+}
+
+static int
+wstring_array_to_argv(struct gensio_os_funcs *o, gensiods len,
+		      wchar_t **wstrs, const char ***rstrs)
+{
+    const char **strs = NULL;
+    char *s;
+    gensiods args = 0, argc = 0;
+    int err = 0;
+    unsigned int i;
+
+    for (i = 0; i < len; i++) {
+	err = wchar_to_str(o, wstrs[i], &s);
+	if (err)
+	    goto out_err;
+	err = gensio_argv_append(o, &strs, s, &args, &argc, false);
+	if (err) {
+	    o->free(o, s);
+	    goto out_err;
+	}
+    }
+    err = gensio_argv_append(o, &strs, NULL, &args, &argc, false);
+    if (err)
+	goto out_err;
+    *rstrs = strs;
+    return 0;
+
+ out_err:
+    if (strs)
+	gensio_argv_free(o, strs);
+    return err;
+}
+
+bool
+win_sockaddr_equal(const struct sockaddr *a1,  const struct sockaddr *a2)
+{
+    if (a1->sa_family != a2->sa_family)
+	return false;
+    switch (a1->sa_family) {
+    case AF_INET: {
+	struct sockaddr_in *s1 = (struct sockaddr_in *) a1;
+	struct sockaddr_in *s2 = (struct sockaddr_in *) a2;
+
+	if (s1->sin_addr.s_addr != s2->sin_addr.s_addr)
+	    return false;
+	break;
+    }
+
+#ifdef AF_INET6
+    case AF_INET6: {
+	struct sockaddr_in6 *s1 = (struct sockaddr_in6 *) a1;
+	struct sockaddr_in6 *s2 = (struct sockaddr_in6 *) a2;
+
+	if (memcmp(s1->sin6_addr.s6_addr, s2->sin6_addr.s6_addr,
+		   sizeof(s1->sin6_addr.s6_addr)) != 0)
+	    return false;
+	break;
+    }
+#endif
+
+    default:
+	/* Unknown family. */
+	return false;
+    }
+
+    return true;
+}
+
+static struct win_service_ipaddr *
+win_find_ipaddr(struct gensio_mdns_service *s, int ifindex,
+		struct sockaddr *addr)
+{
+    struct gensio_link *l;
+
+    gensio_list_for_each(&s->win_addrs, l) {
+	struct win_service_ipaddr *a;
+
+	a = gensio_container_of(l, struct win_service_ipaddr, link);
+	if (a->ifindex == ifindex && win_sockaddr_equal(a->addr, addr))
+	    return a;
+    }
+    return NULL;
+}
+
+static void
+win_serv_done(DWORD Status, void *context,
+	      DNS_SERVICE_INSTANCE *inst)
+{
+    struct gensio_mdns_service *s = context;
+
+    if (Status != ERROR_SUCCESS) {
+	if (Status != ERROR_CANCELLED) {
+	    int err = gensio_os_err_to_err(s->m->o, Status);
+
+	    gensio_mdns_log(s->m, GENSIO_LOG_ERR,
+			    "Error from service register callback: %s",
+			    gensio_err_to_str(err));
+	}
+    }
+    if (inst)
+	DnsServiceFreeInstance(inst);
+}
+
+static void
+win_addip(struct gensio_mdns_service *s, int ifindex, struct sockaddr *sa,
+	  unsigned int sa_len)
+{
+    struct gensio_os_funcs *o = s->m->o;
+    struct win_service_ipaddr *a = NULL;
+    DNS_SERVICE_REGISTER_REQUEST req;
+    DNS_SERVICE_INSTANCE inst;
+    DWORD rv;
+    int err;
+
+    memset(&req, 0, sizeof(req));
+    req.Version = DNS_QUERY_REQUEST_VERSION1;
+    req.InterfaceIndex = ifindex;
+    req.pServiceInstance = &inst;
+    req.pQueryContext = s;
+    req.pRegisterCompletionCallback = win_serv_done;
+    req.unicastEnabled = false;
+
+    memset(&inst, 0, sizeof(inst));
+    inst.pszInstanceName = s->win_name;
+    inst.pszHostName = s->win_host;
+    switch (sa->sa_family) {
+    case AF_INET: {
+	struct sockaddr_in *s4 = (struct sockaddr_in *) sa;
+	inst.ip4Address = (IP4_ADDRESS *) &s4->sin_addr;
+	break;
+    }
+    case AF_INET6: {
+	struct sockaddr_in6 *s6 = (struct sockaddr_in6 *) sa;
+	inst.ip6Address = (IP6_ADDRESS *) &s6->sin6_addr;
+	break;
+    }
+
+    default:
+	err = GE_INVAL;
+	goto out_err;
+    }
+    inst.wPort = s->port;
+    inst.wPriority = 0;
+    inst.wWeight = 0;
+    inst.dwPropertyCount = s->win_kvcount;
+    inst.keys = s->win_keys;
+    inst.values = s->win_values;
+    inst.dwInterfaceIndex = ifindex;
+
+    a = o->zalloc(o, sizeof(*a));
+    if (!a)
+	goto out_nomem;
+    a->addr = o->zalloc(o, sa_len);
+    if (!a->addr)
+	goto out_nomem;
+    a->ifindex = ifindex;
+    memcpy(a->addr, sa, sa_len);
+    a->found = true;
+
+    rv = DnsServiceRegister(&req, &a->cancel);
+    if (rv != DNS_REQUEST_PENDING) {
+	err = gensio_os_err_to_err(o, rv);
+	goto out_err;
+    }
+    
+    gensio_list_add_tail(&s->win_addrs, &a->link);
+    return;
+
+ out_nomem:
+    err = GE_NOMEM;
+ out_err:
+    if (a) {
+	if (a->addr)
+	    o->free(o, a->addr);
+	o->free(o, a);
+    }
+    gensio_mdns_log(s->m, GENSIO_LOG_ERR, "Error registering service: %s",
+		    gensio_err_to_str(err));
+}
+
+static void
+win_delip(struct gensio_mdns_service *s, struct win_service_ipaddr *a)
+{
+    struct gensio_os_funcs *o = s->m->o;
+
+    DnsServiceRegisterCancel(&a->cancel);
+    gensio_list_rm(&s->win_addrs, &a->link);
+    o->free(o, a->addr);
+    o->free(o, a);
+}
+
+static int
+win_scan_ips(struct gensio_mdns_service *s)
+{
+    struct gensio_os_funcs *o = s->m->o;
+    ULONG rv, size;
+    IP_ADAPTER_ADDRESSES *addrs = NULL, *addr;
+    IP_ADAPTER_UNICAST_ADDRESS_LH *ipaddr;
+    struct win_service_ipaddr *a;
+    struct gensio_link *l, *l2;
+    int err = 0;
+
+    size = 0;
+    rv = GetAdaptersAddresses(AF_UNSPEC,
+			      (GAA_FLAG_SKIP_ANYCAST |
+			       GAA_FLAG_SKIP_MULTICAST |
+			       GAA_FLAG_SKIP_DNS_SERVER |
+			       GAA_FLAG_SKIP_FRIENDLY_NAME),
+			      NULL, NULL, &size);
+    if (rv != ERROR_BUFFER_OVERFLOW) {
+	err = gensio_os_err_to_err(o, rv);
+	return err;
+    }
+    addrs = o->zalloc(o, size);
+    if (!addrs)
+	return GE_NOMEM;
+    rv = GetAdaptersAddresses(AF_UNSPEC,
+			      (GAA_FLAG_SKIP_ANYCAST |
+			       GAA_FLAG_SKIP_MULTICAST |
+			       GAA_FLAG_SKIP_DNS_SERVER |
+			       GAA_FLAG_SKIP_FRIENDLY_NAME),
+			      NULL, addrs, &size);
+    if (rv != ERROR_SUCCESS) {
+	err = gensio_os_err_to_err(o, rv);
+	goto out_err;
+    }
+
+    gensio_list_for_each(&s->win_addrs, l) {
+	a = gensio_container_of(l, struct win_service_ipaddr, link);
+	a->found = false;
+    }
+
+    for (addr = addrs; addr; addr = addr->Next) {
+	if (s->win_interface != 0 && s->win_interface != addr->IfIndex)
+	    continue;
+
+	for (ipaddr = addr->FirstUnicastAddress; ipaddr;
+		ipaddr = ipaddr->Next) {
+	    a = win_find_ipaddr(s, addr->IfIndex, ipaddr->Address.lpSockaddr);
+	    if (a) {
+		a->found = true;
+		continue;
+	    }
+
+	    win_addip(s, addr->IfIndex,
+		      ipaddr->Address.lpSockaddr,
+		      ipaddr->Address.iSockaddrLength);
+	}
+    }
+
+    gensio_list_for_each_safe(&s->win_addrs, l, l2) {
+	a = gensio_container_of(l, struct win_service_ipaddr, link);
+	if (a->found)
+	    continue;
+	win_delip(s, a);
+    }
+
+ out_err:    
+    o->free(o, addrs);
+    return err;
+}
+
 static void
 gensio_mdnslib_add_service(struct gensio_mdns_service *s)
 {
+    win_scan_ips(s);
 }
 
 static int
 gensio_mdnslib_initservice(struct gensio_mdns_service *s,
-			   int ipdomain, int interface,
+			   int ipdomain, int ifinterface,
 			   const char * const *txt)
 {
-    return GE_NOSUP;
+    struct gensio_os_funcs *o = s->m->o;
+    unsigned int i, kvcount = 0;
+    wchar_t **keys = NULL, **values = NULL;
+    char *domain = s->domain, *tmps, *chost;
+    char hostname[256];
+    wchar_t *name, *host;
+    int err = 0;
+
+    gensio_list_init(&s->win_addrs);
+    if (ifinterface == 0)
+	return GE_INVAL;
+    s->win_protocol = ipdomain;
+    if (ifinterface == -1)
+	s->win_interface = 0;
+    else
+	s->win_interface = ifinterface;
+
+    if (!domain)
+	domain = "local";
+
+    if (s->host) {
+	chost = s->host;
+	err = str_to_wchar(o, s->host, &host);
+	if (err)
+	    goto out_err;
+    } else {
+	if (gethostname(hostname, sizeof(hostname)) != 0) {
+	    err = GE_NOTFOUND;
+	    goto out_err;
+	}
+	chost = hostname;
+    }
+
+    /* You have to construct full names for this to work. */
+    tmps = gensio_alloc_sprintf(o, "%s.%s", chost, domain);
+    if (!tmps)
+	goto out_nomem;
+    err = str_to_wchar(o, tmps, &host);
+    o->free(o, tmps);
+    if (err)
+	goto out_err;
+
+    tmps = gensio_alloc_sprintf(o, "%s.%s.%s", s->name, s->type, domain);
+    if (!tmps)
+	goto out_nomem;
+    err = str_to_wchar(o, tmps, &name);
+    o->free(o, tmps);
+    if (err)
+	goto out_err;
+
+    if (txt && txt[0]) {
+	for (kvcount = 0; txt[kvcount]; kvcount++)
+	    ;
+	keys = o->zalloc(o, kvcount * sizeof(*keys));
+	if (!keys)
+	    goto out_nomem;
+	values = o->zalloc(o, kvcount * sizeof(*values));
+	if (!values)
+	    goto out_nomem;
+	for (i = 0; i < kvcount; i++) {
+	    char *vp = strchr(txt[i], '=');
+
+	    if (!vp)
+		goto out_inval;
+	    err = str_to_wcharn(o, txt[i], vp - txt[i], &(keys[i]));
+	    if (err)
+		goto out_err;
+	    err = str_to_wchar(o, vp + 1, &(values[i]));
+	    if (err)
+		goto out_err;
+	}
+	s->win_keys = keys;
+	s->win_values = values;
+	s->win_kvcount = kvcount;
+    }
+    s->win_name = name;
+    s->win_host = host;
+    return 0;
+ out_nomem:
+    err = GE_NOMEM;
+    goto out_err;
+ out_inval:
+    err = GE_INVAL;
+ out_err:
+    if (name)
+	o->free(o, name);
+    if (host)
+	o->free(o, host);
+    if (keys) {
+	for (i = 0; i < kvcount; i++) {
+	    if (keys[i])
+		o->free(o, keys[i]);
+	}
+    }
+    if (values) {
+	for (i = 0; i < kvcount; i++) {
+	    if (values[i])
+		o->free(o, values[i]);
+	}
+    }
+    return err;
 }
 
 static void
 gensio_mdnslib_free_service(struct gensio_os_funcs *o,
 			    struct gensio_mdns_service *s)
 {
+    wchar_t **keys = s->win_keys, **values = s->win_values;
+    unsigned int i, kvcount = s->win_kvcount;
+    struct win_service_ipaddr *a;
+    struct gensio_link *l, *l2;
+
+    gensio_list_for_each_safe(&s->win_addrs, l, l2) {
+	a = gensio_container_of(l, struct win_service_ipaddr, link);
+	win_delip(s, a);
+    }
+
+    if (keys) {
+	for (i = 0; i < kvcount; i++) {
+	    if (keys[i])
+		o->free(o, keys[i]);
+	}
+    }
+    if (values) {
+	for (i = 0; i < kvcount; i++) {
+	    if (values[i])
+		o->free(o, values[i]);
+	}
+    }
+    o->free(o, s->win_name);
+    o->free(o, s->win_host);
 }
 
 #endif /* HAVE_AVAHI */
@@ -845,7 +1332,7 @@ gensio_mdns_remove_service(struct gensio_mdns_service *s)
 
 int
 gensio_mdns_add_service(struct gensio_mdns *m,
-			int interface, int ipdomain,
+			int ifinterface, int ipdomain,
 			const char *name, const char *type,
 			const char *domain, const char *host,
 			int port, const char * const *txt,
@@ -864,12 +1351,6 @@ gensio_mdns_add_service(struct gensio_mdns *m,
 
     s->m = m;
 
-    err = gensio_mdnslib_initservice(s, ipdomain, interface, txt);
-    if (err) {
-	o->free(m->o, s);
-	return err;
-    }
-
     gensio_mdns_ref(m);
     s->port = port;
     s->name = gensio_strdup(o, name);
@@ -884,6 +1365,10 @@ gensio_mdns_add_service(struct gensio_mdns *m,
 	goto out_err;
 
     s->currname = s->name;
+
+    err = gensio_mdnslib_initservice(s, ipdomain, ifinterface, txt);
+    if (err)
+	goto out_err;
 
     gensio_mdns_lock(m);
     gensio_list_add_tail(&m->services, &s->link);
@@ -952,6 +1437,11 @@ gensio_mdns_add_service(struct gensio_mdns *m,
  *   gensio_mdns_result - Holds the final results of the callbacks,
  *	one for each IP address from the query.  Created in
  *	mdns_resolver_callback().
+ *
+ * Windows works differently than Avahi and DNSMD, it actually works
+ * more like the interface to this library.  There's one callback with
+ * information.  However, to make it more compatible with this code,
+ * it builds the whole type/browser structure artificially.
  */
 
 struct gensio_mdns_result;
@@ -961,7 +1451,7 @@ struct gensio_mdns_watch_data {
 
     enum gensio_mdns_data_state state;
 
-    int interface;
+    int ifinterface;
     int ipdomain;
     char *name;
     char *type;
@@ -1017,6 +1507,23 @@ struct gensio_mdns_result {
 };
 
 static void
+enqueue_callback(struct gensio_mdns *m, struct gensio_mdns_callback *c)
+{
+    if (c->remove)
+	return;
+    if (!c->in_queue) {
+	gensio_list_add_tail(&m->callbacks, &c->link);
+	c->in_queue = true;
+	gensio_mdns_ref(m);
+    }
+    if (!m->runner_pending) {
+	m->runner_pending = true;
+	gensio_mdns_ref(m);
+	m->o->run(m->runner);
+    }
+}
+
+static void
 result_free(struct gensio_os_funcs *o, struct gensio_mdns_result *e)
 {
     if (e->cbdata.data)
@@ -1027,7 +1534,7 @@ result_free(struct gensio_os_funcs *o, struct gensio_mdns_result *e)
 struct gensio_mdns_watch_resolver {
     struct gensio_link link;
     struct gensio_mdns_watch_browser *b;
-    int interface;
+    int ifinterface;
     int protocol;
     uint16_t port; /* Not used for avahi. */
     char *host;
@@ -1048,6 +1555,56 @@ struct gensio_mdns_watch_resolver {
     struct gensio_list results;
 };
 
+#if HAVE_WINMDNS
+static struct gensio_mdns_result *
+result_find(struct gensio_mdns_watch_resolver *r,
+	    int ifinterface, int protocol,
+	    const char *name, const char *type,
+	    const char *domain, const char *host,
+	    struct gensio_addr *addr, uint16_t port)
+{
+    struct gensio_mdns_result *e = NULL;
+    struct gensio_link *l;
+
+    gensio_list_for_each(&r->results, l) {
+	e = gensio_container_of(l, struct gensio_mdns_result, link);
+
+	if (e->cbdata.data->ifinterface == ifinterface &&
+		e->cbdata.data->ipdomain == protocol &&
+		gensio_addr_equal(e->cbdata.data->addr, addr, false, false) &&
+		strcmp(e->cbdata.data->host, host) == 0 &&
+		strcmp(e->cbdata.data->name, name) == 0 &&
+		strcmp(e->cbdata.data->type, type) == 0 &&
+		strcmp(e->cbdata.data->domain, domain) == 0)
+	    break;
+	else
+	    e = NULL;
+    }
+    return e;
+}
+#endif
+
+static void
+result_remove(struct gensio_mdns *m,
+	      struct gensio_mdns_watch_resolver *r,
+	      struct gensio_mdns_result *e)
+{
+    gensio_list_rm(&r->results, &e->link);
+    if (e->cbdata.in_queue) {
+	if (e->cbdata.data->state == GENSIO_MDNS_NEW_DATA) {
+	    /* In queue but not reported, just remove it. */
+	    gensio_list_rm(&m->callbacks, &e->cbdata.link);
+	    gensio_mdns_deref(m);
+	    result_free(m->o, e);
+	}
+	/* Otherwise already scheduled for removal. */
+    } else {
+	/* Report removal */
+	e->cbdata.data->state = GENSIO_MDNS_DATA_GONE;
+	enqueue_callback(m, &e->cbdata);
+    }
+}
+
 struct gensio_mdns_watch {
     struct gensio_link link;
 
@@ -1055,7 +1612,7 @@ struct gensio_mdns_watch {
     struct mdns_str_data name;
     struct mdns_str_data type;
     struct mdns_str_data domain;
-    int interface;
+    int ifinterface;
     int protocol;
     char *domainstr; /* Need this to kick things off. */
     char *typestr;
@@ -1066,6 +1623,9 @@ struct gensio_mdns_watch {
 
 #elif HAVE_DNSSD
     DNSServiceRef dnssd_sref;
+
+#elif HAVE_WINMDNS
+    DNS_SERVICE_CANCEL winmdns_cancel;
 #endif
 
     bool removed;
@@ -1084,27 +1644,10 @@ struct gensio_mdns_watch {
 };
 
 static void
-enqueue_callback(struct gensio_mdns *m, struct gensio_mdns_callback *c)
-{
-    if (c->remove)
-	return;
-    if (!c->in_queue) {
-	gensio_list_add_tail(&m->callbacks, &c->link);
-	c->in_queue = true;
-	gensio_mdns_ref(m);
-    }
-    if (!m->runner_pending) {
-	m->runner_pending = true;
-	gensio_mdns_ref(m);
-	m->o->run(m->runner);
-    }
-}
-
-static void
 mdns_resolver_callback(struct gensio_mdns_watch_resolver *r,
 		       struct gensio_mdns_watch *w,
 		       enum gensio_mdns_data_state state,
-		       int interface, int protocol,
+		       int ifinterface, int protocol,
 		       const char *name, const char *type,
 		       const char *domain, const char *host,
 		       struct gensio_addr *addr, uint16_t port,
@@ -1138,6 +1681,7 @@ mdns_resolver_callback(struct gensio_mdns_watch_resolver *r,
 	goto out_nomem;
     c->data->result = e;
     c->data->state = state;
+    c->data->ifinterface = ifinterface;
     c->data->ipdomain = protocol;
     c->data->addr = addr;
     addr = NULL;
@@ -1168,7 +1712,7 @@ mdns_resolver_callback(struct gensio_mdns_watch_resolver *r,
 struct gensio_mdns_watch_browser {
     struct gensio_link link;
     struct gensio_mdns_watch *w;
-    int interface;
+    int ifinterface;
     int protocol;
     char *name; /* Not used for avahi. */
     char *type;
@@ -1224,7 +1768,7 @@ avahi_service_resolver_callback(AvahiServiceResolver *ar,
     struct gensio_mdns *m = w->m;
     struct gensio_os_funcs *o = m->o;
     struct gensio_addr *addr;
-    int nettype, addrsize, rv, interface;
+    int nettype, addrsize, rv, ifinterface;
     const void *addrdata = NULL;
     const char **txt = NULL;
     enum gensio_mdns_data_state state;
@@ -1232,7 +1776,7 @@ avahi_service_resolver_callback(AvahiServiceResolver *ar,
     struct sockaddr_in6 s6 = { .sin6_family = AF_INET6 };
 #endif
 
-    interface = avahi_interface_to_interface(ainterface);
+    ifinterface = avahi_interface_to_interface(ainterface);
 
     switch (event) {
     case AVAHI_RESOLVER_FOUND:
@@ -1261,7 +1805,7 @@ avahi_service_resolver_callback(AvahiServiceResolver *ar,
 	addrdata = &s6;
 	memcpy(&s6.sin6_addr, &a->data.ipv6, sizeof(s6.sin6_addr));
 	if (IN6_IS_ADDR_LINKLOCAL(&s6.sin6_addr))
-	    s6.sin6_scope_id = interface;
+	    s6.sin6_scope_id = ifinterface;
 	/* Port is not used here. */
 	break;
 #endif
@@ -1288,7 +1832,7 @@ avahi_service_resolver_callback(AvahiServiceResolver *ar,
 	    goto out;
     }
 
-    mdns_resolver_callback(r, w, state, interface, nettype, name, type,
+    mdns_resolver_callback(r, w, state, ifinterface, nettype, name, type,
 			   domain, host, addr, port, txt, 0);
     return;
 
@@ -1310,7 +1854,7 @@ gensio_mdnslib_browser_free(struct gensio_os_funcs *o,
 static int
 gensio_mdnslib_start_resolver(struct gensio_mdns *m,
 			      struct gensio_mdns_watch_resolver *r,
-			      int interface, int iprotocol,
+			      int ifinterface, int iprotocol,
 			      const char *host, const char *type,
 			      const char *domain,
 			      int iaprotocol)
@@ -1327,7 +1871,7 @@ gensio_mdnslib_start_resolver(struct gensio_mdns *m,
 	return err;
 
     r->avahi_resolver =
-	avahi_service_resolver_new(m->ac, interface, protocol,
+	avahi_service_resolver_new(m->ac, ifinterface, protocol,
 				   host, type, domain, aprotocol,
 				   0, avahi_service_resolver_callback,
 				   r);
@@ -1375,7 +1919,7 @@ dnssd_resolve_callback(DNSServiceRef sdRef,
     struct gensio_mdns *m = w->m;
     struct gensio_os_funcs *o = m->o;
     struct gensio_addr *addr = NULL;
-    int nettype, rv, interface;
+    int nettype, rv, ifinterface;
     enum gensio_mdns_data_state state;
     char *host = NULL;
     const char **txt = NULL;
@@ -1386,7 +1930,7 @@ dnssd_resolve_callback(DNSServiceRef sdRef,
 	return;
     }
 
-    interface = dnssd_interface_to_interface(interfaceIndex);
+    ifinterface = dnssd_interface_to_interface(interfaceIndex);
 
     switch (address->sa_family) {
     case AF_INET: {
@@ -1438,7 +1982,7 @@ dnssd_resolve_callback(DNSServiceRef sdRef,
     }
 
     state = GENSIO_MDNS_NEW_DATA;
-    mdns_resolver_callback(r, w, state, interface, nettype, r->name, r->type,
+    mdns_resolver_callback(r, w, state, ifinterface, nettype, r->name, r->type,
 			   r->domain, host, addr, r->port, txt, ttl);
  out:
     if (host)
@@ -1451,7 +1995,7 @@ dnssd_resolve_callback(DNSServiceRef sdRef,
 static int
 gensio_mdnslib_start_resolver(struct gensio_mdns *m,
 			      struct gensio_mdns_watch_resolver *r,
-			      int interface, int protocol,
+			      int ifinterface, int protocol,
 			      const char *host, const char *type,
 			      const char *domain,
 			      int iaprotocol)
@@ -1461,7 +2005,7 @@ gensio_mdnslib_start_resolver(struct gensio_mdns *m,
     DNSServiceProtocol sprotocol;
     int err;
 
-    err = interface_to_dnssd_interface(interface, &sinterface);
+    err = interface_to_dnssd_interface(ifinterface, &sinterface);
     if (err)
 	return err;
 
@@ -1478,6 +2022,27 @@ gensio_mdnslib_start_resolver(struct gensio_mdns *m,
 	return dnssd_err_to_err(m, derr);
 
     return 0;
+}
+
+#elif defined(HAVE_WINMDNS)
+
+static void
+gensio_mdnslib_reset_finish_one(struct gensio_mdns_watch *w)
+{
+    /* We don't have to count these like avahi, just set it so it will finish */
+    w->service_calls_pending = 1;
+}
+
+static void
+gensio_mdnslib_resolver_free(struct gensio_os_funcs *o,
+			     struct gensio_mdns_watch_resolver *r)
+{
+}
+
+static void
+gensio_mdnslib_browser_free(struct gensio_os_funcs *o,
+			    struct gensio_mdns_watch_browser *b)
+{
 }
 
 #endif /* HAVE_AVAHI */
@@ -1504,7 +2069,7 @@ resolver_free(struct gensio_os_funcs *o, struct gensio_mdns_watch_resolver *r)
 
 static struct gensio_mdns_watch_resolver *
 resolver_find(struct gensio_mdns_watch_browser *b,
-	      int interface, int protocol, int port,
+	      int ifinterface, int protocol, int port,
 	      const char *host, const char *name,
 	      const char *type, const char *domain)
 {
@@ -1514,7 +2079,7 @@ resolver_find(struct gensio_mdns_watch_browser *b,
     gensio_list_for_each(&b->resolvers, l) {
 	r = gensio_container_of(l, struct gensio_mdns_watch_resolver, link);
 
-	if (r->interface == interface && r->protocol == protocol &&
+	if (r->ifinterface == ifinterface && r->protocol == protocol &&
 		(port == -1 || port == r->port) &&
 		(host == NULL || strcmp(r->host, host) == 0) &&
 		(name == NULL || strcmp(r->name, name) == 0) &&
@@ -1525,27 +2090,6 @@ resolver_find(struct gensio_mdns_watch_browser *b,
 	    r = NULL;
     }
     return r;
-}
-
-static void
-result_remove(struct gensio_mdns *m,
-	      struct gensio_mdns_watch_resolver *r,
-	      struct gensio_mdns_result *e)
-{
-    gensio_list_rm(&r->results, &e->link);
-    if (e->cbdata.in_queue) {
-	if (e->cbdata.data->state == GENSIO_MDNS_NEW_DATA) {
-	    /* In queue but not reported, just remove it. */
-	    gensio_list_rm(&m->callbacks, &e->cbdata.link);
-	    gensio_mdns_deref(m);
-	    result_free(m->o, e);
-	}
-	/* Otherwise already scheduled for removal. */
-    } else {
-	/* Report removal */
-	e->cbdata.data->state = GENSIO_MDNS_DATA_GONE;
-	enqueue_callback(m, &e->cbdata);
-    }
 }
 
 static void
@@ -1596,10 +2140,11 @@ browser_free(struct gensio_os_funcs *o, struct gensio_mdns_watch_browser *b)
     o->free(o, b);
 }
 
+#if !HAVE_WINMDNS
 static void
 mdns_browser_callback(struct gensio_mdns_watch_browser *b,
-		      int interface, int protocol, int port, const char **txt,
-		      const char *host,
+		      int ifinterface, int protocol, int port,
+		      const char **txt, const char *host,
 		      const char *name, const char *type, const char *domain)
 {
     struct gensio_mdns_watch_resolver *r = NULL;
@@ -1608,7 +2153,7 @@ mdns_browser_callback(struct gensio_mdns_watch_browser *b,
     struct gensio_os_funcs *o = m->o;
     int err = GE_NOMEM;
 
-    if (w->interface != -1 && interface != w->interface)
+    if (w->ifinterface != -1 && ifinterface != w->ifinterface)
 	goto out;
     if (w->protocol != GENSIO_NETTYPE_UNSPEC && protocol != w->protocol)
 	goto out;
@@ -1621,7 +2166,7 @@ mdns_browser_callback(struct gensio_mdns_watch_browser *b,
 
     gensio_list_init(&r->results);
     r->b = b;
-    r->interface = interface;
+    r->ifinterface = ifinterface;
     r->protocol = protocol;
     r->port = port;
     r->txt = txt;
@@ -1637,7 +2182,7 @@ mdns_browser_callback(struct gensio_mdns_watch_browser *b,
 	goto out_err;
 
     gensio_list_add_tail(&b->resolvers, &r->link);
-    err = gensio_mdnslib_start_resolver(m, r, interface, protocol,
+    err = gensio_mdnslib_start_resolver(m, r, ifinterface, protocol,
 					host, type, domain,
 					w->protocol);
     if (err) {
@@ -1655,10 +2200,11 @@ mdns_browser_callback(struct gensio_mdns_watch_browser *b,
     if (txt)
 	gensio_argv_free(o, txt);
 }
+#endif
 
 static struct gensio_mdns_watch_browser *
 browser_find(struct gensio_mdns_watch *w,
-	     int interface, int protocol,
+	     int ifinterface, int protocol,
 	     const char *name, const char *type, const char *domain)
 {
     struct gensio_mdns_watch_browser *b;
@@ -1668,7 +2214,7 @@ browser_find(struct gensio_mdns_watch *w,
     gensio_list_for_each(&w->browsers, l) {
 	b = gensio_container_of(l, struct gensio_mdns_watch_browser, link);
 
-	if (b->interface == interface && b->protocol == protocol &&
+	if (b->ifinterface == ifinterface && b->protocol == protocol &&
 		(!name || strcmp(b->name, name) == 0) &&
 		strcmp(b->type, type) == 0 &&
 		strcmp(b->domain, domain) == 0)
@@ -1714,9 +2260,9 @@ avahi_service_browser_callback(AvahiServiceBrowser *ab,
     struct gensio_mdns_watch *w = b->w;
     struct gensio_mdns *m = w->m;
     struct gensio_mdns_watch_resolver *r = NULL;
-    int protocol, interface;
+    int protocol, ifinterface;
 
-    interface = avahi_interface_to_interface(ainterface);
+    ifinterface = avahi_interface_to_interface(ainterface);
 
     switch (event) {
     case AVAHI_BROWSER_NEW:
@@ -1743,7 +2289,7 @@ avahi_service_browser_callback(AvahiServiceBrowser *ab,
 	return;
 
     /* See if it aready exists. */
-    r = resolver_find(b, interface, protocol, -1, NULL, name, type, domain);
+    r = resolver_find(b, ifinterface, protocol, -1, NULL, name, type, domain);
 
     if (event == AVAHI_BROWSER_REMOVE) {
 	/* If we have the resolver, remove it. */
@@ -1758,7 +2304,7 @@ avahi_service_browser_callback(AvahiServiceBrowser *ab,
     if (r)
 	return; /* We already have it. */
 
-    mdns_browser_callback(b, interface, protocol, -1, NULL,
+    mdns_browser_callback(b, ifinterface, protocol, -1, NULL,
 			  name, name, type, domain);
 }
 
@@ -1777,12 +2323,12 @@ avahi_service_type_callback(AvahiServiceTypeBrowser *ab,
     struct gensio_mdns *m = w->m;
     struct gensio_os_funcs *o = m->o;
     struct gensio_mdns_watch_browser *b = NULL;
-    int protocol, interface, err;
+    int protocol, ifinterface, err;
 
     if (w->removed)
 	return;
 
-    interface = avahi_interface_to_interface(ainterface);
+    ifinterface = avahi_interface_to_interface(ainterface);
 
     switch (event) {
     case AVAHI_BROWSER_NEW:
@@ -1809,7 +2355,7 @@ avahi_service_type_callback(AvahiServiceTypeBrowser *ab,
     if (err)
 	return;
 
-    b = browser_find(w, interface, protocol, NULL, type, domain);
+    b = browser_find(w, ifinterface, protocol, NULL, type, domain);
 
     if (event == AVAHI_BROWSER_REMOVE) {
 	browser_remove(b);
@@ -1818,7 +2364,7 @@ avahi_service_type_callback(AvahiServiceTypeBrowser *ab,
     if (b)
 	return; /* We already have it. */
 
-    if (w->interface != -1 && interface != w->interface)
+    if (w->ifinterface != -1 && ifinterface != w->ifinterface)
 	return;
     if (w->protocol != GENSIO_NETTYPE_UNSPEC && protocol != w->protocol)
 	return;
@@ -1828,13 +2374,12 @@ avahi_service_type_callback(AvahiServiceTypeBrowser *ab,
 	return;
 
     b = o->zalloc(o, sizeof(*b));
-
     if (!b)
 	goto out_err;
 
     gensio_list_init(&b->resolvers);
     b->w = w;
-    b->interface = interface;
+    b->ifinterface = ifinterface;
     b->protocol = protocol;
 
     if (dupstr(o, type, &b->type))
@@ -1879,7 +2424,7 @@ gensio_mdnslib_add_watch(struct gensio_mdns_watch *w)
 	/* This will be caught later when avahi is ready. */
 	return 0;
 
-    ainterface = interface_to_avahi_interface(w->interface);
+    ainterface = interface_to_avahi_interface(w->ifinterface);
 
     w->avahi_browser =
 	avahi_service_type_browser_new(m->ac, ainterface,
@@ -1919,7 +2464,7 @@ dnssd_service_callback(DNSServiceRef sdRef,
     struct gensio_mdns *m = w->m;
     struct gensio_os_funcs *o = m->o;
     struct gensio_mdns_watch_resolver *r = NULL;
-    int interface, rv = 0;
+    int ifinterface, rv = 0;
     const char **txt = NULL;
     char *host = NULL;
 
@@ -1931,14 +2476,14 @@ dnssd_service_callback(DNSServiceRef sdRef,
 	return;
     }
 
-    interface = dnssd_interface_to_interface(interfaceIndex);
+    ifinterface = dnssd_interface_to_interface(interfaceIndex);
 
     host = dnssd_str_fix(o, hosttarget);
     if (!host)
 	goto out_err;
 
     /* See if it aready exists. */
-    r = resolver_find(b, interface, b->protocol, port, host, NULL, b->type,
+    r = resolver_find(b, ifinterface, b->protocol, port, host, NULL, b->type,
 		      b->domain);
 
     if (!r) {
@@ -1966,7 +2511,7 @@ dnssd_service_callback(DNSServiceRef sdRef,
 		goto out_err;
 	}
 
-	mdns_browser_callback(b, interface, b->protocol, port, txt,
+	mdns_browser_callback(b, ifinterface, b->protocol, port, txt,
 			      host, b->name, b->type, b->domain);
     }
     goto out;
@@ -1999,7 +2544,7 @@ dnssd_watch_callback(DNSServiceRef sdRef,
     struct gensio_os_funcs *o = m->o;
     struct gensio_mdns_watch_browser *b = NULL;
     DNSServiceErrorType derr;
-    int interface, err = 0;
+    int ifinterface, err = 0;
     char *type = NULL;
     char *domain = NULL;
 
@@ -2012,7 +2557,7 @@ dnssd_watch_callback(DNSServiceRef sdRef,
 	return;
     }
 
-    interface = dnssd_interface_to_interface(interfaceIndex);
+    ifinterface = dnssd_interface_to_interface(interfaceIndex);
 
     err = GE_NOMEM;
     type = dnssd_str_fix(o, itype);
@@ -2022,7 +2567,7 @@ dnssd_watch_callback(DNSServiceRef sdRef,
     if (!domain)
 	goto out_err;
 
-    b = browser_find(w, interface, w->protocol, name, type, domain);
+    b = browser_find(w, ifinterface, w->protocol, name, type, domain);
 
     if (!(flags & kDNSServiceFlagsAdd)) {
 	if (b)
@@ -2032,7 +2577,7 @@ dnssd_watch_callback(DNSServiceRef sdRef,
     if (b)
 	goto out; /* We already have it. */
 
-    if (w->interface != -1 && interface != w->interface)
+    if (w->ifinterface != -1 && ifinterface != w->ifinterface)
 	goto out;
     if (!mdns_str_cmp(&w->name, name))
 	goto out;
@@ -2047,7 +2592,7 @@ dnssd_watch_callback(DNSServiceRef sdRef,
 
     gensio_list_init(&b->resolvers);
     b->w = w;
-    b->interface = interface;
+    b->ifinterface = ifinterface;
     b->protocol = w->protocol;
 
     if (dupstr(o, name, &b->name))
@@ -2100,7 +2645,7 @@ gensio_mdnslib_add_watch(struct gensio_mdns_watch *w)
 	return GE_INCONSISTENT;
     }
 
-    err = interface_to_dnssd_interface(w->interface, &sinterface);
+    err = interface_to_dnssd_interface(w->ifinterface, &sinterface);
     if (err)
 	return err;
 
@@ -2122,6 +2667,345 @@ gensio_mdnslib_watch_free(struct gensio_mdns_watch *w)
     DNSServiceRefDeallocate(w->dnssd_sref);
 }
 
+#elif HAVE_WINMDNS
+
+static void
+win_browse_query_complete(void *context,
+			  DNS_QUERY_RESULT *bres)
+{
+    struct gensio_mdns_watch *w = context;
+    struct gensio_mdns *m = w->m;
+    struct gensio_os_funcs *o = m->o;
+    struct gensio_mdns_watch_browser *b;
+    struct gensio_mdns_watch_resolver *r;
+    DNS_RECORD *rec;
+    char *name = NULL;
+    char *host = NULL;
+    char *domain = NULL; /* Points to something in name. */
+    char *dot;
+    const char **txt = NULL;
+    uint16_t port = 0;
+    DWORD rv;
+    int err = 0;
+
+    if (bres->QueryStatus != ERROR_SUCCESS) {
+	/* Cancelled is ok, it means we were cancelled by the watch_free code. */
+	if (bres->QueryStatus != ERROR_CANCELLED) {
+	    err = gensio_os_err_to_err(o, bres->QueryStatus);
+	    gensio_mdns_log(m, GENSIO_LOG_ERR,
+			    "Error from browse: %s (%d)", gensio_err_to_str(err),
+			    bres->QueryStatus);
+	}
+        return;
+    }
+
+    /*
+     * The first run through we extract the name, host, domain, and
+     * txt.  We will handle A and AAAA records in the next run.
+     */
+    for (rec = bres->pQueryRecords; rec; rec = rec->pNext) {
+        switch (rec->wType) {
+        case DNS_TYPE_PTR:
+	    /*
+	     * Extract the service name from the string.  Format is like:
+	     *
+	     *   name._srv._tcp.local
+	     *
+	     * We have to search back through the '.'s to get the values.
+	     * Also extract the domain as part of this.
+	     */
+	    if (name) /* Did we already get this? */
+		break;
+	    err = wchar_to_str(o, (wchar_t *) rec->Data.PTR.pNameHost, &name);
+	    if (err)
+		goto out_err;
+	    dot = strrchr(name, '.');
+	    if (!dot) {
+		err = GE_INVAL;
+		goto out_err;
+	    }
+	    domain = dot + 1;
+	    if (dot == name) {
+		err = GE_INVAL;
+		goto out_err;
+	    }
+	    *dot = '\0';
+	    dot = strrchr(name, '.');
+	    if (!dot || dot == name) {
+		err = GE_INVAL;
+		goto out_err;
+	    }
+	    *dot = '\0';
+	    dot = strrchr(name, '.');
+	    if (!dot || dot == name) {
+		err = GE_INVAL;
+		goto out_err;
+	    }
+	    *dot = '\0';
+            break;
+
+        case DNS_TYPE_SRV:
+	    /*
+	     * Get the hostname here.  Have to remove the domain.
+	     */
+	    if (host) /* Did we already get this? */
+		break;
+	    err = wchar_to_str(o, (wchar_t *) rec->Data.SRV.pNameTarget,
+			       &host);
+	    if (err)
+		goto out_err;
+	    dot = strrchr(host, '.');
+	    if (!dot) {
+		err = GE_INVAL;
+		goto out_err;
+	    }
+	    *dot = '\0';
+	    port = rec->Data.SRV.wPort;
+            break;
+
+        case DNS_TYPE_TEXT:
+	    if (txt) /* Did we already get this? */
+		break;
+            if (rec->Data.TXT.dwStringCount < 1)
+                break;
+            if (rec->Data.TXT.dwStringCount == 1 &&
+                ((wchar_t *) (rec->Data.TXT.pStringArray[0]))[0] == 0) {
+                break;
+            }
+	    err = wstring_array_to_argv(o, rec->Data.TXT.dwStringCount,
+			(wchar_t **) rec->Data.TXT.pStringArray, &txt);
+	    if (err)
+		goto out_err;
+            break;
+
+        default:
+            break;
+        }
+    }
+
+    /* We have to get these from the results. */
+    if (!name || !host || port == 0) {
+	/* No need to check domain, it comes with name. */
+	err = GE_INVAL;
+	goto out_err;
+    }
+
+    err = GE_NOMEM;
+    b = browser_find(w, w->ifinterface, w->protocol, NULL, w->typestr, domain);
+    if (!b) {
+	b = o->zalloc(o, sizeof(*b));
+	if (!b)
+	    goto out_err;
+
+	gensio_list_init(&b->resolvers);
+	b->w = w;
+	b->ifinterface = w->ifinterface;
+	b->protocol = w->protocol;
+
+	if (dupstr(o, w->typestr, &b->type))
+	    goto out_err;
+	if (dupstr(o, domain, &b->domain))
+	    goto out_err;
+
+	gensio_list_add_tail(&w->browsers, &b->link);
+    }
+
+    r = resolver_find(b, w->ifinterface, w->protocol, -1, NULL,
+		      name, w->typestr, domain);
+    if (!r) {
+	r = o->zalloc(o, sizeof(*r));
+	if (!r)
+	    goto out_err;
+
+	gensio_list_init(&r->results);
+	r->b = b;
+	r->ifinterface = w->ifinterface;
+	r->protocol = w->protocol;
+	r->port = port;
+	r->txt = txt;
+	txt = NULL;
+
+	if (dupstr(o, host, &r->host))
+	    goto out_err;
+	if (dupstr(o, name, &r->name))
+	    goto out_err;
+	if (dupstr(o, w->typestr, &r->type))
+	    goto out_err;
+	if (dupstr(o, domain, &r->domain))
+	    goto out_err;
+
+	gensio_list_add_tail(&b->resolvers, &r->link);
+    }
+
+    /* Now we get the A and AAAA records. */
+    for (rec = bres->pQueryRecords; rec; rec = rec->pNext) {
+        switch (rec->wType) {
+        case DNS_TYPE_A: {
+	    struct sockaddr_in in;
+	    DWORD ifidx;
+	    struct gensio_mdns_result *e;
+	    struct gensio_addr *addr;
+	    const char **txt2 = NULL;
+
+	    if (w->protocol != GENSIO_NETTYPE_IPV4 &&
+			w->protocol != GENSIO_NETTYPE_UNSPEC)
+		break;
+
+	    memset(&in, 0, sizeof(in));
+	    in.sin_family = AF_INET;
+	    in.sin_port = port;
+	    memcpy(&in.sin_addr, &rec->Data.A.IpAddress, sizeof(in.sin_addr));
+	    /* Why doesn't windows pass this in? */
+	    rv = GetBestInterfaceEx((struct sockaddr *) &in, &ifidx);
+	    if (rv != ERROR_SUCCESS)
+		break;
+
+	    err = gensio_addr_create(o, GENSIO_NETTYPE_IPV4, &in.sin_addr,
+				     sizeof(in.sin_addr), port, &addr);
+	    if (err)
+		break;
+
+	    e = result_find(r, ifidx, GENSIO_NETTYPE_IPV4,
+			    name, w->typestr, domain, host, addr, port);
+	    if (e) {
+		e->ttl = rec->dwTtl + MDNS_TIMEOUT;
+		gensio_addr_free(addr);
+		break;
+	    }
+	    if (txt) {
+		err = gensio_argv_copy(o, txt, NULL, &txt2);
+		if (err)
+		    break;
+	    }
+	    mdns_resolver_callback(r, w, GENSIO_MDNS_NEW_DATA,
+				   ifidx, GENSIO_NETTYPE_IPV4,
+				   name, w->typestr, domain, host, addr,
+				   port, txt2, rec->dwTtl);
+	}
+#ifdef AF_INET6
+	case DNS_TYPE_AAAA: {
+	    struct sockaddr_in6 in6;
+	    DWORD ifidx;
+	    struct gensio_mdns_result *e;
+	    struct gensio_addr *addr;
+	    const char **txt2 = NULL;
+
+	    if (w->protocol != GENSIO_NETTYPE_IPV6 &&
+			w->protocol != GENSIO_NETTYPE_UNSPEC)
+		break;
+
+	    memset(&in6, 0, sizeof(in6));
+	    in6.sin6_family = AF_INET6;
+	    in6.sin6_port = port;
+	    memcpy(&in6.sin6_addr, &rec->Data.AAAA.Ip6Address,
+		   sizeof(in6.sin6_addr));
+	    /* Why doesn't windows pass this in? */
+	    rv = GetBestInterfaceEx((struct sockaddr *) &in6, &ifidx);
+	    if (rv != ERROR_SUCCESS)
+		break;
+	    in6.sin6_scope_id = ifidx;
+
+	    err = gensio_addr_create(o, GENSIO_NETTYPE_IPV6, &in6,
+				     sizeof(in6), port, &addr);
+	    if (err)
+		break;
+
+	    e = result_find(r, ifidx, GENSIO_NETTYPE_IPV6,
+			    name, w->typestr, domain, host, addr, port);
+	    if (e) {
+		e->ttl = rec->dwTtl + MDNS_TIMEOUT;
+		gensio_addr_free(addr);
+		break;
+	    }
+	    if (txt) {
+		err = gensio_argv_copy(o, txt, NULL, &txt2);
+		if (err)
+		    break;
+	    }
+	    mdns_resolver_callback(r, w, GENSIO_MDNS_NEW_DATA,
+				   ifidx, GENSIO_NETTYPE_IPV6,
+				   name, w->typestr, domain, host, addr,
+				   port, txt2, rec->dwTtl);
+            break;
+	}
+#endif
+        default:
+            break;
+        }
+    }
+
+ out_err:
+    if (name)
+	o->free(o, name);
+    if (host)
+	o->free(o, host);
+    if (txt)
+	gensio_argv_free(o, txt);
+
+    if (gensio_list_empty(&r->results))
+	resolver_remove(r);
+
+    if (gensio_list_empty(&b->resolvers))
+	browser_remove(b);
+
+    if (bres->pQueryRecords)
+	DnsRecordListFree(bres->pQueryRecords, DnsFreeRecordList);
+    browser_finish_one(w);
+}
+
+static int
+gensio_mdnslib_add_watch(struct gensio_mdns_watch *w)
+{
+    struct gensio_mdns *m = w->m;
+    struct gensio_os_funcs *o = m->o;
+    DNS_SERVICE_BROWSE_REQUEST breq;
+    DNS_STATUS rv;
+    char *tname = NULL;
+    wchar_t *qname;
+    int err;
+
+    if (w->ifinterface == 0)
+	return GE_INVAL;
+
+    if (!w->typestr) {
+	gensio_mdns_log(m, GENSIO_LOG_ERR,
+			"Attempt to add a watch with Windows MDNS without type");
+	return GE_INCONSISTENT;
+    }
+
+    memset(&breq, 0, sizeof(breq));
+
+    tname = gensio_alloc_sprintf(o, "%s.local", w->typestr);
+    if (!tname)
+	return GE_NOMEM;
+
+    err = str_to_wchar(o, tname, &qname);
+    o->free(o, tname);
+    if (err)
+	return err;
+
+    breq.Version = DNS_QUERY_REQUEST_VERSION2;
+    if (w->ifinterface == -1)
+	breq.InterfaceIndex = 0;
+    else
+	breq.InterfaceIndex = w->ifinterface;
+    breq.QueryName = qname;
+    breq.pBrowseCallbackV2 = win_browse_query_complete;
+    breq.pQueryContext = w;
+
+    rv = DnsServiceBrowse(&breq, &w->winmdns_cancel);
+    if (rv != DNS_REQUEST_PENDING)
+	err = gensio_os_err_to_err(o, rv);
+    o->free(o, qname);
+    return err;
+}
+
+static void
+gensio_mdnslib_watch_free(struct gensio_mdns_watch *w)
+{
+    DnsServiceBrowseCancel(&w->winmdns_cancel);
+}
+
 #endif
 
 static void
@@ -2141,7 +3025,7 @@ watch_free(struct gensio_os_funcs *o, struct gensio_mdns_watch *w)
 
 int
 gensio_mdns_add_watch(struct gensio_mdns *m,
-		      int interface, int ipdomain,
+		      int ifinterface, int ipdomain,
 		      const char *name, const char *type,
 		      const char *domain, const char *host,
 		      gensio_mdns_watch_cb callback, void *userdata,
@@ -2160,7 +3044,7 @@ gensio_mdns_add_watch(struct gensio_mdns *m,
     w->cb = callback;
     w->callback_data.w = w;
     w->userdata = userdata;
-    w->interface = interface;
+    w->ifinterface = ifinterface;
     w->protocol = ipdomain;
     gensio_list_init(&w->browsers);
     gensio_mdnslib_reset_finish_one(w);
@@ -2409,6 +3293,19 @@ gensio_mdnslib_disable(struct gensio_mdns *m)
     m->o->clear_fd_handlers(m->iod);
 }
 
+#elif HAVE_WINMDNS
+
+int
+gensio_mdnslib_start(struct gensio_mdns *m)
+{
+    return 0;
+}
+
+static void
+gensio_mdnslib_disable(struct gensio_mdns *m)
+{
+}
+
 #endif
 
 static void mdns_runner(struct gensio_runner *runner, void *userdata)
@@ -2447,7 +3344,7 @@ static void mdns_runner(struct gensio_runner *runner, void *userdata)
 
 		if (!m->freed && !w->removed) {
 		    gensio_mdns_unlock(m);
-		    w->cb(w, d->state, d->interface, d->ipdomain, d->name,
+		    w->cb(w, d->state, d->ifinterface, d->ipdomain, d->name,
 			  d->type, d->domain, d->host, d->addr, d->txt,
 			  w->userdata);
 		    gensio_mdns_lock(m);
@@ -2477,6 +3374,7 @@ mdns_timeout(struct gensio_timer *t, void *cb_data)
     struct gensio_link *l, *l2;
     struct gensio_link *li, *li2;
     struct gensio_link *lj, *lj2;
+    struct gensio_mdns_service *s;
     struct gensio_mdns_watch *w;
     struct gensio_mdns_watch_resolver *r;
     struct gensio_mdns_watch_browser *b;
@@ -2496,6 +3394,12 @@ mdns_timeout(struct gensio_timer *t, void *cb_data)
 	    m->o->run(m->runner);
 	}
 	goto out_unlock;
+    }
+
+    /* Scan for IP address changes. */
+    gensio_list_for_each(&m->services, lw) {
+	s = gensio_container_of(lw, struct gensio_mdns_service, link);
+	win_scan_ips(s);
     }
 
     /* Go through all the results and time them out as necessary. */
@@ -2669,7 +3573,7 @@ gensio_free_mdns(struct gensio_mdns *m,
 
 int
 gensio_mdns_add_service(struct gensio_mdns *m,
-			int interface, int ipdomain,
+			int ifinterface, int ipdomain,
 			const char *name, const char *type,
 			const char *domain, const char *host,
 			int port, const char * const *txt,
@@ -2686,7 +3590,7 @@ gensio_mdns_remove_service(struct gensio_mdns_service *s)
 
 int
 gensio_mdns_add_watch(struct gensio_mdns *m,
-		      int interface, int ipdomain,
+		      int ifinterface, int ipdomain,
 		      const char *name, const char *type,
 		      const char *domain, const char *host,
 		      gensio_mdns_watch_cb callback, void *userdata,

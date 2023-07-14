@@ -99,7 +99,7 @@ check_close_done(struct gensio_timer *t, void *cb_data)
 static void
 mdns_info_found(struct gensio_mdns_watch *w,
 		enum gensio_mdns_data_state state,
-		int interface, int ipdomain,
+		int ifinterface, int ipdomain,
 		const char *name, const char *type,
 		const char *domain, const char *host,
 		const struct gensio_addr *addr,
@@ -122,7 +122,7 @@ mdns_info_found(struct gensio_mdns_watch *w,
 
     printf("%s:\n interface: %d\n iptype: %s\n",
 	   state == GENSIO_MDNS_NEW_DATA ? "Found" : "Removed",
-	   interface, ip_domain_to_str(ipdomain));
+	   ifinterface, ip_domain_to_str(ipdomain));
     printf(" name: '%s'\n type: '%s'\n domain: '%s'\n host: '%s'\n",
 	   name, type, domain, host);
     rv = gensio_addr_to_str(addr, strbuf, NULL, sizeof(strbuf));
@@ -183,7 +183,7 @@ main(int argc, char *argv[])
     struct freed_data fdata;
     int rv, arg, err;
     const char *name = NULL, *type = NULL, *domain = NULL, *host = NULL;
-    int interface = -1, nettype = GENSIO_NETTYPE_UNSPEC, port = -1;
+    int ifinterface = -1, nettype = GENSIO_NETTYPE_UNSPEC, port = -1;
     const char *nettype_str = NULL;
     const char *txtstr = NULL;
     const char **txt = NULL;
@@ -213,7 +213,7 @@ main(int argc, char *argv[])
 	} else if ((rv = cmparg(argc, argv, &arg, "-o", "--host", &host))) {
 	    ;
 	} else if ((rv = cmparg_int(argc, argv, &arg, "-i", "--interface",
-				    &interface))) {
+				    &ifinterface))) {
 	    ;
 	} else if ((rv = cmparg(argc, argv, &arg, "-y", "--nettype",
 				&nettype_str))) {
@@ -320,7 +320,7 @@ main(int argc, char *argv[])
 			gensio_err_to_str(err));
 	    exit(1);
 	}
-	rv = gensio_mdns_add_service(mdns, interface, nettype,
+	rv = gensio_mdns_add_service(mdns, ifinterface, nettype,
 				     name, type, domain, host,
 				     port, txt, &service);
 	if (rv) {
@@ -329,7 +329,7 @@ main(int argc, char *argv[])
 	    goto out_err;
 	}
     } else {
-	rv = gensio_mdns_add_watch(mdns, interface, nettype,
+	rv = gensio_mdns_add_watch(mdns, ifinterface, nettype,
 				   name, type, domain, host,
 				   mdns_info_found, &fdata, &watch);
 	if (rv) {

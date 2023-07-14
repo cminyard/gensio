@@ -912,7 +912,7 @@ AC_SUBST(MDNS_LIBS)
 GMDNS=
 GMDNSMAN=
 if test ${HAVE_MDNS} = 1; then
-   GMDNS=gmdns
+   GMDNS="gmdns\$(EXEEXT)"
    GMDNSMAN=gmdns.1
 else
    mdns=no
