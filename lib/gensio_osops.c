@@ -952,9 +952,9 @@ gensio_win_commport_control(struct gensio_os_funcs *o, int op, bool get,
 
     case GENSIO_IOD_CONTROL_LOCAL:
 	if (get)
-	    *((int *) val) = t->fDsrSensitivity;
+	    *((int *) val) = !t->fDsrSensitivity;
 	else
-	    t->fDsrSensitivity = val;
+	    t->fDsrSensitivity = !val;
 	break;
 
     case GENSIO_IOD_CONTROL_HANGUP_ON_DONE:
