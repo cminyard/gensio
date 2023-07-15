@@ -2954,7 +2954,8 @@ win_browse_query_complete(void *context,
 
     if (bres->pQueryRecords)
 	DnsRecordListFree(bres->pQueryRecords, DnsFreeRecordList);
-    browser_finish_one(w);
+    if (!gensio_list_empty(&m->callbacks))
+	browser_finish_one(w);
 }
 
 static int
