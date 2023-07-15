@@ -633,12 +633,16 @@ avahi_group_callback(AvahiEntryGroup *group, AvahiEntryGroupState state,
 	if (s->currname != s->name)
 	    o->free(o, s->currname);
 	s->nameseq++;
-	s->currname = gensio_alloc_sprintf(o, "%s#%u", s->name, s->nameseq);
+	s->currname = gensio_alloc_sprintf(o, "%s(%u)", s->name, s->nameseq);
 	if (!s->currname) {
 	    gensio_mdns_log(m, GENSIO_LOG_ERR,
 			    "Out of memory in group collision");
 	    return;
 	}
+
+	gensio_mdns_log(m, GENSIO_LOG_WARNING,
+			"service %s renamed to %s", s->name, s->currname);
+
 	gensio_mdnslib_add_service(s);
     }
     /* FIXME - handle other states. */
