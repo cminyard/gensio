@@ -47,12 +47,47 @@
 static gensio_time mdns_time = {MDNS_TIMEOUT, 0};
 #endif
 
+/*
+ * Some mdns stacks always put a (1) on the end, even though the spec
+ * implies you shouldn't do this for the first one.  Remove it.  Get
+ * spaces between the name an (1), too.
+ */
+static unsigned int
+get_namelen(const char *name)
+{
+    unsigned int len = strlen(name), c;
+
+    c = len;
+    if (c < 1 || name[--c] != ')')
+	return len;
+    if (c < 1 || name[--c] != '1')
+	return len;
+    if (c < 1 || name[--c] != '(')
+	return len;
+    while (c > 1 && name[c - 1] == ' ')
+	c--;
+    return c;
+}
+
 /* Returns true on failure (error) */
 static bool
 dupstr(struct gensio_os_funcs *o, const char *src, char **dest)
 {
     if (src) {
 	char *ret = gensio_strdup(o, src);
+	if (!ret)
+	    return true;
+	*dest = ret;
+    }
+    return false;
+}
+
+/* Returns true on failure (error) */
+static bool
+dupnstr(struct gensio_os_funcs *o, const char *src, unsigned int n, char **dest)
+{
+    if (src) {
+	char *ret = gensio_strndup(o, src, n);
 	if (!ret)
 	    return true;
 	*dest = ret;
@@ -1691,7 +1726,7 @@ mdns_resolver_callback(struct gensio_mdns_watch_resolver *r,
     addr = NULL;
     c->data->txt = txt;
     txt = NULL;
-    if (dupstr(o, name, &c->data->name))
+    if (dupnstr(o, name, get_namelen(name), &c->data->name))
 	goto out_nomem;
     if (dupstr(o, type, &c->data->type))
 	goto out_nomem;
@@ -2746,7 +2781,9 @@ win_browse_query_complete(void *context,
 		goto out_err;
 	    }
 	    *dot = '\0';
-            break;
+	    /* Remove a (1) at the end if it's there. */
+	    name[get_namelen(name)] = '\0';
+	    break;
 
         case DNS_TYPE_SRV:
 	    /*
