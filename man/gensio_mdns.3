@@ -28,6 +28,26 @@ gensio_mdns_remove_service, gensio_mdns_add_watch, gensio_mdns_remove_watch
 .br
 .B                         struct gensio_mdns_service **s);
 .TP 20
+.Btypedef void (*gensio_mdns_service_cb)(struct gensio_mdns_service *service,
+.br
+.B				       enum gensio_mdns_service_event ev,
+.br
+.B				       const char *info,
+.br
+.B				       void *cb_data);
+.TP 20
+.B int gensio_mdns_add_service2(struct gensio_mdns *m, int interface,
+.br
+.B                         int ipdomain, const char *name, const char *type,
+.br
+.B                         const char *domain, const char *host,
+.br
+.B                         int port, const char *txt[],
+.br
+.B                         gensio_mdns_service_cb cb, void *cb_data,
+.br
+.B                         struct gensio_mdns_service **s);
+.TP 20
 .B int gensio_mdns_remove_service(struct gensio_mdns_service *s);
 .TP 20
 .B typedef void gensio_mdns_watch_cb(struct gensio_mdns_watch *w,
@@ -100,7 +120,7 @@ parameter is for mDNS text fields, and is a standard argv-like array.
 
 Once you have an mdns structure, you can advertise a service on the
 net with it using
-.B gensio_mdns_add_service.
+.B gensio_mdns_add_service2.
 That service will continue to be advertised until you call
 .B gensio_mdns_remove_service
 on it or your program terminates.  The
@@ -110,6 +130,35 @@ and
 parameters should generally be NULL to take the system defaults.  The
 .I txt
 parameter may be NULL if you don't have any.
+
+.B gensio_mdns_add_service2
+takes a callback, it will be called when the service has been
+registered, and possible with a new name if there was a name conflict.
+You may pass in a NULL for the callback if you don't care.  The callback
+.B
+parameter can take the following values:
+.TP
+.I GENSIO_MDNS_SERVICE_READY
+The service is now registered, and the name is the same as the name
+you passed in.
+.TP
+.I GENSIO_MDNS_SERVICE_READY_NEW_NAME
+The service is now registered, but the name was changed, it will be in
+the info parameter.
+.TP
+.I GENSIO_MDNS_SERVICE_REMOVED
+You requested the service be removed, the remove is now complete and
+the callback will not be called again.
+.TP
+.I GENSIO_MDNS_SERVICE_ERROR
+An error occurred as part of service registration.
+.PP
+
+There is a
+.B gensio_mdns_add_service
+function for backwards compatibility, it is equivalent to calling
+.B gensio_mdns_add_service2
+with a NULL callback.  Don't use it in new code.
 
 To find services on the network, you add a watch with
 .B gensio_mdns_add_watch.
