@@ -363,7 +363,11 @@ main(int argc, char *argv[])
 	rv = gensio_mdns_add_watch(mdns, ifinterface, nettype,
 				   name, type, domain, host,
 				   mdns_info_found, &fdata, &watch);
-	if (rv) {
+	if (rv == GE_INCONSISTENT) {
+	    /* This means we have to supply a type. */
+	    fprintf(stderr, "You must supply a type parameter to watch for.\n");
+	    goto out_err;
+	} else if (rv) {
 	    fprintf(stderr, "Could not allocate mdns watcher: %s\n",
 		    gensio_err_to_str(rv));
 	    goto out_err;
