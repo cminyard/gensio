@@ -3481,8 +3481,6 @@ gensio_os_loadlib(struct gensio_os_funcs *o, const char *name)
 
 #include <pthread_handler.h>
 
-#define TRACEBACK_DEPTH 1
-
 #define MEM_MAGIC 0xddf0983aec9320b0
 #define MEM_BUFFER 32
 struct mem_header {
@@ -3617,7 +3615,8 @@ gensio_memtrack_cleanup(struct gensio_memtrack *m)
 }
 
 void *
-gensio_i_zalloc(struct gensio_memtrack *m, unsigned int size)
+gensio_i_zalloc(struct gensio_memtrack *m, unsigned int size,
+		void *caller[], unsigned int caller_size)
 {
     unsigned char *b;
 
@@ -3636,20 +3635,12 @@ gensio_i_zalloc(struct gensio_memtrack *m, unsigned int size)
 	h->magic = MEM_MAGIC;
 	h->freed = 0;
 	h->size = size;
-#if _MSC_VER
-	h->alloc_bt[0] = _ReturnAddress();
-#else
-	h->alloc_bt[0] = __builtin_return_address(0);
-#if TRACEBACK_DEPTH > 1
-	h->alloc_bt[1] = __builtin_return_address(1);
-#if TRACEBACK_DEPTH > 2
-	h->alloc_bt[2] = __builtin_return_address(2);
-#if TRACEBACK_DEPTH > 3
-	h->alloc_bt[3] = __builtin_return_address(3);
-#endif
-#endif
-#endif
-#endif
+	if (caller) {
+	    unsigned int i;
+
+	    for (i = 0; i < caller_size && i < 4; i++)
+		h->alloc_bt[i] = caller[i];
+	}
 	b += sizeof(struct mem_header);
 	mem_fill(h->filler);
 	mem_fill(b + size);
@@ -3665,7 +3656,8 @@ gensio_i_zalloc(struct gensio_memtrack *m, unsigned int size)
 }
 
 void
-gensio_i_free(struct gensio_memtrack *m, void *data)
+gensio_i_free(struct gensio_memtrack *m, void *data,
+	      void *caller[], unsigned int caller_size)
 {
     if (m) {
 	unsigned char *b = data;
@@ -3673,6 +3665,12 @@ gensio_i_free(struct gensio_memtrack *m, void *data)
 	struct gensio_link *l;
 	bool err;
 
+	if (caller) {
+	    unsigned int i;
+
+	    for (i = 0; i < caller_size && i < 4; i++)
+		h->alloc_bt[0] = caller[i];
+	}
 #if _MSC_VER
 	h->free_bt[0] = _ReturnAddress();
 #else
@@ -3733,7 +3731,8 @@ gensio_memtrack_cleanup(struct gensio_memtrack *m)
 }
 
 void *
-gensio_i_zalloc(struct gensio_memtrack *m, unsigned int size)
+gensio_i_zalloc(struct gensio_memtrack *m, unsigned int size,
+		void *caller[], unsigned int caller_size)
 {
     void *d = malloc(size);
     if (d)
@@ -3742,7 +3741,8 @@ gensio_i_zalloc(struct gensio_memtrack *m, unsigned int size)
 }
 
 void
-gensio_i_free(struct gensio_memtrack *m, void *data)
+gensio_i_free(struct gensio_memtrack *m, void *data,
+	      void *caller[], unsigned int caller_size)
 {
     free(data);
 }

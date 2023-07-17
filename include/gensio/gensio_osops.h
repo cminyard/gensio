@@ -258,11 +258,57 @@ struct gensio_memtrack *gensio_memtrack_alloc(void);
 GENSIOOSH_DLL_PUBLIC
 void gensio_memtrack_cleanup(struct gensio_memtrack *m);
 
-GENSIOOSH_DLL_PUBLIC
-void *gensio_i_zalloc(struct gensio_memtrack *m, unsigned int size);
+#ifndef TRACEBACK_DEPTH
+#define TRACEBACK_DEPTH 1
+#endif
+
+#ifdef ENABLE_INTERNAL_TRACE
+#define TRACE_MEM_CALLERS callers
+#if _MSC_VER
+#define TRACE_MEM \
+    void *callers[1];			\
+    callers[0] = _ReturnAddress()
+#define TRACE_MEM_CALLERS_SIZE 1
+#elif TRACEBACK_DEPTH == 1
+#define TRACE_MEM \
+    void *callers[1];				\
+    callers[0] = __builtin_return_address(0)
+#define TRACE_MEM_CALLERS_SIZE 1
+#elif TRACEBACK_DEPTH == 2
+#define TRACE_MEM \
+    void *callers[2];				\
+    callers[0] = __builtin_return_address(0);	\
+    callers[1] = __builtin_return_address(1)
+#define TRACE_MEM_CALLERS_SIZE 2
+#elif TRACEBACK_DEPTH == 3
+#define TRACE_MEM \
+    void *callers[3];				\
+    callers[0] = __builtin_return_address(0);	\
+    callers[1] = __builtin_return_address(1);	\
+    callers[2] = __builtin_return_address(2)
+#define TRACE_MEM_CALLERS_SIZE 3
+#else
+#define TRACE_MEM \
+    void *callers[4];				\
+    callers[0] = __builtin_return_address(0);	\
+    callers[1] = __builtin_return_address(1);	\
+    callers[2] = __builtin_return_address(2);	\
+    callers[3] = __builtin_return_address(3)
+#define TRACE_MEM_CALLERS_SIZE 3
+#endif
+#else
+#define TRACE_MEM do { } while(0)
+#define TRACE_MEM_CALLERS NULL
+#define TRACE_MEM_CALLERS_SIZE 0
+#endif
 
 GENSIOOSH_DLL_PUBLIC
-void gensio_i_free(struct gensio_memtrack *m, void *data);
+void *gensio_i_zalloc(struct gensio_memtrack *m, unsigned int size,
+		      void *caller[], unsigned int caller_size);
+
+GENSIOOSH_DLL_PUBLIC
+void gensio_i_free(struct gensio_memtrack *m, void *data,
+		   void *caller[], unsigned int caller_size);
 
 /* For testing, do not use in normal code. */
 GENSIOOSH_DLL_PUBLIC

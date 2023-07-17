@@ -83,16 +83,17 @@ static void *
 gensio_glib_zalloc(struct gensio_os_funcs *f, gensiods size)
 {
     struct gensio_data *d = f->user_data;
-
-    return gensio_i_zalloc(d->mtrack, size);
+    TRACE_MEM;
+    return gensio_i_zalloc(d->mtrack, size,
+			   TRACE_MEM_CALLERS, TRACE_MEM_CALLERS_SIZE);
 }
 
 static void
 gensio_glib_free(struct gensio_os_funcs *f, void *data)
 {
     struct gensio_data *d = f->user_data;
-
-    gensio_i_free(d->mtrack, data);
+    TRACE_MEM;
+    gensio_i_free(d->mtrack, data, TRACE_MEM_CALLERS, TRACE_MEM_CALLERS_SIZE);
 }
 
 static void

@@ -5,6 +5,7 @@
  *  SPDX-License-Identifier: LGPL-2.1-only
  */
 
+#include "config.h"
 #include <winsock2.h>
 #include <windows.h>
 #include <synchapi.h>
@@ -236,16 +237,18 @@ static void *
 win_zalloc(struct gensio_os_funcs *o, gensiods size)
 {
     struct gensio_data *d = o->user_data;
-
-    return gensio_i_zalloc(d->mtrack, size);
+    TRACE_MEM;
+    return gensio_i_zalloc(d->mtrack, size,
+			   TRACE_MEM_CALLERS, TRACE_MEM_CALLERS_SIZE);
 }
 
 static void
 win_free(struct gensio_os_funcs *o, void *v)
 {
     struct gensio_data *d = o->user_data;
+    TRACE_MEM;
 
-    gensio_i_free(d->mtrack, v);
+    gensio_i_free(d->mtrack, v, TRACE_MEM_CALLERS, TRACE_MEM_CALLERS_SIZE);
 }
 
 #if 0
