@@ -64,6 +64,27 @@ int gensio_mdns_add_service(struct gensio_mdns *m,
 			    int port, const char * const *txt,
 			    struct gensio_mdns_service **rservice);
 
+enum gensio_mdns_service_event {
+    GENSIO_MDNS_SERVICE_ERROR,
+    GENSIO_MDNS_SERVICE_READY,
+    GENSIO_MDNS_SERVICE_READY_NEW_NAME,
+    GENSIO_MDNS_SERVICE_REMOVED
+};
+
+typedef void (*gensio_mdns_service_cb)(struct gensio_mdns_service *service,
+				       enum gensio_mdns_service_event ev,
+				       const char *info,
+				       void *cb_data);
+
+GENSIOMDNS_DLL_PUBLIC
+int gensio_mdns_add_service2(struct gensio_mdns *m,
+			     int iface, int ipdomain,
+			     const char *name, const char *type,
+			     const char *domain, const char *host,
+			     int port, const char * const *txt,
+			     gensio_mdns_service_cb cb, void *cb_data,
+			     struct gensio_mdns_service **rservice);
+
 GENSIOMDNS_DLL_PUBLIC
 int gensio_mdns_remove_service(struct gensio_mdns_service *s);
 

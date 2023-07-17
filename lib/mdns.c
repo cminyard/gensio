@@ -556,9 +556,49 @@ gensio_mdns_deref_and_unlock(struct gensio_mdns *m)
     gensio_mdns_unlock(m);
 }
 
+struct gensio_mdns_callback {
+    struct gensio_link link;
+
+    bool in_queue;
+
+    bool remove; /* Remove the watch/service. */
+
+    bool namechange; /* Service name changed. */
+
+    /*
+     * Report that no more watch data is pending or that a service has
+     * finished.
+     */
+    bool all_for_now;
+
+    struct gensio_mdns_watch *w;
+    struct gensio_mdns_service *s;
+
+    struct gensio_mdns_watch_data *data;
+};
+
+static void
+enqueue_callback(struct gensio_mdns *m, struct gensio_mdns_callback *c)
+{
+    if (c->remove)
+	return;
+    if (!c->in_queue) {
+	gensio_list_add_tail(&m->callbacks, &c->link);
+	c->in_queue = true;
+	gensio_mdns_ref(m);
+    }
+    if (!m->runner_pending) {
+	m->runner_pending = true;
+	gensio_mdns_ref(m);
+	m->o->run(m->runner);
+    }
+}
+
 #if HAVE_WINMDNS
 struct win_service_ipaddr {
+    struct gensio_mdns_service *s;
     bool found;
+    bool reported;
     int ifindex;
     struct sockaddr *addr;
     DNS_SERVICE_CANCEL cancel;
@@ -585,6 +625,15 @@ struct gensio_mdns_service {
     char *host;
     int port;
 
+    bool removed;
+
+    gensio_mdns_service_cb cb;
+    void *cb_data;
+
+    struct gensio_mdns_callback cbdata;
+
+    bool reported;
+
 #if HAVE_AVAHI
     AvahiIfIndex avahi_interface;
     AvahiProtocol avahi_protocol;
@@ -610,11 +659,13 @@ struct gensio_mdns_service {
     struct gensio_list win_addrs;
     wchar_t *win_host;
     wchar_t *win_name;
+    unsigned int win_outstanding_reports;
+    unsigned int win_outstanding_cancels;
 #endif
 
     /* Used to handle name collisions. */
     unsigned int nameseq;
-    char *currname;
+    gensio_cntstr *currname;
 };
 
 static void gensio_mdnslib_add_service(struct gensio_mdns_service *s);
@@ -630,22 +681,34 @@ avahi_group_callback(AvahiEntryGroup *group, AvahiEntryGroupState state,
     struct gensio_os_funcs *o = m->o;
 
     if (state == AVAHI_ENTRY_GROUP_COLLISION) {
-	if (s->currname != s->name)
-	    o->free(o, s->currname);
+	gensio_cntstr *newname;
+	int err;
+
 	s->nameseq++;
-	s->currname = gensio_alloc_sprintf(o, "%s(%u)", s->name, s->nameseq);
-	if (!s->currname) {
+	err = gensio_cntstr_sprintf(o, &newname, "%s(%u)", s->name, s->nameseq);
+	if (err) {
 	    gensio_mdns_log(m, GENSIO_LOG_ERR,
-			    "Out of memory in group collision");
-	    return;
+			    "Out of memory in group collision: %s",
+			    gensio_err_to_str(err));
+	    goto done;
 	}
+	gensio_cntstr_free(o, s->currname);
+	s->currname = newname;
 
 	gensio_mdns_log(m, GENSIO_LOG_WARNING,
-			"service %s renamed to %s", s->name, s->currname);
+			"service %s renamed to %s", s->name,
+			gensio_cntstr_get(s->currname));
 
 	gensio_mdnslib_add_service(s);
+	s->cbdata.namechange = true;
+	enqueue_callback(m, &s->cbdata);
     }
     /* FIXME - handle other states. */
+ done:
+    if (!s->reported) {
+	s->reported = true;
+	enqueue_callback(m, &s->cbdata);
+    }
 }
 
 /* Must be called with the Avahi poll lock held. */
@@ -668,8 +731,8 @@ gensio_mdnslib_add_service(struct gensio_mdns_service *s)
     }
     err = avahi_entry_group_add_service_strlst(s->group, s->avahi_interface,
 					       s->avahi_protocol, 0,
-					       s->currname, s->type,
-					       s->domain, s->host,
+					       gensio_cntstr_get(s->currname),
+					       s->type, s->domain, s->host,
 					       s->port, s->txt);
     if (err) {
 	gensio_mdns_log(m, GENSIO_LOG_ERR,
@@ -720,6 +783,13 @@ gensio_mdnslib_free_service(struct gensio_os_funcs *o,
 	avahi_string_list_free(s->txt);
 }
 
+static void
+gensio_mdnslib_remove_service(struct gensio_mdns_service *s)
+{
+    enqueue_callback(s->m, &s->cbdata);
+    s->cbdata.remove = true;
+}
+
 #elif HAVE_DNSSD
 
 static void
@@ -740,9 +810,30 @@ dnssd_service_done(DNSServiceRef sdRef,
 	return;
     }
 
-    if (strcmp(name, s->name) != 0)
+    if (strcmp(name, gensio_cntstr_get(s->currname)) != 0) {
+	gensio_cntstr *newname;
+	int err;
+
 	gensio_mdns_log(m, GENSIO_LOG_WARNING,
 			"service %s renamed to %s", s->name, name);
+
+	err = gensio_cntstr_make(m->o, name, &newname);
+	if (err) {
+	    gensio_mdns_log(m, GENSIO_LOG_ERR,
+			    "Allocation error in group collision: %s",
+			    gensio_err_to_str(err));
+	    goto done;
+	}
+	gensio_cntstr_free(m->o, s->currname);
+	s->currname = newname;
+	s->cbdata.namechange = true;
+	enqueue_callback(m, &s->cbdata);
+    }
+ done:
+    if (!s->reported) {
+	s->reported = true;
+	enqueue_callback(m, &s->cbdata);
+    }
 }
 
 static void
@@ -753,8 +844,9 @@ gensio_mdnslib_add_service(struct gensio_mdns_service *s)
 
     s->dnssd_sref = m->dnssd_sref;
     derr = DNSServiceRegister(&s->dnssd_sref, kDNSServiceFlagsShareConnection,
-			      s->dnssd_interface, s->name, s->type,
-			      s->domain, s->host, htons(s->port),
+			      s->dnssd_interface,
+			      s->name, s->type, s->domain, s->host,
+			      htons(s->port),
 			      s->dnssd_txtlen, s->dnssd_txt,
 			      dnssd_service_done, s);
     if (derr)
@@ -812,6 +904,13 @@ gensio_mdnslib_free_service(struct gensio_os_funcs *o,
 	DNSServiceRefDeallocate(s->dnssd_sref);
     if (s->dnssd_txt)
 	o->free(o, s->dnssd_txt);
+}
+
+static void
+gensio_mdnslib_remove_service(struct gensio_mdns_service *s)
+{
+    enqueue_callback(s->m, &s->cbdata);
+    s->cbdata.remove = true;
 }
 
 #elif HAVE_WINMDNS
@@ -970,25 +1069,122 @@ win_find_ipaddr(struct gensio_mdns_service *s, int ifindex,
 }
 
 static void
-win_serv_done(DWORD Status, void *context,
-	      DNS_SERVICE_INSTANCE *inst)
+win_report_done(struct gensio_mdns *m,
+		struct gensio_mdns_service *s,
+		struct win_service_ipaddr *a)
 {
-    struct gensio_mdns_service *s = context;
+    if (s->reported)
+	return;
 
-    if (Status != ERROR_SUCCESS) {
-	if (Status != ERROR_CANCELLED) {
-	    int err = gensio_os_err_to_err(s->m->o, Status);
-
-	    gensio_mdns_log(s->m, GENSIO_LOG_ERR,
-			    "Error from service register callback: %s",
-			    gensio_err_to_str(err));
-	}
+    a->reported = true;
+    assert(s->win_outstanding_reports > 0);
+    s->win_outstanding_reports--;
+    if (s->win_outstanding_reports == 0) {
+	s->reported = true;
+	s->cbdata.all_for_now = true;
+	if (s->removed)
+	    s->cbdata.remove = true;
+	enqueue_callback(m, &s->cbdata);
     }
-    if (inst)
-	DnsServiceFreeInstance(inst);
 }
 
 static void
+win_finish_serve(struct win_service_ipaddr *a)
+{
+    struct gensio_mdns_service *s = a->s;
+    struct gensio_mdns *m = s->m;
+    struct gensio_os_funcs *o = m->o;
+
+    if (!a->reported)
+	win_report_done(m, s, a);
+
+    gensio_list_rm(&s->win_addrs, &a->link);
+    o->free(o, a->addr);
+    o->free(o, a);
+
+    if (s->removed && gensio_list_empty(&s->win_addrs)) {
+	enqueue_callback(m, &s->cbdata);
+	s->cbdata.remove = true;
+    }
+}
+
+static void
+win_serv_done(DWORD Status, void *context,
+	      DNS_SERVICE_INSTANCE *inst)
+{
+    struct win_service_ipaddr *a = context;
+    struct gensio_mdns_service *s = a->s;
+    struct gensio_mdns *m = s->m;
+    struct gensio_os_funcs *o = m->o;
+    int err;
+
+    gensio_mdns_lock(m);
+    if (Status != ERROR_SUCCESS) {
+	if (Status != ERROR_CANCELLED) {
+	    err = gensio_os_err_to_err(m->o, Status);
+	    gensio_mdns_log(m, GENSIO_LOG_ERR,
+			    "Error from service register callback: %s",
+			    gensio_err_to_str(err));
+	}
+    } else if (inst) {
+	char *name = NULL, *dot;
+
+	err = wchar_to_str(o, inst->pszInstanceName, &name);
+	if (err) {
+	    gensio_mdns_log(m, GENSIO_LOG_ERR,
+			    "Error allocating winserv string: %s",
+			    gensio_err_to_str(err));
+	    goto out_free;
+	}
+
+	dot = strrchr(name, '.');
+	if (!dot || dot == name)
+	    goto out_invalid_name;
+	*dot = '\0';
+	dot = strrchr(name, '.');
+	if (!dot || dot == name)
+	    goto out_invalid_name;
+	*dot = '\0';
+	dot = strrchr(name, '.');
+	if (!dot || dot == name)
+	    goto out_invalid_name;
+	*dot = '\0';
+
+	if (strcmp(name, gensio_cntstr_get(s->currname)) != 0) {
+	    gensio_cntstr *newname;
+
+	    err = gensio_cntstr_make(o, name, &newname);
+	    if (err) {
+		gensio_mdns_log(m, GENSIO_LOG_ERR,
+				"Error allocating winserv cntstr: %s",
+				gensio_err_to_str(err));
+		goto out_free;
+	    }
+	    gensio_cntstr_free(o, s->currname);
+	    s->currname = newname;
+	    s->cbdata.namechange = true;
+	    if (s->reported)
+		enqueue_callback(m, &s->cbdata);
+	}
+	goto out_free;
+
+    out_invalid_name:
+	gensio_mdns_log(m, GENSIO_LOG_ERR,
+			"Invalid mdns name in winserv callback: %ls",
+			inst->pszInstanceName);
+    out_free:
+	if (name)
+	    o->free(o, name);
+    }
+
+    if (!a->reported)
+	win_report_done(m, s, a);
+    if (inst)
+	DnsServiceFreeInstance(inst);
+    gensio_mdns_unlock(m);
+}
+
+static bool
 win_addip(struct gensio_mdns_service *s, int ifindex, struct sockaddr *sa,
 	  unsigned int sa_len)
 {
@@ -1003,7 +1199,6 @@ win_addip(struct gensio_mdns_service *s, int ifindex, struct sockaddr *sa,
     req.Version = DNS_QUERY_REQUEST_VERSION1;
     req.InterfaceIndex = ifindex;
     req.pServiceInstance = &inst;
-    req.pQueryContext = s;
     req.pRegisterCompletionCallback = win_serv_done;
     req.unicastEnabled = false;
 
@@ -1040,18 +1235,21 @@ win_addip(struct gensio_mdns_service *s, int ifindex, struct sockaddr *sa,
     a->addr = o->zalloc(o, sa_len);
     if (!a->addr)
 	goto out_nomem;
+    a->s = s;
     a->ifindex = ifindex;
     memcpy(a->addr, sa, sa_len);
     a->found = true;
+    req.pQueryContext = a;
 
     rv = DnsServiceRegister(&req, &a->cancel);
     if (rv != DNS_REQUEST_PENDING) {
 	err = gensio_os_err_to_err(o, rv);
 	goto out_err;
     }
-    
+
+    s->win_outstanding_reports++;
     gensio_list_add_tail(&s->win_addrs, &a->link);
-    return;
+    return true;
 
  out_nomem:
     err = GE_NOMEM;
@@ -1063,17 +1261,26 @@ win_addip(struct gensio_mdns_service *s, int ifindex, struct sockaddr *sa,
     }
     gensio_mdns_log(s->m, GENSIO_LOG_ERR, "Error registering service: %s",
 		    gensio_err_to_str(err));
+    return false;
 }
 
 static void
 win_delip(struct gensio_mdns_service *s, struct win_service_ipaddr *a)
 {
     struct gensio_os_funcs *o = s->m->o;
+    DWORD rv;
 
-    DnsServiceRegisterCancel(&a->cancel);
-    gensio_list_rm(&s->win_addrs, &a->link);
-    o->free(o, a->addr);
-    o->free(o, a);
+    rv = DnsServiceRegisterCancel(&a->cancel);
+    if (rv != ERROR_SUCCESS) {
+	int err = gensio_os_err_to_err(o, rv);
+
+	gensio_mdns_log(s->m, GENSIO_LOG_ERR,
+			"Error cancelling mdns service registration: %s",
+			gensio_err_to_str(err));
+	win_finish_serve(a);
+    } else if (a->reported)
+	/* No need to wait for a callback. */
+	win_finish_serve(a);
 }
 
 static int
@@ -1086,6 +1293,10 @@ win_scan_ips(struct gensio_mdns_service *s)
     struct win_service_ipaddr *a;
     struct gensio_link *l, *l2;
     int err = 0;
+    unsigned int registered;
+
+    if (s->removed)
+	return 0;
 
     size = 0;
     rv = GetAdaptersAddresses(AF_UNSPEC,
@@ -1129,9 +1340,10 @@ win_scan_ips(struct gensio_mdns_service *s)
 		continue;
 	    }
 
-	    win_addip(s, addr->IfIndex,
-		      ipaddr->Address.lpSockaddr,
-		      ipaddr->Address.iSockaddrLength);
+	    if (win_addip(s, addr->IfIndex,
+			  ipaddr->Address.lpSockaddr,
+			  ipaddr->Address.iSockaddrLength))
+		registered++;
 	}
     }
 
@@ -1144,6 +1356,8 @@ win_scan_ips(struct gensio_mdns_service *s)
 
  out_err:    
     o->free(o, addrs);
+    if (!err && registered == 0)
+	err = GE_NOTFOUND;
     return err;
 }
 
@@ -1180,9 +1394,6 @@ gensio_mdnslib_initservice(struct gensio_mdns_service *s,
 
     if (s->host) {
 	chost = s->host;
-	err = str_to_wchar(o, s->host, &host);
-	if (err)
-	    goto out_err;
     } else {
 	if (gethostname(hostname, sizeof(hostname)) != 0) {
 	    err = GE_NOTFOUND;
@@ -1262,33 +1473,45 @@ gensio_mdnslib_initservice(struct gensio_mdns_service *s,
 }
 
 static void
-gensio_mdnslib_free_service(struct gensio_os_funcs *o,
-			    struct gensio_mdns_service *s)
+gensio_mdnslib_free_service(struct gensio_os_funcs *o, struct gensio_mdns_service *s)
 {
     wchar_t **keys = s->win_keys, **values = s->win_values;
     unsigned int i, kvcount = s->win_kvcount;
-    struct win_service_ipaddr *a;
-    struct gensio_link *l, *l2;
-
-    gensio_list_for_each_safe(&s->win_addrs, l, l2) {
-	a = gensio_container_of(l, struct win_service_ipaddr, link);
-	win_delip(s, a);
-    }
 
     if (keys) {
 	for (i = 0; i < kvcount; i++) {
 	    if (keys[i])
 		o->free(o, keys[i]);
 	}
+	o->free(o, keys);
     }
     if (values) {
 	for (i = 0; i < kvcount; i++) {
 	    if (values[i])
 		o->free(o, values[i]);
 	}
+	o->free(o, values);
     }
     o->free(o, s->win_name);
     o->free(o, s->win_host);
+}
+
+static void
+gensio_mdnslib_remove_service(struct gensio_mdns_service *s)
+{
+    unsigned int i = 0;
+    struct win_service_ipaddr *a;
+    struct gensio_link *l, *l2;
+
+    gensio_list_for_each_safe(&s->win_addrs, l, l2) {
+	a = gensio_container_of(l, struct win_service_ipaddr, link);
+	win_delip(s, a);
+	i++;
+    }
+    if (i == 0) {
+	s->cbdata.remove = true;
+	enqueue_callback(s->m, &s->cbdata);
+    }
 }
 
 #endif /* HAVE_AVAHI */
@@ -1296,9 +1519,12 @@ gensio_mdnslib_free_service(struct gensio_os_funcs *o,
 static void
 free_service(struct gensio_os_funcs *o, struct gensio_mdns_service *s)
 {
+    struct gensio_mdns *m = s->m;
+
+    gensio_list_rm(&m->services, &s->link);
     gensio_mdnslib_free_service(o, s);
-    if (s->currname && s->currname != s->name)
-	o->free(o, s->currname);
+    if (s->currname)
+	gensio_cntstr_free(o, s->currname);
     if (s->name)
 	o->free(o, s->name);
     if (s->type)
@@ -1308,15 +1534,14 @@ free_service(struct gensio_os_funcs *o, struct gensio_mdns_service *s)
     if (s->host)
 	o->free(o, s->host);
     o->free(o, s);
+    gensio_mdns_deref(m);
 }
 
 static int
 i_gensio_mdns_remove_service(struct gensio_mdns_service *s)
 {
-    struct gensio_mdns *m = s->m;
-
-    gensio_list_rm(&m->services, &s->link);
-    free_service(m->o, s);
+    s->removed = true;
+    gensio_mdnslib_remove_service(s);
 
     return 0;
 }
@@ -1329,18 +1554,19 @@ gensio_mdns_remove_service(struct gensio_mdns_service *s)
 
     gensio_mdns_lock(m);
     err = i_gensio_mdns_remove_service(s);
-    gensio_mdns_deref_and_unlock(m);
+    gensio_mdns_unlock(m);
 
     return err;
 }
 
 int
-gensio_mdns_add_service(struct gensio_mdns *m,
-			int ifinterface, int ipdomain,
-			const char *name, const char *type,
-			const char *domain, const char *host,
-			int port, const char * const *txt,
-			struct gensio_mdns_service **rservice)
+gensio_mdns_add_service2(struct gensio_mdns *m,
+			 int ifinterface, int ipdomain,
+			 const char *name, const char *type,
+			 const char *domain, const char *host,
+			 int port, const char * const *txt,
+			 gensio_mdns_service_cb cb, void *cb_data,
+			 struct gensio_mdns_service **rservice)
 {
     struct gensio_os_funcs *o = m->o;
     struct gensio_mdns_service *s;
@@ -1368,7 +1594,13 @@ gensio_mdns_add_service(struct gensio_mdns *m,
     if (dupstr(o, host, &s->host))
 	goto out_err;
 
-    s->currname = s->name;
+    err = gensio_cntstr_make(o, s->name, &s->currname);
+    if (err)
+	goto out_err;
+    s->cb = cb;
+    s->cb_data = cb_data;
+
+    s->cbdata.s = s;
 
     err = gensio_mdnslib_initservice(s, ipdomain, ifinterface, txt);
     if (err)
@@ -1389,6 +1621,19 @@ gensio_mdns_add_service(struct gensio_mdns *m,
     free_service(o, s);
     gensio_mdns_deref_and_unlock(m);
     return err;
+}
+
+int
+gensio_mdns_add_service(struct gensio_mdns *m,
+			int ifinterface, int ipdomain,
+			const char *name, const char *type,
+			const char *domain, const char *host,
+			int port, const char * const *txt,
+			struct gensio_mdns_service **rservice)
+{
+    return gensio_mdns_add_service2(m, ifinterface, ipdomain,
+				    name, type, domain, host,
+				    port, txt, NULL, NULL, rservice);
 }
 
 /*
@@ -1484,21 +1729,6 @@ gensio_mdns_free_watch_data(struct gensio_os_funcs *o,
     o->free(o, d);
 }
 
-struct gensio_mdns_callback {
-    struct gensio_link link;
-
-    bool in_queue;
-
-    bool remove;		/* Remove the watch. */
-
-    /* Report that no more data is pending. */
-    bool all_for_now;
-
-    struct gensio_mdns_watch *w;
-
-    struct gensio_mdns_watch_data *data;
-};
-
 struct gensio_mdns_watch_resolver;
 struct gensio_mdns_result {
     struct gensio_link link;
@@ -1509,23 +1739,6 @@ struct gensio_mdns_result {
     struct gensio_mdns_callback cbdata;
     uint16_t port;
 };
-
-static void
-enqueue_callback(struct gensio_mdns *m, struct gensio_mdns_callback *c)
-{
-    if (c->remove)
-	return;
-    if (!c->in_queue) {
-	gensio_list_add_tail(&m->callbacks, &c->link);
-	c->in_queue = true;
-	gensio_mdns_ref(m);
-    }
-    if (!m->runner_pending) {
-	m->runner_pending = true;
-	gensio_mdns_ref(m);
-	m->o->run(m->runner);
-    }
-}
 
 static void
 result_free(struct gensio_os_funcs *o, struct gensio_mdns_result *e)
@@ -2362,7 +2575,8 @@ avahi_service_type_callback(AvahiServiceTypeBrowser *ab,
     b = browser_find(w, ifinterface, protocol, NULL, type, domain);
 
     if (event == AVAHI_BROWSER_REMOVE) {
-	browser_remove(b);
+	if (b)
+	    browser_remove(b);
 	return;
     }
     if (b)
@@ -3319,50 +3533,78 @@ static void mdns_runner(struct gensio_runner *runner, void *userdata)
     struct gensio_os_funcs *o = m->o;
     struct gensio_link *l;
     struct gensio_mdns_callback *c;
-    struct gensio_mdns_watch *w;
 
     gensio_mdns_lock(m);
     while (!gensio_list_empty(&m->callbacks)) {
 	l = gensio_list_first(&m->callbacks);
 	c = gensio_container_of(l, struct gensio_mdns_callback, link);
-	w = c->w;
 	gensio_list_rm(&m->callbacks, &c->link);
 	c->in_queue = false;
 	gensio_mdns_deref(m);
 
-	if (c->remove) {
-	    if (w->remove_done) {
-		gensio_mdns_unlock(m);
-		w->remove_done(w, w->remove_done_data);
-		gensio_mdns_lock(m);
-	    }
-	    watch_free(o, w);
-	    gensio_mdns_deref(m);
-	} else {
-	    if (c->data) {
-		struct gensio_mdns_watch_data *d = c->data;
-		/*
-		 * Store this, as d may be freed if it's not
-		 * GENSIO_MDNS_DATA_GONE.
-		 */
-		enum gensio_mdns_data_state state = d->state;
+	if (c->s) {
+	    struct gensio_mdns_service *s = c->s;
 
-		if (!m->freed && !w->removed) {
+	    if (c->remove) {
+		if (s->cb) {
 		    gensio_mdns_unlock(m);
-		    w->cb(w, d->state, d->ifinterface, d->ipdomain, d->name,
-			  d->type, d->domain, d->host, d->addr, d->txt,
-			  w->userdata);
+		    s->cb(s, GENSIO_MDNS_SERVICE_REMOVED, NULL, s->cb_data);
 		    gensio_mdns_lock(m);
 		}
-		if (state == GENSIO_MDNS_DATA_GONE)
-		    result_free(o, d->result);
-	    } else if (c->all_for_now) {
-		gensio_mdnslib_reset_finish_one(w);
+		free_service(m->o, s);
+	    } else {
+		enum gensio_mdns_service_event ev = GENSIO_MDNS_SERVICE_READY;
+
+		if (c->namechange)
+		    ev = GENSIO_MDNS_SERVICE_READY_NEW_NAME;
+		c->namechange = false;
 		c->all_for_now = false;
-		gensio_mdns_unlock(m);
-		w->cb(w, GENSIO_MDNS_ALL_FOR_NOW, 0, 0, NULL,
-		      NULL, NULL, NULL, NULL, NULL, w->userdata);
-		gensio_mdns_lock(m);
+		if (s->cb) {
+		    gensio_cntstr *str = gensio_cntstr_ref(o, s->currname);
+
+		    gensio_mdns_unlock(m);
+		    s->cb(s, ev, gensio_cntstr_get(str), s->cb_data);
+		    gensio_mdns_lock(m);
+		    gensio_cntstr_free(o, str);
+		}
+	    }
+	} else if (c->w) {
+	    struct gensio_mdns_watch *w = c->w;
+
+	    if (c->remove) {
+		if (w->remove_done) {
+		    gensio_mdns_unlock(m);
+		    w->remove_done(w, w->remove_done_data);
+		    gensio_mdns_lock(m);
+		}
+		watch_free(o, w);
+		gensio_mdns_deref(m);
+	    } else {
+		if (c->data) {
+		    struct gensio_mdns_watch_data *d = c->data;
+		    /*
+		     * Store this, as d may be freed if it's not
+		     * GENSIO_MDNS_DATA_GONE.
+		     */
+		    enum gensio_mdns_data_state state = d->state;
+
+		    if (!m->freed && !w->removed) {
+			gensio_mdns_unlock(m);
+			w->cb(w, d->state, d->ifinterface, d->ipdomain, d->name,
+			      d->type, d->domain, d->host, d->addr, d->txt,
+			      w->userdata);
+			gensio_mdns_lock(m);
+		    }
+		    if (state == GENSIO_MDNS_DATA_GONE)
+			result_free(o, d->result);
+		} else if (c->all_for_now) {
+		    gensio_mdnslib_reset_finish_one(w);
+		    c->all_for_now = false;
+		    gensio_mdns_unlock(m);
+		    w->cb(w, GENSIO_MDNS_ALL_FOR_NOW, 0, 0, NULL,
+			  NULL, NULL, NULL, NULL, NULL, w->userdata);
+		    gensio_mdns_lock(m);
+		}
 	    }
 	}
     }
