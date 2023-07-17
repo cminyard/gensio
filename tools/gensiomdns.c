@@ -172,6 +172,35 @@ help(int err)
     gensio_osfunc_exit(err);
 }
 
+static void
+mdns_service_cb(struct gensio_mdns_service *service,
+		enum gensio_mdns_service_event ev,
+		const char *info,
+		void *cb_data)
+{
+    switch(ev) {
+    case GENSIO_MDNS_SERVICE_ERROR:
+	printf("Service registration error: %s\n", info);
+	break;
+
+    case GENSIO_MDNS_SERVICE_READY:
+	printf("Service is ready: %s\n", info);
+	break;
+
+    case GENSIO_MDNS_SERVICE_READY_NEW_NAME:
+	printf("Service is ready and has a new name: %s\n", info);
+	break;
+
+    case GENSIO_MDNS_SERVICE_REMOVED: {
+	struct freed_data *f = cb_data;
+
+	gensio_os_funcs_wake(f->o, f->closewaiter);
+	printf("Service is removed\n");
+	break;
+    }
+    }
+}
+
 int
 main(int argc, char *argv[])
 {
@@ -320,9 +349,11 @@ main(int argc, char *argv[])
 			gensio_err_to_str(err));
 	    exit(1);
 	}
-	rv = gensio_mdns_add_service(mdns, ifinterface, nettype,
-				     name, type, domain, host,
-				     port, txt, &service);
+	rv = gensio_mdns_add_service2(mdns, ifinterface, nettype,
+				      name, type, domain, host,
+				      port, txt,
+				      mdns_service_cb, &fdata,
+				      &service);
 	if (rv) {
 	    fprintf(stderr, "Could not allocate mdns service: %s\n",
 		    gensio_err_to_str(rv));
@@ -347,6 +378,8 @@ main(int argc, char *argv[])
 	if (rv)
 	    fprintf(stderr, "Could not free mdns service: %s\n",
 		    gensio_err_to_str(rv));
+	else
+	    gensio_os_funcs_wait(o, closewaiter, 1, NULL);
     }
     if (watch) {
 	rv = gensio_mdns_remove_watch(watch, mdns_watch_freed, &fdata);
