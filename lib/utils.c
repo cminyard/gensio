@@ -837,3 +837,108 @@ gensio_log_level_to_str(enum gensio_log_levels level)
     default: return "invalid";
     }
 }
+
+struct gensio_cntstr {
+    int refcount;
+#if !HAVE_GCC_ATOMICS
+    struct gensio_lock *lock;
+#endif
+    char *str;
+};
+
+int
+gensio_cntstr_make(struct gensio_os_funcs *o, const char *src,
+		   gensio_cntstr **dest)
+{
+    gensio_cntstr *str;
+    unsigned int len;
+
+    if (src)
+	len = strlen(src) + 1;
+    else
+	len = 0;
+    str = o->zalloc(o, len + sizeof(*str));
+    if (!str)
+	return GE_NOMEM;
+    str->refcount = 1;
+    if (src) {
+	str->str = ((char *) str) + sizeof(*str);
+	strcpy(str->str, src);
+    }
+    *dest = str;
+    return 0;
+}
+
+gensio_cntstr *
+gensio_cntstr_ref(struct gensio_os_funcs *o, gensio_cntstr *str)
+{
+#if HAVE_GCC_ATOMICS
+    __atomic_add_fetch(&str->refcount, 1, __ATOMIC_SEQ_CST);
+#else
+    o->lock(str->lock);
+    str->refcount++;
+    o->unlock(str->lock);
+#endif
+    return str;
+}
+
+void
+gensio_cntstr_free(struct gensio_os_funcs *o, gensio_cntstr *str)
+{
+    assert(str->refcount > 0);
+#if HAVE_GCC_ATOMICS
+    if (__atomic_sub_fetch(&str->refcount, 1, __ATOMIC_SEQ_CST) == 0) {
+	o->free(o, str);
+	return;
+    }
+#else
+    o->lock(str->lock);
+    str->refcount--;
+    if (str->refcount == 0)
+	o->free(o->str);
+    o->unlock(str->lock);
+#endif
+}
+
+int
+gensio_cntstr_vsprintf(struct gensio_os_funcs *o, gensio_cntstr **dest,
+		       const char *fmt, va_list va)
+{
+    va_list va2;
+    size_t len;
+    char c[1];
+    gensio_cntstr *str;
+
+    va_copy(va2, va);
+    len = (size_t) vsnprintf(c, 0, fmt, va) + 1L;
+    str = o->zalloc(o, len + sizeof(*str));
+    if (!str)
+	return GE_NOMEM;
+    str->refcount = 1;
+    str->str = ((char *) str) + sizeof(*str);
+    vsnprintf(str->str, len, fmt, va2);
+    va_end(va2);
+    *dest = str;
+
+    return 0;
+}
+
+int
+gensio_cntstr_sprintf(struct gensio_os_funcs *o, gensio_cntstr **dest,
+		      const char *fmt, ...)
+{
+    va_list va;
+    int err;
+
+    va_start(va, fmt);
+    err = gensio_cntstr_vsprintf(o, dest, fmt, va);
+    va_end(va);
+
+    return err;
+}
+
+const char *
+gensio_cntstr_get(gensio_cntstr *str)
+{
+    return str->str;
+}

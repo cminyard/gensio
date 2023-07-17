@@ -102,6 +102,34 @@ GENSIOOSH_DLL_PUBLIC
 void gensio_log(struct gensio_os_funcs *o, enum gensio_log_levels level,
 		const char *str, ...);
 
+/*
+ * This is an atomic counted string type, useful for passing around an
+ * immutable string without having top copy it.
+ */
+
+typedef struct gensio_cntstr gensio_cntstr;
+
+GENSIOOSH_DLL_PUBLIC
+int gensio_cntstr_make(struct gensio_os_funcs *o, const char *src,
+		       gensio_cntstr **dest);
+
+GENSIOOSH_DLL_PUBLIC
+gensio_cntstr *gensio_cntstr_ref(struct gensio_os_funcs *o, gensio_cntstr *str);
+
+GENSIOOSH_DLL_PUBLIC
+void gensio_cntstr_free(struct gensio_os_funcs *o, gensio_cntstr *str);
+
+GENSIOOSH_DLL_PUBLIC
+int gensio_cntstr_vsprintf(struct gensio_os_funcs *o, gensio_cntstr **dest,
+			   const char *fmt, va_list va);
+
+GENSIOOSH_DLL_PUBLIC
+int gensio_cntstr_sprintf(struct gensio_os_funcs *o, gensio_cntstr **dest,
+			  const char *fmt, ...);
+
+GENSIOOSH_DLL_PUBLIC
+const char *gensio_cntstr_get(gensio_cntstr *str);
+
 #ifdef __cplusplus
 }
 #endif
