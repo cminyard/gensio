@@ -2427,7 +2427,7 @@ gensio_mdnslib_watch_free(struct gensio_mdns_watch *w)
 {
     if (w->avahi_browser)
 	avahi_service_type_browser_free(w->avahi_browser);
-    enqueue_callback(m, &w->callback_data);
+    enqueue_callback(w->m, &w->callback_data);
     w->callback_data.remove = true;
 }
 
@@ -2651,7 +2651,7 @@ static void
 gensio_mdnslib_watch_free(struct gensio_mdns_watch *w)
 {
     DNSServiceRefDeallocate(w->dnssd_sref);
-    enqueue_callback(m, &w->callback_data);
+    enqueue_callback(w->m, &w->callback_data);
     w->callback_data.remove = true;
 }
 
