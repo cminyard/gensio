@@ -684,6 +684,7 @@ static void
 gensio_mdnslib_add_service(struct gensio_mdns_service *s)
 {
     struct gensio_mdns *m = s->m;
+    struct gensio_os_funcs *o = m->o;;
     int err;
 
     if (m->state != AVAHI_CLIENT_S_RUNNING)
@@ -697,15 +698,30 @@ gensio_mdnslib_add_service(struct gensio_mdns_service *s)
 			"Out of memory adding a service");
 	return;
     }
+ retry:
     err = avahi_entry_group_add_service_strlst(s->group, s->avahi_interface,
 					       s->avahi_protocol, 0,
 					       gensio_cntstr_get(s->currname),
 					       s->type, s->domain, s->host,
 					       s->port, s->txt);
-    if (err) {
+    if (err == AVAHI_ERR_COLLISION) {
+	gensio_cntstr *newname;
+
+	s->nameseq++;
+	err = gensio_cntstr_sprintf(o, &newname, "%s(%u)", s->name, s->nameseq);
+	if (err) {
+	    gensio_mdns_log(m, GENSIO_LOG_ERR,
+			    "Error allocating service strings: %s",
+			    gensio_err_to_str(err));
+	    return;
+	}
+	gensio_cntstr_free(o, s->currname);
+	s->currname = newname;
+	goto retry;
+    } else if (err) {
 	gensio_mdns_log(m, GENSIO_LOG_ERR,
 			"Error adding service strings: %s",
-			avahi_strerror(err));
+			avahi_strerror(err), err);
 	return;
     }
     err = avahi_entry_group_commit(s->group);
