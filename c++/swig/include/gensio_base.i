@@ -27,6 +27,7 @@ using namespace gensios;
 %feature("director") gensios::Accepter_Shutdown_Done;
 %feature("director") gensios::Accepter_Enable_Done;
 %feature("director") gensios::MDNS_Free_Done;
+%feature("director") gensios::MDNS_Service_Event;
 %feature("director") gensios::MDNS_Watch_Free_Done;
 %feature("director") gensios::MDNS_Watch_Event;
 
@@ -210,11 +211,19 @@ using namespace gensios;
 	self->free(NULL);
     }
 }
+%extend gensios::MDNS_Service {
+    ~MDNS_Service()
+    {
+	self->free();
+    }
+}
+%ignore gensios::MDNS::~MDNS;
 %ignore gensios::MDNS_Watch::~MDNS_Watch;
-%ignore gensios::MDNS_Watch::~MDNS;
+%ignore gensios::MDNS_Service::~MDNS_Service;
 %delobject gensios::MDNS::free;
 %delobject gensios::MDNS_Watch::free;
 %ignore gensios::MDNS_Watch::raw_event_handler;
+%ignore gensios::MDNS_Service::raw_event_handler;
 %ignore gensios::Raw_MDNS_Event_Handler;
 %newobject gensios::MDNS::alloc_watch;
 %newobject gensios::MDNS::alloc_service;
@@ -232,6 +241,7 @@ using namespace gensios;
 %ignore gensios::gensio_cpp_freed;
 %ignore gensios::gensio_acc_cpp_freed;
 %ignore gensios::mdns_free_done;
+%ignore gensios::mdns_service_event;
 %ignore gensios::mdns_watch_done;
 %ignore gensios::mdns_watch_event;
 %ignore gensios::mdns_watch_free_done;
@@ -273,7 +283,9 @@ using namespace gensios;
 // Pull some constants from gensio_mdns.h
 %ignore "";
 %rename("%s") gensio_mdns_data_state;
-%rename("%s", regextarget=1) "GENSIO_MDNS_.*";
+%rename("%s", regextarget=1) "GENSIO_MDNS_[^S].*";
+%rename("%s") gensio_mdns_service_event;
+%rename("%s", regextarget=1) "GENSIO_MDNS_SERVICE_.*";
 %include <gensio/gensio_mdns.h>
 %rename("%s") "";
 

@@ -58,6 +58,32 @@ private:
     Waiter *waiter;
 };
 
+class Service_Event: public MDNS_Service_Event {
+public:
+    Service_Event(Waiter *w) { waiter = w; }
+
+private:
+    void event(enum gensio_mdns_service_event ev,
+	       const char *info) override
+    {
+	if (ev == GENSIO_MDNS_SERVICE_REMOVED) {
+	    cout << "MDNS service removed" << endl;
+	    waiter->wake();
+	    return;
+	}
+
+	if (ev == GENSIO_MDNS_SERVICE_READY) {
+	    cout << "MDNS service ready with name " << info << endl;
+	} else if (ev == GENSIO_MDNS_SERVICE_READY) {
+	    cout << "MDNS service ready with new name " << info << endl;
+	} else if (ev == GENSIO_MDNS_SERVICE_ERROR) {
+	    cout << "MDNS service error: " << info << endl;
+	}
+    }
+
+    Waiter *waiter;
+};
+
 class Done: public MDNS_Free_Done {
 public:
     Done(Waiter *w) { waiter = w; }
@@ -87,6 +113,7 @@ int main(int argc, char *argv[])
 	Os_Funcs o(0, new MDNS_Logger);
 	Waiter w(o);
 	Watch_Event e(&w);
+	Service_Event s(&w);
 	Watch_Done d(&w);
 	Done d2(&w);
 	MDNS *m;
@@ -97,15 +124,15 @@ int main(int argc, char *argv[])
 	o.proc_setup();
 	m = new MDNS(o);
 	serv = new MDNS_Service(m, -1, GENSIO_NETTYPE_UNSPEC, "gensio1",
-				"_gensio1._tcp", NULL, NULL, 5001, txt);
+				"_gensio1._tcp", NULL, NULL, 5001, txt, &s);
 	watch = new MDNS_Watch(m, -1, GENSIO_NETTYPE_UNSPEC, "gensio1", NULL,
 			       NULL, NULL, &e);
 
 	w.wait(1, NULL);
-	delete serv;
+	serv->free();
 	watch->free(&d);
 	m->free(&d2);
-	w.wait(2, NULL);
+	w.wait(3, NULL);
 	err = 0;
     } catch (gensio_error &e) {
 	cerr << "gensio error: " << e.what() << endl;

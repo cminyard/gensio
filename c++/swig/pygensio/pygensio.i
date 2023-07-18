@@ -728,6 +728,32 @@ static bool check_for_err(int err)
 	Raw_MDNS_Event_Handler *parent = NULL;
     };
 
+    class Py_Raw_MDNS_Service_Event_Handler:
+	public Raw_MDNS_Service_Event_Handler {
+    public:
+	Py_Raw_MDNS_Service_Event_Handler() { }
+	~Py_Raw_MDNS_Service_Event_Handler() { if (parent) delete parent; }
+
+	void handle(MDNS_Service_Event *e,
+		    enum gensio_mdns_service_event ev,
+		    const char *info) override
+	{
+	    PyGILState_STATE gstate;
+
+	    gstate = PyGILState_Ensure();
+	    parent->handle(e, ev, info);
+	    PyGILState_Release(gstate);
+	}
+
+	void set_parent(Raw_MDNS_Service_Event_Handler *parent) override
+	{
+	    this->parent = parent;
+	}
+
+    private:
+	Raw_MDNS_Service_Event_Handler *parent = NULL;
+    };
+
 %}
 
 // In Python there's no way to call the free handle as the python
@@ -785,6 +811,8 @@ static bool check_for_err(int err)
 
 %ignore gensios::MDNS::free;
 %ignore gensios::MDNS::add_watch;
+%ignore gensios::MDNS::add_service;
+%ignore gensios::MDNS_Service::MDNS_Service;
 %ignore gensios::MDNS_Watch::free;
 %ignore gensios::MDNS_Watch::MDNS_Watch;
 
@@ -795,6 +823,7 @@ static bool check_for_err(int err)
 %include <gensio/gensioosh>
 %include <gensio/gensio>
 %include <gensio/gensiomdns>
+
 
 
 ////////////////////////////////////////////////////
@@ -1416,6 +1445,7 @@ gensio_acc_alloct(gensios::Accepter *child, std::string str, gensios::Os_Funcs &
 // MDNS handling
 %rename("") gensios::MDNS::free;
 %rename("") gensios::MDNS::add_watch;
+%rename("") gensios::MDNS::add_service;
 %extend gensios::MDNS {
     void free(MDNS_Free_Done *done)
     {
@@ -1434,21 +1464,25 @@ gensio_acc_alloct(gensios::Accepter *child, std::string str, gensios::Os_Funcs &
 
 	return w;
     }
+
+    %newobject add_service;
+    MDNS_Service *add_service(int interfacenum, int ipdomain,
+			      char *name, char *type, char *domain, char *host,
+			      int port, const char *const *txt,
+			      MDNS_Service_Event *event)
+    {
+	Raw_MDNS_Service_Event_Handler *evh =
+	    new Py_Raw_MDNS_Service_Event_Handler;
+	MDNS_Service *s = self->add_service(interfacenum, ipdomain, name, type,
+					    domain, host, port, txt,
+					    event, evh);
+
+	return s;
+    }
 }
 
 %rename("") gensios::MDNS_Watch::free;
-%rename("") gensios::MDNS_Watch::MDNS_Watch;
 %extend gensios::MDNS_Watch {
-    MDNS_Watch(MDNS *m, int interfacenum, int ipdomain,
-	       char *name, char *type, char *domain, char *host,
-	       MDNS_Watch_Event *event) {
-	Raw_MDNS_Event_Handler *evh = new Py_Raw_MDNS_Event_Handler;
-	MDNS_Watch *w = m->add_watch(interfacenum, ipdomain, name, type,
-				     domain, host, event, evh);
-
-	return w;
-    }
-
     void free(MDNS_Watch_Free_Done *done)
     {
 	Py_MDNS_Watch_Free_Done *pydone = new Py_MDNS_Watch_Free_Done(done);

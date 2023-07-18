@@ -57,6 +57,17 @@ namespace gensios {
 				domain, host, port, txt);
     }
 
+    MDNS_Service *MDNS::add_service(int interfacenum, int ipdomain,
+				    const char *name, const char *type,
+				    const char *domain, const char *host,
+				    int port, const char * const *txt,
+				    MDNS_Service_Event *event,
+				    Raw_MDNS_Service_Event_Handler *evh)
+    {
+	return new MDNS_Service(this, interfacenum, ipdomain, name, type,
+				domain, host, port, txt, event, evh);
+    }
+
     MDNS_Watch *MDNS::add_watch(int interfacenum, int ipdomain,
 				const char *name, const char *type,
 				const char *domain, const char *host,
@@ -67,6 +78,45 @@ namespace gensios {
 			      domain, host, event, evh);
     }
 
+    class GENSIOMDNSCPP_DLL_PUBLIC Main_Raw_MDNS_Service_Event_Handler:
+	public Raw_MDNS_Service_Event_Handler {
+    public:
+	Main_Raw_MDNS_Service_Event_Handler(Os_Funcs io): o(io) { }
+
+	Os_Funcs o;
+
+	void handle(MDNS_Service_Event *event,
+		    enum gensio_mdns_service_event ev,
+		    const char *info) override
+	{
+	    try {
+		if (event)
+		    event->event(ev, info);
+	    } catch (std::exception &e) {
+		gensio_log(o, GENSIO_LOG_ERR,
+		     "Received C++ exception in mdns service event handler: %s",
+		     e.what());
+	    }
+	}
+    };
+
+    void mdns_service_event(struct gensio_mdns_service *se,
+			    enum gensio_mdns_service_event ev,
+			    const char *info, void *userdata)
+    {
+	MDNS_Service *s = static_cast<MDNS_Service *>(userdata);
+
+	try {
+	    s->raw_event_handler->handle(s->event, ev, info);
+	} catch (std::exception &e) {
+	    gensio_log(s->get_os_funcs(), GENSIO_LOG_ERR,
+		    "Received C++ exception in mdns service event handler: %s",
+		    e.what());
+	}
+	if (ev == GENSIO_MDNS_SERVICE_REMOVED)
+	    delete s;
+    }
+
     MDNS_Service::MDNS_Service(MDNS *m, int interfacenum, int ipdomain,
 			       const char *name, const char *type,
 			       const char *domain, const char *host,
@@ -74,13 +124,49 @@ namespace gensios {
     {
 	int rv;
 
-	rv = gensio_mdns_add_service(m->m, interfacenum, ipdomain, name, type,
-				     domain, host, port, txt, &this->s);
-	if (rv)
+	this->m = m;
+	this->event = NULL;
+	this->raw_event_handler =
+	    new Main_Raw_MDNS_Service_Event_Handler(m->go);
+	rv = gensio_mdns_add_service2(m->m, interfacenum, ipdomain, name, type,
+				      domain, host, port, txt,
+				      mdns_service_event, this, &this->s);
+	if (rv) {
+	    delete this->raw_event_handler;
 	    throw gensio_error(rv);
+	}
     }
 
-    MDNS_Service::~MDNS_Service()
+    MDNS_Service::MDNS_Service(MDNS *m, int interfacenum, int ipdomain,
+			       const char *name, const char *type,
+			       const char *domain, const char *host,
+			       int port, const char * const *txt,
+			       MDNS_Service_Event *event,
+			       Raw_MDNS_Service_Event_Handler *raw_event_handler)
+    {
+	int rv;
+
+	this->m = m;
+	this->event = event;
+	if (event)
+	    event->s = this;
+	this->raw_event_handler =
+	    new Main_Raw_MDNS_Service_Event_Handler(m->go);
+	if (raw_event_handler) {
+	    raw_event_handler->set_parent(this->raw_event_handler);
+	    this->raw_event_handler = raw_event_handler;
+	}
+	rv = gensio_mdns_add_service2(m->m, interfacenum, ipdomain, name, type,
+				      domain, host, port, txt,
+				      mdns_service_event, this,
+				      &this->s);
+	if (rv) {
+	    delete this->raw_event_handler;
+	    throw gensio_error(rv);
+	}
+    }
+
+    void MDNS_Service::free()
     {
 	/* FIXME - no return code handling from this, C++ gives an error. */
 	gensio_mdns_remove_service(this->s);
