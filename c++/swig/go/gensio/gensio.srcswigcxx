@@ -32,6 +32,7 @@
 %rename(rawgensio_acc_alloc) gensios::gensio_acc_alloc;
 %rename(RawMDNS_Free_Done) gensios::MDNS_Free_Done;
 %rename(RawMDNS) gensios::MDNS;
+%rename(RawMDNS_Service_Event) gensios::MDNS_Service_Event;
 %rename(RawMDNS_Service) gensios::MDNS_Service;
 %rename(RawMDNS_Watch_Free_Done) gensios::MDNS_Watch_Free_Done;
 %rename(RawMDNS_Watch_Event) gensios::MDNS_Watch_Event;
@@ -320,7 +321,8 @@ void *gensio_string_to_uintptr(char *in)
 			      const std::string *mtype,
 			      const std::string *domain,
 			      const std::string *host,
-			      int port, const char * const *txt) {
+			      int port, const char * const *txt,
+			      struct MDNS_Service_Event *ev = NULL) {
 	// string types from go are not nil terminated.
 	std::string nname, nmtype, ndomain, nhost;
 
@@ -345,7 +347,7 @@ void *gensio_string_to_uintptr(char *in)
 				 mtype ? mtype->c_str() : NULL,
 				 domain ? domain->c_str() : NULL,
 				 host ? host->c_str() : NULL,
-				 port, txt);
+				 port, txt, ev);
     }
 
     MDNS_Watch *add_watch(int interfacenum, int ipdomain,

@@ -44,6 +44,7 @@ namespace gensios {
 
     class MDNS;
     class MDNS_Service;
+    class MDNS_Service_Event;
     class MDNS_Watch;
     class MDNS_Watch_Event;
 
@@ -77,6 +78,16 @@ namespace gensios {
 	virtual void set_parent(Raw_MDNS_Event_Handler *parent) { }
     };
 
+    class GENSIOMDNSCPP_DLL_PUBLIC Raw_MDNS_Service_Event_Handler {
+    public:
+	virtual ~Raw_MDNS_Service_Event_Handler() = default;
+
+	virtual void handle(MDNS_Service_Event *e,
+			    enum gensio_mdns_service_event ev,
+			    const char *info) = 0;
+	virtual void set_parent(Raw_MDNS_Service_Event_Handler *parent) { }
+    };
+
     class GENSIOMDNSCPP_DLL_PUBLIC MDNS {
     public:
 	MDNS(Os_Funcs &o);
@@ -88,6 +99,12 @@ namespace gensios {
 				  const char *name, const char *mtype,
 				  const char *domain, const char *host,
 				  int port, const char * const *txt);
+	MDNS_Service *add_service(int interfacenum, int ipdomain,
+				  const char *name, const char *mtype,
+				  const char *domain, const char *host,
+				  int port, const char * const *txt,
+				  MDNS_Service_Event *event,
+				  Raw_MDNS_Service_Event_Handler *evh = NULL);
 	MDNS_Watch *add_watch(int interfacenum, int ipdomain,
 			      const char *name, const char *mtype,
 			      const char *domain, const char *host,
@@ -108,6 +125,23 @@ namespace gensios {
 	friend void mdns_free_done(struct gensio_mdns *m, void *userdata);
     };
 
+    // This handles events from an mdns service informing you that it
+    // has has finished registration, the name has changed, or that it
+    // is removed.  Analogous to gensio_mdns_service_cb, see the
+    // gensio_mdns_add_service2() man page for details.
+    class GENSIOMDNSCPP_DLL_PUBLIC MDNS_Service_Event {
+    public:
+	virtual void event(enum gensio_mdns_service_event ev,
+			   const char *info) = 0;
+	virtual ~MDNS_Service_Event() = default;
+    private:
+	MDNS_Service *s = NULL;
+	friend class MDNS_Service;
+	friend void mdns_service_event(struct gensio_mdns_service *s,
+				       enum gensio_mdns_service_event ev,
+				       const char *info,  void *userdata);
+    };
+
     // A class representing an MDNS service.  A wrapper around
     // gensio_mdns_add/remove_service(), see man pages on those
     // functions for details.
@@ -117,9 +151,38 @@ namespace gensios {
 		     const char *name, const char *mtype,
 		     const char *domain, const char *host,
 		     int port, const char * const *txt);
-	~MDNS_Service();
+	MDNS_Service(MDNS *m, int interfacenum, int ipdomain,
+		     const char *name, const char *mtype,
+		     const char *domain, const char *host,
+		     int port, const char * const *txt,
+		     MDNS_Service_Event *event,
+		     Raw_MDNS_Service_Event_Handler *raw_event_handler = NULL);
+
+	inline Os_Funcs &get_os_funcs() { return m->get_os_funcs(); }
+
+	// Like a gensio, you cannot directly delete an MDNS_Watch object.
+	// It may be in callbacks.  You have to go through a special
+	// free operation.  See the Gensio free() method for details.
+	// Unlike a watch, the done callback goes through the event handler
+	// registered in MDNS_Service, if you registered one.
+	void free();
+
+	// This allows the user to intercept raw events, it is primarily
+	// used to help other language bindings tie in things they need.
+	Raw_MDNS_Service_Event_Handler *raw_event_handler = NULL;
+
+    protected:
+	virtual ~MDNS_Service() {
+	    if (raw_event_handler)
+		delete raw_event_handler;
+	}
     private:
+        MDNS *m;
 	struct gensio_mdns_service *s;
+	MDNS_Service_Event *event = NULL;
+	friend void mdns_service_event(struct gensio_mdns_service *s,
+				       enum gensio_mdns_service_event ev,
+				       const char *info,  void *userdata);
     };
 
     // This class is used to know when an MDNS_Watch object has

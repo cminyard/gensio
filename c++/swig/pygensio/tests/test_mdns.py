@@ -56,14 +56,37 @@ class Watch_EvHnd(pygensio.MDNS_Watch_Event):
             self.waiter.wake()
         return
 
+class Service_EvHnd(pygensio.MDNS_Service_Event):
+    def __init__(self, waiter):
+        pygensio.MDNS_Service_Event.__init__(self)
+        self.waiter = waiter
+        return
+
+    def event(self, ev, info):
+        if ev == pygensio.GENSIO_SERVICE_REMOVED:
+            self.waiter.wake()
+            return
+        elif ev == pygensio.GENSIO_SERVICE_ERROR:
+            print("Error: " + info)
+        else:
+            print("Service name: " + info);
+            self.waiter.wake()
+        return
+
 waiter = pygensio.Waiter(o)
+waiter2 = pygensio.Waiter(o)
 m = pygensio.MDNS(o)
 e = Watch_EvHnd(waiter)
 w = pygensio.MDNS_Watch(m, -1,  pygensio.GENSIO_NETTYPE_UNSPEC, None,
                 "=_gensio_pytest._tcp", None, None, e)
+se = Service_EvHnd(waiter2)
 s = pygensio.MDNS_Service(m, -1, pygensio.GENSIO_NETTYPE_UNSPEC, "gensio1",
                           "_gensio_pytest._tcp", None, None, 5001,
-                          ("A=1", "B=2"))
+                          ("A=1", "B=2"), se)
+rv = waiter.wait(1, pygensio.gensio_time(5,0))
+if rv != 0:
+    raise Exception("Error waiting for mdns service: " +
+                    pygensio.err_to_string(rv))
 
 rv = waiter.wait(1, pygensio.gensio_time(5, 0))
 if rv != 0:
