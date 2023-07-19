@@ -119,7 +119,7 @@ int main(int argc, char *argv[])
 	Watch_Done d(&w);
 	Done d2(&w);
 	MDNS *m;
-	const char *txt[3] = { "gensio1-1", "gensio1-2", NULL };
+	const char *txt[3] = { "k1=gensio1-1", "k2=gensio1-2", NULL };
 	MDNS_Service *serv;
 	MDNS_Watch *watch;
 	gensio_time timeout;
