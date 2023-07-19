@@ -584,6 +584,12 @@ enqueue_callback(struct gensio_mdns *m, struct gensio_mdns_callback *c)
  * the right parameters and it advertises.  It gives you a handle to
  * cancel the operation.
  */
+#if HAVE_WINMDNS
+struct gensio_mdns_req_info {
+    bool is_dereg;
+    struct gensio_mdns_service *s;
+};
+#endif
 
 struct gensio_mdns_service {
     struct gensio_link link;
@@ -628,7 +634,12 @@ struct gensio_mdns_service {
     unsigned int win_kvcount;
     wchar_t *win_host;
     wchar_t *win_name;
-    DNS_SERVICE_CANCEL win_cancel;
+    DNS_SERVICE_REGISTER_REQUEST req;
+    DNS_SERVICE_REGISTER_REQUEST dereq;
+    struct gensio_mdns_req_info reginfo;
+    struct gensio_mdns_req_info dereginfo;
+    DNS_SERVICE_INSTANCE inst;
+    DNS_SERVICE_CANCEL cancel;
 #endif
 
     /* Used to handle name collisions. */
@@ -1032,20 +1043,20 @@ static void
 win_serv_done(DWORD Status, void *context,
 	      DNS_SERVICE_INSTANCE *inst)
 {
-    struct gensio_mdns_service *s = context;
+    struct gensio_mdns_req_info *reginfo = context;
+    struct gensio_mdns_service *s = reginfo->s;
     struct gensio_mdns *m = s->m;
     struct gensio_os_funcs *o = m->o;
     int err;
 
     gensio_mdns_lock(m);
-    if (Status == ERROR_CANCELLED) {
-	/*
-	 * You don't appear to get a cancelled callback when you
-	 * cancel the service.  But it can happen if you cancel before
-	 * the callback.  Unfortunately that makes this racy, but
-	 * there's not much that can be done.
-	 */
-	goto out_report;
+    if (reginfo->is_dereg) {
+	enqueue_callback(s->m, &s->cbdata);
+	s->cbdata.remove = true;
+	goto out_done;
+    } else if (Status == ERROR_CANCELLED) {
+	/* Nothing to do here, on a cancellation we will get a dereg after. */
+	goto out_done;
     } else if (Status != ERROR_SUCCESS) {
 	err = gensio_os_err_to_err(m->o, Status);
 	gensio_mdns_log(m, GENSIO_LOG_ERR,
@@ -1102,12 +1113,12 @@ win_serv_done(DWORD Status, void *context,
 	    o->free(o, name);
     }
 
- out_report:
     if (!s->reported) {
 	s->reported = true;
 	enqueue_callback(m, &s->cbdata);
     }
 
+ out_done:
     if (inst)
 	DnsServiceFreeInstance(inst);
     gensio_mdns_unlock(m);
@@ -1117,30 +1128,36 @@ static void
 gensio_mdnslib_add_service(struct gensio_mdns_service *s)
 {
     struct gensio_os_funcs *o = s->m->o;
-    DNS_SERVICE_REGISTER_REQUEST req;
-    DNS_SERVICE_INSTANCE inst;
     DWORD rv;
     int err;
 
-    memset(&req, 0, sizeof(req));
-    req.Version = DNS_QUERY_REQUEST_VERSION1;
-    req.InterfaceIndex = s->win_interface;
-    req.pServiceInstance = &inst;
-    req.pRegisterCompletionCallback = win_serv_done;
-    req.pQueryContext = s;
-    req.unicastEnabled = false;
+    s->req.Version = DNS_QUERY_REQUEST_VERSION1;
+    s->req.InterfaceIndex = s->win_interface;
+    s->req.pServiceInstance = &s->inst;
+    s->req.pRegisterCompletionCallback = win_serv_done;
+    s->req.unicastEnabled = false;
 
-    memset(&inst, 0, sizeof(inst));
-    inst.pszInstanceName = s->win_name;
-    inst.pszHostName = s->win_host;
-    inst.wPort = s->port;
-    inst.wPriority = 0;
-    inst.wWeight = 0;
-    inst.dwPropertyCount = s->win_kvcount;
-    inst.keys = s->win_keys;
-    inst.values = s->win_values;
+    s->dereq = s->req;
 
-    rv = DnsServiceRegister(&req, &s->win_cancel);
+    s->inst.pszInstanceName = s->win_name;
+    s->inst.pszHostName = s->win_host;
+    s->inst.wPort = s->port;
+    s->inst.wPriority = 0;
+    s->inst.wWeight = 0;
+    s->inst.dwPropertyCount = s->win_kvcount;
+    s->inst.keys = s->win_keys;
+    s->inst.values = s->win_values;
+
+    s->reginfo.is_dereg = false;
+    s->reginfo.s = s;
+
+    s->dereginfo.is_dereg = true;
+    s->dereginfo.s = s;
+
+    s->req.pQueryContext = &s->reginfo;
+    s->dereq.pQueryContext = &s->dereginfo;
+
+    rv = DnsServiceRegister(&s->req, &s->cancel);
     if (rv != DNS_REQUEST_PENDING) {
 	err = gensio_os_err_to_err(o, rv);
 	goto out_err;
@@ -1286,22 +1303,65 @@ gensio_mdnslib_remove_service(struct gensio_mdns_service *s)
 {
     DWORD rv;
 
-    rv = DnsServiceRegisterCancel(&s->win_cancel);
-    if (rv != ERROR_SUCCESS) {
+    /*
+     * Cancelling the service on Windows is unfortunately complicated,
+     * but that seems to be the Windows way.  If the registration
+     * report is not already done, then we cancel it first.  The
+     * cancel, is unfortunately, synchronous, so we must release the
+     * lock, but that should be safe here, and we are waiting on a
+     * non-blocking callback so that's not going to be an issue.
+     *
+     * There is a race here, we can still call cancel if the
+     * registration is just being called, but that's ok, as the cancel
+     * will return success and just not do anything.
+     *
+     * After that, we deregister.  If the service has been cancelled,
+     * the registration callback will get called with an error, but it
+     * still gets called, and that's all that matters.
+     */
+
+    if (!s->reported) {
+	/*
+	 * For some reason the cancel waits for the callback to be
+	 * called, so we can't hold the lock here.
+	 */
+	gensio_mdns_unlock(s->m);
+	rv = DnsServiceRegisterCancel(&s->cancel);
+	gensio_mdns_lock(s->m);
+	if (rv != ERROR_SUCCESS) {
+	    int err = gensio_os_err_to_err(s->m->o, rv);
+
+	    gensio_mdns_log(s->m, GENSIO_LOG_ERR,
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+			    "Error cancelling mdns service registration: %s",
+			    gensio_err_to_str(err));
+	}
+    }
+
+    rv = DnsServiceDeRegister(&s->dereq, NULL);
+    if (rv != DNS_REQUEST_PENDING) {
 	int err = gensio_os_err_to_err(s->m->o, rv);
 
 	gensio_mdns_log(s->m, GENSIO_LOG_ERR,
-			"Error cancelling mdns service registration: %s",
+			"Error deregistering mdns service registration: %s",
 			gensio_err_to_str(err));
-    }
-    /*
-     * For some reason we don't get a cancelled callback from Windows
-     * unless you cancel before the callback is called.  Sigh.
-     */
-    if (s->reported)
-	/* Otherwise the callback will get it. */
 	enqueue_callback(s->m, &s->cbdata);
-    s->cbdata.remove = true;
+	s->cbdata.remove = true;
+    }
 }
 
 #endif /* HAVE_AVAHI */

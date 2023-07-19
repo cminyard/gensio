@@ -374,6 +374,7 @@ main(int argc, char *argv[])
 	}
     }
 
+    gensio_time to = { 2, 0 };
     gensio_os_funcs_wait(o, closewaiter, 1, NULL);
 
  out_err:
