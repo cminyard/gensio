@@ -32,6 +32,7 @@
 #include <gensio/gensio_mdns.h>
 #include <gensio/gensio_selector.h>
 #include <gensio/argvutils.h>
+#include <gensio/gensio_time.h>
 #include "utils.h"
 
 static const char *progname;
@@ -219,6 +220,8 @@ main(int argc, char *argv[])
     gensiods txtargc = 0, txtargs = 0;
     bool do_service = false;
     struct gensio_os_proc_data *proc_data;
+    gensio_time timeout, *dotimeout = NULL;
+    unsigned int timeoutv;
 
     progname = argv[0];
 
@@ -244,6 +247,11 @@ main(int argc, char *argv[])
 	} else if ((rv = cmparg_int(argc, argv, &arg, "-i", "--interface",
 				    &ifinterface))) {
 	    ;
+	} else if ((rv = cmparg_uint(argc, argv, &arg, NULL, "--timeout",
+				     &timeoutv))) {
+	    timeout.secs = timeoutv / 1000;
+	    timeout.nsecs = GENSIO_MSECS_TO_NSECS(timeoutv % 1000);
+	    dotimeout = &timeout;
 	} else if ((rv = cmparg(argc, argv, &arg, "-y", "--nettype",
 				&nettype_str))) {
 	    if (strcmp(nettype_str, "ipv4") == 0)
@@ -374,8 +382,7 @@ main(int argc, char *argv[])
 	}
     }
 
-    gensio_time to = { 2, 0 };
-    gensio_os_funcs_wait(o, closewaiter, 1, NULL);
+    gensio_os_funcs_wait(o, closewaiter, 1, dotimeout);
 
  out_err:
     if (service) {

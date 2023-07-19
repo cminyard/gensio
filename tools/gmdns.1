@@ -9,6 +9,7 @@ gmdns \- Tool for doing mDNS operations
 [\-o|\-\-host str] [\-i|\-\-interface num]
 [\-y|\-\-nettype unspec|ipv4|ipv6] [\-s|\-\-service] [\-x|\-\-txt str]
 [\-p|\-\-port num] [\-c|\-\-close-on-done]
+[\-\-timeout time_in_msecs]
 [\-d|\-\-debug] [\-h|\-\-help]
 
 .SH DESCRIPTION
@@ -54,6 +55,10 @@ Use the given port for the advertised service.  Only make sense with -s.
 .TP
 .I "\-c|\-\-close-on-done"
 For a query, after all currently known services are reported, exit.
+.TP
+.I "\-\-timeout time"
+The amount of time to wait, in milliseconds, before closing everything
+and terminating.
 .TP
 .I \-d|\-\-debug
 Generate debugging output.  Specifying more than once increases the output.
