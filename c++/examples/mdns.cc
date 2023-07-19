@@ -25,8 +25,6 @@ private:
 	       const char *domain, const char *host,
 	       const Addr *addr, const char * const *txt) override
     {
-	if (state == GENSIO_MDNS_WATCH_ALL_FOR_NOW)
-	    waiter->wake();
 	if (state != GENSIO_MDNS_WATCH_NEW_DATA)
 	    return;
 	cout << "Got MDNS interface " << interfacenum << " ipdomain " << ipdomain
@@ -41,6 +39,7 @@ private:
 	    for (unsigned int i = 0; txt[i]; i++)
 		cout << "  " << txt[i] << endl;
 	}
+	waiter->wake();
     }
 
     Waiter *waiter;
@@ -74,8 +73,10 @@ private:
 
 	if (ev == GENSIO_MDNS_SERVICE_READY) {
 	    cout << "MDNS service ready with name " << info << endl;
+	    waiter->wake();
 	} else if (ev == GENSIO_MDNS_SERVICE_READY) {
 	    cout << "MDNS service ready with new name " << info << endl;
+	    waiter->wake();
 	} else if (ev == GENSIO_MDNS_SERVICE_ERROR) {
 	    cout << "MDNS service error: " << info << endl;
 	}
@@ -112,30 +113,65 @@ int main(int argc, char *argv[])
     try {
 	Os_Funcs o(0, new MDNS_Logger);
 	Waiter w(o);
+	Waiter w2(o);
 	Watch_Event e(&w);
-	Service_Event s(&w);
+	Service_Event s(&w2);
 	Watch_Done d(&w);
 	Done d2(&w);
 	MDNS *m;
 	const char *txt[3] = { "gensio1-1", "gensio1-2", NULL };
 	MDNS_Service *serv;
 	MDNS_Watch *watch;
+	gensio_time timeout;
+	int rv;
 
 	o.proc_setup();
 	m = new MDNS(o);
 	serv = m->add_service(-1, GENSIO_NETTYPE_UNSPEC, "gensio1",
 			      "_gensio1._tcp", NULL, NULL, 5001, txt, &s);
-	watch = m->add_watch(-1, GENSIO_NETTYPE_UNSPEC, "gensio1", NULL,
+	watch = m->add_watch(-1, GENSIO_NETTYPE_UNSPEC, "gensio1",
+			     "_gensio1._tcp",
 			     NULL, NULL, &e);
 
-	w.wait(1, NULL);
+	timeout.secs = 2;
+	timeout.nsecs = 0;
+	rv = w2.wait(1, &timeout); // Wait for the service to be done
+	if (rv) {
+	    std::cerr << "Error waiting for service to be ready: " <<
+		gensio_err_to_str(rv) << std::endl;
+	    goto out;
+	}
+	timeout.secs = 2;
+	timeout.nsecs = 0;
+	rv = w.wait(1, &timeout);
+	if (rv) {
+	    std::cerr << "Error waiting for watch to be ready: " <<
+		gensio_err_to_str(rv) << std::endl;
+	    goto out;
+	}
+
 	serv->free();
 	watch->free(&d);
 	m->free(&d2);
-	w.wait(3, NULL);
+	timeout.secs = 2;
+	timeout.nsecs = 0;
+	rv = w.wait(1, &timeout);
+	if (rv) {
+	    std::cerr << "Error waiting for watch to be freed: " <<
+		gensio_err_to_str(rv) << std::endl;
+	    goto out;
+	}
+	rv = w2.wait(1, &timeout);
+	if (rv) {
+	    std::cerr << "Error waiting for service to be freed: " <<
+		gensio_err_to_str(rv) << std::endl;
+	    goto out;
+	}
+
 	err = 0;
     } catch (gensio_error &e) {
 	cerr << "gensio error: " << e.what() << endl;
     }
+ out:
     return err;
 }
