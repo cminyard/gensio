@@ -496,7 +496,7 @@ mdns_cb(struct gensio_mdns_watch *w,
 	/* Timer will go off immediately. */
 	goto out_unlock;
 
-    if (state == GENSIO_MDNS_ALL_FOR_NOW) {
+    if (state == GENSIO_MDNS_WATCH_ALL_FOR_NOW) {
 	/* Didn't find what we were looking for. */
 	err = mdns_start_timer(ndata);
 	if (err) {
@@ -509,7 +509,7 @@ mdns_cb(struct gensio_mdns_watch *w,
 	goto out_unlock;
     }
 
-    if (state == GENSIO_MDNS_NEW_DATA) {
+    if (state == GENSIO_MDNS_WATCH_NEW_DATA) {
 	gensiods args = 0, argc = 0;
 
 	if (!ndata->nostack) {

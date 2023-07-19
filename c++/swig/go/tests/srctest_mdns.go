@@ -40,9 +40,9 @@ type WatchEvent struct {
 func (we *WatchEvent) Event(state int, interfacenum int, ipdomain int,
 		name string, mtype string, domain string, host string,
 		addr gensio.Addr, txt []string) {
-	if state == gensio.MDNS_ALL_FOR_NOW {
-		we.w.Wake()
-	} else if state == gensio.MDNS_NEW_DATA {
+	if state == gensio.MDNS_WATCH_ALL_FOR_NOW {
+		/* Don't do a wake here, it's not reliable. */
+	} else if state == gensio.MDNS_WATCH_NEW_DATA {
 		we.found = true
 		we.w.Wake()
 	} else {

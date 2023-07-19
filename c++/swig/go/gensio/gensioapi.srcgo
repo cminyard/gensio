@@ -742,9 +742,9 @@ type MDNSServiceEventBase struct {
 
 // state values for the Event callback below.  I couldn't find an easy
 // way to make SWIG include these.
-var MDNS_NEW_DATA int = int(GENSIO_MDNS_NEW_DATA)
-var MDNS_DATA_GONE int = int(GENSIO_MDNS_DATA_GONE)
-var MDNS_ALL_FOR_NOW int = int(GENSIO_MDNS_ALL_FOR_NOW)
+var MDNS_WATCH_NEW_DATA int = int(GENSIO_MDNS_WATCH_NEW_DATA)
+var MDNS_WATCH_DATA_GONE int = int(GENSIO_MDNS_WATCH_DATA_GONE)
+var MDNS_WATCH_ALL_FOR_NOW int = int(GENSIO_MDNS_WATCH_ALL_FOR_NOW)
 
 // An event handler for MDNS Watch events.  See the gensio_mdns.3 man
 // page for details.

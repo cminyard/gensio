@@ -25,9 +25,9 @@ private:
 	       const char *domain, const char *host,
 	       const Addr *addr, const char * const *txt) override
     {
-	if (state == GENSIO_MDNS_ALL_FOR_NOW)
+	if (state == GENSIO_MDNS_WATCH_ALL_FOR_NOW)
 	    waiter->wake();
-	if (state != GENSIO_MDNS_NEW_DATA)
+	if (state != GENSIO_MDNS_WATCH_NEW_DATA)
 	    return;
 	cout << "Got MDNS interface " << interfacenum << " ipdomain " << ipdomain
 	     << endl;

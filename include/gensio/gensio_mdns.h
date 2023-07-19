@@ -90,8 +90,16 @@ int gensio_mdns_remove_service(struct gensio_mdns_service *s);
 
 
 struct gensio_mdns_watch;
-enum gensio_mdns_data_state { GENSIO_MDNS_NEW_DATA, GENSIO_MDNS_DATA_GONE,
-			      GENSIO_MDNS_ALL_FOR_NOW };
+enum gensio_mdns_data_state {
+    GENSIO_MDNS_WATCH_NEW_DATA,
+    GENSIO_MDNS_WATCH_DATA_GONE,
+    GENSIO_MDNS_WATCH_ALL_FOR_NOW,
+
+    /* These are here for backwards compatibility. */
+    GENSIO_MDNS_NEW_DATA = GENSIO_MDNS_WATCH_NEW_DATA,
+    GENSIO_MDNS_DATA_GONE = GENSIO_MDNS_WATCH_DATA_GONE,
+    GENSIO_MDNS_ALL_FOR_NOW = GENSIO_MDNS_WATCH_ALL_FOR_NOW
+};
 
 typedef void (*gensio_mdns_watch_cb)(struct gensio_mdns_watch *w,
 				     enum gensio_mdns_data_state state,

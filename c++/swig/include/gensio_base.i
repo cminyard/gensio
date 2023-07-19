@@ -283,7 +283,7 @@ using namespace gensios;
 // Pull some constants from gensio_mdns.h
 %ignore "";
 %rename("%s") gensio_mdns_data_state;
-%rename("%s", regextarget=1) "GENSIO_MDNS_[^S].*";
+%rename("%s", regextarget=1) "GENSIO_MDNS_WATCH_.*";
 %rename("%s") gensio_mdns_service_event;
 %rename("%s", regextarget=1) "GENSIO_MDNS_SERVICE_.*";
 %include <gensio/gensio_mdns.h>

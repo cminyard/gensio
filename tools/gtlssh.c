@@ -1585,13 +1585,13 @@ mdns_cb(struct gensio_mdns_watch *w,
     if (cb_data->done)
 	return;
 
-    if (state == GENSIO_MDNS_ALL_FOR_NOW) {
+    if (state == GENSIO_MDNS_WATCH_ALL_FOR_NOW) {
 	struct gensio_time timeout = {1, 0};
 	gensio_os_funcs_start_timer(o, cb_data->timer, &timeout);
 	return;
     }
 
-    if (state != GENSIO_MDNS_NEW_DATA)
+    if (state != GENSIO_MDNS_WATCH_NEW_DATA)
 	return;
 
     /* Found it. */

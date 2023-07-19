@@ -181,13 +181,13 @@ the function will return
 
 The watch callback state has three possible values:
 .TP
-.I GENSIO_MDNS_NEW_DATA
+.I GENSIO_MDNS_WATCH_NEW_DATA
 This is a new entry being reported.
 .TP
-.I GENSIO_MDNS_DATA_GONE
+.I GENSIO_MDNS_WATCH_DATA_GONE
 An entry that was previously reported as gone away.
 .TP
-.I GENSIO_MDNS_ALL_FOR_NOW
+.I GENSIO_MDNS_WATCH_ALL_FOR_NOW
 This is called one time after the watch is created, it reports that
 all currently known entries have been reported.  New ones may be
 reported in the future, but those will have been dynamically added

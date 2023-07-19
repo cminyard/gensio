@@ -46,12 +46,12 @@ class Watch_EvHnd(pygensio.MDNS_Watch_Event):
     def event(self, state, interfacenum, ipdomain,
               name, mtype, domain, host, addr, txt):
         self.watch_count += 1
-        if state == pygensio.GENSIO_MDNS_ALL_FOR_NOW:
+        if state == pygensio.GENSIO_MDNS_WATCH_ALL_FOR_NOW:
             self.waiter.wake()
             return
         if self.found:
             return
-        if state == pygensio.GENSIO_MDNS_NEW_DATA:
+        if state == pygensio.GENSIO_MDNS_WATCH_NEW_DATA:
             self.found = True
             self.waiter.wake()
         return

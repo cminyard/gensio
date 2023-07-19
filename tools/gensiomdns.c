@@ -110,7 +110,7 @@ mdns_info_found(struct gensio_mdns_watch *w,
     int rv;
     struct freed_data *f = userdata;
 
-    if (state == GENSIO_MDNS_ALL_FOR_NOW) {
+    if (state == GENSIO_MDNS_WATCH_ALL_FOR_NOW) {
 	printf("All-for-now:\n");
 	if (close_on_done) {
 	    struct gensio_time timeout = {1, 0};
@@ -121,7 +121,7 @@ mdns_info_found(struct gensio_mdns_watch *w,
     }
 
     printf("%s:\n interface: %d\n iptype: %s\n",
-	   state == GENSIO_MDNS_NEW_DATA ? "Found" : "Removed",
+	   state == GENSIO_MDNS_WATCH_NEW_DATA ? "Found" : "Removed",
 	   ifinterface, ip_domain_to_str(ipdomain));
     printf(" name: '%s'\n type: '%s'\n domain: '%s'\n host: '%s'\n",
 	   name, type, domain, host);

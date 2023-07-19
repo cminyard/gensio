@@ -1374,13 +1374,13 @@ static void gensio_mdns_cb(struct gensio_mdns_watch *watch,
 
     gstate = OI_PY_STATE_GET();
 
-    if (state == GENSIO_MDNS_ALL_FOR_NOW) {
+    if (state == GENSIO_MDNS_WATCH_ALL_FOR_NOW) {
 	swig_finish_call(w->cb_val, "mdns_all_for_now", NULL, true);
 	goto out;
     }
 
     args = PyTuple_New(9);
-    PyTuple_SET_ITEM(args, 0, PyBool_FromLong(state == GENSIO_MDNS_NEW_DATA));
+    PyTuple_SET_ITEM(args, 0, PyBool_FromLong(state == GENSIO_MDNS_WATCH_NEW_DATA));
     PyTuple_SET_ITEM(args, 1, PyInt_FromLong(ipinterface));
     PyTuple_SET_ITEM(args, 2, PyInt_FromLong(ipdomain));
     PyTuple_SET_ITEM(args, 3, OI_PI_FromStringN(name));

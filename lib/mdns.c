@@ -1596,7 +1596,7 @@ result_remove(struct gensio_mdns *m,
 {
     gensio_list_rm(&r->results, &e->link);
     if (e->cbdata.in_queue) {
-	if (e->cbdata.data->state == GENSIO_MDNS_NEW_DATA) {
+	if (e->cbdata.data->state == GENSIO_MDNS_WATCH_NEW_DATA) {
 	    /* In queue but not reported, just remove it. */
 	    gensio_list_rm(&m->callbacks, &e->cbdata.link);
 	    gensio_mdns_deref(m);
@@ -1605,7 +1605,7 @@ result_remove(struct gensio_mdns *m,
 	/* Otherwise already scheduled for removal. */
     } else {
 	/* Report removal */
-	e->cbdata.data->state = GENSIO_MDNS_DATA_GONE;
+	e->cbdata.data->state = GENSIO_MDNS_WATCH_DATA_GONE;
 	enqueue_callback(m, &e->cbdata);
     }
 }
@@ -3392,7 +3392,7 @@ static void mdns_runner(struct gensio_runner *runner, void *userdata)
 		    struct gensio_mdns_watch_data *d = c->data;
 		    /*
 		     * Store this, as d may be freed if it's not
-		     * GENSIO_MDNS_DATA_GONE.
+		     * GENSIO_MDNS_WATCH_DATA_GONE.
 		     */
 		    enum gensio_mdns_data_state state = d->state;
 
@@ -3403,13 +3403,13 @@ static void mdns_runner(struct gensio_runner *runner, void *userdata)
 			      w->userdata);
 			gensio_mdns_lock(m);
 		    }
-		    if (state == GENSIO_MDNS_DATA_GONE)
+		    if (state == GENSIO_MDNS_WATCH_DATA_GONE)
 			result_free(o, d->result);
 		} else if (c->all_for_now) {
 		    gensio_mdnslib_reset_finish_one(w);
 		    c->all_for_now = false;
 		    gensio_mdns_unlock(m);
-		    w->cb(w, GENSIO_MDNS_ALL_FOR_NOW, 0, 0, NULL,
+		    w->cb(w, GENSIO_MDNS_WATCH_ALL_FOR_NOW, 0, 0, NULL,
 			  NULL, NULL, NULL, NULL, NULL, w->userdata);
 		    gensio_mdns_lock(m);
 		}
@@ -3489,7 +3489,7 @@ gensio_free_mdns(struct gensio_mdns *m, gensio_mdns_done done, void *userdata)
 	gensio_list_rm(&m->callbacks, &c->link);
 	c->in_queue = false;
 	gensio_mdns_deref(m);
-	if (c->data && c->data->state == GENSIO_MDNS_DATA_GONE)
+	if (c->data && c->data->state == GENSIO_MDNS_WATCH_DATA_GONE)
 	    result_free(o, c->data->result);
     }
 
