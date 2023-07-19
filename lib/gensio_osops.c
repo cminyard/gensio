@@ -2166,7 +2166,7 @@ gensio_win_pty_start(struct gensio_os_funcs *o,
     char *cmdline, *envb = NULL;
     STARTUPINFOEX si;
     PROCESS_INFORMATION procinfo;
-    size_t len;
+    SIZE_T len;
     HANDLE tokh = NULL, imptokh = NULL, control = NULL;
     int err;
     bool setuser = true;

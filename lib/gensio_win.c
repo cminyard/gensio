@@ -117,7 +117,7 @@ struct gensio_iod_win {
     struct iostat except;
     BOOL closed;
 
-    DWORD (*threadfunc)(LPVOID data);
+    LPTHREAD_START_ROUTINE threadfunc;
     DWORD werr; /* For reporting errors from the sub-thread, windows error. */
     int err; /* Current error condition, gensio error */
 
@@ -3945,7 +3945,7 @@ proc_release_sem(struct gensio_os_proc_data *data)
 	assert(GetLastError() == ERROR_TOO_MANY_POSTS);
 }
 
-static BOOL
+static BOOL WINAPI
 ConCtrlHandler(DWORD dwCtrlType)
 {
     switch (dwCtrlType) {
