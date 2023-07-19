@@ -51,15 +51,6 @@ namespace gensios {
     MDNS_Service *MDNS::add_service(int interfacenum, int ipdomain,
 				    const char *name, const char *type,
 				    const char *domain, const char *host,
-				    int port, const char * const *txt)
-    {
-	return new MDNS_Service(this, interfacenum, ipdomain, name, type,
-				domain, host, port, txt);
-    }
-
-    MDNS_Service *MDNS::add_service(int interfacenum, int ipdomain,
-				    const char *name, const char *type,
-				    const char *domain, const char *host,
 				    int port, const char * const *txt,
 				    MDNS_Service_Event *event,
 				    Raw_MDNS_Service_Event_Handler *evh)
@@ -115,26 +106,6 @@ namespace gensios {
 	}
 	if (ev == GENSIO_MDNS_SERVICE_REMOVED)
 	    delete s;
-    }
-
-    MDNS_Service::MDNS_Service(MDNS *m, int interfacenum, int ipdomain,
-			       const char *name, const char *type,
-			       const char *domain, const char *host,
-			       int port, const char * const *txt)
-    {
-	int rv;
-
-	this->m = m;
-	this->event = NULL;
-	this->raw_event_handler =
-	    new Main_Raw_MDNS_Service_Event_Handler(m->go);
-	rv = gensio_mdns_add_service2(m->m, interfacenum, ipdomain, name, type,
-				      domain, host, port, txt,
-				      mdns_service_event, this, &this->s);
-	if (rv) {
-	    delete this->raw_event_handler;
-	    throw gensio_error(rv);
-	}
     }
 
     MDNS_Service::MDNS_Service(MDNS *m, int interfacenum, int ipdomain,

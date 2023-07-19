@@ -123,10 +123,10 @@ int main(int argc, char *argv[])
 
 	o.proc_setup();
 	m = new MDNS(o);
-	serv = new MDNS_Service(m, -1, GENSIO_NETTYPE_UNSPEC, "gensio1",
-				"_gensio1._tcp", NULL, NULL, 5001, txt, &s);
-	watch = new MDNS_Watch(m, -1, GENSIO_NETTYPE_UNSPEC, "gensio1", NULL,
-			       NULL, NULL, &e);
+	serv = m->add_service(-1, GENSIO_NETTYPE_UNSPEC, "gensio1",
+			      "_gensio1._tcp", NULL, NULL, 5001, txt, &s);
+	watch = m->add_watch(-1, GENSIO_NETTYPE_UNSPEC, "gensio1", NULL,
+			     NULL, NULL, &e);
 
 	w.wait(1, NULL);
 	serv->free();

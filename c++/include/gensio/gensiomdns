@@ -94,22 +94,26 @@ namespace gensios {
 
 	inline Os_Funcs &get_os_funcs() { return go; }
 
-	// Convenience functions to allocate a service and a watch.
-	MDNS_Service *add_service(int interfacenum, int ipdomain,
-				  const char *name, const char *mtype,
-				  const char *domain, const char *host,
-				  int port, const char * const *txt);
+	// Functions to allocate a service and a watch.  This is the
+	// only way for a user to allocate them.  The event is not
+	// required for services, but it makes no sense to have a
+	// watch without an event handler, so it's required there.
 	MDNS_Service *add_service(int interfacenum, int ipdomain,
 				  const char *name, const char *mtype,
 				  const char *domain, const char *host,
 				  int port, const char * const *txt,
-				  MDNS_Service_Event *event,
+				  MDNS_Service_Event *event = NULL,
 				  Raw_MDNS_Service_Event_Handler *evh = NULL);
 	MDNS_Watch *add_watch(int interfacenum, int ipdomain,
 			      const char *name, const char *mtype,
 			      const char *domain, const char *host,
 			      MDNS_Watch_Event *event,
 			      Raw_MDNS_Event_Handler *evh = NULL);
+	// If you have a raw event handler, you must supply it above.
+	// This avoids race conditions between creating the watch and
+	// installing the new raw event handler.  This is not a
+	// problem for gensios because events aren't enabled at
+	// startup, but they are for MDNS watches.
 
 	// Like a gensio, you cannot directly delete an MDNS object.
 	// It may be in callbacks.  You have to go through a special
@@ -147,24 +151,15 @@ namespace gensios {
     // functions for details.
     class GENSIOMDNSCPP_DLL_PUBLIC MDNS_Service {
     public:
-	MDNS_Service(MDNS *m, int interfacenum, int ipdomain,
-		     const char *name, const char *mtype,
-		     const char *domain, const char *host,
-		     int port, const char * const *txt);
-	MDNS_Service(MDNS *m, int interfacenum, int ipdomain,
-		     const char *name, const char *mtype,
-		     const char *domain, const char *host,
-		     int port, const char * const *txt,
-		     MDNS_Service_Event *event,
-		     Raw_MDNS_Service_Event_Handler *raw_event_handler = NULL);
-
 	inline Os_Funcs &get_os_funcs() { return m->get_os_funcs(); }
 
-	// Like a gensio, you cannot directly delete an MDNS_Watch object.
-	// It may be in callbacks.  You have to go through a special
-	// free operation.  See the Gensio free() method for details.
-	// Unlike a watch, the done callback goes through the event handler
-	// registered in MDNS_Service, if you registered one.
+	// Like a gensio, you cannot directly delete an MDNS_Service
+	// object.  It may be in callbacks.  You have to go through a
+	// special free operation.  See the Gensio free() method for
+	// details.  Unlike a watch, the done callback goes through
+	// the event handler registered in MDNS_Service, if you
+	// registered one.  That is unfortunate, but is that way due
+	// to historical reasons.
 	void free();
 
 	// This allows the user to intercept raw events, it is primarily
@@ -172,6 +167,13 @@ namespace gensios {
 	Raw_MDNS_Service_Event_Handler *raw_event_handler = NULL;
 
     protected:
+	friend class MDNS;
+	MDNS_Service(MDNS *m, int interfacenum, int ipdomain,
+		     const char *name, const char *mtype,
+		     const char *domain, const char *host,
+		     int port, const char * const *txt,
+		     MDNS_Service_Event *event = NULL,
+		     Raw_MDNS_Service_Event_Handler *raw_event_handler = NULL);
 	virtual ~MDNS_Service() {
 	    if (raw_event_handler)
 		delete raw_event_handler;
@@ -230,17 +232,6 @@ namespace gensios {
     // functions for details.
     class GENSIOMDNSCPP_DLL_PUBLIC MDNS_Watch {
     public:
-	// If you have a raw event handler, you must supply it here.
-	// This avoids race conditions between creating the watch and
-	// installing the new raw event handler.  This is not a
-	// problem for gensios because events aren't enabled at
-	// startup, but they are for MDNS watches.
-	MDNS_Watch(MDNS *m, int interfacenum, int ipdomain,
-		   const char *name, const char *mtype,
-		   const char *domain, const char *host,
-		   MDNS_Watch_Event *event,
-		   Raw_MDNS_Event_Handler *raw_event_handler = NULL);
-
 	inline Os_Funcs &get_os_funcs() { return m->get_os_funcs(); }
 
 	// Like a gensio, you cannot directly delete an MDNS_Watch object.
@@ -253,6 +244,13 @@ namespace gensios {
 	Raw_MDNS_Event_Handler *raw_event_handler = NULL;
 
     protected:
+	friend class MDNS;
+	MDNS_Watch(MDNS *m, int interfacenum, int ipdomain,
+		   const char *name, const char *mtype,
+		   const char *domain, const char *host,
+		   MDNS_Watch_Event *event,
+		   Raw_MDNS_Event_Handler *raw_event_handler = NULL);
+
 	virtual ~MDNS_Watch() {
 	    if (raw_event_handler)
 		delete raw_event_handler;
