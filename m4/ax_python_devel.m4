@@ -67,7 +67,7 @@
 #   modified version of the Autoconf Macro, you may extend this special
 #   exception to the GPL to apply to your modified version as well.
 
-#serial 25
+#serial 34
 
 AU_ALIAS([AC_PYTHON_DEVEL], [AX_PYTHON_DEVEL])
 AC_DEFUN([AX_PYTHON_DEVEL],[
@@ -79,12 +79,6 @@ AC_DEFUN([AX_PYTHON_DEVEL],[
 		will be appended to the Python interpreter
 		canonical name.])
 
-	if test -z "$PYTHON_VERSION"; then
-	   AC_PATH_PROG([PYTHON],[python3])
-	   if test ! -z "$PYTHON"; then
-	      PYTHON_VERSION="3"
-	   fi
-	fi
 	AC_PATH_PROG([PYTHON],[python[$PYTHON_VERSION]])
 	if test -z "$PYTHON"; then
 	   AC_MSG_ERROR([Cannot find python$PYTHON_VERSION in your system path])
@@ -131,7 +125,7 @@ class VPy:
         return tuple(map(int, s.strip().replace("rc", ".").split(".")))
     def __init__(self):
         import sys
-        self.vpy = tuple(sys.version_info)
+        self.vpy = tuple(sys.version_info)[[:3]]
     def __eq__(self, s):
         return self.vpy == self.vtup(s)
     def __ne__(self, s):
@@ -238,7 +232,7 @@ EOD`
 				ac_python_version=$PYTHON_VERSION
 			else
 				ac_python_version=`$PYTHON -c "import sys; \
-					print (sys.version[[:3]])"`
+					print ("%d.%d" % sys.version_info[[:2]])"`
 			fi
 		fi
 
@@ -301,8 +295,20 @@ EOD`
 	AC_MSG_CHECKING([for Python site-packages path])
 	if test -z "$PYTHON_SITE_PKG"; then
 		if test "$IMPORT_SYSCONFIG" = "import sysconfig"; then
-			PYTHON_SITE_PKG=`$PYTHON -c "$IMPORT_SYSCONFIG; \
-				print (sysconfig.get_path('purelib'));"`
+			PYTHON_SITE_PKG=`$PYTHON -c "
+$IMPORT_SYSCONFIG;
+if hasattr(sysconfig, 'get_default_scheme'):
+    scheme = sysconfig.get_default_scheme()
+else:
+    scheme = sysconfig._get_default_scheme()
+if scheme == 'posix_local':
+    # Debian's default scheme installs to /usr/local/ but we want to find headers in /usr/
+    scheme = 'posix_prefix'
+prefix = '$prefix'
+if prefix == 'NONE':
+    prefix = '$ac_default_prefix'
+sitedir = sysconfig.get_path('purelib', scheme, vars={'base': prefix})
+print(sitedir)"`
 		else
 			# distutils.sysconfig way
 			PYTHON_SITE_PKG=`$PYTHON -c "$IMPORT_SYSCONFIG; \
@@ -316,10 +322,22 @@ EOD`
 	# Check for platform-specific site packages
 	#
 	AC_MSG_CHECKING([for Python platform specific site-packages path])
-	if test -z "$PYTHON_SITE_PKG"; then
+	if test -z "$PYTHON_PLATFORM_SITE_PKG"; then
 		if test "$IMPORT_SYSCONFIG" = "import sysconfig"; then
-			PYTHON_PLATFORM_SITE_PKG=`$PYTHON -c "$IMPORT_SYSCONFIG; \
-				print (sysconfig.get_path('platlib'));"`
+			PYTHON_PLATFORM_SITE_PKG=`$PYTHON -c "
+$IMPORT_SYSCONFIG;
+if hasattr(sysconfig, 'get_default_scheme'):
+    scheme = sysconfig.get_default_scheme()
+else:
+    scheme = sysconfig._get_default_scheme()
+if scheme == 'posix_local':
+    # Debian's default scheme installs to /usr/local/ but we want to find headers in /usr/
+    scheme = 'posix_prefix'
+prefix = '$prefix'
+if prefix == 'NONE':
+    prefix = '$ac_default_prefix'
+sitedir = sysconfig.get_path('platlib', scheme, vars={'platbase': prefix})
+print(sitedir)"`
 		else
 			# distutils.sysconfig way
 			PYTHON_PLATFORM_SITE_PKG=`$PYTHON -c "$IMPORT_SYSCONFIG; \
@@ -361,7 +379,7 @@ EOD`
 	ac_save_LIBS="$LIBS"
 	ac_save_LDFLAGS="$LDFLAGS"
 	ac_save_CPPFLAGS="$CPPFLAGS"
-	LIBS="$ac_save_LIBS $PYTHON_LIBS $PYTHON_EXTRA_LIBS $PYTHON_EXTRA_LIBS"
+	LIBS="$ac_save_LIBS $PYTHON_LIBS $PYTHON_EXTRA_LIBS"
 	LDFLAGS="$ac_save_LDFLAGS $PYTHON_EXTRA_LDFLAGS"
 	CPPFLAGS="$ac_save_CPPFLAGS $PYTHON_CPPFLAGS"
 	AC_LANG_PUSH([C])
@@ -377,7 +395,7 @@ EOD`
 
 	AC_MSG_RESULT([$pythonexists])
 
-        if test ! "x$pythonexists" = "xyes"; then
+	if test ! "x$pythonexists" = "xyes"; then
 	   AC_MSG_FAILURE([
   Could not link test program to Python. Maybe the main Python library has been
   installed in some non-standard library path. If so, pass it to configure,
