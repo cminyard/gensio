@@ -1294,8 +1294,10 @@ gensio_mdnslib_free_service(struct gensio_os_funcs *o, struct gensio_mdns_servic
 	}
 	o->free(o, values);
     }
-    o->free(o, s->win_name);
-    o->free(o, s->win_host);
+    if (s->win_name)
+	o->free(o, s->win_name);
+    if (s->win_host)
+	o->free(o, s->win_host);
 }
 
 static void
@@ -1371,7 +1373,8 @@ free_service(struct gensio_os_funcs *o, struct gensio_mdns_service *s)
 {
     struct gensio_mdns *m = s->m;
 
-    gensio_list_rm(&m->services, &s->link);
+    if (s->link.list)
+	gensio_list_rm(&m->services, &s->link);
     gensio_mdnslib_free_service(o, s);
     if (s->currname)
 	gensio_cntstr_free(o, s->currname);
