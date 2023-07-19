@@ -1334,21 +1334,6 @@ gensio_mdnslib_remove_service(struct gensio_mdns_service *s)
 	    int err = gensio_os_err_to_err(s->m->o, rv);
 
 	    gensio_mdns_log(s->m, GENSIO_LOG_ERR,
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 			    "Error cancelling mdns service registration: %s",
 			    gensio_err_to_str(err));
 	}
@@ -3598,6 +3583,18 @@ gensio_mdns_add_service(struct gensio_mdns *m,
 			const char *domain, const char *host,
 			int port, const char * const *txt,
 			struct gensio_mdns_service **rservice)
+{
+    return GE_NOTSUP;
+}
+
+int
+gensio_mdns_add_service2(struct gensio_mdns *m,
+			 int ifinterface, int ipdomain,
+			 const char *name, const char *type,
+			 const char *domain, const char *host,
+			 int port, const char * const *txt,
+			 gensio_mdns_service_cb cb, void *cb_data,
+			 struct gensio_mdns_service **rservice)
 {
     return GE_NOTSUP;
 }
