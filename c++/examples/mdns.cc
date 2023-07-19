@@ -39,9 +39,13 @@ private:
 	    for (unsigned int i = 0; txt[i]; i++)
 		cout << "  " << txt[i] << endl;
 	}
-	waiter->wake();
+	if (!woken) {
+	    woken = true;
+	    waiter->wake();
+	}
     }
 
+    bool woken = false;
     Waiter *waiter;
 };
 
