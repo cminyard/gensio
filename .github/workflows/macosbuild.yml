@@ -1,0 +1,32 @@
+name: MacOSBuild
+on:
+  push:
+    branches:
+      - 'master'
+    tags:
+      - v*
+
+env:
+  INSTALLPREFIX: "_local"
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Install autotools
+        run: |
+          brew update
+          brew install libtool
+          brew install autoconf
+          brew install automake
+      - name: Configure
+        run: |
+          mkdir $INSTALLPREFIX
+          ./reconf
+          ./configure --prefix=$(pwd)/$INSTALLPREFIX/
+      - name: Build
+        run: |
+          make
+          make install
