@@ -1690,9 +1690,9 @@ if test "x$trypython" = "xyes"; then
    if test "x$pythoncflags" != "x"; then
       PYTHON_CPPFLAGS="$pythoncflags"
    fi
-   AX_PYTHON_DEVEL
+   AX_PYTHON_DEVEL([], [true])
 fi
-if test "x$PYTHON" != "x"; then
+if test $ax_python_devel_found = yes; then
    AX_PROG_PYTHON_VERSION([3.0.0],
        [
            PYTHON_SWIG_FLAGS=-py3
