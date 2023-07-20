@@ -2704,7 +2704,7 @@ gensio_mdnslib_add_watch(struct gensio_mdns_watch *w)
 			    sinterface, w->typestr, w->domainstr,
 			    dnssd_watch_callback, w);
     if (derr) {
-	err = dnssd_err_to_err(m, err);
+	err = dnssd_err_to_err(m, derr);
 	return err;
     }
 
