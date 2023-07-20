@@ -2129,9 +2129,10 @@ start_pty_helper(struct gensio_os_funcs *o,
     UnmapViewOfFile(buf);
 
     /* Pass the handle in the command line. */
-    snprintf(cmd, sizeof(cmd), "gensio_pty_helper %lld %lu %lld",
-	     (intptr_t) shmem, (unsigned long) cmdline_len + 1,
-	     (intptr_t) ctl_s);
+    snprintf(cmd, sizeof(cmd), "gensio_pty_helper %llu %lu %llu",
+	     (unsigned long long) (intptr_t) shmem,
+	     (unsigned long) cmdline_len + 1,
+	     (unsigned long long) (intptr_t) ctl_s);
 
     if (!CreateProcessAsUserA(tokh,
 			      NULL,
