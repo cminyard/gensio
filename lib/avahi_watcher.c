@@ -497,4 +497,6 @@ gensio_avahi_poll_free(AvahiPoll *ap,
     }
     gensio_avahi_poll_deref(ap);
 }
+#else
+int no_avahi=1;
 #endif
