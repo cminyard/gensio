@@ -30,3 +30,4 @@ jobs:
         run: |
           make
           make install
+          make check
