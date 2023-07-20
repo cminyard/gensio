@@ -205,35 +205,11 @@ AC_ARG_WITH(cplusplus,
     fi]
 )
 
-AC_ARG_WITH(cplusplus-ver,
- [AS_HELP_STRING([--with-cplusplus-ver=],
-                 [Set the C++ version, same as the value of __cplusplus.])],
-    cplusplusver="$withval",
-    [if test "$cplusplus" = "yes"; then
-        AC_LANG_PUSH([C++])
-	AC_MSG_CHECKING([for C++ version support])
-        cat confdefs.h - <<_ACEOF >conftest.$ac_ext
-Version: __cplusplus
-_ACEOF
-        cplusplusver=`(eval "$ac_cpp conftest.$ac_ext") | grep '^Version:'`
-        if test $? -ne 0; then
-            AC_MSG_RESULT([check faied])
-	    cplusplus=no
-        else
-	    cplusplusver=`echo $cplusplusver | sed 's/^Version: //'`
-	    cplusplusver=`echo $cplusplusver | sed 's/L$//'`
-            AC_MSG_RESULT([$cplusplusver])
-        fi
-	rm -f conftest.$ac_ext
-        AC_LANG_POP([C++])
-    else
-	cplusplusver=0
-    fi]
-)
-
+HAVE_CXX11=0
 CPLUSPLUS_DIR=
 if test "$cplusplus" = "yes"; then
-    if test "$cplusplusver" -ge 201103; then
+    AX_CXX_COMPILE_STDCXX(11, [], [optional])
+    if test "$HAVE_CXX11" = 1; then
         CPLUSPLUS_DIR="c++"
     else
         AC_MSG_RESULT([C++ version $cplusplusver is too old, need at least 201102, disabling c++])
@@ -1686,6 +1662,13 @@ PYTHON_SWIG_FLAGS=
 if test "x$trypython" = "xyes"; then
    if test "x$pythonprog" != "x"; then
       PYTHON="$pythonprog"
+   else
+      if test -z "$PYTHON_VERSION"; then
+         AC_PATH_PROG([PYTHON],[python3])
+         if test ! -z "$PYTHON"; then
+            PYTHON_VERSION="3"
+         fi
+      fi
    fi
    if test "x$pythoncflags" != "x"; then
       PYTHON_CPPFLAGS="$pythoncflags"
@@ -2036,11 +2019,7 @@ pr_op  "  TCP Wrappers:		" $ac_cv_header_tcpd_h
 pr_op  "  Install Docs:		" $enable_doc
 pr_op  "  epoll_pwait():	" $ax_config_feature_epoll_pwait
 pr_op  "  pthreads:		" $use_pthreads
-if test "$CPLUSPLUS_DIR" = "c++"; then
-  echo "  c++:			" "$cplusplusver"
-else
-  echo "  c++:			" "no"
-fi
+pr_op  "  c++11			" $HAVE_CXX11
 pr_vop "  pkgconfig:		" $pkgprog
 pr_op  "  glib:			" $haveglib
 pr_op  "  tcl:			" $havetcl
