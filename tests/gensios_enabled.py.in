@@ -22,7 +22,7 @@ gensios_enabled = {
     "trace": 1,
     "conacc": 1,
     "perf": 1,
-    "mdns": @HAVE_AVAHI@,
+    "mdns": @HAVE_MDNS@,
     "ax25": 1,
     "ratelimit": 1
 }
