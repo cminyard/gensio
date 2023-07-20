@@ -872,13 +872,14 @@ if test $trymdns = yes -a ${HAVE_AVAHI} = 0 -a ${HAVE_DNSSD} = 0 \
    if test "x$found_windns" = "xyes"; then
        # AC_CHECK_LIB() doesn't work on DnsServiceBrowse() on mingw32,
        # for some reason it won't compile without includeing windns.h.
-       AC_LANG(C)
        AC_MSG_CHECKING([for MDNS support in Windows])
+       AC_LANG_PUSH(C)
        AC_COMPILE_IFELSE(
 	   [AC_LANG_PROGRAM([[#include <windows.h>
 #include <windns.h>]],
 			    [[DnsServiceBrowse(NULL, NULL);]])],
 	   [HAVE_WINMDNS=1; AC_MSG_RESULT([yes])], [AC_MSG_RESULT([no])])
+       AC_LANG_POP(C)
    fi
    if test "$HAVE_WINMDNS" = "1"; then
       mdns=$default_all
