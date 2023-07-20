@@ -47,7 +47,7 @@ class Watch_EvHnd(pygensio.MDNS_Watch_Event):
               name, mtype, domain, host, addr, txt):
         self.watch_count += 1
         if state == pygensio.GENSIO_MDNS_WATCH_ALL_FOR_NOW:
-            self.waiter.wake()
+            # Don't use this for anything, it's unreliable
             return
         if self.found:
             return
@@ -87,10 +87,6 @@ if rv != 0:
     raise Exception("Error waiting for mdns service: " +
                     pygensio.err_to_string(rv))
 
-rv = waiter.wait(1, pygensio.gensio_time(5, 0))
-if rv != 0:
-    raise Exception("Error waiting for mdns watch: " +
-                    pygensio.err_to_string(rv))
 if not e.found:
     raise Exception("mdns watch not found")
 
