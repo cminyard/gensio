@@ -1039,7 +1039,7 @@ wstring_array_to_argv(struct gensio_os_funcs *o, gensiods len,
     return err;
 }
 
-static void
+static void WINAPI
 win_serv_done(DWORD Status, void *context,
 	      DNS_SERVICE_INSTANCE *inst)
 {
@@ -2728,7 +2728,7 @@ gensio_mdnslib_watch_free(struct gensio_mdns_watch *w)
 
 #elif HAVE_WINMDNS
 
-static void
+static void WINAPI
 win_browse_query_complete(void *context,
 			  DNS_QUERY_RESULT *bres)
 {
