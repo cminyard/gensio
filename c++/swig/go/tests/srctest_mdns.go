@@ -43,8 +43,10 @@ func (we *WatchEvent) Event(state int, interfacenum int, ipdomain int,
 	if state == gensio.MDNS_WATCH_ALL_FOR_NOW {
 		/* Don't do a wake here, it's not reliable. */
 	} else if state == gensio.MDNS_WATCH_NEW_DATA {
-		we.found = true
-		we.w.Wake()
+		if !we.found {
+			we.found = true
+			we.w.Wake()
+		}
 	} else {
 		we.watchCount++
 	}
@@ -52,6 +54,7 @@ func (we *WatchEvent) Event(state int, interfacenum int, ipdomain int,
 
 type ServiceEvent struct {
 	gensio.MDNSServiceEventBase
+	w *gensio.Waiter
 }
 
 func (se *ServiceEvent) Event(ev int, info string) {
@@ -61,6 +64,7 @@ func (se *ServiceEvent) Event(ev int, info string) {
 		fmt.Printf("Service ready with new name: %s\n", info);
 	} else if ev == gensio.MDNS_SERVICE_REMOVED {
 		fmt.Printf("Service removed\n");
+		se.w.Wake()
 	} else {
 		fmt.Printf("Error from service: %s\n", info);
 	}
@@ -81,10 +85,11 @@ func main() {
 	we := &WatchEvent{}
 	we.w = waiter
 	testbase.ObjCount++
-	w := m.AddWatch(-1, gensio.GENSIO_NETTYPE_UNSPEC, "=gensio2",
-		"@_gensio2.*", nil, nil, we)
+	w := m.AddWatch(-1, gensio.GENSIO_NETTYPE_UNSPEC, "@gen*",
+		"_gensio2._tcp", nil, nil, we)
 	testbase.ObjCount++
 	se := &ServiceEvent{}
+	se.w = waiter
 	s := m.AddService(-1, gensio.GENSIO_NETTYPE_UNSPEC, "gensio2",
 		"_gensio2._tcp", nil, nil, 5001, []string{"A", "B"},
 	        se)
@@ -111,6 +116,10 @@ func main() {
 	w = nil
 
 	s.Free()
+	rv = waiter.Wait(1, gensio.NewTime(5, 0))
+	if rv != 0 {
+		panic("Error waiting for service free: " + gensio.ErrToStr(rv))
+	}
 	s = nil
 
 	testbase.ObjCount++
@@ -125,6 +134,7 @@ func main() {
 	fd = nil
 	m = nil
 	we = nil
+	se = nil
 
 	waiter = nil
 	o = nil
