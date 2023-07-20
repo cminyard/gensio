@@ -412,6 +412,8 @@ print(sitedir)"`
 		PYTHON_EXTRA_LDFLAGS=`$PYTHON -c "$IMPORT_SYSCONFIG; \
 			conf = sysconfig.get_config_var; \
 			print (conf('LINKFORSHARED'))"`
+		# Hack for macos, it sticks this in here.
+		PYTHON_EXTRA_LDFLAGS=`echo $PYTHON_EXTRA_LDFLAGS | sed 's/Python.framework.*Python'//`
 	   fi
 	   AC_MSG_RESULT([$PYTHON_EXTRA_LDFLAGS])
 	   AC_SUBST(PYTHON_EXTRA_LDFLAGS)
