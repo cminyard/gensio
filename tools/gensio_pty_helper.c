@@ -116,7 +116,7 @@ int main(int argc, char *argv[])
     HRESULT hr;
     STARTUPINFOEX si;
     PROCESS_INFORMATION procinfo;
-    size_t len;
+    SIZE_T len;
     DWORD exit_code = 0;
 
     if (argc < 4)
@@ -125,7 +125,7 @@ int main(int argc, char *argv[])
     in = GetStdHandle(STD_INPUT_HANDLE);
     out = GetStdHandle(STD_OUTPUT_HANDLE);
 
-    shmem = (HANDLE) strtoll(argv[1], NULL, 0);
+    shmem = (HANDLE) (intptr_t) strtoll(argv[1], NULL, 0);
     buf = (char *) MapViewOfFile(shmem,
 				 FILE_MAP_ALL_ACCESS,
 				 0,
@@ -133,7 +133,7 @@ int main(int argc, char *argv[])
 				 strtoul(argv[2], NULL, 0));
     if (!buf)
 	return 1;
-    ctl_s = (HANDLE) strtoll(argv[3], NULL, 0);
+    ctl_s = (HANDLE) (intptr_t) strtoll(argv[3], NULL, 0);
 
     if (buf[0] != 1) /* Version */
 	return 1;
