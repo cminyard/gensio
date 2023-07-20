@@ -836,11 +836,15 @@ if test $trymdns = yes -a ${HAVE_AVAHI} = 0 -a $trydnssd = yes; then
    AC_CHECK_HEADER(dns_sd.h, [found_dns_sd=yes])
    if test "x$found_dns_sd" = "xyes"; then
       AC_CHECK_LIB(dns_sd, DNSServiceRegister, [HAVE_DNSSD=1])
-   fi
-   if test "$HAVE_DNSSD" = "1"; then
-      mdns=$default_all
-      MDNS_LIBS="-ldns_sd"
-      HAVE_MDNS=1
+      if test "$HAVE_DNSSD" = "1"; then
+         MDNS_LIBS="-ldns_sd"
+      else
+         AC_CHECK_FUNC(DNSServiceRegister, [HAVE_DNSSD=1])
+      fi
+      if test "$HAVE_DNSSD" = "1"; then
+         mdns=$default_all
+         HAVE_MDNS=1
+      fi
    fi
 fi
 AC_DEFINE_UNQUOTED([HAVE_DNSSD], [$HAVE_DNSSD],
