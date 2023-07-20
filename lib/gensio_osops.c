@@ -62,6 +62,12 @@ const char *gensio_get_progname(void)
 #include <limits.h>
 #include <dlfcn.h>
 
+#if USE_GGL_INT
+#define GID_CAST (int *)
+#else
+#define GID_CAST
+#endif
+
 int
 gensio_unix_os_setupnewprog(void)
 {
@@ -86,7 +92,7 @@ gensio_unix_os_setupnewprog(void)
     if (err)
 	return errno;
 
-    getgrouplist(pw->pw_name, pw->pw_gid, groups, &ngroup);
+    getgrouplist(pw->pw_name, pw->pw_gid, GID_CAST groups, &ngroup);
     if (ngroup > 0) {
 	int ngroup2 = ngroup;
 
@@ -94,7 +100,7 @@ gensio_unix_os_setupnewprog(void)
 	if (!groups)
 	    return ENOMEM;
 
-	err = getgrouplist(pw->pw_name, pw->pw_gid, groups, &ngroup2);
+	err = getgrouplist(pw->pw_name, pw->pw_gid, GID_CAST groups, &ngroup2);
 	if (err == -1) {
 	    err = errno;
 	    free(groups);

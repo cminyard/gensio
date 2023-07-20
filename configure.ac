@@ -40,6 +40,10 @@ UUCP_LOCK_DIR=/var/spool/lock
 USE_FILE_STDIO=0
 broken_pselect=no
 system_type=unix
+
+# macos defines git_t, but getgrouplist() takes int*
+USE_GGL_INT=0
+
 case $target_os in
 	mingw*)
 		OSH_LIBS="$OSH_LIBS -lws2_32 -liphlpapi -lgdi32 -lbcrypt"
@@ -61,6 +65,7 @@ case $target_os in
 		OSH_LIBS="$OSH_LIBS -ldl"
 		broken_pselect=yes
 		uucp_locking_flag=no
+		USE_GGL_INT=1
 		;;
 	*bsd* | *BSD*)
 		OSH_LIBS="$OSH_LIBS -ldl"
@@ -71,6 +76,10 @@ case $target_os in
 		OSH_LIBS="$OSH_LIBS -ldl"
 		;;
 esac
+AC_DEFINE_UNQUOTED([USE_GGL_INT], [$USE_GGL_INT],
+	[Set to 1 to use gid_t, 0 to use int for groups])
+AM_CONDITIONAL([HAVE_GGL_INT], [test ${HAVE_GGL_INT} = 1])
+AC_SUBST(USG_GGL_INT)
 
 if test "$version_type" = "windows"; then
     # LN_S gets set to "cp -pR", which just doesn't work.  MinGW has
