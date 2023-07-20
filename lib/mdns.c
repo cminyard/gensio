@@ -3359,7 +3359,7 @@ gensio_mdnslib_start(struct gensio_mdns *m)
 	DNSServiceRefDeallocate(m->dnssd_sref);
     if (m->lock)
 	o->free_lock(m->lock);
-    return 0;
+    return err;
 }
 
 static void
