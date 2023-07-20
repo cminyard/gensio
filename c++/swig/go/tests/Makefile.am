@@ -52,6 +52,7 @@ if BUILTIN_IPMISOL
 MORE_LIBS += $(OPENIPMI_LIBS)
 endif
 export CXX
+export CC
 export CGO_CXXFLAGS = $(CXXFLAGS) $(AM_CXXFLAGS) \
 	-I$(top_srcdir)/c++/swig/include
 export CGO_CPPFLAGS = $(CPPFLAGS) -I$(top_srcdir)/c++/swig/include
