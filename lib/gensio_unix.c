@@ -1847,7 +1847,7 @@ check_for_sigpending(sigset_t *check_for)
     for (sig = 0; sig < NSIG; sig++) {
 	if (sigismember(&pending, sig) && sigismember(check_for, sig)) {
 	    rsig = sig;
-	    sigwait(&check_for, &sig);
+	    sigwait(check_for, &sig);
 	    break;
 	}
     }
