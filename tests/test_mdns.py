@@ -104,7 +104,7 @@ e = mdns_handler()
 print("  Free close")
 mdns = gensio.mdns(utils.o)
 watch = mdns.add_watch(-1, gensio.GENSIO_NETTYPE_UNSPEC,
-                       None, None, None, None, e)
+                       None, "_asdf._tcp", None, None, e)
 watch.close(c)
 if c.wait() == 0:
     raise Exception("Didn't get close in time")
@@ -124,7 +124,7 @@ del mdns
 print("  Watch free close")
 mdns = gensio.mdns(utils.o)
 watch = mdns.add_watch(-1, gensio.GENSIO_NETTYPE_UNSPEC,
-                       None, None, None, None, e)
+                       None, "_asdf._tcp", None, None, e)
 watch.close(c)
 if c.wait() == 0:
     raise Exception("Didn't get close in time")
@@ -137,7 +137,7 @@ del mdns
 print("  Data check")
 mdns = gensio.mdns(utils.o)
 watch = mdns.add_watch(-1, gensio.GENSIO_NETTYPE_UNSPEC,
-                       "=gensiotest_service", '%_gensiotest\..*', None, None, e)
+                       "%.*test_serv.*", '=_gensiotest._tcp', None, None, e)
 e.check = { "name" : "gensiotest_service",
             "type" : '_gensiotest._tcp',
             "port" : 5000,
@@ -150,8 +150,8 @@ if e.wait() == 0:
 if e.check is not None:
     raise Exception("Didn't get right data")
 
-utils.TestAccept(utils.o, "mdns,gensiotest_service", "tcp,5000",
-                 utils.do_small_test, chunksize = 64, get_port=False)
+utils.TestAccept(utils.o, "mdns(type=_gensiotest._tcp),gensiotest_service",
+                 "tcp,5000", utils.do_small_test, chunksize = 64, get_port=False)
 
 del mdns
 del watch
