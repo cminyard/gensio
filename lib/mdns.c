@@ -2687,11 +2687,18 @@ gensio_mdnslib_add_watch(struct gensio_mdns_watch *w)
     struct gensio_mdns *m = w->m;
     DNSServiceErrorType derr;
     uint32_t sinterface;
+    char *typestr = w->typestr;
     int err;
 
-    if (!w->typestr) {
+    if (!typestr) {
 	gensio_mdns_log(m, GENSIO_LOG_ERR,
 			"Attempt to add a watch with mdnssd without type");
+	return GE_INCONSISTENT;
+    } else if (*typestr == '=') {
+	typestr++; /* Skip the leading '='. */
+    } else if (*typestr == '@' || *typestr == '%') {
+	gensio_mdns_log(m, GENSIO_LOG_ERR,
+	   "Attempt to add a watch with DNSSD with a glob or regex type");
 	return GE_INCONSISTENT;
     }
 
@@ -2701,7 +2708,7 @@ gensio_mdnslib_add_watch(struct gensio_mdns_watch *w)
 
     w->dnssd_sref = m->dnssd_sref;
     derr = DNSServiceBrowse(&w->dnssd_sref, kDNSServiceFlagsShareConnection,
-			    sinterface, w->typestr, w->domainstr,
+			    sinterface, typestr, w->domainstr,
 			    dnssd_watch_callback, w);
     if (derr) {
 	err = dnssd_err_to_err(m, derr);
@@ -3038,21 +3045,28 @@ gensio_mdnslib_add_watch(struct gensio_mdns_watch *w)
     DNS_SERVICE_BROWSE_REQUEST breq;
     DNS_STATUS rv;
     char *tname = NULL;
+    char *typestr = w->typestr;
     wchar_t *qname;
     int err;
 
     if (w->ifinterface == 0)
 	return GE_INVAL;
 
-    if (!w->typestr) {
+    if (!typestr) {
 	gensio_mdns_log(m, GENSIO_LOG_ERR,
 			"Attempt to add a watch with Windows MDNS without type");
+	return GE_INCONSISTENT;
+    } else if (*typestr == '=') {
+	typestr++; /* Skip the leading '='. */
+    } else if (*typestr == '@' || *typestr == '%') {
+	gensio_mdns_log(m, GENSIO_LOG_ERR,
+	   "Attempt to add a watch with Windows MDNS with a glob or regex type");
 	return GE_INCONSISTENT;
     }
 
     memset(&breq, 0, sizeof(breq));
 
-    tname = gensio_alloc_sprintf(o, "%s.local", w->typestr);
+    tname = gensio_alloc_sprintf(o, "%s.local", typestr);
     if (!tname)
 	return GE_NOMEM;
 
