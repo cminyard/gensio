@@ -867,6 +867,11 @@ handle_term(void *info)
     gensio_os_funcs_unlock(g->o, g->lock);
 }
 
+static void
+handle_reload(void *info)
+{
+}
+
 static int
 io_acc_event(struct gensio_accepter *accepter, void *user_data,
 	     int event, void *data)
@@ -1259,6 +1264,7 @@ main(int argc, char *argv[])
     rv = gensio_os_proc_register_term_handler(proc_data, handle_term, &g);
     if (rv)
 	handle_term(&g);
+    gensio_os_proc_register_reload_handler(proc_data, handle_reload, &g);
 
     gensio_os_funcs_wait(g.o, g.waiter, 1, NULL);
 

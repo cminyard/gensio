@@ -61,6 +61,9 @@ const char *gensio_get_progname(void)
 #include <net/if.h>
 #include <limits.h>
 #include <dlfcn.h>
+#if USE_OPENPTY
+#include <util.h>
+#endif
 
 #if USE_GGL_INT
 #define GID_CAST (int *)
@@ -3247,18 +3250,36 @@ gensio_unix_do_exec(struct gensio_os_funcs *o,
 }
 
 int
-gensio_unix_pty_alloc(struct gensio_os_funcs *o, int *rfd)
+gensio_unix_pty_alloc(struct gensio_os_funcs *o, int *rfd, int *rsfd)
 {
-    int fd = posix_openpt(O_RDWR | O_NOCTTY);
+#if USE_OPENPTY
+    int fd;
+    int sfd = -1;
+
+    if (openpty(&fd, &sfd, NULL, NULL, NULL) == -1)
+	return gensio_os_err_to_err(o, errno);
+#else
+    int fd = posix_openpt(O_RDWR | O_NOCTTY), sfd = -1;
     if (fd == -1)
 	return gensio_os_err_to_err(o, errno);
+#endif
+
+    /* Set the owner of the slave PT. */
+    if (grantpt(fd) < 0) {
+	close(fd);
+	if (sfd != -1)
+	    close(sfd);
+	return gensio_os_err_to_err(o, errno);
+    };
+
     *rfd = fd;
+    *rsfd = sfd;
     return 0;
 }
 
 int
 gensio_unix_pty_start(struct gensio_os_funcs *o,
-		      int pfd, const char **argv, const char **env,
+		      int pfd, int *psfd, const char **argv, const char **env,
 		      const char *start_dir, pid_t *rpid)
 {
     const char *pgm;
@@ -3284,10 +3305,6 @@ gensio_unix_pty_start(struct gensio_os_funcs *o,
 	int i, openfiles = sysconf(_SC_OPEN_MAX);
 	int fd;
 
-	/* Set the owner of the slave PT. */
-	if (grantpt(pfd) < 0)
-	    exit(1);
-
 	if (start_dir) {
 	    if (chdir(start_dir)) {
 		fprintf(stderr, "pty fork: chdir to %s failed: %s",
@@ -3302,11 +3319,15 @@ gensio_unix_pty_start(struct gensio_os_funcs *o,
 	    exit(1);
 	}
 
-	fd = open(slave, O_RDWR);
-	if (fd == -1) {
-	    fprintf(stderr, "pty fork: failed to open slave terminal: %s\r\n",
-		    strerror(errno));
-	    exit(1);
+	if (*psfd == -1) {
+	    fd = open(slave, O_RDWR);
+	    if (fd == -1) {
+		fprintf(stderr, "pty fork: failed to open slave terminal: %s\r\n",
+			strerror(errno));
+		exit(1);
+	    }
+	} else {
+	    fd = *psfd;
 	}
 
 #if defined(TIOCSCTTY) && !defined(linux)
@@ -3361,6 +3382,10 @@ gensio_unix_pty_start(struct gensio_os_funcs *o,
 	fprintf(stderr, "Unable to exec %s: %s\r\n", argv[0],
 		strerror(errno));
 	exit(1); /* Only reached on error. */
+    }
+    if (*psfd != -1) {
+	close(*psfd);
+	*psfd = -1;
     }
  skip_child:
     *rpid = pid;

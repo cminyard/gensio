@@ -44,6 +44,12 @@ system_type=unix
 # macos defines git_t, but getgrouplist() takes int*
 USE_GGL_INT=0
 
+# posix_openpt doesn't work like what we want on macos.  You have to
+# open the client before you can set the file descriptor non-blocking,
+# which is a fairly annoying thing.  See
+# https://developer.apple.com/forums/thread/734230 for details.
+USE_OPENPTY=0
+
 case $target_os in
 	mingw*)
 		OSH_LIBS="$OSH_LIBS -lws2_32 -liphlpapi -lgdi32 -lbcrypt"
@@ -66,6 +72,7 @@ case $target_os in
 		broken_pselect=yes
 		uucp_locking_flag=no
 		USE_GGL_INT=1
+		USE_OPENPTY=1
 		;;
 	*bsd* | *BSD*)
 		OSH_LIBS="$OSH_LIBS -ldl"
@@ -79,7 +86,11 @@ esac
 AC_DEFINE_UNQUOTED([USE_GGL_INT], [$USE_GGL_INT],
 	[Set to 1 to use gid_t, 0 to use int for groups])
 AM_CONDITIONAL([HAVE_GGL_INT], [test ${HAVE_GGL_INT} = 1])
-AC_SUBST(USG_GGL_INT)
+AC_SUBST(USE_GGL_INT)
+AC_DEFINE_UNQUOTED([USE_OPENPTY], [$USE_OPENPTY],
+	[Set to 1 to use openpty, 0 to use posix_openpt])
+AM_CONDITIONAL([USE_OPENPTY], [test ${USE_OPENPTY} = 1])
+AC_SUBST(USE_OPENPTY)
 
 if test "$version_type" = "windows"; then
     # LN_S gets set to "cp -pR", which just doesn't work.  MinGW has

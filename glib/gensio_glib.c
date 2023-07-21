@@ -162,6 +162,7 @@ struct gensio_iod_glib {
 
     int orig_fd;
     int fd;
+    int sfd;
     enum gensio_iod_type type;
     void *sockinfo;
     bool handlers_set;
@@ -1102,6 +1103,7 @@ gensio_glib_add_iod(struct gensio_os_funcs *o, enum gensio_iod_type type,
     bool closefd = false;
     int err = GE_NOMEM;
     intptr_t fd = ofd;
+    int sfd = -1;
 
 #ifndef _WIN32
     if (type == GENSIO_IOD_CONSOLE) {
@@ -1116,7 +1118,7 @@ gensio_glib_add_iod(struct gensio_os_funcs *o, enum gensio_iod_type type,
 	closefd = true;
     } else if (type == GENSIO_IOD_PTY) {
 	int ufd;
-	err = gensio_unix_pty_alloc(o, &ufd);
+	err = gensio_unix_pty_alloc(o, &ufd, &sfd);
 	if (err)
 	    return err;
 	fd = ufd;
@@ -1133,6 +1135,7 @@ gensio_glib_add_iod(struct gensio_os_funcs *o, enum gensio_iod_type type,
     iod->r.f = o;
     iod->fd = fd;
     iod->orig_fd = ofd;
+    iod->sfd = sfd;
     if (type == GENSIO_IOD_STDIO) {
 #ifndef _WIN32
 	struct stat statb;
@@ -1196,8 +1199,11 @@ gensio_glib_add_iod(struct gensio_os_funcs *o, enum gensio_iod_type type,
 
  out_err:
     o->free(o, iod);
-    if (closefd)
+    if (closefd) {
 	close(fd);
+	if (sfd != -1)
+	    close(sfd);
+    }
     return err;
 }
 
@@ -1277,7 +1283,7 @@ gensio_glib_pty_control(struct gensio_iod_glib *iod, int op, bool get,
 #ifdef _WIN32
 	return GE_NOTSUP;
 #else
-	return gensio_unix_pty_start(o, iod->fd, iod->argv,
+	return gensio_unix_pty_start(o, iod->fd, &iod->sfd, iod->argv,
 				     iod->env, iod->start_dir, &iod->pid);
 #endif
 
@@ -1424,6 +1430,7 @@ gensio_glib_close(struct gensio_iod **iodp)
 #else
 	if (iod->fd != -1) {
 	    err = close(iod->fd);
+	    iod->fd = -1;
 	    if (err == -1)
 		err = gensio_os_err_to_err(o, errno);
 #endif
@@ -1431,6 +1438,10 @@ gensio_glib_close(struct gensio_iod **iodp)
 	/* Close should never fail, but don't crash in production builds. */
 	    assert(err == 0);
 #endif
+	}
+	if (iod->sfd != -1) {
+	    err = close(iod->sfd);
+	    iod->sfd = -1;
 	}
     }
     o->release_iod(iiod);

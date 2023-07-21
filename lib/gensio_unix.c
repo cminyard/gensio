@@ -389,6 +389,7 @@ struct gensio_iod_unix {
     struct gensio_iod r;
     int orig_fd;
     int fd;
+    int sfd;
     enum gensio_iod_type type;
     bool handlers_set;
     bool is_stdio;
@@ -1029,7 +1030,7 @@ gensio_unix_add_iod(struct gensio_os_funcs *o, enum gensio_iod_type type,
 {
     struct gensio_iod_unix *iod = NULL;
     bool closefd = false;
-    int err = GE_NOMEM, fd = ofd;
+    int err = GE_NOMEM, fd = ofd, sfd = -1;
 
     if (type >= NR_GENSIO_IOD_TYPES)
 	return GE_INVAL;
@@ -1045,7 +1046,7 @@ gensio_unix_add_iod(struct gensio_os_funcs *o, enum gensio_iod_type type,
 	    return gensio_os_err_to_err(o, errno);
 	closefd = true;
     } else if (type == GENSIO_IOD_PTY) {
-	err = gensio_unix_pty_alloc(o, &fd);
+      err = gensio_unix_pty_alloc(o, &fd, &sfd);
 	if (err)
 	    return err;
 	closefd = true;
@@ -1058,6 +1059,7 @@ gensio_unix_add_iod(struct gensio_os_funcs *o, enum gensio_iod_type type,
     }
     iod->r.f = o;
     iod->fd = fd;
+    iod->sfd = sfd;
     iod->orig_fd = ofd;
     if (type == GENSIO_IOD_STDIO) {
 	struct stat statb;
@@ -1100,8 +1102,11 @@ gensio_unix_add_iod(struct gensio_os_funcs *o, enum gensio_iod_type type,
  out_err:
     if (iod)
 	o->free(o, iod);
-    else if (closefd)
+    else if (closefd) {
 	close(fd);
+	if (sfd == -1)
+	    close(sfd);
+    }
     return err;
 }
 
@@ -1235,6 +1240,10 @@ gensio_unix_close(struct gensio_iod **iodp)
 	/* Close should never fail, but don't crash in production builds. */
 	assert(err == 0);
 #endif
+    }
+    if (iod->sfd != -1) {
+	close(iod->sfd);
+	iod->sfd = -1;
     }
     o->release_iod(iiod);
     *iodp = NULL;
@@ -1429,7 +1438,7 @@ gensio_unix_pty_control(struct gensio_iod_unix *iod, int op, bool get,
 	return 0;
 
     case GENSIO_IOD_CONTROL_START:
-	return gensio_unix_pty_start(o, iod->fd, iod->u.pty.argv,
+	return gensio_unix_pty_start(o, iod->fd, &iod->sfd, iod->u.pty.argv,
 				     iod->u.pty.env, iod->u.pty.start_dir,
 				     &iod->u.pty.pid);
 

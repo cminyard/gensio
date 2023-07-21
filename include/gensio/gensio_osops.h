@@ -224,11 +224,11 @@ GENSIOOSH_DLL_PUBLIC
 int gensio_unix_os_setupnewprog(void);
 
 GENSIOOSH_DLL_PUBLIC
-int gensio_unix_pty_alloc(struct gensio_os_funcs *o, int *rfd);
+int gensio_unix_pty_alloc(struct gensio_os_funcs *o, int *rfd, int *srfd);
 
 GENSIOOSH_DLL_PUBLIC
 int gensio_unix_pty_start(struct gensio_os_funcs *o,
-			  int pfd, const char **argv, const char **env,
+			  int pfd, int *psfd, const char **argv, const char **env,
 			  const char *start_dir, pid_t *rpid);
 
 #endif /* _WIN32 */

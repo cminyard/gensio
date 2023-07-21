@@ -129,6 +129,7 @@ struct gensio_iod_tcl {
 
     int orig_fd;
     int fd;
+    int sfd;
     enum gensio_iod_type type;
     void *sockinfo;
     bool handlers_set;
@@ -885,7 +886,7 @@ gensio_tcl_add_iod(struct gensio_os_funcs *o, enum gensio_iod_type type,
 {
     struct gensio_iod_tcl *iod = NULL;
     bool closefd = false;
-    int err = GE_NOMEM, fd = ofd;
+    int err = GE_NOMEM, fd = ofd, sfd = -1;
 
     if (type == GENSIO_IOD_CONSOLE) {
        if (fd == 0)
@@ -898,7 +899,7 @@ gensio_tcl_add_iod(struct gensio_os_funcs *o, enum gensio_iod_type type,
            return gensio_os_err_to_err(o, errno);
        closefd = true;
     } else if (type == GENSIO_IOD_PTY) {
-	err = gensio_unix_pty_alloc(o, &fd);
+	err = gensio_unix_pty_alloc(o, &fd, &sfd);
 	if (err)
 	    return err;
 	closefd = true;
@@ -912,6 +913,7 @@ gensio_tcl_add_iod(struct gensio_os_funcs *o, enum gensio_iod_type type,
 
     iod->r.f = o;
     iod->fd = fd;
+    iod->sfd = sfd;
     iod->orig_fd = ofd;
     if (type == GENSIO_IOD_STDIO) {
 	struct stat statb;
@@ -949,8 +951,11 @@ gensio_tcl_add_iod(struct gensio_os_funcs *o, enum gensio_iod_type type,
  out_err:
     if (iod)
 	o->free(o, iod);
-    else if (closefd)
+    else if (closefd) {
 	close(fd);
+	if (sfd != -1)
+	    close(sfd);
+    }
     return err;
 }
 
@@ -1027,7 +1032,7 @@ gensio_tcl_pty_control(struct gensio_iod_tcl *iod, int op, bool get,
 	return 0;
 
     case GENSIO_IOD_CONTROL_START:
-	return gensio_unix_pty_start(o, iod->fd, iod->argv,
+	return gensio_unix_pty_start(o, iod->fd, &iod->sfd, iod->argv,
 				     iod->env, iod->start_dir, &iod->pid);
 
     case GENSIO_IOD_CONTROL_STOP:
@@ -1146,6 +1151,10 @@ gensio_tcl_close(struct gensio_iod **iodp)
 	/* Close should never fail, but don't crash in production builds. */
 	    assert(err == 0);
 #endif
+	    if (iod->sfd != -1) {
+		close(iod->sfd);
+		iod->sfd = -1;
+	    }
 	}
     }
     o->release_iod(iiod);
