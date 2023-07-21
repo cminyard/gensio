@@ -21,6 +21,8 @@ jobs:
           brew install libtool
           brew install autoconf
           brew install automake
+          brew install swig
+          brew install openssl
       - name: Configure
         run: |
           mkdir $INSTALLPREFIX
