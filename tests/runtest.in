@@ -34,7 +34,6 @@ fi
 TEST=$1
 shift
 
-RUNPREFIX=""
 if [ -e "${TEST_BUILDDIR}/${TEST}" ]; then
     TEST="${TEST_BUILDDIR}/${TEST}"
 elif [ -e "${TEST_SRCDIR}/${TEST}" ]; then
@@ -54,12 +53,6 @@ fi
 
 if ${PYTHON_MODE}; then
     export PYTHONPATH=${BUILDDIR}/swig/python:${BUILDDIR}/swig/python/.libs:${BUILDDIR}/glib/swig/python:${BUILDDIR}/glib/swig/python/.libs:${BUILDDIR}/tcl/swig/python:${BUILDDIR}/tcl/swig/python/.libs:${TEST_BUILDDIR}
-    # We need to put the DLL in PATH for MSYS on Windows
-    if [ ! -z "$MSYSTEM" ]; then
-	export PATH=${BUILDDIR}/lib:${BUILDDIR}/lib/.libs:$PATH:${BUILDDIR}/swig/python/.libs:${BUILDDIR}/glib/.libs::${BUILDDIR}/tcl/.libs
-    else
-	export LD_LIBRARY_PATH=${BUILDDIR}/lib:${BUILDDIR}/lib/.libs:${BUILDDIR}/swig/python/.libs:${BUILDDIR}/glib/.libs::${BUILDDIR}/tcl/.libs
-    fi
     TEST="${PYTHON} ${TEST}"
     export GENSIO_MEMTRACK=abort
 else
@@ -69,6 +62,16 @@ else
     fi
 fi
 
+# We need to put the DLL in PATH for MSYS on Windows
+if [ ! -z "$MSYSTEM" ]; then
+    export PATH=${BUILDDIR}/lib:${BUILDDIR}/lib/.libs:$PATH:${BUILDDIR}/glib/.libs:${BUILDDIR}/tcl/.libs:${BUILDDIR}/swig/python/.libs
+else
+    export LD_LIBRARY_PATH=${BUILDDIR}/lib:${BUILDDIR}/lib/.libs:${BUILDDIR}/glib/.libs:${BUILDDIR}/tcl/.libs:${BUILDDIR}/swig/python/.libs
+fi
+if test `uname` = Darwin; then
+    TEST="DYLD_LIBRARY_PATH=${LD_LIBRARY_PATH} ${TEST}"
+fi
+
 if ${PRINT_MODE}; then
     echo export PYTHONPATH="${PYTHONPATH}"
     if [ ! -z "$MSYSTEM" ]; then
@@ -76,13 +79,13 @@ if ${PRINT_MODE}; then
     else
 	echo export LD_LIBRARY_PATH="${LD_LIBRARY_PATH}"
     fi
-    echo ${RUNPREFIX} ${TEST} $*
+    echo ${TEST} $*
 else
     # Run the test with each available OS handler
     for i in default @TCL_DIR@ @GLIB_DIR@; do
 	echo "Testing with '$i'"
 	export GENSIO_TEST_OS_HANDLER=$i
-	${RUNPREFIX} ${TEST} $*
+	eval "${TEST} $*"
 	rv=$?
 	if test $rv != 0; then
 	    # Test failed

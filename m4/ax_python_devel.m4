@@ -413,7 +413,7 @@ print(sitedir)"`
 			conf = sysconfig.get_config_var; \
 			print (conf('LINKFORSHARED'))"`
 		# Hack for macos, it sticks this in here.
-		PYTHON_EXTRA_LDFLAGS=`echo $PYTHON_EXTRA_LDFLAGS | sed 's/Python.framework.*Python'//`
+		PYTHON_EXTRA_LDFLAGS=`echo $PYTHON_EXTRA_LDFLAGS | sed 's/CoreFoundation.*$/CoreFoundation/`
 	   fi
 	   AC_MSG_RESULT([$PYTHON_EXTRA_LDFLAGS])
 	   AC_SUBST(PYTHON_EXTRA_LDFLAGS)

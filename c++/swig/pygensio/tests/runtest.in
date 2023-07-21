@@ -34,7 +34,6 @@ fi
 TEST=$1
 shift
 
-RUNPREFIX=""
 if [ -e "${TEST_BUILDDIR}/${TEST}" ]; then
     TEST="${TEST_BUILDDIR}/${TEST}"
 elif [ -e "${TEST_SRCDIR}/${TEST}" ]; then
@@ -54,12 +53,6 @@ fi
 
 if ${PYTHON_MODE}; then
     export PYTHONPATH=${BUILDDIR}/tests:${BUILDDIR}/c++/swig/pygensio:${BUILDDIR}/c++/swig/pygensio/.libs:${SRCDIR}/c++/swig/pygensio/test:${BUILDDIR}/glib/c++/swig/pygensio:${BUILDDIR}/glib/c++/swig/pygensio/.libs:${BUILDDIR}/tcl/c++/swig/pygensio:${BUILDDIR}/tcl/c++/swig/pygensio/.libs:${TEST_BUILDDIR}
-    # We need to put the DLL in PATH for MSYS on Windows
-    if [ ! -z "$MSYSTEM" ]; then
-	export PATH=${BUILDDIR}/lib:${BUILDDIR}/lib/.libs:$PATH:${BUILDDIR}/c++/swig/python/.libs:${BUILDDIR}/glib/.libs:${BUILDDIR}/glib/c++/swig/pygensio/.libs:${BUILDDIR}/tcl/.libs:${BUILDDIR}/tcl/c++/swig/pygensio/.libs
-    else
-	export LD_LIBRARY_PATH=${BUILDDIR}/lib:${BUILDDIR}/lib/.libs:${BUILDDIR}/c++/swig/python/.libs:${BUILDDIR}/glib/.libs:${BUILDDIR}/glib/c++/pygensio/.libs:${BUILDDIR}/tcl/.libs:${BUILDDIR}/tcl/c++/pygensio/.libs
-    fi
     TEST="${PYTHON} ${TEST}"
     export GENSIO_MEMTRACK=abort
 else
@@ -69,20 +62,30 @@ else
     fi
 fi
 
+# We need to put the DLL in PATH for MSYS on Windows
+if [ ! -z "$MSYSTEM" ]; then
+    export PATH=${BUILDDIR}/lib:${BUILDDIR}/lib/.libs:$PATH:${BUILDDIR}/c++/swig/python/.libs:${BUILDDIR}/glib/.libs:${BUILDDIR}/glib/c++/swig/pygensio/.libs:${BUILDDIR}/tcl/.libs:${BUILDDIR}/tcl/c++/swig/pygensio/.libs
+else
+    export LD_LIBRARY_PATH=${BUILDDIR}/lib:${BUILDDIR}/lib/.libs:${BUILDDIR}/c++/swig/python/.libs:${BUILDDIR}/glib/.libs:${BUILDDIR}/glib/c++/pygensio/.libs:${BUILDDIR}/tcl/.libs:${BUILDDIR}/tcl/c++/pygensio/.libs:${BUILDDIR}/c++/lib/.libs
+fi
+if test `uname` = Darwin; then
+    TEST="DYLD_LIBRARY_PATH=${LD_LIBRARY_PATH} ${TEST}"
+fi
+
 if ${PRINT_MODE}; then
     echo export PYTHONPATH="${PYTHONPATH}"
     if [ ! -z "$MSYSTEM" ]; then
 	echo export PATH=${BUILDDIR}/lib:${BUILDDIR}/lib/.libs:\$PATH:${BUILDDIR}/c++/swig/python/.libs:${BUILDDIR}/glib/.libs:${BUILDDIR}/tcl/.libs
-    else
+    elif test `uname` != Darwin; then
 	echo export LD_LIBRARY_PATH="${LD_LIBRARY_PATH}"
     fi
-    echo ${RUNPREFIX} ${TEST} $*
+    echo ${TEST} $*
 else
     # Run the test with each available OS handler
     for i in default @TCL_DIR@ @GLIB_DIR@; do
 	echo "Testing with '$i'"
 	export GENSIO_TEST_OS_HANDLER=$i
-	${RUNPREFIX} ${TEST} $*
+	eval "${TEST} $*"
 	rv=$?
 	if test $rv != 0; then
 	    # A test failed, exit
