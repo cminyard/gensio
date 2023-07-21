@@ -1020,10 +1020,10 @@ gensio_stdsock_recvfrom(struct gensio_iod *iod,
 		}
 	    }
 	}
-	gensio_addr_rewind(addr);
 #endif
     }
 #endif
+    gensio_addr_rewind(addr);
     if (!err && rcount)
 	*rcount = rv;
     return gensio_os_err_to_err(o, err);
