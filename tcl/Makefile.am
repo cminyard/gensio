@@ -6,8 +6,7 @@ lib_LTLIBRARIES = libgensiotcl.la
 
 libgensiotcl_la_SOURCES = gensio_tcl.c
 libgensiotcl_la_CFLAGS = $(TCL_CFLAGS) $(AM_CFLAGS)
-libgensiotcl_la_LIBADD = $(top_builddir)/lib/libgensio.la @OPENSSL_LIBS@ \
-	@TCL_LIBS@
+libgensiotcl_la_LIBADD = $(top_builddir)/lib/libgensio.la @TCL_LIBS@
 libgensiotcl_la_LDFLAGS = -no-undefined -rpath $(libdir) \
 	-version-info $(GENSIO_LIB_VERSION) -fvisibility=hidden
 

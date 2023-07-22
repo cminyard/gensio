@@ -21,10 +21,10 @@ greflector: $(top_builddir)/tests/reflector.py
 do_subst = sed -e 's,[@]SYSCONFDIR[@],$(sysconfdir),g'
 
 gtlssh_keygen_SOURCES = gtlssh-keygen.c
-
+gtlssh_keygen_CPPFLAGS = @OPENSSL_INCLUDES@
 gtlssh_keygen_LDADD = libgtlssh.a libgensiotool.a \
 	$(top_builddir)/lib/libgensioosh.la $(top_builddir)/lib/libgensio.la \
-	@OPENSSL_LIBS@
+	@OPENSSL_LDFLAGS@ @OPENSSL_LIBS@
 
 libgensiotool_a_SOURCES = ioinfo.c ser_ioinfo.c utils.c localports.c
 
@@ -37,19 +37,22 @@ gmdns_LDADD = libgtlssh.a libgensiotool.a $(top_builddir)/lib/libgensioosh.la \
 	$(top_builddir)/lib/libgensio.la $(top_builddir)/lib/libgensiomdns.la
 
 gensiot_SOURCES = gensiotool.c
+gensiot_CPPFLAGS = @OPENSSL_INCLUDES@
 gensiot_LDADD = libgensiotool.a $(top_builddir)/lib/libgensioosh.la \
 	$(top_builddir)/lib/libgensio.la \
-	@GLIB_LIB@ @GLIB_LIBS@ @TCL_LIB@ @TCL_LIBS@ @OPENSSL_LIBS@
+	@GLIB_LIB@ @GLIB_LIBS@ @TCL_LIB@ @TCL_LIBS@ @OPENSSL_LDFLAGS@ @OPENSSL_LIBS@
 
 gtlssh_SOURCES = gtlssh.c
+gtlssh_CPPFLAGS = @OPENSSL_INCLUDES@
 gtlssh_LDADD = libgtlssh.a libgensiotool.a $(top_builddir)/lib/libgensioosh.la \
 	$(top_builddir)/lib/libgensio.la \
-	$(top_builddir)/lib/libgensiomdns.la @OPENSSL_LIBS@
+	$(top_builddir)/lib/libgensiomdns.la @OPENSSL_LDFLAGS@ @OPENSSL_LIBS@
 
 gtlsshd_SOURCES = gtlsshd.c
+gtlsshd_CPPFLAGS = @OPENSSL_INCLUDES@
 gtlsshd_LDADD = libgtlssh.a libgensiotool.a $(top_builddir)/lib/libgensioosh.la\
 	$(top_builddir)/lib/libgensio.la \
-	@PAMLIB@ @OPENSSL_LIBS@
+	@PAMLIB@ @OPENSSL_LDFLAGS@ @OPENSSL_LIBS@
 
 gtlsshd.service: ${srcdir}/gtlsshd.service.in
 	sed "s%@gtlsshdbindir@%${sbindir}%" $< >$@

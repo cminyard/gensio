@@ -35,7 +35,7 @@ TESTS = $(PYTESTS) $(OOMTESTS)
 oomtest_SOURCES = oomtest.c
 
 oomtest_LDADD = $(top_builddir)/lib/libgensioosh.la \
-	$(top_builddir)/lib/libgensio.la $(OPENSSL_LIBS) \
+	$(top_builddir)/lib/libgensio.la \
 	@GLIB_LIB@ @GLIB_LIBS@ @TCL_LIB@ @TCL_LIBS@
 
 echotest_SOURCES = echotest.c
