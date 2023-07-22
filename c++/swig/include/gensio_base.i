@@ -222,6 +222,7 @@ using namespace gensios;
 %ignore gensios::MDNS_Service::~MDNS_Service;
 %delobject gensios::MDNS::free;
 %delobject gensios::MDNS_Watch::free;
+%delobject gensios::MDNS_Service::free;
 %ignore gensios::MDNS_Watch::raw_event_handler;
 %ignore gensios::MDNS_Service::raw_event_handler;
 %ignore gensios::Raw_MDNS_Event_Handler;
