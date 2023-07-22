@@ -10,15 +10,15 @@ PYTESTS = test_syncio.py \
 	test_unix_accept_connect.py test_echo_gensio.py test_echo_device.py \
 	test_serial_pipe_device.py test_accept_tcp.py test_accept_udp.py \
 	test_accept_sctp.py test_accept_ssl_tcp.py test_accept_certauth_tcp.py \
-	test_accept_mux_sctp.py test_telnet.py test_modemstate.py \
+	test_accept_mux_tcp.py test_telnet.py test_modemstate.py \
 	test_stdio_basic.py test_stdio_basic_stderr.py test_stdio_small.py \
 	test_tcp_small.py test_tcp_urgent.py test_pty_basic.py \
 	test_sctp_small.py test_sctp_streams.py test_sctp_oob.py \
 	test_telnet_small.py test_ipmisol_small.py test_ipmisol_large.py \
 	test_rs485.py test_tcp_accept_connect.py test_udp_accept_connect.py \
-	test_sctp_accept_connect.py test_telnet_sctp_accept_connect.py \
-	test_ssl_sctp_accept_connect.py test_certauth_sctp_accept_connect.py \
-	test_certauth_ssl_tcp_accept_connect.py test_mux_sctp_small.py \
+	test_sctp_accept_connect.py test_telnet_tcp_accept_connect.py \
+	test_ssl_tcp_accept_connect.py test_certauth_tcp_accept_connect.py \
+	test_certauth_ssl_tcp_accept_connect.py test_mux_tcp_small.py \
 	test_mux_tcp_large.py test_mux_limits.py test_mux_oob.py \
 	test_relpkt_basic.py test_relpkt_small.py test_relpkt_medium.py \
 	test_relpkt_large.py test_udp_nocon.py test_conacc.py test_mdns.py \

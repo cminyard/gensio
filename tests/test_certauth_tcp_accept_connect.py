@@ -8,15 +8,13 @@
 from utils import *
 import gensio
 
-check_sctp()
-
-print("Test certauth over ssl over sctp accepter connect")
+print("Test certauth over ssl over tcp accepter connect")
 goterr = False
 try:
     TestAcceptConnect(o,
-            "certauth(CA=%s/clientcert.pem),ssl(key=%s/key.pem,cert=%s/cert.pem),sctp,0" % (keydir, keydir, keydir),
-            "certauth(CA=%s/clientcert.pem),ssl(key=%s/key.pem,cert=%s/cert.pem),sctp,0" % (keydir, keydir, keydir),
-            "certauth(cert=%s/cert.pem,key=%s/key.pem,username=test1),ssl(CA=%s/CA.pem),sctp,localhost," % (keydir, keydir, keydir),
+            "certauth(CA=%s/clientcert.pem),ssl(key=%s/key.pem,cert=%s/cert.pem),tcp,0" % (keydir, keydir, keydir),
+            "certauth(CA=%s/clientcert.pem),ssl(key=%s/key.pem,cert=%s/cert.pem),tcp,0" % (keydir, keydir, keydir),
+            "certauth(cert=%s/cert.pem,key=%s/key.pem,username=test1),ssl(CA=%s/CA.pem),tcp,localhost," % (keydir, keydir, keydir),
                        do_small_test)
 except Exception as E:
     s = str(E)
@@ -31,9 +29,9 @@ if not goterr:
     raise Exception("Did not get error on invalid client certificate.")
 
 TestAcceptConnect(o,
-            "certauth(),ssl(key=%s/key.pem,cert=%s/cert.pem),sctp,0" % (keydir, keydir),
-            "certauth(),ssl(key=%s/key.pem,cert=%s/cert.pem),sctp,0" % (keydir, keydir),
-            "certauth(cert=%s/clientcert.pem,key=%s/clientkey.pem,username=test1),ssl(CA=%s/CA.pem),sctp,localhost," % (keydir, keydir, keydir),
+            "certauth(),ssl(key=%s/key.pem,cert=%s/cert.pem),tcp,0" % (keydir, keydir),
+            "certauth(),ssl(key=%s/key.pem,cert=%s/cert.pem),tcp,0" % (keydir, keydir),
+            "certauth(cert=%s/clientcert.pem,key=%s/clientkey.pem,username=test1),ssl(CA=%s/CA.pem),tcp,localhost," % (keydir, keydir, keydir),
                        do_small_test, CA="%s/clientcert.pem" % keydir)
 
 del o

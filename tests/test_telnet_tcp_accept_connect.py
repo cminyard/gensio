@@ -8,10 +8,8 @@
 from utils import *
 import gensio
 
-check_sctp()
-
-print("Test telnet over sctp accepter connect")
-TestAcceptConnect(o, "telnet,sctp,0", "telnet,sctp,0",
-                  "telnet,sctp,localhost,", do_small_test)
+print("Test telnet over tcp accepter connect")
+TestAcceptConnect(o, "telnet,tcp,0", "telnet,tcp,0",
+                  "telnet,tcp,localhost,", do_small_test)
 del o
 test_shutdown()
