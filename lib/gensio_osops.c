@@ -1222,7 +1222,6 @@ gensio_win_do_exec(struct gensio_os_funcs *o,
 {
     int rv = 0;
     char *cmdline, *envb = NULL;
-    SECURITY_ATTRIBUTES sattr;
     STARTUPINFOA suinfo;
     PROCESS_INFORMATION procinfo;
     HANDLE stdin_m = NULL, stdin_s = NULL;
@@ -1244,22 +1243,19 @@ gensio_win_do_exec(struct gensio_os_funcs *o,
 	}
     }
 
-    memset(&sattr, 0, sizeof(sattr));
     memset(&suinfo, 0, sizeof(suinfo));
     memset(&procinfo, 0, sizeof(procinfo));
 
-    sattr.nLength = sizeof(sattr);
-    sattr.bInheritHandle = TRUE;
-    sattr.lpSecurityDescriptor = NULL;
-
-    if (!CreatePipe(&stdin_s, &stdin_m, &sattr, 0))
+    if (!CreatePipe(&stdin_s, &stdin_m, NULL, 0))
 	goto out_err_conv;
-    if (!SetHandleInformation(stdin_m, HANDLE_FLAG_INHERIT, 0))
+    if (!SetHandleInformation(stdin_s, HANDLE_FLAG_INHERIT,
+			      HANDLE_FLAG_INHERIT))
 	goto out_err_conv;
 
-    if (!CreatePipe(&stdout_m, &stdout_s, &sattr, 0))
+    if (!CreatePipe(&stdout_m, &stdout_s, NULL, 0))
 	goto out_err_conv;
-    if (!SetHandleInformation(stdout_m, HANDLE_FLAG_INHERIT, 0))
+    if (!SetHandleInformation(stdout_s, HANDLE_FLAG_INHERIT,
+			      HANDLE_FLAG_INHERIT))
 	goto out_err_conv;
 
     if (flags & GENSIO_EXEC_STDERR_TO_STDOUT) {
@@ -1270,9 +1266,7 @@ gensio_win_do_exec(struct gensio_os_funcs *o,
 			     0, TRUE, DUPLICATE_SAME_ACCESS))
 	    goto out_err_conv;
     } else if (rerr) {
-	if (!CreatePipe(&stderr_m, &stderr_s, &sattr, 0))
-	    goto out_err_conv;
-	if (!SetHandleInformation(stderr_m, HANDLE_FLAG_INHERIT, 0))
+	if (!CreatePipe(&stderr_m, &stderr_s, NULL, 0))
 	    goto out_err_conv;
     } else {
 	if (!DuplicateHandle(GetCurrentProcess(),
@@ -1296,7 +1290,7 @@ gensio_win_do_exec(struct gensio_os_funcs *o,
 		       cmdline,
 		       NULL,
 		       NULL,
-		       FALSE,
+		       TRUE,
 		       NORMAL_PRIORITY_CLASS,
 		       envb,
 		       start_dir,
