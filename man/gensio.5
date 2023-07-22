@@ -1698,6 +1698,10 @@ By default the mdns gensio will attempt to use the "gensiostack" text
 string from the mDNS service.  If you don't want it to do this,
 setting this option will turn it off.
 .TP
+.B ignore-v6-link-local[=true|false]
+Ignore IPv6 link local addresses, ones starting with "fe80:".  They
+cause problems on some systems.
+.TP
 .B mdnstimeout=<gtime>
 Set the amount of time to wait for mdns to find the item.  See the
 "gtime" section for more info on how to set the time.  The default

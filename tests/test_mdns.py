@@ -150,7 +150,8 @@ if e.wait() == 0:
 if e.check is not None:
     raise Exception("Didn't get right data")
 
-utils.TestAccept(utils.o, "mdns(type=_gensiotest._tcp),gensiotest_service",
+utils.TestAccept(utils.o, "mdns(type=_gensiotest._tcp,ignore-v6-link-local)," +
+                          "gensiotest_service",
                  "tcp,5000", utils.do_small_test, chunksize = 64, get_port=False)
 
 del mdns

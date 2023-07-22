@@ -45,6 +45,7 @@ struct mdnsn_data {
     struct gensio *child;
 
     bool nostack;
+    bool ignore_v6_link_local;
     int interface;
     int nettype;
     char *name;
@@ -511,6 +512,16 @@ mdns_cb(struct gensio_mdns_watch *w,
 
     if (state == GENSIO_MDNS_WATCH_NEW_DATA) {
 	gensiods args = 0, argc = 0;
+	char buf[200];
+	gensiods len = 0;
+
+	if (ndata->ignore_v6_link_local) {
+	    err = gensio_addr_to_str(addr, buf, &len, sizeof(buf));
+	    if (err)
+		goto out_err;
+	    if (strncmp(buf, "ipv6,fe80:", 10) == 0)
+		goto out_unlock;
+	}
 
 	if (!ndata->nostack) {
 	    ndata->open_err = get_mdns_gensiostack(ndata, txt, addr, &stack);
@@ -832,6 +843,7 @@ mdns_gensio_alloc(const void *gdata, const char * const args[],
     char *laddr = NULL, *name = NULL, *type = NULL;
     char *domain = NULL, *host = NULL, *nettype_str = NULL;
     bool nodelay = false, readbuf_set = false, nodelay_set = false;
+    bool ignore_v6_link_local = false;
     const char *str;
     GENSIO_DECLARE_PPGENSIO(p, o, cb, "mdns", user_data);
 
@@ -840,6 +852,12 @@ mdns_gensio_alloc(const void *gdata, const char * const args[],
     if (err)
 	goto out_base_free;
     nostack = i;
+
+    err = gensio_get_default(o, type, "ignore-v6-link-local", false,
+			     GENSIO_DEFAULT_BOOL, NULL, &i);
+    if (err)
+	goto out_base_free;
+    ignore_v6_link_local = i;
 
     err = gensio_get_default(o, type, "interface", false,
 			     GENSIO_DEFAULT_INT, NULL, &interface);
@@ -906,6 +924,9 @@ mdns_gensio_alloc(const void *gdata, const char * const args[],
 	if (gensio_pparm_time(&p, args[i], "mdnstimeout", 'n', &timeout) > 0)
 	    continue;
 	if (gensio_pparm_bool(&p, args[i], "nostack", &nostack) > 0)
+	    continue;
+	if (gensio_pparm_bool(&p, args[i], "ignore-v6-link-local",
+			      &ignore_v6_link_local) > 0)
 	    continue;
 	if (gensio_pparm_value(&p, args[i], "laddr", &str) > 0) {
 	    if (laddr)
@@ -993,6 +1014,7 @@ mdns_gensio_alloc(const void *gdata, const char * const args[],
     if (err)
 	goto out_base_free;
 
+    ndata->ignore_v6_link_local = ignore_v6_link_local;
     ndata->readbuf_set = readbuf_set;
     ndata->nodelay_set = nodelay_set;
     ndata->laddr = laddr;

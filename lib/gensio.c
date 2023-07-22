@@ -2558,6 +2558,7 @@ struct gensio_def_entry builtin_defaults[] = {
     { "nettype",	GENSIO_DEFAULT_STR,	.def.strval = "unspec" },
     { "nostack",	GENSIO_DEFAULT_BOOL,	.def.intval = 0 },
     { "mdnstimeout",	GENSIO_DEFAULT_INT,	.def.intval = 1000 },
+    { "ignore-v6-link-local",GENSIO_DEFAULT_BOOL,.def.intval = 0 },
     { NULL }
 };
 
