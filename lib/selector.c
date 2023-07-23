@@ -181,8 +181,8 @@ typedef struct sel_wait_list_s
 
     /* The time when the thread is set to wake up. */
     struct timeval wake_time;
+    volatile struct timespec wait_time;
 #ifdef BROKEN_PSELECT
-    struct timespec *wait_time;
     bool signalled;
 #endif
     struct sel_wait_list_s *next, *prev;
@@ -287,8 +287,8 @@ i_wake_sel_thread(struct selector_s *sel, struct timeval *new_timeout)
 	{
 #ifdef BROKEN_PSELECT
 	    item->signalled = true;
-	    item->wait_time->tv_sec = 0;
-	    item->wait_time->tv_nsec = 0;
+	    item->wait_time.tv_sec = 0;
+	    item->wait_time.tv_nsec = 0;
 #endif
 	    item->send_sig(item->thread_id, item->send_sig_cb_data);
 	}
@@ -313,8 +313,8 @@ i_sel_wake_first(struct selector_s *sel)
     if (item->send_sig && item != &sel->wait_list) {
 #ifdef BROKEN_PSELECT
 	item->signalled = true;
-	item->wait_time->tv_sec = 0;
-	item->wait_time->tv_nsec = 0;
+	item->wait_time.tv_sec = 0;
+	item->wait_time.tv_nsec = 0;
 #endif
 	item->send_sig(item->thread_id, item->send_sig_cb_data);
     }
@@ -335,8 +335,8 @@ sel_wake_one(struct selector_s *sel, long thread_id, sel_send_sig_cb killer,
     while (item != &sel->wait_list) {
 	if (thread_id == item->thread_id) {
 	    item->signalled = true;
-	    item->wait_time->tv_sec = 0;
-	    item->wait_time->tv_nsec = 0;
+	    item->wait_time.tv_sec = 0;
+	    item->wait_time.tv_nsec = 0;
 	    break;
 	}
 	item = item->next;
@@ -363,14 +363,13 @@ add_sel_wait_list(struct selector_s *sel, sel_wait_list_t *item,
 		  sel_send_sig_cb send_sig,
 		  void            *cb_data,
 		  long thread_id,
-		  struct timeval *wake_time, struct timespec *wait_time)
+		  struct timeval *wake_time)
 {
     item->thread_id = thread_id;
     item->send_sig = send_sig;
     item->send_sig_cb_data = cb_data;
     item->wake_time = *wake_time;
 #ifdef BROKEN_PSELECT
-    item->wait_time = wait_time;
     item->signalled = false;
 #endif
     item->next = sel->wait_list.next;
@@ -1160,8 +1159,8 @@ setup_my_sigmask(sigset_t *sigmask, sigset_t *isigmask)
  * 	  <  0  when error
  */
 static int
-process_fds(struct selector_s	    *sel,
-	    volatile struct timespec *timeout,
+process_fds(struct selector_s *sel,
+	    sel_wait_list_t *item,
 	    sigset_t *isigmask)
 {
     fd_set      tmp_read_set;
@@ -1188,7 +1187,7 @@ process_fds(struct selector_s	    *sel,
 		  &tmp_read_set,
 		  &tmp_write_set,
 		  &tmp_except_set,
-		  (struct timespec *) timeout, &sigmask);
+		  (struct timespec *) &item->wait_time, &sigmask);
     if (err < 0) {
 	if (errno == EBADF || errno == EBADFD)
 	    /* We raced, just retry it. */
@@ -1221,7 +1220,7 @@ process_fds(struct selector_s	    *sel,
     }
  out_unlock:
     sel_fd_unlock(sel);
-out:
+ out:
     return err;
 }
 
@@ -1341,7 +1340,6 @@ sel_select_intr_sigmask(struct selector_s *sel,
 {
     int             err = 0, old_errno;
     struct timeval  wake_time, tmp_timeout;
-    struct timespec loc_timeout;
     sel_wait_list_t wait_entry;
     unsigned int    count;
     struct timeval  end = { 0, 0 }, now;
@@ -1365,30 +1363,34 @@ sel_select_intr_sigmask(struct selector_s *sel,
 	    }
 	}
 
-	loc_timeout.tv_sec = tmp_timeout.tv_sec;
-	loc_timeout.tv_nsec = tmp_timeout.tv_usec * 1000;
+	memset(&wait_entry, 0, sizeof(wait_entry));
+
+	wait_entry.wait_time.tv_sec = tmp_timeout.tv_sec;
+	wait_entry.wait_time.tv_nsec = tmp_timeout.tv_usec * 1000;
 
 	add_sel_wait_list(sel, &wait_entry, send_sig, cb_data, thread_id,
-			  &wake_time, &loc_timeout);
+			  &wake_time);
 	sel_timer_unlock(sel);
 
 #ifdef HAVE_EPOLL_PWAIT
 	if (sel->epollfd >= 0)
-	    err = process_fds_epoll(sel, &loc_timeout, sigmask);
+	    err = process_fds_epoll(sel,
+				    (struct timespec *) &wait_entry.wait_time,
+				    sigmask);
 	else
 #endif
-	    err = process_fds(sel, &loc_timeout, sigmask);
+	    err = process_fds(sel, &wait_entry, sigmask);
 
 	old_errno = errno;
 
 	sel_timer_lock(sel);
-	if (err == 0) {
 #ifdef BROKEN_PSELECT
-	    if (wait_entry.signalled) {
-		err = -1;
-		old_errno = EINTR;
-	    } else
+	if (wait_entry.signalled && !err) {
+	    err = -1;
+	    old_errno = EINTR;
+	}
 #endif
+	if (err == 0) {
 	    if (!user_timeout) {
 		/*
 		 * Only return a timeout if we waited on the user's timeout
