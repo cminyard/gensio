@@ -69,7 +69,6 @@ case $target_os in
 		;;
 	darwin*)
 		OSH_LIBS="$OSH_LIBS -ldl"
-		broken_pselect=yes
 		uucp_locking_flag=no
 		USE_GGL_INT=1
 		USE_OPENPTY=1
