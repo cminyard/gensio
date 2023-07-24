@@ -1531,9 +1531,14 @@ sel_alloc_selector_thread(struct selector_s **new_selector, int wake_sig,
 
     sigemptyset(&sigset);
     sigaddset(&sigset, wake_sig);
+#ifdef USE_PTHREADS
+    rv = pthread_sigmask(SIG_BLOCK, &sigset, NULL);
+#else
     rv = sigprocmask(SIG_BLOCK, &sigset, NULL);
-    if (rv == -1) {
+    if (rv == -1)
 	rv = errno;
+#endif
+    if (rv) {
 	if (sel->sel_lock_alloc) {
 	    sel->sel_lock_free(sel->fd_lock);
 		sel->sel_lock_free(sel->timer_lock);
