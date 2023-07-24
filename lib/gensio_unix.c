@@ -1763,6 +1763,13 @@ gensio_os_proc_setup(struct gensio_os_funcs *o,
     sigaddset(&sigs, SIGCHLD); /* Ignore SIGCHLD in normal operation. */
     sigaddset(&sigs, SIGPIPE); /* Ignore broken pipes. */
     rv = sigprocmask(SIG_BLOCK, &sigs, &data->old_sigs);
+#if HAVE_DECL_SIGWINCH
+    /*
+     * SIGWINCH is set here, not in the register_winsize_handler call, because
+     * we can't modify the signal set after initial startup.
+     */
+    sigaddset(&sigs, SIGWINCH);
+#endif
     if (rv) {
 	rv = gensio_os_err_to_err(o, errno);
 	return rv;
@@ -1773,6 +1780,9 @@ gensio_os_proc_setup(struct gensio_os_funcs *o,
     sigdelset(&data->wait_sigs, SIGCHLD); /* Allow SIGCHLD while waiting. */
     sigaddset(&data->check_sigs, SIGCHLD);
     sigaddset(&data->wait_sigs, SIGPIPE); /* No SIGPIPE ever. */
+#if HAVE_DECL_SIGWINCH
+    sigdelset(&data->wait_sigs, SIGWINCH); /* See note above on SIGWINCH */
+#endif
 
     memset(&sigdo, 0, sizeof(sigdo));
     sigdo.sa_handler = handle_sigchld;
@@ -2073,7 +2083,6 @@ gensio_os_proc_register_winsize_handler(struct gensio_os_proc_data *data,
     struct gensio_iod_unix *iod = i_to_sel(console_iod);
     int err;
     struct sigaction act;
-    sigset_t sigs, old_sigs;
     struct winsize win;
 
     if (data->winch_sig_set) {
@@ -2086,12 +2095,6 @@ gensio_os_proc_register_winsize_handler(struct gensio_os_proc_data *data,
     err = ioctl(iod->fd, TIOCGWINSZ, &win);
     if (err == -1)
 	return GE_NOTSUP;
-
-    sigemptyset(&sigs);
-    sigaddset(&sigs, SIGWINCH);
-    err = sigprocmask(SIG_BLOCK, &sigs, &old_sigs);
-    if (err)
-	return gensio_os_err_to_err(data->o, errno);
 
     data->winch_handler = handler;
     data->winch_handler_data = handler_data;
@@ -2110,7 +2113,6 @@ gensio_os_proc_register_winsize_handler(struct gensio_os_proc_data *data,
     return 0;
 
  out_err:
-    sigprocmask(SIG_SETMASK, &old_sigs, NULL);
     return gensio_os_err_to_err(data->o, err);
 #else
     return GE_NOTSUP;

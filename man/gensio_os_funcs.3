@@ -343,7 +343,8 @@ received by the process.  Set
 to
 .B NULL
 to disable.  If you do this on Unix, the signals will be blocked
-except when in a wait or service call.
+except when in a wait or service call.  Call this before starting any
+other threads so they inherit the proper sigmask.
 
 The
 .I gensio_os_proc_register_reload_handler
@@ -354,7 +355,8 @@ Set
 to
 .B NULL
 to disable.  On Unix, this will cause SIGHUP to be blocked except when
-in a wait or service call.
+in a wait or service call.  Call this before starting any
+other threads so they inherit the proper sigmask.
 
 The
 .I gensio_os_proc_register_winsize_handler
@@ -365,7 +367,9 @@ the new size parameters.  Set
 to
 .B NULL
 to disable.  Note that the handler will be called with current window
-size parameters after this is called.
+size parameters after this is called.  This may be called after
+threads are started, the SIGWINCH signal mask is set up by default in
+gensio_os_proc_setup on *nix systems.
 
 .B gensio_os_funcs_zalloc
 allocates a block of memory and zeroes it.  The
