@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"github.com/cminyard/go/gensio"
 	"testbase"
+	"runtime"
 )
 
 type FreeDone struct {
@@ -85,7 +86,14 @@ func main() {
 	we := &WatchEvent{}
 	we.w = waiter
 	testbase.ObjCount++
-	w := m.AddWatch(-1, gensio.GENSIO_NETTYPE_UNSPEC, "@gen*",
+	var namestr string
+	if runtime.GOOS == "windows" {
+		// No glob support in windows.
+		namestr = "gensio2"
+	} else {
+		namestr = "@gen*"
+	}
+	w := m.AddWatch(-1, gensio.GENSIO_NETTYPE_UNSPEC, namestr,
 		"_gensio2._tcp", nil, nil, we)
 	testbase.ObjCount++
 	se := &ServiceEvent{}
