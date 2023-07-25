@@ -50,6 +50,15 @@ USE_GGL_INT=0
 # https://developer.apple.com/forums/thread/734230 for details.
 USE_OPENPTY=0
 
+# openssl calls sigprocmask() in it's startup code for ARM and some
+# other processors.  On at least macos, this affects all threads, not
+# just the calling thread.  So if you load it while threads are
+# running, it will modify the thread masks of all running threads, and
+# screw things up for waking using signals.  Check for this on
+# platforms that need it, and link -lssl to the main program to avoid
+# the issue.
+link_ssl_with_main=no
+
 case $target_os in
 	mingw*)
 		OSH_LIBS="$OSH_LIBS -lws2_32 -liphlpapi -lgdi32 -lbcrypt"
@@ -68,7 +77,9 @@ case $target_os in
 		UUCP_LOCK_DIR=/var/lock
 		;;
 	darwin*)
+		# macos
 		OSH_LIBS="$OSH_LIBS -ldl"
+		link_ssl_with_main=check
 		uucp_locking_flag=no
 		USE_GGL_INT=1
 		USE_OPENPTY=1
@@ -84,12 +95,148 @@ case $target_os in
 esac
 AC_DEFINE_UNQUOTED([USE_GGL_INT], [$USE_GGL_INT],
 	[Set to 1 to use gid_t, 0 to use int for groups])
-AM_CONDITIONAL([HAVE_GGL_INT], [test ${HAVE_GGL_INT} = 1])
+AM_CONDITIONAL([USE_GGL_INT], [test ${USE_GGL_INT} = 1])
 AC_SUBST(USE_GGL_INT)
 AC_DEFINE_UNQUOTED([USE_OPENPTY], [$USE_OPENPTY],
 	[Set to 1 to use openpty, 0 to use posix_openpt])
 AM_CONDITIONAL([USE_OPENPTY], [test ${USE_OPENPTY} = 1])
 AC_SUBST(USE_OPENPTY)
+
+AC_ARG_WITH(link-ssl-with-main,
+	    [AS_HELP_STRING([--with-link-ssl-with-main=[yes|no]],
+			    [Link libssl with the main program.  See "Issues with openssl and signal masks" in the FAQ])],
+	    [link_ssl_with_main="$withval"]
+)
+
+if test "$link_ssl_with_main" = "check"; then
+    AC_MSG_CHECKING([if ssl needs to be linked with the main library])
+    AC_LANG_PUSH(C)
+    AC_RUN_IFELSE(
+	[AC_LANG_SOURCE([[
+#include <stdio.h>
+#include <signal.h>
+#include <unistd.h>
+#include <errno.h>
+#include <string.h>
+#include <pthread.h>
+#include <dlfcn.h>
+#include <assert.h>
+#include <sys/select.h>
+
+struct cross_thread_info {
+    int waitfd;
+    int err;
+};
+
+static void *
+cross_thread(void *data)
+{
+    struct cross_thread_info *info = data;
+    sigset_t sigmask, omask;
+    int rv = 0;
+    fd_set rfds;
+
+    rv = pthread_sigmask(SIG_SETMASK, NULL, &sigmask);
+    assert(rv == 0);
+
+    if (!sigismember(&sigmask, SIGUSR1)) {
+	fprintf(stderr, "SIGUSR1 not in sigmask 1\n");
+	info->err = 1;
+	goto out_err;
+    }
+
+    FD_ZERO(&rfds);
+    FD_SET(info->waitfd, &rfds);
+    sigdelset(&sigmask, SIGUSR1);
+    rv = pthread_sigmask(SIG_SETMASK, &sigmask, &omask);
+    assert(rv == 0);
+
+    rv = pselect(info->waitfd + 1, &rfds, NULL, NULL, NULL, NULL);
+    assert(rv == 1);
+
+    rv = pthread_sigmask(SIG_SETMASK, &omask, &sigmask);
+    assert(rv == 0);
+    if (sigismember(&sigmask, SIGUSR1)) {
+	fprintf(stderr, "SIGUSR1 in sigmask 1\n");
+	info->err = 4;
+	goto out_err;
+    }
+
+ out_err:
+    return NULL;
+}
+
+static int
+check_pselect_cross_thread(sigset_t mask)
+{
+    int rv = 1;
+    int pipefds[2] = { -1, -1 };
+    struct cross_thread_info info;
+    pthread_t th;
+    char dummy = 0;
+
+    rv = pipe(pipefds);
+    if (rv == -1) {
+	perror("pipe");
+	return 1;
+    }
+
+    info.err = 0;
+    info.waitfd = pipefds[0];
+    rv = pthread_create(&th, NULL, cross_thread, &info);
+
+    sleep(2); /* Give the thread time to enter pselect() */
+
+    if (dlopen("/opt/homebrew/lib/libssl.dylib", RTLD_LAZY | RTLD_GLOBAL) == NULL) {
+	fprintf(stderr, "dlopen failed: %s\n", dlerror());
+	rv = 1;
+    }
+
+    write(pipefds[1], &dummy, 1);
+
+    pthread_join(th, NULL);
+
+    if (!rv)
+	rv = info.err;
+
+    if (!rv)
+	printf("dlopen does not affect other threads' sigmasks\n");
+
+    close(pipefds[0]);
+    close(pipefds[1]);
+    return rv;
+}
+
+int
+main(int argc, char *argv[])
+{
+    sigset_t mask;
+    int rv;
+
+    /* Start with SIGUSR1 blocked. */
+    rv = sigprocmask(SIG_SETMASK, NULL, &mask);
+    assert(rv == 0);
+    sigaddset(&mask, SIGUSR1);
+    rv = sigprocmask(SIG_SETMASK, &mask, NULL);
+    assert(rv == 0);
+
+    rv = check_pselect_cross_thread(mask);
+    return rv;
+}]])],
+	[link_ssl_with_main=no],
+	[[if test $? = 4; then
+	     link_ssl_with_main=yes
+	 else
+	     link_ssl_with_main=failed
+	 fi
+	]],
+	[link_ssl_with_main=yes])
+    AC_LANG_POP(C)
+    AC_MSG_RESULT($link_ssl_with_main)
+    if test $link_ssl_with_main == failed; then
+	AC_MSG_FAILURE([Error running ssl link test program.])
+    fi
+fi
 
 if test "$version_type" = "windows"; then
     # LN_S gets set to "cp -pR", which just doesn't work.  MinGW has
@@ -1199,10 +1346,9 @@ esac
 AM_CONDITIONAL([BUILTIN_CERTAUTH], [test ${BUILTIN_CERTAUTH} = 1])
 AC_SUBST(DYNAMIC_CERTAUTH)
 
-if test $ssl = yes -o $certauth = yes; then
+if test $ssl = yes -o $certauth = yes -o $link_ssl_with_main = yes; then
    BASE_LIBS="$BASE_LIBS $OPENSSL_LIBS"
    LDFLAGS="$LDFLAGS $OPENSSL_LDFLAGS"
-   CPPFLAGS="$CPPFLAGS $OPENSSL_INCLUDES"
 fi
 
 mux=$default_all
@@ -2058,6 +2204,7 @@ fi
 pr_vop "  go:			" $GOPROG
 pr_op  "  pam:			" $HAVE_PAM
 pr_op  "  internal trace:	" $ENABLE_INTERNAL_TRACE
+pr_op  "  link ssl with main:	" $link_ssl_with_main
 echo
 echo "**************************************************"
 echo "Gensios:"

@@ -102,3 +102,13 @@ Here are some answer to questions about gensio.
     error: C:\etc\gtlssh\gtlsshd.key is accessible by others, giving up
 
   when gtlsshd start with debugging enabled.
+
+* Issues with openssl and signal masks
+
+  openssl calls sigprocmask() in it's startup code for ARM and some
+  other processors.  On at least macos, this affects all threads, not
+  just the calling thread.  So if you load it while threads are
+  running, it will modify the thread masks of all running threads, and
+  screw things up for waking using signals.  configure checks for this
+  on platforms that need it, and link -lssl to the main program to
+  avoid the issue.
