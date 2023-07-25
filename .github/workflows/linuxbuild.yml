@@ -1,0 +1,33 @@
+name: LinuxBuild
+on:
+  push:
+    branches:
+      - 'master'
+    tags:
+      - v*
+
+env:
+  INSTALLPREFIX: "_local"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - name: Install dependencies
+        run: |
+          sudo apt install gcc g++ git swig python3-dev libssl-dev pkg-config \
+            libavahi-client-dev avahi-daemon libtool autoconf automake make \
+            libsctp-dev libpam-dev libwrap0-dev libglib2.0-dev tcl-dev \
+            libasound2-dev libudev-dev libopenipmi-dev
+      - name: Configure
+        run: |
+          mkdir $INSTALLPREFIX
+          ./reconf
+          ./configure --prefix=$(pwd)/$INSTALLPREFIX/
+      - name: Build
+        run: |
+          make
+          make install
+          make check
