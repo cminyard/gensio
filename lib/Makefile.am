@@ -4,7 +4,7 @@
 # added after.
 lib_LTLIBRARIES = libgensioosh.la libgensiomdns.la libgensio.la
 
-noinst_HEADERS = telnet.h heap.h utils.h uucplock.h \
+noinst_HEADERS = telnet.h heap.h utils.h seriallock.h \
 	gensio_filter_ssl.h gensio_filter_telnet.h gensio_ll_ipmisol.h \
 	gensio_filter_certauth.h gensio_filter_msgdelim.h \
 	gensio_filter_relpkt.h gensio_filter_trace.h gensio_filter_perf.h \
@@ -131,12 +131,12 @@ libgensio_conacc_la_LDFLAGS = $(DYNAMIC_LDFLAGS)
 libgensio_conacc_la_LIBADD = $(DYNAMIC_LIBS)
 
 if BUILTIN_SERIALDEV
-libgensio_la_SOURCES += sergensio_serialdev.c uucplock.c
+libgensio_la_SOURCES += sergensio_serialdev.c seriallock.c
 else
 EXTRA_LTLIBRARIES += libgensio_serialdev.la
 endif
 xgensio_libexec_LTLIBRARIES += $(DYNAMIC_SERIALDEV)
-libgensio_serialdev_la_SOURCES = sergensio_serialdev.c uucplock.c
+libgensio_serialdev_la_SOURCES = sergensio_serialdev.c seriallock.c
 libgensio_serialdev_la_LDFLAGS = $(DYNAMIC_LDFLAGS)
 libgensio_serialdev_la_LIBADD = $(DYNAMIC_LIBS)
 

@@ -37,6 +37,7 @@ AM_CXXFLAGS=
 EXTRA_CFLAGS=
 uucp_locking_flag=yes
 UUCP_LOCK_DIR=/var/spool/lock
+flock_locking_flag=yes
 USE_FILE_STDIO=0
 broken_pselect=no
 system_type=unix
@@ -70,6 +71,7 @@ case $target_os in
 		OSH_LIBS="$OSH_LIBS -lsecur32 -luserenv -lwtsapi32"
 		OSH_LIBS="$OSH_LIBS -lole32"
 		uucp_locking_flag=no
+		flock_locking_flag=no
 		system_type=windows
 		USE_FILE_STDIO=1
 		PYTHON_EXT_EXT=".pyd"
@@ -78,6 +80,7 @@ case $target_os in
 	cygwin*)
 		OSH_LIBS="$OSH_LIBS -ldl"
 		uucp_locking_flag=no
+		flock_locking_flag=no
 		;;
 	linux*)
 		OSH_LIBS="$OSH_LIBS -ldl"
@@ -299,6 +302,23 @@ AC_DEFINE_UNQUOTED([USE_UUCP_LOCKING], [$USE_UUCP_LOCKING],
 		   [Enable device locking])
 AC_DEFINE_UNQUOTED([UUCP_LOCK_DIR], ["$UUCP_LOCK_DIR"],
 		   [Directory holding UUCP locks])
+
+AC_ARG_WITH(flock-locking,
+ [AS_HELP_STRING([--with-flock-locking], [Enable flock-style on serial port locking with yes/no])],
+ flock_locking_flag="$withval")
+case "$flock_locking_flag" in
+	yes)
+		USE_FLOCK_LOCKING=1
+		;;
+	no)
+		USE_FLOCK_LOCKING=0
+		;;
+	*)
+		USE_FLOCK_LOCKING=1
+		;;
+esac
+AC_DEFINE_UNQUOTED([USE_FLOCK_LOCKING], [$USE_FLOCK_LOCKING],
+		   [Enable device locking])
 
 AC_ARG_WITH(broken-pselect,
  [AS_HELP_STRING([--with-broken-pselect], [pselect is not atomic, work around it])],
@@ -2195,6 +2215,7 @@ echo "**************************************************"
 echo "Options:"
 	
 pr_op  "  UUCP Locking:		" $USE_UUCP_LOCKING
+pr_op  "  flock Locking:	" $USE_FLOCK_LOCKING
 pr_op  "  Broken pselect():	" $broken_pselect
 pr_op  "  TCP Wrappers:		" $ac_cv_header_tcpd_h
 pr_op  "  Install Docs:		" $enable_doc

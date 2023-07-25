@@ -652,9 +652,16 @@ much that can be done about this, so be careful.
 .SS Options
 In addition to readbuf, the serialdev gensio takes the following options:
 .TP
-.B nouucplock[=true|false]
-disables UUCP locking on the device.  Useful for /dev/tty, which shouldn't
-use locking.  This is not available as a default.
+.B uucplock[=true|false]
+Enable or disable UUCP locking on the device.  The default is true for
+everything except pty devices and /dev/tty.  This is ignored on systems
+that don't support this.
+.TP
+.B flock[=true|false]
+Enable or disable flock locking on the device.  The default is true
+for everything except /dev/tty.  Note that this does both an
+"flock(fd, LOCK_EX | LOCK_NB)" and an "ioctl(fd, TIOCNXCL)" to lock
+the device.  This is ignored on systems that don't support this.
 .TP
 .B drain_time=off|<time in 100ths of a second>
 The total amount of time to wait for the data to be sent on the serial
@@ -765,7 +772,7 @@ write access for read-only devices.
 
 This takes the same options as
 .B serialdev
-except that it does not take nouucplock.  The
+except that it does not do locking.  The
 .B drain_time
 and
 .B char_drain_wait

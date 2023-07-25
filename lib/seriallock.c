@@ -6,7 +6,7 @@
  */
 
 #include "config.h"
-#include "uucplock.h"
+#include "seriallock.h"
 
 #if USE_UUCP_LOCKING
 
@@ -19,9 +19,10 @@
 #include <errno.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/ioctl.h>
 #include <sys/sysmacros.h>
 #include <signal.h>
-#include <gensio/gensio_os_funcs.h>
+#include <gensio/gensio.h>
 
 static char *uucp_lck_dir = UUCP_LOCK_DIR;
 static char *dev_prefix = "/dev/";
@@ -81,7 +82,7 @@ uucp_svr4_lock(struct gensio_os_funcs *o, int fd, char **rname)
 
     /*
      * Format is "/var/lock/LCK.mmm.iii" where mmm is the major number
-     * and iii is the minor number.  The 13 is for the "/LCK.nnn.iii"
+     * and iii is the minor number.  The 13 is for the "/LCK.mmm.iii"
      * and the final nil char.
      */
     len = strlen(uucp_lck_dir) + 13;
@@ -115,7 +116,7 @@ alloc_lock_names(struct gensio_os_funcs *o,
     return err;
 }
 
-void
+static void
 uucp_rm_lock(struct gensio_os_funcs *o, int fd, const char *devname)
 {
     char *lck_file1, *lck_file2;
@@ -180,7 +181,7 @@ check_lock_file(const char *lck_file)
     return pid;
 }
 
-int
+static int
 uucp_mk_lock(struct gensio_os_funcs *o, int fd, const char *devname)
 {
     struct stat stt;
@@ -258,3 +259,81 @@ uucp_mk_lock(struct gensio_os_funcs *o, int fd, const char *devname)
 }
 
 #endif /* USE_UUCP_LOCKING */
+
+#if USE_FLOCK_LOCKING
+#include <stdio.h>
+#include <sys/file.h>
+#include <errno.h>
+#include <sys/ioctl.h>
+#include <gensio/gensio.h>
+
+static void
+flock_rm_lock(struct gensio_os_funcs *o, int fd)
+{
+    flock(fd, LOCK_UN);
+    ioctl(fd, TIOCNXCL);
+}
+
+static int
+flock_mk_lock(struct gensio_os_funcs *o, int fd)
+{
+    int rv;
+
+    rv = flock(fd, LOCK_EX | LOCK_NB);
+    if (rv != 0) {
+	if (errno == EWOULDBLOCK)
+	    rv = GE_INUSE;
+	else
+	    rv = gensio_os_err_to_err(o, errno);
+    }
+    if (rv == 0) {
+	rv = ioctl(fd, TIOCEXCL);
+	if (rv != 0)
+	    rv = gensio_os_err_to_err(o, errno);
+    }
+    return rv;
+}
+
+#else
+
+static void
+flock_rm_lock(struct gensio_os_funcs *o, int fd)
+{
+}
+
+static int
+flock_mk_lock(struct gensio_os_funcs *o, int fd)
+{
+    return 0;
+}
+
+#endif
+
+void
+serial_rm_lock(struct gensio_os_funcs *o,
+	       bool do_uucp_lock, bool do_flock,
+	       int fd, const char *devname)
+{
+    if (do_uucp_lock)
+	uucp_rm_lock(o, fd, devname);
+    if (do_flock)
+	flock_rm_lock(o, fd);
+}
+
+int
+serial_mk_lock(struct gensio_os_funcs *o,
+	       bool do_uucp_lock, bool do_flock,
+	       int fd, const char *devname)
+{
+    int err = 0;
+
+    if (do_uucp_lock)
+	err = uucp_mk_lock(o, fd, devname);
+    if (!err && do_flock) {
+	err = flock_mk_lock(o, fd);
+	if (err)
+	    uucp_rm_lock(o, fd, devname);
+    }
+
+    return err;
+}

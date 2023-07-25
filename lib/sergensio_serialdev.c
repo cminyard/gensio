@@ -18,7 +18,7 @@
 #include <gensio/gensio_ll_fd.h>
 #include <gensio/gensio_osops.h>
 
-#include "uucplock.h"
+#include "seriallock.h"
 #include "utils.h"
 
 static int
@@ -125,7 +125,8 @@ struct sterm_data {
     bool read_only;		/* No write. */
     bool set_tty;		/* No serial settings. */
 
-    bool no_uucp_lock;
+    bool uucp_lock;
+    bool flock_lock;
 
     void *default_sercfg;
     int def_baud;
@@ -788,13 +789,13 @@ sterm_check_close_drain(void *handler_data, struct gensio_iod *iod,
 
     rv = o->bufcount(sdata->iod, GENSIO_OUT_BUF, &count);
     if (rv || count <= 0)
-	goto out_rm_uucp;
+	goto out_rm_lock;
     if (sdata->last_close_outq_count == 0)
 	/* First time through, set the total time. */
 	sdata->close_timeouts_left = sdata->drain_time;
     if (sdata->close_timeouts_left >= 0) {
 	if (sdata->close_timeouts_left == 0)
-	    goto out_rm_uucp;
+	    goto out_rm_lock;
 	sdata->close_timeouts_left--;
     }
 
@@ -807,7 +808,7 @@ sterm_check_close_drain(void *handler_data, struct gensio_iod *iod,
 
     if (sdata->char_timeouts_left >= 0) {
 	if (sdata->char_timeouts_left == 0)
-	    goto out_rm_uucp;
+	    goto out_rm_lock;
 	sdata->char_timeouts_left--;
     }
 
@@ -815,11 +816,11 @@ sterm_check_close_drain(void *handler_data, struct gensio_iod *iod,
     err = GE_INPROGRESS;
     next_timeout->secs = 0;
     next_timeout->nsecs = 10000000;
- out_rm_uucp:
+ out_rm_lock:
     if (!err) {
 	o->flush(sdata->iod, GENSIO_OUT_BUF);
-	if (!sdata->no_uucp_lock)
-	    uucp_rm_lock(o, o->iod_get_fd(sdata->iod), sdata->devname);
+	serial_rm_lock(o, sdata->uucp_lock, sdata->flock_lock,
+		       o->iod_get_fd(sdata->iod), sdata->devname);
 	gensio_fd_ll_close_now(sdata->ll);
     }
     if (err != GE_INPROGRESS)
@@ -880,77 +881,76 @@ sterm_sub_open(void *handler_data, struct gensio_iod **riod)
 	options |= GENSIO_OPEN_OPTION_READABLE;
     err = o->open_dev(o, sdata->devname, options, &sdata->iod);
     if (err)
-	goto out_uucp;
+	goto out;
 
-    if (!sdata->no_uucp_lock) {
-	err = uucp_mk_lock(o, o->iod_get_fd(sdata->iod), sdata->devname);
-	if (err)
-	    goto out;
-    }
+    err = serial_mk_lock(o, sdata->uucp_lock, sdata->flock_lock,
+			 o->iod_get_fd(sdata->iod), sdata->devname);
+    if (err)
+	goto out;
 
     if (sdata->set_tty) {
 	err = o->iod_control(sdata->iod, GENSIO_IOD_CONTROL_BAUD, false,
 			     sdata->def_baud);
 	if (err)
-	    goto out_uucp;
+	    goto out_unlock;
 	err = o->iod_control(sdata->iod, GENSIO_IOD_CONTROL_PARITY, false,
 			     sdata->def_parity);
 	if (err)
-	    goto out_uucp;
+	    goto out_unlock;
 	err = o->iod_control(sdata->iod, GENSIO_IOD_CONTROL_XONXOFF, false,
 			     sdata->def_xonxoff);
 	if (err)
-	    goto out_uucp;
+	    goto out_unlock;
 	err = o->iod_control(sdata->iod, GENSIO_IOD_CONTROL_IXONXOFF, false,
 			     sdata->def_xonxoff);
 	if (err)
-	    goto out_uucp;
+	    goto out_unlock;
 	err = o->iod_control(sdata->iod, GENSIO_IOD_CONTROL_RTSCTS, false,
 			     sdata->def_rtscts);
 	if (err)
-	    goto out_uucp;
+	    goto out_unlock;
 	err = o->iod_control(sdata->iod, GENSIO_IOD_CONTROL_DATASIZE, false,
 			     sdata->def_datasize);
 	if (err)
-	    goto out_uucp;
+	    goto out_unlock;
 	err = o->iod_control(sdata->iod, GENSIO_IOD_CONTROL_STOPBITS, false,
 			     sdata->def_stopbits);
 	if (err)
-	    goto out_uucp;
+	    goto out_unlock;
 	err = o->iod_control(sdata->iod, GENSIO_IOD_CONTROL_LOCAL, false,
 			     sdata->def_local);
 	if (err)
-	    goto out_uucp;
+	    goto out_unlock;
 	err = o->iod_control(sdata->iod, GENSIO_IOD_CONTROL_HANGUP_ON_DONE,
 			     false, sdata->def_hupcl);
 	if (err)
-	    goto out_uucp;
+	    goto out_unlock;
 	if (sdata->rs485) {
 	    err = o->iod_control(sdata->iod, GENSIO_IOD_CONTROL_RS485, false,
 				 (intptr_t) sdata->rs485);
 	    if (err)
-		goto out_uucp;
+		goto out_unlock;
 	}
 	err = o->iod_control(sdata->iod, GENSIO_IOD_CONTROL_APPLY, false, 0);
 	if (err)
-	    goto out_uucp;
+	    goto out_unlock;
 	if (sdata->rts_set && sdata->rts_first) {
 	    err = o->iod_control(sdata->iod, GENSIO_IOD_CONTROL_RTS, false,
 				 sdata->rts_val);
 	    if (err)
-		goto out_uucp;
+		goto out_unlock;
 	}
 	if (sdata->dtr_set) {
 	    err = o->iod_control(sdata->iod, GENSIO_IOD_CONTROL_DTR, false,
 				 sdata->dtr_val);
 	    if (err)
-		goto out_uucp;
+		goto out_unlock;
 	}
 	if (sdata->rts_set && !sdata->rts_first) {
 	    err = o->iod_control(sdata->iod, GENSIO_IOD_CONTROL_RTS, false,
 				 sdata->rts_val);
 	    if (err)
-		goto out_uucp;
+		goto out_unlock;
 	}
     }
 
@@ -983,9 +983,9 @@ sterm_sub_open(void *handler_data, struct gensio_iod **riod)
 
     return 0;
 
- out_uucp:
-    if (!sdata->no_uucp_lock)
-	uucp_rm_lock(o, o->iod_get_fd(sdata->iod), sdata->devname);
+ out_unlock:
+    serial_rm_lock(o, sdata->uucp_lock, sdata->flock_lock,
+		   o->iod_get_fd(sdata->iod), sdata->devname);
 
     /* pty's for some reason return EIO if the remote end closes. */
     if (sdata->is_pty && err == GE_IOERR)
@@ -1415,7 +1415,7 @@ iodev_gensio_alloc(const void *gdata, const char * const args[],
     char *comma;
     gensiods max_read_size = GENSIO_DEFAULT_BUF_SIZE;
     int i, ival;
-    bool nouucplock_set = false, dummy = false, wronly = false, rdonly = false;
+    bool lock_set = false, dummy = false, wronly = false, rdonly = false;
     const char *s;
     char *end;
     GENSIO_DECLARE_PPGENSIO(p, o, cb, "serialdev", user_data);
@@ -1426,13 +1426,19 @@ iodev_gensio_alloc(const void *gdata, const char * const args[],
     sdata->o = o;
 
     if (!set_tty) {
-	sdata->no_uucp_lock = true;
+	sdata->uucp_lock = false;
+	sdata->flock_lock = false;
     } else {
-	err = gensio_get_default(o, "sergensio", "nouucplock", false,
+	err = gensio_get_default(o, "sergensio", "uucplock", false,
 				 GENSIO_DEFAULT_BOOL, NULL, &ival);
 	if (err)
 	    goto out_err;
-	sdata->no_uucp_lock = ival;
+	sdata->uucp_lock = ival;
+	err = gensio_get_default(o, "sergensio", "flock", false,
+				 GENSIO_DEFAULT_BOOL, NULL, &ival);
+	if (err)
+	    goto out_err;
+	sdata->flock_lock = ival;
     }
     err = gensio_get_default(o, "sergensio", "drain_time", false,
 			     GENSIO_DEFAULT_INT, NULL, &sdata->drain_time);
@@ -1471,8 +1477,19 @@ iodev_gensio_alloc(const void *gdata, const char * const args[],
 	    continue;
 	}
 	if (set_tty && gensio_pparm_bool(&p, args[i], "nouucplock",
-			      &sdata->no_uucp_lock) > 0) {
-	    nouucplock_set = true;
+			      &sdata->uucp_lock) > 0) {
+	    sdata->uucp_lock = !sdata->uucp_lock;
+	    lock_set = true;
+	    continue;
+	}
+	if (set_tty && gensio_pparm_bool(&p, args[i], "uucplock",
+			      &sdata->uucp_lock) > 0) {
+	    lock_set = true;
+	    continue;
+	}
+	if (set_tty && gensio_pparm_bool(&p, args[i], "flock",
+					 &sdata->flock_lock) > 0) {
+	    lock_set = true;
 	    continue;
 	}
 	/* custspeed is ignored now */
@@ -1507,11 +1524,11 @@ iodev_gensio_alloc(const void *gdata, const char * const args[],
     if (comma)
 	*comma++ = '\0';
 
-    if (set_tty && !nouucplock_set) {
+    if (set_tty && !lock_set) {
 	const char *slash = strrchr(devname, '/');
 
 	/*
-	 * If the user didn't force it, don't do uucp locking if the
+	 * If the user didn't force it, don't do locking if the
 	 * devname is "tty", as in "/dev/tty".  That does all sorts
 	 * of bad things...
 	 */
@@ -1520,8 +1537,9 @@ iodev_gensio_alloc(const void *gdata, const char * const args[],
 	else
 	    slash = devname;
 
-	/* Don't do uucp locking on /dev/tty or ptys */
-	sdata->no_uucp_lock = strcmp(slash, "tty") == 0 || sdata->is_pty;
+	/* Don't do uucp locking on /dev/tty or ptys.  flock is on on ptys */
+	sdata->uucp_lock = !(strcmp(slash, "tty") == 0 || sdata->is_pty);
+	sdata->flock_lock = !(strcmp(slash, "tty") == 0);
     }
 
     if (set_tty) {
