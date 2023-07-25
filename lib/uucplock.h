@@ -9,7 +9,7 @@
 
 #include <gensio/gensio.h>
 
-void uucp_rm_lock(char *devname);
+void uucp_rm_lock(struct gensio_os_funcs *o, int fd, const char *devname);
 
 /* Returns gensio errno. */
-int uucp_mk_lock(struct gensio_os_funcs *o, char *devname);
+int uucp_mk_lock(struct gensio_os_funcs *o, int fd, const char *devname);

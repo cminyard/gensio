@@ -819,7 +819,7 @@ sterm_check_close_drain(void *handler_data, struct gensio_iod *iod,
     if (!err) {
 	o->flush(sdata->iod, GENSIO_OUT_BUF);
 	if (!sdata->no_uucp_lock)
-	    uucp_rm_lock(sdata->devname);
+	    uucp_rm_lock(o, o->iod_get_fd(sdata->iod), sdata->devname);
 	gensio_fd_ll_close_now(sdata->ll);
     }
     if (err != GE_INPROGRESS)
@@ -871,12 +871,6 @@ sterm_sub_open(void *handler_data, struct gensio_iod **riod)
     int err;
     int options = 0;
 
-    if (!sdata->no_uucp_lock) {
-	err = uucp_mk_lock(o, sdata->devname);
-	if (err)
-	    goto out;
-    }
-
     sdata->timer_stopped = false;
     sdata->iod = NULL; /* If it's a re-open make sure this is clear. */
 
@@ -887,6 +881,12 @@ sterm_sub_open(void *handler_data, struct gensio_iod **riod)
     err = o->open_dev(o, sdata->devname, options, &sdata->iod);
     if (err)
 	goto out_uucp;
+
+    if (!sdata->no_uucp_lock) {
+	err = uucp_mk_lock(o, o->iod_get_fd(sdata->iod), sdata->devname);
+	if (err)
+	    goto out;
+    }
 
     if (sdata->set_tty) {
 	err = o->iod_control(sdata->iod, GENSIO_IOD_CONTROL_BAUD, false,
@@ -985,7 +985,7 @@ sterm_sub_open(void *handler_data, struct gensio_iod **riod)
 
  out_uucp:
     if (!sdata->no_uucp_lock)
-	uucp_rm_lock(sdata->devname);
+	uucp_rm_lock(o, o->iod_get_fd(sdata->iod), sdata->devname);
 
     /* pty's for some reason return EIO if the remote end closes. */
     if (sdata->is_pty && err == GE_IOERR)
