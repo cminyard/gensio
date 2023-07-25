@@ -799,6 +799,7 @@ gensio_sound_ll_deref_and_unlock(struct sound_ll *soundll)
 	gensio_sound_ll_free(soundll);
 }
 
+#if HAVE_ALSA || defined(_WIN32)
 static int
 extend_sound_devs(char ***names, char ***specs, gensiods *size)
 {
@@ -828,6 +829,7 @@ extend_sound_devs(char ***names, char ***specs, gensiods *size)
     *size = nsize;
     return 0;
 }
+#endif
 
 static int gensio_sound_api_default_write(struct sound_info *out,
 					  gensiods *rcount,
