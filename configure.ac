@@ -59,6 +59,11 @@ USE_OPENPTY=0
 # the issue.
 link_ssl_with_main=no
 
+# Python extension modules end in .pyd on Windows, so we need to override
+# the extension from .dll to that.  We can ignore it on everything else.
+PYTHON_EXT_EXT=.so
+PYTHON_EXT_EXT_SET=
+
 case $target_os in
 	mingw*)
 		OSH_LIBS="$OSH_LIBS -lws2_32 -liphlpapi -lgdi32 -lbcrypt"
@@ -67,6 +72,8 @@ case $target_os in
 		uucp_locking_flag=no
 		system_type=windows
 		USE_FILE_STDIO=1
+		PYTHON_EXT_EXT=".pyd"
+		PYTHON_EXT_EXT_SET="-shrext .pyd"
 		;;
 	cygwin*)
 		OSH_LIBS="$OSH_LIBS -ldl"
@@ -101,6 +108,9 @@ AC_DEFINE_UNQUOTED([USE_OPENPTY], [$USE_OPENPTY],
 	[Set to 1 to use openpty, 0 to use posix_openpt])
 AM_CONDITIONAL([USE_OPENPTY], [test ${USE_OPENPTY} = 1])
 AC_SUBST(USE_OPENPTY)
+
+AC_SUBST(PYTHON_EXT_EXT)
+AC_SUBST(PYTHON_EXT_EXT_SET)
 
 AC_ARG_WITH(link-ssl-with-main,
 	    [AS_HELP_STRING([--with-link-ssl-with-main=[yes|no]],

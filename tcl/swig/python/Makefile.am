@@ -20,7 +20,8 @@ _gensiotcl_la_LIBADD = $(top_builddir)/tcl/libgensiotcl.la \
 		$(top_builddir)/lib/libgensio.la $(OPENSSL_LIBS) \
 		$(PYTHON_LIBS) $(TCL_LIBS) \
 		$(top_builddir)/swig/python/libgensio_python_swig.la
-_gensiotcl_la_LDFLAGS = -module -avoid-version $(OPENSSL_LDFLAGS) -no-undefined
+_gensiotcl_la_LDFLAGS = -module -avoid-version $(OPENSSL_LDFLAGS) \
+		-no-undefined $(PYTHON_EXT_EXT_SET)
 
 clean-local:
 	rm -rf __pycache__ gensiotcl_wrap.c gensiotcl.py
@@ -30,5 +31,5 @@ install-exec-local: _gensiotcl.la gensiotcl.py
 	$(INSTALL_DATA) gensiotcl.py "$(DESTDIR)$(PYTHON_INSTALL_DIR)"
 
 uninstall-local:
-	$(LIBTOOL) --mode=uninstall rm -f "$(DESTDIR)$(PYTHON_INSTALL_LIB_DIR)/_gensiotcl.so"
+	$(LIBTOOL) --mode=uninstall rm -f "$(DESTDIR)$(PYTHON_INSTALL_LIB_DIR)/_gensiotcl.$(PYTHON_EXT_EXT)"
 	rm -f "$(DESTDIR)$(PYTHON_INSTALL_DIR)/gensiotcl.py"

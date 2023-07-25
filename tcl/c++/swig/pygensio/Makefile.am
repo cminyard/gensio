@@ -26,7 +26,7 @@ _pygensiotcl_la_LIBADD = $(top_builddir)/c++/lib/libgensiocpp.la \
 		$(top_builddir)/lib/libgensio.la $(top_builddir)/tcl/libgensiotcl.la \
 		$(OPENSSL_LIBS) $(PYTHON_LIBS) $(TCL_LIBS)
 _pygensiotcl_la_LDFLAGS = -module -avoid-version $(OPENSSL_LDFLAGS) \
-		-no-undefined
+		-no-undefined $(PYTHON_EXT_EXT_SET)
 
 clean-local:
 	rm -rf __pycache__ pygensiotcl_wrap.cc pygensiotcl_wrap.h \
@@ -38,5 +38,5 @@ install-exec-local: _pygensiotcl.la pygensiotcl.py
 
 uninstall-local:
 	$(LIBTOOL) --mode=uninstall \
-		rm -f "$(DESTDIR)$(PYTHON_INSTALL_LIB_DIR)/_pygensiotcl.so"
+		rm -f "$(DESTDIR)$(PYTHON_INSTALL_LIB_DIR)/_pygensiotcl.$(PYTHON_EXT_EXT)"
 	rm -f "$(DESTDIR)$(PYTHON_INSTALL_DIR)/pygensiotcl.py"

@@ -28,7 +28,8 @@ _pygensio_la_LIBADD = $(top_builddir)/c++/lib/libgensiooshcpp.la \
 		$(top_builddir)/lib/libgensio.la \
 		$(top_builddir)/lib/libgensiomdns.la \
 		$(PYTHON_LIBS)
-_pygensio_la_LDFLAGS = -module -avoid-version $(OPENSSL_LDFLAGS) -no-undefined
+_pygensio_la_LDFLAGS = -module -avoid-version $(OPENSSL_LDFLAGS) \
+		-no-undefined $(PYTHON_EXT_EXT_SET)
 
 clean-local:
 	rm -rf __pycache__ pygensio_wrap.cc pygensio_wrap.h pygensio.py
@@ -38,5 +39,5 @@ install-exec-local: _pygensio.la pygensio.py
 	$(INSTALL_DATA) pygensio.py "$(DESTDIR)$(PYTHON_INSTALL_DIR)"
 
 uninstall-local:
-	$(LIBTOOL) --mode=uninstall rm -f "$(DESTDIR)$(PYTHON_INSTALL_LIB_DIR)/_pygensio.so"
+	$(LIBTOOL) --mode=uninstall rm -f "$(DESTDIR)$(PYTHON_INSTALL_LIB_DIR)/_pygensio.$(PYTHON_EXT_EXT)"
 	rm -f "$(DESTDIR)$(PYTHON_INSTALL_DIR)/pygensio.py"

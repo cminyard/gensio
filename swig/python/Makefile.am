@@ -37,7 +37,8 @@ nodist__gensio_la_SOURCES = gensio_wrap.c
 _gensio_la_LIBADD = $(top_builddir)/lib/libgensio.la \
 		$(top_builddir)/lib/libgensiomdns.la  \
 		$(PYTHON_LIBS) libgensio_python_swig.la
-_gensio_la_LDFLAGS = -module -avoid-version $(OPENSSL_LDFLAGS) -no-undefined
+_gensio_la_LDFLAGS = -module -avoid-version $(OPENSSL_LDFLAGS) -no-undefined \
+		 $(PYTHON_EXT_EXT_SET)
 
 clean-local:
 	rm -rf __pycache__ gensio_wrap.c gensio.py
@@ -47,5 +48,5 @@ install-exec-local: _gensio.la gensio.py
 	$(INSTALL_DATA) gensio.py "$(DESTDIR)$(PYTHON_INSTALL_DIR)"
 
 uninstall-local:
-	$(LIBTOOL) --mode=uninstall rm -f "$(DESTDIR)$(PYTHON_INSTALL_LIB_DIR)/_gensio.so"
+	$(LIBTOOL) --mode=uninstall rm -f "$(DESTDIR)$(PYTHON_INSTALL_LIB_DIR)/_gensio.$(PYTHON_EXT_EXT)"
 	rm -f "$(DESTDIR)$(PYTHON_INSTALL_DIR)/gensio.py"

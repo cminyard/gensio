@@ -20,7 +20,8 @@ _gensioglib_la_LIBADD = $(top_builddir)/glib/libgensioglib.la \
 		$(top_builddir)/lib/libgensio.la $(OPENSSL_LIBS) \
 		$(PYTHON_LIBS) \
 		$(top_builddir)/swig/python/libgensio_python_swig.la
-_gensioglib_la_LDFLAGS = -module -avoid-version $(OPENSSL_LDFLAGS) -no-undefined
+_gensioglib_la_LDFLAGS = -module -avoid-version $(OPENSSL_LDFLAGS) \
+		-no-undefined $(PYTHON_EXT_EXT_SET)
 
 clean-local:
 	rm -rf __pycache__ gensioglib_wrap.c gensioglib.py
@@ -30,5 +31,5 @@ install-exec-local: _gensioglib.la gensioglib.py
 	$(INSTALL_DATA) gensioglib.py "$(DESTDIR)$(PYTHON_INSTALL_DIR)"
 
 uninstall-local:
-	$(LIBTOOL) --mode=uninstall rm -f "$(DESTDIR)$(PYTHON_INSTALL_LIB_DIR)/_gensioglib.so"
+	$(LIBTOOL) --mode=uninstall rm -f "$(DESTDIR)$(PYTHON_INSTALL_LIB_DIR)/_gensioglib.$(PYTHON_EXT_EXT)"
 	rm -f "$(DESTDIR)$(PYTHON_INSTALL_DIR)/gensioglib.py"
