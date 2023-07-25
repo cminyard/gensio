@@ -112,6 +112,9 @@ struct gensio_iod_win {
 
     BOOL is_stdio;
 
+    /* See comment in win_iod_socket_init() on this. */
+    BOOL always_writeable;
+
     struct iostat read;
     struct iostat write;
     struct iostat except;
@@ -1305,6 +1308,25 @@ static int
 win_iod_socket_init(struct gensio_iod_win *wiod, void *cb_data)
 {
     struct gensio_iod_win_sock *swiod = wiod_to_winsock(wiod);
+    int rv;
+    DWORD socktype = 0;
+    int socklen = sizeof(socktype);
+
+    rv = getsockopt(wiod->fd, SOL_SOCKET, SO_TYPE,
+		    (char *) &socktype, &socklen);
+    if (rv)
+	return gensio_os_err_to_err(wiod->iod.f, rv);
+
+    /*
+     * It seems that UDP sockets on Windows won't report that the
+     * socket is writable more than once.  I didn't spend much time on
+     * it, but I verified that it was waiting for write ready on the
+     * socket in the socket thread and it never got it, even though it
+     * should always be writable.  Since it's always writable, though,
+     * just always allow writing.
+     */
+    if (socktype == SOCK_DGRAM)
+	wiod->always_writeable = TRUE;
 
     swiod->wakeev = WSA_INVALID_EVENT;
     swiod->sockev = WSA_INVALID_EVENT;
@@ -3241,7 +3263,9 @@ win_send(struct gensio_iod *iod,
 	rv = wiod->err;
 	goto out;
     }
-    wiod->write.ready = FALSE;
+    /* See comment in win_iod_socket_init() on this. */
+    if (!wiod->always_writeable)
+	wiod->write.ready = FALSE;
     rv = d->orig_send(iod, sg, sglen, rcount, gflags);
     wiod->wake(wiod);
  out:
@@ -3271,7 +3295,9 @@ win_sendto(struct gensio_iod *iod,
 	rv = wiod->err;
 	goto out;
     }
-    wiod->write.ready = FALSE;
+    /* See comment in win_iod_socket_init() on this. */
+    if (!wiod->always_writeable)
+	wiod->write.ready = FALSE;
     rv = d->orig_sendto(iod, sg, sglen, rcount, gflags, raddr);
     wiod->wake(wiod);
  out:
