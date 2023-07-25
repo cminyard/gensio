@@ -110,6 +110,7 @@ AC_ARG_WITH(link-ssl-with-main,
 
 if test "$link_ssl_with_main" = "check"; then
     AC_MSG_CHECKING([if ssl needs to be linked with the main library])
+    HOMEBREW_PREFIX=`brew config | grep HOMEBREW_PREFIX | sed 's/^.*: *//'`
     AC_LANG_PUSH(C)
     AC_RUN_IFELSE(
 	[AC_LANG_SOURCE([[
@@ -187,7 +188,7 @@ check_pselect_cross_thread(sigset_t mask)
 
     sleep(2); /* Give the thread time to enter pselect() */
 
-    if (dlopen("/opt/homebrew/lib/libssl.dylib", RTLD_LAZY | RTLD_GLOBAL) == NULL) {
+    if (dlopen("$HOMEBREW_PREFIX/lib/libssl.dylib", RTLD_LAZY | RTLD_GLOBAL) == NULL) {
 	fprintf(stderr, "dlopen failed: %s\n", dlerror());
 	rv = 1;
     }
