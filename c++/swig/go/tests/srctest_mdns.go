@@ -99,7 +99,7 @@ func main() {
 	se := &ServiceEvent{}
 	se.w = waiter
 	s := m.AddService(-1, gensio.GENSIO_NETTYPE_UNSPEC, "gensio2",
-		"_gensio2._tcp", nil, nil, 5001, []string{"A", "B"},
+		"_gensio2._tcp", nil, nil, 5001, []string{"A=1", "B=2"},
 	        se)
 	testbase.ObjCount++
 
