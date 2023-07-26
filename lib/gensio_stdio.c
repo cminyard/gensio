@@ -607,8 +607,10 @@ stdion_write_ready(struct gensio_iod *iod, void *cbdata)
     stdiona_lock(nadata);
     if (err) {
 	schan->ll_err = err;
-	nadata->o->set_read_handler(schan->out_iod, false);
-	nadata->o->set_except_handler(schan->out_iod, false);
+	if (schan->out_iod) {
+	    nadata->o->set_read_handler(schan->out_iod, false);
+	    nadata->o->set_except_handler(schan->out_iod, false);
+	}
     } else if (schan->write_pending) {
 	schan->write_pending = false;
 	if (schan->xmit_enabled)
