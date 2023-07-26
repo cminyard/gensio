@@ -553,6 +553,22 @@ AC_SUBST(TCL_LIBS)
 AC_SUBST(TCL_LIB)
 AC_SUBST(TCL_DIR)
 
+AC_CHECK_FUNCS(regexec)
+AC_CHECK_FUNCS(fnmatch)
+have_pcre_posix=no
+REGEX_LIB=
+if test "x$ac_cv_func_regexec" != xyes; then
+   AC_CHECK_LIB(pcreposix, regexec, have_pcre_posix=yes)
+   if test $have_pcre_posix = yes; then
+      REGEX_LIB=-lpcreposix
+      AC_DEFINE([HAVE_PCRE_POSIX], [], [Have PCRE POSIX regex])
+      ac_cv_func_regexec=pcre
+   fi
+fi
+AC_SUBST(REGEX_LIB)
+
+AC_CHECK_FUNCS(fnmatch)
+
 # If not creating shared libraries, build everything in.
 if test "$enable_shared" = "no"; then
    default_all=yes
@@ -1978,8 +1994,6 @@ AC_DEFINE_UNQUOTED([HAVE_PTSNAME_R], [$HAVE_PTSNAME_R],
 AC_SUBST(HAVE_PTSNAME_R)
 AC_CHECK_FUNCS(cfmakeraw)
 AC_CHECK_FUNCS(signalfd)
-AC_CHECK_FUNCS(regexec)
-AC_CHECK_FUNCS(fnmatch)
 
 case $host_os in
 linux*) HAVE_WORKING_PORT0=1 ;;
@@ -2218,6 +2232,7 @@ pr_op  "  UUCP Locking:		" $USE_UUCP_LOCKING
 pr_op  "  flock Locking:	" $USE_FLOCK_LOCKING
 pr_op  "  Broken pselect():	" $broken_pselect
 pr_op  "  TCP Wrappers:		" $ac_cv_header_tcpd_h
+pr_op  "  Regular Expressions:	" $ac_cv_func_regexec
 pr_op  "  Install Docs:		" $enable_doc
 pr_op  "  epoll_pwait():	" $ax_config_feature_epoll_pwait
 pr_op  "  pthreads:		" $use_pthreads

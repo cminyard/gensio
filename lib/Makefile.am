@@ -35,7 +35,8 @@ libgensiomdns_la_SOURCES = mdns.c avahi_watcher.c
 libgensiomdns_la_CPPFLAGS = -DBUILDING_GENSIOMDNS_DLL
 libgensiomdns_la_LDFLAGS = -no-undefined -version-info $(GENSIO_LIB_VERSION) \
 	-fvisibility=hidden
-libgensiomdns_la_LIBADD = libgensioosh.la ${MDNS_LIBS}
+libgensiomdns_la_LIBADD = libgensioosh.la ${MDNS_LIBS} \
+	${REGEX_LIB}
 
 libgensio_la_SOURCES = \
 	gensio.c gensio_base.c sergensio.c buffer.c \

@@ -204,11 +204,14 @@ interface is -1 and the ipdomain is
 you will get all of the fields.
 .SH "STRING VALUES FOR WATCHES"
 The string values to the watch add function may use regular
-expressions or globs.  If the string starts with '%', then the data
+expressions.  If the string starts with '%', then the data
 after it is treated as a regular expression and fields are matched
-against that.  If the string starts with '@', the the data after it is
-treated as a standard glob.  See the regex(7) and glob(7) man pages
-for details.
+against that.  See the regex(7) man page for details.
+
+Globs are supported on some platforms, but their use is discouraged
+because they aren't available on some platforms.  If the string starts
+with '@', the the data after it is treated as a standard glob.  See
+the glob(7) man page for details.  An error will be returned if the platform doesn't have glob matching.
 
 If the string starts with '=', an exact comparison is done with the
 data after it.

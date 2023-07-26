@@ -161,20 +161,40 @@ Gensios will be loaded first from the environment variable
 LD_LIBRARY_PATH, then from GENSIO_LIBRARY_PATH, then from the default
 location.
 
+Building on MacOS
+-----------------
+
+MacOS, being a sort of *nix, builds pretty cleanly with Homebrew
+(https://brew.sh).  You have to, of course, install all the libraries
+you need.  Most everything works, with the following exceptions:
+
+* cm108gpio
+* sctp
+* uucp locking
+
+The built-in DNSSD code is used for MDNS, so avahi is not required.
+
+flock locking for serial ports works, so uucp locking really isn't
+required.
+
 Building on Windows
 -------------------
 
 The gensio library can be built under Windows using mingw64.  The following
 things don't work::
 
-* udev
 * sctp
-* avahi
 * pam
 * libwrap
 
 You also don't need to install alsa, it uses the Windows sound interface for
 sound.
+
+The cm108gpio uses native windows interfaces, so udev is not required.
+
+The Windows built-in MDNS interfaces are used, so you don't need avahi
+or DNSSD.  You will need to install the pcre library if you want
+regular expressions in it.
 
 You have to install the mingw-w64-x86_64-xxx version of all the libraries.
 This has only been tested for 64-bit.

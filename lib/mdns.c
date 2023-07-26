@@ -125,9 +125,13 @@ mdns_rawstr_cleanup(struct gensio_os_funcs *o, struct mdns_str_data *sdata)
 	o->free(o, sdata->extdata);
 }
 
-#ifdef HAVE_REGEXEC
+#if defined(HAVE_REGEXEC) || defined(HAVE_PCRE_POSIX)
 #include <sys/types.h>
+#ifdef HAVE_PCRE_POSIX
+#include <pcreposix.h>
+#else
 #include <regex.h>
+#endif
 
 static void
 regex_str_cleanup(struct gensio_os_funcs *o, struct mdns_str_data *sdata)
@@ -2688,17 +2692,20 @@ gensio_mdnslib_add_watch(struct gensio_mdns_watch *w)
     DNSServiceErrorType derr;
     uint32_t sinterface;
     char *typestr = w->typestr;
+    char *domainstr = w->domainstr;
     int err;
 
     if (!typestr) {
 	gensio_mdns_log(m, GENSIO_LOG_ERR,
 			"Attempt to add a watch with mdnssd without type");
 	return GE_INCONSISTENT;
-    } else if (*typestr == '=') {
-	typestr++; /* Skip the leading '='. */
     } else if (*typestr == '@' || *typestr == '%') {
 	gensio_mdns_log(m, GENSIO_LOG_ERR,
 	   "Attempt to add a watch with DNSSD with a glob or regex type");
+	return GE_INCONSISTENT;
+    } else if (domainstr && (*domainstr == '@' || *domainstr == '%')) {
+	gensio_mdns_log(m, GENSIO_LOG_ERR,
+	   "Attempt to add a watch with DNSSD with a glob or regex domain");
 	return GE_INCONSISTENT;
     }
 
@@ -2708,7 +2715,7 @@ gensio_mdnslib_add_watch(struct gensio_mdns_watch *w)
 
     w->dnssd_sref = m->dnssd_sref;
     derr = DNSServiceBrowse(&w->dnssd_sref, kDNSServiceFlagsShareConnection,
-			    sinterface, typestr, w->domainstr,
+			    sinterface, typestr, domainstr,
 			    dnssd_watch_callback, w);
     if (derr) {
 	err = dnssd_err_to_err(m, derr);
@@ -2888,8 +2895,9 @@ win_browse_query_complete(void *context,
 	r->ifinterface = w->ifinterface;
 	r->protocol = w->protocol;
 	r->port = port;
-	r->txt = txt;
-	txt = NULL;
+	err = gensio_argv_copy(o, txt, NULL, &r->txt);
+	if (err)
+	    goto out_err;
 
 	if (dupstr(o, host, &r->host))
 	    goto out_err;
@@ -2943,7 +2951,7 @@ win_browse_query_complete(void *context,
 		break;
 	    }
 	    if (txt) {
-		err = gensio_argv_copy(o, txt, NULL, &txt2);
+		err = gensio_argv_copy(o, r->txt, NULL, &txt2);
 		if (err) {
 		    gensio_addr_free(addr);
 		    break;
@@ -3046,6 +3054,7 @@ gensio_mdnslib_add_watch(struct gensio_mdns_watch *w)
     DNS_STATUS rv;
     char *tname = NULL;
     char *typestr = w->typestr;
+    char *domainstr = w->domainstr;
     wchar_t *qname;
     int err;
 
@@ -3056,17 +3065,22 @@ gensio_mdnslib_add_watch(struct gensio_mdns_watch *w)
 	gensio_mdns_log(m, GENSIO_LOG_ERR,
 			"Attempt to add a watch with Windows MDNS without type");
 	return GE_INCONSISTENT;
-    } else if (*typestr == '=') {
-	typestr++; /* Skip the leading '='. */
     } else if (*typestr == '@' || *typestr == '%') {
 	gensio_mdns_log(m, GENSIO_LOG_ERR,
 	   "Attempt to add a watch with Windows MDNS with a glob or regex type");
+	return GE_INCONSISTENT;
+    } else if (domainstr && (*domainstr == '@' || *domainstr == '%')) {
+	gensio_mdns_log(m, GENSIO_LOG_ERR,
+	   "Attempt to add a watch with Windows MDNS with a glob or regex domain");
 	return GE_INCONSISTENT;
     }
 
     memset(&breq, 0, sizeof(breq));
 
-    tname = gensio_alloc_sprintf(o, "%s.local", typestr);
+    if (!domainstr)
+	domainstr = "local";
+
+    tname = gensio_alloc_sprintf(o, "%s.%s", typestr, domainstr);
     if (!tname)
 	return GE_NOMEM;
 
@@ -3139,10 +3153,6 @@ gensio_mdns_add_watch(struct gensio_mdns *m,
     gensio_list_init(&w->browsers);
     gensio_mdnslib_reset_finish_one(w);
 
-    if (dupstr(o, domain, &w->domainstr))
-	goto out_err;
-    if (dupstr(o, type, &w->typestr))
-	goto out_err;
     err = mdns_str_setup(m, name, &w->name);
     if (err)
 	goto out_err;
@@ -3154,6 +3164,20 @@ gensio_mdns_add_watch(struct gensio_mdns *m,
 	goto out_err;
     err = mdns_str_setup(m, host, &w->host);
     if (err)
+	goto out_err;
+
+    /*
+     * Windows and DNSSD need type set and can use domain, but they can't
+     * be regexes or globs.  At least handle the '=' case for them.
+     * These are not used for avahi.
+     */
+    if (domain && *domain == '=')
+	domain++;
+    if (type && *type == '=')
+	type++;
+    if (dupstr(o, domain, &w->domainstr))
+	goto out_err;
+    if (dupstr(o, type, &w->typestr))
 	goto out_err;
 
     gensio_mdns_lock(m);
