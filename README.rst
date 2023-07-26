@@ -166,7 +166,7 @@ Building on MacOS
 
 MacOS, being a sort of *nix, builds pretty cleanly with Homebrew
 (https://brew.sh).  You have to, of course, install all the libraries
-you need.  Most everything works, with the following exceptions:
+you need.  Most everything works, with the following exceptions::
 
 * cm108gpio
 * sctp
@@ -176,6 +176,9 @@ The built-in DNSSD code is used for MDNS, so avahi is not required.
 
 flock locking for serial ports works, so uucp locking really isn't
 required.
+
+openipmi should work, but it is not available in homebrew so you would
+have to build it yourself.
 
 Building on Windows
 -------------------
