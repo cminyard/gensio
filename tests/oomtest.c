@@ -624,6 +624,13 @@ check_oom_test_present(struct gensio_os_funcs *o, struct oom_tests *test)
     return test->check_value;
 }
 
+#if HAVE_PTY && !defined(_WIN32)
+# define HAVE_CON_PTY 1
+#else
+/* ptys are not connectable to on windows like on *nix. */
+# define HAVE_CON_PTY 0
+#endif
+
 struct oom_tests oom_tests[] = {
     { "ipmisol,lan -U ipmiusr -P test -p 9001 localhost,115200", NULL,
       /* In this test some errors will not result in a failure. */
@@ -721,7 +728,7 @@ struct oom_tests oom_tests[] = {
        *    It can still be run directly with the -t option.
        */
       .no_default_run = true,
-      .check_value = HAVE_PTY },
+      .check_done = 1, .check_value = HAVE_CON_PTY },
     { "ax25(laddr=test-2,addr=\"0,test-1,test-2\"),kiss(writebuf=512,readbuf=512),tcp,localhost,",
       "ax25(laddr=test-1),kiss(writebuf=512,readbuf=512),tcp,0",
       /* In this tests some errors will not result in a failure. */
