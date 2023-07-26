@@ -140,11 +140,11 @@ watch = mdns.add_watch(-1, gensio.GENSIO_NETTYPE_UNSPEC,
                        "%.*test_serv.*", '=_gensiotest._tcp', None, None, e)
 e.check = { "name" : "gensiotest_service",
             "type" : '_gensiotest._tcp',
-            "port" : 5000,
+            "port" : 5096,
             "txt" : ("Hello=yes", "Goodbye=no") }
 service = mdns.add_service(-1, gensio.GENSIO_NETTYPE_UNSPEC,
                            "gensiotest_service", '_gensiotest._tcp', None, None,
-                           5000, ("Hello=yes", "Goodbye=no"))
+                           5096, ("Hello=yes", "Goodbye=no"))
 if e.wait() == 0:
     raise Exception("Didn't get data in time")
 if e.check is not None:
@@ -152,7 +152,7 @@ if e.check is not None:
 
 utils.TestAccept(utils.o, "mdns(type=_gensiotest._tcp,ignore-v6-link-local)," +
                           "gensiotest_service",
-                 "tcp,5000", utils.do_small_test, chunksize = 64, get_port=False)
+                 "tcp,5096", utils.do_small_test, chunksize = 64, get_port=False)
 
 del mdns
 del watch
