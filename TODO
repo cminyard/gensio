@@ -1,0 +1,31 @@
+This is a random-ish list of things that might be done.
+
+Add a way to stack multiple things on a mux.  Idea, use ",;" to
+specify the start of a number of things to go onto a mux, ",," to
+separate things on top of a mux, and ",." to mark the end of the last
+thing on the mux. NOTE - The big problem with this is that there is
+nothing to connect to on the top.
+
+Implement RFC 1408 on telnet.
+
+Add a "stream" option that tells the gensio to act as a stream, even if it's a
+packet oriented gensio.  This will allow the gensio to add data to existing
+untranmsmitted packets and do other optimizations.
+
+Report an error if a mux or relpkt client tries to connect to a client.
+
+serialdev devices cannot be used in a forked process because the UUCP lock
+will not be correct.  However, flock locking solves this problem.
+
+Port selector changes to openipmi.
+
+Add 300 baud support to afskmdm.
+
+Add 9600 baud
+
+Add an aux data/ oob data for sent messages that is sent back to the
+user of afskmdm.  This way, ax.25 can know when a packet was
+transmitted and properly set the timers.
+
+Add controls into afsk for controlling tx delay, tail, etc. and use
+them from kiss.

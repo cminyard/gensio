@@ -3,15 +3,19 @@ Windows is a royal pain.
 
 For python, there is an issue if you get an exception and another
 python callback gets called.  The exception is cleared by the new
-python call so it is lost.  You can see this in test_mdns.py if there
-are multiple callbacks to mdns_cb.
+python call so it is lost.  So even though exceptions are propagated
+back through the C/C++ code, they can still get lost.  You can see
+this in test_mdns.py if there are multiple callbacks to mdns_cb.
+There is not an easy workaround, it is probably better to catch
+exceptions in all callbacks.
 
-Windows has some strange behavior that I can't track down.  It looks
-like in some cases that a close won't be reported in winsock_func() if
-the source and destination sockets are both local.  That seems to be
-why test_ssl_tcp_accept_connect.py fails, I have verified that one
-side of the connection gets closed but the close is not reported on
-the other side.
+Windows has some strange behavior that I can't track down dealing with
+socket closing.  It looks like in some cases that a close won't be
+reported in winsock_func() if the source and destination sockets are
+both in the same process.  That seems to be why
+test_ssl_tcp_accept_connect.py fails, I have verified that one side of
+the connection gets closed but the close is not reported on the other
+side.
 
 On Windows, a new pty spews out a bunch of terminal control stuff and
 messes things up for testing and for things like rsync.  Some way to
