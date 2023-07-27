@@ -912,8 +912,10 @@ gensio_cntstr_vsprintf(struct gensio_os_funcs *o, gensio_cntstr **dest,
     va_copy(va2, va);
     len = (size_t) vsnprintf(c, 0, fmt, va) + 1L;
     str = o->zalloc(o, len + sizeof(*str));
-    if (!str)
+    if (!str) {
+	va_end(va2);
 	return GE_NOMEM;
+    }
     str->refcount = 1;
     str->str = ((char *) str) + sizeof(*str);
     vsnprintf(str->str, len, fmt, va2);
