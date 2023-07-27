@@ -1104,7 +1104,7 @@ gensio_unix_add_iod(struct gensio_os_funcs *o, enum gensio_iod_type type,
 	o->free(o, iod);
     else if (closefd) {
 	close(fd);
-	if (sfd == -1)
+	if (sfd != -1)
 	    close(sfd);
     }
     return err;
