@@ -62,7 +62,7 @@ uucp_svr4_lock(struct gensio_os_funcs *o, int fd, char **rname)
 {
     struct stat stat;
     size_t len;
-    int maj, min;
+    unsigned int maj, min;
     char *name;
 
     if (fstat(fd, &stat) == -1)
@@ -223,7 +223,12 @@ uucp_mk_lock(struct gensio_os_funcs *o, int fd, const char *devname)
 		    pid = -1;
 		    unlink(lck_file1);
 		} else {
-		    link(lck_file1, lck_file2);
+		    rv = link(lck_file1, lck_file2);
+		    if (rv) {
+			gensio_log(o, GENSIO_LOG_ERR,
+				   "Error linking %s to %s: %s",
+				   lck_file1, lck_file2, strerror(errno));
+		    }
 		}
 	    } else {
 		pid = -1;
