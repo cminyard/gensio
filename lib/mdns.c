@@ -2277,12 +2277,13 @@ browser_find(struct gensio_mdns_watch *w,
 static void
 browser_remove(struct gensio_mdns_watch_browser *b)
 {
-    struct gensio_mdns_watch *w = b->w;
+    struct gensio_mdns_watch *w;
     struct gensio_link *l, *l2;
 
     if (!b)
 	return;
 
+    w = b->w;
     gensio_list_for_each_safe(&b->resolvers, l, l2) {
 	struct gensio_mdns_watch_resolver *r =
 	    gensio_container_of(l, struct gensio_mdns_watch_resolver,
