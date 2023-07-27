@@ -1184,7 +1184,7 @@ gensio_mdnslib_initservice(struct gensio_mdns_service *s,
     wchar_t **keys = NULL, **values = NULL;
     char *domain = s->domain, *tmps, *chost;
     char hostname[256];
-    wchar_t *name, *host;
+    wchar_t *name = NULL, *host = NULL;
     int err = 0;
 
     if (ifinterface == 0)
@@ -2896,9 +2896,11 @@ win_browse_query_complete(void *context,
 	r->ifinterface = w->ifinterface;
 	r->protocol = w->protocol;
 	r->port = port;
-	err = gensio_argv_copy(o, txt, NULL, &r->txt);
-	if (err)
-	    goto out_err;
+	if (txt) {
+	    err = gensio_argv_copy(o, txt, NULL, &r->txt);
+	    if (err)
+		goto out_err;
+	}
 
 	if (dupstr(o, host, &r->host))
 	    goto out_err;
@@ -3041,7 +3043,7 @@ win_browse_query_complete(void *context,
 	browser_finish_one(w);
 
  out_unlock:
-    if (bres && bres->pQueryRecords)
+    if (bres->pQueryRecords)
 	DnsRecordListFree(bres->pQueryRecords, DnsFreeRecordList);
     gensio_mdns_unlock(m);
 }
