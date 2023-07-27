@@ -78,7 +78,7 @@ private:
 	if (ev == GENSIO_MDNS_SERVICE_READY) {
 	    cout << "MDNS service ready with name " << info << endl;
 	    waiter->wake();
-	} else if (ev == GENSIO_MDNS_SERVICE_READY) {
+	} else if (ev == GENSIO_MDNS_SERVICE_READY_NEW_NAME) {
 	    cout << "MDNS service ready with new name " << info << endl;
 	    waiter->wake();
 	} else if (ev == GENSIO_MDNS_SERVICE_ERROR) {
