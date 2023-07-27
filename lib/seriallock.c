@@ -20,7 +20,9 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/ioctl.h>
-#include <sys/sysmacros.h>
+#ifdef __linux__
+#include <sys/sysmacros.h> /* For major() and minor() */
+#endif
 #include <signal.h>
 #include <gensio/gensio.h>
 
