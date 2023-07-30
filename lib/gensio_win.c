@@ -1597,6 +1597,7 @@ win_oneway_in_thread(LPVOID data)
 	start_loop:
 	    rvw = WaitForSingleObject(owiod->wakeh, INFINITE);
 	    EnterCriticalSection(&wiod->lock);
+	    assert(ResetEvent(owiod->wakeh));
 	    if (rvw == WAIT_FAILED)
 		goto out_err;
 	    if (!wiod->done)
@@ -1666,6 +1667,7 @@ win_oneway_out_thread(LPVOID data)
 	    LeaveCriticalSection(&wiod->lock);
 	    rvw = WaitForSingleObject(owiod->wakeh, INFINITE);
 	    EnterCriticalSection(&wiod->lock);
+	    assert(ResetEvent(owiod->wakeh));
 	    if (rvw == WAIT_FAILED)
 		goto out_err;
 	}
@@ -2121,7 +2123,9 @@ win_twoway_thread(LPVOID data)
 	    if (rvw == WAIT_FAILED)
 		goto out_err;
 
-	    if (rvw == WAIT_OBJECT_0 + 1) {
+	    if (rvw == WAIT_OBJECT_0 + 0) {
+		assert(ResetEvent(twiod->wakeh));
+	    } else if (rvw == WAIT_OBJECT_0 + 1) {
 		DWORD nread = 0;
 
 		/* Read event. */
