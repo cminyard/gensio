@@ -30,7 +30,6 @@
 #include <gensio/gensio_class.h>
 #include <gensio/gensio_ll_fd.h>
 #include <gensio/argvutils.h>
-#include <gensio/gensio_osops.h>
 #ifdef _WIN32
 #include <windows.h>
 #endif

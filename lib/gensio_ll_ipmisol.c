@@ -16,7 +16,6 @@
 
 #include <gensio/gensio_class.h>
 #include <gensio/sergensio_class.h>
-#include <gensio/gensio_osops.h>
 #include <gensio/gensio_list.h>
 
 #include <gensio/gensio_buffer.h>

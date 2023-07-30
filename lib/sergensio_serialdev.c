@@ -16,7 +16,6 @@
 
 #include <gensio/sergensio_class.h>
 #include <gensio/gensio_ll_fd.h>
-#include <gensio/gensio_osops.h>
 
 #include "seriallock.h"
 #include "utils.h"
