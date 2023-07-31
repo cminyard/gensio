@@ -378,6 +378,10 @@ class HandleData:
         self.waiter.wake()
         return
 
+    def log(self, level, log):
+        print("%s GLOG: %s %s" % (level, self.name, log))
+        return 0
+
     def set_expected_win_size(self, height, width):
         self.expecting_winsize = True
         self.expected_winsize_height = height
