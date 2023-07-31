@@ -349,6 +349,12 @@ type Event interface {
 	// An error occurred parsing parameters
 	Parmlog(s string)
 
+	// A window size event
+	WinSize(height uint, width uint)
+
+	// A general gensio log
+	Log(level Gensio_log_levels, log string) int
+
 	// An event in the user event range, this will only happen for
 	// custom gensios.
 	UserEvent(event int, err int, userdata *[]byte,
@@ -1157,6 +1163,13 @@ func (e *EventBase) Request2fa() (int, []byte) {
 func (e *EventBase) Parmlog(s string) {
 }
 
+func (e *EventBase) WinSize(height uint, width uint) {
+}
+
+func (e *EventBase) Log(level Gensio_log_levels, log string) int {
+	return GE_NOTSUP
+}
+
 func (e *EventBase) UserEvent(event int, err int,
 			      userdata *[]byte, auxdata []string) int {
 	return GE_NOTSUP
@@ -1224,6 +1237,14 @@ func (e *raweventBase) Request_2fa(val *[]byte) int {
 
 func (e *raweventBase) Parmlog(s string) {
 	e.sube.Parmlog(s)
+}
+
+func (e *raweventBase) Win_size(height uint, width uint) {
+	e.sube.WinSize(height, width)
+}
+
+func (e *raweventBase) Log(level Gensio_log_levels, s string) int {
+	return e.sube.Log(level, s)
 }
 
 func (e *raweventBase) User_event(event int, err int,
@@ -1322,6 +1343,14 @@ func (e *rawserialEventBase) Request_2fa(val *[]byte) int {
 
 func (e *rawserialEventBase) Parmlog(s string) {
 	e.subse.Parmlog(s)
+}
+
+func (e *rawserialEventBase) Win_size(height uint, width uint) {
+	e.subse.WinSize(height, width)
+}
+
+func (e *rawserialEventBase) Log(level Gensio_log_levels, s string) int {
+	return e.subse.Log(level, s)
 }
 
 func (e *rawserialEventBase) User_event(event int, err int,
