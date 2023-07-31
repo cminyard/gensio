@@ -548,11 +548,18 @@ struct certauth_filter {
 
 #define filter_to_certauth(v) ((struct certauth_filter *) \
 			       gensio_filter_get_user_data(v))
+static void certauth_lock(struct certauth_filter *sfilter);
+static void certauth_unlock(struct certauth_filter *sfilter);
 
+/*
+ * This function releases and reclaims the lock, so it can only be
+ * called in places where this is ok.
+ */
 static void
 gca_vlog(struct certauth_filter *f, enum gensio_log_levels l,
 	 bool do_ssl_err, char *fmt, va_list ap)
 {
+    certauth_unlock(f);
     if (do_ssl_err) {
 	char buf[256], buf2[200];
 	unsigned long ssl_err = ERR_get_error();
@@ -562,11 +569,12 @@ gca_vlog(struct certauth_filter *f, enum gensio_log_levels l,
 
 	ERR_error_string_n(ssl_err, buf2, sizeof(buf2));
 	snprintf(buf, sizeof(buf), "certauth: %s: %s", fmt, buf2);
-	gensio_vlog(f->o, l, buf, ap);
+	gensio_filter_vlog(f->filter, l, buf, ap);
     } else {
     no_ssl_err:
-	gensio_vlog(f->o, l, fmt, ap);
+	gensio_filter_vlog(f->filter, l, fmt, ap);
     }
+    certauth_lock(f);
 }
 
 

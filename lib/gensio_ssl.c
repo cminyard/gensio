@@ -136,6 +136,11 @@ sslna_gensio_event(struct gensio *io, void *user_data, int event, int err,
 {
     struct sslna_data *nadata = user_data;
 
+    if (event == GENSIO_EVENT_LOG) {
+	struct gensio_log_data *d = (struct gensio_log_data *) buf;
+	gensio_acc_vlog(nadata->acc, d->level, d->log, d->args);
+	return 0;
+    }
     if (event != GENSIO_EVENT_PRECERT_VERIFY)
 	return GE_NOTSUP;
 

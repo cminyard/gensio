@@ -196,6 +196,12 @@ certauthna_gensio_event(struct gensio *io, void *user_data, int event, int err,
 	    *buflen = pwvfy.password_len;
 	return rv;
 
+    case GENSIO_EVENT_LOG: {
+	struct gensio_log_data *d = (struct gensio_log_data *) buf;
+	gensio_acc_vlog(nadata->acc, d->level, d->log, d->args);
+	return 0;
+    }
+
     default:
 	return GE_NOTSUP;
     }
