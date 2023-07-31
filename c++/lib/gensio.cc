@@ -210,7 +210,7 @@ namespace gensios {
 		    std::string outstr(len + 1, '\0');
 		    vsnprintf(&outstr[0], len + 1, d->log, d->args);
 		    cb->parmlog(outstr);
-		    break;
+		    return 0;
 		}
 
 		case GENSIO_EVENT_WIN_SIZE: {
@@ -218,7 +218,23 @@ namespace gensios {
 
 		    sscanf((char *) buf, "%u:%u", &height, &width);
 		    cb->win_size(height, width);
-		    break;
+		    return 0;
+		}
+
+		case GENSIO_EVENT_LOG: {
+		    struct gensio_log_data *d =
+			(struct gensio_log_data *) buf;
+		    va_list argcopy;
+		    va_copy(argcopy, d->args);
+		    size_t len = vsnprintf(NULL, 0, d->log, argcopy);
+		    va_end(argcopy);
+		    std::string outstr(len + 1, '\0');
+		    // Copy args again, in case the user doesn't handle them
+		    // and returns GE_NOTSUP.
+		    va_copy(argcopy, d->args);
+		    vsnprintf(&outstr[0], len + 1, d->log, argcopy);
+		    va_end(argcopy);
+		    return cb->log(d->level, outstr);
 		}
 		}
 		return GE_NOTSUP;
@@ -359,20 +375,37 @@ namespace gensios {
 				  const char *const *auxdata)
     {
 	Event *cb = static_cast<Event *>(user_data);
-	struct gensio_parmlog_data *p;
 
-	if (event != GENSIO_EVENT_PARMLOG)
+	switch(event) {
+	case GENSIO_EVENT_PARMLOG: {
+	    struct gensio_parmlog_data *p = (struct gensio_parmlog_data *) buf;
+
+	    va_list argcopy;
+	    va_copy(argcopy, p->args);
+	    size_t len = vsnprintf(NULL, 0, p->log, argcopy);
+	    va_end(argcopy);
+	    std::string outstr(len, '\0');
+	    vsnprintf(&outstr[0], len + 1, p->log, p->args);
+	    cb->parmlog(outstr);
+	    return 0;
+	}
+
+	case GENSIO_EVENT_LOG: {
+	    struct gensio_log_data *p = (struct gensio_log_data *) buf;
+
+	    va_list argcopy;
+	    va_copy(argcopy, p->args);
+	    size_t len = vsnprintf(NULL, 0, p->log, argcopy);
+	    va_end(argcopy);
+	    std::string outstr(len, '\0');
+	    vsnprintf(&outstr[0], len + 1, p->log, p->args);
+	    cb->log(p->level, outstr);
+	    return 0;
+	}
+
+	default:
 	    return GE_NOTSUP;
-
-	p = (struct gensio_parmlog_data *) buf;
-	va_list argcopy;
-	va_copy(argcopy, p->args);
-	size_t len = vsnprintf(NULL, 0, p->log, argcopy);
-	va_end(argcopy);
-	std::string outstr(len, '\0');
-	vsnprintf(&outstr[0], len + 1, p->log, p->args);
-	cb->parmlog(outstr);
-	return 0;
+	}
     }
 
     Gensio *

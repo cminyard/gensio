@@ -113,6 +113,10 @@ namespace gensios {
 
 	// Window size events come in here.
 	virtual void win_size(unsigned int height, unsigned int width) { }
+
+	// General logs on running gensios come in here.
+	virtual int log(enum gensio_log_levels level,
+			const std::string log) { return GE_NOTSUP; }
     };
 
     // Used for done handlers for gensio operations that can fail,
