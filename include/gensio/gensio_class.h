@@ -255,10 +255,10 @@ void gensio_acc_set_is_mux(struct gensio_accepter *io, bool is_mux);
 
 GENSIO_DLL_PUBLIC
 void gensio_acc_vlog(struct gensio_accepter *acc, enum gensio_log_levels level,
-		     char *str, va_list args);
+		     const char *str, va_list args);
 GENSIO_DLL_PUBLIC
 void gensio_acc_log(struct gensio_accepter *acc, enum gensio_log_levels level,
-		    char *str, ...);
+		    const char *str, ...);
 
 /*
  * Handler registered so that str_to_gensio_accepter can process an

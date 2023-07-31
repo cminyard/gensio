@@ -269,7 +269,7 @@ struct gensio_accepter *gensio_acc_get_child(struct gensio_accepter *acc,
 #define GENSIO_ACC_EVENT_LOG		2
 struct gensio_loginfo {
     enum gensio_log_levels level;
-    char *str;
+    const char *str;
     va_list args;
 };
 

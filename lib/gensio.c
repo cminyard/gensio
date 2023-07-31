@@ -2423,7 +2423,7 @@ gensio_pparm_unknown_parm(struct gensio_pparm_info *p,
 
 void
 gensio_acc_vlog(struct gensio_accepter *acc, enum gensio_log_levels level,
-		char *str, va_list args)
+		const char *str, va_list args)
 {
     struct gensio_loginfo info;
 
@@ -2439,7 +2439,7 @@ gensio_acc_vlog(struct gensio_accepter *acc, enum gensio_log_levels level,
 
 void
 gensio_acc_log(struct gensio_accepter *acc, enum gensio_log_levels level,
-	       char *str, ...)
+	       const char *str, ...)
 {
     va_list args;
 
