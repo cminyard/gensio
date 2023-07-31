@@ -1728,6 +1728,8 @@ static void
 ax25_proto_err(struct ax25_base *base, struct ax25_chan *chan,
 	       const char *errstr)
 {
+    if (chan)
+	ax25_chan_unlock(chan);
     if (chan && chan->conf.addr) {
 	char addrstr[100] = "<none>", subaddrstr[10] = "<none>";
 
@@ -1736,11 +1738,13 @@ ax25_proto_err(struct ax25_base *base, struct ax25_chan *chan,
 	if (chan->conf.my_addrs)
 	    ax25_subaddr_to_str(&base->conf.my_addrs[0],
 				subaddrstr, NULL, sizeof(subaddrstr), false);
-	gensio_log(base->o, GENSIO_LOG_ERR, "%s: AX25 error from %s: %s",
-		   subaddrstr, addrstr, errstr);
+	gensio_glog(chan->io, GENSIO_LOG_ERR, "%s: AX25 error from %s: %s",
+		    subaddrstr, addrstr, errstr);
     } else {
-	gensio_log(base->o, GENSIO_LOG_ERR, "AX25 error: %s", errstr);
+	gensio_glog(chan->io, GENSIO_LOG_ERR, "AX25 error: %s", errstr);
     }
+    if (chan)
+	ax25_chan_lock(chan);
 }
 
 static void
@@ -1926,8 +1930,8 @@ ax25_chan_check_new_timeout(struct ax25_chan *chan, int64_t value,
     gensio_msecs_to_time(&t, then);
     rv = o->start_timer(chan->timer, &t);
     if (rv) {
-	gensio_log(o, GENSIO_LOG_FATAL, "AX25 timer start error: %s",
-		   gensio_err_to_str(rv));
+	gensio_glog(chan->io, GENSIO_LOG_FATAL, "AX25 timer start error: %s",
+		    gensio_err_to_str(rv));
 	assert(0);
     }
     ax25_chan_ref(chan);

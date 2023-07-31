@@ -307,9 +307,11 @@ keepn_open_done(struct gensio *io, int err, void *open_data)
     case KEEPN_IN_OPEN:
 	if (err) {
 	    ndata->last_child_err = err;
-	    gensio_log(ndata->o, GENSIO_LOG_INFO,
-		       "Error opening child gensio: %s",
-		       gensio_err_to_str(err));
+	    keepn_unlock(ndata);
+	    gensio_glog(ndata->io, GENSIO_LOG_INFO,
+			"Error opening child gensio: %s",
+			gensio_err_to_str(err));
+	    keepn_lock(ndata);
 	    ndata->state = KEEPN_CHILD_CLOSED;
 	    keepn_start_timer(ndata);
 	} else {
@@ -318,9 +320,12 @@ keepn_open_done(struct gensio *io, int err, void *open_data)
 	     * use that to know if this was the first connection and
 	     * don't report on a first connection.
 	     */
-	    if (ndata->last_child_err)
-		gensio_log(ndata->o, GENSIO_LOG_INFO,
-			   "child gensio open restored");
+	    if (ndata->last_child_err) {
+		keepn_unlock(ndata);
+		gensio_glog(ndata->io, GENSIO_LOG_INFO,
+			    "child gensio open restored");
+		keepn_lock(ndata);
+	    }
 	    gensio_set_write_callback_enable(ndata->child, ndata->tx_enable);
 	    gensio_set_read_callback_enable(ndata->child, ndata->rx_enable);
 	    ndata->state = KEEPN_OPEN;
@@ -376,13 +381,12 @@ keepn_handle_io_err(struct keepn_data *ndata, int err)
 {
 
     keepn_lock(ndata);
-    if (ndata->state != KEEPN_OPEN)
-	goto out_unlock;
+    if (ndata->state != KEEPN_OPEN) {
+	keepn_unlock(ndata);
+	return 0;
+    }
 
     ndata->last_child_err = err;
-    gensio_log(ndata->o, GENSIO_LOG_INFO, "I/O error from child gensio: %s",
-	       gensio_err_to_str(err));
-
     err = gensio_close(ndata->child, keepn_close_done, ndata);
     if (err) {
 	keepn_start_timer(ndata);
@@ -392,8 +396,11 @@ keepn_handle_io_err(struct keepn_data *ndata, int err)
 	keepn_ref(ndata);
     }
     
- out_unlock:
     keepn_unlock(ndata);
+
+    gensio_glog(ndata->io, GENSIO_LOG_INFO, "I/O error from child gensio: %s",
+		gensio_err_to_str(err));
+
     return 0;
 }
 
@@ -423,12 +430,13 @@ keepn_retry_timeout(struct gensio_timer *t, void *cb_data)
     keepn_lock(ndata);
     switch (ndata->state) {
     case KEEPN_OPEN_INIT_FAIL:
-	gensio_log(ndata->o, GENSIO_LOG_INFO, "Error from gensio open: %s",
-		   gensio_err_to_str(ndata->last_child_err));
 	keepn_check_open_done(ndata);
 	ndata->state = KEEPN_CHILD_CLOSED;
 	keepn_start_timer(ndata);
-	break;
+	keepn_unlock_and_deref(ndata);
+	gensio_glog(ndata->io, GENSIO_LOG_INFO, "Error from gensio open: %s",
+		    gensio_err_to_str(ndata->last_child_err));
+	return;
 
     case KEEPN_CHILD_CLOSED:
 	err = gensio_open(ndata->child, keepn_open_done, ndata);

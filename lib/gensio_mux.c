@@ -565,15 +565,24 @@ static int muxc_gensio_handler(struct gensio *io, int func, gensiods *count,
 			       const char *const *auxdata);
 static void muxc_add_to_wrlist(struct mux_inst *chan);
 static void mux_shutdown_channels(struct mux_data *muxdata, int err);
+static int mux_firstchan_event(struct mux_data *muxdata, int event, int err,
+			       unsigned char *buf, gensiods *buflen,
+			       const char * const * auxdata);
 
 static void
-gmux_log_err(struct mux_data *f, char *fmt, ...)
+gmux_log_err(struct mux_data *f, const char *fmt, ...)
 {
-    va_list ap;
+    int rv;
+    struct gensio_log_data d;
 
-    va_start(ap, fmt);
-    gensio_vlog(f->o, GENSIO_LOG_ERR, fmt, ap);
-    va_end(ap);
+    d.level = GENSIO_LOG_ERR;
+    d.log = fmt;
+    va_start(d.args, fmt);
+    rv = mux_firstchan_event(f, GENSIO_EVENT_LOG, 0, (unsigned char *) &d,
+			     NULL, NULL);
+    if (rv == GE_NOTSUP)
+	gensio_vlog(f->o, GENSIO_LOG_ERR, fmt, d.args);
+    va_end(d.args);
 }
 
 static void
@@ -2686,7 +2695,6 @@ mux_child_read(struct mux_data *muxdata, int ierr,
     chan_deref(muxdata->curr_chan);
     muxdata->curr_chan = NULL;
  protocol_err:
-    gmux_log_err(muxdata, "Protocol error: %s\n", proto_err_str);
     ierr = GE_PROTOERR;
  out_err:
     gensio_set_read_callback_enable(muxdata->child, false);
@@ -2698,6 +2706,8 @@ mux_child_read(struct mux_data *muxdata, int ierr,
     if (err)
 	mux_shutdown_channels(muxdata, ierr);
     mux_deref_and_unlock(muxdata);
+    if (err == GE_PROTOERR)
+        gmux_log_err(muxdata, "Protocol error: %s\n", proto_err_str);
     return 0;
 }
 

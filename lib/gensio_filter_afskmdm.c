@@ -600,9 +600,9 @@ static void
 keyop_done(struct sergensio *sio, int err, unsigned int val, void *cb_data)
 {
     if (err)
-	gensio_log(cb_data, GENSIO_LOG_WARNING,
-		   "afskmdm: Error keying transmitter: %s\n",
-		   gensio_err_to_str(err));
+	gensio_filter_log(cb_data, GENSIO_LOG_WARNING,
+			  "afskmdm: Error keying transmitter: %s\n",
+			  gensio_err_to_str(err));
 }
 
 static void
@@ -618,22 +618,22 @@ afskmdm_do_keyon(struct afskmdm_filter *sfilter)
 
     case KEY_RTS:
 	sergensio_rts(sfilter->key_sio, SERGENSIO_RTS_ON, keyop_done,
-		      sfilter->o);
+		      sfilter->filter);
 	break;
 
     case KEY_RTSINV:
 	sergensio_rts(sfilter->key_sio, SERGENSIO_RTS_OFF, keyop_done,
-		      sfilter->o);
+		      sfilter->filter);
 	break;
 
     case KEY_DTR:
 	sergensio_dtr(sfilter->key_sio, SERGENSIO_DTR_ON, keyop_done,
-		      sfilter->o);
+		      sfilter->filter);
 	break;
 
     case KEY_DTRINV:
 	sergensio_dtr(sfilter->key_sio, SERGENSIO_DTR_OFF, keyop_done,
-		      sfilter->o);
+		      sfilter->filter);
 	break;
 
     case KEY_CM108: /* Should never happen. */
@@ -655,22 +655,22 @@ afskmdm_do_keyoff(struct afskmdm_filter *sfilter)
 
     case KEY_RTS:
 	sergensio_rts(sfilter->key_sio, SERGENSIO_RTS_OFF, keyop_done,
-		      sfilter->o);
+		      sfilter->filter);
 	break;
 
     case KEY_RTSINV:
 	sergensio_rts(sfilter->key_sio, SERGENSIO_RTS_ON, keyop_done,
-		      sfilter->o);
+		      sfilter->filter);
 	break;
 
     case KEY_DTR:
 	sergensio_dtr(sfilter->key_sio, SERGENSIO_DTR_OFF, keyop_done,
-		      sfilter->o);
+		      sfilter->filter);
 	break;
 
     case KEY_DTRINV:
 	sergensio_dtr(sfilter->key_sio, SERGENSIO_DTR_ON, keyop_done,
-		      sfilter->o);
+		      sfilter->filter);
 	break;
 
     case KEY_CM108: /* Should never happen. */
@@ -711,9 +711,9 @@ key_open_done(struct gensio *io, int err, void *open_data)
 
     if (err) {
 	sfilter->key_io_state = KEY_CLOSED;
-	gensio_log(sfilter->o, GENSIO_LOG_ERR,
-		   "afskmdm: Error from open key I/O '%s': %s", sfilter->key,
-		   gensio_err_to_str(err));
+	gensio_filter_log(sfilter->filter, GENSIO_LOG_ERR,
+			  "afskmdm: Error from open key I/O '%s': %s",
+			  sfilter->key, gensio_err_to_str(err));
     } else {
 	sfilter->key_io_state = KEY_OPEN;
 	afskmdm_do_keyoff(sfilter);
@@ -745,9 +745,9 @@ afskmdm_try_connect(struct gensio_filter *filter, gensio_time *timeout,
 
 	err = gensio_open(sfilter->key_io, key_open_done, sfilter);
 	if (err) {
-	    gensio_log(sfilter->o, GENSIO_LOG_ERR,
-		       "afskmdm: Unable to open key I/O '%s': %s", sfilter->key,
-		       gensio_err_to_str(err));
+	    gensio_filter_log(sfilter->filter, GENSIO_LOG_ERR,
+			      "afskmdm: Unable to open key I/O '%s': %s",
+			      sfilter->key, gensio_err_to_str(err));
 	    return err;
 	}
 	sfilter->key_io_state = KEY_IN_OPEN;
@@ -780,9 +780,9 @@ afskmdm_try_disconnect(struct gensio_filter *filter, gensio_time *timeout,
 	err = gensio_close(sfilter->key_io, key_close_done, sfilter);
 	if (err) {
 	    sfilter->key_io_state = KEY_CLOSED;
-	    gensio_log(sfilter->o, GENSIO_LOG_WARNING,
-		       "afskmdm: Error from close key I/O '%s': %s",
-		       sfilter->key, gensio_err_to_str(err));
+	    gensio_filter_log(sfilter->filter, GENSIO_LOG_WARNING,
+			      "afskmdm: Error from close key I/O '%s': %s",
+			      sfilter->key, gensio_err_to_str(err));
 	} else {
 	    sfilter->key_io_state = KEY_IN_CLOSE;
 	}
