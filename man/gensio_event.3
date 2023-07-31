@@ -280,6 +280,23 @@ which can be printed with normal vprintf() and the like.
 .SS "GENSIO_EVENT_WIN_SIZE"
 The other end of the connection is reporting a window size change.
 Currently only on telnet with RFC1073 enabled.
+.SS "GENSIO_EVENT_LOG"
+Used to report general logs in gensios while processing.  Can be
+called any time the gensio exists.
+
+The
+.B buf
+parameter contains a pointer to the following structure:
+
+struct gensio_log_data {
+.br
+    const char *log;
+.br
+    va_list args;
+.br
+};
+
+which can be printed with normal vprintf() and the like.
 .SH "OTHER EVENTS"
 sergensio gensios have a set of other events, see sergensio(5) for
 details.  Other gensio that are not part of the gensio library proper

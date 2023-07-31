@@ -67,6 +67,13 @@ struct gensio_parmlog_data {
 #define GENSIO_EVENT_PARMLOG		12
 #define GENSIO_EVENT_WIN_SIZE		13
 
+struct gensio_log_data {
+    enum gensio_log_levels level;
+    const char *log;
+    va_list args;
+};
+#define GENSIO_EVENT_LOG		14
+
 /*
  * Serial callbacks start here and run to 2000.
  */

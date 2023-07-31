@@ -259,6 +259,34 @@ gensio_cb(struct gensio *io, int event, int err,
     return rv;
 }
 
+void
+gensio_gvlog(struct gensio *io, enum gensio_log_levels level,
+	     const char *log, va_list args)
+{
+    struct gensio_log_data data;
+    int rv;
+
+    data.level = level;
+    data.log = log;
+    va_copy(data.args, args);
+    rv = gensio_cb(io, GENSIO_EVENT_LOG, 0, (unsigned char *) &data,
+		   NULL, NULL);
+    if (rv == GE_NOTSUP)
+	gensio_vlog(io->o, level, log, args);
+    va_end(data.args);
+}
+
+void
+gensio_glog(struct gensio *io, enum gensio_log_levels level,
+	    const char *log, ...)
+{
+    va_list args;
+
+    va_start(args, log);
+    gensio_gvlog(io, level, log, args);
+    va_end(args);
+}
+
 int
 gensio_addclass(struct gensio *io, const char *name, int classops_ver,
 		struct gensio_classops *ops, void *classdata)

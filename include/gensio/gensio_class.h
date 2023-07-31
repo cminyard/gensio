@@ -467,4 +467,21 @@ void i_gensio_pparm_log(struct gensio_pparm_info *p, const char *log, ...);
 		       (p)->ghandler ? "gensio" : "accepter",		\
 		       (p)->gensio_name)
 
+/*
+ * The following two functions are for logging information to a
+ * gensio.  If the gensio doesn't handle the log (returns GE_NOTSUP)
+ * then it logs through the os handler.
+ *
+ * Because of this, you must be careful to call this without holding
+ * locks.  If you really need to log with locks enabled, only log
+ * through the os handler.
+ */
+GENSIO_DLL_PUBLIC
+void gensio_gvlog(struct gensio *io, enum gensio_log_levels level,
+		  const char *log, va_list args);
+
+GENSIO_DLL_PUBLIC
+void gensio_glog(struct gensio *io, enum gensio_log_levels level,
+		 const char *log, ...);
+
 #endif /* GENSIO_CLASS_H */
