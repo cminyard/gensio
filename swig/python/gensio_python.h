@@ -781,6 +781,8 @@ gensio_child_event(struct gensio *io, void *user_data, int event, int readerr,
 	size_t len;
 	char *str = NULL;
 
+	args = PyTuple_New(1);
+
 	va_copy(tmpva, p->args);
 	len = vsnprintf(str, 0, p->log, tmpva);
 	va_end(tmpva);
@@ -788,7 +790,6 @@ gensio_child_event(struct gensio *io, void *user_data, int event, int readerr,
 	if (!str)
 	    goto out_put;
 	vsnprintf(str, len + 1, p->log, p->args);
-	args = PyTuple_New(1);
 	o = OI_PI_FromString(str);
 	PyTuple_SET_ITEM(args, 0, o);
 	free(str);
@@ -814,6 +815,38 @@ gensio_child_event(struct gensio *io, void *user_data, int event, int readerr,
 	swig_finish_call(data->handler_val, "win_size", args, true);
 	break;
 
+    }
+
+    case GENSIO_EVENT_LOG: {
+	struct gensio_log_data *p = (struct gensio_log_data *) buf;
+	va_list tmpva;
+	size_t len;
+	char *str = NULL;
+
+	args = PyTuple_New(2);
+
+	o = OI_PI_FromString(gensio_log_level_to_str(p->level));
+	PyTuple_SET_ITEM(args, 0, o);
+
+	va_copy(tmpva, p->args);
+	len = vsnprintf(str, 0, p->log, tmpva);
+	va_end(tmpva);
+	str = malloc(len + 1);
+	if (!str)
+	    goto out_put;
+	vsnprintf(str, len + 1, p->log, p->args);
+	o = OI_PI_FromString(str);
+	PyTuple_SET_ITEM(args, 1, o);
+	free(str);
+
+	if (PyObject_HasAttrString(data->handler_val, "log")) {
+	    o = swig_finish_call_rv(data->handler_val, "log", args, true);
+	    if (o)
+		Py_DECREF(o);
+	} else {
+	    rv = GE_NOTSUP;
+	}
+	break;
     }
 
     case GENSIO_EVENT_SER_MODEMSTATE:

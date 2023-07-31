@@ -381,6 +381,17 @@ class EventHandler:
         log -- The detailed log of the parsing error.
         """
 
+    def win_size(self, height, width):
+        """Called when a window size change is reported"""
+
+    def log(self, level, log):
+        """Called to report internal logs on gensios, for debugging.
+
+        level -- A log level string: "fatal", "error", "warning",
+                "info", or "debug"
+        log -- The log text
+        """
+
 class OpenDone:
 
         """A template for a class handling the finish of an open."""
