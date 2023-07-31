@@ -2157,6 +2157,26 @@ gensio_filter_get_gensio(struct gensio_filter *filter)
     return filter->ndata->io;
 }
 
+void
+gensio_filter_vlog(struct gensio_filter *filter,
+		   enum gensio_log_levels level,
+		   const char *log, va_list args)
+{
+    gensio_gvlog(filter->ndata->io, level, log, args);
+}
+
+void
+gensio_filter_log(struct gensio_filter *filter,
+		  enum gensio_log_levels level,
+		  const char *log, ...)
+{
+    va_list args;
+
+    va_start(args, log);
+    gensio_filter_vlog(filter, level, log, args);
+    va_end(args);
+}
+
 int
 gensio_filter_do_event(struct gensio_filter *filter, int event, int err,
 		       unsigned char *buf, gensiods *buflen,
@@ -2303,4 +2323,24 @@ base_gensio_get_ll(struct gensio *io)
     struct basen_data *ndata = gensio_get_gensio_data(io);
 
     return ndata->ll;
+}
+
+void
+gensio_ll_vlog(struct gensio_ll *ll,
+	       enum gensio_log_levels level,
+	       const char *log, va_list args)
+{
+    gensio_gvlog(ll->ndata->io, level, log, args);
+}
+
+void
+gensio_ll_log(struct gensio_ll *ll,
+	      enum gensio_log_levels level,
+	      const char *log, ...)
+{
+    va_list args;
+
+    va_start(args, log);
+    gensio_ll_vlog(ll, level, log, args);
+    va_end(args);
 }

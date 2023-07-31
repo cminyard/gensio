@@ -8,6 +8,8 @@
 #ifndef GENSIO_BASE_H
 #define GENSIO_BASE_H
 
+#include <stdarg.h>
+
 #include <gensio/gensio_dllvisibility.h>
 #include <gensio/gensio_types.h>
 
@@ -404,6 +406,16 @@ typedef int (*gensio_ll_func)(struct gensio_ll *ll, int op,
 GENSIO_DLL_PUBLIC
 struct gensio *gensio_filter_get_gensio(struct gensio_filter *filter);
 
+GENSIO_DLL_PUBLIC
+void gensio_filter_vlog(struct gensio_filter *filter,
+			enum gensio_log_levels level,
+			const char *log, va_list args);
+
+GENSIO_DLL_PUBLIC
+void gensio_filter_log(struct gensio_filter *filter,
+		       enum gensio_log_levels level,
+		       const char *log, ...);
+
 /*
  * Call the event interface of the upper layer.
  */
@@ -421,6 +433,16 @@ GENSIO_DLL_PUBLIC
 void *gensio_ll_get_user_data(struct gensio_ll *ll);
 GENSIO_DLL_PUBLIC
 struct gensio_ll *base_gensio_get_ll(struct gensio *io);
+
+GENSIO_DLL_PUBLIC
+void gensio_ll_vlog(struct gensio_ll *ll,
+		    enum gensio_log_levels level,
+		    const char *log, va_list args);
+
+GENSIO_DLL_PUBLIC
+void gensio_ll_log(struct gensio_ll *ll,
+		   enum gensio_log_levels level,
+		   const char *log, ...);
 
 GENSIO_DLL_PUBLIC
 struct gensio *base_gensio_alloc(struct gensio_os_funcs *o,
