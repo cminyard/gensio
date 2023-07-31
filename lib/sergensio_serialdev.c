@@ -818,7 +818,7 @@ sterm_check_close_drain(void *handler_data, struct gensio_iod *iod,
  out_rm_lock:
     if (!err) {
 	o->flush(sdata->iod, GENSIO_OUT_BUF);
-	serial_rm_lock(o, sdata->uucp_lock, sdata->flock_lock,
+	serial_rm_lock(o, sdata->ll, sdata->uucp_lock, sdata->flock_lock,
 		       o->iod_get_fd(sdata->iod), sdata->devname);
 	gensio_fd_ll_close_now(sdata->ll);
     }
@@ -882,7 +882,7 @@ sterm_sub_open(void *handler_data, struct gensio_iod **riod)
     if (err)
 	goto out;
 
-    err = serial_mk_lock(o, sdata->uucp_lock, sdata->flock_lock,
+    err = serial_mk_lock(o, sdata->ll, sdata->uucp_lock, sdata->flock_lock,
 			 o->iod_get_fd(sdata->iod), sdata->devname);
     if (err)
 	goto out;
@@ -957,16 +957,17 @@ sterm_sub_open(void *handler_data, struct gensio_iod **riod)
 	err = o->iod_control(sdata->iod, GENSIO_IOD_CONTROL_SET_BREAK,
 			     false, sdata->disablebreak);
 	if (err)
-	    gensio_log(o, GENSIO_LOG_WARNING,
-		       "serialdev: "
-		       "Setting break failed on %s, "
-		       "try adding the nobreak option: %s",
-		       sdata->devname, gensio_err_to_str(err));
+	    gensio_ll_log(sdata->ll, GENSIO_LOG_WARNING,
+			  "serialdev: "
+			  "Setting break failed on %s, "
+			  "try adding the nobreak option: %s",
+			  sdata->devname, gensio_err_to_str(err));
 	/*
-	 * Do not fail on an error here.  There are USB and bluetooth devices that fail
-	 * this because they don't implement it, but it's impossible to tell beforehand
-	 * that they will fail.  This shouldn't be able to fail on a working device, so
-	 * just log and allow it.
+	 * Do not fail on an error here.  There are USB and bluetooth
+	 * devices that fail this because they don't implement it, but
+	 * it's impossible to tell beforehand that they will fail.
+	 * This shouldn't be able to fail on a working device, so just
+	 * log and allow it.
 	 */
     }
 
@@ -983,7 +984,7 @@ sterm_sub_open(void *handler_data, struct gensio_iod **riod)
     return 0;
 
  out_unlock:
-    serial_rm_lock(o, sdata->uucp_lock, sdata->flock_lock,
+    serial_rm_lock(o, sdata->ll, sdata->uucp_lock, sdata->flock_lock,
 		   o->iod_get_fd(sdata->iod), sdata->devname);
 
     /* pty's for some reason return EIO if the remote end closes. */

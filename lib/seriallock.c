@@ -184,7 +184,8 @@ check_lock_file(const char *lck_file)
 }
 
 static int
-uucp_mk_lock(struct gensio_os_funcs *o, int fd, const char *devname)
+uucp_mk_lock(struct gensio_os_funcs *o, struct gensio_ll *ll,
+	     int fd, const char *devname)
 {
     struct stat stt;
     int pid = -1, err;
@@ -227,9 +228,9 @@ uucp_mk_lock(struct gensio_os_funcs *o, int fd, const char *devname)
 		} else {
 		    rv = link(lck_file1, lck_file2);
 		    if (rv) {
-			gensio_log(o, GENSIO_LOG_ERR,
-				   "Error linking %s to %s: %s",
-				   lck_file1, lck_file2, strerror(errno));
+			gensio_ll_log(ll, GENSIO_LOG_ERR,
+				      "Error linking %s to %s: %s",
+				      lck_file1, lck_file2, strerror(errno));
 		    }
 		}
 	    } else {
@@ -242,11 +243,11 @@ uucp_mk_lock(struct gensio_os_funcs *o, int fd, const char *devname)
     }
 
     if (pid < 0) {
-	gensio_log(o, GENSIO_LOG_ERR, "Error accessing locks in %s: %s",
-		   uucp_lck_dir, strerror(errno));
+	gensio_ll_log(ll, GENSIO_LOG_ERR, "Error accessing locks in %s: %s",
+		      uucp_lck_dir, strerror(errno));
 	return GE_NOTFOUND;
     } else if (pid > 0) {
-	gensio_log(o, GENSIO_LOG_ERR, "Port in use by pid %d", pid);
+	gensio_ll_log(ll, GENSIO_LOG_ERR, "Port in use by pid %d", pid);
 	return GE_INUSE;
     }
     return 0;
@@ -260,7 +261,8 @@ uucp_rm_lock(struct gensio_os_funcs *o, int fd, const char *devname)
 }
 
 static int
-uucp_mk_lock(struct gensio_os_funcs *o, int fd, const char *devname)
+uucp_mk_lock(struct gensio_os_funcs *o, struct gensio_ll *ll,
+	     int fd, const char *devname)
 {
     return 0;
 }
@@ -317,7 +319,7 @@ flock_mk_lock(struct gensio_os_funcs *o, int fd)
 #endif
 
 void
-serial_rm_lock(struct gensio_os_funcs *o,
+serial_rm_lock(struct gensio_os_funcs *o, struct gensio_ll *ll,
 	       bool do_uucp_lock, bool do_flock,
 	       int fd, const char *devname)
 {
@@ -328,14 +330,14 @@ serial_rm_lock(struct gensio_os_funcs *o,
 }
 
 int
-serial_mk_lock(struct gensio_os_funcs *o,
+serial_mk_lock(struct gensio_os_funcs *o, struct gensio_ll *ll,
 	       bool do_uucp_lock, bool do_flock,
 	       int fd, const char *devname)
 {
     int err = 0;
 
     if (do_uucp_lock)
-	err = uucp_mk_lock(o, fd, devname);
+	err = uucp_mk_lock(o, ll, fd, devname);
     if (!err && do_flock) {
 	err = flock_mk_lock(o, fd);
 	if (err)

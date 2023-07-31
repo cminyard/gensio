@@ -8,12 +8,13 @@
 #include <stdbool.h>
 
 #include <gensio/gensio_os_funcs.h>
+#include <gensio/gensio_base.h>
 
-void serial_rm_lock(struct gensio_os_funcs *o,
+void serial_rm_lock(struct gensio_os_funcs *o, struct gensio_ll *ll,
 		    bool do_uucp_lock, bool do_flock,
 		    int fd, const char *devname);
 
 /* Returns gensio errno. */
-int serial_mk_lock(struct gensio_os_funcs *o,
+int serial_mk_lock(struct gensio_os_funcs *o, struct gensio_ll *ll,
 		   bool do_uucp_lock, bool do_flock,
 		   int fd, const char *devname);
