@@ -79,13 +79,17 @@ if ${PRINT_MODE}; then
     else
 	echo export LD_LIBRARY_PATH="${LD_LIBRARY_PATH}"
     fi
-    echo ${TEST} $*
+    echo ${TEST} $@
 else
     # Run the test with each available OS handler
     for i in default @TCL_DIR@ @GLIB_DIR@; do
 	echo "Testing with '$i'"
 	export GENSIO_TEST_OS_HANDLER=$i
-	eval "${TEST} $*"
+	parms=""
+	for j in "$@"; do
+	    parms="$parms '$j'"
+	done
+	eval "${TEST} $parms"
 	rv=$?
 	if test $rv != 0; then
 	    # Test failed
