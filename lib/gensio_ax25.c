@@ -1740,8 +1740,10 @@ ax25_proto_err(struct ax25_base *base, struct ax25_chan *chan,
 				subaddrstr, NULL, sizeof(subaddrstr), false);
 	gensio_glog(chan->io, GENSIO_LOG_ERR, "%s: AX25 error from %s: %s",
 		    subaddrstr, addrstr, errstr);
-    } else {
+    } else if (chan) {
 	gensio_glog(chan->io, GENSIO_LOG_ERR, "AX25 error: %s", errstr);
+    } else {
+	gensio_log(base->o, GENSIO_LOG_ERR, "AX25 error: %s", errstr);
     }
     if (chan)
 	ax25_chan_lock(chan);
