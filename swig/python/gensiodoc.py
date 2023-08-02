@@ -1285,8 +1285,10 @@ class waiter:
 
         count -- The number of wakeups expected.
         timeout -- The time in milliseconds to wait.
+
+        Returns the number of milliseconds remaining, or 0 if timed out.
         """
-        return
+        return timeout
 
     def wait(self, count):
         """Wait for count wakeups to this object to be called.
