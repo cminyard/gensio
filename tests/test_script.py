@@ -40,6 +40,8 @@ class ScrHandler:
             return 0
         i = 0
         while self.expect_read_pos < len(self.expect_read) and i < len(buf):
+            #print("Compare %2.2x %2.2x"
+            #      % (buf[i], self.expect_read[self.expect_read_pos]))
             if buf[i] != self.expect_read[self.expect_read_pos]:
                 raise Exception(self.name + ": data mismatch on byte %d"
                                        % self.expect_read_pos);
@@ -115,7 +117,8 @@ port = acc.control(gensio.GENSIO_CONTROL_DEPTH_FIRST,
                    gensio.GENSIO_ACC_CONTROL_LPORT, "0")
 
 handlecon = ScrHandler("con", o)
-con = gensio.gensio(o, "script(script=./echotest),tcp,localhost," + port,
+con = gensio.gensio(o, "script(script=./echotest%s),tcp,localhost,%s"
+                        % (execext, port),
                     handlecon)
 handlecon.io = con
 
@@ -127,7 +130,7 @@ if (handlecon.wait(timeout = 100) != 0):
     raise Exception("Got unexpected open on connection")
 
 # The connection should be echoing from echotest
-teststr = "Hi\n"
+teststr = "Hi" + endline
 handleacc.set_expect_read(teststr)
 handleacc.io.write(teststr, None)
 if (handleacc.wait(timeout = 10000000) == 0):
@@ -180,7 +183,8 @@ port = acc.control(gensio.GENSIO_CONTROL_DEPTH_FIRST,
                    gensio.GENSIO_ACC_CONTROL_LPORT, "0")
 
 handlecon = ScrHandler("con", o)
-con = gensio.gensio(o, "script(script=./echotest),tcp,localhost," + port,
+con = gensio.gensio(o, "script(script=./echotest%s),tcp,localhost,%s"
+                       % (execext, port),
                     handlecon)
 handlecon.io = con
 
