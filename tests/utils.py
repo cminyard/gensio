@@ -19,6 +19,7 @@ import signal
 import time
 import curses.ascii
 import sys
+import platform
 import sysconfig
 import gensios_enabled
 
@@ -1448,3 +1449,22 @@ def check_sctp():
         socket.socket(socket.AF_INET, socket.SOCK_STREAM, socket.IPPROTO_SCTP)
     except:
         sys.exit(77)
+
+def is_windows():
+    if platform.system() == "Windows":
+        return True
+    return False
+
+def get_exec_ext():
+    if is_windows():
+        return ".exe"
+    return ""
+
+execext = get_exec_ext()
+
+def get_endline():
+    if is_windows():
+        return "\x0d\x0a"
+    return "\n"
+
+endline = get_endline()
