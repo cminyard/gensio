@@ -107,8 +107,11 @@ class OpEventQueue:
             if ev and not found:
                 raise Exception("Unexpected event: " + str(ev))
         if len(evs) > 0:
+            s = ""
+            for ev in evs:
+                s += "\n  " + str(ev)
             raise Exception("All events not received, the following" +
-                            " are remaining: " + str(evs))
+                            " are remaining: " + s)
         return
 
 class HandleData:
@@ -1256,7 +1259,7 @@ class TestAcceptConnect:
             if (io1_dummy_write):
                 self.io2.handler.set_compare(io1_dummy_write)
                 if evq:
-                    evq.wait_evs(OpEvent("new_connection", self.io2.handler))
+                    evq.wait_evs([OpEvent("read_done", self.io2.handler)])
                 else:
                     if (self.io2.handler.wait_timeout(1000) == 0):
                         raise Exception(("%s: %s: " % ("test_accept",
