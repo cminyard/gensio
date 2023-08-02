@@ -26,10 +26,10 @@ class AX25HandleData(HandleData):
                            gensio.GENSIO_CONTROL_GET,
                            gensio.GENSIO_CONTROL_RADDR, "0")
         if not self.expected_channel:
-            raise HandlerException("Unexpected new channel from " + raddr)
+            raise Exception("Unexpected new channel from " + raddr)
         if raddr != self.expected_channel:
-            raise HandlerException("Expect new channel from " +
-                                   self.expected_channel + " but got " + raddr)
+            raise Exception("Expect new channel from " +
+                            self.expected_channel + " but got " + raddr)
         self.newchan = io
         self.expected_channel = None
         self.waiter.wake()
@@ -70,14 +70,14 @@ io2.handler.set_compare_oob("asdf",
 io1.write("asdf", [ "oob", "addr:0,AE5KM-2,AE5KM-1" ])
 
 if io2.handler.wait_timeout(1000) == 0:
-    raise HandlerException("Timed out waiting for UI data")
+    raise Exception("Timed out waiting for UI data")
 
 io2.handler.set_compare_oob("jkl;",
                auxdata = [ "oob", "addr:ax25:0,AE5KM-2,AE5KM-1", "pid:100" ])
 io1.write("jkl;", [ "oob", "addr:0,AE5KM-2,AE5KM-1", "pid:100" ])
 
 if io2.handler.wait_timeout(1000) == 0:
-    raise HandlerException("Timed out waiting for UI data")
+    raise Exception("Timed out waiting for UI data")
 
 print("Making a connection")
 io2.handler.set_expected_channel("ax25:0,AE5KM-1,AE5KM-2")
@@ -85,7 +85,7 @@ ch1_1 = io1.alloc_channel(["addr=0,AE5KM-2,AE5KM-1"], io1.handler)
 ax25_setup_io(o, "ch1_1", ch1_1)
 ch1_1.open_s()
 if io2.handler.wait_timeout(1000) == 0:
-    raise HandlerException("Timed out waiting for new channel")
+    raise Exception("Timed out waiting for new channel")
 ch2_1 = io2.handler.newchan
 io2.handler.newchan = None
 ax25_setup_io(o, "ch2_1", ch2_1)
@@ -95,9 +95,9 @@ rb = os.urandom(1234)
 ch1_1.handler.set_compare(rb, auxdata = ("pid:45",))
 ch2_1.handler.set_write_data(rb, auxdata = ("pid:45",))
 if ch2_1.handler.wait_timeout(1000) == 0:
-    raise HandlerException("Timed out waiting for channel data write")
+    raise Exception("Timed out waiting for channel data write")
 if ch1_1.handler.wait_timeout(1000) == 0:
-    raise HandlerException("Timed out waiting for channel data read")
+    raise Exception("Timed out waiting for channel data read")
 
 print("Success!")
 
