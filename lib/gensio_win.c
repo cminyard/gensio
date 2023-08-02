@@ -1319,14 +1319,16 @@ win_iod_socket_init(struct gensio_iod_win *wiod, void *cb_data)
 
     /*
      * It seems that UDP sockets on Windows won't report that the
-     * socket is writable more than once.  I didn't spend much time on
-     * it, but I verified that it was waiting for write ready on the
-     * socket in the socket thread and it never got it, even though it
-     * should always be writable.  Since it's always writable, though,
-     * just always allow writing.
+     * socket is writable more than once, and maybe even not at all.
+     * I didn't spend much time on it, but I verified that it was
+     * waiting for write ready on the socket in the socket thread and
+     * it never got it, even though it should always be writable.
+     * Since it's always writable, though, just always allow writing.
      */
-    if (socktype == SOCK_DGRAM)
+    if (socktype == SOCK_DGRAM) {
 	wiod->always_writeable = TRUE;
+	wiod->write.ready = TRUE;
+    }
 
     swiod->wakeev = WSA_INVALID_EVENT;
     swiod->sockev = WSA_INVALID_EVENT;

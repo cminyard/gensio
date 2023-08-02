@@ -34,8 +34,3 @@ but you can't type anything.  If you take out the "raw", it works, but
 then you get the undesirable side effects of a non-raw console.  And
 it makes running programs from an application a program if the
 application is in raw mode.
-
-There is lots of strange behavior with UDP on Windows.  A simple test
-works, but many tests that use UDP for more complex things, like
-test_relpkt_large.py, the ax25 tests, and test_udp_nocon.py, seem to
-break because UDP isn't working right.
