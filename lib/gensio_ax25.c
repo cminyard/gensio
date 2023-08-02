@@ -2157,6 +2157,9 @@ ax25_chan_timeout(struct gensio_timer *timer, void *cb_data)
     /* Just in case the timer was started between the timeout and here. */
     ax25_stop_timer(chan);
 
+    /* We are in the handler.  Make sure no one starts the timer. */
+    chan->curr_timeout = 1;
+
     if (chan->state == AX25_CHAN_CLOSED)
 	goto out_unlock;
 
