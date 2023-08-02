@@ -42,6 +42,7 @@ jobs:
           ./configure --prefix=$(pwd)/$INSTALLPREFIX/
           make
           make install
+          make check
       - name: Upload installed files
         uses: actions/upload-artifact@v3
         with:
