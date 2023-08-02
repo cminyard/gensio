@@ -12,6 +12,9 @@ import gensios_enabled
 
 gensios_enabled.check_iostr_gensios("pty")
 
+if is_windows():
+    sys.exit(77)
+
 print("Test pty basic echo")
 io = alloc_io(o, "pty,cat", chunksize = 64)
 check_raddr(io, "pty basic", '"cat"')
