@@ -34,3 +34,10 @@ but you can't type anything.  If you take out the "raw", it works, but
 then you get the undesirable side effects of a non-raw console.  And
 it makes running programs from an application a program if the
 application is in raw mode.
+
+On Windows, python tests pull gensios from the installed directory,
+not from the local directory.  This is because Windows always loads
+shared libraries first from the directory the original program ran in,
+and if you have gensio installed, it's going to be in the same
+directory as python.  So if you have gensio installed this way, you
+have to install it again before you run tests.
