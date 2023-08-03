@@ -46,7 +46,7 @@ fi
 
 # We need to put the DLL in PATH for MSYS on Windows
 if [ ! -z "$MSYSTEM" ]; then
-    export PATH=${BUILDDIR}/lib:${BUILDDIR}/lib/.libs:$PATH:${BUILDDIR}/c++/swig/python/.libs:${BUILDDIR}/glib/.libs:${BUILDDIR}/glib/c++/swig/pygensio/.libs:${BUILDDIR}/tcl/.libs:${BUILDDIR}/tcl/c++/swig/pygensio/.libs
+    export PATH=${BUILDDIR}/lib:${BUILDDIR}/lib/.libs:${BUILDDIR}/c++/lib/.libs:${BUILDDIR}/glib/.libs:${BUILDDIR}/glib/c++/swig/pygensio/.libs:${BUILDDIR}/tcl/.libs:${BUILDDIR}/tcl/c++/swig/pygensio/.libs:$PATH
 else
     export LD_LIBRARY_PATH=${BUILDDIR}/lib:${BUILDDIR}/lib/.libs:${BUILDDIR}/c++/swig/python/.libs:${BUILDDIR}/glib/.libs:${BUILDDIR}/glib/c++/pygensio/.libs:${BUILDDIR}/tcl/.libs:${BUILDDIR}/tcl/c++/pygensio/.libs:${BUILDDIR}/c++/lib/.libs
 fi
