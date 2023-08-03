@@ -32,6 +32,7 @@ jobs:
             mingw-w64-${{matrix.env}}-gcc
             mingw-w64-${{matrix.env}}-openssl
             mingw-w64-${{matrix.env}}-python
+            mingw-w64-${{matrix.env}}-pcre
             libtool
             autotools
             swig
