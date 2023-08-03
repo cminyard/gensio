@@ -13,9 +13,9 @@ Windows has some strange behavior that I can't track down dealing with
 socket closing.  It looks like in some cases that a close won't be
 reported in winsock_func() if the source and destination sockets are
 both in the same process.  That seems to be why
-test_ssl_tcp_accept_connect.py fails, I have verified that one side of
-the connection gets closed but the close is not reported on the other
-side.
+test_ssl_tcp_accept_connect.py fails occassionally, I (think I) have
+verified that one side of the connection gets closed but the close is
+not reported on the other side.
 
 On Windows, a new pty spews out a bunch of terminal control stuff and
 messes things up for testing and for things like rsync.  Some way to
