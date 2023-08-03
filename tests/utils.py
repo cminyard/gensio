@@ -1231,7 +1231,6 @@ class TestAcceptConnect:
                 del self.io1.handler.io
                 del self.io1.handler
                 self.io1 = None
-                self.close()
                 raise
 
             self.io1.read_cb_enable(True)
@@ -1254,7 +1253,6 @@ class TestAcceptConnect:
                 if len(evs) > 0:
                     raise Exception("Didn't get new connection")
             except:
-                self.close()
                 raise
 
             if (io1_dummy_write):
