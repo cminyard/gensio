@@ -798,12 +798,12 @@ gensio_win_setup_commport(struct gensio_os_funcs* o, HANDLE h,
     if (!EscapeCommFunction(h, CLRBREAK))
 	goto out_err;
     c->break_set = FALSE;
-    if (!EscapeCommFunction(h, CLRRTS))
+    if (!EscapeCommFunction(h, SETRTS))
 	goto out_err;
-    c->rts_set = FALSE;
-    if (!EscapeCommFunction(h, CLRDTR))
+    c->rts_set = TRUE;
+    if (!EscapeCommFunction(h, SETDTR))
 	goto out_err;
-    c->dtr_set = FALSE;
+    c->dtr_set = TRUE;
 
     /* Break timer */
     c->break_timer = CreateWaitableTimer(NULL, FALSE, NULL);
