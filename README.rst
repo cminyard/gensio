@@ -199,8 +199,23 @@ The Windows built-in MDNS interfaces are used, so you don't need avahi
 or DNSSD.  You will need to install the pcre library if you want
 regular expressions in it.
 
-You have to install the mingw-w64-x86_64-xxx version of all the libraries.
-This has only been tested for 64-bit.
+You need to get msys2 from https://msys2.org.  Then install autoconf,
+automake, libtool, git, make, and swig as host tools:
+
+  pacman -S autoconf automake libtool git make swig
+
+You have to install the mingw-w64-x86_64-xxx version of all the
+libraries or the mingw-w64-i686-xxx version of all the libraries.
+32-bit is not well tested::
+
+  pacman -S mingw-w64-x86_64-gcc \
+    mingw-w64-x86_64-python \
+    mingw-w64-x86_64-pcre \
+    mingw-w64-x86_64-openssl \
+
+For go, install go from https://go.dev and log out and log back in.
+It should then be in the path.  I haven't gotten go working on on
+mingw32, but I haven't tried a 32-bit version of go.
 
 For gtlsshd, you must set --sysconfdir to where the gtlssh directory with the
 keys will be (like /etc/gtlssh is on linix).  The annoying this is that for
