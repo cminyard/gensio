@@ -1295,22 +1295,8 @@ AM_CONDITIONAL([BUILTIN_CM108GPIO], [test ${BUILTIN_CM108GPIO} = 1])
 AC_SUBST(CM108GPIO_LIBS)
 AC_SUBST(DYNAMIC_CM108GPIO)
 
-tryssl=yes
-AC_ARG_WITH(openssl,
- [AS_HELP_STRING([--with-openssl[[=yes|no]]],
-		 [Look for openssl.])],
-    if test "x$withval" = "x"; then
-      tryssl=yes
-    elif test "x$withval" = "xyes"; then
-      tryssl=yes
-    elif test "x$withval" = "xno"; then
-      tryssl=no
-    fi,
-)
 HAVE_OPENSSL=0
-if test $tryssl = yes; then
-	AX_CHECK_OPENSSL([HAVE_OPENSSL=1])
-fi
+AX_CHECK_OPENSSL([HAVE_OPENSSL=1])
 
 HAVE_RAND_SET_DRBG_TYPE=0
 if test "$HAVE_OPENSSL" = "1"; then
