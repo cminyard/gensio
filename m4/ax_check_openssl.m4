@@ -71,7 +71,23 @@ AC_DEFUN([AX_CHECK_OPENSSL], [
             # no such luck; use some default ssldirs
             if ! $found; then
                 ssldirs="/usr/local/ssl /usr/lib/ssl /usr/ssl /usr/pkg /usr/local /usr"
-                ssldirs="$ssldirs /opt/homebrew"
+
+		# Defaults for some specific targets
+		case $target_os in
+		mingw*)
+		    case $target_cpu in
+		    i686)
+		        ssldirs="$ssldirs /mingw32"
+			;;
+		    x86_64)
+		        ssldirs="$ssldirs /mingw64"
+			;;
+		    esac
+		    ;;
+		darwin*)
+                    ssldirs="$ssldirs /opt/homebrew"
+		    ;;
+		esac
             fi
         fi
 
