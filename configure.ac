@@ -2211,6 +2211,10 @@ pr_vop() {
     echo "$1$str"
 }
 
+prrw() {
+    echo "$1$2"
+}
+
 echo "**************************************************"
 echo "Options:"
 	
@@ -2218,7 +2222,7 @@ pr_op  "  UUCP Locking:		" $USE_UUCP_LOCKING
 pr_op  "  flock Locking:	" $USE_FLOCK_LOCKING
 pr_op  "  Broken pselect():	" $broken_pselect
 pr_op  "  TCP Wrappers:		" $ac_cv_header_tcpd_h
-pr_op  "  Regular Expressions:	" $ac_cv_func_regexec
+prrw   "  Regular Expressions:	" $ac_cv_func_regexec
 pr_op  "  Install Docs:		" $enable_doc
 pr_op  "  epoll_pwait():	" $ax_config_feature_epoll_pwait
 pr_op  "  pthreads:		" $use_pthreads
@@ -2230,9 +2234,9 @@ pr_op  "  shared libraries:	" $enable_shared
 pr_op  "  sctp sendv:		" $ac_cv_lib_sctp_sctp_sendv
 pr_vop "  python:		" "$ax_python_version"
 if test "$SWIG_CPP_DIR" = "swig"; then
-  echo "  swig:			" "$SWIG_NUMVERSION"
+  prrw "  swig:			" "$SWIG_NUMVERSION"
 else
-  echo "  swig:			" "no"
+  prrw "  swig:			" "no"
 fi
 pr_vop "  go:			" $GOPROG
 pr_op  "  pam:			" $HAVE_PAM
