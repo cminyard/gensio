@@ -366,3 +366,10 @@ DISTCLEANFILES = builtin_gensios.h
 # by 'install-exec' target (instead of default 'install-data')
 pkgconfigexecdir = $(libdir)/pkgconfig
 pkgconfigexec_DATA = libgensioosh.pc libgensio.pc libgensiomdns.pc
+
+xgensio_libs = $(xgensio_libexec_LTLIBRARIES:.la=.a)
+
+# Remove the .a and .la files for the modules that get installed.
+install-exec-hook:
+	@(cd $(DESTDIR)$(gensiolibexec) && $(RM) -f $(xgensio_libexec_LTLIBRARIES))
+	@(cd $(DESTDIR)$(gensiolibexec) && $(RM) -f $(xgensio_libs))
