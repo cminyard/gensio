@@ -367,7 +367,11 @@ DISTCLEANFILES = builtin_gensios.h
 pkgconfigexecdir = $(libdir)/pkgconfig
 pkgconfigexec_DATA = libgensioosh.pc libgensio.pc libgensiomdns.pc
 
+if HAVE_WINDOWS_OS
+xgensio_libs = $(xgensio_libexec_LTLIBRARIES:.la=.dll.a)
+else
 xgensio_libs = $(xgensio_libexec_LTLIBRARIES:.la=.a)
+endif
 
 # Remove the .a and .la files for the modules that get installed.
 install-exec-hook:
