@@ -8,7 +8,7 @@ done with glib
 .B int gensio_glib_funcs_alloc(struct gensio_os_funcs **o)
 .SH "DESCRIPTION"
 This structure provides an abstraction for the gensio library that
-lets it work on top of glib.  See the glib_os_funcs.3 man page for
+lets it work on top of glib.  See the gensio_os_funcs.3 man page for
 details on what this does.  This can be used if you have a project
 based on glib that you want to integrate gensio into.
 
@@ -16,7 +16,7 @@ Unfortunately, it has some limitations because of weaknesses in the
 glib interface.
 
 If you use this, you really want to use the gensio wait functions,
-not g_cont_wait..() yourself.  you don't strictly have have to,
+not g_cont_wait..() yourself.  You don't strictly have have to,
 especially if your app is single threaded, but especially in
 multithreaded apps you cannot mix calls to the os funcs wait
 functions and the glib wait functions.  Which means you can't use
