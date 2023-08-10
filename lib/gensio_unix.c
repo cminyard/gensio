@@ -1771,7 +1771,6 @@ gensio_os_proc_setup(struct gensio_os_funcs *o,
 	sigaddset(&sigs, data->wake_sig);
     sigaddset(&sigs, SIGCHLD); /* Ignore SIGCHLD in normal operation. */
     sigaddset(&sigs, SIGPIPE); /* Ignore broken pipes. */
-    rv = sigprocmask(SIG_BLOCK, &sigs, &data->old_sigs);
 #if HAVE_DECL_SIGWINCH
     /*
      * SIGWINCH is set here, not in the register_winsize_handler call, because
@@ -1779,6 +1778,7 @@ gensio_os_proc_setup(struct gensio_os_funcs *o,
      */
     sigaddset(&sigs, SIGWINCH);
 #endif
+    rv = sigprocmask(SIG_BLOCK, &sigs, &data->old_sigs);
     if (rv) {
 	rv = gensio_os_err_to_err(o, errno);
 	return rv;
