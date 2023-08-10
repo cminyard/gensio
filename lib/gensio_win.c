@@ -4134,16 +4134,28 @@ gensio_os_proc_register_winsize_handler(struct gensio_os_proc_data *data,
     struct gensio_iod_win *wiod = iod_to_win(console_iod);
     int err = 0;
 
-    if (wiod->type != GENSIO_IOD_CONSOLE)
-	return GE_INVAL;
     LOCK(&data->lock);
+    if (!wiod || !handler) {
+	data->got_winsize_sig = false;
+	data->winsize_handler_set = false;
+	goto out_unlock;
+    }
+
+    if (wiod->type != GENSIO_IOD_CONSOLE) {
+	err = GE_INVAL;
+	goto out_unlock;
+    }
+
     data->winsize_handler = handler;
     data->winsize_handler_data = handler_data;
     data->winsize_handler_set = true;
-    UNLOCK(&data->lock);
+
     /* Wake the input handler to do the winch handling. */
     SetEvent(wiod_to_win_oneway(wiod)->wakeh);
     proc_release_sem(data);
+
+ out_unlock:
+    UNLOCK(&data->lock);
     return err;
 }
 
