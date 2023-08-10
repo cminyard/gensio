@@ -65,6 +65,10 @@ link_ssl_with_main=no
 PYTHON_EXT_EXT=.so
 PYTHON_EXT_EXT_SET=
 
+# Windows requires that -no-undefined be set, but homebrew on MacOS requires
+# that -undefined be set.  Sigh.
+PYTHON_UNDEF_FLAG=-no-undefined
+
 case $target_os in
 	mingw*)
 		OSH_LIBS="$OSH_LIBS -lws2_32 -liphlpapi -lgdi32 -lbcrypt"
@@ -93,6 +97,7 @@ case $target_os in
 		uucp_locking_flag=no
 		USE_GGL_INT=1
 		USE_OPENPTY=1
+		PYTHON_UNDEF_FLAG=-undefined
 		;;
 	*bsd* | *BSD*)
 		OSH_LIBS="$OSH_LIBS -ldl"
@@ -114,6 +119,7 @@ AC_SUBST(USE_OPENPTY)
 
 AC_SUBST(PYTHON_EXT_EXT)
 AC_SUBST(PYTHON_EXT_EXT_SET)
+AC_SUBST(PYTHON_UNDEF_FLAG)
 
 AC_ARG_WITH(link-ssl-with-main,
 	    [AS_HELP_STRING([--with-link-ssl-with-main=[yes|no]],

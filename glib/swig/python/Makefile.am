@@ -18,10 +18,9 @@ gensioglib_wrap.c gensioglib.py: $(top_srcdir)/glib/swig/gensioglib.i
 nodist__gensioglib_la_SOURCES = gensioglib_wrap.c
 _gensioglib_la_LIBADD = $(top_builddir)/glib/libgensioglib.la \
 		$(top_builddir)/lib/libgensio.la $(OPENSSL_LIBS) \
-		$(PYTHON_LIBS) \
 		$(top_builddir)/swig/python/libgensio_python_swig.la
 _gensioglib_la_LDFLAGS = -module -avoid-version $(OPENSSL_LDFLAGS) \
-		-no-undefined $(PYTHON_EXT_EXT_SET)
+		$(PYTHON_UNDEF_FLAG) $(PYTHON_EXT_EXT_SET)
 
 clean-local:
 	rm -rf __pycache__ gensioglib_wrap.c gensioglib.py
