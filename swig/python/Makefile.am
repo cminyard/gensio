@@ -16,6 +16,7 @@ libgensio_python_swig_la_LDFLAGS = -no-undefined -rpath $(libdir) \
 		-version-info $(GENSIO_LIB_VERSION) 
 libgensio_python_swig_la_LIBADD = \
 		$(top_builddir)/lib/libgensio.la \
+		$(top_builddir)/lib/libgensioosh.la \
 		$(top_builddir)/lib/libgensiomdns.la \
 		$(PYTHON_LIBS)
 
