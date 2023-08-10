@@ -14,9 +14,10 @@ libgensio_python_swig_la_SOURCES = gensio_python_swig.c
 libgensio_python_swig_la_CFLAGS = -DBUILDING_GENSIO_DLL $(AM_CFLAGS)
 libgensio_python_swig_la_LDFLAGS = -no-undefined -rpath $(libdir) \
 		-version-info $(GENSIO_LIB_VERSION) 
-libgensio_python_swig_la_LIBADD = $(PYTHON_LIBS) \
+libgensio_python_swig_la_LIBADD = \
 		$(top_builddir)/lib/libgensio.la \
-		$(top_builddir)/lib/libgensiomdns.la
+		$(top_builddir)/lib/libgensiomdns.la \
+		$(PYTHON_LIBS)
 
 noinst_HEADERS = gensio_python.h python_swig_internals.h
 
@@ -36,9 +37,9 @@ pkgconfigexec_DATA = libgensio_python_swig.pc
 nodist__gensio_la_SOURCES = gensio_wrap.c
 _gensio_la_LIBADD = $(top_builddir)/lib/libgensio.la \
 		$(top_builddir)/lib/libgensiomdns.la  \
-		$(PYTHON_LIBS) libgensio_python_swig.la
-_gensio_la_LDFLAGS = -module -avoid-version $(OPENSSL_LDFLAGS) -no-undefined \
-		 $(PYTHON_EXT_EXT_SET)
+		$(PYTHON_UNDEF_LIBS) libgensio_python_swig.la
+_gensio_la_LDFLAGS = -module -avoid-version $(OPENSSL_LDFLAGS) \
+		 $(PYTHON_UNDEF_FLAG) $(PYTHON_EXT_EXT_SET)
 
 clean-local:
 	rm -rf __pycache__ gensio_wrap.c gensio.py
