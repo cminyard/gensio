@@ -365,6 +365,8 @@ struct gtconn_info {
     bool close_done;
 };
 
+static struct gensio_iod *winch_iod;
+
 static void
 vreport_err(struct gtinfo *g, const char *fmt, va_list ap)
 {
@@ -406,6 +408,9 @@ check_finish(struct ioinfo *ioinfo)
 
     if (!gtconn->close_done || !ogtconn->close_done)
 	return;
+
+    winch_iod = NULL;
+    gensio_os_proc_register_winsize_handler(proc_data, NULL, NULL, NULL);
 
     gensio_list_rm(&g->io_list, &gtconn->link);
     gensio_list_rm(&g->io_list, &ogtconn->link);
@@ -628,37 +633,49 @@ winch_ready(int x_chrs, int y_chrs, int x_bits, int y_bits,
 	    void *handler_data)
 {
     struct ioinfo *ioinfo = handler_data;
-    struct ioinfo *oioinfo = ioinfo_otherioinfo(ioinfo);
-    struct gensio *oio = ioinfo_io(oioinfo);
+    struct gtconn_info *gtconn = ioinfo_userdata(ioinfo);
+    struct gtinfo *g = gtconn->g;
+    struct ioinfo *oioinfo;
+    struct gensio *oio;
     char *str;
 
+    gensio_os_funcs_lock(g->o, g->lock);
+    if (!winch_iod)
+	goto out_unlock;
+
+    oioinfo = ioinfo_otherioinfo(ioinfo);
+    oio = ioinfo_io(oioinfo);
     str = alloc_sprintf("%d:%d:%d:%d", y_chrs, x_chrs, x_bits, y_bits);
     if (!str)
-	return;
+	goto out_unlock;
     gensio_control(oio, GENSIO_CONTROL_DEPTH_FIRST,
 		   GENSIO_CONTROL_SET, GENSIO_CONTROL_WIN_SIZE,
 		   str, 0);
     free(str);
+ out_unlock:
+    gensio_os_funcs_unlock(g->o, g->lock);
 }
 
 static void
-reg_winch(struct ioinfo *ioinfo)
+reg_winch(struct gtinfo *g, struct ioinfo *ioinfo)
 {
     struct gensio *io = ioinfo_io(ioinfo);
-    struct gensio_iod *iod;
-    gensiods len = sizeof(iod);
+    gensiods len = sizeof(winch_iod);
     int err;
+
+    if (g->server_mode)
+	return;
 
     /*
      * Which iod is passed in the data as an index, but the iod is
      * returned in the same data.  It looks a little strange to do
      * this, but that's how it works.
      */
-    memcpy(&iod, "0", 2);
+    memcpy(&winch_iod, "0", 2);
     err = gensio_control(io, GENSIO_CONTROL_DEPTH_FIRST, true,
-			 GENSIO_CONTROL_IOD, (char *) &iod, &len);
+			 GENSIO_CONTROL_IOD, (char *) &winch_iod, &len);
     if (!err)
-	gensio_os_proc_register_winsize_handler(proc_data, iod,
+	gensio_os_proc_register_winsize_handler(proc_data, winch_iod,
 						winch_ready, ioinfo);
 }
 
@@ -677,7 +694,7 @@ io_open(struct gensio *io, int err, void *open_data)
 	gshutdown(ioinfo, IOINFO_SHUTDOWN_ERR);
     } else {
 	ioinfo_set_ready(ioinfo, io);
-	reg_winch(ioinfo);
+	reg_winch(g, ioinfo);
     }
 }
 
@@ -710,7 +727,7 @@ io_open_paddr(struct gensio *io, int err, void *open_data)
 	    gshutdown(ioinfo, IOINFO_SHUTDOWN_ERR);
 	} else {
 	    ioinfo_set_ready(ioinfo, io);
-	    reg_winch(ioinfo);
+	    reg_winch(g, ioinfo);
 	}
     }
 }
@@ -794,7 +811,7 @@ add_io(struct gtinfo *g, struct gensio *io, bool open_finished)
 
     if (open_finished) {
 	ioinfo_set_ready(ioinfo2, gtconn2->io);
-	reg_winch(ioinfo2);
+	reg_winch(g, ioinfo2);
 	if (g->print_laddr)
 	    print_io_addr(io, true);
 	if (g->print_raddr)
@@ -1013,6 +1030,66 @@ gensio_loop(void *info)
     gensio_os_funcs_wait(li->o, li->loopwaiter, 1, NULL);
 }
 
+static unsigned int num_extra_threads = 0;
+static struct gensio_loop_info *loopinfo;
+
+static void
+free_threads(struct gensio_os_funcs *o)
+{
+    unsigned int i;
+
+    for (i = 0; loopinfo && i < num_extra_threads; i++) {
+	if (loopinfo[i].loopth) {
+	    gensio_os_funcs_wake(o, loopinfo[i].loopwaiter);
+	    gensio_os_wait_thread(loopinfo[i].loopth);
+	}
+	if (loopinfo[i].loopwaiter)
+	    gensio_os_funcs_free_waiter(o, loopinfo[i].loopwaiter);
+    }
+    if (loopinfo) {
+	gensio_os_funcs_zfree(o, loopinfo);
+	loopinfo = NULL;
+    }
+}
+
+static int
+alloc_threads(struct gensio_os_funcs *o)
+{
+    int rv = GE_NOMEM;
+    unsigned int i;
+
+    if (num_extra_threads > 0) {
+	loopinfo = gensio_os_funcs_zalloc(o,
+				      sizeof(*loopinfo) * num_extra_threads);
+	if (!loopinfo)
+	    goto out_err;
+    }
+
+    for (i = 0; i < num_extra_threads; i++) {
+	loopinfo[i].o = o;
+	loopinfo[i].loopwaiter = gensio_os_funcs_alloc_waiter(o);
+	if (!loopinfo[i].loopwaiter) {
+	    fprintf(stderr, "Could not allocate loop waiter\n");
+	    goto out_err;
+	}
+
+	rv = gensio_os_new_thread(o, gensio_loop, loopinfo + i,
+				  &loopinfo[i].loopth);
+	if (rv) {
+	    fprintf(stderr, "Could not allocate loop thread: %s",
+		    gensio_err_to_str(rv));
+	    goto out_err;
+	}
+	rv = GE_NOMEM;
+    }
+    rv = 0;
+
+ out_err:
+    if (rv)
+	free_threads(o);
+    return rv;
+}
+
 #ifndef _WIN32
 static void
 make_pidfile(struct gtinfo *g)
@@ -1048,8 +1125,6 @@ main(int argc, char *argv[])
     bool use_tcl = false;
     gensio_time endwait = { 5, 0 };
     struct gensio *io = NULL;
-    unsigned int num_extra_threads = 0, i;
-    struct gensio_loop_info *loopinfo = NULL;
 
     memset(&g, 0, sizeof(g));
     g.escape_char = -1;
@@ -1195,31 +1270,9 @@ main(int argc, char *argv[])
 	goto out_err;
     }
 
-    rv = GE_NOMEM;
-    if (num_extra_threads > 0) {
-	loopinfo = gensio_os_funcs_zalloc(g.o,
-				      sizeof(*loopinfo) * num_extra_threads);
-	if (!loopinfo)
-	    goto out_err;
-    }
-
-    for (i = 0; i < num_extra_threads; i++) {
-	loopinfo[i].o = g.o;
-	loopinfo[i].loopwaiter = gensio_os_funcs_alloc_waiter(g.o);
-	if (!loopinfo[i].loopwaiter) {
-	    fprintf(stderr, "Could not allocate loop waiter\n");
-	    goto out_err;
-	}
-
-	rv = gensio_os_new_thread(g.o, gensio_loop, loopinfo + i,
-				  &loopinfo[i].loopth);
-	if (rv) {
-	    fprintf(stderr, "Could not allocate loop thread: %s",
-		    gensio_err_to_str(rv));
-	    goto out_err;
-	}
-	rv = GE_NOMEM;
-    }
+    rv = alloc_threads(g.o);
+    if (rv)
+	goto out_err;
 
     if (io2_do_acc)
 	rv = str_to_gensio_accepter(g.ios2, g.o, io_acc_event, &g, &g.acc);
@@ -1283,16 +1336,7 @@ main(int argc, char *argv[])
     if (!rv && g.err)
 	rv = g.err;
 
-    for (i = 0; loopinfo && i < num_extra_threads; i++) {
-	if (loopinfo[i].loopth) {
-	    gensio_os_funcs_wake(g.o, loopinfo[i].loopwaiter);
-	    gensio_os_wait_thread(loopinfo[i].loopth);
-	}
-	if (loopinfo[i].loopwaiter)
-	    gensio_os_funcs_free_waiter(g.o, loopinfo[i].loopwaiter);
-    }
-    if (loopinfo)
-	gensio_os_funcs_zfree(g.o, loopinfo);
+    free_threads(g.o);
 
     /*
      * We wait until there are no gensios left pending.  You can get
