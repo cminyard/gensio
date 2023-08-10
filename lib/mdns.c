@@ -416,7 +416,9 @@ i_dnssd_err_to_err(struct gensio_mdns *m, DNSServiceErrorType derr,
     case kDNSServiceErr_Timeout:		err = GE_TIMEDOUT; break;
     case kDNSServiceErr_DefunctConnection:	err = GE_OSERR; break;
     case kDNSServiceErr_PolicyDenied:		err = GE_OSERR; break;
+#ifdef kDNSServiceErr_NotPermitted
     case kDNSServiceErr_NotPermitted:		err = GE_PERM; break;
+#endif
     default: err = GE_OSERR;
     }
     /* FIXME - DNSSD doesn't provide a string translation. */
