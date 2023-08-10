@@ -23,7 +23,9 @@ EXTRA_DIST = pygensioglib.i
 
 nodist__pygensioglib_la_SOURCES = pygensioglib_wrap.cc
 _pygensioglib_la_LIBADD = $(top_builddir)/c++/lib/libgensiocpp.la \
-		$(top_builddir)/lib/libgensio.la $(top_builddir)/glib/libgensioglib.la \
+		$(top_builddir)/glib/libgensioglib.la \
+		$(top_builddir)/lib/libgensio.la \
+		$(top_builddir)/lib/libgensioosh.la \
 		$(OPENSSL_LIBS) $(PYTHON_UNDEF_LIBS)
 _pygensioglib_la_LDFLAGS = -module -avoid-version $(OPENSSL_LDFLAGS) \
 		$(PYTHON_UNDEF_FLAG) $(PYTHON_EXT_EXT_SET)

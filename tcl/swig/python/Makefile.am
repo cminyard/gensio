@@ -17,8 +17,9 @@ gensiotcl_wrap.c gensiotcl.py: $(top_srcdir)/tcl/swig/gensiotcl.i
 
 nodist__gensiotcl_la_SOURCES = gensiotcl_wrap.c
 _gensiotcl_la_LIBADD = $(top_builddir)/tcl/libgensiotcl.la \
-		$(top_builddir)/lib/libgensio.la $(OPENSSL_LIBS) \
-		$(TCL_LIBS) \
+		$(top_builddir)/lib/libgensio.la \
+		$(top_builddir)/lib/libgensioosh.la \
+		$(OPENSSL_LIBS) $(TCL_LIBS) \
 		$(top_builddir)/swig/python/libgensio_python_swig.la \
 		$(PYTHON_UNDEF_LIBS)
 _gensiotcl_la_LDFLAGS = -module -avoid-version $(OPENSSL_LDFLAGS) \

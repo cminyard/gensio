@@ -6,8 +6,9 @@ lib_LTLIBRARIES = libgensioglib.la
 
 libgensioglib_la_SOURCES = gensio_glib.c
 libgensioglib_la_CFLAGS = $(GLIB_CFLAGS) $(AM_CFLAGS)
-libgensioglib_la_LIBADD = $(top_builddir)/lib/libgensio.la @OPENSSL_LIBS@ \
-	@GLIB_LIBS@
+libgensioglib_la_LIBADD = $(top_builddir)/lib/libgensio.la \
+	$(top_builddir)/lib/libgensioosh.la \
+	@OPENSSL_LIBS@ @GLIB_LIBS@
 libgensioglib_la_LDFLAGS = -no-undefined -rpath $(libdir) \
 	-version-info $(GENSIO_LIB_VERSION) -fvisibility=hidden
 
