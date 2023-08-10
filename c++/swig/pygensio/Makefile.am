@@ -26,7 +26,8 @@ _pygensio_la_LIBADD = $(top_builddir)/c++/lib/libgensiooshcpp.la \
 		$(top_builddir)/c++/lib/libgensiomdnscpp.la \
 		$(top_builddir)/lib/libgensioosh.la \
 		$(top_builddir)/lib/libgensio.la \
-		$(top_builddir)/lib/libgensiomdns.la
+		$(top_builddir)/lib/libgensiomdns.la \
+		$(PYTHON_UNDEF_LIBS)
 _pygensio_la_LDFLAGS = -module -avoid-version $(OPENSSL_LDFLAGS) \
 		$(PYTHON_UNDEF_FLAG) $(PYTHON_EXT_EXT_SET)
 
