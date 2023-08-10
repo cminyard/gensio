@@ -2090,20 +2090,25 @@ gensio_os_proc_register_winsize_handler(struct gensio_os_proc_data *data,
 {
 #if HAVE_DECL_SIGWINCH
     struct gensio_iod_unix *iod = i_to_sel(console_iod);
-    int err;
+    int err = 0;
     struct sigaction act;
     struct winsize win;
 
+    LOCK(&data->handler_lock);
     if (data->winch_sig_set) {
 	data->winch_sig_set = false;
 	sigaction(SIGWINCH, &data->old_sigwinch, NULL);
     }
-    if (!handler)
-	return 0;
+    if (!handler) {
+	data->got_winch_sig = false;
+	goto out_unlock;
+    }
 
     err = ioctl(iod->fd, TIOCGWINSZ, &win);
-    if (err == -1)
-	return GE_NOTSUP;
+    if (err == -1) {
+	err = GE_NOTSUP;
+	goto out_unlock;
+    }
 
     data->winch_handler = handler;
     data->winch_handler_data = handler_data;
@@ -2113,16 +2118,16 @@ gensio_os_proc_register_winsize_handler(struct gensio_os_proc_data *data,
     act.sa_handler = winch_sig_handler;
     err = sigaction(SIGWINCH, &act, &data->old_sigwinch);
     if (err) {
-	err = errno;
-	goto out_err;
+	err = gensio_os_err_to_err(data->o, errno);
+	goto out_unlock;
     }
     sigdelset(&data->wait_sigs, SIGWINCH);
     data->winch_sig_set = true;
     kill(getpid(), SIGWINCH);
-    return 0;
 
- out_err:
-    return gensio_os_err_to_err(data->o, err);
+ out_unlock:
+    UNLOCK(&data->handler_lock);
+    return err;
 #else
     return GE_NOTSUP;
 #endif
