@@ -12,7 +12,8 @@ pkgconfigexec_DATA = libgensiooshcpp.pc
 
 libgensiocpp_la_SOURCES = gensio.cc
 libgensiocpp_la_CPPFLAGS = -DBUILDING_GENSIOCPP_DLL
-libgensiocpp_la_LIBADD = libgensiooshcpp.la $(top_builddir)/lib/libgensio.la
+libgensiocpp_la_LIBADD = libgensiooshcpp.la $(top_builddir)/lib/libgensio.la \
+		$(top_builddir)/lib/libgensioosh.la
 libgensiocpp_la_LDFLAGS = -no-undefined -rpath $(libdir) \
 	-version-info $(GENSIO_LIB_VERSION) -fvisibility=hidden
 
@@ -24,6 +25,7 @@ lib_LTLIBRARIES += libgensiomdnscpp.la
 libgensiomdnscpp_la_SOURCES = gensiomdns.cc
 libgensiomdnscpp_la_CPPFLAGS = -DBUILDING_GENSIOMDNSCPP_DLL
 libgensiomdnscpp_la_LIBADD = libgensiooshcpp.la \
+	$(top_builddir)/lib/libgensioosh.la \
 	$(top_builddir)/lib/libgensiomdns.la
 libgensiomdnscpp_la_LDFLAGS = -no-undefined -rpath $(libdir) \
 	-version-info $(GENSIO_LIB_VERSION) -fvisibility=hidden
