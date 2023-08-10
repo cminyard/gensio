@@ -59,7 +59,7 @@ xgensio_libexecdir = $(gensiolibexec)
 EXTRA_LTLIBRARIES =
 xgensio_libexec_LTLIBRARIES =
 DYNAMIC_LDFLAGS = -no-undefined -module -rpath "$(gensiolibexec)" -avoid-version
-DYNAMIC_LIBS = libgensio.la
+DYNAMIC_LIBS = libgensio.la libgensioosh.la
 
 if BUILTIN_NET
 libgensio_la_SOURCES += gensio_net.c
