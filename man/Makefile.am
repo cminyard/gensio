@@ -33,7 +33,7 @@ install-data-hook:
 	$(LN_SF) gensio_os_funcs.3 $(DESTDIR)$(man3dir)/gensio_os_funcs_free.3
 	$(LN_SF) gensio_os_funcs.3 $(DESTDIR)$(man3dir)/gensio_os_proc_register_term_handler.3
 	$(LN_SF) gensio_os_funcs.3 $(DESTDIR)$(man3dir)/gensio_os_proc_register_reload_handler.3
-	$(LN_SF) gensio_os_funcs.3 $(DESTDIR)$(man3dir)/gensio_os_proc_winsize_handler.3
+	$(LN_SF) gensio_os_funcs.3 $(DESTDIR)$(man3dir)/gensio_os_proc_register_winsize_handler.3
 	$(LN_SF) gensio_os_funcs.3 $(DESTDIR)$(man3dir)/gensio_os_funcs_zalloc.3
 	$(LN_SF) gensio_os_funcs.3 $(DESTDIR)$(man3dir)/gensio_os_funcs_zfree.3
 	$(LN_SF) gensio_os_funcs.3 $(DESTDIR)$(man3dir)/gensio_os_funcs_alloc_lock.3
@@ -241,5 +241,44 @@ uninstall-hook:
 	$(RM_F) $(DESTDIR)$(man3dir)/gensio_mdns_remove_service.3
 	$(RM_F) $(DESTDIR)$(man3dir)/gensio_mdns_add_watch.3
 	$(RM_F) $(DESTDIR)$(man3dir)/gensio_mdns_remove_watch.3
+	$(RM_F) $(DESTDIR)$(man3dir)/gensio_default_os_hnd.3
+	$(RM_F) $(DESTDIR)$(man3dir)/gensio_unix_funcs_alloc.3
+	$(RM_F) $(DESTDIR)$(man3dir)/gensio_win_funcs_alloc.3
+	$(RM_F) $(DESTDIR)$(man3dir)/gensio_os_proc_setup.3
+	$(RM_F) $(DESTDIR)$(man3dir)/gensio_os_proc_cleanup.3
+	$(RM_F) $(DESTDIR)$(man3dir)/gensio_os_proc_unix_get_wait_sigset.3
+	$(RM_F) $(DESTDIR)$(man3dir)/gensio_os_new_thread.3
+	$(RM_F) $(DESTDIR)$(man3dir)/gensio_os_wait_thread.3
+	$(RM_F) $(DESTDIR)$(man3dir)/gensio_os_funcs_free.3
+	$(RM_F) $(DESTDIR)$(man3dir)/gensio_os_proc_register_term_handler.3
+	$(RM_F) $(DESTDIR)$(man3dir)/gensio_os_proc_register_reload_handler.3
+	$(RM_F) $(DESTDIR)$(man3dir)/gensio_os_proc_register_winsize_handler.3
+	$(RM_F) $(DESTDIR)$(man3dir)/gensio_os_funcs_zalloc.3
+	$(RM_F) $(DESTDIR)$(man3dir)/gensio_os_funcs_zfree.3
+	$(RM_F) $(DESTDIR)$(man3dir)/gensio_os_funcs_alloc_lock.3
+	$(RM_F) $(DESTDIR)$(man3dir)/gensio_os_funcs_free_lock.3
+	$(RM_F) $(DESTDIR)$(man3dir)/gensio_os_funcs_lock.3
+	$(RM_F) $(DESTDIR)$(man3dir)/gensio_os_funcs_unlock.3
+	$(RM_F) $(DESTDIR)$(man3dir)/gensio_os_funcs_get_monotonic_time.3
+	$(RM_F) $(DESTDIR)$(man3dir)/gensio_os_funcs_alloc_timer.3
+	$(RM_F) $(DESTDIR)$(man3dir)/gensio_os_funcs_free_timer.3
+	$(RM_F) $(DESTDIR)$(man3dir)/gensio_os_funcs_start_timer.3
+	$(RM_F) $(DESTDIR)$(man3dir)/gensio_os_funcs_start_timer_abs.3
+	$(RM_F) $(DESTDIR)$(man3dir)/gensio_os_funcs_stop_timer.3
+	$(RM_F) $(DESTDIR)$(man3dir)/gensio_os_funcs_stop_timer_with_done.3
+	$(RM_F) $(DESTDIR)$(man3dir)/gensio_os_funcs_alloc_runner.3
+	$(RM_F) $(DESTDIR)$(man3dir)/gensio_os_funcs_free_runner.3
+	$(RM_F) $(DESTDIR)$(man3dir)/gensio_os_funcs_run.3
+	$(RM_F) $(DESTDIR)$(man3dir)/gensio_os_funcs_set_vlog.3
+	$(RM_F) $(DESTDIR)$(man3dir)/gensio_os_funcs_service.3
+	$(RM_F) $(DESTDIR)$(man3dir)/gensio_os_funcs_handle_fork.3
+	$(RM_F) $(DESTDIR)$(man3dir)/gensio_os_funcs_alloc_waiter.3
+	$(RM_F) $(DESTDIR)$(man3dir)/gensio_os_funcs_free_waiter.3
+	$(RM_F) $(DESTDIR)$(man3dir)/gensio_os_funcs_wait.3
+	$(RM_F) $(DESTDIR)$(man3dir)/gensio_os_funcs_wait_intr.3
+	$(RM_F) $(DESTDIR)$(man3dir)/gensio_os_funcs_wait_intr_sigmask.3
+	$(RM_F) $(DESTDIR)$(man3dir)/gensio_os_funcs_wake.3
+	$(RM_F) $(DESTDIR)$(man3dir)/gensio_os_funcs_set_data.3
+	$(RM_F) $(DESTDIR)$(man3dir)/gensio_os_funcs_get_data.3
 
 EXTRA_DIST = $(man_MANS)
