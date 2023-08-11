@@ -51,6 +51,9 @@ struct filen_data {
     char *infile;
     char *outfile;
     bool create;
+    bool append;
+    bool trunc;
+    bool binary;
 #if USE_FILE_STDIO
     int mode;
     FILE *inf;
@@ -123,29 +126,66 @@ f_read(struct gensio_os_funcs *o,
     }
     return rv;
 }
-#define F_O_RDONLY 1
-#define F_O_WRONLY 2
-#define F_O_CREAT 4
+#define F_O_RDONLY (1 << 0)
+#define F_O_WRONLY (1 << 1)
+#define F_O_CREAT  (1 << 2)
+#define F_O_APPEND (1 << 3)
+#define F_O_TRUNC  (1 << 4)
+#define F_O_BINARY (1 << 5)
 static int
 f_open(struct gensio_os_funcs *o,
        const char *fn, int flags, int mode, FILE **rf)
 {
-    char *fmode;
+    char fmode[10];
     FILE *f;
+    bool seekstart = false;
+    bool seekend = false;
+    bool trunc = false;
 
     if (flags & F_O_RDONLY) {
-	fmode = "r";
+	strcpy(fmode, "r");
     } else if (flags & F_O_WRONLY) {
-	if (F_O_CREAT)
-	    fmode = "w";
-	else
-	    fmode = "r+";
+	if (flags & F_O_CREAT) {
+	    if (flags & F_O_TRUNC) {
+		strcpy(fmode, "w");
+	    } else if (flags & F_O_APPEND) {
+		strcpy(fmode, "a");
+	    } else {
+		strcpy(fmode, "a");
+		seekstart = true;
+	    }
+	} else {
+	    strcpy(fmode, "r+");
+	    if (flags & F_O_TRUNC)
+		trunc = true;
+	    if (flags & F_O_APPEND)
+		seekend = true;
+	}
     } else {
 	return GE_INVAL;
     }
+    if (flags & F_O_BINARY)
+	strcat(fmode, "b");
     f = fopen(fn, fmode);
     if (!f)
 	return GE_NOTFOUND;
+    if (trunc) {
+	/*
+	 * Truncating an existing file is a wierd case here.  There is
+	 * no way to do that that I can find with standard stream
+	 * files.  So if we open the file with "r+" and it works, that
+	 * means the file exists and then we can open it with "w" to
+	 * truncate it.
+	 */
+	fclose(f);
+	f = fopen(fn, "w");
+	if (!f)
+	    return GE_NOTFOUND;
+    }
+    if (seekstart)
+	fseek(f, 0, SEEK_SET);
+    if (seekend)
+	fseek(f, 0, SEEK_END);
     *rf = f;
     return 0;
 }
@@ -154,6 +194,9 @@ f_open(struct gensio_os_funcs *o,
 #define F_O_RDONLY O_RDONLY
 #define F_O_WRONLY O_WRONLY
 #define F_O_CREAT O_CREAT
+#define F_O_APPEND O_APPEND
+#define F_O_TRUNC O_TRUNC
+#define F_O_BINARY 0 /* Ignored for this. */
 typedef mode_t mode_type;
 #define f_ready(f) ((f) != -1)
 #define f_set_not_ready(f) f = -1
@@ -437,6 +480,12 @@ filen_open(struct gensio *io, gensio_done_err open_done, void *open_data)
 
 	if (ndata->create)
 	    flags |= F_O_CREAT;
+	if (ndata->append)
+	    flags |= F_O_APPEND;
+	if (ndata->trunc)
+	    flags |= F_O_TRUNC;
+	if (ndata->binary)
+	    flags |= F_O_BINARY;
 	err = f_open(ndata->o, ndata->outfile, flags, ndata->mode,
 		     &ndata->outf);
 	if (err)
@@ -575,6 +624,9 @@ struct file_ndata_data {
     const char *infile;
     const char *outfile;
     bool create;
+    bool append;
+    bool trunc;
+    bool binary;
     bool read_close;
     mode_type mode;
 };
@@ -591,6 +643,9 @@ file_ndata_setup(struct gensio_os_funcs *o, struct file_ndata_data *data,
     ndata->o = o;
     ndata->refcount = 1;
     ndata->create = data->create;
+    ndata->append = data->append;
+    ndata->trunc = data->trunc;
+    ndata->binary = data->binary;
     ndata->mode = data->mode;
     ndata->read_close = data->read_close;
 
@@ -653,6 +708,12 @@ process_file_args(struct gensio_pparm_info *p,
 	if (gensio_pparm_value(p, args[i], "outfile", &data->outfile) > 0)
 	    continue;
 	if (gensio_pparm_bool(p, args[i], "create", &data->create) > 0)
+	    continue;
+	if (gensio_pparm_bool(p, args[i], "append", &data->append) > 0)
+	    continue;
+	if (gensio_pparm_bool(p, args[i], "trunc", &data->trunc) > 0)
+	    continue;
+	if (gensio_pparm_bool(p, args[i], "binary", &data->binary) > 0)
 	    continue;
 #if !USE_FILE_STDIO
 	if (gensio_pparm_mode(p, args[i], "umode", &umode) > 0)

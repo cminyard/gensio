@@ -921,7 +921,20 @@ don't do the GE_REMCLOSE.  This is useful if you just want to inject a
 bunch of data then do nothing.
 .TP
 .B create[=true|false]
-Create the output file if it does not exist.
+Create the output file if it does not exist.  Ignored for read.
+.TP
+.B append[=true|false]
+Open the file in append mode.  If not specified, it will be opened at
+the beginning of the file and if writing, it will overwrite.  Ignored
+for read.
+.TP
+.B trunc[=true|false]
+Truncate the file on open.  All data will be deleted from the file
+when opened.  Ignored for read.
+.TP
+.B binary[=true|false]
+Open the file in binary mode.  This is ignored on *nix systems, but
+for Windows it affects how newlines are handled.
 .TP
 .B umode=[0-7|[rwx]*]
 Set the user file mode for the file if the file is created.  This is
