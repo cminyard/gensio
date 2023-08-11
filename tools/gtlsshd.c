@@ -88,7 +88,8 @@ static bool ginteractive_login = true;
  * PAM.  This way we can do 2-factor auth with certificates.
  */
 static const char *pam_cert_auth_progname;
-static const char *pid_file = NULL;
+static const char *pid_file;
+static const char *pam_service;
 
 /* We fork in *nix. */
 #define DO_FORK 1
@@ -1082,7 +1083,9 @@ setup_auth(struct auth_data *auth)
     const char *pn;
 
     pn = progname;
-    if (pam_cert_auth_progname && auth->authed_by_cert)
+    if (pam_service)
+	pn = pam_service;
+    else if (pam_cert_auth_progname && auth->authed_by_cert)
 	pn = pam_cert_auth_progname;
     auth->pam_conv.appdata_ptr = auth;
     auth->pam_err = pam_start(pn, auth->username, &auth->pam_conv, &auth->pamh);
@@ -3027,6 +3030,8 @@ help(int err)
     printf("  --pam-cert-auth <name> - When doing a certificate auth,\n");
     printf("     use the name as the PAM program name and run the PAM auth\n");
     printf("     after the certificate auth succeeds.  For 2-factor auth.\n");
+    printf("  --pam-service <name> - Use the given name for the PAM,\n");
+    printf("     authentication service.  Default is the program name.\n");
     printf("  -P, --pidfile <file> - Create the given pidfile.\n");
 #endif
     printf("  --version - Print the version number and exit.\n");
@@ -3125,6 +3130,9 @@ main(int argc, char *argv[])
 #ifdef HAVE_LIBPAM
 	else if ((rv = cmparg(argc, argv, &arg, NULL, "--pam-cert-auth",
 			      &pam_cert_auth_progname)))
+	    ;
+	else if ((rv = cmparg(argc, argv, &arg, NULL, "--pam-service",
+			      &pam_service)))
 	    ;
 	else if ((rv = cmparg(argc, argv, &arg, "-P", "--pidfile", &pid_file)))
 	    ;
