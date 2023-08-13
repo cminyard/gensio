@@ -2253,6 +2253,7 @@ pr_vop "  go:			" $GOPROG
 pr_op  "  pam:			" $HAVE_PAM
 pr_op  "  internal trace:	" $ENABLE_INTERNAL_TRACE
 pr_op  "  link ssl with main:	" $link_ssl_with_main
+pr_op  "  alsa:			" $HAVE_ALSA
 echo
 echo "**************************************************"
 echo "Gensios:"
