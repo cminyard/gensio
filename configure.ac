@@ -67,7 +67,7 @@ PYTHON_EXT_EXT_SET=
 
 # Windows requires that -no-undefined be set, but homebrew on MacOS requires
 # that -undefined be set.  Sigh.
-PYTHON_UNDEF_FLAG=-no-undefined
+PYTHON_UNDEF_FLAG=-undefined
 
 case $target_os in
 	mingw*)
@@ -80,6 +80,7 @@ case $target_os in
 		USE_FILE_STDIO=1
 		PYTHON_EXT_EXT=".pyd"
 		PYTHON_EXT_EXT_SET="-shrext .pyd"
+		PYTHON_UNDEF_FLAG=-no-undefined
 		;;
 	cygwin*)
 		OSH_LIBS="$OSH_LIBS -ldl"
@@ -97,7 +98,6 @@ case $target_os in
 		uucp_locking_flag=no
 		USE_GGL_INT=1
 		USE_OPENPTY=1
-		PYTHON_UNDEF_FLAG=-undefined
 		;;
 	*bsd* | *BSD*)
 		OSH_LIBS="$OSH_LIBS -ldl"
