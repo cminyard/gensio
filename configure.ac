@@ -101,6 +101,13 @@ case $target_os in
 		uucp_locking_flag=no
 		USE_GGL_INT=1
 		USE_OPENPTY=1
+		HB_PFX=`brew config | grep HOMEBREW_PREFIX | sed 's/^HOMEBREW_PREFIX: //'`
+		if test -z $HB_PFX; then
+			AC_MSG_ERROR("Homebrew required on MacOS")
+		fi
+		AC_MSG_NOTICE([Homebrew is at $HB_PFX])
+		CPPFLAGS="$CPPFLAGS -I$HB_PFX/include"
+		LDFLAGS="$LDFLAGS -L$HB_PFX/lib"
 		;;
 	*bsd* | *BSD*)
 		OSH_LIBS="$OSH_LIBS -ldl"
