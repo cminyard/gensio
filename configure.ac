@@ -69,6 +69,8 @@ PYTHON_EXT_EXT_SET=
 # that -undefined be set.  Sigh.
 PYTHON_UNDEF_FLAG=-undefined
 
+HAVE_WIN32SOUND=0
+
 case $target_os in
 	mingw*)
 		OSH_LIBS="$OSH_LIBS -lws2_32 -liphlpapi -lgdi32 -lbcrypt"
@@ -81,6 +83,7 @@ case $target_os in
 		PYTHON_EXT_EXT=".pyd"
 		PYTHON_EXT_EXT_SET="-shrext .pyd"
 		PYTHON_UNDEF_FLAG=-no-undefined
+		HAVE_WIN32SOUND=1
 		;;
 	cygwin*)
 		OSH_LIBS="$OSH_LIBS -ldl"
@@ -1167,6 +1170,8 @@ AM_CONDITIONAL([BUILTIN_MDNS], [test ${BUILTIN_MDNS} = 1])
 AC_SUBST(DYNAMIC_MDNS)
 AC_SUBST(BUILTIN_MDNS_LIBS)
 
+SOUND_LIBS=
+
 # Handle alsa support
 tryalsa=yes
 AC_ARG_WITH(alsa,
@@ -1188,17 +1193,64 @@ if test "x$tryalsa" != "xno"; then
 fi
 
 if test "x$HAVE_ALSA" != "xno"; then
-   SOUND_LIBS="-lasound"
+   SOUND_LIBS="$SOUND_LIBS -lasound"
    HAVE_ALSA=1
 else
-   if test "$version_type" = "windows"; then
-       SOUND_LIBS="-lwinmm"
-   fi
    HAVE_ALSA=0
 fi
 AC_DEFINE_UNQUOTED([HAVE_ALSA], [$HAVE_ALSA],
 	[Set to 1 to enable alsa, 0 to disable])
 AC_SUBST(HAVE_ALSA)
+
+# Allow windows sound to be disabled
+AC_ARG_WITH(winsound,
+ [AS_HELP_STRING([--with-winsound=yes|no], [Use windows sound])],
+    if test "x$withval" = "xyes"; then
+      HAVE_WIN32SOUND=1
+    elif test "x$withval" = "xno"; then
+      HAVE_WIN32SOUND=0
+    fi,
+)
+AC_DEFINE_UNQUOTED([HAVE_WIN32SOUND], [$HAVE_WIN32SOUND],
+	[Set to 1 to enable windows , 0 to disable])
+AC_SUBST(HAVE_WIN32SOUND)
+if test HAVE_WIN32SOUND = 1; then
+    SOUND_LIBS="$SOUND_LIBS -lwinmm"
+fi
+
+# Handle portaudio support, only try if we don't have something else
+if test $HAVE_ALSA = 1 -o $HAVE_WIN32SOUND == 1; then
+   tryportaudio=no
+else
+   tryportaudio=yes
+fi
+HAVE_PORTAUDIO=no
+AC_ARG_WITH(portaudio,
+ [AS_HELP_STRING([--with-portaudio=yes|no], [Look for portaudio])],
+    if test "x$withval" = "xyes"; then
+      tryportaudio=yes
+    elif test "x$withval" = "xno"; then
+      tryportaudio=no
+    fi,
+)
+if test "x$tryportaudio" != "xno"; then
+   found_portaudio=no
+   AC_CHECK_HEADER(portaudio.h, found_portaudio=yes; )
+   if test "x$found_portaudio" = "xyes"; then
+      AC_CHECK_LIB(portaudio, Pa_OpenStream, HAVE_PORTAUDIO=yes)
+   fi
+fi
+
+if test "x$HAVE_PORTAUDIO" != "xno"; then
+   SOUND_LIBS="$SOUND_LIBS -lportaudio"
+   HAVE_PORTAUDIO=1
+else
+   HAVE_PORTAUDIO=0
+fi
+AC_DEFINE_UNQUOTED([HAVE_PORTAUDIO], [$HAVE_PORTAUDIO],
+	[Set to 1 to enable portaudio, 0 to disable])
+AC_SUBST(HAVE_PORTAUDIO)
+
 AC_SUBST(SOUND_LIBS)
 
 sound=$default_all
@@ -2254,6 +2306,8 @@ pr_op  "  pam:			" $HAVE_PAM
 pr_op  "  internal trace:	" $ENABLE_INTERNAL_TRACE
 pr_op  "  link ssl with main:	" $link_ssl_with_main
 pr_op  "  alsa:			" $HAVE_ALSA
+pr_op  "  win32 sound:		" $HAVE_WIN32SOUND
+pr_op  "  portaudio:		" $HAVE_PORTAUDIO
 echo
 echo "**************************************************"
 echo "Gensios:"

@@ -681,7 +681,8 @@ gensio_sound_alsa_api_open_dev(struct sound_info *si)
 }
 
 static int
-gensio_sound_alsa_api_devices(char ***rnames, char ***rspecs, gensiods *rcount)
+gensio_sound_alsa_api_devices(struct gensio_os_funcs *o,
+			      char ***rnames, char ***rspecs, gensiods *rcount)
 {
     void **hints, **n;
     gensiods count = 0, size = 0;

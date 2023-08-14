@@ -453,11 +453,11 @@ struct sound_cnv_info {
     enum gensio_sound_fmt_type ufmt;
     gensiods pframesize; /* Size of a frame on the PCM side, in bytes. */
     unsigned int usize; /* Sample size (in bytes) on the user side */
+    unsigned int psize; /* Sample size on the PCM side, in bytes */
 
     /* Above values are always set.  Values below are only set if enabled. */
 
     bool host_bswap;
-    unsigned int psize; /* Sample size on the PCM side, in bytes */
     uint32_t offset; /* Subtract/add this from/to the pcm/user to convert. */
     float scale_in; /* Multiply by this to scale to -1.0 - 1.0 float, before offset. */
     float scale_out; /* Multiply by this to scale from -1.0 - 1.0 float, after offset. */
@@ -565,7 +565,8 @@ struct sound_type {
     unsigned int (*start_close)(struct sound_info *si);
     /* Return number of frames left to send. */
     unsigned long (*drain_count)(struct sound_info *si);
-    int (*devices)(char ***rnames, char ***rspecs, gensiods *rcount);
+    int (*devices)(struct gensio_os_funcs *o,
+		   char ***rnames, char ***rspecs, gensiods *rcount);
 };
 
 struct sound_info {
@@ -661,6 +662,7 @@ setup_conv(const char *ufmt, const char *pfmt, struct sound_info *si)
 
 	si->cnv.ufmt = i;
     }
+    si->cnv.psize = si->cnv.usize;
 
     if (!pfmt)
 	return 0;
@@ -799,7 +801,7 @@ gensio_sound_ll_deref_and_unlock(struct sound_ll *soundll)
 	gensio_sound_ll_free(soundll);
 }
 
-#if HAVE_ALSA || defined(_WIN32)
+#if HAVE_ALSA || HAVE_WIN32SOUND || HAVE_PORTAUDIO
 static int
 extend_sound_devs(char ***names, char ***specs, gensiods *size)
 {
@@ -842,10 +844,16 @@ static int gensio_sound_api_default_write(struct sound_info *out,
 #define ALSA_INIT
 #endif
 
-#ifdef _WIN32
+#if HAVE_WIN32SOUND
 #include "win_sound.h"
 #else
 #define WIN_INIT
+#endif
+
+#if HAVE_PORTAUDIO
+#include "portaudio_sound.h"
+#else
+#define PORTAUDIO_INIT
 #endif
 
 #include "file_sound.h"
@@ -1387,6 +1395,7 @@ gensio_sound_ll_func(struct gensio_ll *ll, int op,
 static struct sound_type *sound_types[] = {
     ALSA_INIT
     WIN_INIT
+    PORTAUDIO_INIT
     FILE_INIT
     NULL
 };
@@ -1556,7 +1565,7 @@ gensio_sound_devices_free(char **names, char **specs, gensiods count)
 }
 
 int
-gensio_sound_devices(const char *type,
+gensio_sound_devices(struct gensio_os_funcs *o, const char *type,
 		     char ***rnames, char ***rspecs, gensiods *rcount)
 {
     unsigned int i = 0;
@@ -1569,5 +1578,5 @@ gensio_sound_devices(const char *type,
     }
     if (!sound_types[i])
 	return GE_INVAL;
-    return sound_types[i]->devices(rnames, rspecs, rcount);
+    return sound_types[i]->devices(o, rnames, rspecs, rcount);
 }

@@ -26,7 +26,7 @@ alloc_sound_list(struct gensio_os_funcs *o, const char *type,
     const char *argv[3];
     char *data;
 
-    err = gensio_sound_devices(type, &names, &specs, &count);
+    err = gensio_sound_devices(o, type, &names, &specs, &count);
     if (err)
 	return err;
 

@@ -730,7 +730,8 @@ gensio_sound_win_api_cleanup(struct sound_info *si)
 }
 
 static int
-gensio_sound_win_api_devices(char ***rnames, char ***rspecs, gensiods *rcount)
+gensio_sound_win_api_devices(struct gensio_os_funcs *o,
+			     char ***rnames, char ***rspecs, gensiods *rcount)
 {
     gensiods count = 0, size = 0;
     UINT i, ndevs;

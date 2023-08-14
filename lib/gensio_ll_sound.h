@@ -30,7 +30,7 @@ int gensio_sound_ll_alloc(struct gensio_pparm_info *p,
 
 void gensio_sound_devices_free(char **names, char **specs, gensiods count);
 
-int gensio_sound_devices(const char *type,
+int gensio_sound_devices(struct gensio_os_funcs *o, const char *type,
 			 char ***names, char ***specs, gensiods *count);
 
 #endif /* GENSIO_LL_SOUND_H */

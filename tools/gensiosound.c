@@ -124,7 +124,7 @@ list_sound_devs(struct gensio_os_funcs *o, const char *devtype)
     err = str_to_gensio(gstr, o, NULL, NULL, &lg);
     free(gstr);
     if (err) {
-	fprintf(stderr, "Unable to allocated gensio: %s\n",
+	fprintf(stderr, "Unable to allocate gensio: %s\n",
 		gensio_err_to_str(err));
 	return 1;
     }

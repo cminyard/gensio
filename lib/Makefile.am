@@ -10,7 +10,8 @@ noinst_HEADERS = telnet.h heap.h utils.h seriallock.h \
 	gensio_filter_relpkt.h gensio_filter_trace.h gensio_filter_perf.h \
 	errtrig.h avahi_watcher.h gensio_net.h gensio_filter_kiss.h \
 	gensio_filter_xlt.h gensio_filter_script.h \
-	gensio_ll_sound.h alsa_sound.h win_sound.h file_sound.h \
+	gensio_ll_sound.h alsa_sound.h win_sound.h portaudio_sound.h \
+	file_sound.h \
 	gensio_filter_ratelimit.h gensio_filter_afskmdm.h
 
 libgensioosh_la_SOURCES = \
