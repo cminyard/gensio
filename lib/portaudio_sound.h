@@ -138,9 +138,7 @@ gensio_sound_pa_drain_count(struct sound_info *si)
 static void
 gensio_sound_pa_api_close_dev(struct sound_info *si)
 {
-    struct gensio_os_funcs *o = si->soundll->o;
     struct pa_sound_info *w = si->pinfo;
-    unsigned int i;
 
     if (!w)
 	return;
@@ -164,7 +162,7 @@ gensio_sound_pa_process_read_buffer(struct sound_info *si)
     struct pa_sound_info *w = si->pinfo;
     const unsigned char *inbuf;
     unsigned char *outbuf;
-    gensiods usize, psize, outlen;
+    gensiods psize;
     void (*convin)(const unsigned char **in, unsigned char **out,
 		   struct sound_cnv_info *info);
 
@@ -172,7 +170,6 @@ gensio_sound_pa_process_read_buffer(struct sound_info *si)
     if (w->len < si->bufsize * si->cnv.pframesize || si->ready)
 	return;
 
-    usize = si->cnv.usize;
     psize = si->cnv.psize;
     if (si->cnv.enabled)
 	convin = si->cnv.convin;
@@ -254,7 +251,6 @@ static int
 gensio_sound_pa_api_write(struct sound_info *out, gensiods *rcount,
 			  const struct gensio_sg *sg, gensiods sglen)
 {
-    struct sound_ll *soundll = out->soundll;
     struct pa_sound_info *w = out->pinfo;
     gensiods count = 0, i, usize, psize, ppos;
     void (*convout)(const unsigned char **in, unsigned char **out,
