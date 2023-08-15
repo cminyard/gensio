@@ -111,6 +111,12 @@ struct pa_sound_info {
 
     int devidx;
 
+    /*
+     * Used to avoid stutter at start, wait until we have a few buffers
+     * before starting the transmitter.
+     */
+    bool started;
+
     double latency;
 
     /* Position of pcm data, in cnv.buf, both receive and transmit. */
@@ -231,6 +237,8 @@ gensio_sound_pa_api_start_close(struct sound_info *si)
 
     if (si->is_input)
 	return 0; /* Nothing to do to stop the input. */
+    if (!w->started)
+	return 0; /* We haven't queued anything, not worth sending. */
 
     if (w->len > 0)
 	rv++; /* Data in our buffer to write. */
@@ -291,6 +299,16 @@ gensio_sound_pa_api_write(struct sound_info *out, gensiods *rcount,
 
     /* Is there a buffer's worth of free space to write? */
     out->ready = w->size - w->len >= out->bufsize * out->cnv.pframesize;
+
+    /* Wait until we have two buffers before starting the sender. */
+    if (!w->started && w->len > out->bufsize * out->cnv.pframesize * 2) {
+	PaError perr;
+
+	w->started = true;
+	perr = Pa_StartStream(w->stream);
+	if (perr)
+	    return gensio_pa_err_to_err(out->soundll->o, perr);
+    }
 
     if (rcount)
 	*rcount = count;
@@ -435,14 +453,17 @@ gensio_sound_pa_api_open_dev(struct sound_info *si)
 	si->ready = true;
     }
 
-    perr = Pa_StartStream(w->stream);
-    if (perr) {
-	err = gensio_pa_err_to_err(o, perr);
-	Pa_CloseStream(w->stream);
-	w->stream = NULL;
-	o->free(o, si->cnv.buf);
-	si->cnv.buf = NULL;
-	return err;
+    if (si->is_input) {
+	perr = Pa_StartStream(w->stream);
+	if (perr) {
+	    err = gensio_pa_err_to_err(o, perr);
+	    Pa_CloseStream(w->stream);
+	    w->stream = NULL;
+	    o->free(o, si->cnv.buf);
+	    si->cnv.buf = NULL;
+	    return err;
+	}
+	w->started = true;
     }
 
     return 0;
