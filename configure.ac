@@ -1221,7 +1221,7 @@ AC_ARG_WITH(winsound,
 AC_DEFINE_UNQUOTED([HAVE_WIN32SOUND], [$HAVE_WIN32SOUND],
 	[Set to 1 to enable windows , 0 to disable])
 AC_SUBST(HAVE_WIN32SOUND)
-if test HAVE_WIN32SOUND = 1; then
+if test $HAVE_WIN32SOUND = 1; then
     SOUND_LIBS="$SOUND_LIBS -lwinmm"
 fi
 
