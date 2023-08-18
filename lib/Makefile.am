@@ -370,11 +370,18 @@ pkgconfigexec_DATA = libgensioosh.pc libgensio.pc libgensiomdns.pc
 
 if HAVE_WINDOWS_OS
 xgensio_libs = $(xgensio_libexec_LTLIBRARIES:.la=.dll.a)
+xgensio_solibs = $(xgensio_libexec_LTLIBRARIES:.la=.dll)
 else
 xgensio_libs = $(xgensio_libexec_LTLIBRARIES:.la=.a)
+xgensio_solibs = $(xgensio_libexec_LTLIBRARIES:.la=.so)
 endif
 
-# Remove the .a and .la files for the modules that get installed.
 install-exec-hook:
 	@(cd $(DESTDIR)$(gensiolibexec) && $(RM) -f $(xgensio_libexec_LTLIBRARIES))
 	@(cd $(DESTDIR)$(gensiolibexec) && $(RM) -f $(xgensio_libs))
+
+# Since we remove the bogus .la and .a files above at install time,
+# libtool will not remove the .so or .dll files since the .la file is
+# no longer there.  We have to do that by hand.
+uninstall-hook:
+	@(cd $(DESTDIR)$(gensiolibexec) && $(RM) -f $(xgensio_solibs))
