@@ -101,11 +101,6 @@ case $target_os in
 		uucp_locking_flag=no
 		USE_GGL_INT=1
 		USE_OPENPTY=1
-		HB_PFX=`brew config | grep HOMEBREW_PREFIX | sed 's/^HOMEBREW_PREFIX: //'`
-		if test -z $HB_PFX; then
-			AC_MSG_ERROR("Homebrew required on MacOS")
-		fi
-		AC_MSG_NOTICE([Homebrew is at $HB_PFX])
 		CPPFLAGS="$CPPFLAGS -I$HB_PFX/include"
 		LDFLAGS="$LDFLAGS -L$HB_PFX/lib"
 		;;
@@ -136,9 +131,27 @@ AC_ARG_WITH(link-ssl-with-main,
 	    [link_ssl_with_main="$withval"]
 )
 
+HB_PFX=
+AC_ARG_WITH(homebrew-prefix,
+	    [AS_HELP_STRING([--with-homebrew_prefix=<directory>],
+			    [Set the homebrew prefix])],
+	    [HB_PFX="$withval"]
+)
+case $target_os in
+   darwin*)
+      if test -z $HB_PFX; then
+         HB_PFX=`brew config | grep HOMEBREW_PREFIX | sed 's/^HOMEBREW_PREFIX: //'`
+      fi
+      if test -z $HB_PFX; then
+         AC_MSG_ERROR("Homebrew required on MacOS")
+      fi
+      AC_MSG_NOTICE([Homebrew is at $HB_PFX])
+      ;;
+   *) ;;
+esac
+
 if test "$link_ssl_with_main" = "check"; then
     AC_MSG_CHECKING([if ssl needs to be linked with the main library])
-    HOMEBREW_PREFIX=`brew config | grep HOMEBREW_PREFIX | sed 's/^.*: *//'`
     AC_LANG_PUSH(C)
     AC_RUN_IFELSE(
 	[AC_LANG_SOURCE([[
@@ -216,7 +229,7 @@ check_pselect_cross_thread(sigset_t mask)
 
     sleep(2); /* Give the thread time to enter pselect() */
 
-    if (dlopen("$HOMEBREW_PREFIX/lib/libssl.dylib", RTLD_LAZY | RTLD_GLOBAL) == NULL) {
+    if (dlopen("HB_PFX/lib/libssl.dylib", RTLD_LAZY | RTLD_GLOBAL) == NULL) {
 	fprintf(stderr, "dlopen failed: %s\n", dlerror());
 	rv = 1;
     }
