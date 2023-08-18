@@ -69,6 +69,10 @@ PYTHON_EXT_EXT_SET=
 # that -undefined be set.  Sigh.
 PYTHON_UNDEF_FLAG=-undefined
 
+# Do we use the login program to login with gtlsshd, or do we directly
+# run the shell?  On MacOS you need to use login for things to work right.
+USE_LOGIN_PROGRAM=0
+
 HAVE_WIN32SOUND=0
 
 case $target_os in
@@ -103,6 +107,7 @@ case $target_os in
 		USE_OPENPTY=1
 		CPPFLAGS="$CPPFLAGS -I$HB_PFX/include"
 		LDFLAGS="$LDFLAGS -L$HB_PFX/lib"
+		USE_LOGIN_PROGRAM=1
 		;;
 	*bsd* | *BSD*)
 		OSH_LIBS="$OSH_LIBS -ldl"
@@ -124,6 +129,11 @@ AC_SUBST(USE_OPENPTY)
 
 AC_SUBST(PYTHON_EXT_EXT)
 AC_SUBST(PYTHON_EXT_EXT_SET)
+
+AC_DEFINE_UNQUOTED([USE_LOGIN_PROGRAM], [$USE_LOGIN_PROGRAM],
+	[Set to 1 to use login, 0 to directly execute the shell on login])
+AM_CONDITIONAL([USE_LOGIN_PROGRAM], [test ${USE_LOGIN_PROGRAM} = 1])
+AC_SUBST(USE_LOGIN_PROGRAM)
 
 AC_ARG_WITH(link-ssl-with-main,
 	    [AS_HELP_STRING([--with-link-ssl-with-main=[yes|no]],

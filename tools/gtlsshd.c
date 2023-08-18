@@ -81,6 +81,7 @@ static bool permit_root = false;
 static bool pw_login = false;
 static bool do_2fa = false;
 static bool ginteractive_login = true;
+static bool use_login = USE_LOGIN_PROGRAM;
 
 #ifndef _WIN32
 /*
@@ -2216,7 +2217,10 @@ new_rem_io(struct gensio *io, struct auth_data *auth)
 #ifdef _WIN32
 	s = gensio_alloc_sprintf(o, "pty,%s -i", auth->ushell);
 #else
-	s = gensio_alloc_sprintf(o, "pty,-%s -i", auth->ushell);
+	if (use_login)
+	    s = gensio_alloc_sprintf(o, "pty,login -f %s", auth->username);
+	else
+	    s = gensio_alloc_sprintf(o, "pty,-%s -i", auth->ushell);
 #endif
 	login = true;
 	do_chdir = true;
@@ -3032,6 +3036,10 @@ help(int err)
     printf("     after the certificate auth succeeds.  For 2-factor auth.\n");
     printf("  --pam-service <name> - Use the given name for the PAM,\n");
     printf("     authentication service.  Default is the program name.\n");
+    printf("  --use-login, --no-use-login - Use or don't use the login\n");
+    printf("     program for interactive logins.  The default is to\n");
+    printf("     %s login.\n", USE_LOGIN_PROGRAM ? "use" : "not use");
+    printf("  --no-use-login - Don't use login program.\n");
     printf("  -P, --pidfile <file> - Create the given pidfile.\n");
 #endif
     printf("  --version - Print the version number and exit.\n");
@@ -3143,6 +3151,10 @@ main(int argc, char *argv[])
 	    daemonize = false;
 	else if ((rv = cmparg(argc, argv, &arg, NULL, "--nointeractive", NULL)))
 	    ginteractive_login = false;
+	else if ((rv = cmparg(argc, argv, &arg, NULL, "--use-login", NULL)))
+	    use_login = 1;
+	else if ((rv = cmparg(argc, argv, &arg, NULL, "--no-use-login", NULL)))
+	    use_login = 0;
 	else if ((rv = cmparg(argc, argv, &arg, "-4", NULL, NULL)))
 	    iptype = "ipv4,0.0.0.0,";
 	else if ((rv = cmparg(argc, argv, &arg, "-6", NULL, NULL)))
