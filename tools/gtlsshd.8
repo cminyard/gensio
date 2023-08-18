@@ -95,6 +95,11 @@ do the second factor authentication part.
 .I \-\-pam\-service <name>
 Use the given name for the pam service, instead of using the program's name.
 .TP
+.I \-\-use\-login, \-\-no\-use\-login
+Use or do not use the login program to log the user in.  Some systems
+work better with login, others work fine to directly execute the
+shell.  The default depends on the system and should be best.
+.TP
 .I \-\-oneshot
 Do not fork the program at the beginning or when a connection is
 received.  This allows easier debugging of the program.
