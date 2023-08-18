@@ -105,8 +105,6 @@ case $target_os in
 		uucp_locking_flag=no
 		USE_GGL_INT=1
 		USE_OPENPTY=1
-		CPPFLAGS="$CPPFLAGS -I$HB_PFX/include"
-		LDFLAGS="$LDFLAGS -L$HB_PFX/lib"
 		USE_LOGIN_PROGRAM=1
 		;;
 	*bsd* | *BSD*)
@@ -155,6 +153,8 @@ case $target_os in
       if test -z $HB_PFX; then
          AC_MSG_ERROR("Homebrew required on MacOS")
       fi
+      CPPFLAGS="$CPPFLAGS -I$HB_PFX/include"
+      LDFLAGS="$LDFLAGS -L$HB_PFX/lib"
       AC_MSG_NOTICE([Homebrew is at $HB_PFX])
       ;;
    *) ;;
@@ -239,7 +239,7 @@ check_pselect_cross_thread(sigset_t mask)
 
     sleep(2); /* Give the thread time to enter pselect() */
 
-    if (dlopen("HB_PFX/lib/libssl.dylib", RTLD_LAZY | RTLD_GLOBAL) == NULL) {
+    if (dlopen("$HB_PFX/lib/libssl.dylib", RTLD_LAZY | RTLD_GLOBAL) == NULL) {
 	fprintf(stderr, "dlopen failed: %s\n", dlerror());
 	rv = 1;
     }
