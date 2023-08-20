@@ -31,8 +31,9 @@ The number of channels, defaults to 1.
 The number of buffer size, defaults to 2048.
 .TP
 .I "\-t|\-\-type num"
-The interface type, either alsa (Linux), win (Windows), or file.
-Default to alsa or win.
+The interface type, either alsa (Linux), win (Windows), portaudio
+(generally MacOS) or file.  Default to alsa, win, or portaudio
+depending on the platform.
 .TP
 .I "\-f|\-\-format str"
 The I/O format.  Default to float.  May be one of double, float,

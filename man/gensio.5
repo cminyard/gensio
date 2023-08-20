@@ -2144,26 +2144,38 @@ that the input and output streams are completely independent; they can
 have different type, format, rates, etc. 
 
 Different sound interfaces are available on platforms.  For Linux,
-alsa and file interfaces are available.  On Windows, win and file
-interfaces are available.
+alsa and file interfaces are available, and possibly portaudio,
+depending on how it is compiled.  On Windows, win and file interfaces
+are available and possibly portaudio.  On Macos portaudio and file are
+available.
 
 The device is specified on the command line.  The name is
 system-dependent.  For alsa, the name must match exactly.  You can use
 "aplay -L" or "arecord -L" to list input and output devices available.
 Or you can use the "gsound -L" program.
 
-For Windows, the name just has to match the first part of the device's
-name.  Windows names always start with a number.  So, for instance, if
-the output of "gsound -L" on your windows platform is:
+For Windows and portaudio, the name just has to match part of the
+device's name.  Windows names always start with a number.  So, for
+instance, if the output of "gsound -L" on your windows platform is:
 .IP
     0:Microphone (Realtek(R) Audio)     input,inchans=2
 .br
     0:Speakers (Realtek(R) Audio)       output,outchans=2
 .PP
-then "0:" will match the the microphone for an input device, and "0:"
-will match the speakers for an output device.  On Windows, you must
-generally specify the input and output device, as the numbers don't
-always line up as nicely as above.
+The numbers at the beginning are subject to change, so it's better to
+use part of the name like "Realtek", which will match both input and
+output.  It will not select an output-only device for input or an
+input-only device for output.
+
+On MacOS with portaudio you might see:
+.IP
+    0:USB Audio CODEC   output,outchans=2
+.br
+    1:USB Audio CODEC   input,inchans=2
+.br
+    2:Mac mini Speakers output,outchans=2
+.pp
+where you could use "USB Audio" for the name.
 
 For file type, the device name is a filename; data is streamed to/from
 the file in the PCM format.  If the filename is "-", then stdio is
@@ -2213,8 +2225,8 @@ The sample rate, in samples per second.  Common ones are 44100 (CD),
 .TP
 .B intype=<n>, outtype=<n>, type=<n>
 Set the interface type.  Must be "alsa" (Linux only), "win" (Windows
-only) or "file".  If not set, this default to alsa on Linux and win on
-Windows.
+only), "portaudio" (MacOS, generally) or "file".  If not set, this
+default to alsa on Linux, win on Windows, and portaudio no Macos.
 .TP
 .B informat=<n>, outformat=<n>, format=<n>
 Set the type of data to supply to the user.  This is one of: float64,

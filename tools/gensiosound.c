@@ -186,7 +186,8 @@ help(int err)
     printf("  -c, --channels <n> - The number of channels, defaults to 1\n");
     printf("  -s, --bufsize <n> - The buffer size, defaults to 2048\n");
     printf("  -t, --type <n> - The interface type, either alsa (Linux),\n"
-	   "    win (Windows), or file.  Default to alsa or win.\n");
+	   "    win (Windows), portaudio (generally MacOS), or file.  Default\n"
+	   "    to alsa, win, or portaudio depending on the platform.\n");
     printf("  -f, --format <str> - The I/O format.  Default to float.  May\n"
 	   "    be one of double, float, int32, int24, int16, or int8\n");
     printf("  -p, --play - Playback data from stdin.  The default is to\n"
