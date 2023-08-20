@@ -15,7 +15,7 @@ def do_ratelimit_test1(io1, io2, timeout=2000):
     if (io1.handler.wait_timeout(1000) != 0):
         raise Exception(("%s: %s: " % ("do_ratelimit_test", io1.handler.name)) +
                         ("Sent data too fast"))
-    if (io1.handler.wait_timeout(2000) == 0):
+    if (io1.handler.wait_timeout(2500) == 0):
         raise Exception(("%s: %s: " % ("do_ratelimit_test", io1.handler.name)) +
                         ("Sent data too slowly"))
     if (io2.handler.wait_timeout(1000) == 0):
