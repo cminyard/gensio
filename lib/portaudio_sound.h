@@ -470,7 +470,7 @@ gensio_sound_pa_api_open_dev(struct sound_info *si)
 }
 
 static PaDeviceIndex
-gensio_sound_pa_lookup_dev_by_name(char *name)
+gensio_sound_pa_lookup_dev_by_name(char *name, bool is_input)
 {
     PaDeviceIndex i, ndevs;
 
@@ -480,6 +480,10 @@ gensio_sound_pa_lookup_dev_by_name(char *name)
 	char tstr[100];
 
 	if (!padev)
+	    continue;
+	if (is_input && padev->maxInputChannels == 0)
+	    continue;
+	if (!is_input && padev->maxOutputChannels == 0)
 	    continue;
 
 	snprintf(tstr, sizeof(tstr), "%d:%s", i, padev->name);
@@ -514,7 +518,7 @@ gensio_sound_pa_api_setup(struct gensio_pparm_info *p,
 	goto out_nomem;
     si->pinfo = w;
 
-    w->devidx = gensio_sound_pa_lookup_dev_by_name(si->cardname);
+    w->devidx = gensio_sound_pa_lookup_dev_by_name(si->cardname, si->is_input);
     if (w->devidx == -1) {
 	err = GE_NOTFOUND;
 	goto out_err;
