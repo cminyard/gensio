@@ -495,7 +495,7 @@ auth_free(struct auth_data *auth)
     if (auth->locport)
 	free_local_ports(auth->locport);
     if (auth->homedir)
-	o->free(o, auth->homedir);
+	free(auth->homedir);
     if (auth->ushell)
 	o->free(o, auth->ushell);
     if (auth->passwd) {
