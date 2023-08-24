@@ -363,8 +363,10 @@ pty_check_close(void *handler_data, struct gensio_iod *iod,
     err = pty_check_exit_code(tdata);
     if (err == GE_INPROGRESS) {
 	/* FIXME - this should probably be configurable. */
-	if (tdata->check_close_count >= 500) /* Wait for 5 seconds. */
+	if (tdata->check_close_count >= 500) { /* Wait for 5 seconds. */
+	    err = GE_TIMEDOUT;
 	    goto out_finish;
+	}
 	tdata->check_close_count++;
 	timeout->secs = 0;
 	timeout->nsecs = 10000000;
