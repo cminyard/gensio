@@ -232,6 +232,11 @@ So to configure it so C:\etc is where the gtlssh directory is, you would do::
 
   ../configure '--sysconfdir=C:\\\\\\\\etc'
 
+But fortunately, Windows can use a '/' as a directory separator, so if you don't
+mind seeing the '/' everywhere, you can do::
+
+  ../configure '--sysconfdir=C:/etc'
+
 gensio tools
 ============
 
