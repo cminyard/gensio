@@ -209,13 +209,21 @@ libraries or the mingw-w64-i686-xxx version of all the libraries.
 32-bit is not well tested::
 
   pacman -S mingw-w64-x86_64-gcc \
-    mingw-w64-x86_64-python \
+    mingw-w64-x86_64-python3 \
     mingw-w64-x86_64-pcre \
-    mingw-w64-x86_64-openssl \
+    mingw-w64-x86_64-openssl
+
+for mingw64, or for ucrt64::
+
+  pacman -S mingw-w64-ucrt-x86_64-gcc \
+    mingw-w64-ucrt-x86_64-python3 \
+    mingw-w64-ucrt-x86_64-pcre \
+    mingw-w64-ucrt-x86_64-openssl
 
 For go, install go from https://go.dev and log out and log back in.
-It should then be in the path.  I haven't gotten go working on on
-mingw32, but I haven't tried a 32-bit version of go.
+It should then be in the PATH, but if it's not, you will need to add
+it to the PATH.  I haven't gotten go working on on mingw32, but I
+haven't tried a 32-bit version of go.
 
 For gtlsshd, you must set --sysconfdir to where the gtlssh directory with the
 keys will be (like /etc/gtlssh is on linix).  The annoying this is that for

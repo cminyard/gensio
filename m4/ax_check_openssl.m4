@@ -80,7 +80,7 @@ AC_DEFUN([AX_CHECK_OPENSSL], [
 		        ssldirs="$ssldirs /mingw32"
 			;;
 		    x86_64)
-		        ssldirs="$ssldirs /mingw64"
+		        ssldirs="$ssldirs /ucrt64 /mingw64"
 			;;
 		    esac
 		    ;;

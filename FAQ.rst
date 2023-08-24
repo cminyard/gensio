@@ -83,6 +83,8 @@ Here are some answer to questions about gensio.
   * Run a command prompt as an administrator.
   * Run "psexec -sid cmd".  This will open a new window running as System.
   * PATH=C:\msys64\mingw64\sbin;C:\msys64\mingw64\bin;%PATH%
+    or
+    PATH=C:\msys64\ucrt64\sbin;C:\msys64\ucrt64\bin;%PATH%
   * gtlsshd -d -d
   * You can also run it in gdb for debugging.
 
@@ -91,6 +93,10 @@ Here are some answer to questions about gensio.
 
     PATH=C:\msys64\mingw64\sbin;C:\msys64\mingw64\bin;%PATH%
     gtlsshd
+
+  with ucrt64 instead of mingw64 if you are using that.  You can use
+  an absolue patch to gtlsshd.exec and start the program in C:\msys64\ming64\bin so it
+  will pick up the dlls from the bin directory.
 
   All the gensio dlls are installed in the bin directory, you will need that directory
   in your path to be able to load gensios.
@@ -101,7 +107,11 @@ Here are some answer to questions about gensio.
 
     error: C:\etc\gtlssh\gtlsshd.key is accessible by others, giving up
 
-  when gtlsshd start with debugging enabled.
+  when gtlsshd start with debugging enabled.  To fix this, you must
+  bring up the file in file explorer, disable inherited permissions,
+  and delete the non SYSTEM and Administrator users.
+
+  You will allso need to add a rule in the firewall to let connections through.
 
 * Issues with openssl and signal masks
 
