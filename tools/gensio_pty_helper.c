@@ -233,6 +233,12 @@ int main(int argc, char *argv[])
 	CancelSynchronousIo(thread3);
     CloseHandle(thread3);
 
+    /*
+     * Must close this before closing the handles or the final frame
+     * paint may hang.
+     */
+    ClosePseudoConsole(ptyh);
+
     CloseHandle(readh_m);
     CloseHandle(writeh_m);
     CloseHandle(in);
@@ -244,8 +250,6 @@ int main(int argc, char *argv[])
     WaitForSingleObject(procinfo.hProcess, INFINITE);
     GetExitCodeProcess(procinfo.hProcess, &exit_code);
     CloseHandle(procinfo.hProcess);
-
-    ClosePseudoConsole(ptyh);
 
     return exit_code;
 }
