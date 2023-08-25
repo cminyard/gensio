@@ -2940,6 +2940,8 @@ win_iod_pty_clean(struct gensio_iod_win *wiod)
     struct gensio_os_funcs *o = wiod->iod.f;
     struct gensio_iod_win_pty *piod = wiod_to_win_pty(wiod);
 
+    if (piod->ptyh)
+	ClosePseudoConsole(piod->ptyh);
     if (piod->child_in)
 	CloseHandle(piod->child_in);
     if (piod->child_out)
@@ -2950,8 +2952,6 @@ win_iod_pty_clean(struct gensio_iod_win *wiod)
 	o->release_iod(&piod->write->iod);
     if (piod->child)
 	CloseHandle(piod->child);
-    if (piod->ptyh)
-	ClosePseudoConsole(piod->ptyh);
     if (piod->control)
 	CloseHandle(piod->control);
     if (piod->watch_start)

@@ -2032,6 +2032,8 @@ gensio_win_pty_alloc(struct gensio_os_funcs *o,
  out_err_conv:
     err = gensio_os_err_to_err(o, GetLastError());
  out_err:
+    if (ptyh)
+	ClosePseudoConsole(ptyh);
     if (readh_m)
 	CloseHandle(readh_m);
     if (readh_s)
@@ -2040,8 +2042,6 @@ gensio_win_pty_alloc(struct gensio_os_funcs *o,
 	CloseHandle(writeh_m);
     if (writeh_s)
 	CloseHandle(writeh_s);
-    if (ptyh)
-	ClosePseudoConsole(ptyh);
     return err;
 }
 
