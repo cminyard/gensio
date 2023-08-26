@@ -82,24 +82,28 @@ Here are some answer to questions about gensio.
 
   * Run a command prompt as an administrator.
   * Run "psexec -sid cmd".  This will open a new window running as System.
-  * PATH=C:\msys64\mingw64\sbin;C:\msys64\mingw64\bin;%PATH%
+  * PATH=C:\msys64\mingw64\bin;%PATH%
     or
-    PATH=C:\msys64\ucrt64\sbin;C:\msys64\ucrt64\bin;%PATH%
-  * gtlsshd -d -d
+    PATH=C:\msys64\ucrt64\bin;%PATH%
+  * C:\...\gtlsshd -d -d
   * You can also run it in gdb for debugging.
 
-  To run it under task scheduler, you probably need something like the following
-  script to make it work:
+  where the "..." is the path to gtlsshd.
 
-    PATH=C:\msys64\mingw64\sbin;C:\msys64\mingw64\bin;%PATH%
-    gtlsshd
+  To run it under task scheduler, you probably need something like the
+  following script to make it work:
+
+    PATH=C:\msys64\mingw64\bin;%PATH%
+    C:\...\gtlsshd
 
   with ucrt64 instead of mingw64 if you are using that.  You can use
-  an absolue patch to gtlsshd.exec and start the program in C:\msys64\ming64\bin so it
-  will pick up the dlls from the bin directory.
+  an absolute patch to gtlsshd.exe and start the program in
+  C:\msys64\ming64\bin so it will pick up the dlls from the bin
+  directory, then you don't need a script.  If the ming64 or ucrt64
+  bin directories are in the standard path, this won't matter.
 
-  All the gensio dlls are installed in the bin directory, you will need that directory
-  in your path to be able to load gensios.
+  All the gensio dlls are installed in the bin directory, you will
+  need that directory in your path to be able to load gensios.
 
   Also, setting the permissions on C:\etc\gtlssh\gtlsshd.key is important.  It
   must be accessible only by SYSTEM and Administrator.  This is checked by
@@ -107,11 +111,12 @@ Here are some answer to questions about gensio.
 
     error: C:\etc\gtlssh\gtlsshd.key is accessible by others, giving up
 
-  when gtlsshd start with debugging enabled.  To fix this, you must
-  bring up the file in file explorer, disable inherited permissions,
-  and delete the non SYSTEM and Administrator users.
+  when gtlsshd is started with debugging enabled.  To fix this, you
+  must bring up the file in file explorer, disable inherited
+  permissions, and delete the non SYSTEM and Administrator users.
 
-  You will allso need to add a rule in the firewall to let connections through.
+  You will allso need to add a rule in the firewall to let connections
+  through.
 
 * Issues with openssl and signal masks
 

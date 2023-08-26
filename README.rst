@@ -225,17 +225,30 @@ It should then be in the PATH, but if it's not, you will need to add
 it to the PATH.  I haven't gotten go working on on mingw32, but I
 haven't tried a 32-bit version of go.
 
-For gtlsshd, you must set --sysconfdir to where the gtlssh directory with the
-keys will be (like /etc/gtlssh is on linix).  The annoying this is that for
-every '\' in the final directory, you must put 8 of them in the configure line.
-So to configure it so C:\etc is where the gtlssh directory is, you would do::
+For gtlsshd, --sysconfdir has no meaning on Windows.  Instead, the
+sysconf dir is relative to the patch of the executable, in
+../etc/gtlssh.  So if gtlsshd is in::
 
-  ../configure '--sysconfdir=C:\\\\\\\\etc'
+   C:/Program Files/Gensio/bin/gtlsshd
 
-But fortunately, Windows can use a '/' as a directory separator, so if you don't
-mind seeing the '/' everywhere, you can do::
+the sysconfdir will be::
 
-  ../configure '--sysconfdir=C:/etc'
+   C:/Program Files/Gensio/etc/gtlssh
+
+For standard installation, you can run::
+
+   ../configure --sbindir=/Gensio/bin --libexecdir=/Gensio/bin \
+      --mandir=/Gensio/man --includedir=/Gensio/include \
+      --with-pythoninstall=/Gensio/python3 --prefix=/Gensio
+
+and when you run "make install" you set DESTDIR to where you want it
+to go, like "C:/Program Files".  Then you can add that to the PATH
+using the control panel.  To use gtlsshd, you create an etc/gtlsshd
+directory in the Gensio directory,
+
+There is a item in FAQ.rst named "How to run gtlsshd on Windows", see
+that for more details, as there are a few tricky things you have to
+handle.
 
 gensio tools
 ============
