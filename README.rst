@@ -246,6 +246,10 @@ where you want it to go, like "C:/Program Files".  Then you can add
 that to the PATH using the control panel.  To use gtlsshd, you create
 an etc/gtlsshd directory in the Gensio directory,
 
+For using the Inno Setup Compiler, do "make install DESTDIR=$HOME/install"
+and then run Inno on gensio.iss.  It will create an executable installer
+for installing Gensio.
+
 There is a item in FAQ.rst named "How to run gtlsshd on Windows", see
 that for more details, as there are a few tricky things you have to
 handle.
