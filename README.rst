@@ -241,10 +241,10 @@ For standard installation, you can run::
       --mandir=/Gensio/man --includedir=/Gensio/include \
       --with-pythoninstall=/Gensio/python3 --prefix=/Gensio
 
-and when you run "make install" you set DESTDIR to where you want it
-to go, like "C:/Program Files".  Then you can add that to the PATH
-using the control panel.  To use gtlsshd, you create an etc/gtlsshd
-directory in the Gensio directory,
+and when you run "make install DESTDIR=..." and you set DESTDIR to
+where you want it to go, like "C:/Program Files".  Then you can add
+that to the PATH using the control panel.  To use gtlsshd, you create
+an etc/gtlsshd directory in the Gensio directory,
 
 There is a item in FAQ.rst named "How to run gtlsshd on Windows", see
 that for more details, as there are a few tricky things you have to
