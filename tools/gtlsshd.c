@@ -305,13 +305,6 @@ struct per_con_info {
     unsigned int oobpos;
 };
 
-static const char *default_keyfile =
-    SYSCONFDIR DIRSEPS "gtlssh" DIRSEPS "gtlsshd.key";
-static const char *default_certfile =
-    SYSCONFDIR DIRSEPS "gtlssh" DIRSEPS "gtlsshd.crt";
-static const char *default_configfile =
-    SYSCONFDIR DIRSEPS "gtlssh" DIRSEPS "gtlsshd.conf";
-
 static int
 write_s_nl_addc(struct gensio *io, char *obuf, char c,
 		gensiods *pos, gensiods len, gensio_time *timeout)
@@ -3005,9 +2998,47 @@ acc_event(struct gensio_accepter *accepter, void *user_data,
     return 0;
 }
 
+const char *keyfile = NULL;
+const char *certfile = NULL;
+
+static int
+setup_keyfiles(void)
+{
+    const char *confdir = NULL;
+
+    if (keyfile && certfile)
+	return 1;
+
+    confdir = get_confdir();
+    if (!confdir) {
+	log_event(LOG_ERR, "Unable to get gtlssh config dir\n");
+	return 0;
+    }
+    if (!keyfile) {
+	keyfile = alloc_sprintf("%s%sgtlsshd.key", confdir, DIRSEPS);
+	if (!keyfile) {
+	    log_event(LOG_ERR, "Unable to allocate key file\n");
+	    return 0;
+	}
+    }
+
+    if (!certfile) {
+	certfile = alloc_sprintf("%s%sgtlsshd.crt", confdir, DIRSEPS);
+	if (!certfile) {
+	    log_event(LOG_ERR, "Unable to allocate cert file\n");
+	    return 0;
+	}
+    }
+
+    return 1;
+}
+
 static void
 help(int err)
 {
+    if (!setup_keyfiles())
+	exit(1);
+
     printf("%s [options]\n", progname);
     printf("\nA program to connect gensios together.  This programs has two\n");
     printf("gensios, io1 (default is local terminal) and io2 (must be set).\n");
@@ -3017,7 +3048,9 @@ help(int err)
     printf("  -d, --debug - Enable debug.  Specify more than once to increase\n"
 	   "    the debug level\n");
     printf("  -c, --certfile <file> - The certificate file to use.\n");
+    printf("      Default is %s\n", certfile);
     printf("  -h, --keyfile <file> - The private key file to use.\n");
+    printf("      Default is %s\n", keyfile);
     printf("  --permit-root - Allow root logins.\n");
     printf("  --allow-password - Allow password-based logins.\n");
     printf("  --oneshot - Do not fork new connections, do one and exit.\n");
@@ -3087,9 +3120,6 @@ main(int argc, char *argv[])
     int arg, rv;
     struct gensio_os_funcs *o;
     struct gdata ginfo;
-    const char *keyfile = default_keyfile;
-    const char *certfile = default_certfile;
-    const char *configfile = default_configfile;
     unsigned int port = 852;
     char *s;
     bool notcp = false, sctp = false;
@@ -3112,9 +3142,6 @@ main(int argc, char *argv[])
 	}
 	if ((rv = cmparg_uint(argc, argv, &arg, "-p", "--port",
 			      &port)))
-	    ;
-	else if ((rv = cmparg(argc, argv, &arg, "-f", "--configfile",
-			      &configfile)))
 	    ;
 	else if ((rv = cmparg(argc, argv, &arg, "-c", "--certfile",
 			      &certfile)))
@@ -3181,8 +3208,11 @@ main(int argc, char *argv[])
 
     if (!sctp && notcp) {
 	log_event(LOG_ERR, "You cannot disable both TCP and SCTP\n");
-	exit(1);
+	return 1;
     }
+
+    if (!setup_keyfiles())
+	return 1;
 
     if (checkout_file(glogger, NULL, keyfile, false, true))
 	return 1;

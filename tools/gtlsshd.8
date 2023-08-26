@@ -62,10 +62,13 @@ Use the given port instead of the default port.
 .TP
 .I \-h|\-\-keyfile file
 Use the given file for the key instead of the default.  Defaults to
-/etc/gtlssh/gtlsshd.key.
+sysconfidr/gtlssh/gtlsshd.key.  On unix sysconfdir is generally /etc.
+On Windows it is one directory up from the executable with /etc appended.
 .TP
 .I \-c|\-\-certfile file
-Set the certificate to use.  Defaults to /etc/gtlssh/gtlsshd.crt.
+Set the certificate to use.  Defaults to sysconfdir/gtlssh/gtlsshd.crt.
+On unix sysconfdir is generally /etc.  On Windows it is one directory up
+from the executable with /etc appended.
 .TP
 .I \-\-permit\-root
 Allow root logins.  Otherwise root or uid=0 is denied.

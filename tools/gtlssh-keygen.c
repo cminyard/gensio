@@ -59,10 +59,7 @@ static bool keydir_set = false;
 #define DEFAULT_KEYDAYS 365
 static unsigned int keydays = DEFAULT_KEYDAYS;
 
-#ifdef SYSCONFDIR
-#define DEFAULT_CONFDIR SYSCONFDIR DIRSEPS "gtlssh"
-static const char *confdir = DEFAULT_CONFDIR;
-#endif
+static const char *confdir;
 
 static char *alloc_commonname = NULL;
 static const char *commonname = NULL;
@@ -87,6 +84,10 @@ static int storepw(void);
 static void
 help(const char *progname)
 {
+    if (!confdir)
+	confdir = get_confdir();
+    if (!confdir)
+	confdir = "unknown confdir";
 #define P printf
     P("Key handling tool for gtlssh.  Format is:\n");
     P("%s [<option> [<option> [...]]] command <command options>\n", progname);
@@ -101,9 +102,7 @@ help(const char *progname)
     P("        Default is %s\n", default_gtlsshdir);
     P("  --keydir <dir> - Location to put the non-default generated keys.\n");
     P("        Default is %s for normal certificates.\n", default_keydir);
-#ifdef DEFAULT_CONFDIR
-    P("        %s for server certificates.\n", DEFAULT_CONFDIR);
-#endif
+    P("        %s for server certificates.\n", confdir);
     P("  --commonname <name> - Set the common name in the certificate.\n");
     P("        The default is your username for normal certificates and\n");
     P("        the fully qualified domain name (prefixed by the keyname\n");
@@ -182,13 +181,11 @@ help(const char *progname)
     P("    directory so gtlsshd can pick it up.  Not ideal, but it's\n");
     P("    not terrible, as the private keys are there, anyway.\n");
 #endif
-#ifdef DEFAULT_CONFDIR
     P("\n");
     P("  serverkey [name]\n");
     P("    Create keys for the gtlsshd server.  Probably requires root.\n");
     P("    The name is a prefix for they filenames generated which will\n");
     P("    be name.crt and name.key.  The default name is 'gtlsshd'.\n");
-#endif
 #undef P
     exit(0);
 }
@@ -1003,7 +1000,6 @@ keygen(int argc, char *argv[])
     return err;
 }
 
-#ifdef DEFAULT_CONFDIR
 static int
 serverkey(int inargc, char *inargv[])
 {
@@ -1033,6 +1029,15 @@ serverkey(int inargc, char *inargv[])
 	alloc_commonname = hostname;
 	hostname = NULL;
 	commonname = alloc_commonname;
+    }
+
+    if (!confdir) {
+	confdir = get_confdir();
+	if (!confdir) {
+	    fprintf(stderr, "Unable to get gtlssh configuration directory\n");
+	    rv = 1;
+	    goto out;
+	}
     }
 
     serverkey = alloc_sprintf("%s%c%s.key", confdir, DIRSEP, keyname);
@@ -1065,7 +1070,6 @@ serverkey(int inargc, char *inargv[])
 	free(servercert);
     return rv;
 }
-#endif
 
 static int
 pushcert_one(const char *host, const char *port, const char *name)
@@ -1460,12 +1464,10 @@ main(int argc, char **argv)
 	if (alloc_commonname)
 	    free(alloc_commonname);
 	alloc_commonname = NULL;
-#ifdef DEFAULT_CONFDIR
     } else if (strcmp(argv[0], "serverkey") == 0) {
 	if (keydir_set)
 	    confdir = keydir;
 	rv = serverkey(argc - 1, argv + 1);
-#endif
     } else if (strcmp(argv[0], "pushcert") == 0) {
 	rv = pushcert(argc - 1, argv + 1);
 #ifdef _WIN32

@@ -32,6 +32,7 @@
 
 typedef void (*gtlssh_logger)(void *cbdata, const char *format, ...);
 
+const char *get_confdir(void);
 int checkout_file(gtlssh_logger logger, void *cbdata,
 		  const char *filename, bool expect_dir, bool check_private);
 bool file_is_readable(const char *filename);

@@ -48,6 +48,46 @@
 #ifdef _WIN32
 #include <gensio/gensio_osops.h>
 
+static char *gtlssh_confdir;
+
+static int
+drop_last_diritem(char *dir)
+{
+    char *s, *s2;
+
+    s = strrchr(dir, '/');
+    s2 = strrchr(dir, '\\');
+    if (!s && !s2)
+	return 0;
+    if (s && s2) {
+	if (s < s2)
+	    s = s2;
+	} else if (s2) {
+	s = s2;
+    }
+    *s = '\0';
+    return 1;
+}
+
+const char *
+get_confdir(void)
+{
+    char dir[256];
+    DWORD rv;
+
+    if (!gtlssh_confdir) {
+	rv = GetModuleFileNameA(NULL, dir, sizeof(dir));
+	if (rv == 0)
+	    return NULL;
+	if (!drop_last_diritem(dir))
+	    return NULL;
+	if (!drop_last_diritem(dir))
+	    return NULL;
+	gtlssh_confdir = alloc_sprintf("%s\\etc\\gtlssh", dir);
+    }
+    return gtlssh_confdir;
+}
+
 char *
 get_homedir(gtlssh_logger logger, void *cbdata,
 	    const char *username, const char *extra)
@@ -188,6 +228,12 @@ get_my_username(gtlssh_logger logger, void *cbdata)
 #include <pwd.h>
 #include <limits.h>
 #include <errno.h>
+
+const char *
+get_confdir(void)
+{
+    return SYSCONFDIR "/gtlssh";
+}
 
 char *
 get_homedir(gtlssh_logger logger, void *cbdata,

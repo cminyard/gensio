@@ -87,7 +87,9 @@ Default keys go here.
 .TP
 .I \-\-keydir dir
 Location to put the non-default generated keys.  Default is
-$HOME/.gtlssh/keycerts
+$HOME/.gtlssh/keycerts for user certificates.  For server certificates
+it is in sysconfdir (generally /etc) /gtlssh on Unix.  On Windows
+it is the directory of the executable /../etc.
 .TP
 .I \-\-commonname name
 Set the common name in the certificate.  The default is your username
