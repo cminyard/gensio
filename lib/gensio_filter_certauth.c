@@ -12,9 +12,10 @@
 #include <gensio/gensio_time.h>
 
 #ifdef _WIN32
-#define DIRSEP '\\'
+/* On Windows you can use / or \. */
+#define DIRSEPS "\\/"
 #else
-#define DIRSEP '/'
+#define DIRSEPS "/"
 #endif
 
 struct gensio_certauth_filter_data {
@@ -2449,7 +2450,7 @@ certauth_filter_control(struct gensio_filter *filter, bool get, int op,
 	store = X509_STORE_new();
 	if (!store)
 	    return GE_NOMEM;
-	if (data[strlen(data) - 1] == DIRSEP)
+	if (strchr(DIRSEPS, data[strlen(data) - 1]))
 	    CApath = data;
 	else
 	    CAfile = data;
@@ -3060,7 +3061,7 @@ gensio_certauth_filter_alloc(struct gensio_certauth_filter_data *data,
     if (data->CAfilepath && data->CAfilepath[0]) {
 	char *CAfile = NULL, *CApath = NULL;
 
-	if (data->CAfilepath[strlen(data->CAfilepath) - 1] == DIRSEP)
+	if (strchr(DIRSEPS, data->CAfilepath[strlen(data->CAfilepath) - 1]))
 	    CApath = data->CAfilepath;
 	else
 	    CAfile = data->CAfilepath;
