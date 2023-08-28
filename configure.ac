@@ -144,18 +144,20 @@ pkgconfig_update_info() {
    AC_MSG_CHECKING(["CPPFLAGS for $1"])
    new_cppflags=`pkg-config --cflags $1`
    if test -z $new_cppflags; then
-      AC_MSG_ERROR(["Unable to find cppflags for $1"])
+      AC_MSG_RESULT(["Not available"])
+   else
+      CPPFLAGS="$new_cppflags $CPPFLAGS"
+      AC_MSG_RESULT(["$new_cppflags"])
    fi
-   CPPFLAGS="$new_cppflags $CPPFLAGS"
-   AC_MSG_RESULT(["$new_cppflags"]")
 
    AC_MSG_CHECKING(["LDFLAGS for $1"])
    new_ldflags=`pkg-config --libs-only-L $1`
    if test -z $new_ldflags; then
-      AC_MSG_ERROR(["Unable to find ldflags for $1"])
+      AC_MSG_RESULT(["Not available"])
+   else
+      LDFLAGS="$new_ldflags $LDFLAGS"
+      AC_MSG_RESULT(["$new_ldflags"])
    fi
-   LDFLAGS="$new_ldflags $LDFLAGS"
-   AC_MSG_RESULT(["$new_ldflags"])
 }
 
 case $target_os in
