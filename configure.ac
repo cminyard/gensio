@@ -140,29 +140,35 @@ AC_ARG_WITH(link-ssl-with-main,
 	    [link_ssl_with_main="$withval"]
 )
 
-HB_PFX=
-AC_ARG_WITH(homebrew-prefix,
-	    [AS_HELP_STRING([--with-homebrew-prefix=<directory>],
-			    [Set the homebrew prefix])],
-	    [HB_PFX="$withval"]
-)
+pkgconfig_update_info() {
+   AC_MSG_CHECKING(["CPPFLAGS for $1"])
+   new_cppflags=`pkg-config --cflags $1`
+   if test -z $new_cppflags; then
+      AC_MSG_ERROR(["Unable to find cppflags for $1"])
+   fi
+   CPPFLAGS="$new_cppflags $CPPFLAGS"
+   AC_MSG_RESULT(["$new_cppflags"]")
+
+   AC_MSG_CHECKING(["LDFLAGS for $1"])
+   new_ldflags=`pkg-config --libs-only-L $1`
+   if test -z $new_ldflags; then
+      AC_MSG_ERROR(["Unable to find ldflags for $1"])
+   fi
+   LDFLAGS="$new_ldflags $LDFLAGS"
+   AC_MSG_RESULT(["$new_ldflags"])
+}
+
 case $target_os in
    darwin*)
-      if test -z $HB_PFX; then
-         HB_PFX=`brew config | grep HOMEBREW_PREFIX | sed 's/^HOMEBREW_PREFIX: //'`
-      fi
-      if test -z $HB_PFX; then
-         AC_MSG_ERROR("Homebrew required on MacOS")
-      fi
-      CPPFLAGS="$CPPFLAGS -I$HB_PFX/include"
-      LDFLAGS="$LDFLAGS -L$HB_PFX/lib"
-      AC_MSG_NOTICE([Homebrew is at $HB_PFX])
+      pkgconfig_update_info openssl
+      pkgconfig_update_info portaudio-2.0
       ;;
    *) ;;
 esac
 
 if test "$link_ssl_with_main" = "check"; then
     AC_MSG_CHECKING([if ssl needs to be linked with the main library])
+    OPENSSLLIBDIR=`pkg-config --libs-only-L openssl | sed 's/-L//'`
     AC_LANG_PUSH(C)
     AC_RUN_IFELSE(
 	[AC_LANG_SOURCE([[
@@ -240,7 +246,7 @@ check_pselect_cross_thread(sigset_t mask)
 
     sleep(2); /* Give the thread time to enter pselect() */
 
-    if (dlopen("$HB_PFX/lib/libssl.dylib", RTLD_LAZY | RTLD_GLOBAL) == NULL) {
+    if (dlopen("$OPENSSLLIBDIR/libssl.dylib", RTLD_LAZY | RTLD_GLOBAL) == NULL) {
 	fprintf(stderr, "dlopen failed: %s\n", dlerror());
 	rv = 1;
     }
