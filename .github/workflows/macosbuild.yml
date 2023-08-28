@@ -23,6 +23,7 @@ jobs:
           brew install automake
           brew install swig
           brew install openssl
+          brew install portaudio
       - name: Configure
         run: |
           mkdir $INSTALLPREFIX
