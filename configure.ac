@@ -57,7 +57,8 @@ USE_OPENPTY=0
 # running, it will modify the thread masks of all running threads, and
 # screw things up for waking using signals.  Check for this on
 # platforms that need it, and link -lssl to the main program to avoid
-# the issue.
+# the issue.  See
+# https://github.com/openssl/openssl/issues/21541
 link_ssl_with_main=no
 
 # Python extension modules end in .pyd on Windows, so we need to override
