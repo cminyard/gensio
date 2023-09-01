@@ -306,6 +306,8 @@ struct relpkt_filter {
     bool send_resend_pkt;
     uint16_t resend_pkt_len;
 
+    gensio_time timeout;
+    unsigned int max_timeouts;
     uint8_t last_timeout_ack; /* next_acked_seq on the last timeout. */
     unsigned int timeout_ack_count; /* nr timeouts last_timeout_ack same. */
 };
@@ -466,10 +468,8 @@ handle_ack(struct relpkt_filter *rfilter, uint8_t seq)
 static void
 relpkt_filter_start_timer(struct relpkt_filter *rfilter)
 {
-    gensio_time timeout = { 1, 0 };
-
     rfilter->filter_cb(rfilter->filter_cb_data,
-		       GENSIO_FILTER_CB_START_TIMER, &timeout);
+		       GENSIO_FILTER_CB_START_TIMER, &rfilter->timeout);
 }
 
 static void
@@ -1133,7 +1133,7 @@ static int
 i_relpkt_filter_timeout(struct relpkt_filter *rfilter)
 {
     rfilter->timeouts_since_ack++;
-    if (rfilter->timeouts_since_ack > 5) {
+    if (rfilter->timeouts_since_ack > rfilter->max_timeouts) {
 	rfilter->err = GE_TIMEDOUT;
 	return GE_TIMEDOUT;
     }
@@ -1243,7 +1243,8 @@ static int gensio_relpkt_filter_func(struct gensio_filter *filter, int op,
 static struct gensio_filter *
 gensio_relpkt_filter_raw_alloc(struct gensio_os_funcs *o,
 			       gensiods max_pktsize, gensiods max_packets,
-			       bool server)
+			       bool server, gensio_time *timeout,
+			       unsigned int max_timeouts)
 {
     struct relpkt_filter *rfilter;
     gensiods i;
@@ -1261,6 +1262,8 @@ gensio_relpkt_filter_raw_alloc(struct gensio_os_funcs *o,
 
     rfilter->max_pkt = max_packets;
     rfilter->max_pktsize = max_pktsize;
+    rfilter->timeout = *timeout;
+    rfilter->max_timeouts = max_timeouts;
 
     rfilter->recvpkts = o->zalloc(o, sizeof(struct pkt) * max_packets);
     if (!rfilter->recvpkts)
@@ -1302,6 +1305,8 @@ gensio_relpkt_filter_alloc(struct gensio_pparm_info *p,
     unsigned int i;
     gensiods max_pktsize = 123; /* FIXME - magic number. */
     gensiods max_packets = 16;
+    gensio_time timeout = { 1, 0 };
+    unsigned int max_timeouts = 5;
     char *str = NULL;
     int rv;
 
@@ -1332,12 +1337,16 @@ gensio_relpkt_filter_alloc(struct gensio_pparm_info *p,
 	if (gensio_pparm_boolv(p, args[i], "mode", "server", "client",
 			       &server) > 0)
 	    continue;
+	if (gensio_pparm_time(p, args[i], "timeout", 's', &timeout) > 0)
+	    continue;
+	if (gensio_pparm_uint(p, args[i], "max_timeouts", &max_timeouts) > 0)
+	    continue;
 	gensio_pparm_unknown_parm(p, args[i]);
 	return GE_INVAL;
     }
 
     filter = gensio_relpkt_filter_raw_alloc(o, max_pktsize, max_packets,
-					    server);
+					    server, &timeout, max_timeouts);
     if (!filter)
 	return GE_NOMEM;
 

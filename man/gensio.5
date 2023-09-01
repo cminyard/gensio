@@ -1558,6 +1558,17 @@ by the remote end, but will never be exceeded.
 .B mode=client|server
 By default a relpkt is a server on an accepter and a client on a
 connecter.  See the discussion above on clients and servers.
+.TP
+.B timeout=<gtime>
+Specify the time for a timeout.  If relpkt sends a message requiring
+an ack, it will wait this long before resending the packet.  See the
+"gtime" section for more info on how to set the time.  If you don't
+specify a time modifier, the default is in seconds.  The default is
+one second.
+.TP
+.B max_timeouts=<n>
+The maximum number of timeouts before giving up on a connection.  The
+default is 5.
 .SH "ratelimit"
 accepter =
 .B ratelimit[(options)]
