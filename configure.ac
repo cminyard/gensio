@@ -8,6 +8,30 @@ AM_INIT_AUTOMAKE([-Wall])
 AC_CONFIG_HEADERS([config.h])
 AC_PROG_CC
 AC_PROG_CXX
+
+AC_ARG_ENABLE([debug],
+ [AS_HELP_STRING([--enable-debug], [add -g option when building])
+AS_HELP_STRING([--disable-debug], [remove -g option when building])])
+if test -z ${enable_debug}; then
+   add_mg=yes
+else
+   add_mg=${enable_debug}
+fi
+
+# Add or remove -g as necessary.  This is message because we have to match
+# -g at the beginning, end, in the middle, or by itself in the CFLAGS string.
+# Maybe there is a better way to do this?
+
+# Space and tab
+ST='[[ 	]]'
+if test "${add_mg}" = yes; then
+   if ! echo "$CFLAGS" | grep -e "^-g${ST}" -e "${ST}-g$" -e "${ST}-g${ST}" -e "^-g$" ; then
+      CFLAGS="$CFLAGS -g"
+   fi
+else
+   CFLAGS=`echo $CFLAGS | sed -e "s/^-g${ST}//" -e "s/${ST}-g$//" -e "s/${ST}-g${ST}/ /g" -e "s/^-g$//"`
+fi
+
 AM_PROG_AR
 
 # Per discussions with the Debian maintainer, it's best for
