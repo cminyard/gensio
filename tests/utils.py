@@ -1394,7 +1394,11 @@ if e is not None:
     else:
         ttyecho = None
 else:
-    ttyecho = "/dev/ttyEcho0"
+    try:
+        import serialsim
+        (num, ttyecho) = serialsim.alloc_echo()
+    except:
+        ttyecho = "/dev/ttyEcho0"
 
 ttyecho_def = ttyecho
 if ttyecho and not os.path.exists(ttyecho):
@@ -1418,7 +1422,12 @@ if e is not None:
     else:
         ttypipe = None
 else:
-    ttypipe = [ "/dev/ttyPipeA1", "/dev/ttyPipeB1" ]
+    try:
+        import serialsim
+        (num, ttypipea, ttypipeb) = serialsim.alloc_pipe()
+        ttypipe = [ ttypipea, ttypipeb ]
+    except:
+        ttypipe = [ "/dev/ttyPipeA1", "/dev/ttyPipeB1" ]
 
 ttypipe_def = ttypipe
 if ttypipe and (not os.path.exists(ttypipe[0])

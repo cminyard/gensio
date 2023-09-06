@@ -81,6 +81,9 @@ static const char *os_func_str = "";
 
 struct gensio_os_proc_data *proc_data;
 
+static int echo_comm_fd = -1;
+static char echo_comm_port[100];
+
 #ifdef _WIN32
 #include <windows.h>
 
@@ -136,6 +139,7 @@ open_tempfile(char *name, unsigned int len, const char *pattern)
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <sys/stat.h>
+#include <sys/ioctl.h>
 #include <unistd.h>
 #include <fcntl.h>
 bool
@@ -239,6 +243,37 @@ get_echo_dev(struct gensio_os_funcs *o, const char *testname,
 	e = te;
     } else if (rv == GE_NOTFOUND) {
 	e = DEFAULT_ECHO_COMMPORT;
+#ifndef _WIN32
+#define SERIALSIM_ALLOC_ID     0x5391
+	if (echo_comm_fd < 0)
+	    rv = open("/dev/ttyEcho", O_RDWR);
+	else
+	    rv = echo_comm_fd;
+	if (rv >= 0) {
+	    echo_comm_fd = rv;
+
+	    rv = ioctl(echo_comm_fd, SERIALSIM_ALLOC_ID, 0);
+	    if (rv >= 0) {
+		int count = 100;
+
+		snprintf(echo_comm_port, sizeof(echo_comm_port),
+			 "/dev/ttyEcho%d", rv);
+		/* Now wait until the device file is available. */
+		do {
+		    rv = open(echo_comm_port, O_RDWR);
+		    if (rv >= 0) {
+			close(rv);
+			e = echo_comm_port;
+			break;
+		    };
+		    count--;
+		    if (count == 0)
+			break;
+		    usleep(10000);
+		} while (true);
+	    }
+	}
+#endif
     } else {
 	fprintf(stderr, "Unable to get GENSIO_TEST_ECHO_DEV: %s",
 		gensio_err_to_str(rv));
