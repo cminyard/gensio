@@ -145,6 +145,8 @@ class HandleData:
         self.compared_oob = 0
         self.to_compare_oob = None
         self.to_waitfor = None
+        self.keep_waitfor_data = False
+        self.kept_data = ""
         self.expecting_winsize = False
         self.expected_winsize_height = -1
         self.expected_winsize_width = -1
@@ -208,17 +210,23 @@ class HandleData:
             self.io.read_cb_enable(True)
         return
 
-    def set_waitfor(self, waitfor, start_reader = True):
+    def set_waitfor(self, waitfor, start_reader = True, keep_data = False):
         """Wait for the given string to come in
 
         If start_reader is true (default), it enable the read callback.
         If the data does not compare, an exception is raised.
         """
         self.compared = 0
+        self.keep_waitfor_data = keep_data
+        if keep_data:
+            self.kept_data = ""
         self.to_waitfor = conv_to_bytes(waitfor)
         if (start_reader):
             self.io.read_cb_enable(True)
         return
+
+    def get_waitfor_kept_data(self):
+        return self.kept_data
 
     def set_write_data(self, to_write, start_writer = True,
                        close_on_done = False, auxdata = None):
@@ -306,9 +314,12 @@ class HandleData:
                             self.to_waitfor = None
                             io.read_cb_enable(False)
                             self.wake("waitfor")
+                            break
                     else:
                         self.compared = 0
-                return len(buf)
+                    if self.keep_waitfor_data:
+                        self.kept_data = self.kept_data + str(buf[i:i+1], "utf-8")
+                return i + 1
 
             oob = False;
             stream = 0

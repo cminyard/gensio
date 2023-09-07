@@ -66,6 +66,11 @@ struct oom_tests {
     char *args;
     bool str_found;
     unsigned int wait_pos;
+    unsigned int state;
+    char strbuf[10];
+    unsigned int strbuf_pos;
+    const char *orig_connecter;
+    int port;
     int err;
     struct gensio_waiter *waiter;
     struct gensio_os_funcs *o;
@@ -311,7 +316,7 @@ static char *ipmisim_config =
     "set_working_mc 0x20\n"
     "\n"
     "  startlan 1\n"
-    "    addr localhost 9001\n"
+    "    addr localhost 0\n"
     "\n"
     "    priv_limit admin\n"
     "\n"
@@ -337,7 +342,10 @@ ipmisim_cb(struct gensio *io, void *user_data, int event, int err,
 	   unsigned char *buf, gensiods *buflen, const char *const *auxdata)
 {
     struct oom_tests *test = user_data;
-    static const char waitstr[4] = "\x0a\x0d> ";
+    static const char waitstr1[17] = "Opened UDP port ";
+    static const char waitstr2[2] = "\x0a";
+    static const char waitstr3[5] = "\x0a\x0d> ";
+    const char *str;
     gensiods pos;
 
     if (event != GENSIO_EVENT_READ)
@@ -368,19 +376,35 @@ ipmisim_cb(struct gensio *io, void *user_data, int event, int err,
     if (test->str_found)
 	return 0;
 
+    if (test->state == 0)
+	str = waitstr1;
+    else if (test->state == 1)
+	str = waitstr2;
+    else if (test->state == 2)
+	str = waitstr3;
+
     for (pos = 0; pos < *buflen; pos++) {
-	if (buf[pos] == (unsigned char) waitstr[test->wait_pos]) {
+	if (buf[pos] == (unsigned char) str[test->wait_pos]) {
 	    test->wait_pos++;
-	    if (test->wait_pos >= sizeof(waitstr)) {
+	    if (test->wait_pos >= strlen(str)) {
 		test->wait_pos = 0;
-		test->str_found = true;
-		gensio_os_funcs_wake(test->o, test->waiter);
+		if (test->state == 2) {
+		    test->str_found = true;
+		    gensio_os_funcs_wake(test->o, test->waiter);
+		    test->strbuf[test->strbuf_pos] = '\0';
+		} else {
+		    test->state++;
+		}
 		break;
 	    }
 	} else {
 	    test->wait_pos = 0;
 	}
+	if (test->state == 1 && test->strbuf_pos < sizeof(test->strbuf) - 1) {
+	    test->strbuf[test->strbuf_pos++] = buf[pos];
+	}
     }
+    *buflen = pos;
 
     return 0;
 }
@@ -429,6 +453,8 @@ ipmisim_start(struct gensio_os_funcs *o, struct oom_tests *test)
     test->err = 0;
     test->str_found = false;
     test->wait_pos = 0;
+    test->state = 0;
+    test->strbuf_pos = 0;
 
     err = str_to_gensio(test->args, o, ipmisim_cb, test, &test->io);
     if (err) {
@@ -472,6 +498,24 @@ ipmisim_start(struct gensio_os_funcs *o, struct oom_tests *test)
     if (err) {
 	printf("Error waiting for ipmi_sim started for %s: %s,\n"
 	       "skipping ipmisol test\n", test->args, gensio_err_to_str(err));
+	goto out_err;
+    }
+
+    test->port = strtoul(test->strbuf, NULL, 0);
+
+    if (test->orig_connecter) {
+	if (test->connecter)
+	    gensio_os_funcs_zfree(o, test->connecter);
+	test->connecter = NULL;
+    } else {
+	test->orig_connecter = test->connecter;
+	test->connecter = NULL;
+    }
+    test->connecter = gensio_alloc_sprintf(o, test->orig_connecter,
+					   test->port);
+    if (!test->connecter) {
+	printf("Unable to allocate connecter info,\n"
+	       "skipping ipmisol test\n");
 	goto out_err;
     }
 
@@ -667,7 +711,7 @@ check_oom_test_present(struct gensio_os_funcs *o, struct oom_tests *test)
 #endif
 
 struct oom_tests oom_tests[] = {
-    { "ipmisol,lan -U ipmiusr -P test -p 9001 localhost,115200", NULL,
+    { "ipmisol,lan -U ipmiusr -P test -p %d localhost,115200", NULL,
       /* In this test some errors will not result in a failure. */
       .allow_no_err_on_trig = true,
       .check_value = HAVE_OPENIPMI,

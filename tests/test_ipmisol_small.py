@@ -14,7 +14,8 @@ check_pipe_dev()
 gensios_enabled.check_iostr_gensios("ipmisol")
 isim = ipmisimdaemon.IPMISimDaemon(o, ttypipe[1])
 io1 = alloc_io(o, "serialdev," + ttypipe[0] + ",9600")
-io2 = alloc_io(o, "ipmisol,lan -U ipmiusr -P test -p 9001 localhost,9600")
+io2 = alloc_io(o, "ipmisol,lan -U ipmiusr -P test -p %d localhost,9600" %
+               isim.port)
 do_small_test(io1, io2)
 io_close((io1, io2))
 del io1

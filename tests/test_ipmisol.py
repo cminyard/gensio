@@ -33,8 +33,8 @@ def check_baud_set(speed, bspeed):
 
     isim = ipmisimdaemon.IPMISimDaemon(o, ttypipe[1])
     io1 = alloc_io(o, "serialdev," + ttypipe[0] + ",%d" % speed)
-    io2 = alloc_io(o, "ipmisol,lan -U ipmiusr -P test -p 9001 localhost,%d" %
-                   speed)
+    io2 = alloc_io(o, "ipmisol,lan -U ipmiusr -P test -p %d localhost,%d" %
+                   (isim.port, speed))
     sio2 = io2.cast_to_sergensio()
 
     io1_r_termios = get_remote_termios(utils.remote_id_int(io1))
@@ -69,7 +69,8 @@ io1.handler.set_expected_modemstate(gensio.SERGENSIO_MODEMSTATE_CTS_CHANGED |
                                     gensio.SERGENSIO_MODEMSTATE_CTS |
                                     gensio.SERGENSIO_MODEMSTATE_CD |
                                     gensio.SERGENSIO_MODEMSTATE_DSR)
-io2 = alloc_io(o, "ipmisol,lan -U ipmiusr -P test -p 9001 localhost,9600")
+io2 = alloc_io(o, "ipmisol,lan -U ipmiusr -P test -p %d localhost,9600" %
+               isim.port)
 if (io1.handler.wait_timeout(2000) == 0):
     raise Exception("Timed out waiting for initial modemstate")
 sio1 = io1.cast_to_sergensio()
@@ -134,7 +135,7 @@ io1 = alloc_io(o, "serialdev," + ttypipe[0] + ",9600,LOCAL")
 sio1 = io1.cast_to_sergensio()
 io1.handler.set_expected_modemstate(0)
 isim = ipmisimdaemon.IPMISimDaemon(o, ttypipe[1])
-io2 = alloc_io(o, "ipmisol(),lan -U ipmiusr -P test -p 9001 localhost,9600,deassert-CTS-DCD-DSR-on-connect")
+io2 = alloc_io(o, "ipmisol(),lan -U ipmiusr -P test -p %d localhost,9600,deassert-CTS-DCD-DSR-on-connect" % isim.port)
 sio2 = io2.cast_to_sergensio()
 sio1.sg_modemstate(gensio.SERGENSIO_MODEMSTATE_CTS |
                    gensio.SERGENSIO_MODEMSTATE_CD |

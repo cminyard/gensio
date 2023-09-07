@@ -33,7 +33,7 @@ name "gensio_sim"\n
 set_working_mc 0x20\n
 \n
   startlan 1\n
-    addr localhost 9001\n
+    addr localhost 0\n
 \n
     # Maximum privilege limit on the channel.\n
     priv_limit admin\n
@@ -110,6 +110,17 @@ class IPMISimDaemon:
         #self.handler.debug = 2
 
         self.pid = utils.remote_id_int(self.io)
+
+        self.handler.debug = 2
+        self.handler.set_waitfor("Opened UDP port ")
+        if (self.handler.wait_timeout(2000) == 0):
+            raise Exception("Timeout waiting for ipmi_sim port")
+
+        self.handler.set_waitfor("\n", keep_data = True)
+        if (self.handler.wait_timeout(2000) == 0):
+            raise Exception("Timeout waiting(2) for ipmi_sim port")
+        self.port = int(self.handler.get_waitfor_kept_data())
+
         self.handler.set_waitfor("> ")
         if (self.handler.wait_timeout(2000) == 0):
             raise Exception("Timeout waiting for ipmi_sim to start")
