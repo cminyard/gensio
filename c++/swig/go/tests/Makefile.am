@@ -5,6 +5,11 @@ LOG_COMPILER = $(SHELL) $(builddir)/runtest
 
 TESTS = test_basic test_ax25 test_crypto test_serial test_mdns test_netifs
 
+test_crypto: ca/CA.key
+
+ca/CA.key:
+	$(top_srcdir)/tests/make_keys
+
 TEST_SRCS = test_basic.go test_ax25.go test_crypto.go test_serial.go \
 	test_mdns.go test_netifs.go
 

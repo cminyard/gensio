@@ -22,10 +22,6 @@ while echo $1 | grep '^-' >/dev/null; do
     shift
 done
 
-if [ ! -e ca ]; then
-    ${SRCDIR}/tests/make_keys;
-fi
-
 if [ -z "$1" ]; then
     echo "No test given" 1>&2
     exit 1
