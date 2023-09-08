@@ -15,13 +15,15 @@ test3 = "01234;"
 
 print("Test file")
 
+testfile = "asdffile"
+
 try:
-    os.remove("asdf")
+    os.remove(testfile)
 except:
     pass
 
 print(" Testing no create")
-g = gensio.gensio(utils.o, "file(outfile=asdf)", None)
+g = gensio.gensio(utils.o, "file(outfile=" + testfile + ")", None)
 g.set_sync()
 failed = False
 try:
@@ -53,34 +55,34 @@ def readfile(f, options = ""):
     return s
     
 print(" Testing file data")
-writefile("asdf", test1, ",create")
-s = readfile("asdf")
+writefile(testfile, test1, ",create")
+s = readfile(testfile)
 if s != test1:
     raise Exception("file data didn't match, expected %s, got %s" % (
         test1, s))
 
 print(" Testing append")
-writefile("asdf", test2, ",append")
-s = readfile("asdf")
+writefile(testfile, test2, ",append")
+s = readfile(testfile)
 if s != test1 + test2:
     raise Exception("file data didn't match, expected %s, got %s" % (
         test1 + test2, s))
 
 print(" Testing overwrite")
-writefile("asdf", test2)
-s = readfile("asdf")
+writefile(testfile, test2)
+s = readfile(testfile)
 if s != test2 + test2:
     raise Exception("file data didn't match, expected %s, got %s" % (
         test2 + test2, s))
 
 print(" Testing trunc")
-writefile("asdf", test3, ",trunc")
-s = readfile("asdf")
+writefile(testfile, test3, ",trunc")
+s = readfile(testfile)
 if s != test3:
     raise Exception("file data didn't match, expected %s, got %s" % (
         test3, s))
 
-os.remove("asdf")
+os.remove(testfile)
 
 utils.test_shutdown()
 print("  Success!")
