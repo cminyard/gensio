@@ -12,7 +12,7 @@ import pygensio
 import sys
 
 # Basic test with blocking I/O
-r = Reflector(o, "tcp,0")
+r = Reflector(o, "tcp,localhost,0")
 r.startup()
 port = r.get_port()
 

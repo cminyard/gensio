@@ -24,7 +24,7 @@ def do_no_test(io1, io2, timeout=2000):
 print("Test perf")
 TestAccept(o,
            "perf(write_len=1000000,expect_len=1000000),tcp,localhost,",
-           "perf(write_len=1000000,expect_len=1000000),tcp,0",
+           "perf(write_len=1000000,expect_len=1000000),tcp,localhost,0",
            do_no_test)
 del o
 test_shutdown()

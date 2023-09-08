@@ -115,7 +115,7 @@ func testSync(o *gensio.OsFuncs) {
 	fmt.Println("Test sync I/O")
 
 	testbase.ObjCount++
-	r := testbase.NewReflector(o, "tcp,0", nil)
+	r := testbase.NewReflector(o, "tcp,localhost,0", nil)
 	r.Startup()
 	port := r.GetPort()
 
@@ -160,7 +160,7 @@ func testAsync(o *gensio.OsFuncs) {
 	treh := &TelnetReflEvHnd{}
 
 	testbase.ObjCount++
-	r := testbase.NewReflector(o, "telnet,tcp,0", treh)
+	r := testbase.NewReflector(o, "telnet,tcp,localhost,0", treh)
 	r.Startup()
 	port := r.GetPort()
 

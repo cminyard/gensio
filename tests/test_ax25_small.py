@@ -11,6 +11,6 @@ import gensio
 print("Test ax25 small")
 TestAccept(o,
            "ax25(laddr=AE5KM-2,addr='0,AE5KM-1,AE5KM-2',retries=2,srt=500),udp,localhost,",
-           "ax25(laddr=AE5KM-1,retries=2,srt=500),udp,0", do_small_test, chunksize = 64)
+           "ax25(laddr=AE5KM-1,retries=2,srt=500),udp,localhost,0", do_small_test, chunksize = 64)
 del o
 test_shutdown()

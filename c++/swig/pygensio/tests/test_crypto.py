@@ -85,7 +85,7 @@ print("Verify crypto interfaces")
 acch = Crypto_Refl_Acc_EvHnd()
 r = Reflector(o,
               "certauth(enable-password,enable-2fa)," +
-              "ssl(key=ca/key.pem,cert=ca/cert.pem),tcp,0",
+              "ssl(key=ca/key.pem,cert=ca/cert.pem),tcp,localhost,0",
               acc_evh = acch)
 r.startup()
 port = r.get_port()
@@ -119,7 +119,7 @@ print("Verify backwards crypto interfaces")
 acch = Crypto_Refl_Acc_EvHnd()
 r = Reflector(o,
               "certauth(username=asdf,enable-password,mode=client)," +
-              "ssl(ca=ca/CA.pem,mode=client),tcp,0",
+              "ssl(ca=ca/CA.pem,mode=client),tcp,localhost,0",
               acc_evh = acch)
 r.startup()
 port = r.get_port()

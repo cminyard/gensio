@@ -12,9 +12,9 @@ print("Test ssl over tcp accepter connect")
 goterr = False
 try:
     TestAcceptConnect(o,
-            "ssl(key=%s/key.pem,cert=%s/cert.pem,clientauth),tcp,0"
+            "ssl(key=%s/key.pem,cert=%s/cert.pem,clientauth),tcp,localhost,0"
                            % (keydir, keydir),
-            "ssl(key=%s/key.pem,cert=%s/cert.pem),tcp,0"
+            "ssl(key=%s/key.pem,cert=%s/cert.pem),tcp,localhost,0"
                        % (keydir, keydir),
             "ssl(CA=%s/CA.pem),tcp,localhost," % keydir,
                        do_small_test,
@@ -33,9 +33,9 @@ if not goterr:
 goterr = False
 try:
     TestAcceptConnect(o,
-            "ssl(key=%s/key.pem,cert=%s/cert.pem,clientauth),tcp,0"
+            "ssl(key=%s/key.pem,cert=%s/cert.pem,clientauth),tcp,localhost,0"
                            % (keydir, keydir),
-            "ssl(key=%s/key.pem,cert=%s/cert.pem),tcp,0"
+            "ssl(key=%s/key.pem,cert=%s/cert.pem),tcp,localhost,0"
                            % (keydir, keydir),
             "ssl(CA=%s/CA.pem,key=%s/clientkey.pem,cert=%s/clientcert.pem)"
             ",tcp,localhost,"
@@ -53,9 +53,9 @@ if not goterr:
     raise Exception("Did not get error on invalid client certificate.")
 
 TestAcceptConnect(o,
-            "ssl(key=%s/key.pem,cert=%s/cert.pem,clientauth),tcp,0"
+            "ssl(key=%s/key.pem,cert=%s/cert.pem,clientauth),tcp,localhost,0"
                            % (keydir, keydir),
-            "ssl(key=%s/key.pem,cert=%s/cert.pem),tcp,0"
+            "ssl(key=%s/key.pem,cert=%s/cert.pem),tcp,localhost,0"
                            % (keydir, keydir),
             "ssl(CA=%s/CA.pem,key=%s/clientkey.pem,cert=%s/clientcert.pem)"
             ",tcp,localhost,"

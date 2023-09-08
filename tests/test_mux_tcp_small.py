@@ -9,7 +9,7 @@ from utils import *
 import gensio
 
 print("Test mux tcp small")
-TestAccept(o, "mux,tcp,localhost,", "mux,tcp,0", do_small_test,
+TestAccept(o, "mux,tcp,localhost,", "mux,tcp,localhost,0", do_small_test,
            chunksize = 64)
 del o
 test_shutdown()

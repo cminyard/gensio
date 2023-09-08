@@ -48,7 +48,7 @@ class AccParseHandler(pygensio.Accepter_Event):
 p = AccParseHandler()
 
 try:
-    g = pygensio.gensio_acc_alloc("tcp(asdf=x),0", o, p)
+    g = pygensio.gensio_acc_alloc("tcp(asdf=x),localhost,0", o, p)
 except Exception as E:
     if str(E) != "Invalid data to parameter":
         raise Exception("Didn't get proper error from gensio_alloc: " + str(E))
@@ -59,7 +59,7 @@ if p.log != "accepter tcp: unknown parameter asdf=x":
 
 
 # Basic test with blocking I/O
-r = Reflector(o, "tcp,0")
+r = Reflector(o, "tcp,localhost,0")
 r.startup()
 port = r.get_port()
 
@@ -97,7 +97,7 @@ class Telnet_Refl_EvHnd(Refl_EvHnd):
 # Basic test with non-blocking I/O
 w = pygensio.Waiter(o)
 treh = Telnet_Refl_EvHnd(w)
-r = Reflector(o, "telnet,tcp,0", w = w, evh = treh)
+r = Reflector(o, "telnet,tcp,localhost,0", w = w, evh = treh)
 r.startup()
 port = r.get_port()
 r.set_enable(False)

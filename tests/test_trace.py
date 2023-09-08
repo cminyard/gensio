@@ -33,7 +33,7 @@ except:
 
 TestAccept(o,
            "trace(file=" + tracefile1 + ",dir=both,raw=yes),tcp,localhost,",
-           "trace(file=" + tracefile2 + ",dir=both,raw=yes),tcp,0",
+           "trace(file=" + tracefile2 + ",dir=both,raw=yes),tcp,localhost,0",
            do_small_test, chunksize = 64)
 
 f = open(tracefile1)

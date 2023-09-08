@@ -9,7 +9,7 @@ from utils import *
 import gensio
 
 print("Test udp accepter connect")
-TestAcceptConnect(o, "udp,0", "udp,0", "udp,localhost,",
+TestAcceptConnect(o, "udp,localhost,0", "udp,localhost,0", "udp,localhost,",
                   do_small_test, io1_dummy_write = "A")
 del o
 test_shutdown()

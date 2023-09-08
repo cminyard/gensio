@@ -26,10 +26,10 @@ def do_ratelimit_test2(io1, io2, timeout=2000):
     do_ratelimit_test1(io2, io1, timeout)
 
 print("Test ratelimit gensio")
-TestAccept(o, "ratelimit(xmit_delay=100m),tcp,localhost,", "tcp,0",
+TestAccept(o, "ratelimit(xmit_delay=100m),tcp,localhost,", "tcp,localhost,0",
            do_ratelimit_test1, chunksize = 64)
 print("Test ratelimit accepter")
-TestAccept(o, "tcp,localhost,", "ratelimit(xmit_delay=100m),tcp,0",
+TestAccept(o, "tcp,localhost,", "ratelimit(xmit_delay=100m),tcp,localhost,0",
            do_ratelimit_test2, chunksize = 64)
 del o
 test_shutdown()

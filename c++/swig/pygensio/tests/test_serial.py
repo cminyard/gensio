@@ -154,7 +154,7 @@ class Ser_Op_Sig_Done(pygensio.Serial_Op_Sig_Done):
 
 w = pygensio.Waiter(o)
 treh = STelnet_Refl_EvHnd(w)
-r = Reflector(o, "telnet(rfc2217),tcp,0", w = w, evh = treh)
+r = Reflector(o, "telnet(rfc2217),tcp,localhost,0", w = w, evh = treh)
 r.startup()
 port = r.get_port()
 

@@ -61,7 +61,7 @@ func main() {
 	gensio.SetLogMask(gensio.LOG_MASK_ALL)
 
 	testbase.ObjCount++
-	r := testbase.NewReflector(o, "tcp,0", nil)
+	r := testbase.NewReflector(o, "tcp,localhost,0", nil)
 	r.Startup()
 	port := r.GetPort()
 

@@ -128,7 +128,7 @@ class TestAcceptConAcc:
             raise Exception("test_conacc: Timed out");
 
 print("Test conacc")
-TestAcceptConAcc(o, "tcp,0", "conacc,tcp,localhost,",
+TestAcceptConAcc(o, "tcp,localhost,0", "conacc,tcp,localhost,",
                  "conacc(retry-time=1000),tcp,localhost,", do_small_test)
 del o
 test_shutdown()

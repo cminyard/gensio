@@ -140,7 +140,7 @@ func testCryptoForward(o *gensio.OsFuncs) {
 	r := &CryptoReflector{}
 	r.Init(o,
 		"certauth(enable-password,enable-2fa)," +
-                "ssl(key=ca/key.pem,cert=ca/cert.pem),tcp,0",
+                "ssl(key=ca/key.pem,cert=ca/cert.pem),tcp,localhost,0",
 		nil, r)
 	r.Startup()
 	port := r.GetPort()
@@ -204,7 +204,7 @@ func testCryptoBackward(o *gensio.OsFuncs) {
 	r := &CryptoReflector{}
 	r.Init(o,
 		"certauth(username=asdf,enable-password,mode=client)," +
-                "ssl(ca=ca/CA.pem,mode=client),tcp,0",
+                "ssl(ca=ca/CA.pem,mode=client),tcp,localhost,0",
 		hr, r)
 	r.Startup()
 	port := r.GetPort()

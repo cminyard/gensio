@@ -110,7 +110,7 @@ class ScrHandler:
 
 print("Testing basic connection")
 handleacc = ScrHandler("acc", o)
-acc = gensio.gensio_accepter(o, "tcp,0", handleacc)
+acc = gensio.gensio_accepter(o, "tcp,localhost,0", handleacc)
 acc.startup()
 port = acc.control(gensio.GENSIO_CONTROL_DEPTH_FIRST,
                    gensio.GENSIO_CONTROL_GET,

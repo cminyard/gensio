@@ -82,7 +82,7 @@ def test_sync_gensio_accepter(o):
     print("Testing sync accept")
 
     gensios_enabled.check_iostr_gensios("tcp")
-    a = gensio.gensio_accepter(o, "tcp,0", None)
+    a = gensio.gensio_accepter(o, "tcp,localhost,0", None)
     a.set_sync()
     a.startup()
     port = a.control(gensio.GENSIO_CONTROL_DEPTH_FIRST,

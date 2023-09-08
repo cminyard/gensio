@@ -175,7 +175,7 @@ func main() {
 	tevh := &STelnetReflEvHnd{}
 	seb = tevh
 	testbase.ObjCount++
-	r := testbase.NewReflector(o, "telnet(rfc2217),tcp,0", tevh)
+	r := testbase.NewReflector(o, "telnet(rfc2217),tcp,localhost,0", tevh)
 	r.Startup()
 	port := r.GetPort()
 

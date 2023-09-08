@@ -12,18 +12,18 @@ print("Test certauth over ssl over tcp")
 
 # First test bypassing authentication from the auth_begin callback;
 TestAcceptConnect(o,
-       ("certauth(),ssl(key=%s/key.pem,cert=%s/cert.pem),tcp,ipv4,0" %
+       ("certauth(),ssl(key=%s/key.pem,cert=%s/cert.pem),tcp,ipv4,localhost,0" %
         (keydir, keydir)),
-       ("certauth(),ssl(key=%s/key.pem,cert=%s/cert.pem),tcp,ipv4,0" %
+       ("certauth(),ssl(key=%s/key.pem,cert=%s/cert.pem),tcp,ipv4,localhost,0" %
         (keydir, keydir)),
        "certauth(),ssl(CA=%s/CA.pem),tcp,localhost," % keydir,
                   do_small_test, auth_begin_rv=0)
 
 # Now try password authentication.
 TestAcceptConnect(o,
-       ("certauth(enable-password),ssl(key=%s/key.pem,cert=%s/cert.pem),tcp,ipv4,0" %
+       ("certauth(enable-password),ssl(key=%s/key.pem,cert=%s/cert.pem),tcp,ipv4,localhost,0" %
         (keydir, keydir)),
-       ("certauth(enable-password),ssl(key=%s/key.pem,cert=%s/cert.pem),tcp,ipv4,0" %
+       ("certauth(enable-password),ssl(key=%s/key.pem,cert=%s/cert.pem),tcp,ipv4,localhost,0" %
         (keydir, keydir)),
        ("certauth(enable-password,password=asdfasdf),ssl(CA=%s/CA.pem),tcp,localhost," %
         keydir),
@@ -31,9 +31,9 @@ TestAcceptConnect(o,
 
 # Test the password request
 TestAcceptConnect(o,
-       ("certauth(enable-password),ssl(key=%s/key.pem,cert=%s/cert.pem),tcp,0" %
+       ("certauth(enable-password),ssl(key=%s/key.pem,cert=%s/cert.pem),tcp,localhost,0" %
         (keydir, keydir)),
-       ("certauth(enable-password),ssl(key=%s/key.pem,cert=%s/cert.pem),tcp,0" %
+       ("certauth(enable-password),ssl(key=%s/key.pem,cert=%s/cert.pem),tcp,localhost,0" %
         (keydir, keydir)),
        ("certauth(enable-password),ssl(CA=%s/CA.pem),tcp,localhost," %
         keydir),
@@ -42,9 +42,9 @@ TestAcceptConnect(o,
 
 # Test the password with 2-factor authentication request
 TestAcceptConnect(o,
-       ("certauth(enable-password,enable-2fa),ssl(key=%s/key.pem,cert=%s/cert.pem),tcp,0" %
+       ("certauth(enable-password,enable-2fa),ssl(key=%s/key.pem,cert=%s/cert.pem),tcp,localhost,0" %
         (keydir, keydir)),
-       ("certauth(enable-password,enable-2fa),ssl(key=%s/key.pem,cert=%s/cert.pem),tcp,0" %
+       ("certauth(enable-password,enable-2fa),ssl(key=%s/key.pem,cert=%s/cert.pem),tcp,localhost,0" %
         (keydir, keydir)),
        ("certauth(enable-password),ssl(CA=%s/CA.pem),tcp,localhost," %
         keydir),

@@ -9,7 +9,7 @@ from utils import *
 import gensio
 
 print("Test tcp accepter connect")
-TestAcceptConnect(o, "tcp,0", "tcp,0", "tcp,localhost,",
+TestAcceptConnect(o, "tcp,localhost,0", "tcp,localhost,0", "tcp,localhost,",
                   do_small_test)
 del o
 test_shutdown()

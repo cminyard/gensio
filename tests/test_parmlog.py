@@ -30,7 +30,7 @@ print("  Testing accepter error logs")
 
 handled = False
 try:
-    a = gensio.gensio_accepter(o, "tcp(x=asdf),0", p)
+    a = gensio.gensio_accepter(o, "tcp(x=asdf),localhost,0", p)
 except Exception as E:
     if str(E) != "gensio:gensio_accepter constructor: Invalid data to parameter":
         raise Exception("Unknown exception from accepter: " + str(E))
@@ -52,7 +52,7 @@ print("  Testing gensio error logs")
 p.log = None
 handled = False
 try:
-    a = gensio.gensio(o, "tcp(x=asdf),0", p)
+    a = gensio.gensio(o, "tcp(x=asdf),localhost,1234", p)
 except Exception as E:
     if str(E) != "gensio:gensio alloc: Invalid data to parameter":
         raise Exception("Unknown exception from gensio: " + str(E))
@@ -64,7 +64,7 @@ if not handled:
 if p.log is None:
     raise Exception("Did not get a parm log from gensio error")
 
-if p.log != "gensio tcp: Invalid network address: 0":
+if p.log != "gensio tcp: unknown parameter x=asdf":
     raise Exception("Invalid parm log: " + p.log)
 
 del o
