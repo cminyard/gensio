@@ -26,15 +26,19 @@ PYTESTS = test_syncio.py \
 	test_ax25_small.py test_ax25_basics.py test_script.py test_ratelimit.py\
 	test_parmlog.py
 
-test_accept_ssl_tcp.py: ca/CA.key
+test_accept_ssl_tcp.py.log: ca/CA.key
 
-test_accept_certauth_tcp.py: ca/CA.key
+test_accept_certauth_tcp.py.log: ca/CA.key
 
-test_ssl_tcp_accept_connect.py: ca/CA.key
+test_ssl_tcp_accept_connect.py.log: ca/CA.key
 
-test_certauth_tcp_accept_connect.py: ca/CA.key
+test_certauth_tcp_accept_connect.py.log: ca/CA.key
 
-test_certauth_ssl_tcp_accept_connect.py: ca/CA.key
+test_certauth_ssl_tcp_accept_connect.py.log: ca/CA.key
+
+oomtest2.log: ca/CA.key
+
+oomtest3.log: ca/CA.key
 
 ca/CA.key:
 	$(srcdir)/make_keys
