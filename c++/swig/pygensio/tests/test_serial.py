@@ -9,9 +9,9 @@
 # and data passing. Also shutdown, enable, and new connections for
 # Accepters.
 
+from testbase import *
 import pygensio
 import sys
-from testbase import *
 
 # Note that serial_event must be first.
 class STelnet_Refl_EvHnd(pygensio.Serial_Event, Refl_EvHnd):

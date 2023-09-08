@@ -12,8 +12,8 @@ import gensios_enabled
 if not gensios_enabled.check_gensio_enabled("mdns"):
     sys.exit(77)
 
-import pygensio
 from testbase import *
+import pygensio
 
 class Free_Done(pygensio.MDNS_Free_Done):
     def __init__(self, waiter):

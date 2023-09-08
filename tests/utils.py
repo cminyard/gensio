@@ -13,6 +13,23 @@
 #
 
 import os
+
+# Since Python 3.8 non-system paths are not loaded to the DLL load order
+# in python.  Work around that by adding all PATH directories to the DLL
+# search path.
+def fix_dll_path():
+    if os.name != "nt":
+        return
+    path = os.getenv("PATH")
+    if not path:
+        return
+    paths = path.split(";")
+    for folder in paths:
+        if os.path.exists(folder):
+            os.add_dll_directory(folder)
+
+fix_dll_path()
+
 import gensio
 import tempfile
 import signal

@@ -7,9 +7,9 @@
 
 # Use AX25 to test passing of auxdata.
 
+from testbase import *
 import pygensio
 import sys
-from testbase import *
 
 # Basic test with blocking I/O
 r = Reflector(o, "tcp,0")

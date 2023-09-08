@@ -9,9 +9,9 @@
 # and data passing. Also shutdown, enable, and new connections for
 # Accepters.
 
+from testbase import *
 import pygensio
 import sys
-from testbase import *
 
 class ParseHandler(pygensio.Event):
     def __init__(self):

@@ -7,9 +7,9 @@
 
 # Use certauth to verify crypto interfaces
 
+from testbase import *
 import pygensio
 import sys
-from testbase import *
 
 class Crypto_Refl_Acc_EvHnd(Refl_Acc_EvHnd):
     def __init__(self):
