@@ -96,7 +96,7 @@ static char echo_comm_port[100];
 typedef int ssize_t;
 #endif
 
-#define DEFAULT_ECHO_COMMPORT "COM1"
+#define DEFAULT_ECHO_COMMPORT ""
 
 bool
 file_is_accessible_dev(const char *filename)
@@ -279,6 +279,10 @@ get_echo_dev(struct gensio_os_funcs *o, const char *testname,
 	    }
 	}
 #endif
+	if (e[0] == '\0') {
+	    fprintf(stderr, "echo comm port not set, skipping test.\n");
+	    return false;
+	}
     } else {
 	fprintf(stderr, "Unable to get GENSIO_TEST_ECHO_DEV: %s",
 		gensio_err_to_str(rv));
