@@ -1,4 +1,6 @@
 
+export VERBOSE = 1
+
 SUBDIRS = testbase
 
 LOG_COMPILER = $(SHELL) $(builddir)/runtest

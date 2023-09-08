@@ -1,4 +1,6 @@
 
+export VERBOSE = 1
+
 AM_CFLAGS = -I$(top_srcdir)/glib/include -I$(top_srcdir)/tcl/include \
 	@EXTRA_CFLAGS@
 
