@@ -1,10 +1,13 @@
 
 export VERBOSE = 1
 
+SKIP_TESTS =
+
 AM_CFLAGS = -I$(top_srcdir)/glib/include -I$(top_srcdir)/tcl/include \
 	@EXTRA_CFLAGS@
 
-AM_TESTS_ENVIRONMENT = GENSIOT=$(top_builddir)/tools/gensiot${EXEEXT}
+AM_TESTS_ENVIRONMENT = GENSIOT=$(top_builddir)/tools/gensiot${EXEEXT} \
+	SKIP_TESTS="$(SKIP_TESTS)"
 
 LOG_COMPILER = $(SHELL) $(builddir)/runtest
 
