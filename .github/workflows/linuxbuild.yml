@@ -25,7 +25,7 @@ jobs:
         run: |
           mkdir $INSTALLPREFIX
           ./reconf
-          ./configure --prefix=$(pwd)/$INSTALLPREFIX/
+          ./configure --prefix=$(pwd)/$INSTALLPREFIX/ --enable-internal-trace
       - name: Build
         run: |
           make
