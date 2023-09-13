@@ -2260,10 +2260,22 @@ gensio_setup_listen_socket(struct gensio_os_funcs *o, bool do_listen,
 	    if (bind(fd, addr, addrlen) == 0) {
 		goto got_it;
 	    } else {
-		if (sock_errno != SOCK_EADDRINUSE)
-		    goto out_err;
+#ifdef _WIN32
+		/*
+		 * Apparently, if you try to grab some ports on
+		 * windows, you get a permission error if maybe some
+		 * other process that is privileged or just another
+		 * user is using it?  Sometimes this happens, just let
+		 * it go.
+		 */
+		if (sock_errno == WSAEACCES)
+		    goto next_port;
+#endif
+		if (sock_errno == SOCK_EADDRINUSE)
+		    goto next_port;
+		goto out_err;
 	    }
-
+	next_port:
 	    si->curr = gensio_dyn_scan_next(si->curr);
 	} while (si->curr != si->start);
 	/* Unable to find an open port, give up. */
