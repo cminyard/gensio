@@ -290,10 +290,10 @@ ax25
 
     .. code-block:: bash
 
-    gensiot -i 'stdio(self)' \
-    'ax25(laddr=AE5KM-2,addr="0,AE5KM-1,AE5KM-2"),'\
-    'udp(mcast="ipv4,224.0.0.20",laddr="ipv4,1234",nocon),'\
-    'ipv4,224.0.0.20,1234'
+      gensiot -i 'stdio(self)' \
+      'ax25(laddr=AE5KM-2,addr="0,AE5KM-1,AE5KM-2"),'\
+      'udp(mcast="ipv4,224.0.0.20",laddr="ipv4,1234",nocon),'\
+      'ipv4,224.0.0.20,1234'
 
     kiss is not required because UDP is already a packet-oriented
     media.  Or you can use the greflector program to create a
