@@ -9,13 +9,20 @@ having to know too much about what is going on underneath.  You can
 stack gensio on top of another one to add protocol funcionality.  For
 instance, you can create a TCP gensio, stack SSL on top of that, and
 stack Telnet on top of that.  It supports a number of network I/O and
-serial ports.  gensios that stack on other gensios are called filters.
+serial ports.  It also supports sound interfaces.  gensios that stack
+on other gensios are called filters.
 
 You can do the same thing with receiving ports.  You can set up a
-gensio accepter (accepter) to accept connections in a stack.  So in
-our previous example, you can setup TCP to listen on a specific port
-and automatically stack SSL and Telnet on top when the connection
-comes in, and you are not informed until everything is ready.
+gensio accepter to accept connections in a stack.  So in our previous
+example, you can setup TCP to listen on a specific port and
+automatically stack SSL and Telnet on top when the connection comes
+in, and you are not informed until everything is ready.
+
+gensio works on Linux, BSDs, MacOS, and Windows.  On Windows, it gives
+you a single-threaded capable (but also multi-thread capable)
+event-driven interface (with blocking interfaces available) to
+simplify programming with lots of I/Os.  It goes a long way to making
+writing portable I/O driven code easy.
 
 A *very* important feature of gensio is that it makes establishing
 encrypted and authenticated connections much easier than without it.
@@ -26,233 +33,8 @@ authentication process if needed.  It's really easy to use.
 Note that the gensio(5) man page has more details on individual gensio
 types.
 
-Building
-========
-
-This is a normal autoconf system, nothing special.  Note that if you
-get this directly from git, you won't have the build infrastructure
-included.  There is a script named "reconf" in the main directory
-that will create it for you.
-
-If you don't know about autoconf, the INSTALL file has some info,
-or google it.
-
-To fully build gensio, you need the following:
-
-* swig - For python and go bindings
-
-* python dev libraries - For python bindings
-
-* go language installed in the path
-
-* openssl dev libraries and executable - For all the crypto
-
-* openipmi dev libraries - For IPMI serial over lan, if you want that.
-  Note that you need a pretty recent one, really 2.0.31 or newer.
-
-* libsctp dev library - For sctp support
-
-* pkgconfig - If you want gensio to install its pkgconfig files.
-
-* avahi dev - If you want gensio to have mdns support.
-
-* pam dev - For support of logins with gtlsshd
-
-* libwrap - for tcpd
-
-* glib dev - for the glib os funcs
-
-* tcl dev - for the tcl os funcs
-
-* alsa dev - for sound (on Linux)
-
-* udev dev - for cm108 GPIO soundcard support (on Linux)
-
-The following sets everything except openipmi up on ubuntu 20.04:
-
-  sudo apt install gcc g++ git swig python3-dev libssl-dev pkg-config	\
-    libavahi-client-dev avahi-daemon libtool autoconf automake make	\
-    libsctp-dev libpam-dev libwrap0-dev libglib2.0-dev tcl-dev		\
-    libasound2-dev libudev-dev
-
-On Redhat, libwrap is gone, so you won't be using that, and swig doesn't appear
-to be available, so you will have to built that yourself with at least go and
-python support.  Here's the command for Redhat-like systems:
-
-  sudo yum install gcc gcc-c++ git python3-devel swig openssl-devel \
-    pkg-config avahi-devel libtool autoconf automake make \
-    lksctp-tools-devel pam-devel glib2-devel tcl-devel \
-    alsa-lib-devel systemd-devel
-
-You might have to do the following to enable access to the development
-packages:
-
-  sudo dnf config-manager --set-enabled devel
-
-And get the SCTP kernel modules, you might have to do:
-
-  sudo yum install kernel-modules-extra
-
-To use Go language, you must get a version of swig 4.1.0 or greater.
-You may have to pull a bleeding edge version out of git and use that.
-
-Handling python installation configuration is a bit of a pain.  By
-default the build scripts will put it wherever the python program
-expects installed python programs to be.  A normal user generally
-doesn't have write access to that directory.
-
-To override this, you can use the --with-pythoninstall
-and --with-pythoninstalllib configure options or you can set the
-pythoninstalldir and pythoninstalllibdir environment variables to
-where you want the libraries and modules to go.
-
-Note that you may need to set --with-uucp-locking to your lockdir (on
-older systems it's /var/lock, which is the default.  On newer it might
-be /run/lock/lockdev.  You might also need to be a member of dialout
-and lock groups to be able to open serial devices and/or locks.
-
-go language support requires go to be installed and in the path.
-
-Dynamic vs Built In gensios
----------------------------
-
-As I continued to add gensios to the library, like crypto, mdns,
-sound, IPMI, sctp, etc. the number of dependencies in the library was
-getting out of control.  Why should you be loading libasound, or
-libOpenIPMI, if you don't need it?  Plus, though the library supported
-adding your own gensios through a programatic API, it had no standard
-way to add them for the system so you could write your own gensio and
-let everyone on the system use it.
-
-The gensio library supports loading gensios dynamically or building
-them in to the library.  By default if you create shared libraries,
-then all gensios are compiled as modules for dynamic loading and
-installed in a place that makes it possible.  If you do not create
-shared libraries, all gensios are built in to the library.  But you
-can override this behaviour.
-
-To set all gensios to be built in to the library, you can add
-"--with-all-gensios=yes" on the configure command line and it will
-build them in to the library.
-
-You can also set them to all be dynamically loaded by adding
-"--with-all-gensios=dynamic", but this is the default.
-
-You can also disable all gensios by default by specifying
-"--with-all-gensios=no".  Then no gensios will be built by default.
-This is useful if you only want a few gensios, you can turn all of
-them off then enable then ones you want.
-
-To set how individual gensios are built, you do "--with-<gensio>=x"
-where x is "no (don't build), yes (build into library) or dynamic
-(dynamically loaded executable).  For instance, if you only wanted to
-build the tcp gensio into the library and make the rest dynamic, you
-could set up for all dynamic gensios and then add "--with-net=yes".
-
-These modules are put by default into $(moduleinstalldir) (specified
-with --with-moduleinstall on the configure line) which defaults to
-$(pkglibexecdir) (which is generally /usr/libexec/gensio).
-
-Note that dynamic loading is always available, even if you build in
-all the gensios in the library.  So you can still add your own gensios
-by adding then to the proper directory.
-
-Gensios will be loaded first from the environment variable
-LD_LIBRARY_PATH, then from GENSIO_LIBRARY_PATH, then from the default
-location.
-
-Building on MacOS
------------------
-
-MacOS, being a sort of *nix, builds pretty cleanly with Homebrew
-(https://brew.sh).  You have to, of course, install all the libraries
-you need.  Most everything works, with the following exceptions::
-
-* cm108gpio
-* sctp
-* uucp locking
-
-The built-in DNSSD code is used for MDNS, so avahi is not required.
-
-flock locking for serial ports works, so uucp locking really isn't
-required.
-
-openipmi should work, but it is not available in homebrew so you would
-have to build it yourself.
-
-Building on Windows
--------------------
-
-The gensio library can be built under Windows using mingw64.  The following
-things don't work::
-
-* sctp
-* pam
-* libwrap
-
-You also don't need to install alsa, it uses the Windows sound interface for
-sound.
-
-The cm108gpio uses native windows interfaces, so udev is not required.
-
-The Windows built-in MDNS interfaces are used, so you don't need avahi
-or DNSSD.  You will need to install the pcre library if you want
-regular expressions in it.
-
-You need to get msys2 from https://msys2.org.  Then install autoconf,
-automake, libtool, git, make, and swig as host tools:
-
-  pacman -S autoconf automake libtool git make swig
-
-You have to install the mingw-w64-x86_64-xxx version of all the
-libraries or the mingw-w64-i686-xxx version of all the libraries.
-32-bit is not well tested::
-
-  pacman -S mingw-w64-x86_64-gcc \
-    mingw-w64-x86_64-python3 \
-    mingw-w64-x86_64-pcre \
-    mingw-w64-x86_64-openssl
-
-for mingw64, or for ucrt64::
-
-  pacman -S mingw-w64-ucrt-x86_64-gcc \
-    mingw-w64-ucrt-x86_64-python3 \
-    mingw-w64-ucrt-x86_64-pcre \
-    mingw-w64-ucrt-x86_64-openssl
-
-For go, install go from https://go.dev and log out and log back in.
-It should then be in the PATH, but if it's not, you will need to add
-it to the PATH.  I haven't gotten go working on on mingw32, but I
-haven't tried a 32-bit version of go.
-
-For gtlsshd, --sysconfdir has no meaning on Windows.  Instead, the
-sysconf dir is relative to the patch of the executable, in
-../etc/gtlssh.  So if gtlsshd is in::
-
-   C:/Program Files/Gensio/bin/gtlsshd
-
-the sysconfdir will be::
-
-   C:/Program Files/Gensio/etc/gtlssh
-
-For standard installation, you can run::
-
-   ../configure --sbindir=/Gensio/bin --libexecdir=/Gensio/bin \
-      --mandir=/Gensio/man --includedir=/Gensio/include \
-      --with-pythoninstall=/Gensio/python3 --prefix=/Gensio
-
-and when you run "make install DESTDIR=..." and you set DESTDIR to
-where you want it to go, like "C:/Program Files".  Then you can add
-that to the PATH using the control panel.  To use gtlsshd, you create
-an etc/gtlsshd directory in the Gensio directory,
-
-For using the Inno Setup Compiler, do "make install DESTDIR=$HOME/install"
-and then run Inno on gensio.iss.  It will create an executable installer
-for installing Gensio.
-
-There is a item in FAQ.rst named "How to run gtlsshd on Windows", see
-that for more details, as there are a few tricky things you have to
-handle.
+For instructions on building this from source, see the "Building"
+section at the end.
 
 gensio tools
 ============
@@ -268,6 +50,10 @@ gtlsshd
     An sshd-like daemon that uses certauth, ssl, and SCTP or TCP
     gensios for making connections.  It uses standard PAM
     authentication and uses ptys.  See gtlsshd(8) for details.
+
+    There is a item in FAQ.rst named "How to run gtlsshd on Windows",
+    see that and the Building on Windows section below for more
+    details, as there are a few tricky things you have to handle.
 
 gtlssh
     An ssh-like program that can connect to gtlsshd.  It can also
@@ -1121,6 +907,231 @@ GO
 
 The full C++ interface is available to Go programs through swig and
 swig directors.  See c++/swig/go/README.rst for details.
+
+========
+Building
+========
+
+This is a normal autoconf system, nothing special.  Note that if you
+get this directly from git, you won't have the build infrastructure
+included.  There is a script named "reconf" in the main directory
+that will create it for you.
+
+If you don't know about autoconf, the INSTALL file has some info,
+or google it.
+
+To fully build gensio, you need the following:
+
+* swig - For python and go bindings
+
+* python dev libraries - For python bindings
+
+* go language installed in the path
+
+* openssl dev libraries and executable - For all the crypto
+
+* openipmi dev libraries - For IPMI serial over lan, if you want that.
+  Note that you need a pretty recent one, really 2.0.31 or newer.
+
+* libsctp dev library - For sctp support
+
+* pkgconfig - If you want gensio to install its pkgconfig files.
+
+* avahi dev - If you want gensio to have mdns support.
+
+* pam dev - For support of logins with gtlsshd
+
+* libwrap - for tcpd
+
+* glib dev - for the glib os funcs
+
+* tcl dev - for the tcl os funcs
+
+* alsa dev - for sound (on Linux)
+
+* udev dev - for cm108 GPIO soundcard support (on Linux)
+
+The following sets everything except openipmi up on ubuntu 20.04:
+
+  sudo apt install gcc g++ git swig python3-dev libssl-dev pkg-config	\
+    libavahi-client-dev avahi-daemon libtool autoconf automake make	\
+    libsctp-dev libpam-dev libwrap0-dev libglib2.0-dev tcl-dev		\
+    libasound2-dev libudev-dev
+
+On Redhat, libwrap is gone, so you won't be using that, and swig doesn't appear
+to be available, so you will have to built that yourself with at least go and
+python support.  Here's the command for Redhat-like systems:
+
+  sudo yum install gcc gcc-c++ git python3-devel swig openssl-devel \
+    pkg-config avahi-devel libtool autoconf automake make \
+    lksctp-tools-devel pam-devel glib2-devel tcl-devel \
+    alsa-lib-devel systemd-devel
+
+You might have to do the following to enable access to the development
+packages:
+
+  sudo dnf config-manager --set-enabled devel
+
+And get the SCTP kernel modules, you might have to do:
+
+  sudo yum install kernel-modules-extra
+
+To use Go language, you must get a version of swig 4.1.0 or greater.
+You may have to pull a bleeding edge version out of git and use that.
+
+Handling python installation configuration is a bit of a pain.  By
+default the build scripts will put it wherever the python program
+expects installed python programs to be.  A normal user generally
+doesn't have write access to that directory.
+
+To override this, you can use the --with-pythoninstall
+and --with-pythoninstalllib configure options or you can set the
+pythoninstalldir and pythoninstalllibdir environment variables to
+where you want the libraries and modules to go.
+
+Note that you may need to set --with-uucp-locking to your lockdir (on
+older systems it's /var/lock, which is the default.  On newer it might
+be /run/lock/lockdev.  You might also need to be a member of dialout
+and lock groups to be able to open serial devices and/or locks.
+
+go language support requires go to be installed and in the path.
+
+Dynamic vs Built In gensios
+===========================
+
+As I continued to add gensios to the library, like crypto, mdns,
+sound, IPMI, sctp, etc. the number of dependencies in the library was
+getting out of control.  Why should you be loading libasound, or
+libOpenIPMI, if you don't need it?  Plus, though the library supported
+adding your own gensios through a programatic API, it had no standard
+way to add them for the system so you could write your own gensio and
+let everyone on the system use it.
+
+The gensio library supports loading gensios dynamically or building
+them in to the library.  By default if you create shared libraries,
+then all gensios are compiled as modules for dynamic loading and
+installed in a place that makes it possible.  If you do not create
+shared libraries, all gensios are built in to the library.  But you
+can override this behaviour.
+
+To set all gensios to be built in to the library, you can add
+"--with-all-gensios=yes" on the configure command line and it will
+build them in to the library.
+
+You can also set them to all be dynamically loaded by adding
+"--with-all-gensios=dynamic", but this is the default.
+
+You can also disable all gensios by default by specifying
+"--with-all-gensios=no".  Then no gensios will be built by default.
+This is useful if you only want a few gensios, you can turn all of
+them off then enable then ones you want.
+
+To set how individual gensios are built, you do "--with-<gensio>=x"
+where x is "no (don't build), yes (build into library) or dynamic
+(dynamically loaded executable).  For instance, if you only wanted to
+build the tcp gensio into the library and make the rest dynamic, you
+could set up for all dynamic gensios and then add "--with-net=yes".
+
+These modules are put by default into $(moduleinstalldir) (specified
+with --with-moduleinstall on the configure line) which defaults to
+$(pkglibexecdir) (which is generally /usr/libexec/gensio).
+
+Note that dynamic loading is always available, even if you build in
+all the gensios in the library.  So you can still add your own gensios
+by adding then to the proper directory.
+
+Gensios will be loaded first from the environment variable
+LD_LIBRARY_PATH, then from GENSIO_LIBRARY_PATH, then from the default
+location.
+
+Building on MacOS
+=================
+
+MacOS, being a sort of *nix, builds pretty cleanly with Homebrew
+(https://brew.sh).  You have to, of course, install all the libraries
+you need.  Most everything works, with the following exceptions::
+
+* cm108gpio
+* sctp
+* uucp locking
+
+The built-in DNSSD code is used for MDNS, so avahi is not required.
+
+flock locking for serial ports works, so uucp locking really isn't
+required.
+
+openipmi should work, but it is not available in homebrew so you would
+have to build it yourself.
+
+Building on Windows
+===================
+
+The gensio library can be built under Windows using mingw64.  The following
+things don't work::
+
+* sctp
+* pam
+* libwrap
+
+You also don't need to install alsa, it uses the Windows sound interface for
+sound.
+
+The cm108gpio uses native windows interfaces, so udev is not required.
+
+The Windows built-in MDNS interfaces are used, so you don't need avahi
+or DNSSD.  You will need to install the pcre library if you want
+regular expressions in it.
+
+You need to get msys2 from https://msys2.org.  Then install autoconf,
+automake, libtool, git, make, and swig as host tools:
+
+  pacman -S autoconf automake libtool git make swig
+
+You have to install the mingw-w64-x86_64-xxx version of all the
+libraries or the mingw-w64-i686-xxx version of all the libraries.
+32-bit is not well tested::
+
+  pacman -S mingw-w64-x86_64-gcc \
+    mingw-w64-x86_64-python3 \
+    mingw-w64-x86_64-pcre \
+    mingw-w64-x86_64-openssl
+
+for mingw64, or for ucrt64::
+
+  pacman -S mingw-w64-ucrt-x86_64-gcc \
+    mingw-w64-ucrt-x86_64-python3 \
+    mingw-w64-ucrt-x86_64-pcre \
+    mingw-w64-ucrt-x86_64-openssl
+
+For go, install go from https://go.dev and log out and log back in.
+It should then be in the PATH, but if it's not, you will need to add
+it to the PATH.  I haven't gotten go working on on mingw32, but I
+haven't tried a 32-bit version of go.
+
+For gtlsshd, --sysconfdir has no meaning on Windows.  Instead, the
+sysconf dir is relative to the patch of the executable, in
+../etc/gtlssh.  So if gtlsshd is in::
+
+   C:/Program Files/Gensio/bin/gtlsshd
+
+the sysconfdir will be::
+
+   C:/Program Files/Gensio/etc/gtlssh
+
+For standard installation, you can run::
+
+   ../configure --sbindir=/Gensio/bin --libexecdir=/Gensio/bin \
+      --mandir=/Gensio/man --includedir=/Gensio/include \
+      --with-pythoninstall=/Gensio/python3 --prefix=/Gensio
+
+and when you run "make install DESTDIR=..." and you set DESTDIR to
+where you want it to go, like "C:/Program Files".  Then you can add
+that to the PATH using the control panel.  To use gtlsshd, you create
+an etc/gtlsshd directory in the Gensio directory,
+
+For using the Inno Setup Compiler, do "make install DESTDIR=$HOME/install"
+and then run Inno on gensio.iss.  It will create an executable installer
+for installing Gensio.
 
 =============
 Running Tests
