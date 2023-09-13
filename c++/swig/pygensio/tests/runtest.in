@@ -1,5 +1,11 @@
 #!/bin/sh
 
+# See if we are skipping this test
+T1=`basename $1`
+if echo "$SKIP_TESTS" | grep -q "$T1"; then
+    exit 77
+fi
+
 SRCDIR="@top_srcdir@"
 TEST_SRCDIR="${SRCDIR}/c++/swig/pygensio/tests"
 BUILDDIR="@top_builddir@"
