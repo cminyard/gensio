@@ -47,11 +47,9 @@ jobs:
           # it in an AWS windows server 2022 instance and it worked
           # fine, so I don't know what is going on.  The pygensio
           # and go mdns test work fine.
-          # test_certauth_ssl_tcp_accept_connect.py fails inexplicably with
-          # a permission denied on the second test.
           # test_ratelimit.py fails sometimes with a "data too slow".  Probably
           # from running windows in a VM.
-          make check SKIP_TESTS="test_mdns.py test_certauth_ssl_tcp_accept_connect.py test_ratelimit.py"
+          make check SKIP_TESTS="test_mdns.py test_ratelimit.py"
       - name: Upload installed files
         uses: actions/upload-artifact@v3
         with:
