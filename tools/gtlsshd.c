@@ -2208,7 +2208,7 @@ new_rem_io(struct gensio *io, struct auth_data *auth)
 	if (err)
 	    goto out_bad_vals;
 #ifdef _WIN32
-	s = gensio_alloc_sprintf(o, "pty,%s -i", auth->ushell);
+	s = gensio_alloc_sprintf(o, "pty,%s", auth->ushell);
 #else
 	if (use_login)
 	    s = gensio_alloc_sprintf(o, "pty,login -f %s", auth->username);
