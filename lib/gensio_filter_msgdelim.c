@@ -172,7 +172,7 @@ static int
 msgdelim_ul_write(struct gensio_filter *filter,
 		  gensio_ul_filter_data_handler handler, void *cb_data,
 		  gensiods *rcount,
-		  const struct gensio_sg *sg, gensiods sglen,
+		  const struct gensio_sg *isg, gensiods sglen,
 		  const char *const *auxdata)
 {
     struct msgdelim_filter *mfilter = filter_to_msgdelim(filter);
@@ -187,8 +187,8 @@ msgdelim_ul_write(struct gensio_filter *filter,
 	uint16_t crc = 0;
 
 	for (i = 0; i < sglen; i++) {
-	    gensiods inlen = sg[i].buflen;
-	    const unsigned char *buf = sg[i].buf;
+	    gensiods inlen = isg[i].buflen;
+	    const unsigned char *buf = isg[i].buf;
 
 	    crc16(buf, inlen, &crc);
 	    for (j = 0; j < inlen; j++) {

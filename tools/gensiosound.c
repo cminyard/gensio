@@ -23,7 +23,7 @@
 #define GENSIOSIG SIGUSR1
 #endif
 
-static struct gensio_os_funcs *o;
+static struct gensio_os_funcs *osh;
 static int global_err;
 static unsigned int channels = 1;
 static unsigned char *playbuf;
@@ -100,7 +100,7 @@ io_event(struct gensio *io, void *user_data, int event, int err,
 	fprintf(stderr, "Error from io: %s\n", gensio_err_to_str(err));
 	global_err = err;
     }
-    gensio_os_funcs_wake(o, waiter);
+    gensio_os_funcs_wake(osh, waiter);
     return 0;
 }
 
@@ -168,7 +168,7 @@ term_handler(void *cb_data)
     struct gensio_waiter *waiter = cb_data;
 
     fflush(stdout);
-    gensio_os_funcs_wake(o, waiter);
+    gensio_os_funcs_wake(osh, waiter);
 }
 
 static const char *progname;
@@ -214,6 +214,7 @@ main(int argc, char *argv[])
     bool play = false;
     const char *devtype = NULL; /* Take the default by default. */
     const char *format = "float";
+    struct gensio_os_funcs *o;
 
     progname = argv[0];
 
@@ -258,12 +259,14 @@ main(int argc, char *argv[])
 	}
     }
 
-    rv = gensio_default_os_hnd(GENSIOSIG, &o);
+    rv = gensio_default_os_hnd(GENSIOSIG, &osh);
     if (rv) {
 	fprintf(stderr, "Could not allocate OS handler: %s\n",
 		gensio_err_to_str(rv));
 	return 1;
     }
+    /* osh is global, get a local copy for convenience. */
+    o = osh;
     gensio_os_funcs_set_vlog(o, do_vlog);
 
     rv = gensio_os_proc_setup(o, &proc_data);

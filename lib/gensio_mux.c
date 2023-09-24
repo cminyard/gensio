@@ -2334,15 +2334,12 @@ mux_child_read(struct mux_data *muxdata, int ierr,
 		    chan = mux_chan0(muxdata);
 		    was_chan0 = true;
 		} else {
-		    int err;
-
 		    if (mux_find_remote_id(muxdata, remote_id)) {
 			proto_err_str = "New remote channel for existing one";
 			goto protocol_err;
 		    }
 
-		    err = mux_new_channel(muxdata, NULL, NULL, false, &chan);
-		    if (err)
+		    if (mux_new_channel(muxdata, NULL, NULL, false, &chan))
 			chan = NULL;
 		    else
 			muxdata->nr_not_closed++;

@@ -99,9 +99,9 @@ static const char *pam_service;
 #define log_event syslog
 #define vlog_event vsyslog
 static void
-start_log(bool debug)
+start_log(bool idebug)
 {
-    if (!debug)
+    if (!idebug)
 	openlog(progname, 0, LOG_AUTH);
     else
 	openlog(progname, LOG_PID | LOG_CONS | LOG_PERROR, LOG_DAEMON);

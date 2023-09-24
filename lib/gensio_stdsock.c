@@ -1231,8 +1231,6 @@ gensio_stdsock_socket_set_setup(struct gensio_iod *iod,
     }
 
     if (opensock_flags & GENSIO_SET_OPENSOCK_NODELAY) {
-	struct gensio_stdsock_info *gsi = NULL;
-
 	err = o->iod_control(iod, GENSIO_IOD_CONTROL_SOCKINFO, true,
 			     (intptr_t) &gsi);
 	if (err)

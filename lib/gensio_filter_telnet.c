@@ -211,7 +211,7 @@ static int
 telnet_ul_write(struct gensio_filter *filter,
 		gensio_ul_filter_data_handler handler, void *cb_data,
 		gensiods *rcount,
-		const struct gensio_sg *sg, gensiods sglen,
+		const struct gensio_sg *isg, gensiods sglen,
 		const char *const *auxdata)
 {
     struct telnet_filter *tfilter = filter_to_telnet(filter);
@@ -225,15 +225,15 @@ telnet_ul_write(struct gensio_filter *filter,
 	gensiods i, writelen = 0;
 
 	for (i = 0; i < sglen; i++) {
-	    size_t inlen = sg[i].buflen;
-	    const unsigned char *buf = sg[i].buf;
+	    size_t inlen = isg[i].buflen;
+	    const unsigned char *buf = isg[i].buf;
 
 	    tfilter->write_data_len =
 		process_telnet_xmit(tfilter->write_data,
 				    tfilter->max_write_size,
 				    &buf, &inlen);
-	    writelen += sg[i].buflen - inlen;
-	    if (inlen != sg[i].buflen)
+	    writelen += isg[i].buflen - inlen;
+	    if (inlen != isg[i].buflen)
 		break;
 	}
 	if (rcount)

@@ -153,14 +153,16 @@ static int
 kiss_ul_write(struct gensio_filter *filter,
 	      gensio_ul_filter_data_handler handler, void *cb_data,
 	      gensiods *rcount,
-	      const struct gensio_sg *sg, gensiods sglen,
+	      const struct gensio_sg *isg, gensiods sglen,
 	      const char *const *auxdata)
 {
     struct kiss_filter *kfilter = filter_to_kiss(filter);
-    unsigned int i, tnc = 0;
+    unsigned int tnc = 0;
     int rv = 0;
 
     if (auxdata) {
+	unsigned int i;
+
 	for (i = 0; auxdata[i]; i++) {
 	    if (strncmp(auxdata[i], "tnc:", 4) == 0) {
 		char *end;
@@ -199,8 +201,8 @@ kiss_ul_write(struct gensio_filter *filter,
 	kfilter->write_data[kfilter->write_data_len++] = 0xc0;
 	kiss_add_wrbyte(kfilter, tnc << 4);
 	for (i = 0; i < sglen; i++) {
-	    gensiods inlen = sg[i].buflen;
-	    const unsigned char *buf = sg[i].buf;
+	    gensiods inlen = isg[i].buflen;
+	    const unsigned char *buf = isg[i].buf;
 
 	    for (j = 0; j < inlen; j++) {
 		if (kfilter->user_write_pos >= kfilter->max_write_size)
@@ -253,7 +255,7 @@ kiss_ll_write(struct gensio_filter *filter,
 		gensio_ll_filter_data_handler handler, void *cb_data,
 		gensiods *rcount,
 		unsigned char *buf, gensiods buflen,
-		const char *const *auxdata)
+		const char *const *iauxdata)
 {
     struct kiss_filter *kfilter = filter_to_kiss(filter);
     gensiods in_buflen = buflen, count = 0;

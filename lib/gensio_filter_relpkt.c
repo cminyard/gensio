@@ -701,8 +701,8 @@ relpkt_ul_write(struct relpkt_filter *rfilter,
 	gensiods i, writelen = 0;
 	bool trunc = false;
 	unsigned int pos = xmitpkt_pos(rfilter, nrqueued);
-	struct pkt *p = &(rfilter->xmitpkts[pos]);
 
+	p = &(rfilter->xmitpkts[pos]);
 	/* FIXME - if previous packet is not full and not eom, can append */
 	p->len = 0;
 	for (i = 0; i < sglen; i++) {

@@ -475,7 +475,7 @@ static int
 ssl_ul_write(struct gensio_filter *filter,
 	     gensio_ul_filter_data_handler handler, void *cb_data,
 	     gensiods *rcount,
-	     const struct gensio_sg *sg, gensiods sglen,
+	     const struct gensio_sg *isg, gensiods sglen,
 	     const char *const *auxdata)
 {
     struct ssl_filter *sfilter = filter_to_ssl(filter);
@@ -487,7 +487,7 @@ ssl_ul_write(struct gensio_filter *filter,
 	if (rcount) {
 	    *rcount = 0;
 	    for (i = 0; i < sglen; i++)
-		*rcount += sg[i].buflen;
+		*rcount += isg[i].buflen;
 	}
 	err = sfilter->err;
 	goto out_unlock;
@@ -498,7 +498,7 @@ ssl_ul_write(struct gensio_filter *filter,
 	if (rcount) {
 	    *rcount = 0;
 	    for (i = 0; i < sglen; i++)
-		*rcount += sg[i].buflen;
+		*rcount += isg[i].buflen;
 	}
     } else if (sfilter->write_data_len) {
 	/* Ignore any incoming data if we already have some. */
@@ -506,12 +506,12 @@ ssl_ul_write(struct gensio_filter *filter,
 	    *rcount = 0;
     } else {
 	for (i = 0; i < sglen; i++) {
-	    gensiods buflen = sg[i].buflen;
+	    gensiods buflen = isg[i].buflen;
 
 	    if (buflen > sfilter->max_write_size - sfilter->write_data_len)
 		buflen = sfilter->max_write_size - sfilter->write_data_len;
 	    memcpy(sfilter->write_data + sfilter->write_data_len,
-		   sg[i].buf, buflen);
+		   isg[i].buf, buflen);
 	    sfilter->write_data_len += buflen;
 	}
 	if (rcount)

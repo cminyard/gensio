@@ -298,9 +298,9 @@ keepn_check_close_done(struct keepn_data *ndata)
 }
 
 static void
-keepn_open_done(struct gensio *io, int err, void *open_data)
+keepn_open_done(struct gensio *io, int err, void *iopen_data)
 {
-    struct keepn_data *ndata = open_data;
+    struct keepn_data *ndata = iopen_data;
 
     keepn_lock(ndata);
     switch (ndata->state) {

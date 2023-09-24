@@ -194,7 +194,7 @@ io_event(struct gensio *io, void *user_data, int event, int err,
     struct gensio_os_funcs *o = ioinfo->o;
     struct ioinfo *rioinfo = ioinfo->otherio;
     int rv, escapepos = -1;
-    gensiods count = 0;
+    gensiods icount = 0;
     static const char *oobaux[2] = { "oob", NULL };
 
     if (err) {
@@ -252,7 +252,7 @@ io_event(struct gensio *io, void *user_data, int event, int err,
 	    if (rioinfo->max_write && wrsize > rioinfo->max_write)
 		wrsize = rioinfo->max_write;
 
-	    rv = gensio_write(rioinfo->io, &count, buf, wrsize, NULL);
+	    rv = gensio_write(rioinfo->io, &icount, buf, wrsize, NULL);
 	    if (rv) {
 		enum ioinfo_shutdown_reason reason = IOINFO_SHUTDOWN_ERR;
 		if (rv == GE_REMCLOSE)
@@ -274,10 +274,10 @@ io_event(struct gensio *io, void *user_data, int event, int err,
 	     */
 	    if (ioinfo->ready)
 		gensio_set_read_callback_enable(ioinfo->io, false);
-	    count = 0;
+	    icount = 0;
 	}
-	if (count < *buflen) {
-	    *buflen = count;
+	if (icount < *buflen) {
+	    *buflen = icount;
 	    if (ioinfo->ready)
 		gensio_set_read_callback_enable(ioinfo->io, false);
 	    if (rioinfo->ready)

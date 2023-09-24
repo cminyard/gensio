@@ -338,7 +338,7 @@ static int
 script_ul_write(struct gensio_filter *filter,
 		gensio_ul_filter_data_handler handler, void *cb_data,
 		gensiods *rcount,
-		const struct gensio_sg *sg, gensiods sglen,
+		const struct gensio_sg *isg, gensiods sglen,
 		const char *const *auxdata)
 {
     struct script_filter *sfilter = filter_to_script(filter);
@@ -346,7 +346,7 @@ script_ul_write(struct gensio_filter *filter,
     int err = 0;
 
     if (sfilter->state == SCRIPT_OPEN)
-	return handler(cb_data, rcount, sg, sglen, auxdata);
+	return handler(cb_data, rcount, isg, sglen, auxdata);
 
     script_lock(sfilter);
     switch(sfilter->state) {

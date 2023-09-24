@@ -170,7 +170,7 @@ static struct ioinfo_user_handlers guh = {
 static char *username, *hostname;
 static char *certname, *CAname, *keyname;
 static char *tlssh_dir = NULL;
-static unsigned int port = 852;
+static unsigned int remport = 852;
 static struct gtlssh_aux_data aux_data;
 
 static int
@@ -680,8 +680,6 @@ check_cert_expiry(const char *name, const char *filename,
 
 static int
 lookup_certinfo(struct gensio_os_funcs *o,
-		const char *tlssh_dir, const char *username,
-		const char *hostname, int port,
 		char **rCAspec, char **rcertspec, char **rkeyspec)
 {
     int err = GE_NOMEM;
@@ -697,12 +695,12 @@ lookup_certinfo(struct gensio_os_funcs *o,
 
     if (!certname) {
 	tcertname = alloc_sprintf("%s%ckeycerts%c%s,%d.crt", tlssh_dir, DIRSEP,
-				  DIRSEP, hostname, port);
+				  DIRSEP, hostname, remport);
 	if (!tcertname)
 	    goto cert_nomem;
 	if (file_is_readable(tcertname)) {
 	    tkeyname = alloc_sprintf("%s%ckeycerts%c%s,%d.key", tlssh_dir,
-				     DIRSEP, DIRSEP, hostname, port);
+				     DIRSEP, DIRSEP, hostname, remport);
 	    goto found_cert;
 	}
 	free(tcertname);
@@ -978,8 +976,6 @@ check_cert_expiry(const char *name, const char *filename,
 
 static int
 lookup_certinfo(struct gensio_os_funcs *o,
-		const char *tlssh_dir, const char *username,
-		const char *hostname, int port,
 		char **rCAspec, char **rcertspec, char **rkeyspec)
 {
     return GE_NOTFOUND;
@@ -1072,7 +1068,7 @@ auth_event(struct gensio *io, void *user_data, int event, int ierr,
 
 	if (!ierr) {
 	    /* Found a certificate, make sure it's the right one. */
-	    err1 = verify_cert(ginfo->o, cert, CAname, hostname, port);
+	    err1 = verify_cert(ginfo->o, cert, CAname, hostname, remport);
 	    err2 = verify_cert(ginfo->o, cert, CAname, raddr, 0);
 	    if ((err1 == GE_CERTNOTFOUND && err1 == err2) ||
 			(err1 == GE_CERTNOTFOUND && !err2) ||
@@ -1109,7 +1105,8 @@ auth_event(struct gensio *io, void *user_data, int event, int ierr,
 		} while (true);
 		if (!err) {
 		    if (err1)
-			err = add_cert(ginfo->o, cert, CAname, hostname, port);
+			err = add_cert(ginfo->o, cert, CAname,
+				       hostname, remport);
 		    if (!err && err2)
 			err = add_cert(ginfo->o, cert, CAname, raddr, 0);
 		}
@@ -1142,7 +1139,7 @@ auth_event(struct gensio *io, void *user_data, int event, int ierr,
 		    "or\n"
 		    "  %s/%s.crt\n"
 		    "%s\n",
-		    CAname, hostname, port, CAname, raddr, errstr);
+		    CAname, hostname, remport, CAname, raddr, errstr);
 	    return ierr;
 	}
 
@@ -1203,7 +1200,7 @@ auth_event(struct gensio *io, void *user_data, int event, int ierr,
 	    return GE_NOMEM;
 	}
 
-	err = add_cert(ginfo->o, cert, CAname, hostname, port);
+	err = add_cert(ginfo->o, cert, CAname, hostname, remport);
 	if (!err)
 	    err = add_cert(ginfo->o, cert, CAname, raddr, 0);
 
@@ -1622,9 +1619,9 @@ mdns_cb(struct gensio_mdns_watch *w,
     }
     portstr = strrchr(addrstr, ',');
     if (!portstr)
-	port = 0;
+	remport = 0;
     else
-	port = strtoul(portstr + 1, NULL, 0);
+	remport = strtoul(portstr + 1, NULL, 0);
 
     cb_data->transport = gensio_alloc_sprintf(o, "%s(readbuf=20000),%s",
 					      protocol, addrstr);
@@ -1870,7 +1867,7 @@ main(int argc, char *argv[])
 		certname = s;
 	    }
 	} else if ((err = cmparg_uint(argc, argv, &arg, "-p", "--port",
-				      &port))) {
+				      &remport))) {
 	    ;
 	} else if (((err = cmparg(argc, argv, &arg, NULL, "--certname",
 				  &cstr))) ||
@@ -2004,58 +2001,58 @@ main(int argc, char *argv[])
     arg++;
     if (arg < argc) {
 	int i;
-	unsigned int len = 0;
+	unsigned int svclen = 0;
 
 	/* User gave us a remote program. */
 	for (i = arg; i < argc; i++)
-	    len += strlen(argv[i]) + 1; /* Extra space for nil at end */
-	len += 9; /* Space for "program:" and final nil. */
+	    svclen += strlen(argv[i]) + 1; /* Extra space for nil at end */
+	svclen += 9; /* Space for "program:" and final nil. */
 	/* Note that ending '\0' is handled by final space. */
 
-	service = malloc(len);
+	service = malloc(svclen);
 	if (!service) {
 	    fprintf(stderr, "Unable to allocate remote program request\n");
 	    return 1;
 	}
 	strcpy(service, "program:");
-	len = 8;
+	svclen = 8;
 	for (i = arg; i < argc; i++) {
-	    len += sprintf(service + len, "%s", argv[i]);
-	    service[len++] = '\0';
+	    svclen += sprintf(service + svclen, "%s", argv[i]);
+	    service[svclen++] = '\0';
 	}
-	service[len++] = '\0';
+	service[svclen++] = '\0';
 
 	userdata1.ios = io1_default_notty;
 	userdata1.interactive = false;
-	service_len = len;
+	service_len = svclen;
     } else {
 	char *termvar = getenv("TERM");
-	unsigned int len = 0;
+	unsigned int termlen = 0;
 
 #ifdef _WIN32
 	if (!termvar)
 	    termvar = "xterm";
 #endif
 	if (termvar) {
-	    len = 6 + 5 + strlen(termvar) + 2;
-	    service = malloc(len);
+	    termlen = 6 + 5 + strlen(termvar) + 2;
+	    service = malloc(termlen);
 	    if (!service) {
 		fprintf(stderr, "Unable to allocate remote login request\n");
 		return 1;
 	    }
-	    len = sprintf(service, "login:TERM=%s", termvar);
-	    service[len++] = '\0';
-	    service[len++] = '\0';
+	    termlen = sprintf(service, "login:TERM=%s", termvar);
+	    service[termlen++] = '\0';
+	    service[termlen++] = '\0';
 	} else {
 	    service = malloc(6 + 1);
 	    if (!service) {
 		fprintf(stderr, "Unable to allocate remote login request\n");
 		return 1;
 	    }
-	    len = sprintf(service, "login:");
-	    service[len++] = '\0';
+	    termlen = sprintf(service, "login:");
+	    service[termlen++] = '\0';
 	}
-	service_len = len;
+	service_len = termlen;
     }
 
     if (!tlssh_dir) {
@@ -2119,8 +2116,7 @@ main(int argc, char *argv[])
     userdata1.user_io = userdata1.io;
     userdata2.user_io = userdata1.io;
 
-    err = lookup_certinfo(o, tlssh_dir, username, hostname, port,
-			  &CAspec, &certspec, &keyspec);
+    err = lookup_certinfo(o, &CAspec, &certspec, &keyspec);
     if (err)
 	return 1;
 
@@ -2153,7 +2149,7 @@ main(int argc, char *argv[])
 			  "%s%s),ssl(%s),%s,%s%s,%d",
 			  do_telnet, muxstr, username, certspec,
 			  keyspec, pfx_2fa, val_2fa, CAspec,
-			  transport, iptype, hostname, port);
+			  transport, iptype, hostname, remport);
     if (!s) {
 	fprintf(stderr, "out of memory allocating IO string\n");
 	return 1;

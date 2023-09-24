@@ -1734,18 +1734,18 @@ static int
 certauth_ul_write(struct gensio_filter *filter,
 		  gensio_ul_filter_data_handler handler, void *cb_data,
 		  gensiods *rcount,
-		  const struct gensio_sg *sg, gensiods sglen,
+		  const struct gensio_sg *isg, gensiods sglen,
 		  const char *const *auxdata)
 {
     struct certauth_filter *sfilter = filter_to_certauth(filter);
     int rv = 0;
 
     certauth_lock(sfilter);
-    if (sg) {
+    if (isg) {
 	if (sfilter->state != CERTAUTH_PASSTHROUGH || sfilter->pending_err)
 	    rv = GE_NOTREADY;
 	else
-	    rv = handler(cb_data, rcount, sg, sglen, auxdata);
+	    rv = handler(cb_data, rcount, isg, sglen, auxdata);
 	if (rv)
 	    goto out_unlock;
     }

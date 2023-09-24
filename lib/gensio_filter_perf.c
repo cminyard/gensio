@@ -216,7 +216,7 @@ static int
 perf_ul_write(struct gensio_filter *filter,
 	      gensio_ul_filter_data_handler handler, void *cb_data,
 	      gensiods *rcount,
-	      const struct gensio_sg *sg, gensiods sglen,
+	      const struct gensio_sg *isg, gensiods sglen,
 	      const char *const *auxdata)
 {
     struct perf_filter *pfilter = filter_to_perf(filter);
@@ -225,7 +225,7 @@ perf_ul_write(struct gensio_filter *filter,
 
     /* Just ignore data from the upper layer. */
     for (i = 0; i < sglen; i++)
-	writelen += sg[i].buflen;
+	writelen += isg[i].buflen;
     if (rcount)
 	*rcount = writelen;
 
