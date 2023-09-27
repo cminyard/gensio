@@ -1030,7 +1030,7 @@ conaccna_set_accept_callback_enable(struct gensio_accepter *accepter,
  out_unlock:
     conaccna_unlock(nadata);
 
-    return 0;
+    return rv;
 }
 
 static void
