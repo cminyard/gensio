@@ -1145,7 +1145,6 @@ udpn_control(struct gensio *io, bool get, int option,
 	    val = !!strtoul(data, NULL, 0);
 	    udpna_lock(nadata);
 	    if (ndata->extrainfo != val) {
-		err = 0;
 		if ((val && nadata->extrainfo == 0) ||
 			(!val && nadata->extrainfo == 1)) {
 		    err = o->sock_control(iod, GENSIO_SOCKCTL_SET_EXTRAINFO,
