@@ -1877,8 +1877,6 @@ check_for_sigpending(sigset_t *check_for)
 void
 gensio_os_proc_cleanup(struct gensio_os_proc_data *data)
 {
-    int sig;
-
     /* We should be single-threaded here. */
     while (data->cleanup_handlers) {
 	struct gensio_os_cleanup_handler *h = data->cleanup_handlers;
@@ -1910,7 +1908,7 @@ gensio_os_proc_cleanup(struct gensio_os_proc_data *data)
     sigaction(SIGCHLD, &data->old_sigchld, NULL);
 
     /* Clear out any pending signals before we restore the mask. */
-    while ((sig = check_for_sigpending(&data->check_sigs)) > 0)
+    while (check_for_sigpending(&data->check_sigs) > 0)
 	;
 
     sigprocmask(SIG_SETMASK, &data->old_sigs, NULL);
