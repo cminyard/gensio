@@ -319,8 +319,11 @@ gensio_os_free_net_ifs(struct gensio_os_funcs *o,
 {
     unsigned int i, j;
 
+    if (!ifs)
+	return;
+
     for (i = 0; i < nifs; i++) {
-	if (!ifs)
+	if (!ifs[i])
 	    continue;
 	if (ifs[i]->name)
 	    gensio_os_funcs_zfree(o, ifs[i]->name);
