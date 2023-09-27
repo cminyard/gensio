@@ -109,8 +109,8 @@ alloc_lock_names(struct gensio_os_funcs *o,
     if (!err)
 	err = uucp_svr4_lock(o, fd, &name2);
     if (err) {
-	if (name2)
-	    o->free(o, name2);
+	if (name1)
+	    o->free(o, name1);
     } else {
 	*rname1 = name1;
 	*rname2 = name2;

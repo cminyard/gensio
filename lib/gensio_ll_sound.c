@@ -872,8 +872,8 @@ gensio_sound_ll_check_read(struct sound_ll *soundll)
 	if (soundll->err) {
 	    soundll->in_read = true;
 	    gensio_sound_ll_unlock(soundll);
-	    count = soundll->cb(soundll->cb_data, GENSIO_LL_CB_READ,
-				soundll->err, NULL, 0, NULL);
+	    soundll->cb(soundll->cb_data, GENSIO_LL_CB_READ,
+			soundll->err, NULL, 0, NULL);
 	    gensio_sound_ll_lock(soundll);
 	    soundll->in_read = false;
 	    goto out;
