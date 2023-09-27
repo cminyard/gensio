@@ -825,11 +825,10 @@ gensio_addr_addrinfo_scan_ips(struct gensio_os_funcs *o, const char *str,
 		goto redo_getaddrinfo;
 	    }
 #endif
-	    if (gotaddr) {
+	    if (gotaddr)
 		/* We got some address earlier, go with it. */
-		rv = 0;
 		goto ignore_getaddr_error;
-	    }
+
 	    switch (rv) {
 #ifdef EAI_INTR
 	    case EAI_INTR:
