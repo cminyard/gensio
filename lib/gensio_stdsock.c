@@ -304,9 +304,9 @@ gensio_os_sctp_open_sockets(struct gensio_os_funcs *o,
 
  out_err:
     sctp_shutdown_fds(o, fds, nr_fds);
+#if !HAVE_WORKING_PORT0
     fds = NULL;
     nr_fds = 0;
-#if !HAVE_WORKING_PORT0
     if (rv == GE_ADDRINUSE && scaninfo.start != 0 &&
 		scaninfo.curr != scaninfo.start) {
 	/* We need to keep scanning. */
