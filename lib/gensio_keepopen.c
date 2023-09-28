@@ -474,6 +474,7 @@ keepn_open(struct gensio *io, gensio_done_err open_done, void *open_data)
 	ndata->last_child_err = err;
 	ndata->state = KEEPN_OPEN_INIT_FAIL;
 	keepn_start_zero_timer(ndata);
+	err = 0;
     } else {
 	ndata->last_child_err = 0;
 	ndata->state = KEEPN_IN_OPEN;
@@ -483,7 +484,7 @@ keepn_open(struct gensio *io, gensio_done_err open_done, void *open_data)
  out_unlock:
     keepn_unlock(ndata);
 
-    return 0;
+    return err;
 }
 
 static int
