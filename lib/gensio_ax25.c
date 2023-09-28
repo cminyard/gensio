@@ -3723,8 +3723,6 @@ ax25_child_write_ready(struct ax25_base *base)
 	if (!chan)
 	    goto skip;
 
-	sglen = 0;
-	len = 0;
 	if (chan->cmdrsp_len > 0) {
 	    ccr = &(chan->cmdrsp[chan->cmdrsp_pos]);
 	    /* Set command/response. */
