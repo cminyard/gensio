@@ -257,6 +257,8 @@ main(int argc, char *argv[])
 		    argv[arg]);
 	    return 1;
 	}
+	if (rv < 0)
+	    return 1;
     }
 
     rv = gensio_default_os_hnd(GENSIOSIG, &osh);
