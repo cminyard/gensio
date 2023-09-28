@@ -1929,9 +1929,11 @@ main(int argc, char *argv[])
 				 NULL))) {
 	    aux_data.flags |= GTLSSH_AUX_FLAG_PRIVILEGED;
 	} else if ((err = cmparg(argc, argv, &arg, "-L", NULL, &addr))) {
-	    err = handle_port(o, false, addr);
+	    if (err >= 0)
+		err = handle_port(o, false, addr);
 	} else if ((err = cmparg(argc, argv, &arg, "-R", NULL, &addr))) {
-	    err = handle_port(o, true, addr);
+	    if (err >= 0)
+		err = handle_port(o, true, addr);
 	} else if ((err = cmparg(argc, argv, &arg, "-4", NULL, NULL))) {
 	    iptype = "ipv4,";
 	} else if ((err = cmparg(argc, argv, &arg, "-6", NULL, NULL))) {
