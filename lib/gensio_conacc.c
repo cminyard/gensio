@@ -657,6 +657,19 @@ conaccn_open_done(struct gensio *io, int err, void *open_data)
     struct conaccn_data *ndata = open_data;
     struct conaccna_data *nadata = ndata->nadata;
 
+    conaccna_lock(nadata);
+    if (nadata->state == CONACCNA_OPEN_SHUTDOWN ||
+		nadata->state == CONACCNA_OPEN_DISABLE) {
+	/*
+	 * A close has been done, let the processing be handled in the
+	 * close callback, as it is guarnateed to happen after the
+	 * open callback.
+	 */
+	conaccna_unlock(nadata);
+	return;
+    }
+    conaccna_unlock(nadata);
+
     if (err)
 	goto out_err;
 
@@ -686,6 +699,7 @@ conaccn_open_done(struct gensio *io, int err, void *open_data)
     case CONACCNA_DEAD:
     case CONACCNA_IN_DISABLE:
     case CONACCNA_IN_DISABLE_RESTART:
+    case CONACCNA_OPEN_SHUTDOWN:
 	assert(0);
 	break;
 
@@ -702,10 +716,6 @@ conaccn_open_done(struct gensio *io, int err, void *open_data)
 	}
 	nadata->state = CONACCNA_READY;
 	break;
-
-    case CONACCNA_OPEN_SHUTDOWN:
-	conaccna_finish_shutdown(nadata);
-	goto out_cleanup;
 
     case CONACCNA_OPEN_DISABLE:
 	nadata->state = CONACCNA_DISABLED;
@@ -874,12 +884,37 @@ conaccna_startup(struct gensio_accepter *accepter,
     return rv;
 }
 
+static void
+conaccn_shutdown_close_done(struct gensio *child_io, void *close_cb_data)
+{
+    struct conaccn_data *ndata = close_cb_data;
+    struct conaccna_data *nadata = ndata->nadata;
+
+    conaccn_finish_free(ndata);
+    conaccna_lock(nadata);
+    nadata->ndata = NULL;
+    switch (nadata->state) {
+    case CONACCNA_OPEN_DISABLE:
+	nadata->state = CONACCNA_DISABLED;
+	break;
+
+    case CONACCNA_OPEN_SHUTDOWN:
+	conaccna_finish_shutdown(nadata);
+	break;
+
+    default:
+	assert(0);
+    }
+    conaccna_deref_and_unlock(nadata);
+}
+
 static int
 conaccna_shutdown(struct gensio_accepter *accepter,
 		  struct conaccna_data *nadata,
 		  gensio_acc_done shutdown_done)
 {
     struct gensio_os_funcs *o = nadata->o;
+    struct conaccn_data *ndata;
     int rv = 0, err;
 
     conaccna_lock(nadata);
@@ -891,8 +926,14 @@ conaccna_shutdown(struct gensio_accepter *accepter,
 	break;
 
     case CONACCNA_OPENING:
-	/* Let the shutdown happen when the open completes. */
-	nadata->state = CONACCNA_OPEN_SHUTDOWN;
+	ndata = nadata->ndata;
+	err = gensio_close(ndata->child, conaccn_shutdown_close_done, ndata);
+	if (err) {
+	    nadata->state = CONACCNA_IN_SHUTDOWN;
+	    conaccna_deferred_op(nadata);
+	} else {
+	    nadata->state = CONACCNA_OPEN_SHUTDOWN;
+	}
 	break;
 
     case CONACCNA_READY:
@@ -977,8 +1018,18 @@ conaccna_set_accept_callback_enable(struct gensio_accepter *accepter,
 	break;
 
     case CONACCNA_OPENING:
-	if (!enabled)
-	    nadata->state = CONACCNA_OPEN_DISABLE;
+	if (!enabled) {
+	    struct conaccn_data *ndata = nadata->ndata;
+
+	    err = gensio_close(ndata->child, conaccn_shutdown_close_done,
+			       ndata);
+	    if (err) {
+		nadata->state = CONACCNA_IN_DISABLE;
+	    } else {
+		nadata->state = CONACCNA_OPEN_DISABLE;
+		do_deferred = false;
+	    }
+	}
 	break;
 
     case CONACCNA_READY:
