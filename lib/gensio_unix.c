@@ -1026,7 +1026,7 @@ gensio_handle_fork(struct gensio_os_funcs *f)
 
 static int
 gensio_unix_add_iod(struct gensio_os_funcs *o, enum gensio_iod_type type,
-		    intptr_t ofd, struct gensio_iod **riod)
+		    intptr_t ofd, struct gensio_iod **riod, ...)
 {
     struct gensio_iod_unix *iod = NULL;
     bool closefd = false;
