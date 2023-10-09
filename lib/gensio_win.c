@@ -3037,13 +3037,6 @@ static unsigned int win_iod_sizes[NR_GENSIO_IOD_TYPES] = {
     [GENSIO_IOD_CONSOLE] = sizeof(struct gensio_iod_win_console),
     [GENSIO_IOD_FILE] = sizeof(struct gensio_iod_win_file),
     [GENSIO_IOD_PTY] = sizeof(struct gensio_iod_win_pty),
-    /*
-     * FIXME - no GENSIO_IOD_PIPE support.  The add_iod function
-     * doesn't have a way to pass if the handle is read or write, and
-     * there's no way to tell from the handle.  If we ever need this,
-     * a ... will need to be added to add_iod and the read/write type
-     * passed there.
-     */
 };
 typedef int (*win_iod_initfunc)(struct gensio_iod_win *, void *);
 static win_iod_initfunc win_iod_init[NR_GENSIO_IOD_TYPES] = {
@@ -3115,7 +3108,7 @@ win_stdio_init(struct gensio_os_funcs *o, intptr_t fd,
 
 static int
 win_add_iod(struct gensio_os_funcs *o, enum gensio_iod_type type,
-	    intptr_t fd, struct gensio_iod **riod)
+	    intptr_t fd, struct gensio_iod **riod, ...)
 {
     int rv;
     struct gensio_iod_win *wiod;

@@ -44,7 +44,6 @@ struct gensio_iod {
 enum gensio_iod_type {
     GESNIO_IOD_INVALID, /* Not used for anything the user will see. */
     GENSIO_IOD_SOCKET,
-    /* User cannot allocate these with add_iod().  See note in gensio_win.c */
     GENSIO_IOD_PIPE,
     GENSIO_IOD_DEV,
     GENSIO_IOD_FILE,
@@ -565,10 +564,15 @@ struct gensio_os_funcs {
 
     /****** I/O Descriptors ******/
     /*
-     * Allocate an I/O descriptor for an fd.
+     * Allocate an I/O descriptor for an fd.  For pipe handles on
+     * Windows, the ... is an integer saying whether the IOD is
+     * readable or writeable.  You can pass this in on Unix, too,
+     * it will have no effect.
      */
     int (*add_iod)(struct gensio_os_funcs *o, enum gensio_iod_type type,
-		   intptr_t fd, struct gensio_iod **iod);
+		   intptr_t fd, struct gensio_iod **iod, ...);
+#define GENSIO_IOD_WRITEABLE	0
+#define GENSIO_IOD_READABLE	1
 
     /*
      * Release an allocated I/O descriptor.  Note that close() will
