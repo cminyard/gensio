@@ -3037,6 +3037,7 @@ static unsigned int win_iod_sizes[NR_GENSIO_IOD_TYPES] = {
     [GENSIO_IOD_CONSOLE] = sizeof(struct gensio_iod_win_console),
     [GENSIO_IOD_FILE] = sizeof(struct gensio_iod_win_file),
     [GENSIO_IOD_PTY] = sizeof(struct gensio_iod_win_pty),
+    [GENSIO_IOD_PIPE] = sizeof(struct gensio_iod_win_pipe),
 };
 typedef int (*win_iod_initfunc)(struct gensio_iod_win *, void *);
 static win_iod_initfunc win_iod_init[NR_GENSIO_IOD_TYPES] = {
@@ -3044,6 +3045,7 @@ static win_iod_initfunc win_iod_init[NR_GENSIO_IOD_TYPES] = {
     [GENSIO_IOD_CONSOLE] = win_iod_console_init,
     [GENSIO_IOD_FILE] = win_iod_file_init,
     [GENSIO_IOD_PTY] = win_iod_pty_init,
+    [GENSIO_IOD_PIPE] = win_iod_pipe_init,
 };
 
 static int
@@ -3112,6 +3114,8 @@ win_add_iod(struct gensio_os_funcs *o, enum gensio_iod_type type,
 {
     int rv;
     struct gensio_iod_win *wiod;
+    int readable;
+    void *info = NULL;
 
     if (type == GENSIO_IOD_STDIO)
 	return win_stdio_init(o, fd, riod);
@@ -3119,8 +3123,17 @@ win_add_iod(struct gensio_os_funcs *o, enum gensio_iod_type type,
     if (type >= NR_GENSIO_IOD_TYPES || type < 0 || win_iod_sizes[type] == 0)
 	return GE_NOTSUP;
 
+    if (type == GENSIO_IOD_PIPE) {
+	va_list ap;
+
+	va_start(ap, riod);
+	readable = va_arg(ap, int);
+	va_end(ap);
+	info = &readable;
+    }
+
     rv = win_alloc_iod(o, win_iod_sizes[type], fd, type,
-		       win_iod_init[type], NULL, &wiod);
+		       win_iod_init[type], info, &wiod);
     if (!rv)
 	*riod = &wiod->iod;
     return rv;
