@@ -517,7 +517,7 @@ main(int argc, char *argv[])
 
  out_err:
     if (pipe_tid) {
-	ci->closing = true;
+	ci.closing = true;
 	wake_pipe_thread(&ci);
 	gensio_os_wait_thread(pipe_tid);
     }
