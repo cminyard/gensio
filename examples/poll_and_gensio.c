@@ -97,7 +97,8 @@ close_done(struct gensio *io, void *close_data)
     gensio_os_funcs_unlock(ci->o, ci->close_lock);
 }
 
-static void start_close(struct coninfo *ci, int err)
+static void
+start_close(struct coninfo *ci, int err)
 {
     int rv;
 
@@ -128,9 +129,11 @@ static void start_close(struct coninfo *ci, int err)
 static void
 wake_pipe_thread(struct coninfo *ci)
 {
+#ifndef _WIN32
     char dummy = 0;
 
     write(ci->wakepipe_out, &dummy, 1);
+#endif
 }
 
 static int
@@ -247,7 +250,32 @@ open_done(struct gensio *io, int err, void *open_data)
     gensio_set_read_callback_enable(ci->io, true);
 }
 
-static void pipe_read(struct coninfo *ci)
+#ifdef _WIN32
+static void
+pipe_thread(void *data)
+{
+    struct coninfo *ci = data;
+
+    /*
+     * This is fairly difficult to implement on Windows.  Since you
+     * can't use WaitForMultipleObjects() a pipe, you need a thread to
+     * wait for the read pipe and then get the data that should then
+     * block until the stdout write is done, then read again.
+     *
+     * Then you need a thread to wait for data to be written to
+     * the to_pipe and then wake and write it to the pipe.
+     *
+     * Plus then this is prone to deadlock.
+     *
+     * Then terminating the threads is a pain.  You would need to do
+     * CancelSynchronousIO(), but that is racy so you need retries.
+     */
+    fprintf(stderr, "This is not currently supported on Windows\n");
+    start_close(ci, GE_NOTSUP);
+}
+#else
+static void
+pipe_read(struct coninfo *ci)
 {
     gensiods i;
     ssize_t rv;
@@ -308,7 +336,8 @@ static void pipe_read(struct coninfo *ci)
     gensio_os_funcs_unlock(ci->o, ci->to_stdout_lock);
 }
 
-static void pipe_write(struct coninfo *ci)
+staticvoid
+pipe_write(struct coninfo *ci)
 {
     int rv;
 
@@ -385,6 +414,7 @@ pipe_thread(void *data)
     }
     gensio_os_funcs_unlock(ci->o, ci->close_lock);
 }
+#endif
 
 int
 main(int argc, char *argv[])
