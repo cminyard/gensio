@@ -1,6 +1,6 @@
 
 noinst_PROGRAMS = basic_server basic_server_sync basic_client \
-	basic_server_sync_fork use_iods
+	basic_server_sync_fork use_iods poll_and_gensio
 
 EXTRA_DIST = basic_server.py basic_client.py
 
@@ -27,5 +27,10 @@ basic_server_sync_fork_LDADD = $(top_builddir)/lib/libgensio.la \
 use_iods_SOURCES = use_iods.c
 
 use_iods_LDADD = $(top_builddir)/lib/libgensio.la \
+	$(top_builddir)/lib/libgensioosh.la
+
+poll_and_gensio_SOURCES = poll_and_gensio.c
+
+poll_and_gensio_LDADD = $(top_builddir)/lib/libgensio.la \
 	$(top_builddir)/lib/libgensioosh.la
 
