@@ -147,6 +147,9 @@ io_event(struct gensio *io, void *user_data, int event, int err,
 
     switch (event) {
     case GENSIO_EVENT_READ:
+	/*
+	 * Data is ready from stdin, write it to the pipe.
+	 */
 	if (ci->closing) {
 	    gensio_set_read_callback_enable(ci->io, false);
 	    return 0;
@@ -162,9 +165,12 @@ io_event(struct gensio *io, void *user_data, int event, int err,
 	}
 
 	if (ci->to_pipe_len > 0) {
-	    /* Just in case */
+	    /*
+	     * Just in case, we already have data, just make the stdio
+	     * gensio wait until we have written the data we have.
+	     */
 	    gensio_set_read_callback_enable(ci->io, false);
-	    *buflen = 0;
+	    *buflen = 0; /* We didn't consume any data. */
 	    goto out_read_done;
 	}
 
@@ -192,6 +198,9 @@ io_event(struct gensio *io, void *user_data, int event, int err,
 	return 0;
 
     case GENSIO_EVENT_WRITE_READY:
+	/*
+	 * We can write to stdout, write the data we have.
+	 */
 	if (ci->closing) {
 	    gensio_set_write_callback_enable(ci->io, false);
 	    return 0;
@@ -199,7 +208,9 @@ io_event(struct gensio *io, void *user_data, int event, int err,
 
 	gensio_os_funcs_lock(ci->o, ci->to_stdout_lock);
 	if (ci->to_stdout_len == 0) {
-	    /* Just in case */
+	    /*
+	     * Just in case we get called and don't have any data.
+	     */
 	    gensio_set_write_callback_enable(ci->io, false);
 	    goto out_write_done;
 	}
@@ -219,6 +230,10 @@ io_event(struct gensio *io, void *user_data, int event, int err,
 	ci->to_stdout_len -= i;
 	ci->to_stdout_pos += i;
 	if (ci->to_stdout_len == 0) {
+	    /*
+	     * We have written all the data, let the pipe listen for
+	     * read data now.
+	     */
 	    gensio_set_write_callback_enable(ci->io, false);
 	    wake_pipe_thread(ci);
 	}
@@ -274,6 +289,9 @@ pipe_thread(void *data)
     start_close(ci, GE_NOTSUP);
 }
 #else
+/*
+ * Handle reading data from the pipe and writing it to stdout.
+ */
 static void
 pipe_read(struct coninfo *ci)
 {
@@ -325,9 +343,9 @@ pipe_read(struct coninfo *ci)
 #else
     /*
      * The other way to handle this, shown here, is to just enable the
-     * write handler and let it handle the output.  This is simpler
-     * and leaves less code that only occasionally gets run.  But it
-     * is less performant.
+     * write handler and let it handle the output in the pipe thread.
+     * This is simpler and leaves less code that only occasionally
+     * gets run.  But it is less performant.
      */
     gensio_set_write_callback_enable(ci->io, true);
 #endif
@@ -336,6 +354,9 @@ pipe_read(struct coninfo *ci)
     gensio_os_funcs_unlock(ci->o, ci->to_stdout_lock);
 }
 
+/*
+ * Write data to the pipe if any is available.
+ */
 static void
 pipe_write(struct coninfo *ci)
 {
@@ -378,12 +399,21 @@ pipe_thread(void *data)
     while (!ci->closing) {
 	gensio_os_funcs_unlock(ci->o, ci->close_lock);
 
+	/*
+	 * Only read from the pipe if we don't have any data already
+	 * pending that was read from the pipe.
+	 */
 	gensio_os_funcs_lock(ci->o, ci->to_stdout_lock);
 	if (ci->to_stdout_len == 0)
 	    fds[0].events = POLLIN;
 	else
 	    fds[0].events = 0;
 	gensio_os_funcs_unlock(ci->o, ci->to_stdout_lock);
+
+	/*
+	 * Only enable write to the pipe if there is data that needs
+	 * to be sent.
+	 */
 	gensio_os_funcs_lock(ci->o, ci->to_pipe_lock);
 	if (ci->to_pipe_len > 0)
 	    fds[1].events = POLLOUT;
@@ -391,7 +421,9 @@ pipe_thread(void *data)
 	    fds[1].events = 0;
 	gensio_os_funcs_unlock(ci->o, ci->to_pipe_lock);
 
+	/* Always handle the wakeup event. */
 	fds[2].events = POLLIN;
+
 	fds[0].revents = 0;
 	fds[1].revents = 0;
 	fds[2].revents = 0;
@@ -408,6 +440,7 @@ pipe_thread(void *data)
 	if (fds[1].events)
 	    pipe_write(ci);
 	if (fds[2].events)
+	    /* We were woken, just clean out the pipe. */
 	    read(ci->wakepipe_in, &dummy, 1);
 
 	gensio_os_funcs_lock(ci->o, ci->close_lock);
