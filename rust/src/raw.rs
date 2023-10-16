@@ -1,19 +1,24 @@
 use std::ffi;
-
-#[repr(C)]
-pub struct gensio_time {
-    pub secs: i64,
-    pub nsecs: i32
-}
-
-#[allow(non_camel_case_types)]
-pub type gensiods = ffi::c_ulong;
-
-#[repr(C)]
-pub struct gensio_waiter;
+use crate::osfuncs::raw::gensiods;
+use crate::osfuncs::raw::gensio_os_funcs;
 
 #[repr(C)]
 pub struct gensio;
+
+pub const GENSIO_EVENT_READ:		ffi::c_int = 1;
+pub const GENSIO_EVENT_WRITE_READY:	ffi::c_int = 2;
+pub const GENSIO_EVENT_NEW_CHANNEL:	ffi::c_int = 3;
+pub const GENSIO_EVENT_SEND_BREAK:	ffi::c_int = 4;
+pub const GENSIO_EVENT_AUTH_BEGIN:	ffi::c_int = 5;
+pub const GENSIO_EVENT_PRECERT_VERIFY:	ffi::c_int = 6;
+pub const GENSIO_EVENT_POSTCERT_VERIFY:	ffi::c_int = 7;
+pub const GENSIO_EVENT_PASSWORD_VERIFY:	ffi::c_int = 8;
+pub const GENSIO_EVENT_REQUEST_PASSWORD: ffi::c_int = 9;
+pub const GENSIO_EVENT_REQUEST_2FA:	ffi::c_int = 10;
+pub const GENSIO_EVENT_2FA_VERIFY:	ffi::c_int = 11;
+pub const GENSIO_EVENT_PARMLOG:	ffi::c_int = 12; // struct gensio_parm_data
+pub const GENSIO_EVENT_WIN_SIZE: ffi::c_int = 13;
+pub const GENSIO_EVENT_LOG: ffi::c_int = 14; // struct gensio_log_data
 
 #[allow(non_camel_case_types)]
 pub type gensio_event = extern "C" fn (io: *const gensio,
@@ -32,37 +37,6 @@ pub type gensio_done_err = extern "C" fn (io: *const gensio,
 #[allow(non_camel_case_types)]
 pub type gensio_done = extern "C" fn (io: *const gensio,
 				      user_data: *mut ffi::c_void);
-
-#[repr(C)]
-pub struct gensio_os_funcs;
-
-#[link(name = "gensioosh")]
-extern "C" {
-    #[allow(improper_ctypes)]
-    pub fn gensio_default_os_hnd(wake_sig: ffi::c_int,
-				 o: *const *const gensio_os_funcs)
-				 -> ffi::c_int;
-
-    #[allow(improper_ctypes)]
-    pub fn gensio_os_funcs_alloc_waiter(o: *const gensio_os_funcs)
-					-> *const gensio_waiter;
-
-    #[allow(improper_ctypes)]
-    pub fn gensio_os_funcs_wait(o: *const gensio_os_funcs,
-				w: *const gensio_waiter, count: ffi::c_uint,
-				timeout: &gensio_time) -> ffi::c_int;
-
-    #[allow(improper_ctypes)]
-    pub fn gensio_os_funcs_wake(o: *const gensio_os_funcs,
-				w: *const gensio_waiter) -> ffi::c_int;
-
-    #[allow(improper_ctypes)]
-    pub fn gensio_os_funcs_free_waiter(o: *const gensio_os_funcs,
-				       w: *const gensio_waiter);
-
-    #[allow(improper_ctypes)]
-    pub fn gensio_os_funcs_free(o: *const gensio_os_funcs);
-}
 
 #[link(name = "gensio")]
 extern "C" {
@@ -101,6 +75,16 @@ extern "C" {
 #[cfg(test)]
 mod tests {
     use std::rc::Rc;
+    use crate::osfuncs::raw::gensio_time;
+
+    use crate::osfuncs::raw::gensio_default_os_hnd;
+    use crate::osfuncs::raw::gensio_os_funcs_free;
+
+    use crate::osfuncs::raw::gensio_waiter;
+    use crate::osfuncs::raw::gensio_os_funcs_alloc_waiter;
+    use crate::osfuncs::raw::gensio_os_funcs_free_waiter;
+    use crate::osfuncs::raw::gensio_os_funcs_wake;
+    use crate::osfuncs::raw::gensio_os_funcs_wait;
     use super::*;
 
     struct GData {

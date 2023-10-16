@@ -1,5 +1,6 @@
 use std::ffi;
 
+pub mod osfuncs;
 pub mod raw;
 
 extern "C" {
@@ -13,19 +14,26 @@ pub fn printfit(s: &str) {
     }
 }
 
-pub fn add(left: usize, right: usize) -> usize {
-    left + right
+pub trait GensioEvent {
+    fn read(err: i32, buf: &[u8], auxdata: Option<Vec<String>>) -> (i32, u64);
+}
+
+pub struct Gensio {
+    g: *const raw::gensio
+}
+
+pub fn new(_s: String, _o: osfuncs::OsFuncs, _cb: &impl GensioEvent)
+	   -> Result<Gensio, i32>
+{
+    Err(osfuncs::raw::GE_NOTSUP)
+}
+
+impl Gensio {
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
-    }
 
     #[test]
     fn printf_test() {
