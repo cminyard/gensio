@@ -80,6 +80,10 @@ mod tests {
     use crate::osfuncs::raw::gensio_default_os_hnd;
     use crate::osfuncs::raw::gensio_os_funcs_free;
 
+    use crate::osfuncs::raw::gensio_os_proc_data;
+    use crate::osfuncs::raw::gensio_os_proc_setup;
+    use crate::osfuncs::raw::gensio_os_proc_cleanup;
+
     use crate::osfuncs::raw::gensio_waiter;
     use crate::osfuncs::raw::gensio_os_funcs_alloc_waiter;
     use crate::osfuncs::raw::gensio_os_funcs_free_waiter;
@@ -150,7 +154,12 @@ mod tests {
 
 	let o: *const gensio_os_funcs = std::ptr::null();
 	unsafe {
-	    err = gensio_default_os_hnd(0, &o);
+	    err = gensio_default_os_hnd(-198234, &o);
+	}
+	let p: *const gensio_os_proc_data = std::ptr::null();
+	assert_eq!(err, 0);
+	unsafe {
+	    err = gensio_os_proc_setup(o, &p);
 	}
 	assert_eq!(err, 0);
 	let w;
@@ -207,6 +216,7 @@ mod tests {
 	unsafe {
 	    gensio_free(d.g);
 	    gensio_os_funcs_free_waiter(d.o, d.w);
+	    gensio_os_proc_cleanup(p);
 	    gensio_os_funcs_free(d.o);
 	}
     }
