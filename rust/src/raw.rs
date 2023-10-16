@@ -29,6 +29,10 @@ pub type gensio_done_err = extern "C" fn (io: *const gensio,
 					  err: ffi::c_int,
 					  user_data: *mut ffi::c_void);
 
+#[allow(non_camel_case_types)]
+pub type gensio_done = extern "C" fn (io: *const gensio,
+				      user_data: *mut ffi::c_void);
+
 #[repr(C)]
 pub struct gensio_os_funcs;
 
@@ -51,6 +55,13 @@ extern "C" {
     #[allow(improper_ctypes)]
     pub fn gensio_os_funcs_wake(o: *const gensio_os_funcs,
 				w: *const gensio_waiter) -> ffi::c_int;
+
+    #[allow(improper_ctypes)]
+    pub fn gensio_os_funcs_free_waiter(o: *const gensio_os_funcs,
+				       w: *const gensio_waiter);
+
+    #[allow(improper_ctypes)]
+    pub fn gensio_os_funcs_free(o: *const gensio_os_funcs);
 }
 
 #[link(name = "gensio")]
@@ -69,6 +80,13 @@ extern "C" {
     #[allow(improper_ctypes)]
     pub fn gensio_open(io: *const gensio, open_done: gensio_done_err,
 		       open_data: *mut ffi::c_void) -> ffi::c_int;
+
+    #[allow(improper_ctypes)]
+    pub fn gensio_close(io: *const gensio, close_done: gensio_done,
+			close_data: *mut ffi::c_void) -> ffi::c_int;
+
+    #[allow(improper_ctypes)]
+    pub fn gensio_free(io: *const gensio);
 
     #[allow(improper_ctypes)]
     pub fn gensio_write(io: *const gensio, count: &mut gensiods,
@@ -96,12 +114,19 @@ mod tests {
 			 buf: *const ffi::c_void, buflen: *mut gensiods,
 			 _auxdata: *const *const ffi::c_char) -> ffi::c_int
     {
-	let b = buf as *mut i8;
+	// Convert the buffer into a slice.  You can't use it directly as
+	// a pointer to create a CString with from_raw() because then Rust
+	// takes over ownership of the data, and will free it when this
+	// function exits.
+	let b = 
+	    unsafe {
+		std::slice::from_raw_parts(buf as *mut u8, *buflen as usize)
+	    };
 
 	let s;
 	unsafe {
-	    assert_eq!(*buflen, 8);
-	    s = ffi::CString::from_raw(b);
+	    assert_eq!(*buflen, 7);
+	    s = ffi::CString::from_vec_unchecked(b.to_vec());
 	}
 	assert_eq!(s.into_string().expect("into_string() call failed"),
 		   "teststr");
@@ -118,8 +143,17 @@ mod tests {
 			 open_data: *mut ffi::c_void)
     {
 	unsafe {
-	    //let d = unsafe { Box::<GData>::from_raw(open_data as *mut GData); };
 	    let d = open_data as *const GData;
+
+	    let err = gensio_os_funcs_wake((*d).o, (*d).w);
+	    assert_eq!(err, 0);
+	}
+    }
+
+    extern "C" fn closed(_io: *const gensio,close_data: *mut ffi::c_void)
+    {
+	unsafe {
+	    let d = close_data as *const GData;
 
 	    let err = gensio_os_funcs_wake((*d).o, (*d).w);
 	    assert_eq!(err, 0);
@@ -165,10 +199,10 @@ mod tests {
 	    let s = ffi::CString::new("teststr").expect("CString::new failed");
 	    let mut count = 0;
 	    err = gensio_write(d.g, &mut count,
-			       s.as_ptr() as *const ffi::c_void, 8,
+			       s.as_ptr() as *const ffi::c_void, 7,
 			       std::ptr::null());
 	    assert_eq!(err, 0);
-	    assert_eq!(count, 8);
+	    assert_eq!(count, 7);
 	}
 	unsafe {
 	    gensio_set_read_callback_enable(d.g, 1);
@@ -176,5 +210,20 @@ mod tests {
 				       &mut gensio_time{secs: 1, nsecs: 0});
 	}
 	assert_eq!(err, 0);
+
+	unsafe {
+	    err = gensio_close(d.g, closed, Rc::as_ptr(&d) as *mut ffi::c_void);
+	}
+	assert_eq!(err, 0);
+	unsafe {
+	    err = gensio_os_funcs_wait(d.o, d.w, 1,
+				       &mut gensio_time{secs: 1, nsecs: 0});
+	}
+	assert_eq!(err, 0);
+	unsafe {
+	    gensio_free(d.g);
+	    gensio_os_funcs_free_waiter(d.o, d.w);
+	    gensio_os_funcs_free(d.o);
+	}
     }
 }
