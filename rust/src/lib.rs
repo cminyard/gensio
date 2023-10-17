@@ -135,14 +135,65 @@ pub struct Gensio {
 
 impl std::fmt::Debug for Gensio {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-	write!(f, "gensio")
+	write!(f, "gensio {:?}", self.g)
+    }
+}
+
+// Convert an auxdata, like from a read call, to a vector of strings.
+fn auxtovec(auxdata: *const *const ffi::c_char) -> Option<Vec<String>> {
+    if auxdata == std::ptr::null() {
+	None
+    } else {
+	let sl = unsafe { std::slice::from_raw_parts(auxdata, 10000) };
+	let mut i = 0;
+	let mut v: Vec<String> = Vec::new();
+	while sl[i] != std::ptr::null() {
+	    let cs = unsafe { ffi::CStr::from_ptr(sl[i]) };
+	    v.push(cs.to_str().expect("Invalid string").to_string());
+	    i += 1;
+	}
+	if i == 0 {
+	    None
+	} else {
+	    Some(v)
+	}
+    }
+}
+
+// Convert a vector of strings to a vector of pointers to CString raw
+// values.  You use as_ptr() to get a pointer to the array for
+// something to pass into a C function that takes char **.  You must
+// call auxfree() with the returned value, which will consume it and
+// free the data.
+fn vectoaux(vi: &[String]) -> Result<Vec<*mut ffi::c_char>, i32> {
+    let mut vo: Vec<*mut ffi::c_char> = Vec::new();
+    for i in vi {
+	let cs = match ffi::CString::new(i.clone()) {
+	    Ok(v) => v,
+	    Err(_) => return Err(GE_INVAL)
+	};
+	vo.push(ffi::CString::into_raw(cs));
+    }
+    return Ok(vo);
+}
+
+// Free the value returned by vectoaux().
+fn auxfree(v: Option<Vec<*mut ffi::c_char>>) {
+    match v {
+	None => (),
+	Some(x) => {
+	    for i in x {
+		let cs = unsafe { ffi::CString::from_raw(i) };
+		drop(cs);
+	    }
+	}
     }
 }
 
 extern "C" fn evhndl(_io: *const raw::gensio, user_data: *const ffi::c_void,
 		     event: ffi::c_int, err: ffi::c_int,
 		     buf: *const ffi::c_void, buflen: *mut GensioDS,
-		     _auxdata: *const *const ffi::c_char) -> ffi::c_int
+		     auxdata: *const *const ffi::c_char) -> ffi::c_int
 {
     let g = user_data as *mut Gensio;
 
@@ -160,8 +211,9 @@ extern "C" fn evhndl(_io: *const raw::gensio, user_data: *const ffi::c_void,
 	    let b = unsafe {
 		std::slice::from_raw_parts(buf as *mut u8, *buflen as usize)
 	    };
+	    let a = auxtovec(auxdata);
 	    let count;
-	    (err, count) = unsafe { (*g).cb.read(b, None) };
+	    (err, count) = unsafe { (*g).cb.read(b, a) };
 	    unsafe { *buflen = count as GensioDS; }
 	}
 	_ => err = GE_NOTSUP
@@ -246,16 +298,25 @@ impl Gensio {
     /// Write some data to the gensio.  On success, the number of
     /// bytes written is returned.  On failure an error code is
     /// returned.
-    pub fn write(&self, data: &[u8], _auxdata: Option<Vec<String>>)
+    pub fn write(&self, data: &[u8], auxdata: Option<&[String]>)
 		 -> Result<u64, i32> {
 	let mut count: GensioDS = 0;
+	let a1 = match auxdata {
+	    None => None,
+	    Some(ref v) => Some(vectoaux(v)?)
+	};
+	let a2: *mut *mut ffi::c_char = match a1 {
+	    None => std::ptr::null_mut(),
+	    Some(ref v) => v.as_ptr() as *mut *mut ffi::c_char
+	};
 
 	let err = unsafe {
 	    raw::gensio_write(self.g, &mut count,
 			      data.as_ptr() as *const ffi::c_void,
 			      data.len() as GensioDS,
-			      std::ptr::null())
+			      a2 as *const *const ffi::c_char)
 	};
+	auxfree(a1);
 	match err {
 	    0 => Ok(count),
 	    _ => Err(err)
@@ -333,11 +394,14 @@ mod tests {
 	o.proc_setup().expect("Couldn't setup proc");
 	let w = o.new_waiter().expect("Couldn't allocate waiter");
 	let e = Arc::new(EvStruct { w: w });
-	let g = new("echo".to_string(), &o, e.clone()).expect("Couldn't alloc gensio");
+	let g = new("echo".to_string(), &o, e.clone())
+	    .expect("Couldn't alloc gensio");
 	g.open(e.clone()).expect("Couldn't open genio");
 	e.w.wait(1, &Duration::new(1, 0)).expect("Wait failed");
 	g.read_enable(true);
-	let count = g.write(&b"teststr".to_vec()[..], None).expect("Write failed");
+	let v1 = vec!["t1".to_string(), "t2".to_string()];
+	let count = g.write(&b"teststr".to_vec()[..], Some(&v1))
+			    .expect("Write failed");
 	assert_eq!(count, 7);
 	e.w.wait(1, &Duration::new(1, 0)).expect("Wait failed");
 	g.close(e.clone()).expect("Couldn't close gensio");
