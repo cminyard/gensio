@@ -60,6 +60,9 @@ extern "C" {
 			close_data: *mut ffi::c_void) -> ffi::c_int;
 
     #[allow(improper_ctypes)]
+    pub fn gensio_close_s(io: *const gensio) -> ffi::c_int;
+
+    #[allow(improper_ctypes)]
     pub fn gensio_free(io: *const gensio);
 
     #[allow(improper_ctypes)]
@@ -127,9 +130,10 @@ mod tests {
 	0
     }
 
-    extern "C" fn opened(_io: *const gensio, _err: ffi::c_int,
+    extern "C" fn opened(_io: *const gensio, err: ffi::c_int,
 			 open_data: *mut ffi::c_void)
     {
+	assert_eq!(err, 0);
 	unsafe {
 	    let d = open_data as *const GData;
 

@@ -1,4 +1,10 @@
+//! # gensio
+//!
+//! `gensio` is a tool for handling all sort of I/O.
+
 use std::ffi;
+use std::sync::Arc;
+use std::rc::Rc;
 
 pub mod osfuncs;
 pub mod raw;
@@ -46,6 +52,8 @@ pub const GE_NAME_SERVER_FAILURE:	i32 = 40;
 pub const GE_NAME_INVALID:		i32 = 41;
 pub const GE_NAME_NET_NOT_UP:		i32 = 42;
 
+type GensioDS = osfuncs::raw::gensiods;
+
 extern "C" {
     fn printf(s: *const ffi::c_char);
 }
@@ -57,29 +65,259 @@ pub fn printfit(s: &str) {
     }
 }
 
+/// Open callbacks will need to implement this trait.
+pub trait OpDoneErr {
+    /// Report an error.  Unlike most other gensio interfaces,
+    /// which combine the error with the read() method, the error
+    /// report is done separately here.
+    fn done_err(&self, err: i32);
+
+    /// Report some received data.  The i32 return (first value in
+    /// tuble) return is the error return, normally 0, and the u64
+    /// (second value) is the number of bytes consumed.
+    fn done(&self);
+}
+
+struct OpDoneErrData<'a> {
+    cb: &'a dyn OpDoneErr
+}
+
+extern "C" fn op_done_err(_io: *const raw::gensio, err: ffi::c_int,
+			  user_data: *mut ffi::c_void) {
+    let d = user_data as *const OpDoneErrData;
+    let d = unsafe { Rc::from_raw(d) }; // Use from_raw so it will be freed
+    let cb = d.cb;
+    if err == 0 {
+	cb.done();
+    } else {
+	cb.done_err(err);
+    }
+}
+
+/// Close callbacks will need to implement this trait.
+pub trait OpDone {
+    /// Report some received data.  The i32 return (first value in
+    /// tuble) return is the error return, normally 0, and the u64
+    /// (second value) is the number of bytes consumed.
+    fn done(&self);
+}
+
+struct OpDoneData<'a> {
+    cb: &'a dyn OpDone
+}
+
+extern "C" fn op_done(_io: *const raw::gensio,
+		      user_data: *mut ffi::c_void) {
+    let d = user_data as *const OpDoneData;
+    let d = unsafe { Rc::from_raw(d) }; // Use from_raw so it will be freed
+    let cb = d.cb;
+    cb.done();
+}
+
+/// The struct that gets callbacks from a gensio will need to
+/// implement this trait.
 pub trait GensioEvent {
-    fn read(err: i32, buf: &[u8], auxdata: Option<Vec<String>>) -> (i32, u64);
+    /// Report a read error.  Unlike most other gensio interfaces,
+    /// which combine the error with the read() method, the error
+    /// report is done separately here.
+    fn err(&self, err: i32) -> i32;
+
+    /// Report some received data.  The i32 return (first value in
+    /// tuble) return is the error return, normally 0, and the u64
+    /// (second value) is the number of bytes consumed.
+    fn read(&self, buf: &[u8], auxdata: Option<Vec<String>>) -> (i32, u64);
 }
 
-pub struct Gensio {
-    g: *const raw::gensio
+/// A gensio
+pub struct Gensio<'a> {
+    _o: Arc<osfuncs::IOsFuncs>, // Used to keep the os funcs alive.
+    g: *const raw::gensio,
+    cb: &'a dyn GensioEvent
 }
 
-pub fn new(_s: String, _o: osfuncs::OsFuncs, _cb: &impl GensioEvent)
-	   -> Result<Gensio, i32>
+impl std::fmt::Debug for Gensio<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+	write!(f, "gensio")
+    }
+}
+
+extern "C" fn evhndl(_io: *const raw::gensio, user_data: *const ffi::c_void,
+		     event: ffi::c_int, err: ffi::c_int,
+		     buf: *const ffi::c_void, buflen: *mut GensioDS,
+		     _auxdata: *const *const ffi::c_char) -> ffi::c_int
 {
-    Err(GE_NOTSUP)
+    let g = user_data as *mut Gensio;
+    let cb = unsafe { (*g).cb };
+
+    if err != 0 {
+	return cb.err(err);
+    }
+
+    let err;
+    match event {
+	raw::GENSIO_EVENT_READ => {
+	    // Convert the buffer into a slice.  You can't use it directly as
+	    // a pointer to create a CString with from_raw() because then Rust
+	    // takes over ownership of the data, and will free it when this
+	    // function exits.
+	    let b = unsafe {
+		std::slice::from_raw_parts(buf as *mut u8, *buflen as usize)
+	    };
+	    let count;
+	    (err, count) = cb.read(b, None);
+	    unsafe { *buflen = count as GensioDS; }
+	}
+	_ => err = GE_NOTSUP
+    }
+    err
 }
 
-impl Gensio {
+/// Allocate a new gensio based upon the given string
+pub fn new<'a>(s: String, o: &osfuncs::OsFuncs, cb: &'a impl GensioEvent)
+	       -> Result<Gensio<'a>, i32>
+{
+    let or = o.raw().clone();
+    let g: *const raw::gensio = std::ptr::null();
+    let s = match ffi::CString::new(s) {
+	Ok(s) => s,
+	Err(_) => return Err(GE_INVAL)
+    };
+    let err = unsafe {
+	raw::str_to_gensio(s.as_ptr(), or.o, evhndl,
+			   std::ptr::null(), &g)
+    };
+    match err {
+	0 => {
+	    let d = Rc::new(Gensio { _o: or, g: g, cb: cb });
+	    unsafe {
+		raw::gensio_set_user_data(d.g,
+					  Rc::as_ptr(&d) as *mut ffi::c_void);
+	    }
+	    let g = Rc::try_unwrap(d).expect("Error unwrapping Rc");
+	    Ok(g)
+	}
+	_ => Err(GE_INVAL)
+    }
+}
+
+impl<'a> Gensio<'a> {
+    pub fn open(&self, cb: &impl OpDoneErr) -> Result<(), i32> {
+	let d = OpDoneErrData { cb : cb };
+	let d = Rc::new(d);
+	let d = Rc::into_raw(d);
+	let err = unsafe {
+	    raw::gensio_open(self.g, op_done_err, d as *mut ffi::c_void)
+	};
+	match err {
+	    0 => Ok(()),
+	    _ => {
+		unsafe { Rc::from_raw(d); } // Free the data
+		Err(err)
+	    }
+	}
+    }
+
+    pub fn close(&self, cb: &impl OpDone) -> Result<(), i32> {
+	let d = OpDoneData { cb : cb };
+	let d = Rc::new(d);
+	let d = Rc::into_raw(d);
+	let err = unsafe {
+	    raw::gensio_close(self.g, op_done, d as *mut ffi::c_void)
+	};
+	match err {
+	    0 => Ok(()),
+	    _ => {
+		unsafe { Rc::from_raw(d); } // Free the data
+		Err(err)
+	    }
+	}
+    }
+
+    pub fn write(&self, data: &[u8], _auxdata: Option<Vec<String>>)
+		 -> Result<u64, i32> {
+	let mut count: GensioDS = 0;
+
+	let err = unsafe {
+	    raw::gensio_write(self.g, &mut count,
+			      data.as_ptr() as *const ffi::c_void,
+			      data.len() as GensioDS,
+			      std::ptr::null())
+	};
+	match err {
+	    0 => Ok(count),
+	    _ => Err(err)
+	}
+    }
+
+    pub fn read_enable(&self, enable: bool) {
+	let enable = match enable { true => 1, false => 0 };
+	unsafe {
+	    raw::gensio_set_read_callback_enable(self.g, enable);
+	}
+    }
+}
+
+impl Drop for Gensio<'_> {
+    fn drop(&mut self) {
+	unsafe {
+	    raw::gensio_close_s(self.g);
+	    raw::gensio_free(self.g);
+	}
+    }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
     use super::*;
 
+    struct EvStruct {
+	w: osfuncs::Waiter
+    }
+
+    impl GensioEvent for EvStruct {
+	fn err(&self, err: i32) -> i32 {
+	    assert_eq!(err, 0);
+	    0
+	}
+
+	fn read(&self, buf: &[u8], _auxdata: Option<Vec<String>>)
+		-> (i32, u64) {
+	    self.w.wake().expect("Wake open done failed");
+	    (0, buf.len() as u64)
+	}
+    }
+
+    impl OpDoneErr for EvStruct {
+	fn done_err(&self, err: i32) {
+	    assert_eq!(err, 0);
+	}
+
+	fn done(&self) {
+	    self.w.wake().expect("Wake open done failed");
+	}
+    }
+
+    impl OpDone for EvStruct {
+	fn done(&self) {
+	    self.w.wake().expect("Wake close done failed");
+	}
+    }
+
     #[test]
-    fn printf_test() {
-	printfit("Hello There\n");
+    fn basic_gensio() {
+	let o = osfuncs::new().expect("Couldn't allocate os funcs");
+	o.proc_setup().expect("Couldn't setup proc");
+	let w = o.new_waiter().expect("Couldn't allocate waiter");
+	let e = EvStruct { w: w };
+	let g = new("echo".to_string(), &o, &e).expect("Couldn't alloc gensio");
+	g.open(&e).expect("Couldn't open genio");
+	e.w.wait(1, &Duration::new(1, 0)).expect("Wait failed");
+	g.read_enable(true);
+	let count = g.write(&b"teststr".to_vec()[..], None).expect("Write failed");
+	assert_eq!(count, 7);
+	e.w.wait(1, &Duration::new(1, 0)).expect("Wait failed");
+	g.close(&e).expect("Couldn't close gensio");
+	e.w.wait(1, &Duration::new(1, 0)).expect("Wait failed");
     }
 }
