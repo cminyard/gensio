@@ -84,8 +84,8 @@ struct OpDoneErrData<'a> {
 
 extern "C" fn op_done_err(_io: *const raw::gensio, err: ffi::c_int,
 			  user_data: *mut ffi::c_void) {
-    let d = user_data as *const OpDoneErrData;
-    let d = unsafe { Rc::from_raw(d) }; // Use from_raw so it will be freed
+    let d = user_data as *mut OpDoneErrData;
+    let d = unsafe { Box::from_raw(d) }; // Use from_raw so it will be freed
     let cb = d.cb;
     if err == 0 {
 	cb.done();
@@ -106,10 +106,16 @@ struct OpDoneData<'a> {
     cb: &'a dyn OpDone
 }
 
+impl Drop for OpDoneData<'_> {
+    fn drop(&mut self) {
+	printfit("drop OpDoneData\n");
+    }
+}
+
 extern "C" fn op_done(_io: *const raw::gensio,
 		      user_data: *mut ffi::c_void) {
-    let d = user_data as *const OpDoneData;
-    let d = unsafe { Rc::from_raw(d) }; // Use from_raw so it will be freed
+    let d = user_data as *mut OpDoneData;
+    let d = unsafe { Box::from_raw(d) }; // Use from_raw so it will be freed
     let cb = d.cb;
     cb.done();
 }
@@ -201,33 +207,33 @@ pub fn new<'a>(s: String, o: &osfuncs::OsFuncs, cb: &'a impl GensioEvent)
 }
 
 impl<'a> Gensio<'a> {
-    pub fn open(&self, cb: &impl OpDoneErr) -> Result<(), i32> {
-	let d = OpDoneErrData { cb : cb };
-	let d = Rc::new(d);
-	let d = Rc::into_raw(d);
+    pub fn open<'c>(&self, cb: &'c impl OpDoneErr)
+		    -> Result<&'c impl OpDoneErr, i32> {
+	let d = Box::new(OpDoneErrData { cb : cb });
+	let d = Box::into_raw(d);
 	let err = unsafe {
 	    raw::gensio_open(self.g, op_done_err, d as *mut ffi::c_void)
 	};
 	match err {
-	    0 => Ok(()),
+	    0 => Ok(cb),
 	    _ => {
-		unsafe { Rc::from_raw(d); } // Free the data
+		unsafe { drop(Box::from_raw(d)); } // Free the data
 		Err(err)
 	    }
 	}
     }
 
-    pub fn close(&self, cb: &impl OpDone) -> Result<(), i32> {
-	let d = OpDoneData { cb : cb };
-	let d = Rc::new(d);
-	let d = Rc::into_raw(d);
+    pub fn close<'b>(&self, cb: &'b impl OpDone)
+		     -> Result<&'b impl OpDone, i32> {
+	let d = Box::new(OpDoneData { cb : cb });
+	let d = Box::into_raw(d);
 	let err = unsafe {
 	    raw::gensio_close(self.g, op_done, d as *mut ffi::c_void)
 	};
 	match err {
-	    0 => Ok(()),
+	    0 => Ok(cb),
 	    _ => {
-		unsafe { Rc::from_raw(d); } // Free the data
+		unsafe { drop(Box::from_raw(d)); } // Free the data
 		Err(err)
 	    }
 	}
@@ -303,6 +309,7 @@ mod tests {
 
     impl OpDone for EvStruct {
 	fn done(&self) {
+	    printfit("Close done\n");
 	    self.w.wake().expect("Wake close done failed");
 	}
     }
