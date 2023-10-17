@@ -283,6 +283,9 @@ mod tests {
 
 	fn read(&self, buf: &[u8], _auxdata: Option<Vec<String>>)
 		-> (i32, u64) {
+	    assert_eq!(buf.len(), 7);
+	    let s = unsafe { std::str::from_utf8_unchecked(buf) };
+	    assert_eq!(s, "teststr");
 	    self.w.wake().expect("Wake open done failed");
 	    (0, buf.len() as u64)
 	}
