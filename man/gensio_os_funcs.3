@@ -9,6 +9,8 @@ by the gensio library
 .PP
 .B int gensio_default_os_hnd(int wake_sig, struct gensio_os_funcs **o)
 .PP
+.B int gensio_alloc_os_hnd(int wake_sig, struct gensio_os_funcs **o)
+.PP
 .B int gensio_unix_funcs_alloc(struct selector_s *sel, int wake_sig,
 .br
 		struct gensio_os_funcs **o)
@@ -218,10 +220,19 @@ the gensio library with one of these.  Even though it's a bit of a
 pain to have to pass one of these around, it adds needed flexibility.
 
 .B gensio_default_os_hnd
-provides a way to allocate a default OS function handler for the
+provides a way to get the default OS function handler for the
 platform.  The same value will be returned each time, only one is
 created.  You should generally use this one unless you have a special
 need as documented above.
+
+.B gensio_alloc_os_hnd
+allocates a new OS handler for the platform, for Unix or Windows.
+Multiple OS handlers can be used to handle different I/O at different
+priorities.  When you create a gensio, all I/O callbacks will be
+handled from the OS handler used to create it.  So you can run
+different OS handlers in threads of different priority to run
+different gensios at different priority.  Otherwise there is not much
+reason to do this.
 
 The
 .I wait_sig
@@ -307,6 +318,11 @@ OS function, you must pass the proc_data value returned by
 into that.  If you want to modify the wait signal mask, you can use
 .I gensio_os_proc_unix_get_wait_sigset
 to fetch a pointer to it and modify it.
+
+Note that if you call this more than once without calling
+.I gensio_os_proc_cleanup
+inbetween, it will return
+.I GE_INUSE.
 
 The
 .I gensio_os_proc_cleanup

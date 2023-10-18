@@ -3935,28 +3935,36 @@ struct gensio_os_proc_data {
     struct gensio_os_cleanup_handler *cleanup_handlers;
 };
 static struct gensio_os_proc_data proc_data;
+bool proc_setup;
 
 int
 gensio_os_proc_setup(struct gensio_os_funcs *o,
 		     struct gensio_os_proc_data **data)
 {
-    int rv;
+    int rv = GE_INUSE;
     HRESULT res;
 
+    AcquireSRWLockExclusive(&def_win_os_funcs_lock);
+    if (proc_setup)
+	goto out;
+
+    rv = 0;
     res = CoInitializeEx(NULL, COINIT_MULTITHREADED);
     switch (res) {
-    case S_OK: case S_FALSE:
-	break;
-    case RPC_E_CHANGED_MODE:	return GE_INCONSISTENT;
-    case E_INVALIDARG:		return GE_INVAL;
-    case E_OUTOFMEMORY:		return GE_NOMEM;
-    case E_UNEXPECTED: default: return GE_OSERR;
+    case S_OK: case S_FALSE:	break;
+    case RPC_E_CHANGED_MODE:	rv = GE_INCONSISTENT; break;
+    case E_INVALIDARG:		rv = GE_INVAL; break;
+    case E_OUTOFMEMORY:		rv = GE_NOMEM; break;
+    case E_UNEXPECTED: default: rv = GE_OSERR; break;
     }
+    if (rv)
+	goto out;
 
     proc_data.global_waiter = CreateSemaphoreA(NULL, 0, 1000000, NULL);
     if (!proc_data.global_waiter) {
 	CoUninitialize();
-	return GE_NOMEM;
+	rv = GE_NOMEM;
+	goto out;
     }
 
     rv = o->control(o, GENSIO_CONTROL_SET_PROC_DATA, &proc_data, NULL);
@@ -3964,12 +3972,14 @@ gensio_os_proc_setup(struct gensio_os_funcs *o,
 	CloseHandle(proc_data.global_waiter);
 	CoUninitialize();
 	proc_data.global_waiter = NULL;
-	return rv;
+	goto out;
     }
     LOCK_INIT(&proc_data.lock);
     proc_data.o = o;
     *data = &proc_data;
-    return 0;
+ out:
+    ReleaseSRWLockExclusive(&def_win_os_funcs_lock);
+    return rv;
 }
 
 static void
@@ -4053,6 +4063,11 @@ gensio_register_os_cleanup_handler(struct gensio_os_funcs *o,
 void
 gensio_os_proc_cleanup(struct gensio_os_proc_data *data)
 {
+    AcquireSRWLockExclusive(&def_win_os_funcs_lock);
+    if (!proc_setup)
+	goto out;
+
+    proc_setup = false;
     /* We should be single-threaded here. */
     while (data->cleanup_handlers) {
 	struct gensio_os_cleanup_handler *h = data->cleanup_handlers;
@@ -4075,6 +4090,8 @@ gensio_os_proc_cleanup(struct gensio_os_proc_data *data)
     }
     LOCK_DESTROY(&proc_data.lock);
     CoUninitialize();
+ out:
+    ReleaseSRWLockExclusive(&def_win_os_funcs_lock);
 }
 
 HANDLE
@@ -4281,6 +4298,12 @@ gensio_default_os_hnd(int wake_sig, struct gensio_os_funcs **o)
     if (!err)
 	*o = def_win_os_funcs;
     return 0;
+}
+
+int
+gensio_alloc_os_hnd(int wake_sig, struct gensio_os_funcs **o)
+{
+    return gensio_win_funcs_alloc(o);
 }
 
 void

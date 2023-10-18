@@ -950,6 +950,7 @@ gensio_unix_get_wake_sig(struct gensio_os_funcs *f)
 static lock_type defos_lock = LOCK_INITIALIZER;
 static struct gensio_os_funcs *defoshnd;
 static int defoshnd_wake_sig = -1;
+static bool proc_setup;
 
 static struct gensio_os_funcs *
 gensio_unix_get_funcs(struct gensio_os_funcs *f)
@@ -1758,7 +1759,11 @@ gensio_os_proc_setup(struct gensio_os_funcs *o,
     struct gensio_os_proc_data *data;
     sigset_t sigs;
     struct sigaction sigdo;
-    int rv;
+    int rv = GE_INUSE;
+
+    LOCK(&defos_lock);
+    if (proc_setup)
+	goto out;
 
     data = &proc_data;
     data->o = o;
@@ -1781,7 +1786,7 @@ gensio_os_proc_setup(struct gensio_os_funcs *o,
     rv = sigprocmask(SIG_BLOCK, &sigs, &data->old_sigs);
     if (rv) {
 	rv = gensio_os_err_to_err(o, errno);
-	return rv;
+	goto out;
     }
     data->wait_sigs = data->old_sigs;
     if (data->wake_sig)
@@ -1800,7 +1805,7 @@ gensio_os_proc_setup(struct gensio_os_funcs *o,
     if (rv) {
 	rv = gensio_os_err_to_err(o, errno);
 	sigprocmask(SIG_SETMASK, &data->old_sigs, NULL);
-	return rv;
+	goto out;
     }
 
     if (data->wake_sig) {
@@ -1811,7 +1816,7 @@ gensio_os_proc_setup(struct gensio_os_funcs *o,
 	    rv = gensio_os_err_to_err(o, errno);
 	    sigaction(SIGCHLD, &data->old_sigchld, NULL);
 	    sigprocmask(SIG_SETMASK, &data->old_sigs, NULL);
-	    return rv;
+	    goto out;
 	}
     }
 
@@ -1821,13 +1826,16 @@ gensio_os_proc_setup(struct gensio_os_funcs *o,
 	sigprocmask(SIG_SETMASK, &data->old_sigs, NULL);
 	if (data->wake_sig)
 	    sigaction(data->wake_sig, &data->old_wakesig, NULL);
-	return rv;
+	goto out;
     }
 
     LOCK_INIT(&data->handler_lock);
 
     *rdata = data;
-    return 0;
+    proc_setup = true;
+ out:
+    UNLOCK(&defos_lock);
+    return rv;
 }
 
 void
@@ -1877,6 +1885,12 @@ check_for_sigpending(sigset_t *check_for)
 void
 gensio_os_proc_cleanup(struct gensio_os_proc_data *data)
 {
+    LOCK(&defos_lock);
+    if (!proc_setup)
+	goto out;
+
+    proc_setup = false;
+
     /* We should be single-threaded here. */
     while (data->cleanup_handlers) {
 	struct gensio_os_cleanup_handler *h = data->cleanup_handlers;
@@ -1912,6 +1926,9 @@ gensio_os_proc_cleanup(struct gensio_os_proc_data *data)
 	;
 
     sigprocmask(SIG_SETMASK, &data->old_sigs, NULL);
+ out:
+    UNLOCK(&defos_lock);
+    return;
 }
 
 void
@@ -2357,6 +2374,15 @@ gensio_default_os_hnd(int wake_sig, struct gensio_os_funcs **o)
     if (!err)
 	*o = defoshnd;
     return err;
+}
+
+int
+gensio_alloc_os_hnd(int wake_sig, struct gensio_os_funcs **o)
+{
+    if (wake_sig == -198234)
+	wake_sig = SIGUSR1;
+
+    return gensio_unix_funcs_alloc(NULL, wake_sig, o);
 }
 
 void

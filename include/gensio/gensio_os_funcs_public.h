@@ -20,6 +20,9 @@ GENSIOOSH_DLL_PUBLIC
 int gensio_default_os_hnd(int wake_sig, struct gensio_os_funcs **o);
 
 GENSIOOSH_DLL_PUBLIC
+int gensio_alloc_os_hnd(int wake_sig, struct gensio_os_funcs **o);
+
+GENSIOOSH_DLL_PUBLIC
 int gensio_os_proc_setup(struct gensio_os_funcs *o,
 			 struct gensio_os_proc_data **data);
 
