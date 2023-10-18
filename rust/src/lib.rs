@@ -350,6 +350,7 @@ impl Drop for Gensio {
 #[cfg(test)]
 mod tests {
     use std::time::Duration;
+    use serial_test::serial;
     use super::*;
 
     struct EvStruct {
@@ -397,6 +398,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn basic_gensio() {
 	let o = osfuncs::new(Arc::new(LogHandler))
 	    .expect("Couldn't allocate os funcs");

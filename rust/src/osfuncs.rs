@@ -181,6 +181,7 @@ impl Drop for Waiter {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serial_test::serial;
 
     struct LogHandler;
 
@@ -191,6 +192,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn wait_test() {
 	let o = new(Arc::new(LogHandler)).expect("Couldn't allocate OsFuncs");
 	o.proc_setup().expect("Couldn't set up OsFuncs");

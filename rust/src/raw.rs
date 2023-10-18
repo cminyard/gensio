@@ -80,6 +80,7 @@ extern "C" {
 #[cfg(test)]
 mod tests {
     use std::rc::Rc;
+    use serial_test::serial;
     use crate::osfuncs::raw::gensio_time;
 
     use crate::osfuncs::raw::gensio_default_os_hnd;
@@ -155,6 +156,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn basic_gensio() {
 	let mut err: ffi::c_int;
 
