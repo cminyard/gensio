@@ -43,7 +43,7 @@ i_vlog_handler(struct gensio_os_funcs *o,
 
 void
 gensio_rust_set_log(struct gensio_os_funcs *o,
-		     gensio_rust_log_func func, void *data)
+		    gensio_rust_log_func func, void *data)
 {
     struct gensio_rust_os_func_data *d;
 

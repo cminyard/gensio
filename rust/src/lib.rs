@@ -400,7 +400,7 @@ mod tests {
     #[test]
     #[serial]
     fn basic_gensio() {
-	let o = osfuncs::new(Arc::new(LogHandler))
+	let o = osfuncs::def(Arc::new(LogHandler))
 	    .expect("Couldn't allocate os funcs");
 	o.proc_setup().expect("Couldn't setup proc");
 	let w = o.new_waiter().expect("Couldn't allocate waiter");
