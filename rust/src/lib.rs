@@ -388,9 +388,18 @@ mod tests {
 	}
     }
 
+    struct LogHandler;
+
+    impl osfuncs::GensioLogHandler for LogHandler {
+	fn log(&self, _logstr: String) {
+	    
+	}
+    }
+
     #[test]
     fn basic_gensio() {
-	let o = osfuncs::new().expect("Couldn't allocate os funcs");
+	let o = osfuncs::new(Arc::new(LogHandler))
+	    .expect("Couldn't allocate os funcs");
 	o.proc_setup().expect("Couldn't setup proc");
 	let w = o.new_waiter().expect("Couldn't allocate waiter");
 	let e = Arc::new(EvStruct { w: w });

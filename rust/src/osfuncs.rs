@@ -1,15 +1,21 @@
 use std::sync::Arc;
 use std::time::Duration;
+use std::ffi;
 pub mod raw;
 
 /// Used to refcount gensio_os_funcs.
 pub struct IOsFuncs {
+    log_data: *mut GensioLogHandlerData,
     pub o: *const raw::gensio_os_funcs
 }
 
 impl Drop for IOsFuncs {
     fn drop(&mut self) {
 	unsafe {
+	    if self.log_data != std::ptr::null_mut() {
+		drop(Box::from_raw(self.log_data));
+	    }
+	    raw::gensio_rust_cleanup(self.o);
 	    raw::gensio_os_funcs_free(self.o);
 	}
     }
@@ -22,8 +28,9 @@ pub struct OsFuncs {
     p: *const raw::gensio_os_proc_data
 }
 
-/// Allocate an OsFuncs structure
-pub fn new() -> Result<OsFuncs, i32> {
+/// Allocate an OsFuncs structure.  This takes a log handler for
+/// handling internal logs from gensios and osfuncs.
+pub fn new(log_func: Arc<dyn GensioLogHandler>) -> Result<OsFuncs, i32> {
     let err;
     let o: *const raw::gensio_os_funcs = std::ptr::null();
 
@@ -31,17 +38,48 @@ pub fn new() -> Result<OsFuncs, i32> {
 	err = raw::gensio_default_os_hnd(-198234, &o);
     }
     match err {
-	0 => Ok(OsFuncs { o: Arc::new(IOsFuncs {o: o}), p:std::ptr::null() }),
+	0 => {
+	    let d = Box::new(GensioLogHandlerData { cb: log_func });
+	    let d = Box::into_raw(d);
+	    unsafe {
+		raw::gensio_rust_set_log(o, log_handler,
+					 d as *mut ffi::c_void);
+	    }
+	    Ok(OsFuncs { o: Arc::new(IOsFuncs {log_data: d, o: o}),
+			 p: std::ptr::null() })
+	}
 	_ => Err(err)
     }
 }
 
+/// Used for OsFuncs to handle logs.
+pub trait GensioLogHandler {
+    /// Used to report internal logs from the system that couldn't be
+    /// propagated back other ways.
+    fn log(&self, s: String);
+}
+
+struct GensioLogHandlerData {
+    cb: Arc<dyn GensioLogHandler>
+}
+
+extern "C" fn log_handler(log: *const ffi::c_char,
+			  data: *mut ffi::c_void) {
+    let d = data as *mut GensioLogHandlerData;
+    let s = unsafe { ffi::CStr::from_ptr(log) };
+    let s = s.to_str().expect("Invalid log string").to_string();
+
+    unsafe { (*d).cb.log(s); }
+}
+
 impl OsFuncs {
     /// Called to setup the task (signals, shutdown handling, etc.)
-    /// for a process.  This should be called on the first OsFuncs and
-    /// that OsFuncs should be kept around until you are done with all
-    /// other OsFuncs.  You almost certainly should call this.  The
-    /// cleanup function is called automatically as part of the
+    /// for a process.  This should be called on the first OsFuncs
+    /// (and only the first one, this should only be called once
+    /// unless all OsFucns have been freed and a new one allocated)
+    /// and that OsFuncs should be kept around until you are done with
+    /// all other OsFuncs.  You almost certainly should call this.
+    /// The cleanup function is called automatically as part of the
     /// OsFuncs automatic cleanup.
     pub fn proc_setup(&self) -> Result<(), i32> {
 	let err = unsafe { raw::gensio_os_proc_setup(self.o.o, &self.p) };
@@ -130,9 +168,17 @@ impl Drop for Waiter {
 mod tests {
     use super::*;
 
+    struct LogHandler;
+
+    impl GensioLogHandler for LogHandler {
+	fn log(&self, _logstr: String) {
+	    
+	}
+    }
+
     #[test]
     fn wait_test() {
-	let o = new().expect("Couldn't allocate OsFuncs");
+	let o = new(Arc::new(LogHandler)).expect("Couldn't allocate OsFuncs");
 	o.proc_setup().expect("Couldn't set up OsFuncs");
 	let w = o.new_waiter().expect("Couldn't allocate Waiter");
 

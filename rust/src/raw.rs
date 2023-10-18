@@ -20,6 +20,8 @@ pub const GENSIO_EVENT_PARMLOG:	ffi::c_int = 12; // struct gensio_parm_data
 pub const GENSIO_EVENT_WIN_SIZE: ffi::c_int = 13;
 pub const GENSIO_EVENT_LOG: ffi::c_int = 14; // struct gensio_log_data
 
+// FIXME - gensio log mask
+
 #[allow(non_camel_case_types)]
 pub type gensio_event = extern "C" fn (io: *const gensio,
 				       user_data: *const ffi::c_void,
