@@ -163,6 +163,12 @@ extern "C" {
 				timeout: &gensio_time) -> ffi::c_int;
 
     #[allow(improper_ctypes)]
+    pub fn gensio_os_funcs_wait_intr(o: *const gensio_os_funcs,
+				     w: *const gensio_waiter,
+				     count: ffi::c_uint,
+				     timeout: &gensio_time) -> ffi::c_int;
+
+    #[allow(improper_ctypes)]
     pub fn gensio_os_funcs_wake(o: *const gensio_os_funcs,
 				w: *const gensio_waiter) -> ffi::c_int;
 
