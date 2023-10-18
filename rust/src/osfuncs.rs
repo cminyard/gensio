@@ -26,52 +26,31 @@ impl Drop for IOsFuncs {
 pub struct OsFuncs {
     o: Arc<IOsFuncs>,
     proc_data: *const raw::gensio_os_proc_data,
-    log_func: Arc<dyn GensioLogHandler>
 }
 
-use std::sync::Mutex;
-static DEF_MUTEX: Mutex<Option<Arc<OsFuncs>>> = Mutex::new(None);
-
-/// Allocate the default OsFuncs structure.  This takes a log handler
-/// for handling internal logs from gensios and osfuncs.
-pub fn def(log_func: Arc<dyn GensioLogHandler>) -> Result<Arc<OsFuncs>, i32> {
+/// Allocate an OsFuncs structure.  This takes a log handler for
+/// handling internal logs from gensios and osfuncs.
+pub fn new(log_func: Arc<dyn GensioLogHandler>) -> Result<Arc<OsFuncs>, i32> {
     let err;
     let o: *const raw::gensio_os_funcs = std::ptr::null();
-    let mut defoshnd = DEF_MUTEX.lock().unwrap();
 
-    match &*defoshnd {
-	Some(o) => {
-	    crate::printfit("A\n");
-	    let old_log_func = &o.log_func;
-	    if Arc::as_ptr(&log_func) == Arc::as_ptr(old_log_func) {
-		Ok(o.clone())
-	    } else {
-		Err(crate::GE_INUSE)
-	    }
-	}
-	None => {
-	    crate::printfit("B\n");
+    unsafe {
+	err = raw::gensio_alloc_os_hnd(-198234, &o);
+    }
+    match err {
+	0 => {
+	    let d = Box::new(GensioLogHandlerData { cb: log_func });
+	    let d = Box::into_raw(d);
 	    unsafe {
-		err = raw::gensio_default_os_hnd(-198234, &o);
+		raw::gensio_rust_set_log(o, log_handler,
+					 d as *mut ffi::c_void);
 	    }
-	    match err {
-		0 => {
-		    let d = Box::new(GensioLogHandlerData { cb: log_func.clone() });
-		    let d = Box::into_raw(d);
-		    unsafe {
-			raw::gensio_rust_set_log(o, log_handler,
-						 d as *mut ffi::c_void);
-			let rv = Arc::new(
-			    OsFuncs { o: Arc::new(IOsFuncs {log_data: d, o: o}),
-				      proc_data: std::ptr::null(),
-				      log_func: log_func});
-			*defoshnd = Some(rv.clone());
-			Ok(rv)
-		    }
-		}
-		_ => Err(err)
-	    }
+		let rv = Arc::new(
+		    OsFuncs { o: Arc::new(IOsFuncs {log_data: d, o: o}),
+			      proc_data: std::ptr::null()});
+	    Ok(rv)
 	}
+	_ => Err(err)
     }
 }
 
@@ -218,8 +197,8 @@ mod tests {
     #[test]
     #[serial]
     fn wait_test() {
-	let o = def(Arc::new(LogHandler)).expect("Couldn't allocate OsFuncs");
-	let _o2 = def(Arc::new(LogHandler)).expect("Couldn't allocate OsFuncs");
+	let o = new(Arc::new(LogHandler)).expect("Couldn't allocate OsFuncs");
+	let _o2 = new(Arc::new(LogHandler)).expect("Couldn't allocate OsFuncs");
 	o.proc_setup().expect("Couldn't set up OsFuncs");
 	let w = o.new_waiter().expect("Couldn't allocate Waiter");
 

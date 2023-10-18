@@ -63,6 +63,11 @@ extern "C" {
 				 -> ffi::c_int;
 
     #[allow(improper_ctypes)]
+    pub fn gensio_alloc_os_hnd(wake_sig: ffi::c_int,
+			       o: *const *const gensio_os_funcs)
+			       -> ffi::c_int;
+
+    #[allow(improper_ctypes)]
     pub fn gensio_os_proc_setup(o: *const gensio_os_funcs,
 				data: *const *const gensio_os_proc_data)
 				-> ffi::c_int;
