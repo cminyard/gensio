@@ -35,7 +35,7 @@ pub fn new(log_func: Arc<dyn GensioLogHandler>) -> Result<Arc<OsFuncs>, i32> {
     let o: *const raw::gensio_os_funcs = std::ptr::null();
 
     unsafe {
-	err = raw::gensio_alloc_os_hnd(-198234, &o);
+	err = raw::gensio_alloc_os_funcs(-198234, &o);
     }
     match err {
 	0 => {

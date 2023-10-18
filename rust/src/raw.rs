@@ -83,7 +83,7 @@ mod tests {
     use serial_test::serial;
     use crate::osfuncs::raw::gensio_time;
 
-    use crate::osfuncs::raw::gensio_default_os_hnd;
+    use crate::osfuncs::raw::gensio_alloc_os_funcs;
     use crate::osfuncs::raw::gensio_os_funcs_free;
 
     use crate::osfuncs::raw::gensio_os_proc_data;
@@ -162,7 +162,7 @@ mod tests {
 
 	let o: *const gensio_os_funcs = std::ptr::null();
 	unsafe {
-	    err = gensio_default_os_hnd(-198234, &o);
+	    err = gensio_alloc_os_funcs(-198234, &o);
 	}
 	let p: *const gensio_os_proc_data = std::ptr::null();
 	assert_eq!(err, 0);
