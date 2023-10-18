@@ -320,7 +320,7 @@ main(int argc, char *argv[])
     memset(&ai, 0, sizeof(ai));
     gensio_list_init(&ai.ios);
 
-    rv = gensio_default_os_hnd(GENSIO_DEF_WAKE_SIG, &ai.o);
+    rv = gensio_alloc_os_funcs(GENSIO_DEF_WAKE_SIG, &ai.o);
     if (rv) {
 	fprintf(stderr, "Could not allocate OS handler: %s\n",
 		gensio_err_to_str(rv));

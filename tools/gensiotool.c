@@ -1239,7 +1239,7 @@ main(int argc, char *argv[])
 	rv = gensio_tcl_funcs_alloc(&g.o);
 #endif
     } else {
-	rv = gensio_default_os_hnd(SIGUSR1, &g.o);
+	rv = gensio_alloc_os_funcs(SIGUSR1, &g.o);
     }
     if (rv) {
 	fprintf(stderr, "Could not allocate OS handler: %s\n",

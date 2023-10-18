@@ -23,6 +23,7 @@ install-data-hook:
 	$(LN_SF) gensio_set_log_mask.3 $(DESTDIR)$(man3dir)/gensio_vlog.3
 	$(LN_SF) gensio_set_log_mask.3 $(DESTDIR)$(man3dir)/gensio_log.3
 	$(LN_SF) gensio_os_funcs.3 $(DESTDIR)$(man3dir)/gensio_default_os_hnd.3
+	$(LN_SF) gensio_os_funcs.3 $(DESTDIR)$(man3dir)/gensio_alloc_os_funcs.3
 	$(LN_SF) gensio_os_funcs.3 $(DESTDIR)$(man3dir)/gensio_unix_funcs_alloc.3
 	$(LN_SF) gensio_os_funcs.3 $(DESTDIR)$(man3dir)/gensio_win_funcs_alloc.3
 	$(LN_SF) gensio_os_funcs.3 $(DESTDIR)$(man3dir)/gensio_os_proc_setup.3
@@ -155,6 +156,7 @@ uninstall-hook:
 	$(RM_F) $(DESTDIR)$(man3dir)/gensio_vlog.3
 	$(RM_F) $(DESTDIR)$(man3dir)/gensio_log.3
 	$(RM_F) $(DESTDIR)$(man3dir)/gensio_default_os_hnd.3
+	$(RM_F) $(DESTDIR)$(man3dir)/gensio_alloc_os_funcs.3
 	$(RM_F) $(DESTDIR)$(man3dir)/gensio_unix_funcs_alloc.3
 	$(RM_F) $(DESTDIR)$(man3dir)/gensio_win_funcs_alloc.3
 	$(RM_F) $(DESTDIR)$(man3dir)/gensio_os_proc_setup.3
@@ -241,7 +243,6 @@ uninstall-hook:
 	$(RM_F) $(DESTDIR)$(man3dir)/gensio_mdns_remove_service.3
 	$(RM_F) $(DESTDIR)$(man3dir)/gensio_mdns_add_watch.3
 	$(RM_F) $(DESTDIR)$(man3dir)/gensio_mdns_remove_watch.3
-	$(RM_F) $(DESTDIR)$(man3dir)/gensio_default_os_hnd.3
 	$(RM_F) $(DESTDIR)$(man3dir)/gensio_unix_funcs_alloc.3
 	$(RM_F) $(DESTDIR)$(man3dir)/gensio_win_funcs_alloc.3
 	$(RM_F) $(DESTDIR)$(man3dir)/gensio_os_proc_setup.3

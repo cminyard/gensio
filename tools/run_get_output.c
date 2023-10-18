@@ -197,7 +197,7 @@ run_get_output(const char *argv[],
     d.closestr = (unsigned char *) closestr;
     d.closestr_len = closestrlen;
 
-    d.err = gensio_default_os_hnd(0, &d.o);
+    d.err = gensio_alloc_os_funcs(0, &d.o);
     if (d.err) {
 	fprintf(stderr, "Error allocating os handler: %s\n",
 		gensio_err_to_str(d.err));

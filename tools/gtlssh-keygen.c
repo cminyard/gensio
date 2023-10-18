@@ -1417,7 +1417,7 @@ main(int argc, char **argv)
 	exit(1);
     }
 
-    err = gensio_default_os_hnd(0, &o);
+    err = gensio_alloc_os_funcs(0, &o);
     if (err) {
 	fprintf(stderr, "Error allocating os handler: %s\n",
 		gensio_err_to_str(err));

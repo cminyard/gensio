@@ -62,7 +62,7 @@ namespace gensios {
 	int err;
 	struct gensio_os_funcs *o;
 
-	err = gensio_default_os_hnd(wait_sig, &o);
+	err = gensio_alloc_os_funcs(wait_sig, &o);
 	if (err)
 	    throw gensio_error(err);
 	this->init(o, logger);

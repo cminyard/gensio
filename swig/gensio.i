@@ -287,7 +287,7 @@ struct gensio_os_funcs *alloc_gensio_os_funcs(swig_cb *log_handler)
     wake_sig = 0;
 #endif
 
-    err = gensio_default_os_hnd(wake_sig, &o);
+    err = gensio_alloc_os_funcs(wake_sig, &o);
     if (err) {
 	fprintf(stderr, "Unable to allocate gensio os funcs: %s, giving up\n",
 		gensio_err_to_str(err));

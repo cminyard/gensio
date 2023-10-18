@@ -16,11 +16,12 @@ extern "C" {
 #include <gensio/gensio_types.h>
 #include <gensio/gensioosh_dllvisibility.h>
 
+/* The following is deprecated, don't use. */
 GENSIOOSH_DLL_PUBLIC
 int gensio_default_os_hnd(int wake_sig, struct gensio_os_funcs **o);
 
 GENSIOOSH_DLL_PUBLIC
-int gensio_alloc_os_hnd(int wake_sig, struct gensio_os_funcs **o);
+int gensio_alloc_os_funcs(int wake_sig, struct gensio_os_funcs **o);
 
 GENSIOOSH_DLL_PUBLIC
 int gensio_os_proc_setup(struct gensio_os_funcs *o,

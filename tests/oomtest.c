@@ -2342,7 +2342,7 @@ main(int argc, char *argv[])
 	rv = gensio_tcl_funcs_alloc(&o);
 #endif
     } else {
-	rv = gensio_default_os_hnd(GENSIO_DEF_WAKE_SIG, &o);
+	rv = gensio_alloc_os_funcs(GENSIO_DEF_WAKE_SIG, &o);
     }
     if (rv) {
 	fprintf(stderr, "Could not allocate OS handler: %s\n",

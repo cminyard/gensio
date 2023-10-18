@@ -59,8 +59,8 @@ namespace gensios {
     // This is a smart pointer like object.
     class GENSIOOSHCPP_DLL_PUBLIC Os_Funcs {
     public:
-	// Allocate the default os function handlers for the platform.
-	// See gensio_default_os_hnd.3 for details.
+	// Allocate an os function handlers for the platform.
+	// See gensio_alloc_os_funcs.3 for details.
 	Os_Funcs(int wait_sig, Os_Funcs_Log_Handler *logger = NULL);
 
 	// This is for use by subclasses.  Don't use one with an empty

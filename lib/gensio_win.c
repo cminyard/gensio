@@ -4301,7 +4301,7 @@ gensio_default_os_hnd(int wake_sig, struct gensio_os_funcs **o)
 }
 
 int
-gensio_alloc_os_hnd(int wake_sig, struct gensio_os_funcs **o)
+gensio_alloc_os_funcs(int wake_sig, struct gensio_os_funcs **o)
 {
     return gensio_win_funcs_alloc(o);
 }

@@ -261,7 +261,7 @@ main(int argc, char *argv[])
 	    return 1;
     }
 
-    rv = gensio_default_os_hnd(GENSIOSIG, &osh);
+    rv = gensio_alloc_os_funcs(GENSIOSIG, &osh);
     if (rv) {
 	fprintf(stderr, "Could not allocate OS handler: %s\n",
 		gensio_err_to_str(rv));

@@ -9,7 +9,7 @@ by the gensio library
 .PP
 .B int gensio_default_os_hnd(int wake_sig, struct gensio_os_funcs **o)
 .PP
-.B int gensio_alloc_os_hnd(int wake_sig, struct gensio_os_funcs **o)
+.B int gensio_alloc_os_funcs(int wake_sig, struct gensio_os_funcs **o)
 .PP
 .B int gensio_unix_funcs_alloc(struct selector_s *sel, int wake_sig,
 .br
@@ -223,16 +223,20 @@ pain to have to pass one of these around, it adds needed flexibility.
 provides a way to get the default OS function handler for the
 platform.  The same value will be returned each time, only one is
 created.  You should generally use this one unless you have a special
-need as documented above.
+need as documented above.  Use of this is now discouraged in general.
+Having two independent parts of a system share an OS funcs without
+knowing about it is likely to lead to issues.  If a program knows it
+is the only thing using it, then this is ok for now, but it's going to
+be deprecated at some point.
 
-.B gensio_alloc_os_hnd
-allocates a new OS handler for the platform, for Unix or Windows.
-Multiple OS handlers can be used to handle different I/O at different
-priorities.  When you create a gensio, all I/O callbacks will be
-handled from the OS handler used to create it.  So you can run
+.B gensio_alloc_os_funcs
+allocates a new OS function handler for the platform, for Unix or
+Windows.  Multiple OS handlers can be used to handle different I/O at
+different priorities.  When you create a gensio, all I/O callbacks
+will be handled from the OS handler used to create it.  So you can run
 different OS handlers in threads of different priority to run
 different gensios at different priority.  Otherwise there is not much
-reason to do this.
+reason for more than one of these.
 
 The
 .I wait_sig
