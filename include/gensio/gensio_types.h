@@ -99,6 +99,14 @@ struct gensio_enum_val {
     int val;
 };
 
+/*
+ * If you pass this in to sig_wake when allocating a signal handler,
+ * it will use the default one.  This is here for bindings like go and
+ * rust.  In C code you should use GENSIO_DEF_WAKE_SIG.
+ */
+
+#define GENSIO_OS_FUNCS_DEFAULT_THREAD_SIGNAL -198234
+
 #ifdef __cplusplus
 }
 #endif

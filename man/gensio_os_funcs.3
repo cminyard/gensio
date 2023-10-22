@@ -219,7 +219,7 @@ The basic issue is that there are various event handling libraries
 the gensio library with one of these.  Even though it's a bit of a
 pain to have to pass one of these around, it adds needed flexibility.
 
-.B gensio_default_os_hnd
+.B gensio_default_os_hnd (Deprecated)
 provides a way to get the default OS function handler for the
 platform.  The same value will be returned each time, only one is
 created.  You should generally use this one unless you have a special
@@ -247,7 +247,9 @@ and it's used to signal all waiting processes if a timer is added that
 is sooner than any other timer so they can adjust their waits.
 
 If you are running your program in a single thread, you can safely
-pass zero into this parameter.
+pass zero into this parameter.  If you pass in anything but zero, it
+will set up that signal by removing it from the sigmask and installing
+a handler for it.
 
 If your app is multi-threaded (or, more accurately, if your app has
 multiple threads that are making gensio calls) you must pass a valid
@@ -259,6 +261,14 @@ calling thread, and that sigmask is passed on to other threads it
 creates.  But if you have allocated threads before allocating the os
 funcs, you must make sure those other threads have this signal
 blocked.
+
+On unix,
+.B gensio_os_proc_setup
+function handles all the above mentioned signal setup for you
+(blocking signals, setting signal handler), for the wake signal as
+above and also for some other signals like SIGTERM, SIGCHILD, SIGPIPE,
+and others.  You should generally use that unless you have special
+needs.  It also does neccessary setup on Windows.
 
 Also, if you pass in a different value to
 .B gensio_default_os_hnd
@@ -381,8 +391,9 @@ other threads so they inherit the proper sigmask.
 The
 .I gensio_os_proc_register_winsize_handler
 function sets the function to call when a console window size change
-is requested by the operating system (SIGWINCH on Unix).  It will supply
-the new size parameters.  Set
+is requested by the operating system (SIGWINCH on Unix, through the
+console interface on Windows).  It will supply the new size
+parameters.  Set
 .B handler
 and
 .B console_iod

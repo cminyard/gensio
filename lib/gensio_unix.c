@@ -2353,7 +2353,7 @@ gensio_default_os_hnd(int wake_sig, struct gensio_os_funcs **o)
 {
     int err = 0;
 
-    if (wake_sig == -198234)
+    if (wake_sig == GENSIO_OS_FUNCS_DEFAULT_THREAD_SIGNAL)
 	wake_sig = SIGUSR1;
 
     LOCK(&defos_lock);
@@ -2379,7 +2379,7 @@ gensio_default_os_hnd(int wake_sig, struct gensio_os_funcs **o)
 int
 gensio_alloc_os_funcs(int wake_sig, struct gensio_os_funcs **o)
 {
-    if (wake_sig == -198234)
+    if (wake_sig == GENSIO_OS_FUNCS_DEFAULT_THREAD_SIGNAL)
 	wake_sig = SIGUSR1;
 
     return gensio_unix_funcs_alloc(NULL, wake_sig, o);
