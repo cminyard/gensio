@@ -896,6 +896,7 @@ conaccn_shutdown_close_done(struct gensio *child_io, void *close_cb_data)
     switch (nadata->state) {
     case CONACCNA_OPEN_DISABLE:
 	nadata->state = CONACCNA_DISABLED;
+	conaccna_call_enabled(nadata);
 	break;
 
     case CONACCNA_OPEN_SHUTDOWN:
