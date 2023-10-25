@@ -112,7 +112,13 @@ func (e *STelnetReflEvHnd) SendBreak() {
 func (e *STelnetReflEvHnd) Modemstate(state uint) {
 }
 
+func (e *STelnetReflEvHnd) ModemstateMask(state uint) {
+}
+
 func (e *STelnetReflEvHnd) Linestate(state uint) {
+}
+
+func (e *STelnetReflEvHnd) LinestateMask(state uint) {
 }
 
 func (e *STelnetReflEvHnd) FlowState(state bool) {
@@ -125,6 +131,9 @@ type STelnetEvHnd struct {
 }
 
 func (e *STelnetEvHnd) Modemstate(state uint) {
+}
+
+func (e *STelnetEvHnd) ModemstateMask(state uint) {
 }
 
 func (e *STelnetEvHnd) Linestate(state uint) {

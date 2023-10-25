@@ -45,6 +45,10 @@ is received on the server side only and is a request for the
 signature.  The server should respond by send the signature
 with sergensio_signature().  No value is passed in this case.
 .SS "STATE FUNCTIONS"
+GENSIO_EVENT_SER_MODEMSTATE_MASK
+.br
+GENSIO_EVENT_SER_LINESTATE_MASK
+.br
 These are received on the server side to request updating the mask of
 reported values.  The server should respond by returning the current
 mask with the
@@ -54,13 +58,13 @@ or
 functions.  The server need not handle all the bits requested by the
 user.
 
-On the client side, these are reporting current modemstate and
-linestate changes as an unsigned integer.  See sergensio_modemstate(3)
-and sergensio_linestate(3) for a meaning of the bits in the integer.
-
 GENSIO_EVENT_SER_MODEMSTATE
 .br
 GENSIO_EVENT_SER_LINESTATE
+
+On the client side, these are reporting current modemstate and
+linestate changes as an unsigned integer.  See sergensio_modemstate(3)
+and sergensio_linestate(3) for a meaning of the bits in the integer.
 .SS "OTHER SERIAL PORT CONTROLS"
 These are server-only, these are received requesting the various
 operations.  The server should do them, but no response is required.

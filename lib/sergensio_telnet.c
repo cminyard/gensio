@@ -729,7 +729,7 @@ stels_cb_com_port_will_do(void *handler_data, unsigned char cmd)
 	    gensiods vlen = sizeof(val);
 
 	    sdata->reported_modemstate = true;
-	    gensio_cb(io, GENSIO_EVENT_SER_MODEMSTATE, 0,
+	    gensio_cb(io, GENSIO_EVENT_SER_MODEMSTATE_MASK, 0,
 		      (unsigned char *) &val, &vlen, NULL);
 	} else {
 	    gensio_time timeout;
@@ -853,7 +853,7 @@ stels_cb_com_port_cmd(void *handler_data, const unsigned char *option,
 	if (len < 3)
 	    return;
 	val = option[2];
-	gensio_cb(io, GENSIO_EVENT_SER_LINESTATE, 0,
+	gensio_cb(io, GENSIO_EVENT_SER_LINESTATE_MASK, 0,
 		  (unsigned char *) &val, &vlen, NULL);
 	break;
 
@@ -861,7 +861,7 @@ stels_cb_com_port_cmd(void *handler_data, const unsigned char *option,
 	if (len < 3)
 	    return;
 	val = option[2];
-	gensio_cb(io, GENSIO_EVENT_SER_MODEMSTATE, 0,
+	gensio_cb(io, GENSIO_EVENT_SER_MODEMSTATE_MASK, 0,
 		  (unsigned char *) &val, &vlen, NULL);
 	break;
 
@@ -950,7 +950,7 @@ stels_timeout(void *handler_data)
 
 	if (gensio_get_cb(io)) {
 	    sdata->reported_modemstate = true;
-	    gensio_cb(io, GENSIO_EVENT_SER_MODEMSTATE, 0,
+	    gensio_cb(io, GENSIO_EVENT_SER_MODEMSTATE_MASK, 0,
 		      (unsigned char *) &val, &vlen, NULL);
 	} else {
 	    gensio_time timeout;

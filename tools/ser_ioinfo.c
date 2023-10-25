@@ -291,11 +291,11 @@ handle_sio_event(struct gensio *io, int event,
 	return GE_NOTSUP;
 
     switch (event) {
-    case GENSIO_EVENT_SER_MODEMSTATE:
+    case GENSIO_EVENT_SER_MODEMSTATE_MASK:
 	s2n_modemstate(rio, rsio, *((unsigned int *) buf));
 	return 0;
 
-    case GENSIO_EVENT_SER_LINESTATE:
+    case GENSIO_EVENT_SER_LINESTATE_MASK:
 	s2n_linestate(rio, rsio, *((unsigned int *) buf));
 	return 0;
 

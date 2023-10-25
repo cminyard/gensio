@@ -296,10 +296,8 @@ int sergensio_ri_b_timeout(struct sergensio_b *sbio, int *ri,
  */
 
 /*
- * On the client side, these are for reporting changes to the client.
- * On the server side, this is for reporting that the client has
- * requested the mask be changed.  buf points to an unsigned integer
- * holding the modem or line state.
+ * Client side only, these are for reporting changes to the user.  buf
+ * points to an unsigned integer holding the modem or line state.
  */
 #define GENSIO_EVENT_SER_MODEMSTATE	(SERGENSIO_EVENT_BASE + 1)
 #define GENSIO_EVENT_SER_LINESTATE	(SERGENSIO_EVENT_BASE + 2)
@@ -335,6 +333,14 @@ int sergensio_ri_b_timeout(struct sergensio_b *sbio, int *ri,
 #define GENSIO_EVENT_SER_SBREAK		(SERGENSIO_EVENT_BASE + 13)
 #define GENSIO_EVENT_SER_DTR		(SERGENSIO_EVENT_BASE + 14)
 #define GENSIO_EVENT_SER_RTS		(SERGENSIO_EVENT_BASE + 15)
+
+/*
+ * On the server side, this is for reporting that the client has
+ * requested the mask be changed.  buf points to an unsigned integer
+ * holding the new modem or line state mask.
+ */
+#define GENSIO_EVENT_SER_MODEMSTATE_MASK (SERGENSIO_EVENT_BASE + 16)
+#define GENSIO_EVENT_SER_LINESTATE_MASK	(SERGENSIO_EVENT_BASE + 17)
 
 GENSIO_DLL_PUBLIC
 bool sergensio_is_client(struct sergensio *sio);

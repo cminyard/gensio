@@ -378,7 +378,9 @@ type EventBase struct {
 type SerialEvent interface {
 	Event
 	Modemstate(state uint)
+	ModemstateMask(state uint)
 	Linestate(state uint)
+	LinestateMask(state uint)
 	Signature(data []byte)
 	FlowState(state bool)
 	Sync()
@@ -1268,7 +1270,9 @@ func (e *SerialEventBase) getSerialEventBase() *SerialEventBase {
 }
 
 func (e *SerialEventBase) Modemstate(state uint) { }
+func (e *SerialEventBase) ModemstateMask(state uint) { }
 func (e *SerialEventBase) Linestate(state uint) { }
+func (e *SerialEventBase) LinestateMask(state uint) { }
 func (e *SerialEventBase) Signature(data []byte) { }
 func (e *SerialEventBase) FlowState(state bool) { }
 func (e *SerialEventBase) Sync() { }
@@ -1368,8 +1372,16 @@ func (e *rawserialEventBase) Modemstate(state uint) {
 	e.subse.Modemstate(state)
 }
 
+func (e *rawserialEventBase) Modemstate_mask(state uint) {
+	e.subse.ModemstateMask(state)
+}
+
 func (e *rawserialEventBase) Linestate(state uint) {
 	e.subse.Linestate(state)
+}
+
+func (e *rawserialEventBase) Linestate_mask(state uint) {
+	e.subse.LinestateMask(state)
 }
 
 func (e *rawserialEventBase) Signature(data []byte) {

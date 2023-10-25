@@ -346,8 +346,8 @@ class EventHandler:
         return
 
     def modemstate(self, modemstate):
-        """Called from a sergensio object when a modemstate monitor is enabled
-        and a modemstate value changes..
+        """Called from a sergensio client object when a modemstate monitor is
+        enabled and a modemstate value changes.
 
         modemstate -- A bitmask of SERGENSIO_MODEMSTATE_CTS,
             SERGENSIO_MODEMSTATE_DSR, SERGENSIO_MODEMSTATE_RI and
@@ -357,13 +357,24 @@ class EventHandler:
             SERGENSIO_MODEMSTATE_DSR_CHANGED,
             SERGENSIO_MODEMSTATE_RI_CHANGED, and
             SERGENSIO_MODEMSTATE_CD_CHANGED.
+
+        """
+
+    def modemstate_mask(self, modemstate):
+        """Called from a server sergensio object the user requests a change in
+        the modemstate mask.
+
+        modemstate -- A bitmask of SERGENSIO_MODEMSTATE_CTS,
+            SERGENSIO_MODEMSTATE_DSR, SERGENSIO_MODEMSTATE_RI and
+            SERGENSIO_MODEMSTATE_CD.  This is the current modemstate
+            mask.
         """
 
     def linestate(self, modemstate):
         """Called from a sergensio object when a linestate monitor is enabled
         and a particular linestate event occurs.
 
-        linesate -- A bitmask of
+        linestate -- A bitmask of
             SERGENSIO_LINESTATE_DATA_READY,
             SERGENSIO_LINESTATE_OVERRUN_ERR,
             SERGENSIO_LINESTATE_PARITY_ERR,

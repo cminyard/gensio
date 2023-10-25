@@ -64,8 +64,16 @@ namespace gensios {
 			scb->modemstate(*val);
 			break;
 
+		    case GENSIO_EVENT_SER_MODEMSTATE_MASK:
+			scb->modemstate_mask(*val);
+			break;
+
 		    case GENSIO_EVENT_SER_LINESTATE:
 			scb->linestate(*val);
+			break;
+
+		    case GENSIO_EVENT_SER_LINESTATE_MASK:
+			scb->linestate_mask(*val);
 			break;
 
 		    case GENSIO_EVENT_SER_FLOW_STATE:

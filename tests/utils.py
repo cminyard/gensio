@@ -168,6 +168,7 @@ class HandleData:
         self.expected_winsize_height = -1
         self.expected_winsize_width = -1
         self.expecting_modemstate = False
+        self.expecting_modemstate_mask = False
         self.expecting_linestate = False
         self.expecting_remclose = expect_remclose
         self.expected_server_cb = None
@@ -499,6 +500,29 @@ class HandleData:
     def set_expected_modemstate(self, modemstate):
         self.expecting_modemstate = True
         self.expected_modemstate = modemstate
+        return
+
+    def modemstate_mask(self, io, modemstate):
+        try:
+            if (not self.expecting_modemstate_mask):
+                if (debug or self.debug):
+                    print("Got unexpected modemstate mask for %s: %x" %
+                          (self.name, modemstate))
+                self.enqueue("unexpected modemstate mask", modemstate)
+                return
+            if (modemstate_mask != self.expected_modemstate_mask):
+                raise Exception("%s: Expecting modemstate mask 0x%x, got 0x%x" %
+                                (self.name, self.expected_modemstate,
+                                 modemstate))
+            self.expecting_modemstate_mask = False
+            self.wake("modemstate_mask", modemstate)
+        except Exception as e:
+            self.exception("modemstate_mask: Unknown exception " + str(e))
+        return
+
+    def set_expected_modemstate_mask(self, modemstate):
+        self.expecting_modemstate_mask = True
+        self.expected_modemstate_mask = modemstate
         return
 
     def win_size(self, io, height, width):

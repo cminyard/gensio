@@ -423,6 +423,9 @@ namespace gensios {
 	virtual void rts(unsigned int rts) { }
 
 	virtual ~Serial_Event() = default;
+
+	virtual void modemstate_mask(unsigned int state) { }
+	virtual void linestate_mask(unsigned int state) { }
     };
 
     // Done handler for normal serial port operations.
@@ -523,6 +526,9 @@ namespace gensios {
 
 	// Server side only, for reporting changes
 	void flow_state(bool state);
+
+	// For server side, report the state.  For client side,
+	// request that the mask be set.
 	void modemstate(unsigned int state);
 	void linestate(unsigned int state);
 

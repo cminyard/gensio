@@ -393,6 +393,12 @@ sgensio_modemstate(struct gensio *io, unsigned int modemstate)
 }
 
 static void
+sgensio_modemstate_mask(struct gensio *io, unsigned int modemstate)
+{
+    sgensio_call(io, modemstate, "modemstate_mask");
+}
+
+static void
 sgensio_linestate(struct gensio *io, unsigned int linestate)
 {
     sgensio_call(io, linestate, "linestate");
@@ -851,6 +857,10 @@ gensio_child_event(struct gensio *io, void *user_data, int event, int readerr,
 
     case GENSIO_EVENT_SER_MODEMSTATE:
 	sgensio_modemstate(io, *((unsigned int *) buf));
+	break;
+
+    case GENSIO_EVENT_SER_MODEMSTATE_MASK:
+	sgensio_modemstate_mask(io, *((unsigned int *) buf));
 	break;
 
     case GENSIO_EVENT_SER_LINESTATE:
