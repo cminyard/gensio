@@ -128,10 +128,12 @@ gensio_base_init(void *cb_data)
     struct gensio_os_funcs *o = cb_data;
 
     gensio_base_lock = o->alloc_lock(o);
-    if (!gensio_base_lock)
+    if (!gensio_base_lock) {
 	gensio_base_init_rv = GE_NOMEM;
-    else
+    } else {
+	o->get_funcs(o);
 	o_base = o;
+    }
 }
 
 struct gensio *
@@ -2677,6 +2679,11 @@ gensio_cleanup_mem(struct gensio_os_funcs *o)
     if (cleanups_lock)
 	o->free_lock(cleanups_lock);
     cleanups_lock = NULL;
+
+    if (o_base) {
+	o_base->free_funcs(o_base);
+	o_base = NULL;
+    }
 
     reg_o = NULL;
 }
