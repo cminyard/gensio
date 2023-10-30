@@ -151,7 +151,7 @@ main(int argc, char *argv[])
     }
 
     memset(&ci, 0, sizeof(ci));
-    rv = gensio_alloc_os_funcs(0, &ci.o);
+    rv = gensio_alloc_os_funcs(0, &ci.o, 0);
     if (rv) {
 	fprintf(stderr, "Could not allocate OS handler: %s\n",
 		gensio_err_to_str(rv));

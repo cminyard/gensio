@@ -3222,7 +3222,7 @@ main(int argc, char *argv[])
     memset(&ginfo, 0, sizeof(ginfo));
     gensio_list_init(&ginfo.auths);
 
-    rv = gensio_alloc_os_funcs(0, &o);
+    rv = gensio_alloc_os_funcs(0, &o, 0);
     if (rv) {
 	log_event(LOG_ERR, "Could not allocate OS handler: %s\n",
 		  gensio_err_to_str(rv));

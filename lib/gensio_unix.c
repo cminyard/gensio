@@ -2377,12 +2377,23 @@ gensio_default_os_hnd(int wake_sig, struct gensio_os_funcs **o)
 }
 
 int
-gensio_alloc_os_funcs(int wake_sig, struct gensio_os_funcs **o)
+gensio_valloc_os_funcs(int wake_sig, struct gensio_os_funcs **o,
+		       unsigned int flags, va_list ap)
 {
     if (wake_sig == GENSIO_OS_FUNCS_DEFAULT_THREAD_SIGNAL)
 	wake_sig = SIGUSR1;
 
     return gensio_unix_funcs_alloc(NULL, wake_sig, o);
+}
+
+int
+gensio_alloc_os_funcs(int wake_sig, struct gensio_os_funcs **o,
+		      unsigned int flags, ...)
+{
+    va_list ap;
+
+    va_start(ap, flags);
+    return gensio_valloc_os_funcs(wake_sig, o, flags, ap);
 }
 
 void

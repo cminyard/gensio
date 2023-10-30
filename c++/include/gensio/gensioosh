@@ -63,6 +63,9 @@ namespace gensios {
 	// See gensio_alloc_os_funcs.3 for details.
 	Os_Funcs(int wait_sig, Os_Funcs_Log_Handler *logger = NULL);
 
+	Os_Funcs(int wait_sig, Os_Funcs_Log_Handler *logger,
+		 unsigned int flags, ...);
+
 	// This is for use by subclasses.  Don't use one with an empty
 	// parameter list, that can be used accidentally.
 	Os_Funcs(bool dummy) { };

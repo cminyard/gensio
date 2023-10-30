@@ -225,7 +225,7 @@ main(int argc, char *argv[])
 
     progname = argv[0];
 
-    rv = gensio_alloc_os_funcs(0, &o);
+    rv = gensio_alloc_os_funcs(0, &o, 0);
     if (rv) {
 	fprintf(stderr, "Could not allocate OS handler: %s\n",
 		gensio_err_to_str(rv));

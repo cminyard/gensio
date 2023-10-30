@@ -1800,7 +1800,7 @@ main(int argc, char *argv[])
     memset(&userdata2, 0, sizeof(userdata2));
     userdata1.interactive = true;
 
-    err = gensio_alloc_os_funcs(0, &o);
+    err = gensio_alloc_os_funcs(0, &o, 0);
     if (err) {
 	fprintf(stderr, "Could not allocate OS handler: %s\n",
 		gensio_err_to_str(err));

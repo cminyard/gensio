@@ -62,7 +62,22 @@ namespace gensios {
 	int err;
 	struct gensio_os_funcs *o;
 
-	err = gensio_alloc_os_funcs(wait_sig, &o);
+	err = gensio_alloc_os_funcs(wait_sig, &o, 0);
+	if (err)
+	    throw gensio_error(err);
+	this->init(o, logger);
+    }
+
+    Os_Funcs::Os_Funcs(int wait_sig, Os_Funcs_Log_Handler *logger,
+		       unsigned int flags, ...)
+    {
+	int err;
+	struct gensio_os_funcs *o;
+	va_list ap;
+
+	va_start(ap, flags);
+	err = gensio_valloc_os_funcs(wait_sig, &o, flags, ap);
+	va_end(ap);
 	if (err)
 	    throw gensio_error(err);
 	this->init(o, logger);

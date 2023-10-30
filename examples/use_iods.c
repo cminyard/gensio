@@ -375,7 +375,7 @@ main(int argc, char *argv[])
 
     memset(&ci, 0, sizeof(ci));
 
-    rv = gensio_alloc_os_funcs(GENSIO_DEF_WAKE_SIG, &ci.o);
+    rv = gensio_alloc_os_funcs(GENSIO_DEF_WAKE_SIG, &ci.o, 0);
     if (rv) {
 	fprintf(stderr, "Could not allocate OS handler: %s\n",
 		gensio_err_to_str(rv));
