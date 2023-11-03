@@ -96,6 +96,7 @@ struct gensio {
     bool is_encrypted;
     bool is_message;
     bool is_mux;
+    bool is_serial;
 
     struct gensio_sync_io *sync_io;
 
@@ -373,6 +374,7 @@ struct gensio_accepter {
     bool is_reliable;
     bool is_message;
     bool is_mux;
+    bool is_serial;
     bool sync;
     bool enabled;
 
@@ -937,6 +939,12 @@ gensio_is_mux(struct gensio *io)
     return io->is_mux;
 }
 
+bool
+gensio_is_serial(struct gensio *io)
+{
+    return io->is_serial;
+}
+
 void
 gensio_set_is_client(struct gensio *io, bool is_client)
 {
@@ -977,6 +985,12 @@ void
 gensio_set_is_mux(struct gensio *io, bool is_mux)
 {
     io->is_mux = is_mux;
+}
+
+void
+gensio_set_is_serial(struct gensio *io, bool is_serial)
+{
+    io->is_serial = is_serial;
 }
 
 void
@@ -1276,6 +1290,12 @@ gensio_acc_is_mux(struct gensio_accepter *accepter)
     return accepter->is_mux;
 }
 
+bool
+gensio_acc_is_serial(struct gensio_accepter *accepter)
+{
+    return accepter->is_serial;
+}
+
 void
 gensio_acc_set_is_reliable(struct gensio_accepter *accepter, bool is_reliable)
 {
@@ -1298,6 +1318,12 @@ void
 gensio_acc_set_is_mux(struct gensio_accepter *accepter, bool is_mux)
 {
      accepter->is_mux = is_mux;
+}
+
+void
+gensio_acc_set_is_serial(struct gensio_accepter *accepter, bool is_serial)
+{
+     accepter->is_serial = is_serial;
 }
 
 struct registered_gensio_accepter {

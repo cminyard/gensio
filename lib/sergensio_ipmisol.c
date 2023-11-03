@@ -94,6 +94,8 @@ ipmisol_gensio_alloc(const void *gdata, const char * const args[],
 	return GE_NOMEM;
     }
 
+    gensio_set_is_serial(idata->io, true);
+
     err = sergensio_addclass(o, idata->io, sergensio_iterm_func, idata,
 			     &idata->sio);
     if (err) {

@@ -286,8 +286,7 @@ namespace gensios {
 	inline bool is_encrypted() const { return gensio_is_encrypted(io); }
 	inline bool is_message() const { return gensio_is_message(io); }
 	inline bool is_mux() const { return gensio_is_mux(io); }
-
-	virtual bool is_serial() { return false; }
+	inline bool is_serial() { return gensio_is_serial(io); }
 
 	// Turn on/off synchronous mode for a gensio.  In synchrohous
 	// mode, the gensio will not deliver data via the read call.
@@ -739,6 +738,7 @@ namespace gensios {
 	inline bool is_packet() const { return gensio_acc_is_packet(acc); }
 	inline bool is_message() const { return gensio_acc_is_message(acc); }
 	inline bool is_mux() const { return gensio_acc_is_mux(acc); }
+	inline bool is_serial() const { return gensio_acc_is_serial(acc); }
 
 	// Return the local side port for the accepter.  This is
 	// useful if you create a gensio with the port set to zero,

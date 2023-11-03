@@ -830,6 +830,21 @@ struct waiter { };
 	return gensio_is_encrypted(self);
     }
 
+    %rename(is_message) is_messaget;
+    bool is_messaget() {
+	return gensio_is_message(self);
+    }
+
+    %rename(is_mux) is_muxt;
+    bool is_muxt() {
+	return gensio_is_mux(self);
+    }
+
+    %rename(is_serial) is_serialt;
+    bool is_serialt() {
+	return gensio_is_serial(self);
+    }
+
     %newobject cast_to_sergensio;
     struct sergensio *cast_to_sergensio() {
 	struct gensio_data *data = (struct gensio_data *)
@@ -1303,6 +1318,18 @@ struct waiter { };
 
     bool is_reliable() {
 	return gensio_acc_is_reliable(self);
+    }
+
+    bool is_message() {
+	return gensio_acc_is_message(self);
+    }
+
+    bool is_mux() {
+	return gensio_acc_is_message(self);
+    }
+
+    bool is_serial() {
+	return gensio_acc_is_message(self);
     }
 
     %newobject cast_to_sergensio_acc;
