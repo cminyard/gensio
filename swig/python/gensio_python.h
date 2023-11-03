@@ -361,6 +361,31 @@ gensio_close_done(struct gensio *io, void *cb_data) {
 }
 
 static void
+gensio_control_cb(struct gensio *io, int err, const char *buf, gensiods len,
+		  void *cb_data) {
+    swig_cb_val *cb = (swig_cb_val *) cb_data;
+    swig_ref io_ref;
+    PyObject *args, *o;
+    OI_PY_STATE gstate;
+
+    gstate = OI_PY_STATE_GET();
+
+    io_ref = swig_make_ref(io, gensio);
+    args = PyTuple_New(3);
+    gensio_pyref(io);
+    PyTuple_SET_ITEM(args, 0, io_ref.val);
+    o = PyInt_FromLong(err);
+    PyTuple_SET_ITEM(args, 1, o);
+    o = PyBytes_FromStringAndSize(buf, len);
+    PyTuple_SET_ITEM(args, 2, o);
+
+    swig_finish_call(cb, "control_done", args, false);
+
+    deref_swig_cb_val(cb);
+    OI_PY_STATE_PUT(gstate);
+}
+
+static void
 sgensio_call(struct gensio *io, long val, const char *func)
 {
     struct gensio_data *data = (struct gensio_data *) gensio_get_user_data(io);

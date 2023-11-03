@@ -412,6 +412,38 @@ struct waiter { };
 %constant int GENSIO_CONTROL_EXTRAINFO = GENSIO_CONTROL_EXTRAINFO;
 %constant int GENSIO_CONTROL_ENABLE_OOB = GENSIO_CONTROL_ENABLE_OOB;
 %constant int GENSIO_CONTROL_WIN_SIZE = GENSIO_CONTROL_WIN_SIZE;
+%constant int GENSIO_CONTROL_START_DIRECTORY = GENSIO_CONTROL_START_DIRECTORY;
+%constant int GENSIO_CONTROL_IN_RATE = GENSIO_CONTROL_IN_RATE;
+%constant int GENSIO_CONTROL_OUT_RATE = GENSIO_CONTROL_OUT_RATE;
+%constant int GENSIO_CONTROL_IN_BUFSIZE = GENSIO_CONTROL_IN_BUFSIZE;
+%constant int GENSIO_CONTROL_OUT_BUFSIZE = GENSIO_CONTROL_OUT_BUFSIZE;
+%constant int GENSIO_CONTROL_IN_NR_CHANS = GENSIO_CONTROL_IN_NR_CHANS;
+%constant int GENSIO_CONTROL_OUT_NR_CHANS = GENSIO_CONTROL_OUT_NR_CHANS;
+%constant int GENSIO_CONTROL_IN_FORMAT = GENSIO_CONTROL_IN_FORMAT;
+%constant int GENSIO_CONTROL_OUT_FORMAT = GENSIO_CONTROL_OUT_FORMAT;
+%constant int GENSIO_CONTROL_DRAIN_COUNT = GENSIO_CONTROL_DRAIN_COUNT;
+
+%constant int GENSIO_CONTROL_SER_MODEMSTATE = GENSIO_CONTROL_SER_MODEMSTATE;
+%constant int GENSIO_CONTROL_SER_FLOWCONTROL_STATE = GENSIO_CONTROL_SER_FLOWCONTROL_STATE;
+%constant int GENSIO_CONTROL_SER_FLUSH = GENSIO_CONTROL_SER_FLUSH;
+%constant int GENSIO_CONTROL_SER_SEND_BREAK = GENSIO_CONTROL_SER_SEND_BREAK;
+%constant int GENSIO_CONTROL_SER_SIGNATURE = GENSIO_CONTROL_SER_SIGNATURE;
+%constant int GENSIO_CONTROL_SER_LINESTATE = GENSIO_CONTROL_SER_LINESTATE;
+
+/* Keep the async control number in a different range, just to be safe. */
+%constant int GENSIO_ACONTROL_SER_BAUD = GENSIO_ACONTROL_SER_BAUD;
+%constant int GENSIO_ACONTROL_SER_DATASIZE = GENSIO_ACONTROL_SER_DATASIZE;
+%constant int GENSIO_ACONTROL_SER_PARITY = GENSIO_ACONTROL_SER_PARITY;
+%constant int GENSIO_ACONTROL_SER_STOPBITS = GENSIO_ACONTROL_SER_STOPBITS;
+%constant int GENSIO_ACONTROL_SER_FLOWCONTROL = GENSIO_ACONTROL_SER_FLOWCONTROL;
+%constant int GENSIO_ACONTROL_SER_IFLOWCONTROL = GENSIO_ACONTROL_SER_IFLOWCONTROL;
+%constant int GENSIO_ACONTROL_SER_SBREAK = GENSIO_ACONTROL_SER_SBREAK;
+%constant int GENSIO_ACONTROL_SER_DTR = GENSIO_ACONTROL_SER_DTR;
+%constant int GENSIO_ACONTROL_SER_RTS = GENSIO_ACONTROL_SER_RTS;
+%constant int GENSIO_ACONTROL_SER_CTS = GENSIO_ACONTROL_SER_CTS;
+%constant int GENSIO_ACONTROL_SER_DCD_DSR = GENSIO_ACONTROL_SER_DCD_DSR;
+%constant int GENSIO_ACONTROL_SER_RI = GENSIO_ACONTROL_SER_RI;
+%constant int GENSIO_ACONTROL_SER_SIGNATURE = GENSIO_ACONTROL_SER_SIGNATURE;
 
 %constant int GENSIO_NETTYPE_UNSPEC = GENSIO_NETTYPE_UNSPEC;
 %constant int GENSIO_NETTYPE_IPV4 = GENSIO_NETTYPE_IPV4;
@@ -799,6 +831,84 @@ struct waiter { };
 	*rstr_len = glen;
     }
 
+    int control_set(int depth, int option, char *bytestr, my_ssize_t len) {
+	gensiods slen = len;
+
+	return gensio_control(self, depth, false, option, bytestr, &slen);
+    }
+
+    %rename(acontrol) acontrolt;
+    void acontrolt(int depth, bool get, int option, char *value,
+		  swig_cb *done) {
+	int rv;
+	swig_cb_val *done_val = NULL;
+	unsigned int len = 0;
+
+	if (value)
+	    len = strlen(value);
+	if (!nil_swig_cb(done)) {
+	    done_val = ref_swig_cb(done, control_done);
+	    rv = gensio_acontrol(self, depth, get, option,
+				 value, len, gensio_control_cb, done_val);
+	} else {
+	    rv = gensio_acontrol(self, depth, get, option,
+				 value, len, NULL, NULL);
+	}
+	if (rv && done_val)
+	    deref_swig_cb_val(done_val);
+	err_handle("acontrol", rv);
+    }
+
+    %rename(acontrol_s) acontrol_st;
+    %newobject acontrol_st;
+    void acontrol_st(char **rstr, size_t *rstr_len, int depth,
+		     bool get, int option, char *bytestr, my_ssize_t len) {
+	int rv;
+	char *data = NULL;
+	gensiods glen = 0, slen = len;
+
+	if (get) {
+	    /* Pass in a zero length to get the actual length. */
+	    rv = gensio_acontrol_s(self, depth, get, option, bytestr, &glen);
+	    if (rv)
+		goto out;
+	    /* Allocate the larger of strlen(bytestr) and len) */
+	    if (slen > glen) {
+		data = (char *) malloc(slen + 1);
+		glen = slen;
+	    } else {
+		data = (char *) malloc(glen + 1);
+	    }
+	    if (!data) {
+		rv = GE_NOMEM;
+		goto out;
+	    }
+	    data[glen] = '\0';
+	    data[slen] = '\0';
+	    glen += 1;
+	    if (bytestr) {
+		memcpy(data, bytestr, slen);
+	    } else {
+		data[0] = '\0';
+	    }
+	    rv = gensio_acontrol_s(self, depth, get, option, data, &glen);
+	    if (rv) {
+		free(data);
+		data = NULL;
+	    }
+	out:
+	    if (rv == GE_NOTFOUND) /* Return None for ENOENT. */
+		goto out_ret;
+	} else {
+	    rv = gensio_acontrol_s(self, depth, get, option, bytestr, &slen);
+	}
+
+	err_handle("control", rv);
+    out_ret:
+	*rstr = data;
+	*rstr_len = glen;
+    }
+
     %rename(get_child) get_childt;
     %newobject get_childt;
     bool get_childt(int depth) {
@@ -913,6 +1023,9 @@ struct waiter { };
 %constant int SERGENSIO_FLOWCONTROL_DCD = SERGENSIO_FLOWCONTROL_DCD;
 %constant int SERGENSIO_FLOWCONTROL_DTR = SERGENSIO_FLOWCONTROL_DTR;
 %constant int SERGENSIO_FLOWCONTROL_DSR = SERGENSIO_FLOWCONTROL_DSR;
+
+%constant int SERGENSIO_ON = SERGENSIO_ON;
+%constant int SERGENSIO_OFF = SERGENSIO_OFF;
 
 %constant int SERGENSIO_BREAK_ON = SERGENSIO_BREAK_ON;
 %constant int SERGENSIO_BREAK_OFF = SERGENSIO_BREAK_OFF;
@@ -1060,6 +1173,7 @@ struct waiter { };
 
 %constant int GENSIO_ACC_CONTROL_LADDR = GENSIO_ACC_CONTROL_LADDR;
 %constant int GENSIO_ACC_CONTROL_LPORT = GENSIO_ACC_CONTROL_LPORT;
+%constant int GENSIO_ACC_CONTROL_TCPDNAME = GENSIO_ACC_CONTROL_TCPDNAME;
 
 %extend gensio_accepter {
     gensio_accepter(struct gensio_os_funcs *o, char *str, swig_cb *handler) {
