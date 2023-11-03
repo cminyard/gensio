@@ -1080,6 +1080,7 @@ telnet_gensio_alloc(struct gensio *child, const char * const args[],
     sdata->io = io;
 
     if (sdata->allow_rfc2217) {
+	gensio_set_is_serial(io, true);
 	err = sergensio_addclass(o, io, sergensio_stel_func, sdata,
 				 &sdata->sio);
 	if (err)
@@ -1250,6 +1251,7 @@ stela_finish_parent(void *acc_data, void *finish_data, struct gensio *io,
     sdata->io = io;
 
     if (sdata->allow_rfc2217) {
+	gensio_set_is_serial(io, true);
 	err = sergensio_addclass(sdata->o, io, sergensio_stel_func, sdata,
 				 &sdata->sio);
 	if (err)
@@ -1360,6 +1362,7 @@ telnet_gensio_accepter_alloc(struct gensio_accepter *child,
 	goto out_err;
 
     if (allow_rfc2217) {
+	gensio_acc_set_is_serial(accepter, true);
 	err = sergensio_acc_addclass(o, accepter, sergensio_stela_func, stela,
 				     &stela->sacc);
 	if (err)

@@ -1586,6 +1586,8 @@ iodev_gensio_alloc(const void *gdata, const char * const args[],
 	return GE_NOMEM;
     }
 
+    gensio_set_is_serial(io, true);
+
     err = sergensio_addclass(o, io, sergensio_sterm_func, sdata, &sdata->sio);
     if (err) {
 	gensio_free(io);
