@@ -100,6 +100,17 @@ struct gensio_func_alloc_channel_data {
  */
 #define GENSIO_FUNC_OPEN_NOCHILD	14
 
+/*
+ * Following struct in buf
+ */
+struct gensio_func_acontrol {
+    const char *data;
+    gensiods datalen;
+    gensio_control_done done;
+    void *cb_data;
+};
+#define GENSIO_FUNC_ACONTROL		15
+
 typedef int (*gensio_func)(struct gensio *io, int func, gensiods *count,
 			   const void *cbuf, gensiods buflen, void *buf,
 			   const char *const *auxdata);

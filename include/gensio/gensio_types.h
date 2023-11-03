@@ -66,6 +66,13 @@ typedef void (*gensio_done)(struct gensio *io, void *open_data);
 typedef void (*gensio_done_err)(struct gensio *io, int err, void *open_data);
 
 /*
+ * Callback from gensio_acontrol().
+ */
+typedef void (*gensio_control_done)(struct gensio *io, int err,
+				    const char *buf, gensiods len,
+				    void *cb_data);
+
+/*
  * Callbacks for functions that don't give an error (shutdown);
  */
 typedef void (*gensio_acc_done)(struct gensio_accepter *acc, void *cb_data);

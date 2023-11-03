@@ -51,6 +51,10 @@ struct gensio_fd_ll_ops {
     int (*write)(void *handler_data, struct gensio_iod *iod, gensiods *count,
 		 const struct gensio_sg *sg, gensiods sglen,
 		 const char *const *auxdata);
+
+    int (*acontrol)(void *handler_data, struct gensio_iod *iod, bool get,
+		    unsigned int option,
+		    struct gensio_func_acontrol *data);
 };
 
 GENSIO_DLL_PUBLIC

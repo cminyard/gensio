@@ -191,6 +191,17 @@ GENSIO_DLL_PUBLIC
 int gensio_control(struct gensio *io, int depth, bool get,
 		   unsigned int option, char *data, gensiods *datalen);
 
+GENSIO_DLL_PUBLIC
+int gensio_acontrol(struct gensio *io, int depth, bool get,
+		    unsigned int option, const char *data,
+		    gensiods datalen,
+		    gensio_control_done done, void *cb_data);
+
+GENSIO_DLL_PUBLIC
+int gensio_acontrol_s(struct gensio *io, int depth, bool get,
+		      unsigned int option, char *data,
+		      gensiods *datalen);
+
 #include <gensio/gensio_control.h>
 
 GENSIO_DLL_PUBLIC

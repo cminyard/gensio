@@ -1545,6 +1545,19 @@ gensio_base_func(struct gensio *io, int func, gensiods *count,
 	    return rv;
 	return rv2;
 
+    case GENSIO_FUNC_ACONTROL:
+	rv = GE_NOTSUP;
+	if (ndata->filter) {
+	    rv = gensio_filter_acontrol(ndata->filter, *((bool *) cbuf), buflen,
+					buf);
+	    if (rv && rv != GE_NOTSUP)
+		return rv;
+	}
+	rv2 = gensio_ll_acontrol(ndata->ll, *((bool *) cbuf), buflen, buf);
+	if (rv2 == GE_NOTSUP)
+	    return rv;
+	return rv2;
+
     case GENSIO_FUNC_DISABLE:
 	if (ndata->state != BASEN_CLOSED) {
 	    basen_set_state(ndata, BASEN_CLOSED);
@@ -2153,6 +2166,15 @@ gensio_filter_control(struct gensio_filter *filter, bool get,
 			NULL, data, datalen, NULL, &get, option, NULL);
 }
 
+int
+gensio_filter_acontrol(struct gensio_filter *filter, bool get,
+		       unsigned int option,
+		       struct gensio_func_acontrol *data)
+{
+    return filter->func(filter, GENSIO_FILTER_FUNC_ACONTROL,
+			NULL, data, 0, NULL, &get, option, NULL);
+}
+
 struct gensio *
 gensio_filter_get_gensio(struct gensio_filter *filter)
 {
@@ -2280,6 +2302,14 @@ gensio_ll_control(struct gensio_ll *ll, bool get, int option, char *data,
 {
     return ll->func(ll, GENSIO_LL_FUNC_CONTROL, datalen, data, &get, option,
 		    NULL);
+}
+
+int
+gensio_ll_acontrol(struct gensio_ll *ll, bool get, int option,
+		   struct gensio_func_acontrol *data)
+{
+    return ll->func(ll, GENSIO_LL_FUNC_ACONTROL, 0, data, &get,
+		    option, NULL);
 }
 
 int
