@@ -425,6 +425,19 @@ class CloseDone:
         """
         return
 
+class ControlDone:
+    """A template for a class handling the finish of a control operation."""
+
+    def control_done(self, io, err, val):
+        """Called when the close operation completes.
+
+        io -- The gensio the operation was against.
+        err -- A gensio error value.
+        val -- A string/bytestring with the result of the operation.  Will
+            not be set if err is not zero.
+        """
+        return
+
 class gensio:
     def __init__(o, gensiostr, handler):
         """Allocate a gensio.
@@ -632,6 +645,59 @@ class gensio:
             gensio, 1 the second from the top, etc.
             GENSIO_CONTROL_DEPTH_ALL will call the control on every gensio
             in the stack, GENSIO_CONTROL_DEPTH_FIRST will call the control
+            down the stack until a control doesn't return GE_NOTSOP.
+        get -- A boolean specifying if this is a get or a put operation.
+        option -- The specific gensio control to call.
+        data -- A string specifying the data for the control.
+
+        Returns a string with the result data for the control.
+        """
+        return ""
+
+    def control_set(self, depth, option, data):
+        """Do a gensio-specific control set operation.  See the specific
+        gensios and the C interface for specific gensio controls.  This
+        is only for setting and returns an error value, not a string.
+
+        depth -- The gensio in the stack to choose.  0 selects the top
+            gensio, 1 the second from the top, etc.
+            GENSIO_CONTROL_DEPTH_ALL will call the control on every gensio
+            in the stack, GENSIO_CONTROL_DEPTH_FIRST will call the control
+            down the stack until a control doesn't return GE_NOTSOP.
+        option -- The specific gensio control to call.
+        data -- A string specifying the data for the control.
+
+        Returns a gensio error.  Does not raise an exception.
+        """
+        return ""
+
+    def acontrol(self, depth, get, option, data, done):
+        """Do a gensio-specific asynchronous control operation.  See the
+        specific gensios and the C interface for specific gensio
+        controls.  The operation is not complete when this returns, it
+        will be complete when the done callback is called.
+
+        depth -- The gensio in the stack to choose.  0 selects the top
+            gensio, 1 the second from the top, etc.
+            GENSIO_CONTROL_DEPTH_FIRST will call the control
+            down the stack until a control doesn't return GE_NOTSOP.
+        get -- A boolean specifying if this is a get or a put operation.
+        option -- The specific gensio control to call.
+        data -- A string specifying the data for the control.
+        done -- A ControlDone type callback called when the operation completes.
+
+        No return value.  This will raise an exception on an error.
+        """
+        return
+
+    def acontrol_s(self, depth, get, option, data):
+        """Do a gensio-specific asynchronous control operation, but wait for
+        the result.  See the specific gensios and the C interface for
+        specific gensio controls.
+
+        depth -- The gensio in the stack to choose.  0 selects the top
+            gensio, 1 the second from the top, etc.
+            GENSIO_CONTROL_DEPTH_FIRST will call the control
             down the stack until a control doesn't return GE_NOTSOP.
         get -- A boolean specifying if this is a get or a put operation.
         option -- The specific gensio control to call.
