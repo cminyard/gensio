@@ -939,6 +939,18 @@ static int fd_control(struct gensio_ll *ll, bool get, unsigned int option,
 			      datalen);
 }
 
+static int fd_acontrol(struct gensio_ll *ll, bool get, unsigned int option,
+		       struct gensio_func_acontrol *data)
+{
+    struct fd_ll *fdll = ll_to_fd(ll);
+
+    if (!fdll->ops->acontrol)
+	return GE_NOTSUP;
+
+    return fdll->ops->acontrol(fdll->handler_data, fdll->iod, get, option,
+			       data);
+}
+
 static void fd_disable(struct gensio_ll *ll)
 {
     struct fd_ll *fdll = ll_to_fd(ll);
@@ -982,6 +994,9 @@ gensio_ll_fd_func(struct gensio_ll *ll, int op, gensiods *count,
 
     case GENSIO_LL_FUNC_CONTROL:
 	return fd_control(ll, *((bool *) cbuf), buflen, buf, count);
+
+    case GENSIO_LL_FUNC_ACONTROL:
+	return fd_acontrol(ll, *((bool *) cbuf), buflen, buf);
 
     case GENSIO_LL_FUNC_DISABLE:
 	fd_disable(ll);

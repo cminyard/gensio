@@ -776,6 +776,102 @@ gensio_control(struct gensio *io, int depth, bool get,
     return c->func(c, GENSIO_FUNC_CONTROL, datalen, &get, option, data, NULL);
 }
 
+int
+gensio_acontrol(struct gensio *io, int depth, bool get,
+		unsigned int option, const char *data,
+		gensiods datalen,
+		gensio_control_done done, void *cb_data)
+{
+    struct gensio_func_acontrol ctrldata = {
+	.data = data,
+	.datalen = datalen,
+	.done = done,
+	.cb_data = cb_data
+    };
+    struct gensio *c = io;
+
+    if (depth == GENSIO_CONTROL_DEPTH_FIRST) {
+	while (c) {
+	    int rv = c->func(c, GENSIO_FUNC_ACONTROL, NULL, &get, option,
+			     &ctrldata, NULL);
+
+	    if (rv != GE_NOTSUP)
+		return rv;
+	    c = c->child;
+	}
+	return GE_NOTFOUND;
+    }
+
+    if (depth < 0)
+	return GE_INVAL;
+
+    while (depth > 0) {
+	if (!c->child)
+	    return GE_NOTFOUND;
+	depth--;
+	c = c->child;
+    }
+
+    return c->func(c, GENSIO_FUNC_ACONTROL, NULL, &get, option,
+		   &ctrldata, NULL);
+}
+
+struct gensio_acontrol_s_data {
+    bool is_get;
+    struct gensio_os_funcs *o;
+    struct gensio_waiter *waiter;
+    char *data;
+    gensiods datalen;
+    int err;
+};
+
+static void
+gensio_acontrol_s_done(struct gensio *io, int err, const char *str,
+		       gensiods len, void *cb_data)
+{
+    struct gensio_acontrol_s_data *data = cb_data;
+    gensiods copysize = len;
+
+    data->err = err;
+    if (!err && data->is_get) {
+	if (copysize > data->datalen - 1)
+	    copysize = data->datalen - 1;
+	if (copysize)
+	    memcpy(data->data, str, len);
+	data->datalen = len;
+    }
+    data->o->wake(data->waiter);
+}
+
+int
+gensio_acontrol_s(struct gensio *io, int depth, bool get,
+		  unsigned int option, char *idata,
+		  gensiods *datalen)
+{
+    struct gensio_os_funcs *o = io->o;
+    struct gensio_acontrol_s_data data = {
+	.is_get = get,
+	.o = o,
+	.waiter = o->alloc_waiter(o),
+	.data = idata,
+	.datalen = *datalen,
+	.err = 0
+    };
+    int rv;
+
+    if (!data.waiter)
+	return GE_NOMEM;
+
+    rv = gensio_acontrol(io, depth, get, option, idata, *datalen,
+			 gensio_acontrol_s_done, &data);
+    if (rv)
+	return rv;
+    o->wait(data.waiter, 1, NULL);
+    o->free_waiter(data.waiter);
+    *datalen = data.datalen;
+    return data.err;
+}
+
 const char *
 gensio_get_type(struct gensio *io, unsigned int depth)
 {

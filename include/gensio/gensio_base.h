@@ -12,6 +12,7 @@
 
 #include <gensio/gensio_dllvisibility.h>
 #include <gensio/gensio_types.h>
+#include <gensio/gensio_class.h>
 
 struct gensio_filter;
 
@@ -264,6 +265,20 @@ bool gensio_filter_ll_write_queued(struct gensio_filter *filter);
 GENSIO_DLL_PUBLIC
 void gensio_filter_io_err(struct gensio_filter *filter, int err);
 
+/*
+ * Do a done control function on the filter.  Return GE_NOTSUP if not
+ * supported.
+ *
+ * get => cbuf
+ * option => buflen
+ * data => gensio_func_Acontrol
+ */
+#define GENSIO_FILTER_FUNC_ACONTROL		19
+GENSIO_DLL_PUBLIC
+int gensio_filter_acontrol(struct gensio_filter *filter, bool get,
+			   unsigned int option,
+			   struct gensio_func_acontrol *data);
+
 typedef int (*gensio_filter_func)(struct gensio_filter *filter, int op,
 				  void *func, void *data,
 				  gensiods *count, void *buf,
@@ -382,7 +397,7 @@ void gensio_ll_free(struct gensio_ll *ll);
 /*
  * option => buflen
  * get => cbuf
- * auxdata => buf
+ * data => buf
  * datalen => count
  */
 #define GENSIO_LL_FUNC_CONTROL			11
@@ -393,6 +408,16 @@ int gensio_ll_control(struct gensio_ll *ll, bool get, int option, char *data,
 #define GENSIO_LL_FUNC_DISABLE			12
 GENSIO_DLL_PUBLIC
 void gensio_ll_disable(struct gensio_ll *ll);
+
+/*
+ * option => buflen
+ * get => cbuf
+ * data => buf
+ */
+#define GENSIO_LL_FUNC_ACONTROL			13
+GENSIO_DLL_PUBLIC
+int gensio_ll_acontrol(struct gensio_ll *ll, bool get, int option,
+		       struct gensio_func_acontrol *data);
 
 typedef int (*gensio_ll_func)(struct gensio_ll *ll, int op,
 			      gensiods *count,
