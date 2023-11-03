@@ -22,6 +22,10 @@ struct gensio_telnet_filter_callbacks {
 			unsigned int len);
     void (*timeout)(void *handler_data);
     void (*free)(void *handler_data);
+    int (*control)(void *handler_data, bool get, int option,
+		   char *data, gensiods *datalen);
+    int (*acontrol)(void *hander_data, bool get, int option,
+		     struct gensio_func_acontrol *data);
 };
 
 struct gensio_telnet_filter_rops {

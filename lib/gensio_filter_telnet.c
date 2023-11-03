@@ -583,8 +583,23 @@ telnet_filter_control(struct gensio_filter *filter, bool get, int op,
 	return 0;
 
     default:
+	if (tfilter->telnet_cbs->control)
+	    return tfilter->telnet_cbs->control(tfilter->handler_data,
+						get, op, data, datalen);
 	return GE_NOTSUP;
     }
+}
+
+static int
+telnet_filter_acontrol(struct gensio_filter *filter, bool get, int op,
+		       struct gensio_func_acontrol *data)
+{
+    struct telnet_filter *tfilter = filter_to_telnet(filter);
+
+    if (tfilter->telnet_cbs->acontrol)
+	return tfilter->telnet_cbs->acontrol(tfilter->handler_data,
+					     get, op, data);
+    return GE_NOTSUP;
 }
 
 static int gensio_telnet_filter_func(struct gensio_filter *filter, int op,
@@ -641,6 +656,9 @@ static int gensio_telnet_filter_func(struct gensio_filter *filter, int op,
     case GENSIO_FILTER_FUNC_CONTROL:
 	return telnet_filter_control(filter, *((bool *) cbuf), buflen, data,
 				     count);
+
+    case GENSIO_FILTER_FUNC_ACONTROL:
+	return telnet_filter_acontrol(filter, *((bool *) cbuf), buflen, data);
 
     default:
 	return GE_NOTSUP;
