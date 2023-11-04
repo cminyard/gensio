@@ -9,6 +9,25 @@ gensio_control \- Perform gensio-specific actions
 .B                    unsigned int option,
 .br
 .B                    char *data, gensiods *datalen);
+.br
+.B typedef void (*gensio_control_done)(struct gensio *io, int err,
+.br
+.B                                  const char *buf, gensiods len,
+.br
+.B                                  void *cb_data);
+.br
+.B int gensio_acontrol(struct gensio *io, int depth, bool get,
+.br
+.B                    unsigned int option,
+.br
+.B                    char *data, gensiods *datalen,
+.br
+.B                    gensio_control_done done, void *cb_data);
+.B int gensio_acontrol_s(struct gensio *io, int depth, bool get,
+.br
+.B                    unsigned int option,
+.br
+.B                    char *data, gensiods *datalen);
 .SH "DESCRIPTION"
 .B gensio_control
 performs a gensio-specific operation on the gensio (if
@@ -65,6 +84,21 @@ of the input string in
 it must be a nil terminated string.  For binary values,
 .I datalen
 must be provided.
+
+All normal controls fetch data immediately and do not block.
+
+.B gensio_acontrol
+does a control that is asynchronous, meaning that it is not finished
+when the function returns.  If it returns zero, the done callback
+will be called with the result when the operation completes.
+All asynchronous control options start with
+.B GENSIO_ACONTROL_xxx.
+Asynchronous controls do not allow GENSIO_CONTROL_DEPTH_ALL, they can
+only be called on a single gensio in the stack.
+
+.B gensio_acontrol_s
+does an asynchronous control, but waits until the operation completes
+using an os function waiter.
 
 A get operation is alway indepotent (it won't change anything, so
 multiple calls will not have any effect on the state of the system).
@@ -323,6 +357,113 @@ For sound gensios, return the format of the user data.  Like "float",
 .SS "GENSIO_CONTROL_DRAIN_COUNT"
 The amount of data left to be transmitted.  For sound, this is in
 frames.
+.SS "SERIAL PORT CONTROLS"
+The following set various serial port values.
+
+On the client these set the value or request the value from the other
+end.  When getting the data value is not used.  When setting the data
+value is a string with a number or setting.  The response in the done
+callback reports a string with the set value (which may be different
+than the requested value) in the same format as the request.
+
+On the server these are used to respond to a client event.  The done
+callback is ignored.
+
+GENSIO_ACONTROL_SER_BAUD
+.br
+is the baud rate as a number.  For instance, setting to "1200" sets
+1200 baud.  Not all gensio support all baud rates.
+
+GENSIO_ACONTROL_SER_DATASIZE
+.br
+is the datasize, a number from "5" to "8".  Not all gensio support all
+data sizes.
+
+GENSIO_ACONTROL_SER_PARITY
+.br
+sets the parity, one of "none", "odd", "even", "mark" or "space".
+
+GENSIO_ACONTROL_SER_STOPBITS
+.br
+sets the number of stop bits, "1", or "2".
+
+GENSIO_ACONTROL_SER_FLOWCONTROL
+.br
+sets the flow control type, one of "none", "xonxoff", or "rtscts".
+
+GENSIO_ACONTROL_SER_IFLOWCONTROL
+.br
+sets the input flow state, one of "none", "dcd", "dtr", or "dsr".
+
+GENSIO_ACONTROL_SER_SBREAK
+.br
+Enables or disables the break condition on a serial port.  One of "on"
+or "off".
+
+GENSIO_ACONTROL_SER_DTR
+.br
+Enables or disables the DTR line on a serial port.  One of "on" or "off".
+
+GENSIO_ACONTROL_SER_RTS
+.br
+Enables or disables the RTS line on a serial port.  One of "on" or "off".
+
+GENSIO_ACONTROL_SER_CTS
+.br
+Enables or disables the CTS line on a serial port.  One of "on" or
+"off".  ipmisol only.
+
+GENSIO_ACONTROL_SER_DCD_DSR
+.br
+Enables or disables the DCD and DTR lines on a serial port.  One of
+"on" or "off".  ipmisol only.
+
+GENSIO_ACONTROL_SER_RI
+.br
+Enables or disables the RI line on a serial port.  One of "on" or
+"off".  ipmisol only.
+
+GENSIO_ACONTROL_SER_SIGNATURE
+.br
+Fetches or reports the rfc2217 signature for a serial port.  This is an
+arbitrary string.  telnet only.
+
+.SS "SERIAL PORT REPORT MASKS"
+These set (on the client) the mask used to monitor various lines on a
+serial ports.  The bits set will be the ones reported in the
+corresponding events.  These are numbers in strings, you bitwise or
+the values together.
+
+GENSIO_CONTROL_SER_MODEMSTATE
+.br
+sets the modem control lines that are reported.  Values to or together
+are: GENSIO_MODEMSTATE_CTS, GENSIO_MODEMSTATE_DSR,
+GENSIO_MODEMSTATE_RI, GENSIO_MODEMSTATE_CD.
+
+GENSIO_CONTROL_SER_LINESTATE
+.br
+sets the line states (errors) that are reported.  Values to or
+together are: GENSIO_LINESTATE_DATA_READY, GENSIO_LINESTATE_OVERRUN_ERR,
+GENSIO_LINESTATE_PARITY_ERR, GENSIO_LINESTATE_FRAMING_ERR,
+GENSIO_LINESTATE_BREAK, GENSIO_LINESTATE_XMIT_HOLD_EMPTY,
+GENSIO_LINESTATE_XMIT_SHIFT_EMPTY, GENSIO_LINESTATE_TIMEOUT_ERR.
+
+.SS "OTHER SERIAL PORT OPERATIONS"
+This is a set of other operations that can be performed on a serial port.
+
+GENSIO_CONTROL_SER_FLOWCONTROL_STATE
+.br
+
+GENSIO_CONTROL_SER_FLUSH
+.br
+requests a flush of the input or output queues, values are "recv",
+"xmit", or "both".
+
+GENSIO_CONTROL_SER_SEND_BREAK
+.br
+requests a serial break (of arbitrary length) be sent.  The value is
+not used.
+
 .SH "RETURN VALUES"
 Zero is returned on success, or a gensio error on failure.
 .SH "SEE ALSO"
