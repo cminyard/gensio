@@ -81,6 +81,81 @@ struct gensio_log_data {
 #define SERGENSIO_EVENT_MAX	1999
 
 /*
+ * Events for dynamic changes to the serial port.  Users can ignore these
+ * if they don't care.
+ */
+
+/*
+ * Client side only, these are for reporting changes to the user.  buf
+ * points to an unsigned integer holding the modem or line state.
+ */
+#define GENSIO_EVENT_SER_MODEMSTATE	(SERGENSIO_EVENT_BASE + 1)
+#define GENSIO_EVENT_SER_LINESTATE	(SERGENSIO_EVENT_BASE + 2)
+
+/*
+ * On the server side, these are for reporting that the client is
+ * requesting the signature.  Not for client.
+ */
+#define GENSIO_EVENT_SER_SIGNATURE	(SERGENSIO_EVENT_BASE + 3)
+
+/*
+ * The remote end is asking the user to flow control or flush.  Client
+ * or server.
+ */
+#define GENSIO_EVENT_SER_FLOW_STATE	(SERGENSIO_EVENT_BASE + 4)
+#define GENSIO_EVENT_SER_FLUSH		(SERGENSIO_EVENT_BASE + 5)
+
+/* Got a sync from the other end.  Client or server. */
+#define GENSIO_EVENT_SER_SYNC		(SERGENSIO_EVENT_BASE + 6)
+
+/*
+ * Server callbacks.  These only come in in server mode, you must
+ * call the equivalent sergensio_xxx() function to return the response,
+ * though the done callback is ignored in that case.  buf points to
+ * an integer holding the value.
+ */
+#define GENSIO_EVENT_SER_BAUD		(SERGENSIO_EVENT_BASE + 7)
+#define GENSIO_EVENT_SER_DATASIZE	(SERGENSIO_EVENT_BASE + 8)
+#define GENSIO_EVENT_SER_PARITY		(SERGENSIO_EVENT_BASE + 9)
+#define GENSIO_EVENT_SER_STOPBITS	(SERGENSIO_EVENT_BASE + 10)
+#define GENSIO_EVENT_SER_FLOWCONTROL	(SERGENSIO_EVENT_BASE + 11)
+#define GENSIO_EVENT_SER_IFLOWCONTROL	(SERGENSIO_EVENT_BASE + 12)
+#define GENSIO_EVENT_SER_SBREAK		(SERGENSIO_EVENT_BASE + 13)
+#define GENSIO_EVENT_SER_DTR		(SERGENSIO_EVENT_BASE + 14)
+#define GENSIO_EVENT_SER_RTS		(SERGENSIO_EVENT_BASE + 15)
+
+/*
+ * On the server side, this is for reporting that the client has
+ * requested the mask be changed.  buf points to an unsigned integer
+ * holding the new modem or line state mask.
+ */
+#define GENSIO_EVENT_SER_MODEMSTATE_MASK (SERGENSIO_EVENT_BASE + 16)
+#define GENSIO_EVENT_SER_LINESTATE_MASK	(SERGENSIO_EVENT_BASE + 17)
+
+/*
+ * For linestate and modemstate, on a client this sets the mask, on
+ * the server this is reporting the current state to the client.
+ */
+#define GENSIO_LINESTATE_DATA_READY		(1 << 0)
+#define GENSIO_LINESTATE_OVERRUN_ERR		(1 << 1)
+#define GENSIO_LINESTATE_PARITY_ERR		(1 << 2)
+#define GENSIO_LINESTATE_FRAMING_ERR		(1 << 3)
+#define GENSIO_LINESTATE_BREAK		(1 << 4)
+#define GENSIO_LINESTATE_XMIT_HOLD_EMPTY	(1 << 5)
+#define GENSIO_LINESTATE_XMIT_SHIFT_EMPTY	(1 << 6)
+#define GENSIO_LINESTATE_TIMEOUT_ERR		(1 << 7)
+
+/* Note that for modemstate you should use the low 4 bits. */
+#define GENSIO_MODEMSTATE_CTS_CHANGED	(1 << 0)
+#define GENSIO_MODEMSTATE_DSR_CHANGED	(1 << 1)
+#define GENSIO_MODEMSTATE_RI_CHANGED		(1 << 2)
+#define GENSIO_MODEMSTATE_CD_CHANGED		(1 << 3)
+#define GENSIO_MODEMSTATE_CTS		(1 << 4)
+#define GENSIO_MODEMSTATE_DSR		(1 << 5)
+#define GENSIO_MODEMSTATE_RI			(1 << 6)
+#define GENSIO_MODEMSTATE_CD			(1 << 7)
+
+/*
  * If a user creates their own gensio with their own events, they should
  * use this range.
  */
