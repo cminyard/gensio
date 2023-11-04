@@ -51,13 +51,6 @@ def conv_to_bytes(s):
     else:
         return s
 
-def find_sergensio(io):
-    sio = io.cast_to_sergensio();
-    while sio is None:
-        io = io.child(0)
-        sio = io.cast_to_sergensio();
-    return sio
-
 class OpEvent:
     def __init__(self, op, obj, obj2 = None):
         self.op = op
@@ -649,80 +642,100 @@ class HandleData:
             return
         return
 
-    def sbaud(self, io, baud):
-        sio = find_sergensio(io)
-        if not self.check_set_expected_telnet_cb("baud", baud):
-            return
-        sio.sg_baud(self.expected_server_return, None)
-        return
-
-    def sdatasize(self, io, datasize):
-        sio = find_sergensio(io)
-        if not self.check_set_expected_telnet_cb("datasize", datasize):
-            return
-        sio.sg_datasize(self.expected_server_return, None)
-        return
-
-    def sparity(self, io, parity):
-        sio = find_sergensio(io)
-        if not self.check_set_expected_telnet_cb("parity", parity):
-            return
-        sio.sg_parity(self.expected_server_return, None)
-        return
-
-    def sstopbits(self, io, stopbits):
-        sio = find_sergensio(io)
-        if not self.check_set_expected_telnet_cb("stopbits", stopbits):
-            return
-        sio.sg_stopbits(self.expected_server_return, None)
-        return
-
-    def sflowcontrol(self, io, flowcontrol):
-        sio = find_sergensio(io)
-        if not self.check_set_expected_telnet_cb("flowcontrol", flowcontrol):
-            return
-        sio.sg_flowcontrol(self.expected_server_return, None)
-        return
-
-    def siflowcontrol(self, io, iflowcontrol):
-        sio = find_sergensio(io)
-        if not self.check_set_expected_telnet_cb("iflowcontrol", iflowcontrol):
-            return
-        sio.sg_iflowcontrol(self.expected_server_return, None)
-        return
-
-    def ssbreak(self, io, sbreak):
-        sio = find_sergensio(io)
-        if not self.check_set_expected_telnet_cb("sbreak", sbreak):
-            return
-        sio.sg_sbreak(self.expected_server_return, None)
-        return
-
-    def sdtr(self, io, dtr):
-        sio = find_sergensio(io)
-        if not self.check_set_expected_telnet_cb("dtr", dtr):
-            return
-        sio.sg_dtr(self.expected_server_return, None)
-        return
-
-    def srts(self, io, rts):
-        sio = find_sergensio(io)
-        if not self.check_set_expected_telnet_cb("rts", rts):
-            return
-        sio.sg_rts(self.expected_server_return, None)
-        return
-
     def set_expected_sig_server_cb(self, value):
         self.expected_sig_server_cb = True
         self.expected_sig_server_val = value
         return
 
+    def sbaud(self, io, baud):
+        if not self.check_set_expected_telnet_cb("baud", baud):
+            return
+        io.acontrol(gensio.GENSIO_CONTROL_DEPTH_FIRST,
+                    gensio.GENSIO_CONTROL_SET,
+                    gensio.GENSIO_ACONTROL_SER_BAUD,
+                    str(self.expected_server_return), None)
+        return
+
+    def sdatasize(self, io, datasize):
+        if not self.check_set_expected_telnet_cb("datasize", datasize):
+            return
+        io.acontrol(gensio.GENSIO_CONTROL_DEPTH_FIRST,
+                    gensio.GENSIO_CONTROL_SET,
+                    gensio.GENSIO_ACONTROL_SER_DATASIZE,
+                    str(self.expected_server_return), None)
+        return
+
+    def sparity(self, io, parity):
+        if not self.check_set_expected_telnet_cb("parity", parity):
+            return
+        io.acontrol(gensio.GENSIO_CONTROL_DEPTH_FIRST,
+                    gensio.GENSIO_CONTROL_SET,
+                    gensio.GENSIO_ACONTROL_SER_PARITY,
+                    str(self.expected_server_return), None)
+        return
+
+    def sstopbits(self, io, stopbits):
+        if not self.check_set_expected_telnet_cb("stopbits", stopbits):
+            return
+        io.acontrol(gensio.GENSIO_CONTROL_DEPTH_FIRST,
+                    gensio.GENSIO_CONTROL_SET,
+                    gensio.GENSIO_ACONTROL_SER_STOPBITS,
+                    str(self.expected_server_return), None)
+        return
+
+    def sflowcontrol(self, io, flowcontrol):
+        if not self.check_set_expected_telnet_cb("flowcontrol", flowcontrol):
+            return
+        io.acontrol(gensio.GENSIO_CONTROL_DEPTH_FIRST,
+                    gensio.GENSIO_CONTROL_SET,
+                    gensio.GENSIO_ACONTROL_SER_FLOWCONTROL,
+                    str(self.expected_server_return), None)
+        return
+
+    def siflowcontrol(self, io, iflowcontrol):
+        if not self.check_set_expected_telnet_cb("iflowcontrol", iflowcontrol):
+            return
+        io.acontrol(gensio.GENSIO_CONTROL_DEPTH_FIRST,
+                    gensio.GENSIO_CONTROL_SET,
+                    gensio.GENSIO_ACONTROL_SER_IFLOWCONTROL,
+                    str(self.expected_server_return), None)
+        return
+
+    def ssbreak(self, io, sbreak):
+        if not self.check_set_expected_telnet_cb("sbreak", sbreak):
+            return
+        io.acontrol(gensio.GENSIO_CONTROL_DEPTH_FIRST,
+                    gensio.GENSIO_CONTROL_SET,
+                    gensio.GENSIO_ACONTROL_SER_SBREAK,
+                    str(self.expected_server_return), None)
+        return
+
+    def sdtr(self, io, dtr):
+        if not self.check_set_expected_telnet_cb("dtr", dtr):
+            return
+        io.acontrol(gensio.GENSIO_CONTROL_DEPTH_FIRST,
+                    gensio.GENSIO_CONTROL_SET,
+                    gensio.GENSIO_ACONTROL_SER_DTR,
+                    str(self.expected_server_return), None)
+        return
+
+    def srts(self, io, rts):
+        if not self.check_set_expected_telnet_cb("rts", rts):
+            return
+        io.acontrol(gensio.GENSIO_CONTROL_DEPTH_FIRST,
+                    gensio.GENSIO_CONTROL_SET,
+                    gensio.GENSIO_ACONTROL_SER_RTS,
+                    str(self.expected_server_return), None)
+        return
+
     def signature(self, io):
         try:
-            sio = find_sergensio(io)
             if not self.expected_sig_server_cb:
                 raise Exception("Got unexpected signature request");
-            sio.sg_signature(self.expected_sig_server_val, None)
+            io.acontrol(gensio.GENSIO_CONTROL_DEPTH_FIRST,
+                        gensio.GENSIO_CONTROL_SET,
+                        gensio.GENSIO_ACONTROL_SER_SIGNATURE,
+                        self.expected_sig_server_val, None)
             self.expected_sig_server_cb = False
         except:
             self.exception("signature: Unknown exception " + str(e))
@@ -1059,21 +1072,6 @@ class TestAccept:
             self.waiter = gensio.waiter(o)
             gensios_enabled.check_iostr_gensios(accstr)
             self.acc = gensio.gensio_accepter(o, accstr, self);
-            if is_sergensio:
-                sga = self.acc.cast_to_sergensio_acc()
-                if not sga:
-                    raise Exception("Cast to sergensio_accepter failed");
-                ga = sga.cast_to_gensio_acc()
-                del sga
-                del ga
-            else:
-                sga = None
-                try:
-                    sga = self.acc.cast_to_sergensio_acc()
-                except:
-                    pass
-                if sga:
-                    raise Exception("Cast to sergensio_accepter succeeded");
             if debug:
                 print("acc startup");
             self.acc.startup()
