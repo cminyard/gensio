@@ -20,10 +20,11 @@ print("serialdev modemstate:\n  io1=%s\n  io2=%s" % (io1str, io2str))
 
 io1 = alloc_io(o, io1str, do_open = False)
 io2 = alloc_io(o, io2str)
-sio2 = io2.cast_to_sergensio();
 
-sio2.sg_dtr_s(gensio.SERGENSIO_DTR_OFF);
-sio2.sg_rts_s(gensio.SERGENSIO_RTS_OFF);
+io2.acontrol_s(0, gensio.GENSIO_CONTROL_SET, gensio.GENSIO_ACONTROL_SER_DTR,
+               "off");
+io2.acontrol_s(0, gensio.GENSIO_CONTROL_SET, gensio.GENSIO_ACONTROL_SER_RTS,
+               "off");
 set_remote_null_modem(remote_id_int(io2), False);
 set_remote_modem_ctl(remote_id_int(io2), (SERIALSIM_TIOCM_CAR |
                                        SERIALSIM_TIOCM_CTS |
@@ -95,8 +96,10 @@ io1.handler.set_expected_modemstate(gensio.SERGENSIO_MODEMSTATE_CD_CHANGED |
                                     gensio.SERGENSIO_MODEMSTATE_CD |
                                     gensio.SERGENSIO_MODEMSTATE_DSR |
                                     gensio.SERGENSIO_MODEMSTATE_CTS)
-sio2.sg_dtr_s(gensio.SERGENSIO_DTR_ON);
-sio2.sg_rts_s(gensio.SERGENSIO_RTS_ON);
+io2.acontrol_s(0, gensio.GENSIO_CONTROL_SET, gensio.GENSIO_ACONTROL_SER_DTR,
+               "on");
+io2.acontrol_s(0, gensio.GENSIO_CONTROL_SET, gensio.GENSIO_ACONTROL_SER_RTS,
+               "on");
 set_remote_null_modem(remote_id_int(io2), True);
 if (io1.handler.wait_timeout(2000) == 0):
     raise Exception("%s: %s: Timed out waiting for modemstate 7" %
@@ -105,7 +108,6 @@ if (io1.handler.wait_timeout(2000) == 0):
 io_close((io1, io2))
 del io1
 del io2
-del sio2
 del o
 test_shutdown()
 print("  Success!")
