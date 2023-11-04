@@ -56,8 +56,7 @@
 #define GENSIO_CONTROL_SER_FLOWCONTROL_STATE	46u
 #define GENSIO_CONTROL_SER_FLUSH		47u
 #define GENSIO_CONTROL_SER_SEND_BREAK		48u
-#define GENSIO_CONTROL_SER_SIGNATURE		49u
-#define GENSIO_CONTROL_SER_LINESTATE		50u
+#define GENSIO_CONTROL_SER_LINESTATE		49u
 
 /* Keep the async control number in a different range, just to be safe. */
 #define GENSIO_ACONTROL_SER_BAUD		1000u
