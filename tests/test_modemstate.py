@@ -40,48 +40,48 @@ if (io1.handler.wait_timeout(2000) == 0):
 
 io2.read_cb_enable(True);
 
-io1.handler.set_expected_modemstate(gensio.SERGENSIO_MODEMSTATE_CD_CHANGED |
-                                    gensio.SERGENSIO_MODEMSTATE_CD)
+io1.handler.set_expected_modemstate(gensio.GENSIO_SER_MODEMSTATE_CD_CHANGED |
+                                    gensio.GENSIO_SER_MODEMSTATE_CD)
 set_remote_modem_ctl(remote_id_int(io2), ((SERIALSIM_TIOCM_CAR << 16) |
                                        SERIALSIM_TIOCM_CAR))
 if (io1.handler.wait_timeout(2000) == 0):
     raise Exception("%s: %s: Timed out waiting for modemstate 2" %
                     ("test dtr", io1.handler.name))
 
-io1.handler.set_expected_modemstate(gensio.SERGENSIO_MODEMSTATE_DSR_CHANGED |
-                                    gensio.SERGENSIO_MODEMSTATE_CD |
-                                    gensio.SERGENSIO_MODEMSTATE_DSR)
+io1.handler.set_expected_modemstate(gensio.GENSIO_SER_MODEMSTATE_DSR_CHANGED |
+                                    gensio.GENSIO_SER_MODEMSTATE_CD |
+                                    gensio.GENSIO_SER_MODEMSTATE_DSR)
 set_remote_modem_ctl(remote_id_int(io2), ((SERIALSIM_TIOCM_DSR << 16) |
                                        SERIALSIM_TIOCM_DSR))
 if (io1.handler.wait_timeout(2000) == 0):
     raise Exception("%s: %s: Timed out waiting for modemstate 3" %
                     ("test dtr", io1.handler.name))
 
-io1.handler.set_expected_modemstate(gensio.SERGENSIO_MODEMSTATE_CTS_CHANGED |
-                                    gensio.SERGENSIO_MODEMSTATE_CD |
-                                    gensio.SERGENSIO_MODEMSTATE_DSR |
-                                    gensio.SERGENSIO_MODEMSTATE_CTS)
+io1.handler.set_expected_modemstate(gensio.GENSIO_SER_MODEMSTATE_CTS_CHANGED |
+                                    gensio.GENSIO_SER_MODEMSTATE_CD |
+                                    gensio.GENSIO_SER_MODEMSTATE_DSR |
+                                    gensio.GENSIO_SER_MODEMSTATE_CTS)
 set_remote_modem_ctl(remote_id_int(io2), ((SERIALSIM_TIOCM_CTS << 16) |
                                        SERIALSIM_TIOCM_CTS))
 if (io1.handler.wait_timeout(2000) == 0):
     raise Exception("%s: %s: Timed out waiting for modemstate 4" %
                     ("test dtr", io1.handler.name))
 
-io1.handler.set_expected_modemstate(gensio.SERGENSIO_MODEMSTATE_RI_CHANGED |
-                                    gensio.SERGENSIO_MODEMSTATE_CD |
-                                    gensio.SERGENSIO_MODEMSTATE_DSR |
-                                    gensio.SERGENSIO_MODEMSTATE_CTS |
-                                    gensio.SERGENSIO_MODEMSTATE_RI)
+io1.handler.set_expected_modemstate(gensio.GENSIO_SER_MODEMSTATE_RI_CHANGED |
+                                    gensio.GENSIO_SER_MODEMSTATE_CD |
+                                    gensio.GENSIO_SER_MODEMSTATE_DSR |
+                                    gensio.GENSIO_SER_MODEMSTATE_CTS |
+                                    gensio.GENSIO_SER_MODEMSTATE_RI)
 set_remote_modem_ctl(remote_id_int(io2), ((SERIALSIM_TIOCM_RNG << 16) |
                                        SERIALSIM_TIOCM_RNG))
 if (io1.handler.wait_timeout(2000) == 0):
     raise Exception("%s: %s: Timed out waiting for modemstate 5" %
                     ("test dtr", io1.handler.name))
 
-io1.handler.set_expected_modemstate(gensio.SERGENSIO_MODEMSTATE_RI_CHANGED |
-                                    gensio.SERGENSIO_MODEMSTATE_CD_CHANGED |
-                                    gensio.SERGENSIO_MODEMSTATE_DSR_CHANGED |
-                                    gensio.SERGENSIO_MODEMSTATE_CTS_CHANGED)
+io1.handler.set_expected_modemstate(gensio.GENSIO_SER_MODEMSTATE_RI_CHANGED |
+                                    gensio.GENSIO_SER_MODEMSTATE_CD_CHANGED |
+                                    gensio.GENSIO_SER_MODEMSTATE_DSR_CHANGED |
+                                    gensio.GENSIO_SER_MODEMSTATE_CTS_CHANGED)
 set_remote_modem_ctl(remote_id_int(io2), (SERIALSIM_TIOCM_CAR |
                                        SERIALSIM_TIOCM_CTS |
                                        SERIALSIM_TIOCM_DSR |
@@ -90,12 +90,12 @@ if (io1.handler.wait_timeout(2000) == 0):
     raise Exception("%s: %s: Timed out waiting for modemstate 6" %
                     ("test dtr", io1.handler.name))
 
-io1.handler.set_expected_modemstate(gensio.SERGENSIO_MODEMSTATE_CD_CHANGED |
-                                    gensio.SERGENSIO_MODEMSTATE_DSR_CHANGED |
-                                    gensio.SERGENSIO_MODEMSTATE_CTS_CHANGED |
-                                    gensio.SERGENSIO_MODEMSTATE_CD |
-                                    gensio.SERGENSIO_MODEMSTATE_DSR |
-                                    gensio.SERGENSIO_MODEMSTATE_CTS)
+io1.handler.set_expected_modemstate(gensio.GENSIO_SER_MODEMSTATE_CD_CHANGED |
+                                    gensio.GENSIO_SER_MODEMSTATE_DSR_CHANGED |
+                                    gensio.GENSIO_SER_MODEMSTATE_CTS_CHANGED |
+                                    gensio.GENSIO_SER_MODEMSTATE_CD |
+                                    gensio.GENSIO_SER_MODEMSTATE_DSR |
+                                    gensio.GENSIO_SER_MODEMSTATE_CTS)
 io2.acontrol_s(0, gensio.GENSIO_CONTROL_SET, gensio.GENSIO_ACONTROL_SER_DTR,
                "on");
 io2.acontrol_s(0, gensio.GENSIO_CONTROL_SET, gensio.GENSIO_ACONTROL_SER_RTS,

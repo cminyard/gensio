@@ -92,10 +92,6 @@ GENSIO_DLL_PUBLIC
 int sergensio_iflowcontrol(struct sergensio *sio, unsigned int iflowcontrol,
 			   sergensio_done done, void *cb_data);
 
-/* This can be used for all the "on" and "off" values below. */
-#define SERGENSIO_ON	1u
-#define SERGENSIO_OFF	2u
-
 #define SERGENSIO_BREAK_ON	1u
 #define SERGENSIO_BREAK_OFF	2u
 GENSIO_DLL_PUBLIC

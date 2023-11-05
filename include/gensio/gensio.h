@@ -114,12 +114,47 @@ struct gensio_log_data {
  * though the done callback is ignored in that case.  buf points to
  * an integer holding the value.
  */
+
+/* Baud, datasize, and stopbits use numbers. */
 #define GENSIO_EVENT_SER_BAUD		(SERGENSIO_EVENT_BASE + 7)
 #define GENSIO_EVENT_SER_DATASIZE	(SERGENSIO_EVENT_BASE + 8)
+
 #define GENSIO_EVENT_SER_PARITY		(SERGENSIO_EVENT_BASE + 9)
+
+#define GENSIO_SER_PARITY_NONE	1u
+#define GENSIO_SER_PARITY_ODD	2u
+#define GENSIO_SER_PARITY_EVEN	3u
+#define GENSIO_SER_PARITY_MARK	4u
+#define GENSIO_SER_PARITY_SPACE	5u
+GENSIO_DLL_PUBLIC
+const char *gensio_parity_to_str(unsigned int ival);
+GENSIO_DLL_PUBLIC
+int gensio_str_to_parity(const char *sval);
+
+
 #define GENSIO_EVENT_SER_STOPBITS	(SERGENSIO_EVENT_BASE + 10)
 #define GENSIO_EVENT_SER_FLOWCONTROL	(SERGENSIO_EVENT_BASE + 11)
 #define GENSIO_EVENT_SER_IFLOWCONTROL	(SERGENSIO_EVENT_BASE + 12)
+
+#define GENSIO_SER_FLOWCONTROL_NONE	1u
+#define GENSIO_SER_FLOWCONTROL_XON_XOFF	2u
+#define GENSIO_SER_FLOWCONTROL_RTS_CTS	3u
+#define GENSIO_SER_FLOWCONTROL_DCD	4u
+#define GENSIO_SER_FLOWCONTROL_DTR	5u
+#define GENSIO_SER_FLOWCONTROL_DSR	6u
+GENSIO_DLL_PUBLIC
+const char *gensio_flowcontrol_to_str(unsigned int ival);
+GENSIO_DLL_PUBLIC
+int gensio_str_to_flowcontrol(const char *sval);
+
+/* This can be used for all the "on" and "off" event values below. */
+#define GENSIO_SER_ON	1u
+#define GENSIO_SER_OFF	2u
+GENSIO_DLL_PUBLIC
+const char *gensio_onoff_to_str(unsigned int ival);
+GENSIO_DLL_PUBLIC
+int gensio_str_to_onoff(const char *sval);
+
 #define GENSIO_EVENT_SER_SBREAK		(SERGENSIO_EVENT_BASE + 13)
 #define GENSIO_EVENT_SER_DTR		(SERGENSIO_EVENT_BASE + 14)
 #define GENSIO_EVENT_SER_RTS		(SERGENSIO_EVENT_BASE + 15)
@@ -136,24 +171,24 @@ struct gensio_log_data {
  * For linestate and modemstate, on a client this sets the mask, on
  * the server this is reporting the current state to the client.
  */
-#define GENSIO_LINESTATE_DATA_READY		(1 << 0)
-#define GENSIO_LINESTATE_OVERRUN_ERR		(1 << 1)
-#define GENSIO_LINESTATE_PARITY_ERR		(1 << 2)
-#define GENSIO_LINESTATE_FRAMING_ERR		(1 << 3)
-#define GENSIO_LINESTATE_BREAK		(1 << 4)
-#define GENSIO_LINESTATE_XMIT_HOLD_EMPTY	(1 << 5)
-#define GENSIO_LINESTATE_XMIT_SHIFT_EMPTY	(1 << 6)
-#define GENSIO_LINESTATE_TIMEOUT_ERR		(1 << 7)
+#define GENSIO_SER_LINESTATE_DATA_READY		(1 << 0)
+#define GENSIO_SER_LINESTATE_OVERRUN_ERR	(1 << 1)
+#define GENSIO_SER_LINESTATE_PARITY_ERR		(1 << 2)
+#define GENSIO_SER_LINESTATE_FRAMING_ERR	(1 << 3)
+#define GENSIO_SER_LINESTATE_BREAK		(1 << 4)
+#define GENSIO_SER_LINESTATE_XMIT_HOLD_EMPTY	(1 << 5)
+#define GENSIO_SER_LINESTATE_XMIT_SHIFT_EMPTY	(1 << 6)
+#define GENSIO_SER_LINESTATE_TIMEOUT_ERR	(1 << 7)
 
 /* Note that for modemstate you should use the low 4 bits. */
-#define GENSIO_MODEMSTATE_CTS_CHANGED	(1 << 0)
-#define GENSIO_MODEMSTATE_DSR_CHANGED	(1 << 1)
-#define GENSIO_MODEMSTATE_RI_CHANGED		(1 << 2)
-#define GENSIO_MODEMSTATE_CD_CHANGED		(1 << 3)
-#define GENSIO_MODEMSTATE_CTS		(1 << 4)
-#define GENSIO_MODEMSTATE_DSR		(1 << 5)
-#define GENSIO_MODEMSTATE_RI			(1 << 6)
-#define GENSIO_MODEMSTATE_CD			(1 << 7)
+#define GENSIO_SER_MODEMSTATE_CTS_CHANGED	(1 << 0)
+#define GENSIO_SER_MODEMSTATE_DSR_CHANGED	(1 << 1)
+#define GENSIO_SER_MODEMSTATE_RI_CHANGED	(1 << 2)
+#define GENSIO_SER_MODEMSTATE_CD_CHANGED	(1 << 3)
+#define GENSIO_SER_MODEMSTATE_CTS		(1 << 4)
+#define GENSIO_SER_MODEMSTATE_DSR		(1 << 5)
+#define GENSIO_SER_MODEMSTATE_RI		(1 << 6)
+#define GENSIO_SER_MODEMSTATE_CD		(1 << 7)
 
 /*
  * If a user creates their own gensio with their own events, they should
