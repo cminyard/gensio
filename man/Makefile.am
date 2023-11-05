@@ -71,6 +71,8 @@ install-data-hook:
 	$(LN_SF) gensio_close.3 $(DESTDIR)$(man3dir)/gensio_disable.3
 	$(LN_SF) gensio_close.3 $(DESTDIR)$(man3dir)/gensio_free.3
 	$(LN_SF) gensio_set_read_callback_enable.3 $(DESTDIR)$(man3dir)/gensio_set_write_callback_enable.3
+	$(LN_SF) gensio_control.3 $(DESTDIR)$(man3dir)/gensio_acontrol.3
+	$(LN_SF) gensio_control.3 $(DESTDIR)$(man3dir)/gensio_acontrol_s.3
 	$(LN_SF) gensio_get_type.3 $(DESTDIR)$(man3dir)/gensio_get_child.3
 	$(LN_SF) gensio_get_type.3 $(DESTDIR)$(man3dir)/gensio_is_client.3
 	$(LN_SF) gensio_get_type.3 $(DESTDIR)$(man3dir)/gensio_is_reliable.3
@@ -173,6 +175,8 @@ uninstall-hook:
 	$(RM_F) $(DESTDIR)$(man3dir)/gensio_disable.3
 	$(RM_F) $(DESTDIR)$(man3dir)/gensio_free.3
 	$(RM_F) $(DESTDIR)$(man3dir)/gensio_set_write_callback_enable.3
+	$(RM_F) $(DESTDIR)$(man3dir)/gensio_acontrol.3
+	$(RM_F) $(DESTDIR)$(man3dir)/gensio_acontrol_s.3
 	$(RM_F) $(DESTDIR)$(man3dir)/gensio_get_child.3
 	$(RM_F) $(DESTDIR)$(man3dir)/gensio_is_client.3
 	$(RM_F) $(DESTDIR)$(man3dir)/gensio_is_reliable.3
