@@ -637,6 +637,50 @@ namespace gensios {
 	return gensio_control(io, depth, get, option, data, datalen);
     }
 
+    static void gensio_cpp_control_done(struct gensio *io, int err,
+					const char *buf, gensiods len,
+					void *user_data)
+    {
+	if (!user_data)
+	    return;
+	struct gensio_frdata *f = gensio_get_frdata(io);
+	struct gensio_cpp_data *d = gensio_container_of(f,
+					      struct gensio_cpp_data, frdata);
+	Gensio *g = d->g;
+	Gensio_Control_Done *done
+	    = static_cast<Gensio_Control_Done *>(user_data);
+	std::vector<unsigned char> valv(buf, buf + len);
+
+	try {
+	    done->control_done(err, std::move(valv));
+	} catch (std::exception &e) {
+	    gensio_log(g->get_os_funcs(), GENSIO_LOG_ERR,
+		       "Received C++ exception in control done handler: %s",
+		       e.what());
+	}
+    }
+
+    int Gensio::acontrol(int depth, bool get, unsigned int option,
+			 const char *data, gensiods datalen,
+			 Gensio_Control_Done *done)
+    {
+	int err;
+
+	if (done)
+	    err = gensio_acontrol(io, depth, get, option, data, datalen,
+				  gensio_cpp_control_done, done);
+	else
+	    err = gensio_acontrol(io, depth, get, option, data, datalen,
+				  NULL, NULL);
+	return err;
+    }
+
+    int Gensio::acontrol_s(int depth, bool get, unsigned int option,
+			   char *data, gensiods *datalen)
+    {
+	return gensio_acontrol_s(io, depth, get, option, data, datalen);
+    }
+
     int Gensio::read_s(std::vector<unsigned char> &rvec,
 		       gensio_time *timeout, bool intr)
     {
