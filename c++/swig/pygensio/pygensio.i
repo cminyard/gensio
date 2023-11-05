@@ -452,6 +452,32 @@ static bool check_for_err(int err)
 	Gensio_Close_Done *parent;
     };
 
+    class Py_Gensio_Control_Done: public Gensio_Control_Done {
+    public:
+	Py_Gensio_Control_Done(Gensio_Control_Done *iparent) : parent(iparent)
+	{
+	    Swig::Director *d = dynamic_cast<Swig::Director *>(parent);
+	    if (d)
+		pydirobj_incref(d);
+	}
+
+	void control_done(int err,
+			  const std::vector<unsigned char> data) override {
+	    PyGILState_STATE gstate;
+
+	    gstate = PyGILState_Ensure();
+	    parent->control_done(err, data);
+	    Swig::Director *d = dynamic_cast<Swig::Director *>(parent);
+	    if (d)
+		pydirobj_decref(d);
+	    PyGILState_Release(gstate);
+	    delete this;
+	}
+    private:
+	// The one to call after we have done our python stuff.
+	Gensio_Control_Done *parent;
+    };
+
     class Py_Raw_Event_Handler: public Raw_Event_Handler {
     public:
 	Py_Raw_Event_Handler(Raw_Event_Handler *iparent): parent(iparent) { }
@@ -474,9 +500,16 @@ static bool check_for_err(int err)
 	int new_channel(Event *e, Gensio *newg,
 			const char *const *auxdata) override
 	{
+	    int rv;
+
 	    newg->raw_event_handler =
 		new Py_Raw_Event_Handler(newg->raw_event_handler);
-	    return parent->new_channel(e, newg, auxdata);
+	    rv = parent->new_channel(e, newg, auxdata);
+	    if (rv) {
+		delete newg->raw_event_handler;
+		newg->raw_event_handler = NULL;
+	    }
+	    return rv;
 	}
 
 	void freed(Event *e) override
@@ -773,6 +806,8 @@ static bool check_for_err(int err)
 %ignore gensios::Gensio::set_event_handler;
 %ignore gensios::Gensio::alloc_channel;
 %ignore gensios::Gensio::control;
+%ignore gensios::Gensio::acontrol;
+%ignore gensios::Gensio::acontrol_s;
 %ignore gensios::gensio_alloc;
 %ignore gensios::Serial_Gensio::baud;
 %ignore gensios::Serial_Gensio::datasize;
@@ -836,9 +871,18 @@ static bool check_for_err(int err)
     Os_Funcs(int wait_sig, Os_Funcs_Log_Handler *logger = NULL)
     {
 	Os_Funcs_Log_Handler *int_handler = NULL;
+	Os_Funcs *rv;
+
 	if (logger)
 	    int_handler = new Internal_Log_Handler(logger);
-	return new Os_Funcs(wait_sig, int_handler);
+	try {
+	    rv = new Os_Funcs(wait_sig, int_handler);
+	} catch (...) {
+	    if (int_handler)
+		delete int_handler;
+	    throw;
+	}
+	return rv;
     }
 
     ~Os_Funcs()
@@ -870,6 +914,8 @@ static bool check_for_err(int err)
 %rename("") gensios::Gensio::set_event_handler;
 %rename("") gensios::Gensio::alloc_channel;
 %rename("") gensios::Gensio::control;
+%rename("") gensios::Gensio::acontrol;
+%rename("") gensios::Gensio::acontrol_s;
 %catches(gensios::gensio_error) gensios::Gensio::write_s;
 %extend gensios::Gensio {
     void open(Gensio_Open_Done *done)
@@ -877,7 +923,13 @@ static bool check_for_err(int err)
 	Py_Open_Done *pydone = NULL;
 	if (done)
 	    pydone = new Py_Open_Done(done);
-	self->open((Gensio_Open_Done *) pydone);
+	try {
+	    self->open((Gensio_Open_Done *) pydone);
+	} catch (...) {
+	    if (pydone)
+		delete pydone;
+	    throw;
+	}
     }
 
     void open_nochild(Gensio_Open_Done *done)
@@ -885,7 +937,13 @@ static bool check_for_err(int err)
 	Py_Open_Done *pydone = NULL;
 	if (done)
 	    pydone = new Py_Open_Done(done);
-	self->open_nochild((Gensio_Open_Done *) pydone);
+	try {
+	    self->open_nochild((Gensio_Open_Done *) pydone);
+	} catch (...) {
+	    if (pydone)
+		delete pydone;
+	    throw;
+	}
     }
 
     void close(Gensio_Close_Done *done)
@@ -893,7 +951,13 @@ static bool check_for_err(int err)
 	Py_Gensio_Close_Done *pydone = NULL;
 	if (done)
 	    pydone = new Py_Gensio_Close_Done(done);
-	self->close((Gensio_Close_Done *) pydone);
+	try {
+	    self->close((Gensio_Close_Done *) pydone);
+	} catch (...) {
+	    if (pydone)
+		delete pydone;
+	    throw;
+	}
     }
 
     int write_s(gensiods *count, const std::vector<unsigned char> data)
@@ -947,12 +1011,22 @@ static bool check_for_err(int err)
 
 	slen = controldata.size();
 	if (get) {
+	    rdata = (char *) malloc(slen + 1);
+	    if (!rdata) {
+		rv = GE_NOMEM;
+		goto out;
+	    }
+	    memcpy(rdata, controldata.data(), slen);
+	    rdata[slen] = '\0';
+	    glen = slen;
+
 	    /* Pass in a zero length to get the actual length. */
-	    rv = self->control(depth, get, option,
-			       (char *) controldata.data(), &glen);
+	    rv = self->control(depth, get, option, rdata, &glen);
+	    free(rdata);
+	    rdata = NULL;
 	    if (rv)
 		goto out;
-	    /* Allocate the larger of constroldata.size() and glen) */
+	    /* Allocate the larger of controldata.size() and glen) */
 	    if (slen > glen) {
 		rdata = (char *) malloc(slen + 1);
 		glen = slen;
@@ -980,6 +1054,90 @@ static bool check_for_err(int err)
 	} else {
 	    rv = self->control(depth, get, option, (char *)
 			       controldata.data(), &slen);
+	    controldata.resize(0);
+	}
+	return rv;
+    }
+
+    %rename(control) controlt;
+    int acontrol(int depth, bool get, unsigned int option,
+		 const std::vector<unsigned char> &controldata,
+		 Gensio_Control_Done *done)
+    {
+	int rv;
+	Py_Gensio_Control_Done *pydone = NULL;
+	char *str = (char *) malloc(controldata.size() + 1);
+
+	if (!str)
+	    return GE_NOMEM;
+
+	if (done)
+	    pydone = new Py_Gensio_Control_Done(done);
+
+	memcpy(str, controldata.data(), controldata.size());
+	str[controldata.size()] = '\0';
+	rv = self->acontrol(depth, get, option, str, controldata.size(),
+			    (Gensio_Control_Done *) pydone);
+	free(str);
+	if (rv && pydone)
+	    delete(pydone);
+	return rv;
+    }
+
+    %rename(control) controlt;
+    int acontrol_s(int depth, bool get, unsigned int option,
+		   std::vector<unsigned char> &controldata)
+    {
+	int rv;
+	char *rdata = NULL;
+	gensiods glen = 0, slen = 0;
+
+	slen = controldata.size();
+	if (get) {
+	    rdata = (char *) malloc(slen + 1);
+	    if (!rdata) {
+		rv = GE_NOMEM;
+		goto out;
+	    }
+	    memcpy(rdata, controldata.data(), slen);
+	    rdata[slen] = '\0';
+	    glen = slen;
+
+	    /* Pass in a zero length to get the actual length. */
+	    rv = self->acontrol_s(depth, get, option, rdata, &glen);
+	    free(rdata);
+	    rdata = NULL;
+	    if (rv)
+		goto out;
+	    /* Allocate the larger of controldata.size() and glen) */
+	    if (slen > glen) {
+		rdata = (char *) malloc(slen + 1);
+		glen = slen;
+	    } else {
+		rdata = (char *) malloc(glen + 1);
+	    }
+	    if (!rdata) {
+		rv = GE_NOMEM;
+		goto out;
+	    }
+	    rdata[glen] = '\0';
+	    rdata[slen] = '\0';
+	    glen += 1;
+	    memcpy(rdata, controldata.data(), slen);
+	    rv = self->acontrol_s(depth, get, option, rdata, &glen);
+	    if (rv) {
+		free(rdata);
+		rdata = NULL;
+		glen = 0;
+	    }
+	out:
+	    if (!rv)
+		controldata.assign(rdata, rdata + glen);
+	    if (rdata)
+		free(rdata);
+	} else {
+	    rv = self->acontrol_s(depth, get, option, (char *)
+				  controldata.data(), &slen);
 	    controldata.resize(0);
 	}
 	return rv;
@@ -1059,7 +1217,13 @@ gensios::Serial_Gensio *cast_to_serial_gensio(gensios::Gensio *g) {
 	Py_Serial_Op_Done *pydone = NULL;
 	if (done)
 	    pydone = new Py_Serial_Op_Done(done);
-	self->baud(baud, (gensios::Serial_Op_Done *) pydone);
+	try {
+	    self->baud(baud, (gensios::Serial_Op_Done *) pydone);
+	} catch (...) {
+	    if (pydone)
+		delete pydone;
+	    throw;
+	}
     }
 
     void datasize(unsigned int size, gensios::Serial_Op_Done *done)
@@ -1067,7 +1231,13 @@ gensios::Serial_Gensio *cast_to_serial_gensio(gensios::Gensio *g) {
 	Py_Serial_Op_Done *pydone = NULL;
 	if (done)
 	    pydone = new Py_Serial_Op_Done(done);
-	self->datasize(size, (gensios::Serial_Op_Done *) pydone);
+	try {
+	    self->datasize(size, (gensios::Serial_Op_Done *) pydone);
+	} catch (...) {
+	    if (pydone)
+		delete pydone;
+	    throw;
+	}
     }
 
     void parity(unsigned int par, gensios::Serial_Op_Done *done)
@@ -1075,7 +1245,13 @@ gensios::Serial_Gensio *cast_to_serial_gensio(gensios::Gensio *g) {
 	Py_Serial_Op_Done *pydone = NULL;
 	if (done)
 	    pydone = new Py_Serial_Op_Done(done);
-	self->parity(par, (gensios::Serial_Op_Done *) pydone);
+	try {
+	    self->parity(par, (gensios::Serial_Op_Done *) pydone);
+	} catch (...) {
+	    if (pydone)
+		delete pydone;
+	    throw;
+	}
     }
 
     void stopbits(unsigned int bits, gensios::Serial_Op_Done *done)
@@ -1083,7 +1259,13 @@ gensios::Serial_Gensio *cast_to_serial_gensio(gensios::Gensio *g) {
 	Py_Serial_Op_Done *pydone = NULL;
 	if (done)
 	    pydone = new Py_Serial_Op_Done(done);
-	self->stopbits(bits, (gensios::Serial_Op_Done *) pydone);
+	try {
+	    self->stopbits(bits, (gensios::Serial_Op_Done *) pydone);
+	} catch (...) {
+	    if (pydone)
+		delete pydone;
+	    throw;
+	}
     }
 
     void flowcontrol(unsigned int flow, gensios::Serial_Op_Done *done)
@@ -1091,7 +1273,13 @@ gensios::Serial_Gensio *cast_to_serial_gensio(gensios::Gensio *g) {
 	Py_Serial_Op_Done *pydone = NULL;
 	if (done)
 	    pydone = new Py_Serial_Op_Done(done);
-	self->flowcontrol(flow, (gensios::Serial_Op_Done *) pydone);
+	try {
+	    self->flowcontrol(flow, (gensios::Serial_Op_Done *) pydone);
+	} catch (...) {
+	    if (pydone)
+		delete pydone;
+	    throw;
+	}
     }
 
     void iflowcontrol(unsigned int flow, gensios::Serial_Op_Done *done)
@@ -1099,7 +1287,13 @@ gensios::Serial_Gensio *cast_to_serial_gensio(gensios::Gensio *g) {
 	Py_Serial_Op_Done *pydone = NULL;
 	if (done)
 	    pydone = new Py_Serial_Op_Done(done);
-	self->iflowcontrol(flow, (gensios::Serial_Op_Done *) pydone);
+	try {
+	    self->iflowcontrol(flow, (gensios::Serial_Op_Done *) pydone);
+	} catch (...) {
+	    if (pydone)
+		delete pydone;
+	    throw;
+	}
     }
 
     void sbreak(unsigned int sbreak, gensios::Serial_Op_Done *done)
@@ -1107,7 +1301,13 @@ gensios::Serial_Gensio *cast_to_serial_gensio(gensios::Gensio *g) {
 	Py_Serial_Op_Done *pydone = NULL;
 	if (done)
 	    pydone = new Py_Serial_Op_Done(done);
-	self->sbreak(sbreak, (gensios::Serial_Op_Done *) pydone);
+	try {
+	    self->sbreak(sbreak, (gensios::Serial_Op_Done *) pydone);
+	} catch (...) {
+	    if (pydone)
+		delete pydone;
+	    throw;
+	}
     }
 
     void dtr(unsigned int dtr, gensios::Serial_Op_Done *done)
@@ -1115,7 +1315,13 @@ gensios::Serial_Gensio *cast_to_serial_gensio(gensios::Gensio *g) {
 	Py_Serial_Op_Done *pydone = NULL;
 	if (done)
 	    pydone = new Py_Serial_Op_Done(done);
-	self->dtr(dtr, (gensios::Serial_Op_Done *) pydone);
+	try {
+	    self->dtr(dtr, (gensios::Serial_Op_Done *) pydone);
+	} catch (...) {
+	    if (pydone)
+		delete pydone;
+	    throw;
+	}
     }
 
     void rts(unsigned int rts, gensios::Serial_Op_Done *done)
@@ -1123,7 +1329,13 @@ gensios::Serial_Gensio *cast_to_serial_gensio(gensios::Gensio *g) {
 	Py_Serial_Op_Done *pydone = NULL;
 	if (done)
 	    pydone = new Py_Serial_Op_Done(done);
-	self->rts(rts, (gensios::Serial_Op_Done *) pydone);
+	try {
+	    self->rts(rts, (gensios::Serial_Op_Done *) pydone);
+	} catch (...) {
+	    if (pydone)
+		delete pydone;
+	    throw;
+	}
     }
 
     void cts(unsigned int cts, gensios::Serial_Op_Done *done)
@@ -1131,7 +1343,13 @@ gensios::Serial_Gensio *cast_to_serial_gensio(gensios::Gensio *g) {
 	Py_Serial_Op_Done *pydone = NULL;
 	if (done)
 	    pydone = new Py_Serial_Op_Done(done);
-	self->cts(cts, (gensios::Serial_Op_Done *) pydone);
+	try {
+	    self->cts(cts, (gensios::Serial_Op_Done *) pydone);
+	} catch (...) {
+	    if (pydone)
+		delete pydone;
+	    throw;
+	}
     }
 
     void dcd_dsr(unsigned int dcd_dsr, gensios::Serial_Op_Done *done)
@@ -1139,7 +1357,13 @@ gensios::Serial_Gensio *cast_to_serial_gensio(gensios::Gensio *g) {
 	Py_Serial_Op_Done *pydone = NULL;
 	if (done)
 	    pydone = new Py_Serial_Op_Done(done);
-	self->dcd_dsr(dcd_dsr, (gensios::Serial_Op_Done *) pydone);
+	try {
+	    self->dcd_dsr(dcd_dsr, (gensios::Serial_Op_Done *) pydone);
+	} catch (...) {
+	    if (pydone)
+		delete pydone;
+	    throw;
+	}
     }
 
     void ri(unsigned int ri, gensios::Serial_Op_Done *done)
@@ -1147,7 +1371,13 @@ gensios::Serial_Gensio *cast_to_serial_gensio(gensios::Gensio *g) {
 	Py_Serial_Op_Done *pydone = NULL;
 	if (done)
 	    pydone = new Py_Serial_Op_Done(done);
-	self->ri(ri, (gensios::Serial_Op_Done *) pydone);
+	try {
+	    self->ri(ri, (gensios::Serial_Op_Done *) pydone);
+	} catch (...) {
+	    if (pydone)
+		delete pydone;
+	    throw;
+	}
     }
 
     void signature(const std::vector<unsigned char> sig,
@@ -1156,7 +1386,13 @@ gensios::Serial_Gensio *cast_to_serial_gensio(gensios::Gensio *g) {
 	Py_Serial_Op_Sig_Done *pydone = NULL;
 	if (done)
 	    pydone = new Py_Serial_Op_Sig_Done(done);
-	self->signature(sig, (gensios::Serial_Op_Sig_Done *) pydone);
+	try {
+	    self->signature(sig, (gensios::Serial_Op_Sig_Done *) pydone);
+	} catch (...) {
+	    if (pydone)
+		delete pydone;
+	    throw;
+	}
     }
 
     int baud_s(unsigned int *outval,
@@ -1348,7 +1584,13 @@ gensio_acc_alloct(gensios::Accepter *child, std::string str, gensios::Os_Funcs &
 	Py_Accepter_Shutdown_Done *pydone = NULL;
 	if (done)
 	    pydone = new Py_Accepter_Shutdown_Done(done);
-	self->shutdown((Accepter_Shutdown_Done *) pydone);
+	try {
+	    self->shutdown((Accepter_Shutdown_Done *) pydone);
+	} catch (...) {
+	    if (pydone)
+		delete pydone;
+	    throw;
+	}
     }
 
     void set_callback_enable(bool enabled, Accepter_Enable_Done *done)
@@ -1356,7 +1598,13 @@ gensio_acc_alloct(gensios::Accepter *child, std::string str, gensios::Os_Funcs &
 	Py_Accepter_Enable_Done *pydone = NULL;
 	if (done)
 	    pydone = new Py_Accepter_Enable_Done(done);
-	self->set_callback_enable(enabled, (Accepter_Enable_Done *) pydone);
+	try {
+	    self->set_callback_enable(enabled, (Accepter_Enable_Done *) pydone);
+	} catch (...) {
+	    if (pydone)
+		delete pydone;
+	    throw;
+	}
     }
 
     void set_event_handler(Accepter_Event *cb)
@@ -1461,7 +1709,8 @@ gensio_acc_alloct(gensios::Accepter *child, std::string str, gensios::Os_Funcs &
 	Raw_MDNS_Event_Handler *evh = new Py_Raw_MDNS_Event_Handler;
 	MDNS_Watch *w = self->add_watch(interfacenum, ipdomain, name, type,
 					domain, host, event, evh);
-
+	if (!w)
+	    delete evh;
 	return w;
     }
 
@@ -1476,6 +1725,8 @@ gensio_acc_alloct(gensios::Accepter *child, std::string str, gensios::Os_Funcs &
 	MDNS_Service *s = self->add_service(interfacenum, ipdomain, name, type,
 					    domain, host, port, txt,
 					    event, evh);
+	if (!s)
+	    delete evh;
 
 	return s;
     }

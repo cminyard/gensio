@@ -134,6 +134,14 @@ namespace gensios {
 	virtual ~Gensio_Close_Done() = default;
     };
 
+    // Used for done handlers for acontrol callbacks
+    class GENSIOCPP_DLL_PUBLIC Gensio_Control_Done {
+    public:
+	virtual void control_done(int err,
+				  const std::vector<unsigned char> data) = 0;
+	virtual ~Gensio_Control_Done() = default;
+    };
+
     // Allocate a gensio based upon the given string.  The string
     // format is defiend in gensio.5.  You must provided an os
     // function handler as described in gensio_os_funcs.3 and an event
@@ -268,6 +276,13 @@ namespace gensios {
 	// gensio_control.3 for details.
 	int control(int depth, bool get, unsigned int option,
 		    char *data, gensiods *datalen);
+
+	int acontrol(int depth, bool get, unsigned int option,
+		     const char *data, gensiods datalen,
+		     Gensio_Control_Done *done = NULL);
+
+	int acontrol_s(int depth, bool get, unsigned int option,
+		       char *data, gensiods *datalen);
 
 	// Return the type of the gensio.  If depth is larger than the
 	// stack, returns NULL.

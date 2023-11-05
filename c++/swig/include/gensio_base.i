@@ -20,6 +20,7 @@ using namespace gensios;
 %feature("director") gensios::Event;
 %feature("director") gensios::Gensio_Open_Done;
 %feature("director") gensios::Gensio_Close_Done;
+%feature("director") gensios::Gensio_Control_Done;
 %feature("director") gensios::Serial_Event;
 %feature("director") gensios::Serial_Op_Done;
 %feature("director") gensios::Serial_Op_Sig_Done;
@@ -296,3 +297,17 @@ using namespace gensios;
 %rename("%s", regextarget=1) "SERGENSIO_.*";
 %include <gensio/sergensio.h>
 %rename("%s") "";
+
+////////////////////////////////////////////////////
+// Pull some constants from gensio.h
+%ignore "";
+%rename("%s", regextarget=1) "GENSIO_SER_.*";
+%include <gensio/gensio.h>
+%rename("%s") "";
+
+const char *gensio_parity_to_str(unsigned int ival);
+int gensio_str_to_parity(const char *sval);
+const char *gensio_flowcontrol_to_str(unsigned int ival);
+int gensio_str_to_flowcontrol(const char *sval);
+const char *gensio_onoff_to_str(unsigned int ival);
+int gensio_str_to_onoff(const char *sval);
