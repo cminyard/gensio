@@ -1065,13 +1065,13 @@ gensio_win_commport_control(struct gensio_os_funcs *o, int op, bool get,
 	if (!GetCommModemStatus(h, &dval))
 	    goto out_err;
 	if (dval & MS_CTS_ON)
-	    rval |= GENSIO_MODEMSTATE_CTS;
+	    rval |= GENSIO_SER_MODEMSTATE_CTS;
 	if (dval & MS_DSR_ON)
-	    rval |= GENSIO_MODEMSTATE_DSR;
+	    rval |= GENSIO_SER_MODEMSTATE_DSR;
 	if (dval & MS_RING_ON)
-	    rval |= GENSIO_MODEMSTATE_RI;
+	    rval |= GENSIO_SER_MODEMSTATE_RI;
 	if (dval & MS_RLSD_ON)
-	    rval |= GENSIO_MODEMSTATE_CD;
+	    rval |= GENSIO_SER_MODEMSTATE_CD;
 	*((int *) val) = rval;
 	break;
     }
@@ -3068,13 +3068,13 @@ gensio_unix_termios_control(struct gensio_os_funcs *o, int op, bool get,
 	}
 	modemstate = 0;
 	if (nval & TIOCM_CD)
-	    modemstate |= GENSIO_MODEMSTATE_CD;
+	    modemstate |= GENSIO_SER_MODEMSTATE_CD;
 	if (nval & TIOCM_RI)
-	    modemstate |= GENSIO_MODEMSTATE_RI;
+	    modemstate |= GENSIO_SER_MODEMSTATE_RI;
 	if (nval & TIOCM_DSR)
-	    modemstate |= GENSIO_MODEMSTATE_DSR;
+	    modemstate |= GENSIO_SER_MODEMSTATE_DSR;
 	if (nval & TIOCM_CTS)
-	    modemstate |= GENSIO_MODEMSTATE_CTS;
+	    modemstate |= GENSIO_SER_MODEMSTATE_CTS;
 	*((int *) val) = modemstate;
 	break;
 

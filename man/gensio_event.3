@@ -304,6 +304,9 @@ the server side only.  It should respond by setting the value (if
 possible and the value isn't zero) and responding with the current
 value with sergensio_xxx().
 
+If the server receives a zero value for any of this, it should just
+report the value and not change anything.
+
 GENSIO_EVENT_SER_BAUD
 .br
 GENSIO_EVENT_SER_DATASIZE
@@ -321,6 +324,44 @@ GENSIO_EVENT_SER_SBREAK
 GENSIO_EVENT_SER_DTR
 .br
 GENSIO_EVENT_SER_RTS
+
+For baud, databits, and stopbits, the value is an integer with the
+number.
+
+Parity values can be:
+.br
+GENSIO_SER_PARITY_NONE
+.br
+GENSIO_SER_PARITY_ODD
+.br
+GENSIO_SER_PARITY_EVEN
+.br
+GENSIO_SER_PARITY_MARK
+.br
+GENSIO_SER_PARITY_SPACE
+
+Flow control values can be:
+.br
+GENSIO_SER_FLOWCONTROL_NONE
+.br
+GENSIO_SER_FLOWCONTROL_XON_XOFF
+.br
+GENSIO_SER_FLOWCONTROL_RTS_CTS
+
+Input flow control values can be:
+.br
+GENSIO_SER_FLOWCONTROL_DCD
+.br
+GENSIO_SER_FLOWCONTROL_DTR
+.br
+GENSIO_SER_FLOWCONTROL_DSR
+
+For values that are on/off (the rest), use the following:
+.br
+GENSIO_SER_ON
+.br
+GENSIO_SER_OFF
+
 .SS "SIGNATURE"
 .B GENSIO_EVENT_SER_SIGNATURE
 is received on the server side only and is a request for the

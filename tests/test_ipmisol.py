@@ -81,12 +81,12 @@ check_baud_set(115200, termios.B115200)
 # We rely on that here.
 io1 = alloc_io(o, "serialdev," + ttypipe[0] + ",9600,LOCAL")
 isim = ipmisimdaemon.IPMISimDaemon(o, ttypipe[1])
-io1.handler.set_expected_modemstate(gensio.SERGENSIO_MODEMSTATE_CTS_CHANGED |
-                                    gensio.SERGENSIO_MODEMSTATE_CD_CHANGED |
-                                    gensio.SERGENSIO_MODEMSTATE_DSR_CHANGED |
-                                    gensio.SERGENSIO_MODEMSTATE_CTS |
-                                    gensio.SERGENSIO_MODEMSTATE_CD |
-                                    gensio.SERGENSIO_MODEMSTATE_DSR)
+io1.handler.set_expected_modemstate(gensio.GENSIO_SER_MODEMSTATE_CTS_CHANGED |
+                                    gensio.GENSIO_SER_MODEMSTATE_CD_CHANGED |
+                                    gensio.GENSIO_SER_MODEMSTATE_DSR_CHANGED |
+                                    gensio.GENSIO_SER_MODEMSTATE_CTS |
+                                    gensio.GENSIO_SER_MODEMSTATE_CD |
+                                    gensio.GENSIO_SER_MODEMSTATE_DSR)
 io2 = alloc_io(o, "ipmisol,lan -U ipmiusr -P test -p %d localhost,9600" %
                isim.port)
 if (io1.handler.wait_timeout(2000) == 0):
@@ -113,9 +113,9 @@ io2.control_set(0, gensio.GENSIO_CONTROL_SER_FLUSH, "xmit")
 
 print("Testing CTS")
 h = CtrlRspHandler(o, "off")
-io1.handler.set_expected_modemstate(gensio.SERGENSIO_MODEMSTATE_CTS_CHANGED |
-                                    gensio.SERGENSIO_MODEMSTATE_CD |
-                                    gensio.SERGENSIO_MODEMSTATE_DSR)
+io1.handler.set_expected_modemstate(gensio.GENSIO_SER_MODEMSTATE_CTS_CHANGED |
+                                    gensio.GENSIO_SER_MODEMSTATE_CD |
+                                    gensio.GENSIO_SER_MODEMSTATE_DSR)
 io2.acontrol(0, gensio.GENSIO_CONTROL_SET, gensio.GENSIO_ACONTROL_SER_CTS,
              "off", h)
 if (io1.handler.wait_timeout(2000) == 0):
@@ -124,10 +124,10 @@ if (h.wait_timeout(2000) == 0):
     raise Exception("Timed out waiting for CTS off response")
 
 h = CtrlRspHandler(o, "auto")
-io1.handler.set_expected_modemstate(gensio.SERGENSIO_MODEMSTATE_CTS_CHANGED |
-                                    gensio.SERGENSIO_MODEMSTATE_CTS |
-                                    gensio.SERGENSIO_MODEMSTATE_CD |
-                                    gensio.SERGENSIO_MODEMSTATE_DSR)
+io1.handler.set_expected_modemstate(gensio.GENSIO_SER_MODEMSTATE_CTS_CHANGED |
+                                    gensio.GENSIO_SER_MODEMSTATE_CTS |
+                                    gensio.GENSIO_SER_MODEMSTATE_CD |
+                                    gensio.GENSIO_SER_MODEMSTATE_DSR)
 io2.acontrol(0, gensio.GENSIO_CONTROL_SET, gensio.GENSIO_ACONTROL_SER_CTS,
              "auto", h)
 if (io1.handler.wait_timeout(2000) == 0):
@@ -136,18 +136,18 @@ if (h.wait_timeout(2000) == 0):
     raise Exception("Timed out waiting for CTS off response")
 
 print("Testing DCD/DSR")
-io1.handler.set_expected_modemstate(gensio.SERGENSIO_MODEMSTATE_CTS |
-                                    gensio.SERGENSIO_MODEMSTATE_CD_CHANGED |
-                                    gensio.SERGENSIO_MODEMSTATE_DSR_CHANGED)
+io1.handler.set_expected_modemstate(gensio.GENSIO_SER_MODEMSTATE_CTS |
+                                    gensio.GENSIO_SER_MODEMSTATE_CD_CHANGED |
+                                    gensio.GENSIO_SER_MODEMSTATE_DSR_CHANGED)
 io2.acontrol(0, gensio.GENSIO_CONTROL_SET, gensio.GENSIO_ACONTROL_SER_DCD_DSR,
              "off", None)
 if (io1.handler.wait_timeout(3000) == 0):
     raise Exception("Timed out waiting for DCD/DSR off indicator")
-io1.handler.set_expected_modemstate(gensio.SERGENSIO_MODEMSTATE_CTS |
-                                    gensio.SERGENSIO_MODEMSTATE_CD_CHANGED |
-                                    gensio.SERGENSIO_MODEMSTATE_DSR_CHANGED |
-                                    gensio.SERGENSIO_MODEMSTATE_CD |
-                                    gensio.SERGENSIO_MODEMSTATE_DSR)
+io1.handler.set_expected_modemstate(gensio.GENSIO_SER_MODEMSTATE_CTS |
+                                    gensio.GENSIO_SER_MODEMSTATE_CD_CHANGED |
+                                    gensio.GENSIO_SER_MODEMSTATE_DSR_CHANGED |
+                                    gensio.GENSIO_SER_MODEMSTATE_CD |
+                                    gensio.GENSIO_SER_MODEMSTATE_DSR)
 io2.acontrol(0, gensio.GENSIO_CONTROL_SET, gensio.GENSIO_ACONTROL_SER_DCD_DSR,
              "on", None)
 if (io1.handler.wait_timeout(3000) == 0):
@@ -164,19 +164,19 @@ io1.handler.set_expected_modemstate(0)
 isim = ipmisimdaemon.IPMISimDaemon(o, ttypipe[1])
 io2 = alloc_io(o, "ipmisol(),lan -U ipmiusr -P test -p %d localhost,9600,deassert-CTS-DCD-DSR-on-connect" % isim.port)
 io1.control(0, gensio.GENSIO_CONTROL_SET, gensio.GENSIO_CONTROL_SER_MODEMSTATE,
-            str(gensio.SERGENSIO_MODEMSTATE_CTS |
-                gensio.SERGENSIO_MODEMSTATE_CD |
-                gensio.SERGENSIO_MODEMSTATE_DSR |
-                gensio.SERGENSIO_MODEMSTATE_RI))
+            str(gensio.GENSIO_SER_MODEMSTATE_CTS |
+                gensio.GENSIO_SER_MODEMSTATE_CD |
+                gensio.GENSIO_SER_MODEMSTATE_DSR |
+                gensio.GENSIO_SER_MODEMSTATE_RI))
 if (io1.handler.wait_timeout(3000) == 0):
     raise Exception("Timed out waiting for DCD/DSR/CTS off")
 
-io1.handler.set_expected_modemstate(gensio.SERGENSIO_MODEMSTATE_CTS |
-                                    gensio.SERGENSIO_MODEMSTATE_CTS_CHANGED |
-                                    gensio.SERGENSIO_MODEMSTATE_CD_CHANGED |
-                                    gensio.SERGENSIO_MODEMSTATE_DSR_CHANGED |
-                                    gensio.SERGENSIO_MODEMSTATE_CD |
-                                    gensio.SERGENSIO_MODEMSTATE_DSR)
+io1.handler.set_expected_modemstate(gensio.GENSIO_SER_MODEMSTATE_CTS |
+                                    gensio.GENSIO_SER_MODEMSTATE_CTS_CHANGED |
+                                    gensio.GENSIO_SER_MODEMSTATE_CD_CHANGED |
+                                    gensio.GENSIO_SER_MODEMSTATE_DSR_CHANGED |
+                                    gensio.GENSIO_SER_MODEMSTATE_CD |
+                                    gensio.GENSIO_SER_MODEMSTATE_DSR)
 io2.acontrol(0, gensio.GENSIO_CONTROL_SET, gensio.GENSIO_ACONTROL_SER_DCD_DSR,
              "on", None)
 io2.acontrol(0, gensio.GENSIO_CONTROL_SET, gensio.GENSIO_ACONTROL_SER_CTS,
@@ -186,9 +186,9 @@ if (io1.handler.wait_timeout(3000) == 0):
 
 print("Testing modemstate callbacks");
 h = CtrlRspHandler(o, "off")
-io1.handler.set_expected_modemstate(gensio.SERGENSIO_MODEMSTATE_CTS |
-                                    gensio.SERGENSIO_MODEMSTATE_CD_CHANGED |
-                                    gensio.SERGENSIO_MODEMSTATE_DSR_CHANGED)
+io1.handler.set_expected_modemstate(gensio.GENSIO_SER_MODEMSTATE_CTS |
+                                    gensio.GENSIO_SER_MODEMSTATE_CD_CHANGED |
+                                    gensio.GENSIO_SER_MODEMSTATE_DSR_CHANGED)
 io2.acontrol(0, gensio.GENSIO_CONTROL_SET, gensio.GENSIO_ACONTROL_SER_DCD_DSR,
              "off", h)
 if h.wait_timeout(1000) == 0:
@@ -199,7 +199,7 @@ if (io1.handler.wait_timeout(3000) == 0):
 print("Testing multiple pending operations");
 h1 = CtrlRspHandler(o, "on")
 h2 = CtrlRspHandler(o, "off")
-io1.handler.set_expected_modemstate(gensio.SERGENSIO_MODEMSTATE_CTS)
+io1.handler.set_expected_modemstate(gensio.GENSIO_SER_MODEMSTATE_CTS)
 io2.acontrol(0, gensio.GENSIO_CONTROL_SET, gensio.GENSIO_ACONTROL_SER_DCD_DSR,
              "on", h1)
 io2.acontrol(0, gensio.GENSIO_CONTROL_SET, gensio.GENSIO_ACONTROL_SER_DCD_DSR,
@@ -219,10 +219,10 @@ if h2.wait_timeout(1000) == 0:
 del h1
 del h2
 io1.control(0, gensio.GENSIO_CONTROL_SET, gensio.GENSIO_CONTROL_SER_MODEMSTATE,
-            str(gensio.SERGENSIO_MODEMSTATE_CTS |
-                gensio.SERGENSIO_MODEMSTATE_CD |
-                gensio.SERGENSIO_MODEMSTATE_DSR |
-                gensio.SERGENSIO_MODEMSTATE_RI))
+            str(gensio.GENSIO_SER_MODEMSTATE_CTS |
+                gensio.GENSIO_SER_MODEMSTATE_CD |
+                gensio.GENSIO_SER_MODEMSTATE_DSR |
+                gensio.GENSIO_SER_MODEMSTATE_RI))
 if (io1.handler.wait_timeout(3000) == 0):
     raise Exception("Timed out waiting for DCD/DSR on")
 

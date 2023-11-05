@@ -104,7 +104,7 @@ def do_telnet_test(io1, io2):
         raise Exception("Timeout waiting for client datasize response")
 
     h = CtrlRspHandler(o, "space")
-    io2.handler.set_expected_server_cb("parity", gensio.SERGENSIO_PARITY_NONE,
+    io2.handler.set_expected_server_cb("parity", gensio.GENSIO_SER_PARITY_NONE,
                                        "space")
     io1.acontrol(0, gensio.GENSIO_CONTROL_SET,
                  gensio.GENSIO_ACONTROL_SER_PARITY,
@@ -126,7 +126,7 @@ def do_telnet_test(io1, io2):
 
     h = CtrlRspHandler(o, "xonxoff")
     io2.handler.set_expected_server_cb("flowcontrol",
-                                       gensio.SERGENSIO_FLOWCONTROL_NONE,
+                                       gensio.GENSIO_SER_FLOWCONTROL_NONE,
                                        "xonxoff")
     io1.acontrol(0, gensio.GENSIO_CONTROL_SET,
                  gensio.GENSIO_ACONTROL_SER_FLOWCONTROL,
@@ -138,7 +138,7 @@ def do_telnet_test(io1, io2):
 
     h = CtrlRspHandler(o, "dsr")
     io2.handler.set_expected_server_cb("iflowcontrol",
-                                       gensio.SERGENSIO_FLOWCONTROL_DCD,
+                                       gensio.GENSIO_SER_FLOWCONTROL_DCD,
                                        "dsr")
     io1.acontrol(0, gensio.GENSIO_CONTROL_SET,
                  gensio.GENSIO_ACONTROL_SER_IFLOWCONTROL,
@@ -150,7 +150,7 @@ def do_telnet_test(io1, io2):
 
     h = CtrlRspHandler(o, "off")
     io2.handler.set_expected_server_cb("sbreak",
-                                       gensio.SERGENSIO_ON,
+                                       gensio.GENSIO_SER_ON,
                                        "off")
     io1.acontrol(0, gensio.GENSIO_CONTROL_SET,
                  gensio.GENSIO_ACONTROL_SER_SBREAK,
@@ -162,7 +162,7 @@ def do_telnet_test(io1, io2):
 
     h = CtrlRspHandler(o, "on")
     io2.handler.set_expected_server_cb("dtr",
-                                       gensio.SERGENSIO_OFF,
+                                       gensio.GENSIO_SER_OFF,
                                        "on")
     io1.acontrol(0, gensio.GENSIO_CONTROL_SET,
                  gensio.GENSIO_ACONTROL_SER_DTR,
@@ -174,7 +174,7 @@ def do_telnet_test(io1, io2):
 
     h = CtrlRspHandler(o, "on")
     io2.handler.set_expected_server_cb("rts",
-                                       gensio.SERGENSIO_OFF,
+                                       gensio.GENSIO_SER_OFF,
                                        "on")
     io1.acontrol(0, gensio.GENSIO_CONTROL_SET,
                  gensio.GENSIO_ACONTROL_SER_RTS,

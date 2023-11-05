@@ -3907,5 +3907,115 @@ gensio_time_diff_nsecs(gensio_time *t1, gensio_time *t2)
     return v;
 }
 
+const char *
+gensio_parity_to_str(unsigned int ival)
+{
+    switch(ival) {
+    case GENSIO_SER_PARITY_NONE:
+	return "none";
+
+    case GENSIO_SER_PARITY_ODD:
+	return "odd";
+
+    case GENSIO_SER_PARITY_EVEN:
+	return "even";
+
+    case GENSIO_SER_PARITY_MARK:
+	return "mark";
+
+    case GENSIO_SER_PARITY_SPACE:
+	return "space";
+
+    default:
+	return "?";
+    }
+}
+
+int
+gensio_str_to_parity(const char *sval)
+{
+    if (strcmp(sval, "none") == 0)
+	return GENSIO_SER_PARITY_NONE;
+    if (strcmp(sval, "odd") == 0)
+	return GENSIO_SER_PARITY_ODD;
+    if (strcmp(sval, "even") == 0)
+	return GENSIO_SER_PARITY_EVEN;
+    if (strcmp(sval, "mark") == 0)
+	return GENSIO_SER_PARITY_MARK;
+    if (strcmp(sval, "space") == 0)
+	return GENSIO_SER_PARITY_SPACE;
+    return -1;
+}
+
+const char *
+gensio_flowcontrol_to_str(unsigned int ival)
+{
+    switch (ival) {
+    case GENSIO_SER_FLOWCONTROL_NONE:
+	return "none";
+
+    case GENSIO_SER_FLOWCONTROL_XON_XOFF:
+	return "xonxoff";
+
+    case GENSIO_SER_FLOWCONTROL_RTS_CTS:
+	return "rtscts";
+
+    case GENSIO_SER_FLOWCONTROL_DCD:
+	return "dcd";
+
+    case GENSIO_SER_FLOWCONTROL_DTR:
+	return "dtr";
+
+    case GENSIO_SER_FLOWCONTROL_DSR:
+	return "dsr";
+
+    default:
+	return "?";
+    }
+}
+
+int
+gensio_str_to_flowcontrol(const char *sval)
+{
+    if (strcmp(sval, "none") == 0)
+	return GENSIO_SER_FLOWCONTROL_NONE;
+    if (strcmp(sval, "xonxoff") == 0)
+	return GENSIO_SER_FLOWCONTROL_XON_XOFF;
+    if (strcmp(sval, "rtscts") == 0)
+	return GENSIO_SER_FLOWCONTROL_RTS_CTS;
+    if (strcmp(sval, "dcd") == 0)
+	return GENSIO_SER_FLOWCONTROL_DCD;
+    if (strcmp(sval, "dtr") == 0)
+	return GENSIO_SER_FLOWCONTROL_DTR;
+    if (strcmp(sval, "dsr") == 0)
+	return GENSIO_SER_FLOWCONTROL_DSR;
+    return -1;
+}
+
+const char *
+gensio_onoff_to_str(unsigned int ival)
+{
+    switch(ival) {
+    case GENSIO_SER_ON:
+	return "on";
+
+    case GENSIO_SER_OFF:
+	return "off";
+
+    default:
+	return "?";
+    }
+}
+
+int
+gensio_str_to_onoff(const char *sval)
+{
+    if (strcmp(sval, "on") == 0)
+	return GENSIO_SER_ON;
+    if (strcmp(sval, "off") == 0)
+	return GENSIO_SER_OFF;
+    return -1;
+}
+
 /* For lack of a better place to put this. */
 bool gensio_uucp_locking_enabled = true;
