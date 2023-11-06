@@ -549,8 +549,8 @@ sterm_flowcontrol(struct sterm_data *sdata, int flowcontrol,
 		flowcontrol = xlatstr[i].ival;
 		goto found;
 	    }
-	    return GE_INVAL;
 	}
+	return GE_INVAL;
     }
  found:
     switch (flowcontrol) {
