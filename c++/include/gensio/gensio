@@ -308,7 +308,7 @@ namespace gensios {
 
 	int acontrol_s(int depth, bool get, unsigned int option,
 		       char *data, gensiods *datalen,
-		       gensio_time *timeout = NULL);
+		       gensio_time *timeout = NULL, bool intr = false);
 
 	// Return the type of the gensio.  If depth is larger than the
 	// stack, returns NULL.

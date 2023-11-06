@@ -9,13 +9,13 @@ gensio_control \- Perform gensio-specific actions
 .B                    unsigned int option,
 .br
 .B                    char *data, gensiods *datalen);
-.br
+.TP 20
 .B typedef void (*gensio_control_done)(struct gensio *io, int err,
 .br
 .B                                  const char *buf, gensiods len,
 .br
 .B                                  void *cb_data);
-.br
+.TP 20
 .B int gensio_acontrol(struct gensio *io, int depth, bool get,
 .br
 .B                    unsigned int option,
@@ -25,7 +25,16 @@ gensio_control \- Perform gensio-specific actions
 .B                    gensio_control_done done, void *cb_data,
 .br
 .B                    gensio_time *timeout);
+.TP 20
 .B int gensio_acontrol_s(struct gensio *io, int depth, bool get,
+.br
+.B                    unsigned int option,
+.br
+.B                    char *data, gensiods *datalen,
+.br
+.B                    gensio_time *timeout);
+.TP 20
+.B int gensio_acontrol_s_intr(struct gensio *io, int depth, bool get,
 .br
 .B                    unsigned int option,
 .br
