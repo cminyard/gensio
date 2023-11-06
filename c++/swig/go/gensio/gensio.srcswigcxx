@@ -163,8 +163,9 @@
     }
     int acontrol_s(int depth, bool get, unsigned int option,
 		   char *data, gensiods len, gensiods *rlen,
-		   gensio_time *timeout = NULL) {
-	int rv = self->acontrol_s(depth, get, option, data, &len, timeout);
+		   gensio_time *timeout = NULL, bool intr = false) {
+	int rv = self->acontrol_s(depth, get, option, data, &len, timeout,
+				  intr);
 	*rlen = len;
 	return rv;
     }

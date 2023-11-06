@@ -38,6 +38,9 @@ namespace gensios {
 	    Event *cb = g->get_cb();
 	    Gensio *g2;
 
+	    if (!cb)
+		return GE_NOTSUP;
+
 	    try {
 		if (event >= GENSIO_EVENT_USER_MIN &&
 				event <= GENSIO_EVENT_USER_MAX) {
@@ -675,10 +678,14 @@ namespace gensios {
 
     int Gensio::acontrol_s(int depth, bool get, unsigned int option,
 			   char *data, gensiods *datalen,
-			   gensio_time *timeout)
+			   gensio_time *timeout, bool intr)
     {
-	return gensio_acontrol_s(io, depth, get, option, data, datalen,
-				 timeout);
+	if (intr)
+	    return gensio_acontrol_s_intr(io, depth, get, option, data, datalen,
+					  timeout);
+	else
+	    return gensio_acontrol_s(io, depth, get, option, data, datalen,
+				     timeout);
     }
 
     int Gensio::read_s(std::vector<unsigned char> &rvec,

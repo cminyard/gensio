@@ -919,7 +919,68 @@ struct waiter { };
 				   rtv);
 	}
 
-	err_handle("control", rv);
+	err_handle("acontrol_s", rv);
+    out_ret:
+	*rstr = data;
+	*rstr_len = glen;
+    }
+
+    %rename(acontrol_s_intr) acontrol_s_intrt;
+    %newobject acontrol_s_intrt;
+    void acontrol_s_intrt(char **rstr, size_t *rstr_len,
+		     int depth, bool get, int option,
+		     char *bytestr, my_ssize_t len,
+		     long timeout) {
+	int rv;
+	gensio_time tv = { timeout / 1000, (((int32_t) timeout % 1000)
+					    * 1000000) };
+	gensio_time *rtv = &tv;
+	char *data = NULL;
+	gensiods glen = 0, slen = len;
+
+	if (timeout < 0)
+	    rtv = NULL;
+
+	if (get) {
+	    /* Pass in a zero length to get the actual length. */
+	    rv = gensio_acontrol_s_intr(self, depth, get, option,
+					bytestr, &glen, rtv);
+	    if (rv)
+		goto out;
+	    /* Allocate the larger of strlen(bytestr) and len) */
+	    if (slen > glen) {
+		data = (char *) malloc(slen + 1);
+		glen = slen;
+	    } else {
+		data = (char *) malloc(glen + 1);
+	    }
+	    if (!data) {
+		rv = GE_NOMEM;
+		goto out;
+	    }
+	    data[glen] = '\0';
+	    data[slen] = '\0';
+	    glen += 1;
+	    if (bytestr) {
+		memcpy(data, bytestr, slen);
+	    } else {
+		data[0] = '\0';
+	    }
+	    rv = gensio_acontrol_s_intr(self, depth, get, option, data, &glen,
+					rtv);
+	    if (rv) {
+		free(data);
+		data = NULL;
+	    }
+	out:
+	    if (rv == GE_NOTFOUND) /* Return None for ENOENT. */
+		goto out_ret;
+	} else {
+	    rv = gensio_acontrol_s_intr(self, depth, get, option,
+					bytestr, &slen, rtv);
+	}
+
+	err_handle("acontrol_s_intr", rv);
     out_ret:
 	*rstr = data;
 	*rstr_len = glen;
