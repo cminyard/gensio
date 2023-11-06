@@ -40,88 +40,84 @@ namespace gensios {
 
 	    try {
 		if (event >= GENSIO_EVENT_USER_MIN &&
-		    event <= GENSIO_EVENT_USER_MAX) {
+				event <= GENSIO_EVENT_USER_MAX) {
 		    std::vector<unsigned char> val(buf, buf + *buflen);
 		    return cb->user_event(event, err, val, auxdata);
 		}
 
 		if (event >= SERGENSIO_EVENT_BASE &&
-		    event <= SERGENSIO_EVENT_MAX) {
-		    Serial_Event *scb = dynamic_cast<Serial_Event *>(cb);
+				event <= SERGENSIO_EVENT_MAX) {
 		    unsigned int *val = (unsigned int *) buf;
-
-		    if (!scb)
-			return GE_NOTSUP;
 
 		    if (event == GENSIO_EVENT_SER_SIGNATURE) {
 			std::vector<unsigned char> sig(buf, buf + *buflen);
-			scb->signature(std::move(sig));
+			cb->signature(std::move(sig));
 			return 0;
 		    }
 
 		    switch (event) {
 		    case GENSIO_EVENT_SER_MODEMSTATE:
-			scb->modemstate(*val);
+			cb->modemstate(*val);
 			break;
 
 		    case GENSIO_EVENT_SER_MODEMSTATE_MASK:
-			scb->modemstate_mask(*val);
+			cb->modemstate_mask(*val);
 			break;
 
 		    case GENSIO_EVENT_SER_LINESTATE:
-			scb->linestate(*val);
+			cb->linestate(*val);
 			break;
 
 		    case GENSIO_EVENT_SER_LINESTATE_MASK:
-			scb->linestate_mask(*val);
+			cb->linestate_mask(*val);
 			break;
 
 		    case GENSIO_EVENT_SER_FLOW_STATE:
-			scb->flow_state(*val);
+			cb->flow_state(*val);
 			break;
 
 		    case GENSIO_EVENT_SER_FLUSH:
-			scb->flush(*val);
+			cb->flush(*val);
 			break;
 
 		    case GENSIO_EVENT_SER_SYNC:
-			scb->sync();
+			cb->sync();
 			break;
 
 		    case GENSIO_EVENT_SER_BAUD:
-			scb->baud(*val);
+			cb->baud(*val);
 			break;
 
 		    case GENSIO_EVENT_SER_DATASIZE:
-			scb->datasize(*val);
+			cb->datasize(*val);
 			break;
 
 		    case GENSIO_EVENT_SER_PARITY:
-			scb->parity(*val);
+			cb->parity(*val);
 			break;
 
 		    case GENSIO_EVENT_SER_STOPBITS:
-			scb->stopbits(*val);
+			cb->stopbits(*val);
 			break;
 
 		    case GENSIO_EVENT_SER_FLOWCONTROL:
-			scb->flowcontrol(*val);
+			cb->flowcontrol(*val);
 			break;
 
 		    case GENSIO_EVENT_SER_IFLOWCONTROL:
-			scb->iflowcontrol(*val);
+			cb->iflowcontrol(*val);
 			break;
 
 		    case GENSIO_EVENT_SER_SBREAK:
-			scb->sbreak(*val);
+			cb->sbreak(*val);
 			break;
 
 		    case GENSIO_EVENT_SER_DTR:
-			scb->dtr(*val);
+			cb->dtr(*val);
 			break;
 
 		    case GENSIO_EVENT_SER_RTS:
-			scb->rts(*val);
+			cb->rts(*val);
 			break;
 
 		    default:
@@ -662,23 +658,27 @@ namespace gensios {
 
     int Gensio::acontrol(int depth, bool get, unsigned int option,
 			 const char *data, gensiods datalen,
-			 Gensio_Control_Done *done)
+			 Gensio_Control_Done *done,
+			 gensio_time *timeout)
     {
 	int err;
 
 	if (done)
 	    err = gensio_acontrol(io, depth, get, option, data, datalen,
-				  gensio_cpp_control_done, done);
+				  gensio_cpp_control_done, done,
+				  timeout);
 	else
 	    err = gensio_acontrol(io, depth, get, option, data, datalen,
-				  NULL, NULL);
+				  NULL, NULL, timeout);
 	return err;
     }
 
     int Gensio::acontrol_s(int depth, bool get, unsigned int option,
-			   char *data, gensiods *datalen)
+			   char *data, gensiods *datalen,
+			   gensio_time *timeout)
     {
-	return gensio_acontrol_s(io, depth, get, option, data, datalen);
+	return gensio_acontrol_s(io, depth, get, option, data, datalen,
+				 timeout);
     }
 
     int Gensio::read_s(std::vector<unsigned char> &rvec,

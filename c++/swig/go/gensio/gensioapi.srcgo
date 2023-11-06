@@ -235,6 +235,10 @@ type Gensio interface {
 	// if the data is truncated.
 	Control(depth int, get bool, option uint, data []byte) (int, []byte,
 		uint64)
+	Acontrol(depth int, get bool, option uint, data []byte,
+		 cd GensioControlDone, timeout *Time) int
+	AcontrolS(depth int, get bool, option uint, data []byte,
+		  timeout *Time) (int, []byte, uint64)
 
 	// Set/change the event handler for a Gensio.  Useful if you
 	// receive a Gensio from a NewConnection or NewChannel
@@ -360,23 +364,6 @@ type Event interface {
 	UserEvent(event int, err int, userdata *[]byte,
 		  auxdata []string) int
 
-	// Internal methods, don't mess with these.
-	getEventBase() *EventBase
-}
-
-// This type must be the first entry in your event-handling callback
-// object; it allows the event handler to be passed NewGensio() or
-// whatnot.
-type EventBase struct {
-	Event
-
-	e *raweventBase
-}
-
-// Serial callback events for a SerialGensio.  See the
-// sergensio_event.3 man page for details.
-type SerialEvent interface {
-	Event
 	Modemstate(state uint)
 	ModemstateMask(state uint)
 	Linestate(state uint)
@@ -394,6 +381,26 @@ type SerialEvent interface {
 	Dtr(dtr uint)
 	Rts(rts uint)
 	Flush(val uint)
+
+	// Internal methods, don't mess with these.
+	getEventBase() *EventBase
+}
+
+// This type must be the first entry in your event-handling callback
+// object; it allows the event handler to be passed NewGensio() or
+// whatnot.
+type EventBase struct {
+	Event
+
+	e *raweventBase
+}
+
+// Serial callback events for a SerialGensio.  See the gensio_event.3
+// man page for details.  SerialGensio is now deprecated, do not
+// use it.  Use the Acontrol() interface in Gensio for these functions.
+// The events are not all moved to Event.
+type SerialEvent interface {
+	Event
 
 	// Internal methods, don't mess with these.
 	getSerialEventBase() *SerialEventBase
@@ -438,6 +445,22 @@ type GensioCloseDoneBase struct {
 	GensioCloseDone
 
 	cd *rawGensioCloseDoneBase
+}
+
+// Interface for handling a Control() operation completing.
+type GensioControlDone interface {
+	ControlDone(err int, data []byte)
+
+	// Internal, do not use
+	getGensioControlDoneBase() *GensioControlDoneBase
+}
+
+// This type must be the first entry in your event-handling callback
+// for a Control() operation.
+type GensioControlDoneBase struct {
+	GensioControlDone
+
+	cd *rawGensioControlDoneBase
 }
 
 // Interface for handling asynchronous serial requests.
@@ -1177,6 +1200,24 @@ func (e *EventBase) UserEvent(event int, err int,
 	return GE_NOTSUP
 }
 
+func (e *EventBase) Modemstate(state uint) { }
+func (e *EventBase) ModemstateMask(state uint) { }
+func (e *EventBase) Linestate(state uint) { }
+func (e *EventBase) LinestateMask(state uint) { }
+func (e *EventBase) Signature(data []byte) { }
+func (e *EventBase) FlowState(state bool) { }
+func (e *EventBase) Sync() { }
+func (e *EventBase) Baud(baud uint) { }
+func (e *EventBase) Datasize(size uint) { }
+func (e *EventBase) Parity(par uint) { }
+func (e *EventBase) Stopbits(bits uint) { }
+func (e *EventBase) Flowcontrol(flow uint) { }
+func (e *EventBase) Iflowcontrol(flow uint) { }
+func (e *EventBase) Sbreak(sbreak uint) { }
+func (e *EventBase) Dtr(dtr uint) { }
+func (e *EventBase) Rts(rts uint) { }
+func (e *EventBase) Flush(val uint) { }
+
 func (e *EventBase) destroy() {
 	if e.e != nil {
 		DeleteRawEvent(e.e)
@@ -1268,24 +1309,6 @@ type rawserialEventBase struct {
 func (e *SerialEventBase) getSerialEventBase() *SerialEventBase {
 	return e
 }
-
-func (e *SerialEventBase) Modemstate(state uint) { }
-func (e *SerialEventBase) ModemstateMask(state uint) { }
-func (e *SerialEventBase) Linestate(state uint) { }
-func (e *SerialEventBase) LinestateMask(state uint) { }
-func (e *SerialEventBase) Signature(data []byte) { }
-func (e *SerialEventBase) FlowState(state bool) { }
-func (e *SerialEventBase) Sync() { }
-func (e *SerialEventBase) Baud(baud uint) { }
-func (e *SerialEventBase) Datasize(size uint) { }
-func (e *SerialEventBase) Parity(par uint) { }
-func (e *SerialEventBase) Stopbits(bits uint) { }
-func (e *SerialEventBase) Flowcontrol(flow uint) { }
-func (e *SerialEventBase) Iflowcontrol(flow uint) { }
-func (e *SerialEventBase) Sbreak(sbreak uint) { }
-func (e *SerialEventBase) Dtr(dtr uint) { }
-func (e *SerialEventBase) Rts(rts uint) { }
-func (e *SerialEventBase) Flush(val uint) { }
 
 func (e *SerialEventBase) destroy() {
 	DeleteRawSerial_Event(e.se)
@@ -1517,6 +1540,39 @@ func (cd *GensioCloseDoneBase) destroy() {
 	atomic.AddUint32(&GCCount, 1)
 }
 
+type rawGensioControlDoneBase struct {
+	RawGensio_Control_Done
+	subd GensioControlDone
+}
+
+func (cd *GensioControlDoneBase) getGensioControlDoneBase() *GensioControlDoneBase {
+	return cd
+}
+
+func (cd *rawGensioControlDoneBase) Control_done(err int, data []byte) {
+	ndata := make([]byte, len(data))
+	copy(ndata, data)
+	cd.subd.ControlDone(err, ndata)
+	cd.subd = nil // Break the circular reference
+}
+
+func setupGensioControlDone(cd GensioControlDone) RawGensio_Control_Done {
+	cdb := cd.getGensioControlDoneBase()
+	cdb.cd = &rawGensioControlDoneBase{}
+	cdb.cd.subd = cd
+	cdb.cd.RawGensio_Control_Done = NewDirectorGensio_Control_Done(cdb.cd)
+	runtime.SetFinalizer(cdb, destroyer.destroy)
+	return cdb.cd
+}
+
+func (cd *GensioControlDoneBase) destroy() {
+	DeleteRawGensio_Control_Done(cd.cd)
+	if Debug {
+		fmt.Println("Control Done destroy")
+	}
+	atomic.AddUint32(&GCCount, 1)
+}
+
 type rawSerialOpDoneBase struct {
 	RawSerial_Op_Done
 	subd SerialOpDone
@@ -1675,6 +1731,29 @@ func (g *gensioO) Control(depth int, get bool, option uint,
 	var len uint64
 	var actlen uint64
 	rv := g.g.Control(depth, get, option, data, &len)
+	actlen = len
+	if actlen > uint64(cap(data)) {
+		actlen = uint64(cap(data))
+	}
+	return rv, data[:actlen], len
+}
+
+func (g *gensioO) Acontrol(depth int, get bool, option uint,
+			   data []byte, cd GensioControlDone,
+			   timeout *Time) int {
+	if cd == nil {
+		return g.g.Acontrol_nodone(depth, get, option, data, timeout)
+	} else {
+		return g.g.Acontrol(depth, get, option, data,
+			setupGensioControlDone(cd), timeout)
+	}
+}
+
+func (g *gensioO) AcontrolS(depth int, get bool, option uint,
+			    data []byte, timeout *Time) (int, []byte, uint64) {
+	var len uint64
+	var actlen uint64
+	rv := g.g.Acontrol_s(depth, get, option, data, &len, timeout)
 	actlen = len
 	if actlen > uint64(cap(data)) {
 		actlen = uint64(cap(data))

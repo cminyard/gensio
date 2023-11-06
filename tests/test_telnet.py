@@ -80,14 +80,14 @@ def do_telnet_test(io1, io2):
     h = SigRspHandler(o, "testsig")
     io2.handler.set_expected_sig_server_cb("testsig")
     io1.acontrol(0, gensio.GENSIO_CONTROL_SET,
-                 gensio.GENSIO_ACONTROL_SER_SIGNATURE, "testsig", h)
+                 gensio.GENSIO_ACONTROL_SER_SIGNATURE, "testsig", h, -1)
     if (h.wait_timeout(1000) == 0):
         raise Exception("Timeout waiting for signature")
 
     h = CtrlRspHandler(o, 2000)
     io2.handler.set_expected_server_cb("baud", 1000, 2000)
     io1.acontrol(0, gensio.GENSIO_CONTROL_SET, gensio.GENSIO_ACONTROL_SER_BAUD,
-                 "1000", h)
+                 "1000", h, -1)
     if io2.handler.wait_timeout(1000) == 0:
         raise Exception("Timeout waiting for server baud set")
     if h.wait_timeout(1000) == 0:
@@ -97,7 +97,7 @@ def do_telnet_test(io1, io2):
     io2.handler.set_expected_server_cb("datasize", 5, 6)
     io1.acontrol(0, gensio.GENSIO_CONTROL_SET,
                  gensio.GENSIO_ACONTROL_SER_DATASIZE,
-                 "5", h)
+                 "5", h, -1)
     if io2.handler.wait_timeout(1000) == 0:
         raise Exception("Timeout waiting for server datasize set")
     if h.wait_timeout(1000) == 0:
@@ -108,7 +108,7 @@ def do_telnet_test(io1, io2):
                                        "space")
     io1.acontrol(0, gensio.GENSIO_CONTROL_SET,
                  gensio.GENSIO_ACONTROL_SER_PARITY,
-                 "none", h)
+                 "none", h, -1)
     if io2.handler.wait_timeout(1000) == 0:
         raise Exception("Timeout waiting for server parity set")
     if h.wait_timeout(1000) == 0:
@@ -118,7 +118,7 @@ def do_telnet_test(io1, io2):
     io2.handler.set_expected_server_cb("stopbits", 2, 1)
     io1.acontrol(0, gensio.GENSIO_CONTROL_SET,
                  gensio.GENSIO_ACONTROL_SER_STOPBITS,
-                 "2", h)
+                 "2", h, -1)
     if io2.handler.wait_timeout(1000) == 0:
         raise Exception("Timeout waiting for server stopbits set")
     if h.wait_timeout(1000) == 0:
@@ -130,7 +130,7 @@ def do_telnet_test(io1, io2):
                                        "xonxoff")
     io1.acontrol(0, gensio.GENSIO_CONTROL_SET,
                  gensio.GENSIO_ACONTROL_SER_FLOWCONTROL,
-                 "none", h)
+                 "none", h, -1)
     if io2.handler.wait_timeout(1000) == 0:
         raise Exception("Timeout waiting for server flowcontrol set")
     if h.wait_timeout(1000) == 0:
@@ -142,7 +142,7 @@ def do_telnet_test(io1, io2):
                                        "dsr")
     io1.acontrol(0, gensio.GENSIO_CONTROL_SET,
                  gensio.GENSIO_ACONTROL_SER_IFLOWCONTROL,
-                 "dcd", h)
+                 "dcd", h, -1)
     if io2.handler.wait_timeout(1000) == 0:
         raise Exception("Timeout waiting for server flowcontrol set")
     if h.wait_timeout(1000) == 0:
@@ -154,7 +154,7 @@ def do_telnet_test(io1, io2):
                                        "off")
     io1.acontrol(0, gensio.GENSIO_CONTROL_SET,
                  gensio.GENSIO_ACONTROL_SER_SBREAK,
-                 "on", h)
+                 "on", h, -1)
     if io2.handler.wait_timeout(1000) == 0:
         raise Exception("Timeout waiting for server sbreak set")
     if h.wait_timeout(1000) == 0:
@@ -166,7 +166,7 @@ def do_telnet_test(io1, io2):
                                        "on")
     io1.acontrol(0, gensio.GENSIO_CONTROL_SET,
                  gensio.GENSIO_ACONTROL_SER_DTR,
-                 "off", h)
+                 "off", h, -1)
     if io2.handler.wait_timeout(1000) == 0:
         raise Exception("Timeout waiting for server dtr set")
     if h.wait_timeout(1000) == 0:
@@ -178,7 +178,7 @@ def do_telnet_test(io1, io2):
                                        "on")
     io1.acontrol(0, gensio.GENSIO_CONTROL_SET,
                  gensio.GENSIO_ACONTROL_SER_RTS,
-                 "off", h)
+                 "off", h, -1)
     if io2.handler.wait_timeout(1000) == 0:
         raise Exception("Timeout waiting for server rts set")
     if h.wait_timeout(1000) == 0:
@@ -189,7 +189,6 @@ def do_telnet_test(io1, io2):
 
 print("Test accept telnet")
 TestAccept(o, "telnet(rfc2217,winsize),tcp,localhost,",
-           "telnet(rfc2217=true,winsize),tcp,localhost,0", do_telnet_test,
-           is_sergensio = True)
+           "telnet(rfc2217=true,winsize),tcp,localhost,0", do_telnet_test)
 del o
 test_shutdown()

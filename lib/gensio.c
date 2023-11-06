@@ -780,11 +780,13 @@ int
 gensio_acontrol(struct gensio *io, int depth, bool get,
 		unsigned int option, const char *data,
 		gensiods datalen,
-		gensio_control_done done, void *cb_data)
+		gensio_control_done done, void *cb_data,
+		gensio_time *timeout)
 {
     struct gensio_func_acontrol ctrldata = {
 	.data = data,
 	.datalen = datalen,
+	.timeout = timeout,
 	.done = done,
 	.cb_data = cb_data
     };
@@ -846,7 +848,7 @@ gensio_acontrol_s_done(struct gensio *io, int err, const char *str,
 int
 gensio_acontrol_s(struct gensio *io, int depth, bool get,
 		  unsigned int option, char *idata,
-		  gensiods *datalen)
+		  gensiods *datalen, gensio_time *timeout)
 {
     struct gensio_os_funcs *o = io->o;
     struct gensio_acontrol_s_data data = {
@@ -863,10 +865,39 @@ gensio_acontrol_s(struct gensio *io, int depth, bool get,
 	return GE_NOMEM;
 
     rv = gensio_acontrol(io, depth, get, option, idata, *datalen,
-			 gensio_acontrol_s_done, &data);
+			 gensio_acontrol_s_done, &data, timeout);
     if (rv)
 	return rv;
     o->wait(data.waiter, 1, NULL);
+    o->free_waiter(data.waiter);
+    *datalen = data.datalen;
+    return data.err;
+}
+
+int
+gensio_acontrol_s_intr(struct gensio *io, int depth, bool get,
+		       unsigned int option, char *idata,
+		       gensiods *datalen, gensio_time *timeout)
+{
+    struct gensio_os_funcs *o = io->o;
+    struct gensio_acontrol_s_data data = {
+	.is_get = get,
+	.o = o,
+	.waiter = o->alloc_waiter(o),
+	.data = idata,
+	.datalen = *datalen,
+	.err = 0
+    };
+    int rv;
+
+    if (!data.waiter)
+	return GE_NOMEM;
+
+    rv = gensio_acontrol(io, depth, get, option, idata, *datalen,
+			 gensio_acontrol_s_done, &data, timeout);
+    if (rv)
+	return rv;
+    rv = o->wait_intr(data.waiter, 1, timeout);
     o->free_waiter(data.waiter);
     *datalen = data.datalen;
     return data.err;

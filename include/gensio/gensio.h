@@ -305,12 +305,18 @@ GENSIO_DLL_PUBLIC
 int gensio_acontrol(struct gensio *io, int depth, bool get,
 		    unsigned int option, const char *data,
 		    gensiods datalen,
-		    gensio_control_done done, void *cb_data);
+		    gensio_control_done done, void *cb_data,
+		    gensio_time *timeout);
 
 GENSIO_DLL_PUBLIC
 int gensio_acontrol_s(struct gensio *io, int depth, bool get,
 		      unsigned int option, char *data,
-		      gensiods *datalen);
+		      gensiods *datalen, gensio_time *timeout);
+
+GENSIO_DLL_PUBLIC
+int gensio_acontrol_s_intr(struct gensio *io, int depth, bool get,
+			   unsigned int option, char *data,
+			   gensiods *datalen, gensio_time *timeout);
 
 #include <gensio/gensio_control.h>
 

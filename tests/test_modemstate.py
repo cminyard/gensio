@@ -22,9 +22,9 @@ io1 = alloc_io(o, io1str, do_open = False)
 io2 = alloc_io(o, io2str)
 
 io2.acontrol_s(0, gensio.GENSIO_CONTROL_SET, gensio.GENSIO_ACONTROL_SER_DTR,
-               "off");
+               "off", -1);
 io2.acontrol_s(0, gensio.GENSIO_CONTROL_SET, gensio.GENSIO_ACONTROL_SER_RTS,
-               "off");
+               "off", -1);
 set_remote_null_modem(remote_id_int(io2), False);
 set_remote_modem_ctl(remote_id_int(io2), (SERIALSIM_TIOCM_CAR |
                                        SERIALSIM_TIOCM_CTS |
@@ -97,9 +97,9 @@ io1.handler.set_expected_modemstate(gensio.GENSIO_SER_MODEMSTATE_CD_CHANGED |
                                     gensio.GENSIO_SER_MODEMSTATE_DSR |
                                     gensio.GENSIO_SER_MODEMSTATE_CTS)
 io2.acontrol_s(0, gensio.GENSIO_CONTROL_SET, gensio.GENSIO_ACONTROL_SER_DTR,
-               "on");
+               "on", -1);
 io2.acontrol_s(0, gensio.GENSIO_CONTROL_SET, gensio.GENSIO_ACONTROL_SER_RTS,
-               "on");
+               "on", -1);
 set_remote_null_modem(remote_id_int(io2), True);
 if (io1.handler.wait_timeout(2000) == 0):
     raise Exception("%s: %s: Timed out waiting for modemstate 7" %

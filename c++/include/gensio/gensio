@@ -117,6 +117,30 @@ namespace gensios {
 	// General logs on running gensios come in here.
 	virtual int log(enum gensio_log_levels level,
 			const std::string log) { return GE_NOTSUP; }
+
+	// See gensio_event.3 and gensio_acontrol.3 for details
+	virtual void modemstate(unsigned int state) { }
+	// See gensio_event.3 and gensio_acontrol.3 for details
+	virtual void linestate(unsigned int state) { }
+	virtual void flow_state(bool state) { }
+	virtual void sync() { }
+
+	// Server side calls, used when the client requests changes.
+	// See GENSIO_ACONTROL_SER_xxx.
+	virtual void signature(const std::vector<unsigned char> data) { }
+	virtual void flush(unsigned int val) { }
+	virtual void baud(unsigned int speed) { }
+	virtual void datasize(unsigned int size) { }
+	virtual void parity(unsigned int par) { }
+	virtual void stopbits(unsigned int bits) { }
+	virtual void flowcontrol(unsigned int flow) { }
+	virtual void iflowcontrol(unsigned int flow) { }
+	virtual void sbreak(unsigned int sbreak) { }
+	virtual void dtr(unsigned int dtr) { }
+	virtual void rts(unsigned int rts) { }
+
+	virtual void modemstate_mask(unsigned int state) { }
+	virtual void linestate_mask(unsigned int state) { }
     };
 
     // Used for done handlers for gensio operations that can fail,
@@ -279,10 +303,12 @@ namespace gensios {
 
 	int acontrol(int depth, bool get, unsigned int option,
 		     const char *data, gensiods datalen,
-		     Gensio_Control_Done *done = NULL);
+		     Gensio_Control_Done *done = NULL,
+		     gensio_time *timeout = NULL);
 
 	int acontrol_s(int depth, bool get, unsigned int option,
-		       char *data, gensiods *datalen);
+		       char *data, gensiods *datalen,
+		       gensio_time *timeout = NULL);
 
 	// Return the type of the gensio.  If depth is larger than the
 	// stack, returns NULL.
@@ -410,36 +436,17 @@ namespace gensios {
 
     //*****************************************************************
 
+    // NOTE - The serial gensio is now deprecated, do not use it any
+    // more.  The acontrol() function has taken over the serial
+    // things.
+
     // These are events from a serial port device, client and server.
     // These are documented in sergensio_event.3.
     class GENSIOCPP_DLL_PUBLIC Serial_Event: public Event {
     public:
 	// Client-side calls, used to report serial line changes.
 
-	// See sergensio_modemstate.3 for details
-	virtual void modemstate(unsigned int state) { }
-	// See sergensio_linestate.3 for details
-	virtual void linestate(unsigned int state) { }
-	virtual void flow_state(bool state) { }
-	virtual void sync() { }
-
-	// Server side calls, used when the client requests changes.  See sergensio_xxx
-	virtual void signature(const std::vector<unsigned char> data) { }
-	virtual void flush(unsigned int val) { }
-	virtual void baud(unsigned int speed) { }
-	virtual void datasize(unsigned int size) { }
-	virtual void parity(unsigned int par) { }
-	virtual void stopbits(unsigned int bits) { }
-	virtual void flowcontrol(unsigned int flow) { }
-	virtual void iflowcontrol(unsigned int flow) { }
-	virtual void sbreak(unsigned int sbreak) { }
-	virtual void dtr(unsigned int dtr) { }
-	virtual void rts(unsigned int rts) { }
-
 	virtual ~Serial_Event() = default;
-
-	virtual void modemstate_mask(unsigned int state) { }
-	virtual void linestate_mask(unsigned int state) { }
     };
 
     // Done handler for normal serial port operations.
