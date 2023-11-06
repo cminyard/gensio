@@ -3942,6 +3942,9 @@ const char *
 gensio_parity_to_str(unsigned int ival)
 {
     switch(ival) {
+    case 0:
+	return "0";
+
     case GENSIO_SER_PARITY_NONE:
 	return "none";
 
@@ -3982,6 +3985,9 @@ const char *
 gensio_flowcontrol_to_str(unsigned int ival)
 {
     switch (ival) {
+    case 0:
+	return "0";
+
     case GENSIO_SER_FLOWCONTROL_NONE:
 	return "none";
 
@@ -4027,6 +4033,9 @@ const char *
 gensio_onoff_to_str(unsigned int ival)
 {
     switch(ival) {
+    case 0:
+	return "0";
+
     case GENSIO_SER_ON:
 	return "on";
 
