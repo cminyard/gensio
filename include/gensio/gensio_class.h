@@ -106,6 +106,7 @@ struct gensio_func_alloc_channel_data {
 struct gensio_func_acontrol {
     const char *data;
     gensiods datalen;
+    gensio_time *timeout;
     gensio_control_done done;
     void *cb_data;
 };

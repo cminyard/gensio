@@ -1059,10 +1059,10 @@ static bool check_for_err(int err)
 	return rv;
     }
 
-    %rename(control) controlt;
-    int acontrol(int depth, bool get, unsigned int option,
-		 const std::vector<unsigned char> &controldata,
-		 Gensio_Control_Done *done)
+    %rename(acontrol) acontrolt;
+    int acontrolt(int depth, bool get, unsigned int option,
+		  const std::vector<unsigned char> &controldata,
+		  Gensio_Control_Done *done, gensio_time *timeout)
     {
 	int rv;
 	Py_Gensio_Control_Done *pydone = NULL;
@@ -1077,16 +1077,17 @@ static bool check_for_err(int err)
 	memcpy(str, controldata.data(), controldata.size());
 	str[controldata.size()] = '\0';
 	rv = self->acontrol(depth, get, option, str, controldata.size(),
-			    (Gensio_Control_Done *) pydone);
+			    (Gensio_Control_Done *) pydone, timeout);
 	free(str);
 	if (rv && pydone)
 	    delete(pydone);
 	return rv;
     }
 
-    %rename(control) controlt;
-    int acontrol_s(int depth, bool get, unsigned int option,
-		   std::vector<unsigned char> &controldata)
+    %rename(acontrol_s) acontrol_st;
+    int acontrol_st(int depth, bool get, unsigned int option,
+		    std::vector<unsigned char> &controldata,
+		    gensio_time *timeout)
     {
 	int rv;
 	char *rdata = NULL;
@@ -1104,7 +1105,7 @@ static bool check_for_err(int err)
 	    glen = slen;
 
 	    /* Pass in a zero length to get the actual length. */
-	    rv = self->acontrol_s(depth, get, option, rdata, &glen);
+	    rv = self->acontrol_s(depth, get, option, rdata, &glen, timeout);
 	    free(rdata);
 	    rdata = NULL;
 	    if (rv)
@@ -1124,7 +1125,7 @@ static bool check_for_err(int err)
 	    rdata[slen] = '\0';
 	    glen += 1;
 	    memcpy(rdata, controldata.data(), slen);
-	    rv = self->acontrol_s(depth, get, option, rdata, &glen);
+	    rv = self->acontrol_s(depth, get, option, rdata, &glen, timeout);
 	    if (rv) {
 		free(rdata);
 		rdata = NULL;
@@ -1137,7 +1138,7 @@ static bool check_for_err(int err)
 		free(rdata);
 	} else {
 	    rv = self->acontrol_s(depth, get, option, (char *)
-				  controldata.data(), &slen);
+				  controldata.data(), &slen, timeout);
 	    controldata.resize(0);
 	}
 	return rv;

@@ -838,20 +838,26 @@ struct waiter { };
 
     %rename(acontrol) acontrolt;
     void acontrolt(int depth, bool get, int option, char *value,
-		  swig_cb *done) {
+		  swig_cb *done, long timeout) {
 	int rv;
+	gensio_time tv = { timeout / 1000, (((int32_t) timeout % 1000)
+					    * 1000000) };
+	gensio_time *rtv = &tv;
 	swig_cb_val *done_val = NULL;
 	unsigned int len = 0;
 
+	if (timeout < 0)
+	    rtv = NULL;
 	if (value)
 	    len = strlen(value);
 	if (!nil_swig_cb(done)) {
 	    done_val = ref_swig_cb(done, control_done);
 	    rv = gensio_acontrol(self, depth, get, option,
-				 value, len, gensio_control_cb, done_val);
+				 value, len, gensio_control_cb, done_val,
+				 rtv);
 	} else {
 	    rv = gensio_acontrol(self, depth, get, option,
-				 value, len, NULL, NULL);
+				 value, len, NULL, NULL, rtv);
 	}
 	if (rv && done_val)
 	    deref_swig_cb_val(done_val);
@@ -860,15 +866,24 @@ struct waiter { };
 
     %rename(acontrol_s) acontrol_st;
     %newobject acontrol_st;
-    void acontrol_st(char **rstr, size_t *rstr_len, int depth,
-		     bool get, int option, char *bytestr, my_ssize_t len) {
+    void acontrol_st(char **rstr, size_t *rstr_len,
+		     int depth, bool get, int option,
+		     char *bytestr, my_ssize_t len,
+		     long timeout) {
 	int rv;
+	gensio_time tv = { timeout / 1000, (((int32_t) timeout % 1000)
+					    * 1000000) };
+	gensio_time *rtv = &tv;
 	char *data = NULL;
 	gensiods glen = 0, slen = len;
 
+	if (timeout < 0)
+	    rtv = NULL;
+
 	if (get) {
 	    /* Pass in a zero length to get the actual length. */
-	    rv = gensio_acontrol_s(self, depth, get, option, bytestr, &glen);
+	    rv = gensio_acontrol_s(self, depth, get, option, bytestr, &glen,
+				   rtv);
 	    if (rv)
 		goto out;
 	    /* Allocate the larger of strlen(bytestr) and len) */
@@ -890,7 +905,8 @@ struct waiter { };
 	    } else {
 		data[0] = '\0';
 	    }
-	    rv = gensio_acontrol_s(self, depth, get, option, data, &glen);
+	    rv = gensio_acontrol_s(self, depth, get, option, data, &glen,
+				   rtv);
 	    if (rv) {
 		free(data);
 		data = NULL;
@@ -899,7 +915,8 @@ struct waiter { };
 	    if (rv == GE_NOTFOUND) /* Return None for ENOENT. */
 		goto out_ret;
 	} else {
-	    rv = gensio_acontrol_s(self, depth, get, option, bytestr, &slen);
+	    rv = gensio_acontrol_s(self, depth, get, option, bytestr, &slen,
+				   rtv);
 	}
 
 	err_handle("control", rv);

@@ -8,13 +8,13 @@ package main
 
 import (
 	"fmt"
+	"bytes"
 	"github.com/cminyard/go/gensio"
 	"testbase"
 )
 
 type STelnetReflEvHnd struct {
 	testbase.ReflEvHnd
-	SG gensio.SerialGensio
 	gotBreak bool
 	baudV uint
 	sigV []byte
@@ -32,7 +32,9 @@ func (e *STelnetReflEvHnd) Signature(sig []byte) {
 	if len(sig) > 0 {
 		panic("Signature received on server")
 	}
-	e.SG.Signature(e.sigV, nil)
+	e.G.Acontrol(0, gensio.GENSIO_CONTROL_SET,
+		gensio.GENSIO_ACONTROL_SER_SIGNATURE,
+		e.sigV, nil, nil);
 }
 
 func (e *STelnetReflEvHnd) Flush(val uint) {
@@ -46,63 +48,87 @@ func (e *STelnetReflEvHnd) Baud(val uint) {
 	if val != 0 {
 		e.baudV = val
 	}
-	e.SG.Baud(e.baudV, nil)
+	e.G.Acontrol(0, gensio.GENSIO_CONTROL_SET,
+		gensio.GENSIO_ACONTROL_SER_BAUD,
+		[]byte(fmt.Sprint(e.baudV)), nil, nil);
 }
 
 func (e *STelnetReflEvHnd) Datasize(val uint) {
 	if val != 0 {
 		e.datasizeV = val
 	}
-	e.SG.Datasize(e.datasizeV, nil)
+	e.G.Acontrol(0, gensio.GENSIO_CONTROL_SET,
+		gensio.GENSIO_ACONTROL_SER_DATASIZE,
+		[]byte(fmt.Sprint(e.datasizeV)), nil, nil);
 }
 
 func (e *STelnetReflEvHnd) Parity(val uint) {
 	if val != 0 {
 		e.parityV = val
 	}
-	e.SG.Parity(e.parityV, nil)
+	spar := gensio.Gensio_parity_to_str(e.parityV)
+	e.G.Acontrol(0, gensio.GENSIO_CONTROL_SET,
+		gensio.GENSIO_ACONTROL_SER_PARITY,
+		[]byte(spar), nil, nil);
 }
 
 func (e *STelnetReflEvHnd) Stopbits(val uint) {
 	if val != 0 {
 		e.stopbitsV = val
 	}
-	e.SG.Stopbits(e.stopbitsV, nil)
+	e.G.Acontrol(0, gensio.GENSIO_CONTROL_SET,
+		gensio.GENSIO_ACONTROL_SER_STOPBITS,
+		[]byte(fmt.Sprint(e.stopbitsV)), nil, nil);
 }
 
 func (e *STelnetReflEvHnd) Flowcontrol(val uint) {
 	if val != 0 {
 		e.flowcontrolV = val
 	}
-	e.SG.Flowcontrol(e.flowcontrolV, nil)
+	sflow := gensio.Gensio_flowcontrol_to_str(e.flowcontrolV)
+	e.G.Acontrol(0, gensio.GENSIO_CONTROL_SET,
+		gensio.GENSIO_ACONTROL_SER_FLOWCONTROL,
+		[]byte(sflow), nil, nil);
 }
 
 func (e *STelnetReflEvHnd) Iflowcontrol(val uint) {
 	if val != 0 {
 		e.iflowcontrolV = val
 	}
-	e.SG.Iflowcontrol(e.iflowcontrolV, nil)
+	sflow := gensio.Gensio_flowcontrol_to_str(e.iflowcontrolV)
+	e.G.Acontrol(0, gensio.GENSIO_CONTROL_SET,
+		gensio.GENSIO_ACONTROL_SER_IFLOWCONTROL,
+		[]byte(sflow), nil, nil);
 }
 
 func (e *STelnetReflEvHnd) Sbreak(val uint) {
 	if val != 0 {
 		e.sbreakV = val
 	}
-	e.SG.Sbreak(e.sbreakV, nil)
+	sval := gensio.Gensio_onoff_to_str(e.sbreakV)
+	e.G.Acontrol(0, gensio.GENSIO_CONTROL_SET,
+		gensio.GENSIO_ACONTROL_SER_SBREAK,
+		[]byte(sval), nil, nil);
 }
 
 func (e *STelnetReflEvHnd) Dtr(val uint) {
 	if val != 0 {
 		e.dtrV = val
 	}
-	e.SG.Dtr(e.dtrV, nil)
+	sval := gensio.Gensio_onoff_to_str(e.dtrV)
+	e.G.Acontrol(0, gensio.GENSIO_CONTROL_SET,
+		gensio.GENSIO_ACONTROL_SER_DTR,
+		[]byte(sval), nil, nil);
 }
 
 func (e *STelnetReflEvHnd) Rts(val uint) {
 	if val != 0 {
 		e.rtsV = val
 	}
-	e.SG.Rts(e.rtsV, nil)
+	sval := gensio.Gensio_onoff_to_str(e.rtsV)
+	e.G.Acontrol(0, gensio.GENSIO_CONTROL_SET,
+		gensio.GENSIO_ACONTROL_SER_RTS,
+		[]byte(sval), nil, nil);
 }
 
 func (e *STelnetReflEvHnd) SendBreak() {
@@ -139,7 +165,7 @@ func (e *STelnetEvHnd) ModemstateMask(state uint) {
 func (e *STelnetEvHnd) Linestate(state uint) {
 }
 
-func (e *STelnetEvHnd) FlowState(state uint) {
+func (e *STelnetEvHnd) FlowState(state bool) {
 }
 
 func (e *STelnetEvHnd) SendBreak() {
@@ -160,14 +186,14 @@ func (d *SerOpDone) SerOpDone(err int, val uint) {
 	d.w.Wake()
 }
 
-type SerOpSigDone struct {
-	gensio.SerialOpSigDoneBase
+type SerControlDone struct {
+	gensio.GensioControlDoneBase
 	err int
 	val []byte
 	w *gensio.Waiter
 }
 
-func (d *SerOpSigDone) SerOpSigDone(err int, val []byte) {
+func (d *SerControlDone) ControlDone(err int, val []byte) {
 	d.err = err
 	d.val = val
 	d.w.Wake()
@@ -211,15 +237,14 @@ func main() {
 		panic("Error waiting for data: " + gensio.ErrToStr(rv))
 	}
 
-	tevh.SG = r.GetGensio().(gensio.SerialGensio)
-
 	w := gensio.NewWaiter(o)
 
 	tevh.sigV = []byte("mysig")
 	testbase.ObjCount++
-	osd := &SerOpSigDone{}
+	osd := &SerControlDone{}
 	osd.w = w
-	h.SG.Signature(tevh.sigV, osd)
+	g.Acontrol(0, gensio.GENSIO_CONTROL_SET,
+		gensio.GENSIO_ACONTROL_SER_SIGNATURE, tevh.sigV, osd, nil)
 	testbase.ObjCount++
 	rv = w.Wait(1, gensio.NewTime(1, 0))
 	if rv != 0 {
@@ -236,37 +261,46 @@ func main() {
 
 	var val uint
 	var sval uint
+	var stval []byte
+	var stval2 []byte
 
 	testbase.ObjCount++
-	od := &SerOpDone{}
-	od.w = w
-	sval = 19200
-	h.SG.Baud(sval, od)
+	osd = &SerControlDone{}
+	osd.w = w
+	stval = []byte("19200")
+	g.Acontrol(0, gensio.GENSIO_CONTROL_SET,
+		gensio.GENSIO_ACONTROL_SER_BAUD,
+		stval, osd, nil);
 	testbase.ObjCount++
 	rv = w.Wait(1, gensio.NewTime(1, 0))
 	if rv != 0 {
 		panic("Error waiting for baud: " + gensio.ErrToStr(rv))
 	}
-	if od.err != 0 {
-		panic("Error from baud: " + gensio.ErrToStr(od.err))
+	if osd.err != 0 {
+		panic("Error from baud: " + gensio.ErrToStr(osd.err))
 	}
-	if od.val != sval {
+	if !bytes.Equal(osd.val, stval) {
 		panic(fmt.Sprintf("Baud mismatch, expected %d got %d",
-			sval, od.val))
+			sval, osd.val))
 	}
+	sval = 19200
 	testbase.ObjCount++
-	rv, val = h.SG.BaudS(0, gensio.NewTime(1, 0), false)
+	rv, stval2, _ = g.AcontrolS(0, gensio.GENSIO_CONTROL_GET,
+		gensio.GENSIO_ACONTROL_SER_BAUD, []byte("00000000"),
+		gensio.NewTime(1, 0))
 	if rv != 0 {
 		panic("Error waiting for baud: " + gensio.ErrToStr(rv))
 	}
-	if val != sval {
+	if !bytes.Equal(stval2, stval) {
 		panic(fmt.Sprintf("Baud mismatch2, expected %d got %d",
-			sval, od.val))
+			sval, osd.val))
 	}
-	od = nil
+	stval2 = nil
+	stval = nil
+	osd = nil
 
 	testbase.ObjCount++
-	od = &SerOpDone{}
+	od := &SerOpDone{}
 	od.w = w
 	sval = 7
 	h.SG.Datasize(sval, od)
@@ -324,7 +358,7 @@ func main() {
 	testbase.ObjCount++
 	od = &SerOpDone{}
 	od.w = w
-	sval = gensio.SERGENSIO_PARITY_EVEN
+	sval = gensio.GENSIO_SER_PARITY_EVEN
 	h.SG.Stopbits(sval, od)
 	testbase.ObjCount++
 	rv = w.Wait(1, gensio.NewTime(1, 0))
@@ -380,7 +414,7 @@ func main() {
 	testbase.ObjCount++
 	od = &SerOpDone{}
 	od.w = w
-	sval = gensio.SERGENSIO_FLOWCONTROL_RTS_CTS
+	sval = gensio.GENSIO_SER_FLOWCONTROL_RTS_CTS
 	h.SG.Flowcontrol(sval, od)
 	testbase.ObjCount++
 	rv = w.Wait(1, gensio.NewTime(1, 0))
@@ -408,7 +442,7 @@ func main() {
 	testbase.ObjCount++
 	od = &SerOpDone{}
 	od.w = w
-	sval = gensio.SERGENSIO_FLOWCONTROL_DSR
+	sval = gensio.GENSIO_SER_FLOWCONTROL_DSR
 	h.SG.Iflowcontrol(sval, od)
 	testbase.ObjCount++
 	rv = w.Wait(1, gensio.NewTime(1, 0))
@@ -436,7 +470,7 @@ func main() {
 	testbase.ObjCount++
 	od = &SerOpDone{}
 	od.w = w
-	sval = gensio.SERGENSIO_BREAK_ON
+	sval = gensio.GENSIO_SER_ON
 	h.SG.Sbreak(sval, od)
 	testbase.ObjCount++
 	rv = w.Wait(1, gensio.NewTime(1, 0))
@@ -464,7 +498,7 @@ func main() {
 	testbase.ObjCount++
 	od = &SerOpDone{}
 	od.w = w
-	sval = gensio.SERGENSIO_RTS_OFF
+	sval = gensio.GENSIO_SER_OFF
 	h.SG.Rts(sval, od)
 	testbase.ObjCount++
 	rv = w.Wait(1, gensio.NewTime(1, 0))
@@ -496,7 +530,6 @@ func main() {
 	r.ShutdownS()
 	g = nil
 	r = nil
-	tevh.SG = nil
 	tevh = nil
 	h.SG = nil
 	h = nil

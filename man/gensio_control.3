@@ -22,12 +22,16 @@ gensio_control \- Perform gensio-specific actions
 .br
 .B                    char *data, gensiods *datalen,
 .br
-.B                    gensio_control_done done, void *cb_data);
+.B                    gensio_control_done done, void *cb_data,
+.br
+.B                    gensio_time *timeout);
 .B int gensio_acontrol_s(struct gensio *io, int depth, bool get,
 .br
 .B                    unsigned int option,
 .br
-.B                    char *data, gensiods *datalen);
+.B                    char *data, gensiods *datalen,
+.br
+.B                    gensio_time *timeout);
 .SH "DESCRIPTION"
 .B gensio_control
 performs a gensio-specific operation on the gensio (if
@@ -99,6 +103,12 @@ only be called on a single gensio in the stack.
 .B gensio_acontrol_s
 does an asynchronous control, but waits until the operation completes
 using an os function waiter.
+
+The timeout values on the acontrol functions is a hint to the code, it
+may or may not have any effect.  It is not necessarily updated to the
+remaining time, either.  For telnet, this updates the default time to
+wait for a result.  For serialdev it has no effect, as those
+operations are immediate.  It is ignored for ipmisol.
 
 A get operation is alway indepotent (it won't change anything, so
 multiple calls will not have any effect on the state of the system).

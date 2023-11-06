@@ -52,7 +52,7 @@ class STelnet_Refl_EvHnd(pygensio.Serial_Event, Refl_EvHnd):
             self.baud_v = speed
         self.g.acontrol(0, pygensio.GENSIO_CONTROL_SET,
                         pygensio.GENSIO_ACONTROL_SER_BAUD,
-                        str(self.baud_v), None)
+                        str(self.baud_v), None, None)
         return
 
     def datasize(self, size):
@@ -60,7 +60,7 @@ class STelnet_Refl_EvHnd(pygensio.Serial_Event, Refl_EvHnd):
             self.datasize_v = size
         self.g.acontrol(0, pygensio.GENSIO_CONTROL_SET,
                         pygensio.GENSIO_ACONTROL_SER_DATASIZE,
-                        str(self.datasize_v), None)
+                        str(self.datasize_v), None, None)
         return
 
     def parity(self, par):
@@ -68,8 +68,8 @@ class STelnet_Refl_EvHnd(pygensio.Serial_Event, Refl_EvHnd):
             self.parity_v = par
         par = pygensio.gensio_parity_to_str(self.parity_v)
         rv = self.g.acontrol(0, pygensio.GENSIO_CONTROL_SET,
-                            pygensio.GENSIO_ACONTROL_SER_PARITY,
-                            par, None)
+                             pygensio.GENSIO_ACONTROL_SER_PARITY,
+                             par, None, None)
         return
 
     def stopbits(self, bits):
@@ -77,7 +77,7 @@ class STelnet_Refl_EvHnd(pygensio.Serial_Event, Refl_EvHnd):
             self.stopbits_v = bits
         self.g.acontrol(0, pygensio.GENSIO_CONTROL_SET,
                         pygensio.GENSIO_ACONTROL_SER_STOPBITS,
-                        str(self.stopbits_v), None)
+                        str(self.stopbits_v), None, None)
         return
 
     def flowcontrol(self, flow):
@@ -86,7 +86,7 @@ class STelnet_Refl_EvHnd(pygensio.Serial_Event, Refl_EvHnd):
         flow = pygensio.gensio_flowcontrol_to_str(self.flowcontrol_v)
         self.g.acontrol(0, pygensio.GENSIO_CONTROL_SET,
                         pygensio.GENSIO_ACONTROL_SER_FLOWCONTROL,
-                        flow, None)
+                        flow, None, None)
         return
 
     def iflowcontrol(self, flow):
@@ -95,7 +95,7 @@ class STelnet_Refl_EvHnd(pygensio.Serial_Event, Refl_EvHnd):
         flow = pygensio.gensio_flowcontrol_to_str(self.iflowcontrol_v)
         self.g.acontrol(0, pygensio.GENSIO_CONTROL_SET,
                         pygensio.GENSIO_ACONTROL_SER_IFLOWCONTROL,
-                        flow, None)
+                        flow, None, None)
         return
 
     def sbreak(self, val):
@@ -104,7 +104,7 @@ class STelnet_Refl_EvHnd(pygensio.Serial_Event, Refl_EvHnd):
         val = pygensio.gensio_onoff_to_str(self.break_v)
         self.g.acontrol(0, pygensio.GENSIO_CONTROL_SET,
                         pygensio.GENSIO_ACONTROL_SER_SBREAK,
-                        val, None)
+                        val, None, None)
         return
 
     def dtr(self, val):
@@ -113,7 +113,7 @@ class STelnet_Refl_EvHnd(pygensio.Serial_Event, Refl_EvHnd):
         val = pygensio.gensio_onoff_to_str(self.dtr_v)
         self.g.acontrol(0, pygensio.GENSIO_CONTROL_SET,
                         pygensio.GENSIO_ACONTROL_SER_DTR,
-                        val, None)
+                        val, None, None)
         return
 
     def rts(self, val):
@@ -122,7 +122,7 @@ class STelnet_Refl_EvHnd(pygensio.Serial_Event, Refl_EvHnd):
         val = pygensio.gensio_onoff_to_str(self.rts_v)
         self.g.acontrol(0, pygensio.GENSIO_CONTROL_SET,
                         pygensio.GENSIO_ACONTROL_SER_RTS,
-                        val, None)
+                        val, None, None)
         return
 
     def send_break(self):
@@ -195,7 +195,7 @@ g.set_read_callback_enable(True)
 od = Gen_Control_Done(w)
 g.acontrol(0, pygensio.GENSIO_CONTROL_SET,
            pygensio.GENSIO_ACONTROL_SER_SIGNATURE,
-           "", od)
+           "", od, None)
 rv = w.wait(1, pygensio.gensio_time(1, 0))
 if rv != 0:
     raise Exception("Error waiting for sig: " + pygensio.err_to_string(rv))
@@ -210,7 +210,7 @@ g.control(0, pygensio.GENSIO_CONTROL_SET,
 
 (rv, baud) = g.acontrol_s(0, pygensio.GENSIO_CONTROL_GET,
                           pygensio.GENSIO_ACONTROL_SER_BAUD,
-                          "0")
+                          "0", pygensio.gensio_time(1, 0))
 if rv != 0:
     raise Exception("Error getting baud: " + pygensio.err_to_string(rv))
 if baud != b"9600":
@@ -218,7 +218,7 @@ if baud != b"9600":
 od = Gen_Control_Done(w)
 g.acontrol(0, pygensio.GENSIO_CONTROL_SET,
            pygensio.GENSIO_ACONTROL_SER_BAUD,
-           "19200", od)
+           "19200", od, None)
 rv = w.wait(1, pygensio.gensio_time(1, 0))
 if rv != 0:
     raise Exception("Error waiting for baud: " + pygensio.err_to_string(rv))
@@ -230,7 +230,7 @@ del od
 
 (rv, datasize) = g.acontrol_s(0, pygensio.GENSIO_CONTROL_GET,
                               pygensio.GENSIO_ACONTROL_SER_DATASIZE,
-                              "0")
+                              "0", pygensio.gensio_time(1, 0))
 if rv != 0:
     raise Exception("Error getting datasize: " + pygensio.err_to_string(rv))
 if datasize != b"8":
@@ -238,7 +238,7 @@ if datasize != b"8":
 od = Gen_Control_Done(w)
 g.acontrol(0, pygensio.GENSIO_CONTROL_SET,
            pygensio.GENSIO_ACONTROL_SER_DATASIZE,
-           "7", od)
+           "7", od, None)
 rv = w.wait(1, pygensio.gensio_time(1, 0))
 if rv != 0:
     raise Exception("Error waiting for datasize: " + pygensio.err_to_string(rv))
@@ -250,7 +250,7 @@ del od
 
 (rv, parity) = g.acontrol_s(0, pygensio.GENSIO_CONTROL_GET,
                             pygensio.GENSIO_ACONTROL_SER_PARITY,
-                            "0")
+                            "0", pygensio.gensio_time(1, 0))
 if rv != 0:
     raise Exception("Error getting parity: " + pygensio.err_to_string(rv))
 if parity != b"none":
@@ -258,7 +258,7 @@ if parity != b"none":
 od = Gen_Control_Done(w)
 g.acontrol(0, pygensio.GENSIO_CONTROL_SET,
            pygensio.GENSIO_ACONTROL_SER_PARITY,
-           "odd", od)
+           "odd", od, None)
 rv = w.wait(1, pygensio.gensio_time(1, 0))
 if rv != 0:
     raise Exception("Error waiting for parity: " + pygensio.err_to_string(rv))
@@ -270,7 +270,7 @@ del od
 
 (rv, stopbits) = g.acontrol_s(0, pygensio.GENSIO_CONTROL_GET,
                               pygensio.GENSIO_ACONTROL_SER_STOPBITS,
-                              "0")
+                              "0", pygensio.gensio_time(1, 0))
 if rv != 0:
     raise Exception("Error getting stopbits: " + pygensio.err_to_string(rv))
 if stopbits != b"1":
@@ -278,7 +278,7 @@ if stopbits != b"1":
 od = Gen_Control_Done(w)
 g.acontrol(0, pygensio.GENSIO_CONTROL_SET,
            pygensio.GENSIO_ACONTROL_SER_STOPBITS,
-           "2", od)
+           "2", od, None)
 rv = w.wait(1, pygensio.gensio_time(1, 0))
 if rv != 0:
     raise Exception("Error waiting for stopbits: " + pygensio.err_to_string(rv))
@@ -290,7 +290,7 @@ del od
 
 (rv, flowcontrol) = g.acontrol_s(0, pygensio.GENSIO_CONTROL_GET,
                                  pygensio.GENSIO_ACONTROL_SER_FLOWCONTROL,
-                                 "0")
+                                 "0", pygensio.gensio_time(1, 0))
 if rv != 0:
     raise Exception("Error getting flowcontrol: " + pygensio.err_to_string(rv))
 if flowcontrol != b"none":
@@ -298,7 +298,7 @@ if flowcontrol != b"none":
 od = Gen_Control_Done(w)
 g.acontrol(0, pygensio.GENSIO_CONTROL_SET,
            pygensio.GENSIO_ACONTROL_SER_FLOWCONTROL,
-           "xonxoff", od)
+           "xonxoff", od, None)
 rv = w.wait(1, pygensio.gensio_time(1, 0))
 if rv != 0:
     raise Exception("Error waiting for flowcontrol: " + pygensio.err_to_string(rv))
@@ -310,7 +310,7 @@ del od
 
 (rv, iflowcontrol) = g.acontrol_s(0, pygensio.GENSIO_CONTROL_GET,
                                   pygensio.GENSIO_ACONTROL_SER_IFLOWCONTROL,
-                                  "0")
+                                  "0", pygensio.gensio_time(1, 0))
 if rv != 0:
     raise Exception("Error getting iflowcontrol: " + pygensio.err_to_string(rv))
 if iflowcontrol != b"dcd":
@@ -318,7 +318,7 @@ if iflowcontrol != b"dcd":
 od = Gen_Control_Done(w)
 g.acontrol(0, pygensio.GENSIO_CONTROL_SET,
            pygensio.GENSIO_ACONTROL_SER_IFLOWCONTROL,
-           "dsr", od)
+           "dsr", od, None)
 rv = w.wait(1, pygensio.gensio_time(1, 0))
 if rv != 0:
     raise Exception("Error waiting for iflowcontrol: " + pygensio.err_to_string(rv))
@@ -330,7 +330,7 @@ del od
 
 (rv, breakv) = g.acontrol_s(0, pygensio.GENSIO_CONTROL_GET,
                             pygensio.GENSIO_ACONTROL_SER_SBREAK,
-                            "0")
+                            "0", pygensio.gensio_time(1, 0))
 if rv != 0:
     raise Exception("Error getting break: " + pygensio.err_to_string(rv))
 if breakv != b"off":
@@ -338,7 +338,7 @@ if breakv != b"off":
 od = Gen_Control_Done(w)
 g.acontrol(0, pygensio.GENSIO_CONTROL_SET,
            pygensio.GENSIO_ACONTROL_SER_SBREAK,
-           "on", od)
+           "on", od, None)
 rv = w.wait(1, pygensio.gensio_time(1, 0))
 if rv != 0:
     raise Exception("Error waiting for break: " + pygensio.err_to_string(rv))
@@ -350,7 +350,7 @@ del od
 
 (rv, rts) = g.acontrol_s(0, pygensio.GENSIO_CONTROL_GET,
                           pygensio.GENSIO_ACONTROL_SER_RTS,
-                          "0")
+                          "0", pygensio.gensio_time(1, 0))
 if rv != 0:
     raise Exception("Error getting rts: " + pygensio.err_to_string(rv))
 if rts != b"off":
@@ -358,7 +358,7 @@ if rts != b"off":
 od = Gen_Control_Done(w)
 g.acontrol(0, pygensio.GENSIO_CONTROL_SET,
            pygensio.GENSIO_ACONTROL_SER_RTS,
-           "on", od)
+           "on", od, None)
 rv = w.wait(1, pygensio.gensio_time(1, 0))
 if rv != 0:
     raise Exception("Error waiting for rts: " + pygensio.err_to_string(rv))

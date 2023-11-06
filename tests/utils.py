@@ -653,7 +653,7 @@ class HandleData:
         io.acontrol(gensio.GENSIO_CONTROL_DEPTH_FIRST,
                     gensio.GENSIO_CONTROL_SET,
                     gensio.GENSIO_ACONTROL_SER_BAUD,
-                    str(self.expected_server_return), None)
+                    str(self.expected_server_return), None, -1)
         return
 
     def sdatasize(self, io, datasize):
@@ -662,7 +662,7 @@ class HandleData:
         io.acontrol(gensio.GENSIO_CONTROL_DEPTH_FIRST,
                     gensio.GENSIO_CONTROL_SET,
                     gensio.GENSIO_ACONTROL_SER_DATASIZE,
-                    str(self.expected_server_return), None)
+                    str(self.expected_server_return), None, -1)
         return
 
     def sparity(self, io, parity):
@@ -671,7 +671,7 @@ class HandleData:
         io.acontrol(gensio.GENSIO_CONTROL_DEPTH_FIRST,
                     gensio.GENSIO_CONTROL_SET,
                     gensio.GENSIO_ACONTROL_SER_PARITY,
-                    str(self.expected_server_return), None)
+                    str(self.expected_server_return), None, -1)
         return
 
     def sstopbits(self, io, stopbits):
@@ -680,7 +680,7 @@ class HandleData:
         io.acontrol(gensio.GENSIO_CONTROL_DEPTH_FIRST,
                     gensio.GENSIO_CONTROL_SET,
                     gensio.GENSIO_ACONTROL_SER_STOPBITS,
-                    str(self.expected_server_return), None)
+                    str(self.expected_server_return), None, -1)
         return
 
     def sflowcontrol(self, io, flowcontrol):
@@ -689,7 +689,7 @@ class HandleData:
         io.acontrol(gensio.GENSIO_CONTROL_DEPTH_FIRST,
                     gensio.GENSIO_CONTROL_SET,
                     gensio.GENSIO_ACONTROL_SER_FLOWCONTROL,
-                    str(self.expected_server_return), None)
+                    str(self.expected_server_return), None, -1)
         return
 
     def siflowcontrol(self, io, iflowcontrol):
@@ -698,7 +698,7 @@ class HandleData:
         io.acontrol(gensio.GENSIO_CONTROL_DEPTH_FIRST,
                     gensio.GENSIO_CONTROL_SET,
                     gensio.GENSIO_ACONTROL_SER_IFLOWCONTROL,
-                    str(self.expected_server_return), None)
+                    str(self.expected_server_return), None, -1)
         return
 
     def ssbreak(self, io, sbreak):
@@ -707,7 +707,7 @@ class HandleData:
         io.acontrol(gensio.GENSIO_CONTROL_DEPTH_FIRST,
                     gensio.GENSIO_CONTROL_SET,
                     gensio.GENSIO_ACONTROL_SER_SBREAK,
-                    str(self.expected_server_return), None)
+                    str(self.expected_server_return), None, -1)
         return
 
     def sdtr(self, io, dtr):
@@ -716,7 +716,7 @@ class HandleData:
         io.acontrol(gensio.GENSIO_CONTROL_DEPTH_FIRST,
                     gensio.GENSIO_CONTROL_SET,
                     gensio.GENSIO_ACONTROL_SER_DTR,
-                    str(self.expected_server_return), None)
+                    str(self.expected_server_return), None, -1)
         return
 
     def srts(self, io, rts):
@@ -725,7 +725,7 @@ class HandleData:
         io.acontrol(gensio.GENSIO_CONTROL_DEPTH_FIRST,
                     gensio.GENSIO_CONTROL_SET,
                     gensio.GENSIO_ACONTROL_SER_RTS,
-                    str(self.expected_server_return), None)
+                    str(self.expected_server_return), None, -1)
         return
 
     def signature(self, io):
@@ -735,7 +735,7 @@ class HandleData:
             io.acontrol(gensio.GENSIO_CONTROL_DEPTH_FIRST,
                         gensio.GENSIO_CONTROL_SET,
                         gensio.GENSIO_ACONTROL_SER_SIGNATURE,
-                        self.expected_sig_server_val, None)
+                        self.expected_sig_server_val, None, -1)
             self.expected_sig_server_cb = False
         except:
             self.exception("signature: Unknown exception " + str(e))
@@ -1049,7 +1049,7 @@ class TestAccept:
                  io1_dummy_write = None, do_close = True,
                  expected_raddr = None, expected_acc_laddr = None,
                  chunksize = 10240, get_port = True, except_on_log = False,
-                 is_sergensio = False, enable_oob = False, timeout = 0,
+                 enable_oob = False, timeout = 0,
                  close_timeout = 1000, enable_read_io1 = False, evq = None):
         self.o = o
         self.io1 = None
