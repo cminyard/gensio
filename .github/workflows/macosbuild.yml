@@ -33,4 +33,4 @@ jobs:
         run: |
           make
           make install
-          make check SKIP_TESTS="test_mdns"
+          make check SKIP_TESTS="test_mdns test_mdns.py"
