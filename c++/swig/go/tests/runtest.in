@@ -23,6 +23,12 @@ if [ -z "$1" ]; then
     exit 1
 fi
 
+# See if we are skipping this test
+T1=`basename $1`
+if echo "$SKIP_TESTS" | grep -q "$T1"; then
+    exit 77
+fi
+
 TEST=$1
 shift
 
