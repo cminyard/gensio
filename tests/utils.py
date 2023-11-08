@@ -153,6 +153,7 @@ class HandleData:
         self.compared = 0
         self.to_compare = None
         self.compared_oob = 0
+        self.compare_auxdata = None
         self.to_compare_oob = None
         self.to_waitfor = None
         self.keep_waitfor_data = False
