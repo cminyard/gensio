@@ -25,6 +25,8 @@ by the gensio library
 .PP
 .B void gensio_os_proc_cleanup(struct gensio_os_proc_data *data);
 .PP
+.B int gensio_os_thread_setup(struct gensio_os_funcs *o);
+.PP
 .B sigset_t *gensio_os_proc_unix_get_wait_sigset(
 .br
                          struct gensio_os_proc_data *data);
@@ -279,6 +281,12 @@ You can pass in different values to
 calls, and it will use them, but there's not much value in this.  The
 os funcs for Unix can share a signal handler.  And there's not much
 value is multiple OS funcs, anyway.
+
+.B gensio_os_thread_setup
+is much like gensio_os_proc_setup, but it only sets up the signal
+handlers and blocking signals for the wakeup signal, it doesn't do any
+of the other setup.  It allows you to bring a thread in to gensio that
+wasn't created by gensio.  It should be used very carefully.
 
 .B gensio_unix_funcs_alloc
 and

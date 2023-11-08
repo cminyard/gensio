@@ -81,6 +81,9 @@ namespace gensios {
 	// gensio_os_funcs.3 for details on process setup.
 	void proc_setup();
 
+	// Do the setup for the thread.  See gensio_os_funcs.c for details.
+	void thread_setup();
+
 	// If you allocate your own subclass of this, you must call
 	// this to set it up.  Note that this takes over freeing the
 	// OS handler and the logger.

@@ -93,6 +93,15 @@ namespace gensios {
     }
 
     void
+    Os_Funcs::thread_setup() {
+	int err;
+
+	err = gensio_os_thread_setup(osf);
+	if (err)
+	    throw gensio_error(err);
+    }
+
+    void
     Os_Funcs::refcount_from(const Os_Funcs *o)
     {
 	std::atomic<unsigned int> *old_refcnt = refcnt;

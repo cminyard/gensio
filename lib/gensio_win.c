@@ -3938,6 +3938,12 @@ static struct gensio_os_proc_data proc_data;
 bool proc_setup;
 
 int
+gensio_os_thread_setup(struct gensio_os_funcs *o)
+{
+    return 0;
+}
+
+int
 gensio_os_proc_setup(struct gensio_os_funcs *o,
 		     struct gensio_os_proc_data **data)
 {

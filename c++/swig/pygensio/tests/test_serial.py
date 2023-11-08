@@ -152,18 +152,6 @@ class STelnet_EvHnd(pygensio.Serial_Event, EvHnd):
         self.w.wake()
         return
 
-class Ser_Op_Done(pygensio.Serial_Op_Done):
-    def __init__(self, w):
-        pygensio.Serial_Op_Done.__init__(self)
-        self.w = w
-        return
-
-    def serial_op_done(self, err, val):
-        self.err = err
-        self.val = val
-        self.w.wake()
-        return
-
 class Gen_Control_Done(pygensio.Gensio_Control_Done):
     def __init__(self, w):
         pygensio.Gensio_Control_Done.__init__(self)

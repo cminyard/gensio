@@ -1753,6 +1753,49 @@ winch_sig_handler(int sig)
 #endif
 
 int
+gensio_os_thread_setup(struct gensio_os_funcs *o)
+{
+    int rv = 0;
+#ifdef USE_PTHREADS
+    sigset_t sigs, old_sigs;
+    int wake_sig = o->get_wake_sig(o);
+    struct sigaction sigdo;
+
+    sigemptyset(&sigs);
+    if (wake_sig)
+	sigaddset(&sigs, wake_sig);
+    sigaddset(&sigs, SIGCHLD); /* Ignore SIGCHLD in normal operation. */
+    sigaddset(&sigs, SIGPIPE); /* Ignore broken pipes. */
+#if HAVE_DECL_SIGWINCH
+    /*
+     * SIGWINCH is set here, not in the register_winsize_handler call, because
+     * we can't modify the signal set after initial startup.
+     */
+    sigaddset(&sigs, SIGWINCH);
+#endif
+    rv = pthread_sigmask(SIG_BLOCK, &sigs, &old_sigs);
+    if (rv) {
+	rv = gensio_os_err_to_err(o, errno);
+	goto out;
+    }
+
+    if (wake_sig) {
+	sigdo.sa_handler = handle_wakesig;
+	sigdo.sa_flags = 0;
+	rv = sigaction(wake_sig, &sigdo, NULL);
+	if (rv) {
+	    rv = gensio_os_err_to_err(o, errno);
+	    pthread_sigmask(SIG_SETMASK, &old_sigs, NULL);
+	    goto out;
+	}
+    }
+
+ out:
+#endif
+    return rv;
+}
+
+int
 gensio_os_proc_setup(struct gensio_os_funcs *o,
 		     struct gensio_os_proc_data **rdata)
 {

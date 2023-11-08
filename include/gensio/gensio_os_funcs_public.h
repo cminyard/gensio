@@ -29,6 +29,9 @@ int gensio_valloc_os_funcs(int wake_sig, struct gensio_os_funcs **o,
 			   unsigned int flags, va_list args);
 
 GENSIOOSH_DLL_PUBLIC
+int gensio_os_thread_setup(struct gensio_os_funcs *o);
+
+GENSIOOSH_DLL_PUBLIC
 int gensio_os_proc_setup(struct gensio_os_funcs *o,
 			 struct gensio_os_proc_data **data);
 
