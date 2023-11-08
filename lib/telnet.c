@@ -174,9 +174,17 @@ process_telnet_data(unsigned char *outdata, unsigned int outlen,
 {
     unsigned int i, j;
     unsigned char *indata = *r_indata;
+    /*
+     * We use this to process commands one at a time and return.  This
+     * is important: after each command the user may want to turn off
+     * the lower-level reader and not accept commands.  If you don't
+     * do this, you may process commands that the user is not ready
+     * to process.
+     */
+    int done = 0;
 
     /* If it's a telnet port, get the commands out of the stream. */
-    for (i = 0, j = 0; i < *inlen && j < outlen; i++) {
+    for (i = 0, j = 0; !done && i < *inlen && j < outlen; i++) {
 	if (td->telnet_cmd_pos != 0) {
 	    unsigned char tn_byte;
 
@@ -197,6 +205,7 @@ process_telnet_data(unsigned char *outdata, unsigned int outlen,
 		if (tn_byte < TN_SB) {
 		    handle_telnet_cmd(td, td->telnet_cmd_pos);
 		    td->telnet_cmd_pos = 0;
+		    done = 1;
 		}
 	    } else if (td->telnet_cmd_pos == 2) {
 		td->telnet_cmd[td->telnet_cmd_pos++] = tn_byte;
@@ -209,15 +218,17 @@ process_telnet_data(unsigned char *outdata, unsigned int outlen,
 		    /* It's a will/won't/do/don't */
 		    handle_telnet_cmd(td, td->telnet_cmd_pos);
 		    td->telnet_cmd_pos = 0;
+		    done = 1;
 		}
 	    } else {
 		/* It's in a suboption, look for the end and IACs. */
-	      if (td->suboption_iac) {
+		if (td->suboption_iac) {
 		    if (tn_byte == TN_SE) {
 			/* Remove the IAC 240 from the end. */
 			td->telnet_cmd_pos--;
 			handle_telnet_cmd(td, td->telnet_cmd_pos);
 			td->telnet_cmd_pos = 0;
+			done = 1;
 		    } else if (tn_byte == TN_IAC) {
 			/* Don't do anything, a double 255 means
 			   we leave on 255 in. */
