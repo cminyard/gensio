@@ -2435,9 +2435,12 @@ gensio_alloc_os_funcs(int wake_sig, struct gensio_os_funcs **o,
 		      unsigned int flags, ...)
 {
     va_list ap;
+    int rv;
 
     va_start(ap, flags);
-    return gensio_valloc_os_funcs(wake_sig, o, flags, ap);
+    rv = gensio_valloc_os_funcs(wake_sig, o, flags, ap);
+    va_end(ap);
+    return rv;
 }
 
 void
