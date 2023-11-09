@@ -899,7 +899,9 @@ stelc_timeout(void *handler_data)
 
     req = to_complete;
     while (req) {
-	if (req->done)
+	if (req->cdone)
+	    req->cdone(sdata->io, GE_TIMEDOUT, NULL, 0, req->cb_data);
+	else if (req->done)
 	    req->done(sdata->sio, GE_TIMEDOUT, 0, req->cb_data);
 	else if (req->donesig)
 	    req->donesig(sdata->sio, GE_TIMEDOUT, NULL, 0, req->cb_data);
