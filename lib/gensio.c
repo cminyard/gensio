@@ -1140,6 +1140,7 @@ gensio_set_attr_from_child(struct gensio *io, struct gensio *child)
     gensio_set_is_authenticated(io, gensio_is_authenticated(child));
     gensio_set_is_encrypted(io, gensio_is_encrypted(child));
     gensio_set_is_message(io, gensio_is_message(child));
+    gensio_set_is_serial(io, gensio_is_serial(child));
 }
 
 struct gensio_accepter *
