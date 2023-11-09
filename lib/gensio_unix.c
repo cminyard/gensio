@@ -1780,6 +1780,7 @@ gensio_os_thread_setup(struct gensio_os_funcs *o)
     }
 
     if (wake_sig) {
+	memset(&sigdo, 7, sizeof(sigdo));
 	sigdo.sa_handler = handle_wakesig;
 	sigdo.sa_flags = 0;
 	rv = sigaction(wake_sig, &sigdo, NULL);
