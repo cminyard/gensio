@@ -41,6 +41,18 @@ gensio_control \- Perform gensio-specific actions
 .B                    char *data, gensiods *datalen,
 .br
 .B                    gensio_time *timeout);
+.TP 20
+.B const char *gensio_parity_to_str(unsigned int ival);
+.TP 20
+.B int gensio_str_to_parity(char *sval);
+.TP 20
+.B const char *gensio_flowcontrol_to_str(unsigned int ival);
+.TP 20
+.B int gensio_str_to_flowcontrol(char *sval);
+.TP 20
+.B const char *gensio_onoff_to_str(unsigned int ival);
+.TP 20
+.B int gensio_str_to_onoff(char *sval);
 .SH "DESCRIPTION"
 .B gensio_control
 performs a gensio-specific operation on the gensio (if
@@ -400,7 +412,15 @@ data sizes.
 
 GENSIO_ACONTROL_SER_PARITY
 .br
-sets the parity, one of "none", "odd", "even", "mark" or "space".
+sets the parity, one of "none", "odd", "even", "mark" or "space".  You can use
+.B gensio_parity_to_str
+and
+.B gensio_str_to_parity
+to convert between the string and numeric values.
+.B gensio_parity_to_str
+returns NULL if the number isn't value,
+.B gensio_str_to_parity
+returns -1 if the string is not valid.
 
 GENSIO_ACONTROL_SER_STOPBITS
 .br
@@ -408,39 +428,63 @@ sets the number of stop bits, "1", or "2".
 
 GENSIO_ACONTROL_SER_FLOWCONTROL
 .br
-sets the flow control type, one of "none", "xonxoff", or "rtscts".
+sets the flow control type, one of "none", "xonxoff", or "rtscts".  You can use
+.B gensio_flowcontrol_to_str
+and
+.B gensio_str_to_flowcontrol
+to convert between the string and numeric values.
+.B gensio_flowcontrol_to_str
+returns NULL if the number isn't value,
+.B gensio_str_to_flowcontrol
+returns -1 if the string is not valid.
 
 GENSIO_ACONTROL_SER_IFLOWCONTROL
 .br
-sets the input flow state, one of "none", "dcd", "dtr", or "dsr".
+sets the input flow state, one of "none", "dcd", "dtr", or "dsr".  You
+use the same conversion functions as
+.B GENSIO_ACONTROL_SER_FLOWCONTROL
+for converting between strings and integers.
 
 GENSIO_ACONTROL_SER_SBREAK
 .br
 Enables or disables the break condition on a serial port.  One of "on"
-or "off".
+or "off".  You can use
+.B gensio_onoff_to_str
+and
+.B gensio_str_to_onoff
+to convert between the string and numeric values.
+.B gensio_onoff_to_str
+returns NULL if the number isn't value,
+.B gensio_str_to_onoff
+returns -1 if the string is not valid.
 
 GENSIO_ACONTROL_SER_DTR
 .br
 Enables or disables the DTR line on a serial port.  One of "on" or "off".
+See GENSIO_ACONTROL_SER_SBREAK for string/integer conversions.
 
 GENSIO_ACONTROL_SER_RTS
 .br
 Enables or disables the RTS line on a serial port.  One of "on" or "off".
+See GENSIO_ACONTROL_SER_SBREAK for string/integer conversions.
 
 GENSIO_ACONTROL_SER_CTS
 .br
 Enables or disables the CTS line on a serial port.  One of "on" or
 "off".  ipmisol only.
+See GENSIO_ACONTROL_SER_SBREAK for string/integer conversions.
 
 GENSIO_ACONTROL_SER_DCD_DSR
 .br
 Enables or disables the DCD and DTR lines on a serial port.  One of
 "on" or "off".  ipmisol only.
+See GENSIO_ACONTROL_SER_SBREAK for string/integer conversions.
 
 GENSIO_ACONTROL_SER_RI
 .br
 Enables or disables the RI line on a serial port.  One of "on" or
 "off".  ipmisol only.
+See GENSIO_ACONTROL_SER_SBREAK for string/integer conversions.
 
 GENSIO_ACONTROL_SER_SIGNATURE
 .br
