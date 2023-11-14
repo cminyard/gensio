@@ -277,6 +277,62 @@ gensio_sockaddr_set_port(const struct sockaddr *s, unsigned int port)
     return 0;
 }
 
+static int
+gensio_addr_addrinfo_get_port(const struct gensio_addr *aaddr)
+{
+    struct gensio_addr_addrinfo *addr = a_to_info(aaddr);
+    unsigned int port;
+    int rv = gensio_sockaddr_get_port(addr->curr->ai_addr, &port);
+    if (rv)
+	return -1;
+    return port;
+}
+
+static void
+gensio_addr_addrinfo_get_data(const struct gensio_addr *aaddr,
+			      void *oaddr, gensiods *olen)
+{
+    struct gensio_addr_addrinfo *addr = a_to_info(aaddr);
+    char dummy;
+    void *data;
+    gensiods len, ilen = *olen;
+
+    switch (addr->curr->ai_addr->sa_family) {
+    case AF_INET: {
+	struct sockaddr_in *s4 = (struct sockaddr_in *) addr->curr->ai_addr;
+	data = &s4->sin_addr;
+	len = sizeof(s4->sin_addr);
+	break;
+    }
+
+    case AF_INET6: {
+	struct sockaddr_in6 *s6 = (struct sockaddr_in6 *) addr->curr->ai_addr;
+	data = &s6->sin6_addr;
+	len = sizeof(s6->sin6_addr);
+	break;
+    }
+
+#if HAVE_UNIX
+    case AF_UNIX: {
+	struct sockaddr_un *su = (struct sockaddr_un *) addr->curr->ai_addr;
+	data = su->sun_path;
+	len = strlen(data) + 1;
+	break;
+    }
+
+#endif
+    default:
+	data = &dummy;
+	len = 0;
+	break;
+    }
+
+    *olen = len;
+    if (len > ilen)
+	len = ilen;
+    memcpy(oaddr, data, len);
+}
+
 #ifdef AF_INET6
 static bool
 sockaddr_inet6_inet4_equal(const struct sockaddr *a1, socklen_t l1,
@@ -1102,7 +1158,14 @@ gensio_addr_addrinfo_get_nettype(const struct gensio_addr *aaddr)
 {
     struct gensio_addr_addrinfo *addr = a_to_info(aaddr);
 
-    return addr->curr->ai_addr->sa_family;
+    switch (addr->curr->ai_addr->sa_family) {
+    case AF_INET: return GENSIO_NETTYPE_IPV4;
+    case AF_INET6: return GENSIO_NETTYPE_IPV6;
+#if HAVE_UNIX
+    case AF_UNIX: return GENSIO_NETTYPE_UNIX;
+#endif
+    default: return GENSIO_NETTYPE_UNSPEC;
+    }
 }
 
 static bool
@@ -1147,7 +1210,9 @@ static struct gensio_addr_funcs addrinfo_funcs = {
     .addr_rewind = gensio_addr_addrinfo_rewind,
     .addr_get_nettype = gensio_addr_addrinfo_get_nettype,
     .addr_family_supports = gensio_addr_addrinfo_family_supports,
-    .addr_getaddr = gensio_addr_addrinfo_getaddr
+    .addr_getaddr = gensio_addr_addrinfo_getaddr,
+    .addr_get_port = gensio_addr_addrinfo_get_port,
+    .addr_get_data = gensio_addr_addrinfo_get_data
 };
 
 void

@@ -93,6 +93,23 @@ gensio_addr_get_nettype(const struct gensio_addr *addr)
     return addr->funcs->addr_get_nettype(addr);
 }
 
+int
+gensio_addr_get_port(const struct gensio_addr *addr)
+{
+    if (!addr->funcs->addr_get_port)
+	return -1;
+    return addr->funcs->addr_get_port(addr);
+}
+
+void
+gensio_addr_get_data(const struct gensio_addr *addr,
+		     void *oaddr, gensiods *rlen)
+{
+    if (!addr->funcs->addr_get_data)
+	addr->funcs->addr_getaddr(addr, oaddr, rlen);
+    addr->funcs->addr_get_data(addr, oaddr, rlen);
+}
+
 bool
 gensio_addr_family_supports(const struct gensio_addr *addr,
 			    int family, int flags)

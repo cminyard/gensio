@@ -39,6 +39,9 @@ struct gensio_addr_funcs {
 				 int family, int flags);
     void (*addr_getaddr)(const struct gensio_addr *addr,
 			 void *oaddr, gensiods *rlen);
+    int (*addr_get_port)(const struct gensio_addr *addr);
+    void (*addr_get_data)(const struct gensio_addr *addr,
+			  void *oaddr, gensiods *rlen);
 };
 
 /*
@@ -75,13 +78,17 @@ struct gensio_addr {
  */
 GENSIOOSH_DLL_PUBLIC
 void gensio_addr_rewind(struct gensio_addr *addr);
+
 /* Return false if no more addresses exist. */
 GENSIOOSH_DLL_PUBLIC
 bool gensio_addr_next(struct gensio_addr *addr);
+
 /*
- * Gets the current address.  len must be provided, it is the size of
- * the buffer and is updated to the actual size (which may be larger
- * than len).  The copy may be partial if len is not enough.
+ * Gets the current raw address.  For IP this is the raw addrinfo
+ * data.  For AX25 this is a raw struct gensio_ax25_addr.  len must be
+ * provided, it is the size of the buffer and is updated to the actual
+ * size (which may be larger than len).  The copy may be partial if
+ * len is not enough.
  */
 GENSIOOSH_DLL_PUBLIC
 void gensio_addr_getaddr(const struct gensio_addr *addr,
@@ -111,6 +118,22 @@ int gensio_addr_create(struct gensio_os_funcs *o,
  */
 GENSIOOSH_DLL_PUBLIC
 int gensio_addr_get_nettype(const struct gensio_addr *addr);
+
+/*
+ * Returns the port.  This will be -1 if the address type doesn't have
+ * a port.
+ */
+GENSIOOSH_DLL_PUBLIC
+int gensio_addr_get_port(const struct gensio_addr *addr);
+
+/*
+ * Returns the address data.  This is the IPv4/IPv6 address for IP.
+ * For Unix this is the full path.  For AX25 this is the same as
+ * gensio_addr_getaddr().
+ */
+GENSIOOSH_DLL_PUBLIC
+void gensio_addr_get_data(const struct gensio_addr *addr,
+			  void *oaddr, gensiods *len);
 
 /*
  * If the address can be supported by a socket with the given
