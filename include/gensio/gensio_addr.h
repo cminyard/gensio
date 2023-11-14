@@ -68,6 +68,7 @@ struct gensio_addr {
  * mostly in interacting with addresses, anything named protocol.
  * zero is reserved.
  */
+#define GENSIO_NET_PROTOCOL_UNSPEC 0
 #define GENSIO_NET_PROTOCOL_TCP 1
 #define GENSIO_NET_PROTOCOL_UDP 2
 #define GENSIO_NET_PROTOCOL_SCTP 3

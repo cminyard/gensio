@@ -27,6 +27,7 @@
 #include <gensio/gensio_class.h>
 #include <gensio/argvutils.h>
 #include <gensio/gensio_list.h>
+#include <gensio/gensio_ax25_addr.h>
 
 #include "errtrig.h"
 
@@ -232,7 +233,7 @@ gensio_scan_network_port(struct gensio_os_funcs *o, const char *str,
 #else
 	return GE_NOTSUP;
 #endif
-    } else if (rprotocol && *rprotocol != 0) {
+    } else if (rprotocol && *rprotocol != GENSIO_NET_PROTOCOL_UNSPEC) {
 	doskip = false;
 	switch (*rprotocol) {
 	case GENSIO_NET_PROTOCOL_UNIX:
@@ -299,6 +300,9 @@ gensio_os_scan_netaddr(struct gensio_os_funcs *o, const char *str, bool listen,
     bool is_port_set;
     struct gensio_addr *addr;
     int rv;
+
+    if (protocol == GENSIO_NET_PROTOCOL_UNSPEC && strncmp(str, "ax25:", 5) == 0)
+	return gensio_ax25_str_to_addr(o, str, raddr);
 
     rv = o->addr_scan_ips(o, str, listen, AF_UNSPEC,
 			  protocol, &is_port_set, true, &addr);

@@ -729,6 +729,11 @@ gensio_addr_addrinfo_scan_ips(struct gensio_os_funcs *o, const char *str,
     int bflags = AI_ADDRCONFIG;
 
     switch (gprotocol) {
+    case GENSIO_NET_PROTOCOL_UNSPEC:
+	socktype = 0;
+	protocol = 0;
+	break;
+
     case GENSIO_NET_PROTOCOL_TCP:
 	socktype = SOCK_STREAM;
 	protocol = IPPROTO_TCP;
