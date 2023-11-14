@@ -224,6 +224,27 @@ namespace gensios {
 	return do_to_string(gaddr, true);
     }
 
+    void Addr::getaddr(std::vector<unsigned char> &rvec)
+    {
+	gensiods len = (gensiods) rvec.capacity(), count = len;
+
+	gensio_addr_getaddr(gaddr, rvec.data(), &count);
+	rvec.resize(count);
+	if (count > len)
+	    gensio_addr_getaddr(gaddr, rvec.data(), &count);
+    }
+
+    void Addr::get_data(std::vector<unsigned char> &rvec)
+    {
+	gensiods len = (gensiods) rvec.capacity(), count = len;
+	unsigned char *buf = rvec.data();
+
+	gensio_addr_get_data(gaddr, buf, &count);
+	rvec.resize(count);
+	if (count > len)
+	    gensio_addr_get_data(gaddr, buf, &count);
+    }
+
     Waiter::Waiter(Os_Funcs &io) : o(io)
     {
 	waiter = gensio_os_funcs_alloc_waiter(o);

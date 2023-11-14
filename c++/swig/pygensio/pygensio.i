@@ -202,6 +202,8 @@ static bool check_for_err(int err)
 			       const char *const *auxdata);
 %ignore gensios::Gensio::read_s(const SimpleUCharVector data,
 				gensio_time *timeout = NULL, bool intr = false);
+%ignore gensios::Addr::getaddr(void *oaddr, gensiods *len);
+%ignore gensios::Addr::get_data(void *oaddr, gensiods *len);
 
 ////////////////////////////////////////////////////
 // Typemaps
@@ -290,7 +292,7 @@ static bool check_for_err(int err)
 	$1.assign((unsigned char *) buf, ((unsigned char *) buf) + size);
     }
 }
-// Return for read_s
+// Return for read_s, Addr::get_data, Addr:getaddr
 %typemap(in, numinputs=0) std::vector<unsigned char> &rvec
 	(std::vector<unsigned char> temp)
 {

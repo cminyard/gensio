@@ -76,7 +76,8 @@ if count != len(mydata):
 if rv != 0:
     raise Exception("Error waiting for read: " + pygensio.err_to_string(rv))
 if data != mydata:
-    raise Exception("Data mismatch")
+    raise Exception("Data mismatch: expected '" + str(mydata) + "' but got '"
+                    + str(data) + "'")
 g.clear_sync()
 g.close_s()
 r.shutdown_s()

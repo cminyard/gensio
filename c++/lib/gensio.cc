@@ -693,25 +693,18 @@ namespace gensios {
     {
 	int err;
 	gensiods len = (gensiods) rvec.capacity(), count = 0;
-	unsigned char *buf;
+	unsigned char *buf = rvec.data();
 
-	buf = (unsigned char *) go->zalloc(go, len);
-	if (!buf)
-	    throw gensio_error(GE_NOMEM);
+	rvec.resize(len);
 	if (intr)
 	    err = gensio_read_s_intr(io, &count, buf, len, timeout);
 	else
 	    err = gensio_read_s(io, &count, buf, len, timeout);
-	if (err == GE_TIMEDOUT || err== GE_INTERRUPTED) {
-	    go->free(go, (void *) buf);
+	if (err == GE_TIMEDOUT || err== GE_INTERRUPTED)
 	    return err;
-	}
-	if (err) {
-	    go->free(go, (void *) buf);
+	if (err)
 	    throw gensio_error(err);
-	}
-	rvec.assign(buf, buf + count);
-	go->free(go, (void *) buf);
+	rvec.resize(count);
 	return 0;
     }
 

@@ -175,7 +175,12 @@ namespace gensios {
 	bool next() { return gensio_addr_next(gaddr); }
 	void getaddr(void *oaddr, gensiods *len) const
 	    { gensio_addr_getaddr(gaddr, oaddr, len); }
+	void getaddr(std::vector<unsigned char> &rvec);
+	void get_data(void *oaddr, gensiods *len) const
+	    { gensio_addr_get_data(gaddr, oaddr, len); }
+	void get_data(std::vector<unsigned char> &rvec);
 	int get_nettype() const { return gensio_addr_get_nettype(gaddr); }
+	int get_port() const { return gensio_addr_get_port(gaddr); }
 	bool family_supports(int family, int flags) const
 	    { return gensio_addr_family_supports(gaddr, family, flags); }
 	std::string to_string() const;

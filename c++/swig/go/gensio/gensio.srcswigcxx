@@ -68,6 +68,12 @@
 %ignore gensios::Accepter::control(int depth, bool get, unsigned int option,
 				  char *data, gensiods *datalen);
 
+// Ignore these for now.
+%ignore gensios::Addr::getaddr(std::vector<unsigned char> &rvec);
+%ignore gensios::Addr::get_data(std::vector<unsigned char> &rvec);
+%ignore gensios::Addr::getaddr(void *oaddr, gensiods *len);
+%ignore gensios::Addr::get_data(void *oaddr, gensiods *len);
+
 // Convert betwen byte arrays and unsigned char vectors.
 %typemap(gotype) (std::vector<unsigned char>) "[]byte";
 %typemap(in) (std::vector<unsigned char>) {
