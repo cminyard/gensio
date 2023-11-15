@@ -358,13 +358,6 @@ io_event(struct gensio *io, void *user_data, int event, int err,
 	break;
     }
 
-    gensio_os_funcs_lock(o, rioinfo->lock);
-    if (!rioinfo->ready) {
-	gensio_os_funcs_unlock(o, rioinfo->lock);
-	return 0;
-    }
-    gensio_os_funcs_unlock(o, rioinfo->lock);
-
     rv = GE_NOTSUP;
     if (ioinfo->sh)
 	rv = ioinfo->sh->handle_event(io, event, buf, buflen);
@@ -388,6 +381,38 @@ set_max_write(struct ioinfo *ioinfo)
 	ioinfo->max_write = strtoul(databuf, NULL, 0);
 }
 
+static void
+init_state(struct gensio *io)
+{
+    unsigned int mask = (GENSIO_SER_MODEMSTATE_CTS |
+			 GENSIO_SER_MODEMSTATE_DSR |
+			 GENSIO_SER_MODEMSTATE_CD |
+			 GENSIO_SER_MODEMSTATE_RI);
+    char msmstr[10];
+    gensiods msmstrlen;
+
+    snprintf(msmstr, sizeof(msmstr), "%d", mask);
+    msmstrlen = strlen(msmstr);
+
+    gensio_control(io, GENSIO_CONTROL_DEPTH_FIRST, GENSIO_CONTROL_SET,
+		   GENSIO_CONTROL_SER_MODEMSTATE, msmstr, &msmstrlen);
+
+    mask = (GENSIO_SER_LINESTATE_DATA_READY |
+	    GENSIO_SER_LINESTATE_OVERRUN_ERR |
+	    GENSIO_SER_LINESTATE_PARITY_ERR |
+	    GENSIO_SER_LINESTATE_FRAMING_ERR |
+	    GENSIO_SER_LINESTATE_BREAK |
+	    GENSIO_SER_LINESTATE_XMIT_HOLD_EMPTY |
+	    GENSIO_SER_LINESTATE_XMIT_SHIFT_EMPTY |
+	    GENSIO_SER_LINESTATE_TIMEOUT_ERR);
+
+    snprintf(msmstr, sizeof(msmstr), "%d", mask);
+    msmstrlen = strlen(msmstr);
+
+    gensio_control(io, GENSIO_CONTROL_DEPTH_FIRST, GENSIO_CONTROL_SET,
+		   GENSIO_CONTROL_SER_LINESTATE, msmstr, &msmstrlen);
+}
+
 void
 ioinfo_set_ready(struct ioinfo *ioinfo, struct gensio *io)
 {
@@ -399,6 +424,10 @@ ioinfo_set_ready(struct ioinfo *ioinfo, struct gensio *io)
     gensio_set_callback(io, io_event, ioinfo);
     gensio_set_read_callback_enable(ioinfo->io, true);
     ioinfo->ready = true;
+
+    /* Set the modemstate/linestate so we will get modemstate updates. */
+    init_state(io);
+
     gensio_os_funcs_unlock(ioinfo->o, ioinfo->lock);
     gensio_os_funcs_lock(rioinfo->o, rioinfo->lock);
     if (rioinfo->ready)

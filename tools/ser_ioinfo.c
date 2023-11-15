@@ -29,7 +29,6 @@
 #include <stdint.h>
 #include <errno.h>
 
-#include <gensio/sergensio.h>
 #include "ser_ioinfo.h"
 
 struct ser_dump_data {
@@ -57,6 +56,7 @@ static void
 deref(struct ser_dump_data *ddata)
 {
     struct ser_info *serinfo = ddata->serinfo;
+    struct ser_info *rserinfo = ioinfo_othersubdata(ddata->ioinfo);
     struct gensio_os_funcs *o = serinfo->o;
     unsigned int refcount;
 
@@ -64,15 +64,21 @@ deref(struct ser_dump_data *ddata)
     refcount = --ddata->refcount;
     gensio_os_funcs_unlock(o, serinfo->lock);
     if (refcount == 0) {
+	const char *cts = rserinfo->last_modemstate & GENSIO_SER_MODEMSTATE_CTS
+	    ? " cts" : "";
+	const char *dsr = rserinfo->last_modemstate & GENSIO_SER_MODEMSTATE_DSR
+	    ? " dsr" : "";
+	const char *dcd = rserinfo->last_modemstate & GENSIO_SER_MODEMSTATE_CD
+	    ? " dcd" : "";
+	const char *ri = rserinfo->last_modemstate & GENSIO_SER_MODEMSTATE_RI
+	    ? " ri" : "";
 	if (ddata->signature)
 	    ioinfo_out(ddata->ioinfo,
-		       "Signature: %s\r\n"
-		       "Speed: %d%c%d%d\r\n", ddata->signature, ddata->speed,
-		       ddata->parity, ddata->datasize, ddata->stopbits);
-	else
-	    ioinfo_out(ddata->ioinfo,
-		       "Speed: %d%c%d%d\r\n", ddata->speed,
-		       ddata->parity, ddata->datasize, ddata->stopbits);
+		       "Signature: %s\r\n", ddata->signature);
+	ioinfo_out(ddata->ioinfo,
+		   "Speed: %d%c%d%d%s%s%s%s\r\n", ddata->speed,
+		   ddata->parity, ddata->datasize, ddata->stopbits,
+		   cts, dsr, dcd, ri);
 	if (ddata->signature)
 	    gensio_os_funcs_zfree(o, ddata->signature);
 	gensio_os_funcs_zfree(o, ddata);
@@ -80,28 +86,32 @@ deref(struct ser_dump_data *ddata)
 }
 
 static void
-speed_done(struct sergensio *sio, int err, unsigned int val, void *cb_data)
+speed_done(struct gensio *io, int err, const char *buf, gensiods len,
+	   void *cb_data)
 {
     struct ser_dump_data *ddata = cb_data;
 
-    ddata->speed = val;
+    if (err) {
+	ddata->speed = 0;
+    } else {
+	ddata->speed = strtoul(buf, NULL, 0);
+    }
     deref(ddata);
 }
 
 static void
-signature_done(struct sergensio *sio, int err,
-	       const char *sig, unsigned int len,
+signature_done(struct gensio *io, int err, const char *buf, gensiods len,
 	       void *cb_data)
 {
     struct ser_dump_data *ddata = cb_data;
     struct gensio_os_funcs *o = ddata->serinfo->o;
 
-    if (sig) {
+    if (buf) {
 	if (ddata->signature)
 	    gensio_os_funcs_zfree(o, ddata->signature);
 	ddata->signature = gensio_os_funcs_zalloc(o, len + 1);
 	if (ddata->signature) {
-	    memcpy(ddata->signature, sig, len);
+	    memcpy(ddata->signature, buf, len);
 	    ddata->signature[len] = '\0';
 	}
     }
@@ -109,126 +119,138 @@ signature_done(struct sergensio *sio, int err,
 }
 
 static void
-parity_done(struct sergensio *sio, int err, unsigned int val, void *cb_data)
+parity_done(struct gensio *io, int err, const char *buf, gensiods len,
+	    void *cb_data)
 {
     struct ser_dump_data *ddata = cb_data;
 
-    switch (val) {
-    case SERGENSIO_PARITY_NONE: ddata->parity = 'N'; break;
-    case SERGENSIO_PARITY_ODD: ddata->parity = 'O'; break;
-    case SERGENSIO_PARITY_EVEN: ddata->parity = 'E'; break;
-    case SERGENSIO_PARITY_MARK: ddata->parity = 'M'; break;
-    case SERGENSIO_PARITY_SPACE: ddata->parity = 'S'; break;
-    default: ddata->parity = '?'; break;
+    if (err) {
+	ddata->parity = '?';
+    } else {
+	if (strcmp(buf, "none") == 0)
+	    ddata->parity = 'N';
+	else if (strcmp(buf, "odd") == 0)
+	    ddata->parity = 'O';
+	else if (strcmp(buf, "even") == 0)
+	    ddata->parity = 'E';
+	else if (strcmp(buf, "mark") == 0)
+	    ddata->parity = 'M';
+	else if (strcmp(buf, "space") == 0)
+	    ddata->parity = 'S';
+	else
+	    ddata->parity = '?';
     }
     deref(ddata);
 }
 
 static void
-datasize_done(struct sergensio *sio, int err, unsigned int val, void *cb_data)
+datasize_done(struct gensio *io, int err, const char *buf, gensiods len,
+	      void *cb_data)
 {
     struct ser_dump_data *ddata = cb_data;
 
-    ddata->datasize = val;
+    if (err) {
+	ddata->datasize = 0;
+    } else {
+	ddata->datasize = strtoul(buf, NULL, 0);
+    }
     deref(ddata);
 }
 
 static void
-stopbits_done(struct sergensio *sio, int err, unsigned int val, void *cb_data)
+stopbits_done(struct gensio *io, int err, const char *buf, gensiods len,
+	      void *cb_data)
 {
     struct ser_dump_data *ddata = cb_data;
 
-    ddata->stopbits = val;
+    if (err) {
+	ddata->stopbits = 0;
+    } else {
+	ddata->stopbits = strtoul(buf, NULL, 0);
+    }
     deref(ddata);
 }
 
-enum s2n_ser_ops {
-    S2N_BAUD = 0,
-    S2N_DATASIZE,
-    S2N_PARITY,
-    S2N_STOPBITS,
-    S2N_FLOWCONTROL,
-    S2N_IFLOWCONTROL,
-    S2N_BREAK,
-    S2N_DTR,
-    S2N_RTS
-};
-
 static void
-sergensio_val_set(struct sergensio *sio, int err,
-		  unsigned int val, void *cb_data)
+control_val_set(struct gensio *io, int err, const char *buf, gensiods len,
+		void *cb_data)
 {
-    struct ioinfo *ioinfo = sergensio_get_user_data(sio);
-    enum s2n_ser_ops op = (intptr_t) cb_data;
-    struct sergensio *rsio;
+    struct ioinfo *ioinfo = gensio_get_user_data(io);
+    unsigned int op = (intptr_t) cb_data;
+    struct gensio *rio;
 
-    rsio = gensio_to_sergensio(ioinfo_otherio(ioinfo));
-    if (!rsio)
+    rio = ioinfo_otherio(ioinfo);
+    if (!rio)
 	return;
 
-    switch (op) {
-    case S2N_BAUD:
-	sergensio_baud(rsio, val, NULL, NULL);
-	break;
-
-    case S2N_DATASIZE:
-	sergensio_datasize(rsio, val, NULL, NULL);
-	break;
-
-    case S2N_PARITY:
-	sergensio_parity(rsio, val, NULL, NULL);
-	break;
-
-    case S2N_STOPBITS:
-	sergensio_stopbits(rsio, val, NULL, NULL);
-	break;
-
-    case S2N_FLOWCONTROL:
-	sergensio_flowcontrol(rsio, val, NULL, NULL);
-	break;
-
-    case S2N_IFLOWCONTROL:
-	sergensio_iflowcontrol(rsio, val, NULL, NULL);
-	break;
-
-    case S2N_BREAK:
-	sergensio_sbreak(rsio, val, NULL, NULL);
-	break;
-
-    case S2N_DTR:
-	sergensio_dtr(rsio, val, NULL, NULL);
-	break;
-
-    case S2N_RTS:
-	sergensio_rts(rsio, val, NULL, NULL);
-	break;
+    if (err) {
+	if (op == GENSIO_ACONTROL_SER_SIGNATURE) {
+	    /* Supply a dummy one. */
+	    buf = "gensiot";
+	    len = strlen(buf);
+	} else {
+	    return;
+	}
     }
+    gensio_acontrol(rio, GENSIO_CONTROL_DEPTH_FIRST, GENSIO_CONTROL_SET,
+		    op, buf, len, NULL, NULL, NULL);
 }
 
 static void
-s2n_modemstate(struct gensio *io, struct sergensio *sio,
-	       unsigned int modemstate)
+s2n_modemstate(struct gensio *io, unsigned int modemstate)
 {
     struct ioinfo *ioinfo = gensio_get_user_data(io);
     struct ser_info *serinfo = ioinfo_subdata(ioinfo);
     struct ser_info *oserinfo = ioinfo_othersubdata(ioinfo);
+    unsigned int val = oserinfo->last_modemstate & modemstate;
+    char str[10];
+    gensiods len;
+
+    snprintf(str, sizeof(str), "%d", val);
+    len = strlen(str);
 
     serinfo->modemstate_mask = modemstate;
-    sergensio_modemstate(sio, (oserinfo->last_modemstate &
-			       serinfo->modemstate_mask));
+    gensio_control(io, GENSIO_CONTROL_DEPTH_FIRST,
+		   GENSIO_CONTROL_SET, GENSIO_CONTROL_SER_MODEMSTATE,
+		   str, &len);
 }
 
 static void
-s2n_linestate(struct gensio *io, struct sergensio *sio,
-	      unsigned int linestate)
+s2n_linestate(struct gensio *io, unsigned int linestate)
 {
     struct ioinfo *ioinfo = gensio_get_user_data(io);
     struct ser_info *serinfo = ioinfo_subdata(ioinfo);
     struct ser_info *oserinfo = ioinfo_othersubdata(ioinfo);
+    unsigned int val = oserinfo->last_linestate & linestate;
+    char str[10];
+    gensiods len;
+
+    snprintf(str, sizeof(str), "%d", val);
+    len = strlen(str);
 
     serinfo->linestate_mask = linestate;
-    sergensio_linestate(sio, (oserinfo->last_linestate &
-			      serinfo->linestate_mask));
+    gensio_control(io, GENSIO_CONTROL_DEPTH_FIRST,
+		   GENSIO_CONTROL_SET, GENSIO_CONTROL_SER_LINESTATE,
+		   str, &len);
+}
+
+static void
+s2n_send_up(struct gensio *io, unsigned int option, const char *str,
+	    gensio_control_done done, void *cb_data)
+{
+    gensio_acontrol(io, GENSIO_CONTROL_DEPTH_FIRST, GENSIO_CONTROL_SET,
+		    option, str, strlen(str), done, cb_data, NULL);
+}
+
+static void
+s2n_send_up_num(struct gensio *io, unsigned int option, unsigned int num,
+		gensio_control_done done, void *cb_data)
+{
+    char str[10];
+
+    snprintf(str, sizeof(str), "%d", num);
+    gensio_acontrol(io, GENSIO_CONTROL_DEPTH_FIRST, GENSIO_CONTROL_SET,
+		    option, str, strlen(str), done, cb_data, NULL);
 }
 
 static int
@@ -238,124 +260,150 @@ handle_sio_event(struct gensio *io, int event,
     struct ioinfo *ioinfo = gensio_get_user_data(io);
     struct gensio *rio = ioinfo_otherio(ioinfo);
     struct ser_info *serinfo = ioinfo_subdata(ioinfo);
-    struct ser_info *rserinfo = ioinfo_othersubdata(ioinfo);
-    struct sergensio *sio, *rsio;
+    gensiods dummy_len = 1;
+    int rv;
 
-    sio = gensio_to_sergensio(io);
-    if (!sio)
-	return GE_NOTSUP;
-
-    if (event == GENSIO_EVENT_SER_SIGNATURE) {
-	sergensio_signature(sio, serinfo->signature,
-			    strlen(serinfo->signature), NULL, NULL);
-	return 0;
-    }
-
-    rsio = gensio_to_sergensio(rio);
-    if (!rsio)
-	return GE_NOTSUP;
-
-    /* Telnet breaks work even if you don't have RFC2217 support. */
-    if (event == GENSIO_EVENT_SEND_BREAK) {
-	sergensio_send_break(rsio);
-	return 0;
-    }
-
-    if (sergensio_is_client(sio)) {
-	unsigned int state;
-
-	if (sergensio_is_client(rsio))
-	    /* Both ends are clients. */
-	    return GE_NOTSUP;
-
+    if (gensio_is_client(io)) {
 	switch (event) {
 	case GENSIO_EVENT_SER_MODEMSTATE:
 	    serinfo->last_modemstate = *((unsigned int *) buf);
-	    state = serinfo->last_modemstate & rserinfo->modemstate_mask;
-	    if (state & 4)
-		sergensio_modemstate(rsio, state);
+	    /* If we are client to server, sent it upstream. */
+	    if (rio && gensio_is_serial(rio) && !gensio_is_client(rio))
+		gensio_control(rio, GENSIO_CONTROL_DEPTH_FIRST,
+			       GENSIO_CONTROL_SET,
+			       GENSIO_CONTROL_SER_MODEMSTATE,
+			       (char *) buf, buflen);
 	    return 0;
 
 	case GENSIO_EVENT_SER_LINESTATE:
 	    serinfo->last_linestate = *((unsigned int *) buf);
-	    state = serinfo->last_linestate & rserinfo->linestate_mask;
-	    if (state & 4)
-		sergensio_linestate(rsio, state);
+	    /* If we are client to server, sent it upstream. */
+	    if (rio && gensio_is_serial(rio) && !gensio_is_client(rio))
+		gensio_control(rio, GENSIO_CONTROL_DEPTH_FIRST,
+			       GENSIO_CONTROL_SET,
+			       GENSIO_CONTROL_SER_LINESTATE,
+			       (char *) buf, buflen);
 	    return 0;
 	}
 	return GE_NOTSUP;
     }
 
-    if (!sergensio_is_client(rsio))
-	/* Both ends are servers. */
+    if (!rio)
+	return GE_NOTSUP;
+
+    /* Telnet breaks work even if you don't have RFC2217 support. */
+    if (event == GENSIO_EVENT_SEND_BREAK) {
+	gensio_control(rio, GENSIO_CONTROL_DEPTH_FIRST,
+		       GENSIO_CONTROL_SET,
+		       GENSIO_CONTROL_SEND_BREAK,
+		       (char *) buf, buflen);
+	return 0;
+    }
+
+    if (!rio || !gensio_is_client(rio) || !gensio_is_serial(rio))
+	/* Both ends are servers or the other end isn't serial. */
 	return GE_NOTSUP;
 
     switch (event) {
     case GENSIO_EVENT_SER_MODEMSTATE_MASK:
-	s2n_modemstate(rio, rsio, *((unsigned int *) buf));
+	s2n_modemstate(rio, *((unsigned int *) buf));
 	return 0;
 
     case GENSIO_EVENT_SER_LINESTATE_MASK:
-	s2n_linestate(rio, rsio, *((unsigned int *) buf));
+	s2n_linestate(rio, *((unsigned int *) buf));
 	return 0;
 
     case GENSIO_EVENT_SER_FLOW_STATE:
-	sergensio_flowcontrol_state(rsio, *((int *) buf));
+	gensio_control(rio, GENSIO_CONTROL_DEPTH_FIRST,
+		       GENSIO_CONTROL_SET, GENSIO_CONTROL_SER_FLOWCONTROL_STATE,
+		       "0", &dummy_len);
 	return 0;
 
     case GENSIO_EVENT_SER_FLUSH:
-	sergensio_flush(rsio, *((int *) buf));
+	gensio_control(rio, GENSIO_CONTROL_DEPTH_FIRST,
+		       GENSIO_CONTROL_SET, GENSIO_CONTROL_SER_FLUSH,
+		       "0", &dummy_len);
+	return 0;
+
+    case GENSIO_EVENT_SER_SIGNATURE:
+	rv = gensio_acontrol(rio, GENSIO_CONTROL_DEPTH_FIRST,
+			     GENSIO_CONTROL_SET,
+			     GENSIO_ACONTROL_SER_SIGNATURE,
+			     "", 0, control_val_set,
+			     (void *) (intptr_t) GENSIO_ACONTROL_SER_SIGNATURE,
+			     NULL);
+	if (rv)
+	    /* Supply a dummy value. */
+	    gensio_acontrol(io, GENSIO_CONTROL_DEPTH_FIRST, GENSIO_CONTROL_SET,
+			    GENSIO_ACONTROL_SER_SIGNATURE,
+			    "gensiot", 7, NULL, NULL, NULL);
 	return 0;
 
     case GENSIO_EVENT_SER_BAUD:
-	sergensio_baud(rsio, *((int *) buf),
-		       sergensio_val_set, (void *) (long) S2N_BAUD);
+	s2n_send_up_num(rio, GENSIO_ACONTROL_SER_BAUD, *((int *) buf),
+			control_val_set,
+			(void *) (intptr_t) GENSIO_ACONTROL_SER_BAUD);
 	return 0;
 
     case GENSIO_EVENT_SER_DATASIZE:
-	sergensio_datasize(rsio, *((int *) buf),
-			   sergensio_val_set, (void *) (long) S2N_DATASIZE);
+	s2n_send_up_num(rio, GENSIO_ACONTROL_SER_DATASIZE, *((int *) buf),
+			control_val_set,
+			(void *) (intptr_t) GENSIO_ACONTROL_SER_DATASIZE);
 	return 0;
 
     case GENSIO_EVENT_SER_PARITY:
-	sergensio_parity(rsio, *((int *) buf),
-			 sergensio_val_set, (void *) (long) S2N_PARITY);
+	s2n_send_up(rio, GENSIO_ACONTROL_SER_PARITY,
+		    gensio_parity_to_str(*((int *) buf)),
+		    control_val_set,
+		    (void *) (intptr_t) GENSIO_ACONTROL_SER_PARITY);
 	return 0;
 
     case GENSIO_EVENT_SER_STOPBITS:
-	sergensio_stopbits(rsio, *((int *) buf),
-			   sergensio_val_set, (void *) (long) S2N_STOPBITS);
+	s2n_send_up_num(rio, GENSIO_ACONTROL_SER_STOPBITS, *((int *) buf),
+			control_val_set,
+			(void *) (intptr_t) GENSIO_ACONTROL_SER_STOPBITS);
 	return 0;
 
     case GENSIO_EVENT_SER_FLOWCONTROL:
-	sergensio_flowcontrol(rsio, *((int *) buf),
-			      sergensio_val_set,
-			      (void *) (long) S2N_FLOWCONTROL);
+	s2n_send_up(rio, GENSIO_ACONTROL_SER_FLOWCONTROL,
+		    gensio_flowcontrol_to_str(*((int *) buf)),
+		    control_val_set,
+		    (void *) (intptr_t) GENSIO_ACONTROL_SER_FLOWCONTROL);
 	return 0;
 
     case GENSIO_EVENT_SER_IFLOWCONTROL:
-	sergensio_iflowcontrol(rsio, *((int *) buf),
-			       sergensio_val_set,
-			       (void *) (long) S2N_IFLOWCONTROL);
+	s2n_send_up(rio, GENSIO_ACONTROL_SER_IFLOWCONTROL,
+		    gensio_flowcontrol_to_str(*((int *) buf)),
+		    control_val_set,
+		    (void *) (intptr_t) GENSIO_ACONTROL_SER_IFLOWCONTROL);
 	return 0;
 
     case GENSIO_EVENT_SER_SBREAK:
-	sergensio_sbreak(rsio, *((int *) buf),
-			 sergensio_val_set, (void *) (long) S2N_BREAK);
+	s2n_send_up(rio, GENSIO_ACONTROL_SER_SBREAK,
+		    gensio_onoff_to_str(*((int *) buf)),
+		    control_val_set,
+		    (void *) (intptr_t) GENSIO_ACONTROL_SER_SBREAK);
 	return 0;
 
     case GENSIO_EVENT_SER_DTR:
-	sergensio_dtr(rsio, *((int *) buf),
-		      sergensio_val_set, (void *) (long) S2N_DTR);
+	s2n_send_up(rio, GENSIO_ACONTROL_SER_DTR,
+		    gensio_onoff_to_str(*((int *) buf)),
+		    control_val_set,
+		    (void *) (intptr_t) GENSIO_ACONTROL_SER_DTR);
 	return 0;
 
     case GENSIO_EVENT_SER_RTS:
-	sergensio_rts(rsio, *((int *) buf),
-		      sergensio_val_set, (void *) (long) S2N_RTS);
+	s2n_send_up(rio, GENSIO_ACONTROL_SER_RTS,
+		    gensio_onoff_to_str(*((int *) buf)),
+		    control_val_set,
+		    (void *) (intptr_t) GENSIO_ACONTROL_SER_RTS);
 	return 0;
 
     case GENSIO_EVENT_SER_SYNC:
-	sergensio_send_break(rsio);
+	gensio_control(rio, GENSIO_CONTROL_DEPTH_FIRST,
+		       GENSIO_CONTROL_SET,
+		       GENSIO_CONTROL_SEND_BREAK,
+		       (char *) buf, buflen);
 	return 0;
     }
 
@@ -366,13 +414,12 @@ static bool
 handle_sio_escape(struct ioinfo *ioinfo, char c)
 {
     struct ser_info *serinfo = ioinfo_subdata(ioinfo);
+    struct gensio *rio = ioinfo_otherio(ioinfo);
     struct gensio_os_funcs *o = serinfo->o;
-    struct sergensio *sio;
     struct ser_dump_data *ddata;
     int rv;
 
-    sio = gensio_to_sergensio(ioinfo_otherio(ioinfo));
-    if (!sio || !sergensio_is_client(sio))
+    if (!gensio_is_client(rio))
 	return false;
 
     switch (c) {
@@ -384,19 +431,34 @@ handle_sio_escape(struct ioinfo *ioinfo, char c)
 	ddata->ioinfo = ioinfo;
 	ddata->serinfo = serinfo;
 	gensio_os_funcs_lock(o, serinfo->lock);
-	rv = sergensio_signature(sio, NULL, 0, signature_done, ddata);
+	rv = gensio_acontrol(rio, GENSIO_CONTROL_DEPTH_FIRST,
+			     GENSIO_CONTROL_GET,
+			     GENSIO_ACONTROL_SER_SIGNATURE,
+			     "0", 0, signature_done, ddata, NULL);
 	if (!rv)
 	    ddata->refcount++;
-	rv = sergensio_baud(sio, 0, speed_done, ddata);
+	rv = gensio_acontrol(rio, GENSIO_CONTROL_DEPTH_FIRST,
+			     GENSIO_CONTROL_GET,
+			     GENSIO_ACONTROL_SER_BAUD,
+			     "0", 0, speed_done, ddata, NULL);
 	if (!rv)
 	    ddata->refcount++;
-	rv = sergensio_parity(sio, 0, parity_done, ddata);
+	rv = gensio_acontrol(rio, GENSIO_CONTROL_DEPTH_FIRST,
+			     GENSIO_CONTROL_GET,
+			     GENSIO_ACONTROL_SER_PARITY,
+			     "0", 0, parity_done, ddata, NULL);
 	if (!rv)
 	    ddata->refcount++;
-	rv = sergensio_datasize(sio, 0, datasize_done, ddata);
+	rv = gensio_acontrol(rio, GENSIO_CONTROL_DEPTH_FIRST,
+			     GENSIO_CONTROL_GET,
+			     GENSIO_ACONTROL_SER_DATASIZE,
+			     "0", 0, datasize_done, ddata, NULL);
 	if (!rv)
 	    ddata->refcount++;
-	rv = sergensio_stopbits(sio, 0, stopbits_done, ddata);
+	rv = gensio_acontrol(rio, GENSIO_CONTROL_DEPTH_FIRST,
+			     GENSIO_CONTROL_GET,
+			     GENSIO_ACONTROL_SER_STOPBITS,
+			     "0", 0, stopbits_done, ddata, NULL);
 	if (!rv)
 	    ddata->refcount++;
 	gensio_os_funcs_unlock(o, serinfo->lock);
@@ -408,40 +470,76 @@ handle_sio_escape(struct ioinfo *ioinfo, char c)
     case 's': /* Set baud rate */
 	return true; /* Remain in escape mode. */
     case 'n': /* No parity */
-	sergensio_parity(sio, SERGENSIO_PARITY_NONE, NULL, NULL);
+	gensio_acontrol(rio, GENSIO_CONTROL_DEPTH_FIRST,
+			GENSIO_CONTROL_SET,
+			GENSIO_ACONTROL_SER_PARITY,
+			"none", 4, NULL, NULL, NULL);
 	break;
     case 'o': /* Odd parity */
-	sergensio_parity(sio, SERGENSIO_PARITY_ODD, NULL, NULL);
+	gensio_acontrol(rio, GENSIO_CONTROL_DEPTH_FIRST,
+			GENSIO_CONTROL_SET,
+			GENSIO_ACONTROL_SER_PARITY,
+			"odd", 3, NULL, NULL, NULL);
 	break;
     case 'e': /* Even parity */
-	sergensio_parity(sio, SERGENSIO_PARITY_EVEN, NULL, NULL);
+	gensio_acontrol(rio, GENSIO_CONTROL_DEPTH_FIRST,
+			GENSIO_CONTROL_SET,
+			GENSIO_ACONTROL_SER_PARITY,
+			"even", 4, NULL, NULL, NULL);
 	break;
     case '5': /* 5 bit data */
-	sergensio_datasize(sio, 5, NULL, NULL);
+	gensio_acontrol(rio, GENSIO_CONTROL_DEPTH_FIRST,
+			GENSIO_CONTROL_SET,
+			GENSIO_ACONTROL_SER_DATASIZE,
+			"5", 1, NULL, NULL, NULL);
 	break;
     case '6': /* 6 bit data */
-	sergensio_datasize(sio, 6, NULL, NULL);
+	gensio_acontrol(rio, GENSIO_CONTROL_DEPTH_FIRST,
+			GENSIO_CONTROL_SET,
+			GENSIO_ACONTROL_SER_DATASIZE,
+			"6", 1, NULL, NULL, NULL);
 	break;
     case '7': /* 7 bit data */
-	sergensio_datasize(sio, 7, NULL, NULL);
+	gensio_acontrol(rio, GENSIO_CONTROL_DEPTH_FIRST,
+			GENSIO_CONTROL_SET,
+			GENSIO_ACONTROL_SER_DATASIZE,
+			"7", 1, NULL, NULL, NULL);
 	break;
     case '8': /* 8 bit data */
-	sergensio_datasize(sio, 8, NULL, NULL);
+	gensio_acontrol(rio, GENSIO_CONTROL_DEPTH_FIRST,
+			GENSIO_CONTROL_SET,
+			GENSIO_ACONTROL_SER_DATASIZE,
+			"8", 1, NULL, NULL, NULL);
 	break;
     case '1': /* 1 stop bit */
-	sergensio_stopbits(sio, 1, NULL, NULL);
+	gensio_acontrol(rio, GENSIO_CONTROL_DEPTH_FIRST,
+			GENSIO_CONTROL_SET,
+			GENSIO_ACONTROL_SER_STOPBITS,
+			"1", 1, NULL, NULL, NULL);
 	break;
     case '2': /* 2 stop bits */
-	sergensio_stopbits(sio, 2, NULL, NULL);
+	gensio_acontrol(rio, GENSIO_CONTROL_DEPTH_FIRST,
+			GENSIO_CONTROL_SET,
+			GENSIO_ACONTROL_SER_STOPBITS,
+			"2", 1, NULL, NULL, NULL);
 	break;
     case 'x':
-	sergensio_flowcontrol(sio, SERGENSIO_FLOWCONTROL_XON_XOFF, NULL, NULL);
+	gensio_acontrol(rio, GENSIO_CONTROL_DEPTH_FIRST,
+			GENSIO_CONTROL_SET,
+			GENSIO_ACONTROL_SER_FLOWCONTROL,
+			"xonxoff", 6, NULL, NULL, NULL);
 	break;
     case 'r':
-	sergensio_flowcontrol(sio, SERGENSIO_FLOWCONTROL_RTS_CTS, NULL, NULL);
+	gensio_acontrol(rio, GENSIO_CONTROL_DEPTH_FIRST,
+			GENSIO_CONTROL_SET,
+			GENSIO_ACONTROL_SER_FLOWCONTROL,
+			"rtscts", 6, NULL, NULL, NULL);
 	break;
     case 'f':
-	sergensio_flowcontrol(sio, SERGENSIO_FLOWCONTROL_NONE, NULL, NULL);
+	gensio_acontrol(rio, GENSIO_CONTROL_DEPTH_FIRST,
+			GENSIO_CONTROL_SET,
+			GENSIO_ACONTROL_SER_FLOWCONTROL,
+			"none", 4, NULL, NULL, NULL);
 	break;
     }
 
@@ -451,19 +549,16 @@ handle_sio_escape(struct ioinfo *ioinfo, char c)
 static void
 handle_sio_multichar_escape(struct ioinfo *ioinfo, char *escape_data)
 {
-    struct sergensio *sio;
-    int speed;
-    char *end;
+    struct gensio *rio;
 
-    speed = strtol(escape_data + 1, &end, 0);
-    if (*end != '\0')
+    rio = ioinfo_otherio(ioinfo);
+    if (!rio || !gensio_is_client(rio) || !gensio_is_serial(rio))
 	return;
 
-    sio = gensio_to_sergensio(ioinfo_otherio(ioinfo));
-    if (!sio || !sergensio_is_client(sio))
-	return;
-
-    sergensio_baud(sio, speed, NULL, NULL);
+    gensio_acontrol(rio, GENSIO_CONTROL_DEPTH_FIRST,
+		    GENSIO_CONTROL_GET,
+		    GENSIO_ACONTROL_SER_BAUD,
+		    escape_data + 1, strlen(escape_data + 1), NULL, NULL, NULL);
 }
 
 static struct ioinfo_sub_handlers suh = {
