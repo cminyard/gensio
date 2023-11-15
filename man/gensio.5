@@ -743,7 +743,13 @@ section above for notes on ordering of lines.
 .TP
 .B hangup-when-done[=true|false]
 Lower/don't lower the modem control lines when the gensio is closed.
-The default is to not lower the modem control lines on close (false).
+The default is not modify the value.  On Unix, this will modify HUPCL
+value set on the termios after close, because there's no other real
+way to do that.  On Windows, it will clear DTR and RTS on close.
+
+On the default for this, it's a integer, -1 means don't set the value,
+0 means turn off, 1 means turn on.
+.TP
 .B custspeed[=true|false]
 Allow/don't allow setting of custom baud rates.  Ignored if custom
 baud rates are not supported.  Normally only standard baud rates are

@@ -736,7 +736,7 @@ struct gensio_win_commport
     BOOL orig_timeouts_set;
     COMMTIMEOUTS orig_timeouts;
 
-    BOOL hupcl; /* FIXME - implement this. */
+    BOOL hupcl;
     BOOL break_set;
     BOOL dtr_set;
     BOOL rts_set;
@@ -845,6 +845,10 @@ gensio_win_cleanup_commport(struct gensio_os_funcs *o, HANDLE h,
 	SetCommState(h, &(*c)->orig_dcb);
     if ((*c)->orig_timeouts_set)
 	SetCommTimeouts(h, &(*c)->orig_timeouts);
+    if ((*c)->hupcl) {
+	EscapeCommFunction(h, CLRDTR);
+	EscapeCommFunction(h, CLRRTS);
+    }
     o->free(o, *c);
     *c = NULL;
 }
@@ -2955,10 +2959,19 @@ gensio_unix_termios_control(struct gensio_os_funcs *o, int op, bool get,
 	if (get) {
 	    *((int *) val) = !!(t->curr_termios.c_cflag & HUPCL);
 	} else {
-	    if (val)
+	    /*
+	     * Setup hupcl on the original termios that will be
+	     * restored as wellas the current termios.  Otherwise when
+	     * we close will will restore the original termios and
+	     * hupcl won't work.
+	     */
+	    if (val) {
+		t->orig_termios.c_cflag |= HUPCL;
 		t->curr_termios.c_cflag |= HUPCL;
-	    else
+	    } else {
+		t->orig_termios.c_cflag &= ~HUPCL;
 		t->curr_termios.c_cflag &= ~HUPCL;
+	    }
 	}
 	break;
 
