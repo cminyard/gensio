@@ -616,6 +616,9 @@ stel_control(void *handler_data, bool get, int option,
 {
     struct stel_data *sdata = handler_data;
 
+    if (!gensio_is_serial(sdata->io))
+	return GE_NOTSUP;
+
     switch (option) {
     case GENSIO_CONTROL_SER_MODEMSTATE:
 	return stel_modemstate(sdata, 0, data);
@@ -646,6 +649,9 @@ stel_acontrol(void *handler_data, bool get, int option,
     gensio_control_done cdone = idata->done;
     void *cb_data = idata->cb_data;
     gensio_time *timeout = idata->timeout;
+
+    if (!gensio_is_serial(sdata->io))
+	return GE_NOTSUP;
 
     switch (option) {
     case GENSIO_ACONTROL_SER_BAUD:
