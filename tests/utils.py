@@ -964,10 +964,10 @@ def test_shutdown():
     gensio.gensio_cleanup_mem(o)
     del o
 
-def check_raddr(io, testname, expected):
+def check_raddr(io, testname, expected, expected2 = None):
     r = io.control(gensio.GENSIO_CONTROL_DEPTH_FIRST, gensio.GENSIO_CONTROL_GET,
                    gensio.GENSIO_CONTROL_RADDR, "0")
-    if r != expected:
+    if r != expected and r != expected2:
         raise Exception("%s raddr was not '%s', it was '%s'" %
                         (testname, expected, r));
 
@@ -1401,6 +1401,7 @@ class TestConCon:
     def __init__(self, o, io1, io2, tester, name,
                  do_close = True,
                  expected_raddr1 = None, expected_raddr2 = None,
+                 expected_raddr1b = None, expected_raddr2b = None,
                  timeout = None):
         self.o = o
         self.name = name
@@ -1411,9 +1412,9 @@ class TestConCon:
         io2.open(self)
         self.wait(2)
         if expected_raddr1:
-            check_raddr(io1, self.name, expected_raddr1)
+            check_raddr(io1, self.name, expected_raddr1, expected_raddr1b)
         if expected_raddr2:
-            check_raddr(io2, self.name, expected_raddr2)
+            check_raddr(io2, self.name, expected_raddr2, expected_raddr2b)
         if timeout is None:
             tester(self.io1, self.io2)
         else:

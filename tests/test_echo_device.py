@@ -11,7 +11,8 @@ import gensio
 print("Test echo device")
 check_echo_dev()
 io = alloc_io(o, "serialdev," + ttyecho + ",38400")
-check_raddr(io, "echo device", ttyecho + ",38400N81 RTSHI DTRHI")
+check_raddr(io, "echo device", ttyecho + ",38400N81 RTSHI DTRHI",
+            ttyecho + ",38400N81,HANGUP_WHEN_DONE RTSHI DTRHI")
 test_dataxfer(io, io, "This is a test string!")
 io_close([io])
 del io
