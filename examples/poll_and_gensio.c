@@ -131,8 +131,12 @@ wake_pipe_thread(struct coninfo *ci)
 {
 #ifndef _WIN32
     char dummy = 0;
+    int rv;
 
-    write(ci->wakepipe_out, &dummy, 1);
+    rv = write(ci->wakepipe_out, &dummy, 1);
+    if (rv == -1) {
+	/* What to do? */
+    }
 #endif
 }
 
@@ -439,9 +443,13 @@ pipe_thread(void *data)
 	    pipe_read(ci);
 	if (fds[1].events)
 	    pipe_write(ci);
-	if (fds[2].events)
+	if (fds[2].events) {
 	    /* We were woken, just clean out the pipe. */
-	    read(ci->wakepipe_in, &dummy, 1);
+	    rv = read(ci->wakepipe_in, &dummy, 1);
+	    if (rv == -1) {
+		/* What to do? */
+	    }
+	}
 
 	gensio_os_funcs_lock(ci->o, ci->close_lock);
     }
