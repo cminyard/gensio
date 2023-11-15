@@ -1116,10 +1116,12 @@ sterm_sub_open(void *handler_data, struct gensio_iod **riod)
 			     sdata->def_local);
 	if (err)
 	    goto out_unlock;
-	err = o->iod_control(sdata->iod, GENSIO_IOD_CONTROL_HANGUP_ON_DONE,
-			     false, sdata->def_hupcl);
-	if (err)
-	    goto out_unlock;
+	if (sdata->def_hupcl >= 0) {
+	    err = o->iod_control(sdata->iod, GENSIO_IOD_CONTROL_HANGUP_ON_DONE,
+				 false, sdata->def_hupcl);
+	    if (err)
+		goto out_unlock;
+	}
 	if (sdata->rs485) {
 	    err = o->iod_control(sdata->iod, GENSIO_IOD_CONTROL_RS485, false,
 				 (intptr_t) sdata->rs485);
@@ -1599,8 +1601,8 @@ sergensio_setup_defaults(struct gensio_pparm_info *p,
     sdata->def_local = val;
 
     val = 0;
-    err = gensio_get_default(o, "serialdev", "hangup_when_done", false,
-			     GENSIO_DEFAULT_BOOL, NULL, &val);
+    err = gensio_get_default(o, "serialdev", "hangup-when-done", false,
+			     GENSIO_DEFAULT_INT, NULL, &val);
     if (err)
 	return err;
     sdata->def_hupcl = val;
