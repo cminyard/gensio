@@ -64,7 +64,9 @@
 %ignore gensios::Gensio::control(int depth, bool get, unsigned int option,
 				char *data, gensiods *datalen);
 %ignore gensios::Gensio::acontrol_s(int depth, bool get, unsigned int option,
-				    char *data, gensiods *datalen);
+				    char *data, gensiods *datalen,
+				    gensio_time *timeout = NULL,
+				    bool intr = false);
 %ignore gensios::Accepter::control(int depth, bool get, unsigned int option,
 				  char *data, gensiods *datalen);
 
