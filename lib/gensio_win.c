@@ -3785,12 +3785,15 @@ gensio_win_control(struct gensio_os_funcs *o, int func, void *data,
     }
 }
 
-int
-gensio_win_funcs_alloc(struct gensio_os_funcs **ro)
+static int
+i_gensio_win_funcs_alloc(unsigned int flags, struct gensio_os_funcs **ro)
 {
     struct gensio_data *d;
     struct gensio_os_funcs *o;
     int err = GE_NOMEM;
+
+    if (flags)
+	return GE_NOTSUP;
 
     o = malloc(sizeof(*o));
     if (!o)
@@ -3907,6 +3910,12 @@ gensio_win_funcs_alloc(struct gensio_os_funcs **ro)
  out_err:
     win_finish_free(o);
     return err;
+}
+
+int
+gensio_win_funcs_alloc(struct gensio_os_funcs **ro)
+{
+    return i_gensio_win_funcs_alloc(0, ro);
 }
 
 struct gensio_os_proc_data {
@@ -4296,7 +4305,7 @@ gensio_default_os_hnd(int wake_sig, struct gensio_os_funcs **o)
 
     AcquireSRWLockExclusive(&def_win_os_funcs_lock);
     if (!def_win_os_funcs)
-	err = gensio_win_funcs_alloc(&def_win_os_funcs);
+	err = i_gensio_win_funcs_alloc(0, &def_win_os_funcs);
     else
 	win_get_funcs(def_win_os_funcs);
     ReleaseSRWLockExclusive(&def_win_os_funcs_lock);
@@ -4310,14 +4319,14 @@ int
 gensio_valloc_os_funcs(int wake_sig, struct gensio_os_funcs **o,
 		       unsigned int flags, va_list va)
 {
-    return gensio_win_funcs_alloc(o);
+    return i_gensio_win_funcs_alloc(flags, o);
 }
 
 int
 gensio_alloc_os_funcs(int wake_sig, struct gensio_os_funcs **o,
 		      unsigned int flags, ...)
 {
-    return gensio_win_funcs_alloc(o);
+    return i_gensio_win_funcs_alloc(flags, o);
 }
 
 void

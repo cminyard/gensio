@@ -36,6 +36,7 @@
 
 struct gensio_data {
     struct selector_s *sel;
+    unsigned int flags;
     lock_type reflock;
     unsigned int refcount;
     bool freesel;
@@ -99,6 +100,25 @@ timeval_to_gensio_time(gensio_time *t, struct timeval *tv)
 
 #include <pthread.h>
 
+static int
+init_mutex(unsigned int flags, pthread_mutex_t *mutex)
+{
+#ifdef USE_PTHREADS
+    pthread_mutexattr_t mattr;
+
+    pthread_mutexattr_init(&mattr);
+    if (flags & GENSIO_OS_FUNCS_FLAG_PRIO_INHERIT) {
+	int rv = pthread_mutexattr_setprotocol(&mattr, PTHREAD_PRIO_INHERIT);
+	if (rv)
+	    return rv;
+    }
+    pthread_mutex_init(mutex, &mattr);
+#else
+    LOCK_INIT(mutex);
+#endif
+    return 0;
+}
+
 struct waiter_data {
     pthread_t tid;
     int wake_sig;
@@ -120,13 +140,14 @@ static waiter_t *
 alloc_waiter(struct gensio_os_funcs *o, struct selector_s *sel, int wake_sig)
 {
     waiter_t *waiter;
+    struct gensio_data *d = o->user_data;
 
     waiter = o->zalloc(o, sizeof(waiter_t));
     if (waiter) {
 	waiter->o = o;
 	waiter->wake_sig = wake_sig;
 	waiter->sel = sel;
-	pthread_mutex_init(&waiter->lock, NULL);
+	init_mutex(d->flags, &waiter->lock);
 	waiter->wts.next = &waiter->wts;
 	waiter->wts.prev = &waiter->wts;
     }
@@ -337,10 +358,14 @@ static struct gensio_lock *
 gensio_unix_alloc_lock(struct gensio_os_funcs *f)
 {
     struct gensio_lock *lock = f->zalloc(f, sizeof(*lock));
+    struct gensio_data *d = f->user_data;
 
     if (lock) {
 	lock->f = f;
-	LOCK_INIT(&lock->lock);
+	if (init_mutex(d->flags, &lock->lock)) {
+	    f->free(f, lock);
+	    return NULL;
+	}
     }
 
     return lock;
@@ -657,7 +682,10 @@ gensio_unix_alloc_timer(struct gensio_os_funcs *f,
     timer->f = f;
     timer->handler = handler;
     timer->cb_data = cb_data;
-    LOCK_INIT(&timer->lock);
+    if (init_mutex(d->flags, &timer->lock)) {
+	f->free(f, timer);
+	return NULL;
+    }
 
     rv = sel_alloc_timer(d->sel, gensio_timeout_handler, timer,
 			 &timer->sel_timer);
@@ -1586,7 +1614,7 @@ gensio_unix_control(struct gensio_os_funcs *o, int func, void *data,
 }
 
 static struct gensio_os_funcs *
-gensio_unix_alloc_sel(struct selector_s *sel, int wake_sig)
+gensio_unix_alloc_sel(struct selector_s *sel, int wake_sig, unsigned int flags)
 {
     struct gensio_data *d;
     struct gensio_os_funcs *o;
@@ -1602,7 +1630,12 @@ gensio_unix_alloc_sel(struct selector_s *sel, int wake_sig)
 	return NULL;
     }
     memset(d, 0, sizeof(*d));
-    LOCK_INIT(&d->reflock);
+    d->flags = flags;
+    if (init_mutex(d->flags, &d->reflock)) {
+	free(d);
+	free(o);
+	return NULL;
+    }
     d->refcount = 1;
 
     o->user_data = d;
@@ -2313,11 +2346,12 @@ static sel_lock_t *
 defsel_lock_alloc(void *cb_data)
 {
     sel_lock_t *l;
+    unsigned int flags = (intptr_t) cb_data;
 
     l = malloc(sizeof(*l));
     if (!l)
 	return NULL;
-    LOCK_INIT(&l->lock);
+    init_mutex(flags, &l->lock);
     return l;
 }
 
@@ -2342,20 +2376,30 @@ defsel_unlock(sel_lock_t *l)
 
 #endif
 
-int
-gensio_unix_funcs_alloc(struct selector_s *sel, int wake_sig,
-			struct gensio_os_funcs **ro)
+static int
+i_gensio_unix_funcs_alloc(struct selector_s *sel, int wake_sig,
+			  unsigned int flags,
+			  struct gensio_os_funcs **ro)
 {
     struct gensio_os_funcs *o;
     bool freesel = false;
     int rv;
+
+    if (flags & ~GENSIO_OS_FUNCS_FLAG_PRIO_INHERIT)
+	return GE_NOTSUP;
+
+#ifndef USE_PTHREADS
+    if (flags & GENSIO_OS_FUNCS_FLAG_PRIO_INHERIT)
+	return GE_NOTSUP;
+#endif
 
     if (!sel) {
 #ifdef USE_PTHREADS
 	rv = sel_alloc_selector_thread(&sel, wake_sig,
 				       defsel_lock_alloc,
 				       defsel_lock_free, defsel_lock,
-				       defsel_unlock, NULL);
+				       defsel_unlock,
+				       (void *) (intptr_t) flags);
 #else
 	rv = sel_alloc_selector_nothread(&sel);
 #endif
@@ -2364,7 +2408,7 @@ gensio_unix_funcs_alloc(struct selector_s *sel, int wake_sig,
 	freesel = true;
     }
 
-    o = gensio_unix_alloc_sel(sel, wake_sig);
+    o = gensio_unix_alloc_sel(sel, wake_sig, flags);
     if (o) {
 	struct gensio_data *d = o->user_data;
 
@@ -2375,6 +2419,13 @@ gensio_unix_funcs_alloc(struct selector_s *sel, int wake_sig,
 
     *ro = o;
     return 0;
+}
+
+int
+gensio_unix_funcs_alloc(struct selector_s *sel, int wake_sig,
+			struct gensio_os_funcs **ro)
+{
+    return i_gensio_unix_funcs_alloc(sel, wake_sig, 0, ro);
 }
 
 struct gensio_os_funcs *
@@ -2426,6 +2477,9 @@ gensio_valloc_os_funcs(int wake_sig, struct gensio_os_funcs **o,
 {
     if (wake_sig == GENSIO_OS_FUNCS_DEFAULT_THREAD_SIGNAL)
 	wake_sig = SIGUSR1;
+
+    if (flags)
+	return GE_NOTSUP;
 
     return gensio_unix_funcs_alloc(NULL, wake_sig, o);
 }

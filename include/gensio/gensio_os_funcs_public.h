@@ -20,6 +20,7 @@ extern "C" {
 GENSIOOSH_DLL_PUBLIC
 int gensio_default_os_hnd(int wake_sig, struct gensio_os_funcs **o);
 
+#define GENSIO_OS_FUNCS_FLAG_PRIO_INHERIT (1 << 0)
 GENSIOOSH_DLL_PUBLIC
 int gensio_alloc_os_funcs(int wake_sig, struct gensio_os_funcs **o,
 			  unsigned int flags, ...);
