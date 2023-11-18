@@ -1997,6 +1997,8 @@ if test "x$trypython" = "xyes"; then
       PYTHON_CPPFLAGS="$pythoncflags"
    fi
    AX_PYTHON_DEVEL([], [true])
+else
+   ax_python_devel_found=no
 fi
 if test $ax_python_devel_found = yes; then
    AX_PROG_PYTHON_VERSION([3.0.0],
