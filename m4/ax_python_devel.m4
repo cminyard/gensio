@@ -23,10 +23,10 @@
 #   version number. Don't use "PYTHON_VERSION" for this: that environment
 #   variable is declared as precious and thus reserved for the end-user.
 #
-#   By default this will fail if it does not detect a development
-#   version of python.  If you want it to continue, set optional to
-#   true, like AX_PYTHON_DEVEL([], [true]).  The ax_python_devel_found
-#   variable will be "no" if it fails.
+#   By default this will fail if it does not detect a development version of
+#   python.  If you want it to continue, set optional to true, like
+#   AX_PYTHON_DEVEL([], [true]).  The ax_python_devel_found variable will be
+#   "no" if it fails.
 #
 #   This macro should work for all versions of Python >= 2.1.0. As an end
 #   user, you can disable the check for the python version by setting the
@@ -72,7 +72,7 @@
 #   modified version of the Autoconf Macro, you may extend this special
 #   exception to the GPL to apply to your modified version as well.
 
-#serial 34
+#serial 36
 
 AU_ALIAS([AC_PYTHON_DEVEL], [AX_PYTHON_DEVEL])
 AC_DEFUN([AX_PYTHON_DEVEL],[
