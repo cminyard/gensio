@@ -1,0 +1,10 @@
+# binaries
+gensiot
+gmdns
+greflector
+gsound
+gtlssh
+gtlssh-keygen
+
+# generated
+gtlsshd.service
