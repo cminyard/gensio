@@ -1,0 +1,7 @@
+# binaries
+basic_client
+basic_server
+basic_server_sync
+basic_server_sync_fork
+poll_and_gensio
+use_iods
