@@ -1956,21 +1956,19 @@ AC_CHECK_LIB(nsl, main, [HAVE_LIBNSL=1; OSH_LIBS="-lnsl $OSH_LIBS"])
 SWIG_DIR=
 SWIG_CPP_DIR=
 SWIG=
-SWIG_NUMVERSION=0
+available_swig_vernum=0
 if test "x$tryswig" = "xyes"; then
    if test "x$swigprog" != "x"; then
       SWIG="$swigprog"
    fi
-   AX_PKG_SWIG([1.3.21])
-   if test "x$SWIG" != "x"; then
-      AC_DEFINE([HAVE_SWIG], [], [Have swig installed])
-      SWIG_DIR=swig
-      if test $SWIG_NUMVERSION -ge 40100; then
-          SWIG_CPP_DIR=swig
-      else
-          AC_MSG_WARN([SWIG version >= 4.1.0 is required for C++ swig.])
-      fi
-   fi
+   AX_PKG_SWIG(4.1.0,
+        [
+            AC_DEFINE([HAVE_SWIG], [], [Have swig installed])
+            SWIG_DIR=swig
+            SWIG_CPP_DIR=swig
+        ], [
+            AC_MSG_WARN([SWIG version >= 4.1.0 is required for C++ swig.])
+        ])
 fi
 AC_SUBST(SWIG_DIR)
 AC_SUBST(SWIG_CPP_DIR)
@@ -2054,7 +2052,7 @@ AC_SUBST(PYTHON_UNDEF_LIBS)
 PYTHON_EXECUTABLE="${PYTHON}"
 AC_SUBST(PYTHON_EXECUTABLE)
 
-if test $SWIG_NUMVERSION -ge 40100 -a "${enable_shared}" = yes; then
+if test $available_swig_vernum -ge 40100 -a "${enable_shared}" = yes; then
    trygo=yes
 else
    trygo=no
@@ -2075,7 +2073,7 @@ AC_ARG_WITH(go,
    fi,
 )
 
-if test $trygo = yes -a $SWIG_NUMVERSION -lt 40100; then
+if test $trygo = yes -a $available_swig_vernum -lt 40100; then
    AC_MSG_ERROR([Go enabled, but swig version must be >= 4.1.0 for that])
 fi
 GODIR=
@@ -2362,7 +2360,7 @@ pr_op  "  shared libraries:	" $enable_shared
 pr_op  "  sctp sendv:		" $ac_cv_lib_sctp_sctp_sendv
 pr_vop "  python:		" "$ax_python_version"
 if test "$SWIG_CPP_DIR" = "swig"; then
-  prrw "  swig:			" "$SWIG_NUMVERSION"
+  prrw "  swig:			" "$available_swig_vernum"
 else
   prrw "  swig:			" "no"
 fi
