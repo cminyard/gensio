@@ -1124,9 +1124,9 @@ static void win_call_once(struct gensio_os_funcs *o, struct gensio_once *once,
 	return;
     EnterCriticalSection(&d->once_lock);
     if (!once->called) {
-	once->called = true;
 	LeaveCriticalSection(&d->once_lock);
 	func(cb_data);
+	once->called = true;
     } else {
 	LeaveCriticalSection(&d->once_lock);
     }

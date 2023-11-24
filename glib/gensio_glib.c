@@ -1948,8 +1948,8 @@ gensio_glib_call_once(struct gensio_os_funcs *f, struct gensio_once *once,
 	return;
     g_mutex_lock(&once_lock);
     if (!once->called) {
-	once->called = true;
 	func(cb_data);
+	once->called = true;
     }
     g_mutex_unlock(&once_lock);
 }

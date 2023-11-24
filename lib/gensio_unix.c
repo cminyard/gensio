@@ -1002,8 +1002,8 @@ gensio_unix_call_once(struct gensio_os_funcs *f, struct gensio_once *once,
 	return;
     LOCK(&once_lock);
     if (!once->called) {
-	once->called = true;
 	func(cb_data);
+	once->called = true;
     }
     UNLOCK(&once_lock);
 }
