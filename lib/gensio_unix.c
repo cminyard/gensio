@@ -2215,7 +2215,15 @@ gensio_os_proc_register_winsize_handler(struct gensio_os_proc_data *data,
     }
     sigdelset(&data->wait_sigs, SIGWINCH);
     data->winch_sig_set = true;
+    /*
+     * For at least MacOS, using kill() to self doesn't seem to work
+     * properly.  pthread_kill() seems to work ok.
+     */
+#ifdef USE_PTHREADS
+    pthread_kill(pthread_self(), SIGWINCH);
+#else
     kill(getpid(), SIGWINCH);
+#endif
 
  out_unlock:
     UNLOCK(&data->handler_lock);
