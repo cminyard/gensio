@@ -75,10 +75,24 @@ GE_AUTHREJECT            Authentication tokens rejected
 GE_ADDRINUSE             Address already in use
 .br
 GE_INTERRUPTED           Operation was interrupted by a signal
-.PP
+.br
 GE_SHUTDOWN              Operation on shutdown file descriptor
-.PP
+.br
 GE_LOCALCLOSED           Local side closed connection
+.br
+GE_PERM                  Permission denied
+.br
+GE_APPERR                Application error
+.br
+GE_UNKNOWN_NAME_ERROR    Unknown name server lookup failure
+.br
+GE_NAME_ERROR            Unable to find a valid name on the name server
+.br
+GE_NAME_SERVER_FAILURE   Serious name server failure
+.br
+GE_NAME_INVALID          Invalid name server information
+.br
+GE_NAME_NET_NOT_UP       Network address for the given name is not available
 .PP
 .B gensio_err_to_str
 converts an integer error value to the given string.
