@@ -2453,6 +2453,7 @@ gensio_acc_log(struct gensio_accepter *acc, enum gensio_log_levels level,
 static struct gensio_once gensio_default_initialized;
 
 static struct gensio_lock *deflock;
+static struct gensio_os_funcs *deflock_osh;
 
 struct gensio_def_val {
     char *strval;
@@ -2606,12 +2607,14 @@ gensio_default_init(void *cb_data)
     struct gensio_os_funcs *o = cb_data;
 
     deflock = o->alloc_lock(o);
-    if (!deflock)
+    if (!deflock) {
 	gensio_def_init_rv = GE_NOMEM;
-    else
+    } else {
+	deflock_osh = o->get_funcs(o);
 	/* Default reuseaddr to false for UDP. */
 	gensio_def_init_rv = l_gensio_set_default(o, "udp", "reuseaddr",
 						  NULL, 0);
+    }
 }
 
 void
@@ -2642,6 +2645,9 @@ gensio_cleanup_mem(struct gensio_os_funcs *o)
     if (deflock)
 	o->free_lock(deflock);
     deflock = NULL;
+    if (deflock_osh)
+	deflock_osh->free_funcs(deflock_osh);
+    deflock_osh = NULL;
 
     if (reg_gensio_acc_lock)
 	o->free_lock(reg_gensio_acc_lock);
@@ -2716,12 +2722,12 @@ l_gensio_reset_defaults(struct gensio_os_funcs *o)
     unsigned int i;
 
     if (deflock) {
-	o->lock(deflock);
+	deflock_osh->lock(deflock);
 	for (i = 0; builtin_defaults[i].name; i++)
 	    gensio_reset_default(o, &builtin_defaults[i]);
 	for (d = defaults; d; d = d->next)
 	    gensio_reset_default(o, d);
-	o->unlock(deflock);
+	deflock_osh->unlock(deflock);
     }
 }
 
@@ -2798,7 +2804,7 @@ gensio_add_default(struct gensio_os_funcs *o,
     if (gensio_def_init_rv)
 	return gensio_def_init_rv;
 
-    o->lock(deflock);
+    deflock_osh->lock(deflock);
     d = gensio_lookup_default(name, NULL, NULL);
     if (d) {
 	err = GE_EXISTS;
@@ -2844,7 +2850,7 @@ gensio_add_default(struct gensio_os_funcs *o,
     defaults = d;
 
  out_unlock:
-    o->unlock(deflock);
+    deflock_osh->unlock(deflock);
     return err;
 }
 
@@ -2858,7 +2864,7 @@ l_gensio_set_default(struct gensio_os_funcs *o,
     char *new_strval = NULL, *end;
     unsigned int i;
 
-    o->lock(deflock);
+    deflock_osh->lock(deflock);
     d = gensio_lookup_default(name, NULL, NULL);
     if (!d) {
 	err = GE_NOTFOUND;
@@ -2985,7 +2991,7 @@ l_gensio_set_default(struct gensio_os_funcs *o,
  out_unlock:
     if (new_strval)
 	o->free(o, new_strval);
-    o->unlock(deflock);
+    deflock_osh->unlock(deflock);
     return err;
 }
 
@@ -3017,7 +3023,7 @@ gensio_get_default(struct gensio_os_funcs *o,
     if (gensio_def_init_rv)
 	return gensio_def_init_rv;
 
-    o->lock(deflock);
+    deflock_osh->lock(deflock);
     d = gensio_lookup_default(name, NULL, NULL);
     if (!d) {
 	err = GE_NOTFOUND;
@@ -3085,7 +3091,7 @@ gensio_get_default(struct gensio_os_funcs *o,
     }
 
  out_unlock:
-    o->unlock(deflock);
+    deflock_osh->unlock(deflock);
 
     return err;
 }
@@ -3103,7 +3109,7 @@ gensio_del_default(struct gensio_os_funcs *o,
     if (gensio_def_init_rv)
 	return gensio_def_init_rv;
 
-    o->lock(deflock);
+    deflock_osh->lock(deflock);
     d = gensio_lookup_default(name, &prev, &isdefault);
     if (!d) {
 	err = GE_NOTFOUND;
@@ -3158,7 +3164,7 @@ gensio_del_default(struct gensio_os_funcs *o,
     o->free(o, d);
 
  out_unlock:
-    o->unlock(deflock);
+    deflock_osh->unlock(deflock);
 
     return err;
 }
