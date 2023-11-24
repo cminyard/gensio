@@ -3946,24 +3946,49 @@ struct gensio_os_proc_data {
 static struct gensio_os_proc_data proc_data;
 bool proc_setup;
 
-int
-gensio_os_thread_setup(struct gensio_os_funcs *o)
+static SRWLOCK threadinfo_idx_lock = SRWLOCK_INIT;
+static DWORD threadinfo_idx;
+static bool threadinfo_setup;
+
+static void
+threadinfo_cb(PVOID lpFlsData)
 {
-    return 0;
+    if (!lpFlsData)
+	return;
+    CoUninitialize();
+}
+
+static int
+gensio_os_thread_cleanup(void)
+{
+    FlsSetValue(threadinfo_idx, NULL);
+    CoUninitialize();
 }
 
 int
-gensio_os_proc_setup(struct gensio_os_funcs *o,
-		     struct gensio_os_proc_data **data)
+gensio_os_thread_setup(struct gensio_os_funcs *o)
 {
-    int rv = GE_INUSE;
+    int rv = 0;
     HRESULT res;
+    void *threadval;
 
-    AcquireSRWLockExclusive(&def_win_os_funcs_lock);
-    if (proc_setup)
-	goto out;
+    if (!threadinfo_setup) {
+	AcquireSRWLockExclusive(&threadinfo_idx_lock);
+	if (!threadinfo_setup) {
+	    threadinfo_idx = FlsAlloc(threadinfo_cb);
+	    if (threadinfo_idx == FLS_OUT_OF_INDEXES) {
+		ReleaseSRWLockExclusive(&threadinfo_idx_lock);
+		return GE_INUSE;
+	    }
+	    threadinfo_setup = true;
+	}
+	ReleaseSRWLockExclusive(&threadinfo_idx_lock);
+    }
 
-    rv = 0;
+    threadval = FlsGetValue(threadinfo_idx);
+    if (threadval)
+	return 0; /* Already initialized. */
+
     res = CoInitializeEx(NULL, COINIT_MULTITHREADED);
     switch (res) {
     case S_OK: case S_FALSE:	break;
@@ -3972,12 +3997,34 @@ gensio_os_proc_setup(struct gensio_os_funcs *o,
     case E_OUTOFMEMORY:		rv = GE_NOMEM; break;
     case E_UNEXPECTED: default: rv = GE_OSERR; break;
     }
+
+    if (!rv) {
+	if (!FlsSetValue(threadinfo_idx, (void *)(intptr_t) 1)) {
+	    gensio_os_thread_cleanup();
+	    rv = GE_OSERR;
+	}
+    }
+
+    return rv;
+}
+
+int
+gensio_os_proc_setup(struct gensio_os_funcs *o,
+		     struct gensio_os_proc_data **data)
+{
+    int rv = GE_INUSE;
+
+    AcquireSRWLockExclusive(&def_win_os_funcs_lock);
+    if (proc_setup)
+	goto out;
+
+    rv = gensio_os_thread_setup(o);
     if (rv)
 	goto out;
 
     proc_data.global_waiter = CreateSemaphoreA(NULL, 0, 1000000, NULL);
     if (!proc_data.global_waiter) {
-	CoUninitialize();
+	gensio_os_thread_cleanup();
 	rv = GE_NOMEM;
 	goto out;
     }
@@ -3985,7 +4032,7 @@ gensio_os_proc_setup(struct gensio_os_funcs *o,
     rv = o->control(o, GENSIO_CONTROL_SET_PROC_DATA, &proc_data, NULL);
     if (rv) {
 	CloseHandle(proc_data.global_waiter);
-	CoUninitialize();
+	gensio_os_thread_cleanup();
 	proc_data.global_waiter = NULL;
 	goto out;
     }
@@ -4104,7 +4151,6 @@ gensio_os_proc_cleanup(struct gensio_os_proc_data *data)
 	data->global_waiter = NULL;
     }
     LOCK_DESTROY(&proc_data.lock);
-    CoUninitialize();
  out:
     ReleaseSRWLockExclusive(&def_win_os_funcs_lock);
 }
