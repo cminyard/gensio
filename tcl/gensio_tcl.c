@@ -1443,8 +1443,8 @@ gensio_tcl_call_once(struct gensio_os_funcs *f, struct gensio_once *once,
 	return;
     Tcl_MutexLock(&once_lock);
     if (!once->called) {
-	once->called = true;
 	func(cb_data);
+	once->called = true;
     }
     Tcl_MutexUnlock(&once_lock);
 }
