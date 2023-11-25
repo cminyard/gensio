@@ -3763,7 +3763,6 @@ win_finish_free(struct gensio_os_funcs *o)
     DeleteCriticalSection(&d->timer_lock);
     free(d);
     free(o);
-    WSACleanup();
 }
 
 static int
