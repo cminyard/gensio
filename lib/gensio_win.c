@@ -203,8 +203,6 @@ struct gensio_data {
     struct gensio_list waiting_iods;
     struct gensio_list all_iods;
 
-    CRITICAL_SECTION once_lock;
-
     CRITICAL_SECTION timer_lock;
     struct theap_s timer_heap;
     HANDLE timerth;
@@ -1116,20 +1114,20 @@ win_free_funcs(struct gensio_os_funcs *o)
     }
 }
 
+static SRWLOCK once_lock = SRWLOCK_INIT;
+
 static void win_call_once(struct gensio_os_funcs *o, struct gensio_once *once,
 			  void (*func)(void *cb_data), void *cb_data)
 {
     struct gensio_data *d = o->user_data;
     if (once->called)
 	return;
-    EnterCriticalSection(&d->once_lock);
+    AcquireSRWLockExclusive(&once_lock);
     if (!once->called) {
-	LeaveCriticalSection(&d->once_lock);
 	func(cb_data);
 	once->called = true;
-    } else {
-	LeaveCriticalSection(&d->once_lock);
     }
+    ReleaseSRWLockExclusive(&once_lock);
 }
 
 static void win_get_monotonic_time(struct gensio_os_funcs *o,
@@ -3763,7 +3761,6 @@ win_finish_free(struct gensio_os_funcs *o)
     gensio_stdsock_cleanup(o);
     DeleteCriticalSection(&d->glock);
     DeleteCriticalSection(&d->timer_lock);
-    DeleteCriticalSection(&d->once_lock);
     free(d);
     free(o);
     WSACleanup();
@@ -3806,7 +3803,6 @@ gensio_win_funcs_alloc(struct gensio_os_funcs **ro)
     d->refcount = 1;
     InitializeCriticalSection(&d->glock);
     InitializeCriticalSection(&d->timer_lock);
-    InitializeCriticalSection(&d->once_lock);
     gensio_list_init(&d->waiting_iods);
     gensio_list_init(&d->all_iods);
     theap_init(&d->timer_heap);
