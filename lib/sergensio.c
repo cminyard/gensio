@@ -842,8 +842,6 @@ struct sergensio_accepter {
     struct gensio_lock *lock;
 
     struct gensio_accepter *assoc_acc;
-
-    bool autofree;
 };
 
 struct gensio_accepter *
@@ -919,7 +917,6 @@ sergensio_acc_prop_class(struct gensio_accepter *parent,
 				child_sio, &sio);
     if (rv)
 	return rv;
-    sio->autofree = true;
     return 0;
 }
 
@@ -928,8 +925,7 @@ static void sergensio_acc_prop_cleanup(struct gensio_accepter *acc,
 {
     struct sergensio_accepter *sio = classdata;
 
-    if (sio->autofree)
-	sergensio_acc_data_free(sio);
+    sergensio_acc_data_free(sio);
 }
 
 static struct gensio_acc_classops sergensio_acc_classops = {
