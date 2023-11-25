@@ -1149,8 +1149,7 @@ stela_free(void *acc_data)
 {
     struct stela_data *stela = acc_data;
 
-    if (stela->sacc)
-	sergensio_acc_data_free(stela->sacc);
+    /* stela->sacc will be freed in the class callback. */
     stela->o->free(stela->o, stela);
 }
 
