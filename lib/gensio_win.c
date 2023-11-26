@@ -3949,7 +3949,7 @@ static SRWLOCK threadinfo_idx_lock = SRWLOCK_INIT;
 static DWORD threadinfo_idx;
 static bool threadinfo_setup;
 
-static void
+static void __attribute__((stdcall))
 threadinfo_cb(PVOID lpFlsData)
 {
     if (!lpFlsData)
