@@ -9,7 +9,9 @@ by the gensio library
 .PP
 .B int gensio_default_os_hnd(int wake_sig, struct gensio_os_funcs **o)
 .PP
-.B int gensio_alloc_os_funcs(int wake_sig, struct gensio_os_funcs **o)
+.B int gensio_alloc_os_funcs(int wake_sig, struct gensio_os_funcs **o,
+.br
+                unsigned int flags, ...)
 .PP
 .B int gensio_unix_funcs_alloc(struct selector_s *sel, int wake_sig,
 .br
@@ -241,7 +243,7 @@ different gensios at different priority.  Otherwise there is not much
 reason for more than one of these.
 
 The
-.I wait_sig
+.I wake_sig
 parameter usage on Windows is unused.  For Unix systems, this signal
 is used to signal other processes that may be waiting that they need
 to wake up.  This is used to wake up a process waiting on a waiter,
@@ -263,6 +265,9 @@ calling thread, and that sigmask is passed on to other threads it
 creates.  But if you have allocated threads before allocating the os
 funcs, you must make sure those other threads have this signal
 blocked.
+
+You can pass in GENSIO_OS_FUNCS_DEFAULT_THREAD_SIGNAL to take the
+default signal handler, which is SIGUSR1.
 
 On unix,
 .B gensio_os_proc_setup
@@ -286,7 +291,14 @@ value is multiple OS funcs, anyway.
 is much like gensio_os_proc_setup, but it only sets up the signal
 handlers and blocking signals for the wakeup signal, it doesn't do any
 of the other setup.  It allows you to bring a thread in to gensio that
-wasn't created by gensio.  It should be used very carefully.
+wasn't created by gensio.  It also does some necessary setup on
+Windows for the thread.  If you have no signal handling needs, you can
+generally use this instead of
+.B gensio_os_proc_setup().
+If you have signal handling needs, one thread should call
+.B gensio_os_proc_setup()
+and all other threads should call this function if they were not
+created by gensio.
 
 .B gensio_unix_funcs_alloc
 and
@@ -364,7 +376,8 @@ passing in the given data value.  It returns a
 that you must pass into the wait function.  This is just basic generic
 threads, you can use your OS functions if you need more control over
 the threads.  If you use threads, make sure to see the notes above
-about setting up for them properly.
+about setting up for them properly.  This must be called from a thread
+that is already set up.
 
 The
 .I gensio_os_wait_thread

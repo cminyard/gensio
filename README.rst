@@ -551,10 +551,10 @@ provide an OS handler (struct gensio_os_funcs) to handle OS-type
 functions like memory allocation, mutexes, the ability to handle file
 descriptors, timers and time, and a few other things.
 
-The library does provide several OS handlers.  The get the default one
-for your system (POSIX or Windows) call gensio_default_os_hnd().  You
-can see that man page for more details.  This will generally be the
-best performing option you have for your system.
+The library does provide several OS handlers.  You can call
+gensio_alloc_os_funcs() to allocate a default one for your system
+(POSIX or Windows).  You can see that man page for more details.  This
+will generally be the best performing option you have for your system.
 
 For POSIX systems, OS handlers for glib and TCL are available,
 allocated with gensio_glib_funcs_alloc() and gensio_tcl_funcs_alloc().
@@ -579,6 +579,63 @@ way to signal when you are done and need to leave the loop.
 Documentation for this is in::
 
   include/gensio/gensio_os_funcs.h
+
+Threads
+=======
+
+The gensio library fully supports threads and is completely
+thread-safe.  However, it uses signals on POSIX system, and COM on
+Windows systems, so some setup is required.
+
+The "main" thread should call gensio_os_proc_setup() at startup and
+call gensio_os_proc_cleanup() when it is complete.  This sets up
+signals and signal handlers, thread local storage on Windows, and
+other sorts of things.
+
+You can spawn new threads from a thread that is already set up using
+gensio_os_new_thread().  This gives you a basic OS thread and is
+configured properly for gensio.
+
+If you have a thread created by other means that you want to use in
+gensio, as long as the thread create another thread and doesn't do any
+blocking functions (any sort of wait, background processing, functions
+that end in _s like read_s, etc.) you don't have to set them up.  That
+way, some external thread can write data, wake another thread, or do
+things like that.
+
+If an external thread needs to do those things, it should call
+gensio_os_thread_setup().
+
+Signals
+=======
+
+As mentioned in the threads section, the gensio library on Unix uses
+signals for inter-thread wakeups.  I looked hard, and there's really
+no other way to do this cleanly. But Windows has a couple of
+signal-like things, too, and these are available in gensio, also.
+
+If you use gensio_alloc_os_funcs(), you will get an OS funcs using the
+passed in signal for IPC.  You can pass in
+GENSIO_OS_FUNCS_DEFAULT_THREAD_SIGNAL for the signal if you want the
+default, which is SIGUSR1.  The signal you use will be blocked and
+taken over by gensio, you can't use it.
+
+gensio also provides some generic handling for a few signals.  On
+Unix, it will handle SIGHUP through the
+gensio_os_proc_register_reload_handler() function.
+
+On Windows and Unix you can use
+gensio_os_proce_register_term_handler(), which will handle termination
+requests (SIGINT, SIGTERM, SIGQUIT on Unix) and
+gensio_os_proc_register_winsize_handler() (SIGWINCH on Unix).  How
+these come in through Windows is a little messier, but invisible to
+the user.
+
+All the callbacks from from a waiting routine's wait, *not* from the
+signal handler.  That should simplify your life a lot.
+
+You can see the man pages for more details on all of these.
+
 
 Creating a gensio
 =================
