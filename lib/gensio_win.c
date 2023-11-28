@@ -4255,6 +4255,7 @@ gensio_os_thread_func(LPVOID info)
 {
     struct gensio_thread *tid = info;
 
+    gensio_os_thread_setup(tid->o); /* Shouldn't be able to fail. */
     tid->start_func(tid->data);
     return 0;
 }
