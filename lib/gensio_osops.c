@@ -3999,6 +3999,16 @@ gensio_os_funcs_get_data(struct gensio_os_funcs *o)
     return o->other_data;
 }
 
+/*
+ * The once operation is a nasty piece of code.
+ *
+ * This basically implements a recursive lock on the once operation.
+ * There are unfortunate places one a once calls another once and
+ * where these can actually recurse if you don't stop them.
+ *
+ * once_lock protects once_next and once_owner.  once_lock2 is used to
+ * let only one once operation in at a time.
+ */
 static lock_type once_lock = LOCK_INITIALIZER;
 static lock_type once_lock2 = LOCK_INITIALIZER;
 static unsigned int once_next;
@@ -4011,7 +4021,7 @@ gensio_call_once(struct gensio_os_funcs *f, struct gensio_once *once,
     lock_thread_type tid;
     bool do_unlock = true;
 
-    if (once->called)
+    if (once->called == 1)
 	return;
     LOCK(&once_lock);
     tid = LOCK_GET_THREAD_ID;
@@ -4031,8 +4041,14 @@ gensio_call_once(struct gensio_os_funcs *f, struct gensio_once *once,
     }
 
     if (!once->called) {
+	/*
+	 * Mark that we are in the call.  This way if we recurse into
+	 * the same once, we know to just return.  Don't set it to 1
+	 * until we are finished processing.
+	 */
+	once->called = 2;
 	func(cb_data);
-	once->called = true;
+	once->called = 1;
     }
 
     LOCK(&once_lock);
