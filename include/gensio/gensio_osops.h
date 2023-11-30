@@ -314,6 +314,11 @@ void gensio_i_free(struct gensio_memtrack *m, void *data,
 GENSIOOSH_DLL_PUBLIC
 void gensio_osfunc_exit(int rv);
 
+/* A generic lock-based version of a once call. */
+GENSIOOSH_DLL_PUBLIC
+void gensio_call_once(struct gensio_os_funcs *f, struct gensio_once *once,
+		      void (*func)(void *cb_data), void *cb_data);
+
 #ifdef __cplusplus
 }
 #endif

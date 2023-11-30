@@ -1938,22 +1938,6 @@ gensio_glib_free_funcs(struct gensio_os_funcs *f)
     free(f);
 }
 
-static GMutex once_lock;
-
-static void
-gensio_glib_call_once(struct gensio_os_funcs *f, struct gensio_once *once,
-		      void (*func)(void *cb_data), void *cb_data)
-{
-    if (once->called)
-	return;
-    g_mutex_lock(&once_lock);
-    if (!once->called) {
-	func(cb_data);
-	once->called = true;
-    }
-    g_mutex_unlock(&once_lock);
-}
-
 static void
 gensio_glib_get_monotonic_time(struct gensio_os_funcs *f, gensio_time *time)
 {
@@ -2065,7 +2049,7 @@ gensio_glib_funcs_alloc(struct gensio_os_funcs **ro)
     o->service = gensio_glib_service;
     o->get_funcs = gensio_glib_get_funcs;
     o->free_funcs = gensio_glib_free_funcs;
-    o->call_once = gensio_glib_call_once;
+    o->call_once = gensio_call_once;
     o->get_monotonic_time = gensio_glib_get_monotonic_time;
     o->handle_fork = gensio_glib_handle_fork;
     o->add_iod = gensio_glib_add_iod;

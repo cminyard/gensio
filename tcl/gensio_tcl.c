@@ -1433,22 +1433,6 @@ gensio_tcl_free_funcs(struct gensio_os_funcs *f)
     free(f);
 }
 
-static Tcl_Mutex once_lock;
-
-static void
-gensio_tcl_call_once(struct gensio_os_funcs *f, struct gensio_once *once,
-		      void (*func)(void *cb_data), void *cb_data)
-{
-    if (once->called)
-	return;
-    Tcl_MutexLock(&once_lock);
-    if (!once->called) {
-	func(cb_data);
-	once->called = true;
-    }
-    Tcl_MutexUnlock(&once_lock);
-}
-
 static void
 gensio_tcl_get_monotonic_time(struct gensio_os_funcs *f, gensio_time *time)
 {
@@ -1569,7 +1553,7 @@ gensio_tcl_funcs_alloc(struct gensio_os_funcs **ro)
     o->service = gensio_tcl_service;
     o->get_funcs = gensio_tcl_get_funcs;
     o->free_funcs = gensio_tcl_free_funcs;
-    o->call_once = gensio_tcl_call_once;
+    o->call_once = gensio_call_once;
     o->get_monotonic_time = gensio_tcl_get_monotonic_time;
     o->handle_fork = gensio_tcl_handle_fork;
     o->add_iod = gensio_tcl_add_iod;

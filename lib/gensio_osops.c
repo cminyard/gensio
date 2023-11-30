@@ -30,6 +30,7 @@
 #include <gensio/gensio_ax25_addr.h>
 
 #include "errtrig.h"
+#include <pthread_handler.h>
 
 static const char *progname = "gensio";
 
@@ -3525,8 +3526,6 @@ gensio_os_loadlib(struct gensio_os_funcs *o, const char *name)
 
 #ifdef ENABLE_INTERNAL_TRACE
 
-#include <pthread_handler.h>
-
 #define MEM_MAGIC 0xddf0983aec9320b0
 #define MEM_BUFFER 32
 struct mem_header {
@@ -3998,4 +3997,47 @@ void *
 gensio_os_funcs_get_data(struct gensio_os_funcs *o)
 {
     return o->other_data;
+}
+
+static lock_type once_lock = LOCK_INITIALIZER;
+static lock_type once_lock2 = LOCK_INITIALIZER;
+static unsigned int once_next;
+static lock_thread_type once_owner;
+
+void
+gensio_call_once(struct gensio_os_funcs *f, struct gensio_once *once,
+		 void (*func)(void *cb_data), void *cb_data)
+{
+    lock_thread_type tid;
+    bool do_unlock = true;
+
+    if (once->called)
+	return;
+    LOCK(&once_lock);
+    tid = LOCK_GET_THREAD_ID;
+    if (once_next > 0 && LOCK_THREAD_ID_EQUAL(tid, once_owner)) {
+	/* Called recursively. */
+	once_next++;
+	UNLOCK(&once_lock);
+	do_unlock = false;
+    } else {
+	UNLOCK(&once_lock);
+	LOCK(&once_lock2);
+
+	LOCK(&once_lock);
+	once_owner = tid;
+	once_next++;
+	UNLOCK(&once_lock);
+    }
+
+    if (!once->called) {
+	func(cb_data);
+	once->called = true;
+    }
+
+    LOCK(&once_lock);
+    once_next--;
+    UNLOCK(&once_lock);
+    if (do_unlock)
+	UNLOCK(&once_lock2);
 }

@@ -1114,22 +1114,6 @@ win_free_funcs(struct gensio_os_funcs *o)
     }
 }
 
-static SRWLOCK once_lock = SRWLOCK_INIT;
-
-static void win_call_once(struct gensio_os_funcs *o, struct gensio_once *once,
-			  void (*func)(void *cb_data), void *cb_data)
-{
-    struct gensio_data *d = o->user_data;
-    if (once->called)
-	return;
-    AcquireSRWLockExclusive(&once_lock);
-    if (!once->called) {
-	func(cb_data);
-	once->called = true;
-    }
-    ReleaseSRWLockExclusive(&once_lock);
-}
-
 static void win_get_monotonic_time(struct gensio_os_funcs *o,
 				   gensio_time *time)
 {
@@ -3854,7 +3838,7 @@ i_gensio_win_funcs_alloc(unsigned int flags, struct gensio_os_funcs **ro)
     o->service = win_service;
     o->free_funcs = win_free_funcs;
     o->get_funcs = win_get_funcs;
-    o->call_once = win_call_once;
+    o->call_once = gensio_call_once;
     o->get_monotonic_time = win_get_monotonic_time;
     o->handle_fork = win_handle_fork;
     o->wait_intr_sigmask = win_wait_intr_sigmask;
