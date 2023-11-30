@@ -1020,22 +1020,6 @@ gensio_unix_free_funcs(struct gensio_os_funcs *f)
     free(f);
 }
 
-static lock_type once_lock = LOCK_INITIALIZER;
-
-static void
-gensio_unix_call_once(struct gensio_os_funcs *f, struct gensio_once *once,
-		      void (*func)(void *cb_data), void *cb_data)
-{
-    if (once->called)
-	return;
-    LOCK(&once_lock);
-    if (!once->called) {
-	func(cb_data);
-	once->called = true;
-    }
-    UNLOCK(&once_lock);
-}
-
 static void
 gensio_unix_get_monotonic_time(struct gensio_os_funcs *f, gensio_time *time)
 {
@@ -1674,7 +1658,7 @@ gensio_unix_alloc_sel(struct selector_s *sel, int wake_sig, unsigned int flags)
     o->get_wake_sig = gensio_unix_get_wake_sig;
     o->get_funcs = gensio_unix_get_funcs;
     o->free_funcs = gensio_unix_free_funcs;
-    o->call_once = gensio_unix_call_once;
+    o->call_once = gensio_call_once;
     o->get_monotonic_time = gensio_unix_get_monotonic_time;
     o->handle_fork = gensio_handle_fork;
     o->add_iod = gensio_unix_add_iod;

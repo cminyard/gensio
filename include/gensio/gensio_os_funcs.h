@@ -90,7 +90,7 @@ enum gensio_iod_type {
 };
 
 struct gensio_once {
-    bool called;
+    int called;
 };
 
 /* Used by open_listen_sockets() to return the opened sockets. */

@@ -30,6 +30,7 @@
 #include <gensio/gensio_ax25_addr.h>
 
 #include "errtrig.h"
+#include <pthread_handler.h>
 
 static const char *progname = "gensio";
 
@@ -3525,8 +3526,6 @@ gensio_os_loadlib(struct gensio_os_funcs *o, const char *name)
 
 #ifdef ENABLE_INTERNAL_TRACE
 
-#include <pthread_handler.h>
-
 #define MEM_MAGIC 0xddf0983aec9320b0
 #define MEM_BUFFER 32
 struct mem_header {
@@ -3998,4 +3997,75 @@ void *
 gensio_os_funcs_get_data(struct gensio_os_funcs *o)
 {
     return o->other_data;
+}
+
+/*
+ * The once operation is a nasty piece of code.
+ *
+ * This basically implements a recursive lock on the once operation.
+ * There are unfortunate places one a once calls another once and
+ * where these can actually recurse if you don't stop them.
+ *
+ * once_lock protects once_next and once_owner.  once_lock2 is used to
+ * let only one once operation in at a time and to protect
+ * once->called.  You can claim once_lock if holding once_lock2, but
+ * not the other way around.
+ *
+ * The called field in the once is used to tell if we have called it.
+ * It will be 2 if it is in the once function (to detect recursive
+ * calls) and 1 if the once operation has been completed.
+ */
+static lock_type once_lock = LOCK_INITIALIZER;
+static lock_type once_lock2 = LOCK_INITIALIZER;
+static unsigned int once_nest;
+static lock_thread_type once_owner;
+
+void
+gensio_call_once(struct gensio_os_funcs *f, struct gensio_once *once,
+		 void (*func)(void *cb_data), void *cb_data)
+{
+    lock_thread_type tid;
+    bool do_unlock = true;
+
+    if (once->called == 1)
+	/* once has been done, just return. */
+	return;
+
+    LOCK(&once_lock);
+    tid = LOCK_GET_THREAD_ID;
+    if (once_nest > 0 && LOCK_THREAD_ID_EQUAL(tid, once_owner)) {
+	/* Called recursively. */
+	once_nest++;
+	UNLOCK(&once_lock);
+	do_unlock = false;
+    } else {
+	/*
+	 * First time into the once for this thread, claim the that
+	 * only allows one caller.
+	 */
+	UNLOCK(&once_lock);
+	LOCK(&once_lock2);
+
+	LOCK(&once_lock);
+	once_owner = tid;
+	once_nest++;
+	UNLOCK(&once_lock);
+    }
+
+    if (!once->called) {
+	/*
+	 * Mark that we are in the call.  This way if we recurse into
+	 * the same once, we know to not call it again.  Don't set it
+	 * to 1 until we are finished processing.
+	 */
+	once->called = 2;
+	func(cb_data);
+	once->called = 1;
+    }
+
+    LOCK(&once_lock);
+    once_nest--;
+    UNLOCK(&once_lock);
+    if (do_unlock)
+	UNLOCK(&once_lock2);
 }
