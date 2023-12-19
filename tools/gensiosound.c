@@ -47,10 +47,10 @@ fill_playbuf(void)
 {
     size_t i;
 
-    i = fread(playbuf, playbuf_size, 1, infile);
+    i = fread(playbuf, 1, playbuf_size, infile);
     if (i == 0)
 	return GE_REMCLOSE;
-    playbuf_len = playbuf_size;
+    playbuf_len = i;
     playbuf_pos = 0;
     return 0;
 }
