@@ -1719,6 +1719,12 @@ mdns_resolver_callback(struct gensio_mdns_watch_resolver *r,
 
     if (!mdns_str_cmp(&w->host, host))
 	goto out_nomem;
+    if (!mdns_str_cmp(&w->name, name))
+	goto out_nomem;
+    if (!mdns_str_cmp(&w->domain, domain))
+	goto out_nomem;
+    if (!mdns_str_cmp(&w->type, type))
+	goto out_nomem;
 
     e = o->zalloc(o, sizeof(*e));
     if (!e)
