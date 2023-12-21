@@ -4836,13 +4836,10 @@ ax25_chan_alloc(struct ax25_base *base, const char *const args[],
 	goto out_nomem;
     gensio_set_is_client(chan->io, true); /* FIXME */
 
+    gensio_set_attr_from_child(chan->io, base->child);
     gensio_set_is_packet(chan->io, true);
     gensio_set_is_reliable(chan->io, true);
     gensio_set_is_mux(chan->io, true);
-    if (gensio_is_authenticated(base->child))
-	gensio_set_is_authenticated(chan->io, true);
-    if (gensio_is_encrypted(base->child))
-	gensio_set_is_encrypted(chan->io, true);
 
     ax25_base_lock(base);
     chan->base = base;
