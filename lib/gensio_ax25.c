@@ -490,6 +490,12 @@ struct ax25_conf_data {
     unsigned int num_my_addrs;
     struct gensio_addr *addr;
     unsigned int drop_pos;
+
+    /* Report senders of all packets? */
+    bool report_heard;
+
+    /* Report all raw packets? */
+    bool report_raw;
 };
 
 struct ax25_base {
@@ -541,6 +547,9 @@ struct ax25_base {
     /* Marks that we had an error on the child. */
     int child_err;
 
+    /* Are there any raw reporting channels? */
+    bool have_raw;
+
 #ifdef DEBUG_STATE
     struct ax25_base_state_trace state_trace[STATE_TRACE_LEN];
     unsigned int state_trace_pos;
@@ -556,7 +565,7 @@ struct ax25_data {
     uint8_t pid;
 };
 
-struct ax25_ui_data {
+struct ax25_raw_data {
     struct gensio_link link;
     uint16_t len;
 };
@@ -620,6 +629,8 @@ struct ax25_chan {
 
     /* Report UI frames to the upper layer? */
     unsigned int report_ui;
+
+    /* In a UI or heard or raw report? */
     bool in_ui;
 
     int in_newchannel;
@@ -674,7 +685,7 @@ struct ax25_chan {
     uint8_t cmdrsp_len;
 
     /* List of unnumbered information packets to send. */
-    struct gensio_list uis;
+    struct gensio_list raws;
 
     /* Link for list of things waiting to write. */
     struct gensio_link sendlink;
@@ -2297,15 +2308,69 @@ ax25_match_subaddr(struct gensio_ax25_subaddr *dest,
 }
 
 static void
-ax25_chan_handle_ui(struct ax25_base *base, struct gensio_ax25_addr *addr,
-		    unsigned char *data, unsigned int len,
-		    uint8_t pf)
+ax25_chan_report_raw(struct ax25_base *base, unsigned int port,
+		     unsigned char *data, unsigned int len)
+{
+    struct gensio_list to_deliver;
+    struct gensio_link *l, *l2;
+    char portstr[10];
+    const char *auxdata[4] = { "oob", "raw", portstr, NULL };
+    gensiods rcount;
+
+    if (len == 0 || !base->have_raw)
+	return;
+
+    snprintf(portstr, sizeof(portstr), "port:%d", port);
+    gensio_list_init(&to_deliver);
+    ax25_base_lock(base);
+    gensio_list_for_each(&base->chans, l) {
+	struct ax25_chan *chan = gensio_container_of(l, struct ax25_chan, link);
+
+	if (!chan->conf.report_raw || !chan->read_enabled)
+	    continue;
+	gensio_list_add_tail(&to_deliver, &chan->base_lock_ui_link);
+	chan->base_lock_count++;
+    }
+    ax25_base_unlock(base);
+    if (gensio_list_empty(&to_deliver))
+	return;
+
+    gensio_list_for_each_safe(&to_deliver, l, l2) {
+	struct ax25_chan *chan = gensio_container_of(l, struct ax25_chan,
+						     base_lock_ui_link);
+	gensio_list_rm(&to_deliver, l);
+	chan = ax25_chan_check_base_lock_state(chan, &chan->base->chans,
+					       true);
+	if (!chan || !chan->read_enabled)
+	    continue;
+
+	chan->in_ui = true;
+	ax25_chan_unlock(chan);
+
+	/* Errors from here don't matter, we don't loop. */
+	rcount = len;
+	gensio_cb(chan->io, GENSIO_EVENT_READ, 0, data, &rcount, auxdata);
+
+	ax25_chan_lock(chan);
+	chan->in_ui = false;
+	if (chan->state == AX25_CHAN_REPORT_CLOSE)
+	    ax25_chan_check_close(chan);
+	ax25_chan_deref_and_unlock(chan);
+    }
+}
+
+/* Reporting of heard and UI frames. */
+static void
+ax25_chan_handle_report(struct ax25_base *base, struct gensio_ax25_addr *addr,
+			uint8_t cmd, unsigned char *data, unsigned int len,
+			uint8_t pf)
 {
     struct gensio_list to_deliver;
     struct gensio_link *l, *l2;
     char addrstr[GENSIO_AX25_MAX_ADDR_STR_LEN + 5];
     char pidstr[10];
-    const char *auxdata[4] = { "oob", addrstr, pidstr, NULL };
+    const char *auxdata_ui[4] = { "oob", addrstr, pidstr, NULL };
+    const char *auxdata_heard[4] = { "oob", "heard", addrstr, NULL };
     gensiods rcount;
 
     if (len == 0)
@@ -2319,9 +2384,10 @@ ax25_chan_handle_ui(struct ax25_base *base, struct gensio_ax25_addr *addr,
     gensio_list_for_each(&base->chans, l) {
 	struct ax25_chan *chan = gensio_container_of(l, struct ax25_chan, link);
 
-	if (!chan->report_ui || !chan->read_enabled)
+	if (!((cmd == X25_UI && chan->report_ui) || chan->conf.report_heard)
+			|| !chan->read_enabled)
 	    continue;
-	if (chan->report_ui < 2 &&
+	if (!chan->conf.report_heard && chan->report_ui < 2 &&
 		!ax25_match_subaddr(&addr->dest, chan->base->conf.my_addrs,
 				    chan->base->conf.num_my_addrs))
 	    continue;
@@ -2338,6 +2404,8 @@ ax25_chan_handle_ui(struct ax25_base *base, struct gensio_ax25_addr *addr,
     gensio_list_for_each_safe(&to_deliver, l, l2) {
 	struct ax25_chan *chan = gensio_container_of(l, struct ax25_chan,
 						     base_lock_ui_link);
+	bool report_ui;
+	bool report_heard = false;
 
 	gensio_list_rm(&to_deliver, l);
 	chan = ax25_chan_check_base_lock_state(chan, &chan->base->chans,
@@ -2345,12 +2413,25 @@ ax25_chan_handle_ui(struct ax25_base *base, struct gensio_ax25_addr *addr,
 	if (!chan || !chan->read_enabled)
 	    continue;
 
+	report_ui = cmd == X25_UI && (chan->report_ui >= 2 ||
+	    ax25_match_subaddr(&addr->dest, chan->base->conf.my_addrs,
+			       chan->base->conf.num_my_addrs));
+	if (!report_ui)
+	    report_heard = chan->conf.report_heard;
+
 	chan->in_ui = true;
 	ax25_chan_unlock(chan);
 
-	rcount = len;
 	/* Errors from here don't matter, we don't loop. */
-	gensio_cb(chan->io, GENSIO_EVENT_READ, 0, data, &rcount, auxdata);
+	if (report_ui) {
+	    rcount = len;
+	    gensio_cb(chan->io, GENSIO_EVENT_READ, 0, data, &rcount,
+		      auxdata_ui);
+	} else if (report_heard) {
+	    rcount = 0;
+	    gensio_cb(chan->io, GENSIO_EVENT_READ, 0, data, &rcount,
+		      auxdata_heard);
+	}
 
 	ax25_chan_lock(chan);
 	chan->in_ui = false;
@@ -3495,6 +3576,8 @@ ax25_child_read(struct ax25_base *base, int ierr,
 	buflen -= 2;
     }
 
+    ax25_chan_report_raw(base, port, buf, buflen);
+
     if (buflen < 14)
 	return 0;
 
@@ -3516,11 +3599,13 @@ ax25_child_read(struct ax25_base *base, int ierr,
 	buflen--;
     }
 
-    /* UI frames are the only thing we let through without a matching dest */
-    if (cmd == X25_UI) {
-	ax25_chan_handle_ui(base, &iaddr, buf + pos, buflen, pf);
+    /*
+     * UI frames and heard reports are the only thing we let through
+     * without a matching dest.
+     */
+    ax25_chan_handle_report(base, &iaddr, cmd, buf + pos, buflen, pf);
+    if (cmd == X25_UI)
 	return 0;
-    }
 
     /* Ignore packets with subaddresses that have not yet been repeated. */
     for (i = 0; i < iaddr.nr_extra; i++) {
@@ -3704,7 +3789,7 @@ ax25_child_write_ready(struct ax25_base *base)
     struct ax25_data *d;
     struct ax25_chan_cmdrsp *ccr;
     struct ax25_base_cmdrsp *bcr;
-    struct ax25_ui_data *ui;
+    struct ax25_raw_data *raw;
     unsigned char crv[3], crc[2], xid[AX25_XID_SIZE];
     struct gensio_sg sg[4];
     gensiods sglen, len, sendcnt;
@@ -3890,30 +3975,30 @@ ax25_child_write_ready(struct ax25_base *base)
 		chan->poll_pending = true;
 		ax25_chan_transmit_enquiry(chan);
 	    }
-	} else if (!gensio_list_empty(&chan->uis)) {
+	} else if (!gensio_list_empty(&chan->raws)) {
 	    unsigned char *buf;
 
-	    l = gensio_list_first(&chan->uis);
-	    ui = gensio_container_of(l, struct ax25_ui_data, link);
-	    buf = ((unsigned char *) ui) + sizeof(*ui);
-	    rv = gensio_write(base->child, &sendcnt, buf, ui->len, NULL);
+	    l = gensio_list_first(&chan->raws);
+	    raw = gensio_container_of(l, struct ax25_raw_data, link);
+	    buf = ((unsigned char *) raw) + sizeof(*raw);
+	    rv = gensio_write(base->child, &sendcnt, buf, raw->len, NULL);
 	    if (rv)
 		goto out_err_chan;
 	    if (sendcnt == 0)
 		goto out_reenable_chan;
-	    if (sendcnt != ui->len) {
+	    if (sendcnt != raw->len) {
 		rv = GE_IOERR;
 		goto out_err_chan;
 	    }
-	    gensio_list_rm(&chan->uis, l);
-	    chan->o->free(chan->o, ui);
+	    gensio_list_rm(&chan->raws, l);
+	    chan->o->free(chan->o, raw);
 	}
     skip:
 	ax25_base_lock(base);
 	if (chan) {
 	    if (!gensio_list_link_inlist(&chan->sendlink) &&
 			((!chan->peer_rcv_bsy && chan->send_len > 0) ||
-			 chan->cmdrsp_len > 0 || !gensio_list_empty(&chan->uis)))
+			 chan->cmdrsp_len > 0 || !gensio_list_empty(&chan->raws)))
 		gensio_list_add_tail(&base->send_list, &chan->sendlink);
 	    ax25_chan_deref_and_unlockb(chan);
 	    chan = NULL;
@@ -4025,24 +4110,59 @@ ax25_add_crc(unsigned char *buf, gensiods len)
 }
 
 static int
+ax25_chan_send_raw(struct ax25_chan *chan,
+		  gensiods *rcount, unsigned int tnc_port, gensiods datalen,
+		  const struct gensio_sg *sg, gensiods sglen)
+{
+    struct ax25_raw_data *raw;
+    unsigned char *buf;
+    unsigned int i, len, pos;
+
+    len = sizeof(*raw) + datalen;
+    if (chan->base->conf.do_crc)
+	len += 2;
+    raw = chan->o->zalloc(chan->o, len);
+    if (!raw)
+	return 0;
+    buf = ((unsigned char *) raw) + sizeof(*raw);
+
+    for (pos = 0, i = 0; i < sglen; i++) {
+	memcpy(buf + pos, sg[i].buf, sg[i].buflen);
+	pos += sg[i].buflen;
+    }
+
+    if (chan->base->conf.do_crc)
+	pos = ax25_add_crc(buf, pos);
+    raw->len = pos;
+
+    ax25_base_lock(chan->base);
+    gensio_list_add_tail(&chan->raws, &raw->link);
+    i_ax25_chan_schedule_write(chan);
+    ax25_base_unlock(chan->base);
+
+    *rcount = datalen;
+    return 0;
+}
+
+static int
 ax25_chan_send_ui(struct ax25_chan *chan, struct gensio_addr *addr,
 		  gensiods *rcount, uint8_t pid, gensiods datalen,
 		  const struct gensio_sg *sg, gensiods sglen)
 {
-    struct ax25_ui_data *ui;
+    struct ax25_raw_data *raw;
     unsigned char *buf;
     gensiods len, pos;
     unsigned int i;
 
     /* + 2 for the UI and PID */
-    len = sizeof(*ui) + datalen + ax25_addr_encode_len(addr) + 2;
+    len = sizeof(*raw) + datalen + ax25_addr_encode_len(addr) + 2;
     if (chan->base->conf.do_crc)
 	len += 2;
-    ui = chan->o->zalloc(chan->o, len);
-    if (!ui)
+    raw = chan->o->zalloc(chan->o, len);
+    if (!raw)
 	return 0;
 
-    buf = ((unsigned char *) ui) + sizeof(*ui);
+    buf = ((unsigned char *) raw) + sizeof(*raw);
 
     pos = ax25_addr_encode(buf, addr);
     buf[pos++] = 0x03; /* UI with P/F clear */
@@ -4057,10 +4177,10 @@ ax25_chan_send_ui(struct ax25_chan *chan, struct gensio_addr *addr,
 
     if (chan->base->conf.do_crc)
 	pos = ax25_add_crc(buf, pos);
-    ui->len = pos;
+    raw->len = pos;
 
     ax25_base_lock(chan->base);
-    gensio_list_add_tail(&chan->uis, &ui->link);
+    gensio_list_add_tail(&chan->raws, &raw->link);
     i_ax25_chan_schedule_write(chan);
     ax25_base_unlock(chan->base);
 
@@ -4076,20 +4196,34 @@ ax25_chan_write(struct ax25_chan *chan, gensiods *rcount,
     int rv = 0;
     struct ax25_data *d;
     gensiods len, left, pos;
-    unsigned int i;
+    unsigned int i, tnc_port = 0;
     uint8_t pid = 0xf0;
+    bool raw = false;
+    bool oob = false;
 
     for (len = 0, i = 0; i < sglen; i++)
 	len += sg[i].buflen;
 
     for (i = 0; auxdata && auxdata[i]; i++) {
-	if (strncmp(auxdata[i], "pid:", 4) == 0) {
+	if (strncmp(auxdata[i], "pid:", 4) == 0)
 	    pid = strtoul(auxdata[i] + 4, NULL, 0);
-	    break;
-	}
+	if (strncmp(auxdata[i], "tnc:", 5) == 0)
+	    tnc_port = strtoul(auxdata[i] + 5, NULL, 0);
+	if (strcmp(auxdata[i], "raw") == 0)
+	    raw = true;
+	if (strcmp(auxdata[i], "oob") == 0)
+	    oob = true;
     }
 
-    if (gensio_str_in_auxdata(auxdata, "oob")) {
+    if (raw) {
+	if (len > chan->conf.max_write_size)
+	    len = chan->conf.max_write_size;
+	ax25_chan_lock(chan);
+	rv = ax25_chan_send_raw(chan, rcount, tnc_port, len, sg, sglen);
+	goto out_unlock;
+    }
+
+    if (oob) {
 	const char *addrstr = NULL;
 	struct gensio_addr *addr;
 
@@ -4666,6 +4800,10 @@ ax25_readconf(struct gensio_pparm_info *p,
 	    continue;
 	if (gensio_pparm_uint(p, args[i], "retries", &conf->max_retries) > 0)
 	    continue;
+	if (gensio_pparm_bool(p, args[i], "heard", &conf->report_heard) > 0)
+	    continue;
+	if (gensio_pparm_bool(p, args[i], "raw", &conf->report_raw) > 0)
+	    continue;
 	/* Undocumented, used for testing. */
 	if (gensio_pparm_uint(p, args[i], "drop", &conf->drop_pos) > 0)
 	    continue;
@@ -4791,11 +4929,13 @@ ax25_chan_alloc(struct ax25_base *base, const char *const args[],
 	}
     }
     chan->conf = conf;
+    if (conf.report_raw)
+	base->have_raw = true;
     conf.addr = NULL; /* So we won't free it later. */
     conf.my_addrs = NULL;
     conf.num_my_addrs = 0;
     chan->refcount = 1;
-    gensio_list_init(&chan->uis);
+    gensio_list_init(&chan->raws);
 
     /* After this point we can use ax25_chan_finish_free to free it. */
 

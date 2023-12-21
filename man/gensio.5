@@ -1965,6 +1965,11 @@ On received packets, the auxdata will contain a field starting with
 "addr:" and the rest is the gensio AX25 address in the packet.  When
 sending a UI frame, you must set "oob" and "addr:" fields in the
 auxdata, with a valid address in the "addr:" field.
+.SS Raw Data
+If you set the raw option, raw data will be reported in the read
+callback as explained by the option docs.  If you set a "raw" auxdata
+when writing to the channel, it will send the raw data you give.  A
+CRC will be added, but nothing else.
 .SS Options
 Option values for channels are all inherited from the options used to
 create the first channel, except for addr (which must be supplied for
@@ -2040,6 +2045,21 @@ seconds.
 Number of retries on a send before giving up and dropping the
 connection.  See the spec for details, you probably don't need to mess
 with it.  Defaults to 10.
+.TP
+.B heard[=yes|no]
+When any packet is heard from the TNC, report the address on the read
+callback.  There will be no data, and "oob", "heard", and "addr:"
+fields will be in the auxdata.  Note that if you disable read, any
+heard reports that come in will be dropped and not reported.  Any UI
+packets reported will not be reported as heard packets, you have all
+the information you need in the UI report.
+.TP
+.B raw[=yes|no]
+When any packet is heard from the TNC, report the raw data in the read
+callback.  This is the full packet, including the address, but without
+the CRC.  "oob" and "raw" fields will be in the auxdata.  Note that if
+you disable read, any raw reports that come in will be dropped and
+not reported.
 .SH "xlt"
 accepter =
 .B xlt[(options)]
