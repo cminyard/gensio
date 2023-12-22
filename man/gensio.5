@@ -2003,13 +2003,16 @@ to fall back to the defaults.  If extended=2 fails, it will fall back
 to extended=1.
 .TP
 .B laddr=<subaddr>[;<subaddr[...]]
-Set the addresses the ax25 gensio will receive packets for.  Except
-for promiscuous UI mode, the destination of a packet must match one of
-these addresses to be handled.  This can only be set on the accepter
-or on the first connection and applies to all channels.
-
-If you do not set this, but addr is set, the laddr will be set from
-the source address of addr.
+Set the addresses the ax25 gensio will receive connections.  Except
+for UI frames and raw mode, the destination of a packet must match one
+of these addresses to be handled.  This can only be set on the
+accepter or on the first connection and applies to all channels.
+These can also be added with controls.
+.TP
+.B uiaddr=<subaddr>[;<subaddr[...]]
+Set the addresses for the channel that will receive UI addresses.  If
+not in promisuous UI mode, it will only receive UI frames sent to
+addresses in this list.  These can also be added with controls.
 .TP
 .B addr=<ax25addr>
 Set the address of the remote end of the connection.  Packets will be

@@ -107,7 +107,7 @@ port = refl.get_port()
 print("port is " + port)
 
 io1str = "ax25(laddr=AE5KM-1,heard,raw),udp,localhost," + port
-io2str = "ax25(laddr=AE5KM-2),udp,localhost," + port
+io2str = "ax25(laddr=AE5KM-2,uiaddr=AE5KM-2),udp,localhost," + port
 
 io1 = ax25_alloc_io(o, io1str, oob = 1)
 io2 = ax25_alloc_io(o, io2str, oob = 1)
