@@ -184,7 +184,7 @@ print("Open that channel again and reject the open")
 handlemuxacc.set_op_count(1)
 handlemuxacc.set_op_err(gensio.GE_APPERR)
 handlemuxcl.set_op_count(1)
-handlemuxcl.set_op_err("Application error")
+handlemuxcl.set_op_err("Remote end closed connection")
 handlemuxcl.channels[3] = muxcl.alloc_channel(["service=3"],
                                               handlemuxcl)
 handlemuxcl.channels[3].open(handlemuxcl)
