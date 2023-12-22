@@ -2007,12 +2007,17 @@ Set the addresses the ax25 gensio will receive connections.  Except
 for UI frames and raw mode, the destination of a packet must match one
 of these addresses to be handled.  This can only be set on the
 accepter or on the first connection and applies to all channels.
-These can also be added with controls.
+
+These can also be added and removed with the GENSIO_CONTROL_ADD_LADDR
+and GENSIO_CONTROL_DEL_LADDR controls.
 .TP
 .B uiaddr=<subaddr>[;<subaddr[...]]
 Set the addresses for the channel that will receive UI addresses.  If
 not in promisuous UI mode, it will only receive UI frames sent to
 addresses in this list.  These can also be added with controls.
+
+These can also be added and removed with the GENSIO_CONTROL_ADD_MCAST
+and GENSIO_CONTROL_DEL_MCAST controls.
 .TP
 .B addr=<ax25addr>
 Set the address of the remote end of the connection.  Packets will be

@@ -278,11 +278,19 @@ On a stdio connectors and pty gensios, do a waitpid on the process.
 If it has closed, this will return success and the exit code in the
 string.  Otherwise it will return GE_NOTREADY.
 .SS "GENSIO_CONTROL_ADD_MCAST"
-On UDP connections, add a multicast address that the socket will
+On UDP/AX25 gensios, add a multicast/UI address that the gensio will
 receive packets on.
 .SS "GENSIO_CONTROL_DEL_MCAST"
-On UDP connections, delete a multicast address that the socket will
+On UDP/AX25 gensios, delete a multicast/UI address that the gensio will
 receive packets on.
+.SS "GENSIO_CONTROL_GET_MCAST"
+On AX25 gensios, return the given UI address.  The
+.I data
+string passed in should be the string representation of a the number (like
+created with snprintf()) for the particular index you want to fetch.  If
+you specify a number larger than the number of open listen sockets,
+.I GE_NOTFOUND
+is returned.  The return data is a string holding the address.
 .SS "GENSIO_CONTROL_MCAST_LOOP"
 On UDP connections, sets whether multicast packets sent on the socket
 will be received by the same machine.  Takes/returns string boolean
@@ -312,6 +320,13 @@ addresses.
 
 For sound devices, pass in "in" or "out" in the string to get the full
 card number or name that uniquely identifies the sound card.
+.SS "GENSIO_CONTROL_ADD_LADDR"
+For an AX25 gensio, add the given listen address to the addresses that
+will accept connections for the gensio.
+.SS "GENSIO_CONTROL_DEL_LADDR"
+For an AX25 gensio, delete the given listen address to the addresses
+that will accept connections for the gensio.  This is the address
+string, not the instance number.
 .SS "GENSIO_CONTROL_RADDR"
 Like
 .B GENSIO_CONTROL_LADDR

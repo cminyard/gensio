@@ -53,7 +53,7 @@ class Auxdata_EvHnd(EvHnd):
 
 
 h = Auxdata_EvHnd(o)
-g = pygensio.gensio_alloc("ax25(laddr=AE5KM-1),kiss(server=yes),tcp,localhost," + port,
+g = pygensio.gensio_alloc("ax25(laddr=AE5KM-1,uiaddr=AE5KM-1),kiss(server=yes),tcp,localhost," + port,
                           o, h)
 h.set_gensio(g)
 (rv, rsp) = g.control(0, False, pygensio.GENSIO_CONTROL_ENABLE_OOB, "1")

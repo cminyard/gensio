@@ -131,6 +131,35 @@ io1.write("jkl;", [ "oob", "addr:0,AE5KM-2,AE5KM-1", "pid:100" ])
 if io2.handler.wait_timeout(1000) == 0:
     raise Exception("Timed out waiting for UI data")
 
+io1.control(gensio.GENSIO_CONTROL_DEPTH_FIRST,
+            gensio.GENSIO_CONTROL_SET,
+            gensio.GENSIO_CONTROL_ADD_MCAST, "AE5KM-3")
+
+try:
+    io1.control(gensio.GENSIO_CONTROL_DEPTH_FIRST,
+                gensio.GENSIO_CONTROL_SET,
+                gensio.GENSIO_CONTROL_ADD_MCAST, "AE5KM-3")
+except:
+    pass
+
+io1.handler.set_compare_oob("jkl;",
+               auxdata = [ "oob", "addr:ax25:0,AE5KM-3,AE5KM-2", "pid:100" ])
+io2.write("jkl;", [ "oob", "addr:0,AE5KM-3,AE5KM-2", "pid:100" ])
+
+if io1.handler.wait_timeout(1000) == 0:
+    raise Exception("Timed out waiting for UI data")
+
+io1.control(gensio.GENSIO_CONTROL_DEPTH_FIRST,
+            gensio.GENSIO_CONTROL_SET,
+            gensio.GENSIO_CONTROL_DEL_MCAST, "AE5KM-3")
+
+try:
+    io1.control(gensio.GENSIO_CONTROL_DEPTH_FIRST,
+                gensio.GENSIO_CONTROL_SET,
+                gensio.GENSIO_CONTROL_DEL_MCAST, "AE5KM-3")
+except:
+    pass
+
 print("Testing heard stations")
 io1.handler.set_waiting_heard("ax25:0,DUMMY-1,DUMMY-2")
 io1.read_cb_enable(True)
@@ -166,9 +195,44 @@ if ch2_1.handler.wait_timeout(1000) == 0:
 if ch1_1.handler.wait_timeout(1000) == 0:
     raise Exception("Timed out waiting for channel data read")
 
-print("Success!")
-
 io_close((ch1_1, ch2_1))
+del ch1_1
+del ch2_1
+
+print("Adding a listen address")
+
+io1.control(gensio.GENSIO_CONTROL_DEPTH_FIRST,
+            gensio.GENSIO_CONTROL_SET,
+            gensio.GENSIO_CONTROL_ADD_LADDR, "AE5KM-4")
+try:
+    io1.control(gensio.GENSIO_CONTROL_DEPTH_FIRST,
+                gensio.GENSIO_CONTROL_SET,
+                gensio.GENSIO_CONTROL_ADD_LADDR, "AE5KM-4")
+except:
+    pass
+
+io1.handler.set_expected_channel("ax25:0,AE5KM-2,AE5KM-4")
+ch2_1 = io2.alloc_channel(["addr=0,AE5KM-4,AE5KM-2"], io2.handler)
+ax25_setup_io(o, "ch2_1", ch2_1)
+ch2_1.open_s()
+if io1.handler.wait_timeout(1000) == 0:
+    raise Exception("Timed out waiting for new channel")
+ch1_1 = io2.handler.newchan
+io2.handler.newchan = None
+ax25_setup_io(o, "ch2_1", ch2_1)
+io_close((ch1_1, ch2_1))
+
+io1.control(gensio.GENSIO_CONTROL_DEPTH_FIRST,
+            gensio.GENSIO_CONTROL_SET,
+            gensio.GENSIO_CONTROL_DEL_LADDR, "AE5KM-4")
+try:
+    io1.control(gensio.GENSIO_CONTROL_DEPTH_FIRST,
+                gensio.GENSIO_CONTROL_SET,
+                gensio.GENSIO_CONTROL_DEL_LADDR, "AE5KM-4")
+except:
+    pass
+
+print("Success!")
 
 io_close((io1, io2))
 del io1
