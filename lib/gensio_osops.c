@@ -3714,7 +3714,7 @@ gensio_i_free(struct gensio_memtrack *m, void *data,
 	    unsigned int i;
 
 	    for (i = 0; i < caller_size && i < 4; i++)
-		h->alloc_bt[0] = caller[i];
+		h->free_bt[0] = caller[i];
 	}
 #if _MSC_VER
 	h->free_bt[0] = _ReturnAddress();

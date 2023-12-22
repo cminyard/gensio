@@ -486,10 +486,14 @@ struct ax25_conf_data {
     unsigned int extended;
     bool do_crc;
     bool ignore_embedded_ua;
-    struct gensio_ax25_subaddr *my_addrs;
-    unsigned int num_my_addrs;
+    struct gensio_ax25_subaddr *conf_laddrs;
+    unsigned int num_conf_laddrs;
     struct gensio_addr *addr;
     unsigned int drop_pos;
+
+    /* Addresses we listen for UIs from. */
+    struct gensio_ax25_subaddr *conf_uiaddrs;
+    unsigned int num_conf_uiaddrs;
 
     /* Report senders of all packets? */
     bool report_heard;
@@ -518,6 +522,9 @@ struct ax25_base {
     bool waiting_first_open;
 
     struct ax25_conf_data conf;
+
+    struct gensio_lock *addrlock;
+    struct gensio_list listen_addrs;
 
     /* A channel will be in one of the following 3 lists, link element. */
     /* Channels that are in closed, report close, or io error state */
@@ -555,6 +562,38 @@ struct ax25_base {
     unsigned int state_trace_pos;
 #endif
 };
+
+struct ax25_iaddr {
+    struct gensio_link link;
+    struct gensio_ax25_subaddr addr;
+};
+#define to_ax25_iaddr(l) gensio_container_of(l, struct ax25_iaddr, link)
+
+static int
+ax25_add_iaddr(struct gensio_os_funcs *o,
+	       struct gensio_list *list, struct gensio_ax25_subaddr *addr)
+{
+    struct ax25_iaddr *l = o->zalloc(o, sizeof(*l));
+
+    if (!l)
+	return GE_NOMEM;
+    l->addr = *addr;
+    gensio_list_add_tail(list, &l->link);
+    return 0;
+}
+
+static int
+ax25_free_iaddr_list(struct gensio_os_funcs *o, struct gensio_list *list)
+{
+    struct gensio_link *l, *l2;
+
+    gensio_list_for_each_safe(list, l, l2) {
+	struct ax25_iaddr *iaddr = to_ax25_iaddr(l);
+	gensio_list_rm(list, l);
+	o->free(o, iaddr);
+    }
+    return false;
+}
 
 struct ax25_data {
     unsigned char *data;
@@ -716,6 +755,9 @@ struct ax25_chan {
 
     struct ax25_conf_data conf;
 
+    /* A list of addresses we listen for UI packets on. */
+    struct gensio_list ui_addrs;
+
     /* Current srt and t1 values, in milliseconds. */
     unsigned int t1v;
     unsigned int srt;
@@ -859,10 +901,24 @@ i_ax25_base_deref(struct ax25_base *base, int line)
 #define ax25_base_deref(base) i_ax25_base_deref((base), __LINE__)
 
 static void
+ax25_addr_lock(struct ax25_base *base)
+{
+    base->o->lock(base->addrlock);
+}
+
+static void
+ax25_addr_unlock(struct ax25_base *base)
+{
+    base->o->unlock(base->addrlock);
+}
+
+static void
 ax25_cleanup_conf(struct gensio_os_funcs *o, struct ax25_conf_data *conf)
 {
-    if (conf->my_addrs)
-	o->free(o, conf->my_addrs);
+    if (conf->conf_laddrs)
+	o->free(o, conf->conf_laddrs);
+    if (conf->conf_uiaddrs)
+	o->free(o, conf->conf_uiaddrs);
     if (conf->addr)
 	gensio_addr_free(conf->addr);
 }
@@ -871,8 +927,11 @@ static void
 ax25_base_finish_free(struct ax25_base *base)
 {
     ax25_cleanup_conf(base->o, &base->conf);
+    ax25_free_iaddr_list(base->o, &base->listen_addrs);
     if (base->lock)
 	base->o->free_lock(base->lock);
+    if (base->addrlock)
+	base->o->free_lock(base->addrlock);
     if (base->child)
 	gensio_free(base->child);
     base->o->free(base->o, base);
@@ -933,6 +992,7 @@ ax25_chan_finish_free(struct ax25_chan *chan, bool baselocked)
 
     if (chan->io)
 	gensio_data_free(chan->io);
+    ax25_free_iaddr_list(base->o, &chan->ui_addrs);
     if (chan->read_data) {
 	for (i = 0; i < chan->conf.readwindow; i++) {
 	    if (chan->read_data[i].data)
@@ -1742,15 +1802,12 @@ ax25_proto_err(struct ax25_base *base, struct ax25_chan *chan,
     if (chan)
 	ax25_chan_unlock(chan);
     if (chan && chan->conf.addr) {
-	char addrstr[100] = "<none>", subaddrstr[10] = "<none>";
+	char addrstr[100] = "<none>";
 
 	if (chan->conf.addr)
 	    gensio_addr_to_str(chan->conf.addr, addrstr, NULL, sizeof(addrstr));
-	if (chan->conf.my_addrs)
-	    ax25_subaddr_to_str(&base->conf.my_addrs[0],
-				subaddrstr, NULL, sizeof(subaddrstr), false);
-	gensio_glog(chan->io, GENSIO_LOG_ERR, "%s: AX25 error from %s: %s",
-		    subaddrstr, addrstr, errstr);
+	gensio_glog(chan->io, GENSIO_LOG_ERR, "AX25 error from %s: %s",
+		    addrstr, errstr);
     } else if (chan) {
 	gensio_glog(chan->io, GENSIO_LOG_ERR, "AX25 error: %s", errstr);
     } else {
@@ -2295,13 +2352,14 @@ ax25_chan_start_connect(struct ax25_chan *chan)
 
 static bool
 ax25_match_subaddr(struct gensio_ax25_subaddr *dest,
-		   struct gensio_ax25_subaddr *matches,
-		   unsigned int num_matches)
+		   struct gensio_list *list)
 {
-    unsigned int i;
+    struct gensio_link *l;
 
-    for (i = 0; i < num_matches; i++) {
-	if (ax25_subaddr_equal(dest, &(matches[i])))
+    gensio_list_for_each(list, l) {
+	struct ax25_iaddr *iaddr = to_ax25_iaddr(l);
+
+	if (ax25_subaddr_equal(dest, &iaddr->addr))
 	    return true;
     }
     return false;
@@ -2388,8 +2446,7 @@ ax25_chan_handle_report(struct ax25_base *base, struct gensio_ax25_addr *addr,
 			|| !chan->read_enabled)
 	    continue;
 	if (!chan->conf.report_heard && chan->report_ui < 2 &&
-		!ax25_match_subaddr(&addr->dest, chan->base->conf.my_addrs,
-				    chan->base->conf.num_my_addrs))
+		!ax25_match_subaddr(&addr->dest, &chan->ui_addrs))
 	    continue;
 	gensio_list_add_tail(&to_deliver, &chan->base_lock_ui_link);
 	chan->base_lock_count++;
@@ -2413,16 +2470,16 @@ ax25_chan_handle_report(struct ax25_base *base, struct gensio_ax25_addr *addr,
 	if (!chan || !chan->read_enabled)
 	    continue;
 
-	report_ui = cmd == X25_UI && (chan->report_ui >= 2 ||
-	    ax25_match_subaddr(&addr->dest, chan->base->conf.my_addrs,
-			       chan->base->conf.num_my_addrs));
+	report_ui = (cmd == X25_UI &&
+		     (chan->report_ui >= 2 ||
+		      ax25_match_subaddr(&addr->dest, &chan->ui_addrs)));
 	if (!report_ui)
 	    report_heard = chan->conf.report_heard;
 
 	chan->in_ui = true;
 	ax25_chan_unlock(chan);
 
-	/* Errors from here don't matter, we don't loop. */
+	/* Return values from here don't matter, we don't hold the data. */
 	if (report_ui) {
 	    rcount = len;
 	    gensio_cb(chan->io, GENSIO_EVENT_READ, 0, data, &rcount,
@@ -3588,6 +3645,12 @@ ax25_child_read(struct ax25_base *base, int ierr,
     ax25_construct_return_addr(&addr, &iaddr);
     buflen -= pos;
 
+    /* Ignore packets with subaddresses that have not yet been repeated. */
+    for (i = 0; i < iaddr.nr_extra; i++) {
+	if (!iaddr.extra[i].ch)
+	    return 0;
+    }
+
     if (buflen < 1)
 	return 0;
 
@@ -3607,16 +3670,6 @@ ax25_child_read(struct ax25_base *base, int ierr,
     if (cmd == X25_UI)
 	return 0;
 
-    /* Ignore packets with subaddresses that have not yet been repeated. */
-    for (i = 0; i < iaddr.nr_extra; i++) {
-	if (!iaddr.extra[i].ch)
-	    return 0;
-    }
-
-    if (!ax25_match_subaddr(&iaddr.dest, base->conf.my_addrs,
-			    base->conf.num_my_addrs))
-	return 0;
-
     /* In both old and new protocol version, dest.ch sets if it's a cmd. */
     is_cmd = iaddr.dest.ch;
 
@@ -3625,6 +3678,16 @@ ax25_child_read(struct ax25_base *base, int ierr,
     if (chan)
 	chan->base_lock_count++;
     ax25_base_unlock(base);
+
+    if (!chan) {
+	bool match;
+	ax25_addr_lock(base);
+	match = ax25_match_subaddr(&iaddr.dest, &base->listen_addrs);
+	ax25_addr_unlock(base);
+	if (!match)
+	    /* No existing channel, not listening to this address. */
+	    return 0;
+    }
 
     if (chan)
 	chan = ax25_chan_check_base_lock_state(chan, &base->chans, true);
@@ -3737,7 +3800,7 @@ ax25_child_read(struct ax25_base *base, int ierr,
 	break;
     }
 
-    if (err) {
+    if (err && chan) {
 	chan->err = err;
 	ax25_chan_do_err_close(chan, true);
 	ax25_chan_stop_t3(chan);
@@ -4594,10 +4657,10 @@ static int
 ax25_chan_control(struct ax25_chan *chan, bool get, int option,
 		  char *data, gensiods *datalen)
 {
-    struct ax25_base *base = chan->base;
     int rv = 0;
     gensiods pos;
     unsigned int i;
+    struct gensio_link *l;
 
     switch (option) {
     case GENSIO_CONTROL_ENABLE_OOB:
@@ -4617,14 +4680,23 @@ ax25_chan_control(struct ax25_chan *chan, bool get, int option,
 	if (!get)
 	    return GE_NOTSUP;
 	i = strtoul(data, NULL, 0);
-	if (i >= base->conf.num_my_addrs)
-	    return GE_NOTFOUND;
-	pos = 0;
-	rv = ax25_subaddr_to_str(&(base->conf.my_addrs[i]),
-				 data, &pos, *datalen, false);
-	if (!rv)
-	    *datalen = pos;
-	break;
+	rv = GE_NOTFOUND;
+	ax25_addr_lock(chan->base);
+	gensio_list_for_each(&chan->base->listen_addrs, l) {
+	    if (i == 0) {
+		struct ax25_iaddr *iaddr = to_ax25_iaddr(l);
+
+		pos = 0;
+		rv = ax25_subaddr_to_str(&iaddr->addr,
+					 data, &pos, *datalen, false);
+		if (!rv)
+		    *datalen = pos;
+		break;
+	    }
+	    i--;
+	}
+	ax25_addr_unlock(chan->base);
+	return rv;
 
     case GENSIO_CONTROL_RADDR:
 	if (!get)
@@ -4781,12 +4853,25 @@ ax25_readconf(struct gensio_pparm_info *p,
 		goto out_err;
 	    continue;
 	}
-	if (firstchan & gensio_pparm_value(p, args[i], "laddr", &str)) {
-	    rv = ax25_scan_laddrs(o, str, &conf->my_addrs, &conf->num_my_addrs);
+	if (firstchan && gensio_pparm_value(p, args[i], "uiaddr", &str)) {
+	    rv = ax25_scan_laddrs(o, str, &conf->conf_uiaddrs,
+				  &conf->num_conf_uiaddrs);
 	    if (rv)
 		goto out_err;
 	    continue;
 	}
+	/* Only pick up listen addresses from the first allocation. */
+	if (firstchan && gensio_pparm_value(p, args[i], "laddr", &str)) {
+	    rv = ax25_scan_laddrs(o, str, &conf->conf_laddrs,
+				  &conf->num_conf_laddrs);
+	    if (rv)
+		goto out_err;
+	    continue;
+	}
+	/*
+	 * "crc" has to do with the TNC connections, so it's only applicable
+	 * on the initial allocation.
+	 */
 	if (firstchan & gensio_pparm_bool(p, args[i], "crc", &conf->do_crc))
 	    continue;
 	if (gensio_pparm_bool(p, args[i], "ign_emb_ua",
@@ -4892,57 +4977,65 @@ ax25_chan_alloc(struct ax25_base *base, const char *const args[],
     struct gensio_os_funcs *o = base->o;
     struct ax25_chan *chan = NULL;
     unsigned int i;
-    struct ax25_conf_data conf = base->conf;
     int rv;
     GENSIO_DECLARE_PPGENSIO(p, o, cb, "ax25", user_data);
-
-    conf.my_addrs = NULL;
-    conf.num_my_addrs = 0;
-
-    if (addr) {
-	conf.addr = gensio_addr_dup(addr);
-	if (!conf.addr)
-	    return GE_NOMEM;
-    }
-
-    rv = ax25_readconf(&p, base->o, firstchan, false, &conf, args);
-    if (rv)
-	goto out_err;
 
     chan = o->zalloc(o, sizeof(*chan));
     if (!chan)
 	goto out_nomem;
 
     chan->o = o;
-    if (conf.addr) {
-	chan->encoded_addr_len = ax25_addr_encode(chan->encoded_addr,
-						  conf.addr);
-	if (conf.num_my_addrs == 0 && firstchan) {
-	    /* Pull the local address from addr. */
-	    struct gensio_ax25_addr *aaddr = addr_to_ax25(conf.addr);
+    gensio_list_init(&chan->ui_addrs);
 
-	    conf.my_addrs = o->zalloc(o, sizeof(*conf.my_addrs));
-	    if (!conf.my_addrs)
-		goto out_nomem;
-	    conf.my_addrs[0] = aaddr->src;
-	    conf.num_my_addrs = 1;
-	}
+    chan->conf = base->conf;
+    chan->conf.conf_laddrs = NULL;
+    chan->conf.num_conf_laddrs = 0;
+    chan->conf.addr = NULL;
+
+    /*
+     * This is subtle, we pick up the address from what is configured
+     * in the base if we come in as an accepter, but only for the
+     * first channel.
+     */
+    if (firstchan && !addr && base->conf.addr)
+	addr = base->conf.addr;
+    if (addr) {
+	chan->conf.addr = gensio_addr_dup(addr);
+	if (!chan->conf.addr)
+	    return GE_NOMEM;
     }
-    chan->conf = conf;
-    if (conf.report_raw)
+
+    rv = ax25_readconf(&p, base->o, firstchan, false, &chan->conf, args);
+    if (rv)
+	goto out_err;
+
+    if (chan->conf.addr) {
+	chan->encoded_addr_len = ax25_addr_encode(chan->encoded_addr,
+						  chan->conf.addr);
+    }
+
+    if (chan->conf.report_raw)
 	base->have_raw = true;
-    conf.addr = NULL; /* So we won't free it later. */
-    conf.my_addrs = NULL;
-    conf.num_my_addrs = 0;
     chan->refcount = 1;
     gensio_list_init(&chan->raws);
 
     /* After this point we can use ax25_chan_finish_free to free it. */
 
-    chan->read_data = o->zalloc(o, sizeof(struct ax25_data) * conf.readwindow);
+    if (chan->conf.num_conf_uiaddrs) {
+	/* Add the ui listen addresses to the list. */
+	for (i = 0; i < chan->conf.num_conf_uiaddrs; i++) {
+	    rv = ax25_add_iaddr(base->o, &chan->ui_addrs,
+				&chan->conf.conf_uiaddrs[i]);
+	    if (rv)
+		goto out_err;
+	}
+    }
+
+    chan->read_data = o->zalloc(o, (sizeof(struct ax25_data)
+				    * chan->conf.readwindow));
     if (!chan->read_data)
 	goto out_nomem;
-    for (i = 0; i < conf.readwindow; i++) {
+    for (i = 0; i < chan->conf.readwindow; i++) {
 	chan->read_data[i].data = o->zalloc(o, chan->conf.max_read_size);
 	if (!chan->read_data[i].data)
 	    goto out_nomem;
@@ -4998,7 +5091,6 @@ ax25_chan_alloc(struct ax25_base *base, const char *const args[],
  out_nomem:
     rv = GE_NOMEM;
  out_err:
-    ax25_cleanup_conf(o, &conf);
     if (addr)
 	gensio_addr_free(addr);
     if (chan)
@@ -5017,7 +5109,7 @@ ax25_gensio_alloc_base(struct gensio *child, const char *const args[],
     struct ax25_base *base;
     struct ax25_chan *chan;
     struct gensio_ax25_subaddr *my_addrs = NULL;
-    unsigned int num_my_addrs = 0;
+    unsigned int num_my_addrs = 0, i;
 
     base = o->zalloc(o, sizeof(*base));
     if (!base)
@@ -5025,26 +5117,34 @@ ax25_gensio_alloc_base(struct gensio *child, const char *const args[],
 
     base->o = o;
     base->state = AX25_BASE_CLOSED;
+    gensio_list_init(&base->listen_addrs);
     gensio_list_init(&base->chans);
     gensio_list_init(&base->chans_waiting_open);
     gensio_list_init(&base->chans_closed);
     gensio_list_init(&base->send_list);
     base->refcount = 1;
     base->conf = *conf;
-    if (conf->my_addrs) {
-	unsigned int size = conf->num_my_addrs * sizeof(*(conf->my_addrs));
+    /*
+     * If conf_laddrs is set, this comes from an accepter and will not
+     * have any arguments.  So we can just set our conf_laddrs.
+     * Otherwise find our addresses from the arguments.
+     */
+    if (conf->conf_laddrs) {
+	unsigned int size = conf->num_conf_laddrs * sizeof(*(conf->conf_laddrs));
 
-	base->conf.my_addrs = NULL;
-	base->conf.num_my_addrs = 0;
 	my_addrs = o->zalloc(o, size);
 	if (!my_addrs)
 	    goto out_nomem;
-	memcpy(my_addrs, conf->my_addrs, size);
-	num_my_addrs = conf->num_my_addrs;
+	memcpy(my_addrs, conf->conf_laddrs, size);
+	num_my_addrs = conf->num_conf_laddrs;
     }
 
     base->lock = o->alloc_lock(o);
     if (!base->lock)
+	goto out_nomem;
+
+    base->addrlock = o->alloc_lock(o);
+    if (!base->addrlock)
 	goto out_nomem;
 
     base->child = child;
@@ -5064,14 +5164,31 @@ ax25_gensio_alloc_base(struct gensio *child, const char *const args[],
     gensio_set_callback(child, ax25_child_cb, base);
 
     base->conf = chan->conf;
+    /* Restore proper setting for things that need to be kept. */
+    chan->conf.conf_laddrs = NULL;
+    chan->conf.num_conf_laddrs = 0;
+    base->conf.conf_uiaddrs = NULL;
+    base->conf.num_conf_uiaddrs = 0;
     base->conf.addr = NULL;
-    chan->conf.my_addrs = NULL;
-    chan->conf.num_my_addrs = 0;
+    if (!my_addrs) {
+	/*
+	 * No need to check for existing conf_laddrs, if my_addrs is set
+	 * then there can't have been any listen channels from the child.
+	 */
+	my_addrs = base->conf.conf_laddrs;
+	num_my_addrs = base->conf.num_conf_laddrs;
+	base->conf.conf_laddrs = NULL;
+	base->conf.num_conf_laddrs = 0;
+    }
 
-    if (my_addrs) {
-	base->conf.my_addrs = my_addrs;
-	base->conf.num_my_addrs = num_my_addrs;
-	my_addrs = NULL;
+    if (num_my_addrs) {
+	/* Add the listen addresses to the list. */
+	for (i = 0; i < num_my_addrs; i++) {
+	    rv = ax25_add_iaddr(base->o, &base->listen_addrs, &my_addrs[i]);
+	    if (rv)
+		goto out_err;
+	}
+	o->free(o, my_addrs);
     }
 
     *rchan = chan;
