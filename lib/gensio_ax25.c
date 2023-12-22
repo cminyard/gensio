@@ -583,6 +583,40 @@ ax25_add_iaddr(struct gensio_os_funcs *o,
 }
 
 static int
+ax25_del_iaddr(struct gensio_os_funcs *o,
+	       struct gensio_list *list, struct gensio_ax25_subaddr *addr)
+{
+    struct gensio_link *l, *l2;
+    int rv = GE_NOTFOUND;
+
+    gensio_list_for_each_safe(list, l, l2) {
+	struct ax25_iaddr *iaddr = to_ax25_iaddr(l);
+
+	if (ax25_subaddr_equal(addr, &iaddr->addr)) {
+	    gensio_list_rm(list, l);
+	    o->free(o, iaddr);
+	    rv = 0;
+	    break;
+	}
+    }
+    return rv;
+}
+
+static bool
+ax25_iaddr_find(struct gensio_list *list, struct gensio_ax25_subaddr *addr)
+{
+    struct gensio_link *l;
+
+    gensio_list_for_each(list, l) {
+	struct ax25_iaddr *iaddr = to_ax25_iaddr(l);
+
+	if (ax25_subaddr_equal(addr, &iaddr->addr))
+	    return true;
+    }
+    return false;
+}
+
+static int
 ax25_free_iaddr_list(struct gensio_os_funcs *o, struct gensio_list *list)
 {
     struct gensio_link *l, *l2;
@@ -756,6 +790,7 @@ struct ax25_chan {
     struct ax25_conf_data conf;
 
     /* A list of addresses we listen for UI packets on. */
+    struct gensio_lock *ui_addr_lock;
     struct gensio_list ui_addrs;
 
     /* Current srt and t1 values, in milliseconds. */
@@ -913,6 +948,18 @@ ax25_addr_unlock(struct ax25_base *base)
 }
 
 static void
+ax25_ui_addr_lock(struct ax25_chan *chan)
+{
+    chan->o->lock(chan->ui_addr_lock);
+}
+
+static void
+ax25_ui_addr_unlock(struct ax25_chan *chan)
+{
+    chan->o->unlock(chan->ui_addr_lock);
+}
+
+static void
 ax25_cleanup_conf(struct gensio_os_funcs *o, struct ax25_conf_data *conf)
 {
     if (conf->conf_laddrs)
@@ -993,6 +1040,8 @@ ax25_chan_finish_free(struct ax25_chan *chan, bool baselocked)
     if (chan->io)
 	gensio_data_free(chan->io);
     ax25_free_iaddr_list(base->o, &chan->ui_addrs);
+    if (chan->ui_addr_lock)
+	base->o->free_lock(chan->ui_addr_lock);
     if (chan->read_data) {
 	for (i = 0; i < chan->conf.readwindow; i++) {
 	    if (chan->read_data[i].data)
@@ -2350,21 +2399,6 @@ ax25_chan_start_connect(struct ax25_chan *chan)
     }
 }
 
-static bool
-ax25_match_subaddr(struct gensio_ax25_subaddr *dest,
-		   struct gensio_list *list)
-{
-    struct gensio_link *l;
-
-    gensio_list_for_each(list, l) {
-	struct ax25_iaddr *iaddr = to_ax25_iaddr(l);
-
-	if (ax25_subaddr_equal(dest, &iaddr->addr))
-	    return true;
-    }
-    return false;
-}
-
 static void
 ax25_chan_report_raw(struct ax25_base *base, unsigned int port,
 		     unsigned char *data, unsigned int len)
@@ -2441,13 +2475,18 @@ ax25_chan_handle_report(struct ax25_base *base, struct gensio_ax25_addr *addr,
     ax25_base_lock(base);
     gensio_list_for_each(&base->chans, l) {
 	struct ax25_chan *chan = gensio_container_of(l, struct ax25_chan, link);
+	bool found;
 
 	if (!((cmd == X25_UI && chan->report_ui) || chan->conf.report_heard)
 			|| !chan->read_enabled)
 	    continue;
-	if (!chan->conf.report_heard && chan->report_ui < 2 &&
-		!ax25_match_subaddr(&addr->dest, &chan->ui_addrs))
-	    continue;
+	if (!chan->conf.report_heard && chan->report_ui < 2) {
+	    ax25_ui_addr_lock(chan);
+	    found = ax25_iaddr_find(&chan->ui_addrs, &addr->dest);
+	    ax25_ui_addr_unlock(chan);
+	    if (!found)
+		continue;
+	}
 	gensio_list_add_tail(&to_deliver, &chan->base_lock_ui_link);
 	chan->base_lock_count++;
     }
@@ -2470,9 +2509,11 @@ ax25_chan_handle_report(struct ax25_base *base, struct gensio_ax25_addr *addr,
 	if (!chan || !chan->read_enabled)
 	    continue;
 
+	ax25_ui_addr_lock(chan);
 	report_ui = (cmd == X25_UI &&
 		     (chan->report_ui >= 2 ||
-		      ax25_match_subaddr(&addr->dest, &chan->ui_addrs)));
+		      ax25_iaddr_find(&chan->ui_addrs, &addr->dest)));
+	ax25_ui_addr_unlock(chan);
 	if (!report_ui)
 	    report_heard = chan->conf.report_heard;
 
@@ -3682,7 +3723,7 @@ ax25_child_read(struct ax25_base *base, int ierr,
     if (!chan) {
 	bool match;
 	ax25_addr_lock(base);
-	match = ax25_match_subaddr(&iaddr.dest, &base->listen_addrs);
+	match = ax25_iaddr_find(&base->listen_addrs, &iaddr.dest);
 	ax25_addr_unlock(base);
 	if (!match)
 	    /* No existing channel, not listening to this address. */
@@ -4661,6 +4702,7 @@ ax25_chan_control(struct ax25_chan *chan, bool get, int option,
     gensiods pos;
     unsigned int i;
     struct gensio_link *l;
+    struct gensio_ax25_subaddr addr;
 
     switch (option) {
     case GENSIO_CONTROL_ENABLE_OOB:
@@ -4696,6 +4738,78 @@ ax25_chan_control(struct ax25_chan *chan, bool get, int option,
 	    i--;
 	}
 	ax25_addr_unlock(chan->base);
+	return rv;
+
+    case GENSIO_CONTROL_ADD_LADDR:
+	if (get)
+	    return GE_NOTSUP;
+	rv = ax25_str_to_subaddr((char *) data, &addr, false);
+	if (rv)
+	    break;
+	ax25_addr_lock(chan->base);
+	if (ax25_iaddr_find(&chan->base->listen_addrs, &addr))
+	    rv = GE_EXISTS;
+	else
+	    rv = ax25_add_iaddr(chan->o, &chan->base->listen_addrs, &addr);
+	ax25_addr_unlock(chan->base);
+	return rv;
+
+    case GENSIO_CONTROL_DEL_LADDR:
+	if (get)
+	    return GE_NOTSUP;
+	rv = ax25_str_to_subaddr((char *) data, &addr, false);
+	if (rv)
+	    break;
+	ax25_addr_lock(chan->base);
+	rv = ax25_del_iaddr(chan->o, &chan->base->listen_addrs, &addr);
+	ax25_addr_unlock(chan->base);
+	return rv;
+
+    case GENSIO_CONTROL_GET_MCAST:
+	if (!get)
+	    return GE_NOTSUP;
+	i = strtoul(data, NULL, 0);
+	rv = GE_NOTFOUND;
+	ax25_ui_addr_lock(chan);
+	gensio_list_for_each(&chan->ui_addrs, l) {
+	    if (i == 0) {
+		struct ax25_iaddr *iaddr = to_ax25_iaddr(l);
+
+		pos = 0;
+		rv = ax25_subaddr_to_str(&iaddr->addr,
+					 data, &pos, *datalen, false);
+		if (!rv)
+		    *datalen = pos;
+		break;
+	    }
+	    i--;
+	}
+	ax25_ui_addr_unlock(chan);
+	return rv;
+
+    case GENSIO_CONTROL_ADD_MCAST:
+	if (get)
+	    return GE_NOTSUP;
+	rv = ax25_str_to_subaddr((char *) data, &addr, false);
+	if (rv)
+	    break;
+	ax25_ui_addr_lock(chan);
+	if (ax25_iaddr_find(&chan->ui_addrs, &addr))
+	    rv = GE_EXISTS;
+	else
+	    rv = ax25_add_iaddr(chan->o, &chan->ui_addrs, &addr);
+	ax25_ui_addr_unlock(chan);
+	return rv;
+
+    case GENSIO_CONTROL_DEL_MCAST:
+	if (get)
+	    return GE_NOTSUP;
+	rv = ax25_str_to_subaddr((char *) data, &addr, false);
+	if (rv)
+	    break;
+	ax25_ui_addr_lock(chan);
+	rv = ax25_del_iaddr(chan->o, &chan->ui_addrs, &addr);
+	ax25_ui_addr_unlock(chan);
 	return rv;
 
     case GENSIO_CONTROL_RADDR:
@@ -5030,6 +5144,10 @@ ax25_chan_alloc(struct ax25_base *base, const char *const args[],
 		goto out_err;
 	}
     }
+
+    chan->ui_addr_lock = o->alloc_lock(o);
+    if (!chan->ui_addr_lock)
+	goto out_nomem;
 
     chan->read_data = o->zalloc(o, (sizeof(struct ax25_data)
 				    * chan->conf.readwindow));

@@ -58,6 +58,10 @@
 #define GENSIO_CONTROL_SER_SEND_BREAK		48u
 #define GENSIO_CONTROL_SER_LINESTATE		49u
 
+#define GENSIO_CONTROL_ADD_LADDR		50u
+#define GENSIO_CONTROL_DEL_LADDR		51u
+#define GENSIO_CONTROL_GET_MCAST		52u
+
 /* Keep the async control number in a different range, just to be safe. */
 #define GENSIO_ACONTROL_SER_BAUD		1000u
 #define GENSIO_ACONTROL_SER_DATASIZE		1001u

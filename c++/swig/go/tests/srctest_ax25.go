@@ -69,7 +69,7 @@ func main() {
 	h := &AuxdataEvHnd{}
 	h.Setup(o)
 	testbase.ObjCount++
-	g := gensio.NewGensio("ax25(laddr=AE5KM-1),kiss(server=yes),tcp,localhost," + port,
+	g := gensio.NewGensio("ax25(laddr=AE5KM-1,uiaddr=AE5KM-1),kiss(server=yes),tcp,localhost," + port,
 		o, h)
 	h.SetGensio(g)
 	rv, _, _ := g.Control(0, false, gensio.GENSIO_CONTROL_ENABLE_OOB,
