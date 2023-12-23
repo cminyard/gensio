@@ -1,0 +1,39 @@
+.TH gagwpe 1 01/02/19  "An AGWPE server using gensio"
+
+.SH NAME
+gensio \- An AGWPE server using gensio
+
+.SH SYNOPSIS
+.B gagwpe [options] io
+
+.SH DESCRIPTION
+The
+.BR gagwpe
+program AX25 connection to be made using a network connection specified in the
+.I io
+parameter.
+
+For a description of how to specify a gensio, see the gensio documentation.
+
+.SH OPTIONS
+.TP
+.I "\-p|\-\-listenport <gensio>"
+By default the program listens on
+.BR tcp,7001
+but this parameter allows the listen port to be overridden.
+.TP
+.I \-\-version
+Print the version number and exit.
+.TP
+.I \-h|\-\-help
+Help output
+
+.SH "SEE ALSO"
+gensio(5)
+
+.SH "KNOWN PROBLEMS"
+None.
+
+.SH AUTHOR
+.PP
+Corey Minyard <minyard@acm.org>
