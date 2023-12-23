@@ -6,7 +6,7 @@ AM_CFLAGS = -DSYSCONFDIR="\"${sysconfdir}\"" -I$(top_builddir) \
 noinst_LIBRARIES = libgensiotool.a libgtlssh.a
 
 bin_PROGRAMS = gensiot @GMDNS@ @GTLSSH@ @GTLSSH_KEYGEN@ gsound \
-	@GENSIO_PTY_HELPER@
+	@GENSIO_PTY_HELPER@ gagwpe
 sbin_PROGRAMS = @GTLSSHD@
 EXTRA_PROGRAMS = gtlsshd gtlssh gmdns gtlssh-keygen gensio_pty_helper
 
@@ -60,6 +60,10 @@ gtlsshd.service: ${srcdir}/gtlsshd.service.in
 gsound_SOURCES = gensiosound.c
 gsound_LDADD = $(top_builddir)/lib/libgensioosh.la \
 	$(top_builddir)/lib/libgensio.la libgensiotool.a
+
+gagwpe_SOURCES = gensioagwpe.c
+gagwpe_LDADD = $(top_builddir)/lib/libgensioosh.la \
+	$(top_builddir)/lib/libgensio.la
 
 gensio_pty_helper_SOURCES = gensio_pty_helper.c
 
