@@ -5102,6 +5102,8 @@ ax25_chan_alloc(struct ax25_base *base, const char *const args[],
     gensio_list_init(&chan->ui_addrs);
 
     chan->conf = base->conf;
+    chan->conf.report_heard = false;
+    chan->conf.report_raw = false;
     chan->conf.conf_laddrs = NULL;
     chan->conf.num_conf_laddrs = 0;
     chan->conf.addr = NULL;
