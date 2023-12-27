@@ -699,6 +699,7 @@ struct ax25_chan {
     struct gensio_link base_lock_ui_link;
     struct gensio_link base_lock_open_link;
     struct gensio_link base_lock_err_link;
+    struct gensio_link base_lock_count_link;
 
     /* Report UI frames to the upper layer? */
     unsigned int report_ui;
@@ -4701,7 +4702,7 @@ ax25_chan_control(struct ax25_chan *chan, bool get, int option,
     int rv = 0;
     gensiods pos;
     unsigned int i;
-    struct gensio_link *l;
+    struct gensio_link *l, *l2;
     struct gensio_ax25_subaddr addr;
 
     switch (option) {
@@ -4831,6 +4832,55 @@ ax25_chan_control(struct ax25_chan *chan, bool get, int option,
 	if (i > 0 || !chan->conf.addr)
 	    return GE_NOTFOUND;
 	gensio_addr_getaddr(chan->conf.addr, data, datalen);
+	break;
+
+    case GENSIO_CONTROL_DRAIN_COUNT:
+	if (!get)
+	    return GE_NOTSUP;
+	i = strtoul(data, NULL, 0);
+	if (i == 0) {
+	    ax25_chan_lock(chan);
+	    i = chan->write_len;
+	    gensio_list_for_each(&chan->raws, l)
+		i++;
+	    ax25_chan_unlock(chan);
+	    *datalen = snprintf(data, *datalen, "%u", i);
+	} else if (i == 1) {
+	    struct ax25_base *base = chan->base;
+	    struct gensio_list to_count;
+
+	    i = 0;
+	    gensio_list_init(&to_count);
+	    ax25_base_lock(base);
+	    gensio_list_for_each(&base->chans, l) {
+		struct ax25_chan *chan;
+
+		chan = gensio_container_of(l, struct ax25_chan, link);
+		gensio_list_add_tail(&to_count, &chan->base_lock_count_link);
+		chan->base_lock_count++;
+	    }
+	    ax25_base_unlock(base);
+	    gensio_list_for_each_safe(&to_count, l, l2) {
+		struct ax25_chan *chan2;
+
+		chan2 = gensio_container_of(l, struct ax25_chan,
+					    base_lock_count_link);
+		gensio_list_rm(&to_count, l);
+		chan2 = ax25_chan_check_base_lock_state(chan2,
+							&chan2->base->chans,
+							true);
+		if (!chan2)
+		    continue;
+
+		i += chan2->write_len;
+		gensio_list_for_each(&chan2->raws, l)
+		    i++;
+		ax25_chan_deref_and_unlock(chan2);
+	    }
+	    *datalen = snprintf(data, *datalen, "%u", i);
+	} else {
+	    return GE_NOTFOUND;
+	}
 	break;
 
     default:
