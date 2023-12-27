@@ -484,6 +484,7 @@ struct ax25_conf_data {
     unsigned int t3v;
     unsigned int max_retries;
     unsigned int extended;
+    unsigned int pid;
     bool do_crc;
     bool ignore_embedded_ua;
     struct gensio_ax25_subaddr *conf_laddrs;
@@ -4271,7 +4272,7 @@ ax25_chan_send_ui(struct ax25_chan *chan, struct gensio_addr *addr,
 
     pos = ax25_addr_encode(buf, addr);
     buf[pos++] = 0x03; /* UI with P/F clear */
-    buf[pos++] = pid; /* UI with P/F clear */
+    buf[pos++] = pid;
     for (i = 0; i < sglen; i++) {
 	memcpy(buf + pos, sg[i].buf, sg[i].buflen);
 	pos += sg[i].buflen;
@@ -4302,7 +4303,7 @@ ax25_chan_write(struct ax25_chan *chan, gensiods *rcount,
     struct ax25_data *d;
     gensiods len, left, pos;
     unsigned int i, tnc_port = 0;
-    uint8_t pid = 0xf0;
+    uint8_t pid = chan->conf.pid;
     bool raw = false;
     bool oob = false;
 
@@ -5049,6 +5050,8 @@ ax25_readconf(struct gensio_pparm_info *p,
 	    continue;
 	if (gensio_pparm_uint(p, args[i], "retries", &conf->max_retries) > 0)
 	    continue;
+	if (gensio_pparm_uint(p, args[i], "pid", &conf->pid) > 0)
+	    continue;
 	if (gensio_pparm_bool(p, args[i], "heard", &conf->report_heard) > 0)
 	    continue;
 	if (gensio_pparm_bool(p, args[i], "raw", &conf->report_raw) > 0)
@@ -5129,6 +5132,7 @@ ax25_defconf(struct ax25_conf_data *conf)
     conf->t3v = 300000; /* 300 seconds. */
     conf->max_retries = 10;
     conf->drop_pos = 0;
+    conf->pid = 0xf0;
 }
 
 static int
@@ -5152,6 +5156,7 @@ ax25_chan_alloc(struct ax25_base *base, const char *const args[],
     gensio_list_init(&chan->ui_addrs);
 
     chan->conf = base->conf;
+    chan->conf.pid = 0xf0;
     chan->conf.report_heard = false;
     chan->conf.report_raw = false;
     chan->conf.conf_laddrs = NULL;
