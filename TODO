@@ -23,6 +23,10 @@ Add 300 baud support to afskmdm.
 
 Add 9600 baud
 
+Add an AGWPE client.
+
+Add AGWPE server heard list, UI and raw data handling.
+
 Add an aux data/ oob data for sent messages that is sent back to the
 user of afskmdm.  This way, ax.25 can know when a packet was
 transmitted and properly set the timers.
