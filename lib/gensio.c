@@ -549,17 +549,6 @@ gensio_acc_get_frdata(struct gensio_accepter *acc)
     return acc->frdata;
 }
 
-static int
-strisallzero(const char *str)
-{
-    if (*str == '\0')
-	return 0;
-
-    while (*str == '0')
-	str++;
-    return *str == '\0';
-}
-
 void
 gensio_set_callback(struct gensio *io, gensio_event cb, void *user_data)
 {
@@ -1588,9 +1577,7 @@ str_to_gensio_accepter(const char *str,
 		       gensio_accepter_event cb, void *user_data,
 		       struct gensio_accepter **accepter)
 {
-    int err;
-    struct gensio_addr *ai = NULL;
-    int protocol = 0;
+    int err = GE_INVAL;
     const char **args = NULL;
     struct registered_gensio_accepter *r;
     size_t len;
@@ -1623,33 +1610,6 @@ str_to_gensio_accepter(const char *str,
     if (!retried && gensio_loadlib(o, str)) {
 	retried = true;
 	goto retry;
-    }
-
-    if (strisallzero(str)) {
-	err = gensio_terminal_acc_alloc("stdio", NULL, NULL, o, cb, user_data,
-					accepter);
-    } else {
-	err = gensio_scan_network_port(o, str, true, &ai, &protocol,
-				       NULL, NULL, &args);
-	if (err) {
-	    GENSIO_DECLARE_PPACCEPTER(p, o, cb, "base", user_data);
-	    gensio_pparm_log(&p, "Unknown gensio type: %s", str);
-	} else {
-	    if (protocol == GENSIO_NET_PROTOCOL_UDP) {
-		err = gensio_terminal_acc_alloc("udp", ai, args, o, cb,
-						user_data, accepter);
-	    } else if (protocol == GENSIO_NET_PROTOCOL_TCP) {
-		err = gensio_terminal_acc_alloc("tcp", ai, args, o, cb,
-						user_data, accepter);
-	    } else if (protocol == GENSIO_NET_PROTOCOL_SCTP) {
-		err = gensio_terminal_acc_alloc("sctp", ai, args, o, cb,
-						user_data, accepter);
-	    } else {
-		err = GE_INVAL;
-	    }
-
-	    gensio_addr_free(ai);
-	}
     }
 
     if (args)
@@ -1817,26 +1777,13 @@ register_gensio(struct gensio_os_funcs *o,
     return register_base_gensio(o, name, handler, alloc, NULL);
 }
 
-static bool
-is_serialdev_default_gensio(const char *str)
-{
-#if _WIN32
-    return strncmp(str, "COM", 3) == 0;
-#else
-    return *str == '/';
-#endif
-}
-
 int
 str_to_gensio(const char *str,
 	      struct gensio_os_funcs *o,
 	      gensio_event cb, void *user_data,
 	      struct gensio **gensio)
 {
-    int err = 0;
-    struct gensio_addr *ai = NULL;
-    bool is_port_set;
-    int protocol = 0;
+    int err = GE_INVAL;
     const char **args = NULL;
     struct registered_gensio *r;
     size_t len;
@@ -1862,49 +1809,17 @@ str_to_gensio(const char *str,
 		str++;
 	    err = r->handler(str, args, o, cb, user_data, gensio);
 	}
-	if (args)
-	    gensio_argv_free(o, args);
-	return err;
+	goto out;
     }
     if (!retried && gensio_loadlib(o, str)) {
 	retried = true;
 	goto retry;
     }
 
-    if (is_serialdev_default_gensio(str)) {
-	char *nstr = gensio_alloc_sprintf(o, "serialdev,%s", str);
-
-	if (!nstr)
-	    return GE_NOMEM;
-	
-	err = str_to_gensio(nstr, o, cb, user_data, gensio);
-	o->free(o, nstr);
-	goto out;
-    }
-
-    err = gensio_scan_network_port(o, str, false, &ai, &protocol,
-				   &is_port_set, NULL, &args);
-    if (err) {
+    do {
 	GENSIO_DECLARE_PPGENSIO(p, o, cb, "base", user_data);
 	gensio_pparm_log(&p, "Unknown gensio type: %s", str);
-    } else {
-	if (!is_port_set) {
-	    err = GE_INVAL;
-	} else if (protocol == GENSIO_NET_PROTOCOL_UDP) {
-	    err = gensio_terminal_alloc("udp", ai, args, o, cb, user_data,
-					gensio);
-	} else if (protocol == GENSIO_NET_PROTOCOL_TCP) {
-	    err = gensio_terminal_alloc("tcp", ai, args, o, cb, user_data,
-					gensio);
-	} else if (protocol == GENSIO_NET_PROTOCOL_SCTP) {
-	    err = gensio_terminal_alloc("sctp", ai, args, o, cb, user_data,
-					gensio);
-	} else {
-	    err = GE_INVAL;
-	}
-
-	gensio_addr_free(ai);
-    }
+    } while(false);
 
  out:
     if (args)
