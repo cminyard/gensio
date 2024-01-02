@@ -10,7 +10,7 @@
 #include <ctype.h>
 #include <stdlib.h>
 
-#include <gensio/sergensio_class.h>
+#include <gensio/gensio.h>
 
 #include "gensio_ll_sound.h"
 
