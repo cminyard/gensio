@@ -19,7 +19,6 @@
 #include <stdlib.h>
 
 #include <gensio/gensio.h>
-#include <gensio/sergensio.h>
 #include <gensio/gensio_os_funcs.h>
 #include <gensio/gensio_time.h>
 #include <gensio/gensio_ax25_addr.h>
@@ -375,7 +374,6 @@ struct afskmdm_filter {
     } key_io_state;
     enum afskmdm_keytype keytype;
     struct gensio *key_io;
-    struct sergensio *key_sio;
     char *key;
     char *keyon;
     char *keyoff;
@@ -597,7 +595,8 @@ afskmdm_print_msg(struct afskmdm_filter *sfilter, char *t, unsigned int msgn,
 }
 
 static void
-keyop_done(struct sergensio *sio, int err, unsigned int val, void *cb_data)
+keyop_done(struct gensio *io, int err, const char *buf, gensiods len,
+	   void *cb_data)
 {
     if (err)
 	gensio_filter_log(cb_data, GENSIO_LOG_WARNING,
@@ -608,6 +607,8 @@ keyop_done(struct sergensio *sio, int err, unsigned int val, void *cb_data)
 static void
 afskmdm_do_keyon(struct afskmdm_filter *sfilter)
 {
+    int rv;
+
     if (!sfilter->key_io)
 	return;
     switch (sfilter->keytype) {
@@ -617,23 +618,35 @@ afskmdm_do_keyon(struct afskmdm_filter *sfilter)
 	break;
 
     case KEY_RTS:
-	sergensio_rts(sfilter->key_sio, SERGENSIO_RTS_ON, keyop_done,
-		      sfilter->filter);
+	rv = gensio_acontrol(sfilter->key_io, GENSIO_CONTROL_DEPTH_FIRST,
+			     GENSIO_CONTROL_SET, GENSIO_ACONTROL_SER_RTS,
+			     "on", 0, keyop_done, sfilter->filter, NULL);
+	if (rv)
+	    keyop_done(sfilter->key_io, rv, NULL, 0, sfilter->filter);
 	break;
 
     case KEY_RTSINV:
-	sergensio_rts(sfilter->key_sio, SERGENSIO_RTS_OFF, keyop_done,
-		      sfilter->filter);
+	rv = gensio_acontrol(sfilter->key_io, GENSIO_CONTROL_DEPTH_FIRST,
+			     GENSIO_CONTROL_SET, GENSIO_ACONTROL_SER_RTS,
+			     "off", 0, keyop_done, sfilter->filter, NULL);
+	if (rv)
+	    keyop_done(sfilter->key_io, rv, NULL, 0, sfilter->filter);
 	break;
 
     case KEY_DTR:
-	sergensio_dtr(sfilter->key_sio, SERGENSIO_DTR_ON, keyop_done,
-		      sfilter->filter);
+	rv = gensio_acontrol(sfilter->key_io, GENSIO_CONTROL_DEPTH_FIRST,
+			     GENSIO_CONTROL_SET, GENSIO_ACONTROL_SER_DTR,
+			     "on", 0, keyop_done, sfilter->filter, NULL);
+	if (rv)
+	    keyop_done(sfilter->key_io, rv, NULL, 0, sfilter->filter);
 	break;
 
     case KEY_DTRINV:
-	sergensio_dtr(sfilter->key_sio, SERGENSIO_DTR_OFF, keyop_done,
-		      sfilter->filter);
+	rv = gensio_acontrol(sfilter->key_io, GENSIO_CONTROL_DEPTH_FIRST,
+			     GENSIO_CONTROL_SET, GENSIO_ACONTROL_SER_DTR,
+			     "off", 0, keyop_done, sfilter->filter, NULL);
+	if (rv)
+	    keyop_done(sfilter->key_io, rv, NULL, 0, sfilter->filter);
 	break;
 
     case KEY_CM108: /* Should never happen. */
@@ -645,6 +658,8 @@ afskmdm_do_keyon(struct afskmdm_filter *sfilter)
 static void
 afskmdm_do_keyoff(struct afskmdm_filter *sfilter)
 {
+    int rv;
+
     if (!sfilter->key_io)
 	return;
     switch (sfilter->keytype) {
@@ -654,23 +669,35 @@ afskmdm_do_keyoff(struct afskmdm_filter *sfilter)
 	break;
 
     case KEY_RTS:
-	sergensio_rts(sfilter->key_sio, SERGENSIO_RTS_OFF, keyop_done,
-		      sfilter->filter);
+	rv = gensio_acontrol(sfilter->key_io, GENSIO_CONTROL_DEPTH_FIRST,
+			     GENSIO_CONTROL_SET, GENSIO_ACONTROL_SER_RTS,
+			     "off", 0, keyop_done, sfilter->filter, NULL);
+	if (rv)
+	    keyop_done(sfilter->key_io, rv, NULL, 0, sfilter->filter);
 	break;
 
     case KEY_RTSINV:
-	sergensio_rts(sfilter->key_sio, SERGENSIO_RTS_ON, keyop_done,
-		      sfilter->filter);
+	rv = gensio_acontrol(sfilter->key_io, GENSIO_CONTROL_DEPTH_FIRST,
+			     GENSIO_CONTROL_SET, GENSIO_ACONTROL_SER_RTS,
+			     "on", 0, keyop_done, sfilter->filter, NULL);
+	if (rv)
+	    keyop_done(sfilter->key_io, rv, NULL, 0, sfilter->filter);
 	break;
 
     case KEY_DTR:
-	sergensio_dtr(sfilter->key_sio, SERGENSIO_DTR_OFF, keyop_done,
-		      sfilter->filter);
+	rv = gensio_acontrol(sfilter->key_io, GENSIO_CONTROL_DEPTH_FIRST,
+			     GENSIO_CONTROL_SET, GENSIO_ACONTROL_SER_DTR,
+			     "off", 0, keyop_done, sfilter->filter, NULL);
+	if (rv)
+	    keyop_done(sfilter->key_io, rv, NULL, 0, sfilter->filter);
 	break;
 
     case KEY_DTRINV:
-	sergensio_dtr(sfilter->key_sio, SERGENSIO_DTR_ON, keyop_done,
-		      sfilter->filter);
+	rv = gensio_acontrol(sfilter->key_io, GENSIO_CONTROL_DEPTH_FIRST,
+			     GENSIO_CONTROL_SET, GENSIO_ACONTROL_SER_DTR,
+			     "on", 0, keyop_done, sfilter->filter, NULL);
+	if (rv)
+	    keyop_done(sfilter->key_io, rv, NULL, 0, sfilter->filter);
 	break;
 
     case KEY_CM108: /* Should never happen. */
@@ -2606,8 +2633,7 @@ gensio_afskmdm_filter_raw_alloc(struct gensio_pparm_info *p,
 	}
 	switch (sfilter->keytype) {
 	case KEY_RTS: case KEY_RTSINV: case KEY_DTR: case KEY_DTRINV:
-	    sfilter->key_sio = gensio_to_sergensio(sfilter->key_io);
-	    if (!sfilter->key_sio) {
+	    if (!gensio_is_serial(sfilter->key_io)) {
 		gensio_pparm_log(p, "A serial keytype was given, '%s',"
 				 " but it is not a serial gensio",
 				 sfilter->key);
