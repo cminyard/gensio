@@ -18,7 +18,6 @@
 #include <gensio/gensio_osops_addrinfo.h>
 #include <gensio/gensio_osops_stdsock.h>
 #include <gensio/gensio_osops.h>
-#include <gensio/sergensio.h>
 
 #include "utils.h"
 #include <stdlib.h>
