@@ -1968,6 +1968,13 @@ if test "x$tryswig" = "xyes"; then
             SWIG_CPP_DIR=swig
         ], [
             AC_MSG_WARN([SWIG version >= 4.1.0 is required for C++ swig.])
+            AX_PKG_SWIG(4.0.0,
+              [
+                AC_DEFINE([HAVE_SWIG], [], [Have swig installed])
+                SWIG_DIR=swig
+              ], [
+                AC_MSG_WARN([SWIG version >= 4.0.0 is required for C swig.])
+              ])
         ])
 fi
 AC_SUBST(SWIG_DIR)
