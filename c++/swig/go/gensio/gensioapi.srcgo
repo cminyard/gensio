@@ -1290,6 +1290,74 @@ func (e *raweventBase) Log(level Gensio_log_levels, s string) int {
 	return e.sube.Log(level, s)
 }
 
+func (e *raweventBase) Modemstate(state uint) {
+	e.sube.Modemstate(state)
+}
+
+func (e *raweventBase) ModemstateMask(state uint) {
+	e.sube.ModemstateMask(state)
+}
+
+func (e *raweventBase) Linestate(state uint) {
+	e.sube.Linestate(state)
+}
+
+func (e *raweventBase) LinestateMask(state uint) {
+	e.sube.LinestateMask(state)
+}
+
+func (e *raweventBase) Signature(data []byte) {
+	e.sube.Signature(data)
+}
+
+func (e *raweventBase) FlowState(state bool) {
+	e.sube.FlowState(state)
+}
+
+func (e *raweventBase) Sync() {
+	e.sube.Sync()
+}
+
+func (e *raweventBase) Baud(baud uint) {
+	e.sube.Baud(baud)
+}
+
+func (e *raweventBase) Datasize(size uint) {
+	e.sube.Datasize(size)
+}
+
+func (e *raweventBase) Parity(par uint) {
+	e.sube.Parity(par)
+}
+
+func (e *raweventBase) Stopbits(bits uint) {
+	e.sube.Stopbits(bits)
+}
+
+func (e *raweventBase) Flowcontrol(flow uint) {
+	e.sube.Flowcontrol(flow)
+}
+
+func (e *raweventBase) Iflowcontrol(flow uint) {
+	e.sube.Iflowcontrol(flow)
+}
+
+func (e *raweventBase) Sbreak(sbreak uint) {
+	e.sube.Sbreak(sbreak)
+}
+
+func (e *raweventBase) Dtr(dtr uint) {
+	e.sube.Dtr(dtr)
+}
+
+func (e *raweventBase) Rts(rts uint) {
+	e.sube.Rts(rts)
+}
+
+func (e *raweventBase) Flush(val uint) {
+	e.sube.Flush(val)
+}
+
 func (e *raweventBase) User_event(event int, err int,
 				  userdata *[]byte, auxdata []string) int {
 	return e.sube.UserEvent(event, err, userdata, auxdata)
