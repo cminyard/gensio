@@ -608,10 +608,10 @@ struct ax25_chan_cmdrsp {
 };
 #define AX25_CHAN_MAX_CMDRSP 8
 
+#ifdef DEBUG_STATE
 enum ax25_snd_rcv {
     SENT, RCVD
 };
-#ifdef DEBUG_STATE
 struct ax25_chan_msgtrace {
     gensio_time time;
     enum ax25_snd_rcv type;
