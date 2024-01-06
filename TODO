@@ -27,6 +27,13 @@ Add an AGWPE client.
 
 Add AGWPE server heard list, UI and raw data handling.
 
+Add a sound mux to support multiple modems on the same radio.
+* mux would control the key.
+* mux can use the carrier indication from the radio if available.
+* mux can get indications from the modem if they are receiving data
+  (if carrier indication isn't available).
+* Used write ready callbacks to allow writing to sound device.
+
 Add an aux data/ oob data for sent messages that is sent back to the
 user of afskmdm.  This way, ax.25 can know when a packet was
 transmitted and properly set the timers.
