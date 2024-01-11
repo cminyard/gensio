@@ -246,7 +246,7 @@ enum ax25_chan_state {
      *
      * close && write data pending -> AX25_CHAN_CLOSE_WAIT_DRAIN
      * close && no write data pending -> AX25_CHAN_IN_CLOSE
-     * remote close -> AX25_CHAN_IO_ERR
+     * remote close -> AX25_CHAN_REM_DISC
      * io err -> AX25_CHAN_IO_ERR
      */
     AX25_CHAN_OPEN,
@@ -256,7 +256,7 @@ enum ax25_chan_state {
      *
      * All data written -> start close && AX25_CHAN_IN_CLOSE
      * io err -> report close && AX25_CHAN_CLOSED
-     * remote close -> AX25_CHAN_IO_ERR
+     * remote close -> AX25_CHAN_REPORT_CLOSE
      */
     AX25_CHAN_CLOSE_WAIT_DRAIN,
 
@@ -2389,8 +2389,12 @@ ax25_chan_report_raw(struct ax25_base *base, unsigned int port,
 	gensio_list_rm(&to_deliver, l);
 	chan = ax25_chan_check_base_lock_state(chan, &chan->base->chans,
 					       true);
-	if (!chan || !chan->read_enabled)
+	if (!chan)
 	    continue;
+	if (!chan->read_enabled) {
+	    ax25_chan_deref_and_unlock(chan);
+	    continue;
+	}
 
 	chan->in_ui = true;
 	ax25_chan_unlock(chan);
@@ -2462,8 +2466,12 @@ ax25_chan_handle_report(struct ax25_base *base, struct gensio_ax25_addr *addr,
 	gensio_list_rm(&to_deliver, l);
 	chan = ax25_chan_check_base_lock_state(chan, &chan->base->chans,
 					       true);
-	if (!chan || !chan->read_enabled)
+	if (!chan)
 	    continue;
+	if (!chan->read_enabled) {
+	    ax25_chan_deref_and_unlock(chan);
+	    continue;
+	}
 
 	ax25_ui_addr_lock(chan);
 	report_ui = (cmd == X25_UI &&
@@ -4362,7 +4370,7 @@ ax25_chan_write(struct ax25_chan *chan, gensiods *rcount,
     return rv;
 }
 
-/* Must be called with the channel and base lock held. */
+/* Must be called with the channel lock held. */
 static int
 i_ax25_chan_open(struct ax25_chan *chan,
 		 gensio_done_err open_done, void *open_data)
