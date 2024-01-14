@@ -3835,6 +3835,16 @@ gensio_time_to_usecs(gensio_time *t1)
     return v;
 }
 
+int64_t
+gensio_time_to_nsecs(gensio_time *t1)
+{
+    int64_t v;
+
+    v = t1->secs * GENSIO_NSECS_IN_SEC;
+    v += GENSIO_NSECS_TO_USECS(t1->nsecs);
+    return v;
+}
+
 void
 gensio_msecs_to_time(gensio_time *t1, int64_t v)
 {
@@ -3847,6 +3857,13 @@ gensio_usecs_to_time(gensio_time *t1, int64_t v)
 {
     t1->secs = v / 1000000;
     t1->nsecs = GENSIO_USECS_TO_NSECS(v % 1000000);
+}
+
+void
+gensio_nsecs_to_time(gensio_time *t1, int64_t v)
+{
+    t1->secs = v / GENSIO_NSECS_IN_SEC;
+    t1->nsecs = v % GENSIO_NSECS_IN_SEC;
 }
 
 int64_t

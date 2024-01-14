@@ -32,9 +32,13 @@ int64_t gensio_time_to_msecs(gensio_time *t);
 GENSIO_DLL_PUBLIC
 int64_t gensio_time_to_usecs(gensio_time *t);
 GENSIO_DLL_PUBLIC
+int64_t gensio_time_to_nsecs(gensio_time *t);
+GENSIO_DLL_PUBLIC
 void gensio_msecs_to_time(gensio_time *t, int64_t v);
 GENSIO_DLL_PUBLIC
 void gensio_usecs_to_time(gensio_time *t, int64_t v);
+GENSIO_DLL_PUBLIC
+void gensio_nsecs_to_time(gensio_time *t, int64_t v);
 
 /*
  * Return the value of t1 - t2 in nanoseconds.
