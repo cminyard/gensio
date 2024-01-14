@@ -1289,10 +1289,11 @@ add_seq(uint8_t val, uint8_t amt, uint8_t window)
 static bool
 seq_in_range(uint8_t start, uint8_t end, uint8_t val, uint8_t window)
 {
+    if (start == end)
+	return start == val;
     if (end > start)
 	return val >= start && val <= end;
-    else
-	return val >= start || val <= end;
+    return val >= start || val <= end;
 }
 
 /* Can the upper layer write to me? */
