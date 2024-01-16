@@ -1125,6 +1125,7 @@ main(int argc, char *argv[])
     bool use_tcl = false;
     gensio_time endwait = { 5, 0 };
     struct gensio *io = NULL;
+    bool noregterm; /* Don't register the termination handler. */
 
     memset(&g, 0, sizeof(g));
     g.escape_char = -1;
@@ -1187,7 +1188,9 @@ main(int argc, char *argv[])
 	    exit(0);
 	} else if ((rv = cmparg(argc, argv, &arg, "-h", "--help", NULL)))
 	    help(0);
-	else if ((rv = cmparg(argc, argv, &arg, NULL, "--dummyrand",
+	else if ((rv = cmparg(argc, argv, &arg, NULL, "--noregterm", NULL))) {
+	    noregterm = true;
+	} else if ((rv = cmparg(argc, argv, &arg, NULL, "--dummyrand",
 			      &filename))) {
 	    /*
 	     * This option is undocumented and only for testing.  Do
@@ -1314,9 +1317,11 @@ main(int argc, char *argv[])
 	io = NULL;
     }
 
-    rv = gensio_os_proc_register_term_handler(proc_data, handle_term, &g);
-    if (rv)
-	handle_term(&g);
+    if (!noregterm) {
+	rv = gensio_os_proc_register_term_handler(proc_data, handle_term, &g);
+	if (rv)
+	    handle_term(&g);
+    }
     gensio_os_proc_register_reload_handler(proc_data, handle_reload, &g);
 
     gensio_os_funcs_wait(g.o, g.waiter, 1, NULL);
