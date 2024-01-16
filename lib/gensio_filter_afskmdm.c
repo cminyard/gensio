@@ -186,7 +186,6 @@ struct afskmdm_filter {
     /* For reporting key errors. */
     struct gensio_pparm_info p;
 
-    bool simplex;
     unsigned int in_nchans;
     unsigned int in_chan;
     unsigned int out_nchans;
@@ -1854,7 +1853,7 @@ afskmdm_ll_write(struct gensio_filter *filter,
     if (sfilter->debug & 2)
 	printf("Processing frame %lu %d %u\n", sfilter->framenr,
 	       sfilter->transmit_state, pos);
-    if (sfilter->transmit_state > WAITING_TRANSMIT) {
+    if (!sfilter->full_duplex && sfilter->transmit_state > WAITING_TRANSMIT) {
 	sfilter->curr_in_pos = sfilter->prevread_size;
 	goto skip_processing;
     }
@@ -1881,7 +1880,8 @@ afskmdm_ll_write(struct gensio_filter *filter,
 			sfilter->transmit_state == WAITING_TRANSMIT &&
 			sfilter->nr_out_sync >= sfilter->tx_delay) {
 		afskmdm_check_start_xmit(sfilter);
-		if (sfilter->transmit_state > WAITING_TRANSMIT) {
+		if (!sfilter->full_duplex &&
+			sfilter->transmit_state > WAITING_TRANSMIT) {
 		    sfilter->curr_in_pos = sfilter->prevread_size;
 		    goto skip_processing;
 		}
