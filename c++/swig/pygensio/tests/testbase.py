@@ -17,7 +17,9 @@ def fix_dll_path():
     if not path:
         return
     paths = path.split(";")
-    for folder in paths:
+    # The patches added below are search last added first.  So preserved
+    # the DLL order by putting them in backwards.
+    for folder in reversed(paths):
         if os.path.exists(folder):
             os.add_dll_directory(folder)
 

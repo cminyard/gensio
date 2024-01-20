@@ -54,7 +54,11 @@ else
 fi
 
 if ${PYTHON_MODE}; then
-    export PYTHONPATH=${BUILDDIR}/tests:${BUILDDIR}/c++/swig/pygensio:${BUILDDIR}/c++/swig/pygensio/.libs:${SRCDIR}/c++/swig/pygensio/test:${BUILDDIR}/glib/c++/swig/pygensio:${BUILDDIR}/glib/c++/swig/pygensio/.libs:${BUILDDIR}/tcl/c++/swig/pygensio:${BUILDDIR}/tcl/c++/swig/pygensio/.libs:${TEST_BUILDDIR}
+    export PYTHONPATH="${BUILDDIR}/tests:${BUILDDIR}/c++/swig/pygensio:${BUILDDIR}/c++/swig/pygensio/.libs:${SRCDIR}/c++/swig/pygensio/test:${BUILDDIR}/glib/c++/swig/pygensio:${BUILDDIR}/glib/c++/swig/pygensio/.libs:${BUILDDIR}/tcl/c++/swig/pygensio:${BUILDDIR}/tcl/c++/swig/pygensio/.libs:${TEST_BUILDDIR}"
+    if [ ! -z "$MSYSTEM" ]; then
+	# PYTHONPATH is separated by ; on windows
+        export PYTHONPATH=`echo ${PYTHONPATH} | tr ':' ';'`
+    fi
     TEST="${PYTHON} ${TEST}"
     export GENSIO_MEMTRACK=abort
 else
@@ -66,7 +70,7 @@ fi
 
 # We need to put the DLL in PATH for MSYS on Windows
 if [ ! -z "$MSYSTEM" ]; then
-    export PATH=${BUILDDIR}/lib:${BUILDDIR}/lib/.libs:${BUILDDIR}/c++/lib/.libs:${BUILDDIR}/c++/swig/pygensio/.libs:${BUILDDIR}/glib/.libs:${BUILDDIR}/glib/c++/swig/pygensio/.libs:${BUILDDIR}/tcl/.libs:${BUILDDIR}/tcl/c++/swig/pygensio/.libs:$PATH
+    export PATH="${BUILDDIR}/lib:${BUILDDIR}/lib/.libs:${BUILDDIR}/c++/lib/.libs:${BUILDDIR}/c++/swig/pygensio/.libs:${BUILDDIR}/glib/.libs:${BUILDDIR}/glib/c++/swig/pygensio/.libs:${BUILDDIR}/tcl/.libs:${BUILDDIR}/tcl/c++/swig/pygensio/.libs:$PATH"
 else
     export LD_LIBRARY_PATH=${BUILDDIR}/lib:${BUILDDIR}/lib/.libs:${BUILDDIR}/c++/swig/pygensio/.libs:${BUILDDIR}/glib/.libs:${BUILDDIR}/glib/c++/pygensio/.libs:${BUILDDIR}/tcl/.libs:${BUILDDIR}/tcl/c++/pygensio/.libs:${BUILDDIR}/c++/lib/.libs
 fi
