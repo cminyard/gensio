@@ -4911,7 +4911,7 @@ static int
 ax25_scan_laddrs(struct gensio_os_funcs *o, const char *str,
 		 struct gensio_ax25_subaddr **raddrs, unsigned int *rnum_addrs)
 {
-    char addrstr[8], *s2;
+    char addrstr[10], *s2;
     unsigned int count = 1, i, len;
     int rv;
     struct gensio_ax25_subaddr *addrs;
@@ -4931,7 +4931,12 @@ ax25_scan_laddrs(struct gensio_os_funcs *o, const char *str,
 	    len = s2 - str;
 	else
 	    len = strlen(str);
+	if (len > 9) {
+	    o->free(o, addrs);
+	    return GE_INVAL;
+	}
 	memcpy(addrstr, str, len);
+	addrstr[len] = '\0';
 	rv = ax25_str_to_subaddr(str, &(addrs[i]), false);
 	if (rv) {
 	    o->free(o, addrs);
