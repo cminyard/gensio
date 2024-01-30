@@ -1485,11 +1485,10 @@ ax25_chan_deliver_read(struct ax25_chan *chan)
 	if (chan->err) {
 	    ax25_chan_unlock(chan);
 	    chan->read_enabled = false;
-	    err = gensio_cb(chan->io, GENSIO_EVENT_READ, chan->err,
-			    NULL, NULL, NULL);
+	    /* Already have an error, the error return is irrelevant. */
+	    gensio_cb(chan->io, GENSIO_EVENT_READ, chan->err,
+		      NULL, NULL, NULL);
 	    ax25_chan_lock(chan);
-	    if (err)
-		break;
 	    continue;
 	}
 
