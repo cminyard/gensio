@@ -3187,7 +3187,6 @@ ax25_chan_handle_data(struct ax25_chan *chan, uint8_t ns, uint8_t pf,
 	    } else {
 		chan->in_rej = true;
 		ax25_chan_send_rsp(chan, X25_REJ, pf);
-		ax25_chan_stop_t2(chan);
 		chan->ack_pending = 0;
 	    }
 	}
