@@ -190,6 +190,15 @@ int gensio_str_to_onoff(const char *sval);
 #define GENSIO_SER_MODEMSTATE_RI		(1 << 6)
 #define GENSIO_SER_MODEMSTATE_CD		(1 << 7)
 
+/* Settings for FLUSH operations */
+#define GENSIO_SER_FLUSH_RECV			1
+#define GENSIO_SER_FLUSH_XMIT			2
+#define GENSIO_SER_FLUSH_BOTH			3
+GENSIO_DLL_PUBLIC
+const char *gensio_flush_to_str(unsigned int ival);
+GENSIO_DLL_PUBLIC
+int gensio_str_to_flush(const char *sval);
+
 /*
  * If a user creates their own gensio with their own events, they should
  * use this range.

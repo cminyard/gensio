@@ -529,14 +529,10 @@ static int
 stel_flush(struct stel_data *sdata, unsigned int val, const char *sval)
 {
     if (sval) {
-	if (strcmp(sval, "recv") == 0)
-	    val = 1;
-	else if (strcmp(sval, "xmit") == 0)
-	    val = 2;
-	else if (strcmp(sval, "both") == 0)
-	    val = 3;
-	else
+	int ival = gensio_str_to_flush(sval);
+	if (ival == -1)
 	    return GE_INVAL;
+	val = ival;
     }
 
     return stel_send(sdata, 12, val);

@@ -3996,5 +3996,38 @@ gensio_str_to_onoff(const char *sval)
     return -1;
 }
 
+const char *
+gensio_flush_to_str(unsigned int ival)
+{
+    switch(ival) {
+    case 0:
+	return "0";
+
+    case GENSIO_SER_FLUSH_RECV:
+	return "recv";
+
+    case GENSIO_SER_FLUSH_XMIT:
+	return "xmit";
+
+    case GENSIO_SER_FLUSH_BOTH:
+	return "both";
+
+    default:
+	return "?";
+    }
+}
+
+int
+gensio_str_to_flush(const char *sval)
+{
+    if (strcmp(sval, "recv") == 0)
+	return GENSIO_SER_FLUSH_RECV;
+    if (strcmp(sval, "xmit") == 0)
+	return GENSIO_SER_FLUSH_XMIT;
+    if (strcmp(sval, "both") == 0)
+	return GENSIO_SER_FLUSH_BOTH;
+    return -1;
+}
+
 /* For lack of a better place to put this. */
 bool gensio_uucp_locking_enabled = true;
