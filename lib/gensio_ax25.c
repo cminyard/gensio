@@ -994,9 +994,10 @@ ax25_chan_finish_free(struct ax25_chan *chan, bool baselocked)
 
     if (chan->io)
 	gensio_data_free(chan->io);
-    ax25_free_iaddr_list(base->o, &chan->ui_addrs);
+    if (base)
+	ax25_free_iaddr_list(base->o, &chan->ui_addrs);
     if (chan->ui_addr_lock)
-	base->o->free_lock(chan->ui_addr_lock);
+	o->free_lock(chan->ui_addr_lock);
     if (chan->read_data) {
 	for (i = 0; i < chan->conf.readwindow; i++) {
 	    if (chan->read_data[i].data)
