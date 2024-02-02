@@ -309,7 +309,9 @@ io_conn_event(struct gensio *io, void *user_data, int event, int err,
 	op.kind = 'D'; /* Data */
 	/* These are swapped for data packets. */
 	strncpy(op.callfrom, conn->dest_addr, 10);
+	op.callfrom[9] = '\0';
 	strncpy(op.callto, conn->local_addr, 10);
+	op.callto[9] = '\0';
 	op.data = buf;
 	op.len = *buflen;
 	conn->inpos = 0;
@@ -416,10 +418,12 @@ process_register_callsign(struct agwpe_inst *inst, struct agwpe_packet *p)
     data[0] = 0;
 
  send_response:
+    memset(&op, 0, sizeof(op));
     op.kind = 'X';
     op.len = 1;
     op.data = data;
     strncpy(op.callfrom, p->callfrom, 10);
+    op.callfrom[9] = '\0';
     agwpe_encode_packet(inst->outbuf, sizeof(inst->outbuf),
 			&op, &inst->outlen);
     gensio_set_write_callback_enable(inst->io, true);
@@ -617,6 +621,7 @@ process_ask_conn_outstanding(struct agwpe_inst *inst, struct agwpe_packet *p)
     }
 
  skip:
+    memset(&op, 0, sizeof(op));
     op.port = p->port;
     op.kind = 'Y';
     op.len = 4;
@@ -689,7 +694,9 @@ encode_report_open(struct agwpe_ax25_conn *conn)
     op.port = 0;
     op.kind = 'C'; /* Connected */
     strncpy(op.callfrom, conn->local_addr, 10);
+    op.callfrom[9] = '\0';
     strncpy(op.callto, conn->dest_addr, 10);
+    op.callto[9] = '\0';
     if (conn->was_connection)
 	op.len = snprintf(data, sizeof(data),
 			  "*** CONNECTED With %s\r",
@@ -807,7 +814,9 @@ process_connect(struct agwpe_inst *inst, struct agwpe_packet *p,
     op.kind = 'd'; /* Disconnected */
     op.pid = pid;
     strcpy(op.callfrom, p->callfrom);
+    op.callfrom[9] = '\0';
     strcpy(op.callto, p->callto);
+    op.callto[9] = '\0';
     op.len = snprintf(data, sizeof(data),
 		      "*** DISCONNECTED RETRYOUT With %s\r",
 		      conn->dest_addr);
@@ -1271,8 +1280,8 @@ handle_new_ax25_channel(struct accinfo *ai, struct gensio *io,
 
     gensio_list_for_each(&ai->ios, l) {
 	inst = to_inst(l);
-	if (find_inst_addr(inst, srcaddr)) {
-	}
+	if (find_inst_addr(inst, srcaddr))
+	    break;
 	inst = NULL;
     }
     if (!inst) {
@@ -1396,6 +1405,7 @@ io_tnc_event(struct gensio *io, void *user_data, int event, int err,
 		if (inst->oob_len >= NUM_OOB_PACKETS)
 		    continue;
 
+		memset(&op, 0, sizeof(op));
 		op.kind = 'K';
 		op.data = (unsigned char *) buf;
 		op.len = *buflen;
