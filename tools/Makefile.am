@@ -55,7 +55,7 @@ gtlsshd_LDADD = libgtlssh.a libgensiotool.a $(top_builddir)/lib/libgensioosh.la\
 	@PAMLIB@ @OPENSSL_LDFLAGS@ @OPENSSL_LIBS@
 
 gtlsshd.service: ${srcdir}/gtlsshd.service.in
-	sed "s%@gtlsshdbindir@%${sbindir}%" $< >$@
+	sed "s%@gtlsshdbindir@%${sbindir}%" ${srcdir}/gtlsshd.service.in >$@
 
 gsound_SOURCES = gensiosound.c
 gsound_LDADD = $(top_builddir)/lib/libgensioosh.la \
