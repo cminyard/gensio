@@ -852,8 +852,8 @@ stelc_com_port_cmd(void *handler_data, const unsigned char *option,
 
     stel_lock(sdata);
     curr = sdata->reqs;
-    while (curr && curr->option != cmd &&
-			val >= curr->minval && val <= curr->maxval) {
+    while (curr && !(curr->option == cmd &&
+		     val >= curr->minval && val <= curr->maxval)) {
 	prev = curr;
 	curr = curr->next;
     }
