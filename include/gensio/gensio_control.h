@@ -52,15 +52,29 @@
 #define GENSIO_CONTROL_OUT_FORMAT		43u
 #define GENSIO_CONTROL_DRAIN_COUNT		44u
 
+/*
+ * Don't use this, use SEND_MODEMSTATE for reporting modemstate and
+ * the acontrol SET_MODEMSTATE_MASK for a client setting and server
+ * responding to a modemstate mask set.
+ */
 #define GENSIO_CONTROL_SER_MODEMSTATE		45u
 #define GENSIO_CONTROL_SER_FLOWCONTROL_STATE	46u
 #define GENSIO_CONTROL_SER_FLUSH		47u
 #define GENSIO_CONTROL_SER_SEND_BREAK		48u
+
+/*
+ * Don't use this, use SEND_LINESTATE for reporting modemstate and the
+ * acontrol SET_LINESTATE_MASK for a client setting and server
+ * responding to a modemstate mask set.
+ */
 #define GENSIO_CONTROL_SER_LINESTATE		49u
 
 #define GENSIO_CONTROL_ADD_LADDR		50u
 #define GENSIO_CONTROL_DEL_LADDR		51u
 #define GENSIO_CONTROL_GET_MCAST		52u
+
+#define GENSIO_CONTROL_SER_SEND_MODEMSTATE	53u
+#define GENSIO_CONTROL_SER_SEND_LINESTATE	54u
 
 /* Keep the async control number in a different range, just to be safe. */
 #define GENSIO_ACONTROL_SER_BAUD		1000u
@@ -76,6 +90,9 @@
 #define GENSIO_ACONTROL_SER_DCD_DSR		1010u
 #define GENSIO_ACONTROL_SER_RI			1011u
 #define GENSIO_ACONTROL_SER_SIGNATURE		1012u
+#define GENSIO_ACONTROL_SER_FLUSH		1013u
+#define GENSIO_ACONTROL_SER_SET_MODEMSTATE_MASK	1014u
+#define GENSIO_ACONTROL_SER_SET_LINESTATE_MASK	1015u
 
 #define GENSIO_ACC_CONTROL_LADDR	1u
 #define GENSIO_ACC_CONTROL_LPORT	2u

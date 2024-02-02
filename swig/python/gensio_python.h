@@ -430,6 +430,12 @@ sgensio_linestate(struct gensio *io, unsigned int linestate)
 }
 
 static void
+sgensio_linestate_mask(struct gensio *io, unsigned int linestate)
+{
+    sgensio_call(io, linestate, "linestate_mask");
+}
+
+static void
 sgensio_signature(struct gensio *io)
 {
     /*
@@ -896,6 +902,10 @@ gensio_child_event(struct gensio *io, void *user_data, int event, int readerr,
 
     case GENSIO_EVENT_SER_LINESTATE:
 	sgensio_linestate(io, *((unsigned int *) buf));
+	break;
+
+    case GENSIO_EVENT_SER_LINESTATE_MASK:
+	sgensio_linestate_mask(io, *((unsigned int *) buf));
 	break;
 
     case GENSIO_EVENT_SER_SIGNATURE:

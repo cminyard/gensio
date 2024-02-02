@@ -498,6 +498,54 @@ stel_linestate(struct stel_data *sdata, unsigned int val, const char *sval)
 }
 
 static int
+stel_send_modemstate(struct stel_data *sdata, unsigned int val,
+		     const char *sval)
+{
+    if (sval)
+	val = strtol(sval, NULL, 0);
+
+    return stel_send(sdata, 7, val);
+}
+
+static int
+stel_set_modemstate_mask(struct stel_data *sdata, unsigned int val,
+			 const char *sval, gensio_control_done cdone,
+			 void (*done)(struct sergensio *sio, int err,
+				      int datasize, void *cb_data),
+			 void *cb_data,
+			 gensio_time *timeout)
+{
+    if (sval)
+	val = strtol(sval, NULL, 0);
+
+    return stel_queue_and_send(sdata, 11, val, NULL, 0, 0, 255, cdone,
+			       NULL, done, cb_data, timeout);
+}
+
+static int
+stel_send_linestate(struct stel_data *sdata, unsigned int val, const char *sval)
+{
+    if (sval)
+	val = strtol(sval, NULL, 0);
+    return stel_send(sdata, 6, val);
+}
+
+static int
+stel_set_linestate_mask(struct stel_data *sdata, unsigned int val,
+			const char *sval, gensio_control_done cdone,
+			void (*done)(struct sergensio *sio, int err,
+				     int datasize, void *cb_data),
+			void *cb_data,
+			gensio_time *timeout)
+{
+    if (sval)
+	val = strtol(sval, NULL, 0);
+
+    return stel_queue_and_send(sdata, 10, val, NULL, 0, 0, 255, cdone,
+			       NULL, done, cb_data, timeout);
+}
+
+static int
 stel_flowcontrol_state(struct stel_data *sdata, bool val, const char *sval)
 {
     unsigned char buf[2];
@@ -525,17 +573,25 @@ stel_flowcontrol_state(struct stel_data *sdata, bool val, const char *sval)
     return 0;
 }
 
-static int
-stel_flush(struct stel_data *sdata, unsigned int val, const char *sval)
-{
-    if (sval) {
-	int ival = gensio_str_to_flush(sval);
-	if (ival == -1)
-	    return GE_INVAL;
-	val = ival;
-    }
+static const struct stel_xlat_str stel_flush_xlatstr[] = {
+    { "0", 0 },
+    { "", 0 },
+    { "recv", GENSIO_SER_FLUSH_RECV },
+    { "xmit", GENSIO_SER_FLUSH_XMIT },
+    { "both", GENSIO_SER_FLUSH_BOTH },
+    {}
+};
 
-    return stel_send(sdata, 12, val);
+static int
+stel_flush(struct stel_data *sdata, unsigned int val, const char *sval,
+	   gensio_control_done cdone,
+	   void (*done)(struct sergensio *sio, int err, int datasize,
+			void *cb_data),
+	   void *cb_data,
+	   gensio_time *timeout)
+{
+    return stel_queue_and_send(sdata, 12, val, sval, 0, 0, 3, cdone,
+			       stel_flush_xlatstr, done, cb_data, timeout);
 }
 
 static int
@@ -593,10 +649,10 @@ sergensio_stel_func(struct sergensio *sio, int op, int val, char *buf,
 	return stel_flowcontrol_state(sdata, val, NULL);
 
     case SERGENSIO_FUNC_FLUSH:
-	return stel_flush(sdata, val, NULL);
+	return stel_flush(sdata, val, NULL, NULL, done, cb_data, NULL);
 
     case SERGENSIO_FUNC_SIGNATURE:
-	return stel_signature(sdata, buf, val, NULL, done, cb_data, NULL);
+	return stel_signature(sdata, buf, val, NULL, NULL, NULL, NULL);
 
     case SERGENSIO_FUNC_SEND_BREAK:
 	return stel_send_break(sdata);
@@ -622,11 +678,17 @@ stel_control(void *handler_data, bool get, int option,
     case GENSIO_CONTROL_SER_LINESTATE:
 	return stel_linestate(sdata, 0, data);
 
+    case GENSIO_CONTROL_SER_SEND_MODEMSTATE:
+	return stel_send_modemstate(sdata, 0, data);
+
+    case GENSIO_CONTROL_SER_SEND_LINESTATE:
+	return stel_send_linestate(sdata, 0, data);
+
     case GENSIO_CONTROL_SER_FLOWCONTROL_STATE:
 	return stel_flowcontrol_state(sdata, 0, data);
 
     case GENSIO_CONTROL_SER_FLUSH:
-	return stel_flush(sdata, 0, data);
+	return stel_flush(sdata, 0, data, NULL, NULL, NULL, NULL);
 
     case GENSIO_CONTROL_SER_SEND_BREAK:
 	return stel_send_break(sdata);
@@ -676,6 +738,17 @@ stel_acontrol(void *handler_data, bool get, int option,
 
     case GENSIO_ACONTROL_SER_RTS:
 	return stel_rts(sdata, 0, data, cdone, NULL, cb_data, timeout);
+
+    case GENSIO_ACONTROL_SER_FLUSH:
+	return stel_flush(sdata, 0, data, cdone, NULL, cb_data, timeout);
+
+    case GENSIO_ACONTROL_SER_SET_MODEMSTATE_MASK:
+	return stel_set_modemstate_mask(sdata, 0, data, cdone, NULL, cb_data,
+					timeout);
+
+    case GENSIO_ACONTROL_SER_SET_LINESTATE_MASK:
+	return stel_set_linestate_mask(sdata, 0, data, cdone, NULL, cb_data,
+				       timeout);
 
     case GENSIO_ACONTROL_SER_SIGNATURE:
 	return stel_signature(sdata, data, idata->datalen,
@@ -767,14 +840,6 @@ stelc_com_port_cmd(void *handler_data, const unsigned char *option,
     case 9:
 	val = 0;
 	gensio_cb(io, GENSIO_EVENT_SER_FLOW_STATE, 0,
-		  (unsigned char *) &val, &vlen, NULL);
-	return;
-
-    case 12:
-	if (len < 3)
-	    return;
-	val = option[2];
-	gensio_cb(io, GENSIO_EVENT_SER_FLUSH, 0,
 		  (unsigned char *) &val, &vlen, NULL);
 	return;
 

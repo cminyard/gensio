@@ -63,13 +63,35 @@ def do_telnet_test(io1, io2):
     io1.read_cb_enable(True);
 
     io2.control(0, gensio.GENSIO_CONTROL_SET,
-                gensio.GENSIO_CONTROL_SER_MODEMSTATE, "0")
+                gensio.GENSIO_CONTROL_SER_SEND_MODEMSTATE, "0")
     if (io1.handler.wait_timeout(2000) == 0):
         raise Exception("%s: %s: Timed out waiting for telnet modemstate 1" %
                         ("test open", io1.handler.name))
     do_test(io1, io2)
     io1.read_cb_enable(True);
     io2.read_cb_enable(True);
+
+    io2.handler.set_expected_modemstate_mask(3)
+    h = SigRspHandler(o, "3")
+    io1.acontrol(0, gensio.GENSIO_CONTROL_SET,
+                 gensio.GENSIO_ACONTROL_SER_SET_MODEMSTATE_MASK, "3",
+                 h, -1)
+    if (io2.handler.wait_timeout(2000) == 0):
+        raise Exception("%s: %s: Timed out waiting for telnet modemstate 2" %
+                        ("test open", io1.handler.name))
+    if h.wait_timeout(1000) == 0:
+        raise Exception("Timeout waiting for client telnet modemstate rsp")
+
+    io2.handler.set_expected_linestate_mask(7)
+    h = SigRspHandler(o, "7")
+    io1.acontrol(0, gensio.GENSIO_CONTROL_SET,
+                 gensio.GENSIO_ACONTROL_SER_SET_LINESTATE_MASK, "7",
+                 h, -1)
+    if (io2.handler.wait_timeout(2000) == 0):
+        raise Exception("%s: %s: Timed out waiting for telnet linestate 2" %
+                        ("test open", io1.handler.name))
+    if h.wait_timeout(1000) == 0:
+        raise Exception("Timeout waiting for client telnet linestate rsp")
 
     io2.handler.set_expected_win_size(12, 83)
     io1.control(0, False, gensio.GENSIO_CONTROL_WIN_SIZE, "12:83");
@@ -183,6 +205,19 @@ def do_telnet_test(io1, io2):
         raise Exception("Timeout waiting for server rts set")
     if h.wait_timeout(1000) == 0:
         raise Exception("Timeout waiting for client rts response")
+
+    h = CtrlRspHandler(o, "both")
+    io2.handler.set_expected_server_cb("flush",
+                                       gensio.GENSIO_SER_FLUSH_BOTH,
+                                       "both")
+    io1.acontrol(0, gensio.GENSIO_CONTROL_SET,
+                 gensio.GENSIO_ACONTROL_SER_FLUSH,
+                 "both", h, -1)
+    if io2.handler.wait_timeout(1000) == 0:
+        raise Exception("Timeout waiting for server flush set")
+    if h.wait_timeout(1000) == 0:
+        raise Exception("Timeout waiting for client flush response")
+
     io1.read_cb_enable(False)
     io2.read_cb_enable(False)
     return

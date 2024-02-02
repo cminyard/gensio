@@ -510,36 +510,50 @@ GENSIO_ACONTROL_SER_SIGNATURE
 Fetches or reports the rfc2217 signature for a serial port.  This is an
 arbitrary string.  telnet only.
 
+GENSIO_ACONTROL_SER_FLUSH
+.br
+Sends a flush to the other end and gets the response.
+
+GENSIO_ACONTROL_SER_SET_MODEMSTATE_MASK
+.br
+Set the modemstate mask on the other end and get the response.  Values
+to or together are: GENSIO_SER_MODEMSTATE_CTS,
+GENSIO_SER_MODEMSTATE_DSR, GENSIO_SER_MODEMSTATE_RI,
+GENSIO_SER_MODEMSTATE_CD.
+
+GENSIO_ACONTROL_SER_SET_LINESTATE_MASK
+.br
+Set the linestate mask on the other end and get the response.  Values
+to or together are: GENSIO_SER_LINESTATE_DATA_READY,
+GENSIO_SER_LINESTATE_OVERRUN_ERR, GENSIO_SER_LINESTATE_PARITY_ERR,
+GENSIO_SER_LINESTATE_FRAMING_ERR, GENSIO_SER_LINESTATE_BREAK,
+GENSIO_SER_LINESTATE_XMIT_HOLD_EMPTY,
+GENSIO_SER_LINESTATE_XMIT_SHIFT_EMPTY,
+GENSIO_SER_LINESTATE_TIMEOUT_ERR.
+
 .SS "SERIAL PORT REPORT MASKS"
 These set (on the client) the mask used to monitor various lines on a
 serial ports.  The bits set will be the ones reported in the
 corresponding events.  These are numbers in strings, you bitwise or
 the values together.
 
-GENSIO_CONTROL_SER_MODEMSTATE
+GENSIO_CONTROL_SER_SEND_MODEMSTATE
 .br
-sets the modem control lines that are reported.  Values to or together
-are: GENSIO_SER_MODEMSTATE_CTS, GENSIO_SER_MODEMSTATE_DSR,
-GENSIO_SER_MODEMSTATE_RI, GENSIO_SER_MODEMSTATE_CD.
+Send a modemstate message to the other end.  In addition to the ones
+listed for GENSIO_CONTROL_SER_AMODEMSTATE_MASK, you also have bits
+that tell if the value changed from the last report:
+GENSIO_SER_MODEMSTATE_CTS_CHANGED, GENSIO_SER_MODEMSTATE_DSR_CHANGED,
+GENSIO_SER_MODEMSTATE_RI_CHANGED, GENSIO_SER_MODEMSTATE_CD_CHANGED.
 
-GENSIO_CONTROL_SER_LINESTATE
+GENSIO_CONTROL_SER_SEND_LINESTATE
 .br
-sets the line states (errors) that are reported.  Values to or
-together are: GENSIO_SER_LINESTATE_DATA_READY, GENSIO_SER_LINESTATE_OVERRUN_ERR,
-GENSIO_SER_LINESTATE_PARITY_ERR, GENSIO_SER_LINESTATE_FRAMING_ERR,
-GENSIO_SER_LINESTATE_BREAK, GENSIO_SER_LINESTATE_XMIT_HOLD_EMPTY,
-GENSIO_SER_LINESTATE_XMIT_SHIFT_EMPTY, GENSIO_SER_LINESTATE_TIMEOUT_ERR.
+Send a linestate message to the other end.
 
 .SS "OTHER SERIAL PORT OPERATIONS"
 This is a set of other operations that can be performed on a serial port.
 
 GENSIO_CONTROL_SER_FLOWCONTROL_STATE
 .br
-
-GENSIO_CONTROL_SER_FLUSH
-.br
-requests a flush of the input or output queues, values are "recv",
-"xmit", or "both".
 
 GENSIO_CONTROL_SER_SEND_BREAK
 .br

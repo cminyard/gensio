@@ -166,6 +166,7 @@ class HandleData:
         self.expecting_modemstate = False
         self.expecting_modemstate_mask = False
         self.expecting_linestate = False
+        self.expecting_linestate_mask = False
         self.expecting_remclose = expect_remclose
         self.expected_server_cb = None
         self.expected_server_value = 0
@@ -476,6 +477,7 @@ class HandleData:
         return
 
     def modemstate(self, io, modemstate):
+        print("modemstate " + self.name + " " + str(modemstate))
         try:
             if (not self.expecting_modemstate):
                 if (debug or self.debug):
@@ -498,20 +500,27 @@ class HandleData:
         self.expected_modemstate = modemstate
         return
 
-    def modemstate_mask(self, io, modemstate):
+    def modemstate_mask(self, io, modemstate_mask):
         try:
             if (not self.expecting_modemstate_mask):
                 if (debug or self.debug):
                     print("Got unexpected modemstate mask for %s: %x" %
                           (self.name, modemstate))
-                self.enqueue("unexpected modemstate mask", modemstate)
+                self.enqueue("unexpected modemstate mask", modemstate_mask)
                 return
             if (modemstate_mask != self.expected_modemstate_mask):
-                raise Exception("%s: Expecting modemstate mask 0x%x, got 0x%x" %
-                                (self.name, self.expected_modemstate,
-                                 modemstate))
+                if (debug or self.debug):
+                    print("%s: Expecting modemstate mask 0x%x, got 0x%x" %
+                          (self.name, self.expected_modemstate_mask,
+                           modemstate_mask))
+                self.enqueue("invalid modemstate mask", modemstate_mask)
+                return
             self.expecting_modemstate_mask = False
-            self.wake("modemstate_mask", modemstate)
+            io.acontrol(gensio.GENSIO_CONTROL_DEPTH_FIRST,
+                        gensio.GENSIO_CONTROL_SET,
+                        gensio.GENSIO_ACONTROL_SER_SET_MODEMSTATE_MASK,
+                        str(modemstate_mask), None, -1)
+            self.wake("modemstate_mask", modemstate_mask)
         except Exception as e:
             self.exception("modemstate_mask: Unknown exception " + str(e))
         return
@@ -567,6 +576,36 @@ class HandleData:
     def set_expected_linestate(self, linestate):
         self.expecting_linestate = True
         self.expected_linestate = linestate
+        return
+
+    def linestate_mask(self, io, linestate_mask):
+        try:
+            if (not self.expecting_linestate_mask):
+                if (debug or self.debug):
+                    print("Got unexpected linestate mask for %s: %x" %
+                          (self.name, linestate))
+                self.enqueue("unexpected linestate mask", linestate_mask)
+                return
+            if (linestate_mask != self.expected_linestate_mask):
+                if (debug or self.debug):
+                    print("%s: Expecting linestate mask 0x%x, got 0x%x" %
+                          (self.name, self.expected_linestate_mask,
+                           linestate_mask))
+                self.enqueue("invalid linestate mask", linestate_mask)
+                return
+            self.expecting_linestate_mask = False
+            io.acontrol(gensio.GENSIO_CONTROL_DEPTH_FIRST,
+                        gensio.GENSIO_CONTROL_SET,
+                        gensio.GENSIO_ACONTROL_SER_SET_LINESTATE_MASK,
+                        str(linestate_mask), None, -1)
+            self.wake("linestate_mask", linestate_mask)
+        except Exception as e:
+            self.exception("linestate_mask: Unknown exception " + str(e))
+        return
+
+    def set_expected_linestate_mask(self, linestate):
+        self.expecting_linestate_mask = True
+        self.expected_linestate_mask = linestate
         return
 
     def set_expected_server_cb(self, name, value, retval):
@@ -728,6 +767,15 @@ class HandleData:
         io.acontrol(gensio.GENSIO_CONTROL_DEPTH_FIRST,
                     gensio.GENSIO_CONTROL_SET,
                     gensio.GENSIO_ACONTROL_SER_RTS,
+                    str(self.expected_server_return), None, -1)
+        return
+
+    def flush(self, io, val):
+        if not self.check_set_expected_telnet_cb("flush", val):
+            return
+        io.acontrol(gensio.GENSIO_CONTROL_DEPTH_FIRST,
+                    gensio.GENSIO_CONTROL_SET,
+                    gensio.GENSIO_ACONTROL_SER_FLUSH,
                     str(self.expected_server_return), None, -1)
         return
 
