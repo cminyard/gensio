@@ -185,7 +185,7 @@ gensio_sound_alsa_set_hwparams(struct sound_info *si)
 	goto out_err;
     }
     if (si->cnv.enabled) {
-	si->cnv.pframesize = si->cnv.psize * si->chans;
+	si->cnv.pframesize = (gensiods) si->cnv.psize * si->chans;
 	si->cnv.buf = o->zalloc(o, si->bufsize * si->cnv.pframesize);
 	if (!si->cnv.buf)
 	    return GE_NOMEM;
