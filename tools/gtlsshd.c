@@ -3324,7 +3324,7 @@ main(int argc, char *argv[])
     }
 
     if (other_acc_str) {
-	s = gensio_alloc_sprintf(o, other_acc_str, iptype, port);
+	s = gensio_strdup(o, other_acc_str);
 	if (!s) {
 	    log_event(LOG_ERR, "Could not allocate '%s' descriptor\n",
 		      other_acc_str);
