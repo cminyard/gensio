@@ -24,7 +24,7 @@ if HAVE_WINDOWS_OS
 libgensioosh_la_SOURCES += gensio_win.c
 endif
 libgensioosh_la_CPPFLAGS = -DBUILDING_GENSIOOSH_DLL \
-	-DPKG_LIBEXEC="\"$(gensiolibexec)\""
+	-DPKG_LIBEXEC="\"$(gensiolibexecdir)\""
 libgensioosh_la_LDFLAGS = -no-undefined -version-info $(GENSIO_LIB_VERSION) \
 	-fvisibility=hidden
 libgensioosh_la_LIBADD = @OSH_LIBS@
@@ -48,18 +48,14 @@ libgensio_la_LDFLAGS = -no-undefined -version-info $(GENSIO_LIB_VERSION) \
 libgensio_la_LIBADD = libgensioosh.la @BASE_LIBS@
 
 if HAVE_WINDOWS_OS
-gensiolibexec = $(bindir)
+gensiolibexecdir = $(bindir)
 else
-gensiolibexec = $(moduleinstalldir)/$(PACKAGE_VERSION)
+gensiolibexecdir = $(moduleinstalldir)/$(PACKAGE_VERSION)
 endif
-# Note that xgensio_libexecdir starts with "x" because it has to
-# install after libgensio and libgensiomdns for proper relinking, and
-# automake organizes the installs alphabetically
-xgensio_libexecdir = $(gensiolibexec)
 
 EXTRA_LTLIBRARIES =
-xgensio_libexec_LTLIBRARIES =
-DYNAMIC_LDFLAGS = -no-undefined -module -rpath "$(gensiolibexec)" -avoid-version
+gensiolibexec_LTLIBRARIES =
+DYNAMIC_LDFLAGS = -no-undefined -module -rpath "$(gensiolibexecdir)" -avoid-version
 DYNAMIC_LIBS = libgensio.la libgensioosh.la
 
 if BUILTIN_NET
@@ -67,7 +63,7 @@ libgensio_la_SOURCES += gensio_net.c
 else
 EXTRA_LTLIBRARIES += libgensio_net.la
 endif
-xgensio_libexec_LTLIBRARIES += $(DYNAMIC_NET)
+gensiolibexec_LTLIBRARIES += $(DYNAMIC_NET)
 libgensio_net_la_SOURCES = gensio_net.c
 libgensio_net_la_LDFLAGS = $(DYNAMIC_LDFLAGS)
 libgensio_net_la_LIBADD = $(DYNAMIC_LIBS)
@@ -77,7 +73,7 @@ libgensio_la_SOURCES += gensio_udp.c
 else
 EXTRA_LTLIBRARIES += libgensio_udp.la
 endif
-xgensio_libexec_LTLIBRARIES += $(DYNAMIC_UDP)
+gensiolibexec_LTLIBRARIES += $(DYNAMIC_UDP)
 libgensio_udp_la_SOURCES = gensio_udp.c
 libgensio_udp_la_LDFLAGS = $(DYNAMIC_LDFLAGS)
 libgensio_udp_la_LIBADD = $(DYNAMIC_LIBS)
@@ -87,7 +83,7 @@ libgensio_la_SOURCES += gensio_sctp.c
 else
 EXTRA_LTLIBRARIES += libgensio_sctp.la
 endif
-xgensio_libexec_LTLIBRARIES += $(DYNAMIC_SCTP)
+gensiolibexec_LTLIBRARIES += $(DYNAMIC_SCTP)
 libgensio_sctp_la_SOURCES = gensio_sctp.c
 libgensio_sctp_la_LDFLAGS = $(DYNAMIC_LDFLAGS)
 libgensio_sctp_la_LIBADD = $(DYNAMIC_LIBS) $(SCTP_LIBS)
@@ -97,7 +93,7 @@ libgensio_la_SOURCES += gensio_stdio.c
 else
 EXTRA_LTLIBRARIES += libgensio_stdio.la
 endif
-xgensio_libexec_LTLIBRARIES += $(DYNAMIC_STDIO)
+gensiolibexec_LTLIBRARIES += $(DYNAMIC_STDIO)
 libgensio_stdio_la_SOURCES = gensio_stdio.c
 libgensio_stdio_la_LDFLAGS = $(DYNAMIC_LDFLAGS)
 libgensio_stdio_la_LIBADD = $(DYNAMIC_LIBS)
@@ -107,7 +103,7 @@ libgensio_la_SOURCES += gensio_pty.c
 else
 EXTRA_LTLIBRARIES += libgensio_pty.la
 endif
-xgensio_libexec_LTLIBRARIES += $(DYNAMIC_PTY)
+gensiolibexec_LTLIBRARIES += $(DYNAMIC_PTY)
 libgensio_pty_la_SOURCES = gensio_pty.c
 libgensio_pty_la_LDFLAGS = $(DYNAMIC_LDFLAGS)
 libgensio_pty_la_LIBADD = $(DYNAMIC_LIBS)
@@ -117,7 +113,7 @@ libgensio_la_SOURCES += gensio_dummy.c
 else
 EXTRA_LTLIBRARIES += libgensio_dummy.la
 endif
-xgensio_libexec_LTLIBRARIES += $(DYNAMIC_DUMMY)
+gensiolibexec_LTLIBRARIES += $(DYNAMIC_DUMMY)
 libgensio_dummy_la_SOURCES = gensio_dummy.c
 libgensio_dummy_la_LDFLAGS = $(DYNAMIC_LDFLAGS)
 libgensio_dummy_la_LIBADD = $(DYNAMIC_LIBS)
@@ -127,7 +123,7 @@ libgensio_la_SOURCES += gensio_conacc.c
 else
 EXTRA_LTLIBRARIES += libgensio_conacc.la
 endif
-xgensio_libexec_LTLIBRARIES += $(DYNAMIC_CONACC)
+gensiolibexec_LTLIBRARIES += $(DYNAMIC_CONACC)
 libgensio_conacc_la_SOURCES = gensio_conacc.c
 libgensio_conacc_la_LDFLAGS = $(DYNAMIC_LDFLAGS)
 libgensio_conacc_la_LIBADD = $(DYNAMIC_LIBS)
@@ -137,7 +133,7 @@ libgensio_la_SOURCES += sergensio_serialdev.c seriallock.c
 else
 EXTRA_LTLIBRARIES += libgensio_serialdev.la
 endif
-xgensio_libexec_LTLIBRARIES += $(DYNAMIC_SERIALDEV)
+gensiolibexec_LTLIBRARIES += $(DYNAMIC_SERIALDEV)
 libgensio_serialdev_la_SOURCES = sergensio_serialdev.c seriallock.c
 libgensio_serialdev_la_LDFLAGS = $(DYNAMIC_LDFLAGS)
 libgensio_serialdev_la_LIBADD = $(DYNAMIC_LIBS)
@@ -147,7 +143,7 @@ libgensio_la_SOURCES += gensio_echo.c
 else
 EXTRA_LTLIBRARIES += libgensio_echo.la
 endif
-xgensio_libexec_LTLIBRARIES += $(DYNAMIC_ECHO)
+gensiolibexec_LTLIBRARIES += $(DYNAMIC_ECHO)
 libgensio_echo_la_SOURCES = gensio_echo.c
 libgensio_echo_la_LDFLAGS = $(DYNAMIC_LDFLAGS)
 libgensio_echo_la_LIBADD = $(DYNAMIC_LIBS)
@@ -157,7 +153,7 @@ libgensio_la_SOURCES += gensio_file.c
 else
 EXTRA_LTLIBRARIES += libgensio_file.la
 endif
-xgensio_libexec_LTLIBRARIES += $(DYNAMIC_FILE)
+gensiolibexec_LTLIBRARIES += $(DYNAMIC_FILE)
 libgensio_file_la_SOURCES = gensio_file.c
 libgensio_file_la_LDFLAGS = $(DYNAMIC_LDFLAGS)
 libgensio_file_la_LIBADD = $(DYNAMIC_LIBS)
@@ -167,7 +163,7 @@ libgensio_la_SOURCES += gensio_ll_ipmisol.c sergensio_ipmisol.c
 else
 EXTRA_LTLIBRARIES += libgensio_ipmisol.la
 endif
-xgensio_libexec_LTLIBRARIES += $(DYNAMIC_IPMISOL)
+gensiolibexec_LTLIBRARIES += $(DYNAMIC_IPMISOL)
 libgensio_ipmisol_la_SOURCES = gensio_ll_ipmisol.c sergensio_ipmisol.c 
 libgensio_ipmisol_la_LDFLAGS = $(DYNAMIC_LDFLAGS)
 libgensio_ipmisol_la_CFLAGS = $(OPENIPMI_CPPFLAGS)
@@ -180,7 +176,7 @@ libgensio_la_LIBADD += libgensiomdns.la
 else
 EXTRA_LTLIBRARIES += libgensio_mdns.la
 endif
-xgensio_libexec_LTLIBRARIES += $(DYNAMIC_MDNS)
+gensiolibexec_LTLIBRARIES += $(DYNAMIC_MDNS)
 libgensio_mdns_la_SOURCES = gensio_mdns.c
 libgensio_mdns_la_LDFLAGS = $(DYNAMIC_LDFLAGS)
 libgensio_mdns_la_LIBADD = $(DYNAMIC_LIBS) libgensiomdns.la
@@ -191,7 +187,7 @@ libgensio_la_SOURCES += gensio_ll_sound.c gensio_sound.c
 else
 EXTRA_LTLIBRARIES += libgensio_sound.la
 endif
-xgensio_libexec_LTLIBRARIES += $(DYNAMIC_SOUND)
+gensiolibexec_LTLIBRARIES += $(DYNAMIC_SOUND)
 libgensio_sound_la_SOURCES = gensio_ll_sound.c gensio_sound.c
 libgensio_sound_la_LDFLAGS = $(DYNAMIC_LDFLAGS)
 libgensio_sound_la_LIBADD = $(DYNAMIC_LIBS) $(SOUND_LIBS)
@@ -201,7 +197,7 @@ libgensio_la_SOURCES += gensio_cm108gpio.c
 else
 EXTRA_LTLIBRARIES += libgensio_cm108gpio.la
 endif
-xgensio_libexec_LTLIBRARIES += $(DYNAMIC_CM108GPIO)
+gensiolibexec_LTLIBRARIES += $(DYNAMIC_CM108GPIO)
 libgensio_cm108gpio_la_SOURCES = gensio_cm108gpio.c
 libgensio_cm108gpio_la_LDFLAGS = $(DYNAMIC_LDFLAGS)
 libgensio_cm108gpio_la_LIBADD = $(DYNAMIC_LIBS) $(CM108GPIO_LIBS)
@@ -211,7 +207,7 @@ libgensio_la_SOURCES += gensio_ssl.c gensio_filter_ssl.c
 else
 EXTRA_LTLIBRARIES += libgensio_ssl.la
 endif
-xgensio_libexec_LTLIBRARIES += $(DYNAMIC_SSL)
+gensiolibexec_LTLIBRARIES += $(DYNAMIC_SSL)
 libgensio_ssl_la_SOURCES = gensio_ssl.c gensio_filter_ssl.c
 libgensio_ssl_la_CPPFLAGS = $(OPENSSL_INCLUDES)
 libgensio_ssl_la_LDFLAGS = $(DYNAMIC_LDFLAGS) $(OPENSSL_LDFLAGS)
@@ -222,7 +218,7 @@ libgensio_la_SOURCES += gensio_certauth.c gensio_filter_certauth.c
 else
 EXTRA_LTLIBRARIES += libgensio_certauth.la
 endif
-xgensio_libexec_LTLIBRARIES += $(DYNAMIC_CERTAUTH)
+gensiolibexec_LTLIBRARIES += $(DYNAMIC_CERTAUTH)
 libgensio_certauth_la_SOURCES = gensio_certauth.c gensio_filter_certauth.c
 libgensio_certauth_la_CPPFLAGS = $(OPENSSL_INCLUDES)
 libgensio_certauth_la_LDFLAGS = $(DYNAMIC_LDFLAGS) $(OPENSSL_LDFLAGS)
@@ -233,7 +229,7 @@ libgensio_la_SOURCES += gensio_mux.c
 else
 EXTRA_LTLIBRARIES += libgensio_mux.la
 endif
-xgensio_libexec_LTLIBRARIES += $(DYNAMIC_MUX)
+gensiolibexec_LTLIBRARIES += $(DYNAMIC_MUX)
 libgensio_mux_la_SOURCES = gensio_mux.c
 libgensio_mux_la_LDFLAGS = $(DYNAMIC_LDFLAGS)
 libgensio_mux_la_LIBADD = $(DYNAMIC_LIBS)
@@ -243,7 +239,7 @@ libgensio_la_SOURCES += sergensio_telnet.c gensio_filter_telnet.c telnet.c
 else
 EXTRA_LTLIBRARIES += libgensio_telnet.la
 endif
-xgensio_libexec_LTLIBRARIES += $(DYNAMIC_TELNET)
+gensiolibexec_LTLIBRARIES += $(DYNAMIC_TELNET)
 libgensio_telnet_la_SOURCES = sergensio_telnet.c gensio_filter_telnet.c telnet.c
 libgensio_telnet_la_LDFLAGS = $(DYNAMIC_LDFLAGS)
 libgensio_telnet_la_LIBADD = $(DYNAMIC_LIBS)
@@ -253,7 +249,7 @@ libgensio_la_SOURCES += gensio_filter_msgdelim.c gensio_msgdelim.c
 else
 EXTRA_LTLIBRARIES += libgensio_msgdelim.la
 endif
-xgensio_libexec_LTLIBRARIES += $(DYNAMIC_MSGDELIM)
+gensiolibexec_LTLIBRARIES += $(DYNAMIC_MSGDELIM)
 libgensio_msgdelim_la_SOURCES = gensio_filter_msgdelim.c gensio_msgdelim.c
 libgensio_msgdelim_la_LDFLAGS = $(DYNAMIC_LDFLAGS)
 libgensio_msgdelim_la_LIBADD = $(DYNAMIC_LIBS)
@@ -263,7 +259,7 @@ libgensio_la_SOURCES += gensio_filter_relpkt.c gensio_relpkt.c
 else
 EXTRA_LTLIBRARIES += libgensio_relpkt.la
 endif
-xgensio_libexec_LTLIBRARIES += $(DYNAMIC_RELPKT)
+gensiolibexec_LTLIBRARIES += $(DYNAMIC_RELPKT)
 libgensio_relpkt_la_SOURCES = gensio_filter_relpkt.c gensio_relpkt.c
 libgensio_relpkt_la_LDFLAGS = $(DYNAMIC_LDFLAGS)
 libgensio_relpkt_la_LIBADD = $(DYNAMIC_LIBS)
@@ -273,7 +269,7 @@ libgensio_la_SOURCES += gensio_filter_trace.c gensio_trace.c
 else
 EXTRA_LTLIBRARIES += libgensio_trace.la
 endif
-xgensio_libexec_LTLIBRARIES += $(DYNAMIC_TRACE)
+gensiolibexec_LTLIBRARIES += $(DYNAMIC_TRACE)
 libgensio_trace_la_SOURCES = gensio_filter_trace.c gensio_trace.c
 libgensio_trace_la_LDFLAGS = $(DYNAMIC_LDFLAGS)
 libgensio_trace_la_LIBADD = $(DYNAMIC_LIBS)
@@ -283,7 +279,7 @@ libgensio_la_SOURCES += gensio_filter_perf.c gensio_perf.c
 else
 EXTRA_LTLIBRARIES += libgensio_perf.la
 endif
-xgensio_libexec_LTLIBRARIES += $(DYNAMIC_PERF)
+gensiolibexec_LTLIBRARIES += $(DYNAMIC_PERF)
 libgensio_perf_la_SOURCES = gensio_filter_perf.c gensio_perf.c
 libgensio_perf_la_LDFLAGS = $(DYNAMIC_LDFLAGS)
 libgensio_perf_la_LIBADD = $(DYNAMIC_LIBS)
@@ -293,7 +289,7 @@ libgensio_la_SOURCES += gensio_filter_kiss.c gensio_kiss.c
 else
 EXTRA_LTLIBRARIES += libgensio_kiss.la
 endif
-xgensio_libexec_LTLIBRARIES += $(DYNAMIC_KISS)
+gensiolibexec_LTLIBRARIES += $(DYNAMIC_KISS)
 libgensio_kiss_la_SOURCES = gensio_filter_kiss.c gensio_kiss.c
 libgensio_kiss_la_LDFLAGS = $(DYNAMIC_LDFLAGS)
 libgensio_kiss_la_LIBADD = $(DYNAMIC_LIBS)
@@ -303,7 +299,7 @@ libgensio_la_SOURCES += gensio_ax25.c
 else
 EXTRA_LTLIBRARIES += libgensio_ax25.la
 endif
-xgensio_libexec_LTLIBRARIES += $(DYNAMIC_AX25)
+gensiolibexec_LTLIBRARIES += $(DYNAMIC_AX25)
 libgensio_ax25_la_SOURCES = gensio_ax25.c
 libgensio_ax25_la_LDFLAGS = $(DYNAMIC_LDFLAGS)
 libgensio_ax25_la_LIBADD = $(DYNAMIC_LIBS)
@@ -313,7 +309,7 @@ libgensio_la_SOURCES += gensio_filter_xlt.c gensio_xlt.c
 else
 EXTRA_LTLIBRARIES += libgensio_xlt.la
 endif
-xgensio_libexec_LTLIBRARIES += $(DYNAMIC_XLT)
+gensiolibexec_LTLIBRARIES += $(DYNAMIC_XLT)
 libgensio_xlt_la_SOURCES = gensio_filter_xlt.c gensio_xlt.c
 libgensio_xlt_la_LDFLAGS = $(DYNAMIC_LDFLAGS)
 libgensio_xlt_la_LIBADD = $(DYNAMIC_LIBS)
@@ -323,7 +319,7 @@ libgensio_la_SOURCES += gensio_keepopen.c
 else
 EXTRA_LTLIBRARIES += libgensio_keepopen.la
 endif
-xgensio_libexec_LTLIBRARIES += $(DYNAMIC_KEEPOPEN)
+gensiolibexec_LTLIBRARIES += $(DYNAMIC_KEEPOPEN)
 libgensio_keepopen_la_SOURCES = gensio_keepopen.c
 libgensio_keepopen_la_LDFLAGS = $(DYNAMIC_LDFLAGS)
 libgensio_keepopen_la_LIBADD = $(DYNAMIC_LIBS)
@@ -333,7 +329,7 @@ libgensio_la_SOURCES += gensio_filter_script.c gensio_script.c
 else
 EXTRA_LTLIBRARIES += libgensio_script.la
 endif
-xgensio_libexec_LTLIBRARIES += $(DYNAMIC_SCRIPT)
+gensiolibexec_LTLIBRARIES += $(DYNAMIC_SCRIPT)
 libgensio_script_la_SOURCES = gensio_filter_script.c gensio_script.c
 libgensio_script_la_LDFLAGS = $(DYNAMIC_LDFLAGS)
 libgensio_script_la_LIBADD = $(DYNAMIC_LIBS)
@@ -343,7 +339,7 @@ libgensio_la_SOURCES += gensio_filter_ratelimit.c gensio_ratelimit.c
 else
 EXTRA_LTLIBRARIES += libgensio_ratelimit.la
 endif
-xgensio_libexec_LTLIBRARIES += $(DYNAMIC_RATELIMIT)
+gensiolibexec_LTLIBRARIES += $(DYNAMIC_RATELIMIT)
 libgensio_ratelimit_la_SOURCES = gensio_filter_ratelimit.c gensio_ratelimit.c
 libgensio_ratelimit_la_LDFLAGS = $(DYNAMIC_LDFLAGS)
 libgensio_ratelimit_la_LIBADD = $(DYNAMIC_LIBS)
@@ -354,14 +350,14 @@ libgensio_la_LIBADD += -lm
 else
 EXTRA_LTLIBRARIES += libgensio_afskmdm.la
 endif
-xgensio_libexec_LTLIBRARIES += $(DYNAMIC_AFSKMDM)
+gensiolibexec_LTLIBRARIES += $(DYNAMIC_AFSKMDM)
 libgensio_afskmdm_la_SOURCES = gensio_filter_afskmdm.c gensio_afskmdm.c
 libgensio_afskmdm_la_LDFLAGS = $(DYNAMIC_LDFLAGS)
 libgensio_afskmdm_la_LIBADD = $(DYNAMIC_LIBS) -lm
 
 # We need to make sure the main libraries are compiled and ready before
 # doing the plugins, since the plugins link against them.
-$(EXTRA_LTLIBRARIES): $(lib_LTLIBRARIES)
+$(gensiolibexec_LTLIBRARIES): $(lib_LTLIBRARIES)
 
 EXTRA_DIST = README.rst libgensioosh.pc.in libgensio.pc.in libgensiomdns.pc.in
 
@@ -373,19 +369,19 @@ pkgconfigexecdir = $(libdir)/pkgconfig
 pkgconfigexec_DATA = libgensioosh.pc libgensio.pc libgensiomdns.pc
 
 if HAVE_WINDOWS_OS
-xgensio_libs = $(xgensio_libexec_LTLIBRARIES:.la=.dll.a)
-xgensio_solibs = $(xgensio_libexec_LTLIBRARIES:.la=.dll)
+xgensio_libs = $(gensiolibexec_LTLIBRARIES:.la=.dll.a)
+xgensio_solibs = $(gensiolibexec_LTLIBRARIES:.la=.dll)
 else
-xgensio_libs = $(xgensio_libexec_LTLIBRARIES:.la=.a)
-xgensio_solibs = $(xgensio_libexec_LTLIBRARIES:.la=.so)
+xgensio_libs = $(gensiolibexec_LTLIBRARIES:.la=.a)
+xgensio_solibs = $(gensiolibexec_LTLIBRARIES:.la=.so)
 endif
 
 install-exec-hook:
-	@(cd $(DESTDIR)$(gensiolibexec) && $(RM) -f $(xgensio_libexec_LTLIBRARIES))
-	@(cd $(DESTDIR)$(gensiolibexec) && $(RM) -f $(xgensio_libs))
+	@(cd $(DESTDIR)$(gensiolibexecdir) && $(RM) -f $(gensiolibexec_LTLIBRARIES))
+	@(cd $(DESTDIR)$(gensiolibexecdir) && $(RM) -f $(xgensio_libs))
 
 # Since we remove the bogus .la and .a files above at install time,
 # libtool will not remove the .so or .dll files since the .la file is
 # no longer there.  We have to do that by hand.
 uninstall-hook:
-	@(cd $(DESTDIR)$(gensiolibexec) && $(RM) -f $(xgensio_solibs))
+	@(cd $(DESTDIR)$(gensiolibexecdir) && $(RM) -f $(xgensio_solibs))
