@@ -359,6 +359,10 @@ libgensio_afskmdm_la_SOURCES = gensio_filter_afskmdm.c gensio_afskmdm.c
 libgensio_afskmdm_la_LDFLAGS = $(DYNAMIC_LDFLAGS)
 libgensio_afskmdm_la_LIBADD = $(DYNAMIC_LIBS) -lm
 
+# We need to make sure the main libraries are compiled and ready before
+# doing the plugins, since the plugins link against them.
+$(EXTRA_LTLIBRARIES): $(lib_LTLIBRARIES)
+
 EXTRA_DIST = README.rst libgensioosh.pc.in libgensio.pc.in libgensiomdns.pc.in
 
 DISTCLEANFILES = builtin_gensios.h
