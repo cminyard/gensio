@@ -627,7 +627,9 @@ process_ask_conn_outstanding(struct agwpe_inst *inst, struct agwpe_packet *p)
     op.len = 4;
     op.data = data;
     strncpy(op.callfrom, p->callto, 10);
+    op.callfrom[9] = '\0';
     strncpy(op.callto, p->callfrom, 10);
+    op.callto[9] = '\0';
     agwpe_encode_packet(inst->outbuf, sizeof(inst->outbuf),
 			&op, &inst->outlen);
     gensio_set_write_callback_enable(inst->io, true);
@@ -819,7 +821,7 @@ process_connect(struct agwpe_inst *inst, struct agwpe_packet *p,
     op.callto[9] = '\0';
     op.len = snprintf(data, sizeof(data),
 		      "*** DISCONNECTED RETRYOUT With %s\r",
-		      conn->dest_addr);
+		      p->callto);
     op.data = (unsigned char *) data;
     /* No connection available, encode it into tue inst outbuf. */
     agwpe_encode_packet(inst->outbuf, sizeof(inst->outbuf),
