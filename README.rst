@@ -1191,8 +1191,9 @@ and then run Inno on gensio.iss.  It will create an executable installer
 for installing Gensio.
 
 Then you need to remove the .la files from the install directory, as
-they screw up linking with other things, with
-"rm $HOME/install/Gensio/lib/*.la".
+they screw up linking with other things::
+
+    rm $HOME/install/Gensio/lib/*.la
 
 =============
 Running Tests
