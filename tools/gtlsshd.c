@@ -2955,8 +2955,17 @@ static int
 acc_event(struct gensio_accepter *accepter, void *user_data,
 	  int event, void *data)
 {
-    struct gdata *ginfo = gensio_acc_get_user_data(accepter);
+    struct gdata *ginfo;
     struct gensio *io;
+
+    if (event == GENSIO_ACC_EVENT_PARMLOG) {
+	/* NOTE: accepter will be NULL in this case. */
+	struct gensio_parmlog_data *p = (struct gensio_parmlog_data *) data;
+	vlog_event(LOG_ERR, p->log, p->args);
+	return 0;
+    }
+
+    ginfo = gensio_acc_get_user_data(accepter);
 
     if (event == GENSIO_ACC_EVENT_LOG) {
 	struct gensio_loginfo *li = data;
