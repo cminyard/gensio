@@ -895,7 +895,7 @@ gensio_cntstr_free(struct gensio_os_funcs *o, gensio_cntstr *str)
     o->lock(str->lock);
     str->refcount--;
     if (str->refcount == 0)
-	o->free(o->str);
+	o->free(o, str);
     o->unlock(str->lock);
 #endif
 }
