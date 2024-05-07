@@ -15,9 +15,9 @@ class TestAcceptConAcc:
         self.io1 = None
         self.io2 = None
         self.waiter = gensio.waiter(o)
-        gensios_enabled.check_iostr_gensios(accstr)
+        gensios_enabled.check_iostr_gensios(accstr + "0")
 
-        self.acc = gensio.gensio_accepter(o, accstr, self);
+        self.acc = gensio.gensio_accepter(o, accstr + "0", self);
         self.acc.startup()
 
         port = self.acc.control(gensio.GENSIO_CONTROL_DEPTH_FIRST,
@@ -83,6 +83,23 @@ class TestAcceptConAcc:
         self.expect_connects = True
         self.wait()
 
+        print(" Test retry failure then restart");
+        # Now disable the connection so it fails.
+        self.acc.shutdown_s();
+        self.acc = None;
+        self.close()
+
+        self.expect_connects = False
+        if self.waiter.wait_timeout(1, 1200) != 0:
+            raise Exception("Got wakeup when nothing should happen");
+
+        # Re-enable it, we should get a connection.
+        self.expect_connects = True
+        self.acc = gensio.gensio_accepter(o, accstr + port, self);
+        self.acc.startup();
+
+        self.wait()
+
         self.acc.shutdown_s()
         self.acc2.shutdown_s()
         self.acc3.shutdown_s()
@@ -128,7 +145,7 @@ class TestAcceptConAcc:
             raise Exception("test_conacc: Timed out");
 
 print("Test conacc")
-TestAcceptConAcc(o, "tcp,localhost,0", "conacc,tcp,localhost,",
+TestAcceptConAcc(o, "tcp,localhost,", "conacc,tcp,localhost,",
                  "conacc(retry-time=1000),tcp,localhost,", do_small_test)
 del o
 test_shutdown()
