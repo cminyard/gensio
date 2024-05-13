@@ -6,7 +6,7 @@ This is gensio (pronounced gen'-see-oh), a framework for giving a
 consistent view of various stream (and packet) I/O types.  You create
 a gensio object (or a gensio), and you can use that gensio without
 having to know too much about what is going on underneath.  You can
-stack gensio on top of another one to add protocol funcionality.  For
+stack gensio on top of another one to add protocol functionality.  For
 instance, you can create a TCP gensio, stack SSL on top of that, and
 stack Telnet on top of that.  It supports a number of network I/O and
 serial ports.  It also supports sound interfaces.  gensios that stack
@@ -540,7 +540,7 @@ are in the gensio_err.h include file (automatically included from
 gensio.h) and may be translated from numbers to a meaningful string
 with gensio_err_to_str().  Zero is defined to be not an error.
 
-If an unrecongnized operating system error occurs, GE_OSERR is
+If an unrecognized operating system error occurs, GE_OSERR is
 returned and a log is reported through the OS handler log interface.
 
 OS Handler
@@ -1016,7 +1016,7 @@ The following sets everything except openipmi up on ubuntu 20.04:
     libasound2-dev libudev-dev
 
 On Redhat, libwrap is gone, so you won't be using that, and swig doesn't appear
-to be available, so you will have to built that yourself with at least go and
+to be available, so you will have to build that yourself with at least go and
 python support.  Here's the command for Redhat-like systems:
 
   sudo yum install gcc gcc-c++ git python3-devel swig openssl-devel \
@@ -1060,7 +1060,7 @@ As I continued to add gensios to the library, like crypto, mdns,
 sound, IPMI, sctp, etc. the number of dependencies in the library was
 getting out of control.  Why should you be loading libasound, or
 libOpenIPMI, if you don't need it?  Plus, though the library supported
-adding your own gensios through a programatic API, it had no standard
+adding your own gensios through a programmatic API, it had no standard
 way to add them for the system so you could write your own gensio and
 let everyone on the system use it.
 
