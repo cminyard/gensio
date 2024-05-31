@@ -359,6 +359,14 @@ libgensio_afskmdm_la_LIBADD = $(DYNAMIC_LIBS) -lm
 # doing the plugins, since the plugins link against them.
 $(gensiolibexec_LTLIBRARIES): $(lib_LTLIBRARIES)
 
+# Same thing as above, but for relinking on installation.  We have to
+# have the main libraries installed before relinking.  The rule as
+# specified below add prerequisites to the targets instead of creating
+# a rule.
+install-gensiolibexecLTLIBRARIES gensiolibexec-dummyprereq: install-libLTLIBRARIES
+
+.PHONY gensiolibexec-dummyprereq:
+
 EXTRA_DIST = README.rst libgensioosh.pc.in libgensio.pc.in libgensiomdns.pc.in
 
 DISTCLEANFILES = builtin_gensios.h
