@@ -3084,6 +3084,8 @@ help(int err)
     printf("  --no-use-login - Don't use login program.\n");
     printf("  -P, --pidfile <file> - Create the given pidfile.\n");
 #endif
+    printf("  --start-retries <count> - The number of retries for a name\n");
+    printf("     lookup failure at startup.  The default is 30\n");
     printf("  --version - Print the version number and exit.\n");
     printf("  -h, --help - This help\n");
     exit(err);
@@ -3136,6 +3138,7 @@ main(int argc, char *argv[])
     const char *iptype = ""; /* Try both IPv4 and IPv6 by default. */
     const char *other_acc_str = NULL;
     struct gensio_os_proc_data *proc_data;
+    unsigned int accept_retries = 0, max_accept_retries = 30;
 
     if ((progname = strrchr(argv[0], '/')) == NULL)
 	progname = argv[0];
@@ -3195,6 +3198,9 @@ main(int argc, char *argv[])
 	    iptype = "ipv4,0.0.0.0,";
 	else if ((rv = cmparg(argc, argv, &arg, "-6", NULL, NULL)))
 	    iptype = "ipv6,::,";
+	else if ((rv = cmparg_uint(argc, argv, &arg, NULL, "--start-retries",
+				   &max_accept_retries)))
+	    ;
 	else if ((rv = cmparg(argc, argv, &arg, "-d", "--debug", NULL))) {
 	    debug++;
 	    if (debug > 1)
@@ -3280,7 +3286,8 @@ main(int argc, char *argv[])
 	return 1;
     }
 
-    if (!notcp) {
+ start_accept:
+    if (!notcp && !tcp_acc) {
 	s = gensio_alloc_sprintf(o, "tcp(readbuf=20000),%s%d", iptype, port);
 	if (!s) {
 	    log_event(LOG_ERR, "Could not allocate tcp descriptor\n");
@@ -3291,7 +3298,8 @@ main(int argc, char *argv[])
 	if (rv) {
 	    log_event(LOG_ERR, "Could not allocate %s: %s\n", s,
 		      gensio_err_to_str(rv));
-	    return 1;
+	    o->free(o, s);
+	    goto retry_accept_setup;
 	}
 	o->free(o, s);
 
@@ -3303,7 +3311,7 @@ main(int argc, char *argv[])
 	}
     }
 
-    if (sctp) {
+    if (sctp && !sctp_acc) {
 	s = gensio_alloc_sprintf(o, "sctp(readbuf=20000),%s%d", iptype, port);
 	if (!s) {
 	    log_event(LOG_ERR, "Could not allocate sctp descriptor\n");
@@ -3320,7 +3328,8 @@ main(int argc, char *argv[])
 	if (rv) {
 	    log_event(LOG_ERR, "Could not allocate %s: %s\n", s,
 		      gensio_err_to_str(rv));
-	    return 1;
+	    o->free(o, s);
+	    goto retry_accept_setup;
 	}
 	o->free(o, s);
 
@@ -3332,7 +3341,7 @@ main(int argc, char *argv[])
 	}
     }
 
-    if (other_acc_str) {
+    if (other_acc_str && !other_acc) {
 	s = gensio_strdup(o, other_acc_str);
 	if (!s) {
 	    log_event(LOG_ERR, "Could not allocate '%s' descriptor\n",
@@ -3344,7 +3353,8 @@ main(int argc, char *argv[])
 	if (rv) {
 	    log_event(LOG_ERR, "Could not allocate %s: %s\n", s,
 		      gensio_err_to_str(rv));
-	    return 1;
+	    o->free(o, s);
+	    goto retry_accept_setup;
 	}
 	o->free(o, s);
 
@@ -3417,4 +3427,14 @@ main(int argc, char *argv[])
     sys_cleanup();
 
     return 0;
+
+ retry_accept_setup:
+    if (accept_retries >= max_accept_retries) {
+	return 1;
+    } else {
+	gensio_time timeout = {1, 0};
+	accept_retries++;
+	gensio_os_funcs_wait(o, ginfo.waiter, 1, &timeout);
+    }
+    goto start_accept;
 }

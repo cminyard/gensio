@@ -129,12 +129,19 @@ does not disable TCP or SCTP.
 .I \-P|\-\-pidfile file
 Create a standard pidfile using the given filename.
 .TP
-.TP
 .I \-4
 Do IPv4 only.
 .TP
 .I \-6
 Do IPv6 only.
+.TP
+.I \-\-startup\-retries
+The number of times gtlsshd will retry creating the accepter.  It
+retries once a second. Generally, if creating the accepter fails, that
+means the nameserver is not yet operational and converting the local
+name to an address fails, so this can help with the resolver not being
+ready when gtlsshd starts.  Default is 30.
+.TP
 .I \-d|\-\-debug
 Generate debugging output.  Specifying more than once increases the output.
 This also causes syslog output to go to standard error.
