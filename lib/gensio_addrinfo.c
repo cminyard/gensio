@@ -727,6 +727,8 @@ gensio_addr_addrinfo_scan_ips(struct gensio_os_funcs *o, const char *str,
     bool first = true, portset = false;
     int rv = 0, socktype, protocol;
     int bflags = AI_ADDRCONFIG;
+    struct sockaddr_storage iaddr;
+    char *end;
 
     switch (gprotocol) {
     case GENSIO_NET_PROTOCOL_UNSPEC:
@@ -869,7 +871,33 @@ gensio_addr_addrinfo_scan_ips(struct gensio_os_funcs *o, const char *str,
 	 */
 	if (!ip && notype)
 	    rflags |= AI_V4MAPPED;
+#endif
 
+	/*
+	 * If the host address is a valid IP address, skip the
+	 * nameserver lookup and just tell getaddrinfo to convert the
+	 * numeric value.
+	 */
+	if (ip) {
+	    if (family == AF_INET && inet_pton(AF_INET, ip, &iaddr) == 1)
+		rflags |= AI_NUMERICHOST;
+#ifdef AF_INET6
+	    else if (family == AF_INET6) {
+		if (inet_pton(AF_INET6, ip, &iaddr) == 1)
+		    rflags |= AI_NUMERICHOST;
+		else if (rflags & AI_V4MAPPED &&
+			inet_pton(AF_INET, ip, &iaddr) == 1)
+		    rflags |= AI_NUMERICHOST;
+	    }
+#endif
+	}
+	/*
+	 * If the port string is a number, just use the number and don't
+	 * do the nameserver lookup for the service.
+	 */
+	if (port && strtoul(port, &end, 10) < 65536 && *end == '\0')
+	    rflags |= AI_NUMERICSERV;
+#ifdef AF_INET6
     redo_getaddrinfo:
 #endif
 	memset(&hints, 0, sizeof(hints));
