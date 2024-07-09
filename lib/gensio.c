@@ -2481,6 +2481,31 @@ gensio_pparm_float(struct gensio_pparm_info *p,
     return 1;
 }
 
+int
+gensio_pparm_argv(struct gensio_pparm_info *p,
+		  const char *str, const char *key, const char *seps,
+		  int *argc, const char ***argv)
+{
+    const char *sval;
+    int rv = gensio_pparm_value(p, str, key, &sval);
+
+    if (!rv)
+	return 0;
+
+    if (!*sval) {
+	gensio_pparm_log(p, "no value given in parameter %s", str);
+	return -1;
+    }
+
+    rv = gensio_str_to_argv(p->o, sval, argc, argv, seps);
+    if (rv) {
+	gensio_pparm_log(p, "Error getting argv list for %s: %s", str,
+			 gensio_err_to_str(rv));
+	return -1;
+    }
+    return 1;
+}
+
 void
 gensio_pparm_unknown_parm(struct gensio_pparm_info *p,
 			  const char *arg)
