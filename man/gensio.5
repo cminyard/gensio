@@ -624,6 +624,18 @@ Set the owner of the unix socket file to the given user.
 .TP
 .B group=<name>
 Set the group of the unix socket file to the given group.
+.TP
+.B peerusers=<name>[;<name>[;...]]
+Sets the *nix users allowed to connect to this socket.  If set, any
+connection received from a user that is not in this user list will
+cause the connection to be immediately closed.  You may use peerusers
+and peergroups together, if so the connection is permitted if either
+check succeeds.
+.TP
+.B peergrps=<name>[;<name>[;...]]
+Sets the *nix groups allowed to connect to this socket.  If set, any
+connection received from a users that whose group is not in this list
+will cause the connection to be immediately closed.
 .SS Remote Address String
 The remote address will be: "unix,<socket path>".
 .SS Remote Address

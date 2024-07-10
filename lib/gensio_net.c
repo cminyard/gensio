@@ -58,6 +58,11 @@ struct ucred {
 };
 #endif
 
+/*
+ * The below is based on the code in glib2, gio/gcredentials.  If you
+ * want to implement this for something else, like other BSDs or
+ * solaris, you can see that code for what to do.
+ */
 #if defined(__APPLE__) || defined(__FreeBSD__)
 #include <sys/ucred.h>
 static int
