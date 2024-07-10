@@ -45,13 +45,12 @@ static int
 netna_get_ucred(struct gensio_os_funcs *o, int fd, struct ucred *cred)
 {
     socklen_t len = sizeof(*cred);
-    int err = getsockopt(rd, SOL_SOCKET, SO_PEERCRED, cred, &len)
 
-    if (err == -1)
+    if (getsockopt(fd, SOL_SOCKET, SO_PEERCRED, cred, &len) == -1)
 	return gensio_os_err_to_err(o, errno);
     return 0;
 }
-#elif defined(HAVE_UCRED)
+#elif HAVE_UCRED
 struct ucred {
     pid_t pid;
     uid_t uid;
@@ -598,7 +597,7 @@ struct netna_data {
     bool mode_set;
     char *owner;
     char *group;
-#ifdef HAVE_UCRED
+#if HAVE_UCRED
     const char **permusers; /* Permitted user list. */
     const char **permgrps; /* Permitted group list. */
 #endif
@@ -667,7 +666,7 @@ netna_finish_server_open(struct gensio *net, int err, void *cb_data)
     base_gensio_server_open_done(nadata->acc, net, err);
 }
 
-#ifdef HAVE_UCRED
+#if HAVE_UCRED
 static bool
 netna_permitted(struct ucred *cred, struct netna_data *nadata)
 {
@@ -751,7 +750,7 @@ netna_readhandler(struct gensio_iod *iod, void *cbdata)
 	}
     }
 #endif
-#ifdef HAVE_UCRED
+#if HAVE_UCRED
     if (!nadata->istcp && (nadata->permusers || nadata->permgrps)) {
 	int fd = nadata->o->iod_get_fd(new_iod);
 	struct ucred cred;
@@ -1026,7 +1025,7 @@ netna_free(struct gensio_accepter *accepter, struct netna_data *nadata)
 	nadata->o->free(nadata->o, nadata->owner);
     if (nadata->group)
 	nadata->o->free(nadata->o, nadata->group);
-#ifdef HAVE_UCRED
+#if HAVE_UCRED
     if (nadata->permusers)
 	gensio_argv_free(nadata->o, nadata->permusers);
     if (nadata->permgrps)
@@ -1278,7 +1277,7 @@ net_gensio_accepter_alloc(const struct gensio_addr *iai,
     unsigned int umode = 6, gmode = 6, omode = 6, mode;
     bool mode_set = false;
     const char *owner = NULL, *group = NULL;
-#ifdef HAVE_UCRED
+#if HAVE_UCRED
     const char **permusers = NULL;
     const char **permgrps = NULL;
 #endif
@@ -1356,7 +1355,7 @@ net_gensio_accepter_alloc(const struct gensio_addr *iai,
 	    continue;
 	if (!istcp && gensio_pparm_value(&p, args[i], "group", &group))
 	    continue;
-#ifdef HAVE_UCRED
+#if HAVE_UCRED
 	if (!istcp && gensio_pparm_argv(&p, args[i], "permusers", ";",
 					NULL, &permusers))
 	    continue;
@@ -1381,7 +1380,7 @@ net_gensio_accepter_alloc(const struct gensio_addr *iai,
     if (reuseaddr)
 	nadata->opensock_flags |= GENSIO_OPENSOCK_REUSEADDR;
 #if HAVE_UNIX
-#ifdef HAVE_UCRED
+#if HAVE_UCRED
     nadata->permusers = permusers;
     permusers = NULL;
     nadata->permgrps = permgrps;
@@ -1436,7 +1435,7 @@ net_gensio_accepter_alloc(const struct gensio_addr *iai,
  out_err:
     netna_free(NULL, nadata);
  out_err2:
-#ifdef HAVE_UCRED
+#if HAVE_UCRED
     if (permusers)
 	gensio_argv_free(o, permusers);
     if (permgrps)
