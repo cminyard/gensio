@@ -58,7 +58,7 @@ struct ucred {
 };
 #endif
 
-#if defined(__APPLE__)
+#if defined(__APPLE__) || defined(__FreeBSD__)
 #include <sys/ucred.h>
 static int
 netna_get_ucred(struct gensio_os_funcs *o, int fd, struct ucred *cred)

@@ -137,6 +137,11 @@ case $target_os in
 		USE_LOGIN_PROGRAM=1
 		HAVE_UCRED=1
 		;;
+	freebsd*)
+		OSH_LIBS="$OSH_LIBS -ldl"
+		broken_pselect=yes
+		HAVE_UCRED=1
+		;;
 	*bsd* | *BSD*)
 		OSH_LIBS="$OSH_LIBS -ldl"
 		broken_pselect=yes
