@@ -71,3 +71,4 @@ def check_iostr_gensios(s):
             break
 
 have_ptsname_r = @HAVE_PTSNAME_R@
+have_ucred = @HAVE_UCRED@

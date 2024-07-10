@@ -98,6 +98,9 @@ PYTHON_UNDEF_FLAG=-undefined
 # run the shell?  On MacOS you need to use login for things to work right.
 USE_LOGIN_PROGRAM=0
 
+# Do we have unix credentials on unix sockets?
+HAVE_UCRED=0
+
 HAVE_WIN32SOUND=0
 
 case $target_os in
@@ -122,6 +125,7 @@ case $target_os in
 	linux*)
 		OSH_LIBS="$OSH_LIBS -ldl"
 		UUCP_LOCK_DIR=/var/lock
+		HAVE_UCRED=1
 		;;
 	darwin*)
 		# macos
@@ -131,6 +135,7 @@ case $target_os in
 		USE_GGL_INT=1
 		USE_OPENPTY=1
 		USE_LOGIN_PROGRAM=1
+		HAVE_UCRED=1
 		;;
 	*bsd* | *BSD*)
 		OSH_LIBS="$OSH_LIBS -ldl"
@@ -157,6 +162,11 @@ AC_DEFINE_UNQUOTED([USE_LOGIN_PROGRAM], [$USE_LOGIN_PROGRAM],
 	[Set to 1 to use login, 0 to directly execute the shell on login])
 AM_CONDITIONAL([USE_LOGIN_PROGRAM], [test ${USE_LOGIN_PROGRAM} = 1])
 AC_SUBST(USE_LOGIN_PROGRAM)
+
+AC_DEFINE_UNQUOTED([HAVE_UCRED], [$HAVE_UCRED],
+	[Set to 1 to use login, 0 to directly execute the shell on login])
+AM_CONDITIONAL([HAVE_UCRED], [test ${HAVE_UCRED} = 1])
+AC_SUBST(HAVE_UCRED)
 
 AC_ARG_WITH(link-ssl-with-main,
 	    [AS_HELP_STRING([--with-link-ssl-with-main=[yes|no]],

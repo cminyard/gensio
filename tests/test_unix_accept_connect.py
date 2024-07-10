@@ -7,6 +7,7 @@
 
 from utils import *
 import gensio
+import gensios_enabled
 import os
 import pwd
 import grp
@@ -69,8 +70,9 @@ def test_permission_denied(perms):
     del gen.handler
     print("  Success!")
 
-test_permission_denied("permgrps=blablabla")
-test_permission_denied("permusers=blablabla")
+if gensios_enabled.have_ucred == 1:
+    test_permission_denied("permgrps=blablabla")
+    test_permission_denied("permusers=blablabla")
 
 del o
 test_shutdown()
