@@ -17,19 +17,6 @@ TestAcceptConnect(o, "unix,/tmp/gensiotest", "unix,/tmp/gensiotest2",
                   "unix,/tmp/gensiotest",
                   do_small_test, use_port = False)
 
-pwe = pwd.getpwuid(os.getuid())
-uname = pwe.pw_name
-g = grp.getgrgid(pwe.pw_gid)
-ugrp = g.gr_name
-
-TestAccept(o, "unix,/tmp/gensiotest",
-           "unix(permusers=" + uname + "),/tmp/gensiotest",
-           do_small_test, get_port = False)
-
-TestAccept(o, "unix,/tmp/gensiotest",
-           "unix(permgrps=" + ugrp + "),/tmp/gensiotest",
-           do_small_test, get_port = False)
-
 def test_permission_denied(perms):
     p = "unix(" + perms + "),/tmp/gensiotest"
     print("Testing permission denied for " + p);
@@ -71,6 +58,19 @@ def test_permission_denied(perms):
     print("  Success!")
 
 if gensios_enabled.have_ucred == 1:
+    pwe = pwd.getpwuid(os.getuid())
+    uname = pwe.pw_name
+    g = grp.getgrgid(pwe.pw_gid)
+    ugrp = g.gr_name
+
+    TestAccept(o, "unix,/tmp/gensiotest",
+               "unix(permusers=" + uname + "),/tmp/gensiotest",
+               do_small_test, get_port = False)
+
+    TestAccept(o, "unix,/tmp/gensiotest",
+               "unix(permgrps=" + ugrp + "),/tmp/gensiotest",
+               do_small_test, get_port = False)
+
     test_permission_denied("permgrps=blablabla")
     test_permission_denied("permusers=blablabla")
 
