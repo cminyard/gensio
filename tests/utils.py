@@ -1106,6 +1106,7 @@ class TestAccept:
         self.io1 = None
         self.io2 = None
         self.acc = None
+        self.acc_started = False
         self.enable_oob = enable_oob
         self.close_timeout = close_timeout;
         if not evq:
@@ -1126,6 +1127,7 @@ class TestAccept:
             if debug:
                 print("acc startup");
             self.acc.startup()
+            self.acc_started = True
             self.waiter.service(1) # Wait a bit for the accepter to start up.
 
             if get_port:
@@ -1184,6 +1186,8 @@ class TestAccept:
             if do_close:
                 self.close()
         except:
+            if do_close:
+                self.close()
             self.io1 = None
             self.io2 = None
             self.acc = None
@@ -1193,12 +1197,14 @@ class TestAccept:
             raise
 
     def close(self):
-        self.io1.read_cb_enable(False)
+        if self.io1:
+            self.io1.read_cb_enable(False)
         if self.io2:
             self.io2.read_cb_enable(False)
         # Close the accepter first.  Some accepters (like conacc) will
         # re-open when the child closes.
-        self.acc.shutdown_s()
+        if self.acc_started:
+            self.acc.shutdown_s()
         io_close((self.io1, self.io2), timeout = self.close_timeout)
 
         # Break all the possible circular references.
@@ -1285,7 +1291,9 @@ class TestAcceptConnect:
         self.io1 = None
         self.io2 = None
         self.acc = None
+        self.acc_started = False
         self.acc2 = None
+        self.acc2_started = False
         if not evq:
             evq = OpEventQueue(o)
         self.evq = evq
@@ -1303,12 +1311,14 @@ class TestAcceptConnect:
             self.acc.handler = h
             h.acc = self.acc
             self.acc.startup()
+            self.acc_started = True
 
             h = AccHandler(self, io2str, evq = evq)
             self.acc2 = gensio.gensio_accepter(o, io2str, h);
             self.acc2.handler = h
             h.acc = self.acc2
             self.acc2.startup()
+            self.acc2_started = True
 
             if (use_port):
                 port = self.acc.control(gensio.GENSIO_CONTROL_DEPTH_FIRST,
@@ -1384,12 +1394,14 @@ class TestAcceptConnect:
         self.io1 = None
         self.io2 = None
         if self.acc:
-            self.acc.shutdown_s()
+            if self.acc_started:
+                self.acc.shutdown_s()
             del self.acc.handler.acc
             del self.acc.handler
         self.acc = None
         if self.acc2:
-            self.acc2.shutdown_s()
+            if self.acc2_started:
+                self.acc2.shutdown_s()
             del self.acc2.handler.acc
             del self.acc2.handler
         self.acc2 = None
