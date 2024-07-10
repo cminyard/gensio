@@ -8,9 +8,6 @@
 from utils import *
 import gensio
 import gensios_enabled
-import os
-import pwd
-import grp
 
 print("Test unix accepter connect")
 TestAcceptConnect(o, "unix,/tmp/gensiotest", "unix,/tmp/gensiotest2",
@@ -58,6 +55,9 @@ def test_permission_denied(perms):
     print("  Success!")
 
 if gensios_enabled.have_ucred == 1:
+    import os
+    import pwd
+    import grp
     pwe = pwd.getpwuid(os.getuid())
     uname = pwe.pw_name
     g = grp.getgrgid(pwe.pw_gid)
