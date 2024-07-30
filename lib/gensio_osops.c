@@ -2421,8 +2421,8 @@ struct gensio_unix_termios {
     g_termios curr_termios;
     bool break_set;
 #if HAVE_DECL_TIOCSRS485
-    bool rs485_applied;
     struct serial_rs485 rs485;
+    struct serial_rs485 orig_rs485;
 #endif
 };
 
@@ -2559,6 +2559,9 @@ gensio_unix_setup_termios(struct gensio_os_funcs *o, int fd,
 
     t->orig_termios = t->curr_termios;
     ioctl(fd, TIOCMGET, &t->orig_mctl);
+#if HAVE_DECL_TIOCSRS485
+    ioctl(fd, TIOCGRS485, &t->orig_rs485);
+#endif
 
     s_cfmakeraw(&t->curr_termios);
 
@@ -2579,6 +2582,9 @@ gensio_unix_cleanup_termios(struct gensio_os_funcs *o,
 {
     if (!*it)
 	return;
+#if HAVE_DECL_TIOCSRS485
+    ioctl(fd, TIOCSRS485, &(*it)->orig_rs485);
+#endif
     ioctl(fd, TIOCMSET, &(*it)->orig_mctl);
     set_termios(fd, &(*it)->orig_termios);
     o->free(o, *it);
@@ -3006,15 +3012,12 @@ gensio_unix_termios_control(struct gensio_os_funcs *o, int op, bool get,
 	if (rv) {
 	    rv = gensio_os_err_to_err(o, errno);
 #if HAVE_DECL_TIOCSRS485
+	} else if (t->rs485.flags & SER_RS485_ENABLED) {
+	    if (ioctl(fd, TIOCSRS485, &t->rs485) < 0)
+		rv = gensio_os_err_to_err(o, errno);
 	} else {
-	    bool enabled = !!(t->rs485.flags & SER_RS485_ENABLED);
-
-	    if (enabled != t->rs485_applied) {
-		if (ioctl(fd, TIOCSRS485, &t->rs485) < 0)
-		    rv = gensio_os_err_to_err(o, errno);
-		else
-		    t->rs485_applied = enabled;
-	    }
+	    /* If the disable fails, we don't care. */
+	    ioctl(fd, TIOCSRS485, &t->rs485);
 #endif
 	}
 	break;
