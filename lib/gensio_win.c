@@ -3940,7 +3940,7 @@ threadinfo_cb(PVOID lpFlsData)
     CoUninitialize();
 }
 
-static int
+static void
 gensio_os_thread_cleanup(void)
 {
     FlsSetValue(threadinfo_idx, NULL);
