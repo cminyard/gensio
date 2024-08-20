@@ -889,6 +889,11 @@ netna_readhandler(struct gensio_iod *iod, void *cbdata)
 }
 
 #if HAVE_UNIX
+/*
+ * This section is duplicated in gensio_dgram.c.  If you fix something
+ * here, fix it there, too.
+ */
+
 #define MAX_UNIX_ADDR_PATH (sizeof(((struct sockaddr_un *) 0)->sun_path) + 1)
 static void
 get_unix_addr_path(struct gensio_addr *addr, char *path)
@@ -921,6 +926,7 @@ netna_rm_unix_socket(struct gensio_addr *addr)
 #endif
 }
 
+/* Duplicated in gensio_dgram.c */
 static int
 netna_b4_listen(struct gensio_iod *iod, void *data)
 {

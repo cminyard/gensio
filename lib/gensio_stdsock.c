@@ -908,7 +908,17 @@ gensio_stdsock_recvfrom(struct gensio_iod *iod,
     rv = recvfrom(o->iod_get_fd(iod), buf, buflen, flags, ai->ai_addr, &len);
 #endif
     if (rv >= 0) {
-	ai->ai_addrlen = len;
+	if (len == 0) {
+	    /*
+	     * This happens when receiving an AF_UNIX datagram socket
+	     * where the other end isn't bound.  Just create a socket
+	     * with the family set and no path.
+	     */
+	    ai->ai_addrlen = sizeof(ai->ai_addr->sa_family);
+	    ai->ai_addr->sa_family = AF_UNIX;
+	} else {
+	    ai->ai_addrlen = len;
+	}
 	ai->ai_family = ai->ai_addr->sa_family;
     } else {
 	if (sock_errno == SOCK_EINTR)

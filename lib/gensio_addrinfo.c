@@ -404,7 +404,8 @@ sockaddr_equal(const struct sockaddr *a1, socklen_t l1,
 	{
 	    struct sockaddr_un *s1 = (struct sockaddr_un *) a1;
 	    struct sockaddr_un *s2 = (struct sockaddr_un *) a2;
-	    if (strcmp(s1->sun_path, s2->sun_path) != 0)
+	    if (strncmp(s1->sun_path, s2->sun_path,
+			sizeof(s1->sun_path)) != 0)
 		return false;
 	}
 	break;
@@ -552,7 +553,8 @@ gensio_scan_unixaddr(struct gensio_os_funcs *o, int socktype, const char *str,
     if (len >= sizeof(saddr->sun_path) - 1)
 	return GE_TOOBIG;
 
-    addr = gensio_addr_addrinfo_make(o, sizeof(socklen_t) + len + 1, false);
+    addr = gensio_addr_addrinfo_make(o, sizeof(saddr->sun_family) + len + 1,
+				     false);
     if (!addr)
 	return GE_NOMEM;
 
@@ -562,7 +564,7 @@ gensio_scan_unixaddr(struct gensio_os_funcs *o, int socktype, const char *str,
     memcpy(saddr->sun_path, str, len);
     ai->ai_family = AF_UNIX;
     ai->ai_socktype = socktype;
-    ai->ai_addrlen = sizeof(socklen_t) + len + 1;
+    ai->ai_addrlen = sizeof(saddr->sun_family) + len + 1;
     ai->ai_addr = (struct sockaddr *) saddr;
 
     *raddr = addr;

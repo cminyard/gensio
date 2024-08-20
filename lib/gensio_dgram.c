@@ -24,6 +24,53 @@
 #define DEBUG_STATE
 #endif
 
+#if HAVE_UNIX
+#include <sys/un.h>
+#include <sys/socket.h>
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <pwd.h>
+#include <grp.h>
+#include <errno.h>
+#include <unistd.h>
+
+/*
+ * This section is duplicated in gensio_net.c.  If you fix something
+ * here, fix it there, too.
+ */
+
+#define MAX_UNIX_ADDR_PATH (sizeof(((struct sockaddr_un *) 0)->sun_path) + 1)
+static void
+get_unix_addr_path(struct gensio_addr *addr, char *path)
+{
+    struct sockaddr_storage taddr;
+    struct sockaddr_un *sun = (struct sockaddr_un *) &taddr;
+    gensiods len = sizeof(taddr);
+
+    /* Remove the socket if it already exists. */
+    gensio_addr_getaddr(addr, sun, &len);
+
+    /*
+     * Make sure the path is nil terminated.  See discussions
+     * in the unix(7) man page on Linux for details.
+     */
+    memcpy(path, sun->sun_path, len - sizeof(sa_family_t));
+    path[len - sizeof(sa_family_t)] = '\0';
+}
+#endif
+
+static void
+netna_rm_unix_socket(struct gensio_addr *addr)
+{
+#if HAVE_UNIX
+    char path[MAX_UNIX_ADDR_PATH];
+
+    /* Remove the socket if it already exists. */
+    get_unix_addr_path(addr, path);
+    unlink(path);
+#endif
+}
 /*
  * Maximum UDP packet size, this avoids partial packet reads.  Probably
  * not a good idea to override this.
@@ -116,6 +163,14 @@ struct udpna_data {
     int protocol;
     const char *typestr;
 
+    struct gensio_addr *laddr;
+
+#if HAVE_UNIX
+    mode_t mode;
+    bool mode_set;
+    char *owner;
+    char *group;
+#endif
     /*
      * Used to run read callbacks from the selector to avoid running
      * it directly from user calls.
@@ -416,6 +471,8 @@ udpna_do_free(struct udpna_data *nadata)
 	nadata->o->free_runner(nadata->enable_done_runner);
     if (nadata->ai)
 	gensio_addr_free(nadata->ai);
+    if (nadata->laddr)
+	gensio_addr_free(nadata->laddr);
     if (nadata->fds)
 	nadata->o->free(nadata->o, nadata->fds);
     if (nadata->curr_recvaddr)
@@ -454,6 +511,14 @@ udpna_check_finish_free(struct udpna_data *nadata)
     for (i = 0; i < nadata->nr_fds; i++) {
 	udpna_ref(nadata);
 	nadata->o->clear_fd_handlers(nadata->fds[i].iod);
+    }
+
+    if (nadata->protocol != GENSIO_NET_PROTOCOL_UDP) {
+	/* Remove the sockets. */
+	if (nadata->ai)
+	    netna_rm_unix_socket(nadata->ai);
+        if (nadata->laddr)
+	    netna_rm_unix_socket(nadata->laddr);
     }
 }
 
@@ -1381,6 +1446,77 @@ udpna_readhandler(struct gensio_iod *iod, void *cbdata)
     udpna_deref_and_unlock(nadata);
 }
 
+/* Duplicated in gensio_net.c */
+static int
+netna_b4_listen(struct gensio_iod *iod, void *data)
+{
+    struct udpna_data *nadata = data;
+#if HAVE_UNIX
+    /* uid_t can be unsigned, do a cast to avoid warnings. */
+#define GENSIO_UID_INVALID_VAL ((uid_t) -1)
+    char pwbuf[16384];
+    uid_t ownerid = GENSIO_UID_INVALID_VAL;
+    uid_t groupid = GENSIO_UID_INVALID_VAL;
+    int err;
+    char unpath[MAX_UNIX_ADDR_PATH];
+#endif
+
+    if (nadata->protocol == GENSIO_NET_PROTOCOL_TCP)
+	return 0;
+
+#if HAVE_UNIX
+    get_unix_addr_path(nadata->ai, unpath);
+
+    /* Set up perms for Unix domain sockets. */
+    if (nadata->mode_set) {
+	err = chmod(unpath, nadata->mode);
+	if (err)
+	    goto out_errno;
+    }
+
+    if (nadata->owner) {
+	struct passwd pwdbuf, *pwd;
+
+	err = getpwnam_r(nadata->owner, &pwdbuf, pwbuf, sizeof(pwbuf), &pwd);
+	if (err)
+	    goto out_errno;
+	if (!pwd) {
+	    err = ENOENT;
+	    goto out_err;
+	}
+	ownerid = pwd->pw_uid;
+    }
+
+    if (nadata->group) {
+	struct group grpbuf, *grp;
+
+	err = getgrnam_r(nadata->group, &grpbuf, pwbuf, sizeof(pwbuf), &grp);
+	if (err)
+	    goto out_errno;
+	if (!grp) {
+	    err = ENOENT;
+	    goto out_err;
+	}
+	groupid = grp->gr_gid;
+    }
+
+    if (ownerid != GENSIO_UID_INVALID_VAL
+		|| groupid != GENSIO_UID_INVALID_VAL) {
+	err = chown(unpath, ownerid, groupid);
+	if (err)
+	    goto out_errno;
+    }
+    return 0;
+
+ out_errno:
+    err = errno;
+ out_err:
+    return gensio_os_err_to_err(nadata->o, err);
+#else
+    return GE_NOTSUP;
+#endif
+}
+
 static int
 udpna_startup(struct gensio_accepter *accepter)
 {
@@ -1391,7 +1527,7 @@ udpna_startup(struct gensio_accepter *accepter)
     if (!nadata->fds) {
 	rv = gensio_os_open_listen_sockets(nadata->o, nadata->ai,
 				   udpna_readhandler, udpna_writehandler,
-				   udpna_fd_cleared, NULL, nadata,
+				   udpna_fd_cleared, netna_b4_listen, nadata,
 				   nadata->opensock_flags,
 				   &nadata->fds, &nadata->nr_fds);
 	if (rv)
@@ -1533,8 +1669,9 @@ udpna_str_to_gensio(struct gensio_accepter *accepter, const char *addrstr,
 	return err;
 
     err = GE_INVAL;
-    if (protocol != nadata->protocol || !is_port_set)
+    if (protocol != nadata->protocol)
 	goto out_err;
+    if (protocol == GENSIO_NET_PROTOCOL_UDP && !is_port_set)
 
     /* Don't accept any args, we can't set the readbuf size here. */
     if (iargs && iargs[0])
@@ -1937,11 +2074,6 @@ dgram_gensio_alloc(const void *gdata, const char * const args[],
 	return err;
     }
 
-    if (laddr) {
-	gensio_addr_free(laddr);
-	laddr = NULL;
-    }
-
     if (mcast) {
 	err = o->mcast_add(new_iod, mcast, 0, false);
 	gensio_addr_free(mcast);
@@ -1983,6 +2115,8 @@ dgram_gensio_alloc(const void *gdata, const char * const args[],
     nadata = gensio_acc_get_gensio_data(accepter);
     nadata->is_dummy = true;
     nadata->nocon = nocon;
+    nadata->laddr = laddr;
+    laddr = NULL;
 
     nadata->fds = o->zalloc(o, sizeof(*nadata->fds));
     if (!nadata->fds) {
