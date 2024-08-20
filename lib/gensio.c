@@ -1565,7 +1565,7 @@ gensio_loadlib(struct gensio_os_funcs *o, const char *str)
     name[len] = '\0';
     if (strcmp(name, "udp") == 0 || strcmp(name, "unixdgram") == 0)
 	strncpy(name, "dgram", sizeof(name));
-    else if (strcmp(name, "tcp") == 0 || strcmp(name, "unixseq") == 0)
+    else if (strcmp(name, "tcp") == 0 || strncmp(name, "unix", 4) == 0)
 	strncpy(name, "net", sizeof(name));
     else if (strcmp(name, "dev") == 0 || strcmp(name, "sdev") == 0)
 	strncpy(name, "serialdev", sizeof(name));

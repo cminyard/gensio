@@ -383,16 +383,23 @@ gensio_addr *"
 .B udp[(<options>)][,<hostname>],<port>[[,<hostname>],<port>[...]]
 .br
 .B hostname = [ipv4|ipv6|ipv6n4,]<name>
+.B unixdgram[(<options>)][,<socket_path>]
 
 A UDP gensio creates a UDP socket, but it makes it look like an
 unrealiable stream of data.  The specification is the same as a TCP
 socket, except that a UDP socket is created, obviously.
 
+A unixdgram socket is a Unix datagram socket.  It has similar
+semantics to UDP as described below.  The only difference is that if
+you transmit without assigning an laddr, you will not have an address.
+The accepting gensio will not get an address, and if it tries to
+transmit back to you it will get an error.
+
 The semantics of a UDP socket are a little bit strange.  A connecting
 UDP socket is fairly straightforward, it opens a local socket and
 sends data to the remote socket.
 
-An accepter gensio is not so straightforward.  The accepter gensio
+A UDP accepter gensio is not so straightforward.  The accepter gensio
 will create a new accepted gensio for any packet it receives from a
 new remote host.  If you disable read on any of the accepted gensio or
 disable accepts on the accepting gensio, it will stop all reads on all
@@ -425,26 +432,59 @@ gensio.  The receive address is passed into the auxdata prefixed by
 "addr:", this is the address formatted by gensio_addr_to_str().
 .TP
 .B mloop[=true|false]
-If false, multicast packets transmitted will not be received on the
-local host.  If true, they will.
+UDP only.  If false, multicast packets transmitted will not be
+received on the local host.  If true, they will.
 .TP
 .B mttl=[1-255]
-Set the multicast time-to-live value.  The default is 1, meaning
-multicast stays in the local network.  Increasing this value increases
-the number of hops over multicast routers a send packet will traverse.
+UDP only.  Set the multicast time-to-live value.  The default is 1,
+meaning multicast stays in the local network.  Increasing this value
+increases the number of hops over multicast routers a send packet will
+traverse.
 .TP
 .B mcast=<addr>
-Add an address to receive multicast packets on.  There is no port
-number, this is just addresses.  You can specify multiple addresses in
-a single multicast option and/or the multicast option can be used
-multiple times to add multiple multicast addresses.
+UDP only.  Add an address to receive multicast packets on.  There is
+no port number, this is just addresses.  You can specify multiple
+addresses in a single multicast option and/or the multicast option can
+be used multiple times to add multiple multicast addresses.
 .TP
 .B reuseaddr[=true|false]
-Set SO_REUSEADDR on the socket, good for connecting and accepting
-gensios.  Defaults to false.
+UDP only.  Set SO_REUSEADDR on the socket, good for connecting and
+accepting gensios.  Defaults to false.
+.B delsock[=true|false]
+unixdomain only.  If the socket path already exists, delete it before
+opening the socket.
+.TP
+.B umode=[0-7|[rwx]*]
+unixdomain only.  Set the user file mode for the unix socket file.
+This is the usual read(4)/write(2)/execute(2) bitmask per chmod, but
+only for the user portion.  If a mode is specified, all other modes
+default to "6" (rw) +unless they are specified, and the final mode is
+modified by the umask +per standard *nix semantics.  If no mode is
+specified, it is set to +the default and not modified.  Note that the
+perm option below is +probably a better way to set this.
+.TP
+.B gmode=[0-7|[rwx]*]
+unixdomain only.  Set the group file mode for the unix socket file,
+see umode for details.
+.TP
+.B omode=[0-7|[rwx]*]
+unixdomain only.  Set the other file mode for the uix socket file, see
+umode for details.
+.TP
+.B perm=[0-7][0-7][0-7]
+unixdomain only.  Set the full mode for the unix socket file per
+standard *nix semantics, modified by umask as the above mode
+operations are.
+.TP
+.B owner=<name>
+unixdomain only.  Set the owner of the unix socket file to the given user.
+.TP
+.B group=<name>
+unixdomain only.  Set the group of the unix socket file to the given group.
 .SS "Remote Address String"
-The remote address will be in the format "[ipv4|ipv6],<addr>,<port>" where the
-address is in numeric format, IPv4, or IPv6.
+The remote address will be in the format "[ipv4|ipv6],<addr>,<port>"
+where the address is in numeric format, IPv4, or IPv6.  Or it will be
+"unix,<socket path>" for unixdomain.
 .SS "Remote Address"
 UDP returns a standard struct sockaddr for GENSIO_CONTROL_RADDR_BIN
 control.
@@ -575,9 +615,12 @@ Allocated as a terminal gensio with gdata as a "const struct
 gensio_addr *"
 .SH "UNIX"
 .B unix[(<options>)],<socket_path>
+.B unixseq[(<options>)],<socket_path>
 
-Create a unix domain socket as an accepter, or connect to a unix
-domain socket as a connecter.
+Create a unix domain stream socket as an accepter, or connect to a
+unix domain socket as a connecter.  unixseq is like unix, but creates
+a SOCK_SEQPACKET sockets instead of a SOCK_STREAM socket.  It works
+the same as unix, except that it is packet-oriented.
 
 A file will be created with the given socket path, you must have
 permissions to create a writeable file in that location.  If the file

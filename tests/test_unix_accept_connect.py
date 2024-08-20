@@ -10,12 +10,15 @@ import gensio
 import gensios_enabled
 
 print("Test unix accepter connect")
-TestAcceptConnect(o, "unixdgram,/tmp/gensiotest", "unixdgram,/tmp/gensiotest2",
-                  "unixdgram,/tmp/gensiotest",
-                  do_small_test, use_port = False, io1_dummy_write = "A")
+print(" stream")
 TestAcceptConnect(o, "unix,/tmp/gensiotest", "unix,/tmp/gensiotest2",
                   "unix,/tmp/gensiotest",
                   do_small_test, use_port = False)
+print(" dgram")
+TestAcceptConnect(o, "unixdgram,/tmp/gensiotest", "unixdgram,/tmp/gensiotest2",
+                  "unixdgram,/tmp/gensiotest",
+                  do_small_test, use_port = False, io1_dummy_write = "A")
+print(" seqpacket")
 TestAcceptConnect(o, "unixseq,/tmp/gensiotest", "unixseq,/tmp/gensiotest2",
                   "unixseq,/tmp/gensiotest",
                   do_small_test, use_port = False)
