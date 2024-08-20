@@ -97,7 +97,8 @@ struct net_data {
 
     bool nodelay;
 
-    bool istcp;
+    int protocol;
+    const char *typestr;
 
     int last_err;
 
@@ -119,19 +120,17 @@ net_try_open(struct net_data *tdata, struct gensio_iod **iod)
 {
     struct gensio_iod *new_iod = NULL;
     int err = GE_INUSE;
-    int protocol = tdata->istcp ? GENSIO_NET_PROTOCOL_TCP
-				: GENSIO_NET_PROTOCOL_UNIX;
     unsigned int setup = (GENSIO_SET_OPENSOCK_REUSEADDR |
 			  GENSIO_OPENSOCK_REUSEADDR |
 			  GENSIO_SET_OPENSOCK_KEEPALIVE |
 			  GENSIO_SET_OPENSOCK_NODELAY);
 
-    if (tdata->istcp)
+    if (tdata->protocol == GENSIO_NET_PROTOCOL_TCP)
 	setup |= GENSIO_OPENSOCK_KEEPALIVE;
     if (tdata->nodelay)
 	setup |= GENSIO_OPENSOCK_NODELAY;
  retry:
-    err = tdata->o->socket_open(tdata->o, tdata->ai, protocol, &new_iod);
+    err = tdata->o->socket_open(tdata->o, tdata->ai, tdata->protocol, &new_iod);
     if (err)
 	goto out;
 
@@ -213,7 +212,7 @@ net_control(void *handler_data, struct gensio_iod *iod, bool get,
 
     switch (option) {
     case GENSIO_CONTROL_NODELAY:
-	if (!tdata->istcp)
+	if (tdata->protocol != GENSIO_NET_PROTOCOL_TCP)
 	    return GE_NOTSUP;
 	if (get) {
 	    if (iod) {
@@ -337,7 +336,7 @@ net_except_ready(void *handler_data, struct gensio_iod *iod)
     gensiods rcount = 0;
     int rv;
 
-    if (!tdata->istcp)
+    if (tdata->protocol != GENSIO_NET_PROTOCOL_TCP)
 	return GE_NOTSUP;
 
     rv = tdata->o->recv(iod, &urgdata, 1, &rcount, GENSIO_MSG_OOB);
@@ -405,9 +404,8 @@ static const struct gensio_fd_ll_ops net_fd_ll_ops = {
 
 static int
 net_gensio_alloc(const struct gensio_addr *iai, const char * const args[],
-		 struct gensio_os_funcs *o,
-		 gensio_event cb, void *user_data, const char *type,
-		 struct gensio **new_gensio)
+		 struct gensio_os_funcs *o, gensio_event cb, void *user_data,
+		 int protocol, const char *typestr, struct gensio **new_gensio)
 {
     struct net_data *tdata = NULL;
     struct gensio_addr *laddr = NULL, *laddr2, *addr = NULL;
@@ -417,24 +415,24 @@ net_gensio_alloc(const struct gensio_addr *iai, const char * const args[],
     unsigned int i;
     int ival;
     int err;
-    bool istcp = strcmp(type, "tcp") == 0;
-    GENSIO_DECLARE_PPGENSIO(p, o, cb, istcp ? "tcp" : "unix", user_data);
+    bool istcp = protocol == GENSIO_NET_PROTOCOL_TCP;
+    GENSIO_DECLARE_PPGENSIO(p, o, cb, typestr, user_data);
 
-    err = gensio_get_default(o, type, "nodelay", false,
+    err = gensio_get_default(o, typestr, "nodelay", false,
 			     GENSIO_DEFAULT_BOOL, NULL, &ival);
     if (err)
 	return err;
     nodelay = ival;
 
-    err = gensio_get_defaultaddr(o, type, "laddr", false,
+    err = gensio_get_defaultaddr(o, typestr, "laddr", false,
 				 GENSIO_NET_PROTOCOL_TCP, true, false, &laddr);
     if (err && err != GE_NOTSUP) {
 	gensio_log(o, GENSIO_LOG_ERR, "Invalid default %d laddr: %s",
-		   type, gensio_err_to_str(err));
+		   typestr, gensio_err_to_str(err));
 	return err;
     }
 
-    err = gensio_get_default(o, type, "nodelay", false,
+    err = gensio_get_default(o, typestr, "nodelay", false,
 			     GENSIO_DEFAULT_BOOL, NULL, &ival);
     if (err)
 	return err;
@@ -464,7 +462,8 @@ net_gensio_alloc(const struct gensio_addr *iai, const char * const args[],
     if (!tdata)
 	goto out_nomem;
 
-    tdata->istcp = istcp;
+    tdata->protocol = protocol;
+    tdata->typestr = typestr;
     tdata->oob_char = -1;
 
     addr = gensio_addr_dup(iai);
@@ -479,7 +478,7 @@ net_gensio_alloc(const struct gensio_addr *iai, const char * const args[],
     if (!tdata->ll)
 	goto out_nomem;
 
-    io = base_gensio_alloc(o, tdata->ll, NULL, NULL, type, cb, user_data);
+    io = base_gensio_alloc(o, tdata->ll, NULL, NULL, typestr, cb, user_data);
     if (!io)
 	goto out_nomem;
 
@@ -488,6 +487,8 @@ net_gensio_alloc(const struct gensio_addr *iai, const char * const args[],
     tdata->lai = laddr;
 
     gensio_set_is_reliable(io, true);
+    if (protocol == GENSIO_NET_PROTOCOL_UNIX_SEQPACKET)
+	gensio_set_is_packet(io, true);
 
     *new_gensio = io;
     return 0;
@@ -519,14 +520,14 @@ str_to_net_gensio(const char *str, const char * const args[],
 
     err = gensio_os_scan_netaddr(o, str, false, protocol, &addr);
     if (err) {
-	bool istcp = strcmp(typestr, "tcp") == 0;
-	GENSIO_DECLARE_PPGENSIO(p, o, cb, istcp ? "tcp" : "unix", user_data);
+	GENSIO_DECLARE_PPGENSIO(p, o, cb, typestr, user_data);
 
 	gensio_pparm_log(&p, "Invalid network address: %s", str);
 	return err;
     }
 
-    err = net_gensio_alloc(addr, args, o, cb, user_data, typestr, new_gensio);
+    err = net_gensio_alloc(addr, args, o, cb, user_data, protocol,
+			   typestr, new_gensio);
     gensio_addr_free(addr);
 
     return err;
@@ -540,7 +541,8 @@ tcp_gensio_alloc(const void *gdata, const char * const args[],
 {
     const struct gensio_addr *iai = gdata;
 
-    return net_gensio_alloc(iai, args, o, cb, user_data, "tcp", new_gensio);
+    return net_gensio_alloc(iai, args, o, cb, user_data,
+			    GENSIO_NET_PROTOCOL_TCP, "tcp", new_gensio);
 }
 
 static int
@@ -562,7 +564,25 @@ unix_gensio_alloc(const void *gdata, const char * const args[],
 #if HAVE_UNIX
     const struct gensio_addr *iai = gdata;
 
-    return net_gensio_alloc(iai, args, o, cb, user_data, "unix", new_gensio);
+    return net_gensio_alloc(iai, args, o, cb, user_data,
+			    GENSIO_NET_PROTOCOL_UNIX, "unix", new_gensio);
+#else
+    return GE_NOTSUP;
+#endif
+}
+
+static int
+unixseq_gensio_alloc(const void *gdata, const char * const args[],
+		     struct gensio_os_funcs *o,
+		     gensio_event cb, void *user_data,
+		     struct gensio **new_gensio)
+{
+#if HAVE_UNIX && defined(SOCK_SEQPACKET)
+    const struct gensio_addr *iai = gdata;
+
+    return net_gensio_alloc(iai, args, o, cb, user_data,
+			    GENSIO_NET_PROTOCOL_UNIX_SEQPACKET, "unixseq",
+			    new_gensio);
 #else
     return GE_NOTSUP;
 #endif
@@ -576,6 +596,20 @@ str_to_unix_gensio(const char *str, const char * const args[],
 {
     return str_to_net_gensio(str, args, GENSIO_NET_PROTOCOL_UNIX, "unix",
 			     o, cb, user_data, new_gensio);
+}
+
+static int
+str_to_unixseq_gensio(const char *str, const char * const args[],
+		      struct gensio_os_funcs *o,
+		      gensio_event cb, void *user_data,
+		      struct gensio **new_gensio)
+{
+#if HAVE_UNIX && defined(SOCK_SEQPACKET)
+    return str_to_net_gensio(str, args, GENSIO_NET_PROTOCOL_UNIX_SEQPACKET,
+			     "unixseq", o, cb, user_data, new_gensio);
+#else
+    return GE_NOTSUP;
+#endif
 }
 
 struct netna_data {
@@ -618,7 +652,8 @@ struct netna_data {
 
     unsigned int opensock_flags;
 
-    bool istcp;
+    int protocol;
+    const char *typestr;
 };
 
 static const struct gensio_fd_ll_ops net_server_fd_ll_ops = {
@@ -739,7 +774,8 @@ netna_readhandler(struct gensio_iod *iod, void *cbdata)
     }
 
 #ifdef HAVE_TCPD_H
-    if (nadata->istcp && nadata->tcpd != GENSIO_TCPD_OFF) {
+    if (nadata->protocol == GENSIO_NET_PROTOCOL_TCP &&
+		nadata->tcpd != GENSIO_TCPD_OFF) {
 	const char *msg = gensio_os_check_tcpd_ok(new_iod,
 						  nadata->tcpd_progname);
 
@@ -756,7 +792,8 @@ netna_readhandler(struct gensio_iod *iod, void *cbdata)
     }
 #endif
 #if HAVE_UCRED
-    if (!nadata->istcp && (nadata->permusers || nadata->permgrps)) {
+    if (nadata->protocol != GENSIO_NET_PROTOCOL_TCP &&
+		(nadata->permusers || nadata->permgrps)) {
 	int fd = nadata->o->iod_get_fd(new_iod);
 	struct ucred cred;
 
@@ -788,11 +825,11 @@ netna_readhandler(struct gensio_iod *iod, void *cbdata)
     tdata->o = nadata->o;
     tdata->oob_char = -1;
     tdata->ai = raddr;
-    tdata->istcp = nadata->istcp;
+    tdata->protocol = nadata->protocol;
     tdata->nodelay = nadata->nodelay;
     raddr = NULL;
 
-    if (tdata->istcp)
+    if (tdata->protocol == GENSIO_NET_PROTOCOL_TCP)
 	setup |= GENSIO_OPENSOCK_KEEPALIVE;
     if (tdata->nodelay)
 	setup |= GENSIO_OPENSOCK_NODELAY;
@@ -813,7 +850,7 @@ netna_readhandler(struct gensio_iod *iod, void *cbdata)
     }
 
     io = base_gensio_server_alloc(nadata->o, tdata->ll, NULL, NULL,
-				  nadata->istcp ? "tcp" : "unix",
+				  nadata->typestr,
 				  netna_finish_server_open, nadata);
     if (!io) {
 	gensio_acc_log(nadata->acc, GENSIO_LOG_ERR,
@@ -822,6 +859,8 @@ netna_readhandler(struct gensio_iod *iod, void *cbdata)
 	goto out_err;
     }
     gensio_set_is_reliable(io, true);
+    if (tdata->protocol == GENSIO_NET_PROTOCOL_UNIX_SEQPACKET)
+	gensio_set_is_packet(io, true);
     err = base_gensio_server_start(io);
     if (err)
 	goto out_err;
@@ -850,6 +889,15 @@ netna_readhandler(struct gensio_iod *iod, void *cbdata)
 }
 
 #if HAVE_UNIX
+/*
+ * This section is duplicated in gensio_dgram.c.  If you fix something
+ * here, fix it there, too.
+ */
+
+#define SIZEOF_SOCKADDR_UN_HEADER \
+    (sizeof(struct sockaddr_un) - \
+     sizeof(((struct sockaddr_un *) 0)->sun_path))
+
 #define MAX_UNIX_ADDR_PATH (sizeof(((struct sockaddr_un *) 0)->sun_path) + 1)
 static void
 get_unix_addr_path(struct gensio_addr *addr, char *path)
@@ -860,13 +908,14 @@ get_unix_addr_path(struct gensio_addr *addr, char *path)
 
     /* Remove the socket if it already exists. */
     gensio_addr_getaddr(addr, sun, &len);
+    len -= SIZEOF_SOCKADDR_UN_HEADER;
 
     /*
      * Make sure the path is nil terminated.  See discussions
      * in the unix(7) man page on Linux for details.
      */
-    memcpy(path, sun->sun_path, len - sizeof(sa_family_t));
-    path[len - sizeof(sa_family_t)] = '\0';
+    memcpy(path, sun->sun_path, len);
+    path[len] = '\0';
 }
 #endif
 
@@ -882,6 +931,7 @@ netna_rm_unix_socket(struct gensio_addr *addr)
 #endif
 }
 
+/* Duplicated in gensio_dgram.c */
 static int
 netna_b4_listen(struct gensio_iod *iod, void *data)
 {
@@ -896,7 +946,7 @@ netna_b4_listen(struct gensio_iod *iod, void *data)
     char unpath[MAX_UNIX_ADDR_PATH];
 #endif
 
-    if (nadata->istcp)
+    if (nadata->protocol == GENSIO_NET_PROTOCOL_TCP)
 	return 0;
 
 #if HAVE_UNIX
@@ -979,7 +1029,7 @@ netna_shutdown(struct gensio_accepter *accepter,
     for (i = 0; i < nadata->nr_acceptfds; i++)
 	nadata->o->clear_fd_handlers(nadata->acceptfds[i].iod);
 
-    if (!nadata->istcp)
+    if (nadata->protocol != GENSIO_NET_PROTOCOL_TCP)
 	/* Remove the socket. */
 	netna_rm_unix_socket(nadata->ai);
 
@@ -1061,7 +1111,7 @@ netna_str_to_gensio(struct gensio_accepter *accepter,
     int protocol = 0;
     bool nodelay = false;
     GENSIO_DECLARE_PPGENSIO(p, nadata->o, cb,
-			    nadata->istcp ? "tcp" : "unix", user_data);
+			    nadata->typestr, user_data);
 
     err = gensio_scan_network_port(nadata->o, addr, false, &ai,
 				   &protocol, &is_port_set, NULL, &iargs);
@@ -1071,23 +1121,20 @@ netna_str_to_gensio(struct gensio_accepter *accepter,
     }
 
     err = GE_INVAL;
-    if (nadata->istcp) {
-	if (protocol != GENSIO_NET_PROTOCOL_TCP || !is_port_set)
-	    goto out_err;
-    } else {
-	if (protocol != GENSIO_NET_PROTOCOL_UNIX)
-	    goto out_err;
-    }
+    if (nadata->protocol != protocol)
+	goto out_err;
+    if (protocol == GENSIO_NET_PROTOCOL_TCP && !is_port_set)
+	goto out_err;
 
     for (i = 0; iargs && iargs[i]; i++) {
 	if (gensio_pparm_ds(&p, iargs[i], "readbuf", &max_read_size) > 0)
 	    continue;
-	if (nadata->istcp &&
+	if (nadata->protocol == GENSIO_NET_PROTOCOL_TCP &&
 		gensio_pparm_value(&p, iargs[i], "laddr", &dummy) > 0) {
 	    laddr = iargs[i];
 	    continue;
 	}
-	if (nadata->istcp &&
+	if (nadata->protocol == GENSIO_NET_PROTOCOL_TCP &&
 		gensio_pparm_bool(&p, args[i], "nodelay", &nodelay) > 0)
 	    continue;
 	gensio_pparm_unknown_parm(&p, args[i]);
@@ -1108,7 +1155,7 @@ netna_str_to_gensio(struct gensio_accepter *accepter,
 	args[i++] = "nodelay";
 
     err = net_gensio_alloc(ai, args, nadata->o, cb, user_data,
-			   nadata->istcp ? "tcp" : "unix", new_io);
+			   nadata->protocol, nadata->typestr, new_io);
 
  out_err:
     if (iargs)
@@ -1161,7 +1208,7 @@ netna_control_lport(struct netna_data *nadata, bool get,
     if (!get)
 	return GE_NOTSUP;
 
-    if (!nadata->istcp)
+    if (nadata->protocol != GENSIO_NET_PROTOCOL_TCP)
 	return GE_NOTSUP;
 
     if (nadata->nr_acceptfds == 0)
@@ -1270,14 +1317,13 @@ net_gensio_accepter_alloc(const struct gensio_addr *iai,
 			  const char * const args[],
 			  struct gensio_os_funcs *o,
 			  gensio_accepter_event cb, void *user_data,
-			  const char *type,
+			  int protocol, const char *typestr,
 			  struct gensio_accepter **accepter)
 {
     struct netna_data *nadata;
     gensiods max_read_size = GENSIO_DEFAULT_BUF_SIZE;
     bool nodelay = false;
-    bool istcp = strcmp(type, "tcp") == 0;
-    bool reuseaddr = istcp ? true : false;
+    bool reuseaddr = protocol == GENSIO_NET_PROTOCOL_TCP;
 #if HAVE_UNIX
     unsigned int umode = 6, gmode = 6, omode = 6, mode;
     bool mode_set = false;
@@ -1291,17 +1337,18 @@ net_gensio_accepter_alloc(const struct gensio_addr *iai,
     const char *tcpdname = NULL;
     enum gensio_tcpd_options tcpd = GENSIO_TCPD_ON;
 #endif
+    bool istcp = protocol == GENSIO_NET_PROTOCOL_TCP;
     unsigned int i;
     int err, ival;
-    GENSIO_DECLARE_PPACCEPTER(p, o, cb, istcp ? "tcp" : "unix", user_data);
+    GENSIO_DECLARE_PPACCEPTER(p, o, cb, typestr, user_data);
 
-    if (istcp) {
-	err = gensio_get_default(o, type, "reuseaddr", false,
+    if (protocol == GENSIO_NET_PROTOCOL_TCP) {
+	err = gensio_get_default(o, typestr, "reuseaddr", false,
 				 GENSIO_DEFAULT_BOOL, NULL, &ival);
 	if (err)
 	    return err;
     } else {
-	err = gensio_get_default(o, type, "delsock", false,
+	err = gensio_get_default(o, typestr, "delsock", false,
 				 GENSIO_DEFAULT_BOOL, NULL, &ival);
 	if (err)
 	    return err;
@@ -1309,7 +1356,7 @@ net_gensio_accepter_alloc(const struct gensio_addr *iai,
     reuseaddr = ival;
 
 #ifdef HAVE_TCPD_H
-    err = gensio_get_default(o, type, "tcpd", false,
+    err = gensio_get_default(o, typestr, "tcpd", false,
 			     GENSIO_DEFAULT_INT, NULL, &ival);
     if (err)
 	return err;
@@ -1423,15 +1470,18 @@ net_gensio_accepter_alloc(const struct gensio_addr *iai,
     if (!nadata->cb_en_done_runner)
 	goto out_err;
 
-    nadata->istcp = istcp;
+    nadata->protocol = protocol;
+    nadata->typestr = typestr;
 
     err = base_gensio_accepter_alloc(NULL, netna_base_acc_op, nadata,
-				    o, type, cb, user_data, accepter);
+				    o, typestr, cb, user_data, accepter);
     if (err)
 	goto out_err;
 
     nadata->acc = *accepter;
     gensio_acc_set_is_reliable(nadata->acc, true);
+    if (protocol == GENSIO_NET_PROTOCOL_UNIX_SEQPACKET)
+	gensio_acc_set_is_packet(nadata->acc, true);
     nadata->max_read_size = max_read_size;
     nadata->nodelay = nodelay;
 
@@ -1462,14 +1512,14 @@ str_to_net_gensio_accepter(const char *str, const char * const args[],
 
     err = gensio_os_scan_netaddr(o, str, true, protocol, &ai);
     if (err) {
-	bool istcp = strcmp(typestr, "tcp") == 0;
-	GENSIO_DECLARE_PPACCEPTER(p, o, cb, istcp ? "tcp" : "unix", user_data);
+	GENSIO_DECLARE_PPACCEPTER(p, o, cb, typestr, user_data);
 
 	gensio_pparm_log(&p, "Invalid network address: %s", str);
 	return err;
     }
 
-    err = net_gensio_accepter_alloc(ai, args, o, cb, user_data, typestr, acc);
+    err = net_gensio_accepter_alloc(ai, args, o, cb, user_data,
+				    protocol, typestr, acc);
     gensio_addr_free(ai);
 
     return err;
@@ -1484,7 +1534,8 @@ tcp_gensio_accepter_alloc(const void *gdata,
 {
     const struct gensio_addr *iai = gdata;
 
-    return net_gensio_accepter_alloc(iai, args, o, cb, user_data, "tcp",
+    return net_gensio_accepter_alloc(iai, args, o, cb, user_data,
+				     GENSIO_NET_PROTOCOL_TCP, "tcp",
 				     accepter);
 }
 
@@ -1509,7 +1560,27 @@ unix_gensio_accepter_alloc(const void *gdata,
 #if HAVE_UNIX
     const struct gensio_addr *iai = gdata;
 
-    return net_gensio_accepter_alloc(iai, args, o, cb, user_data, "unix",
+    return net_gensio_accepter_alloc(iai, args, o, cb, user_data,
+				     GENSIO_NET_PROTOCOL_UNIX, "unix",
+				     accepter);
+#else
+    return GE_NOTSUP;
+#endif
+}
+
+static int
+unixseq_gensio_accepter_alloc(const void *gdata,
+			      const char * const args[],
+			      struct gensio_os_funcs *o,
+			      gensio_accepter_event cb, void *user_data,
+			      struct gensio_accepter **accepter)
+{
+#if HAVE_UNIX && defined(SOCK_SEQPACKET)
+    const struct gensio_addr *iai = gdata;
+
+    return net_gensio_accepter_alloc(iai, args, o, cb, user_data,
+				     GENSIO_NET_PROTOCOL_UNIX_SEQPACKET,
+				     "unixdseq",
 				     accepter);
 #else
     return GE_NOTSUP;
@@ -1525,6 +1596,22 @@ str_to_unix_gensio_accepter(const char *str, const char * const args[],
 {
     return str_to_net_gensio_accepter(str, args, GENSIO_NET_PROTOCOL_UNIX,
 				      "unix", o, cb, user_data, acc);
+}
+
+static int
+str_to_unixseq_gensio_accepter(const char *str, const char * const args[],
+			       struct gensio_os_funcs *o,
+			       gensio_accepter_event cb,
+			       void *user_data,
+			       struct gensio_accepter **acc)
+{
+#if HAVE_UNIX && defined(SOCK_SEQPACKET)
+    return str_to_net_gensio_accepter(str, args,
+				      GENSIO_NET_PROTOCOL_UNIX_SEQPACKET,
+				      "unixseq", o, cb, user_data, acc);
+#else
+    return GE_NOTSUP;
+#endif
 }
 
 int
@@ -1544,6 +1631,14 @@ gensio_init_net(struct gensio_os_funcs *o)
 	return rv;
     rv = register_gensio_accepter(o, "unix", str_to_unix_gensio_accepter,
 				  unix_gensio_accepter_alloc);
+    if (rv)
+	return rv;
+    rv = register_gensio(o, "unixseq", str_to_unixseq_gensio,
+			 unixseq_gensio_alloc);
+    if (rv)
+	return rv;
+    rv = register_gensio_accepter(o, "unixseq", str_to_unixseq_gensio_accepter,
+				  unixseq_gensio_accepter_alloc);
     if (rv)
 	return rv;
     return 0;

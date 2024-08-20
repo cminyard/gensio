@@ -113,7 +113,7 @@ struct gensio_listen_scan_info {
  * opened on all addresses.  Errors besides GE_ADDRINUSE should be
  * treated as immediate errors, something else went wrong.
  */
-static int gensio_setup_listen_socket(struct gensio_os_funcs *o, bool do_listen,
+static int gensio_setup_listen_socket(struct gensio_os_funcs *o,
 			       int family, int socktype, int protocol,
 			       int flags,
 			       struct sockaddr *addr, socklen_t addrlen,
@@ -270,7 +270,7 @@ gensio_os_sctp_open_sockets(struct gensio_os_funcs *o,
 	if (fds)
 	    memcpy(tfds, fds, sizeof(*tfds) * i);
 
-	rv = gensio_setup_listen_socket(o, true, rp->ai_family,
+	rv = gensio_setup_listen_socket(o, rp->ai_family,
 					SOCK_STREAM, IPPROTO_SCTP, rp->ai_flags,
 					rp->ai_addr, rp->ai_addrlen,
 					call_b4_listen, data, opensock_flags,
@@ -908,7 +908,17 @@ gensio_stdsock_recvfrom(struct gensio_iod *iod,
     rv = recvfrom(o->iod_get_fd(iod), buf, buflen, flags, ai->ai_addr, &len);
 #endif
     if (rv >= 0) {
-	ai->ai_addrlen = len;
+	if (len == 0) {
+	    /*
+	     * This happens when receiving an AF_UNIX datagram socket
+	     * where the other end isn't bound.  Just create a socket
+	     * with the family set and no path.
+	     */
+	    ai->ai_addrlen = sizeof(ai->ai_addr->sa_family);
+	    ai->ai_addr->sa_family = AF_UNIX;
+	} else {
+	    ai->ai_addrlen = len;
+	}
 	ai->ai_family = ai->ai_addr->sa_family;
     } else {
 	if (sock_errno == SOCK_EINTR)
@@ -1162,6 +1172,18 @@ gensio_stdsock_socket_open(struct gensio_os_funcs *o,
 	socktype = SOCK_STREAM;
 	break;
 
+    case GENSIO_NET_PROTOCOL_UNIX_DGRAM:
+	sockproto = 0;
+	socktype = SOCK_DGRAM;
+	break;
+
+#ifdef SOCK_SEQPACKET
+    case GENSIO_NET_PROTOCOL_UNIX_SEQPACKET:
+	sockproto = 0;
+	socktype = SOCK_SEQPACKET;
+	break;
+#endif
+
     case GENSIO_NET_PROTOCOL_UDP:
 	sockproto = 0;
 	socktype = SOCK_DGRAM;
@@ -1283,6 +1305,10 @@ gensio_stdsock_socket_set_setup(struct gensio_iod *iod,
 	case GENSIO_NET_PROTOCOL_TCP:
 	case GENSIO_NET_PROTOCOL_UDP:
 	case GENSIO_NET_PROTOCOL_UNIX:
+	case GENSIO_NET_PROTOCOL_UNIX_DGRAM:
+#ifdef SOCK_SEQPACKET
+	case GENSIO_NET_PROTOCOL_UNIX_SEQPACKET:
+#endif
 	    ai = gensio_addr_addrinfo_get_curr(bindaddr);
 	    if (bind(fd, ai->ai_addr, ai->ai_addrlen) == -1)
 		return gensio_os_err_to_err(o, sock_errno);
@@ -2075,8 +2101,7 @@ gensio_stdsock_open_listen_sockets(struct gensio_os_funcs *o,
 	if (sockaddr_in_list_b4(rp, ai))
 	    continue;
 
-	rv = gensio_setup_listen_socket(o, rp->ai_socktype == SOCK_STREAM,
-					rp->ai_family, rp->ai_socktype,
+	rv = gensio_setup_listen_socket(o, rp->ai_family, rp->ai_socktype,
 					rp->ai_protocol, rp->ai_flags,
 					rp->ai_addr, rp->ai_addrlen,
 					call_b4_listen, data,
@@ -2146,7 +2171,7 @@ family_is_inet(int family)
 }
 
 static int
-gensio_setup_listen_socket(struct gensio_os_funcs *o, bool do_listen,
+gensio_setup_listen_socket(struct gensio_os_funcs *o,
 			   int family, int socktype, int sockproto, int flags,
 			   struct sockaddr *addr, socklen_t addrlen,
 			   int (*call_b4_listen)(struct gensio_iod *, void *),
@@ -2162,8 +2187,16 @@ gensio_setup_listen_socket(struct gensio_os_funcs *o, bool do_listen,
     struct gensio_iod *iod = NULL;
     int protocol;
     struct gensio_stdsock_info *gsi = NULL;
+    bool do_listen = true;
 
-    if (family == AF_UNIX)
+    if (family == AF_UNIX && socktype == SOCK_DGRAM) {
+	protocol = GENSIO_NET_PROTOCOL_UNIX_DGRAM;
+	do_listen = false;
+#ifdef SOCK_SEQPACKET
+    } else if (family == AF_UNIX && socktype == SOCK_SEQPACKET) {
+	protocol = GENSIO_NET_PROTOCOL_UNIX_SEQPACKET;
+#endif
+    }else if (family == AF_UNIX)
 	protocol = GENSIO_NET_PROTOCOL_UNIX;
     else if (sockproto == IPPROTO_SCTP)
 	protocol = GENSIO_NET_PROTOCOL_SCTP;
@@ -2173,9 +2206,10 @@ gensio_setup_listen_socket(struct gensio_os_funcs *o, bool do_listen,
 	protocol = GENSIO_NET_PROTOCOL_TCP;
     else if (sockproto == IPPROTO_TCP)
 	protocol = GENSIO_NET_PROTOCOL_TCP;
-    else if (sockproto == IPPROTO_UDP)
+    else if (sockproto == IPPROTO_UDP) {
 	protocol = GENSIO_NET_PROTOCOL_UDP;
-    else
+	do_listen = false;
+    } else
 	return GE_INVAL;
 
     rv = gensio_sockaddr_get_port(addr, &port);

@@ -30,6 +30,9 @@
 #include <sys/un.h>
 #endif
 
+#define SIZEOF_SOCKADDR_UN_HEADER \
+    (sizeof(struct sockaddr_un) - \
+     sizeof(((struct sockaddr_un *) 0)->sun_path))
 
 #include <gensio/gensio.h>
 #include <gensio/gensio_os_funcs.h>
@@ -404,7 +407,8 @@ sockaddr_equal(const struct sockaddr *a1, socklen_t l1,
 	{
 	    struct sockaddr_un *s1 = (struct sockaddr_un *) a1;
 	    struct sockaddr_un *s2 = (struct sockaddr_un *) a2;
-	    if (strcmp(s1->sun_path, s2->sun_path) != 0)
+	    if (strncmp(s1->sun_path, s2->sun_path,
+			sizeof(s1->sun_path)) != 0)
 		return false;
 	}
 	break;
@@ -539,7 +543,7 @@ gensio_addr_addrinfo_to_str_all(const struct gensio_addr *aaddr,
 }
 
 static int
-gensio_scan_unixaddr(struct gensio_os_funcs *o, const char *str,
+gensio_scan_unixaddr(struct gensio_os_funcs *o, int socktype, const char *str,
 		     struct gensio_addr **raddr)
 {
 #if HAVE_UNIX
@@ -552,7 +556,8 @@ gensio_scan_unixaddr(struct gensio_os_funcs *o, const char *str,
     if (len >= sizeof(saddr->sun_path) - 1)
 	return GE_TOOBIG;
 
-    addr = gensio_addr_addrinfo_make(o, sizeof(socklen_t) + len + 1, false);
+    addr = gensio_addr_addrinfo_make(o, SIZEOF_SOCKADDR_UN_HEADER + len + 1,
+				     false);
     if (!addr)
 	return GE_NOMEM;
 
@@ -561,8 +566,8 @@ gensio_scan_unixaddr(struct gensio_os_funcs *o, const char *str,
     saddr->sun_family = AF_UNIX;
     memcpy(saddr->sun_path, str, len);
     ai->ai_family = AF_UNIX;
-    ai->ai_socktype = SOCK_STREAM;
-    ai->ai_addrlen = sizeof(socklen_t) + len + 1;
+    ai->ai_socktype = socktype;
+    ai->ai_addrlen = SIZEOF_SOCKADDR_UN_HEADER + len + 1;
     ai->ai_addr = (struct sockaddr *) saddr;
 
     *raddr = addr;
@@ -755,8 +760,18 @@ gensio_addr_addrinfo_scan_ips(struct gensio_os_funcs *o, const char *str,
 	return GE_NOTSUP;
 #endif
 
+    case GENSIO_NET_PROTOCOL_UNIX_DGRAM:
+	socktype = SOCK_DGRAM;
+	goto do_unix;
+#ifdef SOCK_SEQPACKET
+    case GENSIO_NET_PROTOCOL_UNIX_SEQPACKET:
+	socktype = SOCK_SEQPACKET;
+	goto do_unix;
+#endif
     case GENSIO_NET_PROTOCOL_UNIX:
-	rv = gensio_scan_unixaddr(o, str, raddr);
+	socktype = SOCK_STREAM;
+    do_unix:
+	rv = gensio_scan_unixaddr(o, socktype, str, raddr);
 	if (!rv && is_port_set)
 	    *is_port_set = false;
 	return rv;

@@ -704,33 +704,33 @@ esac
 AM_CONDITIONAL([BUILTIN_NET], [test ${BUILTIN_NET} = 1])
 AC_SUBST(DYNAMIC_NET)
 
-udp=$default_all
-AC_ARG_WITH(udp,
- [AS_HELP_STRING([--with-udp=yes|dynamic|no], [Enable tcp/unix gensio])],
+dgram=$default_all
+AC_ARG_WITH(dgram,
+ [AS_HELP_STRING([--with-dgram=yes|dynamic|no], [Enable tcp/unix gensio])],
     if test "x$withval" = "xyes"; then
-      udp=yes
+      dgram=yes
     elif test "x$withval" = "xdynamic"; then
-      udp=dynamic
+      dgram=dynamic
     elif test "x$withval" = "xno"; then
-      udp=no
+      dgram=no
     fi,
 )
-BUILTIN_UDP=0
-DYNAMIC_UDP=
-case $udp in
+BUILTIN_DGRAM=0
+DYNAMIC_DGRAM=
+case $dgram in
    yes)
-      BUILTIN_GENSIOS="$BUILTIN_GENSIOS udp"
-      BUILTIN_UDP=1
+      BUILTIN_GENSIOS="$BUILTIN_GENSIOS dgram"
+      BUILTIN_DGRAM=1
       ;;
    dynamic)
-      DYNAMIC_GENSIOS="$DYNAMIC_GENSIOS udp"
-      DYNAMIC_UDP=libgensio_udp.la
+      DYNAMIC_GENSIOS="$DYNAMIC_GENSIOS dgram"
+      DYNAMIC_DGRAM=libgensio_dgram.la
       ;;
    no)
       ;;
 esac
-AM_CONDITIONAL([BUILTIN_UDP], [test ${BUILTIN_UDP} = 1])
-AC_SUBST(DYNAMIC_UDP)
+AM_CONDITIONAL([BUILTIN_DGRAM], [test ${BUILTIN_DGRAM} = 1])
+AC_SUBST(DYNAMIC_DGRAM)
 
 trysctp=yes
 AC_ARG_WITH(sctp,
@@ -2397,7 +2397,7 @@ echo
 echo "**************************************************"
 echo "Gensios:"
 echo   "  net:		" $net
-echo   "  udp:		" $udp
+echo   "  dgram:	" $dgram
 echo   "  sctp:		" $sctp
 echo   "  stdio:	" $stdio
 echo   "  pty:		" $pty

@@ -1,4 +1,8 @@
 import sys
+import platform
+
+def running_on_linux():
+    return platform.system() == "Linux"
 
 # Track which gensios are enabled in the library
 gensios_enabled = {
@@ -8,6 +12,8 @@ gensios_enabled = {
     "stdio": 1,
     "pty": @HAVE_PTY@,
     "unix" : @HAVE_UNIX@,
+    "unixdgram" : @HAVE_UNIX@,
+    "unixseq" : @HAVE_UNIX@ and running_on_linux(),
     "ssl": @HAVE_OPENSSL@,
     "mux": 1,
     "certauth": @HAVE_OPENSSL@,
@@ -35,6 +41,8 @@ final_gensios = [
     "stdio",
     "pty",
     "unix",
+    "unixdgram",
+    "unixseq",
     "serialdev",
     "echo",
     "file",

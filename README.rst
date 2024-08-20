@@ -73,6 +73,15 @@ sctp
 tcp
     Normal TCP communication.  Out of bound data is supported.
 
+unix
+    Unix stream domain socket.
+
+unixdgram
+    Unix datagram domain socket.  This is sort-of connection oriented.
+
+unixseq
+    Unix seqpacket domain socket.  Probably only works on Linux.
+
 udp
     Sort-of connection oriented UDP.
 
