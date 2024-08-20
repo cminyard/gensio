@@ -1539,7 +1539,7 @@ netna_b4_listen(struct gensio_iod *iod, void *data)
 {
     struct udpna_data *nadata = data;
 
-    if (nadata->protocol == GENSIO_NET_PROTOCOL_TCP)
+    if (nadata->protocol == GENSIO_NET_PROTOCOL_UDP)
 	return 0;
 
 #if HAVE_UNIX
