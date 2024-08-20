@@ -961,9 +961,10 @@ def io_close(ios, timeout = 1000, evq = None):
     for io in ios:
         if not io:
             continue
-        io.handler.close()
-        if evq:
-            evs.append(OpEvent("close_done", io.handler))
+        if io.handler is not None:
+            io.handler.close()
+            if evq:
+                evs.append(OpEvent("close_done", io.handler))
     if evq:
         while len(evs) > 0 and timeout > 0:
             (found, ev, timeout) = evq.wait_one_ev(evs, timeout = timeout)
@@ -1153,7 +1154,7 @@ class TestAccept:
                 io1.open_s()
             except:
                 del io1.handler.io
-                del io1.handler
+                io1.handler = None
                 raise
             if enable_read_io1:
                 # Some gensios, like telnet, need to have read enabled
