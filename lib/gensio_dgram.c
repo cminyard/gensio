@@ -40,6 +40,10 @@
  * here, fix it there, too.
  */
 
+#define SIZEOF_SOCKADDR_UN_HEADER \
+    (sizeof(struct sockaddr_un) - \
+     sizeof(((struct sockaddr_un *) 0)->sun_path))
+
 #define MAX_UNIX_ADDR_PATH (sizeof(((struct sockaddr_un *) 0)->sun_path) + 1)
 static void
 get_unix_addr_path(struct gensio_addr *addr, char *path)
@@ -50,13 +54,14 @@ get_unix_addr_path(struct gensio_addr *addr, char *path)
 
     /* Remove the socket if it already exists. */
     gensio_addr_getaddr(addr, sun, &len);
+    len -= SIZEOF_SOCKADDR_UN_HEADER;
 
     /*
      * Make sure the path is nil terminated.  See discussions
      * in the unix(7) man page on Linux for details.
      */
-    memcpy(path, sun->sun_path, len - sizeof(sa_family_t));
-    path[len - sizeof(sa_family_t)] = '\0';
+    memcpy(path, sun->sun_path, len);
+    path[len] = '\0';
 }
 #endif
 

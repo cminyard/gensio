@@ -30,6 +30,9 @@
 #include <sys/un.h>
 #endif
 
+#define SIZEOF_SOCKADDR_UN_HEADER \
+    (sizeof(struct sockaddr_un) - \
+     sizeof(((struct sockaddr_un *) 0)->sun_path))
 
 #include <gensio/gensio.h>
 #include <gensio/gensio_os_funcs.h>
@@ -553,7 +556,7 @@ gensio_scan_unixaddr(struct gensio_os_funcs *o, int socktype, const char *str,
     if (len >= sizeof(saddr->sun_path) - 1)
 	return GE_TOOBIG;
 
-    addr = gensio_addr_addrinfo_make(o, sizeof(saddr->sun_family) + len + 1,
+    addr = gensio_addr_addrinfo_make(o, SIZEOF_SOCKADDR_UN_HEADER + len + 1,
 				     false);
     if (!addr)
 	return GE_NOMEM;
@@ -564,7 +567,7 @@ gensio_scan_unixaddr(struct gensio_os_funcs *o, int socktype, const char *str,
     memcpy(saddr->sun_path, str, len);
     ai->ai_family = AF_UNIX;
     ai->ai_socktype = socktype;
-    ai->ai_addrlen = sizeof(saddr->sun_family) + len + 1;
+    ai->ai_addrlen = SIZEOF_SOCKADDR_UN_HEADER + len + 1;
     ai->ai_addr = (struct sockaddr *) saddr;
 
     *raddr = addr;
