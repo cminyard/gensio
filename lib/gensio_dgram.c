@@ -1533,7 +1533,7 @@ udpna_str_to_gensio(struct gensio_accepter *accepter, const char *addrstr,
 	return err;
 
     err = GE_INVAL;
-    if (protocol != GENSIO_NET_PROTOCOL_UDP || !is_port_set)
+    if (protocol != nadata->protocol || !is_port_set)
 	goto out_err;
 
     /* Don't accept any args, we can't set the readbuf size here. */
@@ -1807,10 +1807,10 @@ str_to_unixdgram_gensio_accepter(const char *str, const char * const args[],
 				 void *user_data,
 				 struct gensio_accepter **acc)
 {
-#if HAVE_UNIX && defined(SOCK_SEQPACKET)
-    return str_to_dgram_gensio_accepter(str, args,
+#if HAVE_UNIX
+    return str_to_dgram_gensio_accepter(str, args, o, cb, user_data,
 					GENSIO_NET_PROTOCOL_UNIX_DGRAM,
-					"unixdgram", o, cb, user_data, acc);
+					"unixdgram", acc);
 #else
     return GE_NOTSUP;
 #endif
@@ -2094,7 +2094,7 @@ str_to_unixdgram_gensio(const char *str, const char * const args[],
 }
 
 int
-gensio_init_udp(struct gensio_os_funcs *o)
+gensio_init_dgram(struct gensio_os_funcs *o)
 {
     int rv;
 
