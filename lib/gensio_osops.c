@@ -208,13 +208,29 @@ gensio_scan_network_port(struct gensio_os_funcs *o, const char *str,
 #endif
     }
 
-    if (strncmp(str, "unix,", 4) == 0 ||
-		(rargs && strncmp(str, "unix(", 4) == 0)) {
+    if (strncmp(str, "unix,", 5) == 0 ||
+		(rargs && strncmp(str, "unix(", 5) == 0)) {
 	if (family != AF_UNSPEC)
 	    return GE_INVAL;
 	str += 4;
     handle_unix:
 	protocol = GENSIO_NET_PROTOCOL_UNIX;
+#ifdef SOCK_SEQPACKET
+    } else if (strncmp(str, "unixseq,", 8) == 0 ||
+		(rargs && strncmp(str, "unixseq(", 8) == 0)) {
+	if (family != AF_UNSPEC)
+	    return GE_INVAL;
+	str += 7;
+    handle_unix_seqpacket:
+	protocol = GENSIO_NET_PROTOCOL_UNIX_SEQPACKET;
+#endif
+    } else if (strncmp(str, "unixdgram,", 10) == 0 ||
+		(rargs && strncmp(str, "unixdgram(", 10) == 0)) {
+	if (family != AF_UNSPEC)
+	    return GE_INVAL;
+	str += 9;
+    handle_unix_dgram:
+	protocol = GENSIO_NET_PROTOCOL_UNIX_DGRAM;
     } else if (strncmp(str, "tcp,", 4) == 0 ||
 		(rargs && strncmp(str, "tcp(", 4) == 0)) {
 	str += 3;
@@ -239,6 +255,12 @@ gensio_scan_network_port(struct gensio_os_funcs *o, const char *str,
 	switch (*rprotocol) {
 	case GENSIO_NET_PROTOCOL_UNIX:
 	    goto handle_unix;
+	case GENSIO_NET_PROTOCOL_UNIX_DGRAM:
+	    goto handle_unix_dgram;
+#ifdef SOCK_SEQPACKET
+	case GENSIO_NET_PROTOCOL_UNIX_SEQPACKET:
+	    goto handle_unix_seqpacket;
+#endif
 	case GENSIO_NET_PROTOCOL_TCP:
 	    goto handle_tcp;
 	case GENSIO_NET_PROTOCOL_UDP:
@@ -308,7 +330,9 @@ gensio_os_scan_netaddr(struct gensio_os_funcs *o, const char *str, bool listen,
     rv = o->addr_scan_ips(o, str, listen, AF_UNSPEC,
 			  protocol, &is_port_set, true, &addr);
     if (!rv && !listen && !is_port_set &&
-		protocol != GENSIO_NET_PROTOCOL_UNIX) {
+		protocol != GENSIO_NET_PROTOCOL_UNIX &&
+		protocol != GENSIO_NET_PROTOCOL_UNIX_DGRAM &&
+		protocol != GENSIO_NET_PROTOCOL_UNIX_SEQPACKET) {
 	gensio_addr_free(addr);
 	rv = GE_INVAL;
     } else if (!rv) {

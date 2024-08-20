@@ -113,6 +113,9 @@ struct udpna_data {
 
     struct gensio_list closed_udpns;
 
+    int protocol;
+    const char *typestr;
+
     /*
      * Used to run read callbacks from the selector to avoid running
      * it directly from user calls.
@@ -1638,11 +1641,12 @@ gensio_acc_udp_func(struct gensio_accepter *acc, int func, int val,
 }
 
 static int
-i_udp_gensio_accepter_alloc(const struct gensio_addr *iai,
-			    gensiods max_read_size,
-			    bool reuseaddr, struct gensio_os_funcs *o,
-			    gensio_accepter_event cb, void *user_data,
-			    struct gensio_accepter **accepter)
+i_dgram_gensio_accepter_alloc(const struct gensio_addr *iai,
+			      gensiods max_read_size,
+			      bool reuseaddr, struct gensio_os_funcs *o,
+			      gensio_accepter_event cb, void *user_data,
+			      int protocol, const char *typestr,
+			      struct gensio_accepter **accepter)
 {
     struct udpna_data *nadata;
 
@@ -1653,6 +1657,8 @@ i_udp_gensio_accepter_alloc(const struct gensio_addr *iai,
     gensio_list_init(&nadata->udpns);
     gensio_list_init(&nadata->closed_udpns);
     nadata->refcount = 1;
+    nadata->protocol = protocol;
+    nadata->typestr = typestr;
     if (reuseaddr)
 	nadata->opensock_flags |= GENSIO_OPENSOCK_REUSEADDR;
 
@@ -1684,7 +1690,7 @@ i_udp_gensio_accepter_alloc(const struct gensio_addr *iai,
 	goto out_nomem;
 
     nadata->acc = gensio_acc_data_alloc(o, cb, user_data, gensio_acc_udp_func,
-					NULL, "udp", nadata);
+					NULL, typestr, nadata);
     if (!nadata->acc)
 	goto out_nomem;
     gensio_acc_set_is_packet(nadata->acc, true);
@@ -1700,18 +1706,19 @@ i_udp_gensio_accepter_alloc(const struct gensio_addr *iai,
 }
 
 static int
-udp_gensio_accepter_alloc(const void *gdata,
-			  const char * const args[],
-			  struct gensio_os_funcs *o,
-			  gensio_accepter_event cb, void *user_data,
-			  struct gensio_accepter **accepter)
+dgram_gensio_accepter_alloc(const void *gdata,
+			    const char * const args[],
+			    struct gensio_os_funcs *o,
+			    gensio_accepter_event cb, void *user_data,
+			    int protocol, const char *typestr,
+			    struct gensio_accepter **accepter)
 {
     const struct gensio_addr *iai = gdata;
     gensiods max_read_size = GENSIO_DEFAULT_UDP_BUF_SIZE;
     unsigned int i;
     bool reuseaddr = false;
     int err, ival;
-    GENSIO_DECLARE_PPACCEPTER(p, o, cb, "udp", user_data);
+    GENSIO_DECLARE_PPACCEPTER(p, o, cb, typestr, user_data);
 
     for (i = 0; args && args[i]; i++) {
 	if (gensio_pparm_ds(&p, args[i], "readbuf", &max_read_size) > 0)
@@ -1725,8 +1732,42 @@ udp_gensio_accepter_alloc(const void *gdata,
 	return err;
     reuseaddr = ival;
 
-    return i_udp_gensio_accepter_alloc(iai, max_read_size, reuseaddr,
-				       o, cb, user_data, accepter);
+    return i_dgram_gensio_accepter_alloc(iai, max_read_size, reuseaddr,
+					 o, cb, user_data,
+					 protocol, typestr, accepter);
+}
+
+static int
+udp_gensio_accepter_alloc(const void *gdata,
+			  const char * const args[],
+			  struct gensio_os_funcs *o,
+			  gensio_accepter_event cb, void *user_data,
+			  struct gensio_accepter **acc)
+{
+    return dgram_gensio_accepter_alloc(gdata, args, o, cb, user_data,
+				       GENSIO_NET_PROTOCOL_UDP, "udp", acc);
+}
+
+static int
+str_to_dgram_gensio_accepter(const char *str, const char * const args[],
+			     struct gensio_os_funcs *o,
+			     gensio_accepter_event cb,
+			     void *user_data,
+			     int protocol, const char *typestr,
+			     struct gensio_accepter **acc)
+{
+    int err;
+    struct gensio_addr *ai;
+
+    err = gensio_os_scan_netaddr(o, str, true, protocol, &ai);
+    if (err)
+	return err;
+
+    err = dgram_gensio_accepter_alloc(ai, args, o, cb, user_data,
+				      protocol, typestr, acc);
+    gensio_addr_free(ai);
+
+    return err;
 }
 
 static int
@@ -1736,24 +1777,51 @@ str_to_udp_gensio_accepter(const char *str, const char * const args[],
 			   void *user_data,
 			   struct gensio_accepter **acc)
 {
-    int err;
-    struct gensio_addr *ai;
-
-    err = gensio_os_scan_netaddr(o, str, true, GENSIO_NET_PROTOCOL_UDP, &ai);
-    if (err)
-	return err;
-
-    err = udp_gensio_accepter_alloc(ai, args, o, cb, user_data, acc);
-    gensio_addr_free(ai);
-
-    return err;
+    return str_to_dgram_gensio_accepter(str, args, o, cb, user_data,
+					GENSIO_NET_PROTOCOL_UDP, "udp", acc);
 }
 
 static int
-udp_gensio_alloc(const void *gdata, const char * const args[],
-		 struct gensio_os_funcs *o,
-		 gensio_event cb, void *user_data,
-		 struct gensio **new_gensio)
+unixdgram_gensio_accepter_alloc(const void *gdata,
+				const char * const args[],
+				struct gensio_os_funcs *o,
+				gensio_accepter_event cb, void *user_data,
+				struct gensio_accepter **accepter)
+{
+#if HAVE_UNIX
+    const struct gensio_addr *iai = gdata;
+
+    return dgram_gensio_accepter_alloc(iai, args, o, cb, user_data,
+				       GENSIO_NET_PROTOCOL_UNIX_DGRAM,
+				       "unixdgram",
+				       accepter);
+#else
+    return GE_NOTSUP;
+#endif
+}
+
+static int
+str_to_unixdgram_gensio_accepter(const char *str, const char * const args[],
+				 struct gensio_os_funcs *o,
+				 gensio_accepter_event cb,
+				 void *user_data,
+				 struct gensio_accepter **acc)
+{
+#if HAVE_UNIX && defined(SOCK_SEQPACKET)
+    return str_to_dgram_gensio_accepter(str, args,
+					GENSIO_NET_PROTOCOL_UNIX_DGRAM,
+					"unixdgram", o, cb, user_data, acc);
+#else
+    return GE_NOTSUP;
+#endif
+}
+
+static int
+dgram_gensio_alloc(const void *gdata, const char * const args[],
+		   struct gensio_os_funcs *o,
+		   gensio_event cb, void *user_data,
+		   int protocol, const char *typestr,
+		   struct gensio **new_gensio)
 {
     const struct gensio_addr *addr = gdata;
     struct udpn_data *ndata = NULL;
@@ -1766,22 +1834,23 @@ udp_gensio_alloc(const void *gdata, const char * const args[],
     unsigned int i, setup;
     bool nocon = false, mcast_loop_set = false, mcast_loop = true;
     bool reuseaddr = false;
+    bool isudp = protocol == GENSIO_NET_PROTOCOL_UDP;
     unsigned int mttl;
-    GENSIO_DECLARE_PPGENSIO(p, o, cb, "udp", user_data);
+    GENSIO_DECLARE_PPGENSIO(p, o, cb, typestr, user_data);
 
-    err = gensio_get_defaultaddr(o, "udp", "laddr", false,
+    err = gensio_get_defaultaddr(o, typestr, "laddr", false,
 				 GENSIO_NET_PROTOCOL_UDP, true, false, &laddr);
     if (err && err != GE_NOTSUP) {
-	gensio_log(o, GENSIO_LOG_ERR, "Invalid default udp laddr: %s",
+	gensio_log(o, GENSIO_LOG_ERR, "Invalid default dgram laddr: %s",
 		   gensio_err_to_str(err));
 	return err;
     }
-    err = gensio_get_default(o, "udp", "reuseaddr", false,
+    err = gensio_get_default(o, typestr, "reuseaddr", false,
 			     GENSIO_DEFAULT_BOOL, NULL, &ival);
     if (err)
 	return err;
     reuseaddr = ival;
-    err = gensio_get_default(o, "udp", "mttl", false,
+    err = gensio_get_default(o, typestr, "mttl", false,
 			     GENSIO_DEFAULT_INT, NULL, &ival);
     if (err)
 	return err;
@@ -1792,16 +1861,16 @@ udp_gensio_alloc(const void *gdata, const char * const args[],
 	if (gensio_pparm_ds(&p, args[i], "readbuf", &max_read_size) > 0)
 	    continue;
 	tmpaddr = NULL;
-	if (gensio_pparm_addrs(&p, args[i], "laddr", GENSIO_NET_PROTOCOL_UDP,
+	if (gensio_pparm_addrs(&p, args[i], "laddr", protocol,
 			       true, false, &tmpaddr) > 0) {
 	    if (laddr)
 		gensio_addr_free(laddr);
 	    laddr = tmpaddr;
 	    continue;
 	}
-	if (gensio_pparm_addrs_noport(&p, args[i], "mcast",
-				      GENSIO_NET_PROTOCOL_UDP,
-				      &tmpaddr) > 0) {
+	if (isudp && gensio_pparm_addrs_noport(&p, args[i], "mcast",
+					       GENSIO_NET_PROTOCOL_UDP,
+					       &tmpaddr) > 0) {
 	    if (mcast) {
 		tmpaddr2 = gensio_addr_cat(mcast, tmpaddr);
 		if (!tmpaddr2) {
@@ -1818,18 +1887,19 @@ udp_gensio_alloc(const void *gdata, const char * const args[],
 	}
 	if (gensio_pparm_bool(&p, args[i], "nocon", &nocon) > 0)
 	    continue;
-	if (gensio_pparm_uint(&p, args[i], "mttl", &mttl) > 0) {
+	if (isudp && gensio_pparm_uint(&p, args[i], "mttl", &mttl) > 0) {
 	    if (mttl < 1 || mttl > 255) {
 		err = GE_INVAL;
 		goto parm_err;
 	    }
 	    continue;
 	}
-	if (gensio_pparm_bool(&p, args[i], "mloop", &mcast_loop) > 0) {
+	if (isudp && gensio_pparm_bool(&p, args[i], "mloop", &mcast_loop) > 0) {
 	    mcast_loop_set = true;
 	    continue;
 	}
-	if (gensio_pparm_bool(&p, args[i], "reuseaddr", &reuseaddr) > 0)
+	if (isudp && gensio_pparm_bool(&p, args[i], "reuseaddr",
+				       &reuseaddr) > 0)
 	    continue;
 	gensio_pparm_unknown_parm(&p, args[i]);
     parm_err:
@@ -1840,7 +1910,7 @@ udp_gensio_alloc(const void *gdata, const char * const args[],
 	return err;
     }
 
-    err = o->socket_open(o, addr, GENSIO_NET_PROTOCOL_UDP, &new_iod);
+    err = o->socket_open(o, addr, protocol, &new_iod);
     if (err) {
 	if (laddr)
 	    gensio_addr_free(laddr);
@@ -1849,9 +1919,14 @@ udp_gensio_alloc(const void *gdata, const char * const args[],
 	return err;
     }
 
-    setup = GENSIO_SET_OPENSOCK_REUSEADDR;
-    if (reuseaddr)
-	setup |= GENSIO_OPENSOCK_REUSEADDR;
+    if (isudp) {
+	setup = GENSIO_SET_OPENSOCK_REUSEADDR;
+	if (reuseaddr)
+	    setup |= GENSIO_OPENSOCK_REUSEADDR;
+    } else {
+	setup = 0;
+    }
+
     err = o->socket_set_setup(new_iod, setup, laddr);
     if (err) {
 	o->close(&new_iod);
@@ -1898,8 +1973,9 @@ udp_gensio_alloc(const void *gdata, const char * const args[],
     }
 
     /* Allocate a dummy network accepter. */
-    err = i_udp_gensio_accepter_alloc(NULL, max_read_size, reuseaddr, o,
-				      NULL, NULL, &accepter);
+    err = i_dgram_gensio_accepter_alloc(NULL, max_read_size, reuseaddr, o,
+					NULL, NULL, protocol, typestr,
+					&accepter);
     if (err) {
 	o->close(&new_iod);
 	return err;
@@ -1946,21 +2022,75 @@ udp_gensio_alloc(const void *gdata, const char * const args[],
 }
 
 static int
+str_to_dgram_gensio(const char *str, const char * const args[],
+		    struct gensio_os_funcs *o,
+		    gensio_event cb, void *user_data,
+		    int protocol, const char *typestr,
+		    struct gensio **new_gensio)
+{
+    struct gensio_addr *addr;
+    int err;
+
+    err = gensio_os_scan_netaddr(o, str, false, protocol, &addr);
+    if (err)
+	return err;
+
+    err = dgram_gensio_alloc(addr, args, o, cb, user_data,
+			     protocol, typestr, new_gensio);
+    gensio_addr_free(addr);
+    return err;
+}
+
+static int
+udp_gensio_alloc(const void *gdata, const char * const args[],
+		 struct gensio_os_funcs *o,
+		 gensio_event cb, void *user_data,
+		 struct gensio **new_gensio)
+{
+    return dgram_gensio_alloc(gdata, args, o, cb, user_data,
+			      GENSIO_NET_PROTOCOL_UDP, "udp", new_gensio);
+}
+
+static int
 str_to_udp_gensio(const char *str, const char * const args[],
 		  struct gensio_os_funcs *o,
 		  gensio_event cb, void *user_data,
 		  struct gensio **new_gensio)
 {
-    struct gensio_addr *addr;
-    int err;
+    return str_to_dgram_gensio(str, args, o, cb, user_data,
+			       GENSIO_NET_PROTOCOL_UDP, "udp", new_gensio);
+}
 
-    err = gensio_os_scan_netaddr(o, str, false, GENSIO_NET_PROTOCOL_UDP, &addr);
-    if (err)
-	return err;
+static int
+unixdgram_gensio_alloc(const void *gdata, const char * const args[],
+		       struct gensio_os_funcs *o,
+		       gensio_event cb, void *user_data,
+		       struct gensio **new_gensio)
+{
+#if HAVE_UNIX
+    const struct gensio_addr *iai = gdata;
 
-    err = udp_gensio_alloc(addr, args, o, cb, user_data, new_gensio);
-    gensio_addr_free(addr);
-    return err;
+    return dgram_gensio_alloc(iai, args, o, cb, user_data,
+			      GENSIO_NET_PROTOCOL_UNIX_DGRAM, "unixdgram",
+			      new_gensio);
+#else
+    return GE_NOTSUP;
+#endif
+}
+
+static int
+str_to_unixdgram_gensio(const char *str, const char * const args[],
+			struct gensio_os_funcs *o,
+			gensio_event cb, void *user_data,
+			struct gensio **new_gensio)
+{
+#if HAVE_UNIX
+    return str_to_dgram_gensio(str, args, o, cb, user_data,
+			       GENSIO_NET_PROTOCOL_UNIX_DGRAM, "unixdgram",
+			       new_gensio);
+#else
+    return GE_NOTSUP;
+#endif
 }
 
 int
@@ -1973,6 +2103,15 @@ gensio_init_udp(struct gensio_os_funcs *o)
 	return rv;
     rv = register_gensio_accepter(o, "udp", str_to_udp_gensio_accepter,
 				  udp_gensio_accepter_alloc);
+    if (rv)
+	return rv;
+    rv = register_gensio(o, "unixdgram", str_to_unixdgram_gensio,
+			 unixdgram_gensio_alloc);
+    if (rv)
+	return rv;
+    rv = register_gensio_accepter(o, "unixdgram",
+				  str_to_unixdgram_gensio_accepter,
+				  unixdgram_gensio_accepter_alloc);
     if (rv)
 	return rv;
     return 0;

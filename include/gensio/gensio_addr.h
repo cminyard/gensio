@@ -73,6 +73,8 @@ struct gensio_addr {
 #define GENSIO_NET_PROTOCOL_UDP 2
 #define GENSIO_NET_PROTOCOL_SCTP 3
 #define GENSIO_NET_PROTOCOL_UNIX 4
+#define GENSIO_NET_PROTOCOL_UNIX_DGRAM 5
+#define GENSIO_NET_PROTOCOL_UNIX_SEQPACKET 6
 
 /*
  * Dealing with iterators.

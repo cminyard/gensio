@@ -539,7 +539,7 @@ gensio_addr_addrinfo_to_str_all(const struct gensio_addr *aaddr,
 }
 
 static int
-gensio_scan_unixaddr(struct gensio_os_funcs *o, const char *str,
+gensio_scan_unixaddr(struct gensio_os_funcs *o, int socktype, const char *str,
 		     struct gensio_addr **raddr)
 {
 #if HAVE_UNIX
@@ -561,7 +561,7 @@ gensio_scan_unixaddr(struct gensio_os_funcs *o, const char *str,
     saddr->sun_family = AF_UNIX;
     memcpy(saddr->sun_path, str, len);
     ai->ai_family = AF_UNIX;
-    ai->ai_socktype = SOCK_STREAM;
+    ai->ai_socktype = socktype;
     ai->ai_addrlen = sizeof(socklen_t) + len + 1;
     ai->ai_addr = (struct sockaddr *) saddr;
 
@@ -755,8 +755,18 @@ gensio_addr_addrinfo_scan_ips(struct gensio_os_funcs *o, const char *str,
 	return GE_NOTSUP;
 #endif
 
+    case GENSIO_NET_PROTOCOL_UNIX_DGRAM:
+	socktype = SOCK_DGRAM;
+	goto do_unix;
+#ifdef SOCK_SEQPACKET
+    case GENSIO_NET_PROTOCOL_UNIX_SEQPACKET:
+	socktype = SOCK_SEQPACKET;
+	goto do_unix;
+#endif
     case GENSIO_NET_PROTOCOL_UNIX:
-	rv = gensio_scan_unixaddr(o, str, raddr);
+	socktype = SOCK_STREAM;
+    do_unix:
+	rv = gensio_scan_unixaddr(o, socktype, str, raddr);
 	if (!rv && is_port_set)
 	    *is_port_set = false;
 	return rv;

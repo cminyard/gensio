@@ -68,15 +68,15 @@ libgensio_net_la_SOURCES = gensio_net.c
 libgensio_net_la_LDFLAGS = $(DYNAMIC_LDFLAGS)
 libgensio_net_la_LIBADD = $(DYNAMIC_LIBS)
 
-if BUILTIN_UDP
-libgensio_la_SOURCES += gensio_udp.c
+if BUILTIN_DGRAM
+libgensio_la_SOURCES += gensio_dgram.c
 else
-EXTRA_LTLIBRARIES += libgensio_udp.la
+EXTRA_LTLIBRARIES += libgensio_dgram.la
 endif
-gensiolibexec_LTLIBRARIES += $(DYNAMIC_UDP)
-libgensio_udp_la_SOURCES = gensio_udp.c
-libgensio_udp_la_LDFLAGS = $(DYNAMIC_LDFLAGS)
-libgensio_udp_la_LIBADD = $(DYNAMIC_LIBS)
+gensiolibexec_LTLIBRARIES += $(DYNAMIC_DGRAM)
+libgensio_dgram_la_SOURCES = gensio_dgram.c
+libgensio_dgram_la_LDFLAGS = $(DYNAMIC_LDFLAGS)
+libgensio_dgram_la_LIBADD = $(DYNAMIC_LIBS)
 
 if BUILTIN_SCTP
 libgensio_la_SOURCES += gensio_sctp.c
