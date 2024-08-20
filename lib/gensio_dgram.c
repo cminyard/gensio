@@ -1305,7 +1305,7 @@ udp_alloc_gensio(struct udpna_data *nadata, struct gensio_iod *iod,
     }
 
     ndata->io = gensio_data_alloc(nadata->o, cb, user_data, gensio_udp_func,
-				  NULL, "udp", ndata);
+				  NULL, nadata->typestr, ndata);
     if (!ndata->io) {
 	gensio_addr_free(ndata->raddr);
 	ndata->o->free_runner(ndata->deferred_op_runner);
@@ -1855,15 +1855,45 @@ dgram_gensio_accepter_alloc(const void *gdata,
     unsigned int i;
     bool reuseaddr = false;
     int err, ival;
+#if HAVE_UNIX
+    unsigned int umode = 6, gmode = 6, omode = 6, mode;
+    bool mode_set = false;
+    const char *owner = NULL, *group = NULL;
+#endif
     GENSIO_DECLARE_PPACCEPTER(p, o, cb, typestr, user_data);
 
     for (i = 0; args && args[i]; i++) {
 	if (gensio_pparm_ds(&p, args[i], "readbuf", &max_read_size) > 0)
 	    continue;
+#if HAVE_UNIX
+	if (!istcp && gensio_pparm_mode(&p, args[i], "umode", &umode) > 0) {
+	    mode_set = true;
+	    continue;
+	}
+	if (!istcp && gensio_pparm_mode(&p, args[i], "gmode", &gmode) > 0) {
+	    mode_set = true;
+	    continue;
+	}
+	if (!istcp && gensio_pparm_mode(&p, args[i], "omode", &omode) > 0) {
+	    mode_set = true;
+	    continue;
+	}
+	if (!istcp && gensio_pparm_perm(&p, args[i], "perm", &mode) > 0) {
+	    mode_set = true;
+	    umode = mode >> 6 & 7;
+	    gmode = mode >> 3 & 7;
+	    omode = mode & 7;
+	    continue;
+	}
+	if (!istcp && gensio_pparm_value(&p, args[i], "owner", &owner))
+	    continue;
+	if (!istcp && gensio_pparm_value(&p, args[i], "group", &group))
+	    continue;
+#endif
 	gensio_pparm_unknown_parm(&p, args[i]);
 	return GE_INVAL;
     }
-    err = gensio_get_default(o, "udp", "reuseaddr", false,
+    err = gensio_get_default(o, typestr, "reuseaddr", false,
 			     GENSIO_DEFAULT_BOOL, NULL, &ival);
     if (err)
 	return err;
