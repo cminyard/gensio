@@ -18,10 +18,11 @@ print(" dgram")
 TestAcceptConnect(o, "unixdgram,/tmp/gensiotest", "unixdgram,/tmp/gensiotest2",
                   "unixdgram,/tmp/gensiotest",
                   do_small_test, use_port = False, io1_dummy_write = "A")
-print(" seqpacket")
-TestAcceptConnect(o, "unixseq,/tmp/gensiotest", "unixseq,/tmp/gensiotest2",
-                  "unixseq,/tmp/gensiotest",
-                  do_small_test, use_port = False)
+if gensios_enabled.check_gensio_enabled("unixseq"):
+    print(" seqpacket")
+    TestAcceptConnect(o, "unixseq,/tmp/gensiotest", "unixseq,/tmp/gensiotest2",
+                      "unixseq,/tmp/gensiotest",
+                      do_small_test, use_port = False)
 
 def test_permission_denied(perms):
     p = "unix(" + perms + "),/tmp/gensiotest"
