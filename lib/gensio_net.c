@@ -1580,7 +1580,7 @@ unixseq_gensio_accepter_alloc(const void *gdata,
 
     return net_gensio_accepter_alloc(iai, args, o, cb, user_data,
 				     GENSIO_NET_PROTOCOL_UNIX_SEQPACKET,
-				     "unixdseq",
+				     "unixseq",
 				     accepter);
 #else
     return GE_NOTSUP;
