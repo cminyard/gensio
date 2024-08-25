@@ -622,6 +622,15 @@ unix domain socket as a connecter.  unixseq is like unix, but creates
 a SOCK_SEQPACKET sockets instead of a SOCK_STREAM socket.  It works
 the same as unix, except that it is packet-oriented.
 
+Though it may sound strange, the unix gensio is available on Windows,
+and works about the same as it does on Unix systems.  unixseq and
+unixdgram are not currently available on Windows, though.  However, you cannot
+set the permissions like you can on Windows.  It's possible to create something
+that might work, but it's complicated.  For permissions, you can create a
+directory with the permissions you want and then create the socket in that
+directory.  The socket will inherit the permissions of the directory by
+default.
+
 A file will be created with the given socket path, you must have
 permissions to create a writeable file in that location.  If the file
 already exists, an error will be returned on an accepter socket unless
@@ -645,12 +654,12 @@ If the socket path already exists, delete it before opening the socket.
 .TP
 .B umode=[0-7|[rwx]*]
 Set the user file mode for the unix socket file.  This is the usual
-read(4)/write(2)/execute(2) bitmask per chmod, but only for the user
+read(4)/write(2)/execute(1) bitmask per chmod, but only for the user
 portion.  If a mode is specified, all other modes default to "6" (rw)
-+unless they are specified, and the final mode is modified by the umask
-+per standard *nix semantics.  If no mode is specified, it is set to
-+the default and not modified.  Note that the perm option below is
-+probably a better way to set this.
+unless they are specified, and the final mode is modified by the umask
+per standard *nix semantics.  If no mode is specified, it is set to
+the default and not modified.  Note that the perm option below is
+probably a better way to set this. Not available on Windows.
 .TP
 .B gmode=[0-7|[rwx]*]
 Set the group file mode for the unix socket file, see umode for details.
@@ -661,12 +670,15 @@ Set the other file mode for the uix socket file, see umode for details.
 .B perm=[0-7][0-7][0-7]
 Set the full mode for the unix socket file per standard *nix
 semantics, modified by umask as the above mode operations are.
+Not available on windows.
 .TP
 .B owner=<name>
 Set the owner of the unix socket file to the given user.
+Not available on windows.
 .TP
 .B group=<name>
 Set the group of the unix socket file to the given group.
+Not available on windows.
 .TP
 .B peerusers=<name>[;<name>[;...]]
 Sets the *nix users allowed to connect to this socket.  If set, any
@@ -674,11 +686,13 @@ connection received from a user that is not in this user list will
 cause the connection to be immediately closed.  You may use peerusers
 and peergroups together, if so the connection is permitted if either
 check succeeds.
+Not available on windows.
 .TP
 .B peergrps=<name>[;<name>[;...]]
 Sets the *nix groups allowed to connect to this socket.  If set, any
 connection received from a users that whose group is not in this list
 will cause the connection to be immediately closed.
+Not available on windows.
 .SS Remote Address String
 The remote address will be: "unix,<socket path>".
 .SS Remote Address

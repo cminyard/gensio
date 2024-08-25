@@ -40,6 +40,11 @@
 
 #include "gensio_net.h"
 
+#ifdef _WIN32
+#include <windows.h>
+#include <afunix.h>
+#endif
+
 #ifdef HAVE_NATIVE_UCRED
 static int
 netna_get_ucred(struct gensio_os_funcs *o, int fd, struct ucred *cred)
@@ -120,15 +125,16 @@ net_try_open(struct net_data *tdata, struct gensio_iod **iod)
 {
     struct gensio_iod *new_iod = NULL;
     int err = GE_INUSE;
-    unsigned int setup = (GENSIO_SET_OPENSOCK_REUSEADDR |
-			  GENSIO_OPENSOCK_REUSEADDR |
-			  GENSIO_SET_OPENSOCK_KEEPALIVE |
-			  GENSIO_SET_OPENSOCK_NODELAY);
+    unsigned int setup = 0;
 
-    if (tdata->protocol == GENSIO_NET_PROTOCOL_TCP)
-	setup |= GENSIO_OPENSOCK_KEEPALIVE;
-    if (tdata->nodelay)
-	setup |= GENSIO_OPENSOCK_NODELAY;
+    if (tdata->protocol == GENSIO_NET_PROTOCOL_TCP) {
+        setup = (GENSIO_SET_OPENSOCK_REUSEADDR |
+		 GENSIO_OPENSOCK_REUSEADDR |
+		 GENSIO_SET_OPENSOCK_NODELAY);
+	setup |= GENSIO_SET_OPENSOCK_KEEPALIVE | GENSIO_OPENSOCK_KEEPALIVE;
+	if (tdata->nodelay)
+	    setup |= GENSIO_OPENSOCK_NODELAY;
+    }
  retry:
     err = tdata->o->socket_open(tdata->o, tdata->ai, tdata->protocol, &new_iod);
     if (err)
@@ -750,12 +756,15 @@ netna_readhandler(struct gensio_iod *iod, void *cbdata)
     struct gensio_addr *raddr;
     struct net_data *tdata = NULL;
     struct gensio *io = NULL;
-    unsigned int setup = (GENSIO_SET_OPENSOCK_REUSEADDR |
-			  GENSIO_OPENSOCK_REUSEADDR |
-			  GENSIO_SET_OPENSOCK_KEEPALIVE |
-			  GENSIO_SET_OPENSOCK_NODELAY);
+    unsigned int setup = 0;
     int err;
 
+    if (nadata->protocol == GENSIO_NET_PROTOCOL_TCP) {
+	setup = (GENSIO_SET_OPENSOCK_REUSEADDR |
+		 GENSIO_OPENSOCK_REUSEADDR |
+		 GENSIO_SET_OPENSOCK_KEEPALIVE |
+		 GENSIO_SET_OPENSOCK_NODELAY);
+    }
     err = nadata->o->accept(iod, &raddr, &new_iod);
     if (err) {
 	if (err != GE_NODATA)
@@ -888,7 +897,7 @@ netna_readhandler(struct gensio_iod *iod, void *cbdata)
 	nadata->o->close(&new_iod);
 }
 
-#if HAVE_UNIX
+#if HAVE_UNIX || defined(_WIN32)
 /*
  * This section is duplicated in gensio_dgram.c.  If you fix something
  * here, fix it there, too.
@@ -922,12 +931,17 @@ get_unix_addr_path(struct gensio_addr *addr, char *path)
 static void
 netna_rm_unix_socket(struct gensio_addr *addr)
 {
-#if HAVE_UNIX
+#if HAVE_UNIX || defined(_WIN32)
     char path[MAX_UNIX_ADDR_PATH];
 
     /* Remove the socket if it already exists. */
     get_unix_addr_path(addr, path);
+#endif
+#if HAVE_UNIX
     unlink(path);
+#endif
+#ifdef _WIN32
+    DeleteFile(path);
 #endif
 }
 
@@ -998,7 +1012,7 @@ netna_b4_listen(struct gensio_iod *iod, void *data)
  out_err:
     return gensio_os_err_to_err(nadata->o, err);
 #else
-    return GE_NOTSUP;
+    return 0;
 #endif
 }
 
@@ -1557,15 +1571,11 @@ unix_gensio_accepter_alloc(const void *gdata,
 			   gensio_accepter_event cb, void *user_data,
 			   struct gensio_accepter **accepter)
 {
-#if HAVE_UNIX
     const struct gensio_addr *iai = gdata;
 
     return net_gensio_accepter_alloc(iai, args, o, cb, user_data,
 				     GENSIO_NET_PROTOCOL_UNIX, "unix",
 				     accepter);
-#else
-    return GE_NOTSUP;
-#endif
 }
 
 static int

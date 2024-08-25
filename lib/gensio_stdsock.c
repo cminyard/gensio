@@ -16,6 +16,7 @@
 #ifdef _WIN32
 #include <winsock2.h>
 #include <ws2tcpip.h>
+#include <afunix.h>
 typedef int taddrlen;
 typedef int sockret;
 #define sock_errno WSAGetLastError()
@@ -68,6 +69,10 @@ typedef ssize_t sockret;
 #ifndef AI_V4MAPPED
 #define AI_V4MAPPED 0
 #endif
+
+#define SIZEOF_SOCKADDR_UN_HEADER \
+    (sizeof(struct sockaddr_un) - \
+     sizeof(((struct sockaddr_un *) 0)->sun_path))
 
 struct gensio_stdsock_info {
     int protocol;
@@ -2085,9 +2090,7 @@ gensio_stdsock_open_listen_sockets(struct gensio_os_funcs *o,
     family = AF_INET;
 #endif
 
-#if defined(AF_INET6) || HAVE_UNIX
  restart:
-#endif
     for (rp = ai; rp != NULL; rp = rp->ai_next) {
 	if (family != rp->ai_family)
 	    continue;
@@ -2120,12 +2123,10 @@ gensio_stdsock_open_listen_sockets(struct gensio_os_funcs *o,
 	goto restart;
     }
 #endif
-#if HAVE_UNIX
     if (family == AF_INET) {
 	family = AF_UNIX;
 	goto restart;
     }
-#endif
 
     if (curr_fd == 0) {
 	o->free(o, fds);
@@ -2236,7 +2237,7 @@ gensio_setup_listen_socket(struct gensio_os_funcs *o,
 
     if (opensock_flags & GENSIO_OPENSOCK_REUSEADDR) {
 	switch (family) {
-#if HAVE_UNIX
+#if HAVE_UNIX || defined(_WIN32)
 	case AF_UNIX: {
 	    /* We remove an existing socket with reuseaddr and AF_UNIX. */
 	    struct sockaddr_un *unaddr = (struct sockaddr_un *) addr;
@@ -2247,10 +2248,14 @@ gensio_setup_listen_socket(struct gensio_os_funcs *o,
 	     * in the unix(7) man page on Linux for details.
 	     */
 	    assert(addrlen <= sizeof(*unaddr));
-	    memcpy(unpath, unaddr->sun_path, addrlen - sizeof(sa_family_t));
-	    unpath[addrlen - sizeof(sa_family_t)] = '\0';
+	    memcpy(unpath, unaddr->sun_path, addrlen-SIZEOF_SOCKADDR_UN_HEADER);
+	    unpath[addrlen - SIZEOF_SOCKADDR_UN_HEADER] = '\0';
 
+#if HAVE_UNIX
 	    unlink(unpath);
+#else
+	    DeleteFile(unpath);
+#endif
 	    /*
 	     * Ignore errors, it may not exist, and we'll get errors
 	     * later on problems.

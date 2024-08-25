@@ -2203,7 +2203,7 @@ AM_CONDITIONAL([ENABLE_INTERNAL_TRACE], [test ${enable_internal_trace} != no])
 HAVE_UNIX=0
 AC_CHECK_HEADER(sys/un.h, [HAVE_UNIX=1] )
 AC_SUBST(HAVE_UNIX)
-AC_DEFINE_UNQUOTED([HAVE_UNIX], [$HAVE_UNIX], [Enable unix socket handling])
+AC_DEFINE_UNQUOTED([HAVE_UNIX], [$HAVE_UNIX], [Enable unix socket file handling])
 
 GENSIO_PTY_HELPER=
 if test "$version_type" = "windows"; then
