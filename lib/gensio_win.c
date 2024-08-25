@@ -4063,6 +4063,8 @@ void check_winsize(struct gensio_iod_win_oneway *owiod)
     CONSOLE_SCREEN_BUFFER_INFOEX sbi;
     int x_chrs, y_chrs;
 
+    if (!data)
+	return;
     LOCK(&data->lock);
     if (!data->winsize_handler_set)
 	goto out_unlock;
