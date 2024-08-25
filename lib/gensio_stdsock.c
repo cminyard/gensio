@@ -34,6 +34,7 @@ typedef int sockret;
 #include <netinet/tcp.h>
 #include <errno.h>
 #include <unistd.h>
+#include <afunix.h>
 typedef socklen_t taddrlen;
 typedef ssize_t sockret;
 #define sock_errno errno
@@ -2085,9 +2086,7 @@ gensio_stdsock_open_listen_sockets(struct gensio_os_funcs *o,
     family = AF_INET;
 #endif
 
-#if defined(AF_INET6) || HAVE_UNIX
  restart:
-#endif
     for (rp = ai; rp != NULL; rp = rp->ai_next) {
 	if (family != rp->ai_family)
 	    continue;
@@ -2120,12 +2119,10 @@ gensio_stdsock_open_listen_sockets(struct gensio_os_funcs *o,
 	goto restart;
     }
 #endif
-#if HAVE_UNIX
     if (family == AF_INET) {
 	family = AF_UNIX;
 	goto restart;
     }
-#endif
 
     if (curr_fd == 0) {
 	o->free(o, fds);

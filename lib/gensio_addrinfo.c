@@ -21,6 +21,7 @@
 #include <netdb.h>
 #include <arpa/inet.h>
 #include <net/if.h>
+#include <afunix.h>
 #endif
 #include <assert.h>
 #include <stdlib.h>
@@ -174,9 +175,7 @@ gensio_addr_addrinfo_create(struct gensio_os_funcs *o,
 #ifdef AF_INET6
     struct sockaddr_in6 s6 = { .sin6_family = AF_INET6 };
 #endif
-#if HAVE_UNIX
     struct sockaddr_un su = { .sun_family = AF_UNIX };
-#endif
     struct sockaddr *s;
     unsigned int slen;
     struct gensio_addr_addrinfo *a;
@@ -213,16 +212,12 @@ gensio_addr_addrinfo_create(struct gensio_os_funcs *o,
 #endif
 
     case GENSIO_NETTYPE_UNIX:
-#if HAVE_UNIX
 	if (len > sizeof(su.sun_path) - 1)
 	    return GE_TOOBIG;
 	memcpy(su.sun_path, iaddr, len);
 	s = (struct sockaddr *) &su;
 	slen = sizeof(su);
 	break;
-#else
-	return GE_NOTSUP;
-#endif
 
     default:
 	return GE_INVAL;
@@ -315,7 +310,6 @@ gensio_addr_addrinfo_get_data(const struct gensio_addr *aaddr,
 	break;
     }
 
-#if HAVE_UNIX
     case AF_UNIX: {
 	struct sockaddr_un *su = (struct sockaddr_un *) addr->curr->ai_addr;
 	data = su->sun_path;
@@ -323,7 +317,6 @@ gensio_addr_addrinfo_get_data(const struct gensio_addr *aaddr,
 	break;
     }
 
-#endif
     default:
 	data = &dummy;
 	len = 0;
@@ -402,7 +395,6 @@ sockaddr_equal(const struct sockaddr *a1, socklen_t l1,
 	break;
 #endif
 
-#if HAVE_UNIX
     case AF_UNIX:
 	{
 	    struct sockaddr_un *s1 = (struct sockaddr_un *) a1;
@@ -412,7 +404,6 @@ sockaddr_equal(const struct sockaddr *a1, socklen_t l1,
 		return false;
 	}
 	break;
-#endif
 
     default:
 	/* Unknown family. */
@@ -482,12 +473,10 @@ gensio_sockaddr_to_str(const struct sockaddr *addr, int flags,
 			ifbuf,
 			ntohs(a6->sin6_port));
 #endif
-#if HAVE_UNIX
     } else if (addr->sa_family == AF_UNIX) {
 	struct sockaddr_un *au = (struct sockaddr_un *) addr;
 
 	gensio_pos_snprintf(buf, buflen, pos, "unix,%s", au->sun_path);
-#endif
     } else if (addr->sa_family == GENSIO_AF_IFINDEX) {
 	struct sockaddr *as = (struct sockaddr *) addr;
 	unsigned int *iptr = (unsigned int *) as->sa_data;
@@ -546,7 +535,6 @@ static int
 gensio_scan_unixaddr(struct gensio_os_funcs *o, int socktype, const char *str,
 		     struct gensio_addr **raddr)
 {
-#if HAVE_UNIX
     struct sockaddr_un *saddr;
     struct gensio_addr *addr = NULL;
     struct addrinfo *ai;
@@ -573,9 +561,6 @@ gensio_scan_unixaddr(struct gensio_os_funcs *o, int socktype, const char *str,
     *raddr = addr;
 
     return 0;
-#else
-    return GE_NOTSUP;
-#endif
 }
 
 #ifdef _MSC_VER
@@ -1209,9 +1194,7 @@ gensio_addr_addrinfo_get_nettype(const struct gensio_addr *aaddr)
     switch (addr->curr->ai_addr->sa_family) {
     case AF_INET: return GENSIO_NETTYPE_IPV4;
     case AF_INET6: return GENSIO_NETTYPE_IPV6;
-#if HAVE_UNIX
     case AF_UNIX: return GENSIO_NETTYPE_UNIX;
-#endif
     default: return GENSIO_NETTYPE_UNSPEC;
     }
 }

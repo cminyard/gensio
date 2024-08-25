@@ -998,7 +998,7 @@ netna_b4_listen(struct gensio_iod *iod, void *data)
  out_err:
     return gensio_os_err_to_err(nadata->o, err);
 #else
-    return GE_NOTSUP;
+    return 0;
 #endif
 }
 
@@ -1557,15 +1557,11 @@ unix_gensio_accepter_alloc(const void *gdata,
 			   gensio_accepter_event cb, void *user_data,
 			   struct gensio_accepter **accepter)
 {
-#if HAVE_UNIX
     const struct gensio_addr *iai = gdata;
 
     return net_gensio_accepter_alloc(iai, args, o, cb, user_data,
 				     GENSIO_NET_PROTOCOL_UNIX, "unix",
 				     accepter);
-#else
-    return GE_NOTSUP;
-#endif
 }
 
 static int
