@@ -187,6 +187,23 @@ certificate chain and you will get a failure:
 So if, for instance, you are running ser2net and gtlsshd on the same
 system, they must have different common names.
 
+On Windows, you must remove all permissions from the key file except
+for SYSTEM and Administrator.  If gtlssh doesn't run, this is the
+first thing to check.  (You can raise get a SYSTEM console as
+described below and run "gtlssh -d" and it will give you an error,
+this is useful for debugging.)  The program doesn't yet do this by
+default, unfortunately.  You will have to configure the file as SYSTEM
+to do this.  The procedure is:
+
+Run an administrator console.
+
+Run "psexec -sid cmd" to run a console as SYSTEM.
+
+Run "explorer".
+
+Go to the key file in explorer, right click on it, and choose
+Properties, then Security, then you can modify it from there.
+
 .SH "SEE ALSO"
 gtlssh(1), gtlsshd(8)
 .SH "KNOWN PROBLEMS"
