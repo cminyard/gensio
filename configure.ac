@@ -169,7 +169,7 @@ AM_CONDITIONAL([USE_LOGIN_PROGRAM], [test ${USE_LOGIN_PROGRAM} = 1])
 AC_SUBST(USE_LOGIN_PROGRAM)
 
 AC_DEFINE_UNQUOTED([HAVE_UCRED], [$HAVE_UCRED],
-	[Set to 1 to use login, 0 to directly execute the shell on login])
+	[Set to 1 if Unix credentials (permissions) enabled, 0 if not])
 AM_CONDITIONAL([HAVE_UCRED], [test ${HAVE_UCRED} = 1])
 AC_SUBST(HAVE_UCRED)
 

@@ -14,10 +14,12 @@ print(" stream")
 TestAcceptConnect(o, "unix,/tmp/gensiotest", "unix,/tmp/gensiotest2",
                   "unix,/tmp/gensiotest",
                   do_small_test, use_port = False)
-print(" dgram")
-TestAcceptConnect(o, "unixdgram,/tmp/gensiotest", "unixdgram,/tmp/gensiotest2",
-                  "unixdgram,/tmp/gensiotest",
-                  do_small_test, use_port = False, io1_dummy_write = "A")
+if gensios_enabled.check_gensio_enabled("unixdgram"):
+    print(" dgram")
+    TestAcceptConnect(o, "unixdgram,/tmp/gensiotest",
+                      "unixdgram,/tmp/gensiotest2",
+                      "unixdgram,/tmp/gensiotest",
+                      do_small_test, use_port = False, io1_dummy_write = "A")
 if gensios_enabled.check_gensio_enabled("unixseq"):
     print(" seqpacket")
     TestAcceptConnect(o, "unixseq,/tmp/gensiotest", "unixseq,/tmp/gensiotest2",
