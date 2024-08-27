@@ -262,6 +262,14 @@ sel_fd_unlock(struct selector_s *sel)
 	sel->sel_unlock(sel->fd_lock);
 }
 
+#ifdef USE_PTHREADS
+#define sel_set_sigmask(newmask, oldmask)			\
+    pthread_sigmask(SIG_SETMASK, newmask, oldmask)
+#else
+#define sel_set_sigmask(newmask, oldmask)			\
+    (sigprocmask(SIG_SETMASK, newmask, oldmask) == -1 ? errno : 0)
+#endif
+
 /* This function will wake the SEL thread.  It must be called with the
    timer lock held, because it messes with timeout.
 
@@ -1145,11 +1153,7 @@ setup_my_sigmask(sigset_t *sigmask, sigset_t *isigmask)
     if (isigmask) {
 	*sigmask = *isigmask;
     } else {
-#ifdef USE_PTHREADS
-	pthread_sigmask(SIG_SETMASK, NULL, sigmask);
-#else
-	sigprocmask(SIG_SETMASK, NULL, sigmask);
-#endif
+	sel_set_sigmask(NULL, sigmask);
     }
 }
 
@@ -1531,13 +1535,7 @@ sel_alloc_selector_thread(struct selector_s **new_selector, int wake_sig,
 
     sigemptyset(&sigset);
     sigaddset(&sigset, wake_sig);
-#ifdef USE_PTHREADS
-    rv = pthread_sigmask(SIG_BLOCK, &sigset, NULL);
-#else
-    rv = sigprocmask(SIG_BLOCK, &sigset, NULL);
-    if (rv == -1)
-	rv = errno;
-#endif
+    rv = sel_set_sigmask(&sigset, NULL);
     if (rv) {
 	if (sel->sel_lock_alloc) {
 	    sel->sel_lock_free(sel->fd_lock);
