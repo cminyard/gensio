@@ -270,6 +270,33 @@ sel_fd_unlock(struct selector_s *sel)
     (sigprocmask(SIG_SETMASK, newmask, oldmask) == -1 ? errno : 0)
 #endif
 
+#ifdef BROKEN_PSELECT
+static void pre_signal(sel_wait_list_t *item)
+{
+    item->signalled = true;
+    item->wait_time.tv_sec = 0;
+    item->wait_time.tv_nsec = 0;
+}
+#define pre_select(item) do {} while(false)
+static void pre_kill_one(struct selector_s *sel, long thread_id)
+{
+    sel_wait_list_t *item = NULL;
+
+    item = sel->wait_list.next;
+    while (item != &sel->wait_list) {
+	if (thread_id == item->thread_id) {
+	    pre_signal(item);
+	    break;
+	}
+	item = item->next;
+    }
+}
+#else
+#define pre_signal(item) do {} while(false)
+#define pre_select(item) do {} while(false)
+#define pre_kill_one(sel, thread_id) do {} while(false)
+#endif
+
 /* This function will wake the SEL thread.  It must be called with the
    timer lock held, because it messes with timeout.
 
@@ -293,11 +320,7 @@ i_wake_sel_thread(struct selector_s *sel, struct timeval *new_timeout)
 	if (item->send_sig && (!new_timeout ||
 			       cmp_timeval(new_timeout, &item->wake_time) < 0))
 	{
-#ifdef BROKEN_PSELECT
-	    item->signalled = true;
-	    item->wait_time.tv_sec = 0;
-	    item->wait_time.tv_nsec = 0;
-#endif
+	    pre_signal(item);
 	    item->send_sig(item->thread_id, item->send_sig_cb_data);
 	}
 	item = item->next;
@@ -319,11 +342,7 @@ i_sel_wake_first(struct selector_s *sel)
 
     item = sel->wait_list.next;
     if (item->send_sig && item != &sel->wait_list) {
-#ifdef BROKEN_PSELECT
-	item->signalled = true;
-	item->wait_time.tv_sec = 0;
-	item->wait_time.tv_nsec = 0;
-#endif
+	pre_signal(item);
 	item->send_sig(item->thread_id, item->send_sig_cb_data);
     }
 }
@@ -333,23 +352,9 @@ void
 sel_wake_one(struct selector_s *sel, long thread_id, sel_send_sig_cb killer,
 	     void *cb_data)
 {
-#ifdef BROKEN_PSELECT
-    sel_wait_list_t *item;
-#endif
 
     sel_timer_lock(sel);
-#ifdef BROKEN_PSELECT
-    item = sel->wait_list.next;
-    while (item != &sel->wait_list) {
-	if (thread_id == item->thread_id) {
-	    item->signalled = true;
-	    item->wait_time.tv_sec = 0;
-	    item->wait_time.tv_nsec = 0;
-	    break;
-	}
-	item = item->next;
-    }
-#endif
+    pre_kill_one(sel, thread_id);
     killer(thread_id, cb_data);
     sel_timer_unlock(sel);
 }
@@ -1187,6 +1192,7 @@ process_fds(struct selector_s *sel,
     sel_fd_unlock(sel);
 
     sigdelset(&sigmask, sel->wake_sig);
+    pre_select();
     err = pselect(num_fds,
 		  &tmp_read_set,
 		  &tmp_write_set,
