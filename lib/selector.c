@@ -27,10 +27,14 @@
 #include <assert.h>
 #ifdef HAVE_EPOLL_PWAIT
 #include <sys/epoll.h>
+#define SEL_FD_ADD EPOLL_CTL_ADD
+#define SEL_FD_DEL EPOLL_CTL_DEL
+#define SEL_FD_MOD EPOLL_CTL_MOD
 #else
-#define EPOLL_CTL_ADD 0
-#define EPOLL_CTL_DEL 0
-#define EPOLL_CTL_MOD 0
+/* These don't do anything if using pselect(). */
+#define SEL_FD_ADD 0
+#define SEL_FD_DEL 0
+#define SEL_FD_MOD 0
 #endif
 #include "errtrig.h"
 
@@ -559,10 +563,10 @@ sel_set_fd_handlers(struct selector_s *sel,
 	if (fd > sel->maxfd)
 	    sel->maxfd = fd;
 
-	if (sel_update_fd(sel, fdc, EPOLL_CTL_ADD))
+	if (sel_update_fd(sel, fdc, SEL_FD_ADD))
 	    sel_wake_all(sel);
     } else {
-	if (sel_update_fd(sel, fdc, EPOLL_CTL_MOD))
+	if (sel_update_fd(sel, fdc, SEL_FD_MOD))
 	    sel_wake_all(sel);
     }
     sel_fd_unlock(sel);
@@ -593,7 +597,7 @@ i_sel_clear_fd_handler(struct selector_s *sel, int fd, int rpt)
 	olddata = fdc->data;
 	fdc->state = NULL;
 
-	sel_update_fd(sel, fdc, EPOLL_CTL_DEL);
+	sel_update_fd(sel, fdc, SEL_FD_DEL);
 #ifdef HAVE_EPOLL_PWAIT
 	fdc->saved_events = 0;
 #endif
@@ -677,7 +681,7 @@ sel_set_fd_read_handler(struct selector_s *sel, int fd, int state)
 #endif
 	    FD_CLR(fd, (fd_set *) &sel->read_set);
     }
-    if (sel_update_fd(sel, fdc, EPOLL_CTL_MOD))
+    if (sel_update_fd(sel, fdc, SEL_FD_MOD))
 	sel_wake_all(sel);
 
  out:
@@ -714,7 +718,7 @@ sel_set_fd_write_handler(struct selector_s *sel, int fd, int state)
 #endif
 	    FD_CLR(fd, (fd_set *) &sel->write_set);
     }
-    if (sel_update_fd(sel, fdc, EPOLL_CTL_MOD))
+    if (sel_update_fd(sel, fdc, SEL_FD_MOD))
 	sel_wake_all(sel);
 
  out:
@@ -751,7 +755,7 @@ sel_set_fd_except_handler(struct selector_s *sel, int fd, int state)
 #endif
 	    FD_CLR(fd, (fd_set *) &sel->except_set);
     }
-    if (sel_update_fd(sel, fdc, EPOLL_CTL_MOD))
+    if (sel_update_fd(sel, fdc, SEL_FD_MOD))
 	sel_wake_all(sel);
 
  out:
@@ -1288,7 +1292,7 @@ process_fds_epoll(struct selector_s *sel, struct timespec *tstimeout,
 	 * EPOLLHUP or EPOLLERR, anyway, and then doing the callback
 	 * by hand.
 	 */
-	sel_update_fd(sel, fdc, EPOLL_CTL_DEL);
+	sel_update_fd(sel, fdc, SEL_FD_DEL);
 	fdc->saved_events = event.events & (EPOLLHUP | EPOLLERR);
 	/*
 	 * Have it handle read data, too, so if there is a pending
@@ -1309,7 +1313,7 @@ process_fds_epoll(struct selector_s *sel, struct timespec *tstimeout,
  rearm:
     /* Rearm the event.  Remember it could have been deleted in the handler. */
     if (fdc->state)
-	sel_update_fd(sel, fdc, EPOLL_CTL_MOD);
+	sel_update_fd(sel, fdc, SEL_FD_MOD);
     sel_fd_unlock(sel);
 
     return rv;
@@ -1336,7 +1340,7 @@ sel_setup_forked_process(struct selector_s *sel)
     for (i = 0; i <= sel->maxfd; i++) {
 	fd_control_t *fdc = sel->fds[i];
 	if (fdc && fdc->state)
-	    sel_update_fd(sel, fdc, EPOLL_CTL_ADD);
+	    sel_update_fd(sel, fdc, SEL_FD_ADD);
     }
     return 0;
 }
