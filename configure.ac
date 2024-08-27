@@ -136,6 +136,7 @@ case $target_os in
 		USE_OPENPTY=1
 		USE_LOGIN_PROGRAM=1
 		HAVE_UCRED=1
+		broken_pselect=yes
 		;;
 	freebsd*)
 		OSH_LIBS="$OSH_LIBS -ldl"
