@@ -276,8 +276,12 @@ static void pre_signal(sel_wait_list_t *item)
     item->signalled = true;
     item->wait_time.tv_sec = 0;
     item->wait_time.tv_nsec = 0;
+    __atomic_thread_fence(__ATOMIC_RELEASE); /* write barrier. */
 }
-#define pre_select(item) do {} while(false)
+static void pre_select()
+{
+    __atomic_thread_fence(__ATOMIC_ACQUIRE); /* read barrier. */
+}
 static void pre_kill_one(struct selector_s *sel, long thread_id)
 {
     sel_wait_list_t *item = NULL;
@@ -1200,7 +1204,12 @@ process_fds(struct selector_s *sel,
 		  (struct timespec *) &item->wait_time, &sigmask);
     if (err < 0) {
 	if (errno == EBADF || errno == EBADFD)
-	    /* We raced, just retry it. */
+	    /*
+	     * We raced, just retry it.  Note that we may have been
+	     * signalled with BROKEN_PSELECT set, but pselect does not
+	     * change the wait time, so the timeout will remain 0 in
+	     * that case and it will return immediately..
+	     */
 	    goto retry;
 	goto out;
     }
