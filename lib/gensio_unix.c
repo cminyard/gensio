@@ -1916,8 +1916,29 @@ check_for_sigpending(sigset_t *check_for)
 {
 #ifdef HAVE_SIGTIMEDWAIT
     static struct timespec zerotime = { 0, 0 };
-    return sigtimedwait(check_for, NULL, &zerotime);
+    int rv;
+ retry:
+    rv = sigtimedwait(check_for, NULL, &zerotime);
+    if (rv < 0) {
+	if (errno == EINTR)
+	    goto retry;
+	if (errno == EAGAIN)
+	    return 0;
+	assert(0);
+    }
+    return rv;
 #else
+    return 0;
+#endif
+#if 0
+    /*
+     * The below code doesn't work, it can race with a signal handler
+     * and lock up.  This is only an issue on MacOS, whose lack of
+     * sigtimedwait is ridiculous.  You might be able to do this with
+     * kevent, but that would be expensive.  Maybe it's not necessary
+     * on MacOS, maybe pselect will handle signals on all calls, even
+     * if there's no wait.
+     */
 #ifdef NSIG
     /* Nothing to do */
 #elif defined(_NSIG)
