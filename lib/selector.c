@@ -226,9 +226,9 @@ struct selector_s
 
     int wake_sig;
 
-#ifdef HAVE_EPOLL_PWAIT
-    int epollfd;
-#endif
+    /* Used for epoll and kevent.  -1 otherwise. */
+    int evfd;
+
     sel_lock_t *(*sel_lock_alloc)(void *cb_data);
     void (*sel_lock_free)(sel_lock_t *);
     void (*sel_lock)(sel_lock_t *);
@@ -433,7 +433,7 @@ sel_update_fd(struct selector_s *sel, fd_control_t *fdc, int op)
     struct epoll_event event;
     int rv;
 
-    if (sel->epollfd < 0)
+    if (sel->evfd < 0)
 	return 1;
 
     memset(&event, 0, sizeof(event));
@@ -460,7 +460,7 @@ sel_update_fd(struct selector_s *sel, fd_control_t *fdc, int op)
     }
     /* This should only fail due to system problems, and if that's the case,
        well, we should probably terminate. */
-    rv = epoll_ctl(sel->epollfd, op, fdc->fd, &event);
+    rv = epoll_ctl(sel->evfd, op, fdc->fd, &event);
     if (rv) {
 	perror("epoll_ctl");
 	assert(0);
@@ -522,10 +522,8 @@ sel_set_fd_handlers(struct selector_s *sel,
     void         *olddata = NULL;
     int          added = 1;
 
-#ifdef HAVE_EPOLL_PWAIT
-    if (sel->epollfd < 0 && fd >= FD_SETSIZE)
+    if (sel->evfd < 0 && fd >= FD_SETSIZE)
 	return EMFILE;
-#endif
 
     state = sel_alloc(sizeof(*state));
     if (!state)
@@ -612,10 +610,7 @@ i_sel_clear_fd_handler(struct selector_s *sel, int fd, int rpt)
     }
 
     init_fd(fdc);
-#ifdef HAVE_EPOLL_PWAIT
-    if (sel->epollfd < 0)
-#endif
-    {
+    if (sel->evfd < 0) {
 	FD_CLR(fd, (fd_set *) &sel->read_set);
 	FD_CLR(fd, (fd_set *) &sel->write_set);
 	FD_CLR(fd, (fd_set *) &sel->except_set);
@@ -675,17 +670,13 @@ sel_set_fd_read_handler(struct selector_s *sel, int fd, int state)
 	if (fdc->read_enabled)
 	    goto out;
 	fdc->read_enabled = 1;
-#ifdef HAVE_EPOLL_PWAIT
-	if (sel->epollfd < 0)
-#endif
+	if (sel->evfd < 0)
 	    FD_SET(fd, (fd_set *) &sel->read_set);
     } else if (state == SEL_FD_HANDLER_DISABLED) {
 	if (!fdc->read_enabled)
 	    goto out;
 	fdc->read_enabled = 0;
-#ifdef HAVE_EPOLL_PWAIT
-	if (sel->epollfd < 0)
-#endif
+	if (sel->evfd < 0)
 	    FD_CLR(fd, (fd_set *) &sel->read_set);
     }
     if (sel_update_fd(sel, fdc, SEL_FD_MOD))
@@ -712,17 +703,13 @@ sel_set_fd_write_handler(struct selector_s *sel, int fd, int state)
 	if (fdc->write_enabled)
 	    goto out;
 	fdc->write_enabled = 1;
-#ifdef HAVE_EPOLL_PWAIT
-	if (sel->epollfd < 0)
-#endif
+	if (sel->evfd < 0)
 	    FD_SET(fd, (fd_set *) &sel->write_set);
     } else if (state == SEL_FD_HANDLER_DISABLED) {
 	if (!fdc->write_enabled)
 	    goto out;
 	fdc->write_enabled = 0;
-#ifdef HAVE_EPOLL_PWAIT
-	if (sel->epollfd < 0)
-#endif
+	if (sel->evfd < 0)
 	    FD_CLR(fd, (fd_set *) &sel->write_set);
     }
     if (sel_update_fd(sel, fdc, SEL_FD_MOD))
@@ -749,17 +736,13 @@ sel_set_fd_except_handler(struct selector_s *sel, int fd, int state)
 	if (fdc->except_enabled)
 	    goto out;
 	fdc->except_enabled = 1;
-#ifdef HAVE_EPOLL_PWAIT
-	if (sel->epollfd < 0)
-#endif
+	if (sel->evfd < 0)
 	    FD_SET(fd, (fd_set *) &sel->except_set);
     } else if (state == SEL_FD_HANDLER_DISABLED) {
 	if (!fdc->except_enabled)
 	    goto out;
 	fdc->except_enabled = 0;
-#ifdef HAVE_EPOLL_PWAIT
-	if (sel->epollfd < 0)
-#endif
+	if (sel->evfd < 0)
 	    FD_CLR(fd, (fd_set *) &sel->except_set);
     }
     if (sel_update_fd(sel, fdc, SEL_FD_MOD))
@@ -1428,16 +1411,12 @@ sel_select_intr_sigmask(struct selector_s *sel,
 	memset(&wait_entry, 0, sizeof(wait_entry));
 
 #ifdef BROKEN_PSELECT
-#ifdef HAVE_EPOLL_PWAIT
-	if (sel->epollfd >= 0) {
+	if (sel->evfd >= 0) {
 	    wait_entry.wait_time.ts.tv_sec = tmp_timeout.tv_sec;
 	    wait_entry.wait_time.ts.tv_nsec = tmp_timeout.tv_usec * 1000;
 	} else {
 	    wait_entry.wait_time.tv = tmp_timeout;
 	}
-#else
-	wait_entry.wait_time.tv = tmp_timeout;
-#endif
 #else
 	wait_entry.wait_time.ts.tv_sec = tmp_timeout.tv_sec;
 	wait_entry.wait_time.ts.tv_nsec = tmp_timeout.tv_usec * 1000;
@@ -1448,10 +1427,8 @@ sel_select_intr_sigmask(struct selector_s *sel,
 	sel_timer_unlock(sel);
 
 #ifdef HAVE_EPOLL_PWAIT
-	if (sel->epollfd >= 0)
-	    err = process_fds_epoll(sel,
-				    (struct timespec *) &wait_entry.wait_time,
-				    sigmask);
+	if (sel->evfd >= 0)
+	    err = process_fds_epoll(sel, &wait_entry, sigmask);
 	else
 #endif
 	    err = process_fds(sel, &wait_entry, sigmask);
@@ -1616,9 +1593,10 @@ sel_alloc_selector_thread(struct selector_s **new_selector, int wake_sig,
 	return rv;
     }
 
+    sel->evfd = -1;
 #ifdef HAVE_EPOLL_PWAIT
-    sel->epollfd = epoll_create(32768);
-    if (sel->epollfd == -1)
+    sel->evfd = epoll_create(32768);
+    if (sel->evfd == -1)
 	syslog(LOG_ERR, "Unable to set up epoll, falling back to select: %m");
 #endif
 
@@ -1647,10 +1625,8 @@ sel_free_selector(struct selector_s *sel)
 	free(elem);
 	elem = theap_get_top(&(sel->timer_heap));
     }
-#ifdef HAVE_EPOLL_PWAIT
-    if (sel->epollfd >= 0)
-	close(sel->epollfd);
-#endif
+    if (sel->evfd >= 0)
+	close(sel->evfd);
     for (i = 0; i < FD_SETSIZE; i++) {
 	while (sel->fds[i]) {
 	    fd_control_t *fdc = sel->fds[i];
