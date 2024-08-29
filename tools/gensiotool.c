@@ -1273,6 +1273,13 @@ main(int argc, char *argv[])
 	goto out_err;
     }
 
+    if (regterm) {
+	rv = gensio_os_proc_register_term_handler(proc_data, handle_term, &g);
+	if (rv)
+	    handle_term(&g);
+    }
+    gensio_os_proc_register_reload_handler(proc_data, handle_reload, &g);
+
     rv = alloc_threads(g.o);
     if (rv)
 	goto out_err;
@@ -1316,13 +1323,6 @@ main(int argc, char *argv[])
 	gensio_os_funcs_unlock(g.o, g.lock);
 	io = NULL;
     }
-
-    if (regterm) {
-	rv = gensio_os_proc_register_term_handler(proc_data, handle_term, &g);
-	if (rv)
-	    handle_term(&g);
-    }
-    gensio_os_proc_register_reload_handler(proc_data, handle_reload, &g);
 
     gensio_os_funcs_wait(g.o, g.waiter, 1, NULL);
 
