@@ -214,7 +214,7 @@ i_wait_for_waiter_timeout(waiter_t *waiter, unsigned int count,
     w.prev = NULL;
     w.count = count;
 
-    pthread_mutex_lock(&waiter->lock);
+    LOCK(&waiter->lock);
     waiter->wts.next->prev = &w;
     w.next = waiter->wts.next;
     waiter->wts.next = &w;
@@ -232,7 +232,7 @@ i_wait_for_waiter_timeout(waiter_t *waiter, unsigned int count,
 	}
     }
     while (w.count > 0) {
-	pthread_mutex_unlock(&waiter->lock);
+	UNLOCK(&waiter->lock);
 	if (intr)
 	    err = sel_select_intr_sigmask(waiter->sel,
 					  wake_thread_send_sig_waiter,
@@ -247,7 +247,7 @@ i_wait_for_waiter_timeout(waiter_t *waiter, unsigned int count,
 	else
 	    err = 0;
 	/* lock may affect errno, delay it until here. */
-	pthread_mutex_lock(&waiter->lock);
+	LOCK(&waiter->lock);
 	if (err)
 	    break;
     }
@@ -263,7 +263,7 @@ i_wait_for_waiter_timeout(waiter_t *waiter, unsigned int count,
 	 */
 	i_wake_waiter(waiter, count - w.count);
     }
-    pthread_mutex_unlock(&waiter->lock);
+    UNLOCK(&waiter->lock);
 
     return err;
 }
@@ -271,9 +271,9 @@ i_wait_for_waiter_timeout(waiter_t *waiter, unsigned int count,
 static void
 wake_waiter(waiter_t *waiter)
 {
-    pthread_mutex_lock(&waiter->lock);
+    LOCK(&waiter->lock);
     i_wake_waiter(waiter, 1);
-    pthread_mutex_unlock(&waiter->lock);
+    UNLOCK(&waiter->lock);
 }
 
 #else /* USE_PTHREADS */
