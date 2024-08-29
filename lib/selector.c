@@ -183,9 +183,17 @@ typedef struct sel_wait_list_s
     sel_send_sig_cb send_sig;
     void            *send_sig_cb_data;
 
-    /* The time when the thread is set to wake up. */
+    /*
+     * The time when the thread is set to wake up.  Depending on the
+     * situation we can be using timeval or timespec, so we need both.
+     */
     struct timeval wake_time;
-    volatile struct timespec wait_time;
+    union {
+#ifdef BROKEN_PSELECT
+	volatile struct timeval tv;
+#endif
+	volatile struct timespec ts;
+    } wait_time;
 #ifdef BROKEN_PSELECT
     bool signalled;
 #endif
@@ -278,8 +286,7 @@ sel_fd_unlock(struct selector_s *sel)
 static void pre_signal(sel_wait_list_t *item)
 {
     item->signalled = true;
-    item->wait_time.tv_sec = 0;
-    item->wait_time.tv_nsec = 0;
+    memset(&item->wait_time, 0, sizeof(item->wait_time));
     __atomic_thread_fence(__ATOMIC_RELEASE); /* write barrier. */
 }
 static void pre_select()
@@ -1176,9 +1183,7 @@ setup_my_sigmask(sigset_t *sigmask, sigset_t *isigmask)
  * 	  <  0  when error
  */
 static int
-process_fds(struct selector_s *sel,
-	    sel_wait_list_t *item,
-	    sigset_t *isigmask)
+process_fds(struct selector_s *sel, sel_wait_list_t *item, sigset_t *isigmask)
 {
     fd_set      tmp_read_set;
     fd_set      tmp_write_set;
@@ -1187,12 +1192,13 @@ process_fds(struct selector_s *sel,
     int err;
     int num_fds;
     sigset_t sigmask;
-    unsigned long entry_fd_del_count = sel->fd_del_count;
+    unsigned long entry_fd_del_count;
     fd_control_t *fdc;
 
     setup_my_sigmask(&sigmask, isigmask);
- retry:
+
     sel_fd_lock(sel);
+    entry_fd_del_count = sel->fd_del_count;
     memcpy(&tmp_read_set, (void *) &sel->read_set, sizeof(tmp_read_set));
     memcpy(&tmp_write_set, (void *) &sel->write_set, sizeof(tmp_write_set));
     memcpy(&tmp_except_set, (void *) &sel->except_set, sizeof(tmp_except_set));
@@ -1200,21 +1206,51 @@ process_fds(struct selector_s *sel,
     sel_fd_unlock(sel);
 
     sigdelset(&sigmask, sel->wake_sig);
-    pre_select();
+
+#ifdef BROKEN_PSELECT
+    do {
+	int old_errno;
+	sigset_t oldmask;
+
+	/*
+	 * A signal may have been sent before this process was queued on a
+	 * wait queue, so we may have the signal pending without having
+	 * been queued or had the time set to zero.  We detect that here
+	 * and set things up properly.
+	 */
+	sigpending(&oldmask);
+	if (!item->signalled && sigismember(&oldmask, sel->wake_sig))
+	    pre_signal(item);
+
+	err = sel_set_sigmask(&sigmask, &oldmask);
+	if (err < 0)
+	    return err;
+	assert(sigismember(&oldmask, sel->wake_sig));
+
+	pre_select();
+
+	err = select(num_fds,
+		     &tmp_read_set,
+		     &tmp_write_set,
+		     &tmp_except_set,
+		     (struct timeval *) &item->wait_time.tv);
+
+	old_errno = errno;
+	sel_set_sigmask(&oldmask, NULL);
+	errno = old_errno;
+    } while(false);
+#else
     err = pselect(num_fds,
 		  &tmp_read_set,
 		  &tmp_write_set,
 		  &tmp_except_set,
-		  (struct timespec *) &item->wait_time, &sigmask);
+		  (struct timespec *) &item->wait_time.ts, &sigmask);
+#endif
+
     if (err < 0) {
 	if (errno == EBADF || errno == EBADFD)
-	    /*
-	     * We raced, just retry it.  Note that we may have been
-	     * signalled with BROKEN_PSELECT set, but pselect does not
-	     * change the wait time, so the timeout will remain 0 in
-	     * that case and it will return immediately..
-	     */
-	    goto retry;
+	    /* We raced, just retry it.  No loop here, timeout may be wrong. */
+	    errno = EINTR;
 	goto out;
     }
 
@@ -1249,7 +1285,7 @@ process_fds(struct selector_s *sel,
 
 #ifdef HAVE_EPOLL_PWAIT
 static int
-process_fds_epoll(struct selector_s *sel, struct timespec *tstimeout,
+process_fds_epoll(struct selector_s *sel, sel_wait_list_t *item,
 		  sigset_t *isigmask)
 {
     int rv;
@@ -1257,21 +1293,24 @@ process_fds_epoll(struct selector_s *sel, struct timespec *tstimeout,
     int timeout;
     sigset_t sigmask;
     fd_control_t *fdc;
-    unsigned long entry_fd_del_count = sel->fd_del_count;
+    unsigned long entry_fd_del_count;
 
     setup_my_sigmask(&sigmask, isigmask);
 
-    if (tstimeout->tv_sec > 600)
+    if (item->wait_time.ts.tv_sec > 600)
 	 /* Don't wait over 10 minutes, to work around an old epoll bug
 	    and avoid issues with timeout overflowing on 64-bit systems,
 	    which is much larger that 10 minutes, but who cares. */
 	timeout = 600 * 1000;
     else
-	timeout = ((tstimeout->tv_sec * 1000) +
-		   (tstimeout->tv_nsec + 999999) / 1000000);
+	timeout = ((item->wait_time.ts.tv_sec * 1000) +
+		   (item->wait_time.ts.tv_nsec + 999999) / 1000000);
 
     sigdelset(&sigmask, sel->wake_sig);
-    rv = epoll_pwait(sel->epollfd, &event, 1, timeout, &sigmask);
+    sel_fd_lock(sel);
+    entry_fd_del_count = sel->fd_del_count;
+    sel_fd_unlock(sel);
+    rv = epoll_pwait(sel->evfd, &event, 1, timeout, &sigmask);
     if (rv <= 0)
 	return rv;
 
@@ -1331,9 +1370,9 @@ sel_setup_forked_process(struct selector_s *sel)
      * be independent.  If you don't do this, disabling an fd in the
      * child disables the parent, too, and vice versa.
      */
-    close(sel->epollfd);
-    sel->epollfd = epoll_create(32768);
-    if (sel->epollfd == -1) {
+    close(sel->evfd);
+    sel->evfd = epoll_create(32768);
+    if (sel->evfd == -1) {
 	return errno;
     }
 
@@ -1388,8 +1427,21 @@ sel_select_intr_sigmask(struct selector_s *sel,
 
 	memset(&wait_entry, 0, sizeof(wait_entry));
 
-	wait_entry.wait_time.tv_sec = tmp_timeout.tv_sec;
-	wait_entry.wait_time.tv_nsec = tmp_timeout.tv_usec * 1000;
+#ifdef BROKEN_PSELECT
+#ifdef HAVE_EPOLL_PWAIT
+	if (sel->epollfd >= 0) {
+	    wait_entry.wait_time.ts.tv_sec = tmp_timeout.tv_sec;
+	    wait_entry.wait_time.ts.tv_nsec = tmp_timeout.tv_usec * 1000;
+	} else {
+	    wait_entry.wait_time.tv = tmp_timeout;
+	}
+#else
+	wait_entry.wait_time.tv = tmp_timeout;
+#endif
+#else
+	wait_entry.wait_time.ts.tv_sec = tmp_timeout.tv_sec;
+	wait_entry.wait_time.ts.tv_nsec = tmp_timeout.tv_usec * 1000;
+#endif
 
 	add_sel_wait_list(sel, &wait_entry, send_sig, cb_data, thread_id,
 			  &wake_time);
