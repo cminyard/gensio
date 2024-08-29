@@ -443,6 +443,8 @@ AX_CONFIG_FEATURE(
    [epoll_pwait], [This platform supports epoll(7) with epoll_pwait(2)],
    [HAVE_EPOLL_PWAIT], [This platform supports epoll(7) with epoll_pwait(2).])
 
+AC_CHECK_FUNCS(kevent)
+
 if test "x$system_type" = "xunix"; then
    use_pthreads=yes
 else
@@ -2374,6 +2376,7 @@ pr_op  "  TCP Wrappers:		" $ac_cv_header_tcpd_h
 prrw   "  Regular Expressions:	" $ac_cv_func_regexec
 pr_op  "  Install Docs:		" $enable_doc
 pr_op  "  epoll_pwait():	" $ax_config_feature_epoll_pwait
+pr_op  "  kevent():		" $ac_cv_func_kevent
 pr_op  "  pthreads:		" $use_pthreads
 pr_op  "  c++11			" $HAVE_CXX11
 pr_vop "  pkgconfig:		" $pkgprog

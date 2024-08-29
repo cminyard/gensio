@@ -30,6 +30,11 @@
 #define SEL_FD_ADD EPOLL_CTL_ADD
 #define SEL_FD_DEL EPOLL_CTL_DEL
 #define SEL_FD_MOD EPOLL_CTL_MOD
+#elif defined(HAVE_KEVENT)
+#include <sys/event.h>
+#define SEL_FD_ADD 1
+#define SEL_FD_DEL 2
+#define SEL_FD_MOD 3
 #else
 /* These don't do anything if using pselect(). */
 #define SEL_FD_ADD 0
@@ -99,6 +104,9 @@ typedef struct fd_control_s
     char read_enabled;
     char write_enabled;
     char except_enabled;
+
+    /* On kevent, some I/O types don't handle EXCEPT, track that. */
+    enum { SEL_RDWR = 0, SEL_RDWR_NOEXC } iodir;
 
 #ifdef HAVE_EPOLL_PWAIT
     /* See the comment in process_fds_epoll() on the use of this. */
@@ -463,6 +471,67 @@ sel_update_fd(struct selector_s *sel, fd_control_t *fdc, int op)
     rv = epoll_ctl(sel->evfd, op, fdc->fd, &event);
     if (rv) {
 	perror("epoll_ctl");
+	assert(0);
+    }
+    return 0;
+}
+#elif defined(HAVE_KEVENT)
+static int
+sel_update_fd(struct selector_s *sel, fd_control_t *fdc, int op)
+{
+    struct kevent chlist[3];
+    int rv;
+    struct timespec zerotime = { 0, 0 };
+
+    if (sel->evfd < 0)
+	return 1;
+
+    memset(chlist, 0, sizeof(chlist));
+
+    chlist[0].ident = fdc->fd;
+    if (op == SEL_FD_DEL)
+	chlist[0].flags |= EV_DELETE;
+    else
+	chlist[0].flags |= EV_ADD | EV_CLEAR;
+    chlist[1] = chlist[0];
+    chlist[2] = chlist[0];
+
+    chlist[0].filter = EVFILT_READ;
+    chlist[1].filter = EVFILT_WRITE;
+    chlist[2].filter = EVFILT_EXCEPT;
+
+    if (op != SEL_FD_DEL) {
+	if (fdc->read_enabled)
+	    chlist[0].flags |= EV_ENABLE;
+	else
+	    chlist[0].flags |= EV_DISABLE;
+	if (fdc->write_enabled)
+	    chlist[1].flags |= EV_ENABLE;
+	else
+	    chlist[1].flags |= EV_DISABLE;
+	if (fdc->except_enabled) {
+	    chlist[2].flags |= EV_ENABLE;
+	    chlist[2].fflags |= NOTE_OOB;
+	} else {
+	    chlist[2].flags |= EV_DISABLE;
+	}
+    }
+
+ retry:
+    if (fdc->iodir == SEL_RDWR) {
+	rv = kevent(sel->evfd, chlist, 3, NULL, 0, &zerotime);
+	if (rv == -1) {
+	    if (errno == EINVAL) {
+		/* Non-sockets may not accept EVFILT_EXCEPT, retry without. */
+		fdc->iodir = SEL_RDWR_NOEXC;
+		goto retry;
+	    }
+	}
+    } else {
+	rv = kevent(sel->evfd, chlist, 2, NULL, 0, &zerotime);
+    }
+    if (rv) {
+	perror("kevent");
 	assert(0);
     }
     return 0;
@@ -1366,6 +1435,99 @@ sel_setup_forked_process(struct selector_s *sel)
     }
     return 0;
 }
+#elif defined(HAVE_KEVENT)
+static int
+process_fds_kevent(struct selector_s *sel, sel_wait_list_t *item,
+		   sigset_t *isigmask)
+{
+    int rv, old_errno;
+    struct kevent event;
+    sigset_t sigmask, oldmask;
+    fd_control_t *fdc;
+    unsigned long entry_fd_del_count;
+
+    setup_my_sigmask(&sigmask, isigmask);
+    sigdelset(&sigmask, sel->wake_sig);
+
+    sel_fd_lock(sel);
+    entry_fd_del_count = sel->fd_del_count;
+    sel_fd_unlock(sel);
+
+    /*
+     * kevent doesn't have a pwait version.  From what I can tell,
+     * BSDs all have broken pselect.  See comments in process_fds()
+     * about this.
+     */
+    sigpending(&oldmask);
+    if (!item->signalled && sigismember(&oldmask, sel->wake_sig))
+	pre_signal(item);
+
+    rv = sel_set_sigmask(&sigmask, &oldmask);
+    if (rv < 0)
+	return rv;
+
+    pre_select();
+
+    rv = kevent(sel->evfd, NULL, 0, &event, 1,
+		(struct timespec *) &item->wait_time.ts);
+
+    old_errno = errno;
+    sel_set_sigmask(&oldmask, NULL);
+    errno = old_errno;
+
+    if (rv <= 0)
+	return rv;
+
+    sel_fd_lock(sel);
+    valid_fd(sel, event.ident, &fdc);
+    if (entry_fd_del_count != sel->fd_del_count)
+	/* Something was deleted from the FD set, don't process this as it
+	   may be from the old fd wakeup. */
+	goto rearm;
+    if (event.filter == EVFILT_READ) {
+	handle_selector_call(sel, fdc, NULL, fdc->read_enabled,
+			     fdc->handle_read);
+    } else if (event.filter == EVFILT_WRITE) {
+	handle_selector_call(sel, fdc, NULL, fdc->write_enabled,
+			     fdc->handle_write);
+    } else if (event.filter == EVFILT_EXCEPT) {
+	handle_selector_call(sel, fdc, NULL, fdc->except_enabled,
+			     fdc->handle_except);
+    }
+
+ rearm:
+    /* Rearm the event.  Remember it could have been deleted in the handler. */
+    if (fdc->state)
+	sel_update_fd(sel, fdc, SEL_FD_MOD);
+    sel_fd_unlock(sel);
+
+    return rv;
+}
+
+int
+sel_setup_forked_process(struct selector_s *sel)
+{
+    int i;
+
+    /*
+     * More epoll stupidity.  In a forked process we must create a new
+     * epoll because the epoll state is shared between a parent and a
+     * child.  If it worked like it should, each epoll instance would
+     * be independent.  If you don't do this, disabling an fd in the
+     * child disables the parent, too, and vice versa.
+     */
+    close(sel->evfd);
+    sel->evfd = kqueue();
+    if (sel->evfd == -1) {
+	return errno;
+    }
+    for (i = 0; i <= sel->maxfd; i++) {
+	fd_control_t *fdc = sel->fds[i];
+	if (fdc && fdc->state)
+	    sel_update_fd(sel, fdc, SEL_FD_ADD);
+    }
+    return 0;
+}
 #else
 int
 sel_setup_forked_process(struct selector_s *sel)
@@ -1429,6 +1591,11 @@ sel_select_intr_sigmask(struct selector_s *sel,
 #ifdef HAVE_EPOLL_PWAIT
 	if (sel->evfd >= 0)
 	    err = process_fds_epoll(sel, &wait_entry, sigmask);
+	else
+#endif
+#ifdef HAVE_KEVENT
+	if (sel->evfd >= 0)
+	    err = process_fds_kevent(sel, &wait_entry, sigmask);
 	else
 #endif
 	    err = process_fds(sel, &wait_entry, sigmask);
@@ -1598,6 +1765,11 @@ sel_alloc_selector_thread(struct selector_s **new_selector, int wake_sig,
     sel->evfd = epoll_create(32768);
     if (sel->evfd == -1)
 	syslog(LOG_ERR, "Unable to set up epoll, falling back to select: %m");
+#endif
+#ifdef HAVE_KEVENT
+    sel->evfd = kqueue();
+    if (sel->evfd == -1)
+	syslog(LOG_ERR, "Unable to set up kevent, falling back to select: %m");
 #endif
 
     *new_selector = sel;

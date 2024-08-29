@@ -1159,6 +1159,7 @@ con_cb(struct gensio *io, void *user_data,
 	    gensio_set_write_callback_enable(io, false);
 	    gensio_set_read_callback_enable(io, false);
 	    id->err = OOME_DATA_MISMATCH;
+	    assert(0);
 	    gensio_os_funcs_wake(o, od->waiter);
 	}
 
