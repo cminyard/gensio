@@ -430,10 +430,12 @@ fd_deferred_op(struct gensio_runner *runner, void *cbdata)
     while (fdll->deferred_read) {
 	fdll->deferred_read = false;
 
-	fdll->in_read = true;
-	while (fdll->read_enabled && fdll->read_data_len)
-	    fd_deliver_read_data(fdll, 0);
-	fdll->in_read = false;
+	if (!fdll->in_read) {
+	    fdll->in_read = true;
+	    while (fdll->read_enabled && fdll->read_data_len)
+		fd_deliver_read_data(fdll, 0);
+	    fdll->in_read = false;
+	}
     }
 
     if (fdll->deferred_close) {
