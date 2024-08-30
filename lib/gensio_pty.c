@@ -78,7 +78,8 @@ struct pty_data {
     bool exit_code_set;
 };
 
-static int pty_check_open(void *handler_data, struct gensio_iod *iod)
+static int pty_check_open(void *handler_data, struct gensio_iod *iod,
+			  gensio_time *timeout)
 {
     return 0;
 }
@@ -307,7 +308,8 @@ gensio_setup_child_on_pty(struct pty_data *tdata)
 }
 
 static int
-pty_sub_open(void *handler_data, struct gensio_iod **riod)
+pty_sub_open(void *handler_data, struct gensio_iod **riod,
+	     gensio_time *timeout)
 {
     struct pty_data *tdata = handler_data;
     int err;

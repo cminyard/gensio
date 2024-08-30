@@ -19,11 +19,14 @@ enum gensio_ll_close_state {
 struct gensio_iod;
 
 struct gensio_fd_ll_ops {
-    int (*sub_open)(void *handler_data, struct gensio_iod **iod);
+    int (*sub_open)(void *handler_data, struct gensio_iod **iod,
+		    gensio_time *next_timeout);
 
-    int (*check_open)(void *handler_data, struct gensio_iod *iod);
+    int (*check_open)(void *handler_data, struct gensio_iod *iod,
+		      gensio_time *next_timeout);
 
-    int (*retry_open)(void *handler_data, struct gensio_iod **iod);
+    int (*retry_open)(void *handler_data, struct gensio_iod **iod,
+		      gensio_time *next_timeout);
 
     /*
      * When GENSIO_LL_CLOSE_STATE_START, timeout will be NULL and the

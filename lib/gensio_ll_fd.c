@@ -119,11 +119,15 @@ struct fd_ll {
     const struct gensio_fd_ll_ops *ops;
     void *handler_data;
 
+    /* See fd_start_timer() for details on timer state machine. */
+    struct gensio_timer *timer; /* For open and close. */
+    enum { T_STOPPED, T_RUNNING, T_STOPPING, T_RESTART } timer_state;
+    gensio_time timer_restart_val;
+
     gensio_ll_open_done open_done;
     void *open_data;
     int open_err;
 
-    struct gensio_timer *close_timer;
     gensio_ll_close_done close_done;
     void *close_data;
     bool close_requested;
@@ -159,6 +163,7 @@ struct fd_ll {
 #define ll_to_fd(v) ((struct fd_ll *) gensio_ll_get_user_data(v))
 
 static void fd_handle_write_ready(struct fd_ll *fdll, struct gensio_iod *iod);
+static void fd_stop_timer(struct fd_ll *fdll);
 
 static void fd_finish_free(struct fd_ll *fdll)
 {
@@ -166,8 +171,8 @@ static void fd_finish_free(struct fd_ll *fdll)
 	gensio_ll_free_data(fdll->ll);
     if (fdll->lock)
 	fdll->o->free_lock(fdll->lock);
-    if (fdll->close_timer)
-	fdll->o->free_timer(fdll->close_timer);
+    if (fdll->timer)
+	fdll->o->free_timer(fdll->timer);
     if (fdll->deferred_op_runner)
 	fdll->o->free_runner(fdll->deferred_op_runner);
     if (fdll->read_data)
@@ -475,6 +480,7 @@ fd_start_close(struct fd_ll *fdll)
 	fd_sched_deferred_op(fdll);
     } else if (fdll->state != FD_OPEN_ERR_WAIT &&
 	       fdll->state != FD_IN_OPEN_RETRY) {
+	fd_stop_timer(fdll);
 	fdll->o->clear_fd_handlers(fdll->iod);
     }
     fd_set_state(fdll, FD_IN_CLOSE);
@@ -581,29 +587,113 @@ fd_read_ready(struct gensio_iod *iod, void *cbdata)
 
 static int fd_setup_handlers(struct fd_ll *fdll);
 
+/*
+ * Timer state machine.  A timer may be in one of four states:
+ *
+ * T_STOPPED: The timer is not running or in the handler.
+ * T_RUNNING: The timer is running or in the handler.
+ * T_STOPPING: The timer is not running but in the handler.
+ * T_RESTART: The timer is not running but in the handler and will start
+ *            itself with the timer_restart_value when it runns.
+ *
+ * The timer being "in the handler" means that the timer has gone off
+ * but the handler has not yet been called, or has been called but is
+ * sitting at the lock call waiting to claim the lock.
+ */
+static void
+fd_start_timer(struct fd_ll *fdll, gensio_time *timeout)
+{
+    int rv;
+
+    switch (fdll->timer_state) {
+    case T_STOPPED:
+	/* Timer is stopped, just start it. */
+	fd_ref(fdll);
+    start:
+	assert(fdll->o->start_timer(fdll->timer, timeout) == 0);
+	fdll->timer_state = T_RUNNING;
+	break;
+    case T_RUNNING:
+	/* Restart the timer with a new value. */
+	rv = fdll->o->stop_timer(fdll->timer);
+	if (rv == GE_TIMEDOUT)
+	    /* Timer is in the handler, treat it as such. */
+	    goto stopping;
+	goto start;
+    case T_STOPPING:
+	/*
+	 * Timer has already been stopped but is in the handler, restart
+	 * in the handler with a new value.
+	 */
+    stopping:
+	fdll->timer_restart_val = *timeout;
+	fdll->timer_state = T_RESTART;
+	break;
+    case T_RESTART:
+	fdll->timer_restart_val = *timeout;
+	break;
+    }
+}
+
+static void
+fd_stop_timer(struct fd_ll *fdll)
+{
+    int rv;
+
+    switch (fdll->timer_state) {
+    case T_STOPPED:
+	break;
+    case T_RUNNING:
+	/* Just stop the timer. */
+	rv = fdll->o->stop_timer(fdll->timer);
+	if (rv == GE_TIMEDOUT) {
+	    /* Timer is in the handler. */
+	    fdll->timer_state = T_STOPPING;
+	} else {
+	    /* Timer was stopped. */
+	    fd_deref(fdll);
+	    fdll->timer_state = T_STOPPED;
+	}
+	break;
+    case T_STOPPING:
+	break;
+    case T_RESTART:
+	fdll->timer_state = T_STOPPING;
+	break;
+    }
+}
+
 static void
 fd_handle_write_ready(struct fd_ll *fdll, struct gensio_iod *iod)
 {
     if (fdll->state == FD_IN_OPEN) {
 	int err;
+	gensio_time timeout;
 
+	err = fdll->ops->check_open(fdll->handler_data, fdll->iod,
+				    &timeout);
+	if (err == GE_RETRY) {
+	    fd_start_timer(fdll, &timeout);
+	    return;
+	}
 	fdll->o->set_write_handler(iod, false);
 	fdll->o->set_except_handler(iod, fdll->read_enabled);
-	err = fdll->ops->check_open(fdll->handler_data, fdll->iod);
-	/*
-	 * The GE_NOMEM check is strange here, but it really has more
-	 * to do with testing.  check_open() is not going to return
-	 * GE_NOMEM unless it's an error trigger failure, and we really
-	 * want to fail in that case or we will get a "error triggered
-	 * but no failure" in the test.
-	 */
 	if (err && err != GE_NOMEM && fdll->ops->retry_open) {
+	    /*
+	     * The GE_NOMEM check is strange here, but it really has
+	     * more to do with testing.  check_open() is not going to
+	     * return GE_NOMEM unless it's an error trigger failure,
+	     * and we really want to fail in that case or we will get
+	     * a "error triggered but no failure" in the test.
+	     */
 	    fd_set_state(fdll, FD_IN_OPEN_RETRY);
+	    fd_stop_timer(fdll);
 	    fdll->o->clear_fd_handlers(fdll->iod);
 	} else {
 	    if (err) {
 		fdll->open_err = err;
 		fd_set_state(fdll, FD_OPEN_ERR_WAIT);
+		fd_stop_timer(fdll);
 		fdll->o->clear_fd_handlers(fdll->iod);
 	    } else {
 		fd_finish_open(fdll, 0);
@@ -715,21 +805,39 @@ fd_check_close(struct fd_ll *fdll)
 	    fdll->iod = NULL;
     }
 
-    if (err == GE_INPROGRESS) {
-	fd_ref(fdll);
-	fdll->o->start_timer(fdll->close_timer, &timeout);
-    } else {
+    if (err == GE_INPROGRESS)
+	fd_start_timer(fdll, &timeout);
+    else
 	fd_finish_cleared(fdll);
-    }
 }
 
 static void
-fd_close_timeout(struct gensio_timer *t, void *cb_data)
+fd_timeout(struct gensio_timer *t, void *cb_data)
 {
     struct fd_ll *fdll = cb_data;
 
     fd_lock(fdll);
-    fd_check_close(fdll);
+    switch (fdll->timer_state) {
+    case T_STOPPED:
+	/* Nothing to do.  Shouldn't happen, but no biggie. */
+	break;
+    case T_STOPPING:
+	fdll->timer_state = T_STOPPED;
+	break;
+    case T_RESTART:
+	fd_ref(fdll);
+	assert(fdll->o->start_timer(fdll->timer, &fdll->timer_restart_val)
+	       == 0);
+	fdll->timer_state = T_RUNNING;
+	break;
+    case T_RUNNING:
+	fdll->timer_state = T_STOPPED;
+	if (fdll->state == FD_IN_CLOSE)
+	    fd_check_close(fdll);
+	else if (fdll->state == FD_IN_OPEN)
+	    fd_handle_write_ready(fdll, fdll->iod);
+	break;
+    }
     fd_deref_and_unlock(fdll); /* Lose the timer ref. */
 }
 
@@ -738,17 +846,24 @@ fd_cleared(struct gensio_iod *iod, void *cb_data)
 {
     struct fd_ll *fdll = cb_data;
     int err;
+    gensio_time timeout;
 
     fd_lock_and_ref(fdll);
     if (fdll->state == FD_IN_OPEN_RETRY) {
 	fdll->o->close(&fdll->iod);
-	err = fdll->ops->retry_open(fdll->handler_data, &fdll->iod);
-	if (err == GE_INPROGRESS) {
+	err = fdll->ops->retry_open(fdll->handler_data, &fdll->iod,
+				    &timeout);
+	if (err == GE_INPROGRESS || err == GE_RETRY) {
 	    err = fd_setup_handlers(fdll);
-	    if (err)
+	    if (err) {
 		fdll->o->close(&fdll->iod);
-	    else
+	    } else {
+		if (err == GE_RETRY) {
+		    fd_start_timer(fdll, &timeout);
+		    err = GE_INPROGRESS;
+		}
 		fd_set_state(fdll, FD_IN_OPEN);
+	    }
 	}
 	if (err) {
 	    fd_deref(fdll);
@@ -768,6 +883,7 @@ fd_open(struct gensio_ll *ll, gensio_ll_open_done done, void *open_data)
 {
     struct fd_ll *fdll = ll_to_fd(ll);
     int err;
+    gensio_time timeout;
 
     if (!fdll->ops->sub_open)
 	return GE_NOTSUP;
@@ -783,8 +899,9 @@ fd_open(struct gensio_ll *ll, gensio_ll_open_done done, void *open_data)
     fdll->read_data_len = 0;
     fdll->read_data_pos = 0;
 
-    err = fdll->ops->sub_open(fdll->handler_data, &fdll->iod);
-    if (err == GE_INPROGRESS || err == 0) {
+    err = fdll->ops->sub_open(fdll->handler_data, &fdll->iod,
+			      &timeout);
+    if (err == GE_INPROGRESS || err == GE_RETRY || err == 0) {
 	int err2 = fd_setup_handlers(fdll);
 	if (err2) {
 	    err = err2;
@@ -794,8 +911,12 @@ fd_open(struct gensio_ll *ll, gensio_ll_open_done done, void *open_data)
 
 	fdll->open_done = done;
 	fdll->open_data = open_data;
-	if (err == GE_INPROGRESS) {
-	    fd_set_state(fdll, FD_IN_OPEN);
+	if (err == GE_INPROGRESS || err == GE_RETRY) {
+	    if (err == GE_RETRY) {
+		fd_start_timer(fdll, &timeout);
+		err = GE_INPROGRESS;
+	    }
+ 	    fd_set_state(fdll, FD_IN_OPEN);
 	    fdll->o->set_write_handler(fdll->iod, true);
 	    fdll->o->set_except_handler(fdll->iod, true);
 	} else {
@@ -959,6 +1080,7 @@ static void fd_disable(struct gensio_ll *ll)
 
     fd_set_state(fdll, FD_CLOSED);
     fd_deref(fdll);
+    fd_stop_timer(fdll);
     fdll->o->clear_fd_handlers_norpt(fdll->iod);
     fdll->o->close(&fdll->iod);
 }
@@ -1044,8 +1166,8 @@ fd_gensio_ll_alloc(struct gensio_os_funcs *o,
 	fd_ref(fdll);
     }
 
-    fdll->close_timer = o->alloc_timer(o, fd_close_timeout, fdll);
-    if (!fdll->close_timer)
+    fdll->timer = o->alloc_timer(o, fd_timeout, fdll);
+    if (!fdll->timer)
 	goto out_nomem;
 
     fdll->deferred_op_runner = o->alloc_runner(o, fd_deferred_op, fdll);

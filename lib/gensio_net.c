@@ -37,6 +37,7 @@
 #include <gensio/gensio_ll_fd.h>
 #include <gensio/argvutils.h>
 #include <gensio/gensio_osops.h>
+#include <gensio/gensio_time.h>
 
 #include "gensio_net.h"
 
@@ -111,7 +112,8 @@ struct net_data {
     int oob_char;
 };
 
-static int net_check_open(void *handler_data, struct gensio_iod *iod)
+static int net_check_open(void *handler_data, struct gensio_iod *iod,
+			  gensio_time *timeout)
 {
     struct net_data *tdata = handler_data;
 
@@ -121,7 +123,8 @@ static int net_check_open(void *handler_data, struct gensio_iod *iod)
 }
 
 static int
-net_try_open(struct net_data *tdata, struct gensio_iod **iod)
+net_try_open(struct net_data *tdata, struct gensio_iod **iod,
+	     gensio_time *timeout)
 {
     struct gensio_iod *new_iod = NULL;
     int err = GE_INUSE;
@@ -176,22 +179,24 @@ net_try_open(struct net_data *tdata, struct gensio_iod **iod)
 }
 
 static int
-net_retry_open(void *handler_data, struct gensio_iod **iod)
+net_retry_open(void *handler_data, struct gensio_iod **iod,
+	       gensio_time *timeout)
 {
     struct net_data *tdata = handler_data;
 
     if (!gensio_addr_next(tdata->ai))
 	return tdata->last_err;
-    return net_try_open(tdata, iod);
+    return net_try_open(tdata, iod, timeout);
 }
 
 static int
-net_sub_open(void *handler_data, struct gensio_iod **iod)
+net_sub_open(void *handler_data, struct gensio_iod **iod,
+	     gensio_time *timeout)
 {
     struct net_data *tdata = handler_data;
 
     gensio_addr_rewind(tdata->ai);
-    return net_try_open(tdata, iod);
+    return net_try_open(tdata, iod, timeout);
 }
 
 static void

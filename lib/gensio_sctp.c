@@ -78,7 +78,8 @@ sctp_setup(struct sctp_data *tdata)
     return 0;
 }
 
-static int sctp_check_open(void *handler_data, struct gensio_iod *iod)
+static int sctp_check_open(void *handler_data, struct gensio_iod *iod,
+			   gensio_time *timeval)
 {
     struct sctp_data *tdata = handler_data;
     int err;
@@ -147,7 +148,8 @@ sctp_try_open(struct sctp_data *tdata, struct gensio_iod **iod)
 }
 
 static int
-sctp_sub_open(void *handler_data, struct gensio_iod **iod)
+sctp_sub_open(void *handler_data, struct gensio_iod **iod,
+	      gensio_time *timeout)
 {
     struct sctp_data *tdata = handler_data;
 

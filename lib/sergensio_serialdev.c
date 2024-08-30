@@ -1060,7 +1060,8 @@ is_a_pty(const char *ttyname)
 }
 
 static int
-sterm_sub_open(void *handler_data, struct gensio_iod **riod)
+sterm_sub_open(void *handler_data, struct gensio_iod **riod,
+	       gensio_time *timeout)
 {
     struct sterm_data *sdata = handler_data;
     struct gensio_os_funcs *o = sdata->o;
