@@ -2183,6 +2183,7 @@ main(int argc, char *argv[])
     unsigned long errcount = 0, skipcount = 0, testcount = 0;
     unsigned int repeat_count = 1;
     int testnr = -1, numtests = 0, testnrstart = -1, testnrend = MAX_LOOPS;
+    int num_oom_threads = 3;
     gensio_time zerotime = { 0, 0 };
     struct oom_tests user_test;
     bool list_tests = false;
@@ -2282,6 +2283,13 @@ main(int argc, char *argv[])
 		exit(1);
 	    }
 	    num_extra_threads = strtol(argv[i], NULL, 0);
+	} else if (strcmp(argv[i], "-o") == 0) {
+	    i++;
+	    if (i >= argc) {
+		fprintf(stderr, "No number given with -o\n");
+		exit(1);
+	    }
+	    num_oom_threads = strtol(argv[i], NULL, 0);
 	} else if (strcmp(argv[i], "-e") == 0) {
 	    i++;
 	    if (i >= argc) {
@@ -2335,10 +2343,12 @@ main(int argc, char *argv[])
 	fprintf(stderr, "tcl specified, but tcl OS handler not available.\n");
 	exit(1);
 #else
-	if (num_extra_threads > 0)
-	    fprintf(stderr, "Number of extra threads is %u, incompatible with"
-		    " TCL, forcing to 0\n", num_extra_threads);
+	if (num_extra_threads > 0 || num_oom_threads > 0)
+	    fprintf(stderr, "Number of extra threads is (%u,%u),"
+		    " incompatible with TCL, forcing to 0\n",
+		    num_extra_threads, num_oom_threads);
 	num_extra_threads = 0;
+	num_oom_threads = 0;
 	os_func_str = " --tcl";
 	rv = gensio_tcl_funcs_alloc(&o);
 #endif
@@ -2398,7 +2408,7 @@ main(int argc, char *argv[])
     if (i >= argc)
 	gensio_os_funcs_zfree(o, s);
 
-    for (i = 0; i < num_extra_threads; i++) {
+    for (i = 0; i < num_oom_threads; i++) {
 	loopwaiter[i] = gensio_os_funcs_alloc_waiter(o);
 	if (!loopwaiter[i]) {
 	    fprintf(stderr, "Could not allocate loop waiter\n");
@@ -2441,7 +2451,7 @@ main(int argc, char *argv[])
 
     gensio_argv_free(o, env.argv);
 
-    for (i = 0; i < num_extra_threads; i++) {
+    for (i = 0; i < num_oom_threads; i++) {
 	gensio_os_funcs_wake(o, loopwaiter[i]);
 	gensio_os_wait_thread(loopth[i]);
 	gensio_os_funcs_free_waiter(o, loopwaiter[i]);
