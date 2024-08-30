@@ -24,6 +24,7 @@
 #include <assert.h>
 #include <errno.h>
 #include <signal.h>
+#include <time.h>
 #include <gensio/gensio.h>
 #include <gensio/gensio_osops.h>
 #include <gensio/gensio_osops_env.h>
@@ -2191,6 +2192,10 @@ main(int argc, char *argv[])
     gensiods len = sizeof(oshstr);
     char *s;
     struct env_info env;
+
+#if !defined(HAVE_GETRANDOM_FUNC)
+    srand(time(NULL));
+#endif
 
     memset(&user_test, 0, sizeof(user_test));
 
