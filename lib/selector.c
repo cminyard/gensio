@@ -13,6 +13,7 @@
    routines registered with it. */
 
 #include "config.h"
+
 #include <gensio/selector.h>
 
 #include <sys/time.h>
@@ -25,13 +26,25 @@
 #include <syslog.h>
 #include <string.h>
 #include <assert.h>
+
+/*
+ * Older BSD systems have kevent, but don't have EVFILT_EXCEPT, which
+ * we need for TCP urgent data to work.  So just fall back to select
+ * in that case.
+ */
+#ifdef HAVE_KEVENT
+#include <sys/event.h>
+#ifdef EVFILT_EXCEPT
+#define USE_KEVENT
+#endif
+#endif
+
 #ifdef HAVE_EPOLL_PWAIT
 #include <sys/epoll.h>
 #define SEL_FD_ADD EPOLL_CTL_ADD
 #define SEL_FD_DEL EPOLL_CTL_DEL
 #define SEL_FD_MOD EPOLL_CTL_MOD
-#elif defined(HAVE_KEVENT)
-#include <sys/event.h>
+#elif defined(USE_KEVENT)
 #define SEL_FD_ADD 1
 #define SEL_FD_DEL 2
 #define SEL_FD_MOD 3
@@ -483,7 +496,7 @@ sel_update_fd(struct selector_s *sel, fd_control_t *fdc, int op)
     }
     return 0;
 }
-#elif defined(HAVE_KEVENT)
+#elif defined(USE_KEVENT)
 static int
 sel_update_fd(struct selector_s *sel, fd_control_t *fdc, int op)
 {
@@ -1451,7 +1464,7 @@ sel_setup_forked_process(struct selector_s *sel)
     }
     return 0;
 }
-#elif defined(HAVE_KEVENT)
+#elif defined(USE_KEVENT)
 static int
 process_fds_kevent(struct selector_s *sel, sel_wait_list_t *item,
 		   sigset_t *isigmask)
@@ -1651,7 +1664,7 @@ sel_select_intr_sigmask(struct selector_s *sel,
 	    err = process_fds_epoll(sel, &wait_entry, sigmask);
 	else
 #endif
-#ifdef HAVE_KEVENT
+#ifdef USE_KEVENT
 	if (sel->evfd >= 0)
 	    err = process_fds_kevent(sel, &wait_entry, sigmask);
 	else
@@ -1824,7 +1837,7 @@ sel_alloc_selector_thread(struct selector_s **new_selector, int wake_sig,
     if (sel->evfd == -1)
 	syslog(LOG_ERR, "Unable to set up epoll, falling back to select: %m");
 #endif
-#ifdef HAVE_KEVENT
+#ifdef USE_KEVENT
     sel->evfd = kqueue();
     if (sel->evfd == -1)
 	syslog(LOG_ERR, "Unable to set up kevent, falling back to select: %m");
