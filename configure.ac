@@ -1,13 +1,19 @@
-AC_INIT([gensio],[2.8.5],[minyard@acm.org])
+AC_INIT([gensio],[2.8.6],[minyard@acm.org])
 AC_SUBST(gensio_VERSION_MAJOR, 2)
 AC_SUBST(gensio_VERSION_MINOR, 8)
-AC_SUBST(gensio_VERSION_PATCH, 5)
+AC_SUBST(gensio_VERSION_PATCH, 6)
 AC_SUBST(gensio_VERSION_STRING, ${PACKAGE_VERSION})
 AC_CANONICAL_TARGET
 AM_INIT_AUTOMAKE([-Wall])
 AC_CONFIG_HEADERS([config.h])
 AC_PROG_CC
 AC_PROG_CXX
+
+# Per discussions with the Debian maintainer, it's best for
+# maintainers to have all the soname libary versions be the same if
+# they come from a single source.  So here it is.
+GENSIO_LIB_VERSION=10:0:0
+AC_SUBST(GENSIO_LIB_VERSION)
 
 AC_ARG_ENABLE([debug],
  [AS_HELP_STRING([--enable-debug], [add -g option when building])
@@ -33,12 +39,6 @@ else
 fi
 
 AM_PROG_AR
-
-# Per discussions with the Debian maintainer, it's best for
-# maintainers to have all the soname libary versions be the same if
-# they come from a single source.  So here it is.
-GENSIO_LIB_VERSION=9:0:3
-AC_SUBST(GENSIO_LIB_VERSION)
 
 # Per discussion at:
 # https://lists.gnu.org/archive/html/libtool/2022-09/msg00000.html
