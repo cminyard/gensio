@@ -73,6 +73,13 @@ int sel_alloc_selector_nothread(struct selector_s **new_selector);
 SEL_DLL_PUBLIC
 int sel_free_selector(struct selector_s *new_selector);
 
+/* The kevent handler can take a set of signals and instead of
+   unblocking them, it can receive them from kevent.  This is global
+   and applies to all selectors. */
+void sel_set_handle_sig(int *handle_set,
+			void (*handle_sig)(int sig, void *data),
+			void *handle_sig_data);
+
 /* A function to call when select sees something on a file
    descriptor. */
 typedef void (*sel_fd_handler_t)(int fd, void *data);

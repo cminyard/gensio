@@ -254,6 +254,20 @@ struct selector_s
 			   this code. */
 };
 
+static int *handle_set;
+static void (*handle_sig)(int sig, void *data);
+static void *handle_sig_data;
+
+void
+sel_set_handle_sig(int *ihandle_set,
+		   void (*ihandle_sig)(int sig, void *data),
+		   void *ihandle_sig_data)
+{
+    handle_set = ihandle_set;
+    handle_sig = ihandle_sig;
+    handle_sig_data = ihandle_sig_data;
+}
+
 static void
 sel_timer_lock(struct selector_s *sel)
 {
@@ -1444,9 +1458,12 @@ process_fds_kevent(struct selector_s *sel, sel_wait_list_t *item,
 {
     int rv, old_errno;
     struct kevent event;
-    sigset_t sigmask, oldmask;
+#define MAX_KEVENT_SIGS 10
+    struct kevent sigs[MAX_KEVENT_SIGS];
+    sigset_t sigmask, oldmask, pendmask;
     fd_control_t *fdc;
     unsigned long entry_fd_del_count;
+    unsigned int i, j;
 
     setup_my_sigmask(&sigmask, isigmask);
     sigdelset(&sigmask, sel->wake_sig);
@@ -1460,15 +1477,50 @@ process_fds_kevent(struct selector_s *sel, sel_wait_list_t *item,
      * BSDs all have broken pselect.  See comments in process_fds()
      * about this.
      */
-    sigpending(&oldmask);
-    if (!item->signalled && sigismember(&oldmask, sel->wake_sig))
-	pre_signal(item);
-
-    rv = sel_set_sigmask(&sigmask, &oldmask);
+    rv = sel_set_sigmask(NULL, &oldmask);
     if (rv < 0)
 	return rv;
 
-    rv = kevent(sel->evfd, NULL, 0, &event, 1,
+    sigpending(&pendmask);
+    if (!item->signalled && sigismember(&pendmask, sel->wake_sig))
+	pre_signal(item);
+
+    /*
+     * If a signal is blocked in the running thread but would be
+     * unblocked by the setmask, leave it blocked for the thread and
+     * return it from kevent.
+     */
+    for (i = 0, j = 0; handle_set && handle_set[i]; i++) {
+	assert(j < MAX_KEVENT_SIGS);
+	if (!sigismember(&oldmask, handle_set[i])) {
+	    sigaddset(&oldmask, handle_set[i]);
+	    item->wait_time.tv.tv_sec = 0;
+	    item->wait_time.tv.tv_usec = 0;
+	}
+	if (!sigismember(&sigmask, handle_set[i])) {
+	    EV_SET(&sigs[j], handle_set[i],
+		   EVFILT_SIGNAL, EV_ADD | EV_ENABLE, 0, 0, 0);
+	    j++;
+	    sigaddset(&sigmask, handle_set[i]);
+	}
+    }
+
+    rv = sel_set_sigmask(&sigmask, NULL);
+    if (rv < 0)
+	return rv;
+
+    /* If we don't have the wake sig blocked, fix it. */
+    if (!sigismember(&oldmask, sel->wake_sig)) {
+	sigaddset(&oldmask, sel->wake_sig);
+	/*
+	 * Make sure this returns immediately, just in case we
+	 * were signalled.
+	 */
+	item->wait_time.tv.tv_sec = 0;
+	item->wait_time.tv.tv_usec = 0;
+    }
+
+    rv = kevent(sel->evfd, sigs, j, &event, 1,
 		(struct timespec *) &item->wait_time.ts);
 
     old_errno = errno;
@@ -1477,6 +1529,12 @@ process_fds_kevent(struct selector_s *sel, sel_wait_list_t *item,
 
     if (rv <= 0)
 	return rv;
+
+    if (event.filter == EVFILT_SIGNAL) {
+	handle_sig(event.ident, handle_sig_data);
+	errno = EINTR;
+	return -1;
+    }
 
     sel_fd_lock(sel);
     valid_fd(sel, event.ident, &fdc);

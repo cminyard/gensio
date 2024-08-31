@@ -1699,6 +1699,10 @@ struct gensio_os_proc_data {
     sigset_t wait_sigs; /* Signal mask to use when waiting. */
     sigset_t check_sigs; /* Signals we are checking for. */
 
+#define MAX_HANDLE_SIGS 10
+    int handle_sigs[MAX_HANDLE_SIGS];
+    unsigned int num_handle_sigs;
+
     struct sigaction old_wakesig;
 
     struct sigaction old_sigchld;
@@ -1812,6 +1816,33 @@ gensio_os_thread_setup(struct gensio_os_funcs *o)
     return rv;
 }
 
+static void
+gensio_os_proc_handle_sig(int sig, void *sdata)
+{
+    struct gensio_os_proc_data *data = sdata;
+
+    switch(sig) {
+    case SIGCHLD:
+	data->got_sigchld = true;
+	break;
+    case SIGQUIT:
+    case SIGTERM:
+    case SIGINT:
+	data->got_term_sig = true;
+	break;
+    case SIGHUP:
+	data->got_reload_sig = true;
+	break;
+#if HAVE_DECL_SIGWINCH
+    case SIGWINCH:
+	data->got_winch_sig = true;
+	break;
+#endif
+    default:
+	assert(0);
+    }
+}
+
 int
 gensio_os_proc_setup(struct gensio_os_funcs *o,
 		     struct gensio_os_proc_data **rdata)
@@ -1890,6 +1921,9 @@ gensio_os_proc_setup(struct gensio_os_funcs *o,
     }
 
     LOCK_INIT(&data->handler_lock);
+    data->handle_sigs[data->num_handle_sigs++] = SIGCHLD;
+
+    sel_set_handle_sig(data->handle_sigs, gensio_os_proc_handle_sig, data);
 
     *rdata = data;
     proc_setup = true;
@@ -2024,28 +2058,8 @@ gensio_os_proc_check_handlers(struct gensio_os_proc_data *data)
      * missing a signal on a really busy system, check for signals
      * here.
      */
-    while ((sig = check_for_sigpending(&data->check_sigs)) > 0) {
-	switch(sig) {
-	case SIGCHLD:
-	    data->got_sigchld = true;
-	    break;
-	case SIGQUIT:
-	case SIGTERM:
-	case SIGINT:
-	    data->got_term_sig = true;
-	    break;
-	case SIGHUP:
-	    data->got_reload_sig = true;
-	    break;
-#if HAVE_DECL_SIGWINCH
-	case SIGWINCH:
-	    data->got_winch_sig = true;
-	    break;
-#endif
-	default:
-	    assert(0);
-	}
-    }
+    while ((sig = check_for_sigpending(&data->check_sigs)) > 0)
+	gensio_os_proc_handle_sig(sig, data);
     if (data->got_term_sig) {
 	data->got_term_sig = false;
 	data->term_handler(data->term_handler_data);
@@ -2121,6 +2135,10 @@ gensio_os_proc_register_term_handler(struct gensio_os_proc_data *data,
 	goto out_err;
     }
 
+    data->handle_sigs[data->num_handle_sigs++] = SIGINT;
+    data->handle_sigs[data->num_handle_sigs++] = SIGQUIT;
+    data->handle_sigs[data->num_handle_sigs++] = SIGTERM;
+
     sigdelset(&data->wait_sigs, SIGINT);
     sigdelset(&data->wait_sigs, SIGQUIT);
     sigdelset(&data->wait_sigs, SIGTERM);
@@ -2166,6 +2184,7 @@ int gensio_os_proc_register_reload_handler(struct gensio_os_proc_data *data,
 	err = errno;
 	goto out_err;
     }
+    data->handle_sigs[data->num_handle_sigs++] = SIGHUP;
     sigdelset(&data->wait_sigs, SIGHUP);
     sigaddset(&data->check_sigs, SIGHUP);
     data->reload_sig_set = true;
@@ -2217,6 +2236,7 @@ gensio_os_proc_register_winsize_handler(struct gensio_os_proc_data *data,
 	err = gensio_os_err_to_err(data->o, errno);
 	goto out_unlock;
     }
+    data->handle_sigs[data->num_handle_sigs++] = SIGWINCH;
     sigdelset(&data->wait_sigs, SIGWINCH);
     data->winch_sig_set = true;
     /*
