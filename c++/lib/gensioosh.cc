@@ -43,7 +43,7 @@ namespace gensios {
 	    va_end(argcopy);
 	    std::string outstr(len + 1, '\0');
 	    vsnprintf(&outstr[0], len + 1, log, args);
-	    logger->log(level, outstr);
+	    logger->log(level, std::move(outstr));
 	}
     }
 
