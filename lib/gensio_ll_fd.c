@@ -854,15 +854,15 @@ fd_cleared(struct gensio_iod *iod, void *cb_data)
 	err = fdll->ops->retry_open(fdll->handler_data, &fdll->iod,
 				    &timeout);
 	if (err == GE_INPROGRESS || err == GE_RETRY) {
-	    err = fd_setup_handlers(fdll);
-	    if (err) {
+	    int err2 = fd_setup_handlers(fdll);
+	    if (err2) {
 		fdll->o->close(&fdll->iod);
+		err = err2;
 	    } else {
-		if (err == GE_RETRY) {
+		if (err == GE_RETRY)
 		    fd_start_timer(fdll, &timeout);
-		    err = GE_INPROGRESS;
-		}
 		fd_set_state(fdll, FD_IN_OPEN);
+		err = 0;
 	    }
 	}
 	if (err) {
