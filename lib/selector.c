@@ -295,11 +295,6 @@ static void pre_signal(sel_wait_list_t *item)
 {
     item->signalled = true;
     memset(&item->wait_time, 0, sizeof(item->wait_time));
-    __atomic_thread_fence(__ATOMIC_RELEASE); /* write barrier. */
-}
-static void pre_select()
-{
-    __atomic_thread_fence(__ATOMIC_ACQUIRE); /* read barrier. */
 }
 static void pre_kill_one(struct selector_s *sel, long thread_id)
 {
@@ -316,7 +311,6 @@ static void pre_kill_one(struct selector_s *sel, long thread_id)
 }
 #else
 #define pre_signal(item) do {} while(false)
-#define pre_select(item) do {} while(false)
 #define pre_kill_one(sel, thread_id) do {} while(false)
 #endif
 
@@ -1277,9 +1271,17 @@ process_fds(struct selector_s *sel, sel_wait_list_t *item, sigset_t *isigmask)
 	err = sel_set_sigmask(&sigmask, &oldmask);
 	if (err < 0)
 	    return err;
-	assert(sigismember(&oldmask, sel->wake_sig));
 
-	pre_select();
+	/* If we don't have the wake sig blocked, fix it. */
+	if (sigismember(&oldmask, sel->wake_sig)) {
+	    sigaddset(&oldmask, sel->wake_sig);
+	    /*
+	     * Make sure this returns immediately, just in case we
+	     * were signalled.
+	     */
+	    item->wait_time.tv.tv_sec = 0;
+	    item->wait_time.tv.tv_usec = 0;
+	}
 
 	err = select(num_fds,
 		     &tmp_read_set,
@@ -1465,8 +1467,6 @@ process_fds_kevent(struct selector_s *sel, sel_wait_list_t *item,
     rv = sel_set_sigmask(&sigmask, &oldmask);
     if (rv < 0)
 	return rv;
-
-    pre_select();
 
     rv = kevent(sel->evfd, NULL, 0, &event, 1,
 		(struct timespec *) &item->wait_time.ts);
