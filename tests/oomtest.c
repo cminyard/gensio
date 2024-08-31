@@ -762,7 +762,7 @@ struct oom_tests oom_tests[] = {
     { "udp,ipv4,localhost,", "udp,ipv4,0",
       /* In this tests some errors will not result in a failure. */
       .allow_no_err_on_trig = true,
-      .max_io_size = 2000
+      .max_io_size = 1000
     },
     { "mux,sctp,localhost,", "mux,sctp,0",
       .check_if_present = check_sctp_present, .check_value = HAVE_LIBSCTP,
