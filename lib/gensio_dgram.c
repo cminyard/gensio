@@ -2100,7 +2100,7 @@ dgram_gensio_alloc(const void *gdata, const char * const args[],
     d.typestr = typestr;
 
     err = gensio_get_defaultaddr(o, typestr, "laddr", false,
-				 GENSIO_NET_PROTOCOL_UDP, true, false, &laddr);
+				 protocol, true, false, &laddr);
     if (err && err != GE_NOTSUP) {
 	gensio_log(o, GENSIO_LOG_ERR, "Invalid default dgram laddr: %s",
 		   gensio_err_to_str(err));
@@ -2282,7 +2282,7 @@ dgram_gensio_alloc(const void *gdata, const char * const args[],
     }
 
     if (err) {
-	if (laddr && protocol != GENSIO_NET_PROTOCOL_UDP)
+	if (nadata->laddr && protocol != GENSIO_NET_PROTOCOL_UDP)
 	    netna_rm_unix_socket(laddr);
 	if (ndata)
 	    udpn_do_free(ndata);
