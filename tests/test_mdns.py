@@ -150,6 +150,9 @@ if e.wait() == 0:
 if e.check is not None:
     raise Exception("Didn't get right data")
 
+w = gensio.waiter(utils.o)
+w.wait_timeout(1, 1000)
+
 utils.TestAccept(utils.o, "mdns(type=_gensiotest._tcp,ignore-v6-link-local)," +
                           "gensiotest_service",
                  "tcp,5096", utils.do_small_test, chunksize = 64, get_port=False)
@@ -159,7 +162,6 @@ del watch
 del service
 del c
 del e
-w = gensio.waiter(utils.o)
 w.wait_timeout(1, 10)
 del w
 utils.test_shutdown()
