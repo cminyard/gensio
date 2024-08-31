@@ -1284,6 +1284,7 @@ process_fds(struct selector_s *sel, sel_wait_list_t *item, sigset_t *isigmask)
     do {
 	int old_errno;
 	sigset_t oldmask;
+	bool time_fixed = false;
 
 	/*
 	 * A signal may have been sent before this process was queued on a
@@ -1292,15 +1293,17 @@ process_fds(struct selector_s *sel, sel_wait_list_t *item, sigset_t *isigmask)
 	 * and set things up properly.
 	 */
 	sigpending(&oldmask);
-	if (!item->signalled && sigismember(&oldmask, sel->wake_sig))
+	if (!item->signalled && sigismember(&oldmask, sel->wake_sig)) {
 	    pre_signal(item);
+	    time_fixed = true;
+	}
 
 	err = sel_set_sigmask(&sigmask, &oldmask);
 	if (err < 0)
 	    return err;
 
 	/* If we don't have the wake sig blocked, fix it. */
-	if (sigismember(&oldmask, sel->wake_sig)) {
+	if (!sigismember(&oldmask, sel->wake_sig)) {
 	    sigaddset(&oldmask, sel->wake_sig);
 	    /*
 	     * Make sure this returns immediately, just in case we
@@ -1308,6 +1311,7 @@ process_fds(struct selector_s *sel, sel_wait_list_t *item, sigset_t *isigmask)
 	     */
 	    item->wait_time.tv.tv_sec = 0;
 	    item->wait_time.tv.tv_usec = 0;
+	    time_fixed = true;
 	}
 
 	err = select(num_fds,
@@ -1315,6 +1319,11 @@ process_fds(struct selector_s *sel, sel_wait_list_t *item, sigset_t *isigmask)
 		     &tmp_write_set,
 		     &tmp_except_set,
 		     (struct timeval *) &item->wait_time.tv);
+
+	if (time_fixed && err == 0) {
+	    err = -1;
+	    errno = EINTR;
+	}
 
 	old_errno = errno;
 	sel_set_sigmask(&oldmask, NULL);
@@ -1477,6 +1486,7 @@ process_fds_kevent(struct selector_s *sel, sel_wait_list_t *item,
     fd_control_t *fdc;
     unsigned long entry_fd_del_count;
     unsigned int i, j;
+    bool time_fixed = false;
 
     setup_my_sigmask(&sigmask, isigmask);
     sigdelset(&sigmask, sel->wake_sig);
@@ -1495,8 +1505,10 @@ process_fds_kevent(struct selector_s *sel, sel_wait_list_t *item,
 	return rv;
 
     sigpending(&pendmask);
-    if (!item->signalled && sigismember(&pendmask, sel->wake_sig))
+    if (!item->signalled && sigismember(&pendmask, sel->wake_sig)) {
 	pre_signal(item);
+	time_fixed = true;
+    }
 
     /*
      * If a signal is blocked in the running thread but would be
@@ -1509,6 +1521,7 @@ process_fds_kevent(struct selector_s *sel, sel_wait_list_t *item,
 	    sigaddset(&oldmask, handle_set[i]);
 	    item->wait_time.tv.tv_sec = 0;
 	    item->wait_time.tv.tv_usec = 0;
+	    time_fixed = true;
 	}
 	if (!sigismember(&sigmask, handle_set[i])) {
 	    EV_SET(&sigs[j], handle_set[i],
@@ -1531,10 +1544,16 @@ process_fds_kevent(struct selector_s *sel, sel_wait_list_t *item,
 	 */
 	item->wait_time.tv.tv_sec = 0;
 	item->wait_time.tv.tv_usec = 0;
+	time_fixed = true;
     }
 
     rv = kevent(sel->evfd, sigs, j, &event, 1,
 		(struct timespec *) &item->wait_time.ts);
+
+    if (time_fixed && rv == 0) {
+	rv = -1;
+	errno = EINTR;
+    }
 
     old_errno = errno;
     sel_set_sigmask(&oldmask, NULL);
