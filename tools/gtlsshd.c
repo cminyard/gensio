@@ -2788,26 +2788,25 @@ setup_new_connection(struct gdata *ginfo, struct gensio *io)
 	return;
 
     case 0:
-	/*
-	 * The fork, let the parent have the accepter and double fork
-	 * so parent doesn't own us.  We have to tell the os handler,
-	 * too that we forked, or epoll() misbehaves.
-	 */
-	err = gensio_os_funcs_handle_fork(o);
-	if (err) {
-	    log_event(LOG_ERR, "Could not fork gensio handler: %s",
-		      gensio_err_to_str(err));
-	    exit(1);
-	    return;
-	}
-	pid_file = NULL; /* Make sure children don't delete this. */
-
 	setsid();
 	switch (fork()) {
 	case -1:
 	    log_event(LOG_ERR, "Could not fork twice: %s", strerror(errno));
 	    exit(1);
 	case 0:
+	    /*
+	     * The fork, let the parent have the accepter and double fork
+	     * so parent doesn't own us.  We have to tell the os handler,
+	     * too that we forked, or epoll() misbehaves.
+	     */
+	    err = gensio_os_funcs_handle_fork(o);
+	    if (err) {
+		log_event(LOG_ERR, "Could not fork gensio handler: %s",
+			  gensio_err_to_str(err));
+		exit(1);
+		return;
+	    }
+	    pid_file = NULL; /* Make sure children don't delete this. */
 	    break;
 	default:
 	    exit(0);
