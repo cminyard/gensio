@@ -1193,7 +1193,18 @@ For standard installation, you can run::
 and when you run "make install DESTDIR=..." and you set DESTDIR to
 where you want it to go, like "C:/Program Files".  Then you can add
 that to the PATH using the control panel.  To use gtlsshd, you create
-an etc/gtlsshd directory in the Gensio directory,
+an etc/gtlsshd directory in the Gensio directory.  You must set the
+permissions on this directory so only System and Administrators have
+access, like::
+
+  PS C:\Program Files (x86)\Gensio\etc> icacls gtlssh
+  gtlssh NT AUTHORITY\SYSTEM:(OI)(CI)(F)
+         BUILTIN\Administrators:(OI)(CI)(F)
+
+Otherwise gtlsshd will fail with an error about permissions on the
+key.  You can set these permission on the .key file instead of the
+directory, but you will have to set it again every time you generate a
+new key.
 
 For using the Inno Setup Compiler, do "make install DESTDIR=$HOME/install"
 and then run Inno on gensio.iss.  It will create an executable installer
@@ -1208,18 +1219,20 @@ they screw up linking with other things::
 Running Tests
 =============
 
-There are a number of tests for gensios.  They currently only run on
-Linux and require some external tools.
+There are a number of tests for gensios.  They all run on Linux if you
+have the serialsim kernel module.  Besides the serial port ones, they
+run on other platforms as the gensios are supported on that platform.
 
-They require the serialsim kernel module and python interface.  These
-are at https://github.com/cminyard/serialsim and allow the tests to
-use a simulated serial port to read modem control line, inject errors,
-etc.
+The serial port tests require the serialsim kernel module and python
+interface.  These are at https://github.com/cminyard/serialsim and
+allow the tests to use a simulated serial port to read modem control
+line, inject errors, etc.
 
 You can get by without serialsim if you have three serial devices: one
 hooked in echo mode (RX and TX tied together) and two serial devices
 hooked together do I/O on one device goes to/comes from the other.
-Then set the following environment variables:
+This should work on non-Linux platforms.  Then set the following
+environment variables:
 
 .. code-block:: bash
 

@@ -89,7 +89,10 @@ Default keys go here.
 Location to put the non-default generated keys.  Default is
 $HOME/.gtlssh/keycerts for user certificates.  For server certificates
 it is in sysconfdir (generally /etc) /gtlssh on Unix.  On Windows
-it is the directory of the executable /../etc.
+it is ../etc from the directory of the executable.
+
+Note that on Windows, you must set the permissions of the key directory
+(or the keys) so that only System and Administrators have access.
 .TP
 .I \-\-commonname name
 Set the common name in the certificate.  The default is your username
@@ -97,8 +100,8 @@ for normal certificates and the fully qualified domain name (prefixed
 with the keyname if the keyname is given) for server certificates.
 .TP
 .I \-\-algorithm algname
-Use the given algorithm for the key generation, one of rsa or ec.  The
-default is rsa.
+Use the given algorithm for the key generation, one of rsa, ec, or
+ed25519.  The default is ed25519.
 .TP
 .I \-\-force | \-f
 Don't ask any questions, just force the operations.  Be careful, this
