@@ -1438,7 +1438,7 @@ handle_port(struct gensio_os_funcs *o, bool remote, const char *iaddr)
     const char *type = NULL;
     unsigned int num_s = 0, pos = 0;
     char *connecter_str = NULL, *accepter_str = NULL;
-    char *addr = strdup(iaddr);
+    char *addr = strdup(iaddr), *addr2;
     int err = -1;
     bool has_bind = false;
 
@@ -1447,11 +1447,12 @@ handle_port(struct gensio_os_funcs *o, bool remote, const char *iaddr)
 	goto out_err;
     }
 
+    addr2 = addr;
     while (num_s < 4) {
-	s[num_s++] = addr;
-	addr = strchr(addr, ':');
-	if (addr)
-	    *addr++ = '\0';
+	s[num_s++] = addr2;
+	addr2 = strchr(addr2, ':');
+	if (addr2)
+	    *addr2++ = '\0';
 	else
 	    break;
     }
