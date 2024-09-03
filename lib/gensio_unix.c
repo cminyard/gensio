@@ -100,9 +100,8 @@ timeval_to_gensio_time(gensio_time *t, struct timeval *tv)
 #include <pthread.h>
 
 static int
-init_mutex(unsigned int flags, pthread_mutex_t *mutex)
+init_mutex(unsigned int flags, lock_type *mutex)
 {
-#ifdef USE_PTHREADS
     pthread_mutexattr_t mattr;
 
     pthread_mutexattr_init(&mattr);
@@ -112,9 +111,6 @@ init_mutex(unsigned int flags, pthread_mutex_t *mutex)
 	    return rv;
     }
     pthread_mutex_init(mutex, &mattr);
-#else
-    LOCK_INIT(mutex);
-#endif
     return 0;
 }
 
@@ -277,6 +273,13 @@ wake_waiter(waiter_t *waiter)
 }
 
 #else /* USE_PTHREADS */
+
+static int
+init_mutex(unsigned int flags, lock_type *mutex)
+{
+    LOCK_INIT(mutex);
+    return 0;
+}
 
 typedef struct waiter_s {
     struct gensio_os_funcs *o;
