@@ -2401,6 +2401,12 @@ gensio_afskmdm_filter_raw_alloc(struct gensio_pparm_info *p,
      */
     sfilter->in_corrsize = ((data->in_framerate + data->data_rate / 2)
 			    / data->data_rate);
+    if (sfilter->in_corrsize < 2 * CORREDGE) {
+	gensio_pparm_log(p, "afskmdm: "
+			 "Correlation size is %u, but must be at least %u",
+			 sfilter->in_corrsize, 2 * CORREDGE);
+	goto out_nomem;
+    }
     sfilter->in_corr_time = (GENSIO_SECS_TO_NSECS(sfilter->in_corrsize) /
 			     data->in_framerate);
     fcorrsize = (float) data->in_framerate / data->data_rate;
