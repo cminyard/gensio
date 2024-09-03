@@ -2571,7 +2571,7 @@ mux_child_read(struct mux_data *muxdata, int ierr,
 		    if (muxdata->xmit_data_len) {
 			/* Only one new channel allowed at a time. */
 			proto_err_str = "New channel while in progress";
-			goto protocol_err_close_chan;
+			goto protocol_err;
 		    }
 		    mux_send_new_channel_rsp(muxdata,
 				gensio_buf_to_u16(muxdata->hdr + 2),
