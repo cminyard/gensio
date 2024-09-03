@@ -458,6 +458,8 @@ AC_ARG_WITH(pthreads,
       use_pthreads=yes
     elif test "x$withval" = "xno"; then
       use_pthreads=no
+    else
+      AC_MSG_FAILURE([Unknown value for --with-pthreads. Use yes or no])
     fi,
 )
 
@@ -469,7 +471,8 @@ if test "x$use_pthreads" != "xno"; then
        AC_DEFINE([USE_PTHREADS], [], [Enable multithreaded support])],
       [if $use_pthreads_set; then
           AC_MSG_FAILURE([--with-pthreads was given, but no working pthread library was found])
-       fi])
+       fi
+       use_pthreads=no])
 fi
 
 if test "x$system_type" = "xunix"; then
