@@ -887,6 +887,8 @@ gensio_acontrol_s_intr(struct gensio *io, int depth, bool get,
     if (rv)
 	return rv;
     rv = o->wait_intr(data.waiter, 1, timeout);
+    if (rv)
+	return rv;
     o->free_waiter(data.waiter);
     *datalen = data.datalen;
     return data.err;
