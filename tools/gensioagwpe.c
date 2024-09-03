@@ -1055,10 +1055,8 @@ io_net_event(struct gensio *io, void *user_data, int event, int err,
 		agwpe_decode_packet(inst->inbuf, inst->inpos, &inst->inpacket);
 		if (inst->inpacket.len == 0)
 		    goto process_packet;
-		if (inst->inpacket.len > AGWPE_MAX_MSG_SIZE) {
-		    err = GE_TOOBIG;
+		if (inst->inpacket.len > AGWPE_MAX_MSG_SIZE)
 		    goto protocol_err;
-		}
 		inst->inpacketpos = 0;
 	    } else {
 		goto out_read;
