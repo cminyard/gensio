@@ -27,8 +27,8 @@
  * This filter implements a audio frequency shift keying modem per the
  * GAX25 spec.
  *
- * The filter processes data from the child in convsize frame chunks.
- * This convsize will be in_framerate/data_rate, so 1 convsize frame
+ * The filter processes data from the child in corrsize frame chunks.
+ * This corrsize will be in_framerate/data_rate, so 1 corrsize frame
  * is a approximately a single bit.  It may not be exact, so there is
  * adjustment logic to keep it close to alignment.  A similar thing is
  * done for transmission with out_framerate.
@@ -40,9 +40,9 @@
  * The transmitter will send a preamble that allows the adjustment
  * logic to lock in with the transmitter.
  *
- * It keeps 2 * convsize frames before the beginning of the current
+ * It keeps 2 * corrsize frames before the beginning of the current
  * chunk, and it waits until the next chunk to process the last
- * convsize frames of the previous chunk.  This lets the receiver
+ * corrsize frames of the previous chunk.  This lets the receiver
  * adjust backwards in time a bit if it has to.
  *
  * It is constantly looking for 1200Hz (level 1, a mark) and 2200Hz
@@ -84,19 +84,19 @@ enum afskmdm_state {
 /*
  * This is the maximum adjust period we will allow.  If it reaches
  * this value, we assume that the small adjustments can be handled by
- * the convolution code.
+ * the correlation code.
  */
 #define ADJ_PERIOD 10
 
 /*
- * Give the number of values on each side of the convolution to
- * compute another convolution for.  Having values for 6 different
- * areas around the convolution seems to give the best bang for the
+ * Give the number of values on each side of the correlation to
+ * compute another correlation for.  Having values for 6 different
+ * areas around the correlation seems to give the best bang for the
  * buck.
  */
-#define CONVEDGE 3
-#define CONVMIDDLE (CONVEDGE + 1)
-#define CONVEXTRA ((2 * CONVEDGE) + 1)
+#define CORREDGE 3
+#define CORRMIDDLE (CORREDGE + 1)
+#define CORREXTRA ((2 * CORREDGE) + 1)
 
 /*
  * A working receive buffer.
@@ -141,12 +141,12 @@ struct wrbuf {
 /*
  * These are the entries in a digraph used to send data.  Each of
  * these has a data item (pointing into a sine array), a size (either
- * convsize or convsize +/- 1 for the alternate size that may be
+ * corrsize or corrsize +/- 1 for the alternate size that may be
  * periodically sent).
  *
  * It also has pointers to the next entry to send based upon if the
- * next entry is a mark or space and if the next entry is convsize or
- * convsize +/- 1.
+ * next entry is a mark or space and if the next entry is corrsize or
+ * corrsize +/- 1.
  */
 struct xmit_entry {
     float *data;
@@ -206,21 +206,21 @@ struct afskmdm_filter {
     uint64_t tx_predelay_time;
 
     /*
-     * Frames in a single convolution.  Note that the convolution may
+     * Frames in a single correlation.  Note that the correlation may
      * not exactly match up with the period of the data rate.  If that
      * is the case, then we will need to periodically adjust the
-     * convolution window to keep it aligned.
+     * correlation window to keep it aligned.
      */
-    unsigned int in_convsize;
-    int in_conv_adj; /* +1, 0, or -1 */
-    unsigned int in_conv_period; /* How often to add in_conv_adj. */
-    unsigned int in_conv_counter; /* Current receive counter for in_conv_adj. */
-    uint64_t in_conv_time; /* Time in nsec for a convsize to be received. */
+    unsigned int in_corrsize;
+    int in_corr_adj; /* +1, 0, or -1 */
+    unsigned int in_corr_period; /* How often to add in_corr_adj. */
+    unsigned int in_corr_counter; /* Current receive counter for in_corr_adj. */
+    uint64_t in_corr_time; /* Time in nsec for a corrsize to be received. */
 
     /*
      * The number of frames in a transmitted bit.  A similar
      * technique is used for sending, there are two send sizes if
-     * out_bit_adj != 0 and conv_period says how often we use the
+     * out_bit_adj != 0 and corr_period says how often we use the
      * alternate one.
      */
     unsigned int out_bitsize;
@@ -266,8 +266,8 @@ struct afskmdm_filter {
     unsigned char *filteredbuf;
 
     /*
-     * Convolution tables.  First 2 * in_convsize values is sine, second
-     * 2 * in_convsize values is cosine.
+     * Correlation tables.  First 2 * in_corrsize values is sine, second
+     * 2 * in_corrsize values is cosine.
      */
     float *hzmark;
     float *hzspace;
@@ -292,13 +292,13 @@ struct afskmdm_filter {
 
     /*
      * Current position in the input, holds this value between frame
-     * processing.  Values from 0 to in_convsize-1 are in the prevread
+     * processing.  Values from 0 to in_corrsize-1 are in the prevread
      * buffer, greater values index into the current received buffer.
      */
     unsigned int curr_in_pos;
 
     /*
-     * 2 * in_convsize frames from end of the previous buffer.
+     * 2 * in_corrsize frames from end of the previous buffer.
      */
     unsigned char *prevread;
     unsigned int prevread_size;
@@ -311,7 +311,7 @@ struct afskmdm_filter {
     unsigned int max_wmsgs; /* Size of wmsgs in each wmsgset. */
 
     /*
-     * The number of in_convsize intervals to wait before transmitting.
+     * The number of in_corrsize intervals to wait before transmitting.
      */
     unsigned int tx_delay;
 
@@ -1140,7 +1140,7 @@ afskmdm_measure_power(struct afskmdm_filter *sfilter,
     else
 	s2 += (curpos - sfilter->prevread_size) * sfilter->in_nchans;
 
-    for (i = 0; i < sfilter->in_convsize; i++, curpos++) {
+    for (i = 0; i < sfilter->in_corrsize; i++, curpos++) {
 	if (curpos < sfilter->prevread_size) {
 	    v = *s1;
 	    s1 += sfilter->in_nchans;
@@ -1155,23 +1155,35 @@ afskmdm_measure_power(struct afskmdm_filter *sfilter,
 #endif
 
 /*
- * Do a convolution.
+ * Do a double correlation.  You generally do this against a sine and
+ * cosine table, this lets you measure the power (and phase) of a signal
+ * against the frequency of the sine/cosine.
  *
- * convdata is the sin/cosine table to convolve against, the first 2 *
- * in_convsize floats are the sin table, the second 2 * in_convsize floats
+ * corrdata is the sine/cosine table to correlate against, the first 2 *
+ * in_corrsize floats are the sine table, the second 2 * in_corrsize floats
  * are the cosine table.
  *
- * The data comes in two chunks, buf1 is 2 * in_convsize frames at the
+ * The data comes in two chunks, buf1 is 2 * in_corrsize frames at the
  * beginning, buf2 is chunksize frames after that.
+ *
+ * The input has extra data on both edges, the actually currently
+ * aligned signal is in the middle.  We start at the data past the
+ * left edges and process that data.  Then we store the data and
+ * subtract off each frame from the left edge and add on the next data
+ * until we have processed the whole right edge.  This gives is values
+ * in the "p" array where the middle value is the currently aligned
+ * value, but we have power measurements assuming we move the alignment
+ * point left and right.  This lets us measure how well we are aligned
+ * on a transition from a mark to a space.
  *
  * buf is an array of floats.  So we have to cast it.  The data may be
  * interleaved, meaning that frames from multiple channels may be in
  * it.  We only care about one channel.  So we have to multiply by the
  * number of channels and add the channel offset.
  *
- * Each convolution is done on in_convsize frames of data.  The first
- * in_convsize bytes is processed and put into p[0] (power at the given
- * frequency).  If edge > 0, then frames 1-(in_convsize+1) are processed
+ * Each correlation is done on in_corrsize frames of data.  The first
+ * in_corrsize bytes is processed and put into p[0] (power at the given
+ * frequency).  If edge > 0, then frames 1-(in_corrsize+1) are processed
  * and put into p[1], and so on.  (This is done more efficiently by
  * tracking some values, subtracting off the beginning, and adding on
  * the end).
@@ -1181,19 +1193,20 @@ afskmdm_measure_power(struct afskmdm_filter *sfilter,
  *
  * Multiple values lets you scan for data or align data.
  *
- * dummyp must be [edge * 4].  p must be [(edge * 2) + 1].
+ * dummyp must be [edge * 4].  p must be [(edge * 2) + 1].  The input
+ * data size must be bigger than edge * 2.
  */
 static void
-afskmdm_convolve(struct afskmdm_filter *sfilter, float *convdata,
-		 unsigned int edge,
-		 unsigned int curpos, unsigned char *buf1, unsigned char *buf2,
-		 float p[], float dummyp[])
+afskmdm_dcorr(struct afskmdm_filter *sfilter, float *corrdata,
+	      unsigned int edge,
+	      unsigned int curpos, unsigned char *buf1, unsigned char *buf2,
+	      float p[], float dummyp[])
 {
     /* There will always be one byte before the data, so the -1 ok. */
     float *s1 = (float *) buf1 + sfilter->in_chan;
     float *s2 = (float *) buf2 + sfilter->in_chan;
-    float *csin = convdata;
-    float *ccos = convdata + 2 * sfilter->in_convsize;
+    float *csin = corrdata;
+    float *ccos = corrdata + 2 * sfilter->in_corrsize;
     float v;
     float psin = 0, pcos = 0;
     unsigned int i, ppos = 0, spos;
@@ -1203,7 +1216,7 @@ afskmdm_convolve(struct afskmdm_filter *sfilter, float *convdata,
     else
 	s2 += (curpos - sfilter->prevread_size) * sfilter->in_nchans;
 
-    for (i = 0; i < sfilter->in_convsize; i++, curpos++) {
+    for (i = 0; i < sfilter->in_corrsize; i++, curpos++) {
 	if (curpos < sfilter->prevread_size) {
 	    v = *s1;
 	    s1 += sfilter->in_nchans;
@@ -1222,7 +1235,7 @@ afskmdm_convolve(struct afskmdm_filter *sfilter, float *convdata,
     }
     p[ppos++] = psin * psin + pcos * pcos;
 
-    for (spos = 0; i < sfilter->in_convsize + (edge * 2);
+    for (spos = 0; i < sfilter->in_corrsize + (edge * 2);
 	 i++, curpos++, spos++) {
 
 	/* Make sure we don't go past the end of the buffer. */
@@ -1555,7 +1568,7 @@ afskmdm_process_bit(struct afskmdm_filter *sfilter, unsigned int pos,
  */
 static void
 process_powers(struct afskmdm_filter *sfilter,
-	       float pmark[CONVEXTRA], float pspace[CONVEXTRA],
+	       float pmark[CORREXTRA], float pspace[CORREXTRA],
 	       unsigned int *rbest_pos,
 	       float *rcertainty, unsigned char *rlevel)
 {
@@ -1563,7 +1576,7 @@ process_powers(struct afskmdm_filter *sfilter,
     unsigned char tlevel;
     unsigned int i;
 
-    for (i = 0; i < CONVEXTRA; i++) {
+    for (i = 0; i < CORREXTRA; i++) {
 	if (pspace[i] > pmark[i]) {
 	    tlevel = 0;
 	    tcertainty = pspace[i] / pmark[i];
@@ -1582,34 +1595,34 @@ process_powers(struct afskmdm_filter *sfilter,
 }
 
 /*
- * Do a convolution at mark and space the data then call the bit
+ * Do a correlation at mark and space the data then call the bit
  * processing with the info extracted from the data.
  */
 static void
 afskmdm_check_for_data(struct afskmdm_filter *sfilter, unsigned int *curpos,
 		       unsigned char *buf1, unsigned char *buf2, bool *in_sync)
 {
-    float pmark[CONVEXTRA], pspace[CONVEXTRA];
-    float pmark2[CONVEXTRA], pspace2[CONVEXTRA];
-    float dummyp[CONVEDGE * 4];
+    float pmark[CORREXTRA], pspace[CORREXTRA];
+    float pmark2[CORREXTRA], pspace2[CORREXTRA];
+    float dummyp[CORREDGE * 4];
     unsigned char level = sfilter->prev_recv_level;
     unsigned int i, best_pos = 0, wset;
     float certainty = 0.0, m;
 
-    afskmdm_convolve(sfilter, sfilter->hzmark, CONVEDGE, (*curpos) - CONVEDGE,
-		     buf1, buf2, pmark, dummyp);
-    afskmdm_convolve(sfilter, sfilter->hzspace, CONVEDGE, (*curpos) - CONVEDGE,
-		     buf1, buf2, pspace, dummyp);
+    afskmdm_dcorr(sfilter, sfilter->hzmark, CORREDGE, (*curpos) - CORREDGE,
+		  buf1, buf2, pmark, dummyp);
+    afskmdm_dcorr(sfilter, sfilter->hzspace, CORREDGE, (*curpos) - CORREDGE,
+		  buf1, buf2, pspace, dummyp);
 
     process_powers(sfilter, pmark, pspace, &best_pos, &certainty, &level);
     if (sfilter->debug & 2) {
-	printf("CONV(%lu %u %lu):\n",
+	printf("CORR(%lu %u %lu):\n",
 	       sfilter->framecount++, *curpos,
 	       sfilter->framenr + *curpos - sfilter->prevread_size);
-	for (i = 0; i < CONVEXTRA; i++)
+	for (i = 0; i < CORREXTRA; i++)
 	    printf(" %f", pmark[i]);
 	printf("\n %d      ", level);
-	for (i = 0; i < CONVEXTRA; i++)
+	for (i = 0; i < CORREXTRA; i++)
 	    printf(" %f", pspace[i]);
 	printf("\n");
     }
@@ -1621,14 +1634,14 @@ afskmdm_check_for_data(struct afskmdm_filter *sfilter, unsigned int *curpos,
 	 * boundary to check against.
 	 */
 
-	if (sfilter->prev_best_pos > CONVMIDDLE)
+	if (sfilter->prev_best_pos > CORRMIDDLE)
 	    *curpos += 1;
-	else if (sfilter->prev_best_pos < CONVMIDDLE)
+	else if (sfilter->prev_best_pos < CORRMIDDLE)
 	    *curpos -= 1;
 
-	if (best_pos > CONVMIDDLE)
+	if (best_pos > CORRMIDDLE)
 	    *curpos += 1;
-	else if (best_pos < CONVMIDDLE)
+	else if (best_pos < CORRMIDDLE)
 	    *curpos -= 1;
     }
     sfilter->prev_recv_level = level;
@@ -1639,7 +1652,7 @@ afskmdm_check_for_data(struct afskmdm_filter *sfilter, unsigned int *curpos,
 	afskmdm_process_bit(sfilter, *curpos, 0, i, level, certainty, in_sync);
 
     for (wset = 1, m = 4.0; wset < sfilter->wmsg_sets; wset += 2, m += 4.0) {
-	for (i = 0; i < CONVEXTRA; i++)
+	for (i = 0; i < CORREXTRA; i++)
 	    pmark2[i] = pmark[i] * m;
 	certainty = 0.0;
 	process_powers(sfilter, pmark2, pspace, &best_pos, &certainty, &level);
@@ -1648,7 +1661,7 @@ afskmdm_check_for_data(struct afskmdm_filter *sfilter, unsigned int *curpos,
 	    afskmdm_process_bit(sfilter, *curpos, wset, i,
 				level, certainty, in_sync);
 
-	for (i = 0; i < CONVEXTRA; i++)
+	for (i = 0; i < CORREXTRA; i++)
 	    pspace2[i] = pspace[i] * m;
 	certainty = 0.0;
 	process_powers(sfilter, pmark, pspace2, &best_pos, &certainty, &level);
@@ -1857,7 +1870,7 @@ afskmdm_ll_write(struct gensio_filter *filter,
 	sfilter->curr_in_pos = sfilter->prevread_size;
 	goto skip_processing;
     }
-    while (pos < sfilter->in_chunksize + sfilter->in_convsize - CONVEDGE) {
+    while (pos < sfilter->in_chunksize + sfilter->in_corrsize - CORREDGE) {
 	bool in_sync = true;
 
 	afskmdm_check_for_data(sfilter, &pos, sfilter->prevread, buf, &in_sync);
@@ -1891,12 +1904,12 @@ afskmdm_ll_write(struct gensio_filter *filter,
 	if (sfilter->debug & 2)
 	    printf("SYNC: %d %u\n", in_sync, sfilter->nr_in_sync);
 
-	sfilter->in_conv_counter++;
-	if (sfilter->in_conv_counter >= sfilter->in_conv_period) {
-	    pos += sfilter->in_conv_adj;
-	    sfilter->in_conv_counter = 0;
+	sfilter->in_corr_counter++;
+	if (sfilter->in_corr_counter >= sfilter->in_corr_period) {
+	    pos += sfilter->in_corr_adj;
+	    sfilter->in_corr_counter = 0;
 	}
-	pos += sfilter->in_convsize;
+	pos += sfilter->in_corrsize;
     }
     sfilter->curr_in_pos = pos - sfilter->in_chunksize;
  skip_processing:
@@ -1964,7 +1977,7 @@ afskmdm_cleanup(struct gensio_filter *filter)
     sfilter->xmit_buf_len = 0;
     sfilter->xmit_buf_pos = 0;
     sfilter->nr_wrbufs = 0;
-    sfilter->in_conv_counter = 0;
+    sfilter->in_corr_counter = 0;
     sfilter->out_bit_counter = 0;
 }
 
@@ -2334,7 +2347,7 @@ gensio_afskmdm_filter_raw_alloc(struct gensio_pparm_info *p,
 {
     struct afskmdm_filter *sfilter;
     unsigned int i, j;
-    float fconvsize, fbitsize;
+    float fcorrsize, fbitsize;
 
     sfilter = o->zalloc(o, sizeof(*sfilter));
     if (!sfilter)
@@ -2381,20 +2394,20 @@ gensio_afskmdm_filter_raw_alloc(struct gensio_pparm_info *p,
     }
 
     /*
-     * Calculate the size of the convolution we will be doing.  We
+     * Calculate the size of the correlation we will be doing.  We
      * round the size to the nearest integer.  We create the
-     * convolution tables with the actual floating point value, and we
+     * correlation tables with the actual floating point value, and we
      * use that for adjust calculation, so get that here, too.
      */
-    sfilter->in_convsize = ((data->in_framerate + data->data_rate / 2)
+    sfilter->in_corrsize = ((data->in_framerate + data->data_rate / 2)
 			    / data->data_rate);
-    sfilter->in_conv_time = (GENSIO_SECS_TO_NSECS(sfilter->in_convsize) /
+    sfilter->in_corr_time = (GENSIO_SECS_TO_NSECS(sfilter->in_corrsize) /
 			     data->in_framerate);
-    fconvsize = (float) data->in_framerate / data->data_rate;
+    fcorrsize = (float) data->in_framerate / data->data_rate;
     if (data->in_framerate % data->data_rate != 0) {
 	/*
 	 * Calculate how often to adjust for the frame rate not being
-	 * evenly divisible by the data rate.  If we rounded convsize
+	 * evenly divisible by the data rate.  If we rounded corrsize
 	 * up, then it needs to be adjusted down periodically,
 	 * otherwise we adjust up.
 	 *
@@ -2404,16 +2417,16 @@ gensio_afskmdm_filter_raw_alloc(struct gensio_pparm_info *p,
 	 * out well, and the auto-adjusting should keep us in sync as
 	 * long as this is close.
 	 */
-	float err = fconvsize - truncf(fconvsize);
+	float err = fcorrsize - truncf(fcorrsize);
 
-	if (sfilter->in_convsize > data->in_framerate / data->data_rate) {
+	if (sfilter->in_corrsize > data->in_framerate / data->data_rate) {
 	    /* We rounded up. */
 	    err = 1. - err;
-	    sfilter->in_conv_adj = -1;
+	    sfilter->in_corr_adj = -1;
 	} else {
-	    sfilter->in_conv_adj = 1;
+	    sfilter->in_corr_adj = 1;
 	}
-	sfilter->in_conv_period = (unsigned int) ((1. / err) + 0.5);
+	sfilter->in_corr_period = (unsigned int) ((1. / err) + 0.5);
     }
 
     sfilter->out_bitsize = ((data->out_framerate + data->data_rate / 2)
@@ -2425,7 +2438,7 @@ gensio_afskmdm_filter_raw_alloc(struct gensio_pparm_info *p,
     if (data->out_framerate % data->data_rate != 0) {
 	/*
 	 * Calculate how often to adjust for the frame rate not being
-	 * evenly divisible by the data rate.  If we rounded convsize
+	 * evenly divisible by the data rate.  If we rounded corrsize
 	 * up, then it needs to be adjusted down periodically,
 	 * otherwise we adjust up.
 	 *
@@ -2449,31 +2462,31 @@ gensio_afskmdm_filter_raw_alloc(struct gensio_pparm_info *p,
     }
 
     /*
-     * NOTE - this is in received conv periods, because it's measured
+     * NOTE - this is in received corr periods, because it's measured
      * in the receive portion.
      */
-    sfilter->tx_delay = sfilter->tx_predelay_time / sfilter->in_conv_time;
+    sfilter->tx_delay = sfilter->tx_predelay_time / sfilter->in_corr_time;
 
     sfilter->lock = o->alloc_lock(o);
     if (!sfilter->lock)
 	goto out_nomem;
 
-    sfilter->hzmark = o->zalloc(o, sizeof(float) * 4 * sfilter->in_convsize);
+    sfilter->hzmark = o->zalloc(o, sizeof(float) * 4 * sfilter->in_corrsize);
     if (!sfilter->hzmark)
 	goto out_nomem;
-    for (i = 0; i < 2 * sfilter->in_convsize; i++) {
+    for (i = 0; i < 2 * sfilter->in_corrsize; i++) {
 	float v = 2 * M_PI * (data->mark_freq / data->data_rate) * ((float) i);
-	sfilter->hzmark[i] = sin(v / fconvsize);
-	sfilter->hzmark[i + 2 * sfilter->in_convsize] = cos(v / fconvsize);
+	sfilter->hzmark[i] = sin(v / fcorrsize);
+	sfilter->hzmark[i + 2 * sfilter->in_corrsize] = cos(v / fcorrsize);
     }
 
-    sfilter->hzspace = o->zalloc(o, sizeof(float) * 4 * sfilter->in_convsize);
+    sfilter->hzspace = o->zalloc(o, sizeof(float) * 4 * sfilter->in_corrsize);
     if (!sfilter->hzspace)
 	goto out_nomem;
-    for (i = 0; i < 2 * sfilter->in_convsize; i++) {
+    for (i = 0; i < 2 * sfilter->in_corrsize; i++) {
 	float v = 2 * M_PI * (data->space_freq / data->data_rate) * ((float) i);
-	sfilter->hzspace[i] = sin(v / fconvsize);
-	sfilter->hzspace[i + 2 * sfilter->in_convsize] = cos(v / fconvsize);
+	sfilter->hzspace[i] = sin(v / fcorrsize);
+	sfilter->hzspace[i + 2 * sfilter->in_corrsize] = cos(v / fcorrsize);
     }
 
     if (data->lpcutoff && data->filt_type != NO_FILT) {
@@ -2499,7 +2512,7 @@ gensio_afskmdm_filter_raw_alloc(struct gensio_pparm_info *p,
 	    goto out_nomem;
     }
 
-    sfilter->prevread_size = sfilter->in_convsize * 2 + CONVEDGE;
+    sfilter->prevread_size = sfilter->in_corrsize * 2 + CORREDGE;
     sfilter->prevread = o->zalloc(o,
 		(gensiods) sfilter->in_framesize * sfilter->prevread_size);
     if (!sfilter->prevread)
