@@ -661,6 +661,9 @@ packet_to_addr(struct agwpe_packet *p, bool via, char *addr, unsigned int len,
 	}
 	if (dataoffset)
 	    *dataoffset = p->data[0] * 10 + 1;
+    } else {
+	if (dataoffset)
+	    *dataoffset = 0;
     }
     return true;
 }
