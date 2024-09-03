@@ -305,7 +305,6 @@ io_conn_event(struct gensio *io, void *user_data, int event, int err,
 	    goto out_fail;
 
 	memset(&op, 0, sizeof(op));
-	op.port = 0;
 	op.kind = 'D'; /* Data */
 	/* These are swapped for data packets. */
 	strncpy(op.callfrom, conn->dest_addr, 10);
@@ -693,7 +692,6 @@ encode_report_open(struct agwpe_ax25_conn *conn)
     char data[100];
 
     memset(&op, 0, sizeof(op));
-    op.port = 0;
     op.kind = 'C'; /* Connected */
     strncpy(op.callfrom, conn->local_addr, 10);
     op.callfrom[9] = '\0';
@@ -720,7 +718,6 @@ encode_report_disconnected(struct agwpe_ax25_conn *conn)
     char data[100];
 
     memset(&op, 0, sizeof(op));
-    op.port = 0;
     op.kind = 'd'; /* Disconnected */
     strncpy(op.callfrom, conn->local_addr, 10);
     strncpy(op.callto, conn->dest_addr, 10);
@@ -812,7 +809,6 @@ process_connect(struct agwpe_inst *inst, struct agwpe_packet *p,
 	return 0;
 
     memset(&op, 0, sizeof(op));
-    op.port = 0;
     op.kind = 'd'; /* Disconnected */
     op.pid = pid;
     strcpy(op.callfrom, p->callfrom);
@@ -1457,6 +1453,7 @@ io_tnc_event(struct gensio *io, void *user_data, int event, int err,
 		    fmt = fmtstr;
 		}
 
+		memset(&op, 0, sizeof(op));
 		op.kind = 'U';
 		memcpy(op.callfrom, src, 10);
 		memcpy(op.callto, dest, 10);
