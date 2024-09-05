@@ -3800,16 +3800,22 @@ i_gensio_win_funcs_alloc(unsigned int flags, struct gensio_os_funcs **ro)
     o->user_data = d;
 
     d->waiter = CreateSemaphoreA(NULL, 0, 1000000, NULL);
-    if (!d->waiter)
+    if (!d->waiter) {
+	err = gensio_os_err_to_err(o, GetLastError());
 	goto out_err;
+    }
 
     d->timer_wakeev = WSACreateEvent();
-    if (d->timer_wakeev == WSA_INVALID_EVENT)
+    if (d->timer_wakeev == WSA_INVALID_EVENT) {
+	err = gensio_os_err_to_err(o, GetLastError());
 	goto out_err;
+    }
 
     d->timerth = CreateThread(NULL, 0, timer_thread, o, 0, &d->timerthid);
-    if (!d->timerth)
+    if (!d->timerth) {
+	err = gensio_os_err_to_err(o, GetLastError());
 	goto out_err;
+    }
 
     o->zalloc = win_zalloc;
     o->free = win_free;
