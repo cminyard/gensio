@@ -3034,6 +3034,9 @@ win_browse_query_complete(void *context,
     }
 
  out_err:
+    if (err)
+	gensio_log(o, GENSIO_LOG_INFO, "Invalid mdns data: %s",
+		   gensio_err_to_str(err));
     if (name)
 	o->free(o, name);
     if (host)

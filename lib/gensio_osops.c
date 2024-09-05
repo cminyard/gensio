@@ -1387,6 +1387,7 @@ read_token_info(HANDLE h, TOKEN_INFORMATION_CLASS type, void **rval,
 	/* This should fail. */
 	return ERROR_INVALID_DATA;
     err = GetLastError();
+    assert(err != 0); /* Keep scan-build happy, but probably a good idea. */
     if (err != ERROR_INSUFFICIENT_BUFFER)
 	return err;
     val = malloc(len);
@@ -1394,7 +1395,9 @@ read_token_info(HANDLE h, TOKEN_INFORMATION_CLASS type, void **rval,
 	return STATUS_NO_MEMORY;
     if (!GetTokenInformation(h, type, val, len, &len)) {
 	free(val);
-	return GetLastError();
+	err = GetLastError();
+	assert(err != 0); /* Keep scan-build happy, but probably a good idea. */
+	return err;
     }
     *rval = val;
     if (rlen)
@@ -1476,6 +1479,7 @@ get_logon_sid(SID *user, SID **logon_sid, bool *rfound)
     if (!WTSEnumerateSessionsA(WTS_CURRENT_SERVER_HANDLE, 0, 1,
 			       &sesinfo, &sescount)) {
 	err = GetLastError();
+	assert(err != 0); /* Keep scan-build happy, but probably a good idea. */
 	goto out_err;
     }
 
@@ -2213,6 +2217,7 @@ gensio_win_pty_start(struct gensio_os_funcs *o,
     bool attrs_added = false;
 
     memset(&si, 0, sizeof(si));
+    memset(&procinfo, 0, sizeof(procinfo)); /* Keep scan-build happy. */
 
     err = argv_to_win_cmdline(o, argv, &cmdline);
     if (err)

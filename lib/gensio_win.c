@@ -375,6 +375,7 @@ win_alloc_iod(struct gensio_os_funcs *o, unsigned int size, int fd,
 	wiod->clean(wiod);
     DeleteCriticalSection(&wiod->lock);
     o->free(o, wiod);
+    assert(rv != 0); /* Make scan-build happy, but probably a good idea. */
     return rv;
 }
 
