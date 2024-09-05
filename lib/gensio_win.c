@@ -351,8 +351,10 @@ win_alloc_iod(struct gensio_os_funcs *o, unsigned int size, int fd,
     if (wiod->threadfunc) {
 	wiod->threadh = CreateThread(NULL, 0, wiod->threadfunc, wiod, 0,
 				     &wiod->threadid);
-	if (!wiod->threadh)
+	if (!wiod->threadh) {
+	    rv = gensio_os_err_to_err(o, GetLastError());
 	    goto out_err;
+	}
     }
 
     glock_lock(d);
