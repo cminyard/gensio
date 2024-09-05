@@ -3383,6 +3383,7 @@ ax25_chan_handle_rr(struct ax25_base *base, struct ax25_chan *chan,
 {
     int rv = 0;
 
+    assert(chan); /* Keep scan-build happy. */
     switch (chan->state) {
     case AX25_CHAN_IN_OPEN:
     case AX25_CHAN_REM_DISC:
@@ -3413,6 +3414,7 @@ ax25_chan_handle_rnr(struct ax25_base *base, struct ax25_chan *chan,
 {
     int rv = 0;
 
+    assert(chan); /* Keep scan-build happy. */
     switch (chan->state) {
     case AX25_CHAN_IN_OPEN:
     case AX25_CHAN_REM_DISC:
@@ -3441,6 +3443,7 @@ static int
 ax25_chan_handle_rej(struct ax25_base *base, struct ax25_chan *chan,
 		     uint8_t nr, uint8_t pf, bool is_cmd)
 {
+    assert(chan); /* Keep scan-build happy. */
     switch (chan->state) {
     case AX25_CHAN_IN_OPEN:
     case AX25_CHAN_REM_DISC:
@@ -3492,6 +3495,7 @@ static int
 ax25_chan_handle_srej(struct ax25_base *base, struct ax25_chan *chan,
 		      uint8_t nr, uint8_t pf, bool is_cmd)
 {
+    assert(chan); /* Keep scan-build happy. */
     switch (chan->state) {
     case AX25_CHAN_IN_OPEN:
     case AX25_CHAN_REM_DISC:
