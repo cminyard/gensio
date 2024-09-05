@@ -20,6 +20,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/ioctl.h>
+#include <assert.h>
 #ifdef __linux__
 #include <sys/sysmacros.h> /* For major() and minor() */
 #endif
@@ -66,9 +67,13 @@ uucp_svr4_lock(struct gensio_os_funcs *o, int fd, char **rname)
     size_t len;
     unsigned int maj, min;
     char *name;
+    int err;
 
-    if (fstat(fd, &stat) == -1)
-	return gensio_os_err_to_err(o, errno);
+    if (fstat(fd, &stat) == -1) {
+	err = gensio_os_err_to_err(o, errno);
+	assert(err != 0); /* Keep scan-build happy. */
+	return err;
+    }
 
 #if 0
     /* Should we do this? */
