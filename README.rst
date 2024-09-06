@@ -1134,9 +1134,12 @@ Building on FreeBSD
 
 Install the necessary software:
 
-  pkg install gcc portaudio autoconf automake libtool mDNSResponder swig
+  pkg install gcc portaudio autoconf automake libtool mDNSResponder swig \
+      gmake
 
-The following don't work and are not compiled::
+You have to use gmake to compile it, for some reason the standard make
+on BSD doesn't accept the "c++" variable in a list of requirements.  The
+following don't work and are not compiled::
 
 * sctp
 * ipmisol
@@ -1149,7 +1152,7 @@ Add the following to /etc/rc.conf::
 And reboot or start the service.
 
 The pty gensio fails the oomtest (oomtest 14), there seems to be
-something up with the BSD PTYs I'm seeing a 07 character inserted into
+something up with the BSD PTYs. I'm seeing a 07 character inserted into
 the data stream in cases.  I haven't spent too much time on it,
 though, but since this is heavily tested on Linux and MacOS, I don't
 think the problem is in the gensio code.
