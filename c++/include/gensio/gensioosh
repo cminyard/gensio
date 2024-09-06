@@ -38,6 +38,8 @@ namespace gensios {
 	int err;
     };
 
+    // Handle log calls from the low-level gensio system, generally for
+    // things that cannot be reported another way.
     class GENSIOOSHCPP_DLL_PUBLIC Os_Funcs_Log_Handler {
     public:
 	virtual void log(enum gensio_log_levels level, const std::string log)
@@ -52,6 +54,13 @@ namespace gensios {
 
     GENSIOOSHCPP_DLL_PUBLIC
     int get_log_mask();
+
+    // Used as the startup function for a new thread.
+    class GENSIOOSHCPP_DLL_PUBLIC Os_Funcs_Thread_Func {
+    public:
+	virtual void start() = 0;
+	virtual ~Os_Funcs_Thread_Func() = default;
+    };
 
     // This is a wrapper for gensio_os_funcs that makes using it a lot
     // cleaner.  The default constructor automatically allocates the
@@ -83,7 +92,7 @@ namespace gensios {
 	// gensio_os_funcs.3 for details on process setup.
 	void proc_setup();
 
-	// Do the setup for the thread.  See gensio_os_funcs.c for details.
+	// Do the setup for the thread.  See gensio_os_funcs.3 for details.
 	void thread_setup();
 
 	// If you allocate your own subclass of this, you must call
@@ -114,6 +123,9 @@ namespace gensios {
 	}
 
 	unsigned int get_refcount() { return *refcnt; }
+
+	struct gensio_thread *new_thread(Os_Funcs_Thread_Func *start_func);
+	void wait_thread(struct gensio_thread *thread_id);
 
     private:
 	void refcount_from(const Os_Funcs *o);

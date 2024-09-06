@@ -106,6 +106,34 @@ namespace gensios {
     }
 
     void
+    thread_start_func(void *data) {
+	Os_Funcs_Thread_Func *start_func =
+	    static_cast<Os_Funcs_Thread_Func *>(data);
+
+	start_func->start();
+    }
+
+    struct gensio_thread *
+    Os_Funcs::new_thread(Os_Funcs_Thread_Func *start_func)
+    {
+	int err;
+	struct gensio_thread *id;
+
+	err = gensio_os_new_thread(*this, thread_start_func, start_func, &id);
+	if (err)
+	    throw gensio_error(err);
+	return id;
+    }
+
+    void
+    Os_Funcs::wait_thread(struct gensio_thread *thread_id)
+    {
+	int err = gensio_os_wait_thread(thread_id);
+	if (err)
+	    throw gensio_error(err);
+    }
+
+    void
     Os_Funcs::refcount_from(const Os_Funcs *o)
     {
 	std::atomic<unsigned int> *old_refcnt = refcnt;
