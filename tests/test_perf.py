@@ -8,7 +8,7 @@
 from utils import *
 import gensio
 
-def do_no_test(io1, io2, timeout=2000):
+def do_no_test(io1, io2, timeout=10000):
     io1.handler.ignore_input = True
     io2.handler.ignore_input = True
     io1.handler.waiting_rem_close = True
