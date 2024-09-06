@@ -2,8 +2,8 @@
 ; SEE THE DOCUMENTATION FOR DETAILS ON CREATING INNO SETUP SCRIPT FILES!
 
 #define MyAppName "Gensio"
-#define MyAppVersion "2.8.6"
-#define MyAppLibVersion "10"
+#define MyAppVersion "2.8.7"
+#define MyAppLibVersion "11"
 #define MyAppPublisher "Gensio"
 #define MyAppURL "https://github.com/cminyard/gensio"
 #define InstallDir "c:/msys64/home/cminyard/install/Gensio"
