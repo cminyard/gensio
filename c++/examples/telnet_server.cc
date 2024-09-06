@@ -271,8 +271,17 @@ int main(int argc, char *argv[])
 	}
 
 	err = do_server(o, addr);
+
+	// This is not necessary, but can be used to make sure everything
+	// got freed properly.  refcount on the os handler should be 3,
+	// one for the thread, one for the Addr, and one for the Os_Funcs.
+	if (o.get_refcount() != 3) {
+	    cerr << "Invalid refcount: " << o.get_refcount() << endl;
+	    return 1;
+	}
     } catch (gensio_error &e) {
 	cerr << "gensio error: " << e.what() << endl;
     }
-    return err;
+
+    return !!err;
 }
