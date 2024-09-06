@@ -1278,7 +1278,8 @@ process_fds(struct selector_s *sel, sel_wait_list_t *item, sigset_t *isigmask)
     num_fds = sel->maxfd + 1;
     sel_fd_unlock(sel);
 
-    sigdelset(&sigmask, sel->wake_sig);
+    if (sel->wake_sig)
+	sigdelset(&sigmask, sel->wake_sig);
 
 #ifdef BROKEN_PSELECT
     do {
@@ -1292,10 +1293,12 @@ process_fds(struct selector_s *sel, sel_wait_list_t *item, sigset_t *isigmask)
 	 * been queued or had the time set to zero.  We detect that here
 	 * and set things up properly.
 	 */
-	sigpending(&oldmask);
-	if (!item->signalled && sigismember(&oldmask, sel->wake_sig)) {
-	    pre_signal(item);
-	    time_fixed = true;
+	if (sel->wake_sig) {
+	    sigpending(&oldmask);
+	    if (!item->signalled && sigismember(&oldmask, sel->wake_sig)) {
+		pre_signal(item);
+		time_fixed = true;
+	    }
 	}
 
 	err = sel_set_sigmask(&sigmask, &oldmask);
@@ -1303,7 +1306,7 @@ process_fds(struct selector_s *sel, sel_wait_list_t *item, sigset_t *isigmask)
 	    return err;
 
 	/* If we don't have the wake sig blocked, fix it. */
-	if (!sigismember(&oldmask, sel->wake_sig)) {
+	if (sel->wake_sig && !sigismember(&oldmask, sel->wake_sig)) {
 	    sigaddset(&oldmask, sel->wake_sig);
 	    /*
 	     * Make sure this returns immediately, just in case we
@@ -1396,7 +1399,8 @@ process_fds_epoll(struct selector_s *sel, sel_wait_list_t *item,
 	timeout = ((item->wait_time.ts.tv_sec * 1000) +
 		   (item->wait_time.ts.tv_nsec + 999999) / 1000000);
 
-    sigdelset(&sigmask, sel->wake_sig);
+    if (sel->wake_sig)
+	sigdelset(&sigmask, sel->wake_sig);
     sel_fd_lock(sel);
     entry_fd_del_count = sel->fd_del_count;
     sel_fd_unlock(sel);
@@ -1489,7 +1493,8 @@ process_fds_kevent(struct selector_s *sel, sel_wait_list_t *item,
     bool time_fixed = false;
 
     setup_my_sigmask(&sigmask, isigmask);
-    sigdelset(&sigmask, sel->wake_sig);
+    if (sel->wake_sig)
+	sigdelset(&sigmask, sel->wake_sig);
 
     sel_fd_lock(sel);
     entry_fd_del_count = sel->fd_del_count;
@@ -1504,10 +1509,12 @@ process_fds_kevent(struct selector_s *sel, sel_wait_list_t *item,
     if (rv < 0)
 	return rv;
 
-    sigpending(&pendmask);
-    if (!item->signalled && sigismember(&pendmask, sel->wake_sig)) {
-	pre_signal(item);
-	time_fixed = true;
+    if (sel->wake_sig) {
+	sigpending(&pendmask);
+	if (!item->signalled && sigismember(&pendmask, sel->wake_sig)) {
+	    pre_signal(item);
+	    time_fixed = true;
+	}
     }
 
     /*
@@ -1536,7 +1543,7 @@ process_fds_kevent(struct selector_s *sel, sel_wait_list_t *item,
 	return rv;
 
     /* If we don't have the wake sig blocked, fix it. */
-    if (!sigismember(&oldmask, sel->wake_sig)) {
+    if (sel->wake_sig && !sigismember(&oldmask, sel->wake_sig)) {
 	sigaddset(&oldmask, sel->wake_sig);
 	/*
 	 * Make sure this returns immediately, just in case we
