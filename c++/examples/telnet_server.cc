@@ -24,16 +24,18 @@ using namespace gensios;
 // received characters.
 class Server_Event: public Event {
 public:
+    // Allocate an event handler for a gensio.  When the gensio
+    // closes, wake the waiter.
     Server_Event(Waiter *w) { waiter = w; }
 
-    // This allows the user to determine if the event handler had an
-    // error.
-    const char *get_err() { return errstr; }
-
+    // Due to initialation order, we have to create this object and
+    // pass it to the constructor of the gensio, but we need the
+    // gensio, too.  So we have to set this after the gensio is
+    // created.
     void set_gensio(Gensio *g) { io = g; }
 
 private:
-    // Handle errors, and if no error wreite the read data back into
+    // Handle errors, and if no error write the read data back into
     // the gensio for echoing.
     gensiods read(int err, const SimpleUCharVector data,
 		  const char *const *auxdata) override
@@ -81,7 +83,7 @@ private:
     // waiting on us.
     void freed() override
     {
-	if (errstr) {
+	if (errstr.length() > 0) {
 	    cerr << "Server error handling: " << errstr << endl;
 	}
 
@@ -89,7 +91,7 @@ private:
 	delete this;
     }
 
-    const char *errstr = NULL;
+    std::string errstr;
 
     Gensio *io = NULL;
 
@@ -156,6 +158,8 @@ do_server(Os_Funcs &o, const Addr &addr)
     Acc_Event ae(&w);
     Accepter *atcp, *atelnet;
 
+    // An example of hand-creating a stack instead of using the normal
+    // allocation method.
     atcp = gensio_acc_alloc("tcp", (void *) ((struct gensio_addr *) addr),
 			    NULL, o, NULL);
     atelnet = gensio_acc_alloc("telnet", atcp, NULL, o, &ae);
@@ -183,14 +187,41 @@ class Telnet_Logger: public Os_Funcs_Log_Handler {
     }
 };
 
+class Telnet_Thread: public Os_Funcs_Thread_Func {
+public:
+    Telnet_Thread(Os_Funcs &o) : w(o), o(o) {
+	tid = o.new_thread(this);
+    }
+
+    ~Telnet_Thread() {
+	w.wake();
+	o.wait_thread(tid);
+    }
+
+    void start() {
+	w.wait(1, NULL);
+    }
+
+private:
+    Os_Funcs o;
+    struct gensio_thread *tid;
+    Waiter w;
+};
+
 int main(int argc, char *argv[])
 {
     int err = 1;
 
     try {
-	Os_Funcs o(0, new Telnet_Logger);
+	// -1 (or a specific signal) is required for threads.  It chooses
+	// the default wake signal.
+	Os_Funcs o(-1, new Telnet_Logger);
 
 	o.proc_setup();
+
+	// Add a thread for handling capacity.
+	Telnet_Thread thread1(o);
+
 	Addr addr(o, argv[1], true, NULL, NULL, NULL);
 
 	if (argc < 2) {
