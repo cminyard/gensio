@@ -1426,7 +1426,7 @@ gensio_stdsock_close_socket(struct gensio_iod *iod, bool retry, bool force)
 	return err;
 
 #ifdef _WIN32
-    if (force || !gsi->connected) {
+    if (force || (gsi && !gsi->connected)) {
 	err = close_socket(o, o->iod_get_fd(iod));
 	if (!gsi->connected)
 	    err = 0; /* Windows can return non-zero here, just force success. */
