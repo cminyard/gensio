@@ -227,7 +227,11 @@ public:
 
     ~Telnet_Thread() {
 	w.wake();
-	o.wait_thread(tid);
+	try {
+	    o.wait_thread(tid);
+	} catch (gensio_error &e) {
+	    cerr << "Error waiting for thread: " << e.what() << endl;
+	}
     }
 
     void start() {
