@@ -155,7 +155,7 @@ namespace gensios {
 	     unsigned int port);
 
 	// Allocate an address based on the low-level address.
-	// We assume ethe port is set in this case.
+	// We assume the port is set in this case.
 	Addr(struct gensio_addr *iaddr) {
 	    gaddr = iaddr;
 	    is_port_set = true;
@@ -170,8 +170,16 @@ namespace gensios {
 		throw std::bad_alloc();
 	    this->is_port_set = a.is_port_set;
 	}
+
+	// Allocate an empty address.  You can use the = operator
+	// below to assign it data.
+	Addr() { }
+
 	Addr & operator=(const Addr &a)
 	{
+	    if (this->gaddr)
+		// Address is already assigned.
+		throw gensio_error(GE_INUSE);
 	    this->gaddr = gensio_addr_dup(a);
 	    if (!this->gaddr)
 		throw std::bad_alloc();

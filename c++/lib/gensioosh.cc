@@ -209,7 +209,8 @@ namespace gensios {
 
     Addr::~Addr()
     {
-	gensio_addr_free(gaddr);
+	if (gaddr)
+	    gensio_addr_free(gaddr);
     }
 
     std::string
