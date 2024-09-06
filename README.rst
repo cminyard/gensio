@@ -1129,6 +1129,32 @@ required.
 openipmi should work, but it is not available in homebrew so you would
 have to build it yourself.
 
+Building on FreeBSD
+===================
+
+Install the necessary software:
+
+  pkg install gcc portaudio autoconf automake libtool mDNSResponder swig
+
+The following don't work and are not compiled::
+
+* sctp
+* ipmisol
+* cm108gpio
+
+Add the following to /etc/rc.conf::
+
+  mdnsd_enable=YES
+
+And reboot or start the service.
+
+The pty gensio fails the oomtest (oomtest 14), there seems to be
+something up with the BSD PTYs I'm seeing a 07 character inserted into
+the data stream in cases.  I haven't spent too much time on it,
+though, but since this is heavily tested on Linux and MacOS, I don't
+think the problem is in the gensio code.
+
+
 Building on Windows
 ===================
 
@@ -1138,6 +1164,7 @@ things don't work::
 * sctp
 * pam
 * libwrap
+* ipmisol
 
 You also don't need to install alsa, it uses the Windows sound interface for
 sound.
