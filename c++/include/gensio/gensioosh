@@ -60,7 +60,9 @@ namespace gensios {
     class GENSIOOSHCPP_DLL_PUBLIC Os_Funcs {
     public:
 	// Allocate an os function handlers for the platform.
-	// See gensio_alloc_os_funcs.3 for details.
+	// See gensio_alloc_os_funcs.3 for details.  Note that if you
+	// pass in -1 for wait_sig, it will pick the default wait signal,
+	// SIGUSR1 on Unix type systems.
 	Os_Funcs(int wait_sig, Os_Funcs_Log_Handler *logger = NULL);
 
 	Os_Funcs(int wait_sig, Os_Funcs_Log_Handler *logger,

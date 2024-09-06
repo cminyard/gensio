@@ -62,6 +62,8 @@ namespace gensios {
 	int err;
 	struct gensio_os_funcs *o;
 
+	if (wait_sig == -1)
+	    wait_sig = GENSIO_DEF_WAKE_SIG;
 	err = gensio_alloc_os_funcs(wait_sig, &o, 0);
 	if (err)
 	    throw gensio_error(err);
@@ -75,6 +77,8 @@ namespace gensios {
 	struct gensio_os_funcs *o;
 	va_list ap;
 
+	if (wait_sig == -1)
+	    wait_sig = GENSIO_DEF_WAKE_SIG;
 	va_start(ap, flags);
 	err = gensio_valloc_os_funcs(wait_sig, &o, flags, ap);
 	va_end(ap);
