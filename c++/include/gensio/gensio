@@ -833,6 +833,7 @@ namespace gensios {
 	    acc->free();
 	}
 	Accepter * operator->() { return acc; }
+	Accepter * operator&() { return acc; }
     private:
 	Accepter *acc;
     };
