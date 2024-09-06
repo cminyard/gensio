@@ -1534,7 +1534,8 @@ win_oneway_in_thread(LPVOID data)
 		    }
 		    LeaveCriticalSection(&wiod->lock);
 		}
-		EnterCriticalSection(&wiod->lock);
+		/*  No need, can't be reached. */
+		/* EnterCriticalSection(&wiod->lock); */
 	    }
 	leave_peek_loop:
 	    if (wiod->done)
