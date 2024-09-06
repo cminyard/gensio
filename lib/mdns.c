@@ -3409,8 +3409,6 @@ gensio_mdnslib_start(struct gensio_mdns *m)
 	o->clear_fd_handlers_norpt(m->iod);
     if (m->dnssd_fd != -1)
 	DNSServiceRefDeallocate(m->dnssd_sref);
-    if (m->lock)
-	o->free_lock(m->lock);
     return err;
 }
 
