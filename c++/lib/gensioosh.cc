@@ -228,9 +228,9 @@ namespace gensios {
 	    throw gensio_error(err);
 	buf = new char[len + 1];
 	if (all)
-	    err = gensio_addr_to_str_all(addr, buf, NULL, len);
+	    err = gensio_addr_to_str_all(addr, buf, NULL, len + 1);
 	else
-	    err = gensio_addr_to_str(addr, buf, NULL, len);
+	    err = gensio_addr_to_str(addr, buf, NULL, len + 1);
 	if (err) {
 	    delete[] buf;
 	    throw gensio_error(err);
