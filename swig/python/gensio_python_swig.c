@@ -151,11 +151,11 @@ gensio_swig_setup_os_funcs(struct gensio_os_funcs *o,
 #ifdef USE_POSIX_THREADS
 static void os_funcs_lock(struct os_funcs_data *odata)
 {
-    pthread_mutex_lock(&odata->lock);
+    assert(pthread_mutex_lock(&odata->lock) == 0);
 }
 static void os_funcs_unlock(struct os_funcs_data *odata)
 {
-    pthread_mutex_unlock(&odata->lock);
+    assert(pthread_mutex_unlock(&odata->lock) == 0);
 }
 #else
 void os_funcs_lock(struct os_funcs_data *odata)
