@@ -4,13 +4,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // This is a basic telnet server, it accepts one connection and echos
-// back everything it receives.
-//
-// This directly allocates the accepter classes instead of using
-// alloc_accepter() and letting strings drive it.  Generally, using
-// alloc_accepter() is preferred, it's easier and more flexible, but
-// this shows another way it can be done, if, for instance, you need
-// to dynamically stack new gensios onto an existing stack.
+// back everything it receives.  It takes an accepter string as an
+// argument.
 
 #include <iostream>
 #include <string>
@@ -26,7 +21,7 @@ class Server_Event: public Event {
 public:
     // Allocate an event handler for a gensio.  When the gensio
     // closes, wake the waiter.
-    Server_Event(Waiter *w) { waiter = w; }
+    Server_Event(Waiter *w, string *errstr) : waiter(w), errstr(errstr) {}
 
     // Due to initialation order, we have to create this object and
     // pass it to the constructor of the gensio, but we need the
@@ -36,7 +31,9 @@ public:
 
 private:
     // Handle errors, and if no error write the read data back into
-    // the gensio for echoing.
+    // the gensio for echoing.  Note that read calls are guaranteed by
+    // gensio to be single-threaded, so a lock is not required here
+    // because it doesn't interact with anything else.
     gensiods read(int err, const SimpleUCharVector data,
 		  const char *const *auxdata) override
     {
@@ -44,7 +41,7 @@ private:
 
 	if (err) {
 	    if (err != GE_REMCLOSE)
-		errstr = gensio_err_to_str(err);
+		*errstr = gensio_err_to_str(err);
 	    io->set_read_callback_enable(false);
 	    io->set_write_callback_enable(false);
 	    io->free();
@@ -54,7 +51,7 @@ private:
 	try {
 	    count = io->write(data, NULL);
 	} catch (gensio_error &e) {
-	    errstr = e.what();
+	    *errstr = e.what();
 	    io->set_read_callback_enable(false);
 	    io->set_write_callback_enable(false);
 	    io->free();
@@ -71,6 +68,9 @@ private:
 	return count;
     }
 
+    // Like read(), write_ready() is guaranteed to be single-threaded
+    // against other write_ready() calls on the same gensio (but not
+    // against the read() callback).
     void write_ready() override
     {
 	// We were flow controlled on write and we can write again.
@@ -83,19 +83,13 @@ private:
     // waiting on us.
     void freed() override
     {
-	if (errstr.length() > 0) {
-	    cerr << "Server error handling: " << errstr << endl;
-	}
-
 	waiter->wake();
 	delete this;
     }
 
-    std::string errstr;
-
     Gensio *io = NULL;
-
     Waiter *waiter;
+    string *errstr;
 };
 
 // Handle accept events from the accepter stack.  Basically, just kick
@@ -103,8 +97,10 @@ private:
 // in to the constructor.
 class Acc_Event: public Accepter_Event {
 public:
-    Acc_Event(Waiter *w) { waiter = w; }
+    Acc_Event(Waiter *w, string *errstr) : waiter(w), errstr(errstr)  { }
 
+    // Like Server_Event, initialization order forces us to set the
+    // accepter separately.
     void set_accepter(Accepter *iacc) { acc = iacc; }
 
 private:
@@ -129,24 +125,36 @@ private:
 	    return;
 	}
 	connected = true;
-	Server_Event *ev = new Server_Event(waiter);
+	Server_Event *ev = new Server_Event(waiter, errstr);
 	g->set_event_handler(ev);
 	ev->set_gensio(g);
 	g->set_read_callback_enable(true);
 	g->set_write_callback_enable(true);
-	acc->free();
-    }
 
-    // The free of the accepter has completed, wake up whatever is
-    // waiting.
-    void freed() override
-    {
+	// Don't accept any more connections, but inform that we are done.
+	acc->shutdown();
 	waiter->wake();
     }
 
     bool connected = false;
     Waiter *waiter;
+    string *errstr;
 };
+
+// We demo three different ways to allocate an accepter.  The first is
+// a hand-created stack, which demos how we can hand create and stack
+// gensios or accepters on top of existing gensios/accepters.  This is
+// not so useful here, but is if you accept a gensio then need to put
+// another one on top of it.
+//
+// The second is the normal way to allocate an accepter with a string.
+//
+// The last is using RAII, which is the right way to do it in this
+// case.
+
+//#define HAND_CREATE_STACK
+//#define NORMAL_ALLOCATION
+#define USE_RAII
 
 // The basic server handling.  Allocate the gensio stack, tcp and
 // telnet, and kick off processing.  Wait until the accepter and new
@@ -155,7 +163,9 @@ static int
 do_server(Os_Funcs &o, const Addr &addr)
 {
     Waiter w(o);
-    Acc_Event ae(&w);
+    string errstr;
+    Acc_Event ae(&w, &errstr);
+#ifdef HAND_CREATE_STACK
     Accepter *atcp, *atelnet;
 
     // An example of hand-creating a stack instead of using the normal
@@ -164,6 +174,18 @@ do_server(Os_Funcs &o, const Addr &addr)
 			    NULL, o, NULL);
     atelnet = gensio_acc_alloc("telnet", atcp, NULL, o, &ae);
     ae.set_accepter(atelnet);
+#endif
+#ifdef NORMAL_ALLOCATION
+    Accepter *atelnet;
+
+    // Allocate it more normally.
+    atelnet = gensio_acc_alloc("telnet,tcp," + addr.to_string(), o, &ae);
+    ae.set_accepter(atelnet);
+#endif
+#ifdef USE_RAII
+    AccepterW atelnet("telnet,tcp," + addr.to_string(), o, &ae);
+    ae.set_accepter(&atelnet);
+#endif
 
     try {
 	atelnet->startup();
@@ -171,9 +193,18 @@ do_server(Os_Funcs &o, const Addr &addr)
 	cerr << "Error opening: " << e.what() << endl;
 	return 1;
     }
-    cout << "Port is: " << atcp->get_port() << endl;
+    cout << "Port is: " << atelnet->get_port() << endl;
     atelnet->set_callback_enable(true);
     w.wait(2, NULL);
+
+#if defined(NORMAL_ALLOCATION) || defined(HAND_CREATE_STACK)
+    // No need with RAII, it handles the deallocation automatically.
+    atelnet->free();
+#endif
+
+    if (errstr.length() > 0) {
+	cerr << "Server error: " << errstr << endl;
+    }
 
     return 0;
 }
@@ -187,6 +218,7 @@ class Telnet_Logger: public Os_Funcs_Log_Handler {
     }
 };
 
+// This is a demo of an extra thread we start, using the RAII principle.
 class Telnet_Thread: public Os_Funcs_Thread_Func {
 public:
     Telnet_Thread(Os_Funcs &o) : w(o), o(o) {
@@ -212,6 +244,11 @@ int main(int argc, char *argv[])
 {
     int err = 1;
 
+    if (argc < 2) {
+	cerr << "Takes a single gensio accepter as an argument" << endl;
+	return 1;
+    }
+
     try {
 	// -1 (or a specific signal) is required for threads.  It chooses
 	// the default wake signal.
@@ -222,10 +259,14 @@ int main(int argc, char *argv[])
 	// Add a thread for handling capacity.
 	Telnet_Thread thread1(o);
 
-	Addr addr(o, argv[1], true, NULL, NULL, NULL);
-
-	if (argc < 2) {
-	    cerr << "No listen address argument given" << endl;
+	// Wrap this so we can print a nicer error if the address
+	// conversion fails.
+	Addr addr;
+	try {
+	    Addr taddr(o, argv[1], true, NULL, NULL, NULL);
+	    addr = taddr;
+	} catch (gensio_error &e) {
+	    cerr << "Invalid gensio address: " << e.what() << endl;
 	    return 1;
 	}
 
