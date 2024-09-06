@@ -1135,7 +1135,7 @@ Building on FreeBSD
 Install the necessary software:
 
   pkg install gcc portaudio autoconf automake libtool mDNSResponder swig \
-      gmake
+      go python3 gmake
 
 You have to use gmake to compile it, for some reason the standard make
 on BSD doesn't accept the "c++" variable in a list of requirements.  The
