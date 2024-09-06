@@ -229,8 +229,8 @@ namespace gensios {
 	bool port_set() const { return is_port_set; }
 
     private:
-	struct gensio_addr *gaddr;
-	bool is_port_set;
+	struct gensio_addr *gaddr = NULL;
+	bool is_port_set = false;
     };
 
     //*****************************************************************
