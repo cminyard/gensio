@@ -1676,11 +1676,14 @@ A transparent gensio that allows the data passing through it to be
 sent to a file.  Useful for debugging.  It can also block data in
 either direction.
 
-Note that the trace gensio only prints data that is accepted by the
-other end.  So, for instance, if the trace gensio receives 100 bytes
-of read data, it will deliver it immediately to the gensio above it.
-If that only accepts 40 bytes, trace will only print 40 bytes and will
-only accept 40 bytes from the gensio below it.  Same for sent data.
+Note that the trace gensio with the dir option only prints data that
+is accepted by the other end.  So, for instance, if the trace gensio
+receives 100 bytes of read data, it will deliver it immediately to the
+gensio above it.  If that only accepts 40 bytes, trace will only print
+40 bytes and will only accept 40 bytes from the gensio below it.  Same
+for sent data.  If you want to se the data before delivery to the
+gensio/user above/below, use the b4dir option, but remember all the data
+may not be accepted.  You can use dir and b4dir at the same time.
 .SS Options
 trace does not support readbuf.  It supports the following options:
 .TP
@@ -1689,6 +1692,12 @@ Sets what data is traced.  "none" means no data is traced (the
 default), "read" traces data flowing up the gensio stack (read by the
 parent), write traces data flowing down the gensio stack (written by
 the parent), and "both" traces reads and writes.
+.TP
+.B b4dir=none|read|write|both
+Like dir, but traces the data before the handler is called with all
+the data presented to the output.  All the data may not be accepted,
+as mentioned above, but it will let you see the data before the
+handler in case that's useful.
 .TP
 .B block=none|read|write|both
 Blocks data in one or both directions.  "none" means data flows both
