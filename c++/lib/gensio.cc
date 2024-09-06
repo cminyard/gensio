@@ -216,7 +216,7 @@ namespace gensios {
 		    va_end(argcopy);
 		    std::string outstr(len + 1, '\0');
 		    vsnprintf(&outstr[0], len + 1, d->log, d->args);
-		    cb->parmlog(outstr);
+		    cb->parmlog(std::move(outstr));
 		    return 0;
 		}
 
@@ -406,7 +406,7 @@ namespace gensios {
 	    va_end(argcopy);
 	    std::string outstr(len, '\0');
 	    vsnprintf(&outstr[0], len + 1, p->log, p->args);
-	    cb->log(p->level, outstr);
+	    cb->log(p->level, std::move(outstr));
 	    return 0;
 	}
 
@@ -1183,7 +1183,7 @@ namespace gensios {
 		    va_end(argcopy);
 		    std::string outstr(len + 1, '\0');
 		    vsnprintf(&outstr[0], len + 1, d->log, d->args);
-		    cb->parmlog(outstr);
+		    cb->parmlog(std::move(outstr));
 		    break;
 		}
 
