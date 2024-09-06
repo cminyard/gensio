@@ -68,10 +68,17 @@ namespace gensios {
     // This is a smart pointer like object.
     class GENSIOOSHCPP_DLL_PUBLIC Os_Funcs {
     public:
-	// Allocate an os function handlers for the platform.
-	// See gensio_alloc_os_funcs.3 for details.  Note that if you
-	// pass in -1 for wait_sig, it will pick the default wait signal,
+	// Allocate an os function handlers for the platform.  See
+	// gensio_alloc_os_funcs.3 for details.  Note that if you pass
+	// in -1 for wait_sig, it will pick the default wait signal,
 	// SIGUSR1 on Unix type systems.
+        //
+        // The logger you pass in here *must* be dynamically
+        // allocated, the Os_Funcs takes over the task of freeing it
+        // when done.  This is a little strange, but that way if the
+        // Os_Funcs here gets destroyed and another one outlives it, a
+        // locally allocated logger won't be deleted while still in
+        // use.
 	Os_Funcs(int wait_sig, Os_Funcs_Log_Handler *logger = NULL);
 
 	Os_Funcs(int wait_sig, Os_Funcs_Log_Handler *logger,
