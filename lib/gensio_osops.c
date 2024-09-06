@@ -1987,16 +1987,17 @@ gensio_win_get_user_token(const char *user, const char *password,
  out_err:
     if (extra_groups)
 	free_groups(extra_groups);
-    if (htok)
-	CloseHandle(htok);
     if (usersid)
 	free(usersid);
     if (wuser)
 	free(wuser);
     if (logon_info)
 	free(logon_info);
-    if (profile_info.hProfile)
-	UnloadUserProfile(htok, profile_info.hProfile);
+    if (htok) {
+	CloseHandle(htok);
+	if (profile_info.hProfile)
+	  UnloadUserProfile(htok, profile_info.hProfile);
+    }
     if (profile)
 	LsaFreeReturnBuffer(profile);
     if (lsah)
