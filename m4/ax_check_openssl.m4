@@ -77,10 +77,17 @@ AC_DEFUN([AX_CHECK_OPENSSL], [
 		mingw*)
 		    case $target_cpu in
 		    i686)
-		        ssldirs="$ssldirs /mingw32"
+		        ssldirs="/mingw32 $ssldirs"
 			;;
 		    x86_64)
-		        ssldirs="$ssldirs /ucrt64 /mingw64"
+		        case "$MSYSTEM" in
+			UCRT64)
+		            ssldirs="/ucrt64 $ssldirs"
+			    ;;
+			MINGW64)
+		            ssldirs="/mingw64 $ssldirs"
+			    ;;
+			esac
 			;;
 		    esac
 		    ;;
