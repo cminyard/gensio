@@ -8,7 +8,7 @@
 #ifndef GENSIO_SELECTOR_H
 #define GENSIO_SELECTOR_H
 
-#include <gensio/gensio_dllvisibility.h>
+#include <gensio/gensioosh_dllvisibility.h>
 
 struct selector_s; /* Don't include selector.h to reduce namespace pollution. */
 
@@ -18,7 +18,7 @@ struct selector_s; /* Don't include selector.h to reduce namespace pollution. */
  * Same as gensio_unix_func_alloc(), use that function instead.  This
  * is here for backwards compatibility.
  */
-GENSIO_DLL_PUBLIC
+GENSIOOSH_DLL_PUBLIC
 struct gensio_os_funcs *gensio_selector_alloc(struct selector_s *sel,
 					      int wake_sig);
 

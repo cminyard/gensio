@@ -10,33 +10,10 @@
 #include <sys/time.h> /* For timeval */
 #include <signal.h>
 
-#if defined GENSIO_LINK_STATIC
-  #define SEL_DLL_PUBLIC
-  #define SEL_DLL_LOCAL
-#elif defined _WIN32 || defined __CYGWIN__
-  #ifdef BUILDING_GENSIO_DLL
-    #ifdef __GNUC__
-      #define SEL_DLL_PUBLIC __attribute__ ((dllexport))
-    #else
-      #define SEL_DLL_PUBLIC __declspec(dllexport) // Note: actually gcc seems to also supports this syntax.
-    #endif
-  #else
-    #ifdef __GNUC__
-      #define SEL_DLL_PUBLIC __attribute__ ((dllimport))
-    #else
-      #define SEL_DLL_PUBLIC __declspec(dllimport) // Note: actually gcc seems to also supports this syntax.
-    #endif
-  #endif
-  #define SEL_DLL_LOCAL
-#else
-  #if __GNUC__ >= 4
-    #define SEL_DLL_PUBLIC __attribute__ ((visibility ("default")))
-    #define SEL_DLL_LOCAL  __attribute__ ((visibility ("hidden")))
-  #else
-    #define SEL_DLL_PUBLIC
-    #define SEL_DLL_LOCAL
-  #endif
-#endif
+#include <gensio/gensioosh_dllvisibility.h>
+
+#define SEL_DLL_PUBLIC GENSIOOSH_DLL_PUBLIC
+#define SEL_DLL_LOCAL GENSIOOSH_DLL_LOCAL
 
 #ifdef __cplusplus
 extern "C" {

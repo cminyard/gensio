@@ -12,7 +12,7 @@
 extern "C" {
 #endif
 
-#include <gensio/gensio_dllvisibility.h>
+#include <gensio/gensioosh_dllvisibility.h>
 #include <gensio/gensio_types.h>
 
 struct selector_s; /* Don't include selector.h to reduce namespace pollution. */
@@ -28,7 +28,7 @@ struct selector_s; /* Don't include selector.h to reduce namespace pollution. */
  * If you pass in a selector, it will not be freed when the os funcs
  * is freed.
  */
-GENSIO_DLL_PUBLIC
+GENSIOOSH_DLL_PUBLIC
 int gensio_unix_funcs_alloc(struct selector_s *sel, int wake_sig,
 			    struct gensio_os_funcs **ro);
 
