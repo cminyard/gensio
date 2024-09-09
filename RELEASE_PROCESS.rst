@@ -13,7 +13,12 @@ and FreeBSD do:
   cd ..
   rm -rf Ztest
 
-and obviously everything should pass on all platforms.
+and obviously everything should pass on all platforms.  Before running
+tests on Linux, make sure the serialsim driver is installed so it will
+be able to run all the tests.
+
+Install it on a local system, make sure the serialsim driver is
+installed, and run the ser2net tests.
 
 Then create the new version.  To do this:
 
@@ -62,7 +67,7 @@ Now we can check homebrew on MacOS.  On a MacOS system, do:
 
 * Do a sha256sum on the gensio-x-x-x.tar.gz file.
 
-* vi /opt/homebrew/cd Library/Taps/homebrew/homebrew-core/Formula/g/gensio/rb
+* vi /opt/homebrew/cd Library/Taps/homebrew/homebrew-core/Formula/g/gensio.rb
   and edit the version number and set the sha256.
 
 * HOMEBREW_NO_INSTALL_FROM_API=1 brew reinstall --build-from-source gensio
