@@ -533,8 +533,10 @@ gensio_sound_pa_api_setup(struct gensio_pparm_info *p,
 	o->free(o, si->cardname);
 	si->cardname = NULL;
     }
-    if (w)
+    if (w) {
+	si->pinfo = NULL;
 	o->free(o, w);
+    }
     Pa_Terminate();
     return err;
 }
