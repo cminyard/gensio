@@ -383,6 +383,7 @@ main(int argc, char *argv[])
     if (waiter)
 	gensio_os_funcs_free_waiter(o, waiter);
     gensio_os_proc_cleanup(proc_data);
+    gensio_cleanup_mem(o);
     gensio_os_funcs_free(o);
 
     return !!rv;
