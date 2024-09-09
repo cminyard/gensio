@@ -38,7 +38,11 @@ pkgconfigexec_DATA = libgensio_python_swig.pc
 nodist__gensio_la_SOURCES = gensio_wrap.c
 _gensio_la_LIBADD = $(top_builddir)/lib/libgensio.la \
 		$(top_builddir)/lib/libgensiomdns.la  \
-		$(PYTHON_UNDEF_LIBS) libgensio_python_swig.la
+		$(PYTHON_UNDEF_LIBS) libgensio_python_swig.la \
+		$(top_builddir)/lib/libgensio.la \
+		$(top_builddir)/lib/libgensioosh.la \
+		$(top_builddir)/lib/libgensiomdns.la \
+		$(PYTHON_LIBS)
 _gensio_la_LDFLAGS = -module -avoid-version $(OPENSSL_LDFLAGS) \
 		-no-undefined $(PYTHON_UNDEF_FLAG) $(PYTHON_EXT_EXT_SET)
 
