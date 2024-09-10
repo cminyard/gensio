@@ -70,10 +70,11 @@ Now we can check homebrew on MacOS.  On a MacOS system, do:
 * vi /opt/homebrew/cd Library/Taps/homebrew/homebrew-core/Formula/g/gensio.rb
   and edit the version number and set the sha256.
 
-* HOMEBREW_NO_INSTALL_FROM_API=1 brew reinstall --build-from-source gensio
-  It should complete without error.  Well, there may be errors about being
-  unable to uninstall the old version, but that's ok.  It will tell you
-  how to remove it by hand.
+* HOMEBREW_NO_INSTALL_FROM_API=1 brew reinstall --build-from-source
+  gensio It should complete without error.  Well, there may be errors
+  about being unable to uninstall the old version, but that's ok.  It
+  will tell you how to remove it by hand.  Then do a "brew test
+  gensio" and "brew audit gensio"
 
 * Do "sudo sudo brew services stop gensio" then "sudo sudo brew
   services start gensio" and test that gtlsshd works.
