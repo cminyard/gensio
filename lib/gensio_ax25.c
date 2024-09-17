@@ -2623,6 +2623,14 @@ ax25_chan_handle_sabm(struct ax25_base *base, struct ax25_chan *chan,
 	}
 
 	if (base->waiting_first_open) {
+	    /*
+	     * There is no base lock here.  That should not be necessary,
+	     * the other code we can race with is in
+	     * i_ax25_base_handle_child_err(), but that can only be called
+	     * from the receive code (which we are already in and is single
+	     * threaded) or the write code, which shouldn't be able to be
+	     * called yet.
+	     */
 	    base->waiting_first_open = false;
 	    chan = ax25_base_promote_first_chan(base);
 	    chan->conf.addr = gensio_addr_dup(&addr->r);
@@ -3566,6 +3574,7 @@ i_ax25_base_handle_child_err(struct ax25_base *base, int err)
 	 * doesn't matter.
 	 */
 	chan->state = AX25_CHAN_IN_OPEN;
+	base->waiting_first_open = false;
     }
 
     gensio_list_for_each(&base->chans, l) {
