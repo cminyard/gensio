@@ -1,0 +1,15 @@
+#!/bin/sh
+
+# This sets the entitlements on the programs passed in so they can be
+# debugged and generate core dumps.
+#
+# To run this in a libtool environment, do:
+#
+#  ./libtool execute ../macos-entitle <executable>
+
+ENTITLEMENTS=tmp.entitlements
+if [ ! -e "$ENTITLEMENTS" ]; then
+    /usr/libexec/PlistBuddy -c \
+	"Add :com.apple.security.get-task-allow bool true" tmp.entitlements
+fi
+codesign -s - -f --entitlements "$ENTITLEMENTS" $*
