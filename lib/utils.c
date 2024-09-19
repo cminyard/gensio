@@ -11,6 +11,9 @@
 #include <string.h>
 #include <assert.h>
 #include <ctype.h>
+#if HAVE_STDC_ATOMICS
+#include <stdatomic.h>
+#endif
 
 #include <gensio/gensio.h>
 #include <gensio/gensio_list.h>
@@ -839,8 +842,10 @@ gensio_log_level_to_str(enum gensio_log_levels level)
 }
 
 struct gensio_cntstr {
-    int refcount;
-#if !HAVE_GCC_ATOMICS
+#if HAVE_STDC_ATOMICS
+    atomic_int refcount;
+#else
+    unsigned int refcount;
     struct gensio_lock *lock;
 #endif
     char *str;
@@ -872,8 +877,8 @@ gensio_cntstr_make(struct gensio_os_funcs *o, const char *src,
 gensio_cntstr *
 gensio_cntstr_ref(struct gensio_os_funcs *o, gensio_cntstr *str)
 {
-#if HAVE_GCC_ATOMICS
-    __atomic_add_fetch(&str->refcount, 1, __ATOMIC_SEQ_CST);
+#if HAVE_STDC_ATOMICS
+    str->refcount++;
 #else
     o->lock(str->lock);
     str->refcount++;
@@ -885,14 +890,14 @@ gensio_cntstr_ref(struct gensio_os_funcs *o, gensio_cntstr *str)
 void
 gensio_cntstr_free(struct gensio_os_funcs *o, gensio_cntstr *str)
 {
-    assert(str->refcount > 0);
-#if HAVE_GCC_ATOMICS
-    if (__atomic_sub_fetch(&str->refcount, 1, __ATOMIC_SEQ_CST) == 0) {
+#if HAVE_STDC_ATOMICS
+    int prev = atomic_fetch_sub(&str->refcount, 1);
+    assert(prev > 0);
+    if (prev == 1)
 	o->free(o, str);
-	return;
-    }
 #else
     o->lock(str->lock);
+    assert(str->refcount > 0);
     str->refcount--;
     if (str->refcount == 0) {
 	o->unlock(str->lock);

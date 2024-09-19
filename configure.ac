@@ -2242,16 +2242,13 @@ AC_DEFINE_UNQUOTED([USE_FILE_STDIO], [$USE_FILE_STDIO],
 	           [Use stdio for the file gensio])
 
 AC_LANG(C)
-AC_LINK_IFELSE([AC_LANG_PROGRAM([], [
-	static int counter = 0;
-	int val;
 
-	__atomic_load(&counter, &val, __ATOMIC_SEQ_CST);
-	return val;])],
-	[HAVE_GCC_ATOMICS=1],
-	[HAVE_GCC_ATOMICS=0])
-AC_DEFINE_UNQUOTED([HAVE_GCC_ATOMICS], [$HAVE_GCC_ATOMICS],
-	           [Are GCC atomic operations available])
+# There is a built-in C macro to check if atomics are *not* available.
+# But that won't work on old compilers that don't have the macro set if
+# they don't have it.  Check ourselves.
+AC_CHECK_HEADER(stdatomic.h, [HAVE_STDC_ATOMICS=1], [HAVE_STDC_ATOMICS=0])
+AC_DEFINE_UNQUOTED([HAVE_STDC_ATOMICS], [$HAVE_STDC_ATOMICS],
+	           [Are standard C atomic operations available])
 
 AC_CHECK_FUNCS(sendmsg)
 AC_CHECK_FUNCS(recvmsg)
