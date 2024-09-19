@@ -5416,6 +5416,12 @@ ax25a_alloc_gensio(struct ax25a_data *nadata, const char * const *iargs,
     return ax25_gensio_alloc(child, iargs, nadata->o, NULL, NULL, rio);
 }
 
+/*
+ * On an accepter, when a new child comes in we do not immediately
+ * start things up.  Instead, we wait for an incoming connection
+ * first, then deliver the gensio for that connection as a newly
+ * accepted gensio.
+ */
 static int
 ax25a_new_child(struct ax25a_data *adata, void **finish_data,
 		struct gensio_new_child_io *ncio)
