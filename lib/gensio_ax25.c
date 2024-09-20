@@ -360,12 +360,16 @@ static void i_ax25_base_add_lock(struct ax25_base *base, int line);
 static void i_ax25_base_add_other(struct ax25_base *base,
 				  enum ax25_base_trace_type type,
 				  int other, int line);
+static void i_ax25_base_lock_add_other(struct ax25_base *base,
+				       enum ax25_base_trace_type type,
+				       int other, int line);
 #else
 #define i_ax25_base_add_lock(base, line)
 #define i_ax25_base_add_unlock(base, line)
 #define i_ax25_base_add_other(base, type, other, line)
-#define i_ax25_chan_add_lock(chan, line)
-#define i_ax25_chan_add_unlock(chan, line)
+#define i_ax25_base_lock_add_other(base, type, other, line)
+#define i_ax25_chan_lock_add_lock(chan, line)
+#define i_ax25_chan_lock_add_unlock(chan, line)
 #endif
 
 /*
@@ -408,6 +412,11 @@ static void i_ax25_base_add_other(struct ax25_base *base,
  * channel lock is grabbed, it checked base_lock_delete to know if it
  * should delete it.  These variables can only be used under the base
  * lock.
+ *
+ * FIXME - all this crazy locking could probably go away if we used
+ * atomic refcounts on the channel.  But it's subtle, the channel
+ * deref could decrement the count to zero, then the code scanning
+ * the base lock could increment it,  But it could be done, I think.
  *
  * Unnumbered information (UI), opens, and error adds another twist
  * because they need to be able to process multiple channels.  Each of
@@ -965,10 +974,8 @@ i_ax25_chan_lock(struct ax25_chan *chan)
     chan->locked = true;
 }
 #define ax25_chan_lock(chan) do { \
-	i_ax25_chan_lock((chan));		\
-	i_ax25_base_lock((chan)->base);		\
-	i_ax25_chan_add_lock(chan, __LINE__);	\
-	i_ax25_base_unlock((chan)->base);	\
+	i_ax25_chan_lock((chan));			\
+	i_ax25_chan_lock_add_lock(chan, __LINE__);	\
     } while(false)
 
 static void
@@ -979,10 +986,8 @@ i_ax25_chan_unlock(struct ax25_chan *chan)
     chan->o->unlock(chan->lock);
 }
 #define ax25_chan_unlock(chan) do { \
-	i_ax25_base_lock((chan)->base);		\
-	i_ax25_chan_add_unlock(chan, __LINE__);	\
-	i_ax25_base_unlock((chan)->base);	\
-	i_ax25_chan_unlock((chan));		\
+	i_ax25_chan_lock_add_unlock(chan, __LINE__);	\
+	i_ax25_chan_unlock((chan));			\
     } while(false)
 
 static void
@@ -1040,10 +1045,8 @@ i_ax25_chan_ref(struct ax25_chan *chan, int line)
     assert(chan->locked);
     assert(chan->refcount > 0);
     chan->refcount++;
-    i_ax25_base_lock(chan->base);
-    i_ax25_base_add_other(chan->base, AX25_TRACE_CHAN_REF,
-			  chan->refcount, line);
-    i_ax25_base_unlock(chan->base);
+    i_ax25_base_lock_add_other(chan->base, AX25_TRACE_CHAN_REF,
+			       chan->refcount, line);
 }
 #define ax25_chan_ref(chan) i_ax25_chan_ref((chan), __LINE__)
 
@@ -1064,10 +1067,8 @@ i_ax25_chan_deref(struct ax25_chan *chan, int line)
 {
     assert(chan->locked);
     assert(chan->refcount > 1);
-    i_ax25_base_lock(chan->base);
-    i_ax25_base_add_other(chan->base, AX25_TRACE_CHAN_DEREF,
-			  chan->refcount, line);
-    i_ax25_base_unlock(chan->base);
+    i_ax25_base_lock_add_other(chan->base, AX25_TRACE_CHAN_DEREF,
+			       chan->refcount, line);
     chan->refcount--;
 }
 #define ax25_chan_deref(chan) i_ax25_chan_deref((chan), __LINE__)
@@ -1080,9 +1081,8 @@ i_ax25_chan_deref_and_unlock(struct ax25_chan *chan, int line)
 
     assert(chan->locked);
     assert(chan->refcount > 0);
-    i_ax25_base_lock(base);
-    i_ax25_base_add_other(base, AX25_TRACE_CHAN_DEREF, chan->refcount, line);
-    i_ax25_base_unlock(base);
+    i_ax25_base_lock_add_other(base, AX25_TRACE_CHAN_DEREF,
+			       chan->refcount, line);
     count = --chan->refcount;
     if (count == 0) {
 	i_ax25_base_lock(base);
@@ -1144,6 +1144,7 @@ i_ax25_base_finish_trace(struct ax25_base *base, enum ax25_base_trace_type type,
 	base->state_trace_pos++;
 }
 
+/* Set the state with only the channel locked, not base. */
 static void
 i_ax25_chan_set_state(struct ax25_chan *chan, enum ax25_chan_state new_state,
 		      int line)
@@ -1163,6 +1164,7 @@ i_ax25_chan_set_state(struct ax25_chan *chan, enum ax25_chan_state new_state,
 #define ax25_chan_set_state(chan, state) \
     i_ax25_chan_set_state(chan, state, __LINE__)
 
+/* Set the state with only the channel locked and base locked already. */
 static void
 i_ax25_chan_set_stateb(struct ax25_chan *chan, enum ax25_chan_state new_state,
 		       int line)
@@ -1196,18 +1198,22 @@ i_ax25_base_set_state(struct ax25_base *base,
 #define ax25_base_set_state(base, state) \
     i_ax25_base_set_state(base, state, __LINE__)
 
-static void i_ax25_chan_add_lock(struct ax25_chan *chan, int line)
+static void i_ax25_chan_lock_add_lock(struct ax25_chan *chan, int line)
 {
     struct ax25_base *base = chan->base;
 
+    i_ax25_base_lock((chan)->base);
     i_ax25_base_finish_trace(base, AX25_TRACE_CHAN_LOCK, line);
+    i_ax25_base_unlock((chan)->base);
 }
 
-static void i_ax25_chan_add_unlock(struct ax25_chan *chan, int line)
+static void i_ax25_chan_lock_add_unlock(struct ax25_chan *chan, int line)
 {
     struct ax25_base *base = chan->base;
 
+    i_ax25_base_lock((chan)->base);
     i_ax25_base_finish_trace(base, AX25_TRACE_CHAN_UNLOCK, line);
+    i_ax25_base_unlock((chan)->base);
 }
 
 static void i_ax25_base_add_lock(struct ax25_base *base, int line)
@@ -1230,8 +1236,19 @@ static void i_ax25_base_add_other(struct ax25_base *base,
     i_ax25_base_finish_trace(base, type, line);
     t->u.oinfo = other + 1000;
 }
-#define ax25_base_add_other(base, type, other) \
-    i_ax25_base_add_other(base, type, other, __LINE__)
+
+static void i_ax25_base_lock_add_other(struct ax25_base *base,
+				       enum ax25_base_trace_type type,
+				       int other, int line)
+{
+    struct ax25_base_state_trace *t;
+
+    i_ax25_base_lock(base);
+    t = &(base->state_trace[base->state_trace_pos]);
+    i_ax25_base_finish_trace(base, type, line);
+    t->u.oinfo = other + 1000;
+    i_ax25_base_unlock(base);
+}
 
 #else
 static void
@@ -1247,7 +1264,6 @@ ax25_base_set_state(struct ax25_base *base, enum ax25_base_state state)
 {
     base->state = state;
 }
-#define ax25_base_add_other(base, type, other, line)
 #endif
 
 /*
