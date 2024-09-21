@@ -5156,6 +5156,8 @@ ax25_chan_alloc(struct ax25_base *base, const char *const args[],
     chan->conf.report_raw = false;
     chan->conf.conf_laddrs = NULL;
     chan->conf.num_conf_laddrs = 0;
+    chan->conf.conf_uiaddrs = NULL;
+    chan->conf.num_conf_uiaddrs = 0;
     chan->conf.addr = NULL;
 
     /*
