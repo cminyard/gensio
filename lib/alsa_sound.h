@@ -132,7 +132,7 @@ gensio_sound_alsa_set_hwparams(struct sound_info *si)
 
     err = snd_pcm_hw_params_any(a->pcm, params);
     if (err < 0) {
-	gensio_log(o, GENSIO_LOG_INFO,
+	gensio_log(o, GENSIO_LOG_ERR,
 		   "alsa error from snd_pcm_hw_params_any: %s\n",
 		   snd_strerror(err));
 	goto out_err;
@@ -140,7 +140,7 @@ gensio_sound_alsa_set_hwparams(struct sound_info *si)
 
     err = snd_pcm_hw_params_set_rate_resample(a->pcm, params, 1);
     if (err < 0) {
-	gensio_log(o, GENSIO_LOG_INFO,
+	gensio_log(o, GENSIO_LOG_ERR,
 		   "alsa error from snd_pcm_hw_params_set_rate_resample: %s\n",
 		   snd_strerror(err));
 	goto out_err;
@@ -149,7 +149,7 @@ gensio_sound_alsa_set_hwparams(struct sound_info *si)
     err = snd_pcm_hw_params_set_access(a->pcm, params,
 				       SND_PCM_ACCESS_RW_INTERLEAVED);
     if (err < 0) {
-	gensio_log(o, GENSIO_LOG_INFO,
+	gensio_log(o, GENSIO_LOG_ERR,
 		   "alsa error from snd_pcm_hw_params_set_access: %s\n",
 		   snd_strerror(err));
 	goto out_err;
@@ -179,7 +179,7 @@ gensio_sound_alsa_set_hwparams(struct sound_info *si)
 	}
     }
     if (err < 0) {
-	gensio_log(o, GENSIO_LOG_INFO,
+	gensio_log(o, GENSIO_LOG_ERR,
 		   "alsa error from snd_pcm_hw_params_set_format %d: %s\n",
 		   si->cnv.ufmt, snd_strerror(err));
 	goto out_err;
@@ -193,7 +193,7 @@ gensio_sound_alsa_set_hwparams(struct sound_info *si)
 
     err = snd_pcm_hw_params_set_channels(a->pcm, params, si->chans);
     if (err < 0) {
-	gensio_log(o, GENSIO_LOG_INFO,
+	gensio_log(o, GENSIO_LOG_ERR,
 		   "alsa error from snd_pcm_hw_params_set_channels: %s\n",
 		   snd_strerror(err));
 	goto out_err;
@@ -201,7 +201,7 @@ gensio_sound_alsa_set_hwparams(struct sound_info *si)
 
     err = snd_pcm_hw_params_set_rate(a->pcm, params, si->samplerate, 0);
     if (err < 0) {
-	gensio_log(o, GENSIO_LOG_INFO,
+	gensio_log(o, GENSIO_LOG_ERR,
 		   "alsa error from snd_pcm_hw_params_set_rate: %s\n",
 		   snd_strerror(err));
 	goto out_err;
@@ -210,7 +210,7 @@ gensio_sound_alsa_set_hwparams(struct sound_info *si)
     frsize = si->bufsize * si->num_bufs;
     err = snd_pcm_hw_params_set_buffer_size_near(a->pcm, params, &frsize);
     if (err < 0) {
-	gensio_log(o, GENSIO_LOG_INFO,
+	gensio_log(o, GENSIO_LOG_ERR,
 		"alsa error from snd_pcm_hw_params_set_buffer_size_max: %s\n",
 		snd_strerror(err));
 	goto out_err;
@@ -226,7 +226,7 @@ gensio_sound_alsa_set_hwparams(struct sound_info *si)
 	err = snd_pcm_hw_params_set_period_time_near(a->pcm, params,
 						     &period_time, &dir);
 	if (err < 0) {
-	    gensio_log(o, GENSIO_LOG_INFO,
+	    gensio_log(o, GENSIO_LOG_ERR,
 		"alsa error from snd_pcm_hw_params_ser_period_time_near: %s\n",
 		snd_strerror(err));
 	    goto out_err;
@@ -237,7 +237,7 @@ gensio_sound_alsa_set_hwparams(struct sound_info *si)
     /* write the parameters to device */
     err = snd_pcm_hw_params(a->pcm, params);
     if (err < 0) {
-	gensio_log(o, GENSIO_LOG_INFO,
+	gensio_log(o, GENSIO_LOG_ERR,
 		   "alsa error from snd_pcm_hw_params: %s\n",
 		   snd_strerror(err));
 	goto out_err;
@@ -261,7 +261,7 @@ gensio_sound_alsa_set_swparams(struct sound_info *si)
     /* get the current swparams */
     err = snd_pcm_sw_params_current(a->pcm, params);
     if (err < 0) {
-	gensio_log(o, GENSIO_LOG_INFO,
+	gensio_log(o, GENSIO_LOG_ERR,
 		   "alsa error from snd_pcm_sw_params_current: %s\n",
 		   snd_strerror(err));
 	goto out_err;
@@ -270,7 +270,7 @@ gensio_sound_alsa_set_swparams(struct sound_info *si)
     /* start the transfer when a buffer is written: */
     err = snd_pcm_sw_params_set_start_threshold(a->pcm, params, si->bufsize);
     if (err < 0) {
-	gensio_log(o, GENSIO_LOG_INFO,
+	gensio_log(o, GENSIO_LOG_ERR,
 		  "alsa error from snd_pcm_sw_params_set_start_threshold: %s\n",
 		  snd_strerror(err));
 	goto out_err;
@@ -282,7 +282,7 @@ gensio_sound_alsa_set_swparams(struct sound_info *si)
      */
     err = snd_pcm_sw_params_set_avail_min(a->pcm, params, si->bufsize);
     if (err < 0) {
-	gensio_log(o, GENSIO_LOG_INFO,
+	gensio_log(o, GENSIO_LOG_ERR,
 		  "alsa error from snd_pcm_sw_params_set_avail_min: %s\n",
 		  snd_strerror(err));
 	goto out_err;
@@ -291,7 +291,7 @@ gensio_sound_alsa_set_swparams(struct sound_info *si)
 #if 0
     err = snd_pcm_sw_params_set_period_event(a->pcm, params, 1);
     if (err < 0) {
-	gensio_log(o, GENSIO_LOG_INFO,
+	gensio_log(o, GENSIO_LOG_ERR,
 		  "alsa error from snd_pcm_sw_params_set_period_event: %s\n",
 		  snd_strerror(err));
 	goto out_err;
@@ -300,7 +300,7 @@ gensio_sound_alsa_set_swparams(struct sound_info *si)
 
     err = snd_pcm_sw_params(a->pcm, params);
     if (err < 0) {
-	gensio_log(o, GENSIO_LOG_INFO,
+	gensio_log(o, GENSIO_LOG_ERR,
 		  "alsa error from snd_pcm_sw_params: %s\n",
 		  snd_strerror(err));
 	goto out_err;
@@ -340,7 +340,7 @@ gensio_sound_alsa_check_xrun_recovery(struct sound_info *si, int rv)
     }
 
     if (rv) {
-	gensio_log(si->soundll->o, GENSIO_LOG_INFO,
+	gensio_log(si->soundll->o, GENSIO_LOG_ERR,
 		   "alsa error from xrun_recovery: %s\n",
 		   snd_strerror(rv));
 	si->soundll->err = GE_OSERR;
@@ -609,7 +609,7 @@ gensio_sound_alsa_api_open_dev(struct sound_info *si)
 
     err = snd_pcm_open(&a->pcm, si->devname, stype, SND_PCM_NONBLOCK);
     if (err < 0) {
-	gensio_log(o, GENSIO_LOG_INFO,
+	gensio_log(o, GENSIO_LOG_ERR,
 		   "alsa error from snd_pcm_open: %s",
 		   snd_strerror(err));
 	return GE_OSERR;
@@ -646,7 +646,7 @@ gensio_sound_alsa_api_open_dev(struct sound_info *si)
 
     err = snd_pcm_poll_descriptors(a->pcm, a->fds, a->nrfds);
     if (err < 0) {
-	gensio_log(o, GENSIO_LOG_INFO,
+	gensio_log(o, GENSIO_LOG_ERR,
 		   "alsa error from snd_pcm_poll_descriptors: %s",
 		   snd_strerror(err));
 	gensio_sound_alsa_api_close_dev(si);
