@@ -1038,6 +1038,7 @@ is_a_pty(const char *ttyname)
 #else
     char buf[PATH_MAX];
 
+    memset(buf, 0, sizeof(buf));
     while (readlink(ttyname, buf, sizeof(buf)) > 0)
 	ttyname = buf;
 
