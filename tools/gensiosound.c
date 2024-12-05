@@ -147,7 +147,7 @@ list_sound_devs(struct gensio_os_funcs *o, const char *devtype)
 	err = gensio_read_s(lg, &len, buf, sizeof(buf) - 1, NULL);
 	if (!err) {
 	    buf[len] = '\0';
-	    puts(buf);
+	    fputs(buf, stdout);
 	}
     } while (!err);
 
