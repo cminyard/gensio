@@ -687,25 +687,62 @@ gensio_sound_alsa_api_devices(struct gensio_os_funcs *o,
     void **hints, **n;
     gensiods count = 0, size = 0;
     char **names = NULL, **specs = NULL;
+    unsigned int p;
 
     if (snd_device_name_hint(-1, "pcm", &hints) < 0) {
 	*rcount = 0;
 	return 0;
     }
 
-    for (n = hints; *n != NULL; n++) {
-	char *name = NULL, *io = NULL;
+    for (p = 0, n = hints; *n != NULL; p++, n++) {
+	char *name = NULL, *desc = NULL, *io = NULL;
+	unsigned int i, j, len;
 
 	name = snd_device_name_get_hint(*n, "NAME");
-	io = snd_device_name_get_hint(*n, "IOID");
 	if (!name)
 	    goto next;
+	desc = snd_device_name_get_hint(*n, "DESC");
+	if (desc) {
+	    char *n2;
+
+	    len = strlen(name) + strlen(desc);
+	    for (i = 0; desc[i]; i++) {
+		if (desc[i] == '\n')
+		    len += 4;
+	    }
+	    n2 = malloc(len + 7); /* extra for nil and "\n    " */
+	    if (!n2) {
+		free(name);
+		free(desc);
+		goto out_nomem;
+	    }
+	    strncpy(n2, name, len + 6);
+	    i = strlen(n2);
+	    strncpy(n2 + i, "\n    ", 6);
+	    i += 5;
+	    for (j = 0; desc[j]; j++) {
+		if (desc[j] == '\n') {
+		    strncpy(n2 + i, "\n    ", 6);
+		    i += 5;
+		} else {
+		    n2[i++] = desc[j];
+		}
+	    }
+	    n2[i++] = '\n';
+	    n2[i++] = '\0';
+	    free(name);
+	    free(desc);
+	    name = n2;
+	}
+	io = snd_device_name_get_hint(*n, "IOID");
 	if (io) {
 	    io[0] = tolower(io[0]);
 	} else {
 	    io = strdup("input,output");
-	    if (!io)
+	    if (!io) {
+		free(name);
 		goto out_nomem;
+	    }
 	}
 
 	if (count >= size) {

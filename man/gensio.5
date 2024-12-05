@@ -2273,9 +2273,10 @@ are available and possibly portaudio.  On Macos portaudio and file are
 available.
 
 The device is specified on the command line.  The name is
-system-dependent.  For alsa, the name must match exactly.  You can use
-"aplay -L" or "arecord -L" to list input and output devices available.
-Or you can use the "gsound -L" program.
+system-dependent.  For alsa, the name must match exactly the first
+line of the output of the aplay/gsound list.  You can use "aplay -L"
+or "arecord -L" to list input and output devices available.  Or you
+can use the "gsound -L" program.
 
 For Windows and portaudio, the name just has to match part of the
 device's name.  Windows names always start with a number.  So, for
