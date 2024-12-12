@@ -3064,7 +3064,7 @@ gensio_unix_termios_control(struct gensio_os_funcs *o, int op, bool get,
 		if (errno != ENOTTY) /* Happens with PTYs. */
 		    return gensio_os_err_to_err(o, errno);
 	    }
-	    t->break_set = nval;
+	    t->break_set = val;
 	}
 	break;
 
