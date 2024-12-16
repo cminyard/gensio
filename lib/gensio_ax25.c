@@ -122,6 +122,7 @@
 #include <gensio/gensio_time.h>
 #include <gensio/gensio_acc_gensio.h>
 #include <gensio/gensio_ax25_addr.h>
+#include <gensio/gensio_refcount.h>
 
 #ifdef DEBUG_DATA
 #define ENABLE_PRBUF 1
@@ -509,7 +510,7 @@ struct ax25_base {
 
     struct gensio *child;
 
-    unsigned int refcount;
+    gensio_refcount refcount;
 
     /* Transfer data to the deferred open. */
     int open_err;
@@ -771,7 +772,7 @@ struct ax25_chan {
 
     struct gensio_timer *timer;
 
-    unsigned int refcount;
+    gensio_refcount refcount;
 
     bool read_enabled;
     bool xmit_enabled;
@@ -872,9 +873,9 @@ i_ax25_base_unlock(struct ax25_base *base)
 static void
 i_ax25_base_ref(struct ax25_base *base, int line)
 {
-    assert(base->refcount > 0);
-    base->refcount++;
-    i_ax25_base_add_other(base, AX25_TRACE_BASE_REF, base->refcount, line);
+    gensio_refcount_inc(&base->refcount);
+    i_ax25_base_add_other(base, AX25_TRACE_BASE_REF,
+			  gensio_refcount_get(&base->refcount), line);
 }
 #define ax25_base_ref(base) i_ax25_base_ref((base), __LINE__)
 
@@ -893,9 +894,9 @@ i_ax25_base_lock_and_ref(struct ax25_base *base, int line)
 static void
 i_ax25_base_deref(struct ax25_base *base, int line)
 {
-    assert(base->refcount > 1);
-    i_ax25_base_add_other(base, AX25_TRACE_BASE_DEREF, base->refcount, line);
-    base->refcount--;
+    i_ax25_base_add_other(base, AX25_TRACE_BASE_DEREF,
+			  gensio_refcount_get(&base->refcount), line);
+    gensio_refcount_dec(&base->refcount);
 }
 #define ax25_base_deref(base) i_ax25_base_deref((base), __LINE__)
 
@@ -953,10 +954,9 @@ i_ax25_base_deref_and_unlock(struct ax25_base *base, int line)
 {
     unsigned int count;
 
-    assert(base->refcount > 0);
     i_ax25_base_add_other(base, AX25_TRACE_BASE_DEREF,
-			  base->refcount, line);
-    count = --base->refcount;
+			  gensio_refcount_get(&base->refcount), line);
+    count = gensio_refcount_dec(&base->refcount);
     i_ax25_base_unlock(base);
     if (count == 0)
 	ax25_base_finish_free(base);
@@ -1042,11 +1042,9 @@ ax25_chan_finish_free(struct ax25_chan *chan, bool baselocked)
 static void
 i_ax25_chan_ref(struct ax25_chan *chan, int line)
 {
-    assert(chan->locked);
-    assert(chan->refcount > 0);
-    chan->refcount++;
+    gensio_refcount_inc(&chan->refcount);
     i_ax25_base_lock_add_other(chan->base, AX25_TRACE_CHAN_REF,
-			       chan->refcount, line);
+			       gensio_refcount_get(&chan->refcount), line);
 }
 #define ax25_chan_ref(chan) i_ax25_chan_ref((chan), __LINE__)
 
@@ -1065,11 +1063,9 @@ i_ax25_chan_lock_and_ref(struct ax25_chan *chan, int line)
 static void
 i_ax25_chan_deref(struct ax25_chan *chan, int line)
 {
-    assert(chan->locked);
-    assert(chan->refcount > 1);
     i_ax25_base_lock_add_other(chan->base, AX25_TRACE_CHAN_DEREF,
-			       chan->refcount, line);
-    chan->refcount--;
+			       gensio_refcount_get(&chan->refcount), line);
+    gensio_refcount_dec(&chan->refcount);
 }
 #define ax25_chan_deref(chan) i_ax25_chan_deref((chan), __LINE__)
 
@@ -1077,14 +1073,12 @@ static void
 i_ax25_chan_deref_and_unlock(struct ax25_chan *chan, int line)
 {
     struct ax25_base *base = chan->base;
-    unsigned int count;
 
     assert(chan->locked);
-    assert(chan->refcount > 0);
     i_ax25_base_lock_add_other(base, AX25_TRACE_CHAN_DEREF,
-			       chan->refcount, line);
-    count = --chan->refcount;
-    if (count == 0) {
+			       gensio_refcount_get(&chan->refcount), line);
+
+    if (gensio_refcount_dec(&chan->refcount) == 0) {
 	i_ax25_base_lock(base);
 	if (chan->base_lock_count > 0) {
 	    chan->base_lock_delete = true;
@@ -1105,14 +1099,10 @@ i_ax25_chan_deref_and_unlock(struct ax25_chan *chan, int line)
 static void
 i_ax25_chan_deref_and_unlockb(struct ax25_chan *chan, int line)
 {
-    unsigned int count;
-
     assert(chan->locked && chan->base->locked);
-    assert(chan->refcount > 0);
     i_ax25_base_add_other(chan->base, AX25_TRACE_CHAN_DEREF,
-			  chan->refcount, line);
-    count = --chan->refcount;
-    if (count == 0) {
+			  gensio_refcount_get(&chan->refcount), line);
+    if (gensio_refcount_dec(&chan->refcount) == 0) {
 	if (chan->base_lock_count > 0) {
 	    chan->base_lock_delete = true;
 	    i_ax25_chan_unlock(chan);
@@ -5184,7 +5174,7 @@ ax25_chan_alloc(struct ax25_base *base, const char *const args[],
 
     if (chan->conf.report_raw)
 	base->have_raw = true;
-    chan->refcount = 1;
+    gensio_refcount_set(&chan->refcount, 1);
     gensio_list_init(&chan->raws);
 
     /* After this point we can use ax25_chan_finish_free to free it. */
@@ -5294,7 +5284,7 @@ ax25_gensio_alloc_base(struct gensio *child, const char *const args[],
     gensio_list_init(&base->chans_waiting_open);
     gensio_list_init(&base->chans_closed);
     gensio_list_init(&base->send_list);
-    base->refcount = 1;
+    gensio_refcount_set(&base->refcount, 1);
     base->conf = *conf;
     /*
      * If conf_laddrs is set, this comes from an accepter and will not
@@ -5331,7 +5321,7 @@ ax25_gensio_alloc_base(struct gensio *child, const char *const args[],
      * chan alloc will increment the refcount, but we want the
      * refcount to match the number of channels here.
      */
-    base->refcount--;
+    gensio_refcount_dec(&base->refcount);
 
     gensio_set_callback(child, ax25_child_cb, base);
 
@@ -5458,7 +5448,7 @@ ax25a_new_child(struct ax25a_data *adata, void **finish_data,
     base->accepter = adata->acc;
     ncio->new_io = chan->io;
     base->state = AX25_BASE_OPEN;
-    base->refcount++;
+    gensio_refcount_inc(&base->refcount);
     base->waiting_first_open = true;
     chan->open_done = ncio->open_done;
     chan->open_data = ncio->open_data;
