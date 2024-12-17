@@ -702,6 +702,7 @@ control.
 Allocated as a terminal gensio with gdata as a "const struct
 gensio_addr *"
 .SH "serialdev"
+connecting =
 .B serialdev[(<options>)],<device>[,<serialoption>[,<serialoption>]]
 
 A serialdev connection is a local serial port.  The device is a
@@ -754,9 +755,9 @@ Set the device to read only.  Default is false.
 There are a plethora of serialoptions, available as defaults:
 .TP
 .B [speed=]<speed><parity><databits><stopbits>
-This is a normal serial port configuration specification, like
-"9600N81".  The "speed=" at the beginning is optional, but "speed" is
-a default type for this.
+This is a normal serial port configuration specification, the default
+is "9600N81".  The "speed=" at the beginning is optional, but "speed"
+is a default type for this.
 .TP
 .B wronly[=true|false]
 This option is deprecated, use the "dev" gensio for non-serial port
