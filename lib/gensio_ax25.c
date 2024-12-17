@@ -390,34 +390,26 @@ static void i_ax25_base_lock_add_other(struct ax25_base *base,
  * if it releases the base lock and claims the channel lock, there is
  * a chance the channel can be deleted in this time.
  *
+ * The refcounts are atomics, and you do not need any locks held to
+ * modify them.  So the channel refcount can be incremented while
+ * holding the base lock if the refcount is not already zero.  If the
+ * refcount is already zero, the channel can be ignored.  This will
+ * keep the channel from being deleted when the base lock is released.
+ *
  * This is solved by creating a way that, when the base lock is held,
- * a channel may be set to be non-deletable.  Then the base lock is
- * released and the channel lock is grabbed.  Then the channel checked
- * to make sure it wasn't marked for deletion, it it deletes it if so
- * and goes on to the next operation.  So when the channel delete code
- * finds that it is in this lock state, it will just mark the channel
- * for deletion and not delete it.
+ * a channel will be refcounted to keep it around.  Then the base lock
+ * is released and the channel lock is grabbed.  Then the channel
+ * checked to make sure it is still in a good state, and just derefs
+ * it if it's not.
  *
- * However, when a message comes in from the remote (the child read),
- * and in a few other circumstances, the code must claim the base lock
- * in order to search the lists and find the channel involved.  It
- * would then need to lock the channel before releasing the base lock
- * to keep the channel from being deleted after the base lock is
- * released.  But you can't lock two locks in different orders in
- * different places.  And if you lock the channel lock after unlocking
- * the base lock, it could be deleted during that window.
- *
- * The base_lock_count and base_lock_delete variables do this.
- * base_lock_count is incremented for every thing that puts a channel
- * into this state.  Then when the channel is checked after the
- * channel lock is grabbed, it checked base_lock_delete to know if it
- * should delete it.  These variables can only be used under the base
- * lock.
- *
- * FIXME - all this crazy locking could probably go away if we used
- * atomic refcounts on the channel.  But it's subtle, the channel
- * deref could decrement the count to zero, then the code scanning
- * the base lock could increment it,  But it could be done, I think.
+ * When a message comes in from the remote (the child read), and in a
+ * few other circumstances, the code must claim the base lock in order
+ * to search the lists and find the channel involved.  It refcounts
+ * the channels then releases the base lock.  It calls a function that
+ * locks the channel and checks to make sure the channel is in the
+ * proper state.  If it is not, the channel is deref-ed and ignored.
+ * If it is in the proper state, the channel is returned.  The user
+ * must deref the channel after done.
  *
  * Unnumbered information (UI), opens, and error adds another twist
  * because they need to be able to process multiple channels.  Each of
@@ -659,12 +651,10 @@ struct ax25_chan {
     unsigned int curr_drop;
 
     /* These are modified under the base lock, see locking info above. */
-    unsigned int base_lock_count;
-    bool base_lock_delete;
-    struct gensio_link base_lock_ui_link;
-    struct gensio_link base_lock_open_link;
-    struct gensio_link base_lock_err_link;
-    struct gensio_link base_lock_count_link;
+    struct gensio_link hold_ui_link;
+    struct gensio_link hold_open_link;
+    struct gensio_link hold_err_link;
+    struct gensio_link hold_count_link;
 
     /* Report UI frames to the upper layer? */
     unsigned int report_ui;
@@ -1065,6 +1055,16 @@ i_ax25_chan_ref(struct ax25_chan *chan, int line)
 }
 #define ax25_chan_ref(chan) i_ax25_chan_ref((chan), __LINE__)
 
+static bool
+i_ax25_chan_ref_if_nz(struct ax25_chan *chan, int line)
+{
+    bool rv = gensio_refcount_inc_if_nz(&chan->refcount);
+    i_ax25_base_lock_add_other(chan->base, AX25_TRACE_CHAN_REF,
+			       gensio_refcount_get(&chan->refcount), line);
+    return rv;
+}
+#define ax25_chan_ref_if_nz(chan) i_ax25_chan_ref_if_nz((chan), __LINE__)
+
 static void
 i_ax25_chan_lock_and_ref(struct ax25_chan *chan, int line)
 {
@@ -1097,15 +1097,9 @@ i_ax25_chan_deref_and_unlock(struct ax25_chan *chan, int line)
 
     if (gensio_refcount_dec(&chan->refcount) == 0) {
 	i_ax25_base_lock(base);
-	if (chan->base_lock_count > 0) {
-	    chan->base_lock_delete = true;
-	    i_ax25_base_unlock(base);
-	    i_ax25_chan_unlock(chan);
-	} else {
-	    i_ax25_base_unlock(base);
-	    i_ax25_chan_unlock(chan);
-	    ax25_chan_finish_free(chan, false);
-	}
+	i_ax25_base_unlock(base);
+	i_ax25_chan_unlock(chan);
+	ax25_chan_finish_free(chan, false);
     } else {
 	i_ax25_chan_unlock(chan);
     }
@@ -1632,32 +1626,23 @@ ax25_chan_report_open_err(struct ax25_chan *chan, struct gensio_list *old_list,
 }
 
 static struct ax25_chan *
-ax25_chan_check_base_lock_state(struct ax25_chan *chan,
-				struct gensio_list *should_be_in,
-				bool incl_disc)
+ax25_chan_check_and_lock(struct ax25_chan *chan,
+			 struct gensio_list *should_be_in,
+			 bool incl_disc)
 {
     struct ax25_base *base = chan->base;
 
     ax25_chan_lock(chan);
     ax25_base_lock(base);
-    assert(chan->base_lock_count > 0);
-    chan->base_lock_count--;
-    if (chan->base_lock_delete && chan->base_lock_count == 0) {
-	ax25_base_unlock(base);
-	ax25_chan_unlock(chan);
-	ax25_chan_finish_free(chan, false);
-	return NULL;
-    }
     if (!gensio_list_link_in_this_list(&chan->link, should_be_in) ||
 		(incl_disc && (chan->state == AX25_CHAN_REM_DISC ||
 			       chan->state == AX25_CHAN_REM_CLOSE))) {
 	/* Channel is not in a state where it should be. */
 	ax25_base_unlock(base);
-	ax25_chan_unlock(chan);
+	ax25_chan_deref_and_unlock(chan);
 	return NULL;
     }
     ax25_base_unlock(base);
-    ax25_chan_ref(chan);
     return chan;
 }
 
@@ -1682,8 +1667,8 @@ ax25_base_handle_open_done(struct ax25_base *base, int err)
     gensio_list_for_each(&base->chans_waiting_open, l) {
 	struct ax25_chan *chan = gensio_container_of(l, struct ax25_chan, link);
 
-	gensio_list_add_tail(&to_deliver, &chan->base_lock_open_link);
-	chan->base_lock_count++;
+	if (ax25_chan_ref_if_nz(chan))
+	    gensio_list_add_tail(&to_deliver, &chan->hold_open_link);
     }
 
     if (err)
@@ -1694,11 +1679,10 @@ ax25_base_handle_open_done(struct ax25_base *base, int err)
 
     gensio_list_for_each_safe(&to_deliver, l, l2) {
 	struct ax25_chan *chan = gensio_container_of(l, struct ax25_chan,
-						     base_lock_open_link);
+						     hold_open_link);
 
 	gensio_list_rm(&to_deliver, l);
-	chan = ax25_chan_check_base_lock_state(chan, &base->chans_waiting_open,
-					       true);
+	chan = ax25_chan_check_and_lock(chan, &base->chans_waiting_open, true);
 	if (!chan)
 	    continue;
 
@@ -2365,8 +2349,8 @@ ax25_chan_report_raw(struct ax25_base *base, unsigned int port,
 
 	if (!chan->conf.report_raw || !chan->read_enabled)
 	    continue;
-	gensio_list_add_tail(&to_deliver, &chan->base_lock_ui_link);
-	chan->base_lock_count++;
+	if (ax25_chan_ref_if_nz(chan))
+	    gensio_list_add_tail(&to_deliver, &chan->hold_ui_link);
     }
     ax25_base_unlock(base);
     if (gensio_list_empty(&to_deliver))
@@ -2374,10 +2358,9 @@ ax25_chan_report_raw(struct ax25_base *base, unsigned int port,
 
     gensio_list_for_each_safe(&to_deliver, l, l2) {
 	struct ax25_chan *chan = gensio_container_of(l, struct ax25_chan,
-						     base_lock_ui_link);
+						     hold_ui_link);
 	gensio_list_rm(&to_deliver, l);
-	chan = ax25_chan_check_base_lock_state(chan, &chan->base->chans,
-					       true);
+	chan = ax25_chan_check_and_lock(chan, &chan->base->chans, true);
 	if (!chan)
 	    continue;
 	if (!chan->read_enabled) {
@@ -2436,8 +2419,8 @@ ax25_chan_handle_report(struct ax25_base *base, struct gensio_ax25_addr *addr,
 	    if (!found)
 		continue;
 	}
-	gensio_list_add_tail(&to_deliver, &chan->base_lock_ui_link);
-	chan->base_lock_count++;
+	if (ax25_chan_ref_if_nz(chan))
+	    gensio_list_add_tail(&to_deliver, &chan->hold_ui_link);
     }
     ax25_base_unlock(base);
     if (gensio_list_empty(&to_deliver))
@@ -2448,13 +2431,12 @@ ax25_chan_handle_report(struct ax25_base *base, struct gensio_ax25_addr *addr,
 
     gensio_list_for_each_safe(&to_deliver, l, l2) {
 	struct ax25_chan *chan = gensio_container_of(l, struct ax25_chan,
-						     base_lock_ui_link);
+						     hold_ui_link);
 	bool report_ui;
 	bool report_heard = false;
 
 	gensio_list_rm(&to_deliver, l);
-	chan = ax25_chan_check_base_lock_state(chan, &chan->base->chans,
-					       true);
+	chan = ax25_chan_check_and_lock(chan, &chan->base->chans, true);
 	if (!chan)
 	    continue;
 	if (!chan->read_enabled) {
@@ -2524,8 +2506,8 @@ ax25_base_first_chan(struct ax25_base *base)
     else
 	chan = gensio_container_of(gensio_list_first(&base->chans),
 				   struct ax25_chan, link);
-    if (chan)
-	chan->base_lock_count++;
+    if (chan && !ax25_chan_ref_if_nz(chan))
+	chan = NULL;
     ax25_base_unlock(base);
 
     return chan;
@@ -2546,7 +2528,7 @@ ax25_firstchan_event(struct ax25_base *base, int event, int err,
     chan = ax25_base_first_chan(base);
     if (!chan)
 	return GE_LOCALCLOSED;
-    chan = ax25_chan_check_base_lock_state(chan, &base->chans, true);
+    chan = ax25_chan_check_and_lock(chan, &base->chans, true);
     if (!chan)
 	goto retry;
     ax25_chan_unlock(chan);
@@ -3569,17 +3551,17 @@ i_ax25_base_handle_child_err(struct ax25_base *base, int err)
     gensio_list_for_each(&base->chans, l) {
 	struct ax25_chan *chan = gensio_container_of(l, struct ax25_chan, link);
 
-	gensio_list_add_tail(&to_deliver, &chan->base_lock_err_link);
-	chan->base_lock_count++;
+	if (ax25_chan_ref_if_nz(chan))
+	    gensio_list_add_tail(&to_deliver, &chan->hold_err_link);
     }
     ax25_base_unlock(base);
 
     gensio_list_for_each_safe(&to_deliver, l, l2) {
 	struct ax25_chan *chan = gensio_container_of(l, struct ax25_chan,
-						     base_lock_err_link);
+						     hold_err_link);
 
 	gensio_list_rm(&to_deliver, l);
-	chan = ax25_chan_check_base_lock_state(chan, &base->chans, false);
+	chan = ax25_chan_check_and_lock(chan, &base->chans, false);
 	if (!chan)
 	    continue;
 	chan->err = err;
@@ -3681,8 +3663,8 @@ ax25_child_read(struct ax25_base *base, int ierr,
 
     ax25_base_lock(base);
     chan = ax25_base_lookup_chan_by_addr(base, &addr.r);
-    if (chan)
-	chan->base_lock_count++;
+    if (chan && !ax25_chan_ref_if_nz(chan))
+	chan = NULL;
     ax25_base_unlock(base);
 
     if (!chan) {
@@ -3696,7 +3678,7 @@ ax25_child_read(struct ax25_base *base, int ierr,
     }
 
     if (chan)
-	chan = ax25_chan_check_base_lock_state(chan, &base->chans, true);
+	chan = ax25_chan_check_and_lock(chan, &base->chans, true);
 
     if (!cmd) {
 	/* Extract data from I and S frames. */
@@ -3871,10 +3853,12 @@ ax25_child_write_ready(struct ax25_base *base)
 	l = gensio_list_first(&base->send_list);
 	gensio_list_rm(&base->send_list, l);
 	chan = gensio_container_of(l, struct ax25_chan, sendlink);
-	chan->base_lock_count++;
+	if (!ax25_chan_ref_if_nz(chan))
+	    chan = NULL;
 	ax25_base_unlock(base);
 
-	chan = ax25_chan_check_base_lock_state(chan, &base->chans, false);
+	if (chan)
+	    chan = ax25_chan_check_and_lock(chan, &base->chans, false);
 	if (!chan)
 	    goto skip;
 
@@ -4823,19 +4807,18 @@ ax25_chan_control(struct ax25_chan *chan, bool get, int option,
 		struct ax25_chan *chan;
 
 		chan = gensio_container_of(l, struct ax25_chan, link);
-		gensio_list_add_tail(&to_count, &chan->base_lock_count_link);
-		chan->base_lock_count++;
+		if (ax25_chan_ref_if_nz(chan))
+		    gensio_list_add_tail(&to_count, &chan->hold_count_link);
 	    }
 	    ax25_base_unlock(base);
 	    gensio_list_for_each_safe(&to_count, l, l2) {
 		struct ax25_chan *chan2;
 
 		chan2 = gensio_container_of(l, struct ax25_chan,
-					    base_lock_count_link);
+					    hold_count_link);
 		gensio_list_rm(&to_count, l);
-		chan2 = ax25_chan_check_base_lock_state(chan2,
-							&chan2->base->chans,
-							true);
+		chan2 = ax25_chan_check_and_lock(chan2, &chan2->base->chans,
+						 true);
 		if (!chan2)
 		    continue;
 
