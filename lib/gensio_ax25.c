@@ -865,6 +865,7 @@ i_ax25_base_unlock(struct ax25_base *base)
 	i_ax25_base_unlock((base));		\
     } while(false)
 
+#ifdef DEBUG_STATE
 static void
 i_ax25_base_trace_lock(struct ax25_base *base)
 {
@@ -876,6 +877,7 @@ i_ax25_base_trace_unlock(struct ax25_base *base)
 {
     base->o->unlock(base->trace_lock);
 }
+#endif
 
 static void
 i_ax25_base_ref(struct ax25_base *base, int line)
