@@ -1095,27 +1095,6 @@ i_ax25_chan_deref_and_unlock(struct ax25_chan *chan, int line)
 }
 #define ax25_chan_deref_and_unlock(chan) i_ax25_chan_deref_and_unlock((chan), __LINE__)
 
-/* Like above, but already holding the base lock */
-static void
-i_ax25_chan_deref_and_unlockb(struct ax25_chan *chan, int line)
-{
-    assert(chan->locked && chan->base->locked);
-    i_ax25_base_add_other(chan->base, AX25_TRACE_CHAN_DEREF,
-			  gensio_refcount_get(&chan->refcount), line);
-    if (gensio_refcount_dec(&chan->refcount) == 0) {
-	if (chan->base_lock_count > 0) {
-	    chan->base_lock_delete = true;
-	    i_ax25_chan_unlock(chan);
-	} else {
-	    i_ax25_chan_unlock(chan);
-	    ax25_chan_finish_free(chan, true);
-	}
-    } else {
-	i_ax25_chan_unlock(chan);
-    }
-}
-#define ax25_chan_deref_and_unlockb(chan) i_ax25_chan_deref_and_unlockb((chan), __LINE__)
-
 #ifdef DEBUG_STATE
 static void
 i_ax25_base_finish_trace(struct ax25_base *base, enum ax25_base_trace_type type,
@@ -3880,6 +3859,7 @@ ax25_child_write_ready(struct ax25_base *base)
     struct gensio_sg sg[4];
     gensiods sglen, len, sendcnt;
     int rv;
+    bool re_add_chan;
 
     ax25_base_lock_and_ref(base);
     gensio_set_write_callback_enable(base->child, false);
@@ -4080,15 +4060,17 @@ ax25_child_write_ready(struct ax25_base *base)
 	    chan->o->free(chan->o, raw);
 	}
     skip:
-	ax25_base_lock(base);
+	re_add_chan = false;
 	if (chan) {
-	    if (!gensio_list_link_inlist(&chan->sendlink) &&
-			((!chan->peer_rcv_bsy && chan->send_len > 0) ||
-			 chan->cmdrsp_len > 0 || !gensio_list_empty(&chan->raws)))
-		gensio_list_add_tail(&base->send_list, &chan->sendlink);
-	    ax25_chan_deref_and_unlockb(chan);
-	    chan = NULL;
+	    re_add_chan = ((!chan->peer_rcv_bsy && chan->send_len > 0) ||
+			   chan->cmdrsp_len > 0 ||
+			   !gensio_list_empty(&chan->raws));
+	    ax25_chan_deref_and_unlock(chan);
 	}
+	ax25_base_lock(base);
+	if (re_add_chan && !gensio_list_link_inlist(&chan->sendlink))
+	    gensio_list_add_tail(&base->send_list, &chan->sendlink);
+	chan = NULL;
     }
 
     while (base->cmdrsp_len > 0) {
@@ -4138,12 +4120,12 @@ ax25_child_write_ready(struct ax25_base *base)
 	gensio_list_add_head(&base->send_list, &chan->sendlink);
     if (ax25_chan_in_writable_state(chan))
 	gensio_set_write_callback_enable(base->child, true);
-    ax25_chan_deref_and_unlockb(chan);
     ax25_base_deref_and_unlock(base);
+    ax25_chan_deref_and_unlock(chan);
     return 0;
  out_err_chan:
+    ax25_chan_deref_and_unlock(chan);
     ax25_base_lock(base);
-    ax25_chan_deref_and_unlockb(chan);
     i_ax25_base_handle_child_err(base, rv);
     ax25_base_deref_and_unlock(base);
     return 0;
