@@ -716,7 +716,11 @@ struct ax25_chan {
     /* List of unnumbered information packets to send. */
     struct gensio_list raws;
 
-    /* Link for list of things waiting to write. */
+    /*
+     * Link for list of things waiting to write, for the base
+     * send_list.  The channel will be refcounted if it's in
+     * send_list.
+     */
     struct gensio_link sendlink;
 
     enum ax25_chan_state state;
@@ -1837,8 +1841,10 @@ i_ax25_chan_schedule_write(struct ax25_chan *chan)
     struct ax25_base *base = chan->base;
 
     if (base->state == AX25_BASE_OPEN) {
-	if (!gensio_list_link_inlist(&chan->sendlink))
-	    gensio_list_add_tail(&base->send_list, &chan->sendlink);
+	if (!gensio_list_link_inlist(&chan->sendlink)) {
+	    if (gensio_refcount_inc_if_nz(&chan->refcount))
+		gensio_list_add_tail(&base->send_list, &chan->sendlink);
+	}
 	gensio_set_write_callback_enable(base->child, true);
     }
 }
@@ -3853,8 +3859,6 @@ ax25_child_write_ready(struct ax25_base *base)
 	l = gensio_list_first(&base->send_list);
 	gensio_list_rm(&base->send_list, l);
 	chan = gensio_container_of(l, struct ax25_chan, sendlink);
-	if (!ax25_chan_ref_if_nz(chan))
-	    chan = NULL;
 	ax25_base_unlock(base);
 
 	if (chan)
@@ -4053,11 +4057,18 @@ ax25_child_write_ready(struct ax25_base *base)
 	    re_add_chan = ((!chan->peer_rcv_bsy && chan->send_len > 0) ||
 			   chan->cmdrsp_len > 0 ||
 			   !gensio_list_empty(&chan->raws));
-	    ax25_chan_deref_and_unlock(chan);
+	    if (re_add_chan)
+		ax25_chan_unlock(chan);
+	    else
+		ax25_chan_deref_and_unlock(chan);
 	}
 	ax25_base_lock(base);
-	if (re_add_chan && !gensio_list_link_inlist(&chan->sendlink))
-	    gensio_list_add_tail(&base->send_list, &chan->sendlink);
+	if (re_add_chan) {
+	    if (gensio_list_link_inlist(&chan->sendlink))
+		ax25_chan_deref(chan);
+	    else
+		gensio_list_add_tail(&base->send_list, &chan->sendlink);
+	}
 	chan = NULL;
     }
 
