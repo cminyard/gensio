@@ -1088,7 +1088,7 @@ i_ax25_chan_deref(struct ax25_chan *chan, int line)
 {
     i_ax25_base_lock_add_other(chan->base, AX25_TRACE_CHAN_DEREF,
 			       gensio_refcount_get(&chan->refcount), line);
-    gensio_refcount_dec(&chan->refcount);
+    assert(gensio_refcount_dec(&chan->refcount) > 0);
 }
 #define ax25_chan_deref(chan) i_ax25_chan_deref((chan), __LINE__)
 
@@ -3861,10 +3861,10 @@ ax25_child_write_ready(struct ax25_base *base)
 	l = gensio_list_first(&base->send_list);
 	gensio_list_rm(&base->send_list, l);
 	chan = gensio_container_of(l, struct ax25_chan, sendlink);
+	/* Already refcounted. */
 	ax25_base_unlock(base);
 
-	if (chan)
-	    chan = ax25_chan_check_and_lock(chan, &base->chans, false);
+	chan = ax25_chan_check_and_lock(chan, &base->chans, false);
 	if (!chan)
 	    goto skip;
 
