@@ -522,6 +522,7 @@ struct ax25_base {
     bool have_raw;
 
 #ifdef DEBUG_STATE
+    struct gensio_lock *trace_lock;
     struct ax25_base_state_trace state_trace[STATE_TRACE_LEN];
     unsigned int state_trace_pos;
 #endif
@@ -871,6 +872,18 @@ i_ax25_base_unlock(struct ax25_base *base)
     } while(false)
 
 static void
+i_ax25_base_trace_lock(struct ax25_base *base)
+{
+    base->o->lock(base->trace_lock);
+}
+
+static void
+i_ax25_base_trace_unlock(struct ax25_base *base)
+{
+    base->o->unlock(base->trace_lock);
+}
+
+static void
 i_ax25_base_ref(struct ax25_base *base, int line)
 {
     gensio_refcount_inc(&base->refcount);
@@ -942,6 +955,10 @@ ax25_base_finish_free(struct ax25_base *base)
     ax25_free_iaddr_list(base->o, &base->listen_addrs);
     if (base->lock)
 	base->o->free_lock(base->lock);
+#ifdef DEBUG_STATE
+    if (base->trace_lock)
+	base->o->free_lock(base->trace_lock);
+#endif
     if (base->addrlock)
 	base->o->free_lock(base->addrlock);
     if (base->child)
@@ -1102,7 +1119,6 @@ i_ax25_base_finish_trace(struct ax25_base *base, enum ax25_base_trace_type type,
 {
     struct ax25_base_state_trace *t;
 
-    assert(base->locked);
     t = &(base->state_trace[base->state_trace_pos]);
     memset(t, 0, sizeof(*t));
     t->type = type;
@@ -1122,34 +1138,16 @@ i_ax25_chan_set_state(struct ax25_chan *chan, enum ax25_chan_state new_state,
     struct ax25_base_state_trace *t;
 
     assert(chan->locked);
-    i_ax25_base_lock(base);
+    i_ax25_base_trace_lock(base);
     t = &(base->state_trace[base->state_trace_pos]);
     i_ax25_base_finish_trace(base, AX25_TRACE_CHAN_STATE, line);
     t->u.ax25_chan_state.old_state = chan->state;
     t->u.ax25_chan_state.new_state = new_state;
-    i_ax25_base_unlock(base);
+    i_ax25_base_trace_unlock(base);
     chan->state = new_state;
 }
 #define ax25_chan_set_state(chan, state) \
     i_ax25_chan_set_state(chan, state, __LINE__)
-
-/* Set the state with only the channel locked and base locked already. */
-static void
-i_ax25_chan_set_stateb(struct ax25_chan *chan, enum ax25_chan_state new_state,
-		       int line)
-{
-    struct ax25_base *base = chan->base;
-    struct ax25_base_state_trace *t;
-
-    assert(chan->locked && base->locked);
-    t = &(base->state_trace[base->state_trace_pos]);
-    i_ax25_base_finish_trace(base, AX25_TRACE_CHAN_STATE, line);
-    t->u.ax25_chan_state.old_state = chan->state;
-    t->u.ax25_chan_state.new_state = new_state;
-    chan->state = new_state;
-}
-#define ax25_chan_set_stateb(chan, state) \
-    i_ax25_chan_set_stateb(chan, state, __LINE__)
 
 static void
 i_ax25_base_set_state(struct ax25_base *base,
@@ -1158,11 +1156,13 @@ i_ax25_base_set_state(struct ax25_base *base,
     struct ax25_base_state_trace *t;
 
     assert(base->locked);
+    i_ax25_base_trace_lock(base);
     t = &(base->state_trace[base->state_trace_pos]);
     i_ax25_base_finish_trace(base, AX25_TRACE_BASE_STATE, line);
     t->u.ax25_base_state.old_state = base->state;
     t->u.ax25_base_state.new_state = new_state;
     base->state = new_state;
+    i_ax25_base_trace_unlock(base);
 }
 #define ax25_base_set_state(base, state) \
     i_ax25_base_set_state(base, state, __LINE__)
@@ -1171,28 +1171,32 @@ static void i_ax25_chan_lock_add_lock(struct ax25_chan *chan, int line)
 {
     struct ax25_base *base = chan->base;
 
-    i_ax25_base_lock((chan)->base);
+    i_ax25_base_trace_lock((chan)->base);
     i_ax25_base_finish_trace(base, AX25_TRACE_CHAN_LOCK, line);
-    i_ax25_base_unlock((chan)->base);
+    i_ax25_base_trace_unlock((chan)->base);
 }
 
 static void i_ax25_chan_lock_add_unlock(struct ax25_chan *chan, int line)
 {
     struct ax25_base *base = chan->base;
 
-    i_ax25_base_lock((chan)->base);
+    i_ax25_base_trace_lock((chan)->base);
     i_ax25_base_finish_trace(base, AX25_TRACE_CHAN_UNLOCK, line);
-    i_ax25_base_unlock((chan)->base);
+    i_ax25_base_trace_unlock((chan)->base);
 }
 
 static void i_ax25_base_add_lock(struct ax25_base *base, int line)
 {
+    i_ax25_base_trace_lock(base);
     i_ax25_base_finish_trace(base, AX25_TRACE_BASE_LOCK, line);
+    i_ax25_base_trace_unlock(base);
 }
 
 static void i_ax25_base_add_unlock(struct ax25_base *base, int line)
 {
+    i_ax25_base_trace_lock(base);
     i_ax25_base_finish_trace(base, AX25_TRACE_BASE_UNLOCK, line);
+    i_ax25_base_trace_unlock(base);
 }
 
 static void i_ax25_base_add_other(struct ax25_base *base,
@@ -1201,9 +1205,11 @@ static void i_ax25_base_add_other(struct ax25_base *base,
 {
     struct ax25_base_state_trace *t;
 
+    i_ax25_base_trace_lock(base);
     t = &(base->state_trace[base->state_trace_pos]);
     i_ax25_base_finish_trace(base, type, line);
     t->u.oinfo = other + 1000;
+    i_ax25_base_trace_unlock(base);
 }
 
 static void i_ax25_base_lock_add_other(struct ax25_base *base,
@@ -1212,11 +1218,11 @@ static void i_ax25_base_lock_add_other(struct ax25_base *base,
 {
     struct ax25_base_state_trace *t;
 
-    i_ax25_base_lock(base);
+    i_ax25_base_trace_lock(base);
     t = &(base->state_trace[base->state_trace_pos]);
     i_ax25_base_finish_trace(base, type, line);
     t->u.oinfo = other + 1000;
-    i_ax25_base_unlock(base);
+    i_ax25_base_trace_unlock(base);
 }
 
 #else
@@ -1225,8 +1231,6 @@ ax25_chan_set_state(struct ax25_chan *chan, enum ax25_chan_state state)
 {
     chan->state = state;
 }
-#define ax25_chan_set_stateb(chan, state) \
-    ax25_chan_set_state(chan, state)
 
 static void
 ax25_base_set_state(struct ax25_base *base, enum ax25_base_state state)
@@ -2320,9 +2324,9 @@ ax25_chan_prestart_connect(struct ax25_chan *chan)
 {
     ax25_chan_reset_data(chan);
     if (chan->conf.addr)
-	ax25_chan_set_stateb(chan, AX25_CHAN_IN_OPEN);
+	ax25_chan_set_state(chan, AX25_CHAN_IN_OPEN);
     else
-	ax25_chan_set_stateb(chan, AX25_CHAN_NOCON_IN_OPEN);
+	ax25_chan_set_state(chan, AX25_CHAN_NOCON_IN_OPEN);
 }
 
 /* Must be called with the channel lock held, but not the base lock. */
@@ -4399,7 +4403,7 @@ i_ax25_chan_open(struct ax25_chan *chan,
     switch (base->state) {
     case AX25_BASE_CHILD_IO_ERR:
     case AX25_BASE_IN_CHILD_CLOSE:
-	ax25_chan_set_stateb(chan, AX25_CHAN_WAITING_OPEN);
+	ax25_chan_set_state(chan, AX25_CHAN_WAITING_OPEN);
 	gensio_list_rm(&base->chans_closed, &chan->link);
 	gensio_list_add_tail(&base->chans_waiting_open, &chan->link);
 	break;
@@ -4410,7 +4414,7 @@ i_ax25_chan_open(struct ax25_chan *chan,
 	    break;
 	/* fallthrough */
     case AX25_BASE_IN_CHILD_OPEN:
-	ax25_chan_set_stateb(chan, AX25_CHAN_WAITING_OPEN);
+	ax25_chan_set_state(chan, AX25_CHAN_WAITING_OPEN);
 	gensio_list_rm(&base->chans_closed, &chan->link);
 	gensio_list_add_tail(&base->chans_waiting_open, &chan->link);
 	break;
@@ -5286,6 +5290,12 @@ ax25_gensio_alloc_base(struct gensio *child, const char *const args[],
     base->lock = o->alloc_lock(o);
     if (!base->lock)
 	goto out_nomem;
+
+#ifdef DEBUG_STATE
+    base->trace_lock = o->alloc_lock(o);
+    if (!base->trace_lock)
+	goto out_nomem;
+#endif
 
     base->addrlock = o->alloc_lock(o);
     if (!base->addrlock)
