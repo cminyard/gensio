@@ -758,6 +758,23 @@ There are a plethora of serialoptions, available as defaults:
 This is a normal serial port configuration specification, the default
 is "9600N81".  The "speed=" at the beginning is optional, but "speed"
 is a default type for this.
+
+The <speed> (or baud rate) setting is a number.  Depending on the
+specific serial port, this can be almost any number.  Some serial port
+on some systems support any arbatrary number, others have specific
+numbers that are supported.
+
+The <parity> setting is one of "N", "E", "O", "M", "S" for none, even,
+odd, mark, and space.
+
+The <databits> value is a number 5-8.  It sets the number of bits sent
+for each character, and is generally 8.
+
+The <stopbits> values is the number of bits to mark the end of a
+character, either 1 or 2.
+
+Really just need to know what the value you are connecting to is.  For
+more details, see https://en.wikipedia.org/wiki/Serial_port.
 .TP
 .B wronly[=true|false]
 This option is deprecated, use the "dev" gensio for non-serial port
