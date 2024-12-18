@@ -242,7 +242,12 @@ struct auth_data {
     gensiods len_2fa;
 
     char *raddr; /* From GETSIO_CONTROL_RADDR */
+    char *laddr; /* From GETSIO_CONTROL_LADDR */
+
+    char *lhost; /* Host part, points into laddr, don't free */
+    char *lport;
     char *rhost; /* Host part, points into raddr, don't free */
+    char *rport;
     bool authed_by_cert;
 
     struct gtlssh_aux_data aux_data;
@@ -501,6 +506,8 @@ auth_free(struct auth_data *auth)
     }
     if (auth->raddr)
 	o->free(o, auth->raddr);
+    if (auth->laddr)
+	o->free(o, auth->laddr);
 #ifdef HAVE_LIBPAM
     if (auth->pam_session_open) {
 	auth->pam_err = pam_close_session(auth->pamh, PAM_SILENT);
@@ -2261,78 +2268,6 @@ new_rem_io(struct gensio *io, struct auth_data *auth)
 	goto out_free;
     }
 
-    if (login || progv) {
-	unsigned int i = 0, j;
-
-	for (i = 0; auth->env && auth->env[i]; i++)
-	    ;
-#ifndef _WIN32
-	i += 4;
-#endif
-	i += env_len;
-	if (i == 0)
-	    goto skip_env;
-
-	penv2 = o->zalloc(o, (i + 1) * sizeof(char *));
-	if (!penv2) {
-	    log_event(LOG_ERR, "Failure to reallocate env for %s",
-		      auth->username);
-	    goto out_free;
-	}
-
-	i = 0;
-#ifndef _WIN32
-	penv2[i] = gensio_alloc_sprintf(o, "HOME=%s", auth->homedir);
-	if (!penv2[i]) {
-	    log_event(LOG_ERR, "Failure to alloc HOME env space for %s",
-		      auth->username);
-	    goto out_free;
-	}
-	i++;
-	penv2[i] = gensio_alloc_sprintf(o, "USER=%s", auth->username);
-	if (!penv2[i]) {
-	    log_event(LOG_ERR, "Failure to alloc USER env space for %s",
-		      auth->username);
-	    goto out_free;
-	}
-	i++;
-	penv2[i] = gensio_alloc_sprintf(o, "LOGNAME=%s", auth->username);
-	if (!penv2[i]) {
-	    log_event(LOG_ERR, "Failure to alloc LOGNAME env space for %s",
-		      auth->username);
-	    goto out_free;
-	}
-	i++;
-	penv2[i] = gensio_alloc_sprintf(o, "PATH=%s", STANDARD_PATH);
-	if (!penv2[i]) {
-	    log_event(LOG_ERR, "Failure to alloc PATH env space for %s",
-		      auth->username);
-	    goto out_free;
-	}
-	i++;
-#endif
-	for (j = 0; auth->env[j]; i++, j++) {
-	    penv2[i] = gensio_strdup(o, auth->env[j]);
-	    if (!penv2[i]) {
-		log_event(LOG_ERR, "Failure to alloc env space for %s",
-			  auth->username);
-		goto out_free;
-	    }
-	}
-	if (env) {
-	    for (j = 0; j < env_len; i++, j++) {
-		penv2[i] = gensio_strdup(o, env[j]);
-		if (!penv2[i]) {
-		    log_event(LOG_ERR, "Failure to alloc env space for %s",
-			      auth->username);
-		    goto out_free;
-		}
-	    }
-	}
-	penv2[i] = NULL;
-    }
- skip_env:
-
     pcinfo = o->zalloc(o, sizeof(*pcinfo));
     if (!pcinfo) {
 	log_event(LOG_ERR, "Unable to allocate SSL pc info");
@@ -2416,6 +2351,105 @@ new_rem_io(struct gensio *io, struct auth_data *auth)
 
     if (progv || login) {
 	char *use_env = (char *) env;
+	unsigned int i = 0, j;
+
+	for (i = 0; auth->env && auth->env[i]; i++)
+	    ;
+#ifndef _WIN32
+	i += 7;
+#endif
+	i += env_len;
+	if (i == 0)
+	    goto skip_env;
+
+	penv2 = o->zalloc(o, (i + 1) * sizeof(char *));
+	if (!penv2) {
+	    log_event(LOG_ERR, "Failure to reallocate env for %s",
+		      auth->username);
+	    goto out_free;
+	}
+
+	i = 0;
+#ifndef _WIN32
+	penv2[i] = gensio_alloc_sprintf(o, "HOME=%s", auth->homedir);
+	if (!penv2[i]) {
+	    log_event(LOG_ERR, "Failure to alloc HOME env space for %s",
+		      auth->username);
+	    goto out_free;
+	}
+	i++;
+	penv2[i] = gensio_alloc_sprintf(o, "USER=%s", auth->username);
+	if (!penv2[i]) {
+	    log_event(LOG_ERR, "Failure to alloc USER env space for %s",
+		      auth->username);
+	    goto out_free;
+	}
+	i++;
+	penv2[i] = gensio_alloc_sprintf(o, "LOGNAME=%s", auth->username);
+	if (!penv2[i]) {
+	    log_event(LOG_ERR, "Failure to alloc LOGNAME env space for %s",
+		      auth->username);
+	    goto out_free;
+	}
+	i++;
+	penv2[i] = gensio_alloc_sprintf(o, "PATH=%s", STANDARD_PATH);
+	if (!penv2[i]) {
+	    log_event(LOG_ERR, "Failure to alloc PATH env space for %s",
+		      auth->username);
+	    goto out_free;
+	}
+	i++;
+	/*
+	 * At least macos requires SSH_xxx variables to be set to detect
+	 * that this is an ssh login and correctly load bashrc for non
+	 * login connections.
+	 */
+	printf("A: %s %s %s\n", auth->rhost, auth->lport, auth->rport);
+	if (auth->rhost && auth->lport && auth->rport) {
+	    penv2[i] = gensio_alloc_sprintf(o, "SSH_CLIENT=%s %s %s",
+					    auth->rhost, auth->rport,
+					    auth->lport);
+	    if (!penv2[i]) {
+		log_event(LOG_ERR,
+			  "Failure to alloc SSH_CLIENT env space for %s",
+			  auth->username);
+		goto out_free;
+	    }
+	    i++;
+	}
+	if (auth->rhost && auth->lhost && auth->lport && auth->rport) {
+	    penv2[i] = gensio_alloc_sprintf(o, "SSH_CONNECTION=%s %s %s %s",
+					    auth->rhost, auth->rport,
+					    auth->lhost, auth->lport);
+	    if (!penv2[i]) {
+		log_event(LOG_ERR,
+			  "Failure to alloc SSH_CONNECTION env space for %s",
+			  auth->username);
+		goto out_free;
+	    }
+	    i++;
+	}
+#endif
+	for (j = 0; auth->env[j]; i++, j++) {
+	    penv2[i] = gensio_strdup(o, auth->env[j]);
+	    if (!penv2[i]) {
+		log_event(LOG_ERR, "Failure to alloc env space for %s",
+			  auth->username);
+		goto out_free;
+	    }
+	}
+	if (env) {
+	    for (j = 0; j < env_len; i++, j++) {
+		penv2[i] = gensio_strdup(o, env[j]);
+		if (!penv2[i]) {
+		    log_event(LOG_ERR, "Failure to alloc env space for %s",
+			      auth->username);
+		    goto out_free;
+		}
+	    }
+	}
+	penv2[i] = NULL;
+    skip_env:
 
 	if (penv2)
 	    use_env = (char *) penv2;
@@ -2570,6 +2604,8 @@ handle_new(struct gensio *net_io)
     char tmpservice[20];
     unsigned int i;
     char dummy;
+    char daddr[512];
+    gensiods addrsize;
 
     auth = o->zalloc(o, sizeof(*auth));
     if (!auth) {
@@ -2688,14 +2724,15 @@ handle_new(struct gensio *net_io)
     if (err)
 	goto out_err;
 
-    /* Set rhost.  If any of thils fails, we just go on. */
+    /* Set rhost, raddr, and laddr.  If any of thils fails, we just go on. */
     len = 0;
     err = gensio_control(net_io, 0, GENSIO_CONTROL_GET,
 			 GENSIO_CONTROL_RADDR, &dummy, &len);
     if (!err && len > 0) {
 	char *c2;
 
-	auth->raddr = o->zalloc(o, len + 1);
+	len++;
+	auth->raddr = o->zalloc(o, len);
 	if (!auth->raddr)
 	    goto skip_rhost;
 	err = gensio_control(net_io, 0, GENSIO_CONTROL_GET,
@@ -2708,8 +2745,10 @@ handle_new(struct gensio *net_io)
 
 	/* Pull the address out, it's between the first and last comma. */
 	c2 = strrchr(auth->raddr, ',');
-	if (c2)
+	if (c2) {
 	    *c2 = '\0';
+	    auth->rport = c2 + 1;
+	}
 	c2 = strchr(auth->raddr, ',');
 	if (c2)
 	    c2++;
@@ -2717,6 +2756,38 @@ handle_new(struct gensio *net_io)
 	    c2 = auth->raddr;
 
 	auth->rhost = c2;
+    }
+    len = 0;
+    err = gensio_control(net_io, 0, GENSIO_CONTROL_GET,
+			 GENSIO_CONTROL_LADDR, &dummy, &len);
+    if (!err && len > 0) {
+	char *c2;
+
+	len++;
+	auth->laddr = o->zalloc(o, len);
+	if (!auth->laddr)
+	    goto skip_rhost;
+	err = gensio_control(net_io, 0, GENSIO_CONTROL_GET,
+			     GENSIO_CONTROL_LADDR, auth->laddr, &len);
+	if (err) {
+	    o->free(o, auth->laddr);
+	    auth->laddr = NULL;
+	    goto skip_rhost;
+	}
+
+	/* Pull the address out, it's between the first and last comma. */
+	c2 = strrchr(auth->laddr, ',');
+	if (c2) {
+	    *c2 = '\0';
+	    auth->lport = c2 + 1;
+	}
+	c2 = strchr(auth->laddr, ',');
+	if (c2)
+	    c2++;
+	else
+	    c2 = auth->laddr;
+
+	auth->lhost = c2;
     }
  skip_rhost:
 
