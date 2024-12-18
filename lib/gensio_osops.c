@@ -80,7 +80,7 @@ gensio_unix_os_setupnewprog(void)
     int err;
     uid_t uid = getuid();
     gid_t *groups = NULL;
-    int ngroup = 0;
+    int cgroup = 0, ngroup;
 
     if (do_errtrig())
 	return GE_NOMEM;
@@ -97,41 +97,36 @@ gensio_unix_os_setupnewprog(void)
     if (err)
 	return errno;
 
-    getgrouplist(pw->pw_name, pw->pw_gid, GID_CAST groups, &ngroup);
-    if (ngroup > 0) {
-	int ngroup2 = ngroup;
-
-	groups = malloc(sizeof(gid_t) * ngroup);
+    /*
+     * Get the list of groups.  getgrouplist doesn't work the same on
+     * macos (and I assume BSD), it returns the number of values put
+     * into groups, not the total number of available values.  So we
+     * have to loop :-(.
+     */
+#define NGROUP_INCR	32
+    err = -1;
+    while (err == -1) {
+	if (groups)
+	    free(groups);
+	cgroup += NGROUP_INCR;
+	ngroup = cgroup;
+	groups = malloc(ngroup * sizeof(*groups));
 	if (!groups)
 	    return ENOMEM;
-
-	err = getgrouplist(pw->pw_name, pw->pw_gid, GID_CAST groups, &ngroup2);
-	if (err == -1) {
-	    err = errno;
-	    free(groups);
-	    return err;
-	}
-	/*
-	 * There is some possibility that the number of groups will
-	 * change between the calls.  If the new on is bigger than the
-	 * old, use the old one to avoid accessing past the end of the
-	 * buffer.  If the new one is smaller, use that.
-	 */
-	if (ngroup2 < ngroup)
-	    ngroup = ngroup2;
-
-	err = setgroups(ngroup, groups);
-	if (err) {
-	    err = errno;
-	    free(groups);
-	    return err;
-	}
-	free(groups);
-    } else {
-	err = setgroups(0, NULL);
-	if (err)
-	    return errno;
+	err = getgrouplist(pw->pw_name, pw->pw_gid, GID_CAST groups, &ngroup);
     }
+    if (ngroup == 0) {
+	/* Need at least one value.  groups can't be NULL here. */
+	ngroup = 1;
+        groups[0] = getgid();
+    }
+    err = setgroups(ngroup, groups);
+    if (err) {
+	err = errno;
+	free(groups);
+	return err;
+    }
+    free(groups);
 
     /* Sets the real, effective, and saved userid. */
     err = setuid(uid);
