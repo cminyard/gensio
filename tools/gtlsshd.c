@@ -2162,6 +2162,7 @@ new_rem_io(struct gensio *io, struct auth_data *auth)
     bool login = false;
     bool do_chdir = false;
     char *service = NULL;
+    char *cmdbuf = NULL;
     char **env = NULL;
     unsigned int env_len = 0;
     const char **penv2 = NULL;
@@ -2191,8 +2192,18 @@ new_rem_io(struct gensio *io, struct auth_data *auth)
 	goto out_free;
     }
     if (strstartswith(service, "program:")) {
-	char *str = strchr(service, ':') + 1;
+	char *str = strchr(service, ':');
+	gensiods pos = 0, alloclen;
 
+	if (!str) {
+	    gensio_time timeout = {10, 0};
+
+	    write_str_to_gensio("invalid program string",
+				io, &timeout, true);
+	    goto out_free;
+	}
+
+	str++;
 	len -= str - service;
 	err = get_vals_from_service(o, &progv, NULL, str, len);
     out_bad_vals:
@@ -2203,6 +2214,27 @@ new_rem_io(struct gensio *io, struct auth_data *auth)
 				io, &timeout, true);
 	    goto out_free;
 	}
+	alloclen = gensio_argv_snprintf(cmdbuf, 0,
+					&pos, (const char **) progv);
+	cmdbuf = o->zalloc(o, alloclen + 1);
+	if (!cmdbuf) {
+	    log_event(LOG_ERR, "Could not allocate cmdbuf memory");
+	    goto out_free;
+	}
+	pos = 0;
+	gensio_argv_snprintf(cmdbuf, alloclen + 1, &pos,
+			     (const char **) progv);
+	free(progv);
+	progv = o->zalloc(o, 4 * sizeof(*progv));
+	if (!progv) {
+	    log_event(LOG_ERR, "Could not allocate progv memory");
+	    goto out_free;
+	}
+	progv[0] = auth->ushell;
+	progv[1] = "-c";
+	progv[2] = cmdbuf;
+	progv[3] = NULL;
+
 	/* Dummy out the program, we will set it later with a control. */
 	s = gensio_alloc_sprintf(o,
 				 "stdio(stderr-to-stdout,readbuf=16384),dummy");
@@ -2404,7 +2436,6 @@ new_rem_io(struct gensio *io, struct auth_data *auth)
 	 * that this is an ssh login and correctly load bashrc for non
 	 * login connections.
 	 */
-	printf("A: %s %s %s\n", auth->rhost, auth->lport, auth->rport);
 	if (auth->rhost && auth->lport && auth->rport) {
 	    penv2[i] = gensio_alloc_sprintf(o, "SSH_CLIENT=%s %s %s",
 					    auth->rhost, auth->rport,
@@ -2505,6 +2536,8 @@ new_rem_io(struct gensio *io, struct auth_data *auth)
 	gensio_argv_free(o, penv2);
     if (progv)
 	o->free(o, progv); /* Entries are from the service string. */
+    if (cmdbuf)
+	o->free(o, cmdbuf);
     if (service)
 	o->free(o, service);
     if (s)
