@@ -183,9 +183,8 @@ close_socket(struct gensio_os_funcs *o, int fd)
      * to the same system.  The socket will only close when all connections
      * to that system close.  Windows is broken in so many ways.
      */
-    err = shutdown(fd, SD_BOTH);
-    if (!err)
-	err = closesocket(fd);
+    shutdown(fd, SD_BOTH);
+    err = closesocket(fd);
 #else
     err = close(fd);
 #endif
