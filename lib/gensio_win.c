@@ -1284,8 +1284,10 @@ win_iod_socket_clean(struct gensio_iod_win *wiod)
 	WSACloseEvent(swiod->sockev);
     if (swiod->wakeev != WSA_INVALID_EVENT)
 	WSACloseEvent(swiod->wakeev);
-    if (wiod->fd != -1)
+    if (wiod->fd != -1) {
+	shutdown(wiod->fd, SD_BOTH);
 	closesocket(wiod->fd);
+    }
 }
 
 static int
