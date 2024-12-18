@@ -79,8 +79,6 @@ gensio_unix_os_setupnewprog(void)
     struct passwd *pw;
     int err;
     uid_t uid = getuid();
-    gid_t *groups = NULL;
-    int cgroup = 0, ngroup;
 
     if (do_errtrig())
 	return GE_NOMEM;
@@ -97,6 +95,11 @@ gensio_unix_os_setupnewprog(void)
     if (err)
 	return errno;
 
+#ifdef HAVE_INITGROUPS
+    err = initgroups(pw->pw_name, pw->pw_gid);
+    if (err)
+	return errno;
+#else
     /*
      * Get the list of groups.  getgrouplist doesn't work the same on
      * macos (and I assume BSD), it returns the number of values put
@@ -104,29 +107,36 @@ gensio_unix_os_setupnewprog(void)
      * have to loop :-(.
      */
 #define NGROUP_INCR	32
-    err = -1;
-    while (err == -1) {
-	if (groups)
+    {
+	gid_t *groups = NULL;
+	int cgroup = 0, ngroup;
+
+	err = -1;
+	while (err == -1) {
+	    if (groups)
+		free(groups);
+	    cgroup += NGROUP_INCR;
+	    ngroup = cgroup;
+	    groups = malloc(ngroup * sizeof(*groups));
+	    if (!groups)
+		return ENOMEM;
+	    err = getgrouplist(pw->pw_name, pw->pw_gid, GID_CAST groups,
+			       &ngroup);
+	}
+	if (ngroup == 0) {
+	    /* Need at least one value.  groups can't be NULL here. */
+	    ngroup = 1;
+	    groups[0] = getgid();
+	}
+	err = setgroups(ngroup, groups);
+	if (err) {
+	    err = errno;
 	    free(groups);
-	cgroup += NGROUP_INCR;
-	ngroup = cgroup;
-	groups = malloc(ngroup * sizeof(*groups));
-	if (!groups)
-	    return ENOMEM;
-	err = getgrouplist(pw->pw_name, pw->pw_gid, GID_CAST groups, &ngroup);
-    }
-    if (ngroup == 0) {
-	/* Need at least one value.  groups can't be NULL here. */
-	ngroup = 1;
-        groups[0] = getgid();
-    }
-    err = setgroups(ngroup, groups);
-    if (err) {
-	err = errno;
+	    return err;
+	}
 	free(groups);
-	return err;
     }
-    free(groups);
+#endif
 
     /* Sets the real, effective, and saved userid. */
     err = setuid(uid);
