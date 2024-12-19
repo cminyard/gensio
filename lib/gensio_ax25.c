@@ -4143,7 +4143,7 @@ ax25_child_write_ready(struct ax25_base *base)
     if (ax25_chan_in_writable_state(chan))
 	gensio_set_write_callback_enable(base->child, true);
     ax25_base_deref_and_unlock(base);
-    ax25_chan_deref_and_unlock(chan);
+    ax25_chan_unlock(chan); /* Didn't remove the item from the queue... */
     return 0;
  out_err_chan:
     ax25_chan_deref_and_unlock(chan);
