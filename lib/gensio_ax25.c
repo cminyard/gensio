@@ -356,7 +356,7 @@ struct ax25_base_state_trace {
     } u;
     unsigned int line;
 };
-#define STATE_TRACE_LEN 256
+#define STATE_TRACE_LEN 1024
 static void i_ax25_base_add_lock(struct ax25_base *base, int line);
 static void i_ax25_base_add_other(struct ax25_base *base,
 				  enum ax25_base_trace_type type,
