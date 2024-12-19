@@ -1336,6 +1336,17 @@ ax25_chan_report_close(struct ax25_chan *chan)
     }
     /* Lose the ref from when close was called. */
     ax25_chan_deref(chan);
+
+    /*
+     * When we close, we may still be in the sendlink list, but it
+     * won't get processed again.  So make sure to clear it out.
+     */
+    ax25_base_lock(chan->base);
+    if (gensio_list_link_inlist(&chan->sendlink)) {
+	gensio_list_rm(&chan->base->send_list, &chan->sendlink);
+	ax25_chan_deref(chan);
+    }
+    ax25_base_unlock(chan->base);
 }
 
 static void
