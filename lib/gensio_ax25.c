@@ -4071,7 +4071,7 @@ ax25_child_write_ready(struct ax25_base *base)
 	ax25_base_lock(base);
 	if (re_add_chan) {
 	    if (gensio_list_link_inlist(&chan->sendlink))
-		ax25_chan_deref(chan);
+		ax25_chan_deref(chan); /* Another queue operation ref-ed it. */
 	    else
 		gensio_list_add_tail(&base->send_list, &chan->sendlink);
 	}
@@ -4121,12 +4121,18 @@ ax25_child_write_ready(struct ax25_base *base)
  out_reenable_chan:
     /* A write didn't complete, Reenable so we can know when we can finish. */
     ax25_base_lock(base);
+    re_add_chan = true;
     if (!gensio_list_link_inlist(&chan->sendlink))
 	gensio_list_add_head(&base->send_list, &chan->sendlink);
+    else
+	re_add_chan = false;
     if (ax25_chan_in_writable_state(chan))
 	gensio_set_write_callback_enable(base->child, true);
     ax25_base_deref_and_unlock(base);
-    ax25_chan_unlock(chan); /* Didn't remove the item from the queue... */
+    if (re_add_chan)
+	ax25_chan_unlock(chan); /* requeued, don't deref. */
+    else
+	ax25_chan_deref_and_unlock(chan);
     return 0;
  out_err_chan:
     ax25_chan_deref_and_unlock(chan);
