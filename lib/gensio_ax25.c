@@ -772,6 +772,8 @@ struct ax25_chan {
     bool read_enabled;
     bool xmit_enabled;
 
+    bool freed;
+
     gensio_done_err open_done;
     void *open_data;
 
@@ -1102,6 +1104,7 @@ i_ax25_chan_deref_and_unlock(struct ax25_chan *chan, int line)
 			       gensio_refcount_get(&chan->refcount), line);
 
     if (gensio_refcount_dec(&chan->refcount) == 0) {
+	assert(chan->freed);
 	i_ax25_base_lock(base);
 	i_ax25_base_unlock(base);
 	i_ax25_chan_unlock(chan);
@@ -4614,6 +4617,7 @@ ax25_chan_free(struct ax25_chan *chan)
     default:
 	assert(0);
     }
+    chan->freed = true;
     /* Lose the initial ref so it will be freed when done. */
     ax25_chan_deref_and_unlock(chan);
 }
