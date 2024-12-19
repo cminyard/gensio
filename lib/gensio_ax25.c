@@ -1848,7 +1848,7 @@ i_ax25_chan_schedule_write(struct ax25_chan *chan)
 
     if (base->state == AX25_BASE_OPEN) {
 	if (!gensio_list_link_inlist(&chan->sendlink)) {
-	    if (gensio_refcount_inc_if_nz(&chan->refcount))
+	    if (ax25_chan_ref_if_nz(chan))
 		gensio_list_add_tail(&base->send_list, &chan->sendlink);
 	}
 	gensio_set_write_callback_enable(base->child, true);
