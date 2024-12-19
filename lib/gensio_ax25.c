@@ -2126,7 +2126,6 @@ ax25_t1_timeout(struct ax25_chan *chan)
 	if (chan->poll_pending) {
 	    if (chan->retry_count == chan->max_retries) {
 		ax25_proto_err(chan->base, chan, "Connection timed out");
-		printf("***1\n");
 		ax25_chan_send_rsp(chan, X25_DM, 1);
 		chan->err = GE_TIMEDOUT;
 		ax25_chan_do_err_close(chan, true);
@@ -2619,7 +2618,6 @@ ax25_chan_handle_sabm(struct ax25_base *base, struct ax25_chan *chan,
 	    chan->conf.addr = gensio_addr_dup(&addr->r);
 	    if (!chan->conf.addr) {
 		chan->err = GE_NOMEM;
-		printf("***2\n");
 		ax25_base_send_rsp(base, &addr->r, X25_DM, pf, NULL, 0);
 		ax25_chan_report_open(chan);
 		return NULL;
@@ -2633,7 +2631,6 @@ ax25_chan_handle_sabm(struct ax25_base *base, struct ax25_chan *chan,
 	    rv = ax25_chan_alloc(base, NULL, NULL, NULL, AX25_CHAN_OPEN,
 				 &addr->r, false, &chan);
 	    if (rv) {
-		printf("***3\n");
 		ax25_base_send_rsp(base, &addr->r, X25_DM, pf, NULL, 0);
 		return NULL;
 	    }
@@ -2660,7 +2657,6 @@ ax25_chan_handle_sabm(struct ax25_base *base, struct ax25_chan *chan,
 			ax25_chan_move_to_closed(chan, &base->chans);
 		    }
 		    ax25_chan_deref_and_unlock(chan);
-		    printf("***4\n");
 		    ax25_base_send_rsp(base, &addr->r, X25_DM, pf, NULL, 0);
 		    chan->in_newchannel = 0;
 		    return NULL;
@@ -2700,7 +2696,6 @@ ax25_chan_handle_sabm(struct ax25_base *base, struct ax25_chan *chan,
 	if (!chan->got_firstmsg)
 	    goto handle_in_open;
 	ax25_proto_err(base, chan, "Data Link Reset");
-	printf("***5\n");
 	ax25_chan_send_rsp(chan, X25_DM, pf);
 	chan->err = GE_PROTOERR;
 	ax25_chan_do_err_close(chan, true);
@@ -2713,7 +2708,6 @@ ax25_chan_handle_sabm(struct ax25_base *base, struct ax25_chan *chan,
     case AX25_CHAN_IN_CLOSE:
     case AX25_CHAN_REM_DISC:
     case AX25_CHAN_REM_CLOSE:
-	printf("***6\n");
 	ax25_chan_send_rsp(chan, X25_DM, pf);
 	ax25_chan_do_close(chan, true);
 	break;
@@ -2730,14 +2724,12 @@ ax25_chan_handle_disc(struct ax25_base *base, struct ax25_chan *chan,
 		      struct gensio_ax25_addr *addr, uint8_t pf, bool is_cmd)
 {
     if (!chan) {
-	printf("***7\n");
 	ax25_base_send_rsp(base, &addr->r, X25_DM, pf, NULL, 0);
 	return;
     }
 
     switch (chan->state) {
     case AX25_CHAN_IN_OPEN:
-	printf("***8\n");
 	ax25_chan_send_rsp(chan, X25_DM, pf);
 	break;
 
@@ -3245,10 +3237,8 @@ ax25_chan_handle_i(struct ax25_base *base, struct ax25_chan *chan,
 	break;
 
     case AX25_CHAN_IN_CLOSE:
-	if (pf) {
-	    printf("***9\n");
+	if (pf)
 	    ax25_chan_send_rsp(chan, X25_DM, pf);
-	}
 	break;
 
     case AX25_CHAN_OPEN:
@@ -3391,10 +3381,8 @@ ax25_chan_handle_rr(struct ax25_base *base, struct ax25_chan *chan,
 	break;
 
     case AX25_CHAN_IN_CLOSE:
-	if (pf) {
-	    printf("***10\n");
+	if (pf)
 	    ax25_chan_send_rsp(chan, X25_DM, pf);
-	}
 	break;
 
     case AX25_CHAN_OPEN:
@@ -3424,10 +3412,8 @@ ax25_chan_handle_rnr(struct ax25_base *base, struct ax25_chan *chan,
 	break;
 
     case AX25_CHAN_IN_CLOSE:
-	if (pf) {
-	    printf("***12\n");
+	if (pf)
 	    ax25_chan_send_rsp(chan, X25_DM, pf);
-	}
 	break;
 
     case AX25_CHAN_OPEN:
@@ -3455,10 +3441,8 @@ ax25_chan_handle_rej(struct ax25_base *base, struct ax25_chan *chan,
 	break;
 
     case AX25_CHAN_IN_CLOSE:
-	if (pf) {
-	    printf("***13\n");
+	if (pf)
 	    ax25_chan_send_rsp(chan, X25_DM, pf);
-	}
 	break;
 
     case AX25_CHAN_OPEN:
@@ -3509,10 +3493,8 @@ ax25_chan_handle_srej(struct ax25_base *base, struct ax25_chan *chan,
 	break;
 
     case AX25_CHAN_IN_CLOSE:
-	if (pf) {
-	    printf("***15\n");
+	if (pf)
 	    ax25_chan_send_rsp(chan, X25_DM, pf);
-	}
 	break;
 
     case AX25_CHAN_OPEN:
@@ -4550,7 +4532,6 @@ i_ax25_chan_close(struct ax25_chan *chan,
 	    if (chan->state == AX25_CHAN_IN_OPEN) {
 		chan->retry_count = 0;
 		chan->err = GE_LOCALCLOSED;
-		printf("***16\n");
 		ax25_chan_send_cmd(chan, X25_DM, 1);
 		ax25_chan_set_state(chan, AX25_CHAN_REPORT_OPEN_CLOSE);
 		ax25_chan_move_to_closed(chan, &base->chans);
