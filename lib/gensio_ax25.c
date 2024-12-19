@@ -1838,6 +1838,7 @@ ax25_chan_reset_data(struct ax25_chan *chan)
     chan->curr_timeout = 0;
     chan->err = 0;
     chan->got_firstmsg = false;
+    chan->freed = false;
 }
 
 static void
