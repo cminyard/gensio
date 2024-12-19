@@ -10,6 +10,14 @@
 ENTITLEMENTS=tmp.entitlements
 if [ ! -e "$ENTITLEMENTS" ]; then
     /usr/libexec/PlistBuddy -c \
-	"Add :com.apple.security.get-task-allow bool true" tmp.entitlements
+	"Add :com.apple.security.get-task-allow bool true" $ENTITLEMENTS
+    /usr/libexec/PlistBuddy -c \
+	"Add :com.apple.security.cs.disable-library-validation bool true" $ENTITLEMENTS
+    /usr/libexec/PlistBuddy -c \
+	"Add :com.apple.security.cs.allow-unsigned-executable-memory bool true" $ENTITLEMENTS
+    /usr/libexec/PlistBuddy -c \
+	"Add :com.apple.security.get-task-allow bool true" $ENTITLEMENTS
+    /usr/libexec/PlistBuddy -c \
+	"Add :com.apple.security.cs.allow-dyld-environment-variables bool true" $ENTITLEMENTS
 fi
 codesign -s - -f --entitlements "$ENTITLEMENTS" $*
