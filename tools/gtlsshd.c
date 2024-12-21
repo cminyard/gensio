@@ -2158,6 +2158,7 @@ new_rem_io(struct gensio *io, struct auth_data *auth)
     gensiods len;
     char *s = NULL;
     int err;
+    char dummy[1];
     char **progv = NULL; /* If set in the service. */
     bool login = false;
     bool do_chdir = false;
@@ -2214,7 +2215,7 @@ new_rem_io(struct gensio *io, struct auth_data *auth)
 				io, &timeout, true);
 	    goto out_free;
 	}
-	alloclen = gensio_argv_snprintf(cmdbuf, 0,
+	alloclen = gensio_argv_snprintf(dummy, 0,
 					&pos, (const char **) progv);
 	cmdbuf = o->zalloc(o, alloclen + 1);
 	if (!cmdbuf) {
