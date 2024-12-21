@@ -2637,8 +2637,6 @@ handle_new(struct gensio *net_io)
     char tmpservice[20];
     unsigned int i;
     char dummy;
-    char daddr[512];
-    gensiods addrsize;
 
     auth = o->zalloc(o, sizeof(*auth));
     if (!auth) {
