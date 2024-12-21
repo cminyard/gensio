@@ -695,12 +695,12 @@ gensio_sound_alsa_api_devices(struct gensio_os_funcs *o,
     }
 
     for (p = 0, n = hints; *n != NULL; p++, n++) {
-	char *name = NULL, *desc = NULL, *io = NULL;
+	char *name, *desc, *io;
 	unsigned int i, j, len;
 
 	name = snd_device_name_get_hint(*n, "NAME");
 	if (!name)
-	    goto next;
+	    continue;
 	desc = snd_device_name_get_hint(*n, "DESC");
 	if (desc) {
 	    char *n2;
@@ -755,12 +755,7 @@ gensio_sound_alsa_api_devices(struct gensio_os_funcs *o,
 	names[count] = name;
 	name = NULL;
 	specs[count] = io;
-	io = NULL;
 	count++;
-
-    next:
-	if (io)
-	    free(io);
     }
     snd_device_name_free_hint(hints);
     *rnames = names;
