@@ -23,6 +23,15 @@ typedef struct {
 #define gensio_refcount_get(a)		gensio_atomic_get(&(a)->count)
 
 /*
+ * Set up the refcount.
+ */
+static inline int gensio_refcount_init(gensio_refcount *a, unsigned int val)
+{
+    gensio_refcount_set(a, val);
+    return 0;
+}
+
+/*
  * Increment the refcount.  The refcount must be non-zero.
  */
 static inline void gensio_refcount_inc(gensio_refcount *a)
@@ -47,6 +56,19 @@ static inline int gensio_refcount_dec(gensio_refcount *a)
 }
 
 /*
+ * If the refcount is non-zero, decrement it.  Otherwise no operation
+ * is done.  If the value was decremented, return true, otherwise
+ * return false.
+ */
+static inline bool gensio_refcount_dec_if_nz(gensio_refcount *a)
+{
+    unsigned int gensio_refcount_old;
+
+    gensio_atomic_dec_if_nz(&a->count, &gensio_refcount_old);
+    return gensio_refcount_old != 0;
+}
+
+/*
  * Increment the refcount if the refcount is non-zero.  If the refcount
  * was zero, return false, otherwise return true.
  */
@@ -56,6 +78,13 @@ static inline bool gensio_refcount_inc_if_nz(gensio_refcount *a)
 
     gensio_atomic_inc_if_nz(&a->count, &gensio_refcount_old);
     return gensio_refcount_old != 0;
+}
+
+/*
+ * Nothing to do for now.
+ */
+static inline void gensio_refcount_cleanup(gensio_refcount *a)
+{
 }
 
 #endif

@@ -961,6 +961,7 @@ ax25_base_finish_free(struct ax25_base *base)
 	base->o->free_lock(base->addrlock);
     if (base->child)
 	gensio_free(base->child);
+    gensio_refcount_cleanup(&base->refcount);
     base->o->free(base->o, base);
 }
 
@@ -1051,6 +1052,7 @@ ax25_chan_finish_free(struct ax25_chan *chan, bool baselocked)
 	o->free_timer(chan->timer);
     if (chan->deferred_op_runner)
 	o->free_runner(chan->deferred_op_runner);
+    gensio_refcount_cleanup(&chan->refcount);
     o->free(o, chan);
 }
 
@@ -5178,7 +5180,11 @@ ax25_chan_alloc(struct ax25_base *base, const char *const args[],
 
     if (chan->conf.report_raw)
 	base->have_raw = true;
-    gensio_refcount_set(&chan->refcount, 1);
+
+    rv = gensio_refcount_init(&chan->refcount, 1);
+    if (rv)
+	goto out_err;
+
     gensio_list_init(&chan->raws);
 
     /* After this point we can use ax25_chan_finish_free to free it. */
@@ -5288,7 +5294,11 @@ ax25_gensio_alloc_base(struct gensio *child, const char *const args[],
     gensio_list_init(&base->chans_waiting_open);
     gensio_list_init(&base->chans_closed);
     gensio_list_init(&base->send_list);
-    gensio_refcount_set(&base->refcount, 1);
+
+    rv = gensio_refcount_init(&base->refcount, 1);
+    if (rv)
+	goto out_err;
+
     base->conf = *conf;
     /*
      * If conf_laddrs is set, this comes from an accepter and will not
