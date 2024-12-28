@@ -9,6 +9,6 @@ pkginclude_HEADERS = gensio.h gensio_class.h sergensio.h sergensio_class.h \
 	gensio_selector.h gensio_win.h gensio_osops_env.h \
 	gensio_os_funcs_public.h gensio_time.h gensio_ax25_addr.h \
 	gensio_control.h netif.h gensio_buffer.h gensioosh_dllvisibility.h \
-	gensio_utils.h gensio_refcount.h
+	gensio_utils.h gensio_atomics.h gensio_refcount.h
 
 EXTRA_DIST = gensio_version.h.in
