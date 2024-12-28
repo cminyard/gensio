@@ -4386,7 +4386,7 @@ ax25_chan_write(struct ax25_chan *chan, gensiods *rcount,
     assert(chan->send_len <= chan->conf.writewindow);
 
     if (!chan->peer_rcv_bsy)
-	i_ax25_chan_schedule_write(chan);
+	ax25_chan_schedule_write(chan);
 
  out_unlock:
     ax25_chan_unlock(chan);
