@@ -5,7 +5,7 @@
 lib_LTLIBRARIES = libgensioosh.la libgensiomdns.la libgensio.la
 
 noinst_HEADERS = telnet.h heap.h utils.h seriallock.h crc.h \
-	gensio_ll_ipmisol.h errtrig.h avahi_watcher.h gensio_net.h \
+	errtrig.h avahi_watcher.h gensio_net.h \
 	gensio_ll_sound.h gensio_sound_alsa.h gensio_sound_win.h \
 	gensio_sound_portaudio.h gensio_sound_file.h
 
@@ -154,12 +154,12 @@ libgensio_file_la_LDFLAGS = $(DYNAMIC_LDFLAGS)
 libgensio_file_la_LIBADD = $(DYNAMIC_LIBS)
 
 if BUILTIN_IPMISOL
-libgensio_la_SOURCES += gensio_ll_ipmisol.c sergensio_ipmisol.c
+libgensio_la_SOURCES += sergensio_ipmisol.c
 else
 EXTRA_LTLIBRARIES += libgensio_ipmisol.la
 endif
 gensiolibexec_LTLIBRARIES += $(DYNAMIC_IPMISOL)
-libgensio_ipmisol_la_SOURCES = gensio_ll_ipmisol.c sergensio_ipmisol.c 
+libgensio_ipmisol_la_SOURCES = sergensio_ipmisol.c 
 libgensio_ipmisol_la_LDFLAGS = $(DYNAMIC_LDFLAGS)
 libgensio_ipmisol_la_CFLAGS = $(OPENIPMI_CPPFLAGS)
 libgensio_ipmisol_la_LIBADD = $(DYNAMIC_LIBS) $(OPENIPMI_LIBS)
