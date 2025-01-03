@@ -14,38 +14,8 @@
 
 #include <gensio/gensio.h>
 #include <gensio/gensio_time.h>
+#include <gensio/gensio_byteswap.h>
 #include "gensio_ll_sound.h"
-
-#ifdef _WIN32
-/* Assume this for Windows. */
-#define IS_BIG_ENDIAN 0
-#define IS_LITTLE_ENDIAN 1
-#define bswap_16 _byteswap_ushort
-#define bswap_32 _byteswap_ulong
-#define bswap_64 _byteswap_uint64
-
-#elif defined(linux)
-#include <byteswap.h>
-#include <endian.h>
-#define IS_BIG_ENDIAN (__BYTE_ORDER == __BIG_ENDIAN)
-#define IS_LITTLE_ENDIAN (__BYTE_ORDER != __BIG_ENDIAN)
-
-#else /* BSD and others? */
-#if defined(__APPLE__)
-#include <machine/endian.h>
-#include <libkern/OSByteOrder.h>
-#define bswap_16 OSSwapInt16
-#define bswap_32 OSSwapInt32
-#define bswap_64 OSSwapInt64
-#else
-#include <sys/endian.h>
-#define bswap_16 bswap16
-#define bswap_32 bswap32
-#define bswap_64 bswap64
-#endif
-#define IS_BIG_ENDIAN (BYTE_ORDER == BIG_ENDIAN)
-#define IS_LITTLE_ENDIAN (BYTE_ORDER != BIG_ENDIAN)
-#endif
 
 enum gensio_sound_ll_state {
     GENSIO_SOUND_LL_CLOSED,
@@ -81,7 +51,7 @@ enum gensio_sound_fmt_type {
     GENSIO_SOUND_FMT_U24,
     GENSIO_SOUND_FMT_U16,
     GENSIO_SOUND_FMT_U8,
-#if IS_BIG_ENDIAN
+#if GENSIO_IS_BIG_ENDIAN
     GENSIO_SOUND_FMT_DOUBLE_BE = GENSIO_SOUND_FMT_DOUBLE,
     GENSIO_SOUND_FMT_FLOAT_BE = GENSIO_SOUND_FMT_FLOAT,
     GENSIO_SOUND_FMT_S32_BE = GENSIO_SOUND_FMT_S32,
@@ -208,30 +178,30 @@ struct sound_fmt_info {
 
 static struct sound_fmt_info sound_fmt_info[] = {
     [ GENSIO_SOUND_FMT_DOUBLE_BE ]	= { .size = sizeof(double),
-					    .host_bswap = IS_LITTLE_ENDIAN,
+					    .host_bswap = GENSIO_IS_LITTLE_ENDIAN,
 					    .isfloat = true },
     [ GENSIO_SOUND_FMT_FLOAT_BE ]	= { .size = sizeof(float),
-					    .host_bswap = IS_LITTLE_ENDIAN,
+					    .host_bswap = GENSIO_IS_LITTLE_ENDIAN,
 					    .isfloat = true },
     [ GENSIO_SOUND_FMT_S32_BE ]		= { .size = 4,
-					    .host_bswap = IS_LITTLE_ENDIAN,
+					    .host_bswap = GENSIO_IS_LITTLE_ENDIAN,
 					    .scale = 2147483648. },
     [ GENSIO_SOUND_FMT_S24_BE ]		= { .size = 3,
-					    .host_bswap = IS_LITTLE_ENDIAN,
+					    .host_bswap = GENSIO_IS_LITTLE_ENDIAN,
 					    .scale = 8388608. },
     [ GENSIO_SOUND_FMT_S16_BE ]		= { .size = 2,
-					    .host_bswap = IS_LITTLE_ENDIAN,
+					    .host_bswap = GENSIO_IS_LITTLE_ENDIAN,
 					    .scale = 32768. },
     [ GENSIO_SOUND_FMT_U32_BE ]		= { .size = 4,
-					    .host_bswap = IS_LITTLE_ENDIAN,
+					    .host_bswap = GENSIO_IS_LITTLE_ENDIAN,
 					    .offset = 2147483648,
 					    .scale = 2147483648. },
     [ GENSIO_SOUND_FMT_U24_BE ]		= { .size = 3,
-					    .host_bswap = IS_LITTLE_ENDIAN,
+					    .host_bswap = GENSIO_IS_LITTLE_ENDIAN,
 					    .offset = 8388608,
 					    .scale = 8388608. },
     [ GENSIO_SOUND_FMT_U16_BE ]		= { .size = 2,
-					    .host_bswap = IS_LITTLE_ENDIAN,
+					    .host_bswap = GENSIO_IS_LITTLE_ENDIAN,
 					    .offset = 32768,
 					    .scale = 32768. },
     [ GENSIO_SOUND_FMT_S8 ]		= { .size = 1,
@@ -239,30 +209,30 @@ static struct sound_fmt_info sound_fmt_info[] = {
     [ GENSIO_SOUND_FMT_U8 ]		= { .size = 1, .offset = 128,
 					    .scale = 128. },
     [ GENSIO_SOUND_FMT_DOUBLE_LE ]	= { .size = sizeof(double),
-					    .host_bswap = IS_BIG_ENDIAN,
+					    .host_bswap = GENSIO_IS_BIG_ENDIAN,
 					    .isfloat = true },
     [ GENSIO_SOUND_FMT_FLOAT_LE ]	= { .size = sizeof(float),
-					    .host_bswap = IS_BIG_ENDIAN,
+					    .host_bswap = GENSIO_IS_BIG_ENDIAN,
 					    .isfloat = true },
     [ GENSIO_SOUND_FMT_S32_LE ]		= { .size = 4,
-					    .host_bswap = IS_BIG_ENDIAN,
+					    .host_bswap = GENSIO_IS_BIG_ENDIAN,
 					    .scale = 2147483648. },
     [ GENSIO_SOUND_FMT_S24_LE ]		= { .size = 3,
-					    .host_bswap = IS_BIG_ENDIAN,
+					    .host_bswap = GENSIO_IS_BIG_ENDIAN,
 					    .scale = 8388608. },
     [ GENSIO_SOUND_FMT_S16_LE ]		= { .size = 2,
-					    .host_bswap = IS_BIG_ENDIAN,
+					    .host_bswap = GENSIO_IS_BIG_ENDIAN,
 					    .scale = 32768. },
     [ GENSIO_SOUND_FMT_U32_LE ]		= { .size = 4,
-					    .host_bswap = IS_BIG_ENDIAN,
+					    .host_bswap = GENSIO_IS_BIG_ENDIAN,
 					    .offset = 2147483648,
 					    .scale = 2147483648. },
     [ GENSIO_SOUND_FMT_U24_LE ]		= { .size = 3,
-					    .host_bswap = IS_BIG_ENDIAN,
+					    .host_bswap = GENSIO_IS_BIG_ENDIAN,
 					    .offset = 8388608,
 					    .scale = 8388608. },
     [ GENSIO_SOUND_FMT_U16_LE ]		= { .size = 2,
-					    .host_bswap = IS_BIG_ENDIAN,
+					    .host_bswap = GENSIO_IS_BIG_ENDIAN,
 					    .offset = 32768,
 					    .scale = 32768. }
 };
@@ -271,7 +241,7 @@ static int32_t
 get_int24(const unsigned char **in, unsigned int offset, bool host_bswap)
 {
     int32_t v = 0;
-    bool big_endian = IS_BIG_ENDIAN ? !host_bswap : host_bswap;
+    bool big_endian = GENSIO_IS_BIG_ENDIAN ? !host_bswap : host_bswap;
 
     if (big_endian) {
 	v = *(*in)++ << 16;
@@ -300,7 +270,7 @@ get_int(const unsigned char **in, unsigned int size,
     case 4:
 	v = *((int32_t *) *in);
 	if (host_bswap)
-	    v = bswap_32(v);
+	    v = gensio_bswap_32(v);
 	(*in) += 4;
 	break;
 
@@ -311,7 +281,7 @@ get_int(const unsigned char **in, unsigned int size,
     case 2:
 	v = *((int16_t *) *in);
 	if (host_bswap)
-	    v = bswap_16(v);
+	    v = gensio_bswap_16(v);
 	(*in) += 2;
 	break;
 
@@ -332,7 +302,7 @@ get_int(const unsigned char **in, unsigned int size,
 static void
 put_int24(int32_t v, unsigned char **out, bool host_bswap)
 {
-    bool big_endian = IS_BIG_ENDIAN ? !host_bswap : host_bswap;
+    bool big_endian = GENSIO_IS_BIG_ENDIAN ? !host_bswap : host_bswap;
 
     if (big_endian) {
 	*(*out)++ = v >> 16;
@@ -355,7 +325,7 @@ put_int(int32_t v,
     switch(size) {
     case 4:
 	if (host_bswap)
-	    v = bswap_32(v);
+	    v = gensio_bswap_32(v);
 	*((int32_t *) *out) = v;
 	(*out) += 4;
 	break;
@@ -366,7 +336,7 @@ put_int(int32_t v,
 
     case 2:
 	if (host_bswap)
-	    v = bswap_16(v);
+	    v = gensio_bswap_16(v);
 	*((int16_t *) *out) = v;
 	(*out) += 2;
 	break;
@@ -391,13 +361,13 @@ put_float(double v, unsigned char **out,
 	*((float *) data) = v;
 	if (host_bswap) {
 	    int32_t *iv = ((int32_t *) data);
-	    *iv = bswap_32(*((int32_t *) data));
+	    *iv = gensio_bswap_32(*((int32_t *) data));
 	}
     } else if (size == 8) {
 	*((double *) data) = v;
 	if (host_bswap) {
 	    int64_t *iv = ((int64_t *) data);
-	    *iv = bswap_64(*((int64_t *) data));
+	    *iv = gensio_bswap_64(*((int64_t *) data));
 	}
     } else {
 	assert(0);
@@ -418,7 +388,7 @@ get_float(const unsigned char **in, unsigned int size, bool host_bswap)
 	    int32_t iv;
 
 	    memcpy(&iv, d, 4);
-	    iv = bswap_32(iv);
+	    iv = gensio_bswap_32(iv);
 	    memcpy(d, &iv, 4);
 	}
 	v = *((float *) d);
@@ -430,7 +400,7 @@ get_float(const unsigned char **in, unsigned int size, bool host_bswap)
 	    int64_t iv;
 
 	    memcpy(&iv, d, 8);
-	    iv = bswap_64(iv);
+	    iv = gensio_bswap_64(iv);
 	    memcpy(d, &iv, 8);
 	}
 	v = *((double *) d);
