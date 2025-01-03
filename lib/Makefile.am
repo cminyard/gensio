@@ -4,19 +4,19 @@
 # added after.
 lib_LTLIBRARIES = libgensioosh.la libgensiomdns.la libgensio.la
 
-noinst_HEADERS = telnet.h heap.h utils.h seriallock.h \
+noinst_HEADERS = telnet.h heap.h utils.h seriallock.h crc.h \
 	gensio_ll_ipmisol.h errtrig.h avahi_watcher.h gensio_net.h \
-	gensio_ll_sound.h alsa_sound.h win_sound.h portaudio_sound.h \
-	file_sound.h crc.h
+	gensio_ll_sound.h gensio_sound_alsa.h gensio_sound_win.h \
+	gensio_sound_portaudio.h gensio_sound_file.h
 
 libgensioosh_la_SOURCES = \
-	gensio_osops.c gensio_circbuf.c gensio_osops_env.c gensio_addrinfo.c \
-	gensio_stdsock.c gensio_ax25_addr.c utils.c gensio_addr.c
+	os_osops.c circbuf.c os_osops_env.c net_addrinfo.c \
+	net_stdsock.c net_ax25_addr.c utils.c net_addr.c
 if HAVE_UNIX_OS
-libgensioosh_la_SOURCES += gensio_unix.c selector.c
+libgensioosh_la_SOURCES += os_unix.c selector.c
 endif
 if HAVE_WINDOWS_OS
-libgensioosh_la_SOURCES += gensio_win.c
+libgensioosh_la_SOURCES += os_win.c
 endif
 libgensioosh_la_CPPFLAGS = -DBUILDING_GENSIOOSH_DLL \
 	-DPKG_LIBEXEC="\"$(gensiolibexecdir)\""
@@ -36,7 +36,7 @@ libgensiomdns_la_LIBADD = libgensioosh.la ${MDNS_LIBS} \
 
 libgensio_la_SOURCES = \
 	gensio.c gensio_base.c sergensio.c buffer.c \
-	gensio_ll_fd.c gensio_ll_gensio.c gensio_acc.c gensio_acc_gensio.c
+	ll_fd.c ll_gensio.c acc.c acc_gensio.c
 libgensio_la_CPPFLAGS = -DBUILDING_GENSIO_DLL
 libgensio_la_LDFLAGS = -no-undefined -version-info $(GENSIO_LIB_VERSION) \
 	-fvisibility=hidden

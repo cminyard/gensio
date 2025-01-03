@@ -809,24 +809,24 @@ static int gensio_sound_api_default_write(struct sound_info *out,
 					  gensiods sglen);
 
 #if HAVE_ALSA
-#include "alsa_sound.h"
+#include "gensio_sound_alsa.h"
 #else
 #define ALSA_INIT
 #endif
 
 #if HAVE_WIN32SOUND
-#include "win_sound.h"
+#include "gensio_sound_win.h"
 #else
 #define WIN_INIT
 #endif
 
 #if HAVE_PORTAUDIO
-#include "portaudio_sound.h"
+#include "gensio_sound_portaudio.h"
 #else
 #define PORTAUDIO_INIT
 #endif
 
-#include "file_sound.h"
+#include "gensio_sound_file.h"
 
 static void
 gensio_sound_ll_check_read(struct sound_ll *soundll)
