@@ -6,7 +6,6 @@ lib_LTLIBRARIES = libgensioosh.la libgensiomdns.la libgensio.la
 
 noinst_HEADERS = telnet.h heap.h utils.h seriallock.h \
 	gensio_filter_ssl.h gensio_filter_telnet.h gensio_ll_ipmisol.h \
-	gensio_filter_msgdelim.h \
 	gensio_filter_trace.h gensio_filter_perf.h \
 	errtrig.h avahi_watcher.h gensio_net.h \
 	gensio_filter_xlt.h \
@@ -244,12 +243,12 @@ libgensio_telnet_la_LDFLAGS = $(DYNAMIC_LDFLAGS)
 libgensio_telnet_la_LIBADD = $(DYNAMIC_LIBS)
 
 if BUILTIN_MSGDELIM
-libgensio_la_SOURCES += gensio_filter_msgdelim.c gensio_msgdelim.c
+libgensio_la_SOURCES += gensio_msgdelim.c
 else
 EXTRA_LTLIBRARIES += libgensio_msgdelim.la
 endif
 gensiolibexec_LTLIBRARIES += $(DYNAMIC_MSGDELIM)
-libgensio_msgdelim_la_SOURCES = gensio_filter_msgdelim.c gensio_msgdelim.c
+libgensio_msgdelim_la_SOURCES = gensio_msgdelim.c
 libgensio_msgdelim_la_LDFLAGS = $(DYNAMIC_LDFLAGS)
 libgensio_msgdelim_la_LIBADD = $(DYNAMIC_LIBS)
 
