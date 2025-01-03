@@ -79,7 +79,7 @@ mux
   The mux handling is a mix of a base state machine and a state machine
   for each instance.
 
-gensio_acc.c
+acc.c
 ============
 
 This file implements an accepter state machine to simplify
@@ -88,7 +88,7 @@ of states so basically, anything that uses only has to do the basic
 operations specific to that gensio.  This is used by
 gensio_acc_gensio.c, gensio_net.c, and gensio_sctp.c.
 
-gensio_acc_gensio.c
+acc_gensio.c
 ===================
 
 Finally for accepters that stack over other accepter gensios
