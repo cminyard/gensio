@@ -6,7 +6,7 @@ lib_LTLIBRARIES = libgensioosh.la libgensiomdns.la libgensio.la
 
 noinst_HEADERS = telnet.h heap.h utils.h seriallock.h crc.h \
 	errtrig.h avahi_watcher.h gensio_net.h \
-	gensio_ll_sound.h gensio_sound_alsa.h gensio_sound_win.h \
+	gensio_sound_alsa.h gensio_sound_win.h \
 	gensio_sound_portaudio.h gensio_sound_file.h
 
 libgensioosh_la_SOURCES = \
@@ -178,12 +178,12 @@ libgensio_mdns_la_LIBADD = $(DYNAMIC_LIBS) libgensiomdns.la
 endif
 
 if BUILTIN_SOUND
-libgensio_la_SOURCES += gensio_ll_sound.c gensio_sound.c
+libgensio_la_SOURCES += gensio_sound.c
 else
 EXTRA_LTLIBRARIES += libgensio_sound.la
 endif
 gensiolibexec_LTLIBRARIES += $(DYNAMIC_SOUND)
-libgensio_sound_la_SOURCES = gensio_ll_sound.c gensio_sound.c
+libgensio_sound_la_SOURCES = gensio_sound.c
 libgensio_sound_la_LDFLAGS = $(DYNAMIC_LDFLAGS)
 libgensio_sound_la_LIBADD = $(DYNAMIC_LIBS) $(SOUND_LIBS)
 
