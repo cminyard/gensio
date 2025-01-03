@@ -6,7 +6,7 @@ lib_LTLIBRARIES = libgensioosh.la libgensiomdns.la libgensio.la
 
 noinst_HEADERS = telnet.h heap.h utils.h seriallock.h \
 	gensio_filter_ssl.h gensio_filter_telnet.h gensio_ll_ipmisol.h \
-	gensio_filter_certauth.h gensio_filter_msgdelim.h \
+	gensio_filter_msgdelim.h \
 	gensio_filter_trace.h gensio_filter_perf.h \
 	errtrig.h avahi_watcher.h gensio_net.h gensio_filter_kiss.h \
 	gensio_filter_xlt.h \
@@ -214,12 +214,12 @@ libgensio_ssl_la_LDFLAGS = $(DYNAMIC_LDFLAGS) $(OPENSSL_LDFLAGS)
 libgensio_ssl_la_LIBADD = $(DYNAMIC_LIBS) $(OPENSSL_LIBS)
 
 if BUILTIN_CERTAUTH
-libgensio_la_SOURCES += gensio_certauth.c gensio_filter_certauth.c
+libgensio_la_SOURCES += gensio_certauth.c
 else
 EXTRA_LTLIBRARIES += libgensio_certauth.la
 endif
 gensiolibexec_LTLIBRARIES += $(DYNAMIC_CERTAUTH)
-libgensio_certauth_la_SOURCES = gensio_certauth.c gensio_filter_certauth.c
+libgensio_certauth_la_SOURCES = gensio_certauth.c
 libgensio_certauth_la_CPPFLAGS = $(OPENSSL_INCLUDES)
 libgensio_certauth_la_LDFLAGS = $(DYNAMIC_LDFLAGS) $(OPENSSL_LDFLAGS)
 libgensio_certauth_la_LIBADD = $(DYNAMIC_LIBS) $(OPENSSL_LIBS)
