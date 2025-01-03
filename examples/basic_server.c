@@ -137,6 +137,7 @@ start_close(struct ioinfo *ii)
     if (rv) {
 	/* Should be impossible, but just in case... */
 	fprintf(stderr, "Error closing io: %s\n", gensio_err_to_str(rv));
+	gensio_list_rm(&ii->ai->ios, &ii->link);
 	gensio_free(ii->io);
 	free(ii);
     }
@@ -167,6 +168,7 @@ handle_buf(struct ioinfo *ii)
 	    else
 		start_close(wii);
 	}
+	check_shutdown(ai);
     } else {
 	add_output_buf(ii, "Eh?\n");
     }
