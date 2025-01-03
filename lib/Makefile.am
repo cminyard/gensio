@@ -11,8 +11,7 @@ noinst_HEADERS = telnet.h heap.h utils.h seriallock.h \
 	errtrig.h avahi_watcher.h gensio_net.h gensio_filter_kiss.h \
 	gensio_filter_xlt.h \
 	gensio_ll_sound.h alsa_sound.h win_sound.h portaudio_sound.h \
-	file_sound.h crc.h \
-	gensio_filter_afskmdm.h
+	file_sound.h crc.h
 
 libgensioosh_la_SOURCES = \
 	gensio_osops.c gensio_circbuf.c gensio_osops_env.c gensio_addrinfo.c \
@@ -345,13 +344,13 @@ libgensio_ratelimit_la_LDFLAGS = $(DYNAMIC_LDFLAGS)
 libgensio_ratelimit_la_LIBADD = $(DYNAMIC_LIBS)
 
 if BUILTIN_AFSKMDM
-libgensio_la_SOURCES += gensio_filter_afskmdm.c gensio_afskmdm.c
+libgensio_la_SOURCES += gensio_afskmdm.c
 libgensio_la_LIBADD += -lm
 else
 EXTRA_LTLIBRARIES += libgensio_afskmdm.la
 endif
 gensiolibexec_LTLIBRARIES += $(DYNAMIC_AFSKMDM)
-libgensio_afskmdm_la_SOURCES = gensio_filter_afskmdm.c gensio_afskmdm.c
+libgensio_afskmdm_la_SOURCES = gensio_afskmdm.c
 libgensio_afskmdm_la_LDFLAGS = $(DYNAMIC_LDFLAGS)
 libgensio_afskmdm_la_LIBADD = $(DYNAMIC_LIBS) -lm
 
