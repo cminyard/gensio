@@ -13,7 +13,7 @@ libgensioosh_la_SOURCES = \
 	os_osops.c circbuf.c os_osops_env.c net_addrinfo.c \
 	net_stdsock.c net_ax25_addr.c utils.c net_addr.c
 if HAVE_UNIX_OS
-libgensioosh_la_SOURCES += os_unix.c selector.c
+libgensioosh_la_SOURCES += os_unix.c os_unix_selector.c
 endif
 if HAVE_WINDOWS_OS
 libgensioosh_la_SOURCES += os_win.c
