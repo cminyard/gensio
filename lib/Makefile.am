@@ -6,7 +6,6 @@ lib_LTLIBRARIES = libgensioosh.la libgensiomdns.la libgensio.la
 
 noinst_HEADERS = telnet.h heap.h utils.h seriallock.h \
 	gensio_filter_telnet.h gensio_ll_ipmisol.h \
-	gensio_filter_trace.h
 	errtrig.h avahi_watcher.h gensio_net.h \
 	gensio_filter_xlt.h \
 	gensio_ll_sound.h alsa_sound.h win_sound.h portaudio_sound.h \
@@ -263,12 +262,12 @@ libgensio_relpkt_la_LDFLAGS = $(DYNAMIC_LDFLAGS)
 libgensio_relpkt_la_LIBADD = $(DYNAMIC_LIBS)
 
 if BUILTIN_TRACE
-libgensio_la_SOURCES += gensio_filter_trace.c gensio_trace.c
+libgensio_la_SOURCES += gensio_trace.c
 else
 EXTRA_LTLIBRARIES += libgensio_trace.la
 endif
 gensiolibexec_LTLIBRARIES += $(DYNAMIC_TRACE)
-libgensio_trace_la_SOURCES = gensio_filter_trace.c gensio_trace.c
+libgensio_trace_la_SOURCES = gensio_trace.c
 libgensio_trace_la_LDFLAGS = $(DYNAMIC_LDFLAGS)
 libgensio_trace_la_LIBADD = $(DYNAMIC_LIBS)
 
