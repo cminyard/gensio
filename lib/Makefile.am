@@ -8,7 +8,7 @@ noinst_HEADERS = telnet.h heap.h utils.h seriallock.h \
 	gensio_filter_ssl.h gensio_filter_telnet.h gensio_ll_ipmisol.h \
 	gensio_filter_msgdelim.h \
 	gensio_filter_trace.h gensio_filter_perf.h \
-	errtrig.h avahi_watcher.h gensio_net.h gensio_filter_kiss.h \
+	errtrig.h avahi_watcher.h gensio_net.h \
 	gensio_filter_xlt.h \
 	gensio_ll_sound.h alsa_sound.h win_sound.h portaudio_sound.h \
 	file_sound.h crc.h
@@ -284,12 +284,12 @@ libgensio_perf_la_LDFLAGS = $(DYNAMIC_LDFLAGS)
 libgensio_perf_la_LIBADD = $(DYNAMIC_LIBS)
 
 if BUILTIN_KISS
-libgensio_la_SOURCES += gensio_filter_kiss.c gensio_kiss.c
+libgensio_la_SOURCES += gensio_kiss.c
 else
 EXTRA_LTLIBRARIES += libgensio_kiss.la
 endif
 gensiolibexec_LTLIBRARIES += $(DYNAMIC_KISS)
-libgensio_kiss_la_SOURCES = gensio_filter_kiss.c gensio_kiss.c
+libgensio_kiss_la_SOURCES = gensio_kiss.c
 libgensio_kiss_la_LDFLAGS = $(DYNAMIC_LDFLAGS)
 libgensio_kiss_la_LIBADD = $(DYNAMIC_LIBS)
 
