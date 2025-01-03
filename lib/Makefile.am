@@ -5,7 +5,7 @@
 lib_LTLIBRARIES = libgensioosh.la libgensiomdns.la libgensio.la
 
 noinst_HEADERS = telnet.h heap.h utils.h seriallock.h \
-	gensio_filter_ssl.h gensio_filter_telnet.h gensio_ll_ipmisol.h \
+	gensio_filter_telnet.h gensio_ll_ipmisol.h \
 	gensio_filter_trace.h
 	errtrig.h avahi_watcher.h gensio_net.h \
 	gensio_filter_xlt.h \
@@ -201,12 +201,12 @@ libgensio_cm108gpio_la_LDFLAGS = $(DYNAMIC_LDFLAGS)
 libgensio_cm108gpio_la_LIBADD = $(DYNAMIC_LIBS) $(CM108GPIO_LIBS)
 
 if BUILTIN_SSL
-libgensio_la_SOURCES += gensio_ssl.c gensio_filter_ssl.c
+libgensio_la_SOURCES += gensio_ssl.c
 else
 EXTRA_LTLIBRARIES += libgensio_ssl.la
 endif
 gensiolibexec_LTLIBRARIES += $(DYNAMIC_SSL)
-libgensio_ssl_la_SOURCES = gensio_ssl.c gensio_filter_ssl.c
+libgensio_ssl_la_SOURCES = gensio_ssl.c
 libgensio_ssl_la_CPPFLAGS = $(OPENSSL_INCLUDES)
 libgensio_ssl_la_LDFLAGS = $(DYNAMIC_LDFLAGS) $(OPENSSL_LDFLAGS)
 libgensio_ssl_la_LIBADD = $(DYNAMIC_LIBS) $(OPENSSL_LIBS)
