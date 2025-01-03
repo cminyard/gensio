@@ -75,7 +75,7 @@ ratelimit_ll_write_pending(struct ratelimit_filter *rfilter)
     return false; /* We don't hold any write data. */
 }
 
-static bool
+static int
 ratelimit_ul_can_write(struct ratelimit_filter *rfilter, bool *rv)
 {
     *rv = rfilter->xmit_ready;
