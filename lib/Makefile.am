@@ -7,7 +7,6 @@ lib_LTLIBRARIES = libgensioosh.la libgensiomdns.la libgensio.la
 noinst_HEADERS = telnet.h heap.h utils.h seriallock.h \
 	gensio_filter_telnet.h gensio_ll_ipmisol.h \
 	errtrig.h avahi_watcher.h gensio_net.h \
-	gensio_filter_xlt.h \
 	gensio_ll_sound.h alsa_sound.h win_sound.h portaudio_sound.h \
 	file_sound.h crc.h
 
@@ -302,12 +301,12 @@ libgensio_ax25_la_LDFLAGS = $(DYNAMIC_LDFLAGS)
 libgensio_ax25_la_LIBADD = $(DYNAMIC_LIBS)
 
 if BUILTIN_XLT
-libgensio_la_SOURCES += gensio_filter_xlt.c gensio_xlt.c
+libgensio_la_SOURCES += gensio_xlt.c
 else
 EXTRA_LTLIBRARIES += libgensio_xlt.la
 endif
 gensiolibexec_LTLIBRARIES += $(DYNAMIC_XLT)
-libgensio_xlt_la_SOURCES = gensio_filter_xlt.c gensio_xlt.c
+libgensio_xlt_la_SOURCES = gensio_xlt.c
 libgensio_xlt_la_LDFLAGS = $(DYNAMIC_LDFLAGS)
 libgensio_xlt_la_LIBADD = $(DYNAMIC_LIBS)
 
