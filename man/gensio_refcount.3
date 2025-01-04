@@ -1,0 +1,59 @@
+.TH gensio_refcount 3 "04 Jan 2025"
+.SH NAME
+gensio_refcount_init, gensio_refcount_cleanup, gensio_refcount_set,
+gensio_refcount_get, gensio_refcount_inc, gensio_refcount_dec
+gensio_refcount_inc_if_nz, gensio_refcount_dec_if_nz
+\- Refcount operations.
+.SH "SYNOPSIS"
+.B #include <gensio/gensio_refcount.h>
+.br
+typedef xxx gensio_refcount;
+.br
+.TP 20
+.B gensio_refcount_init(a, v)
+.TP 20
+.B gensio_refcount_cleanup(a)
+.TP 20
+.B gensio_refcount_set(a, v)
+.TP 20
+.B gensio_refcount_get(a)
+.TP 20
+.B gensio_refcount_inc(a)
+.TP 20
+.B gensio_refcount_dec(a)
+.TP 20
+.B gensio_refcount_inc_if_nz(a)
+.TP 20
+.B gensio_refcount_dec_if_nz(a)
+.SH "DESCRIPTION"
+An atomic refcount.
+
+You could call
+.B gensio_refcount_init()
+to initialize the value.  This may allocate locks and such, so you
+should check the return value.  Once done with the refcount, you
+should call
+.B gensio_refcount_cleanup().
+
+These work like normal atomic refcounts.  The operations ending in
+.B if_nz
+will only perform the operation if the value was not already zero.
+.SH "CAVEATS"
+Currently these are only implemented on processors that can do this
+natively.  A non-native implementation with locks could be done,
+though.
+.SH "RETURN VALUES"
+.B gensio_refcount_get()
+returns the current value.
+
+.B gensio_refcount_dec()
+returns the new value.
+
+.B gensio_refcount_dec_if_nz
+and
+.B gensio_refcount_inc_if_nz
+return true if the operation happens, false if not.
+
+All other functions/macros do not return values.
+.SH "SEE ALSO"
+gensio(5), gensio_atomics(3)

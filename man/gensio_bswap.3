@@ -1,0 +1,32 @@
+.TH gensio_bswap 3 "04 Jan 2025"
+.SH NAME
+gensio_bswap_16, gensio_bswap_32, gensio_bswap_64, GENSIO_IS_BIG_ENDIAN,
+GENSIO_IS_LITTLE_ENDIAN, gensio_bswap_16_from_be, gensio_bswap_32_from_be,
+gensio_bswap_64_from_be, gensio_bswap_16_to_be, gensio_bswap_32_to_be,
+gensio_bswap_64_to_be, gensio_bswap_16_from_le, gensio_bswap_32_from_le,
+gensio_bswap_64_from_le, gensio_bswap_16_to_le, gensio_bswap_32_to_le,
+gensio_bswap_64_to_le
+\- Byte swapping routines.
+.SH "SYNOPSIS"
+.B #include <gensio/gensio_byteswap.h>
+.TP 20
+.B uint[16|32|64]_t gensio_bswap_[16|32|64](v)
+.TP 20
+.B uint[16|32|64]_t gensio_bswap_[16|32|64]_[from|to]_[be|le](v)
+.SH "DESCRIPTION"
+These routine perform normal byte swapping operations in 16, 32, and
+64-bit values.  The
+.B gensio_bswap_[16|32|64]()
+perform an unconditional byte swap.  The
+.B gensio_bswap_[16|32|64]_[from|to]_[be|le]
+will byte swap from/to the given endianness depending on the host
+platforms endianness.
+
+.B GENSIO_IS_BIG_ENDIAN
+and
+.B GENSIO_IS_LITTLE_ENDIAN
+will be true or false depending on the host endian's endianness.
+.SH "RETURN VALUES"
+The integer, byte swapped, will be returned.
+.SH "SEE ALSO"
+gensio(5)

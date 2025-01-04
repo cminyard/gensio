@@ -2668,7 +2668,17 @@ call after a fork in the new fork (not the old one).  It will handle
 any cleanup required after the fork.  Other systems may require other
 cleanups after a fork, so you should always call this after a fork.
 .SH "SEE ALSO"
-gensiot(1), sctp(7), udp(7), tcp(7), unix(7)
+gensiot(1), sctp(7), udp(7), tcp(7), unix(7), gensio_open(3),
+gensio_close(3), gensio_control(3), gensio_set_sync(3),
+gensio_write(3), gensio_acc_set_sync(3), gensio_acc_control(3),
+gensio_os_funcs(3), str_to_gensio(3), str_to_gensio_accepter(3),
+gensio_set_read_callback_enable(3), gensio_err(3), gensio_mdns(3),
+gensio_get_type(3), gensio_acc_get_type(3),
+gensio_acc_set_accept_callback_enable(3), gensio_event(3),
+gensio_accepter_event(3), gensio_acc_shutdown(3), gensio_set_callback(3)
+gensio_acc_set_callback(3), gensio_add_default(3), gensio_alloc_channel(3),
+gensio_set_log_mask(3), gensio_acc_startup(3), gensio_acc_shutdown(3),
+gensio_bswap(3), gensio_atomics(3), gensio_refcount(3)
 .SH "KNOWN PROBLEMS"
 None.
 .SH AUTHOR
