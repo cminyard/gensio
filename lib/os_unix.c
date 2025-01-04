@@ -566,9 +566,9 @@ file_runner(struct gensio_runner *r, void *cb_data)
 	iod->handlers_set = false;
 	f->unlock(iod->u.file.lock);
 	iod->cleared_handler(&iod->r, iod->cb_data);
-	f->lock(iod->u.file.lock);
+    } else {
+	f->unlock(iod->u.file.lock);
     }
-    f->unlock(iod->u.file.lock);
 }
 
 static void
