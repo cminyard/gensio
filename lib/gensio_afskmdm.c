@@ -1684,6 +1684,7 @@ afskmdm_iir_filter(float *inbuf, float *outbuf, unsigned int nsamples,
     unsigned int i;
     float tmp;
 
+    /* hold[0] = z^-1, hold[1] = z^-2 */
     for (i = chan; i < nsamples * nchans; i += nchans) {
 	tmp = inbuf[i] + coefa[0] * hold[0] + coefa[1] * hold[1];
 	outbuf[i] = tmp * coefb[0] + coefb[1] * hold[0] + coefb[2] * hold[1];
@@ -1705,11 +1706,12 @@ afskmdm_calc_iir_coefs(float samplerate, float cutoff,
 {
     float w1 = 2 * M_PI * cutoff / samplerate;
     float w = tan(w1 / 2); /* omega */
-    float denom = w * w + M_SQRT2 * w + 1;
+    float w2 = w * w; /* omega ^ 2 */
+    float denom = w2 + M_SQRT2 * w + 1;
 
-    coefa[0] = - (2 * w * w - 2) / denom;
-    coefa[1] = - (1 - M_SQRT2 * w + w * w) / denom;
-    coefb[0] = (w * w) / denom;
+    coefa[0] = (2 - 2 * w2) / denom;
+    coefa[1] = - (1 - M_SQRT2 * w + w2) / denom;
+    coefb[0] = w2 / denom;
     coefb[1] = 2 * coefb[0];
     coefb[2] = coefb[0];
 }
