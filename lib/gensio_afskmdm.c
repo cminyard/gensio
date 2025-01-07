@@ -1792,10 +1792,16 @@ afskmdm_calc_fir_coefs(struct gensio_os_funcs *o,
     double w = 2 * M_PI * (coa + .5 * tba);
     unsigned int i;
     /* For a hamming filter, transition band ~ (3.3 / N). */
-    unsigned int n = 3.3 / tba / 2;
-    double N = n * 2 + 1;
+    double N = ceil(3.3 / tba);
+    unsigned int n;
     double x = 1.0;
     float *h;
+
+    n = (int) (N + .1); /* N should be at a whole number, add .1 to be sure. */
+    if (n % 2 == 0)
+       N += 1.0;       /* N must be odd. */
+    n /= 2;
+    /* Here, N = n * 2 + 1 */
 
     h = o->zalloc(o, n * sizeof(float));
     if (!h)
