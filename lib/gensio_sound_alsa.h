@@ -216,7 +216,10 @@ gensio_sound_alsa_set_hwparams(struct sound_info *si)
 	goto out_err;
     }
 
-#if 0
+    /*
+     * The below seems to be necessary to set arbitrary rates.  It was
+     * ifdef-ed out, but rate setting wasn't always working.
+     */
     {
 	/* Period time, in usecs.  Do u64 arithmetic to avoid overflow. */
 	uint64_t lperiod_time = (si->bufsize * 1000000ULL) / si->samplerate;
@@ -232,7 +235,6 @@ gensio_sound_alsa_set_hwparams(struct sound_info *si)
 	    goto out_err;
 	}
     }
-#endif
 
     /* write the parameters to device */
     err = snd_pcm_hw_params(a->pcm, params);
