@@ -2365,6 +2365,9 @@ specify in or out, the other is not enabled.
 The sample rate, in samples per second.  Common ones are 44100 (CD),
 48000 (DAT).
 .TP
+.B inhwrateonly=<n>, outhwrateonly=<n>, hwrateonly=<n>
+Only allow hardware-supported sample rates.  Only supported by ALSA.
+.TP
 .B intype=<n>, outtype=<n>, type=<n>
 Set the interface type.  Must be "alsa" (Linux only), "win" (Windows
 only), "portaudio" (MacOS, generally) or "file".  If not set, this

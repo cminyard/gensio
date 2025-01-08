@@ -22,6 +22,7 @@ struct gensio_sound_info {
     const char *devname;
     unsigned int chans;
     unsigned int samplerate;
+    bool hwrateonly;
     gensiods bufsize;
     unsigned int num_bufs;
     const char *format;
@@ -564,6 +565,7 @@ struct sound_info {
     bool is_input;
 
     unsigned int samplerate; /* Frames per second. */
+    bool hwrateonly; /* Don't allow resampling. */
     unsigned int framesize; /* User side sample size * number of chans, bytes */
     gensiods num_bufs; /* Number of buffers on the PCM size. */
     unsigned int chans; /* Number of channels, Will be 0 if disabled. */
@@ -1438,6 +1440,7 @@ setup_sound_info(struct gensio_pparm_info *p, const char *dir,
     si->num_bufs = io->num_bufs;
     si->chans = io->chans;
     si->samplerate = io->samplerate;
+    si->hwrateonly = io->hwrateonly;
 
     err = setup_conv(io->format, io->pformat, si);
     if (err) {
@@ -1701,6 +1704,14 @@ sound_gensio_alloc(const void *gdata, const char * const args[],
 	if (gensio_pparm_uint(&p, args[i], "rate", &uival) > 0) {
 	    in.samplerate = uival;
 	    out.samplerate = uival;
+	    continue;
+	}
+	if (gensio_pparm_bool(&p, args[i], "inhwrateonly", &in.hwrateonly) > 0)
+	    continue;
+	if (gensio_pparm_bool(&p, args[i], "outhwrateonly", &out.hwrateonly) > 0)
+	    continue;
+	if (gensio_pparm_bool(&p, args[i], "hwrateonly", &in.hwrateonly) > 0) {
+	    out.hwrateonly = in.hwrateonly;
 	    continue;
 	}
 	if (gensio_pparm_bool(&p, args[i], "list", &list) > 0)

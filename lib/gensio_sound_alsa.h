@@ -138,7 +138,7 @@ gensio_sound_alsa_set_hwparams(struct sound_info *si)
 	goto out_err;
     }
 
-    err = snd_pcm_hw_params_set_rate_resample(a->pcm, params, 1);
+    err = snd_pcm_hw_params_set_rate_resample(a->pcm, params, !si->hwrateonly);
     if (err < 0) {
 	gensio_log(o, GENSIO_LOG_ERR,
 		   "alsa error from snd_pcm_hw_params_set_rate_resample: %s\n",

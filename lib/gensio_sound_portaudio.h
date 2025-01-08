@@ -423,7 +423,7 @@ gensio_sound_pa_api_open_dev(struct sound_info *si)
     } else {
 	/*
 	 * For output buffers, we allocate two buffers worth of data
-	 * for our buffering.  The rest of the buffering should hannen
+	 * for our buffering.  The rest of the buffering should happen
 	 * in portaudio.
 	 */
 	w->size = si->num_bufs * si->bufsize * si->cnv.pframesize;
