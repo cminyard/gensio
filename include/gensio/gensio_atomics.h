@@ -37,7 +37,7 @@
 #if GENSIO_HAS_STDC_ATOMICS
 #include <stdatomic.h>
 
-#define GENSIO_LOCKLESS_ATOMICS		true
+#define gensio_atomic_lockless(a)	atomic_is_lock_free(a)
 
 typedef atomic_uint gensio_atomic_uint;
 
@@ -70,7 +70,7 @@ enum gensio_memory_order {
 
 #elif GENSIO_HAS_GCC_ATOMICS
 
-#define GENSIO_LOCKLESS_ATOMICS		true
+#define gensio_atomic_lockless(a)	__atomic_is_lock_free(sizeof(*a), a)
 
 typedef unsigned int gensio_atomic_uint;
 
@@ -103,7 +103,98 @@ enum gensio_memory_order {
 #define gensio_atomic_sub_mo(a, v, mo)	__atomic_fetch_sub(a, v, mo)
 
 #else
-#error No atomic operations avaiable
+
+/* Atomics not available, create one using locks. */
+#define gensio_atomic_lockless(a)	false
+
+typedef struct {
+    struct gensio_os_funcs *o;
+    struct gensio_lock *lock;
+    unsigned int val;
+} gensio_atomic_uint;
+
+enum gensio_memory_order {
+    gensio_mo_relaxed = 1,
+    gensio_mo_consume = 2,
+    gensio_mo_acquire = 3,
+    gensio_mo_release = 4,
+    gensio_mo_acq_rel = 5,
+    gensio_mo_seq_cst = 6
+};
+
+#define gensio_atomic_init(o, a, v)	\
+    ({							\
+	int rv = GE_NOMEM;				\
+	(a)->lock = gensio_os_funcs_alloc_lock(o);	\
+	if ((a)->lock) {				\
+	    rv = 0;					\
+	    (a)->o = o;					\
+	    (a)->val = v;				\
+	};						\
+	rv;						\
+    })
+#define gensio_atomic_cleanup(a)	\
+    do {						\
+	if ((a)->lock)					\
+	    gensio_os_funcs_free_lock((a)->o, (a)->lock);\
+    } while(0)
+
+#define gensio_atomic_set(a, v)				\
+    do {						\
+	gensio_os_funcs_lock((a)->o, (a)->lock);	\
+	(a)->val = v;					\
+	gensio_os_funcs_unlock((a)->o, (a)->lock);	\
+    } while(0)
+#define gensio_atomic_set_mo(a, v, mo)	gensio_atomic_set(a, v)
+
+#define gensio_atomic_get(a)				\
+    ({							\
+	long rv;					\
+	gensio_os_funcs_lock((a)->o, (a)->lock);	\
+	rv = (a)->val;					\
+	gensio_os_funcs_unlock((a)->o, (a)->lock);	\
+	rv;						\
+    })
+#define gensio_atomic_get_mo(a, mo)	gensio_atomic_get(a)
+
+#define gensio_atomic_cas(a, expected, desired) \
+    ({							\
+	bool rv;					\
+	gensio_os_funcs_lock((a)->o, (a)->lock);	\
+	if (*(expected) == (a)->val) {			\
+	    (a)->val = desired;				\
+	    rv = true;					\
+	} else {					\
+	    rv = false;					\
+	}						\
+	gensio_os_funcs_unlock((a)->o, (a)->lock);	\
+	rv;						\
+    })
+#define gensio_atomic_cas_mo(a, expected, desired, succ_mo, fail_mo) \
+    gensio_atomic_cas(a, expected, desired)
+
+#define gensio_atomic_add(a, v)		\
+    ({							\
+	long rv;					\
+	gensio_os_funcs_lock((a)->o, (a)->lock);	\
+	rv = (a)->val;					\
+	(a)->val += v;					\
+	gensio_os_funcs_unlock((a)->o, (a)->lock);	\
+	rv;						\
+    })
+#define gensio_atomic_add_mo(a, v, mo)	gensio_atomic_add(a, v)
+
+#define gensio_atomic_sub(a, v)		\
+    ({							\
+	long rv;					\
+	gensio_os_funcs_lock((a)->o, (a)->lock);	\
+	rv = (a)->val;					\
+	(a)->val -= v;					\
+	gensio_os_funcs_unlock((a)->o, (a)->lock);	\
+	rv;						\
+    })
+#define gensio_atomic_sub_mo(a, v, mo)	gensio_atomic_sub(a, v)
+
 #endif
 
 /*
