@@ -46,7 +46,7 @@ static inline void gensio_refcount_inc(gensio_refcount *a)
  * Decrement the refcount.  The refcount must be non-zero.  The new
  * value of the refcount is returned.
  */
-static inline int gensio_refcount_dec(gensio_refcount *a)
+static inline unsigned int gensio_refcount_dec(gensio_refcount *a)
 {
     unsigned int gensio_refcount_old;
 
