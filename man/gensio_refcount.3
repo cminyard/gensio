@@ -10,27 +10,25 @@ gensio_refcount_inc_if_nz, gensio_refcount_dec_if_nz
 typedef xxx gensio_refcount;
 .br
 .TP 20
-.B gensio_refcount_init(o, a, v)
+.B int gensio_refcount_init(o, a, v)
 .TP 20
-.B gensio_refcount_cleanup(a)
+.B void gensio_refcount_cleanup(a)
 .TP 20
-.B gensio_refcount_cleanup(a)
+.B void gensio_refcount_set(a, v)
 .TP 20
-.B gensio_refcount_set(a, v)
+.B unsigned int gensio_refcount_get(a)
 .TP 20
-.B gensio_refcount_get(a)
+.B void gensio_refcount_inc(a)
 .TP 20
-.B gensio_refcount_inc(a)
+.B unsigned int gensio_refcount_dec(a)
 .TP 20
-.B gensio_refcount_dec(a)
+.B bool gensio_refcount_inc_if_nz(a)
 .TP 20
-.B gensio_refcount_inc_if_nz(a)
-.TP 20
-.B gensio_refcount_dec_if_nz(a)
+.B bool gensio_refcount_dec_if_nz(a)
 .SH "DESCRIPTION"
 An atomic refcount.
 
-You could call
+You should call
 .B gensio_refcount_init()
 to initialize the value.  The
 .B o

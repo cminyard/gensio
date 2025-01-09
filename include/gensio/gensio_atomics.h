@@ -199,42 +199,68 @@ enum gensio_memory_order {
 
 /*
  * If *a is zero, return.  Otherwise, atomically replace *a with *a + v,
- * or *a - v.  The previous value of *a is always returned in *old;
+ * or *a - v.  The previous value of *a is always returned in *old;  These
+ * return true if successful (the previous value was non-zero) or false if
+ * the previous value was zero.
  */
 #define gensio_atomic_add_if_nz(a, old, v) \
-    do {								\
-	*old = gensio_atomic_get(a);					\
-	if (*old == 0)							\
-	    break;							\
-	if (gensio_atomic_cas(a, old, *old + v))			\
-	    break;							\
-    } while(1)
+    ({									\
+	bool rv = true;							\
+	do {								\
+	    *old = gensio_atomic_get(a);				\
+	    if (*old == 0) {						\
+		rv = false;						\
+		break;							\
+	    }								\
+	    if (gensio_atomic_cas(a, old, *old + v))			\
+		break;							\
+	} while(true);							\
+	rv;								\
+    })
 
 #define gensio_atomic_add_if_nz_mo(a, old, v, mo) \
-    do {								\
-	*old = gensio_atomic_get_mo(a, mo);				\
-	if (*old == 0)							\
-	    break;							\
-	if (gensio_atomic_cas_mo(a, old, *old + v, mo, mo))		\
-	    break;							\
-    } while(1)
+    ({									\
+	bool rv = true;							\
+	do {								\
+	    *old = gensio_atomic_get_mo(a, mo);				\
+	    if (*old == 0) {						\
+		rv = false;						\
+		break;							\
+	    }								\
+	    if (gensio_atomic_cas_mo(a, old, *old + v, mo, mo))		\
+		break;							\
+	} while(true);							\
+	rv;								\
+    })
 #define gensio_atomic_sub_if_nz(a, old, v) \
-    do {								\
-	*old = gensio_atomic_get(a);					\
-	if (*old == 0)							\
-	    break;							\
-	if (gensio_atomic_cas(a, old, *old - v))			\
-	    break;							\
-    } while(1)
+    ({									\
+	bool rv = true;							\
+	do {								\
+	    *old = gensio_atomic_get(a);				\
+	    if (*old == 0) {						\
+		rv = false;						\
+		break;							\
+	    }								\
+	    if (gensio_atomic_cas(a, old, *old - v))			\
+		break;							\
+	} while(true);							\
+	rv;								\
+    })
 
 #define gensio_atomic_sub_if_nz_mo(a, old, v, mo) \
-    do {								\
-	*old = gensio_atomic_get_mo(a, mo);				\
-	if (*old == 0)							\
-	    break;							\
-	if (gensio_atomic_cas_mo(a, old, *old - v, mo, mo))		\
-	    break;							\
-    } while(1)
+    ({									\
+	bool rv = true;							\
+	do {								\
+	    *old = gensio_atomic_get_mo(a, mo);				\
+	    if (*old == 0) {						\
+		rv = false;						\
+		break;							\
+	    }								\
+	    if (gensio_atomic_cas_mo(a, old, *old - v, mo, mo))		\
+		break;							\
+	} while(true);							\
+	rv;								\
+    })
 
 #define gensio_atomic_inc_if_nz(a, old) \
     gensio_atomic_add_if_nz(a, old, 1)

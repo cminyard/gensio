@@ -33,51 +33,51 @@ enum gensio_memory_order {
 };
 .br
 .TP 20
-.B gensio_atomic_init(o, a, v)
+.B int gensio_atomic_init(o, a, v)
 .TP 20
-.B gensio_atomic_cleanup(a)
+.B void gensio_atomic_cleanup(a)
 .TP 20
-.B gensio_atomic_lockless(a)
+.B bool gensio_atomic_lockless(a)
 .TP 20
-.B gensio_atomic_set(a, v)
+.B void gensio_atomic_set(a, v)
 .TP 20
-.B gensio_atomic_set_mo(a, v, mo)
+.B void gensio_atomic_set_mo(a, v, mo)
 .TP 20
-.B gensio_atomic_get(a)
+.B <type> gensio_atomic_get(a)
 .TP 20
-.B gensio_atomic_get_mo(a, mo)
+.B type gensio_atomic_get_mo(a, mo)
 .TP 20
-.B gensio_atomic_cas(a, expected, desired)
+.B bool gensio_atomic_cas(a, expected, desired)
 .TP 20
-.B gensio_atomic_cas_mo(a, expected, desired, succ_mo, fail_mo)
+.B bool gensio_atomic_cas_mo(a, expected, desired, succ_mo, fail_mo)
 .TP 20
-.B gensio_atomic_add(a, v)
+.B <type> gensio_atomic_add(a, v)
 .TP 20
-.B gensio_atomic_add_mo(a, v, mo)
+.B <type> gensio_atomic_add_mo(a, v, mo)
 .TP 20
-.B gensio_atomic_sub(a, v)
+.B <type> gensio_atomic_sub(a, v)
 .TP 20
-.B gensio_atomic_sub_mo(a, v, mo)
+.B <type> gensio_atomic_sub_mo(a, v, mo)
 .TP 20
-.B gensio_atomic_add_if_nz(a, old, v)
+.B bool gensio_atomic_add_if_nz(a, old, v)
 .TP 20
-.B gensio_atomic_add_if_nz_mo(a, old, v, mo)
+.B bool gensio_atomic_add_if_nz_mo(a, old, v, mo)
 .TP 20
-.B gensio_atomic_sub_if_nz(a, old, v)
+.B bool gensio_atomic_sub_if_nz(a, old, v)
 .TP 20
-.B gensio_atomic_sub_if_nz_mo(a, old, v, mo)
+.B bool gensio_atomic_sub_if_nz_mo(a, old, v, mo)
 .TP 20
-.B gensio_atomic_inc_if_nz(a, old, v)
+.B bool gensio_atomic_inc_if_nz(a, old, v)
 .TP 20
-.B gensio_atomic_inc_if_nz_mo(a, old, mo)
+.B bool gensio_atomic_inc_if_nz_mo(a, old, mo)
 .TP 20
-.B gensio_atomic_dec_if_nz(a, old, v)
+.B bool gensio_atomic_dec_if_nz(a, old, v)
 .TP 20
-.B gensio_atomic_dec_if_nz_mo(a, old, mo)
+.B bool gensio_atomic_dec_if_nz_mo(a, old, mo)
 .SH "DESCRIPTION"
 These perform atomic operations.  See the C atomic operations standard
-(https://en.cppreference.com/w/c/atomic) for what these do.  Operations
-ending in
+(https://en.cppreference.com/w/c/atomic) for what these do.
+Operations ending in
 .B _mo
 Take a memory ordering value.  Operations not ending in that use the
 strongest memory ordering semantics.
@@ -95,7 +95,7 @@ to free any memory.
 
 The
 .B gensio_atomic_lockless()
-function return
+function returns
 .B true
 if the atomic operations on the value are lockless, or
 .B false
@@ -110,8 +110,9 @@ All operations with an
 value return the previous value in old.  For the operations ending in
 .B _if_nz
 the return value in old will be 0 if not successfull, non-zero if
-successful.
-
+successful.  These function also return true if successful, and false
+if not, but you must always pass in old, and it must be the proper
+type.
 
 .SH "CAVEATS"
 If C standard or GCC atomics are available, those are used, and should
@@ -123,8 +124,8 @@ would be trivial.
 .SH "RETURN VALUES"
 gensio_atomic_get() and gensio_atomic_get_mo() return the current value.
 
-gensio_atomic_cas() and gensio_atomic_cas_mo() return true if successful,
-false if not.
+gensio_atomic_cas() and gensio_atomic_cas_mo() and all the _of_nz
+functions return true if successful, false if not.
 
 All other functions/macros do not return values.
 .SH "SEE ALSO"

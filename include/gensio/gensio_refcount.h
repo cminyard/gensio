@@ -64,8 +64,7 @@ static inline bool gensio_refcount_dec_if_nz(gensio_refcount *a)
 {
     unsigned int gensio_refcount_old;
 
-    gensio_atomic_dec_if_nz(&a->count, &gensio_refcount_old);
-    return gensio_refcount_old != 0;
+    return gensio_atomic_dec_if_nz(&a->count, &gensio_refcount_old);
 }
 
 /*
@@ -76,8 +75,7 @@ static inline bool gensio_refcount_inc_if_nz(gensio_refcount *a)
 {
     unsigned int gensio_refcount_old;
 
-    gensio_atomic_inc_if_nz(&a->count, &gensio_refcount_old);
-    return gensio_refcount_old != 0;
+    return gensio_atomic_inc_if_nz(&a->count, &gensio_refcount_old);
 }
 
 /*
