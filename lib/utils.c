@@ -11,12 +11,10 @@
 #include <string.h>
 #include <assert.h>
 #include <ctype.h>
-#if HAVE_STDC_ATOMICS
-#include <stdatomic.h>
-#endif
 
 #include <gensio/gensio.h>
 #include <gensio/gensio_list.h>
+#include <gensio/gensio_refcount.h>
 #include "utils.h"
 
 char *
@@ -842,12 +840,7 @@ gensio_log_level_to_str(enum gensio_log_levels level)
 }
 
 struct gensio_cntstr {
-#if HAVE_STDC_ATOMICS
-    atomic_int refcount;
-#else
-    unsigned int refcount;
-    struct gensio_lock *lock;
-#endif
+    gensio_refcount refcount;
     char *str;
 };
 
@@ -865,7 +858,7 @@ gensio_cntstr_make(struct gensio_os_funcs *o, const char *src,
     str = o->zalloc(o, len + sizeof(*str));
     if (!str)
 	return GE_NOMEM;
-    str->refcount = 1;
+    gensio_refcount_init(&str->refcount, 1);
     if (src) {
 	str->str = ((char *) str) + sizeof(*str);
 	strcpy(str->str, src);
@@ -877,35 +870,17 @@ gensio_cntstr_make(struct gensio_os_funcs *o, const char *src,
 gensio_cntstr *
 gensio_cntstr_ref(struct gensio_os_funcs *o, gensio_cntstr *str)
 {
-#if HAVE_STDC_ATOMICS
-    str->refcount++;
-#else
-    o->lock(str->lock);
-    str->refcount++;
-    o->unlock(str->lock);
-#endif
+    gensio_refcount_inc(&str->refcount);
     return str;
 }
 
 void
 gensio_cntstr_free(struct gensio_os_funcs *o, gensio_cntstr *str)
 {
-#if HAVE_STDC_ATOMICS
-    int prev = atomic_fetch_sub(&str->refcount, 1);
-    assert(prev > 0);
-    if (prev == 1)
+    unsigned int newval = gensio_refcount_dec(&str->refcount);
+
+    if (newval == 0)
 	o->free(o, str);
-#else
-    o->lock(str->lock);
-    assert(str->refcount > 0);
-    str->refcount--;
-    if (str->refcount == 0) {
-	o->unlock(str->lock);
-	o->free(o, str);
-    } else {
-	o->unlock(str->lock);
-    }
-#endif
 }
 
 int
@@ -924,7 +899,7 @@ gensio_cntstr_vsprintf(struct gensio_os_funcs *o, gensio_cntstr **dest,
 	va_end(va2);
 	return GE_NOMEM;
     }
-    str->refcount = 1;
+    gensio_refcount_init(&str->refcount, 1);
     str->str = ((char *) str) + sizeof(*str);
     vsnprintf(str->str, len, fmt, va2);
     va_end(va2);
