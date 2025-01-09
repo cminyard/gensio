@@ -8,9 +8,6 @@
 #define _GNU_SOURCE /* Get extended getaddrinfo errors. */
 #include "config.h"
 #include <stdbool.h>
-#if HAVE_STDC_ATOMICS
-#include <stdatomic.h>
-#endif
 
 #ifdef _WIN32
 #include <winsock2.h>
@@ -43,6 +40,7 @@
 #include <gensio/gensio_addr.h>
 #include <gensio/gensio_err.h>
 #include <gensio/gensio_osops_addrinfo.h>
+#include <gensio/gensio_refcount.h>
 
 /* For older systems that don't have this. */
 #ifndef AI_V4MAPPED
@@ -54,9 +52,7 @@ struct gensio_addr_addrinfo {
     struct gensio_os_funcs *o;
     struct addrinfo *a;
     struct addrinfo *curr;
-#if HAVE_STDC_ATOMICS
-    atomic_int *refcount;
-#endif
+    gensio_refcount *refcount;
     bool is_getaddrinfo; /* Allocated with getaddrinfo()? */
 };
 
@@ -100,14 +96,12 @@ gensio_addrinfo_make(struct gensio_os_funcs *o, unsigned int size,
     if (!addr)
 	return NULL;
 
-#if HAVE_STDC_ATOMICS
     if (!is_recvfrom) {
 	addr->refcount = o->zalloc(o, sizeof(*addr->refcount));
 	if (!addr->refcount)
 	    goto out_err;
-	*addr->refcount = 1;
+	gensio_refcount_init(addr->refcount, 1);
     }
-#endif
 
     if (size > 0) {
 	ai = o->zalloc(o, sizeof(*ai));
@@ -141,10 +135,8 @@ gensio_addrinfo_make(struct gensio_os_funcs *o, unsigned int size,
 
     return addr;
  out_err:
-#if HAVE_STDC_ATOMICS
     if (addr->refcount)
 	o->free(o, addr->refcount);
-#endif
     while (ai) {
 	nai = ai->ai_next;
 	if (ai->ai_addr)
@@ -1057,36 +1049,28 @@ gensio_addr_addrinfo_dup(const struct gensio_addr *iaaddr)
     addr->o = o;
     addr->r.funcs = &addrinfo_funcs;
 
-#if HAVE_STDC_ATOMICS
     if (iaddr->refcount) {
 	addr->refcount = iaddr->refcount;
 	addr->a = iaddr->a;
 	addr->is_getaddrinfo = iaddr->is_getaddrinfo;
-	(*addr->refcount)++;
+	gensio_refcount_inc(addr->refcount);
     } else {
-#endif
-	do {
-	    int rv;
+	int rv;
 
-	    rv = addrinfo_list_dup(o, iaddr->a, &addr->a, NULL);
-	    if (rv) {
-		addrinfo_list_free(o, addr->a);
-		o->free(o, addr);
-		return NULL;
-	    }
-#if HAVE_STDC_ATOMICS
-	    addr->refcount = o->zalloc(o, sizeof(*addr->refcount));
-	    if (!addr->refcount) {
-		addrinfo_list_free(o, addr->a);
-		o->free(o, addr);
-		return NULL;
-	    }
-	    *addr->refcount = 1;
-#endif
-	} while(false);
-#if HAVE_STDC_ATOMICS
+	rv = addrinfo_list_dup(o, iaddr->a, &addr->a, NULL);
+	if (rv) {
+	    addrinfo_list_free(o, addr->a);
+	    o->free(o, addr);
+	    return NULL;
+	}
+	addr->refcount = o->zalloc(o, sizeof(*addr->refcount));
+	if (!addr->refcount) {
+	    addrinfo_list_free(o, addr->a);
+	    o->free(o, addr);
+	    return NULL;
+	}
+	gensio_refcount_init(addr->refcount, 1);
     }
-#endif
     addr->curr = addr->a;
 
     return &addr->r;
@@ -1152,25 +1136,20 @@ gensio_addr_addrinfo_free(struct gensio_addr *aaddr)
     struct gensio_addr_addrinfo *addr = a_to_info(aaddr);
     struct gensio_os_funcs *o = addr->o;
 
-#if HAVE_STDC_ATOMICS
     if (addr->refcount) {
-	int prev = atomic_fetch_sub(addr->refcount, 1);
-	assert(prev > 0);
-	if (prev != 1)
+	int newval = gensio_refcount_dec(addr->refcount);
+	if (newval != 0)
 	    /* Others are using addr->a, just free this address data. */
 	    goto out_free_addr;
 	o->free(o, addr->refcount);
     }
-#endif
     if (addr->a) {
 	if (addr->is_getaddrinfo)
 	    freeaddrinfo(addr->a);
 	else
 	    addrinfo_list_free(o, addr->a);
     }
-#if HAVE_STDC_ATOMICS
  out_free_addr:
-#endif
     o->free(o, addr);
 }
 

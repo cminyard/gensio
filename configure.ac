@@ -2243,13 +2243,6 @@ AC_DEFINE_UNQUOTED([USE_FILE_STDIO], [$USE_FILE_STDIO],
 
 AC_LANG(C)
 
-# There is a built-in C macro to check if atomics are *not* available.
-# But that won't work on old compilers that don't have the macro set if
-# they don't have it.  Check ourselves.
-AC_CHECK_HEADER(stdatomic.h, [HAVE_STDC_ATOMICS=1], [HAVE_STDC_ATOMICS=0])
-AC_DEFINE_UNQUOTED([HAVE_STDC_ATOMICS], [$HAVE_STDC_ATOMICS],
-	           [Are standard C atomic operations available])
-
 AC_CHECK_FUNCS(sendmsg)
 AC_CHECK_FUNCS(recvmsg)
 AC_CHECK_FUNCS(isatty)
