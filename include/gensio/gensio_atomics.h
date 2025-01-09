@@ -34,7 +34,25 @@
 #endif
 #endif
 
+#if defined(__cplusplus) && __cplusplus >= 202302L
+/* c++ doesn't define __STDC_VERSION__ */
+#define gensio_typeof(a) typeof((a)->val)
+
+#elif defined(__STDC_VERSION__) && __STDC_VERSION__ >= 202311L
+/* For C only. */
+#define gensio_typeof(a) typeof((a)->val)
+
+#elif defined(__GNUC__) || defined(_MSC_VER)
+/* Use the built-in GCC one that always works with gcc and MSC. */
+#define gensio_typeof(a) __typeof__((a)->val)
+
+#else
+/* Just use the largest possible value. */
+#define gensio_typeof(a) long
+#endif
+
 #if GENSIO_HAS_STDC_ATOMICS
+/* Use standards when we can. */
 #include <stdatomic.h>
 
 #define gensio_atomic_lockless(a)	atomic_is_lock_free(a)
@@ -103,7 +121,6 @@ enum gensio_memory_order {
 #define gensio_atomic_sub_mo(a, v, mo)	__atomic_fetch_sub(a, v, mo)
 
 #else
-
 /* Atomics not available, create one using locks. */
 #define gensio_atomic_lockless(a)	false
 
@@ -113,6 +130,7 @@ typedef struct {
     unsigned int val;
 } gensio_atomic_uint;
 
+/* These have no meaning in the lock-based case. */
 enum gensio_memory_order {
     gensio_mo_relaxed = 1,
     gensio_mo_consume = 2,
@@ -149,7 +167,7 @@ enum gensio_memory_order {
 
 #define gensio_atomic_get(a)				\
     ({							\
-	long rv;					\
+	gensio_typeof((a)->val) rv;			\
 	gensio_os_funcs_lock((a)->o, (a)->lock);	\
 	rv = (a)->val;					\
 	gensio_os_funcs_unlock((a)->o, (a)->lock);	\
@@ -175,7 +193,7 @@ enum gensio_memory_order {
 
 #define gensio_atomic_add(a, v)		\
     ({							\
-	long rv;					\
+	gensio_typeof((a)->val) rv;			\
 	gensio_os_funcs_lock((a)->o, (a)->lock);	\
 	rv = (a)->val;					\
 	(a)->val += v;					\
@@ -186,7 +204,7 @@ enum gensio_memory_order {
 
 #define gensio_atomic_sub(a, v)		\
     ({							\
-	long rv;					\
+	gensio_typeof((a)->val) rv;			\
 	gensio_os_funcs_lock((a)->o, (a)->lock);	\
 	rv = (a)->val;					\
 	(a)->val -= v;					\
