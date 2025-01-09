@@ -2,7 +2,10 @@
 ; SEE THE DOCUMENTATION FOR DETAILS ON CREATING INNO SETUP SCRIPT FILES!
 
 #define MyAppName "Gensio"
-#define MyAppVersion "2.8.10"
+#define MyAppVersion "2.8.11"
+; This should match "C - A" in the GENSIO_LIB_VERSION in the autoconf
+; file.  So if GENSIO_LIB_VERSION is "12:0:2", this value will be "10".
+; "C" is the first value in GENSIO_LIB_VERSION, "A" is the last.
 #define MyAppLibVersion "10"
 #define MyAppPublisher "Gensio"
 #define MyAppURL "https://github.com/cminyard/gensio"
