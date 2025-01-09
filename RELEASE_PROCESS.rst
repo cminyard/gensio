@@ -45,7 +45,7 @@ Then create the new version.  To do this:
   everything builds, installs, uninstalls, etc. ok.
 
 So now we have a tarball and everything in git.  Now we have to build
-on Windows, after doing a get pull to get everthing:
+on Windows, after doing a get pull to get everything:
 
 * rm -rf $HOME/install/Gensio
 
@@ -68,7 +68,7 @@ Now we can check homebrew on MacOS.  On a MacOS system, do:
 
 * Do a sha256sum on the gensio-x-x-x.tar.gz file.
 
-* vi /opt/homebrew/cd Library/Taps/homebrew/homebrew-core/Formula/g/gensio.rb
+* vi /opt/homebrew/Library/Taps/homebrew/homebrew-core/Formula/g/gensio.rb
   and edit the version number and set the sha256.
 
 * HOMEBREW_NO_INSTALL_FROM_API=1 brew reinstall --build-from-source
