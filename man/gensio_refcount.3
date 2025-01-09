@@ -10,7 +10,9 @@ gensio_refcount_inc_if_nz, gensio_refcount_dec_if_nz
 typedef xxx gensio_refcount;
 .br
 .TP 20
-.B gensio_refcount_init(a, v)
+.B gensio_refcount_init(o, a, v)
+.TP 20
+.B gensio_refcount_cleanup(a)
 .TP 20
 .B gensio_refcount_cleanup(a)
 .TP 20
@@ -30,9 +32,11 @@ An atomic refcount.
 
 You could call
 .B gensio_refcount_init()
-to initialize the value.  This may allocate locks and such, so you
-should check the return value.  Once done with the refcount, you
-should call
+to initialize the value.  The
+.B o
+value is a gensio_os_funcs struct.  This may allocate locks and such,
+so you should check the return value of the init function.  Once done
+with the refcount, you should call
 .B gensio_refcount_cleanup().
 
 These work like normal atomic refcounts.  The operations ending in

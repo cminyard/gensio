@@ -858,7 +858,7 @@ gensio_cntstr_make(struct gensio_os_funcs *o, const char *src,
     str = o->zalloc(o, len + sizeof(*str));
     if (!str)
 	return GE_NOMEM;
-    gensio_refcount_init(&str->refcount, 1);
+    gensio_refcount_init(o, &str->refcount, 1);
     if (src) {
 	str->str = ((char *) str) + sizeof(*str);
 	strcpy(str->str, src);
@@ -879,8 +879,10 @@ gensio_cntstr_free(struct gensio_os_funcs *o, gensio_cntstr *str)
 {
     unsigned int newval = gensio_refcount_dec(&str->refcount);
 
-    if (newval == 0)
+    if (newval == 0) {
+	gensio_refcount_cleanup(&str->refcount);
 	o->free(o, str);
+    }
 }
 
 int
@@ -899,7 +901,7 @@ gensio_cntstr_vsprintf(struct gensio_os_funcs *o, gensio_cntstr **dest,
 	va_end(va2);
 	return GE_NOMEM;
     }
-    gensio_refcount_init(&str->refcount, 1);
+    gensio_refcount_init(o, &str->refcount, 1);
     str->str = ((char *) str) + sizeof(*str);
     vsnprintf(str->str, len, fmt, va2);
     va_end(va2);

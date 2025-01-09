@@ -14,6 +14,7 @@
 #define GENSIO_ATOMICS_H
 
 #include <stdbool.h>
+#include <gensio/gensio_os_funcs_public.h>
 
 #ifndef __STDC_VERSION__
 #define GENSIO_HAS_STDC_ATOMICS 0
@@ -36,6 +37,8 @@
 #if GENSIO_HAS_STDC_ATOMICS
 #include <stdatomic.h>
 
+#define GENSIO_LOCKLESS_ATOMICS		true
+
 typedef atomic_uint gensio_atomic_uint;
 
 enum gensio_memory_order {
@@ -47,6 +50,8 @@ enum gensio_memory_order {
     gensio_mo_seq_cst = memory_order_seq_cst,
 };
 
+#define gensio_atomic_init(o, a, v)	(atomic_store(a, v), 0)
+#define gensio_atomic_cleanup(a)	do {} while(0)
 #define gensio_atomic_set(a, v)		atomic_store(a, v)
 #define gensio_atomic_set_mo(a, v, mo)	atomic_store_explicit(a, v, mo)
 #define gensio_atomic_get(a)		atomic_load(a)
@@ -65,6 +70,8 @@ enum gensio_memory_order {
 
 #elif GENSIO_HAS_GCC_ATOMICS
 
+#define GENSIO_LOCKLESS_ATOMICS		true
+
 typedef unsigned int gensio_atomic_uint;
 
 enum gensio_memory_order {
@@ -76,6 +83,8 @@ enum gensio_memory_order {
     gensio_mo_seq_cst = __ATOMIC_SEQ_CST,
 };
 
+#define gensio_atomic_init(o, a, v)	(__atomic_store_n(a, v, __ATOMIC_SEQ_CST), 0)
+#define gensio_atomic_cleanup(a)	do {} while(0)
 #define gensio_atomic_set(a, v)		__atomic_store_n(a, v, __ATOMIC_SEQ_CST)
 #define gensio_atomic_set_mo(a, v, mo)	__atomic_store_n(a, v, mo)
 #define gensio_atomic_get(a)		__atomic_load_n(a, __ATOMIC_SEQ_CST)

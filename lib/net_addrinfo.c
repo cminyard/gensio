@@ -100,7 +100,11 @@ gensio_addrinfo_make(struct gensio_os_funcs *o, unsigned int size,
 	addr->refcount = o->zalloc(o, sizeof(*addr->refcount));
 	if (!addr->refcount)
 	    goto out_err;
-	gensio_refcount_init(addr->refcount, 1);
+	if (gensio_refcount_init(o, addr->refcount, 1) != 0) {
+	    o->free(o, addr->refcount);
+	    addr->refcount = NULL;
+	    goto out_err;
+	}
     }
 
     if (size > 0) {
@@ -135,8 +139,10 @@ gensio_addrinfo_make(struct gensio_os_funcs *o, unsigned int size,
 
     return addr;
  out_err:
-    if (addr->refcount)
+    if (addr->refcount) {
+	gensio_refcount_cleanup(addr->refcount);
 	o->free(o, addr->refcount);
+    }
     while (ai) {
 	nai = ai->ai_next;
 	if (ai->ai_addr)
@@ -1069,7 +1075,7 @@ gensio_addr_addrinfo_dup(const struct gensio_addr *iaaddr)
 	    o->free(o, addr);
 	    return NULL;
 	}
-	gensio_refcount_init(addr->refcount, 1);
+	gensio_refcount_init(o, addr->refcount, 1);
     }
     addr->curr = addr->a;
 
@@ -1141,6 +1147,7 @@ gensio_addr_addrinfo_free(struct gensio_addr *aaddr)
 	if (newval != 0)
 	    /* Others are using addr->a, just free this address data. */
 	    goto out_free_addr;
+	gensio_refcount_cleanup(addr->refcount);
 	o->free(o, addr->refcount);
     }
     if (addr->a) {

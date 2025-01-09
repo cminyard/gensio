@@ -1,5 +1,6 @@
 .TH gensio_atomics 3 "04 Jan 2025"
 .SH NAME
+gensio_atomic_init, gensio_atomic_cleanup,
 gensio_atomic_set, gensio_atomic_set_mo, gensio_atomic_get,
 gensio_atomic_get_mo, gensio_atomic_cas,
 gensio_atomic_cas_mo,
@@ -32,6 +33,12 @@ enum gensio_memory_order {
 };
 .br
 .TP 20
+.B gensio_atomic_init(o, a, v)
+.TP 20
+.B gensio_atomic_cleanup(a)
+.TP 20
+.B gensio_atomic_lockless(a)
+.TP 20
 .B gensio_atomic_set(a, v)
 .TP 20
 .B gensio_atomic_set_mo(a, v, mo)
@@ -40,9 +47,9 @@ enum gensio_memory_order {
 .TP 20
 .B gensio_atomic_get_mo(a, mo)
 .TP 20
-.B gensio_atomic_cas(a, old, new)
+.B gensio_atomic_cas(a, expected, desired)
 .TP 20
-.B gensio_atomic_cas_mo(a, old, new, succ_mo, fail_mo)
+.B gensio_atomic_cas_mo(a, expected, desired, succ_mo, fail_mo)
 .TP 20
 .B gensio_atomic_add(a, v)
 .TP 20
@@ -75,6 +82,25 @@ ending in
 Take a memory ordering value.  Operations not ending in that use the
 strongest memory ordering semantics.
 
+You must call
+.B gensio_atomic_init()
+on an object before using it.  The
+.B o
+value is an
+.B gensio_os_funcs
+structure which could be used to allocate memory.  After you are done with it,
+you must call
+.B gensio_atomic_cleanup()
+to free any memory.
+
+The
+.B gensio_atomic_lockless()
+function return
+.B true
+if the atomic operations on the value are lockless, or
+.B false
+if not.
+
 The operations ending in
 .B _if_nz
 will perform the operation if the value is not already zero.
@@ -88,9 +114,9 @@ successful.
 
 
 .SH "CAVEATS"
-Currently these are only implemented on processors that can do this
-natively.  A non-native implementation with locks could be done,
-though.
+If C standard or GCC atomics are available, those are used, and should
+be lockless on most platforms.  If those are not available, a
+lock-based version is used.
 
 Currently only uint is implemented, though implementing other types
 would be trivial.

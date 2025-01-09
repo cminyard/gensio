@@ -5181,7 +5181,7 @@ ax25_chan_alloc(struct ax25_base *base, const char *const args[],
     if (chan->conf.report_raw)
 	base->have_raw = true;
 
-    rv = gensio_refcount_init(&chan->refcount, 1);
+    rv = gensio_refcount_init(o, &chan->refcount, 1);
     if (rv)
 	goto out_err;
 
@@ -5295,7 +5295,7 @@ ax25_gensio_alloc_base(struct gensio *child, const char *const args[],
     gensio_list_init(&base->chans_closed);
     gensio_list_init(&base->send_list);
 
-    rv = gensio_refcount_init(&base->refcount, 1);
+    rv = gensio_refcount_init(o, &base->refcount, 1);
     if (rv)
 	goto out_err;
 
