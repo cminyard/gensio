@@ -978,6 +978,9 @@ swig directors.  See c++/swig/go/README.rst for details.
 Building
 ========
 
+You can obtain the library at https://github.com/cminyard/gensio or
+get the tarballs at https://sourceforge.net/projects/ser2net/files/ser2net
+
 This is a normal autoconf system, nothing special.  Note that if you
 get this directly from git, you won't have the build infrastructure
 included.  There is a script named "reconf" in the main directory
