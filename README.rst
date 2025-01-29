@@ -2,6 +2,9 @@
 gensio - General Stream I/O
 ===========================
 
+.. image:: https://www.bestpractices.dev/projects/9971/badge
+   :target: https://www.bestpractices.dev/projects/9971
+
 This is gensio (pronounced gen'-see-oh), a framework for giving a
 consistent view of various stream (and packet) I/O types.  You create
 a gensio object (or a gensio), and you can use that gensio without
