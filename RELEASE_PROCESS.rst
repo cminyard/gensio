@@ -2,9 +2,10 @@ This is a list of things I do when getting a release ready, mostly
 here for me to follow when doing a release.
 
 After everything is ready, on Linux(x86_64 and arm64), Windows, MacOS,
-and FreeBSD do:
+and FreeBSD do::
 
   mkdir Ztest
+  cd Ztest
   ../configure --enable-internal-trace
   make -j<n>
   make check
