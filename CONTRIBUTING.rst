@@ -19,6 +19,10 @@ do.  Here are some things you can do:
 Code Contribution Rules
 =======================
 
+All contributions must be signed of with a "Signed-off-by:" line
+following the Developer Certificate of Origin.  See
+https://developercertificate.org.
+
 Please follow the coding style of the existing code.  It's basically
 Linux kernel style with 4-character indent.
 
@@ -26,3 +30,8 @@ Submit fixes, documentation updates, and new features through github
 pull requests.
 
 New gensios that go into the main library must be LGPL-2.1.
+
+If you add a new gensio or feature, you must add a test for it.
+
+If you make any changes, the changed code must pass all tests.  See
+"Running Tests" in the README.rst file.
