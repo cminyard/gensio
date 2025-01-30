@@ -131,10 +131,12 @@ gensio_circbuf_read(struct gensio_circbuf *c,
 	gensio_circbuf_next_read_area(c, &pos, &size);
 	if (size > buflen)
 	    size = buflen;
-	memcpy(buf, pos, size);
+	if (buf)
+	    memcpy(buf, pos, size);
 	buflen -= size;
 	count += size;
-	buf += size;
+	if (buf)
+	    buf += size;
 	gensio_circbuf_data_removed(c, size);
     }
     if (rcount)

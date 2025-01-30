@@ -88,7 +88,8 @@ void gensio_circbuf_sg_write(struct gensio_circbuf *c,
 
 /*
  * Read data from a scatter-gather buffer.  The number of bytes
- * returned is put into rcount.
+ * returned is put into rcount.  ibuf may be NULL, then the data is
+ * just deleted.  rcount is still set.
  */
 GENSIOOSH_DLL_PUBLIC
 void gensio_circbuf_read(struct gensio_circbuf *c,
