@@ -206,6 +206,13 @@ int gensio_unix_termios_control(struct gensio_os_funcs *o, int op, bool get,
 				struct gensio_unix_termios **t, int fd);
 
 GENSIOOSH_DLL_PUBLIC
+int gensio_unix_termios_read_flags(struct gensio_os_funcs *o,
+				   unsigned char *buf, unsigned char *flags,
+				   gensiods buflen,
+				   gensiods *rcount,
+				   struct gensio_unix_termios *t, int fd);
+
+GENSIOOSH_DLL_PUBLIC
 void gensio_unix_do_flush(struct gensio_os_funcs *o, int fd, int whichbuf);
 
 GENSIOOSH_DLL_PUBLIC

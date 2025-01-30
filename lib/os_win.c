@@ -2035,6 +2035,7 @@ struct gensio_iod_win_twoway {
     BOOL writeable;
 
     struct gensio_circbuf *inbuf;
+    struct gensio_circbuf *flagbuf;
     struct gensio_circbuf *outbuf;
 
     BOOL do_flush; /* Tell thread to flush output data. */
@@ -2044,18 +2045,44 @@ struct gensio_iod_win_twoway {
 					       struct gensio_iod_win_twoway, \
 					       wiod)
 
+struct gensio_iod_win_dev
+{
+    struct gensio_iod_win_twoway twiod;
+
+    char *name;
+
+    BOOL is_serial_port;
+
+    /*
+     * Events we are looking for.  This may either be 0, or it may
+     * have both EV_ERR and EV_BREAK.  No other options, if more
+     * granularity is needed the logic needs to be reworked.
+     */
+    DWORD comm_mask;
+
+    struct gensio_win_commport *cominfo;
+};
+
+#define twiod_to_windev(tw) gensio_container_of(tw,		       \
+					    struct gensio_iod_win_dev, \
+					    twiod)
+
 static DWORD WINAPI
 win_twoway_thread(LPVOID data)
 {
     struct gensio_iod_win_twoway *twiod = data;
+    struct gensio_iod_win_dev *dtwiod = twiod_to_windev(twiod);
     struct gensio_iod_win *wiod = &twiod->wiod;
     DWORD rvw, nwait;
-    BOOL reading = FALSE, writing = FALSE;
-    OVERLAPPED reado, writeo;
-    HANDLE waiters[4];
+    BOOL reading = FALSE, writing = FALSE, got_event = FALSE;
+    OVERLAPPED reado, writeo, evento;
+    DWORD event = 0;
+    HANDLE waiters[5];
+    DWORD comm_mask = 0;
 
     memset(&reado, 0, sizeof(reado));
     memset(&writeo, 0, sizeof(writeo));
+    memset(&evento, 0, sizeof(evento));
 
     EnterCriticalSection(&wiod->lock);
     reado.hEvent = CreateEventA(NULL, FALSE, FALSE, NULL);
@@ -2064,19 +2091,52 @@ win_twoway_thread(LPVOID data)
     writeo.hEvent = CreateEventA(NULL, FALSE, FALSE, NULL);
     if (!writeo.hEvent)
 	goto out_err;
+    evento.hEvent = CreateEventA(NULL, FALSE, FALSE, NULL);
+    if (!evento.hEvent)
+	goto out_err;
 
     waiters[0] = twiod->wakeh;
     waiters[1] = reado.hEvent;
     waiters[2] = writeo.hEvent;
-    nwait = 3;
+    waiters[3] = evento.hEvent;
+    nwait = 4;
     if (twiod->extrah)
 	waiters[nwait++] = twiod->extrah;
 
     for(;;) {
 	BOOL rvb;
 
-	if (!reading && gensio_circbuf_room_left(twiod->inbuf) && !wiod->werr
-			&& twiod->readable) {
+	if (got_event && gensio_circbuf_room_left(twiod->inbuf)
+			&& !wiod->werr && dtwiod->is_serial_port) {
+	    gensiods readsize;
+	    void *readpos;
+	    gensiods flagsize;
+	    void *flagpos;
+
+	    gensio_circbuf_next_write_area(twiod->inbuf, &readpos, &readsize);
+	    gensio_circbuf_next_write_area(twiod->flagbuf, &flagpos, &flagsize);
+	    assert(readsize == flagsize);
+	    assert(readsize > 0);
+	    *((unsigned char *) readpos) = 0;
+	    *((unsigned char *) flagpos) = 0;
+	    if (event & EV_BREAK)
+		*((unsigned char *) flagpos) |= GENSIO_IOD_READ_FLAGS_BREAK;
+	    if (event & EV_ERR)
+		*((unsigned char *) flagpos) |= GENSIO_IOD_READ_FLAGS_ERR;
+	    gensio_circbuf_data_added(twiod->inbuf, 1);
+	    gensio_circbuf_data_added(twiod->flagbuf, 1);
+
+	    got_event = false;
+	    event = 0;
+	    if (comm_mask) {
+		if (!WaitCommEvent(twiod->ioh, &event, &evento)) {
+		    rvw = GetLastError();
+		    if (rvw != ERROR_IO_PENDING)
+			goto out_err;
+		}
+	    }
+	} else if (!reading && gensio_circbuf_room_left(twiod->inbuf)
+			&& !wiod->werr && twiod->readable) {
 	    gensiods readsize;
 	    void *readpos;
 
@@ -2114,6 +2174,21 @@ win_twoway_thread(LPVOID data)
 
 	    if (rvw == WAIT_OBJECT_0 + 0) {
 		assert(ResetEvent(twiod->wakeh));
+
+		if (comm_mask != dtwiod->comm_mask) {
+		    comm_mask = dtwiod->comm_mask;
+		    if (!comm_mask && !got_event)
+			CancelIoEx(twiod->ioh, &evento);
+		    if (!SetCommMask(twiod->ioh, comm_mask))
+			goto out_err;
+		    if (comm_mask && !got_event) {
+			if (!WaitCommEvent(twiod->ioh, &event, &evento)) {
+			    rvw = GetLastError();
+			    if (rvw != ERROR_IO_PENDING)
+				goto out_err;
+			}
+		    }
+		}
 	    } else if (rvw == WAIT_OBJECT_0 + 1) {
 		DWORD nread = 0;
 
@@ -2122,7 +2197,16 @@ win_twoway_thread(LPVOID data)
 		    goto out_err;
 
 		if (nread > 0) {
+		    gensiods flagsize;
+		    void *flagpos;
+
+		    gensio_circbuf_next_write_area(twiod->flagbuf, &flagpos,
+						   &flagsize);
+		    assert(flagsize >= nread);
+		    memset(flagpos, 0, nread);
+
 		    gensio_circbuf_data_added(twiod->inbuf, nread);
+		    gensio_circbuf_data_added(twiod->flagbuf, nread);
 		    if (!wiod->read.ready) {
 			wiod->read.ready = TRUE;
 			queue_iod(wiod);
@@ -2152,6 +2236,9 @@ win_twoway_thread(LPVOID data)
 		}
 		writing = FALSE;
 	    } else if (rvw == WAIT_OBJECT_0 + 3) {
+		/* CommEvent event */
+		got_event = true;
+	    } else if (rvw == WAIT_OBJECT_0 + 4) {
 		rvw = twiod->extrah_func(twiod);
 		if (rvw)
 		    goto out_err_noget;
@@ -2173,10 +2260,14 @@ win_twoway_thread(LPVOID data)
 	CancelIoEx(twiod->ioh, &reado);
     if (writing)
 	CancelIoEx(twiod->ioh, &writeo);
+    if (!got_event && comm_mask)
+	CancelIoEx(twiod->ioh, &evento);
     if (reado.hEvent)
 	CloseHandle(reado.hEvent);
     if (writeo.hEvent)
 	CloseHandle(writeo.hEvent);
+    if (writeo.hEvent)
+	CloseHandle(evento.hEvent);
 
     if (!twiod->readable)
 	wiod->read.ready = TRUE;
@@ -2281,10 +2372,11 @@ win_twoway_write(struct gensio_iod_win *wiod,
 
 static int
 win_twoway_read(struct gensio_iod_win *wiod,
-		void *ibuf, gensiods buflen, gensiods *rcount)
+		unsigned char *ibuf, unsigned char *flags,
+		gensiods buflen, gensiods *rcount)
 {
     struct gensio_iod_win_twoway *twiod = wiod_to_win_twoway(wiod);
-    gensiods count = 0;
+    gensiods count = 0, flag_count = 0;
     BOOL was_full;
     int rv = 0;
 
@@ -2293,7 +2385,8 @@ win_twoway_read(struct gensio_iod_win *wiod,
 	wiod->err = GE_NOTSUP;
 	goto out;
     }
-    if (gensio_circbuf_datalen(twiod->inbuf) && (wiod->err || wiod->werr)) {
+    if (gensio_circbuf_datalen(twiod->inbuf) == 0
+		&& (wiod->err || wiod->werr)) {
 	if (!wiod->err)
 	    wiod->err = gensio_os_err_to_err(wiod->iod.f, wiod->werr);
 	rv = wiod->err;
@@ -2302,6 +2395,8 @@ win_twoway_read(struct gensio_iod_win *wiod,
 
     was_full = gensio_circbuf_room_left(twiod->inbuf) == 0;
     gensio_circbuf_read(twiod->inbuf, ibuf, buflen, &count);
+    gensio_circbuf_read(twiod->flagbuf, flags, buflen, &flag_count);
+    assert(count == flag_count);
     wiod->read.ready = (gensio_circbuf_datalen(twiod->inbuf) > 0
 			|| wiod->err || wiod->werr);
     if (!wiod->read.ready)
@@ -2334,6 +2429,10 @@ win_iod_twoway_clean(struct gensio_iod_win *wiod)
 	gensio_circbuf_free(twiod->inbuf);
 	twiod->inbuf = NULL;
     }
+    if (twiod->flagbuf) {
+	gensio_circbuf_free(twiod->flagbuf);
+	twiod->flagbuf = NULL;
+    }
 
     if (twiod->outbuf) {
 	gensio_circbuf_free(twiod->outbuf);
@@ -2351,40 +2450,25 @@ win_iod_twoway_init(struct gensio_iod_win *wiod)
     if (!twiod->inbuf)
 	return GE_NOMEM;
 
+    twiod->flagbuf = gensio_circbuf_alloc(o, 2048);
+    if (!twiod->flagbuf)
+	goto out_nomem;
+
     twiod->outbuf = gensio_circbuf_alloc(o, 2048);
-    if (!twiod->outbuf) {
-	gensio_circbuf_free(twiod->inbuf);
-	twiod->inbuf = NULL;
-	return GE_NOMEM;
-    }
+    if (!twiod->outbuf)
+	goto out_nomem;
     wiod->write.ready = TRUE;
 
     twiod->wakeh = CreateEventA(NULL, FALSE, FALSE, NULL);
-    if (!twiod->wakeh) {
-	gensio_circbuf_free(twiod->outbuf);
-	twiod->outbuf = NULL;
-	gensio_circbuf_free(twiod->inbuf);
-	twiod->inbuf = NULL;
-	return GE_NOMEM;
-    }
+    if (!twiod->wakeh)
+	goto out_nomem;
 
     return 0;
+ out_nomem:
+    win_iod_twoway_clean(wiod);
+    return GE_NOMEM;
 }
 
-struct gensio_iod_win_dev
-{
-    struct gensio_iod_win_twoway twiod;
-
-    char *name;
-
-    BOOL is_serial_port;
-
-    struct gensio_win_commport *cominfo;
-};
-
-#define twiod_to_windev(tw) gensio_container_of(tw,			\
-					    struct gensio_iod_win_dev, \
-					    twiod)
 static int
 win_dev_control(struct gensio_iod_win *wiod, int op, bool get, intptr_t val)
 {
@@ -2397,8 +2481,24 @@ win_dev_control(struct gensio_iod_win *wiod, int op, bool get, intptr_t val)
 	return GE_NOTSUP;
 
     EnterCriticalSection(&wiod->lock);
-    rv = gensio_win_commport_control(o, op, get, val, &dtwiod->cominfo,
-				     twiod->ioh);
+    if (op == GENSIO_IOD_CONTROL_ENABLE_RECV_ERR) {
+	if (get) {
+	    *((int *) val) = !!(dtwiod->comm_mask & (EV_BREAK | EV_ERR));
+	} else {
+	    DWORD old_mask = dtwiod->comm_mask;
+
+	    if (val)
+		dtwiod->comm_mask = EV_BREAK | EV_ERR;
+	    else
+		dtwiod->comm_mask = 0;
+	    if (dtwiod->comm_mask != old_mask)
+		/* New mask is ready, tell the thread. */
+		assert(SetEvent(twiod->wakeh));
+	}
+    } else {
+	rv = gensio_win_commport_control(o, op, get, val, &dtwiod->cominfo,
+					 twiod->ioh);
+    }
     LeaveCriticalSection(&wiod->lock);
 
     return rv;
@@ -3523,12 +3623,33 @@ win_read(struct gensio_iod *iod,
 	       wiod->type == GENSIO_IOD_PIPE) {
 	return win_oneway_read(wiod, ibuf, buflen, rcount);
     } else if (wiod->type == GENSIO_IOD_DEV) {
-	return win_twoway_read(wiod, ibuf, buflen, rcount);
+	return win_twoway_read(wiod, ibuf, NULL, buflen, rcount);
     } else if (wiod->type == GENSIO_IOD_PTY) {
 	return win_pty_read(wiod, ibuf, buflen, rcount);
     }
 
     return GE_NOTSUP;
+}
+
+static int
+win_read_flags(struct gensio_iod *iod, unsigned char *buf,
+	       unsigned char *flags, gensiods buflen,
+	       gensiods *rcount)
+{
+    struct gensio_iod_win *wiod = iod_to_win(iod);
+    gensiods count;
+    int rv;
+
+    if (wiod->type == GENSIO_IOD_DEV)
+	return win_twoway_read(wiod, buf, flags, buflen, rcount);
+
+    rv = win_read(iod, buf, buflen, &count);
+    if (!rv) {
+	memset(flags, 0, count);
+	if (rcount)
+	    *rcount = count;
+    }
+    return rv;
 }
 
 static bool
@@ -3874,6 +3995,7 @@ i_gensio_win_funcs_alloc(unsigned int flags, struct gensio_os_funcs **ro)
     o->wait_subprog = win_wait_subprog;
     o->get_random = win_get_random;
     o->control = gensio_win_control;
+    o->read_flags = win_read_flags;
 
     gensio_addr_addrinfo_set_os_funcs(o);
     err = gensio_stdsock_set_os_funcs(o);

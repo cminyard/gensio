@@ -264,6 +264,20 @@ struct gensio_opensocks
 
 /* For ptys, set the window size. */
 #define GENSIO_IOD_CONTROL_WIN_SIZE 27
+
+/*
+ * For serial devices, enable receiving break conditions in read_flags().
+ * *data will point to a bool for enable or disable.
+ */
+#define GENSIO_IOD_CONTROL_ENABLE_RECV_ERR 28
+
+/*
+ * For read_flags(), used to report that an error condition was
+ * received with the read character(s).
+ */
+#define GENSIO_IOD_READ_FLAGS_BREAK	1
+#define GENSIO_IOD_READ_FLAGS_ERR	2
+
 /*
  * Used to inform a pty of a new window size.  Based on the *nix
  * winsize type, but used for windows, too.  For windows the pixel
@@ -825,6 +839,16 @@ struct gensio_os_funcs {
      */
     int (*control)(struct gensio_os_funcs *o, int func, void *data,
 		   gensiods *datalen);
+
+    /*
+     * Read data from the iod and report flags from the read.  Each
+     * character will have an associated flag.  If NULL, just use
+     * read().  This is used to read serial data and handle
+     * flags. Flags are defined above as GENSIO_IO_READ_FLAGS_xxx.
+     */
+    int (*read_flags)(struct gensio_iod *iod, unsigned char *buf,
+		      unsigned char *flags, gensiods buflen,
+		      gensiods *rcount);
 };
 
 /*

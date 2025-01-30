@@ -1180,7 +1180,10 @@ do {								\
     }								\
     if (!err && rcount)						\
 	*rcount = rv;						\
-    rv = gensio_os_err_to_err(o, err);				\
+    if (err)							\
+	rv = gensio_os_err_to_err(o, err);			\
+    else							\
+	rv = 0;							\
 } while(0)
 
 static int
@@ -1225,6 +1228,37 @@ gensio_unix_read(struct gensio_iod *iiod,
  retry:
     rv = read(iod->fd, buf, buflen);
     ERRHANDLE();
+    return rv;
+}
+
+static int
+gensio_unix_read_flags(struct gensio_iod *iiod,
+		       unsigned char *buf, unsigned char *flags,
+		       gensiods buflen, gensiods *rcount)
+{
+    gensiods count;
+    struct gensio_iod_unix *iod = i_to_sel(iiod);
+    int rv;
+
+    if (do_errtrig())
+	return GE_NOMEM;
+
+    if (buflen == 0) {
+	if (rcount)
+	    *rcount = 0;
+	return 0;
+    }
+    if (iod->type == GENSIO_IOD_DEV) {
+	rv = gensio_unix_termios_read_flags(iiod->f, buf, flags, buflen, rcount,
+					    iod->termios, iod->fd);
+    } else {
+	rv = gensio_unix_read(iiod, buf, buflen, &count);
+	if (!rv) {
+	    memset(flags, 0, count);
+	    if (rcount)
+		*rcount = count;
+	}
+    }
     return rv;
 }
 
@@ -1684,6 +1718,7 @@ gensio_unix_alloc_sel(struct selector_s *sel, int wake_sig, unsigned int flags)
     o->get_random = gensio_unix_get_random;
     o->iod_control = gensio_unix_iod_control;
     o->control = gensio_unix_control;
+    o->read_flags = gensio_unix_read_flags;
 
     gensio_addr_addrinfo_set_os_funcs(o);
     if (gensio_stdsock_set_os_funcs(o)) {

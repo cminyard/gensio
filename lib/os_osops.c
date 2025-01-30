@@ -2455,6 +2455,17 @@ struct gensio_unix_termios {
     int orig_mctl;
     g_termios curr_termios;
     bool break_set;
+    bool recv_err_enabled;
+
+    /*
+     * If do_recv_err is set, if this is 1 then we have received a \377,
+     * and if this is 2 we have received \377\0.
+     */
+    unsigned int brk_pos;
+
+    /* Set at termios time so we aren't misinterpreting received data. */
+    bool do_recv_err;
+
 #if HAVE_DECL_TIOCSRS485
     struct serial_rs485 rs485;
     struct serial_rs485 orig_rs485;
@@ -3044,6 +3055,14 @@ gensio_unix_termios_control(struct gensio_os_funcs *o, int op, bool get,
 
     case GENSIO_IOD_CONTROL_APPLY:
 	rv = set_termios(fd, &t->curr_termios);
+	if (!rv) {
+	    bool nbval = !!t->recv_err_enabled;
+
+	    if (nbval != t->do_recv_err) {
+		t->do_recv_err = nbval;
+		t->brk_pos = 0;
+	    }
+	}
 	if (rv) {
 	    rv = gensio_os_err_to_err(o, errno);
 #if HAVE_DECL_TIOCSRS485
@@ -3080,6 +3099,25 @@ gensio_unix_termios_control(struct gensio_os_funcs *o, int op, bool get,
 	    rv = do_break(fd);
 	    if (rv)
 		rv = gensio_os_err_to_err(o, errno);
+	}
+	break;
+
+    case GENSIO_IOD_CONTROL_ENABLE_RECV_ERR:
+	if (get) {
+	    *((int *) val) = t->recv_err_enabled;
+	} else {
+	    if (val) {
+		t->curr_termios.c_iflag &= ~IGNBRK;
+		t->curr_termios.c_iflag &= ~IGNPAR;
+		t->curr_termios.c_iflag |= PARMRK;
+		t->curr_termios.c_iflag |= INPCK;
+	    } else {
+		t->curr_termios.c_iflag |= IGNBRK;
+		t->curr_termios.c_iflag |= IGNPAR;
+		t->curr_termios.c_iflag &= ~PARMRK;
+		t->curr_termios.c_iflag &= ~INPCK;
+	    }
+	    t->recv_err_enabled = val;
 	}
 	break;
 
@@ -3142,6 +3180,89 @@ gensio_unix_termios_control(struct gensio_os_funcs *o, int op, bool get,
     }
 
     return rv;
+}
+
+#define ERRHANDLE()			\
+do {								\
+    int err = 0;						\
+    if (rv < 0) {						\
+	if (errno == EINTR)					\
+	    goto retry;						\
+	if (errno == EWOULDBLOCK || errno == EAGAIN)		\
+	    rv = 0; /* Handle like a zero-byte write. */	\
+	else {							\
+	    err = errno;					\
+	    assert(err);					\
+	}							\
+    } else if (rv == 0) {					\
+	err = EPIPE;						\
+    }								\
+    if (err) {							\
+	rv = gensio_os_err_to_err(o, err);			\
+    } else {							\
+	recvcount = rv;						\
+	rv = 0;							\
+    }								\
+} while(0)
+
+int
+gensio_unix_termios_read_flags(struct gensio_os_funcs *o,
+			       unsigned char *buf, unsigned char *flags,
+			       gensiods buflen,
+			       gensiods *rcount,
+			       struct gensio_unix_termios *t, int fd)
+{
+    ssize_t rv = 0;
+    gensiods recvcount = 0;
+
+ retry:
+    rv = read(fd, buf, buflen);
+    ERRHANDLE();
+
+    if (rv)
+	return rv;
+
+    if (t->do_recv_err) {
+	gensiods i, bufpos;
+
+	/*
+	 * We enabled PARMRK, so any receive error will come in as
+	 * \377\0\???.  An incoming \377 will come in as \377\377.
+	 */
+	for (bufpos = 0, i = 0; i < recvcount; i++) {
+	    if (t->brk_pos == 1) {
+		if (buf[i] == 0xff) {
+		    flags[bufpos] = 0;
+		    buf[bufpos++] = 0xff;
+		    t->brk_pos = 0;
+		} else if (buf[i] == 0) {
+		    t->brk_pos = 2;
+		} else {
+		    t->brk_pos = 0; /* Shouldn't be possible. */
+		}
+	    } else if (t->brk_pos == 2) {
+		if (buf[i] == 0)
+		    flags[bufpos] = GENSIO_IOD_READ_FLAGS_BREAK;
+		else
+		    flags[bufpos] = GENSIO_IOD_READ_FLAGS_ERR;
+		buf[bufpos++] = buf[i];
+		t->brk_pos = 0;
+	    } else if (buf[i] == 0xff) {
+		t->brk_pos = 1;
+	    } else {
+		flags[bufpos] = 0;
+		buf[bufpos++] = buf[i];
+	    }
+	}
+	if (rcount)
+	    *rcount = bufpos;
+    } else {
+	memset(flags, 0, recvcount);
+	if (rcount)
+	    *rcount = recvcount;
+    }
+
+    return 0;
 }
 
 void
