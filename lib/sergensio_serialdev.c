@@ -161,6 +161,8 @@ struct sterm_data {
     unsigned int modemstate_mask;
     bool handling_modemstate;
     bool sent_first_modemstate;
+
+    unsigned int linestate_mask;
 };
 
 static int
@@ -774,6 +776,35 @@ sterm_modemstate(struct sterm_data *sdata, unsigned int val, const char *sval)
 }
 
 static int
+sterm_linestate(struct sterm_data *sdata, unsigned int val, const char *sval)
+{
+    int rv = 0;
+
+    if (sval)
+	val = strtol(sval, NULL, 0);
+
+    val &= GENSIO_SER_LINESTATE_PARITY_ERR | GENSIO_SER_LINESTATE_BREAK;
+
+    sterm_lock(sdata);
+    if (val && !sdata->linestate_mask) {
+	rv = sdata->o->iod_control(sdata->iod,
+				   GENSIO_IOD_CONTROL_ENABLE_RECV_ERR,
+				   false, ((intptr_t) &val));
+    } else if (!val && sdata->linestate_mask) {
+	rv = sdata->o->iod_control(sdata->iod,
+				   GENSIO_IOD_CONTROL_ENABLE_RECV_ERR,
+				   false, val);
+    }
+    if (!rv)
+	rv = sdata->o->iod_control(sdata->iod, GENSIO_IOD_CONTROL_APPLY,
+				   false, 0);
+    if (!rv)
+	sdata->linestate_mask = val;
+    sterm_unlock(sdata);
+    return rv;
+}
+
+static int
 sterm_flowcontrol_state(struct sterm_data *sdata, bool val, char *sval)
 {
     if (sval) {
@@ -884,8 +915,15 @@ sergensio_sterm_func(struct sergensio *sio, int op, int val, char *buf,
 	    return GE_INVAL;
 	return sterm_send_break(sdata);
 
-    case SERGENSIO_FUNC_SIGNATURE:
     case SERGENSIO_FUNC_LINESTATE:
+	if (done)
+	    return GE_INVAL;
+	if (!sdata->o->read_flags)
+	    return GE_NOTSUP;
+
+	return sterm_linestate(sdata, val, NULL);
+
+    case SERGENSIO_FUNC_SIGNATURE:
     default:
 	return GE_NOTSUP;
     }
@@ -1363,6 +1401,14 @@ sterm_control(void *handler_data, struct gensio_iod *iod,
 	    return GE_NOTSUP;
 	return sterm_modemstate(sdata, 0, data);
 
+    case GENSIO_CONTROL_SER_LINESTATE:
+	if (!sdata->o->read_flags)
+	    return GE_NOTSUP;
+	if (get)
+	    return GE_NOTSUP;
+
+	return sterm_linestate(sdata, 0, data);
+
     case GENSIO_CONTROL_SER_FLOWCONTROL_STATE:
 	if (get)
 	    return GE_NOTSUP;
@@ -1397,11 +1443,25 @@ sterm_write(void *handler_data, struct gensio_iod *iod, gensiods *rcount,
 }
 
 static int
-sterm_do_read(struct gensio_iod *iod, void *data, gensiods count, gensiods *rcount,
-	      const char ***auxdata, void *cb_data)
+sterm_do_read(struct gensio_iod *iod, void *data, gensiods datalen,
+	      gensiods *rcount, const char ***auxdata, void *cb_data)
 {
     struct sterm_data *sdata = cb_data;
-    int rv = sdata->o->read(iod, data, count, rcount);
+    int rv;
+
+    if (sdata->o->read_flags) {
+	gensiods pcount = datalen / 2, count;
+
+	rv = sdata->o->read_flags(iod, data, data + pcount, pcount, &count);
+	if (!rv) {
+	    /* We put the flags into the second half of the data. */
+	    memmove(data + count, data + pcount, count);
+	    if (rcount)
+		*rcount = count * 2;
+	}
+    } else {
+	rv = sdata->o->read(iod, data, datalen, rcount);
+    }
 
     if (rv && sdata->is_pty && rv == GE_IOERR)
 	return GE_REMCLOSE; /* We don't seem to get EPIPE from ptys */
@@ -1416,6 +1476,74 @@ sterm_read_ready(void *handler_data, struct gensio_iod *iod)
     gensio_fd_ll_handle_incoming(sdata->ll, sterm_do_read, NULL, sdata);
 }
 
+static gensiods
+sterm_deliver_read(void *handler_data, void *cb_data, gensio_ll_cb cb, int err,
+		   void *data, gensiods datalen, const void *auxdata)
+{
+    struct sterm_data *sdata = handler_data;
+    gensiods total = 0;
+
+    if (!err && sdata->o->read_flags) {
+	gensiods i, start = 0, count, tosend;
+	unsigned char *buf = data, *flags = buf + datalen / 2;
+
+	datalen /= 2; /* We've split the flags out. */
+	for (i = 0; i < datalen; i++) {
+	    if ((flags[i] & (GENSIO_IOD_READ_FLAGS_BREAK
+			     | GENSIO_IOD_READ_FLAGS_ERR)) != 0) {
+		struct gensio *io = sergensio_get_my_gensio(sdata->sio);
+		unsigned int linestate;
+		gensiods vlen = sizeof(linestate);
+
+		/* Send the data up to the point where the event is. */
+		tosend = i - start;
+		if (tosend > 0) {
+		    count = cb(cb_data, GENSIO_LL_CB_READ, 0,
+			       data + start, tosend, NULL);
+		    if (count > tosend)
+			count = tosend;
+		    total += count;
+		    if (count < tosend)
+			/* Not all the data got written, give up. */
+			break;
+		}
+
+		/* Now send the event. */
+		linestate = 0;
+		if (flags[i] & GENSIO_IOD_READ_FLAGS_BREAK &&
+			sdata->linestate_mask & GENSIO_SER_LINESTATE_BREAK)
+		    linestate |= GENSIO_SER_LINESTATE_BREAK;
+		if (flags[i] & GENSIO_IOD_READ_FLAGS_ERR &&
+			sdata->linestate_mask & GENSIO_SER_LINESTATE_PARITY_ERR)
+		    linestate |= GENSIO_SER_LINESTATE_PARITY_ERR;
+
+		if (linestate)
+		    gensio_cb(io, GENSIO_EVENT_SER_LINESTATE, 0,
+			      (unsigned char *) &linestate, &vlen, NULL);
+
+		/* Note we don't report the bad data. */
+		start = i + 1;
+		total++;
+	    }
+	}
+
+	tosend = i - start;
+	if (tosend > 0) {
+	    count = cb(cb_data, GENSIO_LL_CB_READ, 0,
+		       data + start, tosend, NULL);
+	    if (count > tosend)
+		count = tosend;
+	    total += count;
+	}
+	total *= 2; /* Convert it back to the full amount. */
+    } else {
+	total = cb(cb_data, GENSIO_LL_CB_READ, err, data, datalen,
+		   auxdata);
+    }
+
+    return total;
+}
+
 static const struct gensio_fd_ll_ops sterm_fd_ll_ops = {
     .sub_open = sterm_sub_open,
     .check_close = sterm_check_close_drain,
@@ -1423,7 +1551,8 @@ static const struct gensio_fd_ll_ops sterm_fd_ll_ops = {
     .write = sterm_write,
     .read_ready = sterm_read_ready,
     .control = sterm_control,
-    .acontrol = sterm_acontrol
+    .acontrol = sterm_acontrol,
+    .deliver_read = sterm_deliver_read
 };
 
 static int
@@ -1785,6 +1914,13 @@ iodev_gensio_alloc(const void *gdata, const char * const args[],
     sdata->lock = o->alloc_lock(o);
     if (!sdata->lock)
 	goto out_nomem;
+
+    /*
+     * For the flags field to work, the buffer size must double sized,
+     * flags are held in the second half of the buffer.
+     */
+    if (o->read_flags)
+	max_read_size *= 2;
 
     sdata->ll = fd_gensio_ll_alloc(o, NULL, &sterm_fd_ll_ops, sdata,
 				   max_read_size, sdata->write_only,
