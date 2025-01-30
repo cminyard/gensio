@@ -329,11 +329,11 @@ fd_set_callbacks(struct gensio_ll *ll, gensio_ll_cb cb, void *cb_data)
 
 gensiods
 gensio_fd_ll_callback(struct gensio_ll *ll, int op, int val, void *buf,
-		      gensiods buflen, const void *data)
+		      gensiods buflen, const void *auxdata)
 {
     struct fd_ll *fdll = ll_to_fd(ll);
 
-    return fdll->cb(fdll->cb_data, op, val, buf, buflen, data);
+    return fdll->cb(fdll->cb_data, op, val, buf, buflen, auxdata);
 }
 
 static int
@@ -358,9 +358,15 @@ fd_deliver_read_data(struct fd_ll *fdll, int err)
 
     retry:
 	fd_unlock(fdll);
-	count = gensio_fd_ll_callback(fdll->ll, GENSIO_LL_CB_READ, err,
-				      fdll->read_data + fdll->read_data_pos,
-				      fdll->read_data_len, fdll->auxdata);
+	if (fdll->ops->deliver_read)
+	    count = fdll->ops->deliver_read(fdll->handler_data,
+				    fdll->cb_data, fdll->cb, err,
+				    fdll->read_data + fdll->read_data_pos,
+				    fdll->read_data_len, fdll->auxdata);
+	else
+	    count = gensio_fd_ll_callback(fdll->ll, GENSIO_LL_CB_READ, err,
+				    fdll->read_data + fdll->read_data_pos,
+				    fdll->read_data_len, fdll->auxdata);
 	fd_lock(fdll);
 	if (err || count >= fdll->read_data_len) {
 	    fdll->read_data_pos = 0;
