@@ -88,6 +88,7 @@ if ${PRINT_MODE}; then
     echo ${TEST} $@
 else
     # Run the test with each available OS handler
+    return=77
     for i in default @TCL_DIR@ @GLIB_DIR@; do
 	echo "Testing with '$i'"
 	export GENSIO_TEST_OS_HANDLER=$i
@@ -97,9 +98,16 @@ else
 	done
 	eval "${TEST} $parms"
 	rv=$?
-	if test $rv != 0; then
+	if test $rv = 77; then
+	    # Test skipped
+	    echo Skipped
+	elif test $rv != 0; then
 	    # Test failed
 	    exit $rv
+	else
+	    # At least one test passed
+	    return=0
 	fi
     done
+    exit $return
 fi
