@@ -55,7 +55,7 @@ jobs:
           # is completely up, or something like that.
           make check SKIP_TESTS="test_unix_accept_connect.py test_mdns.py test_ratelimit.py oomtest9 oomtest11"
       - name: Upload installed files
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: gensio-mingw-${{matrix.env}}
           path: ${{ env.INSTALLPREFIX }}/**/*
