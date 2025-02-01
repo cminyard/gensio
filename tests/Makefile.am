@@ -29,7 +29,7 @@ PYTESTS = test_syncio.py \
 	test_relpkt_large.py test_udp_nocon.py test_conacc.py test_mdns.py \
 	test_ipmisol.py test_perf.py test_trace.py test_file.py test_dummy.py \
 	test_ax25_small.py test_ax25_basics.py test_script.py test_ratelimit.py \
-	test_parmlog.py tests_serial_break.py
+	test_parmlog.py test_serial_break.py
 
 test_accept_ssl_tcp.py: ca/CA.key
 
