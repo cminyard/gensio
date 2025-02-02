@@ -94,6 +94,12 @@ struct termio_op_q {
     struct termio_op_q *next;
 };
 
+struct modemstate_cb {
+    struct modemstate_cb *next;
+    gensio_control_done cdone;
+    void *cb_data;
+};
+
 struct sterm_data {
     struct gensio *io;
     struct sergensio *sio;
@@ -161,6 +167,7 @@ struct sterm_data {
     unsigned int modemstate_mask;
     bool handling_modemstate;
     bool sent_first_modemstate;
+    struct modemstate_cb *modemstate_cbs;
 
     unsigned int linestate_mask;
 };
@@ -324,7 +331,8 @@ serconf_set_get(struct sterm_data *sdata, int op, int val, const char *sval,
 		const struct termio_xlat_str *xlatstr,
 		void (*done)(struct sergensio *sio, int err,
 			     int val, void *cb_data),
-		void *cb_data)
+		void *cb_data,
+		void (*finish)(struct sterm_data *sdata, int val))
 {
     struct termio_op_q *qe = NULL;
     int err = 0;
@@ -379,6 +387,8 @@ serconf_set_get(struct sterm_data *sdata, int op, int val, const char *sval,
 				    false, 0);
 	if (err)
 	    goto out_unlock;
+	if (finish)
+	    finish(sdata, val);
     }
 
     if (qe) {
@@ -409,7 +419,7 @@ sterm_baud(struct sterm_data *sdata, int baud, const char *sbaud,
 {
     return serconf_set_get(sdata,
 			   GENSIO_IOD_CONTROL_BAUD, baud, sbaud,
-			   NULL, cdone, NULL, done, cb_data);
+			   NULL, cdone, NULL, done, cb_data, NULL);
 }
 
 static int
@@ -421,7 +431,7 @@ sterm_datasize(struct sterm_data *sdata, int datasize, const char *sdatasize,
 {
     return serconf_set_get(sdata,
 			   GENSIO_IOD_CONTROL_DATASIZE, datasize, sdatasize,
-			   NULL, cdone, NULL, done, cb_data);
+			   NULL, cdone, NULL, done, cb_data, NULL);
 }
 
 static const struct termio_xlat_str sterm_parity_xlatstr[] = {
@@ -444,7 +454,8 @@ sterm_parity(struct sterm_data *sdata, int parity, const char *sparity,
 {
     return serconf_set_get(sdata,
 			   GENSIO_IOD_CONTROL_PARITY, parity, sparity,
-			   NULL, cdone, sterm_parity_xlatstr, done, cb_data);
+			   NULL, cdone, sterm_parity_xlatstr, done, cb_data,
+			   NULL);
 }
 
 static int
@@ -456,7 +467,7 @@ sterm_stopbits(struct sterm_data *sdata, int stopbits, const char *sstopbits,
 {
     return serconf_set_get(sdata,
 			   GENSIO_IOD_CONTROL_STOPBITS, stopbits, sstopbits,
-			   NULL, cdone, NULL, done, cb_data);
+			   NULL, cdone, NULL, done, cb_data, NULL);
 }
 
 static int
@@ -569,7 +580,7 @@ sterm_flowcontrol(struct sterm_data *sdata, int flowcontrol,
 
     return serconf_set_get(sdata, GENSIO_IOD_CONTROL_RTSCTS, flowcontrol,
 			   NULL, serconf_xlat_flowcontrol, cdone, xlatstr,
-			   done, cb_data);
+			   done, cb_data, NULL);
 }
 
 static const struct termio_xlat_str sterm_iflow_xlatstr[] = {
@@ -594,7 +605,7 @@ sterm_iflowcontrol(struct sterm_data *sdata, int iflowcontrol,
     return serconf_set_get(sdata,
 			   GENSIO_IOD_CONTROL_XONXOFF, 0, siflowcontrol,
 			   serconf_xlat_flowcontrol,
-			   cdone, sterm_iflow_xlatstr, done, cb_data);
+			   cdone, sterm_iflow_xlatstr, done, cb_data, NULL);
 }
 
 static const struct termio_xlat_str sterm_on_off_xlatstr[] = {
@@ -635,7 +646,7 @@ sterm_sbreak(struct sterm_data *sdata, int breakv, const char *sbreakv,
     return serconf_set_get(sdata,
 			   GENSIO_IOD_CONTROL_SET_BREAK, breakv, sbreakv,
 			   sterm_xlat_sbreak, cdone, sterm_on_off_xlatstr,
-			   done, cb_data);
+			   done, cb_data, NULL);
 }
 
 static int
@@ -668,7 +679,7 @@ sterm_dtr(struct sterm_data *sdata, int dtr, const char *sdtr,
     return serconf_set_get(sdata,
 			   GENSIO_IOD_CONTROL_DTR, dtr, sdtr,
 			   serconf_xlat_dtr, cdone, sterm_on_off_xlatstr,
-			   done, cb_data);
+			   done, cb_data, NULL);
 }
 
 static int
@@ -701,7 +712,7 @@ sterm_rts(struct sterm_data *sdata, int rts, const char *srts,
     return serconf_set_get(sdata,
 			   GENSIO_IOD_CONTROL_RTS, rts, srts,
 			   serconf_xlat_rts, cdone, sterm_on_off_xlatstr,
-			   done, cb_data);
+			   done, cb_data, NULL);
 }
 
 static void
@@ -710,6 +721,7 @@ serialdev_timeout(struct gensio_timer *t, void *cb_data)
     struct sterm_data *sdata = cb_data;
     int modemstate = 0, rv;
     bool force_send;
+    struct modemstate_cb *c, *n;
 
     sterm_lock(sdata);
     if (sdata->handling_modemstate || !sdata->open) {
@@ -730,7 +742,17 @@ serialdev_timeout(struct gensio_timer *t, void *cb_data)
     sdata->last_modemstate = modemstate & sdata->modemstate_mask;
     force_send = !sdata->sent_first_modemstate;
     sdata->sent_first_modemstate = true;
+    c = sdata->modemstate_cbs;
+    sdata->modemstate_cbs = NULL;
     sterm_unlock(sdata);
+
+    /* Call any modemstate callback operations. */
+    while (c) {
+	n = c->next;
+	c->cdone(sdata->io, 0, NULL, 0, c->cb_data);
+	sdata->o->free(sdata->o, c);
+	c = n;
+    }
 
     /*
      * The bottom 4 buts of modemstate is the "changed" bits, only
@@ -757,16 +779,36 @@ serialdev_timeout(struct gensio_timer *t, void *cb_data)
 }
 
 static int
-sterm_modemstate(struct sterm_data *sdata, unsigned int val, const char *sval)
+sterm_modemstate_mask(struct sterm_data *sdata, unsigned int val,
+		      const char *sval,
+		      gensio_control_done cdone, void *cb_data)
 {
     gensio_time timeout = {0, 0};
+    struct modemstate_cb *c, *n;
 
     if (sval)
 	val = strtol(sval, NULL, 0);
 
+    if (cdone) {
+	n = sdata->o->zalloc(sdata->o, sizeof(*n));
+	if (!n)
+	    return GE_NOMEM;
+	n->cdone = cdone;
+	n->cb_data = cb_data;
+    }
+
     sterm_lock(sdata);
     sdata->modemstate_mask = val;
     sdata->sent_first_modemstate = false;
+    if (cdone) {
+	if (!sdata->modemstate_cbs) {
+	    sdata->modemstate_cbs = n;
+	} else {
+	    for (c = sdata->modemstate_cbs; c->next != NULL; c = c->next)
+		;
+	    c->next = n;
+	}
+    }
     sterm_unlock(sdata);
 
     /* Cause an immediate send of the modemstate. */
@@ -776,16 +818,11 @@ sterm_modemstate(struct sterm_data *sdata, unsigned int val, const char *sval)
 }
 
 static int
-sterm_linestate(struct sterm_data *sdata, unsigned int val, const char *sval)
+sterm_do_linestate(struct sterm_data *sdata, bool get,
+		   int *oval, int val)
 {
     int rv = 0;
 
-    if (sval)
-	val = strtol(sval, NULL, 0);
-
-    val &= GENSIO_SER_LINESTATE_PARITY_ERR | GENSIO_SER_LINESTATE_BREAK;
-
-    sterm_lock(sdata);
     if (val && !sdata->linestate_mask) {
 	rv = sdata->o->iod_control(sdata->iod,
 				   GENSIO_IOD_CONTROL_ENABLE_RECV_ERR,
@@ -795,13 +832,28 @@ sterm_linestate(struct sterm_data *sdata, unsigned int val, const char *sval)
 				   GENSIO_IOD_CONTROL_ENABLE_RECV_ERR,
 				   false, val);
     }
-    if (!rv)
-	rv = sdata->o->iod_control(sdata->iod, GENSIO_IOD_CONTROL_APPLY,
-				   false, 0);
-    if (!rv)
-	sdata->linestate_mask = val;
-    sterm_unlock(sdata);
     return rv;
+}
+
+static void
+sterm_finish_linestate(struct sterm_data *sdata, int val)
+{
+    sdata->linestate_mask = val;
+}
+
+static int
+sterm_linestate_mask(struct sterm_data *sdata, unsigned int val,
+		     const char *sval,
+		     gensio_control_done cdone, void *cb_data)
+{
+    if (sval)
+	val = strtol(sval, NULL, 0);
+
+    val &= GENSIO_SER_LINESTATE_PARITY_ERR | GENSIO_SER_LINESTATE_BREAK;
+
+    return serconf_set_get(sdata, GENSIO_IOD_CONTROL_ENABLE_RECV_ERR,
+			   val, NULL, sterm_do_linestate,
+			   cdone, NULL, NULL, cb_data, sterm_finish_linestate);
 }
 
 static int
@@ -898,7 +950,7 @@ sergensio_sterm_func(struct sergensio *sio, int op, int val, char *buf,
     case SERGENSIO_FUNC_MODEMSTATE:
 	if (done)
 	    return GE_INVAL;
-	return sterm_modemstate(sdata, val, NULL);
+	return sterm_modemstate_mask(sdata, val, NULL, NULL, NULL);
 
     case SERGENSIO_FUNC_FLOWCONTROL_STATE:
 	if (done)
@@ -921,7 +973,7 @@ sergensio_sterm_func(struct sergensio *sio, int op, int val, char *buf,
 	if (!sdata->o->read_flags)
 	    return GE_NOTSUP;
 
-	return sterm_linestate(sdata, val, NULL);
+	return sterm_linestate_mask(sdata, val, NULL, NULL, NULL);
 
     case SERGENSIO_FUNC_SIGNATURE:
     default:
@@ -972,6 +1024,14 @@ sterm_acontrol(void *handler_data, struct gensio_iod *iod, bool get,
 
     case GENSIO_ACONTROL_SER_RTS:
 	return sterm_rts(sdata, 0, data, done, NULL, cb_data);
+
+    case GENSIO_ACONTROL_SER_SET_MODEMSTATE_MASK:
+	return sterm_modemstate_mask(sdata, 0, data, done, cb_data);
+
+    case GENSIO_ACONTROL_SER_SET_LINESTATE_MASK:
+	if (!sdata->o->read_flags)
+	    return GE_NOTSUP;
+	return sterm_linestate_mask(sdata, 0, data, done, cb_data);
 
     default:
 	return GE_NOTSUP;
@@ -1215,7 +1275,7 @@ sterm_sub_open(void *handler_data, struct gensio_iod **riod,
     sterm_unlock(sdata);
 
     if (sdata->set_tty)
-	sterm_modemstate(sdata, 255, NULL);
+	sterm_modemstate_mask(sdata, 255, NULL, NULL, NULL);
 
     *riod = sdata->iod;
 
@@ -1240,7 +1300,12 @@ static void
 sterm_free(void *handler_data)
 {
     struct sterm_data *sdata = handler_data;
+    struct modemstate_cb *c, *n;
 
+    for (c = sdata->modemstate_cbs; c; c = n) {
+	n = c->next;
+	sdata->o->free(sdata->o, c);
+    }
     if (sdata->sio)
 	sergensio_data_free(sdata->sio);
     serconf_clear_q(sdata);
@@ -1399,7 +1464,7 @@ sterm_control(void *handler_data, struct gensio_iod *iod,
     case GENSIO_CONTROL_SER_MODEMSTATE:
 	if (get)
 	    return GE_NOTSUP;
-	return sterm_modemstate(sdata, 0, data);
+	return sterm_modemstate_mask(sdata, 0, data, NULL, NULL);
 
     case GENSIO_CONTROL_SER_LINESTATE:
 	if (!sdata->o->read_flags)
@@ -1407,7 +1472,7 @@ sterm_control(void *handler_data, struct gensio_iod *iod,
 	if (get)
 	    return GE_NOTSUP;
 
-	return sterm_linestate(sdata, 0, data);
+	return sterm_linestate_mask(sdata, 0, data, NULL, NULL);
 
     case GENSIO_CONTROL_SER_FLOWCONTROL_STATE:
 	if (get)
