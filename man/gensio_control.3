@@ -514,12 +514,21 @@ GENSIO_ACONTROL_SER_FLUSH
 .br
 Sends a flush to the other end and gets the response.
 
+.SS "SERIAL PORT REPORT MASKS"
+These set (on the client) the mask used to monitor various lines on a
+serial ports.  The bits set will be the ones reported in the
+corresponding events.  These are numbers in strings, you bitwise or
+the values together.
+
 GENSIO_ACONTROL_SER_SET_MODEMSTATE_MASK
 .br
 Set the modemstate mask on the other end and get the response.  Values
 to or together are: GENSIO_SER_MODEMSTATE_CTS,
 GENSIO_SER_MODEMSTATE_DSR, GENSIO_SER_MODEMSTATE_RI,
 GENSIO_SER_MODEMSTATE_CD.
+
+When you set the modemstate mask, it should always send the current
+modemstate up.
 
 GENSIO_ACONTROL_SER_SET_LINESTATE_MASK
 .br
@@ -531,11 +540,13 @@ GENSIO_SER_LINESTATE_XMIT_HOLD_EMPTY,
 GENSIO_SER_LINESTATE_XMIT_SHIFT_EMPTY,
 GENSIO_SER_LINESTATE_TIMEOUT_ERR.
 
-.SS "SERIAL PORT REPORT MASKS"
-These set (on the client) the mask used to monitor various lines on a
-serial ports.  The bits set will be the ones reported in the
-corresponding events.  These are numbers in strings, you bitwise or
-the values together.
+The RFC2217 spec talks about sending the linestate mask back, but that
+really doesn't make any sense.  These are events, not states.  So
+currently that's not done, but it may change in the future.
+
+.SS "SENDING STATE STATUS TO THE OTHER END"
+If you are a telnet server, you can use these to send modemstate and
+linestate information to the remote end.
 
 GENSIO_CONTROL_SER_SEND_MODEMSTATE
 .br
