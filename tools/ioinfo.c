@@ -391,26 +391,11 @@ init_state(struct gensio *io)
     char msmstr[10];
     gensiods msmstrlen;
 
-    snprintf(msmstr, sizeof(msmstr), "%d", mask);
-    msmstrlen = strlen(msmstr);
+    msmstrlen = snprintf(msmstr, sizeof(msmstr), "%d", mask);
 
-    gensio_control(io, GENSIO_CONTROL_DEPTH_FIRST, GENSIO_CONTROL_SET,
-		   GENSIO_CONTROL_SER_MODEMSTATE, msmstr, &msmstrlen);
-
-    mask = (GENSIO_SER_LINESTATE_DATA_READY |
-	    GENSIO_SER_LINESTATE_OVERRUN_ERR |
-	    GENSIO_SER_LINESTATE_PARITY_ERR |
-	    GENSIO_SER_LINESTATE_FRAMING_ERR |
-	    GENSIO_SER_LINESTATE_BREAK |
-	    GENSIO_SER_LINESTATE_XMIT_HOLD_EMPTY |
-	    GENSIO_SER_LINESTATE_XMIT_SHIFT_EMPTY |
-	    GENSIO_SER_LINESTATE_TIMEOUT_ERR);
-
-    snprintf(msmstr, sizeof(msmstr), "%d", mask);
-    msmstrlen = strlen(msmstr);
-
-    gensio_control(io, GENSIO_CONTROL_DEPTH_FIRST, GENSIO_CONTROL_SET,
-		   GENSIO_CONTROL_SER_LINESTATE, msmstr, &msmstrlen);
+    gensio_acontrol(io, GENSIO_CONTROL_DEPTH_FIRST, GENSIO_CONTROL_SET,
+		    GENSIO_ACONTROL_SER_SET_MODEMSTATE_MASK,
+		    msmstr, msmstrlen, NULL, NULL, NULL);
 }
 
 void

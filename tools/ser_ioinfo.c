@@ -210,9 +210,9 @@ s2n_modemstate(struct gensio *io, unsigned int modemstate)
     len = strlen(str);
 
     serinfo->modemstate_mask = modemstate;
-    gensio_control(io, GENSIO_CONTROL_DEPTH_FIRST,
-		   GENSIO_CONTROL_SET, GENSIO_CONTROL_SER_MODEMSTATE,
-		   str, &len);
+    gensio_acontrol(io, GENSIO_CONTROL_DEPTH_FIRST, GENSIO_CONTROL_SET,
+		    GENSIO_ACONTROL_SER_SET_MODEMSTATE_MASK,
+		    str, len, NULL, NULL, NULL);
 }
 
 static void
@@ -229,9 +229,9 @@ s2n_linestate(struct gensio *io, unsigned int linestate)
     len = strlen(str);
 
     serinfo->linestate_mask = linestate;
-    gensio_control(io, GENSIO_CONTROL_DEPTH_FIRST,
-		   GENSIO_CONTROL_SET, GENSIO_CONTROL_SER_LINESTATE,
-		   str, &len);
+    gensio_acontrol(io, GENSIO_CONTROL_DEPTH_FIRST, GENSIO_CONTROL_SET,
+		    GENSIO_ACONTROL_SER_SET_LINESTATE_MASK,
+		    str, len, NULL, NULL, NULL);
 }
 
 static void
@@ -271,7 +271,7 @@ handle_sio_event(struct gensio *io, int event,
 	    if (rio && gensio_is_serial(rio) && !gensio_is_client(rio))
 		gensio_control(rio, GENSIO_CONTROL_DEPTH_FIRST,
 			       GENSIO_CONTROL_SET,
-			       GENSIO_CONTROL_SER_MODEMSTATE,
+			       GENSIO_CONTROL_SER_SEND_MODEMSTATE,
 			       (char *) buf, buflen);
 	    return 0;
 
@@ -281,7 +281,7 @@ handle_sio_event(struct gensio *io, int event,
 	    if (rio && gensio_is_serial(rio) && !gensio_is_client(rio))
 		gensio_control(rio, GENSIO_CONTROL_DEPTH_FIRST,
 			       GENSIO_CONTROL_SET,
-			       GENSIO_CONTROL_SER_LINESTATE,
+			       GENSIO_CONTROL_SER_SEND_LINESTATE,
 			       (char *) buf, buflen);
 	    return 0;
 	}
