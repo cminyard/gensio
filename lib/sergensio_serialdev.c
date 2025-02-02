@@ -1531,11 +1531,10 @@ sterm_deliver_read(void *handler_data, void *cb_data, gensio_ll_cb cb, int err,
     gensiods total = 0;
 
     if (!err && sdata->o->read_flags) {
-	gensiods i, start = 0, count, tosend;
-	unsigned char *buf = data, *flags = buf + datalen / 2;
+	gensiods i, start = 0, count, tosend, plen = datalen / 2;
+	unsigned char *buf = data, *flags = buf + plen;
 
-	datalen /= 2; /* We've split the flags out. */
-	for (i = 0; i < datalen; i++) {
+	for (i = 0; i < plen; i++) {
 	    if ((flags[i] & (GENSIO_IOD_READ_FLAGS_BREAK
 			     | GENSIO_IOD_READ_FLAGS_ERR)) != 0) {
 		struct gensio *io = sergensio_get_my_gensio(sdata->sio);
@@ -1546,7 +1545,7 @@ sterm_deliver_read(void *handler_data, void *cb_data, gensio_ll_cb cb, int err,
 		tosend = i - start;
 		if (tosend > 0) {
 		    count = cb(cb_data, GENSIO_LL_CB_READ, 0,
-			       data + start, tosend, NULL);
+			       buf + start, tosend, NULL);
 		    if (count > tosend)
 			count = tosend;
 		    total += count;
@@ -1577,11 +1576,20 @@ sterm_deliver_read(void *handler_data, void *cb_data, gensio_ll_cb cb, int err,
 	tosend = i - start;
 	if (tosend > 0) {
 	    count = cb(cb_data, GENSIO_LL_CB_READ, 0,
-		       data + start, tosend, NULL);
+		       buf + start, tosend, NULL);
 	    if (count > tosend)
 		count = tosend;
 	    total += count;
 	}
+	if (total < plen)
+	    /*
+	     * We didn't deliver all the data.  We have removed total
+	     * bytes from the beginning of the data and flags, so we
+	     * must shift the buffer over because the first "total * 2"
+	     * data bytes are going to be considered removed.
+	     */
+	    memmove(buf + total * 2, buf + total, plen - total);
+
 	total *= 2; /* Convert it back to the full amount. */
     } else {
 	total = cb(cb_data, GENSIO_LL_CB_READ, err, data, datalen,
