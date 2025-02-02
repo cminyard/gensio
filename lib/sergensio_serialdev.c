@@ -817,24 +817,6 @@ sterm_modemstate_mask(struct sterm_data *sdata, unsigned int val,
     return 0;
 }
 
-static int
-sterm_do_linestate(struct sterm_data *sdata, bool get,
-		   int *oval, int val)
-{
-    int rv = 0;
-
-    if (val && !sdata->linestate_mask) {
-	rv = sdata->o->iod_control(sdata->iod,
-				   GENSIO_IOD_CONTROL_ENABLE_RECV_ERR,
-				   false, ((intptr_t) &val));
-    } else if (!val && sdata->linestate_mask) {
-	rv = sdata->o->iod_control(sdata->iod,
-				   GENSIO_IOD_CONTROL_ENABLE_RECV_ERR,
-				   false, val);
-    }
-    return rv;
-}
-
 static void
 sterm_finish_linestate(struct sterm_data *sdata, int val)
 {
@@ -852,7 +834,7 @@ sterm_linestate_mask(struct sterm_data *sdata, unsigned int val,
     val &= GENSIO_SER_LINESTATE_PARITY_ERR | GENSIO_SER_LINESTATE_BREAK;
 
     return serconf_set_get(sdata, GENSIO_IOD_CONTROL_ENABLE_RECV_ERR,
-			   val, NULL, sterm_do_linestate,
+			   val, NULL, NULL,
 			   cdone, NULL, NULL, cb_data, sterm_finish_linestate);
 }
 
