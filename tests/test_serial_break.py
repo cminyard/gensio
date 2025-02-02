@@ -30,10 +30,11 @@ do_small_test(io1, io2)
 
 # Allow io2 to receive a serial break.
 try:
-    io2.control(0, gensio.GENSIO_CONTROL_SET,
-                gensio.GENSIO_CONTROL_SER_LINESTATE,
+    io2.acontrol(0, gensio.GENSIO_CONTROL_SET,
+                gensio.GENSIO_ACONTROL_SER_SET_LINESTATE_MASK,
                 str(gensio.GENSIO_SER_LINESTATE_BREAK |
-                    gensio.GENSIO_SER_LINESTATE_PARITY_ERR))
+                    gensio.GENSIO_SER_LINESTATE_PARITY_ERR),
+                 None, -1)
 except Exception as e:
     print("receive serial break not supported: " + str(e))
     sys.exit(77)

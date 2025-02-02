@@ -567,6 +567,8 @@ class HandleData:
                 raise Exception("%s: Expecting linestate 0x%x, got 0x%x" %
                                 (self.name, self.expected_linestate,
                                  linestate))
+            if debug or self.debug:
+                print("Got linestate %x" % linestate)
             self.expecting_linestate = False
             self.wake("linestate", linestate)
         except Exception as e:
