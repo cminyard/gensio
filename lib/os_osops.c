@@ -2565,6 +2565,7 @@ static void s_cfmakeraw(g_termios *termios_p) {
 
     /* Our additions to makeraw, to make things always consistent. */
     termios_p->c_iflag &= ~(IXOFF | IXANY);
+    termios_p->c_iflag &= ~(IGNPAR|INPCK);
     termios_p->c_iflag |= IGNBRK;
     termios_p->c_oflag &= ~(ONLCR);
     termios_p->c_lflag &= ~(ECHOK|ECHOE|ECHONL);
