@@ -1156,6 +1156,8 @@ sterm_sub_open(void *handler_data, struct gensio_iod **riod,
 	options |= GENSIO_OPEN_OPTION_WRITEABLE;
     if (!sdata->write_only)
 	options |= GENSIO_OPEN_OPTION_READABLE;
+    if (sdata->set_tty)
+	options |= GENSIO_OPEN_OPTION_SERIAL;
     err = o->open_dev(o, sdata->devname, options, &sdata->iod);
     if (err)
 	goto out;

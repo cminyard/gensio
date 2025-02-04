@@ -102,6 +102,12 @@ struct gensio_iod_win {
     struct gensio_link all_link;
 
     /*
+     * Passed in options, see gensio_os_funcs GENSIO_OPEN_OPTION_xxx
+     * for the device portion of this.
+     */
+    int options;
+
+    /*
      * Is the iod in raw mode?  This is only set for stdin stdio iods
      * so they can properly handle ^Z in raw mode.
      */
@@ -326,7 +332,7 @@ timer_thread(LPVOID data)
 
 static int
 win_alloc_iod(struct gensio_os_funcs *o, unsigned int size, int fd,
-	      enum gensio_iod_type type,
+	      enum gensio_iod_type type, int options,
 	      int (*iod_init)(struct gensio_iod_win *, void *), void *cb_data,
 	      struct gensio_iod_win **rwiod)
 {
@@ -341,6 +347,7 @@ win_alloc_iod(struct gensio_os_funcs *o, unsigned int size, int fd,
     wiod->iod.f = o;
     wiod->type = type;
     wiod->fd = fd;
+    wiod->options = options;
 
     if (iod_init) {
 	rv = iod_init(wiod, cb_data);
@@ -628,7 +635,7 @@ win_alloc_timer(struct gensio_os_funcs *o,
     struct gensio_iod_win *wiod;
     int rv;
 
-    rv = win_alloc_iod(o, sizeof(struct gensio_timer), -1, 0, NULL, NULL,
+    rv = win_alloc_iod(o, sizeof(struct gensio_timer), -1, 0, 0, NULL, NULL,
 		       &wiod);
     if (!rv) {
 	wiod->check = win_timer_check;
@@ -832,7 +839,7 @@ win_alloc_runner(struct gensio_os_funcs *o,
     struct gensio_iod_win *wiod;
     int rv;
 
-    rv = win_alloc_iod(o, sizeof(struct gensio_runner), -1, 0, NULL, NULL,
+    rv = win_alloc_iod(o, sizeof(struct gensio_runner), -1, 0, 0, NULL, NULL,
 		       &wiod);
     if (!rv) {
 	wiod->check = win_runner_check;
@@ -2561,6 +2568,12 @@ win_iod_dev_init(struct gensio_iod_win *wiod, void *cb_data)
     int rv;
     COMMPROP props;
     struct win_init_info *info = cb_data;
+    DWORD openflags = 0;
+
+    if (!(wiod->options &
+	  (GENSIO_OPEN_OPTION_READABLE | GENSIO_OPEN_OPTION_WRITEABLE)))
+	/* We have to be readable or writable. */
+	return GE_INVAL;
 
     rv = win_iod_twoway_init(wiod);
     if (rv)
@@ -2571,8 +2584,11 @@ win_iod_dev_init(struct gensio_iod_win *wiod, void *cb_data)
     if (!dtwiod->name)
 	goto out_err;
 
-    twiod->ioh = CreateFileA(dtwiod->name, GENERIC_READ | GENERIC_WRITE,
-		   	     0, NULL,
+    if (wiod->options & GENSIO_OPEN_OPTION_READABLE)
+	openflags |= GENERIC_READ;
+    if (wiod->options & GENSIO_OPEN_OPTION_WRITEABLE)
+	openflags |= GENERIC_WRITE,
+    twiod->ioh = CreateFileA(dtwiod->name, openflags, 0, NULL,
 			     OPEN_EXISTING, FILE_FLAG_OVERLAPPED, NULL);
     if (twiod->ioh == INVALID_HANDLE_VALUE)
 	goto out_err_conv;
@@ -2591,7 +2607,8 @@ win_iod_dev_init(struct gensio_iod_win *wiod, void *cb_data)
     case PST_RS422:
     case PST_RS423:
     case PST_RS449:
-	dtwiod->is_serial_port = TRUE;
+	if (wiod->options & GENSIO_OPEN_OPTION_SERIAL)
+	    dtwiod->is_serial_port = TRUE;
 	twiod->readable = TRUE;
 	twiod->writeable = TRUE;
 	break;
@@ -3080,7 +3097,7 @@ win_iod_pty_init(struct gensio_iod_win *wiod, void *cb_data)
     readable = TRUE;
     err = win_alloc_iod(o, sizeof(struct gensio_iod_win_pipe),
 			(intptr_t) readh,
-			GENSIO_IOD_PIPE, win_iod_pipe_init,
+			GENSIO_IOD_PIPE, 0, win_iod_pipe_init,
 			&readable, &piod->read);
     if (err)
 	goto out_err;
@@ -3094,7 +3111,7 @@ win_iod_pty_init(struct gensio_iod_win *wiod, void *cb_data)
     readable = FALSE;
     err = win_alloc_iod(o, sizeof(struct gensio_iod_win_pipe),
 			(intptr_t) writeh,
-			GENSIO_IOD_PIPE, win_iod_pipe_init,
+			GENSIO_IOD_PIPE, 0, win_iod_pipe_init,
 			&readable, &piod->write);
     if (err)
 	goto out_err;
@@ -3167,19 +3184,19 @@ win_stdio_init(struct gensio_os_funcs *o, intptr_t fd,
     switch (GetFileType(h)) {
     case FILE_TYPE_CHAR:
 	rv = win_alloc_iod(o, sizeof(struct gensio_iod_win_console),
-			   (intptr_t) h, GENSIO_IOD_CONSOLE,
+			   (intptr_t) h, GENSIO_IOD_CONSOLE, 0,
 			   win_iod_console2_init, &readable, &wiod);
 	break;
 
     case FILE_TYPE_DISK:
 	rv = win_alloc_iod(o, sizeof(struct gensio_iod_win_file), (intptr_t) h,
-			   GENSIO_IOD_FILE, win_iod_file_init,
+			   GENSIO_IOD_FILE, 0, win_iod_file_init,
 			   &readable, &wiod);
 	break;
 
     case FILE_TYPE_PIPE:
 	rv = win_alloc_iod(o, sizeof(struct gensio_iod_win_pipe), (intptr_t) h,
-			   GENSIO_IOD_PIPE, win_iod_pipe_init,
+			   GENSIO_IOD_PIPE, 0, win_iod_pipe_init,
 			   &readable, &wiod);
 	break;
 
@@ -3219,7 +3236,7 @@ win_add_iod(struct gensio_os_funcs *o, enum gensio_iod_type type,
 	info = &readable;
     }
 
-    rv = win_alloc_iod(o, win_iod_sizes[type], fd, type,
+    rv = win_alloc_iod(o, win_iod_sizes[type], fd, type, 0,
 		       win_iod_init[type], info, &wiod);
     if (!rv)
 	*riod = &wiod->iod;
@@ -3724,7 +3741,7 @@ win_open_dev(struct gensio_os_funcs *o, const char *iname, int options,
 
     info.name = iname;
     rv = win_alloc_iod(o, sizeof(struct gensio_iod_win_dev), -1,
-		       GENSIO_IOD_DEV, win_iod_dev_init, &info, &wiod);
+		       GENSIO_IOD_DEV, options, win_iod_dev_init, &info, &wiod);
     if (!rv)
 	*riod = &wiod->iod;
     return rv;
@@ -3762,20 +3779,20 @@ win_exec_subprog(struct gensio_os_funcs *o,
 
 
     rv = win_alloc_iod(o, sizeof(struct gensio_iod_win_pipe),
-		       (intptr_t) stdin_m, GENSIO_IOD_PIPE,
+		       (intptr_t) stdin_m, GENSIO_IOD_PIPE, 0,
 		       win_iod_pipe_init, &readable, &stdin_iod);
     if (rv)
 	goto out_err;
     readable = TRUE;
     rv = win_alloc_iod(o, sizeof(struct gensio_iod_win_pipe),
-		       (intptr_t) stdout_m, GENSIO_IOD_PIPE,
+		       (intptr_t) stdout_m, GENSIO_IOD_PIPE, 0,
 		       win_iod_pipe_init, &readable, &stdout_iod);
     if (rv)
 	goto out_err;
 
     if (stderr_m) {
 	rv = win_alloc_iod(o, sizeof(struct gensio_iod_win_pipe),
-			   (intptr_t) stderr_m, GENSIO_IOD_PIPE,
+			   (intptr_t) stderr_m, GENSIO_IOD_PIPE, 0,
 			   win_iod_pipe_init, &readable, &stderr_iod);
 	if (rv)
 	    goto out_err;

@@ -666,6 +666,7 @@ struct gensio_os_funcs {
 
 #define GENSIO_OPEN_OPTION_READABLE	(1 << 0)
 #define GENSIO_OPEN_OPTION_WRITEABLE	(1 << 1)
+#define GENSIO_OPEN_OPTION_SERIAL	(1 << 2)
     int (*open_dev)(struct gensio_os_funcs *o, const char *name, int options,
 		    struct gensio_iod **iod);
 
