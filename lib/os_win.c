@@ -2113,7 +2113,7 @@ win_twoway_thread(LPVOID data)
     for(;;) {
 	BOOL rvb;
 
-	if (got_event && gensio_circbuf_room_left(twiod->inbuf)
+	if (got_event && twiod->inbuf && gensio_circbuf_room_left(twiod->inbuf)
 			&& !wiod->werr && dtwiod->is_serial_port) {
 	    gensiods readsize;
 	    void *readpos;
@@ -2142,7 +2142,8 @@ win_twoway_thread(LPVOID data)
 			goto out_err;
 		}
 	    }
-	} else if (!reading && gensio_circbuf_room_left(twiod->inbuf)
+	} else if (!reading && twiod->inbuf
+			&& gensio_circbuf_room_left(twiod->inbuf)
 			&& !wiod->werr && twiod->readable) {
 	    gensiods readsize;
 	    void *readpos;
@@ -2157,7 +2158,8 @@ win_twoway_thread(LPVOID data)
 		if (rvw != ERROR_IO_PENDING)
 		    goto out_err_noget;
 	    }
-	} else if (!writing && gensio_circbuf_datalen(twiod->outbuf) > 0 &&
+	} else if (!writing && twiod->outbuf
+		   && gensio_circbuf_datalen(twiod->outbuf) > 0 &&
 		   !wiod->werr && twiod->writeable) {
 	    gensiods writelen;
 	    void *writepos;
@@ -2351,14 +2353,14 @@ win_twoway_write(struct gensio_iod_win *wiod,
 
     EnterCriticalSection(&wiod->lock);
     if (!twiod->writeable) {
-	wiod->err = GE_NOTSUP;
+	rv = GE_NOTSUP;
 	goto out;
     }
     if (wiod->err || wiod->werr) {
 	if (!wiod->err)
 	    wiod->err = gensio_os_err_to_err(wiod->iod.f, wiod->werr);
 	rv = wiod->err;
-	goto out_err;
+	goto out;
     }
     if (twiod->do_flush)
 	goto out;
@@ -2367,13 +2369,12 @@ win_twoway_write(struct gensio_iod_win *wiod,
 			 || wiod->err || wiod->werr);
     if (!wiod->write.ready)
 	wiod->wake(wiod);
-    LeaveCriticalSection(&wiod->lock);
     if (count)
 	assert(SetEvent(twiod->wakeh));
  out:
-    if (rcount)
+    LeaveCriticalSection(&wiod->lock);
+    if (!rv && rcount)
 	*rcount = count;
- out_err:
     return rv;
 }
 
@@ -2389,15 +2390,15 @@ win_twoway_read(struct gensio_iod_win *wiod,
 
     EnterCriticalSection(&wiod->lock);
     if (!twiod->readable) {
-	wiod->err = GE_NOTSUP;
-	goto out;
+	rv = GE_NOTSUP;
+	goto out_err;
     }
     if (gensio_circbuf_datalen(twiod->inbuf) == 0
 		&& (wiod->err || wiod->werr)) {
 	if (!wiod->err)
 	    wiod->err = gensio_os_err_to_err(wiod->iod.f, wiod->werr);
 	rv = wiod->err;
-	goto out;
+	goto out_err;
     }
 
     was_full = gensio_circbuf_room_left(twiod->inbuf) == 0;
@@ -2410,9 +2411,9 @@ win_twoway_read(struct gensio_iod_win *wiod,
 	wiod->wake(wiod);
     if (was_full && count)
 	assert(SetEvent(twiod->wakeh));
- out:
+ out_err:
     LeaveCriticalSection(&wiod->lock);
-    if (rcount)
+    if (!rv && rcount)
 	*rcount = count;
     return rv;
 }
@@ -2453,17 +2454,21 @@ win_iod_twoway_init(struct gensio_iod_win *wiod)
     struct gensio_iod_win_twoway *twiod = wiod_to_win_twoway(wiod);
     struct gensio_os_funcs *o = wiod->iod.f;
 
-    twiod->inbuf = gensio_circbuf_alloc(o, 2048);
-    if (!twiod->inbuf)
-	return GE_NOMEM;
+    if (wiod->options & GENSIO_OPEN_OPTION_READABLE) {
+	twiod->inbuf = gensio_circbuf_alloc(o, 2048);
+	if (!twiod->inbuf)
+	    return GE_NOMEM;
 
-    twiod->flagbuf = gensio_circbuf_alloc(o, 2048);
-    if (!twiod->flagbuf)
-	goto out_nomem;
+	twiod->flagbuf = gensio_circbuf_alloc(o, 2048);
+	if (!twiod->flagbuf)
+	    goto out_nomem;
+    }
 
-    twiod->outbuf = gensio_circbuf_alloc(o, 2048);
-    if (!twiod->outbuf)
-	goto out_nomem;
+    if (wiod->options & GENSIO_OPEN_OPTION_WRITEABLE) {
+	twiod->outbuf = gensio_circbuf_alloc(o, 2048);
+	if (!twiod->outbuf)
+	    goto out_nomem;
+    }
     wiod->write.ready = TRUE;
 
     twiod->wakeh = CreateEventA(NULL, FALSE, FALSE, NULL);
@@ -2587,7 +2592,7 @@ win_iod_dev_init(struct gensio_iod_win *wiod, void *cb_data)
     if (wiod->options & GENSIO_OPEN_OPTION_READABLE)
 	openflags |= GENERIC_READ;
     if (wiod->options & GENSIO_OPEN_OPTION_WRITEABLE)
-	openflags |= GENERIC_WRITE,
+	openflags |= GENERIC_WRITE;
     twiod->ioh = CreateFileA(dtwiod->name, openflags, 0, NULL,
 			     OPEN_EXISTING, FILE_FLAG_OVERLAPPED, NULL);
     if (twiod->ioh == INVALID_HANDLE_VALUE)
@@ -2609,10 +2614,18 @@ win_iod_dev_init(struct gensio_iod_win *wiod, void *cb_data)
     case PST_RS449:
 	if (wiod->options & GENSIO_OPEN_OPTION_SERIAL)
 	    dtwiod->is_serial_port = TRUE;
-	twiod->readable = TRUE;
-	twiod->writeable = TRUE;
+	if (wiod->options & GENSIO_OPEN_OPTION_READABLE)
+	    twiod->readable = TRUE;
+	if (wiod->options & GENSIO_OPEN_OPTION_WRITEABLE)
+	    twiod->writeable = TRUE;
 	break;
     case PST_PARALLELPORT:
+	if (!(wiod->options & GENSIO_OPEN_OPTION_WRITEABLE))
+	    /* Parallel ports are only writeable */
+	    return GE_INVAL;
+	if (wiod->options & GENSIO_OPEN_OPTION_READABLE)
+	    /* Parallel ports are only writeable */
+	    return GE_INVAL;
 	dtwiod->is_serial_port = FALSE;
 	twiod->writeable = TRUE;
 	twiod->readable = FALSE;
