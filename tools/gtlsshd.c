@@ -2232,7 +2232,11 @@ new_rem_io(struct gensio *io, struct auth_data *auth)
 	    goto out_free;
 	}
 	progv[0] = auth->ushell;
+#ifdef _WIN32
+	progv[1] = "/c";
+#else
 	progv[1] = "-c";
+#endif
 	progv[2] = cmdbuf;
 	progv[3] = NULL;
 
