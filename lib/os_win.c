@@ -3186,7 +3186,10 @@ win_stdio_init(struct gensio_os_funcs *o, intptr_t fd,
     }
     if (h == INVALID_HANDLE_VALUE)
 	return gensio_os_err_to_err(o, GetLastError());
-    /* Per testing, GetStdHandle does not return a duplicate. */
+    /*
+     * GetStdHandle always returns the same handle, so create a duplicate so
+     * we can close it.
+     */
     if (!DuplicateHandle(GetCurrentProcess(),
 			 h,
 			 GetCurrentProcess(),
