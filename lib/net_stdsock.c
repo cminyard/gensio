@@ -1493,7 +1493,7 @@ gensio_stdsock_mcast_add(struct gensio_iod *iod,
 	case AF_INET:
 	    {
 		struct sockaddr_in *a = (struct sockaddr_in *) ai->ai_addr;
-#ifdef _WIN32
+#if defined(_WIN32) || defined(__MSYS__)
 		struct ip_mreq m;
 #else
 		struct ip_mreqn m;
@@ -1501,7 +1501,7 @@ gensio_stdsock_mcast_add(struct gensio_iod *iod,
 
 		memset(&m, 0, sizeof(m));
 		m.imr_multiaddr = a->sin_addr;
-#ifndef _WIN32
+#if !defined(_WIN32) && !defined(__MSYS__)
 		m.imr_address.s_addr = INADDR_ANY;
 		m.imr_ifindex = iface;
 #endif
@@ -1564,7 +1564,7 @@ gensio_stdsock_mcast_del(struct gensio_iod *iod,
 	case AF_INET:
 	    {
 		struct sockaddr_in *a = (struct sockaddr_in *) ai->ai_addr;
-#ifdef _WIN32
+#if defined(_WIN32) || defined(__MSYS__)
 		struct ip_mreq m;
 #else
 		struct ip_mreqn m;
@@ -1572,7 +1572,7 @@ gensio_stdsock_mcast_del(struct gensio_iod *iod,
 
 		memset(&m, 0, sizeof(m));
 		m.imr_multiaddr = a->sin_addr;
-#ifndef _WIN32
+#if !defined(_WIN32) && !defined(__MSYS__)
 		m.imr_address.s_addr = INADDR_ANY;
 		m.imr_ifindex = iface;
 #endif
@@ -2206,8 +2206,10 @@ gensio_setup_listen_socket(struct gensio_os_funcs *o,
 #endif
     }else if (family == AF_UNIX)
 	protocol = GENSIO_NET_PROTOCOL_UNIX;
+#ifdef IPPROTO_SCTP
     else if (sockproto == IPPROTO_SCTP)
 	protocol = GENSIO_NET_PROTOCOL_SCTP;
+#endif
     else if (sockproto == 0 && socktype == SOCK_DGRAM)
 	protocol = GENSIO_NET_PROTOCOL_UDP;
     else if (sockproto == 0 && socktype == SOCK_STREAM)

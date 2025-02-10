@@ -233,12 +233,13 @@ hid_close(int fd)
     close(fd);
 }
 
-#elif defined(_WIN32)
+#elif defined(_WIN32) || defined(__MSYS__)
 
 #include <windows.h>
 #include <setupapi.h>
 #include <hidsdi.h>
 #include <wchar.h>
+#include <wctype.h>
 
 /* Stolen from hidclass.h. */
 static const GUID my_GUID_DEVINTERFACE_HID =

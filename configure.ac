@@ -103,7 +103,21 @@ HAVE_UCRED=0
 
 HAVE_WIN32SOUND=0
 
+DISABLE_GO=no
+
+DISABLE_GTLSSHD=no
+
+# 
 case $target_os in
+	msys)
+		OSH_LIBS="$OSH_LIBS -ldl"
+		uucp_locking_flag=no
+		flock_locking_flag=no
+		PYTHON_UNDEF_FLAG=-no-undefined
+		HAVE_WIN32SOUND=1
+		DISABLE_GO=yes
+		DISABLE_GTLSSHD=yes
+		;;
 	mingw*)
 		OSH_LIBS="$OSH_LIBS -lws2_32 -liphlpapi -lgdi32 -lbcrypt"
 		OSH_LIBS="$OSH_LIBS -lsecur32 -luserenv -lwtsapi32"
@@ -1193,6 +1207,10 @@ if test $trymdns = yes -a ${HAVE_AVAHI} = 0 -a ${HAVE_DNSSD} = 0 \
    if test "$HAVE_WINMDNS" = "1"; then
       mdns=$default_all
       MDNS_LIBS="-ldnsapi"
+      if test $target_os = msys; then
+	  # We are using Windows MDNS on MSYS2
+	  MDNS_LIBS="-liphlpapi $MDNS_LIBS"
+      fi
       HAVE_MDNS=1
    fi
 fi
@@ -2080,7 +2098,7 @@ AC_SUBST(PYTHON_UNDEF_LIBS)
 PYTHON_EXECUTABLE="${PYTHON}"
 AC_SUBST(PYTHON_EXECUTABLE)
 
-if test $available_swig_vernum -ge 40100 -a "${enable_shared}" = yes; then
+if test $available_swig_vernum -ge 40100 -a "${enable_shared}" = yes -a $DISABLE_GO != yes; then
    trygo=yes
 else
    trygo=no
@@ -2152,7 +2170,9 @@ GTLSSYNCMAN=
 GTLSSHDMAN=
 GTLSSH_KEYGENMAN=
 if test $HAVE_OPENSSL -eq 1; then
-   if test $HAVE_PAM -eq 1; then
+   if test $DISABLE_GTLSSHD = yes; then
+      echo "gltsshD disabled"
+   elif test $HAVE_PAM -eq 1; then
       GTLSSHD="gtlsshd\$(EXEEXT)"
       GTLSSHDMAN=gtlsshd.8
    elif test "$version_type" = "windows"; then
@@ -2212,7 +2232,7 @@ AC_SUBST(HAVE_UNIX)
 AC_DEFINE_UNQUOTED([HAVE_UNIX], [$HAVE_UNIX], [Enable unix socket file handling])
 
 GENSIO_PTY_HELPER=
-if test "$version_type" = "windows"; then
+if test "$version_type" = "windows" -a "$target_os" != "msys"; then
    # We have PTY support for windows.
    HAVE_PTY=1
    GENSIO_PTY_HELPER="gensio_pty_helper\$(EXEEXT)"

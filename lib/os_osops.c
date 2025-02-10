@@ -5,7 +5,7 @@
  *  SPDX-License-Identifier: LGPL-2.1-only
  */
 
-#ifdef linux
+#if defined(linux) || defined(__MSYS__)
 #define _XOPEN_SOURCE 600 /* Get posix_openpt() and friends. */
 #define _GNU_SOURCE /* Get ptsname_r(). */
 #endif
@@ -3302,9 +3302,11 @@ gensio_unix_get_bufcount(struct gensio_os_funcs *o,
 #endif
 	    break;
 
+#ifdef TIOCOUTQ
 	case GENSIO_OUT_BUF:
 	    rv = ioctl(fd, TIOCOUTQ, &count);
 	    break;
+#endif
 
 	default:
 	    return GE_NOTSUP;

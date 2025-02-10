@@ -55,7 +55,7 @@ fi
 
 if ${PYTHON_MODE}; then
     export PYTHONPATH="${BUILDDIR}/swig/python:${BUILDDIR}/swig/python/.libs:${BUILDDIR}/glib/swig/python:${BUILDDIR}/glib/swig/python/.libs:${BUILDDIR}/tcl/swig/python:${BUILDDIR}/tcl/swig/python/.libs:${TEST_BUILDDIR}"
-    if [ ! -z "$MSYSTEM" ]; then
+    if [ ! -z "$MSYSTEM" -a "$MSYSTEM" != "MSYS" ]; then
 	# PYTHONPATH is separated by ; on windows
         export PYTHONPATH=`echo ${PYTHONPATH} | tr ':' ';'`
     fi
@@ -69,7 +69,7 @@ else
 fi
 
 # We need to put the DLL in PATH for MSYS on Windows
-if [ ! -z "$MSYSTEM" ]; then
+if [ ! -z "$MSYSTEM" -a "$MSYSTEM" != "MSYS" ]; then
     export PATH="${BUILDDIR}/lib:${BUILDDIR}/lib/.libs:${BUILDDIR}/glib/.libs:${BUILDDIR}/tcl/.libs:${BUILDDIR}/swig/python/.libs:$PATH"
 else
     export LD_LIBRARY_PATH=${BUILDDIR}/lib:${BUILDDIR}/lib/.libs:${BUILDDIR}/glib/.libs:${BUILDDIR}/tcl/.libs:${BUILDDIR}/swig/python/.libs
@@ -80,7 +80,7 @@ fi
 
 if ${PRINT_MODE}; then
     echo export PYTHONPATH="${PYTHONPATH}"
-    if [ ! -z "$MSYSTEM" ]; then
+    if [ ! -z "$MSYSTEM" -a "$MSYSTEM" != "MSYS" ]; then
 	echo export PATH="${PATH}"
     else
 	echo export LD_LIBRARY_PATH="${LD_LIBRARY_PATH}"

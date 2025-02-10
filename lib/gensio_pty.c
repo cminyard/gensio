@@ -7,7 +7,7 @@
 
 /* This code handles running a child process using a pty. */
 
-#ifdef linux
+#if defined(linux) || defined(__MSYS__)
 #define _GNU_SOURCE /* Get ptsname_r(). */
 #endif
 

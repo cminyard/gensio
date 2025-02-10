@@ -55,7 +55,7 @@ fi
 
 if ${PYTHON_MODE}; then
     export PYTHONPATH="${BUILDDIR}/tests:${BUILDDIR}/c++/swig/pygensio:${BUILDDIR}/c++/swig/pygensio/.libs:${SRCDIR}/c++/swig/pygensio/test:${BUILDDIR}/glib/c++/swig/pygensio:${BUILDDIR}/glib/c++/swig/pygensio/.libs:${BUILDDIR}/tcl/c++/swig/pygensio:${BUILDDIR}/tcl/c++/swig/pygensio/.libs:${TEST_BUILDDIR}"
-    if [ ! -z "$MSYSTEM" ]; then
+    if [ ! -z "$MSYSTEM" -a "$MSYSTEM" != "MSYS" ]; then
 	# PYTHONPATH is separated by ; on windows
         export PYTHONPATH=`echo ${PYTHONPATH} | tr ':' ';'`
     fi
@@ -69,7 +69,7 @@ else
 fi
 
 # We need to put the DLL in PATH for MSYS on Windows
-if [ ! -z "$MSYSTEM" ]; then
+if [ ! -z "$MSYSTEM" -a "$MSYSTEM" != "MSYS" ]; then
     export PATH="${BUILDDIR}/lib:${BUILDDIR}/lib/.libs:${BUILDDIR}/c++/lib/.libs:${BUILDDIR}/c++/swig/pygensio/.libs:${BUILDDIR}/glib/.libs:${BUILDDIR}/glib/c++/swig/pygensio/.libs:${BUILDDIR}/tcl/.libs:${BUILDDIR}/tcl/c++/swig/pygensio/.libs:$PATH"
 else
     export LD_LIBRARY_PATH=${BUILDDIR}/lib:${BUILDDIR}/lib/.libs:${BUILDDIR}/c++/swig/pygensio/.libs:${BUILDDIR}/glib/.libs:${BUILDDIR}/glib/c++/pygensio/.libs:${BUILDDIR}/tcl/.libs:${BUILDDIR}/tcl/c++/pygensio/.libs:${BUILDDIR}/c++/lib/.libs
@@ -80,7 +80,7 @@ fi
 
 if ${PRINT_MODE}; then
     echo export PYTHONPATH="${PYTHONPATH}"
-    if [ ! -z "$MSYSTEM" ]; then
+    if [ ! -z "$MSYSTEM" -a "$MSYSTEM" != "MSYS" ]; then
 	echo export PATH=${PATH}
     elif test `uname` != Darwin; then
 	echo export LD_LIBRARY_PATH="${LD_LIBRARY_PATH}"

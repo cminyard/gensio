@@ -106,9 +106,13 @@ init_mutex(unsigned int flags, lock_type *mutex)
 
     pthread_mutexattr_init(&mattr);
     if (flags & GENSIO_OS_FUNCS_FLAG_PRIO_INHERIT) {
+#ifdef PTHREAD_PRIO_INHERIT
 	int rv = pthread_mutexattr_setprotocol(&mattr, PTHREAD_PRIO_INHERIT);
 	if (rv)
 	    return rv;
+#else
+	return GE_NOTSUP;
+#endif
     }
     pthread_mutex_init(mutex, &mattr);
     return 0;

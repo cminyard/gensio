@@ -47,6 +47,18 @@
 
 unsigned int debug;
 
+/*
+ * Permissions are not easily fixable on msys, so checking for private
+ * doesn't work ATM.  It always reads 755 for directories and 644 for
+ * files.  You can fix it with icacls, but it still won't display
+ * properly.
+ */
+#ifdef __MSYS__
+static bool do_check_private = false;
+#else
+static bool do_check_private = true;
+#endif
+
 struct gdata {
     struct gensio_os_funcs *o;
     struct gensio_waiter *waiter;
@@ -741,7 +753,7 @@ lookup_certinfo(struct gensio_os_funcs *o,
     if (err)
 	goto out_err;
 
-    err = checkout_file(glogger, NULL, keyname, false, true);
+    err = checkout_file(glogger, NULL, keyname, false, do_check_private);
     if (err)
 	goto out_err;
 
@@ -2064,7 +2076,7 @@ main(int argc, char *argv[])
 	    return 1;
     }
 
-    err = checkout_file(glogger, NULL, tlssh_dir, true, true);
+    err = checkout_file(glogger, NULL, tlssh_dir, true, do_check_private);
     if (err)
 	return 1;
 

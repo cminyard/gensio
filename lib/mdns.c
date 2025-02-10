@@ -18,6 +18,11 @@
 #else
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <unistd.h>
+#ifdef __MSYS__
+typedef struct in6_addr IN6_ADDR;
+#include <iphlpapi.h>
+#endif
 #endif
 #include <gensio/gensio.h>
 #include <gensio/gensio_list.h>

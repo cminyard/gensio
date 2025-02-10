@@ -1167,8 +1167,8 @@ think the problem is in the gensio code.
 Building on Windows
 ===================
 
-The gensio library can be built under Windows using mingw64.  The following
-things don't work::
+The gensio library can be built under Windows using mingw64 or ucrt64.
+The following things don't work::
 
 * sctp
 * pam
@@ -1179,6 +1179,16 @@ You also don't need to install alsa, it uses the Windows sound interface for
 sound.
 
 The cm108gpio uses native windows interfaces, so udev is not required.
+
+You can compile under msys, which is there primarily to support file
+transfers with gtlssync and gtlssh.  It uses the native Windows
+interfaces MDNS and sound, but those are not well tested.  Outside of
+that, things may or may not work.  In particular, gtlsshd will not
+compile.  You can specify serial ports with //./COM<n>, but there are
+issues.  Python maybe sort of works.  Tests do not run.  For anything
+besides running gtlssh and doing file transfers, you should probably
+use the native version.  These things can be fixed, but they will take
+some work.
 
 The Windows built-in MDNS interfaces are used, so you don't need avahi
 or DNSSD.  You will need to install the pcre library if you want
