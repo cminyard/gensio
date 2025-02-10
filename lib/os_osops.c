@@ -1999,9 +1999,9 @@ gensio_win_get_user_token(const char *user, const char *password,
     if (logon_info)
 	free(logon_info);
     if (htok) {
-	CloseHandle(htok);
 	if (profile_info.hProfile)
-	  UnloadUserProfile(htok, profile_info.hProfile);
+	    UnloadUserProfile(htok, profile_info.hProfile);
+	CloseHandle(htok);
     }
     if (profile)
 	LsaFreeReturnBuffer(profile);
