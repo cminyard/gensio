@@ -107,9 +107,11 @@ DISABLE_GO=no
 
 DISABLE_GTLSSHD=no
 
-# 
 case $target_os in
 	msys)
+		# MSYS presents some challenges.  We hack things to
+		# get them to compile, but not much works well.  See
+		# the README file for details.
 		OSH_LIBS="$OSH_LIBS -ldl"
 		uucp_locking_flag=no
 		flock_locking_flag=no
