@@ -2275,7 +2275,7 @@ win_twoway_thread(LPVOID data)
 	CloseHandle(reado.hEvent);
     if (writeo.hEvent)
 	CloseHandle(writeo.hEvent);
-    if (writeo.hEvent)
+    if (evento.hEvent)
 	CloseHandle(evento.hEvent);
 
     if (!twiod->readable)
