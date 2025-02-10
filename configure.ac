@@ -1,7 +1,7 @@
-AC_INIT([gensio],[2.8.11],[minyard@acm.org])
+AC_INIT([gensio],[2.8.12],[minyard@acm.org])
 AC_SUBST(gensio_VERSION_MAJOR, 2)
 AC_SUBST(gensio_VERSION_MINOR, 8)
-AC_SUBST(gensio_VERSION_PATCH, 11)
+AC_SUBST(gensio_VERSION_PATCH, 12)
 AC_SUBST(gensio_VERSION_STRING, ${PACKAGE_VERSION})
 AC_CANONICAL_TARGET
 AM_INIT_AUTOMAKE([-Wall])
@@ -12,7 +12,7 @@ AC_PROG_CXX
 # Per discussions with the Debian maintainer, it's best for
 # maintainers to have all the soname libary versions be the same if
 # they come from a single source.  So here it is.
-GENSIO_LIB_VERSION=12:0:2
+GENSIO_LIB_VERSION=13:0:3
 AC_SUBST(GENSIO_LIB_VERSION)
 
 AC_ARG_ENABLE([debug],
