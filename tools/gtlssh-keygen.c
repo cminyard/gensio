@@ -368,14 +368,14 @@ remove_links(const char *dir, const char *name, void *cbdata)
     /* It's a link, remove it. */
     fname = alloc_sprintf("%s%c%s", dir, DIRSEP, name);
     if (!fname) {
-	fprintf(stderr, "Out of memory allocating for %s%c%s",
+	fprintf(stderr, "Out of memory allocating for %s%c%s\n",
 		dir, DIRSEP, name);
 	return ITERATE_DIR_ERR;
     }
     rv = delete_file(glogger, NULL, fname);
     free(fname);
     if (rv) {
-	fprintf(stderr, "Unable to remove %s%c%s: %s", dir, DIRSEP, name,
+	fprintf(stderr, "Unable to remove %s%c%s: %s\n", dir, DIRSEP, name,
 		strerror(errno));
 	return ITERATE_DIR_ERR;
     }
@@ -443,6 +443,7 @@ load_cert(const char *file)
     if (!cert) {
 	fprintf(stderr, "Unable to load PEM X509 cert at %s: ", file);
 	ERR_print_errors_fp(stderr);
+	fprintf(stderr, "\n");
     }
     return cert;
 }
@@ -493,7 +494,7 @@ hash_file(const char *dir, const char *name, void *cbdata)
 
     s = alloc_sprintf("%s%c%s", dir, DIRSEP, name);
     if (!s) {
-	fprintf(stderr, "Out of memory allocating %s%c%s", dir, DIRSEP, name);
+	fprintf(stderr, "Out of memory allocating %s%c%s\n", dir, DIRSEP, name);
 	return ITERATE_DIR_ERR;
     }
 
@@ -529,7 +530,7 @@ hash_file(const char *dir, const char *name, void *cbdata)
 	char *l = alloc_sprintf("%s%c%08lx.%d", dir, DIRSEP, hash, i);
 
 	if (!l) {
-	    fprintf(stderr, "Out of memory allocating %s%c%08lx.%d",
+	    fprintf(stderr, "Out of memory allocating %s%c%08lx.%d\n",
 		    dir, DIRSEP, hash, i);
 	    goto out_err;
 	}
@@ -958,7 +959,7 @@ keygen(int argc, char *argv[])
 	if (strcmp(argv[i], "-p") == 0) {
 	    i++;
 	    if (i >= argc) {
-		fprintf(stderr, "No port given with -p");
+		fprintf(stderr, "No port given with -p\n");
 		return 1;
 	    }
 	    if (strlen(argv[i]) == 0)
