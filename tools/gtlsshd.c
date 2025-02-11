@@ -190,6 +190,77 @@ glogger(void *cbdata, const char *format, ...)
     va_end(va);
 }
 
+static unsigned int gtlsshd_port = 852;
+
+#ifdef HAVE_MDNS
+#include <gensio/gensio_mdns.h>
+
+static bool enable_mdns = false;
+static const char *mdns_name;
+
+struct gensio_mdns *mdns;
+struct gensio_mdns_service *mdns_service;
+
+const char *mdns_txt[] = {
+    "provider=gtlsshd",
+    "gensiostack=mux.certauth,ssl,tcp",
+    NULL,
+};
+
+static void
+startup_mdns(struct gensio_os_funcs *o)
+{
+    int err = gensio_alloc_mdns(o, &mdns);
+    char *hostname = NULL;
+
+    if (!enable_mdns)
+	return;
+
+    if (!mdns_name) {
+	hostname = get_my_hostname(glogger, NULL);
+	if (!hostname)
+	    return;
+	mdns_name = hostname;
+    }
+
+    if (err) {
+	if (hostname)
+	    free(hostname);
+	log_event(LOG_ERR, "Unable to start MDNS: %s", gensio_err_to_str(err));
+    }
+    err = gensio_mdns_add_service(mdns, -1,
+				  GENSIO_NETTYPE_UNSPEC,
+				  mdns_name, "_iostream._tcp",
+				  NULL, NULL,
+				  gtlsshd_port, mdns_txt,
+				  &mdns_service);
+    if (err) {
+	log_event(LOG_ERR, "Unable to add MDNS service: %s",
+		  gensio_err_to_str(err));
+	gensio_free_mdns(mdns, NULL, NULL);
+	mdns = NULL;
+    }
+    if (hostname)
+	free(hostname);
+}
+
+static void
+cleanup_mdns(void)
+{
+    if (mdns_service) {
+	gensio_mdns_remove_service(mdns_service);
+	mdns_service = NULL;
+    }
+    if (mdns) {
+	gensio_free_mdns(mdns, NULL, NULL);
+	mdns = NULL;
+    }
+}
+#else
+static void startup_mdns(struct gensio_os_funcs *o) { }
+static void cleanup_mdns(void) { }
+#endif
+
 /* Default the program to this path. */
 #define STANDARD_PATH "/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 
@@ -3192,6 +3263,12 @@ help(int err)
     printf("  --no-use-login - Don't use login program.\n");
     printf("  -P, --pidfile <file> - Create the given pidfile.\n");
 #endif
+#ifdef HAVE_MDNS
+    printf("  -m, --enable-mdns - Enable broadcasting MDNS information\n");
+    printf("     so MDNS users can find this.\n");
+    printf("  --mdns-name <name> - Set name used for MDNS.  The default\n");
+    printf("     is the hostname.\n");
+#endif
     printf("  --start-retries <count> - The number of retries for a name\n");
     printf("     lookup failure at startup.  The default is 30\n");
     printf("  --version - Print the version number and exit.\n");
@@ -3239,7 +3316,6 @@ main(int argc, char *argv[])
     int arg, rv;
     struct gensio_os_funcs *o;
     struct gdata ginfo;
-    unsigned int port = 852;
     char *s;
     bool notcp = false, sctp = false;
     bool daemonize = true;
@@ -3261,7 +3337,7 @@ main(int argc, char *argv[])
 	    break;
 	}
 	if ((rv = cmparg_uint(argc, argv, &arg, "-p", "--port",
-			      &port)))
+			      &gtlsshd_port)))
 	    ;
 	else if ((rv = cmparg(argc, argv, &arg, "-c", "--certfile",
 			      &certfile)))
@@ -3290,6 +3366,13 @@ main(int argc, char *argv[])
 			      &pam_service)))
 	    ;
 	else if ((rv = cmparg(argc, argv, &arg, "-P", "--pidfile", &pid_file)))
+	    ;
+#endif
+#ifdef HAVE_MDNS
+	else if ((rv = cmparg(argc, argv, &arg, "-m", "--enable-mdns", NULL)))
+	    enable_mdns = true;
+	else if ((rv = cmparg(argc, argv, &arg, NULL, "--mdns-name",
+			      &mdns_name)))
 	    ;
 #endif
 	else if ((rv = cmparg(argc, argv, &arg, NULL, "--oneshot", NULL)))
@@ -3396,7 +3479,8 @@ main(int argc, char *argv[])
 
  start_accept:
     if (!notcp && !tcp_acc) {
-	s = gensio_alloc_sprintf(o, "tcp(readbuf=20000),%s%d", iptype, port);
+	s = gensio_alloc_sprintf(o, "tcp(readbuf=20000),%s%d", iptype,
+				 gtlsshd_port);
 	if (!s) {
 	    log_event(LOG_ERR, "Could not allocate tcp descriptor\n");
 	    return 1;
@@ -3420,7 +3504,8 @@ main(int argc, char *argv[])
     }
 
     if (sctp && !sctp_acc) {
-	s = gensio_alloc_sprintf(o, "sctp(readbuf=20000),%s%d", iptype, port);
+	s = gensio_alloc_sprintf(o, "sctp(readbuf=20000),%s%d", iptype,
+				 gtlsshd_port);
 	if (!s) {
 	    log_event(LOG_ERR, "Could not allocate sctp descriptor\n");
 	    return 1;
@@ -3478,7 +3563,11 @@ main(int argc, char *argv[])
     if (!oneshot && daemonize)
 	do_daemonize(o);
 
+    startup_mdns(o);
+
     gensio_os_funcs_wait(o, ginfo.waiter, 1, NULL);
+
+    cleanup_mdns();
 
     /* FIXME - shutdown threads first. */
 

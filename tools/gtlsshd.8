@@ -135,6 +135,14 @@ Do IPv4 only.
 .I \-6
 Do IPv6 only.
 .TP
+.I \-m, \-\-enable\-mdns
+Enable MDNS service for this device.  This allows gtlssh to find this with
+"gtlssh -m <name>".
+.TP
+.I \-\-mdns\-name <name>
+Sets the name used for finding this connection with mdns.  The default
+is the hostname.
+.TP
 .I \-\-startup\-retries
 The number of times gtlsshd will retry creating the accepter.  It
 retries once a second. Generally, if creating the accepter fails, that

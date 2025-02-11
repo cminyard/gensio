@@ -51,7 +51,7 @@ gtlssh_LDADD = libgtlssh.a libgensiotool.a $(top_builddir)/lib/libgensioosh.la \
 gtlsshd_SOURCES = gtlsshd.c
 gtlsshd_CPPFLAGS = @OPENSSL_INCLUDES@
 gtlsshd_LDADD = libgtlssh.a libgensiotool.a $(top_builddir)/lib/libgensioosh.la\
-	$(top_builddir)/lib/libgensio.la \
+	$(top_builddir)/lib/libgensio.la $(top_builddir)/lib/libgensiomdns.la \
 	@PAMLIB@ @OPENSSL_LDFLAGS@ @OPENSSL_LIBS@
 
 gtlsshd.service: ${srcdir}/gtlsshd.service.in
