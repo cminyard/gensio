@@ -217,9 +217,14 @@ startup_mdns(struct gensio_os_funcs *o)
 	return;
 
     if (!mdns_name) {
+	char *dot;
+
 	hostname = get_my_hostname(glogger, NULL);
 	if (!hostname)
 	    return;
+	dot = strchr(hostname, '.');
+	if (dot)
+	    *dot = '\0';
 	mdns_name = hostname;
     }
 
@@ -2229,7 +2234,6 @@ new_rem_io(struct gensio *io, struct auth_data *auth)
     gensiods len;
     char *s = NULL;
     int err;
-    char dummy[1];
     char **progv = NULL; /* If set in the service. */
     bool login = false;
     bool do_chdir = false;
@@ -2264,8 +2268,7 @@ new_rem_io(struct gensio *io, struct auth_data *auth)
     }
     if (strstartswith(service, "program:")) {
 	char *str = strchr(service, ':'), **svals;
-	gensiods pos = 0, alloclen;
-	unsigned int i, nsvals;
+	unsigned int nsvals;
 
 	if (!str) {
 	    gensio_time timeout = {10, 0};
@@ -3267,7 +3270,7 @@ help(int err)
     printf("  -m, --enable-mdns - Enable broadcasting MDNS information\n");
     printf("     so MDNS users can find this.\n");
     printf("  --mdns-name <name> - Set name used for MDNS.  The default\n");
-    printf("     is the hostname.\n");
+    printf("     is the first part of the hostname.\n");
 #endif
     printf("  --start-retries <count> - The number of retries for a name\n");
     printf("     lookup failure at startup.  The default is 30\n");

@@ -141,7 +141,7 @@ Enable MDNS service for this device.  This allows gtlssh to find this with
 .TP
 .I \-\-mdns\-name <name>
 Sets the name used for finding this connection with mdns.  The default
-is the hostname.
+is the first part of the hostname, before the first '.', if any.
 .TP
 .I \-\-startup\-retries
 The number of times gtlsshd will retry creating the accepter.  It

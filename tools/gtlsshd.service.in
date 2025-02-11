@@ -5,7 +5,8 @@ Documentation=man:gtlsshd(8)
 
 [Service]
 Type=simple
-ExecStart=@gtlsshdbindir@/gtlsshd --nodaemon
+EnvironmentFile=@sysconfigdir@/default/gtlsshd
+ExecStart=@gtlsshdbindir@/gtlsshd --nodaemon $gtlsshdflags
 StandardOutput=null
 Restart=on-failure
 
