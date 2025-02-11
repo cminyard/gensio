@@ -63,6 +63,16 @@ gtlssh
     be used with ser2net to make establishing encrypted and
     authenticated connections easier.  See gtlssh(1) for details.
 
+gtlssh-keygen
+    Used for handling keys for gtlssh and gtlsshd.  See gtlssh-keygen(1)
+    for details.
+
+gmdns
+    Used to provide and query MDNS.  See gmdns(1) for details.
+
+gsound
+    Used to play or record sound.  See gsound(1) for details.
+
 Available gensios
 =================
 
