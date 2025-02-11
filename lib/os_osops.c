@@ -1135,58 +1135,44 @@ gensio_win_commport_control(struct gensio_os_funcs *o, int op, bool get,
  * quote on the entire line.  But that doesn't help in some cases,
  * like if you have just a command that has spaces in it.
  *
+ * The documentation on "cmd" says: You must use quotation marks
+ * around the following special characters: & < > [ ] | { } ^ = ; ! '
+ * + , ` ~ [white space]
+ *
+ * A number of characters, namely '<>&^|', have special meanings as
+ * documented in the set command.  You appear to be able to escape
+ * them with the "^" character.  However, putting them in quotes
+ * works, too, so that's what we do.
+ *
+ * We put an empty parameter in quotes.
+ *
+ * So that's what we do.  If we encounter one of these characters, a
+ * ", or an empty string, we put it in quotes.
+ *
  * Windows has no way to call a command and pass it an argv-style set
  * of parameters.  You can only put them on the command line as a
  * single string.  So, anything passed in has to be formatted with
  * escapes and quotes to come back out like it was entered originally.
  *
- * A number of characters, namely ':&\<>^|%', have special meanings
- * and must be escaped (unless they are in a string within "", which
- * we talk about later).  To escape them, you preceed them with a '^'.
- * Experimentation says you don't have to do ":%\", but we will
- * anyway.  Well, don't do '\', that is bizarre to require.
- *
- * A number of characters, in the set ',;= \t' are considered
- * separator characters.  If you have one of these in a string, you
- * must put it in double quotes.  Experimentation says that you only
- * really need to do space and tab.  But we will do them all.  Plus,
- * if you have a " in the parameter, you need to put the whole thing
- * in double quotes and do the special quoting, too.
- *
- * However, if there is a separator in an argument, you cannot use '^'
- * to escape that separator.  You have to put the argument in double
- * quotes.
- *
- * But then the rules all change.  You no longer have to escape the
- * characters that you normally have to escape.  (The docs say you
- * still have to escape %, but that doesn't work and may only apply to
- * scripts.)  But the quoting rules are bizarre.  A \" is a quote.
- * But the \ is only valid that way before a quote, a \ without a "
- * following is just a \.  But any number of \ before a " will be
- * converted from two \ to a single \.  So "\\\" is \", but \\" is \
- * and the " terminates the string.
+ * The rules for handling a '"' inside a quoted string are bizarre.  A
+ * \" is a quote.  But the \ is only valid that way before a quote, a
+ * \ without a " following is just a \.  But any number of \ before a
+ * " will be converted from two \ to a single \.  So "\\\" is \", but
+ * \\" is \ and the " terminates the string.
  *
  * But... if you use the echo command, the double quote things are all
  * ignored and the quotes always come through.  The other commands
- * don't seem to do this, just echo.
+ * don't seem to do this, just echo.  So we scan for echo as best we
+ * can and handle it specially.
  *
  * You also cannot quote built-in commands, like dir and echo.  So you
- * just can't quote anything.
+ * just can't quote anything.  So we only quote if we have to.
  */
 static bool
 needs_quote(char c)
 {
-    static char *s = " \t\",;=";
-
-    return !!strchr(s, c);
-}
-
-static bool
-needs_escape(char c)
-{
-    static char *s = "|<>&^%";
-
-    return !!strchr(s, c);
+  static char *s = "\"&<>[]|{}^=;!'+,`~";
+  return isspace(c) || strchr(s, c);
 }
 
 static bool
@@ -1251,6 +1237,7 @@ argv_to_win_cmdline(struct gensio_os_funcs *o, const char *argv[],
      */
     for (i = 0; argv[i]; i++) {
 	bool is_powershell = false;
+
 	is_echo_cmd = strcasecmp(argv[i], "echo") == 0;
 	/* Is this a command invocation? */
 	if (!is_echo_cmd && iscmd(argv[i], &is_powershell)) {
@@ -1269,14 +1256,17 @@ argv_to_win_cmdline(struct gensio_os_funcs *o, const char *argv[],
 	bool quotestr = false;
 	unsigned int orig_cmdlen = cmdlen;
 
-	for (j = 0; s[j]; j++) {
-	    if (needs_quote(s[j]) && !is_echo_cmd) {
-		quotestr = true;
-		break;
-	    }
-	    if (needs_escape(s[j]))
+	if (s[0] == '\0') {
+	    /* Need quotes around an empty parameter to preserve it. */
+	    quotestr = true;
+	} else {
+	    for (j = 0; s[j]; j++) {
+		if (needs_quote(s[j]) && !is_echo_cmd) {
+		    quotestr = true;
+		    break;
+		}
 		cmdlen++;
-	    cmdlen++;
+	    }
 	}
 
 	if (quotestr) {
@@ -1318,14 +1308,16 @@ argv_to_win_cmdline(struct gensio_os_funcs *o, const char *argv[],
 	bool quotestr = false;
 	unsigned int orig_p = p;
 
-	for (j = 0; s[j]; j++) {
-	    if (needs_quote(s[j]) && !is_echo_cmd) {
-		quotestr = true;
-		break;
+	if (s[0] == '\0') {
+	    quotestr = true;
+	} else {
+	    for (j = 0; s[j]; j++) {
+		if (needs_quote(s[j]) && !is_echo_cmd) {
+		    quotestr = true;
+		    break;
+		}
+		cmdline[p++] = s[j];
 	    }
-	    if (needs_escape(s[j]))
-		cmdline[p++] = '^';
-	    cmdline[p++] = s[j];
 	}
 
 	if (quotestr) {
