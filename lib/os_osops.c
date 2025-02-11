@@ -1124,45 +1124,186 @@ gensio_win_commport_control(struct gensio_os_funcs *o, int op, bool get,
     return gensio_os_err_to_err(o, GetLastError());
 }
 
+/*
+ * Windows quoting and escaping rules are insane.
+ *
+ * This information is pulled from https://ss64.com/nt/syntax-esc.html
+ * as I couldn't find any useful information on Microsoft's site.  I
+ * was hoping to use the /s option to cmd.  The Microsoft docs on this
+ * are incomprehensible, but elsewhere you can find that you can put
+ * the entire command in quotes and it will remove the first and last
+ * quote on the entire line.  But that doesn't help in some cases,
+ * like if you have just a command that has spaces in it.
+ *
+ * Windows has no way to call a command and pass it an argv-style set
+ * of parameters.  You can only put them on the command line as a
+ * single string.  So, anything passed in has to be formatted with
+ * escapes and quotes to come back out like it was entered originally.
+ *
+ * A number of characters, namely ':&\<>^|%', have special meanings
+ * and must be escaped (unless they are in a string within "", which
+ * we talk about later).  To escape them, you preceed them with a '^'.
+ * Experimentation says you don't have to do ":%\", but we will
+ * anyway.  Well, don't do '\', that is bizarre to require.
+ *
+ * A number of characters, in the set ',;= \t' are considered
+ * separator characters.  If you have one of these in a string, you
+ * must put it in double quotes.  Experimentation says that you only
+ * really need to do space and tab.  But we will do them all.  Plus,
+ * if you have a " in the parameter, you need to put the whole thing
+ * in double quotes and do the special quoting, too.
+ *
+ * However, if there is a separator in an argument, you cannot use '^'
+ * to escape that separator.  You have to put the argument in double
+ * quotes.
+ *
+ * But then the rules all change.  You no longer have to escape the
+ * characters that you normally have to escape.  (The docs say you
+ * still have to escape %, but that doesn't work and may only apply to
+ * scripts.)  But the quoting rules are bizarre.  A \" is a quote.
+ * But the \ is only valid that way before a quote, a \ without a "
+ * following is just a \.  But any number of \ before a " will be
+ * converted from two \ to a single \.  So "\\\" is \", but \\" is \
+ * and the " terminates the string.
+ *
+ * But... if you use the echo command, the double quote things are all
+ * ignored and the quotes always come through.  The other commands
+ * don't seem to do this, just echo.
+ *
+ * You also cannot quote built-in commands, like dir and echo.  So you
+ * just can't quote anything.
+ */
+static bool
+needs_quote(char c)
+{
+    static char *s = " \t\",;=";
+
+    return !!strchr(s, c);
+}
+
+static bool
+needs_escape(char c)
+{
+    static char *s = "|<>&^%";
+
+    return !!strchr(s, c);
+}
+
+static bool
+endswith(const char *s, const char *end)
+{
+    unsigned int l1 = strlen(s), l2 = strlen(end);
+
+    if (l2 > l1)
+	return false;
+    return strcasecmp(s + (l1 - l2), end) == 0;
+}
+
+/* Is "s" a command or powershell invokation. */
+static bool
+iscmd(const char *s, bool *is_powershell)
+{
+    if (endswith(s, "cmd") || endswith(s, "cmd.exe")) {
+	*is_powershell = false;
+	return true;
+    }
+
+    if (endswith(s, "powershell") || endswith(s, "powershell.exe")) {
+	*is_powershell = true;
+	return true;
+    }
+
+    *is_powershell = false;
+    return false;
+}
+
+/* Is this the cmd/powershell option saying the next thing is a command.? */
+static bool
+iscmdstr(const char *s, bool is_powershell)
+{
+    static char *scmd = "cCkK";
+
+    if (!is_powershell) {
+	if (s[0] != '/')
+	    return false;
+	return !!strchr(scmd, s[1]);
+    }
+
+    if (s[0] != '/' && s[0] != '-')
+	return false;
+    if (!s[1]) /* Handle a lone "/" or "-". */
+	return false;
+    /* Any number of characters of "command" is ok. */
+    return strncasecmp(s+1, "command", strlen(s)) == 0;
+}
+
 static int
 argv_to_win_cmdline(struct gensio_os_funcs *o, const char *argv[],
 		    char **rcmdline)
 {
     unsigned int cmdlen = 0, i, j, k, l, p = 0;
     char *cmdline;
+    bool is_echo_cmd = false;
 
     /*
-     * We quote all arguments to be sure, which means we have to
-     * manipulate things inside for quotes.  However, the quoting
-     * rules of Windows are bizarre.  A \" is a quote.  But the \ is
-     * only valid that way before a quote, a \ without a " following
-     * is just a \.  But any number of \ before a " will be converted
-     * from two \ to a single \.  So "\\\" is \", but \\" is \ and the
-     * " terminates the string.
+     * We do a complicated check for the echo command, because the
+     * quoting is different just for that command.
      */
     for (i = 0; argv[i]; i++) {
-	const char *s = argv[i];
+	bool is_powershell = false;
+	is_echo_cmd = strcasecmp(argv[i], "echo") == 0;
+	/* Is this a command invocation? */
+	if (!is_echo_cmd && iscmd(argv[i], &is_powershell)) {
+	    for (i++; argv[i]; i++) {
+		/* Looking for /c or /k. */
+		if (iscmdstr(argv[i], is_powershell))
+		    break;
+	    }
+	} else {
+	    break;
+	}
+    }
 
-	cmdlen += 3; /* Room for two quotes and a space. */
+    for (i = 0; argv[i]; i++) {
+	const char *s = argv[i];
+	bool quotestr = false;
+	unsigned int orig_cmdlen = cmdlen;
+
 	for (j = 0; s[j]; j++) {
-	    if (s[j] == '"') {
-		cmdlen += 2; /* Add room for the \ */
-		for (k = j; k > 0; ) {
-		    k--;
-		    if (s[k] == '\\')
-			cmdlen++; /* Double every \ before a " */
-		    else
-			break;
-		}
-	    } else {
+	    if (needs_quote(s[j]) && !is_echo_cmd) {
+		quotestr = true;
+		break;
+	    }
+	    if (needs_escape(s[j]))
 		cmdlen++;
+	    cmdlen++;
+	}
+
+	if (quotestr) {
+	    /* Back up and start over with quotes. */
+	    cmdlen = orig_cmdlen;
+	    cmdlen += 2; /* Room for two quotes. */
+	    for (j = 0; s[j]; j++) {
+		if (s[j] == '"') {
+		    cmdlen += 2; /* Add room for the \ */
+		    for (k = j; k > 0; ) {
+			k--;
+			if (s[k] == '\\')
+			    cmdlen++; /* Double every \ before a " */
+			else
+			    break;
+		    }
+		} else {
+		    cmdlen++;
+		}
+	    }
+	    for (k = j; k > 0; ) {
+		k--;
+		if (s[k] == '\\')
+		    cmdlen++; /* Double every \ at the end, we are adding a " */
 	    }
 	}
-	for (k = j; k > 0; ) {
-	    k--;
-	    if (s[k] == '\\')
-		cmdlen++; /* Double every \ at the end, as we are adding a " */
-	}
+	cmdlen++; /* Space between arguments. */
     }
 
     if (cmdlen >= 32766) /* Maximum size for Windows. */
@@ -1174,45 +1315,62 @@ argv_to_win_cmdline(struct gensio_os_funcs *o, const char *argv[],
 
     for (i = 0; argv[i]; i++) {
 	const char *s = argv[i];
+	bool quotestr = false;
+	unsigned int orig_p = p;
 
-	cmdline[p++] = '"';
 	for (j = 0; s[j]; j++) {
-	    if (s[j] == '"') {
-		l = 0;
-		for (k = j; k > 0; ) {
-		    k--;
-		    if (s[k] == '\\') {
-			l++;
-			p--; /* Back up over the \s */
-		    } else {
-			break;
-		    }
-		}
-		for (; l > 0; l--) {
-		    cmdline[p++] = '\\';
-		    cmdline[p++] = '\\';
-		}
-		cmdline[p++] = '\\';
-		cmdline[p++] = '"';
-	    } else {
-		cmdline[p++] = s[j];
-	    }
-	}
-	l = 0;
-	for (k = j; k > 0; ) {
-	    k--;
-	    if (s[k] == '\\') {
-		l++;
-		p--; /* Back up over the \s */
-	    } else {
+	    if (needs_quote(s[j]) && !is_echo_cmd) {
+		quotestr = true;
 		break;
 	    }
+	    if (needs_escape(s[j]))
+		cmdline[p++] = '^';
+	    cmdline[p++] = s[j];
 	}
-	for (; l > 0; l--) {
-	    cmdline[p++] = '\\';
-	    cmdline[p++] = '\\';
+
+	if (quotestr) {
+	    /* Back up and start over with quotes. */
+	    p = orig_p;
+	    cmdline[p++] = '"';
+	    for (j = 0; s[j]; j++) {
+		if (s[j] == '"') {
+		    l = 0;
+		    for (k = j; k > 0; ) {
+			k--;
+			if (s[k] == '\\') {
+			    l++;
+			    p--; /* Back up over the \s */
+			} else {
+			    break;
+			}
+		    }
+		    for (; l > 0; l--) {
+			cmdline[p++] = '\\';
+			cmdline[p++] = '\\';
+		    }
+		    cmdline[p++] = '\\';
+		    cmdline[p++] = '"';
+		} else {
+		    cmdline[p++] = s[j];
+		}
+	    }
+	    l = 0;
+	    for (k = j; k > 0; ) {
+		k--;
+		if (s[k] == '\\') {
+		    l++;
+		    p--; /* Back up over the \s */
+		} else {
+		    break;
+		}
+	    }
+	    for (; l > 0; l--) {
+		cmdline[p++] = '\\';
+		cmdline[p++] = '\\';
+	    }
+	    cmdline[p++] = '"';
 	}
-	cmdline[p++] = '"';
+	/* Add a space between arguments. */
 	if (argv[i + 1])
 	    cmdline[p++] = ' ';
     }
