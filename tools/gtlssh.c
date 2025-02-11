@@ -2019,8 +2019,12 @@ main(int argc, char *argv[])
 	unsigned int svclen = 0;
 
 	/* User gave us a remote program. */
-	for (i = arg; i < argc; i++)
+	for (i = arg; i < argc; i++) {
 	    svclen += strlen(argv[i]) + 1; /* Extra space for nil at end */
+	    if (argv[i][0] == '\0' || argv[i][0] == '\xff')
+		/* See note below on why we do this. */
+		svclen += 1;
+	}
 	svclen += 9; /* Space for "program:" and final nil. */
 	/* Note that ending '\0' is handled by final space. */
 
@@ -2032,6 +2036,15 @@ main(int argc, char *argv[])
 	strcpy(service, "program:");
 	svclen = 8;
 	for (i = arg; i < argc; i++) {
+	    if (argv[i][0] == '\0' || argv[i][0] == '\xff')
+		/*
+		 * Send a "\xff" as the first character for an empty
+		 * string.  Otherwize and empty string will look like
+		 * the \0\0 used to mark the end.  Also add a '\xff"
+		 * for a parameter starting with 0xff.  We will drop
+		 * it on the other side.
+		 */
+		service[svclen++] = '\xff';
 	    svclen += sprintf(service + svclen, "%s", argv[i]);
 	    service[svclen++] = '\0';
 	}

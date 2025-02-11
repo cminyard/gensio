@@ -2229,8 +2229,18 @@ new_rem_io(struct gensio *io, struct auth_data *auth)
 #else
 	progv[1] = "-c";
 #endif
-	for (nsvals = 0; svals[nsvals]; nsvals++)
-	    progv[nsvals + 2] = svals[nsvals];
+	for (nsvals = 0; svals[nsvals]; nsvals++) {
+	    /*
+	     * We need a way to keep an empty parameter from looking
+	     * like the \0\0, so we add a '\xff' to the beginning of
+	     * an empty parameter, or any parameter starting with
+	     * '\0xff'.  We drop that here.
+	     */
+	    if (svals[nsvals][0] == '\xff')
+		progv[nsvals + 2] = svals[nsvals] + 1;
+	    else
+		progv[nsvals + 2] = svals[nsvals];
+	}
 	progv[nsvals + 2] = NULL;
 	free(svals);
 
