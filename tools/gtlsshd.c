@@ -218,6 +218,7 @@ startup_mdns(struct gensio_os_funcs *o)
 
     if (!mdns_name) {
 	char *dot;
+	unsigned int i;
 
 	hostname = get_my_hostname(glogger, NULL);
 	if (!hostname)
@@ -225,6 +226,8 @@ startup_mdns(struct gensio_os_funcs *o)
 	dot = strchr(hostname, '.');
 	if (dot)
 	    *dot = '\0';
+	for (i = 0; hostname[i]; i++)
+	  hostname[i] = tolower((unsigned char) hostname[i]);
 	mdns_name = hostname;
     }
 
