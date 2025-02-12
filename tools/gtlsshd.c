@@ -689,6 +689,16 @@ close_con_info(struct per_con_info *pcinfo)
     auth_unlock(auth);
     if (pcinfo->io1_can_close) {
 	pcinfo->io1_can_close = false;
+#ifdef _WIN32
+	/*
+	 * Windows turns on win32-input-mode "\e[?9001h" and focus
+	 * events "\e[?1004h" when it starts a pty, but it doesn't
+	 * appear to disable them.  Send the disable to clean things
+	 * up.
+	 */
+	if (pcinfo->is_pty)
+	    gensio_write(pcinfo->io1, NULL, "\e[?9001l\e[?1004l", 16, NULL);
+#endif
 	err = gensio_close(pcinfo->io1, io_close, pcinfo);
 	if (err) {
 	    log_event(LOG_ERR, "Unable to close remote: %s",
