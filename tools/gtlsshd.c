@@ -2246,6 +2246,9 @@ new_rem_io(struct gensio *io, struct auth_data *auth)
     unsigned int env_len = 0;
     const char **penv2 = NULL;
     bool rv = false;
+#ifndef _WIN32
+    char *cmdbuf = NULL;
+#endif
 
     len = 0;
     err = gensio_control(io, 0, GENSIO_CONTROL_GET, GENSIO_CONTROL_SERVICE,
@@ -2272,7 +2275,12 @@ new_rem_io(struct gensio *io, struct auth_data *auth)
     }
     if (strstartswith(service, "program:")) {
 	char *str = strchr(service, ':'), **svals;
+#ifdef _WIN32
 	unsigned int nsvals;
+#else
+	gensiods pos, alloclen;
+	char dummy[1];
+#endif
 
 	if (!str) {
 	    gensio_time timeout = {10, 0};
@@ -2293,6 +2301,7 @@ new_rem_io(struct gensio *io, struct auth_data *auth)
 				io, &timeout, true);
 	    goto out_free;
 	}
+#ifdef _WIN32
 	for (nsvals = 0; svals[nsvals]; nsvals++)
 	    ;
 	progv = o->zalloc(o, (3 + nsvals) * sizeof(*progv));
@@ -2302,11 +2311,7 @@ new_rem_io(struct gensio *io, struct auth_data *auth)
 	    goto out_free;
 	}
 	progv[0] = auth->ushell;
-#ifdef _WIN32
 	progv[1] = "/c";
-#else
-	progv[1] = "-c";
-#endif
 	for (nsvals = 0; svals[nsvals]; nsvals++) {
 	    /*
 	     * We need a way to keep an empty parameter from looking
@@ -2320,6 +2325,30 @@ new_rem_io(struct gensio *io, struct auth_data *auth)
 		progv[nsvals + 2] = svals[nsvals];
 	}
 	progv[nsvals + 2] = NULL;
+#else
+	progv = o->zalloc(o, 4 * sizeof(*progv));
+	if (!progv) {
+	    free(svals);
+	    log_event(LOG_ERR, "Could not allocate progv memory");
+	    goto out_free;
+	}
+
+	pos = 0;
+	alloclen = gensio_argv_snprintf(dummy, 0, &pos, (const char **) svals);
+	cmdbuf = o->zalloc(o, alloclen + 1);
+	if (!cmdbuf) {
+	    free(svals);
+	    log_event(LOG_ERR, "Could not allocate progv memory");
+	    goto out_free;
+	}
+	pos = 0;
+	gensio_argv_snprintf(cmdbuf, alloclen + 1, &pos, (const char **) svals);
+
+	progv[0] = auth->ushell;
+	progv[1] = "-c";
+	progv[2] = cmdbuf;
+	progv[3] = NULL;
+#endif
 	free(svals);
 
 	/* Dummy out the program, we will set it later with a control. */
@@ -2622,7 +2651,11 @@ new_rem_io(struct gensio *io, struct auth_data *auth)
     if (penv2)
 	gensio_argv_free(o, penv2);
     if (progv)
-	o->free(o, progv); /* Entries are from the service string. */
+	o->free(o, progv); /* Entries are from the service string or cndbuf. */
+#ifndef _WIN32
+    if (cmdbuf)
+	o->free(o, cmdbuf);
+#endif
     if (service)
 	o->free(o, service);
     if (s)
