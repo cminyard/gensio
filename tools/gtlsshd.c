@@ -233,9 +233,8 @@ startup_mdns(struct gensio_os_funcs *o)
     }
 
     if (err) {
-	if (hostname)
-	    free(hostname);
 	log_event(LOG_ERR, "Unable to start MDNS: %s", gensio_err_to_str(err));
+	goto out_free;
     }
     err = gensio_mdns_add_service(mdns, -1,
 				  GENSIO_NETTYPE_UNSPEC,
@@ -249,6 +248,7 @@ startup_mdns(struct gensio_os_funcs *o)
 	gensio_free_mdns(mdns, NULL, NULL);
 	mdns = NULL;
     }
+ out_free:
     if (hostname)
 	free(hostname);
 }
