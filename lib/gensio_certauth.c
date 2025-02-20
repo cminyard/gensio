@@ -46,6 +46,7 @@ struct gensio_certauth_filter_data {
     bool allow_authfail;
     bool use_child_auth;
     bool enable_password;
+    bool require_password;
     bool do_2fa; /* Ask for two-factor authentication, version 2+ */
 
     /* Amount of time in which the connection process must complete. */
@@ -492,6 +493,9 @@ struct certauth_filter {
 
     /* Enable password authentication. */
     bool enable_password;
+
+    /* Require password authentication, even if certificate passed. */
+    bool require_password;
 
     /* Enable 2-factor authentication. */
     bool do_2fa;
@@ -1450,6 +1454,11 @@ certauth_try_connect(struct gensio_filter *filter, gensio_time *timeout,
 	    if (sfilter->verified &&
 			sfilter->response_result == CERTAUTH_RESULT_SUCCESS) {
 		sfilter->result = CERTAUTH_RESULT_SUCCESS;
+		if (sfilter->require_password) {
+		    /* User still wants to do password authentication. */
+		    req = CERTAUTH_PASSWORD_TYPE_REQ;
+		    goto try_password2;
+		}
 	    }
 	}
 
@@ -1464,6 +1473,7 @@ certauth_try_connect(struct gensio_filter *filter, gensio_time *timeout,
 	    req = CERTAUTH_PASSWORD_TYPE_REQ;
 	else
 	    req = CERTAUTH_PASSWORD_TYPE_DUMMY;
+    try_password2:
 	/* Request 2 factor authentication data. */
 	if (sfilter->do_2fa)
 	    req |= CERTAUTH_PASSWORD_TYPE_BIT_2FA;
@@ -1595,13 +1605,13 @@ certauth_try_connect(struct gensio_filter *filter, gensio_time *timeout,
 
     case CERTAUTH_PASSWORD:
 	if (sfilter->do_2fa && !sfilter->val_2fa) {
-	    /* Remote end didn't send a password and we requested one. */
+	    /* Remote end didn't send 2fa and we requested one. */
 	    gca_log_err(sfilter, "Remote client didn't send 2fa data");
 	    sfilter->pending_err = GE_DATAMISSING;
 	    goto finish_result;
 	}
 
-	if (sfilter->result) {
+	if (sfilter->result && !sfilter->require_password) {
 	    /* Already verified by certificate, the password was for show. */
 	    if (sfilter->val_2fa
 			&& sfilter->result == CERTAUTH_RESULT_SUCCESS) {
@@ -1611,7 +1621,8 @@ certauth_try_connect(struct gensio_filter *filter, gensio_time *timeout,
 	    goto finish_result;
 	}
 
-	if (sfilter->enable_password && !sfilter->password) {
+	if ((sfilter->enable_password || sfilter->require_password)
+		&& !sfilter->password) {
 	    /* Remote end didn't send a password and we requested one. */
 	    gca_log_err(sfilter, "Remote client didn't send password");
 	    sfilter->pending_err = GE_DATAMISSING;
@@ -2559,7 +2570,8 @@ gensio_certauth_filter_raw_alloc(struct gensio_os_funcs *o,
 				 const char *val_2fa, gensiods len_2fa,
 				 const char *service,
 				 bool allow_authfail, bool use_child_auth,
-				 bool enable_password, bool do_2fa,
+				 bool enable_password, bool require_password,
+				 bool do_2fa,
 				 gensio_time con_timeout,
 				 struct gensio_filter **rfilter)
 {
@@ -2575,6 +2587,7 @@ gensio_certauth_filter_raw_alloc(struct gensio_os_funcs *o,
     sfilter->allow_authfail = allow_authfail;
     sfilter->use_child_auth = use_child_auth;
     sfilter->enable_password = enable_password;
+    sfilter->require_password = require_password;
     sfilter->do_2fa = do_2fa;
     sfilter->con_timeout = con_timeout;
     sfilter->my_version = GENSIO_CERTAUTH_VERSION;
@@ -2748,6 +2761,12 @@ gensio_certauth_filter_config(struct gensio_pparm_info *p,
 	return rv;
     data->enable_password = ival;
 
+    rv = gensio_get_default(o, "certauth", "require-password", false,
+			    GENSIO_DEFAULT_BOOL, NULL, &ival);
+    if (rv)
+	return rv;
+    data->require_password = ival;
+
     rv = gensio_get_default(o, "certauth", "mode", false,
 			    GENSIO_DEFAULT_STR, &fstr, NULL);
     if (rv) {
@@ -2834,6 +2853,9 @@ gensio_certauth_filter_config(struct gensio_pparm_info *p,
 	    continue;
 	if (gensio_pparm_bool(p, args[i], "enable-password",
 			      &data->enable_password) > 0)
+	    continue;
+	if (gensio_pparm_bool(p, args[i], "require-password",
+			      &data->require_password) > 0)
 	    continue;
 	if (gensio_pparm_bool(p, args[i], "enable-2fa",
 			      &data->do_2fa) > 0)
@@ -3102,6 +3124,7 @@ gensio_certauth_filter_alloc(struct gensio_certauth_filter_data *data,
 					  data->allow_authfail,
 					  data->use_child_auth,
 					  data->enable_password,
+					  data->require_password,
 					  data->do_2fa, data->con_timeout,
 					  &filter);
     if (rv)
