@@ -80,6 +80,7 @@ static unsigned int debug;
 static bool oneshot;
 static bool permit_root = false;
 static bool pw_login = false;
+static bool req_pw = false;
 static bool do_2fa = false;
 static bool ginteractive_login = true;
 static bool use_login = USE_LOGIN_PROGRAM;
@@ -1176,7 +1177,7 @@ setup_auth(struct auth_data *auth)
     pn = progname;
     if (pam_service)
 	pn = pam_service;
-    else if (pam_cert_auth_progname && auth->authed_by_cert)
+    else if (pam_cert_auth_progname && (auth->authed_by_cert && !req_pw))
 	pn = pam_cert_auth_progname;
     auth->pam_conv.appdata_ptr = auth;
     auth->pam_err = pam_start(pn, auth->username, &auth->pam_conv, &auth->pamh);
@@ -1214,7 +1215,8 @@ finish_auth(struct auth_data *auth)
 	return GE_AUTHREJECT;
     }
 
-    if (!gensio_is_authenticated(auth->rem_io) || pam_cert_auth_progname) {
+    if (!gensio_is_authenticated(auth->rem_io) || req_pw ||
+		pam_cert_auth_progname) {
 	int tries = 3;
 
 	if (!auth->interactive_login)
@@ -1955,10 +1957,10 @@ switch_to_user(struct auth_data *auth)
 
 	CloseHandle(auth->userh);
 	auth->userh = NULL;
+	err = GetLastError();
 	FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM, NULL,
-		      GetLastError(), 0, errbuf, sizeof(errbuf), NULL);
+		      err, 0, errbuf, sizeof(errbuf), NULL);
 	log_event(LOG_ERR, "Could not set thread user: %s", errbuf);
-	return gensio_os_err_to_err(auth->ginfo->o, GetLastError());
     }
  out_win_err:
     if (err)
@@ -2183,7 +2185,7 @@ certauth_event(struct gensio *io, void *user_data, int event, int ierr,
 	     * don't log on with a password, and we don't want to have
 	     * to ask for one on certificate logons.
 	     */
-	    {
+	    if (!req_pw) {
 		char *pwfile = alloc_sprintf("%s%c.gtlssh%cpassword",
 					     auth->homedir, DIRSEP, DIRSEP);
 		size_t flen = 100;
@@ -2758,7 +2760,7 @@ handle_new(struct gensio *net_io)
     int err;
     const char *ssl_args[] = { ginfo->key, ginfo->cert, "mode=server", NULL };
     const char *certauth_args[] = { "mode=server", "allow-authfail", NULL,
-				    NULL, NULL };
+				    NULL, NULL, NULL };
     struct gensio *ssl_io = NULL, *certauth_io = NULL, *top_io = NULL;
     struct auth_data *auth;
     gensiods len;
@@ -2811,6 +2813,9 @@ handle_new(struct gensio *net_io)
     i = 2;
     if (pw_login)
 	certauth_args[i++] = "enable-password";
+
+    if (req_pw)
+	certauth_args[i++] = "require-password";
 
     if (do_2fa)
 	certauth_args[i++] = "enable-2fa";
@@ -2952,6 +2957,13 @@ handle_new(struct gensio *net_io)
 
     if (strstartswith(tmpservice, "login:"))
 	auth->interactive = true;
+
+    if (req_pw && !auth->passwd) {
+	log_event(LOG_ERR, "Password required, but none given for '%s'",
+		  auth->username);
+	err = GE_AUTHREJECT;
+	goto out_err;
+    }
 
     err = finish_auth(auth);
     if (err)
@@ -3291,6 +3303,7 @@ help(int err)
     printf("      Default is %s\n", keyfile);
     printf("  --permit-root - Allow root logins.\n");
     printf("  --allow-password - Allow password-based logins.\n");
+    printf("  --require-password - Use passwords even when certificates pass.\n");
     printf("  --oneshot - Do not fork new connections, do one and exit.\n");
     printf("  --nodaemon - Do not daemonize.\n");
     printf("  --nointeractive - Do not do interactive login queries.\n");
@@ -3406,6 +3419,8 @@ main(int argc, char *argv[])
 	    permit_root = true;
 	else if ((rv = cmparg(argc, argv, &arg, NULL, "--allow-password", NULL)))
 	    pw_login = true;
+	else if ((rv = cmparg(argc, argv, &arg, NULL, "--require-password", NULL)))
+	    req_pw = true;
 	else if ((rv = cmparg(argc, argv, &arg, NULL, "--do-2fa", NULL)))
 	    do_2fa = true;
 #ifdef HAVE_LIBPAM
