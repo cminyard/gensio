@@ -59,6 +59,8 @@ static bool do_check_private = false;
 static bool do_check_private = true;
 #endif
 
+static bool nointeractive_pw = false;
+
 struct gdata {
     struct gensio_os_funcs *o;
     struct gensio_waiter *waiter;
@@ -192,7 +194,7 @@ setup_promptuser(struct gdata *ginfo, const char *prompt, struct gensio **rtty)
     int err;
     const char *constr = "stdio(console,raw)";
 
-    if (aux_data.flags & GTLSSH_AUX_FLAG_NO_INTERACTIVE)
+    if (aux_data.flags & GTLSSH_AUX_FLAG_NO_INTERACTIVE && !nointeractive_pw)
 	return GE_KEYNOTFOUND;
 
     err = str_to_gensio(constr, ginfo->o, NULL, NULL, &tty);
@@ -394,6 +396,7 @@ help(int err)
     printf("    for detail on how to do regex, glob, etc.\n");
     printf("  --2fa <str> - Pass the given string as 2-factor auth data.\n");
     printf("  --nointeractive - Do not do interactive login queries.\n");
+    printf("  --nointeractive-pw - Allow pw prompt even with nointeractive.\n");
     printf("  -d, --debug - Enable debug.  Specify more than once to increase\n"
 	   "    the debug level\n");
     printf("  -L <accept addr>:<connect addr> - Listen at the <accept addr>\n"
@@ -1938,6 +1941,9 @@ main(int argc, char *argv[])
 	} else if ((err = cmparg(argc, argv, &arg, NULL, "--nointeractive",
 				 NULL))) {
 	    aux_data.flags |= GTLSSH_AUX_FLAG_NO_INTERACTIVE;
+	} else if ((err = cmparg(argc, argv, &arg, NULL, "--nointeractive-pw",
+				 NULL))) {
+	    nointeractive_pw = true;
 	} else if ((err = cmparg(argc, argv, &arg, NULL, "--privileged",
 				 NULL))) {
 	    aux_data.flags |= GTLSSH_AUX_FLAG_PRIVILEGED;
