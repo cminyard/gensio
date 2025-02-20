@@ -1235,7 +1235,7 @@ argv_to_win_cmdline(struct gensio_os_funcs *o, const char *argv[],
      * We do a complicated check for the echo command, because the
      * quoting is different just for that command.
      */
-    for (i = 0; argv[i]; i++) {
+    for (i = 0; argv[i];) {
 	bool is_powershell = false;
 
 	is_echo_cmd = strcasecmp(argv[i], "echo") == 0;
