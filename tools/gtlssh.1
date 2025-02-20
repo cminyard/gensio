@@ -62,7 +62,7 @@ transport.  In this case, the
 is required but the hostname part is ignored.  This is so the username
 can be set, if required.
 .TP
-.I \m|\-\-mdns
+.I \-m|\-\-mdns
 Look up the name using mDNS.  This will fetch then IP address, IPv4 or
 IPv6, the port number and whether telnet is required and make the
 connection
@@ -75,6 +75,14 @@ etc.
 .I \-\-nomux
 Don't use a mux gensio.  This may cause issues with gtlsshd, but is
 useful in some cases for talking with ser2net with no mux support.
+.TP
+.I \-\-nointeractive
+Not an interactive login, for programs and such.  Do not prompt for
+passwords or do any other interactive operations.
+.TP
+.I \-\-nointeractive\-pw
+If nointeractive is set, allow for prompting for a password on the
+console.  You will only get one time to enter the password correctly.
 .TP
 .I \-\-privileged
 .TP
