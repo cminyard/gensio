@@ -1301,6 +1301,11 @@ password if asked for one.  By default passwords are disabled.
 Use of passwords is much less secure than certificates, so this
 is discouraged.
 .TP
+.B require-password[=true|false]
+On the server, also require a password for login if certificates pass.
+This is useful on Windows systems where a password is pretty much
+required to log in but you still want certificate authentication.
+.TP
 .B enable-2fa[=true|false]
 On the server, request 2-factor authentication data from the client.
 This is only useful for situations where the 2-factor data is known
