@@ -78,6 +78,16 @@ Allow password logins.  By default only certificate-based logins
 are allowed.  Passwords are much less secure than certificate
 logins, so their use is discouraged.
 .TP
+.I \-\-require\-password
+Require a password in addition to certificate logins.  This is
+primarily for Windows systems that really need a password to be able
+to log in properly.
+
+On Unix system, you generally use PAM for this, but if you set up PAM
+to require passwords even with certificates, you should also set this
+option so the password is transferred as part of the authentication
+protocol and not interactively.
+.TP
 .I \-\-do\-2fa
 Enable 2-factor authentication.  This means that 2-factor
 authentication is enabled in PAM for gtlssh.  This will cause the

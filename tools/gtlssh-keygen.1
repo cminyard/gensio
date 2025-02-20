@@ -63,15 +63,24 @@ if you connect to the specific target on the specific port.  This
 could be useful for ser2net.
 .SH WINDOWS HACKS
 gtlsshd will work on Windows, and it will sort of work without a
-password, but certain things will not work as the logon has no stored
-credentials, and it is unable to create a linked token for admin
-logins so you can't do admin things.
+password (certificate-only login), but certain things will not work as
+the logon has no stored credentials, and it is unable to create a
+linked token for admin logins so you can't do admin things.
 
-To work around this issue and still allow certificate logins, you can
-use the storepw command of gtlssh-keygen to store your password in
-your .gtlssh directory.  This is not ideal, but your private keys are
-there, anyway, so it's not a huge thing.  Administrators on your
-system will be able to look at your password, so be warned.
+You have two options to work around this issue and still allow
+certificate logins:
+
+You can use the storepw command of gtlssh-keygen to store your
+password in your .gtlssh directory.  This is not ideal, but your
+private keys are there, anyway, so it's not a huge thing.
+Administrators on your system will be able to look at your password,
+so be warned.
+
+You can use the --require-password option to gtlsshd.  This will
+prompt you for the password even if the certificate passes validation.
+This defeats one purpose of having a certificate, not having to enter
+a password, but still provides the major benefit of certificate-level
+authentication, in that it's more secure.
 .SH OPTIONS
 .TP
 .I \-\-keysize size
