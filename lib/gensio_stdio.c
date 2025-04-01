@@ -860,8 +860,10 @@ stdion_free(struct gensio *io)
 	schan->close_done = NULL;
 	stdiona_unlock(nadata);
     } else if (schan->closed) {
+	stdiona_unlock(nadata);
 	gensio_data_free(schan->io);
 	schan->io = NULL;
+	stdiona_lock(nadata);
 	stdiona_deref_and_unlock(nadata);
     } else {
 	i_stdion_close(schan, NULL, NULL);
