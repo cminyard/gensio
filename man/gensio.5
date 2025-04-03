@@ -832,7 +832,9 @@ section above for notes on ordering of lines.
 Lower/don't lower the modem control lines when the gensio is closed.
 The default is not modify the value.  On Unix, this will modify HUPCL
 value set on the termios after close, because there's no other real
-way to do that.  On Windows, it will clear DTR and RTS on close.
+way to do that.  On Windows, it will cause DTR and RTS to be asserted
+on startup and be cleared on close.  By default this is false on
+Windows, since it has no such concept internally.
 
 On the default for this, it's a integer, -1 means don't set the value,
 0 means turn off, 1 means turn on.

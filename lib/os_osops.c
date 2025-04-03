@@ -775,6 +775,12 @@ struct gensio_win_commport
     BOOL dtr_set;
     BOOL rts_set;
 
+    /*
+     * On the first apply some special handling is done with DTR and
+     * RTS.
+     */
+    BOOL first_applied;
+
     BOOL break_timer_running;
     HANDLE break_timer;
 };
@@ -835,12 +841,6 @@ gensio_win_setup_commport(struct gensio_os_funcs* o, HANDLE h,
     if (!EscapeCommFunction(h, CLRBREAK))
 	goto out_err;
     c->break_set = FALSE;
-    if (!EscapeCommFunction(h, SETRTS))
-	goto out_err;
-    c->rts_set = TRUE;
-    if (!EscapeCommFunction(h, SETDTR))
-	goto out_err;
-    c->dtr_set = TRUE;
 
     /* Break timer */
     c->break_timer = CreateWaitableTimer(NULL, FALSE, NULL);
@@ -1032,6 +1032,17 @@ gensio_win_commport_control(struct gensio_os_funcs *o, int op, bool get,
     case GENSIO_IOD_CONTROL_APPLY:
 	if (!SetCommState(h, &(*c)->curr_dcb))
 	    goto out_err;
+	if (!(*c)->first_applied) {
+	    (*c)->first_applied = TRUE;
+	    if ((*c)->hupcl) {
+		if (!EscapeCommFunction(h, SETRTS))
+		    goto out_err;
+		(*c)->rts_set = TRUE;
+		if (!EscapeCommFunction(h, SETDTR))
+		    goto out_err;
+		(*c)->dtr_set = TRUE;
+	    }
+	}
 	break;
 
     case GENSIO_IOD_CONTROL_SET_BREAK:
