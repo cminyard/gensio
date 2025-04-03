@@ -19,8 +19,8 @@ else:
     fast_baud = "115200"
     timeout = 100000
 
-io1 = alloc_io(o, "mux(mode=server),relpkt(mode=server),msgdelim,serialdev," + ttypipe[0] + "," + fast_baud, do_open = False)
-io2 = alloc_io(o, "mux,relpkt,msgdelim,serialdev," + ttypipe[1] + "," + fast_baud, do_open = False)
+io1 = alloc_io(o, "mux(mode=server),relpkt(mode=server),msgdelim,serialdev," + ttypipe[0] + "," + fast_baud + ",hangup-when-done", do_open = False)
+io2 = alloc_io(o, "mux,relpkt,msgdelim,serialdev," + ttypipe[1] + "," + fast_baud + ",hangup-when-done", do_open = False)
 TestConCon(o, io1, io2, do_medium_test, "relpkt1",
            expected_raddr1 = ttypipe[0] + "," + fast_baud + "N81 RTSHI DTRHI",
            expected_raddr1b = ttypipe[0] + "," + fast_baud + "N81,HANGUP_WHEN_DONE RTSHI DTRHI",
