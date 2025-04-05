@@ -505,7 +505,7 @@ class HandleData:
             if (not self.expecting_modemstate_mask):
                 if (debug or self.debug):
                     print("Got unexpected modemstate mask for %s: %x" %
-                          (self.name, modemstate))
+                          (self.name, modemstate_mask))
                 self.enqueue("unexpected modemstate mask", modemstate_mask)
                 return
             if (modemstate_mask != self.expected_modemstate_mask):
