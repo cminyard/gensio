@@ -114,6 +114,18 @@ def check_serialsim_pipe(io1, io2):
     if (io1.handler.wait_timeout(2000) == 0):
         raise Exception("%s: %s: Timed out waiting for modemstate 7" %
                         ("test dtr", io1.handler.name))
+
+    io1.handler.set_expected_modemstate(
+        gensio.GENSIO_SER_MODEMSTATE_CD_CHANGED |
+        gensio.GENSIO_SER_MODEMSTATE_DSR_CHANGED |
+        gensio.GENSIO_SER_MODEMSTATE_CTS_CHANGED)
+    io2.acontrol_s(0, gensio.GENSIO_CONTROL_SET, gensio.GENSIO_ACONTROL_SER_DTR,
+                   "off", -1);
+    io2.acontrol_s(0, gensio.GENSIO_CONTROL_SET, gensio.GENSIO_ACONTROL_SER_RTS,
+                   "off", -1);
+    if (io1.handler.wait_timeout(2000) == 0):
+        raise Exception("%s: %s: Timed out waiting for modemstate 7" %
+                        ("test dtr", io1.handler.name))
     pass
 
 # Normal NULL modem serial port pair, do what we can.
@@ -181,7 +193,42 @@ else:
     check_normal_pipe(io1, io2)
     pass
 
-io_close((io1, io2))
+# Now test HUPCL
+
+io1.handler.set_expected_modemstate(
+    gensio.GENSIO_SER_MODEMSTATE_CTS_CHANGED |
+    gensio.GENSIO_SER_MODEMSTATE_CD_CHANGED |
+    gensio.GENSIO_SER_MODEMSTATE_DSR_CHANGED |
+    gensio.GENSIO_SER_MODEMSTATE_CD |
+    gensio.GENSIO_SER_MODEMSTATE_DSR |
+    gensio.GENSIO_SER_MODEMSTATE_CTS)
+
+io_close((io2,))
+
+# Give time for Windows to handle the close to avoid a permissions error.
+waiter = gensio.waiter(o)
+waiter.wait_timeout(1, 1000)
+del waiter
+
+io2str = "serialdev," + ttypipe[1] + ",9600N81,hangup-when-done=on,rtscts=off"
+io2 = alloc_io(o, io2str)
+
+if (io1.handler.wait_timeout(2000) == 0):
+    raise Exception("%s: %s: Timed out waiting for modemstate 100" %
+                    ("test hupcl", io1.handler.name))
+
+io1.handler.set_expected_modemstate(
+    gensio.GENSIO_SER_MODEMSTATE_CTS_CHANGED |
+    gensio.GENSIO_SER_MODEMSTATE_CD_CHANGED |
+    gensio.GENSIO_SER_MODEMSTATE_DSR_CHANGED)
+
+io_close((io2,))
+
+if (io1.handler.wait_timeout(2000) == 0):
+    raise Exception("%s: %s: Timed out waiting for modemstate 101" %
+                    ("test hupcl", io1.handler.name))
+
+io_close((io1,))
 del io1
 del io2
 del o
