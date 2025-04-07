@@ -770,15 +770,16 @@ struct gensio_win_commport
     BOOL orig_timeouts_set;
     COMMTIMEOUTS orig_timeouts;
 
-    BOOL hupcl;
+    /*
+     * Windows has no way to fetch if break, dtr, or rts is set.  So
+     * try to keep track of it as best as possible.
+     */
     BOOL break_set;
     BOOL dtr_set;
+    BOOL dtr_val;
     BOOL rts_set;
+    BOOL rts_val;
 
-    /*
-     * On the first apply some special handling is done with DTR and
-     * RTS.
-     */
     BOOL first_applied;
 
     BOOL break_timer_running;
@@ -821,25 +822,29 @@ gensio_win_setup_commport(struct gensio_os_funcs* o, HANDLE h,
     t->fBinary = TRUE;
     t->BaudRate = 9600;
     t->fParity = NOPARITY;
-    t->fDtrControl = DTR_CONTROL_ENABLE;
     t->fDsrSensitivity = TRUE;
     t->fTXContinueOnXoff = FALSE;
     t->fOutX = FALSE;
     t->fInX = FALSE;
     t->fErrorChar = FALSE;
     t->fNull = FALSE;
-    t->fRtsControl = RTS_CONTROL_ENABLE;
     t->fOutxCtsFlow = FALSE;
     t->fAbortOnError = FALSE;
     t->XonLim = 50;
     t->XoffLim = 50;
     t->ByteSize = 8;
     t->StopBits = ONESTOPBIT;
-    if (!SetCommState(h, &c->curr_dcb))
-	goto out_err;
-    /* FIXME - Can the following be restored? */
-    if (!EscapeCommFunction(h, CLRBREAK))
-	goto out_err;
+    if (t->fDtrControl == DTR_CONTROL_ENABLE) {
+	c->dtr_val = 1;
+	c->rts_val = 1;
+	t->fRtsControl = RTS_CONTROL_ENABLE;
+    } else {
+	c->dtr_val = 0;
+	c->rts_val = 0;
+	/* Note that we don't support DTR_CONTROL_HANDSHAKE. */
+	t->fDtrControl = DTR_CONTROL_DISABLE;
+	t->fRtsControl = RTS_CONTROL_DISABLE;
+    }
     c->break_set = FALSE;
 
     /* Break timer */
@@ -879,10 +884,6 @@ gensio_win_cleanup_commport(struct gensio_os_funcs *o, HANDLE h,
 	SetCommState(h, &(*c)->orig_dcb);
     if ((*c)->orig_timeouts_set)
 	SetCommTimeouts(h, &(*c)->orig_timeouts);
-    if ((*c)->hupcl) {
-	EscapeCommFunction(h, CLRDTR);
-	EscapeCommFunction(h, CLRRTS);
-    }
     o->free(o, *c);
     *c = NULL;
 }
@@ -969,9 +970,14 @@ gensio_win_commport_control(struct gensio_os_funcs *o, int op, bool get,
 	if (get) {
 	    *((int *) val) = t->fOutxCtsFlow;
 	} else {
+	    /* Will get applied later. */
 	    t->fOutxCtsFlow = !!val;
 	    if (val)
 		t->fRtsControl = RTS_CONTROL_HANDSHAKE;
+	    else if (t->fDtrControl == DTR_CONTROL_ENABLE)
+		t->fRtsControl = RTS_CONTROL_ENABLE;
+	    else
+		t->fRtsControl = RTS_CONTROL_DISABLE;
 	}
 	break;
 
@@ -1009,9 +1015,39 @@ gensio_win_commport_control(struct gensio_os_funcs *o, int op, bool get,
 
     case GENSIO_IOD_CONTROL_HANGUP_ON_DONE:
 	if (get) {
-	    *((int *) val) = (*c)->hupcl;
+	    *((int *) val) = t->fDtrControl == DTR_CONTROL_ENABLE;
 	} else {
-	    (*c)->hupcl = val;
+	    int oldval = t->fDtrControl == DTR_CONTROL_ENABLE;
+	    val = !!val;
+
+	    if (val != oldval) {
+		if (val) {
+		    t->fDtrControl = DTR_CONTROL_ENABLE;
+		    (*c)->dtr_val = TRUE;
+		    if (t->fRtsControl == RTS_CONTROL_DISABLE) {
+			t->fRtsControl = RTS_CONTROL_ENABLE;
+			(*c)->rts_val = TRUE;
+		    }
+		    /*
+		     * If the user explicitly sets this, we must set it in
+		     * the original as well as in the current DCB, or it
+		     * won't work because we will restore it to it's original
+		     * value which might not cause the desired behavior.
+		     */
+		    (*c)->orig_dcb.fDtrControl = DTR_CONTROL_ENABLE;
+		    (*c)->orig_dcb.fDtrControl = RTS_CONTROL_ENABLE;
+		} else {
+		    t->fDtrControl = DTR_CONTROL_DISABLE;
+		    (*c)->dtr_val = FALSE;
+		    if (t->fRtsControl == RTS_CONTROL_ENABLE) {
+			t->fRtsControl = RTS_CONTROL_DISABLE;
+			(*c)->rts_val = FALSE;
+		    }
+		    /* See comment above on this. */
+		    (*c)->orig_dcb.fDtrControl = DTR_CONTROL_DISABLE;
+		    (*c)->orig_dcb.fDtrControl = RTS_CONTROL_DISABLE;
+		}
+	    }
 	}
 	break;
 
@@ -1032,29 +1068,47 @@ gensio_win_commport_control(struct gensio_os_funcs *o, int op, bool get,
     case GENSIO_IOD_CONTROL_APPLY:
 	if (!SetCommState(h, &(*c)->curr_dcb))
 	    goto out_err;
-	if (!(*c)->first_applied) {
-	    (*c)->first_applied = TRUE;
-	    if ((*c)->hupcl) {
+
+	if ((*c)->break_set) {
+	    if (!EscapeCommFunction(h, SETBREAK))
+		goto out_err;
+	} else {
+	    if (!EscapeCommFunction(h, CLRBREAK))
+		goto out_err;
+	}
+	if ((*c)->rts_set) {
+	    if ((*c)->rts_val) {
 		if (!EscapeCommFunction(h, SETRTS))
 		    goto out_err;
-		(*c)->rts_set = TRUE;
-		if (!EscapeCommFunction(h, SETDTR))
+	    } else {
+		if (!EscapeCommFunction(h, CLRRTS))
 		    goto out_err;
-		(*c)->dtr_set = TRUE;
 	    }
 	}
+	if ((*c)->dtr_set) {
+	    if ((*c)->dtr_val) {
+		if (!EscapeCommFunction(h, SETDTR))
+		    goto out_err;
+	    } else {
+		if (!EscapeCommFunction(h, CLRDTR))
+		    goto out_err;
+	    }
+	}
+	(*c)->first_applied = TRUE;
 	break;
 
     case GENSIO_IOD_CONTROL_SET_BREAK:
 	if (get) {
 	    *((int *) val) = (*c)->break_set;
 	} else {
-	    if (val) {
-		if (!EscapeCommFunction(h, SETBREAK))
-		    goto out_err;
-	    } else {
-		if (!EscapeCommFunction(h, CLRBREAK))
-		    goto out_err;
+	    if ((*c)->first_applied) {
+		if (val) {
+		    if (!EscapeCommFunction(h, SETBREAK))
+			goto out_err;
+		} else {
+		    if (!EscapeCommFunction(h, CLRBREAK))
+			goto out_err;
+		}
 	    }
 	    (*c)->break_set = val;
 	}
@@ -1079,31 +1133,37 @@ gensio_win_commport_control(struct gensio_os_funcs *o, int op, bool get,
 
     case GENSIO_IOD_CONTROL_DTR:
 	if (get) {
-	    *((int *) val) = (*c)->dtr_set;
-	} else {
-	    if (val) {
-		if (!EscapeCommFunction(h, SETDTR))
-		    goto out_err;
-	    } else {
-		if (!EscapeCommFunction(h, CLRDTR))
-		    goto out_err;
+	    *((int *) val) = (*c)->dtr_val;
+	} else if (!!val != (*c)->dtr_val || !(*c)->dtr_set) {
+	    if ((*c)->first_applied) {
+		if (val) {
+		    if (!EscapeCommFunction(h, SETDTR))
+			goto out_err;
+		} else {
+		    if (!EscapeCommFunction(h, CLRDTR))
+			goto out_err;
+		}
 	    }
-	    (*c)->dtr_set = val;
+	    (*c)->dtr_val = !!val;
+	    (*c)->dtr_set = TRUE;
 	}
 	break;
 
     case GENSIO_IOD_CONTROL_RTS:
 	if (get) {
-	    *((int *) val) = (*c)->rts_set;
+	    *((int *) val) = (*c)->rts_val;
 	} else {
-	    if (val) {
-		if (!EscapeCommFunction(h, SETRTS))
-		    goto out_err;
-	    } else {
-		if (!EscapeCommFunction(h, CLRRTS))
-		    goto out_err;
+	    if ((*c)->first_applied) {
+		if (val) {
+		    if (!EscapeCommFunction(h, SETRTS))
+			goto out_err;
+		} else {
+		    if (!EscapeCommFunction(h, CLRRTS))
+			goto out_err;
+		}
 	    }
-	    (*c)->rts_set = val;
+	    (*c)->rts_val = !!val;
+	    (*c)->rts_set = TRUE;
 	}
 	break;
 
@@ -1111,17 +1171,21 @@ gensio_win_commport_control(struct gensio_os_funcs *o, int op, bool get,
 	DWORD dval;
 	int rval = 0;
 
-	if (!GetCommModemStatus(h, &dval))
-	    goto out_err;
-	if (dval & MS_CTS_ON)
-	    rval |= GENSIO_SER_MODEMSTATE_CTS;
-	if (dval & MS_DSR_ON)
-	    rval |= GENSIO_SER_MODEMSTATE_DSR;
-	if (dval & MS_RING_ON)
-	    rval |= GENSIO_SER_MODEMSTATE_RI;
-	if (dval & MS_RLSD_ON)
-	    rval |= GENSIO_SER_MODEMSTATE_CD;
-	*((int *) val) = rval;
+	if (!get) {
+	    rv = GE_NOTSUP;
+	} else {
+	    if (!GetCommModemStatus(h, &dval))
+		goto out_err;
+	    if (dval & MS_CTS_ON)
+		rval |= GENSIO_SER_MODEMSTATE_CTS;
+	    if (dval & MS_DSR_ON)
+		rval |= GENSIO_SER_MODEMSTATE_DSR;
+	    if (dval & MS_RING_ON)
+		rval |= GENSIO_SER_MODEMSTATE_RI;
+	    if (dval & MS_RLSD_ON)
+		rval |= GENSIO_SER_MODEMSTATE_CD;
+	    *((int *) val) = rval;
+	}
 	break;
     }
 
