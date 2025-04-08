@@ -2,7 +2,7 @@
 ; SEE THE DOCUMENTATION FOR DETAILS ON CREATING INNO SETUP SCRIPT FILES!
 
 #define MyAppName "Gensio"
-#define MyAppVersion "2.8.13"
+#define MyAppVersion "2.8.14"
 ; This should match "C - A" in the GENSIO_LIB_VERSION in the autoconf
 ; file.  So if GENSIO_LIB_VERSION is "12:0:2", this value will be "10".
 ; "C" is the first value in GENSIO_LIB_VERSION, "A" is the last.
