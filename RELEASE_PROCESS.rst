@@ -50,7 +50,10 @@ on Windows, after doing a get pull to get everything:
 
 * rm -rf $HOME/install/Gensio
 
-* I have a build directory lying around set up with "../configure".
+* I have a build directory lying around set up with:
+    ../configure --sbindir=/Gensio/bin --libexecdir=/Gensio/bin \
+        --mandir=/Gensio/man --includedir=/Gensio/include \
+	--with-pythoninstall=/Gensio/python3 --prefix=/Gensio
   From there do "make -j<x>" then "make install DESTDIR=$HOME/install".
 
 * rm $HOME/install/Gensio/lib/*.la
