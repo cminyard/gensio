@@ -48,10 +48,6 @@ extern "C" {
 GENSIO_OI_OSH_DLL_PUBLIC
 os_handler_t *gensio_openipmi_oshandler_alloc(struct gensio_os_funcs *o);
 
-GENSIO_OI_OSH_DLL_PUBLIC
-void gensio_openipmi_oshandler_free(os_handler_t *osh);
-    
-
 #ifdef __cplusplus
 }
 #endif

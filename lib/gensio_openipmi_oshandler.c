@@ -453,6 +453,15 @@ gio_get_real_time(os_handler_t *handler, struct timeval *tv)
     return 0;
 }
 
+static void
+gio_free_os_handler(os_handler_t *handler)
+{
+    struct igensio_info *info = handler->internal_data;
+
+    ipmi_free_os_handler(handler);
+    free(info);
+}
+
 void ipmi_malloc_init(os_handler_t *oshandler);
 void ipmi_malloc_shutdown(void);
 
@@ -507,16 +516,8 @@ gensio_openipmi_oshandler_alloc(struct gensio_os_funcs *o)
     handler->set_fd_enables = gio_set_fd_enables;
     handler->get_monotonic_time = gio_get_monotonic_time;
     handler->get_real_time = gio_get_real_time;
+    handler->free_os_handler = gio_free_os_handler;
 
     handler->internal_data = info;
     return handler;
 };
-
-void
-gensio_openipmi_oshandler_free(os_handler_t *handler)
-{
-    struct igensio_info *info = handler->internal_data;
-
-    ipmi_free_os_handler(handler);
-    free(info);
-}
