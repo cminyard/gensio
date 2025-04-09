@@ -48,6 +48,15 @@ else
 gensiolibexecdir = $(moduleinstalldir)/$(PACKAGE_VERSION)
 endif
 
+if HAVE_OPENIPMI
+lib_LTLIBRARIES += libgensio_openipmi_oshandler.la
+libgensio_openipmi_oshandler_la_SOURCES = gensio_openipmi_oshandler.c
+libgensio_openipmi_oshandler_la_CPPFLAGS = $(OPENIPMI_CPPFLAGS)
+libgensio_openipmi_oshandler_la_LDFLAGS = -no-undefined -version-info \
+	$(GENSIO_LIB_VERSION) -fvisibility=hidden
+libgensio_openipmi_oshandler_la_LIBADD = $(OPENIPMI_LIBS)
+endif
+
 EXTRA_LTLIBRARIES =
 gensiolibexec_LTLIBRARIES =
 DYNAMIC_LDFLAGS = -no-undefined -module -rpath "$(gensiolibexecdir)" -avoid-version
@@ -162,7 +171,8 @@ gensiolibexec_LTLIBRARIES += $(DYNAMIC_IPMISOL)
 libgensio_ipmisol_la_SOURCES = sergensio_ipmisol.c 
 libgensio_ipmisol_la_LDFLAGS = $(DYNAMIC_LDFLAGS)
 libgensio_ipmisol_la_CFLAGS = $(OPENIPMI_CPPFLAGS)
-libgensio_ipmisol_la_LIBADD = $(DYNAMIC_LIBS) $(OPENIPMI_LIBS)
+libgensio_ipmisol_la_LIBADD = $(DYNAMIC_LIBS) $(OPENIPMI_LIBS) \
+				libgensio_openipmi_oshandler.la
 
 if HAVE_MDNS
 if BUILTIN_MDNS
