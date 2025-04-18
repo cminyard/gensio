@@ -16,3 +16,8 @@ EXTRA_DIST = README.rst reconf ISSUES TODO
 AM_DISTCHECK_CONFIGURE_FLAGS=--enable-internal-trace \
 	--with-pythoninstall=$(abs_top_builddir)/$(distdir)/_inst/lib/python \
 	--with-pythoninstalllib=$(abs_top_builddir)/$(distdir)/_inst/lib/python
+
+clean_keys:
+	rm -rf c++/swig/go/tests/ca
+	rm -rf c++/swig/pygensio/tests/ca
+	rm -rf tests/ca
