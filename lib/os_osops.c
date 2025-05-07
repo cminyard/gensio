@@ -3515,34 +3515,35 @@ gensio_unix_get_bufcount(struct gensio_os_funcs *o,
 {
     int rv = 0, count;
 
-    if (isatty(fd)) {
-	switch (whichbuf) {
-	case GENSIO_IN_BUF:
+    switch (whichbuf) {
+    case GENSIO_IN_BUF:
 #ifdef TIOCINQ
-	    rv = ioctl(fd, TIOCINQ, &count);
+	rv = ioctl(fd, TIOCINQ, &count);
 #elif defined(FIONREAD)
-	    rv = ioctl(fd, FIONREAD, &count);
+	rv = ioctl(fd, FIONREAD, &count);
 #else
 #error "No way to read tty bufcount"
 #endif
-	    break;
+	break;
 
 #ifdef TIOCOUTQ
-	case GENSIO_OUT_BUF:
-	    rv = ioctl(fd, TIOCOUTQ, &count);
-	    break;
+    case GENSIO_OUT_BUF:
+	rv = ioctl(fd, TIOCOUTQ, &count);
+	break;
 #endif
 
-	default:
-	    return GE_NOTSUP;
-	}
-    } else {
-	count = 0; /* Doesn't matter for anything else. */
+    default:
+	return GE_NOTSUP;
     }
-    if (rv)
-	rv = gensio_os_err_to_err(o, errno);
-    else
+    if (rv) {
+	if (errno == EINVAL || errno == ENOTTY)
+	    /* These are special from ioctl, probably means not supported. */
+	    rv = GE_NOTSUP;
+	else
+	    rv = gensio_os_err_to_err(o, errno);
+    } else {
 	*rcount = count;
+    }
     return rv;
 }
 

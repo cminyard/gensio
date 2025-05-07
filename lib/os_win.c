@@ -3710,6 +3710,19 @@ win_bufcount(struct gensio_iod *iod, int whichbuf, gensiods *count)
 	return win_oneway_bufcount(wiod, whichbuf, count);
     if (wiod->type == GENSIO_IOD_DEV)
 	return win_twoway_bufcount(wiod, whichbuf, count);
+    if (wiod->type == GENSIO_IOD_SOCKET) {
+	struct gensio_iod_win_sock *siod = wiod_to_winsock(wiod);
+	TCP_INFO_v0 info;
+
+	rv = ioctlsocket(siod->fd, SIO_TCP_INFO, &info);
+	if (rv)
+	    return gensio_os_err_to_err(siod->iod.f, WSAGetLastError());
+	if (whichbuf == GENSIO_IN_BUF)
+	    *count = info.RcvBuf;
+	else if (whichbuf == GENSIO_OUT_BUF)
+	    *count = info.BytesInFlight;
+	else
+	    return GE_NOTSUP;
 
     return GE_NOTSUP;
 }
