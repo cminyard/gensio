@@ -405,8 +405,12 @@ The amount of data left to be transmitted.  For sound, this is in
 frames.
 
 For ax25, this is the number of pending sent frames.  If you pass in a
-"0", it will count frames for the current conneciton.  If you pass in
+"0", it will count frames for the current connection.  If you pass in
 "1", it will count frames for all connections.
+
+For network gensios, this is the number of unacked bytes in the
+transmit queue, or number of bytes in the receive queue, on the local
+side.
 .SS "SERIAL PORT CONTROLS"
 The following set various serial port values.
 
