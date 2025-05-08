@@ -1320,7 +1320,7 @@ gensio_unix_set_non_blocking(struct gensio_iod *iiod)
     return gensio_unix_do_nonblock(iiod->f, iod->fd, &iod->mode);
 }
 
-int
+static int
 gensio_unix_bufcount(struct gensio_iod *iiod, int whichbuf, gensiods *rcount)
 {
     struct gensio_iod_unix *iod = i_to_sel(iiod);

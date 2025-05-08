@@ -1127,6 +1127,7 @@ udpn_control(struct gensio *io, bool get, int option,
     struct udpn_data *ndata = gensio_get_gensio_data(io);
     struct udpna_data *nadata = ndata->nadata;
     struct gensio_os_funcs *o = nadata->o;
+    gensiods size;
     int err;
 
     switch(option) {
@@ -1259,8 +1260,20 @@ udpn_control(struct gensio *io, bool get, int option,
 	break;
     }
 
+    case GENSIO_CONTROL_DRAIN_COUNT: {
+	struct gensio_iod *iod = nadata->fds->iod;
+
+	if (!get)
+	    return GE_NOTSUP;
+	err = o->bufcount(iod, GENSIO_OUT_BUF, &size);
+	if (err)
+	    return err;
+	*datalen = snprintf(data, *datalen, "%lu", (unsigned long) size);
+	return 0;
+
     default:
 	return GE_NOTSUP;
+    }
     }
     return 0;
 }

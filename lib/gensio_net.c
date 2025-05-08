@@ -309,6 +309,15 @@ net_control(void *handler_data, struct gensio_iod *iod, bool get,
 	    tdata->do_oob = !!strtoul(data, NULL, 0);
 	return 0;
 
+    case GENSIO_CONTROL_DRAIN_COUNT:
+	if (!get)
+	    return GE_NOTSUP;
+	rv = tdata->o->bufcount(iod, GENSIO_OUT_BUF, &size);
+	if (rv)
+	    return rv;
+	*datalen = snprintf(data, *datalen, "%lu", (unsigned long) size);
+	return 0;
+
     default:
 	return GE_NOTSUP;
     }
