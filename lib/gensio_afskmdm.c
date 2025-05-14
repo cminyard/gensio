@@ -2673,6 +2673,7 @@ gensio_afskmdm_filter_alloc(struct gensio_pparm_info *p,
 			    struct gensio_os_funcs *o,
 			    struct gensio *child,
 			    const char * const args[],
+			    struct gensio_base_parms *parms,
 			    struct gensio_filter **rfilter)
 {
     struct gensio_filter *filter;
@@ -2849,6 +2850,8 @@ gensio_afskmdm_filter_alloc(struct gensio_pparm_info *p,
 	    continue;
 	if (gensio_pparm_bool(p, args[i], "crc", &data.do_crc) > 0)
 	    continue;
+	if (gensio_base_parm(parms, p, args[i]) > 0)
+	    continue;
 	gensio_pparm_unknown_parm(p, args[i]);
 	return GE_INVAL;
     }
@@ -2902,16 +2905,21 @@ afskmdm_gensio_alloc(struct gensio *child, const char *const args[],
     struct gensio_filter *filter;
     struct gensio_ll *ll;
     struct gensio *io;
+    struct gensio_base_parms *parms = NULL;
     GENSIO_DECLARE_PPGENSIO(p, o, cb, "afskmdm", user_data);
 
-    err = gensio_afskmdm_filter_alloc(&p, o, child, args, &filter);
+    err = gensio_base_parms_alloc(o, true, "afskmdm", &parms);
     if (err)
-	return err;
+	goto out_err;
+
+    err = gensio_afskmdm_filter_alloc(&p, o, child, args, parms, &filter);
+    if (err)
+	goto out_err;
 
     ll = gensio_gensio_ll_alloc(o, child);
     if (!ll) {
 	gensio_filter_free(filter);
-	return GE_NOMEM;
+	goto out_nomem;
     }
 
     gensio_ref(child); /* So gensio_ll_free doesn't free the child if fail */
@@ -2919,7 +2927,13 @@ afskmdm_gensio_alloc(struct gensio *child, const char *const args[],
     if (!io) {
 	gensio_ll_free(ll);
 	gensio_filter_free(filter);
-	return GE_NOMEM;
+	goto out_nomem;
+    }
+
+    err = gensio_base_parms_set(io, &parms);
+    if (err) {
+	gensio_free(io);
+	goto out_err;
     }
 
     gensio_set_is_packet(io, true);
@@ -2927,6 +2941,13 @@ afskmdm_gensio_alloc(struct gensio *child, const char *const args[],
 
     *net = io;
     return 0;
+
+ out_nomem:
+    err = GE_NOMEM;
+ out_err:
+    if (parms)
+	gensio_base_parms_free(&parms);
+    return err;
 }
 
 static int
