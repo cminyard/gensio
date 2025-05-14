@@ -2618,6 +2618,8 @@ struct gensio_def_entry builtin_defaults[] = {
 						.def.intval = 10 },
     /* TCP and SCTP, UDP get added in init as false. */
     { "reuseaddr",	GENSIO_DEFAULT_BOOL,	.def.intval = 1 },
+    { "drain_timeout",	GENSIO_DEFAULT_INT,	.min = -1, .max = INT_MAX,
+						.def.intval = -1, },
     /* serialdev */
     { "xonxoff",	GENSIO_DEFAULT_BOOL,	.def.intval = 0 },
     { "rtscts",		GENSIO_DEFAULT_BOOL,	.def.intval = 0 },

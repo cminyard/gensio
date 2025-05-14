@@ -7,7 +7,8 @@ lib_LTLIBRARIES = libgensioosh.la libgensiomdns.la libgensio.la
 noinst_HEADERS = telnet.h heap.h utils.h seriallock.h crc.h \
 	errtrig.h avahi_watcher.h gensio_net.h \
 	gensio_sound_alsa.h gensio_sound_win.h \
-	gensio_sound_portaudio.h gensio_sound_file.h
+	gensio_sound_portaudio.h gensio_sound_file.h \
+	gensio_base_parms.h
 
 libgensioosh_la_SOURCES = \
 	os_osops.c circbuf.c os_osops_env.c net_addrinfo.c \

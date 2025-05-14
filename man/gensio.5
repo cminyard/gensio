@@ -1127,6 +1127,14 @@ In addition to readbuf, the telnet gensio takes the following options:
 .B writebuf=<n>
 set the size of the write buffer.
 .TP
+.B drain_timeout=<n>
+The amount of time to wait for data to drain on a close.  This sets
+the time (in milliseconds) that the gensio will wait for the data to
+drain before shutting down with pending data.  If you set this to a
+negative value, it will wait forever, which is the default.  Though
+not really forever, some lower layer is going to time out and shut the
+connection down before you reach this.
+.TP
 .B rfc2217[=true|false]
 enable or disable RFC2217 mode for this gensio.  If this is enabled
 and the remote end of the connection supports RFC2217 also, the gensio

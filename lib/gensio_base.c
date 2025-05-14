@@ -13,6 +13,7 @@
 #include <stdio.h>
 
 #include <gensio/gensio.h>
+#include <gensio/gensio_time.h>
 #include <gensio/gensio_class.h>
 #include <gensio/gensio_base.h>
 #include <gensio/gensio_os_funcs.h>
@@ -21,6 +22,8 @@
 #define ENABLE_PRBUF 1
 #include "utils.h"
 #endif
+
+#include "gensio_base_parms.h"
 
 /*
  * Events:
@@ -157,6 +160,9 @@ struct basen_data {
     bool timer_start_pending;
     gensio_time pending_timer;
 
+    struct gensio_timer *drain_timer;
+    int drain_timeout;
+
     unsigned int refcount;
 
     enum basen_state state;
@@ -255,6 +261,8 @@ basen_finish_free(struct basen_data *ndata)
 	ndata->o->free_lock(ndata->lock);
     if (ndata->timer)
 	ndata->o->free_timer(ndata->timer);
+    if (ndata->drain_timer)
+	ndata->o->free_timer(ndata->drain_timer);
     if (ndata->deferred_op_runner)
 	ndata->o->free_runner(ndata->deferred_op_runner);
     if (ndata->filter)
@@ -656,6 +664,38 @@ write_data_pending(struct basen_data *ndata)
     return filter_ll_write_queued(ndata) || ndata->in_write_count > 0;
 }
 
+static void
+basen_timer_stopped(struct gensio_timer *t, void *cb_data)
+{
+    struct basen_data *ndata = cb_data;
+
+    basen_lock(ndata);
+    basen_deref_and_unlock(ndata);
+}
+
+static void
+basen_start_drain_timer(struct basen_data *ndata)
+{
+    gensio_time timeout;
+
+    gensio_msecs_to_time(&timeout, ndata->drain_timeout);
+    assert(ndata->o->start_timer(ndata->drain_timer, &timeout) == 0);
+    basen_ref(ndata);
+}
+
+static void
+basen_stop_drain_timer(struct basen_data *ndata)
+{
+    /*
+     * This will either stop the timer and call
+     * basen_timer_stopped which will do the deref for the timer,
+     * or it will fail if there was no timer running (no ref) or
+     * if the timer was in the callback (the callback will deref).
+     */
+    ndata->o->stop_timer_with_done(ndata->drain_timer,
+				   basen_timer_stopped, ndata);
+}
+
 static int
 basen_write(struct basen_data *ndata, gensiods *rcount,
 	    const struct gensio_sg *sg, gensiods sglen,
@@ -692,6 +732,7 @@ basen_write(struct basen_data *ndata, gensiods *rcount,
 
 	switch (ndata->state) {
 	case BASEN_CLOSE_WAIT_DRAIN:
+	    basen_stop_drain_timer(ndata);
 	    basen_set_state(ndata, BASEN_IN_LL_CLOSE);
 	    rv = ll_close(ndata);
 	    if (rv) {
@@ -786,6 +827,21 @@ basen_read_data_handler(void *cb_data,
 }
 
 static void
+basen_close_from_wait_drain(struct basen_data *ndata)
+{
+    basen_set_state(ndata, BASEN_IN_LL_CLOSE);
+    if (ndata->in_write_count == 0) {
+	int rv = ll_close(ndata);
+	if (rv) {
+	    ndata->deferred_close = true;
+	    basen_sched_deferred_op(ndata);
+	}
+    } else {
+	ndata->ll_want_close = true;
+    }
+}
+
+static void
 i_handle_ioerr(struct basen_data *ndata, int err, int line)
 {
     int rv;
@@ -841,16 +897,8 @@ i_handle_ioerr(struct basen_data *ndata, int err, int line)
 
     case BASEN_CLOSE_WAIT_DRAIN:
 	filter_io_err(ndata, err);
-	basen_set_state(ndata, BASEN_IN_LL_CLOSE);
-	if (ndata->in_write_count == 0) {
-	    rv = ll_close(ndata);
-	    if (rv) {
-		ndata->deferred_close = true;
-		basen_sched_deferred_op(ndata);
-	    }
-	} else {
-	    ndata->ll_want_close = true;
-	}
+	basen_stop_drain_timer(ndata);
+	basen_close_from_wait_drain(ndata);
 	break;
 
     case BASEN_IN_FILTER_CLOSE:
@@ -871,15 +919,6 @@ i_handle_ioerr(struct basen_data *ndata, int err, int line)
     case BASEN_IN_LL_IO_ERR_CLOSE:
 	break;
     }
-}
-
-static void
-basen_timer_stopped(struct gensio_timer *t, void *cb_data)
-{
-    struct basen_data *ndata = cb_data;
-
-    basen_lock(ndata);
-    basen_deref_and_unlock(ndata);
 }
 
 /*
@@ -918,6 +957,12 @@ basen_finish_close(struct basen_data *ndata)
 	 * if the timer was in the callback (the callback will deref).
 	 */
 	ndata->o->stop_timer_with_done(ndata->timer,
+				       basen_timer_stopped,
+				       ndata);
+    }
+    if (ndata->drain_timer) {
+	/* same with drain timer. */
+	ndata->o->stop_timer_with_done(ndata->drain_timer,
 				       basen_timer_stopped,
 				       ndata);
     }
@@ -1329,8 +1374,10 @@ basen_i_close(struct basen_data *ndata,
 	    ndata->deferred_close = true;
 	    basen_sched_deferred_op(ndata);
 	}
-    } else if (write_data_pending(ndata)) {
+    } else if (write_data_pending(ndata) && ndata->drain_timeout != 0) {
 	basen_set_state(ndata, BASEN_CLOSE_WAIT_DRAIN);
+	if (ndata->drain_timeout > 0)
+	    basen_start_drain_timer(ndata);
     } else {
 	basen_set_state(ndata, BASEN_IN_FILTER_CLOSE);
 	basen_filter_try_close(ndata, false);
@@ -1444,6 +1491,17 @@ basen_timeout(struct gensio_timer *timer, void *cb_data)
 }
 
 static void
+basen_drain_timeout(struct gensio_timer *timer, void *cb_data)
+{
+    struct basen_data *ndata = cb_data;
+
+    basen_lock(ndata);
+    if (ndata->state == BASEN_CLOSE_WAIT_DRAIN)
+	basen_close_from_wait_drain(ndata);
+    basen_deref_and_unlock(ndata);
+}
+
+static void
 basen_set_read_callback_enable(struct basen_data *ndata, bool enabled)
 {
     bool read_pending;
@@ -1498,6 +1556,23 @@ basen_set_write_callback_enable(struct basen_data *ndata, bool enabled)
     basen_unlock(ndata);
 }
 
+int
+basen_handle_local_control(struct basen_data *ndata, bool get,
+			   unsigned int option, char *data, gensiods *datalen)
+{
+    switch(option) {
+    case GENSIO_CONTROL_DRAIN_TIMEOUT:
+	if (get)
+	    *datalen = snprintf(data, *datalen, "%d", ndata->drain_timeout);
+	else
+	    ndata->drain_timeout = strtol(data, NULL, 0);
+	return 0;
+
+    default:
+	return GE_NOTSUP;
+    }
+}
+
 static int
 gensio_base_func(struct gensio *io, int func, gensiods *count,
 		 const void *cbuf, gensiods buflen, void *buf,
@@ -1541,9 +1616,12 @@ gensio_base_func(struct gensio *io, int func, gensiods *count,
 	}
 	rv2 = gensio_ll_control(ndata->ll, *((bool *) cbuf), buflen, buf,
 				count);
-	if (rv2 == GE_NOTSUP)
-	    return rv;
-	return rv2;
+	if (rv2 != GE_NOTSUP)
+	    rv = rv2;
+	if (rv == GE_NOTSUP)
+	    rv = basen_handle_local_control(ndata, *((bool *) cbuf),
+					    buflen, buf, count);
+	return rv;
 
     case GENSIO_FUNC_ACONTROL:
 	rv = GE_NOTSUP;
@@ -1592,6 +1670,7 @@ basen_check_open_close_ops(struct basen_data *ndata)
 	basen_filter_try_close(ndata, false);
     if (ndata->state == BASEN_CLOSE_WAIT_DRAIN) {
 	if (!write_data_pending(ndata)) {
+	    basen_stop_drain_timer(ndata);
 	    basen_set_state(ndata, BASEN_IN_FILTER_CLOSE);
 	    basen_filter_try_close(ndata, false);
 	}
@@ -1904,6 +1983,11 @@ gensio_i_alloc(struct gensio_os_funcs *o,
     if (!ndata->timer)
 	goto out_nomem;
 
+    ndata->drain_timer = o->alloc_timer(o, basen_drain_timeout, ndata);
+    if (!ndata->drain_timer)
+	goto out_nomem;
+    ndata->drain_timeout = -1; /* Off by default */
+
     ndata->deferred_op_runner = o->alloc_runner(o, basen_deferred_op, ndata);
     if (!ndata->deferred_op_runner)
 	goto out_nomem;
@@ -1982,6 +2066,75 @@ base_gensio_server_alloc(struct gensio_os_funcs *o,
 {
     return gensio_i_alloc(o, ll, filter, child, typename, false,
 			  open_done, open_data, NULL, NULL);
+}
+
+void
+base_gensio_set_drain_timeout(struct gensio *io, int timeout)
+{
+    struct basen_data *ndata = gensio_get_gensio_data(io);
+
+    ndata->drain_timeout = timeout;
+}
+
+int
+gensio_base_parms_alloc(struct gensio_os_funcs *o, bool is_accepter,
+			const char *typestr,
+			struct gensio_base_parms **rparms)
+{
+    struct gensio_base_parms *parms;
+    int rv;
+
+    parms = o->zalloc(o, sizeof(*parms));
+    if (!parms)
+	return GE_NOMEM;
+    parms->o = o;
+
+    rv = gensio_get_default(o, typestr, "drain_timeout", false,
+			    GENSIO_DEFAULT_INT, NULL, &parms->drain_timeout);
+    if (rv)
+	goto out_err;
+
+    *rparms = parms;
+    return 0;
+
+ out_err:
+    o->free(o, parms);
+    return rv;
+}
+
+void
+gensio_base_parms_free(struct gensio_base_parms **parms)
+{
+    (*parms)->o->free((*parms)->o, *parms);
+    *parms = NULL;
+}
+
+void
+i_gensio_base_parms_set(struct gensio *io,
+			const struct gensio_base_parms *parms)
+{
+    struct basen_data *ndata = gensio_get_gensio_data(io);
+
+    ndata->drain_timeout = parms->drain_timeout;
+}
+
+int
+gensio_base_parms_set(struct gensio *io, struct gensio_base_parms **parms)
+{
+    i_gensio_base_parms_set(io, *parms);
+    gensio_base_parms_free(parms);
+    return 0;
+}
+
+int
+gensio_base_parm(struct gensio_base_parms *parms,
+		 struct gensio_pparm_info *p,
+		 const char *arg)
+{
+    if (gensio_pparm_int(p, arg, "drain_timeout",
+			 &parms->drain_timeout) > 0)
+	return 1;
+    return 0;
 }
 
 int

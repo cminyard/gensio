@@ -487,6 +487,79 @@ struct gensio *base_gensio_server_alloc(struct gensio_os_funcs *o,
 					void *open_data);
 
 /*
+ * Set the drain timeout for the gensio.  Search for drain_time in the
+ * gensio.5 man page for details on what this does.  Time is in
+ * milliseconds.  A negative number disables the timer (the default).
+ */
+GENSIO_DLL_PUBLIC
+void base_gensio_set_drain_timeout(struct gensio *io, int timeout);
+
+/*
+ * There are some parameters that are handled directly by the base
+ * layer, this interface is used to allow a gensio to interface
+ * to that for setting parameters used directly by the base.
+ */
+struct gensio_base_parms;
+
+/*
+ * Use this to allocate a base parms structure.  You must give the
+ * string used for defaults in the typename, and you must tell if it's
+ * an accepter or not.
+ */
+GENSIO_DLL_PUBLIC
+int gensio_base_parms_alloc(struct gensio_os_funcs *o, bool is_accepter,
+			    const char *typename,
+			    struct gensio_base_parms **parms);
+
+/*
+ * Use this to free a structure.  Pass in a pointer to the parms, it will
+ * set the parms to NULL automatically so you don't have to.
+ */
+GENSIO_DLL_PUBLIC
+void gensio_base_parms_free(struct gensio_base_parms **parms);
+
+/*
+ * Set the parms for a gensio.  Pass in a pointer to the parms, this
+ * will take over ownership of the parms data and will set what you
+ * pass in to NULL.
+ */
+GENSIO_DLL_PUBLIC
+int gensio_base_parms_set(struct gensio *io, struct gensio_base_parms **parms);
+
+/*
+ * Like above, but for an accepter.
+ */
+GENSIO_DLL_PUBLIC
+int gensio_acc_base_parms_set(struct gensio_accepter *acc,
+			      struct gensio_base_parms **parms);
+
+/*
+ * Take the parms for an accepter and apply them to a gensio.  Call this
+ * from the accepter connection code in your gensio to set the base
+ * parameters for the gensio that were picked up in the accepter.
+ */
+GENSIO_DLL_PUBLIC
+int gensio_acc_base_parms_apply(struct gensio_accepter *acc, struct gensio *io);
+
+/*
+ * Return a duplicate of an accepter's base parms.  This is used to
+ * create a starting point for params in accepter's str_to_gensio
+ * callback, generally.
+ */
+GENSIO_DLL_PUBLIC
+struct gensio_base_parms *gensio_acc_base_parms_dup(struct gensio_accepter *acc);
+
+/*
+ * Call this from your parameter scanning loop to pick up the base
+ * parameters, using the normal format.  Returns 1 if the argument was
+ * used, 0 or less if not.
+ */
+GENSIO_DLL_PUBLIC
+int gensio_base_parm(struct gensio_base_parms *parms,
+		     struct gensio_pparm_info *p,
+		     const char *arg);
+
+/*
  * base_gensio_server_alloc() does not start the gensio, you have to
  * call this.  This lets you do some gensio configuration and handle
  * errors more easily.

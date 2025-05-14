@@ -19,6 +19,8 @@
 #include <gensio/gensio_base.h>
 #include <gensio/argvutils.h>
 
+#include "gensio_base_parms.h"
+
 enum basena_state {
     BASENA_CLOSED,
     BASENA_OPEN,
@@ -33,6 +35,8 @@ struct basena_data {
     struct gensio_os_funcs *o;
 
     struct gensio_lock *lock;
+
+    struct gensio_base_parms parms;
 
     gensio_base_acc_op ops;
     void *acc_op_data;
@@ -56,6 +60,40 @@ static void
 basena_set_state(struct basena_data *nadata, enum basena_state state)
 {
     nadata->state = state;
+}
+
+int
+gensio_acc_base_parms_set(struct gensio_accepter *acc,
+			  struct gensio_base_parms **parms)
+{
+    struct basena_data *nadata = gensio_acc_get_gensio_data(acc);
+
+    nadata->parms = **parms;
+    gensio_base_parms_free(parms);
+    return 0;
+}
+
+int
+gensio_acc_base_parms_apply(struct gensio_accepter *acc, struct gensio *io)
+{
+    struct basena_data *nadata = gensio_acc_get_gensio_data(acc);
+
+    i_gensio_base_parms_set(io, &nadata->parms);
+    return 0;
+}
+
+struct gensio_base_parms *
+gensio_acc_base_parms_dup(struct gensio_accepter *acc)
+{
+    struct basena_data *nadata = gensio_acc_get_gensio_data(acc);
+    struct gensio_os_funcs *o = nadata->parms.o;
+    struct gensio_base_parms *parms = o->zalloc(o, sizeof(*parms));
+
+    if (!parms)
+	return NULL;
+
+    *parms = nadata->parms;
+    return parms;
 }
 
 static int

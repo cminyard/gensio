@@ -411,6 +411,16 @@ For ax25, this is the number of pending sent frames.  If you pass in a
 For network gensios, this is the number of unacked bytes in the
 transmit queue, or number of bytes in the receive queue, on the local
 side.
+.SS "GENSIO_CONTROL_DRAIN_TIMEOUT"
+Set or get the drain timeout for the gensio.  This the same as the
+.B drain_timeout
+parameter given when a gensio is created.  This does not have any
+meaning for gensios that do not queue output data in them, but for
+those that do, this sets the time (in milliseconds) that the gensio
+will wait for the data to drain before shutting down with pending
+data.  If you set this to a negative value, it will wait forever,
+which is the default.  Though not really forever, some lower layer is
+going to time out and shut the connection down before you reach this.
 .SS "SERIAL PORT CONTROLS"
 The following set various serial port values.
 
