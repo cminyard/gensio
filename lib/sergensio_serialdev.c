@@ -14,7 +14,8 @@
 #include <ctype.h>
 #include <stdbool.h>
 
-#include <gensio/sergensio_class.h>
+#include <gensio/gensio.h>
+#include <gensio/gensio_class.h>
 #include <gensio/gensio_ll_fd.h>
 
 #include "seriallock.h"
@@ -45,11 +46,11 @@ speedstr_to_speed(struct gensio_pparm_info *p, bool logerr,
 
 struct penum_val { char *str; int val; };
 static struct penum_val parity_enums[] = {
-    { "NONE", SERGENSIO_PARITY_NONE },
-    { "EVEN", SERGENSIO_PARITY_EVEN },
-    { "ODD", SERGENSIO_PARITY_ODD },
-    { "MARK", SERGENSIO_PARITY_MARK },
-    { "SPACE", SERGENSIO_PARITY_SPACE },
+    { "NONE", GENSIO_SER_PARITY_NONE },
+    { "EVEN", GENSIO_SER_PARITY_EVEN },
+    { "ODD", GENSIO_SER_PARITY_ODD },
+    { "MARK", GENSIO_SER_PARITY_MARK },
+    { "SPACE", GENSIO_SER_PARITY_SPACE },
     { NULL }
 };
 
@@ -88,7 +89,6 @@ struct termio_op_q {
     int op;
     int (*xlat)(struct sterm_data *, bool get, int *oval, int val);
     gensio_control_done cdone;
-    void (*done)(struct sergensio *sio, int err, int val, void *cb_data);
     void *cb_data;
     const struct termio_xlat_str *xlatstr;
     struct termio_op_q *next;
@@ -102,7 +102,6 @@ struct modemstate_cb {
 
 struct sterm_data {
     struct gensio *io;
-    struct sergensio *sio;
     struct gensio_os_funcs *o;
 
     struct gensio_lock *lock;
@@ -180,11 +179,11 @@ set_serdef_from_speed(struct gensio_pparm_info *p,
 
     if (*others) {
 	switch (*others) {
-	case 'N': case 'n': sdata->def_parity = SERGENSIO_PARITY_NONE; break;
-	case 'E': case 'e': sdata->def_parity = SERGENSIO_PARITY_EVEN; break;
-	case 'O': case 'o': sdata->def_parity = SERGENSIO_PARITY_ODD; break;
-	case 'M': case 'm': sdata->def_parity = SERGENSIO_PARITY_MARK; break;
-	case 'S': case 's': sdata->def_parity = SERGENSIO_PARITY_SPACE; break;
+	case 'N': case 'n': sdata->def_parity = GENSIO_SER_PARITY_NONE; break;
+	case 'E': case 'e': sdata->def_parity = GENSIO_SER_PARITY_EVEN; break;
+	case 'O': case 'o': sdata->def_parity = GENSIO_SER_PARITY_ODD; break;
+	case 'M': case 'm': sdata->def_parity = GENSIO_SER_PARITY_MARK; break;
+	case 'S': case 's': sdata->def_parity = GENSIO_SER_PARITY_SPACE; break;
 	    break;
 	default:
 	    gensio_pparm_log(p, "Unknown parity: %s", others);
@@ -305,8 +304,6 @@ serconf_process(struct sterm_data *sdata)
 	sterm_unlock(sdata);
 	if (qe->cdone)
 	    serconf_call_cdone(sdata, qe, err, val);
-	else
-	    qe->done(sdata->sio, err, val, qe->cb_data);
 	sdata->o->free(sdata->o, qe);
 	sterm_lock(sdata);
     }
@@ -329,8 +326,6 @@ serconf_set_get(struct sterm_data *sdata, int op, int val, const char *sval,
 			    int *oval, int val),
 		gensio_control_done cdone,
 		const struct termio_xlat_str *xlatstr,
-		void (*done)(struct sergensio *sio, int err,
-			     int val, void *cb_data),
 		void *cb_data,
 		void (*finish)(struct sterm_data *sdata, int val))
 {
@@ -356,14 +351,13 @@ serconf_set_get(struct sterm_data *sdata, int op, int val, const char *sval,
 	}
     }
  found:
-    if (done || cdone) {
+    if (cdone) {
 	qe = sdata->o->zalloc(sdata->o, sizeof(*qe));
 	if (!qe)
 	    return GE_NOMEM;
 	qe->xlat = xlat;
 	qe->cdone = cdone;
 	qe->xlatstr = xlatstr;
-	qe->done = done;
 	qe->cb_data = cb_data;
 	qe->op = op;
 	qe->next = NULL;
@@ -413,61 +407,53 @@ serconf_set_get(struct sterm_data *sdata, int op, int val, const char *sval,
 static int
 sterm_baud(struct sterm_data *sdata, int baud, const char *sbaud,
 	   gensio_control_done cdone,
-	   void (*done)(struct sergensio *sio, int err,
-			int baud, void *cb_data),
 	   void *cb_data)
 {
     return serconf_set_get(sdata,
 			   GENSIO_IOD_CONTROL_BAUD, baud, sbaud,
-			   NULL, cdone, NULL, done, cb_data, NULL);
+			   NULL, cdone, NULL, cb_data, NULL);
 }
 
 static int
 sterm_datasize(struct sterm_data *sdata, int datasize, const char *sdatasize,
 	       gensio_control_done cdone,
-	       void (*done)(struct sergensio *sio, int err, int datasize,
-			    void *cb_data),
 	       void *cb_data)
 {
     return serconf_set_get(sdata,
 			   GENSIO_IOD_CONTROL_DATASIZE, datasize, sdatasize,
-			   NULL, cdone, NULL, done, cb_data, NULL);
+			   NULL, cdone, NULL, cb_data, NULL);
 }
 
 static const struct termio_xlat_str sterm_parity_xlatstr[] = {
     { "0", 0 },
     { "", 0 },
-    { "none", SERGENSIO_PARITY_NONE },
-    { "odd", SERGENSIO_PARITY_ODD },
-    { "even", SERGENSIO_PARITY_EVEN },
-    { "mark", SERGENSIO_PARITY_MARK },
-    { "space", SERGENSIO_PARITY_SPACE },
+    { "none", GENSIO_SER_PARITY_NONE },
+    { "odd", GENSIO_SER_PARITY_ODD },
+    { "even", GENSIO_SER_PARITY_EVEN },
+    { "mark", GENSIO_SER_PARITY_MARK },
+    { "space", GENSIO_SER_PARITY_SPACE },
     {}
 };
 
 static int
 sterm_parity(struct sterm_data *sdata, int parity, const char *sparity,
 	     gensio_control_done cdone,
-	     void (*done)(struct sergensio *sio, int err, int parity,
-			  void *cb_data),
 	     void *cb_data)
 {
     return serconf_set_get(sdata,
 			   GENSIO_IOD_CONTROL_PARITY, parity, sparity,
-			   NULL, cdone, sterm_parity_xlatstr, done, cb_data,
+			   NULL, cdone, sterm_parity_xlatstr, cb_data,
 			   NULL);
 }
 
 static int
 sterm_stopbits(struct sterm_data *sdata, int stopbits, const char *sstopbits,
 	       gensio_control_done cdone,
-	       void (*done)(struct sergensio *sio, int err, int stopbits,
-			    void *cb_data),
 	       void *cb_data)
 {
     return serconf_set_get(sdata,
 			   GENSIO_IOD_CONTROL_STOPBITS, stopbits, sstopbits,
-			   NULL, cdone, NULL, done, cb_data, NULL);
+			   NULL, cdone, NULL, cb_data, NULL);
 }
 
 static int
@@ -478,20 +464,20 @@ serconf_xlat_flowcontrol(struct sterm_data *sdata, bool get,
 
     if (get) {
 	if (val) {
-	    *oval = SERGENSIO_FLOWCONTROL_RTS_CTS;
+	    *oval = GENSIO_SER_FLOWCONTROL_RTS_CTS;
 	} else {
 	    err = sdata->o->iod_control(sdata->iod, GENSIO_IOD_CONTROL_XONXOFF,
 					true, (intptr_t) &val);
 	    if (err)
 		return err;
 	    if (val)
-		*oval = SERGENSIO_FLOWCONTROL_XON_XOFF;
+		*oval = GENSIO_SER_FLOWCONTROL_XON_XOFF;
 	    else
-		*oval = SERGENSIO_FLOWCONTROL_NONE;
+		*oval = GENSIO_SER_FLOWCONTROL_NONE;
 	}
     } else {
 	switch (val) {
-	case SERGENSIO_FLOWCONTROL_NONE:
+	case GENSIO_SER_FLOWCONTROL_NONE:
 	    err = sdata->o->iod_control(sdata->iod, GENSIO_IOD_CONTROL_XONXOFF,
 					false, 0);
 	    if (err)
@@ -503,7 +489,7 @@ serconf_xlat_flowcontrol(struct sterm_data *sdata, bool get,
 	    *oval = 0;
 	    break;
 
-	case SERGENSIO_FLOWCONTROL_XON_XOFF:
+	case GENSIO_SER_FLOWCONTROL_XON_XOFF:
 	    err = sdata->o->iod_control(sdata->iod, GENSIO_IOD_CONTROL_XONXOFF,
 					false, 1);
 	    if (err)
@@ -515,7 +501,7 @@ serconf_xlat_flowcontrol(struct sterm_data *sdata, bool get,
 	    *oval = 0;
 	    break;
 
-	case SERGENSIO_FLOWCONTROL_RTS_CTS:
+	case GENSIO_SER_FLOWCONTROL_RTS_CTS:
 	    err = sdata->o->iod_control(sdata->iod, GENSIO_IOD_CONTROL_XONXOFF,
 					false, 0);
 	    if (err)
@@ -538,9 +524,9 @@ serconf_xlat_flowcontrol(struct sterm_data *sdata, bool get,
 static const struct termio_xlat_str sterm_flow_xlatstr[] = {
     { "0", 0 },
     { "", 0 },
-    { "none", SERGENSIO_FLOWCONTROL_NONE },
-    { "xonxoff", SERGENSIO_FLOWCONTROL_XON_XOFF },
-    { "rtscts", SERGENSIO_FLOWCONTROL_RTS_CTS },
+    { "none", GENSIO_SER_FLOWCONTROL_NONE },
+    { "xonxoff", GENSIO_SER_FLOWCONTROL_XON_XOFF },
+    { "rtscts", GENSIO_SER_FLOWCONTROL_RTS_CTS },
     {}
 };
 
@@ -548,8 +534,6 @@ static int
 sterm_flowcontrol(struct sterm_data *sdata, int flowcontrol,
 		  const char *sflowcontrol,
 		  gensio_control_done cdone,
-		  void (*done)(struct sergensio *sio, int err,
-			       int flowcontrol, void *cb_data),
 		  void *cb_data)
 {
     const struct termio_xlat_str *xlatstr = sterm_flow_xlatstr;
@@ -567,9 +551,9 @@ sterm_flowcontrol(struct sterm_data *sdata, int flowcontrol,
     }
  found:
     switch (flowcontrol) {
-    case SERGENSIO_FLOWCONTROL_NONE:
-    case SERGENSIO_FLOWCONTROL_RTS_CTS:
-    case SERGENSIO_FLOWCONTROL_XON_XOFF:
+    case GENSIO_SER_FLOWCONTROL_NONE:
+    case GENSIO_SER_FLOWCONTROL_RTS_CTS:
+    case GENSIO_SER_FLOWCONTROL_XON_XOFF:
 	break;
 
     case 0:
@@ -580,16 +564,16 @@ sterm_flowcontrol(struct sterm_data *sdata, int flowcontrol,
 
     return serconf_set_get(sdata, GENSIO_IOD_CONTROL_RTSCTS, flowcontrol,
 			   NULL, serconf_xlat_flowcontrol, cdone, xlatstr,
-			   done, cb_data, NULL);
+			   cb_data, NULL);
 }
 
 static const struct termio_xlat_str sterm_iflow_xlatstr[] = {
     { "0", 0 },
     { "", 0 },
-    { "none", SERGENSIO_FLOWCONTROL_NONE },
-    { "dcd", SERGENSIO_FLOWCONTROL_DCD },
-    { "dtr", SERGENSIO_FLOWCONTROL_DTR },
-    { "dsr", SERGENSIO_FLOWCONTROL_DSR },
+    { "none", GENSIO_SER_FLOWCONTROL_NONE },
+    { "dcd", GENSIO_SER_FLOWCONTROL_DCD },
+    { "dtr", GENSIO_SER_FLOWCONTROL_DTR },
+    { "dsr", GENSIO_SER_FLOWCONTROL_DSR },
     {}
 };
 
@@ -597,15 +581,13 @@ static int
 sterm_iflowcontrol(struct sterm_data *sdata, int iflowcontrol,
 		   const char *siflowcontrol,
 		   gensio_control_done cdone,
-		   void (*done)(struct sergensio *sio, int err,
-				int iflowcontrol, void *cb_data),
 		   void *cb_data)
 {
     /* Input flow control is not independently settable. */
     return serconf_set_get(sdata,
 			   GENSIO_IOD_CONTROL_XONXOFF, 0, siflowcontrol,
 			   serconf_xlat_flowcontrol,
-			   cdone, sterm_iflow_xlatstr, done, cb_data, NULL);
+			   cdone, sterm_iflow_xlatstr, cb_data, NULL);
 }
 
 static const struct termio_xlat_str sterm_on_off_xlatstr[] = {
@@ -621,13 +603,13 @@ sterm_xlat_sbreak(struct sterm_data *sdata, bool get, int *oval, int val)
 {
     if (get) {
 	if (val)
-	    *oval = SERGENSIO_BREAK_ON;
+	    *oval = GENSIO_SER_ON;
 	else
-	    *oval = SERGENSIO_BREAK_OFF;
+	    *oval = GENSIO_SER_OFF;
     } else {
 	switch (val) {
-	case SERGENSIO_BREAK_OFF: *oval = 0; break;
-	case SERGENSIO_BREAK_ON: *oval = 1; break;
+	case GENSIO_SER_OFF: *oval = 0; break;
+	case GENSIO_SER_ON: *oval = 1; break;
 	default:
 	    return GE_INVAL;
 	}
@@ -639,14 +621,12 @@ sterm_xlat_sbreak(struct sterm_data *sdata, bool get, int *oval, int val)
 static int
 sterm_sbreak(struct sterm_data *sdata, int breakv, const char *sbreakv,
 	     gensio_control_done cdone,
-	     void (*done)(struct sergensio *sio, int err, int breakv,
-			  void *cb_data),
 	     void *cb_data)
 {
     return serconf_set_get(sdata,
 			   GENSIO_IOD_CONTROL_SET_BREAK, breakv, sbreakv,
 			   sterm_xlat_sbreak, cdone, sterm_on_off_xlatstr,
-			   done, cb_data, NULL);
+			   cb_data, NULL);
 }
 
 static int
@@ -654,13 +634,13 @@ serconf_xlat_dtr(struct sterm_data *sdata, bool get, int *oval, int val)
 {
     if (get) {
 	if (val)
-	    *oval = SERGENSIO_DTR_ON;
+	    *oval = GENSIO_SER_ON;
 	else
-	    *oval = SERGENSIO_DTR_OFF;
+	    *oval = GENSIO_SER_OFF;
     } else {
 	switch (val) {
-	case SERGENSIO_DTR_OFF: *oval = 0; break;
-	case SERGENSIO_DTR_ON: *oval = 1; break;
+	case GENSIO_SER_OFF: *oval = 0; break;
+	case GENSIO_SER_ON: *oval = 1; break;
 	default:
 	    return GE_INVAL;
 	}
@@ -672,14 +652,12 @@ serconf_xlat_dtr(struct sterm_data *sdata, bool get, int *oval, int val)
 static int
 sterm_dtr(struct sterm_data *sdata, int dtr, const char *sdtr,
 	  gensio_control_done cdone,
-	  void (*done)(struct sergensio *sio, int err, int dtr,
-		       void *cb_data),
 	  void *cb_data)
 {
     return serconf_set_get(sdata,
 			   GENSIO_IOD_CONTROL_DTR, dtr, sdtr,
 			   serconf_xlat_dtr, cdone, sterm_on_off_xlatstr,
-			   done, cb_data, NULL);
+			   cb_data, NULL);
 }
 
 static int
@@ -687,13 +665,13 @@ serconf_xlat_rts(struct sterm_data *sdata, bool get, int *oval, int val)
 {
     if (get) {
 	if (val)
-	    *oval = SERGENSIO_RTS_ON;
+	    *oval = GENSIO_SER_ON;
 	else
-	    *oval = SERGENSIO_RTS_OFF;
+	    *oval = GENSIO_SER_OFF;
     } else {
-	if (val == SERGENSIO_RTS_ON)
+	if (val == GENSIO_SER_ON)
 	    *oval = 1;
-	else if (val == SERGENSIO_RTS_OFF)
+	else if (val == GENSIO_SER_OFF)
 	    *oval = 0;
 	else
 	    return GE_INVAL;
@@ -705,14 +683,12 @@ serconf_xlat_rts(struct sterm_data *sdata, bool get, int *oval, int val)
 static int
 sterm_rts(struct sterm_data *sdata, int rts, const char *srts,
 	  gensio_control_done cdone,
-	  void (*done)(struct sergensio *sio, int err, int rts,
-		       void *cb_data),
 	  void *cb_data)
 {
     return serconf_set_get(sdata,
 			   GENSIO_IOD_CONTROL_RTS, rts, srts,
 			   serconf_xlat_rts, cdone, sterm_on_off_xlatstr,
-			   done, cb_data, NULL);
+			   cb_data, NULL);
 }
 
 static void
@@ -759,10 +735,9 @@ serialdev_timeout(struct gensio_timer *t, void *cb_data)
      * report this if someing changed that was in the mask.
      */
     if ((force_send || modemstate & 0xf)) {
-	struct gensio *io = sergensio_get_my_gensio(sdata->sio);
 	gensiods vlen = sizeof(modemstate);
 
-	gensio_cb(io, GENSIO_EVENT_SER_MODEMSTATE, 0,
+	gensio_cb(sdata->io, GENSIO_EVENT_SER_MODEMSTATE, 0,
 		  (unsigned char *) &modemstate, &vlen, NULL);
     }
 
@@ -835,7 +810,7 @@ sterm_linestate_mask(struct sterm_data *sdata, unsigned int val,
 
     return serconf_set_get(sdata, GENSIO_IOD_CONTROL_ENABLE_RECV_ERR,
 			   val, NULL, NULL,
-			   cdone, NULL, NULL, cb_data, sterm_finish_linestate);
+			   cdone, NULL, cb_data, sterm_finish_linestate);
 }
 
 static int
@@ -872,9 +847,9 @@ sterm_flush(struct sterm_data *sdata, unsigned int val, const char *sval)
     }
 
     switch(val) {
-    case SERGENSIO_FLUSH_RCV_BUFFER:	tval = GENSIO_IN_BUF; break;
-    case SERGENSIO_FLUSH_XMIT_BUFFER:	tval = GENSIO_OUT_BUF; break;
-    case SERGENSIO_FLUSH_RCV_XMIT_BUFFERS:
+    case GENSIO_SER_FLUSH_RECV:	tval = GENSIO_IN_BUF; break;
+    case GENSIO_SER_FLUSH_XMIT:	tval = GENSIO_OUT_BUF; break;
+    case GENSIO_SER_FLUSH_BOTH:
 	tval = GENSIO_IN_BUF | GENSIO_OUT_BUF;
 	break;
     default:
@@ -890,77 +865,6 @@ sterm_send_break(struct sterm_data *sdata)
 {
     return sdata->o->iod_control(sdata->iod, GENSIO_IOD_CONTROL_SEND_BREAK,
 				 false, 0);
-}
-
-static int
-sergensio_sterm_func(struct sergensio *sio, int op, int val, char *buf,
-		     void *done, void *cb_data)
-{
-    struct sterm_data *sdata = sergensio_get_gensio_data(sio);
-
-    if (!sdata->set_tty)
-	return GE_NOTSUP;
-
-    switch (op) {
-    case SERGENSIO_FUNC_BAUD:
-	return sterm_baud(sdata, val, NULL, NULL, done, cb_data);
-
-    case SERGENSIO_FUNC_DATASIZE:
-	return sterm_datasize(sdata, val, NULL, NULL, done, cb_data);
-
-    case SERGENSIO_FUNC_PARITY:
-	return sterm_parity(sdata, val, NULL, NULL, done, cb_data);
-
-    case SERGENSIO_FUNC_STOPBITS:
-	return sterm_stopbits(sdata, val, NULL, NULL, done, cb_data);
-
-    case SERGENSIO_FUNC_FLOWCONTROL:
-	return sterm_flowcontrol(sdata, val, NULL, NULL, done, cb_data);
-
-    case SERGENSIO_FUNC_IFLOWCONTROL:
-	return sterm_iflowcontrol(sdata, val, NULL, NULL, done, cb_data);
-
-    case SERGENSIO_FUNC_SBREAK:
-	return sterm_sbreak(sdata, val, NULL, NULL, done, cb_data);
-
-    case SERGENSIO_FUNC_DTR:
-	return sterm_dtr(sdata, val, NULL, NULL, done, cb_data);
-
-    case SERGENSIO_FUNC_RTS:
-	return sterm_rts(sdata, val, NULL, NULL, done, cb_data);
-
-    case SERGENSIO_FUNC_MODEMSTATE:
-	if (done)
-	    return GE_INVAL;
-	return sterm_modemstate_mask(sdata, val, NULL, NULL, NULL);
-
-    case SERGENSIO_FUNC_FLOWCONTROL_STATE:
-	if (done)
-	    return GE_INVAL;
-	return sterm_flowcontrol_state(sdata, val, NULL);
-
-    case SERGENSIO_FUNC_FLUSH:
-	if (done)
-	    return GE_INVAL;
-	return sterm_flush(sdata, val, NULL);
-
-    case SERGENSIO_FUNC_SEND_BREAK:
-	if (done)
-	    return GE_INVAL;
-	return sterm_send_break(sdata);
-
-    case SERGENSIO_FUNC_LINESTATE:
-	if (done)
-	    return GE_INVAL;
-	if (!sdata->o->read_flags)
-	    return GE_NOTSUP;
-
-	return sterm_linestate_mask(sdata, val, NULL, NULL, NULL);
-
-    case SERGENSIO_FUNC_SIGNATURE:
-    default:
-	return GE_NOTSUP;
-    }
 }
 
 static int
@@ -981,31 +885,31 @@ sterm_acontrol(void *handler_data, struct gensio_iod *iod, bool get,
 
     switch (option) {
     case GENSIO_ACONTROL_SER_BAUD:
-	return sterm_baud(sdata, 0, data, done, NULL, cb_data);
+	return sterm_baud(sdata, 0, data, done, cb_data);
 
     case GENSIO_ACONTROL_SER_DATASIZE:
-	return sterm_datasize(sdata, 0, data, done, NULL, cb_data);
+	return sterm_datasize(sdata, 0, data, done, cb_data);
 
     case GENSIO_ACONTROL_SER_PARITY:
-	return sterm_parity(sdata, 0, data, done, NULL, cb_data);
+	return sterm_parity(sdata, 0, data, done, cb_data);
 
     case GENSIO_ACONTROL_SER_STOPBITS:
-	return sterm_stopbits(sdata, 0, data, done, NULL, cb_data);
+	return sterm_stopbits(sdata, 0, data, done, cb_data);
 
     case GENSIO_ACONTROL_SER_FLOWCONTROL:
-	return sterm_flowcontrol(sdata, 0, data, done, NULL, cb_data);
+	return sterm_flowcontrol(sdata, 0, data, done, cb_data);
 
     case GENSIO_ACONTROL_SER_IFLOWCONTROL:
-	return sterm_iflowcontrol(sdata, 0, data, done, NULL, cb_data);
+	return sterm_iflowcontrol(sdata, 0, data, done, cb_data);
 
     case GENSIO_ACONTROL_SER_SBREAK:
-	return sterm_sbreak(sdata, 0, data, done, NULL, cb_data);
+	return sterm_sbreak(sdata, 0, data, done, cb_data);
 
     case GENSIO_ACONTROL_SER_DTR:
-	return sterm_dtr(sdata, 0, data, done, NULL, cb_data);
+	return sterm_dtr(sdata, 0, data, done, cb_data);
 
     case GENSIO_ACONTROL_SER_RTS:
-	return sterm_rts(sdata, 0, data, done, NULL, cb_data);
+	return sterm_rts(sdata, 0, data, done, cb_data);
 
     case GENSIO_ACONTROL_SER_SET_MODEMSTATE_MASK:
 	return sterm_modemstate_mask(sdata, 0, data, done, cb_data);
@@ -1290,8 +1194,6 @@ sterm_free(void *handler_data)
 	n = c->next;
 	sdata->o->free(sdata->o, c);
     }
-    if (sdata->sio)
-	sergensio_data_free(sdata->sio);
     serconf_clear_q(sdata);
     if (sdata->rs485)
 	sdata->o->free(sdata->o, sdata->rs485);
@@ -1539,7 +1441,6 @@ sterm_deliver_read(void *handler_data, void *cb_data, gensio_ll_cb cb, int err,
 	for (i = 0; i < plen; i++) {
 	    if ((flags[i] & (GENSIO_IOD_READ_FLAGS_BREAK
 			     | GENSIO_IOD_READ_FLAGS_ERR)) != 0) {
-		struct gensio *io = sergensio_get_my_gensio(sdata->sio);
 		unsigned int linestate;
 		gensiods vlen = sizeof(linestate);
 
@@ -1566,7 +1467,7 @@ sterm_deliver_read(void *handler_data, void *cb_data, gensio_ll_cb cb, int err,
 		    linestate |= GENSIO_SER_LINESTATE_PARITY_ERR;
 
 		if (linestate)
-		    gensio_cb(io, GENSIO_EVENT_SER_LINESTATE, 0,
+		    gensio_cb(sdata->io, GENSIO_EVENT_SER_LINESTATE, 0,
 			      (unsigned char *) &linestate, &vlen, NULL);
 
 		/* Note we don't report the bad data. */
@@ -1760,7 +1661,7 @@ sergensio_setup_defaults(struct gensio_pparm_info *p,
 		       "Default speed settings (%s) are invalid,"
 		       " defaulting to 9600N81", str);
 	    sdata->def_baud = 9600;
-	    sdata->def_parity = SERGENSIO_PARITY_NONE;
+	    sdata->def_parity = GENSIO_SER_PARITY_NONE;
 	    sdata->def_datasize = 8;
 	    sdata->def_stopbits = 1;
 	}
@@ -1998,13 +1899,6 @@ iodev_gensio_alloc(const void *gdata, const char * const args[],
     }
 
     gensio_set_is_serial(sdata->io, true);
-
-    err = sergensio_addclass(o, sdata->io, sergensio_sterm_func,
-			     sdata, &sdata->sio);
-    if (err) {
-	gensio_free(sdata->io);
-	return err;
-    }
 
     *rio = sdata->io;
     return 0;
